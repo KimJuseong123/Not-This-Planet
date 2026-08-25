@@ -1,0 +1,76 @@
+# Unity source of truth
+# Keep Assets/, Packages/, ProjectSettings/, and every *.meta file tracked.
+
+# Unity-generated folders
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ee]xported[Oo]bj/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emory[Cc]aptures/
+[Rr]ecordings/
+[Tt]est[Rr]esults/
+[Cc]overage/
+[Ss]erver[Dd]ata/
+
+# Unity-generated IDE/project files
+*.csproj
+*.unityproj
+*.sln
+*.slnx
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+*.VC.VC.opendb
+
+# IDE/editor caches
+.vs/
+.idea/
+.gradle/
+.cache/
+
+# Build/export artifacts
+*.apk
+*.aab
+*.unitypackage
+*.app
+*.x86
+*.x86_64
+*.log
+*.dmp
+
+# Local tooling/dependency caches
+node_modules/
+.npm/
+.yarn/cache/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+
+# Local credentials and signing material
+.env
+.env.*
+!.env.example
+*.keystore
+*.jks
+*.p12
+*.mobileprovision
+*.provisionprofile
+*.cer
+*.certSigningRequest
+*.ppk
+
+# Keep .vscode/ available for shared Unity launch/debug recommendations.
