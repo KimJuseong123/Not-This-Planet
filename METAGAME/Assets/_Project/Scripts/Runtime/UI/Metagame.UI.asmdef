@@ -1,0 +1,16 @@
+{
+  "name": "Metagame.UI",
+  "rootNamespace": "Metagame.UI",
+  "references": [
+    "Metagame.Core"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

@@ -6,7 +6,7 @@
 
 - Project root: `METAGAME/`
 - Last analyzed: 2026-08-25
-- Last analyzed commit: No commits yet on `master`; `origin/master` is gone.
+- Last analyzed commit: `ed8ad6d` (`chore: initialize Unity project and gitignore`); current working branch: `develop`.
 
 ## Confirmed Environment
 
@@ -32,6 +32,7 @@
 | --- | --- | --- | --- |
 | `Assets/Scenes/` | Build scenes; currently contains `SampleScene.unity` | Confirmed | `ProjectSettings/EditorBuildSettings.asset` |
 | `Assets/Settings/` | URP assets, renderer assets, and volume profiles | Confirmed | Directory contents |
+| `Assets/_Project/` | New first-party content scaffold for project-owned assets | Confirmed | Initialization change; subfolders include art, content, scripts, tests, and third-party isolation |
 | `Assets/InputSystem_Actions.inputactions` | Input action definitions | Confirmed | File exists and is referenced by build settings |
 | `Assets/TutorialInfo/` | Template readme asset, editor helper, and tutorial layout | Confirmed | Directory contents and scripts |
 | `Packages/` | Manifest and lockfile for package dependencies | Confirmed | `Packages/manifest.json`, `Packages/packages-lock.json` |
@@ -42,7 +43,10 @@
 
 | Assembly | Responsibility | Key references | Notes |
 | --- | --- | --- | --- |
-| `Assembly-CSharp` | Default runtime assembly | Unity defaults | No first-party `.asmdef` files found yet |
+| `Metagame.Core` | Shared runtime primitives and services | None | Initial boundary; no project code yet |
+| `Metagame.Gameplay` | Gameplay systems and feature logic | `Metagame.Core` | Initial boundary; no project code yet |
+| `Metagame.UI` | Runtime UI systems | `Metagame.Core` | Initial boundary; no project code yet |
+| `Assembly-CSharp` | Existing template runtime scripts | Unity defaults | `TutorialInfo` remains outside the new first-party boundaries |
 | `Assembly-CSharp-Editor` | Default editor assembly | `UnityEditor` and Unity defaults | Contains the template `ReadmeEditor` script; no custom editor boundary yet |
 
 ## Scenes And Startup Flow
@@ -56,12 +60,12 @@
 | Pattern | Finding | Confidence | Evidence |
 | --- | --- | --- | --- |
 | Project maturity | New URP template with tutorial/readme content; no first-party gameplay systems yet | Confirmed | `Assets/` inventory |
-| Runtime architecture | Not established; no project gameplay scripts or assembly definitions found | Confirmed | `Assets/` inventory |
+| Runtime architecture | Initial Core/Gameplay/UI assembly boundaries are in place; gameplay implementation is not established | Confirmed | `Assets/_Project/Scripts/Runtime/` and three `.asmdef` files |
 | Editor architecture | Template custom inspector for `Readme` | Confirmed | `Assets/TutorialInfo/Scripts/Editor/ReadmeEditor.cs` |
 
 ## Coding Conventions
 
-- Namespace style: Unknown; current template scripts use global namespace.
+- Namespace style: New first-party assemblies use `Metagame.<Feature>`; template scripts still use the global namespace.
 - Serialized fields: Template uses public fields and `[SerializeField]` for editor-only style state; project convention is not established.
 - Async/events: Unknown.
 - Comments/docs: Only template comments are present; project convention is not established.
@@ -85,7 +89,8 @@
 - Commit `Assets/`, `Packages/`, `ProjectSettings/`, and all Unity `.meta` files.
 - Do not commit Unity-generated caches, local editor state, generated IDE files, build outputs, or signing credentials; repository-root `.gitignore` covers these.
 - Keep `Packages/manifest.json` and `Packages/packages-lock.json` versioned so collaborators resolve the same dependencies.
-- No Unity assets were modified during onboarding.
+- Initialization added empty first-party folders and Core/Gameplay/UI assembly definitions; existing scenes and template assets were not moved or edited.
+- Large binary assets are configured for Git LFS in the repository-root `.gitattributes`; Unity YAML assets remain regular text files because project serialization is ForceText.
 
 ## Unknowns And Confidence
 
@@ -105,7 +110,9 @@
 - `ProjectSettings/EditorSettings.asset`
 - `Assets/TutorialInfo/Scripts/Readme.cs`
 - `Assets/TutorialInfo/Scripts/Editor/ReadmeEditor.cs`
+- `Assets/_Project/Scripts/Runtime/*/*.asmdef`
+- `.gitattributes`
+- `README.md`
 - `METAGAME/.vscode/*`
 
 <!-- unity-onboarding:generated:end -->
-
