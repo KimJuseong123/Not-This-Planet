@@ -1,0 +1,23 @@
+{
+  "status": "PASS",
+  "assets": [
+    {
+      "name": "SF_Astronaut_Base",
+      "fbx_bytes": 2546684,
+      "mesh_objects_imported": 52,
+      "materials_imported": 10,
+      "armatures_imported": 1,
+      "bones": 18,
+      "weighted_meshes": 52
+    },
+    {
+      "name": "SF_Spaceship_Capsule",
+      "fbx_bytes": 2047164,
+      "mesh_objects_imported": 91,
+      "materials_imported": 10,
+      "armatures_imported": 0,
+      "role_metadata_objects": 91,
+      "repair_metadata_objects": 22
+    }
+  ]
+}
