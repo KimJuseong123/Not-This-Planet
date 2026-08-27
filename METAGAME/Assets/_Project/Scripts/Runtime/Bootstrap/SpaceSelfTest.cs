@@ -427,11 +427,13 @@ namespace Metagame.Bootstrap
 
             var f = new InputFrame();
             f.GrabRight = true;
+            f.GrabLeft = true;
             rig.SetInput(f);
             yield return new WaitForSeconds(1.6f);
 
-            carryGripped = rig.RightHand.Gripping && rig.RightHand.Held != null
-                           && rig.RightHand.Held.Label == label;
+            carryGripped = rig.LeftHand.Gripping && rig.RightHand.Gripping
+                           && rig.LeftHand.Held != null && rig.RightHand.Held == rig.LeftHand.Held
+                           && rig.LeftHand.Held.Label == label;
             carryY = rb.position.y;
             carryStanding = !rig.Ragdolled && doll.Hips.position.y > Tuning.RideHeight * 0.7f;
             Debug.Log("[SELFTEST] 나르기 진단 " + label + " " + mass + "kg — 시작 y="

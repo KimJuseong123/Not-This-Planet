@@ -93,6 +93,12 @@ namespace Metagame.Core
         /// <summary>조인트의 connectedMassScale — 낮을수록 팔이 물체 무게를 덜 느낀다.</summary>
         public const float CarryMassScale = 0.35f;
 
+        // ── 도구 투척 ──────────────────────────────────────────
+        public const float ToolChargeDuration = 2.0f;
+        public const float ToolThrowSpeed = 14f;
+        public const float ToolDropChargeThreshold = 0.08f;
+        public const float ToolThrowRegrabLock = 0.30f;
+
         // ── 기어오르기 ──────────────────────────────────────────
         public const float ClimbPull = 150f;        // 매달린 채 위로 기어오르는 보조력
         public const float HangPull = 0.85f;        // 매달렸을 때 팔 힘이 몸을 끌어당기는 비율

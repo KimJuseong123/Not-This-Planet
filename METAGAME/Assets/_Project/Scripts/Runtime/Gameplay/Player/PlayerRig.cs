@@ -37,6 +37,9 @@ namespace Metagame.Gameplay
         /// <summary>공중에서 자세제어 분사기를 쓰고 있는가 (HUD·연기 표시용).</summary>
         public bool Thrusting { get; private set; }
         public float AirTime { get; private set; }
+        public Grabbable HeldTool { get { return toolHeld; } }
+        public float ToolCharge { get { return toolCharge; } }
+        public bool ChargingTool { get { return chargingTool; } }
 
         public Hand LeftHand { get { return Doll.Left.Hand; } }
         public Hand RightHand { get { return Doll.Right.Hand; } }
@@ -51,6 +54,13 @@ namespace Metagame.Gameplay
         float uprightBlend = 1f;
         float thrustPuff;
         float fallPeakFootHeight;
+        Grabbable toolHeld;
+        float toolCharge;
+        bool toolActionHeld;
+        bool chargingTool;
+        float toolThrowRegrabLock;
+        Rigidbody pendingThrowBody;
+        Vector3 pendingThrowVelocity;
         Rigidbody groundBody;
         readonly RaycastHit[] rayHits = new RaycastHit[8];
 
@@ -103,6 +113,9 @@ namespace Metagame.Gameplay
             StepPhase = 0f;
             AirTime = 0f;
             fallPeakFootHeight = footPos.y;
+            ResetToolState();
+            toolThrowRegrabLock = 0f;
+            pendingThrowBody = null;
             if (Cam != null)
             {
                 Cam.Yaw = facing.eulerAngles.y;
@@ -114,6 +127,13 @@ namespace Metagame.Gameplay
         {
             if (Doll == null || Doll.Hips == null) return;
             if (!JointTools.IsFinite(Doll.Hips.position)) { return; }
+
+            // Release가 예약한 조인트 제거가 끝난 다음 틱에 속도를 넣어야 투척이 구속에 먹히지 않는다.
+            if (pendingThrowBody != null)
+            {
+                if (!pendingThrowBody.isKinematic) pendingThrowBody.linearVelocity = pendingThrowVelocity;
+                pendingThrowBody = null;
+            }
 
             ProbeGround();
             UpdateSpeed();
@@ -379,9 +399,151 @@ namespace Metagame.Gameplay
             Vector3 aim = Cam != null ? Cam.AimDirection : Doll.Chest.transform.forward;
             if (input.ArmsUp) aim = Vector3.Slerp(aim, Vector3.up, 0.65f).normalized;
 
+            if (toolThrowRegrabLock > 0f) toolThrowRegrabLock -= Time.fixedDeltaTime;
+
+            // 도구는 반드시 양손이 같은 대상을 잡고 있어야 한다. 조인트가 하나라도 끊기면
+            // 남은 손도 함께 놓아 다음 클릭에서 다시 양손으로 잡게 한다.
+            if (toolHeld != null && (LeftHand.Held != toolHeld || RightHand.Held != toolHeld))
+            {
+                LeftHand.Release();
+                RightHand.Release();
+                ResetToolState();
+            }
+
+            if (toolHeld != null)
+            {
+                // Q를 놓는 순간에만 놓기/투척을 처리하고, 충전 중에는 두 손의 운반 자세를 유지한다.
+                if (ProcessToolAction(aim)) return;
+                DriveArm(Doll.Left, true, aim);
+                DriveArm(Doll.Right, true, aim);
+                return;
+            }
+
+            chargingTool = false;
+            toolCharge = 0f;
+            toolActionHeld = false;
+
+            // 좌클릭과 우클릭 중 어느 쪽이든 움직이는 도구를 조준하면 양손으로 함께 잡는다.
+            if ((input.GrabLeft || input.GrabRight) && toolThrowRegrabLock <= 0f && TryGrabTool(aim))
+            {
+                DriveArm(Doll.Left, true, aim);
+                DriveArm(Doll.Right, true, aim);
+                return;
+            }
+
             DriveArm(Doll.Left, input.GrabLeft, aim);
             DriveArm(Doll.Right, input.GrabRight, aim);
             ClimbAssist();
+        }
+
+        bool TryGrabTool(Vector3 aim)
+        {
+            if (LeftHand.Gripping || RightHand.Gripping) return false;
+
+            Grabbable targetGrabbable;
+            Rigidbody body;
+            Vector3 point;
+            bool found = false;
+
+            // 두 버튼이 동시에 들어오는 경우에도 한쪽 검색이 빗나갔다고 실패하지 않도록
+            // 클릭된 손을 순서대로 살핀다. 도구를 찾은 손이 어느 쪽인지는 중요하지 않다.
+            if (input.GrabLeft)
+                found = FindTool(Doll.Left, LeftHand, aim, out targetGrabbable, out body, out point);
+            else
+            {
+                targetGrabbable = null;
+                body = null;
+                point = Vector3.zero;
+            }
+
+            if (!found && input.GrabRight)
+                found = FindTool(Doll.Right, RightHand, aim, out targetGrabbable, out body, out point);
+            if (!found) return false;
+
+            bool left = LeftHand.GripTo(targetGrabbable, body);
+            bool right = RightHand.GripTo(targetGrabbable, body);
+            if (left && right)
+            {
+                toolHeld = targetGrabbable;
+                return true;
+            }
+
+            if (left) LeftHand.Release();
+            if (right) RightHand.Release();
+            return false;
+        }
+
+        static bool FindTool(Arm arm, Hand hand, Vector3 aim,
+                             out Grabbable targetGrabbable, out Rigidbody body, out Vector3 point)
+        {
+            Vector3 shoulder = arm.ShoulderAnchor != null ? arm.ShoulderAnchor.position : hand.Body.position;
+            Vector3 target = shoulder + aim * Tuning.ArmReach;
+            targetGrabbable = Hand.Search(target, Tuning.GrabAssistRange, shoulder, aim,
+                                          Tuning.GrabAssistAngle, out point, out body);
+            hand.Aimed = targetGrabbable;
+            hand.AimedPoint = point;
+            return IsUsableTool(targetGrabbable, body);
+        }
+
+        static bool IsUsableTool(Grabbable target, Rigidbody body)
+        {
+            // 고정 레일·케이블은 기존의 한 손 매달리기를 유지하고, 실제로 운반할 수 있는
+            // 비-키네마틱 물체만 도구로 취급한다.
+            return target != null && !target.Climbable && body != null && !body.isKinematic;
+        }
+
+        bool ProcessToolAction(Vector3 aim)
+        {
+            if (input.ToolAction)
+            {
+                toolCharge = Mathf.Clamp01(toolCharge + Time.fixedDeltaTime / Tuning.ToolChargeDuration);
+                toolActionHeld = true;
+                chargingTool = true;
+                return false;
+            }
+
+            if (!toolActionHeld) { chargingTool = false; return false; }
+
+            if (toolCharge >= Tuning.ToolDropChargeThreshold)
+                ThrowTool(aim, toolCharge);
+            else
+                DropTool();
+            return true;
+        }
+
+        void DropTool()
+        {
+            LeftHand.Release();
+            RightHand.Release();
+            ResetToolState();
+            toolThrowRegrabLock = Tuning.ToolThrowRegrabLock;
+        }
+
+        void ThrowTool(Vector3 aim, float charge)
+        {
+            var target = toolHeld;
+            Rigidbody body = LeftHand.Held == target ? LeftHand.HeldBody : RightHand.HeldBody;
+            Vector3 velocity = body != null ? body.linearVelocity : Vector3.zero;
+            Vector3 direction = aim.sqrMagnitude > 1e-4f ? aim.normalized : Doll.Chest.transform.forward;
+
+            LeftHand.Release();
+            RightHand.Release();
+            ResetToolState();
+            toolThrowRegrabLock = Tuning.ToolThrowRegrabLock;
+
+            if (body != null && !body.isKinematic)
+            {
+                pendingThrowBody = body;
+                pendingThrowVelocity = velocity + direction * (Tuning.ToolThrowSpeed * Mathf.Clamp01(charge));
+            }
+        }
+
+        void ResetToolState()
+        {
+            toolHeld = null;
+            toolCharge = 0f;
+            toolActionHeld = false;
+            chargingTool = false;
         }
 
         void DriveArm(Arm arm, bool reaching, Vector3 aim)
@@ -405,6 +567,7 @@ namespace Metagame.Gameplay
 
             Vector3 shoulder = arm.ShoulderAnchor != null ? arm.ShoulderAnchor.position : Doll.Chest.position;
             Vector3 target = shoulder + aim * Tuning.ArmReach;
+            bool toolTarget = false;
 
             // ── 자석 손 ────────────────────────────────────────
             // 뻗은 손끝 근처에 잡을 것이 있으면 손 목표를 그쪽으로 옮긴다.
@@ -415,6 +578,7 @@ namespace Metagame.Gameplay
                 var g = Hand.Search(target, Tuning.GrabAssistRange, shoulder, aim, Tuning.GrabAssistAngle, out p, out b);
                 hand.Aimed = g;
                 hand.AimedPoint = p;
+                toolTarget = IsUsableTool(g, b);
                 if (g != null)
                 {
                     Vector3 dir = p - shoulder;
@@ -453,7 +617,8 @@ namespace Metagame.Gameplay
             {
                 hand.Body.AddForce(f, ForceMode.Force);
                 Doll.Chest.AddForce(-f * 0.25f, ForceMode.Force);
-                if (regrabLock <= 0f) hand.TryGrip();
+                // 운반 가능한 도구는 TryGrabTool이 양손 성공 여부를 확인한 뒤에만 잡는다.
+                if (regrabLock <= 0f && !toolTarget) hand.TryGrip();
             }
         }
 

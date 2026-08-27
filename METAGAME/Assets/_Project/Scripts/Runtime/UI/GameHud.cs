@@ -30,6 +30,7 @@ namespace Metagame.UI
             "좌클릭 (꾹) 왼팔 뻗기 / 잡기      우클릭 (꾹) 오른팔 뻗기 / 잡기",
             "손 근처에 잡을 것이 있으면 저절로 그쪽으로 간다. 잡은 물건은 무게와 상관없이 끌려온다",
             "Ctrl 팔을 위로 — 레일·케이블을 잡을 때. 잡은 채로 W 를 누르면 기어오른다",
+            "좌·우클릭 도구는 양손으로 든다   ·   Q 짧게 놓기   ·   Q 꾹 2초 충전 후 놓으면 투척",
             "Alt (꾹) 시점만 자유롭게 — 이동 방향은 고정된다. 떼면 원래 시점으로 돌아온다",
             "T 그 자리에서 다시 서기   ·   R 처음부터   ·   Tab 도움말   ·   Esc 커서 풀기",
         };
@@ -133,6 +134,7 @@ namespace Metagame.UI
             sb.Append("처음부터 다시 그 자리에서 서기 도움말 커서 풀기 이동 달리기 점프 시점 기어오르기");
             sb.Append("자유 이동 방향 고정 떼면 원래 시점으로 돌아온다 토끼 귀");
             sb.Append("팔을 위로 누르고 있으면 손이 잡는다 무게와 상관없이 끌려온다 저절로 그쪽으로 간다");
+            sb.Append("도구 양손 투척 충전 놓기");
             for (int i = 0; i < HelpLines.Length; i++) sb.Append(HelpLines[i]);
             if (GameSession.Instance != null) sb.Append(GameSession.Instance.StageHint);
             for (int i = 0; i < WorldLabel.All.Count; i++)
@@ -331,6 +333,26 @@ namespace Metagame.UI
             if (aimed != null && !string.IsNullOrEmpty(aimed.Label))
                 L(new Rect(cx - 200f, cy + 26f, 400f, 24f),
                   (holding ? "" : "닿는 곳: ") + aimed.Label, center, c);
+
+            if (Local != null && Local.ChargingTool)
+                ChargeGauge(cx, cy, Local.ToolCharge);
+        }
+
+        void ChargeGauge(float cx, float cy, float charge)
+        {
+            float ratio = Mathf.Clamp01(charge);
+            float width = 150f;
+            float height = 8f;
+            float x = cx - width * 0.5f;
+            float y = cy - 46f;
+            Color fill = Color.Lerp(new Color(1f, 0.64f, 0.18f), new Color(0.35f, 1f, 0.55f), ratio);
+
+            Box(new Rect(x, y, width, height), new Color(0f, 0f, 0f, 0.70f));
+            Box(new Rect(x, y, width * ratio, height), fill);
+            L(new Rect(cx - 120f, y - 22f, 240f, 20f),
+              "Q 충전 " + (charge * Tuning.ToolChargeDuration).ToString("0.0")
+              + " / " + Tuning.ToolChargeDuration.ToString("0.0") + "초",
+              small, fill);
         }
 
         static string HandLine(string name, Hand hand)
