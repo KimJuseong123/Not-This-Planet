@@ -11,15 +11,15 @@ TagManager:
   - 
   - Water
   - UI
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
+  - Player
+  - PlayerDowned
+  - Ground
+  - Part
+  - PartCarried
+  - Meteor
+  - Interactable
+  - Prop
+  - BeamQuery
   - 
   - 
   - 
