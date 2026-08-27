@@ -18,6 +18,9 @@ namespace Metagame.Bootstrap
         public bool lockCursor = true;
         public bool starfield = true;
 
+        [Header("카메라")]
+        public bool firstPerson = true;
+
         [Header("우주비행사")]
         [Tooltip("끄면 블렌더 메시 대신 프리미티브 룩으로 돈다 (물리는 완전히 같다)")]
         public bool useModel = true;
@@ -34,6 +37,16 @@ namespace Metagame.Bootstrap
 
         void Awake()
         {
+            // SampleScene처럼 기본 Main Camera가 들어 있는 씬에서도 런타임 카메라만 사용한다.
+            var sceneCameras = FindObjectsByType<Camera>();
+            for (int i = 0; i < sceneCameras.Length; i++)
+            {
+                if (sceneCameras[i] == null) continue;
+                sceneCameras[i].enabled = false;
+                var listener = sceneCameras[i].GetComponent<AudioListener>();
+                if (listener != null) listener.enabled = false;
+            }
+
             Physics.gravity = gravity;
             Time.fixedDeltaTime = Tuning.FixedStep;      // 조인트가 많다 — 촘촘히 밟아야 안 떤다
             Application.targetFrameRate = 120;
@@ -62,7 +75,7 @@ namespace Metagame.Bootstrap
             Player = PlayerRig.Create(nickname, spawn, facing, suit, accent, useModel);
             Player.transform.SetParent(transform, true);
 
-            Player.Cam = OrbitCamera.Create(Player.Hips.transform, Sky.SkyColor);
+            Player.Cam = OrbitCamera.Create(Player.Hips.transform, Sky.SkyColor, firstPerson);
             Player.Cam.Yaw = 90f;                        // +X 를 바라보고 시작한다
             Player.Cam.transform.SetParent(transform, true);
             Player.Cam.SnapToTarget();

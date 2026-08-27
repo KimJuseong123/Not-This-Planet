@@ -31,6 +31,9 @@ namespace Metagame.Core
         // ── 이동 ────────────────────────────────────────────────
         public const float WalkSpeed = 2.9f;
         public const float RunSpeed = 4.6f;
+        public const float GroundAcceleration = 22f; // 일반적인 캐릭터처럼 즉시 반응하되 미세한 가속은 남긴다
+        public const float GroundDeceleration = 30f;
+        public const float AirAcceleration = 8f;
         public const float Accel = 330f;            // N per (m/s)
         public const float AccelMax = 900f;
         // 진공에는 공기가 없다 — 대신 우주복 등짐의 자세제어 분사기(RCS)로 버틴다는 설정.

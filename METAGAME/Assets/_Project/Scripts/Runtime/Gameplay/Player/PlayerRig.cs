@@ -4,7 +4,7 @@ using Metagame.Core;
 namespace Metagame.Gameplay
 {
     /// <summary>
-    /// 흐물거리는 우주비행사를 사람이 조종할 수 있는 정도로만 붙잡아 준다.
+    /// 우주비행사의 이동과 물리 상호작용을 연결한다.
     ///
     ///  · 골반에 매달린 보이지 않는 스프링이 몸무게를 떠받쳐 서 있게 한다 (다리는 거들 뿐)
     ///  · 골반을 세계 기준 조인트로 세우고, 가는 방향으로 돌린다
@@ -12,7 +12,7 @@ namespace Metagame.Gameplay
     ///  · 팔은 카메라가 보는 쪽으로 뻗되, 근처에 잡을 것이 있으면 그쪽으로 휘어 간다
     ///  · 잡은 물체는 질량을 무시하고 (ForceMode.Acceleration) 손 앞으로 끌려온다
     ///
-    /// 이 다섯 말고는 전부 물리에 맡긴다 — 그래서 넘어지고, 그래서 웃기다.
+    /// 이동 자체는 목표 속도를 직접 따라가 안정적으로 조종하고, 잡기·등반·충돌 반응은 물리에 맡긴다.
     /// </summary>
     public class PlayerRig : MonoBehaviour
     {
@@ -173,16 +173,21 @@ namespace Metagame.Gameplay
             targetVel.x += GroundVelocity.x;
             targetVel.z += GroundVelocity.z;
 
-            Vector3 v = Doll.Hips.linearVelocity;
-            Vector3 dv = new Vector3(targetVel.x - v.x, 0f, targetVel.z - v.z);
-
-            float gain = Tuning.Accel * (Grounded ? 1f : Tuning.AirControl) * uprightBlend;
-            Vector3 force = JointTools.Clamp(dv * gain, Tuning.AccelMax);
-            if (JointTools.IsFinite(force))
+            if (Hanging)
             {
-                // 골반만 밀면 상체가 뒤로 처져 달릴 때 몸이 접힌다 — 가슴에도 나눠 싣는다
-                Doll.Hips.AddForce(force * 0.6f, ForceMode.Force);
-                Doll.Chest.AddForce(force * 0.4f, ForceMode.Force);
+                // 매달린 동안에는 손 조인트가 이동을 결정해야 하므로 기존 물리 제어를 유지한다.
+                Vector3 v = Doll.Hips.linearVelocity;
+                Vector3 dv = new Vector3(targetVel.x - v.x, 0f, targetVel.z - v.z);
+                Vector3 force = JointTools.Clamp(dv * Tuning.Accel * Tuning.AirControl, Tuning.AccelMax);
+                if (JointTools.IsFinite(force))
+                {
+                    Doll.Hips.AddForce(force * 0.6f, ForceMode.Force);
+                    Doll.Chest.AddForce(force * 0.4f, ForceMode.Force);
+                }
+            }
+            else
+            {
+                DriveMovementVelocity(targetVel);
             }
 
             // 등짐의 자세제어 분사기가 공중에서 방향을 잡아준다는 설정
@@ -213,6 +218,29 @@ namespace Metagame.Gameplay
                 jumpLock = 0.30f;
                 Grounded = false;
                 Puff.Regolith(FootPosition, 0.45f);
+            }
+        }
+
+        /// <summary>
+        /// 모든 몸 부위의 수평 속도를 같은 목표로 맞춰 이동 중 몸통이 뒤처지거나
+        /// 관성 때문에 미끄러지는 문제를 막는다. 회전과 수직 속도는 물리 조인트에 맡긴다.
+        /// </summary>
+        void DriveMovementVelocity(Vector3 targetVelocity)
+        {
+            Vector3 target = new Vector3(targetVelocity.x, 0f, targetVelocity.z);
+            float acceleration = Grounded ? Tuning.GroundAcceleration : Tuning.AirAcceleration;
+            float deceleration = Grounded ? Tuning.GroundDeceleration : Tuning.AirAcceleration;
+
+            for (int i = 0; i < Doll.Bodies.Count; i++)
+            {
+                var body = Doll.Bodies[i];
+                if (body == null) continue;
+
+                Vector3 current = body.linearVelocity;
+                Vector3 planar = new Vector3(current.x, 0f, current.z);
+                float rate = target.sqrMagnitude < planar.sqrMagnitude ? deceleration : acceleration;
+                planar = Vector3.MoveTowards(planar, target, rate * Time.fixedDeltaTime);
+                body.linearVelocity = new Vector3(planar.x, current.y, planar.z);
             }
         }
 

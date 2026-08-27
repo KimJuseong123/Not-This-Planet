@@ -30,7 +30,7 @@ namespace Metagame.UI
             "좌클릭 (꾹) 왼팔 뻗기 / 잡기      우클릭 (꾹) 오른팔 뻗기 / 잡기",
             "손 근처에 잡을 것이 있으면 저절로 그쪽으로 간다. 잡은 물건은 무게와 상관없이 끌려온다",
             "Ctrl 팔을 위로 — 레일·케이블을 잡을 때. 잡은 채로 W 를 누르면 기어오른다",
-            "Alt (꾹) 시점만 자유롭게 — 캐릭터 얼굴을 볼 수 있다. 떼면 원래 시점으로 돌아온다",
+            "Alt (꾹) 시점만 자유롭게 — 이동 방향은 고정된다. 떼면 원래 시점으로 돌아온다",
             "T 그 자리에서 다시 서기   ·   R 처음부터   ·   Tab 도움말   ·   Esc 커서 풀기",
         };
 
@@ -130,7 +130,7 @@ namespace Metagame.UI
             sb.Append("착륙장 고원 절벽 위 균열 건너 화물판 앞 에어록 앞 에어록 통과 골 구조 로켓 탑승");
             sb.Append("해치 열림 닫힘 전원 없음 들어옴 꽂아라 기다렸다 올라탄다 조심 저중력 진공");
             sb.Append("처음부터 다시 그 자리에서 서기 도움말 커서 풀기 이동 달리기 점프 시점 기어오르기");
-            sb.Append("자유 얼굴 볼 수 있다 떼면 원래 시점으로 돌아온다 토끼 귀");
+            sb.Append("자유 이동 방향 고정 떼면 원래 시점으로 돌아온다 토끼 귀");
             sb.Append("팔을 위로 누르고 있으면 손이 잡는다 무게와 상관없이 끌려온다 저절로 그쪽으로 간다");
             for (int i = 0; i < HelpLines.Length; i++) sb.Append(HelpLines[i]);
             if (GameSession.Instance != null) sb.Append(GameSession.Instance.StageHint);

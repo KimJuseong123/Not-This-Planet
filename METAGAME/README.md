@@ -71,7 +71,10 @@ Build/Windows/SpaceFlop.exe -space-screenshot -space-shotdir Screenshots -screen
 
 ---
 
-## 시점 — Alt 로 얼굴 보기
+## 시점 — 1인칭
+
+카메라는 캐릭터의 머리 높이에 고정된 **1인칭 시점**이다. 화면 중앙이 보는 방향으로 팔을 뻗고,
+WASD는 시선의 수평 방향을 기준으로 움직인다.
 
 카메라가 **각도를 두 벌** 들고 있다.
 
@@ -79,7 +82,7 @@ Build/Windows/SpaceFlop.exe -space-screenshot -space-shotdir Screenshots -screen
 - `aimYaw/aimPitch` — **조작의 기준**이 되는 각도 (WASD 방향, 팔이 뻗는 방향)
 
 평소엔 둘이 같다. **Alt 를 누르고 있는 동안만** 보는 각도만 움직이고 조작 기준은 얼어붙는다.
-그래서 캐릭터 정면으로 돌아가 얼굴을 봐도 걷는 방향과 팔이 따라 돌지 않는다.
+그래서 이동 방향을 유지한 채 주변을 둘러볼 수 있다.
 손을 떼면 보는 각도가 조작 기준으로 부드럽게 되돌아온다(`ReturnSpeed 7.5`).
 되돌아오는 중에 마우스를 움직이면 사람이 우선이다 — 복귀가 즉시 취소된다.
 
