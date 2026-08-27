@@ -211,6 +211,8 @@ MR 머지 ────▶ [완료]         ⚙ 손으로 끌면 무조건 되돌
 | 신규 | 내부 `POST /rule`은 403 → 공개 API `POST …/automation/public/jira/{cloudId}/rest/v1/template/create` `{"templateId":"software_template_26","ruleHome":"<프로젝트 ARI>","state":"DISABLED"}`로 껍데기를 만든 뒤 PUT으로 덮어쓴다 |
 
 - `{base}` = `https://ssafy.atlassian.net/gateway/api/automation/internal-api/jira/{cloudId}/pro/rest`, projectId `22557`, cloudId `15a21def-11f5-4358-ab48-074194685963`.
+- **웹 요청(MM) 액션** 타입 `jira.issue.outgoing.webhook`, value keys `url·urlSecure·headers·sendIssue·contentType·customBody·method·responseEnabled·continueOnErrorEnabled`. customBody 는 렌더링 전 원문이므로 `{{…}}` 안 큰따옴표를 이스케이프하면 조건이 깨진다(작은따옴표 리터럴은 액션 실패). 표본 1개를 UI 로 만들고 복제하는 방식이 가장 안전.
+- **DevOps 트리거 스마트값**(`pullRequest.*`)은 실제 이벤트 전엔 검증 불가 — 조건에 쓰기 전에 댓글로 값을 찍어 확인할 것(R6 사고 참고).
 - **새 컴포넌트의 id는 `"__NEW__COMPONENT__<uuid>"`** (null·임의 UUID는 "컴포넌트 ID 불일치/중복" 400). 중첩은 `children`/`conditions` 배열로.
 - 컴포넌트 타입: `jira.issue.event.trigger:created|transitioned`, `jira.issue.field.changed`(value `{"changeType":"ANY_CHANGE","fields":[{"value":"<fieldId>","type":"field"}],"actions":[],"eventFilters":[ARI]}`), `devops.branch.event.trigger:created`, `devops.pr.event.trigger:merged|declined`, `jira.issue.condition`, `jira.comparator.condition`, `jira.jql.condition`(value=JQL 문자열), `jira.condition.container.block` + `jira.condition.if.block`(ELSE = 조건 없는 if.block), `jira.issue.transition`(destinationStatus NAME 영문), `jira.issue.comment`, `jira.issue.edit`(`advancedFields`에 Jira REST 편집 JSON 문자열), `jira.issue.refresh.issue`, `codebarrel.action.log`.
 - 세션 확보는 Playwright(`launch_persistent_context`, channel="chrome")로 로그인 창을 띄운 뒤 같은 컨텍스트의 `page.request`로 호출. 동기 API 대기는 `time.sleep` 대신 `page.wait_for_timeout`.

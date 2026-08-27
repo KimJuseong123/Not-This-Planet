@@ -82,7 +82,8 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 
 **GitLab 내장 통합 설정**: Trigger 는 `Pipeline` 만(Notify only broken pipelines ✔, Branches = Default branch). `Merge request` 트리거는 **끈다**(`mm-mr-opened` 가 멘션 포함으로 대체). Push·Note 등은 끔.
 
-**Jira 웹 요청 문구**: `jira.issue.outgoing.webhook` 액션의 `customBody` = `{"text": "…"}`. 멘션은 accountId → MM 아이디를 smart value 조건으로 내장: `{{#if(equals(issue.assignee.accountId, "<id>"))}}@mm{{/}}` ×6 (initiator 도 동일). 요약·이름은 `{{…jsonEncode}}`. 팀원 변경 시 `team.json` 과 규칙 문구(`apply_rules6.py`)를 함께 갱신.
+**Jira 웹 요청 문구**: `jira.issue.outgoing.webhook` 액션의 `customBody` = `{"text": "…"}`. 멘션은 accountId → MM 아이디를 smart value 조건으로 내장: `{{#if(equals(issue.assignee.accountId, "<id>"))}}@mm{{/}}` ×6 (initiator 도 동일). 요약·이름은 `{{…jsonEncode}}`. 팀원 변경 시 `team.json` 과 규칙 문구(`mm_msgs.py` + apply 스크립트)를 함께 갱신.
+  - **실측(2026-08-27)** ① 조건식 리터럴은 **큰따옴표만** — 작은따옴표는 파서 오류로 액션 자체가 실패(댓글 미게시). ② customBody 안에서 `json.dumps` 가 만든 `\"` 는 파서가 리터럴로 못 읽어 조건이 항상 거짓 → `{{…}}` 안의 따옴표는 이스케이프하지 않은 채 두고(렌더링 후 정상 JSON), 그 외 문자열만 이스케이프(`mm_msgs.body_json`). ③ MM 표는 제목 줄과 표 사이에 **빈 줄**이 있어야 렌더링된다.
 
 **한계**: Jira 자동화 규칙 자체의 *실행 오류*(-46 의 "이슈가 존재하지 않음" 같은)는 MM 으로 보낼 수 없다 — Jira 는 규칙 소유자 이메일 알림만 지원. 감사 로그가 유일한 창이며 `mm-digest` 의 needs-fix·정체 항목이 결과적으로 드러내 준다.
 ## 7. 지난 프로젝트(FlowerKnot, `s15-webmobile2-sub1/S15P11B210`) 교훈 반영 — 2026-08-27 조사
