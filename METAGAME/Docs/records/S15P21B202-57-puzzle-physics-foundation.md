@@ -114,12 +114,25 @@ EditMode 테스트 8건 전부 통과했다 (`-runTests -testPlatform EditMode`)
 - `gravity.y = -9.81`, `fixedDeltaTime = 0.01999999`
 - `defaultSolverIterations = 14`, `velocity = 4`, `maxAngularSpeed = 28`
 
-Sandbox_Physics 씬은 `Tools > Metagame > Rebuild Physics Sandbox` 로 재생성할 수 있으며
-아래 3가지 케이스를 담고 있다.
+Sandbox_Physics 씬을 배치모드에서 `Physics.Simulate` 로 30초(1500 스텝) 돌린 결과다.
+실패 0건.
 
-1. `Case1` 견인 중인 파츠가 두 플레이어 레이어를 통과해 지면까지 낙하
-2. `Case2` 기절 캡슐과 서 있는 캡슐이 겹쳐도 서로 밀지 않음
-3. `Case3` 1000kg 파츠 5단 적층 안정성
+| 케이스 | 검증 | 결과 |
+| --- | --- | --- |
+| Case1 | 견인 파츠가 두 플레이어 레이어를 통과해 착지 | 파츠 y=2.500 (기대 2.50) |
+| Case1 | 플레이어가 밀려나지 않음 | x=-34.000 (기대 -34.00) |
+| Case2 | 기절 캡슐과 플레이어가 서로 밀지 않음 | 거리 0.141 -> 0.141 |
+| Case3 | 1000kg 파츠 5단 적층 30초 안정 | 최대 이동 0.0082m |
+
+Case1 은 파츠(4x5x4m)가 플레이어 캡슐 두 개를 완전히 감싼 채 정지해 있다.
+겹쳐 있음에도 서로 밀어내지 않는다는 것이 좌표로 확인된다.
+
+![Sandbox_Physics 30초 시뮬레이션 결과](S15P21B202-57-sandbox.png)
+
+왼쪽이 Case1(플레이어를 통과해 착지한 파츠), 가운데가 Case2(겹친 두 캡슐),
+오른쪽이 Case3(5단 적층)이다.
+
+씬은 `Tools > Metagame > Rebuild Physics Sandbox` 로 재생성할 수 있다.
 
 ## 5. 미해결 / 후속
 
