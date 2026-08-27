@@ -16,9 +16,8 @@ namespace Metagame.EditorTools
     public static class ArtLink
     {
         public const string ResourceDir = "Assets/_Project/Prefabs/Resources";
-        // 지금 게임이 쓰는 것만 Resources 로 잇는다.
-        // SF_Astronaut_Base 는 _Project/Models/ 에 그대로 남아 있지만 빌드에는 들어가지 않는다
-        // (쓰려면 SpaceSuit.ResourceKey 를 바꾸고 여기에 한 줄 더하면 된다).
+        // 캐릭터 모델은 SF_Rabbit_Base 하나로 통일했다.
+        // 다른 모델을 쓰려면 SpaceSuit.ResourceKey 를 바꾸고 여기에 한 줄 더한다.
         public const string RabbitFbx = "Assets/_Project/Models/Characters/SF_Rabbit_Base.fbx";
         public const string CapsuleFbx = "Assets/_Project/Models/Spaceships/SF_Spaceship_Capsule.fbx";
 

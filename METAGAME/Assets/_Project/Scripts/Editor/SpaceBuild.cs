@@ -14,13 +14,39 @@ namespace Metagame.EditorTools
     /// </summary>
     public static class SpaceBuild
     {
-        const string ScenePath = "Assets/_Project/Scenes/Surface.unity";
+        const string ScenePath = "Assets/Scenes/Main.unity";
 
         [MenuItem("Tools/둥실둥실 우주 대탈출/윈도우 빌드 (배포용)", false, 40)]
         public static void BuildWindows() { Build(false); }
 
         [MenuItem("Tools/둥실둥실 우주 대탈출/윈도우 빌드 (개발용)", false, 41)]
         public static void BuildWindowsDev() { Build(true); }
+
+        /// <summary>
+        /// 병합된 단일 씬이 있고 빌드 목록에 올라 있는지 확인한다.
+        ///
+        /// 목록을 덮어쓰지 않고 없을 때만 더한다. 예전에는 씬을 다시 만들고 목록을
+        /// 통째로 교체했는데, 손으로 구성한 씬을 그렇게 다루면 레벨이 사라진다.
+        /// </summary>
+        static bool EnsureMainSceneListed()
+        {
+            if (!System.IO.File.Exists(ScenePath))
+            {
+                Debug.LogError("[SpaceFlop] 빌드할 씬이 없다 → " + ScenePath);
+                return false;
+            }
+
+            var list = EditorBuildSettings.scenes;
+            foreach (var entry in list)
+                if (entry.path == ScenePath)
+                    return true;
+
+            var grown = new EditorBuildSettingsScene[list.Length + 1];
+            System.Array.Copy(list, grown, list.Length);
+            grown[list.Length] = new EditorBuildSettingsScene(ScenePath, true);
+            EditorBuildSettings.scenes = grown;
+            return true;
+        }
 
         static void Build(bool forceDev)
         {
@@ -30,7 +56,7 @@ namespace Metagame.EditorTools
             bool dev = forceDev || System.Environment.GetEnvironmentVariable("SPACE_DEV") == "1";
 
             ArtLink.BuildPrefabs();            // 블렌더 FBX → Resources 프리팹 (런타임이 이걸 집는다)
-            SpaceSceneBuilder.EnsureScene();
+            if (!EnsureMainSceneListed()) return;
             ApplyPlayerSettings();
 
             var options = new BuildPlayerOptions

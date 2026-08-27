@@ -11,16 +11,28 @@ namespace Metagame.EditorTools
     /// </summary>
     public static class SpaceFlopModelValidator
     {
-        const string CharacterPath = "Assets/_Project/Models/Characters/SF_Astronaut_Base.fbx";
+        // 런타임이 쓰는 모델은 SF_Rabbit_Base 하나다 (SpaceSuit.ResourceKey, ArtLink.RabbitKey).
+        // 예전에는 SF_Astronaut_Base 를 검사해, 실제로 쓰지 않는 파일을 검증하고 있었다.
+        const string CharacterPath = "Assets/_Project/Models/Characters/SF_Rabbit_Base.fbx";
         const string ShipPath = "Assets/_Project/Models/Spaceships/SF_Spaceship_Capsule.fbx";
 
+        /// <summary>
+        /// SF_Rabbit_Base 의 필수 본. 이름이 Humanoid 규격과 다르다.
+        ///
+        /// 이 모델은 Tripo 로 생성해 온 것이라 Hip / Spine01 / L_Upperarm 처럼
+        /// 자체 규칙을 쓴다. 예전에 검사하던 SF_Astronaut_Base 는 블렌더에서 손으로
+        /// 만들어 Hips / Spine / LeftUpperArm 같은 Humanoid 이름을 썼다.
+        /// 모델을 SF_Rabbit_Base 로 통일하면서 이름도 실제 모델에 맞췄다.
+        ///
+        /// 비틀림 본(*Twist*)과 발가락은 물리 인형이 쓰지 않으므로 필수에서 뺐다.
+        /// </summary>
         static readonly string[] RequiredBones =
         {
-            "Root", "Hips", "Spine", "Chest", "Neck", "Head",
-            "LeftUpperArm", "LeftLowerArm", "LeftHand",
-            "RightUpperArm", "RightLowerArm", "RightHand",
-            "LeftUpperLeg", "LeftLowerLeg", "LeftFoot",
-            "RightUpperLeg", "RightLowerLeg", "RightFoot",
+            "Root", "Hip", "Waist", "Spine01", "Spine02", "Head",
+            "L_Clavicle", "L_Upperarm", "L_Forearm", "L_Hand",
+            "R_Clavicle", "R_Upperarm", "R_Forearm", "R_Hand",
+            "L_Thigh", "L_Calf", "L_Foot",
+            "R_Thigh", "R_Calf", "R_Foot",
         };
 
         static readonly string[] RequiredShipParts =
@@ -89,11 +101,15 @@ namespace Metagame.EditorTools
             var mats = CountMaterials(prefab.GetComponentsInChildren<Renderer>(true));
             Bounds bounds;
             if (!TryGetBounds(prefab, out bounds)) failures.Add("캐릭터 렌더 bounds 없음");
-            else if (bounds.size.y < 1.25f || bounds.size.y > 1.60f)
+            // 기준치는 SF_Rabbit_Base 의 실제 구조다. 임포트 스케일 사고와 재질 유실을 잡는 것이 목적이다.
+            // 실측값: 높이 1.084m, SkinnedMeshRenderer 1개, 재질 1개.
+            // 예전 기준(높이 1.25~1.60m, 스킨 45개, 재질 8개)은 여러 부위로 쪼개져 있던
+            // SF_Astronaut_Base 의 구조였다. 모델을 통일하면서 함께 맞췄다.
+            else if (bounds.size.y < 0.95f || bounds.size.y > 1.25f)
                 failures.Add("캐릭터 높이 이상: " + bounds.size.y.ToString("0.000") + "m");
 
-            if (skins.Length < 45) failures.Add("캐릭터 SkinnedMeshRenderer 부족: " + skins.Length);
-            if (mats < 8) failures.Add("캐릭터 재질 슬롯 유실: " + mats);
+            if (skins.Length < 1) failures.Add("캐릭터 SkinnedMeshRenderer 없음: " + skins.Length);
+            if (mats < 1) failures.Add("캐릭터 재질 슬롯 유실: " + mats);
             Debug.Log("[MODELTEST] 캐릭터 skins=" + skins.Length + " materials=" + mats
                       + " height=" + (TryGetBounds(prefab, out bounds) ? bounds.size.y.ToString("0.000") : "없음"));
         }
