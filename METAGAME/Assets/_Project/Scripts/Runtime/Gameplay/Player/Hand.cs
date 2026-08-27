@@ -93,6 +93,11 @@ namespace Metagame.Gameplay
             var best = Search(Body.position, Tuning.GrabRadius, Vector3.zero, Vector3.zero, 180f, out point, out bestBody);
             if (best == null) return false;
 
+            // 너무 무거운 동적 물체는 들어 올리지 않는다. 손은 고정물처럼 세계에
+            // 짚고(HeldBody == null), 물체는 원래 자리에 남는다.
+            if (bestBody != null && !bestBody.isKinematic && bestBody.mass >= Tuning.FixedGripMass)
+                bestBody = null;
+
             return GripTo(best, bestBody);
         }
 

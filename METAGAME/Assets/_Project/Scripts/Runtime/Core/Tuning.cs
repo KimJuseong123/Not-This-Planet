@@ -8,7 +8,8 @@ namespace Metagame.Core
     ///  1) 중력이 약하다 (지구의 약 1/3.5). 점프가 높고 낙하가 느리다 —
     ///     그래서 실수해도 허공에서 허우적거릴 시간이 있다.
     ///  2) 인형이 작고 머리가 크다 (2등신). 관성이 작아 조인트 스프링도 전부 작다.
-    ///  3) 잡기가 매우 관대하다. 손 근처 반경이 크고, 잡은 물체는 질량을 무시하고 끌려온다.
+    ///  3) 잡기가 매우 관대하다. 손 근처 반경이 크다. 가벼운 도구는 양손으로
+    ///     크로스헤드 앞에 고정하고, 무거운 물체는 운반하지 않고 고정물처럼 짚는다.
     /// </summary>
     public static class Tuning
     {
@@ -79,8 +80,8 @@ namespace Metagame.Core
         public const float RegrabLock = 0.06f;
 
         // ── 들기 · 나르기 ───────────────────────────────────────
-        // 잡은 물체는 ForceMode.Acceleration 으로 끌어온다 → 무게와 상관없이 같은 속도로 온다.
-        // 55kg 궤짝이 5kg 통조림처럼 다뤄지는 이유가 이 두 줄이다.
+        // 일반적인 물리 운반 설정. 화면 조준으로 들어 올리는 도구는 PlayerRig가
+        // 별도의 크로스헤드 고정 경로를 사용하고, FixedGripMass 이상은 이 경로에 들어오지 않는다.
         public const float CarryAccel = 42f;        // 1/s² — 목표점까지의 거리에 곱한다
         public const float CarryDamp = 8f;          // 1/s
         public const float CarryAccelMax = 26f;     // m/s²
@@ -92,12 +93,16 @@ namespace Metagame.Core
         public const float TwoHandBonus = 1.6f;
         /// <summary>조인트의 connectedMassScale — 낮을수록 팔이 물체 무게를 덜 느낀다.</summary>
         public const float CarryMassScale = 0.35f;
+        /// <summary>이 질량 이상인 물체는 들어 올리지 않고 고정물을 짚듯 잡는다.</summary>
+        public const float FixedGripMass = 40f;
 
         // ── 도구 투척 ──────────────────────────────────────────
         public const float ToolChargeDuration = 2.0f;
         public const float ToolThrowSpeed = 14f;
         public const float ToolDropChargeThreshold = 0.08f;
         public const float ToolThrowRegrabLock = 0.30f;
+        public const float ToolHoldDistance = 0.55f;
+        public const float ToolHoldMaxSpeed = 30f;
 
         // ── 기어오르기 ──────────────────────────────────────────
         public const float ClimbPull = 150f;        // 매달린 채 위로 기어오르는 보조력

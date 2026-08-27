@@ -4,7 +4,7 @@
 
 ## Project Summary
 
-- Latest feature change: PlayerRig now uses stable target-velocity locomotion, first-person camera mode, configurable health/fall damage, two-hand tool handling with charged Q throws, and SampleScene starts the same runtime bootstrap as Surface.
+- Latest feature change: PlayerRig now uses stable target-velocity locomotion, first-person camera mode, configurable health/fall damage, two-hand tool handling with charged Q throws, heavy-object fixed gripping, crosshair-locked light-tool carrying, and SampleScene starts the same runtime bootstrap as Surface.
 
 - Project root: `METAGAME/`
 - Last analyzed: 2026-08-27
@@ -113,7 +113,7 @@
 
 ## Source Files Inspected
 
-- Updated Assets/_Project/Scripts/Runtime/Gameplay/Player/PlayerRig.cs, Assets/_Project/Scripts/Runtime/Gameplay/Player/Hand.cs, Assets/_Project/Scripts/Runtime/Gameplay/DamageSource.cs, Assets/_Project/Scripts/Runtime/Gameplay/GameSession.cs, Assets/_Project/Scripts/Runtime/Gameplay/Player/OrbitCamera.cs, Assets/_Project/Scripts/Runtime/Bootstrap/SpaceBootstrap.cs, Assets/_Project/Scripts/Runtime/Bootstrap/SpaceSelfTest.cs, Assets/_Project/Scripts/Runtime/Core/Controls.cs, Assets/_Project/Scripts/Runtime/Core/Tuning.cs, Assets/_Project/Scripts/Runtime/UI/GameHud.cs, and Assets/Scenes/SampleScene.unity.
+- Updated Assets/_Project/Scripts/Runtime/Gameplay/Player/PlayerRig.cs, Assets/_Project/Scripts/Runtime/Gameplay/Player/Hand.cs, Assets/_Project/Scripts/Runtime/Gameplay/DamageSource.cs, Assets/_Project/Scripts/Runtime/Gameplay/GameSession.cs, Assets/_Project/Scripts/Runtime/Gameplay/Player/OrbitCamera.cs, Assets/_Project/Scripts/Runtime/Gameplay/World/LevelBuilder.cs, Assets/_Project/Scripts/Runtime/Bootstrap/SpaceBootstrap.cs, Assets/_Project/Scripts/Runtime/Bootstrap/SpaceSelfTest.cs, Assets/_Project/Scripts/Runtime/Core/Controls.cs, Assets/_Project/Scripts/Runtime/Core/Tuning.cs, Assets/_Project/Scripts/Runtime/UI/GameHud.cs, and Assets/Scenes/SampleScene.unity.
 - `ProjectSettings/ProjectVersion.txt`
 - `Packages/manifest.json`
 - `Packages/packages-lock.json`

@@ -10,7 +10,8 @@ namespace Metagame.Gameplay
     ///  · 골반을 세계 기준 조인트로 세우고, 가는 방향으로 돌린다
     ///  · 다리는 걷기 주기에 맞춰 조인트 목표 자세를 흔든다 (애니메이션 클립 없음)
     ///  · 팔은 카메라가 보는 쪽으로 뻗되, 근처에 잡을 것이 있으면 그쪽으로 휘어 간다
-    ///  · 잡은 물체는 질량을 무시하고 (ForceMode.Acceleration) 손 앞으로 끌려온다
+    ///  · 가벼운 도구는 양손으로 중력과 누적 속도를 제거하고 크로스헤드 앞에 고정된다
+    ///  · 일정 질량 이상인 동적 물체는 들어 올리지 않고 고정물을 짚듯 잡는다
     ///
     /// 이동 자체는 목표 속도를 직접 따라가 안정적으로 조종하고, 잡기·등반·충돌 반응은 물리에 맡긴다.
     /// </summary>
@@ -59,6 +60,8 @@ namespace Metagame.Gameplay
         bool toolActionHeld;
         bool chargingTool;
         float toolThrowRegrabLock;
+        Rigidbody toolBody;
+        bool toolBodyHadGravity;
         Rigidbody pendingThrowBody;
         Vector3 pendingThrowVelocity;
         Rigidbody groundBody;
@@ -465,6 +468,10 @@ namespace Metagame.Gameplay
             if (left && right)
             {
                 toolHeld = targetGrabbable;
+                toolBody = body;
+                toolBodyHadGravity = body.useGravity;
+                body.useGravity = false;
+                body.angularVelocity = Vector3.zero;
                 return true;
             }
 
@@ -489,7 +496,8 @@ namespace Metagame.Gameplay
         {
             // 고정 레일·케이블은 기존의 한 손 매달리기를 유지하고, 실제로 운반할 수 있는
             // 비-키네마틱 물체만 도구로 취급한다.
-            return target != null && !target.Climbable && body != null && !body.isKinematic;
+            return target != null && !target.Climbable && body != null && !body.isKinematic
+                   && body.mass < Tuning.FixedGripMass;
         }
 
         bool ProcessToolAction(Vector3 aim)
@@ -540,6 +548,9 @@ namespace Metagame.Gameplay
 
         void ResetToolState()
         {
+            if (toolBody != null) toolBody.useGravity = toolBodyHadGravity;
+            toolBody = null;
+            toolBodyHadGravity = false;
             toolHeld = null;
             toolCharge = 0f;
             toolActionHeld = false;
@@ -601,7 +612,12 @@ namespace Metagame.Gameplay
             JointTools.SetTargetLocalRotation(arm.Shoulder, aimLocal, arm.ShoulderStart);
             JointTools.SetTargetLocalRotation(arm.Elbow, Quaternion.identity, arm.ElbowStart);
 
-            if (hand.Carrying) { Carry(hand, target); return; }
+            if (hand.Carrying)
+            {
+                if (toolHeld != null && hand.Held == toolHeld) CarryTool(aim);
+                else Carry(hand, target);
+                return;
+            }
 
             Vector3 dp = target - hand.Body.position;
             Vector3 dv = Doll.Chest.linearVelocity - hand.Body.linearVelocity;
@@ -623,10 +639,26 @@ namespace Metagame.Gameplay
         }
 
         /// <summary>
-        /// 들고 있는 물체를 손 앞으로 끌어온다.
-        /// ForceMode.Acceleration 이라 <b>질량이 상관없다</b> — 55kg 궤짝이 5kg 통조림처럼 온다.
-        /// 이 게임에서 "물건 들기가 쉽다" 는 말의 실체가 이 함수다.
+        /// 들고 있는 가벼운 도구를 중력과 누적 속도의 영향 없이 크로스헤드 앞에 고정한다.
+        /// 일정 질량 이상인 물체는 이 함수에 들어오지 않고 Hand의 고정물 그립을 사용한다.
         /// </summary>
+        void CarryTool(Vector3 aim)
+        {
+            if (toolBody == null || toolBody.isKinematic) return;
+
+            // 도구를 손 힘으로 끌어당기는 대신, 중력과 누적 속도를 제거하고
+            // 매 틱 크로스헤드 앞의 한 점으로 직접 수렴시킨다.
+            toolBody.useGravity = false;
+            toolBody.angularVelocity = Vector3.zero;
+
+            Vector3 direction = aim.sqrMagnitude > 1e-4f ? aim.normalized : Doll.Chest.transform.forward;
+            Vector3 cameraOrigin = Cam != null ? Cam.transform.position : Doll.Chest.position;
+            Vector3 holdPoint = cameraOrigin + direction * Tuning.ToolHoldDistance;
+            Vector3 desiredVelocity = (holdPoint - toolBody.worldCenterOfMass) /
+                                      Mathf.Max(Time.fixedDeltaTime, 0.0001f);
+            toolBody.linearVelocity = Vector3.ClampMagnitude(desiredVelocity, Tuning.ToolHoldMaxSpeed);
+        }
+
         void Carry(Hand hand, Vector3 target)
         {
             var b = hand.HeldBody;
@@ -644,7 +676,7 @@ namespace Metagame.Gameplay
             b.AddForce(a, ForceMode.Acceleration);
             b.AddForce(-Physics.gravity * (Tuning.CarrySupport / hands), ForceMode.Acceleration);
 
-            // 반작용은 아주 조금만 — 무거운 걸 잡아도 몸이 딸려가지 않는다
+            // 반작용은 아주 조금만 — 운반 중인 물체에 몸이 딸려가지 않는다
             Vector3 react = JointTools.Clamp(-a * b.mass * Tuning.CarryReaction, Tuning.HandMaxForce);
             Doll.Chest.AddForce(react, ForceMode.Force);
         }

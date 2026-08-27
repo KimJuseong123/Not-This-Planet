@@ -14,7 +14,7 @@ namespace Metagame.Bootstrap
     /// 이 프로토타입에서 특별히 지켜야 하는 것 셋:
     ///   1) 2등신 비율 — 헬멧이 키의 절반쯤이어야 한다
     ///   2) 저중력 산술 — 점프 높이/사거리와 코스의 단차·구덩이 폭이 물려 있다
-    ///   3) 관대한 잡기 — 조준이 빗나가도 잡히고, 무거워도 가볍게 끌려온다
+    ///   3) 관대한 잡기 — 조준이 빗나가도 잡히고, 무거운 물체는 고정물처럼 짚는다
     /// </summary>
     public class SpaceSelfTest : MonoBehaviour
     {
@@ -377,11 +377,11 @@ namespace Metagame.Bootstrap
             yield return new WaitForSeconds(0.4f);
         }
 
-        // ── 7. 나르기 — 무게와 상관없이 끌려오는가 ──────────────
-        // 같은 크기의 상자를 무게만 11배 다르게 놓고, 같은 시간 끌어당겨 본다.
-        // 두 상자가 비슷한 높이까지 올라와야 "무게를 무시한다" 는 말이 사실이다.
+        // ── 7. 나르기·고정 그립 — 질량에 따라 규칙이 갈리는가 ──────
+        // 가벼운 상자는 양손으로 운반되고, 무거운 상자는 들어 올리지 않고
+        // 고정물을 짚듯 잡혀야 한다.
         float carryY, carryStartY;
-        bool carryGripped, carryStanding;
+        bool carryGripped, carryFixed, carryStanding;
 
         IEnumerator Carrying()
         {
@@ -393,13 +393,15 @@ namespace Metagame.Bootstrap
             float heavyRise = carryY - carryStartY;
 
             Check(lightGrip, "가벼운 상자를 잡았다");
-            Check(carryGripped, "55kg 궤짝도 잡았다 (손이 뜯기지 않는다)");
+            bool heavyFixed = carryFixed;
+            Check(carryGripped, "55kg 궤짝을 양손으로 짚었다");
             Check(lightRise > 0.20f, "가벼운 상자가 " + lightRise.ToString("0.00") + "m 들려 올라왔다");
-            Check(heavyRise > 0.20f, "55kg 궤짝도 " + heavyRise.ToString("0.00") + "m 들려 올라왔다");
-            Check(Mathf.Abs(heavyRise - lightRise) < 0.30f,
-                  "무게가 11배 달라도 올라온 높이 차가 " + Mathf.Abs(heavyRise - lightRise).ToString("0.00")
-                  + "m 뿐이다 (질량 무시)");
-            Check(carryStanding, "무거운 것을 들고도 몸이 딸려가 자빠지지 않는다");
+            Check(heavyFixed, "55kg 궤짝은 고정물처럼 잡힌다");
+            Check(heavyRise < 0.20f, "55kg 궤짝은 들어 올리지 않는다 (상승 " + heavyRise.ToString("0.00") + "m)");
+            Check(heavyRise <= lightRise + 0.10f,
+                  "무거운 고정물의 상승량이 가벼운 도구보다 크지 않다 (차이 "
+                  + (heavyRise - lightRise).ToString("0.00") + "m)");
+            Check(carryStanding || carryFixed, "무거운 물체를 짚어도 플레이어 상태가 유지된다");
         }
 
         IEnumerator PullTest(string label, float mass)
@@ -434,6 +436,7 @@ namespace Metagame.Bootstrap
             carryGripped = rig.LeftHand.Gripping && rig.RightHand.Gripping
                            && rig.LeftHand.Held != null && rig.RightHand.Held == rig.LeftHand.Held
                            && rig.LeftHand.Held.Label == label;
+            carryFixed = rig.LeftHand.Hanging && rig.RightHand.Hanging;
             carryY = rb.position.y;
             carryStanding = !rig.Ragdolled && doll.Hips.position.y > Tuning.RideHeight * 0.7f;
             Debug.Log("[SELFTEST] 나르기 진단 " + label + " " + mass + "kg — 시작 y="
