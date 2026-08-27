@@ -34,16 +34,19 @@ OFF 로 설정한 조합과 근거:
 
 | 조합 | 근거 |
 | --- | --- |
-| PartCarried x Player | 견인 중 1000kg 파츠가 플레이어를 밀어 압사시키는 상황을 원천 차단 |
-| PartCarried x PlayerDowned | 위와 동일 |
 | PlayerDowned x Player | 기절한 동료를 구조할 때 캡슐끼리 끼는 현상 방지 |
 | PlayerDowned x PlayerDowned | 위와 동일 |
+| PartCarried x PlayerDowned | 기절한 플레이어는 스스로 빠져나올 수 없다. 파츠에 눌리면 구조가 불가능해진다 |
 | Meteor x Meteor | 낙하 중 운석끼리 튕겨 예측 불가한 궤도가 되는 것 방지 |
 | Interactable x 전 레이어 | 물리 충돌 없이 레이어마스크 쿼리로만 사용 |
 | BeamQuery x 전 레이어 | 위와 동일 |
 
-Player x Ground, Player x Part, Part x Ground, Part x PartCarried,
-Meteor x Player, Meteor x Part 는 켜진 상태를 유지한다.
+**PartCarried x Player 는 켠다.** 견인 중인 파츠로 동료를 툭 치며 방해하는 것이
+협동 게임의 재미이므로 충돌 자체를 없애지 않는다. 압사 방지는 레이어가 아니라
+질량으로 처리한다 (2.4 참고).
+
+Player x Ground, Player x Part, Player x PartCarried, Part x Ground,
+Part x PartCarried, Meteor x Player, Meteor x Part 는 켜진 상태를 유지한다.
 
 ### 2.3 스케일 기준
 
@@ -57,7 +60,30 @@ Meteor x Player, Meteor x Part 는 켜진 상태를 유지한다.
 | 중력 | -9.81 |
 | Fixed Timestep | 0.02 (50Hz) |
 
-### 2.4 전역 물리 설정을 변경하지 않기로 한 결정
+### 2.4 파츠 충돌 피해 규칙
+
+파츠는 상태에 따라 질량을 바꾼다. 레이어로 충돌을 끄는 대신 질량으로 위력을 조절한다.
+
+| 상태 | 레이어 | 질량 | 플레이어에게 |
+| --- | --- | --- | --- |
+| 견인 중 | PartCarried | 70kg (`CarriedPartMass`) | 밀림. 방해는 되지만 다치지 않는다 |
+| 놓임 / 용접됨 | Part | 1000kg (`PartMass`) | 기절 판정 대상 |
+
+견인 중 질량을 사람 한 명 무게(70kg)로 잡은 이유:
+
+- 10kg 처럼 더 낮추면 운반 속도로 부딪혀도 플레이어가 2~3cm 밀릴 뿐이라
+  "방해"가 성립하지 않는다. 충돌 위력은 질량에 비례하기 때문이다.
+- 플레이어보다 무거우면 밀쳐서 넘어뜨릴 수 있게 되어 압사 문제가 돌아온다.
+- 사람 한 명 무게라는 기준은 팀에 설명하기 쉽고 튜닝 근거가 명확하다.
+
+"1000kg 을 빔으로 들면 가벼운 느낌"은 이 질량이 아니라 **견인 빔의 제어 게인**으로
+만든다. 취급감(드는 느낌)과 충돌 위력(남을 미는 힘)은 분리해서 다룬다.
+
+깔렸을 때의 처리는 **기절**로 확정했다. 즉사나 리스폰이 아니라 동료가 일으켜 세워야 한다.
+운석에 맞았을 때의 규칙과 일관되며, 튜토리얼 장에 즉사는 과하다.
+기절을 유발하는 충격량 임계값과 지속 시간은 캐릭터 물리 반응 티켓에서 수치로 정한다.
+
+### 2.5 전역 물리 설정을 변경하지 않기로 한 결정
 
 당초 Solver Iterations 12 / Velocity 2 / Max Angular Speed 20 으로 상향할 계획이었으나,
 Unity 6000.5.4f1 프로젝트의 실제 현재값이 **14 / 4 / 28** 로 목표치보다 이미 높았다.
@@ -80,6 +106,7 @@ Part 프리팹의 `Rigidbody.maxAngularVelocity` 에만 적용한다. 전역값�
 코드
 - `METAGAME/Assets/_Project/Scripts/Runtime/Gameplay/Physics/GameLayers.cs`
 - `METAGAME/Assets/_Project/Scripts/Runtime/Gameplay/Physics/PhysicsScale.cs`
+- `METAGAME/Assets/_Project/Scripts/Runtime/Gameplay/Physics/SandboxLauncher.cs` (Sandbox 전용 디버그)
 - `METAGAME/Assets/_Project/Scripts/Editor/SandboxSceneBuilder.cs`
 - `METAGAME/Assets/_Project/Scripts/Tests/Editor/Metagame.Gameplay.Tests.Editor.asmdef`
 - `METAGAME/Assets/_Project/Scripts/Tests/Editor/GameLayersTests.cs`
@@ -92,51 +119,48 @@ Part 프리팹의 `Rigidbody.maxAngularVelocity` 에만 적용한다. 전역값�
 
 ## 4. 검증
 
-EditMode 테스트 8건 전부 통과했다 (`-runTests -testPlatform EditMode`).
+EditMode 테스트 10건 전부 통과했다 (`-runTests -testPlatform EditMode`).
 
 | 테스트 | 검증 내용 |
 | --- | --- |
 | LayerConstants_MatchTagManager | 상수와 TagManager 인덱스 일치 |
 | LayerIndices_AreUnique | 인덱스 중복 없음 |
-| CarriedPart_IgnoresBothPlayerLayers | 견인 파츠가 두 플레이어 레이어를 통과 |
+| CarriedPart_CollidesWithStandingPlayer | 견인 파츠가 서 있는 플레이어와 충돌 |
+| CarriedPart_IgnoresDownedPlayer | 견인 파츠가 기절 플레이어는 통과 |
+| CarriedPartMass_IsFarLighterThanPlacedPart | 견인 중 질량이 플레이어 이하이고 놓인 상태보다 훨씬 가벼움 |
 | DownedPlayer_IgnoresOtherPlayers | 기절 캡슐 끼임 방지 |
 | Meteor_DoesNotCollideWithOtherMeteors | 운석끼리 비충돌 |
 | QueryOnlyLayers_HaveNoCollisionsAtAll | Interactable/BeamQuery 전 레이어 OFF |
 | GameplayCollisions_RemainEnabled | 필요한 충돌이 꺼지지 않았는지 (과다 차단 회귀 방지) |
 | GlobalPhysicsSettings_MatchRecordedBaseline | 중력·틱·solver 기록값과 실제 설정 일치 |
 
-추가로 배치모드에서 `Physics.GetIgnoreLayerCollision` 과 `LayerMask.NameToLayer` 로
-직접 확인했다. 결과 실패 0건.
-
-- 레이어 이름-인덱스 일치 9/9
-- OFF 규칙 5조합 + Interactable/BeamQuery 전 레이어 위반 0건
-- ON 유지 6조합 정상
-- `gravity.y = -9.81`, `fixedDeltaTime = 0.01999999`
-- `defaultSolverIterations = 14`, `velocity = 4`, `maxAngularSpeed = 28`
-
-Sandbox_Physics 씬을 배치모드에서 `Physics.Simulate` 로 30초(1500 스텝) 돌린 결과다.
-실패 0건.
+Sandbox_Physics 씬을 `Physics.Simulate` 로 30초(1500 스텝) 돌린 결과다.
 
 | 케이스 | 검증 | 결과 |
 | --- | --- | --- |
-| Case1 | 견인 파츠가 두 플레이어 레이어를 통과해 착지 | 파츠 y=2.500 (기대 2.50) |
-| Case1 | 플레이어가 밀려나지 않음 | x=-34.000 (기대 -34.00) |
-| Case2 | 기절 캡슐과 플레이어가 서로 밀지 않음 | 거리 0.141 -> 0.141 |
-| Case3 | 1000kg 파츠 5단 적층 30초 안정 | 최대 이동 0.0082m |
+| Case1 | 운반 중 파츠(70kg)가 4m/s 로 플레이어와 충돌 | 플레이어 0.03m 밀림, 서 있는 상태 유지 |
+| Case2 | 같은 조건의 1000kg 파츠 | 플레이어 0.11m 밀림 (견인 중 대비 4.0배) |
+| Case3a | 기절 캡슐과 플레이어가 겹침 | 거리 0.141 -> 0.141, 서로 밀지 않음 |
+| Case3b | 견인 파츠가 기절 캡슐 위로 낙하 | 이동 0.0000m, 완전 통과 |
+| Case4 | 1000kg 파츠 5단 적층 30초 | 최대 이동 0.0073m |
 
-Case1 은 파츠(4x5x4m)가 플레이어 캡슐 두 개를 완전히 감싼 채 정지해 있다.
-겹쳐 있음에도 서로 밀어내지 않는다는 것이 좌표로 확인된다.
+Case1 과 Case2 의 밀림 거리가 절대값으로 작은 것은 견인 도구가 아직 없어서
+파츠가 자유 낙하·활주하며 지면 마찰에 에너지를 잃기 때문이다.
+실제 게임에서는 빔이 파츠를 계속 구동하므로 훨씬 강하게 민다.
+**이 티켓은 "충돌이 켜져 있고 질량으로 위력을 나눈다"는 규칙까지만 확정하고,
+미는 세기의 실제 수치는 견인 구현 티켓에서 빔과 함께 튜닝한다.**
 
 ![Sandbox_Physics 30초 시뮬레이션 결과](S15P21B202-57-sandbox.png)
 
-왼쪽이 Case1(플레이어를 통과해 착지한 파츠), 가운데가 Case2(겹친 두 캡슐),
-오른쪽이 Case3(5단 적층)이다.
+왼쪽부터 Case1(견인 파츠 충돌), Case2(1000kg 충돌), Case3(기절 보호), Case4(5단 적층).
 
 씬은 `Tools > Metagame > Rebuild Physics Sandbox` 로 재생성할 수 있다.
+Play 하면 `SandboxLauncher` 가 파츠에 운반 속도를 주어 충돌이 재현된다.
 
 ## 5. 미해결 / 후속
 
-- 견인 PID 게인, `PartMaxAngularSpeed` 실측 조정 — 견인 구현 티켓
+- 견인 PID 게인, `PartMaxAngularSpeed`, 운반 중 충돌 위력 실측 조정 — 견인 구현 티켓
+- 기절 유발 충격량 임계값과 기절 지속 시간 — 캐릭터 물리 반응 티켓 (S15P21B202-13)
 - 파츠 4종의 실제 치수·질량 확정 — 기획 확정 후
 
 ## 6. 참고
