@@ -1,20 +1,29 @@
 #!/bin/sh
 # ------------------------------------------------------------------
-# pre-push: Jira 이슈 키가 없는 브랜치의 push를 로컬에서 막는다.
-# (서버의 보호 브랜치 규칙도 같은 이름을 거부하므로, 이 훅은 친절한 안내용)
+# pre-push: ① Jira 이슈 키가 없는 브랜치의 push를 로컬에서 막고(안내용),
+#           ② git-lfs 의 pre-push 훅을 이어서 실행한다(LFS 오브젝트 업로드).
+#
+# 왜 ②가 필요한가: `git config core.hooksPath .githooks` 를 켜면 git 은 이 디렉터리의 훅만 실행하고
+#   `git lfs install` 이 .git/hooks/pre-push 에 넣어 둔 LFS 훅은 실행되지 않는다. 그러면 LFS 오브젝트가
+#   올라가지 않아 서버가 "GitLab: LFS objects are missing" 으로 push 를 거부한다(S15P21B202-81).
 #
 # 설정 (클론 후 1회):  git config core.hooksPath .githooks
 # 허용 브랜치명:
 #   master, develop
 #   <JIRA키>-<번호>-<설명>              예) S15P21B202-12-player-jump
 #   hotfix/<JIRA키>-<번호>-<설명>       예) hotfix/S15P21B202-40-crash-on-join
+# 최종 방어는 서버가 아니라 CI(mr-lint) 이다 — 이 훅은 가장 빨리 알려 주는 안내.
 # 근거: docs/git-convention.md §3, §6
 # ------------------------------------------------------------------
 PATTERN='^(master|develop|(hotfix/)?[A-Z][A-Z0-9]+-[0-9]+(-[A-Za-z0-9._-]+)?)$'
 ZERO=0000000000000000000000000000000000000000
 status=0
 
-while read -r local_ref local_sha remote_ref remote_sha; do
+# stdin(푸시할 ref 목록)은 한 번만 읽을 수 있으므로 보관해 두고 LFS 훅에 그대로 넘긴다
+input=$(cat)
+
+printf '%s\n' "$input" | while read -r local_ref local_sha remote_ref remote_sha; do
+  [ -z "$remote_ref" ] && continue
   [ "$local_sha" = "$ZERO" ] && continue          # 브랜치 삭제 push는 통과
   case "$remote_ref" in
     refs/heads/*) ;;
@@ -28,7 +37,15 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     echo "  형식: <JIRA키>-<번호>-<영문설명>   예) S15P21B202-12-player-jump" >&2
     echo "  (feature/ 같은 접두어는 쓰지 않습니다 — docs/git-convention.md §3)" >&2
     echo "" >&2
-    status=1
+    exit 1
   fi
-done
-exit $status
+done || status=1
+[ "$status" -ne 0 ] && exit "$status"
+
+# ② git-lfs pre-push (설치돼 있을 때만). 실패하면 push 도 실패해야 LFS 누락 커밋이 서버에 올라가지 않는다
+if command -v git-lfs >/dev/null 2>&1; then
+  printf '%s\n' "$input" | git lfs pre-push "$@"
+  exit $?
+fi
+echo "ℹ git-lfs 가 설치되어 있지 않아 LFS 훅을 건너뜁니다 — 바이너리 에셋을 올린다면 git-lfs 를 설치하고 'git lfs install' 을 실행하세요." >&2
+exit 0
