@@ -4,6 +4,7 @@
   "references": [
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner",
+    "Metagame.Core",
     "Metagame.Gameplay"
   ],
   "includePlatforms": [

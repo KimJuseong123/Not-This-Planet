@@ -1,0 +1,299 @@
+# 백엔드 기술스택 및 개발 지침
+
+> 관련 문서: [문서 목록](./README.md) · [파트 구분](./parts.md) · [Git 컨벤션](./git-convention.md)
+> 메시지 프로토콜 명세는 별도 문서: `backend/docs/PROTOCOL.md` (S15P21B202-46)
+> 최초 작성 2026-08-26 · 최종 갱신 2026-08-27 (하단 [결정 이력](#10-결정-이력) 참고)
+
+이 문서는 백엔드의 **기술 선택과 설계 원칙**을 담는다. 구현이 이 문서와 어긋나면 둘 중 하나가 틀린 것이므로,
+코드를 고치든 문서를 고치든 반드시 일치시킨다. 변경 시 결정 이력에 한 줄 남긴다.
+
+---
+
+## 1. 기술 스택
+
+### 백엔드
+| 영역 | 기술 | 비고 |
+|---|---|---|
+| 언어/런타임 | Java 17 | |
+| 프레임워크 | Spring Boot 4.1.x | |
+| REST API | spring-boot-starter-webmvc | 로그인, 회원, 전적 조회 등 비실시간 기능 |
+| 실시간 통신 | spring-boot-starter-websocket (**raw WebSocket**) | `TextWebSocketHandler` 기반. **STOMP 사용 금지** — §2-1 참고 |
+| 인증 | Spring Security + JWT, **게스트 로그인**(닉네임만) | 비밀번호 없음. Steam 인증을 입구로 추가 가능한 구조 |
+| DB | **MySQL 8.0** | 영구 데이터 전용 |
+| ORM | Spring Data JPA (Hibernate) | |
+| 인메모리 상태 | 서버 메모리 (`ConcurrentHashMap`) | 방/게임 세션 상태. 서버 1대 규모에서는 Redis 불필요 |
+| (확장 시) | Redis | 서버 2대 이상 확장, 재접속용 상태 외부 보관, 실시간 랭킹(Sorted Set) 필요 시 도입 |
+| API 문서 | Swagger / OpenAPI (springdoc) | 미적용 — Boot 4 호환 버전 확인 필요 (S15P21B202-51) |
+| 부하 테스트 | k6 (WebSocket 지원) | 미적용 (S15P21B202-52). 동접 테스트 필수 |
+
+### 클라이언트 (참고)
+| 영역 | 기술 | 비고 |
+|---|---|---|
+| 엔진 | Unity | |
+| HTTP | UnityWebRequest | REST API 호출 |
+| WebSocket | NativeWebSocket 등 | WebGL 빌드 계획 시 WebSocket이 사실상 유일한 선택지 |
+
+---
+
+## 2. 통신 설계 지침
+
+### 2-1. STOMP를 쓰지 않는 이유
+Spring에서 흔한 STOMP over WebSocket은 **Unity용 STOMP 클라이언트가 사실상 없어** 궁합이 나쁘다.
+→ **순수(raw) WebSocket + 자체 정의 메시지 프로토콜(JSON)** 을 사용한다.
+성능이 부족해지면 그때 MessagePack/Protobuf로 교체 (구조는 유지).
+
+### 2-2. 메시지 프로토콜 형식
+모든 실시간 메시지는 `type` + `data` 구조로 통일한다.
+
+```json
+{ "type": "JOIN_ROOM",  "data": { "roomId": "abc123" } }
+{ "type": "ROOM_STATE", "data": { "players": {}, "status": "WAITING" } }
+```
+
+- `type`은 서버에서 enum(`WsMessage.Type`)으로 관리
+- **메시지 정의서 `backend/docs/PROTOCOL.md`가 Unity 팀과의 계약서다.** 메시지를 추가·변경하면 반드시 갱신하고 공유한다
+- 게임플레이 메시지(`PLAYER_MOVE` 등)는 기획 확정 후 추가 (S15P21B202-54)
+
+### 2-3. 인증 흐름 — 게스트 로그인 (Steam 배포 대비 구조) — **구현 완료**
+**결정: ID/비밀번호 회원가입 없음. 게스트 로그인(닉네임만)으로 시작한다.**
+
+1. 첫 실행: Unity가 `POST /auth/guest { nickname, deviceId }` → 서버가 유저 생성 + JWT 발급
+2. Unity는 토큰을 `PlayerPrefs`에 저장 → 이후 실행부터 자동 로그인 (유저 체감: 로그인 없음)
+3. WebSocket 연결 시 JWT를 **쿼리 파라미터**로 전달해 인증 (`ws://.../ws/game?token={JWT}`)
+   - Unity WebSocket 라이브러리는 커스텀 헤더 지원이 제한적이라 헤더 대신 쿼리 파라미터를 쓴다
+
+토큰 만료(24h) 시 별도 리프레시 토큰은 두지 않는다. 게스트 로그인은 비밀번호가 없으므로
+클라이언트가 `POST /auth/guest`를 다시 호출하면 그것이 곧 갱신이다.
+
+**Steam 배포 대비 원칙**: 인증은 "입구(JWT 발급 엔드포인트)만 교체 가능"한 구조로 만든다.
+JWT 발급 이후의 모든 로직(WebSocket 인증, 방, 게임)은 인증 방식을 몰라야 한다.
+
+```
+현재:      POST /auth/guest  { nickname, deviceId }     → JWT
+Steam 시:  POST /auth/steam  { steamAuthTicket }        → 서버가 Steam Web API로 티켓 검증 → JWT
+```
+
+Steam 출시 시에는 Steamworks 인증 티켓을 서버가 Steam Web API(`ISteamUserAuth/AuthenticateUserTicket`)로
+검증하고 SteamID를 기존 유저에 연결(계정 승격)하는 엔드포인트만 추가하면 된다.
+
+---
+
+## 3. 데이터 저장 지침 — MySQL vs 메모리
+
+### 3-1. MySQL에 저장하는 것 (영구 데이터)
+서버가 재시작돼도 남아야 하는 데이터.
+- 회원 정보 (닉네임, deviceId, steamId)
+- 게임 결과/전적 (게임 **종료 시점에만** 저장)
+- 랭킹/통계
+- 영구 진행도 (클리어한 스테이지 — §5 참고)
+
+### 3-2. 서버 메모리에 두는 것 (휘발성 데이터)
+게임이 끝나면 의미 없어지는 데이터. **RDB에 넣으면 성능 저하 — 금지.**
+- 진행 중인 게임 상태 (플레이어 위치, 오브젝트 상태)
+- 방 목록, 방 내 인원/준비 상태
+- 접속 세션 정보 (누가 어느 방에 있는지)
+
+### 3-3. 스키마
+```
+users          : id, nickname, device_id(UNIQUE), steam_id(UNIQUE, NULL), created_at, last_login_at   -- 구현 완료
+game_results   : id, user_id, stage_id, result, score, played_at                                      -- 미구현 (S15P21B202-51)
+player_progress: 클리어한 최대 스테이지 (§5-2)                                                          -- 미구현 (S15P21B202-55)
+```
+- 게스트 로그인 채택으로 `password_hash` 없음. `device_id`로 기기 재접속 시 같은 유저 매칭
+- `steam_id`는 지금은 항상 NULL — Steam 배포 시 계정 승격용으로 미리 자리만 확보
+- 전적은 기획 변동에 대비해 **최소 컬럼 + JSON 스냅샷 컬럼**으로 시작한다
+  (컬럼을 잘게 쪼개면 기획 변경마다 스키마 마이그레이션 필요)
+
+---
+
+## 4. 게임 상태(GameState) 및 직렬화 지침 ★핵심
+
+### 4-1. 원칙
+> **게임 한 판의 모든 상태는 `GameState` 객체 하나에 모아 담는다.**
+> 상태를 여러 클래스/static 변수에 흩어놓지 않는다.
+
+`GameState`는 "지금 이 게임 판의 상황을 통째로 담은 직렬화 가능한 객체"이다.
+필드는 기획 확정 후 채우되(S15P21B202-54), 규칙만 지금 확정한다.
+
+```java
+public class GameState {           // 필드는 기획에 따라 확장
+    private String stageId;
+    private Map<Long, PlayerState> players;   // 위치, 기절 여부 등
+    private Set<String> solvedPuzzles;
+    private Set<String> collectedItems;
+}
+```
+
+### 4-2. 이 구조 하나로 해결되는 기능들
+| 기능 | 구현 방법 | 현재 기획 기준 필요 여부 |
+|---|---|---|
+| 재접속 복구 | 현재 GameState를 JSON 직렬화해 해당 플레이어에게 전송 | **필요** (S15P21B202-48) |
+| 새 플레이어 입장 동기화 | 현재 GameState 전송 | 필요 |
+| 스테이지 재시작 | 해당 스테이지의 초기 GameState를 새로 생성 | **필요** (§5) |
+| 체크포인트 스냅샷 보관·복원 | GameState를 깊은 복사해 보관했다가 되돌림 | **현재는 불필요** — §5-3 참고 |
+
+### 4-3. 세션 구조
+```
+GameSession (방 하나 = 게임 한 판)   ← Map<String, GameSession>으로 서버가 보유
+ ├─ roomId, 참가자 목록, 방 상태(WAITING/PLAYING)
+ └─ GameState        ← 실시간으로 변하는 현재 상태
+```
+
+---
+
+## 5. 체크포인트 / 사망·소생 지침
+
+> 이 장은 2026-08-27 기획 결정을 반영해 전면 개정되었다. 개정 전 내용은 §10 참고.
+
+### 5-1. 확정된 규칙
+
+**사망 없이 "기절 → 소생" 구조를 쓴다.**
+
+1. 플레이어가 기믹에 당하면 **기절(DOWNED)** 상태가 된다.
+2. **팀원이 접근해 소생**시킬 수 있다. 소생되면 그 자리에서 계속 진행한다.
+3. **전원이 기절**하면 그때 비로소 **현재 스테이지를 처음부터 다시 시작**한다.
+
+**체크포인트 = 스테이지 경계.** 스테이지를 클리어하면 다음 스테이지가 자동으로 체크포인트가 된다.
+스테이지 중간 체크포인트는 없다.
+
+**되감기 범위 = 월드 전체.** 스테이지 재시작 시 플레이어 위치뿐 아니라 문·상자·아이템·퍼즐 상태가
+모두 스테이지 초기 상태로 돌아간다.
+
+**재접속 유예 초과 시 게임 강제 종료.** 이탈자의 자리를 비운 채 계속 진행하지 않는다 (S15P21B202-48).
+
+### 5-2. 영구 진행도 — 채택
+
+다음 접속 때 이어할 수 있도록 **스테이지 단위로 진행도를 저장한다.**
+저장 시점은 **스테이지 클리어 이벤트 시점에만**, 비동기(`@Async`)로. 매 프레임/매 이벤트 저장은 금지.
+
+### 5-3. 설계 규칙
+
+1. **판정은 서버 권위로.** 기절 판정, 소생 완료, 전원 기절, 스테이지 클리어는 서버가 판단해 전원에게 통보한다.
+   클라이언트가 "도달했다 / 죽었다"를 통보하는 구조는 동기화 버그의 온상이므로 쓰지 않는다.
+2. **스냅샷 깊은 복사는 현재 기획에서 불필요하다.**
+   되감기 지점이 항상 스테이지 시작점이므로, 보관해둔 복사본을 복원하는 대신
+   **스테이지 정의로부터 초기 GameState를 새로 생성**하면 된다.
+   → `Room.lastCheckpoint` 필드는 현재 미사용. 스테이지 중간 체크포인트가 도입되면 그때 되살린다.
+3. 진행도 저장은 스테이지 클리어 이벤트 시점에만 비동기로 수행한다.
+
+### 5-4. 미결 — 기획 확정 필요
+
+**서버 판정 규칙 (구조에 영향, 우선 확정)**
+- [ ] **스테이지 클리어 조건**: 골 지점에 1인 도달 vs 전원 도달
+- [ ] **진행도 소유 주체**: 개인 vs 파티.
+      진행도가 다른 유저가 같은 방에 모였을 때 시작 스테이지 결정 규칙이 필요하다.
+      (a) 방장 진행도 기준 (b) 파티원 최저 기준 (c) 방장이 해금된 스테이지 중 선택
+      → (c) 채택 시 스테이지 선택 메시지가 추가로 필요
+- [ ] **혼자 남은 상태에서 기절**: 소생해줄 팀원이 없으므로 즉시 전원 기절로 판정할 것인가
+- [ ] **기절 중 접속 끊김**: 유예 시간 동안 기절 상태를 유지할 것인가, 인원에서 제외할 것인가
+      (전원 기절 판정에 영향 — 3명 중 1명이 기절 상태로 이탈하고 나머지 2명이 기절하면 전원 기절인가)
+- [ ] **강제 종료 후 남은 인원**: 방 해체 vs 방 유지하고 WAITING 복귀 (후자가 UX상 유리)
+- [ ] **재접속 유예 시간**: 60초 vs 30초
+
+**수치 조정 영역 (나중에 확정 가능)**
+- [ ] 소생 조작 방식(근접 자동 vs 버튼 홀드), 소요 시간, 가능 거리
+- [ ] 소생 중 시전자가 기절하면 취소되는지, 2인 동시 소생 시 가속되는지
+- [ ] 기절 제한 시간(초과 시 완전 사망) 유무
+- [ ] 기절 중 이동 가능 여부(완전 정지 vs 포복) — 이동 가능하면 위치 동기화 필요
+- [ ] 방 정원 (현재 `Room.MAX_PLAYERS = 4`)
+
+### 5-5. 예상 추가 메시지
+`PLAYER_DOWNED`, `REVIVE_START` / `REVIVE_PROGRESS` / `REVIVE_COMPLETE`, `PARTY_WIPE`,
+`STAGE_CLEARED`, `STAGE_RESTART`, `GAME_ABORTED` — 확정 시 `backend/docs/PROTOCOL.md`에 반영한다.
+
+---
+
+## 6. 서버 권위 / 동기화 방침
+
+- **서버 권위 수준**: 협동 게임은 치팅 우려가 낮으므로 "서버는 중계 + 최소 검증"으로 시작 (개발 속도 우선).
+  단, 진행에 영향을 주는 판정(기절, 소생, 전원 기절, 스테이지 클리어)은 서버가 한다.
+- **동기화 주기**: 이벤트 기반(입력 시 전송) vs 틱 기반(초당 N회) — 장르 확정 후 결정 (S15P21B202-54).
+- **재접속 처리**: 초기 설계에 반영한다 (나중에 붙이면 구조 대수술).
+  - 연결이 끊긴 플레이어에게 유예 시간을 준다
+  - 복귀 시 현재 GameState 전체를 전송해 복원한다
+  - 유예 시간을 넘기면 게임을 강제 종료한다 (§5-1)
+
+**상태 브로드캐스트 원칙**: 변화량(delta)이 아니라 **현재 상태 전체**를 보낸다.
+메시지를 하나 놓쳐도 다음 브로드캐스트에서 자동 복구되므로 동기화가 깨지지 않는다.
+(방 상태 `ROOM_STATE`가 이미 이 방식으로 구현되어 있다.)
+
+---
+
+## 7. 로컬 개발 환경
+
+### 7-1. MySQL — Docker 권장
+```
+cd backend
+docker compose up -d      # 기동
+docker compose down       # 중지
+docker compose down -v && docker compose up -d   # 초기화
+```
+`backend/docker-compose.yml`이 DB명 `metagame`, 계정 `metagame` / `metagame1234`,
+문자셋 utf8mb4로 MySQL 8.0을 띄운다. 팀원 전원이 동일한 환경을 갖는 것이 목적이다.
+
+### 7-2. Docker를 쓸 수 없는 경우 — MySQL 직접 설치
+Windows에서 Docker Desktop이 "가상화 지원이 감지되지 않았다"며 뜨지 않는 사례가 있다.
+CPU 가상화(BIOS)가 켜져 있어도 **Windows 기능 "Linux용 Windows 하위 시스템(WSL)"이 꺼져 있으면** 실패한다.
+관리자 권한 PowerShell에서 `wsl --install --no-distribution` 실행 후 재부팅하면 해결된다.
+
+해결이 어려우면 MySQL 8.0을 직접 설치하고 **docker-compose와 동일한 이름·비밀번호**로 만든다.
+이렇게 맞추면 `application.yml`을 고치지 않아도 되고, 나중에 Docker로 전환해도 그대로 동작한다.
+
+```sql
+CREATE DATABASE IF NOT EXISTS metagame CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS 'metagame'@'localhost' IDENTIFIED BY 'metagame1234';
+GRANT ALL PRIVILEGES ON metagame.* TO 'metagame'@'localhost';
+FLUSH PRIVILEGES;
+```
+
+### 7-3. 실행과 검증
+```
+cd backend
+./gradlew bootRun
+```
+Unity 없이 검증할 수 있다 — REST는 `curl`/Postman, WebSocket은 `wscat`이나 간단한 스크립트로.
+`backend/docs/PROTOCOL.md`의 메시지 표가 그대로 테스트 시나리오가 된다.
+
+### 7-4. 배포 시 반드시 바꿀 것 (S15P21B202-56)
+현재 `application.yml`의 값은 **로컬 개발 전용**이다. 그대로 배포하면 안 된다.
+- JWT 시크릿·DB 비밀번호를 환경변수로 주입 (저장소에 실제 값을 두지 않는다)
+- WebSocket `allowedOrigins("*")` → 클라이언트 도메인으로 제한
+- JPA `ddl-auto: update` → `validate` + 마이그레이션 도구
+- DB 포트(3306)는 외부에 열지 않고 서버 내부에서만 접근하게 한다
+
+---
+
+## 8. 개발 우선순위
+
+| # | 항목 | 상태 |
+|---|---|---|
+| 1 | MySQL `users` 테이블 + JPA 엔티티 | 완료 (S15P21B202-40) |
+| 2 | 게스트 로그인 + JWT 인증 | 완료 (S15P21B202-40) |
+| 3 | raw WebSocket 연결·브로드캐스트 검증 | 완료 (S15P21B202-46) |
+| 4 | 방 시스템: 생성/입장/퇴장/준비/시작, 인원 제한, 방장 위임 | 완료 (S15P21B202-46) |
+| 5 | 메시지 프로토콜 문서 초안 | 완료 (`backend/docs/PROTOCOL.md`) |
+| 6 | GameState 뼈대 | 완료 — 필드는 기획 확정 후 (S15P21B202-54) |
+| 7 | 재접속 유예 및 복구 | 예정 (S15P21B202-48) |
+| 8 | 방 목록 조회 | 예정 (S15P21B202-49) |
+| 9 | 테스트 코드 | 예정 (S15P21B202-50) |
+| 10 | Swagger·전적 저장 | 예정 (S15P21B202-51) |
+| 11 | 부하 테스트 | 예정 (S15P21B202-52) |
+
+---
+
+## 9. 저장소 운영 참고
+
+- 백엔드는 저장소 내 `backend/` 폴더에 있다 (Unity 프로젝트 `METAGAME/`과 병행).
+- **Git LFS를 사용한다.** 클론 **전에** `git lfs install`을 한 번 실행한다.
+  바이너리 에셋(png/fbx 등)이 LFS 없이 커밋되면 이후 브랜치 전환마다 유령 변경이 생겨 복구가 번거롭다.
+- 새 바이너리 확장자는 루트 `.gitattributes`에 추가한다.
+
+---
+
+## 10. 결정 이력
+
+| 날짜 | 변경 내용 |
+|---|---|
+| 2026-08-26 | 최초 작성. 기술스택, raw WebSocket 채택, 게스트 로그인 채택, MySQL/메모리 분리 원칙, GameState 원칙 정리 |
+| 2026-08-27 | 저장소에 등록(S15P21B202-53). 구현 완료 항목 반영(§2-3, §8), 로컬 개발 환경 장 신설(§7) |
+| 2026-08-27 | **기획 결정 반영으로 §5 전면 개정** — 기절/소생 구조 채택, 체크포인트를 스테이지 경계로 확정, 되감기 범위를 월드 전체로 확정, 영구 진행도 채택, 재접속 유예 초과 시 강제 종료.<br>이에 따라 **체크포인트 스냅샷 깊은 복사가 불필요해짐**(개정 전에는 "GameState를 깊은 복사해 보관 후 복원"이 기본 설계였음) |
