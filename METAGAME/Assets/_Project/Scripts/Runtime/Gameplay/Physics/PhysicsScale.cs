@@ -63,14 +63,14 @@ namespace Metagame.Gameplay
         /// <summary>
         /// 용접 전 파츠를 잡아 두는 조인트가 끊어지는 힘.
         ///
-        /// 이 값이 이 시스템의 핵심 튜닝 대상이다. 운석 충격에는 끊어지고 일반 조작에는
-        /// 끊어지지 않는 구간을 잡아야 한다. 운석이 아직 없으므로 지금은
-        /// "5단 탑이 스스로는 무너지지 않는다" 까지만 확인한 값이고,
-        /// 실제 값은 운석 티켓에서 확정한다.
+        /// 운석 충격에는 끊어지고 일반 조작에는 끊어지지 않아야 하는 값이다.
+        /// S15P21B202-70 에서 운석을 실제로 떨어뜨려 확정했다.
+        /// 60kg 운석이 30m 에서 떨어질 때 이 값은 끊어지고 WeldedBreakForce 는 버틴다.
+        /// 탑은 스스로 무너지지 않는다.
         /// </summary>
         public const float UnweldedBreakForce = 8000f;
 
-        /// <summary>용접 전 조인트가 끊어지는 토크. 위 항목과 같은 이유로 임시값이다.</summary>
+        /// <summary>용접 전 조인트가 끊어지는 토크. 위 항목과 함께 S15P21B202-70 에서 확정했다.</summary>
         public const float UnweldedBreakTorque = 5000f;
 
         // --- 용접 ---
@@ -121,6 +121,67 @@ namespace Metagame.Gameplay
         /// 목표 회전으로 돌리는 각속도 계수(1/s). 결과는 PartMaxAngularSpeed 로 잘린다.
         /// </summary>
         public const float BeamAngularGain = 6f;
+
+        // --- 운석 ---
+        /// <summary>
+        /// 운석 질량. 이 값이 이 시스템의 조정 대상이다.
+        ///
+        /// 착탄 충격이 미접합 조인트(UnweldedBreakForce)는 끊고 용접된 조인트
+        /// (WeldedBreakForce)는 끊지 못하는 구간에 들어와야 한다.
+        /// 계산으로는 정할 수 없다. 접촉 지속 시간에 따라 실제로 걸리는 힘이 달라지므로
+        /// 미접합 탑과 용접 탑에 실제로 떨어뜨려 스윕으로 잡았다.
+        ///
+        /// 낙하 고도 30m, 저중력 -2.8 기준 실측 결과:
+        ///   20 ~ 140kg  미접합만 끊어진다 (의도한 구간)
+        ///   150kg 이상  용접한 접합까지 끊어진다
+        /// 안전 구간의 중앙 부근인 60kg 으로 정했다. 위아래로 여유가 있다.
+        ///
+        /// 실측 방법은 S15P21B202-70 기록 문서에 있다.
+        /// </summary>
+        public const float MeteorMass = 60f;
+
+        /// <summary>작은 운석의 반지름. 파츠(3m 폭)보다 확실히 작아야 "작은 운석" 으로 읽힌다.</summary>
+        public const float MeteorRadius = 0.45f;
+
+        /// <summary>스폰 고도. 저중력에서 이 높이를 떨어지면 착탄 속도가 정해진다.</summary>
+        public const float MeteorDropHeight = 30f;
+
+        /// <summary>
+        /// 예고부터 낙하까지의 시간. 플레이어가 한 걸음 비킬 수 있어야 한다.
+        /// 기획의 미정 사항이던 "피할 수 있는 반응 시간" 을 이 값으로 정했다.
+        /// </summary>
+        public const float MeteorWarningSeconds = 1.8f;
+
+        /// <summary>착탄 시 넉백이 미치는 반경.</summary>
+        public const float MeteorImpactRadius = 4f;
+
+        /// <summary>착탄 시 주변에 주는 폭발력.</summary>
+        public const float MeteorImpactForce = 900f;
+
+        /// <summary>착탄 후 사라지기까지의 시간.</summary>
+        public const float MeteorDespawnSeconds = 6f;
+
+        /// <summary>
+        /// 착탄 여부와 무관한 수명 상한.
+        ///
+        /// 착탄 처리는 물리 충돌 콜백에 달려 있는데, 운석이 플레이 공간 밖으로 떨어지거나
+        /// 콜백을 놓치면 영구히 남는다. 상한을 두어 어떤 경우에도 사라지게 한다.
+        /// 낙하 시간(30m, 저중력에서 약 4.6초)보다 충분히 길어야 한다.
+        /// </summary>
+        public const float MeteorMaxLifeSeconds = 20f;
+
+        // --- 운석 난이도 곡선 ---
+        /// <summary>초반 낙하 간격. 조작과 핵심 루프를 익힐 여유를 준다.</summary>
+        public const float MeteorIntervalStart = 8f;
+
+        /// <summary>후반 낙하 간격.</summary>
+        public const float MeteorIntervalMin = 2f;
+
+        /// <summary>
+        /// 간격이 최소까지 줄어드는 데 걸리는 시간.
+        /// 1장의 목표 플레이 시간이 미정이라 임시값이다. 기획 확정 후 맞춘다.
+        /// </summary>
+        public const float MeteorRampSeconds = 180f;
 
         // --- 전역 물리 설정 기록값 (ProjectSettings/DynamicsManager.asset) ---
         // Unity 6 기본값이 이미 목표치 이상이라 변경하지 않았다. 회귀 감시용으로만 기록한다.
