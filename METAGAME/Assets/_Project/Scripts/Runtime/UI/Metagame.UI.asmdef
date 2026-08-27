@@ -2,7 +2,8 @@
   "name": "Metagame.UI",
   "rootNamespace": "Metagame.UI",
   "references": [
-    "Metagame.Core"
+    "Metagame.Core",
+    "Metagame.Gameplay"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

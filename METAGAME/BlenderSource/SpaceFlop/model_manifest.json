@@ -1,0 +1,38 @@
+{
+  "generator": "Tools/Blender/generate_spaceflop_models.py",
+  "blender_version": "5.2.0 LTS",
+  "units": "meters",
+  "unity_editor": "6000.5.4f1",
+  "assets": [
+    {
+      "name": "SF_Astronaut_Base",
+      "dimensions_m_xyz": [
+        0.7,
+        0.62,
+        1.42
+      ],
+      "mesh_objects": 52,
+      "vertices_source": 17798,
+      "triangles_source": 34960,
+      "materials": 10,
+      "blend": "BlenderSource/SpaceFlop/SF_Astronaut_Base.blend",
+      "fbx": "Assets/SpaceFlop/Art/Models/Characters/SF_Astronaut_Base.fbx",
+      "preview": "BlenderSource/SpaceFlop/Previews/SF_Astronaut_Base.png"
+    },
+    {
+      "name": "SF_Spaceship_Capsule",
+      "dimensions_m_xyz": [
+        3.25,
+        3.0,
+        4.45
+      ],
+      "mesh_objects": 91,
+      "vertices_source": 23176,
+      "triangles_source": 45032,
+      "materials": 10,
+      "blend": "BlenderSource/SpaceFlop/SF_Spaceship_Capsule.blend",
+      "fbx": "Assets/SpaceFlop/Art/Models/Spaceships/SF_Spaceship_Capsule.fbx",
+      "preview": "BlenderSource/SpaceFlop/Previews/SF_Spaceship_Capsule.png"
+    }
+  ]
+}

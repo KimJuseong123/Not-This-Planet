@@ -1,0 +1,21 @@
+{
+  "name": "Metagame.Editor",
+  "rootNamespace": "Metagame.EditorTools",
+  "references": [
+    "Metagame.Core",
+    "Metagame.Gameplay",
+    "Metagame.UI",
+    "Metagame.Bootstrap"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
