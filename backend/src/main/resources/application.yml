@@ -18,3 +18,8 @@ jwt:
   # 개발용 시크릿 (HS256, base64). 배포 시 환경변수로 교체할 것
   secret: bWV0YWdhbWUtZGV2LXNlY3JldC1rZXktMzItYnl0ZXMtbG9uZy1wYWQ=
   access-token-validity-ms: 86400000   # 24시간 — 게스트 로그인이라 길게 잡음
+
+game:
+  # 연결이 끊긴 플레이어의 자리를 유지하는 시간.
+  # 넘기면 그 사람만 제외하고 게임은 계속되며, 이후 재입장도 가능하다 (지침 문서 5-1)
+  reconnect-grace-ms: 30000
