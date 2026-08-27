@@ -54,3 +54,8 @@
 *.rar filter=lfs diff=lfs merge=lfs -text
 *.unitypackage filter=lfs diff=lfs merge=lfs -text
 
+
+# Scripts: shell/python always LF (Linux runner), PowerShell CRLF
+*.sh text eol=lf
+*.py text eol=lf
+*.ps1 text eol=crlf
