@@ -5,14 +5,15 @@
 ## Project Summary
 
 - Project root: `METAGAME/`
-- Last analyzed: 2026-08-25
-- Last analyzed commit: `ed8ad6d` (`chore: initialize Unity project and gitignore`); current working branch: `develop`.
+- Last analyzed: 2026-08-27
+- Last analyzed commit: `b4696d1` (`기본 캐릭터 모델링 적용`); current working branch: `S15P21B202-21`.
+- Latest structural change: the `Assets/SpaceFlop/` prototype tree was folded into the `Assets/_Project/` convention layout (folders, assemblies, namespaces, and hardcoded asset paths).
 
 ## Confirmed Environment
 
 - Unity version: `6000.5.4f1` (`d550df8bd089`)
 - Render pipeline: Universal Render Pipeline, package `17.5.0`
-- Input system: Input System package `1.19.0`; `activeInputHandler: 1` indicates the new Input System
+- Input system: Input System package `1.19.0` is installed, but `activeInputHandler: 0` means only the old Input Manager is active. The prototype reads `UnityEngine.Input` directly (`Controls.cs`), so this must stay 0 unless that code is ported.
 - Target platforms: Standalone and Android settings are present; the final supported-platform decision is unknown
 
 ## Important Packages And Frameworks
@@ -23,16 +24,18 @@
 | Input | Unity Input System `1.19.0` with an input-actions asset | Confirmed | `Packages/manifest.json`, `Assets/InputSystem_Actions.inputactions`, `ProjectSettings/ProjectSettings.asset` |
 | Navigation | AI Navigation `2.0.13` | Confirmed | `Packages/manifest.json` |
 | UI/content | uGUI `2.5.0`, Timeline `1.8.12`, Visual Scripting `1.9.11` | Confirmed | `Packages/manifest.json` |
-| Multiplayer tooling | Multiplayer Center `1.0.1`; runtime multiplayer architecture not yet established | Confirmed / Unknown | `Packages/manifest.json`; no first-party gameplay code found |
-| Testing | Unity Test Framework `1.7.0` | Confirmed | `Packages/manifest.json`; no project tests found |
+| Multiplayer tooling | Multiplayer Center `1.0.1`; runtime multiplayer architecture not yet established | Confirmed / Unknown | `Packages/manifest.json`; gameplay code is present but single-player only |
+| Testing | Unity Test Framework `1.7.0` | Confirmed | `Packages/manifest.json`; no UTF tests found. The prototype ships its own runtime self-test (`SpaceSelfTest`) |
 
 ## Directory Structure
 
 | Path | Purpose | Confidence | Evidence |
 | --- | --- | --- | --- |
-| `Assets/Scenes/` | Build scenes; currently contains `SampleScene.unity` | Confirmed | `ProjectSettings/EditorBuildSettings.asset` |
+| `Assets/Scenes/` | Unity template scene `SampleScene.unity`; not registered in build settings | Confirmed | Directory contents, `ProjectSettings/EditorBuildSettings.asset` |
 | `Assets/Settings/` | URP assets, renderer assets, and volume profiles | Confirmed | Directory contents |
-| `Assets/_Project/` | New first-party content scaffold for project-owned assets | Confirmed | Initialization change; subfolders include art, content, scripts, tests, and third-party isolation |
+| `Assets/_Project/` | All first-party assets: `Models/`, `Prefabs/Resources/`, `Scenes/`, `Scripts/`, `Shaders/Resources/`, `Textures/Concept/`, plus the still-empty scaffold folders | Confirmed | Directory contents |
+| `Assets/_Project/Scripts/Runtime/` | `Core/`, `Gameplay/` (`Player/`, `World/`), `UI/`, `Bootstrap/` — one assembly per folder | Confirmed | `.asmdef` files |
+| `Assets/_Project/Scripts/Editor/` | Build, scene-builder, and model tooling; Editor-platform only | Confirmed | `Metagame.Editor.asmdef` |
 | `Assets/InputSystem_Actions.inputactions` | Input action definitions | Confirmed | File exists and is referenced by build settings |
 | `Assets/TutorialInfo/` | Template readme asset, editor helper, and tutorial layout | Confirmed | Directory contents and scripts |
 | `Packages/` | Manifest and lockfile for package dependencies | Confirmed | `Packages/manifest.json`, `Packages/packages-lock.json` |
@@ -43,38 +46,43 @@
 
 | Assembly | Responsibility | Key references | Notes |
 | --- | --- | --- | --- |
-| `Metagame.Core` | Shared runtime primitives and services | None | Initial boundary; no project code yet |
-| `Metagame.Gameplay` | Gameplay systems and feature logic | `Metagame.Core` | Initial boundary; no project code yet |
-| `Metagame.UI` | Runtime UI systems | `Metagame.Core` | Initial boundary; no project code yet |
-| `Assembly-CSharp` | Existing template runtime scripts | Unity defaults | `TutorialInfo` remains outside the new first-party boundaries |
-| `Assembly-CSharp-Editor` | Default editor assembly | `UnityEditor` and Unity defaults | Contains the template `ReadmeEditor` script; no custom editor boundary yet |
+| `Metagame.Core` | Tuning constants, input polling, primitive/material factory | None | Must stay free of gameplay types — a reference back to `Metagame.Gameplay` would be a cycle |
+| `Metagame.Gameplay` | Ragdoll player, world building, level parts, session state | `Metagame.Core` | `GameSession` lives here because it holds `PlayerRig`, `LevelBuilder`, and `Checkpoint` |
+| `Metagame.UI` | IMGUI HUD | `Metagame.Core`, `Metagame.Gameplay` | Reads player and session state directly |
+| `Metagame.Bootstrap` | Scene entry point, self-test, screenshot runner | `Metagame.Core`, `Metagame.Gameplay`, `Metagame.UI` | A separate assembly so `Gameplay` never has to reference `UI` |
+| `Metagame.Editor` | Build pipeline, scene builder, FBX-to-Resources linking, model inspection | The four above, plus `UnityEditor` | `includePlatforms` is `Editor` only |
+| `Assembly-CSharp` | Existing template runtime scripts | Unity defaults | `TutorialInfo` remains outside the first-party boundaries |
+| `Assembly-CSharp-Editor` | Default editor assembly | `UnityEditor` and Unity defaults | Contains the template `ReadmeEditor` script |
 
 ## Scenes And Startup Flow
 
-- Build scenes: `Assets/Scenes/SampleScene.unity` is the only enabled build scene.
-- Likely startup scene: `SampleScene` by current build-settings order.
-- Scene loading flow: No custom scene-loading system exists yet; gameplay startup flow is unknown.
+- Build scenes: `Assets/_Project/Scenes/Surface.unity` is the only enabled build scene.
+- Startup scene: `Surface`. It holds one GameObject with a `SpaceBootstrap` component; the player ragdoll, level, HUD, and sky are all built in code at runtime.
+- Scene loading flow: there is no scene-loading system — the game is a single scene. `SpaceSceneBuilder` regenerates `Surface.unity` from the editor menu.
 
 ## Architecture
 
 | Pattern | Finding | Confidence | Evidence |
 | --- | --- | --- | --- |
-| Project maturity | New URP template with tutorial/readme content; no first-party gameplay systems yet | Confirmed | `Assets/` inventory |
-| Runtime architecture | Initial Core/Gameplay/UI assembly boundaries are in place; gameplay implementation is not established | Confirmed | `Assets/_Project/Scripts/Runtime/` and three `.asmdef` files |
-| Editor architecture | Template custom inspector for `Readme` | Confirmed | `Assets/TutorialInfo/Scripts/Editor/ReadmeEditor.cs` |
+| Project maturity | The SpaceFlop physics-ragdoll prototype sits on top of the URP template | Confirmed | `Assets/_Project/` inventory, `METAGAME/README.md` |
+| Runtime architecture | Code-driven: one bootstrap component builds the whole world; no prefab or scene composition | Confirmed | `SpaceBootstrap.cs`, `LevelBuilder.cs` |
+| Assembly architecture | Core to Gameplay to UI to Bootstrap, one direction only; Editor sits on top | Confirmed | Five `.asmdef` files |
+| Editor architecture | `Metagame.Editor` build/scene/art tooling, plus the template `ReadmeEditor` | Confirmed | `Assets/_Project/Scripts/Editor/`, `Assets/TutorialInfo/Scripts/Editor/ReadmeEditor.cs` |
 
 ## Coding Conventions
 
-- Namespace style: New first-party assemblies use `Metagame.<Feature>`; template scripts still use the global namespace.
-- Serialized fields: Template uses public fields and `[SerializeField]` for editor-only style state; project convention is not established.
-- Async/events: Unknown.
-- Comments/docs: Only template comments are present; project convention is not established.
+- Namespace style: `Metagame.Core`, `Metagame.Gameplay`, `Metagame.UI`, `Metagame.Bootstrap`, `Metagame.EditorTools`, each matching its assembly's `rootNamespace`. Template scripts still use the global namespace.
+- File naming: one public type per file, file name equal to the type name.
+- Serialized fields: prototype code exposes public fields on `MonoBehaviour`s instead of `[SerializeField] private`, and private fields are not `_camelCase` yet. The README states both rules as recommendations.
+- Async/events: no async; per-frame polling in `Update`/`FixedUpdate`, with coroutines for the self-test.
+- Comments/docs: Korean XML doc comments on most types, explaining the physics reasoning behind the numbers.
 
 ## Testing And Validation
 
-- EditMode tests: No first-party tests found.
-- PlayMode tests: No first-party tests found.
-- CI/build validation: No CI configuration or build script found.
+- EditMode tests: none; `Assets/_Project/Scripts/Tests/Editor/` is still empty.
+- PlayMode tests: none; `Assets/_Project/Scripts/Tests/Runtime/` is still empty.
+- Runtime self-test: `SpaceSelfTest` feeds input straight into `PlayerRig.SetInput()` and asserts roughly 109 invariants. Run the built player with `-batchmode -nographics -space-selftest`; exit code 0 means it passed.
+- CI/build validation: no CI configuration, but `Metagame.EditorTools.SpaceBuild.BuildWindows` is callable via `-executeMethod`.
 
 ## Available Unity Tooling
 
@@ -89,14 +97,17 @@
 - Commit `Assets/`, `Packages/`, `ProjectSettings/`, and all Unity `.meta` files.
 - Do not commit Unity-generated caches, local editor state, generated IDE files, build outputs, or signing credentials; repository-root `.gitignore` covers these.
 - Keep `Packages/manifest.json` and `Packages/packages-lock.json` versioned so collaborators resolve the same dependencies.
-- Initialization added empty first-party folders and Core/Gameplay/UI assembly definitions; existing scenes and template assets were not moved or edited.
+- Assets moved between folders must carry their `.meta` files so GUIDs, and therefore scene and prefab references, survive.
+- `Prim` and the model loaders resolve assets by `Resources.Load` name, so `Shaders/Resources/` and `Prefabs/Resources/` have to stay inside a folder literally named `Resources`.
+- Editor tooling holds absolute asset paths (`ArtLink`, `SpaceBuild`, `SpaceSceneBuilder`, `ArtInspect`, `SpaceFlopModelValidator`); moving the models or the scene means updating those constants.
 - Large binary assets are configured for Git LFS in the repository-root `.gitattributes`; Unity YAML assets remain regular text files because project serialization is ForceText.
 
 ## Unknowns And Confidence
 
-- Gameplay architecture, namespaces, folder conventions, save/networking design, and supported release platforms are not established yet.
+- Save/networking design and supported release platforms are not established yet.
 - Multiplayer Center is installed, but package presence alone does not confirm multiplayer gameplay.
-- The only build scene is the template `SampleScene`; a production boot/menu flow is not defined.
+- There is no menu or boot flow: the build starts straight into `Surface`.
+- The metagame layer this repository is named for has not been built; only the SpaceFlop prototype exists.
 
 ## Source Files Inspected
 
@@ -110,7 +121,10 @@
 - `ProjectSettings/EditorSettings.asset`
 - `Assets/TutorialInfo/Scripts/Readme.cs`
 - `Assets/TutorialInfo/Scripts/Editor/ReadmeEditor.cs`
-- `Assets/_Project/Scripts/Runtime/*/*.asmdef`
+- `Assets/_Project/Scripts/Runtime/*/*.asmdef`, `Assets/_Project/Scripts/Editor/Metagame.Editor.asmdef`
+- `Assets/_Project/Scripts/**/*.cs`
+- `Assets/_Project/Scenes/Surface.unity`
+- `METAGAME/README.md`
 - `.gitattributes`
 - `README.md`
 - `METAGAME/.vscode/*`
