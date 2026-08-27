@@ -1,3 +1,4 @@
+using Metagame.Core;
 using Metagame.Gameplay;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -16,6 +17,11 @@ namespace Metagame.EditorTools
 
         /// <summary>운반 중 파츠의 가정 이동 속도. 견인 구현 티켓에서 실측 후 조정한다.</summary>
         const float CarrySpeed = 4f;
+
+        // 실제 플레이어는 조인트로 엮인 액티브 래그돌이다. 이 씬에서는 충돌 규칙만 보면 되므로
+        // 같은 높이·무게의 캡슐로 대신한다. 높이는 Tuning 주석의 "귀 끝까지 1.33m" 를 따른다.
+        const float StandInHeight = 1.33f;
+        const float StandInRadius = 0.32f;
 
         [MenuItem("Tools/Metagame/Rebuild Physics Sandbox")]
         public static void Build()
@@ -53,7 +59,7 @@ namespace Metagame.EditorTools
         static void CaseCarriedPartNudgesPlayer(float x)
         {
             Label("Case1_CarriedPart_Nudges_Player", x);
-            Player("Case1_Player", new Vector3(x, PhysicsScale.PlayerHeight * 0.5f, 0f), GameLayers.Player);
+            Player("Case1_Player", new Vector3(x, StandInHeight * 0.5f, 0f), GameLayers.Player);
             var p = Part("Case1_CarriedPart", new Vector3(x - 2.6f, PhysicsScale.PartHeight * 0.5f, 0f),
                 GameLayers.PartCarried, PhysicsScale.CarriedPartMass);
             p.AddComponent<SandboxLauncher>().LaunchVelocity = new Vector3(CarrySpeed, 0f, 0f);
@@ -64,7 +70,7 @@ namespace Metagame.EditorTools
         static void CasePlacedPartCrushesPlayer(float x)
         {
             Label("Case2_PlacedPart_Crushes_Player", x);
-            Player("Case2_Player", new Vector3(x, PhysicsScale.PlayerHeight * 0.5f, 0f), GameLayers.Player);
+            Player("Case2_Player", new Vector3(x, StandInHeight * 0.5f, 0f), GameLayers.Player);
             var p = Part("Case2_PlacedPart", new Vector3(x - 2.6f, PhysicsScale.PartHeight * 0.5f, 0f),
                 GameLayers.Part);
             p.AddComponent<SandboxLauncher>().LaunchVelocity = new Vector3(CarrySpeed, 0f, 0f);
@@ -75,11 +81,11 @@ namespace Metagame.EditorTools
         {
             // 3a. 겹친 두 캡슐이 서로 밀지 않는다.
             Label("Case3_DownedPlayer_IsProtected", x);
-            Player("Case3_Player", new Vector3(x, PhysicsScale.PlayerHeight * 0.5f, 0f), GameLayers.Player);
-            Player("Case3_Downed", new Vector3(x + 0.1f, PhysicsScale.PlayerHeight * 0.5f, 0.1f), GameLayers.PlayerDowned);
+            Player("Case3_Player", new Vector3(x, StandInHeight * 0.5f, 0f), GameLayers.Player);
+            Player("Case3_Downed", new Vector3(x + 0.1f, StandInHeight * 0.5f, 0.1f), GameLayers.PlayerDowned);
 
             // 3b. 기절 캡슐 단독. 견인 파츠가 위로 떨어져도 통과해야 한다.
-            Player("Case3_DownedAlone", new Vector3(x + 9f, PhysicsScale.PlayerHeight * 0.5f, 0f), GameLayers.PlayerDowned);
+            Player("Case3_DownedAlone", new Vector3(x + 9f, StandInHeight * 0.5f, 0f), GameLayers.PlayerDowned);
             Part("Case3_CarriedPart", new Vector3(x + 9f, 9f, 0f), GameLayers.PartCarried, PhysicsScale.CarriedPartMass);
         }
 
@@ -97,10 +103,10 @@ namespace Metagame.EditorTools
         static GameObject Player(string name, Vector3 pos, int layer)
         {
             var go = Solid(name, PrimitiveType.Capsule, pos,
-                new Vector3(PhysicsScale.PlayerRadius * 2f, PhysicsScale.PlayerHeight * 0.5f, PhysicsScale.PlayerRadius * 2f),
+                new Vector3(StandInRadius * 2f, StandInHeight * 0.5f, StandInRadius * 2f),
                 layer);
             var rb = go.AddComponent<Rigidbody>();
-            rb.mass = PhysicsScale.PlayerMass;
+            rb.mass = Tuning.BodyMass;
             rb.constraints = RigidbodyConstraints.FreezeRotation;
             return go;
         }
