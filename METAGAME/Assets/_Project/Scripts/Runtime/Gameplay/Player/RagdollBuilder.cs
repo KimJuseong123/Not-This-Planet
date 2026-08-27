@@ -15,8 +15,24 @@ namespace Metagame.Gameplay
     /// </summary>
     public static class RagdollBuilder
     {
-        public const int PlayerLayer = 8;                 // 인형 전용 레이어 (지형 탐색에서 자기 몸을 뺀다)
-        public static int WorldMask { get { return ~(1 << PlayerLayer); } }
+        /// <summary>
+        /// 인형 전용 레이어. 지형 탐색과 잡기 탐색에서 자기 몸을 빼는 데 쓴다.
+        ///
+        /// 값은 프로젝트 공용 레이어 체계를 따른다. 예전에는 8 이었으나
+        /// 그 번호가 Ground 로 배정되면서(S15P21B202-57) 충돌이 생겼다.
+        /// 인형이 Ground 레이어에 올라가면 WorldMask 가 지면을 함께 제외해 버려
+        /// 접지 판정이 지면을 못 찾고, 파츠 충돌 규칙도 Player 가 아닌 Ground 로 적용됐다.
+        /// </summary>
+        public const int PlayerLayer = GameLayers.Player;
+
+        /// <summary>
+        /// 물리 쿼리에서 뺄 레이어를 제외한 마스크.
+        /// 플레이어 자신(서 있는 상태와 기절 상태), 그리고 물리 충돌 없이 쿼리로만 쓰는
+        /// Interactable · BeamQuery 를 뺀다. 고정쇠 트리거가 접지 판정에 걸리지 않게 한다.
+        /// </summary>
+        public static int WorldMask =>
+            ~((1 << GameLayers.Player) | (1 << GameLayers.PlayerDowned)
+              | (1 << GameLayers.Interactable) | (1 << GameLayers.BeamQuery));
 
         // ── 부위 치수 (m) ───────────────────────────────────────
         // 이 숫자들은 상상해서 정한 것이 아니라 <b>블렌더 모델 SF_Rabbit_Base 에서 직접 잰 것</b>이다
