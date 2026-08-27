@@ -27,11 +27,28 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
-        public void CarriedPart_IgnoresBothPlayerLayers()
+        public void CarriedPart_CollidesWithStandingPlayer()
         {
-            // 견인 중인 대형 파츠가 플레이어를 밀어 압사시키는 상황을 원천 차단한다.
-            AssertIgnored(GameLayers.PartCarried, GameLayers.Player);
+            // 견인 중인 파츠로 동료를 툭 치며 방해할 수 있어야 한다.
+            // 압사 방지는 레이어가 아니라 PhysicsScale.CarriedPartMass 로 처리한다.
+            AssertCollides(GameLayers.PartCarried, GameLayers.Player);
+        }
+
+        [Test]
+        public void CarriedPart_IgnoresDownedPlayer()
+        {
+            // 기절한 플레이어는 스스로 빠져나올 수 없다.
+            // 파츠에 눌려 구조가 불가능해지는 상황을 막는다.
             AssertIgnored(GameLayers.PartCarried, GameLayers.PlayerDowned);
+        }
+
+        [Test]
+        public void CarriedPartMass_IsFarLighterThanPlacedPart()
+        {
+            Assert.LessOrEqual(PhysicsScale.CarriedPartMass, PhysicsScale.PlayerMass,
+                "견인 중 파츠는 플레이어보다 무거우면 안 된다. 밀칠 수는 있되 깔아뭉갤 수 없어야 한다.");
+            Assert.Less(PhysicsScale.CarriedPartMass, PhysicsScale.PartMass * 0.1f,
+                "견인 중 질량은 놓인 상태보다 확연히 가벼워야 한다.");
         }
 
         [Test]
@@ -65,6 +82,7 @@ namespace Metagame.Gameplay.Tests
             // 매트릭스를 과하게 꺼서 게임이 성립하지 않게 되는 회귀를 막는다.
             AssertCollides(GameLayers.Player, GameLayers.Ground);
             AssertCollides(GameLayers.Player, GameLayers.Part);
+            AssertCollides(GameLayers.Player, GameLayers.PartCarried);
             AssertCollides(GameLayers.Part, GameLayers.Ground);
             AssertCollides(GameLayers.Part, GameLayers.PartCarried);
             AssertCollides(GameLayers.Meteor, GameLayers.Player);
