@@ -22,7 +22,7 @@
 | `mr-lint` | lint | Draft 금지 · 소스/대상 브랜치 형식 · 제목 정규식 · 제목/브랜치/본문의 키 일치 · 템플릿 섹션 6개 · 작성자 체크리스트 전부 체크 · Jira 이슈 실존·Epic 아님·담당자·상위 Epic 있음 · 제목 파트 = Jira 파트 | **예** |
 | `repo-hygiene` | lint | 금지 파일(Library/Temp/obj/Build·csproj/sln·.vs/.idea·OS 잡파일·빌드 산출물) · Assets 아래 `.meta` 짝(파일·상위 폴더·고아) · Assets 새 최상위 폴더 금지(`_Project/` 아래로) · **LFS 추적 파일이 실제 바이너리로 커밋됨**(오늘 URP.png 사례) · 비-LFS 5MB 초과 · 씬/프리팹 변경 vs MR 본문 선언 불일치 | **예** |
 | `unity-compile` | test | Unity 설치 Windows 러너(`unity-win`)에서 EditMode 테스트 실행 → 컴파일 에러 검출. `UNITY_RUNNER=true` 일 때만 생성 | 처음엔 아니오 |
-| `ai-review` | review | Claude 가 diff 를 읽고 코멘트 1개(재실행 시 갱신). 범위(Jira 완료 조건 대비)·구조(`_Project/`, Core←Gameplay←UI)·C#/Unity 실수·씬 선언·기록 관점. 에셋·바이너리·메타는 제외. **백엔드 2종**: `cli` = 러너 호스트에 로그인된 Claude Code CLI(`claude -p`, Team 플랜 사용량, 키 불필요 — **채택**) / `api` = `ANTHROPIC_API_KEY`. `AI_REVIEW_CLI=true` 또는 키가 있을 때만 잡 생성 | 아니오 |
+| `ai-review` | review | **v2(2026-08-27, -82)**: 역할별 리뷰어 3(범위·완료 조건·기록 / C#·Unity·네트워크 코드 / 에셋·씬·프리팹·구조)이 변경 내용에 따라 필요한 것만 **병렬** 실행되어 JSON 만 내고, 요약 에이전트가 "팀장이 확인할 것" 1~3개를 쓴다. 최종 코멘트 1개(재실행 시 갱신) = 결론(✅ 머지 가능 / ⚠️ 확인 후 머지 / ⛔ 보류) → 확인할 것 → **리뷰어 확인 5항목 판정표**(범위·완료 조건·씬/프리팹·구조·기록) → 발견 사항 표(높음·중간) → `<details>` 상세. 팀장은 ⚠️/❓ 만 본다. **백엔드**: `cli` = 러너 호스트 Claude Code CLI(Team 플랜, 채택) / `api` = `ANTHROPIC_API_KEY`. `AI_REVIEW_CLI=true` 또는 키가 있을 때만 잡 생성 | 아니오 |
 | `mm-digest` | notify | **스케줄 전용**. needs-fix · 기한 초과 · 3일 정체 진행 중 · 스프린트 내 담당자 없음 · 24시간 넘게 열린 MR 을 MM 으로 | — |
 
 정규식(단일 출처 `scripts/ci/ci_common.py`):
@@ -45,7 +45,7 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 | `JIRA_USER`, `JIRA_API_TOKEN` | Jira 읽기(이슈 조회·JQL) | Atlassian 계정 설정 → 보안 → API 토큰 — **스코프 토큰(`read:jira-work`, `read:jira-user`) 권장**. 스크립트는 `https://api.atlassian.com/ex/jira/{JIRA_CLOUD_ID}` 경로로 호출한다(스코프 토큰은 사이트 URL 로는 익명 취급 → 404, 2026-08-27 실측). `JIRA_CLOUD_ID` 기본값은 우리 사이트 | 키 실존·파트 검사 생략(경고) |
 | `GITLAB_TOKEN` | MR 제목/본문 수정·코멘트·MR 목록 | Settings → Access Tokens → **프로젝트 액세스 토큰**, 역할 Developer, 스코프 `api` | 제목 보정·AI 코멘트 불가(제안만 로그) |
 | `AI_REVIEW_CLI` | `true` — 러너 호스트의 로그인된 Claude Code CLI 로 AI 리뷰(Team 플랜, **채택 방식**) | 팀장 | `ai-review` 잡 생성 안 됨 |
-| `AI_REVIEW_MODEL` | (선택) 기본 `claude-sonnet-5`(구독 사용량 절약). 품질 우선이면 `claude-opus-5` | — | 기본값 |
+| `AI_REVIEW_MODEL` | (선택) 기본 `claude-opus-5`, `AI_REVIEW_EFFORT` 기본 `medium`(팀 결정). `AI_REVIEW_SUMMARY_MODEL` 요약 에이전트 모델(기본 = 위), `AI_REVIEW_ROLES` 리뷰어 강제(예 `scope,code`), `AI_REVIEW_PARALLEL` 동시 실행 수(기본 3) | — | 기본값 |
 | `ANTHROPIC_API_KEY` | (대안) API 종량제로 AI 리뷰 — Team 플랜엔 포함되지 않음, 별도 콘솔·크레딧 필요 | — | cli 백엔드 사용 |
 | `MM_WEBHOOK_URL` | Mattermost 수신 웹훅 | MM 채널 → 통합 → 수신 웹훅 | `mm-digest` 생기지 않음 |
 | `CI_ENABLE` | 파이프라인 전체 게이트 | 러너 등록 직후 팀장이 `true` | 파이프라인이 생성되지 않음(의도) |
