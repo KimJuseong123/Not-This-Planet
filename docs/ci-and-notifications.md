@@ -66,6 +66,8 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 
 원칙: ① **모든 메시지는 조치할 사람을 @멘션** — 멘션 대상이 없는 메시지는 보내지 않는다(noise) ② 첫 줄에 **등급 이모지 + 굵은 제목 + 링크**, 둘째 줄에 **@멘션 + 조치** ③ 일상(🟢 요청·📋 요약)과 조치 필요(🔴 실패·🟠 규칙 위반)를 이모지로 구분. MM 서버가 웹훅 이름 재정의를 막아 발신자는 웹훅 생성자(금준영 BOT)로 보이므로 첫 줄이 곧 제목이다. 계정 매핑의 단일 출처는 [`scripts/ci/team.json`](../scripts/ci/team.json)(GitLab·MM·Jira accountId).
 
+**공통 형식(표 카드, 2026-08-27 v2.1)** — 첫 줄 `등급 이모지 **제목**`, 둘째 줄부터 MM Markdown 표 `| 항목 | 내용 |`: 이슈/MR(링크) · 담당/옮긴 사람(@멘션 + 이름) · 실패한 잡·확인할 것(CI) · **조치**(한 줄). 다이제스트는 항목별 `| 이슈 | 담당 |` 표. Jira 쪽 문구는 `apply_rules7.py`, CI 쪽은 `mm_notify.card()`·`mm_digest.fmt_issues()` 가 단일 출처.
+
 | 등급 | 사건 | 보내는 곳 | @멘션 | 문구 |
 | --- | --- | --- | --- | --- |
 | 🔴 조치 필요 | MR 파이프라인 실패(mr-lint·repo-hygiene) | CI `mm-ci-failed`(`when: on_failure`) | **MR 작성자** | `🔴 **CI 실패** — [!N 제목](url)` / `@작성자 · 실패: [mr-lint](로그) · 확인할 것: … · 고친 뒤 push 하면 자동 재검사` |

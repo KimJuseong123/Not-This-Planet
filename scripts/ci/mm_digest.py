@@ -26,8 +26,10 @@ def who(assignee: dict | None) -> str:
 
 
 def fmt_issues(issues: list[dict]) -> str:
-    return "\n".join(f"  - [{i['key']}]({JIRA_BROWSE}{i['key']}) {i['fields'].get('summary', '')} — {who(i['fields'].get('assignee'))}"
+    """| 이슈 | 담당 | 표 한 덩어리 (MM Markdown)."""
+    rows = "\n".join(f"| [{i['key']}]({JIRA_BROWSE}{i['key']}) {i['fields'].get('summary', '')} | {who(i['fields'].get('assignee'))} |"
                      for i in issues)
+    return "| 이슈 | 담당 |\n|---|---|\n" + rows
 
 
 def main() -> int:
@@ -65,10 +67,9 @@ def main() -> int:
             if age_h >= 24:
                 revs = [r["username"] for r in mr.get("reviewers", [])] or [TEAM["roles"]["lead"]]
                 rev = " ".join(f"@{MM_BY_GITLAB.get(r, r)}" for r in revs)
-                old.append(f"  - [!{mr['iid']}]({mr['web_url']}) {mr['title']} — {age_h/24:.1f}일 · 리뷰 {rev}"
-                           + (" · Draft" if mr.get("draft") else ""))
+                old.append(f"| [!{mr['iid']}]({mr['web_url']}) {mr['title']}{' (Draft)' if mr.get('draft') else ''} | {age_h/24:.1f}일 | {rev} |")
         if old:
-            blocks.append(f"**🔀 24시간 넘게 열린 MR** ({len(old)})\n" + "\n".join(old))
+            blocks.append(f"**🔀 24시간 넘게 열린 MR** ({len(old)})\n| MR | 경과 | 리뷰어 |\n|---|---|---|\n" + "\n".join(old))
     if not blocks:
         print("보낼 항목 없음"); return 0
     text = f"📋 **아침 점검 — 확인 필요** ({datetime.now().strftime('%m/%d %H:%M')})\n" + "\n\n".join(blocks) + \

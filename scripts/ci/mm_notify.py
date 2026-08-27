@@ -23,10 +23,16 @@ def mm_of(gitlab_username: str | None) -> str | None:
     return f"@{m['mm']}" if m else None
 
 
+def card(title: str, rows: list[tuple[str, str]]) -> str:
+    """모든 봇 메시지의 공통 카드: 등급 이모지 제목 한 줄 + | 항목 | 내용 | 표 (MM Markdown)."""
+    body = "| 항목 | 내용 |\n|---|---|\n" + "\n".join(f"| {k} | {v} |" for k, v in rows)
+    return f"{title}\n{body}"
+
+
 def send(text: str) -> int:
     url = env("MM_WEBHOOK_URL")
     if not url:
-        print("MM_WEBHOOK_URL 없음 → 전송 생략"); return 0
+        print("MM_WEBHOOK_URL 없음 → 전송 생략(아래는 보냈을 문구)"); print(text); return 0
     st, _ = http("POST", url, body={"text": text, "username": "METAGAME 봇"})
     print(text); print(f"MM 전송 → {st}")
     return 0 if st == 200 else 1
@@ -48,9 +54,12 @@ def mr_opened(gl: GitLab) -> int:
     reviewers = [r.get("username") for r in (mr.get("reviewers") or [])] or [LEAD]
     mentions = " ".join(x for x in (mm_of(r) for r in reviewers) if x) or f"@{BY_GITLAB[LEAD]['mm']}"
     author_txt = mm_of(author) or author or "?"
-    text = (f"🟢 **리뷰 요청** — [!{gl.iid} {title}]({mr.get('web_url')})\n"
-            f"{mentions} · 작성 {author_txt.lstrip('@')} · 파이프라인 결과는 MR 상단에서, 리뷰 기준은 MR 본문 하단 '리뷰어 확인'")
-    return send(text)
+    return send(card("🟢 **리뷰 요청**", [
+        ("MR", f"[!{gl.iid} {title}]({mr.get('web_url')})"),
+        ("리뷰어", mentions),
+        ("작성", author_txt.lstrip("@")),
+        ("조치", "파이프라인 결과 확인 후 MR 본문 하단 '리뷰어 확인' 5항목 기준으로 리뷰·머지"),
+    ]))
 
 
 def ci_failed(gl: GitLab) -> int:
@@ -71,9 +80,13 @@ def ci_failed(gl: GitLab) -> int:
         hints = ", ".join(sorted({hint.get(j["name"], j["name"]) for j in failed}))
     else:
         parts, hints = f"[파이프라인]({env('CI_PIPELINE_URL', '')})", "잡 로그 확인"
-    text = (f"🔴 **CI 실패** — [!{gl.iid} {title}]({mr.get('web_url')})\n"
-            f"{mention} · 실패: {parts} · 확인할 것: {hints} · 고친 뒤 push 하면 자동 재검사")
-    return send(text)
+    return send(card("🔴 **CI 실패**", [
+        ("MR", f"[!{gl.iid} {title}]({mr.get('web_url')})"),
+        ("작성자", mention),
+        ("실패한 잡", parts),
+        ("확인할 것", hints),
+        ("조치", "고친 뒤 push 하면 자동 재검사 · 로그의 ❌ 줄에 이유와 고치는 법이 있음"),
+    ]))
 
 
 def main() -> int:
