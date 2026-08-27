@@ -26,7 +26,7 @@ def mm_of(gitlab_username: str | None) -> str | None:
 def card(title: str, rows: list[tuple[str, str]]) -> str:
     """모든 봇 메시지의 공통 카드: 등급 이모지 제목 한 줄 + | 항목 | 내용 | 표 (MM Markdown)."""
     body = "| 항목 | 내용 |\n|---|---|\n" + "\n".join(f"| {k} | {v} |" for k, v in rows)
-    return f"{title}\n{body}"
+    return f"{title}\n\n{body}"   # 제목과 표 사이 빈 줄 필수 — 없으면 MM 이 표를 문단으로 붙여 raw 로 보임(2026-08-27 실측)
 
 
 def send(text: str) -> int:

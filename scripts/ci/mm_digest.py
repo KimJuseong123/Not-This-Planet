@@ -55,7 +55,7 @@ def main() -> int:
                 blocks.append(f"**{title}** — 조회 실패: {e}")
                 continue
             if issues:
-                blocks.append(f"**{title}** ({len(issues)})\n{fmt_issues(issues)}")
+                blocks.append(f"**{title}** ({len(issues)})\n\n{fmt_issues(issues)}")   # 제목-표 사이 빈 줄 필수
     else:
         blocks.append("_(JIRA_USER/JIRA_API_TOKEN 없음 — Jira 항목 생략)_")
     if gl.token and gl.project:
@@ -69,7 +69,7 @@ def main() -> int:
                 rev = " ".join(f"@{MM_BY_GITLAB.get(r, r)}" for r in revs)
                 old.append(f"| [!{mr['iid']}]({mr['web_url']}) {mr['title']}{' (Draft)' if mr.get('draft') else ''} | {age_h/24:.1f}일 | {rev} |")
         if old:
-            blocks.append(f"**🔀 24시간 넘게 열린 MR** ({len(old)})\n| MR | 경과 | 리뷰어 |\n|---|---|---|\n" + "\n".join(old))
+            blocks.append(f"**🔀 24시간 넘게 열린 MR** ({len(old)})\n\n| MR | 경과 | 리뷰어 |\n|---|---|---|\n" + "\n".join(old))
     if not blocks:
         print("보낼 항목 없음"); return 0
     text = f"📋 **아침 점검 — 확인 필요** ({datetime.now().strftime('%m/%d %H:%M')})\n" + "\n\n".join(blocks) + \
