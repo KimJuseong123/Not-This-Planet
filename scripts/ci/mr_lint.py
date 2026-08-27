@@ -2,12 +2,42 @@
 
 규칙: docs/git-convention.md §5, docs/jira-convention.md, .gitlab/merge_request_templates/Default.md
 """
+import json
+import os
 import re
 
 from ci_common import (BRANCH_RE, KEY_RE, PROJECT_KEY, TITLE_RE, GitLab, Jira, Report, banner,
                        find_section, key_from_branch, part_of_issue, sections, strip_draft)
 
 REQUIRED_SECTIONS = ["Jira", "무엇을 · 왜", "산출물 위치", "확인 방법", "작성자 체크리스트", "리뷰어 확인"]
+_TEAM = json.load(open(os.path.join(os.path.dirname(__file__), "team.json"), encoding="utf-8"))
+JIRA_BY_GITLAB = {m["gitlab"]: m["jira"] for m in _TEAM["members"]}
+NAME_BY_GITLAB = {m["gitlab"]: m["name"] for m in _TEAM["members"]}
+
+
+def existence_problem(key: str | None, issue: dict | None, lookup_failed: bool) -> str | None:
+    """이슈 실존 검사 결과(실패 메시지 또는 None).
+    조회 자체가 실패했으면 판정하지 않는다 — Jira 장애·토큰 만료를 '이슈가 없다' 로 오해하면 모든 MR 이 잘못된 이유로 빨간불이 된다(S15P21B202-94)."""
+    if lookup_failed or not key:
+        return None
+    if issue is None:
+        return (f"Jira 이슈 {key} 가 존재하지 않음 — 브랜치 이름의 번호를 확인하세요. "
+                f"번호를 잘못 적었다면 그 번호의 **다른 이슈**가 자동으로 진행 중으로 바뀌었을 수 있습니다")
+    return None
+
+
+def assignee_mismatch(mr: dict, issue: dict) -> str | None:
+    """MR 작성자 ≠ Jira 담당자면 경고 문구. 브랜치 이름의 번호를 오타로 적어 남의 이슈를 건드린 경우가 여기서 드러난다.
+    대행 작업도 정상이므로 차단하지 않는다. team.json 에 매핑이 없는 계정(봇 등)은 건너뛴다."""
+    author = (mr.get("author") or {}).get("username", "")
+    author_jira = JIRA_BY_GITLAB.get(author)
+    assignee = issue.get("fields", {}).get("assignee") or {}
+    if not author_jira or not assignee.get("accountId"):
+        return None
+    if author_jira == assignee.get("accountId"):
+        return None
+    return (f"MR 작성자({NAME_BY_GITLAB.get(author, author)})와 Jira 담당자({assignee.get('displayName')})가 다릅니다 — "
+            f"브랜치 이름의 이슈 번호를 잘못 적었다면 그 이슈가 자동으로 진행 중이 됩니다(대행 작업이면 무시)")
 
 
 def main() -> int:
@@ -88,13 +118,15 @@ def main() -> int:
     elif not jira.available:
         rep.warn("JIRA_USER/JIRA_API_TOKEN 없음 → Jira 실존 확인 생략 (CI 변수 등록 필요)")
     else:
+        lookup_failed = False
         try:
             issue = jira.get_issue(key)
-        except RuntimeError as e:
-            rep.warn(f"Jira 조회 오류(검사 생략): {e}")
-            issue = None
-        if jira.available and issue is None and key:
-            rep.fail(f"Jira 이슈 {key} 가 존재하지 않음")
+        except Exception as e:   # 네트워크·형식 오류까지 — 장애를 '이슈 없음' 으로 판정하지 않기 위해
+            rep.warn(f"Jira 조회 오류로 실존·담당자 검사 생략({type(e).__name__}: {e}) — 토큰·네트워크 확인 필요")
+            issue, lookup_failed = None, True
+        problem = existence_problem(key, issue, lookup_failed)
+        if problem:
+            rep.fail(problem)
         elif issue:
             f = issue["fields"]
             status = (f.get("status") or {}).get("name", "")
@@ -106,6 +138,10 @@ def main() -> int:
                 rep.warn("이슈가 이미 완료 상태 — 후속 작업이면 새 이슈를 만들 것 (머지 후 push 금지)")
             if not f.get("assignee"):
                 rep.fail("Jira 이슈 담당자 없음 — 담당자 필수")
+            else:
+                mismatch = assignee_mismatch(mr, issue)
+                if mismatch:
+                    rep.warn(mismatch)
             if itype not in ("에픽", "Epic") and not f.get("parent"):
                 rep.fail("Jira 이슈에 상위 Epic 없음 — 상위 항목 필수")
             jpart = part_of_issue(issue)
