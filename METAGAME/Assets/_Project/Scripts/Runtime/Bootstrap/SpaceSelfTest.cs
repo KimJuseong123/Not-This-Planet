@@ -381,22 +381,26 @@ namespace Metagame.Bootstrap
         // 가벼운 상자는 양손으로 운반되고, 무거운 상자는 들어 올리지 않고
         // 고정물을 짚듯 잡혀야 한다.
         float carryY, carryStartY;
-        bool carryGripped, carryFixed, carryStanding;
+        bool carryGripped, carryFixed, carryStanding, carryPlayerCollisionIgnored;
 
         IEnumerator Carrying()
         {
             yield return PullTest("가벼운 상자", 5f);
             float lightRise = carryY - carryStartY;
             bool lightGrip = carryGripped;
+            bool lightPlayerCollisionIgnored = carryPlayerCollisionIgnored;
 
             yield return PullTest("무거운 궤짝", 55f);
             float heavyRise = carryY - carryStartY;
+            bool heavyPlayerCollisionIgnored = carryPlayerCollisionIgnored;
 
             Check(lightGrip, "가벼운 상자를 잡았다");
+            Check(lightPlayerCollisionIgnored, "들고 있는 가벼운 도구는 플레이어와 충돌하지 않는다");
             bool heavyFixed = carryFixed;
             Check(carryGripped, "55kg 궤짝을 양손으로 짚었다");
             Check(lightRise > 0.20f, "가벼운 상자가 " + lightRise.ToString("0.00") + "m 들려 올라왔다");
             Check(heavyFixed, "55kg 궤짝은 고정물처럼 잡힌다");
+            Check(!heavyPlayerCollisionIgnored, "고정물로 짚는 무거운 물체에는 운반 충돌 예외를 적용하지 않는다");
             Check(heavyRise < 0.20f, "55kg 궤짝은 들어 올리지 않는다 (상승 " + heavyRise.ToString("0.00") + "m)");
             Check(heavyRise <= lightRise + 0.10f,
                   "무거운 고정물의 상승량이 가벼운 도구보다 크지 않다 (차이 "
@@ -437,6 +441,21 @@ namespace Metagame.Bootstrap
                            && rig.LeftHand.Held != null && rig.RightHand.Held == rig.LeftHand.Held
                            && rig.LeftHand.Held.Label == label;
             carryFixed = rig.LeftHand.Hanging && rig.RightHand.Hanging;
+            carryPlayerCollisionIgnored = false;
+            var objectCollider = go.GetComponent<Collider>();
+            if (objectCollider != null)
+            {
+                carryPlayerCollisionIgnored = true;
+                for (int i = 0; i < doll.Colliders.Count; i++)
+                {
+                    if (doll.Colliders[i] != null &&
+                        !Physics.GetIgnoreCollision(doll.Colliders[i], objectCollider))
+                    {
+                        carryPlayerCollisionIgnored = false;
+                        break;
+                    }
+                }
+            }
             carryY = rb.position.y;
             carryStanding = !rig.Ragdolled && doll.Hips.position.y > Tuning.RideHeight * 0.7f;
             Debug.Log("[SELFTEST] 나르기 진단 " + label + " " + mass + "kg — 시작 y="

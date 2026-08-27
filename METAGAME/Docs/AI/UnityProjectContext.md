@@ -4,7 +4,7 @@
 
 ## Project Summary
 
-- Latest feature change: PlayerRig now uses stable target-velocity locomotion, first-person camera mode, configurable health/fall damage, two-hand tool handling with charged Q throws, heavy-object fixed gripping, crosshair-locked light-tool carrying, and SampleScene starts the same runtime bootstrap as Surface.
+- Latest feature change: PlayerRig now uses stable target-velocity locomotion, first-person camera mode, configurable health/fall damage, two-hand tool handling with charged Q throws, heavy-object fixed gripping, crosshair-locked light-carryable handling with player-only collision exclusion, and SampleScene starts the same runtime bootstrap as Surface.
 
 - Project root: `METAGAME/`
 - Last analyzed: 2026-08-27

@@ -80,18 +80,19 @@ namespace Metagame.Core
         public const float RegrabLock = 0.06f;
 
         // ── 들기 · 나르기 ───────────────────────────────────────
-        // 일반적인 물리 운반 설정. 화면 조준으로 들어 올리는 도구는 PlayerRig가
-        // 별도의 크로스헤드 고정 경로를 사용하고, FixedGripMass 이상은 이 경로에 들어오지 않는다.
-        public const float CarryAccel = 42f;        // 1/s² — 목표점까지의 거리에 곱한다
-        public const float CarryDamp = 8f;          // 1/s
-        public const float CarryAccelMax = 26f;     // m/s²
+        // 가벼운 운반 물체는 PlayerRig가 Kinematic 상태로 크로스헤드 위치를
+        // 직접 추적하므로 아래의 기존 동적 운반 보정값은 현재 경로에서 사용하지 않는다.
+        // 외부/향후 참조 호환성을 위해 값은 유지한다.
+        public const float CarryAccel = 42f;
+        public const float CarryDamp = 8f;
+        public const float CarryAccelMax = 26f;
         /// <summary>잡은 물체의 무게를 이만큼 대신 들어준다 (1 = 완전 무중력처럼).</summary>
         public const float CarrySupport = 0.85f;
-        /// <summary>물체를 당긴 반작용 중 몸이 실제로 받는 비율. 크면 무거운 걸 잡을 때 딸려간다.</summary>
+        /// <summary>물체를 당긴 반작용 중 몸이 실제로 받는 비율.</summary>
         public const float CarryReaction = 0.16f;
         /// <summary>두 손으로 같은 것을 잡으면 이만큼 더 세게 다룬다.</summary>
         public const float TwoHandBonus = 1.6f;
-        /// <summary>조인트의 connectedMassScale — 낮을수록 팔이 물체 무게를 덜 느낀다.</summary>
+        /// <summary>기존 고정형 물체 Joint가 동적 연결 대상을 사용할 때의 질량 보정값.</summary>
         public const float CarryMassScale = 0.35f;
         /// <summary>이 질량 이상인 물체는 들어 올리지 않고 고정물을 짚듯 잡는다.</summary>
         public const float FixedGripMass = 40f;
@@ -102,7 +103,6 @@ namespace Metagame.Core
         public const float ToolDropChargeThreshold = 0.08f;
         public const float ToolThrowRegrabLock = 0.30f;
         public const float ToolHoldDistance = 0.55f;
-        public const float ToolHoldMaxSpeed = 30f;
 
         // ── 기어오르기 ──────────────────────────────────────────
         public const float ClimbPull = 150f;        // 매달린 채 위로 기어오르는 보조력
