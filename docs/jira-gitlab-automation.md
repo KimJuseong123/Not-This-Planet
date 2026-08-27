@@ -73,13 +73,13 @@ MR 머지 ────▶ [완료]         ⚙ 손으로 끌면 무조건 되돌
   > `development[branches]`는 Cloud JQL에 없음(실측) → 이슈 키가 든 커밋/MR 존재로 대체. 정상 경로는 R4가 처리.
 
 ### R6 · MR 머지 → 완료
-- 조건(보강 2026-08-27) **고급 비교** `{{pullRequest.sourceBranch.match("^(?:hotfix/)?(S15P21B202-\d+)")}}` = `{{issue.key}}` — MR 본문에 언급된 다른 이슈에는 반응하지 않음 · **이슈 유형 ≠ Epic**
+- 조건(보강 2026-08-27, 17:00 재도입) **고급 비교** `{{pullRequest.sourceBranch.match("^(?:hotfix/)?(S15P21B202-\d+).*$")}}` = `{{issue.key}}` — MR 본문에 언급된 다른 이슈에는 반응하지 않음 · **이슈 유형 ≠ Epic**. ※ `match()` 는 **문자열 전체 일치 + 첫 캡처 그룹 반환**이라 끝의 `.*` 가 없으면 항상 빈 값(15:2x~16:1x R6 정지 사고의 원인)
 - 트리거 **풀 리퀘스트 병합됨**
 - 액션 **이슈 전환** → `완료`
 
 ### R7 · MR 닫힘 알림
 - 트리거 **풀 리퀘스트 거부됨(declined)**
-- 조건(보강 2026-08-27) **고급 비교** `{{pullRequest.sourceBranch.match("^(?:hotfix/)?(S15P21B202-\d+)")}}` = `{{issue.key}}` · 액션 끝에 **웹 요청 보내기**(MM 채널 알림, 적용 완료)
+- 조건(보강 2026-08-27, 17:00 재도입) **고급 비교** `{{pullRequest.sourceBranch.match("^(?:hotfix/)?(S15P21B202-\d+).*$")}}` = `{{issue.key}}` · 액션 끝에 **웹 요청 보내기**(MM 표 카드, 담당자 @멘션)
 - **MM 웹 요청 공통(2026-08-27 적용)**: R2(제목 위반·상위 Epic 없음 분기), R5·R9(되돌림 분기 끝), R7 에 `jira.issue.outgoing.webhook` 액션. 본문 `{"text": "…"}`, 요약·이름은 `{{issue.summary.jsonEncode}}` 처럼 JSON 이스케이프. 웹훅 URL 은 규칙 안에만 존재(리포·채팅 X). 새 규칙에 알림을 붙일 땐 R7 의 액션을 복사
 - 액션 코멘트 `MR이 머지 없이 닫혔습니다. 다시 열거나 새 MR을 만드세요.`
 
@@ -212,7 +212,7 @@ MR 머지 ────▶ [완료]         ⚙ 손으로 끌면 무조건 되돌
 
 - `{base}` = `https://ssafy.atlassian.net/gateway/api/automation/internal-api/jira/{cloudId}/pro/rest`, projectId `22557`, cloudId `15a21def-11f5-4358-ab48-074194685963`.
 - **웹 요청(MM) 액션** 타입 `jira.issue.outgoing.webhook`, value keys `url·urlSecure·headers·sendIssue·contentType·customBody·method·responseEnabled·continueOnErrorEnabled`. customBody 는 렌더링 전 원문이므로 `{{…}}` 안 큰따옴표를 이스케이프하면 조건이 깨진다(작은따옴표 리터럴은 액션 실패). 표본 1개를 UI 로 만들고 복제하는 방식이 가장 안전.
-- **DevOps 트리거 스마트값**(`pullRequest.*`)은 실제 이벤트 전엔 검증 불가 — 조건에 쓰기 전에 댓글로 값을 찍어 확인할 것(R6 사고 참고).
+- **DevOps 트리거 스마트값**(`pullRequest.*`)은 실제 이벤트 전엔 검증 불가 — 조건에 쓰기 전에 댓글로 값을 찍어 확인할 것(R6 사고 참고). 2026-08-27 실측: `{{pullRequest.sourceBranch}}`·`.name`·`{{pullRequest.title}}`·`{{pullRequest.url}}` 모두 정상, **`match(regex)` 는 전체 일치 + 첫 캡처 그룹**(`.*` 로 감쌀 것). 조건식 문자열 리터럴은 큰따옴표만.
 - **새 컴포넌트의 id는 `"__NEW__COMPONENT__<uuid>"`** (null·임의 UUID는 "컴포넌트 ID 불일치/중복" 400). 중첩은 `children`/`conditions` 배열로.
 - 컴포넌트 타입: `jira.issue.event.trigger:created|transitioned`, `jira.issue.field.changed`(value `{"changeType":"ANY_CHANGE","fields":[{"value":"<fieldId>","type":"field"}],"actions":[],"eventFilters":[ARI]}`), `devops.branch.event.trigger:created`, `devops.pr.event.trigger:merged|declined`, `jira.issue.condition`, `jira.comparator.condition`, `jira.jql.condition`(value=JQL 문자열), `jira.condition.container.block` + `jira.condition.if.block`(ELSE = 조건 없는 if.block), `jira.issue.transition`(destinationStatus NAME 영문), `jira.issue.comment`, `jira.issue.edit`(`advancedFields`에 Jira REST 편집 JSON 문자열), `jira.issue.refresh.issue`, `codebarrel.action.log`.
 - 세션 확보는 Playwright(`launch_persistent_context`, channel="chrome")로 로그인 창을 띄운 뒤 같은 컨텍스트의 `page.request`로 호출. 동기 API 대기는 `time.sleep` 대신 `page.wait_for_timeout`.
