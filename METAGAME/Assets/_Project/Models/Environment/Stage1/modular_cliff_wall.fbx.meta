@@ -3,7 +3,12 @@ guid: bc392cb40c7a8c64e8905546e5fe6e45
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: tripo_node_78179f6b-8487-4e82-a4e7-79ae12d96ffc_material
+    second: {fileID: 2100000, guid: 42724b045520d0945a38545ab7fc55fb, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0
@@ -95,7 +100,7 @@ ModelImporter:
     armStretch: 0.05
     legStretch: 0.05
     feetSpacing: 0
-    globalScale: 1
+    globalScale: 4
     rootMotionBoneName: 
     hasTranslationDoF: 0
     hasExtraRoot: 0

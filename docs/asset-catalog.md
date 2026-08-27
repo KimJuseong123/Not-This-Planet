@@ -1,6 +1,7 @@
 # Unity 에셋 카탈로그
 
 > 기준 커밋: `develop` **054a2a6** · 작성 2026-08-27 · 이슈 [S15P21B202-80](https://ssafy.atlassian.net/browse/S15P21B202-80)
+> 갱신 2026-08-27 — 환경 자연물 연결과 `Main.unity` 아트 배치 · 이슈 [S15P21B202-84](https://ssafy.atlassian.net/browse/S15P21B202-84)
 > 관련 문서: [문서 목록](./README.md) · [1장 기획](./planning/chapter-1-plan.md) · [파트 구분](./parts.md)
 
 **어떤 에셋이 무엇이고, 씬에 갖다 쓸 수 있는 상태인지** 한 장에서 확인하는 문서다.
@@ -46,13 +47,13 @@ FBX 파일만 열어봐서는 크기를 알 수 없다. Tripo3D로 만든 13종�
 
 | 종류 | 수량 | 상태 |
 | --- | ---: | --- |
-| FBX 모델 | 14 | 사용 가능 6 · 미연결 7 · 기존 1 |
+| FBX 모델 | 14 | 사용 가능 13 · 기존 1 |
 | 텍스처 (`Textures/`) | 24 | Stage1 PBR 20 · 콘셉트 4 |
 | 텍스처 (`.fbm/` 임베드) | 9 | 캐릭터 2 · 환경 7 |
-| Material | 5 | 전부 사용 가능 |
-| Prefab | 7 | Stage1 5 · 기존 2 |
+| Material | 12 | 전부 사용 가능 (파츠·소품 5 · 환경 7) |
+| Prefab | 14 | Stage1 12 · 기존 2 |
 | Shader | 3 | 기존 SpaceFlop 런타임 전용 |
-| Scene | 1 | `Scenes/Main.unity` |
+| Scene | 1 | `Scenes/Main.unity` — Stage1 프리팹 12종이 122개 배치돼 있다 |
 | Unity 설정 Asset | 8 | URP 7 · Readme 1 |
 | Input Actions | 1 | Unity 기본 액션 맵 |
 
@@ -107,10 +108,10 @@ PF_Stage1_*.prefab  (루트: Transform 만)
 
 ---
 
-## 6. Stage1 환경 자연물 — 미연결 (7종)
+## 6. Stage1 환경 자연물 — 사용 가능 (7종)
 
-**현재 그대로 씬에 배치할 수 없다.** FBX와 `.fbm/` 임베드 BaseColor 1장만 있고,
-**Material 에셋도 프리팹도 없다.** 배치하려면 Material 추출·프리팹 제작이 먼저 필요하다.
+[S15P21B202-84](https://ssafy.atlassian.net/browse/S15P21B202-84)에서 Material 7개와
+배치용 프리팹 7개를 만들어 연결했다. 이제 다른 Stage1 에셋과 같이 `PF_*` 프리팹으로 배치한다.
 
 `globalScale`이 종류별로 크게 다르다(0.41 ~ 4). 이 값이 실제 크기를 결정한다.
 
@@ -125,7 +126,39 @@ PF_Stage1_*.prefab  (루트: Transform 만)
 | <img src="./assets/previews/glowing_spiral_plant.png" width="100"> | `glowing_spiral_plant` | 발광 나선형 식물 | 1.0 × 0.98 × 0.95 m | **0.4087** | **0.41 × 0.40 × 0.39 m** | 4,631 |
 
 경로는 모두 `Models/Environment/Stage1/<모델>.fbx` (150~163 KB) 이며,
-임베드 텍스처는 `Models/Environment/Stage1/<모델>.fbm/<모델>_basecolor.jpg` 1장이다.
+텍스처는 `Models/Environment/Stage1/<모델>.fbm/<모델>_basecolor.jpg` 1장이다.
+
+### 파일 경로
+
+FBX 는 Tripo3D 산출 이름(소문자 snake_case)을 그대로 두고, 새로 만든 Material·프리팹만
+프로젝트 명명 규칙인 PascalCase 로 맞췄다.
+
+| 모델 | Prefab | Material |
+| --- | --- | --- |
+| `planet` | `Prefabs/Environment/Stage1/PF_Stage1_Planet.prefab` | `Materials/Environment/Stage1/M_Stage1_Planet.mat` |
+| `modular_cliff_wall` | `…/PF_Stage1_CliffWall.prefab` | `…/M_Stage1_CliffWall.mat` |
+| `rock_pillars` | `…/PF_Stage1_RockPillars.prefab` | `…/M_Stage1_RockPillars.mat` |
+| `alien_mushroom_tree` | `…/PF_Stage1_MushroomTree.prefab` | `…/M_Stage1_MushroomTree.mat` |
+| `mossy_boulder_cluster` | `…/PF_Stage1_BoulderCluster.prefab` | `…/M_Stage1_BoulderCluster.mat` |
+| `alien_flower_cluster` | `…/PF_Stage1_FlowerCluster.prefab` | `…/M_Stage1_FlowerCluster.mat` |
+| `glowing_spiral_plant` | `…/PF_Stage1_SpiralPlant.prefab` | `…/M_Stage1_SpiralPlant.mat` |
+
+구조와 재질 연결이 §4 의 파츠와 다르다.
+
+```
+PF_Stage1_*.prefab  (루트: Transform 만)
+ └─ Visual   회전·스케일 없음 — 이 7종은 FBX 가 Y-up 이라 축 변환이 필요 없다
+      └─ <모델>.fbx
+```
+
+Material 은 각 FBX 의 `.meta` 외부 오브젝트 맵(재질 추출)으로 물려 있다. 즉 임베드 재질이 아니라
+`M_Stage1_*.mat` 을 쓰므로, FBX 를 어디에 인스턴스화하든 같은 재질이 따라오고 에디터에서 편집할 수 있다.
+셰이더는 기존 5개와 같은 built-in **Standard** 다(§11-10 — 이 프로젝트는 URP 패키지가 있어도
+실제로는 Built-in 파이프라인으로 돈다). BaseColor 한 장뿐이라 Metallic 0 · Glossiness 0.2 로 두었다.
+
+Material·프리팹은 `Stage1EnvironmentAssets` 에디터 도구가 만든다
+(`Tools/둥실둥실 우주 대탈출/환경 자연물 Material·프리팹 만들기`). 이미 있는 파일은 건드리지 않으므로
+다시 만들려면 해당 파일을 지우고 실행한다. 콜라이더는 붙어 있지 않다(§4 와 같다).
 
 `.fbm` 텍스처가 크다 — 3.3 MB(`glowing_spiral_plant`) ~ 7.0 MB(`mossy_boulder_cluster`), **합계 약 34 MB**.
 
@@ -195,7 +228,48 @@ PF_Stage1_*.prefab  (루트: Transform 만)
 
 | 파일 | 내용 |
 | --- | --- |
-| `Assets/Scenes/Main.unity` | 유일한 씬. **아트 에셋을 하나도 참조하지 않는다** — 참조 대상은 게임플레이 스크립트(`SpaceshipPart`, `PartSocket`, `WeldPoint`, `PartClamp`, `TractorBeam`, `MeteorSpawner`, `Grabbable`, `SpaceBootstrap`, `LobbyBootstrap` 등)와 `Settings/SampleSceneProfile.asset`뿐이다. 즉 퍼즐 로직은 프리미티브 도형으로 동작 중이다. |
+| `Assets/Scenes/Main.unity` | 유일한 씬. 게임플레이 스크립트(`SpaceshipPart`, `PartSocket`, `WeldPoint`, `PartClamp`, `TractorBeam`, `MeteorSpawner`, `Grabbable`, `SpaceBootstrap`, `LobbyBootstrap` 등)와 `Settings/SampleSceneProfile.asset` 위에, [S15P21B202-84](https://ssafy.atlassian.net/browse/S15P21B202-84)에서 Stage1 프리팹 12종을 122개 배치했다(아래). |
+
+### `Main.unity` 의 아트 배치 (S15P21B202-84)
+
+`Stage1SkinBuilder` 에디터 도구가 만든다(`Tools/둥실둥실 우주 대탈출/Main 씬에 1장 스킨 입히기`).
+**물리와 좌표는 건드리지 않는다** — 프리미티브의 MeshRenderer 만 끄고 같은 자리에 모델을 `Visual` 자식으로 얹는다.
+그래서 `Visual` 자식만 지우면 프리미티브 룩으로 돌아간다.
+
+| 씬 위치 | 배치 | 개수 |
+| --- | --- | ---: |
+| `Stage1/Gameplay/Puzzle/Part_1‥4` | HoverPod → Robot → Capsule, 그리고 TractorCraft | 4 |
+| `…/Puzzle/AnchorPins` | AnchorPin — 각 `Clamp_0‥3` 의 좌표에, 제작 크기 그대로 바닥을 지면에 | 16 |
+| `…/TractorBeam_1‥2` | TractorCraft (빔 기준점 y=12 에 수평으로) | 2 |
+| `Stage1/Environment/Boundaries` | CliffWall 링 (배율 1.6, 한 변 8개, ±23.5m) | 32 |
+| `Stage1/Environment/Nature` | RockPillars 8 · MushroomTree 10 · BoulderCluster 12 · FlowerCluster 20 · SpiralPlant 16 | 66 |
+| `Stage1/Environment/DistantBackground` | Planet 2기 (지름 90m · 40m, 별밭 반지름 300 안쪽) | 2 |
+| `Stage1/Environment/Ground` | `M_Stage1_ArenaGround` 재질 + y를 0.06m 로 올림 | 1 |
+| `Stage1/Lighting/Directional Light` | Light 컴포넌트를 끔 (아래) | 1 |
+
+- **파츠 스킨 배율**: 파츠 콜라이더는 4기 모두 `PhysicsScale` 이 정한 3 × 3.7 × 3 m 로 같은데 모델 비율은 다르다.
+  균일 배율로 박스에 넣고 바닥을 박스 바닥에 맞춘 뒤, 부족한 높이만 1.35배까지 늘린다(찌그러짐 한계).
+  결과 높이는 Robot 3.70 · TractorCraft 3.70 · Capsule 3.53 · **HoverPod 2.34** / 3.70m 다.
+- **자연물 배치**는 씨앗 20260827 결정론적 난수다. 파츠 자리·조립 위치·플레이어 스폰 주변은 비운다.
+  결과가 매번 같으므로 다시 실행해도 씬 diff 가 늘지 않는다.
+- **콜라이더**: 자연물은 장식이라 붙이지 않았다. 절벽 벽에는 보이지 않는 높이 9m `BoxCollider` 를 붙였다 —
+  모델 높이(약 3.4m)만으로는 저중력(-2.8) 점프로 넘어간다.
+- **고정못은 고정쇠의 자식이 아니다.** 자식으로 붙였더니 견인 빔이 파츠를 들어 올릴 때 못 16개가
+  같이 공중으로 따라 올라갔다(빌드 실행으로 확인). 못은 땅에 박힌 물건이라 파츠가 떠나도 남아야 하므로
+  좌표만 빌려 별도 그룹에 세운다.
+- **지면 재질**: 프리미티브 Plane 에 기본 흰색 재질이 붙어 있어 해를 받으면 화면이 하얗게 날아갔다.
+  `M_Stage1_ArenaGround`(Standard, 바위 군락 BaseColor 10회 타일링, 틴트 0.46 회색, Glossiness 0.08)를
+  물렸다. 색·타일링은 `Stage1SkinBuilder` 의 `GroundTint`·`GroundTiling` 한 줄로 조정한다.
+- **지면 높이 0.06m**: 런타임 `LevelBuilder` 의 착륙장 슬랩(y=0)·크레이터 바닥(y≈0.05)과 같은 평면이라
+  z-파이팅으로 지면이 지글거렸다. 6cm 띄워 아레나 안에서는 Stage1 지면만 보이게 했다. §11-9 의 임시 대응이며
+  `buildLevel` 을 끄면 필요 없다.
+- **템플릿 Directional Light 를 껐다.** 런타임 조명은 `Vacuum` 이 소유한다(해 1.75 Soft + 행성 반사광 0.16).
+  `SpaceBootstrap` 은 씬 카메라만 끄고 라이트는 끄지 않아 Unity 템플릿 라이트(강도 2.0, Soft 그림자)가
+  함께 켜져 있었다. 결과가 두 가지였고 둘 다 빌드 실행으로 확인했다.
+  ① 빛이 약 두 배가 되어 지면이 날아간다 ② 그림자를 굽는 방향성 광원이 둘인데 강도가 2.0 대 1.75 로
+  비슷해 프레임마다 주광원 선택이 뒤집히며 그림자가 깜빡인다.
+  오브젝트는 남기고 Light 컴포넌트만 껐다. 끈 뒤 정지 화면 연속 두 프레임의 차이는 전체의 0.42%
+  (HUD 경과 시간·별 반짝임)뿐이다.
 
 [S15P21B202-75](https://ssafy.atlassian.net/browse/S15P21B202-75)에서 씬을 이 하나로 통일했다. 이전 `Surface.unity`·Sandbox·`SampleScene`은 삭제됐다.
 
@@ -234,10 +308,14 @@ PF_Stage1_*.prefab  (루트: Transform 만)
 
 | # | 내용 | 관련 |
 | --- | --- | --- |
-| 1 | **환경 자연물 7종에 Material 에셋과 프리팹이 없다.** 텍스처는 `.fbm/` 임베드뿐이라 Unity에서 편집할 수 없고, 프리팹이 없어 씬 배치도 안 된다. [S15P21B202-65](https://ssafy.atlassian.net/browse/S15P21B202-65)("텍스처 및 머티리얼 적용")가 완료 상태인데, FBX 내장 재질로 처리한 것을 완료로 본 것일 수 있다. | Art |
+| 1 | ~~환경 자연물 7종에 Material 에셋과 프리팹이 없다.~~ **해소** — S15P21B202-84 에서 `M_Stage1_*` 7개를 만들어 재질 추출로 물리고 `PF_Stage1_*` 7개를 만들었다(§6). | Art |
 | 2 | **Roughness 텍스처 5장이 어떤 Material에도 참조되지 않는다.** Material 5개 전부 BaseColor·Normal·Metallic 3장만 참조한다. URP에서 Metallic 맵 알파를 smoothness로 쓰는 관례상 의도일 수 있다. | Art |
-| 3 | **`Main.unity`에 아트 에셋이 하나도 배치되지 않았다.** 완성된 프리팹 5종이 씬에서 쓰이지 않는 상태다. | Level · Puzzle |
-| 4 | **프리팹에 Collider·Rigidbody가 없다.** 퍼즐 물리를 붙일 때 배치하는 쪽에서 추가해야 한다. | Puzzle |
+| 3 | ~~`Main.unity`에 아트 에셋이 하나도 배치되지 않았다.~~ **해소** — S15P21B202-84 에서 12종 122개를 배치했다(§10). | Level · Puzzle |
+| 11 | **`SpaceBootstrap` 이 씬 카메라만 끄고 씬 라이트는 끄지 않는다.** 그래서 Unity 템플릿 Directional Light 가 `Vacuum` 의 해와 함께 켜져 있었다(§10 에서 씬 쪽 라이트를 꺼 대응). 근본적으로는 `Vacuum` 이 조명을 소유한다는 규칙을 코드로 강제하는 편이 맞다 — 카메라를 끄는 그 루프에서 `Light` 도 같이 끄면 된다. | Bootstrap |
+| 4 | **프리팹에 Collider·Rigidbody가 없다.** 퍼즐 물리를 붙일 때 배치하는 쪽에서 추가해야 한다. 절벽 벽만 씬 배치 쪽에서 `BoxCollider` 를 붙여 경계로 쓰고 있다. | Puzzle |
+| 8 | **납작한 HoverPod 이 파츠 박스 높이(3.7m)를 못 채운다** — 스킨 높이 2.34m. 파츠 위에 다른 파츠를 쌓으면 사이가 벌어진다. 파츠별 높이를 따로 두거나(=`PhysicsScale.PartHeight` 분리, 물리 기준값 변경) 모델을 고쳐야 한다. | Art · Puzzle |
+| 9 | **런타임 `LevelBuilder` 가 예전 SpaceFlop 코스를 Stage1 아레나와 같은 좌표에 겹쳐 세운다** (`SpaceBootstrap.buildLevel = 1`, 스폰 `(0,0,0)`). 빌드를 실행해 확인했다 — 아레나 위에 예전 코스의 지형·소품·HUD("표지 0/6")가 겹쳐 보인다. 스킨 작업 범위가 아니라 그대로 두었다. | Level · Puzzle |
+| 10 | **프로젝트가 URP 가 아니라 Built-in 파이프라인으로 돈다.** `ProjectSettings/GraphicsSettings.asset` 의 `m_CustomRenderPipeline` 과 모든 품질 레벨의 `customRenderPipeline` 이 비어 있다. URP 패키지·`PC_RPAsset` 등은 있지만 할당돼 있지 않다. 그래서 Material 5개가 built-in Standard 를 쓰고, 런타임 셰이더 3종(`SpaceFlop/*`)도 built-in 용이다. **README 와 이 문서가 "URP 17.5.0" 이라고 적어 온 것은 사실과 다르다.** URP 로 전환할지, 문서를 사실에 맞출지 결정이 필요하다 — 전환하면 재질 12개와 런타임 셰이더 3종을 모두 고쳐야 한다. | Infra · Art |
 | 5 | **`.fbm` 임베드 텍스처가 크다** (합계 약 34 MB, 최대 7.0 MB). LFS 용량과 임포트 시간에 영향이 있다. 다운스케일 여부 검토 필요. | Art · Infra |
 | 6 | `METAGAME/Assets/_Project/Models/README_KO.md`가 삭제된 `SF_Astronaut_Base.fbx`를 안내한다. 루트 `README.md`도 삭제된 `Surface.unity`를 안내한다. | Plan · Infra |
 | 7 | Unity URP 템플릿 잔여물(`Readme.asset`, `TutorialInfo/`)이 남아 있다. | Infra |
