@@ -1,3 +1,4 @@
+using Metagame.Core;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -45,8 +46,8 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void CarriedPartMass_IsFarLighterThanPlacedPart()
         {
-            Assert.LessOrEqual(PhysicsScale.CarriedPartMass, PhysicsScale.PlayerMass,
-                "견인 중 파츠는 플레이어보다 무거우면 안 된다. 밀칠 수는 있되 깔아뭉갤 수 없어야 한다.");
+            Assert.LessOrEqual(PhysicsScale.CarriedPartMass, Tuning.BodyMass,
+                "견인 중 파츠는 캐릭터보다 무거우면 안 된다. 밀칠 수는 있되 깔아뭉갤 수 없어야 한다.");
             Assert.Less(PhysicsScale.CarriedPartMass, PhysicsScale.PartMass * 0.1f,
                 "견인 중 질량은 놓인 상태보다 확연히 가벼워야 한다.");
         }
@@ -90,13 +91,34 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
-        public void GlobalPhysicsSettings_MatchRecordedBaseline()
+        public void ProjectSettings_MatchRuntimeTuning()
         {
-            Assert.AreEqual(PhysicsScale.Gravity, UnityEngine.Physics.gravity.y, 0.001f);
-            Assert.AreEqual(PhysicsScale.FixedTimestep, Time.fixedDeltaTime, 0.0005f);
+            // SpaceBootstrap 이 실행 시 Physics.gravity 와 Time.fixedDeltaTime 을 Tuning 값으로 덮어쓴다.
+            // ProjectSettings 가 다른 값을 갖고 있으면 에디터에서 보는 물리와 실제 게임이 달라지고,
+            // 이 테스트를 포함한 EditMode 검증이 전부 헛돈다. 두 값을 강제로 일치시킨다.
+            Assert.AreEqual(Tuning.Gravity, UnityEngine.Physics.gravity.y, 0.001f,
+                "ProjectSettings 의 중력이 Tuning.Gravity 와 다르다.");
+            Assert.AreEqual(Tuning.FixedStep, Time.fixedDeltaTime, 0.0005f,
+                "ProjectSettings 의 Fixed Timestep 이 Tuning.FixedStep 과 다르다.");
+        }
+
+        [Test]
+        public void GlobalSolverSettings_MatchRecordedBaseline()
+        {
             Assert.AreEqual(PhysicsScale.SolverIterations, UnityEngine.Physics.defaultSolverIterations);
             Assert.AreEqual(PhysicsScale.SolverVelocityIterations, UnityEngine.Physics.defaultSolverVelocityIterations);
         }
+
+        [Test]
+        public void PartDimensions_StayLargerThanCharacter()
+        {
+            // 파츠는 건물형이다. 캐릭터보다 확실히 커야 "건물이 우주선 파츠였다"는 인상이 산다.
+            Assert.Greater(PhysicsScale.PartHeight, CharacterHeight * 2f);
+            Assert.Greater(PhysicsScale.PartMass, Tuning.BodyMass * 10f);
+        }
+
+        /// <summary>액티브 래그돌의 귀 끝까지 높이. Tuning 주석에 기록된 값이다.</summary>
+        const float CharacterHeight = 1.33f;
 
         static void AssertIgnored(int a, int b) =>
             Assert.IsTrue(UnityEngine.Physics.GetIgnoreLayerCollision(a, b),
