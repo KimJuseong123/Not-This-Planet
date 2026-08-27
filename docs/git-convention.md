@@ -109,7 +109,7 @@ docs: 로비 BGM 레퍼런스 조사 기록 (S15P21B202-27)
 | 항목 | 규칙 |
 | --- | --- |
 | 제목 | `[파트] type: 요약 (JIRA키-번호)` — 예: `[Network] feat: 로비 매치메이킹 구현 (S15P21B202-31)` |
-| 본문 | `.gitlab/merge_request_templates/Default.md`가 자동으로 채워진다. 섹션 제목은 지우지 않는다(CI가 검사) |
+| 본문 | `.gitlab/merge_request_templates/Default.md`가 자동으로 채워진다. 섹션 제목은 지우지 않는다(CI가 검사). **`이슈: S15P21B202-번호` 줄은 절대 지우지 말 것** — GitLab for Jira 앱은 MR을 **제목·본문의 Jira 키로만** 이슈에 연결한다(브랜치명은 "브랜치" 항목만 연결). 키가 없으면 개발 패널에 MR이 안 뜨고 머지해도 **자동 완료(R6)가 안 된다**(08-27 MR !3 실측) |
 | 대상 | 항상 `develop` (릴리즈 MR만 `master`) |
 | Draft | **만들지 않는다.** MR 생성 = 리뷰 요청. 진행 상황 공유는 Jira 코멘트로 |
 | 승인·머지 | **팀장(Maintainer)이 승인 버튼을 누르고 바로 머지**한다. GitLab Free에서는 "승인 필수"를 강제할 수 없으므로 develop **머지 권한을 Maintainer로 제한**한 것이 실제 관문이다 |
