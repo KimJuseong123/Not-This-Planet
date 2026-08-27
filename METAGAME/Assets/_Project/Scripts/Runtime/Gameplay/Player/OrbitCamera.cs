@@ -4,8 +4,8 @@ using Metagame.Core;
 namespace Metagame.Gameplay
 {
     /// <summary>
-    /// 3인칭 궤도 카메라. 팔은 화면 중앙이 가리키는 쪽으로 뻗는다.
-    /// 인형의 골반을 따라다니되, 골반이 물리로 덜덜 떨리므로 위치는 부드럽게 쫓아간다.
+    /// 1인칭/3인칭 카메라. 팔은 화면 중앙이 가리키는 쪽으로 뻗는다.
+    /// 기본 게임 모드는 캐릭터 머리 높이에 카메라를 두는 1인칭이다.
     ///
     /// <b>각도를 두 벌 들고 있다.</b>
     ///  · yaw/pitch       — 실제로 보는 각도 (카메라 트랜스폼)
@@ -18,8 +18,10 @@ namespace Metagame.Gameplay
     public class OrbitCamera : MonoBehaviour
     {
         public Transform Target;
+        public bool FirstPerson;
         public float Distance = Tuning.CamDistance;
         public float TargetHeight = Tuning.CamHeight;
+        public float FirstPersonForward = 0.20f;
         public float Sensitivity = 2.4f;
         public float MinPitch = -42f;
         public float MaxPitch = 74f;
@@ -40,12 +42,12 @@ namespace Metagame.Gameplay
         bool focusReady;
         readonly RaycastHit[] hits = new RaycastHit[12];
 
-        public static OrbitCamera Create(Transform target, Color skyColor)
+        public static OrbitCamera Create(Transform target, Color skyColor, bool firstPerson = false)
         {
             var go = new GameObject("카메라");
             var cam = go.AddComponent<Camera>();
             cam.fieldOfView = 64f;
-            cam.nearClipPlane = 0.1f;
+            cam.nearClipPlane = firstPerson ? 0.03f : 0.1f;
             cam.farClipPlane = 900f;      // 별밭이 반지름 300 짜리 껍데기다
             cam.clearFlags = CameraClearFlags.SolidColor;
             cam.backgroundColor = skyColor;
@@ -54,7 +56,8 @@ namespace Metagame.Gameplay
             var orbit = go.AddComponent<OrbitCamera>();
             orbit.Cam = cam;
             orbit.Target = target;
-            orbit.currentDistance = orbit.Distance;
+            orbit.FirstPerson = firstPerson;
+            orbit.currentDistance = firstPerson ? 0f : orbit.Distance;
             return orbit;
         }
 
@@ -110,6 +113,7 @@ namespace Metagame.Gameplay
             returning = false;
             yaw = aimYaw;
             pitch = aimPitch;
+            currentDistance = FirstPerson ? 0f : Distance;
             LateUpdate();
         }
 
@@ -123,6 +127,18 @@ namespace Metagame.Gameplay
             else smoothFocus = Vector3.Lerp(smoothFocus, raw, 1f - Mathf.Exp(-16f * Time.deltaTime));
 
             Quaternion rot = Quaternion.Euler(pitch, yaw, 0f);
+
+            if (FirstPerson)
+            {
+                // 물리 강체의 회전은 흔들릴 수 있으므로 위치는 골반의 월드 위치와
+                // 세계의 위쪽만 사용한다. 수평 시선 방향으로만 조금 내밀어 얼굴 메시가 막지 않게 한다.
+                Vector3 flatForward = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
+                transform.position = raw + flatForward * FirstPersonForward;
+                transform.rotation = rot;
+                currentDistance = 0f;
+                return;
+            }
+
             Vector3 back = rot * Vector3.back;
 
             float want = Distance;

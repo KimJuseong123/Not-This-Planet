@@ -4,9 +4,11 @@
 
 ## Project Summary
 
+- Latest feature change: PlayerRig now uses stable target-velocity locomotion, first-person camera mode, configurable health/fall damage, two-hand tool handling with charged Q throws, heavy-object fixed gripping, crosshair-locked light-carryable handling with player-only collision exclusion, and SampleScene starts the same runtime bootstrap as Surface.
+
 - Project root: `METAGAME/`
 - Last analyzed: 2026-08-27
-- Last analyzed commit: `b4696d1` (`기본 캐릭터 모델링 적용`); current working branch: `S15P21B202-21`.
+- Last analyzed commit: `8768648` (`Merge branch 'S15P21B202-21' into 'develop'`); current working branch: `S15P21B202-25-character`.
 - Latest structural change: the `Assets/SpaceFlop/` prototype tree was folded into the `Assets/_Project/` convention layout (folders, assemblies, namespaces, and hardcoded asset paths).
 
 ## Confirmed Environment
@@ -111,6 +113,7 @@
 
 ## Source Files Inspected
 
+- Updated Assets/_Project/Scripts/Runtime/Gameplay/Player/PlayerRig.cs, Assets/_Project/Scripts/Runtime/Gameplay/Player/Hand.cs, Assets/_Project/Scripts/Runtime/Gameplay/DamageSource.cs, Assets/_Project/Scripts/Runtime/Gameplay/GameSession.cs, Assets/_Project/Scripts/Runtime/Gameplay/Player/OrbitCamera.cs, Assets/_Project/Scripts/Runtime/Gameplay/World/LevelBuilder.cs, Assets/_Project/Scripts/Runtime/Bootstrap/SpaceBootstrap.cs, Assets/_Project/Scripts/Runtime/Bootstrap/SpaceSelfTest.cs, Assets/_Project/Scripts/Runtime/Core/Controls.cs, Assets/_Project/Scripts/Runtime/Core/Tuning.cs, Assets/_Project/Scripts/Runtime/UI/GameHud.cs, and Assets/Scenes/SampleScene.unity.
 - `ProjectSettings/ProjectVersion.txt`
 - `Packages/manifest.json`
 - `Packages/packages-lock.json`
