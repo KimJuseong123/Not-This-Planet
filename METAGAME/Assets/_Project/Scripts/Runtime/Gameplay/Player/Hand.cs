@@ -4,13 +4,12 @@ using Metagame.Core;
 namespace Metagame.Gameplay
 {
     /// <summary>
-    /// 손 하나. 잡기는 FixedJoint 를 붙였다 떼는 것이 전부다 —
-    /// 고정물을 잡으면 connectedBody 가 없는 조인트가 되어 세계에 매달리고,
-    /// 물체를 잡으면 그 물체와 하나가 된다.
+    /// 손 하나. 고정물을 잡을 때는 FixedJoint로 세계에 매달리고,
+    /// 가벼운 운반 물체는 논리적인 운반 상태만 유지한다.
     ///
     /// 이 게임에서 잡기는 아주 관대하다:
     ///  · 장갑 반지름(0.09m)의 여섯 배인 0.50m 반경 안이면 붙는다
-    ///  · 잡은 물체는 connectedMassScale 로 가볍게 느껴진다
+    ///  · 고정형 물체는 connectedMassScale 로 가볍게 느껴진다
     ///  · 끊어지는 힘이 몸무게의 40배라 사실상 놓치지 않는다
     /// </summary>
     public class Hand : MonoBehaviour
@@ -21,12 +20,13 @@ namespace Metagame.Gameplay
         public Joint Grip { get; private set; }
         public Grabbable Held { get; private set; }
         public Rigidbody HeldBody { get; private set; }
+        bool carrying;
 
         public bool Gripping { get { return Grip != null; } }
         /// <summary>고정물을 잡고 매달려 있는 상태 (기어오르기가 성립한다).</summary>
         public bool Hanging { get { return Grip != null && HeldBody == null; } }
         /// <summary>움직일 수 있는 물체를 들고 있는 상태 (나르기가 성립한다).</summary>
-        public bool Carrying { get { return Grip != null && HeldBody != null && !HeldBody.isKinematic; } }
+        public bool Carrying { get { return carrying && HeldBody != null; } }
 
         /// <summary>자석 손이 지금 노리고 있는 것 — 손이 이쪽으로 휘어 간다. HUD 도 이걸 표시한다.</summary>
         public Grabbable Aimed { get; set; }
@@ -93,12 +93,23 @@ namespace Metagame.Gameplay
             var best = Search(Body.position, Tuning.GrabRadius, Vector3.zero, Vector3.zero, 180f, out point, out bestBody);
             if (best == null) return false;
 
+            // 너무 무거운 동적 물체는 들어 올리지 않는다. 손은 고정물처럼 세계에
+            // 짚고(HeldBody == null), 물체는 원래 자리에 남는다.
+            if (bestBody != null && !bestBody.isKinematic && bestBody.mass >= Tuning.FixedGripMass)
+                bestBody = null;
+
             return GripTo(best, bestBody);
         }
 
         public bool GripTo(Grabbable target, Rigidbody targetBody)
         {
-            if (Grip != null || target == null) return false;
+            if (Grip != null || Held != null || target == null) return false;
+
+            // 가벼운 동적 물체는 손과 물체 사이에 물리 Joint를 만들지 않는다.
+            // PlayerRig가 운반 상태를 Kinematic으로 전환하고 크로스헤드 위치를 직접 추적한다.
+            // 무거운 물체와 세계 고정물만 아래 FixedJoint 경로를 사용한다.
+            if (targetBody != null && !targetBody.isKinematic && targetBody.mass < Tuning.FixedGripMass)
+                return CarryTo(target, targetBody);
 
             var j = gameObject.AddComponent<FixedJoint>();
             j.connectedBody = targetBody;                     // null 이면 세계에 고정된다
@@ -113,6 +124,24 @@ namespace Metagame.Gameplay
             Grip = j;
             Held = target;
             HeldBody = targetBody;
+            carrying = false;
+            target.NotifyGrabbed(this);
+            return true;
+        }
+
+        /// <summary>
+        /// 물리 Joint 없이 운반 상태만 설정한다. 실제 Rigidbody 상태 전환과
+        /// 플레이어 충돌 무시는 PlayerRig가 소유한다.
+        /// </summary>
+        public bool CarryTo(Grabbable target, Rigidbody targetBody)
+        {
+            if (Grip != null || Held != null || target == null || targetBody == null || targetBody.isKinematic)
+                return false;
+
+            Grip = null;
+            Held = target;
+            HeldBody = targetBody;
+            carrying = true;
             target.NotifyGrabbed(this);
             return true;
         }
@@ -124,6 +153,7 @@ namespace Metagame.Gameplay
             Grip = null;
             Held = null;
             HeldBody = null;
+            carrying = false;
         }
 
         void OnJointBreak(float breakForce)
@@ -133,6 +163,7 @@ namespace Metagame.Gameplay
             Grip = null;
             Held = null;
             HeldBody = null;
+            carrying = false;
         }
     }
 }

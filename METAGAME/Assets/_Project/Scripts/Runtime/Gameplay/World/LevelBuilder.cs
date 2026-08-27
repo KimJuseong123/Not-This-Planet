@@ -222,7 +222,7 @@ namespace Metagame.Gameplay
 
             Sign(new Vector3(3.2f, 0f, -2.6f), "WASD 걷기 · Space 점프 — 여기선 높이 뜬다", 200f);
             Sign(new Vector3(7.0f, 0f, 2.8f), "마우스 좌/우 = 왼팔/오른팔 뻗기", 160f);
-            Sign(new Vector3(11.2f, 0f, -2.4f), "누르고 있으면 잡는다. 무거워도 가볍게 끌려온다", 205f);
+            Sign(new Vector3(11.2f, 0f, -2.4f), "도구는 양손으로 든다. Q 를 꾹 누르면 충전해서 던진다", 205f);
 
             Crate("화물 상자", new Vector3(7.6f, 0.42f, 1.7f), new Vector3(0.8f, 0.8f, 0.8f), 18f, Deck);
             Crate("화물 상자", new Vector3(9.0f, 0.42f, -1.5f), new Vector3(0.8f, 0.8f, 0.8f), 18f, Deck);
