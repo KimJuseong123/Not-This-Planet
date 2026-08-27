@@ -45,6 +45,8 @@ namespace Metagame.EditorTools
             CaseTractorBeamCarriesPart(50f);
             CaseSocketTower(66f);
             CaseBeamSnapsOntoSocket(66f, 22f);
+            CaseWelding(30f, -24f, welded: false);
+            CaseWelding(46f, -24f, welded: true);
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene, ScenePath);
@@ -233,6 +235,70 @@ namespace Metagame.EditorTools
             var driver = beamGo.AddComponent<SandboxBeamDriver>();
             driver.Configure(1f, 8f);
             driver.SetMoveTarget(new Vector3(x, 12f, z), 2f);
+        }
+
+        // 9. 용접 상태 비교. 왼쪽은 미접합, 오른쪽은 용접 완료다.
+        //    두 탑에 같은 충격을 주면 미접합만 떨어져야 한다.
+        static void CaseWelding(float x, float z, bool welded)
+        {
+            var label = welded ? "Case9B_Welded" : "Case9A_Unwelded";
+            Label(label, x);
+
+            var lower = SocketPart($"{label}_Lower", new Vector3(x, PhysicsScale.PartHeight * 0.5f, z));
+            lower.TryTransitionTo(PartState.Free);
+            lower.TryTransitionTo(PartState.Carried);
+            lower.TryTransitionTo(PartState.Placed);
+
+            var upper = SocketPart($"{label}_Upper", new Vector3(x, PhysicsScale.PartHeight * 1.5f, z));
+            for (var i = 0; i < WeldPointsPerJoint; i++) AddWeldPoint(upper.transform, label, i);
+
+            upper.TryTransitionTo(PartState.Free);
+            upper.TryTransitionTo(PartState.Carried);
+
+            var match = PartAssembler.FindMatch(upper);
+            if (!match.HasValue)
+            {
+                Debug.LogWarning($"[SandboxSceneBuilder] {label} 스냅 후보 없음");
+                return;
+            }
+
+            var link = PartAssembler.Assemble(match);
+            if (link == null)
+            {
+                Debug.LogWarning($"[SandboxSceneBuilder] {label} 조립 실패");
+                return;
+            }
+
+            link.RefreshWeldPoints();
+
+            if (welded)
+                foreach (var point in link.WeldPoints)
+                    point.ForceComplete();
+
+            link.Tick();
+        }
+
+        /// <summary>접합 하나에 두는 용접점 수. 레벨 디자인에서 조정한다.</summary>
+        const int WeldPointsPerJoint = 4;
+
+        static void AddWeldPoint(Transform parent, string label, int index)
+        {
+            // 파츠 밑면 둘레에 네 개를 둔다. 로컬 스케일이 파츠 크기이므로 좌표는 ±0.5 기준이다.
+            var corners = new[]
+            {
+                new Vector3(-0.35f, -0.5f, -0.35f), new Vector3(0.35f, -0.5f, -0.35f),
+                new Vector3(-0.35f, -0.5f, 0.35f), new Vector3(0.35f, -0.5f, 0.35f),
+            };
+
+            var go = new GameObject($"{label}_Weld_{index}") { layer = GameLayers.Interactable };
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = corners[index % corners.Length];
+
+            var sphere = go.AddComponent<SphereCollider>();
+            sphere.radius = 0.1f;
+            sphere.isTrigger = true;
+
+            go.AddComponent<WeldPoint>();
         }
 
         /// <summary>밑면과 윗면 가운데에 소켓이 있는 그레이박스 파츠.</summary>
