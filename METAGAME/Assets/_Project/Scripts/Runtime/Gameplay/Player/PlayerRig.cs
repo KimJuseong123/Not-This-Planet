@@ -26,6 +26,10 @@ namespace Metagame.Gameplay
         public float GroundDistance { get; private set; }
         public Vector3 GroundVelocity { get; private set; }
         public float Speed { get; private set; }
+        public float MaxHealth { get { return Tuning.MaxHealth; } }
+        public float Health { get; private set; }
+        public float Health01 { get { return MaxHealth <= 0f ? 0f : Mathf.Clamp01(Health / MaxHealth); } }
+        public bool IsDead { get { return Health <= 0f; } }
         public bool Hanging { get { return LeftHand.Hanging || RightHand.Hanging; } }
         public bool Carrying { get { return LeftHand.Carrying || RightHand.Carrying; } }
         public bool Ragdolled { get; private set; }      // 크게 넘어져 조종이 잠깐 풀린 상태
@@ -46,6 +50,7 @@ namespace Metagame.Gameplay
         float regrabLock;
         float uprightBlend = 1f;
         float thrustPuff;
+        float fallPeakFootHeight;
         Rigidbody groundBody;
         readonly RaycastHit[] rayHits = new RaycastHit[8];
 
@@ -58,12 +63,33 @@ namespace Metagame.Gameplay
             bool model = useModel && SpaceSuit.Available;
             rig.Doll = RagdollBuilder.Build(nickname, footPos, facing, suit, accent, !model);
             rig.Doll.Root.SetParent(go.transform, true);
+            rig.ResetHealth();
+            rig.fallPeakFootHeight = footPos.y;
             rig.faceDir = facing * Vector3.forward;
             return rig;
         }
 
         public void SetInput(InputFrame frame) { input = frame; }
         public InputFrame CurrentInput { get { return input; } }
+
+        /// <summary>체크포인트 부활이나 새 라운드에서 체력을 초기화한다.</summary>
+        public void ResetHealth()
+        {
+            Health = MaxHealth;
+        }
+
+        /// <summary>외부 피해 오브젝트와 낙하 판정이 공통으로 사용하는 피해 진입점.</summary>
+        public void ApplyDamage(float amount, string source = "피해")
+        {
+            if (IsDead || float.IsNaN(amount) || float.IsInfinity(amount) || amount <= 0f) return;
+
+            Health = Mathf.Clamp(Health - amount, 0f, MaxHealth);
+            if (Health <= 0f)
+            {
+                Ragdolled = true;
+                Debug.Log("[SpaceFlop] " + Nickname + " 체력 소진 (" + source + ")");
+            }
+        }
 
         // ── 부활 / 순간이동 ─────────────────────────────────────
         public void Teleport(Vector3 footPos, Quaternion facing)
@@ -76,6 +102,7 @@ namespace Metagame.Gameplay
             Ragdolled = false;
             StepPhase = 0f;
             AirTime = 0f;
+            fallPeakFootHeight = footPos.y;
             if (Cam != null)
             {
                 Cam.Yaw = facing.eulerAngles.y;
@@ -101,7 +128,7 @@ namespace Metagame.Gameplay
         void ProbeGround()
         {
             bool wasGrounded = Grounded;
-            float fallSpeed = -Doll.Hips.linearVelocity.y;
+            float fallSpeed = Mathf.Max(0f, -Doll.Hips.linearVelocity.y);
 
             groundBody = null;
             GroundVelocity = Vector3.zero;
@@ -120,11 +147,37 @@ namespace Metagame.Gameplay
             Grounded = GroundDistance < Tuning.RideHeight + 0.22f && jumpLock <= 0f;
             if (groundBody != null) GroundVelocity = groundBody.linearVelocity;
 
+            float footHeight = FootPosition.y;
+            if (!Grounded)
+            {
+                fallPeakFootHeight = Mathf.Max(fallPeakFootHeight, footHeight);
+            }
+            else if (!wasGrounded)
+            {
+                float fallHeight = Mathf.Max(0f, fallPeakFootHeight - footHeight);
+                ApplyFallDamage(fallHeight, fallSpeed);
+                fallPeakFootHeight = footHeight;
+            }
+            else
+            {
+                fallPeakFootHeight = footHeight;
+            }
+
             if (Grounded) AirTime = 0f; else AirTime += Time.fixedDeltaTime;
 
             // 착지 먼지 — 진공이라 흩어지지 않고 그대로 포물선을 그린다
             if (Grounded && !wasGrounded && fallSpeed > 1.6f)
                 Puff.Regolith(FootPosition, Mathf.Clamp01(fallSpeed / 7f));
+        }
+
+        void ApplyFallDamage(float fallHeight, float impactSpeed)
+        {
+            if (fallHeight < Tuning.FallDamageMinHeight || impactSpeed < Tuning.FallDamageMinSpeed)
+                return;
+
+            float damage = Tuning.FallDamageBase +
+                           (impactSpeed - Tuning.FallDamageMinSpeed) * Tuning.FallDamagePerSpeed;
+            ApplyDamage(damage, "낙하");
         }
 
         void UpdateSpeed()

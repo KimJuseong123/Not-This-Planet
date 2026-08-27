@@ -42,6 +42,14 @@ namespace Metagame.Core
         public const float JumpSpeed = 3.4f;        // 최고점 v²/2g = 2.06m, 체공 2.4초
         public const float StepPeriod = 0.80f;      // 걷기 주기(초). 저중력이라 성큼성큼 느리게
 
+        // ── 체력 · 피해 ────────────────────────────────────────
+        // 일반 점프는 안전하게 유지하고, 높은 곳에서 빠르게 착지했을 때만 낙하 피해를 준다.
+        public const float MaxHealth = 100f;
+        public const float FallDamageMinHeight = 2.75f;
+        public const float FallDamageMinSpeed = 3.8f;
+        public const float FallDamageBase = 10f;
+        public const float FallDamagePerSpeed = 15f;
+
         // ── 균형 ────────────────────────────────────────────────
         // 골반을 세우는 일은 "세계에 매인 보이지 않는 조인트" 가 한다.
         // AddTorque 로는 안 된다 — 다리 조인트 드라이브는 솔버 안에서 풀리고,

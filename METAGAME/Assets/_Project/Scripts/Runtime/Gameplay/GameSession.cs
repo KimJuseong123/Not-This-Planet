@@ -85,7 +85,7 @@ namespace Metagame.Gameplay
 
             // 떨어졌는가
             Vector3 p = LocalPlayer.Position;
-            if (p.y < Tuning.DeathHeight || float.IsNaN(p.x))
+            if (LocalPlayer.IsDead || p.y < Tuning.DeathHeight || float.IsNaN(p.x))
             {
                 Falls++;
                 Respawn();
@@ -112,6 +112,7 @@ namespace Metagame.Gameplay
         public void Respawn()
         {
             if (LocalPlayer == null) return;
+            LocalPlayer.ResetHealth();
             LocalPlayer.Teleport(SpawnFoot + Vector3.up * 0.15f, Quaternion.LookRotation(Vector3.right, Vector3.up));
         }
 
