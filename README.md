@@ -67,7 +67,7 @@ Unity 6000.5.4f1이 설치되어 있지 않다면 해당 버전을 먼저 설치
 | METAGAME/.vscode/ | 공유 가능한 Unity 디버깅 및 편집기 설정 |
 | .gitignore | 저장소 전체에 적용되는 Unity/IDE/빌드 산출물 제외 규칙 |
 | .gitattributes | 대용량 바이너리 에셋의 Git LFS 및 Unity YAML 텍스트 규칙 |
-| .githooks/ | 브랜치명에 Jira 이슈 키가 없으면 push를 막는 pre-push 훅 (`git config core.hooksPath .githooks`로 활성화) |
+| .githooks/ | 브랜치명에 Jira 이슈 키가 없으면 push를 막고, 이어서 git-lfs 훅을 실행하는 pre-push 훅 (`git config core.hooksPath .githooks`로 활성화) |
 | .gitlab/ | Merge Request 템플릿 |
 | docs/ | 팀 컨벤션 문서 — 브랜치·Jira·자동화·파트 구분 ([docs/README.md](docs/README.md)) |
 
@@ -102,8 +102,8 @@ Jira 이슈 생성 → 이슈 화면 "브랜치 만들기" (소스 develop) → 
 master ← 릴리즈 검증이 끝난 develop
 ~~~
 
-- **Jira 우선:** 브랜치는 Jira 이슈에서 만듭니다. 이슈 키가 없는 이름은 GitLab 보호 브랜치 규칙이 **생성 자체를 거부**하고, 로컬 `.githooks/pre-push` 훅도 push 전에 막습니다. `feature/` 같은 접두어는 쓰지 않습니다.
-  클론 후 한 번 `git config core.hooksPath .githooks`를 실행해 훅을 켭니다.
+- **Jira 우선:** 브랜치는 Jira 이슈에서 만듭니다(로컬에서 직접 만들어도 이름이 이슈 키로 시작하면 됩니다). 이슈 키가 없는 이름은 로컬 `.githooks/pre-push` 훅이 push 전에 막고, 우회해도 MR 의 CI 양식 검사(mr-lint)가 실패합니다. `feature/` 같은 접두어는 쓰지 않습니다.
+  클론 후 한 번 `git config core.hooksPath .githooks`를 실행해 훅을 켭니다. 이 훅은 마지막에 `git lfs pre-push` 를 이어서 실행하므로 LFS 업로드가 그대로 동작합니다(`core.hooksPath` 를 켜면 `.git/hooks` 의 LFS 훅은 실행되지 않기 때문 — S15P21B202-81).
 - master에 직접 작업하거나 강제 push하지 않습니다. 문서·설정 변경도 작업 브랜치 → develop MR로 올립니다.
 - 작업 브랜치는 최신 develop에서 만들고, 1~3일 안에 작게 머지합니다.
 - MR은 `.gitlab/merge_request_templates/Default.md` 템플릿(자동 적용)을 채우고, **팀장(Maintainer)이 승인·머지**합니다. develop 머지 권한은 Maintainer에게만 있습니다.
