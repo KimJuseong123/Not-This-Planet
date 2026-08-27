@@ -1,0 +1,153 @@
+# Git 컨벤션
+
+> 관련 문서: [워크플로우 구현 계획](./workflow-plan.md) · [Jira 컨벤션](./jira-convention.md) · [파트 구분](./parts.md) · [Jira-GitLab 자동화](./jira-gitlab-automation.md)
+> 기준 버전: workflow-plan v1.0 (2026-08-26)
+
+## 1. 브랜치 전략
+
+### 결정: `master` – `develop` – 작업 브랜치 (3단 구조)
+
+```
+master   ─────●───────────────●──────    ← 항상 릴리즈(빌드 배포) 가능. 마일스톤마다 태그
+              ↑               ↑
+develop  ──●──●──●──●──●──●───●──────    ← 통합 개발 브랜치. 항상 에디터에서 실행 가능해야 함
+           ↑     ↑     ↑
+S15P21B202-12-…  ●──●  ●─●               ← Jira 이슈 단위 작업 브랜치 (수명 1~3일)
+```
+
+- 작업 브랜치는 항상 `develop`에서 분기하고 `develop`으로 MR을 올린다.
+- `master`에는 직접 커밋/MR하지 않는다. 마일스톤 시점에 `develop → master` MR을 올리고 머지 후 버전 태그를 단다 (`v0.1.0`).
+- `master` 긴급 수정은 `hotfix/<이슈키>-…` 브랜치를 `master`에서 분기 → `master`와 `develop` 양쪽에 머지.
+- **문서(docs/), 설정 파일도 예외 없이** 작업 브랜치 → develop MR로 올린다.
+
+### 왜 이 구조인가 (웹에서 쓰던 trunk 방식과의 차이)
+
+| 관점 | 웹 (master 직결) | 게임/Unity (develop 경유) |
+| --- | --- | --- |
+| 미완성 기능 숨기기 | feature flag로 쉬움 | 씬·프리팹·에셋은 flag로 숨기기 어려움 → master가 바로 오염 |
+| 배포 단위 | 커밋 단위 상시 배포 | 빌드 산출물 단위. 마일스톤마다 "이 시점의 게임"을 버전으로 박제 |
+| 충돌 | 텍스트 머지로 해결 | 씬/프리팹은 사실상 머지 불가 → 통합 지점(develop) 하나로 모아 충돌을 빨리 드러냄 |
+| 롤백 | revert로 간단 | 에셋이 얽혀 revert 위험 → master 보수적으로 |
+
+단, **작업 브랜치는 작게(스토리 포인트 ≤ 13), 1~3일 안에 develop으로 머지**한다 — "구조는 git-flow 축소판, 속도는 trunk처럼".
+
+### 운영 규칙
+
+1. `develop`은 항상 **컴파일 에러 없이 에디터에서 실행 가능한 상태**를 유지한다.
+2. **브랜치는 Jira 이슈에서 만든다.** 이슈 1개당 브랜치 1개. 이슈 키 없는 이름은 GitLab이 생성을 거부한다(§6).
+3. `develop` 머지는 **팀장(Maintainer)만** 할 수 있다 — 팀장의 머지가 승인이다(§5).
+4. 머지 전 `develop` 최신을 자기 브랜치로 **merge**해 충돌을 로컬에서 해결한다 (rebase보다 merge 권장 — 씬/프리팹 충돌을 한 번에 본다).
+5. `master`, `develop`은 보호 브랜치 (직접 push 불가).
+
+## 2. 브랜치 생성 — Jira 이슈 화면에서
+
+```
+① Jira 이슈 생성 ([파트] 제목, Epic, 담당자, 기한 …)            상태: 해야 할 일
+        ↓
+② 이슈 화면 → 개발(Development) 패널 → "브랜치 만들기"
+        ↓
+③ GitLab 생성 화면: 프로젝트 S15P21B202 · 소스 브랜치 develop
+   이름은 Jira 제안값(KEY-번호-…) — 설명부가 비면 영문으로 채움      → 자동: 진행 중
+        ↓
+④ git fetch && git checkout <브랜치명> → 작업
+```
+
+- 이것이 이슈를 **진행 중**으로 만드는 유일한 길이다. 보드에서 카드를 끌어도 브랜치가 없으면 되돌려진다.
+- 로컬에서 `git checkout -b S15P21B202-12-player-jump develop && git push -u origin …` 로 만들어도 동작은 같다(이름 규칙만 지키면 Jira가 감지한다).
+- 브랜치가 필요 없는 작업은 없다. 문서·회의·리서치도 브랜치에 기록 1장을 남긴다([Jira 컨벤션 §6](./jira-convention.md)).
+
+## 3. 브랜치 네이밍
+
+```
+<JIRA키>-<번호>-<짧은-영문-설명>          ← 작업 브랜치 (유일한 형식)
+hotfix/<JIRA키>-<번호>-<짧은-영문-설명>   ← master 긴급 수정만
+```
+
+| 예시 | 설명 |
+| --- | --- |
+| `S15P21B202-12-player-jump` | 기본형 |
+| `S15P21B202-45-lobby-bgm` | 에셋·문서 작업도 동일 |
+| `S15P21B202-31-network` | 한글 제목이라 설명부가 비었을 때 최소한 파트명 |
+| `hotfix/S15P21B202-40-crash-on-join` | master 긴급 수정 (Maintainer만 생성) |
+
+- `feature/`, `fix/` 같은 접두어는 **쓰지 않는다** — GitLab 보호 브랜치 규칙이 위 두 형식만 생성을 허용한다.
+- 설명부는 영문 kebab-case. 자동화·훅·서버 규칙은 **이슈 키만** 본다.
+
+> Jira 프로젝트 키는 실제 값으로 — 이 문서는 `S15P21B202`로 가정한다.
+
+## 4. 커밋 메시지
+
+Conventional Commits 형식에 Jira 이슈 키를 덧붙인다 (루트 README의 규칙과 동일).
+
+```
+<type>(<scope>): <summary> (<JIRA키>-<번호>)
+```
+
+- `<scope>`는 선택 (예: player, ui, network, lobby). summary는 한글 허용.
+- 이슈 키를 넣으면 커밋이 Jira 이슈의 개발 패널에 링크된다.
+
+| type | 용도 |
+| --- | --- |
+| `feat` | 기능 추가 |
+| `fix` | 버그 수정 |
+| `asset` | 아트/사운드/씬 등 에셋 추가·수정 (코드 변경 없음) |
+| `refactor` | 동작 변경 없는 구조 개선 |
+| `docs` | 문서 |
+| `test` | 테스트 |
+| `perf` | 성능 개선 |
+| `build` | 빌드·패키지·플랫폼 설정 |
+| `chore` | 기타 유지보수 |
+
+```
+feat(player): 이단 점프 구현 (S15P21B202-12)
+asset(lobby): 로비 배경 3D 모델 추가 (S15P21B202-45)
+docs: 로비 BGM 레퍼런스 조사 기록 (S15P21B202-27)
+```
+
+## 5. MR(Merge Request) 규칙
+
+| 항목 | 규칙 |
+| --- | --- |
+| 제목 | `[파트] type: 요약 (JIRA키-번호)` — 예: `[Network] feat: 로비 매치메이킹 구현 (S15P21B202-31)` |
+| 본문 | `.gitlab/merge_request_templates/Default.md`가 자동으로 채워진다. 섹션 제목은 지우지 않는다(CI가 검사) |
+| 대상 | 항상 `develop` (릴리즈 MR만 `master`) |
+| Draft | **만들지 않는다.** MR 생성 = 리뷰 요청. 진행 상황 공유는 Jira 코멘트로 |
+| 승인·머지 | **팀장(Maintainer)이 승인 버튼을 누르고 바로 머지**한다. GitLab Free에서는 "승인 필수"를 강제할 수 없으므로 develop **머지 권한을 Maintainer로 제한**한 것이 실제 관문이다 |
+| 머지 방식 | Merge commit + **squash** (이슈 1개 = develop 커밋 1개). 릴리즈 MR만 squash 해제 |
+| 머지 조건 | 모든 스레드 해결 · (러너 확보 후) 파이프라인 성공 |
+| 대리 승인 | 팀장이 24시간 내 불가하면 해당 Epic 담당 파트원이 (필요 시 임시 Maintainer로) 머지 |
+| 머지 후 | Jira 이슈 자동 완료. 작업 브랜치는 보호 대상이라 자동 삭제되지 않음 → **[Infra]가 주 1회 정리**(§6) |
+
+팀장의 체크리스트(범위 · 완료 조건 · 씬/프리팹 · 구조 · 기록)는 MR 템플릿 하단 "리뷰어 확인"에 있다.
+
+## 6. 규칙 강제 — 4겹
+
+| 겹 | 장치 | 막는 것 | 비고 |
+| --- | --- | --- | --- |
+| **서버** | GitLab 보호 브랜치 와일드카드: `*` = push·merge 모두 No one / `S15P21B202-*` = Developers push 허용 / `hotfix/S15P21B202-*` = Maintainers / `develop`·`master` = merge Maintainers | **이슈 키 없는 이름의 브랜치는 생성·push 자체가 거부됨.** 가장 허용적인 규칙이 적용되는 GitLab 동작을 이용 | Free 티어. 부작용: 작업 브랜치도 보호 대상 → 개발자는 자기 원격 브랜치를 못 지우고, 머지 시 자동 삭제가 안 됨 → [Infra]가 주 1회 Repository → Branches에서 머지된 브랜치 삭제 |
+| **로컬** | `.githooks/pre-push` | 형식 안 맞는 push를 서버까지 가기 전에 차단 (친절한 안내 메시지) | 클론 후 1회 `git config core.hooksPath .githooks` |
+| **Jira** | 자동화 되돌림 (R5·R9) | 브랜치 없이 진행 중, 머지 없이 완료 | 키가 실존하지 않는 브랜치는 Jira가 무시 → 보드에 아무 일이 안 생겨 드러남 |
+| **CI** (러너 후) | `mr-lint` — 제목·브랜치 형식, **Jira 키 실존 확인**, 템플릿 섹션·체크박스 | 규칙 위반 MR의 머지 | "Pipelines must succeed" |
+
+- "Jira 버튼으로만 브랜치 생성"을 문자 그대로 강제하는 것은 불가능하다(서버는 버튼 출처를 구분할 수 없다). 위 4겹이 실질적 동치다.
+- 서버 규칙(`*`)의 부작용이 크다고 판단되면 `*` 규칙 하나만 지우면 된다 — 나머지 3겹은 그대로다.
+
+## 7. Unity 특화 규칙
+
+1. **`.meta` 파일은 에셋과 반드시 함께 커밋한다.** 빠지면 다른 팀원의 참조가 전부 깨진다.
+2. **씬(.unity)·프리팹(.prefab)은 동시 수정 금지.** 씬을 만지기 전에 팀 채널에 선언하고, MR 템플릿의 "씬/프리팹 변경"에 적는다. 씬은 얇게, 프리팹 단위로 작업을 쪼갠다.
+3. **UnityYAMLMerge(Smart Merge).** 로컬 설정:
+   ```
+   git config merge.unityyamlmerge.name "Unity SmartMerge"
+   git config merge.unityyamlmerge.driver "'C:/Program Files/Unity/Hub/Editor/<버전>/Editor/Data/Tools/UnityYAMLMerge.exe' merge -p %O %B %A %A"
+   ```
+   실제로 동작하려면 `.gitattributes`에도 드라이버 지정이 필요하다 (현재 `*.unity text`만 있음). 팀 결정 후 일괄 적용:
+   ```
+   *.unity  merge=unityyamlmerge eol=lf
+   *.prefab merge=unityyamlmerge eol=lf
+   *.asset  merge=unityyamlmerge eol=lf
+   ```
+4. **Git LFS는 이미 적용되어 있다.** 루트 `.gitattributes`가 모델·텍스처·오디오·영상·네이티브 라이브러리·압축 파일을 LFS로 보낸다.
+   - 클론 **전에** `git lfs install` 1회 (README "빠른 시작").
+   - Unity YAML(씬/프리팹/meta)은 텍스트로 유지 — diff/머지 확인을 위해 LFS로 보내지 않는다.
+   - 새 바이너리 확장자는 `.gitattributes`에 추가. lab.ssafy.com의 LFS 용량 제한은 아트 에셋 대량 커밋 전에 확인.

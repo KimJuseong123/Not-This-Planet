@@ -46,6 +46,9 @@ Unity 6000.5.4f1이 설치되어 있지 않다면 해당 버전을 먼저 설치
 .
 ├── .gitignore
 ├── .gitattributes
+├── .githooks/
+├── .gitlab/
+├── docs/
 ├── README.md
 └── METAGAME/
     ├── Assets/
@@ -64,6 +67,9 @@ Unity 6000.5.4f1이 설치되어 있지 않다면 해당 버전을 먼저 설치
 | METAGAME/.vscode/ | 공유 가능한 Unity 디버깅 및 편집기 설정 |
 | .gitignore | 저장소 전체에 적용되는 Unity/IDE/빌드 산출물 제외 규칙 |
 | .gitattributes | 대용량 바이너리 에셋의 Git LFS 및 Unity YAML 텍스트 규칙 |
+| .githooks/ | 브랜치명에 Jira 이슈 키가 없으면 push를 막는 pre-push 훅 (`git config core.hooksPath .githooks`로 활성화) |
+| .gitlab/ | Merge Request 템플릿 |
+| docs/ | 팀 컨벤션 문서 — 브랜치·Jira·자동화·파트 구분 ([docs/README.md](docs/README.md)) |
 
 Library/, Temp/, Logs/, UserSettings/, 생성된 .csproj·.sln 파일과 빌드 결과물은 커밋하지 않습니다. 이 파일들은 각자의 PC 또는 빌드 환경에서 생성됩니다. Unity 에셋의 .meta 파일은 GUID 보존에 필요하므로 반드시 함께 커밋합니다.
 
@@ -82,44 +88,42 @@ Library/, Temp/, Logs/, UserSettings/, 생성된 .csproj·.sln 파일과 빌드 
 
 ## 브랜치 규칙
 
+브랜치 전략과 상세 규칙은 [docs/git-convention.md](docs/git-convention.md)를 기준으로 합니다. 요약:
+
 | 브랜치 | 용도 |
 | --- | --- |
-| master | 검증된 안정 버전 및 릴리즈 기준 |
-| develop | 여러 기능을 통합하는 기본 개발 브랜치 |
-| feature/<name> | 새 기능 개발 |
-| fix/<name> | 일반 버그 수정 |
-| hotfix/<name> | 안정 버전에 대한 긴급 수정 |
-| chore/<name> | 설정, 문서, 도구 등 비게임 작업 |
-
-권장 흐름은 다음과 같습니다.
+| master | 항상 릴리즈 가능한 안정 버전. 마일스톤마다 버전 태그 |
+| develop | 기능을 통합하는 기본 개발 브랜치. 항상 에디터에서 실행 가능해야 함 |
+| `<JIRA키>-<번호>-<영문설명>` | Jira 이슈 단위 작업 브랜치 — **유일한 형식.** Jira 이슈 화면 "브랜치 만들기"로 생성 (설명부는 영문) |
+| `hotfix/<JIRA키>-<번호>-<설명>` | master 긴급 수정 (접두어 필수, master에서 분기) |
 
 ~~~text
-develop → feature/<name> → Pull/Merge Request → develop
-master  ← 릴리즈 검증이 끝난 develop
+Jira 이슈 생성 → 이슈 화면 "브랜치 만들기" (소스 develop) → 작업 → Merge Request → develop
+master ← 릴리즈 검증이 끝난 develop
 ~~~
 
-- master에 직접 작업하거나 강제 push하지 않습니다.
-- 기능 브랜치는 최신 develop에서 생성합니다.
-- 하나의 브랜치에는 하나의 목적만 담습니다.
-- 작업이 끝나면 Pull/Merge Request에서 변경 목적, 테스트 결과, 씬·에셋 변경 여부를 함께 설명합니다.
-- 현재 develop이 원격에 아직 없다면 최초 1회 다음 명령으로 공유합니다.
-
-~~~bash
-git push -u origin develop
-~~~
+- **Jira 우선:** 브랜치는 Jira 이슈에서 만듭니다. 이슈 키가 없는 이름은 GitLab 보호 브랜치 규칙이 **생성 자체를 거부**하고, 로컬 `.githooks/pre-push` 훅도 push 전에 막습니다. `feature/` 같은 접두어는 쓰지 않습니다.
+  클론 후 한 번 `git config core.hooksPath .githooks`를 실행해 훅을 켭니다.
+- master에 직접 작업하거나 강제 push하지 않습니다. 문서·설정 변경도 작업 브랜치 → develop MR로 올립니다.
+- 작업 브랜치는 최신 develop에서 만들고, 1~3일 안에 작게 머지합니다.
+- MR은 `.gitlab/merge_request_templates/Default.md` 템플릿(자동 적용)을 채우고, **팀장(Maintainer)이 승인·머지**합니다. develop 머지 권한은 Maintainer에게만 있습니다.
 
 ## 커밋 메시지 규칙
 
-Conventional Commits 형식을 사용합니다.
+Conventional Commits 형식에 Jira 이슈 키를 덧붙입니다. 상세는 [docs/git-convention.md](docs/git-convention.md)를 참고합니다.
 
 ~~~text
-<type>(<scope>): <summary>
+<type>(<scope>): <summary> (<JIRA키>-<번호>)
 ~~~
+
+- `<scope>`는 선택 사항입니다 (예: player, ui, network).
+- 이슈 키는 브랜치 작업의 커밋에 붙입니다. GitLab-Jira 연동 시 커밋이 이슈에 링크됩니다.
 
 | Type | 용도 |
 | --- | --- |
 | feat | 새 기능 |
 | fix | 버그 수정 |
+| asset | 아트·사운드·씬 등 에셋 추가/수정 (코드 변경 없음) |
 | refactor | 동작 변경 없는 구조 개선 |
 | docs | 문서 변경 |
 | test | 테스트 추가 또는 수정 |
@@ -130,9 +134,9 @@ Conventional Commits 형식을 사용합니다.
 예시:
 
 ~~~text
-feat(player): add movement input
-fix(ui): prevent duplicate popup
-docs: add Unity project setup guide
+feat(player): add double jump (S15P21B202-12)
+asset(lobby): 로비 배경 3D 모델 추가 (S15P21B202-45)
+docs: add Unity project setup guide (S15P21B202-3)
 chore: update gitignore
 ~~~
 
@@ -227,4 +231,4 @@ git lfs pull
 
 ## 문서 관리
 
-프로젝트 구조나 핵심 규칙이 바뀌면 이 README와 [Unity 프로젝트 컨텍스트](METAGAME/Docs/AI/UnityProjectContext.md)를 함께 갱신합니다.
+프로젝트 구조나 핵심 규칙이 바뀌면 이 README와 [Unity 프로젝트 컨텍스트](METAGAME/Docs/AI/UnityProjectContext.md)를 함께 갱신합니다. 브랜치·Jira·자동화 등 협업 규칙의 상세 기준은 [docs/](docs/README.md)이며, README의 요약과 어긋나면 docs/를 따르고 README를 고칩니다.
