@@ -8,7 +8,7 @@
 | 겹 | 장치 | 상태 |
 | --- | --- | --- |
 | 1 사람 | 컨벤션 문서 · MR 템플릿 · 팀장 리뷰 체크리스트 | ✅ 운영 중 |
-| 2 서버 설정 | GitLab 보호 브랜치 · Jira 자동화 8개 | ✅ 운영 중 |
+| 2 서버 설정 | GitLab 보호 브랜치(master·develop·hotfix) · 머지 시 브랜치 자동 삭제 · Jira 자동화 8개(MM 표 카드 알림 포함) | ✅ 운영 중 — 2026-08-27 자동 삭제·R6 조건·MM 멘션 실전 확인 |
 | **3 CI 검사** | `mr-title` → `mr-lint` · `repo-hygiene` · (`unity-compile`) | ✅ 2026-08-27 파이프라인 #175312 에서 전부 성공(임시 Windows 러너, pwsh). 파이프라인 필수 설정 전까지는 "빨간불"만 |
 | **4 AI·알림** | `ai-review`(비차단) · Mattermost(GitLab 통합 + Jira 웹 요청 + `mm-digest`) | `ai-review` ✅ 검증(Opus 5/medium, 75초, 코드·설정 변경 MR 에만 실행). Jira→MM ✅ 적용. GitLab→MM 통합은 팀장 설정 대기 |
 
