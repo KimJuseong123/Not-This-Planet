@@ -37,7 +37,7 @@ Unity 6000.5.4f1이 설치되어 있지 않다면 해당 버전을 먼저 설치
 
 1. 패키지 복원과 에셋 임포트가 완료될 때까지 기다립니다.
 2. Console에 새 오류가 없는지 확인합니다.
-3. Assets/Scenes/SampleScene.unity를 엽니다.
+3. Assets/_Project/Scenes/Surface.unity를 엽니다.
 4. File > Build Profiles에서 빌드 씬이 올바르게 등록되어 있는지 확인합니다.
 
 ## 프로젝트 구성
@@ -79,10 +79,10 @@ Library/, Temp/, Logs/, UserSettings/, 생성된 .csproj·.sln 파일과 빌드 
 - 렌더 파이프라인: URP 17.5.0
 - 입력: Input System 1.19.0
 - 주요 패키지: AI Navigation, uGUI, Timeline, Visual Scripting, Unity Test Framework
-- 현재 활성 빌드 씬: Assets/Scenes/SampleScene.unity
-- 초기 폴더 스캐폴드: Assets/_Project/
-- 초기 어셈블리 경계: Metagame.Core, Metagame.Gameplay, Metagame.UI
-- 현재 상태: 게임플레이 코드와 프로젝트 테스트는 아직 없음
+- 현재 활성 빌드 씬: Assets/_Project/Scenes/Surface.unity
+- 프로젝트 에셋 위치: Assets/_Project/
+- 어셈블리 경계: Metagame.Core, Metagame.Gameplay, Metagame.UI, Metagame.Bootstrap, Metagame.Editor
+- 현재 상태: SpaceFlop 프로토타입 코드와 에셋이 Assets/_Project/ 아래에 들어와 있고, 프로젝트 테스트는 아직 없음
 
 자세한 상태와 확인 근거는 [Unity 프로젝트 컨텍스트](METAGAME/Docs/AI/UnityProjectContext.md)를 참고합니다.
 
@@ -176,17 +176,20 @@ Assets/
 │   ├── Audio/
 │   ├── Data/
 │   ├── Materials/
-│   ├── Models/
+│   ├── Models/               # Characters/, Spaceships/ — FBX 원본
 │   ├── Prefabs/
-│   ├── Scenes/
+│   │   └── Resources/        # ArtLink 가 만든 FBX 링크 프리팹 (Resources.Load 대상)
+│   ├── Scenes/               # Surface.unity
 │   ├── Scripts/
-│   │   ├── Runtime/Core/
-│   │   ├── Runtime/Gameplay/
-│   │   ├── Runtime/UI/
-│   │   ├── Editor/
-│   │   └── Tests/
+│   │   ├── Runtime/Core/         # Metagame.Core
+│   │   ├── Runtime/Gameplay/     # Metagame.Gameplay (Player/, World/)
+│   │   ├── Runtime/UI/           # Metagame.UI
+│   │   ├── Runtime/Bootstrap/    # Metagame.Bootstrap
+│   │   ├── Editor/               # Metagame.Editor (Editor 플랫폼 전용)
+│   │   └── Tests/                # Editor/, Runtime/
 │   ├── Shaders/
-│   ├── Textures/
+│   │   └── Resources/        # Shader.Find 대신 Resources.Load 로 집는 셰이더
+│   ├── Textures/             # Concept/ 포함
 │   ├── UI/
 │   ├── VFX/
 │   └── ThirdParty/
@@ -202,7 +205,7 @@ Settings/에는 공용 렌더링·볼륨 설정을 유지하고, 외부 에셋�
 - 패키지는 Unity Package Manager를 통해 추가·삭제합니다.
 - Packages/manifest.json과 Packages/packages-lock.json은 함께 커밋합니다.
 - Library/PackageCache를 직접 수정하지 않습니다.
-- Assets/_Project/Scripts/Runtime/ 아래의 기능 코드는 Core, Gameplay, UI 어셈블리 경계를 존중합니다.
+- Assets/_Project/Scripts/Runtime/ 아래의 기능 코드는 Core → Gameplay → UI → Bootstrap 순서의 어셈블리 참조 방향을 존중합니다. 역방향 참조(Core가 Gameplay를 참조하는 등)는 순환이 되므로 만들지 않습니다.
 - Unity Editor 버전이나 핵심 패키지 버전을 올릴 때는 별도 브랜치에서 변경 이유와 영향 범위를 기록합니다.
 - ProjectSettings/ 변경은 의도하지 않은 플랫폼·입력·렌더링 설정 변경이 없는지 확인합니다.
 - 새로운 씬을 추가하면 Build Profiles에 필요한 씬을 등록하고 변경 사항을 커밋합니다.
