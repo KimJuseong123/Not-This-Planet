@@ -1,5 +1,6 @@
 using Metagame.Core;
 using Metagame.Gameplay;
+using Metagame.Gameplay.Hazards;
 using Metagame.Gameplay.Parts;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -47,6 +48,7 @@ namespace Metagame.EditorTools
             CaseBeamSnapsOntoSocket(66f, 22f);
             CaseWelding(30f, -24f, welded: false);
             CaseWelding(46f, -24f, welded: true);
+            CaseMeteors(38f, -24f);
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene, ScenePath);
@@ -276,6 +278,25 @@ namespace Metagame.EditorTools
                     point.ForceComplete();
 
             link.Tick();
+        }
+
+        // 10. Case9 의 두 탑 위에 운석을 떨어뜨린다.
+        //     같은 운석에 미접합 탑만 무너지고 용접 탑은 버티는 것을 볼 수 있다.
+        static void CaseMeteors(float x, float z)
+        {
+            Label("Case10_Meteors", x);
+
+            var go = new GameObject("Case10_MeteorSpawner");
+            go.transform.position = new Vector3(x, 0f, z);
+
+            var spawner = go.AddComponent<MeteorSpawner>();
+            spawner.Configure(20260827,
+                PhysicsScale.MeteorIntervalStart,
+                PhysicsScale.MeteorIntervalMin,
+                PhysicsScale.MeteorRampSeconds);
+            spawner.SetArea(go.transform, new Vector2(20f, 6f));
+
+            go.AddComponent<SandboxMeteorDriver>();
         }
 
         /// <summary>접합 하나에 두는 용접점 수. 레벨 디자인에서 조정한다.</summary>
