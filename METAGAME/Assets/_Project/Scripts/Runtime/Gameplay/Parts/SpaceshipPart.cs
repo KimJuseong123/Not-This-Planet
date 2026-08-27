@@ -20,6 +20,7 @@ namespace Metagame.Gameplay.Parts
         [SerializeField] PartState _state = PartState.Locked;
 
         readonly List<PartClamp> _clamps = new();
+        readonly List<PartSocket> _sockets = new();
 
         Rigidbody _body;
         bool _initialized;
@@ -32,6 +33,16 @@ namespace Metagame.Gameplay.Parts
             {
                 Initialize();
                 return _clamps;
+            }
+        }
+
+        /// <summary>이 파츠에 달린 접합 지점.</summary>
+        public IReadOnlyList<PartSocket> Sockets
+        {
+            get
+            {
+                Initialize();
+                return _sockets;
             }
         }
 
@@ -71,6 +82,7 @@ namespace Metagame.Gameplay.Parts
             _body = GetComponent<Rigidbody>();
 
             RefreshClamps();
+            RefreshSockets();
             EnsureGrabbable();
             ApplyRepresentation(_state);
         }
@@ -97,6 +109,17 @@ namespace Metagame.Gameplay.Parts
             _clamps.Clear();
             GetComponentsInChildren(true, _clamps);
             foreach (var clamp in _clamps) clamp.Initialize();
+        }
+
+        /// <summary>
+        /// 자식의 접합 지점 목록을 다시 모으고 씬 목록에 등록한다.
+        /// OnEnable 이 돌지 않는 EditMode 에서도 소켓이 검색되게 하려면 이 등록이 필요하다.
+        /// </summary>
+        public void RefreshSockets()
+        {
+            _sockets.Clear();
+            GetComponentsInChildren(true, _sockets);
+            foreach (var socket in _sockets) socket.Register();
         }
 
         /// <summary>
