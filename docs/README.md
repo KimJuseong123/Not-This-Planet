@@ -14,6 +14,7 @@
 | [ci-and-notifications.md](./ci-and-notifications.md) | **1·2단계 CI·알림** — MR 파이프라인 잡(mr-title·mr-lint·repo-hygiene·unity-compile·ai-review·mm-digest) · 변수/토큰 · 러너 · Mattermost 알림 3소스 |
 | [leader-checklist.md](./leader-checklist.md) | 팀장 남은 일 — MR 머지 · 브랜치/테스트 이슈 정리 · Epic 담당자 · CI 변수/러너/MM 통합 |
 | [backend-guidelines.md](./backend-guidelines.md) | 백엔드 기술스택·설계 원칙 — raw WebSocket · 게스트 로그인 · MySQL/메모리 분리 · GameState · 체크포인트 · 로컬 개발 환경 |
+| [asset-catalog.md](./asset-catalog.md) | **Unity 에셋 카탈로그** — 프리뷰 이미지 · 실제 배치 크기 · `Texture→Material→Prefab` 연결 체인 · 미연결 에셋 목록 (**에셋 추가 시 갱신**) |
 
 CI 파이프라인은 [.gitlab-ci.yml](../.gitlab-ci.yml)과 [scripts/ci/](../scripts/ci/)에 있다(러너에 Python 3.12+만 필요).
 MR 템플릿은 [.gitlab/merge_request_templates/Default.md](../.gitlab/merge_request_templates/Default.md)에 있으며 MR 생성 시 자동 적용된다.
