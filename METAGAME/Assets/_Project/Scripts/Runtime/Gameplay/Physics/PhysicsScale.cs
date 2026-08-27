@@ -53,6 +53,60 @@ namespace Metagame.Gameplay
         /// <summary>비행접시형 운반 도구. 파츠에 끌려다니지 않을 정도의 무게.</summary>
         public const float CarrierMass = 25f;
 
+        // --- 소켓 배치 ---
+        /// <summary>두 소켓이 이 거리 안에 있으면 스냅 후보가 된다.</summary>
+        public const float SnapDistance = 1.5f;
+
+        /// <summary>두 접합면이 마주보는 오차가 이 각도 안이면 스냅 후보가 된다.</summary>
+        public const float SnapAngleDegrees = 30f;
+
+        /// <summary>
+        /// 용접 전 파츠를 잡아 두는 조인트가 끊어지는 힘.
+        ///
+        /// 이 값이 이 시스템의 핵심 튜닝 대상이다. 운석 충격에는 끊어지고 일반 조작에는
+        /// 끊어지지 않는 구간을 잡아야 한다. 운석이 아직 없으므로 지금은
+        /// "5단 탑이 스스로는 무너지지 않는다" 까지만 확인한 값이고,
+        /// 실제 값은 운석 티켓에서 확정한다.
+        /// </summary>
+        public const float UnweldedBreakForce = 8000f;
+
+        /// <summary>용접 전 조인트가 끊어지는 토크. 위 항목과 같은 이유로 임시값이다.</summary>
+        public const float UnweldedBreakTorque = 5000f;
+
+        // --- 견인 광선 ---
+        /// <summary>빔이 파츠를 붙잡을 수 있는 최대 거리.</summary>
+        public const float BeamRange = 12f;
+
+        /// <summary>붙잡은 파츠를 빔 기준점 앞 몇 미터에 두는지.</summary>
+        public const float BeamHoldDistance = 6f;
+
+        /// <summary>
+        /// 목표점까지의 거리에 곱하는 가속 계수(1/s²). 스프링의 k 에 해당한다.
+        /// </summary>
+        public const float BeamAccel = 25f;
+
+        /// <summary>
+        /// 속도에 곱하는 감쇠 계수(1/s). 스프링-댐퍼가 임계 감쇠가 되는 조건은 d = 2*sqrt(k) 이고
+        /// sqrt(25) * 2 = 10 이다. 이 값을 낮추면 파츠가 목표점을 지나쳐 출렁인다.
+        /// </summary>
+        public const float BeamDamp = 10f;
+
+        /// <summary>
+        /// 가속 상한(m/s²). 중력 보상분(2.8)보다 충분히 커야 파츠가 처지지 않는다.
+        /// </summary>
+        public const float BeamAccelMax = 30f;
+
+        /// <summary>
+        /// 중력을 얼마나 대신 들어주는지. 1 이면 완전 무중력처럼 뜬다.
+        /// 빔을 놓으면 보상이 사라져 그대로 떨어진다.
+        /// </summary>
+        public const float BeamGravitySupport = 1f;
+
+        /// <summary>
+        /// 목표 회전으로 돌리는 각속도 계수(1/s). 결과는 PartMaxAngularSpeed 로 잘린다.
+        /// </summary>
+        public const float BeamAngularGain = 6f;
+
         // --- 전역 물리 설정 기록값 (ProjectSettings/DynamicsManager.asset) ---
         // Unity 6 기본값이 이미 목표치 이상이라 변경하지 않았다. 회귀 감시용으로만 기록한다.
         public const int SolverIterations = 14;

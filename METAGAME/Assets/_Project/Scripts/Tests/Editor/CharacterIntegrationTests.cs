@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Metagame.Core;
 using Metagame.Gameplay.Parts;
 using NUnit.Framework;
 using UnityEngine;
@@ -61,6 +62,16 @@ namespace Metagame.Gameplay.Tests
                 "지면이 마스크에서 빠지면 캐릭터가 바닥을 찾지 못한다.");
             Assert.AreNotEqual(0, mask & (1 << GameLayers.Part));
             Assert.AreNotEqual(0, mask & (1 << GameLayers.PartCarried));
+        }
+
+        [Test]
+        public void CarriedPart_IsBelowHandLiftThreshold_SoClimbableGuardIsRequired()
+        {
+            // PlayerRig 는 FixedGripMass 보다 가벼운 물체를 운반할 때 isKinematic 을 직접 켠다.
+            // 견인 중 파츠가 그 아래에 있는 한 아래의 Climbable 가드가 필요하다.
+            // 이 단정이 깨지면 가드 없이도 안전해진 상태이므로 그때 다시 판단한다.
+            Assert.Less(PhysicsScale.CarriedPartMass, Tuning.FixedGripMass,
+                "견인 중 파츠가 손 들기 임계값보다 가볍다. Climbable 가드가 필요하다.");
         }
 
         [Test]
