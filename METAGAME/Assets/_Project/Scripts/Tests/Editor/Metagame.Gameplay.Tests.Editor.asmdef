@@ -5,7 +5,8 @@
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner",
     "Metagame.Core",
-    "Metagame.Gameplay"
+    "Metagame.Gameplay",
+    "Metagame.Network"
   ],
   "includePlatforms": [
     "Editor"
