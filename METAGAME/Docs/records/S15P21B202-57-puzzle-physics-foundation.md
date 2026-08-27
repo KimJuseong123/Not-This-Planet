@@ -74,10 +74,15 @@ Part 프리팹의 `Rigidbody.maxAngularVelocity` 에만 적용한다. 전역값�
 - `METAGAME/ProjectSettings/TagManager.asset` — Layer 6~14 정의
 - `METAGAME/ProjectSettings/DynamicsManager.asset` — 충돌 매트릭스 재구성
 
+패키지
+- `METAGAME/Packages/manifest.json`, `packages-lock.json` — `com.unity.test-framework@1.7.0` 추가
+
 코드
 - `METAGAME/Assets/_Project/Scripts/Runtime/Gameplay/Physics/GameLayers.cs`
 - `METAGAME/Assets/_Project/Scripts/Runtime/Gameplay/Physics/PhysicsScale.cs`
 - `METAGAME/Assets/_Project/Scripts/Editor/SandboxSceneBuilder.cs`
+- `METAGAME/Assets/_Project/Scripts/Tests/Editor/Metagame.Gameplay.Tests.Editor.asmdef`
+- `METAGAME/Assets/_Project/Scripts/Tests/Editor/GameLayersTests.cs`
 
 에셋
 - `METAGAME/Assets/_Project/Scenes/Sandbox_Physics.unity` (그레이박스 검증용, 빌드 씬 미등록)
@@ -87,8 +92,21 @@ Part 프리팹의 `Rigidbody.maxAngularVelocity` 에만 적용한다. 전역값�
 
 ## 4. 검증
 
-Unity 6000.5.4f1 배치모드에서 `Physics.GetIgnoreLayerCollision` 및 `LayerMask.NameToLayer`
-로 직접 확인했다. 결과 실패 0건.
+EditMode 테스트 8건 전부 통과했다 (`-runTests -testPlatform EditMode`).
+
+| 테스트 | 검증 내용 |
+| --- | --- |
+| LayerConstants_MatchTagManager | 상수와 TagManager 인덱스 일치 |
+| LayerIndices_AreUnique | 인덱스 중복 없음 |
+| CarriedPart_IgnoresBothPlayerLayers | 견인 파츠가 두 플레이어 레이어를 통과 |
+| DownedPlayer_IgnoresOtherPlayers | 기절 캡슐 끼임 방지 |
+| Meteor_DoesNotCollideWithOtherMeteors | 운석끼리 비충돌 |
+| QueryOnlyLayers_HaveNoCollisionsAtAll | Interactable/BeamQuery 전 레이어 OFF |
+| GameplayCollisions_RemainEnabled | 필요한 충돌이 꺼지지 않았는지 (과다 차단 회귀 방지) |
+| GlobalPhysicsSettings_MatchRecordedBaseline | 중력·틱·solver 기록값과 실제 설정 일치 |
+
+추가로 배치모드에서 `Physics.GetIgnoreLayerCollision` 과 `LayerMask.NameToLayer` 로
+직접 확인했다. 결과 실패 0건.
 
 - 레이어 이름-인덱스 일치 9/9
 - OFF 규칙 5조합 + Interactable/BeamQuery 전 레이어 위반 0건
@@ -105,8 +123,6 @@ Sandbox_Physics 씬은 `Tools > Metagame > Rebuild Physics Sandbox` 로 재생�
 
 ## 5. 미해결 / 후속
 
-- **Unity Test Framework 미설치**: `Packages/manifest.json` 에 `com.unity.test-framework`
-  가 없어 EditMode 테스트를 추가할 수 없다. 별도 결정 필요.
 - 견인 PID 게인, `PartMaxAngularSpeed` 실측 조정 — 견인 구현 티켓
 - 파츠 4종의 실제 치수·질량 확정 — 기획 확정 후
 
@@ -114,6 +130,11 @@ Sandbox_Physics 씬은 `Tools > Metagame > Rebuild Physics Sandbox` 로 재생�
 
 - 전제: 4인 고정 협동, 호스트 권위 물리 (물리 시뮬레이션은 호스트에서만 수행)
 - 범위 밖: 캐릭터 이동·시점(S15P21B202-13), Netcode 도입(S15P21B202-15)
+- `Packages/manifest.json` 에 `com.unity.test-framework@1.7.0` 을 추가했다.
+  본 티켓 이전까지 프로젝트에 테스트 프레임워크가 설치되어 있지 않아
+  EditMode 테스트를 컴파일할 수 없었다.
+- README 는 URP 와 Input System 을 사용한다고 기술하고 있으나
+  실제 `manifest.json` 에는 두 패키지가 모두 없다. 본 티켓 범위 밖이므로 손대지 않았다.
 - `ProjectSettings/TagManager.asset`, `DynamicsManager.asset` 은 전 팀 공유 파일이며
   `m_LayerCollisionMatrix` 는 단일 해시 문자열이라 git 자동 머지가 불가능하다.
   머지 후 각 팀원은 Unity Editor 재시작이 필요하다.
