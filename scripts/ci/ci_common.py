@@ -119,6 +119,26 @@ class GitLab:
                 return http("PUT", self._mr_url(f"/notes/{n['id']}"), self._h(), {"body": body})
         return http("POST", self._mr_url("/notes"), self._h(), {"body": body})
 
+    def merged_mrs(self, days: int = 7, max_pages: int = 5) -> tuple[list[dict], bool]:
+        """최근 N일 안에 **머지된** MR (merged_at 기준). updated_after 로 좁혀 페이지를 순회한 뒤 merged_at 으로 다시 거른다
+        (GitLab MR API 에는 merged_after 필터가 없음). 반환 (mrs, complete) — max_pages 안에 끝나지 않으면 complete=False."""
+        from datetime import datetime, timedelta, timezone
+        since_dt = datetime.now(timezone.utc) - timedelta(days=days)
+        since = since_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+        out: list[dict] = []
+        for page in range(1, max_pages + 1):
+            st, d = http("GET", f"{self.api}/projects/{self.project}/merge_requests?state=merged&updated_after={since}"
+                                f"&per_page=100&page={page}&order_by=updated_at", self._h())
+            if st != 200 or not isinstance(d, list):
+                raise RuntimeError(f"GitLab merged MR 조회 {st}")
+            for mr in d:
+                merged_at = (mr.get("merged_at") or "")[:19]          # 'YYYY-MM-DDTHH:MM:SS' 만 사용 (밀리초·Z 제거, 3.10 이하 호환)
+                if merged_at and datetime.strptime(merged_at, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc) >= since_dt:
+                    out.append(mr)
+            if len(d) < 100:
+                return out, True
+        return out, False
+
     def open_mrs(self) -> list[dict]:
         st, d = http("GET", f"{self.api}/projects/{self.project}/merge_requests?state=opened&per_page=100",
                      self._h())
@@ -161,6 +181,24 @@ class Jira:
         if st != 200:
             raise RuntimeError(f"Jira search → {st}: {str(d)[:200]}")
         return d.get("issues", [])
+
+    def search_all(self, jql: str, fields: list[str], page_size: int = 100, max_pages: int = 20) -> tuple[list[dict], bool]:
+        """전량 수집(/search/jql 의 nextPageToken 순회). 반환 (issues, complete) — max_pages 안에 끝나지 않으면 complete=False.
+        Jira 가 요청보다 작은 페이지를 돌려줘도 isLast/nextPageToken 으로 판단하므로 잘림을 놓치지 않는다."""
+        out: list[dict] = []
+        token = None
+        for _ in range(max_pages):
+            body: dict = {"jql": jql, "maxResults": page_size, "fields": fields}
+            if token:
+                body["nextPageToken"] = token
+            st, d = http("POST", f"{self.api}/rest/api/3/search/jql", self._h(), body)
+            if st != 200:
+                raise RuntimeError(f"Jira search → {st}: {str(d)[:200]}")
+            out += d.get("issues", [])
+            token = d.get("nextPageToken")
+            if d.get("isLast", token is None) or not token:
+                return out, True
+        return out, False
 
 
 def part_of_issue(issue: dict) -> str | None:
