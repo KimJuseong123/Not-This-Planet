@@ -127,7 +127,7 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 | 요구 | 결론 | 설명 |
 | --- | --- | --- |
 | Jira "브랜치 만들기" 버튼을 통해서만 생성 | **❌ 문자 그대로는 불가** | ① 버튼은 사용자를 GitLab 브랜치 생성 화면으로 보내고 **사용자 본인 권한**으로 만든다 → 서버는 버튼/UI/`git push`를 구분할 수 없다. ② GitLab에는 "브랜치 생성 권한"이 따로 없다 — 생성 = push 권한(보호 브랜치의 Allowed to push). 생성을 막으면 자기 브랜치에 커밋 push도 막힌다(Free·Premium 공통). ③ 출처(`GL_PROTOCOL` web/ssh)를 볼 수 있는 pre-receive 서버 훅은 인스턴스 관리자 전용. (fork 워크플로우로 우회 가능하지만 Jira 연동이 fork 브랜치를 추적하지 못해 목적에 반함) |
-| **이슈 키 없는 이름의 브랜치는 생성 불가 (실질적 동치)** | **✅ Free에서 가능 — 채택** | GitLab 보호 브랜치 와일드카드로 서버가 생성을 거부 (§2.5). 로컬 훅·CI 린트가 추가 겹 |
+| **이슈 키 없는 이름의 브랜치는 생성 불가 (실질적 동치)** | ✅ 가능했으나 **2026-08-27 해제** | 와일드카드 보호로 서버가 거부하던 방식은 머지 시 자동 삭제를 막아, CI `mr-lint` 도입 후 해제. 지금은 로컬 훅 + CI + Jira 3겹 |
 | 이슈 키가 **실존**하는지 서버에서 확인 | ❌ Free에서 불가 → 1단계 CI 린트가 Jira API로 확인 | 존재하지 않는 키의 브랜치는 Jira도 무시하므로 보드에 아무 일이 안 생겨 즉시 드러남 |
 
 ### 2.5 GitLab 보호 브랜치 규칙 — 서버 측 이름 강제 ✅ (부록 B)
@@ -141,7 +141,7 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 | `master` | No one | Maintainers | off | 릴리즈 MR만 |
 
 - **검증:** 여러 규칙이 겹치면 **가장 허용적인 규칙**이 적용됨(공식). 와일드카드 보호는 push뿐 아니라 **생성**도 제한하며, "push: No one"이어도 "merge" 권한이 있으면 생성 가능하므로 `*`는 **둘 다 No one**이어야 한다(공식). 보호 브랜치는 Free 티어.
-- **비용 (반드시 인지):** 작업 브랜치가 보호 대상이 되므로 **머지 시 "소스 브랜치 삭제" 체크박스가 비활성**된다. 정리는 **Maintainer가 Repository → Branches에서 수동 삭제** (API로도 불가). → [Infra]가 **주 1회 머지된 브랜치 일괄 정리**를 담당. 개발자는 자기 원격 브랜치도 지울 수 없다(의도된 결과).
+- **비용 (반드시 인지):** 작업 브랜치가 보호 대상이 되므로 머지 시 "소스 브랜치 삭제"가 비활성된다. → **실제로 이 비용이 커서 2026-08-27 `*`·`S15P21B202-*` 규칙을 삭제**했다(CI mr-lint 가 이름 규칙을 대신 검사). 이제 머지 시 자동 삭제 ON.
 - **되돌리기:** 이 비용이 크다고 판단되면 `*` 규칙 하나만 지우면 서버 강제만 사라지고 나머지(훅·CI·Jira)는 그대로다.
 - Jira "브랜치 만들기"가 제안하는 이름 `KEY-번호-…`는 `S15P21B202-*`에 걸리므로 그대로 통과한다.
 
@@ -204,7 +204,7 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 | 3 | 진행 중은 브랜치로만 — 전환 제한 | ⚠ 프로젝트 유형·권한 확인 | 회사형: 역할 조건 / 팀형: 실행자 = [Infra] 계정 |
 | 4 | 완료는 머지로만 | ✅ 무조건 되돌림 (+전환 제한) | R9 |
 | 5 | "브랜치는 Jira 버튼으로만" | ❌ 구분 불가 → **이름 강제**로 대체 | §2.4 |
-| 6 | 이슈 키 없는 브랜치 서버에서 거부 | ✅ 와일드카드 보호 브랜치(Free) | 부록 B. 비용: 수동 삭제 |
+| 6 | 이슈 키 없는 브랜치 서버에서 거부 | ✅ 가능(와일드카드 보호) → **08-27 해제** | 자동 삭제 불가 비용 때문. CI mr-lint 가 대체 |
 | 7 | 이슈 키 실존 확인 | ❌ 서버 불가 → CI 린트 | 1단계 |
 | 8 | 팀장 승인 필수 | ❌ Free 승인 필수 불가 → **머지 권한 제한** | develop merge = Maintainers |
 | 9 | 스레드 해결 필수 · 파이프라인 성공 필수 · squash · 템플릿 자동 적용 | ✅ Free | 부록 B |
@@ -297,14 +297,14 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 
 ## 부록 B · GitLab 프로젝트 설정 (Free 티어 기준)
 
-- [ ] Settings → Repository → **Protected branches** — §2.5의 5규칙 (`*` 는 push·merge 모두 No one; `S15P21B202-*`는 Allowed to force push 켬)
+- [x] Settings → Repository → **Protected branches** — 현재 `master`·`develop`(push No one/merge Maintainers), `hotfix/S15P21B202-*`(Maintainers). `*`·`S15P21B202-*` 는 08-27 해제. Settings → Merge requests → "Delete source branch" 기본값 ON, squash 기본 ON
 - [ ] Settings → Repository → Default branch: `develop`
 - [ ] Settings → Merge requests → Merge method: Merge commit · Squash commits: **Encourage** · "Enable Delete source branch by default" ✔ (보호된 작업 브랜치에는 적용되지 않음 — §2.5)
 - [ ] Settings → Merge requests → Merge checks: **All threads must be resolved** ✔ · Pipelines must succeed (1-c에서) ✔ · Skipped pipelines are considered successful ✔
 - [ ] Members: 팀장·[Infra] = **Maintainer**, 나머지 = Developer
 - [ ] `.gitlab/merge_request_templates/Default.md` 자동 적용 확인
 - [ ] (Premium일 때만) Merge request approvals: Approvals required 1
-- [ ] **주 1회 [Infra]:** Repository → Branches → Merged 필터 → 머지된 작업 브랜치 삭제
+- [x] ~~주 1회 머지된 브랜치 삭제~~ → 08-27 부터 머지 시 자동 삭제. 해제 전 남은 브랜치는 팀 결정으로 유지
 
 ## 부록 C · CI 잡 명세 (1·2단계)
 

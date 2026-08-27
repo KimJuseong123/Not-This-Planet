@@ -11,9 +11,11 @@
 | [jira-convention.md](./jira-convention.md) | Epic/Task 구조 · 필수 필드 · 레이블=파트 · 스토리 포인트 척도 · 상태 진입 규칙 |
 | [jira-gitlab-automation.md](./jira-gitlab-automation.md) | Automation 규칙 R1~R9 명세 · 적용 현황 · E2E 검증 결과 · GitLab 설정 · 편집기/API 부록 |
 | [ai-tooling.md](./ai-tooling.md) | AI 연동 가이드 — 공용 계정 대신 로컬 MCP(`mcp-atlassian`)·`glab` CLI 사용, 토큰 관리 |
-| [leader-checklist.md](./leader-checklist.md) | 팀장 남은 일 — MR 머지 · 브랜치/테스트 이슈 정리 · Epic 태그·담당자 결정 |
+| [ci-and-notifications.md](./ci-and-notifications.md) | **1·2단계 CI·알림** — MR 파이프라인 잡(mr-title·mr-lint·repo-hygiene·unity-compile·ai-review·mm-digest) · 변수/토큰 · 러너 · Mattermost 알림 3소스 |
+| [leader-checklist.md](./leader-checklist.md) | 팀장 남은 일 — MR 머지 · 브랜치/테스트 이슈 정리 · Epic 담당자 · CI 변수/러너/MM 통합 |
 | [backend-guidelines.md](./backend-guidelines.md) | 백엔드 기술스택·설계 원칙 — raw WebSocket · 게스트 로그인 · MySQL/메모리 분리 · GameState · 체크포인트 · 로컬 개발 환경 |
 
+CI 파이프라인은 [.gitlab-ci.yml](../.gitlab-ci.yml)과 [scripts/ci/](../scripts/ci/)에 있다(러너에 Python 3.12+만 필요).
 MR 템플릿은 [.gitlab/merge_request_templates/Default.md](../.gitlab/merge_request_templates/Default.md)에 있으며 MR 생성 시 자동 적용된다.
 브랜치명 검사 훅은 [.githooks/pre-push](../.githooks/pre-push)에 있으며, 클론 후 `git config core.hooksPath .githooks`를 한 번 실행해 켠다.
 

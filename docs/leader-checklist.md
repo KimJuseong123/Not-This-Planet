@@ -13,7 +13,8 @@
 
 ## 2. 정리 (Maintainer/관리자만 가능)
 
-- [ ] 머지된 브랜치 삭제 — **Maintainer/Owner만 가능**(보호 브랜치는 Developer가 API로도 삭제 불가, 08-27 실측 `You are not allowed to delete protected branches`). "Merged branches 삭제" 버튼도 보호 브랜치는 건너뛰므로 아래 스크립트를 주기적으로(스프린트 끝마다) 실행:
+- [x] ~~머지된 브랜치 삭제~~ — 2026-08-27 작업 브랜치 보호 해제 + 머지 시 자동 삭제 기본값 ON 으로 해소. 해제 전 남은 브랜치는 그대로 둠(팀 결정). (아래 스크립트는 참고용)
+- 이전 안내 — **Maintainer/Owner만 가능**(보호 브랜치는 Developer가 API로도 삭제 불가, 08-27 실측 `You are not allowed to delete protected branches`). "Merged branches 삭제" 버튼도 보호 브랜치는 건너뛰므로 아래 스크립트를 주기적으로(스프린트 끝마다) 실행:
 
   ```powershell
   # 팀장 PC, glab 로그인 상태. 머지된 MR의 소스 브랜치만 삭제 (develop/master 제외)
@@ -64,3 +65,14 @@
 - MR 제목은 `[파트] type: 요약 (S15P21B202-번호)` — GitLab 기본 제목(브랜치명) 그대로 두지 말 것. **본문 템플릿의 `이슈: S15P21B202-번호` 줄은 반드시 채우고 지우지 말 것** — 키가 제목·본문 어디에도 없으면 Jira에 MR이 연결되지 않아 머지해도 완료로 안 바뀜(오늘 -21 사례). Draft로 만들지 말 것
 - 새 이슈는 백로그에 생기고, 스프린트에 넣으면 기한이 자동으로 채워집니다
 - 클론 후 `git config core.hooksPath .githooks`, `git lfs install` 1회
+
+## 5. 1·2단계(CI·알림) — 팀장(Maintainer) 권한이 필요한 것 · 2026-08-27 추가
+
+절차 상세는 [ci-and-notifications.md](./ci-and-notifications.md). 순서대로 하면 됩니다(약 20분).
+
+- [x] **CI/CD 변수 등록** (Settings → CI/CD → Variables — 토큰류만 Masked, `CI_ENABLE`·`AI_REVIEW_CLI` 같은 플래그는 Visible; 마스킹은 8자 이상만 허용): `CI_ENABLE=true`(러너 준비 후) · `JIRA_USER`·`JIRA_API_TOKEN`(Jira 읽기 전용 토큰 — 팀장 계정에서 발급) · `GITLAB_TOKEN`(Settings → Access Tokens → 프로젝트 액세스 토큰, 역할 Developer, 스코프 `api`, 만료 프로젝트 종료일) · `MM_WEBHOOK_URL`(Mattermost 수신 웹훅) · **`AI_REVIEW_CLI=true`**(AI 리뷰는 러너 호스트의 로그인된 Claude Code CLI 로 — Team 플랜, API 키 불필요; 러너가 이 PC 의 Claude 로그인을 쓰게 하는 `runner-claude-env.ps1` 는 금준영이 실행)
+- [x] **프로젝트 러너 등록(필수)** — 완료 2026-08-27 `METAGAME-DESKTOP-UB20P0O`(shell=pwsh, CLAUDE_CONFIG_DIR 주입). 공유 러너 없음 확정(MR !10 파이프라인 9분 pending). **상시 러너는 지급 EC2**(`scripts/runner/setup-linux-runner.sh`, Docker), 지급 전엔 팀 PC 임시 Windows 러너. Settings → CI/CD → Runners → New project runner(태그 `windows`, Run untagged ✔) → 토큰을 등록자에게 직접 전달 → 등록자가 `scripts/runner/setup-windows-runner.ps1` 실행(관리자 PowerShell, 절차 문서 §4) → 러너 초록불 확인 → 변수 **`CI_ENABLE=true`**
+- [x] Mattermost 통합(GitLab 측) 활성 — 2026-08-27. **후속: Trigger 에서 `Merge request` 체크 해제**(CI `mm-mr-opened` 가 팀장 @멘션 포함으로 대체), `Pipeline` 만 유지(Notify only broken ✔, Branches = Default branch). Username 재정의는 MM 서버가 막아 발신자가 금준영 BOT 으로 보임(수용)
+- [ ] **스케줄 파이프라인**: Build → Pipeline schedules → 평일 09:30 `develop` (mm-digest 가 needs-fix·기한 초과·정체 이슈·오래 열린 MR 요약 전송)
+- [ ] (안정화 1주 후) Settings → Merge requests → **Pipelines must succeed** 켬 → 위반 MR은 머지 버튼이 비활성
+- [ ] (Unity 러너 준비 후) 변수 `UNITY_RUNNER=true`, `UNITY_PATH` = Unity **6000.5.4f1** Editor 경로(현재 SSAFY PC엔 6000.0.81f1만 설치 — 버전 맞춰야 함), 러너 태그 `unity-win`

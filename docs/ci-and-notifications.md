@@ -1,0 +1,107 @@
+# CI · 알림 — 1·2단계 구현 (2026-08-27)
+
+> 기준: [workflow-plan.md §5](./workflow-plan.md) 1-a~2-b. 0단계(Jira 자동화·GitLab 보호 브랜치·템플릿)는 [jira-gitlab-automation.md](./jira-gitlab-automation.md).
+> 파일: [`.gitlab-ci.yml`](../.gitlab-ci.yml), [`scripts/ci/`](../scripts/ci/) — Python 표준 라이브러리만 사용(러너에 pip 불필요).
+
+## 1. 4겹 중 3·4겹이 여기다
+
+| 겹 | 장치 | 상태 |
+| --- | --- | --- |
+| 1 사람 | 컨벤션 문서 · MR 템플릿 · 팀장 리뷰 체크리스트 | ✅ 운영 중 |
+| 2 서버 설정 | GitLab 보호 브랜치 · Jira 자동화 8개 | ✅ 운영 중 |
+| **3 CI 검사** | `mr-title` → `mr-lint` · `repo-hygiene` · (`unity-compile`) | ✅ 2026-08-27 파이프라인 #175312 에서 전부 성공(임시 Windows 러너, pwsh). 파이프라인 필수 설정 전까지는 "빨간불"만 |
+| **4 AI·알림** | `ai-review`(비차단) · Mattermost(GitLab 통합 + Jira 웹 요청 + `mm-digest`) | `ai-review` ✅ 검증(Opus 5/medium, 75초, 코드·설정 변경 MR 에만 실행). Jira→MM ✅ 적용. GitLab→MM 통합은 팀장 설정 대기 |
+
+## 2. MR 파이프라인 잡
+
+모두 `merge_request_event` 에서만 실행. 스크립트는 `GITLAB_TOKEN` 이 없으면 **읽기 전용으로 동작**(수정·코멘트 대신 로그에 제안 출력)하고, Jira 자격이 없으면 Jira 검사만 건너뛴다 — 변수가 덜 등록돼도 파이프라인이 깨지지 않게.
+
+| 잡 | 단계 | 하는 일 | 실패 = 머지 차단? |
+| --- | --- | --- | --- |
+| `mr-title` | prepare | 브랜치명의 키로 Jira 이슈를 읽어 제목을 **`[Part] type: 요약 (KEY)`** 로 보정. 파트 = Jira 레이블(결정적, 추측 없음). type 은 기존 값 유지·없으면 변경 파일로 추정(docs/scene/feat/asset/chore). GitLab 기본 제목(`S15p21b202 21`)이면 요약을 Jira 제목으로 교체. 본문 `- 이슈: KEY` 줄도 채움 → **하이픈→공백 문제와 MR 미연결 문제를 원천 해결**. 잘못 고쳤으면 MR 제목 옆 "편집 기록(Compare with previous version)"에서 이전 값을 보고 되돌리고, 파트가 틀렸다면 원인은 Jira 이슈의 레이블이므로 그쪽을 고친다 | 아니오(allow_failure) |
+| `mr-lint` | lint | Draft 금지 · 소스/대상 브랜치 형식 · 제목 정규식 · 제목/브랜치/본문의 키 일치 · 템플릿 섹션 6개 · 작성자 체크리스트 전부 체크 · Jira 이슈 실존·Epic 아님·담당자·상위 Epic 있음 · 제목 파트 = Jira 파트 | **예** |
+| `repo-hygiene` | lint | 금지 파일(Library/Temp/obj/Build·csproj/sln·.vs/.idea·OS 잡파일·빌드 산출물) · Assets 아래 `.meta` 짝(파일·상위 폴더·고아) · Assets 새 최상위 폴더 금지(`_Project/` 아래로) · **LFS 추적 파일이 실제 바이너리로 커밋됨**(오늘 URP.png 사례) · 비-LFS 5MB 초과 · 씬/프리팹 변경 vs MR 본문 선언 불일치 | **예** |
+| `unity-compile` | test | Unity 설치 Windows 러너(`unity-win`)에서 EditMode 테스트 실행 → 컴파일 에러 검출. `UNITY_RUNNER=true` 일 때만 생성 | 처음엔 아니오 |
+| `ai-review` | review | Claude 가 diff 를 읽고 코멘트 1개(재실행 시 갱신). 범위(Jira 완료 조건 대비)·구조(`_Project/`, Core←Gameplay←UI)·C#/Unity 실수·씬 선언·기록 관점. 에셋·바이너리·메타는 제외. **백엔드 2종**: `cli` = 러너 호스트에 로그인된 Claude Code CLI(`claude -p`, Team 플랜 사용량, 키 불필요 — **채택**) / `api` = `ANTHROPIC_API_KEY`. `AI_REVIEW_CLI=true` 또는 키가 있을 때만 잡 생성 | 아니오 |
+| `mm-digest` | notify | **스케줄 전용**. needs-fix · 기한 초과 · 3일 정체 진행 중 · 스프린트 내 담당자 없음 · 24시간 넘게 열린 MR 을 MM 으로 | — |
+
+정규식(단일 출처 `scripts/ci/ci_common.py`):
+- 제목 `^\[(Plan|Art|Sound|UI|Character|Physics|Puzzle|Level|Network|Backend|Infra|Data|QA)\] (feat|fix|asset|scene|refactor|docs|test|perf|build|chore)(\(scope\))?: 요약 \(S15P21B202-\d+\)$`
+- 브랜치 `^(hotfix/)?S15P21B202-\d+(-[A-Za-z0-9._-]+)?$`
+
+### 로컬에서 돌려 보기
+```powershell
+# 위생 검사 — 현재 브랜치 vs develop
+python scripts/ci/repo_hygiene.py origin/develop
+# 특정 구간 (예: 초기 커밋이 LFS 규칙을 어겼는지)
+python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
+```
+`mr-lint`/`mr-title` 은 CI 환경변수(`CI_MERGE_REQUEST_*`)를 읽으므로 로컬에선 환경변수를 흉내 내야 한다(2026-08-27 [Infra] 가 MR !6 실데이터·깨진 제목 시나리오로 검증).
+
+## 3. 필요한 변수 · 토큰 (Settings → CI/CD → Variables, 전부 **Masked**)
+
+| 변수 | 무엇 | 누가 만드나 | 없으면 |
+| --- | --- | --- | --- |
+| `JIRA_USER`, `JIRA_API_TOKEN` | Jira 읽기(이슈 조회·JQL) | Atlassian 계정 설정 → 보안 → API 토큰 — **스코프 토큰(`read:jira-work`, `read:jira-user`) 권장**. 스크립트는 `https://api.atlassian.com/ex/jira/{JIRA_CLOUD_ID}` 경로로 호출한다(스코프 토큰은 사이트 URL 로는 익명 취급 → 404, 2026-08-27 실측). `JIRA_CLOUD_ID` 기본값은 우리 사이트 | 키 실존·파트 검사 생략(경고) |
+| `GITLAB_TOKEN` | MR 제목/본문 수정·코멘트·MR 목록 | Settings → Access Tokens → **프로젝트 액세스 토큰**, 역할 Developer, 스코프 `api` | 제목 보정·AI 코멘트 불가(제안만 로그) |
+| `AI_REVIEW_CLI` | `true` — 러너 호스트의 로그인된 Claude Code CLI 로 AI 리뷰(Team 플랜, **채택 방식**) | 팀장 | `ai-review` 잡 생성 안 됨 |
+| `AI_REVIEW_MODEL` | (선택) 기본 `claude-sonnet-5`(구독 사용량 절약). 품질 우선이면 `claude-opus-5` | — | 기본값 |
+| `ANTHROPIC_API_KEY` | (대안) API 종량제로 AI 리뷰 — Team 플랜엔 포함되지 않음, 별도 콘솔·크레딧 필요 | — | cli 백엔드 사용 |
+| `MM_WEBHOOK_URL` | Mattermost 수신 웹훅 | MM 채널 → 통합 → 수신 웹훅 | `mm-digest` 생기지 않음 |
+| `CI_ENABLE` | 파이프라인 전체 게이트 | 러너 등록 직후 팀장이 `true` | 파이프라인이 생성되지 않음(의도) |
+| `UNITY_RUNNER`, `UNITY_PATH` | Unity 잡 게이트·경로 | Unity 러너 준비 시 | `unity-compile` 생기지 않음 |
+
+토큰은 **CI 변수에만** 둔다 — 리포·문서·채팅 어디에도 적지 않는다. 프로젝트 액세스 토큰은 봇 사용자로 동작하므로 코멘트 작성자가 `project_…_bot` 으로 보인다(정상).
+
+## 4. 러너
+
+- **공유 러너**: 설정은 켜져 있지만(`shared_runners_enabled=true`) **실제 러너가 없다** — MR !10 첫 파이프라인이 9분 넘게 `pending`(2026-08-27 실측). 따라서 **프로젝트 러너 등록이 필수**. `image:` 는 Docker 러너용이며 shell 러너에서는 무시됨.
+- **러너 배치 계획**: ① **상시 러너 = 지급 EC2(Linux, Docker 실행기, 24시간)** — mr-title·mr-lint·repo-hygiene·ai-review·mm-digest 전부 여기서. `sudo RUNNER_TOKEN=glrt-… bash scripts/runner/setup-linux-runner.sh` 한 줄(Docker·gitlab-runner 설치·등록·systemd). ② **Unity 러너 = Unity 6000.5.4f1 설치 Windows PC**(태그 `unity-win`, 근무 시간만 켜져도 됨 — allow_failure 잡). ③ EC2 지급 전 임시: 팀 PC 1대에 Windows 러너(아래) — 꺼져 있는 시간엔 파이프라인이 pending 으로 대기하고, 다이제스트는 그 시각에 러너가 없으면 건너뜀. EC2 오면 임시 러너는 GitLab 에서 삭제.
+- **프로젝트 러너 등록(Windows, 20분)**: ① 팀장: Settings → CI/CD → Runners → *New project runner* → 태그 `windows`(+`unity-win`), **Run untagged jobs ✔** → 토큰(`glrt-…`) 발급해 등록할 사람에게 직접 전달 ② 등록자(관리자 PowerShell): `$env:RUNNER_TOKEN="glrt-…"; .\scripts\runner\setup-windows-runner.ps1 [-Unity]` — [setup-windows-runner.ps1](../scripts/runner/setup-windows-runner.ps1) 이 바이너리 다운로드·Python 3.12 확인/설치·등록·서비스 설치를 한다 ③ 팀장: 변수 **`CI_ENABLE=true`** → 그때부터 MR 파이프라인이 생성됨(그 전에는 pending 노이즈를 막기 위해 파이프라인을 만들지 않음). 주의: 러너 셸은 **`pwsh`(PowerShell 7, MSI 시스템 설치)** 여야 한다 — 5.1(`powershell`)은 잡 스크립트를 cp949 로 읽어 한글 CI 변수(MR 제목·본문·커밋 메시지)에서 파서 오류로 모든 잡이 실패(2026-08-27 파이프라인 #175296 실측). Store 판 pwsh 는 SYSTEM 서비스가 실행 못 하므로 `runner-use-pwsh.ps1` 로 MSI 설치 + 셸 전환. `glrt-` 토큰은 생성 직후 한 번만 보이니 그때 복사해 전달(`Verifying runner... is not valid` = 토큰 불일치)
+- **Unity 러너**(2단계): Unity **6000.5.4f1** 이 설치된 Windows PC 에서 같은 스크립트를 `-Unity` 로 실행(태그 `windows,unity-win`). 그 뒤 변수 `UNITY_RUNNER=true`, `UNITY_PATH=C:\Program Files\Unity\Hub\Editor\6000.5.4f1\Editor\Unity.exe`. 현재 SSAFY PC 에는 6000.0.81f1 만 있어 버전을 맞춰야 함. 러너 PC 는 절전 금지, 프로젝트가 커지면 `GIT_DEPTH` 조정.
+- **AI 리뷰(cli 백엔드) 준비 — 러너 호스트에서**: ① 러너를 돌릴 **사용자 계정**으로 로그인한 터미널에서 Claude Code CLI 설치(`irm https://claude.ai/install.ps1 | iex`) 후 `claude` 실행 → `/login` 으로 팀 Claude 계정 로그인(브라우저) → `claude -p "PONG"` 이 답하면 OK ② 러너 잡이 그 로그인을 쓰게 연결: 관리자 PowerShell `.\scripts\runner\runner-claude-env.ps1` — config.toml 의 러너 `environment` 에 `CLAUDE_CONFIG_DIR=<사용자>\.claude`·`CLAUDE_BIN=<사용자>\.local\bin\claude.exe` 를 넣고 서비스 재시작(SYSTEM 계정 서비스가 사용자 프로필의 자격 파일을 그대로 읽음 — 2026-08-27 실측, 비밀번호·토큰 복사 불필요). (서비스를 사용자 계정으로 돌리는 방식은 비밀번호가 명령줄에 노출되는 문제로 채택하지 않음) ③ 팀장: 변수 `AI_REVIEW_CLI=true`(+ 코멘트용 `GITLAB_TOKEN`). 자격은 러너 호스트의 사용자 프로필(`~\.claude`)에만 있고 GitLab 변수·리포에 들어가지 않는다 — EC2 시절과 같은 구조. 사용자의 VS Code Claude Code 와 러너가 같은 자격 파일을 공유하므로 `/logout` 하면 CI 리뷰도 멈추고, 토큰 갱신이 겹쳐 "Not logged in" 이 나면 사용자 세션에서 `claude` 재로그인. 주의: `claude -p --bare` 는 keychain 을 읽지 않아 "Not logged in" 이 되므로 쓰지 않음. 호스트 사용자 비밀번호가 바뀌면 서비스가 멎으니 스크립트 재실행. 이 방식은 팀 구독 사용량을 소비하고, 구독 OAuth 의 자동화 사용은 Anthropic 이 Pro/Max 개인 CI 용도로만 공식 안내하므로 정책 변경 시 `api` 백엔드로 전환할 것(팀 결정 2026-08-27)
+- 러너 등록·변수는 **Maintainer** 만 가능(Developer 는 403).
+
+## 5. Mattermost 알림 설계 — 채널 1개, 원칙 3개 (2026-08-27 v2)
+
+원칙: ① **모든 메시지는 조치할 사람을 @멘션** — 멘션 대상이 없는 메시지는 보내지 않는다(noise) ② 첫 줄에 **등급 이모지 + 굵은 제목 + 링크**, 둘째 줄에 **@멘션 + 조치** ③ 일상(🟢 요청·📋 요약)과 조치 필요(🔴 실패·🟠 규칙 위반)를 이모지로 구분. MM 서버가 웹훅 이름 재정의를 막아 발신자는 웹훅 생성자(금준영 BOT)로 보이므로 첫 줄이 곧 제목이다. 계정 매핑의 단일 출처는 [`scripts/ci/team.json`](../scripts/ci/team.json)(GitLab·MM·Jira accountId).
+
+| 등급 | 사건 | 보내는 곳 | @멘션 | 문구 |
+| --- | --- | --- | --- | --- |
+| 🔴 조치 필요 | MR 파이프라인 실패(mr-lint·repo-hygiene) | CI `mm-ci-failed`(`when: on_failure`) | **MR 작성자** | `🔴 **CI 실패** — [!N 제목](url)` / `@작성자 · 실패: [mr-lint](로그) · 확인할 것: … · 고친 뒤 push 하면 자동 재검사` |
+| 🔴 | develop(기본 브랜치) 파이프라인 실패 | GitLab 내장 통합(Pipeline, default branch) | 없음 — 유일한 예외(빈도 극히 낮음, 인프라가 봄) | GitLab 고정 형식 |
+| 🟠 규칙 위반 | 손으로 진행 중 → 되돌림 (R5) | Jira 웹 요청(되돌림 분기에서만) | **끈 사람**(initiator) | `🟠 **되돌림 (진행 중 → 해야 할 일)** — [KEY](url) 제목` / `@user · 진행 중은 브랜치 만들기로만` |
+| 🟠 | 손으로 완료 → 되돌림 (R9) | Jira 웹 요청 | **끈 사람** | `🟠 **되돌림 (완료 → 진행 중)** …` / `@user · 완료는 MR 머지로` |
+| 🟠 | 제목 형식 위반 · 상위 Epic 없음 (R2) | Jira 웹 요청 | 담당자(없으면 보고자) | `🟠 **제목 형식 위반** …` / `@user · [파트] 제목 형식으로` |
+| 🟠 | MR 머지 없이 닫힘 (R7) | Jira 웹 요청 | 이슈 담당자 | `🟠 **MR 이 머지 없이 닫힘** …` / `@user · 재오픈 또는 팀장에게 정리 요청` |
+| 🟢 요청 | MR 열림 = 리뷰 요청 | CI `mm-mr-opened`(MR 의 **첫 파이프라인일 때 1회**, Draft 제외) | **리뷰어(기본 팀장)**, 작성자 표기 | `🟢 **리뷰 요청** — [!N 제목](url)` / `@suho6347 · 작성 dorem96 · …` |
+| 📋 요약 | 평일 09:30 다이제스트 | CI `mm-digest`(스케줄) | 항목별 담당자(없으면 팀장) | `📋 **아침 점검 — 확인 필요**` + needs-fix·기한 초과·3일 정체·담당자 없음·24h 넘은 MR |
+| ✂ 보내지 않음 | MR 머지됨 · push · 코멘트 · 이슈 생성 | — | 태그 대상 없음 | Jira 상태 전이·MR 화면으로 충분 |
+
+**GitLab 내장 통합 설정**: Trigger 는 `Pipeline` 만(Notify only broken pipelines ✔, Branches = Default branch). `Merge request` 트리거는 **끈다**(`mm-mr-opened` 가 멘션 포함으로 대체). Push·Note 등은 끔.
+
+**Jira 웹 요청 문구**: `jira.issue.outgoing.webhook` 액션의 `customBody` = `{"text": "…"}`. 멘션은 accountId → MM 아이디를 smart value 조건으로 내장: `{{#if(equals(issue.assignee.accountId, "<id>"))}}@mm{{/}}` ×6 (initiator 도 동일). 요약·이름은 `{{…jsonEncode}}`. 팀원 변경 시 `team.json` 과 규칙 문구(`apply_rules6.py`)를 함께 갱신.
+
+**한계**: Jira 자동화 규칙 자체의 *실행 오류*(-46 의 "이슈가 존재하지 않음" 같은)는 MM 으로 보낼 수 없다 — Jira 는 규칙 소유자 이메일 알림만 지원. 감사 로그가 유일한 창이며 `mm-digest` 의 needs-fix·정체 항목이 결과적으로 드러내 준다.
+## 7. 지난 프로젝트(FlowerKnot, `s15-webmobile2-sub1/S15P11B210`) 교훈 반영 — 2026-08-27 조사
+
+지난 프로젝트는 EC2 systemd Worker 가 open MR 을 폴링해 **Opus 5 / effort medium** Reviewer 2개(코드·테스트 품질)를 병렬 실행하고 Critical/High 0건이면 Project Bot 이 Squash Auto-Merge 까지 했다(`docs/ai-review-automation.md`, `infra/ai-review/worker.py`). 이번 프로젝트는 **팀장 머지 원칙**이라 Auto-Merge·Gate 는 채택하지 않고, MR 파이프라인 안의 비차단 잡 1개로 단순화했다. 계승한 것:
+
+| 항목 | 지난 프로젝트 | 이번 적용 |
+| --- | --- | --- |
+| 모델·effort | `claude-opus-5` + `--effort medium` | 동일 (`AI_REVIEW_MODEL`/`AI_REVIEW_EFFORT`) |
+| CLI 격리 플래그 | `--tools "" --setting-sources user --strict-mcp-config --disable-slash-commands --permission-mode dontAsk --no-session-persistence`, 호출마다 일회성 `CLAUDE_CONFIG_DIR` | 플래그 동일. 자격은 러너 호스트 사용자 프로필을 공유(`CLAUDE_CONFIG_DIR` 주입) — 단일 러너·단일 계정이라 일회성 디렉터리는 생략 |
+| 프롬프트 원칙 | MR 본문·diff 는 untrusted 구분자로 감싸고, "diff 에 없다 ≠ 리포에 없다", 추측 금지, 한국어 출력 | 시스템 프롬프트에 반영 |
+| 실패 처리 | stdout/stderr 원문을 로그·코멘트에 남기지 않고 카테고리만(`rate_limit`·`authentication`·`server_error`·`network`·`invalid_request`), 인증·요청 오류는 재시도 안 함 | 카테고리 분류 로그 반영(비차단 잡이라 재시도는 파이프라인 재실행으로) |
+| 리뷰 타임아웃 | 900초 | `AI_REVIEW_TIMEOUT` 기본 600초 |
+
+운영 사고 기록 중 우리에게도 해당하는 것:
+- **오탐 알림은 신뢰를 깎는다**(2026-08-04, 이미 고쳐진 과거 실패를 "지금 실패"처럼 알림) → `mm-digest` 는 "지금 상태"만 보고(오래 열린 MR·현재 needs-fix), 과거 이벤트를 재통보하지 않는다.
+- **default branch 실패는 가장 강한 알림이 필요한데 아무도 mention 되지 않았다**(2026-08-04, 20분 방치) → GitLab MM 통합의 Pipeline 이벤트는 켜 두고, develop 실패는 다이제스트에도 포함할 것(후속).
+- **GitLab 내장 MM Pipeline 알림을 all branches 로 두면 MR 파이프라인 자동 취소가 "failed" 로 통보돼 노이즈** → 내장 알림은 default branch 로 한정(체크리스트 §5 반영).
+- **PowerShell 5.1 러너의 한글 변수 파손**은 이번 프로젝트에서 새로 겪은 것(Linux Docker 러너였던 지난 프로젝트엔 없음) → pwsh 필수.
+- 리뷰 결과는 사실 검증 전까지 증거가 아니다 — 지난 프로젝트도 Medium/Low 는 참고, Critical/High 만 차단으로 썼다. 우리는 전부 참고(비차단)이며 판단은 팀장.
+## 6. 앞으로
+- 파이프라인 필수(Settings → Merge requests → Pipelines must succeed)는 mr-lint·repo-hygiene 이 1주 안정화된 뒤 켠다 — 그 전에는 빨간불을 팀장이 보고 머지 여부 판단
+- `unity-compile` 은 `allow_failure: true` 로 시작해 안정화 후 차단으로
+- AI 리뷰 결과의 유용성은 스프린트 회고에서 평가(모델·프롬프트·비용 조정)

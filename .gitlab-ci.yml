@@ -1,0 +1,116 @@
+# METAGAME CI — MR 파이프라인 (docs/ci-and-notifications.md 참고)
+# 잡은 모두 scripts/ci/*.py (Python 표준 라이브러리만 사용, 외부 패키지 없음)
+#
+# 필요한 CI/CD 변수 (Settings → CI/CD → Variables, Maintainer):
+#   JIRA_USER / JIRA_API_TOKEN  : Jira 읽기용 (mr-lint 키 실존 확인, mr-title 파트 조회) — masked. 스코프(읽기) 토큰 가능
+#                                 (스크립트가 api.atlassian.com/ex/jira/{JIRA_CLOUD_ID} 경로를 씀 — 사이트 URL 로는 스코프 토큰이 404)
+#   GITLAB_TOKEN                : 프로젝트 액세스 토큰(api 스코프, Developer 이상) — MR 제목/본문 수정·코멘트 — masked
+#   AI_REVIEW_CLI=true          : ai-review 를 러너 호스트의 로그인된 Claude Code CLI 로 실행 (채택 방식, Team 플랜) — visible
+#   ANTHROPIC_API_KEY           : (대안) ai-review 를 API 로 — masked. 둘 다 없으면 ai-review 잡이 생성되지 않음
+#   AI_REVIEW_MODEL / AI_REVIEW_EFFORT : (선택) 기본 claude-opus-5 / medium (팀 결정 2026-08-27)
+#   MM_WEBHOOK_URL              : Mattermost 수신 웹훅 — mm-digest 용 — masked
+#   CI_ENABLE=true              : 러너 등록 후 켬 — 없으면 파이프라인 자체가 생성되지 않음
+#   UNITY_RUNNER=true, UNITY_PATH : Unity 설치 Windows 러너(tag unity-win) 준비 후
+
+workflow:
+  rules:
+    - if: $CI_ENABLE != "true"          # 러너·변수 준비 전에는 파이프라인을 만들지 않음 (팀장이 CI_ENABLE=true 로 켬)
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+
+stages: [prepare, lint, test, review, notify]
+
+default:
+  image: python:3.12-slim
+  interruptible: true
+
+variables:
+  GIT_DEPTH: "0"          # repo-hygiene 가 diff base 까지 필요
+  PYTHONUTF8: "1"
+
+# ── 1단계 ────────────────────────────────────────────────────────────────
+mr-title:                 # Jira 이슈 기준으로 [Part]·type·(KEY) 자동 보정. 토큰 없으면 제안만 출력
+  stage: prepare
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - python scripts/ci/mr_title.py
+  allow_failure: true
+
+mm-mr-opened:             # 🟢 리뷰 요청 알림 — 이 MR 의 첫 파이프라인일 때 1회, 팀장 @멘션 (GitLab 기본 MR 알림 대체)
+  stage: prepare
+  needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $MM_WEBHOOK_URL
+  script:
+    - python scripts/ci/mm_notify.py mr-opened
+  allow_failure: true
+
+mr-lint:                  # 제목·브랜치·Jira 키 실존·템플릿 섹션·작성자 체크리스트
+  stage: lint
+  needs: [mr-title]       # 보정된 제목을 검사
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - python scripts/ci/mr_lint.py
+
+repo-hygiene:             # 금지 파일·.meta 짝·에셋 위치·대용량 비-LFS·씬/프리팹 선언 일치
+  stage: lint
+  needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - python scripts/ci/repo_hygiene.py
+
+# ── 2단계 ────────────────────────────────────────────────────────────────
+unity-compile:            # Unity 설치 Windows 러너에서만. UNITY_RUNNER=true 로 켬
+  stage: test
+  tags: [unity-win]
+  needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $UNITY_RUNNER == "true"
+  allow_failure: true     # 안정화 후 false 로
+  script:
+    - '& "$env:UNITY_PATH" -batchmode -nographics -projectPath METAGAME -runTests -testPlatform EditMode -testResults "$env:CI_PROJECT_DIR\unity-results.xml" -logFile "$env:CI_PROJECT_DIR\unity.log"'
+    - 'if ($LASTEXITCODE -ne 0) { Get-Content "$env:CI_PROJECT_DIR\unity.log" | Select-String -Pattern "error CS|Exception" | Select-Object -First 40; exit $LASTEXITCODE }'
+  artifacts:
+    when: always
+    paths: [unity-results.xml, unity.log]
+    reports:
+      junit: unity-results.xml
+
+ai-review:                # 비차단. API 키(ANTHROPIC_API_KEY) 또는 러너 호스트의 로그인된 Claude Code CLI(AI_REVIEW_CLI=true) 중 하나 있을 때 생성
+  stage: review           # 문서(docs/**, *.md)만 바뀐 MR 은 건너뜀 — 구독 사용량 절약, 문서는 팀장 리뷰로 충분
+  needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && ($ANTHROPIC_API_KEY || $AI_REVIEW_CLI == "true")
+      changes:
+        - "METAGAME/**/*"
+        - "scripts/**/*"
+        - ".gitlab-ci.yml"
+        - ".gitlab/**/*"
+        - ".githooks/**/*"
+        - ".gitattributes"
+        - ".gitignore"
+  allow_failure: true
+  script:
+    - python scripts/ci/ai_review.py
+
+# ── 알림 ─────────────────────────────────────────────────────────────────
+mm-ci-failed:             # 🔴 CI 실패 알림 — mr-lint/repo-hygiene 실패 시 MR 작성자 @멘션 + 실패 잡 링크
+  stage: notify
+  needs: [mr-lint, repo-hygiene]
+  when: on_failure
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $MM_WEBHOOK_URL
+  script:
+    - python scripts/ci/mm_notify.py ci-failed
+  allow_failure: true
+
+mm-digest:                # 스케줄 파이프라인(예: 평일 09:30) — needs-fix·오래 열린 MR·정체 이슈 요약을 MM 채널로
+  stage: notify
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $MM_WEBHOOK_URL
+  script:
+    - python scripts/ci/mm_digest.py
