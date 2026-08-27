@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Metagame.Gameplay.Parts
@@ -24,7 +25,10 @@ namespace Metagame.Gameplay.Parts
         [SerializeField] PartSocket _targetSocket;
         [SerializeField] Joint _joint;
 
+        readonly List<WeldPoint> _weldPoints = new();
+
         bool _released;
+        bool _weldPointsCollected;
 
         /// <summary>맞물림이 풀렸을 때. 조인트가 끊어진 경우와 직접 해제한 경우 모두 포함한다.</summary>
         public event Action<PartAssemblyLink> Released;
@@ -35,11 +39,68 @@ namespace Metagame.Gameplay.Parts
 
         public bool IsIntact => !_released && _joint != null;
 
+        /// <summary>이 접합에 달린 용접점.</summary>
+        public IReadOnlyList<WeldPoint> WeldPoints
+        {
+            get
+            {
+                EnsureWeldPoints();
+                return _weldPoints;
+            }
+        }
+
+        /// <summary>
+        /// 용접 완료 비율 0~1. 용접점이 없으면 0 이다.
+        ///
+        /// 완료 여부가 아니라 비율을 쓴다. 용접점 4개 중 2개만 채웠으면 절반만 튼튼해야
+        /// 운석이 떨어질 때 용접하지 않은 층이 무너지는 긴장이 생긴다.
+        /// </summary>
+        public float WeldRatio
+        {
+            get
+            {
+                EnsureWeldPoints();
+                if (_weldPoints.Count == 0) return 0f;
+
+                var sum = 0f;
+                foreach (var point in _weldPoints)
+                    if (point != null)
+                        sum += point.Progress;
+
+                return Mathf.Clamp01(sum / _weldPoints.Count);
+            }
+        }
+
+        public bool IsFullyWelded => _weldPoints.Count > 0 && WeldRatio >= 1f;
+
+        /// <summary>용접이 모두 끝나 접합이 확정되었을 때.</summary>
+        public event Action<PartAssemblyLink> Welded;
+
         public void Bind(PartSocket movingSocket, PartSocket targetSocket, Joint joint)
         {
             _movingSocket = movingSocket;
             _targetSocket = targetSocket;
             _joint = joint;
+
+            _weldPointsCollected = false;
+            EnsureWeldPoints();
+            ApplyJointStrength();
+        }
+
+        /// <summary>파츠에 달린 용접점을 모은다. 런타임에 붙이거나 떼어낸 뒤 호출한다.</summary>
+        public void RefreshWeldPoints()
+        {
+            _weldPointsCollected = true;
+
+            _weldPoints.Clear();
+            GetComponentsInChildren(true, _weldPoints);
+            foreach (var point in _weldPoints) point.Initialize();
+        }
+
+        void EnsureWeldPoints()
+        {
+            if (_weldPointsCollected) return;
+            RefreshWeldPoints();
         }
 
         void FixedUpdate() => Tick();
@@ -51,9 +112,35 @@ namespace Metagame.Gameplay.Parts
         public void Tick()
         {
             if (_released) return;
-            if (_joint != null) return;
 
-            Release();
+            if (_joint == null)
+            {
+                Release();
+                return;
+            }
+
+            ApplyJointStrength();
+        }
+
+        /// <summary>
+        /// 용접 완료 비율에 따라 조인트 강도를 올린다.
+        /// 전부 채워지면 파츠를 Welded 로 전환하고 다시 들 수 없게 한다.
+        /// </summary>
+        void ApplyJointStrength()
+        {
+            var ratio = WeldRatio;
+
+            _joint.breakForce = Mathf.Lerp(
+                PhysicsScale.UnweldedBreakForce, PhysicsScale.WeldedBreakForce, ratio);
+            _joint.breakTorque = Mathf.Lerp(
+                PhysicsScale.UnweldedBreakTorque, PhysicsScale.WeldedBreakTorque, ratio);
+
+            if (ratio < 1f || _weldPoints.Count == 0) return;
+
+            var part = _movingSocket != null ? _movingSocket.Owner : null;
+            if (part == null || part.State != PartState.Placed) return;
+
+            if (part.TryTransitionTo(PartState.Welded)) Welded?.Invoke(this);
         }
 
         void OnJointBreak(float breakForce) => Release();
@@ -80,6 +167,12 @@ namespace Metagame.Gameplay.Parts
             _released = true;
 
             if (_movingSocket != null) _movingSocket.Disconnect();
+
+            // 접합이 풀렸으면 용접도 없던 일이 된다. 다시 올려 처음부터 용접해야 한다.
+            EnsureWeldPoints();
+            foreach (var point in _weldPoints)
+                if (point != null)
+                    point.ResetProgress();
 
             if (_joint != null)
             {

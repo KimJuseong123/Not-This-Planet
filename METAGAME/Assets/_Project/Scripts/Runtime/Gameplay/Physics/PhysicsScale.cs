@@ -73,6 +73,21 @@ namespace Metagame.Gameplay
         /// <summary>용접 전 조인트가 끊어지는 토크. 위 항목과 같은 이유로 임시값이다.</summary>
         public const float UnweldedBreakTorque = 5000f;
 
+        // --- 용접 ---
+        /// <summary>용접점 하나를 채우는 데 걸리는 시간.</summary>
+        public const float WeldSecondsPerPoint = 3f;
+
+        /// <summary>
+        /// 용접이 끝난 접합이 버티는 힘. 미접합의 25배다.
+        ///
+        /// 무한으로 두지 않았다. 기획서가 "운석 충격에도 쉽게 분리되지 않는다" 라고
+        /// 표현하고 있어, 극단적인 충격에는 떨어질 여지를 남기는 편이 의도에 맞다.
+        /// </summary>
+        public const float WeldedBreakForce = 200000f;
+
+        /// <summary>용접이 끝난 접합이 버티는 토크.</summary>
+        public const float WeldedBreakTorque = 150000f;
+
         // --- 견인 광선 ---
         /// <summary>빔이 파츠를 붙잡을 수 있는 최대 거리.</summary>
         public const float BeamRange = 12f;

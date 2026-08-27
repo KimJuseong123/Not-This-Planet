@@ -158,6 +158,7 @@ namespace Metagame.Gameplay.Interaction
             HoldProgress = Mathf.Clamp01(HoldProgress + deltaTime / Held.HoldSeconds);
             if (HoldProgress >= 1f - ProgressCompletionEpsilon) HoldProgress = 1f;
 
+            Held.OnHoldProgress(this, HoldProgress);
             HoldProgressChanged?.Invoke(Held, HoldProgress);
 
             if (HoldProgress >= 1f) Complete();

@@ -25,6 +25,15 @@ namespace Metagame.Gameplay.Interaction
 
         void OnFocusExit(Interactor actor);
 
+        /// <summary>
+        /// 홀드가 진행되는 동안 매 스텝 호출된다. progress01 은 0~1 이다.
+        ///
+        /// 대상이 진행분을 스스로 알아야 하는 경우에 쓴다. 용접점이 그렇다.
+        /// 여러 명이 나눠 용접하고 중간에 놓았다 이어서 할 수 있어야 하는데,
+        /// Interactor 는 취소 시 진행도를 버리므로 대상 쪽에서 누적해야 한다.
+        /// </summary>
+        void OnHoldProgress(Interactor actor, float progress01);
+
         /// <summary>점유를 시도한다. 다른 Interactor 가 이미 쓰고 있으면 false.</summary>
         bool TryOccupy(Interactor actor);
 

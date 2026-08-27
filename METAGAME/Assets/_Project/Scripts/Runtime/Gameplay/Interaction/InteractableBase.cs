@@ -41,6 +41,10 @@ namespace Metagame.Gameplay.Interaction
         {
         }
 
+        public virtual void OnHoldProgress(Interactor actor, float progress01)
+        {
+        }
+
         public bool TryOccupy(Interactor actor)
         {
             if (actor == null) return false;
@@ -50,7 +54,13 @@ namespace Metagame.Gameplay.Interaction
             return true;
         }
 
-        public void Release(Interactor actor)
+        /// <summary>
+        /// 점유를 해제한다. 점유자가 아니면 아무 일도 하지 않는다.
+        ///
+        /// 완료와 취소 양쪽에서 호출되므로 "홀드가 끝났다" 는 신호로도 쓸 수 있다.
+        /// 재정의할 때는 base 호출을 유지한다.
+        /// </summary>
+        public virtual void Release(Interactor actor)
         {
             if (Occupant == actor) Occupant = null;
         }
