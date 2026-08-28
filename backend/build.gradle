@@ -40,6 +40,7 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-websocket-test'
 	testCompileOnly 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	testRuntimeOnly 'com.h2database:h2'   // 테스트는 외부 MySQL 없이 인메모리로 돈다
 	testAnnotationProcessor 'org.projectlombok:lombok'
 }
 
