@@ -9,6 +9,8 @@ import json
 import os
 from datetime import datetime, timezone
 
+from urllib.parse import quote
+
 from ci_common import PROJECT_KEY, GitLab, Jira, banner, env, http, key_from_branch
 
 JIRA_BROWSE = (env("JIRA_URL", "https://ssafy.atlassian.net") or "").rstrip("/") + "/browse/"
@@ -57,6 +59,29 @@ def merged_not_done(gl: GitLab, jira: Jira, days: int = 7) -> tuple[list[str], b
     return rows, complete and mrs_complete
 
 
+def _hdrs(gl: GitLab) -> dict:
+    """S15P21B202-109 의 공개 헬퍼가 머지되기 전후 모두 동작하도록."""
+    return gl.headers() if hasattr(gl, "headers") else gl._h()
+
+
+def resurrected_branches(gl: GitLab, days: int = 7) -> list[str]:
+    """최근 N일 안에 머지된 MR 의 소스 브랜치가 **다시 존재**하면 표 행으로. 머지 후 같은 브랜치에 push 한 경우를 잡는다
+    (그렇게 push 하면 MR·파이프라인이 없어 조용히 유실된다 — S15P21B202-110)."""
+    mrs, _ = gl.merged_mrs(days)
+    rows = []
+    for mr in mrs:
+        br = mr.get("source_branch") or ""
+        if not br or not mr.get("should_remove_source_branch", True):
+            continue
+        st, d = http("GET", f"{gl.api}/projects/{gl.project}/repository/branches/{quote(br, safe='')}", _hdrs(gl))
+        if st != 200 or not isinstance(d, dict):
+            continue
+        author = ((d.get("commit") or {}).get("author_name")) or (mr.get("author") or {}).get("username", "?")
+        mention = next((f"@{m['mm']}" for m in TEAM["members"] if m["name"] == author or m["gitlab"] == author), author)
+        rows.append(f"| `{br}` | [!{mr['iid']}]({mr['web_url']}) | {mention} |")
+    return rows
+
+
 def main() -> int:
     banner("mm-digest")
     url = env("MM_WEBHOOK_URL")
@@ -102,6 +127,14 @@ def main() -> int:
                 rows, complete = [], True; blocks.append(f"**🔗 머지됐는데 완료 안 된 이슈** — 조회 실패 → @{INFRA_MM} 확인: {type(e).__name__}: {e}")
             if not complete:
                 print("경고: 머지 MR 또는 미완료 이슈 수집이 페이지 상한에서 끊김 — 일부 누락 가능")
+            try:
+                res = resurrected_branches(gl)
+            except Exception as e:  # noqa: BLE001
+                res = []; blocks.append(f"**🌿 머지 뒤 다시 생긴 브랜치** — 조회 실패 → @{INFRA_MM} 확인: {type(e).__name__}: {e}")
+            if res:
+                blocks.append(f"**🌿 머지 뒤 다시 생긴 브랜치** ({len(res)}) — 머지된 브랜치에 다시 push 하면 MR·파이프라인 없이 조용히 남습니다. "
+                              f"후속 작업은 새 이슈·새 브랜치로, 남은 브랜치는 삭제하세요\n\n"
+                              f"| 브랜치 | 머지된 MR | 마지막 커밋 |\n|---|---|---|\n" + "\n".join(res))
             if rows:   # 매칭이 없으면 블록 없음(잘림 경고도 각주로만) — "항목 없으면 보내지 않는다" 유지
                 note = f"\n_⚠ 목록이 페이지 상한에서 끊겨 일부가 빠졌을 수 있음 — @{INFRA_MM} 확인_" if not complete else ""
                 blocks.append(f"**🔗 머지됐는데 완료 안 된 이슈** ({len(rows)}) — 자동 완료(R6)가 빠진 것. 담당자가 완료로 옮기면 허용됨(머지된 MR 있음)\n\n"
