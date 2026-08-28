@@ -257,22 +257,14 @@ namespace Metagame.Gameplay
             return true;
         }
 
-        /// <summary>운반 장치가 바닥에 닿은 뒤 플레이어를 맵 바닥으로 내려놓는다.</summary>
+        /// <summary>운반 장치가 표면에 닿은 뒤 플레이어를 그 옆에 내려놓는다.</summary>
         public void CompleteTransportVehicleExit(TransportVehicle vehicle)
         {
             if (vehicle == null || MountedVehicle != vehicle) return;
             DisconnectTransportJoint();
             MountedVehicle = null;
 
-            var foot = vehicle.GroundExitFootPosition;
-            Doll.Teleport(foot + Vector3.up * 0.04f, Quaternion.identity);
-            if (Cam != null) Cam.SetVehicleView(false);
-            Grounded = false;
-            GroundDistance = 0f;
-            GroundVelocity = Vector3.zero;
-            Speed = 0f;
-            AirTime = 0f;
-            fallPeakFootHeight = foot.y;
+            PlaceAfterVehicleExit(vehicle);
         }
 
         /// <summary>부활·리셋 때 지연 없이 운반 장치에서 내린다.</summary>
@@ -282,8 +274,32 @@ namespace Metagame.Gameplay
             DisconnectTransportJoint();
             MountedVehicle = null;
 
+            PlaceAfterVehicleExit(vehicle);
+        }
+
+        /// <summary>
+        /// 하차 공통 처리. 운반체가 찾아 준 발 위치에 세우고 장치 바깥을 보게 돌린다.
+        ///
+        /// 예전에는 운반체 중심 좌표에 세워서 플랫폼 콜라이더와 겹쳤고, PhysX 가 밀어내며
+        /// 탑승자가 날아갔다. 지금은 <see cref="TransportVehicle.GroundExitFootPosition"/> 이
+        /// 정면 바깥의 설 자리를 돌려준다.
+        ///
+        /// <c>fallPeakFootHeight</c> 를 내려놓은 높이로 맞추는 것이 중요하다. 구조물 위에서
+        /// 내리면 지면보다 높은데, 이 값을 갱신하지 않으면 그 차이가 낙하로 집계돼
+        /// HUD 의 추락 횟수가 오른다.
+        /// </summary>
+        void PlaceAfterVehicleExit(TransportVehicle vehicle)
+        {
             var foot = vehicle.GroundExitFootPosition;
-            Doll.Teleport(foot + Vector3.up * 0.04f, Quaternion.identity);
+
+            var away = foot - vehicle.transform.position;
+            away.y = 0f;
+            if (away.sqrMagnitude < 0.0001f) away = vehicle.ExitForward;
+            var facing = Quaternion.LookRotation(away.normalized, Vector3.up);
+
+            Doll.Teleport(foot + Vector3.up * 0.04f, facing);
+            faceDir = away.normalized;
+
             if (Cam != null) Cam.SetVehicleView(false);
             Grounded = false;
             GroundDistance = 0f;
