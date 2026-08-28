@@ -156,7 +156,7 @@ def main() -> int:
     base_notes = base_warnings(gl, branch, target, bkey)
     for level, msg in base_notes:
         (rep.ok if level == "ok" else rep.warn)(msg)
-    advice = list(base_notes)
+    # (경고 목록은 rep.warns 로 모아서 마지막에 한 번에 코멘트로 올린다 — S15P21B202-105)
     base_warned = any(lvl == "warn" and "master(또는 그 이전)" in m for lvl, m in base_notes)
 
     # 3) 제목
@@ -240,7 +240,9 @@ def main() -> int:
             elif part and not jpart:
                 rep.warn("Jira 이슈에 파트 태그/레이블이 없음 (needs-fix 상태일 수 있음)")
 
-    publish_advice(gl, mr, advice, base_warned)
+    # rep.warns 에는 지금까지 남긴 모든 경고(담당자 불일치·완료된 이슈·파트 없음·브랜치 베이스 …)가 들어 있다.
+    # 경고를 잡 로그에만 두면 아무도 보지 않으므로 전부 MR 코멘트로 올린다(S15P21B202-105).
+    publish_advice(gl, mr, [("warn", w) for w in rep.warns], base_warned)
     return rep.finish()
 
 
