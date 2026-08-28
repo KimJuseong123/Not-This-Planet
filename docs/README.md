@@ -4,6 +4,8 @@
 
 | 문서 | 내용 |
 | --- | --- |
+| [workflow.md](./workflow.md) | **개발 워크플로우 최종본 v2.0 (평가·공유용)** — 흐름도 · 원칙 · 단계별 사람/자동/어긋남 · 규칙 강제 계층 · **시나리오 방어표 25종** · 알림 카탈로그 · 한계 |
+| [e2e-checklist.md](./e2e-checklist.md) | E2E 점검표 — 시나리오별 준비·행동·기대·확인·결과 (A 이슈 / B 상태·브랜치 / C MR·CI / D 리뷰·머지 / E 알림 / F 운영) |
 | [workflow-plan.md](./workflow-plan.md) | **워크플로우 구현 계획 v1.1 (확정·적용 완료)** — 결정 근거 · 실현 가능성 검증 · 단계 |
 | [convention-proposal.md](./convention-proposal.md) | 확정 컨벤션 v1.2 한 장 요약 |
 | [parts.md](./parts.md) | 파트 태그 정의 및 역할 배분 (**지속 갱신**) |

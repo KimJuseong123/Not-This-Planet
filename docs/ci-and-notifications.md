@@ -78,7 +78,8 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 | 🟠 | MR 머지 없이 닫힘 (R7) | Jira 웹 요청 | 이슈 담당자 | `🟠 **MR 이 머지 없이 닫힘** …` / `@user · 재오픈 또는 팀장에게 정리 요청` |
 | 🟢 요청 | MR 열림 = 리뷰 요청 | CI `mm-mr-opened`(MR 의 **첫 파이프라인일 때 1회**, Draft 제외) | **리뷰어(기본 팀장)**, 작성자 표기 | `🟢 **리뷰 요청** — [!N 제목](url)` / `@suho6347 · 작성 dorem96 · …` |
 | 📋 요약 | 평일 09:30 다이제스트 | CI `mm-digest`(스케줄) | 항목별 담당자(없으면 팀장) | `📋 **아침 점검 — 확인 필요**` + needs-fix·기한 초과·3일 정체·담당자 없음·24h 넘은 MR |
-| ✂ 보내지 않음 | MR 머지됨 · push · 코멘트 · 이슈 생성 | — | 태그 대상 없음 | Jira 상태 전이·MR 화면으로 충분 |
+| 🟢 완료 | MR 머지 = 이슈 완료 (R6) | Jira 웹 요청 | **이슈 담당자**(= MR 작성자) | `🟢 **머지 완료 · 이슈 완료**` / 이슈·담당·MR 링크·"브랜치 자동 삭제됨, 후속은 새 이슈로" — 2026-08-27 추가 |
+| ✂ 보내지 않음 | push · 코멘트 · 이슈 생성 | — | 태그 대상 없음 | Jira 상태 전이·MR 화면으로 충분 |
 
 **GitLab 내장 통합 설정**: Trigger 는 `Pipeline` 만(Notify only broken pipelines ✔, Branches = Default branch). `Merge request` 트리거는 **끈다**(`mm-mr-opened` 가 멘션 포함으로 대체). Push·Note 등은 끔.
 

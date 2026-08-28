@@ -149,6 +149,6 @@ docs: 로비 BGM 레퍼런스 조사 기록 (S15P21B202-27)
    *.asset  merge=unityyamlmerge eol=lf
    ```
 4. **Git LFS는 이미 적용되어 있다.** 루트 `.gitattributes`가 모델·텍스처·오디오·영상·네이티브 라이브러리·압축 파일을 LFS로 보낸다.
-   - 클론 **전에** `git lfs install` 1회 (README "빠른 시작").
+   - 클론 **전에** `git lfs install --skip-repo` 1회 (README "빠른 시작"). `--skip-repo` 를 빼면 `core.hooksPath` 때문에 `Hook already exists: pre-push` 경고가 나며, 이때 `git lfs update --force` 를 실행하면 `.githooks/pre-push`(브랜치명 검사 + LFS 연계)가 덮어써지므로 금지.
    - Unity YAML(씬/프리팹/meta)은 텍스트로 유지 — diff/머지 확인을 위해 LFS로 보내지 않는다.
    - 새 바이너리 확장자는 `.gitattributes`에 추가. lab.ssafy.com의 LFS 용량 제한은 아트 에셋 대량 커밋 전에 확인.
