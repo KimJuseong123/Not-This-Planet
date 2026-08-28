@@ -23,6 +23,19 @@ namespace Metagame.Gameplay.Parts
     /// 하차가 완료된다. 낙하는 중력이 하고 이 코드는 하강 속도 상한과 수평 감속만 준다.
     /// 어떤 이유로든 닿지 못하면 <see cref="DismountTimeout"/> 뒤에 강제로 내린다 —
     /// 갇혀서 T(탈출)를 눌러야 하는 상태를 만들지 않는다.
+    ///
+    /// <b>부양 고도는 조종하는 사람이 정한다.</b>
+    /// 예전에는 목표가 <see cref="HoverRootY"/>(5m) 하나로 고정이라 스프링이 항상 그
+    /// 높이로 되돌렸다. 지금은 <see cref="TargetAltitude"/> 를 입력으로 올리고 내린다.
+    /// 아래로는 <see cref="ProbeGround"/> 가 닿는 곳에서 멈추고(파고들지 않는다),
+    /// 위로는 <see cref="MaxAltitude"/> 까지만 간다 — 경계 벽 콜라이더(9m)를 넘어
+    /// 아레나를 빠져나가지 못하게 하는 값이다.
+    ///
+    /// <b>탑승자는 기체 안에 앉고 화면에서 감춰진다.</b>
+    /// 좌석 높이를 상수로 두면 모델이 바뀔 때마다 어긋나므로, Visual 의 실제 렌더러 경계를
+    /// 재서 눈높이가 기체 중심에 오도록 맞춘다(<see cref="ResolveSeatHeight"/>).
+    /// 탑승 중임을 화면으로 알리는 조종석은 <see cref="EnsureCockpit"/> 가 임시로 세운다 —
+    /// 실제 에셋이 들어오면 그 메서드만 갈아끼우면 된다.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(Rigidbody))]
@@ -42,6 +55,52 @@ namespace Metagame.Gameplay.Parts
         const float MaxVerticalSpeed = 4.2f;
         const float VisualTurnSpeed = 420f;
         const float ArenaLimit = 21f;
+
+        // --- 고도 조작 ---
+        /// <summary>입력을 쥐고 있을 때 목표 고도가 움직이는 속도(m/s).</summary>
+        const float AltitudeRate = 3.5f;
+
+        /// <summary>
+        /// 올라갈 수 있는 최고 고도.
+        /// 아레나 경계 벽에 붙여 둔 보이지 않는 콜라이더가 9m 다(docs/asset-catalog.md §10).
+        /// 그보다 낮게 잡아 벽을 넘어 밖으로 나가지 못하게 한다.
+        /// </summary>
+        const float MaxAltitude = 8f;
+
+        /// <summary>목표 고도가 이 안에 들어오면 부양이 안정된 것으로 본다.</summary>
+        const float HoverSettleBand = 0.4f;
+
+        // --- 임시 조종석 ---
+        // 실제 조종석 에셋이 들어오기 전까지 쓰는 대체물이다. Prim 으로 세우므로 새 에셋이
+        // 필요 없고, 교체 지점은 EnsureCockpit 한 곳이다.
+        //
+        // 유리창과 창틀은 두지 않는다. 반투명 판을 눈앞에 두면 시야만 흐려지고, "타고 있다" 는
+        // 느낌은 조종대만으로 충분하다. 실제 조종석 에셋이 들어오면 유리까지 그 모델이
+        // 갖고 있을 것이므로 임시 대체물에서 흉내낼 이유가 없다.
+        //
+        // 배치는 카메라 화각을 기준으로 잡았다. OrbitCamera 의 수직 화각이 64도(반각 32도)라
+        // 눈에서 d 만큼 앞의 물체는 d*tan(32도) 안쪽에 있어야 화면에 들어온다. 이 계산을
+        // 빼먹어 처음에는 조종대가 50도 아래에 놓여 아예 보이지 않았다.
+
+        /// <summary>
+        /// 조종대. 눈 아래 앞쪽에 작게 둔다.
+        /// 0.78m 앞에서 폭 0.62m 면 화면 폭의 약 45%, 0.40m 아래면 약 27도 — 화면 아래 띠에 앉는다.
+        /// </summary>
+        static readonly Vector3 ConsoleSize = new(0.62f, 0.06f, 0.22f);
+        const float ConsoleForward = 0.78f;
+        const float ConsoleDrop = 0.40f;
+
+        /// <summary>조종대 위의 계기 화면.</summary>
+        static readonly Vector3 ScreenSize = new(0.26f, 0.02f, 0.16f);
+        const float ScreenForward = 0.76f;
+        const float ScreenDrop = 0.37f;
+        const float ScreenTiltDegrees = 28f;
+
+        /// <summary>기체 높이에서 눈이 오는 비율. 0.5 는 중심, 1 은 천장이다.</summary>
+        const float EyeHeightRatio = 0.62f;
+
+        static readonly Color ConsoleColor = new(0.58f, 0.62f, 0.68f);
+        static readonly Color ScreenColor = new(0.30f, 0.72f, 0.85f);
 
         // --- 하차 접지 판정 ---
         /// <summary>플랫폼 아랫면을 이만큼 띄운 곳에서 아래로 훑는다. 처음부터 겹쳐 있으면 BoxCast 가 놓친다.</summary>
@@ -85,9 +144,12 @@ namespace Metagame.Gameplay.Parts
         Transform platformAnchor;
         Transform seat;
         Transform visual;
+        Transform cockpit;
         TractorBeam beam;
         PlayerRig rider;
         Vector3 driveVector;
+        float verticalInput;
+        float targetAltitude = HoverRootY;
         bool returning;
         bool grounded = true;
         float dismountElapsed;
@@ -124,8 +186,16 @@ namespace Metagame.Gameplay.Parts
         /// 절대 높이를 보지 않으므로 절벽 위든 파츠 위든 같게 동작한다.
         /// </summary>
         public bool IsTouchingSurface => ProbeGround(out _);
+        /// <summary>
+        /// 목표 고도에 올라와 안정됐는지. 견인을 걸 수 있는 상태인지 판정하는 데 쓴다.
+        /// 고정 높이(5m)가 아니라 지금 목표로 하는 고도를 본다 — 그래야 낮은 곳이나
+        /// 높은 곳에서도 견인이 된다.
+        /// </summary>
         public bool IsHovering => rider != null && !returning && body != null
-                                  && Mathf.Abs(body.position.y - HoverRootY) < 0.4f;
+                                  && Mathf.Abs(body.position.y - targetAltitude) < HoverSettleBand;
+
+        /// <summary>지금 유지하려는 고도. 탑승하면 <see cref="HoverRootY"/> 에서 시작한다.</summary>
+        public float TargetAltitude => targetAltitude;
         public Vector3 SeatFootPosition => seat != null ? seat.position : transform.position + Vector3.up * SeatHeight;
         /// <summary>
         /// 하차한 탑승자를 세울 발 위치.
@@ -184,6 +254,8 @@ namespace Metagame.Gameplay.Parts
                     }
                 }
             }
+
+            RefreshSeat();
         }
 
         void EnsurePhysics()
@@ -233,7 +305,9 @@ namespace Metagame.Gameplay.Parts
                 }
             }
 
-            seat.position = transform.position + Vector3.up * SeatHeight;
+            // 좌석 높이는 기체 경계를 보고 정한다. 여기서 상수를 그대로 쓰면 PlaceOnGround 가
+            // EnsurePhysics 를 다시 부를 때마다 RefreshSeat 의 결과가 지워진다.
+            seat.position = transform.position + Vector3.up * ResolveSeatHeight();
             seat.rotation = Quaternion.identity;
             seat.gameObject.layer = GameLayers.Prop;
         }
@@ -255,6 +329,8 @@ namespace Metagame.Gameplay.Parts
             returning = false;
             grounded = true;
             dismountElapsed = 0f;
+            verticalInput = 0f;
+            targetAltitude = HoverRootY;
 
             if (visual != null)
                 visual.rotation = Quaternion.Euler(0f, visualYaw, 0f);
@@ -271,6 +347,12 @@ namespace Metagame.Gameplay.Parts
             body.useGravity = false;
             body.linearVelocity = Vector3.zero;
             grounded = false;
+            verticalInput = 0f;
+            targetAltitude = HoverRootY;
+
+            // 좌석은 기체 경계를 보고 정하므로 태우기 전에 갱신한다 —
+            // PlayerRig 가 SeatFootPosition 을 읽어 인형을 옮긴다.
+            RefreshSeat();
 
             if (!player.TryEnterTransportVehicle(this))
             {
@@ -280,6 +362,7 @@ namespace Metagame.Gameplay.Parts
             }
 
             rider = player;
+            SetCockpitVisible(true);
             return true;
         }
 
@@ -287,6 +370,7 @@ namespace Metagame.Gameplay.Parts
         {
             if (rider == null || returning) return;
             driveVector = Vector3.zero;
+            verticalInput = 0f;
             returning = true;
             grounded = false;
             dismountElapsed = 0f;
@@ -305,11 +389,24 @@ namespace Metagame.Gameplay.Parts
                 : worldDirection;
         }
 
+        /// <summary>
+        /// 고도 입력. +1 이 상승, -1 이 하강, 0 이면 지금 고도를 유지한다.
+        /// 탑승 중에는 <see cref="PlayerRig"/> 가 팔·점프를 돌리지 않으므로
+        /// Ctrl·Space 를 여기에 그대로 쓸 수 있다.
+        /// </summary>
+        public void SetVerticalInput(float value)
+        {
+            if (rider == null || returning) { verticalInput = 0f; return; }
+            verticalInput = Mathf.Clamp(value, -1f, 1f);
+        }
+
         /// <summary>부활 때 탑승체와 플레이어를 함께 안전한 바닥 상태로 돌린다.</summary>
         public void ForceReset()
         {
             var currentPosition = transform.position;
             PlaceOnGround(currentPosition, 0f);
+
+            SetCockpitVisible(false);
 
             var currentRider = rider;
             rider = null;
@@ -352,11 +449,12 @@ namespace Metagame.Gameplay.Parts
             position.z = Mathf.Clamp(position.z, -ArenaLimit, ArenaLimit);
             body.position = position;
 
-            var vertical = Mathf.Clamp((HoverRootY - body.position.y) * HoverSpring,
+            AdvanceTargetAltitude(deltaTime);
+
+            var vertical = Mathf.Clamp((targetAltitude - body.position.y) * HoverSpring,
                                        -MaxVerticalSpeed, MaxVerticalSpeed);
             body.linearVelocity = new Vector3(planar.x, vertical, planar.z);
             body.angularVelocity = Vector3.zero;
-            grounded = false;
 
             if (planar.sqrMagnitude > 0.04f)
                 TurnVisualToward(planar, deltaTime);
@@ -376,6 +474,14 @@ namespace Metagame.Gameplay.Parts
             body.angularVelocity = Vector3.zero;
 
             grounded = ProbeGround(out _);
+
+            // 닿은 뒤에도 아래로 밀면 콜라이더를 파고들었다 튕겨 나온다. 탑승자가 조인트로
+            // 붙어 있는 동안 그 진동이 그대로 전달되므로, 닿는 순간 하강을 끊는다.
+            if (grounded && body.linearVelocity.y < 0f)
+            {
+                var settling = body.linearVelocity;
+                body.linearVelocity = new Vector3(settling.x, 0f, settling.z);
+            }
 
             var settled = grounded && Mathf.Abs(body.linearVelocity.y) < LandedVerticalSpeed;
             var timedOut = dismountElapsed >= DismountTimeout;
@@ -399,11 +505,153 @@ namespace Metagame.Gameplay.Parts
             // 타임아웃으로 들어오면 닿지 않은 채로 끝난다. 그때도 IsGrounded 가 실제 상태를
             // 말해야 한다 — 무조건 true 로 두면 공중에 뜬 장치를 접지로 보고하게 된다.
             grounded = ProbeGround(out _);
+            SetCockpitVisible(false);
 
             var currentRider = rider;
             rider = null;
             if (currentRider != null)
                 currentRider.CompleteTransportVehicleExit(this);
+        }
+
+        // ---------------------------------------------------------------- 좌석과 조종석
+
+        /// <summary>좌석을 기체 경계에 맞춰 다시 놓는다.</summary>
+        void RefreshSeat()
+        {
+            if (seat == null) return;
+
+            seat.position = transform.position + Vector3.up * ResolveSeatHeight();
+            seat.rotation = Quaternion.identity;
+        }
+
+        /// <summary>
+        /// 좌석 발 높이(루트 기준).
+        ///
+        /// 예전에는 <see cref="SeatHeight"/>(0.43m) 고정이었다. 탑승자 키가 1.147m 라
+        /// 머리가 기체 위로 튀어나와 꼭대기에 걸터앉은 것처럼 보였다. 지금은 기체 경계를
+        /// 재서 눈높이를 <see cref="EyeHeightRatio"/> 위치에 맞춘다 — 모델이 바뀌면 따라간다.
+        /// Visual 이 없으면(테스트·스킨 미적용) 예전 값을 그대로 쓴다.
+        ///
+        /// 중심이 아니라 위쪽으로 잡는 이유가 있다. 스킨(S15P21B202-84)이 기체 모델의 경계
+        /// 중심을 운반체 루트에 맞춰 붙이는데, 착륙하면 루트가 지면 0.06m 라 기체 아래
+        /// 절반이 땅에 묻힌다. 중심에 눈을 두면 눈높이가 지면 6cm 가 되어 땅에 붙어 본다.
+        /// </summary>
+        float ResolveSeatHeight()
+        {
+            if (!TryVisualBounds(out var bounds)) return SeatHeight;
+
+            var eyeWorldY = bounds.min.y + bounds.size.y * EyeHeightRatio;
+            var wanted = eyeWorldY - RagdollBuilder.HeadY - transform.position.y;
+
+            // 발이 기체 아래로 빠지지 않게, 머리가 위로 튀어나오지 않게 묶는다.
+            var floor = bounds.min.y - transform.position.y;
+            var ceiling = bounds.max.y - RagdollBuilder.TotalHeight - transform.position.y;
+            if (ceiling < floor) ceiling = floor;
+
+            return Mathf.Clamp(wanted, floor, ceiling);
+        }
+
+        bool TryVisualBounds(out Bounds bounds)
+        {
+            bounds = default;
+            if (visual == null) return false;
+
+            var renderers = visual.GetComponentsInChildren<Renderer>(true);
+            var first = true;
+            for (var i = 0; i < renderers.Length; i++)
+            {
+                if (first) { bounds = renderers[i].bounds; first = false; }
+                else bounds.Encapsulate(renderers[i].bounds);
+            }
+
+            return !first;
+        }
+
+        /// <summary>
+        /// 탑승 중에만 조종석을 보여 주고, 그때 기체 껍데기는 감춘다.
+        ///
+        /// 카메라가 기체 메시 안에 있으면 대부분 백페이스 컬링으로 보이지 않지만, 접시형
+        /// 기체의 테두리는 바깥면이 카메라를 향해서 화면 위·아래에 얇은 곡선 조각으로 남는다.
+        /// 실제 조종석이라면 내부 벽이 그 자리를 채우지만 임시 대체물에는 없으므로 껍데기를
+        /// 끄는 것이 깔끔하다. 하차하면 다시 켠다.
+        /// </summary>
+        void SetCockpitVisible(bool visible)
+        {
+            if (visible) EnsureCockpit();
+            if (cockpit != null) cockpit.gameObject.SetActive(visible);
+
+            SetHullVisible(!visible);
+        }
+
+        /// <summary>기체 껍데기 렌더러만 토글한다. 조종석은 Visual 의 자식이라 빼야 한다.</summary>
+        void SetHullVisible(bool visible)
+        {
+            if (visual == null) return;
+
+            var renderers = visual.GetComponentsInChildren<Renderer>(true);
+            for (var i = 0; i < renderers.Length; i++)
+            {
+                if (cockpit != null && renderers[i].transform.IsChildOf(cockpit)) continue;
+                renderers[i].enabled = visible;
+            }
+        }
+
+        /// <summary>
+        /// 임시 조종석. 눈 아래 앞쪽의 조종대와 그 위의 계기 화면, 둘뿐이다.
+        ///
+        /// 새 에셋을 만들지 않고 <see cref="Prim"/> 으로 세운다. 콜라이더는 붙지 않는다
+        /// (<see cref="Prim.Decor"/>) — 조종석이 물리에 끼어들면 안 된다.
+        ///
+        /// <b>실제 조종석 에셋이 들어오면 이 메서드만 갈아끼운다.</b>
+        /// 위치 기준은 탑승자의 눈이고, 요는 Visual 을 따라간다.
+        /// </summary>
+        void EnsureCockpit()
+        {
+            if (cockpit != null) return;
+
+            var parent = visual != null ? visual : transform;
+            var holder = new GameObject("VehicleCockpit");
+            cockpit = holder.transform;
+            cockpit.SetParent(parent, false);
+
+            var eye = transform.position + Vector3.up * (ResolveSeatHeight() + RagdollBuilder.HeadY);
+            var forward = ExitForward;
+            var look = Quaternion.LookRotation(forward, Vector3.up);
+            cockpit.SetPositionAndRotation(eye, look);
+
+            // 조종대 — 눈 아래 앞쪽에 작게. 계기 화면을 비스듬히 올려 둔다.
+            var console = Prim.Decor(Prim.Box("조종대",
+                eye + forward * ConsoleForward - Vector3.up * ConsoleDrop,
+                ConsoleSize, ConsoleColor, 0.25f, cockpit));
+            console.transform.rotation = look;
+
+            var screen = Prim.Decor(Prim.Box("계기화면",
+                eye + forward * ScreenForward - Vector3.up * ScreenDrop,
+                ScreenSize, ScreenColor, 0.1f, cockpit));
+            screen.transform.rotation = look * Quaternion.Euler(-ScreenTiltDegrees, 0f, 0f);
+
+            cockpit.gameObject.SetActive(false);
+        }
+
+        /// <summary>
+        /// 입력만큼 목표 고도를 옮긴다.
+        ///
+        /// 아래로는 <see cref="ProbeGround"/> 가 닿는 순간 지금 높이에 묶는다. 목표를 계속
+        /// 내리면 스프링이 표면을 파고들도록 밀어붙이고, 그러면 하차 버그와 같은 방식으로
+        /// PhysX 가 튕겨낸다. 위로는 <see cref="MaxAltitude"/> 까지만 간다.
+        /// </summary>
+        void AdvanceTargetAltitude(float deltaTime)
+        {
+            grounded = ProbeGround(out _);
+
+            if (!Mathf.Approximately(verticalInput, 0f))
+                targetAltitude += verticalInput * AltitudeRate * deltaTime;
+
+            // 닿아 있는데도 더 내리려 하면 지금 높이가 하한이다.
+            if (grounded && verticalInput < 0f)
+                targetAltitude = Mathf.Max(targetAltitude, body.position.y);
+
+            targetAltitude = Mathf.Clamp(targetAltitude, GroundY, MaxAltitude);
         }
 
         /// <summary>

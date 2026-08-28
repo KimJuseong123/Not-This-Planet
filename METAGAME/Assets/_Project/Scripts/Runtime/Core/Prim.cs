@@ -136,8 +136,17 @@ namespace Metagame.Core
         public static GameObject Decor(GameObject go)
         {
             var col = go.GetComponent<Collider>();
+            if (col == null) return go;
+
             // Destroy 는 프레임 끝에 처리된다 — 그 사이에 눈알이 몸통과 충돌하면 인형이 폭발한다
-            if (col != null) { col.enabled = false; Object.Destroy(col); }
+            col.enabled = false;
+
+            // 에디터에서는 Destroy 를 쓸 수 없다. EditMode 테스트나 에디터 도구가 인형·조종석을
+            // 만들면 "Destroy may not be called from edit mode" 에러가 나고, 그 로그 때문에
+            // 테스트가 실패한다. 재생 중일 때만 지연 파괴를 쓴다.
+            if (Application.isPlaying) Object.Destroy(col);
+            else Object.DestroyImmediate(col);
+
             return go;
         }
 

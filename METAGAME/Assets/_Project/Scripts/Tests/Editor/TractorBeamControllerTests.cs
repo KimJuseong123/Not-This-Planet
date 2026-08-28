@@ -56,7 +56,7 @@ namespace Metagame.Gameplay.Tests
             Assert.AreSame(vehicle, controller.MountedVehicle);
             Assert.AreSame(vehicle, player.MountedVehicle);
             Assert.IsTrue(camera.VehicleView);
-            Assert.Greater(camera.ViewPitch, 70f, "탑승 시 카메라는 캐릭터 위에서 내려다봐야 한다.");
+            Assert.IsTrue(camera.FirstPerson, "탑승 시 조종석 1인칭으로 전환해야 한다 (S15P21B202-113).");
 
             controller.SetInput(new InputFrame { TransportAction = true });
 
