@@ -40,6 +40,26 @@ def assignee_mismatch(mr: dict, issue: dict) -> str | None:
             f"브랜치 이름의 이슈 번호를 잘못 적었다면 그 이슈가 자동으로 진행 중이 됩니다(대행 작업이면 무시)")
 
 
+def target_verdict(branch: str, target: str) -> tuple[str, str]:
+    """대상 브랜치 판정 — (레벨, 메시지). 레벨: ok | warn | fail
+      develop  : 기본 경로
+      master   : 릴리즈·핫픽스만(develop 또는 hotfix/*)
+      작업 브랜치: **스택 MR** 허용(팀 결정 2026-08-28, S15P21B202-99). 단 머지해도 Jira 이슈가 자동 완료되지 않는다 —
+                  R6 는 대상이 develop 일 때만 완료시키므로, 부모 브랜치가 develop 에 머지된 뒤 손으로 완료해야 한다(R9 가 허용).
+    """
+    if target == "develop":
+        return "ok", "대상 브랜치 develop"
+    if target == "master":
+        if branch.startswith("hotfix/") or branch == "develop":
+            return "ok", "대상 브랜치 master (릴리즈·핫픽스)"
+        return "fail", "master 로는 develop 또는 hotfix/* 만 머지"
+    if BRANCH_RE.match(target):
+        return "warn", (f"스택 MR — 대상이 develop 이 아니라 작업 브랜치({target})입니다. 머지해도 이 이슈는 **자동 완료되지 않습니다**: "
+                        f"부모 브랜치가 develop 에 머지된 뒤 이 이슈를 손으로 완료하세요(머지된 MR 이 있으므로 허용됩니다). "
+                        f"부모 브랜치가 사라지면 이 MR 도 닫히니 순서에 주의")
+    return "fail", f"대상 브랜치는 develop · master(릴리즈) · 작업 브랜치(스택 MR) 중 하나여야 함: {target!r}"
+
+
 def main() -> int:
     banner("mr-lint")
     rep = Report("mr-lint")
@@ -64,12 +84,8 @@ def main() -> int:
         rep.ok(f"소스 브랜치 형식 OK (키 {bkey})")
     else:
         rep.fail(f"소스 브랜치 형식 위반: {branch!r} — `{PROJECT_KEY}-번호[-설명]` 또는 `hotfix/…`")
-    if target not in ("develop", "master"):
-        rep.fail(f"대상 브랜치는 develop(릴리즈 MR만 master): {target!r}")
-    elif target == "master" and not branch.startswith("hotfix/") and branch != "develop":
-        rep.fail("master 로는 develop 또는 hotfix/* 만 머지")
-    else:
-        rep.ok(f"대상 브랜치 {target}")
+    tlevel, tmsg = target_verdict(branch, target)
+    {"ok": rep.ok, "warn": rep.warn, "fail": rep.fail}[tlevel](tmsg)
 
     # 3) 제목
     m = TITLE_RE.match(title)
