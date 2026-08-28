@@ -6,7 +6,9 @@ import json
 import os
 import re
 
-from ci_common import (BRANCH_RE, KEY_RE, PROJECT_KEY, TITLE_RE, GitLab, Jira, Report, banner, env,
+from urllib.parse import quote
+
+from ci_common import (BRANCH_RE, KEY_RE, PROJECT_KEY, TITLE_RE, GitLab, Jira, Report, banner, env, http,
                        find_section, key_from_branch, part_of_issue, sections, strip_draft)
 
 REQUIRED_SECTIONS = ["Jira", "무엇을 · 왜", "산출물 위치", "확인 방법", "작성자 체크리스트", "리뷰어 확인"]
@@ -42,6 +44,25 @@ STALE_WARN = int(env("MR_STALE_WARN_COMMITS", "25") or "25")   # 이 커밋 수 
 ADVICE_MARKER = "<!-- mr-lint:advice -->"
 REBASE_HINT = ("`git fetch origin && git rebase origin/develop && git push --force-with-lease` — MR·코멘트는 그대로 유지되고 "
                "파이프라인이 다시 돌면 이 경고는 사라집니다. 씬·프리팹이 겹쳐 충돌하면 한쪽을 고르거나 다시 편집해야 합니다(머지 때 치를 비용을 미리 치르는 것)")
+
+
+def _hdrs(gl: GitLab) -> dict:
+    """S15P21B202-109 의 공개 헬퍼가 머지되기 전후 모두 동작하도록."""
+    return gl.headers() if hasattr(gl, "headers") else gl._h()
+
+
+def merged_before(gl: GitLab, branch: str) -> str | None:
+    """같은 소스 브랜치로 **이미 머지된 MR** 이 있으면 경고 문구. 머지된 브랜치를 되살려 계속 작업하는 것을 잡는다.
+    (머지 시 브랜치가 자동 삭제되므로, 같은 이름으로 다시 push 하면 MR·파이프라인 없이 조용히 남는다 — S15P21B202-110)"""
+    if not gl.token or not branch:
+        return None
+    st, d = http("GET", f"{gl.api}/projects/{gl.project}/merge_requests"
+                        f"?state=merged&source_branch={quote(branch, safe='')}&per_page=5", _hdrs(gl))
+    if st != 200 or not isinstance(d, list) or not d:
+        return None
+    iids = ", ".join(f"!{m.get('iid')}" for m in d[:3])
+    return (f"이 브랜치로 이미 머지된 MR 이 있습니다({iids}) — 머지된 브랜치를 되살려 계속 작업하면 "
+            f"MR·파이프라인 없이 조용히 남을 수 있습니다. 후속 작업은 **새 이슈 · 새 브랜치**로 하세요")
 
 
 def base_warnings(gl: GitLab, branch: str, target: str, bkey: str | None) -> list[tuple[str, str]]:
@@ -154,6 +175,9 @@ def main() -> int:
 
     # 2b) 브랜치 베이스 (경고만 — 차단하지 않음, S15P21B202-90)
     base_notes = base_warnings(gl, branch, target, bkey)
+    prev = merged_before(gl, branch)
+    if prev:
+        base_notes.append(("warn", prev))
     for level, msg in base_notes:
         (rep.ok if level == "ok" else rep.warn)(msg)
     # (경고 목록은 rep.warns 로 모아서 마지막에 한 번에 코멘트로 올린다 — S15P21B202-105)

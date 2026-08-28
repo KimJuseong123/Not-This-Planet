@@ -40,6 +40,20 @@ printf '%s\n' "$input" | while read -r local_ref local_sha remote_ref remote_sha
     exit 1
   fi
 
+  # 참고 경고(차단 아님, S15P21B202-110): 원격에 없는 브랜치를 다시 만드는 push 인데
+  # 예전에 push 한 적이 있으면(upstream 설정이 남아 있으면) 머지 후 자동 삭제된 브랜치를 되살리는 것일 수 있다.
+  # 그 경우 MR 도 파이프라인도 없이 조용히 남으므로 알려 준다(2026-08-28 실제 유실 사고).
+  # 주의: 브랜치를 origin/develop 에서 만들면 upstream 이 refs/heads/develop 로 자동 설정된다.
+  # 그러므로 "upstream 이 **자기 이름**을 가리키는 경우"(= 예전에 push -u 로 올린 적이 있는 브랜치)만 본다.
+  upstream=$(git config --get "branch.${branch}.merge" 2>/dev/null)
+  if [ "$remote_sha" = "$ZERO" ] && [ "$upstream" = "refs/heads/${branch}" ]; then
+    echo "" >&2
+    echo "⚠ 원격에 이 브랜치가 없습니다 — 이전에 push 한 브랜치라면 MR 머지 후 자동 삭제된 것일 수 있습니다." >&2
+    echo "  머지된 뒤의 후속 작업은 **새 이슈 · 새 브랜치**로 하세요. 이대로 push 하면 MR 도 파이프라인도 없이" >&2
+    echo "  브랜치만 되살아나 아무도 모르게 남습니다(2026-08-28 실제로 수정 5건이 이렇게 유실됨)." >&2
+    echo "" >&2
+  fi
+
   # 참고 경고(차단 아님, S15P21B202-90): 브랜치가 develop 이 아닌 곳에서 갈라졌는지 —
   # 이미 가져와 둔 원격 추적 참조만 보므로 네트워크 접근이 없다. master 는 develop 의 조상이라
   # develop 기준 merge-base 와 master 기준 merge-base 가 같으면 master 시점(또는 그 이전)에서 갈라진 것.
