@@ -1,8 +1,12 @@
 spring:
+  config:
+    # 로컬 개발용 값은 backend/.env 에 둔다 (git 추적 제외). backend/.env.example 참고
+    import: optional:file:.env[.properties]
   datasource:
-    url: jdbc:mysql://localhost:3306/metagame?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
-    username: metagame
-    password: metagame1234
+    url: ${DB_URL:jdbc:mysql://localhost:3306/metagame?serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
+    username: ${DB_USERNAME:metagame}
+    # 기본값 없음 — 값이 없으면 부팅에 실패한다 (개발용 값으로 조용히 되돌아가지 않게)
+    password: ${DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: update   # 개발 초기 전용. 스키마 안정화 후 validate + 마이그레이션 도구로 전환
@@ -12,14 +16,15 @@ spring:
         format_sql: true
 
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
 
 jwt:
-  # 개발용 시크릿 (HS256, base64). 배포 시 환경변수로 교체할 것
-  secret: bWV0YWdhbWUtZGV2LXNlY3JldC1rZXktMzItYnl0ZXMtbG9uZy1wYWQ=
-  access-token-validity-ms: 86400000   # 24시간 — 게스트 로그인이라 길게 잡음
+  # HS256 서명 키(base64). 기본값 없음 — 이 값이 유출되면 토큰을 위조할 수 있으므로
+  # 저장소에 두지 않고 환경변수로만 주입한다. 배포 시에는 반드시 새로 생성한 값을 쓴다
+  secret: ${JWT_SECRET}
+  access-token-validity-ms: ${JWT_ACCESS_TOKEN_VALIDITY_MS:86400000}   # 24시간 — 게스트 로그인이라 길게 잡음
 
 game:
   # 연결이 끊긴 플레이어의 자리를 유지하는 시간.
   # 넘기면 그 사람만 제외하고 게임은 계속되며, 이후 재입장도 가능하다 (지침 문서 5-1)
-  reconnect-grace-ms: 30000
+  reconnect-grace-ms: ${GAME_RECONNECT_GRACE_MS:30000}
