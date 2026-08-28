@@ -15,8 +15,10 @@ namespace Metagame.Core
         public bool GrabLeft;     // 좌클릭 — 왼팔
         public bool GrabRight;    // 우클릭 — 오른팔
         public bool ToolAction;   // Q — 도구를 놓거나 충전해서 던진다
+        public bool TransportAction; // E — 운반 장치 탑승 / 하차
         public bool ArmsUp;       // 두 팔을 위로 (기어오를 때)
         public bool FreeLook;     // Alt — 조작은 그대로 두고 시점만 자유롭게 돌린다
+        public bool TabletToggle; // Tab
         public bool Restart;
     }
 
@@ -30,6 +32,8 @@ namespace Metagame.Core
         public static KeyCode Restart = KeyCode.R;
         public static KeyCode Respawn = KeyCode.T;      // 끼었을 때 탈출
         public static KeyCode ToolAction = KeyCode.Q;   // 도구 놓기 / 충전 투척
+        public static KeyCode TransportAction = KeyCode.E; // 운반 장치 탑승 / 하차
+        public static KeyCode Tablet = KeyCode.Tab;
         public static KeyCode Help = KeyCode.Tab;
         public static KeyCode FreeCursor = KeyCode.Escape;
 
@@ -43,8 +47,10 @@ namespace Metagame.Core
             f.GrabLeft = Input.GetMouseButton(0);
             f.GrabRight = Input.GetMouseButton(1);
             f.ToolAction = Input.GetKey(ToolAction);
+            f.TransportAction = Input.GetKeyDown(TransportAction);
             f.ArmsUp = Input.GetKey(ArmsUp);
             f.FreeLook = Input.GetKey(FreeLook) || Input.GetKey(KeyCode.RightAlt);
+            f.TabletToggle = Input.GetKeyDown(Tablet);
             f.Restart = Input.GetKeyDown(Restart);
             return f;
         }

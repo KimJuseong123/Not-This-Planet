@@ -1,6 +1,8 @@
 using UnityEngine;
 using Metagame.Core;
 using Metagame.Gameplay;
+using Metagame.Gameplay.Demo;
+using Metagame.Gameplay.Parts;
 using Metagame.UI;
 
 namespace Metagame.Bootstrap
@@ -34,6 +36,9 @@ namespace Metagame.Bootstrap
         public Vacuum Sky { get; private set; }
         public Starfield Space { get; private set; }
         public GameHud Hud { get; private set; }
+        public Stage1Exploration Exploration { get; private set; }
+        public Stage1ExplorationHud ExplorationHud { get; private set; }
+        public TractorBeamController Transport { get; private set; }
 
         void Awake()
         {
@@ -65,8 +70,15 @@ namespace Metagame.Bootstrap
             Session = sys.AddComponent<GameSession>();
             Level = sys.AddComponent<LevelBuilder>();
             Hud = sys.AddComponent<GameHud>();
+            Exploration = sys.AddComponent<Stage1Exploration>();
+            ExplorationHud = sys.AddComponent<Stage1ExplorationHud>();
+            Transport = sys.AddComponent<TractorBeamController>();
+            ExplorationHud.Initialize(Exploration);
 
             if (buildLevel) Level.Build();
+            Exploration.Configure(FindObjectsByType<SpaceshipPart>(FindObjectsSortMode.None));
+            DisableDemoClampReleasers();
+            DisableDemoBeamDrivers();
             if (starfield && !Application.isBatchMode) Space = Starfield.Create(transform, Sky.SunDirection);
 
             Vector3 spawn = Level.SpawnFoot + Vector3.up * 0.10f;
@@ -79,15 +91,42 @@ namespace Metagame.Bootstrap
             Player.Cam.Yaw = 90f;                        // +X 를 바라보고 시작한다
             Player.Cam.transform.SetParent(transform, true);
             Player.Cam.SnapToTarget();
+            Player.ConfigureClampInteraction(Player.Cam.transform);
+            Transport.Configure(Player, FindObjectsByType<TractorBeam>(FindObjectsSortMode.None));
 
             Hud.Local = Player;
-            Session.Begin(Player, Level, Level.SpawnFoot);
+            Hud.Transport = Transport;
+            Session.Transport = Transport;
+            Exploration.Begin(Player);
+            Session.Begin(Player, Level, Level.SpawnFoot, Exploration);
             if (!lockCursor) Session.SetCursor(false);
 
             Sky.ApplyToCameras();
 
             if (selfTest) gameObject.AddComponent<SpaceSelfTest>();
             if (shot) gameObject.AddComponent<SpaceScreenshot>();
+        }
+
+        /// <summary>
+        /// 입력이 연결된 현재 Stage1에서는 예전 시연용 자동 해제를 사용하지 않는다.
+        /// 씬에 남아 있는 시연 컴포넌트와 에디터 도구로 새로 만들어질 컴포넌트 모두
+        /// 플레이어의 고정쇠 조작을 방해하지 않도록 런타임에서 차단한다.
+        /// </summary>
+        static void DisableDemoClampReleasers()
+        {
+            var demos = FindObjectsByType<DemoClampReleaser>(FindObjectsSortMode.None);
+            for (var i = 0; i < demos.Length; i++)
+                if (demos[i] != null)
+                    demos[i].enabled = false;
+        }
+
+        /// <summary>실제 플레이 입력이 연결되면 예전 자동 운반 시연을 끈다.</summary>
+        static void DisableDemoBeamDrivers()
+        {
+            var demos = FindObjectsByType<DemoBeamDriver>(FindObjectsSortMode.None);
+            for (var i = 0; i < demos.Length; i++)
+                if (demos[i] != null)
+                    demos[i].enabled = false;
         }
     }
 }

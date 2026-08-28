@@ -101,6 +101,22 @@ namespace Metagame.Gameplay.Interaction
 
             SetFocus(FindBestCandidate());
 
+            return TryBeginFocused();
+        }
+
+        /// <summary>
+        /// 현재 포커스된 대상을 다시 찾지 않고 상호작용을 시작한다.
+        /// 조준한 고정쇠를 먼저 잡은 뒤 카메라가 흔들려도 같은 대상을 유지해야
+        /// 하는 상호작용에서 사용한다.
+        /// </summary>
+        public bool TryBeginFocused()
+        {
+            if (State == InteractorState.Holding)
+            {
+                Failed?.Invoke(Held, InteractionFailure.Busy);
+                return false;
+            }
+
             var target = Focus;
             if (!IsAlive(target))
             {

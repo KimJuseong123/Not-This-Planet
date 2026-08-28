@@ -49,6 +49,9 @@ namespace Metagame.Gameplay.Parts
 
         public float Range => _range;
 
+        /// <summary>플레이어가 견인 장치를 조준하고 이동시킬 때 사용하는 기준점이다.</summary>
+        public Transform BeamOrigin => Origin;
+
         /// <summary>파츠 무게중심이 향하는 지점.</summary>
         public Vector3 HoldPoint => Origin.position + Origin.forward * _holdDistance;
 
@@ -85,14 +88,34 @@ namespace Metagame.Gameplay.Parts
         }
 
         /// <summary>
+        /// 비행접시형 견인 장치를 세계 좌표로 옮긴다.
+        /// 빔의 방향은 장치가 아래를 보도록 유지한다. 파츠의 위치·속도는 이 메서드가
+        /// 직접 건드리지 않고, 다음 물리 틱의 <see cref="Tick"/> 이 처리한다.
+        /// </summary>
+        public void SetWorldPosition(Vector3 position)
+        {
+            transform.position = position;
+            transform.rotation = Quaternion.LookRotation(Vector3.down, Vector3.forward);
+        }
+
+        /// <summary>
         /// 조준선 앞의 파츠를 붙잡는다. 성공하면 파츠가 Carried 로 전환된다.
         /// </summary>
         public BeamGrabResult TryGrab()
         {
             if (IsHolding) return BeamGrabResult.BeamBusy;
+            return TryGrab(FindTarget());
+        }
 
-            var candidate = FindTarget();
-            if (candidate == null) return BeamGrabResult.NoTarget;
+        /// <summary>
+        /// 외부 조준 시스템이 선택한 파츠를 빔으로 붙잡는다.
+        /// 운반 장치는 카메라가 파츠를 보고 있을 때만 입력을 받으므로, 빔의 물리 사거리와
+        /// 빔 아래에 놓였는지 여부를 여기서 한 번 더 검증한다.
+        /// </summary>
+        public BeamGrabResult TryGrab(SpaceshipPart candidate)
+        {
+            if (IsHolding) return BeamGrabResult.BeamBusy;
+            if (candidate == null || !CanReach(candidate)) return BeamGrabResult.NoTarget;
 
             switch (candidate.State)
             {
@@ -111,6 +134,20 @@ namespace Metagame.Gameplay.Parts
 
             Grabbed?.Invoke(candidate);
             return BeamGrabResult.Grabbed;
+        }
+
+        bool CanReach(SpaceshipPart candidate)
+        {
+            var body = candidate.GetComponent<Rigidbody>();
+            if (body == null || Origin == null) return false;
+
+            var offset = body.worldCenterOfMass - Origin.position;
+            if (offset.magnitude > _range) return false;
+
+            // 빔은 아래를 향한다. 약간의 여유를 둬 장치 중심과 파츠 중심이 정확히 일치하지
+            // 않아도 작동하지만, 옆에 있는 파츠를 끌어오는 식의 오작동은 막는다.
+            var lateral = Vector3.ProjectOnPlane(offset, Origin.forward).magnitude;
+            return lateral <= CastRadius + 1.25f;
         }
 
         /// <summary>

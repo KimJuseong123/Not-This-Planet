@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
 using Metagame.Core;
+using Metagame.Gameplay.Interaction;
+using Metagame.Gameplay.Parts;
 
 namespace Metagame.Gameplay
 {
@@ -18,6 +20,11 @@ namespace Metagame.Gameplay
     /// </summary>
     public class PlayerRig : MonoBehaviour
     {
+        const float ClampInteractionRange = 3f;
+        const float ClampInteractionHalfAngle = 60f;
+        const float ClampPullUpThreshold = 0.01f;
+        const float ClampLiftStartDegrees = 16f;
+
         public Doll Doll;
         public OrbitCamera Cam;
         public bool IsLocal = true;
@@ -32,6 +39,8 @@ namespace Metagame.Gameplay
         public float Health { get; private set; }
         public float Health01 { get { return MaxHealth <= 0f ? 0f : Mathf.Clamp01(Health / MaxHealth); } }
         public bool IsDead { get { return Health <= 0f; } }
+        public TransportVehicle MountedVehicle { get; private set; }
+        public bool IsMounted { get { return MountedVehicle != null; } }
         public bool Hanging { get { return LeftHand.Hanging || RightHand.Hanging; } }
         public bool Carrying { get { return LeftHand.Carrying || RightHand.Carrying; } }
         public bool Ragdolled { get; private set; }      // 크게 넘어져 조종이 잠깐 풀린 상태
@@ -42,6 +51,22 @@ namespace Metagame.Gameplay
         public Grabbable HeldTool { get { return toolHeld; } }
         public float ToolCharge { get { return toolCharge; } }
         public bool ChargingTool { get { return chargingTool; } }
+        /// <summary>현재 조준 중인 고정쇠를 찾고 해제 홀드를 진행하는 상호작용 주체.</summary>
+        public Interactor ClampInteractor { get; private set; }
+        /// <summary>좌·우 중 하나 이상의 버튼으로 고정쇠를 잡은 상태.</summary>
+        public bool ClampGrabbed { get { return clampGrabbed; } }
+        /// <summary>고정쇠를 위로 드는 거리 기준을 넘었는가.</summary>
+        public bool ClampLiftReady { get { return clampGrabbed && clampLiftAmount >= ClampLiftStartDegrees; } }
+        /// <summary>고정쇠를 위로 드는 거리의 0~1 진행도.</summary>
+        public float ClampLiftProgress
+        {
+            get { return clampGrabbed ? Mathf.Clamp01(clampLiftAmount / ClampLiftStartDegrees) : 0f; }
+        }
+        /// <summary>위로 든 뒤 실제 해제 유지 시간을 진행 중인가.</summary>
+        public bool ClampReleaseHolding
+        {
+            get { return ClampInteractor != null && ClampInteractor.State == InteractorState.Holding; }
+        }
 
         public Hand LeftHand { get { return Doll.Left.Hand; } }
         public Hand RightHand { get { return Doll.Right.Hand; } }
@@ -65,9 +90,14 @@ namespace Metagame.Gameplay
         bool toolBodyHadGravity;
         bool previousGrabLeft;
         bool previousGrabRight;
+        bool clampGrabbed;
+        PartClamp clampGrabTarget;
+        float clampLiftAmount;
+        float clampLiftDeltaDegrees;
         Rigidbody pendingThrowBody;
         Vector3 pendingThrowVelocity;
         Rigidbody groundBody;
+        FixedJoint mountedJoint;
         Rigidbody ignoredCarriedBodyA;
         Rigidbody ignoredCarriedBodyB;
         readonly Dictionary<Rigidbody, CarriedBodyState> carriedBodies = new Dictionary<Rigidbody, CarriedBodyState>(4);
@@ -98,6 +128,8 @@ namespace Metagame.Gameplay
             bool model = useModel && SpaceSuit.Available;
             rig.Doll = RagdollBuilder.Build(nickname, footPos, facing, suit, accent, !model);
             rig.Doll.Root.SetParent(go.transform, true);
+            rig.ClampInteractor = go.AddComponent<Interactor>();
+            rig.ConfigureClampInteraction(rig.Doll.Head.transform);
             rig.ResetHealth();
             rig.fallPeakFootHeight = footPos.y;
             rig.faceDir = facing * Vector3.forward;
@@ -110,7 +142,33 @@ namespace Metagame.Gameplay
             ClearCarriedPlayerCollision();
         }
 
-        public void SetInput(InputFrame frame) { input = frame; }
+        public void SetInput(InputFrame frame)
+        {
+            input = frame;
+            if (!(frame.GrabLeft || frame.GrabRight))
+            {
+                clampLiftDeltaDegrees = 0f;
+                return;
+            }
+
+            // 고정쇠를 잡은 뒤 카메라를 위로 든 각도만 누적한다. 한 프레임의
+            // 마우스 델타를 FixedUpdate에서 반복 사용하지 않기 위해 입력 샘플에서
+            // 한 번만 모아 둔다.
+            if (clampGrabbed && !ClampLiftReady && frame.Look.y > ClampPullUpThreshold)
+            {
+                float sensitivity = Cam != null ? Cam.Sensitivity : 1f;
+                clampLiftDeltaDegrees += frame.Look.y * sensitivity;
+            }
+        }
+
+        /// <summary>카메라가 만들어진 뒤 고정쇠 조준 기준을 갱신한다.</summary>
+        public void ConfigureClampInteraction(Transform aim)
+        {
+            if (ClampInteractor == null)
+                ClampInteractor = gameObject.AddComponent<Interactor>();
+
+            ClampInteractor.Configure(aim, ClampInteractionRange, ClampInteractionHalfAngle);
+        }
         public InputFrame CurrentInput { get { return input; } }
 
         /// <summary>체크포인트 부활이나 새 라운드에서 체력을 초기화한다.</summary>
@@ -135,6 +193,9 @@ namespace Metagame.Gameplay
         // ── 부활 / 순간이동 ─────────────────────────────────────
         public void Teleport(Vector3 footPos, Quaternion facing)
         {
+            if (MountedVehicle != null)
+                ForceExitTransportVehicle(MountedVehicle);
+
             ReleaseHand(LeftHand);
             ReleaseHand(RightHand);
             Doll.Teleport(footPos + Vector3.up * RagdollBuilder.HipsY, facing);
@@ -149,11 +210,95 @@ namespace Metagame.Gameplay
             pendingThrowBody = null;
             previousGrabLeft = false;
             previousGrabRight = false;
+            ClampInteractor?.Cancel();
+            ResetClampGrab();
             if (Cam != null)
             {
                 Cam.Yaw = facing.eulerAngles.y;
                 Cam.SnapToTarget();
             }
+        }
+
+        /// <summary>운반 장치에 올라탄다. 고정쇠·도구 상태와 무관하게 탑승을 허용한다.</summary>
+        public bool TryEnterTransportVehicle(TransportVehicle vehicle)
+        {
+            if (vehicle == null || MountedVehicle != null || Doll == null || Doll.Hips == null)
+                return false;
+
+            ReleaseHand(LeftHand);
+            ReleaseHand(RightHand);
+            ClampInteractor?.Cancel();
+            ResetClampGrab();
+            ResetToolState();
+
+            var foot = vehicle.SeatFootPosition;
+            Doll.Teleport(foot + Vector3.up * RagdollBuilder.HipsY, Quaternion.identity);
+            faceDir = Vector3.forward;
+            Grounded = true;
+            GroundDistance = Tuning.RideHeight;
+            GroundVelocity = Vector3.zero;
+            Speed = 0f;
+            AirTime = 0f;
+            Thrusting = false;
+            Ragdolled = false;
+
+            mountedJoint = Doll.Hips.gameObject.AddComponent<FixedJoint>();
+            mountedJoint.connectedBody = vehicle.Body;
+            mountedJoint.autoConfigureConnectedAnchor = false;
+            mountedJoint.anchor = Vector3.zero;
+            mountedJoint.connectedAnchor = vehicle.Body.transform.InverseTransformPoint(Doll.Hips.position);
+            mountedJoint.enableCollision = false;
+            mountedJoint.enablePreprocessing = false;
+            mountedJoint.breakForce = float.PositiveInfinity;
+            mountedJoint.breakTorque = float.PositiveInfinity;
+            MountedVehicle = vehicle;
+
+            if (Cam != null) Cam.SetVehicleView(true);
+            return true;
+        }
+
+        /// <summary>운반 장치가 바닥에 닿은 뒤 플레이어를 맵 바닥으로 내려놓는다.</summary>
+        public void CompleteTransportVehicleExit(TransportVehicle vehicle)
+        {
+            if (vehicle == null || MountedVehicle != vehicle) return;
+            DisconnectTransportJoint();
+            MountedVehicle = null;
+
+            var foot = vehicle.GroundExitFootPosition;
+            Doll.Teleport(foot + Vector3.up * 0.04f, Quaternion.identity);
+            if (Cam != null) Cam.SetVehicleView(false);
+            Grounded = false;
+            GroundDistance = 0f;
+            GroundVelocity = Vector3.zero;
+            Speed = 0f;
+            AirTime = 0f;
+            fallPeakFootHeight = foot.y;
+        }
+
+        /// <summary>부활·리셋 때 지연 없이 운반 장치에서 내린다.</summary>
+        public void ForceExitTransportVehicle(TransportVehicle vehicle)
+        {
+            if (vehicle == null || MountedVehicle != vehicle) return;
+            DisconnectTransportJoint();
+            MountedVehicle = null;
+
+            var foot = vehicle.GroundExitFootPosition;
+            Doll.Teleport(foot + Vector3.up * 0.04f, Quaternion.identity);
+            if (Cam != null) Cam.SetVehicleView(false);
+            Grounded = false;
+            GroundDistance = 0f;
+            GroundVelocity = Vector3.zero;
+            Speed = 0f;
+            AirTime = 0f;
+            fallPeakFootHeight = foot.y;
+        }
+
+        void DisconnectTransportJoint()
+        {
+            if (mountedJoint == null) return;
+            mountedJoint.connectedBody = null;
+            Destroy(mountedJoint);
+            mountedJoint = null;
         }
 
         void FixedUpdate()
@@ -166,6 +311,18 @@ namespace Metagame.Gameplay
             {
                 if (!pendingThrowBody.isKinematic) pendingThrowBody.linearVelocity = pendingThrowVelocity;
                 pendingThrowBody = null;
+            }
+
+            if (MountedVehicle != null)
+            {
+                Grounded = true;
+                GroundDistance = Tuning.RideHeight;
+                GroundVelocity = MountedVehicle.HorizontalVelocity;
+                Speed = MountedVehicle.HorizontalSpeed;
+                AirTime = 0f;
+                Thrusting = false;
+                Ragdolled = false;
+                return;
             }
 
             ProbeGround();
@@ -468,6 +625,18 @@ namespace Metagame.Gameplay
             toolCharge = 0f;
             toolActionHeld = false;
 
+            // 고정쇠는 좌·우 어느 버튼이든 누르면 먼저 잡힌다. 이후 카메라를
+            // 위로 일정 각도 들었을 때만 해제 유지 판정으로 넘어간다.
+            // 고정쇠가 조준 중이면 일반 손잡이/도구 탐색보다 우선한다.
+            bool clampInteractionActive = ProcessClampInteraction();
+            if (clampInteractionActive)
+            {
+                DriveArm(Doll.Left, input.GrabLeft, aim);
+                DriveArm(Doll.Right, input.GrabRight, aim);
+                SyncCarriedPlayerCollision();
+                return;
+            }
+
             // 좌클릭과 우클릭 중 어느 쪽이든 움직이는 도구를 조준하면 양손으로 함께 잡는다.
             if ((input.GrabLeft || input.GrabRight) && toolThrowRegrabLock <= 0f && TryGrabTool(aim))
             {
@@ -485,6 +654,77 @@ namespace Metagame.Gameplay
             if (leftPressed) LogHandInteraction("좌클릭", LeftHand);
             if (rightPressed) LogHandInteraction("우클릭", RightHand);
             SyncCarriedPlayerCollision();
+        }
+
+        /// <summary>
+        /// 고정쇠를 버튼으로 먼저 잡고, 카메라를 위로 일정 각도 들어 올리면
+        /// 해제 유지 홀드를 시작한다. 기준을 넘은 뒤에는 위로 계속 움직이지 않아도
+        /// 버튼을 누르고 있는 동안 유지 시간이 진행된다.
+        /// </summary>
+        bool ProcessClampInteraction()
+        {
+            if (ClampInteractor == null) return false;
+
+            bool buttonHeld = input.GrabLeft || input.GrabRight;
+
+            if (!buttonHeld)
+            {
+                ClampInteractor.Cancel();
+                ResetClampGrab();
+                ClampInteractor.Tick(0f);
+                return false;
+            }
+
+            if (clampGrabTarget != null && clampGrabTarget.IsReleased)
+            {
+                ClampInteractor.Cancel();
+                ResetClampGrab();
+                ClampInteractor.Tick(0f);
+                return false;
+            }
+
+            if (!clampGrabbed)
+            {
+                // 잡기 시작 순간의 포커스를 고정한다. 이후 무거운 카메라 반동으로
+                // 조준점이 살짝 움직여도 처음 잡은 고정쇠를 놓치지 않는다.
+                ClampInteractor.Tick(0f);
+                var focus = ClampInteractor.Focus as PartClamp;
+                if (focus != null && !focus.IsReleased)
+                {
+                    clampGrabbed = true;
+                    clampGrabTarget = focus;
+                    clampLiftAmount = 0f;
+                    clampLiftDeltaDegrees = 0f;
+                }
+            }
+
+            if (!clampGrabbed) return false;
+
+            if (ClampInteractor.State == InteractorState.Holding)
+            {
+                // 위로 드는 동작은 시작 조건일 뿐이다. 시작 후에는 마우스를
+                // 멈춰도 버튼을 놓지 않는 한 해제 유지 시간이 계속 흐른다.
+                ClampInteractor.Tick(Time.fixedDeltaTime);
+                return true;
+            }
+
+            float liftDeltaDegrees = clampLiftDeltaDegrees;
+            clampLiftDeltaDegrees = 0f;
+            clampLiftAmount = Mathf.Min(ClampLiftStartDegrees,
+                                        clampLiftAmount + Mathf.Max(0f, liftDeltaDegrees));
+
+            if (ClampLiftReady && ClampInteractor.TryBeginFocused())
+                return true;
+
+            return true;
+        }
+
+        void ResetClampGrab()
+        {
+            clampGrabbed = false;
+            clampGrabTarget = null;
+            clampLiftAmount = 0f;
+            clampLiftDeltaDegrees = 0f;
         }
 
         void LogHeldToolInteraction(bool leftPressed, bool rightPressed)

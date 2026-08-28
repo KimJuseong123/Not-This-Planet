@@ -3,6 +3,8 @@ using System.Text;
 using UnityEngine;
 using Metagame.Core;
 using Metagame.Gameplay;
+using Metagame.Gameplay.Interaction;
+using Metagame.Gameplay.Parts;
 
 namespace Metagame.UI
 {
@@ -17,6 +19,7 @@ namespace Metagame.UI
     public class GameHud : MonoBehaviour
     {
         public PlayerRig Local;
+        public TractorBeamController Transport;
 
         const int SizeSmall = 15;
         const int SizeMid = 18;
@@ -27,12 +30,13 @@ namespace Metagame.UI
         static readonly string[] HelpLines =
         {
             "WASD 이동   ·   Shift 달리기   ·   Space 점프 (저중력이라 2m 넘게 뜬다)   ·   마우스 시점",
-            "좌클릭 (꾹) 왼팔 뻗기 / 잡기      우클릭 (꾹) 오른팔 뻗기 / 잡기",
+            "좌·우클릭으로 고정쇠를 잡기 → 마우스 위로 일정량 들기 → 버튼 유지 1.5초",
             "가벼운 도구는 크로스헤드에 고정된다. 무거운 물체는 고정물처럼 짚는다",
             "Ctrl 팔을 위로 — 레일·케이블을 잡을 때. 잡은 채로 W 를 누르면 기어오른다",
             "좌·우클릭 도구는 양손으로 든다   ·   Q 짧게 놓기   ·   Q 꾹 2초 충전 후 놓으면 투척",
+            "운반 장치 근처에서 E 탑승   ·   탑승 중 WASD 운전   ·   좌/우클릭 견인   ·   E 하차",
             "Alt (꾹) 시점만 자유롭게 — 이동 방향은 고정된다. 떼면 원래 시점으로 돌아온다",
-            "T 그 자리에서 다시 서기   ·   R 처음부터   ·   Tab 도움말   ·   Esc 커서 풀기",
+            "T 그 자리에서 다시 서기   ·   R 처음부터   ·   Tab 태블릿   ·   Esc 커서 풀기",
         };
 
         static string koFontName;
@@ -66,10 +70,10 @@ namespace Metagame.UI
         {
             if (!warmed) WarmFont();
 
-            if (Input.GetKeyDown(Controls.Help)) { help = !help; helpHideAt = float.MaxValue; }
             if (help && Time.time > helpHideAt) help = false;
 
             if (Local == null && GameSession.Instance != null) Local = GameSession.Instance.LocalPlayer;
+            if (Transport == null && GameSession.Instance != null) Transport = GameSession.Instance.Transport;
 
             nearbySign = "";
             if (Local != null)
@@ -135,6 +139,8 @@ namespace Metagame.UI
             sb.Append("자유 이동 방향 고정 떼면 원래 시점으로 돌아온다 토끼 귀");
             sb.Append("팔을 위로 누르고 있으면 손이 잡는다 가벼운 도구는 크로스헤드에 고정된다 무거운 물체는 고정물처럼 짚는다");
             sb.Append("도구 양손 투척 충전 놓기");
+            sb.Append("운반 장치 탑승 하차 운전 견인 부유");
+            sb.Append("1장 탐험 태블릿 파츠 발견 미발견 상태 씬 배치 확인 고정 해제 운반 중 배치됨 조립 완료");
             for (int i = 0; i < HelpLines.Length; i++) sb.Append(HelpLines[i]);
             if (GameSession.Instance != null) sb.Append(GameSession.Instance.StageHint);
             for (int i = 0; i < WorldLabel.All.Count; i++)
@@ -237,9 +243,10 @@ namespace Metagame.UI
             // 오른쪽 위 — 몸 상태
             if (Local != null)
             {
-                Box(new Rect(w - 266f, 12f, 252f, 118f), new Color(0f, 0f, 0f, 0.38f));
+                Box(new Rect(w - 266f, 12f, 252f, 142f), new Color(0f, 0f, 0f, 0.38f));
                 bool free = Local.Cam != null && Local.Cam.FreeLook;
-                string state = free ? "시점 자유"
+                string state = Local.IsMounted ? "운반 장치 탑승 중"
+                             : free ? "시점 자유"
                              : Local.Ragdolled ? "자빠짐"
                              : Local.Hanging ? "매달림"
                              : Local.Grounded ? (Local.Speed > 0.5f ? "걷는 중" : "서 있음")
@@ -254,11 +261,18 @@ namespace Metagame.UI
                 L(new Rect(w - 140f, 88f, 240f, 24f),
                   Local.Grounded ? "" : "체공 " + Local.AirTime.ToString("0.0") + "초", small,
                   new Color(0.80f, 0.90f, 1f));
+                if (Transport != null && Transport.IsControlling)
+                    L(new Rect(w - 254f, 112f, 240f, 24f),
+                      Transport.ActiveBeam != null && Transport.ActiveBeam.IsHolding ? "견인 중" : "운전 중",
+                      small, new Color(0.50f, 0.92f, 1f));
             }
 
             // 가운데 위 — 지금 할 일
-            if (s != null && !string.IsNullOrEmpty(s.StageHint))
-                L(new Rect(w * 0.5f - 400f, 22f, 800f, 30f), s.StageHint, center, new Color(1f, 0.96f, 0.80f));
+            string stageHint = s != null ? s.StageHint : "";
+            if (s != null && s.Exploration != null && !s.Exploration.IsComplete)
+                stageHint = s.Exploration.CurrentHint;
+            if (!string.IsNullOrEmpty(stageHint))
+                L(new Rect(w * 0.5f - 400f, 22f, 800f, 30f), stageHint, center, new Color(1f, 0.96f, 0.80f));
 
             // 표지판
             if (!string.IsNullOrEmpty(nearbySign))
@@ -312,19 +326,45 @@ namespace Metagame.UI
         {
             Grabbable aimed = null;
             bool holding = false;
+            PartClamp focusedClamp = null;
+            bool clampGrabbed = false;
+            bool clampLiftReady = false;
+            bool releasingClamp = false;
+            TransportVehicle focusedVehicle = null;
+            bool mountedVehicle = false;
             if (Local != null)
             {
                 if (Local.LeftHand.Gripping || Local.RightHand.Gripping) holding = true;
                 aimed = Local.RightHand.Aimed != null ? Local.RightHand.Aimed : Local.LeftHand.Aimed;
+
+                if (Local.ClampInteractor != null)
+                {
+                    focusedClamp = Local.ClampInteractor.Focus as PartClamp;
+                    if (focusedClamp != null && focusedClamp.IsReleased) focusedClamp = null;
+                    clampGrabbed = Local.ClampGrabbed;
+                    clampLiftReady = Local.ClampLiftReady;
+                    releasingClamp = Local.ClampReleaseHolding;
+                }
+
+                if (Transport != null)
+                {
+                    focusedVehicle = Transport.FocusedVehicle;
+                    mountedVehicle = Transport.IsControlling;
+                }
             }
 
             float cx = w * 0.5f, cy = h * 0.5f;
-            Color c = holding ? new Color(0.45f, 1f, 0.60f, 0.95f)
+            bool clampTarget = focusedClamp != null;
+            bool beamTarget = focusedVehicle != null;
+            Color c = releasingClamp ? new Color(0.45f, 1f, 0.60f, 0.95f)
+                    : clampTarget ? new Color(1f, 0.78f, 0.28f, 0.95f)
+                    : mountedVehicle || beamTarget ? new Color(0.45f, 0.90f, 1f, 0.95f)
+                    : holding ? new Color(0.45f, 1f, 0.60f, 0.95f)
                     : aimed != null ? new Color(0.60f, 1f, 0.75f, 0.90f)
                                     : new Color(1f, 1f, 1f, 0.55f);
 
-            float gap = aimed != null || holding ? 7f : 3f;
-            float len = aimed != null || holding ? 7f : 3f;
+            float gap = clampTarget || beamTarget || aimed != null || holding ? 7f : 3f;
+            float len = clampTarget || beamTarget || aimed != null || holding ? 7f : 3f;
             Box(new Rect(cx - gap - len, cy - 1f, len, 2f), c);
             Box(new Rect(cx + gap, cy - 1f, len, 2f), c);
             Box(new Rect(cx - 1f, cy - gap - len, 2f, len), c);
@@ -334,8 +374,49 @@ namespace Metagame.UI
                 L(new Rect(cx - 200f, cy + 26f, 400f, 24f),
                   (holding ? "" : "닿는 곳: ") + aimed.Label, center, c);
 
-            if (Local != null && Local.ChargingTool)
+            if (clampTarget)
+                L(new Rect(cx - 260f, cy + 26f, 520f, 24f),
+                  releasingClamp ? "고정쇠 해제 유지 중 · 좌/우클릭 유지"
+                  : clampGrabbed && clampLiftReady ? "고정쇠 고정 완료 · 좌/우클릭 유지"
+                  : clampGrabbed ? "고정쇠를 위로 들어 올리는 중"
+                  : "고정쇠 · 좌/우클릭으로 잡기",
+                  center, c);
+            else if (Transport != null && mountedVehicle)
+                L(new Rect(cx - 300f, cy + 26f, 600f, 24f),
+                  focusedVehicle != null && focusedVehicle.Beam != null && focusedVehicle.Beam.IsHolding
+                    ? "견인 중 · 좌/우클릭으로 내려놓기 · E 하차"
+                    : "탑승 중 · WASD 운전 · 파츠 위에서 좌/우클릭으로 견인 · E 하차",
+                  center, c);
+            else if (Transport != null && beamTarget)
+                L(new Rect(cx - 300f, cy + 26f, 600f, 24f),
+                  "운반 장치 · 가까이서 E로 탑승", center, c);
+
+            if (Transport != null && !string.IsNullOrEmpty(Transport.StatusMessage))
+                L(new Rect(cx - 340f, cy + 52f, 680f, 24f),
+                  Transport.StatusMessage, small, new Color(0.72f, 0.92f, 1f));
+
+            if (Local != null && clampGrabbed)
+                ClampGauge(cx, cy,
+                           releasingClamp ? Local.ClampInteractor.HoldProgress : Local.ClampLiftProgress,
+                           releasingClamp);
+            else if (Local != null && Local.ChargingTool)
                 ChargeGauge(cx, cy, Local.ToolCharge);
+        }
+
+        void ClampGauge(float cx, float cy, float progress, bool releaseHolding)
+        {
+            float ratio = Mathf.Clamp01(progress);
+            float width = 180f;
+            float height = 8f;
+            float x = cx - width * 0.5f;
+            float y = cy - 46f;
+            Color fill = Color.Lerp(new Color(1f, 0.65f, 0.16f), new Color(0.35f, 1f, 0.55f), ratio);
+
+            Box(new Rect(x, y, width, height), new Color(0f, 0f, 0f, 0.70f));
+            Box(new Rect(x, y, width * ratio, height), fill);
+            L(new Rect(cx - 150f, y - 22f, 300f, 20f),
+              (releaseHolding ? "고정쇠 해제 유지 " : "고정쇠 들어 올리기 ")
+              + (ratio * 100f).ToString("0") + "%", small, fill);
         }
 
         void ChargeGauge(float cx, float cy, float charge)

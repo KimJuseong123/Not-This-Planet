@@ -29,6 +29,10 @@ namespace Metagame.Gameplay
         public float FreeMinPitch = -78f;
         public float FreeMaxPitch = 84f;
         public float ReturnSpeed = 7.5f;      // 클수록 빨리 제자리로 온다
+        [Header("고정쇠 하중감")]
+        [Range(0.05f, 1f)]
+        public float ClampUpwardLookScale = 0.28f;
+        public float ClampDownwardPullSpeed = 8f;
 
         public Camera Cam { get; private set; }
 
@@ -37,6 +41,16 @@ namespace Metagame.Gameplay
         float aimYaw;
         float aimPitch = 12f;
         bool returning;
+        bool clampLiftResistance;
+        float clampLiftResistanceBlend;
+        bool clampLiftPitchLocked;
+        float clampLiftPitchLock;
+        bool vehicleView;
+        bool savedFirstPerson;
+        float savedDistance;
+        float savedTargetHeight;
+        float savedMinPitch;
+        float savedMaxPitch;
         float currentDistance;
         Vector3 smoothFocus;
         bool focusReady;
@@ -71,15 +85,102 @@ namespace Metagame.Gameplay
             returning = !on;          // 놓는 순간부터 보는 각도를 조작 기준으로 되돌린다
         }
 
+        /// <summary>고정쇠를 잡은 동안 위쪽 시점 조작에 하중감을 켠다.</summary>
+        public void SetClampLiftResistance(bool on)
+        {
+            clampLiftResistance = on;
+        }
+
+        /// <summary>고정쇠를 충분히 들어 올린 뒤 시점이 더 위로 올라가지 않게 한다.</summary>
+        public void SetClampLiftPitchLock(bool on)
+        {
+            if (on == clampLiftPitchLocked) return;
+
+            clampLiftPitchLocked = on;
+            if (on) clampLiftPitchLock = pitch;
+        }
+
+        public bool VehicleView { get { return vehicleView; } }
+
+        /// <summary>
+        /// 운반 장치에 탑승하면 장치보다 높은 곳에서 내려다보는 시점으로 전환한다.
+        /// 하차할 때 기존 1인칭/3인칭 설정과 시야 각도 제한을 되돌린다.
+        /// </summary>
+        public void SetVehicleView(bool on)
+        {
+            if (on == vehicleView) return;
+
+            if (on)
+            {
+                savedFirstPerson = FirstPerson;
+                savedDistance = Distance;
+                savedTargetHeight = TargetHeight;
+                savedMinPitch = MinPitch;
+                savedMaxPitch = MaxPitch;
+
+                vehicleView = true;
+                FirstPerson = false;
+                Distance = 10f;
+                TargetHeight = 0.55f;
+                // 이 카메라의 pitch는 양수일수록 높은 곳에서 아래를 본다.
+                // 음수 범위를 쓰면 카메라가 탑승체 아래로 내려가므로 탑승 모드에서는
+                // 고각만 허용해 운반체와 캐릭터를 위에서 내려다보게 한다.
+                MinPitch = 70f;
+                MaxPitch = 88f;
+                FreeLook = false;
+                returning = false;
+                yaw = aimYaw;
+                pitch = 78f;
+                aimPitch = 78f;
+            }
+            else
+            {
+                vehicleView = false;
+                FirstPerson = savedFirstPerson;
+                Distance = savedDistance;
+                TargetHeight = savedTargetHeight;
+                MinPitch = savedMinPitch;
+                MaxPitch = savedMaxPitch;
+                aimPitch = Mathf.Clamp(aimPitch, MinPitch, MaxPitch);
+                pitch = Mathf.Clamp(pitch, MinPitch, MaxPitch);
+                currentDistance = FirstPerson ? 0f : Distance;
+            }
+
+            focusReady = false;
+            LateUpdate();
+        }
+
         public void Steer(Vector2 look)
         {
             if (look.sqrMagnitude > 1e-6f) returning = false;   // 되돌아오는 중 마우스를 잡으면 사람이 우선
 
-            float lo = FreeLook ? FreeMinPitch : MinPitch;
-            float hi = FreeLook ? FreeMaxPitch : MaxPitch;
+            float lo = VehicleView ? MinPitch : (FreeLook ? FreeMinPitch : MinPitch);
+            float hi = VehicleView ? MaxPitch : (FreeLook ? FreeMaxPitch : MaxPitch);
+
+            float targetResistance = clampLiftResistance && !FreeLook ? 1f : 0f;
+            clampLiftResistanceBlend = Mathf.MoveTowards(
+                clampLiftResistanceBlend, targetResistance, 10f * Time.deltaTime);
+
+            float verticalLook = look.y;
+            if (verticalLook > 0f && clampLiftResistanceBlend > 0f)
+            {
+                float response = Mathf.Lerp(1f, ClampUpwardLookScale, clampLiftResistanceBlend);
+                verticalLook *= response;
+            }
 
             yaw += look.x * Sensitivity;
-            pitch = Mathf.Clamp(pitch - look.y * Sensitivity, lo, hi);
+            pitch = Mathf.Clamp(pitch - verticalLook * Sensitivity, lo, hi);
+
+            // 위로 올리려는 동안에는 시점이 조금씩 아래로 되돌아가도록 해,
+            // 무거운 고정쇠를 억지로 드는 듯한 끙끙거리는 반응을 만든다.
+            if (clampLiftResistanceBlend > 0f)
+                pitch = Mathf.Clamp(pitch + ClampDownwardPullSpeed
+                                    * clampLiftResistanceBlend * Time.deltaTime, lo, hi);
+
+            // pitch가 작아질수록 화면이 위를 본다. 기준을 넘은 시점의 pitch보다
+            // 작아지는 것만 막아, 아래로 보는 조작은 허용하고 추가 상승만 제한한다.
+            if (clampLiftPitchLocked)
+                pitch = Mathf.Max(pitch, clampLiftPitchLock);
 
             if (!FreeLook)
             {
@@ -111,6 +212,10 @@ namespace Metagame.Gameplay
             focusReady = false;
             FreeLook = false;
             returning = false;
+            clampLiftResistance = false;
+            clampLiftResistanceBlend = 0f;
+            clampLiftPitchLocked = false;
+            clampLiftPitchLock = 0f;
             yaw = aimYaw;
             pitch = aimPitch;
             currentDistance = FirstPerson ? 0f : Distance;
