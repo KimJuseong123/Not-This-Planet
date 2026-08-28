@@ -39,6 +39,28 @@ printf '%s\n' "$input" | while read -r local_ref local_sha remote_ref remote_sha
     echo "" >&2
     exit 1
   fi
+
+  # 참고 경고(차단 아님, S15P21B202-90): 브랜치가 develop 이 아닌 곳에서 갈라졌는지 —
+  # 이미 가져와 둔 원격 추적 참조만 보므로 네트워크 접근이 없다. master 는 develop 의 조상이라
+  # develop 기준 merge-base 와 master 기준 merge-base 가 같으면 master 시점(또는 그 이전)에서 갈라진 것.
+  case "$branch" in
+    master|develop|hotfix/*) ;;
+    *)
+      if git rev-parse -q --verify origin/develop >/dev/null 2>&1 && git rev-parse -q --verify origin/master >/dev/null 2>&1; then
+        base_dev=$(git merge-base "$local_sha" origin/develop 2>/dev/null)
+        base_master=$(git merge-base "$local_sha" origin/master 2>/dev/null)
+        dev_head=$(git rev-parse origin/develop 2>/dev/null)
+        if [ -n "$base_dev" ] && [ "$base_dev" = "$base_master" ] && [ "$base_dev" != "$dev_head" ]; then
+          echo "" >&2
+          echo "⚠ 이 브랜치는 develop 이 아니라 master(또는 그 이전)에서 갈라진 것으로 보입니다." >&2
+          echo "  최신 씬·에셋·스크립트가 없는 코드일 수 있습니다 — develop 에서 브랜치를 새로 만들거나" >&2
+          echo "  'git fetch && git rebase origin/develop' 후 작업하세요. (hotfix/ 는 master 기반이 정상)" >&2
+          echo "  push 는 계속 진행됩니다. MR 을 만들면 CI(mr-lint)도 같은 경고를 남깁니다." >&2
+          echo "" >&2
+        fi
+      fi
+      ;;
+  esac
 done || status=1
 [ "$status" -ne 0 ] && exit "$status"
 

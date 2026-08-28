@@ -6,7 +6,7 @@ import json
 import os
 import re
 
-from ci_common import (BRANCH_RE, KEY_RE, PROJECT_KEY, TITLE_RE, GitLab, Jira, Report, banner,
+from ci_common import (BRANCH_RE, KEY_RE, PROJECT_KEY, TITLE_RE, GitLab, Jira, Report, banner, env,
                        find_section, key_from_branch, part_of_issue, sections, strip_draft)
 
 REQUIRED_SECTIONS = ["Jira", "무엇을 · 왜", "산출물 위치", "확인 방법", "작성자 체크리스트", "리뷰어 확인"]
@@ -38,6 +38,40 @@ def assignee_mismatch(mr: dict, issue: dict) -> str | None:
         return None
     return (f"MR 작성자({NAME_BY_GITLAB.get(author, author)})와 Jira 담당자({assignee.get('displayName')})가 다릅니다 — "
             f"브랜치 이름의 이슈 번호를 잘못 적었다면 그 이슈가 자동으로 진행 중이 됩니다(대행 작업이면 무시)")
+STALE_WARN = int(env("MR_STALE_WARN_COMMITS", "25") or "25")   # 이 커밋 수 이상 뒤처진 시작점이면 경고
+ADVICE_MARKER = "<!-- mr-lint:advice -->"
+REBASE_HINT = ("`git fetch origin && git rebase origin/develop && git push --force-with-lease` — MR·코멘트는 그대로 유지되고 "
+               "파이프라인이 다시 돌면 이 경고는 사라집니다. 씬·프리팹이 겹쳐 충돌하면 한쪽을 고르거나 다시 편집해야 합니다(머지 때 치를 비용을 미리 치르는 것)")
+
+
+def base_warnings(gl: GitLab, branch: str, target: str, bkey: str | None) -> list[tuple[str, str]]:
+    """브랜치가 develop 이 아닌 곳에서 갈라졌는지 검사해 (레벨, 메시지) 목록을 돌려준다. 차단하지 않는다(warn/ok).
+    - master(또는 그 이전) 기반: develop 기준 merge-base 와 master 기준 merge-base 가 같음(master 는 develop 의 조상)
+    - 오래된 시작점: develop 대비 STALE_WARN 커밋 이상 뒤
+    - 다른 이슈 키가 섞인 커밋: 다른 작업 브랜치에서 갈라졌을 가능성
+    hotfix/* 는 master 기반이 정상이므로 제외."""
+    out: list[tuple[str, str]] = []
+    if not gl.token or target != "develop" or branch.startswith("hotfix/") or branch in ("develop", "master"):
+        return out
+    base_dev = gl.merge_base("develop", branch)
+    base_master = gl.merge_base("master", branch)
+    dev_head = gl.branch_head("develop")
+    behind = gl.behind_count(base_dev) if base_dev else None
+    if base_dev and base_master and base_dev == base_master and dev_head and base_dev != dev_head:
+        out.append(("warn", f"이 브랜치는 develop 이 아니라 master(또는 그 이전) 지점에서 갈라졌습니다 — 시작점 {base_dev[:8]}"
+                            + (f", develop 보다 {behind}커밋 뒤" if behind else "")
+                            + ". 최신 씬·에셋·스크립트가 없는 코드일 수 있으니 develop 에서 브랜치를 새로 만들어 작업을 옮기거나 "
+                              "`git fetch && git rebase origin/develop` 후 다시 push 하세요 (hotfix/* 는 master 기반이 정상)"))
+    elif behind is not None and behind >= STALE_WARN:
+        out.append(("warn", f"브랜치 시작점이 develop 보다 {behind}커밋 뒤처졌습니다 — 씬·프리팹·에셋이 겹치면 머지에서 충돌하거나 "
+                            f"최신 작업을 덮어쓸 수 있습니다. `git fetch && git rebase origin/develop` 권장"))
+    elif behind is not None:
+        out.append(("ok", f"브랜치 시작점 OK (develop 대비 {behind}커밋 뒤)"))
+    other = sorted({k for c in gl.mr_commits() for k in KEY_RE.findall(c.get("title") or "") if bkey and k != bkey})
+    if other:
+        out.append(("warn", f"이 MR 의 커밋에 다른 이슈 키가 섞여 있습니다: {', '.join(other[:5])} — 다른 작업 브랜치에서 갈라졌을 수 있고, "
+                            f"머지하면 남의 미완성 변경이 develop 에 들어갑니다"))
+    return out
 
 
 def target_verdict(branch: str, target: str) -> tuple[str, str]:
@@ -58,6 +92,37 @@ def target_verdict(branch: str, target: str) -> tuple[str, str]:
                         f"부모 브랜치가 develop 에 머지된 뒤 이 이슈를 손으로 완료하세요(머지된 MR 이 있으므로 허용됩니다). "
                         f"부모 브랜치가 사라지면 이 MR 도 닫히니 순서에 주의")
     return "fail", f"대상 브랜치는 develop · master(릴리즈) · 작업 브랜치(스택 MR) 중 하나여야 함: {target!r}"
+def publish_advice(gl: GitLab, mr: dict, warns: list[tuple[str, str]], base_warned: bool) -> None:
+    """경고를 눈에 보이는 곳에 남긴다(차단 아님).
+      A) MR 코멘트 1개 — 마커로 갱신되므로 재실행해도 쌓이지 않고, 경고가 사라지면 '해소됨' 으로 바뀐다
+      B) master(또는 그 이전) 기반일 때만 MM 🟠 카드 — 작성자 @멘션 (그 밖의 경고는 채널로 보내지 않는다)"""
+    if not gl.can_write:
+        return
+    msgs = [m for lvl, m in warns if lvl == "warn"]
+    if msgs:
+        rows = "\n".join(f"- ⚠ {m}" for m in msgs)
+        body = (f"{ADVICE_MARKER}\n⚠ **확인 사항 {len(msgs)}건** — 머지를 막지는 않지만 리뷰 전에 보세요.\n\n{rows}\n\n"
+                f"**브랜치를 develop 위로 옮기려면**: {REBASE_HINT}\n\n"
+                f"<sub>자동 생성(mr-lint) · 다시 push 하면 이 코멘트가 갱신됩니다</sub>")
+    else:
+        if not any(ADVICE_MARKER in (n.get("body") or "") for n in gl.notes()):
+            return
+        body = f"{ADVICE_MARKER}\n✅ 이전 확인 사항이 해소되었습니다. <sub>자동 생성(mr-lint)</sub>"
+    st, _ = gl.upsert_note(ADVICE_MARKER, body)
+    print(f"  · 확인 사항 코멘트 {'게시/갱신' if st in (200, 201) else '실패 ' + str(st)}")
+    if base_warned and env("MM_WEBHOOK_URL"):
+        try:
+            from mm_notify import card, mm_of, send   # 지연 임포트: MM 설정이 없으면 건드리지 않는다
+            author = (mr.get("author") or {}).get("username", "")
+            mention = mm_of(author) or author or "?"
+            send(card("🟠 **브랜치 기준 확인 필요**", [
+                ("MR", f"[!{gl.iid} {(mr.get('title') or '')[:60]}]({mr.get('web_url')})"),
+                ("작성", mention),
+                ("무엇", "이 브랜치가 develop 이 아니라 master(또는 그 이전) 지점에서 갈라졌습니다 — 최신 씬·에셋·스크립트가 없는 코드일 수 있습니다"),
+                ("조치", "`git fetch origin && git rebase origin/develop && git push --force-with-lease` (hotfix 는 정상이므로 이 알림 대상이 아님)"),
+            ]))
+        except Exception as e:  # 알림 실패가 검사 결과를 바꾸지 않도록
+            print(f"  · MM 알림 실패(무시): {type(e).__name__}: {e}")
 
 
 def main() -> int:
@@ -86,6 +151,13 @@ def main() -> int:
         rep.fail(f"소스 브랜치 형식 위반: {branch!r} — `{PROJECT_KEY}-번호[-설명]` 또는 `hotfix/…`")
     tlevel, tmsg = target_verdict(branch, target)
     {"ok": rep.ok, "warn": rep.warn, "fail": rep.fail}[tlevel](tmsg)
+
+    # 2b) 브랜치 베이스 (경고만 — 차단하지 않음, S15P21B202-90)
+    base_notes = base_warnings(gl, branch, target, bkey)
+    for level, msg in base_notes:
+        (rep.ok if level == "ok" else rep.warn)(msg)
+    advice = list(base_notes)
+    base_warned = any(lvl == "warn" and "master(또는 그 이전)" in m for lvl, m in base_notes)
 
     # 3) 제목
     m = TITLE_RE.match(title)
@@ -168,6 +240,7 @@ def main() -> int:
             elif part and not jpart:
                 rep.warn("Jira 이슈에 파트 태그/레이블이 없음 (needs-fix 상태일 수 있음)")
 
+    publish_advice(gl, mr, advice, base_warned)
     return rep.finish()
 
 

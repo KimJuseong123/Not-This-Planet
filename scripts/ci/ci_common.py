@@ -10,6 +10,7 @@ import os
 import re
 import sys
 import urllib.error
+from urllib.parse import quote
 import urllib.parse
 import urllib.request
 
@@ -138,6 +139,26 @@ class GitLab:
             if len(d) < 100:
                 return out, True
         return out, False
+    def merge_base(self, ref_a: str, ref_b: str) -> str | None:
+        """두 ref 의 공통 조상 sha. master 는 develop 의 조상이므로,
+        (develop 기준 merge-base) == (master 기준 merge-base) 이면 그 브랜치는 master 시점 이전에서 갈라진 것."""
+        st, d = http("GET", f"{self.api}/projects/{self.project}/repository/merge_base"
+                            f"?refs[]={quote(ref_a, safe='')}&refs[]={quote(ref_b, safe='')}", self._h())
+        return d.get("id") if st == 200 and isinstance(d, dict) else None
+
+    def branch_head(self, name: str = "develop") -> str | None:
+        st, d = http("GET", f"{self.api}/projects/{self.project}/repository/branches/{quote(name, safe='')}", self._h())
+        return ((d.get("commit") or {}).get("id")) if st == 200 and isinstance(d, dict) else None
+
+    def behind_count(self, base_sha: str, ref: str = "develop") -> int | None:
+        """base_sha 이후 ref 에 쌓인 커밋 수 = 그 시작점이 ref 보다 얼마나 뒤처졌는지."""
+        st, d = http("GET", f"{self.api}/projects/{self.project}/repository/compare"
+                            f"?from={quote(base_sha, safe='')}&to={quote(ref, safe='')}&straight=true", self._h())
+        return len(d.get("commits") or []) if st == 200 and isinstance(d, dict) else None
+
+    def mr_commits(self) -> list[dict]:
+        st, d = http("GET", self._mr_url("/commits?per_page=100"), self._h())
+        return d if st == 200 and isinstance(d, list) else []
 
     def open_mrs(self) -> list[dict]:
         st, d = http("GET", f"{self.api}/projects/{self.project}/merge_requests?state=opened&per_page=100",
