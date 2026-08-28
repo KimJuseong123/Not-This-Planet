@@ -103,8 +103,16 @@ namespace Metagame.Gameplay
         public bool VehicleView { get { return vehicleView; } }
 
         /// <summary>
-        /// 운반 장치에 탑승하면 장치보다 높은 곳에서 내려다보는 시점으로 전환한다.
+        /// 운반 장치에 탑승하면 조종석 1인칭으로 전환한다.
         /// 하차할 때 기존 1인칭/3인칭 설정과 시야 각도 제한을 되돌린다.
+        ///
+        /// 예전에는 장치 위 10m 에서 내려다보는 3인칭이었다. 탑승자를 위에서 보는 화면이라
+        /// "무엇에 타고 있다"가 전달되지 않았다. 지금은 탑승자의 머리에서 보고, 탑승자는
+        /// 감춰지며(<see cref="Doll.SetVisible"/>) 조종석 지오메트리가 시야를 감싼다.
+        ///
+        /// 시야 각도 제한은 플레이어가 쓰던 값을 그대로 쓴다. 조종석 안에서 아래를 보면
+        /// 기체 내부가 보이는데, 그 범위를 막는 것은 카메라가 아니라 조종석 지오메트리의
+        /// 몫이다 — 실제 에셋이 들어오면 그쪽에서 자연스럽게 정리된다.
         /// </summary>
         public void SetVehicleView(bool on)
         {
@@ -119,19 +127,14 @@ namespace Metagame.Gameplay
                 savedMaxPitch = MaxPitch;
 
                 vehicleView = true;
-                FirstPerson = false;
-                Distance = 10f;
-                TargetHeight = 0.55f;
-                // 이 카메라의 pitch는 양수일수록 높은 곳에서 아래를 본다.
-                // 음수 범위를 쓰면 카메라가 탑승체 아래로 내려가므로 탑승 모드에서는
-                // 고각만 허용해 운반체와 캐릭터를 위에서 내려다보게 한다.
-                MinPitch = 70f;
-                MaxPitch = 88f;
+                FirstPerson = true;
+                Distance = 0f;
+                TargetHeight = Tuning.CamHeight;   // 골반 기준 머리 높이 — 걸을 때와 같다
                 FreeLook = false;
                 returning = false;
                 yaw = aimYaw;
-                pitch = 78f;
-                aimPitch = 78f;
+                pitch = 0f;                        // 조종석에서 수평을 본다
+                aimPitch = 0f;
             }
             else
             {
