@@ -37,10 +37,14 @@ namespace Metagame.EditorTools
         };
 
         /// <summary>빔 기준점에서 파츠 중심까지의 거리.</summary>
-        const float BeamHoldDistance = 8f;
+        const float BeamHoldDistance = TransportVehicle.BeamHoldDistance;
 
-        /// <summary>운반 중 파츠 중심 높이. 지면과 이미 놓인 파츠를 넘어야 한다.</summary>
-        const float TransportHeight = 11f;
+        /// <summary>실행 전 씬 미리보기용 운반 장치 위치. 실행 시에는 빈 지점으로 다시 섞는다.</summary>
+        static readonly Vector3[] VehicleStartSpots =
+        {
+            new(-10f, TransportVehicle.GroundY, -17f),
+            new(10f, TransportVehicle.GroundY, -17f),
+        };
 
         const int ClampsPerPart = 4;
         const int WeldPointsPerPart = 4;
@@ -72,9 +76,8 @@ namespace Metagame.EditorTools
             for (var i = 0; i < PartSpots.Length; i++)
                 parts[i] = BuildPart(group, i);
 
-            var beams = BuildBeams(group, parts);
+            var beams = BuildBeams(group);
             BuildMeteors(group);
-            BuildDemo(group, parts, beams);
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
@@ -159,10 +162,10 @@ namespace Metagame.EditorTools
         }
 
         /// <summary>
-        /// 견인 빔 두 기. 도구 형태가 미정이라 기준점만 두고 위에서 아래를 겨눈다.
-        /// 시연 드라이버가 각각 파츠 하나를 조립 위치로 옮긴다.
+        /// 견인 빔 두 기. Stage1SkinBuilder가 TractorCraft 프리팹을 기준점에 얹고,
+        /// 런타임의 TractorBeamController가 기준점을 움직여 실제 운반에 사용한다.
         /// </summary>
-        static TractorBeam[] BuildBeams(Transform group, SpaceshipPart[] parts)
+        static TractorBeam[] BuildBeams(Transform group)
         {
             var beams = new TractorBeam[2];
 
@@ -171,27 +174,19 @@ namespace Metagame.EditorTools
                 var go = new GameObject($"TractorBeam_{i + 1}");
                 go.transform.SetParent(group, false);
 
-                // 담당 파츠 위에서 아래를 본다. up 을 forward 로 주지 않으면 축이 겹쳐 실패한다.
-                go.transform.localPosition = PartSpots[i] + Vector3.up * 12f;
+                // 실행 전에는 바닥에 놓인 운반 장치로 보인다. 실행 시 컨트롤러가
+                // 파츠와 조립 지점을 피한 랜덤 위치로 옮긴다.
+                go.transform.localPosition = VehicleStartSpots[i % VehicleStartSpots.Length];
                 go.transform.localRotation = Quaternion.LookRotation(Vector3.down, Vector3.forward);
+                go.layer = GameLayers.Prop;
 
                 var beam = go.AddComponent<TractorBeam>();
                 beam.Configure(go.transform, PhysicsScale.BeamRange, BeamHoldDistance);
+                var vehicle = go.AddComponent<TransportVehicle>();
+                vehicle.Initialize(beam, BeamHoldDistance);
+                vehicle.PlaceOnGround(go.transform.position, 0f);
                 beams[i] = beam;
 
-                // 조립 위치까지 높이 운반한 뒤 제자리에서 내려온다. 두 번째 빔은 첫 파츠가
-                // 놓인 뒤에 움직인다.
-                //
-                // 두 단계로 나누는 이유가 있다. 놓을 높이로 곧장 이동하면 파츠 밑면이 지면에
-                // 끌리면서 마찰로 쓰러지고, 높은 곳에서 놓으면 낙하하며 쓰러진다.
-                // 빔은 기준점 아래 HoldDistance 만큼에 파츠 중심을 둔다.
-                var restHeight = PhysicsScale.PartHeight * (0.5f + i);
-                var above = new Vector3(AssemblyPoint.x, TransportHeight + BeamHoldDistance, AssemblyPoint.z);
-                var down = new Vector3(AssemblyPoint.x, restHeight + BeamHoldDistance, AssemblyPoint.z);
-
-                var driver = go.AddComponent<DemoBeamDriver>();
-                driver.Configure(grabDelay: 4f + i * 20f, releaseAfter: 18f + i * 20f);
-                driver.SetWaypoints(4f, above, down);
             }
 
             return beams;
@@ -213,23 +208,6 @@ namespace Metagame.EditorTools
             spawner.SetArea(go.transform, new Vector2(36f, 36f));
 
             go.AddComponent<DemoMeteorDriver>();
-        }
-
-        /// <summary>
-        /// 입력 바인딩이 붙기 전까지 Play 로 흐름을 볼 수 있게 하는 시연 장치.
-        /// 빔이 옮길 두 파츠의 고정쇠를 시간차로 풀어 준다.
-        /// </summary>
-        static void BuildDemo(Transform group, SpaceshipPart[] parts, TractorBeam[] beams)
-        {
-            var go = new GameObject("~시연 (입력 붙으면 삭제)");
-            go.transform.SetParent(group, false);
-
-            var releaser = go.AddComponent<DemoClampReleaser>();
-            releaser.Configure(new[]
-            {
-                new DemoClampReleaser.Entry { Part = parts[0], DelaySeconds = 2f },
-                new DemoClampReleaser.Entry { Part = parts[1], DelaySeconds = 14f },
-            });
         }
 
         static Transform FindByPath(UnityEngine.SceneManagement.Scene scene, string path)

@@ -36,7 +36,7 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
-        public void Release_MarksReleasedAndDisablesColliders()
+        public void Release_MarksReleasedAndMakesLoosePhysicsObject()
         {
             var part = CreatePart();
             var clamp = AddClamp(part, Vector3.forward * 2f);
@@ -44,8 +44,17 @@ namespace Metagame.Gameplay.Tests
             clamp.Release();
 
             Assert.IsTrue(clamp.IsReleased);
+            Assert.IsNull(clamp.transform.parent, "해제된 고정쇠는 파츠와 분리되어야 한다.");
+            Assert.IsNotNull(clamp.ReleasedBody);
+            Assert.IsFalse(clamp.ReleasedBody.isKinematic);
+            Assert.Greater(clamp.ReleasedBody.linearVelocity.y, 0f,
+                "해제된 고정쇠는 항상 위쪽으로 튀어야 한다.");
+            Assert.AreEqual(GameLayers.Prop, clamp.gameObject.layer);
             foreach (var c in clamp.GetComponents<Collider>())
-                Assert.IsFalse(c.enabled, "풀린 고정쇠가 계속 포커스를 뺏으면 안 된다.");
+            {
+                Assert.IsTrue(c.enabled, "해제된 고정쇠는 물리 오브젝트로 남아야 한다.");
+                Assert.IsFalse(c.isTrigger, "해제된 고정쇠는 지면과 충돌해야 한다.");
+            }
         }
 
         [Test]
@@ -173,7 +182,7 @@ namespace Metagame.Gameplay.Tests
             return part;
         }
 
-        static PartClamp AddClamp(SpaceshipPart part, Vector3 localPosition, bool required = true)
+        PartClamp AddClamp(SpaceshipPart part, Vector3 localPosition, bool required = true)
         {
             var go = new GameObject("Clamp") { layer = GameLayers.Interactable };
             go.transform.SetParent(part.transform, false);
@@ -186,6 +195,7 @@ namespace Metagame.Gameplay.Tests
             var clamp = go.AddComponent<PartClamp>();
             clamp.SetRequired(required);
 
+            _spawned.Add(go);
             part.RefreshClamps();
             Physics.SyncTransforms();
             return clamp;

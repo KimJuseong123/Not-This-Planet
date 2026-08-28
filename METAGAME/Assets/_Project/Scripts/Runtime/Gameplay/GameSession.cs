@@ -1,5 +1,6 @@
 using UnityEngine;
 using Metagame.Core;
+using Metagame.Gameplay.Parts;
 
 namespace Metagame.Gameplay
 {
@@ -13,6 +14,8 @@ namespace Metagame.Gameplay
 
         public PlayerRig LocalPlayer;
         public LevelBuilder Level;
+        public Stage1Exploration Exploration;
+        public TractorBeamController Transport;
 
         public int CheckpointIndex { get; private set; }
         public Vector3 SpawnFoot { get; private set; }
@@ -46,15 +49,18 @@ namespace Metagame.Gameplay
             StageHint = Hints[0];
         }
 
-        public void Begin(PlayerRig rig, LevelBuilder level, Vector3 spawnFoot)
+        public void Begin(PlayerRig rig, LevelBuilder level, Vector3 spawnFoot,
+                          Stage1Exploration exploration = null)
         {
             LocalPlayer = rig;
             Level = level;
+            Exploration = exploration;
             SpawnFoot = spawnFoot;
             CheckpointIndex = 0;
             Elapsed = 0f;
             Falls = 0;
             Cleared = false;
+            if (Exploration != null) Exploration.ResetRun();
             SetCursor(true);
         }
 
@@ -64,20 +70,71 @@ namespace Metagame.Gameplay
 
             if (!Cleared) Elapsed += Time.deltaTime;
 
+            if (Exploration != null) Exploration.Tick();
+
             if (!ScriptedInput)
             {
                 var f = Controls.Read();
 
+                if (f.TabletToggle && Exploration != null)
+                {
+                    Exploration.ToggleTablet();
+                    SetCursor(!Exploration.TabletOpen);
+                }
+
                 if (Input.GetKeyDown(Controls.FreeCursor)) SetCursor(false);
                 if (Input.GetMouseButtonDown(0) && !CursorLocked) SetCursor(true);
-                if (!CursorLocked) { f.Look = Vector2.zero; f.GrabLeft = false; f.GrabRight = false; f.FreeLook = false; }
+                if (!CursorLocked)
+                {
+                    f.Look = Vector2.zero;
+                    f.GrabLeft = false;
+                    f.GrabRight = false;
+                    f.TransportAction = false;
+                    f.FreeLook = false;
+                }
+
+                if (Exploration != null && Exploration.TabletOpen)
+                {
+                    f.Move = Vector2.zero;
+                    f.Look = Vector2.zero;
+                    f.Jump = false;
+                    f.Run = false;
+                    f.GrabLeft = false;
+                    f.GrabRight = false;
+                    f.ToolAction = false;
+                    f.TransportAction = false;
+                    f.ArmsUp = false;
+                    f.FreeLook = false;
+                }
 
                 if (Input.GetKeyDown(Controls.Respawn)) Respawn();
                 if (f.Restart) Restart();
 
+                if (Transport != null)
+                {
+                    Transport.SetInput(f);
+                    if (Transport.IsControlling)
+                    {
+                        // 탑승 중에는 플레이어 물리가 운반체와 싸우지 않게 한다. 이동은
+                        // 운반체가 처리하고, 카메라 회전과 원본 클릭 입력은 컨트롤러가 쓴다.
+                        f.Move = Vector2.zero;
+                        f.Jump = false;
+                        f.Run = false;
+                        f.GrabLeft = false;
+                        f.GrabRight = false;
+                        f.ArmsUp = false;
+                    }
+                }
+
                 if (LocalPlayer.Cam != null)
                 {
                     LocalPlayer.Cam.SetFreeLook(f.FreeLook);     // Steer 보다 먼저 — 켜지는 순간 기준 각도를 얼린다
+                    bool clampButtons = f.GrabLeft || f.GrabRight;
+                    LocalPlayer.Cam.SetClampLiftResistance(
+                        LocalPlayer.ClampGrabbed && clampButtons && !f.FreeLook);
+                    LocalPlayer.Cam.SetClampLiftPitchLock(
+                        LocalPlayer.ClampGrabbed && LocalPlayer.ClampLiftReady
+                        && clampButtons && !f.FreeLook);
                     LocalPlayer.Cam.Steer(f.Look);
                 }
                 LocalPlayer.SetInput(f);
@@ -112,6 +169,7 @@ namespace Metagame.Gameplay
         public void Respawn()
         {
             if (LocalPlayer == null) return;
+            Transport?.Reset();
             LocalPlayer.ResetHealth();
             LocalPlayer.Teleport(SpawnFoot + Vector3.up * 0.15f, Quaternion.LookRotation(Vector3.right, Vector3.up));
         }
@@ -133,6 +191,8 @@ namespace Metagame.Gameplay
             Elapsed = 0f;
             Falls = 0;
             Cleared = false;
+            if (Exploration != null) Exploration.ResetRun();
+            SetCursor(true);
             Respawn();
         }
     }
