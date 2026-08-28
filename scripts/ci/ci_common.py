@@ -88,6 +88,10 @@ class GitLab:
     def _h(self):
         return {"PRIVATE-TOKEN": self.token}
 
+    def headers(self) -> dict:
+        """다른 모듈에서 쓰는 공개 헬퍼(사설 _h 직접 호출 금지)."""
+        return self._h()
+
     def _mr_url(self, suffix: str = "") -> str:
         return f"{self.api}/projects/{self.project}/merge_requests/{self.iid}{suffix}"
 

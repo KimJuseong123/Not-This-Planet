@@ -108,6 +108,16 @@ mm-ci-failed:             # 🔴 CI 실패 알림 — mr-lint/repo-hygiene 실�
     - python scripts/ci/mm_notify.py ci-failed
   allow_failure: true
 
+mm-ci-resolved:           # 검사 통과 시, 남아 있는 CI 실패 코멘트를 '해소됨' 으로 갱신 (S15P21B202-102)
+  stage: notify
+  needs: [mr-lint, repo-hygiene]
+  when: on_success
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - python scripts/ci/mm_notify.py ci-resolved
+  allow_failure: true
+
 mm-digest:                # 스케줄 파이프라인(예: 평일 09:30) — needs-fix·오래 열린 MR·정체 이슈 요약을 MM 채널로
   stage: notify
   rules:

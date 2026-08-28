@@ -2,6 +2,7 @@
 
   python scripts/ci/mm_notify.py mr-opened   # 🟢 리뷰 요청 — 이 MR 의 첫 파이프라인일 때만 1회, 팀장 @멘션(+작성자 표기)
   python scripts/ci/mm_notify.py ci-failed   # 🔴 CI 실패 — 실패한 잡 이름·링크, **실패 이유(❌ 줄)**, MR 작성자 @멘션 + 같은 내용을 MR 코멘트로
+  python scripts/ci/mm_notify.py ci-resolved # 검사 통과 시, 이전 실패 코멘트가 있으면 "해소됨" 으로 갱신(없으면 아무 것도 하지 않음)
 
 원칙(docs/ci-and-notifications.md §5): 태그할 사람이 없는 메시지는 보내지 않는다. 첫 줄 = 등급 이모지 + 굵은 제목 + 링크,
 둘째 줄 = @멘션 + 조치. 사용자 매핑은 scripts/ci/team.json. 필요 변수: MM_WEBHOOK_URL, GITLAB_TOKEN(파이프라인·잡 조회).
@@ -63,7 +64,15 @@ def mr_opened(gl: GitLab) -> int:
 
 
 FAIL_MARKER = "<!-- ci-failed:metagame -->"
-MAX_REASONS = 3
+MAX_REASONS = 3          # 카드에 싣는 이유 개수
+MAX_COMMENT_REASONS = 20  # MR 코멘트 상한 — 위반이 수십 건이어도 코멘트가 비대해지지 않게
+MAX_REASON_CHARS = 200
+
+
+def clean_reason(text: str) -> str:
+    """로그 한 줄을 표·코멘트에 넣어도 안전하게 — 표 구분자와 태그를 지우고 길이를 자른다."""
+    t = " ".join(text.split()).replace("|", "／").replace("<", "&lt;").replace(">", "&gt;")
+    return t[:MAX_REASON_CHARS] + ("…" if len(t) > MAX_REASON_CHARS else "")
 
 
 def failure_reasons(gl: GitLab, jobs: list[dict]) -> list[tuple[str, str]]:
@@ -71,31 +80,57 @@ def failure_reasons(gl: GitLab, jobs: list[dict]) -> list[tuple[str, str]]:
     사람이 로그를 찾아 들어가지 않아도 되게 하는 것이 목적(S15P21B202-102)."""
     out: list[tuple[str, str]] = []
     for j in jobs:
+        name = j.get("name", "?")
         try:
-            st, trace = http("GET", f"{gl.api}/projects/{gl.project}/jobs/{j['id']}/trace", gl._h())
+            st, trace = http("GET", f"{gl.api}/projects/{gl.project}/jobs/{j.get('id')}/trace", gl.headers())
         except Exception as e:  # noqa: BLE001
-            print(f"  [{j.get('name')}] 로그 조회 실패(무시): {type(e).__name__}: {e}"); continue
+            print(f"  [{name}] 로그 조회 실패(무시): {type(e).__name__}: {e}"); continue
+        # 잡 로그는 JSON 이 아니라 text/plain 이며, 공용 http() 는 파싱 실패 시 원문 문자열을 돌려준다(ci_common.http)
         if st != 200 or not isinstance(trace, str):
             continue
         for line in trace.splitlines():
             if "❌" in line:
-                reason = line.split("❌", 1)[1].strip()
-                reason = " ".join(reason.split())          # 타임스탬프·제어문자 정리
-                if reason and (j["name"], reason) not in out:
-                    out.append((j["name"], reason))
+                reason = clean_reason(line.split("❌", 1)[1])
+                if reason and (name, reason) not in out:
+                    out.append((name, reason))
     return out
 
 
 def upsert_mr_comment(gl: GitLab, body: str) -> None:
-    """같은 내용을 MR 코멘트로도 남긴다(마커로 갱신 → 재실행해도 쌓이지 않음)."""
+    """같은 내용을 MR 코멘트로도 남긴다(마커로 갱신 → 재실행해도 쌓이지 않음).
+    실패해도 예외를 밖으로 던지지 않는다 — 코멘트 실패가 MM 카드 발송까지 막으면 안 된다."""
     if not gl.can_write:
         print("GITLAB_TOKEN 없음 → MR 코멘트 생략"); return
-    st, _ = gl.upsert_note(FAIL_MARKER, body)
-    print(f"MR 코멘트 {'게시/갱신' if st in (200, 201) else '실패 ' + str(st)}")
+    try:
+        st, _ = gl.upsert_note(FAIL_MARKER, body)
+        print(f"MR 코멘트 {'게시/갱신' if st in (200, 201) else '실패 ' + str(st)}")
+    except Exception as e:  # noqa: BLE001
+        print(f"MR 코멘트 게시 실패(무시): {type(e).__name__}: {e}")
+
+
+def ci_resolved(gl: GitLab) -> int:
+    """검사가 통과했을 때, 남아 있는 실패 코멘트를 '해소됨' 으로 갱신한다(없으면 아무 것도 하지 않음).
+    mm-ci-failed 는 on_failure 전용이라 통과 시점에는 실행되지 않으므로 별도 잡으로 처리한다."""
+    if not gl.can_write:
+        print("GITLAB_TOKEN 없음 → 생략"); return 0
+    try:
+        if not any(FAIL_MARKER in (n.get("body") or "") for n in gl.notes()):
+            print("이전 실패 코멘트 없음 → 생략"); return 0
+        body = (f"{FAIL_MARKER}\n✅ **CI 실패가 해소되었습니다** — 커밋 `{env('CI_COMMIT_SHORT_SHA', '')}` 기준으로 검사를 통과했습니다.\n\n"
+                f"<sub>자동 생성(mm-notify) · 이전 실패 내용은 이 코멘트가 대체합니다</sub>")
+        st, _ = gl.upsert_note(FAIL_MARKER, body)
+        print(f"해소 코멘트 {'갱신' if st in (200, 201) else '실패 ' + str(st)}")
+    except Exception as e:  # noqa: BLE001
+        print(f"해소 코멘트 갱신 실패(무시): {type(e).__name__}: {e}")
+    return 0
 
 
 def ci_failed(gl: GitLab) -> int:
     mr = gl.get_mr()
+    # Draft 는 아직 리뷰 요청이 아니다 — 🟢 리뷰 요청 카드를 건너뛰는 것과 같은 기준으로 🔴 카드도 보내지 않는다.
+    # 실패 이유는 아래 MR 코멘트에 그대로 남으므로 작성자는 MR 화면에서 확인한다(팀 결정 2026-08-28).
+    _title, is_draft = strip_draft(mr.get("title") or "")
+    draft = bool(is_draft or mr.get("draft"))
     author = (mr.get("author") or {}).get("username", "")
     mention = mm_of(author)
     if not mention:
@@ -114,8 +149,11 @@ def ci_failed(gl: GitLab) -> int:
     else:
         parts, hints = f"[파이프라인]({env('CI_PIPELINE_URL', '')})", "잡 로그 확인"
     shown = reasons[:MAX_REASONS]
-    reason_cell = ("<br>".join(f"{r}" for _, r in shown) + (f"<br>… 외 {len(reasons) - len(shown)}건" if len(reasons) > len(shown) else "")) \
-        if shown else "로그에서 이유를 찾지 못함 — 잡 링크에서 확인"
+    capped = reasons[:MAX_COMMENT_REASONS]
+    # Mattermost 표 셀은 줄바꿈도 <br> 도 렌더하지 않는다(2026-08-28 실측) → 번호를 붙여 한 줄로 잇는다
+    numbered = " ".join(f"{i}) {r}" for i, (_, r) in enumerate(shown, 1)) if len(shown) > 1 else (shown[0][1] if shown else "")
+    more = f" … 외 {len(reasons) - len(shown)}건" if len(reasons) > len(shown) else ""
+    reason_cell = (numbered + more) if shown else "로그에서 이유를 찾지 못함 — 잡 링크에서 확인"
     rows = [
         ("MR", f"[!{gl.iid} {title}]({mr.get('web_url')})"),
         ("작성자", mention),
@@ -126,14 +164,21 @@ def ci_failed(gl: GitLab) -> int:
     ]
     # MR 코멘트: 사람이 이미 보고 있는 곳에 이유를 그대로 남긴다
     if reasons:
-        lines = "\n".join(f"- **{name}** — {reason}" for name, reason in reasons)
+        lines = "\n".join(f"- **{name}** — {reason}" for name, reason in capped)
+        if len(reasons) > len(capped):
+            lines += f"\n- … 외 {len(reasons) - len(capped)}건 (전체는 잡 로그에서)"
     else:
         lines = "- 로그에서 ❌ 줄을 찾지 못했습니다. 위 잡 링크에서 직접 확인해 주세요."
     comment = (f"{FAIL_MARKER}\n🔴 **CI 실패 — 무엇이 왜 실패했는지**\n\n{lines}\n\n"
                f"고친 뒤 다시 push 하면 자동으로 재검사되고 이 코멘트도 갱신됩니다. "
                f"({parts})\n\n<sub>자동 생성(mm-notify) · 규칙 설명은 docs/git-convention.md · docs/ci-and-notifications.md</sub>")
+    if draft:
+        print("Draft MR → 🔴 카드 생략(코멘트만 남김)")
+        rc = 0
+    else:
+        rc = send(card("🔴 **CI 실패**", rows))   # 카드 먼저 — 코멘트 경로가 막혀도 알림은 나간다
     upsert_mr_comment(gl, comment)
-    return send(card("🔴 **CI 실패**", rows))
+    return rc
 
 
 def main() -> int:
@@ -146,7 +191,9 @@ def main() -> int:
         return mr_opened(gl)
     if mode == "ci-failed":
         return ci_failed(gl)
-    print("사용법: mm_notify.py mr-opened | ci-failed"); return 2
+    if mode == "ci-resolved":
+        return ci_resolved(gl)
+    print("사용법: mm_notify.py mr-opened | ci-failed | ci-resolved"); return 2
 
 
 if __name__ == "__main__":
