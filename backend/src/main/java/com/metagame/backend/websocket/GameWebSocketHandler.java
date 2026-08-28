@@ -36,18 +36,36 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         log.info("connected: userId={}", userId);
     }
 
+    /**
+     * 잘못된 메시지 하나로 연결이 끊기지 않도록, 해석·처리 실패는 ERROR 응답으로 돌려준다.
+     * (모르는 type은 enum 변환에서, 빠진 필드는 처리 중에 예외가 난다)
+     */
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
         Long userId = userId(session);
-        WsMessage msg = objectMapper.readValue(message.getPayload(), WsMessage.class);
 
-        switch (WsMessage.Type.valueOf(msg.type())) {
-            case CREATE_ROOM -> createRoom(session, userId);
-            case JOIN_ROOM -> joinRoom(session, userId, msg.data().get("roomId").asString());
-            case LEAVE_ROOM -> leaveRoom(session, userId);
-            case READY -> ready(userId, msg.data().get("ready").asBoolean());
-            case START_GAME -> startGame(userId);
-            default -> send(session, WsMessage.Type.ERROR, Map.of("message", "unknown type"));
+        WsMessage msg;
+        WsMessage.Type type;
+        try {
+            msg = objectMapper.readValue(message.getPayload(), WsMessage.class);
+            type = WsMessage.Type.valueOf(msg.type());
+        } catch (RuntimeException e) {
+            send(session, WsMessage.Type.ERROR, Map.of("message", "unknown type"));
+            return;
+        }
+
+        try {
+            switch (type) {
+                case CREATE_ROOM -> createRoom(session, userId);
+                case JOIN_ROOM -> joinRoom(session, userId, msg.data().get("roomId").asString());
+                case LEAVE_ROOM -> leaveRoom(session, userId);
+                case READY -> ready(userId, msg.data().get("ready").asBoolean());
+                case START_GAME -> startGame(userId);
+                default -> send(session, WsMessage.Type.ERROR, Map.of("message", "unknown type"));
+            }
+        } catch (RuntimeException e) {
+            log.warn("message handling failed: userId={} type={} : {}", userId, type, e.toString());
+            send(session, WsMessage.Type.ERROR, Map.of("message", "invalid message"));
         }
     }
 
