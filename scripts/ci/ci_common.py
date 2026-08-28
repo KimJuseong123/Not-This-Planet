@@ -32,8 +32,15 @@ def env(name: str, default: str | None = None) -> str | None:
 
 
 def strip_draft(title: str) -> tuple[str, bool]:
-    m = DRAFT_RE.match(title)
-    return (title[m.end():].strip(), True) if m else (title.strip(), False)
+    """Draft 접두어를 **모두** 떼어 낸다(겹쳐 붙은 경우 포함).
+    한 번만 떼면 남은 'Draft:' 가 요약의 일부로 취급되어 제목 보정이 중복된다
+    (실측 2026-08-28: 'Draft: [Infra] docs: Draft: [Infra] docs: …', S15P21B202-105)."""
+    title, found = title.strip(), False
+    while True:
+        m = DRAFT_RE.match(title)
+        if not m:
+            return title.strip(), found
+        title, found = title[m.end():].strip(), True
 
 
 def key_from_branch(branch: str) -> str | None:
