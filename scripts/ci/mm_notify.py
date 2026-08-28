@@ -1,7 +1,7 @@
 """mm_notify — MR 파이프라인에서 Mattermost 로 보내는 '담당자 태그가 있는' 알림 2종.
 
   python scripts/ci/mm_notify.py mr-opened   # 🟢 리뷰 요청 — 이 MR 의 첫 파이프라인일 때만 1회, 팀장 @멘션(+작성자 표기)
-  python scripts/ci/mm_notify.py ci-failed   # 🔴 CI 실패 — 실패한 잡 이름·링크, MR 작성자 @멘션
+  python scripts/ci/mm_notify.py ci-failed   # 🔴 CI 실패 — 실패한 잡 이름·링크, **실패 이유(❌ 줄)**, MR 작성자 @멘션 + 같은 내용을 MR 코멘트로
 
 원칙(docs/ci-and-notifications.md §5): 태그할 사람이 없는 메시지는 보내지 않는다. 첫 줄 = 등급 이모지 + 굵은 제목 + 링크,
 둘째 줄 = @멘션 + 조치. 사용자 매핑은 scripts/ci/team.json. 필요 변수: MM_WEBHOOK_URL, GITLAB_TOKEN(파이프라인·잡 조회).
@@ -62,6 +62,38 @@ def mr_opened(gl: GitLab) -> int:
     ]))
 
 
+FAIL_MARKER = "<!-- ci-failed:metagame -->"
+MAX_REASONS = 3
+
+
+def failure_reasons(gl: GitLab, jobs: list[dict]) -> list[tuple[str, str]]:
+    """실패한 잡의 로그에서 ❌ 줄을 뽑아 [(잡 이름, 이유)] 로. 로그를 못 읽어도 알림은 나가야 하므로 조용히 건너뛴다.
+    사람이 로그를 찾아 들어가지 않아도 되게 하는 것이 목적(S15P21B202-102)."""
+    out: list[tuple[str, str]] = []
+    for j in jobs:
+        try:
+            st, trace = http("GET", f"{gl.api}/projects/{gl.project}/jobs/{j['id']}/trace", gl._h())
+        except Exception as e:  # noqa: BLE001
+            print(f"  [{j.get('name')}] 로그 조회 실패(무시): {type(e).__name__}: {e}"); continue
+        if st != 200 or not isinstance(trace, str):
+            continue
+        for line in trace.splitlines():
+            if "❌" in line:
+                reason = line.split("❌", 1)[1].strip()
+                reason = " ".join(reason.split())          # 타임스탬프·제어문자 정리
+                if reason and (j["name"], reason) not in out:
+                    out.append((j["name"], reason))
+    return out
+
+
+def upsert_mr_comment(gl: GitLab, body: str) -> None:
+    """같은 내용을 MR 코멘트로도 남긴다(마커로 갱신 → 재실행해도 쌓이지 않음)."""
+    if not gl.can_write:
+        print("GITLAB_TOKEN 없음 → MR 코멘트 생략"); return
+    st, _ = gl.upsert_note(FAIL_MARKER, body)
+    print(f"MR 코멘트 {'게시/갱신' if st in (200, 201) else '실패 ' + str(st)}")
+
+
 def ci_failed(gl: GitLab) -> int:
     mr = gl.get_mr()
     author = (mr.get("author") or {}).get("username", "")
@@ -74,19 +106,34 @@ def ci_failed(gl: GitLab) -> int:
         if st == 200 and isinstance(jobs, list):
             failed = [j for j in jobs if j.get("status") == "failed" and not j.get("allow_failure")]
     title, _ = strip_draft(mr.get("title") or "")
+    reasons = failure_reasons(gl, failed) if failed else []
     if failed:
         parts = " · ".join(f"[{j['name']}]({j['web_url']})" for j in failed)
         hint = {"mr-lint": "제목/본문/Jira 규칙", "repo-hygiene": "금지 파일·.meta·LFS·씬 선언", "unity-compile": "컴파일 오류"}
         hints = ", ".join(sorted({hint.get(j["name"], j["name"]) for j in failed}))
     else:
         parts, hints = f"[파이프라인]({env('CI_PIPELINE_URL', '')})", "잡 로그 확인"
-    return send(card("🔴 **CI 실패**", [
+    shown = reasons[:MAX_REASONS]
+    reason_cell = ("<br>".join(f"{r}" for _, r in shown) + (f"<br>… 외 {len(reasons) - len(shown)}건" if len(reasons) > len(shown) else "")) \
+        if shown else "로그에서 이유를 찾지 못함 — 잡 링크에서 확인"
+    rows = [
         ("MR", f"[!{gl.iid} {title}]({mr.get('web_url')})"),
         ("작성자", mention),
         ("실패한 잡", parts),
+        ("이유", reason_cell),
         ("확인할 것", hints),
-        ("조치", "고친 뒤 push 하면 자동 재검사 · 로그의 ❌ 줄에 이유와 고치는 법이 있음"),
-    ]))
+        ("조치", "MR 코멘트의 '무엇이 왜 실패했는지' 를 보고 고친 뒤 push 하면 자동 재검사"),
+    ]
+    # MR 코멘트: 사람이 이미 보고 있는 곳에 이유를 그대로 남긴다
+    if reasons:
+        lines = "\n".join(f"- **{name}** — {reason}" for name, reason in reasons)
+    else:
+        lines = "- 로그에서 ❌ 줄을 찾지 못했습니다. 위 잡 링크에서 직접 확인해 주세요."
+    comment = (f"{FAIL_MARKER}\n🔴 **CI 실패 — 무엇이 왜 실패했는지**\n\n{lines}\n\n"
+               f"고친 뒤 다시 push 하면 자동으로 재검사되고 이 코멘트도 갱신됩니다. "
+               f"({parts})\n\n<sub>자동 생성(mm-notify) · 규칙 설명은 docs/git-convention.md · docs/ci-and-notifications.md</sub>")
+    upsert_mr_comment(gl, comment)
+    return send(card("🔴 **CI 실패**", rows))
 
 
 def main() -> int:
