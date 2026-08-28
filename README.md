@@ -18,7 +18,7 @@ Unity 3D 게임 프로젝트입니다.
 ### clone 및 프로젝트 열기
 
 ~~~bash
-git lfs install
+git lfs install --skip-repo   # 훅은 리포의 .githooks 를 쓰므로 --skip-repo (없이 하면 'Hook already exists' 경고, --force 는 금지)
 git clone https://lab.ssafy.com/s15-metaverse-game-sub1/S15P21B202.git
 cd S15P21B202
 ~~~

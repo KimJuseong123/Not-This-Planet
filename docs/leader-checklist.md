@@ -76,3 +76,12 @@
 - [ ] **스케줄 파이프라인**: Build → Pipeline schedules → 평일 09:30 `develop` (mm-digest 가 needs-fix·기한 초과·정체 이슈·오래 열린 MR 요약 전송)
 - [ ] (안정화 1주 후) Settings → Merge requests → **Pipelines must succeed** 켬 → 위반 MR은 머지 버튼이 비활성
 - [ ] (Unity 러너 준비 후) 변수 `UNITY_RUNNER=true`, `UNITY_PATH` = Unity **6000.5.4f1** Editor 경로(현재 SSAFY PC엔 6000.0.81f1만 설치 — 버전 맞춰야 함), 러너 태그 `unity-win`
+
+## 6. 2026-08-27 저녁 추가 (E2E 준비 · 워크플로우 v2.1 피드백에서 나온 것)
+
+| # | 할 일 | 어디서 | 비고 |
+| --- | --- | --- | --- |
+| 6-1 | **아침 점검 스케줄 등록** — CI/CD → Schedules → New: 설명 `mm-digest`, Interval `30 9 * * 1-5`, Timezone `Asia/Seoul`, Target `develop` | GitLab | 보호 브랜치라 소유자가 Maintainer 여야 파이프라인이 생성됨. 등록 후 ▶ 로 1회 실행해 📋 카드 확인 |
+| 6-2 | ~~규칙 실패 이메일 끄기~~ → **켜 둔다**(2026-08-27 결정). 아침 점검의 "머지됐는데 완료 안 된 이슈"(-83)는 보조 장치 | Jira | 규칙 소유자(금준영) 이메일로 계속 수신 |
+| 6-3 | MR !35(-81 LFS 훅) · !36(-82 AI 리뷰 v2) · !37(-83 완료 누락 감지) · -79(워크플로우 문서) 머지 | GitLab | !36 은 파이프라인의 `ai-review` 코멘트가 새 형식인지 보고 머지. !37 머지 후 6-1 스케줄 ▶ 1회 실행 |
+| 6-4 | (선택) Mattermost 통합(Pipeline) 끄기 — develop 에는 파이프라인이 생기지 않아 어차피 조용함 | GitLab | 노이즈 없음, 그대로 둬도 무해 |

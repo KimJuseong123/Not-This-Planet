@@ -43,9 +43,9 @@ MR 머지 ────▶ [완료]         ⚙ 손으로 끌면 무조건 되돌
 - 트리거 **이슈 생성됨**
 - 액션 **업무 항목 데이터 다시 가져오기** 지연 **3초**(2026-08-27 추가 — 생성 직후 인덱싱 레이스로 편집이 실패한 -46 사례 대응)
 - 조건 이슈 유형 ≠ Epic
-- 액션 **If** 설명 비어 있음 → **이슈 편집** 설명 = 템플릿 본문
+- 액션 **If** 설명 비어 있음 → **이슈 편집** 설명 = 템플릿 본문([`docs/templates/jira-issue-description.md`](./templates/jira-issue-description.md)). **본문은 Jira 위키 마크업**(`h2.` 제목 · `*` 불릿)이며 **중괄호를 쓰지 않는다** — ① Markdown `## 제목` 을 넣으면 `#` 가 번호 목록으로 해석되어 `1. → a. 목적 / 배경` 으로 깨지고, ② 위키 마크업의 고정폭 표기 `{{경로}}` 를 넣으면 Automation 이 스마트 값으로 해석해 `Failed to get value for …` 로 **액션 자체가 실패**한다(둘 다 2026-08-27 실측, `apply_rules15.py`→`apply_rules16.py` 로 정정)
 - ~~액션 **이슈 편집** 보고자 = `{{issue.parent.assignee}}`~~ **폐기·삭제 완료(2026-08-27 11:00, 보고자는 생성자 그대로)**
-- 액션 **이슈 편집** 레이블 추가 = `{{issue.summary.match("^\[(\w+)\]")}}`
+- ~~액션 **이슈 편집** 레이블 추가~~ → **R2 가 담당**(2026-08-27 규칙 덤프로 확인 — 이 줄은 문서 오류였다)
 - 액션 **If** 기한 비어 있음 AND 스프린트 있음 → **이슈 편집** 기한 = `{{issue.customfield_10020.last.endDate.jiraDate}}`
 
 ### R2 · 제목 형식 검사
@@ -58,6 +58,8 @@ MR 머지 ────▶ [완료]         ⚙ 손으로 끌면 무조건 되돌
 
 ### R4 · 브랜치 생성 → 진행 중
 - 트리거 **브랜치 생성됨** (DevOps 그룹)
+- 조건(2026-08-28 추가) **이슈 유형 ≠ Epic** — 맨 앞에 두어 Epic 에는 레이블도 전환도 적용되지 않는다. 이 조건이 없던 동안 Epic 키로 브랜치를 만들면 Epic 이 진행 중으로 바뀌었다(E2E C9 검증 중 실측). R5·R6·R9 와 같은 기준으로 맞춤
+- 액션 **이슈 편집** 레이블 추가 = `has-branch` (조건보다 **앞**에 두어 항상 표시가 남는다 — Cloud JQL 은 `development[branches]` 를 지원하지 않아(400, 2026-08-27 실측) R5 가 브랜치 존재를 알 수 있는 유일한 방법)
 - 조건 상태 = `해야 할 일` · 레이블 ∌ `needs-fix`
 - 액션 **이슈 전환** → `진행 중`
 
@@ -65,21 +67,25 @@ MR 머지 ────▶ [완료]         ⚙ 손으로 끌면 무조건 되돌
 - 트리거 **이슈 전환됨** (도착: `진행 중`)
 - 규칙 상세 → **"다른 규칙의 액션이 이 규칙을 트리거하도록 허용" 체크 해제** (필수 — R4의 전환에 반응하면 루프)
 - (보조 조건) 고급 비교 `{{initiator.displayName}}` ≠ `Automation for Jira`
-- 액션 **If/Else**: **JQL 조건** `(development[commits].all > 0 OR development[pullrequests].all > 0) AND sprint is not EMPTY AND "Story Points" is not EMPTY`
+- 액션 **If/Else**: **JQL 조건** `labels = has-branch OR development[commits].all > 0 OR development[pullrequests].all > 0`
   - If → (액션 없음: 통과, 카운트되지 않음)
-  - Else → **이슈 전환** → `해야 할 일` · 코멘트 `진행 중은 이슈 화면의 **브랜치 만들기**로만 진입합니다. 스프린트와 스토리 포인트도 채워 주세요.`
+  - Else → **이슈 전환** → `해야 할 일` · 코멘트 `진행 중은 이 화면 오른쪽 "개발" 패널의 **브랜치 만들기**로만 진입합니다. (자동 되돌림)`
+  - **적용·검증 완료 2026-08-27 밤** (테스트 이슈 -93: 브랜치 생성 → `Infra` + `has-branch` 레이블 공존, 손으로 진행 중 → 유지, 브랜치 없는 이슈 → 되돌림 확인)
+- **2026-08-27 수정(-88 사고)**: 이전 조건은 커밋·MR 만 봤고 `sprint`·`Story Points` 가 비면 되돌렸다 → 브랜치만 만든 이슈(-88)를 손으로 옮겼을 때 되돌아갔다. Cloud JQL 이 브랜치를 못 보므로 R4 가 붙이는 `has-branch` 레이블로 대체하고, SP·스프린트 누락은 규칙이 아니라 아침 점검이 드러내도록 분리
 
   > 스토리 포인트 필드명은 이 프로젝트에서 `Story Points`(customfield_10031)로 확인됨.
   > `development[branches]`는 Cloud JQL에 없음(실측) → 이슈 키가 든 커밋/MR 존재로 대체. 정상 경로는 R4가 처리.
 
 ### R6 · MR 머지 → 완료
-- 조건(보강 2026-08-27, 17:00 재도입) **고급 비교** `{{pullRequest.sourceBranch.match("^(?:hotfix/)?(S15P21B202-\d+).*$")}}` = `{{issue.key}}` — MR 본문에 언급된 다른 이슈에는 반응하지 않음 · **이슈 유형 ≠ Epic**. ※ `match()` 는 **문자열 전체 일치 + 첫 캡처 그룹 반환**이라 끝의 `.*` 가 없으면 항상 빈 값(15:2x~16:1x R6 정지 사고의 원인)
+- 조건(2026-08-28 추가, 스택 MR 대응) **고급 비교** `{{pullRequest.destinationBranch.name.match("^(?:hotfix/)?(S15P21B202-\d+)")}}` **EQUALS** `""` — 대상이 작업 브랜치면 키가 잡혀 조건이 실패하므로 완료 전환하지 않는다(스택 MR 은 develop 에 들어간 것이 아니므로). 일부러 "대상 = develop" 이 아니라 이렇게 쓴 이유는 스마트 값이 비어도 `""` 가 되어 **기존 동작(완료)이 유지**되기 때문(fail-open). 실측(MR !43 머지): `dest=develop | name=develop | match=(빈 값)` → 조건 통과 → 이슈 완료 확인
+- 조건(최종 2026-08-27 18:00) **고급 비교** `{{pullRequest.sourceBranch.name.match("^(?:hotfix/)?(S15P21B202-\d+)")}}` = `{{issue.key}}` — MR 본문에 언급된 다른 이슈에는 반응하지 않음 · **이슈 유형 ≠ Epic** · 액션 끝에 **웹 요청 보내기**(🟢 머지 완료 카드, 담당자 @멘션). ※ `pullRequest.sourceBranch` 는 **객체**여서 직접 `.match()` 하면 빈 값(두 차례 R6 정지 사고의 원인) — 문자열은 `.name`. `match()` 자체는 부분 일치·`\d`·캡처 그룹 모두 정상(탐침 검증)
 - 트리거 **풀 리퀘스트 병합됨**
 - 액션 **이슈 전환** → `완료`
 
 ### R7 · MR 닫힘 알림
+- **알려진 현상(2026-08-28 확인)**: GitLab 이 MR 닫기 한 번에 `풀리퀘스트 거부됨` 이벤트를 **두 번** 보낸다(감사 로그: 10:50:30·10:50:31 두 실행, 각각 성공). 댓글은 `한 번만 추가` 옵션으로 합쳐지지만 **웹훅에는 중복 억제 옵션이 없어 MM 카드가 2회** 온다. 억제 방법 검토 결과 두 실행이 1초 차이라 "직전 댓글 확인" 조건도 경합이고 `데이터 다시 가져오기` 지연도 양쪽에 동일하게 걸려 무효 → **그대로 두기로 결정**(머지 없이 닫는 일 자체가 드물고 내용이 같은 카드라 오해 소지 없음)
 - 트리거 **풀 리퀘스트 거부됨(declined)**
-- 조건(보강 2026-08-27, 17:00 재도입) **고급 비교** `{{pullRequest.sourceBranch.match("^(?:hotfix/)?(S15P21B202-\d+).*$")}}` = `{{issue.key}}` · 액션 끝에 **웹 요청 보내기**(MM 표 카드, 담당자 @멘션)
+- 조건(최종 2026-08-27) **고급 비교** `{{pullRequest.sourceBranch.name.match("^(?:hotfix/)?(S15P21B202-\d+)")}}` = `{{issue.key}}` · 액션 끝에 **웹 요청 보내기**(MM 표 카드, 담당자 @멘션)
 - **MM 웹 요청 공통(2026-08-27 적용)**: R2(제목 위반·상위 Epic 없음 분기), R5·R9(되돌림 분기 끝), R7 에 `jira.issue.outgoing.webhook` 액션. 본문 `{"text": "…"}`, 요약·이름은 `{{issue.summary.jsonEncode}}` 처럼 JSON 이스케이프. 웹훅 URL 은 규칙 안에만 존재(리포·채팅 X). 새 규칙에 알림을 붙일 땐 R7 의 액션을 복사
 - 액션 코멘트 `MR이 머지 없이 닫혔습니다. 다시 열거나 새 MR을 만드세요.`
 
@@ -212,7 +218,9 @@ MR 머지 ────▶ [완료]         ⚙ 손으로 끌면 무조건 되돌
 
 - `{base}` = `https://ssafy.atlassian.net/gateway/api/automation/internal-api/jira/{cloudId}/pro/rest`, projectId `22557`, cloudId `15a21def-11f5-4358-ab48-074194685963`.
 - **웹 요청(MM) 액션** 타입 `jira.issue.outgoing.webhook`, value keys `url·urlSecure·headers·sendIssue·contentType·customBody·method·responseEnabled·continueOnErrorEnabled`. customBody 는 렌더링 전 원문이므로 `{{…}}` 안 큰따옴표를 이스케이프하면 조건이 깨진다(작은따옴표 리터럴은 액션 실패). 표본 1개를 UI 로 만들고 복제하는 방식이 가장 안전.
-- **DevOps 트리거 스마트값**(`pullRequest.*`)은 실제 이벤트 전엔 검증 불가 — 조건에 쓰기 전에 댓글로 값을 찍어 확인할 것(R6 사고 참고). 2026-08-27 실측: `{{pullRequest.sourceBranch}}`·`.name`·`{{pullRequest.title}}`·`{{pullRequest.url}}` 모두 정상, **`match(regex)` 는 전체 일치 + 첫 캡처 그룹**(`.*` 로 감쌀 것). 조건식 문자열 리터럴은 큰따옴표만.
+- **DevOps 트리거 스마트값**(`pullRequest.*`)은 실제 이벤트 전엔 검증 불가 — 조건에 쓰기 전에 댓글로 값을 찍어 확인할 것(R6 사고 참고). 2026-08-27 실측(규칙 JSON 구조): `jira.jql.condition` 컴포넌트의 `value` 는 **문자열**(dict 아님)이라 스크립트로 훑을 때 문자열도 함께 봐야 한다. 레이블 추가는 `jira.issue.edit` 의 `advancedFields` 에 `{"update": {"labels": [{"add": "…"}]}}` 를 넣으면 기존 레이블을 지우지 않는다(`fields` 로 넣으면 덮어써 파트 레이블·needs-fix 가 사라진다).
+
+2026-08-27 실측: `{{pullRequest.sourceBranch}}` 는 렌더링하면 이름이지만 **객체**라 `.match()` 등 문자열 함수는 `.name` 에 걸어야 함(`{{pullRequest.sourceBranch.name.match(...)}}`). `{{pullRequest.title}}`·`{{pullRequest.url}}` 정상. `match(regex)` 는 부분 일치, `\d`·캡처 그룹 정상(issue.key/summary 탐침). 조건식 문자열 리터럴은 큰따옴표만.
 - **새 컴포넌트의 id는 `"__NEW__COMPONENT__<uuid>"`** (null·임의 UUID는 "컴포넌트 ID 불일치/중복" 400). 중첩은 `children`/`conditions` 배열로.
 - 컴포넌트 타입: `jira.issue.event.trigger:created|transitioned`, `jira.issue.field.changed`(value `{"changeType":"ANY_CHANGE","fields":[{"value":"<fieldId>","type":"field"}],"actions":[],"eventFilters":[ARI]}`), `devops.branch.event.trigger:created`, `devops.pr.event.trigger:merged|declined`, `jira.issue.condition`, `jira.comparator.condition`, `jira.jql.condition`(value=JQL 문자열), `jira.condition.container.block` + `jira.condition.if.block`(ELSE = 조건 없는 if.block), `jira.issue.transition`(destinationStatus NAME 영문), `jira.issue.comment`, `jira.issue.edit`(`advancedFields`에 Jira REST 편집 JSON 문자열), `jira.issue.refresh.issue`, `codebarrel.action.log`.
 - 세션 확보는 Playwright(`launch_persistent_context`, channel="chrome")로 로그인 창을 띄운 뒤 같은 컨텍스트의 `page.request`로 호출. 동기 API 대기는 `time.sleep` 대신 `page.wait_for_timeout`.
