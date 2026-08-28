@@ -125,6 +125,7 @@ docs: 로비 BGM 레퍼런스 조사 기록 (S15P21B202-27)
 | 겹 | 장치 | 막는 것 | 비고 |
 | --- | --- | --- | --- |
 | **서버** | GitLab 보호 브랜치: `develop`·`master` = push No one / merge Maintainers, `hotfix/S15P21B202-*` = Maintainers. **작업 브랜치는 보호하지 않음**(2026-08-27 해제 — 그 전엔 `*` No one + `S15P21B202-*` 허용으로 이름을 서버에서 거부했으나, 머지 시 자동 삭제 불가·개발자 삭제 불가 부작용) | develop·master 직접 push, 팀장 외 머지 | 이름 규칙은 아래 3겹이 담당. 머지 시 **소스 브랜치 자동 삭제**(프로젝트 기본값 ON) |
+| **스택 MR** | 작업 브랜치 → 작업 브랜치 MR 은 **허용**(2026-08-28). 다만 머지해도 그 이슈는 자동 완료되지 않으니, 부모 브랜치가 develop 에 머지된 뒤 이슈를 손으로 완료한다(머지된 MR 이 있어 R9 가 허용). 대상이 develop 인 MR 이 최종 관문이다 | — |
 | **로컬** | `.githooks/pre-push` | 형식 안 맞는 push를 서버까지 가기 전에 차단 (친절한 안내 메시지) → 이어서 `git lfs pre-push` 실행(LFS 업로드 유지) | 클론 후 1회 `git config core.hooksPath .githooks` |
 | **Jira** | 자동화 되돌림 (R5·R9) | 브랜치 없이 진행 중, 머지 없이 완료 | 키가 실존하지 않는 브랜치는 Jira가 무시 → 보드에 아무 일이 안 생겨 드러남 |
 | **CI** (러너 후) | `mr-lint` — 제목·브랜치 형식, **Jira 키 실존 확인**, 템플릿 섹션·체크박스 | 규칙 위반 MR의 머지 | "Pipelines must succeed" |
