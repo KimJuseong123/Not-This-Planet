@@ -10,9 +10,9 @@ public record WsMessage(String type, JsonNode data) {
 
     public enum Type {
         // Client → Server
-        CREATE_ROOM, JOIN_ROOM, LEAVE_ROOM, READY, START_GAME,
+        CREATE_ROOM, JOIN_ROOM, LEAVE_ROOM, READY, START_GAME, PLAYER_MOVE,
         // Server → Client
-        ROOM_CREATED, ROOM_STATE, GAME_STARTED, STATE_SYNC, ERROR
-        // TODO: 게임 기획 확정 후 게임플레이 메시지 추가 (PLAYER_MOVE, CHECKPOINT_REACHED 등)
+        ROOM_CREATED, ROOM_STATE, GAME_STARTED, STATE_SYNC, PLAYER_MOVED, ERROR
+        // TODO: 소생·체크포인트 메시지는 기획 확정 후 추가 (S15P21B202-55)
     }
 }

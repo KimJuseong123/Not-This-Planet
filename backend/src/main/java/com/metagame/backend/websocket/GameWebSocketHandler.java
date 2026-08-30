@@ -14,6 +14,7 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
@@ -69,6 +70,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 case LEAVE_ROOM -> leaveRoom(session, userId);
                 case READY -> ready(userId, msg.data().get("ready").asBoolean());
                 case START_GAME -> startGame(userId);
+                case PLAYER_MOVE -> playerMove(userId, msg.data());
                 default -> send(session, WsMessage.Type.ERROR, Map.of("message", "unknown type"));
             }
         } catch (RuntimeException e) {
@@ -151,7 +153,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 return;
             }
             graceManager.cancel(roomId, userId);
-            session.getAttributes().put(ROOM_ID_ATTR, roomId);
+            session.getAttributes().put(ROOM_ID_ATTR, room.getRoomId());   // 클라이언트가 보낸 대소문자가 아닌 정규화된 코드를 보관
             if (room.getGameState() != null) {
                 room.getGameState().setDowned(userId, true);   // 재입장 시 기절 상태로 복귀
             }
@@ -165,7 +167,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             send(session, WsMessage.Type.ERROR, Map.of("message", "cannot join room"));
             return;
         }
-        session.getAttributes().put(ROOM_ID_ATTR, roomId);
+        session.getAttributes().put(ROOM_ID_ATTR, room.getRoomId());   // 클라이언트가 보낸 대소문자가 아닌 정규화된 코드를 보관
         broadcastRoomState(room);
     }
 
@@ -201,6 +203,32 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         broadcast(room, WsMessage.Type.GAME_STARTED, Map.of("roomId", room.getRoomId()));
     }
 
+    /**
+     * 자기 위치를 같은 방의 다른 사람들에게 전달한다. 보낸 사람에게는 되돌려 보내지 않는다.
+     * 서버는 물리를 계산하지 않고 중계만 하며, 마지막 위치는 GameState에 남겨
+     * 복귀한 플레이어가 끊긴 자리에서 이어갈 수 있게 한다.
+     */
+    private void playerMove(Long userId, JsonNode data) {
+        Room room = roomOf(userId);
+        if (room == null || room.getStatus() != Room.Status.PLAYING || room.getGameState() == null) {
+            return;
+        }
+
+        float x = (float) data.get("x").asDouble();
+        float y = (float) data.get("y").asDouble();
+        float z = (float) data.get("z").asDouble();
+        float yaw = data.has("yaw") ? (float) data.get("yaw").asDouble() : 0f;
+        room.getGameState().setPosition(userId, x, y, z, yaw);
+
+        Map<String, Object> moved = new LinkedHashMap<>();
+        moved.put("userId", userId);
+        moved.put("x", x);
+        moved.put("y", y);
+        moved.put("z", z);
+        moved.put("yaw", yaw);
+        broadcastExcept(room, userId, WsMessage.Type.PLAYER_MOVED, moved);
+    }
+
     private Room roomOf(Long userId) {
         WebSocketSession session = sessions.get(userId);
         if (session == null) {
@@ -229,9 +257,22 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     }
 
     private void broadcast(Room room, WsMessage.Type type, Map<String, Object> data) {
+        broadcastExcept(room, null, type, data);
+    }
+
+    /**
+     * 세션은 userId로만 찾으므로, 재접속으로 세션이 바뀐 뒤 옛 방의 브로드캐스트가
+     * 새 세션으로 새어 나갈 수 있다. 세션이 실제로 그 방에 속해 있는지 확인하고 보낸다.
+     */
+    private void broadcastExcept(Room room, Long excludedUserId, WsMessage.Type type,
+                                 Map<String, Object> data) {
         for (Long playerId : room.playerIds()) {
+            if (playerId.equals(excludedUserId)) {
+                continue;
+            }
             WebSocketSession session = sessions.get(playerId);
-            if (session != null && session.isOpen()) {
+            if (session != null && session.isOpen()
+                    && room.getRoomId().equals(session.getAttributes().get(ROOM_ID_ATTR))) {
                 send(session, type, data);
             }
         }

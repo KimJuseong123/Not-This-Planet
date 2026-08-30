@@ -221,6 +221,60 @@ class GameWebSocketIntegrationTest {
         assertThat(guest.await("GAME_STARTED").get("roomId").asString()).isEqualTo(code);
     }
 
+    // ---------- 인게임 위치 중계 ----------
+
+    @Test
+    void positionIsRelayedToOthersButNotBackToSender() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        startedRoom(host, guest);
+
+        host.send("PLAYER_MOVE", Map.of("x", 1.5, "y", 0.0, "z", 3.25, "yaw", 90.0));
+
+        JsonNode moved = guest.await("PLAYER_MOVED");
+        assertThat(moved.get("userId").asLong()).isEqualTo(host.userId);
+        assertThat(moved.get("x").asDouble()).isEqualTo(1.5);
+        assertThat(moved.get("z").asDouble()).isEqualTo(3.25);
+        assertThat(moved.get("yaw").asDouble()).isEqualTo(90.0);
+        assertThat(host.messageWithin(400)).isNull();
+    }
+
+    @Test
+    void positionIsIgnoredWhileRoomIsStillWaiting() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        String code = createRoom(host);
+        guest.send("JOIN_ROOM", Map.of("roomId", code));
+        host.await("ROOM_STATE");
+        guest.await("ROOM_STATE");
+
+        host.send("PLAYER_MOVE", Map.of("x", 1.0, "y", 0.0, "z", 1.0));
+
+        assertThat(guest.messageWithin(400)).isNull();
+    }
+
+    @Test
+    void lastPositionSurvivesDisconnectAndComesBackOnRejoin() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        String code = startedRoom(host, guest);
+        long guestId = guest.userId;
+
+        guest.send("PLAYER_MOVE", Map.of("x", 7.5, "y", 1.0, "z", -2.5, "yaw", 45.0));
+        host.await("PLAYER_MOVED");
+        guest.close();
+        host.await("ROOM_STATE");
+
+        TestClient returning = connect("영희", "device-b");
+        returning.send("JOIN_ROOM", Map.of("roomId", code));
+
+        JsonNode state = returning.await("STATE_SYNC").get("gameState")
+                .get("players").get(String.valueOf(guestId));
+        assertThat(state.get("x").asDouble()).isEqualTo(7.5);
+        assertThat(state.get("z").asDouble()).isEqualTo(-2.5);
+        assertThat(state.get("downed").asBoolean()).isTrue();
+    }
+
     // ---------- 끊김과 복귀 ----------
 
     @Test
@@ -402,6 +456,13 @@ class GameWebSocketIntegrationTest {
                 }
             }
             throw new AssertionError(type + " 메시지를 받지 못했습니다");
+        }
+
+        /** 주어진 시간 동안 도착한 메시지. 아무것도 안 오면 null (실패 시 내용을 보여주기 위해 문자열을 돌려준다). */
+        @SuppressWarnings("unchecked")
+        String messageWithin(long ms) throws Exception {
+            BlockingQueue<String> inbox = (BlockingQueue<String>) session.getAttributes().get("inbox");
+            return inbox.poll(ms, TimeUnit.MILLISECONDS);
         }
 
         void close() {
