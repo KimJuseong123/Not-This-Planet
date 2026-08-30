@@ -9,9 +9,9 @@
 | **처음 왔다** (오늘 하루 안에) | [workflow.md](./workflow.md) §0 흐름도 → [convention-proposal.md](./convention-proposal.md) 한 장 요약 → 아래 "클론 후 1회 설정" |
 | **이슈를 만든다** | [jira-convention.md](./jira-convention.md) (Epic/Task·필수 필드·파트 레이블·스토리 포인트) |
 | **브랜치를 만들고 작업한다** | [git-convention.md](./git-convention.md) (브랜치 이름·커밋 메시지·push 전 자동 반영·Unity 규칙) |
-| **MR 을 올린다** | [git-convention.md](./git-convention.md) §5 (MR 규칙·승인) · MR 템플릿은 자동으로 들어온다 |
+| **MR 을 올린다** | [mr-flow.md](./mr-flow.md) — 검사가 무엇을 보는지 · 다른 MR 과 같은 파일을 고쳤을 때 · 스택 쌓기(그림) |
 | **검사가 빨간불이다** | [ci-and-notifications.md](./ci-and-notifications.md) (잡별로 무엇을 보는지·실패 이유를 어디서 보는지) |
-| **팀장이 리뷰·머지한다** | [leader-checklist.md](./leader-checklist.md) |
+| **팀장이 리뷰·머지한다** | [leader-checklist.md](./leader-checklist.md) · [mr-flow.md](./mr-flow.md) §3 머지 순서(아래부터) |
 | **Jira 자동화가 이상하다** | [jira-gitlab-automation.md](./jira-gitlab-automation.md) (규칙 R1~R9 명세·실측 기록·사고 이력) |
 | **CI·알림을 고친다** (Infra) | [ci-and-notifications.md](./ci-and-notifications.md) → `scripts/ci/` → 오프라인 테스트 `python scripts/ci/tests/run_all.py` |
 | **자동화를 사람이 확인한다** | [e2e-checklist.md](./e2e-checklist.md) (시나리오별 준비·행동·기대·실측 결과) |
