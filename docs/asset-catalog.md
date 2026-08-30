@@ -2,8 +2,7 @@
 
 > 기준 커밋: `develop` **054a2a6** · 작성 2026-08-27 · 이슈 [S15P21B202-80](https://ssafy.atlassian.net/browse/S15P21B202-80)
 > 갱신 2026-08-27 — 환경 자연물 연결과 `Main.unity` 아트 배치 · 이슈 [S15P21B202-84](https://ssafy.atlassian.net/browse/S15P21B202-84)
-> 갱신 2026-08-28 — Stage1 운석 모델·PBR 텍스처 3종 추가 · 이슈 [S15P21B202-98](https://ssafy.atlassian.net/browse/S15P21B202-98)
-> 갱신 2026-08-28 — 운석 Material·프리팹 연결과 스포너 적용
+> 갱신 2026-08-28 — Stage1 운석 모델·PBR 텍스처 4종 교체 · 이슈 [S15P21B202-98](https://ssafy.atlassian.net/browse/S15P21B202-98)
 > 관련 문서: [문서 목록](./README.md) · [1장 기획](./planning/chapter-1-plan.md) · [파트 구분](./parts.md)
 
 **어떤 에셋이 무엇이고, 씬에 갖다 쓸 수 있는 상태인지** 한 장에서 확인하는 문서다.
@@ -49,11 +48,11 @@ FBX 파일만 열어봐서는 크기를 알 수 없다. Tripo3D로 만든 13종�
 
 | 종류 | 수량 | 상태 |
 | --- | ---: | --- |
-| FBX 모델 | 17 | 사용 가능 16 · 기존 1 |
+| FBX 모델 | 18 | 사용 가능 13 · 미연결 4 · 기존 1 |
 | 텍스처 (`Textures/`) | 24 | Stage1 PBR 20 · 콘셉트 4 |
-| 텍스처 (`.fbm/` 임베드) | 21 | 캐릭터 2 · 환경 7 · 운석 PBR 12 |
-| Material | 16 | 전부 사용 가능 (파츠·소품 5 · 환경 7 · 운석 3 · 아레나 지면 1) |
-| Prefab | 18 | Stage1 아트 15 · 게임플레이 1 · 기존 2 |
+| 텍스처 (`.fbm/` 임베드) | 25 | 캐릭터 2 · 환경 7 · 운석 PBR 16 |
+| Material | 12 | 전부 사용 가능 (파츠·소품 5 · 환경 7) |
+| Prefab | 14 | Stage1 12 · 기존 2 |
 | Shader | 3 | 기존 SpaceFlop 런타임 전용 |
 | Scene | 1 | `Scenes/Main.unity` — Stage1 프리팹 12종이 122개 배치돼 있다 |
 | Unity 설정 Asset | 8 | URP 7 · Readme 1 |
@@ -168,61 +167,28 @@ Material·프리팹은 `Stage1EnvironmentAssets` 에디터 도구가 만든다
 
 ---
 
-## 6-1. Stage1 운석 — 사용 가능 (3종)
+## 6-1. Stage1 운석 — 미연결 (4종)
 
 [S15P21B202-98](https://ssafy.atlassian.net/browse/S15P21B202-98)에서 Tripo 산출물을
-영문 snake_case 이름으로 정리하고 Unity 임포트를 확인했다.
-이어서 Material 3개와 아트 프리팹 3개를 만들고, 낙하 본체는 게임플레이 프리팹까지 만들어
-[운석 퍼즐 런타임](https://ssafy.atlassian.net/browse/S15P21B202-70)의 스포너에 연결했다(아래 "연결 상태").
+영문 snake_case 이름으로 정리하고 Unity 임포트를 확인했다. 현재는 FBX와 PBR 텍스처까지 준비됐으며,
+Material·Prefab 및 [운석 퍼즐 런타임](https://ssafy.atlassian.net/browse/S15P21B202-70) 연결은 아직 하지 않았다.
 
 | 프리뷰 | 모델 | 용도 | FBX 원본 | globalScale | **실제 크기** | 삼각형 |
 | --- | --- | --- | --- | ---: | --- | ---: |
-| <img src="./assets/previews/meteor_projectile.png" width="100"> | `meteor_projectile` | 낙하·충돌 전 운석 본체 | 0.98 × 0.96 × 0.92 m | 1 | **0.98 × 0.96 × 0.92 m** | 87,792 |
-| <img src="./assets/previews/meteor_fragment_large.png" width="100"> | `meteor_fragment_large` | 충돌 후 큰 파편 | 0.98 × 0.93 × 0.79 m | 1 | **0.98 × 0.93 × 0.79 m** | 89,508 |
-| <img src="./assets/previews/meteor_fragment_small.png" width="100"> | `meteor_fragment_small` | 충돌 후 작은 파편 | 0.98 × 0.80 × 0.65 m | 1 | **0.98 × 0.80 × 0.65 m** | 86,570 |
+| <img src="./assets/previews/meteor_main_front.png" width="100"> | `meteor_main` | 낙하·충돌 전 운석 본체 | 0.97 × 0.96 × 0.98 m | 1 | **0.97 × 0.96 × 0.98 m** | 17,790 |
+| <img src="./assets/previews/meteor_debris_large_front.png" width="100"> | `meteor_debris_large` | 충돌 후 큰 파편 | 0.98 × 0.66 × 0.82 m | 1 | **0.98 × 0.66 × 0.82 m** | 18,030 |
+| <img src="./assets/previews/meteor_debris_medium_front.png" width="100"> | `meteor_debris_medium` | 충돌 후 중간 파편 | 0.97 × 0.69 × 0.98 m | 1 | **0.97 × 0.69 × 0.98 m** | 18,070 |
+| <img src="./assets/previews/meteor_debris_small_front.png" width="100"> | `meteor_debris_small` | 충돌 후 작은 파편 | 0.98 × 0.62 × 0.91 m | 1 | **0.98 × 0.62 × 0.91 m** | 17,638 |
 
 경로는 모두 `Models/Environment/Stage1/Meteors/<모델>.fbx`이며 파일 크기는 각각
-`meteor_projectile` 2,554 KB · `meteor_fragment_large` 2,590 KB · `meteor_fragment_small` 2,457 KB다.
+`meteor_main` 551 KB · `meteor_debris_large` 544 KB · `meteor_debris_medium` 541 KB ·
+`meteor_debris_small` 524 KB다.
 
 각 모델은 같은 이름의 `.fbm` 폴더에서 BaseColor · Normal · Metallic · Roughness 4장을 참조한다.
-예: `Models/Environment/Stage1/Meteors/meteor_projectile.fbm/meteor_projectile_basecolor.jpg`.
-FBX 내부의 Tripo UUID 경로도 새 영문 경로로 다시 내보냈으며, Unity에서 모델 3개와 텍스처 12개의
-임포트를 검증했다. 세 모델 모두 메시 1개이며 에셋 전체 용량은 약 15.7 MB다.
-
-### 연결 상태
-
-| 모델 | Material | 아트 Prefab | 런타임 |
-| --- | --- | --- | --- |
-| `meteor_projectile` | `Materials/Environment/Stage1/Meteors/M_Stage1_MeteorProjectile.mat` | `Prefabs/Environment/Stage1/Meteors/PF_Stage1_MeteorProjectile.prefab` | **연결됨** — `PF_Stage1_Meteor` 로 감싸 스포너에 꽂았다 |
-| `meteor_fragment_large` | `…/M_Stage1_MeteorFragmentLarge.mat` | `…/PF_Stage1_MeteorFragmentLarge.prefab` | 미사용 — 파편 시스템이 아직 없다 |
-| `meteor_fragment_small` | `…/M_Stage1_MeteorFragmentSmall.mat` | `…/PF_Stage1_MeteorFragmentSmall.prefab` | 미사용 — 파편 시스템이 아직 없다 |
-
-Material 은 `Stage1EnvironmentAssets` 가 만들고 FBX 임베드 재질을 재질 추출로 갈아끼운다.
-자연물과 달리 `.fbm` 4장 세트가 있어 **BaseColor · Normal · Metallic 3장**을 물린다
-(Roughness 는 §11-2 와 같은 이유로 참조하지 않는다 — Built-in Standard 는 smoothness 를
-Metallic 맵 알파에서만 읽는다. JPEG 는 알파가 없어 1로 읽히므로 `_GlossMapScale` 을 0 으로 눌러 뒀다).
-
-### 낙하 본체의 게임플레이 프리팹
-
-```
-PF_Stage1_Meteor.prefab   (Prefabs/Hazards/Stage1/)
- │   layer Meteor · Rigidbody(60kg) · SphereCollider(r 0.45) · DamageSource · Meteor
- └─ Visual   PF_Stage1_MeteorProjectile — 배율 0.921 로 겉보기 지름 0.90m
-```
-
-`MeteorSpawner` 는 원래 `_meteorPrefab` 이 비어 있으면 프리미티브 구체를 만들어 썼다.
-그 폴백 주석이 "아트가 들어오면 프리팹을 꽂아 대체한다" 였으므로 **런타임 코드는 고치지 않고**
-같은 구성의 프리팹을 만들어 씬의 스포너에 꽂았다. 씬 변경은 `_meteorPrefab` 한 줄뿐이다.
-
-크기는 `PhysicsScale.MeteorRadius`(0.45m)가 기준이다. 폴백 구체가 지름 0.9m 였으므로 모델도 같은
-지름에 맞췄다 — 물리 기준값은 건드리지 않았다.
-
-카탈로그 규칙 ②(프리팹에 Collider·Rigidbody 를 붙이지 않는다)는 **배치용 아트 프리팹**에 대한
-규칙이다. 이쪽은 스폰되는 게임플레이 프리팹이라 물리가 프리팹에 있어야 한다.
-아트 프리팹(`PF_Stage1_MeteorProjectile`)은 규칙대로 시각물만 갖고, 그것을 자식으로 쓴다.
-
-만드는 도구는 `Stage1MeteorAssets` 다
-(`Tools/둥실둥실 우주 대탈출/운석 프리팹 만들고 스포너에 꽂기`). 다시 실행하면 프리팹을 덮어쓴다.
+예: `Models/Environment/Stage1/Meteors/meteor_main.fbm/meteor_main_basecolor.jpg`.
+FBX 내부의 Tripo UUID 경로도 새 영문 경로로 다시 내보냈으며, Unity에서 모델 4개와 텍스처 16개의
+임포트를 검증했다. 네 모델 모두 메시 1개이며 에셋 전체 용량은 약 12.0 MB다.
+각 모델의 앞·뒤·좌·우 프리뷰는 `docs/assets/previews/<모델>_{front,back,left,right}.png`에 있다.
 
 ---
 
@@ -379,10 +345,7 @@ PF_Stage1_Meteor.prefab   (Prefabs/Hazards/Stage1/)
 | 5 | **`.fbm` 임베드 텍스처가 크다** (합계 약 34 MB, 최대 7.0 MB). LFS 용량과 임포트 시간에 영향이 있다. 다운스케일 여부 검토 필요. | Art · Infra |
 | 6 | `METAGAME/Assets/_Project/Models/README_KO.md`가 삭제된 `SF_Astronaut_Base.fbx`를 안내한다. 루트 `README.md`도 삭제된 `Surface.unity`를 안내한다. | Plan · Infra |
 | 7 | Unity URP 템플릿 잔여물(`Readme.asset`, `TutorialInfo/`)이 남아 있다. | Infra |
-| 12 | ~~운석 FBX 3종은 Material·Prefab과 런타임 연결이 없다.~~ **해소** — Material 3개·아트 프리팹 3개를 만들고 낙하 본체를 스포너에 연결했다(§6-1). 파편 2종은 Material·프리팹까지 됐지만 쓰는 시스템이 없다(아래 13번). | Art · Puzzle |
-| 13 | **운석 파편 시스템이 없다.** `Meteor` 는 착탄 후 그대로 사라진다(`MeteorDespawnSeconds` 6초). `meteor_fragment_large`·`small` 은 "충돌 후 파편" 용도인데 이것을 스폰하는 코드가 없어 게임에서 보이지 않는다. 파편을 낼지, 낸다면 몇 개·어떤 물리로 낼지는 퍼즐 쪽 결정이다. | Puzzle · Art |
-| 14 | **운석 폴리곤이 무겁다.** 3종 모두 86,570~89,508 삼각형이다(우주선 파츠는 1만8천~3만9천). 후반 낙하 간격 2초·수명 최대 20초면 동시에 10개까지 살아 있어 운석만 약 90만 삼각형이 된다. 데시메이션이나 Unity 6 Mesh LOD(`.meta` 의 `generateMeshLods`) 검토가 필요하다. | Art · QA |
-| 15 | **용암 균열이 실제로 발광하지 않는다.** 운석 BaseColor 에 주황색 균열이 그려져 있지만 Emission 이 꺼져 있어 어두운 씬에서는 창백한 돌로 보인다. 균열만 발광시키려면 Emission 마스크가 필요하고, BaseColor 를 그대로 Emission 에 물리면 돌 전체가 빛난다. | Art |
+| 12 | **운석 FBX 4종은 Material·Prefab과 런타임 연결이 없다.** S15P21B202-70의 운석 퍼즐은 현재 코드 생성 시각물을 사용하므로, `meteor_main`과 대·중·소 파편 3종을 실제 게임에 보이게 하려면 별도 연결 작업이 필요하다(§6-1). | Art · Puzzle |
 
 ---
 
