@@ -2,7 +2,9 @@
 
 Unity 3D 게임 프로젝트입니다.
 
-현재 저장소는 초기 프로젝트 상태이며, 실제 Unity 프로젝트는 저장소 루트가 아닌 METAGAME/ 폴더에 있습니다.
+실제 Unity 프로젝트는 저장소 루트가 아닌 `METAGAME/` 폴더에 있습니다. 루트에는 그 밖에 백엔드(`backend/`), 팀 문서(`docs/`), CI·러너 스크립트(`scripts/`)가 함께 있습니다.
+
+**처음 왔다면** [docs/README.md](docs/README.md) 를 먼저 보세요 — 지금 하려는 일별로 무엇을 읽으면 되는지 정리돼 있습니다. 클론 후 `git config core.hooksPath .githooks` 와 `git lfs install --skip-repo` 를 한 번 실행해야 합니다.
 
 ## 빠른 시작
 
@@ -48,7 +50,10 @@ Unity 6000.5.4f1이 설치되어 있지 않다면 해당 버전을 먼저 설치
 ├── .gitattributes
 ├── .githooks/
 ├── .gitlab/
+├── .gitlab-ci.yml
 ├── docs/
+├── scripts/
+├── backend/
 ├── README.md
 └── METAGAME/
     ├── Assets/
@@ -68,10 +73,13 @@ Unity 6000.5.4f1이 설치되어 있지 않다면 해당 버전을 먼저 설치
 | .gitignore | 저장소 전체에 적용되는 Unity/IDE/빌드 산출물 제외 규칙 |
 | .gitattributes | 대용량 바이너리 에셋의 Git LFS 및 Unity YAML 텍스트 규칙 |
 | .githooks/ | 브랜치명에 Jira 이슈 키가 없으면 push를 막고, 이어서 git-lfs 훅을 실행하는 pre-push 훅 (`git config core.hooksPath .githooks`로 활성화) |
-| .gitlab/ | Merge Request 템플릿 |
-| docs/ | 팀 컨벤션 문서 — 브랜치·Jira·자동화·파트 구분 ([docs/README.md](docs/README.md)) |
+| .gitlab/ | Merge Request 템플릿 (MR 생성 시 자동 적용) |
+| .gitlab-ci.yml | MR·스케줄 파이프라인 정의 — 어떤 검사가 언제 도는지 |
+| scripts/ | CI 검사·알림 스크립트(`scripts/ci/`, 오프라인 테스트 포함)와 러너 설치 스크립트(`scripts/runner/`) |
+| backend/ | 서버 코드 |
+| docs/ | 팀 문서 — 워크플로우·컨벤션·자동화 명세·작업 기록. 색인은 [docs/README.md](docs/README.md) |
 
-Library/, Temp/, Logs/, UserSettings/, 생성된 .csproj·.sln 파일과 빌드 결과물은 커밋하지 않습니다. 이 파일들은 각자의 PC 또는 빌드 환경에서 생성됩니다. Unity 에셋의 .meta 파일은 GUID 보존에 필요하므로 반드시 함께 커밋합니다.
+**루트에 없어야 하는 것**: `Library/`, `Temp/`, `Logs/`, `UserSettings/`, 생성된 `.csproj`·`.sln`, 빌드 산출물, 개인 편집기 설정(`.vs/`, `.idea/`), OS 잡파일(`.DS_Store`, `Thumbs.db`) — 커밋하지 않습니다(파일 위생 검사가 MR 에서 막습니다). 이 파일들은 각자의 PC 또는 빌드 환경에서 생성됩니다. Unity 에셋의 .meta 파일은 GUID 보존에 필요하므로 반드시 함께 커밋합니다.
 
 ## 현재 프로젝트 기준
 
