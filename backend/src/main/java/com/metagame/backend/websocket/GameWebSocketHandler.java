@@ -2,6 +2,7 @@ package com.metagame.backend.websocket;
 
 import com.metagame.backend.domain.room.Room;
 import com.metagame.backend.domain.room.RoomManager;
+import com.metagame.backend.domain.user.UserRepository;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -21,18 +22,25 @@ import tools.jackson.databind.ObjectMapper;
 public class GameWebSocketHandler extends TextWebSocketHandler {
 
     private static final String ROOM_ID_ATTR = "roomId";
+    private static final String NICKNAME_ATTR = "nickname";
+    private static final String UNKNOWN_NICKNAME = "비행사";
 
     private final RoomManager roomManager;
     private final ReconnectGraceManager graceManager;
+    private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
 
     // userId → 세션. 브로드캐스트 대상 조회용
     private final Map<Long, WebSocketSession> sessions = new ConcurrentHashMap<>();
 
+    /** 닉네임은 연결 시 한 번만 조회해 세션에 보관한다 (브로드캐스트마다 DB를 보지 않기 위해). */
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         Long userId = userId(session);
         sessions.put(userId, session);
+        session.getAttributes().put(NICKNAME_ATTR, userRepository.findById(userId)
+                .map(user -> user.getNickname())
+                .orElse(UNKNOWN_NICKNAME));
         log.info("connected: userId={}", userId);
     }
 
@@ -118,7 +126,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     }
 
     private void createRoom(WebSocketSession session, Long userId) {
-        Room room = roomManager.createRoom(userId);
+        Room room = roomManager.createRoom(userId, nickname(session));
         session.getAttributes().put(ROOM_ID_ATTR, room.getRoomId());
         send(session, WsMessage.Type.ROOM_CREATED, Map.of("roomId", room.getRoomId()));
         broadcastRoomState(room);
@@ -136,7 +144,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         }
 
         if (room.getStatus() == Room.Status.PLAYING) {
-            Room.RejoinResult result = room.rejoin(userId);
+            Room.RejoinResult result = room.rejoin(userId, nickname(session));
             if (result != Room.RejoinResult.OK) {
                 send(session, WsMessage.Type.ERROR, Map.of("message",
                         result == Room.RejoinResult.FULL ? "room is full" : "cannot join room"));
@@ -153,7 +161,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
-        if (!room.join(userId)) {
+        if (!room.join(userId, nickname(session))) {
             send(session, WsMessage.Type.ERROR, Map.of("message", "cannot join room"));
             return;
         }
@@ -241,5 +249,10 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
     private Long userId(WebSocketSession session) {
         return (Long) session.getAttributes().get(JwtHandshakeInterceptor.USER_ID_ATTR);
+    }
+
+    private String nickname(WebSocketSession session) {
+        Object cached = session.getAttributes().get(NICKNAME_ATTR);
+        return cached == null ? UNKNOWN_NICKNAME : (String) cached;
     }
 }

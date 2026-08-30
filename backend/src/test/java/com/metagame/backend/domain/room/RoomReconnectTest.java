@@ -11,9 +11,9 @@ import org.junit.jupiter.api.Test;
 class RoomReconnectTest {
 
     private Room playingRoomWith(Long... userIds) {
-        Room room = new Room("ROOM01", userIds[0]);
+        Room room = new Room("ROOM01", userIds[0], "유저" + userIds[0]);
         for (int i = 1; i < userIds.length; i++) {
-            room.join(userIds[i]);
+            room.join(userIds[i], "유저" + userIds[i]);
         }
         for (Long id : userIds) {
             room.setReady(id, true);
@@ -51,7 +51,7 @@ class RoomReconnectTest {
         Room room = playingRoomWith(1L, 2L);
         room.markDisconnected(2L);
 
-        assertThat(room.rejoin(2L)).isEqualTo(Room.RejoinResult.OK);
+        assertThat(room.rejoin(2L, "복귀자")).isEqualTo(Room.RejoinResult.OK);
         assertThat(room.isDisconnected(2L)).isFalse();
         assertThat(room.getPlayers()).containsOnlyKeys(1L, 2L);
     }
@@ -62,7 +62,7 @@ class RoomReconnectTest {
         room.leave(2L);
         assertThat(room.getPlayers()).containsOnlyKeys(1L);
 
-        assertThat(room.rejoin(2L)).isEqualTo(Room.RejoinResult.OK);
+        assertThat(room.rejoin(2L, "복귀자")).isEqualTo(Room.RejoinResult.OK);
         assertThat(room.getPlayers()).containsOnlyKeys(1L, 2L);
     }
 
@@ -70,8 +70,8 @@ class RoomReconnectTest {
     void outsiderCannotJoinGameInProgress() {
         Room room = playingRoomWith(1L, 2L);
 
-        assertThat(room.rejoin(99L)).isEqualTo(Room.RejoinResult.DENIED);
-        assertThat(room.join(99L)).isFalse();
+        assertThat(room.rejoin(99L, "복귀자")).isEqualTo(Room.RejoinResult.DENIED);
+        assertThat(room.join(99L, "난입자")).isFalse();
         assertThat(room.getPlayers()).containsOnlyKeys(1L, 2L);
     }
 
@@ -89,7 +89,7 @@ class RoomReconnectTest {
             room.leave(id);
         }
         for (long id = 1; id <= 4; id++) {
-            assertThat(room.rejoin(id)).isEqualTo(Room.RejoinResult.OK);
+            assertThat(room.rejoin(id, "복귀자")).isEqualTo(Room.RejoinResult.OK);
         }
 
         assertThat(room.getPlayers()).hasSize(Room.MAX_PLAYERS);
@@ -102,16 +102,16 @@ class RoomReconnectTest {
         room.leave(2L);
         assertThat(room.getHostUserId()).isNull();
 
-        assertThat(room.rejoin(2L)).isEqualTo(Room.RejoinResult.OK);
+        assertThat(room.rejoin(2L, "복귀자")).isEqualTo(Room.RejoinResult.OK);
         assertThat(room.getHostUserId()).isEqualTo(2L);
     }
 
     @Test
     void rejoinIsDeniedWhileRoomIsStillWaiting() {
-        Room room = new Room("ROOM01", 1L);
-        room.join(2L);
+        Room room = new Room("ROOM01", 1L, "철수");
+        room.join(2L, "영희");
 
-        assertThat(room.rejoin(2L)).isEqualTo(Room.RejoinResult.DENIED);
+        assertThat(room.rejoin(2L, "복귀자")).isEqualTo(Room.RejoinResult.DENIED);
     }
 
     @Test

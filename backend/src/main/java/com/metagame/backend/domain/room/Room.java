@@ -23,8 +23,8 @@ public class Room {
     private volatile Long hostUserId;
     private volatile Status status = Status.WAITING;
 
-    // userId → 준비 여부. 현재 방에 속한 사람만 담긴다
-    private final Map<Long, Boolean> players = new ConcurrentHashMap<>();
+    // userId → 참가자(닉네임·준비 여부). 현재 방에 속한 사람만 담긴다
+    private final Map<Long, RoomPlayer> players = new ConcurrentHashMap<>();
 
     // 이 판(PLAYING)에 참가했던 전체 userId. 유예를 넘겨 제외된 뒤에도 남아 재입장 자격 판정에 쓰인다
     private final Set<Long> participants = ConcurrentHashMap.newKeySet();
@@ -36,17 +36,17 @@ public class Room {
     private volatile GameState gameState;
     private volatile GameState lastCheckpoint;
 
-    public Room(String roomId, Long hostUserId) {
+    public Room(String roomId, Long hostUserId, String hostNickname) {
         this.roomId = roomId;
         this.hostUserId = hostUserId;
-        this.players.put(hostUserId, false);
+        this.players.put(hostUserId, new RoomPlayer(hostNickname));
     }
 
-    public synchronized boolean join(Long userId) {
+    public synchronized boolean join(Long userId, String nickname) {
         if (status != Status.WAITING || players.size() >= MAX_PLAYERS) {
             return false;
         }
-        players.put(userId, false);
+        players.put(userId, new RoomPlayer(nickname));
         return true;
     }
 
@@ -54,7 +54,7 @@ public class Room {
      * 진행 중인 게임에 복귀시킨다. 이 판에 참가했던 유저만 허용해 무관한 유저의 난입을 막는다.
      * 유예 중이면 자리가 남아 있으므로 끊김 표시만 지우고, 이미 제외되었으면 자리를 다시 만든다.
      */
-    public synchronized RejoinResult rejoin(Long userId) {
+    public synchronized RejoinResult rejoin(Long userId, String nickname) {
         if (status != Status.PLAYING || !participants.contains(userId)) {
             return RejoinResult.DENIED;
         }
@@ -62,7 +62,11 @@ public class Room {
             return RejoinResult.FULL;
         }
         disconnected.remove(userId);
-        players.putIfAbsent(userId, true);
+        players.computeIfAbsent(userId, id -> {
+            RoomPlayer returning = new RoomPlayer(nickname);
+            returning.setReady(true);
+            return returning;
+        });
         if (hostUserId == null) {
             hostUserId = userId;
         }
@@ -90,11 +94,14 @@ public class Room {
     }
 
     public void setReady(Long userId, boolean ready) {
-        players.computeIfPresent(userId, (id, r) -> ready);
+        RoomPlayer player = players.get(userId);
+        if (player != null) {
+            player.setReady(ready);
+        }
     }
 
     public boolean allReady() {
-        return !players.isEmpty() && players.values().stream().allMatch(Boolean::booleanValue);
+        return !players.isEmpty() && players.values().stream().allMatch(RoomPlayer::isReady);
     }
 
     public synchronized boolean start() {
