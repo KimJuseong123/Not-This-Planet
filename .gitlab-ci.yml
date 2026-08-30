@@ -55,6 +55,16 @@ mr-lint:                  # 제목·브랜치·Jira 키 실존·템플릿 섹션
   script:
     - python scripts/ci/mr_lint.py
 
+ci-tests:                 # scripts/ci 오프라인 테스트 — 네트워크·토큰 없이 도는 회귀 검사
+  stage: lint             # CI 스크립트를 고칠 때만 돈다(그 밖의 MR 은 잡 자체가 생기지 않음)
+  needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "scripts/ci/**/*"
+  script:
+    - python scripts/ci/tests/run_all.py
+
 repo-hygiene:             # 금지 파일·.meta 짝·에셋 위치·대용량 비-LFS·씬/프리팹 선언 일치
   stage: lint
   needs: []
@@ -100,7 +110,11 @@ ai-review:                # 비차단. API 키(ANTHROPIC_API_KEY) 또는 러너 
 # ── 알림 ─────────────────────────────────────────────────────────────────
 mm-ci-failed:             # 🔴 CI 실패 알림 — mr-lint/repo-hygiene 실패 시 MR 작성자 @멘션 + 실패 잡 링크
   stage: notify
-  needs: [mr-lint, repo-hygiene]
+  needs:
+    - job: mr-lint
+    - job: repo-hygiene
+    - job: ci-tests
+      optional: true      # CI 스크립트를 건드리지 않은 MR 에는 이 잡이 없다
   when: on_failure
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $MM_WEBHOOK_URL
