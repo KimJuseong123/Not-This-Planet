@@ -31,6 +31,67 @@ def env(name: str, default: str | None = None) -> str | None:
     return v if v not in (None, "") else default
 
 
+def env_int(name: str, default: int) -> int:
+    """CI 변수를 정수로 읽는다 — 숫자가 아니어도 잡을 죽이지 않고 기본값으로 돌아간다.
+
+    임포트 시점에 int(env(...)) 를 계산하면 변수 하나가 잘못 들어간 순간 스크립트가 통째로
+    죽는다: 차단 잡이면 머지가 막히고, 알림 잡이면 알림이 조용히 사라진다
+    (2026-08-28 DIGEST_PENDING_HOURS 에서 실제로 확인, S15P21B202-134)."""
+    raw = env(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        print(f"[warn] {name} 값이 정수가 아님({raw!r}) → 기본값 {default} 사용")
+        return default
+
+
+def load_team() -> dict:
+    """scripts/ci/team.json — 파일 부재·JSON 파손이 검사·알림 전체를 죽이지 않게 감싼다.
+
+    읽지 못하면 빈 팀으로 계속한다: 멘션과 담당자 대조만 생략되고, 그 밖의 검사는 그대로 돈다."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "team.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            team = json.load(f)
+        if not isinstance(team, dict):
+            raise ValueError("team.json 최상위가 객체가 아님")
+        return normalize_team(team)
+    except Exception as e:
+        print(f"[warn] team.json 을 읽지 못했습니다({type(e).__name__}: {e}) → 멘션·담당자 대조를 생략합니다")
+        return {"members": [], "roles": {}}
+
+
+def normalize_team(team: dict) -> dict:
+    """팀원마다 gitlab/jira/mm/name 키가 반드시 있는 형태로 맞춘다.
+
+    호출부가 `{m["gitlab"]: m["jira"] for m in members}` 처럼 쓰는데, 한 사람의 한 칸이 비어 있으면
+    임포트 시점 KeyError 로 스크립트가 통째로 죽는다 — 폴백을 넣어도 여기서 막지 않으면 의미가 없다
+    (MR !78 AI 리뷰 지적, S15P21B202-134)."""
+    members = []
+    for m in (team.get("members") or []):
+        if not isinstance(m, dict) or not m.get("gitlab"):
+            continue                      # gitlab 아이디가 없으면 어떤 매핑에도 쓸 수 없다
+        members.append({"gitlab": m.get("gitlab", ""), "jira": m.get("jira", ""),
+                        "mm": m.get("mm", ""), "name": m.get("name", "") or m.get("gitlab", "")})
+    roles = team.get("roles") if isinstance(team.get("roles"), dict) else {}
+    return {"members": members, "roles": roles}
+
+
+def role_member(team: dict, role: str) -> dict | None:
+    """역할(lead/infra 등)에 해당하는 팀원. roles 와 members 가 어긋나도 예외를 던지지 않는다.
+
+    이전에는 next(...) 가 StopIteration 을 던져 임포트만으로 알림 스크립트가 죽었다(-134)."""
+    gitlab_id = (team.get("roles") or {}).get(role)
+    if not gitlab_id:
+        return None
+    found = next((m for m in team.get("members", []) if m.get("gitlab") == gitlab_id), None)
+    if found is None:
+        print(f"[warn] team.json roles.{role}={gitlab_id!r} 인데 members 에 그 사람이 없습니다 → 멘션 생략")
+    return found
+
+
 def strip_draft(title: str) -> tuple[str, bool]:
     """Draft 접두어를 **모두** 떼어 낸다(겹쳐 붙은 경우 포함).
     한 번만 떼면 남은 'Draft:' 가 요약의 일부로 취급되어 제목 보정이 중복된다
@@ -46,6 +107,19 @@ def strip_draft(title: str) -> tuple[str, bool]:
 def key_from_branch(branch: str) -> str | None:
     m = BRANCH_RE.match(branch or "")
     return m.group(2) if m else None
+
+
+def is_release_mr(source: str, target: str) -> bool:
+    """릴리즈 MR — develop → master (master 정렬).
+
+    이 MR 의 내용은 develop 으로 들어올 때 이미 MR 단위로 검사를 통과했고, 비교 기준이 master 라
+    develop 의 기존 파일까지 전부 '추가됨' 으로 잡혀 오탐만 나온다
+    (2026-08-28 MR !68 실측: .gitkeep 의 .meta 누락 14건). 그래서 내용 검사를 건너뛴다.
+    Draft 금지와 대상 브랜치 규칙은 그대로 적용된다.
+
+    hotfix/* → master 는 **예외가 아니다** — develop 을 거치지 않은 새 코드라
+    이슈 키·템플릿·위생 검사를 모두 받아야 한다 (S15P21B202-122)."""
+    return (source or "") == "develop" and (target or "") == "master"
 
 
 def http(method: str, url: str, headers: dict | None = None, body: dict | str | None = None,
@@ -167,9 +241,24 @@ class GitLab:
                             f"?from={quote(base_sha, safe='')}&to={quote(ref, safe='')}&straight=true", self._h())
         return len(d.get("commits") or []) if st == 200 and isinstance(d, dict) else None
 
-    def mr_commits(self) -> list[dict]:
-        st, d = http("GET", self._mr_url("/commits?per_page=100"), self._h())
-        return d if st == 200 and isinstance(d, list) else []
+    def mr_commits(self, max_pages: int = 5) -> list[dict]:
+        """MR 의 커밋 전체. 페이징을 돌지 않으면 커밋 100개가 넘는 MR 에서 뒤쪽 커밋에 섞인
+        다른 이슈 키를 놓친다 — 오래 묵은 브랜치일수록 커밋이 많고, 그게 검사가 필요한 경우다(-134)."""
+        out: list[dict] = []
+        for page in range(1, max_pages + 1):
+            st, d = http("GET", self._mr_url(f"/commits?per_page=100&page={page}"), self._h())
+            if st != 200 or not isinstance(d, list):
+                break
+            out.extend(d)
+            if len(d) < 100:
+                break
+        return out
+
+    def mr_pipelines(self, iid: int | str) -> list[dict]:
+        """해당 MR 의 파이프라인 목록(최신 우선). 조회에 실패하면 빈 목록이 아니라 None —
+        '파이프라인이 없다' 와 '못 물어봤다' 를 섞으면 없는 경보를 만들어 낸다."""
+        st, d = http("GET", f"{self.api}/projects/{self.project}/merge_requests/{iid}/pipelines", self._h())
+        return d if st == 200 and isinstance(d, list) else None
 
     def open_mrs(self) -> list[dict]:
         st, d = http("GET", f"{self.api}/projects/{self.project}/merge_requests?state=opened&per_page=100",

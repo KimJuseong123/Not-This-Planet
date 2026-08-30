@@ -13,7 +13,7 @@ import re
 import subprocess
 import sys
 
-from ci_common import GitLab, Report, banner, env, find_section, sections
+from ci_common import GitLab, Report, banner, env, find_section, is_release_mr, sections
 
 FORBIDDEN = [
     (re.compile(r"^METAGAME/(Library|Temp|Logs|obj|UserSettings|Build|Builds|\.vs|\.idea)/"), "Unity/IDE 생성물"),
@@ -52,9 +52,24 @@ def lfs_tracked(path: str) -> bool:
     return out.strip().endswith(": lfs")
 
 
+def unity_ignores(path: str) -> bool:
+    """Unity 가 임포트하지 않는 경로 — .meta 가 없는 것이 정상.
+
+    점으로 시작하는 파일·폴더(.gitkeep, .DS_Store …), `~` 로 끝나는 폴더, Documentation~ 등.
+    https://docs.unity3d.com/Manual/SpecialFolders.html"""
+    return any(seg.startswith(".") or seg.endswith("~") for seg in path.split("/"))
+
+
 def main() -> int:
     banner("repo-hygiene")
     rep = Report("repo-hygiene")
+    # 릴리즈 MR(develop → master)은 건너뛴다 — 비교 기준이 master 라 develop 의 기존 파일까지
+    # 전부 '추가됨' 으로 잡혀 오탐만 쌓인다. 내용은 develop 에 머지될 때 이미 검사했다 (S15P21B202-122)
+    src, tgt = env("CI_MERGE_REQUEST_SOURCE_BRANCH_NAME", ""), env("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "")
+    if is_release_mr(src, tgt):
+        rep.ok(f"릴리즈 MR ({src} → {tgt}) — 위생 검사 건너뜀 (내용은 develop 에 머지될 때 이미 검사됨)")
+        return rep.finish()
+
     head = sys.argv[2] if len(sys.argv) > 2 else "HEAD"
     base = sys.argv[1] if len(sys.argv) > 1 else env("CI_MERGE_REQUEST_DIFF_BASE_SHA")
     if not base:
@@ -86,8 +101,10 @@ def main() -> int:
         rep.ok("금지 파일 없음")
 
     # 2) .meta 짝  (Assets 아래)
+    #    점(.)으로 시작하는 파일·폴더는 Unity 가 임포트하지 않아 .meta 가 생기지 않는다(.gitkeep 등) → 검사 대상에서 뺀다.
+    #    (2026-08-28 MR !68 에서 .gitkeep 14건이 '.meta 누락' 으로 잡힌 오탐, S15P21B202-122)
     meta_problems = 0
-    asset_added = [p for p in added if p.startswith(ASSETS)]
+    asset_added = [p for p in added if p.startswith(ASSETS) and not unity_ignores(p)]
     for p in asset_added:
         if p.endswith(".meta"):
             target = p[:-5]
@@ -103,22 +120,30 @@ def main() -> int:
                 rep.fail(f"폴더 .meta 누락: {d}.meta"); meta_problems += 1
             d = os.path.dirname(d)
     for p in deleted:
-        if p.startswith(ASSETS) and not p.endswith(".meta") and tree_has(head, p + ".meta"):
+        if p.startswith(ASSETS) and not p.endswith(".meta") and not unity_ignores(p) and tree_has(head, p + ".meta"):
             rep.fail(f"파일만 삭제되고 .meta 가 남음: {p}.meta"); meta_problems += 1
     if asset_added and not meta_problems:
         rep.ok(f"Assets 추가 {len(asset_added)}개 .meta 짝 OK")
 
     # 3) 에셋 위치 — 새 최상위 폴더 금지
-    base_top = set(git("ls-tree", "--name-only", f"{base}:{ASSETS}", check=False).split())
-    for p in asset_added:
+    # splitlines() — 폴더명에 공백이 있으면 split() 이 쪼개 버린다. 그리고 ls-tree 가 실패하면
+    # (base 에 Assets 트리가 없는 경우 등) 빈 집합이 되어 모든 최상위 폴더가 '새 폴더' 로 실패한다(-134).
+    base_ls = git("ls-tree", "--name-only", f"{base}:{ASSETS}", check=False)
+    base_top = set(base_ls.splitlines())
+    loc_checkable = bool(base_top)
+    if asset_added and not loc_checkable:
+        rep.warn(f"비교 기준({base[:12]})에 {ASSETS} 트리가 없어 에셋 위치 검사를 건너뜁니다")
+    loc_bad = 0
+    for p in asset_added if loc_checkable else []:
         rel = p[len(ASSETS):]
         top = rel.split("/", 1)[0]
         if "/" not in rel:
             if not rel.endswith(".meta") or rel[:-5] not in base_top:
-                rep.fail(f"Assets/ 바로 아래 파일 금지: {p} — Assets/_Project/ 아래로")
+                rep.fail(f"Assets/ 바로 아래 파일 금지: {p} — Assets/_Project/ 아래로"); loc_bad += 1
         elif top not in base_top and top != "_Project" and top + ".meta" not in base_top:
-            rep.fail(f"Assets/ 에 새 최상위 폴더 '{top}' 금지 — Assets/_Project/ 아래로 (기존 폴더: {', '.join(sorted(t for t in base_top if not t.endswith('.meta')))})")
-    if asset_added and not any(f.startswith("Assets/") for f in rep.fails):
+            rep.fail(f"Assets/ 에 새 최상위 폴더 '{top}' 금지 — Assets/_Project/ 아래로 (기존 폴더: {', '.join(sorted(t for t in base_top if not t.endswith('.meta')))})"); loc_bad += 1
+    # 통과 판정을 fail 메시지의 접두사로 하고 있었다 — 문구만 바꿔도 조용히 잘못된 ok 가 찍힌다(-134)
+    if asset_added and loc_checkable and not loc_bad:
         rep.ok("에셋 위치 OK")
 
     # 4) LFS / 용량

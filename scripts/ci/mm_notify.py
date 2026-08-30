@@ -11,12 +11,13 @@ import json
 import os
 import sys
 
-from ci_common import GitLab, banner, env, http, strip_draft
+from ci_common import GitLab, banner, env, http, load_team, role_member, strip_draft
 
-TEAM = json.load(open(os.path.join(os.path.dirname(__file__), "team.json"), encoding="utf-8"))
+TEAM = load_team()
 BY_GITLAB = {m["gitlab"]: m for m in TEAM["members"]}
-LEAD = TEAM["roles"]["lead"]
-INFRA = TEAM["roles"]["infra"]
+# roles 가 비어 있어도 임포트는 되어야 한다 — 알림 스크립트가 죽으면 실패 자체가 조용해진다(-134)
+LEAD = (role_member(TEAM, "lead") or {}).get("gitlab", "")
+INFRA = (role_member(TEAM, "infra") or {}).get("gitlab", "") or LEAD
 
 
 def mm_of(gitlab_username: str | None) -> str | None:
@@ -39,15 +40,39 @@ def send(text: str) -> int:
     return 0 if st == 200 else 1
 
 
+MAX_COMMENT_CHARS = 8000        # GitLab 코멘트 본문이 지나치게 커지지 않도록(-134)
+
+
+def is_first_pipeline(gl: GitLab) -> bool | None:
+    """이 파이프라인이 MR 의 **가장 오래된** 파이프라인인지 — 리뷰 요청 알림을 한 번만 보내기 위해.
+
+    예전에는 파이프라인 개수(`len(pls) != 1`)로 첫 회를 판정했다. 그래서 재시도·중복 트리거로
+    파이프라인이 2개가 된 MR 은 그 뒤로 **영구히** 리뷰 요청 알림을 받지 못했다(-134).
+    id 가 가장 작은(=먼저 만들어진) 파이프라인만 보내면 개수와 무관하게 정확히 한 번 보낸다.
+    판정할 수 없으면 None — 호출부가 생략한다(알림 하나보다 매 파이프라인 도배가 더 나쁘다)."""
+    st, pls = http("GET", gl._mr_url("/pipelines?per_page=100"), gl._h())
+    if st != 200 or not isinstance(pls, list) or not pls:
+        print(f"파이프라인 목록 조회 실패 {st} → 판정 불가")
+        return None
+    ids = [p.get("id") for p in pls if isinstance(p.get("id"), int)]
+    current = env("CI_PIPELINE_ID")
+    if not ids or not current:
+        return None
+    try:
+        return int(current) == min(ids)
+    except ValueError:
+        return None
+
+
 def mr_opened(gl: GitLab) -> int:
     mr = gl.get_mr()
     if not gl.token:
         print("GITLAB_TOKEN 없음 → 첫 파이프라인 판별 불가, 생략"); return 0
-    st, pls = http("GET", gl._mr_url("/pipelines?per_page=5"), gl._h())
-    if st != 200 or not isinstance(pls, list):
-        print(f"파이프라인 목록 조회 실패 {st} → 생략"); return 0
-    if len(pls) != 1:
-        print(f"이 MR 의 파이프라인 {len(pls)}개 → 첫 파이프라인이 아니므로 리뷰 요청 알림 생략"); return 0
+    first = is_first_pipeline(gl)
+    if first is None:
+        print("첫 파이프라인 판정 불가 → 리뷰 요청 알림 생략"); return 0
+    if not first:
+        print("이 MR 의 첫 파이프라인이 아님 → 리뷰 요청 알림 생략"); return 0
     title, is_draft = strip_draft(mr.get("title") or "")
     if is_draft or mr.get("draft"):
         print("Draft MR → 리뷰 요청 알림 생략 (Draft 는 컨벤션 위반, mr-lint 가 실패 처리)"); return 0
@@ -167,6 +192,8 @@ def ci_failed(gl: GitLab) -> int:
         lines = "\n".join(f"- **{name}** — {reason}" for name, reason in capped)
         if len(reasons) > len(capped):
             lines += f"\n- … 외 {len(reasons) - len(capped)}건 (전체는 잡 로그에서)"
+        if len(lines) > MAX_COMMENT_CHARS:   # 이유가 아주 길면 코멘트가 API 본문 한도에 걸린다(-134)
+            lines = lines[:MAX_COMMENT_CHARS] + "\n- … (너무 길어 잘랐습니다 — 잡 로그를 보세요)"
     else:
         lines = "- 로그에서 ❌ 줄을 찾지 못했습니다. 위 잡 링크에서 직접 확인해 주세요."
     comment = (f"{FAIL_MARKER}\n🔴 **CI 실패 — 무엇이 왜 실패했는지**\n\n{lines}\n\n"

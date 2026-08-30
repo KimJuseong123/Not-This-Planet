@@ -324,8 +324,12 @@ def render(mr_meta: str, roles: list[str], results: dict, raw: dict, merged: dic
             out.append(f"| {SEV_LABEL[f['severity']]} | `{loc}` | {md_cell(f['issue'])} | {md_cell(f.get('fix', ''))} |")
     elif low:
         out.append(f"\n높음·중간 발견 사항 없음 (낮음 {len(low)}건은 아래 상세)")
-    elif results:
+    elif any(v for v in results.values()):
         out.append("\n발견 사항 없음.")
+    else:
+        # 리뷰어 응답을 하나도 해석하지 못한 상태다. '발견 사항 없음' 으로 적으면
+        # 아무것도 못 본 것을 통과로 읽는다(-134).
+        out.append("\n⚠️ 리뷰어 응답을 해석하지 못해 **발견 사항을 판단하지 못했습니다** — 아래 상세의 원문과 잡 로그를 보세요.")
     # 상세
     det = ["\n<details><summary>리뷰어별 상세 (" + " · ".join(ROLES[r]["label"] for r in roles) + ")</summary>\n"]
     for r in roles:

@@ -8,13 +8,14 @@ import re
 
 from urllib.parse import quote
 
-from ci_common import (BRANCH_RE, KEY_RE, PROJECT_KEY, TITLE_RE, GitLab, Jira, Report, banner, env, http,
-                       find_section, key_from_branch, part_of_issue, sections, strip_draft)
+from ci_common import (BRANCH_RE, KEY_RE, PROJECT_KEY, TITLE_RE, GitLab, Jira, Report, banner, env,
+                       env_int, find_section, http, is_release_mr, key_from_branch, load_team,
+                       part_of_issue, sections, strip_draft)
 
 REQUIRED_SECTIONS = ["Jira", "무엇을 · 왜", "산출물 위치", "확인 방법", "작성자 체크리스트", "리뷰어 확인"]
-_TEAM = json.load(open(os.path.join(os.path.dirname(__file__), "team.json"), encoding="utf-8"))
-JIRA_BY_GITLAB = {m["gitlab"]: m["jira"] for m in _TEAM["members"]}
-NAME_BY_GITLAB = {m["gitlab"]: m["name"] for m in _TEAM["members"]}
+_TEAM = load_team()
+JIRA_BY_GITLAB = {m["gitlab"]: m.get("jira", "") for m in _TEAM["members"]}
+NAME_BY_GITLAB = {m["gitlab"]: m.get("name", "") for m in _TEAM["members"]}
 
 
 def existence_problem(key: str | None, issue: dict | None, lookup_failed: bool) -> str | None:
@@ -40,7 +41,13 @@ def assignee_mismatch(mr: dict, issue: dict) -> str | None:
         return None
     return (f"MR 작성자({NAME_BY_GITLAB.get(author, author)})와 Jira 담당자({assignee.get('displayName')})가 다릅니다 — "
             f"브랜치 이름의 이슈 번호를 잘못 적었다면 그 이슈가 자동으로 진행 중이 됩니다(대행 작업이면 무시)")
-STALE_WARN = int(env("MR_STALE_WARN_COMMITS", "25") or "25")   # 이 커밋 수 이상 뒤처진 시작점이면 경고
+# 이 커밋 수 이상 뒤처진 시작점이면 경고. 임포트 시점에 int() 하지 않는다 — 변수 오설정으로
+# 차단 잡이 죽으면 머지 자체가 막힌다(-134). 필요할 때 읽고, 숫자가 아니면 기본값으로 계속한다.
+STALE_WARN_DEFAULT = 25
+
+
+def stale_warn() -> int:
+    return env_int("MR_STALE_WARN_COMMITS", STALE_WARN_DEFAULT)
 ADVICE_MARKER = "<!-- mr-lint:advice -->"
 REBASE_HINT = ("`git fetch origin && git rebase origin/develop && git push --force-with-lease` — MR·코멘트는 그대로 유지되고 "
                "파이프라인이 다시 돌면 이 경고는 사라집니다. 씬·프리팹이 겹쳐 충돌하면 한쪽을 고르거나 다시 편집해야 합니다(머지 때 치를 비용을 미리 치르는 것)")
@@ -68,7 +75,7 @@ def merged_before(gl: GitLab, branch: str) -> str | None:
 def base_warnings(gl: GitLab, branch: str, target: str, bkey: str | None) -> list[tuple[str, str]]:
     """브랜치가 develop 이 아닌 곳에서 갈라졌는지 검사해 (레벨, 메시지) 목록을 돌려준다. 차단하지 않는다(warn/ok).
     - master(또는 그 이전) 기반: develop 기준 merge-base 와 master 기준 merge-base 가 같음(master 는 develop 의 조상)
-    - 오래된 시작점: develop 대비 STALE_WARN 커밋 이상 뒤
+    - 오래된 시작점: develop 대비 MR_STALE_WARN_COMMITS(기본 25) 커밋 이상 뒤
     - 다른 이슈 키가 섞인 커밋: 다른 작업 브랜치에서 갈라졌을 가능성
     hotfix/* 는 master 기반이 정상이므로 제외."""
     out: list[tuple[str, str]] = []
@@ -83,7 +90,7 @@ def base_warnings(gl: GitLab, branch: str, target: str, bkey: str | None) -> lis
                             + (f", develop 보다 {behind}커밋 뒤" if behind else "")
                             + ". 최신 씬·에셋·스크립트가 없는 코드일 수 있으니 develop 에서 브랜치를 새로 만들어 작업을 옮기거나 "
                               "`git fetch && git rebase origin/develop` 후 다시 push 하세요 (hotfix/* 는 master 기반이 정상)"))
-    elif behind is not None and behind >= STALE_WARN:
+    elif behind is not None and behind >= stale_warn():
         out.append(("warn", f"브랜치 시작점이 develop 보다 {behind}커밋 뒤처졌습니다 — 씬·프리팹·에셋이 겹치면 머지에서 충돌하거나 "
                             f"최신 작업을 덮어쓸 수 있습니다. `git fetch && git rebase origin/develop` 권장"))
     elif behind is not None:
@@ -100,7 +107,13 @@ def target_verdict(branch: str, target: str) -> tuple[str, str]:
       develop  : 기본 경로
       master   : 릴리즈·핫픽스만(develop 또는 hotfix/*)
       작업 브랜치: **스택 MR** 허용(팀 결정 2026-08-28, S15P21B202-99). 단 머지해도 Jira 이슈가 자동 완료되지 않는다 —
-                  R6 는 대상이 develop 일 때만 완료시키므로, 부모 브랜치가 develop 에 머지된 뒤 손으로 완료해야 한다(R9 가 허용).
+                  부모 브랜치가 develop 에 머지된 뒤 손으로 완료해야 한다(R9 가 허용).
+
+    R6 의 실제 조건은 "대상이 develop 일 때만 완료" 가 아니다(-134 정정). 조건은
+    `{{pullRequest.destinationBranch.name.match("^(?:hotfix/)?(S15P21B202-\\d+)")}}` **EQUALS** `""` —
+    대상 이름에서 이슈 키가 잡히면(=작업 브랜치면) 조건이 실패해 전환하지 않는다. 스마트 값이 비어도 `""` 가
+    되어 완료가 유지되는 **fail-open** 설계다. 그래서 대상이 develop 이든 master 든 키가 안 잡히면 완료된다.
+    이후 R6 를 손볼 사람이 조건을 "대상 = develop" 으로 오해하지 않도록 여기에 실제 식을 적어 둔다.
     """
     if target == "develop":
         return "ok", "대상 브랜치 develop"
@@ -108,10 +121,15 @@ def target_verdict(branch: str, target: str) -> tuple[str, str]:
         if branch.startswith("hotfix/") or branch == "develop":
             return "ok", "대상 브랜치 master (릴리즈·핫픽스)"
         return "fail", "master 로는 develop 또는 hotfix/* 만 머지"
+    if target.startswith("hotfix/"):
+        # hotfix 는 master 로 직행하는 브랜치다. 그 위에 또 MR 을 쌓으면 R6 조건이 대상 이름에서 키를 잡아
+        # 완료 전환이 막히는 데다, 검증받지 않은 변경이 핫픽스에 얹혀 master 로 들어간다(-134).
+        return "fail", f"hotfix 브랜치를 대상으로 하는 MR 은 만들지 않는다: {target!r} — develop 대상으로 다시 만드세요"
     if BRANCH_RE.match(target):
-        return "warn", (f"스택 MR — 대상이 develop 이 아니라 작업 브랜치({target})입니다. 머지해도 이 이슈는 **자동 완료되지 않습니다**: "
+        return "warn", (f"스택 MR — 대상이 develop 이 아니라 작업 브랜치({target})입니다. 머지해도 이 이슈는 **자동 완료되지 않습니다**"
+                        f"(R6 조건이 대상 이름에서 이슈 키를 잡아 전환을 건너뜁니다): "
                         f"부모 브랜치가 develop 에 머지된 뒤 이 이슈를 손으로 완료하세요(머지된 MR 이 있으므로 허용됩니다). "
-                        f"부모 브랜치가 사라지면 이 MR 도 닫히니 순서에 주의")
+                        f"부모 MR 이 먼저 머지되면 GitLab 이 이 MR 의 대상을 develop 으로 자동으로 되돌립니다(18.11 실측) — 그때 머지하면 됩니다")
     return "fail", f"대상 브랜치는 develop · master(릴리즈) · 작업 브랜치(스택 MR) 중 하나여야 함: {target!r}"
 def publish_advice(gl: GitLab, mr: dict, warns: list[tuple[str, str]], base_warned: bool) -> None:
     """경고를 눈에 보이는 곳에 남긴다(차단 아님).
@@ -163,6 +181,15 @@ def main() -> int:
         rep.fail("Draft MR 금지 — MR 생성 = 리뷰 요청 (진행 공유는 Jira 코멘트로). 'Mark as ready' 후 재실행")
     else:
         rep.ok("Draft 아님")
+
+    # 1b) 릴리즈 MR(develop → master)은 여기까지만 — 브랜치·제목·템플릿은 이 MR 에 해당하지 않는다.
+    #    내용은 develop 으로 들어올 때 이미 검사했다 (S15P21B202-122)
+    if is_release_mr(branch, target):
+        tlevel, tmsg = target_verdict(branch, target)   # 대상 규칙은 가정하지 않고 실제로 판정한다
+        {"ok": rep.ok, "warn": rep.warn, "fail": rep.fail}[tlevel](tmsg)
+        rep.ok("릴리즈 MR (develop → master) — 이슈 키 · 제목 형식 · 템플릿 · 체크리스트 검사는 "
+               "적용하지 않음 (내용은 develop 에 머지될 때 이미 검사됨)")
+        return rep.finish()
 
     # 2) 브랜치 이름
     bkey = key_from_branch(branch)
