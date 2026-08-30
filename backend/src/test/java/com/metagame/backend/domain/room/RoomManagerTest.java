@@ -13,7 +13,7 @@ class RoomManagerTest {
 
     @Test
     void roomCodeIsShortAndUsesOnlyUnambiguousCharacters() {
-        Room room = roomManager.createRoom(1L);
+        Room room = roomManager.createRoom(1L, "철수");
 
         assertThat(room.getRoomId()).hasSize(RoomManager.CODE_LENGTH);
         assertThat(room.getRoomId().chars())
@@ -28,14 +28,14 @@ class RoomManagerTest {
     @Test
     void everyRoomGetsDistinctCode() {
         Set<String> codes = new HashSet<>();
-        IntStream.rangeClosed(1, 500).forEach(i -> codes.add(roomManager.createRoom((long) i).getRoomId()));
+        IntStream.rangeClosed(1, 500).forEach(i -> codes.add(roomManager.createRoom((long) i, "유저" + i).getRoomId()));
 
         assertThat(codes).hasSize(500);
     }
 
     @Test
     void codeIsFoundRegardlessOfCaseAndSurroundingSpaces() {
-        Room room = roomManager.createRoom(1L);
+        Room room = roomManager.createRoom(1L, "철수");
         String code = room.getRoomId();
 
         assertThat(roomManager.find(code.toLowerCase())).isSameAs(room);
@@ -44,7 +44,7 @@ class RoomManagerTest {
 
     @Test
     void unknownOrBlankCodeReturnsNull() {
-        roomManager.createRoom(1L);
+        roomManager.createRoom(1L, "철수");
 
         assertThat(roomManager.find("ZZZZZZ")).isNull();
         assertThat(roomManager.find("")).isNull();
@@ -53,7 +53,7 @@ class RoomManagerTest {
 
     @Test
     void emptyRoomIsRemovedAndLookupIsCaseInsensitive() {
-        Room room = roomManager.createRoom(1L);
+        Room room = roomManager.createRoom(1L, "철수");
         room.leave(1L);
 
         roomManager.removeIfEmpty(room.getRoomId().toLowerCase());
@@ -63,7 +63,7 @@ class RoomManagerTest {
 
     @Test
     void roomWithPlayersIsNotRemoved() {
-        Room room = roomManager.createRoom(1L);
+        Room room = roomManager.createRoom(1L, "철수");
 
         roomManager.removeIfEmpty(room.getRoomId());
 

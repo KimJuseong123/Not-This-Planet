@@ -40,10 +40,32 @@
 | type | data | 설명 |
 |---|---|---|
 | `ROOM_CREATED` | `{ "roomId": "..." }` | 방 생성 완료 (생성자에게만) |
-| `ROOM_STATE` | `{ "roomId", "hostUserId", "status", "players": { "1": true, ... }, "disconnected": [2] }` | 방 상태 변화 시 방 전원에게 브로드캐스트. players는 userId → 준비 여부, disconnected는 유예 대기 중인 userId 목록 |
+| `ROOM_STATE` | 아래 예시 참고 | 방 상태 변화 시 방 전원에게 브로드캐스트 |
 | `GAME_STARTED` | `{ "roomId": "..." }` | 게임 시작 (방 전원에게) |
 | `STATE_SYNC` | `{ "roomId", "gameState": { ... } }` | 복귀한 플레이어에게만 현재 게임 상태 전체 전송 |
 | `ERROR` | `{ "message": "..." }` | 요청 실패 사유 |
+
+### ROOM_STATE 예시
+
+```json
+{
+  "type": "ROOM_STATE",
+  "data": {
+    "roomId": "K7M2QX",
+    "hostUserId": 1,
+    "status": "WAITING",
+    "players": {
+      "1": { "nickname": "철수", "ready": true },
+      "2": { "nickname": "영희", "ready": false }
+    },
+    "disconnected": [3]
+  }
+}
+```
+
+- `players`의 키는 userId(문자열), 값은 **닉네임과 준비 여부**다. 로비 화면에 그대로 쓰면 된다
+- `disconnected`는 연결이 끊겨 유예 시간을 기다리는 중인 userId 목록이다. 이 사람들도 `players`에는 남아 있다
+- `status`는 `WAITING`(대기 중) 또는 `PLAYING`(게임 중)
 
 ## 연결 끊김과 복귀
 

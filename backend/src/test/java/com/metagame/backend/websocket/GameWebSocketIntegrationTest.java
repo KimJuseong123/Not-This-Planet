@@ -94,6 +94,43 @@ class GameWebSocketIntegrationTest {
     }
 
     @Test
+    void roomStateCarriesNicknameAndReadyStateForEachPlayer() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        String code = createRoom(host);
+        guest.send("JOIN_ROOM", Map.of("roomId", code));
+        host.await("ROOM_STATE");
+        guest.await("ROOM_STATE");
+
+        guest.send("READY", Map.of("ready", true));
+        JsonNode players = host.await("ROOM_STATE").get("players");
+
+        JsonNode hostEntry = players.get(String.valueOf(host.userId));
+        JsonNode guestEntry = players.get(String.valueOf(guest.userId));
+        assertThat(hostEntry.get("nickname").asString()).isEqualTo("철수");
+        assertThat(hostEntry.get("ready").asBoolean()).isFalse();
+        assertThat(guestEntry.get("nickname").asString()).isEqualTo("영희");
+        assertThat(guestEntry.get("ready").asBoolean()).isTrue();
+    }
+
+    @Test
+    void rejoiningPlayerStillShowsNickname() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        String code = startedRoom(host, guest);
+        long guestId = guest.userId;
+        guest.close();
+        host.await("ROOM_STATE");
+
+        TestClient returning = connect("영희", "device-b");
+        returning.send("JOIN_ROOM", Map.of("roomId", code));
+        returning.await("STATE_SYNC");
+
+        JsonNode players = host.await("ROOM_STATE").get("players");
+        assertThat(players.get(String.valueOf(guestId)).get("nickname").asString()).isEqualTo("영희");
+    }
+
+    @Test
     void stateChangesAreBroadcastToEveryoneInRoom() throws Exception {
         TestClient host = connect("철수", "device-a");
         TestClient guest = connect("영희", "device-b");
