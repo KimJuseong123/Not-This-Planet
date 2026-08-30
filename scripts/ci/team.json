@@ -2,11 +2,11 @@
   "_comment": "팀원 계정 매핑 — MM @멘션·Jira 담당자·GitLab 작성자를 잇는 단일 출처. 변경 시 이 파일과 Jira 규칙 문구(apply_rules 스크립트)를 함께 갱신. 개인 식별자(Jira accountId)는 비밀은 아니지만 필요한 곳에만 사용.",
   "roles": { "lead": "suho6347", "infra": "rmawnsdud" },
   "members": [
-    { "name": "김수호", "gitlab": "suho6347",    "mm": "suho6347",    "jira": "712020:b3c7a812-8150-4a71-b692-bb289a034463", "parts": ["Plan", "Art", "Sound", "UI", "Character", "Physics", "Puzzle", "Level", "QA"] },
+    { "name": "김수호", "gitlab": "suho6347",    "mm": "suho6347",    "jira": "712020:b3c7a812-8150-4a71-b692-bb289a034463", "parts": ["UI", "Sound", "Character", "Physics", "Level", "QA"] },
     { "name": "금준영", "gitlab": "rmawnsdud",   "mm": "rmawnsdud",   "jira": "712020:7ad4a939-164f-49b5-9317-c427332be323", "parts": ["Network", "Infra", "Data"] },
-    { "name": "김주성", "gitlab": "kjs7631008",  "mm": "nexon",       "jira": "712020:8b1271ea-91e9-4c63-a04e-4908f669a1c1", "parts": [] },
+    { "name": "김주성", "gitlab": "kjs7631008",  "mm": "nexon",       "jira": "712020:8b1271ea-91e9-4c63-a04e-4908f669a1c1", "parts": ["Puzzle", "Art"] },
     { "name": "최재현", "gitlab": "chlwos1313",  "mm": "chlwos1313",  "jira": "712020:2cf5f075-711f-44fa-90e8-1cc7ce9ff5dd", "parts": ["Backend"] },
-    { "name": "이수진", "gitlab": "tnwls134319", "mm": "tnwls134319", "jira": "712020:c4e6c25b-1f93-497c-af58-2d69c6d2c208", "parts": [] },
-    { "name": "송승우", "gitlab": "dorem96",     "mm": "dorem96",     "jira": "70121:eca4668a-3557-4c62-b18b-03f5ed39cefc",  "parts": [] }
+    { "name": "이수진", "gitlab": "tnwls134319", "mm": "tnwls134319", "jira": "712020:c4e6c25b-1f93-497c-af58-2d69c6d2c208", "parts": ["Art"] },
+    { "name": "송승우", "gitlab": "dorem96",     "mm": "dorem96",     "jira": "70121:eca4668a-3557-4c62-b18b-03f5ed39cefc",  "parts": ["Plan"] }
   ]
 }
