@@ -39,11 +39,21 @@ public class GameState {
         players.computeIfAbsent(userId, id -> new PlayerState()).setDowned(downed);
     }
 
+    /**
+     * 클라이언트가 보내온 위치를 보관한다.
+     * 유예를 넘겨 참가자 목록에서 빠져도 여기 남으므로, 재입장 시 끊긴 그 자리로 돌려보낼 수 있다
+     * (기획: 재입장 스폰 위치는 끊긴 위치).
+     */
+    public void setPosition(Long userId, float x, float y, float z, float yaw) {
+        players.computeIfAbsent(userId, id -> new PlayerState()).setPosition(x, y, z, yaw);
+    }
+
     @Getter
     public static class PlayerState {
         private float x;
         private float y;
         private float z;
+        private float yaw;   // 바라보는 방향(수평 회전)
         private int hp;
 
         // 기절 상태. 사망 개념은 없고 팀원이 소생시킨다 (기획: 전원 기절 시 스테이지 재시작)
@@ -51,6 +61,13 @@ public class GameState {
 
         void setDowned(boolean downed) {
             this.downed = downed;
+        }
+
+        void setPosition(float x, float y, float z, float yaw) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.yaw = yaw;
         }
     }
 }
