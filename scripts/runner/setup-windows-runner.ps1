@@ -66,6 +66,7 @@ if ($Shell -eq "pwsh") {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/PowerShell/PowerShell/releases/latest" -Headers @{ "User-Agent" = "metagame-runner-setup" }
         $asset = $rel.assets | Where-Object { $_.name -like "PowerShell-*-win-x64.msi" } | Select-Object -First 1
+        if (-not $asset) { throw "pwsh win-x64 MSI 를 GitHub 릴리스에서 찾지 못했습니다 — https://github.com/PowerShell/PowerShell/releases 에서 수동 설치하세요(S15P21B202-135)" }
         $msi = Join-Path $env:TEMP $asset.name
         Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $msi -TimeoutSec 900
         $p = Start-Process msiexec.exe -ArgumentList "/i `"$msi`" /qn /norestart ADD_PATH=1 REGISTER_MANIFEST=1 ENABLE_PSREMOTING=0" -Wait -PassThru
