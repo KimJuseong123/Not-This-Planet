@@ -4,6 +4,8 @@
 > 공식 문서로 검증한 결과를 붙였다. 이 문서가 기준이며, 컨벤션 문서(`jira-convention.md`, `git-convention.md`,
 > `jira-gitlab-automation.md`)는 이 문서에 맞춰 갱신되어 있다.
 >
+> ⚠️ **이 문서는 결정 근거의 기록**이다. 지금 지켜야 하는 규칙은 [conventions.md](./conventions.md) 와 각 컨벤션 문서를 본다. 특히 본문의 파트 태그 **9종**은 v1.0 당시 값이며 2026-08-27 에 **13종**으로 늘었다([parts.md](./parts.md)).
+
 > **검증 범례** — ✅ 공식 문서·실제 동작으로 확인됨 · ⚠ 조건부: 우리 환경(Jira 플랜·프로젝트 유형·GitLab 티어) 확인 후 확정 ·
 > ❌ 불가: 대안으로 대체함. 출처는 부록 D.
 
@@ -253,14 +255,16 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 | 사이트 레이블 | REST `label` | 142개(타 팀 것 포함). 우리 9종 + `needs-fix`는 신규 생성, 대소문자 정확히 |
 | Jira ↔ GitLab 연동 앱 | 이슈 화면 개발 패널 "브랜치 만들기" | ✅ 확인됨 (2026-08-25) |
 
-## 7. 갱신된 문서
+## 7. 갱신된 문서 (v1.0 당시)
+
+> 지금의 문서 목록·색인은 [docs/README.md](./README.md) 를 본다. 아래는 이 계획을 확정할 때 무엇을 함께 고쳤는지의 기록이다.
 
 | 문서 | 반영 |
 | --- | --- |
 | `docs/jira-convention.md` | 단일 흐름, 필수 필드·레이블·SP 척도, 진행 중/완료 진입 규칙 |
 | `docs/git-convention.md` | 브랜치 생성 = Jira 버튼, 서버 이름 강제, 브랜치 정리 규칙, MR·승인 규칙 |
 | `docs/jira-gitlab-automation.md` | 규칙 R1~R9 명세 + 전환 제한 + GitLab 설정 |
-| `docs/convention-proposal.md` | v1.2 요약으로 갱신 |
+| `docs/convention-proposal.md` | v1.2 요약으로 갱신 (2026-08-28 에 `docs/conventions.md` 로 이름 변경) |
 | `.gitlab/merge_request_templates/Default.md` · `docs/templates/*` | 유지 |
 
 ## 8. 권한 제약 하 운영 모드 (2026-08-26 결정)
@@ -279,6 +283,8 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 ---
 
 ## 부록 A · Jira Automation 규칙 명세 (한도 절약형 — 트리거 1개에 액션 묶음)
+
+> ⚠️ 아래는 **v1.0 확정 당시의 설계안**이다. 실제로 적용된 규칙의 현재 명세는 [jira-gitlab-automation.md §2](./jira-gitlab-automation.md) 가 단일 출처다. 특히 파트 태그는 그 뒤 **13종**으로 늘었고(2026-08-27), R1 의 보고자 액션은 폐기됐고, R2 에는 상위 Epic 필수 검사가 붙었다.
 
 | # | 이름 | 트리거 | 조건 | 액션 | 실행 카운트 |
 | --- | --- | --- | --- | --- | --- |

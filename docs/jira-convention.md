@@ -1,12 +1,12 @@
 # Jira 컨벤션
 
-> 관련 문서: [워크플로우 구현 계획](./workflow-plan.md) · [Git 컨벤션](./git-convention.md) · [파트 구분](./parts.md) · [Jira-GitLab 자동화](./jira-gitlab-automation.md)
+> 규칙 전체 요약은 [conventions.md](./conventions.md) · 관련 문서: [Git 컨벤션](./git-convention.md) · [파트 구분](./parts.md) · [Jira-GitLab 자동화](./jira-gitlab-automation.md) · [결정 근거](./workflow-plan.md)
 > 기준 버전: workflow-plan v1.0 (2026-08-26)
 
 ## 0. 원칙: Jira 우선
 
 **모든 작업은 Jira 이슈로 먼저 등록한다.** 코드, 에셋, 문서, 회의, 리서치 — 리포에 코드가 들어가지 않는 작업도 예외 없이.
-브랜치는 Jira 이슈 화면에서 만들고, 이슈 없는 브랜치는 만들 수 없다(GitLab이 이름으로 거부한다).
+브랜치는 Jira 이슈 화면에서 만든다. 이슈 키 없는 이름은 **로컬 훅이 push 를 막고**, 우회해도 CI 양식 검사가 MR 을 빨간불로 만들며, Jira 에도 연결되지 않는다(서버가 이름으로 거부하던 규칙은 2026-08-27 에 해제 — 머지 시 브랜치 자동 삭제를 얻기 위해. 강제 장치 전체는 [conventions §3](./conventions.md)).
 
 작성은 사람이 직접 해도 되고, 개인 Atlassian 계정 권한을 AI에 주어 대신 작성시켜도 된다(개인 선택).
 AI에게는 이 문서를 컨텍스트로 준다. 토큰은 개인 계정 것만 사용한다.
@@ -24,7 +24,7 @@ Epic  ── 큰 작업 카테고리. [파트] = 최종 검증 책임 파트
 ## 2. 제목과 레이블
 
 ```
-[파트] 제목           ← 모든 이슈(Epic, Task). 파트 태그는 parts.md의 9종
+[파트] 제목           ← 모든 이슈(Epic, Task). 파트 태그는 parts.md의 13종
 ```
 
 - **레이블 = 제목의 `[파트]`와 글자까지 동일한 값** (`Network`, `UI`, … 대소문자 구분). 자동화가 제목에서 읽어 채우므로 직접 고르지 않는다.
@@ -110,6 +110,6 @@ Epic  ── 큰 작업 카테고리. [파트] = 최종 검증 책임 파트
 Epic:  [Network] 멀티플레이어 로비 구축     담당: 네트워크 파트원 · 레이블 Network
  ├─ Task: [Network] 세션 생성/참가 로직     담당: A · 레이블 Network · 8pt
  ├─ Task: [UI] 로비 화면 및 방 목록 UI      담당: B · 레이블 UI · 5pt
- ├─ Task: [Plan] 로비 UX 흐름 기획서        담당: C · 레이블 Plan · 3pt  → 브랜치에 docs/design/lobby-ux.md
+ ├─ Task: [Plan] 로비 UX 흐름 기획서        담당: C · 레이블 Plan · 3pt  → 브랜치에 docs/planning/lobby-ux.md
  └─ Task: [Sound] 로비 BGM 레퍼런스 조사    담당: D · 레이블 Sound · 2pt → 브랜치에 docs/records/S15P21B202-27-lobby-bgm.md
 ```
