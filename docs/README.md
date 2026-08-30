@@ -1,25 +1,65 @@
 # 프로젝트 문서
 
-팀 개발 환경·컨벤션 문서 모음. 새 팀원은 위에서 아래 순서로 읽으면 된다.
+**무엇을 언제 읽는지**로 정리했습니다. 처음부터 다 읽지 않아도 됩니다 — 지금 하려는 일에 해당하는 줄만 보세요.
 
-| 문서 | 내용 |
+## 지금 하려는 일별로
+
+| 상황 | 읽을 것 |
 | --- | --- |
-| [workflow.md](./workflow.md) | **개발 워크플로우 최종본 v2.0 (평가·공유용)** — 흐름도 · 원칙 · 단계별 사람/자동/어긋남 · 규칙 강제 계층 · **시나리오 방어표 25종** · 알림 카탈로그 · 한계 |
-| [e2e-checklist.md](./e2e-checklist.md) | E2E 점검표 — 시나리오별 준비·행동·기대·확인·결과 (A 이슈 / B 상태·브랜치 / C MR·CI / D 리뷰·머지 / E 알림 / F 운영) |
-| [workflow-plan.md](./workflow-plan.md) | **워크플로우 구현 계획 v1.1 (확정·적용 완료)** — 결정 근거 · 실현 가능성 검증 · 단계 |
-| [convention-proposal.md](./convention-proposal.md) | 확정 컨벤션 v1.2 한 장 요약 |
-| [parts.md](./parts.md) | 파트 태그 정의 및 역할 배분 (**지속 갱신**) |
-| [git-convention.md](./git-convention.md) | 브랜치 전략 · Jira에서 브랜치 생성 · 네이밍 · MR/승인 · 규칙 강제 4겹 · Unity 규칙 |
-| [jira-convention.md](./jira-convention.md) | Epic/Task 구조 · 필수 필드 · 레이블=파트 · 스토리 포인트 척도 · 상태 진입 규칙 |
-| [jira-gitlab-automation.md](./jira-gitlab-automation.md) | Automation 규칙 R1~R9 명세 · 적용 현황 · E2E 검증 결과 · GitLab 설정 · 편집기/API 부록 |
-| [ai-tooling.md](./ai-tooling.md) | AI 연동 가이드 — 공용 계정 대신 로컬 MCP(`mcp-atlassian`)·`glab` CLI 사용, 토큰 관리 |
-| [ci-and-notifications.md](./ci-and-notifications.md) | **1·2단계 CI·알림** — MR 파이프라인 잡(mr-title·mr-lint·repo-hygiene·unity-compile·ai-review·mm-digest) · 변수/토큰 · 러너 · Mattermost 알림 3소스 |
-| [leader-checklist.md](./leader-checklist.md) | 팀장 남은 일 — MR 머지 · 브랜치/테스트 이슈 정리 · Epic 담당자 · CI 변수/러너/MM 통합 |
-| [backend-guidelines.md](./backend-guidelines.md) | 백엔드 기술스택·설계 원칙 — raw WebSocket · 게스트 로그인 · MySQL/메모리 분리 · GameState · 체크포인트 · 로컬 개발 환경 |
-| [asset-catalog.md](./asset-catalog.md) | **Unity 에셋 카탈로그** — 프리뷰 이미지 · 실제 배치 크기 · `Texture→Material→Prefab` 연결 체인 · 미연결 에셋 목록 (**에셋 추가 시 갱신**) |
+| **처음 왔다** (오늘 하루 안에) | [workflow.md](./workflow.md) §0 흐름도 → [convention-proposal.md](./convention-proposal.md) 한 장 요약 → 아래 "클론 후 1회 설정" |
+| **이슈를 만든다** | [jira-convention.md](./jira-convention.md) (Epic/Task·필수 필드·파트 레이블·스토리 포인트) |
+| **브랜치를 만들고 작업한다** | [git-convention.md](./git-convention.md) (브랜치 이름·커밋 메시지·push 전 자동 반영·Unity 규칙) |
+| **MR 을 올린다** | [git-convention.md](./git-convention.md) §5 (MR 규칙·승인) · MR 템플릿은 자동으로 들어온다 |
+| **검사가 빨간불이다** | [ci-and-notifications.md](./ci-and-notifications.md) (잡별로 무엇을 보는지·실패 이유를 어디서 보는지) |
+| **팀장이 리뷰·머지한다** | [leader-checklist.md](./leader-checklist.md) |
+| **Jira 자동화가 이상하다** | [jira-gitlab-automation.md](./jira-gitlab-automation.md) (규칙 R1~R9 명세·실측 기록·사고 이력) |
+| **CI·알림을 고친다** (Infra) | [ci-and-notifications.md](./ci-and-notifications.md) → `scripts/ci/` → 오프라인 테스트 `python scripts/ci/tests/run_all.py` |
+| **자동화를 사람이 확인한다** | [e2e-checklist.md](./e2e-checklist.md) (시나리오별 준비·행동·기대·실측 결과) |
+| **왜 이렇게 정했는지 알고 싶다** | [workflow-plan.md](./workflow-plan.md) (결정 근거·대안 검토) |
+| **AI 도구를 쓴다** | [ai-tooling.md](./ai-tooling.md) (공용 계정 금지·로컬 MCP·토큰 취급) |
 
-CI 파이프라인은 [.gitlab-ci.yml](../.gitlab-ci.yml)과 [scripts/ci/](../scripts/ci/)에 있다(러너에 Python 3.12+만 필요).
-MR 템플릿은 [.gitlab/merge_request_templates/Default.md](../.gitlab/merge_request_templates/Default.md)에 있으며 MR 생성 시 자동 적용된다.
-브랜치명 검사 훅은 [.githooks/pre-push](../.githooks/pre-push)에 있으며, 클론 후 `git config core.hooksPath .githooks`를 한 번 실행해 켠다.
+## 파트별로
 
-템플릿 파일: [templates/jira-issue-description.md](./templates/jira-issue-description.md) (Jira 설명 틀, 자동 삽입) · [templates/work-record.md](./templates/work-record.md) (비코드 작업 기록 1장)
+| 파트 | 읽을 것 |
+| --- | --- |
+| 전체 · 역할 배분 | [parts.md](./parts.md) — 파트 태그 정의와 담당 (**지속 갱신**) |
+| Backend | [backend-guidelines.md](./backend-guidelines.md) — 기술스택·설계 원칙·로컬 개발 환경 |
+| Art · Level | [asset-catalog.md](./asset-catalog.md) — 에셋 프리뷰·배치 크기·`Texture→Material→Prefab` 연결 (**에셋 추가 시 갱신**) |
+| Plan | [planning/](./planning/) — 기획 문서 |
+
+## 폴더
+
+| 경로 | 무엇이 들어가나 |
+| --- | --- |
+| `docs/*.md` | 팀 전체가 지키는 규칙·명세. 한 주제 한 파일 |
+| [`docs/records/`](./records/) | 한 이슈에서 나온 **작업 기록**. 파일 이름은 `<이슈키>-<slug>.md` — [규칙](./records/README.md) |
+| `docs/templates/` | [jira-issue-description.md](./templates/jira-issue-description.md) (Jira 설명 틀, 이슈 생성 시 자동 삽입) · [work-record.md](./templates/work-record.md) (비코드 작업 기록 1장) |
+| `docs/planning/` | 기획 문서 |
+| `docs/assets/previews/` | 문서에 넣는 이미지 |
+
+## 문서가 아닌 곳에 있는 것들
+
+| 무엇 | 어디 |
+| --- | --- |
+| CI 파이프라인 정의 | [`.gitlab-ci.yml`](../.gitlab-ci.yml) |
+| CI 스크립트와 그 테스트 | [`scripts/ci/`](../scripts/ci/) — 러너에 Python 3.12+ 만 필요 |
+| 러너 설치·환경 스크립트 | [`scripts/runner/`](../scripts/runner/) |
+| MR 템플릿 | [`.gitlab/merge_request_templates/Default.md`](../.gitlab/merge_request_templates/Default.md) — MR 생성 시 자동 적용 |
+| push 전 로컬 검사 훅 | [`.githooks/pre-push`](../.githooks/pre-push) |
+| Unity 프로젝트 | `METAGAME/` |
+| 백엔드 | `backend/` |
+
+## 클론 후 1회 설정
+
+```bash
+git config core.hooksPath .githooks   # push 전 브랜치명 검사 · develop 최신 자동 반영
+git lfs install --skip-repo           # --skip-repo 필수: 우리 훅을 덮어쓰지 않는다
+```
+
+`git lfs update --force` 는 **실행하지 마세요** — `.githooks/pre-push` 를 지웁니다.
+
+## 이 문서들을 고칠 때
+
+- 같은 규칙을 두 문서가 다르게 말하지 않게 합니다. 규칙의 **단일 출처**는 위 표의 담당 문서입니다.
+- 버전 번호·개수(예: "시나리오 25종")는 문서 안에 두고 이 색인에는 적지 않습니다 — 색인이 먼저 낡습니다.
+- [workflow.md](./workflow.md) 와 [e2e-checklist.md](./e2e-checklist.md) 는 **팀 외부 공유·제출용**입니다. 내용을 바꿀 때는 공유본(`Desktop/METAGAME-share/`)도 함께 갱신합니다.
