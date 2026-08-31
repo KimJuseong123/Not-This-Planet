@@ -162,6 +162,7 @@ namespace Metagame.Gameplay.Parts
         Transform visual;
         Transform cockpit;
         TractorBeam beam;
+        LowGravityField field;
         PlayerRig rider;
         Vector3 driveVector;
         float verticalInput;
@@ -193,6 +194,25 @@ namespace Metagame.Gameplay.Parts
 
         public Rigidbody Body => body;
         public TractorBeam Beam => beam;
+
+        /// <summary>
+        /// 기체 아래에 펼쳐지는 광역 저중력장(기획 §14.3). 빔과 별개다 —
+        /// 빔은 파츠 하나를 정밀하게 놓고, 이쪽은 영역 안의 것들을 띄운다.
+        /// </summary>
+        public LowGravityField Field
+        {
+            get
+            {
+                if (field == null)
+                {
+                    field = GetComponent<LowGravityField>();
+                    if (field == null) field = gameObject.AddComponent<LowGravityField>();
+                    field.Configure(beam != null ? beam.BeamOrigin : transform);
+                }
+
+                return field;
+            }
+        }
         public PlayerRig Rider => rider;
         public bool IsOccupied => rider != null;
         public bool IsReturning => returning;

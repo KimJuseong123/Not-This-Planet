@@ -12,6 +12,16 @@ namespace Metagame.Gameplay.Tests
     /// </summary>
     static class SocketTestRig
     {
+        /// <summary>
+        /// 붙을 수 있는 범위 안의 세로 여유(m).
+        ///
+        /// 기획 S15P21B202-107 §15.2 의 접합면 간격 허용치는 0.2m 다. 예전에는 판정이
+        /// 소켓 사이 3차원 거리 1.5m 하나였던 탓에 테스트가 0.3~0.4m 를 띄워 두고도 붙었다.
+        /// 간격을 따로 재기 시작하면서 그 값들이 전부 허용치를 넘게 되었다.
+        /// 여유를 바꿀 일이 생기면 여기 한 곳만 고친다.
+        /// </summary>
+        public const float StackGap = 0.1f;
+
         public static SpaceshipPart CreatePart(List<GameObject> spawned, Vector3 position)
         {
             var go = new GameObject("Part");

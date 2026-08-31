@@ -58,6 +58,20 @@ namespace Metagame.Gameplay
         /// <summary>공중에서 자세제어 분사기를 쓰고 있는가 (HUD·연기 표시용).</summary>
         public bool Thrusting { get; private set; }
         public float AirTime { get; private set; }
+
+        /// <summary>
+        /// 광역 저중력장 안에서 떠 있는가.
+        ///
+        /// 파츠는 저중력장이 힘으로 끌어당기지만 플레이어는 그러지 않는다. 기획
+        /// (S15P21B202-107 §14.3)이 "플레이어는 중심으로 강제 견인되지 않고 직접 움직인다"
+        /// 고 정했기 때문이다. 그래서 저중력장은 "여기가 영역이다" 만 알려 주고
+        /// (<see cref="Parts.LowGravityField.FindContaining"/>) 실제 부유는 여기서 만든다.
+        ///
+        /// 인형에 힘을 주지 않고 속도를 직접 넣는 이유도 같다. 래그돌의 강체를 하나씩
+        /// 띄우면 팔다리가 따로 떠서 자세가 무너진다. <see cref="DriveMovementVelocity"/> 가
+        /// 이미 수평을 그렇게 다루고 있어 세로도 같은 방식으로 맞췄다.
+        /// </summary>
+        public bool Floating { get; private set; }
         public Grabbable HeldTool { get { return toolHeld; } }
         /// <summary>현재 장착된 도구 동작 컴포넌트. 도구가 없거나 구형 Tool이면 null이다.</summary>
         public ToolBase ActiveTool { get { return activeTool; } }
@@ -93,6 +107,9 @@ namespace Metagame.Gameplay
         float uprightBlend = 1f;
         float thrustPuff;
         float fallPeakFootHeight;
+
+        /// <summary>부유하느라 인형의 중력을 꺼 둔 상태인가. 켜고 끄는 시점을 한 번씩만 만든다.</summary>
+        bool floatingGravityOff;
         Grabbable toolHeld;
         float toolCharge;
         bool toolActionHeld;
@@ -430,7 +447,18 @@ namespace Metagame.Gameplay
             mountedJoint = null;
         }
 
-        void FixedUpdate()
+        void FixedUpdate() => Tick();
+
+        /// <summary>
+        /// 물리 스텝 한 번. 런타임에서는 <c>FixedUpdate</c> 가 부르고, EditMode 테스트는
+        /// <c>Physics.Simulate</c> 와 짝지어 직접 부른다.
+        ///
+        /// 리포의 다른 물리 컴포넌트(<see cref="Parts.TractorBeam"/>,
+        /// <see cref="Parts.TransportVehicle"/>, <see cref="Parts.LowGravityField"/>)가
+        /// 모두 같은 방식이다. 시간은 인수로 받지 않는다 — 본문이 여러 곳에서
+        /// <c>Time.fixedDeltaTime</c> 을 쓰고 있어 인수로 바꾸면 그 전부를 함께 손봐야 한다.
+        /// </summary>
+        public void Tick()
         {
             if (Doll == null || Doll.Hips == null) return;
             if (!JointTools.IsFinite(Doll.Hips.position)) { return; }
@@ -455,6 +483,7 @@ namespace Metagame.Gameplay
             }
 
             ProbeGround();
+            UpdateFloating();
             UpdateSpeed();
             Hover();
             Locomotion();
@@ -536,6 +565,63 @@ namespace Metagame.Gameplay
         }
 
         // ── 서 있기 ─────────────────────────────────────────────
+        /// <summary>
+        /// 저중력장 안인지 보고 부유 상태를 갱신한다. 부유 중이면 세로 속도를 직접 준다.
+        ///
+        /// <b>부유하는 동안 인형의 중력을 끈다.</b> 처음에는 세로 속도만 덮어쓰면 될 줄 알았는데,
+        /// 상승 가속(2m/s ÷ 0.5초 = 4m/s²)에서 행성 중력(2.8m/s²)을 빼면 순 상승이 1.2m/s² 뿐이라
+        /// 관절과 접촉 저항에 먹혀 아예 뜨지 않았다(계측: 2초에 -0.01m). 중력을 끄면
+        /// 기획이 정한 "0.5초 관성" 도 그대로 성립한다.
+        ///
+        /// 영역을 벗어나거나 저중력장이 꺼지면 중력을 다시 켜므로 그 즉시 떨어진다(기획 §14.3).
+        ///
+        /// 접지를 강제로 끄는 이유는 <see cref="Hover"/> 때문이다. 지면 가까이에서 떠 있으면
+        /// 접지로 잡혀 지면 스프링이 부유를 밀어 올린다.
+        ///
+        /// 낙하 기준 높이도 계속 갱신한다. 떠 있는 것은 떨어지는 것이 아니므로,
+        /// 그냥 두면 부유했다 내려올 때 그 높이차가 추락으로 집계된다.
+        /// </summary>
+        void UpdateFloating()
+        {
+            var field = Parts.LowGravityField.FindContaining(Doll.Hips.position);
+            var wants = field != null && !Hanging && MountedVehicle == null;
+
+            // 들고 날 때 인형의 중력을 끄고 켠다. 상태가 바뀔 때만 건드려 매 스텝 강체를
+            // 훑지 않는다.
+            if (wants != floatingGravityOff)
+            {
+                for (int i = 0; i < Doll.Bodies.Count; i++)
+                    if (Doll.Bodies[i] != null)
+                        Doll.Bodies[i].useGravity = !wants;
+
+                floatingGravityOff = wants;
+            }
+
+            Floating = wants;
+            if (!Floating) return;
+
+            Grounded = false;
+            GroundDistance = float.MaxValue;
+            GroundVelocity = Vector3.zero;
+            AirTime = 0f;
+            fallPeakFootHeight = Doll.Hips.position.y - RagdollBuilder.HipsY;
+
+            // Space 로 올라가고 Ctrl 로 내려간다. 탑승 중 고도 조작과 같은 두 키다.
+            float wish = (input.Jump ? 1f : 0f) - (input.ArmsUp ? 1f : 0f);
+            float target = wish * PhysicsScale.FieldFloatVerticalSpeed;
+            float rate = PhysicsScale.FieldFloatVerticalSpeed / PhysicsScale.FieldFloatStopSeconds;
+
+            for (int i = 0; i < Doll.Bodies.Count; i++)
+            {
+                var body = Doll.Bodies[i];
+                if (body == null) continue;
+
+                Vector3 v = body.linearVelocity;
+                v.y = Mathf.MoveTowards(v.y, target, rate * Time.fixedDeltaTime);
+                body.linearVelocity = v;
+            }
+        }
+
         void Hover()
         {
             if (!Grounded || Hanging) return;
@@ -560,7 +646,9 @@ namespace Metagame.Gameplay
             Vector3 wish = right * input.Move.x + fwd * input.Move.y;
             if (wish.sqrMagnitude > 1f) wish.Normalize();
 
-            float top = input.Run ? Tuning.RunSpeed : Tuning.WalkSpeed;
+            float top = Floating
+                ? PhysicsScale.FieldFloatSpeed
+                : (input.Run ? Tuning.RunSpeed : Tuning.WalkSpeed);
             Vector3 targetVel = wish * top;
             targetVel.x += GroundVelocity.x;
             targetVel.z += GroundVelocity.z;
@@ -620,8 +708,14 @@ namespace Metagame.Gameplay
         void DriveMovementVelocity(Vector3 targetVelocity)
         {
             Vector3 target = new Vector3(targetVelocity.x, 0f, targetVelocity.z);
-            float acceleration = Grounded ? Tuning.GroundAcceleration : Tuning.AirAcceleration;
-            float deceleration = Grounded ? Tuning.GroundDeceleration : Tuning.AirAcceleration;
+
+            // 부유 중에는 기획이 정한 관성으로 선다 — "입력을 놓으면 약 0.5초 관성 후 정지".
+            float floatRate = PhysicsScale.FieldFloatSpeed / PhysicsScale.FieldFloatStopSeconds;
+
+            float acceleration = Floating ? floatRate
+                : (Grounded ? Tuning.GroundAcceleration : Tuning.AirAcceleration);
+            float deceleration = Floating ? floatRate
+                : (Grounded ? Tuning.GroundDeceleration : Tuning.AirAcceleration);
 
             for (int i = 0; i < Doll.Bodies.Count; i++)
             {

@@ -49,6 +49,21 @@ namespace Metagame.EditorTools
         const int ClampsPerPart = 4;
         const int WeldPointsPerPart = 4;
 
+        /// <summary>콜라이더 상자 자식의 이름 앞부분. 스킨이 이 렌더러들을 끈다.</summary>
+        public const string BodyPrefix = "Body_";
+
+        /// <summary>고정쇠·용접점을 밑면 발자국의 몇 배 지점에 둘지. 0.5 가 모서리다.</summary>
+        const float ClampInset = 0.40f;
+        const float WeldInset = 0.25f;
+
+        /// <summary>
+        /// 상호작용 콜라이더 반지름(m). 예전에는 루트 스케일(최대 3.7배)이 곱해져
+        /// 실제로는 0.44m·0.37m 였다. 루트 스케일이 1 이 되었으므로 실측값을 그대로 적는다.
+        /// </summary>
+        const float ClampRadius = 0.35f;
+        const float WeldRadius = 0.30f;
+
+        [MenuItem("Tools/둥실둥실 우주 대탈출/Main 씬에 1장 퍼즐 배치", false, 3)]
         public static void Build()
         {
             var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
@@ -78,9 +93,15 @@ namespace Metagame.EditorTools
             marker.SetParent(group, false);
             marker.localPosition = AssemblyPoint;
 
-            var parts = new SpaceshipPart[PartSpots.Length];
-            for (var i = 0; i < PartSpots.Length; i++)
-                parts[i] = BuildPart(group, i);
+            // 파츠 수는 명세가 정한다. 배치 좌표가 모자라면 명세를 못 채우므로 함께 확인한다.
+            var count = Mathf.Min(PartSpec.All.Length, PartSpots.Length);
+            if (PartSpec.All.Length != PartSpots.Length)
+                Debug.LogWarning($"[Stage1Puzzle] 파츠 명세 {PartSpec.All.Length}개 · 배치 좌표 "
+                                 + $"{PartSpots.Length}개 — 적은 쪽인 {count}개만 세운다.");
+
+            var parts = new SpaceshipPart[count];
+            for (var i = 0; i < count; i++)
+                parts[i] = BuildPart(group, i, PartSpec.All[i]);
 
             var beams = BuildBeams(group);
             BuildMeteors(group);
@@ -91,77 +112,113 @@ namespace Metagame.EditorTools
             Debug.Log($"[Stage1Puzzle] 배치 완료 — 파츠 {parts.Length}기, 빔 {beams.Length}기 → {ScenePath}");
         }
 
-        /// <summary>고정쇠로 박혀 있고 용접점을 가진 파츠 하나.</summary>
-        static SpaceshipPart BuildPart(Transform group, int index)
+        /// <summary>
+        /// 고정쇠로 박혀 있고 용접점을 가진 파츠 하나.
+        ///
+        /// 예전에는 프리미티브 큐브 하나를 3 x 3.7 x 3m 로 늘려 네 파츠에 똑같이 썼다. 지금은
+        /// <see cref="PartSpec"/> 의 실측 상자들로 컴파운드 콜라이더를 만든다. 루트의 스케일은
+        /// 1 이고 크기는 자식 상자들이 갖는다 — 스케일로 크기를 표현하면 자식 콜라이더의
+        /// 반지름과 좌표까지 함께 늘어나 실제 치수를 읽을 수 없다.
+        /// </summary>
+        static SpaceshipPart BuildPart(Transform group, int index, PartSpec spec)
         {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            go.name = $"Part_{index + 1}";
-            go.layer = GameLayers.Part;
+            var go = new GameObject(spec.Name) { layer = GameLayers.Part };
             go.transform.SetParent(group, false);
-            go.transform.localPosition = PartSpots[index] + Vector3.up * (PhysicsScale.PartHeight * 0.5f);
-            go.transform.localScale = new Vector3(
-                PhysicsScale.PartWidth, PhysicsScale.PartHeight, PhysicsScale.PartWidth);
+            go.transform.localPosition = PartSpots[index] + Vector3.up * (spec.Height * 0.5f);
+
+            for (var i = 0; i < spec.Boxes.Length; i++) AddBody(go.transform, spec, i);
 
             go.AddComponent<Rigidbody>();
 
-            AddSocket(go.transform, SocketRole.Base);
-            AddSocket(go.transform, SocketRole.Top);
+            AddSocket(go.transform, spec, SocketRole.Base);
+            AddSocket(go.transform, spec, SocketRole.Top);
 
-            for (var i = 0; i < ClampsPerPart; i++) AddClamp(go.transform, i);
-            for (var i = 0; i < WeldPointsPerPart; i++) AddWeldPoint(go.transform, i);
+            for (var i = 0; i < ClampsPerPart; i++) AddClamp(go.transform, spec, i);
+            for (var i = 0; i < WeldPointsPerPart; i++) AddWeldPoint(go.transform, spec, i);
 
             var part = go.AddComponent<SpaceshipPart>();
+            part.SetPlacedMass(spec.Mass);
             part.Initialize();   // Locked 상태의 물리 표현을 씬에 저장한다
             return part;
         }
 
-        static void AddSocket(Transform parent, SocketRole role)
+        /// <summary>
+        /// 콜라이더 상자 하나. 프리미티브 큐브를 쓰는 이유는 스킨을 걷어냈을 때 파츠가
+        /// 여전히 보여야 하기 때문이다 — 스킨은 이 렌더러들만 끄고 메시는 그대로 둔다.
+        /// </summary>
+        static void AddBody(Transform parent, PartSpec spec, int index)
+        {
+            var box = spec.Boxes[index];
+
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            go.name = $"{BodyPrefix}{index}";
+            go.layer = GameLayers.Part;
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = box.CenterFromPartCenter(spec.Height);
+            go.transform.localScale = box.Size;
+        }
+
+        /// <summary>
+        /// 접합면. 밑면과 윗면의 한가운데다.
+        /// 좌표는 실제 미터다 — 루트 스케일이 1 이므로 ±0.5 같은 비율값을 쓸 수 없다.
+        /// </summary>
+        static void AddSocket(Transform parent, PartSpec spec, SocketRole role)
         {
             var direction = role == SocketRole.Base ? Vector3.down : Vector3.up;
 
             var go = new GameObject($"Socket_{role}");
             go.transform.SetParent(parent, false);
-            go.transform.localPosition = direction * 0.5f;
+            go.transform.localPosition = direction * (spec.Height * 0.5f);
             go.transform.localRotation = Quaternion.LookRotation(direction, Vector3.forward);
 
             go.AddComponent<PartSocket>().SetRole(role);
         }
 
-        /// <summary>밑면 네 귀퉁이의 고정쇠. 로컬 스케일이 파츠 크기라 좌표는 ±0.5 기준이다.</summary>
-        static void AddClamp(Transform parent, int index)
+        /// <summary>밑면 네 귀퉁이의 고정쇠. 가장 아래 상자의 발자국 안쪽에 둔다.</summary>
+        static void AddClamp(Transform parent, PartSpec spec, int index)
         {
+            var bottom = spec.Boxes[0];
+            var x = bottom.Width * ClampInset;
+            var z = bottom.Depth * ClampInset;
+
             var corners = new[]
             {
-                new Vector3(-0.4f, -0.5f, -0.4f), new Vector3(0.4f, -0.5f, -0.4f),
-                new Vector3(-0.4f, -0.5f, 0.4f), new Vector3(0.4f, -0.5f, 0.4f),
+                new Vector3(-x, 0f, -z), new Vector3(x, 0f, -z),
+                new Vector3(-x, 0f, z), new Vector3(x, 0f, z),
             };
 
             var go = new GameObject($"Clamp_{index}") { layer = GameLayers.Interactable };
             go.transform.SetParent(parent, false);
-            go.transform.localPosition = corners[index % corners.Length];
+            go.transform.localPosition = corners[index % corners.Length]
+                                         + Vector3.down * (spec.Height * 0.5f);
 
             var sphere = go.AddComponent<SphereCollider>();
-            sphere.radius = 0.12f;
+            sphere.radius = ClampRadius;
             sphere.isTrigger = true;
 
             go.AddComponent<PartClamp>();
         }
 
         /// <summary>밑면 둘레의 용접점. 조립된 뒤에만 용접할 수 있다.</summary>
-        static void AddWeldPoint(Transform parent, int index)
+        static void AddWeldPoint(Transform parent, PartSpec spec, int index)
         {
+            var bottom = spec.Boxes[0];
+            var x = bottom.Width * WeldInset;
+            var z = bottom.Depth * 0.5f;
+
             var spots = new[]
             {
-                new Vector3(-0.25f, -0.5f, -0.5f), new Vector3(0.25f, -0.5f, -0.5f),
-                new Vector3(-0.25f, -0.5f, 0.5f), new Vector3(0.25f, -0.5f, 0.5f),
+                new Vector3(-x, 0f, -z), new Vector3(x, 0f, -z),
+                new Vector3(-x, 0f, z), new Vector3(x, 0f, z),
             };
 
             var go = new GameObject($"Weld_{index}") { layer = GameLayers.Interactable };
             go.transform.SetParent(parent, false);
-            go.transform.localPosition = spots[index % spots.Length];
+            go.transform.localPosition = spots[index % spots.Length]
+                                         + Vector3.down * (spec.Height * 0.5f);
 
             var sphere = go.AddComponent<SphereCollider>();
-            sphere.radius = 0.1f;
+            sphere.radius = WeldRadius;
             sphere.isTrigger = true;
 
             go.AddComponent<WeldPoint>();

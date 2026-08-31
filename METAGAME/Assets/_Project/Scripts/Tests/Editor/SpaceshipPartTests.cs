@@ -78,6 +78,49 @@ namespace Metagame.Gameplay.Tests
             Assert.IsFalse(body.isKinematic);
         }
 
+        /// <summary>
+        /// 파츠마다 다른 질량을 쓴다.
+        ///
+        /// 예전에는 상태만 보고 PhysicsScale.PartMass(500kg) 하나를 넣었다. 크기가 두 배 넘게
+        /// 차이 나는 파츠들이 같은 무게면 적재도 발사 하중도 외형과 어긋난다.
+        /// </summary>
+        [Test]
+        public void Placed_UsesPerPartMass()
+        {
+            var part = Unlocked();
+            part.SetPlacedMass(742f);
+            part.TryTransitionTo(PartState.Carried);
+
+            Assert.IsTrue(part.TryTransitionTo(PartState.Placed));
+
+            Assert.AreEqual(742f, part.GetComponent<Rigidbody>().mass, 0.001f,
+                "파츠에 지정한 질량이 적용되어야 한다. 500 이면 고정값으로 되돌아간 것이다.");
+        }
+
+        /// <summary>명세가 없는 파츠는 예전 상수로 돌아간다 — 테스트가 만드는 일반 파츠가 이 경로다.</summary>
+        [Test]
+        public void PlacedMass_FallsBackToConstantWhenUnset()
+        {
+            Assert.AreEqual(PhysicsScale.PartMass, CreatePart().PlacedMass, 0.001f,
+                "질량을 지정하지 않으면 예전 고정값을 써야 한다.");
+        }
+
+        /// <summary>
+        /// 견인 중 질량은 파츠 크기와 무관하다. 이 값은 무게 표현이 아니라 플레이어가
+        /// 파츠에 깔려 짓눌리지 않게 하는 안전값이라서다.
+        /// </summary>
+        [Test]
+        public void Carried_IgnoresPerPartMass()
+        {
+            var part = Unlocked();
+            part.SetPlacedMass(742f);
+
+            Assert.IsTrue(part.TryTransitionTo(PartState.Carried));
+
+            Assert.AreEqual(PhysicsScale.CarriedPartMass, part.GetComponent<Rigidbody>().mass, 0.001f,
+                "견인 중에는 파츠별 질량이 아니라 압사 방지 질량을 써야 한다.");
+        }
+
         [Test]
         public void Placed_RestoresPartMassAndLayer()
         {
