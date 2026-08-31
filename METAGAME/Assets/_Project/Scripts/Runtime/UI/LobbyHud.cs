@@ -174,10 +174,15 @@ namespace Metagame.UI
             {
                 PlayerSnapshot player = room.Players[i];
                 string role = player.UserId == room.HostUserId ? "방장" : "참가자";
-                string ready = player.Ready ? "준비 완료" : "준비 중";
+                string state = player.Disconnected
+                    ? "연결 끊김"
+                    : player.Ready ? "준비 완료" : "준비 중";
+                Color color = player.Disconnected
+                    ? new Color(1f, 0.75f, 0.45f)
+                    : player.Ready ? new Color(0.55f, 1f, 0.65f) : Color.white;
                 Label(new Rect(x + 52f, rowY + i * 30f, width - 104f, 26f),
-                    player.UserId + (player.UserId == network.UserId ? " (나)" : "") + " · " + role + " · " + ready,
-                    smallStyle, player.Ready ? new Color(0.55f, 1f, 0.65f) : Color.white);
+                    player.Nickname + (player.UserId == network.UserId ? " (나)" : "") + " · " + role + " · " + state,
+                    smallStyle, color);
             }
 
             float controlsY = rowY + Mathf.Max(1, room.Players.Count) * 30f + 16f;

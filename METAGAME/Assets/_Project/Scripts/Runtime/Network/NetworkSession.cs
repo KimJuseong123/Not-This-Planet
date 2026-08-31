@@ -6,6 +6,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -404,7 +405,7 @@ namespace Metagame.Network
             WebSocketEnvelope message;
             try
             {
-                message = JsonUtility.FromJson<WebSocketEnvelope>(json);
+                message = ParseEnvelope(json);
             }
             catch (Exception)
             {
@@ -441,6 +442,15 @@ namespace Metagame.Network
                     ReportError("알 수 없는 서버 메시지입니다: " + message.type);
                     break;
             }
+        }
+
+        /// <summary>
+        /// ROOM_STATE 의 players 가 userId 를 키로 하는 객체라 JsonUtility 로는 읽을 수 없다.
+        /// 테스트에서도 쓰도록 밖으로 열어 둔다.
+        /// </summary>
+        public static WebSocketEnvelope ParseEnvelope(string json)
+        {
+            return JsonConvert.DeserializeObject<WebSocketEnvelope>(json);
         }
 
         /// <summary>
