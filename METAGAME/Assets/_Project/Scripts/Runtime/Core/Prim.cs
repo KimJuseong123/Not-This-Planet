@@ -41,8 +41,10 @@ namespace Metagame.Core
             if (s != null) return s;
             s = Shader.Find(shaderName);
             if (s != null) return s;
-            s = Shader.Find("Standard");
-            return s != null ? s : Shader.Find("Diffuse");
+            // URP에서는 Built-in Standard/Diffuse를 fallback으로 사용하면
+            // 셰이더가 분홍색으로 표시될 수 있다. 실패하더라도 URP Lit으로
+            // 안전하게 내려가고, 빌드 전 검증기가 원인을 보고하도록 한다.
+            return Shader.Find("Universal Render Pipeline/Lit");
         }
 
         /// <summary>같은 색/말랑함이면 머티리얼을 공유한다.</summary>

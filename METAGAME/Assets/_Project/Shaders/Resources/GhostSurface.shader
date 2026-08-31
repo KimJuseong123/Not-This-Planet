@@ -1,5 +1,4 @@
-// 반투명 표시용 — 스냅 소켓 미리보기, 포털 링, 세계 포식자의 몸.
-// 프레넬로 실루엣을 살려서 반투명인데도 형태가 읽히게 한다.
+// URP compatible transparent rim material. The shader name is kept stable for Prim.
 Shader "SpaceFlop/Ghost"
 {
     Properties
@@ -12,61 +11,71 @@ Shader "SpaceFlop/Ghost"
 
     SubShader
     {
-        Tags { "Queue"="Transparent" "RenderType"="Transparent" "IgnoreProjector"="True" }
+        Tags { "Queue"="Transparent" "RenderType"="Transparent" "IgnoreProjector"="True" "RenderPipeline"="UniversalPipeline" }
         LOD 100
 
         Pass
         {
+            Name "ForwardUnlit"
+            Tags { "LightMode"="UniversalForward" }
             Blend SrcAlpha OneMinusSrcAlpha
             ZWrite Off
             Cull Off
 
-            CGPROGRAM
-            #pragma vertex vert
-            #pragma fragment frag
-            #include "UnityCG.cginc"
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex Vert
+            #pragma fragment Frag
+            #pragma multi_compile_fog
 
-            fixed4 _Color;
-            half _RimPower;
-            half _RimBoost;
-            half _Pulse;
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
-            struct appdata
+            CBUFFER_START(UnityPerMaterial)
+                half4 _Color;
+                half _RimPower;
+                half _RimBoost;
+                half _Pulse;
+            CBUFFER_END
+
+            struct Attributes
             {
-                float4 vertex : POSITION;
-                float3 normal : NORMAL;
+                float4 positionOS : POSITION;
+                float3 normalOS : NORMAL;
             };
 
-            struct v2f
+            struct Varyings
             {
-                float4 pos : SV_POSITION;
-                float3 worldNormal : TEXCOORD0;
-                float3 viewDir : TEXCOORD1;
+                float4 positionCS : SV_POSITION;
+                float3 positionWS : TEXCOORD0;
+                half3 normalWS : TEXCOORD1;
             };
 
-            v2f vert(appdata v)
+            Varyings Vert(Attributes input)
             {
-                v2f o;
-                o.pos = UnityObjectToClipPos(v.vertex);
-                o.worldNormal = UnityObjectToWorldNormal(v.normal);
-                float3 worldPos = mul(unity_ObjectToWorld, v.vertex).xyz;
-                o.viewDir = normalize(_WorldSpaceCameraPos - worldPos);
-                return o;
+                Varyings output;
+                VertexPositionInputs position = GetVertexPositionInputs(input.positionOS.xyz);
+                VertexNormalInputs normal = GetVertexNormalInputs(input.normalOS);
+                output.positionCS = position.positionCS;
+                output.positionWS = position.positionWS;
+                output.normalWS = normal.normalWS;
+                return output;
             }
 
-            fixed4 frag(v2f i) : SV_Target
+            half4 Frag(Varyings input) : SV_Target
             {
-                half rim = 1.0 - saturate(dot(normalize(i.worldNormal), normalize(i.viewDir)));
+                half3 normalWS = normalize(input.normalWS);
+                half3 viewDir = SafeNormalize(GetWorldSpaceViewDir(input.positionWS));
+                half rim = 1.0h - saturate(dot(normalWS, viewDir));
                 rim = pow(rim, _RimPower) * _RimBoost;
 
-                half pulse = 1.0 + _Pulse * 0.35 * sin(_Time.y * 3.4);
-
-                fixed4 c = _Color;
-                c.rgb *= (0.75 + rim) * pulse;
-                c.a = saturate(c.a * pulse + rim * 0.55);
-                return c;
+                half pulse = 1.0h + _Pulse * 0.35h * sin(_Time.y * 3.4h);
+                half4 color = _Color;
+                color.rgb *= (0.75h + rim) * pulse;
+                color.a = saturate(color.a * pulse + rim * 0.55h);
+                color.rgb = MixFog(color.rgb, ComputeFogFactor(input.positionCS.z));
+                return color;
             }
-            ENDCG
+            ENDHLSL
         }
     }
 

@@ -1,7 +1,7 @@
 # 둥실둥실 우주 대탈출 (SpaceFlop)
 
 휴먼 폴 플랫 식 **물리 인형 장애물 코스** — 소행성 표면 버전.
-Unity 6000.5.4f1 / Built-in Render Pipeline.
+Unity 6000.5.4f1 / Universal Render Pipeline 17.5.0.
 세계와 물리는 전부 런타임 코드가 세우고, 겉모습만 블렌더 모델 2종을 그 위에 씌운다.
 
 지구 버전([../FloppyFall](../FloppyFall))에서 세 가지를 바꿨다.
@@ -20,9 +20,26 @@ Build/Windows/SpaceFlop.exe -batchmode -nographics -space-selftest -logFile out.
 Build/Windows/SpaceFlop.exe -space-screenshot -space-shotdir Screenshots -screen-width 1280 -screen-height 720
 ```
 
+## 렌더 파이프라인과 분위기 기반
+
+프로젝트는 URP를 사용한다. Graphics Settings의 기본 파이프라인은 `PC_RPAsset`이며,
+품질 단계는 Very Low·Low·Medium에서 `Mobile_RPAsset`, High·Very High·Ultra에서
+`PC_RPAsset`를 명시적으로 사용한다. 프로젝트 머티리얼과 `SpaceFlop/Dough`,
+`SpaceFlop/Ghost`, `SpaceFlop/Flat` 셰이더는 URP용으로 이관되어 있다.
+
+빌드 전에 `UrpRenderValidation`이 파이프라인·품질 매핑·씬/프리팹 머티리얼·렌더러
+기능·런타임 셰이더 참조를 검사하며, 실패하면 핑크 셰이더 위험이 있는 빌드를 중단한다.
+수동 검증은 `Metagame/Rendering/Validate URP Build Safety` 메뉴에서 실행할 수 있다.
+
+후속 Stage에서 사용할 공용 분위기 기반은 `AtmosphereProfile`, `AtmosphereController`,
+`AtmosphereBackdrop`, `AtmosphereMeteorShower`, `AtmosphereHazeRendererFeature`로 구성되어
+있다. Stage1에는 분위기 프로필이나 노을·포그·유성우 값이 적용되어 있지 않으며,
+Stage2 이후에 프로필을 새로 만들어 연결하는 구조다.
+
 에디터 메뉴는 `Tools/둥실둥실 우주 대탈출/` 아래에 있다.
 1장에 필요한 에셋·퍼즐·운석·지형·용접 건·스킨은 `Main 씬에 1장 전체 구성`으로 한 번에 만들 수 있다.
-씬(`Assets/_Project/Scenes/Surface.unity`)에는 `SpaceBootstrap` 컴포넌트 하나뿐이다.
+실제 빌드 씬은 `Assets/Scenes/Lobby.unity`와 `Assets/Scenes/Main.unity`이며,
+`Main`에는 `SpaceBootstrap`과 Stage1 배치가 있다.
 
 ---
 
@@ -287,10 +304,12 @@ Assets/_Project/
   Scripts/Runtime/UI/         GameHud (한글 IMGUI)                                            → Metagame.UI
   Scripts/Runtime/Bootstrap/  SpaceBootstrap · SpaceSelfTest · SpaceScreenshot                → Metagame.Bootstrap
   Scripts/Editor/             SpaceBuild · SpaceSceneBuilder · ArtLink(FBX → Resources 프리팹) · ArtInspect(모델 구조 찍기) · SpaceFlopModelValidator → Metagame.Editor
-  Scenes/Surface.unity        SpaceBootstrap 컴포넌트 하나뿐
+  Scenes/Main.unity           Stage1 배치와 Global Volume
+  Scenes/Lobby.unity          빌드 진입 씬
   Models/                     Characters/SF_Rabbit_Base.fbx(+.fbm 텍스처) · Spaceships/SF_Spaceship_Capsule.fbx · Characters/SF_Astronaut_Base.fbx(안 씀)
   Prefabs/Resources/          SF_Rabbit_Base.prefab · SF_Spaceship_Capsule.prefab  — ArtLink 가 만든다
-  Shaders/Resources/          DoughSurface · GhostSurface · FlatUnlit  — Prim 이 Resources.Load 로 집는다
+  Shaders/Resources/          DoughSurface · GhostSurface · FlatUnlit  — URP용, Prim 이 Resources.Load 로 집는다
+  Shaders/Atmosphere/         SkyGradient · Haze · Meteor — 후속 Stage 공용 분위기 셰이더
   Textures/Concept/           컨셉 아트 (빌드에 안 들어간다)
 ```
 

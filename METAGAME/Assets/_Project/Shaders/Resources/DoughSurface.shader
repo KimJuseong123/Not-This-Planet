@@ -1,7 +1,5 @@
-// 말랑한 장난감 인형 룩. Built-in Render Pipeline 용 서피스 셰이더.
-//  · 랩 라이팅 + 얕은 서브서페이스로 "말랑한 점토" 느낌
-//  · _Softness 로 촉촉한 찰흙(1) ↔ 단단한 돌/금속(0) 을 보간
-//  · 월드 좌표 노이즈로 손자국 같은 얼룩
+// URP compatible toy/clay surface. The shader name and material properties are
+// intentionally kept stable so runtime-created Prim materials keep working.
 Shader "SpaceFlop/Dough"
 {
     Properties
@@ -18,97 +16,142 @@ Shader "SpaceFlop/Dough"
 
     SubShader
     {
-        Tags { "RenderType"="Opaque" "Queue"="Geometry" }
+        Tags { "RenderType"="Opaque" "Queue"="Geometry" "RenderPipeline"="UniversalPipeline" }
         LOD 250
 
-        CGPROGRAM
-        #pragma surface surf ClayWrap fullforwardshadows addshadow
-        #pragma target 3.0
-
-        fixed4 _Color;
-        half _Softness;
-        half _Wrap;
-        half _SSS;
-        half _Gloss;
-        half _Mottle;
-        half _MottleScale;
-        half _Ambient;
-
-        struct Input
+        Pass
         {
-            float3 worldPos;
-        };
+            Name "ForwardLit"
+            Tags { "LightMode"="UniversalForward" }
 
-        float hash31(float3 p)
-        {
-            return frac(sin(dot(p, float3(12.9898, 78.233, 37.719))) * 43758.5453);
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex Vert
+            #pragma fragment Frag
+            #pragma multi_compile_fog
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            #pragma multi_compile _ _SHADOWS_SOFT
+            #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+
+            CBUFFER_START(UnityPerMaterial)
+                half4 _Color;
+                half _Softness;
+                half _Wrap;
+                half _SSS;
+                half _Gloss;
+                half _Mottle;
+                half _MottleScale;
+                half _Ambient;
+            CBUFFER_END
+
+            struct Attributes
+            {
+                float4 positionOS : POSITION;
+                float3 normalOS : NORMAL;
+            };
+
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float3 positionWS : TEXCOORD0;
+                half3 normalWS : TEXCOORD1;
+                float4 shadowCoord : TEXCOORD2;
+            };
+
+            float Hash31(float3 p)
+            {
+                return frac(sin(dot(p, float3(12.9898, 78.233, 37.719))) * 43758.5453);
+            }
+
+            float ValueNoise(float3 p)
+            {
+                float3 i = floor(p);
+                float3 f = frac(p);
+                f = f * f * (3.0 - 2.0 * f);
+
+                float n000 = Hash31(i);
+                float n100 = Hash31(i + float3(1, 0, 0));
+                float n010 = Hash31(i + float3(0, 1, 0));
+                float n110 = Hash31(i + float3(1, 1, 0));
+                float n001 = Hash31(i + float3(0, 0, 1));
+                float n101 = Hash31(i + float3(1, 0, 1));
+                float n011 = Hash31(i + float3(0, 1, 1));
+                float n111 = Hash31(i + float3(1, 1, 1));
+
+                float nx00 = lerp(n000, n100, f.x);
+                float nx10 = lerp(n010, n110, f.x);
+                float nx01 = lerp(n001, n101, f.x);
+                float nx11 = lerp(n011, n111, f.x);
+                return lerp(lerp(nx00, nx10, f.y), lerp(nx01, nx11, f.y), f.z);
+            }
+
+            Varyings Vert(Attributes input)
+            {
+                Varyings output;
+                VertexPositionInputs position = GetVertexPositionInputs(input.positionOS.xyz);
+                VertexNormalInputs normal = GetVertexNormalInputs(input.normalOS);
+                output.positionCS = position.positionCS;
+                output.positionWS = position.positionWS;
+                output.normalWS = normal.normalWS;
+                output.shadowCoord = TransformWorldToShadowCoord(position.positionWS);
+                return output;
+            }
+
+            half3 ShadeLight(half3 albedo, half3 normalWS, half3 viewDir, Light light)
+            {
+                half3 lightDir = normalize(light.direction);
+                half wrap = lerp(0.18h, _Wrap, _Softness);
+                half ndl = dot(normalWS, lightDir);
+                half diffuse = saturate((ndl + wrap) / (1.0h + wrap));
+
+                half3 halfway = normalize(lightDir + viewDir);
+                half specularPower = lerp(46.0h, 22.0h, _Softness);
+                half specular = pow(saturate(dot(normalWS, halfway)), specularPower) * _Gloss;
+                half back = pow(saturate(dot(viewDir, -lightDir)), 2.0h) * _SSS * _Softness * 0.45h;
+
+                half attenuation = light.distanceAttenuation * light.shadowAttenuation;
+                half3 result = albedo * light.color * diffuse * attenuation;
+                result += light.color * specular * attenuation;
+                result += albedo * light.color * back * attenuation;
+                return result;
+            }
+
+            half4 Frag(Varyings input) : SV_Target
+            {
+                half3 normalWS = normalize(input.normalWS);
+                half3 viewDir = SafeNormalize(GetWorldSpaceViewDir(input.positionWS));
+
+                float noiseA = ValueNoise(input.positionWS * _MottleScale);
+                float noiseB = ValueNoise(input.positionWS * _MottleScale * 2.3);
+                half mottle = lerp(1.0h - _Mottle * 0.30h, 1.0h + _Mottle * 0.16h,
+                                   noiseA * 0.82h + noiseB * 0.18h);
+                half3 albedo = _Color.rgb * mottle;
+
+                Light mainLight = GetMainLight(input.shadowCoord);
+                half3 color = ShadeLight(albedo, normalWS, viewDir, mainLight);
+                color += SampleSH(normalWS) * albedo * _Ambient * lerp(0.75h, 1.0h, _Softness);
+
+                #if defined(_ADDITIONAL_LIGHTS)
+                uint additionalLightCount = GetAdditionalLightsCount();
+                for (uint lightIndex = 0u; lightIndex < additionalLightCount; lightIndex++)
+                {
+                    Light additionalLight = GetAdditionalLight(lightIndex, input.positionWS);
+                    color += ShadeLight(albedo, normalWS, viewDir, additionalLight);
+                }
+                #endif
+
+                color = MixFog(color, ComputeFogFactor(input.positionCS.z));
+                return half4(color, 1.0h);
+            }
+            ENDHLSL
         }
 
-        float vnoise(float3 p)
-        {
-            float3 i = floor(p);
-            float3 f = frac(p);
-            f = f * f * (3.0 - 2.0 * f);
-
-            float n000 = hash31(i);
-            float n100 = hash31(i + float3(1,0,0));
-            float n010 = hash31(i + float3(0,1,0));
-            float n110 = hash31(i + float3(1,1,0));
-            float n001 = hash31(i + float3(0,0,1));
-            float n101 = hash31(i + float3(1,0,1));
-            float n011 = hash31(i + float3(0,1,1));
-            float n111 = hash31(i + float3(1,1,1));
-
-            float nx00 = lerp(n000, n100, f.x);
-            float nx10 = lerp(n010, n110, f.x);
-            float nx01 = lerp(n001, n101, f.x);
-            float nx11 = lerp(n011, n111, f.x);
-            return lerp(lerp(nx00, nx10, f.y), lerp(nx01, nx11, f.y), f.z);
-        }
-
-        half4 LightingClayWrap(SurfaceOutput s, half3 lightDir, half3 viewDir, half atten)
-        {
-            half3 n = normalize(s.Normal);
-            half3 l = normalize(lightDir);
-            half3 v = normalize(viewDir);
-
-            // 말랑할수록 빛이 더 부드럽게 감긴다
-            half w = lerp(0.18, _Wrap, _Softness);
-            half ndl = dot(n, l);
-            half diff = saturate((ndl + w) / (1.0 + w));
-
-            half3 hv = normalize(l + v);
-            half specPow = lerp(46.0, 22.0, _Softness);
-            half spec = pow(saturate(dot(n, hv)), specPow) * _Gloss;
-
-            // 얕은 투과광 — 찰흙일 때만 눈에 보이게
-            half back = pow(saturate(dot(v, -l)), 2.0) * _SSS * _Softness * 0.45;
-
-            half3 col = s.Albedo * _LightColor0.rgb * diff * atten;
-            col += _LightColor0.rgb * spec * atten;
-            col += s.Albedo * _LightColor0.rgb * back * atten;
-
-            half4 c;
-            c.rgb = col;
-            c.a = s.Alpha;
-            return c;
-        }
-
-        void surf(Input IN, inout SurfaceOutput o)
-        {
-            // 저주파 위주 — 고주파를 세게 섞으면 깨알 같은 노이즈로 보인다
-            float n = vnoise(IN.worldPos * _MottleScale);
-            float n2 = vnoise(IN.worldPos * _MottleScale * 2.3);
-            float mottle = lerp(1.0 - _Mottle * 0.30, 1.0 + _Mottle * 0.16, n * 0.82 + n2 * 0.18);
-
-            o.Albedo = _Color.rgb * mottle;
-            o.Alpha = 1.0;
-
-            // 커스텀 라이팅이라 앰비언트는 직접 얹는다
-            o.Emission = o.Albedo * unity_AmbientSky.rgb * _Ambient * lerp(0.75, 1.0, _Softness);
-        }
-        ENDCG
+        UsePass "Universal Render Pipeline/Lit/ShadowCaster"
+        UsePass "Universal Render Pipeline/Lit/DepthOnly"
     }
 
-    FallBack "Diffuse"
+    FallBack Off
 }

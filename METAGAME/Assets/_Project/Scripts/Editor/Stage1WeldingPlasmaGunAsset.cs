@@ -100,13 +100,16 @@ namespace Metagame.EditorTools
         {
             var path = MaterialDirectory + "/" + name + ".mat";
             var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            var shader = FindSurfaceShader();
+            if (shader == null) return null;
             if (material == null)
             {
-                var shader = FindSurfaceShader();
-                if (shader == null) return null;
-
                 material = new Material(shader) { name = name };
                 AssetDatabase.CreateAsset(material, path);
+            }
+            else if (material.shader != shader)
+            {
+                material.shader = shader;
             }
 
             SetColor(material, color);
@@ -131,7 +134,7 @@ namespace Metagame.EditorTools
 
         static Shader FindSurfaceShader()
         {
-            return Shader.Find("Standard") ?? Shader.Find("Universal Render Pipeline/Lit");
+            return Shader.Find("Universal Render Pipeline/Lit");
         }
 
         static void SetColor(Material material, Color color)

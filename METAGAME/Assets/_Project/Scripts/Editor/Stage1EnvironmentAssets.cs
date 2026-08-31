@@ -121,21 +121,16 @@ namespace Metagame.EditorTools
         }
 
         /// <summary>
-        /// 지금 켜져 있는 렌더 파이프라인의 표준 표면 셰이더.
+        /// Stage1 환경 자산이 사용할 표면 셰이더.
         ///
-        /// 이 프로젝트는 URP 패키지가 들어 있지만 <c>ProjectSettings/GraphicsSettings.asset</c> 의
-        /// <c>m_CustomRenderPipeline</c> 이 비어 있어 실제로는 Built-in 파이프라인으로 돈다.
-        /// 그래서 기존 <c>M_Stage1_*</c> 5개도 Standard 를 쓴다. 여기서 URP Lit 을 쓰면
-        /// 에디터에서는 멀쩡해 보이고 빌드한 플레이어에서 전부 마젠타로 나온다.
-        /// 파이프라인을 보고 고르므로 나중에 URP 로 전환해도 이 도구는 따라간다.
+        /// 프로젝트는 URP를 기준으로 빌드하므로, 에디터의 현재 파이프라인 상태가
+        /// URP Lit만 사용한다. 파이프라인 전환 직후에도 Built-in Standard를 새 자산에
+        /// 기록하지 않아, Editor 상태와 빌드 상태가 달라지는 문제를 막는다.
         /// </summary>
         static Shader SurfaceShader()
         {
-            bool scriptable = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline != null;
-            string wanted = scriptable ? "Universal Render Pipeline/Lit" : "Standard";
-
-            var shader = Shader.Find(wanted);
-            if (shader == null) Debug.LogError("[Stage1Env] 셰이더를 찾지 못했다: " + wanted);
+            var shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null) Debug.LogError("[Stage1Env] URP Lit 셰이더를 찾지 못했다.");
             return shader;
         }
 
