@@ -18,12 +18,12 @@ namespace Metagame.EditorTools
     /// <code>
     /// PF_Stage1_Meteor      layer Meteor · Rigidbody(질량 60kg) · SphereCollider(r 0.45)
     ///  │                    · DamageSource · Meteor
-    ///  └─ Visual            PF_Stage1_MeteorProjectile — 겉보기 지름을 0.9m 로 맞춘 배율
+    ///  └─ Visual            PF_Stage1_MeteorMain — 겉보기 지름을 0.9m 로 맞춘 배율
     /// </code>
     ///
     /// 카탈로그 규칙 ②(프리팹에 Collider·Rigidbody 를 붙이지 않는다)는 배치용 아트 프리팹에
     /// 대한 규칙이다. 이쪽은 스폰되는 게임플레이 프리팹이라 물리가 프리팹에 있어야 한다.
-    /// 아트 프리팹(<c>PF_Stage1_MeteorProjectile</c>)은 규칙대로 시각물만 갖고, 그것을 자식으로 쓴다.
+    /// 아트 프리팹(<c>PF_Stage1_MeteorMain</c>)은 규칙대로 시각물만 갖고, 그것을 자식으로 쓴다.
     ///
     /// 크기는 <see cref="PhysicsScale.MeteorRadius"/> 가 기준이다. 폴백 구체가 지름
     /// <c>MeteorRadius * 2</c> 였으므로 모델도 같은 지름에 맞춘다 — 물리값은 바꾸지 않는다.
@@ -40,7 +40,7 @@ namespace Metagame.EditorTools
         const string PrefabPath = PrefabDir + "/PF_Stage1_Meteor.prefab";
 
         /// <summary>낙하하는 운석 본체. 파편 2종은 아직 쓰는 시스템이 없다.</summary>
-        const string ArtName = "MeteorProjectile";
+        const string ArtName = "MeteorMain";
 
         const string VisualName = "Visual";
 
