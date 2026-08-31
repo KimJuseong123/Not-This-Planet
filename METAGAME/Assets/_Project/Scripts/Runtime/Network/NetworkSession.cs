@@ -27,6 +27,11 @@ namespace Metagame.Network
         public string CurrentRoomId { get; private set; } = string.Empty;
         public RoomSnapshot CurrentRoom { get; private set; }
         public bool IsLocalReady { get; private set; }
+        public string ServerAddress { get; private set; } = DefaultServerAddress;
+
+        public const string DefaultServerAddress = "127.0.0.1:8080";
+        private const string ServerAddressPrefsKey = "metagame.server-address";
+        private const int DefaultServerPort = 8080;
 
         public event Action<NetworkConnectionState> ConnectionStateChanged;
         public event Action<RoomSnapshot> RoomStateChanged;
@@ -436,6 +441,88 @@ namespace Metagame.Network
                     ReportError("알 수 없는 서버 메시지입니다: " + message.type);
                     break;
             }
+        }
+
+        /// <summary>
+        /// 로비에서 입력한 "호스트[:포트]"를 실제 접속 주소로 바꾸고 다음 실행을 위해 저장한다.
+        /// 서버가 아직 배포되지 않아 방장 PC를 직접 가리켜야 하므로 주소를 실행 중에 바꿀 수 있어야 한다.
+        /// </summary>
+        public bool ApplyServerAddress(string address, out string error)
+        {
+            string httpUrl;
+            string socketUrl;
+            if (!TryBuildEndpoints(address, out httpUrl, out socketUrl, out error))
+                return false;
+
+            Configure(httpUrl, socketUrl);
+            ServerAddress = address.Trim();
+            PlayerPrefs.SetString(ServerAddressPrefsKey, ServerAddress);
+            PlayerPrefs.Save();
+            return true;
+        }
+
+        /// <summary>
+        /// "192.168.0.15", "192.168.0.15:8080", "http://192.168.0.15:8080" 을 모두 받아
+        /// REST와 WebSocket 주소를 만든다. 포트를 생략하면 기본 포트를 쓴다.
+        /// </summary>
+        public static bool TryBuildEndpoints(string address, out string httpUrl, out string webSocketUrl, out string error)
+        {
+            httpUrl = null;
+            webSocketUrl = null;
+            error = null;
+
+            string trimmed = (address ?? string.Empty).Trim();
+            if (trimmed.Length == 0)
+            {
+                error = "서버 주소를 입력해 주세요.";
+                return false;
+            }
+
+            // 접두어(http://, ws://)와 뒤따르는 경로는 떼어내고 host:port 만 본다.
+            int schemeEnd = trimmed.IndexOf("://", StringComparison.Ordinal);
+            if (schemeEnd >= 0)
+                trimmed = trimmed.Substring(schemeEnd + 3);
+            int pathStart = trimmed.IndexOf('/');
+            if (pathStart >= 0)
+                trimmed = trimmed.Substring(0, pathStart);
+
+            string host = trimmed;
+            int port = DefaultServerPort;
+            int colon = trimmed.LastIndexOf(':');
+            if (colon >= 0)
+            {
+                host = trimmed.Substring(0, colon);
+                string portText = trimmed.Substring(colon + 1);
+                if (!int.TryParse(portText, out port) || port <= 0 || port > 65535)
+                {
+                    error = "포트 번호가 올바르지 않습니다: " + portText;
+                    return false;
+                }
+            }
+
+            host = host.Trim();
+            if (host.Length == 0)
+            {
+                error = "호스트 주소가 비어 있습니다.";
+                return false;
+            }
+
+            httpUrl = "http://" + host + ":" + port;
+            webSocketUrl = "ws://" + host + ":" + port + "/ws/game";
+            return true;
+        }
+
+        /// <summary>마지막으로 입력한 서버 주소. 없으면 <paramref name="fallback"/>, 그것도 없으면 기본값.</summary>
+        public static string ResolveServerAddress(string fallback = null)
+        {
+            if (PlayerPrefs.HasKey(ServerAddressPrefsKey))
+            {
+                string saved = PlayerPrefs.GetString(ServerAddressPrefsKey);
+                if (!string.IsNullOrWhiteSpace(saved))
+                    return saved.Trim();
+            }
+
+            return string.IsNullOrWhiteSpace(fallback) ? DefaultServerAddress : fallback.Trim();
         }
 
         public static string ResolveDeviceId(string overrideValue = null)
