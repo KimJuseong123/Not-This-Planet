@@ -78,15 +78,11 @@ namespace Metagame.Gameplay.Tests
                 socket.AddComponent<PartSocket>().SetRole(role);
             }
 
-            for (var w = 0; w < 4; w++)
-            {
-                var spot = new GameObject($"Weld_{w}") { layer = GameLayers.Interactable };
-                spot.transform.SetParent(root.transform, false);
-                spot.transform.localPosition = new Vector3(
-                    w % 2 == 0 ? -0.5f : 0.5f, -spec.Height * 0.5f, w < 2 ? -0.5f : 0.5f);
-                spot.AddComponent<SphereCollider>().isTrigger = true;
-                spot.AddComponent<WeldPoint>();
-            }
+            // 원형 용접선 하나(기획 §16.1). 예전에는 용접점 4개를 놓았다.
+            var seam = new GameObject("WeldSeam");
+            seam.transform.SetParent(root.transform, false);
+            seam.transform.localPosition = Vector3.down * (spec.Height * 0.5f);
+            seam.AddComponent<WeldSeam>();
 
             part.SetPlacedMass(spec.Mass);
             part.Initialize();
@@ -137,8 +133,7 @@ namespace Metagame.Gameplay.Tests
 
                 if (welded)
                 {
-                    link.RefreshWeldPoints();
-                    foreach (var point in link.WeldPoints) point.ForceComplete();
+                    link.ForceWeldComplete();
                 }
 
                 link.Tick();
@@ -172,7 +167,11 @@ namespace Metagame.Gameplay.Tests
 
             for (var s = 0; s < Mathf.RoundToInt(seconds / Step); s++)
             {
-                if (test.State is LaunchState.Success or LaunchState.Failed) break;
+                // S15P21B202-204 부터 하중 시험 통과는 Success 가 아니라 Ascending 이다.
+                // 판정이 끝나는 지점은 여기다 — 그 뒤 9초 상승은 §22.5 의 연출이고
+                // 이 규칙이 볼 것이 아니다.
+                if (test.State is LaunchState.Ascending or LaunchState.Success
+                    or LaunchState.Failed) break;
 
                 test.Tick(Step);
                 UnityEngine.Physics.Simulate(Step);
@@ -193,10 +192,10 @@ namespace Metagame.Gameplay.Tests
             var engine = BuildTower(StableOffset, welded: true);
             var test = RunLaunch(engine);
 
-            Assert.AreEqual(LaunchState.Success, test.State,
+            Assert.AreEqual(LaunchState.Ascending, test.State,
                 $"용접한 탑이 하중 시험을 통과해야 한다. 실패 이유: {test.FailureReason}");
             Assert.GreaterOrEqual(test.Altitude, PhysicsScale.LaunchLiftOffHeight,
-                "지면에서 완전히 떠올라야 성공이다.");
+                "지면에서 완전히 떠올라야 통과다.");
         }
 
         /// <summary>
@@ -209,7 +208,8 @@ namespace Metagame.Gameplay.Tests
             var engine = BuildTower(StableOffset, welded: true);
             var test = RunLaunch(engine);
 
-            Assert.AreEqual(LaunchState.Success, test.State, "먼저 성공해야 의미가 있다.");
+            Assert.AreEqual(LaunchState.Ascending, test.State,
+                "먼저 하중 시험을 통과해야 의미가 있다 — 봉인은 그때 걸린다.");
 
             foreach (var part in test.Tower)
             {

@@ -12,6 +12,16 @@ namespace Metagame.Gameplay.Parts
         /// <summary>엔진 출력을 올리는 중이다.</summary>
         Ramping,
 
+        /// <summary>
+        /// 하중 시험을 통과해 상승하는 중이다(기획 §22.5 "약 8~10초 동안 상승").
+        ///
+        /// 예전에는 <see cref="Success"/> 가 곧 끝이었고, <c>Tick</c> 첫 줄이
+        /// <c>State != Ramping</c> 이면 돌아가므로 <b>추력이 그 자리에서 끊겼다.</b>
+        /// 우주선은 <see cref="PhysicsScale.LaunchLiftOffHeight"/>(1.5m) 만 뜨고
+        /// 발사대로 다시 떨어졌다.
+        /// </summary>
+        Ascending,
+
         /// <summary>5초를 견디고 떠올랐다.</summary>
         Success,
 
@@ -36,8 +46,13 @@ namespace Metagame.Gameplay.Parts
     /// PhysX 가 비트 단위로 결정론적이지 않으므로 성공/실패라는 <b>결과</b> 수준에서
     /// 같은 결과를 보장한다 — S15P21B202-194 가 같은 기준으로 붕괴를 검증했다.
     ///
+    /// 하중 시험을 통과하면 그대로 <see cref="LaunchState.Ascending"/> 로 넘어가 기획 §22.5
+    /// 의 "약 8~10초 동안 상승" 을 이어서 돌린다. 상승을 다른 컴포넌트로 떼지 않은 이유는
+    /// 추력을 주는 곳이 여기 하나여야 하기 때문이다 — 두 곳에서 같은 강체를 밀면 어느 쪽이
+    /// 얼마를 주는지 알 수 없게 된다.
+    ///
     /// 이 컴포넌트가 하지 않는 것: 3초 카운트다운, 문 열림과 탑승 조건(§22.1),
-    /// 탑승 궤도 카메라(§22.2), 실패·성공 연출(§22.4 후반 · §22.5).
+    /// 탑승 궤도 카메라(§22.2), 실패·성공 연출과 대기권 컷신·2장 로딩(§22.4 후반 · §22.5).
     /// 그쪽에서 <see cref="Begin"/> 을 부르면 된다.
     /// </summary>
     [DisallowMultipleComponent]
@@ -50,6 +65,10 @@ namespace Metagame.Gameplay.Parts
         float _startY;
         float _peakThrust;
 
+        /// <summary>탑 전체 질량. 상승에서 무게를 상쇄할 때 쓴다 — 엔진 하나가 아니라
+        /// 탑 전체를 들어야 한다.</summary>
+        float _towerMass;
+
         public LaunchState State { get; private set; } = LaunchState.Idle;
 
         /// <summary>엔진 출력. 0 에서 1 까지 <see cref="PhysicsScale.LaunchRampSeconds"/> 에 걸쳐 오른다.</summary>
@@ -60,6 +79,22 @@ namespace Metagame.Gameplay.Parts
 
         /// <summary>실패한 이유. 성공하거나 진행 중이면 빈 문자열이다.</summary>
         public string FailureReason { get; private set; } = "";
+
+        /// <summary>상승을 시작한 뒤 흐른 시간. 상승 중이 아니면 0 이다.</summary>
+        public float AscentElapsed { get; private set; }
+
+        /// <summary>상승 진행도 0~1. 상승 중이 아니면 0 이다.</summary>
+        public float Ascent01 => PhysicsScale.AscentSeconds <= 0f
+            ? 0f
+            : Mathf.Clamp01(AscentElapsed / PhysicsScale.AscentSeconds);
+
+        /// <summary>
+        /// 1장 완료. 대기권 컷신과 2장 로딩이 붙을 자리다(기획 §22.5).
+        ///
+        /// 이벤트로 둔 이유는 [Level]·[Network] 가 이 파일을 고치지 않고 붙을 수 있어야
+        /// 하기 때문이다. 여기서 씬을 로드하면 그쪽 작업이 이 파일을 건드려야 한다.
+        /// </summary>
+        public event System.Action<LaunchTest> Completed;
 
         /// <summary>시험 대상이 된 파츠. 최하단부터 위로 정렬돼 있다.</summary>
         public IReadOnlyList<SpaceshipPart> Tower => _tower;
@@ -80,6 +115,7 @@ namespace Metagame.Gameplay.Parts
             _links.Clear();
             Output = 0f;
             Elapsed = 0f;
+            AscentElapsed = 0f;
             FailureReason = "";
             State = LaunchState.Idle;
 
@@ -124,6 +160,7 @@ namespace Metagame.Gameplay.Parts
                 if (body != null) mass += body.mass;
             }
 
+            _towerMass = mass;
             _peakThrust = mass * -Physics.gravity.y * PhysicsScale.LaunchThrustRatio;
             State = LaunchState.Ramping;
         }
@@ -164,7 +201,15 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         public void Tick(float deltaTime)
         {
-            if (State != LaunchState.Ramping || deltaTime <= 0f) return;
+            if (deltaTime <= 0f) return;
+
+            if (State == LaunchState.Ascending)
+            {
+                Ascend(deltaTime);
+                return;
+            }
+
+            if (State != LaunchState.Ramping) return;
 
             Elapsed += deltaTime;
             Output = Mathf.Clamp01(Elapsed / PhysicsScale.LaunchRampSeconds);
@@ -196,7 +241,7 @@ namespace Metagame.Gameplay.Parts
             if (Elapsed < PhysicsScale.LaunchRampSeconds) return;
             if (Altitude < PhysicsScale.LaunchLiftOffHeight) return;
 
-            Succeed();
+            PassLoadTest();
         }
 
         /// <summary>
@@ -206,13 +251,80 @@ namespace Metagame.Gameplay.Parts
         /// 마다 용접 비율로 강도를 다시 계산해 덮어쓰기 때문이다. 조인트의 breakForce 를
         /// 여기서 직접 올려도 다음 틱에 되돌려진다(S15P21B202-194 기록 참고).
         /// </summary>
-        void Succeed()
+        /// <summary>
+        /// 하중 시험을 통과했다. 접합을 확정하고 상승으로 넘어간다.
+        ///
+        /// 여기서 끝내지 않는다 — 기획 §22.5 가 "성공 후 약 8~10초 동안 우주선이
+        /// 상승한다" 다. 예전에는 이 자리에서 <c>Success</c> 로 바꿨고, 그러면 <c>Tick</c>
+        /// 이 다음 스텝부터 아무것도 하지 않아 추력이 끊기고 우주선이 떨어졌다.
+        /// </summary>
+        void PassLoadTest()
         {
+            // 하중 시험을 통과했으므로 접합을 무한 강도로 확정한다. 상승 중에 다시
+            // 판정할 것이 없다 — 시험이 이미 품질을 판정했다(기획 §16.2).
             for (var i = 0; i < _links.Count; i++)
                 if (_links[i] != null) _links[i].SealForLaunch();
 
             Output = 1f;
+            AscentElapsed = 0f;
+            State = LaunchState.Ascending;
+        }
+
+        /// <summary>
+        /// 상승(기획 §22.5). <see cref="PhysicsScale.AscentSeconds"/> 동안 올라간다.
+        ///
+        /// <b>추력을 그냥 유지하면 안 된다.</b> 추력이 무게의
+        /// <see cref="PhysicsScale.LaunchThrustRatio"/>(3.2배)이므로 순가속이 중력의
+        /// 2.2배로 계속 붙는다. 9초면 60m/s 를 넘고 500m 이상 올라가서 카메라가 따라갈 수
+        /// 없다. 기획 §22.5 는 상승 중에 카메라를 돌려 볼 수 있어야 한다고 하므로
+        /// 상한 속도에서 추력을 줄인다.
+        ///
+        /// 상한에서 추력을 딱 끊지 않는 이유는 중력이 즉시 이겨 상승이 멈칫하기
+        /// 때문이다. 무게를 상쇄하는 만큼은 남긴다.
+        /// </summary>
+        void Ascend(float deltaTime)
+        {
+            AscentElapsed += deltaTime;
+
+            if (_engine == null)
+            {
+                Fail("상승 중 최하단 파츠가 사라졌다");
+                return;
+            }
+
+            if (AscentElapsed >= PhysicsScale.AscentSeconds)
+            {
+                Finish();
+                return;
+            }
+
+            // 엔진 질량이 아니라 탑 전체 질량으로 잰다. 엔진만 상쇄하면 위 세 파츠의
+            // 무게가 그대로 남아 우주선이 떨어진다.
+            var weight = _towerMass * -UnityEngine.Physics.gravity.y;
+            var overspeed = _engine.linearVelocity.y - PhysicsScale.AscentMaxSpeed;
+
+            // 무게 상쇄분 + 상한까지 남은 여유만큼. 상한을 넘으면 여유가 음수가 되어
+            // 무게 상쇄분에서 깎인다 — 그래서 속도가 상한 근처에 머문다.
+            var extra = -overspeed * PhysicsScale.AscentSpeedDamp;
+            var thrust = Mathf.Max(0f, weight + _towerMass * extra);
+
+            var nozzle = _engine.worldCenterOfMass;
+            nozzle.y = _engine.position.y - PhysicsScale.LaunchNozzleDrop;
+            _engine.AddForceAtPosition(Vector3.up * thrust, nozzle, ForceMode.Force);
+        }
+
+        /// <summary>
+        /// 상승이 끝났다. 1장 완료다.
+        ///
+        /// <b>스테이지를 초기화하지 않는다.</b> 기획 §22.5 가 "별도의 장 사이 로비와 다시
+        /// 준비하는 절차는 없다 … 참가자, 연결과 호스트 상태를 유지한 채 다음 장을
+        /// 로딩한다" 고 정한다. 여기서는 상태와 이벤트만 남긴다 — 대기권 컷신과 2장
+        /// 로딩은 [Level]·[Network] 의 몫이고, 붙일 자리가 있어야 한다.
+        /// </summary>
+        void Finish()
+        {
             State = LaunchState.Success;
+            Completed?.Invoke(this);
         }
 
         void Fail(string reason)

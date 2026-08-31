@@ -51,6 +51,23 @@ namespace Metagame.Gameplay
         public bool IsDead { get { return Health <= 0f; } }
         public TransportVehicle MountedVehicle { get; private set; }
         public bool IsMounted { get { return MountedVehicle != null; } }
+
+        /// <summary>
+        /// 몸이 조인트로 붙어 있는 강체. 운반 장치 탑승도, 우주선 탑승도 이것을 채운다.
+        ///
+        /// 예전에는 탑승 상태가 <see cref="MountedVehicle"/> 하나였고 타입이
+        /// <see cref="TransportVehicle"/> 로 못박혀 있었다. 그래서 우주선에는 탈 수 없었고,
+        /// S15P21B202-200 의 탑승은 인원을 세는 것뿐이었다 — 발사하면 발사대에 서서
+        /// 우주선이 올라가는 것을 구경했다.
+        ///
+        /// 운반 장치 고유의 처리(조종 입력, 조종석 시야, 하차 발판 탐색)는
+        /// <see cref="MountedVehicle"/> 이 그대로 갖는다. 여기 올라오는 것은 "몸이 붙어
+        /// 있으니 보행 물리를 돌리지 않는다" 는 공통 사실뿐이다.
+        /// </summary>
+        public Rigidbody RidingBody { get; private set; }
+
+        /// <summary>무엇에든 붙어 실려 가는 중인가.</summary>
+        public bool IsRiding { get { return RidingBody != null; } }
         public bool Hanging { get { return LeftHand.Hanging || RightHand.Hanging; } }
         public bool Carrying { get { return LeftHand.Carrying || RightHand.Carrying; } }
         public bool Ragdolled { get; private set; }      // 크게 넘어져 조종이 잠깐 풀린 상태
@@ -233,8 +250,8 @@ namespace Metagame.Gameplay
         // ── 부활 / 순간이동 ─────────────────────────────────────
         public void Teleport(Vector3 footPos, Quaternion facing)
         {
-            if (MountedVehicle != null)
-                ForceExitTransportVehicle(MountedVehicle);
+            if (MountedVehicle != null) ForceExitTransportVehicle(MountedVehicle);
+            else DisconnectTransportJoint();   // 우주선에 붙어 있었다면 여기서 떨어진다
 
             ReleaseHand(LeftHand);
             ReleaseHand(RightHand);
@@ -259,21 +276,36 @@ namespace Metagame.Gameplay
             }
         }
 
-        /// <summary>운반 장치에 올라탄다. 고정쇠·도구 상태와 무관하게 탑승을 허용한다.</summary>
-        public bool TryEnterTransportVehicle(TransportVehicle vehicle)
+        /// <summary>
+        /// 몸을 강체에 붙인다. 붙이는 코드가 여기 한 군데다.
+        ///
+        /// <b><see cref="FixedJoint.connectedBody"/> 를 반드시 채운다.</b> 비워 두면
+        /// <see cref="FixedJoint.connectedAnchor"/> 가 월드 좌표로 해석되어 몸이 원점으로
+        /// 빨려간다 — S15P21B202-132 에서 21.34m 끌려간 원인이 그것이었다.
+        /// </summary>
+        void AttachTo(Rigidbody body)
         {
-            if (vehicle == null || MountedVehicle != null || Doll == null || Doll.Hips == null)
-                return false;
+            mountedJoint = Doll.Hips.gameObject.AddComponent<FixedJoint>();
+            mountedJoint.connectedBody = body;
+            mountedJoint.autoConfigureConnectedAnchor = false;
+            mountedJoint.anchor = Vector3.zero;
+            mountedJoint.connectedAnchor = body.transform.InverseTransformPoint(Doll.Hips.position);
+            mountedJoint.enableCollision = false;
+            mountedJoint.enablePreprocessing = false;
+            mountedJoint.breakForce = float.PositiveInfinity;
+            mountedJoint.breakTorque = float.PositiveInfinity;
+            RidingBody = body;
+        }
 
+        /// <summary>탑승 직전에 손·도구·보행 상태를 정리한다. 두 탑승 경로가 함께 쓴다.</summary>
+        void ClearForRide()
+        {
             ReleaseHand(LeftHand);
             ReleaseHand(RightHand);
             ClampInteractor?.Cancel();
             ResetClampGrab();
             ResetToolState();
 
-            var foot = vehicle.SeatFootPosition;
-            Doll.Teleport(foot + Vector3.up * RagdollBuilder.HipsY, Quaternion.identity);
-            faceDir = Vector3.forward;
             Grounded = true;
             GroundDistance = Tuning.RideHeight;
             GroundVelocity = Vector3.zero;
@@ -281,16 +313,21 @@ namespace Metagame.Gameplay
             AirTime = 0f;
             Thrusting = false;
             Ragdolled = false;
+        }
 
-            mountedJoint = Doll.Hips.gameObject.AddComponent<FixedJoint>();
-            mountedJoint.connectedBody = vehicle.Body;
-            mountedJoint.autoConfigureConnectedAnchor = false;
-            mountedJoint.anchor = Vector3.zero;
-            mountedJoint.connectedAnchor = vehicle.Body.transform.InverseTransformPoint(Doll.Hips.position);
-            mountedJoint.enableCollision = false;
-            mountedJoint.enablePreprocessing = false;
-            mountedJoint.breakForce = float.PositiveInfinity;
-            mountedJoint.breakTorque = float.PositiveInfinity;
+        /// <summary>운반 장치에 올라탄다. 고정쇠·도구 상태와 무관하게 탑승을 허용한다.</summary>
+        public bool TryEnterTransportVehicle(TransportVehicle vehicle)
+        {
+            if (vehicle == null || IsRiding || Doll == null || Doll.Hips == null)
+                return false;
+
+            ClearForRide();
+
+            var foot = vehicle.SeatFootPosition;
+            Doll.Teleport(foot + Vector3.up * RagdollBuilder.HipsY, Quaternion.identity);
+            faceDir = Vector3.forward;
+
+            AttachTo(vehicle.Body);
             MountedVehicle = vehicle;
 
             // 조종석 안에 있으므로 몸을 감춘다. 1인칭 시야를 제 몸이 가리지 않게 하는 것이
@@ -299,6 +336,88 @@ namespace Metagame.Gameplay
 
             if (Cam != null) Cam.SetVehicleView(true);
             return true;
+        }
+
+        /// <summary>
+        /// 우주선에 탑승한다. 붙는 곳은 최상단 견인 조종 모듈이다
+        /// (기획 S15P21B202-107 §22.4 "플레이어들이 탑승한 최상단 견인 조종 모듈").
+        ///
+        /// 운반 장치와 달리 <see cref="MountedVehicle"/> 을 채우지 않는다 — 우주선은
+        /// 조종하지 않고 조종석 시야도 쓰지 않는다. 실려 가기만 한다.
+        /// </summary>
+        public bool TryBoardShip(Rigidbody module, Vector3 seatPosition)
+        {
+            if (module == null || IsRiding || Doll == null || Doll.Hips == null) return false;
+
+            ClearForRide();
+
+            Doll.Teleport(seatPosition, Doll.Hips.rotation);
+            AttachTo(module);
+
+            // 모듈 안에 있는 몸이다. 껍데기를 통과해 보이면 안 된다.
+            RefreshDollVisibility();
+            return true;
+        }
+
+        /// <summary>우주선에서 내린다. 카운트다운을 취소하면 이 경로로 돌아온다.</summary>
+        public void LeaveShip(Vector3 footPosition, Quaternion facing)
+        {
+            if (RidingBody == null || MountedVehicle != null) return;
+
+            DisconnectTransportJoint();
+            Doll.Teleport(footPosition + Vector3.up * RagdollBuilder.HipsY, facing);
+            faceDir = facing * Vector3.forward;
+            RefreshDollVisibility();
+
+            if (Cam == null) return;
+            Cam.Yaw = facing.eulerAngles.y;
+            Cam.SnapToTarget();
+        }
+
+        /// <summary>
+        /// 발사 실패로 우주선에서 튀어나온다(기획 §22.4 "모든 플레이어가 사방으로
+        /// 튀어나온다 … 잠시 구르지만 기절하지 않고 자동으로 일어난다").
+        ///
+        /// <b>기절 처리를 새로 만들지 않는다.</b> <see cref="Balance"/> 가 이미 넘어진
+        /// 자세를 스스로 세우므로, 조인트를 끊고 충격만 주면 구르다가 일어난다.
+        /// 체력도 깎지 않는다 — 기획이 기절하지 않는다고 못박았고, 체력을 깎으면
+        /// 운석 두 방 맞은 상태에서 발사 실패가 사망이 된다.
+        ///
+        /// 위치는 옮기지 않는다. 몸은 이미 모듈 안에 있고, 밖으로 순간이동시키면
+        /// 지면이나 잔해 속에 박힐 자리를 다시 찾아야 한다 — 그 탐색이
+        /// S15P21B202-132 의 흰 화면을 만든 곳이다. 충격으로 밀어내는 편이 안전하다.
+        /// </summary>
+        public void EjectFromShip(Vector3 direction)
+        {
+            if (RidingBody == null) return;
+
+            DisconnectTransportJoint();
+            MountedVehicle = null;
+
+            var away = direction;
+            away.y = 0f;
+            away = away.sqrMagnitude > 0.0001f ? away.normalized : faceDir;
+
+            var impulse = away * PhysicsScale.EjectHorizontalSpeed
+                          + Vector3.up * PhysicsScale.EjectVerticalSpeed;
+
+            for (var i = 0; i < Doll.Bodies.Count; i++)
+            {
+                var body = Doll.Bodies[i];
+                if (body == null || body.isKinematic) continue;
+
+                body.useGravity = true;
+                body.linearVelocity = impulse;
+            }
+
+            Grounded = false;
+            GroundDistance = float.MaxValue;
+            GroundVelocity = Vector3.zero;
+            Ragdolled = true;          // Balance 가 다음 틱부터 다시 세운다
+            AirTime = 0f;
+            faceDir = away;
+
+            RefreshDollVisibility();
         }
 
         /// <summary>운반 장치가 표면에 닿은 뒤 플레이어를 그 옆에 내려놓는다.</summary>
@@ -345,7 +464,7 @@ namespace Metagame.Gameplay
         {
             if (Doll == null) return;
 
-            if (IsMounted) Doll.SetVisible(false);
+            if (IsRiding) Doll.SetVisible(false);
             else if (Cam != null && Cam.FirstPerson) Doll.SetVisible(false, keepShadow: true);
             else Doll.SetVisible(true);
         }
@@ -441,6 +560,8 @@ namespace Metagame.Gameplay
         /// </summary>
         void DisconnectTransportJoint()
         {
+            RidingBody = null;
+
             if (mountedJoint == null) return;
 
             DestroyImmediate(mountedJoint);
@@ -470,12 +591,26 @@ namespace Metagame.Gameplay
                 pendingThrowBody = null;
             }
 
-            if (MountedVehicle != null)
+            // 몸이 조인트로 붙어 있으면 보행 물리를 돌리지 않는다. 돌리면 부양·이동력이
+            // 구속과 싸운다. 운반 장치는 제 속도를 알려 주고, 우주선은 강체에서 읽는다.
+            if (RidingBody != null)
             {
                 Grounded = true;
                 GroundDistance = Tuning.RideHeight;
-                GroundVelocity = MountedVehicle.HorizontalVelocity;
-                Speed = MountedVehicle.HorizontalSpeed;
+
+                if (MountedVehicle != null)
+                {
+                    GroundVelocity = MountedVehicle.HorizontalVelocity;
+                    Speed = MountedVehicle.HorizontalSpeed;
+                }
+                else
+                {
+                    var flat = RidingBody.linearVelocity;
+                    flat.y = 0f;
+                    GroundVelocity = flat;
+                    Speed = flat.magnitude;
+                }
+
                 AirTime = 0f;
                 Thrusting = false;
                 Ragdolled = false;
@@ -584,7 +719,7 @@ namespace Metagame.Gameplay
         void UpdateFloating()
         {
             var field = Parts.LowGravityField.FindContaining(Doll.Hips.position);
-            var wants = field != null && !Hanging && MountedVehicle == null;
+            var wants = field != null && !Hanging && !IsRiding;
 
             // 들고 날 때 인형의 중력을 끄고 켠다. 상태가 바뀔 때만 건드려 매 스텝 강체를
             // 훑지 않는다.

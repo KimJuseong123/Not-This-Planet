@@ -99,15 +99,11 @@ namespace Metagame.Gameplay.Tests
                 socket.AddComponent<PartSocket>().SetRole(role);
             }
 
-            for (var w = 0; w < 4; w++)
-            {
-                var spot = new GameObject($"Weld_{w}") { layer = GameLayers.Interactable };
-                spot.transform.SetParent(root.transform, false);
-                spot.transform.localPosition = new Vector3(
-                    w % 2 == 0 ? -0.5f : 0.5f, -spec.Height * 0.5f, w < 2 ? -0.5f : 0.5f);
-                spot.AddComponent<SphereCollider>().isTrigger = true;
-                spot.AddComponent<WeldPoint>();
-            }
+            // 원형 용접선 하나(기획 §16.1). 예전에는 용접점 4개를 놓았다.
+            var seam = new GameObject("WeldSeam");
+            seam.transform.SetParent(root.transform, false);
+            seam.transform.localPosition = Vector3.down * (spec.Height * 0.5f);
+            seam.AddComponent<WeldSeam>();
 
             part.SetPlacedMass(spec.Mass);
             part.Initialize();
@@ -166,8 +162,7 @@ namespace Metagame.Gameplay.Tests
                 // 강도는 PartAssemblyLink 가 WeldRatio 로 정한다. Assemble 인수로는 바꿀 수 없다.
                 if (welded)
                 {
-                    link.RefreshWeldPoints();
-                    foreach (var point in link.WeldPoints) point.ForceComplete();
+                    link.ForceWeldComplete();
                 }
 
                 link.Tick();
