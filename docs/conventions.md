@@ -13,7 +13,7 @@
 | 원칙 | **Jira 우선.** 코드·에셋·문서·회의·리서치까지 모든 작업이 Jira 이슈로 시작한다 | [jira-convention](./jira-convention.md) §0 |
 | 이슈 구조 | **Epic → Task 2단계만.** Subtask 없음. 유형은 Task 로 통일. 제목 `[파트] 제목` | [jira-convention](./jira-convention.md) §1·§2 |
 | 필수 필드 | 담당자 · 상위 Epic · 기한(비면 스프린트 종료일 자동) · 스프린트·스토리 포인트(진행 중 진입 시) | [jira-convention](./jira-convention.md) §4 |
-| 스토리 포인트 | **1pt = 집중 1시간.** 값 1/2/3/5/8/13 · 이슈 ≤ 13 · 개인 주간 30~40(상한 60) | [jira-convention](./jira-convention.md) §5 |
+| 스토리 포인트 | **크기·복잡도의 상대값(시간 아님).** 값 **1/2/3/5 뿐** · 이슈 ≤ 5(넘으면 쪼갠다) · Story·Task 에 각각 · 주간 합계는 회고에서 보정 | [jira-convention](./jira-convention.md) §5 |
 | 상태 | **해야 할 일 → 진행 중 → 완료** 3개뿐. 진행 중 = 브랜치 생성, 완료 = MR 머지 | [jira-convention](./jira-convention.md) §7 |
 | 파트 태그 | 13종. Task 의 파트는 **수행** 파트, Epic 의 파트는 **완료 판정** 파트 | [parts.md](./parts.md) |
 | 브랜치 | `master` – `develop` – 작업 브랜치 3단. 작업 브랜치 이름은 `<이슈키>-<번호>-<영문설명>`(긴급 수정만 `hotfix/` 접두어) | [git-convention](./git-convention.md) §1·§3 |
