@@ -151,7 +151,6 @@ MonoBehaviour:
   defaultServerAddress: 127.0.0.1:8080
   httpBaseUrl: http://127.0.0.1:8080
   webSocketUrl: ws://127.0.0.1:8080/ws/game
-  gameSceneName: Main
   defaultNickname: "\uBE44\uD589\uC0AC"
   deviceIdOverride: 
 --- !u!4 &910294653
@@ -181,6 +180,7 @@ GameObject:
   - component: {fileID: 1056712109}
   - component: {fileID: 1056712108}
   - component: {fileID: 1056712107}
+  - component: {fileID: 1056712111}
   m_Layer: 0
   m_Name: NetworkManager
   m_TagString: Untagged
@@ -256,7 +256,7 @@ MonoBehaviour:
   disconnectInactiveConnections: 0
   disconnectInactiveTimeout: 60
   exceptionsDisconnect: 1
-  authenticator: {fileID: 0}
+  authenticator: {fileID: 1056712111}
   offlineScene: Assets/Scenes/Lobby.unity
   onlineScene: Assets/Scenes/Main.unity
   offlineSceneLoadDelay: 0
@@ -293,6 +293,24 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1056712111
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1056712106}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e9146ce963d770e4ea46d1387aaed528, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Metagame.Network::Metagame.Network.MatchAuthenticator
+  OnServerAuthenticated:
+    m_PersistentCalls:
+      m_Calls: []
+  OnClientAuthenticated:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!1 &1602356431
 GameObject:
   m_ObjectHideFlags: 0

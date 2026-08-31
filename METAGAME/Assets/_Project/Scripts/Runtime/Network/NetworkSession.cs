@@ -22,6 +22,12 @@ namespace Metagame.Network
 
         public NetworkConnectionState State { get; private set; } = NetworkConnectionState.Disconnected;
         public bool IsLoggedIn => !string.IsNullOrEmpty(accessToken);
+
+        /// <summary>
+        /// 게임 서버에 접속할 때 신원 증명으로 넘긴다(S15P21B202-161).
+        /// 화면에 찍거나 로그에 남기지 말 것 — 이 값이면 이 사람 행세를 할 수 있다.
+        /// </summary>
+        public string AccessToken => accessToken;
         public bool IsConnected => State == NetworkConnectionState.Connected;
         public long UserId { get; private set; }
         public string Nickname { get; private set; } = string.Empty;
@@ -551,6 +557,27 @@ namespace Metagame.Network
             httpUrl = "http://" + host + ":" + port;
             webSocketUrl = "ws://" + host + ":" + port + "/ws/game";
             return true;
+        }
+
+        /// <summary>
+        /// 주소에서 호스트만 떼어 낸다. 게임 서버는 로비와 같은 PC 에 있고 포트만 다르므로,
+        /// 로비에 입력한 주소의 호스트를 그대로 쓴다(S15P21B202-161).
+        /// </summary>
+        public static string HostOf(string address)
+        {
+            string trimmed = (address ?? string.Empty).Trim();
+            if (trimmed.Length == 0) return string.Empty;
+
+            int schemeEnd = trimmed.IndexOf("://", StringComparison.Ordinal);
+            if (schemeEnd >= 0) trimmed = trimmed.Substring(schemeEnd + 3);
+
+            int pathStart = trimmed.IndexOf('/');
+            if (pathStart >= 0) trimmed = trimmed.Substring(0, pathStart);
+
+            int colon = trimmed.LastIndexOf(':');
+            if (colon >= 0) trimmed = trimmed.Substring(0, colon);
+
+            return trimmed.Trim();
         }
 
         /// <summary>마지막으로 입력한 서버 주소. 없으면 <paramref name="fallback"/>, 그것도 없으면 기본값.</summary>

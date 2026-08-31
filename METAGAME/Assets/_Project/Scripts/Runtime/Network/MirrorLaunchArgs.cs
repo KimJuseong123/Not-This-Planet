@@ -11,9 +11,9 @@ namespace Metagame.Network
     /// 서버 하나와 클라이언트 여럿을 동시에 띄울 수 없다 — 창 없이 실행하면 전부 서버가 된다.
     /// 검증과 서버 운영에 같은 실행 파일을 쓰기 위해 인자로 역할을 정한다.
     ///
-    ///   MetaGame.exe -batchmode -nographics -server
+    ///   MetaGame.exe -batchmode -nographics -server -roomId=K7M2QX
     ///   MetaGame.exe -client -address=127.0.0.1
-    ///   MetaGame.exe -server -port=27777
+    ///   MetaGame.exe -server -port=27777 -verifyUrl=https://j15b202.p.ssafy.io/auth/verify
     ///
     /// 인자가 없으면 아무것도 하지 않는다. 평소 실행(로비에서 시작)에는 영향이 없다.
     /// </summary>
@@ -23,6 +23,13 @@ namespace Metagame.Network
         private const string ClientFlag = "-client";
         private const string AddressPrefix = "-address=";
         private const string PortPrefix = "-port=";
+        private const string RoomIdPrefix = "-roomId=";
+        private const string VerifyUrlPrefix = "-verifyUrl=";
+
+        /// 로비 없이 클라이언트를 띄워 볼 때만 쓴다. 토큰은 실행 인자에 두면
+        /// 프로세스 목록에 그대로 보이므로 환경변수로 받는다.
+        private const string TokenEnv = "METAGAME_MATCH_TOKEN";
+        private const string RoomEnv = "METAGAME_MATCH_ROOM";
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Apply()
@@ -56,6 +63,20 @@ namespace Metagame.Network
 
             if (server)
             {
+                // 서버 하나가 매치 하나를 맡는다. 방을 지정하면 그 방 사람만 받는다.
+                var auth = manager.authenticator as MatchAuthenticator;
+                if (auth != null)
+                {
+                    string roomId = Read(args, RoomIdPrefix);
+                    if (!string.IsNullOrWhiteSpace(roomId)) auth.RoomId = roomId.Trim();
+
+                    string verifyUrl = Read(args, VerifyUrlPrefix);
+                    if (!string.IsNullOrWhiteSpace(verifyUrl)) auth.VerifyUrl = verifyUrl.Trim();
+
+                    Debug.Log("[MirrorLaunchArgs] 담당 방=" +
+                              (string.IsNullOrEmpty(auth.RoomId) ? "(제한 없음)" : auth.RoomId));
+                }
+
                 manager.StartServer();
                 Debug.Log("[MirrorLaunchArgs] 서버로 시작");
                 return;
@@ -65,8 +86,21 @@ namespace Metagame.Network
             if (!string.IsNullOrWhiteSpace(address))
                 manager.networkAddress = address.Trim();
 
+            // 평소에는 로비가 채워 준다. 로비 없이 띄우는 검증용 실행에서만 여기서 읽는다.
+            // 토큰은 실행 인자에 두면 프로세스 목록에 그대로 보이므로 환경변수로 받는다.
+            string token = Environment.GetEnvironmentVariable(TokenEnv);
+            if (!string.IsNullOrWhiteSpace(token))
+                MatchAuthenticator.ClientToken = token;
+
+            string room = Environment.GetEnvironmentVariable(RoomEnv);
+            if (string.IsNullOrWhiteSpace(room)) room = Read(args, RoomIdPrefix);
+            if (!string.IsNullOrWhiteSpace(room))
+                MatchAuthenticator.ClientRoomId = room.Trim();
+
             manager.StartClient();
-            Debug.Log("[MirrorLaunchArgs] 클라이언트로 시작 · 주소=" + manager.networkAddress);
+            Debug.Log("[MirrorLaunchArgs] 클라이언트로 시작 · 주소=" + manager.networkAddress
+                      + " · 방=" + (MatchAuthenticator.ClientRoomId ?? "(없음)")
+                      + " · 토큰=" + (string.IsNullOrEmpty(MatchAuthenticator.ClientToken) ? "없음" : "있음"));
         }
 
         private static void ApplyPort(NetworkManager manager, ushort port)
