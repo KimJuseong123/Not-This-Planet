@@ -20,12 +20,14 @@ namespace Metagame.EditorTools
     ///     그래서 이 도구를 되돌려도(스킨 자식만 지우면) 퍼즐이 그대로 돈다.
     ///   · 카탈로그 규칙대로 FBX 가 아니라 <c>PF_*</c> 프리팹만 인스턴스화한다.
     ///
-    /// 파츠 박스는 4기 모두 <see cref="PhysicsScale"/> 이 정한 3 × 3.7 × 3 m 로 같은데
-    /// 모델은 종류마다 비율이 다르다. 그래서 모델을 균일 배율로 박스에 넣고(찌그러뜨리지 않는다)
-    /// 바닥을 박스 바닥에 맞춘 뒤, 부족한 높이만 <see cref="MaxYStretch"/> 까지 늘린다.
-    /// 납작한 HoverPod 은 이래도 박스 높이를 못 채워 위에 쌓인 파츠와 사이가 벌어진다.
-    /// 파츠별 높이를 따로 두거나 모델을 고치는 것이 정답이지만, 그것은 물리 기준값을
-    /// 바꾸는 일이라 아트 작업에서 하지 않는다.
+    /// 파츠 콜라이더는 <see cref="PartSpec"/> 가 파츠마다 실측 형태로 갖고 있으므로,
+    /// 모델을 배율 1 로 얹고 바닥만 맞추면 둘이 저절로 일치한다.
+    ///
+    /// 예전에는 네 파츠가 모두 3 × 3.7 × 3 m 상자를 써서, 모델을 균일 배율로 그 안에 넣은 뒤
+    /// 세로로 최대 1.35배까지 늘렸다. 납작한 HoverPod 은 그래도 박스 높이를 못 채워 위에 쌓인
+    /// 파츠와 사이가 벌어졌다. 그때 이 주석은 "파츠별 높이를 따로 두는 것이 정답이지만 물리
+    /// 기준값을 바꾸는 일이라 아트 작업에서 하지 않는다" 고 적어 두었는데,
+    /// S15P21B202-166 이 그 물리 기준값을 바꾸어 해결했다.
     ///
     /// 이 도구가 소유하는 것은 이름이 <see cref="SkinName"/> 인 자식들과
     /// Environment 의 Boundaries · Nature · DistantBackground 그룹 내용이다.
@@ -43,25 +45,31 @@ namespace Metagame.EditorTools
         const string SpaceshipDir = "Assets/_Project/Prefabs/Spaceships/Stage1";
         const string PropDir = "Assets/_Project/Prefabs/Props/Stage1";
 
-        /// <summary>파츠 콜라이더 박스. 스킨은 이 안에 들어가야 한다.</summary>
-        static readonly Vector3 PartBox =
-            new(PhysicsScale.PartWidth, PhysicsScale.PartHeight, PhysicsScale.PartWidth);
+        /// <summary>
+        /// 스킨 모델을 콜라이더에 맞추려고 배율을 걸지 않는다.
+        ///
+        /// 예전에는 네 파츠가 모두 3 x 3.7 x 3m 상자를 쓰는 바람에, 모델을 그 안에 채우려고
+        /// 균일 배율을 건 뒤 세로로 최대 1.35배까지 더 늘렸다. 기획(S15P21B202-107 §7.1)은
+        /// 그 방식을 금지하고 실제 에셋 크기를 그대로 쓰라고 정한다.
+        ///
+        /// 지금은 콜라이더가 <see cref="PartSpec"/> 의 실측 형태를 따르므로 모델을 배율 1 로
+        /// 얹으면 둘이 저절로 맞는다. 프리팹 피벗이 바닥에 있어(실측 확인) 바닥만 맞추면 된다.
+        /// </summary>
+        const float SkinScale = 1f;
 
-        /// <summary>박스 높이를 채우려고 모델을 세로로 늘릴 수 있는 한계. 이 이상은 찌그러져 보인다.</summary>
-        const float MaxYStretch = 1.35f;
+        /// <summary>모델 높이와 콜라이더 높이가 이만큼 넘게 벌어지면 실측값을 의심한다.</summary>
+        const float SkinHeightTolerance = 0.05f;
 
         /// <summary>
         /// 파츠별 스킨. 조립 순서는 기획에서 미정이라 시연 순서에 맞춰 정했다.
         /// 시연 드라이버가 Part_1 을 맨 아래, Part_2 를 그 위로 옮긴다.
         /// 아래에서 위로 부양 추진부 → 로봇 → 조종석이고, 견인 장치는 도구 역할이다.
         /// </summary>
-        static readonly (string Part, string Prefab)[] PartSkins =
-        {
-            ("Part_1", SpaceshipDir + "/PF_Stage1_Spaceship_HoverPod.prefab"),
-            ("Part_2", SpaceshipDir + "/PF_Stage1_Spaceship_Robot.prefab"),
-            ("Part_3", SpaceshipDir + "/PF_Stage1_Spaceship_Capsule.prefab"),
-            ("Part_4", SpaceshipDir + "/PF_Stage1_TractorCraft.prefab"),
-        };
+        /// <summary>
+        /// 파츠에 얹을 프리팹 경로. 어느 파츠에 무엇이 올라가는지는 <see cref="PartSpec"/> 가
+        /// 정한다 — 조립 순서와 물리 형태가 한 표에 있어야 서로 어긋나지 않는다.
+        /// </summary>
+        static string SkinPathOf(PartSpec spec) => SpaceshipDir + "/" + spec.SkinPrefab + ".prefab";
 
         /// <summary>고정못을 모아 두는 그룹. 파츠와 함께 움직이지 않아야 해서 따로 둔다.</summary>
         const string PinGroupName = "AnchorPins";
@@ -172,36 +180,40 @@ namespace Metagame.EditorTools
         static int SkinParts(Transform puzzle)
         {
             var done = 0;
-            foreach (var (partName, prefabPath) in PartSkins)
+            foreach (var spec in PartSpec.All)
             {
-                var part = puzzle.Find(partName);
-                if (part == null) { Debug.LogWarning("[Stage1Skin] " + partName + " 이 없다."); continue; }
+                var part = puzzle.Find(spec.Name);
+                if (part == null) { Debug.LogWarning("[Stage1Skin] " + spec.Name + " 이 없다."); continue; }
 
-                var prefab = Load(prefabPath);
+                var prefab = Load(SkinPathOf(spec));
                 if (prefab == null) continue;
 
-                // 프리미티브 큐브는 콜라이더만 남기고 렌더러를 끈다. 컴포넌트를 지우지 않는 것은
-                // 스킨을 걷어내면 원래 룩으로 돌아갈 수 있게 하려는 것이다.
-                var cube = part.GetComponent<MeshRenderer>();
-                if (cube != null) cube.enabled = false;
+                // 콜라이더 상자로 쓰는 프리미티브 큐브는 렌더러만 끈다. 컴포넌트를 지우지 않는
+                // 것은 스킨을 걷어내면 원래 룩으로 돌아갈 수 있게 하려는 것이다.
+                foreach (var cube in part.GetComponentsInChildren<MeshRenderer>(true))
+                    if (cube.name.StartsWith(Stage1PuzzleBuilder.BodyPrefix, System.StringComparison.Ordinal))
+                        cube.enabled = false;
 
                 var fit = Measure(prefab);
-                float uniform = Mathf.Min(PartBox.x / fit.Size.x, PartBox.y / fit.Size.y, PartBox.z / fit.Size.z);
-                float stretch = Mathf.Min(MaxYStretch, PartBox.y / (fit.Size.y * uniform));
-
                 var visual = Attach(part, prefab);
-                var world = new Vector3(uniform, uniform * stretch, uniform);
+                var world = Vector3.one * SkinScale;
                 SetWorldScale(visual, world);
 
-                // x·z 는 박스 중심에, 바닥은 박스 바닥(= 지면)에 맞춘다.
+                // x·z 는 파츠 중심에, 바닥은 콜라이더 바닥(= 지면)에 맞춘다.
                 SetWorldOffset(visual, new Vector3(
                     -fit.Center.x * world.x,
-                    -PartBox.y * 0.5f - (fit.Center.y - fit.Size.y * 0.5f) * world.y,
+                    -spec.Height * 0.5f - (fit.Center.y - fit.Size.y * 0.5f) * world.y,
                     -fit.Center.z * world.z));
 
-                float height = fit.Size.y * world.y;
-                Debug.Log($"[Stage1Skin] {partName} ← {prefab.name} (배율 {uniform:0.00}, 세로 {stretch:0.00}, "
-                          + $"높이 {height:0.00}/{PartBox.y:0.00}m)");
+                float modelHeight = fit.Size.y * world.y;
+                float gap = Mathf.Abs(modelHeight - spec.Height);
+                if (gap > SkinHeightTolerance)
+                    Debug.LogWarning($"[Stage1Skin] {spec.Name} 모델 높이 {modelHeight:0.00}m 와 "
+                                     + $"콜라이더 높이 {spec.Height:0.00}m 가 {gap:0.00}m 어긋난다 — "
+                                     + "PartSpec 의 실측값을 다시 재야 한다.");
+
+                Debug.Log($"[Stage1Skin] {spec.Name} ({spec.DisplayName}) ← {prefab.name} "
+                          + $"높이 {modelHeight:0.00}/{spec.Height:0.00}m · 질량 {spec.Mass:0}kg");
                 done++;
             }
             return done;
@@ -490,8 +502,16 @@ namespace Metagame.EditorTools
         {
             var list = new List<(Vector2, float)>();
 
+            // 파츠마다 발자국이 다르므로 명세에서 읽는다. 명세가 없으면 예전 기본값을 쓴다.
             foreach (var part in puzzle.GetComponentsInChildren<SpaceshipPart>(true))
-                list.Add((Flat(part.transform.position), PhysicsScale.PartWidth + 4f));
+            {
+                var spec = PartSpec.Find(part.name);
+                var footprint = spec != null
+                    ? Mathf.Max(spec.Footprint.x, spec.Footprint.y)
+                    : PhysicsScale.PartWidth;
+
+                list.Add((Flat(part.transform.position), footprint + 4f));
+            }
 
             var assembly = puzzle.Find("AssemblyPoint");
             if (assembly != null) list.Add((Flat(assembly.position), 9f));

@@ -139,6 +139,13 @@ namespace Metagame.Gameplay.Parts
             var vertical = (input.Jump ? 1f : 0f) - (input.ArmsUp ? 1f : 0f);
             mountedVehicle.SetVerticalInput(vertical);
 
+            // F 로 광역 저중력장을 켜고 끈다(기획 §14.1).
+            if (input.FieldToggle)
+            {
+                mountedVehicle.Field.Toggle();
+                SetStatus(mountedVehicle.Field.IsActive ? "저중력장 켬" : "저중력장 끔");
+            }
+
             if (mountedVehicle.Beam != null)
                 mountedVehicle.Beam.Tick(Time.fixedDeltaTime);
 

@@ -18,11 +18,32 @@ namespace Metagame.Gameplay
         public const float MetersPerUnit = 1f;
 
         // --- 우주선 파츠 ---
+
+        /// <summary>
+        /// 형태를 따로 정하지 않은 파츠의 기본 크기. <b>실제 스테이지1 파츠는 이 값을 쓰지 않는다</b> —
+        /// 네 파츠는 각자의 실측 형태를 <see cref="Parts.PartSpec"/> 에 갖고 있다.
+        /// 이 값은 테스트가 만드는 일반 파츠와, 명세가 없는 파츠의 폴백으로만 남는다.
+        /// </summary>
         public const float PartWidth = 3f;
         public const float PartHeight = 3.7f;
 
-        /// <summary>놓이거나 용접된 상태의 질량. 혼자서는 밀 수 없는 무게다.</summary>
+        /// <summary>
+        /// 형태를 따로 정하지 않은 파츠의 질량. 위와 같은 이유로 폴백이다.
+        /// 실제 파츠 질량은 <see cref="Parts.PartSpec.Mass"/> 가 부피에서 계산한다.
+        /// </summary>
         public const float PartMass = 500f;
+
+        /// <summary>
+        /// 파츠 밀도(kg/m³). 파츠 질량을 결정하는 <b>유일한 손잡이</b>다.
+        ///
+        /// 질량을 파츠마다 손으로 적지 않는 이유는 두 가지다. 모델이 바뀌면 네 값을 따로
+        /// 고쳐야 하고, 고치는 사이 서로의 비율이 슬그머니 어긋난다. 부피에 밀도를 곱하면
+        /// 형태가 바뀔 때 질량이 저절로 따라온다.
+        ///
+        /// 70 은 네 파츠의 평균 질량이 예전 고정값 <see cref="PartMass"/>(500kg) 근처에
+        /// 오도록 잡은 값이다. 기획서 용어로 <b>초기 테스트값</b>이며 플레이 테스트로 조정한다.
+        /// </summary>
+        public const float PartDensity = 70f;
 
         /// <summary>
         /// 견인 중인 파츠에 적용하는 취급 질량.
@@ -53,12 +74,35 @@ namespace Metagame.Gameplay
         /// <summary>비행접시형 운반 도구. 파츠에 끌려다니지 않을 정도의 무게.</summary>
         public const float CarrierMass = 25f;
 
-        // --- 소켓 배치 ---
-        /// <summary>두 소켓이 이 거리 안에 있으면 스냅 후보가 된다.</summary>
-        public const float SnapDistance = 1.5f;
+        // --- 접합 허용 오차 ---
+        //
+        // 상세 기획 S15P21B202-107 §15.2 가 정한 세 값이다. 예전에는 소켓 사이의 3차원 거리
+        // 하나(1.5m)와 각도 하나(30도)로 판정했는데, 거리 하나로는 "옆으로 어긋난 것" 과
+        // "위아래로 뜬 것" 을 구분하지 못한다. 접합선은 옆으로 조금 어긋나도 이어지지만
+        // 위아래로 벌어지면 이어지지 않으므로, 기획은 둘을 따로 본다.
+        //
+        // 기획서 용어로 <b>초기 테스트값</b>이며 플레이 테스트로 조정한다.
 
-        /// <summary>두 접합면이 마주보는 오차가 이 각도 안이면 스냅 후보가 된다.</summary>
-        public const float SnapAngleDegrees = 30f;
+        /// <summary>
+        /// 두 접합면 중심이 <b>옆으로</b> 어긋나도 되는 거리. 접합면을 따라 잰다.
+        /// </summary>
+        public const float WeldCenterTolerance = 0.8f;
+
+        /// <summary>
+        /// 두 접합면이 <b>위아래로</b> 벌어져도 되는 거리. 접합면 법선 방향으로 잰다.
+        /// 이만큼 넘게 뜨면 원형 접합선이 이어지지 않는다.
+        /// </summary>
+        public const float WeldGapTolerance = 0.2f;
+
+        /// <summary>
+        /// 두 접합면이 마주보는 각도의 오차 한계.
+        ///
+        /// 기획은 "파츠 기울기 최대 약 25도" 라고 적었는데, 무엇을 기준으로 한 기울기인지는
+        /// 적혀 있지 않다. 여기서는 <b>두 접합면 사이의 상대 각도</b>로 읽었다. 탑 전체가
+        /// 같은 방향으로 기울어 있어도 두 면이 나란하면 접합선은 이어지기 때문이다.
+        /// 탑이 통째로 기우는 것은 접합 판정이 아니라 물리가 다룰 문제다(넘어진다).
+        /// </summary>
+        public const float WeldTiltToleranceDegrees = 25f;
 
         /// <summary>
         /// 용접 전 파츠를 잡아 두는 조인트가 끊어지는 힘.
@@ -66,7 +110,20 @@ namespace Metagame.Gameplay
         /// 운석 충격에는 끊어지고 일반 조작에는 끊어지지 않아야 하는 값이다.
         /// S15P21B202-70 에서 운석을 실제로 떨어뜨려 확정했다.
         /// 60kg 운석이 30m 에서 떨어질 때 이 값은 끊어지고 WeldedBreakForce 는 버틴다.
-        /// 탑은 스스로 무너지지 않는다.
+        ///
+        /// <b>"탑은 스스로 무너지지 않는다" 는 더 이상 사실이 아니다.</b> S15P21B202-70 은
+        /// 파츠가 모두 500kg 이고 조립이 완벽히 정렬되던 때의 값이다. S15P21B202-166 이
+        /// 질량을 406~745kg 으로 나누고 S15P21B202-172 가 정렬을 없앤 뒤로는 비뚤게 쌓은
+        /// 탑이 스스로 무너진다 — 기획 §15.1 이 요구하는 동작이다.
+        ///
+        /// S15P21B202-194 에서 실측한 경계(층마다 옆으로 미는 거리):
+        ///   0.30m 까지  선다
+        ///   0.35m 부터  무너진다
+        ///
+        /// 붕괴는 이 강도가 아니라 <b>기하</b>가 결정한다. 토크 상한을 5000 에서 500 까지
+        /// 낮춰도 경계가 움직이지 않았다 — 무게중심이 밑면을 벗어나면 넘어지고, 조인트는
+        /// 그 결과로 끊어진다. 그래서 이 값들은 조정하지 않았다.
+        /// 실측 근거는 docs/records/S15P21B202-194-tower-collapse.md 에 있다.
         /// </summary>
         public const float UnweldedBreakForce = 8000f;
 
@@ -121,6 +178,99 @@ namespace Metagame.Gameplay
         /// 목표 회전으로 돌리는 각속도 계수(1/s). 결과는 PartMaxAngularSpeed 로 잘린다.
         /// </summary>
         public const float BeamAngularGain = 6f;
+
+        // --- 광역 저중력장 ---
+        //
+        // 상세 기획 S15P21B202-107 §14.3 이 정한 원뿔이다. 기체 아래 깊이 10m, 지면 반경 4m,
+        // 기체 쪽이 좁고 지면 쪽이 넓다. 전부 기획서 용어로 초기 테스트값이다.
+
+        /// <summary>원뿔 깊이(m). 이보다 깊으면 영역 밖이다.</summary>
+        public const float FieldDepth = 10f;
+
+        /// <summary>가장 깊은 곳에서의 반경(m).</summary>
+        public const float FieldGroundRadius = 4f;
+
+        /// <summary>
+        /// 꼭짓점(기체 바로 아래)에서의 반경(m). 0 으로 두면 기체에 붙은 파츠가 영역에서
+        /// 빠져 덜컥거리므로 약간 벌려 둔다.
+        /// </summary>
+        public const float FieldCraftRadius = 0.8f;
+
+        /// <summary>파츠가 유지하는 깊이(m). 기획의 "기체 아래 약 5~6m".</summary>
+        public const float FieldHoldDepth = 5.5f;
+
+        /// <summary>
+        /// 중력을 얼마나 대신 들어주는지. 1 이면 완전 무중력이다.
+        /// 빔의 <see cref="BeamGravitySupport"/> 와 같은 뜻이며 값도 맞춰 둔다.
+        /// </summary>
+        public const float FieldGravitySupport = 1f;
+
+        /// <summary>
+        /// 원뿔 축으로 모으는 가속(m/s²). 기획은 "영역 중심으로 <b>천천히</b> 끌린다" 고 하므로
+        /// 목표 깊이로 당기는 힘보다 훨씬 약하다. 세게 주면 자석처럼 달라붙어
+        /// 정밀 조립이 불가능해진다.
+        /// </summary>
+        public const float FieldPullAccel = 1.6f;
+
+        /// <summary>축으로 모으는 힘의 감쇠 계수(1/s). 없으면 축을 지나쳐 좌우로 출렁인다.</summary>
+        public const float FieldPullDamp = 1.2f;
+
+        // 부유하는 플레이어의 조작값(기획 §14.3). 파츠와 달리 힘으로 끌지 않고 속도를 직접
+        // 준다 — 기획이 "강제 견인되지 않고 직접 움직인다" 고 정했기 때문이다.
+
+        /// <summary>부유 중 수평 최고 속도(m/s).</summary>
+        public const float FieldFloatSpeed = 3f;
+
+        /// <summary>부유 중 상승·하강 속도(m/s).</summary>
+        public const float FieldFloatVerticalSpeed = 2f;
+
+        /// <summary>입력을 놓고 멈추기까지의 시간(s). 기획의 "약 0.5초 관성 후 정지".</summary>
+        public const float FieldFloatStopSeconds = 0.5f;
+
+        /// <summary>
+        /// 저중력장이 자유 파츠의 바닥을 아래로 돌려 세우는 데 걸리는 시간(s).
+        /// 기획 §14.4 의 "약 2초에 걸쳐 바닥이 아래를 향하도록 자세를 보정한다".
+        ///
+        /// S15P21B202-172 가 없앤 자동 정렬과 다르다. 172 가 금지한 것은 접합할 때 소켓에
+        /// 맞춰 자세를 교정하는 것이고, 이것은 자유 파츠를 세우는 것이다. 기획이 §15.1 에서
+        /// 앞을 금지하고 §14.4 에서 뒤를 요구한다. 요(y축 회전)는 건드리지 않는다 —
+        /// 어느 방향을 보고 놓을지는 플레이어가 정한다.
+        /// </summary>
+        public const float FieldUprightSeconds = 2f;
+
+        /// <summary>이 각도 안이면 이미 선 것으로 본다.</summary>
+        public const float FieldUprightToleranceDegrees = 0.5f;
+
+        /// <summary>
+        /// 세우는 각속도(도/초). 90도를 <see cref="FieldUprightSeconds"/> 에 도는 속도다.
+        ///
+        /// 남은 각도에 비례하는 속도를 주면 지수적으로 접근해 목표에 영영 닿지 않는다
+        /// (계측: 75도에서 3초 뒤에도 27.7도 남음). 일정한 속도로 돌리고 마지막에만
+        /// 남은 만큼 줄인다.
+        /// </summary>
+        public const float FieldUprightDegreesPerSecond = 90f / FieldUprightSeconds;
+
+        /// <summary>목표 높이까지의 오차에 곱하는 가속 계수(1/s²). 스프링의 k 다.</summary>
+        public const float FieldHoldAccel = 6f;
+
+        /// <summary>
+        /// 세로 속도에 곱하는 감쇠 계수(1/s). 임계 감쇠 조건은 2*sqrt(k) = 2*sqrt(6) ≈ 4.9 인데,
+        /// 그보다 조금 낮춰 급가속 때 파츠가 뒤처졌다 따라붙는 여운을 남긴다(기획 §14.3).
+        /// </summary>
+        public const float FieldHoldDamp = 4f;
+
+        /// <summary>가속 상한(m/s²). 중력 보상분(2.8)보다 충분히 커야 파츠가 처지지 않는다.</summary>
+        public const float FieldAccelMax = 18f;
+
+        /// <summary>
+        /// 저중력장이 작용하는 레이어.
+        ///
+        /// 파츠와 소품(뽑힌 고정못·장비)에만 준다. 운석은 기획이 명시적으로 제외한다 —
+        /// "낙하 중·반사된 운석과 박힌 운석은 저중력장 영향을 받지 않는다"(§14.3).
+        /// 플레이어도 지금은 빼 둔다. 부유는 강제 견인이 아니라 직접 조작이라
+        /// 별도 이슈에서 다룬다.
+        /// </summary>
+        public const int FieldMask = GameLayers.PartMask | GameLayers.PropMask;
 
         // --- 운석 ---
         /// <summary>

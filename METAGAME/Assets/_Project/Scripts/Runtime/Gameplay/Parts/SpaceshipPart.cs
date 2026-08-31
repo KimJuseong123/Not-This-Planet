@@ -19,11 +19,24 @@ namespace Metagame.Gameplay.Parts
     {
         [SerializeField] PartState _state = PartState.Locked;
 
+        /// <summary>
+        /// 이 파츠가 놓였을 때의 질량. 씬을 만드는 도구가 <see cref="PartSpec"/> 의 값을 넣는다.
+        ///
+        /// 예전에는 네 파츠가 모두 <see cref="PhysicsScale.PartMass"/>(500kg) 하나를 썼다.
+        /// 크기가 두 배 넘게 차이 나는데 질량이 같으면 적재도 발사 하중도 외형과 어긋난다.
+        /// 0 이면 명세가 없는 파츠로 보고 예전 상수를 그대로 쓴다 — 테스트가 만드는
+        /// 일반 파츠가 이 경로를 탄다.
+        /// </summary>
+        [SerializeField] float _placedMass;
+
         readonly List<PartClamp> _clamps = new();
         readonly List<PartSocket> _sockets = new();
 
         Rigidbody _body;
         bool _initialized;
+
+        /// <summary>남은 고정못을 지면에 묶어 두는 조인트들. 부분 부양이 이것으로 표현된다.</summary>
+        readonly List<ConfigurableJoint> _clampJoints = new();
 
         public PartState State => _state;
 
@@ -136,6 +149,11 @@ namespace Metagame.Gameplay.Parts
             var previous = _state;
             _state = next;
             ApplyRepresentation(next);
+
+            // 상태가 바뀌면 지면 구속도 다시 잡는다. Locked 를 벗어나면 전부 사라져야 한다 —
+            // 남겨 두면 자유 파츠가 여전히 한 점에 묶여 들리지 않는다.
+            RefreshClampConstraints();
+
             StateChanged?.Invoke(previous, next);
             return true;
         }
@@ -150,7 +168,14 @@ namespace Metagame.Gameplay.Parts
 
             if (clamp == null || !_clamps.Contains(clamp)) return;
             if (_state != PartState.Locked) return;
-            if (RemainingRequiredClamps > 0) return;
+
+            if (RemainingRequiredClamps > 0)
+            {
+                // 아직 남았다. 풀린 방향만 들리도록 물리 표현과 구속을 다시 잡는다.
+                ApplyRepresentation(_state);
+                RefreshClampConstraints();
+                return;
+            }
 
             TryTransitionTo(PartState.Free);
         }
@@ -168,16 +193,111 @@ namespace Metagame.Gameplay.Parts
             _ => false,
         };
 
+        /// <summary>놓였을 때의 질량. 명세가 없으면 예전 고정값으로 돌아간다.</summary>
+        public float PlacedMass => _placedMass > 0f ? _placedMass : PhysicsScale.PartMass;
+
+        /// <summary>씬을 만드는 도구가 파츠별 질량을 넣는다.</summary>
+        public void SetPlacedMass(float mass) => _placedMass = Mathf.Max(0f, mass);
+
+        /// <summary>고정못이 하나라도 풀렸는가. 풀린 것이 하나도 없으면 예전처럼 꿈쩍하지 않는다.</summary>
+        public bool HasReleasedClamp
+        {
+            get
+            {
+                Initialize();
+
+                for (var i = 0; i < _clamps.Count; i++)
+                    if (_clamps[i] != null && _clamps[i].IsRequired && _clamps[i].IsReleased)
+                        return true;
+
+                return false;
+            }
+        }
+
+        /// <summary>지금 파츠를 지면에 묶고 있는 구속 수. 남은 고정못 수와 같아야 한다.</summary>
+        public int ClampConstraintCount
+        {
+            get
+            {
+                var live = 0;
+                for (var i = 0; i < _clampJoints.Count; i++)
+                    if (_clampJoints[i] != null) live++;
+
+                return live;
+            }
+        }
+
+        /// <summary>
+        /// 남은 고정못마다 파츠를 지면에 묶는 구속을 하나씩 건다.
+        ///
+        /// 기획 §14.4 는 "제거된 방향은 들리지만 남은 고정못 방향은 지면에 붙어 있다",
+        /// "고정못 하나만 남으면 해당 지점을 중심으로 크게 기울 수 있다" 고 정한다.
+        /// 조인트 하나가 그 둘을 모두 표현한다 — 위치만 묶고 회전은 풀어 두면(점 구속),
+        /// 넷이 남았을 때는 네 점이 함께 잡아 강체가 되고 하나만 남으면 그 점을 중심으로
+        /// 자유롭게 기운다. 조인트 종류를 상황마다 바꿀 필요가 없다.
+        ///
+        /// 끊어지지 않게 둔다. 기획이 "고정못을 힘으로 강제 제거할 수는 없다" 고 정하므로,
+        /// 용접 전 조립을 잡는 조인트(끊어져야 하는 쪽)와 성격이 반대다.
+        ///
+        /// <c>connectedBody</c> 가 null 이면 <c>connectedAnchor</c> 는 <b>월드 좌표</b>다
+        /// (S15P21B202-132 에서 이 성질 때문에 하차한 탑승자가 맵 원점으로 빨려갔다).
+        /// 여기서는 그 성질이 바로 필요한 것이다 — 고정못이 박힌 자리에 묶는다.
+        /// </summary>
+        public void RefreshClampConstraints()
+        {
+            Initialize();
+
+            for (var i = 0; i < _clampJoints.Count; i++)
+                if (_clampJoints[i] != null)
+                    DestroyImmediate(_clampJoints[i]);
+
+            _clampJoints.Clear();
+
+            // 고정 상태가 아니거나 아직 아무것도 안 풀렸으면 구속이 필요 없다.
+            if (_state != PartState.Locked || !HasReleasedClamp) return;
+
+            for (var i = 0; i < _clamps.Count; i++)
+            {
+                var clamp = _clamps[i];
+                if (clamp == null || !clamp.IsRequired || clamp.IsReleased) continue;
+
+                var joint = gameObject.AddComponent<ConfigurableJoint>();
+                joint.connectedBody = null;
+                joint.autoConfigureConnectedAnchor = false;
+                joint.anchor = transform.InverseTransformPoint(clamp.transform.position);
+                joint.connectedAnchor = clamp.transform.position;
+
+                joint.xMotion = ConfigurableJointMotion.Locked;
+                joint.yMotion = ConfigurableJointMotion.Locked;
+                joint.zMotion = ConfigurableJointMotion.Locked;
+
+                // 회전은 풀어 둔다. 하나만 남았을 때 그 점을 중심으로 기울기 위해서다.
+                joint.angularXMotion = ConfigurableJointMotion.Free;
+                joint.angularYMotion = ConfigurableJointMotion.Free;
+                joint.angularZMotion = ConfigurableJointMotion.Free;
+
+                joint.enablePreprocessing = false;
+                joint.breakForce = float.PositiveInfinity;
+                joint.breakTorque = float.PositiveInfinity;
+
+                _clampJoints.Add(joint);
+            }
+        }
+
         void ApplyRepresentation(PartState state)
         {
-            var (layer, mass, isKinematic) = RepresentationOf(state);
+            var (layer, mass, isKinematic) = RepresentationOf(state, PlacedMass);
 
             // 레이어는 이 오브젝트에만 준다. 자식의 고정쇠는 Interactable 레이어에 있어야
             // Interactor 가 찾을 수 있으므로 함께 바꾸면 안 된다.
             gameObject.layer = layer;
 
             if (_body == null) _body = GetComponent<Rigidbody>();
-            _body.isKinematic = isKinematic;
+
+            // 고정못이 하나라도 풀렸으면 kinematic 을 풀어 부분 부양을 허용한다(기획 §14.4).
+            // 하나도 안 풀린 파츠는 예전 그대로 kinematic 이다 — 들 것이 없고, 그래야
+            // 저중력장·운석이 손대지 않는다.
+            _body.isKinematic = isKinematic && !HasReleasedClamp;
             _body.mass = mass;
             _body.maxAngularVelocity = PhysicsScale.PartMaxAngularSpeed;
         }
@@ -187,11 +307,19 @@ namespace Metagame.Gameplay.Parts
         /// 고정된 동안에는 kinematic 이라 운석에 맞아도 밀리지 않는다.
         /// 값의 근거는 S15P21B202-62 기록 문서를 본다.
         /// </summary>
-        public static (int Layer, float Mass, bool IsKinematic) RepresentationOf(PartState state) => state switch
+        public static (int Layer, float Mass, bool IsKinematic) RepresentationOf(PartState state) =>
+            RepresentationOf(state, PhysicsScale.PartMass);
+
+        /// <param name="placedMass">
+        /// 놓였거나 고정된 상태에서 쓸 질량. 견인 중 질량은 압사를 막는 값이라
+        /// 파츠 크기와 무관하게 <see cref="PhysicsScale.CarriedPartMass"/> 로 유지한다.
+        /// </param>
+        public static (int Layer, float Mass, bool IsKinematic) RepresentationOf(
+            PartState state, float placedMass) => state switch
         {
-            PartState.Locked => (GameLayers.Part, PhysicsScale.PartMass, true),
+            PartState.Locked => (GameLayers.Part, placedMass, true),
             PartState.Carried => (GameLayers.PartCarried, PhysicsScale.CarriedPartMass, false),
-            _ => (GameLayers.Part, PhysicsScale.PartMass, false),
+            _ => (GameLayers.Part, placedMass, false),
         };
     }
 }
