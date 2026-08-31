@@ -41,8 +41,9 @@ namespace Metagame.EditorTools
             Stage1TerrainBuilder.Build();
             Stage1WeldingPlasmaGunAsset.Build();
             Stage1SkinBuilder.Apply();
+            Stage1AtmosphereSetup.Apply();
 
-            Debug.Log("[Stage1Setup] 1장 전체 구성 완료 — 퍼즐·환경·운석·지형·용접 건·스킨");
+            Debug.Log("[Stage1Setup] 1장 전체 구성 완료 — 퍼즐·환경·운석·지형·용접 건·스킨·분위기");
         }
     }
 }

@@ -102,6 +102,7 @@ namespace Metagame.Gameplay
             alertIntensity = Mathf.Clamp01(value);
             if (activeProfile == null) return;
 
+            ApplyFog(activeProfile.fog);
             ApplyHaze(activeProfile.haze);
             ApplyVolume(activeProfile.postProcessing);
             ApplyMeteorIntensity();
@@ -224,10 +225,11 @@ namespace Metagame.Gameplay
 
         void ApplyFog(AtmosphereProfile.FogSettings settings)
         {
-            RenderSettings.fog = settings.enabled;
+            bool enabled = settings.enabled && (!Application.isMobilePlatform || GetEffectScale() > 0f);
+            RenderSettings.fog = enabled;
             RenderSettings.fogMode = settings.mode;
             RenderSettings.fogColor = settings.color;
-            RenderSettings.fogDensity = settings.density * (1f + alertIntensity * 0.25f);
+            RenderSettings.fogDensity = enabled ? settings.density * (1f + alertIntensity * 0.25f) : 0f;
             RenderSettings.fogStartDistance = settings.startDistance;
             RenderSettings.fogEndDistance = settings.endDistance;
         }
@@ -254,7 +256,8 @@ namespace Metagame.Gameplay
             tonemapping.mode.value = settings.tonemapping;
 
             var bloom = GetOrAdd<Bloom>();
-            bloom.active = settings.bloomEnabled;
+            bool enableMobilePostEffects = !Application.isMobilePlatform || GetEffectScale() > 0f;
+            bloom.active = settings.bloomEnabled && enableMobilePostEffects;
             bloom.threshold.overrideState = true;
             bloom.threshold.value = settings.bloomThreshold;
             bloom.intensity.overrideState = true;
@@ -263,7 +266,7 @@ namespace Metagame.Gameplay
             bloom.tint.value = settings.bloomTint;
 
             var colorAdjustments = GetOrAdd<ColorAdjustments>();
-            colorAdjustments.active = settings.colorAdjustmentsEnabled;
+            colorAdjustments.active = settings.colorAdjustmentsEnabled && enableMobilePostEffects;
             colorAdjustments.postExposure.overrideState = true;
             colorAdjustments.postExposure.value = settings.postExposure;
             colorAdjustments.contrast.overrideState = true;
@@ -272,7 +275,7 @@ namespace Metagame.Gameplay
             colorAdjustments.colorFilter.value = settings.colorFilter;
 
             var vignette = GetOrAdd<Vignette>();
-            vignette.active = settings.vignetteEnabled;
+            vignette.active = settings.vignetteEnabled && enableMobilePostEffects;
             vignette.intensity.overrideState = true;
             vignette.intensity.value = settings.vignetteIntensity;
             vignette.smoothness.overrideState = true;
@@ -284,7 +287,10 @@ namespace Metagame.Gameplay
             Shader.SetGlobalFloat(MeteorIntensityId, activeProfile == null ? 0f : meteorIntensity * GetEffectScale());
             var shower = GetComponentInChildren<AtmosphereMeteorShower>();
             if (shower != null)
+            {
                 shower.SetIntensity(meteorIntensity);
+                shower.SetAlertIntensity(alertIntensity);
+            }
         }
 
         void ApplyVisualComponents(AtmosphereProfile profile)
@@ -295,7 +301,10 @@ namespace Metagame.Gameplay
 
             var shower = GetComponentInChildren<AtmosphereMeteorShower>();
             if (shower != null)
+            {
+                shower.BindCamera(targetCamera);
                 shower.Apply(profile);
+            }
         }
 
         float GetEffectScale()

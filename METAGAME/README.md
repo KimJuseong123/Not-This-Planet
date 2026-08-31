@@ -31,13 +31,15 @@ Build/Windows/SpaceFlop.exe -space-screenshot -space-shotdir Screenshots -screen
 기능·런타임 셰이더 참조를 검사하며, 실패하면 핑크 셰이더 위험이 있는 빌드를 중단한다.
 수동 검증은 `Metagame/Rendering/Validate URP Build Safety` 메뉴에서 실행할 수 있다.
 
-후속 Stage에서 사용할 공용 분위기 기반은 `AtmosphereProfile`, `AtmosphereController`,
-`AtmosphereBackdrop`, `AtmosphereMeteorShower`, `AtmosphereHazeRendererFeature`로 구성되어
-있다. Stage1에는 분위기 프로필이나 노을·포그·유성우 값이 적용되어 있지 않으며,
-Stage2 이후에 프로필을 새로 만들어 연결하는 구조다.
+공용 분위기 기반은 `AtmosphereProfile`, `AtmosphereController`, `AtmosphereBackdrop`,
+`AtmosphereMeteorShower`, `AtmosphereHazeRendererFeature`로 구성되어 있다. `Main`에는
+`Stage1AtmosphereProfile.asset`이 연결되어 어두운 남보라 하늘, 주황·자주색 수평선,
+별·은하수 띠, 행성·달, 약한 Exponential Squared Fog, 깊이 Haze, ACES·Bloom·Vignette,
+시각 유성우를 적용한다. `Lobby`와 공용 기본 Volume Profile은 중립 상태를 유지한다.
+Stage2 이후에는 같은 프로필 구조를 복사해 Stage별 값을 별도로 연결한다.
 
 에디터 메뉴는 `Tools/둥실둥실 우주 대탈출/` 아래에 있다.
-1장에 필요한 에셋·퍼즐·운석·지형·용접 건·스킨은 `Main 씬에 1장 전체 구성`으로 한 번에 만들 수 있다.
+1장에 필요한 에셋·퍼즐·운석·지형·용접 건·스킨·분위기 연결은 `Main 씬에 1장 전체 구성`으로 한 번에 만들 수 있다.
 실제 빌드 씬은 `Assets/Scenes/Lobby.unity`와 `Assets/Scenes/Main.unity`이며,
 `Main`에는 `SpaceBootstrap`과 Stage1 배치가 있다.
 
@@ -309,7 +311,7 @@ Assets/_Project/
   Models/                     Characters/SF_Rabbit_Base.fbx(+.fbm 텍스처) · Spaceships/SF_Spaceship_Capsule.fbx · Characters/SF_Astronaut_Base.fbx(안 씀)
   Prefabs/Resources/          SF_Rabbit_Base.prefab · SF_Spaceship_Capsule.prefab  — ArtLink 가 만든다
   Shaders/Resources/          DoughSurface · GhostSurface · FlatUnlit  — URP용, Prim 이 Resources.Load 로 집는다
-  Shaders/Atmosphere/         SkyGradient · Haze · Meteor — 후속 Stage 공용 분위기 셰이더
+  Shaders/Atmosphere/         SkyGradient · Haze · Meteor — Stage1 및 후속 Stage 공용 분위기 셰이더
   Textures/Concept/           컨셉 아트 (빌드에 안 들어간다)
 ```
 
