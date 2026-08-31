@@ -236,9 +236,11 @@ FBX와 `tripo_convert_<id>.fbm/` 폴더가 있고, `.fbm` 안에 Base Color·Nor
 
 | 용도 | 경로 | 상태 |
 | --- | --- | --- |
-| Stage1 신규 바닥 Base Color | `Textures/Environment/Stage1/Renewal/Ground/T_Stage1_AlienGroundTile_BaseColor.png` | 1024 × 1024 seamless 원본·미연결 |
+| Stage1 신규 바닥 Base Color | `Textures/Environment/Stage1/Renewal/Ground/T_Stage1_AlienGroundTile_BaseColor.png` | 1024 × 1024 seamless 원본·Terrain 연결 |
 
-현재 Base Color 한 장만 있다. 적용할 때는 Wrap Mode를 `Repeat`로 설정하고,
+현재 Base Color 한 장을 [S15P21B202-74](https://ssafy.atlassian.net/browse/S15P21B202-74)에서
+`TL_Stage1_AlienGround` Terrain Layer로 연결했다. 50 × 50m Terrain에 5m 단위로 반복되어
+화면에는 10 × 10 타일처럼 보인다. Wrap Mode는 `Repeat`, Mipmap과 Aniso Level 4를 사용한다.
 Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 
 ### 적용 전 확인

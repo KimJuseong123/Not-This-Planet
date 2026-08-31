@@ -78,8 +78,7 @@ namespace Metagame.EditorTools
             data.alphamapResolution = AlphamapResolution;
             data.baseMapResolution = 512;
             data.size = new Vector3(TerrainWidth, TerrainHeight, TerrainWidth);
-            // 지면 텍스처와 Terrain Layer 연결은 S15P21B202-74 범위다.
-            data.terrainLayers = new TerrainLayer[0];
+            // S15P21B202-74에서 연결한 Terrain Layer가 있다면 Terrain 재생성 시에도 유지한다.
             data.SetHeights(0, 0, GenerateHeights());
 
             EditorUtility.SetDirty(data);
