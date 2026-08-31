@@ -32,6 +32,40 @@ namespace Metagame.Network
         public bool ready;
     }
 
+    /// <summary>PLAYER_MOVE — 내 위치를 서버에 알린다. 서버는 계산하지 않고 중계만 한다.</summary>
+    public sealed class OutgoingMoveMessage
+    {
+        public string type;
+        public MoveData data;
+    }
+
+    public sealed class MoveData
+    {
+        public float x;
+        public float y;
+        public float z;
+        public float yaw;
+    }
+
+    /// <summary>PLAYER_MOVED — 다른 사람의 위치. 보낸 사람에게는 오지 않는다.</summary>
+    public readonly struct PlayerMove
+    {
+        public long UserId { get; }
+        public float X { get; }
+        public float Y { get; }
+        public float Z { get; }
+        public float Yaw { get; }
+
+        public PlayerMove(long userId, float x, float y, float z, float yaw)
+        {
+            UserId = userId;
+            X = x;
+            Y = y;
+            Z = z;
+            Yaw = yaw;
+        }
+    }
+
     /// <summary>
     /// 서버 → 클라이언트 메시지. players 가 userId 를 키로 하는 객체라(backend/docs/PROTOCOL.md)
     /// 사전을 다루지 못하는 JsonUtility 대신 Newtonsoft 로 읽는다.
@@ -49,6 +83,13 @@ namespace Metagame.Network
         public string status;
         public bool ready;
         public string message;
+
+        // PLAYER_MOVED 전용
+        public long userId;
+        public float x;
+        public float y;
+        public float z;
+        public float yaw;
 
         /// <summary>키는 userId, 값은 닉네임과 준비 여부.</summary>
         public Dictionary<long, PlayerSummary> players;
