@@ -442,12 +442,18 @@ namespace Metagame.EditorTools
         static Material EnsureGroundMaterial()
         {
             var existing = AssetDatabase.LoadAssetAtPath<Material>(GroundMaterialPath);
-            if (existing != null) return existing;
+            if (existing != null)
+            {
+                var currentShader = Shader.Find("Universal Render Pipeline/Lit");
+                if (currentShader != null && existing.shader != currentShader)
+                    existing.shader = currentShader;
+                return existing;
+            }
 
-            var shader = Shader.Find("Standard");
+            var shader = Shader.Find("Universal Render Pipeline/Lit");
             if (shader == null)
             {
-                Debug.LogError("[Stage1Skin] Standard 셰이더를 찾지 못했다.");
+                Debug.LogError("[Stage1Skin] URP Lit 셰이더를 찾지 못했다.");
                 return null;
             }
 
@@ -458,13 +464,23 @@ namespace Metagame.EditorTools
                 "Assets/_Project/Models/Environment/Stage1/mossy_boulder_cluster.fbm/mossy_boulder_cluster_basecolor.jpg");
             if (texture != null)
             {
-                material.SetTexture("_MainTex", texture);
-                material.SetTextureScale("_MainTex", new Vector2(GroundTiling, GroundTiling));
+                if (material.HasProperty("_BaseMap"))
+                {
+                    material.SetTexture("_BaseMap", texture);
+                    material.SetTextureScale("_BaseMap", new Vector2(GroundTiling, GroundTiling));
+                }
+                if (material.HasProperty("_MainTex"))
+                {
+                    material.SetTexture("_MainTex", texture);
+                    material.SetTextureScale("_MainTex", new Vector2(GroundTiling, GroundTiling));
+                }
             }
 
-            material.SetColor("_Color", GroundTint);
-            material.SetFloat("_Metallic", 0f);
-            material.SetFloat("_Glossiness", 0.08f);
+            if (material.HasProperty("_Color")) material.SetColor("_Color", GroundTint);
+            if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", GroundTint);
+            if (material.HasProperty("_Metallic")) material.SetFloat("_Metallic", 0f);
+            if (material.HasProperty("_Glossiness")) material.SetFloat("_Glossiness", 0.08f);
+            if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", 0.08f);
 
             AssetDatabase.CreateAsset(material, GroundMaterialPath);
             Debug.Log("[Stage1Skin] 지면 재질 생성 → " + GroundMaterialPath);

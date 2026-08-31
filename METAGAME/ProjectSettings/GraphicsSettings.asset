@@ -37,6 +37,9 @@ GraphicsSettings:
   - {fileID: 4800000, guid: dd1f539b17421594a890b2c428ac49bd, type: 3}
   - {fileID: 4800000, guid: 85b24df10dab8ae49b4c298b431fecad, type: 3}
   - {fileID: 4800000, guid: 6eeb6203764d05945a87fd241e6d05ab, type: 3}
+  - {fileID: 4800000, guid: de39794b949946ab841a3743ae8b6f5e, type: 3}
+  - {fileID: 4800000, guid: b8169e4f11d14781b6634e9ca4fe81b1, type: 3}
+  - {fileID: 4800000, guid: 64767d613dc04825ab09994a69249257, type: 3}
   m_PreloadedShaders: []
   m_PreloadShadersBatchTimeLimit: -1
   m_GraphicsStateCollection: {fileID: 0}
@@ -49,7 +52,7 @@ GraphicsSettings:
   m_WarmupProgressivelyLimit: -1
   m_CacheMissCollectionPath: CacheMissCollection
   m_SpritesDefaultMaterial: {fileID: 10754, guid: 0000000000000000f000000000000000, type: 0}
-  m_CustomRenderPipeline: {fileID: 0}
+  m_CustomRenderPipeline: {fileID: 11400000, guid: 4b83569d67af61e458304325a23e5dfd, type: 2}
   m_TransparencySortMode: 0
   m_TransparencySortAxis: {x: 0, y: 0, z: 1}
   m_DefaultRenderingPath: 1
@@ -76,7 +79,7 @@ GraphicsSettings:
     numInternalDefines: 0
     defines: []
   m_LightsUseLinearIntensity: 0
-  m_LightsUseColorTemperature: 0
+  m_LightsUseColorTemperature: 1
   m_LogWhenShaderIsCompiled: 0
   m_LightProbeOutsideHullStrategy: 1
   m_CameraRelativeLightCulling: 0

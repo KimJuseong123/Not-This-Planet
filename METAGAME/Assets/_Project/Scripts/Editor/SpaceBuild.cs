@@ -2,6 +2,7 @@ using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
 using UnityEngine.Rendering;
+using System.Linq;
 
 namespace Metagame.EditorTools
 {
@@ -15,7 +16,7 @@ namespace Metagame.EditorTools
     /// </summary>
     public static class SpaceBuild
     {
-        const string ScenePath = "Assets/Scenes/Main.unity";
+        static readonly string[] RequiredScenes = { "Assets/Scenes/Lobby.unity", "Assets/Scenes/Main.unity" };
 
         public static void BuildWindows() { Build(false); }
 
@@ -27,24 +28,37 @@ namespace Metagame.EditorTools
         /// 목록을 덮어쓰지 않고 없을 때만 더한다. 예전에는 씬을 다시 만들고 목록을
         /// 통째로 교체했는데, 손으로 구성한 씬을 그렇게 다루면 레벨이 사라진다.
         /// </summary>
-        static bool EnsureMainSceneListed()
+        static bool EnsureRequiredScenesListed()
         {
-            if (!System.IO.File.Exists(ScenePath))
+            foreach (var scenePath in RequiredScenes)
             {
-                Debug.LogError("[SpaceFlop] 빌드할 씬이 없다 → " + ScenePath);
-                return false;
+                if (!System.IO.File.Exists(scenePath))
+                {
+                    Debug.LogError("[SpaceFlop] 빌드할 씬이 없다 → " + scenePath);
+                    return false;
+                }
             }
 
             var list = EditorBuildSettings.scenes;
-            foreach (var entry in list)
-                if (entry.path == ScenePath)
-                    return true;
-
-            var grown = new EditorBuildSettingsScene[list.Length + 1];
-            System.Array.Copy(list, grown, list.Length);
-            grown[list.Length] = new EditorBuildSettingsScene(ScenePath, true);
-            EditorBuildSettings.scenes = grown;
+            var entries = list.ToList();
+            foreach (var scenePath in RequiredScenes)
+            {
+                var existing = entries.FirstOrDefault(entry => entry.path == scenePath);
+                if (existing != null)
+                    existing.enabled = true;
+                else
+                    entries.Add(new EditorBuildSettingsScene(scenePath, true));
+            }
+            EditorBuildSettings.scenes = entries.ToArray();
             return true;
+        }
+
+        static string[] EnabledBuildScenes()
+        {
+            return EditorBuildSettings.scenes
+                .Where(scene => scene.enabled && !string.IsNullOrEmpty(scene.path))
+                .Select(scene => scene.path)
+                .ToArray();
         }
 
         static void Build(bool forceDev)
@@ -55,12 +69,25 @@ namespace Metagame.EditorTools
             bool dev = forceDev || System.Environment.GetEnvironmentVariable("SPACE_DEV") == "1";
 
             ArtLink.BuildPrefabs();            // 블렌더 FBX → Resources 프리팹 (런타임이 이걸 집는다)
-            if (!EnsureMainSceneListed()) return;
+            if (!EnsureRequiredScenesListed()) return;
             ApplyPlayerSettings();
+            if (!UrpRenderValidation.ValidateProject(true))
+            {
+                if (Application.isBatchMode) EditorApplication.Exit(1);
+                return;
+            }
+
+            var scenes = EnabledBuildScenes();
+            if (scenes.Length == 0)
+            {
+                Debug.LogError("[SpaceFlop] 활성화된 빌드 씬이 없습니다.");
+                if (Application.isBatchMode) EditorApplication.Exit(1);
+                return;
+            }
 
             var options = new BuildPlayerOptions
             {
-                scenes = new[] { ScenePath },
+                scenes = scenes,
                 locationPathName = System.IO.Path.Combine(outDir, "SpaceFlop.exe"),
                 target = BuildTarget.StandaloneWindows64,
                 options = dev ? BuildOptions.Development : BuildOptions.None
@@ -93,45 +120,13 @@ namespace Metagame.EditorTools
             });
 
             // 런타임에 Resources.Load / Shader.Find 로 찾는 셰이더가 빌드에 반드시 들어가게
-            EnsureAlwaysIncludedShaders("SpaceFlop/Dough", "SpaceFlop/Ghost", "SpaceFlop/Flat");
-        }
-
-        static void EnsureAlwaysIncludedShaders(params string[] shaderNames)
-        {
-            // AssetDatabase.LoadAllAssetsAtPath 는 Assets/ 아래 자산용이라 ProjectSettings 경로로는
-            // 대개 빈 배열을 돌려주고 조용히 return 했다 — 셰이더 포함 보장이 사실상 동작하지 않았다
-            // (2026-08-27 전수 AI 리뷰 지적, S15P21B202-136). GraphicsSettings 를 직접 받는다.
-            var settingsObject = GraphicsSettings.GetGraphicsSettings();
-            if (settingsObject == null)
-            {
-                Debug.LogWarning("[SpaceFlop] GraphicsSettings 를 열지 못해 AlwaysIncludedShaders 를 확인하지 못했습니다.");
-                return;
-            }
-
-            var so = new SerializedObject(settingsObject);
-            var arrayProp = so.FindProperty("m_AlwaysIncludedShaders");
-            if (arrayProp == null)
-            {
-                Debug.LogWarning("[SpaceFlop] m_AlwaysIncludedShaders 속성을 찾지 못했습니다(Unity 버전 변경?).");
-                return;
-            }
-
-            foreach (var name in shaderNames)
-            {
-                var shader = Shader.Find(name);
-                if (shader == null) { Debug.LogWarning("[SpaceFlop] 셰이더를 찾지 못함: " + name); continue; }
-
-                bool already = false;
-                for (int i = 0; i < arrayProp.arraySize; i++)
-                    if (arrayProp.GetArrayElementAtIndex(i).objectReferenceValue == shader) { already = true; break; }
-                if (already) continue;
-
-                arrayProp.InsertArrayElementAtIndex(arrayProp.arraySize);
-                arrayProp.GetArrayElementAtIndex(arrayProp.arraySize - 1).objectReferenceValue = shader;
-            }
-
-            so.ApplyModifiedProperties();
-            AssetDatabase.SaveAssets();
+            UrpProjectSetup.EnsureAlwaysIncludedShaders(
+                "SpaceFlop/Dough",
+                "SpaceFlop/Ghost",
+                "SpaceFlop/Flat",
+                "Metagame/Atmosphere/SkyGradient",
+                "Hidden/Metagame/Atmosphere/Haze",
+                "Metagame/Atmosphere/Meteor");
         }
     }
 }

@@ -4,6 +4,7 @@
 > 갱신 2026-08-27 — 환경 자연물 연결과 `Main.unity` 아트 배치 · 이슈 [S15P21B202-84](https://ssafy.atlassian.net/browse/S15P21B202-84)
 > 갱신 2026-08-28 — Stage1 운석 모델·PBR 텍스처 4종 교체 · 이슈 [S15P21B202-98](https://ssafy.atlassian.net/browse/S15P21B202-98)
 > 갱신 2026-08-31 — Stage1 자연물 8종·맵 타일 리뉴얼 원본 추가 · 이슈 [S15P21B202-163](https://ssafy.atlassian.net/browse/S15P21B202-163)
+> 갱신 2026-08-31 — URP 17.5 전환·빌드 핑크 셰이더 검증·공용 분위기 기반 추가
 > 관련 문서: [문서 목록](./README.md) · [1장 기획](./planning/chapter-1-plan.md) · [파트 구분](./parts.md)
 
 **어떤 에셋이 무엇이고, 씬에 갖다 쓸 수 있는 상태인지** 한 장에서 확인하는 문서다.
@@ -52,11 +53,11 @@ FBX 파일만 열어봐서는 크기를 알 수 없다. 기존 카탈로그에�
 | FBX 모델 | 26 | 사용 가능 14 · 미연결 11 · 기존 1 |
 | 텍스처 (`Textures/`) | 25 | Stage1 PBR 20 · 리뉴얼 바닥 1 · 콘셉트 4 |
 | 텍스처 (`.fbm/` 임베드) | 57 | 캐릭터 2 · 환경 7 · 운석 PBR 16 · 리뉴얼 자연물 PBR 32 |
-| Material | 14 | 파츠·소품 5 · 환경·바닥 8 · 운석 1 |
-| Prefab | 16 | Stage1 14 · 기존 2 |
-| Shader | 3 | 기존 SpaceFlop 런타임 전용 |
-| Scene | 1 | `Scenes/Main.unity` — Stage1 프리팹 12종이 122개 배치돼 있다 |
-| Unity 설정 Asset | 8 | URP 7 · Readme 1 |
+| Material | 21 | Stage1 URP Lit 18 · 분위기/외부 패키지용 URP 3 |
+| Prefab | 18 | Stage1 16 · 기존 Resources 2 |
+| Shader | 6 | `SpaceFlop/*` URP 3 · 분위기 URP 3 |
+| Scene | 2 | `Scenes/Lobby.unity` · `Scenes/Main.unity` — Main에 Stage1 프리팹 12종이 122개 배치돼 있다 |
+| Unity 설정 Asset | 9 | URP 설정 8 · 공용 기본 Volume Profile 1 |
 | Input Actions | 1 | Unity 기본 액션 맵 |
 
 연결 구조: `Texture → Material → Prefab(FBX 포함) → Scene`
@@ -155,8 +156,8 @@ PF_Stage1_*.prefab  (루트: Transform 만)
 
 Material 은 각 FBX 의 `.meta` 외부 오브젝트 맵(재질 추출)으로 물려 있다. 즉 임베드 재질이 아니라
 `M_Stage1_*.mat` 을 쓰므로, FBX 를 어디에 인스턴스화하든 같은 재질이 따라오고 에디터에서 편집할 수 있다.
-셰이더는 기존 5개와 같은 built-in **Standard** 다(§11-10 — 이 프로젝트는 URP 패키지가 있어도
-실제로는 Built-in 파이프라인으로 돈다). BaseColor 한 장뿐이라 Metallic 0 · Glossiness 0.2 로 두었다.
+셰이더는 URP **Lit**이다. BaseColor 한 장뿐이라 Metallic 0 · Smoothness 0.2 로 두었고,
+기존 FBX·프리팹·씬 참조를 유지한 채 머티리얼 셰이더만 이관했다.
 
 Material·프리팹은 `Stage1EnvironmentAssets` 에디터 도구가 만든다
 (`Tools/둥실둥실 우주 대탈출/Main 씬에 1장 전체 구성`에서 자동 실행). 이미 있는 파일은 건드리지 않으므로
@@ -313,11 +314,12 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 
 ## 10. 씬 · 설정 · 텍스처 전체 목록
 
-### 씬 (1개)
+### 씬 (2개)
 
 | 파일 | 내용 |
 | --- | --- |
-| `Assets/Scenes/Main.unity` | 유일한 씬. 게임플레이 스크립트(`SpaceshipPart`, `PartSocket`, `WeldPoint`, `PartClamp`, `TractorBeam`, `MeteorSpawner`, `Grabbable`, `SpaceBootstrap`, `LobbyBootstrap` 등)와 `Settings/SampleSceneProfile.asset` 위에, [S15P21B202-84](https://ssafy.atlassian.net/browse/S15P21B202-84)에서 Stage1 프리팹 12종을 122개 배치했다(아래). |
+| `Assets/Scenes/Lobby.unity` | 빌드 목록의 진입 씬. 별도 Stage1 분위기 프로필은 참조하지 않는다. |
+| `Assets/Scenes/Main.unity` | 게임플레이 스크립트(`SpaceshipPart`, `PartSocket`, `WeldPoint`, `PartClamp`, `TractorBeam`, `MeteorSpawner`, `Grabbable`, `SpaceBootstrap`, `LobbyBootstrap` 등)와 공용 기본 Volume Profile 위에, [S15P21B202-84](https://ssafy.atlassian.net/browse/S15P21B202-84)에서 Stage1 프리팹 12종을 122개 배치했다(아래). |
 
 ### `Main.unity` 의 아트 배치 (S15P21B202-84)
 
@@ -365,7 +367,7 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
   같이 공중으로 따라 올라갔다(빌드 실행으로 확인). 못은 땅에 박힌 물건이라 파츠가 떠나도 남아야 하므로
   좌표만 빌려 별도 그룹에 세운다.
 - **지면 재질**: 프리미티브 Plane 에 기본 흰색 재질이 붙어 있어 해를 받으면 화면이 하얗게 날아갔다.
-  `M_Stage1_ArenaGround`(Standard, 바위 군락 BaseColor 10회 타일링, 틴트 0.46 회색, Glossiness 0.08)를
+  `M_Stage1_ArenaGround`(URP Lit, 바위 군락 BaseColor 10회 타일링, 틴트 0.46 회색, Smoothness 0.08)를
   물렸다. 색·타일링은 `Stage1SkinBuilder` 의 `GroundTint`·`GroundTiling` 한 줄로 조정한다.
 - **지면 높이 0.06m**: 런타임 `LevelBuilder` 의 착륙장 슬랩(y=0)·크레이터 바닥(y≈0.05)과 같은 평면이라
   z-파이팅으로 지면이 지글거렸다. 6cm 띄워 아레나 안에서는 Stage1 지면만 보이게 했다. §11-9 의 임시 대응이며
@@ -399,7 +401,10 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 | `Assets/Settings/PC_RPAsset.asset` · `PC_Renderer.asset` | PC용 URP 파이프라인·렌더러 |
 | `Assets/Settings/Mobile_RPAsset.asset` · `Mobile_Renderer.asset` | 모바일용 URP 파이프라인·렌더러 |
 | `Assets/Settings/UniversalRenderPipelineGlobalSettings.asset` | URP 전역 설정 |
-| `Assets/Settings/DefaultVolumeProfile.asset` · `SampleSceneProfile.asset` | Volume 프로파일 (후자는 `Main.unity`가 참조) |
+| `Assets/_Project/Data/Atmosphere/URPBaselineVolumeProfile.asset` | Main·URP 파이프라인이 함께 사용하는 중립 기본 Volume Profile. Stage1 분위기 값은 없다 |
+| `Assets/Settings/DefaultVolumeProfile.asset` · `SampleSceneProfile.asset` | Unity 템플릿 잔여 Volume 프로파일. 활성 렌더 경로에서는 사용하지 않는다 |
+| `Assets/_Project/Scripts/Editor/UrpProjectSetup.cs` · `UrpRenderValidation.cs` | URP 설정/이관 도구와 빌드 전 핑크 셰이더 안전성 검증 |
+| `Assets/_Project/Scripts/Runtime/Gameplay/World/Atmosphere/` | 후속 Stage에서 재사용할 Profile·Controller·Backdrop·Meteor·Haze 기반 |
 | `Assets/InputSystem_Actions.inputactions` | Input System 기본 액션 맵 |
 | `Assets/Readme.asset` · `Assets/TutorialInfo/Icons/URP.png` · `TutorialInfo/Layout.wlt` | Unity URP 템플릿 잔여물. 삭제 가능 |
 
@@ -422,7 +427,7 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 | 4 | **프리팹에 Collider·Rigidbody가 없다.** 퍼즐 물리를 붙일 때 배치하는 쪽에서 추가해야 한다. 절벽 벽만 씬 배치 쪽에서 `BoxCollider` 를 붙여 경계로 쓰고 있다. | Puzzle |
 | 8 | **납작한 HoverPod 이 파츠 박스 높이(3.7m)를 못 채운다** — 스킨 높이 2.34m. 파츠 위에 다른 파츠를 쌓으면 사이가 벌어진다. 파츠별 높이를 따로 두거나(=`PhysicsScale.PartHeight` 분리, 물리 기준값 변경) 모델을 고쳐야 한다. | Art · Puzzle |
 | 9 | **런타임 `LevelBuilder` 가 예전 SpaceFlop 코스를 Stage1 아레나와 같은 좌표에 겹쳐 세운다** (`SpaceBootstrap.buildLevel = 1`, 스폰 `(0,0,0)`). 빌드를 실행해 확인했다 — 아레나 위에 예전 코스의 지형·소품·HUD("표지 0/6")가 겹쳐 보인다. 스킨 작업 범위가 아니라 그대로 두었다. | Level · Puzzle |
-| 10 | **프로젝트가 URP 가 아니라 Built-in 파이프라인으로 돈다.** `ProjectSettings/GraphicsSettings.asset` 의 `m_CustomRenderPipeline` 과 모든 품질 레벨의 `customRenderPipeline` 이 비어 있다. URP 패키지·`PC_RPAsset` 등은 있지만 할당돼 있지 않다. 그래서 Material 5개가 built-in Standard 를 쓰고, 런타임 셰이더 3종(`SpaceFlop/*`)도 built-in 용이다. **README 와 이 문서가 "URP 17.5.0" 이라고 적어 온 것은 사실과 다르다.** URP 로 전환할지, 문서를 사실에 맞출지 결정이 필요하다 — 전환하면 재질 12개와 런타임 셰이더 3종을 모두 고쳐야 한다. | Infra · Art |
+| 10 | ~~프로젝트가 URP가 아니라 Built-in 파이프라인으로 돈다.~~ **해소** — Graphics 기본 파이프라인과 6개 품질 단계에 PC/Mobile URP Asset을 명시했고, Stage1 머티리얼은 URP Lit으로, `SpaceFlop/*` 3종은 URP 셰이더로 이관했다. `SpaceBuild`는 빌드 전 `UrpRenderValidation`을 실행해 Built-in 머티리얼·누락 셰이더·잘못된 Renderer Feature를 발견하면 빌드를 중단한다. | Infra · Art |
 | 5 | **`.fbm` 임베드 텍스처가 크다** (합계 약 34 MB, 최대 7.0 MB). LFS 용량과 임포트 시간에 영향이 있다. 다운스케일 여부 검토 필요. | Art · Infra |
 | 6 | `METAGAME/Assets/_Project/Models/README_KO.md`가 삭제된 `SF_Astronaut_Base.fbx`를 안내한다. 루트 `README.md`도 삭제된 `Surface.unity`를 안내한다. | Plan · Infra |
 | 7 | Unity URP 템플릿 잔여물(`Readme.asset`, `TutorialInfo/`)이 남아 있다. | Infra |
