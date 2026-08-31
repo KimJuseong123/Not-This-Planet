@@ -21,6 +21,7 @@ Build/Windows/SpaceFlop.exe -space-screenshot -space-shotdir Screenshots -screen
 ```
 
 에디터 메뉴는 `Tools/둥실둥실 우주 대탈출/` 아래에 있다.
+1장에 필요한 에셋·퍼즐·운석·지형·용접 건·스킨은 `Main 씬에 1장 전체 구성`으로 한 번에 만들 수 있다.
 씬(`Assets/_Project/Scenes/Surface.unity`)에는 `SpaceBootstrap` 컴포넌트 하나뿐이다.
 
 ---
@@ -165,8 +166,7 @@ Tripo 로 만든 모델이라 4096² 맵이 `.blend` 안에 packed 되어 있었
 이 프로젝트는 씬에 부트스트랩 하나만 두고 나머지를 코드가 세우는 구조라 인스펙터로 FBX 를 꽂을 데가 없다.
 그렇다고 FBX 를 `Resources/` 로 옮기면 블렌더 쪽 경로가 깨진다.
 그래서 `ArtLink.cs` 가 **원본은 `Models/` 에 그대로 두고 그것을 가리키는 얇은 프리팹만 `Prefabs/Resources/` 에** 만들고,
-안 쓰는 프리팹은 지운다. 빌드할 때 자동으로 돌고,
-손으로 돌리려면 `Tools/둥실둥실 우주 대탈출/모델 → Resources 프리팹 갱신`.
+안 쓰는 프리팹은 지운다. 빌드할 때와 `Main 씬에 1장 전체 구성`을 실행할 때 자동으로 돈다.
 
 ---
 

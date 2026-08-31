@@ -25,7 +25,6 @@ namespace Metagame.EditorTools
         public const string RabbitKey = "SF_Rabbit_Base";
         public const string CapsuleKey = "SF_Spaceship_Capsule";
 
-        [MenuItem("Tools/둥실둥실 우주 대탈출/모델 → Resources 프리팹 갱신", false, 61)]
         public static void BuildPrefabs()
         {
             Directory.CreateDirectory(ResourceDir);

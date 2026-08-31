@@ -133,7 +133,6 @@ namespace Metagame.EditorTools
             public Vector3 Center;
         }
 
-        [MenuItem("Tools/둥실둥실 우주 대탈출/Main 씬에 1장 스킨 입히기", false, 5)]
         public static void Apply()
         {
             Stage1EnvironmentAssets.Build();          // 환경 Material·프리팹이 없으면 먼저 만든다

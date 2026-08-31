@@ -793,7 +793,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9ef07dfb0a7c4b4b9d7d8d8d2bb8e9a4, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.PlasmaWeldingTool
   muzzle: {fileID: 7091623519737127966}
   weldColor: {r: 0.08, g: 0.75, b: 1, a: 1}

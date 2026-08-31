@@ -159,7 +159,7 @@ Material 은 각 FBX 의 `.meta` 외부 오브젝트 맵(재질 추출)으로 �
 실제로는 Built-in 파이프라인으로 돈다). BaseColor 한 장뿐이라 Metallic 0 · Glossiness 0.2 로 두었다.
 
 Material·프리팹은 `Stage1EnvironmentAssets` 에디터 도구가 만든다
-(`Tools/둥실둥실 우주 대탈출/환경 자연물 Material·프리팹 만들기`). 이미 있는 파일은 건드리지 않으므로
+(`Tools/둥실둥실 우주 대탈출/Main 씬에 1장 전체 구성`에서 자동 실행). 이미 있는 파일은 건드리지 않으므로
 다시 만들려면 해당 파일을 지우고 실행한다. 콜라이더는 붙어 있지 않다(§4 와 같다).
 
 `.fbm` 텍스처가 크다 — 3.3 MB(`glowing_spiral_plant`) ~ 7.0 MB(`mossy_boulder_cluster`), **합계 약 34 MB**.
@@ -180,7 +180,7 @@ Material·프리팹은 `Stage1EnvironmentAssets` 에디터 도구가 만든다
 | TerrainData | `Terrain/Stage1/TerrainData/TD_Stage1_Arena.asset` |
 
 `Stage1TerrainBuilder` 에디터 도구가 에셋 생성과 씬 배치를 함께 수행한다
-(`Tools/둥실둥실 우주 대탈출/Stage1 기본 Terrain 만들기`). 반복 실행하면 기존 Terrain 인스턴스를
+(`Tools/둥실둥실 우주 대탈출/Main 씬에 1장 전체 구성`에서 자동 실행). 반복 실행하면 기존 Terrain 인스턴스를
 교체하므로 씬에 중복되지 않는다.
 
 ---
@@ -319,7 +319,7 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 
 ### `Main.unity` 의 아트 배치 (S15P21B202-84)
 
-`Stage1SkinBuilder` 에디터 도구가 만든다(`Tools/둥실둥실 우주 대탈출/Main 씬에 1장 스킨 입히기`).
+`Stage1SkinBuilder` 에디터 도구가 만들며, `Tools/둥실둥실 우주 대탈출/Main 씬에 1장 전체 구성`에서 자동 실행된다.
 **물리와 좌표는 건드리지 않는다** — 프리미티브의 MeshRenderer 만 끄고 같은 자리에 모델을 `Visual` 자식으로 얹는다.
 그래서 `Visual` 자식만 지우면 프리미티브 룩으로 돌아간다.
 

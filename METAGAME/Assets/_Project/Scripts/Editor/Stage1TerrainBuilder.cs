@@ -35,7 +35,6 @@ namespace Metagame.EditorTools
         const float TerrainHeight = 6f;
         const float GroundY = 0.06f;
 
-        [MenuItem("Tools/둥실둥실 우주 대탈출/Stage1 기본 Terrain 만들기", false, 7)]
         public static void Apply()
         {
             if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())

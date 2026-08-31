@@ -25,7 +25,6 @@ namespace Metagame.EditorTools
 
         static readonly Vector3 FallbackPosition = new(-11.5f, 0.42f, -8.4f);
 
-        [MenuItem("Tools/둥실둥실 우주 대탈출/임시 용접 플라즈마 건 만들고 배치", false, 8)]
         public static void Build()
         {
             Directory.CreateDirectory(PrefabDirectory);

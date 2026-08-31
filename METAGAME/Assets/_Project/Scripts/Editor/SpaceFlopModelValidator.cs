@@ -43,7 +43,6 @@ namespace Metagame.EditorTools
             "Repair_Socket_POWER", "Repair_Socket_FUEL", "Repair_Socket_OXYGEN",
         };
 
-        [MenuItem("Tools/둥실둥실 우주 대탈출/3D 모델 검사", false, 20)]
         public static void ValidateFromMenu()
         {
             var failures = ValidateAll();
