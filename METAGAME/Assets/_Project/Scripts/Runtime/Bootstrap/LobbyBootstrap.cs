@@ -45,7 +45,10 @@ namespace Metagame.Bootstrap
             network.Configure(httpBaseUrl, webSocketUrl);
             network.GameStarted += LoadGameScene;
 
-            var hud = gameObject.AddComponent<LobbyHud>();
+            // 같은 오브젝트가 재활성·재초기화되면 HUD 가 두 개 붙는다(전수 AI 리뷰 지적, S15P21B202-136).
+            // ?? 는 UnityEngine.Object 의 == 오버로드를 우회하므로 쓰지 않고 == null 로 검사한다.
+            var hud = GetComponent<LobbyHud>();
+            if (hud == null) hud = gameObject.AddComponent<LobbyHud>();
             hud.Initialize(network, defaultNickname, deviceIdOverride);
         }
 
