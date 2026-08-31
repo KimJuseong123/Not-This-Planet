@@ -200,6 +200,47 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float LaunchMaxStandingTilt = 12f;
 
+        /// <summary>
+        /// 발사 실패로 튀어나올 때의 수평 속도(m/s).
+        ///
+        /// 기획 §22.4 는 "사방으로 튀어나온다 … 잠시 구르지만 기절하지 않고 자동으로
+        /// 일어난다" 다. 무너진 파츠 더미 밖으로 나갈 만큼은 되어야 하고, 지형 밖으로
+        /// 날려 보낼 만큼이면 안 된다. 파츠 최대 발자국이 약 2.5m 이므로 그 두 배쯤
+        /// 나가는 값으로 잡았다.
+        /// </summary>
+        public const float EjectHorizontalSpeed = 6f;
+
+        /// <summary>튀어나올 때의 상승 속도(m/s). 잔해를 넘어가되 높이 뜨지는 않는다.</summary>
+        public const float EjectVerticalSpeed = 3f;
+
+        /// <summary>
+        /// 실패 판정에서 최상단 모듈이 "지면에 닿았다" 고 볼 높이(m).
+        ///
+        /// 접촉 콜백을 쓰지 않는 이유는 무너지는 중에 파츠끼리도 닿기 때문이다.
+        /// 지면 높이로 보면 무엇에 닿았는지 가릴 필요가 없다.
+        ///
+        /// <b>이것만으로는 부족하다.</b> 최상단 모듈이 잔해 위에 얹혀 멈추면 지면 높이에
+        /// 영원히 닿지 않는다 — 견인 조종 모듈 반높이 1.22m 위에 엔진 모듈 2.16m 가
+        /// 깔리면 밑면이 2.16m 에서 멈춘다. 그래서 <see cref="EjectRestSpeed"/> 로
+        /// "낙하가 끝났다" 도 함께 본다.
+        /// </summary>
+        public const float EjectGroundClearance = 1.2f;
+
+        /// <summary>
+        /// 낙하가 끝났다고 볼 속도(m/s). 어디에 얹혀 멈췄든 여기에 걸린다.
+        ///
+        /// 기획 §22.4 의 "해당 모듈이 지면에 닿는 순간" 이 뜻하는 것은 낙하가 끝나는
+        /// 순간이다. 잔해 위에 멈춘 것도 그 순간이다.
+        /// </summary>
+        public const float EjectRestSpeed = 0.6f;
+
+        /// <summary>
+        /// 그 속도가 이만큼 이어져야 멈춘 것으로 본다(초).
+        ///
+        /// 한 순간만 보면 튀어오른 정점에서 걸린다 — 거기서는 속도가 0 을 지난다.
+        /// </summary>
+        public const float EjectRestSeconds = 0.25f;
+
         // --- 견인 광선 ---
         /// <summary>빔이 파츠를 붙잡을 수 있는 최대 거리.</summary>
         public const float BeamRange = 12f;

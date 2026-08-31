@@ -102,7 +102,13 @@ namespace Metagame.EditorTools
                 parts[i] = BuildPart(group, i, PartSpec.All[i]);
 
             var beams = BuildBeams(group);
-            BuildMeteors(group);
+            var spawner = BuildMeteors(group);
+
+            // 문이 발사 중 운석을 멈추고 실패 후 재개한다(기획 §22.3 · §22.4).
+            // 배치 순서상 스포너가 뒤에 만들어지므로 여기서 이어 준다.
+            var hatch = marker.GetComponentInChildren<ShipHatch>();
+            if (hatch != null) hatch.Configure(marker.GetComponent<ShipAssembly>(),
+                                               marker.GetComponent<LaunchTest>(), spawner);
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
@@ -288,7 +294,7 @@ namespace Metagame.EditorTools
             return beams;
         }
 
-        static void BuildMeteors(Transform group)
+        static MeteorSpawner BuildMeteors(Transform group)
         {
             var go = new GameObject("MeteorSpawner");
             go.transform.SetParent(group, false);
@@ -311,6 +317,8 @@ namespace Metagame.EditorTools
             if (!Stage1MeteorAssets.TryWire(spawner))
                 Debug.LogWarning("[Stage1Puzzle] 운석 프리팹이 없어 폴백 구체로 떨어진다. "
                                  + "'운석 프리팹 만들고 스포너에 꽂기' 를 한 번 돌린다.");
+
+            return spawner;
         }
 
         static Transform FindByPath(UnityEngine.SceneManagement.Scene scene, string path)
