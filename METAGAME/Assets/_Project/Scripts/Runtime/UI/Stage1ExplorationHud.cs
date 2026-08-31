@@ -75,6 +75,7 @@ namespace Metagame.UI
         Texture2D _white;
         Texture2D _arrowLeft;
         Texture2D _arrowRight;
+        Stage1TabletView _tabletView;
         bool _warmed;
 
         /// <summary>부트스트랩이 기존 HUD와 함께 명시적으로 연결한다.</summary>
@@ -88,6 +89,13 @@ namespace Metagame.UI
         {
             _exploration = exploration;
             _session = session;
+        }
+
+        /// <summary>현재 플레이어 카메라에 태블릿 3D 모델을 연결한다.</summary>
+        public void AttachTablet(Camera camera)
+        {
+            if (_tabletView != null) Destroy(_tabletView.gameObject);
+            _tabletView = Stage1TabletView.Create(camera, _exploration);
         }
 
         void Awake()
@@ -123,6 +131,9 @@ namespace Metagame.UI
 
         void DrawTablet(Stage1Exploration exploration)
         {
+            if (_tabletView != null)
+                return;
+
             var width = Screen.width;
             var height = Screen.height;
 
@@ -132,6 +143,12 @@ namespace Metagame.UI
             var panelHeight = Mathf.Min(700f, height - 48f);
             var panel = new Rect((width - panelWidth) * 0.5f, (height - panelHeight) * 0.5f,
                                  panelWidth, panelHeight);
+
+            DrawTabletPanel(panel, exploration);
+        }
+
+        void DrawTabletPanel(Rect panel, Stage1Exploration exploration)
+        {
 
             Box(panel, new Color(0.07f, 0.12f, 0.17f, 0.98f));
             Box(new Rect(panel.x, panel.y, panel.width, 5f), new Color(0.28f, 0.82f, 1f, 0.95f));

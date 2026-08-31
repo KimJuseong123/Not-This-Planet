@@ -111,11 +111,13 @@ namespace Metagame.Bootstrap
             Player.Cam.Yaw = 90f;                        // +X 를 바라보고 시작한다
             Player.Cam.transform.SetParent(transform, true);
             Player.Cam.SnapToTarget();
+            ExplorationHud.AttachTablet(Player.Cam.Cam);
             Player.ConfigureClampInteraction(Player.Cam.transform);
             Transport.Configure(Player, FindObjectsByType<TractorBeam>(FindObjectsSortMode.None));
 
             Hud.Local = Player;
             Hud.Transport = Transport;
+            Hud.Exploration = Exploration;
             Session.Transport = Transport;
             Exploration.Begin(Player);
             Session.Begin(Player, Level, Level.SpawnFoot, Exploration);
