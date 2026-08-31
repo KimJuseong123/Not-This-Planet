@@ -172,7 +172,16 @@ namespace Metagame.Gameplay
         public void Release()
         {
             if (Held != null) Held.NotifyReleased(this);
-            if (Grip != null) Destroy(Grip);
+
+            // 에디터에서는 Destroy 가 동작하지 않는다. EditMode 검증에서 손을 놓으면
+            // 에러 로그만 남고 <b>조인트가 그대로 남아</b> 몸이 물체에 계속 묶인다.
+            // 저장소의 다른 곳(Prim.Decor · PartAssemblyLink.DestroyObject ·
+            // PlayerRig.DisconnectTransportJoint)은 모두 재생 여부로 가린다.
+            if (Grip != null)
+            {
+                if (Application.isPlaying) Destroy(Grip);
+                else DestroyImmediate(Grip);
+            }
             Grip = null;
             Held = null;
             HeldBody = null;

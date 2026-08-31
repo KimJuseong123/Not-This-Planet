@@ -26,13 +26,15 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
-        public void Clamp_UsesDefaultHoldSeconds_WhenNotConfigured()
+        public void Clamp_IsNotReleasedByHolding()
         {
             var part = CreatePart();
             var clamp = AddClamp(part, Vector3.forward * 2f);
 
-            Assert.AreEqual(PartClamp.DefaultHoldSeconds, clamp.HoldSeconds, 0.001f,
-                "고정쇠는 탭이 아니라 꾹 눌러 푸는 상호작용이다.");
+            Assert.AreEqual(0f, clamp.HoldSeconds, 0.001f,
+                "고정못은 꾹 눌러 푸는 것이 아니다 — 뒤로 이동해 뽑는다(기획 §12.1).");
+            Assert.AreEqual(PhysicsScale.ClampPullSeconds, PartClamp.PullSecondsFor(1), 0.001f,
+                "1명이 뽑는 시간은 기획 §12.2 의 약 8초다.");
         }
 
         [Test]
@@ -119,24 +121,115 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
-        public void Interactor_ReleasesClampAfterHold()
+        public void Interactor_FindsClampButHoldingDoesNotRelease()
         {
             var part = CreatePart();
             var clamp = AddClamp(part, Vector3.forward * 2f);
             var interactor = CreateInteractor(Vector3.zero, Vector3.forward);
 
             interactor.Tick(0.02f);
-            Assert.AreSame(clamp, interactor.Focus, "고정쇠가 Interactable 레이어에서 탐지되어야 한다.");
+            Assert.AreSame(clamp, interactor.Focus, "고정못이 Interactable 레이어에서 탐지되어야 한다.");
 
+            // 예전에는 여기서 1.5초를 누르면 풀렸다. 기획 §12.1 은 뒤로 이동해 뽑는
+            // 것으로 정하므로, 홀드로 풀리면 그 조작을 우회하는 길이 생긴다.
             Assert.IsTrue(interactor.TryBegin());
-            Assert.AreEqual(InteractorState.Holding, interactor.State);
+            interactor.Tick(PhysicsScale.ClampPullSeconds * 2f);
 
-            interactor.Tick(PartClamp.DefaultHoldSeconds * 0.5f);
-            Assert.IsFalse(clamp.IsReleased, "절반만 눌렀는데 풀리면 안 된다.");
+            Assert.IsFalse(clamp.IsReleased, "홀드만으로는 풀리지 않는다.");
+            Assert.AreEqual(PartState.Locked, part.State);
+        }
 
-            interactor.Tick(PartClamp.DefaultHoldSeconds * 0.5f);
-            Assert.IsTrue(clamp.IsReleased);
+        /// <summary>기획 §12.2 — "일반 1명 약 8초", "2명 약 4.5초".</summary>
+        [Test]
+        public void Pull_TakesThePlannedTime()
+        {
+            var part = CreatePart();
+            var clamp = AddClamp(part, Vector3.forward * 2f);
+
+            Assert.IsTrue(clamp.TryJoinPull());
+
+            var step = 0.02f;
+            var spent = 0f;
+            for (var i = 0; i < 1000 && !clamp.IsReleased; i++)
+            {
+                clamp.Pull(step);
+                spent += step;
+            }
+
+            Assert.IsTrue(clamp.IsReleased, "언젠가는 뽑혀야 한다.");
+            Assert.AreEqual(PhysicsScale.ClampPullSeconds, spent, 0.1f,
+                $"1명은 약 8초여야 한다. {spent:0.00}초 걸렸다.");
             Assert.AreEqual(PartState.Free, part.State);
+
+            Assert.AreEqual(4.5f, PartClamp.PullSecondsFor(2), 0.1f,
+                "2명은 기획 §12.2 의 약 4.5초여야 한다.");
+        }
+
+        /// <summary>기획 §12.1 — "좌클릭을 놓거나 운석에 맞아도 빠진 정도는 유지된다".</summary>
+        [Test]
+        public void LettingGo_KeepsTheProgress()
+        {
+            var part = CreatePart();
+            var clamp = AddClamp(part, Vector3.forward * 2f);
+
+            clamp.TryJoinPull();
+            clamp.Pull(PhysicsScale.ClampPullSeconds * 0.5f);
+            clamp.LeavePull();
+
+            Assert.AreEqual(0.5f, clamp.Progress, 0.01f, "놓아도 빠진 정도가 남아야 한다.");
+            Assert.IsFalse(clamp.IsReleased);
+            Assert.AreEqual(0, clamp.Pullers, "손을 뗐으므로 인원은 0 이다.");
+        }
+
+        /// <summary>기획 §12.1 — "다른 플레이어가 남은 진행을 이어서 수행할 수 있다".</summary>
+        [Test]
+        public void SecondPlayer_CanFinishWhatFirstPlayerStarted()
+        {
+            var part = CreatePart();
+            var clamp = AddClamp(part, Vector3.forward * 2f);
+
+            clamp.TryJoinPull();
+            clamp.Pull(PhysicsScale.ClampPullSeconds * 0.6f);
+            clamp.LeavePull();
+
+            Assert.IsTrue(clamp.TryJoinPull(), "다른 사람이 이어받을 수 있어야 한다.");
+            clamp.Pull(PhysicsScale.ClampPullSeconds * 0.5f);
+
+            Assert.IsTrue(clamp.IsReleased, "이어받아 끝낼 수 있어야 한다.");
+        }
+
+        /// <summary>기획 §12.2 — "같은 고정못은 최대 2명".</summary>
+        [Test]
+        public void Clamp_TakesAtMostTwoPullers()
+        {
+            var part = CreatePart();
+            var clamp = AddClamp(part, Vector3.forward * 2f);
+
+            for (var i = 0; i < PhysicsScale.ClampMaxPullers; i++)
+                Assert.IsTrue(clamp.TryJoinPull(), $"{i + 1}번째는 붙을 수 있어야 한다.");
+
+            Assert.IsFalse(clamp.TryJoinPull(),
+                "정원을 넘겨 붙으면 3~4명이 한 곳에 몰려 §12.2 의 병렬 작업이 사라진다.");
+            Assert.AreEqual(PhysicsScale.ClampMaxPullers, clamp.Pullers);
+        }
+
+        /// <summary>인원이 늘면 같은 시간에 더 많이 진행된다.</summary>
+        [Test]
+        public void TwoPullers_ProgressFasterThanOne()
+        {
+            var part = CreatePart();
+            var solo = AddClamp(part, Vector3.forward * 2f);
+            var pair = AddClamp(part, Vector3.back * 2f);
+
+            solo.TryJoinPull();
+            pair.TryJoinPull();
+            pair.TryJoinPull();
+
+            solo.Pull(1f);
+            pair.Pull(1f);
+
+            Assert.Greater(pair.Progress, solo.Progress * 1.5f,
+                $"둘이면 더 빨라야 한다. 1명 {solo.Progress:0.000} · 2명 {pair.Progress:0.000}");
         }
 
         [Test]
@@ -147,7 +240,7 @@ namespace Metagame.Gameplay.Tests
             var interactor = CreateInteractor(Vector3.zero, Vector3.forward);
 
             interactor.TryBegin();
-            interactor.Tick(PartClamp.DefaultHoldSeconds * 0.8f);
+            interactor.Tick(PhysicsScale.ClampPullSeconds * 0.8f);
             interactor.Cancel();
 
             Assert.IsFalse(clamp.IsReleased);
