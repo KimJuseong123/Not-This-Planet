@@ -21,8 +21,9 @@ namespace Metagame.Gameplay
         public Grabbable Held { get; private set; }
         public Rigidbody HeldBody { get; private set; }
         bool carrying;
+        bool braced;
 
-        public bool Gripping { get { return Grip != null; } }
+        public bool Gripping { get { return Grip != null || braced; } }
         /// <summary>고정물을 잡고 매달려 있는 상태 (기어오르기가 성립한다).</summary>
         public bool Hanging { get { return Grip != null && HeldBody == null; } }
         /// <summary>움직일 수 있는 물체를 들고 있는 상태 (나르기가 성립한다).</summary>
@@ -85,7 +86,7 @@ namespace Metagame.Gameplay
 
         public bool TryGrip()
         {
-            if (Grip != null) return true;
+            if (Grip != null || braced) return true;
             if (Body == null) return false;
 
             Vector3 point;
@@ -111,6 +112,28 @@ namespace Metagame.Gameplay
             if (targetBody != null && !targetBody.isKinematic && targetBody.mass < Tuning.FixedGripMass)
                 return CarryTo(target, targetBody);
 
+            return AttachFixed(target, targetBody);
+        }
+
+        /// <summary>
+        /// 도구처럼 물체를 손에 고정한다. 운반체와 달리 논리상 고정 그립으로 표시하지만,
+        /// 물체의 위치·회전은 PlayerRig가 직접 제어하므로 물리 FixedJoint는 만들지 않는다.
+        /// 이렇게 해야 키네마틱 도구의 포즈 제어와 두 손의 물리 solver가 서로 당기지 않는다.
+        /// </summary>
+        public bool BraceTo(Grabbable target, Rigidbody targetBody)
+        {
+            if (Grip != null || braced || Held != null || target == null || targetBody == null) return false;
+
+            Held = target;
+            HeldBody = targetBody;
+            carrying = false;
+            braced = true;
+            target.NotifyGrabbed(this);
+            return true;
+        }
+
+        bool AttachFixed(Grabbable target, Rigidbody targetBody)
+        {
             var j = gameObject.AddComponent<FixedJoint>();
             j.connectedBody = targetBody;                     // null 이면 세계에 고정된다
             j.enableCollision = false;
@@ -154,6 +177,7 @@ namespace Metagame.Gameplay
             Held = null;
             HeldBody = null;
             carrying = false;
+            braced = false;
         }
 
         void OnJointBreak(float breakForce)
@@ -164,6 +188,7 @@ namespace Metagame.Gameplay
             Held = null;
             HeldBody = null;
             carrying = false;
+            braced = false;
         }
     }
 }

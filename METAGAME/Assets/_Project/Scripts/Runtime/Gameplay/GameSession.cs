@@ -82,13 +82,25 @@ namespace Metagame.Gameplay
                     SetCursor(!Exploration.TabletOpen);
                 }
 
+                if (Exploration != null && Exploration.TabletOpen)
+                {
+                    if (f.TabletPreviousPage) Exploration.PreviousTabletPage();
+                    if (f.TabletNextPage) Exploration.NextTabletPage();
+                }
+
                 if (Input.GetKeyDown(Controls.FreeCursor)) SetCursor(false);
-                if (Input.GetMouseButtonDown(0) && !CursorLocked) SetCursor(true);
+                if (Input.GetMouseButtonDown(0) && !CursorLocked
+                    && (Exploration == null || !Exploration.TabletOpen))
+                    SetCursor(true);
                 if (!CursorLocked)
                 {
                     f.Look = Vector2.zero;
                     f.GrabLeft = false;
                     f.GrabRight = false;
+                    f.ToolAction = false;
+                    f.ToolPrimary = false;
+                    f.ToolSecondary = false;
+                    f.ToolUtility = false;
                     f.TransportAction = false;
                     f.FreeLook = false;
                 }
@@ -102,6 +114,9 @@ namespace Metagame.Gameplay
                     f.GrabLeft = false;
                     f.GrabRight = false;
                     f.ToolAction = false;
+                    f.ToolPrimary = false;
+                    f.ToolSecondary = false;
+                    f.ToolUtility = false;
                     f.TransportAction = false;
                     f.ArmsUp = false;
                     f.FreeLook = false;
@@ -122,6 +137,10 @@ namespace Metagame.Gameplay
                         f.Run = false;
                         f.GrabLeft = false;
                         f.GrabRight = false;
+                        f.ToolAction = false;
+                        f.ToolPrimary = false;
+                        f.ToolSecondary = false;
+                        f.ToolUtility = false;
                         f.ArmsUp = false;
                     }
                 }

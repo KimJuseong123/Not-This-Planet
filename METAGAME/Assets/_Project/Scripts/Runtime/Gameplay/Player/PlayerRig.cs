@@ -13,7 +13,7 @@ namespace Metagame.Gameplay
     ///  · 골반을 세계 기준 조인트로 세우고, 가는 방향으로 돌린다
     ///  · 다리는 걷기 주기에 맞춰 조인트 목표 자세를 흔든다 (애니메이션 클립 없음)
     ///  · 팔은 카메라가 보는 쪽으로 뻗되, 근처에 잡을 것이 있으면 그쪽으로 휘어 간다
-    ///  · 가벼운 도구는 양손으로 중력과 누적 속도를 제거하고 크로스헤드 앞에 고정된다
+    ///  · GrabbableRole.Tool 도구는 양손 논리 고정 그립으로 잡고 중력과 누적 속도를 제거해 전방에 고정된다
     ///  · 일정 질량 이상인 동적 물체는 들어 올리지 않고 고정물을 짚듯 잡는다
     ///
     /// 이동 자체는 목표 속도를 직접 따라가 안정적으로 조종하고, 잡기·등반·충돌 반응은 물리에 맡긴다.
@@ -90,6 +90,8 @@ namespace Metagame.Gameplay
         /// </summary>
         public bool Floating { get; private set; }
         public Grabbable HeldTool { get { return toolHeld; } }
+        /// <summary>현재 장착된 도구 동작 컴포넌트. 도구가 없거나 구형 Tool이면 null이다.</summary>
+        public ToolBase ActiveTool { get { return activeTool; } }
         public float ToolCharge { get { return toolCharge; } }
         public bool ChargingTool { get { return chargingTool; } }
         /// <summary>현재 조준 중인 고정쇠를 찾고 해제 홀드를 진행하는 상호작용 주체.</summary>
@@ -132,6 +134,13 @@ namespace Metagame.Gameplay
         float toolThrowRegrabLock;
         Rigidbody toolBody;
         bool toolBodyHadGravity;
+        ToolBase activeTool;
+        bool previousToolPrimary;
+        bool previousToolSecondary;
+        bool previousToolUtility;
+        bool suppressToolPrimary;
+        bool suppressToolSecondary;
+        bool suppressToolUtility;
         bool previousGrabLeft;
         bool previousGrabRight;
         bool clampGrabbed;
@@ -142,10 +151,10 @@ namespace Metagame.Gameplay
         Vector3 pendingThrowVelocity;
         Rigidbody groundBody;
         FixedJoint mountedJoint;
-        Rigidbody ignoredCarriedBodyA;
-        Rigidbody ignoredCarriedBodyB;
+        Rigidbody ignoredHeldBodyA;
+        Rigidbody ignoredHeldBodyB;
         readonly Dictionary<Rigidbody, CarriedBodyState> carriedBodies = new Dictionary<Rigidbody, CarriedBodyState>(4);
-        readonly List<CollisionPair> carriedCollisionPairs = new List<CollisionPair>(24);
+        readonly List<CollisionPair> heldObjectCollisionPairs = new List<CollisionPair>(24);
         readonly RaycastHit[] rayHits = new RaycastHit[8];
 
         struct CarriedBodyState
@@ -155,12 +164,15 @@ namespace Metagame.Gameplay
             public Vector3 LinearVelocity;
             public Vector3 AngularVelocity;
             public CollisionDetectionMode CollisionDetectionMode;
+            public RigidbodyInterpolation Interpolation;
+            public Vector3 FollowPosition;
+            public bool FollowInitialized;
         }
 
         struct CollisionPair
         {
             public Collider Player;
-            public Collider Carried;
+            public Collider Held;
         }
 
         public static PlayerRig Create(string nickname, Vector3 footPos, Quaternion facing,
@@ -182,8 +194,9 @@ namespace Metagame.Gameplay
 
         void OnDestroy()
         {
+            if (activeTool != null) activeTool.Unequip();
             RestoreAllCarriedBodies();
-            ClearCarriedPlayerCollision();
+            ClearHeldObjectOwnerCollision();
         }
 
         public void SetInput(InputFrame frame)
@@ -955,14 +968,15 @@ namespace Metagame.Gameplay
                 // Q를 놓는 순간에만 놓기/투척을 처리하고, 충전 중에는 두 손의 운반 자세를 유지한다.
                 if (ProcessToolAction(aim))
                 {
-                    SyncCarriedPlayerCollision();
+                    activeTool?.SetInput(new ToolInputFrame(), CreateToolAimContext(aim));
+                    SyncHeldObjectOwnerCollision();
                     return;
                 }
+                SetActiveToolInput(aim, GetToolUtilityHeld());
+                HoldToolPose(aim);
                 DriveArm(Doll.Left, true, aim);
                 DriveArm(Doll.Right, true, aim);
-                if (leftPressed || rightPressed)
-                    LogHeldToolInteraction(leftPressed, rightPressed);
-                SyncCarriedPlayerCollision();
+                SyncHeldObjectOwnerCollision();
                 return;
             }
 
@@ -978,18 +992,18 @@ namespace Metagame.Gameplay
             {
                 DriveArm(Doll.Left, input.GrabLeft, aim);
                 DriveArm(Doll.Right, input.GrabRight, aim);
-                SyncCarriedPlayerCollision();
+                SyncHeldObjectOwnerCollision();
                 return;
             }
 
-            // 좌클릭과 우클릭 중 어느 쪽이든 움직이는 도구를 조준하면 양손으로 함께 잡는다.
+            // 좌클릭과 우클릭 중 어느 쪽이든 Tool 역할의 대상을 조준하면 양손으로 함께 잡는다.
             if ((input.GrabLeft || input.GrabRight) && toolThrowRegrabLock <= 0f && TryGrabTool(aim))
             {
                 DriveArm(Doll.Left, true, aim);
                 DriveArm(Doll.Right, true, aim);
                 if (leftPressed || rightPressed)
                     LogInteraction("양손 도구 집기", leftPressed, rightPressed, toolHeld, toolBody);
-                SyncCarriedPlayerCollision();
+                SyncHeldObjectOwnerCollision();
                 return;
             }
 
@@ -998,7 +1012,7 @@ namespace Metagame.Gameplay
             ClimbAssist();
             if (leftPressed) LogHandInteraction("좌클릭", LeftHand);
             if (rightPressed) LogHandInteraction("우클릭", RightHand);
-            SyncCarriedPlayerCollision();
+            SyncHeldObjectOwnerCollision();
         }
 
         /// <summary>
@@ -1129,22 +1143,103 @@ namespace Metagame.Gameplay
                 found = FindTool(Doll.Right, RightHand, aim, out targetGrabbable, out body, out point);
             if (!found) return false;
 
-            // 도구는 두 손이 같은 물체를 논리적으로 공유하지만, 물리 Joint는 만들지 않는다.
-            // 두 FixedJoint가 하나의 동적 Rigidbody를 서로 다른 손 위치에 묶는 반작용 루프를 방지한다.
-            bool left = LeftHand.CarryTo(targetGrabbable, body);
-            bool right = RightHand.CarryTo(targetGrabbable, body);
+            // 도구는 역할에 따라 양손 논리 고정 그립으로 잡는다. 잡은 직후 Rigidbody를
+            // 키네마틱으로 전환하고 포즈를 직접 제어하므로 양손 FixedJoint 반작용을 만들지 않는다.
+            bool left = LeftHand.BraceTo(targetGrabbable, body);
+            bool right = RightHand.BraceTo(targetGrabbable, body);
             if (left && right)
             {
                 toolHeld = targetGrabbable;
                 toolBody = body;
                 toolBodyHadGravity = body.useGravity;
+                activeTool = targetGrabbable.GetComponent<ToolBase>();
+                if (activeTool == null)
+                    activeTool = targetGrabbable.GetComponentInChildren<ToolBase>(true);
+
+                ResetToolInputState();
+                // The click that picked up the tool is consumed until that button is
+                // released, so picking up with the primary button cannot also fire it.
+                suppressToolPrimary = GetToolPrimaryHeld();
+                suppressToolSecondary = GetToolSecondaryHeld();
+                suppressToolUtility = GetToolUtilityHeld();
+
                 BeginCarriedBody(body);
+                activeTool?.Equip(this, body);
+                HoldToolPose(aim);
+                SyncHeldObjectOwnerCollision();
                 return true;
             }
 
             if (left) ReleaseHand(LeftHand);
             if (right) ReleaseHand(RightHand);
             return false;
+        }
+
+        ToolAimContext CreateToolAimContext(Vector3 aim)
+        {
+            return new ToolAimContext(this, Cam, aim);
+        }
+
+        bool GetToolPrimaryHeld()
+        {
+            // Controls.Read fills both fields. The fallback preserves scripted callers
+            // that still populate the legacy grab field directly.
+            return input.ToolPrimary || input.GrabLeft;
+        }
+
+        bool GetToolSecondaryHeld()
+        {
+            return input.ToolSecondary || input.GrabRight;
+        }
+
+        bool GetToolUtilityHeld()
+        {
+            return input.ToolUtility || input.ToolAction;
+        }
+
+        void SetActiveToolInput(Vector3 aim, bool blockActions)
+        {
+            bool primaryHeld = GetToolPrimaryHeld();
+            bool secondaryHeld = GetToolSecondaryHeld();
+            bool utilityHeld = GetToolUtilityHeld();
+
+            if (suppressToolPrimary && !primaryHeld) suppressToolPrimary = false;
+            if (suppressToolSecondary && !secondaryHeld) suppressToolSecondary = false;
+            if (suppressToolUtility && !utilityHeld) suppressToolUtility = false;
+
+            bool primary = primaryHeld && !suppressToolPrimary && !blockActions;
+            bool secondary = secondaryHeld && !suppressToolSecondary && !blockActions;
+            bool utility = utilityHeld && !suppressToolUtility;
+
+            var toolInput = new ToolInputFrame
+            {
+                PrimaryHeld = primary,
+                SecondaryHeld = secondary,
+                UtilityHeld = utility,
+                PrimaryPressed = primary && !previousToolPrimary,
+                SecondaryPressed = secondary && !previousToolSecondary,
+                UtilityPressed = utility && !previousToolUtility,
+                PrimaryReleased = !primary && previousToolPrimary,
+                SecondaryReleased = !secondary && previousToolSecondary,
+                UtilityReleased = !utility && previousToolUtility
+            };
+
+            previousToolPrimary = primary;
+            previousToolSecondary = secondary;
+            previousToolUtility = utility;
+
+            if (activeTool != null)
+                activeTool.SetInput(toolInput, CreateToolAimContext(aim));
+        }
+
+        void ResetToolInputState()
+        {
+            previousToolPrimary = false;
+            previousToolSecondary = false;
+            previousToolUtility = false;
+            suppressToolPrimary = false;
+            suppressToolSecondary = false;
+            suppressToolUtility = false;
         }
 
         static bool FindTool(Arm arm, Hand hand, Vector3 aim,
@@ -1161,15 +1256,15 @@ namespace Metagame.Gameplay
 
         static bool IsUsableTool(Grabbable target, Rigidbody body)
         {
-            // 고정 레일·케이블은 기존의 한 손 매달리기를 유지하고, 실제로 운반할 수 있는
-            // 비-키네마틱 물체만 도구로 취급한다.
-            return target != null && !target.Climbable && body != null && !body.isKinematic
-                   && body.mass < Tuning.FixedGripMass;
+            // 고정 레일·케이블은 기존의 한 손 매달리기를 유지한다. 도구 역할로 지정된
+            // 가벼운 동적 물체만 양손 고정 그립과 전방 조준 자세를 사용한다.
+            return target != null && target.IsTool && !target.Climbable
+                   && body != null && !body.isKinematic && body.mass < Tuning.FixedGripMass;
         }
 
         bool ProcessToolAction(Vector3 aim)
         {
-            if (input.ToolAction)
+            if (GetToolUtilityHeld())
             {
                 toolCharge = Mathf.Clamp01(toolCharge + Time.fixedDeltaTime / Tuning.ToolChargeDuration);
                 toolActionHeld = true;
@@ -1215,7 +1310,9 @@ namespace Metagame.Gameplay
 
         void ResetToolState()
         {
-            ClearCarriedPlayerCollision();
+            ClearHeldObjectOwnerCollision();
+            activeTool?.Unequip();
+            activeTool = null;
             RestoreCarriedBodyIfUnused(toolBody);
             if (toolBody != null) toolBody.useGravity = toolBodyHadGravity;
             toolBody = null;
@@ -1224,15 +1321,17 @@ namespace Metagame.Gameplay
             toolCharge = 0f;
             toolActionHeld = false;
             chargingTool = false;
+            ResetToolInputState();
         }
 
         /// <summary>
-        /// 실제로 운반 중인 모든 물체와 플레이어의 콜라이더 쌍만 충돌을 끈다.
-        /// 물체와 월드 오브젝트 사이의 충돌은 건드리지 않으므로, 들고 이동해도 주변 물체에는 부딪힌다.
+        /// 현재 PlayerRig의 콜라이더와 현재 들고 있는 물체의 콜라이더 쌍만 충돌을 끈다.
+        /// Carrying과 Gripping을 모두 포함하므로 운반체와 Tool에 공통 적용된다.
+        /// 레이어 충돌 매트릭스는 건드리지 않으므로 다른 플레이어와 도구의 충돌은 유지된다.
         /// </summary>
-        void SyncCarriedPlayerCollision()
+        void SyncHeldObjectOwnerCollision()
         {
-            // 논리 운반 상태와 기존 고정형 Joint 상태 모두 플레이어 충돌 무시 규칙을 탄다.
+            // 논리 운반 상태와 도구의 논리 고정 그립 상태 모두 소유자-물체 충돌 무시 규칙을 탄다.
             Rigidbody left = GetHeldBody(LeftHand);
             Rigidbody right = GetHeldBody(RightHand);
 
@@ -1246,52 +1345,78 @@ namespace Metagame.Gameplay
                 right = null;
             }
 
-            if (left == ignoredCarriedBodyA && right == ignoredCarriedBodyB) return;
+            if (left == ignoredHeldBodyA && right == ignoredHeldBodyB)
+            {
+                // A moving/reenabled collider can rebuild its contact state. Reassert
+                // the explicit owner-held pairs even when the held-body cache is unchanged.
+                IgnoreHeldObjectFromOwner(left);
+                IgnoreHeldObjectFromOwner(right);
+                return;
+            }
 
-            ClearCarriedPlayerCollision();
-            ignoredCarriedBodyA = left;
-            ignoredCarriedBodyB = right;
-            IgnoreCarriedBody(left);
-            IgnoreCarriedBody(right);
+            ClearHeldObjectOwnerCollision();
+            ignoredHeldBodyA = left;
+            ignoredHeldBodyB = right;
+            IgnoreHeldObjectFromOwner(left);
+            IgnoreHeldObjectFromOwner(right);
         }
 
-        void IgnoreCarriedBody(Rigidbody body)
+        void IgnoreHeldObjectFromOwner(Rigidbody body)
         {
             if (body == null || Doll == null) return;
 
-            var carriedColliders = body.GetComponentsInChildren<Collider>();
+            // Include inactive child colliders too. If a tool model enables a collider
+            // after pickup, the next physics tick will still restore the owner-only ignore.
+            var heldColliders = body.GetComponentsInChildren<Collider>(true);
             for (int i = 0; i < Doll.Colliders.Count; i++)
             {
                 var playerCollider = Doll.Colliders[i];
-                if (playerCollider == null) continue;
+                if (playerCollider == null || !playerCollider.enabled || !playerCollider.gameObject.activeInHierarchy)
+                    continue;
 
-                for (int k = 0; k < carriedColliders.Length; k++)
+                for (int k = 0; k < heldColliders.Length; k++)
                 {
-                    var carriedCollider = carriedColliders[k];
-                    if (carriedCollider == null || playerCollider == carriedCollider) continue;
-                    if (Physics.GetIgnoreCollision(playerCollider, carriedCollider)) continue;
+                    var heldCollider = heldColliders[k];
+                    if (heldCollider == null || playerCollider == heldCollider
+                        || !heldCollider.enabled || !heldCollider.gameObject.activeInHierarchy)
+                        continue;
+                    if (Physics.GetIgnoreCollision(playerCollider, heldCollider)) continue;
 
-                    Physics.IgnoreCollision(playerCollider, carriedCollider, true);
-                    carriedCollisionPairs.Add(new CollisionPair
+                    Physics.IgnoreCollision(playerCollider, heldCollider, true);
+                    if (!HasTrackedHeldObjectPair(playerCollider, heldCollider))
                     {
-                        Player = playerCollider,
-                        Carried = carriedCollider
-                    });
+                        heldObjectCollisionPairs.Add(new CollisionPair
+                        {
+                            Player = playerCollider,
+                            Held = heldCollider
+                        });
+                    }
                 }
             }
         }
 
-        void ClearCarriedPlayerCollision()
+        bool HasTrackedHeldObjectPair(Collider playerCollider, Collider heldCollider)
         {
-            for (int i = carriedCollisionPairs.Count - 1; i >= 0; i--)
+            for (int i = 0; i < heldObjectCollisionPairs.Count; i++)
             {
-                var pair = carriedCollisionPairs[i];
-                if (pair.Player != null && pair.Carried != null)
-                    Physics.IgnoreCollision(pair.Player, pair.Carried, false);
+                var pair = heldObjectCollisionPairs[i];
+                if (pair.Player == playerCollider && pair.Held == heldCollider)
+                    return true;
             }
-            carriedCollisionPairs.Clear();
-            ignoredCarriedBodyA = null;
-            ignoredCarriedBodyB = null;
+            return false;
+        }
+
+        void ClearHeldObjectOwnerCollision()
+        {
+            for (int i = heldObjectCollisionPairs.Count - 1; i >= 0; i--)
+            {
+                var pair = heldObjectCollisionPairs[i];
+                if (pair.Player != null && pair.Held != null)
+                    Physics.IgnoreCollision(pair.Player, pair.Held, false);
+            }
+            heldObjectCollisionPairs.Clear();
+            ignoredHeldBodyA = null;
+            ignoredHeldBodyB = null;
         }
 
         static Rigidbody GetHeldBody(Hand hand)
@@ -1312,7 +1437,10 @@ namespace Metagame.Gameplay
                     HadGravity = body.useGravity,
                     LinearVelocity = body.linearVelocity,
                     AngularVelocity = body.angularVelocity,
-                    CollisionDetectionMode = body.collisionDetectionMode
+                    CollisionDetectionMode = body.collisionDetectionMode,
+                    Interpolation = body.interpolation,
+                    FollowPosition = body.position,
+                    FollowInitialized = false
                 });
             }
 
@@ -1321,6 +1449,7 @@ namespace Metagame.Gameplay
             body.linearVelocity = Vector3.zero;
             body.angularVelocity = Vector3.zero;
             body.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
+            body.interpolation = RigidbodyInterpolation.Interpolate;
         }
 
         void MoveCarriedBody(Rigidbody body, Vector3 aim)
@@ -1336,7 +1465,39 @@ namespace Metagame.Gameplay
             body.useGravity = false;
             body.linearVelocity = Vector3.zero;
             body.angularVelocity = Vector3.zero;
-            body.MovePosition(body.position + holdPoint - body.worldCenterOfMass);
+
+            CarriedBodyState state = carriedBodies[body];
+            Vector3 desiredPosition = body.position + holdPoint - body.worldCenterOfMass;
+            if (!state.FollowInitialized)
+            {
+                // Pickup is responsive, while every following physics step is smoothed.
+                state.FollowPosition = desiredPosition;
+                state.FollowInitialized = true;
+            }
+            else
+            {
+                float blend = 1f - Mathf.Exp(-Tuning.CarryPositionSmoothing * Time.fixedDeltaTime);
+                state.FollowPosition = Vector3.Lerp(state.FollowPosition, desiredPosition, blend);
+            }
+
+            carriedBodies[body] = state;
+            body.MovePosition(state.FollowPosition);
+        }
+
+        void HoldToolPose(Vector3 aim)
+        {
+            if (toolBody == null) return;
+
+            MoveCarriedBody(toolBody, aim);
+
+            Vector3 direction = aim.sqrMagnitude > 1e-4f ? aim.normalized : Doll.Chest.transform.forward;
+            Vector3 up = Cam != null ? Cam.transform.up : Vector3.up;
+            if (Mathf.Abs(Vector3.Dot(direction, up)) > 0.98f)
+                up = Cam != null ? Cam.transform.right : Vector3.right;
+
+            Quaternion targetRotation = Quaternion.LookRotation(direction, up);
+            float blend = 1f - Mathf.Exp(-Tuning.CarryRotationSmoothing * Time.fixedDeltaTime);
+            toolBody.MoveRotation(Quaternion.Slerp(toolBody.rotation, targetRotation, blend));
         }
 
         void ReleaseHand(Hand hand)
@@ -1350,8 +1511,9 @@ namespace Metagame.Gameplay
 
         void RestoreCarriedBodyIfUnused(Rigidbody body)
         {
-            if (body == null || LeftHand.Carrying && LeftHand.HeldBody == body ||
-                RightHand.Carrying && RightHand.HeldBody == body)
+            if (body == null ||
+                (LeftHand.HeldBody == body && (LeftHand.Carrying || LeftHand.Gripping)) ||
+                (RightHand.HeldBody == body && (RightHand.Carrying || RightHand.Gripping)))
                 return;
 
             CarriedBodyState state;
@@ -1360,6 +1522,7 @@ namespace Metagame.Gameplay
             body.isKinematic = state.WasKinematic;
             body.useGravity = state.HadGravity;
             body.collisionDetectionMode = state.CollisionDetectionMode;
+            body.interpolation = state.Interpolation;
             body.linearVelocity = state.LinearVelocity;
             body.angularVelocity = state.AngularVelocity;
             carriedBodies.Remove(body);
@@ -1376,6 +1539,7 @@ namespace Metagame.Gameplay
                 body.isKinematic = state.WasKinematic;
                 body.useGravity = state.HadGravity;
                 body.collisionDetectionMode = state.CollisionDetectionMode;
+                body.interpolation = state.Interpolation;
                 body.linearVelocity = state.LinearVelocity;
                 body.angularVelocity = state.AngularVelocity;
             }
@@ -1393,7 +1557,7 @@ namespace Metagame.Gameplay
                     ReleaseHand(hand);
                     regrabLock = Tuning.RegrabLock;
                 }
-                hand.Aimed = null;
+                UpdateAimedTarget(arm, hand, aim);
                 JointTools.SetDrive(arm.Shoulder, 26f, 4f);
                 JointTools.SetDrive(arm.Elbow, 18f, 3f);
                 JointTools.SetTargetLocalRotation(arm.Shoulder, Quaternion.identity, arm.ShoulderStart);
@@ -1441,6 +1605,11 @@ namespace Metagame.Gameplay
             JointTools.SetTargetLocalRotation(arm.Shoulder, aimLocal, arm.ShoulderStart);
             JointTools.SetTargetLocalRotation(arm.Elbow, Quaternion.identity, arm.ElbowStart);
 
+            // Tool은 양손 고정 그립 상태지만 위치·회전은 PlayerRig가 직접 제어한다.
+            // 손에 다시 힘을 가하면 도구 포즈 제어와 팔 물리가 서로 당겨 플레이어를 날린다.
+            if (toolHeld != null && hand.Held == toolHeld)
+                return;
+
             if (hand.Carrying)
             {
                 if (toolHeld != null && hand.Held == toolHeld) CarryTool(aim);
@@ -1462,15 +1631,32 @@ namespace Metagame.Gameplay
             {
                 hand.Body.AddForce(f, ForceMode.Force);
                 Doll.Chest.AddForce(-f * 0.25f, ForceMode.Force);
-                // 운반 가능한 대상은 TryGrabTool이 양손 성공 여부를 확인한 뒤에만 잡는다.
+                // Transport 역할의 가벼운 대상은 한 손 운반 경로로 잡는다.
                 if (regrabLock <= 0f && !toolTarget && hand.TryGrip() && hand.Carrying)
                     BeginCarriedBody(hand.HeldBody);
             }
         }
 
+        void UpdateAimedTarget(Arm arm, Hand hand, Vector3 aim)
+        {
+            if (hand == null || hand.Body == null)
+            {
+                if (hand != null) hand.Aimed = null;
+                return;
+            }
+
+            Vector3 shoulder = arm.ShoulderAnchor != null ? arm.ShoulderAnchor.position : Doll.Chest.position;
+            Vector3 target = shoulder + aim * Tuning.ArmReach;
+            Vector3 point;
+            Rigidbody body;
+            hand.Aimed = Hand.Search(target, Tuning.GrabAssistRange, shoulder, aim,
+                                     Tuning.GrabAssistAngle, out point, out body);
+            hand.AimedPoint = point;
+        }
+
         /// <summary>
-        /// 들고 있는 가벼운 도구를 중력과 누적 속도의 영향 없이 크로스헤드 앞에 고정한다.
-        /// 일정 질량 이상인 물체는 이 함수에 들어오지 않고 Hand의 고정물 그립을 사용한다.
+        /// Tool 역할의 도구를 중력과 누적 속도의 영향 없이 크로스헤드 앞에 고정하고,
+        /// 모델의 +Z 전방이 조준 방향을 향하도록 회전한다.
         /// </summary>
         void CarryTool(Vector3 aim)
         {

@@ -83,11 +83,18 @@ namespace Metagame.EditorTools
             }
 
             // 이 도구가 만든 것만 지운다. 레벨은 건드리지 않는다.
+            // Equipment는 퍼즐 재생성 때도 유지해야 하는 별도 장비 그룹이다.
+            // 특히 현재 맵에 배치된 임시 용접 플라즈마 건을 지우지 않도록
+            // 기존 그룹에서 잠시 분리했다가 새 Puzzle 아래에 되돌린다.
             var existing = gameplay.Find(GroupName);
+            var preservedEquipment = existing != null ? existing.Find("Equipment") : null;
+            if (preservedEquipment != null) preservedEquipment.SetParent(gameplay, true);
             if (existing != null) Object.DestroyImmediate(existing.gameObject);
 
             var group = new GameObject(GroupName).transform;
             group.SetParent(gameplay, false);
+
+            if (preservedEquipment != null) preservedEquipment.SetParent(group, true);
 
             var marker = BuildLaunchPad(group);
 
