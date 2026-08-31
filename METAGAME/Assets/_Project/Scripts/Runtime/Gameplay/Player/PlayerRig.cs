@@ -26,7 +26,17 @@ namespace Metagame.Gameplay
         const float ClampLiftStartDegrees = 16f;
 
         public Doll Doll;
-        public OrbitCamera Cam;
+        /// <summary>
+        /// 이 리그를 보는 카메라. <b>원격 플레이어는 null 이다</b> — 그래서 1인칭 숨김이
+        /// 제 캐릭터에만 적용되고 남의 캐릭터는 그대로 보인다.
+        /// </summary>
+        public OrbitCamera Cam
+        {
+            get => cam;
+            set { cam = value; RefreshDollVisibility(); }
+        }
+
+        OrbitCamera cam;
         public bool IsLocal = true;
         public string Nickname = "비행사";
 
@@ -255,7 +265,7 @@ namespace Metagame.Gameplay
 
             // 조종석 안에 있으므로 몸을 감춘다. 1인칭 시야를 제 몸이 가리지 않게 하는 것이
             // 첫 목적이고, 3인칭으로 강제 전환해도 기체 밖으로 튀어나온 몸이 보이지 않는다.
-            Doll.SetVisible(false);
+            RefreshDollVisibility();
 
             if (Cam != null) Cam.SetVehicleView(true);
             return true;
@@ -281,6 +291,35 @@ namespace Metagame.Gameplay
             PlaceAfterVehicleExit(vehicle);
         }
 
+        /// <summary>
+        /// 제 몸을 그릴지 정한다. 가시성을 바꾸는 곳은 여기 한 군데다.
+        ///
+        /// <b>1인칭에서는 제 몸을 그리지 않는다.</b> 카메라는 골반 + 0.55m, 즉 발 기준
+        /// 0.85m 에 서고 시선 방향으로 0.20m(<see cref="OrbitCamera.FirstPersonForward"/>)
+        /// 내민다. 그런데 헬멧이 0.51~1.15m, 반지름 약 0.32m 다 — <b>카메라가 제 헬멧
+        /// 안에 있다.</b> 귀는 1.33m 까지 올라가고 모델(<c>useModel</c>)을 씌우면 주둥이와
+        /// 꼬리가 더 붙는다. 그래서 시선을 조금만 돌려도 제 몸이 화면을 덮는다.
+        ///
+        /// 내미는 거리를 키워서 피하는 것은 임시방편이다. 모델이 바뀌면 다시 깨지고,
+        /// 카메라를 몸 밖으로 밀어낼수록 시점이 몸에서 떠 보인다. 1인칭에서 제 몸을
+        /// 그리지 않는 것이 정석이다.
+        ///
+        /// 그림자는 남긴다 — 1인칭에서 발밑을 읽는 단서가 제 그림자다.
+        ///
+        /// 탑승 중에는 그림자까지 감춘다. 기체 안에 있는 몸이고 껍데기도 감춰 둔
+        /// 상태(<c>SetHullVisible</c>)라, 그림자만 남으면 허공에 혼자 뜬 그림자가 된다.
+        ///
+        /// <see cref="Cam"/> 이 null 인 원격 플레이어는 그대로 보인다.
+        /// </summary>
+        void RefreshDollVisibility()
+        {
+            if (Doll == null) return;
+
+            if (IsMounted) Doll.SetVisible(false);
+            else if (Cam != null && Cam.FirstPerson) Doll.SetVisible(false, keepShadow: true);
+            else Doll.SetVisible(true);
+        }
+
         /// <summary>하차한 탑승자를 지면 위로 살짝 띄우는 여유. 발이 표면에 박히지 않게 한다.</summary>
         const float VehicleExitClearance = 0.06f;
 
@@ -299,19 +338,50 @@ namespace Metagame.Gameplay
         /// </summary>
         void PlaceAfterVehicleExit(TransportVehicle vehicle)
         {
-            Doll.SetVisible(true);
-
             var foot = vehicle.GroundExitFootPosition;
 
             var away = foot - vehicle.transform.position;
             away.y = 0f;
             if (away.sqrMagnitude < 0.0001f) away = vehicle.ExitForward;
-            var facing = Quaternion.LookRotation(away.normalized, Vector3.up);
+            away.Normalize();
+
+            // 카메라 설정을 먼저 되돌린다. 1인칭인지 3인칭인지를 보고 서는 방향을 정한다.
+            if (Cam != null) Cam.SetVehicleView(false);
+
+            // 시점이 정해진 뒤에 몸을 그릴지 정한다. 순서가 바뀌면 조종석 1인칭 상태를
+            // 보고 판단해 3인칭인데도 몸이 감춰진 채로 남는다.
+            RefreshDollVisibility();
+
+            // <b>인형의 방향과 카메라의 요를 반드시 맞춘다.</b> 이것이 이 버그의 핵심이었다.
+            // 예전에는 인형만 돌리고 카메라 요는 조종석에서 보던 값을 그대로 뒀다. 두 값이
+            // 어긋나면 1인칭 카메라가 머리 <b>앞</b> 20cm 가 아니라 머리 <b>뒤</b>로 밀려
+            // 제 몸과 꼬리가 화면에 들어온다.
+            //
+            // 어느 쪽을 보고 설지는 1인칭과 3인칭에서 반대다.
+            //
+            //  · 1인칭 — 카메라가 머리에 있으므로 기체 <b>바깥</b>을 봐야 눈앞이 트인다.
+            //    기체를 마주 보면 1.8m 앞의 기체(1.90 x 2.45m)가 화면을 가득 덮는다.
+            //    걸어 나가는 방향이기도 해서 자연스럽다.
+            //  · 3인칭 — 카메라가 등 뒤 3.6m 에 서므로 기체를 <b>마주</b> 봐야 한다.
+            //    등을 지면 하차 지점 1.8m 에서 껍데기 반지름 0.95m 를 뺀 0.85m 밖에
+            //    물러날 자리가 없어 최소 거리 1m 까지 밀려들어오고, 그 자리에서 보이는
+            //    것은 제 등과 꼬리뿐이다.
+            //
+            // 씬의 SpaceBootstrap 은 firstPerson = 1 로 1인칭으로 시작한다. 3인칭 쪽도
+            // 맞춰 두는 이유는 그 값이 씬 설정이라 언제든 바뀔 수 있어서다.
+            var lookDir = Cam != null && Cam.FirstPerson ? away : -away;
+            var facing = Quaternion.LookRotation(lookDir, Vector3.up);
 
             Doll.Teleport(foot + Vector3.up * (RagdollBuilder.HipsY + VehicleExitClearance), facing);
-            faceDir = away.normalized;
+            faceDir = lookDir;
 
-            if (Cam != null) Cam.SetVehicleView(false);
+            if (Cam != null)
+            {
+                Cam.Yaw = facing.eulerAngles.y;
+
+                // 조종석 자리에서 새 자리로 화면을 가로질러 날아오지 않게.
+                Cam.SnapToTarget();
+            }
             Grounded = false;
             GroundDistance = 0f;
             GroundVelocity = Vector3.zero;
@@ -320,11 +390,30 @@ namespace Metagame.Gameplay
             fallPeakFootHeight = foot.y;
         }
 
+        /// <summary>
+        /// 좌석 조인트를 뗀다. <b>즉시</b> 없애야 한다.
+        ///
+        /// 예전 구현은 <c>connectedBody = null</c> 로 두고 <c>Destroy</c> 를 불렀다. 두 가지가
+        /// 겹쳐 하차하면 캐릭터가 맵 원점으로 빨려갔다.
+        ///
+        ///   · <c>connectedBody</c> 가 null 이면 <c>connectedAnchor</c> 가 <b>월드 좌표</b>로
+        ///     해석된다(Unity 문서). 탑승할 때 넣어 둔 값은 운반체 로컬 좌표, 즉 원점 근처의
+        ///     작은 벡터였다. 그래서 조인트가 맵 원점을 앵커로 삼는 스프링이 됐다.
+        ///   · <c>Destroy</c> 는 프레임 끝에 처리된다. 그 사이 물리 스텝이 돌면 위 앵커가
+        ///     그대로 작동한다. 인형은 이미 하차 지점으로 옮겨 놨으므로 그대로 끌려간다.
+        ///
+        /// 계측값: 하차 지점 (18.00, 0.36, -12.20) 에서 1초 만에 (0.00, 0.06, -0.73) 로
+        /// 21.3m 이동. <c>Exit_RiderStaysWhereItWasPlaced</c> 가 이 값을 지킨다.
+        ///
+        /// <c>connectedBody</c> 는 건드리지 않고 <c>DestroyImmediate</c> 로 지운다. 앵커를
+        /// 옮겨 무해하게 만드는 방법도 있지만, 조인트를 떼는 시점이 인형을 옮기는 시점보다
+        /// 앞이라 결국 "옮긴 뒤 원래 자리로 당겨지는" 문제가 남는다. 아예 없애는 편이 맞다.
+        /// </summary>
         void DisconnectTransportJoint()
         {
             if (mountedJoint == null) return;
-            mountedJoint.connectedBody = null;
-            Destroy(mountedJoint);
+
+            DestroyImmediate(mountedJoint);
             mountedJoint = null;
         }
 

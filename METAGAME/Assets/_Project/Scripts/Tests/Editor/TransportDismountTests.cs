@@ -164,6 +164,110 @@ namespace Metagame.Gameplay.Tests
                 "운반체가 구조물 위에 남아야 한다. 지면까지 파고들면 이 값이 0 근처가 된다.");
         }
 
+        /// <summary>
+        /// 하차 직후 탑승자가 제자리에 머무는지 본다.
+        ///
+        /// 하차하면 캐릭터가 한 지점으로 빨려가듯 날아가는 증상이 있었다. 내려놓은 자리에서
+        /// 물리를 1초 돌려 수평으로 얼마나 밀려나는지 재는 것이 이 버그의 회귀 테스트다.
+        /// </summary>
+        [Test]
+        public void Exit_RiderStaysWhereItWasPlaced()
+        {
+            LogAssert.ignoreFailingMessages = true;
+
+            MakeSurface("Ground", new Vector3(0f, -0.5f, 0f), new Vector3(80f, 1f, 80f));
+
+            // 원점에서 멀리 둔다. 월드 원점으로 끌려가는 것이 의심 원인이라 원점 근처면
+            // 끌려가도 이동 거리가 작아 놓칠 수 있다.
+            var spot = new Vector3(18f, TransportVehicle.GroundY, -14f);
+            var vehicle = MakeVehicle(spot);
+
+            var player = PlayerRig.Create("테스트", spot + new Vector3(0f, 0f, 1.5f), Quaternion.identity,
+                                          Color.white, Color.gray, false);
+            spawned.Add(player.gameObject);
+
+            Assert.IsTrue(vehicle.TryBoard(player), "탑승이 되어야 하차를 볼 수 있다.");
+            vehicle.ForceReset();
+
+            var placed = player.Doll.Hips.position;
+
+            Physics.simulationMode = SimulationMode.Script;
+            const float step = 0.02f;
+            for (var i = 0; i < 50; i++) Physics.Simulate(step);   // 1초
+
+            var after = player.Doll.Hips.position;
+            var drift = new Vector2(after.x - placed.x, after.z - placed.z).magnitude;
+
+            Assert.Less(drift, 1.0f,
+                $"하차 뒤 1초 동안 수평으로 {drift:0.00}m 밀렸다. 내려놓은 자리 {placed} → {after}. "
+                + "조인트가 남아 골반을 끌어당기면 이 값이 커진다.");
+        }
+
+        /// <summary>
+        /// 사방이 막혀 하차 지점 탐색이 실패해도 탑승자를 기체 껍데기 안에 두지 않는다.
+        ///
+        /// 예전 폴백은 플랫폼 콜라이더 위, 즉 기체 중심이었다. 껍데기가 없던 시절에는
+        /// 맞았지만 S15P21B202-84 스킨이 실제 기체 모델을 붙인 뒤로 그 자리는 껍데기 안이다.
+        /// 카메라가 탑승자를 따라 함께 갇혀 화면에 접시 테두리만 얇은 곡선으로 남고
+        /// 나머지는 눈앞의 제 몸으로 가득 찼다 — 하차 후 흰 화면 증상.
+        ///
+        /// 여기서는 좁은 돌기둥 꼭대기에 착륙시킨다. 사방 어디에도 밟을 표면이 없으므로
+        /// 탐색 2단계까지 실패하고 마지막 수단을 탄다. 그래도 골반이 껍데기 밖이어야 한다.
+        /// </summary>
+        [Test]
+        public void Exit_NeverPlacesRiderInsideCraftHull()
+        {
+            LogAssert.ignoreFailingMessages = true;
+
+            // 기체만 겨우 올라서는 기둥. 주변에는 아무 표면도 없다.
+            MakeSurface("Pillar", new Vector3(0f, -2f, 0f), new Vector3(2f, 4f, 2f));
+
+            var spot = new Vector3(0f, TransportVehicle.GroundY, 0f);
+            var vehicle = MakeVehicleWithHull(spot, out var hull);
+
+            var player = PlayerRig.Create("테스트", spot + new Vector3(0f, 0f, 0.2f), Quaternion.identity,
+                                          Color.white, Color.gray, false);
+            spawned.Add(player.gameObject);
+
+            Assert.IsTrue(vehicle.TryBoard(player), "탑승이 되어야 하차를 볼 수 있다.");
+            Assert.IsFalse(vehicle.TryFindExitFoot(out _),
+                "이 검증은 탐색이 실패하는 상황에서만 의미가 있다. 성공하면 벽을 더 촘촘히 둘러야 한다.");
+
+            vehicle.ForceReset();
+
+            var hips = player.Doll.Hips.position;
+            var bounds = hull.bounds;
+
+            var inside = hips.x > bounds.min.x && hips.x < bounds.max.x
+                      && hips.z > bounds.min.z && hips.z < bounds.max.z
+                      && hips.y > bounds.min.y && hips.y < bounds.max.y;
+
+            Assert.IsFalse(inside,
+                $"골반 {hips} 이 기체 껍데기 {bounds} 안이다. 카메라가 함께 갇혀 화면이 흰색으로 덮인다.");
+        }
+
+        /// <summary>렌더러를 가진 껍데기가 붙은 운반체. 껍데기 경계를 재려면 필요하다.</summary>
+        TransportVehicle MakeVehicleWithHull(Vector3 position, out Renderer hull)
+        {
+            var go = new GameObject("TractorBeam");
+            go.transform.SetPositionAndRotation(position, Quaternion.LookRotation(Vector3.down, Vector3.forward));
+
+            // 실제 TractorCraft 는 1.90 x 2.45 x 1.85m 이고 84 스킨이 경계 중심을 루트에 맞춘다.
+            var visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            visual.name = "Visual";
+            Object.DestroyImmediate(visual.GetComponent<Collider>());
+            visual.transform.SetParent(go.transform, true);
+            visual.transform.position = position;
+            visual.transform.localScale = new Vector3(1.90f, 2.45f, 1.85f);
+            hull = visual.GetComponent<Renderer>();
+
+            var beam = go.AddComponent<TractorBeam>();
+            var vehicle = go.AddComponent<TransportVehicle>();
+            vehicle.Initialize(beam, TransportVehicle.BeamHoldDistance);
+            spawned.Add(go);
+            return vehicle;
+        }
+
         [Test]
         public void ExitFoot_PicksAnotherDirectionWhenFrontIsBlocked()
         {

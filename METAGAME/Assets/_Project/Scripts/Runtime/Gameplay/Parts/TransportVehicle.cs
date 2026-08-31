@@ -135,6 +135,22 @@ namespace Metagame.Gameplay.Parts
         const float ExitProbeUp = 1.6f;
         const float ExitProbeDown = 4.0f;
 
+        /// <summary>하차 지점 탐색 방향 수. 정면부터 좌우로 45도씩 벌려 여덟 방향을 본다.</summary>
+        const int ExitDirectionCount = 8;
+        const float ExitAngleStep = 45f;
+
+        /// <summary>한 방향에서 막히면 이만큼 더 멀리도 본다.</summary>
+        const float ExitDistanceStep = 0.8f;
+
+        /// <summary>
+        /// 플랫폼 윗면보다 이만큼 높은 표면에는 세우지 않는다. 없으면 옆에 벽이 있을 때
+        /// 벽 <b>위</b>를 하차 지점으로 골라 탑승자를 9m 경계벽 꼭대기로 올려 보낸다.
+        /// </summary>
+        const float MaxExitRise = 1.0f;
+
+        /// <summary>마지막 수단에서 껍데기 윗면 위로 띄우는 여유.</summary>
+        const float LastResortLift = 0.05f;
+
         /// <summary>탑승자가 설 자리가 있는지 볼 때 쓰는 몸 치수. 헬멧 지름 0.636m 와 키 1.147m 기준.</summary>
         const float RiderRadius = 0.34f;
         const float RiderHeight = 1.15f;
@@ -156,6 +172,7 @@ namespace Metagame.Gameplay.Parts
 
         /// <summary>접지·하차 지점 판정용. BoxCast 결과를 담아 GC 를 만들지 않는다.</summary>
         static readonly RaycastHit[] ProbeHits = new RaycastHit[8];
+        static readonly Collider[] OverlapHits = new Collider[16];
 
         /// <summary>Unity 기본 레이어. "쿼리에 걸리지 않겠다"는 뜻이라 바닥으로 보지 않는다.</summary>
         const int IgnoreRaycastLayer = 2;
@@ -206,7 +223,7 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         public Vector3 GroundExitFootPosition
         {
-            get { return TryFindExitFoot(out var foot) ? foot : PlatformTopFoot(); }
+            get { return TryFindExitFoot(out var foot) ? foot : LastResortFoot(); }
         }
 
         /// <summary>운반체가 바라보는 수평 방향. 요는 Visual 자식이 들고 있다(루트는 빔 축이라 아래를 본다).</summary>
@@ -697,42 +714,90 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         public bool TryFindExitFoot(out Vector3 foot)
         {
+            // 1차는 사람이 들어갈 공간까지 확인한다. 전부 막히면 2차에서 그 조건만 뺀다 —
+            // 살짝 겹쳐 밀리는 것이 껍데기 안에 갇히는 것보다 낫다.
+            return TrySweepForExitFoot(true, out foot) || TrySweepForExitFoot(false, out foot);
+        }
+
+        /// <summary>
+        /// 정면부터 좌우로 벌려 가며 설 자리를 찾는다.
+        ///
+        /// 예전에는 네 방향(정면·좌·우·후면) × 한 거리만 봤고, 전부 막히면 그대로 실패했다.
+        /// 실패하면 호출부가 기체 중심에 세웠으므로(<see cref="LastResortFoot"/> 주석 참고)
+        /// 탐색이 실패하는 것 자체가 치명적이었다. 여덟 방향 × 두 거리로 넓혔다.
+        /// </summary>
+        /// <param name="requireClearance">사람 하나가 들어갈 공간까지 요구할지.</param>
+        bool TrySweepForExitFoot(bool requireClearance, out Vector3 foot)
+        {
             foot = Vector3.zero;
             if (platform == null || platformAnchor == null) return false;
 
             var forward = ExitForward;
-            var right = Vector3.Cross(Vector3.up, forward);
             var top = platformAnchor.position.y + platform.size.y * 0.5f;
+            var reach = ExitProbeUp + ExitProbeDown + (top - transform.position.y);
 
-            for (var i = 0; i < 4; i++)
+            // 껍데기 밖으로 확실히 나가는 거리. 모델이 커지면 같이 커진다 —
+            // 상수로 두면 큰 기체에서 하차 지점이 껍데기 안에 잡힌다.
+            var near = ExitDistance;
+            if (TryVisualBounds(out var bounds))
+                near = Mathf.Max(near, Mathf.Max(bounds.extents.x, bounds.extents.z) + RiderRadius + 0.15f);
+
+            for (var d = 0; d < ExitDirectionCount; d++)
             {
-                var direction = i switch
+                var direction = ExitDirection(forward, d);
+
+                for (var r = 0; r < 2; r++)
                 {
-                    0 => forward,
-                    1 => right,
-                    2 => -right,
-                    _ => -forward,
-                };
+                    var spot = transform.position + direction * (near + r * ExitDistanceStep);
+                    var origin = new Vector3(spot.x, top + ExitProbeUp, spot.z);
 
-                var spot = transform.position + direction * ExitDistance;
-                var origin = new Vector3(spot.x, top + ExitProbeUp, spot.z);
+                    if (!Physics.Raycast(origin, Vector3.down, out var hit, reach,
+                                         SurfaceMask, QueryTriggerInteraction.Ignore))
+                        continue;
 
-                if (!Physics.Raycast(origin, Vector3.down, out var hit,
-                                     ExitProbeUp + ExitProbeDown + (top - transform.position.y),
-                                     SurfaceMask, QueryTriggerInteraction.Ignore))
-                    continue;
+                    if (hit.normal.y < MinGroundNormalY) continue;               // 경사·벽 위에는 세우지 않는다
+                    if (hit.collider.transform.IsChildOf(transform)) continue;   // 자기 플랫폼 위는 정면이 아니다
+                    if (hit.point.y > top + MaxExitRise) continue;               // 벽 위로 올려 보내지 않는다
 
-                if (hit.normal.y < MinGroundNormalY) continue;               // 경사·벽 위에는 세우지 않는다
-                if (hit.collider.transform.IsChildOf(transform)) continue;   // 자기 플랫폼 위는 정면이 아니다
+                    if (requireClearance)
+                    {
+                        // 사람 하나가 들어갈 공간이 있는지. 발밑 표면에 캡슐이 걸리지 않게 조금 띄운다.
+                        var lower = hit.point + Vector3.up * (RiderRadius + 0.06f);
+                        var upper = hit.point + Vector3.up * (RiderHeight - RiderRadius);
+                        if (upper.y < lower.y) upper = lower;
+                        if (IsBlockedForRider(lower, upper)) continue;
+                    }
 
-                // 사람 하나가 들어갈 공간이 있는지. 발밑 표면에 캡슐이 걸리지 않게 조금 띄운다.
-                var lower = hit.point + Vector3.up * (RiderRadius + 0.06f);
-                var upper = hit.point + Vector3.up * (RiderHeight - RiderRadius);
-                if (upper.y < lower.y) upper = lower;
-                if (Physics.CheckCapsule(lower, upper, RiderRadius, SurfaceMask, QueryTriggerInteraction.Ignore))
-                    continue;
+                    foot = hit.point;
+                    return true;
+                }
+            }
 
-                foot = hit.point;
+            return false;
+        }
+
+        /// <summary>정면(0) → -45 → +45 → -90 → +90 → -135 → +135 → 180 순서.</summary>
+        static Vector3 ExitDirection(Vector3 forward, int index)
+        {
+            var step = (index + 1) / 2;
+            var sign = index % 2 == 0 ? 1f : -1f;
+            return Quaternion.AngleAxis(sign * step * ExitAngleStep, Vector3.up) * forward;
+        }
+
+        /// <summary>
+        /// 사람 하나가 설 자리가 막혀 있는지.
+        ///
+        /// <c>Physics.CheckCapsule</c> 은 제외 목록을 받지 않는다. 그래서 예전 구현은
+        /// 기체 자신의 플랫폼 콜라이더가 캡슐에 걸리면 설 자리가 있는데도 막혔다고 봤다.
+        /// </summary>
+        bool IsBlockedForRider(Vector3 lower, Vector3 upper)
+        {
+            var n = Physics.OverlapCapsuleNonAlloc(lower, upper, RiderRadius, OverlapHits,
+                                                   SurfaceMask, QueryTriggerInteraction.Ignore);
+            for (var i = 0; i < n; i++)
+            {
+                var col = OverlapHits[i];
+                if (col == null || col.transform.IsChildOf(transform)) continue;
                 return true;
             }
 
@@ -740,13 +805,38 @@ namespace Metagame.Gameplay.Parts
         }
 
         /// <summary>
-        /// 네 방향 모두 막혔을 때의 마지막 수단 — 플랫폼 위에 세운다.
-        /// 겹치지 않으므로 튕겨 나가지 않고, 걸어서 내려올 수 있다.
+        /// 모든 방향이 막혔을 때의 마지막 수단 — 껍데기 <b>바깥·윗면</b>에 세운다.
+        ///
+        /// 예전에는 플랫폼 콜라이더 위, 즉 <b>기체 중심</b>에 세웠다. 콜라이더와 겹치지 않으니
+        /// 튕겨 나가지 않는다는 판단이었고, 기체에 껍데기가 없던 시절에는 맞았다.
+        /// S15P21B202-84 스킨이 실제 기체 모델을 Visual 로 붙인 뒤로 그 자리는 껍데기 <b>안</b>이
+        /// 되었다. 카메라는 탑승자를 따라가므로 함께 껍데기 안에 갇히고, 화면에는 접시 테두리가
+        /// 얇은 곡선으로 남고 나머지는 눈앞의 제 몸으로 가득 찬다 — 하차했는데 흰 화면만
+        /// 보이는 증상의 원인이다. 계측: 골반이 기체 중심에서 수평 0.000m 지점에 놓였다.
+        ///
+        /// 지금은 껍데기 경계 밖으로 밀고 윗면 높이에 둔다. 갇히지 않고, 떨어져도 기체
+        /// 바깥으로 떨어진다. 여기까지 오는 것은 여덟 방향 × 두 거리 × 두 단계가 모두
+        /// 실패한 경우이므로, 다음에 또 생기면 추적할 수 있게 경고를 남긴다.
         /// </summary>
-        Vector3 PlatformTopFoot()
+        Vector3 LastResortFoot()
         {
-            if (platform == null || platformAnchor == null) return transform.position;
-            return platformAnchor.position + Vector3.up * (platform.size.y * 0.5f + 0.02f);
+            var center = transform.position;
+            var top = platform != null && platformAnchor != null
+                ? platformAnchor.position.y + platform.size.y * 0.5f + 0.02f
+                : center.y;
+
+            var clear = ExitDistance;
+            if (TryVisualBounds(out var bounds))
+            {
+                top = Mathf.Max(top, bounds.max.y + LastResortLift);
+                clear = Mathf.Max(clear, Mathf.Max(bounds.extents.x, bounds.extents.z) + RiderRadius + 0.15f);
+            }
+
+            var spot = center + ExitForward * clear;
+            Debug.LogWarning($"[TransportVehicle] 하차 지점을 찾지 못했다 — 기체 {center}, " +
+                             $"껍데기 밖 ({spot.x:0.00}, {top:0.00}, {spot.z:0.00}) 에 내려놓는다.");
+
+            return new Vector3(spot.x, top, spot.z);
         }
 
         void TurnVisualToward(Vector3 direction, float deltaTime)

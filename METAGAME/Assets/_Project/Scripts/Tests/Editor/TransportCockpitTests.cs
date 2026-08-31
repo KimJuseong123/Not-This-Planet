@@ -183,6 +183,113 @@ namespace Metagame.Gameplay.Tests
             Assert.IsTrue(hull.enabled, "하차하면 껍데기가 다시 보여야 한다.");
         }
 
+        /// <summary>
+        /// 하차하면 카메라가 기체 반대편의 빈 공간에 서야 한다.
+        ///
+        /// 예전에는 탑승자를 기체 바깥을 보게 돌렸다. 3인칭 카메라는 캐릭터 뒤에 서므로
+        /// 등 뒤에 기체가 왔고, 하차 지점 1.8m 에서 껍데기 반지름 0.95m 를 빼면 카메라가
+        /// 물러날 수 있는 거리는 0.85m 뿐이다. 카메라 거리 3.6m 가 최소 1m 까지 밀려들어와
+        /// 화면에 제 등과 꼬리만 남았다.
+        ///
+        /// 여기서 보는 것은 두 가지다 — 탑승자가 기체를 마주 보는지, 카메라가 기체
+        /// 반대편에 서는지. 실제로 밀려들어오는 거리는 시간에 따라 수렴하므로
+        /// EditMode 에서는 측정할 수 없다. 방향만 고정한다.
+        /// </summary>
+        [Test]
+        public void Exit_CameraStandsOnFarSideFromCraft()
+        {
+            MakeSurface("Ground", new Vector3(0f, -0.5f, 0f), new Vector3(60f, 1f, 60f));
+
+            var spot = new Vector3(0f, TransportVehicle.GroundY, 0f);
+            var vehicle = MakeVehicle(spot, true);
+            var player = MakePlayer(spot + new Vector3(0f, 0f, 1.5f));
+
+            var camera = OrbitCamera.Create(player.Hips.transform, Color.black, false);
+            player.Cam = camera;
+            spawned.Add(camera.gameObject);
+
+            Assert.IsTrue(vehicle.TryBoard(player));
+            vehicle.ForceReset();
+
+            var hips = player.Doll.Hips.position;
+
+            var toCraft = vehicle.transform.position - hips;
+            toCraft.y = 0f;
+            Assert.Greater(toCraft.magnitude, 0.5f,
+                "이 검증은 탑승자가 기체 밖에 내려야 의미가 있다.");
+            toCraft.Normalize();
+
+            var facing = player.Doll.Hips.transform.forward;
+            facing.y = 0f;
+            Assert.Greater(Vector3.Dot(facing.normalized, toCraft), 0.7f,
+                "하차하면 기체를 마주 봐야 한다. 등을 지면 카메라가 기체에 막힌다.");
+
+            var toCamera = camera.transform.position - hips;
+            toCamera.y = 0f;
+            Assert.Greater(toCamera.magnitude, 0.01f, "카메라가 골반과 같은 자리면 안 된다.");
+
+            Assert.Less(Vector3.Dot(toCamera.normalized, toCraft), -0.7f,
+                "카메라가 기체 반대편에 서야 한다. 기체 쪽에 서면 시야가 막혀 "
+                + "제 등과 꼬리만 보인다.");
+        }
+
+        /// <summary>
+        /// 1인칭에서 하차하면 기체 바깥을 보고, 카메라 요가 인형의 방향과 맞아야 한다.
+        ///
+        /// 씬의 SpaceBootstrap 은 firstPerson = 1 이므로 실제 게임이 타는 경로다.
+        ///
+        /// 예전에는 인형만 돌리고 카메라 요는 조종석에서 보던 값을 그대로 뒀다. 1인칭
+        /// 카메라는 머리에서 시선 방향으로 20cm 내민 자리에 서므로, 두 값이 어긋나면
+        /// 카메라가 머리 뒤로 밀려 제 몸과 꼬리가 화면에 들어온다.
+        /// </summary>
+        [Test]
+        public void Exit_FirstPersonLooksAwayFromCraft()
+        {
+            MakeSurface("Ground", new Vector3(0f, -0.5f, 0f), new Vector3(60f, 1f, 60f));
+
+            var spot = new Vector3(0f, TransportVehicle.GroundY, 0f);
+            var vehicle = MakeVehicle(spot, true);
+            var player = MakePlayer(spot + new Vector3(0f, 0f, 1.5f));
+
+            // 실제 게임과 같은 1인칭으로 만든다.
+            var camera = OrbitCamera.Create(player.Hips.transform, Color.black, true);
+            player.Cam = camera;
+            spawned.Add(camera.gameObject);
+
+            Assert.IsTrue(camera.FirstPerson, "이 검증은 1인칭에서 해야 의미가 있다.");
+
+            Assert.IsTrue(vehicle.TryBoard(player));
+            vehicle.ForceReset();
+
+            Assert.IsTrue(camera.FirstPerson, "1인칭으로 시작했으면 하차해도 1인칭이어야 한다.");
+
+            var hips = player.Doll.Hips.position;
+
+            var fromCraft = hips - vehicle.transform.position;
+            fromCraft.y = 0f;
+            Assert.Greater(fromCraft.magnitude, 0.5f, "이 검증은 탑승자가 기체 밖에 내려야 의미가 있다.");
+            fromCraft.Normalize();
+
+            var facing = player.Doll.Hips.transform.forward;
+            facing.y = 0f;
+            Assert.Greater(Vector3.Dot(facing.normalized, fromCraft), 0.7f,
+                "1인칭에서는 기체 바깥을 봐야 한다. 마주 보면 1.8m 앞의 기체가 화면을 덮는다.");
+
+            var view = camera.transform.forward;
+            view.y = 0f;
+            Assert.Greater(Vector3.Dot(view.normalized, facing.normalized), 0.9f,
+                "카메라 요가 인형의 방향과 맞아야 한다. 어긋나면 카메라가 머리 뒤로 밀려 "
+                + "제 몸과 꼬리가 화면에 들어온다.");
+
+            // 머리에서 시선 방향으로 내민 자리이므로 기체에서 더 멀어져야 한다.
+            var camFlat = new Vector2(camera.transform.position.x - vehicle.transform.position.x,
+                                      camera.transform.position.z - vehicle.transform.position.z).magnitude;
+            var hipsFlat = new Vector2(hips.x - vehicle.transform.position.x,
+                                       hips.z - vehicle.transform.position.z).magnitude;
+            Assert.Greater(camFlat, hipsFlat,
+                "카메라가 머리 앞으로 나가야 한다. 뒤로 밀리면 이 값이 작아진다.");
+        }
+
         /// <summary>Visual 자식의 껍데기 렌더러. 조종석은 Visual 아래에 있으므로 제외한다.</summary>
         static Renderer FindHullRenderer(TransportVehicle vehicle)
         {

@@ -71,14 +71,26 @@ namespace Metagame.Gameplay
         /// 붙거나 떨어질 수 있어서다. <see cref="Root"/> 하위를 훑으면 프리미티브 몸과
         /// 씌운 메시가 함께 잡힌다.
         /// </summary>
-        public void SetVisible(bool visible)
+        /// <param name="visible">몸을 그릴지.</param>
+        /// <param name="keepShadow">
+        /// 감출 때 그림자는 남길지. 1인칭에서 제 몸을 감출 때 쓴다 — 발밑을 읽는 단서가
+        /// 제 그림자이므로, 메시만 빼고 그림자는 그대로 두는 것이 옳다.
+        /// 탑승 중에는 반대로 그림자까지 감춘다. 기체 안에 있는 몸이고 기체 껍데기도
+        /// 감춰 둔 상태라, 그림자만 남으면 허공에 혼자 뜬 그림자가 된다.
+        /// </param>
+        public void SetVisible(bool visible, bool keepShadow = false)
         {
             Visible = visible;
             if (Root == null) return;
 
             var renderers = Root.GetComponentsInChildren<Renderer>(true);
             for (var i = 0; i < renderers.Length; i++)
-                renderers[i].enabled = visible;
+            {
+                renderers[i].enabled = visible || keepShadow;
+                renderers[i].shadowCastingMode = visible
+                    ? UnityEngine.Rendering.ShadowCastingMode.On
+                    : UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
+            }
         }
 
         public void SetSleepAllowed(bool allowed)

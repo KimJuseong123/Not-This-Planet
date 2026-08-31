@@ -47,6 +47,12 @@ namespace Metagame.Network
         private ClientWebSocket socket;
         private CancellationTokenSource socketCancellation;
         private Task connectTask;
+        // 연결 세대 번호. CloseSocket()·재연결마다 올라간다. 백그라운드에서 늦게 끝난 옛 ConnectAsync 가
+        // 새 소켓을 덮어쓰던 경합을 막는다(2026-08-27 전수 AI 리뷰 지적, S15P21B202-136).
+        private int connectGeneration;
+        // 세대 검사와 socket 대입 사이에 CloseSocket() 이 끼어들면 닫은 뒤에 옛 소켓이 다시 꽂힌다.
+        // 그 창을 막기 위해 대입과 종료를 같은 잠금 안에서 한다(MR !80 리뷰 지적).
+        private readonly object socketGate = new object();
         private readonly SemaphoreSlim sendGate = new SemaphoreSlim(1, 1);
         private readonly ConcurrentQueue<NetworkEvent> pendingEvents = new ConcurrentQueue<NetworkEvent>();
         private bool shuttingDown;
@@ -188,10 +194,11 @@ namespace Metagame.Network
             CloseSocket();
             socketCancellation = new CancellationTokenSource();
             SetState(NetworkConnectionState.Connecting);
-            connectTask = ConnectSocketAsync(accessToken, socketCancellation.Token);
+            int generation = Volatile.Read(ref connectGeneration);
+            connectTask = ConnectSocketAsync(accessToken, socketCancellation.Token, generation);
         }
 
-        private async Task ConnectSocketAsync(string token, CancellationToken cancellationToken)
+        private async Task ConnectSocketAsync(string token, CancellationToken cancellationToken, int generation)
         {
             var client = new ClientWebSocket();
             try
@@ -199,13 +206,22 @@ namespace Metagame.Network
                 var uri = new Uri(webSocketUrl + "?token=" + UnityWebRequest.EscapeURL(token));
                 await client.ConnectAsync(uri, cancellationToken).ConfigureAwait(false);
 
-                if (cancellationToken.IsCancellationRequested || shuttingDown)
+                bool adopted;
+                lock (socketGate)
+                {
+                    // 내 세대가 지났다 = 그 사이 끊거나 다시 연결했다. 이 소켓을 socket 에 넣으면
+                    // 새 연결을 덮어써 조용히 옛 소켓으로 통신하게 된다.
+                    adopted = !cancellationToken.IsCancellationRequested && !shuttingDown
+                              && generation == Volatile.Read(ref connectGeneration);
+                    if (adopted) socket = client;
+                }
+
+                if (!adopted)
                 {
                     client.Dispose();
                     return;
                 }
 
-                socket = client;
                 pendingEvents.Enqueue(new NetworkEvent(NetworkEventType.Connected));
                 _ = ReceiveLoopAsync(client, cancellationToken);
             }
@@ -294,14 +310,39 @@ namespace Metagame.Network
 
         private void Send(string type, OutgoingData data)
         {
-            if (!IsConnected || socket == null)
+            // 소켓과 취소 토큰을 지역 변수로 먼저 붙잡는다. CloseSocket() 이 CTS 를 Cancel → Dispose → null 로
+            // 만들기 때문에, 종료·재연결과 겹치면 socketCancellation.Token 접근에서 NullReference 또는
+            // ObjectDisposedException 이 났다(2026-08-27 전수 AI 리뷰 지적, S15P21B202-136).
+            ClientWebSocket client;
+            CancellationTokenSource cts;
+            lock (socketGate)
+            {
+                // 둘을 따로 읽으면 그 사이에 CloseSocket + 재연결이 끼어들어 '옛 소켓 + 새 토큰' 짝이
+                // 만들어질 수 있다. 그러면 SendAsync 가 client.State 검사에서 조용히 반환해 메시지가
+                // 오류 표시도 로그도 없이 사라진다(MR !80 리뷰 지적). 같은 잠금에서 한 짝으로 읽는다.
+                client = socket;
+                cts = socketCancellation;
+            }
+
+            if (!IsConnected || client == null || cts == null)
             {
                 ReportError("서버에 연결되어 있지 않습니다.");
                 return;
             }
 
+            CancellationToken token;
+            try
+            {
+                token = cts.Token;
+            }
+            catch (ObjectDisposedException)
+            {
+                ReportError("서버 연결이 방금 끊어졌습니다. 다시 시도해 주세요.");
+                return;
+            }
+
             string payload = JsonUtility.ToJson(new OutgoingMessage { type = type, data = data });
-            _ = SendAsync(socket, payload, socketCancellation.Token);
+            _ = SendAsync(client, payload, token);
         }
 
         private async Task SendAsync(ClientWebSocket client, string payload, CancellationToken cancellationToken)
@@ -323,6 +364,11 @@ namespace Metagame.Network
             }
             catch (OperationCanceledException)
             {
+            }
+            catch (ObjectDisposedException)
+            {
+                // 보내는 사이에 소켓이 닫혔다(나가기·재연결). 사용자에게 보일 오류가 아니라 조용히 넘긴다
+                // — 예전에는 "송신 오류" 로 올라가 CloseSocket + Fail 까지 이어졌다(MR !80 리뷰 지적).
             }
             catch (Exception exception)
             {
@@ -521,14 +567,20 @@ namespace Metagame.Network
 
         private void CloseSocket()
         {
-            socketCancellation?.Cancel();
-            socketCancellation?.Dispose();
-            socketCancellation = null;
+            ClientWebSocket closing;
+            lock (socketGate)
+            {
+                Interlocked.Increment(ref connectGeneration);   // 진행 중인 연결을 무효화한다
+                socketCancellation?.Cancel();
+                socketCancellation?.Dispose();
+                socketCancellation = null;
+                closing = socket;
+                socket = null;                                  // 잠금 안에서 비운다 — 대입과 엇갈리지 않게
+            }
 
-            if (socket == null) return;
-            try { socket.Abort(); } catch (Exception) { }
-            socket.Dispose();
-            socket = null;
+            if (closing == null) return;
+            try { closing.Abort(); } catch (Exception) { }
+            closing.Dispose();
         }
 
         private void Shutdown()
