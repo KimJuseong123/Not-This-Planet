@@ -32,14 +32,50 @@ namespace Metagame.Network
         public bool ready;
     }
 
-    [Serializable]
+    /// <summary>PLAYER_MOVE — 내 위치를 서버에 알린다. 서버는 계산하지 않고 중계만 한다.</summary>
+    public sealed class OutgoingMoveMessage
+    {
+        public string type;
+        public MoveData data;
+    }
+
+    public sealed class MoveData
+    {
+        public float x;
+        public float y;
+        public float z;
+        public float yaw;
+    }
+
+    /// <summary>PLAYER_MOVED — 다른 사람의 위치. 보낸 사람에게는 오지 않는다.</summary>
+    public readonly struct PlayerMove
+    {
+        public long UserId { get; }
+        public float X { get; }
+        public float Y { get; }
+        public float Z { get; }
+        public float Yaw { get; }
+
+        public PlayerMove(long userId, float x, float y, float z, float yaw)
+        {
+            UserId = userId;
+            X = x;
+            Y = y;
+            Z = z;
+            Yaw = yaw;
+        }
+    }
+
+    /// <summary>
+    /// 서버 → 클라이언트 메시지. players 가 userId 를 키로 하는 객체라(backend/docs/PROTOCOL.md)
+    /// 사전을 다루지 못하는 JsonUtility 대신 Newtonsoft 로 읽는다.
+    /// </summary>
     public sealed class WebSocketEnvelope
     {
         public string type;
         public IncomingData data;
     }
 
-    [Serializable]
     public sealed class IncomingData
     {
         public string roomId;
@@ -47,13 +83,24 @@ namespace Metagame.Network
         public string status;
         public bool ready;
         public string message;
-        public PlayerSummary[] players;
+
+        // PLAYER_MOVED 전용
+        public long userId;
+        public float x;
+        public float y;
+        public float z;
+        public float yaw;
+
+        /// <summary>키는 userId, 값은 닉네임과 준비 여부.</summary>
+        public Dictionary<long, PlayerSummary> players;
+
+        /// <summary>연결이 끊겨 유예 시간을 기다리는 중인 userId. players 에는 아직 남아 있다.</summary>
+        public long[] disconnected;
     }
 
-    [Serializable]
     public sealed class PlayerSummary
     {
-        public long userId;
+        public string nickname;
         public bool ready;
     }
 
@@ -69,12 +116,19 @@ namespace Metagame.Network
     public sealed class PlayerSnapshot
     {
         public long UserId { get; }
+        public string Nickname { get; }
         public bool Ready { get; }
+        public bool Disconnected { get; }
 
-        internal PlayerSnapshot(PlayerSummary source)
+        internal PlayerSnapshot(long userId, PlayerSummary source, bool disconnected)
         {
-            UserId = source.userId;
-            Ready = source.ready;
+            UserId = userId;
+            // 닉네임이 비어 오더라도 화면이 비지 않도록 userId 로 대신 표시한다.
+            Nickname = string.IsNullOrWhiteSpace(source?.nickname)
+                ? userId.ToString()
+                : source.nickname;
+            Ready = source != null && source.ready;
+            Disconnected = disconnected;
         }
     }
 
@@ -98,6 +152,12 @@ namespace Metagame.Network
             }
         }
 
+        /// <summary>ROOM_STATE 페이로드를 화면에 쓸 형태로 바꾼다. null 이면 null 을 돌려준다.</summary>
+        public static RoomSnapshot From(IncomingData source)
+        {
+            return source == null ? null : new RoomSnapshot(source);
+        }
+
         internal RoomSnapshot(IncomingData source)
         {
             RoomId = source.roomId ?? string.Empty;
@@ -106,11 +166,17 @@ namespace Metagame.Network
             players = new List<PlayerSnapshot>();
 
             if (source.players == null) return;
-            for (int i = 0; i < source.players.Length; i++)
-            {
-                if (source.players[i] != null)
-                    players.Add(new PlayerSnapshot(source.players[i]));
-            }
+
+            var offline = new HashSet<long>();
+            if (source.disconnected != null)
+                for (int i = 0; i < source.disconnected.Length; i++)
+                    offline.Add(source.disconnected[i]);
+
+            foreach (KeyValuePair<long, PlayerSummary> entry in source.players)
+                players.Add(new PlayerSnapshot(entry.Key, entry.Value, offline.Contains(entry.Key)));
+
+            // 사전은 순서를 보장하지 않는다. 방 목록이 갱신될 때마다 줄이 뒤바뀌지 않도록 고정한다.
+            players.Sort((a, b) => a.UserId.CompareTo(b.UserId));
         }
 
         public bool TryGetPlayer(long userId, out PlayerSnapshot player)

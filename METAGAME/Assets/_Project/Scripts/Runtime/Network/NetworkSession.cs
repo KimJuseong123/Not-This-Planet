@@ -6,6 +6,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -36,6 +37,7 @@ namespace Metagame.Network
         public event Action<NetworkConnectionState> ConnectionStateChanged;
         public event Action<RoomSnapshot> RoomStateChanged;
         public event Action GameStarted;
+        public event Action<PlayerMove> PlayerMoved;
         public event Action<string> ErrorReceived;
         public event Action ConnectionClosed;
 
@@ -308,6 +310,29 @@ namespace Metagame.Network
             RoomStateChanged?.Invoke(null);
         }
 
+        /// <summary>
+        /// 내 위치를 방의 다른 사람에게 중계시킨다. 매 프레임 가까이 불리므로
+        /// 연결이 없을 때 조용히 넘어간다 — 여기서 오류를 띄우면 화면이 오류로 뒤덮인다.
+        /// </summary>
+        public void SendMove(float x, float y, float z, float yaw)
+        {
+            ClientWebSocket client = socket;
+            CancellationTokenSource cancellation = socketCancellation;
+            if (!IsConnected || client == null || cancellation == null) return;
+
+            _ = SendAsync(client, BuildMovePayload(x, y, z, yaw), cancellation.Token);
+        }
+
+        /// <summary>PLAYER_MOVE 본문. 형식을 테스트에서 확인할 수 있게 분리해 둔다.</summary>
+        public static string BuildMovePayload(float x, float y, float z, float yaw)
+        {
+            return JsonConvert.SerializeObject(new OutgoingMoveMessage
+            {
+                type = "PLAYER_MOVE",
+                data = new MoveData { x = x, y = y, z = z, yaw = yaw }
+            });
+        }
+
         private void Send(string type, OutgoingData data)
         {
             // 소켓과 취소 토큰을 지역 변수로 먼저 붙잡는다. CloseSocket() 이 CTS 를 Cancel → Dispose → null 로
@@ -404,7 +429,7 @@ namespace Metagame.Network
             WebSocketEnvelope message;
             try
             {
-                message = JsonUtility.FromJson<WebSocketEnvelope>(json);
+                message = ParseEnvelope(json);
             }
             catch (Exception)
             {
@@ -434,6 +459,13 @@ namespace Metagame.Network
                 case "GAME_STARTED":
                     GameStarted?.Invoke();
                     break;
+                case "PLAYER_MOVED":
+                    PlayerMoved?.Invoke(new PlayerMove(data.userId, data.x, data.y, data.z, data.yaw));
+                    break;
+                case "STATE_SYNC":
+                    // 재접속한 사람에게 오는 게임 상태 전체. 복구 처리는 아직 범위 밖이라
+                    // 받기만 하고 넘긴다 — 모르는 메시지로 취급해 오류를 띄우지 않기 위해서다.
+                    break;
                 case "ERROR":
                     ReportError(string.IsNullOrEmpty(data.message) ? "요청을 처리할 수 없습니다." : data.message);
                     break;
@@ -441,6 +473,15 @@ namespace Metagame.Network
                     ReportError("알 수 없는 서버 메시지입니다: " + message.type);
                     break;
             }
+        }
+
+        /// <summary>
+        /// ROOM_STATE 의 players 가 userId 를 키로 하는 객체라 JsonUtility 로는 읽을 수 없다.
+        /// 테스트에서도 쓰도록 밖으로 열어 둔다.
+        /// </summary>
+        public static WebSocketEnvelope ParseEnvelope(string json)
+        {
+            return JsonConvert.DeserializeObject<WebSocketEnvelope>(json);
         }
 
         /// <summary>
