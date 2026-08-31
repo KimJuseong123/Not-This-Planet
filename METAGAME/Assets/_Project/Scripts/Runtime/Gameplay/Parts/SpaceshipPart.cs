@@ -19,6 +19,16 @@ namespace Metagame.Gameplay.Parts
     {
         [SerializeField] PartState _state = PartState.Locked;
 
+        /// <summary>
+        /// 이 파츠가 놓였을 때의 질량. 씬을 만드는 도구가 <see cref="PartSpec"/> 의 값을 넣는다.
+        ///
+        /// 예전에는 네 파츠가 모두 <see cref="PhysicsScale.PartMass"/>(500kg) 하나를 썼다.
+        /// 크기가 두 배 넘게 차이 나는데 질량이 같으면 적재도 발사 하중도 외형과 어긋난다.
+        /// 0 이면 명세가 없는 파츠로 보고 예전 상수를 그대로 쓴다 — 테스트가 만드는
+        /// 일반 파츠가 이 경로를 탄다.
+        /// </summary>
+        [SerializeField] float _placedMass;
+
         readonly List<PartClamp> _clamps = new();
         readonly List<PartSocket> _sockets = new();
 
@@ -168,9 +178,15 @@ namespace Metagame.Gameplay.Parts
             _ => false,
         };
 
+        /// <summary>놓였을 때의 질량. 명세가 없으면 예전 고정값으로 돌아간다.</summary>
+        public float PlacedMass => _placedMass > 0f ? _placedMass : PhysicsScale.PartMass;
+
+        /// <summary>씬을 만드는 도구가 파츠별 질량을 넣는다.</summary>
+        public void SetPlacedMass(float mass) => _placedMass = Mathf.Max(0f, mass);
+
         void ApplyRepresentation(PartState state)
         {
-            var (layer, mass, isKinematic) = RepresentationOf(state);
+            var (layer, mass, isKinematic) = RepresentationOf(state, PlacedMass);
 
             // 레이어는 이 오브젝트에만 준다. 자식의 고정쇠는 Interactable 레이어에 있어야
             // Interactor 가 찾을 수 있으므로 함께 바꾸면 안 된다.
@@ -187,11 +203,19 @@ namespace Metagame.Gameplay.Parts
         /// 고정된 동안에는 kinematic 이라 운석에 맞아도 밀리지 않는다.
         /// 값의 근거는 S15P21B202-62 기록 문서를 본다.
         /// </summary>
-        public static (int Layer, float Mass, bool IsKinematic) RepresentationOf(PartState state) => state switch
+        public static (int Layer, float Mass, bool IsKinematic) RepresentationOf(PartState state) =>
+            RepresentationOf(state, PhysicsScale.PartMass);
+
+        /// <param name="placedMass">
+        /// 놓였거나 고정된 상태에서 쓸 질량. 견인 중 질량은 압사를 막는 값이라
+        /// 파츠 크기와 무관하게 <see cref="PhysicsScale.CarriedPartMass"/> 로 유지한다.
+        /// </param>
+        public static (int Layer, float Mass, bool IsKinematic) RepresentationOf(
+            PartState state, float placedMass) => state switch
         {
-            PartState.Locked => (GameLayers.Part, PhysicsScale.PartMass, true),
+            PartState.Locked => (GameLayers.Part, placedMass, true),
             PartState.Carried => (GameLayers.PartCarried, PhysicsScale.CarriedPartMass, false),
-            _ => (GameLayers.Part, PhysicsScale.PartMass, false),
+            _ => (GameLayers.Part, placedMass, false),
         };
     }
 }

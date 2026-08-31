@@ -18,11 +18,32 @@ namespace Metagame.Gameplay
         public const float MetersPerUnit = 1f;
 
         // --- 우주선 파츠 ---
+
+        /// <summary>
+        /// 형태를 따로 정하지 않은 파츠의 기본 크기. <b>실제 스테이지1 파츠는 이 값을 쓰지 않는다</b> —
+        /// 네 파츠는 각자의 실측 형태를 <see cref="Parts.PartSpec"/> 에 갖고 있다.
+        /// 이 값은 테스트가 만드는 일반 파츠와, 명세가 없는 파츠의 폴백으로만 남는다.
+        /// </summary>
         public const float PartWidth = 3f;
         public const float PartHeight = 3.7f;
 
-        /// <summary>놓이거나 용접된 상태의 질량. 혼자서는 밀 수 없는 무게다.</summary>
+        /// <summary>
+        /// 형태를 따로 정하지 않은 파츠의 질량. 위와 같은 이유로 폴백이다.
+        /// 실제 파츠 질량은 <see cref="Parts.PartSpec.Mass"/> 가 부피에서 계산한다.
+        /// </summary>
         public const float PartMass = 500f;
+
+        /// <summary>
+        /// 파츠 밀도(kg/m³). 파츠 질량을 결정하는 <b>유일한 손잡이</b>다.
+        ///
+        /// 질량을 파츠마다 손으로 적지 않는 이유는 두 가지다. 모델이 바뀌면 네 값을 따로
+        /// 고쳐야 하고, 고치는 사이 서로의 비율이 슬그머니 어긋난다. 부피에 밀도를 곱하면
+        /// 형태가 바뀔 때 질량이 저절로 따라온다.
+        ///
+        /// 70 은 네 파츠의 평균 질량이 예전 고정값 <see cref="PartMass"/>(500kg) 근처에
+        /// 오도록 잡은 값이다. 기획서 용어로 <b>초기 테스트값</b>이며 플레이 테스트로 조정한다.
+        /// </summary>
+        public const float PartDensity = 70f;
 
         /// <summary>
         /// 견인 중인 파츠에 적용하는 취급 질량.
