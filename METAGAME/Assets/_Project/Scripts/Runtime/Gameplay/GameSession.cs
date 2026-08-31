@@ -82,8 +82,16 @@ namespace Metagame.Gameplay
                     SetCursor(!Exploration.TabletOpen);
                 }
 
+                if (Exploration != null && Exploration.TabletOpen)
+                {
+                    if (f.TabletPreviousPage) Exploration.PreviousTabletPage();
+                    if (f.TabletNextPage) Exploration.NextTabletPage();
+                }
+
                 if (Input.GetKeyDown(Controls.FreeCursor)) SetCursor(false);
-                if (Input.GetMouseButtonDown(0) && !CursorLocked) SetCursor(true);
+                if (Input.GetMouseButtonDown(0) && !CursorLocked
+                    && (Exploration == null || !Exploration.TabletOpen))
+                    SetCursor(true);
                 if (!CursorLocked)
                 {
                     f.Look = Vector2.zero;

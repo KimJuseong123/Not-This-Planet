@@ -79,12 +79,14 @@ namespace Metagame.Gameplay.Tests
             exploration.Configure(new[] { part });
             exploration.TryDiscover(part);
             exploration.SetTabletOpen(true);
+            exploration.NextTabletPage();
 
             exploration.ResetRun();
 
             Assert.AreEqual(0, exploration.DiscoveredCount);
             Assert.IsFalse(exploration.Parts[0].IsDiscovered);
             Assert.IsFalse(exploration.TabletOpen);
+            Assert.AreEqual(0, exploration.TabletPage);
         }
 
         [Test]
@@ -101,6 +103,60 @@ namespace Metagame.Gameplay.Tests
 
             Assert.AreEqual(2, changes);
             Assert.IsFalse(exploration.TabletOpen);
+        }
+
+        [Test]
+        public void TabletPageNavigation_ClampsAtBothEndsAndRaisesOnlyOnChange()
+        {
+            var exploration = CreateExploration();
+            exploration.Configure(null);
+
+            var changes = 0;
+            exploration.TabletPageChanged += _ => changes++;
+
+            Assert.AreEqual(0, exploration.TabletPage);
+            exploration.PreviousTabletPage();
+            Assert.AreEqual(0, exploration.TabletPage);
+            Assert.AreEqual(0, changes);
+
+            for (var i = 0; i < Stage1Exploration.TabletPageCount + 1; i++)
+                exploration.NextTabletPage();
+
+            Assert.AreEqual(Stage1Exploration.TabletPageCount - 1, exploration.TabletPage);
+            Assert.AreEqual(Stage1Exploration.TabletPageCount - 1, changes);
+
+            exploration.NextTabletPage();
+            Assert.AreEqual(Stage1Exploration.TabletPageCount - 1, exploration.TabletPage);
+            Assert.AreEqual(Stage1Exploration.TabletPageCount - 1, changes);
+
+            exploration.PreviousTabletPage();
+            Assert.AreEqual(Stage1Exploration.TabletPageCount - 2, exploration.TabletPage);
+            Assert.AreEqual(Stage1Exploration.TabletPageCount, changes);
+        }
+
+        [Test]
+        public void PlayerHealth_RemainsNumericForGameplayWhileHealthRatioTracksDamage()
+        {
+            var go = new GameObject("PlayerRig");
+            _spawned.Add(go);
+            var player = go.AddComponent<PlayerRig>();
+
+            player.ResetHealth();
+            Assert.AreEqual(player.MaxHealth, player.Health, 0.001f);
+            Assert.AreEqual(1f, player.Health01, 0.001f);
+
+            player.ApplyDamage(25f);
+            Assert.AreEqual(75f, player.Health, 0.001f);
+            Assert.AreEqual(0.75f, player.Health01, 0.001f);
+
+            player.ApplyDamage(float.NaN);
+            player.ApplyDamage(float.PositiveInfinity);
+            player.ApplyDamage(-10f);
+            Assert.AreEqual(75f, player.Health, 0.001f);
+
+            player.ResetHealth();
+            Assert.AreEqual(player.MaxHealth, player.Health, 0.001f);
+            Assert.AreEqual(1f, player.Health01, 0.001f);
         }
 
         Stage1Exploration CreateExploration()

@@ -74,7 +74,7 @@ namespace Metagame.Bootstrap
             Exploration = sys.AddComponent<Stage1Exploration>();
             ExplorationHud = sys.AddComponent<Stage1ExplorationHud>();
             Transport = sys.AddComponent<TractorBeamController>();
-            ExplorationHud.Initialize(Exploration);
+            ExplorationHud.Initialize(Exploration, Session);
 
             if (buildLevel) Level.Build();
             Exploration.Configure(FindObjectsByType<SpaceshipPart>(FindObjectsSortMode.None));
