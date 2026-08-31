@@ -95,6 +95,31 @@ namespace Metagame.Network.Tests
         }
 
         [Test]
+        public void PlayerMovedIsParsed()
+        {
+            WebSocketEnvelope envelope = NetworkSession.ParseEnvelope(
+                "{\"type\":\"PLAYER_MOVED\",\"data\":{\"userId\":2,\"x\":1.5,\"y\":0.0,\"z\":-3.25,\"yaw\":90.0}}");
+
+            Assert.That(envelope.type, Is.EqualTo("PLAYER_MOVED"));
+            Assert.That(envelope.data.userId, Is.EqualTo(2));
+            Assert.That(envelope.data.x, Is.EqualTo(1.5f));
+            Assert.That(envelope.data.z, Is.EqualTo(-3.25f));
+            Assert.That(envelope.data.yaw, Is.EqualTo(90f));
+        }
+
+        [Test]
+        public void MovePayloadCarriesProtocolFields()
+        {
+            string payload = NetworkSession.BuildMovePayload(1.5f, 0f, -3.25f, 90f);
+
+            // backend/docs/PROTOCOL.md: { "type": "PLAYER_MOVE", "data": { x, y, z, yaw } }
+            Assert.That(payload, Does.Contain("\"type\":\"PLAYER_MOVE\""));
+            Assert.That(payload, Does.Contain("\"x\":1.5"));
+            Assert.That(payload, Does.Contain("\"z\":-3.25"));
+            Assert.That(payload, Does.Contain("\"yaw\":90"));
+        }
+
+        [Test]
         public void OutgoingReadyMessageUsesExpectedEnvelope()
         {
             string json = JsonUtility.ToJson(new OutgoingMessage
