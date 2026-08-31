@@ -94,19 +94,30 @@ def merge_conflicts(a: str, b: str) -> list[str] | None:
 
 
 # ── 쌍 비교 ──────────────────────────────────────────────────────────────────
-def own_files(head: str, parent_head: str | None, base: str) -> set[str]:
-    """이 MR 이 **스스로** 바꾼 파일. 다른 MR 위에 얹혀 있으면 부모 끝 커밋 이후의 변경만 — 부모에서 물려받은
-    변경으로 생기는 충돌은 부모 MR 의 문제라 여기서 다시 묻지 않는다."""
-    return changed_files(parent_head or base, head)
+def own_base(head: str, target: str | None, parent_head: str | None = None) -> str | None:
+    """이 MR 이 **스스로** 바꾼 것을 재는 기준점.
+
+    ① 다른 MR 위에 얹혀 있으면 부모의 끝 커밋 — 그 위에서 한 것만 내 몫이다.
+    ② 아니면 **대상 브랜치와의 공통 조상** — GitLab 이 MR diff 를 보여 주는 기준과 같다.
+
+    쌍별 공통 조상(merge_base(내 끝, 상대 끝))을 기준으로 쓰면 안 된다. 상대 MR 이 오래된 지점에서
+    갈라졌을 때 그 사이 develop 에 머지된 **남의 커밋이 전부 '내 변경' 으로** 잡혀, 그 파일을 실제로
+    고친 MR 대신 애먼 MR 이 충돌로 지목된다(2026-08-31 오귀속 4건 실측: !97 5회 · !112 · !75 · !78).
+    돌려줄 기준을 못 찾으면 None — 호출부가 쌍별 공통 조상으로 물러난다."""
+    if parent_head:
+        return parent_head
+    if target and rev(f"origin/{target}"):
+        return merge_base(f"origin/{target}", head)
+    return None
 
 
-def compare(my_head: str, other_head: str, my_parent: str | None = None, other_parent: str | None = None) -> dict | None:
+def compare(my_head: str, other_head: str, my_base: str | None = None, other_base: str | None = None) -> dict | None:
     """두 끝 커밋을 비교한 결과. 공통 조상이 없으면 None.
-    충돌 파일 중 양쪽이 스스로 바꾼 파일만 남긴다(물려받은 충돌 제외)."""
+    충돌 파일 중 **양쪽이 스스로 바꾼** 파일만 남긴다(물려받은 변경 제외 — 기준점은 own_base 참고)."""
     base = merge_base(my_head, other_head)
     if not base:
         return None
-    mine, theirs = own_files(my_head, my_parent, base), own_files(other_head, other_parent, base)
+    mine, theirs = changed_files(my_base or base, my_head), changed_files(other_base or base, other_head)
     overlap = sorted(mine & theirs)
     conflicts = merge_conflicts(my_head, other_head) if overlap else []
     if conflicts:
@@ -264,19 +275,21 @@ def render_other(me: dict, other: dict, cmp: dict, ai: dict | None, i_am_newer: 
 def conflict_pairs(gl: GitLab, target: str = "develop") -> list[dict]:
     """열린 MR 전체를 서로 비교해 충돌·씬 겹침 쌍을 돌려준다(아침 점검). MR 시점 검사는 그 뒤 상황 변화를 모르므로 매일 새로 본다."""
     all_open = gl.open_mrs()
-    got = fetch_branches([m["source_branch"] for m in all_open])
+    got = fetch_branches([m["source_branch"] for m in all_open]
+                         + [m.get("target_branch") for m in all_open] + [target])
     for m in all_open:
         m["_head"] = rev(f"origin/{m['source_branch']}") if m["source_branch"] in got else None
     all_open = [m for m in all_open if m.get("_head")]
     mrs = [m for m in all_open if m.get("target_branch") == target]
     # 부모는 스택 중간 MR 까지 포함해 찾는다 — 물려받은 충돌을 정확히 걸러내기 위해
     parent_head = {m["iid"]: (pick_parent(m["_head"], [x for x in all_open if x is not m]) or {}).get("_head") for m in mrs}
+    own = {m["iid"]: own_base(m["_head"], m.get("target_branch"), parent_head[m["iid"]]) for m in mrs}
     pairs = []
     for i, a in enumerate(mrs):
         for b in mrs[i + 1:]:
             if a["_head"] == b["_head"] or is_ancestor(a["_head"], b["_head"]) or is_ancestor(b["_head"], a["_head"]):
                 continue                                     # 같은 끝이거나 서로 얹힌 관계 — 충돌 대상이 아니다
-            cmp = compare(a["_head"], b["_head"], parent_head[a["iid"]], parent_head[b["iid"]])
+            cmp = compare(a["_head"], b["_head"], own[a["iid"]], own[b["iid"]])
             if cmp and cmp["kind"] in ("conflict", "risky"):
                 first, second = older_first(a, b)
                 pairs.append({"first": first, "second": second, "cmp": cmp})
@@ -314,7 +327,8 @@ def main() -> int:
         gl.upsert_note(MARKER, render_mine(me, [], None))
         return rep.finish()
 
-    got = fetch_branches([m["source_branch"] for m in open_mrs])
+    got = fetch_branches([m["source_branch"] for m in open_mrs]
+                         + [m.get("target_branch") for m in open_mrs] + [target])
     for m in open_mrs:
         m["_head"] = rev(f"origin/{m['source_branch']}") if m["source_branch"] in got else None
     others = [m for m in others if m.get("_head")]
@@ -339,7 +353,8 @@ def main() -> int:
     elif parent:
         rep.ok(f"이 MR 은 !{parent['iid']}({parent['source_branch']}) 위에 얹혀 있음 — 대상 {target}")
 
-    # ①② 쌍 비교
+    # ①② 쌍 비교. '자기 변경' 기준은 부모 끝 커밋 또는 대상 브랜치와의 공통 조상(own_base 참고)
+    my_base = own_base(my_head, target, parent["_head"] if parent else None)
     results = []
     max_ai = env_int("MR_OVERLAP_AI_PAIRS", 3)
     for o in others:
@@ -350,7 +365,8 @@ def main() -> int:
         if is_ancestor(my_head, o["_head"]):
             rep.ok(f"!{o['iid']} 가 이 MR 위에 얹혀 있음 — 그쪽이 나중에 머지"); continue
         o_parent = pick_parent(o["_head"], [x for x in parents_pool if x is not o])   # 상대도 누군가 위에 얹혀 있을 수 있다
-        cmp = compare(my_head, o["_head"], parent["_head"] if parent else None, o_parent["_head"] if o_parent else None)
+        o_base = own_base(o["_head"], o.get("target_branch"), o_parent["_head"] if o_parent else None)
+        cmp = compare(my_head, o["_head"], my_base, o_base)
         if not cmp or cmp["kind"] == "none":
             continue
         if cmp["conflicts_unknown"]:

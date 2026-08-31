@@ -2,7 +2,8 @@
 
 실행: python scripts/ci/tests/test_mr_overlap.py
 경우: 다른 MR 없음 · 나중 MR 이 텍스트 충돌(❌ + 양쪽 코멘트) · 먼저 MR 이 충돌(⚠만) ·
-     씬 파일 겹침(⚠ risky) · 스택(대상 자동 전환) · 아침 점검 쌍 계산
+     씬 파일 겹침(⚠ risky) · 스택(대상 자동 전환) · 아침 점검 쌍 계산 ·
+     물려받은 develop 변경 오귀속 회귀(-188: 상대 MR 이 옛 지점에서 갈라진 경우)
 """
 import json
 import os
@@ -55,6 +56,19 @@ def build_repo(root):
     branch("S15P21B202-6-s", {"s.txt": "s\n"}, base="S15P21B202-1-a")        # A 위에 얹힘
     branch("S15P21B202-7-s2", {"other.txt": "s2\n"}, base="S15P21B202-1-a")  # A 위에 얹혔지만 C 와 other.txt 충돌
     branch("S15P21B202-8-s3", {"s3.txt": "s3\n"}, base="S15P21B202-6-s")     # S(중간) 위에 다시 얹힘 — 가장 가까운 부모 검증용
+
+    # 오귀속 회귀용(-188): OLD 는 옛 develop 에서 갈라져 inherit.txt 를 고쳤고, 그 뒤 develop 이 같은
+    # 파일을 다르게 고쳤다. 쌍별 공통 조상을 기준으로 재면 그 develop 변경이 나중 MR 의 변경으로 잡혀 오탐이 난다.
+    def develop_commit(path, text, msg):
+        g("switch", "-q", "develop")
+        write(work, path, text)
+        g("add", "-A"); g("commit", "-qm", msg); g("push", "-q", "origin", "develop")
+
+    develop_commit("inherit.txt", "v1\n", "inherit v1")
+    branch("S15P21B202-20-old", {"inherit.txt": "old-mr\n"})                 # 옛 지점에서 갈라짐
+    develop_commit("inherit.txt", "v2-from-develop\n", "inherit v2 (develop)")
+    branch("S15P21B202-21-newbase", {"newbase.txt": "n\n"})                  # 새 develop 기준, inherit.txt 안 건드림
+    branch("S15P21B202-22-real", {"inherit.txt": "real-conflict\n"})         # 새 develop 기준, 같은 파일을 고침
     return work
 
 
@@ -183,6 +197,29 @@ def _main(root: str) -> int:
         got = f.puts[0].get("target_branch")
         assert got == "S15P21B202-6-s", f"가장 가까운 부모가 아니라 {got} 로 재대상됐다"
         print("  스택 중간 MR 이 있어도 가장 가까운 부모로 재대상")
+
+        # 11) 오귀속 회귀(-188): 상대 MR 이 옛 지점에서 갈라지고 그 사이 develop 이 같은 파일을 고친 경우 —
+        #     물려받은 develop 변경을 내 변경으로 세면 애먼 MR 이 충돌로 지목된다(!97·!112·!75·!78 실측)
+        OLD = mr(20, "S15P21B202-20-old", "2026-08-28T09:00:00Z")
+        NB = mr(21, "S15P21B202-21-newbase", "2026-08-28T17:00:00Z")
+        os.chdir(work)
+        h_nb = sh("git", "rev-parse", "origin/S15P21B202-21-newbase", cwd=work)
+        h_old = sh("git", "rev-parse", "origin/S15P21B202-20-old", cwd=work)
+        pair_base = M.merge_base(h_nb, h_old)
+        assert "inherit.txt" in M.changed_files(pair_base, h_nb), \
+            "회귀 조건이 재현되지 않았다(쌍별 기준에서는 물려받은 변경이 보여야 한다)"
+        assert "inherit.txt" not in M.changed_files(M.own_base(h_nb, "develop"), h_nb), \
+            "대상 브랜치 기준에서는 내 변경이 아니어야 한다"
+        rc, f = run(work, NB, [OLD], "S15P21B202-21-newbase")
+        assert rc == 0, f"물려받은 변경으로 오탐: {f.notes.get(21)}"
+        print("  옛 지점 상대 MR → 물려받은 develop 변경을 내 것으로 오귀속하지 않음")
+
+        # 12) 같은 조건에서 진짜 충돌(내가 그 파일을 직접 고침)은 그대로 잡는다
+        REAL = mr(22, "S15P21B202-22-real", "2026-08-28T18:00:00Z")
+        rc, f = run(work, REAL, [OLD], "S15P21B202-22-real")
+        assert rc == 1, rc
+        assert "inherit.txt" in f.notes[22][-1], f.notes.get(22)
+        print("  같은 조건에서 진짜 충돌은 실패 판정 유지")
 
         # 8) merge-tree 파서 직접
         assert M.merge_conflicts("origin/S15P21B202-1-a", "origin/S15P21B202-3-c") == []
