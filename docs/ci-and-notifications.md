@@ -106,6 +106,7 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 - **default branch 실패는 가장 강한 알림이 필요한데 아무도 mention 되지 않았다**(2026-08-04, 20분 방치) → GitLab MM 통합의 Pipeline 이벤트는 켜 두고, develop 실패는 다이제스트에도 포함할 것(후속).
 - **GitLab 내장 MM Pipeline 알림을 all branches 로 두면 MR 파이프라인 자동 취소가 "failed" 로 통보돼 노이즈** → 내장 알림은 default branch 로 한정(체크리스트 §5 반영).
 - **PowerShell 5.1 러너의 한글 변수 파손**은 이번 프로젝트에서 새로 겪은 것(Linux Docker 러너였던 지난 프로젝트엔 없음) → pwsh 필수.
+- **테스트 없는 알림 항목은 조용히 죽는다**(2026-08-31 실측) — 아침 점검의 `🌿 머지 뒤 다시 생긴 브랜치` 는 `resurrected_branches()` 가 표 행을 만들고도 **반환하지 않아** 도입(-110) 이후 한 번도 나가지 않았다. 호출부가 `if res:` 로 판단하므로 오류도 없이 항목만 사라진다. 미룬 테스트를 옮기다가 잡혔다(-133) → **알림 항목을 만들면 그 자리에서 오프라인 테스트를 같이 만든다.**
 - 리뷰 결과는 사실 검증 전까지 증거가 아니다 — 지난 프로젝트도 Medium/Low 는 참고, Critical/High 만 차단으로 썼다. 우리는 전부 참고(비차단)이며 판단은 팀장.
 ## 6. 앞으로
 - 파이프라인 필수(Settings → Merge requests → Pipelines must succeed)는 mr-lint·repo-hygiene 이 1주 안정화된 뒤 켠다 — 그 전에는 빨간불을 팀장이 보고 머지 여부 판단
