@@ -23,6 +23,8 @@ namespace Metagame.Core
         public bool ArmsUp;       // 두 팔을 위로 (기어오를 때)
         public bool FreeLook;     // Alt — 조작은 그대로 두고 시점만 자유롭게 돌린다
         public bool TabletToggle; // Tab
+        public bool TabletPreviousPage; // ← 또는 A — 태블릿 이전 페이지
+        public bool TabletNextPage;     // → 또는 D — 태블릿 다음 페이지
         public bool Restart;
     }
 
@@ -58,6 +60,10 @@ namespace Metagame.Core
         public static KeyCode TransportAction = KeyCode.E; // 운반 장치 탑승 / 하차
         public static KeyCode Tablet = KeyCode.Tab;
         public static KeyCode Help = KeyCode.Tab;
+        public static KeyCode TabletPreviousPage = KeyCode.LeftArrow;
+        public static KeyCode TabletNextPage = KeyCode.RightArrow;
+        public static KeyCode TabletPreviousPageAlternate = KeyCode.A;
+        public static KeyCode TabletNextPageAlternate = KeyCode.D;
         public static KeyCode FreeCursor = KeyCode.Escape;
 
         public static InputFrame Read()
@@ -77,6 +83,10 @@ namespace Metagame.Core
             f.ArmsUp = Input.GetKey(ArmsUp);
             f.FreeLook = Input.GetKey(FreeLook) || Input.GetKey(KeyCode.RightAlt);
             f.TabletToggle = Input.GetKeyDown(Tablet);
+            f.TabletPreviousPage = Input.GetKeyDown(TabletPreviousPage)
+                                   || Input.GetKeyDown(TabletPreviousPageAlternate);
+            f.TabletNextPage = Input.GetKeyDown(TabletNextPage)
+                               || Input.GetKeyDown(TabletNextPageAlternate);
             f.Restart = Input.GetKeyDown(Restart);
             return f;
         }

@@ -17,6 +17,7 @@ namespace Metagame.Gameplay
     public sealed class Stage1Exploration : MonoBehaviour
     {
         public const int RequiredPartCount = 4;
+        public const int TabletPageCount = 4;
         public const float DefaultDiscoveryRadius = 4.5f;
         const float DefaultNoticeSeconds = 3f;
 
@@ -99,11 +100,13 @@ namespace Metagame.Gameplay
         public int DiscoveredCount { get; private set; }
         public bool IsComplete => DiscoveredCount >= RequiredPartCount;
         public bool TabletOpen { get; private set; }
+        public int TabletPage { get; private set; }
         public float DiscoveryRadius => _discoveryRadius;
         public string DiscoveryNotice { get; private set; }
         public bool HasActiveNotice => !string.IsNullOrEmpty(DiscoveryNotice) && Time.time < _noticeUntil;
         public event Action<PartInfo> PartDiscovered;
         public event Action<bool> TabletStateChanged;
+        public event Action<int> TabletPageChanged;
 
         /// <summary>
         /// 씬에 배치된 파츠를 Part_1~Part_4 순서로 카탈로그 정의에 연결한다.
@@ -183,6 +186,16 @@ namespace Metagame.Gameplay
             SetTabletOpen(!TabletOpen);
         }
 
+        public void PreviousTabletPage()
+        {
+            SetTabletPage(TabletPage - 1);
+        }
+
+        public void NextTabletPage()
+        {
+            SetTabletPage(TabletPage + 1);
+        }
+
         public void SetTabletOpen(bool open)
         {
             if (TabletOpen == open) return;
@@ -198,11 +211,22 @@ namespace Metagame.Gameplay
             DiscoveryNotice = string.Empty;
             _noticeUntil = 0f;
 
+            SetTabletPage(0);
+
             foreach (var info in _parts)
                 if (info != null)
                     info.Reset();
 
             SetTabletOpen(false);
+        }
+
+        void SetTabletPage(int page)
+        {
+            var next = Mathf.Clamp(page, 0, TabletPageCount - 1);
+            if (TabletPage == next) return;
+
+            TabletPage = next;
+            TabletPageChanged?.Invoke(TabletPage);
         }
 
         public string CurrentHint
