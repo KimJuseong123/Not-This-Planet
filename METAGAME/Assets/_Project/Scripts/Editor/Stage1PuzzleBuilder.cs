@@ -63,6 +63,13 @@ namespace Metagame.EditorTools
         const float ClampRadius = 0.35f;
         const float WeldRadius = 0.30f;
 
+        /// <summary>
+        /// 출입문 상호작용 부피. 높이는 엔진 모듈(2.16m) 중간쯤이고, 반지름은 완성된
+        /// 우주선의 밑동 옆에 서서 누를 수 있을 만큼이다.
+        /// </summary>
+        const float HatchHeight = 1.1f;
+        const float HatchRadius = 1.6f;
+
         [MenuItem("Tools/둥실둥실 우주 대탈출/Main 씬에 1장 퍼즐 배치", false, 3)]
         public static void Build()
         {
@@ -82,9 +89,7 @@ namespace Metagame.EditorTools
             var group = new GameObject(GroupName).transform;
             group.SetParent(gameplay, false);
 
-            var marker = new GameObject("AssemblyPoint").transform;
-            marker.SetParent(group, false);
-            marker.localPosition = AssemblyPoint;
+            var marker = BuildLaunchPad(group);
 
             // 파츠 수는 명세가 정한다. 배치 좌표가 모자라면 명세를 못 채우므로 함께 확인한다.
             var count = Mathf.Min(PartSpec.All.Length, PartSpots.Length);
@@ -103,6 +108,41 @@ namespace Metagame.EditorTools
             EditorSceneManager.SaveScene(scene);
 
             Debug.Log($"[Stage1Puzzle] 배치 완료 — 파츠 {parts.Length}기, 빔 {beams.Length}기 → {ScenePath}");
+        }
+
+        /// <summary>
+        /// 조립·발사 위치. 완성 판정과 하중 시험, 출입문이 여기 붙는다.
+        ///
+        /// 이름을 <c>AssemblyPoint</c> 로 유지한다 — <see cref="Stage1SkinBuilder"/> 가 이
+        /// 이름으로 찾아 주변을 비워 둔다. 예전에는 좌표만 표시하는 빈 오브젝트였고,
+        /// 그래서 우주선을 완성해도 발사할 방법이 없었다. <see cref="LaunchTest"/> 는
+        /// S15P21B202-195 에서 만들었지만 <c>Begin</c> 을 부르는 곳이 없었다.
+        ///
+        /// 문을 파츠가 아니라 발사대에 붙이는 이유는 파츠가 움직이기 때문이다. 출입문은
+        /// "완성된 우주선이 서 있는 자리" 의 상호작용 부피이고, 실제 문 메시와 열림 연출은
+        /// [Art] 의 몫이다(기획 §22.1 후반).
+        /// </summary>
+        static Transform BuildLaunchPad(Transform group)
+        {
+            var pad = new GameObject("AssemblyPoint").transform;
+            pad.SetParent(group, false);
+            pad.localPosition = AssemblyPoint;
+
+            var assembly = pad.gameObject.AddComponent<ShipAssembly>();
+            assembly.Configure(pad);
+
+            var launch = pad.gameObject.AddComponent<LaunchTest>();
+
+            var hatchGo = new GameObject("Hatch") { layer = GameLayers.Interactable };
+            hatchGo.transform.SetParent(pad, false);
+            hatchGo.transform.localPosition = Vector3.up * HatchHeight;
+
+            var sphere = hatchGo.AddComponent<SphereCollider>();
+            sphere.radius = HatchRadius;
+            sphere.isTrigger = true;
+
+            hatchGo.AddComponent<ShipHatch>().Configure(assembly, launch);
+            return pad;
         }
 
         /// <summary>

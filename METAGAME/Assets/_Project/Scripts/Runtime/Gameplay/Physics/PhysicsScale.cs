@@ -155,6 +155,27 @@ namespace Metagame.Gameplay
         /// <summary>엔진 출력이 0에서 100%까지 오르는 시간(s). 기획의 "5초 동안".</summary>
         public const float LaunchRampSeconds = 5f;
 
+        /// <summary>전원이 탑승한 뒤 발사까지의 카운트다운(s). 기획 §22.3 의 "3초".</summary>
+        public const float LaunchCountdownSeconds = 3f;
+
+        /// <summary>
+        /// 발사 구역 반경(m).
+        ///
+        /// 기획 §8.1 은 "엔진 모듈 전체가 원형 구역 안에 들어오면 그 위에 조립할 수 있다" 고
+        /// 한다. Stage1SkinBuilder 가 조립 위치 주변 키아웃 반경으로 9m 를 쓰고 있어 그에
+        /// 맞췄다 — 두 값이 다르면 "자연물이 없는데 조립이 안 되는" 자리가 생긴다.
+        /// </summary>
+        public const float LaunchPadRadius = 9f;
+
+        /// <summary>
+        /// 탑승을 허용하는 최대 기울기(도). 기획 §22.1 "우주선이 탑승 가능한 정도로 서 있다".
+        ///
+        /// 발사 시험의 <see cref="LaunchMaxStandingTilt"/>(12도)보다 너그럽게 둔다. 탑승은
+        /// 되지만 하중 시험에서 떨어지는 구간이 있어야 §16.2 의 "발사 하중으로 품질을
+        /// 검증한다" 가 성립한다. 탑승 조건이 더 엄하면 시험이 판정할 것이 없다.
+        /// </summary>
+        public const float BoardingMaxTilt = 20f;
+
         /// <summary>
         /// 100% 출력에서의 추력을 탑 전체 무게의 몇 배로 줄지.
         ///

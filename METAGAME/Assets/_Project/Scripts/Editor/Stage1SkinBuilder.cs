@@ -515,7 +515,9 @@ namespace Metagame.EditorTools
             }
 
             var assembly = puzzle.Find("AssemblyPoint");
-            if (assembly != null) list.Add((Flat(assembly.position), 9f));
+            // 발사 구역 반지름과 같은 값이어야 한다. 비워 두는 범위가 판정 범위보다
+            // 좁으면 발사 구역 안에 지형이 들어온다.
+            if (assembly != null) list.Add((Flat(assembly.position), PhysicsScale.LaunchPadRadius));
 
             var spawn = FindByPath(scene, "Stage1/Gameplay/SpawnPoints/PlayerSpawn");
             if (spawn != null) list.Add((Flat(spawn.position), 6f));
