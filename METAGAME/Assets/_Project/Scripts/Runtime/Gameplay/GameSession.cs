@@ -89,6 +89,10 @@ namespace Metagame.Gameplay
                     f.Look = Vector2.zero;
                     f.GrabLeft = false;
                     f.GrabRight = false;
+                    f.ToolAction = false;
+                    f.ToolPrimary = false;
+                    f.ToolSecondary = false;
+                    f.ToolUtility = false;
                     f.TransportAction = false;
                     f.FreeLook = false;
                 }
@@ -102,6 +106,9 @@ namespace Metagame.Gameplay
                     f.GrabLeft = false;
                     f.GrabRight = false;
                     f.ToolAction = false;
+                    f.ToolPrimary = false;
+                    f.ToolSecondary = false;
+                    f.ToolUtility = false;
                     f.TransportAction = false;
                     f.ArmsUp = false;
                     f.FreeLook = false;
@@ -122,6 +129,10 @@ namespace Metagame.Gameplay
                         f.Run = false;
                         f.GrabLeft = false;
                         f.GrabRight = false;
+                        f.ToolAction = false;
+                        f.ToolPrimary = false;
+                        f.ToolSecondary = false;
+                        f.ToolUtility = false;
                         f.ArmsUp = false;
                     }
                 }

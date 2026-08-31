@@ -62,6 +62,7 @@ namespace Metagame.Bootstrap
             yield return LowGravityJump();
             yield return Grabbing();
             yield return Carrying();
+            yield return PlasmaTool();
             yield return CourseMath();
             yield return FreeLookCamera();
             yield return Machines();
@@ -406,6 +407,102 @@ namespace Metagame.Bootstrap
                   "무거운 고정물의 상승량이 가벼운 도구보다 크지 않다 (차이 "
                   + (heavyRise - lightRise).ToString("0.00") + "m)");
             Check(carryStanding || carryFixed, "무거운 물체를 짚어도 플레이어 상태가 유지된다");
+        }
+
+        IEnumerator PlasmaTool()
+        {
+            rig.Teleport(Pad, Quaternion.LookRotation(Vector3.right, Vector3.up));
+            rig.Cam.Yaw = 90f;
+            rig.Cam.Pitch = 0f;
+            rig.SetInput(new InputFrame());
+            yield return new WaitForSeconds(1.0f);
+
+            var plasma = Object.FindAnyObjectByType<PlasmaWeldingTool>();
+            Check(plasma != null, "플라즈마 용접기 도구 베이스가 연결돼 있다");
+            if (plasma == null) yield break;
+
+            var body = plasma.GetComponent<Rigidbody>();
+            var previousInterpolation = body != null ? body.interpolation : RigidbodyInterpolation.None;
+            Vector3 spawn = rig.Doll.Right.ShoulderAnchor.position + Vector3.right * Tuning.ArmReach;
+            plasma.transform.SetPositionAndRotation(spawn, Quaternion.LookRotation(Vector3.right, Vector3.up));
+            if (body != null)
+            {
+                body.linearVelocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+            }
+
+            var pick = new InputFrame { GrabLeft = true };
+            rig.SetInput(pick);
+            yield return new WaitForSeconds(0.8f);
+            Check(rig.HeldTool == plasma.GetComponent<Grabbable>(), "플라즈마 용접기를 집었다");
+            Check(rig.ActiveTool == plasma, "PlayerRig가 ToolBase를 통해 현재 도구를 노출한다");
+            Check(body != null && body.isKinematic, "장착 중 도구는 키네마틱이다");
+            Check(body != null && body.interpolation == RigidbodyInterpolation.Interpolate,
+                  "장착 중 도구는 보간된다");
+
+            // 집기 클릭은 도구 기능으로 소비한다. 버튼을 먼저 놓아야 기능 입력을 시작한다.
+            rig.SetInput(new InputFrame());
+            yield return new WaitForSeconds(0.2f);
+
+            Vector3 beamDirection = rig.Cam.AimDirection.sqrMagnitude > 1e-4f
+                ? rig.Cam.AimDirection.normalized
+                : Vector3.forward;
+            Vector3 wallUp = Mathf.Abs(Vector3.Dot(beamDirection, Vector3.up)) > 0.98f
+                ? Vector3.right
+                : Vector3.up;
+            var wall = Prim.Box("도구 빔 검사용 벽", plasma.Muzzle.position + beamDirection * 0.35f,
+                                new Vector3(0.25f, 0.25f, 0.06f), new Color(0.2f, 0.2f, 0.2f), 0.2f);
+            wall.transform.rotation = Quaternion.LookRotation(beamDirection, wallUp);
+            wall.layer = GameLayers.BeamQuery;
+
+            var weld = new InputFrame { ToolPrimary = true };
+            rig.SetInput(weld);
+            yield return new WaitForSeconds(0.2f);
+            Check(plasma.BeamMode == PlasmaBeamMode.Weld && plasma.BeamActive,
+                  "좌클릭 유지로 용접 빔이 켜진다");
+            Check(Vector3.Distance(plasma.Muzzle.position, plasma.BeamEnd) < Tuning.ToolBeamRange - 0.05f,
+                  "용접 빔이 콜라이더 앞에서 멈춘다");
+
+            var cut = new InputFrame { ToolSecondary = true };
+            rig.SetInput(cut);
+            yield return new WaitForSeconds(0.2f);
+            Check(plasma.BeamMode == PlasmaBeamMode.Cut && plasma.BeamActive,
+                  "우클릭 유지로 절단 빔이 켜진다");
+            Check(plasma.CurrentBeamColor != new Color(0.08f, 0.75f, 1f, 1f),
+                  "절단 빔은 용접 빔과 다른 색상이다");
+
+            rig.SetInput(new InputFrame());
+            yield return new WaitForSeconds(0.2f);
+            Check(!plasma.BeamActive, "도구 버튼을 놓으면 빔이 사라진다");
+
+            Vector3 previous = body != null ? body.position : Vector3.zero;
+            float largestStep = 0f;
+            var move = new InputFrame { Move = new Vector2(0f, 1f) };
+            rig.SetInput(move);
+            for (int i = 0; i < 60; i++)
+            {
+                yield return new WaitForFixedUpdate();
+                if (body == null) continue;
+                largestStep = Mathf.Max(largestStep, Vector3.Distance(previous, body.position));
+                previous = body.position;
+            }
+            Check(largestStep < 0.20f,
+                  "도구 이동이 보간되어 한 물리 틱의 이동량이 안정적이다 (최대 "
+                  + largestStep.ToString("0.000") + "m)");
+            Check(rig.Doll.Hips.position.y < Pad.y + 2.5f,
+                  "도구를 든 채 플레이어가 비정상적으로 날아가지 않는다");
+
+            // Q 짧게 누르고 놓아 도구를 내려놓는다.
+            rig.SetInput(new InputFrame { ToolAction = true, ToolUtility = true });
+            yield return new WaitForFixedUpdate();
+            rig.SetInput(new InputFrame());
+            yield return new WaitForSeconds(0.25f);
+            Check(rig.ActiveTool == null, "Q를 놓으면 도구가 해제된다");
+            Check(body != null && body.interpolation == previousInterpolation,
+                  "도구 해제 후 원래 보간 설정이 복구된다");
+
+            Object.Destroy(wall);
+            yield return new WaitForSeconds(0.2f);
         }
 
         IEnumerator PullTest(string label, float mass)

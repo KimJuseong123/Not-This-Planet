@@ -15,11 +15,34 @@ namespace Metagame.Core
         public bool GrabLeft;     // 좌클릭 — 왼팔
         public bool GrabRight;    // 우클릭 — 오른팔
         public bool ToolAction;   // Q — 도구를 놓거나 충전해서 던진다
+        // 도구가 장착된 동안 사용하는 의미 입력. 물리 키 매핑은 이 파일에만 둔다.
+        public bool ToolPrimary;  // 현재는 좌클릭 — 도구 주 기능
+        public bool ToolSecondary;// 현재는 우클릭 — 도구 보조 기능
+        public bool ToolUtility;  // 현재는 Q — 공통 장비 동작과 호환
         public bool TransportAction; // E — 운반 장치 탑승 / 하차
         public bool ArmsUp;       // 두 팔을 위로 (기어오를 때)
         public bool FreeLook;     // Alt — 조작은 그대로 두고 시점만 자유롭게 돌린다
         public bool TabletToggle; // Tab
         public bool Restart;
+    }
+
+    /// <summary>
+    /// 장착된 도구에 전달하는 의미 입력. 도구는 Unity Input API를 직접 읽지 않고
+    /// 이 구조체만 받아 장비별 동작을 구현한다.
+    /// </summary>
+    public struct ToolInputFrame
+    {
+        public bool PrimaryHeld;
+        public bool SecondaryHeld;
+        public bool UtilityHeld;
+
+        public bool PrimaryPressed;
+        public bool SecondaryPressed;
+        public bool UtilityPressed;
+
+        public bool PrimaryReleased;
+        public bool SecondaryReleased;
+        public bool UtilityReleased;
     }
 
     /// <summary>입력 매핑을 한 곳에 (Legacy Input Manager).</summary>
@@ -47,6 +70,9 @@ namespace Metagame.Core
             f.GrabLeft = Input.GetMouseButton(0);
             f.GrabRight = Input.GetMouseButton(1);
             f.ToolAction = Input.GetKey(ToolAction);
+            f.ToolPrimary = f.GrabLeft;
+            f.ToolSecondary = f.GrabRight;
+            f.ToolUtility = f.ToolAction;
             f.TransportAction = Input.GetKeyDown(TransportAction);
             f.ArmsUp = Input.GetKey(ArmsUp);
             f.FreeLook = Input.GetKey(FreeLook) || Input.GetKey(KeyCode.RightAlt);

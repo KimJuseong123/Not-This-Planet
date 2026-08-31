@@ -102,12 +102,60 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void LockedPart_IsKinematic_SoHandsSkipItRegardlessOfMass()
         {
-            // PlayerRig 의 IsUsableTool 은 kinematic 물체를 도구로 취급하지 않는다.
+            // PlayerRig 의 도구 경로는 동적 Rigidbody가 있는 도구만 받는다.
             // Climbable 가드와 별개로 고정된 파츠는 이 조건에서도 걸러진다.
             var part = CreatePart();
 
             Assert.AreEqual(PartState.Locked, part.State);
             Assert.IsTrue(part.GetComponent<Rigidbody>().isKinematic);
+        }
+
+        [Test]
+        public void GrabbableRole_DefaultsToTransport()
+        {
+            var go = new GameObject("Transport");
+            _spawned.Add(go);
+
+            var grabbable = Grabbable.Mark(go, "운반물");
+
+            Assert.AreEqual(GrabbableRole.Transport, grabbable.Role);
+            Assert.IsTrue(grabbable.IsTransport);
+            Assert.IsFalse(grabbable.IsTool);
+        }
+
+        [Test]
+        public void GrabbableRole_ToolUsesExplicitToolClassification()
+        {
+            var go = new GameObject("Tool");
+            _spawned.Add(go);
+
+            var grabbable = Grabbable.Mark(go, "도구", role: GrabbableRole.Tool);
+
+            Assert.AreEqual(GrabbableRole.Tool, grabbable.Role);
+            Assert.IsTrue(grabbable.IsTool);
+        }
+
+        [Test]
+        public void ToolBrace_UsesFixedGripInsteadOfTransportState()
+        {
+            var handObject = new GameObject("Hand");
+            var handBody = handObject.AddComponent<Rigidbody>();
+            var hand = handObject.AddComponent<Hand>();
+            hand.Body = handBody;
+            _spawned.Add(handObject);
+
+            var toolObject = new GameObject("Tool");
+            toolObject.AddComponent<BoxCollider>();
+            var toolBody = toolObject.AddComponent<Rigidbody>();
+            var tool = toolObject.AddComponent<Grabbable>();
+            _spawned.Add(toolObject);
+
+            Assert.IsTrue(hand.BraceTo(tool, toolBody));
+            Assert.IsTrue(hand.Gripping);
+            Assert.IsFalse(hand.Carrying);
+            Assert.AreSame(toolBody, hand.HeldBody);
+            Assert.IsNull(hand.GetComponent<FixedJoint>(),
+                "도구는 논리 고정 그립이어야 하며 물리 FixedJoint를 만들면 안 된다.");
         }
 
         SpaceshipPart CreatePart()
