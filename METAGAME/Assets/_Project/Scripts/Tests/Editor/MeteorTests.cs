@@ -245,7 +245,7 @@ namespace Metagame.Gameplay.Tests
             SocketTestRig.Placed(_spawned, origin);
 
             var upper = SocketTestRig.Freed(
-                _spawned, origin + Vector3.up * (PhysicsScale.PartHeight + 0.3f));
+                _spawned, origin + Vector3.up * (PhysicsScale.PartHeight + SocketTestRig.StackGap));
 
             var points = new WeldPoint[4];
             for (var i = 0; i < points.Length; i++) points[i] = AddWeldPoint(upper, i);

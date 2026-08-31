@@ -21,9 +21,14 @@ namespace Metagame.Gameplay.Parts
         /// ID 는 머신마다 다르게 배정되어 4인이 각자 다른 후보를 고를 수 있기 때문이다.
         /// </summary>
         public static SocketMatch FindMatch(SpaceshipPart moving) =>
-            FindMatch(moving, PhysicsScale.SnapDistance, PhysicsScale.SnapAngleDegrees);
+            FindMatch(moving, PhysicsScale.WeldCenterTolerance,
+                      PhysicsScale.WeldGapTolerance, PhysicsScale.WeldTiltToleranceDegrees);
 
-        public static SocketMatch FindMatch(SpaceshipPart moving, float snapDistance, float snapAngleDegrees)
+        /// <param name="centerTolerance">접합면을 따라 <b>옆으로</b> 어긋나도 되는 거리.</param>
+        /// <param name="gapTolerance">접합면 법선 방향으로 <b>위아래로</b> 벌어져도 되는 거리.</param>
+        /// <param name="tiltToleranceDegrees">두 접합면이 마주보는 각도의 오차 한계.</param>
+        public static SocketMatch FindMatch(SpaceshipPart moving, float centerTolerance,
+                                            float gapTolerance, float tiltToleranceDegrees)
         {
             if (moving == null) return SocketMatch.None;
 
@@ -40,16 +45,15 @@ namespace Metagame.Gameplay.Parts
                     if (target == null || !target.CanReceive) continue;
                     if (target.Owner == moving) continue;
 
-                    var distance = Vector3.Distance(movingSocket.transform.position, target.transform.position);
-                    if (distance > snapDistance) continue;
-
                     // 두 접합면은 서로 마주봐야 한다. 즉 forward 가 정반대여야 한다.
-                    var angle = Vector3.Angle(movingSocket.transform.forward, -target.transform.forward);
-                    if (angle > snapAngleDegrees) continue;
+                    var tilt = Vector3.Angle(movingSocket.transform.forward, -target.transform.forward);
+                    if (tilt > tiltToleranceDegrees) continue;
 
-                    var (position, rotation) = Snapped(moving, movingSocket, target);
-                    var candidate = new SocketMatch(movingSocket, target, position, rotation, distance, angle);
+                    var (center, gap) = Offsets(movingSocket, target);
+                    if (center > centerTolerance) continue;
+                    if (gap > gapTolerance) continue;
 
+                    var candidate = new SocketMatch(movingSocket, target, center, gap, tilt);
                     if (IsBetter(candidate, best)) best = candidate;
                 }
             }
@@ -58,30 +62,23 @@ namespace Metagame.Gameplay.Parts
         }
 
         /// <summary>
-        /// 옮기는 소켓이 대상 소켓에 정확히 맞물리도록 파츠를 놓을 자세를 계산한다.
+        /// 두 접합면의 어긋남을 <b>옆</b>과 <b>위아래</b>로 나눠 잰다.
         ///
-        /// 파츠는 localScale 이 1 이 아니므로 로컬 좌표로 오프셋을 다루면 스케일이 두 번 곱해진다.
-        /// 월드 오프셋을 회전 변화량만큼 돌리는 방식으로 계산해 스케일과 무관하게 만들었다.
+        /// 3차원 거리 하나로 재면 두 가지를 구분하지 못한다. 옆으로 0.5m 어긋난 것과 위아래로
+        /// 0.5m 뜬 것은 거리가 같지만, 앞은 접합선이 이어지고 뒤는 이어지지 않는다.
+        /// 기준면은 받는 소켓의 forward 다 — 옮기는 쪽은 기울어 있을 수 있어 기준이 못 된다.
         /// </summary>
-        static (Vector3 Position, Quaternion Rotation) Snapped(
-            SpaceshipPart moving, PartSocket movingSocket, PartSocket target)
+        static (float Center, float Gap) Offsets(PartSocket movingSocket, PartSocket target)
         {
-            var partTransform = moving.transform;
-            var socketTransform = movingSocket.transform;
+            var normal = target.transform.forward;
+            var delta = movingSocket.transform.position - target.transform.position;
 
-            // 맞물린 뒤 옮기는 소켓이 가져야 할 세계 회전.
-            var desiredSocketRotation = Quaternion.LookRotation(
-                -target.transform.forward, target.transform.up);
+            var gap = Mathf.Abs(Vector3.Dot(delta, normal));
+            var center = Vector3.ProjectOnPlane(delta, normal).magnitude;
 
-            var socketLocalRotation = Quaternion.Inverse(partTransform.rotation) * socketTransform.rotation;
-            var partRotation = desiredSocketRotation * Quaternion.Inverse(socketLocalRotation);
-
-            var deltaRotation = partRotation * Quaternion.Inverse(partTransform.rotation);
-            var socketOffset = socketTransform.position - partTransform.position;
-            var partPosition = target.transform.position - deltaRotation * socketOffset;
-
-            return (partPosition, partRotation);
+            return (center, gap);
         }
+
 
         static bool IsBetter(SocketMatch candidate, SocketMatch best)
         {
@@ -89,11 +86,15 @@ namespace Metagame.Gameplay.Parts
 
             const float epsilon = 0.001f;
 
-            if (candidate.Distance < best.Distance - epsilon) return true;
-            if (candidate.Distance > best.Distance + epsilon) return false;
+            // 옆으로 덜 어긋난 쪽, 그다음 덜 뜬 쪽, 그다음 덜 기운 쪽이 낫다.
+            if (candidate.CenterOffset < best.CenterOffset - epsilon) return true;
+            if (candidate.CenterOffset > best.CenterOffset + epsilon) return false;
 
-            if (candidate.AngleDegrees < best.AngleDegrees - epsilon) return true;
-            if (candidate.AngleDegrees > best.AngleDegrees + epsilon) return false;
+            if (candidate.Gap < best.Gap - epsilon) return true;
+            if (candidate.Gap > best.Gap + epsilon) return false;
+
+            if (candidate.TiltDegrees < best.TiltDegrees - epsilon) return true;
+            if (candidate.TiltDegrees > best.TiltDegrees + epsilon) return false;
 
             return ComparePosition(
                 candidate.TargetSocket.transform.position,
@@ -147,10 +148,17 @@ namespace Metagame.Gameplay.Parts
             var existing = moving.GetComponent<PartAssemblyLink>();
             if (existing != null) existing.Release();
 
-            moving.transform.SetPositionAndRotation(match.SnappedPosition, match.SnappedRotation);
+            // <b>파츠를 옮기지 않는다.</b> 올려놓은 자리와 각도 그대로 조인트를 건다.
+            //
+            // 예전에는 여기서 SetPositionAndRotation 으로 자세를 맞춰 줬다. 그러면 비뚤어진
+            // 적층이 존재할 수 없고, 기획(S15P21B202-107 §15.1)이 요구하는 "잘못 올리면
+            // 기울거나 떨어진다" 가 성립하지 않는다. 발사 하중 시험(§22.3)도 항상 통과해
+            // 붕괴(§22.4)와 절단·재조립(§16.3)이 일어날 일이 없어진다.
+            //
+            // 속도만 지운다. 내려놓는 순간의 잔여 속도가 남으면 조인트가 걸리자마자
+            // 탑 전체를 흔든다.
             movingBody.linearVelocity = Vector3.zero;
             movingBody.angularVelocity = Vector3.zero;
-            UnityEngine.Physics.SyncTransforms();
 
             var joint = moving.gameObject.AddComponent<FixedJoint>();
             joint.connectedBody = targetBody;
