@@ -51,6 +51,7 @@ namespace Metagame.Gameplay
         float savedTargetHeight;
         float savedMinPitch;
         float savedMaxPitch;
+        float savedAimPitch;
         float currentDistance;
         Vector3 smoothFocus;
         bool focusReady;
@@ -125,6 +126,7 @@ namespace Metagame.Gameplay
                 savedTargetHeight = TargetHeight;
                 savedMinPitch = MinPitch;
                 savedMaxPitch = MaxPitch;
+                savedAimPitch = aimPitch;   // 탑승 중 0 으로 눕히므로 원래 값을 들고 있어야 한다
 
                 vehicleView = true;
                 FirstPerson = true;
@@ -144,7 +146,7 @@ namespace Metagame.Gameplay
                 TargetHeight = savedTargetHeight;
                 MinPitch = savedMinPitch;
                 MaxPitch = savedMaxPitch;
-                aimPitch = Mathf.Clamp(aimPitch, MinPitch, MaxPitch);
+                aimPitch = Mathf.Clamp(savedAimPitch, MinPitch, MaxPitch);
                 pitch = Mathf.Clamp(pitch, MinPitch, MaxPitch);
                 currentDistance = FirstPerson ? 0f : Distance;
             }
