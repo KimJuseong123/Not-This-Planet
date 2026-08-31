@@ -20,6 +20,7 @@ namespace Metagame.UI
     {
         public PlayerRig Local;
         public TractorBeamController Transport;
+        public Stage1Exploration Exploration;
 
         const int SizeSmall = 15;
         const int SizeMid = 18;
@@ -244,7 +245,7 @@ namespace Metagame.UI
             }
 
             // 표지판
-            if (!string.IsNullOrEmpty(nearbySign))
+            if ((Exploration == null || !Exploration.TabletOpen) && !string.IsNullOrEmpty(nearbySign))
                 L(new Rect(w * 0.5f - 400f, h * 0.5f + 100f, 800f, 30f), nearbySign, center,
                   new Color(0.90f, 0.98f, 1f));
 
