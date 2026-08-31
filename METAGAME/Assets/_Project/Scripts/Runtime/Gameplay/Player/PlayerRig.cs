@@ -253,26 +253,22 @@ namespace Metagame.Gameplay
             mountedJoint.breakTorque = float.PositiveInfinity;
             MountedVehicle = vehicle;
 
+            // 조종석 안에 있으므로 몸을 감춘다. 1인칭 시야를 제 몸이 가리지 않게 하는 것이
+            // 첫 목적이고, 3인칭으로 강제 전환해도 기체 밖으로 튀어나온 몸이 보이지 않는다.
+            Doll.SetVisible(false);
+
             if (Cam != null) Cam.SetVehicleView(true);
             return true;
         }
 
-        /// <summary>운반 장치가 바닥에 닿은 뒤 플레이어를 맵 바닥으로 내려놓는다.</summary>
+        /// <summary>운반 장치가 표면에 닿은 뒤 플레이어를 그 옆에 내려놓는다.</summary>
         public void CompleteTransportVehicleExit(TransportVehicle vehicle)
         {
             if (vehicle == null || MountedVehicle != vehicle) return;
             DisconnectTransportJoint();
             MountedVehicle = null;
 
-            var foot = vehicle.GroundExitFootPosition;
-            Doll.Teleport(foot + Vector3.up * 0.04f, Quaternion.identity);
-            if (Cam != null) Cam.SetVehicleView(false);
-            Grounded = false;
-            GroundDistance = 0f;
-            GroundVelocity = Vector3.zero;
-            Speed = 0f;
-            AirTime = 0f;
-            fallPeakFootHeight = foot.y;
+            PlaceAfterVehicleExit(vehicle);
         }
 
         /// <summary>부활·리셋 때 지연 없이 운반 장치에서 내린다.</summary>
@@ -282,8 +278,39 @@ namespace Metagame.Gameplay
             DisconnectTransportJoint();
             MountedVehicle = null;
 
+            PlaceAfterVehicleExit(vehicle);
+        }
+
+        /// <summary>하차한 탑승자를 지면 위로 살짝 띄우는 여유. 발이 표면에 박히지 않게 한다.</summary>
+        const float VehicleExitClearance = 0.06f;
+
+        /// <summary>
+        /// 하차 공통 처리. 운반체가 찾아 준 발 위치에 세우고 장치 바깥을 보게 돌린다.
+        ///
+        /// <b><see cref="Doll.Teleport"/> 의 첫 인수는 발이 아니라 골반 위치다.</b>
+        /// 예전에는 발 높이 + 0.04m 를 그대로 넘겨서 골반이 지면 4cm 에 놓였다. 골반은
+        /// 0.3m 높이여야 하므로 다리와 발이 지면 26cm 아래에 파묻히고, PhysX 가 그것을
+        /// 밀어내면서 탑승자가 천장까지 날아갔다. 탑승할 때는 같은 함수에 HipsY 를 더해
+        /// 넘기고 있었는데 하차 경로만 빠져 있었다.
+        ///
+        /// <c>fallPeakFootHeight</c> 를 내려놓은 높이로 맞추는 것이 중요하다. 구조물 위에서
+        /// 내리면 지면보다 높은데, 이 값을 갱신하지 않으면 그 차이가 낙하로 집계돼
+        /// HUD 의 추락 횟수가 오른다.
+        /// </summary>
+        void PlaceAfterVehicleExit(TransportVehicle vehicle)
+        {
+            Doll.SetVisible(true);
+
             var foot = vehicle.GroundExitFootPosition;
-            Doll.Teleport(foot + Vector3.up * 0.04f, Quaternion.identity);
+
+            var away = foot - vehicle.transform.position;
+            away.y = 0f;
+            if (away.sqrMagnitude < 0.0001f) away = vehicle.ExitForward;
+            var facing = Quaternion.LookRotation(away.normalized, Vector3.up);
+
+            Doll.Teleport(foot + Vector3.up * (RagdollBuilder.HipsY + VehicleExitClearance), facing);
+            faceDir = away.normalized;
+
             if (Cam != null) Cam.SetVehicleView(false);
             Grounded = false;
             GroundDistance = 0f;

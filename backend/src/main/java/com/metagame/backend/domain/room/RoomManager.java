@@ -27,10 +27,10 @@ public class RoomManager {
      * 방을 만들고 사람이 읽기 쉬운 코드를 배정한다.
      * 코드는 친구에게 말이나 메시지로 전달하는 값이므로 짧고 헷갈리지 않아야 한다 (S15P21B202-76).
      */
-    public Room createRoom(Long hostUserId) {
+    public Room createRoom(Long hostUserId, String hostNickname) {
         for (int i = 0; i < MAX_GENERATE_ATTEMPTS; i++) {
             String code = generateCode();
-            Room room = new Room(code, hostUserId);
+            Room room = new Room(code, hostUserId, hostNickname);
             if (rooms.putIfAbsent(code, room) == null) {
                 return room;
             }

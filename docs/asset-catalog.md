@@ -2,6 +2,7 @@
 
 > 기준 커밋: `develop` **054a2a6** · 작성 2026-08-27 · 이슈 [S15P21B202-80](https://ssafy.atlassian.net/browse/S15P21B202-80)
 > 갱신 2026-08-27 — 환경 자연물 연결과 `Main.unity` 아트 배치 · 이슈 [S15P21B202-84](https://ssafy.atlassian.net/browse/S15P21B202-84)
+> 갱신 2026-08-28 — Stage1 운석 모델·PBR 텍스처 4종 교체 · 이슈 [S15P21B202-98](https://ssafy.atlassian.net/browse/S15P21B202-98)
 > 관련 문서: [문서 목록](./README.md) · [1장 기획](./planning/chapter-1-plan.md) · [파트 구분](./parts.md)
 
 **어떤 에셋이 무엇이고, 씬에 갖다 쓸 수 있는 상태인지** 한 장에서 확인하는 문서다.
@@ -47,9 +48,9 @@ FBX 파일만 열어봐서는 크기를 알 수 없다. Tripo3D로 만든 13종�
 
 | 종류 | 수량 | 상태 |
 | --- | ---: | --- |
-| FBX 모델 | 14 | 사용 가능 13 · 기존 1 |
+| FBX 모델 | 18 | 사용 가능 13 · 미연결 4 · 기존 1 |
 | 텍스처 (`Textures/`) | 24 | Stage1 PBR 20 · 콘셉트 4 |
-| 텍스처 (`.fbm/` 임베드) | 9 | 캐릭터 2 · 환경 7 |
+| 텍스처 (`.fbm/` 임베드) | 25 | 캐릭터 2 · 환경 7 · 운석 PBR 16 |
 | Material | 12 | 전부 사용 가능 (파츠·소품 5 · 환경 7) |
 | Prefab | 14 | Stage1 12 · 기존 2 |
 | Shader | 3 | 기존 SpaceFlop 런타임 전용 |
@@ -163,6 +164,31 @@ Material·프리팹은 `Stage1EnvironmentAssets` 에디터 도구가 만든다
 `.fbm` 텍스처가 크다 — 3.3 MB(`glowing_spiral_plant`) ~ 7.0 MB(`mossy_boulder_cluster`), **합계 약 34 MB**.
 
 `globalScale` 값은 [S15P21B202-67](https://ssafy.atlassian.net/browse/S15P21B202-67)에서 보정한 결과다.
+
+---
+
+## 6-1. Stage1 운석 — 미연결 (4종)
+
+[S15P21B202-98](https://ssafy.atlassian.net/browse/S15P21B202-98)에서 Tripo 산출물을
+영문 snake_case 이름으로 정리하고 Unity 임포트를 확인했다. 현재는 FBX와 PBR 텍스처까지 준비됐으며,
+Material·Prefab 및 [운석 퍼즐 런타임](https://ssafy.atlassian.net/browse/S15P21B202-70) 연결은 아직 하지 않았다.
+
+| 프리뷰 | 모델 | 용도 | FBX 원본 | globalScale | **실제 크기** | 삼각형 |
+| --- | --- | --- | --- | ---: | --- | ---: |
+| <img src="./assets/previews/meteor_main_front.png" width="100"> | `meteor_main` | 낙하·충돌 전 운석 본체 | 0.97 × 0.96 × 0.98 m | 1 | **0.97 × 0.96 × 0.98 m** | 17,790 |
+| <img src="./assets/previews/meteor_debris_large_front.png" width="100"> | `meteor_debris_large` | 충돌 후 큰 파편 | 0.98 × 0.66 × 0.82 m | 1 | **0.98 × 0.66 × 0.82 m** | 18,030 |
+| <img src="./assets/previews/meteor_debris_medium_front.png" width="100"> | `meteor_debris_medium` | 충돌 후 중간 파편 | 0.97 × 0.69 × 0.98 m | 1 | **0.97 × 0.69 × 0.98 m** | 18,070 |
+| <img src="./assets/previews/meteor_debris_small_front.png" width="100"> | `meteor_debris_small` | 충돌 후 작은 파편 | 0.98 × 0.62 × 0.91 m | 1 | **0.98 × 0.62 × 0.91 m** | 17,638 |
+
+경로는 모두 `Models/Environment/Stage1/Meteors/<모델>.fbx`이며 파일 크기는 각각
+`meteor_main` 551 KB · `meteor_debris_large` 544 KB · `meteor_debris_medium` 541 KB ·
+`meteor_debris_small` 524 KB다.
+
+각 모델은 같은 이름의 `.fbm` 폴더에서 BaseColor · Normal · Metallic · Roughness 4장을 참조한다.
+예: `Models/Environment/Stage1/Meteors/meteor_main.fbm/meteor_main_basecolor.jpg`.
+FBX 내부의 Tripo UUID 경로도 새 영문 경로로 다시 내보냈으며, Unity에서 모델 4개와 텍스처 16개의
+임포트를 검증했다. 네 모델 모두 메시 1개이며 에셋 전체 용량은 약 12.0 MB다.
+각 모델의 앞·뒤·좌·우 프리뷰는 `docs/assets/previews/<모델>_{front,back,left,right}.png`에 있다.
 
 ---
 
@@ -319,6 +345,7 @@ Material·프리팹은 `Stage1EnvironmentAssets` 에디터 도구가 만든다
 | 5 | **`.fbm` 임베드 텍스처가 크다** (합계 약 34 MB, 최대 7.0 MB). LFS 용량과 임포트 시간에 영향이 있다. 다운스케일 여부 검토 필요. | Art · Infra |
 | 6 | `METAGAME/Assets/_Project/Models/README_KO.md`가 삭제된 `SF_Astronaut_Base.fbx`를 안내한다. 루트 `README.md`도 삭제된 `Surface.unity`를 안내한다. | Plan · Infra |
 | 7 | Unity URP 템플릿 잔여물(`Readme.asset`, `TutorialInfo/`)이 남아 있다. | Infra |
+| 12 | **운석 FBX 4종은 Material·Prefab과 런타임 연결이 없다.** S15P21B202-70의 운석 퍼즐은 현재 코드 생성 시각물을 사용하므로, `meteor_main`과 대·중·소 파편 3종을 실제 게임에 보이게 하려면 별도 연결 작업이 필요하다(§6-1). | Art · Puzzle |
 
 ---
 

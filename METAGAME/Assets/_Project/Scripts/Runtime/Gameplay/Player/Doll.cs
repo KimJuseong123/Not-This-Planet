@@ -22,6 +22,9 @@ namespace Metagame.Gameplay
         public readonly List<Rigidbody> Bodies = new List<Rigidbody>();
         public readonly List<Collider> Colliders = new List<Collider>();
 
+        /// <summary>지금 화면에 보이는지. <see cref="SetVisible"/> 가 바꾼다.</summary>
+        public bool Visible { get; private set; } = true;
+
         /// <summary>골반 기준 각 부위의 처음 상대 위치/회전 — 부활할 때 이 자세로 되돌린다.</summary>
         public readonly List<Vector3> RestOffsets = new List<Vector3>();
         public readonly List<Quaternion> RestRotations = new List<Quaternion>();
@@ -58,6 +61,24 @@ namespace Metagame.Gameplay
                 b.rotation = facing * RestRotations[i];
                 b.transform.SetPositionAndRotation(b.position, b.rotation);
             }
+        }
+
+        /// <summary>
+        /// 화면에서만 감춘다. 물리는 그대로 둔다 — 콜라이더와 조인트가 살아 있어야
+        /// 탑승 중 좌석 조인트가 유지되고 하차할 때 자세가 돌아온다.
+        ///
+        /// 렌더러를 캐시하지 않고 매번 훑는 이유는 모델(<see cref="Suit"/>)이 런타임에
+        /// 붙거나 떨어질 수 있어서다. <see cref="Root"/> 하위를 훑으면 프리미티브 몸과
+        /// 씌운 메시가 함께 잡힌다.
+        /// </summary>
+        public void SetVisible(bool visible)
+        {
+            Visible = visible;
+            if (Root == null) return;
+
+            var renderers = Root.GetComponentsInChildren<Renderer>(true);
+            for (var i = 0; i < renderers.Length; i++)
+                renderers[i].enabled = visible;
         }
 
         public void SetSleepAllowed(bool allowed)

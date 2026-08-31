@@ -9061,7 +9061,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 65b2fb00ee743e540bac5084ac6dd5af, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.Hazards.MeteorSpawner
-  _meteorPrefab: {fileID: 0}
+  _meteorPrefab: {fileID: 4353752562785007050, guid: 6663f1fe94a140f4ca6ef56d3d1e4513, type: 3}
   _area: {fileID: 1259413817}
   _areaSize: {x: 36, y: 36}
   _intervalStart: 8

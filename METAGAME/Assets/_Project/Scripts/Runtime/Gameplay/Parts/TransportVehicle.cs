@@ -11,6 +11,31 @@ namespace Metagame.Gameplay.Parts
     /// 회전은 건드리지 않는다. 대신 바닥 충돌판과 좌석은 월드의 위쪽을 바라보는 자식으로
     /// 만들고, 루트 Rigidbody를 함께 움직인다. 이 분리가 있어 에셋을 회전시켰을 때
     /// “위로 떠야 할 운반 장치가 옆으로 눕는” 문제가 생기지 않는다.
+    ///
+    /// <b>하차 판정은 절대 높이가 아니라 실제 접촉으로 한다.</b>
+    /// 예전에는 루트가 <see cref="GroundY"/>(0.06m)에 도달했는지로 판정했다. 그래서
+    /// 절벽 벽이나 파츠 위에 내려앉으면 콜라이더가 받쳐 그 높이에 영원히 닿지 못하고
+    /// 하차가 완료되지 않았다. 또 낙하를 중력에 맡기지 않고 목표 높이까지 속도를 직접
+    /// 대입했기 때문에, 접촉을 무시하고 지면을 파고들어 PhysX 가 튕겨내면서 장치가
+    /// 땅밑으로 빠지고 탑승자가 날아갔다.
+    ///
+    /// 지금은 플랫폼 아랫면을 아래로 훑어(<see cref="ProbeGround"/>) 무엇이든 닿으면
+    /// 하차가 완료된다. 낙하는 중력이 하고 이 코드는 하강 속도 상한과 수평 감속만 준다.
+    /// 어떤 이유로든 닿지 못하면 <see cref="DismountTimeout"/> 뒤에 강제로 내린다 —
+    /// 갇혀서 T(탈출)를 눌러야 하는 상태를 만들지 않는다.
+    ///
+    /// <b>부양 고도는 조종하는 사람이 정한다.</b>
+    /// 예전에는 목표가 <see cref="HoverRootY"/>(5m) 하나로 고정이라 스프링이 항상 그
+    /// 높이로 되돌렸다. 지금은 <see cref="TargetAltitude"/> 를 입력으로 올리고 내린다.
+    /// 아래로는 <see cref="ProbeGround"/> 가 닿는 곳에서 멈추고(파고들지 않는다),
+    /// 위로는 <see cref="MaxAltitude"/> 까지만 간다 — 경계 벽 콜라이더(9m)를 넘어
+    /// 아레나를 빠져나가지 못하게 하는 값이다.
+    ///
+    /// <b>탑승자는 기체 안에 앉고 화면에서 감춰진다.</b>
+    /// 좌석 높이를 상수로 두면 모델이 바뀔 때마다 어긋나므로, Visual 의 실제 렌더러 경계를
+    /// 재서 눈높이가 기체 중심에 오도록 맞춘다(<see cref="ResolveSeatHeight"/>).
+    /// 탑승 중임을 화면으로 알리는 조종석은 <see cref="EnsureCockpit"/> 가 임시로 세운다 —
+    /// 실제 에셋이 들어오면 그 메서드만 갈아끼우면 된다.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(Rigidbody))]
@@ -28,21 +53,126 @@ namespace Metagame.Gameplay.Parts
         const float MaxSpeed = 8f;
         const float HoverSpring = 6f;
         const float MaxVerticalSpeed = 4.2f;
-        const float GroundSpring = 7f;
-        const float GroundTolerance = 0.035f;
         const float VisualTurnSpeed = 420f;
         const float ArenaLimit = 21f;
+
+        // --- 고도 조작 ---
+        /// <summary>입력을 쥐고 있을 때 목표 고도가 움직이는 속도(m/s).</summary>
+        const float AltitudeRate = 3.5f;
+
+        /// <summary>
+        /// 올라갈 수 있는 최고 고도.
+        /// 아레나 경계 벽에 붙여 둔 보이지 않는 콜라이더가 9m 다(docs/asset-catalog.md §10).
+        /// 그보다 낮게 잡아 벽을 넘어 밖으로 나가지 못하게 한다.
+        /// </summary>
+        const float MaxAltitude = 8f;
+
+        /// <summary>목표 고도가 이 안에 들어오면 부양이 안정된 것으로 본다.</summary>
+        const float HoverSettleBand = 0.4f;
+
+        // --- 임시 조종석 ---
+        // 실제 조종석 에셋이 들어오기 전까지 쓰는 대체물이다. Prim 으로 세우므로 새 에셋이
+        // 필요 없고, 교체 지점은 EnsureCockpit 한 곳이다.
+        //
+        // 유리창과 창틀은 두지 않는다. 반투명 판을 눈앞에 두면 시야만 흐려지고, "타고 있다" 는
+        // 느낌은 조종대만으로 충분하다. 실제 조종석 에셋이 들어오면 유리까지 그 모델이
+        // 갖고 있을 것이므로 임시 대체물에서 흉내낼 이유가 없다.
+        //
+        // 배치는 카메라 화각을 기준으로 잡았다. OrbitCamera 의 수직 화각이 64도(반각 32도)라
+        // 눈에서 d 만큼 앞의 물체는 d*tan(32도) 안쪽에 있어야 화면에 들어온다. 이 계산을
+        // 빼먹어 처음에는 조종대가 50도 아래에 놓여 아예 보이지 않았다.
+
+        /// <summary>
+        /// 조종대. 눈 아래 앞쪽에 작게 둔다.
+        /// 0.78m 앞에서 폭 0.62m 면 화면 폭의 약 45%, 0.40m 아래면 약 27도 — 화면 아래 띠에 앉는다.
+        /// </summary>
+        static readonly Vector3 ConsoleSize = new(0.62f, 0.06f, 0.22f);
+        const float ConsoleForward = 0.78f;
+        const float ConsoleDrop = 0.40f;
+
+        /// <summary>조종대 위의 계기 화면.</summary>
+        static readonly Vector3 ScreenSize = new(0.26f, 0.02f, 0.16f);
+        const float ScreenForward = 0.76f;
+        const float ScreenDrop = 0.37f;
+        const float ScreenTiltDegrees = 28f;
+
+        /// <summary>기체 높이에서 눈이 오는 비율. 0.5 는 중심, 1 은 천장이다.</summary>
+        const float EyeHeightRatio = 0.62f;
+
+        static readonly Color ConsoleColor = new(0.58f, 0.62f, 0.68f);
+        static readonly Color ScreenColor = new(0.30f, 0.72f, 0.85f);
+
+        // --- 하차 접지 판정 ---
+        /// <summary>플랫폼 아랫면을 이만큼 띄운 곳에서 아래로 훑는다. 처음부터 겹쳐 있으면 BoxCast 가 놓친다.</summary>
+        const float ProbeLift = 0.18f;
+
+        /// <summary>아랫면에서 이 거리 안에 표면이 있으면 닿은 것으로 본다.</summary>
+        const float ProbeReach = 0.10f;
+
+        /// <summary>훑는 박스를 옆으로 조금 줄인다. 벽에 붙어 있을 때 옆면이 바닥으로 잡히는 것을 막는다.</summary>
+        const float ProbeShrink = 0.05f;
+
+        /// <summary>이보다 완만한 면만 바닥으로 인정한다(약 60도). 벽에 스치는 것을 착지로 보지 않는다.</summary>
+        const float MinGroundNormalY = 0.5f;
+
+        /// <summary>수직 속도가 이 아래면 멈춰 앉은 것으로 본다.</summary>
+        const float LandedVerticalSpeed = 0.4f;
+
+        /// <summary>하강 속도 상한. 이보다 빠르게 박으면 콜라이더 밀림이 커진다.</summary>
+        const float MaxDescentSpeed = 6f;
+
+        /// <summary>
+        /// 이 시간을 넘기면 닿지 않았어도 내려 준다.
+        /// 구덩이 위나 좁은 틈에 걸려 영구히 하차 대기 상태가 되는 것을 막는 안전장치다.
+        /// </summary>
+        const float DismountTimeout = 6f;
+
+        // --- 하차 지점 ---
+        /// <summary>플랫폼 중심에서 정면으로 이만큼 나간 곳에 내려놓는다. 플랫폼 절반 깊이(1.1m) + 사람 여유.</summary>
+        const float ExitDistance = 1.8f;
+
+        /// <summary>하차 지점을 찾을 때 위아래로 훑는 범위.</summary>
+        const float ExitProbeUp = 1.6f;
+        const float ExitProbeDown = 4.0f;
+
+        /// <summary>탑승자가 설 자리가 있는지 볼 때 쓰는 몸 치수. 헬멧 지름 0.636m 와 키 1.147m 기준.</summary>
+        const float RiderRadius = 0.34f;
+        const float RiderHeight = 1.15f;
 
         Rigidbody body;
         BoxCollider platform;
         Transform platformAnchor;
         Transform seat;
         Transform visual;
+        Transform cockpit;
         TractorBeam beam;
         PlayerRig rider;
         Vector3 driveVector;
+        float verticalInput;
+        float targetAltitude = HoverRootY;
         bool returning;
         bool grounded = true;
+        float dismountElapsed;
+
+        /// <summary>접지·하차 지점 판정용. BoxCast 결과를 담아 GC 를 만들지 않는다.</summary>
+        static readonly RaycastHit[] ProbeHits = new RaycastHit[8];
+
+        /// <summary>Unity 기본 레이어. "쿼리에 걸리지 않겠다"는 뜻이라 바닥으로 보지 않는다.</summary>
+        const int IgnoreRaycastLayer = 2;
+
+        /// <summary>
+        /// 바닥으로 인정할 레이어. 사람과 트리거, 운석, Ignore Raycast 는 뺀다.
+        /// 지면과 절벽 벽은 Default, 우주선 파츠는 Part 레이어다. 자기 자신은 Prop 이라
+        /// 레이어로 걸러지지 않으므로 <see cref="ProbeGround"/> 에서 계층으로 걸러낸다.
+        ///
+        /// 화이트리스트가 아니라 제외 목록인 이유는 "무엇에든 닿으면 내린다"가 이 수정의
+        /// 핵심이기 때문이다. 앞으로 추가되는 지형 레이어가 자동으로 바닥이 되는 편이
+        /// 빠뜨려서 다시 못 내리는 것보다 안전하다. 다만 Ignore Raycast 처럼 의미가
+        /// 분명한 레이어는 명시적으로 뺀다.
+        /// </summary>
+        const int SurfaceMask = ~((1 << GameLayers.Player) | (1 << GameLayers.PlayerDowned)
+                                  | (1 << GameLayers.Interactable) | (1 << GameLayers.Meteor)
+                                  | (1 << GameLayers.BeamQuery) | (1 << IgnoreRaycastLayer));
 
         public Rigidbody Body => body;
         public TractorBeam Beam => beam;
@@ -50,10 +180,45 @@ namespace Metagame.Gameplay.Parts
         public bool IsOccupied => rider != null;
         public bool IsReturning => returning;
         public bool IsGrounded => grounded;
+
+        /// <summary>
+        /// 플랫폼 아랫면이 지금 무엇에든 닿아 있는지. 하차 완료 판정과 같은 검사다.
+        /// 절대 높이를 보지 않으므로 절벽 위든 파츠 위든 같게 동작한다.
+        /// </summary>
+        public bool IsTouchingSurface => ProbeGround(out _);
+        /// <summary>
+        /// 목표 고도에 올라와 안정됐는지. 견인을 걸 수 있는 상태인지 판정하는 데 쓴다.
+        /// 고정 높이(5m)가 아니라 지금 목표로 하는 고도를 본다 — 그래야 낮은 곳이나
+        /// 높은 곳에서도 견인이 된다.
+        /// </summary>
         public bool IsHovering => rider != null && !returning && body != null
-                                  && Mathf.Abs(body.position.y - HoverRootY) < 0.4f;
+                                  && Mathf.Abs(body.position.y - targetAltitude) < HoverSettleBand;
+
+        /// <summary>지금 유지하려는 고도. 탑승하면 <see cref="HoverRootY"/> 에서 시작한다.</summary>
+        public float TargetAltitude => targetAltitude;
         public Vector3 SeatFootPosition => seat != null ? seat.position : transform.position + Vector3.up * SeatHeight;
-        public Vector3 GroundExitFootPosition => new Vector3(transform.position.x, GroundY + 0.04f, transform.position.z);
+        /// <summary>
+        /// 하차한 탑승자를 세울 발 위치.
+        ///
+        /// 예전에는 운반체 중심의 x·z 에 절대 높이를 돌려줬다. 그러면 플랫폼 콜라이더
+        /// (2.4 x 0.34 x 2.2) 안에 사람을 꽂는 셈이라 PhysX 가 밀어내면서 날아갔다.
+        /// 지금은 <see cref="TryFindExitFoot"/> 로 정면 바깥의 설 자리를 찾는다.
+        /// </summary>
+        public Vector3 GroundExitFootPosition
+        {
+            get { return TryFindExitFoot(out var foot) ? foot : PlatformTopFoot(); }
+        }
+
+        /// <summary>운반체가 바라보는 수평 방향. 요는 Visual 자식이 들고 있다(루트는 빔 축이라 아래를 본다).</summary>
+        public Vector3 ExitForward
+        {
+            get
+            {
+                var forward = visual != null ? visual.forward : Vector3.forward;
+                forward.y = 0f;
+                return forward.sqrMagnitude < 0.0001f ? Vector3.forward : forward.normalized;
+            }
+        }
         public Vector3 HorizontalVelocity
         {
             get
@@ -89,6 +254,8 @@ namespace Metagame.Gameplay.Parts
                     }
                 }
             }
+
+            RefreshSeat();
         }
 
         void EnsurePhysics()
@@ -138,7 +305,9 @@ namespace Metagame.Gameplay.Parts
                 }
             }
 
-            seat.position = transform.position + Vector3.up * SeatHeight;
+            // 좌석 높이는 기체 경계를 보고 정한다. 여기서 상수를 그대로 쓰면 PlaceOnGround 가
+            // EnsurePhysics 를 다시 부를 때마다 RefreshSeat 의 결과가 지워진다.
+            seat.position = transform.position + Vector3.up * ResolveSeatHeight();
             seat.rotation = Quaternion.identity;
             seat.gameObject.layer = GameLayers.Prop;
         }
@@ -159,6 +328,9 @@ namespace Metagame.Gameplay.Parts
             driveVector = Vector3.zero;
             returning = false;
             grounded = true;
+            dismountElapsed = 0f;
+            verticalInput = 0f;
+            targetAltitude = HoverRootY;
 
             if (visual != null)
                 visual.rotation = Quaternion.Euler(0f, visualYaw, 0f);
@@ -175,6 +347,12 @@ namespace Metagame.Gameplay.Parts
             body.useGravity = false;
             body.linearVelocity = Vector3.zero;
             grounded = false;
+            verticalInput = 0f;
+            targetAltitude = HoverRootY;
+
+            // 좌석은 기체 경계를 보고 정하므로 태우기 전에 갱신한다 —
+            // PlayerRig 가 SeatFootPosition 을 읽어 인형을 옮긴다.
+            RefreshSeat();
 
             if (!player.TryEnterTransportVehicle(this))
             {
@@ -184,6 +362,7 @@ namespace Metagame.Gameplay.Parts
             }
 
             rider = player;
+            SetCockpitVisible(true);
             return true;
         }
 
@@ -191,9 +370,14 @@ namespace Metagame.Gameplay.Parts
         {
             if (rider == null || returning) return;
             driveVector = Vector3.zero;
+            verticalInput = 0f;
             returning = true;
             grounded = false;
-            body.useGravity = false;
+            dismountElapsed = 0f;
+
+            // 낙하는 중력에 맡긴다. 속도를 직접 대입해 목표 높이로 밀어붙이면 콜라이더
+            // 접촉이 무시되고 지면을 파고든다.
+            body.useGravity = true;
         }
 
         public void SetDriveVector(Vector3 worldDirection)
@@ -205,11 +389,24 @@ namespace Metagame.Gameplay.Parts
                 : worldDirection;
         }
 
+        /// <summary>
+        /// 고도 입력. +1 이 상승, -1 이 하강, 0 이면 지금 고도를 유지한다.
+        /// 탑승 중에는 <see cref="PlayerRig"/> 가 팔·점프를 돌리지 않으므로
+        /// Ctrl·Space 를 여기에 그대로 쓸 수 있다.
+        /// </summary>
+        public void SetVerticalInput(float value)
+        {
+            if (rider == null || returning) { verticalInput = 0f; return; }
+            verticalInput = Mathf.Clamp(value, -1f, 1f);
+        }
+
         /// <summary>부활 때 탑승체와 플레이어를 함께 안전한 바닥 상태로 돌린다.</summary>
         public void ForceReset()
         {
             var currentPosition = transform.position;
             PlaceOnGround(currentPosition, 0f);
+
+            SetCockpitVisible(false);
 
             var currentRider = rider;
             rider = null;
@@ -218,13 +415,21 @@ namespace Metagame.Gameplay.Parts
                 currentRider.ForceExitTransportVehicle(this);
         }
 
-        void FixedUpdate()
+        void FixedUpdate() => Tick(Time.fixedDeltaTime);
+
+        /// <summary>
+        /// 물리 스텝 한 번. 평소에는 FixedUpdate 가 부른다.
+        ///
+        /// <see cref="Hazards.MeteorSpawner.Tick"/> 와 같은 이유로 공개해 둔다 — Time 을 직접
+        /// 읽지 않으므로 EditMode 테스트가 <c>Physics.Simulate</c> 와 함께 하강 전체를
+        /// 돌려 볼 수 있다. 하차가 실제로 완료되는지는 이렇게만 검증할 수 있다.
+        /// </summary>
+        public void Tick(float deltaTime)
         {
-            if (rider != null)
-            {
-                if (returning) DriveToGround(Time.fixedDeltaTime);
-                else DriveHover(Time.fixedDeltaTime);
-            }
+            if (rider == null) return;
+
+            if (returning) DriveToGround(deltaTime);
+            else DriveHover(deltaTime);
         }
 
         void DriveHover(float deltaTime)
@@ -244,42 +449,304 @@ namespace Metagame.Gameplay.Parts
             position.z = Mathf.Clamp(position.z, -ArenaLimit, ArenaLimit);
             body.position = position;
 
-            var vertical = Mathf.Clamp((HoverRootY - body.position.y) * HoverSpring,
+            AdvanceTargetAltitude(deltaTime);
+
+            var vertical = Mathf.Clamp((targetAltitude - body.position.y) * HoverSpring,
                                        -MaxVerticalSpeed, MaxVerticalSpeed);
             body.linearVelocity = new Vector3(planar.x, vertical, planar.z);
             body.angularVelocity = Vector3.zero;
-            grounded = false;
 
             if (planar.sqrMagnitude > 0.04f)
                 TurnVisualToward(planar, deltaTime);
         }
 
+        /// <summary>
+        /// 하차 하강. 수평만 세우고 낙하는 중력이 한다. 아랫면이 무엇에든 닿으면 완료다.
+        /// </summary>
         void DriveToGround(float deltaTime)
         {
+            dismountElapsed += deltaTime;
+
             var velocity = body.linearVelocity;
             var planar = Vector3.MoveTowards(new Vector3(velocity.x, 0f, velocity.z),
                                               Vector3.zero, Braking * deltaTime);
-            var heightError = GroundY - body.position.y;
-            var vertical = Mathf.Clamp(heightError * GroundSpring, -MaxVerticalSpeed, MaxVerticalSpeed);
-            body.linearVelocity = new Vector3(planar.x, vertical, planar.z);
+            body.linearVelocity = new Vector3(planar.x, Mathf.Max(velocity.y, -MaxDescentSpeed), planar.z);
             body.angularVelocity = Vector3.zero;
 
-            if (Mathf.Abs(heightError) <= GroundTolerance && Mathf.Abs(body.linearVelocity.y) < 0.18f)
-            {
-                var pos = body.position;
-                pos.y = GroundY;
-                body.position = pos;
-                transform.position = pos;
-                body.linearVelocity = Vector3.zero;
-                body.useGravity = true;
-                grounded = true;
-                returning = false;
+            grounded = ProbeGround(out _);
 
-                var currentRider = rider;
-                rider = null;
-                if (currentRider != null)
-                    currentRider.CompleteTransportVehicleExit(this);
+            // 닿은 뒤에도 아래로 밀면 콜라이더를 파고들었다 튕겨 나온다. 탑승자가 조인트로
+            // 붙어 있는 동안 그 진동이 그대로 전달되므로, 닿는 순간 하강을 끊는다.
+            if (grounded && body.linearVelocity.y < 0f)
+            {
+                var settling = body.linearVelocity;
+                body.linearVelocity = new Vector3(settling.x, 0f, settling.z);
             }
+
+            var settled = grounded && Mathf.Abs(body.linearVelocity.y) < LandedVerticalSpeed;
+            var timedOut = dismountElapsed >= DismountTimeout;
+            if (!settled && !timedOut) return;
+
+            if (!settled)
+                Debug.LogWarning($"[TransportVehicle] 하차가 {DismountTimeout}초 안에 접지하지 못해 그대로 내린다. "
+                                 + $"위치 {body.position}");
+
+            CompleteDismount();
+        }
+
+        void CompleteDismount()
+        {
+            body.linearVelocity = Vector3.zero;
+            body.angularVelocity = Vector3.zero;
+            body.useGravity = true;
+            returning = false;
+            dismountElapsed = 0f;
+
+            // 타임아웃으로 들어오면 닿지 않은 채로 끝난다. 그때도 IsGrounded 가 실제 상태를
+            // 말해야 한다 — 무조건 true 로 두면 공중에 뜬 장치를 접지로 보고하게 된다.
+            grounded = ProbeGround(out _);
+            SetCockpitVisible(false);
+
+            var currentRider = rider;
+            rider = null;
+            if (currentRider != null)
+                currentRider.CompleteTransportVehicleExit(this);
+        }
+
+        // ---------------------------------------------------------------- 좌석과 조종석
+
+        /// <summary>좌석을 기체 경계에 맞춰 다시 놓는다.</summary>
+        void RefreshSeat()
+        {
+            if (seat == null) return;
+
+            seat.position = transform.position + Vector3.up * ResolveSeatHeight();
+            seat.rotation = Quaternion.identity;
+        }
+
+        /// <summary>
+        /// 좌석 발 높이(루트 기준).
+        ///
+        /// 예전에는 <see cref="SeatHeight"/>(0.43m) 고정이었다. 탑승자 키가 1.147m 라
+        /// 머리가 기체 위로 튀어나와 꼭대기에 걸터앉은 것처럼 보였다. 지금은 기체 경계를
+        /// 재서 눈높이를 <see cref="EyeHeightRatio"/> 위치에 맞춘다 — 모델이 바뀌면 따라간다.
+        /// Visual 이 없으면(테스트·스킨 미적용) 예전 값을 그대로 쓴다.
+        ///
+        /// 중심이 아니라 위쪽으로 잡는 이유가 있다. 스킨(S15P21B202-84)이 기체 모델의 경계
+        /// 중심을 운반체 루트에 맞춰 붙이는데, 착륙하면 루트가 지면 0.06m 라 기체 아래
+        /// 절반이 땅에 묻힌다. 중심에 눈을 두면 눈높이가 지면 6cm 가 되어 땅에 붙어 본다.
+        /// </summary>
+        float ResolveSeatHeight()
+        {
+            if (!TryVisualBounds(out var bounds)) return SeatHeight;
+
+            var eyeWorldY = bounds.min.y + bounds.size.y * EyeHeightRatio;
+            var wanted = eyeWorldY - RagdollBuilder.HeadY - transform.position.y;
+
+            // 발이 기체 아래로 빠지지 않게, 머리가 위로 튀어나오지 않게 묶는다.
+            var floor = bounds.min.y - transform.position.y;
+            var ceiling = bounds.max.y - RagdollBuilder.TotalHeight - transform.position.y;
+            if (ceiling < floor) ceiling = floor;
+
+            return Mathf.Clamp(wanted, floor, ceiling);
+        }
+
+        bool TryVisualBounds(out Bounds bounds)
+        {
+            bounds = default;
+            if (visual == null) return false;
+
+            var renderers = visual.GetComponentsInChildren<Renderer>(true);
+            var first = true;
+            for (var i = 0; i < renderers.Length; i++)
+            {
+                if (first) { bounds = renderers[i].bounds; first = false; }
+                else bounds.Encapsulate(renderers[i].bounds);
+            }
+
+            return !first;
+        }
+
+        /// <summary>
+        /// 탑승 중에만 조종석을 보여 주고, 그때 기체 껍데기는 감춘다.
+        ///
+        /// 카메라가 기체 메시 안에 있으면 대부분 백페이스 컬링으로 보이지 않지만, 접시형
+        /// 기체의 테두리는 바깥면이 카메라를 향해서 화면 위·아래에 얇은 곡선 조각으로 남는다.
+        /// 실제 조종석이라면 내부 벽이 그 자리를 채우지만 임시 대체물에는 없으므로 껍데기를
+        /// 끄는 것이 깔끔하다. 하차하면 다시 켠다.
+        /// </summary>
+        void SetCockpitVisible(bool visible)
+        {
+            if (visible) EnsureCockpit();
+            if (cockpit != null) cockpit.gameObject.SetActive(visible);
+
+            SetHullVisible(!visible);
+        }
+
+        /// <summary>기체 껍데기 렌더러만 토글한다. 조종석은 Visual 의 자식이라 빼야 한다.</summary>
+        void SetHullVisible(bool visible)
+        {
+            if (visual == null) return;
+
+            var renderers = visual.GetComponentsInChildren<Renderer>(true);
+            for (var i = 0; i < renderers.Length; i++)
+            {
+                if (cockpit != null && renderers[i].transform.IsChildOf(cockpit)) continue;
+                renderers[i].enabled = visible;
+            }
+        }
+
+        /// <summary>
+        /// 임시 조종석. 눈 아래 앞쪽의 조종대와 그 위의 계기 화면, 둘뿐이다.
+        ///
+        /// 새 에셋을 만들지 않고 <see cref="Prim"/> 으로 세운다. 콜라이더는 붙지 않는다
+        /// (<see cref="Prim.Decor"/>) — 조종석이 물리에 끼어들면 안 된다.
+        ///
+        /// <b>실제 조종석 에셋이 들어오면 이 메서드만 갈아끼운다.</b>
+        /// 위치 기준은 탑승자의 눈이고, 요는 Visual 을 따라간다.
+        /// </summary>
+        void EnsureCockpit()
+        {
+            if (cockpit != null) return;
+
+            var parent = visual != null ? visual : transform;
+            var holder = new GameObject("VehicleCockpit");
+            cockpit = holder.transform;
+            cockpit.SetParent(parent, false);
+
+            var eye = transform.position + Vector3.up * (ResolveSeatHeight() + RagdollBuilder.HeadY);
+            var forward = ExitForward;
+            var look = Quaternion.LookRotation(forward, Vector3.up);
+            cockpit.SetPositionAndRotation(eye, look);
+
+            // 조종대 — 눈 아래 앞쪽에 작게. 계기 화면을 비스듬히 올려 둔다.
+            var console = Prim.Decor(Prim.Box("조종대",
+                eye + forward * ConsoleForward - Vector3.up * ConsoleDrop,
+                ConsoleSize, ConsoleColor, 0.25f, cockpit));
+            console.transform.rotation = look;
+
+            var screen = Prim.Decor(Prim.Box("계기화면",
+                eye + forward * ScreenForward - Vector3.up * ScreenDrop,
+                ScreenSize, ScreenColor, 0.1f, cockpit));
+            screen.transform.rotation = look * Quaternion.Euler(-ScreenTiltDegrees, 0f, 0f);
+
+            cockpit.gameObject.SetActive(false);
+        }
+
+        /// <summary>
+        /// 입력만큼 목표 고도를 옮긴다.
+        ///
+        /// 아래로는 <see cref="ProbeGround"/> 가 닿는 순간 지금 높이에 묶는다. 목표를 계속
+        /// 내리면 스프링이 표면을 파고들도록 밀어붙이고, 그러면 하차 버그와 같은 방식으로
+        /// PhysX 가 튕겨낸다. 위로는 <see cref="MaxAltitude"/> 까지만 간다.
+        /// </summary>
+        void AdvanceTargetAltitude(float deltaTime)
+        {
+            grounded = ProbeGround(out _);
+
+            if (!Mathf.Approximately(verticalInput, 0f))
+                targetAltitude += verticalInput * AltitudeRate * deltaTime;
+
+            // 닿아 있는데도 더 내리려 하면 지금 높이가 하한이다.
+            if (grounded && verticalInput < 0f)
+                targetAltitude = Mathf.Max(targetAltitude, body.position.y);
+
+            targetAltitude = Mathf.Clamp(targetAltitude, GroundY, MaxAltitude);
+        }
+
+        /// <summary>
+        /// 플랫폼 아랫면 아래로 표면이 있는지 본다. 지면이든 절벽이든 파츠든 가리지 않는다.
+        /// 시작 박스가 이미 겹쳐 있으면 BoxCast 가 놓치므로 <see cref="ProbeLift"/> 만큼 띄워서 쏜다.
+        /// </summary>
+        bool ProbeGround(out RaycastHit ground)
+        {
+            ground = default;
+            if (platform == null || platformAnchor == null) return false;
+
+            var bottom = platformAnchor.position.y - platform.size.y * 0.5f;
+            var origin = new Vector3(platformAnchor.position.x, bottom + ProbeLift, platformAnchor.position.z);
+            var half = new Vector3(Mathf.Max(0.05f, platform.size.x * 0.5f - ProbeShrink),
+                                   0.02f,
+                                   Mathf.Max(0.05f, platform.size.z * 0.5f - ProbeShrink));
+
+            var count = Physics.BoxCastNonAlloc(origin, half, Vector3.down, ProbeHits, Quaternion.identity,
+                                                ProbeLift + ProbeReach, SurfaceMask,
+                                                QueryTriggerInteraction.Ignore);
+
+            var found = false;
+            for (var i = 0; i < count; i++)
+            {
+                var hit = ProbeHits[i];
+                if (hit.collider == null) continue;
+                if (hit.collider.transform.IsChildOf(transform)) continue;   // 자기 플랫폼
+                if (hit.normal.y < MinGroundNormalY) continue;               // 벽은 바닥이 아니다
+
+                if (!found || hit.distance < ground.distance)
+                {
+                    ground = hit;
+                    found = true;
+                }
+            }
+
+            return found;
+        }
+
+        /// <summary>
+        /// 정면 → 우 → 좌 → 후 순서로 설 자리를 찾는다.
+        /// 정면이 벽에 막혀 있어도 내릴 수 있어야 하므로 대안 방향을 둔다.
+        /// </summary>
+        public bool TryFindExitFoot(out Vector3 foot)
+        {
+            foot = Vector3.zero;
+            if (platform == null || platformAnchor == null) return false;
+
+            var forward = ExitForward;
+            var right = Vector3.Cross(Vector3.up, forward);
+            var top = platformAnchor.position.y + platform.size.y * 0.5f;
+
+            for (var i = 0; i < 4; i++)
+            {
+                var direction = i switch
+                {
+                    0 => forward,
+                    1 => right,
+                    2 => -right,
+                    _ => -forward,
+                };
+
+                var spot = transform.position + direction * ExitDistance;
+                var origin = new Vector3(spot.x, top + ExitProbeUp, spot.z);
+
+                if (!Physics.Raycast(origin, Vector3.down, out var hit,
+                                     ExitProbeUp + ExitProbeDown + (top - transform.position.y),
+                                     SurfaceMask, QueryTriggerInteraction.Ignore))
+                    continue;
+
+                if (hit.normal.y < MinGroundNormalY) continue;               // 경사·벽 위에는 세우지 않는다
+                if (hit.collider.transform.IsChildOf(transform)) continue;   // 자기 플랫폼 위는 정면이 아니다
+
+                // 사람 하나가 들어갈 공간이 있는지. 발밑 표면에 캡슐이 걸리지 않게 조금 띄운다.
+                var lower = hit.point + Vector3.up * (RiderRadius + 0.06f);
+                var upper = hit.point + Vector3.up * (RiderHeight - RiderRadius);
+                if (upper.y < lower.y) upper = lower;
+                if (Physics.CheckCapsule(lower, upper, RiderRadius, SurfaceMask, QueryTriggerInteraction.Ignore))
+                    continue;
+
+                foot = hit.point;
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 네 방향 모두 막혔을 때의 마지막 수단 — 플랫폼 위에 세운다.
+        /// 겹치지 않으므로 튕겨 나가지 않고, 걸어서 내려올 수 있다.
+        /// </summary>
+        Vector3 PlatformTopFoot()
+        {
+            if (platform == null || platformAnchor == null) return transform.position;
+            return platformAnchor.position + Vector3.up * (platform.size.y * 0.5f + 0.02f);
         }
 
         void TurnVisualToward(Vector3 direction, float deltaTime)

@@ -54,7 +54,11 @@ def main() -> int:
     if not jira.available:
         print("JIRA_USER/JIRA_API_TOKEN 없음 → 파트를 알 수 없어 보정 생략")
         return 0
-    issue = jira.get_issue(key)
+    try:
+        issue = jira.get_issue(key)
+    except Exception as e:   # Jira 일시 장애·토큰 만료 — 제목 보정은 있으면 좋은 것이라 죽을 이유가 없다(-134)
+        print(f"Jira 조회 실패({type(e).__name__}: {e}) → 보정 생략")
+        return 0
     if not issue:
         print(f"Jira {key} 없음 → 보정 생략 (mr-lint 가 실패 처리)")
         return 0

@@ -34,16 +34,56 @@
 | `LEAVE_ROOM` | `{}` | 방 퇴장. 방장이 나가면 자동 위임 |
 | `READY` | `{ "ready": true }` | 준비 상태 변경 |
 | `START_GAME` | `{}` | 게임 시작 (방장만, 전원 준비 시) |
+| `PLAYER_MOVE` | `{ "x": 1.0, "y": 0.0, "z": 3.5, "yaw": 90.0 }` | 자기 위치·방향 전송 (게임 중에만). `yaw`는 생략 가능 |
 
 ## Server → Client
 
 | type | data | 설명 |
 |---|---|---|
 | `ROOM_CREATED` | `{ "roomId": "..." }` | 방 생성 완료 (생성자에게만) |
-| `ROOM_STATE` | `{ "roomId", "hostUserId", "status", "players": { "1": true, ... }, "disconnected": [2] }` | 방 상태 변화 시 방 전원에게 브로드캐스트. players는 userId → 준비 여부, disconnected는 유예 대기 중인 userId 목록 |
+| `ROOM_STATE` | 아래 예시 참고 | 방 상태 변화 시 방 전원에게 브로드캐스트 |
 | `GAME_STARTED` | `{ "roomId": "..." }` | 게임 시작 (방 전원에게) |
 | `STATE_SYNC` | `{ "roomId", "gameState": { ... } }` | 복귀한 플레이어에게만 현재 게임 상태 전체 전송 |
+| `PLAYER_MOVED` | `{ "userId": 2, "x": 1.0, "y": 0.0, "z": 3.5, "yaw": 90.0 }` | 다른 플레이어의 위치. **보낸 사람에게는 오지 않는다** |
 | `ERROR` | `{ "message": "..." }` | 요청 실패 사유 |
+
+### ROOM_STATE 예시
+
+```json
+{
+  "type": "ROOM_STATE",
+  "data": {
+    "roomId": "K7M2QX",
+    "hostUserId": 1,
+    "status": "WAITING",
+    "players": {
+      "1": { "nickname": "철수", "ready": true },
+      "2": { "nickname": "영희", "ready": false }
+    },
+    "disconnected": [3]
+  }
+}
+```
+
+- `players`의 키는 userId(문자열), 값은 **닉네임과 준비 여부**다. 로비 화면에 그대로 쓰면 된다
+- `disconnected`는 연결이 끊겨 유예 시간을 기다리는 중인 userId 목록이다. 이 사람들도 `players`에는 남아 있다
+- `status`는 `WAITING`(대기 중) 또는 `PLAYING`(게임 중)
+
+## 인게임 위치 동기화
+
+게임이 시작되면(`GAME_STARTED` 수신 후) 각 클라이언트는 자기 캐릭터의 위치를 주기적으로 보낸다.
+
+```
+내 게임 ──PLAYER_MOVE──▶ 서버 ──PLAYER_MOVED──▶ 같은 방의 나머지
+```
+
+- **권장 전송 주기: 초당 10~20회.** 매 프레임 보낼 필요는 없다
+- 서버는 물리를 계산하지 않고 **그대로 중계**한다. 받은 쪽은 값 사이를 부드럽게 이어(보간) 그린다
+- 마지막 위치는 서버의 `GameState`에 남는다. 그래서 복귀한 플레이어가 `STATE_SYNC`로 **끊겼던 자리**를 받는다
+- 대기 중(`WAITING`)인 방에서 보낸 `PLAYER_MOVE`는 무시된다
+
+> **범위 주의**: 플레이어 위치만 공유한다. 상자 같은 물리 오브젝트는 각 클라이언트가 따로 계산하므로
+> 화면마다 다르게 보인다. 오브젝트 공유가 필요해지면 별도 설계가 필요하다.
 
 ## 연결 끊김과 복귀
 

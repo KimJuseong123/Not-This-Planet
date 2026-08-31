@@ -1,0 +1,24 @@
+# 테스트 전용 설정. 이 파일이 main 의 application.yml 을 대체한다.
+# 테스트는 외부 DB나 개발자의 환경변수에 의존하지 않아야 하므로
+# 인메모리 H2와 테스트 전용 더미 값을 쓴다.
+spring:
+  datasource:
+    url: jdbc:h2:mem:metagame-test;MODE=MySQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+
+server:
+  port: 0   # 임의 포트 — 로컬에서 서버를 띄워둔 채 테스트해도 충돌하지 않는다
+
+jwt:
+  # 테스트에서만 쓰는 값. 실제 환경에서는 절대 쓰지 않는다
+  secret: K3kAaK5Rr5RcMLuNRTvNULnDzBz4TIcUXHUu5Q7Fd0J6TItXShbYTMcJTIYWRXhE
+  access-token-validity-ms: 3600000
+
+game:
+  reconnect-grace-ms: 1000

@@ -2,6 +2,7 @@ package com.metagame.backend.websocket;
 
 import com.metagame.backend.domain.room.Room;
 import com.metagame.backend.domain.room.RoomManager;
+import com.metagame.backend.domain.user.UserRepository;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -13,6 +14,7 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
@@ -21,33 +23,59 @@ import tools.jackson.databind.ObjectMapper;
 public class GameWebSocketHandler extends TextWebSocketHandler {
 
     private static final String ROOM_ID_ATTR = "roomId";
+    private static final String NICKNAME_ATTR = "nickname";
+    private static final String UNKNOWN_NICKNAME = "비행사";
 
     private final RoomManager roomManager;
     private final ReconnectGraceManager graceManager;
+    private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
 
     // userId → 세션. 브로드캐스트 대상 조회용
     private final Map<Long, WebSocketSession> sessions = new ConcurrentHashMap<>();
 
+    /** 닉네임은 연결 시 한 번만 조회해 세션에 보관한다 (브로드캐스트마다 DB를 보지 않기 위해). */
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         Long userId = userId(session);
         sessions.put(userId, session);
+        session.getAttributes().put(NICKNAME_ATTR, userRepository.findById(userId)
+                .map(user -> user.getNickname())
+                .orElse(UNKNOWN_NICKNAME));
         log.info("connected: userId={}", userId);
     }
 
+    /**
+     * 잘못된 메시지 하나로 연결이 끊기지 않도록, 해석·처리 실패는 ERROR 응답으로 돌려준다.
+     * (모르는 type은 enum 변환에서, 빠진 필드는 처리 중에 예외가 난다)
+     */
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
         Long userId = userId(session);
-        WsMessage msg = objectMapper.readValue(message.getPayload(), WsMessage.class);
 
-        switch (WsMessage.Type.valueOf(msg.type())) {
-            case CREATE_ROOM -> createRoom(session, userId);
-            case JOIN_ROOM -> joinRoom(session, userId, msg.data().get("roomId").asString());
-            case LEAVE_ROOM -> leaveRoom(session, userId);
-            case READY -> ready(userId, msg.data().get("ready").asBoolean());
-            case START_GAME -> startGame(userId);
-            default -> send(session, WsMessage.Type.ERROR, Map.of("message", "unknown type"));
+        WsMessage msg;
+        WsMessage.Type type;
+        try {
+            msg = objectMapper.readValue(message.getPayload(), WsMessage.class);
+            type = WsMessage.Type.valueOf(msg.type());
+        } catch (RuntimeException e) {
+            send(session, WsMessage.Type.ERROR, Map.of("message", "unknown type"));
+            return;
+        }
+
+        try {
+            switch (type) {
+                case CREATE_ROOM -> createRoom(session, userId);
+                case JOIN_ROOM -> joinRoom(session, userId, msg.data().get("roomId").asString());
+                case LEAVE_ROOM -> leaveRoom(session, userId);
+                case READY -> ready(userId, msg.data().get("ready").asBoolean());
+                case START_GAME -> startGame(userId);
+                case PLAYER_MOVE -> playerMove(userId, msg.data());
+                default -> send(session, WsMessage.Type.ERROR, Map.of("message", "unknown type"));
+            }
+        } catch (RuntimeException e) {
+            log.warn("message handling failed: userId={} type={} : {}", userId, type, e.toString());
+            send(session, WsMessage.Type.ERROR, Map.of("message", "invalid message"));
         }
     }
 
@@ -100,7 +128,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     }
 
     private void createRoom(WebSocketSession session, Long userId) {
-        Room room = roomManager.createRoom(userId);
+        Room room = roomManager.createRoom(userId, nickname(session));
         session.getAttributes().put(ROOM_ID_ATTR, room.getRoomId());
         send(session, WsMessage.Type.ROOM_CREATED, Map.of("roomId", room.getRoomId()));
         broadcastRoomState(room);
@@ -118,14 +146,14 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         }
 
         if (room.getStatus() == Room.Status.PLAYING) {
-            Room.RejoinResult result = room.rejoin(userId);
+            Room.RejoinResult result = room.rejoin(userId, nickname(session));
             if (result != Room.RejoinResult.OK) {
                 send(session, WsMessage.Type.ERROR, Map.of("message",
                         result == Room.RejoinResult.FULL ? "room is full" : "cannot join room"));
                 return;
             }
             graceManager.cancel(roomId, userId);
-            session.getAttributes().put(ROOM_ID_ATTR, roomId);
+            session.getAttributes().put(ROOM_ID_ATTR, room.getRoomId());   // 클라이언트가 보낸 대소문자가 아닌 정규화된 코드를 보관
             if (room.getGameState() != null) {
                 room.getGameState().setDowned(userId, true);   // 재입장 시 기절 상태로 복귀
             }
@@ -135,11 +163,11 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
-        if (!room.join(userId)) {
+        if (!room.join(userId, nickname(session))) {
             send(session, WsMessage.Type.ERROR, Map.of("message", "cannot join room"));
             return;
         }
-        session.getAttributes().put(ROOM_ID_ATTR, roomId);
+        session.getAttributes().put(ROOM_ID_ATTR, room.getRoomId());   // 클라이언트가 보낸 대소문자가 아닌 정규화된 코드를 보관
         broadcastRoomState(room);
     }
 
@@ -175,6 +203,32 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         broadcast(room, WsMessage.Type.GAME_STARTED, Map.of("roomId", room.getRoomId()));
     }
 
+    /**
+     * 자기 위치를 같은 방의 다른 사람들에게 전달한다. 보낸 사람에게는 되돌려 보내지 않는다.
+     * 서버는 물리를 계산하지 않고 중계만 하며, 마지막 위치는 GameState에 남겨
+     * 복귀한 플레이어가 끊긴 자리에서 이어갈 수 있게 한다.
+     */
+    private void playerMove(Long userId, JsonNode data) {
+        Room room = roomOf(userId);
+        if (room == null || room.getStatus() != Room.Status.PLAYING || room.getGameState() == null) {
+            return;
+        }
+
+        float x = (float) data.get("x").asDouble();
+        float y = (float) data.get("y").asDouble();
+        float z = (float) data.get("z").asDouble();
+        float yaw = data.has("yaw") ? (float) data.get("yaw").asDouble() : 0f;
+        room.getGameState().setPosition(userId, x, y, z, yaw);
+
+        Map<String, Object> moved = new LinkedHashMap<>();
+        moved.put("userId", userId);
+        moved.put("x", x);
+        moved.put("y", y);
+        moved.put("z", z);
+        moved.put("yaw", yaw);
+        broadcastExcept(room, userId, WsMessage.Type.PLAYER_MOVED, moved);
+    }
+
     private Room roomOf(Long userId) {
         WebSocketSession session = sessions.get(userId);
         if (session == null) {
@@ -203,9 +257,22 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     }
 
     private void broadcast(Room room, WsMessage.Type type, Map<String, Object> data) {
+        broadcastExcept(room, null, type, data);
+    }
+
+    /**
+     * 세션은 userId로만 찾으므로, 재접속으로 세션이 바뀐 뒤 옛 방의 브로드캐스트가
+     * 새 세션으로 새어 나갈 수 있다. 세션이 실제로 그 방에 속해 있는지 확인하고 보낸다.
+     */
+    private void broadcastExcept(Room room, Long excludedUserId, WsMessage.Type type,
+                                 Map<String, Object> data) {
         for (Long playerId : room.playerIds()) {
+            if (playerId.equals(excludedUserId)) {
+                continue;
+            }
             WebSocketSession session = sessions.get(playerId);
-            if (session != null && session.isOpen()) {
+            if (session != null && session.isOpen()
+                    && room.getRoomId().equals(session.getAttributes().get(ROOM_ID_ATTR))) {
                 send(session, type, data);
             }
         }
@@ -223,5 +290,10 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
     private Long userId(WebSocketSession session) {
         return (Long) session.getAttributes().get(JwtHandshakeInterceptor.USER_ID_ATTR);
+    }
+
+    private String nickname(WebSocketSession session) {
+        Object cached = session.getAttributes().get(NICKNAME_ATTR);
+        return cached == null ? UNKNOWN_NICKNAME : (String) cached;
     }
 }

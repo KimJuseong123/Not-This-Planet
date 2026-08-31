@@ -36,7 +36,7 @@ S15P21B202-12-…  ●──●  ●─●               ← Jira 이슈 단위 
 1. `develop`은 항상 **컴파일 에러 없이 에디터에서 실행 가능한 상태**를 유지한다.
 2. **브랜치는 Jira 이슈에서 만든다.** 이슈 1개당 브랜치 1개. 이슈 키 없는 이름은 로컬 훅이 push 를 막고, 올라가더라도 CI `mr-lint` 가 MR 을 빨간불로 만든다(§6).
 3. `develop` 머지는 **팀장(Maintainer)만** 할 수 있다 — 팀장의 머지가 승인이다(§5).
-4. 머지 전 `develop` 최신을 자기 브랜치로 **merge**해 충돌을 로컬에서 해결한다 (rebase보다 merge 권장 — 씬/프리팹 충돌을 한 번에 본다).
+4. **push 하면 훅이 알아서 `develop` 최신을 얹는다**(S15P21B202-137). `git push` 하면 pre-push 훅이 `origin/develop` 을 가져와 뒤처졌으면 **자동으로 리베이스한 뒤 그 push 를 중단**하고, 다시 push 할 명령을 그대로 알려 준다(이미 올라간 브랜치면 `git push --force-with-lease`). 리베이스가 충돌하면 **원래 상태로 되돌리고 경고만** 남기므로 작업이 사라지지 않는다 — 그때는 씬/프리팹 충돌을 한 번에 보는 `git merge origin/develop` 로 정리한다. 씬·프리팹을 많이 만지는 작업은 `METAGAME_AUTOREBASE_MODE=merge` 로 두면 처음부터 merge 로 얹는다(merge 는 커밋 해시가 그대로라 강제 push 도 필요 없다). 끄려면 `METAGAME_AUTOREBASE=0`.
 5. `master`, `develop`은 보호 브랜치 (직접 push 불가).
 
 ## 2. 브랜치 생성 — Jira 이슈 화면에서
@@ -126,7 +126,7 @@ docs: 로비 BGM 레퍼런스 조사 기록 (S15P21B202-27)
 | --- | --- | --- | --- |
 | **서버** | GitLab 보호 브랜치: `develop`·`master` = push No one / merge Maintainers, `hotfix/S15P21B202-*` = Maintainers. **작업 브랜치는 보호하지 않음**(2026-08-27 해제 — 그 전엔 `*` No one + `S15P21B202-*` 허용으로 이름을 서버에서 거부했으나, 머지 시 자동 삭제 불가·개발자 삭제 불가 부작용) | develop·master 직접 push, 팀장 외 머지 | 이름 규칙은 아래 3겹이 담당. 머지 시 **소스 브랜치 자동 삭제**(프로젝트 기본값 ON) |
 | **스택 MR** | 작업 브랜치 → 작업 브랜치 MR 은 **허용**(2026-08-28). 다만 머지해도 그 이슈는 자동 완료되지 않으니, 부모 브랜치가 develop 에 머지된 뒤 이슈를 손으로 완료한다(머지된 MR 이 있어 R9 가 허용). 대상이 develop 인 MR 이 최종 관문이다 | — |
-| **로컬** | `.githooks/pre-push` | 형식 안 맞는 push를 서버까지 가기 전에 차단 (친절한 안내 메시지) → 이어서 `git lfs pre-push` 실행(LFS 업로드 유지) | 클론 후 1회 `git config core.hooksPath .githooks` |
+| **로컬** | `.githooks/pre-push` | 형식 안 맞는 push를 서버까지 가기 전에 차단 (친절한 안내 메시지) → **뒤처진 브랜치에 `develop` 최신을 자동으로 얹고 다시 push 하도록 안내**(-137) → 이어서 `git lfs pre-push` 실행(LFS 업로드 유지) | 클론 후 1회 `git config core.hooksPath .githooks` |
 | **Jira** | 자동화 되돌림 (R5·R9) | 브랜치 없이 진행 중, 머지 없이 완료 | 키가 실존하지 않는 브랜치는 Jira가 무시 → 보드에 아무 일이 안 생겨 드러남 |
 | **CI** (러너 후) | `mr-lint` — 제목·브랜치 형식, **Jira 키 실존 확인**, 템플릿 섹션·체크박스 | 규칙 위반 MR의 머지 | "Pipelines must succeed" |
 
@@ -149,6 +149,6 @@ docs: 로비 BGM 레퍼런스 조사 기록 (S15P21B202-27)
    *.asset  merge=unityyamlmerge eol=lf
    ```
 4. **Git LFS는 이미 적용되어 있다.** 루트 `.gitattributes`가 모델·텍스처·오디오·영상·네이티브 라이브러리·압축 파일을 LFS로 보낸다.
-   - 클론 **전에** `git lfs install` 1회 (README "빠른 시작").
+   - 클론 **전에** `git lfs install --skip-repo` 1회 (README "빠른 시작"). `--skip-repo` 를 빼면 `core.hooksPath` 때문에 `Hook already exists: pre-push` 경고가 나며, 이때 `git lfs update --force` 를 실행하면 `.githooks/pre-push`(브랜치명 검사 + LFS 연계)가 덮어써지므로 금지.
    - Unity YAML(씬/프리팹/meta)은 텍스트로 유지 — diff/머지 확인을 위해 LFS로 보내지 않는다.
    - 새 바이너리 확장자는 `.gitattributes`에 추가. lab.ssafy.com의 LFS 용량 제한은 아트 에셋 대량 커밋 전에 확인.
