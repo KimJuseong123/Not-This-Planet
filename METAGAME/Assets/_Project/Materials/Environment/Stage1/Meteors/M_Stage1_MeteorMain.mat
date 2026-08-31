@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: M_Stage1_MeteorProjectile
+  m_Name: M_Stage1_MeteorMain
   m_Shader: {fileID: 46, guid: 0000000000000000f000000000000000, type: 0}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -26,7 +26,7 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _BumpMap:
-        m_Texture: {fileID: 2800000, guid: 6a816ae7c8fa2844da2b1d2f32ff68f1, type: 3}
+        m_Texture: {fileID: 2800000, guid: fe31453d43a2b8242909c5298e2c3748, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _DetailAlbedoMap:
@@ -46,11 +46,11 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _MainTex:
-        m_Texture: {fileID: 2800000, guid: 9248e066240d5d44d809b1b21403e755, type: 3}
+        m_Texture: {fileID: 2800000, guid: d28840a1fce072249af4090ac2716c8a, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _MetallicGlossMap:
-        m_Texture: {fileID: 2800000, guid: b04566a4251dc5943b64e29f6b0f2419, type: 3}
+        m_Texture: {fileID: 2800000, guid: 60450a4db7f8d204fb40f06136c4136d, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _OcclusionMap:

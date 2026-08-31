@@ -3,6 +3,7 @@
 > 기준 커밋: `develop` **054a2a6** · 작성 2026-08-27 · 이슈 [S15P21B202-80](https://ssafy.atlassian.net/browse/S15P21B202-80)
 > 갱신 2026-08-27 — 환경 자연물 연결과 `Main.unity` 아트 배치 · 이슈 [S15P21B202-84](https://ssafy.atlassian.net/browse/S15P21B202-84)
 > 갱신 2026-08-28 — Stage1 운석 모델·PBR 텍스처 4종 교체 · 이슈 [S15P21B202-98](https://ssafy.atlassian.net/browse/S15P21B202-98)
+> 갱신 2026-08-31 — Stage1 자연물 8종·맵 타일 리뉴얼 원본 추가 · 이슈 [S15P21B202-163](https://ssafy.atlassian.net/browse/S15P21B202-163)
 > 관련 문서: [문서 목록](./README.md) · [1장 기획](./planning/chapter-1-plan.md) · [파트 구분](./parts.md)
 
 **어떤 에셋이 무엇이고, 씬에 갖다 쓸 수 있는 상태인지** 한 장에서 확인하는 문서다.
@@ -29,7 +30,7 @@ Stage1 프리팹 5종 모두 루트에 Transform 하나뿐이다. 물리·상호
 실제 크기 = FBX 원본 크기 × .meta globalScale × 프리팹 스케일
 ```
 
-FBX 파일만 열어봐서는 크기를 알 수 없다. Tripo3D로 만든 13종은 전부 **1m 이하로 정규화**되어 있고,
+FBX 파일만 열어봐서는 크기를 알 수 없다. 기존 카탈로그에서 실측한 Tripo3D 모델 13종은 전부 **1m 이하로 정규화**되어 있고,
 실제 크기는 `.meta`의 `globalScale`과 프리팹 스케일이 결정한다.
 
 ---
@@ -48,11 +49,11 @@ FBX 파일만 열어봐서는 크기를 알 수 없다. Tripo3D로 만든 13종�
 
 | 종류 | 수량 | 상태 |
 | --- | ---: | --- |
-| FBX 모델 | 18 | 사용 가능 13 · 미연결 4 · 기존 1 |
-| 텍스처 (`Textures/`) | 24 | Stage1 PBR 20 · 콘셉트 4 |
-| 텍스처 (`.fbm/` 임베드) | 25 | 캐릭터 2 · 환경 7 · 운석 PBR 16 |
-| Material | 12 | 전부 사용 가능 (파츠·소품 5 · 환경 7) |
-| Prefab | 14 | Stage1 12 · 기존 2 |
+| FBX 모델 | 26 | 사용 가능 14 · 미연결 11 · 기존 1 |
+| 텍스처 (`Textures/`) | 25 | Stage1 PBR 20 · 리뉴얼 바닥 1 · 콘셉트 4 |
+| 텍스처 (`.fbm/` 임베드) | 57 | 캐릭터 2 · 환경 7 · 운석 PBR 16 · 리뉴얼 자연물 PBR 32 |
+| Material | 14 | 파츠·소품 5 · 환경·바닥 8 · 운석 1 |
+| Prefab | 16 | Stage1 14 · 기존 2 |
 | Shader | 3 | 기존 SpaceFlop 런타임 전용 |
 | Scene | 1 | `Scenes/Main.unity` — Stage1 프리팹 12종이 122개 배치돼 있다 |
 | Unity 설정 Asset | 8 | URP 7 · Readme 1 |
@@ -167,18 +168,19 @@ Material·프리팹은 `Stage1EnvironmentAssets` 에디터 도구가 만든다
 
 ---
 
-## 6-1. Stage1 운석 — 미연결 (4종)
+## 6-1. Stage1 운석 — 본체 사용 가능 · 파편 미연결 (4종)
 
 [S15P21B202-98](https://ssafy.atlassian.net/browse/S15P21B202-98)에서 Tripo 산출물을
-영문 snake_case 이름으로 정리하고 Unity 임포트를 확인했다. 현재는 FBX와 PBR 텍스처까지 준비됐으며,
-Material·Prefab 및 [운석 퍼즐 런타임](https://ssafy.atlassian.net/browse/S15P21B202-70) 연결은 아직 하지 않았다.
+영문 snake_case 이름으로 정리하고 Unity 임포트를 확인했다. `meteor_main`은 S15P21B202-163 에셋 정리에서
+Material·아트 Prefab과 [운석 퍼즐 런타임](https://ssafy.atlassian.net/browse/S15P21B202-70)에 연결했다.
+대·중·소 파편 3종은 FBX와 PBR 텍스처만 있고 Material·Prefab·런타임 연결은 아직 하지 않았다.
 
-| 프리뷰 | 모델 | 용도 | FBX 원본 | globalScale | **실제 크기** | 삼각형 |
-| --- | --- | --- | --- | ---: | --- | ---: |
-| <img src="./assets/previews/meteor_main_front.png" width="100"> | `meteor_main` | 낙하·충돌 전 운석 본체 | 0.97 × 0.96 × 0.98 m | 1 | **0.97 × 0.96 × 0.98 m** | 17,790 |
-| <img src="./assets/previews/meteor_debris_large_front.png" width="100"> | `meteor_debris_large` | 충돌 후 큰 파편 | 0.98 × 0.66 × 0.82 m | 1 | **0.98 × 0.66 × 0.82 m** | 18,030 |
-| <img src="./assets/previews/meteor_debris_medium_front.png" width="100"> | `meteor_debris_medium` | 충돌 후 중간 파편 | 0.97 × 0.69 × 0.98 m | 1 | **0.97 × 0.69 × 0.98 m** | 18,070 |
-| <img src="./assets/previews/meteor_debris_small_front.png" width="100"> | `meteor_debris_small` | 충돌 후 작은 파편 | 0.98 × 0.62 × 0.91 m | 1 | **0.98 × 0.62 × 0.91 m** | 17,638 |
+| 프리뷰 | 모델 | 용도 | 상태 | FBX 원본 | globalScale | **실제 크기** | 삼각형 |
+| --- | --- | --- | --- | --- | ---: | --- | ---: |
+| <img src="./assets/previews/meteor_main_front.png" width="100"> | `meteor_main` | 낙하·충돌 전 운석 본체 | 사용 가능 | 0.97 × 0.96 × 0.98 m | 1 | **0.97 × 0.96 × 0.98 m** | 17,790 |
+| <img src="./assets/previews/meteor_debris_large_front.png" width="100"> | `meteor_debris_large` | 충돌 후 큰 파편 | 미연결 | 0.98 × 0.66 × 0.82 m | 1 | **0.98 × 0.66 × 0.82 m** | 18,030 |
+| <img src="./assets/previews/meteor_debris_medium_front.png" width="100"> | `meteor_debris_medium` | 충돌 후 중간 파편 | 미연결 | 0.97 × 0.69 × 0.98 m | 1 | **0.97 × 0.69 × 0.98 m** | 18,070 |
+| <img src="./assets/previews/meteor_debris_small_front.png" width="100"> | `meteor_debris_small` | 충돌 후 작은 파편 | 미연결 | 0.98 × 0.62 × 0.91 m | 1 | **0.98 × 0.62 × 0.91 m** | 17,638 |
 
 경로는 모두 `Models/Environment/Stage1/Meteors/<모델>.fbx`이며 파일 크기는 각각
 `meteor_main` 551 KB · `meteor_debris_large` 544 KB · `meteor_debris_medium` 541 KB ·
@@ -189,6 +191,48 @@ Material·Prefab 및 [운석 퍼즐 런타임](https://ssafy.atlassian.net/brows
 FBX 내부의 Tripo UUID 경로도 새 영문 경로로 다시 내보냈으며, Unity에서 모델 4개와 텍스처 16개의
 임포트를 검증했다. 네 모델 모두 메시 1개이며 에셋 전체 용량은 약 12.0 MB다.
 각 모델의 앞·뒤·좌·우 프리뷰는 `docs/assets/previews/<모델>_{front,back,left,right}.png`에 있다.
+
+---
+
+## 6-2. Stage1 자연물·맵 타일 리뉴얼 — 미연결 (자연물 8종 + 타일 1종)
+
+[S15P21B202-163](https://ssafy.atlassian.net/browse/S15P21B202-163)에서 신규 원본 에셋을 추가했다.
+기존 Stage1 자연물 파일을 덮어쓰지 않고, 각 신규 자연물을 Stage1 바로 아래의 개별 폴더로 분리했다.
+현재는 FBX·PBR 텍스처·프리뷰까지만 있으며 Material·Prefab·Collider·LOD·씬 배치는 아직 하지 않았다.
+
+| 프리뷰 | 모델 | 용도 | 상태 |
+| --- | --- | --- | --- |
+| <img src="./assets/previews/alien_flower_cluster_front.png" width="100"> | `alien_flower_cluster` | 외계 꽃 군락 | 미연결 |
+| <img src="./assets/previews/alien_rock_cluster_a_front.png" width="100"> | `alien_rock_cluster_a` | 외계 바위 군락 A | 미연결 |
+| <img src="./assets/previews/alien_rock_cluster_b_front.png" width="100"> | `alien_rock_cluster_b` | 외계 바위 군락 B | 미연결 |
+| <img src="./assets/previews/alien_rock_flat_front.png" width="100"> | `alien_rock_flat` | 낮고 평평한 바위 | 미연결 |
+| <img src="./assets/previews/alien_rock_flat_cracked_front.png" width="100"> | `alien_rock_flat_cracked` | 갈라진 낮은 바위 | 미연결 |
+| <img src="./assets/previews/alien_rock_oval_front.png" width="100"> | `alien_rock_oval` | 타원형 바위 | 미연결 |
+| <img src="./assets/previews/alien_rock_round_front.png" width="100"> | `alien_rock_round` | 둥근 바위 | 미연결 |
+| <img src="./assets/previews/alien_rock_round_cracked_front.png" width="100"> | `alien_rock_round_cracked` | 갈라진 둥근 바위 | 미연결 |
+
+자연물 기준 경로는 `Models/Environment/Stage1/<모델>/`이다. 각 폴더에는 같은 이름의
+FBX와 `tripo_convert_<id>.fbm/` 폴더가 있고, `.fbm` 안에 Base Color·Normal·Metallic·Roughness 4장이 있다.
+`.fbm` 이름은 FBX 내부 텍스처 경로 호환을 위해 원본을 유지했으므로 FBX와 해당 `.fbm` 폴더를 함께 이동해야 한다.
+
+### 맵 타일
+
+| 용도 | 경로 | 상태 |
+| --- | --- | --- |
+| Stage1 신규 바닥 Base Color | `Textures/Environment/Stage1/Renewal/Ground/T_Stage1_AlienGroundTile_BaseColor.png` | 1024 × 1024 seamless 원본·미연결 |
+
+현재 Base Color 한 장만 있다. 적용할 때는 Wrap Mode를 `Repeat`로 설정하고,
+Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
+
+### 적용 전 확인
+
+- 자연물별 정면 프리뷰 8장은 `docs/assets/previews/`에 있다.
+- `Normal.jpg`는 Normal map으로, Metallic·Roughness는 sRGB를 끄고 선형 데이터로 임포트한다.
+- Roughness를 직접 받지 않는 셰이더는 `Smoothness = 1 - Roughness`로 변환해 사용한다.
+- FBX를 씬에 직접 배치하지 말고 Material과 `PF_Stage1_*` Prefab을 만든 뒤 배치한다.
+- 모델의 폴리곤 수·실제 치수·피벗·전방 축과 라이선스·배포 범위는 아직 검증하지 않았다.
+- 기존 `alien_flower_cluster`와 이름이 겹치므로 신규 Material·Prefab은 `Renewal` 등으로 구분한다.
+- 바닥은 신규 Material에서 먼저 비교하고, 50 m × 50 m 전체에서 반복 무늬·색 띠·UV 경계를 확인한다.
 
 ---
 
@@ -345,7 +389,8 @@ FBX 내부의 Tripo UUID 경로도 새 영문 경로로 다시 내보냈으며, 
 | 5 | **`.fbm` 임베드 텍스처가 크다** (합계 약 34 MB, 최대 7.0 MB). LFS 용량과 임포트 시간에 영향이 있다. 다운스케일 여부 검토 필요. | Art · Infra |
 | 6 | `METAGAME/Assets/_Project/Models/README_KO.md`가 삭제된 `SF_Astronaut_Base.fbx`를 안내한다. 루트 `README.md`도 삭제된 `Surface.unity`를 안내한다. | Plan · Infra |
 | 7 | Unity URP 템플릿 잔여물(`Readme.asset`, `TutorialInfo/`)이 남아 있다. | Infra |
-| 12 | **운석 FBX 4종은 Material·Prefab과 런타임 연결이 없다.** S15P21B202-70의 운석 퍼즐은 현재 코드 생성 시각물을 사용하므로, `meteor_main`과 대·중·소 파편 3종을 실제 게임에 보이게 하려면 별도 연결 작업이 필요하다(§6-1). | Art · Puzzle |
+| 12 | ~~운석 본체가 런타임에 연결되지 않았다.~~ **본체 해소** — `meteor_main`을 Material·Prefab과 운석 스포너에 연결했다. 대·중·소 파편 3종은 아직 미연결이다(§6-1). | Art · Puzzle |
+| 13 | **리뉴얼 자연물 FBX 8종과 바닥 타일은 Material·Prefab·씬에 연결되지 않았다.** 적용 전에 크기·축·피벗·반복 경계를 검증해야 한다(§6-2). | Art · Level |
 
 ---
 
