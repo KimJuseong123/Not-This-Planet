@@ -1,6 +1,7 @@
 using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Metagame.EditorTools
 {
@@ -99,12 +100,23 @@ namespace Metagame.EditorTools
 
         static void EnsureAlwaysIncludedShaders(params string[] shaderNames)
         {
-            var graphicsSettings = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/GraphicsSettings.asset");
-            if (graphicsSettings == null || graphicsSettings.Length == 0) return;
+            // AssetDatabase.LoadAllAssetsAtPath 는 Assets/ 아래 자산용이라 ProjectSettings 경로로는
+            // 대개 빈 배열을 돌려주고 조용히 return 했다 — 셰이더 포함 보장이 사실상 동작하지 않았다
+            // (2026-08-27 전수 AI 리뷰 지적, S15P21B202-136). GraphicsSettings 를 직접 받는다.
+            var settingsObject = GraphicsSettings.GetGraphicsSettings();
+            if (settingsObject == null)
+            {
+                Debug.LogWarning("[SpaceFlop] GraphicsSettings 를 열지 못해 AlwaysIncludedShaders 를 확인하지 못했습니다.");
+                return;
+            }
 
-            var so = new SerializedObject(graphicsSettings[0]);
+            var so = new SerializedObject(settingsObject);
             var arrayProp = so.FindProperty("m_AlwaysIncludedShaders");
-            if (arrayProp == null) return;
+            if (arrayProp == null)
+            {
+                Debug.LogWarning("[SpaceFlop] m_AlwaysIncludedShaders 속성을 찾지 못했습니다(Unity 버전 변경?).");
+                return;
+            }
 
             foreach (var name in shaderNames)
             {
