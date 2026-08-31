@@ -70,6 +70,16 @@ namespace Metagame.EditorTools
             var data = AssetDatabase.LoadAssetAtPath<TerrainData>(TerrainDataPath);
             if (data == null)
             {
+                // TerrainData is a binary Unity asset. If Git text normalization damaged
+                // the file, replace only its contents and retain the existing .meta GUID.
+                if (File.Exists(TerrainDataPath))
+                {
+                    File.Delete(TerrainDataPath);
+                    AssetDatabase.Refresh();
+                    Debug.LogWarning("[Stage1Terrain] 손상된 TerrainData를 재생성한다: "
+                                     + TerrainDataPath);
+                }
+
                 data = new TerrainData { name = "TD_Stage1_Arena" };
                 AssetDatabase.CreateAsset(data, TerrainDataPath);
             }
