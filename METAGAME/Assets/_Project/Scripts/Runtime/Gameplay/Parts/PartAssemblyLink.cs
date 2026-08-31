@@ -28,6 +28,9 @@ namespace Metagame.Gameplay.Parts
         readonly List<WeldPoint> _weldPoints = new();
 
         bool _released;
+
+        /// <summary>발사 성공으로 봉인되었는가. 봉인되면 강도를 다시 계산하지 않는다.</summary>
+        bool _sealed;
         bool _weldPointsCollected;
 
         /// <summary>맞물림이 풀렸을 때. 조인트가 끊어진 경우와 직접 해제한 경우 모두 포함한다.</summary>
@@ -109,6 +112,25 @@ namespace Metagame.Gameplay.Parts
         /// 조인트가 아직 살아 있는지 확인한다. 끊어졌으면 맞물림을 푼다.
         /// 런타임에서는 FixedUpdate 가 부르고, 테스트에서는 직접 부른다.
         /// </summary>
+        /// <summary>
+        /// 접합부를 봉인해 더 이상 끊어지지 않게 한다. 발사가 성공한 뒤 상승 연출 중에
+        /// 파손되지 않아야 하기 때문이다(기획 §22.3).
+        ///
+        /// 조인트의 <c>breakForce</c> 를 올리는 것만으로는 안 된다.
+        /// <see cref="ApplyJointStrength"/> 가 매 <see cref="Tick"/> 마다 용접 비율로 강도를
+        /// 다시 계산해 덮어쓰기 때문이다(S15P21B202-194 에서 이 함정에 빠졌다).
+        /// 그래서 재계산 자체를 멈춘다.
+        /// </summary>
+        public void SealForLaunch()
+        {
+            _sealed = true;
+
+            if (_joint == null) return;
+
+            _joint.breakForce = float.PositiveInfinity;
+            _joint.breakTorque = float.PositiveInfinity;
+        }
+
         public void Tick()
         {
             if (_released) return;
@@ -118,6 +140,8 @@ namespace Metagame.Gameplay.Parts
                 Release();
                 return;
             }
+
+            if (_sealed) return;
 
             ApplyJointStrength();
         }
