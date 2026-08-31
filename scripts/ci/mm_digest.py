@@ -145,8 +145,7 @@ def resurrected_branches(gl: GitLab, days: int = 7) -> list[str]:
         author = ((d.get("commit") or {}).get("author_name")) or (mr.get("author") or {}).get("username", "?")
         mention = next((f"@{m['mm']}" for m in TEAM["members"] if m["name"] == author or m["gitlab"] == author), author)
         rows.append(f"| `{br}` | [!{mr['iid']}]({mr['web_url']}) | {mention} |")
-
-
+    return rows
 
 
 def pending_hours(raw: str | None = None) -> float:
