@@ -28,7 +28,8 @@ namespace Metagame.Gameplay.Tests
             profile.fog.endDistance = 1f;
             profile.haze.startDistance = 40f;
             profile.haze.endDistance = 1f;
-            profile.meteorShower.maxParticles = -10;
+            profile.meteorShower.maxParticles = 100;
+            profile.meteorShower.alertEmissionMultiplier = 0.5f;
             profile.meteorShower.lifetime = 0f;
             profile.mobileEffectScale = 0f;
 
@@ -37,7 +38,8 @@ namespace Metagame.Gameplay.Tests
             Assert.That(profile.stars.radius, Is.EqualTo(1f));
             Assert.That(profile.fog.endDistance, Is.GreaterThan(profile.fog.startDistance));
             Assert.That(profile.haze.endDistance, Is.GreaterThan(profile.haze.startDistance));
-            Assert.That(profile.meteorShower.maxParticles, Is.EqualTo(0));
+            Assert.That(profile.meteorShower.maxParticles, Is.EqualTo(64));
+            Assert.That(profile.meteorShower.alertEmissionMultiplier, Is.EqualTo(1f));
             Assert.That(profile.meteorShower.lifetime, Is.EqualTo(0.05f));
             Assert.That(profile.mobileEffectScale, Is.EqualTo(0.1f));
         }

@@ -57,7 +57,7 @@ FBX 파일만 열어봐서는 크기를 알 수 없다. 기존 카탈로그에�
 | Prefab | 18 | Stage1 16 · 기존 Resources 2 |
 | Shader | 6 | `SpaceFlop/*` URP 3 · 분위기 URP 3 |
 | Scene | 2 | `Scenes/Lobby.unity` · `Scenes/Main.unity` — Main에 Stage1 프리팹 12종이 122개 배치돼 있다 |
-| Unity 설정 Asset | 9 | URP 설정 8 · 공용 기본 Volume Profile 1 |
+| Unity 설정 Asset | 10 | URP 설정 8 · 공용 기본 Volume Profile 1 · Stage1 분위기 프로필 1 |
 | Input Actions | 1 | Unity 기본 액션 맵 |
 
 연결 구조: `Texture → Material → Prefab(FBX 포함) → Scene`
@@ -319,7 +319,7 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 | 파일 | 내용 |
 | --- | --- |
 | `Assets/Scenes/Lobby.unity` | 빌드 목록의 진입 씬. 별도 Stage1 분위기 프로필은 참조하지 않는다. |
-| `Assets/Scenes/Main.unity` | 게임플레이 스크립트(`SpaceshipPart`, `PartSocket`, `WeldPoint`, `PartClamp`, `TractorBeam`, `MeteorSpawner`, `Grabbable`, `SpaceBootstrap`, `LobbyBootstrap` 등)와 공용 기본 Volume Profile 위에, [S15P21B202-84](https://ssafy.atlassian.net/browse/S15P21B202-84)에서 Stage1 프리팹 12종을 122개 배치했다(아래). |
+| `Assets/Scenes/Main.unity` | 게임플레이 스크립트(`SpaceshipPart`, `PartSocket`, `WeldPoint`, `PartClamp`, `TractorBeam`, `MeteorSpawner`, `Grabbable`, `SpaceBootstrap`, `LobbyBootstrap` 등)와 공용 기본 Volume Profile 위에, [S15P21B202-84](https://ssafy.atlassian.net/browse/S15P21B202-84)에서 Stage1 프리팹 12종을 122개 배치했고 `Stage1AtmosphereProfile.asset`을 `SpaceBootstrap`에 연결했다(아래). |
 
 ### `Main.unity` 의 아트 배치 (S15P21B202-84)
 
@@ -401,10 +401,11 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 | `Assets/Settings/PC_RPAsset.asset` · `PC_Renderer.asset` | PC용 URP 파이프라인·렌더러 |
 | `Assets/Settings/Mobile_RPAsset.asset` · `Mobile_Renderer.asset` | 모바일용 URP 파이프라인·렌더러 |
 | `Assets/Settings/UniversalRenderPipelineGlobalSettings.asset` | URP 전역 설정 |
-| `Assets/_Project/Data/Atmosphere/URPBaselineVolumeProfile.asset` | Main·URP 파이프라인이 함께 사용하는 중립 기본 Volume Profile. Stage1 분위기 값은 없다 |
+| `Assets/_Project/Data/Atmosphere/URPBaselineVolumeProfile.asset` | Main·Lobby·URP 파이프라인이 함께 사용하는 중립 기본 Volume Profile. Stage1 값은 넣지 않는다 |
+| `Assets/_Project/Data/Atmosphere/Stage1AtmosphereProfile.asset` | Main 전용 Stage1 분위기 프로필. 남보라 하늘·노을·별·행성·달·Fog·Haze·후처리·시각 유성우 값을 담고, 모바일에서는 별·유성우·Haze를 끈다 |
 | `Assets/Settings/DefaultVolumeProfile.asset` · `SampleSceneProfile.asset` | Unity 템플릿 잔여 Volume 프로파일. 활성 렌더 경로에서는 사용하지 않는다 |
 | `Assets/_Project/Scripts/Editor/UrpProjectSetup.cs` · `UrpRenderValidation.cs` | URP 설정/이관 도구와 빌드 전 핑크 셰이더 안전성 검증 |
-| `Assets/_Project/Scripts/Runtime/Gameplay/World/Atmosphere/` | 후속 Stage에서 재사용할 Profile·Controller·Backdrop·Meteor·Haze 기반 |
+| `Assets/_Project/Scripts/Runtime/Gameplay/World/Atmosphere/` | Stage1과 후속 Stage에서 재사용할 Profile·Controller·Backdrop·Meteor·Stage1 경고 브리지·Haze 기반 |
 | `Assets/InputSystem_Actions.inputactions` | Input System 기본 액션 맵 |
 | `Assets/Readme.asset` · `Assets/TutorialInfo/Icons/URP.png` · `TutorialInfo/Layout.wlt` | Unity URP 템플릿 잔여물. 삭제 가능 |
 

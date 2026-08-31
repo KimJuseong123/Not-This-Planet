@@ -4,10 +4,10 @@
 
 ## Project Summary
 
-- Latest feature change: the project is now configured for URP 17.5.0 with explicit PC/Mobile quality overrides, URP-compatible Stage1 materials/shaders, a reusable atmosphere framework, and a pre-build pink-shader guard. Stage1 still has no atmosphere profile assigned.
+- Latest feature change: the project is now configured for URP 17.5.0 with explicit PC/Mobile quality overrides, URP-compatible Stage1 materials/shaders, a reusable atmosphere framework, a Stage1 atmosphere profile wired to `Main`, and a pre-build pink-shader guard.
 
 - Project root: `METAGAME/`
-- Last analyzed: 2026-08-31
+- Last analyzed: 2026-09-01
 - Last analyzed commit: `94422cd`; current working branch: `S15P21B202-197-level-base`.
 - Latest structural change: the `Assets/SpaceFlop/` prototype tree was folded into the `Assets/_Project/` convention layout (folders, assemblies, namespaces, and hardcoded asset paths).
 
@@ -60,7 +60,7 @@
 
 - Build scenes: `Assets/Scenes/Lobby.unity` and `Assets/Scenes/Main.unity` are enabled; `SpaceBuild` preserves existing entries and ensures both are present.
 - Startup scene: `Lobby`/`Main` according to the build list. `Main` holds the static Stage1 puzzle/environment and scene-side ship parts; the player ragdoll, runtime level, HUD, and legacy vacuum/starfield are composed in code.
-- Scene loading flow: there is no new atmosphere scene dependency. `AtmosphereProfile`/`AtmosphereController` are reusable and inert until a later stage explicitly applies a profile; no Stage1 profile asset is created or assigned.
+- Scene loading flow: `Main` assigns `Stage1AtmosphereProfile.asset` to `SpaceBootstrap`. The bootstrap binds its runtime camera, applies the profile, creates the camera-following backdrop and visual meteor shower, and observes `MeteorSpawner.Pending` only for visual alert intensity. `Lobby` remains on the neutral baseline Volume profile.
 
 ## Architecture
 
@@ -102,7 +102,7 @@
 - Assets moved between folders must carry their `.meta` files so GUIDs, and therefore scene and prefab references, survive.
 - `Prim` and the model loaders resolve assets by `Resources.Load` name, so `Shaders/Resources/` and `Prefabs/Resources/` have to stay inside a folder literally named `Resources`.
 - `Prim` uses only `SpaceFlop/*` URP shaders with URP Lit as the last safe fallback; Built-in Standard/Diffuse is not a runtime fallback. The required shaders are protected through Graphics Settings Always Included Shaders and validated before builds.
-- Atmosphere is stage-independent: create a profile under `Assets/_Project/Data/Atmosphere/` for Stage2+ and apply it through `AtmosphereController`; do not put Stage-specific values into the baseline Volume profile or Stage1 scenes.
+- Atmosphere is stage-independent: `Main` uses `Assets/_Project/Data/Atmosphere/Stage1AtmosphereProfile.asset`; create another profile under the same folder for Stage2+ and apply it through `AtmosphereController`. Keep Stage-specific values out of the baseline Volume profile and `Lobby`.
 - Editor tooling holds absolute asset paths (`ArtLink`, `SpaceBuild`, `SpaceSceneBuilder`, `ArtInspect`, `SpaceFlopModelValidator`); moving the models or the scene means updating those constants.
 - Large binary assets are configured for Git LFS in the repository-root `.gitattributes`; Unity YAML assets remain regular text files because project serialization is ForceText.
 
@@ -117,7 +117,7 @@
 
 - Updated `Assets/_Project/Scripts/Runtime/Gameplay/GameSession.cs`, `Assets/_Project/Scripts/Runtime/Bootstrap/SpaceBootstrap.cs`, `Assets/_Project/Scripts/Runtime/Core/Controls.cs`, and `Assets/_Project/Scripts/Runtime/UI/GameHud.cs` for Stage1 exploration composition, Tab input, tablet pause, and hints.
 - Added `Assets/_Project/Scripts/Runtime/Gameplay/World/Stage1Exploration.cs`, `Assets/_Project/Scripts/Runtime/UI/Stage1ExplorationHud.cs`, and `Assets/_Project/Scripts/Tests/Editor/Stage1ExplorationTests.cs` with Unity `.meta` files.
-- Added `Assets/_Project/Scripts/Runtime/Gameplay/World/Atmosphere/` (`AtmosphereProfile`, `AtmosphereController`, `AtmosphereBackdrop`, `AtmosphereMeteorShower`, `AtmosphereHazeRendererFeature`) and the reusable URP atmosphere shaders/materials. No Stage1 atmosphere profile asset or scene wiring was added.
+- Added `Assets/_Project/Scripts/Runtime/Gameplay/World/Atmosphere/` (`AtmosphereProfile`, `AtmosphereController`, `AtmosphereBackdrop`, `AtmosphereMeteorShower`, `Stage1AtmosphereAlert`, `AtmosphereHazeRendererFeature`) and the reusable URP atmosphere shaders/materials. Added `Stage1AtmosphereProfile.asset` and wired it to `Main` through `SpaceBootstrap`; the `Stage1AtmosphereSetup` editor tool is included in the full Stage1 setup.
 - Added `Assets/_Project/Scripts/Editor/UrpProjectSetup.cs` and `UrpRenderValidation.cs`; updated `SpaceBuild.cs` to enforce the pre-build validation and shader inclusion.
 - Converted the first-party material set to URP Lit and rewrote `Assets/_Project/Shaders/Resources/DoughSurface.shader`, `GhostSurface.shader`, and `FlatUnlit.shader` for URP while preserving shader names and runtime property names.
 - `ProjectSettings/ProjectVersion.txt`

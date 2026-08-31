@@ -24,6 +24,9 @@ namespace Metagame.EditorTools
         const string PcRendererPath = "Assets/Settings/PC_Renderer.asset";
         const string MobileRendererPath = "Assets/Settings/Mobile_Renderer.asset";
         const string BaselineVolumePath = "Assets/_Project/Data/Atmosphere/URPBaselineVolumeProfile.asset";
+        const string Stage1ProfilePath = "Assets/_Project/Data/Atmosphere/Stage1AtmosphereProfile.asset";
+        const string MainScenePath = "Assets/Scenes/Main.unity";
+        const string LobbyScenePath = "Assets/Scenes/Lobby.unity";
         const string MaterialRoot = "Assets/_Project/Materials";
         const string ProjectRoot = "Assets/_Project";
         const string RuntimeScriptRoot = "Assets/_Project/Scripts/Runtime";
@@ -56,6 +59,7 @@ namespace Metagame.EditorTools
         {
             var errors = new List<string>();
             ValidatePipelineAssets(errors);
+            ValidateStage1Profile(errors);
             ValidateQualityLevels(errors);
             ValidateMaterials(errors);
             ValidateShaders(errors);
@@ -91,6 +95,44 @@ namespace Metagame.EditorTools
                 if (Array.IndexOf(dependencies, BaselineVolumePath) < 0)
                     errors.Add(scene.path + "가 공용 URP 기본 Volume Profile을 참조하지 않습니다.");
             }
+        }
+
+        static void ValidateStage1Profile(List<string> errors)
+        {
+            var profile = AssetDatabase.LoadAssetAtPath<AtmosphereProfile>(Stage1ProfilePath);
+            if (profile == null)
+            {
+                errors.Add("Stage1 분위기 프로필을 찾지 못했습니다: " + Stage1ProfilePath);
+                return;
+            }
+
+            if (!File.Exists(MainScenePath))
+            {
+                errors.Add("Stage1 Main 씬을 찾지 못했습니다: " + MainScenePath);
+                return;
+            }
+
+            var mainDependencies = AssetDatabase.GetDependencies(MainScenePath, true);
+            if (Array.IndexOf(mainDependencies, Stage1ProfilePath) < 0)
+                errors.Add("Main 씬이 Stage1 분위기 프로필을 참조하지 않습니다.");
+
+            if (File.Exists(LobbyScenePath))
+            {
+                var lobbyDependencies = AssetDatabase.GetDependencies(LobbyScenePath, true);
+                if (Array.IndexOf(lobbyDependencies, Stage1ProfilePath) >= 0)
+                    errors.Add("Lobby 씬이 Stage1 전용 분위기 프로필을 참조합니다.");
+            }
+
+            if (profile.meteorShower == null)
+            {
+                errors.Add("Stage1 분위기 프로필의 MeteorShowerSettings가 비어 있습니다.");
+                return;
+            }
+
+            if (profile.meteorShower.maxParticles < 0 || profile.meteorShower.maxParticles > 64)
+                errors.Add("Stage1 시각 유성우 파티클 수가 0~64 범위를 벗어납니다.");
+            if (profile.meteorShower.alertEmissionMultiplier < 1f)
+                errors.Add("Stage1 시각 유성우 경고 배율이 1보다 작습니다.");
         }
 
         static void ValidateQualityLevels(List<string> errors)

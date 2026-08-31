@@ -111,6 +111,7 @@ namespace Metagame.Gameplay
             public bool enabled;
             [Min(0)] public int maxParticles = 64;
             [Min(0f)] public float emissionRate = 4f;
+            [Min(1f)] public float alertEmissionMultiplier = 1.8f;
             [Min(0.05f)] public float lifetime = 3f;
             [Min(0f)] public float speed = 18f;
             [Min(0f)] public float spread = 20f;
@@ -157,7 +158,8 @@ namespace Metagame.Gameplay
             celestialBodies.moonDiameter = Mathf.Max(0.01f, celestialBodies.moonDiameter);
             fog.endDistance = Mathf.Max(fog.startDistance + 0.01f, fog.endDistance);
             haze.endDistance = Mathf.Max(haze.startDistance + 0.01f, haze.endDistance);
-            meteorShower.maxParticles = Mathf.Max(0, meteorShower.maxParticles);
+            meteorShower.maxParticles = Mathf.Clamp(meteorShower.maxParticles, 0, 64);
+            meteorShower.alertEmissionMultiplier = Mathf.Max(1f, meteorShower.alertEmissionMultiplier);
             meteorShower.lifetime = Mathf.Max(0.05f, meteorShower.lifetime);
             mobileEffectScale = Mathf.Clamp(mobileEffectScale, 0.1f, 1f);
         }

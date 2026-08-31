@@ -31,11 +31,16 @@ namespace Metagame.Bootstrap
         public Color suit = new Color(0.93f, 0.94f, 0.96f);
         public Color accent = new Color(0.96f, 0.50f, 0.16f);
 
+        [Header("분위기")]
+        [Tooltip("지정하면 이 Stage는 Vacuum·레거시 Starfield 대신 공용 URP 분위기 프레임워크를 사용한다.")]
+        [SerializeField] AtmosphereProfile atmosphereProfile;
+
         public GameSession Session { get; private set; }
         public LevelBuilder Level { get; private set; }
         public PlayerRig Player { get; private set; }
         public Vacuum Sky { get; private set; }
         public Starfield Space { get; private set; }
+        public AtmosphereController Atmosphere { get; private set; }
         public GameHud Hud { get; private set; }
         public Stage1Exploration Exploration { get; private set; }
         public Stage1ExplorationHud ExplorationHud { get; private set; }
@@ -67,7 +72,19 @@ namespace Metagame.Bootstrap
             var sys = new GameObject("~시스템");
             sys.transform.SetParent(transform, false);
 
-            Sky = sys.AddComponent<Vacuum>();
+            bool useAtmosphere = atmosphereProfile != null && !Application.isBatchMode;
+            if (useAtmosphere)
+            {
+                atmosphereProfile.Validate();
+                Atmosphere = sys.AddComponent<AtmosphereController>();
+                sys.AddComponent<AtmosphereBackdrop>();
+                sys.AddComponent<AtmosphereMeteorShower>();
+            }
+            else
+            {
+                Sky = sys.AddComponent<Vacuum>();
+            }
+
             Session = sys.AddComponent<GameSession>();
             Level = sys.AddComponent<LevelBuilder>();
             Hud = sys.AddComponent<GameHud>();
@@ -80,7 +97,8 @@ namespace Metagame.Bootstrap
             Exploration.Configure(FindObjectsByType<SpaceshipPart>(FindObjectsSortMode.None));
             DisableDemoClampReleasers();
             DisableDemoBeamDrivers();
-            if (starfield && !Application.isBatchMode) Space = Starfield.Create(transform, Sky.SunDirection);
+            if (!useAtmosphere && starfield && !Application.isBatchMode)
+                Space = Starfield.Create(transform, Sky.SunDirection);
 
             Vector3 spawn = Level.SpawnFoot + Vector3.up * 0.10f;
             Quaternion facing = Quaternion.LookRotation(Vector3.right, Vector3.up);
@@ -88,7 +106,8 @@ namespace Metagame.Bootstrap
             Player = PlayerRig.Create(nickname, spawn, facing, suit, accent, useModel);
             Player.transform.SetParent(transform, true);
 
-            Player.Cam = OrbitCamera.Create(Player.Hips.transform, Sky.SkyColor, firstPerson);
+            Color cameraSkyColor = useAtmosphere ? atmosphereProfile.sky.horizonColor : Sky.SkyColor;
+            Player.Cam = OrbitCamera.Create(Player.Hips.transform, cameraSkyColor, firstPerson);
             Player.Cam.Yaw = 90f;                        // +X 를 바라보고 시작한다
             Player.Cam.transform.SetParent(transform, true);
             Player.Cam.SnapToTarget();
@@ -107,7 +126,18 @@ namespace Metagame.Bootstrap
             if (NetworkSession.Instance != null)
                 RemotePlayerSync.Create(NetworkSession.Instance, Player, transform);
 
-            Sky.ApplyToCameras();
+            if (useAtmosphere)
+            {
+                Atmosphere.BindCamera(Player.Cam.Cam);
+                Atmosphere.Apply(atmosphereProfile);
+
+                var atmosphereAlert = sys.AddComponent<Stage1AtmosphereAlert>();
+                atmosphereAlert.Configure(Atmosphere, FindAnyObjectByType<Metagame.Gameplay.Hazards.MeteorSpawner>());
+            }
+            else
+            {
+                Sky.ApplyToCameras();
+            }
 
             if (selfTest) gameObject.AddComponent<SpaceSelfTest>();
             if (shot) gameObject.AddComponent<SpaceScreenshot>();

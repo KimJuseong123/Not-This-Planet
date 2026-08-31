@@ -13,7 +13,9 @@ namespace Metagame.Gameplay
         [SerializeField] bool playOnEnable = true;
 
         Material particleMaterial;
+        Camera followCamera;
         float intensity = 1f;
+        float alertIntensity;
 
         void OnEnable()
         {
@@ -24,6 +26,26 @@ namespace Metagame.Gameplay
         void OnDisable()
         {
             if (particleSystem != null) particleSystem.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        }
+
+        void LateUpdate()
+        {
+            if (particleSystem == null) return;
+            if (followCamera == null) followCamera = Camera.main;
+            if (followCamera != null)
+                particleSystem.transform.position = followCamera.transform.position;
+        }
+
+        /// <summary>
+        /// 카메라가 재생성되는 Stage에서도 시각 유성우가 플레이 화면을 따라가도록 연결한다.
+        /// 이 컴포넌트의 부모 전체를 움직이지 않고 파티클 루트만 이동시켜 조명과 다른
+        /// 분위기 런타임 오브젝트에는 영향을 주지 않는다.
+        /// </summary>
+        public void BindCamera(Camera camera)
+        {
+            followCamera = camera;
+            if (particleSystem != null && followCamera != null)
+                particleSystem.transform.position = followCamera.transform.position;
         }
 
         public void Apply(AtmosphereProfile atmosphereProfile)
@@ -37,8 +59,11 @@ namespace Metagame.Gameplay
             profile = atmosphereProfile;
             var settings = profile.meteorShower;
             EnsureParticleSystem();
+            if (particleMaterial != null)
+                particleMaterial.SetColor("_Color", settings.color);
             Configure(settings);
             SetIntensity(intensity);
+            SetAlertIntensity(alertIntensity);
 
             if (settings.enabled && GetEffectScale() > 0f && Application.isPlaying)
                 particleSystem.Play();
@@ -51,11 +76,24 @@ namespace Metagame.Gameplay
             intensity = Mathf.Clamp01(value);
             if (particleSystem == null || profile == null) return;
 
-            var emission = particleSystem.emission;
-            emission.rateOverTime = profile.meteorShower.emissionRate * GetEffectScale() * intensity;
+            ApplyEmission();
             if (intensity <= 0.001f)
                 particleSystem.Stop(true, ParticleSystemStopBehavior.StopEmitting);
             else if (Application.isPlaying && profile.meteorShower.enabled && !particleSystem.isPlaying)
+                particleSystem.Play();
+        }
+
+        /// <summary>
+        /// 실제 운석 예고가 진행 중일 때만 시각 효과의 방출량을 키운다.
+        /// 운석 스포너의 시간·물리·충돌 상태는 수정하지 않는다.
+        /// </summary>
+        public void SetAlertIntensity(float value)
+        {
+            alertIntensity = Mathf.Clamp01(value);
+            if (particleSystem == null || profile == null) return;
+
+            ApplyEmission();
+            if (Application.isPlaying && profile.meteorShower.enabled && intensity > 0.001f && !particleSystem.isPlaying)
                 particleSystem.Play();
         }
 
@@ -64,6 +102,7 @@ namespace Metagame.Gameplay
             if (particleSystem != null)
                 particleSystem.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             DestroyRuntimeMaterial();
+            alertIntensity = 0f;
         }
 
         void EnsureParticleSystem()
@@ -82,6 +121,7 @@ namespace Metagame.Gameplay
             renderer.alignment = ParticleSystemRenderSpace.View;
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             renderer.receiveShadows = false;
+            renderer.trailMaterial = particleMaterial;
 
             if (particleMaterial == null)
             {
@@ -105,16 +145,43 @@ namespace Metagame.Gameplay
             var main = particleSystem.main;
             main.loop = true;
             main.playOnAwake = false;
-            main.maxParticles = Mathf.Clamp(Mathf.RoundToInt(settings.maxParticles * effectScale), 0, 512);
+            main.maxParticles = Mathf.Clamp(Mathf.Min(settings.maxParticles, 64), 0, 64);
             main.startLifetime = settings.lifetime;
             main.startSpeed = settings.speed;
             main.startSize = settings.startSize;
             main.startColor = settings.color;
             main.simulationSpace = ParticleSystemSimulationSpace.Local;
 
+            var sizeOverLifetime = particleSystem.sizeOverLifetime;
+            sizeOverLifetime.enabled = true;
+            float endSizeRatio = settings.startSize <= 0.001f
+                ? 0.01f
+                : Mathf.Max(0.01f, settings.endSize / settings.startSize);
+            sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(
+                1f,
+                AnimationCurve.EaseInOut(0f, 1f, 1f, endSizeRatio));
+
             var emission = particleSystem.emission;
             emission.enabled = settings.enabled && effectScale > 0f;
             emission.rateOverTime = settings.emissionRate * effectScale;
+
+            var trails = particleSystem.trails;
+            trails.enabled = settings.enabled && effectScale > 0f;
+            trails.mode = ParticleSystemTrailMode.PerParticle;
+            trails.ratio = 1f;
+            trails.lifetime = 0.22f;
+            trails.dieWithParticles = true;
+            trails.minVertexDistance = 0.05f;
+            trails.textureMode = ParticleSystemTrailTextureMode.Stretch;
+            trails.inheritParticleColor = true;
+
+            var renderer = particleSystem.GetComponent<ParticleSystemRenderer>();
+            if (renderer != null)
+            {
+                renderer.trailMaterial = particleMaterial;
+                renderer.minParticleSize = 0f;
+                renderer.maxParticleSize = 1f;
+            }
 
             var shape = particleSystem.shape;
             shape.enabled = true;
@@ -135,6 +202,18 @@ namespace Metagame.Gameplay
                 new[] { new GradientColorKey(settings.color, 0f), new GradientColorKey(settings.color, 1f) },
                 new[] { new GradientAlphaKey(settings.color.a, 0f), new GradientAlphaKey(0f, 1f) });
             colorOverLifetime.color = new ParticleSystem.MinMaxGradient(gradient);
+        }
+
+        void ApplyEmission()
+        {
+            if (particleSystem == null || profile == null) return;
+
+            float effectScale = GetEffectScale();
+            var settings = profile.meteorShower;
+            float alertMultiplier = Mathf.Lerp(1f, settings.alertEmissionMultiplier, alertIntensity);
+            var emission = particleSystem.emission;
+            emission.enabled = settings.enabled && effectScale > 0f;
+            emission.rateOverTime = settings.emissionRate * effectScale * intensity * alertMultiplier;
         }
 
         float GetEffectScale()
