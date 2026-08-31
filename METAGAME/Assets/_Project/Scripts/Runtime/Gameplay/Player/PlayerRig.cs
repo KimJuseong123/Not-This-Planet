@@ -22,8 +22,6 @@ namespace Metagame.Gameplay
     {
         const float ClampInteractionRange = 3f;
         const float ClampInteractionHalfAngle = 60f;
-        const float ClampPullUpThreshold = 0.01f;
-        const float ClampLiftStartDegrees = 16f;
 
         public Doll Doll;
         /// <summary>
@@ -98,12 +96,30 @@ namespace Metagame.Gameplay
         public Interactor ClampInteractor { get; private set; }
         /// <summary>좌·우 중 하나 이상의 버튼으로 고정쇠를 잡은 상태.</summary>
         public bool ClampGrabbed { get { return clampGrabbed; } }
+
+        /// <summary>
+        /// 지금 잡고 있는 고정못. 없으면 null. 연출과 검증이 쓴다.
+        /// </summary>
+        public PartClamp ClampGrabTarget { get { return clampGrabTarget; } }
+
+        /// <summary>이번 틱에 고정못을 실제로 뒤로 당겼는가. 낑낑대는 연출이 붙을 신호다.</summary>
+        public bool ClampPulling { get; private set; }
         /// <summary>고정쇠를 위로 드는 거리 기준을 넘었는가.</summary>
-        public bool ClampLiftReady { get { return clampGrabbed && clampLiftAmount >= ClampLiftStartDegrees; } }
+        /// <summary>
+        /// 예전 조작(마우스를 위로 들어 홀드를 시작)의 잔재. 뒤로 이동 방식으로 바뀐
+        /// 뒤에는 "잡고 있는가" 와 같은 뜻이다. HUD 가 아직 이 이름을 쓴다.
+        /// </summary>
+        public bool ClampLiftReady { get { return clampGrabbed; } }
         /// <summary>고정쇠를 위로 드는 거리의 0~1 진행도.</summary>
+        /// <summary>
+        /// 잡고 있는 고정못이 얼마나 뽑혔는가 0~1.
+        ///
+        /// 예전에는 "마우스를 위로 얼마나 들었는가" 였다. 그 단계가 없어졌으므로
+        /// 고정못의 진행분을 그대로 돌려준다.
+        /// </summary>
         public float ClampLiftProgress
         {
-            get { return clampGrabbed ? Mathf.Clamp01(clampLiftAmount / ClampLiftStartDegrees) : 0f; }
+            get { return clampGrabTarget != null ? clampGrabTarget.Progress : 0f; }
         }
         /// <summary>위로 든 뒤 실제 해제 유지 시간을 진행 중인가.</summary>
         public bool ClampReleaseHolding
@@ -145,8 +161,6 @@ namespace Metagame.Gameplay
         bool previousGrabRight;
         bool clampGrabbed;
         PartClamp clampGrabTarget;
-        float clampLiftAmount;
-        float clampLiftDeltaDegrees;
         Rigidbody pendingThrowBody;
         Vector3 pendingThrowVelocity;
         Rigidbody groundBody;
@@ -202,20 +216,6 @@ namespace Metagame.Gameplay
         public void SetInput(InputFrame frame)
         {
             input = frame;
-            if (!(frame.GrabLeft || frame.GrabRight))
-            {
-                clampLiftDeltaDegrees = 0f;
-                return;
-            }
-
-            // 고정쇠를 잡은 뒤 카메라를 위로 든 각도만 누적한다. 한 프레임의
-            // 마우스 델타를 FixedUpdate에서 반복 사용하지 않기 위해 입력 샘플에서
-            // 한 번만 모아 둔다.
-            if (clampGrabbed && !ClampLiftReady && frame.Look.y > ClampPullUpThreshold)
-            {
-                float sensitivity = Cam != null ? Cam.Sensitivity : 1f;
-                clampLiftDeltaDegrees += frame.Look.y * sensitivity;
-            }
         }
 
         /// <summary>카메라가 만들어진 뒤 고정쇠 조준 기준을 갱신한다.</summary>
@@ -817,7 +817,20 @@ namespace Metagame.Gameplay
                 }
             }
 
-            if (wish.sqrMagnitude > 0.02f)
+            // 고정못을 잡고 있으면 그쪽을 계속 본다(기획 §12.1 "몸을 뒤로 젖히고").
+            // 이동 입력 쪽으로 돌면 뒤로 당기는 동안 고정못을 등지게 되고, 조준이 벗어나
+            // 놓았을 때 다시 잡을 수 없다.
+            var facingClamp = Vector3.zero;
+            if (clampGrabbed && clampGrabTarget != null && Doll.Hips != null)
+            {
+                facingClamp = clampGrabTarget.transform.position - Doll.Hips.position;
+                facingClamp.y = 0f;
+            }
+
+            if (facingClamp.sqrMagnitude > 0.02f)
+                faceDir = Vector3.Slerp(faceDir, facingClamp.normalized,
+                                        1f - Mathf.Exp(-7f * Time.fixedDeltaTime));
+            else if (wish.sqrMagnitude > 0.02f)
                 faceDir = Vector3.Slerp(faceDir, wish.normalized, 1f - Mathf.Exp(-7f * Time.fixedDeltaTime));
 
             // 점프 — 몸 전체에 같은 속도를 얹어야 인형이 통째로 뜬다
@@ -1045,45 +1058,123 @@ namespace Metagame.Gameplay
             if (!clampGrabbed)
             {
                 // 잡기 시작 순간의 포커스를 고정한다. 이후 무거운 카메라 반동으로
-                // 조준점이 살짝 움직여도 처음 잡은 고정쇠를 놓치지 않는다.
+                // 조준점이 살짝 움직여도 처음 잡은 고정못을 놓치지 않는다.
                 ClampInteractor.Tick(0f);
                 var focus = ClampInteractor.Focus as PartClamp;
-                if (focus != null && !focus.IsReleased)
+                if (focus != null && !focus.IsReleased && focus.TryJoinPull())
                 {
                     clampGrabbed = true;
                     clampGrabTarget = focus;
-                    clampLiftAmount = 0f;
-                    clampLiftDeltaDegrees = 0f;
                 }
             }
 
             if (!clampGrabbed) return false;
 
-            if (ClampInteractor.State == InteractorState.Holding)
-            {
-                // 위로 드는 동작은 시작 조건일 뿐이다. 시작 후에는 마우스를
-                // 멈춰도 버튼을 놓지 않는 한 해제 유지 시간이 계속 흐른다.
-                ClampInteractor.Tick(Time.fixedDeltaTime);
-                return true;
-            }
-
-            float liftDeltaDegrees = clampLiftDeltaDegrees;
-            clampLiftDeltaDegrees = 0f;
-            clampLiftAmount = Mathf.Min(ClampLiftStartDegrees,
-                                        clampLiftAmount + Mathf.Max(0f, liftDeltaDegrees));
-
-            if (ClampLiftReady && ClampInteractor.TryBeginFocused())
-                return true;
-
+            PullGrabbedClamp();
             return true;
         }
 
+        /// <summary>
+        /// 잡은 고정못을 뒤로 당긴다(기획 §12.1 "고정못 반대 방향으로 뒤로 이동해 뽑는다").
+        ///
+        /// <b>이동 입력의 방향을 본다. 실제로 움직인 거리를 보지 않는다.</b> 고정못이
+        /// 몸을 붙들고 있으므로 아무리 밀어도 거의 제자리다 — 기획의 "발을 구르며
+        /// 낑낑대는" 그림이 그것이다. 거리로 재면 진행이 사실상 멈춘다.
+        ///
+        /// 제자리에서 버튼만 누르고 있으면 진행되지 않는다. 예전 방식(마우스를 위로
+        /// 16도)은 한 번 들어올린 뒤에는 가만히 있어도 시간이 흘렀다.
+        /// </summary>
+        void PullGrabbedClamp()
+        {
+            ClampPulling = false;
+            if (clampGrabTarget == null || Doll == null || Doll.Hips == null) return;
+
+            var fwd = Cam != null ? Cam.PlanarForward : Vector3.forward;
+            var right = Cam != null ? Cam.PlanarRight : Vector3.right;
+            var wish = right * input.Move.x + fwd * input.Move.y;
+            wish.y = 0f;
+            if (wish.sqrMagnitude < 0.0001f) return;
+
+            // 고정못에서 몸을 향하는 수평 방향이 "뒤" 다.
+            var away = Doll.Hips.position - clampGrabTarget.transform.position;
+            away.y = 0f;
+            if (away.sqrMagnitude < 0.0001f) return;
+
+            // 너무 멀어졌으면 손을 뗀다. 진행분은 남는다(기획 §12.1).
+            // 잡은 뒤 범위를 다시 보지 않으면 고정못을 잡은 채 걸어서 멀어지면서
+            // 계속 뽑히게 된다.
+            if (away.magnitude > ClampInteractionRange)
+            {
+                ResetClampGrab();
+                return;
+            }
+
+            var alignment = Vector3.Dot(wish.normalized, away.normalized);
+            if (alignment < PhysicsScale.ClampPullAlignment) return;
+
+            var wasLast = clampGrabTarget.Part != null
+                          && clampGrabTarget.Part.RemainingRequiredClamps == 1;
+
+            ClampPulling = clampGrabTarget.Pull(Time.fixedDeltaTime);
+            if (ClampPulling) TetherToClamp(away.normalized);
+
+            if (!clampGrabTarget.IsReleased) return;
+
+            // 기획 §12.2 — "마지막 고정못이 빠지면 플레이어가 뒤로 넘어질 수 있다".
+            // 뒤로 당기던 힘이 갑자기 풀리는 것이다. 넘어짐은 Balance 가 스스로 세운다.
+            if (wasLast) SnapBackFromClamp(away.normalized);
+
+            ResetClampGrab();
+        }
+
+        /// <summary>
+        /// 당기는 동안 뒤로 밀려나는 속도를 묶는다.
+        ///
+        /// 기획 §12.1 의 "몸을 뒤로 젖히고 발을 구르며 낑낑대는" 은 뒤로 밀지만 거의
+        /// 제자리라는 뜻이다. 고정못이 몸을 붙들고 있기 때문이다.
+        ///
+        /// 옆·앞 방향은 건드리지 않는다. 뽑는 것과 무관한 이동을 막으면 조작이 굳는다.
+        /// </summary>
+        void TetherToClamp(Vector3 away)
+        {
+            for (var i = 0; i < Doll.Bodies.Count; i++)
+            {
+                var body = Doll.Bodies[i];
+                if (body == null || body.isKinematic) continue;
+
+                var velocity = body.linearVelocity;
+                var outward = Vector3.Dot(velocity, away);
+                if (outward <= PhysicsScale.ClampPullTetherSpeed) continue;
+
+                body.linearVelocity = velocity - away * (outward - PhysicsScale.ClampPullTetherSpeed);
+            }
+        }
+
+        /// <summary>마지막 고정못이 빠져 뒤로 넘어진다(기획 §12.2).</summary>
+        void SnapBackFromClamp(Vector3 away)
+        {
+            for (var i = 0; i < Doll.Bodies.Count; i++)
+            {
+                var body = Doll.Bodies[i];
+                if (body == null || body.isKinematic) continue;
+
+                body.linearVelocity += away * PhysicsScale.ClampSnapBackSpeed;
+            }
+
+            Ragdolled = true;
+        }
+
+        /// <summary>
+        /// 고정못에서 손을 뗀다. <b>진행분은 지우지 않는다</b> — 기획 §12.1 "좌클릭을
+        /// 놓거나 운석에 맞아도 빠진 정도는 유지된다".
+        /// </summary>
         void ResetClampGrab()
         {
+            if (clampGrabbed && clampGrabTarget != null) clampGrabTarget.LeavePull();
+
             clampGrabbed = false;
             clampGrabTarget = null;
-            clampLiftAmount = 0f;
-            clampLiftDeltaDegrees = 0f;
+            ClampPulling = false;
         }
 
         void LogHeldToolInteraction(bool leftPressed, bool rightPressed)
