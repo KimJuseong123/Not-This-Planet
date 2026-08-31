@@ -145,6 +145,40 @@ namespace Metagame.Gameplay
         /// <summary>용접이 끝난 접합이 버티는 토크.</summary>
         public const float WeldedBreakTorque = 150000f;
 
+        // --- 발사 하중 시험 ---
+        //
+        // 기획 S15P21B202-107 §22.3 이다. 하중을 계산해 접합부에 나눠 주지 않고, 최하단에
+        // 추력을 주어 위 접합부가 물리로 하중을 받게 한다. 비뚤게 쌓였으면 무게중심이
+        // 축에서 벗어나 토크까지 걸린다 — 기획이 요구하는 "비뚤어진 배치에서 생기는 하중" 이
+        // 계산식 없이 나온다. 전부 기획서 용어로 초기 테스트값이다.
+
+        /// <summary>엔진 출력이 0에서 100%까지 오르는 시간(s). 기획의 "5초 동안".</summary>
+        public const float LaunchRampSeconds = 5f;
+
+        /// <summary>
+        /// 100% 출력에서의 추력을 탑 전체 무게의 몇 배로 줄지.
+        ///
+        /// 절대값으로 두지 않는 이유는 파츠 질량이 바뀌면 이륙 여부가 뒤집히기 때문이다.
+        /// 무게에 비례시키면 <see cref="PartDensity"/> 를 만져도 시험의 성격이 유지된다.
+        /// </summary>
+        public const float LaunchThrustRatio = 3.2f;
+
+        /// <summary>
+        /// 추력을 주는 지점을 최하단 무게중심보다 이만큼 아래로 내린다.
+        /// 무게중심에 주면 토크가 전혀 생기지 않아 비뚤어진 배치가 하중에 드러나지 않는다.
+        /// </summary>
+        public const float LaunchNozzleDrop = 1.0f;
+
+        /// <summary>이 높이만큼 올라오면 "지면에서 완전히 떠올랐다" 로 본다(m).</summary>
+        public const float LaunchLiftOffHeight = 1.5f;
+
+        /// <summary>
+        /// 시험을 시작할 때 허용하는 기울기(도).
+        /// 이보다 기울어 있으면 추력을 주기 전에 실패다 — 기획 §22.3 "우주선이 자기 무게로
+        /// 서 있는지 먼저 확인한다". 추력이 넘어짐을 가려 버리면 실패 이유를 알 수 없다.
+        /// </summary>
+        public const float LaunchMaxStandingTilt = 12f;
+
         // --- 견인 광선 ---
         /// <summary>빔이 파츠를 붙잡을 수 있는 최대 거리.</summary>
         public const float BeamRange = 12f;
