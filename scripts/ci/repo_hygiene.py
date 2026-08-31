@@ -5,6 +5,8 @@
 3. 에셋 위치: Assets/ 바로 아래 새 최상위 폴더 금지(대상 브랜치에 이미 있는 폴더 또는 _Project/ 만)
 4. LFS: .gitattributes 로 LFS 추적되는 파일은 포인터여야 함(실 바이너리 커밋 = git lfs install 누락). 비-LFS 5MB 초과 실패
 5. 씬/프리팹: .unity/.prefab 변경이 있는데 MR 본문 '씬 / 프리팹 변경' 이 '없음' 이면 실패
+   (서드파티 패키지에서 새로 들어온 것은 제외 — 임포트마다 수십 개가 딸려 온다)
+6. 경로 길이: 리포 상대 경로가 MAX_PATH_LEN 을 넘으면 실패 — Windows 러너에서 checkout 자체가 죽는다
 
 로컬 실행: python scripts/ci/repo_hygiene.py [base-ref] [head-ref]  (기본 origin/develop 과의 merge-base .. HEAD)
 """
@@ -21,9 +23,17 @@ FORBIDDEN = [
     (re.compile(r"(^|/)(Thumbs\.db|\.DS_Store|desktop\.ini)$", re.I), "OS 잡파일"),
     (re.compile(r"^(\.vs|\.idea)/"), "IDE 설정"),
     (re.compile(r"\.(apk|aab|ipa|exe|msi|zip|7z|rar)$", re.I), "빌드/압축 산출물"),
+    # 인증키가 리포에 올라가면 되돌릴 수 없다(이력에 남는다). 2026-08-31 EC2 pem 이 작업 폴더에 있던 것을 발견.
+    (re.compile(r"\.(pem|ppk|key|p12|pfx|jks|keystore)$", re.I), "인증키·비밀키"),
+    (re.compile(r"(^|/)(id_rsa|id_ed25519|id_ecdsa|id_dsa)(\.pub)?$"), "SSH 개인키"),
 ]
 ASSETS = "METAGAME/Assets/"
+THIRDPARTY = ASSETS + "_Project/ThirdParty/"
 MAX_NON_LFS = 5 * 1024 * 1024
+# 리포 상대 경로 상한. Windows 러너의 빌드 경로 접두어가 약 71자이고 MAX_PATH 가 260 이라
+# 180 을 넘으면 checkout 이 'Filename too long' 으로 죽는다 — 스크립트가 돌기도 전에
+# 파이프라인 전체가 실패한다(2026-08-31 실측: 189자 경로가 develop 에 들어와 10건 전멸).
+MAX_PATH_LEN = 180
 
 
 def git(*args, check=True) -> str:
@@ -58,6 +68,47 @@ def unity_ignores(path: str) -> bool:
     점으로 시작하는 파일·폴더(.gitkeep, .DS_Store …), `~` 로 끝나는 폴더, Documentation~ 등.
     https://docs.unity3d.com/Manual/SpecialFolders.html"""
     return any(seg.startswith(".") or seg.endswith("~") for seg in path.split("/"))
+
+
+def too_long(paths: list[str], limit: int = MAX_PATH_LEN) -> list[tuple[str, int]]:
+    """상한을 넘는 경로를 긴 것부터. Windows 러너에서 checkout 자체가 실패하는 원인이다."""
+    return sorted(((p, len(p)) for p in paths if len(p) > limit), key=lambda t: -t[1])
+
+
+def location_problems(asset_added: list[str], base_top: set[str]) -> list[str]:
+    """에셋 위치 위반을 **최상위 폴더 단위로 묶어** 돌려준다.
+
+    파일마다 찍으면 서드파티 패키지를 임포트할 때 같은 문구가 수백 줄 나와 정작 다른 위반이 묻힌다
+    (2026-08-31 MR !112 Mirror 임포트에서 실측)."""
+    direct, folders = [], {}
+    for path in asset_added:
+        rel = path[len(ASSETS):]
+        top = rel.split("/", 1)[0]
+        if "/" not in rel:
+            if not rel.endswith(".meta") or rel[:-5] not in base_top:
+                direct.append(path)
+        elif top not in base_top and top != "_Project" and top + ".meta" not in base_top:
+            folders.setdefault(top, []).append(path)
+    msgs = []
+    if direct:
+        shown = ", ".join(direct[:5]) + (" …" if len(direct) > 5 else "")
+        msgs.append(f"Assets/ 바로 아래 파일 금지 {len(direct)}개: {shown} — Assets/_Project/ 아래로")
+    known = ", ".join(sorted(t for t in base_top if not t.endswith(".meta")))
+    for top, ps in sorted(folders.items()):
+        msgs.append(f"Assets/ 에 새 최상위 폴더 '{top}' 금지 (파일 {len(ps)}개) — "
+                    f"Assets/_Project/ 아래로 (기존 폴더: {known})")
+    return msgs
+
+
+def scene_changes(changes: list[tuple[str, str]]) -> tuple[list[str], list[str]]:
+    """(선언 검사 대상 씬·프리팹, 서드파티 임포트로 새로 들어와 제외한 것).
+
+    서드파티 패키지를 넣으면 딸려 오는 프리팹이 수십 개다 — 그것까지 MR 본문에 선언하라고 하면
+    규칙이 지켜지지 않는다. 이미 있던 서드파티 파일을 **수정**한 경우는 그대로 검사한다."""
+    scene = [path for st, path in changes if path.lower().endswith((".unity", ".prefab"))]
+    imported = {path for st, path in changes
+                if st == "A" and path.startswith(THIRDPARTY) and path.lower().endswith((".unity", ".prefab"))}
+    return [path for path in scene if path not in imported], sorted(imported)
 
 
 def main() -> int:
@@ -133,15 +184,10 @@ def main() -> int:
     loc_checkable = bool(base_top)
     if asset_added and not loc_checkable:
         rep.warn(f"비교 기준({base[:12]})에 {ASSETS} 트리가 없어 에셋 위치 검사를 건너뜁니다")
-    loc_bad = 0
-    for p in asset_added if loc_checkable else []:
-        rel = p[len(ASSETS):]
-        top = rel.split("/", 1)[0]
-        if "/" not in rel:
-            if not rel.endswith(".meta") or rel[:-5] not in base_top:
-                rep.fail(f"Assets/ 바로 아래 파일 금지: {p} — Assets/_Project/ 아래로"); loc_bad += 1
-        elif top not in base_top and top != "_Project" and top + ".meta" not in base_top:
-            rep.fail(f"Assets/ 에 새 최상위 폴더 '{top}' 금지 — Assets/_Project/ 아래로 (기존 폴더: {', '.join(sorted(t for t in base_top if not t.endswith('.meta')))})"); loc_bad += 1
+    loc_msgs = location_problems(asset_added, base_top) if loc_checkable else []
+    for m in loc_msgs:
+        rep.fail(m)
+    loc_bad = len(loc_msgs)
     # 통과 판정을 fail 메시지의 접두사로 하고 있었다 — 문구만 바꿔도 조용히 잘못된 ok 가 찍힌다(-134)
     if asset_added and loc_checkable and not loc_bad:
         rep.ok("에셋 위치 OK")
@@ -161,8 +207,19 @@ def main() -> int:
     if not lfs_bad:
         rep.ok("LFS 포인터·용량 OK")
 
-    # 5) 씬/프리팹 선언
-    scene_like = [p for s, p in changes if p.lower().endswith((".unity", ".prefab"))]
+    # 5) 경로 길이 — 추가되는 경로만 본다. 이미 리포에 있던 긴 경로로 그 파일을 스치는 MR 을 막으면 안 된다.
+    long_paths = too_long(added)
+    for path, ln in long_paths[:5]:
+        rep.fail(f"경로가 {ln}자 (상한 {MAX_PATH_LEN}): {path} — Windows 러너에서 checkout 이 'Filename too long' 으로 실패해 파이프라인 전체가 죽는다. 폴더·파일 이름을 줄이세요")
+    if len(long_paths) > 5:
+        rep.fail(f"…그 밖에 {len(long_paths) - 5}개 더 (가장 긴 것 {long_paths[0][1]}자)")
+    if added and not long_paths:
+        rep.ok(f"경로 길이 OK (가장 긴 것 {max((len(p) for p in added), default=0)}자 / 상한 {MAX_PATH_LEN})")
+
+    # 6) 씬/프리팹 선언
+    scene_like, tp_imported = scene_changes(changes)
+    if tp_imported:
+        rep.ok(f"서드파티 패키지에서 새로 들어온 씬·프리팹 {len(tp_imported)}개는 선언 검사 제외")
     desc = GitLab().get_mr().get("description") or ""
     sec = find_section(sections(desc), "씬 / 프리팹 변경") or ""
     declared_none = re.search(r"변경한 씬·프리팹\s*:\s*없음", sec) is not None
