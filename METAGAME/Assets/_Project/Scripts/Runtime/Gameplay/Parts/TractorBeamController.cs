@@ -133,6 +133,7 @@ namespace Metagame.Gameplay.Parts
             var wish = player.Cam.PlanarRight * move.x + player.Cam.PlanarForward * move.y;
             if (wish.sqrMagnitude > 1f) wish.Normalize();
             mountedVehicle.SetDriveVector(wish);
+            mountedVehicle.SetBoost(input.Run);   // Shift — 가속 이동(기획 §14.1)
 
             // Space 상승 · Ctrl 하강. 탑승 중에는 PlayerRig 가 점프·팔을 돌리지 않으므로
             // (PlayerRig.FixedUpdate 가 일찍 반환한다) 이 두 키를 고도에 그대로 쓴다.
