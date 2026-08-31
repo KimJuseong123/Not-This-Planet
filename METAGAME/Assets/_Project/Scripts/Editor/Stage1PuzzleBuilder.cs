@@ -304,6 +304,13 @@ namespace Metagame.EditorTools
             spawner.SetArea(go.transform, new Vector2(36f, 36f));
 
             go.AddComponent<DemoMeteorDriver>();
+
+            // 운석 스킨을 여기서 꽂는다. 이 도구가 Puzzle 그룹을 통째로 다시 만들기 때문에
+            // 스포너도 새것이 되고, 예전에는 _meteorPrefab 이 비어 폴백 구체로 돌아갔다.
+            // 오류도 경고도 나지 않아서 눈으로 봐야 알았다 — S15P21B202-166 부터 그 상태였다.
+            if (!Stage1MeteorAssets.TryWire(spawner))
+                Debug.LogWarning("[Stage1Puzzle] 운석 프리팹이 없어 폴백 구체로 떨어진다. "
+                                 + "'운석 프리팹 만들고 스포너에 꽂기' 를 한 번 돌린다.");
         }
 
         static Transform FindByPath(UnityEngine.SceneManagement.Scene scene, string path)

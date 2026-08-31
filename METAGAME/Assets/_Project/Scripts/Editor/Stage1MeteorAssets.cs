@@ -117,6 +117,37 @@ namespace Metagame.EditorTools
         /// 대입 결과도 <see cref="SerializedObject.ApplyModifiedPropertiesWithoutUndo"/> 의 반환값으로
         /// 판정해서, 비교에 기대지 않는다.
         /// </summary>
+        /// <summary>
+        /// 스포너 하나에 운석 프리팹을 꽂는다. 프리팹이 아직 없으면 <c>false</c>.
+        ///
+        /// <see cref="Stage1PuzzleBuilder"/> 도 이것을 쓴다. 배치 도구가 <c>Puzzle</c> 그룹을
+        /// 통째로 다시 만들면서 스포너도 새로 만들기 때문이다. 예전에는 이 연결이 이 파일에만
+        /// 있어서 <b>배치를 다시 돌릴 때마다 운석 스킨이 조용히 풀렸다</b> — 폴백 구체로
+        /// 돌아가는데 오류도 경고도 나지 않으니 눈으로 봐야 알았다.
+        ///
+        /// 프리팹 경로를 아는 곳은 이 파일 하나로 유지한다.
+        /// </summary>
+        public static bool TryWire(MeteorSpawner spawner)
+        {
+            if (spawner == null) return false;
+
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
+            var meteor = prefab != null ? prefab.GetComponent<Meteor>() : null;
+            if (meteor == null) return false;
+
+            var serialized = new SerializedObject(spawner);
+            var field = serialized.FindProperty("_meteorPrefab");
+            if (field == null)
+            {
+                Debug.LogWarning("[Stage1Meteor] MeteorSpawner 에 _meteorPrefab 이 없다. 필드 이름이 바뀌었는지 확인한다.");
+                return false;
+            }
+
+            field.objectReferenceValue = meteor;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            return true;
+        }
+
         static int AssignToSpawners()
         {
             var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
@@ -137,17 +168,7 @@ namespace Metagame.EditorTools
                 foreach (var spawner in root.GetComponentsInChildren<MeteorSpawner>(true))
                 {
                     found++;
-
-                    var serialized = new SerializedObject(spawner);
-                    var field = serialized.FindProperty("_meteorPrefab");
-                    if (field == null)
-                    {
-                        Debug.LogWarning("[Stage1Meteor] MeteorSpawner 에 _meteorPrefab 이 없다. 필드 이름이 바뀌었는지 확인한다.");
-                        continue;
-                    }
-
-                    field.objectReferenceValue = meteor;
-                    if (serialized.ApplyModifiedPropertiesWithoutUndo()) wired++;
+                    if (TryWire(spawner)) wired++;
                 }
             }
 
