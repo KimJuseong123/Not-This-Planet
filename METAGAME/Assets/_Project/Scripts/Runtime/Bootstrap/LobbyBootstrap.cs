@@ -9,10 +9,10 @@ namespace Metagame.Bootstrap
     /// 로비의 조합 루트. 네트워크 세션을 씬보다 오래 살리고,
     /// 게임 시작 메시지를 받으면 게임 씬으로 넘긴다.
     ///
-    /// 씬을 Assets/Scenes/Main.unity 하나로 합치면서(S15P21B202-75) 로비와 게임이
-    /// 같은 씬에 있게 됐다. 그래서 넘어갈 다른 씬이 없다.
-    /// 지금은 대상 씬이 이미 열려 있으면 다시 로드하지 않고 경고만 남긴다.
-    /// 씬을 다시 나눌지, 같은 씬 안에서 상태로 전환할지는 Network 파트에서 정한다.
+    /// 로비는 Assets/Scenes/Lobby.unity, 게임은 Assets/Scenes/Main.unity 다.
+    /// 씬을 Main 하나로 합치면서(S15P21B202-75) 로비 씬이 사라져 전환이 막혀 있었고,
+    /// S15P21B202-125에서 로비 씬을 되살려 전환을 복구했다.
+    /// 세션 오브젝트는 DontDestroyOnLoad라 씬이 바뀌어도 연결이 유지된다.
     /// </summary>
     public sealed class LobbyBootstrap : MonoBehaviour
     {
@@ -21,7 +21,7 @@ namespace Metagame.Bootstrap
         [SerializeField] private string webSocketUrl = "ws://127.0.0.1:8080/ws/game";
 
         [Header("Scene")]
-        [Tooltip("게임 시작 시 넘어갈 씬. 지금은 로비와 게임이 같은 씬이라 전환이 일어나지 않는다.")]
+        [Tooltip("게임 시작 시 넘어갈 씬. 빌드 설정에 포함되어 있어야 한다.")]
         [SerializeField] private string gameSceneName = "Main";
 
         [Header("Guest")]
@@ -56,14 +56,10 @@ namespace Metagame.Bootstrap
         {
             if (sceneLoading) return;
 
-            // 로비와 게임이 같은 씬에 있으면 다시 로드하면 방금 만든 세션까지 초기화된다.
+            // 로비 씬에서만 의미가 있다. 게임 씬이 이미 열려 있다면 다시 로드해서는 안 된다 —
+            // 씬을 새로 로드하면 방금 만든 방과 플레이어가 함께 초기화된다.
             if (SceneManager.GetActiveScene().name == gameSceneName)
-            {
-                Debug.LogWarning(
-                    $"[LobbyBootstrap] 게임 씬('{gameSceneName}')이 이미 열려 있어 전환을 건너뛴다. " +
-                    "로비와 게임이 한 씬에 있으므로 전환 방식을 다시 정해야 한다.", this);
                 return;
-            }
 
             sceneLoading = true;
             SceneManager.LoadScene(gameSceneName);
