@@ -17,6 +17,8 @@ namespace Metagame.Bootstrap
     public sealed class LobbyBootstrap : MonoBehaviour
     {
         [Header("Backend")]
+        [Tooltip("로비 입력칸의 기본값. 저장된 주소가 있으면 그쪽이 우선한다. 형식은 호스트[:포트].")]
+        [SerializeField] private string defaultServerAddress = NetworkSession.DefaultServerAddress;
         [SerializeField] private string httpBaseUrl = "http://127.0.0.1:8080";
         [SerializeField] private string webSocketUrl = "ws://127.0.0.1:8080/ws/game";
 
@@ -49,7 +51,7 @@ namespace Metagame.Bootstrap
             // ?? 는 UnityEngine.Object 의 == 오버로드를 우회하므로 쓰지 않고 == null 로 검사한다.
             var hud = GetComponent<LobbyHud>();
             if (hud == null) hud = gameObject.AddComponent<LobbyHud>();
-            hud.Initialize(network, defaultNickname, deviceIdOverride);
+            hud.Initialize(network, defaultNickname, deviceIdOverride, defaultServerAddress);
         }
 
         private void LoadGameScene()
