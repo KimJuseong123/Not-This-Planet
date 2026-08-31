@@ -118,6 +118,16 @@ namespace Metagame.Gameplay.Parts
         public static PartAssemblyLink Assemble(SocketMatch match) =>
             Assemble(match, PhysicsScale.UnweldedBreakForce, PhysicsScale.UnweldedBreakTorque);
 
+        /// <param name="breakForce">
+        /// 조인트를 만들 때 넣는 초기 강도.
+        ///
+        /// <b>첫 <see cref="PartAssemblyLink.Tick"/> 이 이 값을 덮어쓴다.</b> 링크가 매 틱
+        /// <c>WeldRatio</c> 로 강도를 다시 계산하기 때문이다(미접합 → 용접 사이 보간).
+        /// 그래서 이 인수로 용접 강도를 흉내낼 수 없다 — 실제로 용접점을 채워야 한다.
+        /// S15P21B202-194 에서 이것을 모른 채 강도 스윕을 돌려 32배까지 올려도 결과가
+        /// 똑같은 것을 보고서야 알았다.
+        /// </param>
+        /// <param name="breakTorque">위와 같다.</param>
         public static PartAssemblyLink Assemble(SocketMatch match, float breakForce, float breakTorque)
         {
             if (!match.HasValue) return null;
