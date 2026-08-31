@@ -166,6 +166,23 @@ Material·프리팹은 `Stage1EnvironmentAssets` 에디터 도구가 만든다
 
 `globalScale` 값은 [S15P21B202-67](https://ssafy.atlassian.net/browse/S15P21B202-67)에서 보정한 결과다.
 
+### Stage1 기본 Terrain — 1차 적용
+
+[S15P21B202-177](https://ssafy.atlassian.net/browse/S15P21B202-177)에서 기존 50 × 50m Plane 대신
+같은 범위의 평평한 Unity Terrain을 `Main.unity`에 적용했다. 자연물과
+주요 오브젝트를 먼저 배치할 수 있도록 전체를 기존 지면 높이 0.06m로 유지하며, 지형 높낮이는
+배치가 끝난 뒤 조정한다. 기존 `ENV_Ground_Arena_50m` Plane은 비교와 복구를 위해 삭제하지 않고
+비활성화했다. 자연물 배치와 지면 텍스처 연결은 각각 S15P21B202-97과 S15P21B202-74에서 진행한다.
+
+| 종류 | 경로 |
+| --- | --- |
+| 배치 프리팹 | `Prefabs/Environment/Stage1/PF_Stage1_Terrain.prefab` |
+| TerrainData | `Terrain/Stage1/TerrainData/TD_Stage1_Arena.asset` |
+
+`Stage1TerrainBuilder` 에디터 도구가 에셋 생성과 씬 배치를 함께 수행한다
+(`Tools/둥실둥실 우주 대탈출/Stage1 기본 Terrain 만들기`). 반복 실행하면 기존 Terrain 인스턴스를
+교체하므로 씬에 중복되지 않는다.
+
 ---
 
 ## 6-1. Stage1 운석 — 본체 사용 가능 · 파편 미연결 (4종)

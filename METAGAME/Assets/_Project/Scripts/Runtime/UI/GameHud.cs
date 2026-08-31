@@ -327,16 +327,20 @@ namespace Metagame.UI
         {
             Grabbable aimed = null;
             bool holding = false;
+            bool holdingTool = false;
             PartClamp focusedClamp = null;
             bool clampGrabbed = false;
             bool clampLiftReady = false;
             bool releasingClamp = false;
             TransportVehicle focusedVehicle = null;
             bool mountedVehicle = false;
+            bool toolTarget = false;
             if (Local != null)
             {
                 if (Local.LeftHand.Gripping || Local.RightHand.Gripping) holding = true;
                 aimed = Local.RightHand.Aimed != null ? Local.RightHand.Aimed : Local.LeftHand.Aimed;
+                toolTarget = aimed != null && aimed.IsTool;
+                holdingTool = Local.HeldTool != null && aimed == Local.HeldTool;
 
                 if (Local.ClampInteractor != null)
                 {
@@ -372,8 +376,14 @@ namespace Metagame.UI
             Box(new Rect(cx - 1f, cy + gap, 2f, len), c);
 
             if (aimed != null && !string.IsNullOrEmpty(aimed.Label))
+            {
+                string toolLabel = string.IsNullOrEmpty(aimed.Label) ? "도구" : aimed.Label;
+                string aimedText = toolTarget
+                    ? (holdingTool ? toolLabel + " · 전방 고정 중" : toolLabel + " · 좌/우클릭으로 잡기")
+                    : (holding ? aimed.Label : "닿는 곳: " + aimed.Label);
                 L(new Rect(cx - 200f, cy + 26f, 400f, 24f),
-                  (holding ? "" : "닿는 곳: ") + aimed.Label, center, c);
+                  aimedText, center, c);
+            }
 
             if (clampTarget)
                 L(new Rect(cx - 260f, cy + 26f, 520f, 24f),
