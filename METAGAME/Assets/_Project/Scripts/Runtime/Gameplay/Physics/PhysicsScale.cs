@@ -250,6 +250,27 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float ClampPullTetherSpeed = 0.3f;
 
+        // --- 견인 조종 모듈 (기획 §14.1 · §14.2) ---
+        /// <summary>
+        /// 가속 이동(Shift) 최고 수평 속도(m/s). 기획 §14.1 "가속 12m/s".
+        /// 일반은 8m/s 이며 <see cref="TransportVehicle"/> 이 갖고 있다.
+        /// </summary>
+        public const float CraftBoostSpeed = 12f;
+
+        /// <summary>
+        /// 파츠를 견인하는 동안 최고 속도에 곱하는 값. 기획 §14.1 "약 20% 감소".
+        /// </summary>
+        public const float CraftTowSpeedFactor = 0.8f;
+
+        /// <summary>
+        /// 무인 호버에서 고도를 다시 잡는 데 허용하는 어긋남(m).
+        ///
+        /// 기획 §14.2 "수평은 복구하지만 호버 위치를 자동으로 되찾지는 않는다".
+        /// 밀려난 만큼은 그대로 두고 <b>그 자리에서</b> 다시 뜬다 — 그래서 밀린 높이가
+        /// 이 값을 넘으면 목표 고도를 지금 높이로 옮긴다. 되돌리면 기획과 어긋난다.
+        /// </summary>
+        public const float CraftHoverDriftBand = 0.5f;
+
         /// <summary>조각 하나를 자르는 시간(초). 12조각 × 0.5초 = 6초.</summary>
         public static float CutSeamSecondsPerSegment => CutSeamSeconds / WeldSeamSegments;
 

@@ -52,7 +52,8 @@ namespace Metagame.Gameplay.Parts
         const float Braking = 12f;
         const float MaxSpeed = 8f;
         const float HoverSpring = 6f;
-        const float MaxVerticalSpeed = 4.2f;
+        /// <summary>기획 §14.1 "상승·하강 5m/s".</summary>
+        const float MaxVerticalSpeed = 5f;
         const float VisualTurnSpeed = 420f;
         const float ArenaLimit = 21f;
 
@@ -228,7 +229,15 @@ namespace Metagame.Gameplay.Parts
         /// 고정 높이(5m)가 아니라 지금 목표로 하는 고도를 본다 — 그래야 낮은 곳이나
         /// 높은 곳에서도 견인이 된다.
         /// </summary>
-        public bool IsHovering => rider != null && !returning && body != null
+        /// <summary>
+        /// 조종사 없이 호버를 유지하는 중인가(기획 §14.2).
+        ///
+        /// 저중력장을 켠 채 하차하면 여기로 들어온다. 조종 입력은 받지 않고 고도만
+        /// 지킨다 — 그래야 아래에서 용접하는 동안 장이 유지된다(§14.5).
+        /// </summary>
+        public bool Unmanned { get; private set; }
+
+        public bool IsHovering => (rider != null || Unmanned) && !returning && body != null
                                   && Mathf.Abs(body.position.y - targetAltitude) < HoverSettleBand;
 
         /// <summary>지금 유지하려는 고도. 탑승하면 <see cref="HoverRootY"/> 에서 시작한다.</summary>
@@ -382,10 +391,21 @@ namespace Metagame.Gameplay.Parts
             if (offset.sqrMagnitude > BoardRadius * BoardRadius) return false;
 
             body.useGravity = false;
-            body.linearVelocity = Vector3.zero;
             grounded = false;
             verticalInput = 0f;
-            targetAltitude = HoverRootY;
+
+            // 기획 §14.2 — "다른 플레이어가 … 탑승해 조종을 이어받을 수 있다".
+            // 이어받는 것이므로 지금 높이가 기준이다. HoverRootY 로 되돌리면 새로 탄
+            // 사람이 기체를 5m 로 끌어올리게 된다.
+            if (Unmanned)
+            {
+                Unmanned = false;
+            }
+            else
+            {
+                body.linearVelocity = Vector3.zero;
+                targetAltitude = HoverRootY;
+            }
 
             // 좌석은 기체 경계를 보고 정하므로 태우기 전에 갱신한다 —
             // PlayerRig 가 SeatFootPosition 을 읽어 인형을 옮긴다.
@@ -408,13 +428,55 @@ namespace Metagame.Gameplay.Parts
             if (rider == null || returning) return;
             driveVector = Vector3.zero;
             verticalInput = 0f;
+            dismountElapsed = 0f;
+
+            // 기획 §14.2 — "저중력장을 켠 채 하차해도 기체가 마지막 위치와 높이에서
+            // 자동 호버한다". 그래야 §14.5 의 "조종사가 저중력장을 유지해 아래의 용접
+            // 담당자를 띄운다" 가 성립한다. 예전에는 하차하면 무조건 중력을 켜서
+            // 기체가 떨어졌고, 내리는 순간 저중력장이 사라졌다.
+            if (Field != null && Field.IsActive)
+            {
+                Unmanned = true;
+                returning = false;
+                grounded = false;
+
+                // 마지막 높이를 그대로 지킨다. HoverRootY 로 되돌리면 "마지막 높이" 가 아니다.
+                targetAltitude = Mathf.Clamp(body.position.y, GroundY, MaxAltitude);
+
+                CompleteDismount();
+                return;
+            }
+
             returning = true;
             grounded = false;
-            dismountElapsed = 0f;
 
             // 낙하는 중력에 맡긴다. 속도를 직접 대입해 목표 높이로 밀어붙이면 콜라이더
             // 접촉이 무시되고 지면을 파고든다.
             body.useGravity = true;
+        }
+
+        /// <summary>
+        /// 가속(Shift)을 누르고 있는가. 기획 §14.1 "가속 12m/s".
+        /// </summary>
+        public bool Boosting { get; private set; }
+
+        public void SetBoost(bool boosting) => Boosting = boosting;
+
+        /// <summary>
+        /// 지금 쓸 수 있는 최고 수평 속도(m/s).
+        ///
+        /// 기획 §14.1 — 일반 8, 가속 12, "파츠 견인 중 최고 속도는 약 20% 감소".
+        /// 견인 여부는 빔이 무언가를 잡고 있는지로 본다. 저중력장은 파츠를 끌지만
+        /// 기체가 끌고 다니는 것이 아니므로 여기서 세지 않는다.
+        /// </summary>
+        public float CurrentMaxSpeed
+        {
+            get
+            {
+                var top = Boosting ? PhysicsScale.CraftBoostSpeed : MaxSpeed;
+                var towing = beam != null && beam.IsHolding;
+                return towing ? top * PhysicsScale.CraftTowSpeedFactor : top;
+            }
         }
 
         public void SetDriveVector(Vector3 worldDirection)
@@ -463,7 +525,7 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         public void Tick(float deltaTime)
         {
-            if (rider == null) return;
+            if (rider == null && !Unmanned) return;
 
             if (returning) DriveToGround(deltaTime);
             else DriveHover(deltaTime);
@@ -473,7 +535,7 @@ namespace Metagame.Gameplay.Parts
         {
             var velocity = body.linearVelocity;
             var planar = new Vector3(velocity.x, 0f, velocity.z);
-            var target = driveVector * MaxSpeed;
+            var target = driveVector * CurrentMaxSpeed;
             var rate = driveVector.sqrMagnitude > 0.001f ? Acceleration : Braking;
             planar = Vector3.MoveTowards(planar, target, rate * deltaTime);
 
@@ -488,14 +550,36 @@ namespace Metagame.Gameplay.Parts
 
             AdvanceTargetAltitude(deltaTime);
 
+            // 기획 §14.2 — "호버 위치를 자동으로 되찾지는 않는다".
+            // 밀려나 높이가 크게 어긋났으면 되돌리는 대신 그 높이를 새 목표로 삼는다.
+            // 그러지 않으면 운석에 맞아 눌린 기체가 스스로 원래 높이로 올라간다.
+            //
+            // <b>무인 호버에만 적용한다.</b> 조종 중에는 스프링이 목표 고도를 따라가는
+            // 지연 자체가 이 조건에 걸린다 — 상승 명령을 준 직후에는 실제 높이가 목표보다
+            // 한참 아래이므로, 여기서 목표를 지금 높이로 끌어내리면 상승이 취소된다.
+            // (Ascend_RaisesTargetAltitude_AndHoldsAfterRelease 가 그것을 잡아 주었다.)
+            // §14.2 는 호버 유지 절이고, 조종 중 위치 복구는 조종사가 한다.
+            if (Unmanned
+                && Mathf.Abs(body.position.y - targetAltitude) > PhysicsScale.CraftHoverDriftBand)
+                targetAltitude = Mathf.Clamp(body.position.y, GroundY, MaxAltitude);
+
             var vertical = Mathf.Clamp((targetAltitude - body.position.y) * HoverSpring,
                                        -MaxVerticalSpeed, MaxVerticalSpeed);
             body.linearVelocity = new Vector3(planar.x, vertical, planar.z);
+
+            // 기획 §14.1 "충돌 후 기체는 자동으로 수평을 회복한다" 는 이미 성립한다 —
+            // EnsurePhysics 가 RigidbodyConstraints.FreezeRotation 을 걸어 기체가 애초에
+            // 기울지 않는다. 자세 복구 코드를 넣어 봤지만 회전이 잠겨 있어 아무 일도
+            // 하지 않았다(S15P21B202-216 에서 확인).
+            //
+            // 실제로 기울었다 돌아오게 하려면 회전 잠금을 풀어야 하는데, 그러면 탑승자가
+            // 서 있는 플랫폼이 함께 기울고 조인트로 붙은 인형이 흔들린다. 별 결정이다.
             body.angularVelocity = Vector3.zero;
 
             if (planar.sqrMagnitude > 0.04f)
                 TurnVisualToward(planar, deltaTime);
         }
+
 
         /// <summary>
         /// 하차 하강. 수평만 세우고 낙하는 중력이 한다. 아랫면이 무엇에든 닿으면 완료다.
