@@ -5,6 +5,7 @@
 > 갱신 2026-08-28 — Stage1 운석 모델·PBR 텍스처 4종 교체 · 이슈 [S15P21B202-98](https://ssafy.atlassian.net/browse/S15P21B202-98)
 > 갱신 2026-08-31 — Stage1 자연물 8종·맵 타일 리뉴얼 원본 추가 · 이슈 [S15P21B202-163](https://ssafy.atlassian.net/browse/S15P21B202-163)
 > 갱신 2026-08-31 — URP 17.5 전환·빌드 핑크 셰이더 검증·공용 분위기 기반 추가
+> 갱신 2026-09-01 — Stage1 운석 방어용 방망이 FBX·PBR 텍스처·Material·Prefab 추가 · 이슈 [S15P21B202-187](https://ssafy.atlassian.net/browse/S15P21B202-187)
 > 관련 문서: [문서 목록](./README.md) · [1장 기획](./planning/chapter-1-plan.md) · [파트 구분](./parts.md)
 
 **어떤 에셋이 무엇이고, 씬에 갖다 쓸 수 있는 상태인지** 한 장에서 확인하는 문서다.
@@ -50,11 +51,11 @@ FBX 파일만 열어봐서는 크기를 알 수 없다. 기존 카탈로그에�
 
 | 종류 | 수량 | 상태 |
 | --- | ---: | --- |
-| FBX 모델 | 26 | 사용 가능 14 · 미연결 11 · 기존 1 |
-| 텍스처 (`Textures/`) | 25 | Stage1 PBR 20 · 리뉴얼 바닥 1 · 콘셉트 4 |
+| FBX 모델 | 27 | 사용 가능 15 · 미연결 11 · 기존 1 |
+| 텍스처 (`Textures/`) | 29 | Stage1 PBR 24 · 리뉴얼 바닥 1 · 콘셉트 4 |
 | 텍스처 (`.fbm/` 임베드) | 57 | 캐릭터 2 · 환경 7 · 운석 PBR 16 · 리뉴얼 자연물 PBR 32 |
-| Material | 21 | Stage1 URP Lit 18 · 분위기/외부 패키지용 URP 3 |
-| Prefab | 18 | Stage1 16 · 기존 Resources 2 |
+| Material | 22 | Stage1 URP Lit 19 · 분위기/외부 패키지용 URP 3 |
+| Prefab | 19 | Stage1 17 · 기존 Resources 2 |
 | Shader | 6 | `SpaceFlop/*` URP 3 · 분위기 URP 3 |
 | Scene | 2 | `Scenes/Lobby.unity` · `Scenes/Main.unity` — Main에 Stage1 프리팹 12종이 122개 배치돼 있다 |
 | Unity 설정 Asset | 10 | URP 설정 8 · 공용 기본 Volume Profile 1 · Stage1 분위기 프로필 1 |
@@ -108,6 +109,38 @@ PF_Stage1_*.prefab  (루트: Transform 만)
 - FBX: `Models/Props/Stage1/SF_Stage1_AnchorPin.fbx` (569 KB)
 - Material: `Materials/Props/Stage1/M_Stage1_AnchorPin.mat`
 - 텍스처: `Textures/Props/Stage1/AnchorPin/T_Stage1_AnchorPin_{BaseColor,Normal,Metallic,Roughness}.jpg`
+
+---
+
+## 5-1. Stage1 운석 방어용 방망이 — 사용 가능 (1종)
+
+[S15P21B202-187](https://ssafy.atlassian.net/browse/S15P21B202-187)에서 운석을 쳐내는 후속 게임플레이에 사용할
+방망이 아트 에셋 1종을 추가했다. 이번 산출물은 순수 아트 프리팹이며, 휘두르기 애니메이션·타격 판정·운석 반사·장착·네트워크 로직은 포함하지 않는다.
+
+| 프리뷰 | 용도 | FBX 원본 | 프리팹 스케일 | **실제 크기** | 삼각형 |
+| --- | --- | --- | ---: | --- | ---: |
+| <img src="./assets/previews/SF_Stage1_MeteorBat.png" width="110"> | 낙하 지점 근처의 운석을 쳐내는 SF 방망이 | 0.92 × 0.88 × 0.98 m | 1.2244761 | **1.12 × 1.20 × 1.08 m** | 19,212 |
+
+크기는 W × H × D(미터)다. FBX의 Z-up 축은 프리팹의 `Visual_ZUpToYUp`에서 X축 −90°로 보정했다.
+
+### 파일 경로
+
+| 종류 | 경로 |
+| --- | --- |
+| Prefab | `Prefabs/Props/Stage1/PF_Stage1_MeteorBat.prefab` |
+| FBX | `Models/Props/Stage1/SF_Stage1_MeteorBat.fbx` (약 557 KB) |
+| Material | `Materials/Props/Stage1/M_Stage1_MeteorBat.mat` |
+| Texture | `Textures/Props/Stage1/MeteorBat/T_Stage1_MeteorBat_{BaseColor,Normal,Metallic,Roughness}.jpg` |
+
+구조는 S15P21B202-36에서 추가한 우주선 파츠·고정못과 같다.
+
+```
+PF_Stage1_MeteorBat.prefab  (루트: Transform만, Collider·Rigidbody 없음)
+ └─ Visual_ZUpToYUp        X축 −90° 회전 + 균일 스케일 1.2244761
+      └─ SF_Stage1_MeteorBat.fbx + M_Stage1_MeteorBat.mat
+```
+
+Material은 URP **Lit**이며 BaseColor·Normal·Metallic 3장을 참조한다. Roughness 원본은 후속 재질 조정을 위해 함께 보관한다.
 
 ---
 
