@@ -190,6 +190,15 @@ namespace Metagame.Gameplay.Parts
             PartState.Free => to == PartState.Carried,
             PartState.Carried => to == PartState.Placed,
             PartState.Placed => to is PartState.Carried or PartState.Welded,
+
+            // 용접한 파츠도 절단하면 다시 놓인 상태가 된다(기획 §16.3 "절단한 구간은
+            // … 재조립"). 예전에는 Welded 가 종착이라 완전 절단해도 다시 들 수 없었고,
+            // 그러면 §16.3 의 재배치가 성립하지 않는다.
+            //
+            // Carried 로 바로 가지 않는 이유는 절단한 순간 파츠가 손에 들리는 것이
+            // 아니기 때문이다 — 떨어지거나 견인빔에 받쳐 있다. 그 뒤에 집으면 된다.
+            PartState.Welded => to == PartState.Placed,
+
             _ => false,
         };
 

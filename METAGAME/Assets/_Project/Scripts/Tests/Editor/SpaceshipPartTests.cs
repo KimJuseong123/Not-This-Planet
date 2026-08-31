@@ -145,8 +145,19 @@ namespace Metagame.Gameplay.Tests
             Assert.IsTrue(part.TryTransitionTo(PartState.Carried));
         }
 
+        /// <summary>
+        /// 용접된 파츠에서 나가는 길은 <see cref="PartState.Placed"/> 하나다.
+        ///
+        /// 예전에는 종착 상태였다. 기획 §16.3 이 "100% 절단하면 해당 접합부 위쪽 파츠들이
+        /// 하나의 덩어리로 분리된다 … 절단 전에 견인 조종 모듈로 받치면 안전하게 재배치할
+        /// 수 있다" 고 하므로, 종착으로 두면 완전 절단해도 다시 들 수 없어 재배치가
+        /// 성립하지 않는다(S15P21B202-209).
+        ///
+        /// <see cref="PartState.Carried"/> 로 바로 가지 않는 이유는 절단한 순간 파츠가
+        /// 손에 들리는 것이 아니기 때문이다 — 떨어지거나 견인빔에 받쳐 있다.
+        /// </summary>
         [Test]
-        public void Welded_IsTerminal()
+        public void Welded_OnlyGoesBackToPlaced()
         {
             var part = Unlocked();
             part.TryTransitionTo(PartState.Carried);
@@ -155,8 +166,15 @@ namespace Metagame.Gameplay.Tests
             Assert.IsTrue(part.TryTransitionTo(PartState.Welded));
 
             foreach (PartState next in System.Enum.GetValues(typeof(PartState)))
+            {
+                if (next == PartState.Placed) continue;
+
                 Assert.IsFalse(part.TryTransitionTo(next),
                     $"용접된 파츠가 {next} 로 되돌아갔다.");
+            }
+
+            Assert.IsTrue(part.TryTransitionTo(PartState.Placed),
+                "절단하면 다시 놓인 상태가 되어야 한다(기획 §16.3).");
         }
 
         [Test]

@@ -132,7 +132,64 @@ namespace Metagame.Gameplay
 
         // --- 용접 ---
         /// <summary>용접점 하나를 채우는 데 걸리는 시간.</summary>
+        /// <summary>
+        /// 예전 용접점 하나를 채우는 시간. 원형 접합선으로 바뀐 뒤에는 쓰지 않는다.
+        /// </summary>
+        [System.Obsolete("원형 접합선으로 전환했다. WeldSeamSeconds 와 WeldSeamSegments 를 쓴다.")]
         public const float WeldSecondsPerPoint = 3f;
+
+        /// <summary>
+        /// 원형 접합선 하나를 <b>빠짐없이 훑었을 때</b>의 용접 시간(초).
+        ///
+        /// 기획 §16.1 "원형 접합부 하나의 최단 용접 시간은 약 10초, 일반적인 완료 시간은
+        /// 12~15초를 목표로 한다". 여기 적는 것이 <b>최단</b> 시간이다 — 12~15초는
+        /// 겹쳐 대거나 빠뜨렸다가 되돌아오는 실제 플레이에서 저절로 나온다.
+        ///
+        /// 예전 방식(용접점 4개 × 3초 = 12초)과 총량이 비슷하다. 바뀌는 것은 총량이
+        /// 아니라 <b>기제</b> 다 — 한 점에 대고 있으면 되던 것이 이제는 돌아야 한다.
+        /// </summary>
+        public const float WeldSeamSeconds = 10f;
+
+        /// <summary>
+        /// 원형 접합선을 몇 조각으로 나눌지.
+        ///
+        /// 조각 하나가 30도다. 이 값이 §16.1 의 "같은 위치에 계속 대고 있어도 추가
+        /// 진행되지 않는다" 를 만든다 — 조각이 차면 그 자리에서는 더 오르지 않는다.
+        ///
+        /// 너무 적으면(4개) 예전 점 용접과 다를 바 없고, 너무 많으면(72개) 한 조각이
+        /// 0.14초라 훑는 손맛이 사라진다.
+        /// </summary>
+        public const int WeldSeamSegments = 12;
+
+        /// <summary>
+        /// 조각 하나를 채우는 시간(초). 12조각 × 0.833초 ≈ 10초.
+        /// </summary>
+        public static float WeldSeamSecondsPerSegment => WeldSeamSeconds / WeldSeamSegments;
+
+        /// <summary>
+        /// 용접기가 접합선에 닿는다고 보는 거리(m).
+        ///
+        /// 기획 §16.1 "용접기 최대 사거리는 약 0.8m". <see cref="Metagame.Core.Tuning"/>
+        /// 의 <c>ToolBeamRange</c> 가 이미 0.80m 이며 같은 값이어야 한다 — 빔이 닿아
+        /// 보이는데 용접이 안 되거나 그 반대면 플레이어가 이유를 알 수 없다.
+        /// </summary>
+        public const float WeldSeamRange = 0.80f;
+
+        /// <summary>
+        /// 원형 접합선 하나를 <b>빠짐없이 훑었을 때</b>의 완전 절단 시간(초).
+        ///
+        /// 기획 §16.3 "완전 절단의 최단 시간은 약 6초, 일반적인 시간은 8~10초이다".
+        /// 여기 적는 것이 <b>최단</b> 시간이다 — 8~10초는 겹쳐 대거나 빠뜨렸다가
+        /// 되돌아오는 실제 플레이에서 나온다(용접과 같은 이유로 상수로 넣지 않는다).
+        ///
+        /// 용접(10초)보다 빠른 것이 기획 의도다. 부수는 것이 만드는 것보다 쉬워야
+        /// 실수를 되돌리는 부담이 작다.
+        /// </summary>
+        public const float CutSeamSeconds = 6f;
+
+        /// <summary>조각 하나를 자르는 시간(초). 12조각 × 0.5초 = 6초.</summary>
+        public static float CutSeamSecondsPerSegment => CutSeamSeconds / WeldSeamSegments;
+
 
         /// <summary>
         /// 용접이 끝난 접합이 버티는 힘. 미접합의 25배다.
@@ -154,6 +211,27 @@ namespace Metagame.Gameplay
 
         /// <summary>엔진 출력이 0에서 100%까지 오르는 시간(s). 기획의 "5초 동안".</summary>
         public const float LaunchRampSeconds = 5f;
+
+        /// <summary>전원이 탑승한 뒤 발사까지의 카운트다운(s). 기획 §22.3 의 "3초".</summary>
+        public const float LaunchCountdownSeconds = 3f;
+
+        /// <summary>
+        /// 발사 구역 반경(m).
+        ///
+        /// 기획 §8.1 은 "엔진 모듈 전체가 원형 구역 안에 들어오면 그 위에 조립할 수 있다" 고
+        /// 한다. Stage1SkinBuilder 가 조립 위치 주변 키아웃 반경으로 9m 를 쓰고 있어 그에
+        /// 맞췄다 — 두 값이 다르면 "자연물이 없는데 조립이 안 되는" 자리가 생긴다.
+        /// </summary>
+        public const float LaunchPadRadius = 9f;
+
+        /// <summary>
+        /// 탑승을 허용하는 최대 기울기(도). 기획 §22.1 "우주선이 탑승 가능한 정도로 서 있다".
+        ///
+        /// 발사 시험의 <see cref="LaunchMaxStandingTilt"/>(12도)보다 너그럽게 둔다. 탑승은
+        /// 되지만 하중 시험에서 떨어지는 구간이 있어야 §16.2 의 "발사 하중으로 품질을
+        /// 검증한다" 가 성립한다. 탑승 조건이 더 엄하면 시험이 판정할 것이 없다.
+        /// </summary>
+        public const float BoardingMaxTilt = 20f;
 
         /// <summary>
         /// 100% 출력에서의 추력을 탑 전체 무게의 몇 배로 줄지.
@@ -178,6 +256,75 @@ namespace Metagame.Gameplay
         /// 서 있는지 먼저 확인한다". 추력이 넘어짐을 가려 버리면 실패 이유를 알 수 없다.
         /// </summary>
         public const float LaunchMaxStandingTilt = 12f;
+
+        /// <summary>
+        /// 하중 시험을 통과한 뒤 상승하는 시간(초). 기획 §22.5 "약 8~10초" 의 가운데다.
+        ///
+        /// 이 시간이 끝나면 1장 완료다. 컷신과 2장 로딩이 붙기 전에는 임시 완료 처리로
+        /// 대체한다(기획 §22.5).
+        /// </summary>
+        public const float AscentSeconds = 9f;
+
+        /// <summary>
+        /// 상승 속도의 상한(m/s).
+        ///
+        /// 추력이 무게의 <see cref="LaunchThrustRatio"/>(3.2배)이므로 그냥 두면 순가속이
+        /// 중력의 2.2배로 계속 붙는다. 9초면 60m/s 를 넘고 500m 이상 올라간다 — 카메라가
+        /// 따라갈 수 없고 지형이 순식간에 사라진다. 기획 §22.5 는 상승 중에 카메라를
+        /// 돌려 볼 수 있어야 한다고 하므로 볼 수 있는 속도로 묶는다.
+        ///
+        /// 9초 × 12m/s ≈ 108m — 절벽(32기)과 배경 행성이 보이는 높이다.
+        /// </summary>
+        public const float AscentMaxSpeed = 12f;
+
+        /// <summary>
+        /// 상한에 이른 뒤 추력을 줄이는 세기.
+        ///
+        /// 추력을 딱 끊으면 중력이 즉시 이겨 상승이 멈칫한다. 상한 근처에서 부드럽게
+        /// 줄여 무게를 상쇄하는 만큼만 남긴다.
+        /// </summary>
+        public const float AscentSpeedDamp = 2f;
+
+        /// <summary>
+        /// 발사 실패로 튀어나올 때의 수평 속도(m/s).
+        ///
+        /// 기획 §22.4 는 "사방으로 튀어나온다 … 잠시 구르지만 기절하지 않고 자동으로
+        /// 일어난다" 다. 무너진 파츠 더미 밖으로 나갈 만큼은 되어야 하고, 지형 밖으로
+        /// 날려 보낼 만큼이면 안 된다. 파츠 최대 발자국이 약 2.5m 이므로 그 두 배쯤
+        /// 나가는 값으로 잡았다.
+        /// </summary>
+        public const float EjectHorizontalSpeed = 6f;
+
+        /// <summary>튀어나올 때의 상승 속도(m/s). 잔해를 넘어가되 높이 뜨지는 않는다.</summary>
+        public const float EjectVerticalSpeed = 3f;
+
+        /// <summary>
+        /// 실패 판정에서 최상단 모듈이 "지면에 닿았다" 고 볼 높이(m).
+        ///
+        /// 접촉 콜백을 쓰지 않는 이유는 무너지는 중에 파츠끼리도 닿기 때문이다.
+        /// 지면 높이로 보면 무엇에 닿았는지 가릴 필요가 없다.
+        ///
+        /// <b>이것만으로는 부족하다.</b> 최상단 모듈이 잔해 위에 얹혀 멈추면 지면 높이에
+        /// 영원히 닿지 않는다 — 견인 조종 모듈 반높이 1.22m 위에 엔진 모듈 2.16m 가
+        /// 깔리면 밑면이 2.16m 에서 멈춘다. 그래서 <see cref="EjectRestSpeed"/> 로
+        /// "낙하가 끝났다" 도 함께 본다.
+        /// </summary>
+        public const float EjectGroundClearance = 1.2f;
+
+        /// <summary>
+        /// 낙하가 끝났다고 볼 속도(m/s). 어디에 얹혀 멈췄든 여기에 걸린다.
+        ///
+        /// 기획 §22.4 의 "해당 모듈이 지면에 닿는 순간" 이 뜻하는 것은 낙하가 끝나는
+        /// 순간이다. 잔해 위에 멈춘 것도 그 순간이다.
+        /// </summary>
+        public const float EjectRestSpeed = 0.6f;
+
+        /// <summary>
+        /// 그 속도가 이만큼 이어져야 멈춘 것으로 본다(초).
+        ///
+        /// 한 순간만 보면 튀어오른 정점에서 걸린다 — 거기서는 속도가 0 을 지난다.
+        /// </summary>
+        public const float EjectRestSeconds = 0.25f;
 
         // --- 견인 광선 ---
         /// <summary>빔이 파츠를 붙잡을 수 있는 최대 거리.</summary>
