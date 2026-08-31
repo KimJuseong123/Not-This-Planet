@@ -1,7 +1,12 @@
 {
   "name": "Metagame.Network",
   "rootNamespace": "Metagame.Network",
-  "references": [],
+  "references": [
+    "Mirror",
+    "Mirror.Components",
+    "Mirror.Transports",
+    "Mirror.Authenticators"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

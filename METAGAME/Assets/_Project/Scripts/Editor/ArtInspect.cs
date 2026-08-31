@@ -12,7 +12,6 @@ namespace Metagame.EditorTools
     /// </summary>
     public static class ArtInspect
     {
-        [MenuItem("Tools/둥실둥실 우주 대탈출/모델 구조 찍어보기", false, 60)]
         public static void DumpAll()
         {
             var guids = AssetDatabase.FindAssets("t:Model", new[] { "Assets/_Project/Models" });
