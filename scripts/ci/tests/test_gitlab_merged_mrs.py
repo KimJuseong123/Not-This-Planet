@@ -33,8 +33,9 @@ ci_common.http = fake_http
 
 mrs, ok = d.GitLab().merged_mrs(7)
 assert ok is True and [m["iid"] for m in mrs] == [32, 31, 5, 9], mrs          # -34 는 7일 밖
-rows, complete = d.merged_not_done(d.GitLab(), ci_common.Jira())
+rows, stacks, complete = d.merged_not_done(d.GitLab(), ci_common.Jira())
 assert complete is True and len(rows) == 1 and "!31" in rows[0] and "@rmawnsdud" in rows[0], rows
+assert stacks == [], stacks   # 이 표본에는 대상 브랜치가 없어 전부 develop 취급(-159)
 assert d.INFRA_MM == "rmawnsdud"
 
 # 페이지 상한(100건 꽉 찬 페이지가 max_pages 만큼) → complete False
