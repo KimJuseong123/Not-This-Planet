@@ -103,6 +103,11 @@ namespace Metagame.Core
         public const float ToolDropChargeThreshold = 0.08f;
         public const float ToolThrowRegrabLock = 0.30f;
         public const float ToolHoldDistance = 0.55f;
+        public const float ToolBeamRange = 0.80f;
+        /// <summary>운반물 목표 위치를 따라가는 보간 속도.</summary>
+        public const float CarryPositionSmoothing = 18f;
+        /// <summary>전방 고정 도구의 회전 보간 속도.</summary>
+        public const float CarryRotationSmoothing = 18f;
 
         // ── 기어오르기 ──────────────────────────────────────────
         public const float ClimbPull = 150f;        // 매달린 채 위로 기어오르는 보조력

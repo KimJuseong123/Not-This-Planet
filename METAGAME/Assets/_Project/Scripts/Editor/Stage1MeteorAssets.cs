@@ -44,7 +44,6 @@ namespace Metagame.EditorTools
 
         const string VisualName = "Visual";
 
-        [MenuItem("Tools/둥실둥실 우주 대탈출/운석 프리팹 만들고 스포너에 꽂기", false, 7)]
         public static void Apply()
         {
             Stage1EnvironmentAssets.Build();          // 운석 Material·아트 프리팹이 없으면 먼저 만든다

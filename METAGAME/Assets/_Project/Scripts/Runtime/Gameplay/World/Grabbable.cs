@@ -3,6 +3,13 @@ using UnityEngine;
 
 namespace Metagame.Gameplay
 {
+    /// <summary>잡았을 때의 상호작용 역할. 운반물과 도구의 처리 경로를 분리한다.</summary>
+    public enum GrabbableRole
+    {
+        Transport = 0,
+        Tool = 1
+    }
+
     /// <summary>
     /// 손으로 잡을 수 있는 것. 이게 붙어 있지 않으면 손이 미끄러진다
     /// (아무 데나 붙을 수 있으면 모든 퍼즐을 벽 타기로 넘어버린다).
@@ -18,6 +25,14 @@ namespace Metagame.Gameplay
         public float Priority = 0f;
         /// <summary>false 면 지금은 잡히지 않는다 (소켓에 꽂혀 고정된 배터리 등).</summary>
         public bool CanGrab = true;
+        /// <summary>
+        /// 운반체는 손의 운반 상태를 사용하고, 도구는 양손 고정 그립과 전방 조준 자세를 사용한다.
+        /// 기존 Grabbable은 기본값 Transport라서 기존 씬의 동작을 보존한다.
+        /// </summary>
+        [Tooltip("Transport는 일반 운반, Tool은 양손 고정 및 전방 조준 도구입니다.")]
+        public GrabbableRole Role = GrabbableRole.Transport;
+        public bool IsTransport { get { return Role == GrabbableRole.Transport; } }
+        public bool IsTool { get { return Role == GrabbableRole.Tool; } }
 
         /// <summary>지금 이걸 쥐고 있는 손의 개수 (0~2).</summary>
         public int HandCount { get; private set; }
@@ -29,7 +44,8 @@ namespace Metagame.Gameplay
         public void NotifyReleased(Hand h) { HandCount = Mathf.Max(0, HandCount - 1); }
 
         public static Grabbable Mark(GameObject go, string label, bool climbable = false,
-                                     float grip = 1f, float priority = 0f)
+                                     float grip = 1f, float priority = 0f,
+                                     GrabbableRole role = GrabbableRole.Transport)
         {
             var g = go.GetComponent<Grabbable>();
             if (g == null) g = go.AddComponent<Grabbable>();
@@ -37,6 +53,7 @@ namespace Metagame.Gameplay
             g.Climbable = climbable;
             g.GripStrength = grip;
             g.Priority = priority;
+            g.Role = role;
             return g;
         }
 

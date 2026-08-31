@@ -3,6 +3,7 @@ using Metagame.Core;
 using Metagame.Gameplay;
 using Metagame.Gameplay.Demo;
 using Metagame.Gameplay.Parts;
+using Metagame.Network;
 using Metagame.UI;
 
 namespace Metagame.Bootstrap
@@ -73,7 +74,7 @@ namespace Metagame.Bootstrap
             Exploration = sys.AddComponent<Stage1Exploration>();
             ExplorationHud = sys.AddComponent<Stage1ExplorationHud>();
             Transport = sys.AddComponent<TractorBeamController>();
-            ExplorationHud.Initialize(Exploration);
+            ExplorationHud.Initialize(Exploration, Session);
 
             if (buildLevel) Level.Build();
             Exploration.Configure(FindObjectsByType<SpaceshipPart>(FindObjectsSortMode.None));
@@ -100,6 +101,11 @@ namespace Metagame.Bootstrap
             Exploration.Begin(Player);
             Session.Begin(Player, Level, Level.SpawnFoot, Exploration);
             if (!lockCursor) Session.SetCursor(false);
+
+            // 로비를 거쳐 들어왔을 때만 세션이 살아 있다. 씬을 단독 실행하면 없으므로
+            // 혼자 돌려보는 흐름은 그대로 둔다.
+            if (NetworkSession.Instance != null)
+                RemotePlayerSync.Create(NetworkSession.Instance, Player, transform);
 
             Sky.ApplyToCameras();
 

@@ -98,7 +98,6 @@ namespace Metagame.EditorTools
             return null;
         }
 
-        [MenuItem("Tools/둥실둥실 우주 대탈출/환경 자연물 Material·프리팹 만들기", false, 6)]
         public static void Build()
         {
             Directory.CreateDirectory(MaterialDir);

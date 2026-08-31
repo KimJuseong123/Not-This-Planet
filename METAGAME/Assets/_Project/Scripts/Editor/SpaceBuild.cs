@@ -17,10 +17,8 @@ namespace Metagame.EditorTools
     {
         const string ScenePath = "Assets/Scenes/Main.unity";
 
-        [MenuItem("Tools/둥실둥실 우주 대탈출/윈도우 빌드 (배포용)", false, 40)]
         public static void BuildWindows() { Build(false); }
 
-        [MenuItem("Tools/둥실둥실 우주 대탈출/윈도우 빌드 (개발용)", false, 41)]
         public static void BuildWindowsDev() { Build(true); }
 
         /// <summary>
