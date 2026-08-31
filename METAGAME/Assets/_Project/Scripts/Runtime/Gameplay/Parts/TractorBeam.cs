@@ -222,16 +222,16 @@ namespace Metagame.Gameplay.Parts
         }
 
         /// <summary>
-        /// 스냅 후보를 갱신하고, 후보가 있으면 목표 자세를 정렬 회전으로 맞춘다.
-        /// 파츠가 다가가는 동안 미리 방향이 돌아가므로 플레이어가 맞출 필요가 없다.
+        /// 접합 후보를 갱신한다. <b>자세는 건드리지 않는다.</b>
+        ///
+        /// 예전에는 후보가 잡히면 목표 회전을 정렬 회전으로 덮어써서, 파츠가 다가가는 동안
+        /// 저절로 방향이 맞았다. 기획(S15P21B202-107 §15.1)이 금지하는 회전 보정이다 —
+        /// "강한 자동 스냅, 중심 정렬과 회전 보정은 없다."
+        ///
+        /// 방향은 플레이어가 <see cref="SetTargetRotation"/> 으로 직접 맞춘다. 후보는
+        /// "지금 자세로 붙일 수 있는가" 만 알려 준다.
         /// </summary>
-        void UpdateMatch()
-        {
-            var match = PartAssembler.FindMatch(Held);
-            SetMatch(match);
-
-            if (match.HasValue) _targetRotation = match.SnappedRotation;
-        }
+        void UpdateMatch() => SetMatch(PartAssembler.FindMatch(Held));
 
         void SetMatch(SocketMatch match)
         {

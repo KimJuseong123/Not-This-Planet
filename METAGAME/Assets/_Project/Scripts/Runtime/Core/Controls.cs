@@ -19,6 +19,7 @@ namespace Metagame.Core
         public bool ArmsUp;       // 두 팔을 위로 (기어오를 때)
         public bool FreeLook;     // Alt — 조작은 그대로 두고 시점만 자유롭게 돌린다
         public bool TabletToggle; // Tab
+        public bool FieldToggle;  // F — 광역 저중력장 켜기·끄기 (기획 §14.1)
         public bool Restart;
     }
 
@@ -34,6 +35,7 @@ namespace Metagame.Core
         public static KeyCode ToolAction = KeyCode.Q;   // 도구 놓기 / 충전 투척
         public static KeyCode TransportAction = KeyCode.E; // 운반 장치 탑승 / 하차
         public static KeyCode Tablet = KeyCode.Tab;
+        public static KeyCode FieldToggle = KeyCode.F;
         public static KeyCode Help = KeyCode.Tab;
         public static KeyCode FreeCursor = KeyCode.Escape;
 
@@ -51,6 +53,7 @@ namespace Metagame.Core
             f.ArmsUp = Input.GetKey(ArmsUp);
             f.FreeLook = Input.GetKey(FreeLook) || Input.GetKey(KeyCode.RightAlt);
             f.TabletToggle = Input.GetKeyDown(Tablet);
+            f.FieldToggle = Input.GetKeyDown(FieldToggle);
             f.Restart = Input.GetKeyDown(Restart);
             return f;
         }

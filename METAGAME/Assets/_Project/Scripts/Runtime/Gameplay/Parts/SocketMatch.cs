@@ -3,24 +3,25 @@ using UnityEngine;
 namespace Metagame.Gameplay.Parts
 {
     /// <summary>
-    /// 스냅 후보 하나. 어느 소켓끼리 맞물릴지와, 그렇게 맞물렸을 때 파츠가 놓일 자세를 담는다.
+    /// 접합 후보 하나. 어느 소켓끼리 맞물릴지와, 얼마나 어긋나 있는지를 담는다.
+    ///
+    /// <b>맞물렸을 때의 자세는 담지 않는다.</b> 예전에는 정렬된 위치·회전을 함께 들고 있다가
+    /// 조립할 때 파츠를 그 자세로 옮겼다. 기획(S15P21B202-107 §15.1)은 자동 정렬을 금지하므로
+    /// 지금은 올려놓은 자세를 그대로 두고, 이 구조체는 "붙일 수 있는가" 만 말한다.
     ///
     /// 계산 결과만 들고 있고 아무것도 실행하지 않는다.
-    /// 미리보기 표시(고스트)는 이 값을 읽어 UI 가 그린다.
     /// </summary>
     public readonly struct SocketMatch
     {
         public SocketMatch(
             PartSocket movingSocket, PartSocket targetSocket,
-            Vector3 snappedPosition, Quaternion snappedRotation,
-            float distance, float angleDegrees)
+            float centerOffset, float gap, float tiltDegrees)
         {
             MovingSocket = movingSocket;
             TargetSocket = targetSocket;
-            SnappedPosition = snappedPosition;
-            SnappedRotation = snappedRotation;
-            Distance = distance;
-            AngleDegrees = angleDegrees;
+            CenterOffset = centerOffset;
+            Gap = gap;
+            TiltDegrees = tiltDegrees;
         }
 
         /// <summary>옮기는 파츠의 아래쪽 소켓.</summary>
@@ -29,17 +30,14 @@ namespace Metagame.Gameplay.Parts
         /// <summary>받는 파츠의 위쪽 소켓.</summary>
         public PartSocket TargetSocket { get; }
 
-        /// <summary>맞물렸을 때 옮기는 파츠의 위치.</summary>
-        public Vector3 SnappedPosition { get; }
+        /// <summary>접합면을 따라 옆으로 어긋난 거리(m).</summary>
+        public float CenterOffset { get; }
 
-        /// <summary>맞물렸을 때 옮기는 파츠의 회전.</summary>
-        public Quaternion SnappedRotation { get; }
+        /// <summary>접합면 법선 방향으로 벌어진 거리(m).</summary>
+        public float Gap { get; }
 
-        /// <summary>두 소켓 사이 거리. 후보 정렬에 쓴다.</summary>
-        public float Distance { get; }
-
-        /// <summary>두 접합면이 마주보는 정도의 오차(도). 후보 정렬에 쓴다.</summary>
-        public float AngleDegrees { get; }
+        /// <summary>두 접합면이 마주보는 정도의 오차(도).</summary>
+        public float TiltDegrees { get; }
 
         public bool HasValue => MovingSocket != null && TargetSocket != null;
 
