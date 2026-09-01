@@ -507,8 +507,6 @@ namespace Metagame.Network
 
             Configure(httpUrl, socketUrl);
             ServerAddress = address.Trim();
-            PlayerPrefs.SetString(ServerAddressPrefsKey, ServerAddress);
-            PlayerPrefs.Save();
             return true;
         }
 
@@ -612,13 +610,27 @@ namespace Metagame.Network
         }
 
         /// <summary>마지막으로 입력한 서버 주소. 없으면 <paramref name="fallback"/>, 그것도 없으면 기본값.</summary>
+        /// <summary>
+        /// 어느 서버를 볼지 정한다. 평소에는 배포 서버 한 곳이다.
+        ///
+        /// 예전에는 로비 화면에서 주소를 고쳐 PlayerPrefs 에 저장했는데, 화면에서 입력칸을
+        /// 없애면서(-162) 저장값도 읽지 않는다. 한 번 잘못 저장되면 게임 안에서 고칠
+        /// 방법이 없어 로그인이 조용히 멈추기 때문이다 — 실제로 예전 LAN 테스트 값
+        /// (192.168.x.x:8081)이 남아 접속이 막힌 적이 있다.
+        ///
+        /// 개발자가 다른 서버를 봐야 할 때는 실행 인자로 준다:
+        /// <c>MetaGame.exe -metagame-server=127.0.0.1:8080</c>
+        /// </summary>
         public static string ResolveServerAddress(string fallback = null)
         {
-            if (PlayerPrefs.HasKey(ServerAddressPrefsKey))
+            const string argumentPrefix = "-metagame-server=";
+            string[] args = Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length; i++)
             {
-                string saved = PlayerPrefs.GetString(ServerAddressPrefsKey);
-                if (!string.IsNullOrWhiteSpace(saved))
-                    return saved.Trim();
+                if (!args[i].StartsWith(argumentPrefix, StringComparison.OrdinalIgnoreCase)) continue;
+
+                string value = args[i].Substring(argumentPrefix.Length).Trim();
+                if (value.Length > 0) return value;
             }
 
             return string.IsNullOrWhiteSpace(fallback) ? DefaultServerAddress : fallback.Trim();
