@@ -1,11 +1,40 @@
 using Metagame.UI;
 using NUnit.Framework;
+using UnityEditor;
 using UnityEngine;
 
 namespace Metagame.Gameplay.Tests
 {
     public sealed class Stage1TabletViewTests
     {
+        const string PrefabPath =
+            "Assets/_Project/Prefabs/Resources/PF_Stage1_Tablet.prefab";
+
+        [Test]
+        public void ProductionPrefab_UsesApprovedPoseAndScreenAlignment()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
+            Assert.IsNotNull(prefab, PrefabPath);
+
+            var view = prefab.GetComponent<Stage1TabletView>();
+            Assert.IsNotNull(view);
+            AssertVector(view.OpenLocalPosition, Stage1TabletView.ApprovedOpenLocalPosition);
+            AssertVector(view.OpenLocalEuler, Stage1TabletView.ApprovedOpenLocalEuler);
+            AssertVector(view.ScreenSize, Stage1TabletView.ApprovedScreenSize);
+
+            var screenAnchor = prefab.transform.Find("ScreenAnchor");
+            Assert.IsNotNull(screenAnchor);
+            AssertVector(screenAnchor.localPosition,
+                Stage1TabletView.ApprovedScreenAnchorLocalPosition);
+            Assert.Less(Quaternion.Angle(screenAnchor.localRotation,
+                Quaternion.Euler(Stage1TabletView.ApprovedScreenAnchorLocalEuler)), 0.01f);
+
+            var screen = screenAnchor.Find("DynamicScreenSurface");
+            Assert.IsNotNull(screen);
+            AssertVector(new Vector2(screen.localScale.x, screen.localScale.y),
+                Stage1TabletView.ApprovedScreenSize);
+        }
+
         [Test]
         public void OpenTablet_ProjectsModelDisplayIntoGuiRect()
         {
@@ -43,6 +72,18 @@ namespace Metagame.Gameplay.Tests
                 Object.DestroyImmediate(stateObject);
                 Object.DestroyImmediate(cameraObject);
             }
+        }
+
+        static void AssertVector(Vector3 actual, Vector3 expected)
+        {
+            Assert.Less((actual - expected).sqrMagnitude, 0.000001f,
+                $"expected={expected}, actual={actual}");
+        }
+
+        static void AssertVector(Vector2 actual, Vector2 expected)
+        {
+            Assert.Less((actual - expected).sqrMagnitude, 0.000001f,
+                $"expected={expected}, actual={actual}");
         }
     }
 }
