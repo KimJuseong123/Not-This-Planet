@@ -288,7 +288,8 @@ namespace Metagame.Gameplay.Hazards
 
             var meteor = Spawn(point, size);
 
-            var drop = new PendingMeteorDrop(point, _warningSeconds, _warningSeconds);
+            var drop = new PendingMeteorDrop(point, _warningSeconds, _warningSeconds,
+                                             Meteor.RadiusFor(size));
             _pending.Add(drop);
             DropScheduled?.Invoke(drop);
 
