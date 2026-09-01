@@ -271,6 +271,36 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float CraftHoverDriftBand = 0.5f;
 
+        // --- 기절과 동료 구조 (기획 §26-13) ---
+        /// <summary>
+        /// 다운한 동료를 일으키는 데 걸리는 시간(초).
+        ///
+        /// 고정못(8초)보다 짧다. 운석이 계속 떨어지는 중에 구조자가 8초를 서 있으면
+        /// 둘 다 쓰러진다 — 구조가 성립하지 않는다. 용접 한 조각(0.83초)보다는 길어야
+        /// 위험을 감수하는 판단이 생긴다.
+        /// </summary>
+        public const float RescueSeconds = 4f;
+
+        /// <summary>
+        /// 구조가 끝났을 때 돌려주는 체력 비율.
+        ///
+        /// 가득 채우면 다운이 벌이 되지 않고, 너무 적으면 일으켜 놓자마자 다시
+        /// 쓰러진다. 절반이면 다음 운석 두 발까지는 버틴다(운석 직격 25).
+        /// </summary>
+        public const float RescueHealthRatio = 0.5f;
+
+        /// <summary>
+        /// 전원이 다운했을 때 스폰 지점에서 되살아나기까지의 시간(초).
+        ///
+        /// 기획 §26-13 "4인에서 전원 기절 실패가 긴장감을 주되 과도한 반복을 만들지
+        /// 않는가". 아무도 일으킬 수 없으므로 출구가 필요하다 — 없으면 게임이 멈춘다.
+        /// 예전에는 체력 0에서 즉시 부활하는 것이 우연히 그 역할을 했다.
+        ///
+        /// 파츠·용접·운석 흔적은 그대로 둔다. <b>스테이지 초기화가 아니다</b>
+        /// (§22.4 의 발사 실패와 같은 원칙).
+        /// </summary>
+        public const float AllDownedRespawnSeconds = 8f;
+
         /// <summary>조각 하나를 자르는 시간(초). 12조각 × 0.5초 = 6초.</summary>
         public static float CutSeamSecondsPerSegment => CutSeamSeconds / WeldSeamSegments;
 

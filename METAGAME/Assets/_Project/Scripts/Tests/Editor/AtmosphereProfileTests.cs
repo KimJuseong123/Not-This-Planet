@@ -67,5 +67,30 @@ namespace Metagame.Gameplay.Tests
             Assert.That(profile.postProcessing.vignetteEnabled, Is.False);
             Assert.That(profile.enableOnMobile, Is.False);
         }
+
+        [Test]
+        public void AlertIntensityKeepsFogDensityStable()
+        {
+            profile.fog.enabled = true;
+            profile.fog.density = 0.15f;
+
+            var atmosphereObject = new GameObject("Atmosphere Controller Test");
+            var controller = atmosphereObject.AddComponent<AtmosphereController>();
+
+            try
+            {
+                controller.Apply(profile);
+                float baselineDensity = RenderSettings.fogDensity;
+
+                controller.SetAlertIntensity(1f);
+
+                Assert.That(RenderSettings.fogDensity, Is.EqualTo(baselineDensity));
+            }
+            finally
+            {
+                controller.ResetToDefaults();
+                Object.DestroyImmediate(atmosphereObject);
+            }
+        }
     }
 }

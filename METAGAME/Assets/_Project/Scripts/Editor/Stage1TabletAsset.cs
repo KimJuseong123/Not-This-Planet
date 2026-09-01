@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Metagame.EditorTools
 {
-    /// <summary>Jira S15P21B202-185 태블릿 FBX를 URP 프리팹으로 구성한다.</summary>
+    /// <summary>Jira S15P21B202-185 태블릿 FBX를 프리팹으로 구성하고 222 회귀를 방지한다.</summary>
     public static class Stage1TabletAsset
     {
         const string ModelPath = "Assets/_Project/Models/Props/Stage1/Tablet/SF_Stage1_Tablet.fbx";
@@ -18,7 +18,7 @@ namespace Metagame.EditorTools
         const string PrefabPath = PrefabDirectory + "/PF_Stage1_Tablet.prefab";
         const float TargetWidth = 0.36f;
 
-        [MenuItem("Tools/둥실둥실 우주 대탈출/1Stage 태블릿 실제 모델 적용", false, 10)]
+        [MenuItem("Tools/둥실둥실 우주 대탈출/1Stage 태블릿 프리팹 재생성", false, 10)]
         public static void Build()
         {
             EnsureDirectory(MaterialDirectory);
@@ -31,19 +31,40 @@ namespace Metagame.EditorTools
 
             var bodyMaterial = CreateBodyMaterial();
             var screenMaterial = CreateScreenMaterial();
-            var root = BuildPrefabRoot(model, bodyMaterial, screenMaterial, out var importedBounds);
-            try
+            var existing = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
+            Bounds importedBounds;
+            if (existing == null)
             {
-                PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
+                var root = BuildPrefabRoot(model, bodyMaterial, screenMaterial, out importedBounds);
+                try
+                {
+                    PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
+                }
+                finally
+                {
+                    Object.DestroyImmediate(root);
+                }
             }
-            finally
+            else
             {
-                Object.DestroyImmediate(root);
+                // 기존 프리팹을 새 임시 루트로 덮어쓰면 Unity의 local file ID와
+                // 사용자가 승인한 휴대 자세까지 매번 바뀐다. 내용을 제자리에서
+                // 갱신해 메뉴를 반복 실행해도 같은 프리팹이 남게 한다.
+                var root = PrefabUtility.LoadPrefabContents(PrefabPath);
+                try
+                {
+                    importedBounds = ConfigureExistingPrefab(root, bodyMaterial, screenMaterial);
+                    PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
+                }
+                finally
+                {
+                    PrefabUtility.UnloadPrefabContents(root);
+                }
             }
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log("[Stage1TabletAsset] 태블릿 프리팹 생성 완료: " + PrefabPath
+            Debug.Log("[Stage1TabletAsset] 태블릿 프리팹 갱신 완료: " + PrefabPath
                       + " | FBX bounds=" + importedBounds.size);
         }
 
@@ -166,9 +187,10 @@ namespace Metagame.EditorTools
 
             var deviceHeight = importedBounds.size.y * scale;
             var deviceDepth = importedBounds.size.z * scale;
-            var screenSize = new Vector2(TargetWidth * 0.70f, deviceHeight * 0.49f);
+            var screenSize = Stage1TabletView.ApprovedScreenSize;
             var screenAnchor = Marker(root.transform, "ScreenAnchor",
-                new Vector3(0f, deviceHeight * 0.035f, -deviceDepth * 0.505f));
+                Stage1TabletView.ApprovedScreenAnchorLocalPosition,
+                Quaternion.Euler(Stage1TabletView.ApprovedScreenAnchorLocalEuler));
 
             var screen = GameObject.CreatePrimitive(PrimitiveType.Quad);
             screen.name = "DynamicScreenSurface";
@@ -188,6 +210,54 @@ namespace Metagame.EditorTools
             var view = root.AddComponent<Stage1TabletView>();
             view.ConfigurePrefab(screenAnchor, screenSize);
             return root;
+        }
+
+        static Bounds ConfigureExistingPrefab(GameObject root, Material bodyMaterial,
+                                               Material screenMaterial)
+        {
+            var visual = root.transform.Find("SF_Stage1_Tablet");
+            if (visual == null)
+                throw new System.InvalidOperationException("태블릿 프리팹에서 SF_Stage1_Tablet를 찾지 못했습니다.");
+
+            var renderers = visual.GetComponentsInChildren<Renderer>(true);
+            foreach (var renderer in renderers)
+            {
+                var materials = new Material[renderer.sharedMaterials.Length];
+                for (var i = 0; i < materials.Length; i++) materials[i] = bodyMaterial;
+                renderer.sharedMaterials = materials;
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+                renderer.receiveShadows = true;
+            }
+
+            var screenAnchor = root.transform.Find("ScreenAnchor");
+            if (screenAnchor == null)
+                screenAnchor = Marker(root.transform, "ScreenAnchor",
+                    Stage1TabletView.ApprovedScreenAnchorLocalPosition,
+                    Quaternion.Euler(Stage1TabletView.ApprovedScreenAnchorLocalEuler));
+
+            screenAnchor.SetLocalPositionAndRotation(
+                Stage1TabletView.ApprovedScreenAnchorLocalPosition,
+                Quaternion.Euler(Stage1TabletView.ApprovedScreenAnchorLocalEuler));
+
+            var screen = screenAnchor.Find("DynamicScreenSurface");
+            if (screen == null)
+            {
+                var screenObject = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                screenObject.name = "DynamicScreenSurface";
+                screenObject.transform.SetParent(screenAnchor, false);
+                Object.DestroyImmediate(screenObject.GetComponent<Collider>());
+                screen = screenObject.transform;
+            }
+
+            screen.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+            screen.localScale = new Vector3(Stage1TabletView.ApprovedScreenSize.x,
+                                            Stage1TabletView.ApprovedScreenSize.y, 1f);
+            screen.GetComponent<MeshRenderer>().sharedMaterial = screenMaterial;
+
+            var view = root.GetComponent<Stage1TabletView>();
+            if (view == null) view = root.AddComponent<Stage1TabletView>();
+            view.ConfigurePrefab(screenAnchor, Stage1TabletView.ApprovedScreenSize);
+            return CombinedBounds(renderers, visual.position);
         }
 
         static Material CreateBodyMaterial()
@@ -272,12 +342,13 @@ namespace Metagame.EditorTools
             return bounds;
         }
 
-        static Transform Marker(Transform parent, string name, Vector3 localPosition)
+        static Transform Marker(Transform parent, string name, Vector3 localPosition,
+                                Quaternion? localRotation = null)
         {
             var marker = new GameObject(name).transform;
             marker.SetParent(parent, false);
             marker.localPosition = localPosition;
-            marker.localRotation = Quaternion.identity;
+            marker.localRotation = localRotation ?? Quaternion.identity;
             return marker;
         }
 

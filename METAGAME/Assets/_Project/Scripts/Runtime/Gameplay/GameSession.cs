@@ -13,6 +13,9 @@ namespace Metagame.Gameplay
         public static GameSession Instance;
 
         public PlayerRig LocalPlayer;
+
+        /// <summary>전원이 기절한 채 흐른 시간. 출구 판정에만 쓴다.</summary>
+        float allDownedSeconds;
         public LevelBuilder Level;
         public Stage1Exploration Exploration;
         public TractorBeamController Transport;
@@ -159,17 +162,55 @@ namespace Metagame.Gameplay
                 LocalPlayer.SetInput(f);
             }
 
-            // 떨어졌는가 — 위치를 서버가 정할 때는 서버가 판단한다. 여기서 부활시키면
-            // 화면 속 몸만 스폰 지점으로 옮겨지고, 서버가 보낸 다음 위치에 곧바로
-            // 도로 끌려간다.
+            // 낙사와 전원 기절은 "누구를 어디로 되돌릴지" 를 정하는 판단이다.
+            // 위치를 서버가 정할 때는(-147) 서버 몫이므로 여기서 물러난다. 그러지
+            // 않으면 화면 속 몸만 스폰 지점으로 옮겨지고, 서버가 보낸 다음 위치에
+            // 곧바로 도로 끌려간다.
             if (LocalPlayer.NetworkDriven) return;
 
+            // 떨어졌는가 — 여기는 <b>낙사만</b> 본다.
+            //
+            // 예전에는 LocalPlayer.IsDead 도 함께 보고 곧바로 Respawn() 을 불렀다.
+            // 그래서 운석에 쓰러지는 순간 혼자 스폰 지점에 되살아났고, 팀원이 도우러
+            // 갈 틈도 이유도 없었다(기획 §26-13 이 묻는 긴장이 아예 없었다).
+            // 체력 0 은 이제 PlayerRig 가 기절로 처리한다.
             Vector3 p = LocalPlayer.Position;
-            if (LocalPlayer.IsDead || p.y < Tuning.DeathHeight || float.IsNaN(p.x))
+            if (p.y < Tuning.DeathHeight || float.IsNaN(p.x))
             {
                 Falls++;
                 Respawn();
+                return;
             }
+
+            TickAllDowned(Time.deltaTime);
+        }
+
+        /// <summary>
+        /// 전원이 기절했을 때의 출구(기획 §26-13).
+        ///
+        /// 아무도 일으킬 수 없으므로 시간이 지나면 스폰 지점에서 되살아난다.
+        /// 없으면 게임이 멈춘다 — 예전에는 즉시 부활이 우연히 그 역할을 했다.
+        ///
+        /// <b>파츠·용접·운석 흔적은 건드리지 않는다.</b> 스테이지 초기화가 아니다
+        /// (기획 §22.4 의 발사 실패와 같은 원칙).
+        ///
+        /// 지금은 로컬 한 명이 전부이므로 "전원" 이 곧 로컬이다. 멀티가 붙으면
+        /// 여기서 접속 인원을 세면 된다 — 판정을 이 한 곳에 모아 둔다.
+        /// </summary>
+        void TickAllDowned(float dt)
+        {
+            if (!LocalPlayer.Downed)
+            {
+                allDownedSeconds = 0f;
+                return;
+            }
+
+            allDownedSeconds += dt;
+            if (allDownedSeconds < PhysicsScale.AllDownedRespawnSeconds) return;
+
+            allDownedSeconds = 0f;
+            Falls++;
+            Respawn();
         }
 
         public void SetCursor(bool locked)
@@ -193,6 +234,9 @@ namespace Metagame.Gameplay
         {
             if (LocalPlayer == null) return;
             Transport?.Reset();
+
+            // 기절한 채로 순간이동하면 스폰 지점에 쓰러져 있게 된다.
+            LocalPlayer.Revive(LocalPlayer.MaxHealth);
             LocalPlayer.ResetHealth();
             LocalPlayer.Teleport(SpawnFoot + Vector3.up * 0.15f, Quaternion.LookRotation(Vector3.right, Vector3.up));
         }

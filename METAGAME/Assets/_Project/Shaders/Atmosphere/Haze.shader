@@ -38,7 +38,7 @@ Shader "Hidden/Metagame/Atmosphere/Haze"
             half _MetagameAtmosphereGroundFogStart;
             half _MetagameAtmosphereGroundFogEnd;
             half _MetagameAtmosphereGroundFogNoiseScale;
-            half2 _MetagameAtmosphereGroundFogNoiseSpeed;
+            half2 _MetagameAtmosphereGroundFogNoiseOffset;
             half _MetagameAtmosphereGroundFogNoiseStrength;
 
             struct Attributes { uint vertexID : SV_VertexID; };
@@ -75,7 +75,7 @@ Shader "Hidden/Metagame/Atmosphere/Haze"
 
             half GroundFogNoise(float2 positionWS)
             {
-                float2 offset = _Time.y * _MetagameAtmosphereGroundFogNoiseSpeed;
+                float2 offset = _MetagameAtmosphereGroundFogNoiseOffset;
                 float broad = ValueNoise(positionWS * _MetagameAtmosphereGroundFogNoiseScale + offset);
                 float detail = ValueNoise(positionWS * (_MetagameAtmosphereGroundFogNoiseScale * 2.1h) + offset * 1.7h);
                 return saturate(broad * 0.72h + detail * 0.28h);

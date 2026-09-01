@@ -23,7 +23,7 @@ namespace Metagame.Gameplay
         public const string GroundFogStartId = "_MetagameAtmosphereGroundFogStart";
         public const string GroundFogEndId = "_MetagameAtmosphereGroundFogEnd";
         public const string GroundFogNoiseScaleId = "_MetagameAtmosphereGroundFogNoiseScale";
-        public const string GroundFogNoiseSpeedId = "_MetagameAtmosphereGroundFogNoiseSpeed";
+        public const string GroundFogNoiseOffsetId = "_MetagameAtmosphereGroundFogNoiseOffset";
         public const string GroundFogNoiseStrengthId = "_MetagameAtmosphereGroundFogNoiseStrength";
         public const string MeteorIntensityId = "_MetagameAtmosphereMeteorShowerIntensity";
 
@@ -42,6 +42,9 @@ namespace Metagame.Gameplay
         CameraSnapshot cameraSnapshot;
         float alertIntensity;
         float meteorIntensity = 1f;
+        Vector3 lastGroundFogCameraPosition;
+        Vector2 groundFogNoiseOffset;
+        bool groundFogCameraPositionCaptured;
 
         struct RenderSettingsSnapshot
         {
@@ -78,9 +81,35 @@ namespace Metagame.Gameplay
                 ResetToDefaults();
         }
 
+        void LateUpdate()
+        {
+            if (activeProfile == null || targetCamera == null ||
+                activeProfile.groundFog == null || !activeProfile.groundFog.enabled)
+                return;
+
+            Vector3 currentPosition = targetCamera.transform.position;
+            if (!groundFogCameraPositionCaptured)
+            {
+                lastGroundFogCameraPosition = currentPosition;
+                groundFogCameraPositionCaptured = true;
+                return;
+            }
+
+            Vector3 movement = currentPosition - lastGroundFogCameraPosition;
+            lastGroundFogCameraPosition = currentPosition;
+            movement.y = 0f;
+            if (movement.sqrMagnitude < 0.000001f) return;
+
+            // The noise is allowed to drift only while the player/camera moves.
+            // A stationary player therefore sees a stable fog boundary.
+            groundFogNoiseOffset += activeProfile.groundFog.noiseSpeed * Time.deltaTime;
+            Shader.SetGlobalVector(GroundFogNoiseOffsetId, groundFogNoiseOffset);
+        }
+
         public void BindCamera(Camera camera)
         {
             targetCamera = camera;
+            groundFogCameraPositionCaptured = false;
             if (Application.isPlaying && activeProfile != null)
                 ApplyCamera(activeProfile);
         }
@@ -113,7 +142,9 @@ namespace Metagame.Gameplay
             alertIntensity = Mathf.Clamp01(value);
             if (activeProfile == null) return;
 
-            ApplyFog(activeProfile.fog);
+            // Keep the baseline fog distance and density stable. Meteor alerts may
+            // affect the depth haze, post-processing, and meteor visuals, but they
+            // must not make the world fog appear to move toward the player.
             ApplyHaze(activeProfile.haze);
             ApplyVolume(activeProfile.postProcessing);
             ApplyMeteorIntensity();
@@ -152,6 +183,7 @@ namespace Metagame.Gameplay
 
             Shader.SetGlobalFloat(HazeEnabledId, 0f);
             Shader.SetGlobalFloat(GroundFogEnabledId, 0f);
+            Shader.SetGlobalVector(GroundFogNoiseOffsetId, Vector4.zero);
             Shader.SetGlobalFloat(MeteorIntensityId, 0f);
             if (runtimeVolume != null) runtimeVolume.enabled = false;
 
@@ -241,7 +273,7 @@ namespace Metagame.Gameplay
             RenderSettings.fog = enabled;
             RenderSettings.fogMode = settings.mode;
             RenderSettings.fogColor = settings.color;
-            RenderSettings.fogDensity = enabled ? settings.density * (1f + alertIntensity * 0.25f) : 0f;
+            RenderSettings.fogDensity = enabled ? settings.density : 0f;
             RenderSettings.fogStartDistance = settings.startDistance;
             RenderSettings.fogEndDistance = settings.endDistance;
         }
@@ -261,6 +293,8 @@ namespace Metagame.Gameplay
         {
             float effectScale = GetEffectScale();
             bool enabled = settings.enabled && effectScale > 0f;
+            groundFogNoiseOffset = Vector2.zero;
+            groundFogCameraPositionCaptured = false;
             Shader.SetGlobalFloat(GroundFogEnabledId, enabled ? 1f : 0f);
             Shader.SetGlobalColor(GroundFogColorId, settings.color);
             Shader.SetGlobalFloat(GroundFogDensityId, settings.density * effectScale);
@@ -269,7 +303,7 @@ namespace Metagame.Gameplay
             Shader.SetGlobalFloat(GroundFogStartId, settings.startDistance);
             Shader.SetGlobalFloat(GroundFogEndId, settings.endDistance);
             Shader.SetGlobalFloat(GroundFogNoiseScaleId, settings.noiseScale);
-            Shader.SetGlobalVector(GroundFogNoiseSpeedId, settings.noiseSpeed);
+            Shader.SetGlobalVector(GroundFogNoiseOffsetId, Vector4.zero);
             Shader.SetGlobalFloat(GroundFogNoiseStrengthId, settings.noiseStrength);
         }
 

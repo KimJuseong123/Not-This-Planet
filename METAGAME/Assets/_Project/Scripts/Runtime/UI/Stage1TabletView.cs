@@ -12,13 +12,26 @@ namespace Metagame.UI
     {
         public const string ResourceKey = "PF_Stage1_Tablet";
 
+        // S15P21B202-222: 프리팹과 에디터 재생성 도구가 함께 사용하는 승인값이다.
+        // Unity에서 직접 맞춘 값만 프리팹에 저장하면 재생성 메뉴가 이전 기본값으로
+        // 되돌리므로, 화면 기준점과 휴대 자세의 단일 기준을 런타임 타입에 둔다.
+        public static readonly Vector2 ApprovedScreenSize = new Vector2(0.252f, 0.13270903f);
+        public static readonly Vector3 ApprovedScreenAnchorLocalPosition =
+            new Vector3(0f, 0.009479216f, 0.04f);
+        public static readonly Vector3 ApprovedScreenAnchorLocalEuler =
+            new Vector3(150f, 0f, 180f);
+        public static readonly Vector3 ApprovedOpenLocalPosition =
+            new Vector3(-0.05f, -0.04f, 0.29f);
+        public static readonly Vector3 ApprovedOpenLocalEuler =
+            new Vector3(23f, 163f, -5f);
+
         [Header("화면 면")]
         [SerializeField] Transform screenAnchor;
-        [SerializeField] Vector2 screenSize = new Vector2(0.25f, 0.13f);
+        [SerializeField] Vector2 screenSize = new Vector2(0.252f, 0.13270903f);
 
         [Header("1인칭 휴대 포즈")]
-        [SerializeField] Vector3 openLocalPosition = new Vector3(-0.05f, -0.08f, 0.29f);
-        [SerializeField] Vector3 openLocalEuler = new Vector3(8f, -12f, 8f);
+        [SerializeField] Vector3 openLocalPosition = new Vector3(-0.05f, -0.04f, 0.29f);
+        [SerializeField] Vector3 openLocalEuler = new Vector3(23f, 163f, -5f);
         [SerializeField] Vector3 closedLocalPosition = new Vector3(0.18f, -0.55f, 0.42f);
         [SerializeField] Vector3 closedLocalEuler = new Vector3(34f, -18f, -10f);
         [SerializeField, Min(0.01f)] float poseSpeed = 12f;
@@ -29,6 +42,9 @@ namespace Metagame.UI
         float visibility;
 
         public bool IsOpen => exploration != null && exploration.TabletOpen;
+        public Vector2 ScreenSize => screenSize;
+        public Vector3 OpenLocalPosition => openLocalPosition;
+        public Vector3 OpenLocalEuler => openLocalEuler;
 
         public static Stage1TabletView Create(Camera camera, Stage1Exploration state)
         {
@@ -70,6 +86,12 @@ namespace Metagame.UI
         {
             screenAnchor = displayAnchor;
             screenSize = displaySize;
+            openLocalPosition = ApprovedOpenLocalPosition;
+            openLocalEuler = ApprovedOpenLocalEuler;
+
+            if (screenAnchor == null) return;
+            screenAnchor.localPosition = ApprovedScreenAnchorLocalPosition;
+            screenAnchor.localRotation = Quaternion.Euler(ApprovedScreenAnchorLocalEuler);
         }
 
         void LateUpdate()
