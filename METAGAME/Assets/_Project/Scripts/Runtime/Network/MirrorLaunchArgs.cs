@@ -37,19 +37,23 @@ namespace Metagame.Network
             string[] args = Environment.GetCommandLineArgs();
             bool server = Has(args, ServerFlag);
             bool client = Has(args, ClientFlag);
-            if (!server && !client) return;
-
             NetworkManager manager = NetworkManager.singleton;
             if (manager == null)
             {
-                Debug.LogError("[MirrorLaunchArgs] NetworkManager 가 없다. 로비 씬으로 시작했는지 확인할 것.");
+                if (server || client)
+                    Debug.LogError("[MirrorLaunchArgs] NetworkManager 가 없다. 로비 씬으로 시작했는지 확인할 것.");
                 return;
             }
 
-            // 이 콜백은 NetworkManager.Start() 보다 먼저 돈다. 그대로 두면 여기서 클라이언트로 띄운 뒤
-            // NetworkManager 가 헤드리스 자동 시작으로 서버까지 켜 버린다. 인자를 준 실행에서는
-            // 자동 시작을 끄고 여기서만 정한다 — 인자가 없으면 자동 시작이 그대로 동작한다.
+            // 이 콜백은 NetworkManager.Start() 보다 먼저 돈다. 자동 시작을 항상 꺼 두고
+            // 여기서만 정한다.
+            //
+            // 끄지 않으면 인자 없이 헤드리스로 띄웠을 때도 Mirror 가 혼자 서버를 켜고
+            // 7777 포트를 연다. 그러면 게임 씬이 "전용 서버" 로 판단해 내 캐릭터를 세우지
+            // 않아, -space-selftest 같은 혼자 돌리는 점검이 조용히 아무것도 하지 않는다.
             manager.headlessStartMode = HeadlessStartOptions.DoNothing;
+
+            if (!server && !client) return;
 
             if (NetworkServer.active || NetworkClient.active)
             {

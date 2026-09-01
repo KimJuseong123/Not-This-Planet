@@ -32,6 +32,11 @@ namespace Metagame.Bootstrap
 
         void Awake()
         {
+            // 혼자 돌리는 점검(README 의 -space-selftest · -space-screenshot)은 로비를
+            // 거치지 않는다. 씬 분리(-165) 뒤로 빌드가 로비에서 시작하는데 점검 코드는
+            // 게임 씬에 있어서, 로비에 멈춰 선 채 아무것도 하지 않았다.
+            if (SkipToGameScene()) return;
+
             network = NetworkSession.Instance;
             if (network == null)
             {
@@ -48,6 +53,33 @@ namespace Metagame.Bootstrap
             var hud = GetComponent<LobbyHud>();
             if (hud == null) hud = gameObject.AddComponent<LobbyHud>();
             hud.Initialize(network, defaultNickname, deviceIdOverride, defaultServerAddress);
+        }
+
+        /// <summary>
+        /// 점검용 실행이면 게임 씬으로 바로 넘어간다.
+        /// </summary>
+        /// <returns>넘어갔으면 참 — 로비를 세우지 않는다.</returns>
+        static bool SkipToGameScene()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            bool selfTest = System.Array.IndexOf(args, "-space-selftest") >= 0;
+            bool shot = System.Array.IndexOf(args, "-space-screenshot") >= 0;
+            if (!selfTest && !shot) return false;
+
+            // 씬 이름은 Mirror 의 Online Scene 을 그대로 쓴다 — 한 곳에서만 관리한다.
+            // singleton 은 NetworkManager 자신의 Awake 에서 채워지는데 씬 오브젝트의
+            // Awake 순서는 정해져 있지 않다. 컴포넌트를 직접 찾으면 순서와 무관하다.
+            var manager = FindAnyObjectByType<Mirror.NetworkManager>();
+            string scene = manager != null ? manager.onlineScene : null;
+            if (string.IsNullOrEmpty(scene))
+            {
+                Debug.LogError("[LobbyBootstrap] 게임 씬을 알 수 없다. NetworkManager 의 Online Scene 을 확인할 것.");
+                return false;
+            }
+
+            UnityEngine.SceneManagement.SceneManager.LoadScene(
+                System.IO.Path.GetFileNameWithoutExtension(scene));
+            return true;
         }
 
         /// <summary>
