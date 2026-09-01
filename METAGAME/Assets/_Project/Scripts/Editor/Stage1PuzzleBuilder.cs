@@ -181,6 +181,10 @@ namespace Metagame.EditorTools
             var part = go.AddComponent<SpaceshipPart>();
             part.SetPlacedMass(spec.Mass);
             part.Initialize();   // Locked 상태의 물리 표현을 씬에 저장한다
+
+            // 손으로 미는 것(기획 §13). Locked·Carried·Welded 는 컴포넌트 쪽에서 거른다.
+            go.AddComponent<PartPush>();
+
             return part;
         }
 

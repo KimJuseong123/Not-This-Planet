@@ -96,6 +96,14 @@ namespace Metagame.Gameplay
         public Vector3 FacingDirection { get { return faceDir; } }
         /// <summary>현재 실제 수평 이동을 캐릭터 정면 기준 좌우·전후로 나타낸 값.</summary>
         public Vector2 MovementDirectionLocal { get { return movementDirectionLocal; } }
+
+        /// <summary>
+        /// 이번 틱의 <b>이동 의도</b>(월드 수평, 최대 길이 1). 실제 속도가 아니다.
+        ///
+        /// 파츠 밀기(기획 §13.1 "이동 방향을 검사한다")가 쓴다. 500kg 짜리 파츠를 밀 때는
+        /// 제자리걸음이라 속도로는 의도를 알 수 없다(S15P21B202-250).
+        /// </summary>
+        public Vector3 MoveWish { get; private set; }
         /// <summary>공중에서 자세제어 분사기를 쓰고 있는가 (HUD·연기 표시용).</summary>
         public bool Thrusting { get; private set; }
         public float AirTime { get; private set; }
@@ -1244,6 +1252,11 @@ namespace Metagame.Gameplay
                 wish = right * move.x + fwd * move.y;
             }
             if (wish.sqrMagnitude > 1f) wish.Normalize();
+
+            // 파츠 밀기(기획 §13)가 이 값을 본다. MovementDirectionLocal 은 실제 속도를
+            // 우선하는 로컬 좌표라 쓸 수 없다 — 500kg 짜리 파츠에 막혀 제자리걸음일 때도
+            // "파츠 쪽으로 밀고 있다" 는 것을 알아야 한다.
+            MoveWish = wish;
 
             float top = Floating
                 ? PhysicsScale.FieldFloatSpeed
