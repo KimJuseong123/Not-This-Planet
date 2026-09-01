@@ -337,6 +337,9 @@ class GitLab:
 
 
 class Jira:
+    # **읽기 전용이다.** 이슈 상태를 바꾸는 것은 Jira 자동화 규칙(R5·R6·R9)만 한다 — CI 는 검사·알림만
+    # 맡는다(S15P21B202-242). 그래서 CI 변수 JIRA_API_TOKEN 은 읽기 스코프로 충분하고, 팀 공용
+    # 변수에 쓰기 권한을 두지 않는다. 상태 전이 규칙이 Jira 한 곳에만 있어 두 곳이 어긋나지도 않는다.
     """REST 호출은 api.atlassian.com/ex/jira/{cloudId} 경로를 쓴다 — 스코프(읽기 전용) API 토큰은 사이트 URL 로는
     익명 취급되어 404 가 나고(2026-08-27 실측), 이 경로는 클래식·스코프 토큰 모두 동작한다. 링크(browse)는 사이트 URL."""
 
@@ -372,47 +375,6 @@ class Jira:
         if st != 200:
             raise RuntimeError(f"Jira search → {st}: {str(d)[:200]}")
         return d.get("issues", [])
-
-    def transition_to_done(self, key: str) -> tuple[bool, str]:
-        """이슈를 완료로 옮긴다. 반환 (성공, 설명). 전환 id 는 프로젝트마다 다르므로 이름이 아니라
-        **statusCategory 가 done 인 전환**을 찾는다(한국어/영어 사이트 모두 동작)."""
-        st, d = http("GET", f"{self.api}/rest/api/3/issue/{key}/transitions", self._h())
-        if st != 200 or not isinstance(d, dict):
-            return False, f"전환 목록 조회 실패 {st}"
-        cand = [t for t in d.get("transitions", [])
-                if ((t.get("to") or {}).get("statusCategory") or {}).get("key") == "done"]
-        if not cand:
-            names = ", ".join(str((t.get("to") or {}).get("name")) for t in d.get("transitions", []))
-            return False, f"완료 전환이 없음(가능: {names or '없음'})"
-        st2, d2 = http("POST", f"{self.api}/rest/api/3/issue/{key}/transitions", self._h(),
-                       {"transition": {"id": cand[0]["id"]}})
-        if st2 in (401, 403):
-            return False, (f"{st2} — **CI Jira 토큰에 쓰기 권한이 없다**(읽기 전용 스코프 토큰). "
-                           f"클래식 API 토큰 또는 write:jira-work 를 포함한 토큰으로 CI 변수 "
-                           f"JIRA_API_TOKEN 을 교체해야 한다 — S15P21B202-242")
-        if st2 not in (200, 204):
-            return False, f"전환 실패 {st2}: {str(d2)[:120]}"
-        return True, (cand[0].get("to") or {}).get("name", "완료")
-
-    def comment(self, key: str, body: str) -> bool:
-        """평문 코멘트. ADF 로 감싸 보낸다(REST v3 는 문자열 본문을 받지 않는다)."""
-        doc = {"type": "doc", "version": 1,
-               "content": [{"type": "paragraph",
-                            "content": [{"type": "text", "text": body[:4000]}]}]}
-        st, _ = http("POST", f"{self.api}/rest/api/3/issue/{key}/comment", self._h(), {"body": doc})
-        return st in (200, 201)
-
-    def dev_index_ready(self, key: str) -> bool:
-        """R9(수동 완료 되돌림)가 보는 것과 **같은 JQL** 로 개발 정보 색인이 따라잡았는지 확인한다.
-
-        머지 직후에는 이 색인이 늦다 — 그 상태에서 완료로 옮기면 R9 가 즉시 되돌린다
-        (2026-08-31 실측: 23:24 머지 → 23:29 완료 → 2초 뒤 되돌림). 먼저 물어보고 옮기면 충돌하지 않는다."""
-        jql = (f'key = {key} AND development[pullrequests].open = 0 '
-               f'AND development[pullrequests].all > 0')
-        try:
-            return bool(self.search(jql, ["summary"], max_results=1))
-        except Exception:      # noqa: BLE001 — 색인 질의 실패는 "아직 아님" 과 같게 취급
-            return False
 
     def search_all(self, jql: str, fields: list[str], page_size: int = 100, max_pages: int = 20) -> tuple[list[dict], bool]:
         """전량 수집(/search/jql 의 nextPageToken 순회). 반환 (issues, complete) — max_pages 안에 끝나지 않으면 complete=False.
