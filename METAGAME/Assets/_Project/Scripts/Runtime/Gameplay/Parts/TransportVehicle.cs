@@ -54,7 +54,6 @@ namespace Metagame.Gameplay.Parts
         const float HoverSpring = 6f;
         /// <summary>기획 §14.1 "상승·하강 5m/s".</summary>
         const float MaxVerticalSpeed = 5f;
-        const float VisualTurnSpeed = 420f;
         const float ArenaLimit = 21f;
 
         // --- 고도 조작 ---
@@ -166,6 +165,7 @@ namespace Metagame.Gameplay.Parts
         LowGravityField field;
         PlayerRig rider;
         Vector3 driveVector;
+        Vector3 facingDirection = Vector3.forward;
         float verticalInput;
         float targetAltitude = HoverRootY;
         bool returning;
@@ -260,7 +260,7 @@ namespace Metagame.Gameplay.Parts
         {
             get
             {
-                var forward = visual != null ? visual.forward : Vector3.forward;
+                var forward = visual != null ? visual.forward : facingDirection;
                 forward.y = 0f;
                 return forward.sqrMagnitude < 0.0001f ? Vector3.forward : forward.normalized;
             }
@@ -378,6 +378,7 @@ namespace Metagame.Gameplay.Parts
             verticalInput = 0f;
             targetAltitude = HoverRootY;
 
+            facingDirection = Quaternion.Euler(0f, visualYaw, 0f) * Vector3.forward;
             if (visual != null)
                 visual.rotation = Quaternion.Euler(0f, visualYaw, 0f);
         }
@@ -489,6 +490,22 @@ namespace Metagame.Gameplay.Parts
         }
 
         /// <summary>
+        /// 탑승자의 카메라가 향하는 수평 방향으로 기체 Visual을 정렬한다.
+        /// 이동 벡터와 분리된 명령이므로 A/D는 선체 위치만 옮기고 조종석 방향을 바꾸지 않는다.
+        /// </summary>
+        public void SetFacingDirection(Vector3 worldDirection)
+        {
+            if (rider == null || returning) return;
+
+            worldDirection.y = 0f;
+            if (worldDirection.sqrMagnitude < 0.0001f) return;
+
+            facingDirection = worldDirection.normalized;
+            if (visual != null)
+                visual.rotation = Quaternion.LookRotation(facingDirection, Vector3.up);
+        }
+
+        /// <summary>
         /// 고도 입력. +1 이 상승, -1 이 하강, 0 이면 지금 고도를 유지한다.
         /// 탑승 중에는 <see cref="PlayerRig"/> 가 팔·점프를 돌리지 않으므로
         /// Ctrl·Space 를 여기에 그대로 쓸 수 있다.
@@ -576,8 +593,6 @@ namespace Metagame.Gameplay.Parts
             // 서 있는 플랫폼이 함께 기울고 조인트로 붙은 인형이 흔들린다. 별 결정이다.
             body.angularVelocity = Vector3.zero;
 
-            if (planar.sqrMagnitude > 0.04f)
-                TurnVisualToward(planar, deltaTime);
         }
 
 
@@ -943,11 +958,5 @@ namespace Metagame.Gameplay.Parts
             return new Vector3(spot.x, top, spot.z);
         }
 
-        void TurnVisualToward(Vector3 direction, float deltaTime)
-        {
-            if (visual == null) return;
-            var target = Quaternion.LookRotation(direction.normalized, Vector3.up);
-            visual.rotation = Quaternion.RotateTowards(visual.rotation, target, VisualTurnSpeed * deltaTime);
-        }
     }
 }

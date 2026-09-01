@@ -21,7 +21,7 @@ namespace Metagame.Core
         public bool ToolUtility;  // 현재는 Q — 공통 장비 동작과 호환
         public bool TransportAction; // E — 운반 장치 탑승 / 하차
         public bool ArmsUp;       // 두 팔을 위로 (기어오를 때)
-        public bool FreeLook;     // Alt — 조작은 그대로 두고 시점만 자유롭게 돌린다
+        public bool FreeLook;     // Alt — 시점은 자유롭게 돌리고 이동·조준 기준은 현재 시점을 따른다
         public bool TabletToggle; // Tab
         public bool FieldToggle;  // F — 광역 저중력장 켜기·끄기 (기획 §14.1)
         public bool TabletPreviousPage; // ← 또는 A — 태블릿 이전 페이지

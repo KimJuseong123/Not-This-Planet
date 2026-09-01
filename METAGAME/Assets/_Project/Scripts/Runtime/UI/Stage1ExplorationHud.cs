@@ -38,8 +38,8 @@ namespace Metagame.UI
             new HelpEntry("WASD", "이동"),
             new HelpEntry("Shift", "달리기"),
             new HelpEntry("Space", "점프"),
-            new HelpEntry("마우스", "1인칭 시점과 캐릭터 방향"),
-            new HelpEntry("Alt", "이동 방향을 고정하고 시점만 자유롭게 돌리기"),
+            new HelpEntry("마우스", "시점과 캐릭터 정면·조준 기준"),
+            new HelpEntry("Alt", "이동·조준·캐릭터 정면은 카메라를 따르고 시점 자유롭게 돌리기"),
         };
 
         static readonly HelpEntry[] InteractionHelp =

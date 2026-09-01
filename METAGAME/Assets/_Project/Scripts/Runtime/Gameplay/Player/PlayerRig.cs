@@ -10,7 +10,7 @@ namespace Metagame.Gameplay
     /// 우주비행사의 이동과 물리 상호작용을 연결한다.
     ///
     ///  · 골반에 매달린 보이지 않는 스프링이 몸무게를 떠받쳐 서 있게 한다 (다리는 거들 뿐)
-    ///  · 골반을 세계 기준 조인트로 세우고, 가는 방향으로 돌린다
+    ///  · 골반을 카메라 기준 정면으로 세우고, 이동 방향과 독립적으로 유지한다
     ///  · 다리는 걷기 주기에 맞춰 조인트 목표 자세를 흔든다 (애니메이션 클립 없음)
     ///  · 팔은 카메라가 보는 쪽으로 뻗되, 근처에 잡을 것이 있으면 그쪽으로 휘어 간다
     ///  · GrabbableRole.Tool 도구는 양손 논리 고정 그립으로 잡고 중력과 누적 속도를 제거해 전방에 고정된다
@@ -70,6 +70,10 @@ namespace Metagame.Gameplay
         public bool Carrying { get { return LeftHand.Carrying || RightHand.Carrying; } }
         public bool Ragdolled { get; private set; }      // 크게 넘어져 조종이 잠깐 풀린 상태
         public float StepPhase { get; private set; }
+        /// <summary>현재 캐릭터가 유지하는 수평 정면. 이동 방향과 독립적으로 카메라를 따른다.</summary>
+        public Vector3 FacingDirection { get { return faceDir; } }
+        /// <summary>현재 실제 수평 이동을 캐릭터 정면 기준 좌우·전후로 나타낸 값.</summary>
+        public Vector2 MovementDirectionLocal { get { return movementDirectionLocal; } }
         /// <summary>공중에서 자세제어 분사기를 쓰고 있는가 (HUD·연기 표시용).</summary>
         public bool Thrusting { get; private set; }
         public float AirTime { get; private set; }
@@ -135,6 +139,7 @@ namespace Metagame.Gameplay
 
         InputFrame input;
         Vector3 faceDir = Vector3.forward;
+        Vector2 movementDirectionLocal;
         float jumpLock;
         float regrabLock;
         float uprightBlend = 1f;
@@ -257,6 +262,7 @@ namespace Metagame.Gameplay
             ReleaseHand(RightHand);
             Doll.Teleport(footPos + Vector3.up * RagdollBuilder.HipsY, facing);
             faceDir = facing * Vector3.forward;
+            movementDirectionLocal = Vector2.zero;
             uprightBlend = 1f;
             Ragdolled = false;
             StepPhase = 0f;
@@ -310,6 +316,7 @@ namespace Metagame.Gameplay
             GroundDistance = Tuning.RideHeight;
             GroundVelocity = Vector3.zero;
             Speed = 0f;
+            movementDirectionLocal = Vector2.zero;
             AirTime = 0f;
             Thrusting = false;
             Ragdolled = false;
@@ -777,8 +784,9 @@ namespace Metagame.Gameplay
         {
             Vector3 fwd = Cam != null ? Cam.PlanarForward : Vector3.forward;
             Vector3 right = Cam != null ? Cam.PlanarRight : Vector3.right;
-
-            Vector3 wish = right * input.Move.x + fwd * input.Move.y;
+            Vector3 wish = Cam != null
+                ? Cam.CameraRelativeMove(input.Move)
+                : right * input.Move.x + fwd * input.Move.y;
             if (wish.sqrMagnitude > 1f) wish.Normalize();
 
             float top = Floating
@@ -805,6 +813,8 @@ namespace Metagame.Gameplay
                 DriveMovementVelocity(targetVel);
             }
 
+            UpdateMovementDirection(wish, right, fwd);
+
             // 등짐의 자세제어 분사기가 공중에서 방향을 잡아준다는 설정
             Thrusting = !Grounded && !Hanging && wish.sqrMagnitude > 0.04f;
             if (Thrusting)
@@ -827,11 +837,13 @@ namespace Metagame.Gameplay
                 facingClamp.y = 0f;
             }
 
+            Vector3 cameraFacing = fwd;
             if (facingClamp.sqrMagnitude > 0.02f)
-                faceDir = Vector3.Slerp(faceDir, facingClamp.normalized,
+                cameraFacing = facingClamp.normalized;
+
+            if (cameraFacing.sqrMagnitude > 0.02f)
+                faceDir = Vector3.Slerp(faceDir, cameraFacing,
                                         1f - Mathf.Exp(-7f * Time.fixedDeltaTime));
-            else if (wish.sqrMagnitude > 0.02f)
-                faceDir = Vector3.Slerp(faceDir, wish.normalized, 1f - Mathf.Exp(-7f * Time.fixedDeltaTime));
 
             // 점프 — 몸 전체에 같은 속도를 얹어야 인형이 통째로 뜬다
             if (input.Jump && Grounded && !Ragdolled && jumpLock <= 0f)
@@ -847,6 +859,28 @@ namespace Metagame.Gameplay
                 Grounded = false;
                 Puff.Regolith(FootPosition, 0.45f);
             }
+        }
+
+        /// <summary>
+        /// 실제 수평 속도를 카메라 기준 좌우·전후 성분으로 바꿔 보행 포즈에 전달한다.
+        /// 속도가 아직 가속 중인 첫 프레임에는 입력 방향을 사용해 애니메이션이 늦게
+        /// 시작하지 않게 하고, 키를 놓은 뒤에는 남은 물리 관성도 자연스럽게 반영한다.
+        /// </summary>
+        void UpdateMovementDirection(Vector3 wish, Vector3 right, Vector3 forward)
+        {
+            Vector3 actual = Doll != null && Doll.Hips != null ? Doll.Hips.linearVelocity : Vector3.zero;
+            actual.y = 0f;
+
+            Vector3 movement = actual.sqrMagnitude > 0.0025f ? actual : wish;
+            if (movement.sqrMagnitude < 0.0001f)
+            {
+                movementDirectionLocal = Vector2.zero;
+                return;
+            }
+
+            movementDirectionLocal = new Vector2(Vector3.Dot(movement, right),
+                                                 Vector3.Dot(movement, forward));
+            movementDirectionLocal.Normalize();
         }
 
         /// <summary>
@@ -930,28 +964,42 @@ namespace Metagame.Gameplay
         void PoseLeg(Leg leg, float phase, float swing, bool walking)
         {
             float thigh, knee;
+            float lateral;
 
             if (!Grounded && !walking)
             {
                 // 저중력에서 오래 떠 있다 — 다리를 살짝 웅크리면 '둥실' 하는 그림이 된다
-                thigh = -14f; knee = 34f;
+                thigh = -14f; knee = 34f; lateral = 0f;
             }
             else if (!walking)
             {
-                thigh = 0f; knee = 4f;                          // 서 있을 땐 곧게
+                thigh = 0f; knee = 4f; lateral = 0f;             // 서 있을 땐 곧게
             }
             else
             {
-                thigh = -Mathf.Sin(phase) * swing;              // 음수 = 앞으로 차기
-                knee = Mathf.Max(0f, Mathf.Sin(phase + 1.1f)) * (swing * 1.7f);
+                float forward = Mathf.Clamp(movementDirectionLocal.y, -1f, 1f);
+                float side = Mathf.Clamp(movementDirectionLocal.x, -1f, 1f);
+
+                // 전후 걸음과 좌우 걸음을 같은 주기로 합성한다. S는 전진 스텝을
+                // 반전하고, A/D는 고관절의 Z축과 발목 보정으로 옆걸음 그림을 만든다.
+                thigh = -Mathf.Sin(phase) * swing * forward;
+                lateral = Mathf.Sin(phase) * Tuning.SideStepSwing * side;
+                knee = Mathf.Max(0f, Mathf.Sin(phase + 1.1f))
+                       * (swing * 1.7f * Mathf.Abs(forward)
+                          + Tuning.SideStepKneeSwing * Mathf.Abs(side));
             }
 
-            if (Ragdolled) { thigh *= 0.2f; knee *= 0.2f; }
+            if (Ragdolled) { thigh *= 0.2f; knee *= 0.2f; lateral *= 0.2f; }
 
-            JointTools.SetTargetLocalRotation(leg.Hip, Quaternion.AngleAxis(thigh, Vector3.right), leg.HipStart);
+            Quaternion hipPose = Quaternion.AngleAxis(lateral, Vector3.forward)
+                                 * Quaternion.AngleAxis(thigh, Vector3.right);
+            JointTools.SetTargetLocalRotation(leg.Hip, hipPose, leg.HipStart);
             JointTools.SetTargetLocalRotation(leg.Knee, Quaternion.AngleAxis(knee, Vector3.right), leg.KneeStart);
-            JointTools.SetTargetLocalRotation(leg.Ankle,
-                Quaternion.AngleAxis(Mathf.Clamp(-thigh * 0.35f, -20f, 20f), Vector3.right), leg.AnkleStart);
+            Quaternion anklePose = Quaternion.AngleAxis(
+                                       Mathf.Clamp(-thigh * 0.35f, -20f, 20f), Vector3.right)
+                                   * Quaternion.AngleAxis(
+                                       Mathf.Clamp(-lateral * 0.45f, -12f, 12f), Vector3.forward);
+            JointTools.SetTargetLocalRotation(leg.Ankle, anklePose, leg.AnkleStart);
         }
 
         // ── 팔 ──────────────────────────────────────────────────
@@ -1091,7 +1139,9 @@ namespace Metagame.Gameplay
 
             var fwd = Cam != null ? Cam.PlanarForward : Vector3.forward;
             var right = Cam != null ? Cam.PlanarRight : Vector3.right;
-            var wish = right * input.Move.x + fwd * input.Move.y;
+            var wish = Cam != null
+                ? Cam.CameraRelativeMove(input.Move)
+                : right * input.Move.x + fwd * input.Move.y;
             wish.y = 0f;
             if (wish.sqrMagnitude < 0.0001f) return;
 

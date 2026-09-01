@@ -117,7 +117,13 @@ namespace Metagame.Gameplay.Parts
             RefreshFocus();
         }
 
-        void FixedUpdate()
+        void FixedUpdate() => Tick(Time.fixedDeltaTime);
+
+        /// <summary>
+        /// 탑승 운전을 한 물리 스텝 처리한다. FixedUpdate와 자동 검증이 같은 경로를
+        /// 사용하도록 공개해 카메라 기준 이동·선체 정렬을 결정론적으로 점검할 수 있다.
+        /// </summary>
+        public void Tick(float deltaTime)
         {
             if (mountedVehicle == null) return;
 
@@ -127,12 +133,9 @@ namespace Metagame.Gameplay.Parts
                 return;
             }
 
-            var move = input.Move;
-            if (move.sqrMagnitude > 1f) move.Normalize();
-
-            var wish = player.Cam.PlanarRight * move.x + player.Cam.PlanarForward * move.y;
-            if (wish.sqrMagnitude > 1f) wish.Normalize();
+            var wish = player.Cam.CameraRelativeMove(input.Move);
             mountedVehicle.SetDriveVector(wish);
+            mountedVehicle.SetFacingDirection(player.Cam.PlanarForward);
             mountedVehicle.SetBoost(input.Run);   // Shift — 가속 이동(기획 §14.1)
 
             // Space 상승 · Ctrl 하강. 탑승 중에는 PlayerRig 가 점프·팔을 돌리지 않으므로
@@ -148,7 +151,7 @@ namespace Metagame.Gameplay.Parts
             }
 
             if (mountedVehicle.Beam != null)
-                mountedVehicle.Beam.Tick(Time.fixedDeltaTime);
+                mountedVehicle.Beam.Tick(deltaTime);
 
             if (!mountedVehicle.IsOccupied)
                 mountedVehicle = null;
@@ -175,6 +178,8 @@ namespace Metagame.Gameplay.Parts
             }
 
             mountedVehicle = FocusedVehicle;
+            if (player.Cam != null)
+                mountedVehicle.SetFacingDirection(player.Cam.PlanarForward);
             SetStatus("탑승 완료 · WASD로 운전 · 좌/우클릭으로 견인 · E 하차");
         }
 

@@ -147,7 +147,7 @@ namespace Metagame.Gameplay
 
                 if (LocalPlayer.Cam != null)
                 {
-                    LocalPlayer.Cam.SetFreeLook(f.FreeLook);     // Steer 보다 먼저 — 켜지는 순간 기준 각도를 얼린다
+                    LocalPlayer.Cam.SetFreeLook(f.FreeLook);     // Steer 보다 먼저 — Alt 시점의 pitch 범위를 선택한다
                     bool clampButtons = f.GrabLeft || f.GrabRight;
                     LocalPlayer.Cam.SetClampLiftResistance(
                         LocalPlayer.ClampGrabbed && clampButtons && !f.FreeLook);
