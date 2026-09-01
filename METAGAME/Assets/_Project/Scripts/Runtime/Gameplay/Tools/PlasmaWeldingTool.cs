@@ -42,8 +42,6 @@ namespace Metagame.Gameplay
         LineRenderer beam;
         Material runtimeMaterial;
         PlasmaGunPetalAnimator petalAnimator;
-        bool bodyCollisionState;
-        bool bodyCollisionStateCaptured;
         Transform heldVisual;
         Vector3 droppedVisualLocalPosition;
         Quaternion droppedVisualLocalRotation;
@@ -89,16 +87,8 @@ namespace Metagame.Gameplay
         {
             ApplyHeldVisualPose();
 
-            // 1인칭으로 들고 아래를 볼 때 키네마틱 도구 콜라이더가 지면과 겹쳐
-            // 플레이어를 위로 밀어내지 않도록 휴대 중에만 충돌을 끈다.
-            // 내려놓거나 던지면 OnUnequipped에서 원래 상태를 복원한다.
-            if (Body != null)
-            {
-                bodyCollisionState = Body.detectCollisions;
-                bodyCollisionStateCaptured = true;
-                Body.detectCollisions = false;
-            }
-
+            // 휴대 중 충돌 끄기는 ToolBase 가 한다(S15P21B202-237). 예전에는 여기서
+            // 직접 껐고, 그래서 S15P21B202-233 이 방망이를 만들 때 같은 처리를 빠뜨렸다.
             EnsureBeam();
             ResolvePetalAnimator();
             BeamMode = PlasmaBeamMode.None;
@@ -110,10 +100,6 @@ namespace Metagame.Gameplay
         protected override void OnUnequipped()
         {
             RestoreDroppedVisualPose();
-
-            if (bodyCollisionStateCaptured && Body != null)
-                Body.detectCollisions = bodyCollisionState;
-            bodyCollisionStateCaptured = false;
 
             BeamMode = PlasmaBeamMode.None;
             BeamActive = false;

@@ -208,9 +208,58 @@ def ci_failed(gl: GitLab) -> int:
     return rc
 
 
+# ── 배포 (S15P21B202-144) ─────────────────────────────────────
+# 왜 잡을 따로 두지 않고 deploy_backend.py 가 직접 부르나 — 결과를 아는 곳이 거기다.
+# 스크립트는 성공/롤백/무응답/실패를 구분하는데, 잡의 종료 코드는 '실패' 하나로 뭉갠다.
+DEPLOY_GRADE = {
+    "ok":       ("🟢", "배포 완료", False),
+    "rollback": ("🔴", "배포 롤백", True),
+    "timeout":  ("🔴", "배포 무응답", True),
+    "fail":     ("🔴", "배포 실패", True),
+}
+
+
+def deploy(result: str, detail: str = "") -> int:
+    """배포 결과 카드를 보낸다. 실패면 조치할 사람(Infra)을 멘션한다.
+
+    이 알림이 필요한 이유는 배포가 **사람이 눌러서** 도는 수동 잡이라는 데 있다(-139 결정).
+    누른 사람은 잡 로그를 보고 있지만, **같은 서버로 테스트하던 다른 팀원은 재시작을 모른다** —
+    재시작은 진행 중인 WebSocket 세션을 전부 끊는다. 그래서 성공도 알린다.
+    """
+    emoji, label, blame = DEPLOY_GRADE.get(result, ("🔴", f"배포 결과 불명({result})", True))
+    sha = (env("CI_COMMIT_SHA", "") or "")[:8] or "?"
+    title = env("CI_COMMIT_TITLE", "") or ""
+    rows = [("커밋", f"`{sha}` {title}".strip())]
+    if detail:
+        rows.append(("결과", detail))
+    if result == "rollback":
+        rows.append(("지금 서버", "**직전 jar 로 돌고 있습니다** — 이 커밋의 변경은 반영되지 않았습니다"))
+    elif result == "timeout":
+        rows.append(("지금 서버", "**상태를 확인해야 합니다** — 배포가 시작됐는지조차 응답이 없었습니다"))
+    elif result == "ok":
+        rows.append(("주의", "재시작으로 **진행 중이던 접속이 모두 끊겼습니다** — 테스트 중이었다면 다시 접속하세요"))
+    who = mm_of(env("GITLAB_USER_LOGIN", ""))
+    if who:
+        rows.append(("누른 사람", who))
+    links = []
+    if env("CI_PIPELINE_URL"):
+        links.append(f"[파이프라인]({env('CI_PIPELINE_URL')})")
+    if env("CI_JOB_URL"):
+        links.append(f"[배포 잡 로그]({env('CI_JOB_URL')})")
+    if links:
+        rows.append(("링크", " · ".join(links)))
+    if blame:
+        rows.append(("볼 곳", "잡 로그 · 호스트 `~/metagame/deploy/deploy.log` · `systemctl status metagame-deploy.path`"))
+    infra = mm_of(INFRA) if blame else None      # 못 찾으면 멘션 없이 — 알림 자체가 사라지는 것보다 낫다
+    return send(card(f"{emoji} **{label}**{' ' + infra if infra else ''}", rows))
+
+
 def main() -> int:
     mode = sys.argv[1] if len(sys.argv) > 1 else ""
     banner(f"mm-notify {mode}")
+    if mode == "deploy":       # push 파이프라인이라 MR iid 가 없다 — iid 검사보다 앞에 둔다
+        return deploy(sys.argv[2] if len(sys.argv) > 2 else "fail",
+                      sys.argv[3] if len(sys.argv) > 3 else "")
     gl = GitLab()
     if not gl.iid:
         print("MR 파이프라인이 아님 → 생략"); return 0
@@ -220,7 +269,7 @@ def main() -> int:
         return ci_failed(gl)
     if mode == "ci-resolved":
         return ci_resolved(gl)
-    print("사용법: mm_notify.py mr-opened | ci-failed | ci-resolved"); return 2
+    print("사용법: mm_notify.py mr-opened | ci-failed | ci-resolved | deploy <ok|rollback|timeout|fail> [상세]"); return 2
 
 
 if __name__ == "__main__":

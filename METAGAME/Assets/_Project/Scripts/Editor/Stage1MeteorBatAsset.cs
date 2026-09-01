@@ -115,14 +115,7 @@ namespace Metagame.EditorTools
                 body.interpolation = RigidbodyInterpolation.Interpolate;
                 body.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
 
-                // 콜라이더가 없으면 집을 수도, 바닥에 놓일 수도 없다. [Art] 프리팹은
-                // 순수 아트라 콜라이더가 없을 수 있으므로 없을 때만 보탠다.
-                if (root.GetComponentInChildren<Collider>(true) == null)
-                {
-                    var collider = root.AddComponent<BoxCollider>();
-                    collider.size = new Vector3(0.34f, 1.12f, 0.34f);
-                    collider.center = new Vector3(0f, 0.56f, 0f);
-                }
+                EnsureCollider(root);
 
                 var grabbable = Grabbable.Mark(root, "운석 방망이", false, 1f, 2f,
                                                GrabbableRole.Tool);
@@ -140,6 +133,88 @@ namespace Metagame.EditorTools
             AssetDatabase.SaveAssets();
             return AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
         }
+
+        /// <summary>
+        /// 콜라이더를 <b>실제 메시 경계에서</b> 만든다. 없을 때만 보탠다.
+        ///
+        /// [Art] 프리팹은 순수 아트라 콜라이더가 없다. 그래서 코드가 보태는데,
+        /// S15P21B202-233 은 그 치수를 <b>자산 목록의 숫자만 보고</b> 세로 1.12m 로 넣었다.
+        /// 실제 모델은 1.12 x 1.20 x 1.08m 로 거의 정육면체에 가까운 SF 방망이여서,
+        /// 세로로 긴 막대라는 가정이 틀렸다.
+        ///
+        /// 렌더러 경계를 재면 모델이 바뀌어도 따라온다. 숫자를 손으로 적으면 다음 번에
+        /// 또 어긋난다.
+        ///
+        /// <see cref="ShrinkFactor"/> 로 조금 줄인다. 경계 상자는 메시를 <b>완전히</b>
+        /// 감싸므로 그대로 쓰면 눈에 보이는 것보다 넓게 부딪힌다 — 바닥에 놓은 방망이가
+        /// 떠 있는 것처럼 보인다.
+        /// </summary>
+        static void EnsureCollider(GameObject root)
+        {
+            // [Art] 가 자식에 콜라이더를 넣어 줬으면 손대지 않는다. 실제 형태를 아는 쪽이
+            // 만든 것이 코드가 잰 경계 상자보다 낫다.
+            foreach (var existing in root.GetComponentsInChildren<Collider>(true))
+                if (existing.transform != root.transform)
+                    return;
+
+            // 루트의 BoxCollider 는 <b>코드가 만든 것</b>이다([Art] 프리팹은 순수 아트다).
+            // 지우고 다시 잰다 — S15P21B202-233 이 넣은 잘못된 치수(세로 1.12m)가
+            // "없을 때만 보탠다" 규칙 때문에 그대로 남아 있었다.
+            foreach (var stale in root.GetComponents<BoxCollider>())
+                Object.DestroyImmediate(stale, true);
+
+            var renderers = root.GetComponentsInChildren<Renderer>(true);
+            if (renderers.Length == 0)
+            {
+                Debug.LogWarning(
+                    "[Stage1MeteorBat] 렌더러가 없어 콜라이더 크기를 재지 못했다. " +
+                    "프리팹을 확인한다: " + PrefabPath);
+                return;
+            }
+
+            // 로컬 공간으로 모은다. 월드 경계를 그대로 쓰면 프리팹이 놓인 자리에 따라
+            // 콜라이더가 달라진다.
+            var toLocal = root.transform.worldToLocalMatrix;
+            var bounds = new Bounds();
+            var started = false;
+
+            foreach (var renderer in renderers)
+            {
+                var world = renderer.bounds;
+                var local = new Bounds(toLocal.MultiplyPoint3x4(world.center), Vector3.zero);
+
+                // 여덟 꼭짓점을 모두 넣어야 회전이 걸린 자식도 감싼다.
+                for (var i = 0; i < 8; i++)
+                {
+                    var corner = new Vector3(
+                        (i & 1) == 0 ? world.min.x : world.max.x,
+                        (i & 2) == 0 ? world.min.y : world.max.y,
+                        (i & 4) == 0 ? world.min.z : world.max.z);
+
+                    local.Encapsulate(toLocal.MultiplyPoint3x4(corner));
+                }
+
+                if (!started)
+                {
+                    bounds = local;
+                    started = true;
+                }
+                else
+                {
+                    bounds.Encapsulate(local);
+                }
+            }
+
+            var collider = root.AddComponent<BoxCollider>();
+            collider.center = bounds.center;
+            collider.size = bounds.size * ShrinkFactor;
+
+            Debug.Log($"[Stage1MeteorBat] 콜라이더를 메시 경계에서 만들었다 — " +
+                      $"크기 {collider.size} · 중심 {collider.center}");
+        }
+
+        /// <summary>경계 상자를 이만큼 줄여 쓴다. 메시를 완전히 감싸는 값보다 좁아야 한다.</summary>
+        const float ShrinkFactor = 0.85f;
 
         static Transform FindByPath(string path)
         {

@@ -17,8 +17,22 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 
 os.environ["CI_PROJECT_ID"] = "1443653"
+os.environ.pop("MM_WEBHOOK_URL", None)      # 테스트가 팀 채널로 나가지 않게
+os.environ.pop("CI_JOB_NAME", None)         # 배포 잡이 아니므로 알림 경로가 열려선 안 된다
 
+import ci_common
 import deploy_backend as D
+
+
+def no_http(method, url, headers=None, body=None, timeout=30):
+    """이 테스트에서 네트워크가 열리면 그 자체가 결함이다.
+
+    2026-09-01 사고 — 배포 결과 알림을 붙였더니 이 테스트의 4경우가 `ci-tests` 잡의 실제
+    MM_WEBHOOK_URL 로 진짜 카드 4장을 팀 채널에 보냈다. 다시 새면 여기서 잡는다."""
+    raise AssertionError(f"테스트가 밖으로 나갔다: {method} {url}")
+
+
+ci_common.http = no_http
 
 BIG = D.MIN_JAR_BYTES + 1024
 

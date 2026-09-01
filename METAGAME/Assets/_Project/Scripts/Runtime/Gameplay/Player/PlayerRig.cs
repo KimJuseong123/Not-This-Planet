@@ -1384,9 +1384,18 @@ namespace Metagame.Gameplay
                     return;
                 }
                 SetActiveToolInput(aim, GetToolUtilityHeld());
-                HoldToolPose(aim);
-                DriveArm(Doll.Left, true, aim);
-                DriveArm(Doll.Right, true, aim);
+
+                // 도구가 자세를 흔들 수 있게 한다(S15P21B202-243). 방망이는 휘두르는 동안
+                // 조준선에서 벗어난 방향을 돌려주고, 그러면 도구가 카메라 주위로 호를
+                // 그린다 — HoldToolPose 가 방향 하나로 위치와 회전을 정하기 때문이다.
+                //
+                // <b>입력보다 뒤에 묻는다.</b> SetActiveToolInput 이 이번 틱의 클릭을
+                // 넘겨 스윙을 시작시키므로, 그 앞에서 물으면 한 틱 늦게 움직인다.
+                Vector3 carryAim = activeTool != null ? activeTool.CarryAim(aim) : aim;
+
+                HoldToolPose(carryAim);
+                DriveArm(Doll.Left, true, carryAim);
+                DriveArm(Doll.Right, true, carryAim);
                 SyncHeldObjectOwnerCollision();
                 return;
             }
