@@ -71,15 +71,14 @@ namespace Metagame.Network
                 RemoteSuitColor(userId),
                 RemoteAccentColor(userId));
 
-            body.IsLocal = false;
-            body.transform.SetParent(transform, true);
+            // 보여 주기 전용으로 바꾼다. 골반만 이 오브젝트를 따라가고 팔다리는
+            // 조인트에 맡긴다. 자식으로 붙이지 않는 이유는 RemoteAvatar 가 골반을
+            // MovePosition 으로 직접 옮기기 때문이다 — 부모를 따라 끌려가면
+            // 조인트가 그 이동을 순간이동으로 받아들여 몸이 튄다.
+            RemoteAvatar.Attach(body, transform);
 
             if (isClient)
                 Debug.Log($"[NetPlayer] 다른 플레이어가 보인다 · {nickname}(userId={userId})");
-
-            // 보여 주기 전용이다. 물리를 돌리면 서버가 보낸 위치와 싸우고,
-            // 내 캐릭터를 밀어내기까지 한다. 레이어로 충돌을 끊고 물리를 멈춘다.
-            MakeDisplayOnly(body.gameObject);
         }
 
         private void OnIdentityChanged(string _, string newNickname)
@@ -97,19 +96,6 @@ namespace Metagame.Network
             if (body == null) return;
             Destroy(body.gameObject);
             body = null;
-        }
-
-        /// <summary>물리를 멈추고 충돌을 끊는다. 서버가 보낸 위치만 따라간다.</summary>
-        private static void MakeDisplayOnly(GameObject root)
-        {
-            foreach (var rb in root.GetComponentsInChildren<Rigidbody>(true))
-            {
-                rb.isKinematic = true;
-                rb.detectCollisions = false;
-            }
-
-            foreach (var t in root.GetComponentsInChildren<Transform>(true))
-                t.gameObject.layer = GameLayers.RemotePlayer;
         }
 
         /// 같은 사람은 누구 화면에서나 같은 색으로 보이게 userId 로 정한다.

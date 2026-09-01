@@ -123,10 +123,8 @@ namespace Metagame.Bootstrap
             Session.Begin(Player, Level, Level.SpawnFoot, Exploration);
             if (!lockCursor) Session.SetCursor(false);
 
-            // 로비를 거쳐 들어왔을 때만 세션이 살아 있다. 씬을 단독 실행하면 없으므로
-            // 혼자 돌려보는 흐름은 그대로 둔다.
-            if (NetworkSession.Instance != null)
-                RemotePlayerSync.Create(NetworkSession.Instance, Player, transform);
+            // 다른 사람의 몸은 Mirror 가 세운다(NetPlayer). 예전에는 WebSocket 으로
+            // 좌표를 받아 여기서 직접 세웠는데(-128), 그대로 두면 아바타가 두 벌 생긴다.
 
             if (useAtmosphere)
             {
