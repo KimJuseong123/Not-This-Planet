@@ -94,6 +94,54 @@ sudo chown -R ubuntu:ubuntu /opt/metagame
 rm ~/metagame-server.tar.gz
 ```
 
+## 3-1. 함정 — `-nographics` 만으로는 리눅스에서 죽는다 (2026-09-01 실측)
+
+EC2 에서 서버가 **1초 만에 SIGSEGV 로 죽고** systemd 가 5초마다 되살리는 것을
+50번 반복했다. 로그는 여기서 끊긴다:
+
+```
+Selected window backend: (null)
+...
+ThreadLog initialized.
+Caught fatal signal - signo:11 code:1 errno:0 addr:(nil)
+Obtained 5 stack frames.
+#1  PlayerMain(int, char**)
+```
+
+매니지드 스택이 없다 — 네이티브에서 죽는 것이라 C# 의 try/catch 로는 잡히지 않는다.
+
+**원인**: Unity 리눅스 플레이어는 `-nographics` 를 줘도 창(SDL) 백엔드를 건드린다.
+화면이 없는 서버에서는 그 지점에서 넘어진다.
+
+**해결**: 가상 디스플레이(`xvfb`)를 물리고 **`-nographics` 를 뺀다.**
+
+```bash
+sudo apt-get install -y xvfb
+```
+
+`ExecStart` 를 `xvfb-run -a` 로 감싼다(§4 참조).
+
+**먼저 지운 오답들** — 같은 증상에서 다시 의심하지 않도록 적어 둔다:
+
+| 의심했던 것 | 결과 |
+| --- | --- |
+| 깨진 `TD_Stage1_Arena.asset` | ✗ Main 씬이 참조하지 않는다(참조 0) |
+| 코드 스트리핑(릴리스 빌드) | ✗ 개발 빌드도 똑같이 죽었다 |
+| 손으로 쓴 `PF_WorldSync.prefab` | ✗ 없애도 똑같이 죽었다 (그래도 스폰 핸들러 방식이 더 나아 그대로 둠) |
+| 빠진 공유 라이브러리 | ✗ `ldd` 에 `not found` 없음 |
+| 폰트 없음(IMGUI 의 `Font.CreateDynamicFontFromOSFont`) | ✗ `fontconfig`·`fonts-nanum` 을 깔아도 똑같이 죽었다 |
+| **창 백엔드 없음** | **✓ `xvfb-run` 으로 해결** |
+
+**가려내는 법**: `-server` 없이 맨손으로 띄워 본다. 그래도 죽으면 씬·네트워크와
+무관하고 플레이어 자체가 못 뜨는 것이다.
+
+```bash
+cd /opt/metagame
+timeout 20 ./MetaGameServer.x86_64 -batchmode -logFile /tmp/mg.log ; echo "종료코드 $?"
+```
+
+**124** = timeout 이 정상 종료시킴(= 살아 있었다). **139** = SIGSEGV.
+
 ## 4. systemd 유닛
 
 ```bash
@@ -107,7 +155,7 @@ Wants=network-online.target
 Type=simple
 User=ubuntu
 WorkingDirectory=/opt/metagame
-ExecStart=/opt/metagame/MetaGameServer.x86_64 -batchmode -nographics -server \
+ExecStart=/usr/bin/xvfb-run -a /opt/metagame/MetaGameServer.x86_64 -batchmode -server \
   -port=17777 -verifyUrl=https://j15b202.p.ssafy.io/auth/verify
 Restart=on-failure
 RestartSec=5
