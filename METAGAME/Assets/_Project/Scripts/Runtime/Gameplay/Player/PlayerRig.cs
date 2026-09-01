@@ -483,16 +483,32 @@ namespace Metagame.Gameplay
             Ragdolled = true;
             uprightBlend = 0f;
 
-            ReleaseHand(LeftHand);
-            ReleaseHand(RightHand);
-            ClampInteractor?.Cancel();
-            ResetClampGrab();
-            ResetToolState();
+            DropEquipment();
 
             SetDollLayer(GameLayers.PlayerDowned);
             RefreshRescueTarget();
 
             Debug.Log("[SpaceFlop] " + Nickname + " 기절 (" + source + ")");
+        }
+
+        /// <summary>
+        /// 들고 있던 것과 잡고 있던 것을 모두 놓는다.
+        ///
+        /// <b>기절과 분리해 둔다.</b> 기획 §20.1 의 "강한 충격: 크게 날아가고 들고 있던
+        /// 장비를 떨어뜨림" 은 기절이 아니다 — 예전에는 이 다섯 줄이
+        /// <see cref="GoDown"/> 안에만 있어서 <b>기절하지 않으면 장비를 떨어뜨릴 수가
+        /// 없었다</b>(S15P21B202-247).
+        ///
+        /// 고정못은 손만 뗀다. <see cref="ResetClampGrab"/> 이 진행분을 남기므로
+        /// §12.1 "운석에 맞아도 빠진 정도는 유지된다" 가 지켜진다.
+        /// </summary>
+        public void DropEquipment()
+        {
+            ReleaseHand(LeftHand);
+            ReleaseHand(RightHand);
+            ClampInteractor?.Cancel();
+            ResetClampGrab();
+            ResetToolState();
         }
 
         /// <summary>

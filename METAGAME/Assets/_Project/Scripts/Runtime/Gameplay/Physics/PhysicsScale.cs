@@ -690,8 +690,33 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float MeteorMediumImpactRadius = 3.5f;
 
-        /// <summary>착탄 시 주변에 주는 폭발력.</summary>
+        /// <summary>
+        /// 소형 운석이 착탄 시 주변에 주는 폭발력.
+        ///
+        /// <b>중형은 이 값을 쓰지 않는다.</b> 반경 비율만큼 커진다
+        /// (<see cref="Hazards.MeteorImpact.ForceFor"/>) — 크기를 나눠 놓고
+        /// (S15P21B202-234) 힘이 같으면 중형은 "맞는 범위만 넓고 아프지는 않다".
+        /// </summary>
         public const float MeteorImpactForce = 900f;
+
+        /// <summary>
+        /// 충격 반경 중 <b>강한 충격</b>으로 취급하는 비율. 기획 §20.1.
+        ///
+        /// §20.1 은 충격을 약함·강함·직접 충돌로 나누는데 <b>경계를 정하지 않았다.</b>
+        /// 반경의 절반으로 잡았다. 새 기준을 만들지 않고
+        /// <see cref="UnityEngine.Rigidbody.AddExplosionForce"/> 가 이미 쓰는 거리 감쇠와
+        /// 같은 축을 쓴다 — 규칙이 둘이면 "밀리기만 했는데 장비를 놓쳤다" 가 생긴다.
+        /// </summary>
+        public const float MeteorHeavyImpactFraction = 0.5f;
+
+        /// <summary>
+        /// 강한 충격에 날아가는 속도(m/s). 기획 §20.1 "크게 날아가고".
+        ///
+        /// 방망이에 맞을 때(<see cref="BatPlayerKnockSpeed"/> 4m/s)의 두 배다. §18.3 이
+        /// 방망이는 "넘어지지만 기절하지는 않는다" 고 정하고, 운석은 그보다 강해야 한다 —
+        /// 동료가 때리는 것이 운석보다 아프면 방망이가 무기가 된다.
+        /// </summary>
+        public const float MeteorHeavyKnockSpeed = 8f;
 
         /// <summary>착탄 후 사라지기까지의 시간.</summary>
         public const float MeteorDespawnSeconds = 6f;

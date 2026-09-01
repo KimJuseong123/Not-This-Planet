@@ -105,14 +105,20 @@ namespace Metagame.Gameplay.Tests
             Assert.AreEqual(PhysicsScale.MeteorMass, meteor.GetComponent<Rigidbody>().mass, 0.01f);
         }
 
+        /// <summary>
+        /// 예전에는 이 검증이 <c>DamageSource</c> 가 <b>있는지</b>를 잠갔다. 그것이
+        /// 문제였다 — "닿으면 25" 하나뿐이라 기획 §20.1 의 세 단계가 모두 같아지고,
+        /// <c>MaxHealth</c> 100 에서 네 번을 맞아야 기절했다. 착탄 후에도 0.5초마다
+        /// 다시 때려 §19 의 "충돌 순간에만" 도 어겼다. S15P21B202-247 에서 뒤집었다.
+        /// </summary>
         [Test]
-        public void SpawnedMeteor_CarriesDamageSource()
+        public void SpawnedMeteor_DoesNotCarryDamageSource()
         {
             var spawner = CreateSpawner();
             AdvanceUntilPending(spawner);
 
-            Assert.IsNotNull(spawner.Live[0].GetComponent<DamageSource>(),
-                "플레이어 피해는 새 시스템 없이 기존 DamageSource 로 전달한다.");
+            Assert.IsNull(spawner.Live[0].GetComponent<DamageSource>(),
+                "Meteor 가 §20.1 의 단계를 직접 정한다. 균일 피해가 섞이면 안 된다.");
         }
 
         // --- 공세 구조 (기획 §17.4) ------------------------------------------

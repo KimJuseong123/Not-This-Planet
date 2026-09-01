@@ -12,7 +12,14 @@ namespace Metagame.Gameplay.Hazards
     /// 그 조인트가 스스로 끊어질지 버틸지 결정된다. 여기서 "무너뜨려라" 라고 지시하지 않는다.
     /// 그래서 용접 정도에 따라 결과가 저절로 달라진다.
     ///
-    /// 넉백만 코드로 준다. 착탄 지점 주변에 폭발력을 한 번 넣는다.
+    /// 넉백과 <b>충격 단계</b>를 코드로 준다. 착탄 지점 주변에 폭발력을 한 번 넣고,
+    /// 기획 §20.1 의 세 단계(약한 충격파 · 강한 충격 · 직접 충돌)를 거리로 나눈다.
+    ///
+    /// <b>플레이어 피해를 <see cref="DamageSource"/> 에 맡기지 않는다.</b> 그것은 "닿으면
+    /// 25" 하나뿐이어서 세 단계가 모두 같아지고, <see cref="Tuning.MaxHealth"/> 100 에서
+    /// 네 번을 맞아야 기절했다 — §20.1 은 직접 충돌 <b>한 번</b>으로 기절한다고 정한다.
+    /// 그리고 반복 판정이 있어 <b>바닥에 박힌 운석 옆에 서 있으면 계속 맞았다</b>
+    /// (§19 "충돌 순간에만 넉백과 기절 판정이 있다"). S15P21B202-247 에서 여기로 옮겼다.
     ///
     /// 소유자(스포너)가 <see cref="Tick"/> 을 호출한다. Time 을 직접 읽지 않아
     /// EditMode 에서 검증할 수 있다.
@@ -23,6 +30,9 @@ namespace Metagame.Gameplay.Hazards
     {
         [SerializeField, Min(0f)] float _impactRadius = PhysicsScale.MeteorSmallImpactRadius;
         [SerializeField, Min(0f)] float _impactForce = PhysicsScale.MeteorImpactForce;
+
+        /// <summary>이번 착탄에 재사용하는 버퍼. 한 플레이어의 여러 뼈가 함께 걸린다.</summary>
+        static readonly List<PlayerRig> Struck = new();
         [SerializeField, Min(0f)] float _despawnSeconds = PhysicsScale.MeteorDespawnSeconds;
         [SerializeField, Min(0f)] float _maxLifeSeconds = PhysicsScale.MeteorMaxLifeSeconds;
 
@@ -73,6 +83,7 @@ namespace Metagame.Gameplay.Hazards
         {
             Size = size;
             _impactRadius = RadiusFor(size);
+            _impactForce = MeteorImpact.ForceFor(size);
         }
 
         /// <summary>
@@ -199,7 +210,13 @@ namespace Metagame.Gameplay.Hazards
         {
             if (collision.contactCount == 0) return;
 
-            ApplyImpact(collision.GetContact(0).point);
+            // 운석 본체가 몸에 닿았는가. 거리로는 알 수 없다 — 착탄 지점 바로 옆에 서
+            // 있는 것과 운석에 얻어맞는 것은 §20.1 이 다른 단계로 나눈다.
+            var direct = collision.collider != null
+                ? collision.collider.GetComponentInParent<PlayerRig>()
+                : null;
+
+            ApplyImpact(collision.GetContact(0).point, direct);
         }
 
         /// <summary>
@@ -208,7 +225,7 @@ namespace Metagame.Gameplay.Hazards
         /// 물리 콜백은 EditMode 의 Physics.Simulate 에서 오지 않으므로 공개해 두었다.
         /// 테스트와 연출 스크립트가 직접 부를 수 있다.
         /// </summary>
-        public void ApplyImpact(Vector3 point)
+        public void ApplyImpact(Vector3 point, PlayerRig directHit = null)
         {
             if (HasImpacted) return;
 
@@ -216,7 +233,7 @@ namespace Metagame.Gameplay.Hazards
             HasImpacted = true;
             _sinceImpact = 0f;
 
-            ApplyKnockback(point);
+            ApplyKnockback(point, directHit);
             Impacted?.Invoke(this, point);
         }
 
@@ -264,11 +281,13 @@ namespace Metagame.Gameplay.Hazards
         /// 솔버가 아니라 이 상수가 결정해 버려서, 용접 정도에 따른 차이가 흐려진다.
         /// 파츠에 대한 영향은 물리 충돌만으로 남긴다.
         /// </summary>
-        void ApplyKnockback(Vector3 point)
+        void ApplyKnockback(Vector3 point, PlayerRig directHit)
         {
             var mask = GameLayers.PlayerMask | GameLayers.PropMask;
             var hits = UnityEngine.Physics.OverlapSphere(
                 point, _impactRadius, mask, QueryTriggerInteraction.Ignore);
+
+            Struck.Clear();
 
             foreach (var hit in hits)
             {
@@ -276,7 +295,58 @@ namespace Metagame.Gameplay.Hazards
                 if (body == null || body == _body) continue;
 
                 body.AddExplosionForce(_impactForce, point, _impactRadius);
+
+                // 래그돌은 뼈마다 Rigidbody 다. 한 사람을 열 번 처리하면 안 된다.
+                var player = hit.GetComponentInParent<PlayerRig>();
+                if (player != null && !Struck.Contains(player)) Struck.Add(player);
             }
+
+            // 직접 맞은 사람은 반경 밖에 있을 수도 있다 — 떨어지는 중에 얻어맞으면
+            // 착탄 지점이 그 사람 발밑이 아니다.
+            if (directHit != null && !Struck.Contains(directHit)) Struck.Add(directHit);
+
+            for (var i = 0; i < Struck.Count; i++)
+                ApplyTier(Struck[i], point, Struck[i] == directHit);
+
+            Struck.Clear();
+        }
+
+        /// <summary>
+        /// 한 사람이 받는 단계를 정해 적용한다(기획 §20.1).
+        ///
+        /// 폭발력은 이미 <see cref="ApplyKnockback"/> 이 넣었다. 여기서 더하는 것은
+        /// <b>단계에 따라 달라지는 것</b>뿐이다 — 약한 충격파에는 아무것도 없다
+        /// ("밀려나지만 바로 행동 가능").
+        /// </summary>
+        void ApplyTier(PlayerRig player, Vector3 point, bool direct)
+        {
+            if (player == null) return;
+
+            if (direct)
+            {
+                // "날아간 뒤 기절". 순서가 중요하다 — GoDown 이 먼저면 KnockDown 이
+                // Downed 를 보고 즉시 돌아나가 <b>날아가지 않는다</b>.
+                player.KnockDown(AwayFrom(player, point), PhysicsScale.MeteorHeavyKnockSpeed);
+                player.GoDown("운석 직접 충돌");
+                return;
+            }
+
+            // <b>PlayerRig 의 transform 은 원점에 있다.</b> Create 가 빈 GameObject 를
+            // 만들고 래그돌만 발 위치에 놓아 부모로 붙인다 — transform.position 으로
+            // 재면 모든 플레이어가 원점 기준이 된다. 착탄 지점이 지면이므로 발에서 잰다.
+            var distance = Vector3.Distance(player.FootPosition, point);
+            if (MeteorImpact.TierFor(distance, _impactRadius) != MeteorImpactTier.Heavy) return;
+
+            player.KnockDown(AwayFrom(player, point), PhysicsScale.MeteorHeavyKnockSpeed);
+            player.DropEquipment();
+        }
+
+        /// <summary>착탄 지점에서 멀어지는 수평 방향. 위로 띄우는 것은 폭발력이 한다.</summary>
+        static Vector3 AwayFrom(PlayerRig player, Vector3 point)
+        {
+            var away = player.FootPosition - point;
+            away.y = 0f;
+            return away.sqrMagnitude < 1e-6f ? Vector3.zero : away.normalized;
         }
     }
 }
