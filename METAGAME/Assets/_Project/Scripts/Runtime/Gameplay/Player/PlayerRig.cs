@@ -41,6 +41,16 @@ namespace Metagame.Gameplay
         public bool IsLocal = true;
         public string Nickname = "비행사";
 
+        /// <summary>
+        /// 이 몸의 위치를 서버가 정하는가. 켜져 있으면 물리는 여기서 돌지 않고,
+        /// 서버가 보낸 자리를 그리기만 한다(<c>Metagame.Network.RemoteAvatar</c>).
+        ///
+        /// 이 파일의 물리 코드는 이 값을 보지 않는다 — 부활·낙사처럼 "위치를 정하는"
+        /// 판단을 하는 쪽(GameSession)이 대신 물러나라는 표시다. 혼자 돌릴 때는
+        /// 계속 꺼져 있으므로 기존 흐름은 그대로다.
+        /// </summary>
+        public bool NetworkDriven;
+
         // ── 상태 ────────────────────────────────────────────────
         public bool Grounded { get; private set; }
         public float GroundDistance { get; private set; }
@@ -890,13 +900,47 @@ namespace Metagame.Gameplay
                 groundBody.AddForceAtPosition(Vector3.down * f, Doll.Hips.position, ForceMode.Force);
         }
 
+        /// <summary>
+        /// 조작의 기준이 되는 시선. 내 화면에서는 카메라가 기준이고, 카메라가 없는
+        /// 서버에서는 클라이언트가 입력에 실어 보낸 각도가 기준이다(-147).
+        /// OrbitCamera 의 ViewRotation 과 같은 식이라 양쪽 결과가 어긋나지 않는다.
+        /// </summary>
+        Quaternion AimRotation
+        {
+            get
+            {
+                return Cam != null
+                    ? Quaternion.Euler(Cam.Pitch, Cam.Yaw, 0f)
+                    : Quaternion.Euler(input.AimPitch, input.AimYaw, 0f);
+            }
+        }
+
+        /// <summary>수평면에 눕힌다. 길이가 없으면 대신 쓸 방향을 준다.</summary>
+        static Vector3 Flatten(Vector3 v, Vector3 fallback)
+        {
+            v.y = 0f;
+            return v.sqrMagnitude > 1e-4f ? v.normalized : fallback;
+        }
+
         void Locomotion()
         {
-            Vector3 fwd = Cam != null ? Cam.PlanarForward : Vector3.forward;
-            Vector3 right = Cam != null ? Cam.PlanarRight : Vector3.right;
-            Vector3 wish = Cam != null
-                ? Cam.CameraRelativeMove(input.Move)
-                : right * input.Move.x + fwd * input.Move.y;
+            Vector3 fwd, right, wish;
+            if (Cam != null)
+            {
+                fwd = Cam.PlanarForward;
+                right = Cam.PlanarRight;
+                wish = Cam.CameraRelativeMove(input.Move);
+            }
+            else
+            {
+                // 서버에는 카메라가 없다. 클라이언트가 함께 보낸 시선으로 같은 기준을
+                // 세운다(-147). 이것이 없으면 W 를 눌러도 늘 월드 +Z 로만 걷는다.
+                fwd = Flatten(AimRotation * Vector3.forward, Vector3.forward);
+                right = Flatten(AimRotation * Vector3.right, Vector3.right);
+
+                Vector2 move = input.Move.sqrMagnitude > 1f ? input.Move.normalized : input.Move;
+                wish = right * move.x + fwd * move.y;
+            }
             if (wish.sqrMagnitude > 1f) wish.Normalize();
 
             float top = Floating
@@ -1042,8 +1086,8 @@ namespace Metagame.Gameplay
                                               Quaternion.AngleAxis(lean, Vector3.right),
                                               Quaternion.identity);
 
-            // 고개는 카메라 피치를 조금 따라간다
-            float pitch = Cam != null ? Mathf.Clamp(Cam.Pitch, -26f, 26f) : 0f;
+            // 고개는 카메라 피치를 조금 따라간다 (서버에서는 클라이언트가 보낸 피치)
+            float pitch = Mathf.Clamp(Cam != null ? Cam.Pitch : input.AimPitch, -26f, 26f);
             JointTools.SetTargetLocalRotation(Doll.HeadJoint,
                                               Quaternion.AngleAxis(pitch * 0.5f, Vector3.right),
                                               Quaternion.identity);
@@ -1115,7 +1159,9 @@ namespace Metagame.Gameplay
         // ── 팔 ──────────────────────────────────────────────────
         void DriveArms()
         {
-            Vector3 aim = Cam != null ? Cam.AimDirection : Doll.Chest.transform.forward;
+            // 서버에는 카메라가 없다 — 클라이언트가 보낸 시선을 쓴다. 팔이 향하는
+            // 곳이 곧 부품을 잡는 방향이라, 여기가 어긋나면 엉뚱한 것을 집는다.
+            Vector3 aim = AimRotation * Vector3.forward;
             if (input.ArmsUp) aim = Vector3.Slerp(aim, Vector3.up, 0.65f).normalized;
 
             bool leftPressed = input.GrabLeft && !previousGrabLeft;

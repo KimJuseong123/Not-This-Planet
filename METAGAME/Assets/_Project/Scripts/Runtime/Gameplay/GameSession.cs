@@ -162,6 +162,12 @@ namespace Metagame.Gameplay
                 LocalPlayer.SetInput(f);
             }
 
+            // 낙사와 전원 기절은 "누구를 어디로 되돌릴지" 를 정하는 판단이다.
+            // 위치를 서버가 정할 때는(-147) 서버 몫이므로 여기서 물러난다. 그러지
+            // 않으면 화면 속 몸만 스폰 지점으로 옮겨지고, 서버가 보낸 다음 위치에
+            // 곧바로 도로 끌려간다.
+            if (LocalPlayer.NetworkDriven) return;
+
             // 떨어졌는가 — 여기는 <b>낙사만</b> 본다.
             //
             // 예전에는 LocalPlayer.IsDead 도 함께 보고 곧바로 Respawn() 을 불렀다.
