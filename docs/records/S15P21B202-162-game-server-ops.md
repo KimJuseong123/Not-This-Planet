@@ -1,0 +1,169 @@
+# S15P21B202-162 — 게임 서버 운영 절차 (EC2)
+
+Mirror 게임 서버를 EC2 에서 돌리는 절차. 빌드 → 전송 → 실행 → 방화벽 → 로그까지 한 장.
+
+`-145 §4` 의 결정을 그대로 따른다. **내 PC 는 서버가 아니다**(§4-6) — 이슈 제목의
+"내 PC 에서 운영" 은 EC2 를 받기 전에 쓴 것이고, 지금은 EC2 가 서버다.
+
+## 0. 한눈에
+
+| 무엇 | 어디 |
+| --- | --- |
+| 로비·인증 (Spring) | EC2 · `https://j15b202.p.ssafy.io` (nginx 443 → 127.0.0.1:8080) |
+| **게임 서버 (Mirror)** | **EC2 · UDP 17777** |
+| 게임 서버 실행 파일 | `/opt/metagame/MetaGameServer.x86_64` |
+| 로그 | `journalctl -u metagame -f` |
+
+게임 서버가 Spring 과 **같은 호스트**여야 한다. 로비가 "게임 시작" 을 누를 때
+로비에 입력된 주소의 호스트를 그대로 게임 서버 주소로 쓰기 때문이다
+(`LobbyBootstrap.EnterMatch`).
+
+## 1. 포트 — 17777/UDP
+
+`-145 §4-3` 이 정한 값. **세 곳이 같아야 한다.**
+
+| # | 어디 | 값 |
+| --- | --- | --- |
+| ① | EC2 방화벽 | `sudo ufw allow 17777/udp` |
+| ② | `Lobby.unity` 의 `KcpTransport.port` | `17777` |
+| ③ | 클라이언트 | ②와 같은 빌드를 쓰므로 자동 |
+
+②는 이 브랜치에서 `7777` → `17777` 로 바꿨다. 7777 은 Mirror 기본값이고
+EC2 지급 안내가 기본 포트 변경을 요구한다. **하나만 바꾸면 조용히 접속에 실패한다.**
+
+## 2. 서버 빌드 (내 PC, 수동)
+
+`-145 §4-4` 는 CI(GameCI)에서 만드는 것을 목표로 하지만 그것은 `-143` 이다.
+지금은 수동이다.
+
+### 2-1. 먼저 — Unity 모듈이 필요하다 (2026-09-01 확인)
+
+이 PC 에는 **Linux 빌드 모듈이 온전하지 않다.** 빌드하면 스크립트 컴파일과 씬
+빌드까지 다 지나간 뒤 마지막에서 넘어진다:
+
+```
+[Postprocess built player] UnityException: Build target 'StandaloneLinux64' not supported
+```
+
+`PlaybackEngines/LinuxStandaloneSupport/Variations` 를 보면 **서버 플레이어 파일은
+있는데**(`linux64_server_nondevelopment_mono` 70 MB 등) 일반 플레이어 쪽은 200 KB
+남짓한 껍데기다. 즉 설치가 반쯤 되어 있다.
+
+**해결** — Unity Hub → Installs → `6000.5.4f1` → ⚙ → Add modules →
+**Linux Build Support (Mono)** 와 **Linux Dedicated Server Build Support** 를 함께 설치.
+설치 중에는 Unity 를 닫아야 할 수 있다.
+
+> **함정**: 이 상태에서 빌드하면 `BuildReport.summary.result` 가 **`Succeeded` 로 나온다.**
+> MCP 빌드 도구도 "Build succeeded" 를 찍는다. 그래서 **산출물 파일이 실제로 생겼는지
+> 반드시 눈으로 확인해야 한다** — 폴더가 비어 있으면 실패한 것이다.
+> 진짜 원인은 `report.steps[].messages` 에만 나온다.
+
+### 2-2. 빌드
+
+- Unity 빌드 타깃: **Linux · Dedicated Server**
+  (`StandaloneLinux64` + subtarget `server`, 스크립팅 백엔드 Mono)
+- 산출물: `MetaGameServer.x86_64` + `MetaGameServer_Data/` + `UnityPlayer.so`
+- 첫 빌드는 플랫폼 전환 때문에 에셋 재임포트가 일어나 10 분 넘게 걸린다.
+
+## 3. 전송
+
+**내 PC 의 PowerShell** 에서 (EC2 안이 아니다 — 프롬프트가 `PS C:\...>` 인지 볼 것):
+
+```powershell
+cd C:\Users\SSAFY\Desktop
+tar -czf metagame-server.tar.gz -C metagame-linux-server .
+scp -i C:\Users\SSAFY\Desktop\Ec2\J15B202T.pem metagame-server.tar.gz ubuntu@j15b202.p.ssafy.io:~/
+```
+
+**EC2 에서**:
+
+```bash
+sudo mkdir -p /opt/metagame
+sudo tar -xzf ~/metagame-server.tar.gz -C /opt/metagame
+sudo chmod +x /opt/metagame/MetaGameServer.x86_64
+sudo chown -R ubuntu:ubuntu /opt/metagame
+rm ~/metagame-server.tar.gz
+```
+
+## 4. systemd 유닛
+
+```bash
+sudo tee /etc/systemd/system/metagame.service > /dev/null <<'EOF'
+[Unit]
+Description=MetaGame Mirror 게임 서버
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/metagame
+ExecStart=/opt/metagame/MetaGameServer.x86_64 -batchmode -nographics -server \
+  -port=17777 -verifyUrl=https://j15b202.p.ssafy.io/auth/verify
+Restart=on-failure
+RestartSec=5
+# 로그는 journald 로. 파일로 따로 남기지 않는다(회전 관리 한 곳으로).
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now metagame
+sudo systemctl status metagame --no-pager
+```
+
+**`-roomId` 를 주지 않았다.** 주면 그 방 하나만 받는다. 지금은 서버가 하나뿐이라
+어느 방이든 받게 열어 둔다 — 대신 **방이 둘 이상이면 모두 같은 세계로 들어간다.**
+시연이 한 팀이면 문제없고, 여러 팀을 동시에 받으려면 방마다 서버를 띄워야 한다.
+
+## 5. 방화벽
+
+```bash
+sudo ufw allow 17777/udp
+sudo ufw status numbered
+```
+
+`-145 §4-3`: **UFW 가 실제 게이트다.** enable 은 유지한다.
+
+## 6. 확인
+
+```bash
+# 서버가 그 포트를 듣고 있나
+sudo ss -ulnp | grep 17777
+
+# 로그 (접속하면 [NetPlayer] 서버 스폰 이 찍힌다)
+journalctl -u metagame -f
+```
+
+내 PC 에서 밖에서 닿는지:
+
+```powershell
+Test-NetConnection j15b202.p.ssafy.io -Port 17777 -InformationLevel Detailed
+```
+
+> UDP 는 `Test-NetConnection` 으로 확실히 못 본다(응답이 없어도 열려 있을 수 있다).
+> 진짜 확인은 **클라이언트로 붙어 보는 것**이다.
+
+## 7. 코드가 바뀐 뒤 갱신 (한 줄 요약)
+
+> 서버 빌드 → `tar` → `scp` → EC2 에서 `tar -xzf` → `sudo systemctl restart metagame`
+
+## 8. 막혔을 때
+
+| 증상 | 원인 | 할 일 |
+| --- | --- | --- |
+| 로비에서 "게임 시작" 이 반응 없음 | 게임 서버가 안 떠 있음 | `systemctl status metagame` |
+| 접속이 조용히 실패 | 포트 세 곳 중 하나가 다름 | §1 표를 다시 대조 |
+| 서버는 떴는데 아무도 못 붙음 | UFW | `sudo ufw status` 에 17777/udp 있는지 |
+| 붙자마자 끊김 | 토큰 확인 실패 | `journalctl` 에 `/auth/verify` 응답 확인 |
+| UDP 자체가 막힘 | 망 정책 | `-145 §4-3` 의 예비안 — `SimpleWebTransport` 로 wss(443) |
+
+## 9. 남은 것
+
+- **`-55`**: 지금은 맵에서 떨어지면 되돌아오지 않는다. 서버에 낙사 판정이 없다.
+  이번 테스트는 "떨어지지 않기" 로 피한다.
+- **`-143`**: 이 절차의 빌드·전송을 CI 로 옮긴다.
+- 스왑 0 이므로 4 인 접속 뒤 메모리를 보고 필요하면 2 GB 확보(`-145 §4-5`).
