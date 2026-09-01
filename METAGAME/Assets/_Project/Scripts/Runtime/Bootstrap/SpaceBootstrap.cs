@@ -107,8 +107,11 @@ namespace Metagame.Bootstrap
             // 세계는 세워야 한다 — 그 위에서 물리가 돌아야 하기 때문이다.
             if (Mirror.NetworkServer.active && !Mirror.NetworkClient.active)
             {
-                // 운반체 배치는 서버가 정한다(-152). 위치는 NetworkTransform 으로 내려간다.
+                // 운반체 배치는 서버가 정한다(-152). 위치는 WorldSync 로 내려간다.
+                // 조작은 사람마다 다르므로 이 컨트롤러는 배치만 하고 손을 뗀다 —
+                // 접속자별 조작은 NetPlayer 가 자기 컨트롤러로 한다(-149).
                 Transport.Configure(null, beams);
+                Transport.Authoritative = false;
                 Session.Transport = Transport;
                 Session.Begin(null, Level, Level.SpawnFoot, Exploration);
                 return;
@@ -133,6 +136,9 @@ namespace Metagame.Bootstrap
             ExplorationHud.AttachTablet(Player.Cam.Cam);
             Player.ConfigureClampInteraction(Player.Cam.transform);
             Transport.Configure(Player, beams, randomizeVehicles: !inMatch);
+
+            // 매치 중에는 조준·안내만 하고 실행은 서버에 맡긴다(-149).
+            Transport.Authoritative = !inMatch;
 
             Hud.Local = Player;
             Hud.Transport = Transport;
