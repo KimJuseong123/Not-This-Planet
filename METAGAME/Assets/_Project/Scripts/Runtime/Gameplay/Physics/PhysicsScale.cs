@@ -754,8 +754,52 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float BatLaunchDegrees = 30f;
 
-        /// <summary>동료를 직접 때릴 수 있는 거리(m). 기획 §18.3.</summary>
-        public const float BatPlayerReach = 2f;
+        /// <summary>
+        /// 한 번 휘두르는 데 걸리는 시간(초).
+        ///
+        /// <b>짧아야 한다.</b> 기획 §18.1 이 "완벽한 프레임, 등급과 치명타 판정은 없다"
+        /// 고 정하므로 동작이 판정을 좌우하면 안 된다. 타격 창(<see cref="BatSwingWindowSeconds"/>
+        /// 1초)의 3분의 1쯤이면, 창 안에서 클릭한 스윙은 창이 닫히기 전에 끝난다.
+        /// </summary>
+        public const float BatSwingSeconds = 0.28f;
+
+        /// <summary>스윙이 시작될 때 도구가 조준선보다 위로 들리는 각도(도).</summary>
+        public const float BatSwingUpDegrees = 55f;
+
+        /// <summary>
+        /// 스윙이 끝날 때의 각도(도). 음수면 조준선보다 아래다.
+        ///
+        /// 위에서 앞아래로 내려찍는 궤적이다. 야구 스윙처럼 수평으로 돌리지 않는 이유는
+        /// 목표가 <b>떨어지는 운석</b>이라서다 — 위에서 내려오는 것을 아래에서 위로 걷어
+        /// 올리는 것이 §18.2 의 "약간의 위쪽 각도를 더해" 와도 맞는다.
+        /// </summary>
+        public const float BatSwingDownDegrees = -35f;
+
+        /// <summary>
+        /// 방망이가 닿는 거리(m). 동료(기획 §18.3)와 소품에 같이 쓴다.
+        ///
+        /// 예전 이름은 <c>BatPlayerReach</c> 였다. 사거리는 <b>도구의 성질</b>이지 맞는
+        /// 쪽의 성질이 아니다 — 소품이 대상에 들어오면서(S15P21B202-245) 이름이 사실과
+        /// 어긋났다. 동료와 소품이 다른 거리에서 맞으면 플레이어가 두 값을 배워야 한다.
+        ///
+        /// 운석은 이 값을 쓰지 않는다. 운석은 <see cref="BatAssistRadius"/>(2.5m)로
+        /// <b>낙하 지점</b>까지의 거리를 재기 때문이다 — 공중에 있는 것을 팔 길이로
+        /// 재면 맞을 수 없다.
+        /// </summary>
+        public const float BatStrikeReach = 2f;
+
+        /// <summary>
+        /// 소품을 밀치는 충격량(N·s). 기획에 없는 값이다(S15P21B202-245).
+        ///
+        /// <b>속도가 아니라 충격량이다.</b> 소품은 질량이 제각각인데(<c>LevelBuilder</c> 가
+        /// 개별로 받는다) 속도를 대입하면 무거운 상자와 가벼운 조각이 똑같이 날아간다.
+        /// 충격량은 질량이 나누므로 무거운 것이 덜 움직인다 — 방망이로 <b>밀친다</b> 는
+        /// 감각이 그것이다.
+        ///
+        /// 60kg 운석이 <see cref="BatDeflectSpeed"/>(14m/s)로 날아가는 것과 비슷한 크기로
+        /// 잡았다. 20kg 짜리 상자면 초속 4m 쯤이다.
+        /// </summary>
+        public const float BatPropImpulse = 80f;
 
         /// <summary>
         /// 직접 맞은 동료가 밀려나는 속도(m/s).
