@@ -44,7 +44,9 @@ namespace Metagame.Gameplay
         {
             if (passMaterial == null || pass == null) return;
             if (!enableOnMobile && Application.isMobilePlatform) return;
-            if (Shader.GetGlobalFloat(AtmosphereController.HazeEnabledId) < 0.5f) return;
+            bool hazeEnabled = Shader.GetGlobalFloat(AtmosphereController.HazeEnabledId) >= 0.5f;
+            bool groundFogEnabled = Shader.GetGlobalFloat(AtmosphereController.GroundFogEnabledId) >= 0.5f;
+            if (!hazeEnabled && !groundFogEnabled) return;
             if (renderingData.cameraData.cameraType == CameraType.Preview ||
                 renderingData.cameraData.cameraType == CameraType.Reflection)
                 return;

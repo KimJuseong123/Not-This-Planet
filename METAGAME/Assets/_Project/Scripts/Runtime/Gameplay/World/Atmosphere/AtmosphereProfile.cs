@@ -89,6 +89,21 @@ namespace Metagame.Gameplay
         }
 
         [Serializable]
+        public sealed class GroundFogSettings
+        {
+            public bool enabled;
+            public Color color = new Color(0.20f, 0.15f, 0.32f, 1f);
+            [Range(0f, 1f)] public float density = 0.10f;
+            public float baseHeight;
+            [Min(0.001f)] public float heightFalloff = 0.20f;
+            [Min(0f)] public float startDistance = 2f;
+            [Min(0.01f)] public float endDistance = 80f;
+            [Min(0.001f)] public float noiseScale = 0.05f;
+            public Vector2 noiseSpeed = new Vector2(0.006f, -0.004f);
+            [Range(0f, 1f)] public float noiseStrength = 0.22f;
+        }
+
+        [Serializable]
         public sealed class PostProcessingSettings
         {
             public TonemappingMode tonemapping = TonemappingMode.ACES;
@@ -131,6 +146,7 @@ namespace Metagame.Gameplay
         [Header("Depth and screen atmosphere")]
         public FogSettings fog = new FogSettings();
         public HazeSettings haze = new HazeSettings();
+        public GroundFogSettings groundFog = new GroundFogSettings();
         public PostProcessingSettings postProcessing = new PostProcessingSettings();
 
         [Header("Visual-only effects")]
@@ -148,6 +164,7 @@ namespace Metagame.Gameplay
             if (lighting == null) lighting = new LightingSettings();
             if (fog == null) fog = new FogSettings();
             if (haze == null) haze = new HazeSettings();
+            if (groundFog == null) groundFog = new GroundFogSettings();
             if (postProcessing == null) postProcessing = new PostProcessingSettings();
             if (meteorShower == null) meteorShower = new MeteorShowerSettings();
 
@@ -158,6 +175,12 @@ namespace Metagame.Gameplay
             celestialBodies.moonDiameter = Mathf.Max(0.01f, celestialBodies.moonDiameter);
             fog.endDistance = Mathf.Max(fog.startDistance + 0.01f, fog.endDistance);
             haze.endDistance = Mathf.Max(haze.startDistance + 0.01f, haze.endDistance);
+            groundFog.density = Mathf.Clamp01(groundFog.density);
+            groundFog.startDistance = Mathf.Max(0f, groundFog.startDistance);
+            groundFog.endDistance = Mathf.Max(groundFog.startDistance + 0.01f, groundFog.endDistance);
+            groundFog.heightFalloff = Mathf.Max(0.001f, groundFog.heightFalloff);
+            groundFog.noiseScale = Mathf.Max(0.001f, groundFog.noiseScale);
+            groundFog.noiseStrength = Mathf.Clamp01(groundFog.noiseStrength);
             meteorShower.maxParticles = Mathf.Clamp(meteorShower.maxParticles, 0, 64);
             meteorShower.alertEmissionMultiplier = Mathf.Max(1f, meteorShower.alertEmissionMultiplier);
             meteorShower.lifetime = Mathf.Max(0.05f, meteorShower.lifetime);

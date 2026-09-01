@@ -15,6 +15,16 @@ namespace Metagame.Gameplay
         public const string HazeDensityId = "_MetagameAtmosphereHazeDensity";
         public const string HazeStartId = "_MetagameAtmosphereHazeStart";
         public const string HazeEndId = "_MetagameAtmosphereHazeEnd";
+        public const string GroundFogEnabledId = "_MetagameAtmosphereGroundFogEnabled";
+        public const string GroundFogColorId = "_MetagameAtmosphereGroundFogColor";
+        public const string GroundFogDensityId = "_MetagameAtmosphereGroundFogDensity";
+        public const string GroundFogBaseHeightId = "_MetagameAtmosphereGroundFogBaseHeight";
+        public const string GroundFogHeightFalloffId = "_MetagameAtmosphereGroundFogHeightFalloff";
+        public const string GroundFogStartId = "_MetagameAtmosphereGroundFogStart";
+        public const string GroundFogEndId = "_MetagameAtmosphereGroundFogEnd";
+        public const string GroundFogNoiseScaleId = "_MetagameAtmosphereGroundFogNoiseScale";
+        public const string GroundFogNoiseSpeedId = "_MetagameAtmosphereGroundFogNoiseSpeed";
+        public const string GroundFogNoiseStrengthId = "_MetagameAtmosphereGroundFogNoiseStrength";
         public const string MeteorIntensityId = "_MetagameAtmosphereMeteorShowerIntensity";
 
         [SerializeField] AtmosphereProfile startupProfile;
@@ -91,6 +101,7 @@ namespace Metagame.Gameplay
             ApplyLighting(profile.lighting);
             ApplyFog(profile.fog);
             ApplyHaze(profile.haze);
+            ApplyGroundFog(profile.groundFog);
             ApplyVolume(profile.postProcessing);
             ApplyCamera(profile);
             ApplyVisualComponents(profile);
@@ -140,6 +151,7 @@ namespace Metagame.Gameplay
             }
 
             Shader.SetGlobalFloat(HazeEnabledId, 0f);
+            Shader.SetGlobalFloat(GroundFogEnabledId, 0f);
             Shader.SetGlobalFloat(MeteorIntensityId, 0f);
             if (runtimeVolume != null) runtimeVolume.enabled = false;
 
@@ -243,6 +255,22 @@ namespace Metagame.Gameplay
             Shader.SetGlobalFloat(HazeDensityId, settings.density * effectScale * (1f + alertIntensity * 0.5f));
             Shader.SetGlobalFloat(HazeStartId, settings.startDistance);
             Shader.SetGlobalFloat(HazeEndId, settings.endDistance);
+        }
+
+        void ApplyGroundFog(AtmosphereProfile.GroundFogSettings settings)
+        {
+            float effectScale = GetEffectScale();
+            bool enabled = settings.enabled && effectScale > 0f;
+            Shader.SetGlobalFloat(GroundFogEnabledId, enabled ? 1f : 0f);
+            Shader.SetGlobalColor(GroundFogColorId, settings.color);
+            Shader.SetGlobalFloat(GroundFogDensityId, settings.density * effectScale);
+            Shader.SetGlobalFloat(GroundFogBaseHeightId, settings.baseHeight);
+            Shader.SetGlobalFloat(GroundFogHeightFalloffId, settings.heightFalloff);
+            Shader.SetGlobalFloat(GroundFogStartId, settings.startDistance);
+            Shader.SetGlobalFloat(GroundFogEndId, settings.endDistance);
+            Shader.SetGlobalFloat(GroundFogNoiseScaleId, settings.noiseScale);
+            Shader.SetGlobalVector(GroundFogNoiseSpeedId, settings.noiseSpeed);
+            Shader.SetGlobalFloat(GroundFogNoiseStrengthId, settings.noiseStrength);
         }
 
         void ApplyVolume(AtmosphereProfile.PostProcessingSettings settings)

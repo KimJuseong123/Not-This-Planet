@@ -124,6 +124,17 @@ namespace Metagame.EditorTools
             profile.haze.startDistance = 15f;
             profile.haze.endDistance = 180f;
 
+            profile.groundFog.enabled = true;
+            profile.groundFog.color = new Color(0.20f, 0.15f, 0.32f, 1f);
+            profile.groundFog.density = 0.10f;
+            profile.groundFog.baseHeight = 0f;
+            profile.groundFog.heightFalloff = 0.20f;
+            profile.groundFog.startDistance = 2f;
+            profile.groundFog.endDistance = 80f;
+            profile.groundFog.noiseScale = 0.05f;
+            profile.groundFog.noiseSpeed = new Vector2(0.006f, -0.004f);
+            profile.groundFog.noiseStrength = 0.22f;
+
             profile.postProcessing.tonemapping = TonemappingMode.ACES;
             profile.postProcessing.bloomEnabled = true;
             profile.postProcessing.bloomIntensity = 0.15f;
