@@ -15,8 +15,9 @@ namespace Metagame.Gameplay
     /// 플라즈마 용접기. 좌클릭은 용접, 우클릭은 절단이다.
     ///
     /// 빔 표시와 입력은 S15P21B202-168([Art])이 만들었고 <b>효과가 없었다</b> —
-    /// 좌클릭하면 색만 바뀌었다. S15P21B202-206 에서 원형 접합선
-    /// (<see cref="WeldSeam"/>)에 연결했다.
+    /// 좌클릭하면 색만 바뀌었다. S15P21B202-206 에서 원형 접합선에 연결했고,
+    /// S15P21B202-230 에서 그 접합선을 걷어내 <b>용접 비드</b>(<see cref="WeldBead"/>)
+    /// 하나만 남겼다.
     ///
     /// 절단(우클릭)은 S15P21B202-209 에서 붙였다. 용접과 절단은 하나의 노즐에서 나가는
     /// 상호 배타적 기능이므로 한쪽이 도는 동안 다른 쪽은 진행되지 않는다.
@@ -54,34 +55,28 @@ namespace Metagame.Gameplay
         public Vector3 BeamEnd { get; private set; }
 
         /// <summary>
-        /// 지금 용접 중인 접합선. 없으면 null.
+        /// 지금 비드를 쌓고 있는 파츠. 없으면 null.
         ///
         /// <b>진행도를 밖으로 내보내지 않는다.</b> 기획 §16.2 가 "용접률, 완료 문구,
         /// 진행 바" 를 금지한다. 무엇을 겨누고 있는지는 불꽃 위치를 정하는 데 필요하므로
-        /// 접합선 자체만 알려 준다.
+        /// 대상만 알려 준다.
         /// </summary>
-        public WeldSeam WeldingSeam { get; private set; }
+        public WeldBead GrowingBead { get; private set; }
 
-        /// <summary>이번 틱에 용접이 실제로 진행됐는가. 불꽃·소리가 붙을 신호다.</summary>
+        /// <summary>
+        /// 이번 틱에 용접이 실제로 진행됐는가. <b>불꽃·소리가 붙을 신호다.</b>
+        ///
+        /// 다리가 다른 몸체에 걸리는 순간 <c>false</c> 가 된다 — 비드가 더 뻗지 않기
+        /// 때문이다(S15P21B202-228). 진행 바가 없는 설계에서 <b>불꽃이 멎는 것</b>이
+        /// "이어졌다" 를 알리는 신호가 된다.
+        /// </summary>
         public bool WeldingProgressed { get; private set; }
 
-        /// <summary>지금 절단 중인 접합선. 없으면 null.</summary>
-        public WeldSeam CuttingSeam { get; private set; }
+        /// <summary>지금 비드를 깎고 있는 파츠. 없으면 null.</summary>
+        public WeldBead ShrinkingBead { get; private set; }
 
         /// <summary>이번 틱에 절단이 실제로 진행됐는가.</summary>
         public bool CuttingProgressed { get; private set; }
-
-        /// <summary>지금 비드를 쌓고 있는 파츠의 비드 관리자. 없으면 null.</summary>
-        public WeldBead GrowingBead { get; private set; }
-
-        /// <summary>이번 틱에 비드가 실제로 자랐는가. 불꽃이 붙을 또 하나의 신호다.</summary>
-        public bool BeadProgressed { get; private set; }
-
-        /// <summary>지금 비드를 깎고 있는 파츠의 비드 관리자. 없으면 null.</summary>
-        public WeldBead ShrinkingBead { get; private set; }
-
-        /// <summary>이번 틱에 비드가 실제로 깎였는가.</summary>
-        public bool BeadShrunk { get; private set; }
         public Color CurrentBeamColor
         {
             get
@@ -122,14 +117,10 @@ namespace Metagame.Gameplay
 
             BeamMode = PlasmaBeamMode.None;
             BeamActive = false;
-            WeldingSeam = null;
             WeldingProgressed = false;
-            CuttingSeam = null;
             CuttingProgressed = false;
             GrowingBead = null;
-            BeadProgressed = false;
             ShrinkingBead = null;
-            BeadShrunk = false;
             if (petalAnimator != null) petalAnimator.SnapToMode(PlasmaBeamMode.None);
             if (beam != null) beam.enabled = false;
         }
@@ -153,15 +144,14 @@ namespace Metagame.Gameplay
         }
 
         /// <summary>
-        /// 겨누고 있는 원형 접합선을 채운다(기획 §16.1).
+        /// 겨누고 있는 우주선 몸체에 비드를 쌓는다(기획 §16.2).
         ///
-        /// 조준 방향이 아니라 <b>노즐 위치</b>로 접합선을 찾는다. 기획의 "용접기 최대
-        /// 사거리는 약 0.8m" 가 뜻하는 것이 노즐과 접합선 사이의 거리이고, 그래서
-        /// 플레이어는 서서 돌아보는 것이 아니라 우주선을 <b>돌아야</b> 한다 — §16.1 의
-        /// "원형 접합부 전체를 따라간다" 가 그 뜻이다.
+        /// 조준 방향이 아니라 <b>노즐 위치</b>로 대상을 찾는다. 기획의 "용접기 최대
+        /// 사거리는 약 0.8m" 가 뜻하는 것이 노즐과 몸체 사이의 거리이고, 그래서
+        /// 플레이어는 서서 돌아보는 것이 아니라 우주선을 <b>돌아야</b> 한다.
         ///
-        /// 조준 방향까지 보게 하면 0.8m 앞의 접합선을 겨누지 못하는 각도가 생겨
-        /// "닿았는데 안 되는" 상태가 된다.
+        /// 조준 방향까지 보게 하면 0.8m 앞을 겨누지 못하는 각도가 생겨 "닿았는데 안 되는"
+        /// 상태가 된다. 기둥이 뻗는 방향은 대신 표면의 바깥 방향으로 정한다.
         ///
         /// 모드를 인수로 받는다. <see cref="BeamMode"/> 를 읽으면 검증이 입력 프레임과
         /// 장착 절차를 통째로 흉내내야 하고, 그러면 정작 보고 싶은 기하 판정이 묻힌다.
@@ -170,33 +160,16 @@ namespace Metagame.Gameplay
         public bool WeldTick(float deltaTime, PlasmaBeamMode mode)
         {
             WeldingProgressed = false;
-            BeadProgressed = false;
 
             if (mode != PlasmaBeamMode.Weld || Muzzle == null)
             {
-                WeldingSeam = null;
                 GrowingBead = null;
                 return false;
             }
 
-            WeldingSeam = WeldSeam.FindNearest(Muzzle.position);
-            if (WeldingSeam != null)
-            {
-                var point = WeldingSeam.ClosestPointOnSeam(Muzzle.position);
-                WeldingProgressed = WeldingSeam.TryWeld(point, deltaTime);
-                if (WeldingProgressed)
-                {
-                    GrowingBead = null;
-                    return true;
-                }
-            }
-
-            // 접합선이 없거나 그 자리가 이미 다 찼으면 몸체에 비드를 쌓는다(S15P21B202-226).
-            // 접합선을 먼저 보는 것은 §16.1 의 원형 용접이 조립의 정식 절차이기 때문이다 —
-            // 접합선 위에서 비드부터 쌓이면 정작 훑어야 할 진행분이 오르지 않는다.
-            BeadProgressed = WeldBead.TryGrowNear(Muzzle.position, deltaTime, out var bead);
+            WeldingProgressed = WeldBead.TryGrowNear(Muzzle.position, deltaTime, out var bead);
             GrowingBead = bead;
-            return BeadProgressed;
+            return WeldingProgressed;
         }
 
         protected override void OnToolVisualUpdate(ToolInputFrame input, ToolAimContext aim)
@@ -236,44 +209,28 @@ namespace Metagame.Gameplay
         }
 
         /// <summary>
-        /// 겨누고 있는 원형 접합선을 자른다(기획 §16.3).
+        /// 겨누고 있는 비드를 깎는다(기획 §16.3).
         ///
-        /// 접합선을 찾는 방식과 사거리는 <see cref="WeldTick"/> 과 같아야 한다 —
+        /// 대상을 찾는 방식과 사거리는 <see cref="WeldTick"/> 과 같아야 한다 —
         /// 용접은 되는데 절단은 안 되는 각도가 생기면 플레이어가 이유를 알 수 없다.
+        ///
+        /// 쌓을 수만 있고 되돌릴 수 없으면 잘못 쏜 한 번이 파츠에 영구히 남는다.
+        /// 잇는 비드가 다 사라지면 접합도 풀린다(S15P21B202-228).
         /// </summary>
         /// <returns>실제로 절단이 진행됐는가.</returns>
         public bool CutTick(float deltaTime, PlasmaBeamMode mode)
         {
             CuttingProgressed = false;
-            BeadShrunk = false;
 
             if (mode != PlasmaBeamMode.Cut || Muzzle == null)
             {
-                CuttingSeam = null;
                 ShrinkingBead = null;
                 return false;
             }
 
-            CuttingSeam = WeldSeam.FindNearest(Muzzle.position);
-            if (CuttingSeam != null)
-            {
-                var point = CuttingSeam.ClosestPointOnSeam(Muzzle.position);
-                CuttingProgressed = CuttingSeam.TryCut(point, deltaTime);
-
-                // 완전히 잘리면 접합이 해제되고 접합선의 진행분도 되돌아간다.
-                // 다음 틱에 다시 찾으면 되므로 여기서 붙잡아 두지 않는다.
-                if (CuttingProgressed)
-                {
-                    ShrinkingBead = null;
-                    return true;
-                }
-            }
-
-            // 쌓은 비드를 깎는다. 쌓을 수만 있고 되돌릴 수 없으면 잘못 쏜 한 번이
-            // 파츠에 영구히 남는다.
-            BeadShrunk = WeldBead.TryShrinkNear(Muzzle.position, deltaTime, out var bead);
+            CuttingProgressed = WeldBead.TryShrinkNear(Muzzle.position, deltaTime, out var bead);
             ShrinkingBead = bead;
-            return BeadShrunk;
+            return CuttingProgressed;
         }
 
         void EnsureBeam()

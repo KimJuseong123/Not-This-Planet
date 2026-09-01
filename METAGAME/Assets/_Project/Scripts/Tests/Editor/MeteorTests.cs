@@ -247,28 +247,16 @@ namespace Metagame.Gameplay.Tests
             var upper = SocketTestRig.Freed(
                 _spawned, origin + Vector3.up * (PhysicsScale.PartHeight + SocketTestRig.StackGap));
 
-            AddWeldSeam(upper);
 
             upper.TryTransitionTo(PartState.Carried);
 
             var link = PartAssembler.Assemble(PartAssembler.FindMatch(upper));
             Assert.IsNotNull(link);
-            link.RefreshSeam();
 
             if (welded) link.ForceWeldComplete();
 
             link.Tick();
             return upper;
-        }
-
-        /// <summary>밑면의 원형 용접선(기획 §16.1). 예전에는 용접점 4개였다.</summary>
-        static void AddWeldSeam(SpaceshipPart part)
-        {
-            var go = new GameObject("WeldSeam");
-            go.transform.SetParent(part.transform, false);
-            go.transform.localPosition = Vector3.down * (PhysicsScale.PartHeight * 0.5f);
-
-            go.AddComponent<WeldSeam>();
         }
 
         /// <summary>파츠 위쪽에서 운석을 떨어뜨린다.</summary>

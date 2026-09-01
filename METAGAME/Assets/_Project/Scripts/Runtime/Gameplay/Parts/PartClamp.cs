@@ -44,7 +44,7 @@ namespace Metagame.Gameplay.Parts
         /// 뽑힌 정도를 초로 누적한 값. 직렬화한다.
         ///
         /// 저장하지 않으면 씬을 다시 로드했을 때 반쯤 뽑아 둔 고정못이 처음으로
-        /// 돌아간다(<see cref="WeldSeam"/> 의 용접 진행분도 같은 이유로 저장한다).
+        /// 돌아간다(<see cref="WeldBead"/> 의 사슬 구조도 같은 이유로 저장한다).
         /// </summary>
         [SerializeField, HideInInspector] float _pulledSeconds;
 

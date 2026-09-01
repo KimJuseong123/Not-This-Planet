@@ -169,13 +169,14 @@ namespace Metagame.EditorTools
                 part.RefreshClamps();
 
                 var clamps = part.Clamps.Count;
-                var seam = part.GetComponentInChildren<WeldSeam>(true);
 
                 if (clamps != 4) Fail($"{spec.Name} 의 고정못이 {clamps}개다. 기획은 4개(§12.1)");
-                if (seam == null) Fail($"{spec.Name} 에 원형 용접선이 없다 — 용접할 수 없다(§16.1)");
 
-                if (clamps == 4 && seam != null)
-                    Ok($"{spec.Name}({spec.DisplayName}) 고정못 4 · 접합선 1 · 상태 {part.State}");
+                // 용접 준비물을 검사하지 않는다. S15P21B202-230 에서 원형 접합선을
+                // 걷어낸 뒤로 파츠에 미리 놓아 둘 것이 없다 — 비드는 용접기를 쏘는
+                // 자리에 생기고, 검사할 것은 값(아래 CheckDesignValues)뿐이다.
+                if (clamps == 4)
+                    Ok($"{spec.Name}({spec.DisplayName}) 고정못 4 · 상태 {part.State}");
             }
         }
 
@@ -262,9 +263,15 @@ namespace Metagame.EditorTools
 
             Value("고정못 1명 (§12.2 약 8초)", PhysicsScale.ClampPullSeconds, 8f);
             Value("고정못 2명 (§12.2 약 4.5초)", PartClamp.PullSecondsFor(2), 4.5f, 0.3f);
-            Value("용접 최단 (§16.1 약 10초)", PhysicsScale.WeldSeamSeconds, 10f);
-            Value("절단 최단 (§16.3 약 6초)", PhysicsScale.CutSeamSeconds, 6f);
-            Value("용접기 사거리 (§16.1 약 0.8m)", PhysicsScale.WeldSeamRange, 0.8f, 0.05f);
+            Value("용접기 사거리 (§16.1 약 0.8m)", PhysicsScale.WeldRange, 0.8f, 0.05f);
+
+            // 접합부 하나를 채우는 시간. 예전에는 접합선을 훑는 10초였고, 지금은
+            // 사슬 하나를 끝까지 쌓는 시간이 그것을 대신한다(기획 §16.1 약 10초).
+            Value("용접 최단 (§16.1 약 10초)",
+                  PhysicsScale.WeldBeadBlobSeconds * PhysicsScale.WeldBeadBlobsPerChain,
+                  10f, 1f);
+            Value("비드 덩어리 상한 (§16.2)", PhysicsScale.WeldBeadMaxRadius, 0.10f, 0.01f);
+            Value("완전 강도까지 덩어리 (§16.2)", PhysicsScale.WeldBeadFullStrengthBlobs, 3f);
             Value("기체 수평 (§14.1 8m/s)", 8f, 8f);
             Value("기체 가속 (§14.1 12m/s)", PhysicsScale.CraftBoostSpeed, 12f);
             Value("견인 중 감속 (§14.1 20%)", PhysicsScale.CraftTowSpeedFactor, 0.8f, 0.01f);

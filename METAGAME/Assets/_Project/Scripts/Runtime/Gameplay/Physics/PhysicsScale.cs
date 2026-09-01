@@ -131,61 +131,22 @@ namespace Metagame.Gameplay
         public const float UnweldedBreakTorque = 5000f;
 
         // --- 용접 ---
-        /// <summary>용접점 하나를 채우는 데 걸리는 시간.</summary>
-        /// <summary>
-        /// 예전 용접점 하나를 채우는 시간. 원형 접합선으로 바뀐 뒤에는 쓰지 않는다.
-        /// </summary>
-        [System.Obsolete("원형 접합선으로 전환했다. WeldSeamSeconds 와 WeldSeamSegments 를 쓴다.")]
-        public const float WeldSecondsPerPoint = 3f;
+        //
+        // S15P21B202-230 에서 원형 접합선 관련 값을 모두 걷어냈다. 접합선이 하던 일을
+        // 비드가 하므로(S15P21B202-226 · 228 · 229) 시간·조각 수는 뜻을 잃었다.
+        // <b>사거리만 남는다</b> — 그것은 접합선의 값이 아니라 용접기의 값이었다.
 
         /// <summary>
-        /// 원형 접합선 하나를 <b>빠짐없이 훑었을 때</b>의 용접 시간(초).
-        ///
-        /// 기획 §16.1 "원형 접합부 하나의 최단 용접 시간은 약 10초, 일반적인 완료 시간은
-        /// 12~15초를 목표로 한다". 여기 적는 것이 <b>최단</b> 시간이다 — 12~15초는
-        /// 겹쳐 대거나 빠뜨렸다가 되돌아오는 실제 플레이에서 저절로 나온다.
-        ///
-        /// 예전 방식(용접점 4개 × 3초 = 12초)과 총량이 비슷하다. 바뀌는 것은 총량이
-        /// 아니라 <b>기제</b> 다 — 한 점에 대고 있으면 되던 것이 이제는 돌아야 한다.
-        /// </summary>
-        public const float WeldSeamSeconds = 10f;
-
-        /// <summary>
-        /// 원형 접합선을 몇 조각으로 나눌지.
-        ///
-        /// 조각 하나가 30도다. 이 값이 §16.1 의 "같은 위치에 계속 대고 있어도 추가
-        /// 진행되지 않는다" 를 만든다 — 조각이 차면 그 자리에서는 더 오르지 않는다.
-        ///
-        /// 너무 적으면(4개) 예전 점 용접과 다를 바 없고, 너무 많으면(72개) 한 조각이
-        /// 0.14초라 훑는 손맛이 사라진다.
-        /// </summary>
-        public const int WeldSeamSegments = 12;
-
-        /// <summary>
-        /// 조각 하나를 채우는 시간(초). 12조각 × 0.833초 ≈ 10초.
-        /// </summary>
-        public static float WeldSeamSecondsPerSegment => WeldSeamSeconds / WeldSeamSegments;
-
-        /// <summary>
-        /// 용접기가 접합선에 닿는다고 보는 거리(m).
+        /// 용접기가 몸체에 닿는다고 보는 거리(m).
         ///
         /// 기획 §16.1 "용접기 최대 사거리는 약 0.8m". <see cref="Metagame.Core.Tuning"/>
         /// 의 <c>ToolBeamRange</c> 가 이미 0.80m 이며 같은 값이어야 한다 — 빔이 닿아
         /// 보이는데 용접이 안 되거나 그 반대면 플레이어가 이유를 알 수 없다.
-        /// </summary>
-        public const float WeldSeamRange = 0.80f;
-
-        /// <summary>
-        /// 원형 접합선 하나를 <b>빠짐없이 훑었을 때</b>의 완전 절단 시간(초).
         ///
-        /// 기획 §16.3 "완전 절단의 최단 시간은 약 6초, 일반적인 시간은 8~10초이다".
-        /// 여기 적는 것이 <b>최단</b> 시간이다 — 8~10초는 겹쳐 대거나 빠뜨렸다가
-        /// 되돌아오는 실제 플레이에서 나온다(용접과 같은 이유로 상수로 넣지 않는다).
-        ///
-        /// 용접(10초)보다 빠른 것이 기획 의도다. 부수는 것이 만드는 것보다 쉬워야
-        /// 실수를 되돌리는 부담이 작다.
+        /// 예전 이름은 <c>WeldSeamRange</c> 였다. 접합선이 사라져도 이 값은 남으므로
+        /// 이름에서 접합선을 뗐다 — 처음부터 접합선의 값이 아니라 <b>도구</b>의 값이었다.
         /// </summary>
-        public const float CutSeamSeconds = 6f;
+        public const float WeldRange = 0.80f;
 
         // --- 용접 비드 (기획 §16.2 의 "실제 금속 비드") ---
         /// <summary>
@@ -211,9 +172,11 @@ namespace Metagame.Gameplay
         /// <summary>
         /// 덩어리 하나가 최소에서 최대까지 자라는 시간(초).
         ///
-        /// 원형 접합선의 조각 하나(<see cref="WeldSeamSecondsPerSegment"/>, 약 0.83초)의
-        /// 두 배쯤이다. 비드는 접합선과 달리 <b>한 자리에 계속 대고 있는</b> 작업이므로
-        /// 조각보다 느려야 "쌓는" 느낌이 난다.
+        /// 기획 §16.1 이 접합부 하나의 최단 용접 시간을 약 10초로 잡는다. 덩어리 하나에
+        /// 1.6초면 사슬 여섯 칸을 채우는 데 약 10초라, 그 총량이 그대로 유지된다.
+        ///
+        /// 이보다 빠르면 <b>쌓는</b> 느낌이 사라진다 — 비드는 훑는 작업이 아니라 한 자리에
+        /// 대고 있는 작업이므로, 덩어리가 커지는 것이 눈에 보일 만큼은 느려야 한다.
         /// </summary>
         public const float WeldBeadBlobSeconds = 1.6f;
 
@@ -221,7 +184,7 @@ namespace Metagame.Gameplay
         /// 한 사슬에 이어 붙는 덩어리 수 = <b>최대 다리 길이</b>.
         ///
         /// 6개 × <see cref="WeldBeadStep"/> 0.13m + 반지름 0.10m ≈ 0.75m 를 뻗는다.
-        /// 용접기 사거리(<see cref="WeldSeamRange"/> 0.80m)보다 짧게 둔 것이 의도다 —
+        /// 용접기 사거리(<see cref="WeldRange"/> 0.80m)보다 짧게 둔 것이 의도다 —
         /// 길이 상한이 사거리보다 길면 플레이어가 자기 비드를 따라가지 못해 끝을
         /// 놓치고, 왜 멈췄는지 알 수 없다.
         /// </summary>
@@ -258,6 +221,30 @@ namespace Metagame.Gameplay
         /// 한쪽에만 잔뜩 쌓으면 무게중심이 눈에 보이게 치우친다.
         /// </summary>
         public const float WeldBeadFullMass = 4f;
+
+        /// <summary>
+        /// 비드가 다른 몸체에 <b>닿았다</b>고 보는 여유(m).
+        ///
+        /// 0 이면 콜라이더가 정확히 맞닿아야 하는데, 조인트가 걸리기 전의 두 파츠는
+        /// 언제나 조금씩 떨리므로 닿았다 말았다 한다. 그러면 접합이 붙었다 풀렸다 한다.
+        /// </summary>
+        public const float WeldBeadContactSkin = 0.02f;
+
+        /// <summary>
+        /// 접합이 <b>완전 용접 강도</b>에 이르는 데 필요한, 상대 몸체에 닿아 있는
+        /// 최대 크기 덩어리의 수.
+        ///
+        /// <b>기둥 길이가 아니라 닿아 있는 부피로 센다.</b> 6칸 기둥 하나가 2칸 기둥
+        /// 하나보다 튼튼하면 물리적으로 거꾸로다 — 얇고 긴 다리는 약해야 한다. 긴 기둥은
+        /// 끝만 닿으므로 저절로 한 덩어리 몫이 된다.
+        ///
+        /// 사슬이 여럿이면 <b>더해진다.</b> 그래서 한 자리에 몰아 쏘는 것으로는 3 을
+        /// 채울 수 없고 여러 군데를 이어야 한다 — 기획 §16.1 의 "원형 접합부 전체를
+        /// 따라간다" 를 비드 방식으로 되살린 것이 이 값이다.
+        ///
+        /// 3 은 기획서 용어로 <b>초기 테스트값</b>이며 플레이 테스트로 조정한다.
+        /// </summary>
+        public const int WeldBeadFullStrengthBlobs = 3;
 
         // --- 바닥 고정못 (기획 §12.1 · §12.2) ---
         /// <summary>
@@ -372,9 +359,6 @@ namespace Metagame.Gameplay
         /// (§22.4 의 발사 실패와 같은 원칙).
         /// </summary>
         public const float AllDownedRespawnSeconds = 8f;
-
-        /// <summary>조각 하나를 자르는 시간(초). 12조각 × 0.5초 = 6초.</summary>
-        public static float CutSeamSecondsPerSegment => CutSeamSeconds / WeldSeamSegments;
 
 
         /// <summary>
