@@ -34,6 +34,12 @@ namespace Metagame.Core
         public bool TabletPreviousPage; // ← 또는 A — 태블릿 이전 페이지
         public bool TabletNextPage;     // → 또는 D — 태블릿 다음 페이지
         public bool Restart;
+
+        /// <summary>
+        /// T — 끼임 탈출(기획 §21). <b>누른 순간이 아니라 누르고 있는 상태</b>다.
+        /// §21 이 "3초 동안 유지하면" 이라고 정하므로 유지 여부를 매 프레임 알아야 한다.
+        /// </summary>
+        public bool StuckEscapeHeld;
     }
 
     /// <summary>
@@ -63,7 +69,7 @@ namespace Metagame.Core
         public static KeyCode ArmsUp = KeyCode.LeftControl;
         public static KeyCode FreeLook = KeyCode.LeftAlt;
         public static KeyCode Restart = KeyCode.R;
-        public static KeyCode Respawn = KeyCode.T;      // 끼었을 때 탈출
+        public static KeyCode StuckEscape = KeyCode.T;  // 끼었을 때 탈출 (기획 §21)
         public static KeyCode ToolAction = KeyCode.Q;   // 도구 놓기 / 충전 투척
         public static KeyCode TransportAction = KeyCode.E; // 운반 장치 탑승 / 하차
         public static KeyCode Tablet = KeyCode.Tab;
@@ -98,6 +104,7 @@ namespace Metagame.Core
             f.TabletNextPage = Input.GetKeyDown(TabletNextPage)
                                || Input.GetKeyDown(TabletNextPageAlternate);
             f.Restart = Input.GetKeyDown(Restart);
+            f.StuckEscapeHeld = Input.GetKey(StuckEscape);
             return f;
         }
     }
