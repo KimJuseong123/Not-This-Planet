@@ -2,7 +2,9 @@
 # 잡은 모두 scripts/ci/*.py (Python 표준 라이브러리만 사용, 외부 패키지 없음)
 #
 # 필요한 CI/CD 변수 (Settings → CI/CD → Variables, Maintainer):
-#   JIRA_USER / JIRA_API_TOKEN  : Jira 읽기용 (mr-lint 키 실존 확인, mr-title 파트 조회) — masked. 스코프(읽기) 토큰 가능
+#   JIRA_USER / JIRA_API_TOKEN  : Jira 조회 + **쓰기**(jira-complete 의 이슈 전환·코멘트) — masked.
+#                                 **읽기 전용 스코프 토큰으로는 전환이 401 로 막힌다**(2026-09-01 실측, S15P21B202-242).
+#                                 클래식 API 토큰 또는 write:jira-work 를 포함한 토큰이 필요하다
 #                                 (스크립트가 api.atlassian.com/ex/jira/{JIRA_CLOUD_ID} 경로를 씀 — 사이트 URL 로는 스코프 토큰이 404)
 #   GITLAB_TOKEN                : 프로젝트 액세스 토큰(api 스코프, Developer 이상) — MR 제목/본문 수정·코멘트 — masked
 #   AI_REVIEW_CLI=true          : ai-review 를 러너 호스트의 로그인된 Claude Code CLI 로 실행 (채택 방식, Team 플랜) — visible
