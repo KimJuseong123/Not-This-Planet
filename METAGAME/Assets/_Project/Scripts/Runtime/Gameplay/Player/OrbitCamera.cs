@@ -9,11 +9,10 @@ namespace Metagame.Gameplay
     ///
     /// <b>각도를 두 벌 들고 있다.</b>
     ///  · yaw/pitch       — 실제로 보는 각도 (카메라 트랜스폼)
-    ///  · aimYaw/aimPitch — 조작의 기준이 되는 각도 (WASD 방향, 팔이 뻗는 방향)
+    ///  · aimYaw/aimPitch — 기존 호출부와의 호환을 위한 조작 기준 미러
     ///
-    /// 평소엔 둘이 같다. <b>Alt 를 누르고 있는 동안만</b> 보는 각도만 움직이고 조작 기준은 얼어붙는다 —
-    /// 그래서 캐릭터 정면으로 돌아가 얼굴을 봐도 걷는 방향과 팔이 흔들리지 않는다.
-    /// 손을 떼면 보는 각도가 조작 기준으로 부드럽게 되돌아온다.
+    /// 이동·조준·캐릭터 정면은 항상 현재 카메라 시점을 기준으로 한다. Alt 는 시야를
+    /// 자유롭게 돌리는 기능만 바꾸며, 시점과 조작 기준을 따로 얼리거나 놓을 때 되돌리지 않는다.
     /// </summary>
     public class OrbitCamera : MonoBehaviour
     {
@@ -28,7 +27,7 @@ namespace Metagame.Gameplay
         [Header("자유 시점 (Alt)")]
         public float FreeMinPitch = -78f;
         public float FreeMaxPitch = 84f;
-        public float ReturnSpeed = 7.5f;      // 클수록 빨리 제자리로 온다
+        public float ReturnSpeed = 7.5f;      // 기존 직렬화 호환용. 현재는 Alt 해제 복귀를 사용하지 않는다
         [Header("고정쇠 하중감")]
         [Range(0.05f, 1f)]
         public float ClampUpwardLookScale = 0.28f;
@@ -40,7 +39,6 @@ namespace Metagame.Gameplay
         float pitch = 12f;
         float aimYaw;
         float aimPitch = 12f;
-        bool returning;
         bool clampLiftResistance;
         float clampLiftResistanceBlend;
         bool clampLiftPitchLocked;
@@ -76,14 +74,13 @@ namespace Metagame.Gameplay
             return orbit;
         }
 
-        /// <summary>Alt 를 누르고 있는가. 켜지는 순간 조작 기준 각도가 얼어붙는다.</summary>
+        /// <summary>Alt 를 누르고 있는가. 시점만 자유롭게 조작한다.</summary>
         public bool FreeLook { get; private set; }
 
         public void SetFreeLook(bool on)
         {
             if (on == FreeLook) return;
             FreeLook = on;
-            returning = !on;          // 놓는 순간부터 보는 각도를 조작 기준으로 되돌린다
         }
 
         /// <summary>고정쇠를 잡은 동안 위쪽 시점 조작에 하중감을 켠다.</summary>
@@ -133,7 +130,6 @@ namespace Metagame.Gameplay
                 Distance = 0f;
                 TargetHeight = Tuning.CamHeight;   // 골반 기준 머리 높이 — 걸을 때와 같다
                 FreeLook = false;
-                returning = false;
                 yaw = aimYaw;
                 pitch = 0f;                        // 조종석에서 수평을 본다
                 aimPitch = 0f;
@@ -157,8 +153,6 @@ namespace Metagame.Gameplay
 
         public void Steer(Vector2 look)
         {
-            if (look.sqrMagnitude > 1e-6f) returning = false;   // 되돌아오는 중 마우스를 잡으면 사람이 우선
-
             float lo = VehicleView ? MinPitch : (FreeLook ? FreeMinPitch : MinPitch);
             float hi = VehicleView ? MaxPitch : (FreeLook ? FreeMaxPitch : MaxPitch);
 
@@ -187,28 +181,10 @@ namespace Metagame.Gameplay
             if (clampLiftPitchLocked)
                 pitch = Mathf.Max(pitch, clampLiftPitchLock);
 
-            if (!FreeLook)
-            {
-                // 평소에는 조작 기준이 보는 각도를 그대로 따라간다
-                aimYaw = yaw;
-                aimPitch = Mathf.Clamp(pitch, MinPitch, MaxPitch);
-            }
-        }
-
-        void ReturnToAim(float dt)
-        {
-            if (FreeLook || !returning) return;
-
-            float k = 1f - Mathf.Exp(-ReturnSpeed * dt);
-            yaw = Mathf.LerpAngle(yaw, aimYaw, k);
-            pitch = Mathf.Lerp(pitch, aimPitch, k);
-
-            if (Mathf.Abs(Mathf.DeltaAngle(yaw, aimYaw)) < 0.15f && Mathf.Abs(pitch - aimPitch) < 0.15f)
-            {
-                yaw = aimYaw;
-                pitch = aimPitch;
-                returning = false;
-            }
+            // Alt 중에도 현재 시점을 곧바로 조작 기준으로 쓴다. aim 필드는 공개 API와
+            // 탑승 시야 전환의 기존 상태 보존을 위해 남겨 두되 항상 현재 시점을 미러링한다.
+            aimYaw = yaw;
+            aimPitch = Mathf.Clamp(pitch, MinPitch, MaxPitch);
         }
 
         /// <summary>순간이동(부활) 뒤에 카메라가 세계를 가로질러 날아가지 않게.</summary>
@@ -216,7 +192,6 @@ namespace Metagame.Gameplay
         {
             focusReady = false;
             FreeLook = false;
-            returning = false;
             clampLiftResistance = false;
             clampLiftResistanceBlend = 0f;
             clampLiftPitchLocked = false;
@@ -230,7 +205,6 @@ namespace Metagame.Gameplay
         void LateUpdate()
         {
             if (Target == null) return;
-            ReturnToAim(Time.deltaTime);
 
             Vector3 raw = Target.position + Vector3.up * TargetHeight;
             if (!focusReady) { smoothFocus = raw; focusReady = true; }
@@ -269,36 +243,48 @@ namespace Metagame.Gameplay
             transform.rotation = rot;
         }
 
-        // 아래 셋은 전부 조작 기준 각도에서 뽑는다. 카메라 트랜스폼에서 뽑으면
-        // Alt 로 시점을 돌리는 동안 걷는 방향과 팔이 같이 돌아가 버린다.
-        Quaternion AimRotation { get { return Quaternion.Euler(aimPitch, aimYaw, 0f); } }
+        // 아래 방향은 모두 현재 카메라 시점에서 뽑는다. 수평 이동은 pitch를 버리고,
+        // 조준 방향은 pitch를 포함한다. 따라서 Alt 중에도 시점·이동·조준이 같은 축을 쓴다.
+        Quaternion ViewRotation { get { return Quaternion.Euler(pitch, yaw, 0f); } }
 
         public Vector3 PlanarForward
         {
-            get { Vector3 f = AimRotation * Vector3.forward; f.y = 0f; return f.sqrMagnitude > 1e-4f ? f.normalized : Vector3.forward; }
+            get { Vector3 f = ViewRotation * Vector3.forward; f.y = 0f; return f.sqrMagnitude > 1e-4f ? f.normalized : Vector3.forward; }
         }
 
         public Vector3 PlanarRight
         {
-            get { Vector3 r = AimRotation * Vector3.right; r.y = 0f; return r.sqrMagnitude > 1e-4f ? r.normalized : Vector3.right; }
+            get { Vector3 r = ViewRotation * Vector3.right; r.y = 0f; return r.sqrMagnitude > 1e-4f ? r.normalized : Vector3.right; }
         }
 
-        public Vector3 AimDirection { get { return AimRotation * Vector3.forward; } }
+        public Vector3 AimDirection { get { return ViewRotation * Vector3.forward; } }
 
-        /// <summary>조작 기준 각도. 설정하면 보는 각도도 같이 맞춘다.</summary>
+        /// <summary>
+        /// 입력 벡터를 현재 카메라의 수평 축으로 변환한다. 모든 WASD 이동 호출부가
+        /// 같은 변환을 사용하도록 카메라에 한 곳으로 모아 둔다.
+        /// </summary>
+        public Vector3 CameraRelativeMove(Vector2 input)
+        {
+            if (input.sqrMagnitude > 1f) input.Normalize();
+
+            Vector3 move = PlanarRight * input.x + PlanarForward * input.y;
+            return move.sqrMagnitude > 1f ? move.normalized : move;
+        }
+
+        /// <summary>현재 카메라 yaw. 설정하면 조작 기준 미러도 같이 맞춘다.</summary>
         public float Yaw
         {
-            get { return aimYaw; }
-            set { aimYaw = value; if (!FreeLook) yaw = value; }
+            get { return yaw; }
+            set { yaw = value; aimYaw = value; }
         }
 
         public float Pitch
         {
-            get { return aimPitch; }
-            set { aimPitch = Mathf.Clamp(value, MinPitch, MaxPitch); if (!FreeLook) pitch = aimPitch; }
+            get { return pitch; }
+            set { pitch = Mathf.Clamp(value, MinPitch, MaxPitch); aimPitch = pitch; }
         }
 
-        /// <summary>지금 보고 있는 각도 (자유 시점 동안만 조작 기준과 다르다).</summary>
+        /// <summary>지금 보고 있는 각도.</summary>
         public float ViewYaw { get { return yaw; } }
         public float ViewPitch { get { return pitch; } }
     }

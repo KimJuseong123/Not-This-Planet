@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using Metagame.Core;
 using Metagame.Gameplay;
+using Metagame.Gameplay.Parts;
 
 namespace Metagame.Bootstrap
 {
@@ -59,6 +60,7 @@ namespace Metagame.Bootstrap
             yield return World();
             yield return Standing();
             yield return Walking();
+            yield return DirectionalControls();
             yield return LowGravityJump();
             yield return Grabbing();
             yield return Carrying();
@@ -262,6 +264,48 @@ namespace Metagame.Bootstrap
 
             rig.SetInput(new InputFrame());
             yield return new WaitForSeconds(1.2f);
+        }
+
+        // ── 4b. 카메라 기준 방향 이동 ─────────────────────────
+        IEnumerator DirectionalControls()
+        {
+            var labels = new[] { "W 전진", "A 좌우 걸음", "S 뒷걸음", "D 좌우 걸음" };
+            var moves = new[]
+            {
+                new Vector2(0f, 1f),
+                new Vector2(-1f, 0f),
+                new Vector2(0f, -1f),
+                new Vector2(1f, 0f),
+            };
+
+            for (int i = 0; i < moves.Length; i++)
+            {
+                rig.Teleport(Pad, Quaternion.identity);
+                rig.Cam.Yaw = 0f;
+                rig.Cam.Pitch = 0f;
+                rig.Cam.SnapToTarget();
+
+                Vector3 expected = rig.Cam.CameraRelativeMove(moves[i]);
+                Vector3 from = rig.Position;
+                var input = new InputFrame { Move = moves[i] };
+                rig.SetInput(input);
+                yield return new WaitForSeconds(0.85f);
+
+                Vector3 displacement = rig.Position - from;
+                displacement.y = 0f;
+                Vector3 local = rig.MovementDirectionLocal;
+                Check(displacement.sqrMagnitude > 0.04f
+                      && Vector3.Dot(displacement.normalized, expected.normalized) > 0.65f,
+                      labels[i] + "이 카메라 기준으로 이동한다");
+                Check(local.sqrMagnitude > 0.05f
+                      && Vector2.Dot(local.normalized, moves[i]) > 0.55f,
+                      labels[i] + " 보행 포즈 방향이 입력과 일치한다");
+                Check(Vector3.Dot(rig.FacingDirection.normalized, rig.Cam.PlanarForward) > 0.85f,
+                      labels[i] + " 중 캐릭터 정면은 카메라를 유지한다");
+
+                rig.SetInput(new InputFrame());
+                yield return new WaitForSeconds(0.2f);
+            }
         }
 
         // ── 5. 저중력 점프 ──────────────────────────────────────
@@ -637,16 +681,21 @@ namespace Metagame.Bootstrap
             cam.Steer(new Vector2(50f, 6f));          // 시점을 확 돌린다
             yield return null;
 
-            Check(Mathf.Abs(Mathf.DeltaAngle(cam.ViewYaw, cam.Yaw)) > 30f,
-                  "Alt 를 누르면 시점이 돌아간다 (" + Mathf.DeltaAngle(cam.ViewYaw, cam.Yaw).ToString("0") + "도)");
-            Check(Vector3.Angle(cam.AimDirection, aim0) < 1f, "그동안 팔이 뻗는 방향은 얼어붙는다");
-            Check(Vector3.Angle(cam.PlanarForward, fwd0) < 1f, "걷는 방향도 얼어붙는다");
+            Vector3 aim1 = cam.AimDirection;
+            Vector3 fwd1 = cam.PlanarForward;
+            Check(Mathf.Abs(Mathf.DeltaAngle(cam.ViewYaw, 90f)) > 30f,
+                  "Alt 를 누르면 시점이 돌아간다 (" + Mathf.DeltaAngle(cam.ViewYaw, 90f).ToString("0") + "도)");
+            Check(Vector3.Angle(cam.AimDirection, aim0) > 30f, "Alt 중 팔이 현재 카메라 방향을 따른다");
+            Check(Vector3.Angle(cam.PlanarForward, fwd0) > 30f, "Alt 중 걷는 방향이 현재 카메라를 따른다");
 
             cam.SetFreeLook(false);
             yield return new WaitForSeconds(1.2f);
             Check(Mathf.Abs(Mathf.DeltaAngle(cam.ViewYaw, cam.Yaw)) < 1f,
-                  "손을 떼면 원래 시점으로 돌아온다");
-            Check(Vector3.Angle(cam.AimDirection, aim0) < 1f, "돌아온 뒤에도 조작 기준은 그대로다");
+                  "Alt 를 놓아도 현재 시점과 조작 기준이 일치한다");
+            Check(Vector3.Angle(cam.AimDirection, aim1) < 1f,
+                  "Alt 를 놓아도 카메라 기준 조작 방향을 유지한다");
+            Check(Vector3.Angle(cam.PlanarForward, fwd1) < 1f,
+                  "Alt 를 놓아도 카메라 기준 이동 방향을 유지한다");
         }
 
         // ── 9. 기계 장치 ────────────────────────────────────────
@@ -672,6 +721,8 @@ namespace Metagame.Bootstrap
                   "케이블 끝이 " + tail.position.y.ToString("0.00") + "m 에 늘어져 있다 (예상 " + expected.ToString("0.00") + ")");
             Check(Mathf.Abs(tail.position.x - 63f) < 0.7f, "케이블이 곧게 늘어져 있다");
 
+            yield return VehicleControls();
+
             // 소켓 → 해치
             Check(!level.Hatch.IsOpen, "처음엔 해치가 닫혀 있다");
             Check(!level.Socket.Powered, "처음엔 전원이 없다");
@@ -693,6 +744,45 @@ namespace Metagame.Bootstrap
             bool blocked = Physics.Raycast(new Vector3(118f, 5.6f, 0f), Vector3.right, 5f,
                                            RagdollBuilder.WorldMask, QueryTriggerInteraction.Ignore);
             Check(!blocked, "해치가 열리면 통로가 뚫린다");
+        }
+
+        IEnumerator VehicleControls()
+        {
+            var vehicle = Object.FindAnyObjectByType<TransportVehicle>();
+            Check(vehicle != null, "운반선이 존재한다");
+            if (vehicle == null) yield break;
+
+            rig.Teleport(vehicle.transform.position + Vector3.forward * 1.5f, Quaternion.identity);
+            rig.Cam.Yaw = 0f;
+            rig.Cam.Pitch = 0f;
+            rig.Cam.SnapToTarget();
+
+            bool boarded = vehicle.TryBoard(rig);
+            Check(boarded, "운반선에 탑승했다");
+            if (!boarded)
+            {
+                rig.Teleport(Pad, Quaternion.LookRotation(Vector3.right, Vector3.up));
+                yield break;
+            }
+
+            vehicle.SetFacingDirection(rig.Cam.PlanarForward);
+            Vector3 initialForward = vehicle.ExitForward;
+            Vector3 sideDirection = rig.Cam.CameraRelativeMove(new Vector2(1f, 0f));
+            vehicle.SetDriveVector(sideDirection);
+            vehicle.Tick(Time.fixedDeltaTime);
+            Check(Vector3.Dot(vehicle.HorizontalVelocity, sideDirection) > 0.01f,
+                  "운반선 A/D 입력은 카메라 기준 위치 이동으로 전달된다");
+            Check(Vector3.Angle(vehicle.ExitForward, initialForward) < 1f,
+                  "운반선 A/D 이동이 선체 정면을 회전시키지 않는다");
+
+            rig.Cam.Steer(new Vector2(45f, 0f));
+            vehicle.SetFacingDirection(rig.Cam.PlanarForward);
+            Check(Vector3.Dot(vehicle.ExitForward, rig.Cam.PlanarForward) > 0.98f,
+                  "정지 중 카메라를 돌리면 운반선 정면도 갱신된다");
+
+            vehicle.ForceReset();
+            rig.Teleport(Pad, Quaternion.LookRotation(Vector3.right, Vector3.up));
+            yield return new WaitForFixedUpdate();
         }
 
         // ── 10. 표지 · 부활 ─────────────────────────────────────

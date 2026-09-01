@@ -72,8 +72,8 @@ namespace Metagame.UI
             new("WASD", "이동"),
             new("Shift", "달리기"),
             new("Space", "점프"),
-            new("마우스", "1인칭 시점과 캐릭터 방향"),
-            new("Alt", "이동 방향을 고정하고 시점만 자유롭게 돌리기"),
+            new("마우스", "시점과 캐릭터 정면·조준 기준"),
+            new("Alt", "이동·조준·캐릭터 정면은 카메라를 따르고 시점 자유롭게 돌리기"),
         };
 
         static readonly HelpEntry[] InteractionHelp =
@@ -474,7 +474,7 @@ namespace Metagame.UI
         {
             return page switch
             {
-                1 => "WASD          이동\n\nShift             달리기\n\nSpace           점프\n\n마우스          1인칭 시점\n\nAlt                이동 방향을 유지하고 자유 시점",
+                1 => "WASD          카메라 기준 이동\n\nShift             달리기\n\nSpace           점프\n\n마우스          1인칭 시점·정면\n\nAlt                현재 카메라 기준으로 자유 시점",
                 2 => "좌·우클릭     고정쇠 잡기 / 도구 사용\n\nCtrl               팔 올리기\n\nW + 잡기       레일·케이블 오르기\n\nQ 짧게          장비 내려놓기\n\nQ 길게          바라보는 방향으로 장비 던지기",
                 3 => "E                  장비 줍기·교환 / 탑승·구조\n\nWASD          운반 장치 운전\n\nSpace / Ctrl  상승 / 하강\n\nT                  그 자리에서 다시 서기\n\nR                  처음부터 다시 시작",
                 _ => string.Empty,
