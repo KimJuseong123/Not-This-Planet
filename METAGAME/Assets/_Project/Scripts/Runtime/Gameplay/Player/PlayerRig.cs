@@ -342,6 +342,7 @@ namespace Metagame.Gameplay
             }
 
             FindCrosshairGrabbable(origin, forward, ref best);
+            FindDownedTeammate(origin, forward, ref best);
 
             if (Cam != null)
             {
@@ -487,6 +488,7 @@ namespace Metagame.Gameplay
 
             SetDollLayer(GameLayers.PlayerDowned);
             RefreshRescueTarget();
+            RefreshCarryTarget();
 
             Debug.Log("[SpaceFlop] " + Nickname + " 기절 (" + source + ")");
         }
@@ -524,6 +526,7 @@ namespace Metagame.Gameplay
 
             SetDollLayer(GameLayers.Player);
             RefreshRescueTarget();
+            RefreshCarryTarget();
         }
 
         /// <summary>
@@ -554,6 +557,95 @@ namespace Metagame.Gameplay
 
             if (!Downed) RescueTarget.ResetProgress();
             RescueTarget.gameObject.SetActive(Downed);
+        }
+
+        /// <summary>
+        /// 운반 대상(기획 §20.4). 다운한 동안만 켜진다.
+        ///
+        /// <see cref="RescueTarget"/> 과 같은 방식이다 — 인형의 몸을 건드리지 않고 자식
+        /// 하나를 둔다. "몸의 레이어를 바꾸면 충돌 매트릭스가 함께 흔들린다".
+        ///
+        /// <b>콜라이더를 두지 않는다.</b> 찾는 것은 물리 질의가 아니라
+        /// <see cref="FindDownedTeammate"/> 가 <see cref="All"/> 을 훑어서 한다 —
+        /// 조준 탐색 마스크(<see cref="RagdollBuilder.WorldMask"/>)는 Player ·
+        /// PlayerDowned · Interactable 을 <b>모두</b> 빼고 트리거도 무시하므로 콜라이더로는
+        /// 어차피 걸리지 않는다. 마스크를 열면 고정못(파츠의 자식이다)이 파츠의 잡기
+        /// 지점으로 딸려 들어온다(S15P21B202-249).
+        /// </summary>
+        public Grabbable CarryTarget { get; private set; }
+
+        void RefreshCarryTarget()
+        {
+            if (Doll == null || Doll.Hips == null) return;
+
+            if (CarryTarget == null)
+            {
+                var go = new GameObject("운반 지점") { layer = GameLayers.Interactable };
+                go.transform.SetParent(Doll.Hips.transform, false);
+
+                CarryTarget = go.AddComponent<Grabbable>();
+                CarryTarget.Label = "기절한 동료";
+                CarryTarget.Role = GrabbableRole.Transport;
+                CarryTarget.PhysicsGrip = true;   // 도구처럼 몸 앞에 붙지 않게 (§20.4)
+            }
+
+            // 일으키는 순간 잡고 있던 손을 놓게 한다. 컴포넌트를 끄는 것만으로는
+            // 이미 만들어진 FixedJoint 가 사라지지 않는다.
+            if (!Downed) ReleaseCarriersOf(CarryTarget);
+
+            CarryTarget.gameObject.SetActive(Downed);
+        }
+
+        /// <summary>이 대상을 잡고 있는 모든 손을 놓게 한다.</summary>
+        static void ReleaseCarriersOf(Grabbable target)
+        {
+            if (target == null || target.HandCount <= 0) return;
+
+            for (var i = 0; i < All.Count; i++)
+            {
+                var rig = All[i];
+                if (rig == null || rig.Doll == null) continue;   // LeftHand 가 Doll 을 탄다
+
+                if (rig.LeftHand != null && rig.LeftHand.Held == target) rig.ReleaseHand(rig.LeftHand);
+                if (rig.RightHand != null && rig.RightHand.Held == target) rig.ReleaseHand(rig.RightHand);
+            }
+        }
+
+        /// <summary>지금 기절한 동료를 끌고 있는가(기획 §20.4).</summary>
+        public bool CarryingDownedTeammate =>
+            IsCarryPoint(LeftHand) || IsCarryPoint(RightHand);
+
+        static bool IsCarryPoint(Hand hand) =>
+            hand != null && hand.Held != null && hand.Held.PhysicsGrip;
+
+        /// <summary>
+        /// 조준 앞의 기절한 동료를 후보로 넣는다(기획 §20.4).
+        ///
+        /// <b>물리 질의를 쓰지 않는다.</b> 이유는 <see cref="CarryTarget"/> 에 적었다.
+        /// <see cref="Hazards.MeteorBat"/> 가 때릴 동료를 <see cref="All"/> 로 찾는 것과
+        /// 같은 방식이다.
+        /// </summary>
+        void FindDownedTeammate(Vector3 origin, Vector3 forward,
+                                ref PlayerInteractionTarget best)
+        {
+            for (var i = 0; i < All.Count; i++)
+            {
+                var other = All[i];
+                if (other == null || other == this || !other.Downed) continue;
+
+                var carry = other.CarryTarget;
+                if (carry == null || !carry.isActiveAndEnabled || !carry.CanGrab) continue;
+
+                var point = carry.transform.position;
+                var distance = Vector3.Distance(origin, point);
+                if (distance > PhysicsScale.DownedCarryReach) continue;
+
+                var angle = AngleFrom(origin, forward, point);
+                if (angle > PhysicsScale.DownedCarryAngle) continue;
+
+                Consider(ref best, MakeTarget(PlayerInteractionKind.Grabbable, null, carry,
+                                              null, point, angle, distance));
+            }
         }
 
         void SetDollLayer(int layer)
@@ -1156,6 +1248,10 @@ namespace Metagame.Gameplay
             float top = Floating
                 ? PhysicsScale.FieldFloatSpeed
                 : (input.Run ? Tuning.RunSpeed : Tuning.WalkSpeed);
+
+            // 기절한 동료를 끌고 가는 동안 느려진다(기획 §20.4). 34.9kg 을 저중력에서
+            // 끌고 가는 것이라 그냥 걷는 것과 같으면 안 된다.
+            if (CarryingDownedTeammate) top *= PhysicsScale.DownedCarrySpeedScale;
             Vector3 targetVel = wish * top;
             targetVel.x += GroundVelocity.x;
             targetVel.z += GroundVelocity.z;

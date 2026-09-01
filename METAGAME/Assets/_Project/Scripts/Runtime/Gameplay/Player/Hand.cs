@@ -109,7 +109,13 @@ namespace Metagame.Gameplay
             // 가벼운 동적 물체는 손과 물체 사이에 물리 Joint를 만들지 않는다.
             // PlayerRig가 운반 상태를 Kinematic으로 전환하고 크로스헤드 위치를 직접 추적한다.
             // 무거운 물체와 세계 고정물만 아래 FixedJoint 경로를 사용한다.
-            if (targetBody != null && !targetBody.isKinematic && targetBody.mass < Tuning.FixedGripMass)
+            //
+            // PhysicsGrip 은 그 예외다. 기절한 동료는 잡히는 골반이 8kg 이라 무게로는
+            // 이 경로에 들어오는데, §20.4 가 "물리 오브젝트처럼 끌고 옮길 수 있다" 고
+            // 정하므로 사람을 도구처럼 몸 앞에 고정할 수는 없다(S15P21B202-249).
+            if (!target.PhysicsGrip
+                && targetBody != null && !targetBody.isKinematic
+                && targetBody.mass < Tuning.FixedGripMass)
                 return CarryTo(target, targetBody);
 
             return AttachFixed(target, targetBody);
