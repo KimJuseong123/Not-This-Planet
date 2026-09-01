@@ -21,6 +21,9 @@ namespace Metagame.Gameplay
     public class PlayerRig : MonoBehaviour
     {
         const float ClampInteractionRange = 3f;
+
+        /// <summary>구조 상호작용 트리거의 반지름(m). 쓰러진 몸 옆에 서면 닿는다.</summary>
+        const float RescueTriggerRadius = 1.1f;
         const float ClampInteractionHalfAngle = 60f;
 
         public Doll Doll;
@@ -47,6 +50,15 @@ namespace Metagame.Gameplay
         public float Health { get; private set; }
         public float Health01 { get { return MaxHealth <= 0f ? 0f : Mathf.Clamp01(Health / MaxHealth); } }
         public bool IsDead { get { return Health <= 0f; } }
+
+        /// <summary>
+        /// 기절해 쓰러져 있는가(기획 §26-13). 동료가 일으켜야 다시 움직인다.
+        ///
+        /// <b>예전에는 이 상태가 없었다.</b> 체력이 0이 되면 <c>GameSession</c> 이
+        /// 곧바로 <c>Respawn()</c> 을 불러 스폰 지점에 되살렸다 — 예전 SpaceFlop 코스의
+        /// 낙사 처리를 그대로 쓴 것이다. 팀원이 도우러 갈 틈도 이유도 없었다.
+        /// </summary>
+        public bool Downed { get; private set; }
         public TransportVehicle MountedVehicle { get; private set; }
         public bool IsMounted { get { return MountedVehicle != null; } }
 
@@ -245,10 +257,95 @@ namespace Metagame.Gameplay
             if (IsDead || float.IsNaN(amount) || float.IsInfinity(amount) || amount <= 0f) return;
 
             Health = Mathf.Clamp(Health - amount, 0f, MaxHealth);
-            if (Health <= 0f)
+            if (Health > 0f) return;
+
+            GoDown(source);
+        }
+
+        /// <summary>
+        /// 그 자리에 쓰러진다. 순간이동하지 않는다.
+        ///
+        /// <see cref="GameLayers.PlayerDowned"/> 로 옮긴다. 그 레이어는 이미 만들어져
+        /// 있었고 <see cref="RagdollBuilder"/> 와 <see cref="Parts.TransportVehicle"/> 의
+        /// 충돌 마스크가 그것을 전제한다 — 다운을 그 레이어로 표현하는 것이 설계 의도다.
+        ///
+        /// 손에 든 것과 잡고 있던 것을 모두 놓는다. 쓰러진 사람이 고정못을 계속 잡고
+        /// 있으면 다른 사람이 그 고정못에 붙을 수 없다(정원 §12.2).
+        /// </summary>
+        public void GoDown(string source = "기절")
+        {
+            if (Downed) return;
+
+            Downed = true;
+            Health = 0f;
+            Ragdolled = true;
+            uprightBlend = 0f;
+
+            ReleaseHand(LeftHand);
+            ReleaseHand(RightHand);
+            ClampInteractor?.Cancel();
+            ResetClampGrab();
+            ResetToolState();
+
+            SetDollLayer(GameLayers.PlayerDowned);
+            RefreshRescueTarget();
+
+            Debug.Log("[SpaceFlop] " + Nickname + " 기절 (" + source + ")");
+        }
+
+        /// <summary>
+        /// 다시 일어난다. 동료 구조와 전원 다운 복귀가 함께 쓴다.
+        /// </summary>
+        public void Revive(float health)
+        {
+            if (!Downed) return;
+
+            Downed = false;
+            Health = Mathf.Clamp(health, 1f, MaxHealth);
+            Ragdolled = true;      // 곧 Balance 가 일으켜 세운다
+
+            SetDollLayer(GameLayers.Player);
+            RefreshRescueTarget();
+        }
+
+        /// <summary>
+        /// 구조 상호작용 대상. 다운한 동안만 켜진다.
+        ///
+        /// 인형의 몸은 Player/PlayerDowned 레이어라 <see cref="Interactor"/> 의 탐색
+        /// (Interactable 레이어)에 걸리지 않는다. 그래서 전용 트리거를 하나 둔다 —
+        /// 몸의 레이어를 바꾸면 충돌 매트릭스가 함께 흔들린다.
+        /// </summary>
+        public DownedRescue RescueTarget { get; private set; }
+
+        void RefreshRescueTarget()
+        {
+            if (Doll == null || Doll.Hips == null) return;
+
+            if (RescueTarget == null)
             {
-                Ragdolled = true;
-                Debug.Log("[SpaceFlop] " + Nickname + " 체력 소진 (" + source + ")");
+                var go = new GameObject("구조 지점") { layer = GameLayers.Interactable };
+                go.transform.SetParent(Doll.Hips.transform, false);
+
+                var sphere = go.AddComponent<SphereCollider>();
+                sphere.radius = RescueTriggerRadius;
+                sphere.isTrigger = true;
+
+                RescueTarget = go.AddComponent<DownedRescue>();
+                RescueTarget.Configure(this);
+            }
+
+            if (!Downed) RescueTarget.ResetProgress();
+            RescueTarget.gameObject.SetActive(Downed);
+        }
+
+        void SetDollLayer(int layer)
+        {
+            if (Doll == null) return;
+
+            for (var i = 0; i < Doll.Bodies.Count; i++)
+            {
+                var body = Doll.Bodies[i];
+                if (body != null) body.gameObject.layer = layer;
             }
         }
 
@@ -625,6 +722,19 @@ namespace Metagame.Gameplay
             }
 
             ProbeGround();
+
+            // 기절 중에는 조작이 없다. 넉백은 그대로 받는다 — 운석에 굴러다녀야 한다
+            // (기획 §26-13 의 긴장이 거기서 나온다).
+            if (Downed)
+            {
+                UpdateFloating();
+                Speed = 0f;
+                Ragdolled = true;
+                uprightBlend = 0f;
+                Balance();
+                return;
+            }
+
             UpdateFloating();
             UpdateSpeed();
             Hover();
