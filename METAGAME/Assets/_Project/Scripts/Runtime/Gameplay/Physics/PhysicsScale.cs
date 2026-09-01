@@ -195,7 +195,7 @@ namespace Metagame.Gameplay
         /// §12.2 의 어느 값도 아니었다 — 5배 넘게 짧아서 §12.2 의 "인원이 모이면
         /// 빨라진다" 라는 협동 설계가 아예 드러나지 않았다.
         /// </summary>
-        public const float ClampPullSeconds = 8f;
+        public const float ClampPullSeconds = 2f;
 
         /// <summary>
         /// 두 번째 사람이 붙었을 때 늘어나는 속도 배수.
