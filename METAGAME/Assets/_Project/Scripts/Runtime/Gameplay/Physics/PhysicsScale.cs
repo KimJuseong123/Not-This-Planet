@@ -750,6 +750,38 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float MeteorWarningLift = 0.03f;
 
+        // --- 끼임 복구 (기획 §21) ---
+        /// <summary>
+        /// 끼임 탈출을 위해 <c>T</c> 를 유지해야 하는 시간(초). 기획 §21.
+        ///
+        /// 동료 구조(<see cref="RescueSeconds"/> 2초)보다 <b>길다.</b> §21 이 3초로 정했고,
+        /// 그것이 맞다 — 구조는 남이 해 주는 것이고 탈출은 자기가 하는 것이니 자력 탈출이
+        /// 더 싸면 아무도 구조를 기다리지 않는다.
+        /// </summary>
+        public const float StuckEscapeSeconds = 3f;
+
+        /// <summary>
+        /// 안전한 지면을 찾는 최대 거리(m).
+        ///
+        /// §21 은 "<b>가까운</b> 안전 지면" 이라고만 한다. 8m 는 저중력 점프 한 번보다
+        /// 조금 넓은 정도다 — 이보다 멀리 보내면 "복구" 가 아니라 순간이동이 된다.
+        /// </summary>
+        public const float StuckEscapeSearchRadius = 8f;
+
+        /// <summary>안전한 지면을 찾을 때 반지름을 늘리는 간격(m).</summary>
+        public const float StuckEscapeSearchStep = 1f;
+
+        /// <summary>한 반지름에서 살펴보는 방향의 수. 8이면 45도마다다.</summary>
+        public const int StuckEscapeSearchDirections = 8;
+
+        /// <summary>
+        /// 후보 지점의 지면을 찾을 때 위에서 아래로 훑는 높이(m).
+        ///
+        /// 끼었다는 것은 대개 <b>지면보다 아래</b>에 박혀 있다는 뜻이므로 발 높이에서
+        /// 바로 쏘면 지면을 못 만난다. 넉넉히 위에서 시작한다.
+        /// </summary>
+        public const float StuckEscapeGroundProbe = 6f;
+
         // --- 운석 방망이 (기획 §18) ---
         /// <summary>
         /// 착탄 몇 초 전부터 쳐낼 수 있는지.
