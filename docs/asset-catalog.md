@@ -6,6 +6,7 @@
 > 갱신 2026-08-31 — Stage1 자연물 8종·맵 타일 리뉴얼 원본 추가 · 이슈 [S15P21B202-163](https://ssafy.atlassian.net/browse/S15P21B202-163)
 > 갱신 2026-08-31 — URP 17.5 전환·빌드 핑크 셰이더 검증·공용 분위기 기반 추가
 > 갱신 2026-09-01 — Stage1 운석 방어용 방망이 FBX·PBR 텍스처·Material·Prefab 추가 · 이슈 [S15P21B202-187](https://ssafy.atlassian.net/browse/S15P21B202-187)
+> 갱신 2026-09-01 — Stage1 Terrain 2타일 확장·자연물 군집 배치·갈라진 디딤돌 연결 · 이슈 [S15P21B202-236](https://ssafy.atlassian.net/browse/S15P21B202-236)
 > 관련 문서: [문서 목록](./README.md) · [1장 기획](./planning/chapter-1-plan.md) · [파트 구분](./parts.md)
 
 **어떤 에셋이 무엇이고, 씬에 갖다 쓸 수 있는 상태인지** 한 장에서 확인하는 문서다.
@@ -257,7 +258,7 @@ FBX 내부의 Tripo UUID 경로도 새 영문 경로로 다시 내보냈으며, 
 | <img src="./assets/previews/alien_rock_cluster_a_front.png" width="100"> | `alien_rock_cluster_a` | 외계 바위 군락 A | 미연결 |
 | <img src="./assets/previews/alien_rock_cluster_b_front.png" width="100"> | `alien_rock_cluster_b` | 외계 바위 군락 B | 미연결 |
 | <img src="./assets/previews/alien_rock_flat_front.png" width="100"> | `alien_rock_flat` | 낮고 평평한 바위 | 미연결 |
-| <img src="./assets/previews/alien_rock_flat_cracked_front.png" width="100"> | `alien_rock_flat_cracked` | 갈라진 낮은 바위 | 미연결 |
+| <img src="./assets/previews/alien_rock_flat_cracked_front.png" width="100"> | `alien_rock_flat_cracked` | 갈라진 낮은 바위·디딤돌 | **Material·Prefab·씬 연결** |
 | <img src="./assets/previews/alien_rock_oval_front.png" width="100"> | `alien_rock_oval` | 타원형 바위 | 미연결 |
 | <img src="./assets/previews/alien_rock_round_front.png" width="100"> | `alien_rock_round` | 둥근 바위 | 미연결 |
 | <img src="./assets/previews/alien_rock_round_cracked_front.png" width="100"> | `alien_rock_round_cracked` | 갈라진 둥근 바위 | 미연결 |
@@ -276,6 +277,26 @@ FBX와 `tripo_convert_<id>.fbm/` 폴더가 있고, `.fbm` 안에 Base Color·Nor
 `TL_Stage1_AlienGround` Terrain Layer로 연결했다. 50 × 50m Terrain에 5m 단위로 반복되어
 화면에는 10 × 10 타일처럼 보인다. Wrap Mode는 `Repeat`, Mipmap과 Aniso Level 4를 사용한다.
 Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
+
+### Terrain 확장과 자연물 배치
+
+[S15P21B202-236](https://ssafy.atlassian.net/browse/S15P21B202-236)에서 백업한 Terrain을
+`PF_Stage1_Terrain_Expanded.prefab`으로 설치하고 `Main.unity`의 Stage1 지형을 50 × 50m 두 칸으로
+확장했다. 두 타일은 각각 독립된 TerrainData를 사용하므로 한쪽 높이를 편집해도 다른 쪽이 함께
+변형되지 않는다. 기존 외곽 경계 오브젝트는 제거하고, 중앙 이동 공간을 비운 채 절벽·나무·바위·꽃을
+외곽 군집으로 배치했다. 자연물은 렌더러 하단을 Terrain 높이에 맞춰 배치해 공중에 뜨지 않도록 했다.
+
+| 종류 | 경로 |
+| --- | --- |
+| 확장 Terrain 프리팹 | `Prefabs/Environment/Stage1/PF_Stage1_Terrain_Expanded.prefab` |
+| 좌측 TerrainData | `Terrain/Stage1/TerrainData/TD_Stage1_Arena_Base_236.asset` |
+| 우측 TerrainData | `Terrain/Stage1/TerrainData/TD_Stage1_Arena_Expanded_236.asset` |
+| 갈라진 디딤돌 프리팹 | `Prefabs/Environment/Stage1/PF_Stage1_FlatRockCracked.prefab` |
+| 갈라진 디딤돌 Material | `Materials/Environment/Stage1/M_Stage1_FlatRockCracked.mat` |
+| 재배치 도구 | `Scripts/Editor/Stage1NatureLayoutBuilder.cs` |
+
+재배치가 필요하면 Unity 메뉴 `Tools > 둥실둥실 우주 대탈출 > Stage1 지형 확장 및 자연물 배치`를
+실행한다. 같은 메뉴를 다시 실행하면 기존 `Ground`와 `Nature` 하위 배치를 지우고 동일한 결과를 만든다.
 
 ### 적용 전 확인
 
