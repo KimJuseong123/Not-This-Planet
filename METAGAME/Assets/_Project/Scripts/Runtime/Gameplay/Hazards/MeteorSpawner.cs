@@ -596,8 +596,9 @@ namespace Metagame.Gameplay.Hazards
 
             go.AddComponent<Rigidbody>();
 
-            // 플레이어 피해는 새 시스템을 만들지 않고 캐릭터 파트의 DamageSource 를 그대로 쓴다.
-            go.AddComponent<DamageSource>();
+            // DamageSource 를 붙이지 않는다. 그것은 "닿으면 25" 하나뿐이어서 §20.1 의
+            // 세 단계를 표현할 수 없고, 착탄 후에도 0.5초마다 다시 때렸다.
+            // Meteor 가 직접 단계를 정한다(S15P21B202-247).
 
             return go.AddComponent<Meteor>();
         }

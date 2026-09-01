@@ -17,7 +17,7 @@ namespace Metagame.EditorTools
     ///
     /// <code>
     /// PF_Stage1_Meteor      layer Meteor · Rigidbody(질량 60kg) · SphereCollider(r 0.45)
-    ///  │                    · DamageSource · Meteor
+    ///  │                    · Meteor
     ///  └─ Visual            PF_Stage1_MeteorMain — 겉보기 지름을 0.9m 로 맞춘 배율
     /// </code>
     ///
@@ -79,8 +79,8 @@ namespace Metagame.EditorTools
             var sphere = root.AddComponent<SphereCollider>();
             sphere.radius = PhysicsScale.MeteorRadius;
 
-            // 플레이어 피해는 캐릭터 파트의 DamageSource 를 그대로 쓴다 (폴백과 동일).
-            root.AddComponent<DamageSource>();
+            // DamageSource 를 붙이지 않는다 — Meteor 가 §20.1 의 세 단계를 직접 정한다
+            // (S15P21B202-247). 폴백(MeteorSpawner)과 동일하다.
             root.AddComponent<Meteor>();
 
             var visual = (GameObject)PrefabUtility.InstantiatePrefab(art);
