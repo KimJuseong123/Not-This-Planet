@@ -9,7 +9,7 @@
 """
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from urllib.parse import quote
 
@@ -185,6 +185,67 @@ def unchecked_mrs(gl: GitLab, now: datetime) -> list[str]:
     return rows
 
 
+# ── 배포 상태 (S15P21B202-144) ────────────────────────────────
+DEPLOY_JOB = "deploy-backend"
+DEPLOY_SCAN_PIPELINES = 20      # develop 파이프라인 몇 건까지 거슬러 볼지
+
+
+def kst(iso: str | None) -> str:
+    """GitLab 이 주는 UTC ISO 문자열을 한국 시간 표시로. 팀이 읽는 시각이 KST 다."""
+    if not iso:
+        return "?"
+    try:
+        t = datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(timezone(timedelta(hours=9)))
+        return t.strftime("%m/%d %H:%M")
+    except ValueError:
+        return "?"
+
+
+def deploy_jobs(gl: GitLab, ref: str = "develop", max_pipelines: int = DEPLOY_SCAN_PIPELINES) -> tuple[list[dict], bool]:
+    """develop 파이프라인을 최신부터 훑어 배포 잡을 모은다(최신 우선). 반환 (잡 목록, 전량 확인 여부).
+
+    프로젝트 전체 잡 목록으로 찾지 않는 이유는 그 API 가 **이름으로 걸러 주지 않아서**다
+    (ci_common.pipeline_jobs 주석 참고). 배포 잡은 `changes: backend/**` 일 때만 만들어지므로
+    파이프라인 20건을 봐도 배포 잡은 몇 건뿐이다."""
+    pipes = gl.branch_pipelines(ref, per_page=max_pipelines)
+    found: list[dict] = []
+    for p in pipes:
+        same = [j for j in gl.pipeline_jobs(p.get("id")) if j.get("name") == DEPLOY_JOB]
+        if same:
+            found.append(max(same, key=lambda j: j.get("id") or 0))   # 재시도가 있으면 마지막 것
+    # 파이프라인이 상한보다 적게 왔으면 그것이 전부다 = 배포 이력을 다 봤다
+    return found, len(pipes) < max_pipelines
+
+
+def deploy_state(gl: GitLab, ref: str = "develop") -> dict:
+    """{'live': 성공 잡|None, 'attempt': 마지막 시도 잡|None, 'pending': 눌리지 않은 배포 수, 'complete': bool}
+
+    `live` 와 `attempt` 를 따로 두는 이유 — 마지막 시도가 실패했어도 **서버는 그 전 성공분으로 돌고 있다.**
+    둘을 섞으면 실패한 커밋이 배포된 것처럼 읽힌다."""
+    jobs, complete = deploy_jobs(gl, ref)
+    live = next((j for j in jobs if j.get("status") == "success"), None)
+    attempt = next((j for j in jobs if j.get("status") != "manual"), None)
+    pending = 0
+    for j in jobs:                      # 마지막 시도보다 새로운 '눌리지 않은' 배포 = 배포 대기
+        if j.get("status") != "manual":
+            break
+        pending += 1
+    return {"live": live, "attempt": attempt, "pending": pending, "complete": complete}
+
+
+def deploy_line(st: dict) -> str:
+    """아침 점검 꼬리에 붙는 한 줄. 조치할 것이 없어도 나온다 — '지금 뭐가 올라가 있나' 는 항상 궁금하다."""
+    live, pending = st["live"], st["pending"]
+    if not live:
+        head = "🚀 배포: **CI 로 올린 이력 없음**" + ("" if st["complete"] else f" (최근 파이프라인 {DEPLOY_SCAN_PIPELINES}건 안에서)")
+    else:
+        sha = (live.get("commit") or {}).get("short_id") or (live.get("commit") or {}).get("id", "")[:8] or "?"
+        head = f"🚀 배포: `{sha}` ({kst(live.get('finished_at'))})"
+    if pending:
+        head += f" · 백엔드 변경 **{pending}건 배포 대기**(수동 잡을 눌러야 올라갑니다)"
+    return head
+
+
 def main() -> int:
     banner("mm-digest")
     url = env("MM_WEBHOOK_URL")
@@ -271,9 +332,27 @@ def main() -> int:
                               f"대상이 develop 이 아니라 다른 이슈 브랜치여서 자동 완료(R6)가 걸리지 않습니다. "
                               f"**부모가 이미 develop 에 들어갔으니** 담당자가 완료로 옮기면 됩니다(`⁇` 는 확인 실패 — 눈으로 보세요)\n\n"
                               f"| 이슈 | 상태 | MR | 머지 대상 | 담당 |\n|---|---|---|---|---|\n" + "\n".join(stacks) + (note if not rows else ""))
+    dep = {"live": None, "attempt": None, "pending": 0, "complete": True}
+    if gl.token and gl.project:
+        try:
+            dep = deploy_state(gl)
+        except Exception as e:  # noqa: BLE001 — 배포 조회 실패가 점검 전체를 막지 않는다
+            blocks.append(f"**🚀 배포 상태** — 조회 실패 → @{INFRA_MM} 확인: {type(e).__name__}: {e}")
+        att = dep["attempt"]
+        if att and att.get("status") in ("failed", "canceled"):
+            # 마지막 시도가 깨진 채로 남아 있다 = 아무도 뒤처리를 안 했다. 이건 조치 항목이다.
+            live = dep["live"]
+            now_on = f"`{(live.get('commit') or {}).get('short_id', '?')}` ({kst(live.get('finished_at'))})" if live else "**확인 필요**"
+            blocks.append(f"**🚀 마지막 배포 시도가 {'취소' if att.get('status') == 'canceled' else '실패'}로 남아 있습니다** → @{INFRA_MM}\n\n"
+                          f"| 항목 | 내용 |\n|---|---|\n"
+                          f"| 시도 | [잡 #{att.get('id')}]({att.get('web_url', '')}) · {kst(att.get('finished_at'))} |\n"
+                          f"| 지금 서버 | {now_on} |\n"
+                          f"| 볼 곳 | 잡 로그 · 호스트 `~/metagame/deploy/deploy.log` |")
     if not blocks:
         print("보낼 항목 없음"); return 0
+    tail = deploy_line(dep) if (gl.token and gl.project) else ""
     text = f"📋 **아침 점검 — 확인 필요** ({datetime.now().strftime('%m/%d %H:%M')})\n" + "\n\n".join(blocks) + \
+           (f"\n\n{tail}" if tail else "") + \
            f"\n\n_각 항목의 @담당자가 처리 · 규칙: docs/leader-checklist.md · 자동 생성(mm-digest)_"
     st, d = http("POST", url, body={"text": text, "username": "METAGAME 봇"})
     print(text)

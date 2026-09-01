@@ -31,6 +31,30 @@ TIMEOUT = int(env("DEPLOY_TIMEOUT", "420") or 420)
 INTERVAL = 5
 
 
+NOTIFY_JOB = "deploy-backend"        # 이 이름의 잡에서만 알린다
+
+
+def announce(result: str, detail: str = "") -> None:
+    """배포 결과를 MM 에 알린다(S15P21B202-144). **최선 노력** — 알림이 실패해도 배포 결과를 덮지 않는다.
+
+    같은 서버로 테스트하는 팀원은 재시작을 알 방법이 없다. 재시작은 진행 중인 WebSocket 세션을
+    전부 끊으므로 성공도 알린다.
+
+    **실제 배포 잡에서만 보낸다.** 2026-09-01 실측 사고 — `ci-tests` 잡에도 `MM_WEBHOOK_URL` 이
+    들어 있어서, 이 함수를 붙인 순간 `test_deploy_backend.py` 의 4경우가 진짜 카드 4장을 팀
+    채널로 보냈다. 사람이 손으로 돌리는 경우(로컬 확인)에도 팀에 "서버가 재시작됐다" 고 알리면
+    거짓이다. 조건을 잡 이름으로 두면 두 경우가 함께 막힌다."""
+    job = env("CI_JOB_NAME", "")
+    if job != NOTIFY_JOB:
+        print(f"[알림 생략] 배포 잡이 아니다(CI_JOB_NAME={job or '없음'}) — 보냈을 결과: {result} {detail}")
+        return
+    try:
+        import mm_notify
+        mm_notify.deploy(result, detail)
+    except Exception as e:  # noqa: BLE001 — 알림 실패가 배포 판정을 바꾸면 안 된다
+        print(f"[warn] 배포 알림 전송 실패({type(e).__name__}: {e}) — 배포 결과는 위 판정이 맞다")
+
+
 def find_jar(args: list[str]) -> str | None:
     """인자로 받은 경로, 없으면 빌드 산출물에서 찾는다."""
     cands = [a for a in args if a.endswith(".jar")] or sorted(glob.glob(JAR_GLOB))
@@ -111,16 +135,21 @@ def main(argv: list[str] | None = None) -> int:
     if st is None:
         print(f"❌ {TIMEOUT}초 안에 결과가 오지 않았다 — 호스트 쪽을 봐야 한다:")
         print("   systemctl status metagame-deploy.path · tail ~/metagame/deploy/deploy.log")
+        announce("timeout", f"{TIMEOUT}초 안에 호스트가 결과를 남기지 않았다")
         return 1
 
     result, detail = st.get("result"), st.get("detail", "")
     if result == "ok":
-        print(f"✅ 배포 완료 — {detail}"); return 0
+        print(f"✅ 배포 완료 — {detail}")
+        announce("ok", detail)
+        return 0
     if result == "rollback":
         print(f"⚠ 롤백됨 — {detail}")
         print("   서비스는 직전 jar 로 돌고 있다. 이 커밋의 변경은 반영되지 않았다")
+        announce("rollback", detail)
         return 1
     print(f"❌ 배포 실패 — result={result} detail={detail}")
+    announce("fail", detail or f"result={result}")
     return 1
 
 
