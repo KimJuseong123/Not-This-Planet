@@ -22,7 +22,7 @@ workflow:
     # 다른 잡은 전부 merge_request_event 조건이라 생성되지 않는다. 앞으로 배포(CD)도 이 자리에 붙는다.
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
 
-stages: [prepare, lint, test, review, notify]
+stages: [prepare, lint, test, review, deploy, notify]
 
 default:
   # git 이 들어 있는 이미지를 쓴다(slim 에는 없다). mr-overlap·repo-hygiene·ci-tests 가 git 을 직접 부르는데,
@@ -122,6 +122,31 @@ unity-compile:            # Unity 설치 Windows 러너에서만. UNITY_RUNNER=t
     reports:
       junit: unity-results.xml
 
+build-backend:            # 백엔드 jar — MR 에서는 컴파일 검사, develop 머지에서는 배포용 산출물 (S15P21B202-140)
+  stage: test             # 지금까지 백엔드는 MR 시점 빌드 검사가 아예 없었다
+  image: eclipse-temurin:17-jdk    # 프로젝트는 Java 17 · Gradle 9.7.1 래퍼
+  tags: [linux]           # 이미지가 필요한 잡이므로 도커 러너를 못 박는다 — 셸 러너(내 PC)로 가면
+                          # image 가 무시되고 chmod 도 없어 실패한다(2026-09-01 실측: 파이프라인 176688)
+  needs: []
+  rules:                  # .gitlab-ci.yml 이 바뀔 때도 돌린다 — 이 잡 자체가 여전히 도는지 확인하려고
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: ["backend/**/*", ".gitlab-ci.yml"]
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
+      changes: ["backend/**/*", ".gitlab-ci.yml"]
+  variables:
+    GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"   # 캐시가 잡 밖으로 남으려면 작업 디렉터리 안이어야 한다
+  cache:
+    key: gradle-backend
+    paths: [".gradle/caches/modules-2", ".gradle/wrapper"]
+  script:
+    - cd backend
+    - chmod +x ./gradlew            # git 에 실행 권한이 없다(mode 100644)
+    - ./gradlew --no-daemon bootJar
+  artifacts:
+    name: "backend-jar-$CI_COMMIT_SHORT_SHA"
+    paths: ["backend/build/libs/*.jar"]
+    expire_in: 3 days     # 60MB — 배포(-141)가 쓸 만큼만 남긴다
+
 ai-review:                # 비차단. API 키(ANTHROPIC_API_KEY) 또는 러너 호스트의 로그인된 Claude Code CLI(AI_REVIEW_CLI=true) 중 하나 있을 때 생성
   stage: review           # 문서(docs/**, *.md)만 바뀐 MR 은 건너뜀 — 구독 사용량 절약, 문서는 팀장 리뷰로 충분
   needs: []
@@ -138,6 +163,22 @@ ai-review:                # 비차단. API 키(ANTHROPIC_API_KEY) 또는 러너 
   allow_failure: true
   script:
     - python scripts/ci/ai_review.py
+
+# ── 배포 ─────────────────────────────────────────────────────────────────
+deploy-backend:           # develop 머지 뒤 **사람이 눌러서** 배포 (S15P21B202-141)
+  stage: deploy           # 잡은 컨테이너 안이라 호스트 compose 를 못 부른다 → 스풀에 jar+RELEASE 를 놓고
+  image: python:3.12      # 호스트의 systemd path 유닛이 deploy.sh 를 돌린다(도커 소켓 비노출, -139 결정)
+  tags: [linux]           # 스풀이 마운트된 EC2 러너에서만 의미가 있다
+  needs: [build-backend]
+  interruptible: false    # 배포 도중 취소되면 반쯤 적용된 상태가 남는다
+  rules:
+    # 왜 manual 인가: 팀원이 이 서버로 테스트 중이고 재시작은 WebSocket 세션을 전부 끊는다.
+    # 머지가 하루 28건인 날도 있어 자동 재시작이면 테스트가 불가능하다. 자동으로 바꾸려면 이 줄을 지운다.
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
+      changes: ["backend/**/*"]
+      when: manual
+  script:
+    - python scripts/ci/deploy_backend.py
 
 # ── 알림 ─────────────────────────────────────────────────────────────────
 mm-ci-failed:             # 🔴 CI 실패 알림 — mr-lint/repo-hygiene/mr-overlap 실패 시 MR 작성자 @멘션 + 실패 잡 링크
