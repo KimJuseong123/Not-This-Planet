@@ -58,16 +58,29 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 ## 4. 러너
 
 - **공유 러너**: 설정은 켜져 있지만(`shared_runners_enabled=true`) **실제 러너가 없다** — MR !10 첫 파이프라인이 9분 넘게 `pending`(2026-08-27 실측). 따라서 **프로젝트 러너 등록이 필수**. `image:` 는 Docker 러너용이며 shell 러너에서는 무시됨.
-- **현재 배치(2026-09-01 실측)** — 러너 **2대가 모두 태그 없이** 돌고 있어 잡이 양쪽으로 갈린다.
+- **현재 배치(2026-09-01)** — 모든 잡이 **EC2 러너로 고정**돼 있다(`.gitlab-ci.yml` 의 `default.tags: [linux]`).
 
   | 러너 | 어디 | 실행기 | 몫 |
   | --- | --- | --- | --- |
   | `METAGAME-ip-172-26-13-34` | **EC2**(상시, 24시간) | docker · concurrent 2 · 부팅 자동 시작 | 앞으로 전부 |
-  | `METAGAME-DESKTOP-UB20P0O` | 내 PC | shell(pwsh) | Unity 잡(`unity-win`) · EC2 장애 시 예비 |
+  | `METAGAME-DESKTOP-UB20P0O` | 내 PC | shell(pwsh) | **Unity 잡(`unity-win`) 전용 · 그 밖에는 예비** |
 
-  내 PC 러너 강등(태그 부여 + Run untagged 해제)은 **EC2 가 한동안 안정적으로 도는 것을 본 뒤**에 한다.
   단일 러너가 팀 전체의 단일 장애점이었다 — 08-28 러너 중단 1시간, 08-31 MAX_PATH 로 파이프라인 26건 전멸.
   EC2 는 리눅스·도커라 **MAX_PATH 문제는 원인 자체가 없다.**
+
+- **잡을 러너에 묶는 방식**: 러너 쪽에서 'Run untagged 해제 + 태그' 를 하려면 Maintainer 권한이 필요하다
+  (Developer 토큰은 러너 조회조차 403). 그래서 **잡 쪽에 태그를 건다** — `default.tags: [linux]` 한 줄로 모든 잡이
+  `linux` 태그를 요구하게 되고, 그 태그를 가진 것은 EC2 러너뿐이다. `unity-compile` 만 `tags: [unity-win]` 으로 덮어쓴다.
+- **내 PC 러너는 2026-09-01 부터 정지 상태다.** Unity 잡(`unity-compile`)은 `UNITY_RUNNER` 가 켜지기 전까지
+  생성되지 않으므로(최근 파이프라인 실측: 없음) 지금 그 러너가 할 일은 없다. 켜 두면 잡이 양쪽으로 갈려
+  환경 차이만 만든다.
+- **🚨 EC2 러너 장애 시 복귀** — 파이프라인이 `pending` 에서 멈추면 아래 중 하나:
+  ① **팀장**(가장 빠름): Runners 에서 내 PC 러너 **재개(unpause)** + 태그에 `linux` 추가. 두 곳 다 해야 한다 —
+     잡이 `linux` 를 요구하므로 재개만으로는 안 받는다
+  ② 러너 소유자(금준영): 내 PC 에서 관리자 PowerShell 로 `Start-Service gitlab-runner` (①의 태그 추가는 여전히 필요)
+  ③ 팀장이 없을 때: `.gitlab-ci.yml` 의 `default.tags` 줄을 지우는 MR — 그러면 태그 없는 러너 아무 데서나 돈다.
+     `build-backend`·`deploy-backend` 는 잡에 태그가 박혀 있으니 그 줄도 함께 지워야 한다
+  ④ EC2 쪽 1차 확인: `systemctl status gitlab-runner` · `journalctl -u gitlab-runner -n 50`
 
 - **EC2 러너 설치**: `sudo RUNNER_TOKEN=glrt-… bash scripts/runner/setup-linux-runner.sh` (토큰은 환경변수로만 — `read -rs` 로 받아 화면·히스토리에 남기지 않는다). 러너는 아웃바운드 443 만 쓰므로 **UFW 변경 불필요**.
 - **잡 이미지에는 git 이 있어야 한다**(2026-09-01 실측). `python:3.12-slim` 에는 git 이 없어 `ci-tests` 가 EC2 에서
