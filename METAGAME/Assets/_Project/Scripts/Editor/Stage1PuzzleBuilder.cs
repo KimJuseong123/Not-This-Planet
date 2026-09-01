@@ -285,6 +285,10 @@ namespace Metagame.EditorTools
 
             go.AddComponent<DemoMeteorDriver>();
 
+            // 낙하 예고 지면 표시(기획 §17.2, S15P21B202-241). 스포너와 같은 오브젝트에
+            // 두면 Configure 없이 스스로 찾는다.
+            go.AddComponent<MeteorWarningView>();
+
             // 운석 스킨을 여기서 꽂는다. 이 도구가 Puzzle 그룹을 통째로 다시 만들기 때문에
             // 스포너도 새것이 되고, 예전에는 _meteorPrefab 이 비어 폴백 구체로 돌아갔다.
             // 오류도 경고도 나지 않아서 눈으로 봐야 알았다 — S15P21B202-166 부터 그 상태였다.

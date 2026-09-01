@@ -696,6 +696,35 @@ namespace Metagame.Gameplay
         /// <summary>착탄 후 사라지기까지의 시간.</summary>
         public const float MeteorDespawnSeconds = 6f;
 
+        // --- 낙하 예고 표시 (기획 §17.2) ---
+        /// <summary>
+        /// 마지막 몇 초를 "빠른 점멸" 로 볼지. 기획 §17.2 "마지막 0.5초에는 빠르게 점멸한다".
+        /// </summary>
+        public const float MeteorWarningImminentSeconds = 0.5f;
+
+        /// <summary>
+        /// 방망이로 쳐낼 수 있는 동안의 점멸 주기(Hz). 기획 §18.1 "강하게 점멸한다".
+        ///
+        /// 이 구간의 경계는 <see cref="BatSwingWindowSeconds"/> 가 정한다 — 표시가 알리는
+        /// 순간과 실제로 맞는 순간이 같아야 한다.
+        /// </summary>
+        public const float MeteorWarningStrikableBlinkHz = 3f;
+
+        /// <summary>마지막 0.5초의 점멸 주기(Hz). 더 빨라야 "임박" 이 읽힌다.</summary>
+        public const float MeteorWarningImminentBlinkHz = 8f;
+
+        /// <summary>
+        /// 표시를 지면에서 띄우는 높이(m).
+        ///
+        /// 0 이면 지면과 같은 평면이라 깜빡이며 서로를 가린다(z-fighting). 눈에 뜬 것처럼
+        /// 보이지 않을 만큼만 올린다.
+        ///
+        /// <b>지형 경사를 따라가지 않는 한계가 남는다.</b> 납작한 원판이므로 언덕에서는
+        /// 파고들거나 뜬다. URP 데칼로 바꾸면 해결되지만 그것은 렌더 파이프라인 결정이라
+        /// [Level]·[Art] 몫이다.
+        /// </summary>
+        public const float MeteorWarningLift = 0.03f;
+
         // --- 운석 방망이 (기획 §18) ---
         /// <summary>
         /// 착탄 몇 초 전부터 쳐낼 수 있는지.

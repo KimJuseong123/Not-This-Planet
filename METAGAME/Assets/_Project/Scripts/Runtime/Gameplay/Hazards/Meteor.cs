@@ -72,10 +72,20 @@ namespace Metagame.Gameplay.Hazards
         public void SetSize(MeteorSize size)
         {
             Size = size;
-            _impactRadius = size == MeteorSize.Medium
+            _impactRadius = RadiusFor(size);
+        }
+
+        /// <summary>
+        /// 크기에 해당하는 충격 반경(m). 기획 §17.7 — 소형 2m · 중형 3.5m.
+        ///
+        /// <b>매핑이 한 곳에 있어야 한다.</b> 낙하 예고 표시(§17.2 "실제 충격 범위와 같은
+        /// 크기")도 같은 값을 써야 하는데, 스포너가 예고를 만드는 시점에는 운석이 아직
+        /// 없을 수도 있다. 두 곳에서 각자 분기하면 표시와 실제가 어긋난다.
+        /// </summary>
+        public static float RadiusFor(MeteorSize size) =>
+            size == MeteorSize.Medium
                 ? PhysicsScale.MeteorMediumImpactRadius
                 : PhysicsScale.MeteorSmallImpactRadius;
-        }
 
         /// <summary>사라질 때. 스포너가 목록에서 지우는 신호로 쓴다.</summary>
         public event Action<Meteor> Expired;
