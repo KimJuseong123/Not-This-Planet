@@ -281,28 +281,17 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 ### Terrain 확장과 자연물 배치
 
 [S15P21B202-236](https://ssafy.atlassian.net/browse/S15P21B202-236)에서 백업한 Terrain을
-<<<<<<< HEAD
 `PF_Stage1_Terrain_Expanded.prefab`으로 설치했다. `Main.unity`에는 기존 평지 Terrain을 왼쪽에,
 새 절벽 Terrain을 오른쪽에 나란히 배치해 Stage1 지형을 50 × 50m 두 칸으로 확장했다. 두 타일은
 서로 다른 TerrainData를 사용하므로 한쪽 높이를 편집해도 다른 쪽이 함께 변형되지 않는다.
 기존 외곽 경계 오브젝트는 제거하고, 중앙 이동 공간을 비운 채 절벽·나무·바위·꽃을
-=======
-`PF_Stage1_Terrain_Expanded.prefab`으로 설치하고 `Main.unity`의 Stage1 지형을 50 × 50m 두 칸으로
-확장했다. 두 타일은 각각 독립된 TerrainData를 사용하므로 한쪽 높이를 편집해도 다른 쪽이 함께
-변형되지 않는다. 기존 외곽 경계 오브젝트는 제거하고, 중앙 이동 공간을 비운 채 절벽·나무·바위·꽃을
->>>>>>> 5d18b79dfa53893d5973fc22ea6dbd249306e33d
 외곽 군집으로 배치했다. 자연물은 렌더러 하단을 Terrain 높이에 맞춰 배치해 공중에 뜨지 않도록 했다.
 
 | 종류 | 경로 |
 | --- | --- |
 | 확장 Terrain 프리팹 | `Prefabs/Environment/Stage1/PF_Stage1_Terrain_Expanded.prefab` |
-<<<<<<< HEAD
 | 좌측 평지 프리팹 / TerrainData | `Prefabs/Environment/Stage1/PF_Stage1_Terrain.prefab` / `Terrain/Stage1/TerrainData/TD_Stage1_Arena.asset` |
 | 우측 절벽 TerrainData | `Terrain/Stage1/TerrainData/TerrainData_d31748e4-f04c-4ec0-ac3e-9e2e794be340.asset` |
-=======
-| 좌측 TerrainData | `Terrain/Stage1/TerrainData/TD_Stage1_Arena_Base_236.asset` |
-| 우측 TerrainData | `Terrain/Stage1/TerrainData/TD_Stage1_Arena_Expanded_236.asset` |
->>>>>>> 5d18b79dfa53893d5973fc22ea6dbd249306e33d
 | 갈라진 디딤돌 프리팹 | `Prefabs/Environment/Stage1/PF_Stage1_FlatRockCracked.prefab` |
 | 갈라진 디딤돌 Material | `Materials/Environment/Stage1/M_Stage1_FlatRockCracked.mat` |
 | 재배치 도구 | `Scripts/Editor/Stage1NatureLayoutBuilder.cs` |
