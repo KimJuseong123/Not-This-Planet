@@ -24,6 +24,10 @@ namespace Metagame.Gameplay
         public const int Prop = 13;
         public const int BeamQuery = 14;
 
+        /// 원격 플레이어의 몸. 보여 주기 위한 것이라 어떤 것과도 부딪히지 않는다 —
+        /// 충돌 판정은 게임 서버가 하고, 클라이언트는 결과를 받아 그리기만 한다.
+        public const int RemotePlayer = 15;
+
         public const int PlayerMask = (1 << Player) | (1 << PlayerDowned);
         public const int GroundMask = 1 << Ground;
         public const int PartMask = (1 << Part) | (1 << PartCarried);
@@ -31,6 +35,7 @@ namespace Metagame.Gameplay
         public const int InteractableMask = 1 << Interactable;
         public const int PropMask = 1 << Prop;
         public const int BeamQueryMask = 1 << BeamQuery;
+        public const int RemotePlayerMask = 1 << RemotePlayer;
 
         /// <summary>
         /// (인덱스, TagManager 에 등록된 이름) 쌍.
@@ -47,6 +52,7 @@ namespace Metagame.Gameplay
             (Interactable, nameof(Interactable)),
             (Prop, nameof(Prop)),
             (BeamQuery, nameof(BeamQuery)),
+            (RemotePlayer, nameof(RemotePlayer)),
         };
     }
 }
