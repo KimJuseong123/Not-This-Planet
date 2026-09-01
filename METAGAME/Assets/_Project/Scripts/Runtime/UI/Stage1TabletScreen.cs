@@ -78,7 +78,7 @@ namespace Metagame.UI
 
         static readonly HelpEntry[] InteractionHelp =
         {
-            new("좌·우클릭", "고정쇠를 잡고 위로 들어 올린 뒤 유지"),
+            new("좌·우클릭", "고정쇠에 손을 결합하고 반대 방향으로 뒤로 이동"),
             new("Ctrl", "팔을 위로 올려 레일·케이블 잡기"),
             new("W + 잡기", "잡은 레일·케이블을 따라 기어오르기"),
             new("Q 짧게", "현재 손 장비 내려놓기"),
@@ -475,7 +475,7 @@ namespace Metagame.UI
             return page switch
             {
                 1 => "WASD          카메라 기준 이동\n\nShift             달리기\n\nSpace           점프\n\n마우스          1인칭 시점·정면\n\nAlt                현재 카메라 기준으로 자유 시점",
-                2 => "좌·우클릭     고정쇠 잡기 / 도구 사용\n\nCtrl               팔 올리기\n\nW + 잡기       레일·케이블 오르기\n\nQ 짧게          장비 내려놓기\n\nQ 길게          바라보는 방향으로 장비 던지기",
+                2 => "좌·우클릭     고정쇠에 손 결합 / 도구 사용\n\nCtrl               팔 올리기\n\nW + 잡기       레일·케이블 오르기\n\nQ 짧게          장비 내려놓기\n\nQ 길게          바라보는 방향으로 장비 던지기",
                 3 => "E                  장비 줍기·교환 / 탑승·구조\n\nWASD          운반 장치 운전\n\nSpace / Ctrl  상승 / 하강\n\nT                  그 자리에서 다시 서기\n\nR                  처음부터 다시 시작",
                 _ => string.Empty,
             };

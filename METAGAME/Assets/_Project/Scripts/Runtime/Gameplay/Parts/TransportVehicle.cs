@@ -45,8 +45,12 @@ namespace Metagame.Gameplay.Parts
         public const float HoverRootY = 5.0f;
         public const float BeamHoldDistance = 3.1f;
         public const float BoardRadius = 4.2f;
+        public const float InteractionFocusRange = 34f;
+        public const float InteractionFocusHalfAngle = 38f;
+        public const float InteractionFocusHeight = 1.2f;
 
         const float PlatformHeight = 0.22f;
+        const float VisualSurfaceGap = 0.02f;
         const float SeatHeight = 0.43f;
         const float Acceleration = 16f;
         const float Braking = 12f;
@@ -380,16 +384,79 @@ namespace Metagame.Gameplay.Parts
 
             facingDirection = Quaternion.Euler(0f, visualYaw, 0f) * Vector3.forward;
             if (visual != null)
+            {
                 visual.rotation = Quaternion.Euler(0f, visualYaw, 0f);
+                AlignVisualToSurface(GroundY);
+            }
+            RefreshSeat();
+        }
+
+        /// <summary>
+        /// 실제 모델의 최저 렌더러 경계를 기준면에 맞춘다.
+        /// 운반 장치 루트는 빔 축을 위한 기준점이라 모델 중심을 그대로 맞추면
+        /// 큰 비행체의 절반이 바닥 아래로 내려갈 수 있다.
+        /// </summary>
+        public void AlignVisualToSurface(float surfaceY)
+        {
+            if (visual == null)
+            {
+                var children = GetComponentsInChildren<Transform>(true);
+                for (var i = 0; i < children.Length; i++)
+                {
+                    if (children[i] != transform && children[i].name == "Visual")
+                    {
+                        visual = children[i];
+                        break;
+                    }
+                }
+            }
+
+            if (visual == null || !TryVisualAndColliderBounds(out var bounds)) return;
+
+            var delta = surfaceY + VisualSurfaceGap - bounds.min.y;
+            if (float.IsNaN(delta) || float.IsInfinity(delta)) return;
+
+            visual.position += Vector3.up * delta;
+            Physics.SyncTransforms();
+            RefreshSeat();
+        }
+
+        /// <summary>외형 계층의 Renderer와 Collider를 함께 재서 실제 최저면을 구한다.</summary>
+        bool TryVisualAndColliderBounds(out Bounds bounds)
+        {
+            bounds = default;
+            var first = true;
+
+            var renderers = visual.GetComponentsInChildren<Renderer>(true);
+            for (var i = 0; i < renderers.Length; i++)
+            {
+                var renderer = renderers[i];
+                if (renderer == null || !renderer.enabled || renderer is ParticleSystemRenderer
+                    || (cockpit != null && renderer.transform.IsChildOf(cockpit))) continue;
+
+                if (first) { bounds = renderer.bounds; first = false; }
+                else bounds.Encapsulate(renderer.bounds);
+            }
+
+            var colliders = visual.GetComponentsInChildren<Collider>(true);
+            for (var i = 0; i < colliders.Length; i++)
+            {
+                var collider = colliders[i];
+                if (collider == null || !collider.enabled
+                    || (cockpit != null && collider.transform.IsChildOf(cockpit))) continue;
+
+                if (first) { bounds = collider.bounds; first = false; }
+                else bounds.Encapsulate(collider.bounds);
+            }
+
+            return !first;
         }
 
         public bool TryBoard(PlayerRig player)
         {
             if (player == null || rider != null || returning) return false;
 
-            var offset = player.Position - transform.position;
-            offset.y = 0f;
-            if (offset.sqrMagnitude > BoardRadius * BoardRadius) return false;
+            if (!CanBoardFrom(player)) return false;
 
             body.useGravity = false;
             grounded = false;
@@ -422,6 +489,16 @@ namespace Metagame.Gameplay.Parts
             rider = player;
             SetCockpitVisible(true);
             return true;
+        }
+
+        /// <summary>운반 장치에 탑승할 수 있는 수평 거리 안에 있는지 확인한다.</summary>
+        public bool CanBoardFrom(PlayerRig player)
+        {
+            if (player == null) return false;
+
+            var offset = player.Position - transform.position;
+            offset.y = 0f;
+            return offset.sqrMagnitude <= BoardRadius * BoardRadius;
         }
 
         public void BeginDismount()
@@ -696,6 +773,8 @@ namespace Metagame.Gameplay.Parts
             var first = true;
             for (var i = 0; i < renderers.Length; i++)
             {
+                if (renderers[i] is ParticleSystemRenderer) continue;
+                if (cockpit != null && renderers[i].transform.IsChildOf(cockpit)) continue;
                 if (first) { bounds = renderers[i].bounds; first = false; }
                 else bounds.Encapsulate(renderers[i].bounds);
             }

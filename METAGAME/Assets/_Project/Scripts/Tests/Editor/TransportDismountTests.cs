@@ -119,6 +119,18 @@ namespace Metagame.Gameplay.Tests
             Assert.IsFalse(hovering.IsTouchingSurface, "부유 높이에서는 접지가 아니다.");
         }
 
+        [Test]
+        public void PlaceOnGround_AlignsVisualBoundsAboveTheGround()
+        {
+            var vehicle = MakeVehicleWithHull(new Vector3(4f, TransportVehicle.GroundY, -3f),
+                                               out var hull);
+
+            vehicle.PlaceOnGround(vehicle.transform.position, 0f);
+
+            Assert.GreaterOrEqual(hull.bounds.min.y, TransportVehicle.GroundY + 0.019f,
+                "운반 장치 외형의 실제 최저 Y가 바닥 아래로 내려가면 안 된다.");
+        }
+
         /// <summary>
         /// 이 버그의 회귀 테스트. 구조물 위에서 하차를 걸고 물리를 돌려 실제로 완료되는지 본다.
         ///

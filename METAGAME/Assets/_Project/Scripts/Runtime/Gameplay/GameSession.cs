@@ -128,6 +128,22 @@ namespace Metagame.Gameplay
                 if (Input.GetKeyDown(Controls.Respawn)) Respawn();
                 if (f.Restart) Restart();
 
+                if (LocalPlayer.Cam != null)
+                {
+                    LocalPlayer.Cam.SetFreeLook(f.FreeLook);     // Steer 보다 먼저 — Alt 시점의 pitch 범위를 선택한다
+                    bool clampButtons = f.GrabLeft || f.GrabRight;
+                    LocalPlayer.Cam.SetClampLiftResistance(
+                        LocalPlayer.ClampGrabbed && clampButtons && !f.FreeLook);
+                    LocalPlayer.Cam.SetClampLiftPitchLock(
+                        LocalPlayer.ClampGrabbed && LocalPlayer.ClampLiftReady
+                        && clampButtons && !f.FreeLook);
+                    LocalPlayer.Cam.Steer(f.Look);
+                }
+
+                // 카메라가 갱신된 뒤 같은 프레임에 하나의 상호작용 대상을 고른다.
+                // 운반 장치·고정쇠·손잡기 입력과 HUD가 모두 이 결과를 공유한다.
+                LocalPlayer.RefreshInteractionFocus();
+
                 if (Transport != null)
                 {
                     Transport.SetInput(f);
@@ -146,18 +162,6 @@ namespace Metagame.Gameplay
                         f.ToolUtility = false;
                         f.ArmsUp = false;
                     }
-                }
-
-                if (LocalPlayer.Cam != null)
-                {
-                    LocalPlayer.Cam.SetFreeLook(f.FreeLook);     // Steer 보다 먼저 — Alt 시점의 pitch 범위를 선택한다
-                    bool clampButtons = f.GrabLeft || f.GrabRight;
-                    LocalPlayer.Cam.SetClampLiftResistance(
-                        LocalPlayer.ClampGrabbed && clampButtons && !f.FreeLook);
-                    LocalPlayer.Cam.SetClampLiftPitchLock(
-                        LocalPlayer.ClampGrabbed && LocalPlayer.ClampLiftReady
-                        && clampButtons && !f.FreeLook);
-                    LocalPlayer.Cam.Steer(f.Look);
                 }
                 LocalPlayer.SetInput(f);
             }
