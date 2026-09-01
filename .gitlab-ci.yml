@@ -18,6 +18,9 @@ workflow:
       when: never
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_PIPELINE_SOURCE == "schedule"
+    # develop 머지 직후(=push) 파이프라인 — jira-complete 만 여기서 돈다(S15P21B202-199).
+    # 다른 잡은 전부 merge_request_event 조건이라 생성되지 않는다. 앞으로 배포(CD)도 이 자리에 붙는다.
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
 
 stages: [prepare, lint, test, review, notify]
 
@@ -156,6 +159,16 @@ mm-ci-resolved:           # 검사 통과 시, 남아 있는 CI 실패 코멘트
   script:
     - python scripts/ci/mm_notify.py ci-resolved
   allow_failure: true
+
+jira-complete:            # develop 머지 직후 — 머지된 MR 의 이슈 + **스택 자식 이슈**를 완료로 (S15P21B202-199)
+  stage: notify           # R6(Jira 자동화)는 대상이 develop 인 MR 만 완료시키므로 스택 자식이 영원히 남았고,
+  needs: []               # 머지 시점에 이슈가 '해야 할 일' 이면 R6 가 놓치는 것도 실측됐다(-159·-133)
+  interruptible: false    # 뒤이은 push 로 취소되면 전환이 반쯤 된 상태로 남는다
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
+  script:
+    - python scripts/ci/jira_complete.py
+  allow_failure: true     # 보드 정리 실패가 머지 흐름을 막지 않는다 — 아침 점검이 다음날 잡는다
 
 mm-digest:                # 스케줄 파이프라인(매일 09:30 · 실제 발송 09:33) — needs-fix·오래 열린 MR·정체 이슈 요약을 MM 채널로
   stage: notify
