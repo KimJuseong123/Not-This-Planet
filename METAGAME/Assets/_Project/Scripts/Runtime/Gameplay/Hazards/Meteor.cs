@@ -33,7 +33,6 @@ namespace Metagame.Gameplay.Hazards
 
         /// <summary>이번 착탄에 재사용하는 버퍼. 한 플레이어의 여러 뼈가 함께 걸린다.</summary>
         static readonly List<PlayerRig> Struck = new();
-        [SerializeField, Min(0f)] float _despawnSeconds = PhysicsScale.MeteorDespawnSeconds;
         [SerializeField, Min(0f)] float _maxLifeSeconds = PhysicsScale.MeteorMaxLifeSeconds;
 
         /// <summary>
@@ -49,11 +48,22 @@ namespace Metagame.Gameplay.Hazards
         public static readonly List<Meteor> All = new();
 
         Rigidbody _body;
-        float _sinceImpact;
         float _life;
 
         /// <summary>이미 부딪혔는지. 착탄은 한 번만 처리한다.</summary>
         public bool HasImpacted { get; private set; }
+
+        /// <summary>
+        /// 지면에 박혀 흔적으로 남았는지(기획 §19).
+        ///
+        /// <b>예전에는 착탄 6초 뒤에 사라졌다.</b> §19 는 "박힌 운석과 분화구는 발사 실패
+        /// 후에도 유지되며 <b>스테이지 동안 사라지지 않는다</b>" 고 정한다 — 정확히
+        /// 반대였다(S15P21B202-251).
+        ///
+        /// 박히면 물리를 끈다. §19 "충돌 후 고비용 물리, 빛과 파티클을 끄고 … 단순
+        /// 충돌체로 전환한다" 이고, 150~200개가 쌓이는 것을 성능 기준으로 삼기 때문이다.
+        /// </summary>
+        public bool Settled { get; private set; }
 
         /// <summary>
         /// 착탄할 지면의 높이(m). 스포너가 넣는다.
@@ -231,9 +241,9 @@ namespace Metagame.Gameplay.Hazards
 
             Initialize();
             HasImpacted = true;
-            _sinceImpact = 0f;
 
             ApplyKnockback(point, directHit);
+            Settle(point);
             Impacted?.Invoke(this, point);
         }
 
@@ -242,22 +252,46 @@ namespace Metagame.Gameplay.Hazards
         /// </summary>
         public void Tick(float deltaTime)
         {
+            // 박힌 뒤에는 아무것도 하지 않는다(기획 §19). 스포너가 흔적 목록으로 옮겨
+            // 더 부르지 않지만, 누가 불러도 안전해야 한다.
+            if (Settled) return;
+
             _life += deltaTime;
 
             // 착탄 처리는 물리 충돌 콜백에 달려 있다. 운석이 플레이 공간 밖으로 떨어지거나
             // 콜백을 놓치면 영구히 남으므로 수명 상한으로 반드시 사라지게 한다.
-            if (_life >= _maxLifeSeconds)
+            //
+            // 착탄한 운석에는 이 상한이 걸리지 않는다 — Settled 에서 이미 돌아나갔다.
+            if (_life >= _maxLifeSeconds) Expire();
+        }
+
+        /// <summary>
+        /// 지면에 박아 흔적으로 만든다(기획 §19).
+        ///
+        /// <b>물리를 끈다.</b> 키네마틱으로 바꾸고 속도를 지운다 — 200개가 쌓여도 솔버가
+        /// 매 스텝 풀어야 할 것이 없어야 한다. 콜라이더는 남긴다: §19 이 "접촉 피해가
+        /// 없는 <b>낮은 정적 장애물</b>" 이라고 정하므로 걸려서 넘어갈 수 있어야 한다.
+        ///
+        /// 피해는 이미 한 번만 돈다 — <see cref="HasImpacted"/> 가
+        /// <see cref="ApplyImpact"/> 를 막고, <c>DamageSource</c> 는 운석에 붙어 있지 않다
+        /// (S15P21B202-247).
+        /// </summary>
+        void Settle(Vector3 point)
+        {
+            Settled = true;
+
+            if (_body != null)
             {
-                Expire();
-                return;
+                _body.linearVelocity = Vector3.zero;
+                _body.angularVelocity = Vector3.zero;
+                _body.isKinematic = true;
             }
 
-            if (!HasImpacted) return;
-
-            _sinceImpact += deltaTime;
-            if (_sinceImpact < _despawnSeconds) return;
-
-            Expire();
+            // "절반 이상 지면에 박힌 모습"(§19). 착탄 지점이 지면이므로 그 아래로 내린다.
+            var sunk = point;
+            sunk.y = point.y
+                     + PhysicsScale.MeteorRadius * (1f - 2f * PhysicsScale.MeteorScarSinkRatio);
+            transform.position = sunk;
         }
 
         void Expire()

@@ -81,8 +81,14 @@ namespace Metagame.Gameplay.Tests
             Assert.IsFalse(expired, "떨어지는 중에 사라지면 안 된다.");
         }
 
+        /// <summary>
+        /// 예전에는 이 검증이 착탄한 운석이 <b>사라지는지</b>를 잠갔다("착탄한 운석이 남아
+        /// 쌓이면 안 된다"). 기획 §19 는 정반대다 — "박힌 운석과 분화구는 발사 실패
+        /// 후에도 유지되며 <b>스테이지 동안 사라지지 않는다</b>".
+        /// S15P21B202-251 에서 뒤집었다.
+        /// </summary>
         [Test]
-        public void Meteor_ExpiresAfterDespawnDelay()
+        public void Meteor_StaysForeverOnceItSettles()
         {
             var meteor = CreateMeteor(Vector3.up * 10f);
             meteor.ApplyImpact(Vector3.zero);
@@ -90,15 +96,14 @@ namespace Metagame.Gameplay.Tests
             var expired = false;
             meteor.Expired += _ => expired = true;
 
-            for (var i = 0; i < Mathf.RoundToInt(PhysicsScale.MeteorDespawnSeconds * 0.5f / Tuning.FixedStep); i++)
+            Assert.IsTrue(meteor.Settled, "박혀야 한다.");
+
+            // 예전 소멸 시간(6초)과 수명 상한을 모두 훌쩍 넘긴다.
+            for (var i = 0; i < Mathf.RoundToInt(120f / Tuning.FixedStep); i++)
                 meteor.Tick(Tuning.FixedStep);
-            Assert.IsFalse(expired);
 
-            // 소멸하면 오브젝트가 파괴되므로 그 뒤로는 Tick 하지 않는다.
-            var guard = 0;
-            while (!expired && guard++ < 200000) meteor.Tick(Tuning.FixedStep);
-
-            Assert.IsTrue(expired, "착탄한 운석이 남아 쌓이면 안 된다.");
+            Assert.IsFalse(expired, "흔적은 스테이지 동안 남는다(§19).");
+            Assert.IsTrue(meteor != null);
         }
 
         [Test]

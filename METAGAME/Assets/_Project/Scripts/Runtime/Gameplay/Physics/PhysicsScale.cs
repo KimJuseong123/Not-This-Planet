@@ -718,8 +718,31 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float MeteorHeavyKnockSpeed = 8f;
 
-        /// <summary>착탄 후 사라지기까지의 시간.</summary>
-        public const float MeteorDespawnSeconds = 6f;
+        // --- 운석 충돌 흔적 (기획 §19) ---
+        /// <summary>
+        /// 착탄한 운석이 지면에 박히는 깊이의 비율(반지름 기준).
+        ///
+        /// 기획 §19 "운석 본체는 <b>절반 이상</b> 지면에 박힌 모습으로 남는다".
+        /// 0.6 이면 절반보다 조금 더 들어가 "박혔다" 로 읽힌다.
+        /// </summary>
+        public const float MeteorScarSinkRatio = 0.6f;
+
+        /// <summary>
+        /// 흔적이 식는 시간(초). 기획 §19 "약 5초 동안 붉은 빛, 연기와 불꽃이 약해진다".
+        ///
+        /// 이 시간이 지나면 <b>흔적의 나이를 더 세지 않는다</b> — 150~200개가 쌓여도
+        /// 매 프레임 도는 비용이 0이 된다(§19 의 성능 기준).
+        /// </summary>
+        public const float MeteorScarCoolSeconds = 5f;
+
+        /// <summary>
+        /// 남겨 두는 흔적의 최대 개수.
+        ///
+        /// 기획 §19 가 "정상 20분 플레이에서 약 150~200개의 흔적이 누적되는 상황을
+        /// <b>성능 기준으로 삼는다</b>" 고 못박았다. 그 상한을 그대로 쓴다 — 넘으면 가장
+        /// 오래된 것부터 지우고 <b>로그를 남긴다.</b> 조용히 잘라내면 "다 남았다" 로 보인다.
+        /// </summary>
+        public const int MeteorScarLimit = 200;
 
         // --- 낙하 예고 표시 (기획 §17.2) ---
         /// <summary>
