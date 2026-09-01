@@ -70,6 +70,18 @@ namespace Metagame.Gameplay
 
         /// <summary>이번 틱에 절단이 실제로 진행됐는가.</summary>
         public bool CuttingProgressed { get; private set; }
+
+        /// <summary>지금 비드를 쌓고 있는 파츠의 비드 관리자. 없으면 null.</summary>
+        public WeldBead GrowingBead { get; private set; }
+
+        /// <summary>이번 틱에 비드가 실제로 자랐는가. 불꽃이 붙을 또 하나의 신호다.</summary>
+        public bool BeadProgressed { get; private set; }
+
+        /// <summary>지금 비드를 깎고 있는 파츠의 비드 관리자. 없으면 null.</summary>
+        public WeldBead ShrinkingBead { get; private set; }
+
+        /// <summary>이번 틱에 비드가 실제로 깎였는가.</summary>
+        public bool BeadShrunk { get; private set; }
         public Color CurrentBeamColor
         {
             get
@@ -114,6 +126,10 @@ namespace Metagame.Gameplay
             WeldingProgressed = false;
             CuttingSeam = null;
             CuttingProgressed = false;
+            GrowingBead = null;
+            BeadProgressed = false;
+            ShrinkingBead = null;
+            BeadShrunk = false;
             if (petalAnimator != null) petalAnimator.SnapToMode(PlasmaBeamMode.None);
             if (beam != null) beam.enabled = false;
         }
@@ -154,19 +170,33 @@ namespace Metagame.Gameplay
         public bool WeldTick(float deltaTime, PlasmaBeamMode mode)
         {
             WeldingProgressed = false;
+            BeadProgressed = false;
 
             if (mode != PlasmaBeamMode.Weld || Muzzle == null)
             {
                 WeldingSeam = null;
+                GrowingBead = null;
                 return false;
             }
 
             WeldingSeam = WeldSeam.FindNearest(Muzzle.position);
-            if (WeldingSeam == null) return false;
+            if (WeldingSeam != null)
+            {
+                var point = WeldingSeam.ClosestPointOnSeam(Muzzle.position);
+                WeldingProgressed = WeldingSeam.TryWeld(point, deltaTime);
+                if (WeldingProgressed)
+                {
+                    GrowingBead = null;
+                    return true;
+                }
+            }
 
-            var point = WeldingSeam.ClosestPointOnSeam(Muzzle.position);
-            WeldingProgressed = WeldingSeam.TryWeld(point, deltaTime);
-            return WeldingProgressed;
+            // 접합선이 없거나 그 자리가 이미 다 찼으면 몸체에 비드를 쌓는다(S15P21B202-226).
+            // 접합선을 먼저 보는 것은 §16.1 의 원형 용접이 조립의 정식 절차이기 때문이다 —
+            // 접합선 위에서 비드부터 쌓이면 정작 훑어야 할 진행분이 오르지 않는다.
+            BeadProgressed = WeldBead.TryGrowNear(Muzzle.position, deltaTime, out var bead);
+            GrowingBead = bead;
+            return BeadProgressed;
         }
 
         protected override void OnToolVisualUpdate(ToolInputFrame input, ToolAimContext aim)
@@ -215,22 +245,35 @@ namespace Metagame.Gameplay
         public bool CutTick(float deltaTime, PlasmaBeamMode mode)
         {
             CuttingProgressed = false;
+            BeadShrunk = false;
 
             if (mode != PlasmaBeamMode.Cut || Muzzle == null)
             {
                 CuttingSeam = null;
+                ShrinkingBead = null;
                 return false;
             }
 
             CuttingSeam = WeldSeam.FindNearest(Muzzle.position);
-            if (CuttingSeam == null) return false;
+            if (CuttingSeam != null)
+            {
+                var point = CuttingSeam.ClosestPointOnSeam(Muzzle.position);
+                CuttingProgressed = CuttingSeam.TryCut(point, deltaTime);
 
-            var point = CuttingSeam.ClosestPointOnSeam(Muzzle.position);
-            CuttingProgressed = CuttingSeam.TryCut(point, deltaTime);
+                // 완전히 잘리면 접합이 해제되고 접합선의 진행분도 되돌아간다.
+                // 다음 틱에 다시 찾으면 되므로 여기서 붙잡아 두지 않는다.
+                if (CuttingProgressed)
+                {
+                    ShrinkingBead = null;
+                    return true;
+                }
+            }
 
-            // 완전히 잘리면 접합이 해제되고 접합선의 진행분도 되돌아간다.
-            // 다음 틱에 다시 찾으면 되므로 여기서 붙잡아 두지 않는다.
-            return CuttingProgressed;
+            // 쌓은 비드를 깎는다. 쌓을 수만 있고 되돌릴 수 없으면 잘못 쏜 한 번이
+            // 파츠에 영구히 남는다.
+            BeadShrunk = WeldBead.TryShrinkNear(Muzzle.position, deltaTime, out var bead);
+            ShrinkingBead = bead;
+            return BeadShrunk;
         }
 
         void EnsureBeam()

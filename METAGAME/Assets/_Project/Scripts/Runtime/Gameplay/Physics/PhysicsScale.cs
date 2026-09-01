@@ -187,6 +187,78 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float CutSeamSeconds = 6f;
 
+        // --- 용접 비드 (기획 §16.2 의 "실제 금속 비드") ---
+        /// <summary>
+        /// 비드 덩어리 하나의 최대 반지름(m). 그림의 "상한선" 이다.
+        ///
+        /// 이 값에 이르면 그 덩어리는 더 자라지 않고 <b>다음 덩어리가 시작된다.</b>
+        /// 상한이 없으면 콜라이더 하나가 파츠보다 커진다.
+        ///
+        /// 0.10m 은 파츠 폭(<see cref="PartWidth"/>) 의 1/20 쯤이라 눈에는 확실히 보이고
+        /// 파츠 형태를 가리지는 않는 크기다.
+        /// </summary>
+        public const float WeldBeadMaxRadius = 0.10f;
+
+        /// <summary>
+        /// 갓 생긴 비드 덩어리의 반지름(m).
+        ///
+        /// 0 에서 시작하면 좌클릭한 순간 아무것도 보이지 않아 "되고 있는지" 를 알 수 없다.
+        /// 기획 §16.2 가 진행 바를 금지하므로 <b>보이는 것 자체가 피드백이다</b> —
+        /// 첫 프레임부터 작게라도 보여야 한다.
+        /// </summary>
+        public const float WeldBeadMinRadius = 0.03f;
+
+        /// <summary>
+        /// 덩어리 하나가 최소에서 최대까지 자라는 시간(초).
+        ///
+        /// 원형 접합선의 조각 하나(<see cref="WeldSeamSecondsPerSegment"/>, 약 0.83초)의
+        /// 두 배쯤이다. 비드는 접합선과 달리 <b>한 자리에 계속 대고 있는</b> 작업이므로
+        /// 조각보다 느려야 "쌓는" 느낌이 난다.
+        /// </summary>
+        public const float WeldBeadBlobSeconds = 1.6f;
+
+        /// <summary>
+        /// 한 사슬에 이어 붙는 덩어리 수 = <b>최대 다리 길이</b>.
+        ///
+        /// 6개 × <see cref="WeldBeadStep"/> 0.13m + 반지름 0.10m ≈ 0.75m 를 뻗는다.
+        /// 용접기 사거리(<see cref="WeldSeamRange"/> 0.80m)보다 짧게 둔 것이 의도다 —
+        /// 길이 상한이 사거리보다 길면 플레이어가 자기 비드를 따라가지 못해 끝을
+        /// 놓치고, 왜 멈췄는지 알 수 없다.
+        /// </summary>
+        public const int WeldBeadBlobsPerChain = 6;
+
+        /// <summary>덩어리 중심 사이 간격(m). 지름(0.20m)보다 좁아 서로 겹쳐 기둥으로 보인다.</summary>
+        public const float WeldBeadStep = 0.13f;
+
+        /// <summary>
+        /// 사슬을 이어 붙일지 새로 시작할지 가르는 거리(m).
+        ///
+        /// 노즐이 기존 사슬의 끝에서 이 거리 안에 있으면 <b>그 사슬을 잇는다.</b>
+        /// 밖이면 새 사슬을 시작한다. 이 값이 없으면 좌클릭할 때마다 새 사슬이 생겨
+        /// 기둥이 자라지 않는다.
+        /// </summary>
+        public const float WeldBeadChainReuseRadius = 0.35f;
+
+        /// <summary>
+        /// 파츠 하나가 가질 수 있는 총 덩어리 수.
+        ///
+        /// 성능 상한이다. 콜라이더가 무한히 늘면 파츠의 컴파운드 콜라이더가 그만큼
+        /// 무거워진다. 48개 = 사슬 8개 × 6개.
+        /// </summary>
+        public const int WeldBeadsPerPart = 48;
+
+        /// <summary>
+        /// 최대 크기 덩어리 하나의 질량(kg). 작은 덩어리는 부피비(반지름의 세제곱)로 준다.
+        ///
+        /// 강철 밀도(7,800kg/m³)를 그대로 쓰면 덩어리 하나가 33kg 이라 48개가 1.6톤 —
+        /// 파츠(406~745kg)보다 무거워져 탑이 비드 무게로 무너진다. 비드는 속이 찬
+        /// 강철 덩어리가 아니라 <b>덧붙인 살</b> 이므로 훨씬 가볍게 둔다.
+        ///
+        /// 4kg × 48 = 192kg 이면 가장 가벼운 파츠의 절반이 안 되고, 그러면서도
+        /// 한쪽에만 잔뜩 쌓으면 무게중심이 눈에 보이게 치우친다.
+        /// </summary>
+        public const float WeldBeadFullMass = 4f;
+
         // --- 바닥 고정못 (기획 §12.1 · §12.2) ---
         /// <summary>
         /// 한 명이 고정못 하나를 뽑는 데 걸리는 시간(초).
