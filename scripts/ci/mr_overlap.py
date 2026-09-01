@@ -22,7 +22,8 @@ import os
 import subprocess
 import sys
 
-from ci_common import GitLab, Report, banner, env, env_int, http
+from ci_common import (GitLab, Report, banner, completes_on_merge, env, env_int,
+                       http, strip_draft)
 
 
 def is_release_mr(source: str, target: str) -> bool:
@@ -31,6 +32,27 @@ def is_release_mr(source: str, target: str) -> bool:
 
 MARKER = "<!-- mr-overlap:metagame -->"
 PAIR_MARKER = "<!-- mr-overlap:metagame:!{iid} -->"
+GATE_MARKER = "<!-- mr-overlap:stack-gate -->"
+STACK_LABEL = "stack-blocked"       # CI 가 걸어 둔 Draft 임을 나타낸다(사람이 건 Draft 와 구분)
+
+GATE_LOCKED = GATE_MARKER + """
+🔒 **부모가 먼저 머지돼야 합니다 — 그때까지 이 MR 은 Draft 입니다**
+
+이 MR 의 대상은 `{target}` 로, 다른 이슈의 작업 브랜치입니다. 이대로 머지하면 develop 에는 아무것도
+도착하지 않고 그 브랜치 안으로만 들어갑니다. 그러면 **부모 MR 의 내용이 리뷰 후에 바뀝니다** —
+실제로 그렇게 머지된 MR 하나가 이슈 3건의 변경을 실어 갔습니다.
+
+**할 일은 없습니다.** 부모가 develop 에 머지되면 GitLab 이 이 MR 의 대상을 develop 으로 되돌리고,
+다음 파이프라인에서 CI 가 Draft 를 자동으로 뗍니다. 그때 리뷰 요청 카드도 그때 나갑니다.
+
+<sub>순서 규칙: docs/mr-flow.md §3 (머지는 아래부터) · 자동 생성(mr-overlap)</sub>"""
+
+GATE_UNLOCKED = GATE_MARKER + """
+🔓 **풀렸습니다** — 부모가 develop 에 머지되어 이 MR 의 대상이 develop 으로 돌아왔고, Draft 를
+해제했습니다. 이제 리뷰·머지 대상입니다.
+
+<sub>자동 생성(mr-overlap)</sub>"""
+
 RISKY_EXT = (".unity", ".prefab", ".asset", ".controller", ".anim", ".mat", ".playable", ".spriteatlas")
 MAX_SIDE_CHARS = 40000       # AI 에 넘기는 한쪽 diff 상한
 
@@ -296,6 +318,66 @@ def conflict_pairs(gl: GitLab, target: str = "develop") -> list[dict]:
     return pairs
 
 
+def stack_gate(gl: GitLab, rep: Report, me: dict, target: str, target_exists: bool) -> str:
+    """스택 자식 MR 을 **Draft 로 묶어** 부모보다 먼저 머지되는 것을 막는다. 반환: 최종 대상 브랜치.
+
+    왜 필요한가 — mr-flow §3 은 스택을 **아래(develop 에 가까운 쪽)부터** 머지하라고 정한다. 그러면 부모가
+    머지될 때 GitLab 이 자식의 대상을 develop 으로 자동 전환하고, 자식이 develop 으로 머지되며 R6 가 각
+    이슈를 자연히 완료시킨다. 그런데 **실측 26 대 0 으로 아무도 그 순서를 지키지 않았다**
+    (2026-09-01, 머지 139건 중 대상이 이슈 브랜치인 28건 조사). 맨 위부터 부모 브랜치에 넣으면
+
+      · 부모 MR 의 내용이 **리뷰 후에 바뀐다** — !148 은 리뷰 때 이슈 1건이었는데 머지 때 3건을 실어 갔다
+      · develop 커밋 하나에 여러 이슈가 뭉쳐 되돌릴 때 분리가 안 된다
+      · 자식 이슈가 완료로 가지 않는다 (그건 증상이고 원인은 이 순서다)
+
+    왜 Draft 인가 — GitLab 은 **Draft MR 을 머지하지 못하게 한다.** 파이프라인 설정
+    ('Pipelines must succeed')에 의존하지 않는 하드 블록이라 지금 상태에서도 즉시 효력이 있다.
+    부수 효과도 유리하다: Draft 는 리뷰 요청 카드를 보내지 않으므로 팀장이 부모보다 먼저 자식을 볼 일이 없다.
+    """
+    labels = [str(x) for x in (me.get("labels") or [])]
+    title = me.get("title") or ""
+    _, is_draft = strip_draft(title)
+    ci_draft = STACK_LABEL in labels
+
+    if not completes_on_merge(target):
+        # 부모 브랜치가 사라졌다 = 부모가 머지됐다. GitLab 이 대상을 안 돌려놨어도 우리가 회복한다.
+        # 존재 여부는 위에서 fetch 한 결과를 그대로 쓴다 — API 를 다시 묻지 않고, 판정이 한 곳에 모인다.
+        if not target_exists:
+            st, _ = gl.update_mr(target_branch="develop")
+            if st == 200:
+                rep.ok(f"부모 브랜치 `{target}` 가 사라졌다(머지됨) → 대상을 develop 으로 되돌렸다")
+                target = "develop"
+            else:
+                rep.warn(f"부모 브랜치 `{target}` 가 없는데 대상 전환 실패({st}) — "
+                         f"MR 화면에서 대상을 `develop` 으로 바꿔 주세요")
+                return target
+        else:
+            if not is_draft:
+                st, _ = gl.update_mr(title="Draft: " + title, add_labels=STACK_LABEL)
+            elif not ci_draft:
+                st, _ = gl.update_mr(add_labels=STACK_LABEL)
+            else:
+                st = 200
+            if st == 200:
+                rep.ok(f"스택 자식(대상 `{target}`) → **Draft 로 묶었다.** "
+                       f"부모가 develop 에 머지되면 자동으로 풀린다")
+                gl.upsert_note(GATE_MARKER, GATE_LOCKED.format(target=target))
+            else:
+                rep.warn(f"Draft 로 묶는 데 실패({st}) — 부모 MR 이 머지되기 전에는 이 MR 을 머지하지 마세요")
+            return target
+
+    # 대상이 develop·master 인데 CI 가 걸어 둔 Draft 가 남아 있으면 푼다
+    if ci_draft:
+        clean, _ = strip_draft(title)
+        st, _ = gl.update_mr(title=clean, remove_labels=STACK_LABEL)
+        if st == 200:
+            rep.ok("부모가 머지돼 대상이 develop 으로 돌아왔다 → **Draft 해제**")
+            gl.upsert_note(GATE_MARKER, GATE_UNLOCKED)
+        else:
+            rep.warn(f"Draft 해제 실패({st}) — MR 화면에서 'Mark as ready' 를 눌러 주세요")
+    return target
+
+
 # ── main ─────────────────────────────────────────────────────────────────────
 def main() -> int:
     banner("mr-overlap")
@@ -352,6 +434,9 @@ def main() -> int:
             rep.warn(f"이 MR 은 !{parent['iid']} 위에 얹혀 있음 — 대상을 `{parent['source_branch']}` 로 바꾸세요(자동 전환 꺼짐)")
     elif parent:
         rep.ok(f"이 MR 은 !{parent['iid']}({parent['source_branch']}) 위에 얹혀 있음 — 대상 {target}")
+
+    # 스택 순서 강제 — 자식은 부모가 develop 에 들어가기 전까지 Draft (S15P21B202-244)
+    target = stack_gate(gl, rep, me, target, target in got)
 
     # ①② 쌍 비교. '자기 변경' 기준은 부모 끝 커밋 또는 대상 브랜치와의 공통 조상(own_base 참고)
     my_base = own_base(my_head, target, parent["_head"] if parent else None)

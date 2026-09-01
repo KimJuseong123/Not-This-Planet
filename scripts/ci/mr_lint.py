@@ -176,8 +176,12 @@ def main() -> int:
     desc = mr.get("description") or ""
     print(f"MR: {raw_title!r}\n브랜치: {branch} → {target}")
 
-    # 1) Draft 금지
-    if is_draft or mr.get("draft"):
+    # 1) Draft 금지 — 단 **CI 가 스택 순서를 지키려고 걸어 둔 Draft**(레이블 stack-blocked)는 예외다.
+    #    그건 사람이 덜 끝낸 것이 아니라, 부모가 먼저 머지되게 막아 둔 것이다(S15P21B202-244).
+    ci_stack_draft = "stack-blocked" in [str(x) for x in (mr.get("labels") or [])]
+    if (is_draft or mr.get("draft")) and ci_stack_draft:
+        rep.ok("Draft — CI 가 스택 순서를 위해 걸어 둔 것(부모가 develop 에 머지되면 자동 해제)")
+    elif is_draft or mr.get("draft"):
         rep.fail("Draft MR 금지 — MR 생성 = 리뷰 요청 (진행 공유는 Jira 코멘트로). 'Mark as ready' 후 재실행")
     else:
         rep.ok("Draft 아님")
