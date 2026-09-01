@@ -24,7 +24,6 @@ namespace Metagame.Gameplay.Tests
         public void SetUp()
         {
             PartSocket.All.Clear();
-            WeldSeam.All.Clear();
             WeldBead.All.Clear();
         }
 
@@ -37,7 +36,6 @@ namespace Metagame.Gameplay.Tests
 
             _spawned.Clear();
             PartSocket.All.Clear();
-            WeldSeam.All.Clear();
             WeldBead.All.Clear();
         }
 
@@ -185,7 +183,7 @@ namespace Metagame.Gameplay.Tests
         public void OutOfRange_TakesNoBead()
         {
             var part = Body();
-            var far = NozzleAbove(part) + Vector3.up * (PhysicsScale.WeldSeamRange + 0.5f);
+            var far = NozzleAbove(part) + Vector3.up * (PhysicsScale.WeldRange + 0.5f);
 
             var grew = WeldBead.TryGrowNear(far, Step, out _);
 
@@ -383,7 +381,7 @@ namespace Metagame.Gameplay.Tests
             var progressed = tool.WeldTick(Step, PlasmaBeamMode.Weld);
 
             Assert.IsTrue(progressed);
-            Assert.IsTrue(tool.BeadProgressed, "몸체에 대고 좌클릭하면 비드가 자라야 한다.");
+            Assert.IsTrue(tool.WeldingProgressed, "몸체에 대고 좌클릭하면 비드가 자라야 한다.");
             Assert.IsNotNull(tool.GrowingBead);
             Assert.AreEqual(part, tool.GrowingBead.Owner);
         }
@@ -395,7 +393,7 @@ namespace Metagame.Gameplay.Tests
             var tool = MakeTool(NozzleAbove(part));
 
             Assert.IsFalse(tool.WeldTick(Step, PlasmaBeamMode.None));
-            Assert.IsFalse(tool.BeadProgressed);
+            Assert.IsFalse(tool.WeldingProgressed);
             Assert.IsNull(tool.GrowingBead);
         }
 
@@ -409,26 +407,8 @@ namespace Metagame.Gameplay.Tests
             var shrunk = tool.CutTick(Step, PlasmaBeamMode.Cut);
 
             Assert.IsTrue(shrunk, "쌓을 수만 있고 되돌릴 수 없으면 안 된다.");
-            Assert.IsTrue(tool.BeadShrunk);
+            Assert.IsTrue(tool.CuttingProgressed);
             Assert.IsNotNull(tool.ShrinkingBead);
-        }
-
-        /// <summary>
-        /// 접합선이 있으면 그쪽이 먼저다. 비드가 접합선을 가로채면 §16.1 의 원형 용접이
-        /// 영영 채워지지 않는다.
-        /// </summary>
-        [Test]
-        public void AnAssembledSeam_TakesPriorityOverBeads()
-        {
-            var (moving, _, seam) = AssembledPair();
-            var nozzle = seam.ClosestPointOnSeam(moving.transform.position + Vector3.right * 5f);
-
-            var tool = MakeTool(nozzle);
-            tool.WeldTick(Step, PlasmaBeamMode.Weld);
-
-            Assert.IsTrue(tool.WeldingProgressed, "접합선 위에서는 접합선이 채워져야 한다.");
-            Assert.IsFalse(tool.BeadProgressed, "접합선이 진행되는 동안 비드가 끼어들면 안 된다.");
-            Assert.IsNull(tool.GrowingBead);
         }
 
         // --- 실제 파츠 -----------------------------------------------------
@@ -543,7 +523,7 @@ namespace Metagame.Gameplay.Tests
             return go;
         }
 
-        /// <summary>노즐이 <paramref name="nozzle"/> 에 있는 용접기. WeldSeamTests 와 같은 방식이다.</summary>
+        /// <summary>노즐이 <paramref name="nozzle"/> 에 있는 용접기. 장착 절차를 흉내내지 않는다.</summary>
         PlasmaWeldingTool MakeTool(Vector3 nozzle)
         {
             var go = new GameObject("PlasmaWeldingTool");
@@ -554,31 +534,5 @@ namespace Metagame.Gameplay.Tests
             return go.AddComponent<PlasmaWeldingTool>();
         }
 
-        /// <summary>접합선 우선순위를 보기 위한 조립된 파츠 한 쌍.</summary>
-        (SpaceshipPart Part, PartAssemblyLink Link, WeldSeam Seam) AssembledPair()
-        {
-            SocketTestRig.Placed(_spawned, Vector3.zero);
-
-            var moving = SocketTestRig.Freed(
-                _spawned, Vector3.up * (PhysicsScale.PartHeight + SocketTestRig.StackGap));
-
-            // 밑면 한가운데. 좌표는 부모 스케일이 걸린 비율값이다 — 리그가 루트를
-            // 늘려 쓰므로 미터로 적으면 파츠 바깥으로 나간다.
-            var seamGo = new GameObject("WeldSeam");
-            seamGo.transform.SetParent(moving.transform, false);
-            seamGo.transform.localPosition = Vector3.down * 0.5f;
-
-            var seam = seamGo.AddComponent<WeldSeam>();
-            seam.Initialize();
-
-            moving.TryTransitionTo(PartState.Carried);
-
-            var link = PartAssembler.Assemble(PartAssembler.FindMatch(moving));
-            Assert.IsNotNull(link, "조립이 되어야 우선순위를 볼 수 있다.");
-            link.RefreshSeam();
-
-            UnityEngine.Physics.SyncTransforms();
-            return (moving, link, seam);
-        }
     }
 }

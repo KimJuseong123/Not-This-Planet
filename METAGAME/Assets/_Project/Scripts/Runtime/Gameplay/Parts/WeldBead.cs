@@ -9,9 +9,12 @@ namespace Metagame.Gameplay.Parts
     /// 우주선 몸체에 쌓이는 용접 비드. 기획(S15P21B202-107 §16.2)의 "용접한 구간에는
     /// 실제 금속 비드와 불탄 자국이 남는다" 를 물리 있는 물체로 만든 것이다.
     ///
-    /// <b>원형 접합선(<see cref="WeldSeam"/>)과 다른 물건이다.</b> 접합선은 정해진 자리를
-    /// 훑어 채우는 것이고, 비드는 몸체 아무 데나 <b>쌓는</b> 것이다. 한 자리에 계속 대고
-    /// 있으면 덩어리가 커지고, 상한에 이르면 그 위에 다음 덩어리가 시작되어 기둥이 뻗는다.
+    /// 한 자리에 계속 대고 있으면 덩어리가 커지고, 상한에 이르면 그 위에 다음 덩어리가
+    /// 시작되어 기둥이 뻗는다. 다른 몸체에 닿으면 두 몸체가 하나로 합쳐진다.
+    ///
+    /// <b>예전에는 원형 접합선이 따로 있었다.</b> 파츠 밑면의 정해진 자리를 훑어 채우는
+    /// 방식이었고, S15P21B202-230 이 그것을 걷어냈다 — 자국·강도·피드백을 비드가 모두
+    /// 갖게 되어 같은 일을 하는 장치가 둘이 되었기 때문이다.
     ///
     /// <b>강체를 늘리지 않는다.</b> 덩어리마다 Rigidbody 를 주고 조인트로 이으면 가늘고 긴
     /// 조인트 사슬이 되는데, PhysX 에서 그런 사슬은 위에 얹힌 406~745kg 짜리 파츠를 버티지
@@ -34,14 +37,14 @@ namespace Metagame.Gameplay.Parts
     /// 잡아도 무게중심은 부피만큼만 움직인다. 파츠 상자 33m³ 에 비드 한 덩어리가 0.004m³ 이므로
     /// 실제 이동량은 밀리미터 단위다 — 3.7m 짜리 파츠에서 그것이 맞는 크기다.
     ///
-    /// 이 이슈(S15P21B202-226)는 <b>쌓이는 것까지</b> 다. 비드가 다른 몸체에 닿아 하나로
-    /// 합쳐지는 것은 다음 이슈에서 한다.
+    /// 만들어진 순서는 이렇다 — S15P21B202-226 이 쌓이는 것, 228 이 닿으면 합쳐지는 것,
+    /// 229 가 탑 판정을 그래프로, 230 이 원형 접합선 제거다.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class WeldBead : MonoBehaviour
     {
         /// <summary>
-        /// 비드를 가진 파츠들. <see cref="WeldSeam.All"/> 과 같은 방식이다.
+        /// 비드를 가진 파츠들. <see cref="PartSocket.All"/> 과 같은 방식이다.
         ///
         /// EditMode 에서는 <c>OnEnable</c> 이 호출되지 않으므로 <see cref="Register"/> 를
         /// 직접 부른다.
@@ -67,6 +70,18 @@ namespace Metagame.Gameplay.Parts
             public Vector3 Direction;
             public float TipRadius;
             public List<Transform> Blobs = new();
+
+            /// <summary>이 사슬이 닿아 있는 다른 파츠. 없으면 null(S15P21B202-228).</summary>
+            public SpaceshipPart Touched;
+
+            /// <summary>
+            /// 상대 몸체에 닿아 있는 덩어리를 <b>최대 크기 환산</b>으로 센 값.
+            ///
+            /// 개수가 아니라 환산값인 이유는 자라는 중인 끝 덩어리가 부피비만큼만
+            /// 세어져야 하기 때문이다 — 그러지 않으면 덩어리가 생기는 순간 강도가
+            /// 한 칸 뛴다.
+            /// </summary>
+            public float ContactBlobs;
         }
 
         [SerializeField] List<Chain> _chains = new();
@@ -190,9 +205,9 @@ namespace Metagame.Gameplay.Parts
         /// <summary>
         /// <paramref name="nozzle"/> 에서 사거리 안에 있는 우주선 몸체에 비드를 쌓는다.
         ///
-        /// 사거리는 원형 접합선과 같은 <see cref="PhysicsScale.WeldSeamRange"/> 다.
-        /// 접합선은 되는데 비드는 안 되는(또는 그 반대인) 거리가 생기면 플레이어가 이유를
-        /// 알 수 없다 — S15P21B202-209 에서 절단 사거리를 용접과 맞춘 것과 같은 이유다.
+        /// 사거리는 <see cref="PhysicsScale.WeldRange"/>(0.80m) 다. 용접과 절단이 같은
+        /// 값을 써야 한다 — 한쪽만 되는 거리가 생기면 플레이어가 이유를 알 수 없다
+        /// (S15P21B202-209 에서 정한 규칙이다).
         ///
         /// <b>조준 방향을 보지 않는다.</b> 노즐 위치만으로 판정하는 것은 S15P21B202-206 이
         /// 접합선에서 정한 규칙이고, 비드도 같아야 "닿았는데 안 되는" 각도가 생기지 않는다.
@@ -312,10 +327,10 @@ namespace Metagame.Gameplay.Parts
             outward = Vector3.up;
 
             var count = UnityEngine.Physics.OverlapSphereNonAlloc(
-                nozzle, PhysicsScale.WeldSeamRange, Probe,
+                nozzle, PhysicsScale.WeldRange, Probe,
                 GameLayers.PartMask, QueryTriggerInteraction.Ignore);
 
-            var bestDistance = PhysicsScale.WeldSeamRange;
+            var bestDistance = PhysicsScale.WeldRange;
 
             for (var i = 0; i < count; i++)
             {
@@ -404,6 +419,7 @@ namespace Metagame.Gameplay.Parts
             _chains.Add(chain);
             SpawnBlob(chain, 0);
             ApplyMass();
+            RefreshContact(_chains.Count - 1);
 
             // 씨앗을 만든 것 자체가 이번 틱의 진행이다. 남은 시간으로 더 키우지 않는 것은
             // 첫 프레임에 최소 크기가 <b>보이게</b> 하려는 것이다 — 진행 바가 없으므로
@@ -427,9 +443,21 @@ namespace Metagame.Gameplay.Parts
             {
                 if (BlobCount >= PhysicsScale.WeldBeadsPerPart) return false;
 
+                // <b>닿았으면 더 뻗지 않는다.</b> 끝 덩어리는 계속 굵어지지만 다음 덩어리를
+                // 얹지는 않는다(S15P21B202-228).
+                //
+                // 이것이 없으면 덩어리가 상대 몸체 <b>안으로</b> 파고들며 계속 쌓이고,
+                // 파묻힌 덩어리가 모두 접촉으로 세어져 기둥 하나만으로 완전 강도가 나온다.
+                // 그러면 "여러 군데를 이어야 튼튼하다" 는 규칙이 무력해진다.
+                //
+                // 자란 것이 없으므로 진행됐다고 보고하지 않는다 — 다리가 걸린 순간 불꽃이
+                // 멎는 것이 플레이어에게는 "이어졌다" 는 신호가 된다.
+                if (chain.Touched != null) return false;
+
                 chain.TipRadius = PhysicsScale.WeldBeadMinRadius;
                 SpawnBlob(chain, chain.Blobs.Count);
                 ApplyMass();
+                RefreshContact(index);
                 return true;
             }
 
@@ -438,6 +466,7 @@ namespace Metagame.Gameplay.Parts
 
             ApplyRadius(chain.Blobs[chain.Blobs.Count - 1], chain.TipRadius);
             ApplyMass();
+            RefreshContact(index);
             return true;
         }
 
@@ -446,12 +475,17 @@ namespace Metagame.Gameplay.Parts
             var chain = _chains[index];
             if (chain.Blobs.Count == 0) return false;
 
+            // 사슬이 통째로 사라질 수 있으므로 잇고 있던 상대를 먼저 기억한다.
+            // 사라진 뒤에 물으면 알 길이 없고, 그러면 접합이 옛 강도로 남는다.
+            var bridged = chain.Touched;
+
             chain.TipRadius -= GrowthRate * deltaTime;
 
             if (chain.TipRadius > PhysicsScale.WeldBeadMinRadius)
             {
                 ApplyRadius(chain.Blobs[chain.Blobs.Count - 1], chain.TipRadius);
                 ApplyMass();
+                RefreshContact(index);
                 return true;
             }
 
@@ -461,9 +495,20 @@ namespace Metagame.Gameplay.Parts
             chain.Blobs.RemoveAt(chain.Blobs.Count - 1);
             chain.TipRadius = PhysicsScale.WeldBeadMaxRadius;
 
-            if (chain.Blobs.Count == 0) _chains.RemoveAt(index);
+            var removed = chain.Blobs.Count == 0;
+            if (removed) _chains.RemoveAt(index);
 
             ApplyMass();
+
+            if (removed)
+            {
+                if (bridged != null) ApplyStrengthTo(bridged);
+            }
+            else
+            {
+                RefreshContact(index);
+            }
+
             return true;
         }
 
@@ -494,6 +539,211 @@ namespace Metagame.Gameplay.Parts
         {
             if (blob == null) return;
             blob.localScale = Vector3.one * (radius * 2f);
+        }
+
+        // --- 닿으면 접합 (S15P21B202-228) ---------------------------------
+
+        /// <summary>이 비드가 지금 잇고 있는 파츠들. 검증과 진단이 쓴다.</summary>
+        public IEnumerable<SpaceshipPart> BridgedParts
+        {
+            get
+            {
+                Initialize();
+
+                for (var i = 0; i < _chains.Count; i++)
+                {
+                    var touched = _chains[i].Touched;
+                    if (touched == null || _chains[i].ContactBlobs <= 0f) continue;
+
+                    var seen = false;
+                    for (var j = 0; j < i && !seen; j++)
+                        seen = _chains[j].Touched == touched && _chains[j].ContactBlobs > 0f;
+
+                    if (!seen) yield return touched;
+                }
+            }
+        }
+
+        /// <summary>
+        /// <paramref name="other"/> 를 잇는 비드의 강도 0~1.
+        ///
+        /// 사슬마다 <b>상대 몸체에 닿아 있는</b> 덩어리만 세고, 여러 사슬이 같은 파츠를
+        /// 이으면 더한다. 그래서 긴 기둥 하나(끝만 닿는다)로는 채울 수 없고 여러 군데를
+        /// 이어야 한다.
+        /// </summary>
+        public float StrengthTo(SpaceshipPart other)
+        {
+            Initialize();
+            if (other == null) return 0f;
+
+            var blobs = 0f;
+            for (var i = 0; i < _chains.Count; i++)
+                if (_chains[i].Touched == other)
+                    blobs += _chains[i].ContactBlobs;
+
+            return Mathf.Clamp01(blobs / PhysicsScale.WeldBeadFullStrengthBlobs);
+        }
+
+        /// <summary>
+        /// 사슬의 접촉을 다시 재고, 접합을 맺거나 강도를 갈아 끼운다.
+        ///
+        /// 자라거나 깎인 <b>그 사슬만</b> 다시 잰다. 매 틱 모든 덩어리를 재면 48개 ×
+        /// 100틱이 되고, 아래 덩어리들은 파츠에 붙어 있어 저절로 움직이지 않는다.
+        /// </summary>
+        void RefreshContact(int index)
+        {
+            if (index < 0 || index >= _chains.Count) return;
+
+            var chain = _chains[index];
+            var previous = chain.Touched;
+
+            Measure(chain);
+
+            // 닿는 상대가 바뀌었으면 예전 상대의 강도도 다시 계산해야 한다 —
+            // 그러지 않으면 떠난 접합이 옛 강도를 그대로 들고 남는다.
+            if (previous != null && previous != chain.Touched) ApplyStrengthTo(previous);
+            if (chain.Touched != null) ApplyStrengthTo(chain.Touched);
+        }
+
+        /// <summary>사슬이 어느 파츠에 얼마나 닿아 있는지 잰다.</summary>
+        void Measure(Chain chain)
+        {
+            chain.Touched = null;
+            chain.ContactBlobs = 0f;
+
+            var tip = chain.Blobs.Count - 1;
+
+            for (var b = 0; b < chain.Blobs.Count; b++)
+            {
+                var blob = chain.Blobs[b];
+                if (blob == null) continue;
+
+                var radius = b == tip ? chain.TipRadius : PhysicsScale.WeldBeadMaxRadius;
+                var found = PartTouching(blob.position, radius);
+                if (found == null) continue;
+
+                // 한 사슬이 두 파츠에 걸쳐 닿는 경우는 처음 만난 쪽으로 정한다.
+                // 여러 상대를 동시에 이으려면 링크가 파츠당 여럿이어야 하는데, 지금은
+                // 하나다(아래 EnsureLink 의 주석을 본다).
+                if (chain.Touched == null) chain.Touched = found;
+                if (chain.Touched != found) continue;
+
+                var ratio = radius / PhysicsScale.WeldBeadMaxRadius;
+                chain.ContactBlobs += ratio * ratio * ratio;
+            }
+        }
+
+        /// <summary>
+        /// <paramref name="point"/> 반지름 <paramref name="radius"/> 안에 닿아 있는
+        /// <b>다른</b> 우주선 파츠. 없으면 null.
+        ///
+        /// 상대의 비드도 몸체로 본다 — 양쪽에서 기둥을 뻗어 가운데서 만나는 것이
+        /// 막힐 이유가 없다.
+        /// </summary>
+        SpaceshipPart PartTouching(Vector3 point, float radius)
+        {
+            var count = UnityEngine.Physics.OverlapSphereNonAlloc(
+                point, radius + PhysicsScale.WeldBeadContactSkin, Probe,
+                GameLayers.PartMask, QueryTriggerInteraction.Ignore);
+
+            for (var i = 0; i < count; i++)
+            {
+                var collider = Probe[i];
+                if (collider == null) continue;
+
+                var found = collider.GetComponentInParent<SpaceshipPart>();
+                if (found == null || found == _owner) continue;
+
+                return found;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// 두 파츠를 잇는 비드의 강도를 다시 재어 접합에 넘긴다.
+        ///
+        /// 조인트가 운석에 끊어졌다가 다시 조립되는 경우가 있다. 비드는 파츠에 그대로
+        /// 남아 있는데 새 접합의 강도는 0 에서 시작하므로, 물어보지 않으면 <b>눈에 보이는
+        /// 비드와 실제 강도가 어긋난다</b>. <see cref="PartAssemblyLink.Bind"/> 가 부른다.
+        ///
+        /// 접합을 <b>새로 만들지 않는다</b> — 이미 있는 접합에 값을 넣기만 한다. 여기서
+        /// 만들려 하면 Bind 안에서 다시 Bind 를 부르게 된다.
+        /// </summary>
+        public static void RefreshBetween(SpaceshipPart a, SpaceshipPart b)
+        {
+            if (a == null || b == null) return;
+
+            var link = PartAssemblyLink.FindBetween(a, b);
+            if (link == null) return;
+
+            var strength = 0f;
+            for (var i = 0; i < All.Count; i++)
+            {
+                var bead = All[i];
+                if (bead == null) continue;
+
+                bead.Initialize();
+                if (bead._owner == a) strength += bead.MeasuredStrengthTo(b);
+                else if (bead._owner == b) strength += bead.MeasuredStrengthTo(a);
+            }
+
+            link.SetBeadWeldRatio(Mathf.Clamp01(strength));
+        }
+
+        /// <summary>접촉을 <b>다시 재고</b> 강도를 돌려준다. 파츠가 움직였을 수 있다.</summary>
+        float MeasuredStrengthTo(SpaceshipPart other)
+        {
+            for (var i = 0; i < _chains.Count; i++) Measure(_chains[i]);
+            return StrengthTo(other);
+        }
+
+        /// <summary>접합을 맺거나(없으면) 강도를 갈아 끼운다.</summary>
+        void ApplyStrengthTo(SpaceshipPart other)
+        {
+            var strength = StrengthTo(other);
+            var link = PartAssemblyLink.FindBetween(_owner, other);
+
+            if (link == null)
+            {
+                if (strength <= 0f) return;
+
+                link = EnsureLink(other);
+                if (link == null) return;
+            }
+
+            link.SetBeadWeldRatio(strength);
+
+            // 잇는 비드가 하나도 남지 않았으면 접합이 풀린다(기획 §16.3). 소켓으로도
+            // 맞물려 있는 접합은 풀지 않는다 — 비드는 보강이었을 뿐이다.
+            if (strength <= 0f && !link.HasSockets) link.Release();
+        }
+
+        /// <summary>
+        /// 비드 접합용 조인트와 링크를 만든다.
+        ///
+        /// <b>쌍마다 하나</b>다. 파츠 하나가 여러 쌍과 이어지는 것은 S15P21B202-229 에서
+        /// 열렸지만, 같은 두 파츠 사이에 접합이 둘이면 강도가 두 배가 되고 하중 시험이
+        /// 같은 자리를 두 번 센다. 부르는 쪽(<see cref="ApplyStrengthTo"/>)이
+        /// <see cref="PartAssemblyLink.FindBetween"/> 으로 먼저 확인한다.
+        /// </summary>
+        PartAssemblyLink EnsureLink(SpaceshipPart other)
+        {
+            if (_owner == null) return null;
+
+            var ownerBody = _owner.GetComponent<Rigidbody>();
+            var otherBody = other.GetComponent<Rigidbody>();
+            if (ownerBody == null || otherBody == null) return null;
+
+            var joint = _owner.gameObject.AddComponent<FixedJoint>();
+            joint.connectedBody = otherBody;
+            joint.breakForce = PhysicsScale.UnweldedBreakForce;
+            joint.breakTorque = PhysicsScale.UnweldedBreakTorque;
+            joint.enablePreprocessing = false;
+
+            var link = _owner.gameObject.AddComponent<PartAssemblyLink>();
+            link.BindBeadWeld(_owner, other, joint);
+            return link;
         }
 
         /// <summary>
@@ -532,12 +782,18 @@ namespace Metagame.Gameplay.Parts
         {
             Initialize();
 
+            // 잇고 있던 상대를 먼저 모은다. 사슬을 지운 뒤에는 알 길이 없고, 그러면
+            // 비드가 사라졌는데도 접합이 옛 강도로 남는다.
+            var bridged = new List<SpaceshipPart>(BridgedParts);
+
             for (var i = 0; i < _chains.Count; i++)
                 for (var b = 0; b < _chains[i].Blobs.Count; b++)
                     DestroyObject(_chains[i].Blobs[b]);
 
             _chains.Clear();
             ApplyMass();
+
+            for (var i = 0; i < bridged.Count; i++) ApplyStrengthTo(bridged[i]);
         }
 
         /// <summary>

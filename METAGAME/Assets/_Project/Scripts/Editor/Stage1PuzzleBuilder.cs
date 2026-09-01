@@ -177,7 +177,6 @@ namespace Metagame.EditorTools
             AddSocket(go.transform, spec, SocketRole.Top);
 
             for (var i = 0; i < ClampsPerPart; i++) AddClamp(go.transform, spec, i);
-            AddWeldSeam(go.transform, spec);
 
             var part = go.AddComponent<SpaceshipPart>();
             part.SetPlacedMass(spec.Mass);
@@ -241,26 +240,6 @@ namespace Metagame.EditorTools
 
             go.AddComponent<PartClamp>();
         }
-
-        /// <summary>
-        /// 밑면 둘레의 원형 용접선(기획 §16.1). 조립된 뒤에만 용접할 수 있다.
-        ///
-        /// 예전에는 밑면 네 곳에 <c>WeldPoint</c> 를 놓았다. 기획이 "점 네 개를 누르는
-        /// 방식이 아니라" 고 명시하므로 접합선 하나로 바꿨다.
-        ///
-        /// 콜라이더를 붙이지 않는다. 용접기가 노즐과 접합선 사이의 거리로 판정하므로
-        /// 레이캐스트 대상이 필요 없고, 콜라이더를 두면 파츠 밑면에 상호작용 레이어
-        /// 트리거가 하나 더 생겨 다른 판정에 걸린다.
-        /// </summary>
-        static void AddWeldSeam(Transform parent, PartSpec spec)
-        {
-            var go = new GameObject("WeldSeam");
-            go.transform.SetParent(parent, false);
-            go.transform.localPosition = Vector3.down * (spec.Height * 0.5f);
-
-            go.AddComponent<WeldSeam>();
-        }
-
         /// <summary>
         /// 견인 빔 두 기. Stage1SkinBuilder가 TractorCraft 프리팹을 기준점에 얹고,
         /// 런타임의 TractorBeamController가 기준점을 움직여 실제 운반에 사용한다.

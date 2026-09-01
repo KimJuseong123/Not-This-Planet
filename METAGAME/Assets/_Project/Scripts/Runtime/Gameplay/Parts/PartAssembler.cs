@@ -154,8 +154,12 @@ namespace Metagame.Gameplay.Parts
                 return null;
             }
 
-            // 파츠 하나에 링크는 하나다. 다시 조립하는 경우 이전 링크를 먼저 정리한다.
-            var existing = moving.GetComponent<PartAssemblyLink>();
+            // 다시 조립하는 경우 이전 <b>소켓</b> 접합을 먼저 정리한다.
+            //
+            // 파츠 하나에 접합이 여럿일 수 있게 된 뒤(S15P21B202-229) "이전 링크" 가
+            // 하나가 아니다. 옆에 비드로 이어 둔 접합까지 풀면, 파츠를 다시 올려놓은
+            // 것만으로 남이 이어 놓은 자리가 사라진다. 아래로 맞물린 접합만 갈아 끼운다.
+            var existing = PartAssemblyLink.SocketLinkOf(moving);
             if (existing != null) existing.Release();
 
             // <b>파츠를 옮기지 않는다.</b> 올려놓은 자리와 각도 그대로 조인트를 건다.
