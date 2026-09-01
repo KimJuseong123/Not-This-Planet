@@ -258,8 +258,12 @@ namespace Metagame.Gameplay.Tests
                 // 실제 파츠처럼 둘레에 놓으면 반대편 고정못도 조준(3m) 안에 들어와
                 // 대상이 오가고, 진행이 두 고정못에 나뉘어 어느 쪽도 끝나지 않는다.
                 // 여벌의 역할은 "아직 남은 고정못이 있다" 는 것뿐이다.
+                // 첫 고정못을 파츠의 -Z 쪽에 둔다. S15P21B202-218 이 캐릭터를 항상
+                // 카메라 정면으로 돌리게 바꿨고, 이 검증에는 카메라가 없어 월드 +Z 를
+                // 본다 — 고정못이 +Z 쪽에 있어야 조준에 들어온다. 예전에는 잡기가
+                // 끈적해서(한 번 잡으면 유지) 가려졌고, 놓고 다시 잡는 검증에서 드러났다.
                 var offset = i == 0
-                    ? Vector3.forward * 0.8f
+                    ? Vector3.back * 0.8f
                     : Vector3.right * (6f + i);
 
                 var clampGo = new GameObject($"Clamp_{i}") { layer = GameLayers.Interactable };
@@ -283,6 +287,8 @@ namespace Metagame.Gameplay.Tests
             UnityEngine.Physics.SyncTransforms();
 
             // 플레이어는 첫 고정못 바로 앞에 선다. 조준이 닿아야 잡을 수 있다.
+            // 고정못이 -Z 쪽이므로 플레이어는 그보다 더 -Z 에 서고, 월드 +Z 를 보면
+            // 고정못이 정면에 온다(위 offset 주석 참고).
             var toward = first.transform.position - partGo.transform.position;
             toward.y = 0f;
             var foot = first.transform.position + toward.normalized * 1.2f;
