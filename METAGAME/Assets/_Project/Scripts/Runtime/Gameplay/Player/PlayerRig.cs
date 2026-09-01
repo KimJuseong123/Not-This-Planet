@@ -157,6 +157,23 @@ namespace Metagame.Gameplay
         public Hand RightHand { get { return Doll.Right.Hand; } }
         public Rigidbody Hips { get { return Doll.Hips; } }
         public Vector3 Position { get { return Doll.Hips.position; } }
+
+        /// <summary>
+        /// 살아 있는 플레이어. <see cref="Parts.PartSocket.All"/> 과 같은 방식이다.
+        ///
+        /// 방망이(<see cref="MeteorBat"/>)가 때릴 동료를 여기서 찾는다(기획 §18.3).
+        /// 콜라이더를 훑지 않는 이유는 인형 하나가 <b>Rigidbody 여럿</b>이기 때문이다 —
+        /// 몸통·팔·다리가 각자 콜라이더라 같은 사람을 여러 번 찾게 되고, 어느 부위가
+        /// 맞았는지는 §18.3 이 구분하지 않는다.
+        /// </summary>
+        public static readonly List<PlayerRig> All = new();
+
+        void OnEnable()
+        {
+            if (!All.Contains(this)) All.Add(this);
+        }
+
+        void OnDisable() => All.Remove(this);
         public Vector3 FootPosition { get { return Doll.Hips.position - Vector3.up * RagdollBuilder.HipsY; } }
 
         InputFrame input;
@@ -223,6 +240,7 @@ namespace Metagame.Gameplay
             var rig = go.AddComponent<PlayerRig>();
             rig.Nickname = nickname;
             bool model = useModel && SpaceSuit.Available;
+            if (!All.Contains(rig)) All.Add(rig);   // EditMode 에서는 OnEnable 이 돌지 않는다
             rig.Doll = RagdollBuilder.Build(nickname, footPos, facing, suit, accent, !model);
             rig.Doll.Root.SetParent(go.transform, true);
             rig.ClampInteractor = go.AddComponent<Interactor>();
@@ -235,6 +253,8 @@ namespace Metagame.Gameplay
 
         void OnDestroy()
         {
+            All.Remove(this);
+
             if (activeTool != null) activeTool.Unequip();
             RestoreAllCarriedBodies();
             ClearHeldObjectOwnerCollision();
@@ -1357,14 +1377,36 @@ namespace Metagame.Gameplay
         }
 
         /// <summary>마지막 고정못이 빠져 뒤로 넘어진다(기획 §12.2).</summary>
-        void SnapBackFromClamp(Vector3 away)
+        void SnapBackFromClamp(Vector3 away) =>
+            KnockDown(away, PhysicsScale.ClampSnapBackSpeed);
+
+        /// <summary>
+        /// 넘어뜨린다. <b>기절시키지 않는다.</b>
+        ///
+        /// 기절 처리를 새로 만들지 않는다 — <see cref="Balance"/> 가 이미 넘어진 자세를
+        /// 스스로 세우므로, 충격만 주고 <see cref="Ragdolled"/> 를 켜면 구르다가 일어난다.
+        /// 체력도 깎지 않는다. 기획이 §12.2("뒤로 넘어질 수 있다")와 §18.3("넘어지지만
+        /// 기절하지는 않는다") 두 곳에서 기절과 구분하기 때문이다.
+        ///
+        /// <b>세 곳이 같은 것을 필요로 해서 여기로 모았다</b> — 마지막 고정못(§12.2),
+        /// 방망이 직접 타격(§18.3), 그리고 발사 실패 사출(§22.4)이다. 사출은 조인트를
+        /// 끊고 중력을 켜고 <c>faceDir</c> 까지 돌리므로 <see cref="EjectFromShip"/> 에
+        /// 그대로 남겼다 — 하는 일이 이것보다 넓다.
+        /// </summary>
+        public void KnockDown(Vector3 direction, float speed)
         {
+            if (Downed) return;
+
+            var away = direction;
+            if (away.sqrMagnitude < 1e-6f) away = -faceDir;
+            away.Normalize();
+
             for (var i = 0; i < Doll.Bodies.Count; i++)
             {
                 var body = Doll.Bodies[i];
                 if (body == null || body.isKinematic) continue;
 
-                body.linearVelocity += away * PhysicsScale.ClampSnapBackSpeed;
+                body.linearVelocity += away * speed;
             }
 
             Ragdolled = true;

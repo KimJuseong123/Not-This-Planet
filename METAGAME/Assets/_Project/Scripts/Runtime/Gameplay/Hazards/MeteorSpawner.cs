@@ -198,6 +198,11 @@ namespace Metagame.Gameplay.Hazards
                 : CreateFallbackMeteor(position);
 
             meteor.Initialize();
+
+            // 낙하 예측의 기준면을 넘긴다(S15P21B202-233). 방망이가 "착탄 몇 초 전" 을
+            // 이 값으로 푼다 — 예고(PendingMeteorDrop)는 운석이 생기기 전의 시간이라
+            // 그것만으로는 착탄 시각을 알 수 없다.
+            meteor.SetGroundHeight(impactPoint.y);
             meteor.Expired += OnMeteorExpired;
 
             _live.Add(meteor);

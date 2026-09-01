@@ -662,6 +662,68 @@ namespace Metagame.Gameplay
         /// <summary>착탄 후 사라지기까지의 시간.</summary>
         public const float MeteorDespawnSeconds = 6f;
 
+        // --- 운석 방망이 (기획 §18) ---
+        /// <summary>
+        /// 착탄 몇 초 전부터 쳐낼 수 있는지.
+        ///
+        /// 기획 §18.1 "운석 착탄 약 1초 전부터 타격 가능하다".
+        ///
+        /// <b>이 값을 쓰려면 착탄 시각을 알아야 한다.</b> 낙하 예고
+        /// (<see cref="Hazards.PendingMeteorDrop"/>)는 운석이 <b>생기기 전</b>의 시간이고,
+        /// 운석은 예고가 끝난 뒤 30m 위에서 생겨 4.63초를 더 떨어진다. 그래서
+        /// <see cref="Hazards.Meteor.TryPredictImpact"/> 가 위치·속도·중력으로 직접 푼다.
+        /// </summary>
+        public const float BatSwingWindowSeconds = 1f;
+
+        /// <summary>
+        /// 낙하 지점에서 이만큼 안에 서 있어야 쳐낼 수 있다(m).
+        ///
+        /// 기획 §18.1 "플레이어가 낙하 지점 반경 약 2.5m 안에 있어야 한다".
+        /// 운석 충격 반경(<see cref="MeteorImpactRadius"/> 2m)보다 조금 넓다 — 맞을 자리에
+        /// 서야 쳐낼 수 있고, 그것이 §18 이 만드는 긴장이다.
+        ///
+        /// <b>방망이 메시가 운석에 닿는지는 보지 않는다.</b> 기획이 "실제 방망이 메시가
+        /// 운석과 정확히 닿지 않아도 넓은 에너지 궤적으로 판정을 납득시킨다" 고 정한다.
+        /// </summary>
+        public const float BatAssistRadius = 2.5f;
+
+        /// <summary>
+        /// 헛스윙 뒤 다시 휘두를 수 없는 시간(초). 기획 §18.1 "약 1초".
+        ///
+        /// <b>맞혔을 때는 쿨다운이 없다.</b> 기획이 헛스윙에만 대기를 두었고, 맞히면
+        /// 목표가 사라지므로 연타할 것이 남지 않는다.
+        /// </summary>
+        public const float BatMissCooldownSeconds = 1f;
+
+        /// <summary>
+        /// 쳐낸 운석의 속도(m/s).
+        ///
+        /// 30m 에서 떨어진 운석의 착탄 속도가 sqrt(2 x 2.8 x 30) = 12.96m/s 다. 그보다
+        /// 조금 빠르게 잡아, 쳐낸 운석이 되돌아오지 않고 멀리 날아가게 했다.
+        /// </summary>
+        public const float BatDeflectSpeed = 14f;
+
+        /// <summary>
+        /// 쳐낸 운석이 수평에서 들리는 각도(도).
+        ///
+        /// 기획 §18.2 "카메라의 수평 방향에 약간의 위쪽 각도를 더해 결정한다",
+        /// "카메라가 지나치게 위나 아래를 보더라도 수직 각도는 자동 보정한다".
+        /// <b>보정을 따로 만들지 않았다</b> — 조준의 수평 성분만 쓰고 이 각도를 더하면
+        /// 위를 보든 아래를 보든 결과가 같다. 규칙을 두 번 쓰지 않는 편이 어긋나지 않는다.
+        /// </summary>
+        public const float BatLaunchDegrees = 30f;
+
+        /// <summary>동료를 직접 때릴 수 있는 거리(m). 기획 §18.3.</summary>
+        public const float BatPlayerReach = 2f;
+
+        /// <summary>
+        /// 직접 맞은 동료가 밀려나는 속도(m/s).
+        ///
+        /// 마지막 고정못이 빠질 때(<see cref="ClampSnapBackSpeed"/> 3.5m/s)와 비슷하게
+        /// 잡았다. 기획 §18.3 이 "넘어지지만 기절하지는 않는다" 고 정하므로 그 정도면 된다.
+        /// </summary>
+        public const float BatPlayerKnockSpeed = 4f;
+
         /// <summary>
         /// 착탄 여부와 무관한 수명 상한.
         ///
