@@ -5,7 +5,8 @@
     "Metagame.Core",
     "Metagame.Gameplay",
     "Metagame.UI",
-    "Metagame.Network"
+    "Metagame.Network",
+    "Mirror"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
