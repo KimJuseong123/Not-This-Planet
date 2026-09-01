@@ -10084,7 +10084,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2c72a279144be824e810348a557b1ce7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Metagame.Bootstrap::Metagame.Bootstrap.SpaceBootstrap
-  buildLevel: 1
+  buildLevel: 0
   gravity: {x: 0, y: -2.8, z: 0}
   lockCursor: 1
   starfield: 1
