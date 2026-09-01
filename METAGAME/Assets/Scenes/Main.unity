@@ -1215,6 +1215,8 @@ MonoBehaviour:
   _holdSeconds: 0
   _part: {fileID: 1980578356}
   _isRequired: 1
+  _gripTarget: {fileID: 0}
+  _releasedVisual: {fileID: 299673588}
   _pulledSeconds: 0
 --- !u!135 &177213898
 SphereCollider:
@@ -1285,6 +1287,8 @@ MonoBehaviour:
   _holdSeconds: 0
   _part: {fileID: 824525071}
   _isRequired: 1
+  _gripTarget: {fileID: 0}
+  _releasedVisual: {fileID: 473478673}
   _pulledSeconds: 0
 --- !u!135 &212331922
 SphereCollider:
@@ -2040,6 +2044,8 @@ MonoBehaviour:
   _holdSeconds: 0
   _part: {fileID: 824525071}
   _isRequired: 1
+  _gripTarget: {fileID: 0}
+  _releasedVisual: {fileID: 1194553298}
   _pulledSeconds: 0
 --- !u!135 &333744494
 SphereCollider:
@@ -2402,6 +2408,8 @@ MonoBehaviour:
   _holdSeconds: 0
   _part: {fileID: 1980578356}
   _isRequired: 1
+  _gripTarget: {fileID: 0}
+  _releasedVisual: {fileID: 351568947}
   _pulledSeconds: 0
 --- !u!135 &403766189
 SphereCollider:
@@ -2776,6 +2784,8 @@ MonoBehaviour:
   _holdSeconds: 0
   _part: {fileID: 608196416}
   _isRequired: 1
+  _gripTarget: {fileID: 0}
+  _releasedVisual: {fileID: 584649116}
   _pulledSeconds: 0
 --- !u!135 &419439271
 SphereCollider:
@@ -3606,6 +3616,8 @@ MonoBehaviour:
   _holdSeconds: 0
   _part: {fileID: 824525071}
   _isRequired: 1
+  _gripTarget: {fileID: 0}
+  _releasedVisual: {fileID: 1112177586}
   _pulledSeconds: 0
 --- !u!135 &541131541
 SphereCollider:
@@ -4523,6 +4535,8 @@ MonoBehaviour:
   _holdSeconds: 0
   _part: {fileID: 1170010216}
   _isRequired: 1
+  _gripTarget: {fileID: 0}
+  _releasedVisual: {fileID: 2117492077}
   _pulledSeconds: 0
 --- !u!135 &664593052
 SphereCollider:
@@ -7111,6 +7125,8 @@ MonoBehaviour:
   _holdSeconds: 0
   _part: {fileID: 824525071}
   _isRequired: 1
+  _gripTarget: {fileID: 0}
+  _releasedVisual: {fileID: 1915724511}
   _pulledSeconds: 0
 --- !u!135 &1027458978
 SphereCollider:
@@ -8276,6 +8292,8 @@ MonoBehaviour:
   _holdSeconds: 0
   _part: {fileID: 1980578356}
   _isRequired: 1
+  _gripTarget: {fileID: 0}
+  _releasedVisual: {fileID: 1383918241}
   _pulledSeconds: 0
 --- !u!135 &1139657624
 SphereCollider:
@@ -10079,6 +10097,8 @@ MonoBehaviour:
   _holdSeconds: 0
   _part: {fileID: 608196416}
   _isRequired: 1
+  _gripTarget: {fileID: 0}
+  _releasedVisual: {fileID: 1892592743}
   _pulledSeconds: 0
 --- !u!135 &1442528510
 SphereCollider:
@@ -10630,6 +10650,8 @@ MonoBehaviour:
   _holdSeconds: 0
   _part: {fileID: 608196416}
   _isRequired: 1
+  _gripTarget: {fileID: 0}
+  _releasedVisual: {fileID: 2074340558}
   _pulledSeconds: 0
 --- !u!135 &1480698088
 SphereCollider:
@@ -11278,6 +11300,8 @@ MonoBehaviour:
   _holdSeconds: 0
   _part: {fileID: 1170010216}
   _isRequired: 1
+  _gripTarget: {fileID: 0}
+  _releasedVisual: {fileID: 1231254723}
   _pulledSeconds: 0
 --- !u!135 &1600653373
 SphereCollider:
@@ -11734,6 +11758,8 @@ MonoBehaviour:
   _holdSeconds: 0
   _part: {fileID: 1980578356}
   _isRequired: 1
+  _gripTarget: {fileID: 0}
+  _releasedVisual: {fileID: 920498599}
   _pulledSeconds: 0
 --- !u!135 &1697811828
 SphereCollider:
@@ -12543,6 +12569,8 @@ MonoBehaviour:
   _holdSeconds: 0
   _part: {fileID: 1170010216}
   _isRequired: 1
+  _gripTarget: {fileID: 0}
+  _releasedVisual: {fileID: 632050427}
   _pulledSeconds: 0
 --- !u!135 &1845502778
 SphereCollider:
@@ -14221,6 +14249,8 @@ MonoBehaviour:
   _holdSeconds: 0
   _part: {fileID: 608196416}
   _isRequired: 1
+  _gripTarget: {fileID: 0}
+  _releasedVisual: {fileID: 1021268527}
   _pulledSeconds: 0
 --- !u!135 &2061260827
 SphereCollider:
@@ -14621,6 +14651,8 @@ MonoBehaviour:
   _holdSeconds: 0
   _part: {fileID: 1170010216}
   _isRequired: 1
+  _gripTarget: {fileID: 0}
+  _releasedVisual: {fileID: 1750984186}
   _pulledSeconds: 0
 --- !u!135 &2116639866
 SphereCollider:

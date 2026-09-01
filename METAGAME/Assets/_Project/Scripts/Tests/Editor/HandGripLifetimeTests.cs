@@ -115,6 +115,33 @@ namespace Metagame.Gameplay.Tests
             Assert.IsNotNull(rig.Hand.Grip);
         }
 
+        [Test]
+        public void GripToFixedAtPoint_UsesTheRequestedWorldAnchor()
+        {
+            var rig = MakeRig();
+            var targetBody = rig.Target.gameObject.AddComponent<Rigidbody>();
+            targetBody.isKinematic = true;
+
+            var worldPoint = new Vector3(0.2f, 0.12f, 0.03f);
+            Assert.IsTrue(rig.Hand.GripToFixedAtPoint(rig.Target, targetBody, worldPoint),
+                "고정쇠는 실제 손과 대상 지점을 연결할 수 있어야 한다.");
+
+            var joint = rig.Hand.GetComponent<FixedJoint>();
+            Assert.IsNotNull(joint);
+            Assert.AreSame(targetBody, joint.connectedBody);
+            Assert.Less(Vector3.Distance(rig.Hand.transform.TransformPoint(joint.anchor), worldPoint),
+                        0.001f);
+            Assert.Less(Vector3.Distance(targetBody.transform.TransformPoint(joint.connectedAnchor), worldPoint),
+                        0.001f);
+            Assert.IsTrue(rig.Hand.Gripping);
+            Assert.AreSame(rig.Target, rig.Hand.Held);
+
+            rig.Hand.Release();
+
+            Assert.IsFalse(rig.Hand.Gripping, "버튼을 놓으면 실제 손 결합도 풀려야 한다.");
+            Assert.IsNull(rig.Hand.GetComponent<FixedJoint>());
+        }
+
         // --- 헬퍼 ----------------------------------------------------------
 
         struct Rig

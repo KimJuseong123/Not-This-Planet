@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using Metagame.Gameplay;
+using Metagame.Gameplay.Parts;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -29,7 +30,9 @@ namespace Metagame.EditorTools
         const string EquipmentPath = "Stage1/Gameplay/Puzzle/Equipment";
         const string InstanceName = "WeldingPlasmaGun_Stage1";
 
-        static readonly Vector3 FallbackPosition = new(-4f, 0.7f, -2f);
+        const float SurfaceGap = 0.02f;
+        static readonly Vector3 FallbackPosition =
+            new(-4f, TransportVehicle.GroundY, -2f);
         static readonly Vector3 ProductionModelPosition = new(0f, -0.5f, 0.25f);
         // 원본 FBX의 꽃잎 총구는 -X 방향이다. 실제 총구를 Tool 규약의
         // +Z 조준 방향에 맞춰야 1인칭에서 뒤집혀 보이지 않는다.
@@ -66,6 +69,7 @@ namespace Metagame.EditorTools
             }
 
             var existing = equipment.Find(InstanceName);
+            Transform instanceTransform = existing;
             if (existing == null)
             {
                 var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, scene);
@@ -74,7 +78,8 @@ namespace Metagame.EditorTools
 
                 var part = puzzle.Find("Part_1");
                 var position = part != null
-                    ? part.position + new Vector3(3.5f, -1.43f, -0.4f)
+                    ? new Vector3(part.position.x + 3.5f, TransportVehicle.GroundY,
+                                  part.position.z - 0.4f)
                     : FallbackPosition;
                 var lookTarget = part != null ? part.position : position + Vector3.forward;
                 var direction = lookTarget - position;
@@ -84,6 +89,7 @@ namespace Metagame.EditorTools
                     : Quaternion.identity;
 
                 instance.transform.SetPositionAndRotation(position, rotation);
+                instanceTransform = instance.transform;
                 EditorSceneManager.MarkSceneDirty(scene);
                 Debug.Log("[Stage1WeldingGun] Main 씬에 임시 용접 플라즈마 건 배치 → " + position);
             }
@@ -91,6 +97,9 @@ namespace Metagame.EditorTools
             {
                 Debug.Log("[Stage1WeldingGun] 기존 배치를 유지한다: " + EquipmentPath + "/" + InstanceName);
             }
+
+            AlignSceneInstanceToSurface(instanceTransform);
+            EditorSceneManager.MarkSceneDirty(scene);
 
             EditorSceneManager.SaveScene(scene);
             AssetDatabase.SaveAssets();
@@ -134,7 +143,60 @@ namespace Metagame.EditorTools
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
+            AlignMainSceneInstanceToSurface();
             Debug.Log("[Stage1WeldingGun] 실제 모델과 힌지 애니메이션 적용 완료 — " + PrefabPath);
+        }
+
+        static void AlignMainSceneInstanceToSurface()
+        {
+            var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            var instance = FindByPath(scene, EquipmentPath + "/" + InstanceName);
+            if (instance == null) return;
+
+            AlignSceneInstanceToSurface(instance);
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+        }
+
+        /// <summary>
+        /// 최종 외형과 실제 물리 콜라이더를 함께 재서 바닥면에 맞춘다.
+        /// 고정된 음수 Y 오프셋은 생산 모델이 바뀔 때마다 메시나 콜라이더를 바닥 아래로
+        /// 보내므로, 현재 인스턴스의 최저 경계를 기준으로 보정한다.
+        /// </summary>
+        static void AlignSceneInstanceToSurface(Transform instance)
+        {
+            if (instance == null) return;
+
+            Bounds bounds = default;
+            var first = true;
+            var renderers = instance.GetComponentsInChildren<Renderer>(true);
+            for (var i = 0; i < renderers.Length; i++)
+            {
+                var renderer = renderers[i];
+                if (renderer == null || !renderer.enabled || renderer is ParticleSystemRenderer)
+                    continue;
+
+                if (first) { bounds = renderer.bounds; first = false; }
+                else bounds.Encapsulate(renderer.bounds);
+            }
+
+            var colliders = instance.GetComponentsInChildren<Collider>(true);
+            for (var i = 0; i < colliders.Length; i++)
+            {
+                var collider = colliders[i];
+                if (collider == null || !collider.enabled) continue;
+
+                if (first) { bounds = collider.bounds; first = false; }
+                else bounds.Encapsulate(collider.bounds);
+            }
+
+            if (first) return;
+
+            var delta = TransportVehicle.GroundY + SurfaceGap - bounds.min.y;
+            if (float.IsNaN(delta) || float.IsInfinity(delta)) return;
+
+            instance.position += Vector3.up * delta;
+            Physics.SyncTransforms();
         }
 
         static GunMaterials CreateMaterials()

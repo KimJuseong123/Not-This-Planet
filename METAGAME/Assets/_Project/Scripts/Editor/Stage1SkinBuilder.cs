@@ -251,6 +251,7 @@ namespace Metagame.EditorTools
                     spot.x - fit.Center.x,
                     -(fit.Center.y - fit.Size.y * 0.5f),                  // 못 바닥을 지면에
                     spot.z - fit.Center.z);
+                clamp.AssignReleasedVisual(pin);
                 done++;
             }
             return done;
@@ -272,7 +273,13 @@ namespace Metagame.EditorTools
                 // 빔 기준점은 아래를 겨누도록 회전해 있다. 도구는 수평으로 떠 있어야 하므로
                 // 부모 회전을 따라가지 않게 월드 기준으로 직접 세운다.
                 visual.rotation = Quaternion.identity;
-                visual.position = beam.transform.position - fit.Center;
+                // 빔 루트의 높이는 바닥 기준점이지 모델의 중심 높이가 아니다. 중심을
+                // 루트에 맞추면 실제 비행접시 높이의 절반이 지면 아래로 내려간다.
+                var bottomOffset = fit.Center.y - fit.Size.y * 0.5f;
+                visual.position = new Vector3(
+                    beam.transform.position.x - fit.Center.x,
+                    TransportVehicle.GroundY - bottomOffset,
+                    beam.transform.position.z - fit.Center.z);
                 done++;
             }
             return done;
