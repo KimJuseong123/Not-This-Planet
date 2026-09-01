@@ -20,8 +20,8 @@
 | --- | --- | --- | --- |
 | `mr-title` | prepare | 브랜치명의 키로 Jira 이슈를 읽어 제목을 **`[Part] type: 요약 (KEY)`** 로 보정. 파트 = Jira 레이블(결정적, 추측 없음). type 은 기존 값 유지·없으면 변경 파일로 추정(docs/scene/feat/asset/chore). GitLab 기본 제목(`S15p21b202 21`)이면 요약을 Jira 제목으로 교체. 본문 `- 이슈: KEY` 줄도 채움 → **하이픈→공백 문제와 MR 미연결 문제를 원천 해결**. 잘못 고쳤으면 MR 제목 옆 "편집 기록(Compare with previous version)"에서 이전 값을 보고 되돌리고, 파트가 틀렸다면 원인은 Jira 이슈의 레이블이므로 그쪽을 고친다 | 아니오(allow_failure) |
 | `mr-lint` | lint | Draft 금지 · 소스/대상 브랜치 형식(대상 = develop · master(릴리즈) · 작업 브랜치=**스택 MR 허용, 경고** · `hotfix/*` 대상은 **실패** — 검증받지 않은 변경이 핫픽스에 얹혀 master 로 들어가고 R6 조건도 막힌다, -134) · 제목 정규식 · 제목/브랜치/본문의 키 일치 · 템플릿 섹션 6개 · 작성자 체크리스트 전부 체크 · Jira 이슈 실존(조회 자체가 실패하면 판정하지 않고 경고만 — 장애·토큰 만료를 '이슈 없음' 으로 오해하지 않는다, -94)·Epic 아님·담당자·상위 Epic 있음 · 제목 파트 = Jira 파트. **경고**: MR 작성자 ≠ Jira 담당자(브랜치 번호 오타로 남의 이슈를 건드린 경우가 드러난다, 대행 작업이면 무시 — -94) | **예**. **경고(차단 아님)**: 브랜치가 master(또는 그 이전)에서 갈라짐 · 시작점이 develop 대비 `MR_STALE_WARN_COMMITS`(기본 25) 이상 뒤 · MR 커밋에 다른 이슈 키 섞임(-90). 경고가 있으면 **MR 코멘트 `⚠ 확인 사항`** 1개(마커로 갱신, 해소되면 ✅ 로 바뀜)에 **그 MR 의 모든 경고**(브랜치 베이스·담당자 불일치·완료된 이슈·파트 없음 …, -105)를 담아 남기고, **master 기반일 때만** 🟠 MM 카드(작성자 멘션)를 보낸다 |
-| `repo-hygiene` | lint | 금지 파일(Library/Temp/obj/Build·csproj/sln·.vs/.idea·OS 잡파일·빌드 산출물) · Assets 아래 `.meta` 짝(파일·상위 폴더·고아 — 점으로 시작하는 파일·`~` 폴더는 Unity 가 임포트하지 않으므로 제외, -122) · Assets 새 최상위 폴더 금지(`_Project/` 아래로) · **LFS 추적 파일이 실제 바이너리로 커밋됨**(오늘 URP.png 사례) · 비-LFS 5MB 초과 · 씬/프리팹 변경 vs MR 본문 선언 불일치. **릴리즈 MR(develop → master)은 통째로 건너뛴다** — 비교 기준이 master 라 develop 의 기존 파일까지 '추가됨' 으로 잡혀 오탐만 나온다(2026-08-28 MR !68 에서 `.gitkeep` 의 `.meta` 누락 14건 오탐 확인, -122) | **예** |
-| `mr-overlap` | lint | **다른 열린 MR 과의 충돌을 MR 시점에**(-138, 팀장 요청). 같은 대상을 향한 다른 열린 MR 마다 `git merge-tree` 로 **실제 3-way 머지를 시험**해 충돌 파일을 증명한다(추측 아님). 같은 씬·프리팹·에셋을 만졌지만 텍스트 충돌은 없는 경우도 ⚠. **나중에 열린 MR 이 조정하는 쪽** — 텍스트 충돌이면 나중 MR 은 ❌(리베이스/merge 명령을 코멘트로), 먼저 MR 에는 ⚠ 정보 + 머지 순서. 이 MR 이 다른 열린 MR 위에 얹혀 있으면(그 끝 커밋이 조상) **대상을 그 브랜치로 자동 전환** — 먼저 머지해도 남의 내용이 몰래 들어가지 않고, 부모가 머지되면 GitLab 이 대상을 develop 으로 되돌린다(18.11 실측). 겹치는 쌍이 있으면 AI 가 '텍스트 충돌은 없지만 서로 깨뜨리는지' 를 판정해 덧붙인다(최대 3쌍). 양쪽 MR 에 코멘트(마커 갱신) | **예**(나중 MR 의 텍스트 충돌만) |
+| `repo-hygiene` | lint | **경로 길이 상한 180자**(추가되는 경로만 — 러너 빌드 경로 71자를 더하면 Windows MAX_PATH 260 을 넘어 checkout 자체가 죽는다. 2026-08-31 실측: 189자 경로가 develop 에 들어와 파이프라인 10건이 스크립트 실행 전에 전멸) · 금지 파일(Library/Temp/obj/Build·csproj/sln·.vs/.idea·OS 잡파일·빌드 산출물·**인증키(.pem/.key/.p12/id_rsa 등)**) · Assets 아래 `.meta` 짝(파일·상위 폴더·고아 — 점으로 시작하는 파일·`~` 폴더는 Unity 가 임포트하지 않으므로 제외, -122) · Assets 새 최상위 폴더 금지(`_Project/` 아래로) · **LFS 추적 파일이 실제 바이너리로 커밋됨**(오늘 URP.png 사례) · 비-LFS 5MB 초과 · 씬/프리팹 변경 vs MR 본문 선언 불일치. **릴리즈 MR(develop → master)은 통째로 건너뛴다** — 비교 기준이 master 라 develop 의 기존 파일까지 '추가됨' 으로 잡혀 오탐만 나온다(2026-08-28 MR !68 에서 `.gitkeep` 의 `.meta` 누락 14건 오탐 확인, -122) | **예** |
+| `mr-overlap` | lint | **다른 열린 MR 과의 충돌을 MR 시점에**(-138, 팀장 요청). 같은 대상을 향한 다른 열린 MR 마다 `git merge-tree` 로 **실제 3-way 머지를 시험**해 충돌 파일을 증명한다(추측 아님). 같은 씬·프리팹·에셋을 만졌지만 텍스트 충돌은 없는 경우도 ⚠. **나중에 열린 MR 이 조정하는 쪽** — 텍스트 충돌이면 나중 MR 은 ❌(리베이스/merge 명령을 코멘트로), 먼저 MR 에는 ⚠ 정보 + 머지 순서. 이 MR 이 다른 열린 MR 위에 얹혀 있으면(그 끝 커밋이 조상) **대상을 그 브랜치로 자동 전환** — 먼저 머지해도 남의 내용이 몰래 들어가지 않고, 부모가 머지되면 GitLab 이 대상을 develop 으로 되돌린다(18.11 실측). 겹치는 쌍이 있으면 AI 가 '텍스트 충돌은 없지만 서로 깨뜨리는지' 를 판정해 덧붙인다(최대 3쌍). 양쪽 MR 에 코멘트(마커 갱신). **'그 MR 이 스스로 바꾼 파일' 의 기준은 각 MR 의 대상 브랜치와의 공통 조상**(GitLab MR diff 와 같은 기준) — 두 MR 끝 커밋의 쌍별 공통 조상을 쓰면 상대가 오래된 지점에서 갈라졌을 때 그 사이 develop 에 머지된 남의 커밋이 '내 변경' 으로 잡혀 애먼 MR 이 지목된다(2026-08-31 오귀속 4건 실측 후 -188 에서 수정) | **예**(나중 MR 의 텍스트 충돌만) |
 | `ci-tests` | lint | `scripts/ci/tests/run_all.py` — CI 스크립트 자신의 오프라인 회귀 테스트(네트워크·토큰 없이 `http()` 를 가짜로 바꿔 실행). `scripts/ci/**` 이 바뀐 MR 에서만 잡이 생긴다. 새 규칙·판정 로직을 넣을 때 여기에 케이스를 추가한다(-103) | **예**. **릴리즈 MR(develop → master)은 Draft 금지와 대상 브랜치 규칙만 보고 나머지는 건너뛴다** — 이슈 키도 템플릿도 없는 정렬용 MR 이고 내용은 develop 에 들어올 때 이미 검사했다(-122) |
 | `unity-compile` | test | Unity 설치 Windows 러너(`unity-win`)에서 EditMode 테스트 실행 → 컴파일 에러 검출. `UNITY_RUNNER=true` 일 때만 생성 | 처음엔 아니오 |
 | `ai-review` | review | **v2(2026-08-27, -82)**: 역할별 리뷰어 3(범위·완료 조건·기록 / C#·Unity·네트워크 코드 / 에셋·씬·프리팹·구조)이 변경 내용에 따라 필요한 것만 **병렬** 실행되어 JSON 만 내고, 요약 에이전트가 "팀장이 확인할 것" 1~3개를 쓴다. 최종 코멘트 1개(재실행 시 갱신) = 결론(✅ 머지 가능 / ⚠️ 확인 후 머지 / ⛔ 보류) → 확인할 것 → **리뷰어 확인 5항목 판정표**(범위·완료 조건·씬/프리팹·구조·기록) → 발견 사항 표(높음·중간) → `<details>` 상세. 팀장은 ⚠️/❓ 만 본다. **백엔드**: `cli` = 러너 호스트 Claude Code CLI(Team 플랜, 채택) / `api` = `ANTHROPIC_API_KEY`. `AI_REVIEW_CLI=true` 또는 키가 있을 때만 잡 생성 | 아니오 |
@@ -58,7 +58,37 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 ## 4. 러너
 
 - **공유 러너**: 설정은 켜져 있지만(`shared_runners_enabled=true`) **실제 러너가 없다** — MR !10 첫 파이프라인이 9분 넘게 `pending`(2026-08-27 실측). 따라서 **프로젝트 러너 등록이 필수**. `image:` 는 Docker 러너용이며 shell 러너에서는 무시됨.
-- **러너 배치 계획**: ① **상시 러너 = 지급 EC2(Linux, Docker 실행기, 24시간)** — mr-title·mr-lint·repo-hygiene·ai-review·mm-digest 전부 여기서. `sudo RUNNER_TOKEN=glrt-… bash scripts/runner/setup-linux-runner.sh` 한 줄(Docker·gitlab-runner 설치·등록·systemd). ② **Unity 러너 = Unity 6000.5.4f1 설치 Windows PC**(태그 `unity-win`, 근무 시간만 켜져도 됨 — allow_failure 잡). ③ EC2 지급 전 임시: 팀 PC 1대에 Windows 러너(아래) — 꺼져 있는 시간엔 파이프라인이 pending 으로 대기하고, 다이제스트는 그 시각에 러너가 없으면 건너뜀. EC2 오면 임시 러너는 GitLab 에서 삭제.
+- **현재 배치(2026-09-01 실측)** — 러너 **2대가 모두 태그 없이** 돌고 있어 잡이 양쪽으로 갈린다.
+
+  | 러너 | 어디 | 실행기 | 몫 |
+  | --- | --- | --- | --- |
+  | `METAGAME-ip-172-26-13-34` | **EC2**(상시, 24시간) | docker · concurrent 2 · 부팅 자동 시작 | 앞으로 전부 |
+  | `METAGAME-DESKTOP-UB20P0O` | 내 PC | shell(pwsh) | Unity 잡(`unity-win`) · EC2 장애 시 예비 |
+
+  내 PC 러너 강등(태그 부여 + Run untagged 해제)은 **EC2 가 한동안 안정적으로 도는 것을 본 뒤**에 한다.
+  단일 러너가 팀 전체의 단일 장애점이었다 — 08-28 러너 중단 1시간, 08-31 MAX_PATH 로 파이프라인 26건 전멸.
+  EC2 는 리눅스·도커라 **MAX_PATH 문제는 원인 자체가 없다.**
+
+- **EC2 러너 설치**: `sudo RUNNER_TOKEN=glrt-… bash scripts/runner/setup-linux-runner.sh` (토큰은 환경변수로만 — `read -rs` 로 받아 화면·히스토리에 남기지 않는다). 러너는 아웃바운드 443 만 쓰므로 **UFW 변경 불필요**.
+- **잡 이미지에는 git 이 있어야 한다**(2026-09-01 실측). `python:3.12-slim` 에는 git 이 없어 `ci-tests` 가 EC2 에서
+  `FileNotFoundError: 'git'` 로 실패했다. 러너가 소스를 받을 때 쓰는 **헬퍼 이미지는 잡 컨테이너와 별개**라
+  체크아웃은 되고 스크립트만 깨진다 — `mr-overlap`·`repo-hygiene` 도 같은 이유로 EC2 배정 시 깨진다.
+  그래서 기본 이미지를 **`python:3.12`**(git 2.47.3 포함, 1.62GB)로 둔다. `pull_policy: if-not-present` 라 최초 1회만 받고,
+  잡마다 `apt-get install git` 하는 것보다 빠르고 결정적이다.
+- **AI 리뷰를 도커 러너에서 돌리는 법**(2026-09-01 구성): 호스트에 Claude CLI 를 설치해 로그인하고, `config.toml` 에서 **바이너리는 읽기 전용·설정 디렉터리는 쓰기 가능**으로 잡 컨테이너에 마운트한다.
+
+  ```toml
+  [[runners]]
+    environment = ["CLAUDE_BIN=/usr/local/bin/claude", "CLAUDE_CONFIG_DIR=/claude-config", "DISABLE_AUTOUPDATER=1"]
+    [runners.docker]
+      volumes = ["/cache", "/usr/local/bin/claude:/usr/local/bin/claude:ro", "/home/ubuntu/.claude:/claude-config:rw"]
+  ```
+
+  **자격증명을 환경변수가 아니라 마운트로 넣는 이유**: 환경변수는 CI 로그에 실수로 찍히기 쉽다. 설정 디렉터리는
+  토큰 갱신 때문에 쓰기가 필요하다. 바이너리는 버전 디렉터리 대신 `/usr/local/bin/claude` 로 복사해 경로를 고정하고,
+  `DISABLE_AUTOUPDATER=1` 로 CI 중 자동 업데이트를 막는다.
+  실측: 컨테이너 안에서 `auth status` → `loggedIn: true`, `ai-review` 잡이 EC2 에서 **64초에 성공**(파이프라인 176070).
+- ~~러너 배치 계획~~(아래는 이전 계획 기록): ① **상시 러너 = 지급 EC2(Linux, Docker 실행기, 24시간)** — mr-title·mr-lint·repo-hygiene·ai-review·mm-digest 전부 여기서. `sudo RUNNER_TOKEN=glrt-… bash scripts/runner/setup-linux-runner.sh` 한 줄(Docker·gitlab-runner 설치·등록·systemd). ② **Unity 러너 = Unity 6000.5.4f1 설치 Windows PC**(태그 `unity-win`, 근무 시간만 켜져도 됨 — allow_failure 잡). ③ EC2 지급 전 임시: 팀 PC 1대에 Windows 러너(아래) — 꺼져 있는 시간엔 파이프라인이 pending 으로 대기하고, 다이제스트는 그 시각에 러너가 없으면 건너뜀. EC2 오면 임시 러너는 GitLab 에서 삭제.
 - **프로젝트 러너 등록(Windows, 20분)**: ① 팀장: Settings → CI/CD → Runners → *New project runner* → 태그 `windows`(+`unity-win`), **Run untagged jobs ✔** → 토큰(`glrt-…`) 발급해 등록할 사람에게 직접 전달 ② 등록자(관리자 PowerShell): `$env:RUNNER_TOKEN="glrt-…"; .\scripts\runner\setup-windows-runner.ps1 [-Unity]` — [setup-windows-runner.ps1](../scripts/runner/setup-windows-runner.ps1) 이 바이너리 다운로드·Python 3.12 확인/설치·등록·서비스 설치를 한다 ③ 팀장: 변수 **`CI_ENABLE=true`** → 그때부터 MR 파이프라인이 생성됨(그 전에는 pending 노이즈를 막기 위해 파이프라인을 만들지 않음). 주의: 러너 셸은 **`pwsh`(PowerShell 7, MSI 시스템 설치)** 여야 한다 — 5.1(`powershell`)은 잡 스크립트를 cp949 로 읽어 한글 CI 변수(MR 제목·본문·커밋 메시지)에서 파서 오류로 모든 잡이 실패(2026-08-27 파이프라인 #175296 실측). Store 판 pwsh 는 SYSTEM 서비스가 실행 못 하므로 `runner-use-pwsh.ps1` 로 MSI 설치 + 셸 전환. `glrt-` 토큰은 생성 직후 한 번만 보이니 그때 복사해 전달(`Verifying runner... is not valid` = 토큰 불일치)
 - **Unity 러너**(2단계): Unity **6000.5.4f1** 이 설치된 Windows PC 에서 같은 스크립트를 `-Unity` 로 실행(태그 `windows,unity-win`). 그 뒤 변수 `UNITY_RUNNER=true`, `UNITY_PATH=C:\Program Files\Unity\Hub\Editor\6000.5.4f1\Editor\Unity.exe`. 현재 SSAFY PC 에는 6000.0.81f1 만 있어 버전을 맞춰야 함. 러너 PC 는 절전 금지, 프로젝트가 커지면 `GIT_DEPTH` 조정.
 - **AI 리뷰(cli 백엔드) 준비 — 러너 호스트에서**: ① 러너를 돌릴 **사용자 계정**으로 로그인한 터미널에서 Claude Code CLI 설치(`irm https://claude.ai/install.ps1 | iex`) 후 `claude` 실행 → `/login` 으로 팀 Claude 계정 로그인(브라우저) → `claude -p "PONG"` 이 답하면 OK ② 러너 잡이 그 로그인을 쓰게 연결: 관리자 PowerShell `.\scripts\runner\runner-claude-env.ps1` — config.toml 의 러너 `environment` 에 `CLAUDE_CONFIG_DIR=<사용자>\.claude`·`CLAUDE_BIN=<사용자>\.local\bin\claude.exe` 를 넣고 서비스 재시작(SYSTEM 계정 서비스가 사용자 프로필의 자격 파일을 그대로 읽음 — 2026-08-27 실측, 비밀번호·토큰 복사 불필요). (서비스를 사용자 계정으로 돌리는 방식은 비밀번호가 명령줄에 노출되는 문제로 채택하지 않음) ③ 팀장: 변수 `AI_REVIEW_CLI=true`(+ 코멘트용 `GITLAB_TOKEN`). 자격은 러너 호스트의 사용자 프로필(`~\.claude`)에만 있고 GitLab 변수·리포에 들어가지 않는다 — EC2 시절과 같은 구조. 사용자의 VS Code Claude Code 와 러너가 같은 자격 파일을 공유하므로 `/logout` 하면 CI 리뷰도 멈추고, 토큰 갱신이 겹쳐 "Not logged in" 이 나면 사용자 세션에서 `claude` 재로그인. 주의: `claude -p --bare` 는 keychain 을 읽지 않아 "Not logged in" 이 되므로 쓰지 않음. 호스트 사용자 비밀번호가 바뀌면 서비스가 멎으니 스크립트 재실행. 이 방식은 팀 구독 사용량을 소비하고, 구독 OAuth 의 자동화 사용은 Anthropic 이 Pro/Max 개인 CI 용도로만 공식 안내하므로 정책 변경 시 `api` 백엔드로 전환할 것(팀 결정 2026-08-27)
@@ -79,7 +109,7 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 | 🟠 | 제목 형식 위반 · 상위 Epic 없음 (R2) | Jira 웹 요청 | 담당자(없으면 보고자) | `🟠 **제목 형식 위반** …` / `@user · [파트] 제목 형식으로` |
 | 🟠 | MR 머지 없이 닫힘 (R7) | Jira 웹 요청 | 이슈 담당자 | `🟠 **MR 이 머지 없이 닫힘** …` / `@user · 재오픈 또는 팀장에게 정리 요청` |
 | 🟢 요청 | MR 열림 = 리뷰 요청 | CI `mm-mr-opened`(MR 의 **첫 파이프라인일 때 1회** — id 가 가장 작은 파이프라인만 보낸다. 예전엔 파이프라인 개수로 판정해 재시도로 2개가 된 MR 이 영구 미발송이었다(-134), Draft 제외) | **리뷰어(기본 팀장)**, 작성자 표기 | `🟢 **리뷰 요청** — [!N 제목](url)` / `@suho6347 · 작성 dorem96 · …` |
-| 📋 요약 | 매일 09:30 다이제스트(발송 09:33) | CI `mm-digest`(스케줄) | 항목별 담당자(없으면 팀장) | `📋 **아침 점검 — 확인 필요**` + needs-fix·기한 초과·3일 정체·담당자 없음·24h 넘은 MR |
+| 📋 요약 | 매일 09:30 다이제스트(발송 09:33) | CI `mm-digest`(스케줄) | 항목별 담당자(없으면 팀장) | `📋 **아침 점검 — 확인 필요**` + needs-fix·기한 초과·3일 정체·담당자 없음·24h 넘은 MR·🔗 머지됐는데 완료 안 됨(대상 develop)·🧩 스택 자식 MR(부모가 develop 에 도달한 것만)·검사 안 돈 MR·충돌하는 열린 MR |
 | 🟢 완료 | MR 머지 = 이슈 완료 (R6) | Jira 웹 요청 | **이슈 담당자**(= MR 작성자) | `🟢 **머지 완료 · 이슈 완료**` / 이슈·담당·MR 링크·"브랜치 자동 삭제됨, 후속은 새 이슈로" — 2026-08-27 추가 |
 | ✂ 보내지 않음 | push · 코멘트 · 이슈 생성 | — | 태그 대상 없음 | Jira 상태 전이·MR 화면으로 충분 |
 
@@ -106,6 +136,7 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 - **default branch 실패는 가장 강한 알림이 필요한데 아무도 mention 되지 않았다**(2026-08-04, 20분 방치) → GitLab MM 통합의 Pipeline 이벤트는 켜 두고, develop 실패는 다이제스트에도 포함할 것(후속).
 - **GitLab 내장 MM Pipeline 알림을 all branches 로 두면 MR 파이프라인 자동 취소가 "failed" 로 통보돼 노이즈** → 내장 알림은 default branch 로 한정(체크리스트 §5 반영).
 - **PowerShell 5.1 러너의 한글 변수 파손**은 이번 프로젝트에서 새로 겪은 것(Linux Docker 러너였던 지난 프로젝트엔 없음) → pwsh 필수.
+- **테스트 없는 알림 항목은 조용히 죽는다**(2026-08-31 실측) — 아침 점검의 `🌿 머지 뒤 다시 생긴 브랜치` 는 `resurrected_branches()` 가 표 행을 만들고도 **반환하지 않아** 도입(-110) 이후 한 번도 나가지 않았다. 호출부가 `if res:` 로 판단하므로 오류도 없이 항목만 사라진다. 미룬 테스트를 옮기다가 잡혔다(-133) → **알림 항목을 만들면 그 자리에서 오프라인 테스트를 같이 만든다.**
 - 리뷰 결과는 사실 검증 전까지 증거가 아니다 — 지난 프로젝트도 Medium/Low 는 참고, Critical/High 만 차단으로 썼다. 우리는 전부 참고(비차단)이며 판단은 팀장.
 ## 6. 앞으로
 - 파이프라인 필수(Settings → Merge requests → Pipelines must succeed)는 mr-lint·repo-hygiene 이 1주 안정화된 뒤 켠다 — 그 전에는 빨간불을 팀장이 보고 머지 여부 판단

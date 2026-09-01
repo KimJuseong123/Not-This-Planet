@@ -1,5 +1,4 @@
-// 빛을 받지 않는 순수 색. 별밭·먼 행성 테두리·표시등처럼
-// "저 멀리서 스스로 빛나는 것" 에 쓴다. 정점 색을 곱하므로 별밭은 메시 하나로 끝난다.
+// URP compatible vertex-color unlit material used by stars and distant markers.
 Shader "SpaceFlop/Flat"
 {
     Properties
@@ -9,47 +8,52 @@ Shader "SpaceFlop/Flat"
 
     SubShader
     {
-        Tags { "RenderType"="Opaque" "Queue"="Geometry-100" }
+        Tags { "RenderType"="Opaque" "Queue"="Geometry-100" "RenderPipeline"="UniversalPipeline" }
         LOD 100
 
         Pass
         {
+            Name "Unlit"
+            Tags { "LightMode"="UniversalForward" }
             ZWrite On
             Cull Off
-            Fog { Mode Off }
 
-            CGPROGRAM
-            #pragma vertex vert
-            #pragma fragment frag
-            #include "UnityCG.cginc"
+            HLSLPROGRAM
+            #pragma target 3.0
+            #pragma vertex Vert
+            #pragma fragment Frag
 
-            fixed4 _Color;
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
-            struct appdata
+            CBUFFER_START(UnityPerMaterial)
+                half4 _Color;
+            CBUFFER_END
+
+            struct Attributes
             {
-                float4 vertex : POSITION;
-                fixed4 color  : COLOR;
+                float4 positionOS : POSITION;
+                half4 color : COLOR;
             };
 
-            struct v2f
+            struct Varyings
             {
-                float4 pos   : SV_POSITION;
-                fixed4 color : COLOR;
+                float4 positionCS : SV_POSITION;
+                half4 color : COLOR;
             };
 
-            v2f vert(appdata v)
+            Varyings Vert(Attributes input)
             {
-                v2f o;
-                o.pos = UnityObjectToClipPos(v.vertex);
-                o.color = v.color;
-                return o;
+                Varyings output;
+                output.positionCS = TransformObjectToHClip(input.positionOS.xyz);
+                output.color = input.color;
+                return output;
             }
 
-            fixed4 frag(v2f i) : SV_Target
+            half4 Frag(Varyings input) : SV_Target
             {
-                return _Color * i.color;
+                return _Color * input.color;
             }
-            ENDCG
+            ENDHLSL
         }
     }
 

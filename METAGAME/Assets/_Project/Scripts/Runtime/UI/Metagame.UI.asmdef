@@ -4,7 +4,8 @@
   "references": [
     "Metagame.Core",
     "Metagame.Gameplay",
-    "Metagame.Network"
+    "Metagame.Network",
+    "UnityEngine.UI"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

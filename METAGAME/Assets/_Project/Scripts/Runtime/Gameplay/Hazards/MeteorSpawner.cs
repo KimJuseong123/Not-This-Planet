@@ -78,6 +78,21 @@ namespace Metagame.Gameplay.Hazards
             _live.Clear();
         }
 
+        /// <summary>
+        /// 새 예고를 만들지 않는가. 기획 §22.3 의 발사 중과 §22.4 의 실패 수습 사이에
+        /// 쓴다.
+        ///
+        /// <b>이미 떨어지는 중인 운석은 그대로 둔다.</b> 공중에서 멈춰 세우면 발사 순간에
+        /// 하늘에 운석이 박혀 있게 된다. 예고만 끊고 남은 것은 떨어지게 두는 편이 맞다.
+        ///
+        /// 재개할 때 <see cref="ResetRun"/> 을 쓰지 않는다 — 시드를 다시 심으면 실패
+        /// 이전과 같은 순서가 반복되고, 무엇보다 기획 §22.4 가 "발사 실패는 스테이지
+        /// 초기화가 아니다" 라고 못박았다.
+        /// </summary>
+        public bool IsPaused { get; private set; }
+
+        public void SetPaused(bool paused) => IsPaused = paused;
+
         public void Configure(int seed, float intervalStart, float intervalMin, float rampSeconds)
         {
             _seed = seed;
@@ -122,6 +137,8 @@ namespace Metagame.Gameplay.Hazards
 
         void AdvanceSchedule(float deltaTime)
         {
+            if (IsPaused) return;
+
             _sinceLastSchedule += deltaTime;
             if (_sinceLastSchedule < CurrentInterval) return;
 

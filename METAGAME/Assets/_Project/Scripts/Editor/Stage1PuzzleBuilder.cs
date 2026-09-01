@@ -47,7 +47,25 @@ namespace Metagame.EditorTools
         };
 
         const int ClampsPerPart = 4;
-        const int WeldPointsPerPart = 4;
+
+        /// <summary>콜라이더 상자 자식의 이름 앞부분. 스킨이 이 렌더러들을 끈다.</summary>
+        public const string BodyPrefix = "Body_";
+
+        /// <summary>고정쇠를 밑면 발자국의 몇 배 지점에 둘지. 0.5 가 모서리다.</summary>
+        const float ClampInset = 0.40f;
+
+        /// <summary>
+        /// 상호작용 콜라이더 반지름(m). 예전에는 루트 스케일(최대 3.7배)이 곱해져
+        /// 실제로는 0.44m·0.37m 였다. 루트 스케일이 1 이 되었으므로 실측값을 그대로 적는다.
+        /// </summary>
+        const float ClampRadius = 0.35f;
+
+        /// <summary>
+        /// 출입문 상호작용 부피. 높이는 엔진 모듈(2.16m) 중간쯤이고, 반지름은 완성된
+        /// 우주선의 밑동 옆에 서서 누를 수 있을 만큼이다.
+        /// </summary>
+        const float HatchHeight = 1.1f;
+        const float HatchRadius = 1.6f;
 
         [MenuItem("Tools/둥실둥실 우주 대탈출/Main 씬에 1장 퍼즐 배치", false, 3)]
         public static void Build()
@@ -62,22 +80,39 @@ namespace Metagame.EditorTools
             }
 
             // 이 도구가 만든 것만 지운다. 레벨은 건드리지 않는다.
+            // Equipment는 퍼즐 재생성 때도 유지해야 하는 별도 장비 그룹이다.
+            // 특히 현재 맵에 배치된 임시 용접 플라즈마 건을 지우지 않도록
+            // 기존 그룹에서 잠시 분리했다가 새 Puzzle 아래에 되돌린다.
             var existing = gameplay.Find(GroupName);
+            var preservedEquipment = existing != null ? existing.Find("Equipment") : null;
+            if (preservedEquipment != null) preservedEquipment.SetParent(gameplay, true);
             if (existing != null) Object.DestroyImmediate(existing.gameObject);
 
             var group = new GameObject(GroupName).transform;
             group.SetParent(gameplay, false);
 
-            var marker = new GameObject("AssemblyPoint").transform;
-            marker.SetParent(group, false);
-            marker.localPosition = AssemblyPoint;
+            if (preservedEquipment != null) preservedEquipment.SetParent(group, true);
 
-            var parts = new SpaceshipPart[PartSpots.Length];
-            for (var i = 0; i < PartSpots.Length; i++)
-                parts[i] = BuildPart(group, i);
+            var marker = BuildLaunchPad(group);
+
+            // 파츠 수는 명세가 정한다. 배치 좌표가 모자라면 명세를 못 채우므로 함께 확인한다.
+            var count = Mathf.Min(PartSpec.All.Length, PartSpots.Length);
+            if (PartSpec.All.Length != PartSpots.Length)
+                Debug.LogWarning($"[Stage1Puzzle] 파츠 명세 {PartSpec.All.Length}개 · 배치 좌표 "
+                                 + $"{PartSpots.Length}개 — 적은 쪽인 {count}개만 세운다.");
+
+            var parts = new SpaceshipPart[count];
+            for (var i = 0; i < count; i++)
+                parts[i] = BuildPart(group, i, PartSpec.All[i]);
 
             var beams = BuildBeams(group);
-            BuildMeteors(group);
+            var spawner = BuildMeteors(group);
+
+            // 문이 발사 중 운석을 멈추고 실패 후 재개한다(기획 §22.3 · §22.4).
+            // 배치 순서상 스포너가 뒤에 만들어지므로 여기서 이어 준다.
+            var hatch = marker.GetComponentInChildren<ShipHatch>();
+            if (hatch != null) hatch.Configure(marker.GetComponent<ShipAssembly>(),
+                                               marker.GetComponent<LaunchTest>(), spawner);
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
@@ -85,80 +120,145 @@ namespace Metagame.EditorTools
             Debug.Log($"[Stage1Puzzle] 배치 완료 — 파츠 {parts.Length}기, 빔 {beams.Length}기 → {ScenePath}");
         }
 
-        /// <summary>고정쇠로 박혀 있고 용접점을 가진 파츠 하나.</summary>
-        static SpaceshipPart BuildPart(Transform group, int index)
+        /// <summary>
+        /// 조립·발사 위치. 완성 판정과 하중 시험, 출입문이 여기 붙는다.
+        ///
+        /// 이름을 <c>AssemblyPoint</c> 로 유지한다 — <see cref="Stage1SkinBuilder"/> 가 이
+        /// 이름으로 찾아 주변을 비워 둔다. 예전에는 좌표만 표시하는 빈 오브젝트였고,
+        /// 그래서 우주선을 완성해도 발사할 방법이 없었다. <see cref="LaunchTest"/> 는
+        /// S15P21B202-195 에서 만들었지만 <c>Begin</c> 을 부르는 곳이 없었다.
+        ///
+        /// 문을 파츠가 아니라 발사대에 붙이는 이유는 파츠가 움직이기 때문이다. 출입문은
+        /// "완성된 우주선이 서 있는 자리" 의 상호작용 부피이고, 실제 문 메시와 열림 연출은
+        /// [Art] 의 몫이다(기획 §22.1 후반).
+        /// </summary>
+        static Transform BuildLaunchPad(Transform group)
         {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            go.name = $"Part_{index + 1}";
-            go.layer = GameLayers.Part;
+            var pad = new GameObject("AssemblyPoint").transform;
+            pad.SetParent(group, false);
+            pad.localPosition = AssemblyPoint;
+
+            var assembly = pad.gameObject.AddComponent<ShipAssembly>();
+            assembly.Configure(pad);
+
+            var launch = pad.gameObject.AddComponent<LaunchTest>();
+
+            var hatchGo = new GameObject("Hatch") { layer = GameLayers.Interactable };
+            hatchGo.transform.SetParent(pad, false);
+            hatchGo.transform.localPosition = Vector3.up * HatchHeight;
+
+            var sphere = hatchGo.AddComponent<SphereCollider>();
+            sphere.radius = HatchRadius;
+            sphere.isTrigger = true;
+
+            hatchGo.AddComponent<ShipHatch>().Configure(assembly, launch);
+            return pad;
+        }
+
+        /// <summary>
+        /// 고정쇠로 박혀 있고 용접점을 가진 파츠 하나.
+        ///
+        /// 예전에는 프리미티브 큐브 하나를 3 x 3.7 x 3m 로 늘려 네 파츠에 똑같이 썼다. 지금은
+        /// <see cref="PartSpec"/> 의 실측 상자들로 컴파운드 콜라이더를 만든다. 루트의 스케일은
+        /// 1 이고 크기는 자식 상자들이 갖는다 — 스케일로 크기를 표현하면 자식 콜라이더의
+        /// 반지름과 좌표까지 함께 늘어나 실제 치수를 읽을 수 없다.
+        /// </summary>
+        static SpaceshipPart BuildPart(Transform group, int index, PartSpec spec)
+        {
+            var go = new GameObject(spec.Name) { layer = GameLayers.Part };
             go.transform.SetParent(group, false);
-            go.transform.localPosition = PartSpots[index] + Vector3.up * (PhysicsScale.PartHeight * 0.5f);
-            go.transform.localScale = new Vector3(
-                PhysicsScale.PartWidth, PhysicsScale.PartHeight, PhysicsScale.PartWidth);
+            go.transform.localPosition = PartSpots[index] + Vector3.up * (spec.Height * 0.5f);
+
+            for (var i = 0; i < spec.Boxes.Length; i++) AddBody(go.transform, spec, i);
 
             go.AddComponent<Rigidbody>();
 
-            AddSocket(go.transform, SocketRole.Base);
-            AddSocket(go.transform, SocketRole.Top);
+            AddSocket(go.transform, spec, SocketRole.Base);
+            AddSocket(go.transform, spec, SocketRole.Top);
 
-            for (var i = 0; i < ClampsPerPart; i++) AddClamp(go.transform, i);
-            for (var i = 0; i < WeldPointsPerPart; i++) AddWeldPoint(go.transform, i);
+            for (var i = 0; i < ClampsPerPart; i++) AddClamp(go.transform, spec, i);
+            AddWeldSeam(go.transform, spec);
 
             var part = go.AddComponent<SpaceshipPart>();
+            part.SetPlacedMass(spec.Mass);
             part.Initialize();   // Locked 상태의 물리 표현을 씬에 저장한다
             return part;
         }
 
-        static void AddSocket(Transform parent, SocketRole role)
+        /// <summary>
+        /// 콜라이더 상자 하나. 프리미티브 큐브를 쓰는 이유는 스킨을 걷어냈을 때 파츠가
+        /// 여전히 보여야 하기 때문이다 — 스킨은 이 렌더러들만 끄고 메시는 그대로 둔다.
+        /// </summary>
+        static void AddBody(Transform parent, PartSpec spec, int index)
+        {
+            var box = spec.Boxes[index];
+
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            go.name = $"{BodyPrefix}{index}";
+            go.layer = GameLayers.Part;
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = box.CenterFromPartCenter(spec.Height);
+            go.transform.localScale = box.Size;
+        }
+
+        /// <summary>
+        /// 접합면. 밑면과 윗면의 한가운데다.
+        /// 좌표는 실제 미터다 — 루트 스케일이 1 이므로 ±0.5 같은 비율값을 쓸 수 없다.
+        /// </summary>
+        static void AddSocket(Transform parent, PartSpec spec, SocketRole role)
         {
             var direction = role == SocketRole.Base ? Vector3.down : Vector3.up;
 
             var go = new GameObject($"Socket_{role}");
             go.transform.SetParent(parent, false);
-            go.transform.localPosition = direction * 0.5f;
+            go.transform.localPosition = direction * (spec.Height * 0.5f);
             go.transform.localRotation = Quaternion.LookRotation(direction, Vector3.forward);
 
             go.AddComponent<PartSocket>().SetRole(role);
         }
 
-        /// <summary>밑면 네 귀퉁이의 고정쇠. 로컬 스케일이 파츠 크기라 좌표는 ±0.5 기준이다.</summary>
-        static void AddClamp(Transform parent, int index)
+        /// <summary>밑면 네 귀퉁이의 고정쇠. 가장 아래 상자의 발자국 안쪽에 둔다.</summary>
+        static void AddClamp(Transform parent, PartSpec spec, int index)
         {
+            var bottom = spec.Boxes[0];
+            var x = bottom.Width * ClampInset;
+            var z = bottom.Depth * ClampInset;
+
             var corners = new[]
             {
-                new Vector3(-0.4f, -0.5f, -0.4f), new Vector3(0.4f, -0.5f, -0.4f),
-                new Vector3(-0.4f, -0.5f, 0.4f), new Vector3(0.4f, -0.5f, 0.4f),
+                new Vector3(-x, 0f, -z), new Vector3(x, 0f, -z),
+                new Vector3(-x, 0f, z), new Vector3(x, 0f, z),
             };
 
             var go = new GameObject($"Clamp_{index}") { layer = GameLayers.Interactable };
             go.transform.SetParent(parent, false);
-            go.transform.localPosition = corners[index % corners.Length];
+            go.transform.localPosition = corners[index % corners.Length]
+                                         + Vector3.down * (spec.Height * 0.5f);
 
             var sphere = go.AddComponent<SphereCollider>();
-            sphere.radius = 0.12f;
+            sphere.radius = ClampRadius;
             sphere.isTrigger = true;
 
             go.AddComponent<PartClamp>();
         }
 
-        /// <summary>밑면 둘레의 용접점. 조립된 뒤에만 용접할 수 있다.</summary>
-        static void AddWeldPoint(Transform parent, int index)
+        /// <summary>
+        /// 밑면 둘레의 원형 용접선(기획 §16.1). 조립된 뒤에만 용접할 수 있다.
+        ///
+        /// 예전에는 밑면 네 곳에 <c>WeldPoint</c> 를 놓았다. 기획이 "점 네 개를 누르는
+        /// 방식이 아니라" 고 명시하므로 접합선 하나로 바꿨다.
+        ///
+        /// 콜라이더를 붙이지 않는다. 용접기가 노즐과 접합선 사이의 거리로 판정하므로
+        /// 레이캐스트 대상이 필요 없고, 콜라이더를 두면 파츠 밑면에 상호작용 레이어
+        /// 트리거가 하나 더 생겨 다른 판정에 걸린다.
+        /// </summary>
+        static void AddWeldSeam(Transform parent, PartSpec spec)
         {
-            var spots = new[]
-            {
-                new Vector3(-0.25f, -0.5f, -0.5f), new Vector3(0.25f, -0.5f, -0.5f),
-                new Vector3(-0.25f, -0.5f, 0.5f), new Vector3(0.25f, -0.5f, 0.5f),
-            };
-
-            var go = new GameObject($"Weld_{index}") { layer = GameLayers.Interactable };
+            var go = new GameObject("WeldSeam");
             go.transform.SetParent(parent, false);
-            go.transform.localPosition = spots[index % spots.Length];
+            go.transform.localPosition = Vector3.down * (spec.Height * 0.5f);
 
-            var sphere = go.AddComponent<SphereCollider>();
-            sphere.radius = 0.1f;
-            sphere.isTrigger = true;
-
-            go.AddComponent<WeldPoint>();
+            go.AddComponent<WeldSeam>();
         }
 
         /// <summary>
@@ -192,7 +292,7 @@ namespace Metagame.EditorTools
             return beams;
         }
 
-        static void BuildMeteors(Transform group)
+        static MeteorSpawner BuildMeteors(Transform group)
         {
             var go = new GameObject("MeteorSpawner");
             go.transform.SetParent(group, false);
@@ -208,6 +308,15 @@ namespace Metagame.EditorTools
             spawner.SetArea(go.transform, new Vector2(36f, 36f));
 
             go.AddComponent<DemoMeteorDriver>();
+
+            // 운석 스킨을 여기서 꽂는다. 이 도구가 Puzzle 그룹을 통째로 다시 만들기 때문에
+            // 스포너도 새것이 되고, 예전에는 _meteorPrefab 이 비어 폴백 구체로 돌아갔다.
+            // 오류도 경고도 나지 않아서 눈으로 봐야 알았다 — S15P21B202-166 부터 그 상태였다.
+            if (!Stage1MeteorAssets.TryWire(spawner))
+                Debug.LogWarning("[Stage1Puzzle] 운석 프리팹이 없어 폴백 구체로 떨어진다. "
+                                 + "'운석 프리팹 만들고 스포너에 꽂기' 를 한 번 돌린다.");
+
+            return spawner;
         }
 
         static Transform FindByPath(UnityEngine.SceneManagement.Scene scene, string path)

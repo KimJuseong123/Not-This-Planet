@@ -19,8 +19,8 @@ namespace Metagame.Bootstrap
         [Header("Backend")]
         [Tooltip("로비 입력칸의 기본값. 저장된 주소가 있으면 그쪽이 우선한다. 형식은 호스트[:포트].")]
         [SerializeField] private string defaultServerAddress = NetworkSession.DefaultServerAddress;
-        [SerializeField] private string httpBaseUrl = "http://127.0.0.1:8080";
-        [SerializeField] private string webSocketUrl = "ws://127.0.0.1:8080/ws/game";
+        [SerializeField] private string httpBaseUrl = "https://j15b202.p.ssafy.io:443";
+        [SerializeField] private string webSocketUrl = "wss://j15b202.p.ssafy.io:443/ws/game";
 
         [Header("Guest")]
         [SerializeField] private string defaultNickname = "비행사";

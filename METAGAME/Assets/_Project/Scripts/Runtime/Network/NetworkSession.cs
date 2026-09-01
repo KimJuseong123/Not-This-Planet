@@ -36,9 +36,13 @@ namespace Metagame.Network
         public bool IsLocalReady { get; private set; }
         public string ServerAddress { get; private set; } = DefaultServerAddress;
 
-        public const string DefaultServerAddress = "127.0.0.1:8080";
+        /// 배포 서버. 포트를 적지 않으므로 https(443)·wss 로 붙는다.
+        /// 로컬 개발은 로비 입력칸에 "127.0.0.1:8080" 을 넣으면 된다.
+        public const string DefaultServerAddress = "j15b202.p.ssafy.io";
+
         private const string ServerAddressPrefsKey = "metagame.server-address";
         private const int DefaultServerPort = 8080;
+        private const int SecurePort = 443;
 
         public event Action<NetworkConnectionState> ConnectionStateChanged;
         public event Action<RoomSnapshot> RoomStateChanged;
@@ -47,8 +51,8 @@ namespace Metagame.Network
         public event Action<string> ErrorReceived;
         public event Action ConnectionClosed;
 
-        [SerializeField] private string httpBaseUrl = "http://127.0.0.1:8080";
-        [SerializeField] private string webSocketUrl = "ws://127.0.0.1:8080/ws/game";
+        [SerializeField] private string httpBaseUrl = "https://j15b202.p.ssafy.io:443";
+        [SerializeField] private string webSocketUrl = "wss://j15b202.p.ssafy.io:443/ws/game";
 
         private string accessToken;
         private Coroutine loginCoroutine;
@@ -509,8 +513,15 @@ namespace Metagame.Network
         }
 
         /// <summary>
-        /// "192.168.0.15", "192.168.0.15:8080", "http://192.168.0.15:8080" 을 모두 받아
-        /// REST와 WebSocket 주소를 만든다. 포트를 생략하면 기본 포트를 쓴다.
+        /// "j15b202.p.ssafy.io", "127.0.0.1:8080", "https://j15b202.p.ssafy.io" 을 모두 받아
+        /// REST와 WebSocket 주소를 만든다.
+        ///
+        /// 암호화 여부는 이렇게 정한다:
+        /// 1. 접두어를 쓰면 그대로 따른다 (https·wss → 암호화, http·ws → 평문)
+        /// 2. 접두어가 없으면 포트로 판단한다 — 포트를 생략했거나 443 이면 암호화, 아니면 평문
+        ///
+        /// 배포 서버는 도메인만 넣으면 https 로, 로컬 개발은 "127.0.0.1:8080" 그대로 http 로 붙는다.
+        /// Unity 는 127.0.0.1 을 제외한 평문 http 를 막으므로(S15P21B202-165) 배포 서버는 https 여야 한다.
         /// </summary>
         public static bool TryBuildEndpoints(string address, out string httpUrl, out string webSocketUrl, out string error)
         {
@@ -525,16 +536,30 @@ namespace Metagame.Network
                 return false;
             }
 
-            // 접두어(http://, ws://)와 뒤따르는 경로는 떼어내고 host:port 만 본다.
+            // 접두어를 떼면서 암호화 여부를 함께 읽는다.
+            bool? secureFromScheme = null;
             int schemeEnd = trimmed.IndexOf("://", StringComparison.Ordinal);
             if (schemeEnd >= 0)
+            {
+                string scheme = trimmed.Substring(0, schemeEnd).ToLowerInvariant();
+                if (scheme == "https" || scheme == "wss") secureFromScheme = true;
+                else if (scheme == "http" || scheme == "ws") secureFromScheme = false;
+                else
+                {
+                    error = "알 수 없는 주소 형식입니다: " + scheme;
+                    return false;
+                }
+
                 trimmed = trimmed.Substring(schemeEnd + 3);
+            }
+
             int pathStart = trimmed.IndexOf('/');
             if (pathStart >= 0)
                 trimmed = trimmed.Substring(0, pathStart);
 
             string host = trimmed;
-            int port = DefaultServerPort;
+            bool portGiven = false;
+            int port = 0;
             int colon = trimmed.LastIndexOf(':');
             if (colon >= 0)
             {
@@ -545,6 +570,8 @@ namespace Metagame.Network
                     error = "포트 번호가 올바르지 않습니다: " + portText;
                     return false;
                 }
+
+                portGiven = true;
             }
 
             host = host.Trim();
@@ -554,8 +581,12 @@ namespace Metagame.Network
                 return false;
             }
 
-            httpUrl = "http://" + host + ":" + port;
-            webSocketUrl = "ws://" + host + ":" + port + "/ws/game";
+            bool secure = secureFromScheme ?? (!portGiven || port == SecurePort);
+            if (!portGiven)
+                port = secure ? SecurePort : DefaultServerPort;
+
+            httpUrl = (secure ? "https://" : "http://") + host + ":" + port;
+            webSocketUrl = (secure ? "wss://" : "ws://") + host + ":" + port + "/ws/game";
             return true;
         }
 

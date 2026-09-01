@@ -10,7 +10,7 @@ namespace Metagame.Gameplay
     /// 우주비행사의 이동과 물리 상호작용을 연결한다.
     ///
     ///  · 골반에 매달린 보이지 않는 스프링이 몸무게를 떠받쳐 서 있게 한다 (다리는 거들 뿐)
-    ///  · 골반을 세계 기준 조인트로 세우고, 가는 방향으로 돌린다
+    ///  · 골반을 카메라 기준 정면으로 세우고, 이동 방향과 독립적으로 유지한다
     ///  · 다리는 걷기 주기에 맞춰 조인트 목표 자세를 흔든다 (애니메이션 클립 없음)
     ///  · 팔은 카메라가 보는 쪽으로 뻗되, 근처에 잡을 것이 있으면 그쪽으로 휘어 간다
     ///  · GrabbableRole.Tool 도구는 양손 논리 고정 그립으로 잡고 중력과 누적 속도를 제거해 전방에 고정된다
@@ -22,8 +22,6 @@ namespace Metagame.Gameplay
     {
         const float ClampInteractionRange = 3f;
         const float ClampInteractionHalfAngle = 60f;
-        const float ClampPullUpThreshold = 0.01f;
-        const float ClampLiftStartDegrees = 16f;
 
         public Doll Doll;
         /// <summary>
@@ -51,13 +49,48 @@ namespace Metagame.Gameplay
         public bool IsDead { get { return Health <= 0f; } }
         public TransportVehicle MountedVehicle { get; private set; }
         public bool IsMounted { get { return MountedVehicle != null; } }
+
+        /// <summary>
+        /// 몸이 조인트로 붙어 있는 강체. 운반 장치 탑승도, 우주선 탑승도 이것을 채운다.
+        ///
+        /// 예전에는 탑승 상태가 <see cref="MountedVehicle"/> 하나였고 타입이
+        /// <see cref="TransportVehicle"/> 로 못박혀 있었다. 그래서 우주선에는 탈 수 없었고,
+        /// S15P21B202-200 의 탑승은 인원을 세는 것뿐이었다 — 발사하면 발사대에 서서
+        /// 우주선이 올라가는 것을 구경했다.
+        ///
+        /// 운반 장치 고유의 처리(조종 입력, 조종석 시야, 하차 발판 탐색)는
+        /// <see cref="MountedVehicle"/> 이 그대로 갖는다. 여기 올라오는 것은 "몸이 붙어
+        /// 있으니 보행 물리를 돌리지 않는다" 는 공통 사실뿐이다.
+        /// </summary>
+        public Rigidbody RidingBody { get; private set; }
+
+        /// <summary>무엇에든 붙어 실려 가는 중인가.</summary>
+        public bool IsRiding { get { return RidingBody != null; } }
         public bool Hanging { get { return LeftHand.Hanging || RightHand.Hanging; } }
         public bool Carrying { get { return LeftHand.Carrying || RightHand.Carrying; } }
         public bool Ragdolled { get; private set; }      // 크게 넘어져 조종이 잠깐 풀린 상태
         public float StepPhase { get; private set; }
+        /// <summary>현재 캐릭터가 유지하는 수평 정면. 이동 방향과 독립적으로 카메라를 따른다.</summary>
+        public Vector3 FacingDirection { get { return faceDir; } }
+        /// <summary>현재 실제 수평 이동을 캐릭터 정면 기준 좌우·전후로 나타낸 값.</summary>
+        public Vector2 MovementDirectionLocal { get { return movementDirectionLocal; } }
         /// <summary>공중에서 자세제어 분사기를 쓰고 있는가 (HUD·연기 표시용).</summary>
         public bool Thrusting { get; private set; }
         public float AirTime { get; private set; }
+
+        /// <summary>
+        /// 광역 저중력장 안에서 떠 있는가.
+        ///
+        /// 파츠는 저중력장이 힘으로 끌어당기지만 플레이어는 그러지 않는다. 기획
+        /// (S15P21B202-107 §14.3)이 "플레이어는 중심으로 강제 견인되지 않고 직접 움직인다"
+        /// 고 정했기 때문이다. 그래서 저중력장은 "여기가 영역이다" 만 알려 주고
+        /// (<see cref="Parts.LowGravityField.FindContaining"/>) 실제 부유는 여기서 만든다.
+        ///
+        /// 인형에 힘을 주지 않고 속도를 직접 넣는 이유도 같다. 래그돌의 강체를 하나씩
+        /// 띄우면 팔다리가 따로 떠서 자세가 무너진다. <see cref="DriveMovementVelocity"/> 가
+        /// 이미 수평을 그렇게 다루고 있어 세로도 같은 방식으로 맞췄다.
+        /// </summary>
+        public bool Floating { get; private set; }
         public Grabbable HeldTool { get { return toolHeld; } }
         /// <summary>현재 장착된 도구 동작 컴포넌트. 도구가 없거나 구형 Tool이면 null이다.</summary>
         public ToolBase ActiveTool { get { return activeTool; } }
@@ -67,12 +100,30 @@ namespace Metagame.Gameplay
         public Interactor ClampInteractor { get; private set; }
         /// <summary>좌·우 중 하나 이상의 버튼으로 고정쇠를 잡은 상태.</summary>
         public bool ClampGrabbed { get { return clampGrabbed; } }
+
+        /// <summary>
+        /// 지금 잡고 있는 고정못. 없으면 null. 연출과 검증이 쓴다.
+        /// </summary>
+        public PartClamp ClampGrabTarget { get { return clampGrabTarget; } }
+
+        /// <summary>이번 틱에 고정못을 실제로 뒤로 당겼는가. 낑낑대는 연출이 붙을 신호다.</summary>
+        public bool ClampPulling { get; private set; }
         /// <summary>고정쇠를 위로 드는 거리 기준을 넘었는가.</summary>
-        public bool ClampLiftReady { get { return clampGrabbed && clampLiftAmount >= ClampLiftStartDegrees; } }
+        /// <summary>
+        /// 예전 조작(마우스를 위로 들어 홀드를 시작)의 잔재. 뒤로 이동 방식으로 바뀐
+        /// 뒤에는 "잡고 있는가" 와 같은 뜻이다. HUD 가 아직 이 이름을 쓴다.
+        /// </summary>
+        public bool ClampLiftReady { get { return clampGrabbed; } }
         /// <summary>고정쇠를 위로 드는 거리의 0~1 진행도.</summary>
+        /// <summary>
+        /// 잡고 있는 고정못이 얼마나 뽑혔는가 0~1.
+        ///
+        /// 예전에는 "마우스를 위로 얼마나 들었는가" 였다. 그 단계가 없어졌으므로
+        /// 고정못의 진행분을 그대로 돌려준다.
+        /// </summary>
         public float ClampLiftProgress
         {
-            get { return clampGrabbed ? Mathf.Clamp01(clampLiftAmount / ClampLiftStartDegrees) : 0f; }
+            get { return clampGrabTarget != null ? clampGrabTarget.Progress : 0f; }
         }
         /// <summary>위로 든 뒤 실제 해제 유지 시간을 진행 중인가.</summary>
         public bool ClampReleaseHolding
@@ -88,11 +139,15 @@ namespace Metagame.Gameplay
 
         InputFrame input;
         Vector3 faceDir = Vector3.forward;
+        Vector2 movementDirectionLocal;
         float jumpLock;
         float regrabLock;
         float uprightBlend = 1f;
         float thrustPuff;
         float fallPeakFootHeight;
+
+        /// <summary>부유하느라 인형의 중력을 꺼 둔 상태인가. 켜고 끄는 시점을 한 번씩만 만든다.</summary>
+        bool floatingGravityOff;
         Grabbable toolHeld;
         float toolCharge;
         bool toolActionHeld;
@@ -111,8 +166,6 @@ namespace Metagame.Gameplay
         bool previousGrabRight;
         bool clampGrabbed;
         PartClamp clampGrabTarget;
-        float clampLiftAmount;
-        float clampLiftDeltaDegrees;
         Rigidbody pendingThrowBody;
         Vector3 pendingThrowVelocity;
         Rigidbody groundBody;
@@ -168,20 +221,6 @@ namespace Metagame.Gameplay
         public void SetInput(InputFrame frame)
         {
             input = frame;
-            if (!(frame.GrabLeft || frame.GrabRight))
-            {
-                clampLiftDeltaDegrees = 0f;
-                return;
-            }
-
-            // 고정쇠를 잡은 뒤 카메라를 위로 든 각도만 누적한다. 한 프레임의
-            // 마우스 델타를 FixedUpdate에서 반복 사용하지 않기 위해 입력 샘플에서
-            // 한 번만 모아 둔다.
-            if (clampGrabbed && !ClampLiftReady && frame.Look.y > ClampPullUpThreshold)
-            {
-                float sensitivity = Cam != null ? Cam.Sensitivity : 1f;
-                clampLiftDeltaDegrees += frame.Look.y * sensitivity;
-            }
         }
 
         /// <summary>카메라가 만들어진 뒤 고정쇠 조준 기준을 갱신한다.</summary>
@@ -216,13 +255,14 @@ namespace Metagame.Gameplay
         // ── 부활 / 순간이동 ─────────────────────────────────────
         public void Teleport(Vector3 footPos, Quaternion facing)
         {
-            if (MountedVehicle != null)
-                ForceExitTransportVehicle(MountedVehicle);
+            if (MountedVehicle != null) ForceExitTransportVehicle(MountedVehicle);
+            else DisconnectTransportJoint();   // 우주선에 붙어 있었다면 여기서 떨어진다
 
             ReleaseHand(LeftHand);
             ReleaseHand(RightHand);
             Doll.Teleport(footPos + Vector3.up * RagdollBuilder.HipsY, facing);
             faceDir = facing * Vector3.forward;
+            movementDirectionLocal = Vector2.zero;
             uprightBlend = 1f;
             Ragdolled = false;
             StepPhase = 0f;
@@ -242,38 +282,59 @@ namespace Metagame.Gameplay
             }
         }
 
-        /// <summary>운반 장치에 올라탄다. 고정쇠·도구 상태와 무관하게 탑승을 허용한다.</summary>
-        public bool TryEnterTransportVehicle(TransportVehicle vehicle)
+        /// <summary>
+        /// 몸을 강체에 붙인다. 붙이는 코드가 여기 한 군데다.
+        ///
+        /// <b><see cref="FixedJoint.connectedBody"/> 를 반드시 채운다.</b> 비워 두면
+        /// <see cref="FixedJoint.connectedAnchor"/> 가 월드 좌표로 해석되어 몸이 원점으로
+        /// 빨려간다 — S15P21B202-132 에서 21.34m 끌려간 원인이 그것이었다.
+        /// </summary>
+        void AttachTo(Rigidbody body)
         {
-            if (vehicle == null || MountedVehicle != null || Doll == null || Doll.Hips == null)
-                return false;
+            mountedJoint = Doll.Hips.gameObject.AddComponent<FixedJoint>();
+            mountedJoint.connectedBody = body;
+            mountedJoint.autoConfigureConnectedAnchor = false;
+            mountedJoint.anchor = Vector3.zero;
+            mountedJoint.connectedAnchor = body.transform.InverseTransformPoint(Doll.Hips.position);
+            mountedJoint.enableCollision = false;
+            mountedJoint.enablePreprocessing = false;
+            mountedJoint.breakForce = float.PositiveInfinity;
+            mountedJoint.breakTorque = float.PositiveInfinity;
+            RidingBody = body;
+        }
 
+        /// <summary>탑승 직전에 손·도구·보행 상태를 정리한다. 두 탑승 경로가 함께 쓴다.</summary>
+        void ClearForRide()
+        {
             ReleaseHand(LeftHand);
             ReleaseHand(RightHand);
             ClampInteractor?.Cancel();
             ResetClampGrab();
             ResetToolState();
 
-            var foot = vehicle.SeatFootPosition;
-            Doll.Teleport(foot + Vector3.up * RagdollBuilder.HipsY, Quaternion.identity);
-            faceDir = Vector3.forward;
             Grounded = true;
             GroundDistance = Tuning.RideHeight;
             GroundVelocity = Vector3.zero;
             Speed = 0f;
+            movementDirectionLocal = Vector2.zero;
             AirTime = 0f;
             Thrusting = false;
             Ragdolled = false;
+        }
 
-            mountedJoint = Doll.Hips.gameObject.AddComponent<FixedJoint>();
-            mountedJoint.connectedBody = vehicle.Body;
-            mountedJoint.autoConfigureConnectedAnchor = false;
-            mountedJoint.anchor = Vector3.zero;
-            mountedJoint.connectedAnchor = vehicle.Body.transform.InverseTransformPoint(Doll.Hips.position);
-            mountedJoint.enableCollision = false;
-            mountedJoint.enablePreprocessing = false;
-            mountedJoint.breakForce = float.PositiveInfinity;
-            mountedJoint.breakTorque = float.PositiveInfinity;
+        /// <summary>운반 장치에 올라탄다. 고정쇠·도구 상태와 무관하게 탑승을 허용한다.</summary>
+        public bool TryEnterTransportVehicle(TransportVehicle vehicle)
+        {
+            if (vehicle == null || IsRiding || Doll == null || Doll.Hips == null)
+                return false;
+
+            ClearForRide();
+
+            var foot = vehicle.SeatFootPosition;
+            Doll.Teleport(foot + Vector3.up * RagdollBuilder.HipsY, Quaternion.identity);
+            faceDir = Vector3.forward;
+
+            AttachTo(vehicle.Body);
             MountedVehicle = vehicle;
 
             // 조종석 안에 있으므로 몸을 감춘다. 1인칭 시야를 제 몸이 가리지 않게 하는 것이
@@ -282,6 +343,88 @@ namespace Metagame.Gameplay
 
             if (Cam != null) Cam.SetVehicleView(true);
             return true;
+        }
+
+        /// <summary>
+        /// 우주선에 탑승한다. 붙는 곳은 최상단 견인 조종 모듈이다
+        /// (기획 S15P21B202-107 §22.4 "플레이어들이 탑승한 최상단 견인 조종 모듈").
+        ///
+        /// 운반 장치와 달리 <see cref="MountedVehicle"/> 을 채우지 않는다 — 우주선은
+        /// 조종하지 않고 조종석 시야도 쓰지 않는다. 실려 가기만 한다.
+        /// </summary>
+        public bool TryBoardShip(Rigidbody module, Vector3 seatPosition)
+        {
+            if (module == null || IsRiding || Doll == null || Doll.Hips == null) return false;
+
+            ClearForRide();
+
+            Doll.Teleport(seatPosition, Doll.Hips.rotation);
+            AttachTo(module);
+
+            // 모듈 안에 있는 몸이다. 껍데기를 통과해 보이면 안 된다.
+            RefreshDollVisibility();
+            return true;
+        }
+
+        /// <summary>우주선에서 내린다. 카운트다운을 취소하면 이 경로로 돌아온다.</summary>
+        public void LeaveShip(Vector3 footPosition, Quaternion facing)
+        {
+            if (RidingBody == null || MountedVehicle != null) return;
+
+            DisconnectTransportJoint();
+            Doll.Teleport(footPosition + Vector3.up * RagdollBuilder.HipsY, facing);
+            faceDir = facing * Vector3.forward;
+            RefreshDollVisibility();
+
+            if (Cam == null) return;
+            Cam.Yaw = facing.eulerAngles.y;
+            Cam.SnapToTarget();
+        }
+
+        /// <summary>
+        /// 발사 실패로 우주선에서 튀어나온다(기획 §22.4 "모든 플레이어가 사방으로
+        /// 튀어나온다 … 잠시 구르지만 기절하지 않고 자동으로 일어난다").
+        ///
+        /// <b>기절 처리를 새로 만들지 않는다.</b> <see cref="Balance"/> 가 이미 넘어진
+        /// 자세를 스스로 세우므로, 조인트를 끊고 충격만 주면 구르다가 일어난다.
+        /// 체력도 깎지 않는다 — 기획이 기절하지 않는다고 못박았고, 체력을 깎으면
+        /// 운석 두 방 맞은 상태에서 발사 실패가 사망이 된다.
+        ///
+        /// 위치는 옮기지 않는다. 몸은 이미 모듈 안에 있고, 밖으로 순간이동시키면
+        /// 지면이나 잔해 속에 박힐 자리를 다시 찾아야 한다 — 그 탐색이
+        /// S15P21B202-132 의 흰 화면을 만든 곳이다. 충격으로 밀어내는 편이 안전하다.
+        /// </summary>
+        public void EjectFromShip(Vector3 direction)
+        {
+            if (RidingBody == null) return;
+
+            DisconnectTransportJoint();
+            MountedVehicle = null;
+
+            var away = direction;
+            away.y = 0f;
+            away = away.sqrMagnitude > 0.0001f ? away.normalized : faceDir;
+
+            var impulse = away * PhysicsScale.EjectHorizontalSpeed
+                          + Vector3.up * PhysicsScale.EjectVerticalSpeed;
+
+            for (var i = 0; i < Doll.Bodies.Count; i++)
+            {
+                var body = Doll.Bodies[i];
+                if (body == null || body.isKinematic) continue;
+
+                body.useGravity = true;
+                body.linearVelocity = impulse;
+            }
+
+            Grounded = false;
+            GroundDistance = float.MaxValue;
+            GroundVelocity = Vector3.zero;
+            Ragdolled = true;          // Balance 가 다음 틱부터 다시 세운다
+            AirTime = 0f;
+            faceDir = away;
+
+            RefreshDollVisibility();
         }
 
         /// <summary>운반 장치가 표면에 닿은 뒤 플레이어를 그 옆에 내려놓는다.</summary>
@@ -328,7 +471,7 @@ namespace Metagame.Gameplay
         {
             if (Doll == null) return;
 
-            if (IsMounted) Doll.SetVisible(false);
+            if (IsRiding) Doll.SetVisible(false);
             else if (Cam != null && Cam.FirstPerson) Doll.SetVisible(false, keepShadow: true);
             else Doll.SetVisible(true);
         }
@@ -424,13 +567,26 @@ namespace Metagame.Gameplay
         /// </summary>
         void DisconnectTransportJoint()
         {
+            RidingBody = null;
+
             if (mountedJoint == null) return;
 
             DestroyImmediate(mountedJoint);
             mountedJoint = null;
         }
 
-        void FixedUpdate()
+        void FixedUpdate() => Tick();
+
+        /// <summary>
+        /// 물리 스텝 한 번. 런타임에서는 <c>FixedUpdate</c> 가 부르고, EditMode 테스트는
+        /// <c>Physics.Simulate</c> 와 짝지어 직접 부른다.
+        ///
+        /// 리포의 다른 물리 컴포넌트(<see cref="Parts.TractorBeam"/>,
+        /// <see cref="Parts.TransportVehicle"/>, <see cref="Parts.LowGravityField"/>)가
+        /// 모두 같은 방식이다. 시간은 인수로 받지 않는다 — 본문이 여러 곳에서
+        /// <c>Time.fixedDeltaTime</c> 을 쓰고 있어 인수로 바꾸면 그 전부를 함께 손봐야 한다.
+        /// </summary>
+        public void Tick()
         {
             if (Doll == null || Doll.Hips == null) return;
             if (!JointTools.IsFinite(Doll.Hips.position)) { return; }
@@ -442,12 +598,26 @@ namespace Metagame.Gameplay
                 pendingThrowBody = null;
             }
 
-            if (MountedVehicle != null)
+            // 몸이 조인트로 붙어 있으면 보행 물리를 돌리지 않는다. 돌리면 부양·이동력이
+            // 구속과 싸운다. 운반 장치는 제 속도를 알려 주고, 우주선은 강체에서 읽는다.
+            if (RidingBody != null)
             {
                 Grounded = true;
                 GroundDistance = Tuning.RideHeight;
-                GroundVelocity = MountedVehicle.HorizontalVelocity;
-                Speed = MountedVehicle.HorizontalSpeed;
+
+                if (MountedVehicle != null)
+                {
+                    GroundVelocity = MountedVehicle.HorizontalVelocity;
+                    Speed = MountedVehicle.HorizontalSpeed;
+                }
+                else
+                {
+                    var flat = RidingBody.linearVelocity;
+                    flat.y = 0f;
+                    GroundVelocity = flat;
+                    Speed = flat.magnitude;
+                }
+
                 AirTime = 0f;
                 Thrusting = false;
                 Ragdolled = false;
@@ -455,6 +625,7 @@ namespace Metagame.Gameplay
             }
 
             ProbeGround();
+            UpdateFloating();
             UpdateSpeed();
             Hover();
             Locomotion();
@@ -536,6 +707,63 @@ namespace Metagame.Gameplay
         }
 
         // ── 서 있기 ─────────────────────────────────────────────
+        /// <summary>
+        /// 저중력장 안인지 보고 부유 상태를 갱신한다. 부유 중이면 세로 속도를 직접 준다.
+        ///
+        /// <b>부유하는 동안 인형의 중력을 끈다.</b> 처음에는 세로 속도만 덮어쓰면 될 줄 알았는데,
+        /// 상승 가속(2m/s ÷ 0.5초 = 4m/s²)에서 행성 중력(2.8m/s²)을 빼면 순 상승이 1.2m/s² 뿐이라
+        /// 관절과 접촉 저항에 먹혀 아예 뜨지 않았다(계측: 2초에 -0.01m). 중력을 끄면
+        /// 기획이 정한 "0.5초 관성" 도 그대로 성립한다.
+        ///
+        /// 영역을 벗어나거나 저중력장이 꺼지면 중력을 다시 켜므로 그 즉시 떨어진다(기획 §14.3).
+        ///
+        /// 접지를 강제로 끄는 이유는 <see cref="Hover"/> 때문이다. 지면 가까이에서 떠 있으면
+        /// 접지로 잡혀 지면 스프링이 부유를 밀어 올린다.
+        ///
+        /// 낙하 기준 높이도 계속 갱신한다. 떠 있는 것은 떨어지는 것이 아니므로,
+        /// 그냥 두면 부유했다 내려올 때 그 높이차가 추락으로 집계된다.
+        /// </summary>
+        void UpdateFloating()
+        {
+            var field = Parts.LowGravityField.FindContaining(Doll.Hips.position);
+            var wants = field != null && !Hanging && !IsRiding;
+
+            // 들고 날 때 인형의 중력을 끄고 켠다. 상태가 바뀔 때만 건드려 매 스텝 강체를
+            // 훑지 않는다.
+            if (wants != floatingGravityOff)
+            {
+                for (int i = 0; i < Doll.Bodies.Count; i++)
+                    if (Doll.Bodies[i] != null)
+                        Doll.Bodies[i].useGravity = !wants;
+
+                floatingGravityOff = wants;
+            }
+
+            Floating = wants;
+            if (!Floating) return;
+
+            Grounded = false;
+            GroundDistance = float.MaxValue;
+            GroundVelocity = Vector3.zero;
+            AirTime = 0f;
+            fallPeakFootHeight = Doll.Hips.position.y - RagdollBuilder.HipsY;
+
+            // Space 로 올라가고 Ctrl 로 내려간다. 탑승 중 고도 조작과 같은 두 키다.
+            float wish = (input.Jump ? 1f : 0f) - (input.ArmsUp ? 1f : 0f);
+            float target = wish * PhysicsScale.FieldFloatVerticalSpeed;
+            float rate = PhysicsScale.FieldFloatVerticalSpeed / PhysicsScale.FieldFloatStopSeconds;
+
+            for (int i = 0; i < Doll.Bodies.Count; i++)
+            {
+                var body = Doll.Bodies[i];
+                if (body == null) continue;
+
+                Vector3 v = body.linearVelocity;
+                v.y = Mathf.MoveTowards(v.y, target, rate * Time.fixedDeltaTime);
+                body.linearVelocity = v;
+            }
+        }
+
         void Hover()
         {
             if (!Grounded || Hanging) return;
@@ -556,11 +784,14 @@ namespace Metagame.Gameplay
         {
             Vector3 fwd = Cam != null ? Cam.PlanarForward : Vector3.forward;
             Vector3 right = Cam != null ? Cam.PlanarRight : Vector3.right;
-
-            Vector3 wish = right * input.Move.x + fwd * input.Move.y;
+            Vector3 wish = Cam != null
+                ? Cam.CameraRelativeMove(input.Move)
+                : right * input.Move.x + fwd * input.Move.y;
             if (wish.sqrMagnitude > 1f) wish.Normalize();
 
-            float top = input.Run ? Tuning.RunSpeed : Tuning.WalkSpeed;
+            float top = Floating
+                ? PhysicsScale.FieldFloatSpeed
+                : (input.Run ? Tuning.RunSpeed : Tuning.WalkSpeed);
             Vector3 targetVel = wish * top;
             targetVel.x += GroundVelocity.x;
             targetVel.z += GroundVelocity.z;
@@ -582,6 +813,8 @@ namespace Metagame.Gameplay
                 DriveMovementVelocity(targetVel);
             }
 
+            UpdateMovementDirection(wish, right, fwd);
+
             // 등짐의 자세제어 분사기가 공중에서 방향을 잡아준다는 설정
             Thrusting = !Grounded && !Hanging && wish.sqrMagnitude > 0.04f;
             if (Thrusting)
@@ -594,8 +827,23 @@ namespace Metagame.Gameplay
                 }
             }
 
-            if (wish.sqrMagnitude > 0.02f)
-                faceDir = Vector3.Slerp(faceDir, wish.normalized, 1f - Mathf.Exp(-7f * Time.fixedDeltaTime));
+            // 고정못을 잡고 있으면 그쪽을 계속 본다(기획 §12.1 "몸을 뒤로 젖히고").
+            // 이동 입력 쪽으로 돌면 뒤로 당기는 동안 고정못을 등지게 되고, 조준이 벗어나
+            // 놓았을 때 다시 잡을 수 없다.
+            var facingClamp = Vector3.zero;
+            if (clampGrabbed && clampGrabTarget != null && Doll.Hips != null)
+            {
+                facingClamp = clampGrabTarget.transform.position - Doll.Hips.position;
+                facingClamp.y = 0f;
+            }
+
+            Vector3 cameraFacing = fwd;
+            if (facingClamp.sqrMagnitude > 0.02f)
+                cameraFacing = facingClamp.normalized;
+
+            if (cameraFacing.sqrMagnitude > 0.02f)
+                faceDir = Vector3.Slerp(faceDir, cameraFacing,
+                                        1f - Mathf.Exp(-7f * Time.fixedDeltaTime));
 
             // 점프 — 몸 전체에 같은 속도를 얹어야 인형이 통째로 뜬다
             if (input.Jump && Grounded && !Ragdolled && jumpLock <= 0f)
@@ -614,14 +862,42 @@ namespace Metagame.Gameplay
         }
 
         /// <summary>
+        /// 실제 수평 속도를 카메라 기준 좌우·전후 성분으로 바꿔 보행 포즈에 전달한다.
+        /// 속도가 아직 가속 중인 첫 프레임에는 입력 방향을 사용해 애니메이션이 늦게
+        /// 시작하지 않게 하고, 키를 놓은 뒤에는 남은 물리 관성도 자연스럽게 반영한다.
+        /// </summary>
+        void UpdateMovementDirection(Vector3 wish, Vector3 right, Vector3 forward)
+        {
+            Vector3 actual = Doll != null && Doll.Hips != null ? Doll.Hips.linearVelocity : Vector3.zero;
+            actual.y = 0f;
+
+            Vector3 movement = actual.sqrMagnitude > 0.0025f ? actual : wish;
+            if (movement.sqrMagnitude < 0.0001f)
+            {
+                movementDirectionLocal = Vector2.zero;
+                return;
+            }
+
+            movementDirectionLocal = new Vector2(Vector3.Dot(movement, right),
+                                                 Vector3.Dot(movement, forward));
+            movementDirectionLocal.Normalize();
+        }
+
+        /// <summary>
         /// 모든 몸 부위의 수평 속도를 같은 목표로 맞춰 이동 중 몸통이 뒤처지거나
         /// 관성 때문에 미끄러지는 문제를 막는다. 회전과 수직 속도는 물리 조인트에 맡긴다.
         /// </summary>
         void DriveMovementVelocity(Vector3 targetVelocity)
         {
             Vector3 target = new Vector3(targetVelocity.x, 0f, targetVelocity.z);
-            float acceleration = Grounded ? Tuning.GroundAcceleration : Tuning.AirAcceleration;
-            float deceleration = Grounded ? Tuning.GroundDeceleration : Tuning.AirAcceleration;
+
+            // 부유 중에는 기획이 정한 관성으로 선다 — "입력을 놓으면 약 0.5초 관성 후 정지".
+            float floatRate = PhysicsScale.FieldFloatSpeed / PhysicsScale.FieldFloatStopSeconds;
+
+            float acceleration = Floating ? floatRate
+                : (Grounded ? Tuning.GroundAcceleration : Tuning.AirAcceleration);
+            float deceleration = Floating ? floatRate
+                : (Grounded ? Tuning.GroundDeceleration : Tuning.AirAcceleration);
 
             for (int i = 0; i < Doll.Bodies.Count; i++)
             {
@@ -688,28 +964,42 @@ namespace Metagame.Gameplay
         void PoseLeg(Leg leg, float phase, float swing, bool walking)
         {
             float thigh, knee;
+            float lateral;
 
             if (!Grounded && !walking)
             {
                 // 저중력에서 오래 떠 있다 — 다리를 살짝 웅크리면 '둥실' 하는 그림이 된다
-                thigh = -14f; knee = 34f;
+                thigh = -14f; knee = 34f; lateral = 0f;
             }
             else if (!walking)
             {
-                thigh = 0f; knee = 4f;                          // 서 있을 땐 곧게
+                thigh = 0f; knee = 4f; lateral = 0f;             // 서 있을 땐 곧게
             }
             else
             {
-                thigh = -Mathf.Sin(phase) * swing;              // 음수 = 앞으로 차기
-                knee = Mathf.Max(0f, Mathf.Sin(phase + 1.1f)) * (swing * 1.7f);
+                float forward = Mathf.Clamp(movementDirectionLocal.y, -1f, 1f);
+                float side = Mathf.Clamp(movementDirectionLocal.x, -1f, 1f);
+
+                // 전후 걸음과 좌우 걸음을 같은 주기로 합성한다. S는 전진 스텝을
+                // 반전하고, A/D는 고관절의 Z축과 발목 보정으로 옆걸음 그림을 만든다.
+                thigh = -Mathf.Sin(phase) * swing * forward;
+                lateral = Mathf.Sin(phase) * Tuning.SideStepSwing * side;
+                knee = Mathf.Max(0f, Mathf.Sin(phase + 1.1f))
+                       * (swing * 1.7f * Mathf.Abs(forward)
+                          + Tuning.SideStepKneeSwing * Mathf.Abs(side));
             }
 
-            if (Ragdolled) { thigh *= 0.2f; knee *= 0.2f; }
+            if (Ragdolled) { thigh *= 0.2f; knee *= 0.2f; lateral *= 0.2f; }
 
-            JointTools.SetTargetLocalRotation(leg.Hip, Quaternion.AngleAxis(thigh, Vector3.right), leg.HipStart);
+            Quaternion hipPose = Quaternion.AngleAxis(lateral, Vector3.forward)
+                                 * Quaternion.AngleAxis(thigh, Vector3.right);
+            JointTools.SetTargetLocalRotation(leg.Hip, hipPose, leg.HipStart);
             JointTools.SetTargetLocalRotation(leg.Knee, Quaternion.AngleAxis(knee, Vector3.right), leg.KneeStart);
-            JointTools.SetTargetLocalRotation(leg.Ankle,
-                Quaternion.AngleAxis(Mathf.Clamp(-thigh * 0.35f, -20f, 20f), Vector3.right), leg.AnkleStart);
+            Quaternion anklePose = Quaternion.AngleAxis(
+                                       Mathf.Clamp(-thigh * 0.35f, -20f, 20f), Vector3.right)
+                                   * Quaternion.AngleAxis(
+                                       Mathf.Clamp(-lateral * 0.45f, -12f, 12f), Vector3.forward);
+            JointTools.SetTargetLocalRotation(leg.Ankle, anklePose, leg.AnkleStart);
         }
 
         // ── 팔 ──────────────────────────────────────────────────
@@ -816,45 +1106,125 @@ namespace Metagame.Gameplay
             if (!clampGrabbed)
             {
                 // 잡기 시작 순간의 포커스를 고정한다. 이후 무거운 카메라 반동으로
-                // 조준점이 살짝 움직여도 처음 잡은 고정쇠를 놓치지 않는다.
+                // 조준점이 살짝 움직여도 처음 잡은 고정못을 놓치지 않는다.
                 ClampInteractor.Tick(0f);
                 var focus = ClampInteractor.Focus as PartClamp;
-                if (focus != null && !focus.IsReleased)
+                if (focus != null && !focus.IsReleased && focus.TryJoinPull())
                 {
                     clampGrabbed = true;
                     clampGrabTarget = focus;
-                    clampLiftAmount = 0f;
-                    clampLiftDeltaDegrees = 0f;
                 }
             }
 
             if (!clampGrabbed) return false;
 
-            if (ClampInteractor.State == InteractorState.Holding)
-            {
-                // 위로 드는 동작은 시작 조건일 뿐이다. 시작 후에는 마우스를
-                // 멈춰도 버튼을 놓지 않는 한 해제 유지 시간이 계속 흐른다.
-                ClampInteractor.Tick(Time.fixedDeltaTime);
-                return true;
-            }
-
-            float liftDeltaDegrees = clampLiftDeltaDegrees;
-            clampLiftDeltaDegrees = 0f;
-            clampLiftAmount = Mathf.Min(ClampLiftStartDegrees,
-                                        clampLiftAmount + Mathf.Max(0f, liftDeltaDegrees));
-
-            if (ClampLiftReady && ClampInteractor.TryBeginFocused())
-                return true;
-
+            PullGrabbedClamp();
             return true;
         }
 
+        /// <summary>
+        /// 잡은 고정못을 뒤로 당긴다(기획 §12.1 "고정못 반대 방향으로 뒤로 이동해 뽑는다").
+        ///
+        /// <b>이동 입력의 방향을 본다. 실제로 움직인 거리를 보지 않는다.</b> 고정못이
+        /// 몸을 붙들고 있으므로 아무리 밀어도 거의 제자리다 — 기획의 "발을 구르며
+        /// 낑낑대는" 그림이 그것이다. 거리로 재면 진행이 사실상 멈춘다.
+        ///
+        /// 제자리에서 버튼만 누르고 있으면 진행되지 않는다. 예전 방식(마우스를 위로
+        /// 16도)은 한 번 들어올린 뒤에는 가만히 있어도 시간이 흘렀다.
+        /// </summary>
+        void PullGrabbedClamp()
+        {
+            ClampPulling = false;
+            if (clampGrabTarget == null || Doll == null || Doll.Hips == null) return;
+
+            var fwd = Cam != null ? Cam.PlanarForward : Vector3.forward;
+            var right = Cam != null ? Cam.PlanarRight : Vector3.right;
+            var wish = Cam != null
+                ? Cam.CameraRelativeMove(input.Move)
+                : right * input.Move.x + fwd * input.Move.y;
+            wish.y = 0f;
+            if (wish.sqrMagnitude < 0.0001f) return;
+
+            // 고정못에서 몸을 향하는 수평 방향이 "뒤" 다.
+            var away = Doll.Hips.position - clampGrabTarget.transform.position;
+            away.y = 0f;
+            if (away.sqrMagnitude < 0.0001f) return;
+
+            // 너무 멀어졌으면 손을 뗀다. 진행분은 남는다(기획 §12.1).
+            // 잡은 뒤 범위를 다시 보지 않으면 고정못을 잡은 채 걸어서 멀어지면서
+            // 계속 뽑히게 된다.
+            if (away.magnitude > ClampInteractionRange)
+            {
+                ResetClampGrab();
+                return;
+            }
+
+            var alignment = Vector3.Dot(wish.normalized, away.normalized);
+            if (alignment < PhysicsScale.ClampPullAlignment) return;
+
+            var wasLast = clampGrabTarget.Part != null
+                          && clampGrabTarget.Part.RemainingRequiredClamps == 1;
+
+            ClampPulling = clampGrabTarget.Pull(Time.fixedDeltaTime);
+            if (ClampPulling) TetherToClamp(away.normalized);
+
+            if (!clampGrabTarget.IsReleased) return;
+
+            // 기획 §12.2 — "마지막 고정못이 빠지면 플레이어가 뒤로 넘어질 수 있다".
+            // 뒤로 당기던 힘이 갑자기 풀리는 것이다. 넘어짐은 Balance 가 스스로 세운다.
+            if (wasLast) SnapBackFromClamp(away.normalized);
+
+            ResetClampGrab();
+        }
+
+        /// <summary>
+        /// 당기는 동안 뒤로 밀려나는 속도를 묶는다.
+        ///
+        /// 기획 §12.1 의 "몸을 뒤로 젖히고 발을 구르며 낑낑대는" 은 뒤로 밀지만 거의
+        /// 제자리라는 뜻이다. 고정못이 몸을 붙들고 있기 때문이다.
+        ///
+        /// 옆·앞 방향은 건드리지 않는다. 뽑는 것과 무관한 이동을 막으면 조작이 굳는다.
+        /// </summary>
+        void TetherToClamp(Vector3 away)
+        {
+            for (var i = 0; i < Doll.Bodies.Count; i++)
+            {
+                var body = Doll.Bodies[i];
+                if (body == null || body.isKinematic) continue;
+
+                var velocity = body.linearVelocity;
+                var outward = Vector3.Dot(velocity, away);
+                if (outward <= PhysicsScale.ClampPullTetherSpeed) continue;
+
+                body.linearVelocity = velocity - away * (outward - PhysicsScale.ClampPullTetherSpeed);
+            }
+        }
+
+        /// <summary>마지막 고정못이 빠져 뒤로 넘어진다(기획 §12.2).</summary>
+        void SnapBackFromClamp(Vector3 away)
+        {
+            for (var i = 0; i < Doll.Bodies.Count; i++)
+            {
+                var body = Doll.Bodies[i];
+                if (body == null || body.isKinematic) continue;
+
+                body.linearVelocity += away * PhysicsScale.ClampSnapBackSpeed;
+            }
+
+            Ragdolled = true;
+        }
+
+        /// <summary>
+        /// 고정못에서 손을 뗀다. <b>진행분은 지우지 않는다</b> — 기획 §12.1 "좌클릭을
+        /// 놓거나 운석에 맞아도 빠진 정도는 유지된다".
+        /// </summary>
         void ResetClampGrab()
         {
+            if (clampGrabbed && clampGrabTarget != null) clampGrabTarget.LeavePull();
+
             clampGrabbed = false;
             clampGrabTarget = null;
-            clampLiftAmount = 0f;
-            clampLiftDeltaDegrees = 0f;
+            ClampPulling = false;
         }
 
         void LogHeldToolInteraction(bool leftPressed, bool rightPressed)

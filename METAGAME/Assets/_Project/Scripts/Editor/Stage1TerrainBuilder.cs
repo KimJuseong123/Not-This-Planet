@@ -35,7 +35,6 @@ namespace Metagame.EditorTools
         const float TerrainHeight = 6f;
         const float GroundY = 0.06f;
 
-        [MenuItem("Tools/둥실둥실 우주 대탈출/Stage1 기본 Terrain 만들기", false, 7)]
         public static void Apply()
         {
             if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
@@ -79,8 +78,7 @@ namespace Metagame.EditorTools
             data.alphamapResolution = AlphamapResolution;
             data.baseMapResolution = 512;
             data.size = new Vector3(TerrainWidth, TerrainHeight, TerrainWidth);
-            // 지면 텍스처와 Terrain Layer 연결은 S15P21B202-74 범위다.
-            data.terrainLayers = new TerrainLayer[0];
+            // S15P21B202-74에서 연결한 Terrain Layer가 있다면 Terrain 재생성 시에도 유지한다.
             data.SetHeights(0, 0, GenerateHeights());
 
             EditorUtility.SetDirty(data);

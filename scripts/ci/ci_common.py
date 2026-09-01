@@ -22,6 +22,8 @@ PROJECT_KEY = os.environ.get("JIRA_PROJECT_KEY", "S15P21B202")
 TITLE_RE = re.compile(
     rf"^\[({'|'.join(PARTS)})\] ({'|'.join(TYPES)})(\([^)]+\))?: (.+?) \(({PROJECT_KEY}-\d+)\)$")
 BRANCH_RE = re.compile(rf"^(hotfix/)?({PROJECT_KEY}-\d+)(-[A-Za-z0-9._-]+)?$")
+# 대상 브랜치가 "이슈 브랜치처럼 보이는가" — Jira 규칙 R6 의 조건과 같은 정규식(시작 고정, 끝은 열림).
+STACK_TARGET_RE = re.compile(rf"^(?:hotfix/)?{PROJECT_KEY}-\d+")
 KEY_RE = re.compile(rf"{PROJECT_KEY}-\d+")
 DRAFT_RE = re.compile(r"^(\[?draft\]?:?\s*|\(draft\)\s*|wip:\s*)", re.IGNORECASE)
 
@@ -107,6 +109,20 @@ def strip_draft(title: str) -> tuple[str, bool]:
 def key_from_branch(branch: str) -> str | None:
     m = BRANCH_RE.match(branch or "")
     return m.group(2) if m else None
+
+
+def completes_on_merge(target: str) -> bool:
+    """이 대상 브랜치로 머지되면 Jira 자동 완료(R6)가 걸리는가.
+
+    R6 은 **대상 브랜치가 이슈 브랜치로 보이지 않을 때만** 이슈를 완료로 옮긴다
+    (조건: `{{pullRequest.destinationBranch.name.match("^(?:hotfix/)?KEY-\\d+")}}` 가 빈 문자열).
+    그래서 스택 자식 MR(대상 = 부모의 이슈 브랜치)은 머지돼도 완료되지 않는다 — 설계대로다.
+    develop·master 로 가는 MR 만 True.
+
+    아침 점검이 이 둘을 구분하지 못해 스택 자식을 "R6 가 빠졌다" 로 보고했다
+    (2026-08-31 실측: !82 오탐, S15P21B202-159).
+    """
+    return not STACK_TARGET_RE.match(target or "")
 
 
 def is_release_mr(source: str, target: str) -> bool:
@@ -224,6 +240,22 @@ class GitLab:
             if len(d) < 100:
                 return out, True
         return out, False
+    def merged_mr_for_source(self, branch: str) -> tuple[dict | None, bool]:
+        """이 브랜치를 **소스로** 머지된 MR (가장 최근 1건). 반환 (mr|None, ok).
+
+        스택에서 부모가 어디로 들어갔는지 따라 올라가는 데 쓴다. 커밋 포함 여부(refs)로는 판정할 수 없다 —
+        이 프로젝트는 squash 가 기본이라 부모가 머지될 때 자식 커밋이 사라진다
+        (2026-08-31 실측: !114 의 머지 커밋을 담은 브랜치가 0개). ok=False 는 조회 실패이며 '머지 안 됨' 과 다르다.
+        """
+        if not branch:
+            return None, True
+        st, d = http("GET", f"{self.api}/projects/{self.project}/merge_requests"
+                            f"?state=merged&source_branch={quote(branch, safe='')}&per_page=5&order_by=updated_at",
+                     self._h())
+        if st != 200 or not isinstance(d, list):
+            return None, False
+        return (d[0] if d else None), True
+
     def merge_base(self, ref_a: str, ref_b: str) -> str | None:
         """두 ref 의 공통 조상 sha. master 는 develop 의 조상이므로,
         (develop 기준 merge-base) == (master 기준 merge-base) 이면 그 브랜치는 master 시점 이전에서 갈라진 것."""

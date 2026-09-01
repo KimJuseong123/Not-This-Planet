@@ -32,9 +32,10 @@ def fake_http(method, url, headers=None, body=None, timeout=30):
                  "isLast": False, "nextPageToken": "p2"}
 ci_common.http = fake_http
 
-rows, complete = d.merged_not_done(d.GitLab(), ci_common.Jira())
-print(rows, complete)
+rows, stacks, complete = d.merged_not_done(d.GitLab(), ci_common.Jira())
+print(rows, stacks, complete)
 assert complete is True and len(rows) == 1 and "!31" in rows[0] and "@rmawnsdud" in rows[0], rows   # 2페이지째 이슈가 잡힘
+assert stacks == [], stacks
 jira_calls = [c for c in calls if "search/jql" in c[0]]
 assert len(jira_calls) == 2 and jira_calls[1][1]["nextPageToken"] == "p2"
 

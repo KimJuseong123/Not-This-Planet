@@ -245,36 +245,30 @@ namespace Metagame.Gameplay.Tests
             SocketTestRig.Placed(_spawned, origin);
 
             var upper = SocketTestRig.Freed(
-                _spawned, origin + Vector3.up * (PhysicsScale.PartHeight + 0.3f));
+                _spawned, origin + Vector3.up * (PhysicsScale.PartHeight + SocketTestRig.StackGap));
 
-            var points = new WeldPoint[4];
-            for (var i = 0; i < points.Length; i++) points[i] = AddWeldPoint(upper, i);
+            AddWeldSeam(upper);
 
             upper.TryTransitionTo(PartState.Carried);
 
             var link = PartAssembler.Assemble(PartAssembler.FindMatch(upper));
             Assert.IsNotNull(link);
-            link.RefreshWeldPoints();
+            link.RefreshSeam();
 
-            if (welded)
-                foreach (var point in link.WeldPoints)
-                    point.ForceComplete();
+            if (welded) link.ForceWeldComplete();
 
             link.Tick();
             return upper;
         }
 
-        static WeldPoint AddWeldPoint(SpaceshipPart part, int index)
+        /// <summary>밑면의 원형 용접선(기획 §16.1). 예전에는 용접점 4개였다.</summary>
+        static void AddWeldSeam(SpaceshipPart part)
         {
-            var go = new GameObject($"Weld_{index}") { layer = GameLayers.Interactable };
+            var go = new GameObject("WeldSeam");
             go.transform.SetParent(part.transform, false);
-            go.transform.localPosition = new Vector3(index * 0.2f - 0.3f, -0.5f, 0.5f);
+            go.transform.localPosition = Vector3.down * (PhysicsScale.PartHeight * 0.5f);
 
-            var sphere = go.AddComponent<SphereCollider>();
-            sphere.radius = 0.1f;
-            sphere.isTrigger = true;
-
-            return go.AddComponent<WeldPoint>();
+            go.AddComponent<WeldSeam>();
         }
 
         /// <summary>파츠 위쪽에서 운석을 떨어뜨린다.</summary>

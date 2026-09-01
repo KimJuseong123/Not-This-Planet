@@ -72,6 +72,16 @@ Desktop.ini
 *.cer
 *.certSigningRequest
 *.ppk
+# 서버 접속 키. 2026-08-31 지급된 EC2 pem 이 작업 폴더에 들어와 있던 것을 발견 —
+# 한 번 커밋되면 이력에서 지울 수 없으므로 이름 규칙으로 막는다. 보관은 ~/.ssh 에.
+*.pem
+*.key
+*.pfx
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+id_*.pub
 
 # Keep .vscode/ available for shared Unity launch/debug recommendations.
 

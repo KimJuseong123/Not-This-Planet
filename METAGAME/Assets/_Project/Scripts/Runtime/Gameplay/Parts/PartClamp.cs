@@ -6,9 +6,17 @@ using UnityEngine;
 namespace Metagame.Gameplay.Parts
 {
     /// <summary>
-    /// 파츠를 바닥에 붙들고 있는 고정쇠. 상호작용 프레임워크의 첫 구현체다.
+    /// 파츠를 바닥에 붙들고 있는 고정못. 상호작용 프레임워크의 첫 구현체다.
     ///
-    /// 꾹 눌러 해제하면 소속 파츠에 알리고, 필수 고정쇠가 모두 풀리면 파츠가 Free 로 넘어간다.
+    /// <b>뒤로 이동해 뽑는다</b>(기획 S15P21B202-107 §12.1 "좌클릭을 유지한 채 고정못
+    /// 반대 방향으로 뒤로 이동해 뽑는다"). 예전에는 마우스를 위로 16도 들어올려 홀드를
+    /// 시작하고 1.5초 기다리는 방식이었다 — §12.1 의 조작이 아니었고, §12.2 의 "1명 약
+    /// 8초" 와도 5배 넘게 어긋났다.
+    ///
+    /// 진행분은 고정못이 갖고 씬에 저장한다. 그래서 §12.1 의 "좌클릭을 놓거나 운석에
+    /// 맞아도 빠진 정도는 유지된다" 와 "다른 플레이어가 남은 진행을 이어서 수행할 수
+    /// 있다" 가 성립한다 — 누가 뽑았는지는 기록하지 않는다.
+    ///
     /// 해제되면 파츠에서 분리되어 AnchorPin 외형과 Rigidbody를 가진 소품이 된다.
     ///
     /// 콜라이더는 <see cref="GameLayers.Interactable"/> 레이어에 두어야 한다.
@@ -17,8 +25,6 @@ namespace Metagame.Gameplay.Parts
     [DisallowMultipleComponent]
     public sealed class PartClamp : InteractableBase
     {
-        /// <summary>홀드 시간을 지정하지 않았을 때 쓰는 기본값.</summary>
-        public const float DefaultHoldSeconds = 1.5f;
         const float ReleasedMass = 4f;
         const float ReleasedLinearDamping = 0.05f;
         const float ReleasedAngularDamping = 0.25f;
@@ -33,6 +39,14 @@ namespace Metagame.Gameplay.Parts
         [SerializeField]
         [Tooltip("끄면 풀지 않아도 파츠가 Free 로 넘어간다. 장식용 고정쇠에 쓴다.")]
         bool _isRequired = true;
+
+        /// <summary>
+        /// 뽑힌 정도를 초로 누적한 값. 직렬화한다.
+        ///
+        /// 저장하지 않으면 씬을 다시 로드했을 때 반쯤 뽑아 둔 고정못이 처음으로
+        /// 돌아간다(<see cref="WeldSeam"/> 의 용접 진행분도 같은 이유로 저장한다).
+        /// </summary>
+        [SerializeField, HideInInspector] float _pulledSeconds;
 
         Collider[] _colliders;
         Rigidbody _releasedBody;
@@ -49,6 +63,29 @@ namespace Metagame.Gameplay.Parts
         public void SetRequired(bool required) => _isRequired = required;
 
         public bool IsReleased { get; private set; }
+
+        /// <summary>
+        /// 뽑힌 정도 0~1.
+        ///
+        /// <b>화면에 진행 바로 띄우지 않는다.</b> 기획 §12.1 은 "진행될수록 고정못이
+        /// 흔들리고 에너지 선이 점멸한다" 로 표현을 정하며, 그것은 [Art] 의 몫이다.
+        /// 이 값은 그 연출과 완료 판정에 쓴다.
+        /// </summary>
+        public float Progress => Mathf.Clamp01(_pulledSeconds / PhysicsScale.ClampPullSeconds);
+
+        /// <summary>지금 이 고정못을 잡고 있는 인원.</summary>
+        public int Pullers { get; private set; }
+
+        /// <summary>
+        /// 인원 수에 따른 뽑는 시간(초). 기획 §12.2 의 표를 그대로 따른다.
+        /// 1명 8초 · 2명 약 4.5초.
+        /// </summary>
+        public static float PullSecondsFor(int pullers)
+        {
+            var count = Mathf.Max(1, pullers);
+            var rate = 1f + (count - 1) * PhysicsScale.ClampPullAssist;
+            return PhysicsScale.ClampPullSeconds / rate;
+        }
 
         public Rigidbody ReleasedBody => _releasedBody;
 
@@ -68,7 +105,61 @@ namespace Metagame.Gameplay.Parts
             if (_part == null) _part = GetComponentInParent<SpaceshipPart>();
             _colliders = GetComponents<Collider>();
 
-            if (HoldSeconds <= 0f) SetHoldSeconds(DefaultHoldSeconds);
+            // 홀드로 풀리지 않는다. 진행은 뒤로 이동으로만 만든다(기획 §12.1).
+            SetHoldSeconds(0f);
+        }
+
+        /// <summary>
+        /// 이 고정못을 잡는다. 정원(기획 §12.2 "최대 2명")이 차 있으면 <c>false</c>.
+        ///
+        /// 멀티 동기화는 [Network] 몫이므로 지금 실제로 도는 것은 1명 경로다. 정원 판정을
+        /// 여기 하나로 모아 두면 그때 고칠 곳이 늘지 않는다.
+        /// </summary>
+        public bool TryJoinPull()
+        {
+            Initialize();
+
+            if (IsReleased || Pullers >= PhysicsScale.ClampMaxPullers) return false;
+
+            Pullers++;
+            return true;
+        }
+
+        /// <summary>손을 뗀다. 진행분은 그대로 남는다(기획 §12.1).</summary>
+        public void LeavePull() => Pullers = Mathf.Max(0, Pullers - 1);
+
+        /// <summary>
+        /// 뒤로 당긴다. 실제로 진행됐으면 <c>true</c>.
+        ///
+        /// 호출자(<see cref="PlayerRig"/>)가 방향을 판정한다 — 고정못은 자기가 어느
+        /// 방향으로 당겨지는지 알 필요가 없고, 그 판정에는 카메라 기준 이동 입력이
+        /// 필요하다.
+        ///
+        /// 다 뽑히면 <see cref="Release"/> 로 넘어간다.
+        /// </summary>
+        public bool Pull(float deltaTime)
+        {
+            Initialize();
+
+            if (IsReleased || deltaTime <= 0f) return false;
+
+            // 인원이 많으면 같은 시간에 더 많이 진행된다. 시간을 나누는 대신 속도를
+            // 곱하는 이유는, 도중에 한 명이 붙거나 떠나도 그때까지의 진행분이
+            // 그대로 유지되기 때문이다.
+            var rate = PhysicsScale.ClampPullSeconds / PullSecondsFor(Pullers);
+            _pulledSeconds += deltaTime * rate;
+
+            if (_pulledSeconds < PhysicsScale.ClampPullSeconds) return true;
+
+            Release();
+            return true;
+        }
+
+        /// <summary>진행분을 0 으로 되돌린다. 레벨 초기화에서 쓴다.</summary>
+        public void ResetProgress()
+        {
+            Initialize();
+            _pulledSeconds = 0f;
         }
 
         public override InteractionAvailability GetAvailability(Interactor actor)
@@ -78,12 +169,22 @@ namespace Metagame.Gameplay.Parts
             var occupancy = base.GetAvailability(actor);
             if (!occupancy.IsAllowed) return occupancy;
 
-            return IsReleased
-                ? InteractionAvailability.Denied(InteractionFailure.NotReady)
+            if (IsReleased) return InteractionAvailability.Denied(InteractionFailure.NotReady);
+
+            // 기획 §12.2 "같은 고정못은 최대 2명".
+            return Pullers >= PhysicsScale.ClampMaxPullers
+                ? InteractionAvailability.Denied(InteractionFailure.Occupied)
                 : InteractionAvailability.Allowed;
         }
 
-        public override void OnCompleted(Interactor actor) => Release();
+        /// <summary>
+        /// <b>홀드로는 풀리지 않는다.</b> 기획 §12.1 이 뒤로 이동해 뽑는 것으로 정하므로
+        /// 여기서 해제하면 그 조작을 우회하는 길이 생긴다.
+        ///
+        /// <see cref="HoldSeconds"/> 를 0 으로 두어 이 훅이 눌린 즉시 불리지만,
+        /// 진행은 <see cref="Pull"/> 로만 만든다.
+        /// </summary>
+        public override void OnCompleted(Interactor actor) { }
 
         /// <summary>
         /// 고정쇠를 해제한다. 이미 풀려 있으면 아무 일도 하지 않는다.
@@ -95,6 +196,8 @@ namespace Metagame.Gameplay.Parts
 
             if (IsReleased) return;
             IsReleased = true;
+            Pullers = 0;
+            _pulledSeconds = PhysicsScale.ClampPullSeconds;
 
             // 고정쇠는 원래 파츠의 자식이므로 먼저 분리한다. Rigidbody를 파츠의
             // Rigidbody 아래에 둔 채 추가하면 두 물리 몸체가 한 계층에 겹친다.

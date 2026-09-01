@@ -13,8 +13,8 @@ from datetime import datetime, timezone
 
 from urllib.parse import quote
 
-from ci_common import (PROJECT_KEY, GitLab, Jira, banner, env, http, key_from_branch, load_team,
-                       role_member)
+from ci_common import (PROJECT_KEY, GitLab, Jira, banner, completes_on_merge, env, http,
+                       key_from_branch, load_team, role_member)
 
 JIRA_BROWSE = (env("JIRA_URL", "https://ssafy.atlassian.net") or "").rstrip("/") + "/browse/"
 TEAM = load_team()
@@ -62,8 +62,40 @@ def not_done_issues(jira: Jira, keys: list[str]) -> tuple[list[dict], bool]:
     return jira.search_all(f"project = {PROJECT_KEY} AND statusCategory != Done AND issuetype != Epic ORDER BY key", fields)
 
 
-def merged_not_done(gl: GitLab, jira: Jira, days: int = 7) -> tuple[list[str], bool]:
-    """최근 N일 안에 머지된 MR 의 소스 브랜치 키 중 Jira 상태가 완료가 아닌 이슈 → 표 행. 자동 완료(R6)가 빠진 경우를 잡는다.
+def landed_on_develop(gl: GitLab, target: str, depth: int = 5) -> bool | None:
+    """스택 자식의 코드가 결국 develop 에 도달했는가. 부모 MR 을 따라 올라간다.
+
+    - `True`  : 어느 단계에서 develop·master 로 머지됐다 → 자식 이슈는 **지금 완료로 옮길 수 있다**
+    - `False` : 부모가 아직 머지되지 않았거나, 실험용·폐기 브랜치로 들어가 develop 에 없다 → **보고하지 않는다**
+                (2026-08-29 오탐 !82 가 이 경우였다: -138 코드는 develop 에 없었다)
+    - `None`  : 조회 실패 → 판단 불가. 일을 숨기는 쪽이 더 나쁘므로 표시하고 물음표를 붙인다
+    """
+    seen: set[str] = set()
+    while target and depth > 0:
+        if completes_on_merge(target):
+            return True
+        if target in seen:            # 있을 수 없는 순환 — 무한 루프만 막는다
+            return False
+        seen.add(target)
+        mr, ok = gl.merged_mr_for_source(target)
+        if not ok:
+            return None
+        if mr is None:                # 부모가 아직 머지 안 됨 / 폐기된 브랜치
+            return False
+        target = mr.get("target_branch") or ""
+        depth -= 1
+    return False
+
+
+def merged_not_done(gl: GitLab, jira: Jira, days: int = 7) -> tuple[list[str], list[str], bool]:
+    """최근 N일 안에 머지됐는데 Jira 상태가 완료가 아닌 이슈 → 표 행. **두 갈래로 나눠** 돌려준다.
+
+    - `rows`  : 대상이 develop·master 인 MR — R6 가 걸려야 했는데 안 걸린 것. **이상 상황**
+    - `stacks`: 대상이 다른 이슈 브랜치인 스택 자식 MR — R6 가 원래 걸리지 않는다. **정상이지만 손이 필요**
+
+    나누지 않으면 스택 자식이 "자동 완료가 빠졌다" 로 보고돼 매일 오탐이 된다
+    (2026-08-31 실측: !82 가 그렇게 잡혔다 — S15P21B202-159). 자식 이슈를 CI 가 자동 완료하는 것은 -199.
+
     키로 직접 조회하고(가벼움), 존재하지 않는 키(오타·삭제된 테스트 이슈)가 섞여 JQL 이 거부되면 미완료 이슈 전량 조회로 폴백해 로컬에서 교차한다(-134)."""
     by_key: dict[str, dict] = {}
     mrs, mrs_complete = gl.merged_mrs(days)
@@ -74,14 +106,23 @@ def merged_not_done(gl: GitLab, jira: Jira, days: int = 7) -> tuple[list[str], b
     if not by_key:
         return [], mrs_complete
     issues, complete = not_done_issues(jira, list(by_key))
-    rows = []
+    rows, stacks = [], []
     for i in issues:
         mr = by_key.get(i["key"])
         if not mr:
             continue
-        rows.append(f"| [{i['key']}]({JIRA_BROWSE}{i['key']}) {i['fields'].get('summary', '')} | {i['fields'].get('status', {}).get('name', '')} "
-                    f"| [!{mr['iid']}]({mr['web_url']}) | {who(i['fields'].get('assignee'))} |")
-    return rows, complete and mrs_complete
+        target = mr.get("target_branch") or ""
+        head = (f"| [{i['key']}]({JIRA_BROWSE}{i['key']}) {i['fields'].get('summary', '')} "
+                f"| {i['fields'].get('status', {}).get('name', '')} | [!{mr['iid']}]({mr['web_url']}) ")
+        if completes_on_merge(target):
+            rows.append(head + f"| {who(i['fields'].get('assignee'))} |")
+            continue
+        landed = landed_on_develop(gl, target)
+        if landed is False:      # 부모가 아직 develop 에 없다 → 지금은 할 일이 아니다
+            continue
+        mark = "" if landed else " ⁇"   # None = 조회 실패. 숨기지 않고 물음표로 남긴다
+        stacks.append(head + f"| `{target}`{mark} | {who(i['fields'].get('assignee'))} |")
+    return rows, stacks, complete and mrs_complete
 
 
 def _hdrs(gl: GitLab) -> dict:
@@ -104,8 +145,7 @@ def resurrected_branches(gl: GitLab, days: int = 7) -> list[str]:
         author = ((d.get("commit") or {}).get("author_name")) or (mr.get("author") or {}).get("username", "?")
         mention = next((f"@{m['mm']}" for m in TEAM["members"] if m["name"] == author or m["gitlab"] == author), author)
         rows.append(f"| `{br}` | [!{mr['iid']}]({mr['web_url']}) | {mention} |")
-
-
+    return rows
 
 
 def pending_hours(raw: str | None = None) -> float:
@@ -209,9 +249,9 @@ def main() -> int:
                           f"| 머지 순서 | 종류 | 파일 | 뒤 MR 작성자 |\n|---|---|---|---|\n" + "\n".join(rows_p))
         if jira.available:
             try:
-                rows, complete = merged_not_done(gl, jira)
+                rows, stacks, complete = merged_not_done(gl, jira)
             except Exception as e:  # 이 항목이 실패해도 다른 항목은 보낸다
-                rows, complete = [], True; blocks.append(f"**🔗 머지됐는데 완료 안 된 이슈** — 조회 실패 → @{INFRA_MM} 확인: {type(e).__name__}: {e}")
+                rows, stacks, complete = [], [], True; blocks.append(f"**🔗 머지됐는데 완료 안 된 이슈** — 조회 실패 → @{INFRA_MM} 확인: {type(e).__name__}: {e}")
             if not complete:
                 print("경고: 머지 MR 또는 미완료 이슈 수집이 페이지 상한에서 끊김 — 일부 누락 가능")
             try:
@@ -222,10 +262,15 @@ def main() -> int:
                 blocks.append(f"**🌿 머지 뒤 다시 생긴 브랜치** ({len(res)}) — 머지된 브랜치에 다시 push 하면 MR·파이프라인 없이 조용히 남습니다. "
                               f"후속 작업은 새 이슈·새 브랜치로, 남은 브랜치는 삭제하세요\n\n"
                               f"| 브랜치 | 머지된 MR | 마지막 커밋 |\n|---|---|---|\n" + "\n".join(res))
+            note = f"\n_⚠ 목록이 페이지 상한에서 끊겨 일부가 빠졌을 수 있음 — @{INFRA_MM} 확인_" if not complete else ""
             if rows:   # 매칭이 없으면 블록 없음(잘림 경고도 각주로만) — "항목 없으면 보내지 않는다" 유지
-                note = f"\n_⚠ 목록이 페이지 상한에서 끊겨 일부가 빠졌을 수 있음 — @{INFRA_MM} 확인_" if not complete else ""
-                blocks.append(f"**🔗 머지됐는데 완료 안 된 이슈** ({len(rows)}) — 자동 완료(R6)가 빠진 것. 담당자가 완료로 옮기면 허용됨(머지된 MR 있음)\n\n"
+                blocks.append(f"**🔗 머지됐는데 완료 안 된 이슈** ({len(rows)}) — develop 으로 머지됐으니 자동 완료(R6)가 걸려야 했다. 담당자가 완료로 옮기면 허용됨(머지된 MR 있음)\n\n"
                               f"| 이슈 | 상태 | MR | 담당 |\n|---|---|---|---|\n" + "\n".join(rows) + note)
+            if stacks:  # 스택 자식 — R6 가 원래 걸리지 않는다(오탐이 아니라 별 항목, S15P21B202-159)
+                blocks.append(f"**🧩 스택 자식 MR — 완료로 옮기면 됩니다** ({len(stacks)}) — "
+                              f"대상이 develop 이 아니라 다른 이슈 브랜치여서 자동 완료(R6)가 걸리지 않습니다. "
+                              f"**부모가 이미 develop 에 들어갔으니** 담당자가 완료로 옮기면 됩니다(`⁇` 는 확인 실패 — 눈으로 보세요)\n\n"
+                              f"| 이슈 | 상태 | MR | 머지 대상 | 담당 |\n|---|---|---|---|---|\n" + "\n".join(stacks) + (note if not rows else ""))
     if not blocks:
         print("보낼 항목 없음"); return 0
     text = f"📋 **아침 점검 — 확인 필요** ({datetime.now().strftime('%m/%d %H:%M')})\n" + "\n\n".join(blocks) + \

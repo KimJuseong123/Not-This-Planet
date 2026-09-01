@@ -82,8 +82,16 @@ namespace Metagame.Gameplay
                     SetCursor(!Exploration.TabletOpen);
                 }
 
+                if (Exploration != null && Exploration.TabletOpen)
+                {
+                    if (f.TabletPreviousPage) Exploration.PreviousTabletPage();
+                    if (f.TabletNextPage) Exploration.NextTabletPage();
+                }
+
                 if (Input.GetKeyDown(Controls.FreeCursor)) SetCursor(false);
-                if (Input.GetMouseButtonDown(0) && !CursorLocked) SetCursor(true);
+                if (Input.GetMouseButtonDown(0) && !CursorLocked
+                    && (Exploration == null || !Exploration.TabletOpen))
+                    SetCursor(true);
                 if (!CursorLocked)
                 {
                     f.Look = Vector2.zero;
@@ -139,7 +147,7 @@ namespace Metagame.Gameplay
 
                 if (LocalPlayer.Cam != null)
                 {
-                    LocalPlayer.Cam.SetFreeLook(f.FreeLook);     // Steer 보다 먼저 — 켜지는 순간 기준 각도를 얼린다
+                    LocalPlayer.Cam.SetFreeLook(f.FreeLook);     // Steer 보다 먼저 — Alt 시점의 pitch 범위를 선택한다
                     bool clampButtons = f.GrabLeft || f.GrabRight;
                     LocalPlayer.Cam.SetClampLiftResistance(
                         LocalPlayer.ClampGrabbed && clampButtons && !f.FreeLook);

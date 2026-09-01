@@ -42,6 +42,8 @@ namespace Metagame.Core
         public const float AirControl = 0.42f;
         public const float JumpSpeed = 3.4f;        // 최고점 v²/2g = 2.06m, 체공 2.4초
         public const float StepPeriod = 0.80f;      // 걷기 주기(초). 저중력이라 성큼성큼 느리게
+        public const float SideStepSwing = 18f;    // 좌우 걸음에서 허벅지가 옆으로 기울어지는 최대 각도
+        public const float SideStepKneeSwing = 10f; // 좌우 걸음의 무릎 보정
 
         // ── 체력 · 피해 ────────────────────────────────────────
         // 일반 점프는 안전하게 유지하고, 높은 곳에서 빠르게 착지했을 때만 낙하 피해를 준다.
