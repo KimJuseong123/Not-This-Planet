@@ -69,6 +69,13 @@ mr-lint:                  # 제목·브랜치·Jira 키 실존·템플릿 섹션
   script:
     - python scripts/ci/mr_lint.py
 
+stack-order:              # 스택 자식은 부모가 develop 에 들어간 뒤에만 머지 (S15P21B202-244)
+  stage: lint             # 실측 26 대 0 으로 순서가 안 지켜졌다. mr-lint 의 경고로는 안 됐으므로 실패시킨다.
+  rules:                  # mm-ci-failed 의 needs 에 **일부러 넣지 않는다** — 작성자가 무엇을 잘못한 것이
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"   # 아니라 아직 순서가 아닐 뿐이라, 🔴 카드 대신
+  script:                 # MR 코멘트로만 알린다. 하드 블록은 'Pipelines must succeed' 가 켜지면 생긴다.
+    - python scripts/ci/stack_order.py
+
 mr-overlap:               # 다른 열린 MR 과의 충돌을 MR 시점에 — 실제 3-way 머지 시험(git merge-tree), 나중 MR 이 조정
   stage: lint             # 이 MR 이 다른 MR 위에 얹혀 있으면 대상을 그 브랜치로 자동 전환(스택 MR). S15P21B202-138
   # git 이 필요하다. 기본 이미지 python:3.12-slim 에는 git 이 없어서, 이 잡이 docker
