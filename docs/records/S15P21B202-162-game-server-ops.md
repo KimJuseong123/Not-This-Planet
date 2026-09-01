@@ -50,8 +50,17 @@ EC2 지급 안내가 기본 포트 변경을 요구한다. **하나만 바꾸면
 남짓한 껍데기다. 즉 설치가 반쯤 되어 있다.
 
 **해결** — Unity Hub → Installs → `6000.5.4f1` → ⚙ → Add modules →
-**Linux Build Support (Mono)** 와 **Linux Dedicated Server Build Support** 를 함께 설치.
-설치 중에는 Unity 를 닫아야 할 수 있다.
+**Linux Build Support (Mono)** 만 설치한다. 설치 중에는 Unity 를 닫아야 할 수 있다.
+
+> **Dedicated Server 모듈은 쓰지 않는다.** Unity 6.5 이상에서는 Hub 가 설치를 막는다
+> (2026-09-01 확인). 필요도 없다 — Dedicated Server 는 그래픽 코드를 덜어내는
+> 최적화판일 뿐이고, **일반 Linux 빌드를 `-batchmode -nographics` 로 띄우면 똑같이
+> 서버로 동작한다.** 우리 코드(`MirrorLaunchArgs`)가 이미 실행 인자로 역할을 정하는
+> 방식이라 빌드 종류를 가리지 않는다. 지금 Windows 검증도 같은 방식으로 하고 있다.
+>
+> 대신 서버 빌드에도 셰이더·텍스처가 들어가 용량이 커지고 메모리를 조금 더 쓴다.
+> EC2 는 15 GiB 중 1.3 GiB 만 쓰고 있어 여유가 있다. 정 아쉬우면 나중에 CI(`-143`)의
+> GameCI 이미지에서 Dedicated Server 로 만들면 된다 — 그 리눅스 컨테이너에는 모듈이 있다.
 
 > **함정**: 이 상태에서 빌드하면 `BuildReport.summary.result` 가 **`Succeeded` 로 나온다.**
 > MCP 빌드 도구도 "Build succeeded" 를 찍는다. 그래서 **산출물 파일이 실제로 생겼는지
@@ -60,8 +69,8 @@ EC2 지급 안내가 기본 포트 변경을 요구한다. **하나만 바꾸면
 
 ### 2-2. 빌드
 
-- Unity 빌드 타깃: **Linux · Dedicated Server**
-  (`StandaloneLinux64` + subtarget `server`, 스크립팅 백엔드 Mono)
+- Unity 빌드 타깃: **Linux (StandaloneLinux64)**, 스크립팅 백엔드 Mono.
+  서브타깃은 `player` 그대로 둔다 — 서버 노릇은 실행 인자가 정한다.
 - 산출물: `MetaGameServer.x86_64` + `MetaGameServer_Data/` + `UnityPlayer.so`
 - 첫 빌드는 플랫폼 전환 때문에 에셋 재임포트가 일어나 10 분 넘게 걸린다.
 
