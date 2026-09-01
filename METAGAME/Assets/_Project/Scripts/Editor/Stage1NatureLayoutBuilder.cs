@@ -20,10 +20,19 @@ namespace Metagame.EditorTools
         private const string LayoutName = "NatureLayout_S15P21B202_236";
         private const string ImportedTerrainPrefabPath =
             "Assets/__CodexTerrainBackup/PF_Stage1_Terrain_25_0_06_-25.prefab";
+<<<<<<< HEAD
         private const string FlatTerrainPrefabPath =
             "Assets/_Project/Prefabs/Environment/Stage1/PF_Stage1_Terrain.prefab";
         private const string CliffTerrainPrefabPath =
             "Assets/_Project/Prefabs/Environment/Stage1/PF_Stage1_Terrain_Expanded.prefab";
+=======
+        private const string TerrainPrefabPath =
+            "Assets/_Project/Prefabs/Environment/Stage1/PF_Stage1_Terrain_Expanded.prefab";
+        private const string BaseTerrainDataPath =
+            "Assets/_Project/Terrain/Stage1/TerrainData/TD_Stage1_Arena_Base_236.asset";
+        private const string ExpandedTerrainDataPath =
+            "Assets/_Project/Terrain/Stage1/TerrainData/TD_Stage1_Arena_Expanded_236.asset";
+>>>>>>> 5d18b79dfa53893d5973fc22ea6dbd249306e33d
         private const string FlatRockModelPath =
             "Assets/_Project/Models/Environment/Stage1/alien_rock_flat_cracked/alien_rock_flat_cracked.fbx";
         private const string FlatRockPrefabPath =
@@ -74,7 +83,10 @@ namespace Metagame.EditorTools
         public static void Build()
         {
             PrepareTerrainPrefab();
+<<<<<<< HEAD
             Stage1TerrainBuilder.EnsureTerrainAssets();
+=======
+>>>>>>> 5d18b79dfa53893d5973fc22ea6dbd249306e33d
             EnsureFlatRockPrefab();
 
             var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
@@ -141,12 +153,15 @@ namespace Metagame.EditorTools
             if (ReferenceEquals(ordered[0].terrainData, ordered[1].terrainData))
                 throw new InvalidOperationException("두 Terrain이 같은 TerrainData를 공유한다.");
 
+<<<<<<< HEAD
             var leftSource = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(ordered[0].gameObject);
             var rightSource = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(ordered[1].gameObject);
             if (leftSource != FlatTerrainPrefabPath || rightSource != CliffTerrainPrefabPath)
                 throw new InvalidOperationException(
                     $"Terrain 프리팹 순서가 잘못됐다: left={leftSource}, right={rightSource}");
 
+=======
+>>>>>>> 5d18b79dfa53893d5973fc22ea6dbd249306e33d
             var floating = 0;
             var checkedObjects = 0;
             foreach (Transform group in layout)
@@ -166,12 +181,17 @@ namespace Metagame.EditorTools
 
             Debug.Log("STAGE1_LAYOUT_VALIDATION_OK|" +
                       $"grounded={checkedObjects}|floating=0|missingScripts=0|" +
+<<<<<<< HEAD
                       "left=flat|right=cliff|independentTerrainData=true|positions=-25.00,25.00");
+=======
+                      "independentTerrainData=true|positions=-25.00,25.00");
+>>>>>>> 5d18b79dfa53893d5973fc22ea6dbd249306e33d
         }
 
         private static void PrepareTerrainPrefab()
         {
             var imported = AssetDatabase.LoadAssetAtPath<GameObject>(ImportedTerrainPrefabPath);
+<<<<<<< HEAD
             var installed = AssetDatabase.LoadAssetAtPath<GameObject>(CliffTerrainPrefabPath);
 
             if (imported != null && installed == null)
@@ -188,6 +208,24 @@ namespace Metagame.EditorTools
             var contents = PrefabUtility.LoadPrefabContents(CliffTerrainPrefabPath);
             contents.name = "PF_Stage1_Terrain_Expanded";
             PrefabUtility.SaveAsPrefabAsset(contents, CliffTerrainPrefabPath);
+=======
+            var installed = AssetDatabase.LoadAssetAtPath<GameObject>(TerrainPrefabPath);
+
+            if (imported != null && installed == null)
+            {
+                var error = AssetDatabase.MoveAsset(ImportedTerrainPrefabPath, TerrainPrefabPath);
+                if (!string.IsNullOrEmpty(error))
+                    throw new InvalidOperationException("Terrain 프리팹 이동 실패: " + error);
+                installed = AssetDatabase.LoadAssetAtPath<GameObject>(TerrainPrefabPath);
+            }
+
+            if (installed == null)
+                throw new InvalidOperationException("백업 Terrain 프리팹을 찾지 못했다: " + TerrainPrefabPath);
+
+            var contents = PrefabUtility.LoadPrefabContents(TerrainPrefabPath);
+            contents.name = "PF_Stage1_Terrain_Expanded";
+            PrefabUtility.SaveAsPrefabAsset(contents, TerrainPrefabPath);
+>>>>>>> 5d18b79dfa53893d5973fc22ea6dbd249306e33d
             PrefabUtility.UnloadPrefabContents(contents);
 
             if (AssetDatabase.IsValidFolder("Assets/__CodexTerrainBackup"))
@@ -206,6 +244,7 @@ namespace Metagame.EditorTools
             }
             ClearChildren(ground);
 
+<<<<<<< HEAD
             var flatPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(FlatTerrainPrefabPath);
             var cliffPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(CliffTerrainPrefabPath);
             var flatTerrain = flatPrefab != null ? flatPrefab.GetComponent<Terrain>() : null;
@@ -226,13 +265,45 @@ namespace Metagame.EditorTools
                 "Terrain_Flat_(-25.00, 0.06, -25.00)", new Vector3(baseX, 0.06f, -25f));
             var right = CreateTerrainTile(scene, ground, cliffPrefab,
                 "Terrain_Cliff_(25.00, 0.06, -25.00)", new Vector3(baseX + tileWidth, 0.06f, -25f));
+=======
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(TerrainPrefabPath);
+            var prefabTerrain = prefab.GetComponent<Terrain>();
+            if (prefabTerrain == null || prefabTerrain.terrainData == null)
+                throw new InvalidOperationException("설치한 Terrain 프리팹에 TerrainData가 없다.");
+
+            var tileWidth = prefabTerrain.terrainData.size.x;
+            var baseX = -25f;
+            var baseData = EnsureTerrainDataCopy(prefabTerrain.terrainData, BaseTerrainDataPath);
+            var expandedData = EnsureTerrainDataCopy(prefabTerrain.terrainData, ExpandedTerrainDataPath);
+
+            var left = CreateTerrainTile(scene, ground, prefab, baseData,
+                "Terrain_Base_(-25.00, 0.06, -25.00)", new Vector3(baseX, 0.06f, -25f));
+            var right = CreateTerrainTile(scene, ground, prefab, expandedData,
+                "Terrain_(25.00, 0.06, -25.00)", new Vector3(baseX + tileWidth, 0.06f, -25f));
+>>>>>>> 5d18b79dfa53893d5973fc22ea6dbd249306e33d
 
             left.SetNeighbors(null, null, right, null);
             right.SetNeighbors(left, null, null, null);
         }
 
+<<<<<<< HEAD
         private static Terrain CreateTerrainTile(Scene scene, Transform parent, GameObject prefab,
             string name, Vector3 position)
+=======
+        private static TerrainData EnsureTerrainDataCopy(TerrainData source, string assetPath)
+        {
+            var existing = AssetDatabase.LoadAssetAtPath<TerrainData>(assetPath);
+            if (existing != null) return existing;
+
+            var copy = UnityEngine.Object.Instantiate(source);
+            copy.name = System.IO.Path.GetFileNameWithoutExtension(assetPath);
+            AssetDatabase.CreateAsset(copy, assetPath);
+            return copy;
+        }
+
+        private static Terrain CreateTerrainTile(Scene scene, Transform parent, GameObject prefab,
+            TerrainData terrainData, string name, Vector3 position)
+>>>>>>> 5d18b79dfa53893d5973fc22ea6dbd249306e33d
         {
             var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, scene);
             instance.name = name;
@@ -241,7 +312,15 @@ namespace Metagame.EditorTools
             instance.transform.rotation = Quaternion.identity;
             instance.transform.localScale = Vector3.one;
 
+<<<<<<< HEAD
             return instance.GetComponent<Terrain>();
+=======
+            var terrain = instance.GetComponent<Terrain>();
+            var collider = instance.GetComponent<TerrainCollider>();
+            terrain.terrainData = terrainData;
+            if (collider != null) collider.terrainData = terrainData;
+            return terrain;
+>>>>>>> 5d18b79dfa53893d5973fc22ea6dbd249306e33d
         }
 
         private static List<Placement> CreatePlacements()
