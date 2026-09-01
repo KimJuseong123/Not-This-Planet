@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using Metagame.Gameplay;
 using UnityEditor;
@@ -8,22 +9,32 @@ using UnityEngine.SceneManagement;
 namespace Metagame.EditorTools
 {
     /// <summary>
-    /// 실제 모델이 준비되기 전까지 사용할 Stage1 용접 플라즈마 건을 만든다.
+    /// Stage1 용접 플라즈마 건 프리팹과 실제 모델을 구성한다.
     ///
     /// 프리팹은 프로젝트의 장비 규칙에 맞춰 동적 Rigidbody와 Grabbable을 갖는다.
-    /// 시각물은 PlaceholderVisual 아래에 모아 두고, 교체 모델을 붙일 기준점은
-    /// AttachPoints 아래에 따로 둔다.
+    /// PlaceholderVisual의 콜라이더는 간단한 물리 외곽선으로 유지하고 렌더러만 끈다.
+    /// 실제 모델은 ReplacementModel 아래에 배치해 손·총구 기준점과 독립적으로 교체한다.
     /// </summary>
     public static class Stage1WeldingPlasmaGunAsset
     {
         const string ScenePath = "Assets/Scenes/Main.unity";
         const string PrefabDirectory = "Assets/_Project/Prefabs/Props/Stage1";
         const string PrefabPath = PrefabDirectory + "/PF_Stage1_WeldingPlasmaGun.prefab";
+        const string ModelPath =
+            "Assets/_Project/Models/Props/Stage1/PlasmaWeldingGun/SF_Stage1_PlasmaWeldingGun.fbx";
         const string MaterialDirectory = "Assets/_Project/Materials/Props/Stage1";
+        const string ProductionMaterialDirectory = MaterialDirectory + "/PlasmaWeldingGun";
+        const string ProductionTextureDirectory =
+            "Assets/_Project/Textures/Props/Stage1/PlasmaWeldingGun";
         const string EquipmentPath = "Stage1/Gameplay/Puzzle/Equipment";
         const string InstanceName = "WeldingPlasmaGun_Stage1";
 
-        static readonly Vector3 FallbackPosition = new(-11.5f, 0.42f, -8.4f);
+        static readonly Vector3 FallbackPosition = new(-4f, 0.7f, -2f);
+        static readonly Vector3 ProductionModelPosition = new(0f, -0.5f, 0.25f);
+        // 원본 FBX의 꽃잎 총구는 -X 방향이다. 실제 총구를 Tool 규약의
+        // +Z 조준 방향에 맞춰야 1인칭에서 뒤집혀 보이지 않는다.
+        static readonly Quaternion ProductionModelRotation =
+            Quaternion.FromToRotation(Vector3.left, Vector3.forward);
 
         public static void Build()
         {
@@ -85,6 +96,45 @@ namespace Metagame.EditorTools
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log("[Stage1WeldingGun] 완료 — " + PrefabPath);
+        }
+
+        [MenuItem("Tools/둥실둥실 우주 대탈출/플라즈마 용접기 실제 모델 적용", false, 9)]
+        public static void ApplyProductionModel()
+        {
+            Directory.CreateDirectory(ProductionMaterialDirectory);
+            AssetDatabase.Refresh();
+            AssetDatabase.ImportAsset(ModelPath, ImportAssetOptions.ForceSynchronousImport |
+                                                  ImportAssetOptions.ForceUpdate);
+            var model = AssetDatabase.LoadAssetAtPath<GameObject>(ModelPath);
+            if (model == null)
+            {
+                Debug.LogError("[Stage1WeldingGun] 실제 모델을 찾지 못했다: " + ModelPath);
+                return;
+            }
+
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
+            if (prefab == null)
+            {
+                Debug.LogError("[Stage1WeldingGun] 대상 프리팹을 찾지 못했다: " + PrefabPath);
+                return;
+            }
+
+            var productionMaterials = CreateProductionMaterials();
+
+            var root = PrefabUtility.LoadPrefabContents(PrefabPath);
+            try
+            {
+                ApplyProductionModel(root, model, productionMaterials);
+                PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(root);
+            }
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log("[Stage1WeldingGun] 실제 모델과 힌지 애니메이션 적용 완료 — " + PrefabPath);
         }
 
         static GunMaterials CreateMaterials()
@@ -152,7 +202,11 @@ namespace Metagame.EditorTools
         {
             var existing = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
             if (existing != null)
-                return EnsureToolComponent(existing);
+            {
+                var ensured = EnsureToolComponent(existing);
+                ApplyProductionModel();
+                return ensured;
+            }
             if (materials.Body == null || materials.Grip == null || materials.Metal == null || materials.Energy == null)
                 return null;
 
@@ -229,6 +283,154 @@ namespace Metagame.EditorTools
             }
 
             return AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
+        }
+
+        static void ApplyProductionModel(GameObject root, GameObject model,
+                                         IReadOnlyList<Material> productionMaterials)
+        {
+            if (root == null || model == null) return;
+
+            var placeholder = root.transform.Find("PlaceholderVisual");
+            if (placeholder != null)
+                foreach (var renderer in placeholder.GetComponentsInChildren<Renderer>(true))
+                    renderer.enabled = false;
+
+            var anchors = root.transform.Find("AttachPoints");
+            if (anchors == null)
+            {
+                anchors = new GameObject("AttachPoints") { layer = GameLayers.Prop }.transform;
+                anchors.SetParent(root.transform, false);
+            }
+
+            var replacement = anchors.Find("ReplacementModel");
+            if (replacement == null)
+            {
+                replacement = new GameObject("ReplacementModel") { layer = GameLayers.Prop }.transform;
+                replacement.SetParent(anchors, false);
+            }
+
+            while (replacement.childCount > 0)
+                Object.DestroyImmediate(replacement.GetChild(0).gameObject);
+
+            var instance = (GameObject)PrefabUtility.InstantiatePrefab(model);
+            instance.name = "SF_Stage1_PlasmaWeldingGun";
+            instance.transform.SetParent(replacement, false);
+            instance.transform.SetLocalPositionAndRotation(ProductionModelPosition,
+                                                            ProductionModelRotation);
+            instance.transform.localScale = Vector3.one;
+            instance.layer = GameLayers.Prop;
+            AssignProductionMaterials(instance, productionMaterials);
+
+            var petalAnimator = replacement.GetComponent<PlasmaGunPetalAnimator>();
+            if (petalAnimator == null)
+                petalAnimator = replacement.gameObject.AddComponent<PlasmaGunPetalAnimator>();
+            petalAnimator.Rebind();
+            petalAnimator.SnapToMode(PlasmaBeamMode.None);
+
+            var grabbable = root.GetComponent<Grabbable>();
+            if (grabbable != null) grabbable.Label = "플라즈마 용접기";
+
+            var plasma = root.GetComponent<PlasmaWeldingTool>();
+            if (plasma == null) plasma = root.AddComponent<PlasmaWeldingTool>();
+            AssignMuzzle(plasma, anchors.Find("Muzzle"));
+        }
+
+        static Material[] CreateProductionMaterials()
+        {
+            const int materialCount = 31;
+            var materials = new Material[materialCount];
+            // 이 프로젝트의 GraphicsSettings 는 Built-in Render Pipeline을 사용한다.
+            // URP 패키지가 설치되어 있다는 이유만으로 URP/Lit을 먼저 선택하면
+            // Built-in 카메라에서 모든 실제 모델 재질이 분홍색으로 렌더링된다.
+            var shader = FindSurfaceShader();
+            if (shader == null)
+            {
+                Debug.LogError("[Stage1WeldingGun] 실제 모델용 Lit 셰이더를 찾지 못했다.");
+                return materials;
+            }
+
+            for (var i = 0; i < materialCount; i++)
+            {
+                var suffix = i.ToString("00");
+                var baseColorPath = ProductionTextureDirectory +
+                                    "/T_Stage1_PlasmaGun_Part" + suffix + "_BaseColor.jpg";
+                var normalPath = ProductionTextureDirectory +
+                                 "/T_Stage1_PlasmaGun_Part" + suffix + "_Normal.jpg";
+                ConfigureNormalTexture(normalPath);
+
+                var baseColor = AssetDatabase.LoadAssetAtPath<Texture2D>(baseColorPath);
+                var normal = AssetDatabase.LoadAssetAtPath<Texture2D>(normalPath);
+                if (baseColor == null || normal == null)
+                {
+                    Debug.LogError("[Stage1WeldingGun] Part " + suffix + " 텍스처가 누락됐다.");
+                    continue;
+                }
+
+                var path = ProductionMaterialDirectory +
+                           "/M_Stage1_PlasmaGun_Part" + suffix + ".mat";
+                var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+                if (material == null)
+                {
+                    material = new Material(shader) { name = "M_Stage1_PlasmaGun_Part" + suffix };
+                    AssetDatabase.CreateAsset(material, path);
+                }
+                else if (material.shader != shader)
+                {
+                    material.shader = shader;
+                }
+
+                SetTexture(material, "_BaseMap", baseColor);
+                SetTexture(material, "_MainTex", baseColor);
+                SetTexture(material, "_BumpMap", normal);
+                SetFloat(material, "_BumpScale", 1f);
+                SetFloat(material, "_Metallic", 0.25f);
+                SetFloat(material, "_Smoothness", 0.5f);
+                SetFloat(material, "_Glossiness", 0.5f);
+                material.EnableKeyword("_NORMALMAP");
+                EditorUtility.SetDirty(material);
+                materials[i] = material;
+            }
+
+            return materials;
+        }
+
+        static void ConfigureNormalTexture(string path)
+        {
+            var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+            if (importer == null || importer.textureType == TextureImporterType.NormalMap) return;
+            importer.textureType = TextureImporterType.NormalMap;
+            importer.SaveAndReimport();
+        }
+
+        static void AssignProductionMaterials(GameObject instance,
+                                              IReadOnlyList<Material> productionMaterials)
+        {
+            if (instance == null || productionMaterials == null) return;
+
+            const string importedPrefix = "Material_tripo_part_";
+            foreach (var renderer in instance.GetComponentsInChildren<Renderer>(true))
+            {
+                var assigned = renderer.sharedMaterials;
+                var changed = false;
+                for (var i = 0; i < assigned.Length; i++)
+                {
+                    var imported = assigned[i];
+                    if (imported == null || !imported.name.StartsWith(importedPrefix)) continue;
+                    if (!int.TryParse(imported.name.Substring(importedPrefix.Length), out var part)) continue;
+                    if (part < 0 || part >= productionMaterials.Count || productionMaterials[part] == null) continue;
+
+                    assigned[i] = productionMaterials[part];
+                    changed = true;
+                }
+
+                if (changed) renderer.sharedMaterials = assigned;
+            }
+        }
+
+        static void SetTexture(Material material, string property, Texture texture)
+        {
+            if (material != null && material.HasProperty(property))
+                material.SetTexture(property, texture);
         }
 
         static void AssignMuzzle(PlasmaWeldingTool tool, Transform muzzle)

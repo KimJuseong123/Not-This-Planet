@@ -31,10 +31,23 @@ namespace Metagame.Gameplay
         [SerializeField] float beamWidth = 0.035f;
         [SerializeField] int beamMask = ~0;
 
+        [Header("1인칭 휴대 포즈")]
+        [SerializeField] Vector3 heldVisualLocalPosition = new Vector3(0.7f, -0.9f, 0.25f);
+        [SerializeField] Vector3 heldVisualLocalEuler = new Vector3(-90f, -80f, 10f);
+        [SerializeField] Vector3 heldVisualLocalScale = Vector3.one;
+
         const int RaycastBufferSize = 32;
         readonly RaycastHit[] hits = new RaycastHit[RaycastBufferSize];
         LineRenderer beam;
         Material runtimeMaterial;
+        PlasmaGunPetalAnimator petalAnimator;
+        bool bodyCollisionState;
+        bool bodyCollisionStateCaptured;
+        Transform heldVisual;
+        Vector3 droppedVisualLocalPosition;
+        Quaternion droppedVisualLocalRotation;
+        Vector3 droppedVisualLocalScale;
+        bool droppedVisualPoseCaptured;
 
         public PlasmaBeamMode BeamMode { get; private set; }
         public bool BeamActive { get; private set; }
@@ -67,20 +80,41 @@ namespace Metagame.Gameplay
 
         protected override void OnEquipped()
         {
+            ApplyHeldVisualPose();
+
+            // 1인칭으로 들고 아래를 볼 때 키네마틱 도구 콜라이더가 지면과 겹쳐
+            // 플레이어를 위로 밀어내지 않도록 휴대 중에만 충돌을 끈다.
+            // 내려놓거나 던지면 OnUnequipped에서 원래 상태를 복원한다.
+            if (Body != null)
+            {
+                bodyCollisionState = Body.detectCollisions;
+                bodyCollisionStateCaptured = true;
+                Body.detectCollisions = false;
+            }
+
             EnsureBeam();
+            ResolvePetalAnimator();
             BeamMode = PlasmaBeamMode.None;
             BeamActive = false;
+            if (petalAnimator != null) petalAnimator.SnapToMode(PlasmaBeamMode.None);
             beam.enabled = false;
         }
 
         protected override void OnUnequipped()
         {
+            RestoreDroppedVisualPose();
+
+            if (bodyCollisionStateCaptured && Body != null)
+                Body.detectCollisions = bodyCollisionState;
+            bodyCollisionStateCaptured = false;
+
             BeamMode = PlasmaBeamMode.None;
             BeamActive = false;
             WeldingSeam = null;
             WeldingProgressed = false;
             CuttingSeam = null;
             CuttingProgressed = false;
+            if (petalAnimator != null) petalAnimator.SnapToMode(PlasmaBeamMode.None);
             if (beam != null) beam.enabled = false;
         }
 
@@ -138,7 +172,10 @@ namespace Metagame.Gameplay
         protected override void OnToolVisualUpdate(ToolInputFrame input, ToolAimContext aim)
         {
             if (beam == null) EnsureBeam();
-            if (beam == null || !BeamActive || Muzzle == null)
+            ResolvePetalAnimator();
+            var visualReady = petalAnimator == null ||
+                              petalAnimator.TickAndIsReady(BeamMode, Time.deltaTime);
+            if (beam == null || !BeamActive || !visualReady || Muzzle == null)
             {
                 if (beam != null) beam.enabled = false;
                 return;
@@ -223,6 +260,55 @@ namespace Metagame.Gameplay
 
             beam.startWidth = beamWidth;
             beam.endWidth = beamWidth * 0.70f;
+        }
+
+        void ResolvePetalAnimator()
+        {
+            if (petalAnimator == null)
+                petalAnimator = GetComponentInChildren<PlasmaGunPetalAnimator>(true);
+        }
+
+        void ApplyHeldVisualPose()
+        {
+            ResolveHeldVisual();
+            if (heldVisual == null) return;
+
+            if (!droppedVisualPoseCaptured)
+            {
+                droppedVisualLocalPosition = heldVisual.localPosition;
+                droppedVisualLocalRotation = heldVisual.localRotation;
+                droppedVisualLocalScale = heldVisual.localScale;
+                droppedVisualPoseCaptured = true;
+            }
+
+            heldVisual.SetLocalPositionAndRotation(
+                heldVisualLocalPosition, Quaternion.Euler(heldVisualLocalEuler));
+            heldVisual.localScale = heldVisualLocalScale;
+        }
+
+        void RestoreDroppedVisualPose()
+        {
+            if (!droppedVisualPoseCaptured || heldVisual == null) return;
+
+            heldVisual.SetLocalPositionAndRotation(
+                droppedVisualLocalPosition, droppedVisualLocalRotation);
+            heldVisual.localScale = droppedVisualLocalScale;
+        }
+
+        void ResolveHeldVisual()
+        {
+            if (heldVisual != null) return;
+            heldVisual = transform.Find(
+                "AttachPoints/ReplacementModel/SF_Stage1_PlasmaWeldingGun");
+
+            // FBX를 다시 내보내 루트 이름이 바뀌더라도 ReplacementModel의
+            // 첫 번째 자식을 휴대용 비주얼로 사용한다.
+            if (heldVisual == null)
+            {
+                var replacement = transform.Find("AttachPoints/ReplacementModel");
+                if (replacement != null && replacement.childCount > 0)
+                    heldVisual = replacement.GetChild(0);
+            }
         }
 
         bool IsOwnedCollider(Collider collider)
