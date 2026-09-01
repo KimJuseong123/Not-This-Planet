@@ -369,6 +369,10 @@ class Jira:
             return False, f"완료 전환이 없음(가능: {names or '없음'})"
         st2, d2 = http("POST", f"{self.api}/rest/api/3/issue/{key}/transitions", self._h(),
                        {"transition": {"id": cand[0]["id"]}})
+        if st2 in (401, 403):
+            return False, (f"{st2} — **CI Jira 토큰에 쓰기 권한이 없다**(읽기 전용 스코프 토큰). "
+                           f"클래식 API 토큰 또는 write:jira-work 를 포함한 토큰으로 CI 변수 "
+                           f"JIRA_API_TOKEN 을 교체해야 한다 — S15P21B202-242")
         if st2 not in (200, 204):
             return False, f"전환 실패 {st2}: {str(d2)[:120]}"
         return True, (cand[0].get("to") or {}).get("name", "완료")

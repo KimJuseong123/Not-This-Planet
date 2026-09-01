@@ -26,10 +26,13 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from ci_common import (GitLab, Jira, banner, completes_on_merge, env,  # noqa: E402
-                       key_from_branch)
+from ci_common import (PROJECT_KEY, GitLab, Jira, banner, completes_on_merge,  # noqa: E402
+                       env, key_from_branch)
 
 MAX_DEPTH = 5            # 스택 깊이 상한 — 순환·폭주 방지
+SWEEP_DAYS = 3           # 훑기 범위 — 이 안에 머지된 것만 본다
+SWEEP_MAX = 5            # 한 실행에서 메꿀 최대 건수(잡이 길어지지 않게)
+SWEEP_READY = 20         # 훑기 대상은 오래된 머지라 색인이 이미 따라잡았을 것 — 짧게 기다린다
 READY_TIMEOUT = 180      # 색인 대기 상한(초)
 READY_INTERVAL = 20      # 색인 확인 간격(초)
 VERIFY_DELAY = 12        # 전환 뒤 되돌림 확인까지 기다리는 시간(초)
@@ -60,6 +63,75 @@ def collect_keys(gl: GitLab, mr: dict, depth: int = 0, seen: set[str] | None = N
     return keys, ok_all
 
 
+def landed_on_develop(gl: GitLab, mr: dict, depth: int = MAX_DEPTH) -> bool | None:
+    """이 MR 의 변경이 결국 develop 에 도달했는가. 스택이면 부모를 따라 올라간다.
+    None = 조회 실패(모름). 훑기에서 **모르면 건드리지 않는다** — 아직 develop 에 없는 것을 완료로
+    옮기면 보드가 거짓이 된다."""
+    target = mr.get("target_branch") or ""
+    seen: set[str] = set()
+    while depth > 0:
+        if completes_on_merge(target):
+            return True
+        if not target or target in seen:
+            return False
+        seen.add(target)
+        parent, ok = gl.merged_mr_for_source(target)
+        if not ok:
+            return None
+        if parent is None:            # 부모가 아직 머지되지 않았다
+            return False
+        target = parent.get("target_branch") or ""
+        depth -= 1
+    return False
+
+
+def sweep(gl: GitLab, jira: Jira, sleep=time.sleep) -> list[str]:
+    """최근 머지 중 아직 완료가 아닌 이슈를 메꾼다.
+
+    왜 필요한가 — 이 잡은 놓칠 수 있다:
+      · 머지가 연달아 일어나면 **잡이 시작되기 전에 파이프라인이 취소된다**
+        (2026-09-01 실측: 25초 간격 머지 3건 중 176664 가 canceled. `interruptible: false` 는
+         이미 시작된 잡만 보호한다)
+      · 토큰 권한·러너 장애로 전환이 실패할 수도 있다(-242)
+    그래서 **매 실행이 최근 며칠을 한 번 더 훑는다.** 이미 완료된 이슈에는 아무 일도 하지 않으므로
+    몇 번 돌아도 안전하고, 원인이 고쳐지는 순간 다음 머지가 그동안 놓친 것을 정리한다.
+    """
+    mrs, ok = gl.merged_mrs(SWEEP_DAYS)
+    if not ok:
+        print("훑기: 머지 목록 조회가 상한에서 끊겼다 — 이번엔 건너뛴다")
+    by_key: dict[str, dict] = {}
+    for mr in mrs:
+        k = key_from_branch(mr.get("source_branch") or "")
+        if k and k not in by_key:
+            by_key[k] = mr
+    if not by_key:
+        return []
+
+    # 프로젝트 전체 미완료를 한 번 조회해 교차한다 — 키 목록으로 JQL 을 만들면
+    # 존재하지 않는 키 하나에 질의 전체가 거부된다(-134 에서 겪음).
+    try:
+        issues, _ = jira.search_all(
+            f"project = {PROJECT_KEY} AND statusCategory != Done AND issuetype != Epic ORDER BY key",
+            ["summary"])
+    except Exception as e:      # noqa: BLE001 — 훑기 실패가 본 작업을 막지 않는다
+        print(f"훑기: 미완료 이슈 조회 실패({type(e).__name__}) — 건너뛴다"); return []
+    pending = [i["key"] for i in issues if i["key"] in by_key]
+    if not pending:
+        print(f"훑기: 최근 {SWEEP_DAYS}일 머지분에 미완료 이슈 없음"); return []
+
+    print(f"훑기: 미완료 {len(pending)}건 발견 — 최대 {SWEEP_MAX}건 처리 ({', '.join(pending)})")
+    out = []
+    for k in pending[:SWEEP_MAX]:
+        mr = by_key[k]
+        if landed_on_develop(gl, mr) is not True:
+            print(f"  · {k}: 아직 develop 에 없다(스택 부모 미머지 또는 확인 불가) → 건드리지 않음")
+            continue
+        r = complete(jira, k, mr["iid"], sleep=sleep, ready_timeout=SWEEP_READY)
+        print(f"  · {r}")
+        out.append(r)
+    return out
+
+
 def is_done(issue: dict | None) -> bool:
     cat = (((issue or {}).get("fields") or {}).get("status") or {}).get("statusCategory") or {}
     return cat.get("key") == "done"
@@ -78,7 +150,8 @@ def wait_ready(jira: Jira, key: str, timeout: int = READY_TIMEOUT, interval: int
         waited += interval
 
 
-def complete(jira: Jira, key: str, mr_iid: int, sleep=time.sleep) -> str:
+def complete(jira: Jira, key: str, mr_iid: int, sleep=time.sleep,
+             ready_timeout: int = READY_TIMEOUT) -> str:
     """한 이슈를 완료로. 반환: 사람이 읽는 결과 문자열."""
     issue = jira.get_issue(key)
     if issue is None:
@@ -86,8 +159,8 @@ def complete(jira: Jira, key: str, mr_iid: int, sleep=time.sleep) -> str:
     if is_done(issue):
         return f"{key}: 이미 완료"
 
-    if not wait_ready(jira, key, sleep=sleep):
-        return (f"{key}: 개발 정보 색인이 {READY_TIMEOUT}초 안에 따라잡지 못함 → 옮기지 않음"
+    if not wait_ready(jira, key, timeout=ready_timeout, sleep=sleep):
+        return (f"{key}: 개발 정보 색인이 {ready_timeout}초 안에 따라잡지 못함 → 옮기지 않음"
                 " (지금 옮기면 R9 가 되돌린다. 아침 점검이 다음날 표시한다)")
 
     ok, detail = jira.transition_to_done(key)
@@ -121,7 +194,9 @@ def main() -> int:
         print(f"커밋 {sha[:8]} 의 MR 조회 실패 → 생략(아침 점검이 잡는다)"); return 0
     merged = [m for m in mrs if m.get("state") == "merged" and completes_on_merge(m.get("target_branch") or "")]
     if not merged:
-        print(f"커밋 {sha[:8]}: develop·master 로 머지된 MR 이 없음 → 할 일 없음"); return 0
+        print(f"커밋 {sha[:8]}: develop·master 로 머지된 MR 이 없음")
+        sweep(gl, jira)               # 그래도 놓친 것이 있을 수 있다
+        return 0
 
     lines = []
     for mr in merged:
@@ -133,6 +208,9 @@ def main() -> int:
             r = complete(jira, k, mr["iid"])
             print(f"  · {r}")
             lines.append(r)
+
+    print("")
+    lines += sweep(gl, jira)          # 취소·실패로 놓친 머지를 메꾼다
 
     done = [x for x in lines if x.endswith(": 완료")]
     print(f"\n== jira-complete: 완료 {len(done)} · 그 밖 {len(lines) - len(done)} ==")
