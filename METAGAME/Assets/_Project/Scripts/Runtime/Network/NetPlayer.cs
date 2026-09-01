@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Mirror;
 using UnityEngine;
 using Metagame.Core;
@@ -49,6 +50,12 @@ namespace Metagame.Network
         /// <summary>이 사람의 운반 장치 조작. 서버에만 있다(-149).</summary>
         TractorBeamController transport;
 
+        /// <summary>쓰러져 있은 시간. 전원 기절 구제를 재는 데 쓴다(-55).</summary>
+        float downedSeconds;
+
+        /// <summary>서버가 들고 있는 접속자 목록. "전원 기절" 의 '전원' 이 이것이다.</summary>
+        static readonly List<NetPlayer> ServerPlayers = new List<NetPlayer>();
+
         // ── 서버 ────────────────────────────────────────────────
         InputFrame pending;          // 이 사람이 마지막으로 보낸 입력
 
@@ -78,6 +85,7 @@ namespace Metagame.Network
             }
 
             name = "플레이어 " + nickname;
+            ServerPlayers.Add(this);
             BuildServerBody();
 
             Debug.Log($"[NetPlayer] 서버 스폰 · {nickname}(userId={userId}) · 접속 인원 {NetworkServer.connections.Count}명");
@@ -159,7 +167,53 @@ namespace Metagame.Network
             }
 
             body.SetInput(frame);
+            JudgeProgress(Time.fixedDeltaTime);
             transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
+        }
+
+        /// <summary>
+        /// 낙사와 전원 기절을 서버가 판정한다(S15P21B202-55).
+        ///
+        /// 혼자 실행할 때는 GameSession 이 하지만, 전용 서버에는 "내 캐릭터" 가 없어
+        /// 그 경로가 돌지 않는다(SpaceBootstrap 이 Session.Begin(null, ...) 로 시작한다).
+        /// 그대로 두면 맵 밖으로 나간 사람이 영원히 떨어진다.
+        /// </summary>
+        [Server]
+        void JudgeProgress(float deltaTime)
+        {
+            var session = GameSession.Instance;
+            if (session == null) return;
+
+            if (GameSession.HasFallen(body))
+            {
+                session.RespawnPlayer(body, transport);
+                downedSeconds = 0f;
+                return;
+            }
+
+            // 전원이 기절하면 아무도 일으킬 수 없다. 시간이 지나면 되살아난다
+            // (기획 §26-13). 혼자일 때는 "전원" 이 곧 나 하나다.
+            if (!body.Downed)
+            {
+                downedSeconds = 0f;
+                return;
+            }
+
+            downedSeconds += deltaTime;
+            if (downedSeconds < PhysicsScale.AllDownedRespawnSeconds) return;
+            if (!EveryoneDowned()) return;
+
+            downedSeconds = 0f;
+            session.RespawnPlayer(body, transport);
+        }
+
+        /// <summary>접속한 사람이 모두 쓰러져 있는가.</summary>
+        static bool EveryoneDowned()
+        {
+            foreach (var other in ServerPlayers)
+                if (other != null && other.body != null && !other.body.Downed)
+                    return false;
+            return true;
         }
 
         /// <summary>
@@ -277,7 +331,11 @@ namespace Metagame.Network
         }
 
         public override void OnStopClient() => RemoveBody();
-        public override void OnStopServer() => RemoveBody();
+        public override void OnStopServer()
+        {
+            ServerPlayers.Remove(this);
+            RemoveBody();
+        }
 
         /// <summary>
         /// 몸을 치운다. 내 몸은 게임 씬이 만든 것이라 여기서 없애지 않는다 —
