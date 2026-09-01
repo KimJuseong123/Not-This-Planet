@@ -145,7 +145,14 @@ namespace Metagame.Gameplay.Tests
             var spawner = spawnerGo.AddComponent<MeteorSpawner>();
 
             // 간격을 아주 길게 준다. 실제로 운석이 떨어지면 상승 중에 탑을 때린다.
-            spawner.Configure(20260827, 1000f, 1000f, 1f);
+            spawner.Configure(20260827);
+            // 이 스위트는 운석을 보지 않는다. 예전에는 간격을 1000초로 줘서 사실상
+            // 껐는데, 간격이 기획 §17.4 의 표로 바뀌어(S15P21B202-234) 인수로 늘릴 수 없다.
+            //
+            // <b>SetPaused 로 끄지 않는다.</b> ShipRideTests 에 일시정지 자체를 검증하는
+            // 항목이 있어서, 리그가 미리 껴 두면 그 검증이 무너진다. 대신 착탄 영역을
+            // 멀리 보내 떨어져도 탑에 닿지 못하게 한다.
+            spawnerGo.transform.position = new Vector3(500f, 0f, 500f);
             spawner.SetArea(spawnerGo.transform, new Vector2(36f, 36f));
 
             var hatchGo = new GameObject("Hatch") { layer = GameLayers.Interactable };

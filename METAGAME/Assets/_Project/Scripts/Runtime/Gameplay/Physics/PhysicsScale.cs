@@ -648,13 +648,47 @@ namespace Metagame.Gameplay
         public const float MeteorDropHeight = 30f;
 
         /// <summary>
-        /// 예고부터 낙하까지의 시간. 플레이어가 한 걸음 비킬 수 있어야 한다.
-        /// 기획의 미정 사항이던 "피할 수 있는 반응 시간" 을 이 값으로 정했다.
+        /// 낙하 예고가 켜져 있는 시간(초). 기획 §17.2 "착탄 3초 전".
+        ///
+        /// <b>이 시간 동안 운석이 실제로 떨어지고 있어야 한다.</b> 예전에는 1.8초였고,
+        /// 예고가 <b>끝난 뒤</b>에 운석을 30m 위에 만들었다. 중력 −2.8m/s² 에서 30m
+        /// 자유낙하는 4.63초이므로 표시가 착탄 4.63초 <b>전에 사라졌다</b> — 기획과
+        /// 정반대였고, S15P21B202-233 이 방망이를 만들며 드러났다(§18.1 이 "타격
+        /// 가능한 순간에는 낙하 표시가 강하게 점멸한다" 고 정하는데 그 순간에는 표시가
+        /// 없었다).
+        ///
+        /// 지금은 예고와 함께 운석을 만들고 <see cref="MeteorDropSpeed"/> 로 아래로
+        /// 밀어, 예고가 끝나는 순간 착탄하게 맞춘다.
         /// </summary>
-        public const float MeteorWarningSeconds = 1.8f;
+        public const float MeteorWarningSeconds = 3f;
 
-        /// <summary>착탄 시 넉백이 미치는 반경.</summary>
-        public const float MeteorImpactRadius = 4f;
+        /// <summary>
+        /// 운석을 만들 때 주는 초기 하강 속도(m/s).
+        ///
+        /// <see cref="MeteorDropHeight"/>(30m)에서 <see cref="MeteorWarningSeconds"/>(3초)에
+        /// 닿게 하는 값이다. h = v₀·t + ½·|g|·t² 를 v₀ 로 풀면
+        ///
+        ///   v₀ = (30 − ½ × 2.8 × 3²) / 3 = (30 − 12.6) / 3 = 5.8
+        ///
+        /// <b>높이를 낮추는 쪽을 고르지 않았다.</b> 3초에 자유낙하로 닿는 높이는 12.6m 인데,
+        /// 기획 §17.1 "하늘에서 낙하한다" 와 §17.2 "화면 밖 운석은 방향성 낙하음으로
+        /// 인지한다" 가 높이를 요구한다. 속도를 주는 편이 그 둘을 지킨다.
+        /// </summary>
+        public const float MeteorDropSpeed = 5.8f;
+
+        /// <summary>
+        /// 소형 운석의 넉백 반경(m). 기획 §17.7 "소형 · 충격 반경 약 2m".
+        ///
+        /// <b>예전에는 크기 구분 없이 4m 하나였다</b> — §17.7 의 소형(2m)보다 두 배 넓고
+        /// 중형(3.5m)보다도 넓어, 기획 어느 값도 아니었다. S15P21B202-234 에서 나눴다.
+        /// </summary>
+        public const float MeteorSmallImpactRadius = 2f;
+
+        /// <summary>
+        /// 중형 운석의 넉백 반경(m). 기획 §17.7 "중형 · 충격 반경 약 3.5m".
+        /// 10분 이후에만 나온다.
+        /// </summary>
+        public const float MeteorMediumImpactRadius = 3.5f;
 
         /// <summary>착탄 시 주변에 주는 폭발력.</summary>
         public const float MeteorImpactForce = 900f;
@@ -679,8 +713,15 @@ namespace Metagame.Gameplay
         /// 낙하 지점에서 이만큼 안에 서 있어야 쳐낼 수 있다(m).
         ///
         /// 기획 §18.1 "플레이어가 낙하 지점 반경 약 2.5m 안에 있어야 한다".
-        /// 운석 충격 반경(<see cref="MeteorImpactRadius"/> 2m)보다 조금 넓다 — 맞을 자리에
-        /// 서야 쳐낼 수 있고, 그것이 §18 이 만드는 긴장이다.
+        /// 소형 운석의 충격 반경(<see cref="MeteorSmallImpactRadius"/> 2m)보다 조금 넓고
+        /// 중형(<see cref="MeteorMediumImpactRadius"/> 3.5m)보다는 좁다 — 맞을 자리에
+        /// 서야 쳐낼 수 있고, 그것이 §18 이 만드는 긴장이다. 중형은 쳐내지 못한 채
+        /// 맞을 수도 있는 자리가 생긴다.
+        ///
+        /// <b>S15P21B202-233 의 이 주석은 틀려 있었다.</b> "충격 반경 2m" 라고 적었지만
+        /// 당시 상수는 크기 구분 없이 4m 하나여서, 실제로는 이 값(2.5m)이 충격 반경보다
+        /// <b>좁았다</b>. 기획 §17.7 을 보고 코드 값을 확인하지 않은 것이다.
+        /// S15P21B202-234 에서 상수를 §17.7 의 두 값으로 나누며 함께 고쳤다.
         ///
         /// <b>방망이 메시가 운석에 닿는지는 보지 않는다.</b> 기획이 "실제 방망이 메시가
         /// 운석과 정확히 닿지 않아도 넓은 에너지 궤적으로 판정을 납득시킨다" 고 정한다.
@@ -745,6 +786,41 @@ namespace Metagame.Gameplay
         /// 1장의 목표 플레이 시간이 미정이라 임시값이다. 기획 확정 후 맞춘다.
         /// </summary>
         public const float MeteorRampSeconds = 180f;
+
+        // --- 운석 공세 (기획 §17.3~17.6) ---
+        /// <summary>
+        /// 공세가 시작되기 몇 초 전에 신호를 보내는지. 기획 §17.3 "공세 약 5초 전".
+        ///
+        /// 신호만 내보낸다 — 유성우가 많아지고 진동음이 울리고 조명이 깜빡이는 것은
+        /// [Art]·[Sound] 가 만든다. <b>문구나 카운트다운 숫자는 표시하지 않는다</b>(§17.3).
+        /// </summary>
+        public const float MeteorWaveLeadSeconds = 5f;
+
+        /// <summary>공세 안에서 운석 사이의 최소 간격(초). 기획 §17.4 "1~2초 간격".</summary>
+        public const float MeteorWithinWaveMinSeconds = 1f;
+
+        /// <summary>공세 안에서 운석 사이의 최대 간격(초).</summary>
+        public const float MeteorWithinWaveMaxSeconds = 2f;
+
+        /// <summary>
+        /// 플레이어를 노릴 때 그 사람에게서 떨어뜨리는 최소 거리(m).
+        ///
+        /// 기획 §17.5 "무작위 플레이어 주변 1~3m", "플레이어의 정확한 위치에 강제로
+        /// 명중시키지 않는다". 0 으로 두면 피할 수 없는 공격이 되어, §3.3 의 "실패는
+        /// 대부분 복구 가능하게 만든다" 와 어긋난다.
+        /// </summary>
+        public const float MeteorPlayerTargetMinRadius = 1f;
+
+        /// <summary>플레이어를 노릴 때의 최대 거리(m).</summary>
+        public const float MeteorPlayerTargetMaxRadius = 3f;
+
+        /// <summary>
+        /// 같은 자리를 연속으로 고르지 않기 위한 최소 이동 거리(m).
+        ///
+        /// 기획 §17.5 "동일한 플레이어나 위치를 연속 선택하지 않는다". 거리로 재는 이유는
+        /// 좌표가 실수여서 "같은 위치" 를 등호로 판정할 수 없기 때문이다.
+        /// </summary>
+        public const float MeteorTargetRepeatDistance = 4f;
 
         // --- 전역 물리 설정 기록값 (ProjectSettings/DynamicsManager.asset) ---
         // Unity 6 기본값이 이미 목표치 이상이라 변경하지 않았다. 회귀 감시용으로만 기록한다.

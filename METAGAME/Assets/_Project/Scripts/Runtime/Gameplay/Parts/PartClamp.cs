@@ -74,6 +74,28 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         public void SetRequired(bool required) => _isRequired = required;
 
+        /// <summary>
+        /// 씬에 있는 고정못 전부. <see cref="PartSocket.All"/> 과 같은 방식이다.
+        ///
+        /// 운석 공세가 "작업 중인 곳" 을 여기서 찾는다(기획 §17.5, S15P21B202-234).
+        /// 파츠를 훑지 않는 이유는 <b>당기는 중인지</b>가 파츠가 아니라 고정못의 상태라서다.
+        ///
+        /// EditMode 에서는 <c>OnEnable</c> 이 호출되지 않으므로 <see cref="Initialize"/>
+        /// 가 직접 등록한다.
+        /// </summary>
+        public static readonly System.Collections.Generic.List<PartClamp> All = new();
+
+        void OnEnable() => Register();
+
+        void OnDisable() => Unregister();
+
+        public void Register()
+        {
+            if (!All.Contains(this)) All.Add(this);
+        }
+
+        public void Unregister() => All.Remove(this);
+
         public bool IsReleased { get; private set; }
 
         /// <summary>
@@ -111,6 +133,8 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         public void Initialize()
         {
+            Register();
+
             if (_initialized) return;
             _initialized = true;
 
