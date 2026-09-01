@@ -94,6 +94,38 @@ namespace Metagame.Gameplay.Hazards
         /// <summary>아직 살아 있는 운석.</summary>
         public IReadOnlyList<Meteor> Live => _live;
 
+        /// <summary>
+        /// 지면에 박힌 흔적 하나(기획 §19).
+        ///
+        /// 나이를 <b>여기서</b> 센다. 운석 쪽에서 세면 200개가 매 스텝 틱을 받아야 하고,
+        /// §19 이 "충돌 후 고비용 물리 … 를 끄고" 라고 정한 것과 어긋난다. 식은 뒤에는
+        /// 여기서도 세지 않으므로 비용이 0이 된다.
+        /// </summary>
+        public sealed class Scar
+        {
+            public Meteor Meteor;
+            public Vector3 Point;
+            public float Radius;
+            public float Age;
+
+            /// <summary>다 식었는가. 기획 §19 "약 5초 동안 … 약해진다".</summary>
+            public bool Cooled => Age >= PhysicsScale.MeteorScarCoolSeconds;
+        }
+
+        readonly List<Scar> _scars = new();
+
+        /// <summary>
+        /// 지면에 박힌 흔적. 오래된 것이 앞이다(기획 §19).
+        ///
+        /// <b>발사 실패 뒤에도 유지된다</b> — §22.4 가 "발사 실패는 스테이지 초기화가
+        /// 아니다" 라고 못박고 §19 도 같은 말을 한다. 지우는 것은
+        /// <see cref="ClearScars"/> 뿐이다.
+        /// </summary>
+        public IReadOnlyList<Scar> Scars => _scars;
+
+        /// <summary>상한에 걸려 지운 흔적 수. 조용히 잘라내지 않는다는 증거다.</summary>
+        public int ScarsTrimmed { get; private set; }
+
         public float Elapsed => _elapsed;
 
         /// <summary>지금 적용되는 공세 간격(초). 기획 §17.4 의 표가 정한다.</summary>
@@ -149,7 +181,40 @@ namespace Metagame.Gameplay.Hazards
             _hasLastTarget = false;
             _lastTargetPlayer = null;
             _pending.Clear();
-            _live.Clear();
+
+            // <b>목록만 비우면 누출이다.</b> 예전에는 운석이 착탄 6초 뒤 스스로
+            // 사라졌으므로 문제가 없었는데, 흔적으로 남기기 시작하면(§19) 씬에 영영
+            // 쌓인다(S15P21B202-251).
+            DestroyAll(_live);
+            ClearScars();
+        }
+
+        /// <summary>
+        /// 흔적을 모두 지운다(기획 §19 "전원 기절로 스테이지를 완전히 재시작할 때만
+        /// 초기화한다").
+        ///
+        /// <b>이것을 부르는 곳이 아직 하나뿐이다.</b> §20.5 의 전원 기절 판정
+        /// (<c>GameSession.TickAllDowned</c>)은 지금 로컬 플레이어만 보고 스폰 복귀만 하는
+        /// 상태라 "완전 재시작" 이 아니다. 그것은 멀티 판정이 걸려 [Network] 몫이므로,
+        /// 여기서는 함수를 만들어 두고 재시작 경로에 연결만 한다.
+        /// </summary>
+        public void ClearScars()
+        {
+            for (var i = 0; i < _scars.Count; i++)
+                if (_scars[i] != null && _scars[i].Meteor != null)
+                    _scars[i].Meteor.Despawn();
+
+            _scars.Clear();
+            ScarsTrimmed = 0;
+        }
+
+        static void DestroyAll(List<Meteor> meteors)
+        {
+            for (var i = 0; i < meteors.Count; i++)
+                if (meteors[i] != null)
+                    meteors[i].Despawn();
+
+            meteors.Clear();
         }
 
         /// <summary>
@@ -215,6 +280,7 @@ namespace Metagame.Gameplay.Hazards
             AdvanceSchedule(deltaTime);
             AdvancePending(deltaTime);
             AdvanceLive(deltaTime);
+            AdvanceScars(deltaTime);
         }
 
         /// <summary>
@@ -330,7 +396,76 @@ namespace Metagame.Gameplay.Hazards
                     continue;
                 }
 
+                // 박힌 운석은 흔적으로 옮기고 더 틱하지 않는다(기획 §19).
+                if (meteor.Settled)
+                {
+                    _live.RemoveAt(i);
+                    Remember(meteor);
+                    continue;
+                }
+
                 meteor.Tick(deltaTime);
+            }
+        }
+
+        /// <summary>
+        /// 흔적을 늘린다. 나이는 <see cref="AdvanceScars"/> 가 센다.
+        /// </summary>
+        void Remember(Meteor meteor)
+        {
+            _scars.Add(new Scar
+            {
+                Meteor = meteor,
+                Point = meteor.transform.position,
+                Radius = meteor.ImpactRadius,
+                Age = 0f,
+            });
+
+            Trim();
+        }
+
+        /// <summary>
+        /// 상한을 넘으면 가장 오래된 것부터 지운다(기획 §19 의 성능 기준 150~200개).
+        ///
+        /// <b>로그를 남긴다.</b> 조용히 잘라내면 "다 남았다" 로 보인다.
+        /// </summary>
+        void Trim()
+        {
+            while (_scars.Count > PhysicsScale.MeteorScarLimit)
+            {
+                var oldest = _scars[0];
+                _scars.RemoveAt(0);
+                ScarsTrimmed++;
+
+                if (oldest?.Meteor != null) oldest.Meteor.Despawn();
+
+                Debug.Log("[SpaceFlop] 운석 흔적 상한("
+                          + PhysicsScale.MeteorScarLimit
+                          + ")을 넘어 가장 오래된 것을 지웠다 — 누적 "
+                          + ScarsTrimmed + "개");
+            }
+        }
+
+        /// <summary>
+        /// 흔적의 나이를 센다(기획 §19 "약 5초 동안 … 약해진다").
+        ///
+        /// <b>식은 것은 건너뛴다.</b> 150~200개가 쌓여도 매 프레임 도는 비용이 0이 되어야
+        /// 한다 — 그것이 §19 의 성능 기준이다.
+        /// </summary>
+        void AdvanceScars(float deltaTime)
+        {
+            for (var i = _scars.Count - 1; i >= 0; i--)
+            {
+                var scar = _scars[i];
+                if (scar == null || scar.Meteor == null)
+                {
+                    _scars.RemoveAt(i);
+                    continue;
+                }
+
+                if (scar.Cooled) continue;
+
+                scar.Age += deltaTime;
             }
         }
 
