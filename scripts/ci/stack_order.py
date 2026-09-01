@@ -32,9 +32,25 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from ci_common import GitLab, Report, banner, completes_on_merge, env  # noqa: E402
+from ci_common import GitLab, Report, banner, completes_on_merge, env, strip_draft  # noqa: E402
 
 MARKER = "<!-- stack-order:metagame -->"
+
+# -244 는 같은 목적을 **Draft** 로 달성했다. 그 방식은 팀 규칙(Draft 금지)과 충돌해서 이 잡으로
+# 바뀌었지만, 그때 이미 Draft 로 묶인 MR 이 남아 있다(2026-09-02: !173·!174·!176). 그것들을
+# 풀어 줄 주체가 사라지면 사람이 손으로 "Mark as ready" 를 눌러야 하고, 그동안 mr-lint 가
+# Draft 금지로 실패한다. 그래서 이 잡이 흔적을 지운다 — 한 번 돌면 사라지는 이행 코드다.
+LEGACY_LABEL = "stack-blocked"
+LEGACY_MARKER = "<!-- mr-overlap:stack-gate -->"
+LEGACY_CLEARED = LEGACY_MARKER + """
+↩ **이 안내는 더 이상 유효하지 않습니다.**
+
+스택 순서는 Draft 대신 **`stack-order` 검사**가 막습니다(팀 규칙이 Draft 를 금지하므로). CI 가 걸어 둔
+Draft 와 `stack-blocked` 레이블은 떼 두었습니다 — **직접 하실 일은 없습니다.**
+
+이 MR 이 아직 다른 이슈의 작업 브랜치를 대상으로 한다면 아래 🔒 안내가 새로 달립니다.
+
+<sub>자동 생성(stack-order)</sub>"""
 
 BLOCKED = MARKER + """
 🔒 **부모가 먼저 머지돼야 합니다 — 그때까지 `stack-order` 검사가 실패합니다**
@@ -66,6 +82,23 @@ def parent_note(gl: GitLab, target: str) -> str:
     return ""
 
 
+def clear_legacy(gl: GitLab, rep: Report, mr: dict) -> None:
+    """-244 의 Draft 방식이 남긴 흔적(제목 접두어·레이블·안내)을 지운다. 한 번만 도는 이행 코드."""
+    if LEGACY_LABEL not in [str(x) for x in (mr.get("labels") or [])]:
+        return
+    clean, was_draft = strip_draft(mr.get("title") or "")
+    fields = {"remove_labels": LEGACY_LABEL}
+    if was_draft:
+        fields["title"] = clean
+    st, _ = gl.update_mr(**fields)
+    if st == 200:
+        rep.ok("예전 방식(-244)이 걸어 둔 Draft·레이블을 뗐다 — 순서는 이 검사가 본다")
+        gl.upsert_note(LEGACY_MARKER, LEGACY_CLEARED)
+    else:
+        rep.warn(f"예전 Draft 를 떼지 못했다({st}) — MR 화면에서 'Mark as ready' 를 누르고 "
+                 f"`{LEGACY_LABEL}` 레이블을 지워 주세요")
+
+
 def main() -> int:
     banner("stack-order")
     rep = Report("stack-order")
@@ -75,6 +108,7 @@ def main() -> int:
         return 0
 
     mr = gl.get_mr()
+    clear_legacy(gl, rep, mr)          # 판정보다 먼저 — 남은 Draft 가 mr-lint 를 실패시키지 않게
     target = mr.get("target_branch") or ""
 
     if completes_on_merge(target):

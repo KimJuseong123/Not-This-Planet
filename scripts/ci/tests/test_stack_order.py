@@ -51,7 +51,7 @@ def fake_http(method, url, headers=None, body=None, timeout=30):
         STATE["puts"].append(body)
         return STATE.get("put_status", 200), {}
     if method == "GET":                       # MR 조회
-        return 200, {"iid": 77, "title": "[Character] feat: x (S15P21B202-243)",
+        return 200, {"iid": 77, "title": STATE["title"], "labels": list(STATE["labels"]),
                      "target_branch": STATE["target"], "web_url": "https://lab/mr/77"}
     raise AssertionError(f"예상 못한 호출: {method} {url}")
 
@@ -59,11 +59,13 @@ def fake_http(method, url, headers=None, body=None, timeout=30):
 ci_common.http = fake_http
 
 
-def run(target, branches=(), merged_sources=(), notes=(), open_mrs=(), put_status=200):
+def run(target, branches=(), merged_sources=(), notes=(), open_mrs=(), put_status=200,
+        title="[Character] feat: x (S15P21B202-243)", labels=()):
     """stack_order.main() 을 한 번 돌린다. 반환 (종료코드, 보낸 수정들, 코멘트)."""
     STATE.clear()
     STATE.update(target=target, branches=set(branches), merged_sources=set(merged_sources),
-                 notes=list(notes), open=list(open_mrs), puts=[], posted=None, put_status=put_status)
+                 notes=list(notes), open=list(open_mrs), puts=[], posted=None, put_status=put_status,
+                 title=title, labels=list(labels))
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         rc = S.main()
@@ -137,5 +139,20 @@ with contextlib.redirect_stdout(io.StringIO()):
     assert S.main() == 0
 os.environ["CI_MERGE_REQUEST_IID"] = "77"
 print("  MR 아님 → 생략 ✅")
+
+# ── ⑪ 이행: -244 의 Draft 방식이 걸어 둔 흔적을 지운다 (2026-09-02 실제로 !173·!174·!176 이 그 상태였다)
+rc, puts, note, out = run("S15P21B202-241-puzzle", branches=["S15P21B202-241-puzzle"],
+                          title="Draft: [Puzzle] feat: x (S15P21B202-247)", labels=["stack-blocked"])
+assert any(p.get("remove_labels") == "stack-blocked" for p in puts), puts
+assert any(p.get("title") == "[Puzzle] feat: x (S15P21B202-247)" for p in puts), puts
+assert rc != 0, "흔적을 지운 뒤에도 스택 자식이면 실패해야 한다"
+assert note and "부모가 먼저 머지돼야" in note, note
+print("  예전 Draft 흔적 제거 + 판정 유지 ✅")
+
+# ── ⑫ 레이블이 없으면 이행 코드가 아무 것도 하지 않는다(사람이 건 Draft 는 mr-lint 가 본다)
+rc, puts, note, _ = run("develop", branches=["develop"],
+                        title="Draft: [Puzzle] feat: x (S15P21B202-247)")
+assert not puts, f"사람이 건 Draft 를 CI 가 풀면 안 된다: {puts}"
+print("  사람이 건 Draft 는 건드리지 않음 ✅")
 
 print("TEST244 OK")
