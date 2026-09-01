@@ -51,8 +51,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Metagame.UI::Metagame.UI.Stage1TabletView
   screenAnchor: {fileID: 492151034510631545}
   screenSize: {x: 0.252, y: 0.13270903}
-  openLocalPosition: {x: -0.05, y: -0.04, z: 0.29}
-  openLocalEuler: {x: 23, y: 163, z: -5}
+  openLocalPosition: {x: -0.05, y: -0.08, z: 0.29}
+  openLocalEuler: {x: 8, y: -12, z: 8}
   closedLocalPosition: {x: 0.18, y: -0.55, z: 0.42}
   closedLocalEuler: {x: 34, y: -18, z: -10}
   poseSpeed: 12
@@ -173,14 +173,14 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8796920814965764060}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: -0.9659258, z: 0.2588191, w: 0}
-  m_LocalPosition: {x: 0, y: 0.009479216, z: 0.04}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0.009479216, z: -0.088792324}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 8011032913330244427}
   m_Father: {fileID: 2528877569576023603}
-  m_LocalEulerAnglesHint: {x: 150, y: 0, z: 180}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &9085868030912332804
 GameObject:
   m_ObjectHideFlags: 0
