@@ -297,7 +297,12 @@ namespace Metagame.Gameplay.Parts
             if (player != null) occupied.Add(player.Position);
             occupied.Add(new Vector3(0f, 0f, 10f)); // 조립 지점
 
-            var random = new System.Random(System.Environment.TickCount ^ vehicles.Length * 7919);
+            // 예전에는 TickCount 로 시드를 만들었다. 그래서 참가자마다 운반체가 다른
+            // 곳에 있었다 — 각 PC 가 자기 시계로 따로 뽑았기 때문이다(S15P21B202-152).
+            //
+            // 이제 이 함수는 서버에서만 돈다. 결과 위치는 NetworkTransform 을 타고
+            // 그대로 내려가므로 시드를 맞출 필요가 없다 — 서버가 뽑은 값이 곧 정답이다.
+            var random = new System.Random();
             for (var i = 0; i < vehicles.Length; i++)
             {
                 var vehicle = vehicles[i];
