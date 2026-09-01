@@ -64,6 +64,17 @@ MonoBehaviour:
     density: 0.1
     startDistance: 15
     endDistance: 180
+  groundFog:
+    enabled: 1
+    color: {r: 0.2, g: 0.15, b: 0.32, a: 1}
+    density: 0.1
+    baseHeight: 0
+    heightFalloff: 0.2
+    startDistance: 2
+    endDistance: 80
+    noiseScale: 0.05
+    noiseSpeed: {x: 0.006, y: -0.004}
+    noiseStrength: 0.22
   postProcessing:
     tonemapping: 2
     bloomEnabled: 1
