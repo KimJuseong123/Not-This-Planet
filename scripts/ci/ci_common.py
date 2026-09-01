@@ -240,6 +240,27 @@ class GitLab:
             if len(d) < 100:
                 return out, True
         return out, False
+    def mrs_for_commit(self, sha: str) -> tuple[list[dict], bool]:
+        """이 커밋에 연결된 MR 들. develop push 파이프라인에서 "방금 무엇이 머지됐나" 를 아는 유일한 길이다.
+        머지 커밋과 그 안의 개별 커밋 모두 같은 MR 을 돌려준다(2026-09-01 실측). 반환 (mrs, ok)."""
+        if not sha:
+            return [], True
+        st, d = http("GET", f"{self.api}/projects/{self.project}/repository/commits/"
+                            f"{quote(sha, safe='')}/merge_requests?per_page=20", self._h())
+        if st != 200 or not isinstance(d, list):
+            return [], False
+        return d, True
+
+    def merged_mrs_for_target(self, branch: str) -> tuple[list[dict], bool]:
+        """이 브랜치를 **대상으로** 머지된 MR 들 = 스택 자식. 반환 (mrs, ok)."""
+        if not branch:
+            return [], True
+        st, d = http("GET", f"{self.api}/projects/{self.project}/merge_requests"
+                            f"?state=merged&target_branch={quote(branch, safe='')}&per_page=50", self._h())
+        if st != 200 or not isinstance(d, list):
+            return [], False
+        return d, True
+
     def merged_mr_for_source(self, branch: str) -> tuple[dict | None, bool]:
         """이 브랜치를 **소스로** 머지된 MR (가장 최근 1건). 반환 (mr|None, ok).
 
@@ -334,6 +355,43 @@ class Jira:
         if st != 200:
             raise RuntimeError(f"Jira search → {st}: {str(d)[:200]}")
         return d.get("issues", [])
+
+    def transition_to_done(self, key: str) -> tuple[bool, str]:
+        """이슈를 완료로 옮긴다. 반환 (성공, 설명). 전환 id 는 프로젝트마다 다르므로 이름이 아니라
+        **statusCategory 가 done 인 전환**을 찾는다(한국어/영어 사이트 모두 동작)."""
+        st, d = http("GET", f"{self.api}/rest/api/3/issue/{key}/transitions", self._h())
+        if st != 200 or not isinstance(d, dict):
+            return False, f"전환 목록 조회 실패 {st}"
+        cand = [t for t in d.get("transitions", [])
+                if ((t.get("to") or {}).get("statusCategory") or {}).get("key") == "done"]
+        if not cand:
+            names = ", ".join(str((t.get("to") or {}).get("name")) for t in d.get("transitions", []))
+            return False, f"완료 전환이 없음(가능: {names or '없음'})"
+        st2, d2 = http("POST", f"{self.api}/rest/api/3/issue/{key}/transitions", self._h(),
+                       {"transition": {"id": cand[0]["id"]}})
+        if st2 not in (200, 204):
+            return False, f"전환 실패 {st2}: {str(d2)[:120]}"
+        return True, (cand[0].get("to") or {}).get("name", "완료")
+
+    def comment(self, key: str, body: str) -> bool:
+        """평문 코멘트. ADF 로 감싸 보낸다(REST v3 는 문자열 본문을 받지 않는다)."""
+        doc = {"type": "doc", "version": 1,
+               "content": [{"type": "paragraph",
+                            "content": [{"type": "text", "text": body[:4000]}]}]}
+        st, _ = http("POST", f"{self.api}/rest/api/3/issue/{key}/comment", self._h(), {"body": doc})
+        return st in (200, 201)
+
+    def dev_index_ready(self, key: str) -> bool:
+        """R9(수동 완료 되돌림)가 보는 것과 **같은 JQL** 로 개발 정보 색인이 따라잡았는지 확인한다.
+
+        머지 직후에는 이 색인이 늦다 — 그 상태에서 완료로 옮기면 R9 가 즉시 되돌린다
+        (2026-08-31 실측: 23:24 머지 → 23:29 완료 → 2초 뒤 되돌림). 먼저 물어보고 옮기면 충돌하지 않는다."""
+        jql = (f'key = {key} AND development[pullrequests].open = 0 '
+               f'AND development[pullrequests].all > 0')
+        try:
+            return bool(self.search(jql, ["summary"], max_results=1))
+        except Exception:      # noqa: BLE001 — 색인 질의 실패는 "아직 아님" 과 같게 취급
+            return False
 
     def search_all(self, jql: str, fields: list[str], page_size: int = 100, max_pages: int = 20) -> tuple[list[dict], bool]:
         """전량 수집(/search/jql 의 nextPageToken 순회). 반환 (issues, complete) — max_pages 안에 끝나지 않으면 complete=False.
