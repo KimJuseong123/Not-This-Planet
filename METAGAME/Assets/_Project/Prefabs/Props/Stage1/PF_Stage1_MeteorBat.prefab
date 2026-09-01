@@ -10,9 +10,9 @@ GameObject:
   m_Component:
   - component: {fileID: 2806296892988998667}
   - component: {fileID: 4109489938684533051}
-  - component: {fileID: 6039288761010637201}
   - component: {fileID: 8626281750752110272}
   - component: {fileID: 8325008317048603093}
+  - component: {fileID: 296463504008643616}
   m_Layer: 13
   m_Name: PF_Stage1_MeteorBat
   m_TagString: Untagged
@@ -63,27 +63,6 @@ Rigidbody:
   m_Interpolate: 1
   m_Constraints: 0
   m_CollisionDetection: 3
---- !u!65 &6039288761010637201
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4569091458224607951}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 0.34, y: 1.12, z: 0.34}
-  m_Center: {x: 0, y: 0.56, z: 0}
 --- !u!114 &8626281750752110272
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -117,6 +96,27 @@ MonoBehaviour:
   muzzle: {fileID: 0}
   heldVisualLocalPosition: {x: 0.45, y: -0.55, z: 0.35}
   heldVisualLocalEuler: {x: 0, y: 0, z: -35}
+--- !u!65 &296463504008643616
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4569091458224607951}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.9531078, y: 1.0200002, z: 0.92090017}
+  m_Center: {x: 0, y: 0.6000001, z: -0.000000059604645}
 --- !u!1001 &247729814681725006
 PrefabInstance:
   m_ObjectHideFlags: 0

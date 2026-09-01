@@ -275,7 +275,7 @@ namespace Metagame.Gameplay.Tests
         public void ATeammateOutOfReach_IsNotStruck()
         {
             MakeGround();
-            MakePlayer(new Vector3(PhysicsScale.BatPlayerReach + 1f, 0f, 0f));
+            MakePlayer(new Vector3(PhysicsScale.BatStrikeReach + 1f, 0f, 0f));
             var bat = MakeBat();
 
             Assert.IsFalse(bat.Swing(Vector3.zero, Vector3.right));
