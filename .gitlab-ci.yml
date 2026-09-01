@@ -22,7 +22,11 @@ workflow:
 stages: [prepare, lint, test, review, notify]
 
 default:
-  image: python:3.12-slim
+  # git 이 들어 있는 이미지를 쓴다(slim 에는 없다). mr-overlap·repo-hygiene·ci-tests 가 git 을 직접 부르는데,
+  # 러너가 소스를 받을 때 쓰는 헬퍼 이미지는 잡 컨테이너와 별개라 체크아웃만 되고 스크립트는 깨진다
+  # (2026-09-01 EC2 도커 러너 실측: FileNotFoundError: 'git' · git: not found).
+  # 잡마다 apt-get install 하는 것보다 실행 시간이 짧고 결과가 결정적이다 — pull_policy if-not-present 라 최초 1회만 받는다.
+  image: python:3.12
   interruptible: true
 
 variables:

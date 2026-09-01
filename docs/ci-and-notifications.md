@@ -58,7 +58,37 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 ## 4. 러너
 
 - **공유 러너**: 설정은 켜져 있지만(`shared_runners_enabled=true`) **실제 러너가 없다** — MR !10 첫 파이프라인이 9분 넘게 `pending`(2026-08-27 실측). 따라서 **프로젝트 러너 등록이 필수**. `image:` 는 Docker 러너용이며 shell 러너에서는 무시됨.
-- **러너 배치 계획**: ① **상시 러너 = 지급 EC2(Linux, Docker 실행기, 24시간)** — mr-title·mr-lint·repo-hygiene·ai-review·mm-digest 전부 여기서. `sudo RUNNER_TOKEN=glrt-… bash scripts/runner/setup-linux-runner.sh` 한 줄(Docker·gitlab-runner 설치·등록·systemd). ② **Unity 러너 = Unity 6000.5.4f1 설치 Windows PC**(태그 `unity-win`, 근무 시간만 켜져도 됨 — allow_failure 잡). ③ EC2 지급 전 임시: 팀 PC 1대에 Windows 러너(아래) — 꺼져 있는 시간엔 파이프라인이 pending 으로 대기하고, 다이제스트는 그 시각에 러너가 없으면 건너뜀. EC2 오면 임시 러너는 GitLab 에서 삭제.
+- **현재 배치(2026-09-01 실측)** — 러너 **2대가 모두 태그 없이** 돌고 있어 잡이 양쪽으로 갈린다.
+
+  | 러너 | 어디 | 실행기 | 몫 |
+  | --- | --- | --- | --- |
+  | `METAGAME-ip-172-26-13-34` | **EC2**(상시, 24시간) | docker · concurrent 2 · 부팅 자동 시작 | 앞으로 전부 |
+  | `METAGAME-DESKTOP-UB20P0O` | 내 PC | shell(pwsh) | Unity 잡(`unity-win`) · EC2 장애 시 예비 |
+
+  내 PC 러너 강등(태그 부여 + Run untagged 해제)은 **EC2 가 한동안 안정적으로 도는 것을 본 뒤**에 한다.
+  단일 러너가 팀 전체의 단일 장애점이었다 — 08-28 러너 중단 1시간, 08-31 MAX_PATH 로 파이프라인 26건 전멸.
+  EC2 는 리눅스·도커라 **MAX_PATH 문제는 원인 자체가 없다.**
+
+- **EC2 러너 설치**: `sudo RUNNER_TOKEN=glrt-… bash scripts/runner/setup-linux-runner.sh` (토큰은 환경변수로만 — `read -rs` 로 받아 화면·히스토리에 남기지 않는다). 러너는 아웃바운드 443 만 쓰므로 **UFW 변경 불필요**.
+- **잡 이미지에는 git 이 있어야 한다**(2026-09-01 실측). `python:3.12-slim` 에는 git 이 없어 `ci-tests` 가 EC2 에서
+  `FileNotFoundError: 'git'` 로 실패했다. 러너가 소스를 받을 때 쓰는 **헬퍼 이미지는 잡 컨테이너와 별개**라
+  체크아웃은 되고 스크립트만 깨진다 — `mr-overlap`·`repo-hygiene` 도 같은 이유로 EC2 배정 시 깨진다.
+  그래서 기본 이미지를 **`python:3.12`**(git 2.47.3 포함, 1.62GB)로 둔다. `pull_policy: if-not-present` 라 최초 1회만 받고,
+  잡마다 `apt-get install git` 하는 것보다 빠르고 결정적이다.
+- **AI 리뷰를 도커 러너에서 돌리는 법**(2026-09-01 구성): 호스트에 Claude CLI 를 설치해 로그인하고, `config.toml` 에서 **바이너리는 읽기 전용·설정 디렉터리는 쓰기 가능**으로 잡 컨테이너에 마운트한다.
+
+  ```toml
+  [[runners]]
+    environment = ["CLAUDE_BIN=/usr/local/bin/claude", "CLAUDE_CONFIG_DIR=/claude-config", "DISABLE_AUTOUPDATER=1"]
+    [runners.docker]
+      volumes = ["/cache", "/usr/local/bin/claude:/usr/local/bin/claude:ro", "/home/ubuntu/.claude:/claude-config:rw"]
+  ```
+
+  **자격증명을 환경변수가 아니라 마운트로 넣는 이유**: 환경변수는 CI 로그에 실수로 찍히기 쉽다. 설정 디렉터리는
+  토큰 갱신 때문에 쓰기가 필요하다. 바이너리는 버전 디렉터리 대신 `/usr/local/bin/claude` 로 복사해 경로를 고정하고,
+  `DISABLE_AUTOUPDATER=1` 로 CI 중 자동 업데이트를 막는다.
+  실측: 컨테이너 안에서 `auth status` → `loggedIn: true`, `ai-review` 잡이 EC2 에서 **64초에 성공**(파이프라인 176070).
+- ~~러너 배치 계획~~(아래는 이전 계획 기록): ① **상시 러너 = 지급 EC2(Linux, Docker 실행기, 24시간)** — mr-title·mr-lint·repo-hygiene·ai-review·mm-digest 전부 여기서. `sudo RUNNER_TOKEN=glrt-… bash scripts/runner/setup-linux-runner.sh` 한 줄(Docker·gitlab-runner 설치·등록·systemd). ② **Unity 러너 = Unity 6000.5.4f1 설치 Windows PC**(태그 `unity-win`, 근무 시간만 켜져도 됨 — allow_failure 잡). ③ EC2 지급 전 임시: 팀 PC 1대에 Windows 러너(아래) — 꺼져 있는 시간엔 파이프라인이 pending 으로 대기하고, 다이제스트는 그 시각에 러너가 없으면 건너뜀. EC2 오면 임시 러너는 GitLab 에서 삭제.
 - **프로젝트 러너 등록(Windows, 20분)**: ① 팀장: Settings → CI/CD → Runners → *New project runner* → 태그 `windows`(+`unity-win`), **Run untagged jobs ✔** → 토큰(`glrt-…`) 발급해 등록할 사람에게 직접 전달 ② 등록자(관리자 PowerShell): `$env:RUNNER_TOKEN="glrt-…"; .\scripts\runner\setup-windows-runner.ps1 [-Unity]` — [setup-windows-runner.ps1](../scripts/runner/setup-windows-runner.ps1) 이 바이너리 다운로드·Python 3.12 확인/설치·등록·서비스 설치를 한다 ③ 팀장: 변수 **`CI_ENABLE=true`** → 그때부터 MR 파이프라인이 생성됨(그 전에는 pending 노이즈를 막기 위해 파이프라인을 만들지 않음). 주의: 러너 셸은 **`pwsh`(PowerShell 7, MSI 시스템 설치)** 여야 한다 — 5.1(`powershell`)은 잡 스크립트를 cp949 로 읽어 한글 CI 변수(MR 제목·본문·커밋 메시지)에서 파서 오류로 모든 잡이 실패(2026-08-27 파이프라인 #175296 실측). Store 판 pwsh 는 SYSTEM 서비스가 실행 못 하므로 `runner-use-pwsh.ps1` 로 MSI 설치 + 셸 전환. `glrt-` 토큰은 생성 직후 한 번만 보이니 그때 복사해 전달(`Verifying runner... is not valid` = 토큰 불일치)
 - **Unity 러너**(2단계): Unity **6000.5.4f1** 이 설치된 Windows PC 에서 같은 스크립트를 `-Unity` 로 실행(태그 `windows,unity-win`). 그 뒤 변수 `UNITY_RUNNER=true`, `UNITY_PATH=C:\Program Files\Unity\Hub\Editor\6000.5.4f1\Editor\Unity.exe`. 현재 SSAFY PC 에는 6000.0.81f1 만 있어 버전을 맞춰야 함. 러너 PC 는 절전 금지, 프로젝트가 커지면 `GIT_DEPTH` 조정.
 - **AI 리뷰(cli 백엔드) 준비 — 러너 호스트에서**: ① 러너를 돌릴 **사용자 계정**으로 로그인한 터미널에서 Claude Code CLI 설치(`irm https://claude.ai/install.ps1 | iex`) 후 `claude` 실행 → `/login` 으로 팀 Claude 계정 로그인(브라우저) → `claude -p "PONG"` 이 답하면 OK ② 러너 잡이 그 로그인을 쓰게 연결: 관리자 PowerShell `.\scripts\runner\runner-claude-env.ps1` — config.toml 의 러너 `environment` 에 `CLAUDE_CONFIG_DIR=<사용자>\.claude`·`CLAUDE_BIN=<사용자>\.local\bin\claude.exe` 를 넣고 서비스 재시작(SYSTEM 계정 서비스가 사용자 프로필의 자격 파일을 그대로 읽음 — 2026-08-27 실측, 비밀번호·토큰 복사 불필요). (서비스를 사용자 계정으로 돌리는 방식은 비밀번호가 명령줄에 노출되는 문제로 채택하지 않음) ③ 팀장: 변수 `AI_REVIEW_CLI=true`(+ 코멘트용 `GITLAB_TOKEN`). 자격은 러너 호스트의 사용자 프로필(`~\.claude`)에만 있고 GitLab 변수·리포에 들어가지 않는다 — EC2 시절과 같은 구조. 사용자의 VS Code Claude Code 와 러너가 같은 자격 파일을 공유하므로 `/logout` 하면 CI 리뷰도 멈추고, 토큰 갱신이 겹쳐 "Not logged in" 이 나면 사용자 세션에서 `claude` 재로그인. 주의: `claude -p --bare` 는 keychain 을 읽지 않아 "Not logged in" 이 되므로 쓰지 않음. 호스트 사용자 비밀번호가 바뀌면 서비스가 멎으니 스크립트 재실행. 이 방식은 팀 구독 사용량을 소비하고, 구독 OAuth 의 자동화 사용은 Anthropic 이 Pro/Max 개인 CI 용도로만 공식 안내하므로 정책 변경 시 `api` 백엔드로 전환할 것(팀 결정 2026-08-27)
