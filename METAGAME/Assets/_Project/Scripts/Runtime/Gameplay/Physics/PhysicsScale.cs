@@ -750,6 +750,62 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float MeteorWarningLift = 0.03f;
 
+        // --- 파츠 수동 밀기 (기획 §13) ---
+        /// <summary>
+        /// 밀기가 시작되기까지 파츠 쪽으로 이동해야 하는 시간(초). 기획 §13.1.
+        ///
+        /// §13.1 이 "스쳐 지나가는 접촉으로 발동하지 않도록" 이라고 이유까지 적었다.
+        /// 파츠 옆을 지나가는 것과 파츠를 밀려는 것을 <b>시간으로</b> 가른다.
+        /// </summary>
+        public const float PartPushIntentSeconds = 0.2f;
+
+        /// <summary>
+        /// 이동 입력이 멈추거나 접촉이 끊긴 뒤 밀기가 끝나기까지의 시간(초). 기획 §13.1.
+        ///
+        /// 0 이면 걸음이 한 틱 끊길 때마다 밀기가 풀려 파츠가 덜컥거린다.
+        /// </summary>
+        public const float PartPushReleaseSeconds = 0.5f;
+
+        /// <summary>
+        /// 파츠에 "닿았다" 로 보는 거리(m).
+        ///
+        /// 실제 접촉 콜백을 쓰지 않는다. 인형은 뼈가 열두 개라 어느 뼈가 닿았는지에 따라
+        /// 판정이 흔들리고, 밀기는 <b>몸으로 미는 것</b>이지 손가락이 스치는 것이 아니다.
+        /// 콜라이더의 가장 가까운 점까지의 거리로 잰다.
+        /// </summary>
+        public const float PartPushContactDistance = 0.6f;
+
+        /// <summary>
+        /// 이동 방향이 파츠 쪽인지 보는 기준(내적). 0.5 면 60도 안이다.
+        ///
+        /// §13.1 "이동 방향을 검사한다" 이고 "<b>당기기는 제공하지 않으며</b> 반대편으로
+        /// 이동해 반대 방향으로 민다" 이므로, 파츠에서 멀어지는 입력은 밀기가 아니다.
+        /// </summary>
+        public const float PartPushAimDot = 0.5f;
+
+        /// <summary>
+        /// 밀기 가속(m/s²). 목표 속도까지 올라가는 빠르기다.
+        ///
+        /// 1.2 면 1명이 미는 0.4m/s 까지 3분의 1초쯤 걸린다. 즉시 목표 속도가 되면
+        /// 500kg 이 아니라 빈 상자를 미는 것으로 보인다.
+        /// </summary>
+        public const float PartPushAccel = 1.2f;
+
+        /// <summary>
+        /// 아무도 밀지 않을 때 관성이 줄어드는 시간 상수(초). 기획 §13.2 "약 1초 동안
+        /// 관성이 줄어든 뒤 정지".
+        /// </summary>
+        public const float PartPushDampSeconds = 1f;
+
+        /// <summary>
+        /// 이 배수보다 빠른 파츠는 <b>밀린 것이 아니라 맞은 것</b>으로 본다.
+        ///
+        /// §13.2 가 "운석 충격은 플레이어의 밀기보다 훨씬 강한 힘을 적용한다" 고 정한다.
+        /// 감쇠를 무조건 걸면 운석에 날아간 파츠도 1초 만에 멈춘다 — §13.2 가 말하는
+        /// 관성은 <b>밀어서 생긴 것</b>이다(S15P21B202-250).
+        /// </summary>
+        public const float PartPushForeignSpeedFactor = 1.5f;
+
         // --- 기절한 동료 운반 (기획 §20.4) ---
         /// <summary>
         /// 기절한 동료를 끌고 갈 때의 이동 속도 배율. 기획 §20.4 "운반 중 이동 속도가
