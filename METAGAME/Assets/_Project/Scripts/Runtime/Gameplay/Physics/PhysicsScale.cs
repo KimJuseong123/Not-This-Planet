@@ -750,6 +750,29 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float MeteorWarningLift = 0.03f;
 
+        // --- 기절한 동료 운반 (기획 §20.4) ---
+        /// <summary>
+        /// 기절한 동료를 끌고 갈 때의 이동 속도 배율. 기획 §20.4 "운반 중 이동 속도가
+        /// 느려지고".
+        ///
+        /// 인형 총 질량이 <b>34.9kg</b>(골반 8 + 가슴 10 + 머리 5 + 팔 3.9 + 다리 8)이라
+        /// 저중력(−2.8m/s²)에서도 가볍지 않다. 절반이면 "끌고 간다" 는 감각이 나고,
+        /// 그보다 더 느리면 운석을 피해 옮기는 것(§20.3 "주변을 확인하지 않고 구조하면
+        /// 두 플레이어가 함께 다시 맞을 수 있다")이 불가능해진다.
+        /// </summary>
+        public const float DownedCarrySpeedScale = 0.5f;
+
+        /// <summary>
+        /// 기절한 동료를 조준으로 잡을 수 있는 거리(m).
+        ///
+        /// <see cref="Metagame.Core.Tuning.ArmReach"/> 보다 넉넉하다. 쓰러진 사람은
+        /// 바닥에 있어 조준점이 발끝에 맞기 쉬운데, 팔 길이로 재면 서서 겨눌 수 없다.
+        /// </summary>
+        public const float DownedCarryReach = 2.5f;
+
+        /// <summary>기절한 동료를 조준으로 잡을 수 있는 각도(도).</summary>
+        public const float DownedCarryAngle = 35f;
+
         // --- 끼임 복구 (기획 §21) ---
         /// <summary>
         /// 끼임 탈출을 위해 <c>T</c> 를 유지해야 하는 시간(초). 기획 §21.
