@@ -27,6 +27,11 @@ default:
   # (2026-09-01 EC2 도커 러너 실측: FileNotFoundError: 'git' · git: not found).
   # 잡마다 apt-get install 하는 것보다 실행 시간이 짧고 결과가 결정적이다 — pull_policy if-not-present 라 최초 1회만 받는다.
   image: python:3.12
+  # 모든 잡을 EC2 러너(태그 linux)로 고정한다. 두 러너가 태그 없이 돌던 동안 잡이 양쪽으로 갈려
+  # ① 내 PC 를 꺼면 절반이 멈추고 ② 러너에 따라 환경이 달라졌다(-214 의 git 문제).
+  # unity-compile 만 tags: [unity-win] 으로 덮어써 내 PC 로 간다.
+  # EC2 장애 시: 팀장이 내 PC 러너에 linux 태그를 추가하면 즉시 예비 투입(docs/ci-and-notifications.md §4).
+  tags: [linux]
   interruptible: true
 
 variables:
