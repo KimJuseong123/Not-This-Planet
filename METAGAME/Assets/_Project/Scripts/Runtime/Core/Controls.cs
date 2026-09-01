@@ -10,6 +10,13 @@ namespace Metagame.Core
     {
         public Vector2 Move;      // x=좌우, y=앞뒤
         public Vector2 Look;      // 마우스 델타
+
+        // 지금 어디를 보고 있는가. Look 은 "얼마나 돌렸나" 라서 이것만으로는 방향을
+        // 알 수 없다. 카메라는 각자 PC 에만 있으므로(S15P21B202-147), 서버가 "앞" 이
+        // 어느 쪽인지 알려면 결과인 이 두 각도를 함께 받아야 한다.
+        // 혼자 돌릴 때는 카메라가 옆에 있으니 쓰이지 않는다.
+        public float AimYaw;
+        public float AimPitch;
         public bool Jump;
         public bool Run;
         public bool GrabLeft;     // 좌클릭 — 왼팔

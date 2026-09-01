@@ -34,16 +34,23 @@ namespace Metagame.Network
         Doll doll;
         Transform source;
 
+        bool mine;
+
         /// <summary>
-        /// 원격 표현으로 바꾼다. <paramref name="source"/> 는 서버가 위치를 넣어 주는
-        /// 네트워크 오브젝트(NetPlayer)의 Transform 이다.
+        /// 서버가 보낸 자리를 그리는 몸으로 바꾼다. <paramref name="source"/> 는 서버가
+        /// 위치를 넣어 주는 네트워크 오브젝트(NetPlayer)의 Transform 이다.
         /// </summary>
-        public static RemoteAvatar Attach(PlayerRig rig, Transform source)
+        /// <param name="mine">
+        /// 내 캐릭터인가. 내 것이어도 물리는 서버가 돌리므로 하는 일은 같지만,
+        /// 카메라가 붙어 있어 1인칭 표시(<see cref="PlayerRig.IsLocal"/>)는 남겨 둔다.
+        /// </param>
+        public static RemoteAvatar Attach(PlayerRig rig, Transform source, bool mine = false)
         {
             var avatar = rig.gameObject.AddComponent<RemoteAvatar>();
             avatar.rig = rig;
             avatar.doll = rig.Doll;
             avatar.source = source;
+            avatar.mine = mine;
             avatar.Configure();
             return avatar;
         }
@@ -54,7 +61,8 @@ namespace Metagame.Network
             // 그대로 두면 서버가 보낸 위치와 계속 싸운다.
             rig.enabled = false;
             if (rig.ClampInteractor != null) rig.ClampInteractor.enabled = false;
-            rig.IsLocal = false;
+            rig.NetworkDriven = true;
+            if (!mine) rig.IsLocal = false;
 
             // 골반을 세계에 붙들어 인형을 세우는 조인트다. 골반을 우리가 직접
             // 옮길 것이므로 남겨 두면 서로 잡아당긴다.

@@ -159,7 +159,11 @@ namespace Metagame.Gameplay
                 LocalPlayer.SetInput(f);
             }
 
-            // 떨어졌는가
+            // 떨어졌는가 — 위치를 서버가 정할 때는 서버가 판단한다. 여기서 부활시키면
+            // 화면 속 몸만 스폰 지점으로 옮겨지고, 서버가 보낸 다음 위치에 곧바로
+            // 도로 끌려간다.
+            if (LocalPlayer.NetworkDriven) return;
+
             Vector3 p = LocalPlayer.Position;
             if (LocalPlayer.IsDead || p.y < Tuning.DeathHeight || float.IsNaN(p.x))
             {

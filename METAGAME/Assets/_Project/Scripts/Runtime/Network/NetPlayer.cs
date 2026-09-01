@@ -1,5 +1,6 @@
 using Mirror;
 using UnityEngine;
+using Metagame.Core;
 using Metagame.Gameplay;
 
 namespace Metagame.Network
@@ -9,15 +10,23 @@ namespace Metagame.Network
     ///
     /// PlayerRig 는 프리팹이 아니라 런타임에 조인트로 조립하는 래그돌이라(RagdollBuilder)
     /// Mirror 의 스폰 목록에 등록할 수 없다. 그래서 NetworkIdentity 만 가진 얇은 프리팹을
-    /// 스폰하고, 몸은 서버와 클라이언트가 같은 코드로 그 아래에 만든다.
+    /// 스폰하고, 몸은 서버와 클라이언트가 각자 만든다.
     ///
-    /// 네트워크로 오가는 것은 이 오브젝트의 위치·회전과 닉네임뿐이다. 팔다리가 흔들리는
-    /// 모습은 각 PC 가 알아서 그린다 — 조금 달라 보여도 게임에 지장이 없고, 전부 보내면
-    /// 데이터가 몇 배로 늘어난다.
+    /// <b>물리는 서버에서만 돈다</b>(S15P21B202-145·-147). 클라이언트는 누른 키를
+    /// [Command] 로 보내고, 서버의 PlayerRig 가 그 입력으로 힘을 가한다. 결과인 골반
+    /// 위치가 이 오브젝트에 실려 NetworkTransform 으로 모두에게 간다. 내 캐릭터도
+    /// 예외가 아니다 — 각자 계산하면 두 부품을 함께 옮길 때 결과가 갈린다.
     /// </summary>
     [RequireComponent(typeof(NetworkIdentity))]
     public sealed class NetPlayer : NetworkBehaviour
     {
+        /// <summary>
+        /// 입력을 보내는 최소 간격. 물리는 100Hz 로 돌지만 그 속도로 보낼 이유는 없다 —
+        /// 사람이 키를 100분의 1초 단위로 바꾸지 않는다. 바뀌면 바로 보내고,
+        /// 안 바뀌어도 이 간격마다 한 번은 보내 서버가 연결이 살아 있음을 안다.
+        /// </summary>
+        const float SendInterval = 1f / 20f;
+
         /// 서버가 정하고 모두에게 전달된다. 접속을 확인할 때 Spring 이 알려 준 값이다.
         [SyncVar(hook = nameof(OnIdentityChanged))]
         public string nickname = string.Empty;
@@ -25,9 +34,16 @@ namespace Metagame.Network
         [SyncVar]
         public long userId;
 
-        private PlayerRig body;
+        /// <summary>서버에서 물리를 도는 진짜 몸. 클라이언트에서는 그림용 몸이다.</summary>
+        PlayerRig body;
 
-        public override void OnStartClient() => BuildBody();
+        // ── 서버 ────────────────────────────────────────────────
+        InputFrame pending;          // 이 사람이 마지막으로 보낸 입력
+
+        // ── 클라이언트(내 것) ───────────────────────────────────
+        InputFrame lastSent;
+        float sendTimer;
+        bool everSent;
 
         public override void OnStartServer()
         {
@@ -50,62 +66,194 @@ namespace Metagame.Network
             }
 
             name = "플레이어 " + nickname;
+            BuildServerBody();
+
             Debug.Log($"[NetPlayer] 서버 스폰 · {nickname}(userId={userId}) · 접속 인원 {NetworkServer.connections.Count}명");
-            BuildBody();
+        }
+
+        public override void OnStartClient()
+        {
+            // 서버 겸 클라이언트(호스트 모드)라면 몸은 이미 서버 쪽에서 만들었다.
+            if (isServer) return;
+
+            // 내 몸은 게임 씬이 이미 세워 뒀다. 아직이면 Update 가 계속 시도한다.
+            if (isLocalPlayer) AdoptLocalBody();
+            else BuildRemoteBody();
+        }
+
+        // ── 서버: 진짜 몸 ───────────────────────────────────────
+
+        /// <summary>
+        /// 물리가 도는 몸을 세운다. 이 몸이 부품을 밀고 지형을 밟는 유일한 실체다.
+        /// </summary>
+        void BuildServerBody()
+        {
+            var session = FindAnyObjectByType<GameSession>();
+            Vector3 foot = session != null ? session.SpawnFoot : transform.position;
+            Quaternion facing = Quaternion.LookRotation(Vector3.right, Vector3.up);
+
+            // 헤드리스 서버에는 모델을 씌우지 않는다. 그릴 일이 없고 로딩만 든다.
+            body = PlayerRig.Create(
+                string.IsNullOrEmpty(nickname) ? "비행사" : nickname,
+                foot + Vector3.up * 0.10f, facing,
+                SuitColor(userId), AccentColor(userId),
+                useModel: !Application.isBatchMode);
+
+            transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
         }
 
         /// <summary>
-        /// 몸을 만든다. 서버·클라이언트 양쪽에서 같은 코드로 만들어 모양을 맞춘다.
+        /// 서버에서만 돈다. 마지막으로 받은 입력을 넣고, 물리가 낸 결과를 이 오브젝트에
+        /// 옮겨 싣는다. NetworkTransform 이 그 값을 모두에게 보낸다.
         ///
-        /// 내 캐릭터는 게임 씬(SpaceBootstrap)이 따로 세우므로 여기서 만들지 않는다.
-        /// 두 벌이 겹치면 카메라가 붙을 대상이 모호해지고 입력도 둘로 갈린다.
+        /// PlayerRig 자신의 FixedUpdate 가 물리를 돌리므로 여기서는 넣고 꺼내기만 한다 —
+        /// 물리 코드는 건드리지 않는다.
         /// </summary>
-        private void BuildBody()
+        [ServerCallback]
+        void FixedUpdate()
         {
-            if (isLocalPlayer || body != null) return;
+            if (body == null) return;
+
+            body.SetInput(pending);
+            transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
+        }
+
+        /// <summary>
+        /// 클라이언트가 누른 키. 서버는 보관만 하고 다음 물리 스텝에 적용한다 —
+        /// 받은 즉시 물리를 돌리면 패킷이 몰려 올 때 그 사람만 여러 번 움직인다.
+        /// </summary>
+        [Command]
+        void CmdSendInput(InputFrame frame)
+        {
+            pending = frame;
+        }
+
+        // ── 클라이언트: 내 몸 ───────────────────────────────────
+
+        /// <summary>
+        /// 게임 씬(SpaceBootstrap)이 이미 세워 둔 내 몸을 넘겨받아, 스스로 움직이는 대신
+        /// 서버가 보낸 자리를 따라가게 한다.
+        ///
+        /// 새로 만들지 않는 이유는 카메라·HUD·태블릿이 모두 그 몸에 붙어 있어서다.
+        /// 여기서 한 벌 더 만들면 카메라가 붙을 대상이 둘이 된다.
+        /// </summary>
+        /// <returns>넘겨받았으면 참. 게임 씬이 아직 준비되지 않았으면 거짓.</returns>
+        bool AdoptLocalBody()
+        {
+            var session = FindAnyObjectByType<GameSession>();
+            body = session != null ? session.LocalPlayer : null;
+            if (body == null) return false;
+
+            RemoteAvatar.Attach(body, transform, mine: true);
+            Debug.Log($"[NetPlayer] 내 캐릭터를 서버에 맡겼다 · {nickname}(userId={userId})");
+            return true;
+        }
+
+        /// <summary>
+        /// 내가 누른 키를 서버로 보낸다. 카메라는 로컬에 남으므로 조준 방향은
+        /// 입력(<see cref="InputFrame.Look"/>)에 실려 함께 간다.
+        /// </summary>
+        void Update()
+        {
+            if (!isLocalPlayer) return;
+
+            // 스폰 메시지가 게임 씬이 몸을 세우기 전에 도착할 수 있다. 준비될 때까지 기다린다.
+            if (body == null && !AdoptLocalBody()) return;
+
+            sendTimer += Time.deltaTime;
+
+            // 카메라는 내 PC 에만 있다. 서버가 "앞" 이 어느 쪽인지 알 수 있도록
+            // 지금 보고 있는 각도를 입력에 실어 함께 보낸다.
+            InputFrame now = body.CurrentInput;
+            if (body.Cam != null)
+            {
+                now.AimYaw = body.Cam.Yaw;
+                now.AimPitch = body.Cam.Pitch;
+            }
+
+            bool changed = !everSent || !Same(now, lastSent);
+            if (!changed && sendTimer < SendInterval) return;
+
+            CmdSendInput(now);
+            lastSent = now;
+            everSent = true;
+            sendTimer = 0f;
+        }
+
+        /// <summary>
+        /// 두 입력이 사실상 같은가. 마우스와 시선은 늘 미세하게 흔들려 그대로
+        /// 비교하면 매 프레임 "바뀜" 이 되고, 제한을 둔 뜻이 사라진다.
+        /// 시선은 1도까지는 같은 것으로 본다 — 그 차이는 화면에서 보이지 않는다.
+        /// </summary>
+        static bool Same(InputFrame a, InputFrame b)
+        {
+            return (a.Move - b.Move).sqrMagnitude < 0.0001f
+                && (a.Look - b.Look).sqrMagnitude < 0.0001f
+                && Mathf.Abs(Mathf.DeltaAngle(a.AimYaw, b.AimYaw)) < 1f
+                && Mathf.Abs(a.AimPitch - b.AimPitch) < 1f
+                && a.Jump == b.Jump && a.Run == b.Run
+                && a.GrabLeft == b.GrabLeft && a.GrabRight == b.GrabRight
+                && a.ToolAction == b.ToolAction
+                && a.ToolPrimary == b.ToolPrimary && a.ToolSecondary == b.ToolSecondary
+                && a.ToolUtility == b.ToolUtility
+                && a.TransportAction == b.TransportAction
+                && a.ArmsUp == b.ArmsUp && a.FreeLook == b.FreeLook
+                && a.TabletToggle == b.TabletToggle && a.FieldToggle == b.FieldToggle
+                && a.TabletPreviousPage == b.TabletPreviousPage
+                && a.TabletNextPage == b.TabletNextPage
+                && a.Restart == b.Restart;
+        }
+
+        // ── 클라이언트: 남의 몸 ─────────────────────────────────
+
+        /// <summary>다른 사람의 몸. 판정에 관여하지 않는 그림이다.</summary>
+        void BuildRemoteBody()
+        {
+            if (body != null) return;
 
             body = PlayerRig.Create(
                 string.IsNullOrEmpty(nickname) ? "비행사" : nickname,
                 transform.position,
                 transform.rotation,
-                RemoteSuitColor(userId),
-                RemoteAccentColor(userId));
+                SuitColor(userId),
+                AccentColor(userId));
 
-            // 보여 주기 전용으로 바꾼다. 골반만 이 오브젝트를 따라가고 팔다리는
-            // 조인트에 맡긴다. 자식으로 붙이지 않는 이유는 RemoteAvatar 가 골반을
-            // MovePosition 으로 직접 옮기기 때문이다 — 부모를 따라 끌려가면
-            // 조인트가 그 이동을 순간이동으로 받아들여 몸이 튄다.
+            // 자식으로 붙이지 않는 이유는 RemoteAvatar 가 골반을 MovePosition 으로
+            // 직접 옮기기 때문이다 — 부모를 따라 끌려가면 조인트가 그 이동을
+            // 순간이동으로 받아들여 몸이 튄다.
             RemoteAvatar.Attach(body, transform);
 
-            if (isClient)
-                Debug.Log($"[NetPlayer] 다른 플레이어가 보인다 · {nickname}(userId={userId})");
+            Debug.Log($"[NetPlayer] 다른 플레이어가 보인다 · {nickname}(userId={userId})");
         }
 
-        private void OnIdentityChanged(string _, string newNickname)
+        void OnIdentityChanged(string _, string newNickname)
         {
             if (body == null) return;
             body.Nickname = string.IsNullOrEmpty(newNickname) ? "비행사" : newNickname;
-            body.gameObject.name = "원격 " + body.Nickname;
         }
 
         public override void OnStopClient() => RemoveBody();
         public override void OnStopServer() => RemoveBody();
 
-        private void RemoveBody()
+        /// <summary>
+        /// 몸을 치운다. 내 몸은 게임 씬이 만든 것이라 여기서 없애지 않는다 —
+        /// 카메라와 HUD 가 아직 그것을 보고 있다.
+        /// </summary>
+        void RemoveBody()
         {
             if (body == null) return;
-            Destroy(body.gameObject);
+            if (!isLocalPlayer || isServer) Destroy(body.gameObject);
             body = null;
         }
 
         /// 같은 사람은 누구 화면에서나 같은 색으로 보이게 userId 로 정한다.
-        private static Color RemoteSuitColor(long id)
+        static Color SuitColor(long id)
         {
             float hue = Mathf.Repeat(id * 0.6180339f, 1f);   // 황금비로 흩뿌린다
             return Color.HSVToRGB(hue, 0.35f, 0.95f);
         }
 
-        private static Color RemoteAccentColor(long id)
+        static Color AccentColor(long id)
         {
             float hue = Mathf.Repeat(id * 0.6180339f + 0.5f, 1f);
             return Color.HSVToRGB(hue, 0.7f, 0.9f);

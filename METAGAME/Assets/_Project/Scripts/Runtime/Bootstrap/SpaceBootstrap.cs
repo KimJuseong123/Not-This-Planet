@@ -100,6 +100,15 @@ namespace Metagame.Bootstrap
             if (!useAtmosphere && starfield && !Application.isBatchMode)
                 Space = Starfield.Create(transform, Sky.SunDirection);
 
+            // 전용 서버에는 "내 캐릭터" 가 없다. 접속한 사람 수만큼 몸을 세우는 일은
+            // NetPlayer 가 하고(-147), 카메라·HUD 는 그릴 화면이 없어 필요 없다.
+            // 세계는 세워야 한다 — 그 위에서 물리가 돌아야 하기 때문이다.
+            if (Mirror.NetworkServer.active && !Mirror.NetworkClient.active)
+            {
+                Session.Begin(null, Level, Level.SpawnFoot, Exploration);
+                return;
+            }
+
             Vector3 spawn = Level.SpawnFoot + Vector3.up * 0.10f;
             Quaternion facing = Quaternion.LookRotation(Vector3.right, Vector3.up);
 
