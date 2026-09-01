@@ -135,7 +135,7 @@ namespace Metagame.Gameplay.Tests
         {
             var meteor = CreateMeteor(Vector3.up * 5f);
             var player = CreateLooseBody(
-                Vector3.right * (PhysicsScale.MeteorImpactRadius + 5f), GameLayers.Player, Tuning.BodyMass);
+                Vector3.right * (PhysicsScale.MeteorMediumImpactRadius + 5f), GameLayers.Player, Tuning.BodyMass);
 
             meteor.ApplyImpact(Vector3.zero);
             Simulate(0.1f);

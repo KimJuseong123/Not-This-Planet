@@ -278,10 +278,7 @@ namespace Metagame.EditorTools
             go.transform.localPosition = Vector3.zero;
 
             var spawner = go.AddComponent<MeteorSpawner>();
-            spawner.Configure(20260827,
-                PhysicsScale.MeteorIntervalStart,
-                PhysicsScale.MeteorIntervalMin,
-                PhysicsScale.MeteorRampSeconds);
+            spawner.Configure(20260827);
 
             // 아레나(50x50m)보다 좁게 잡아 경계 밖으로 떨어지지 않게 한다.
             spawner.SetArea(go.transform, new Vector2(36f, 36f));

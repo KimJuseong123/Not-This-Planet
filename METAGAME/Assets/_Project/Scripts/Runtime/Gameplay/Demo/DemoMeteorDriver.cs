@@ -19,7 +19,13 @@ namespace Metagame.Gameplay.Demo
 
         void FixedUpdate()
         {
-            if (_spawner != null) _spawner.Tick(Time.fixedDeltaTime);
+            if (_spawner == null) return;
+
+            // 인원수 보정(기획 §17.6)에 쓸 접속 인원을 넘긴다. 살아 있는 리그 수가 곧
+            // 접속 인원이다 — 멀티가 붙으면 [Network] 가 세는 값으로 바뀔 자리이고,
+            // 그때도 넘기는 곳은 여기 하나다.
+            _spawner.SetCrew(Mathf.Max(1, PlayerRig.All.Count));
+            _spawner.Tick(Time.fixedDeltaTime);
         }
     }
 }

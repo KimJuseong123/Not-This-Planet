@@ -21,7 +21,7 @@ namespace Metagame.Gameplay.Hazards
     [DisallowMultipleComponent]
     public sealed class Meteor : MonoBehaviour
     {
-        [SerializeField, Min(0f)] float _impactRadius = PhysicsScale.MeteorImpactRadius;
+        [SerializeField, Min(0f)] float _impactRadius = PhysicsScale.MeteorSmallImpactRadius;
         [SerializeField, Min(0f)] float _impactForce = PhysicsScale.MeteorImpactForce;
         [SerializeField, Min(0f)] float _despawnSeconds = PhysicsScale.MeteorDespawnSeconds;
         [SerializeField, Min(0f)] float _maxLifeSeconds = PhysicsScale.MeteorMaxLifeSeconds;
@@ -56,6 +56,26 @@ namespace Metagame.Gameplay.Hazards
 
         /// <summary>한 번이라도 쳐냈는가. 기획 §17.1 의 "반사된 이후" 를 구분한다.</summary>
         public bool WasDeflected { get; private set; }
+
+        /// <summary>
+        /// 크기(기획 §17.7). 넉백 반경이 여기서 나온다.
+        ///
+        /// 스포너가 시간대별 비율로 정한다 — 중형은 10분 이후에만 나온다.
+        /// 모델 구분은 [Art] 몫이고 여기서는 반경만 다루다.
+        /// </summary>
+        public MeteorSize Size { get; private set; } = MeteorSize.Small;
+
+        /// <summary>넉백이 미치는 반경(m). 크기가 정한다.</summary>
+        public float ImpactRadius => _impactRadius;
+
+        /// <summary>스포너가 크기를 정한다. 반경이 함께 바뀐다.</summary>
+        public void SetSize(MeteorSize size)
+        {
+            Size = size;
+            _impactRadius = size == MeteorSize.Medium
+                ? PhysicsScale.MeteorMediumImpactRadius
+                : PhysicsScale.MeteorSmallImpactRadius;
+        }
 
         /// <summary>사라질 때. 스포너가 목록에서 지우는 신호로 쓴다.</summary>
         public event Action<Meteor> Expired;
