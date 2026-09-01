@@ -313,6 +313,23 @@ class GitLab:
         st, d = http("GET", f"{self.api}/projects/{self.project}/merge_requests/{iid}/pipelines", self._h())
         return d if st == 200 and isinstance(d, list) else None
 
+    def branch_pipelines(self, ref: str = "develop", per_page: int = 20) -> list[dict]:
+        """브랜치의 파이프라인 목록(최신 우선). 조회 실패는 빈 목록 — 부르는 쪽이 '못 물어봤다' 를
+        구분해야 하면 완전탐색 플래그로 받는다(deploy_history 가 그렇게 한다)."""
+        st, d = http("GET", f"{self.api}/projects/{self.project}/pipelines"
+                            f"?ref={quote(ref, safe='')}&per_page={per_page}&order_by=id&sort=desc", self._h())
+        return d if st == 200 and isinstance(d, list) else []
+
+    def pipeline_jobs(self, pipeline_id: int | str) -> list[dict]:
+        """파이프라인 한 건의 잡 목록.
+
+        프로젝트 전체 잡 목록(`/jobs`)으로 특정 잡을 찾지 않는 이유 — 그 API 는 **이름으로 걸러 주지
+        않는다.** 잡이 수천 건인 리포에서 하루 한 번 도는 배포 잡을 찾으려면 수십 페이지를 넘겨야 한다.
+        파이프라인을 최신부터 훑으면 대개 첫 몇 건에서 찾는다."""
+        st, d = http("GET", f"{self.api}/projects/{self.project}/pipelines/{pipeline_id}/jobs?per_page=100",
+                     self._h())
+        return d if st == 200 and isinstance(d, list) else []
+
     def open_mrs(self) -> list[dict]:
         st, d = http("GET", f"{self.api}/projects/{self.project}/merge_requests?state=opened&per_page=100",
                      self._h())
