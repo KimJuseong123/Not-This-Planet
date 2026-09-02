@@ -2,6 +2,7 @@ using Mirror;
 using UnityEngine;
 using Metagame.Core;
 using Metagame.Gameplay;
+using Metagame.Gameplay.Parts;
 
 namespace Metagame.Network
 {
@@ -34,8 +35,19 @@ namespace Metagame.Network
         [SyncVar]
         public long userId;
 
+        /// <summary>
+        /// 지금 운반 장치를 타고 있는가. 서버가 정하고 모두에게 전달된다(-149).
+        /// 클라이언트의 화면에는 조작 결과가 자세로만 오므로, "저 사람이 탔다" 는
+        /// 사실 자체는 따로 알려 줘야 HUD 가 옳게 그린다.
+        /// </summary>
+        [SyncVar]
+        public bool riding;
+
         /// <summary>서버에서 물리를 도는 진짜 몸. 클라이언트에서는 그림용 몸이다.</summary>
         PlayerRig body;
+
+        /// <summary>이 사람의 운반 장치 조작. 서버에만 있다(-149).</summary>
+        TractorBeamController transport;
 
         // ── 서버 ────────────────────────────────────────────────
         InputFrame pending;          // 이 사람이 마지막으로 보낸 입력
@@ -99,6 +111,13 @@ namespace Metagame.Network
                 SuitColor(userId), AccentColor(userId),
                 useModel: !Application.isBatchMode);
 
+            // 운반 장치는 사람마다 따로 조작한다(S15P21B202-149). 컨트롤러는 1인용이라
+            // 접속자마다 하나씩 둔다 — 장치 자체는 씬에 하나뿐이고 여럿이 나눠 쓴다.
+            // 배치는 이미 끝나 있으므로 여기서 다시 섞지 않는다.
+            transport = body.gameObject.AddComponent<TractorBeamController>();
+            transport.Configure(body, FindObjectsByType<TractorBeam>(FindObjectsSortMode.None),
+                                randomizeVehicles: false);
+
             transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
         }
 
@@ -114,7 +133,32 @@ namespace Metagame.Network
         {
             if (body == null) return;
 
-            body.SetInput(pending);
+            InputFrame frame = pending;
+
+            if (transport != null)
+            {
+                transport.SetInput(frame);
+                riding = transport.IsControlling;
+
+                // 탑승 중에는 몸이 운반체와 싸우지 않게 한다. 이동은 운반체가 처리하고
+                // 몸은 좌석에 앉아 있기만 한다 — 혼자 실행할 때 GameSession 이 하는 것과
+                // 같은 정리다(그쪽은 클라이언트, 여기는 서버라 각자 한 번씩 필요하다).
+                if (transport.IsControlling)
+                {
+                    frame.Move = Vector2.zero;
+                    frame.Jump = false;
+                    frame.Run = false;
+                    frame.GrabLeft = false;
+                    frame.GrabRight = false;
+                    frame.ToolAction = false;
+                    frame.ToolPrimary = false;
+                    frame.ToolSecondary = false;
+                    frame.ToolUtility = false;
+                    frame.ArmsUp = false;
+                }
+            }
+
+            body.SetInput(frame);
             transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
         }
 

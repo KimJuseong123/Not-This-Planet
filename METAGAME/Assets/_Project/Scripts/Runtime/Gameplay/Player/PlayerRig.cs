@@ -376,13 +376,13 @@ namespace Metagame.Gameplay
             CurrentInteractionTarget = best;
         }
 
-        Vector3 InteractionOrigin() => Cam != null ? Cam.transform.position : Doll.Head.transform.position;
+        // 조준 창구를 쓴다(S15P21B202-149). 카메라가 있으면 지금까지와 같은 값이고,
+        // 카메라가 없는 서버에서는 클라이언트가 입력에 실어 보낸 각도가 답을 낸다.
+        // 머리 방향으로 대신하면 서버에서 엉뚱한 것을 조준한다 — 머리는 조준을
+        // 뒤늦게 따라오는 관절이라 실제로 보는 곳과 어긋난다.
+        Vector3 InteractionOrigin() => AimOrigin;
 
-        Vector3 InteractionForward()
-        {
-            var forward = Cam != null ? Cam.transform.forward : Doll.Head.transform.forward;
-            return forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
-        }
+        Vector3 InteractionForward() => AimForward;
 
         void FindCrosshairGrabbable(Vector3 origin, Vector3 forward,
                                     ref PlayerInteractionTarget best)
@@ -1237,6 +1237,42 @@ namespace Metagame.Gameplay
         {
             v.y = 0f;
             return v.sqrMagnitude > 1e-4f ? v.normalized : fallback;
+        }
+
+        // ── 조준 (카메라가 없어도 쓸 수 있는 창구) ──────────────
+        //
+        // 상호작용 코드가 카메라를 직접 들여다보면 서버에서 돌지 않는다 — 카메라는
+        // 각자 PC 에만 있기 때문이다(S15P21B202-149). 그래서 "어디를 보고 있나" 를
+        // 여기 한 곳으로 모은다. 내 화면에서는 카메라가, 서버에서는 클라이언트가
+        // 보낸 각도가 답을 낸다.
+
+        /// <summary>조준이 시작되는 지점. 카메라가 있으면 눈, 없으면 머리다.</summary>
+        public Vector3 AimOrigin
+        {
+            get
+            {
+                if (Cam != null) return Cam.transform.position;
+                return Doll != null && Doll.Head != null ? Doll.Head.position : Position;
+            }
+        }
+
+        /// <summary>조준 방향(위아래 포함).</summary>
+        public Vector3 AimForward { get { return AimRotation * Vector3.forward; } }
+
+        /// <summary>바닥에 눕힌 앞 방향. 이동·정렬 기준이다.</summary>
+        public Vector3 PlanarForward { get { return Flatten(AimRotation * Vector3.forward, Vector3.forward); } }
+
+        /// <summary>바닥에 눕힌 오른쪽 방향.</summary>
+        public Vector3 PlanarRight { get { return Flatten(AimRotation * Vector3.right, Vector3.right); } }
+
+        /// <summary>WASD 입력을 지금 보는 방향 기준의 이동 벡터로 바꾼다.</summary>
+        public Vector3 RelativeMove(Vector2 move)
+        {
+            if (Cam != null) return Cam.CameraRelativeMove(move);
+
+            if (move.sqrMagnitude > 1f) move.Normalize();
+            Vector3 result = PlanarRight * move.x + PlanarForward * move.y;
+            return result.sqrMagnitude > 1f ? result.normalized : result;
         }
 
         void Locomotion()

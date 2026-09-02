@@ -30,6 +30,18 @@ namespace Metagame.Gameplay.Parts
         bool previousGrabRight;
         readonly RaycastHit[] partHits = new RaycastHit[PartHitBufferSize];
 
+        /// <summary>
+        /// 실제로 태우고·끌고·움직일 수 있는가. 매치에 붙은 클라이언트에서는 꺼 둔다
+        /// (S15P21B202-149).
+        ///
+        /// 물리는 서버가 돈다. 클라이언트가 자기 화면에서 탑승·견인을 실행하면 서버가
+        /// 보낸 결과와 싸운다 — 잠깐 탔다가 도로 내려지는 그림이 된다. 꺼 두어도
+        /// 조준 대상(<see cref="FocusedVehicle"/>)은 계속 갱신되므로 HUD 안내는 나온다.
+        ///
+        /// 혼자 실행할 때는 켜져 있다 — 그때는 내 PC 가 곧 서버다.
+        /// </summary>
+        public bool Authoritative = true;
+
         public TransportVehicle FocusedVehicle { get; private set; }
         public TransportVehicle MountedVehicle => mountedVehicle;
         public TractorBeam ActiveBeam => mountedVehicle != null ? mountedVehicle.Beam : null;
@@ -67,6 +79,14 @@ namespace Metagame.Gameplay.Parts
         {
             input = frame;
             RefreshFocus();
+
+            // 조준까지만 하고 실행은 하지 않는다 — 서버가 할 일이다.
+            if (!Authoritative)
+            {
+                previousGrabLeft = frame.GrabLeft;
+                previousGrabRight = frame.GrabRight;
+                return;
+            }
 
             var leftPressed = frame.GrabLeft && !previousGrabLeft;
             var rightPressed = frame.GrabRight && !previousGrabRight;
@@ -124,17 +144,18 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         public void Tick(float deltaTime)
         {
+            if (!Authoritative) return;
             if (mountedVehicle == null) return;
 
-            if (player == null || player.Cam == null)
+            if (player == null)
             {
                 Reset();
                 return;
             }
 
-            var wish = player.Cam.CameraRelativeMove(input.Move);
+            var wish = player.RelativeMove(input.Move);
             mountedVehicle.SetDriveVector(wish);
-            mountedVehicle.SetFacingDirection(player.Cam.PlanarForward);
+            mountedVehicle.SetFacingDirection(player.PlanarForward);
             mountedVehicle.SetBoost(input.Run);   // Shift — 가속 이동(기획 §14.1)
 
             // Space 상승 · Ctrl 하강. 탑승 중에는 PlayerRig 가 점프·팔을 돌리지 않으므로
@@ -173,8 +194,7 @@ namespace Metagame.Gameplay.Parts
             }
 
             mountedVehicle = FocusedVehicle;
-            if (player.Cam != null)
-                mountedVehicle.SetFacingDirection(player.Cam.PlanarForward);
+            mountedVehicle.SetFacingDirection(player.PlanarForward);
             SetStatus("탑승 완료 · WASD로 운전 · 좌/우클릭으로 견인 · E 하차");
         }
 
@@ -224,10 +244,10 @@ namespace Metagame.Gameplay.Parts
 
         SpaceshipPart FindAimedPart()
         {
-            if (player == null || player.Cam == null) return null;
+            if (player == null) return null;
 
-            var origin = player.Cam.transform.position;
-            var direction = player.Cam.transform.forward;
+            var origin = player.AimOrigin;
+            var direction = player.AimForward;
             var count = Physics.SphereCastNonAlloc(origin, 0.35f, direction, partHits,
                                                    PartAimRange, GameLayers.PartMask,
                                                    QueryTriggerInteraction.Collide);
