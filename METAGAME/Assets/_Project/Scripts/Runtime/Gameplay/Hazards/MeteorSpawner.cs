@@ -416,7 +416,8 @@ namespace Metagame.Gameplay.Hazards
             _scars.Add(new Scar
             {
                 Meteor = meteor,
-                Point = meteor.transform.position,
+                // 박힌 몸통은 지면 아래다 — 분화구를 거기에 그리면 묻힌다.
+                Point = meteor.ImpactPoint,
                 Radius = meteor.ImpactRadius,
                 Age = 0f,
             });
@@ -497,9 +498,33 @@ namespace Metagame.Gameplay.Hazards
                 return point;
             }
 
-            var fallback = EnvironmentPoint();
+            var fallback = OnGround(EnvironmentPoint());
             Remember(fallback);
             return fallback;
+        }
+
+        /// <summary>
+        /// 후보 지점을 <b>실제 지면 위</b>로 내린다(S15P21B202-254).
+        ///
+        /// 예전에는 스폰 영역 transform 의 y 를 그대로 썼다. 씬에서 그 값이 0 인데
+        /// 바닥 메시가 0.06 에 있어서 낙하 예고 원(<see cref="PhysicsScale.MeteorWarningLift"/>
+        /// 0.03)과 분화구가 <b>바닥에 묻혀 보이지 않았다.</b> 상수로 맞추지 않고 훑는 이유는
+        /// 지형 높이가 바뀌어도 따라가야 하기 때문이다.
+        ///
+        /// 못 찾으면 받은 값을 그대로 돌려준다. 예고를 빼면 공세 개수가 흔들리고
+        /// (§17.4 의 표가 어긋난다) 운석은 어차피 물리로 떨어져 무엇에든 부딪힌다 —
+        /// 예고가 조금 어긋나는 편이 공세가 비는 것보다 낫다.
+        /// </summary>
+        Vector3 OnGround(Vector3 point)
+        {
+            var from = point + Vector3.up * PhysicsScale.MeteorGroundProbe;
+            var distance = PhysicsScale.MeteorGroundProbe * 2f;
+
+            return UnityEngine.Physics.Raycast(from, Vector3.down, out var hit, distance,
+                                               GameLayers.SurfaceMask,
+                                               QueryTriggerInteraction.Ignore)
+                ? hit.point
+                : point;
         }
 
         void Remember(Vector3 point)
@@ -508,7 +533,9 @@ namespace Metagame.Gameplay.Hazards
             _hasLastTarget = true;
         }
 
-        Vector3 PointFor(MeteorTargetKind kind)
+        Vector3 PointFor(MeteorTargetKind kind) => OnGround(RawPointFor(kind));
+
+        Vector3 RawPointFor(MeteorTargetKind kind)
         {
             if (kind == MeteorTargetKind.NearPlayer) return NearPlayerPoint();
 

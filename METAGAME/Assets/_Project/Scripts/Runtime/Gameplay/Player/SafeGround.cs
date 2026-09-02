@@ -16,6 +16,14 @@ namespace Metagame.Gameplay
         const int ProbeSize = 8;
         static readonly Collider[] Probe = new Collider[ProbeSize];
 
+        /// <summary>
+        /// 겹침 검사 캡슐을 발보다 띄우는 높이(m).
+        ///
+        /// 발밑에 딛고 있는 것을 장애물로 세지 않기 위한 것이다. 너무 크면 발목 높이의
+        /// 장애물을 놓친다.
+        /// </summary>
+        const float FootSkin = 0.05f;
+
         /// <summary>몸이 들어갈 반지름(m). 가장 넓은 곳은 헬멧이다.</summary>
         public static float BodyRadius => RagdollBuilder.HelmetD * 0.5f;
 
@@ -66,8 +74,15 @@ namespace Metagame.Gameplay
             var from = near + Vector3.up * PhysicsScale.StuckEscapeGroundProbe;
             var distance = PhysicsScale.StuckEscapeGroundProbe * 2f;
 
+            // <b>GroundMask 로는 씬에서 아무것도 못 찾았다.</b> 지면
+            // (ENV_Ground_Arena_50m)이 레이어 0(Default)에 있고 Ground(8) 레이어
+            // 오브젝트가 씬에 하나도 없다 — 그래서 끼임 탈출이 조용히 죽어 있었다
+            // (2026-09-02 실측, S15P21B202-254).
+            //
+            // 플레이어의 접지 판정과 같은 기준을 쓴다. 설 수 있는 곳이면 탈출해서 설
+            // 수도 있어야 한다.
             if (!UnityEngine.Physics.Raycast(from, Vector3.down, out var hit, distance,
-                                             GameLayers.GroundMask,
+                                             GameLayers.SurfaceMask,
                                              QueryTriggerInteraction.Ignore))
                 return false;
 
@@ -78,16 +93,22 @@ namespace Metagame.Gameplay
         /// <summary>
         /// 발 위치에 몸이 들어갈 자리가 있는가.
         ///
-        /// 지면 자신은 세지 않는다 — 발이 지면에 닿아 있는 것이 정상이다. 그래서 캡슐을
-        /// 지면 위로 올려 잡고 <see cref="GameLayers.GroundMask"/> 를 마스크에서 뺀다.
+        /// 발이 딛는 것 자체는 세지 않는다 — 지면에 닿아 있는 것이 정상이다.
+        ///
+        /// <b>예전에는 <see cref="GameLayers.GroundMask"/> 를 마스크에서 빼서 그것을
+        /// 표현했다.</b> 그런데 씬의 지면은 레이어 0(Default)이라 빠지지 않았고, 지면이
+        /// 곧 장애물로 걸려 어디에도 설 수 없었다(S15P21B202-254). 레이어로 가르지 않고
+        /// <b>캡슐을 발보다 조금 위에서 시작</b>한다 — 어느 레이어에 있든 발밑은 세지 않고,
+        /// 무릎 높이의 장애물은 그대로 걸린다.
         /// </summary>
         public static bool IsClear(Vector3 foot)
         {
             var radius = BodyRadius;
-            var bottom = foot + Vector3.up * radius;
-            var top = foot + Vector3.up * Mathf.Max(BodyHeight - radius, radius);
+            var bottom = foot + Vector3.up * (radius + FootSkin);
+            var top = foot + Vector3.up * Mathf.Max(BodyHeight - radius, radius + FootSkin);
 
-            var mask = ~GameLayers.GroundMask;
+            // 사람은 컴포넌트로 한 번 더 거르지만, 마스크에서 미리 빼는 것이 싸다.
+            var mask = ~GameLayers.PlayerMask;
 
             var count = UnityEngine.Physics.OverlapCapsuleNonAlloc(
                 bottom, top, radius, Probe, mask, QueryTriggerInteraction.Ignore);

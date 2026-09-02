@@ -66,6 +66,15 @@ namespace Metagame.Gameplay.Hazards
         public bool Settled { get; private set; }
 
         /// <summary>
+        /// 착탄한 지면 위치. 박히기 <b>전</b>의 지점이다.
+        ///
+        /// <see cref="Settle"/> 이 몸통을 반지름의 0.6배만큼 <b>지면 아래로</b> 내리므로
+        /// <c>transform.position</c> 은 지면보다 낮다. 분화구를 거기에 그리면 바닥에
+        /// 묻힌다 — 그래서 표시가 쓸 값을 따로 남긴다(S15P21B202-254).
+        /// </summary>
+        public Vector3 ImpactPoint { get; private set; }
+
+        /// <summary>
         /// 착탄할 지면의 높이(m). 스포너가 넣는다.
         ///
         /// 낙하 예측에 기준면이 필요하다. 콜라이더를 레이캐스트로 찾지 않는 이유는
@@ -241,6 +250,7 @@ namespace Metagame.Gameplay.Hazards
 
             Initialize();
             HasImpacted = true;
+            ImpactPoint = point;
 
             ApplyKnockback(point, directHit);
             Settle(point);

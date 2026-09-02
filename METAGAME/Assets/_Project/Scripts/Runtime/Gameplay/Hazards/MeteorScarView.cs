@@ -21,7 +21,13 @@ namespace Metagame.Gameplay.Hazards
         const string ContainerName = "MeteorScars";
         const float DiscThickness = 0.015f;
         const float RimBoost = 0.5f;
-        const float Lift = 0.01f;
+        /// <summary>
+        /// 지면 위로 띄우는 높이(m). 두께(0.015)보다 커야 원판이 지면을 파고들지 않는다.
+        ///
+        /// 예전에는 0.01 이라 두께의 절반이 지면 아래로 들어갔다. 그 위에
+        /// 착탄 지점 자체가 바닥보다 낮게 잡혀 있었다(S15P21B202-254).
+        /// </summary>
+        const float Lift = 0.02f;
 
         [SerializeField]
         [Tooltip("비우면 같은 오브젝트나 씬에서 스포너를 찾는다.")]
