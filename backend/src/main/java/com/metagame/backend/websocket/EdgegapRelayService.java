@@ -85,7 +85,7 @@ public class EdgegapRelayService {
             if (sessionId == null) {
                 return null;
             }
-            return waitUntilReady(sessionId, new ArrayList<>(userIps.keySet()));
+            return waitUntilReady(sessionId, userIps);
         } catch (RuntimeException e) {
             log.warn("relay session failed, falling back to direct connect: {}", e.toString());
             return null;
@@ -138,7 +138,7 @@ public class EdgegapRelayService {
      * 만든 직후에는 relay 주소와 사람별 토큰이 비어 있다("Initializing").
      * ready 가 될 때까지 짧게 되물어본다.
      */
-    private RelaySession waitUntilReady(String sessionId, List<Long> userIds) {
+    private RelaySession waitUntilReady(String sessionId, LinkedHashMap<Long, String> userIps) {
         long deadline = System.currentTimeMillis() + READY_TIMEOUT_MS;
 
         while (System.currentTimeMillis() < deadline) {
@@ -149,7 +149,7 @@ public class EdgegapRelayService {
                     .body(JsonNode.class);
 
             if (body != null && body.path("ready").asBoolean(false)) {
-                return toSession(sessionId, body, userIds);
+                return toSession(sessionId, body, userIps);
             }
 
             try {
@@ -165,7 +165,34 @@ public class EdgegapRelayService {
         return null;
     }
 
-    private RelaySession toSession(String sessionId, JsonNode body, List<Long> userIds) {
+    /** 응답의 사용자 IP. Edgegap 이 어느 이름으로 주든 읽는다. */
+    private static String userIp(JsonNode user) {
+        for (String field : new String[] { "ip_address", "ip", "user_ip" }) {
+            String value = user.path(field).asText("");
+            if (!value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return "";
+    }
+
+    /** 이 IP 로 참가한 사람이 누구인지. 같은 IP 가 둘이면 짝지을 수 없어 null 이다. */
+    private static Long ownerOf(String ip, Map<Long, String> userIps) {
+        Long found = null;
+        for (Map.Entry<Long, String> entry : userIps.entrySet()) {
+            if (ip.equals(entry.getValue())) {
+                if (found != null) {
+                    return null;          // 같은 IP 가 여럿 — 순서로 짝지어야 한다
+                }
+                found = entry.getKey();
+            }
+        }
+        return found;
+    }
+
+    private RelaySession toSession(String sessionId, JsonNode body,
+                                   LinkedHashMap<Long, String> userIps) {
+        List<Long> userIds = new ArrayList<>(userIps.keySet());
         JsonNode relay = body.path("relay");
         String address = relay.path("ip").asText("");
         int serverPort = relay.path("ports").path("server").path("port").asInt();
@@ -175,13 +202,29 @@ public class EdgegapRelayService {
         // authorization_token(숫자)이다. 둘은 다른 것이다(-145 §3-8-1).
         long sessionToken = body.path("authorization_token").asLong(0);
 
+        // 사람별 토큰을 IP 로 짝짓는다. 순서(index)로 짝지으면 Edgegap 이 다른 순서로
+        // 돌려줬을 때 방장과 참가자의 토큰이 뒤바뀌고, 릴레이가 방장을 세션 주인으로
+        // 인정하지 않는다 — 그러면 참가자는 SessionTimeout 을 받는다(2026-09-02 증상).
+        // IP 를 못 읽으면 그때만 순서로 되돌아간다.
         JsonNode users = body.path("session_users");
         Map<Long, Long> userTokens = new HashMap<>();
         for (int i = 0; i < users.size() && i < userIds.size(); i++) {
-            long token = users.get(i).path("authorization_token").asLong(0);
-            if (token > 0) {
-                userTokens.put(userIds.get(i), token);
+            JsonNode user = users.get(i);
+            long token = user.path("authorization_token").asLong(0);
+            if (token <= 0) {
+                continue;
             }
+
+            String ip = userIp(user);
+            Long owner = ip.isBlank() ? null : ownerOf(ip, userIps);
+            if (owner == null) {
+                owner = userIds.get(i);
+                log.warn("relay user[{}] 를 IP 로 짝짓지 못해 순서로 짝짓는다 · 응답 IP={} · 필드={}",
+                        i, ip.isBlank() ? "없음" : ip, user.propertyNames());
+            }
+            userTokens.put(owner, token);
+
+            log.info("relay user[{}] → userId={} · IP {}", i, owner, ip.isBlank() ? "없음" : ip);
         }
 
         if (address.isBlank() || serverPort <= 0 || clientPort <= 0

@@ -4,7 +4,9 @@ import com.metagame.backend.domain.room.Room;
 import com.metagame.backend.domain.room.RoomManager;
 import com.metagame.backend.domain.user.UserRepository;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
@@ -278,9 +280,24 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
      * 방 사람들의 공인 IP 를 로비 연결에서 읽는다(-264). 릴레이 세션을 열 때 쓴다.
      * 순서가 응답의 session_users 와 짝이 되므로 넣은 차례를 지키는 맵을 쓴다.
      */
+    /**
+     * userId → 공인 IP. <b>방장을 맨 앞에 둔다.</b>
+     *
+     * <p>릴레이 세션에서 방장은 게임 서버 자리에 앉는다. Edgegap 이 목록 순서를 어떻게
+     * 해석하는지 문서에 분명치 않은데, 첫 번째를 서버로 보는 구현이라면 순서가 뒤바뀐 순간
+     * 방장이 세션 주인으로 인정받지 못하고 참가자는 SessionTimeout 을 받는다.
+     * 방장을 앞에 두는 것은 공짜이므로 그 위험을 없앤다(2026-09-02).
+     */
     private LinkedHashMap<Long, String> publicIpsOf(Room room) {
         LinkedHashMap<Long, String> ips = new LinkedHashMap<>();
-        for (Long playerId : room.playerIds()) {
+
+        List<Long> ordered = new ArrayList<>(room.playerIds());
+        Long host = room.getHostUserId();
+        if (host != null && ordered.remove(host)) {
+            ordered.add(0, host);
+        }
+
+        for (Long playerId : ordered) {
             WebSocketSession session = sessions.get(playerId);
             String ip = clientIp(session);
             if (ip != null && !ip.isBlank()) {
