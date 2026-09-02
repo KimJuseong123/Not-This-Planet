@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Metagame.Core;
+using Metagame.Gameplay.Interaction;
 using Metagame.Gameplay.Parts;
 using NUnit.Framework;
 using UnityEngine;
@@ -33,6 +34,102 @@ namespace Metagame.Gameplay.Tests
             spawned.Add(player.gameObject);
             spawned.Add(camera.gameObject);
             return player;
+        }
+
+        TransportVehicle MakeVehicle(Vector3 position)
+        {
+            var go = new GameObject("TractorBeam");
+            go.transform.SetPositionAndRotation(position,
+                Quaternion.LookRotation(Vector3.down, Vector3.forward));
+            var beam = go.AddComponent<TractorBeam>();
+            beam.Configure(go.transform, PhysicsScale.BeamRange, TransportVehicle.BeamHoldDistance);
+            var vehicle = go.AddComponent<TransportVehicle>();
+            vehicle.Initialize(beam, TransportVehicle.BeamHoldDistance);
+            vehicle.PlaceOnGround(position, 0f);
+            spawned.Add(go);
+            return vehicle;
+        }
+
+        Grabbable MakeGrabbable(Vector3 position, string name)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            go.name = name;
+            go.transform.position = position;
+            go.transform.localScale = Vector3.one * 0.25f;
+            var grabbable = Grabbable.Mark(go, name);
+            grabbable.CanGrab = true;
+            spawned.Add(go);
+            return grabbable;
+        }
+
+        [Test]
+        public void InteractionFocus_SelectsOnlyTheNearestCameraCenterCandidate()
+        {
+            var player = MakePlayerWithCamera();
+            var center = player.Cam.transform.position + player.Cam.transform.forward * Tuning.ArmReach;
+            var centered = MakeGrabbable(center, "Centered");
+            var offCenter = MakeGrabbable(center + player.Cam.transform.right * 0.65f, "OffCenter");
+
+            player.RefreshInteractionFocus();
+
+            Assert.AreEqual(PlayerInteractionKind.Grabbable,
+                player.CurrentInteractionTarget.Kind);
+            Assert.AreSame(centered, player.CurrentInteractionTarget.Grabbable,
+                "화면 중심에 더 가까운 하나만 현재 상호작용 대상이어야 한다.");
+
+            player.SetInput(new InputFrame { GrabLeft = true });
+            player.Tick();
+
+            Assert.AreSame(centered, player.LeftHand.Held,
+                "선택된 물체만 클릭으로 잡혀야 한다.");
+            Assert.AreNotSame(offCenter, player.LeftHand.Held,
+                "선택되지 않은 물체는 같은 클릭에 반응하면 안 된다.");
+        }
+
+        [Test]
+        public void VehicleOutsideBoardRadius_HasNoFocusAndCannotBoard()
+        {
+            var player = MakePlayerWithCamera();
+            var vehicle = MakeVehicle(new Vector3(0f, TransportVehicle.GroundY,
+                                                   TransportVehicle.BoardRadius + 2f));
+
+            var controllerObject = new GameObject("TransportController");
+            var controller = controllerObject.AddComponent<TractorBeamController>();
+            controller.Configure(player, new[] { vehicle.Beam }, false);
+            spawned.Add(controllerObject);
+
+            Assert.AreEqual(PlayerInteractionKind.None,
+                player.CurrentInteractionTarget.Kind,
+                "탑승 반경 밖 운반 장치는 HUD/입력 대상이 아니어야 한다.");
+
+            controller.SetInput(new InputFrame { TransportAction = true });
+
+            Assert.IsFalse(controller.IsControlling);
+            Assert.IsFalse(player.IsMounted);
+        }
+
+        [Test]
+        public void CenterGrabbable_BlocksVehicleEInputWhenVehicleIsAlsoVisible()
+        {
+            var player = MakePlayerWithCamera();
+            var vehicle = MakeVehicle(new Vector3(0f, TransportVehicle.GroundY, 3.2f));
+            var center = player.Cam.transform.position + player.Cam.transform.forward * Tuning.ArmReach;
+            MakeGrabbable(center, "CenteredObject");
+
+            var controllerObject = new GameObject("TransportController");
+            var controller = controllerObject.AddComponent<TractorBeamController>();
+            controller.Configure(player, new[] { vehicle.Beam }, false);
+            spawned.Add(controllerObject);
+
+            Assert.AreEqual(PlayerInteractionKind.Grabbable,
+                player.CurrentInteractionTarget.Kind);
+            Assert.IsNull(controller.FocusedVehicle,
+                "화면 중심의 일반 물체가 선택되면 운반 장치는 E 대상이 아니어야 한다.");
+
+            controller.SetInput(new InputFrame { TransportAction = true });
+
+            Assert.IsFalse(controller.IsControlling);
+            Assert.IsFalse(player.IsMounted);
         }
 
         [Test]

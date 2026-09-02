@@ -25,6 +25,17 @@ namespace Metagame.Gameplay
         public float Priority = 0f;
         /// <summary>false 면 지금은 잡히지 않는다 (소켓에 꽂혀 고정된 배터리 등).</summary>
         public bool CanGrab = true;
+
+        /// <summary>
+        /// 잡을 때 <b>반드시 물리 조인트</b>로 붙는다. 기본은 거짓이다.
+        ///
+        /// <see cref="Hand.GripTo"/> 는 <see cref="Tuning.FixedGripMass"/>(40kg)보다
+        /// 가벼운 동적 물체를 <b>키네마틱으로 전환해</b> 몸 앞에 고정한다 — 도구가 그렇게
+        /// 동작한다. 기절한 동료는 총 34.9kg 이고 잡히는 골반은 8kg 이라 그 경로로
+        /// 가는데, §20.4 는 "<b>물리 오브젝트처럼</b> 끌고 옮길 수 있다" 고 정한다.
+        /// 사람이 도구처럼 몸 앞에 뻣뻣하게 붙으면 그것이 아니다(S15P21B202-249).
+        /// </summary>
+        public bool PhysicsGrip = false;
         /// <summary>
         /// 운반체는 손의 운반 상태를 사용하고, 도구는 양손 고정 그립과 전방 조준 자세를 사용한다.
         /// 기존 Grabbable은 기본값 Transport라서 기존 씬의 동작을 보존한다.

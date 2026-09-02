@@ -60,6 +60,29 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void Release_UsesTheDirectVisualReference()
+        {
+            var part = CreatePart();
+            var clamp = AddClamp(part, Vector3.forward * 2f);
+            var visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            visual.name = "AnchorPin";
+            visual.transform.position = clamp.transform.position;
+            visual.SetActive(false);
+            Object.DestroyImmediate(visual.GetComponent<Collider>());
+            _spawned.Add(visual);
+
+            clamp.AssignReleasedVisual(visual.transform);
+            clamp.Release();
+
+            Assert.IsTrue(visual.activeSelf, "직접 연결된 고정쇠 외형은 해제 후 활성화되어야 한다.");
+            Assert.IsTrue(visual.GetComponent<Renderer>().enabled,
+                "직접 연결된 외형의 Renderer가 꺼져 있으면 안 된다.");
+            Assert.AreSame(clamp.transform, visual.transform.parent,
+                "고정쇠 외형은 해제된 고정쇠를 따라야 한다.");
+            Assert.AreEqual("Visual", visual.name);
+        }
+
+        [Test]
         public void Release_IsIdempotent()
         {
             var part = CreatePart();

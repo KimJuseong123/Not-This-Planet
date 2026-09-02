@@ -35,7 +35,6 @@ namespace Metagame.UI
         GUIStyle small, mid, center, big;
         Texture2D white;
         bool warmed;
-        string nearbySign = "";
 
         void Awake()
         {
@@ -58,14 +57,6 @@ namespace Metagame.UI
 
             if (Local == null && GameSession.Instance != null) Local = GameSession.Instance.LocalPlayer;
             if (Transport == null && GameSession.Instance != null) Transport = GameSession.Instance.Transport;
-
-            nearbySign = "";
-            if (Local != null)
-            {
-                float d;
-                var label = WorldLabel.Nearest(Local.Position, out d);
-                if (label != null) nearbySign = label.Text;
-            }
         }
 
         // ── 폰트 ────────────────────────────────────────────────
@@ -238,16 +229,7 @@ namespace Metagame.UI
                 L(new Rect(w - 140f, 88f, 240f, 24f),
                   Local.Grounded ? "" : "체공 " + Local.AirTime.ToString("0.0") + "초", small,
                   new Color(0.80f, 0.90f, 1f));
-                if (Transport != null && Transport.IsControlling)
-                    L(new Rect(w - 254f, 112f, 240f, 24f),
-                      Transport.ActiveBeam != null && Transport.ActiveBeam.IsHolding ? "견인 중" : "운전 중",
-                      small, new Color(0.50f, 0.92f, 1f));
             }
-
-            // 표지판
-            if ((Exploration == null || !Exploration.TabletOpen) && !string.IsNullOrEmpty(nearbySign))
-                L(new Rect(w * 0.5f - 400f, h * 0.5f + 100f, 800f, 30f), nearbySign, center,
-                  new Color(0.90f, 0.98f, 1f));
 
             // 도착
             if (s != null && s.Cleared)
@@ -282,96 +264,34 @@ namespace Metagame.UI
             GUI.depth = previousDepth;
         }
 
-        /// <summary>
-        /// 조준점. 자석 손이 노리고 있는 것이 있으면 초록으로 벌어지고 이름을 띄운다 —
-        /// "잡기가 쉽다" 는 걸 화면으로 알려주는 부분.
-        /// </summary>
+        /// <summary>조준점과 현재 단일 상호작용 키워드만 표시한다.</summary>
         void Reticle(float w, float h)
         {
-            Grabbable aimed = null;
-            bool holding = false;
-            bool holdingTool = false;
-            PartClamp focusedClamp = null;
-            bool clampGrabbed = false;
-            bool clampLiftReady = false;
-            bool releasingClamp = false;
-            TransportVehicle focusedVehicle = null;
-            bool mountedVehicle = false;
-            bool toolTarget = false;
-            if (Local != null)
-            {
-                if (Local.LeftHand.Gripping || Local.RightHand.Gripping) holding = true;
-                aimed = Local.RightHand.Aimed != null ? Local.RightHand.Aimed : Local.LeftHand.Aimed;
-                toolTarget = aimed != null && aimed.IsTool;
-                holdingTool = Local.HeldTool != null && aimed == Local.HeldTool;
-
-                if (Local.ClampInteractor != null)
-                {
-                    focusedClamp = Local.ClampInteractor.Focus as PartClamp;
-                    if (focusedClamp != null && focusedClamp.IsReleased) focusedClamp = null;
-                    clampGrabbed = Local.ClampGrabbed;
-                    clampLiftReady = Local.ClampLiftReady;
-                    releasingClamp = Local.ClampReleaseHolding;
-                }
-
-                if (Transport != null)
-                {
-                    focusedVehicle = Transport.FocusedVehicle;
-                    mountedVehicle = Transport.IsControlling;
-                }
-            }
+            var focus = Local != null ? Local.CurrentInteractionTarget : PlayerInteractionTarget.None;
+            bool hasTarget = focus.IsValid && Local != null && !Local.IsMounted;
+            bool clampGrabbed = Local != null && Local.ClampGrabbed;
+            bool releasingClamp = Local != null && Local.ClampReleaseHolding;
+            bool mountedVehicle = Local != null && Local.IsMounted;
 
             float cx = w * 0.5f, cy = h * 0.5f;
-            bool clampTarget = focusedClamp != null;
-            bool beamTarget = focusedVehicle != null;
             Color c = releasingClamp ? new Color(0.45f, 1f, 0.60f, 0.95f)
-                    : clampTarget ? new Color(1f, 0.78f, 0.28f, 0.95f)
-                    : mountedVehicle || beamTarget ? new Color(0.45f, 0.90f, 1f, 0.95f)
-                    : holding ? new Color(0.45f, 1f, 0.60f, 0.95f)
-                    : aimed != null ? new Color(0.60f, 1f, 0.75f, 0.90f)
-                                    : new Color(1f, 1f, 1f, 0.55f);
+                    : focus.Kind == PlayerInteractionKind.Clamp ? new Color(1f, 0.78f, 0.28f, 0.95f)
+                    : hasTarget || mountedVehicle ? new Color(0.45f, 0.90f, 1f, 0.95f)
+                    : new Color(1f, 1f, 1f, 0.55f);
 
-            float gap = clampTarget || beamTarget || aimed != null || holding ? 7f : 3f;
-            float len = clampTarget || beamTarget || aimed != null || holding ? 7f : 3f;
+            float gap = hasTarget || clampGrabbed || mountedVehicle ? 7f : 3f;
+            float len = hasTarget || clampGrabbed || mountedVehicle ? 7f : 3f;
             Box(new Rect(cx - gap - len, cy - 1f, len, 2f), c);
             Box(new Rect(cx + gap, cy - 1f, len, 2f), c);
             Box(new Rect(cx - 1f, cy - gap - len, 2f, len), c);
             Box(new Rect(cx - 1f, cy + gap, 2f, len), c);
 
-            if (aimed != null && !string.IsNullOrEmpty(aimed.Label))
-            {
-                string toolLabel = string.IsNullOrEmpty(aimed.Label) ? "도구" : aimed.Label;
-                string aimedText = toolTarget
-                    ? (holdingTool ? toolLabel + " · 전방 고정 중" : toolLabel + " · 좌/우클릭으로 잡기")
-                    : (holding ? aimed.Label : "닿는 곳: " + aimed.Label);
-                L(new Rect(cx - 200f, cy + 26f, 400f, 24f),
-                  aimedText, center, c);
-            }
-
-            if (clampTarget)
-                L(new Rect(cx - 260f, cy + 26f, 520f, 24f),
-                  releasingClamp ? "고정쇠 해제 유지 중 · 좌/우클릭 유지"
-                  : clampGrabbed && clampLiftReady ? "고정쇠 고정 완료 · 좌/우클릭 유지"
-                  : clampGrabbed ? "고정쇠를 위로 들어 올리는 중"
-                  : "고정쇠 · 좌/우클릭으로 잡기",
-                  center, c);
-            else if (Transport != null && mountedVehicle)
-                L(new Rect(cx - 300f, cy + 26f, 600f, 24f),
-                  focusedVehicle != null && focusedVehicle.Beam != null && focusedVehicle.Beam.IsHolding
-                    ? "견인 중 · 좌/우클릭으로 내려놓기 · E 하차"
-                    : "탑승 중 · WASD 운전 · 파츠 위에서 좌/우클릭으로 견인 · E 하차",
-                  center, c);
-            else if (Transport != null && beamTarget)
-                L(new Rect(cx - 300f, cy + 26f, 600f, 24f),
-                  "운반 장치 · 가까이서 E로 탑승", center, c);
-
-            if (Transport != null && !string.IsNullOrEmpty(Transport.StatusMessage))
-                L(new Rect(cx - 340f, cy + 52f, 680f, 24f),
-                  Transport.StatusMessage, small, new Color(0.72f, 0.92f, 1f));
+            if (hasTarget)
+                L(new Rect(cx - 90f, cy + 26f, 180f, 24f), focus.Keyword, center, c);
 
             if (Local != null && clampGrabbed)
                 ClampGauge(cx, cy,
-                           releasingClamp ? Local.ClampInteractor.HoldProgress : Local.ClampLiftProgress,
+                           Local.ClampLiftProgress,
                            releasingClamp);
             else if (Local != null && Local.ChargingTool)
                 ChargeGauge(cx, cy, Local.ToolCharge);
@@ -388,9 +308,6 @@ namespace Metagame.UI
 
             Box(new Rect(x, y, width, height), new Color(0f, 0f, 0f, 0.70f));
             Box(new Rect(x, y, width * ratio, height), fill);
-            L(new Rect(cx - 150f, y - 22f, 300f, 20f),
-              (releaseHolding ? "고정쇠 해제 유지 " : "고정쇠 들어 올리기 ")
-              + (ratio * 100f).ToString("0") + "%", small, fill);
         }
 
         void ChargeGauge(float cx, float cy, float charge)
@@ -404,18 +321,13 @@ namespace Metagame.UI
 
             Box(new Rect(x, y, width, height), new Color(0f, 0f, 0f, 0.70f));
             Box(new Rect(x, y, width * ratio, height), fill);
-            L(new Rect(cx - 120f, y - 22f, 240f, 20f),
-              "Q 충전 " + (charge * Tuning.ToolChargeDuration).ToString("0.0")
-              + " / " + Tuning.ToolChargeDuration.ToString("0.0") + "초",
-              small, fill);
         }
 
         static string HandLine(string name, Hand hand)
         {
             if (hand == null) return name + " —";
             if (hand.Gripping)
-                return name + " 잡음 : " + (hand.Held != null && hand.Held.Label != "" ? hand.Held.Label : "무언가");
-            if (hand.Aimed != null) return name + " 뻗음 → " + hand.Aimed.Label;
+                return name + " 잡음";
             return name + " 비어 있음";
         }
     }

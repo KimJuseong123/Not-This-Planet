@@ -20,6 +20,13 @@ namespace Metagame.Gameplay
         public Stage1Exploration Exploration;
         public TractorBeamController Transport;
 
+        /// <summary>
+        /// 끼임 탈출(기획 §21). <see cref="Begin"/> 이 만든다.
+        ///
+        /// 화면 표시가 <see cref="StuckEscape.Progress01"/> 을 읽을 수 있게 공개한다.
+        /// </summary>
+        public StuckEscape Escape { get; private set; }
+
         public int CheckpointIndex { get; private set; }
         public Vector3 SpawnFoot { get; private set; }
         public string StageHint { get; private set; }
@@ -56,6 +63,7 @@ namespace Metagame.Gameplay
                           Stage1Exploration exploration = null)
         {
             LocalPlayer = rig;
+            Escape = new StuckEscape(rig);
             Level = level;
             Exploration = exploration;
             SpawnFoot = spawnFoot;
@@ -125,8 +133,28 @@ namespace Metagame.Gameplay
                     f.FreeLook = false;
                 }
 
-                if (Input.GetKeyDown(Controls.Respawn)) Respawn();
+                // 끼임 탈출은 3초 유지다(기획 §21). 예전에는 GetKeyDown 으로 즉시
+                // 스폰 지점으로 보내면서 Revive 까지 불러 §20 의 기절·구조를 우회했다
+                // (S15P21B202-248).
+                Escape?.Tick(Time.deltaTime, f.StuckEscapeHeld);
+
                 if (f.Restart) Restart();
+
+                if (LocalPlayer.Cam != null)
+                {
+                    LocalPlayer.Cam.SetFreeLook(f.FreeLook);     // Steer 보다 먼저 — Alt 시점의 pitch 범위를 선택한다
+                    bool clampButtons = f.GrabLeft || f.GrabRight;
+                    LocalPlayer.Cam.SetClampLiftResistance(
+                        LocalPlayer.ClampGrabbed && clampButtons && !f.FreeLook);
+                    LocalPlayer.Cam.SetClampLiftPitchLock(
+                        LocalPlayer.ClampGrabbed && LocalPlayer.ClampLiftReady
+                        && clampButtons && !f.FreeLook);
+                    LocalPlayer.Cam.Steer(f.Look);
+                }
+
+                // 카메라가 갱신된 뒤 같은 프레임에 하나의 상호작용 대상을 고른다.
+                // 운반 장치·고정쇠·손잡기 입력과 HUD가 모두 이 결과를 공유한다.
+                LocalPlayer.RefreshInteractionFocus();
 
                 if (Transport != null)
                 {
@@ -146,18 +174,6 @@ namespace Metagame.Gameplay
                         f.ToolUtility = false;
                         f.ArmsUp = false;
                     }
-                }
-
-                if (LocalPlayer.Cam != null)
-                {
-                    LocalPlayer.Cam.SetFreeLook(f.FreeLook);     // Steer 보다 먼저 — Alt 시점의 pitch 범위를 선택한다
-                    bool clampButtons = f.GrabLeft || f.GrabRight;
-                    LocalPlayer.Cam.SetClampLiftResistance(
-                        LocalPlayer.ClampGrabbed && clampButtons && !f.FreeLook);
-                    LocalPlayer.Cam.SetClampLiftPitchLock(
-                        LocalPlayer.ClampGrabbed && LocalPlayer.ClampLiftReady
-                        && clampButtons && !f.FreeLook);
-                    LocalPlayer.Cam.Steer(f.Look);
                 }
                 LocalPlayer.SetInput(f);
             }
@@ -230,6 +246,15 @@ namespace Metagame.Gameplay
             cp.MarkReached();
         }
 
+        /// <summary>
+        /// 스폰 지점으로 되돌린다. <b>이제 재시작 전용이다</b>(<see cref="Restart"/>).
+        ///
+        /// 예전에는 <c>T</c> 가 이것을 직접 불렀다. §21 은 "가까운 안전 지면" 을 요구하고
+        /// "파츠, 비행체와 장비를 복구하는 기능은 아니다" 라고 정하는데, 이 함수는
+        /// 스폰으로 보내고 <see cref="Transport"/> 를 되돌리고 <see cref="PlayerRig.Revive"/>
+        /// 까지 부른다 — 재시작에는 맞고 끼임 탈출에는 전부 어긋난다.
+        /// 끼임 탈출은 <see cref="Escape"/> 가 맡는다(S15P21B202-248).
+        /// </summary>
         public void Respawn()
         {
             if (LocalPlayer == null) return;

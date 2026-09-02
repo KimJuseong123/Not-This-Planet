@@ -105,9 +105,9 @@ namespace Metagame.Gameplay.Parts
         /// <summary>
         /// 시험을 시작한다. <paramref name="engine"/> 은 탑의 최하단 파츠다.
         ///
-        /// 소켓 사슬(<see cref="PartSocket.ConnectedTo"/>)을 따라 위로 올라가며 탑을 모은다.
-        /// 호출자가 파츠 목록을 넘기게 하지 않는 이유는, 그러면 탑승 흐름이 파츠 순서를
-        /// 따로 관리해야 하고 그 목록이 실제 접합과 어긋날 수 있기 때문이다.
+        /// 접합 그래프(<see cref="PartGraph"/>)를 훑어 탑과 접합부를 모은다. 호출자가 파츠
+        /// 목록을 넘기게 하지 않는 이유는, 그러면 탑승 흐름이 파츠 순서를 따로 관리해야
+        /// 하고 그 목록이 실제 접합과 어긋날 수 있기 때문이다.
         /// </summary>
         public void Begin(SpaceshipPart engine)
         {
@@ -125,7 +125,8 @@ namespace Metagame.Gameplay.Parts
                 return;
             }
 
-            CollectTower(engine);
+            PartGraph.Collect(engine, _tower);
+            PartGraph.CollectLinks(_tower, _links);
 
             _engine = engine.GetComponent<Rigidbody>();
             if (_engine == null)
@@ -163,34 +164,6 @@ namespace Metagame.Gameplay.Parts
             _towerMass = mass;
             _peakThrust = mass * -Physics.gravity.y * PhysicsScale.LaunchThrustRatio;
             State = LaunchState.Ramping;
-        }
-
-        /// <summary>
-        /// 최하단부터 소켓 사슬을 따라 위로 올라가며 탑과 접합부를 모은다.
-        /// 접합부는 위에 올라가는 파츠 쪽에 붙어 있다(<see cref="PartAssembler"/>).
-        /// </summary>
-        void CollectTower(SpaceshipPart engine)
-        {
-            var current = engine;
-
-            while (current != null)
-            {
-                _tower.Add(current);
-
-                PartSocket top = null;
-                var sockets = current.Sockets;
-                for (var i = 0; i < sockets.Count; i++)
-                    if (sockets[i] != null && sockets[i].Role == SocketRole.Top)
-                        top = sockets[i];
-
-                var next = top != null && top.ConnectedTo != null ? top.ConnectedTo.Owner : null;
-                if (next == null || _tower.Contains(next)) break;
-
-                var link = next.GetComponent<PartAssemblyLink>();
-                if (link != null) _links.Add(link);
-
-                current = next;
-            }
         }
 
         void FixedUpdate() => Tick(Time.fixedDeltaTime);

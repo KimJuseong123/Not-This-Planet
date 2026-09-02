@@ -6,7 +6,7 @@ namespace Metagame.Gameplay
     /// <summary>
     /// 쓰러진 동료를 일으키는 상호작용(기획 §26-13 "전원 기절 실패가 긴장감을 주되").
     ///
-    /// 구조는 <see cref="Parts.PartClamp"/>·<see cref="Parts.WeldSeam"/> 와 같다 —
+    /// 구조는 <see cref="Parts.PartClamp"/>·<see cref="Parts.WeldBead"/> 와 같다 —
     /// 꾹 누르고, 놓아도 진행분이 남고, 다른 사람이 이어받는다. 그 성질을 여기서 세
     /// 번째로 다시 쓴다. <b>공용으로 뽑지 않은 이유</b>는 세 곳의 진행 단위가 서로
     /// 다르기 때문이다 — 고정못은 인원 수에 비례하고, 접합선은 조각별이며, 구조는

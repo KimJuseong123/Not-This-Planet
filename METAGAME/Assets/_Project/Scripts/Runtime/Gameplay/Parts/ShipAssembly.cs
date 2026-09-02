@@ -15,9 +15,12 @@ namespace Metagame.Gameplay.Parts
     /// 시도할 수 있어야 하고, 그래서 하중 시험에서 실패한다. 조건에 넣으면
     /// <see cref="LaunchTest"/> 의 미용접 실패 경로가 도달 불가가 된다.
     ///
-    /// 탑을 따라 올라가는 방법은 <see cref="LaunchTest"/> 와 같다 —
-    /// <see cref="PartSocket.ConnectedTo"/> 사슬이다. 두 곳이 다른 방법을 쓰면
-    /// "탑승은 됐는데 시험이 파츠를 못 찾는" 어긋남이 생긴다.
+    /// 탑을 모으는 방법은 <see cref="LaunchTest"/> 와 같다 — <see cref="PartGraph"/> 다.
+    /// 두 곳이 다른 방법을 쓰면 "탑승은 됐는데 시험이 파츠를 못 찾는" 어긋남이 생긴다.
+    ///
+    /// 예전에는 두 곳이 <c>PartSocket.ConnectedTo</c> 사슬 코드를 <b>각자</b> 갖고 있었다.
+    /// S15P21B202-229 에서 탐색을 <see cref="PartGraph"/> 한 곳으로 옮겼다 — 비드로 옆에
+    /// 이은 파츠는 소켓 사슬에 없으므로 사슬로는 탑의 절반만 보인다.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class ShipAssembly : MonoBehaviour
@@ -67,7 +70,7 @@ namespace Metagame.Gameplay.Parts
                 return;
             }
 
-            CollectTower(engine);
+            PartGraph.Collect(engine, _tower);
 
             if (_tower.Count < PartSpec.All.Length)
             {
@@ -76,6 +79,11 @@ namespace Metagame.Gameplay.Parts
             }
 
             // 순서는 PartSpec.All 이 정한다. 기획 §7.1 의 조립 순서를 그 표가 갖고 있다.
+            //
+            // PartGraph 가 높이 순으로 정렬해 준 목록이므로 인덱스가 곧 층이다. 예전에는
+            // 소켓 사슬을 올라간 순서가 그대로 층이었는데, 그래프에는 "다음 층" 이 없다.
+            // 비드로 옆에 붙여도 §7.1 의 쌓는 순서는 그대로 남는다 — 비드는 붙이는
+            // 수단이지 순서를 우회하는 길이 아니다.
             for (var i = 0; i < _tower.Count; i++)
             {
                 if (_tower[i].name == PartSpec.All[i].Name) continue;
@@ -136,25 +144,5 @@ namespace Metagame.Gameplay.Parts
             return offset.magnitude <= PhysicsScale.LaunchPadRadius;
         }
 
-        void CollectTower(SpaceshipPart engine)
-        {
-            var current = engine;
-
-            while (current != null)
-            {
-                _tower.Add(current);
-
-                PartSocket top = null;
-                var sockets = current.Sockets;
-                for (var i = 0; i < sockets.Count; i++)
-                    if (sockets[i] != null && sockets[i].Role == SocketRole.Top)
-                        top = sockets[i];
-
-                var next = top != null && top.ConnectedTo != null ? top.ConnectedTo.Owner : null;
-                if (next == null || _tower.Contains(next)) break;
-
-                current = next;
-            }
-        }
     }
 }

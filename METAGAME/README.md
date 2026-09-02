@@ -39,7 +39,7 @@ Build/Windows/SpaceFlop.exe -space-screenshot -space-shotdir Screenshots -screen
 Stage2 이후에는 같은 프로필 구조를 복사해 Stage별 값을 별도로 연결한다.
 
 에디터 메뉴는 `Tools/둥실둥실 우주 대탈출/` 아래에 있다.
-1장에 필요한 에셋·퍼즐·운석·지형·용접 건·스킨·분위기 연결은 `Main 씬에 1장 전체 구성`으로 한 번에 만들 수 있다.
+1장에 필요한 에셋·태블릿·퍼즐·운석·지형·맵 타일·용접 건(실제 모델)·스킨·분위기 연결은 `Main 씬에 1장 전체 구성`으로 한 번에 만들 수 있다.
 실제 빌드 씬은 `Assets/Scenes/Lobby.unity`와 `Assets/Scenes/Main.unity`이며,
 `Main`에는 `SpaceBootstrap`과 Stage1 배치가 있다.
 

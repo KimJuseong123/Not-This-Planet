@@ -22,9 +22,12 @@
 | `mr-lint` | lint | Draft 금지 · 소스/대상 브랜치 형식(대상 = develop · master(릴리즈) · 작업 브랜치=**스택 MR 허용, 경고** · `hotfix/*` 대상은 **실패** — 검증받지 않은 변경이 핫픽스에 얹혀 master 로 들어가고 R6 조건도 막힌다, -134) · 제목 정규식 · 제목/브랜치/본문의 키 일치 · 템플릿 섹션 6개 · 작성자 체크리스트 전부 체크 · Jira 이슈 실존(조회 자체가 실패하면 판정하지 않고 경고만 — 장애·토큰 만료를 '이슈 없음' 으로 오해하지 않는다, -94)·Epic 아님·담당자·상위 Epic 있음 · 제목 파트 = Jira 파트. **경고**: MR 작성자 ≠ Jira 담당자(브랜치 번호 오타로 남의 이슈를 건드린 경우가 드러난다, 대행 작업이면 무시 — -94) | **예**. **경고(차단 아님)**: 브랜치가 master(또는 그 이전)에서 갈라짐 · 시작점이 develop 대비 `MR_STALE_WARN_COMMITS`(기본 25) 이상 뒤 · MR 커밋에 다른 이슈 키 섞임(-90). 경고가 있으면 **MR 코멘트 `⚠ 확인 사항`** 1개(마커로 갱신, 해소되면 ✅ 로 바뀜)에 **그 MR 의 모든 경고**(브랜치 베이스·담당자 불일치·완료된 이슈·파트 없음 …, -105)를 담아 남기고, **master 기반일 때만** 🟠 MM 카드(작성자 멘션)를 보낸다 |
 | `repo-hygiene` | lint | **경로 길이 상한 180자**(추가되는 경로만 — 러너 빌드 경로 71자를 더하면 Windows MAX_PATH 260 을 넘어 checkout 자체가 죽는다. 2026-08-31 실측: 189자 경로가 develop 에 들어와 파이프라인 10건이 스크립트 실행 전에 전멸) · 금지 파일(Library/Temp/obj/Build·csproj/sln·.vs/.idea·OS 잡파일·빌드 산출물·**인증키(.pem/.key/.p12/id_rsa 등)**) · Assets 아래 `.meta` 짝(파일·상위 폴더·고아 — 점으로 시작하는 파일·`~` 폴더는 Unity 가 임포트하지 않으므로 제외, -122) · Assets 새 최상위 폴더 금지(`_Project/` 아래로) · **LFS 추적 파일이 실제 바이너리로 커밋됨**(오늘 URP.png 사례) · 비-LFS 5MB 초과 · 씬/프리팹 변경 vs MR 본문 선언 불일치. **릴리즈 MR(develop → master)은 통째로 건너뛴다** — 비교 기준이 master 라 develop 의 기존 파일까지 '추가됨' 으로 잡혀 오탐만 나온다(2026-08-28 MR !68 에서 `.gitkeep` 의 `.meta` 누락 14건 오탐 확인, -122) | **예** |
 | `mr-overlap` | lint | **다른 열린 MR 과의 충돌을 MR 시점에**(-138, 팀장 요청). 같은 대상을 향한 다른 열린 MR 마다 `git merge-tree` 로 **실제 3-way 머지를 시험**해 충돌 파일을 증명한다(추측 아님). 같은 씬·프리팹·에셋을 만졌지만 텍스트 충돌은 없는 경우도 ⚠. **나중에 열린 MR 이 조정하는 쪽** — 텍스트 충돌이면 나중 MR 은 ❌(리베이스/merge 명령을 코멘트로), 먼저 MR 에는 ⚠ 정보 + 머지 순서. 이 MR 이 다른 열린 MR 위에 얹혀 있으면(그 끝 커밋이 조상) **대상을 그 브랜치로 자동 전환** — 먼저 머지해도 남의 내용이 몰래 들어가지 않고, 부모가 머지되면 GitLab 이 대상을 develop 으로 되돌린다(18.11 실측). 겹치는 쌍이 있으면 AI 가 '텍스트 충돌은 없지만 서로 깨뜨리는지' 를 판정해 덧붙인다(최대 3쌍). 양쪽 MR 에 코멘트(마커 갱신). **'그 MR 이 스스로 바꾼 파일' 의 기준은 각 MR 의 대상 브랜치와의 공통 조상**(GitLab MR diff 와 같은 기준) — 두 MR 끝 커밋의 쌍별 공통 조상을 쓰면 상대가 오래된 지점에서 갈라졌을 때 그 사이 develop 에 머지된 남의 커밋이 '내 변경' 으로 잡혀 애먼 MR 이 지목된다(2026-08-31 오귀속 4건 실측 후 -188 에서 수정) | **예**(나중 MR 의 텍스트 충돌만) |
+| `stack-order` | lint | **스택 자식 MR 은 부모가 develop 에 들어간 뒤에만 머지**(-244). 대상이 다른 이슈의 작업 브랜치면 실패하고 MR 코멘트로 이유를 남긴다. 부모가 머지되면 GitLab 이 대상을 develop 으로 되돌리고(대상 변경 시 1초 안에 새 파이프라인 생성 — 2026-09-01 실측) 검사가 저절로 통과한다. 부모가 이미 머지됐는데 브랜치만 남은 경우·브랜치가 사라진 경우에는 **대상을 develop 으로 되돌리고 통과**시킨다(억울한 차단 방지). `mm-ci-failed` 의 `needs` 에 **일부러 넣지 않아** 🔴 카드를 보내지 않는다 — 작성자가 잘못한 것이 아니라 아직 순서가 아닐 뿐이다. Draft 를 쓰지 않는 이유: 팀 규칙이 Draft 를 금지하므로(git-convention §5) CI 가 그 상태를 쓰면 규칙에 예외가 생기고 사람이 흉내 내 우회할 수 있다. 비상 스위치 `STACK_ORDER_ENFORCE=0`(경고만) | **예** — 단 하드 블록은 `Pipelines must succeed` 가 켜진 뒤 |
 | `ci-tests` | lint | `scripts/ci/tests/run_all.py` — CI 스크립트 자신의 오프라인 회귀 테스트(네트워크·토큰 없이 `http()` 를 가짜로 바꿔 실행). `scripts/ci/**` 이 바뀐 MR 에서만 잡이 생긴다. 새 규칙·판정 로직을 넣을 때 여기에 케이스를 추가한다(-103) | **예**. **릴리즈 MR(develop → master)은 Draft 금지와 대상 브랜치 규칙만 보고 나머지는 건너뛴다** — 이슈 키도 템플릿도 없는 정렬용 MR 이고 내용은 develop 에 들어올 때 이미 검사했다(-122) |
+| `build-backend` | test | `eclipse-temurin:17-jdk` 컨테이너에서 `./gradlew --no-daemon bootJar`. **`backend/**` 가 바뀐 MR 에서는 컴파일 검사**(그전에는 백엔드가 MR 시점 빌드 검사 없이 머지됐다), develop 머지에서는 배포용 jar 아티팩트(3일 보관). Gradle 의존성은 `gradle-backend` 캐시로. `gradlew` 는 git 에 실행 권한이 없어 `chmod +x` 가 필요하다. 실측 2026-09-01: 캐시 있는 상태에서 48초 |
 | `unity-compile` | test | Unity 설치 Windows 러너(`unity-win`)에서 EditMode 테스트 실행 → 컴파일 에러 검출. `UNITY_RUNNER=true` 일 때만 생성 | 처음엔 아니오 |
 | `ai-review` | review | **v2(2026-08-27, -82)**: 역할별 리뷰어 3(범위·완료 조건·기록 / C#·Unity·네트워크 코드 / 에셋·씬·프리팹·구조)이 변경 내용에 따라 필요한 것만 **병렬** 실행되어 JSON 만 내고, 요약 에이전트가 "팀장이 확인할 것" 1~3개를 쓴다. 최종 코멘트 1개(재실행 시 갱신) = 결론(✅ 머지 가능 / ⚠️ 확인 후 머지 / ⛔ 보류) → 확인할 것 → **리뷰어 확인 5항목 판정표**(범위·완료 조건·씬/프리팹·구조·기록) → 발견 사항 표(높음·중간) → `<details>` 상세. 팀장은 ⚠️/❓ 만 본다. **백엔드**: `cli` = 러너 호스트 Claude Code CLI(Team 플랜, 채택) / `api` = `ANTHROPIC_API_KEY`. `AI_REVIEW_CLI=true` 또는 키가 있을 때만 잡 생성 | 아니오 |
+| `deploy-backend` | deploy | **develop push + `backend/**` 변경 + `when: manual`**. 빌드된 jar 을 호스트 스풀에 원자적으로 놓고(`.part`→rename) `RELEASE` 표시 파일을 쓰면, 호스트의 systemd path 유닛이 `deploy.sh` 를 돌린다 — jar 교체 → `compose up -d --build backend` → 준비 확인(`POST /auth/guest` 200, deviceId 고정이라 사용자 행은 최대 1개) → 실패 시 **직전 jar 로 자동 롤백**(3개 보관). 잡은 `STATUS` 에 자기 sha 가 찍힐 때까지 기다려 판정한다(최대 420초). **수동인 이유**: 재시작이 WebSocket 세션을 전부 끊어 팀원 테스트를 깨뜨린다. 도커 소켓을 잡에 노출하지 않으려고 파일로 신호를 준다(백엔드·DB 가 같은 호스트 — 소켓 = 사실상 root) |
 | `mm-digest` | notify | **스케줄 전용**(CI/CD → Schedules 에 `30 9 * * *` Asia/Seoul, develop — 2026-08-28 등록, id 24. Maintainer 소유 필요. **매일**이며 실제 발송은 09:33 — GitLab 이 프로젝트마다 몇 분 오프셋을 더한다). needs-fix · 기한 초과 · 3일 정체 진행 중 · 스프린트 내 담당자 없음 · 24시간 넘게 열린 MR · **머지 뒤 다시 생긴 브랜치**(-110) · **최근 7일 안에 머지됐는데(merged_at) 완료 아닌 이슈**(R6 누락 감지, -83 — 규칙 실패 이메일은 유지하고 이 표가 보조. 규칙 실행 이력은 Jira 프로젝트 설정 → 자동화 → 감사 로그) 를 MM 표 카드로. 항목 없으면 보내지 않음 · **검사가 돌지 않은 MR**(-130 — ① 파이프라인이 아예 없는 MR: 소스 브랜치에 `.gitlab-ci.yml` 이 없다(master 기반 브랜치, 2026-08-28 MR !74 실측) ② 최신 파이프라인이 `DIGEST_PENDING_HOURS`(기본 2)시간 넘게 대기: 러너가 꺼져 있다. 둘 다 **빨간불이 없어 통과한 것처럼 보이는** 상태라 사람이 보지 않으면 그대로 머지된다) 를 MM 표 카드로. 항목 없으면 보내지 않음 | — | — |
 
 정규식(단일 출처 `scripts/ci/ci_common.py`):
@@ -44,7 +47,7 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 
 | 변수 | 무엇 | 누가 만드나 | 없으면 |
 | --- | --- | --- | --- |
-| `JIRA_USER`, `JIRA_API_TOKEN` | Jira 읽기(이슈 조회·JQL) | Atlassian 계정 설정 → 보안 → API 토큰 — **스코프 토큰(`read:jira-work`, `read:jira-user`) 권장**. 스크립트는 `https://api.atlassian.com/ex/jira/{JIRA_CLOUD_ID}` 경로로 호출한다(스코프 토큰은 사이트 URL 로는 익명 취급 → 404, 2026-08-27 실측). `JIRA_CLOUD_ID` 기본값은 우리 사이트 | 키 실존·파트 검사 생략(경고) |
+| `JIRA_USER`, `JIRA_API_TOKEN` | Jira 읽기(이슈 조회·JQL) — **읽기 전용으로 충분하다.** 쓰기 권한은 두지 않는다(-242): 이슈 상태 전이는 Jira 자동화 규칙(R5·R6·R9)만 하고 CI 는 검사·알림만 맡는다. 그래야 러너가 꺼져 있어도 이슈 완료가 영향받지 않고, 팀 공용 변수에 쓰기 권한이 남지 않고, 전이 규칙이 한 곳에만 있다 | Atlassian 계정 설정 → 보안 → API 토큰 — **스코프 토큰(`read:jira-work`, `read:jira-user`) 권장**. 스크립트는 `https://api.atlassian.com/ex/jira/{JIRA_CLOUD_ID}` 경로로 호출한다(스코프 토큰은 사이트 URL 로는 익명 취급 → 404, 2026-08-27 실측). `JIRA_CLOUD_ID` 기본값은 우리 사이트 | 키 실존·파트 검사 생략(경고) |
 | `GITLAB_TOKEN` | MR 제목/본문 수정·코멘트·MR 목록 | Settings → Access Tokens → **프로젝트 액세스 토큰**, 역할 Developer, 스코프 `api` | 제목 보정·AI 코멘트 불가(제안만 로그) |
 | `AI_REVIEW_CLI` | `true` — 러너 호스트의 로그인된 Claude Code CLI 로 AI 리뷰(Team 플랜, **채택 방식**) | 팀장 | `ai-review` 잡 생성 안 됨 |
 | `AI_REVIEW_MODEL` | (선택) 기본 `claude-opus-5`, `AI_REVIEW_EFFORT` 기본 `medium`(팀 결정). `AI_REVIEW_SUMMARY_MODEL` 요약 에이전트 모델(기본 = 위), `AI_REVIEW_ROLES` 리뷰어 강제(예 `scope,code`), `AI_REVIEW_PARALLEL` 동시 실행 수(기본 3) | — | 기본값 |
@@ -58,16 +61,29 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 ## 4. 러너
 
 - **공유 러너**: 설정은 켜져 있지만(`shared_runners_enabled=true`) **실제 러너가 없다** — MR !10 첫 파이프라인이 9분 넘게 `pending`(2026-08-27 실측). 따라서 **프로젝트 러너 등록이 필수**. `image:` 는 Docker 러너용이며 shell 러너에서는 무시됨.
-- **현재 배치(2026-09-01 실측)** — 러너 **2대가 모두 태그 없이** 돌고 있어 잡이 양쪽으로 갈린다.
+- **현재 배치(2026-09-01)** — 모든 잡이 **EC2 러너로 고정**돼 있다(`.gitlab-ci.yml` 의 `default.tags: [linux]`).
 
   | 러너 | 어디 | 실행기 | 몫 |
   | --- | --- | --- | --- |
   | `METAGAME-ip-172-26-13-34` | **EC2**(상시, 24시간) | docker · concurrent 2 · 부팅 자동 시작 | 앞으로 전부 |
-  | `METAGAME-DESKTOP-UB20P0O` | 내 PC | shell(pwsh) | Unity 잡(`unity-win`) · EC2 장애 시 예비 |
+  | `METAGAME-DESKTOP-UB20P0O` | 내 PC | shell(pwsh) | **Unity 잡(`unity-win`) 전용 · 그 밖에는 예비** |
 
-  내 PC 러너 강등(태그 부여 + Run untagged 해제)은 **EC2 가 한동안 안정적으로 도는 것을 본 뒤**에 한다.
   단일 러너가 팀 전체의 단일 장애점이었다 — 08-28 러너 중단 1시간, 08-31 MAX_PATH 로 파이프라인 26건 전멸.
   EC2 는 리눅스·도커라 **MAX_PATH 문제는 원인 자체가 없다.**
+
+- **잡을 러너에 묶는 방식**: 러너 쪽에서 'Run untagged 해제 + 태그' 를 하려면 Maintainer 권한이 필요하다
+  (Developer 토큰은 러너 조회조차 403). 그래서 **잡 쪽에 태그를 건다** — `default.tags: [linux]` 한 줄로 모든 잡이
+  `linux` 태그를 요구하게 되고, 그 태그를 가진 것은 EC2 러너뿐이다. `unity-compile` 만 `tags: [unity-win]` 으로 덮어쓴다.
+- **내 PC 러너는 2026-09-01 부터 정지 상태다.** Unity 잡(`unity-compile`)은 `UNITY_RUNNER` 가 켜지기 전까지
+  생성되지 않으므로(최근 파이프라인 실측: 없음) 지금 그 러너가 할 일은 없다. 켜 두면 잡이 양쪽으로 갈려
+  환경 차이만 만든다.
+- **🚨 EC2 러너 장애 시 복귀** — 파이프라인이 `pending` 에서 멈추면 아래 중 하나:
+  ① **팀장**(가장 빠름): Runners 에서 내 PC 러너 **재개(unpause)** + 태그에 `linux` 추가. 두 곳 다 해야 한다 —
+     잡이 `linux` 를 요구하므로 재개만으로는 안 받는다
+  ② 러너 소유자(금준영): 내 PC 에서 관리자 PowerShell 로 `Start-Service gitlab-runner` (①의 태그 추가는 여전히 필요)
+  ③ 팀장이 없을 때: `.gitlab-ci.yml` 의 `default.tags` 줄을 지우는 MR — 그러면 태그 없는 러너 아무 데서나 돈다.
+     `build-backend`·`deploy-backend` 는 잡에 태그가 박혀 있으니 그 줄도 함께 지워야 한다
+  ④ EC2 쪽 1차 확인: `systemctl status gitlab-runner` · `journalctl -u gitlab-runner -n 50`
 
 - **EC2 러너 설치**: `sudo RUNNER_TOKEN=glrt-… bash scripts/runner/setup-linux-runner.sh` (토큰은 환경변수로만 — `read -rs` 로 받아 화면·히스토리에 남기지 않는다). 러너는 아웃바운드 443 만 쓰므로 **UFW 변경 불필요**.
 - **잡 이미지에는 git 이 있어야 한다**(2026-09-01 실측). `python:3.12-slim` 에는 git 이 없어 `ci-tests` 가 EC2 에서
@@ -109,7 +125,8 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 | 🟠 | 제목 형식 위반 · 상위 Epic 없음 (R2) | Jira 웹 요청 | 담당자(없으면 보고자) | `🟠 **제목 형식 위반** …` / `@user · [파트] 제목 형식으로` |
 | 🟠 | MR 머지 없이 닫힘 (R7) | Jira 웹 요청 | 이슈 담당자 | `🟠 **MR 이 머지 없이 닫힘** …` / `@user · 재오픈 또는 팀장에게 정리 요청` |
 | 🟢 요청 | MR 열림 = 리뷰 요청 | CI `mm-mr-opened`(MR 의 **첫 파이프라인일 때 1회** — id 가 가장 작은 파이프라인만 보낸다. 예전엔 파이프라인 개수로 판정해 재시도로 2개가 된 MR 이 영구 미발송이었다(-134), Draft 제외) | **리뷰어(기본 팀장)**, 작성자 표기 | `🟢 **리뷰 요청** — [!N 제목](url)` / `@suho6347 · 작성 dorem96 · …` |
-| 📋 요약 | 매일 09:30 다이제스트(발송 09:33) | CI `mm-digest`(스케줄) | 항목별 담당자(없으면 팀장) | `📋 **아침 점검 — 확인 필요**` + needs-fix·기한 초과·3일 정체·담당자 없음·24h 넘은 MR·🔗 머지됐는데 완료 안 됨(대상 develop)·🧩 스택 자식 MR(부모가 develop 에 도달한 것만)·검사 안 돈 MR·충돌하는 열린 MR |
+| 🟢 완료 / 🔴 실패 | 백엔드 배포 결과 (S15P21B202-144) | CI `deploy_backend.py` → `mm_notify.deploy()` (잡을 따로 두지 않는다 — 결과를 아는 곳이 스크립트다. 잡 종료 코드는 성공/롤백/무응답/실패를 `실패` 하나로 뭉갠다) | **실패·롤백·무응답에만 Infra** — 성공은 멘션 없음 | `🟢 **배포 완료**` + 커밋·결과·누른 사람·링크, 그리고 **"진행 중이던 접속이 모두 끊겼습니다"** (재시작이 WebSocket 세션을 전부 끊는다 — 같은 서버로 테스트하던 사람은 이 알림 말고는 알 방법이 없다. 그래서 **성공도 보낸다**) / `🔴 **배포 롤백**` 은 **지금 서버가 직전 jar 로 돈다**는 것을 명시하고, `🔴 **배포 무응답**` 은 서버 상태를 단정하지 않는다(배포가 시작됐는지조차 모른다) |
+| 📋 요약 | 매일 09:30 다이제스트(발송 09:33) | CI `mm-digest`(스케줄) | 항목별 담당자(없으면 팀장) | `📋 **아침 점검 — 확인 필요**` + needs-fix·기한 초과·3일 정체·담당자 없음·24h 넘은 MR·🔗 머지됐는데 완료 안 됨(대상 develop)·🧩 스택 자식 MR(부모가 develop 에 도달한 것만)·검사 안 돈 MR·충돌하는 열린 MR. **꼬리에 🚀 배포 상태 한 줄**(-144): `🚀 배포: \`sha\` (09/01 21:10) · 백엔드 변경 N건 배포 대기`. **블록이 아니라 꼬리다** — 배포 상태는 조치 항목이 아니므로 이것만으로 카드를 보내지 않는다("항목 없으면 보내지 않는다" 원칙 유지). 마지막 시도가 `failed`·`canceled` 로 남아 있으면 그때만 별도 블록으로 Infra 를 부른다. **지금 서버(마지막 성공)와 마지막 시도를 섞지 않는다** — 시도가 실패해도 서버는 그 전 성공분으로 돌고 있다 |
 | 🟢 완료 | MR 머지 = 이슈 완료 (R6) | Jira 웹 요청 | **이슈 담당자**(= MR 작성자) | `🟢 **머지 완료 · 이슈 완료**` / 이슈·담당·MR 링크·"브랜치 자동 삭제됨, 후속은 새 이슈로" — 2026-08-27 추가 |
 | ✂ 보내지 않음 | push · 코멘트 · 이슈 생성 | — | 태그 대상 없음 | Jira 상태 전이·MR 화면으로 충분 |
 

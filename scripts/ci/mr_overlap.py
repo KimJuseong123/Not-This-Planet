@@ -22,7 +22,7 @@ import os
 import subprocess
 import sys
 
-from ci_common import GitLab, Report, banner, env, env_int, http
+from ci_common import GitLab, Report, banner, env, env_int, http, strip_draft
 
 
 def is_release_mr(source: str, target: str) -> bool:

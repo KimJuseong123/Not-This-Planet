@@ -208,6 +208,30 @@ namespace Metagame.Gameplay.Parts
         /// <summary>씬을 만드는 도구가 파츠별 질량을 넣는다.</summary>
         public void SetPlacedMass(float mass) => _placedMass = Mathf.Max(0f, mass);
 
+        /// <summary>
+        /// 파츠에 <b>덧붙은</b> 질량(kg). 지금은 용접 비드(<see cref="WeldBead"/>)가 유일한 출처다.
+        ///
+        /// <see cref="Rigidbody.mass"/> 를 밖에서 직접 더할 수 없다. 이 클래스가 상태가
+        /// 바뀔 때마다 <see cref="ApplyRepresentation"/> 에서 질량을 <b>다시 쓰기</b> 때문이다 —
+        /// 밖에서 더해 두면 다음 상태 전환에 조용히 사라진다. 그래서 질량의 주인을 하나로
+        /// 두고 덧붙는 몫만 여기로 넘긴다.
+        /// </summary>
+        [SerializeField] float _extraMass;
+
+        public float ExtraMass => _extraMass;
+
+        /// <summary>덧붙은 질량을 갈아 끼우고 물리 표현을 다시 적용한다.</summary>
+        public void SetExtraMass(float mass)
+        {
+            Initialize();
+
+            var next = Mathf.Max(0f, mass);
+            if (Mathf.Approximately(next, _extraMass)) return;
+
+            _extraMass = next;
+            ApplyRepresentation(_state);
+        }
+
         /// <summary>고정못이 하나라도 풀렸는가. 풀린 것이 하나도 없으면 예전처럼 꿈쩍하지 않는다.</summary>
         public bool HasReleasedClamp
         {
@@ -307,7 +331,16 @@ namespace Metagame.Gameplay.Parts
             // 하나도 안 풀린 파츠는 예전 그대로 kinematic 이다 — 들 것이 없고, 그래야
             // 저중력장·운석이 손대지 않는다.
             _body.isKinematic = isKinematic && !HasReleasedClamp;
-            _body.mass = mass;
+
+            // 견인 중에는 덧붙은 질량을 더하지 않는다. CarriedPartMass 는 크기와 무관하게
+            // "플레이어를 압사시키지 않는 값" 이라 파츠 질량조차 무시하는 자리다 —
+            // 여기에 비드 무게를 더하면 비드를 쌓은 파츠만 견인이 달라진다.
+            _body.mass = state == PartState.Carried ? mass : mass + _extraMass;
+
+            // 무게중심(centerOfMass)은 <b>대입하지 않는다.</b> Unity 가 자식 콜라이더의
+            // 모양과 배치에서 자동 계산하고, S15P21B202-166 이 파츠별 컴파운드 콜라이더를
+            // 실측해 넣은 것이 그 자동 계산을 쓰기 위해서다. 한 번이라도 대입하면
+            // 자동 계산이 영구히 꺼져, 이후 비드를 붙여도 무게중심이 따라오지 않는다.
             _body.maxAngularVelocity = PhysicsScale.PartMaxAngularSpeed;
         }
 
