@@ -224,6 +224,21 @@ WebGL 은 계획에 없으므로(목표는 Steam) `SimpleWebTransport` 는 원�
 주의: Edgegap 의 `session_id` 는 **문자열**이고 전송의 `sessionId` 는 **uint** 다. 둘은 다른 것이다 —
 전송에 넣는 값은 세션 단위 `authorization_token` 이다. 헷갈리면 조용히 접속에 실패한다.
 
+**인증 헤더는 소문자 `token` 이어야 한다** (2026-09-02 EC2 실측):
+
+| 보낸 헤더 | 응답 |
+| --- | --- |
+| `Authorization: token <UUID>` | **200** ✅ |
+| `Authorization: Token <UUID>` | 401 `{"message": "Bad Api Token Provided"}` |
+| `Authorization: Bearer <UUID>` | 401 |
+
+대소문자를 가린다. 그리고 대시보드에서 토큰을 복사하면 **`token ` 접두어까지 딸려 온다** —
+그대로 설정에 넣으면 헤더가 `token token <UUID>` 가 되어 역시 401 이다(길이 42 = 6 + 36 으로 알 수 있다).
+코드가 읽을 때 접두어를 걷어내지만, 설정에는 UUID 만 넣는 것이 깔끔하다.
+
+**이 실수는 드러나지 않는다.** 릴레이 호출이 실패하면 직접 접속으로 조용히 되돌아가므로
+"왜 릴레이가 안 붙지" 로만 보인다. 의심되면 EC2 에서 curl 로 직접 불러 본다.
+
 **GAME_STARTED 가 실어 나른다.** -263 이 만든 `hostAddress` 자리를 그대로 쓰되, 릴레이일 때는
 주소 대신 위 다섯 값을 싣는다. 사람마다 `userId` 가 다르므로 **방송이 아니라 각자에게 따로** 보내야 한다.
 
