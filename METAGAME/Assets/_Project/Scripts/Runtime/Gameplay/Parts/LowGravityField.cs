@@ -189,7 +189,12 @@ namespace Metagame.Gameplay.Parts
                 if (body == null || body.isKinematic) continue;
 
                 // 기체 자신과 그 자식(플랫폼·조종석)은 제 필드에 뜨지 않는다.
-                if (body == _carrierBody || body.transform.IsChildOf(Origin.root)) continue;
+                // Origin.root를 쓰면 실제 씬의 최상위 Stage1 루트가 되어, 같은 루트의
+                // 조립 파츠까지 전부 "내 자식"으로 오판한다. 운반체 Rigidbody의 실제
+                // Transform만 기준으로 자식 계층을 제외한다.
+                if (body == _carrierBody
+                    || (_carrierBody != null && body.transform.IsChildOf(_carrierBody.transform)))
+                    continue;
 
                 // 고정쇠가 하나라도 풀린 파츠는 Rigidbody가 동적으로 전환되어 부분적으로
                 // 들릴 수 있다. 아직 State가 Locked인 것은 남은 고정쇠가 있기 때문이지,

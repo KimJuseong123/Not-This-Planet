@@ -263,6 +263,38 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void Field_AffectsSiblingPartUnderSameSceneRoot()
+        {
+            var world = new GameObject("Stage1");
+            spawned.Add(world);
+
+            var craft = new GameObject("Transport") { layer = GameLayers.Prop };
+            craft.transform.SetParent(world.transform, false);
+            craft.transform.position = Vector3.zero;
+            var carrier = craft.AddComponent<Rigidbody>();
+            carrier.useGravity = false;
+
+            var field = craft.AddComponent<LowGravityField>();
+            field.Configure(craft.transform, carrier);
+            field.SetActive(true);
+
+            var partObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            partObject.name = "Part_4";
+            partObject.layer = GameLayers.Part;
+            partObject.transform.SetParent(world.transform, false);
+            partObject.transform.localPosition = new Vector3(0f, -6f, 0f);
+            var part = partObject.AddComponent<Rigidbody>();
+            part.useGravity = false;
+            spawned.Add(partObject);
+            UnityEngine.Physics.SyncTransforms();
+
+            field.Tick(Step);
+
+            Assert.AreEqual(1, field.AffectedCount,
+                "운반체와 같은 Stage1 루트 아래의 조립 파츠도 저중력장 대상이어야 한다.");
+        }
+
+        [Test]
         public void Field_UsesCarrierMotionAsInterpolatedForce()
         {
             var field = MakeField(Vector3.zero);
