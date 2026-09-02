@@ -349,23 +349,24 @@ namespace Metagame.Gameplay
         /// <summary>
         /// 방망이가 밀칠 소품. 없으면 null(S15P21B202-245).
         ///
-        /// <b>기획에 없는 기능이다.</b> §18.3 이 정한 것은 플레이어 타격이고, "굴러다니는
+        /// <b>기획에 없는 기능이다.</b> §18.3 이 정한 것은 플레이어 타격이고 "굴러다니는
         /// 소품을 밀친다" 는 언급이 없다. 넣기로 정한 것이므로 무엇을 빼는지가 규칙의
         /// 전부다.
         ///
-        /// <b>레이어 하나로 가를 수 없다.</b> <see cref="GameLayers.Prop"/> 에는 때려서는
-        /// 안 되는 것들이 섞여 있다 — 확인한 목록이다.
+        /// <b>빼는 목록은 기획이 금지한 것뿐이다</b>(S15P21B202-257). §18.3 의 마지막 줄이
+        /// 금지의 전부다 — "장비를 떨어뜨리게 하거나 파츠와 용접부에 피해를 주지는 않는다".
         ///
         /// <code>
-        /// TransportVehicle(견인 조종 모듈) + 발판 + 좌석   §14.5 가 "마지막 우주선 파츠"
-        /// 플라즈마 용접기 · 방망이 자신                     §18.3 "장비를 떨어뜨리게 … 않는다"
-        /// 해제된 고정못                                     소품으로 본다 — 때려진다
-        /// 자연물 · 화물 상자                                이것이 소품이다
-        /// </code>
+        /// 우주선 파츠 · 용접 비드      §18.3 — 직접 피해 금지
+        /// 견인 조종 모듈              §14.5 "마지막 우주선 파츠이기도 하다"
+        /// 밀릴 수 없는 것             Rigidbody 가 없거나 키네마틱 — 물리적 사실
         ///
-        /// 그래서 컴포넌트로 걸러낸다. <see cref="Parts.WeldBead"/> 가 "레이어와
-        /// <c>SpaceshipPart</c> 컴포넌트를 둘 다 본다" 로 같은 문제를 푼 선례가 있다
-        /// (S15P21B202-226).
+        /// 내려놓은 도구               *때려진다.* §18.3 의 "장비를 떨어뜨리게" 는 맞은
+        ///                            플레이어가 들고 있는 것에 대한 규정이고, 바닥에
+        ///                            굴러다니는 용접기와는 무관하다. 245 에서 그 문장을
+        ///                            "도구를 못 때린다" 로 넓게 읽은 것이 틀렸다.
+        /// 해제된 고정못 · 화물 상자    때려진다
+        /// </code>
         ///
         /// 조준 방향 <b>앞쪽</b>만 본다 — <see cref="FindPlayer"/> 와 같은 규칙이다.
         /// </summary>
@@ -378,7 +379,7 @@ namespace Metagame.Gameplay
 
             var count = UnityEngine.Physics.OverlapSphereNonAlloc(
                 origin, PhysicsScale.BatStrikeReach, Probe,
-                GameLayers.PropMask, QueryTriggerInteraction.Ignore);
+                GameLayers.BatStrikeMask, QueryTriggerInteraction.Ignore);
 
             Rigidbody best = null;
             var bestDistance = PhysicsScale.BatStrikeReach;
@@ -408,16 +409,19 @@ namespace Metagame.Gameplay
         /// <summary>밀칠 수 있는 것인가. 빼는 목록이 규칙의 전부다.</summary>
         bool CanPush(Rigidbody body)
         {
+            // 밀릴 수 없는 것은 물리적으로 대상이 아니다.
             if (body == null || body.isKinematic) return false;
 
-            // 자기 자신. 휴대 중에는 충돌이 꺼져 있지만(S15P21B202-237) 내려놓은 다른
-            // 방망이가 있을 수도 있고, 어느 쪽이든 도구는 대상이 아니다.
-            if (body.GetComponentInParent<ToolBase>() != null) return false;
+            // 들고 있는 이 방망이. 휴대 중에는 충돌이 꺼져 있어(S15P21B202-237) 여기까지
+            // 오지 않지만, 자기를 때리는 것은 어느 경로로도 일어나면 안 된다.
+            if (body == Body) return false;
 
-            // 파츠와 비드. 비드는 파츠의 자식 콜라이더이므로 부모에서 함께 걸린다.
+            // 파츠와 비드. 기획 §18.3 "파츠와 용접부에 피해를 주지는 않는다".
+            // 비드는 파츠의 자식 콜라이더이므로 부모에서 함께 걸린다(S15P21B202-226).
             if (body.GetComponentInParent<Parts.SpaceshipPart>() != null) return false;
 
-            // 견인 조종 모듈. 파츠이면서 사람이 타고 있을 수도 있다.
+            // 견인 조종 모듈. §14.5 가 "마지막 우주선 파츠이기도 하다" 고 정하므로
+            // 위와 같은 금지에 들어간다. 사람이 타고 있을 수도 있다.
             if (body.GetComponentInParent<Parts.TransportVehicle>() != null) return false;
 
             return true;

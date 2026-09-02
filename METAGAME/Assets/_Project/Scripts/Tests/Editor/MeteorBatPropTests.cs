@@ -14,9 +14,11 @@ namespace Metagame.Gameplay.Tests
     /// 소품을 밀친다" 는 언급이 없다. 넣기로 정한 것이므로 <b>무엇을 빼는지</b>가 규칙의
     /// 전부이고, 이 스위트는 그 배제 목록을 잠근다.
     ///
-    /// <b>레이어 하나로 가를 수 없다.</b> <see cref="GameLayers.Prop"/> 에는 견인 조종
-    /// 모듈(§14.5 "마지막 우주선 파츠")과 도구가 섞여 있다. 레이어로만 판정하면
-    /// 사람이 타고 있는 모듈이 날아간다.
+    /// <b>빼는 목록은 기획이 금지한 것뿐이다</b>(S15P21B202-257). §18.3 의 마지막 줄이
+    /// 금지의 전부다 — "장비를 떨어뜨리게 하거나 파츠와 용접부에 피해를 주지는 않는다".
+    /// 245 에서 그 문장을 "내려놓은 도구를 못 때린다" 로 넓게 읽은 것이 틀렸고,
+    /// 그 결과 인게임에서 <b>아무것도 안 맞았다</b> — 씬의 Prop 레이어 Rigidbody 가
+    /// 용접기 · 방망이 자신 · 견인 운반체뿐이고 셋 다 제외 대상이었다.
     /// </summary>
     public sealed class MeteorBatPropTests
     {
@@ -203,9 +205,12 @@ namespace Metagame.Gameplay.Tests
             Assert.AreEqual(0f, body.linearVelocity.magnitude, 0.01f);
         }
 
-        /// <summary>기획 §18.3 "장비를 떨어뜨리게 … 하지는 않는다" 를 넓게 읽었다.</summary>
+        /// <summary>
+        /// <b>245 에서 이 검증이 반대였다.</b> §18.3 의 "장비를 떨어뜨리게" 는 맞은
+        /// 플레이어가 들고 있는 것에 대한 규정이고, 바닥에 굴러다니는 용접기와는 무관하다.
+        /// </summary>
         [Test]
-        public void ADroppedTool_IsNotPushed()
+        public void ADroppedTool_IsPushed()
         {
             var go = new GameObject("PF_Stage1_WeldingPlasmaGun") { layer = GameLayers.Prop };
             go.transform.position = new Vector3(1f, 0.5f, 0f);
@@ -219,9 +224,113 @@ namespace Metagame.Gameplay.Tests
             UnityEngine.Physics.SyncTransforms();
 
             var bat = MakeBat();
-            Assert.IsFalse(bat.Swing(Vector3.zero, Vector3.right), "도구는 대상이 아니다.");
+            Assert.IsTrue(bat.Swing(Vector3.zero, Vector3.right),
+                "내려놓은 도구를 못 때릴 근거가 기획에 없다.");
             UnityEngine.Physics.Simulate(Step);
-            Assert.AreEqual(0f, body.linearVelocity.magnitude, 0.01f);
+
+            Assert.AreSame(body, bat.LastPushed);
+            Assert.Greater(body.linearVelocity.magnitude, 0.1f);
+        }
+
+        /// <summary>내려놓은 다른 방망이도 같다.</summary>
+        [Test]
+        public void ADroppedBat_IsPushed()
+        {
+            var go = new GameObject("PF_Stage1_MeteorBat") { layer = GameLayers.Prop };
+            go.transform.position = new Vector3(1f, 0.5f, 0f);
+            go.AddComponent<BoxCollider>();
+            var body = go.AddComponent<Rigidbody>();
+            body.mass = 3f;
+            body.useGravity = false;
+            go.AddComponent<MeteorBat>();
+            _spawned.Add(go);
+
+            UnityEngine.Physics.SyncTransforms();
+
+            var swinging = MakeBat();
+            Assert.IsTrue(swinging.Swing(Vector3.zero, Vector3.right));
+            Assert.AreSame(body, swinging.LastPushed);
+        }
+
+        /// <summary>
+        /// 자기를 때리는 것은 어느 경로로도 일어나면 안 된다. 휴대 중에는 충돌이 꺼져
+        /// 있지만(S15P21B202-237) 규칙으로도 막아 둔다.
+        /// </summary>
+        [Test]
+        public void TheSwingingBatDoesNotHitItself()
+        {
+            var go = new GameObject("MeteorBat") { layer = GameLayers.Prop };
+            go.transform.position = Vector3.zero;
+            go.AddComponent<BoxCollider>();
+            var body = go.AddComponent<Rigidbody>();
+            body.mass = 3f;
+            body.useGravity = false;
+            var bat = go.AddComponent<MeteorBat>();
+            _spawned.Add(go);
+
+            UnityEngine.Physics.SyncTransforms();
+
+            bat.Swing(Vector3.zero, Vector3.right);
+
+            Assert.AreNotSame(body, bat.LastPushed);
+        }
+
+        /// <summary>
+        /// Prop 레이어 밖에 있는 움직이는 물체도 대상이다. 예전에는
+        /// <c>PropMask</c> 하나만 봐서 찾지 못했다.
+        /// </summary>
+        [Test]
+        public void AMovableObjectOutsideThePropLayer_IsPushed()
+        {
+            var prop = MakeProp(new Vector3(1f, 0.5f, 0f), mass: 20f);
+            prop.gameObject.layer = 0;   // Default
+            UnityEngine.Physics.SyncTransforms();
+
+            var bat = MakeBat();
+
+            Assert.IsTrue(bat.Swing(Vector3.zero, Vector3.right));
+            Assert.AreSame(prop, bat.LastPushed);
+        }
+
+        /// <summary>
+        /// Rigidbody 가 없는 자연물·지면은 밀릴 수 없다. 마스크에 걸려도 헛스윙이 되는
+        /// 것이 맞다 — §25.10 이 자연물을 정적 배경으로 둔다.
+        /// </summary>
+        [Test]
+        public void StaticSceneryIsAMiss()
+        {
+            var rock = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            rock.name = "자연물";
+            rock.layer = 0;
+            rock.transform.position = new Vector3(1f, 0.5f, 0f);
+            _spawned.Add(rock);   // Rigidbody 를 붙이지 않는다
+            UnityEngine.Physics.SyncTransforms();
+
+            var bat = MakeBat();
+
+            Assert.IsFalse(bat.Swing(Vector3.zero, Vector3.right));
+            Assert.IsNull(bat.LastPushed);
+            Assert.AreEqual(PhysicsScale.BatMissCooldownSeconds, bat.Cooldown, 1e-3f);
+        }
+
+        // --- 마스크 -------------------------------------------------------
+
+        [Test]
+        public void TheStrikeMaskExcludesOnlyWhatItShould()
+        {
+            var mask = GameLayers.BatStrikeMask;
+
+            Assert.AreEqual(0, mask & (1 << GameLayers.Part),
+                "§18.3 파츠와 용접부.");
+            Assert.AreEqual(0, mask & (1 << GameLayers.PartCarried));
+            Assert.AreEqual(0, mask & (1 << GameLayers.Player), "동료 타격은 별 경로다.");
+            Assert.AreEqual(0, mask & (1 << GameLayers.PlayerDowned));
+            Assert.AreEqual(0, mask & (1 << GameLayers.Meteor), "운석 반사도 별 경로다.");
+            Assert.AreEqual(0, mask & (1 << GameLayers.Interactable));
+            Assert.AreEqual(0, mask & (1 << GameLayers.BeamQuery));
+
+            Assert.AreNotEqual(0, mask & (1 << GameLayers.Prop), "소품은 대상이다.");
+            Assert.AreNotEqual(0, mask & (1 << 0), "Default 의 움직이는 물체도 대상이다.");
         }
 
         /// <summary>
