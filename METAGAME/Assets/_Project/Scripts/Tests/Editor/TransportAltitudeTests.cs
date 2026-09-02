@@ -185,5 +185,31 @@ namespace Metagame.Gameplay.Tests
             Assert.IsTrue(vehicle.IsHovering,
                 "기본 고도가 아니어도 부양 안정으로 봐야 한다. 고정 높이를 보면 견인이 영구히 막힌다.");
         }
+
+        [Test]
+        public void CeilingOnlyBlocksRise_WhileDriveAndDismountRemainAvailable()
+        {
+            MakeSurface("Ground", new Vector3(0f, -0.5f, 0f), new Vector3(60f, 1f, 60f));
+            // The underside is above the vehicle platform but below the normal hover target.
+            MakeSurface("Ceiling", new Vector3(0f, 1.25f, 0f), new Vector3(12f, 0.2f, 12f));
+            var vehicle = MakeRiddenVehicle(new Vector3(0f, TransportVehicle.GroundY, 0f));
+
+            vehicle.SetVerticalInput(1f);
+            Run(vehicle, 0.8f);
+
+            Assert.IsTrue(vehicle.VerticalBlocked, "천장에 막힌 동안 상승 제한 상태를 알려야 한다.");
+
+            var beforeX = vehicle.transform.position.x;
+            vehicle.SetVerticalInput(0f);
+            vehicle.SetDriveVector(Vector3.right);
+            Run(vehicle, 0.6f);
+            Assert.Greater(vehicle.transform.position.x, beforeX + 0.1f,
+                "천장 때문에 수평 조작까지 잠기면 안 된다.");
+
+            vehicle.BeginDismount();
+            Assert.IsTrue(vehicle.IsReturning, "막힘 상태에서도 하차 요청은 받아야 한다.");
+            Run(vehicle, 2f);
+            Assert.IsFalse(vehicle.IsOccupied, "하차 요청 후 탑승 상태가 남아 조작 불능이 되면 안 된다.");
+        }
     }
 }

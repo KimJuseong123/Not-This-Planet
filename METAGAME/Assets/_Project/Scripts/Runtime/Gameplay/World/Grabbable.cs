@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -17,6 +18,7 @@ namespace Metagame.Gameplay
     public class Grabbable : MonoBehaviour
     {
         public static readonly List<Grabbable> All = new List<Grabbable>();
+        public static event Action<Grabbable, Hand> AnyGrabbed;
 
         public string Label = "";
         public bool Climbable = false;      // 매달려 기어오를 수 있는 고정물(레일·케이블)인가
@@ -51,7 +53,11 @@ namespace Metagame.Gameplay
         void OnEnable() { All.Add(this); }
         void OnDisable() { All.Remove(this); }
 
-        public void NotifyGrabbed(Hand h) { HandCount++; }
+        public void NotifyGrabbed(Hand h)
+        {
+            HandCount++;
+            AnyGrabbed?.Invoke(this, h);
+        }
         public void NotifyReleased(Hand h) { HandCount = Mathf.Max(0, HandCount - 1); }
 
         public static Grabbable Mark(GameObject go, string label, bool climbable = false,

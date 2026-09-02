@@ -5,6 +5,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using Metagame.Gameplay;
 
 namespace Metagame.EditorTools
 {
@@ -38,7 +39,8 @@ namespace Metagame.EditorTools
         {
             None,
             Box,
-            Tree
+            Tree,
+            PlantTrigger
         }
 
         private readonly struct Placement
@@ -83,6 +85,10 @@ namespace Metagame.EditorTools
             if (environment == null || nature == null)
                 throw new InvalidOperationException("Stage1/Environment 또는 Nature를 찾지 못했다.");
 
+            var ground = environment.Find("Ground");
+            if (ground == null)
+                throw new InvalidOperationException("Stage1/Environment/Ground를 찾지 못했다.");
+
             BuildExpandedTerrain(scene, environment);
             RemoveExistingBoundaries(environment);
             ClearChildren(nature);
@@ -123,8 +129,10 @@ namespace Metagame.EditorTools
             EditorSceneManager.SaveScene(scene);
             AssetDatabase.SaveAssets();
 
-            var terrains = UnityEngine.Object.FindObjectsByType<Terrain>(
-                FindObjectsInactive.Include, FindObjectsSortMode.None);
+            // Main.unity also contains terrain objects from other stage/layout data.
+            // Validate only the two tiles owned by this builder, not every Terrain in
+            // the open scene.
+            var terrains = ground.GetComponentsInChildren<Terrain>(true);
             ValidateResult(scene, layout, terrains);
             Debug.Log($"STAGE1_LAYOUT_OK|jira=S15P21B202-236|terrains={terrains.Length}|nature={made}|scene={ScenePath}");
         }
@@ -285,14 +293,14 @@ namespace Metagame.EditorTools
                 Add(result, "BoulderCluster", "Boulders", item.x, item.y, item.z, item.w, ColliderKind.Box);
 
             // 발광 식물은 외곽의 포인트로 제한한다.
-            Add(result, "SpiralPlant", "SpiralPlants", -21f, 10f, 18f, 7.6f, ColliderKind.None);
-            Add(result, "SpiralPlant", "SpiralPlants", -10f, -20f, 56f, 7.2f, ColliderKind.None);
-            Add(result, "SpiralPlant", "SpiralPlants", 8f, 21f, -13f, 7.4f, ColliderKind.None);
-            Add(result, "SpiralPlant", "SpiralPlants", 29f, -21f, 34f, 7.6f, ColliderKind.None);
-            Add(result, "SpiralPlant", "SpiralPlants", 45f, 21f, -26f, 7.2f, ColliderKind.None);
-            Add(result, "SpiralPlant", "SpiralPlants", 61f, 15f, 51f, 7.5f, ColliderKind.None);
-            Add(result, "SpiralPlant", "SpiralPlants", 70f, -10f, -14f, 7.4f, ColliderKind.None);
-            Add(result, "SpiralPlant", "SpiralPlants", 52f, -21f, 22f, 7.1f, ColliderKind.None);
+            Add(result, "SpiralPlant", "SpiralPlants", -21f, 10f, 18f, 7.6f, ColliderKind.PlantTrigger);
+            Add(result, "SpiralPlant", "SpiralPlants", -10f, -20f, 56f, 7.2f, ColliderKind.PlantTrigger);
+            Add(result, "SpiralPlant", "SpiralPlants", 8f, 21f, -13f, 7.4f, ColliderKind.PlantTrigger);
+            Add(result, "SpiralPlant", "SpiralPlants", 29f, -21f, 34f, 7.6f, ColliderKind.PlantTrigger);
+            Add(result, "SpiralPlant", "SpiralPlants", 45f, 21f, -26f, 7.2f, ColliderKind.PlantTrigger);
+            Add(result, "SpiralPlant", "SpiralPlants", 61f, 15f, 51f, 7.5f, ColliderKind.PlantTrigger);
+            Add(result, "SpiralPlant", "SpiralPlants", 70f, -10f, -14f, 7.4f, ColliderKind.PlantTrigger);
+            Add(result, "SpiralPlant", "SpiralPlants", 52f, -21f, 22f, 7.1f, ColliderKind.PlantTrigger);
 
             // 꽃은 절벽·나무·바위 발치에 군집으로 둔다. 빈 공간에 균일하게 뿌리지 않는다.
             var flowers = new[]
@@ -311,7 +319,7 @@ namespace Metagame.EditorTools
                 new Vector4(42f, -21f, 26f, 2.9f), new Vector4(32f, -21f, -33f, 2.7f)
             };
             foreach (var item in flowers)
-                Add(result, "FlowerCluster", "Flowers", item.x, item.y, item.z, item.w, ColliderKind.None);
+                Add(result, "FlowerCluster", "Flowers", item.x, item.y, item.z, item.w, ColliderKind.PlantTrigger);
 
             // 좌측 상단에서 우측 하단으로 흐르는 S자 디딤돌 길.
             var stones = new[]
@@ -395,6 +403,7 @@ namespace Metagame.EditorTools
                         position.y += support.max.y - flowerBounds.min.y + .02f;
                         flower.transform.position = position;
                     }
+                    AddSimpleCollider(flower, ColliderKind.PlantTrigger);
                     made++;
                 }
             }
@@ -462,22 +471,147 @@ namespace Metagame.EditorTools
 
         private static void AddSimpleCollider(GameObject instance, ColliderKind kind)
         {
-            if (kind == ColliderKind.None || instance.GetComponentInChildren<Collider>() != null ||
-                !TryLocalRendererBounds(instance, out var bounds)) return;
+            if (kind == ColliderKind.None) return;
 
-            if (kind == ColliderKind.Tree)
+            RemoveGeneratedColliders(instance);
+            if (kind == ColliderKind.PlantTrigger)
             {
-                var capsule = instance.AddComponent<CapsuleCollider>();
-                capsule.direction = 1;
-                capsule.center = bounds.center;
-                capsule.height = Mathf.Max(bounds.size.y, .2f);
-                capsule.radius = Mathf.Max(Mathf.Min(bounds.size.x, bounds.size.z) * .18f, .12f);
+                AddPlantTrigger(instance);
                 return;
             }
 
-            var box = instance.AddComponent<BoxCollider>();
-            box.center = bounds.center;
-            box.size = bounds.size;
+            // Static nature follows the render mesh. A Rigidbody-bearing exception is
+            // deliberately routed to convex compound boxes for PhysX stability.
+            if (instance.GetComponentInChildren<Rigidbody>(true) == null
+                && AddSurfaceMeshColliders(instance)) return;
+
+            AddCompoundFallback(instance, kind);
+        }
+
+        private static bool AddSurfaceMeshColliders(GameObject instance)
+        {
+            var filters = instance.GetComponentsInChildren<MeshFilter>(true);
+            var generated = 0;
+            for (var i = 0; i < filters.Length; i++)
+            {
+                var filter = filters[i];
+                if (filter == null || filter.sharedMesh == null || filter.sharedMesh.vertexCount == 0)
+                    continue;
+                if (HasAuthoredCollider(filter.gameObject)) continue;
+
+                var meshCollider = filter.GetComponent<MeshCollider>();
+                if (meshCollider != null) continue;
+
+                meshCollider = filter.gameObject.AddComponent<MeshCollider>();
+                meshCollider.sharedMesh = filter.sharedMesh;
+                meshCollider.convex = false;
+                filter.gameObject.AddComponent<Stage1GeneratedCollider>();
+                generated++;
+            }
+
+            return generated > 0;
+        }
+
+        private static void AddCompoundFallback(GameObject instance, ColliderKind kind)
+        {
+            var renderers = instance.GetComponentsInChildren<Renderer>(true);
+            if (renderers.Length == 0) return;
+
+            for (var i = 0; i < renderers.Length; i++)
+            {
+                var renderer = renderers[i];
+                if (renderer == null || HasAuthoredCollider(renderer.gameObject)) continue;
+
+                if (!TryWorldBoundsInLocal(instance.transform, renderer.bounds, out var bounds))
+                    continue;
+
+                // Keep each generated marker next to exactly one collider. A marker on
+                // the root cannot identify which of several root BoxColliders it owns,
+                // so repeated builds would leave stale shapes behind.
+                var colliderObject = new GameObject($"GeneratedCollider_{i}");
+                colliderObject.transform.SetParent(instance.transform, false);
+                colliderObject.transform.localPosition = bounds.center;
+                colliderObject.transform.localRotation = Quaternion.identity;
+
+                var box = colliderObject.AddComponent<BoxCollider>();
+                box.center = Vector3.zero;
+                box.size = bounds.size;
+                var marker = colliderObject.AddComponent<Stage1GeneratedCollider>();
+                marker.RemoveOwnerOnCleanup = true;
+            }
+        }
+
+        private static void AddPlantTrigger(GameObject instance)
+        {
+            if (!TryLocalRendererBounds(instance, out var bounds)) return;
+            instance.layer = GameLayers.Prop;
+
+            var authored = instance.GetComponentsInChildren<Collider>(true);
+            if (authored.Length == 0)
+            {
+                var trigger = instance.AddComponent<BoxCollider>();
+                trigger.center = bounds.center;
+                trigger.size = bounds.size;
+                trigger.isTrigger = true;
+                instance.AddComponent<Stage1GeneratedCollider>();
+            }
+            else
+            {
+                for (var i = 0; i < authored.Length; i++)
+                {
+                    if (authored[i] == null) continue;
+                    authored[i].isTrigger = true;
+                    authored[i].gameObject.layer = GameLayers.Prop;
+                }
+            }
+
+            var rustle = instance.GetComponent<PlantRustle>();
+            if (rustle == null) rustle = instance.AddComponent<PlantRustle>();
+        }
+
+        private static void RemoveGeneratedColliders(GameObject instance)
+        {
+            var markers = instance.GetComponentsInChildren<Stage1GeneratedCollider>(true);
+            for (var i = markers.Length - 1; i >= 0; i--)
+            {
+                var marker = markers[i];
+                if (marker == null) continue;
+                var collider = marker.GetComponent<Collider>();
+                if (collider != null) UnityEngine.Object.DestroyImmediate(collider);
+                if (marker.RemoveOwnerOnCleanup && marker.gameObject != instance)
+                    UnityEngine.Object.DestroyImmediate(marker.gameObject);
+                else
+                    UnityEngine.Object.DestroyImmediate(marker);
+            }
+        }
+
+        private static bool HasAuthoredCollider(GameObject objectWithCollider)
+        {
+            var colliders = objectWithCollider.GetComponents<Collider>();
+            for (var i = 0; i < colliders.Length; i++)
+                if (colliders[i] != null && colliders[i].GetComponent<Stage1GeneratedCollider>() == null)
+                    return true;
+            return false;
+        }
+
+        private static bool TryWorldBoundsInLocal(Transform root, Bounds worldBounds, out Bounds local)
+        {
+            local = default;
+            var initialized = false;
+            for (var x = -1; x <= 1; x += 2)
+            for (var y = -1; y <= 1; y += 2)
+            for (var z = -1; z <= 1; z += 2)
+            {
+                var corner = worldBounds.center + Vector3.Scale(worldBounds.extents, new Vector3(x, y, z));
+                var point = root.InverseTransformPoint(corner);
+                if (!initialized)
+                {
+                    local = new Bounds(point, Vector3.zero);
+                    initialized = true;
+                }
+                else local.Encapsulate(point);
+            }
+            return initialized;
         }
 
         private static Transform EnsureGroup(Transform layout,

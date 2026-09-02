@@ -135,6 +135,24 @@ namespace Metagame.Gameplay
             [Min(0.001f)] public float endSize = 0.01f;
         }
 
+        [Serializable]
+        public sealed class DustGustSettings
+        {
+            public bool enabled;
+            public Vector3 direction = new Vector3(1f, 0f, 0.18f);
+            [Min(0.01f)] public float minimumInterval = 8f;
+            [Min(0.01f)] public float maximumInterval = 18f;
+            [Min(0.05f)] public float duration = 4f;
+            [Min(0f)] public float speed = 3.5f;
+            public Color color = new Color(0.68f, 0.50f, 0.36f, 0.22f);
+            [Min(0.001f)] public float startSize = 0.22f;
+            [Min(0.001f)] public float endSize = 0.06f;
+            [Min(0)] public int burstCount = 18;
+            [Min(0)] public int maxParticles = 72;
+            [Min(0.1f)] public float spawnRadius = 10f;
+            [Min(0.1f)] public float verticalSpread = 3f;
+        }
+
         [Header("Sky and distant space")]
         public SkySettings sky = new SkySettings();
         public StarSettings stars = new StarSettings();
@@ -151,6 +169,7 @@ namespace Metagame.Gameplay
 
         [Header("Visual-only effects")]
         public MeteorShowerSettings meteorShower = new MeteorShowerSettings();
+        public DustGustSettings dustGust = new DustGustSettings();
 
         [Header("Quality")]
         public bool enableOnMobile;
@@ -167,6 +186,7 @@ namespace Metagame.Gameplay
             if (groundFog == null) groundFog = new GroundFogSettings();
             if (postProcessing == null) postProcessing = new PostProcessingSettings();
             if (meteorShower == null) meteorShower = new MeteorShowerSettings();
+            if (dustGust == null) dustGust = new DustGustSettings();
 
             stars.starCount = Mathf.Max(0, stars.starCount);
             stars.bandCount = Mathf.Max(0, stars.bandCount);
@@ -184,6 +204,20 @@ namespace Metagame.Gameplay
             meteorShower.maxParticles = Mathf.Clamp(meteorShower.maxParticles, 0, 64);
             meteorShower.alertEmissionMultiplier = Mathf.Max(1f, meteorShower.alertEmissionMultiplier);
             meteorShower.lifetime = Mathf.Max(0.05f, meteorShower.lifetime);
+            if (dustGust.direction.sqrMagnitude < 0.0001f)
+                dustGust.direction = Vector3.right;
+            else
+                dustGust.direction.Normalize();
+            dustGust.minimumInterval = Mathf.Max(0.01f, dustGust.minimumInterval);
+            dustGust.maximumInterval = Mathf.Max(dustGust.minimumInterval, dustGust.maximumInterval);
+            dustGust.duration = Mathf.Max(0.05f, dustGust.duration);
+            dustGust.speed = Mathf.Max(0f, dustGust.speed);
+            dustGust.startSize = Mathf.Max(0.001f, dustGust.startSize);
+            dustGust.endSize = Mathf.Max(0.001f, dustGust.endSize);
+            dustGust.maxParticles = Mathf.Clamp(dustGust.maxParticles, 0, 128);
+            dustGust.burstCount = Mathf.Clamp(dustGust.burstCount, 0, dustGust.maxParticles);
+            dustGust.spawnRadius = Mathf.Max(0.1f, dustGust.spawnRadius);
+            dustGust.verticalSpread = Mathf.Max(0.1f, dustGust.verticalSpread);
             mobileEffectScale = Mathf.Clamp(mobileEffectScale, 0.1f, 1f);
         }
 

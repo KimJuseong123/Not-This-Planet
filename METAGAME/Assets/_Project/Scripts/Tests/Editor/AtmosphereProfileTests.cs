@@ -69,6 +69,51 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void ValidateNormalizesDustDirectionAndCapsParticleBudget()
+        {
+            profile.dustGust.direction = Vector3.zero;
+            profile.dustGust.minimumInterval = 12f;
+            profile.dustGust.maximumInterval = 1f;
+            profile.dustGust.maxParticles = 999;
+            profile.dustGust.burstCount = 999;
+            profile.dustGust.startSize = 0f;
+            profile.dustGust.endSize = 0f;
+
+            profile.Validate();
+
+            Assert.That(profile.dustGust.direction, Is.EqualTo(Vector3.right));
+            Assert.That(profile.dustGust.maximumInterval,
+                Is.GreaterThanOrEqualTo(profile.dustGust.minimumInterval));
+            Assert.That(profile.dustGust.maxParticles, Is.EqualTo(128));
+            Assert.That(profile.dustGust.burstCount, Is.EqualTo(128));
+            Assert.That(profile.dustGust.startSize, Is.GreaterThan(0f));
+            Assert.That(profile.dustGust.endSize, Is.GreaterThan(0f));
+        }
+
+        [Test]
+        public void PlantRustle_PulsesVisualWithoutAddingPhysicsBody()
+        {
+            var plant = new GameObject("Plant");
+            var visual = new GameObject("Visual");
+            visual.transform.SetParent(plant.transform, false);
+            var rustle = plant.AddComponent<PlantRustle>();
+
+            try
+            {
+                rustle.Pulse(Vector3.right, 4f);
+
+                Assert.Greater(rustle.CurrentSway.sqrMagnitude, 0.001f,
+                    "식물 이벤트는 시각 자식에 흔들림을 줘야 한다.");
+                Assert.IsNull(plant.GetComponent<Rigidbody>(),
+                    "식물 흔들림 때문에 물리 Rigidbody를 추가하면 안 된다.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(plant);
+            }
+        }
+
+        [Test]
         public void AlertIntensityKeepsFogDensityStable()
         {
             profile.fog.enabled = true;
