@@ -38,6 +38,31 @@ namespace Metagame.Gameplay
         public const int RemotePlayerMask = 1 << RemotePlayer;
 
         /// <summary>
+        /// <b>발을 딛거나 무엇이 얹힐 수 있는 것.</b>
+        ///
+        /// <see cref="GroundMask"/> 하나만 보면 안 된다. 씬의 지면
+        /// (<c>ENV_Ground_Arena_50m</c>)은 <b>레이어 0(Default)</b> 에 있고
+        /// <see cref="Ground"/>(8) 레이어 오브젝트가 <b>씬에 하나도 없다</b>
+        /// (2026-09-02 실측, S15P21B202-254). 그래서 <c>GroundMask</c> 로 지면을 찾던
+        /// <see cref="SafeGround"/> 의 끼임 탈출이 조용히 죽어 있었다.
+        ///
+        /// 플레이어의 접지 판정(<see cref="RagdollBuilder.WorldMask"/>)은 Default 를
+        /// 포함해서 잘 동작했다 — <b>저장소에 지면 정의가 둘 있었고 서로 달랐던 것</b>이
+        /// 원인이다. 이 마스크로 합친다.
+        ///
+        /// 빼는 것과 이유:
+        /// <code>
+        /// Player · PlayerDowned   사람 위에 착탄 지점을 잡거나 사람을 밟고 서지 않는다
+        /// Interactable · BeamQuery 물리 충돌이 없는 질의 전용 레이어다
+        /// Meteor                  이미 박힌 운석 위에 예고를 다시 그리지 않는다(§19)
+        /// PartCarried             견인 중인 파츠는 곧 자리를 뜬다
+        /// </code>
+        /// </summary>
+        public const int SurfaceMask =
+            ~((1 << Player) | (1 << PlayerDowned) | (1 << Interactable)
+              | (1 << BeamQuery) | (1 << Meteor) | (1 << PartCarried));
+
+        /// <summary>
         /// (인덱스, TagManager 에 등록된 이름) 쌍.
         /// 이름은 nameof 로 상수명과 강제로 일치시킨다.
         /// </summary>

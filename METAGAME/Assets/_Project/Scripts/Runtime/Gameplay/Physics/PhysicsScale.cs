@@ -718,6 +718,15 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float MeteorHeavyKnockSpeed = 8f;
 
+        /// <summary>
+        /// 착탄 지점의 지면을 찾을 때 위에서 아래로 훑는 높이(m).
+        ///
+        /// <b>예전에는 훑지 않았다.</b> 스폰 영역 transform 의 y 를 그대로 착탄 지점의
+        /// y 로 썼고, 씬에서 그 값이 0 인데 바닥 메시는 0.06 에 있어 낙하 예고 원이
+        /// <b>바닥에 묻혀 보이지 않았다</b>(2026-09-02 실측, S15P21B202-254).
+        /// </summary>
+        public const float MeteorGroundProbe = 50f;
+
         // --- 운석 충돌 흔적 (기획 §19) ---
         /// <summary>
         /// 착탄한 운석이 지면에 박히는 깊이의 비율(반지름 기준).
