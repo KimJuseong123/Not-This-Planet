@@ -166,10 +166,14 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
   tags: [linux]
   needs: []
   rules:
-    # 측정 단계라 when: manual 이다. 콜드/웜 실행 시간을 재고 나서 자동 실행으로 바꾼다 —
-    # 러너가 concurrent 2 라, 긴 잡을 무조건 걸면 다른 사람 MR 이 줄을 선다.
+    # 자동 실행한다. 실측(2026-09-02): 콜드 8분 16초 → **웜 70초**(임포트 64초 + 테스트 20초).
+    # Library 2.2GB 가 슬롯에 남아 증분 임포트가 되기 때문이다. 슬롯이 비워지면 다시 8분이 든다.
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      when: manual
+      changes: ["METAGAME/**/*", ".gitlab-ci.yml"]
+    # 머지 직후에도 돈다 — 개별 MR 은 통과했는데 합쳐서 깨지는 경우를 잡는다.
+    # 09-02 사고는 감지까지 2시간 37분이 걸렸다(그 사이 develop 머지 0건). 이 규칙이면 2분이다.
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
+      changes: ["METAGAME/**/*"]
   allow_failure: true     # 실측(잡 478077): 컴파일 통과, EditMode 647개 중 17개 실패.
   timeout: 90m            # 실패가 정리되면 false 로 바꾼다.
   # 동시에 두 개가 돌지 않게 한다. 러너가 concurrent 2 · vCPU 4 인데 Unity 임포트는 CPU·IO 를
