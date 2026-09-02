@@ -164,8 +164,13 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
     # 러너가 concurrent 2 라, 긴 잡을 무조건 걸면 다른 사람 MR 이 줄을 선다.
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       when: manual
-  allow_failure: true     # !165 기록에 "develop 에 이미 실패하는 EditMode 테스트 13개" 가 있다.
-  timeout: 90m            # 실태를 본 뒤 false 로 바꾼다. 콜드 실행은 UPM 패키지 46개 해석을 포함한다.
+  allow_failure: true     # 실측(잡 478077): 컴파일 통과, EditMode 647개 중 17개 실패.
+  timeout: 90m            # 실패가 정리되면 false 로 바꾼다.
+  variables:
+    # 러너 기본값 git clean -ffdx 가 잡마다 Library/ 를 지운다(로그의 "Removing …/__pycache__/" 가 그 흔적).
+    # 콜드 실행 8분 16초 중 임포트·컴파일이 7분 30초였다(테스트 자체는 35.6초). Library 를 남기면
+    # 두 번째부터 증분 임포트가 된다. GitLab cache(tar/untar)보다 빠르다 — Library 는 수 GB 다.
+    GIT_CLEAN_FLAGS: -ffdx -e METAGAME/Library
   script:
     # 라이선스는 CI 변수가 아니라 러너 마운트로 온다(config.toml volumes). 환경변수가 아니라서
     # 로그로 새어나갈 경로가 없고, MR 이 보호 브랜치가 아니어서 Protected 변수를 못 읽는 문제도 피한다.
