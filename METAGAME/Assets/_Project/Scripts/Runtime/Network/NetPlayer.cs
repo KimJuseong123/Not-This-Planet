@@ -64,6 +64,7 @@ namespace Metagame.Network
 
         // ── 서버 ────────────────────────────────────────────────
         InputFrame pending;          // 이 사람이 마지막으로 보낸 입력
+        bool everReceived;           // 서버가 이 사람 입력을 한 번이라도 받았나(진단용)
 
         // ── 클라이언트(내 것) ───────────────────────────────────
         InputFrame lastSent;
@@ -216,7 +217,12 @@ namespace Metagame.Network
                 }
             }
 
-            InputFrame frame = pending;
+            // 방장 자신의 몸은 게임 씬(GameSession)이 매 프레임 직접 입력을 넣는다.
+            // 그 몸에 pending 을 덮어쓰면 안 된다 — Update 가 body.CurrentInput 을 읽어
+            // 다시 보내므로 "내가 쓴 값을 내가 되읽는" 고리가 생기고, 입력이 처음 값에서
+            // 영원히 갱신되지 않는다. 그래서 방장만 움직이지 못했다(2026-09-02 실측).
+            // FixedUpdate 는 Update 보다 먼저 도니까 순서로도 막을 수 없다.
+            InputFrame frame = adoptedBody ? body.CurrentInput : pending;
 
             if (transport != null)
             {
@@ -241,7 +247,9 @@ namespace Metagame.Network
                 }
             }
 
-            body.SetInput(frame);
+            // 넘겨받은 몸(방장 자신)에는 넣지 않는다 — 위에서 적은 고리 때문이다.
+            if (!adoptedBody) body.SetInput(frame);
+
             JudgeProgress(Time.fixedDeltaTime);
             transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
         }
@@ -298,6 +306,11 @@ namespace Metagame.Network
         [Command]
         void CmdSendInput(InputFrame frame)
         {
+            if (!everReceived)
+            {
+                everReceived = true;
+                Debug.Log($"[NetPlayer] 서버가 입력을 받기 시작 · {nickname}(userId={userId})");
+            }
             pending = frame;
         }
 
@@ -346,6 +359,10 @@ namespace Metagame.Network
 
             bool changed = !everSent || !Same(now, lastSent);
             if (!changed && sendTimer < SendInterval) return;
+
+            if (!everSent)
+                Debug.Log($"[NetPlayer] 입력 전송 시작 · {nickname}(userId={userId}) · " +
+                          $"isServer={isServer} isLocalPlayer={isLocalPlayer}");
 
             CmdSendInput(now);
             lastSent = now;
