@@ -111,6 +111,10 @@ namespace Metagame.Bootstrap
             else
                 MatchTransport.UseDirect(manager);
 
+            // 로비를 거쳐 들어오는 사람은 방장이든 참가자든 화면이 있다.
+            // 게임 씬이 이 값을 보고 캐릭터·카메라·HUD 를 만들지 정한다.
+            MatchRole.DedicatedServer = false;
+
             // 이 방을 맡은 게 나라면 내가 게임 서버가 된다(S15P21B202-263).
             // 물리와 판정이 내 PC 에서 돌고, 참가자들이 나에게 붙는다.
             if (network.IsRoomHost)

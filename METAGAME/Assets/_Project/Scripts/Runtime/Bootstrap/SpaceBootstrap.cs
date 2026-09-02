@@ -105,7 +105,9 @@ namespace Metagame.Bootstrap
             // 전용 서버에는 "내 캐릭터" 가 없다. 접속한 사람 수만큼 몸을 세우는 일은
             // NetPlayer 가 하고(-147), 카메라·HUD 는 그릴 화면이 없어 필요 없다.
             // 세계는 세워야 한다 — 그 위에서 물리가 돌아야 하기 때문이다.
-            if (Mirror.NetworkServer.active && !Mirror.NetworkClient.active)
+            // NetworkClient.active 로 판별하면 안 된다 — 방장(StartHost)도 게임 씬이
+            // 뜨는 동안에는 그 값이 거짓이라 전용 서버로 오인된다(MatchRole 주석 참고).
+            if (Metagame.Network.MatchRole.DedicatedServer)
             {
                 // 운반체 배치는 서버가 정한다(-152). 위치는 WorldSync 로 내려간다.
                 // 조작은 사람마다 다르므로 이 컨트롤러는 배치만 하고 손을 뗀다 —
@@ -120,7 +122,9 @@ namespace Metagame.Bootstrap
             // 매치에 붙은 클라이언트는 운반체를 스스로 섞지 않는다 — 섞으면 서버가
             // 보낸 위치와 한 번 어긋났다가 되돌아가는 것이 눈에 보인다.
             // 혼자 실행할 때는 지금까지처럼 매번 섞는다.
-            bool inMatch = Mirror.NetworkClient.active;
+            // 여기도 NetworkClient.active 만 보면 안 된다 — 방장은 씬이 뜨는 동안
+            // 그 값이 거짓이라 운반체를 혼자 섞어 버리고, 서버가 보낸 위치와 어긋난다.
+            bool inMatch = Mirror.NetworkClient.active || Mirror.NetworkServer.active;
 
             Vector3 spawn = Level.SpawnFoot + Vector3.up * 0.10f;
             Quaternion facing = Quaternion.LookRotation(Vector3.right, Vector3.up);

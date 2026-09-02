@@ -53,6 +53,9 @@ namespace Metagame.Network
         /// <summary>게임 씬이 만든 몸을 넘겨받았는가. 그렇다면 여기서 없애지 않는다(-263).</summary>
         bool adoptedBody;
 
+        /// <summary>몸을 못 세운 채 지나간 물리 스텝 수. 진단 로그를 한 번만 남기려고 센다.</summary>
+        int waitedSteps;
+
         /// <summary>쓰러져 있은 시간. 전원 기절 구제를 재는 데 쓴다(-55).</summary>
         float downedSeconds;
 
@@ -113,6 +116,19 @@ namespace Metagame.Network
         /// 물리가 도는 몸을 세운다. 이 몸이 부품을 밀고 지형을 밟는 유일한 실체다.
         /// </summary>
         /// <returns>몸을 세웠으면 참. 게임 씬이 아직 준비되지 않았으면 거짓.</returns>
+        /// <summary>
+        /// 이 플레이어가 방장 자신인가 (호스트 모드에서 서버 겸 클라이언트인 그 사람).
+        ///
+        /// <c>isLocalPlayer</c> 로 판단하면 안 된다 — 그 값은 <b>클라이언트 쪽</b> 스폰 처리가
+        /// 끝나야 참이 되는데, 서버의 첫 <c>FixedUpdate</c> 가 그보다 먼저 도는 경우가 있다.
+        /// 그러면 방장을 못 알아보고 몸을 하나 더 만들어 버린다(2026-09-02 실측).
+        /// 연결이 서버 자신의 로컬 연결인지는 서버 쪽에서 바로 알 수 있어 이런 틈이 없다.
+        /// </summary>
+        bool IsHostOwnPlayer =>
+            NetworkServer.active
+            && NetworkServer.localConnection != null
+            && connectionToClient == NetworkServer.localConnection;
+
         bool BuildServerBody()
         {
             var session = FindAnyObjectByType<GameSession>();
@@ -124,8 +140,11 @@ namespace Metagame.Network
             // 게임 씬이 이미 세웠다 — 카메라·HUD·태블릿이 전부 그 몸에 붙어 있다.
             // 여기서 하나 더 만들면 방장만 몸이 두 벌이 되고, 카메라가 따라갈 대상이
             // 모호해진다(S15P21B202-263).
-            if (isClient && isLocalPlayer && session != null && session.LocalPlayer != null)
+            if (IsHostOwnPlayer)
             {
+                // 게임 씬이 아직 내 몸을 안 세웠으면 기다린다. 먼저 만들면 두 벌이 된다.
+                if (session.LocalPlayer == null) return false;
+
                 body = session.LocalPlayer;
                 adoptedBody = true;
 
@@ -138,10 +157,6 @@ namespace Metagame.Network
                 Debug.Log($"[NetPlayer] 방장의 몸을 넘겨받았다 · {nickname}(userId={userId})");
                 return true;
             }
-
-            // 방장 자신인데 게임 씬이 아직 내 몸을 안 세웠다면 기다린다 — 여기서 새로
-            // 만들면 몸이 두 벌이 되고 카메라가 따라갈 대상이 모호해진다.
-            if (isClient && isLocalPlayer && session.LocalPlayer == null) return false;
 
             Vector3 foot = session != null ? session.SpawnFoot : transform.position;
             Quaternion facing = Quaternion.LookRotation(Vector3.right, Vector3.up);
@@ -181,7 +196,25 @@ namespace Metagame.Network
         void FixedUpdate()
         {
             // 게임 씬이 준비될 때까지 기다렸다 몸을 세운다.
-            if (body == null && !BuildServerBody()) return;
+            if (body == null)
+            {
+                if (BuildServerBody()) { waitedSteps = 0; }
+                else
+                {
+                    // 오래 기다리면 왜 못 세우는지 한 번 남긴다. 이 화면이 그대로 멈춘
+                    // 것처럼 보이므로, 로그가 없으면 원인을 찾을 실마리가 없다.
+                    if (++waitedSteps == 250)
+                    {
+                        var session = FindAnyObjectByType<GameSession>();
+                        Debug.LogWarning(
+                            $"[NetPlayer] 5초째 몸을 못 세우고 있다 · {nickname}(userId={userId}) · " +
+                            $"게임씬={(session != null ? "있음" : "없음")} · " +
+                            $"방장자신={IsHostOwnPlayer} · " +
+                            $"씬이세운내몸={(session != null && session.LocalPlayer != null ? "있음" : "없음")}");
+                    }
+                    return;
+                }
+            }
 
             InputFrame frame = pending;
 
