@@ -886,6 +886,22 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float DownedFirstPersonSeconds = 5f;
 
+        /// <summary>
+        /// 3인칭으로 물러날 때 <b>쓰러진 몸을 내려다보는</b> 각도(도).
+        ///
+        /// <b>쓰러진 머리의 회전을 이어받으면 안 된다</b>(S15P21B202-267). 얼굴이 땅을
+        /// 보고 있으면 각도가 극단으로 가 <see cref="OrbitCamera.MinPitch"/> 에서 잘리고
+        /// 카메라가 지면 아래를 향한다. 옆으로 누웠으면 <c>eulerAngles</c> 의 x·y 분해에
+        /// roll 이 섞여 엉뚱한 방향이 된다 — 어느 쪽이든 <b>몸이 프레임에 없다.</b>
+        ///
+        /// 기획 §10.3 은 "쓰러진 캐릭터 <b>중심</b>의 3인칭 자유 시점" 이다. 전환 순간만
+        /// 고정하고 그 뒤에는 마우스로 자유롭게 돌린다.
+        ///
+        /// 25도면 초점(골반 + 0.55m)에서 3.6m 뒤 · 2.3m 높이에 선다. 화각 64도가 그
+        /// 거리에서 상하 ±2.2m 를 덮으므로 초점보다 0.55m 아래인 몸이 넉넉히 들어온다.
+        /// </summary>
+        public const float DownedThirdPersonPitchDegrees = 25f;
+
         // --- 끼임 복구 (기획 §21) ---
         /// <summary>
         /// 끼임 탈출을 위해 <c>T</c> 를 유지해야 하는 시간(초). 기획 §21.

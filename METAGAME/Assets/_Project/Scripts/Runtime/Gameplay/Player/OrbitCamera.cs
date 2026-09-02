@@ -164,23 +164,52 @@ namespace Metagame.Gameplay
             var wasFalling = DownedFalling;
             downedSeconds += deltaTime;
 
-            // 넘어지기가 끝나면 3인칭으로 물러난다(§10.3 "쓰러진 캐릭터 중심의 3인칭
-            // 자유 시점"). 시점 각도는 지금 보고 있던 방향에서 이어간다.
+            // 넘어지기가 끝나면 3인칭으로 물러난다(§10.3 "쓰러진 캐릭터 <b>중심</b>의
+            // 3인칭 자유 시점").
             if (!wasFalling || DownedFalling) return;
 
             FirstPerson = false;
             currentDistance = 0f;   // 몸에서 서서히 물러난다
-
-            if (downedEyes != null)
-            {
-                var euler = downedEyes.rotation.eulerAngles;
-                yaw = euler.y;
-                pitch = Mathf.Clamp(NormalizePitch(euler.x), MinPitch, MaxPitch);
-            }
+            FrameDownedBody();
         }
 
-        static float NormalizePitch(float degrees) =>
-            degrees > 180f ? degrees - 360f : degrees;
+        /// <summary>
+        /// 쓰러진 몸이 화면에 들어오게 시점을 잡는다(기획 §10.3, S15P21B202-267).
+        ///
+        /// <b>쓰러진 머리의 회전을 이어받으면 안 된다.</b> 예전에는 그렇게 했다.
+        ///
+        /// <code>
+        /// var euler = downedEyes.rotation.eulerAngles;   // 땅에 처박힌 머리
+        /// yaw   = euler.y;
+        /// pitch = Clamp(NormalizePitch(euler.x), MinPitch, MaxPitch);
+        /// </code>
+        ///
+        /// 얼굴이 땅을 보고 있으면 각도가 극단으로 가 <see cref="MinPitch"/>(-42도)에서
+        /// 잘리고 카메라가 지면 아래를 향한다. 옆으로 누웠으면 <c>eulerAngles</c> 의 x·y
+        /// 분해에 roll 이 섞여 엉뚱한 방향이 된다 — 어느 쪽이든 <b>몸이 프레임에 없고</b>,
+        /// 그러면 S15P21B202-267 이 렌더링을 살려도 보이지 않는다.
+        ///
+        /// <b>고정하는 것은 전환 순간뿐이다.</b> 그 뒤에는 마우스로 자유롭게 돌린다 —
+        /// §10.3 의 "자유 시점" 을 지킨다.
+        ///
+        /// 좌우는 머리가 <b>누운 방향</b>에서 가져온다. 머리의 회전이 아니라 골반에서
+        /// 머리로 향하는 벡터라, 어떤 자세로 넘어져도 신뢰할 수 있다. 그 방향을 등지고
+        /// 서면 몸이 세로로 화면에 들어온다.
+        /// </summary>
+        void FrameDownedBody()
+        {
+            pitch = PhysicsScale.DownedThirdPersonPitchDegrees;
+
+            if (Target == null || downedEyes == null) return;
+
+            var along = downedEyes.position - Target.position;
+            along.y = 0f;
+
+            // 완전히 접혀 누워 골반과 머리가 겹치면 지금 좌우를 그대로 둔다.
+            if (along.sqrMagnitude < 1e-4f) return;
+
+            yaw = Mathf.Atan2(along.x, along.z) * Mathf.Rad2Deg;
+        }
 
         public void SetFreeLook(bool on)
         {
