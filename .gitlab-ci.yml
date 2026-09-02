@@ -152,18 +152,66 @@ repo-hygiene:             # 금지 파일·.meta 짝·에셋 위치·대용량 �
     - python scripts/ci/repo_hygiene.py
 
 # ── 2단계 ────────────────────────────────────────────────────────────────
-unity-compile:            # Unity 설치 Windows 러너에서만. UNITY_RUNNER=true 로 켬
-  stage: test
-  tags: [unity-win]
+unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도커 러너 (S15P21B202-271)
+  stage: test             # 이 잡이 없던 동안 검사가 0건이었다: CI 이력 잡 2,583건 중 unity-compile 0건.
+  # GameCI 이미지에 에디터·xvfb·라이선스 클라이언트가 다 들어 있다. 태그는 프로젝트 버전과 같아야 한다
+  # (다르면 batchmode 가 프로젝트를 조용히 업그레이드한다) — METAGAME/ProjectSettings/ProjectVersion.txt 와 맞춘다.
+  image: unityci/editor:ubuntu-6000.5.4f1-base-3.2.2
+  tags: [linux]
   needs: []
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $UNITY_RUNNER == "true"
-  allow_failure: true     # 안정화 후 false 로
+    # 측정 단계라 when: manual 이다. 콜드/웜 실행 시간을 재고 나서 자동 실행으로 바꾼다 —
+    # 러너가 concurrent 2 라, 긴 잡을 무조건 걸면 다른 사람 MR 이 줄을 선다.
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+  allow_failure: true     # !165 기록에 "develop 에 이미 실패하는 EditMode 테스트 13개" 가 있다.
+  timeout: 90m            # 실태를 본 뒤 false 로 바꾼다. 콜드 실행은 UPM 패키지 46개 해석을 포함한다.
   script:
-    - '& "$env:UNITY_PATH" -batchmode -nographics -projectPath METAGAME -runTests -testPlatform EditMode -testResults "$env:CI_PROJECT_DIR\unity-results.xml" -logFile "$env:CI_PROJECT_DIR\unity.log"'
-    - 'if ($LASTEXITCODE -ne 0) { Get-Content "$env:CI_PROJECT_DIR\unity.log" | Select-String -Pattern "error CS|Exception" | Select-Object -First 40; exit $LASTEXITCODE }'
+    # 라이선스는 CI 변수가 아니라 러너 마운트로 온다(config.toml volumes). 환경변수가 아니라서
+    # 로그로 새어나갈 경로가 없고, MR 이 보호 브랜치가 아니어서 Protected 변수를 못 읽는 문제도 피한다.
+    - LIC=/root/.local/share/unity3d/Unity/Unity_lic.ulf
+    - |
+      if [ ! -s "$LIC" ]; then
+        echo "❌ Unity 라이선스가 마운트되지 않았다: $LIC"
+        echo "   EC2 러너 config.toml 의 volumes 에 아래가 있어야 한다 (S15P21B202-271):"
+        echo "   /home/ubuntu/unity-license/Unity_lic.ulf:/root/.local/share/unity3d/Unity/Unity_lic.ulf:ro"
+        exit 1
+      fi
+    # 만료를 미리 알린다 — 이 .ulf 는 time-limited 엔타이틀먼트다(갱신: --update-ulf).
+    - CLIENT=/opt/unity/Editor/Data/Resources/Licensing/Client/Unity.Licensing.Client
+    - '"$CLIENT" --showEntitlements 2>&1 | grep -E "Product Name|Expiration Date|com.unity.editor.headless" || true'
+    - echo "=== 임포트 + 컴파일 + EditMode 테스트 시작 ==="
+    - date -u +"시작 %H:%M:%S UTC"
+    # unity-editor 래퍼가 xvfb-run 과 -batchmode 를 붙여 준다(이미지 실측) — 여기서 또 주지 않는다.
+    # -nographics 도 주지 않는다: xvfb 가 있어 URP 셰이더 관련 임포트가 정상적으로 돈다.
+    - |
+      set +e
+      unity-editor \
+        -projectPath METAGAME \
+        -runTests -testPlatform EditMode \
+        -testResults "$CI_PROJECT_DIR/unity-results.xml" \
+        -logFile "$CI_PROJECT_DIR/unity.log"
+      RC=$?
+      set -e
+      date -u +"종료 %H:%M:%S UTC (exit $RC)"
+      echo "$RC" > "$CI_PROJECT_DIR/unity-rc.txt"
+    # 컴파일 오류가 있으면 로그 수천 줄 대신 그 줄만 보여 준다 — 사람이 잡 로그에서 바로 원인을 본다.
+    - |
+      if grep -qE "error CS[0-9]+" "$CI_PROJECT_DIR/unity.log"; then
+        echo "=== 컴파일 오류 (앞 40건) ==="
+        grep -oE "[^ ]+\.cs\([0-9]+,[0-9]+\): error CS[0-9]+: .*" "$CI_PROJECT_DIR/unity.log" | sort -u | head -40
+      fi
+    - |
+      if [ -s "$CI_PROJECT_DIR/unity-results.xml" ]; then
+        echo "=== 테스트 요약 ==="
+        head -3 "$CI_PROJECT_DIR/unity-results.xml" | grep -oE 'total="[0-9]+" passed="[0-9]+" failed="[0-9]+"[^>]*' || true
+      else
+        echo "테스트 결과 파일이 없다 — 컴파일 단계에서 멈춘 것이다"
+      fi
+    - exit "$(cat "$CI_PROJECT_DIR/unity-rc.txt")"
   artifacts:
     when: always
+    expire_in: 3 days
     paths: [unity-results.xml, unity.log]
     reports:
       junit: unity-results.xml
