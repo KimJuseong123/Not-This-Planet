@@ -130,7 +130,10 @@ namespace Metagame.Bootstrap
 
             joiningMatch = true;
             manager.StartClient();
-            Debug.Log("[LobbyBootstrap] 참가자로 " + host + " 에 붙는다.");
+            // 릴레이를 탈 때는 이 주소를 쓰지 않는다 — 전송이 릴레이 주소로 붙는다.
+            Debug.Log(network.MatchRelay.HasValue
+                ? "[LobbyBootstrap] 참가자로 릴레이를 거쳐 붙는다."
+                : "[LobbyBootstrap] 참가자로 " + host + " 에 직접 붙는다.");
         }
 
         void OnDestroy()
