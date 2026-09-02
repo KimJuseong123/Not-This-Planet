@@ -45,8 +45,24 @@ public class EdgegapRelayService {
     private final String apiToken;
 
     public EdgegapRelayService(@Value("${relay.edgegap.token:}") String apiToken) {
-        this.apiToken = apiToken == null ? "" : apiToken.trim();
+        this.apiToken = clean(apiToken);
         this.client = RestClient.builder().baseUrl(BASE_URL).build();
+    }
+
+    /**
+     * 대시보드에서 토큰을 복사하면 "token 12345..." 처럼 접두어까지 딸려 온다.
+     * 그대로 넣으면 헤더가 "token token 12345..." 가 되어 거절당하고, 우리 코드는
+     * 그때 조용히 직접 접속으로 되돌아가므로 원인을 찾기 어렵다. 여기서 한 번 걷어낸다.
+     */
+    private static String clean(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String value = raw.trim();
+        if (value.regionMatches(true, 0, AUTH_PREFIX, 0, AUTH_PREFIX.length())) {
+            value = value.substring(AUTH_PREFIX.length()).trim();
+        }
+        return value;
     }
 
     public boolean isEnabled() {
