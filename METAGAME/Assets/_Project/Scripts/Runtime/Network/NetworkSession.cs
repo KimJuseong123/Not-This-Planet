@@ -308,7 +308,8 @@ namespace Metagame.Network
             }
         }
 
-        public void CreateRoom() => Send("CREATE_ROOM", new OutgoingData());
+        public void CreateRoom() =>
+            Send("CREATE_ROOM", new OutgoingData { localAddress = LocalMatchAddress() });
 
         public void JoinRoom(string roomId)
         {
@@ -319,7 +320,8 @@ namespace Metagame.Network
                 return;
             }
 
-            Send("JOIN_ROOM", new OutgoingData { roomId = roomId });
+            Send("JOIN_ROOM",
+                new OutgoingData { roomId = roomId, localAddress = LocalMatchAddress() });
         }
 
         public void SetReady(bool ready) => Send("READY", new OutgoingData { ready = ready });

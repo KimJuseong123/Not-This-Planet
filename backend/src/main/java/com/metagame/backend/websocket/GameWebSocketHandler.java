@@ -26,6 +26,15 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
     private static final String ROOM_ID_ATTR = "roomId";
     private static final String NICKNAME_ATTR = "nickname";
+
+    /**
+     * 이 사람이 알려 준 자기 랜 주소(예 192.168.31.66).
+     *
+     * <p>공인 IP 만으로는 같은 망인지 알 수 없다. 규모가 큰 망은 공인 IP 를 여러 개
+     * 돌려쓰기 때문에, 같은 WiFi 에 앉아 있어도 서로 다른 공인 IP 로 보인다
+     * (2026-09-02 SSAFY 교육장 실측 — 같은 WiFi 인데 릴레이를 탔다).
+     */
+    private static final String LOCAL_IP_ATTR = "localIp";
     private static final String UNKNOWN_NICKNAME = "비행사";
 
     private final RoomManager roomManager;
@@ -67,6 +76,10 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         }
 
         try {
+            // 방을 만들거나 들어올 때 자기 랜 주소를 함께 보낸다. 없으면 없는 대로 둔다 —
+            // 옛 클라이언트도 계속 붙을 수 있어야 한다.
+            rememberLocalIp(session, msg.data());
+
             switch (type) {
                 case CREATE_ROOM -> createRoom(session, userId);
                 case JOIN_ROOM -> joinRoom(session, userId, msg.data().get("roomId").asString());
@@ -216,7 +229,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         // 세션을 열려면 참가자 전원의 공인 IP 가 필요한데 그 목록은 서버만 갖고 있다.
         // 실패하면 null 이고, 그때는 위의 직접 접속 주소로 간다.
         LinkedHashMap<Long, String> publicIps = publicIpsOf(room);
-        boolean same = sameNetwork(publicIps);
+        boolean same = sameNetwork(room, publicIps);
         RelaySession relay = same ? null : relayService.open(publicIps);
 
         // 무엇을 골랐는지 남긴다. 릴레이가 안 붙었을 때 어디서 갈렸는지 알아야 한다 —
@@ -228,6 +241,11 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 publicIps.values().stream().distinct().count(),
                 localCount,
                 same ? "direct(same network)" : (relay != null ? "relay" : "direct(relay failed)"));
+
+        // 같은 망 판별이 왜 그렇게 나왔는지 남긴다. 같은 WiFi 인데 릴레이를 타면
+        // 여기서 갈린 것이다 — 공인 IP 는 다른데 랜 주소를 아무도 안 알려 준 경우다.
+        log.info("same network 판별: 공인IP종류={} · 같은랜대역={}",
+                publicIps.values().stream().distinct().count(), sameLocalSubnet(room));
 
         if (localCount > 0) {
             log.warn("공인 IP 를 못 읽었다 — nginx 가 X-Forwarded-For 를 넘기는지 확인할 것. "
@@ -269,11 +287,66 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
      * <p>같은 공인 IP 라도 공유기가 기기끼리의 통신을 막아 두면(AP isolation) 못 붙는다.
      * 그때는 핫스팟으로 우회한다 — {@code -145 §4-3} 에 적어 둔 그대로다.
      */
-    private boolean sameNetwork(LinkedHashMap<Long, String> publicIps) {
+    /**
+     * 다 같은 망에 있는가 — 그렇다면 릴레이 없이 서로 바로 닿는다.
+     *
+     * <p>둘 중 하나만 맞으면 같은 망으로 본다.
+     * <ul>
+     *   <li>공인 IP 가 전부 같다 — 한 공유기 뒤에 있다는 뜻</li>
+     *   <li>각자 알려 준 <b>랜 주소가 같은 대역</b>이다 — 공인 IP 를 여러 개 돌려쓰는
+     *       망에서도 이건 맞는다. 이것이 없어서 같은 WiFi 인데 릴레이를 탔다(2026-09-02)</li>
+     * </ul>
+     */
+    private boolean sameNetwork(Room room, LinkedHashMap<Long, String> publicIps) {
         if (publicIps.size() < 2) {
             return true;
         }
-        return publicIps.values().stream().distinct().count() == 1;
+        if (publicIps.values().stream().distinct().count() == 1) {
+            return true;
+        }
+        return sameLocalSubnet(room);
+    }
+
+    /** 방 전원이 같은 사설 대역(앞 세 자리)에 있는가. 한 명이라도 안 알려 줬으면 거짓. */
+    private boolean sameLocalSubnet(Room room) {
+        String shared = null;
+        for (Long playerId : room.playerIds()) {
+            WebSocketSession session = sessions.get(playerId);
+            if (session == null) {
+                return false;
+            }
+            String local = (String) session.getAttributes().get(LOCAL_IP_ATTR);
+            String subnet = subnetOf(local);
+            if (subnet == null) {
+                return false;                       // 안 알려 줬거나 사설 주소가 아니다
+            }
+            if (shared == null) {
+                shared = subnet;
+            } else if (!shared.equals(subnet)) {
+                return false;
+            }
+        }
+        return shared != null;
+    }
+
+    /** 사설 주소의 앞 세 자리(192.168.31). 사설이 아니거나 형식이 아니면 null. */
+    private static String subnetOf(String ip) {
+        if (ip == null || ip.isBlank() || !isLocalIp(ip)) {
+            return null;
+        }
+        int last = ip.lastIndexOf('.');
+        return last > 0 ? ip.substring(0, last) : null;
+    }
+
+    /** 클라이언트가 알려 준 자기 랜 주소를 세션에 적어 둔다. */
+    private static void rememberLocalIp(WebSocketSession session, JsonNode data) {
+        if (data == null || !data.has("localAddress")) {
+            return;
+        }
+        String local = data.get("localAddress").asString();
+        if (local != null && !local.isBlank()) {
+            session.getAttributes().put(LOCAL_IP_ATTR, local.trim());
+        }
     }
 
     /**
