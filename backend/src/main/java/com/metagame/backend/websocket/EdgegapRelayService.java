@@ -35,6 +35,12 @@ public class EdgegapRelayService {
     private static final long READY_TIMEOUT_MS = 8_000;
     private static final long POLL_INTERVAL_MS = 500;
 
+    /**
+     * Edgegap 이 요구하는 형식 — 소문자 {@code token} 접두어를 반드시 붙인다.
+     * 문서가 "'token' 부분을 삭제하지 마세요" 라고 못박는다. 대문자로 보내면 거절될 수 있다.
+     */
+    private static final String AUTH_PREFIX = "token ";
+
     private final RestClient client;
     private final String apiToken;
 
@@ -78,7 +84,7 @@ public class EdgegapRelayService {
         try {
             client.delete()
                     .uri("/v1/relays/sessions/{id}", sessionId)
-                    .header("Authorization", "Token " + apiToken)
+                    .header("Authorization", AUTH_PREFIX + apiToken)
                     .retrieve()
                     .toBodilessEntity();
         } catch (RuntimeException e) {
@@ -99,7 +105,7 @@ public class EdgegapRelayService {
 
         JsonNode body = client.post()
                 .uri("/v1/relays/sessions")
-                .header("Authorization", "Token " + apiToken)
+                .header("Authorization", AUTH_PREFIX + apiToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("users", users))
                 .retrieve()
@@ -122,7 +128,7 @@ public class EdgegapRelayService {
         while (System.currentTimeMillis() < deadline) {
             JsonNode body = client.get()
                     .uri("/v1/relays/sessions/{id}", sessionId)
-                    .header("Authorization", "Token " + apiToken)
+                    .header("Authorization", AUTH_PREFIX + apiToken)
                     .retrieve()
                     .body(JsonNode.class);
 
