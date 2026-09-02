@@ -976,17 +976,53 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float BatSwingSeconds = 0.28f;
 
-        /// <summary>스윙이 시작될 때 도구가 조준선보다 위로 들리는 각도(도).</summary>
-        public const float BatSwingUpDegrees = 55f;
+        /// <summary>
+        /// 스윙이 시작될 때 도구가 조준선보다 위로 들리는 각도(도).
+        ///
+        /// 우타자가 배트를 어깨 위로 세운 자리다(S15P21B202-261).
+        /// </summary>
+        public const float BatSwingUpDegrees = 45f;
 
         /// <summary>
-        /// 스윙이 끝날 때의 각도(도). 음수면 조준선보다 아래다.
+        /// 스윙이 시작될 때 조준선 <b>오른쪽</b>으로 벌어지는 각도(도).
         ///
-        /// 위에서 앞아래로 내려찍는 궤적이다. 야구 스윙처럼 수평으로 돌리지 않는 이유는
-        /// 목표가 <b>떨어지는 운석</b>이라서다 — 위에서 내려오는 것을 아래에서 위로 걷어
-        /// 올리는 것이 §18.2 의 "약간의 위쪽 각도를 더해" 와도 맞는다.
+        /// 90도를 넘긴다 — 오른손잡이 타자는 배트를 <b>오른쪽 뒤</b>에 두고 시작한다.
+        /// 뒤까지 가지 않으면 "들었다 내린다" 로 보이고 휘두르는 것이 아니다.
         /// </summary>
-        public const float BatSwingDownDegrees = -35f;
+        public const float BatSwingWindupYawDegrees = 110f;
+
+        /// <summary>
+        /// 맞는 순간의 진행도(0~1).
+        ///
+        /// <b>대칭이 아니어야 한다.</b> 야구 스윙은 뒤에서 시작해 앞을 지나 앞쪽으로
+        /// 끝난다 — 좌우를 같은 폭으로 흔들면 "부채질" 로 보인다. 그리고 가속 방식이
+        /// 앞뒤로 다르다(아래).
+        /// </summary>
+        public const float BatSwingContactAt = 0.45f;
+
+        /// <summary>맞는 순간 조준선보다 위로 남는 각도(도). 거의 수평이다.</summary>
+        public const float BatSwingContactPitchDegrees = 5f;
+
+        /// <summary>
+        /// 스윙이 끝날 때 조준선 <b>왼쪽</b>으로 지나가는 각도(도). 음수가 왼쪽이다.
+        ///
+        /// 시작(오른쪽 110도)보다 좁다. 배트가 몸을 감고 멈추는 것이지 반대쪽까지 같은
+        /// 폭으로 나가지 않는다.
+        /// </summary>
+        public const float BatSwingFollowYawDegrees = -70f;
+
+        /// <summary>
+        /// 스윙이 끝날 때 조준선보다 아래로 내려가는 각도(도). 음수가 아래다.
+        ///
+        /// <b>예전에는 −35도였고 궤적이 위에서 앞아래로 내려찍는 것이었다.</b> 근거는
+        /// "목표가 떨어지는 운석" 이었는데(S15P21B202-243), 인게임에서 보고 우타자 야구
+        /// 스윙으로 바꿨다(S15P21B202-261). 기획 §18 은 궤적 모양을 정하지 않으므로
+        /// 손맛 결정이다.
+        ///
+        /// 수평 스윙이 되었으므로 아래로 내려가는 폭이 작다 — 팔로스루로 살짝 처지는
+        /// 정도다.
+        /// </summary>
+        public const float BatSwingDownDegrees = -15f;
 
         /// <summary>
         /// 방망이가 닿는 거리(m). 동료(기획 §18.3)와 소품에 같이 쓴다.
