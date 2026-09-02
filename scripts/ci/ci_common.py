@@ -240,6 +240,27 @@ class GitLab:
             if len(d) < 100:
                 return out, True
         return out, False
+    def mrs_for_commit(self, sha: str) -> tuple[list[dict], bool]:
+        """이 커밋에 연결된 MR 들. develop push 파이프라인에서 "방금 무엇이 머지됐나" 를 아는 유일한 길이다.
+        머지 커밋과 그 안의 개별 커밋 모두 같은 MR 을 돌려준다(2026-09-01 실측). 반환 (mrs, ok)."""
+        if not sha:
+            return [], True
+        st, d = http("GET", f"{self.api}/projects/{self.project}/repository/commits/"
+                            f"{quote(sha, safe='')}/merge_requests?per_page=20", self._h())
+        if st != 200 or not isinstance(d, list):
+            return [], False
+        return d, True
+
+    def merged_mrs_for_target(self, branch: str) -> tuple[list[dict], bool]:
+        """이 브랜치를 **대상으로** 머지된 MR 들 = 스택 자식. 반환 (mrs, ok)."""
+        if not branch:
+            return [], True
+        st, d = http("GET", f"{self.api}/projects/{self.project}/merge_requests"
+                            f"?state=merged&target_branch={quote(branch, safe='')}&per_page=50", self._h())
+        if st != 200 or not isinstance(d, list):
+            return [], False
+        return d, True
+
     def merged_mr_for_source(self, branch: str) -> tuple[dict | None, bool]:
         """이 브랜치를 **소스로** 머지된 MR (가장 최근 1건). 반환 (mr|None, ok).
 
@@ -292,6 +313,23 @@ class GitLab:
         st, d = http("GET", f"{self.api}/projects/{self.project}/merge_requests/{iid}/pipelines", self._h())
         return d if st == 200 and isinstance(d, list) else None
 
+    def branch_pipelines(self, ref: str = "develop", per_page: int = 20) -> list[dict]:
+        """브랜치의 파이프라인 목록(최신 우선). 조회 실패는 빈 목록 — 부르는 쪽이 '못 물어봤다' 를
+        구분해야 하면 완전탐색 플래그로 받는다(deploy_history 가 그렇게 한다)."""
+        st, d = http("GET", f"{self.api}/projects/{self.project}/pipelines"
+                            f"?ref={quote(ref, safe='')}&per_page={per_page}&order_by=id&sort=desc", self._h())
+        return d if st == 200 and isinstance(d, list) else []
+
+    def pipeline_jobs(self, pipeline_id: int | str) -> list[dict]:
+        """파이프라인 한 건의 잡 목록.
+
+        프로젝트 전체 잡 목록(`/jobs`)으로 특정 잡을 찾지 않는 이유 — 그 API 는 **이름으로 걸러 주지
+        않는다.** 잡이 수천 건인 리포에서 하루 한 번 도는 배포 잡을 찾으려면 수십 페이지를 넘겨야 한다.
+        파이프라인을 최신부터 훑으면 대개 첫 몇 건에서 찾는다."""
+        st, d = http("GET", f"{self.api}/projects/{self.project}/pipelines/{pipeline_id}/jobs?per_page=100",
+                     self._h())
+        return d if st == 200 and isinstance(d, list) else []
+
     def open_mrs(self) -> list[dict]:
         st, d = http("GET", f"{self.api}/projects/{self.project}/merge_requests?state=opened&per_page=100",
                      self._h())
@@ -299,6 +337,9 @@ class GitLab:
 
 
 class Jira:
+    # **읽기 전용이다.** 이슈 상태를 바꾸는 것은 Jira 자동화 규칙(R5·R6·R9)만 한다 — CI 는 검사·알림만
+    # 맡는다(S15P21B202-242). 그래서 CI 변수 JIRA_API_TOKEN 은 읽기 스코프로 충분하고, 팀 공용
+    # 변수에 쓰기 권한을 두지 않는다. 상태 전이 규칙이 Jira 한 곳에만 있어 두 곳이 어긋나지도 않는다.
     """REST 호출은 api.atlassian.com/ex/jira/{cloudId} 경로를 쓴다 — 스코프(읽기 전용) API 토큰은 사이트 URL 로는
     익명 취급되어 404 가 나고(2026-08-27 실측), 이 경로는 클래식·스코프 토큰 모두 동작한다. 링크(browse)는 사이트 URL."""
 

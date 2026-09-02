@@ -177,11 +177,14 @@ namespace Metagame.EditorTools
             AddSocket(go.transform, spec, SocketRole.Top);
 
             for (var i = 0; i < ClampsPerPart; i++) AddClamp(go.transform, spec, i);
-            AddWeldSeam(go.transform, spec);
 
             var part = go.AddComponent<SpaceshipPart>();
             part.SetPlacedMass(spec.Mass);
             part.Initialize();   // Locked 상태의 물리 표현을 씬에 저장한다
+
+            // 손으로 미는 것(기획 §13). Locked·Carried·Welded 는 컴포넌트 쪽에서 거른다.
+            go.AddComponent<PartPush>();
+
             return part;
         }
 
@@ -241,26 +244,6 @@ namespace Metagame.EditorTools
 
             go.AddComponent<PartClamp>();
         }
-
-        /// <summary>
-        /// 밑면 둘레의 원형 용접선(기획 §16.1). 조립된 뒤에만 용접할 수 있다.
-        ///
-        /// 예전에는 밑면 네 곳에 <c>WeldPoint</c> 를 놓았다. 기획이 "점 네 개를 누르는
-        /// 방식이 아니라" 고 명시하므로 접합선 하나로 바꿨다.
-        ///
-        /// 콜라이더를 붙이지 않는다. 용접기가 노즐과 접합선 사이의 거리로 판정하므로
-        /// 레이캐스트 대상이 필요 없고, 콜라이더를 두면 파츠 밑면에 상호작용 레이어
-        /// 트리거가 하나 더 생겨 다른 판정에 걸린다.
-        /// </summary>
-        static void AddWeldSeam(Transform parent, PartSpec spec)
-        {
-            var go = new GameObject("WeldSeam");
-            go.transform.SetParent(parent, false);
-            go.transform.localPosition = Vector3.down * (spec.Height * 0.5f);
-
-            go.AddComponent<WeldSeam>();
-        }
-
         /// <summary>
         /// 견인 빔 두 기. Stage1SkinBuilder가 TractorCraft 프리팹을 기준점에 얹고,
         /// 런타임의 TractorBeamController가 기준점을 움직여 실제 운반에 사용한다.
@@ -299,15 +282,19 @@ namespace Metagame.EditorTools
             go.transform.localPosition = Vector3.zero;
 
             var spawner = go.AddComponent<MeteorSpawner>();
-            spawner.Configure(20260827,
-                PhysicsScale.MeteorIntervalStart,
-                PhysicsScale.MeteorIntervalMin,
-                PhysicsScale.MeteorRampSeconds);
+            spawner.Configure(20260827);
 
             // 아레나(50x50m)보다 좁게 잡아 경계 밖으로 떨어지지 않게 한다.
             spawner.SetArea(go.transform, new Vector2(36f, 36f));
 
             go.AddComponent<DemoMeteorDriver>();
+
+            // 낙하 예고 지면 표시(기획 §17.2, S15P21B202-241). 스포너와 같은 오브젝트에
+            // 두면 Configure 없이 스스로 찾는다.
+            go.AddComponent<MeteorWarningView>();
+
+            // 착탄 흔적 분화구(기획 §19). 그레이박스이며 [Art] 가 실제 연출을 주면 대체한다.
+            go.AddComponent<MeteorScarView>();
 
             // 운석 스킨을 여기서 꽂는다. 이 도구가 Puzzle 그룹을 통째로 다시 만들기 때문에
             // 스포너도 새것이 되고, 예전에는 _meteorPrefab 이 비어 폴백 구체로 돌아갔다.

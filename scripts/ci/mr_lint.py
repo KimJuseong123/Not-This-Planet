@@ -126,10 +126,11 @@ def target_verdict(branch: str, target: str) -> tuple[str, str]:
         # 완료 전환이 막히는 데다, 검증받지 않은 변경이 핫픽스에 얹혀 master 로 들어간다(-134).
         return "fail", f"hotfix 브랜치를 대상으로 하는 MR 은 만들지 않는다: {target!r} — develop 대상으로 다시 만드세요"
     if BRANCH_RE.match(target):
-        return "warn", (f"스택 MR — 대상이 develop 이 아니라 작업 브랜치({target})입니다. 머지해도 이 이슈는 **자동 완료되지 않습니다**"
-                        f"(R6 조건이 대상 이름에서 이슈 키를 잡아 전환을 건너뜁니다): "
-                        f"부모 브랜치가 develop 에 머지된 뒤 이 이슈를 손으로 완료하세요(머지된 MR 이 있으므로 허용됩니다). "
-                        f"부모 MR 이 먼저 머지되면 GitLab 이 이 MR 의 대상을 develop 으로 자동으로 되돌립니다(18.11 실측) — 그때 머지하면 됩니다")
+        return "warn", (f"스택 MR — 대상이 develop 이 아니라 작업 브랜치({target})입니다. "
+                        f"**부모를 먼저 develop 에 머지해야 합니다** — 그 순서는 `stack-order` 검사가 막습니다(-244). "
+                        f"부모가 머지되면 GitLab 이 이 MR 의 대상을 develop 으로 되돌리고(18.11 실측), "
+                        f"그때 이 MR 을 머지하면 Jira 이슈도 R6 가 저절로 완료시킵니다. "
+                        f"지금 이대로 머지하면 develop 에는 아무것도 도착하지 않고 부모 MR 의 내용이 리뷰 후에 바뀝니다")
     return "fail", f"대상 브랜치는 develop · master(릴리즈) · 작업 브랜치(스택 MR) 중 하나여야 함: {target!r}"
 def publish_advice(gl: GitLab, mr: dict, warns: list[tuple[str, str]], base_warned: bool) -> None:
     """경고를 눈에 보이는 곳에 남긴다(차단 아님).
@@ -176,7 +177,10 @@ def main() -> int:
     desc = mr.get("description") or ""
     print(f"MR: {raw_title!r}\n브랜치: {branch} → {target}")
 
-    # 1) Draft 금지
+    # 1) Draft 금지 — 예외 없음.
+    #    스택 순서는 별도 잡 `stack-order` 가 강제한다. Draft 를 그 수단으로 쓰면 팀 규칙
+    #    (docs/git-convention.md §5 "만들지 않는다")에 예외가 생기고, 사람이 그 예외를 흉내 내
+    #    이 검사를 우회할 수 있다 (S15P21B202-244).
     if is_draft or mr.get("draft"):
         rep.fail("Draft MR 금지 — MR 생성 = 리뷰 요청 (진행 공유는 Jira 코멘트로). 'Mark as ready' 후 재실행")
     else:

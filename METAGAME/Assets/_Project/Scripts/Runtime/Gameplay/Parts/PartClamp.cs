@@ -40,11 +40,17 @@ namespace Metagame.Gameplay.Parts
         [Tooltip("끄면 풀지 않아도 파츠가 Free 로 넘어간다. 장식용 고정쇠에 쓴다.")]
         bool _isRequired = true;
 
+        [SerializeField, HideInInspector]
+        Grabbable _gripTarget;
+
+        [SerializeField, HideInInspector]
+        Transform _releasedVisual;
+
         /// <summary>
         /// 뽑힌 정도를 초로 누적한 값. 직렬화한다.
         ///
         /// 저장하지 않으면 씬을 다시 로드했을 때 반쯤 뽑아 둔 고정못이 처음으로
-        /// 돌아간다(<see cref="WeldSeam"/> 의 용접 진행분도 같은 이유로 저장한다).
+        /// 돌아간다(<see cref="WeldBead"/> 의 사슬 구조도 같은 이유로 저장한다).
         /// </summary>
         [SerializeField, HideInInspector] float _pulledSeconds;
 
@@ -54,6 +60,12 @@ namespace Metagame.Gameplay.Parts
 
         public SpaceshipPart Part => _part;
 
+        /// <summary>실제 팔을 연결할 때 사용하는 숨김 Grabbable 표식.</summary>
+        public Grabbable GripTarget => _gripTarget;
+
+        /// <summary>고정쇠가 붙어 있는 파츠의 물리 몸체.</summary>
+        public Rigidbody PartBody => _part != null ? _part.GetComponent<Rigidbody>() : null;
+
         public bool IsRequired => _isRequired;
 
         /// <summary>
@@ -61,6 +73,28 @@ namespace Metagame.Gameplay.Parts
         /// 장식용 고정쇠는 풀지 않아도 파츠가 Free 로 넘어간다.
         /// </summary>
         public void SetRequired(bool required) => _isRequired = required;
+
+        /// <summary>
+        /// 씬에 있는 고정못 전부. <see cref="PartSocket.All"/> 과 같은 방식이다.
+        ///
+        /// 운석 공세가 "작업 중인 곳" 을 여기서 찾는다(기획 §17.5, S15P21B202-234).
+        /// 파츠를 훑지 않는 이유는 <b>당기는 중인지</b>가 파츠가 아니라 고정못의 상태라서다.
+        ///
+        /// EditMode 에서는 <c>OnEnable</c> 이 호출되지 않으므로 <see cref="Initialize"/>
+        /// 가 직접 등록한다.
+        /// </summary>
+        public static readonly System.Collections.Generic.List<PartClamp> All = new();
+
+        void OnEnable() => Register();
+
+        void OnDisable() => Unregister();
+
+        public void Register()
+        {
+            if (!All.Contains(this)) All.Add(this);
+        }
+
+        public void Unregister() => All.Remove(this);
 
         public bool IsReleased { get; private set; }
 
@@ -99,14 +133,35 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         public void Initialize()
         {
+            Register();
+
             if (_initialized) return;
             _initialized = true;
 
             if (_part == null) _part = GetComponentInParent<SpaceshipPart>();
             _colliders = GetComponents<Collider>();
 
+            // 고정쇠 Collider는 Interactable 레이어라 Hand.Search에는 걸리지 않는다.
+            // 별도의 표식만 만들어 명시적 clamp grip 경로에서 사용한다.
+            if (_gripTarget == null) _gripTarget = GetComponent<Grabbable>();
+            if (_gripTarget == null) _gripTarget = gameObject.AddComponent<Grabbable>();
+            _gripTarget.Label = "";
+            _gripTarget.CanGrab = false;
+            _gripTarget.Climbable = false;
+            _gripTarget.Priority = 0f;
+
             // 홀드로 풀리지 않는다. 진행은 뒤로 이동으로만 만든다(기획 §12.1).
             SetHoldSeconds(0f);
+        }
+
+        /// <summary>
+        /// Stage1SkinBuilder가 별도 AnchorPins 외형을 직접 연결한다.
+        /// 이름 검색은 구형 씬 호환용으로만 남기고, 새 씬은 이 참조를 사용한다.
+        /// </summary>
+        public void AssignReleasedVisual(Transform visual)
+        {
+            _releasedVisual = visual;
+            if (_releasedVisual != null) _releasedVisual.gameObject.SetActive(true);
         }
 
         /// <summary>
@@ -217,22 +272,39 @@ namespace Metagame.Gameplay.Parts
 
         void AttachReleasedVisual()
         {
-            var visual = FindSceneAnchorPin();
+            var visual = _releasedVisual != null ? _releasedVisual : FindSceneAnchorPin();
             if (visual != null)
             {
-                visual.SetParent(transform, true);
-                visual.name = "Visual";
-                return;
+                var renderers = visual.GetComponentsInChildren<Renderer>(true);
+                if (renderers.Length == 0)
+                {
+                    visual = null;
+                }
+                else
+                {
+                    visual.gameObject.SetActive(true);
+                    for (var i = 0; i < renderers.Length; i++)
+                        if (renderers[i] != null) renderers[i].enabled = true;
+
+                    visual.SetParent(transform, true);
+                    visual.name = "Visual";
+                    _releasedVisual = visual;
+                    return;
+                }
             }
 
-            // 스킨이 없는 테스트/그레이박스 씬에서도 물리 오브젝트가 보이도록
-            // 작은 원통을 대체 외형으로 만든다. 실제 Stage1 씬에서는 카탈로그의
-            // PF_Stage1_AnchorPin 인스턴스가 위 경로로 연결된다.
-            if (!Application.isPlaying) return;
+            if (visual == null)
+            {
+                // 스킨이 없는 테스트/그레이박스 씬에서도 물리 오브젝트가 보이도록
+                // 작은 원통을 대체 외형으로 만든다. 실제 Stage1 씬에서는 카탈로그의
+                // PF_Stage1_AnchorPin 인스턴스가 위 경로로 연결된다.
+                if (!Application.isPlaying) return;
 
-            var fallback = Prim.Pipe("Visual", transform.position, 0.20f, 0.54f,
-                                     new Color(0.34f, 0.38f, 0.44f), 0.2f, transform);
-            Prim.Decor(fallback);
+                var fallback = Prim.Pipe("Visual", transform.position, 0.20f, 0.54f,
+                                         new Color(0.34f, 0.38f, 0.44f), 0.2f, transform);
+                Prim.Decor(fallback);
+                _releasedVisual = fallback.transform;
+            }
         }
 
         Transform FindSceneAnchorPin()
@@ -284,7 +356,8 @@ namespace Metagame.Gameplay.Parts
                 -ReleasedPopAngularSpeed * 0.55f);
 
             // 이후에는 일반 소품처럼 손으로 집을 수 있다.
-            Metagame.Gameplay.Grabbable.Mark(gameObject, "해제된 고정쇠");
+            _gripTarget = Metagame.Gameplay.Grabbable.Mark(gameObject, "해제된 고정쇠");
+            _gripTarget.CanGrab = true;
         }
 
         void LiftClearOfOriginalSeat()

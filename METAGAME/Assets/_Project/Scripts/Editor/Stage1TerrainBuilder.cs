@@ -23,6 +23,8 @@ namespace Metagame.EditorTools
         const string ScenePath = "Assets/Scenes/Main.unity";
         const string TerrainRoot = "Assets/_Project/Terrain/Stage1";
         const string TerrainDataPath = TerrainRoot + "/TerrainData/TD_Stage1_Arena.asset";
+        const string TerrainLayerPath =
+            TerrainRoot + "/TerrainLayers/TL_Stage1_AlienGround.asset";
         const string TerrainPrefabPath =
             "Assets/_Project/Prefabs/Environment/Stage1/PF_Stage1_Terrain.prefab";
 
@@ -46,16 +48,23 @@ namespace Metagame.EditorTools
         /// <summary>배치 모드와 메뉴에서 함께 사용하는 진입점.</summary>
         public static void Build()
         {
-            EnsureFolders();
-
-            var data = EnsureTerrainData();
-            EnsureTerrainPrefab(data);
+            EnsureTerrainAssets();
             ApplyToMainScene();
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log("[Stage1Terrain] 평평한 기본 Terrain 생성 완료 — 크기 "
                       + TerrainWidth + "m → " + ScenePath);
+        }
+
+        /// <summary>평지 TerrainData와 프리팹만 복구·생성하고 씬은 건드리지 않는다.</summary>
+        public static void EnsureTerrainAssets()
+        {
+            EnsureFolders();
+            var data = EnsureTerrainData();
+            EnsureTerrainPrefab(data);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
         }
 
         static void EnsureFolders()
@@ -70,6 +79,16 @@ namespace Metagame.EditorTools
             var data = AssetDatabase.LoadAssetAtPath<TerrainData>(TerrainDataPath);
             if (data == null)
             {
+                // TerrainData는 바이너리다. Git 텍스트 정규화로 손상됐다면 기존 .meta GUID를
+                // 유지한 채 본문만 지우고 다시 생성한다.
+                if (File.Exists(TerrainDataPath))
+                {
+                    File.Delete(TerrainDataPath);
+                    AssetDatabase.Refresh();
+                    Debug.LogWarning("[Stage1Terrain] 손상된 TerrainData를 재생성한다: "
+                                     + TerrainDataPath);
+                }
+
                 data = new TerrainData { name = "TD_Stage1_Arena" };
                 AssetDatabase.CreateAsset(data, TerrainDataPath);
             }
@@ -78,8 +97,15 @@ namespace Metagame.EditorTools
             data.alphamapResolution = AlphamapResolution;
             data.baseMapResolution = 512;
             data.size = new Vector3(TerrainWidth, TerrainHeight, TerrainWidth);
-            // S15P21B202-74에서 연결한 Terrain Layer가 있다면 Terrain 재생성 시에도 유지한다.
             data.SetHeights(0, 0, GenerateHeights());
+
+            // S15P21B202-74에서 만든 평지 타일을 손상 복구 뒤에도 다시 연결한다.
+            var terrainLayer = AssetDatabase.LoadAssetAtPath<TerrainLayer>(TerrainLayerPath);
+            if (terrainLayer != null)
+            {
+                data.terrainLayers = new[] { terrainLayer };
+                data.SetAlphamaps(0, 0, GenerateSingleLayerAlphamap());
+            }
 
             EditorUtility.SetDirty(data);
             return data;
@@ -89,6 +115,15 @@ namespace Metagame.EditorTools
         static float[,] GenerateHeights()
         {
             return new float[HeightmapResolution, HeightmapResolution];
+        }
+
+        static float[,,] GenerateSingleLayerAlphamap()
+        {
+            var alphamap = new float[AlphamapResolution, AlphamapResolution, 1];
+            for (var y = 0; y < AlphamapResolution; y++)
+            for (var x = 0; x < AlphamapResolution; x++)
+                alphamap[y, x, 0] = 1f;
+            return alphamap;
         }
 
         static void EnsureTerrainPrefab(TerrainData data)

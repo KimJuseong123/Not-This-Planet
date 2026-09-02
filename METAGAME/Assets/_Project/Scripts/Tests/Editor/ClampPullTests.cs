@@ -70,6 +70,15 @@ namespace Metagame.Gameplay.Tests
             Run(rig, PullMode.Away, 1f);
 
             Assert.IsTrue(rig.Player.ClampGrabbed, "잡고 있어야 한다.");
+            Assert.IsTrue(rig.Player.LeftHand.Gripping || rig.Player.RightHand.Gripping,
+                "진행 전에 실제 왼손 또는 오른손이 고정쇠에 결합되어야 한다.");
+            Assert.AreEqual(1, rig.Clamp.Pullers,
+                "한 플레이어의 두 손이 같은 고정쇠에 중복 puller로 계산되면 안 된다.");
+            var attached = rig.Player.LeftHand.Gripping ? rig.Player.LeftHand : rig.Player.RightHand;
+            Assert.AreSame(rig.Clamp.GripTarget, attached.Held,
+                "고정쇠 진행 상태는 실제 손이 연결된 숨김 그립 대상과 함께 있어야 한다.");
+            Assert.IsNotNull(attached.GetComponent<FixedJoint>(),
+                "고정쇠를 잡으면 손과 파츠 사이의 FixedJoint가 있어야 한다.");
             Assert.Greater(Held(rig).Progress, 0f, "뒤로 이동하면 진행돼야 한다.");
         }
 
@@ -152,6 +161,8 @@ namespace Metagame.Gameplay.Tests
             Run(rig, PullMode.None, 1f);   // 버튼을 놓는다
 
             Assert.IsFalse(rig.Player.ClampGrabbed, "손을 떼야 한다.");
+            Assert.IsFalse(rig.Player.LeftHand.Gripping || rig.Player.RightHand.Gripping,
+                "버튼을 놓으면 고정쇠 FixedJoint도 함께 해제되어야 한다.");
             Assert.AreEqual(half, held.Progress, 0.001f, "빠진 정도가 남아야 한다.");
             Assert.AreEqual(0, held.Pullers, "인원이 남으면 다음 사람이 정원에 막힌다.");
         }

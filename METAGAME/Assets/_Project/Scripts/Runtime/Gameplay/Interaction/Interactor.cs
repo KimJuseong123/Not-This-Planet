@@ -1,8 +1,73 @@
 using System;
+using Metagame.Gameplay.Parts;
 using UnityEngine;
 
 namespace Metagame.Gameplay.Interaction
 {
+    /// <summary>플레이어가 현재 화면 중심으로 선택한 현장 상호작용 종류.</summary>
+    public enum PlayerInteractionKind
+    {
+        None,
+        Clamp,
+        Grabbable,
+        Transport,
+    }
+
+    /// <summary>
+    /// HUD와 입력 처리가 함께 사용하는 단일 상호작용 대상이다.
+    /// 대상 후보를 여러 시스템이 각각 고르면 화면에는 하나가 보여도 다른 대상이
+    /// 작동하는 문제가 생기므로, PlayerRig가 만든 이 값만 읽도록 한다.
+    /// </summary>
+    public readonly struct PlayerInteractionTarget
+    {
+        public PlayerInteractionKind Kind { get; }
+        public PartClamp Clamp { get; }
+        public Grabbable Grabbable { get; }
+        public TransportVehicle Transport { get; }
+        public Vector3 Point { get; }
+        public float Angle { get; }
+        public float Distance { get; }
+
+        public bool IsValid
+        {
+            get
+            {
+                switch (Kind)
+                {
+                    case PlayerInteractionKind.Clamp:
+                        return Clamp != null && Clamp.isActiveAndEnabled && !Clamp.IsReleased;
+                    case PlayerInteractionKind.Grabbable:
+                        return Grabbable != null && Grabbable.isActiveAndEnabled && Grabbable.CanGrab;
+                    case PlayerInteractionKind.Transport:
+                        return Transport != null && Transport.isActiveAndEnabled
+                               && !Transport.IsReturning;
+                    default:
+                        return false;
+                }
+            }
+        }
+
+        public string Keyword => Kind == PlayerInteractionKind.Transport ? "E" :
+            Kind == PlayerInteractionKind.None ? "" : "클릭";
+
+        public PlayerInteractionTarget(PlayerInteractionKind kind, PartClamp clamp,
+                                       Grabbable grabbable, TransportVehicle transport,
+                                       Vector3 point, float angle, float distance)
+        {
+            Kind = kind;
+            Clamp = clamp;
+            Grabbable = grabbable;
+            Transport = transport;
+            Point = point;
+            Angle = angle;
+            Distance = distance;
+        }
+
+        public static PlayerInteractionTarget None =>
+            new PlayerInteractionTarget(PlayerInteractionKind.None, null, null, null,
+                                        Vector3.zero, float.MaxValue, float.MaxValue);
+    }
+
     /// <summary>
     /// 플레이어가 주변의 상호작용 대상을 찾고, 선택하고, 홀드해서 완료시키는 주체.
     ///
