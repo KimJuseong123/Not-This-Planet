@@ -7,43 +7,61 @@ namespace Metagame.Network
     /// <see cref="WorldSync"/> 를 Mirror 에 등록하고, 서버가 게임 씬에 들어갈 때 하나 띄운다
     /// (S15P21B202-152).
     ///
-    /// 프리팹을 NetworkManager 의 Spawnable Prefabs 목록에 넣지 않고 코드로 등록한다.
-    /// 그 목록은 로비 씬 안에 있어 편집하려면 에디터가 필요한데, 여기서 하면 씬을
-    /// 건드리지 않고도 같은 일이 된다 — 씬 파일 충돌도 그만큼 줄어든다.
+    /// <b>프리팹을 쓰지 않는다.</b> 처음에는 프리팹 에셋을 만들어 Resources 에서 읽었는데,
+    /// 그 프리팹이 리눅스 헤드리스 서버를 통째로 내렸다 — 로비 씬만 띄워도
+    /// <c>ThreadLog initialized</c> 직후 SIGSEGV 로 죽었다(-162 실측). 네이티브에서
+    /// 죽는 것이라 C# 의 try/catch 로도 막을 수 없었다.
+    ///
+    /// Mirror 는 프리팹 대신 <b>스폰 핸들러</b>를 등록할 수 있다. 번호(assetId)만 정해 두면
+    /// 서버는 그 번호로 스폰하고, 클라이언트는 같은 번호를 보고 여기 적힌 코드로 만든다.
+    /// 에셋 파일이 아예 없으니 읽다가 죽을 일도 없고, 로비 씬의 스폰 목록을 건드리지
+    /// 않아도 된다.
     /// </summary>
     public static class WorldSyncInstaller
     {
-        const string PrefabPath = "Network/PF_WorldSync";
+        /// <summary>
+        /// 서버와 클라이언트가 같은 것을 가리키기 위한 번호. 프리팹의 GUID 를 대신한다.
+        /// 아무 값이나 되지만 다른 스폰 대상과 겹치면 안 된다.
+        /// </summary>
+        const uint AssetId = 0x57530152;   // 'W''S' + 이슈 번호 152
 
-        static GameObject prefab;
         static WorldSync live;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Install()
         {
-            prefab = Resources.Load<GameObject>(PrefabPath);
-            if (prefab == null)
-            {
-                Debug.LogError($"[WorldSync] 프리팹을 찾지 못했다: Resources/{PrefabPath}");
-                return;
-            }
+            NetworkClient.RegisterSpawnHandler(AssetId, SpawnOnClient, UnSpawnOnClient);
 
-            // 클라이언트는 서버가 이것을 띄웠을 때 무엇을 만들지 알아야 한다.
-            NetworkClient.RegisterPrefab(prefab);
+            var manager = NetworkManager.singleton;
+            if (manager != null) manager.gameObject.AddComponent<WorldSyncSpawner>();
+        }
 
-            NetworkManager.singleton?.gameObject.AddComponent<WorldSyncSpawner>();
+        /// <summary>서버가 이것을 띄웠을 때 클라이언트가 만드는 것.</summary>
+        static GameObject SpawnOnClient(SpawnMessage message)
+        {
+            return Build().gameObject;
+        }
+
+        static void UnSpawnOnClient(GameObject spawned)
+        {
+            if (spawned != null) Object.Destroy(spawned);
+        }
+
+        /// <summary>양쪽이 같은 코드로 만든다 — 에셋을 읽지 않는다.</summary>
+        static WorldSync Build()
+        {
+            var go = new GameObject("~월드 동기화");
+            go.AddComponent<NetworkIdentity>();
+            return go.AddComponent<WorldSync>();
         }
 
         /// <summary>서버가 게임 씬에 들어간 뒤 한 번 띄운다.</summary>
         internal static void SpawnIfNeeded()
         {
-            if (!NetworkServer.active || prefab == null) return;
-            if (live != null) return;
+            if (!NetworkServer.active || live != null) return;
 
-            var go = Object.Instantiate(prefab);
-            go.name = "~월드 동기화";
-            NetworkServer.Spawn(go);
-            live = go.GetComponent<WorldSync>();
+            live = Build();
+            NetworkServer.Spawn(live.gameObject, AssetId);
         }
     }
 
