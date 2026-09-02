@@ -30,6 +30,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     private final ReconnectGraceManager graceManager;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
+    private final EdgegapRelayService relayService;
 
     // userId → 세션. 브로드캐스트 대상 조회용
     private final Map<Long, WebSocketSession> sessions = new ConcurrentHashMap<>();
@@ -205,17 +206,57 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         // 방장만 알 수 있으므로 START_GAME 에 실려 온 값을 그대로 전달한다.
         // 서버가 보는 방장의 주소(공인 IP)로는 안 된다 — 공유기가 밖에서 들어오는
         // 연결을 막기 때문에 같은 네트워크 안에서 쓰는 사설 주소여야 한다.
-        // 서버는 이 값을 해석하지 않는다. 나중에 릴레이가 붙으면 같은 자리에
-        // 릴레이 세션 값이 실린다.
         String hostAddress = data != null && data.hasNonNull("hostAddress")
                 ? data.get("hostAddress").asText("")
                 : "";
 
-        Map<String, Object> payload = hostAddress.isBlank()
-                ? Map.of("roomId", room.getRoomId())
-                : Map.of("roomId", room.getRoomId(), "hostAddress", hostAddress);
+        // 서로 다른 네트워크에서도 붙으려면 릴레이를 거쳐야 한다(-264).
+        // 세션을 열려면 참가자 전원의 공인 IP 가 필요한데 그 목록은 서버만 갖고 있다.
+        // 실패하면 null 이고, 그때는 위의 직접 접속 주소로 간다.
+        RelaySession relay = relayService.open(publicIpsOf(room));
 
-        broadcast(room, WsMessage.Type.GAME_STARTED, payload);
+        for (Long playerId : room.playerIds()) {
+            WebSocketSession target = sessions.get(playerId);
+            if (target == null || !target.isOpen()
+                    || !room.getRoomId().equals(target.getAttributes().get(ROOM_ID_ATTR))) {
+                continue;
+            }
+
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("roomId", room.getRoomId());
+            if (!hostAddress.isBlank()) {
+                payload.put("hostAddress", hostAddress);
+            }
+
+            // 사람마다 userToken 이 다르므로 방송하지 않고 각자에게 따로 보낸다.
+            if (relay != null) {
+                Map<String, Object> mine = relay.payloadFor(playerId);
+                if (mine != null) {
+                    payload.put("relay", mine);
+                }
+            }
+
+            send(target, WsMessage.Type.GAME_STARTED, payload);
+        }
+    }
+
+    /**
+     * 방 사람들의 공인 IP 를 로비 연결에서 읽는다(-264). 릴레이 세션을 열 때 쓴다.
+     * 순서가 응답의 session_users 와 짝이 되므로 넣은 차례를 지키는 맵을 쓴다.
+     */
+    private LinkedHashMap<Long, String> publicIpsOf(Room room) {
+        LinkedHashMap<Long, String> ips = new LinkedHashMap<>();
+        for (Long playerId : room.playerIds()) {
+            WebSocketSession session = sessions.get(playerId);
+            if (session == null || session.getRemoteAddress() == null) {
+                continue;
+            }
+            String ip = session.getRemoteAddress().getAddress().getHostAddress();
+            if (ip != null && !ip.isBlank()) {
+                ips.put(playerId, ip);
+            }
+        }
+        return ips;
     }
 
     /**

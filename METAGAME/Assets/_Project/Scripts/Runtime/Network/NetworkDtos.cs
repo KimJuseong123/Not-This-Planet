@@ -83,6 +83,22 @@ namespace Metagame.Network
         public IncomingData data;
     }
 
+    /// <summary>
+    /// 릴레이 세션 한 벌(S15P21B202-264). Edgegap 응답을 서버가 이 모양으로 옮겨 준다.
+    ///
+    /// 주의: Edgegap 의 session_id 는 문자열이고 여기 sessionToken 은 숫자다 — 서로 다른
+    /// 것이다. 전송에 넣는 값은 세션 단위 authorization_token 이다(-145 §3-8-1).
+    /// </summary>
+    [Serializable]
+    public sealed class RelayData
+    {
+        public string address;
+        public int serverPort;
+        public int clientPort;
+        public long sessionToken;
+        public long userToken;
+    }
+
     public sealed class IncomingData
     {
         public string roomId;
@@ -93,6 +109,12 @@ namespace Metagame.Network
 
         /// <summary>GAME_STARTED 에 실려 오는 방장의 매치 주소(-263).</summary>
         public string hostAddress;
+
+        /// <summary>
+        /// GAME_STARTED 에 실려 오는 릴레이 세션(-264). 없으면 방장에게 직접 붙는다.
+        /// 사람마다 userToken 이 다르므로 이 메시지는 방송이 아니라 각자에게 따로 온다.
+        /// </summary>
+        public RelayData relay;
 
         // PLAYER_MOVED 전용
         public long userId;
