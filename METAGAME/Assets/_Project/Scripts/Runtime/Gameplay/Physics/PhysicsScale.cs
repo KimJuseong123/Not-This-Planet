@@ -548,13 +548,20 @@ namespace Metagame.Gameplay
         public const float FieldCraftRadius = 0.8f;
 
         /// <summary>파츠가 유지하는 깊이(m). 기획의 "기체 아래 약 5~6m".</summary>
-        public const float FieldHoldDepth = 5.5f;
+        public const float FieldHoldDepth = 4f;
+
+        /// <summary>
+        /// 지면에 붙어 있던 동적 파츠를 저중력장에 넣을 때 확보하는 최소 부양 높이(m).
+        /// 운반체가 낮은 고도에 있으면 FieldHoldDepth 목표점이 지면 아래가 될 수 있으므로,
+        /// 표면에서 이만큼 먼저 떼어 낸 뒤 운반체가 올라갈 때 목표 깊이를 따라간다.
+        /// </summary>
+        public const float FieldSurfaceLift = 1f;
 
         /// <summary>
         /// 중력을 얼마나 대신 들어주는지. 1 이면 완전 무중력이다.
         /// 빔의 <see cref="BeamGravitySupport"/> 와 같은 뜻이며 값도 맞춰 둔다.
         /// </summary>
-        public const float FieldGravitySupport = 1f;
+        public const float FieldGravitySupport = 5f;
 
         /// <summary>
         /// 원뿔 축으로 모으는 가속(m/s²). 기획은 "영역 중심으로 <b>천천히</b> 끌린다" 고 하므로
@@ -602,7 +609,7 @@ namespace Metagame.Gameplay
         public const float FieldUprightDegreesPerSecond = 90f / FieldUprightSeconds;
 
         /// <summary>목표 높이까지의 오차에 곱하는 가속 계수(1/s²). 스프링의 k 다.</summary>
-        public const float FieldHoldAccel = 6f;
+        public const float FieldHoldAccel = 20f;
 
         /// <summary>
         /// 세로 속도에 곱하는 감쇠 계수(1/s). 임계 감쇠 조건은 2*sqrt(k) = 2*sqrt(6) ≈ 4.9 인데,
@@ -611,16 +618,16 @@ namespace Metagame.Gameplay
         public const float FieldHoldDamp = 4f;
 
         /// <summary>가속 상한(m/s²). 중력 보상분(2.8)보다 충분히 커야 파츠가 처지지 않는다.</summary>
-        public const float FieldAccelMax = 18f;
+        public const float FieldAccelMax = 40f;
 
         /// <summary>
         /// 견인장치가 움직일 때 저중력장 안의 물체가 따라오는 보정 계수(1/s).
         /// 물체를 부모로 붙이지 않고 carrier 속도에 점진적으로 접근시킨다.
         /// </summary>
-        public const float FieldCarrierFollowGain = 2.2f;
+        public const float FieldCarrierFollowGain = 5f;
 
         /// <summary>carrier 추종 보정의 최대 가속(m/s²).</summary>
-        public const float FieldCarrierFollowMaxAccel = 12f;
+        public const float FieldCarrierFollowMaxAccel = 28f;
 
         /// <summary>
         /// 저중력장이 작용하는 레이어.

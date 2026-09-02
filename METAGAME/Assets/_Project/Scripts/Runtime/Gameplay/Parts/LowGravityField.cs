@@ -26,6 +26,8 @@ namespace Metagame.Gameplay.Parts
     public sealed class LowGravityField : MonoBehaviour
     {
         const int BufferSize = 128;
+        const float SupportProbeExtraDistance = 0.25f;
+        const float SupportProbeStartOffset = 0.04f;
 
         /// <summary>
         /// 씬에 살아 있는 모든 저중력장.
@@ -42,6 +44,10 @@ namespace Metagame.Gameplay.Parts
 
         Collider[] _hits = new Collider[BufferSize];
         readonly HashSet<Rigidbody> _affectedBodies = new();
+        readonly Dictionary<Rigidbody, float> _minimumHoldHeights = new();
+        readonly Dictionary<Rigidbody, Collider[]> _bodyColliders = new();
+        readonly List<Rigidbody> _staleBodies = new();
+        static readonly RaycastHit[] SupportHits = new RaycastHit[16];
         Rigidbody _carrierBody;
         bool _physicsAuthority = true;
 
@@ -118,6 +124,8 @@ namespace Metagame.Gameplay.Parts
             {
                 AffectedCount = 0;
                 _affectedBodies.Clear();
+                _minimumHoldHeights.Clear();
+                _bodyColliders.Clear();
             }
             if (on && _carrierBody != null)
                 _carrierBody.WakeUp();
@@ -181,12 +189,18 @@ namespace Metagame.Gameplay.Parts
                 if (body == null || body.isKinematic) continue;
 
                 // 기체 자신과 그 자식(플랫폼·조종석)은 제 필드에 뜨지 않는다.
-                if (body == _carrierBody || body.transform.IsChildOf(Origin.root)) continue;
+                // Origin.root를 쓰면 실제 씬의 최상위 Stage1 루트가 되어, 같은 루트의
+                // 조립 파츠까지 전부 "내 자식"으로 오판한다. 운반체 Rigidbody의 실제
+                // Transform만 기준으로 자식 계층을 제외한다.
+                if (body == _carrierBody
+                    || (_carrierBody != null && body.transform.IsChildOf(_carrierBody.transform)))
+                    continue;
 
-                // 고정쇠가 남은 파츠는 지면에 묶인 상태다. Welded 파츠는 하나의 동적
-                // 덩어리로 움직여야 하므로 여전히 대상으로 남긴다.
+                // 고정쇠가 하나라도 풀린 파츠는 Rigidbody가 동적으로 전환되어 부분적으로
+                // 들릴 수 있다. 아직 State가 Locked인 것은 남은 고정쇠가 있기 때문이지,
+                // 저중력장 대상에서 제외하라는 뜻이 아니다. 완전히 고정된 파츠만 건너뛴다.
                 var part = body.GetComponentInParent<SpaceshipPart>();
-                if (part != null && part.State == PartState.Locked) continue;
+                if (part != null && part.State == PartState.Locked && !part.HasReleasedClamp) continue;
 
                 var collider = _hits[i];
                 var inside = Contains(body.worldCenterOfMass)
@@ -196,9 +210,22 @@ namespace Metagame.Gameplay.Parts
                 // 여러 collider가 같은 Rigidbody에 붙은 compound 파츠는 한 번만 처리한다.
                 if (!_affectedBodies.Add(body)) continue;
 
-                Lift(body);
+                Lift(body, ResolveHoldTarget(body));
                 Upright(body);
                 AffectedCount++;
+            }
+
+            // 영역을 벗어난 물체가 다시 들어올 때는 새 운반체 위치와 지지면을 기준으로
+            // 다시 초기화한다. 캐시를 계속 들고 있으면 이전 위치의 목표 높이가 남는다.
+            _staleBodies.Clear();
+            foreach (var pair in _minimumHoldHeights)
+                if (!_affectedBodies.Contains(pair.Key))
+                    _staleBodies.Add(pair.Key);
+
+            for (var i = 0; i < _staleBodies.Count; i++)
+            {
+                _minimumHoldHeights.Remove(_staleBodies[i]);
+                _bodyColliders.Remove(_staleBodies[i]);
             }
         }
 
@@ -265,7 +292,71 @@ namespace Metagame.Gameplay.Parts
         /// 파츠가 위로 갈수록 더 세게 밀려 원뿔을 뚫고 날아갔다(측정: 45스텝 만에 속도 15.9m/s).
         /// 좌표계를 섞지 않는 것이 유일한 예방책이다.
         /// </summary>
-        void Lift(Rigidbody body)
+        float ResolveHoldTarget(Rigidbody body)
+        {
+            var nominalTarget = Origin.position.y - PhysicsScale.FieldHoldDepth;
+
+            if (!_minimumHoldHeights.TryGetValue(body, out var minimumTarget))
+            {
+                minimumTarget = float.NegativeInfinity;
+
+                // 운반체가 낮을 때의 nominalTarget은 바닥 아래일 수 있다. 지지면 위에
+                // 놓인 물체만 현재 위치에서 조금 띄울 최소값을 기억한다. 공중에서
+                // 들어온 물체는 원래의 5~6m 깊이 목표를 그대로 사용한다.
+                if (body.worldCenterOfMass.y > nominalTarget && IsSupported(body))
+                    minimumTarget = body.worldCenterOfMass.y + PhysicsScale.FieldSurfaceLift;
+
+                _minimumHoldHeights.Add(body, minimumTarget);
+            }
+
+            // 운반체가 상승하면 기존의 지면 이륙 목표에서 nominalTarget으로 자연스럽게
+            // 넘어간다. 하강할 때는 바닥 아래로 다시 누르지 않도록 최소값을 유지한다.
+            return Mathf.Max(nominalTarget, minimumTarget);
+        }
+
+        bool IsSupported(Rigidbody body)
+        {
+            var colliders = GetBodyColliders(body);
+            var first = true;
+            var bounds = default(Bounds);
+
+            for (var i = 0; i < colliders.Length; i++)
+            {
+                var collider = colliders[i];
+                if (collider == null || !collider.enabled || collider.isTrigger) continue;
+
+                if (first) { bounds = collider.bounds; first = false; }
+                else bounds.Encapsulate(collider.bounds);
+            }
+
+            if (first) return false;
+
+            var origin = bounds.center;
+            origin.y += SupportProbeStartOffset;
+            var distance = bounds.extents.y + SupportProbeExtraDistance;
+            var count = Physics.RaycastNonAlloc(origin, Vector3.down, SupportHits, distance,
+                                                Physics.AllLayers, QueryTriggerInteraction.Ignore);
+
+            for (var i = 0; i < count; i++)
+            {
+                var hit = SupportHits[i];
+                if (hit.collider == null || hit.collider.attachedRigidbody == body) continue;
+                return true;
+            }
+
+            return false;
+        }
+
+        Collider[] GetBodyColliders(Rigidbody body)
+        {
+            if (_bodyColliders.TryGetValue(body, out var colliders)) return colliders;
+
+            colliders = body.GetComponentsInChildren<Collider>(true);
+            _bodyColliders.Add(body, colliders);
+            return colliders;
+        }
+
+        void Lift(Rigidbody body, float targetY)
         {
             var center = body.worldCenterOfMass;
             var velocity = body.linearVelocity;
@@ -275,7 +366,6 @@ namespace Metagame.Gameplay.Parts
 
             // 세로 — 목표 높이로 당기는 스프링-댐퍼. 감쇠를 임계보다 조금 약하게 두어
             // 급가속하면 뒤처졌다 따라붙는 여운이 남는다(기획 §14.3).
-            var targetY = Origin.position.y - PhysicsScale.FieldHoldDepth;
             var vertical = (targetY - center.y) * PhysicsScale.FieldHoldAccel
                            - velocity.y * PhysicsScale.FieldHoldDamp;
 
