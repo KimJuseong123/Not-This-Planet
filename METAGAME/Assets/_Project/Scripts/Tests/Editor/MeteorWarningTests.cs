@@ -118,15 +118,80 @@ namespace Metagame.Gameplay.Tests
             Assert.Greater(end.a, start.a, "가까워지면 진해져야 한다.");
         }
 
-        /// <summary>기획 §17.2 "안쪽이 채워진다".</summary>
+        /// <summary>
+        /// <b>이 검증이 반대였다.</b> §17.2 는 "안쪽이 채워진다" 고 정하고
+        /// S15P21B202-241 이 그대로 만들었는데, 인게임에서 보고 <b>줄어드는 원</b>으로
+        /// 뒤집었다(S15P21B202-268). 기획과 어긋나므로 [Plan] 확인이 필요하다.
+        /// </summary>
         [Test]
-        public void TheInsideFillsUp()
+        public void TheInsideShrinksTowardTheMeteor()
         {
-            Assert.AreEqual(0f, MeteorWarningLook.FillOf(Drop(3f, 2f)), 0.01f,
-                "예고 직후에는 비어 있어야 한다.");
-            Assert.AreEqual(0.5f, MeteorWarningLook.FillOf(Drop(1.5f, 2f)), 0.01f);
-            Assert.AreEqual(1f, MeteorWarningLook.FillOf(Drop(0f, 2f)), 0.01f,
-                "착탄 순간에 가득 차야 한다.");
+            var start = MeteorWarningLook.CountdownScaleOf(Drop(3f, 2f));
+            var middle = MeteorWarningLook.CountdownScaleOf(Drop(1.5f, 2f));
+            var end = MeteorWarningLook.CountdownScaleOf(Drop(0f, 2f));
+
+            Assert.AreEqual(1f, start, 0.01f, "예고 직후에는 테두리와 같은 크기다.");
+            Assert.Less(middle, start, "줄어들어야 한다.");
+            Assert.Less(end, middle);
+        }
+
+        /// <summary>
+        /// <b>0 까지 줄이지 않는다.</b> 줄어들다 멈춘 그 자리에 실제 운석이 박힌다 —
+        /// "워닝사인의 크기가 운석과 같다" 가 그 뜻이다.
+        /// </summary>
+        [Test]
+        public void ItStopsAtTheMeteorSize()
+        {
+            var drop = Drop(0f, SMALL_RADIUS);
+
+            var ring = MeteorWarningLook.DiameterOf(drop);
+            var inner = ring * MeteorWarningLook.CountdownScaleOf(drop);
+
+            Assert.AreEqual(MeteorWarningLook.MeteorDiameter, inner, 0.05f,
+                "착탄 순간의 안쪽 원이 운석 겉보기 크기여야 한다.");
+            Assert.Greater(inner, 0f, "0 이면 무엇이 올지 알려주지 못한다.");
+        }
+
+        [Test]
+        public void ItNeverGrowsBack()
+        {
+            var previous = float.MaxValue;
+
+            for (var remaining = 3f; remaining >= 0f; remaining -= 0.1f)
+            {
+                var scale = MeteorWarningLook.CountdownScaleOf(Drop(remaining, SMALL_RADIUS));
+
+                Assert.LessOrEqual(scale, previous + 1e-4f,
+                    $"남은 {remaining:0.0}초에서 다시 커졌다.");
+                previous = scale;
+            }
+        }
+
+        /// <summary>중형 운석에서도 같은 규칙이다 — 테두리 7m 에서 운석 0.9m 까지.</summary>
+        [Test]
+        public void AMediumMeteorShrinksToTheSameMeteorSize()
+        {
+            var small = Drop(0f, SMALL_RADIUS);
+            var medium = Drop(0f, MEDIUM_RADIUS);
+
+            var smallInner = MeteorWarningLook.DiameterOf(small)
+                             * MeteorWarningLook.CountdownScaleOf(small);
+            var mediumInner = MeteorWarningLook.DiameterOf(medium)
+                              * MeteorWarningLook.CountdownScaleOf(medium);
+
+            Assert.AreEqual(smallInner, mediumInner, 0.05f,
+                "떨어지는 운석의 크기는 같으므로 안쪽 원도 같아야 한다.");
+        }
+
+        /// <summary>테두리는 건드리지 않았다 — §17.2 의 "실제 충격 범위" 다.</summary>
+        [Test]
+        public void TheRingIsStillTheImpactRange()
+        {
+            Assert.AreEqual(SMALL_RADIUS * 2f,
+                            MeteorWarningLook.DiameterOf(Drop(1f, SMALL_RADIUS)), 0.01f);
+
+            Assert.AreEqual(MEDIUM_RADIUS * 2f,
+                            MeteorWarningLook.DiameterOf(Drop(1f, MEDIUM_RADIUS)), 0.01f);
         }
 
         // --- 점멸 ---------------------------------------------------------
@@ -141,7 +206,7 @@ namespace Metagame.Gameplay.Tests
             var justBefore = Drop(PhysicsScale.BatSwingWindowSeconds + 0.01f, 2f);
             var justAfter = Drop(PhysicsScale.BatSwingWindowSeconds - 0.01f, 2f);
 
-            Assert.AreEqual(MeteorWarningStage.Filling, MeteorWarningLook.StageOf(justBefore),
+            Assert.AreEqual(MeteorWarningStage.Approaching, MeteorWarningLook.StageOf(justBefore),
                 "맞을 수 없는 동안에는 점멸하지 않는다.");
             Assert.AreEqual(MeteorWarningStage.Strikable, MeteorWarningLook.StageOf(justAfter),
                 "맞을 수 있게 되는 순간 점멸해야 한다(기획 §18.1).");
@@ -163,7 +228,7 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
-        public void WhileFilling_ThereIsNoBlink()
+        public void WhileApproaching_ThereIsNoBlink()
         {
             var drop = Drop(3f, 2f);
 
@@ -280,6 +345,9 @@ namespace Metagame.Gameplay.Tests
         }
 
         // --- 리그 ---------------------------------------------------------
+
+        const float SMALL_RADIUS = PhysicsScale.MeteorSmallImpactRadius;
+        const float MEDIUM_RADIUS = PhysicsScale.MeteorMediumImpactRadius;
 
         static PendingMeteorDrop Drop(float remaining, float radius) =>
             new(Vector3.zero, remaining, PhysicsScale.MeteorWarningSeconds, radius);
