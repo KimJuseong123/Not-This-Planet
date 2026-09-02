@@ -614,6 +614,15 @@ namespace Metagame.Gameplay
         public const float FieldAccelMax = 18f;
 
         /// <summary>
+        /// 견인장치가 움직일 때 저중력장 안의 물체가 따라오는 보정 계수(1/s).
+        /// 물체를 부모로 붙이지 않고 carrier 속도에 점진적으로 접근시킨다.
+        /// </summary>
+        public const float FieldCarrierFollowGain = 2.2f;
+
+        /// <summary>carrier 추종 보정의 최대 가속(m/s²).</summary>
+        public const float FieldCarrierFollowMaxAccel = 12f;
+
+        /// <summary>
         /// 저중력장이 작용하는 레이어.
         ///
         /// 파츠와 소품(뽑힌 고정못·장비)에만 준다. 운석은 기획이 명시적으로 제외한다 —

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using Metagame.Core;
@@ -190,6 +191,16 @@ namespace Metagame.Gameplay
         /// </summary>
         public static readonly List<PlayerRig> All = new();
 
+        public enum HandReleaseReason
+        {
+            Release,
+            Throw
+        }
+
+        public static event Action<PlayerRig, Hand, Grabbable> AnyHandGrabAttempted;
+        public static event Action<PlayerRig, Hand, Grabbable, HandReleaseReason> AnyHandReleased;
+        public static event Action<PlayerRig, Vector3, float> AnyFootstep;
+
         void OnEnable()
         {
             if (!All.Contains(this)) All.Add(this);
@@ -248,6 +259,7 @@ namespace Metagame.Gameplay
             public Vector3 AngularVelocity;
             public CollisionDetectionMode CollisionDetectionMode;
             public RigidbodyInterpolation Interpolation;
+            public RigidbodyConstraints Constraints;
             public Vector3 FollowPosition;
             public bool FollowInitialized;
         }
@@ -1459,12 +1471,18 @@ namespace Metagame.Gameplay
         void DriveLegs()
         {
             bool walking = Grounded && !Ragdolled && Speed > 0.40f;
+            var previousPhase = StepPhase;
 
             if (walking)
             {
                 float rate = Mathf.Clamp(Speed / Tuning.WalkSpeed, 0.55f, 1.8f);
                 StepPhase += Time.fixedDeltaTime * (Mathf.PI * 2f / Tuning.StepPeriod) * rate;
                 if (StepPhase > Mathf.PI * 2f) StepPhase -= Mathf.PI * 2f;
+
+                if (StepPhase < previousPhase)
+                    EmitFootstep(Doll.LeftLeg != null ? Doll.LeftLeg.Foot : null);
+                if (previousPhase < Mathf.PI && StepPhase >= Mathf.PI)
+                    EmitFootstep(Doll.RightLeg != null ? Doll.RightLeg.Foot : null);
             }
             else
             {
@@ -1475,6 +1493,13 @@ namespace Metagame.Gameplay
             float swing = walking ? Mathf.Lerp(22f, 40f, Mathf.Clamp01(Speed / Tuning.RunSpeed)) : 0f;
             PoseLeg(Doll.LeftLeg, StepPhase, swing, walking);
             PoseLeg(Doll.RightLeg, StepPhase + Mathf.PI, swing, walking);
+        }
+
+        void EmitFootstep(Rigidbody foot)
+        {
+            if (foot == null) return;
+            AnyFootstep?.Invoke(this, foot.position,
+                                Mathf.Clamp01(Speed / Mathf.Max(0.01f, Tuning.RunSpeed)));
         }
 
         void PoseLeg(Leg leg, float phase, float swing, bool walking)
@@ -1530,6 +1555,11 @@ namespace Metagame.Gameplay
             bool rightPressed = input.GrabRight && !previousGrabRight;
             previousGrabLeft = input.GrabLeft;
             previousGrabRight = input.GrabRight;
+
+            if (leftPressed)
+                AnyHandGrabAttempted?.Invoke(this, LeftHand, LeftHand != null ? LeftHand.Aimed : null);
+            if (rightPressed)
+                AnyHandGrabAttempted?.Invoke(this, RightHand, RightHand != null ? RightHand.Aimed : null);
 
             if (toolThrowRegrabLock > 0f) toolThrowRegrabLock -= Time.fixedDeltaTime;
 
@@ -2006,8 +2036,8 @@ namespace Metagame.Gameplay
             Vector3 velocity = body != null ? body.linearVelocity : Vector3.zero;
             Vector3 direction = aim.sqrMagnitude > 1e-4f ? aim.normalized : Doll.Chest.transform.forward;
 
-            ReleaseHand(LeftHand);
-            ReleaseHand(RightHand);
+            ReleaseHand(LeftHand, HandReleaseReason.Throw);
+            ReleaseHand(RightHand, HandReleaseReason.Throw);
             ResetToolState();
             toolThrowRegrabLock = Tuning.ToolThrowRegrabLock;
 
@@ -2021,10 +2051,26 @@ namespace Metagame.Gameplay
         void ResetToolState()
         {
             ClearHeldObjectOwnerCollision();
-            activeTool?.Unequip();
+            var releasedTool = activeTool;
+            releasedTool?.Unequip();
             activeTool = null;
             RestoreCarriedBodyIfUnused(toolBody);
-            if (toolBody != null) toolBody.useGravity = toolBodyHadGravity;
+            if (toolBody != null)
+            {
+                // A dropped meteor bat is always a world prop. The generic cache keeps
+                // the old state for ordinary tools, but a bat must not remain floating
+                // or rotation-locked after a player releases it.
+                if (releasedTool is MeteorBat)
+                {
+                    toolBody.isKinematic = false;
+                    toolBody.useGravity = true;
+                    toolBody.constraints = RigidbodyConstraints.None;
+                }
+                else
+                {
+                    toolBody.useGravity = toolBodyHadGravity;
+                }
+            }
             toolBody = null;
             toolBodyHadGravity = false;
             toolHeld = null;
@@ -2149,6 +2195,7 @@ namespace Metagame.Gameplay
                     AngularVelocity = body.angularVelocity,
                     CollisionDetectionMode = body.collisionDetectionMode,
                     Interpolation = body.interpolation,
+                    Constraints = body.constraints,
                     FollowPosition = body.position,
                     FollowInitialized = false
                 });
@@ -2210,13 +2257,25 @@ namespace Metagame.Gameplay
             toolBody.MoveRotation(Quaternion.Slerp(toolBody.rotation, targetRotation, blend));
         }
 
-        void ReleaseHand(Hand hand)
+        void ReleaseHand(Hand hand, HandReleaseReason reason = HandReleaseReason.Release)
         {
             if (hand == null) return;
 
+            var target = hand.Held;
             Rigidbody body = hand.HeldBody;
+            if (target != null)
+                AnyHandReleased?.Invoke(this, hand, target, reason);
             hand.Release();
             RestoreCarriedBodyIfUnused(body);
+        }
+
+        // Hand owns the Unity joint-break callback, but the global audio/event contract
+        // belongs to PlayerRig. This bridge keeps an unexpected physics release visible
+        // without routing it back through ReleaseHand after the hand has already cleared.
+        internal void NotifyHandReleasedByPhysics(Hand hand, Grabbable target)
+        {
+            if (hand != null && target != null)
+                AnyHandReleased?.Invoke(this, hand, target, HandReleaseReason.Release);
         }
 
         void RestoreCarriedBodyIfUnused(Rigidbody body)
@@ -2233,6 +2292,7 @@ namespace Metagame.Gameplay
             body.useGravity = state.HadGravity;
             body.collisionDetectionMode = state.CollisionDetectionMode;
             body.interpolation = state.Interpolation;
+            body.constraints = state.Constraints;
             body.linearVelocity = state.LinearVelocity;
             body.angularVelocity = state.AngularVelocity;
             carriedBodies.Remove(body);
@@ -2250,6 +2310,7 @@ namespace Metagame.Gameplay
                 body.useGravity = state.HadGravity;
                 body.collisionDetectionMode = state.CollisionDetectionMode;
                 body.interpolation = state.Interpolation;
+                body.constraints = state.Constraints;
                 body.linearVelocity = state.LinearVelocity;
                 body.angularVelocity = state.AngularVelocity;
             }

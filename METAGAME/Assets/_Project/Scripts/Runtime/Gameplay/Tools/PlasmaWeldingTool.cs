@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using Metagame.Core;
 using Metagame.Gameplay.Parts;
@@ -25,6 +26,9 @@ namespace Metagame.Gameplay
     [DisallowMultipleComponent]
     public sealed class PlasmaWeldingTool : ToolBase
     {
+        public static event Action<PlasmaWeldingTool> AnyWeldProgressed;
+        public static event Action<PlasmaWeldingTool> AnyCutProgressed;
+
         [Header("빔 표시")]
         [SerializeField] Color weldColor = new Color(0.08f, 0.75f, 1f, 1f);
         [SerializeField] Color cutColor = new Color(1f, 0.28f, 0.05f, 1f);
@@ -50,6 +54,7 @@ namespace Metagame.Gameplay
 
         public PlasmaBeamMode BeamMode { get; private set; }
         public bool BeamActive { get; private set; }
+        public bool BeamHasContact { get; private set; }
         public Vector3 BeamEnd { get; private set; }
 
         /// <summary>
@@ -93,6 +98,7 @@ namespace Metagame.Gameplay
             ResolvePetalAnimator();
             BeamMode = PlasmaBeamMode.None;
             BeamActive = false;
+            BeamHasContact = false;
             if (petalAnimator != null) petalAnimator.SnapToMode(PlasmaBeamMode.None);
             beam.enabled = false;
         }
@@ -103,6 +109,7 @@ namespace Metagame.Gameplay
 
             BeamMode = PlasmaBeamMode.None;
             BeamActive = false;
+            BeamHasContact = false;
             WeldingProgressed = false;
             CuttingProgressed = false;
             GrowingBead = null;
@@ -155,6 +162,7 @@ namespace Metagame.Gameplay
 
             WeldingProgressed = WeldBead.TryGrowNear(Muzzle.position, deltaTime, out var bead);
             GrowingBead = bead;
+            if (WeldingProgressed) AnyWeldProgressed?.Invoke(this);
             return WeldingProgressed;
         }
 
@@ -166,6 +174,7 @@ namespace Metagame.Gameplay
                               petalAnimator.TickAndIsReady(BeamMode, Time.deltaTime);
             if (beam == null || !BeamActive || !visualReady || Muzzle == null)
             {
+                BeamHasContact = false;
                 if (beam != null) beam.enabled = false;
                 return;
             }
@@ -175,6 +184,7 @@ namespace Metagame.Gameplay
                 : Muzzle.forward;
             Vector3 origin = Muzzle.position;
             float distance = beamRange;
+            BeamHasContact = false;
 
             int count = Physics.RaycastNonAlloc(origin, direction, hits, beamRange,
                                                 beamMask, QueryTriggerInteraction.Collide);
@@ -182,6 +192,7 @@ namespace Metagame.Gameplay
             {
                 var hit = hits[i];
                 if (hit.collider == null || IsOwnedCollider(hit.collider)) continue;
+                BeamHasContact = true;
                 if (hit.distance < distance) distance = hit.distance;
             }
 
@@ -216,6 +227,7 @@ namespace Metagame.Gameplay
 
             CuttingProgressed = WeldBead.TryShrinkNear(Muzzle.position, deltaTime, out var bead);
             ShrinkingBead = bead;
+            if (CuttingProgressed) AnyCutProgressed?.Invoke(this);
             return CuttingProgressed;
         }
 

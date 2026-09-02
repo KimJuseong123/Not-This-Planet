@@ -57,6 +57,7 @@ namespace Metagame.Gameplay.Parts
         Collider[] _colliders;
         Rigidbody _releasedBody;
         bool _initialized;
+        int _progressSoundBucket;
 
         public SpaceshipPart Part => _part;
 
@@ -124,6 +125,7 @@ namespace Metagame.Gameplay.Parts
         public Rigidbody ReleasedBody => _releasedBody;
 
         public event Action<PartClamp> Released;
+        public static event Action<PartClamp, int> AnyProgressed;
 
         void Awake() => Initialize();
 
@@ -204,6 +206,13 @@ namespace Metagame.Gameplay.Parts
             var rate = PhysicsScale.ClampPullSeconds / PullSecondsFor(Pullers);
             _pulledSeconds += deltaTime * rate;
 
+            var bucket = Mathf.FloorToInt(Progress * 10f);
+            if (bucket > _progressSoundBucket)
+            {
+                _progressSoundBucket = bucket;
+                AnyProgressed?.Invoke(this, bucket);
+            }
+
             if (_pulledSeconds < PhysicsScale.ClampPullSeconds) return true;
 
             Release();
@@ -215,6 +224,7 @@ namespace Metagame.Gameplay.Parts
         {
             Initialize();
             _pulledSeconds = 0f;
+            _progressSoundBucket = 0;
         }
 
         public override InteractionAvailability GetAvailability(Interactor actor)
@@ -253,6 +263,7 @@ namespace Metagame.Gameplay.Parts
             IsReleased = true;
             Pullers = 0;
             _pulledSeconds = PhysicsScale.ClampPullSeconds;
+            _progressSoundBucket = 10;
 
             // 고정쇠는 원래 파츠의 자식이므로 먼저 분리한다. Rigidbody를 파츠의
             // Rigidbody 아래에 둔 채 추가하면 두 물리 몸체가 한 계층에 겹친다.

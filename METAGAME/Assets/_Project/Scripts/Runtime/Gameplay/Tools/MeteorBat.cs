@@ -84,6 +84,15 @@ namespace Metagame.Gameplay
         protected override void OnUnequipped()
         {
             RestoreDroppedVisualPose();
+            // A bat that is no longer carried is a regular world prop. PlayerRig also
+            // restores its cached state after this hook; keeping this fallback here makes
+            // direct ToolBase.Unequip calls obey the same gravity/rotation contract.
+            if (Body != null)
+            {
+                Body.isKinematic = false;
+                Body.useGravity = true;
+                Body.constraints = RigidbodyConstraints.None;
+            }
             cooldown = 0f;
             swingElapsed = -1f;
             LastDeflected = null;

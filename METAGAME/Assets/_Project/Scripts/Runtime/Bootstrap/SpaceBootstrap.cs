@@ -79,6 +79,7 @@ namespace Metagame.Bootstrap
                 Atmosphere = sys.AddComponent<AtmosphereController>();
                 sys.AddComponent<AtmosphereBackdrop>();
                 sys.AddComponent<AtmosphereMeteorShower>();
+                sys.AddComponent<AtmosphereDustGust>();
             }
             else
             {
@@ -112,6 +113,7 @@ namespace Metagame.Bootstrap
                 // 접속자별 조작은 NetPlayer 가 자기 컨트롤러로 한다(-149).
                 Transport.Configure(null, beams);
                 Transport.Authoritative = false;
+                Transport.PhysicsAuthority = true;
                 Session.Transport = Transport;
                 Session.Begin(null, Level, Level.SpawnFoot, Exploration);
                 return;
@@ -139,6 +141,7 @@ namespace Metagame.Bootstrap
 
             // 매치 중에는 조준·안내만 하고 실행은 서버에 맡긴다(-149).
             Transport.Authoritative = !inMatch;
+            Transport.PhysicsAuthority = !inMatch;
 
             Hud.Local = Player;
             Hud.Transport = Transport;

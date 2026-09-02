@@ -33,7 +33,10 @@ namespace Metagame.Gameplay.Hazards
 
         /// <summary>이번 착탄에 재사용하는 버퍼. 한 플레이어의 여러 뼈가 함께 걸린다.</summary>
         static readonly List<PlayerRig> Struck = new();
+        readonly List<PlayerRig> _directPlayersHit = new();
         [SerializeField, Min(0f)] float _maxLifeSeconds = PhysicsScale.MeteorMaxLifeSeconds;
+
+        const float MinimumSupportNormalY = 0.35f;
 
         /// <summary>
         /// 살아 있는 운석. <see cref="Parts.PartSocket.All"/> 과 같은 방식이다.
@@ -122,6 +125,7 @@ namespace Metagame.Gameplay.Hazards
 
         /// <summary>착탄했을 때. 사운드와 이펙트가 여기에 붙는다.</summary>
         public event Action<Meteor, Vector3> Impacted;
+        public static event Action<Meteor, Vector3> AnyImpacted;
 
         void Awake() => Initialize();
 
@@ -229,22 +233,88 @@ namespace Metagame.Gameplay.Hazards
         {
             if (collision.contactCount == 0) return;
 
+            // 첫 접점이 아니라 가장 위를 받치는 접점을 고른다. 운석이 차량이나 파츠의
+            // 옆면을 스치는 순간에는 지지면이 아니므로, 그 점을 착탄 지점으로 쓰면
+            // 운석이 허공에 박힌 채 차량을 따라가는 문제가 생긴다.
+            if (!TryGetSupportContact(collision, out var support))
+            {
+                // 떨어지는 중 플레이어를 직접 맞힌 경우의 충격은 유지한다. 다만 같은
+                // 플레이어의 여러 limb collider가 한 운석에 반복 피해를 주지 않게 한다.
+                var direct = collision.collider != null
+                    ? collision.collider.GetComponentInParent<PlayerRig>()
+                    : null;
+                if (direct != null && !_directPlayersHit.Contains(direct))
+                {
+                    _directPlayersHit.Add(direct);
+                    ApplyKnockback(collision.GetContact(0).point, direct);
+                }
+
+                // 동적 물체와의 접촉은 일반 PhysX 충돌에 맡긴다. 이 경로에서는
+                // isKinematic 전환, 위치 고정, Impacted 이벤트를 발생시키지 않는다.
+                return;
+            }
+
             // 운석 본체가 몸에 닿았는가. 거리로는 알 수 없다 — 착탄 지점 바로 옆에 서
             // 있는 것과 운석에 얻어맞는 것은 §20.1 이 다른 단계로 나눈다.
-            var direct = collision.collider != null
-                ? collision.collider.GetComponentInParent<PlayerRig>()
+            var supportCollider = OtherCollider(support);
+            var supportDirect = supportCollider != null
+                ? supportCollider.GetComponentInParent<PlayerRig>()
                 : null;
 
-            ApplyImpact(collision.GetContact(0).point, direct);
+            ApplyImpact(support.point, supportDirect, support.normal);
+        }
+
+        bool TryGetSupportContact(Collision collision, out ContactPoint support)
+        {
+            support = default;
+            var found = false;
+            var bestNormalY = MinimumSupportNormalY;
+
+            for (var i = 0; i < collision.contactCount; i++)
+            {
+                var contact = collision.GetContact(i);
+                var otherCollider = OtherCollider(contact);
+                if (otherCollider == null) continue;
+
+                var otherBody = otherCollider.attachedRigidbody;
+                if (otherBody != null && otherBody != _body && !otherBody.isKinematic)
+                    continue;
+
+                // 운반 장치·동적 파츠 위에 잠시 올라탄 경우도 정착시키지 않는다. 이
+                // 명시적 제외는 향후 해당 물체가 kinematic으로 전환되어도 안전하다.
+                if (otherCollider.GetComponentInParent<Metagame.Gameplay.Parts.TransportVehicle>() != null)
+                    continue;
+
+                if (contact.normal.y < bestNormalY) continue;
+                bestNormalY = contact.normal.y;
+                support = contact;
+                found = true;
+            }
+
+            return found;
+        }
+
+        static Collider OtherCollider(ContactPoint contact)
+        {
+            // ContactPoint exposes both sides rather than a generic collider property.
+            // Meteor is the receiver of OnCollisionEnter, so prefer the opposite side
+            // and keep the fallback for synthetic/test contacts.
+            if (contact.thisCollider != null
+                && contact.thisCollider.GetComponentInParent<Meteor>() != null)
+                return contact.otherCollider;
+            return contact.thisCollider != null ? contact.thisCollider : contact.otherCollider;
         }
 
         /// <summary>
-        /// 착탄 처리. 주변에 넉백을 주고 사라짐 타이머를 시작한다.
-        ///
-        /// 물리 콜백은 EditMode 의 Physics.Simulate 에서 오지 않으므로 공개해 두었다.
-        /// 테스트와 연출 스크립트가 직접 부를 수 있다.
+        /// 외부 호출용 착탄 처리. 테스트와 스포너가 명시한 지점은 실제 착탄으로
+        /// 취급하는 기존 계약을 유지한다.
         /// </summary>
         public void ApplyImpact(Vector3 point, PlayerRig directHit = null)
+        {
+            ApplyImpact(point, directHit, Vector3.up);
+        }
+
+        void ApplyImpact(Vector3 point, PlayerRig directHit, Vector3 normal)
         {
             if (HasImpacted) return;
 
@@ -253,9 +323,16 @@ namespace Metagame.Gameplay.Hazards
             ImpactPoint = point;
 
             ApplyKnockback(point, directHit);
-            Settle(point);
+            Settle(point, normal);
             Impacted?.Invoke(this, point);
+            AnyImpacted?.Invoke(this, point);
         }
+
+        /*
+         * 이전 구현은 OnCollisionEnter에서 바로 ApplyImpact를 호출해 모든 접촉점을
+         * 정착 지점으로 사용했다. 위의 지지 접점 판정으로 동적 물체 충돌은 이 블록에
+         * 들어오지 않으며, 실제 착탄만 아래의 공통 경로를 사용한다.
+         */
 
         /// <summary>
         /// 소유자가 매 물리 스텝 호출한다. 착탄 후 사라짐까지의 시간을 센다.
@@ -286,7 +363,7 @@ namespace Metagame.Gameplay.Hazards
         /// <see cref="ApplyImpact"/> 를 막고, <c>DamageSource</c> 는 운석에 붙어 있지 않다
         /// (S15P21B202-247).
         /// </summary>
-        void Settle(Vector3 point)
+        void Settle(Vector3 point, Vector3 normal)
         {
             Settled = true;
 
@@ -297,11 +374,13 @@ namespace Metagame.Gameplay.Hazards
                 _body.isKinematic = true;
             }
 
-            // "절반 이상 지면에 박힌 모습"(§19). 착탄 지점이 지면이므로 그 아래로 내린다.
-            var sunk = point;
-            sunk.y = point.y
-                     + PhysicsScale.MeteorRadius * (1f - 2f * PhysicsScale.MeteorScarSinkRatio);
-            transform.position = sunk;
+            // "절반 이상 지면에 박힌 모습"(§19). y만 조정하지 않고 접촉 법선 방향으로
+            // 묻어 경사진 MeshCollider에서도 실제 표면을 따라간다.
+            if (normal.sqrMagnitude < 0.0001f) normal = Vector3.up;
+            normal.Normalize();
+            transform.position = point
+                                + normal * (PhysicsScale.MeteorRadius
+                                             * (1f - 2f * PhysicsScale.MeteorScarSinkRatio));
         }
 
         void Expire()

@@ -76,6 +76,8 @@ namespace Metagame.Gameplay.Parts
 
         /// <summary>맞물림이 풀렸을 때. 조인트가 끊어진 경우와 직접 해제한 경우 모두 포함한다.</summary>
         public event Action<PartAssemblyLink> Released;
+        public static event Action<PartAssemblyLink> AnyWelded;
+        public static event Action<PartAssemblyLink> AnyReleased;
 
         public PartSocket MovingSocket => _movingSocket;
 
@@ -357,7 +359,11 @@ namespace Metagame.Gameplay.Parts
             var promoted = Promote(_movingPart);
             if (!HasSockets && Promote(_targetPart)) promoted = true;
 
-            if (promoted) Welded?.Invoke(this);
+            if (promoted)
+            {
+                Welded?.Invoke(this);
+                AnyWelded?.Invoke(this);
+            }
         }
 
         static void Demote(SpaceshipPart part)
@@ -420,6 +426,7 @@ namespace Metagame.Gameplay.Parts
             }
 
             Released?.Invoke(this);
+            AnyReleased?.Invoke(this);
             DestroyObject(this);
         }
     }

@@ -159,6 +159,20 @@ namespace Metagame.EditorTools
             profile.meteorShower.startSize = 0.10f;
             profile.meteorShower.endSize = 0.01f;
 
+            profile.dustGust.enabled = true;
+            profile.dustGust.direction = new Vector3(1f, 0f, 0.18f);
+            profile.dustGust.minimumInterval = 8f;
+            profile.dustGust.maximumInterval = 18f;
+            profile.dustGust.duration = 4f;
+            profile.dustGust.speed = 3.5f;
+            profile.dustGust.color = new Color(0.68f, 0.50f, 0.36f, 0.22f);
+            profile.dustGust.startSize = 0.22f;
+            profile.dustGust.endSize = 0.06f;
+            profile.dustGust.burstCount = 18;
+            profile.dustGust.maxParticles = 72;
+            profile.dustGust.spawnRadius = 10f;
+            profile.dustGust.verticalSpread = 3f;
+
             profile.enableOnMobile = false;
             profile.mobileEffectScale = 0.5f;
             profile.Validate();
