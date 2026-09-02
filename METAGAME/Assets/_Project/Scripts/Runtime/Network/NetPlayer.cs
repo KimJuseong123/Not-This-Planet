@@ -89,8 +89,11 @@ namespace Metagame.Network
 
             name = "플레이어 " + nickname;
             ServerPlayers.Add(this);
-            BuildServerBody();
 
+            // 몸은 여기서 만들지 않는다. 호스트 모드에서는 게임 씬이 다 뜨기 전에
+            // 스폰이 먼저 오기 때문이다(S15P21B202-263 실측) — 그때 만들면 로비 씬에
+            // 래그돌이 생기고, 방장의 몸을 넘겨받을 기회도 놓친다.
+            // 준비되면 FixedUpdate 가 만든다.
             Debug.Log($"[NetPlayer] 서버 스폰 · {nickname}(userId={userId}) · 접속 인원 {NetworkServer.connections.Count}명");
         }
 
@@ -109,9 +112,13 @@ namespace Metagame.Network
         /// <summary>
         /// 물리가 도는 몸을 세운다. 이 몸이 부품을 밀고 지형을 밟는 유일한 실체다.
         /// </summary>
-        void BuildServerBody()
+        /// <returns>몸을 세웠으면 참. 게임 씬이 아직 준비되지 않았으면 거짓.</returns>
+        bool BuildServerBody()
         {
             var session = FindAnyObjectByType<GameSession>();
+
+            // 게임 씬이 아직이다. 다음 물리 스텝에 다시 본다.
+            if (session == null) return false;
 
             // 호스트 모드(방장의 PC 가 서버 겸 클라이언트)에서 방장 자신의 몸은
             // 게임 씬이 이미 세웠다 — 카메라·HUD·태블릿이 전부 그 몸에 붙어 있다.
@@ -129,8 +136,12 @@ namespace Metagame.Network
                 AttachTransport();
                 transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
                 Debug.Log($"[NetPlayer] 방장의 몸을 넘겨받았다 · {nickname}(userId={userId})");
-                return;
+                return true;
             }
+
+            // 방장 자신인데 게임 씬이 아직 내 몸을 안 세웠다면 기다린다 — 여기서 새로
+            // 만들면 몸이 두 벌이 되고 카메라가 따라갈 대상이 모호해진다.
+            if (isClient && isLocalPlayer && session.LocalPlayer == null) return false;
 
             Vector3 foot = session != null ? session.SpawnFoot : transform.position;
             Quaternion facing = Quaternion.LookRotation(Vector3.right, Vector3.up);
@@ -144,6 +155,7 @@ namespace Metagame.Network
 
             AttachTransport();
             transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
+            return true;
         }
 
         /// <summary>
@@ -168,7 +180,8 @@ namespace Metagame.Network
         [ServerCallback]
         void FixedUpdate()
         {
-            if (body == null) return;
+            // 게임 씬이 준비될 때까지 기다렸다 몸을 세운다.
+            if (body == null && !BuildServerBody()) return;
 
             InputFrame frame = pending;
 
