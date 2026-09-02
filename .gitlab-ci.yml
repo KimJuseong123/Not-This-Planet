@@ -43,6 +43,12 @@ default:
 variables:
   GIT_DEPTH: "0"          # repo-hygiene 가 diff base 까지 필요
   PYTHONUTF8: "1"
+  # Unity 의 Library(2.2GB)를 잡 사이에 남긴다 — 콜드 임포트가 7분 30초인데 증분이면 훨씬 짧다.
+  # **전역이어야 한다**: 도커 실행기의 빌드 디렉터리는 그 슬롯의 **모든 잡이 공유**하므로,
+  # unity-compile 에만 예외를 주면 다음에 그 슬롯에서 도는 mr-lint 가 예외 없는
+  # git clean -ffdx 로 Library 를 지운다(2026-09-02 실측: 슬롯 2개 중 1개만 남았다).
+  # 다른 잡에는 무해하다 — Library 는 .gitignore 대상이고 검사들은 git diff 로만 판단한다.
+  GIT_CLEAN_FLAGS: -ffdx -e METAGAME/Library
 
 # ── 1단계 ────────────────────────────────────────────────────────────────
 mr-title:                 # Jira 이슈 기준으로 [Part]·type·(KEY) 자동 보정. 토큰 없으면 제안만 출력
@@ -166,11 +172,9 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
       when: manual
   allow_failure: true     # 실측(잡 478077): 컴파일 통과, EditMode 647개 중 17개 실패.
   timeout: 90m            # 실패가 정리되면 false 로 바꾼다.
-  variables:
-    # 러너 기본값 git clean -ffdx 가 잡마다 Library/ 를 지운다(로그의 "Removing …/__pycache__/" 가 그 흔적).
-    # 콜드 실행 8분 16초 중 임포트·컴파일이 7분 30초였다(테스트 자체는 35.6초). Library 를 남기면
-    # 두 번째부터 증분 임포트가 된다. GitLab cache(tar/untar)보다 빠르다 — Library 는 수 GB 다.
-    GIT_CLEAN_FLAGS: -ffdx -e METAGAME/Library
+  # 동시에 두 개가 돌지 않게 한다. 러너가 concurrent 2 · vCPU 4 인데 Unity 임포트는 CPU·IO 를
+  # 다 쓴다 — 두 개가 겹치면 서로 느려지고 가벼운 검사들이 굶는다.
+  resource_group: unity
   script:
     # 라이선스는 CI 변수가 아니라 러너 마운트로 온다(config.toml volumes). 환경변수가 아니라서
     # 로그로 새어나갈 경로가 없고, MR 이 보호 브랜치가 아니어서 Protected 변수를 못 읽는 문제도 피한다.
