@@ -128,6 +128,20 @@ namespace Metagame.Gameplay.Parts
             }
         }
 
+        /// <summary>현재 파츠 사이에 살아 있는 비드 다리가 있는가.</summary>
+        public bool HasLiveBridge
+        {
+            get
+            {
+                Initialize();
+                for (var i = 0; i < _chains.Count; i++)
+                    if (_chains[i] != null && _chains[i].Touched != null
+                        && _chains[i].Blobs != null && _chains[i].Blobs.Count > 0)
+                        return true;
+                return false;
+            }
+        }
+
         /// <summary>비드 전체의 질량(kg). 파츠에 더해진 값과 같아야 한다.</summary>
         public float Mass
         {

@@ -7,6 +7,7 @@
 > 갱신 2026-08-31 — URP 17.5 전환·빌드 핑크 셰이더 검증·공용 분위기 기반 추가
 > 갱신 2026-09-01 — Stage1 운석 방어용 방망이 FBX·PBR 텍스처·Material·Prefab 추가 · 이슈 [S15P21B202-187](https://ssafy.atlassian.net/browse/S15P21B202-187)
 > 갱신 2026-09-01 — Stage1 Terrain 2타일 확장·자연물 군집 배치·갈라진 디딤돌 연결 · 이슈 [S15P21B202-236](https://ssafy.atlassian.net/browse/S15P21B202-236)
+> 갱신 2026-09-02 — Stage1 보라색 꽃 대형·소형 FBX·PBR 텍스처·프리뷰 추가 · 이슈 [S15P21B202-260](https://ssafy.atlassian.net/browse/S15P21B202-260)
 > 관련 문서: [문서 목록](./README.md) · [1장 기획](./planning/chapter-1-plan.md) · [파트 구분](./parts.md)
 
 **어떤 에셋이 무엇이고, 씬에 갖다 쓸 수 있는 상태인지** 한 장에서 확인하는 문서다.
@@ -52,9 +53,9 @@ FBX 파일만 열어봐서는 크기를 알 수 없다. 기존 카탈로그에�
 
 | 종류 | 수량 | 상태 |
 | --- | ---: | --- |
-| FBX 모델 | 27 | 사용 가능 15 · 미연결 11 · 기존 1 |
+| FBX 모델 | 29 | 사용 가능 15 · 미연결 13 · 기존 1 |
 | 텍스처 (`Textures/`) | 29 | Stage1 PBR 24 · 리뉴얼 바닥 1 · 콘셉트 4 |
-| 텍스처 (`.fbm/` 임베드) | 57 | 캐릭터 2 · 환경 7 · 운석 PBR 16 · 리뉴얼 자연물 PBR 32 |
+| 텍스처 (`.fbm/` 임베드) | 67 | 캐릭터 2 · 환경 7 · 운석 PBR 16 · 리뉴얼 자연물 PBR 42 |
 | Material | 22 | Stage1 URP Lit 19 · 분위기/외부 패키지용 URP 3 |
 | Prefab | 19 | Stage1 17 · 기존 Resources 2 |
 | Shader | 6 | `SpaceFlop/*` URP 3 · 분위기 URP 3 |
@@ -246,11 +247,11 @@ FBX 내부의 Tripo UUID 경로도 새 영문 경로로 다시 내보냈으며, 
 
 ---
 
-## 6-2. Stage1 자연물·맵 타일 리뉴얼 — 미연결 (자연물 8종 + 타일 1종)
+## 6-2. Stage1 자연물·맵 타일 리뉴얼 — 연결 현황 (자연물 10종 + 타일 1종)
 
 [S15P21B202-163](https://ssafy.atlassian.net/browse/S15P21B202-163)에서 신규 원본 에셋을 추가했다.
 기존 Stage1 자연물 파일을 덮어쓰지 않고, 각 신규 자연물을 Stage1 바로 아래의 개별 폴더로 분리했다.
-현재는 FBX·PBR 텍스처·프리뷰까지만 있으며 Material·Prefab·Collider·LOD·씬 배치는 아직 하지 않았다.
+대부분 FBX·PBR 텍스처·프리뷰까지만 있으며, 연결 상태는 아래 표에서 확인한다.
 
 | 프리뷰 | 모델 | 용도 | 상태 |
 | --- | --- | --- | --- |
@@ -262,10 +263,17 @@ FBX 내부의 Tripo UUID 경로도 새 영문 경로로 다시 내보냈으며, 
 | <img src="./assets/previews/alien_rock_oval_front.png" width="100"> | `alien_rock_oval` | 타원형 바위 | 미연결 |
 | <img src="./assets/previews/alien_rock_round_front.png" width="100"> | `alien_rock_round` | 둥근 바위 | 미연결 |
 | <img src="./assets/previews/alien_rock_round_cracked_front.png" width="100"> | `alien_rock_round_cracked` | 갈라진 둥근 바위 | 미연결 |
+| <img src="./assets/previews/purple_flower_large_front.png" width="100"> | `purple_flower_large` | 대형 보라색 꽃 | 미연결 |
+| <img src="./assets/previews/purple_flower_small_front.png" width="100"> | `purple_flower_small` | 소형 보라색 꽃 | 미연결 |
 
 자연물 기준 경로는 `Models/Environment/Stage1/<모델>/`이다. 각 폴더에는 같은 이름의
 FBX와 `tripo_convert_<id>.fbm/` 폴더가 있고, `.fbm` 안에 Base Color·Normal·Metallic·Roughness 4장이 있다.
 `.fbm` 이름은 FBX 내부 텍스처 경로 호환을 위해 원본을 유지했으므로 FBX와 해당 `.fbm` 폴더를 함께 이동해야 한다.
+
+[S15P21B202-260](https://ssafy.atlassian.net/browse/S15P21B202-260)에서 추가한 `purple_flower_large`와
+`purple_flower_small`은 각 폴더에 같은 이름의 FBX와 `.fbm` 폴더를 둔다. 텍스처는 모델마다
+Base Color·Normal·RM·Roughness·Metallic 5장이며, 원본의 UUID 파일명은 에셋 이름으로 정리했다.
+현재 Material·Prefab·Collider·LOD·씬 배치는 하지 않은 원본 에셋 상태다.
 
 ### 맵 타일
 
@@ -301,7 +309,7 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 
 ### 적용 전 확인
 
-- 자연물별 정면 프리뷰 8장은 `docs/assets/previews/`에 있다.
+- 자연물별 정면 프리뷰 10장은 `docs/assets/previews/`에 있다.
 - `Normal.jpg`는 Normal map으로, Metallic·Roughness는 sRGB를 끄고 선형 데이터로 임포트한다.
 - Roughness를 직접 받지 않는 셰이더는 `Smoothness = 1 - Roughness`로 변환해 사용한다.
 - FBX를 씬에 직접 배치하지 말고 Material과 `PF_Stage1_*` Prefab을 만든 뒤 배치한다.

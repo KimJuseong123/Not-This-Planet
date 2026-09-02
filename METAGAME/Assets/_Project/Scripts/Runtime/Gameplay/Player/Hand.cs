@@ -242,7 +242,12 @@ namespace Metagame.Gameplay
         void OnJointBreak(float breakForce)
         {
             // 손목(ConfigurableJoint)은 끊어지지 않게 해뒀으니 끊긴 건 잡은 손이다
-            if (Held != null) Held.NotifyReleased(this);
+            var target = Held;
+            if (target != null)
+            {
+                target.NotifyReleased(this);
+                GetComponentInParent<PlayerRig>()?.NotifyHandReleasedByPhysics(this, target);
+            }
             Grip = null;
             Held = null;
             HeldBody = null;

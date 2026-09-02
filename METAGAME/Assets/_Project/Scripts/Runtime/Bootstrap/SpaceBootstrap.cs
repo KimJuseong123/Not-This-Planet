@@ -79,6 +79,7 @@ namespace Metagame.Bootstrap
                 Atmosphere = sys.AddComponent<AtmosphereController>();
                 sys.AddComponent<AtmosphereBackdrop>();
                 sys.AddComponent<AtmosphereMeteorShower>();
+                sys.AddComponent<AtmosphereDustGust>();
             }
             else
             {
@@ -100,14 +101,28 @@ namespace Metagame.Bootstrap
             if (!useAtmosphere && starfield && !Application.isBatchMode)
                 Space = Starfield.Create(transform, Sky.SunDirection);
 
+            var beams = FindObjectsByType<TractorBeam>(FindObjectsSortMode.None);
+
             // 전용 서버에는 "내 캐릭터" 가 없다. 접속한 사람 수만큼 몸을 세우는 일은
             // NetPlayer 가 하고(-147), 카메라·HUD 는 그릴 화면이 없어 필요 없다.
             // 세계는 세워야 한다 — 그 위에서 물리가 돌아야 하기 때문이다.
             if (Mirror.NetworkServer.active && !Mirror.NetworkClient.active)
             {
+                // 운반체 배치는 서버가 정한다(-152). 위치는 WorldSync 로 내려간다.
+                // 조작은 사람마다 다르므로 이 컨트롤러는 배치만 하고 손을 뗀다 —
+                // 접속자별 조작은 NetPlayer 가 자기 컨트롤러로 한다(-149).
+                Transport.Configure(null, beams);
+                Transport.Authoritative = false;
+                Transport.PhysicsAuthority = true;
+                Session.Transport = Transport;
                 Session.Begin(null, Level, Level.SpawnFoot, Exploration);
                 return;
             }
+
+            // 매치에 붙은 클라이언트는 운반체를 스스로 섞지 않는다 — 섞으면 서버가
+            // 보낸 위치와 한 번 어긋났다가 되돌아가는 것이 눈에 보인다.
+            // 혼자 실행할 때는 지금까지처럼 매번 섞는다.
+            bool inMatch = Mirror.NetworkClient.active;
 
             Vector3 spawn = Level.SpawnFoot + Vector3.up * 0.10f;
             Quaternion facing = Quaternion.LookRotation(Vector3.right, Vector3.up);
@@ -122,7 +137,11 @@ namespace Metagame.Bootstrap
             Player.Cam.SnapToTarget();
             ExplorationHud.AttachTablet(Player.Cam.Cam);
             Player.ConfigureClampInteraction(Player.Cam.transform);
-            Transport.Configure(Player, FindObjectsByType<TractorBeam>(FindObjectsSortMode.None));
+            Transport.Configure(Player, beams, randomizeVehicles: !inMatch);
+
+            // 매치 중에는 조준·안내만 하고 실행은 서버에 맡긴다(-149).
+            Transport.Authoritative = !inMatch;
+            Transport.PhysicsAuthority = !inMatch;
 
             Hud.Local = Player;
             Hud.Transport = Transport;

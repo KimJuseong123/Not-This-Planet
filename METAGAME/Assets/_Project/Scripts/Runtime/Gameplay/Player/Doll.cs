@@ -55,8 +55,14 @@ namespace Metagame.Gameplay
             {
                 var b = Bodies[i];
                 if (b == null) continue;
-                b.linearVelocity = Vector3.zero;
-                b.angularVelocity = Vector3.zero;
+
+                // 키네마틱 몸에는 속도를 넣을 수 없다 — 넣으면 경고만 쏟아진다.
+                // 원격 아바타의 골반이 그렇다(Network.RemoteAvatar).
+                if (!b.isKinematic)
+                {
+                    b.linearVelocity = Vector3.zero;
+                    b.angularVelocity = Vector3.zero;
+                }
                 b.position = hipsPosition + facing * RestOffsets[i];
                 b.rotation = facing * RestRotations[i];
                 b.transform.SetPositionAndRotation(b.position, b.rotation);

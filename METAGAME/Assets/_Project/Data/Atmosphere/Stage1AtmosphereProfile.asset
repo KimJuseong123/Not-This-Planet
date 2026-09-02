@@ -99,5 +99,19 @@ MonoBehaviour:
     color: {r: 0.85, g: 0.7, b: 0.55, a: 0.85}
     startSize: 0.1
     endSize: 0.01
+  dustGust:
+    enabled: 1
+    direction: {x: 1, y: 0, z: 0.18}
+    minimumInterval: 8
+    maximumInterval: 18
+    duration: 4
+    speed: 3.5
+    color: {r: 0.68, g: 0.5, b: 0.36, a: 0.22}
+    startSize: 0.22
+    endSize: 0.06
+    burstCount: 18
+    maxParticles: 72
+    spawnRadius: 10
+    verticalSpread: 3
   enableOnMobile: 0
   mobileEffectScale: 0.5

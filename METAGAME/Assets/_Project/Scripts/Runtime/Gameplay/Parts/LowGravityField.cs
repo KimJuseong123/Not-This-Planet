@@ -25,7 +25,7 @@ namespace Metagame.Gameplay.Parts
     [DisallowMultipleComponent]
     public sealed class LowGravityField : MonoBehaviour
     {
-        const int BufferSize = 32;
+        const int BufferSize = 128;
 
         /// <summary>
         /// 씬에 살아 있는 모든 저중력장.
@@ -40,13 +40,19 @@ namespace Metagame.Gameplay.Parts
         [Tooltip("원뿔의 꼭짓점. 비우면 이 오브젝트의 Transform 을 쓴다. 아래(-y)로 펼쳐진다.")]
         Transform _origin;
 
-        readonly Collider[] _hits = new Collider[BufferSize];
+        Collider[] _hits = new Collider[BufferSize];
+        readonly HashSet<Rigidbody> _affectedBodies = new();
+        Rigidbody _carrierBody;
+        bool _physicsAuthority = true;
 
         /// <summary>지금 켜져 있는가. F 로 켜고 끈다(기획 §14.1).</summary>
         public bool IsActive { get; private set; }
 
         /// <summary>마지막 <see cref="Tick"/> 에서 영향을 준 강체 수. 검증과 연출에 쓴다.</summary>
         public int AffectedCount { get; private set; }
+
+        /// <summary>현재 인스턴스가 저중력 물리를 계산할 권한이 있는가.</summary>
+        public bool PhysicsAuthority => _physicsAuthority;
 
         public Transform Origin => _origin != null ? _origin : transform;
 
@@ -86,15 +92,38 @@ namespace Metagame.Gameplay.Parts
             return null;
         }
 
-        public void Configure(Transform origin) => _origin = origin;
+        public void Configure(Transform origin)
+        {
+            Configure(origin, null);
+        }
+
+        /// <summary>
+        /// 원뿔의 기준점과 운반 장치를 연결한다. carrier는 영역의 움직임을 물체에
+        /// 보간해 전달하는 데만 사용하며, 대상 물체를 부모로 붙이지 않는다.
+        /// </summary>
+        public void Configure(Transform origin, Rigidbody carrierBody)
+        {
+            _origin = origin;
+            _carrierBody = carrierBody;
+        }
+
+        /// <summary>멀티플레이에서 서버만 물리 힘을 계산하도록 권한을 설정한다.</summary>
+        public void SetPhysicsAuthority(bool authority) => _physicsAuthority = authority;
 
         public void SetActive(bool on)
         {
             Register();
             IsActive = on;
+            if (!on)
+            {
+                AffectedCount = 0;
+                _affectedBodies.Clear();
+            }
+            if (on && _carrierBody != null)
+                _carrierBody.WakeUp();
         }
 
-        public void Toggle() => IsActive = !IsActive;
+        public void Toggle() => SetActive(!IsActive);
 
         /// <summary>
         /// 꼭짓점에서 <paramref name="depth"/> 만큼 내려간 높이에서의 반경.
@@ -136,15 +165,15 @@ namespace Metagame.Gameplay.Parts
         public void Tick(float deltaTime)
         {
             AffectedCount = 0;
-            if (!IsActive || deltaTime <= 0f) return;
+            _affectedBodies.Clear();
+            if (!IsActive || !_physicsAuthority || deltaTime <= 0f) return;
 
             // 원뿔을 감싸는 구로 한 번에 걷어 온 뒤 Contains 로 걸러낸다. 원뿔을 직접 질의하는
             // 방법이 없어서인데, 반경이 4m 라 후보 수가 적어 이 편이 단순하고 결정적이다.
             var center = Origin.position + Vector3.down * (Depth * 0.5f);
             var radius = Mathf.Sqrt(Depth * Depth * 0.25f + GroundRadius * GroundRadius);
 
-            var count = Physics.OverlapSphereNonAlloc(
-                center, radius, _hits, PhysicsScale.FieldMask, QueryTriggerInteraction.Ignore);
+            var count = QueryCandidates(center, radius);
 
             for (var i = 0; i < count; i++)
             {
@@ -152,14 +181,43 @@ namespace Metagame.Gameplay.Parts
                 if (body == null || body.isKinematic) continue;
 
                 // 기체 자신과 그 자식(플랫폼·조종석)은 제 필드에 뜨지 않는다.
-                if (body.transform.IsChildOf(Origin.root)) continue;
+                if (body == _carrierBody || body.transform.IsChildOf(Origin.root)) continue;
 
-                if (!Contains(body.worldCenterOfMass)) continue;
+                // 고정쇠가 남은 파츠는 지면에 묶인 상태다. Welded 파츠는 하나의 동적
+                // 덩어리로 움직여야 하므로 여전히 대상으로 남긴다.
+                var part = body.GetComponentInParent<SpaceshipPart>();
+                if (part != null && part.State == PartState.Locked) continue;
+
+                var collider = _hits[i];
+                var inside = Contains(body.worldCenterOfMass)
+                             || (collider != null && Contains(collider.ClosestPoint(Origin.position)));
+                if (!inside) continue;
+
+                // 여러 collider가 같은 Rigidbody에 붙은 compound 파츠는 한 번만 처리한다.
+                if (!_affectedBodies.Add(body)) continue;
 
                 Lift(body);
                 Upright(body);
                 AffectedCount++;
             }
+        }
+
+        int QueryCandidates(Vector3 center, float radius)
+        {
+            var count = Physics.OverlapSphereNonAlloc(
+                center, radius, _hits, PhysicsScale.FieldMask, QueryTriggerInteraction.Ignore);
+
+            // NonAlloc queries silently truncate at the buffer size. Grow and retry only
+            // when the buffer is full so a crowded field still reaches every dynamic body
+            // without paying an allocation on the normal path.
+            while (count == _hits.Length)
+            {
+                _hits = new Collider[_hits.Length * 2];
+                count = Physics.OverlapSphereNonAlloc(
+                    center, radius, _hits, PhysicsScale.FieldMask, QueryTriggerInteraction.Ignore);
+            }
+
+            return count;
         }
 
         /// <summary>
@@ -174,7 +232,7 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         void Upright(Rigidbody body)
         {
-            var part = body.GetComponent<SpaceshipPart>();
+            var part = body.GetComponentInParent<SpaceshipPart>();
             if (part == null || part.State == PartState.Locked) return;
 
             var tilt = Quaternion.FromToRotation(body.transform.up, Vector3.up);
@@ -236,6 +294,21 @@ namespace Metagame.Gameplay.Parts
 
             pull -= lateralVelocity * PhysicsScale.FieldPullDamp;
             body.AddForce(Vector3.ClampMagnitude(pull, PhysicsScale.FieldAccelMax), ForceMode.Acceleration);
+
+            // 장치의 속도를 물체에 그대로 순간 대입하지 않고, 속도 차이를 가속도로
+            // 보정한다. 가장자리와 깊은 곳의 물체는 낮은 비율로 따라와 지연과 흔들림이
+            // 남고, 장치를 움직인다고 물체가 장치에 붙지는 않는다.
+            if (_carrierBody != null)
+            {
+                var depth = Mathf.Clamp01(-offset.y / Depth);
+                var radius = Mathf.Max(0.001f, RadiusAt(-offset.y));
+                var lateralRatio = Mathf.Clamp01(lateral.magnitude / radius);
+                var followWeight = Mathf.Clamp01(1f - Mathf.Max(lateralRatio, depth * 0.35f));
+                var follow = (_carrierBody.linearVelocity - velocity)
+                             * (PhysicsScale.FieldCarrierFollowGain * followWeight);
+                body.AddForce(Vector3.ClampMagnitude(follow, PhysicsScale.FieldCarrierFollowMaxAccel),
+                              ForceMode.Acceleration);
+            }
         }
     }
 }

@@ -194,8 +194,7 @@ namespace Metagame.Gameplay
             // 그래서 운석에 쓰러지는 순간 혼자 스폰 지점에 되살아났고, 팀원이 도우러
             // 갈 틈도 이유도 없었다(기획 §26-13 이 묻는 긴장이 아예 없었다).
             // 체력 0 은 이제 PlayerRig 가 기절로 처리한다.
-            Vector3 p = LocalPlayer.Position;
-            if (p.y < Tuning.DeathHeight || float.IsNaN(p.x))
+            if (HasFallen(LocalPlayer))
             {
                 Falls++;
                 Respawn();
@@ -261,13 +260,34 @@ namespace Metagame.Gameplay
         /// </summary>
         public void Respawn()
         {
-            if (LocalPlayer == null) return;
-            Transport?.Reset();
+            RespawnPlayer(LocalPlayer, Transport);
+        }
+
+        /// <summary>
+        /// 한 사람을 체크포인트로 되돌린다.
+        ///
+        /// 혼자 실행할 때는 <see cref="Respawn"/> 이 로컬 플레이어로 부르고, 서버에서는
+        /// 접속자마다 부른다(S15P21B202-55). 되돌리는 방법을 두 벌로 두면 한쪽만
+        /// 고쳐지므로 여기 한 곳에 모아 둔다.
+        /// </summary>
+        /// <param name="transport">그 사람이 타고 있던 운반 장치 조작. 내려놓고 초기화한다.</param>
+        public void RespawnPlayer(PlayerRig rig, Parts.TractorBeamController transport = null)
+        {
+            if (rig == null) return;
+            if (transport != null) transport.Reset();
 
             // 기절한 채로 순간이동하면 스폰 지점에 쓰러져 있게 된다.
-            LocalPlayer.Revive(LocalPlayer.MaxHealth);
-            LocalPlayer.ResetHealth();
-            LocalPlayer.Teleport(SpawnFoot + Vector3.up * 0.15f, Quaternion.LookRotation(Vector3.right, Vector3.up));
+            rig.Revive(rig.MaxHealth);
+            rig.ResetHealth();
+            rig.Teleport(SpawnFoot + Vector3.up * 0.15f, Quaternion.LookRotation(Vector3.right, Vector3.up));
+        }
+
+        /// <summary>낙사인가. 서버가 접속자마다 같은 기준으로 본다(-55).</summary>
+        public static bool HasFallen(PlayerRig rig)
+        {
+            if (rig == null) return false;
+            Vector3 p = rig.Position;
+            return p.y < Tuning.DeathHeight || float.IsNaN(p.x);
         }
 
         public void Clear()

@@ -67,6 +67,47 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void Meteor_DynamicPropCollisionDoesNotSettleInMidair()
+        {
+            // The moving prop is deliberately the only thing below the meteor. A collision
+            // is expected, but it is not a support surface for the permanent impact state.
+            var prop = CreateLooseBody(Vector3.zero, GameLayers.Prop, PhysicsScale.PartMass);
+            prop.useGravity = false;
+            var meteor = CreateMeteor(Vector3.up * 2f);
+
+            Simulate(1.0f);
+
+            Assert.IsFalse(meteor.HasImpacted, "동적 소품 충돌만으로 착탄 이벤트가 나가면 안 된다.");
+            Assert.IsFalse(meteor.Settled, "동적 소품 위 허공에 운석을 고정하면 안 된다.");
+            Assert.IsFalse(meteor.GetComponent<Rigidbody>().isKinematic,
+                "동적 물체와 부딪힌 운석은 계속 일반 물리로 움직여야 한다.");
+        }
+
+        [Test]
+        public void Meteor_StaticSupportSettlesAndRaisesGlobalImpactOnce()
+        {
+            CreateGround();
+            var meteor = CreateMeteor(Vector3.up * 2f);
+            var raised = 0;
+            System.Action<Meteor, Vector3> handler = (_, _) => raised++;
+            Meteor.AnyImpacted += handler;
+
+            try
+            {
+                Simulate(2f);
+
+                Assert.IsTrue(meteor.Settled, "실제 정적 지지면에 닿은 경우에만 정착해야 한다.");
+                Assert.IsTrue(meteor.GetComponent<Rigidbody>().isKinematic);
+                Assert.AreEqual(1, raised, "실제 착탄 이벤트는 한 번만 발생해야 한다.");
+                Assert.AreEqual(0f, meteor.ImpactPoint.y, 0.08f);
+            }
+            finally
+            {
+                Meteor.AnyImpacted -= handler;
+            }
+        }
+
+        [Test]
         public void Meteor_DoesNotExpireBeforeImpact()
         {
             var meteor = CreateMeteor(Vector3.up * 10f);
