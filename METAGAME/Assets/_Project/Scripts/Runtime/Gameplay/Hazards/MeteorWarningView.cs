@@ -40,9 +40,9 @@ namespace Metagame.Gameplay.Hazards
         {
             public Transform Root;
             public Transform Ring;
-            public Transform Fill;
+            public Transform Inner;
             public Material RingMaterial;
-            public Material FillMaterial;
+            public Material InnerMaterial;
         }
 
         readonly List<Marker> _pool = new();
@@ -94,28 +94,28 @@ namespace Metagame.Gameplay.Hazards
         {
             var diameter = MeteorWarningLook.DiameterOf(drop);
             var color = MeteorWarningLook.RingColorOf(drop);
-            var fill = MeteorWarningLook.FillOf(drop);
+            var countdown = MeteorWarningLook.CountdownScaleOf(drop);
             var blink = MeteorWarningLook.BlinkOf(drop, time);
 
             marker.Root.position = drop.ImpactPoint + Vector3.up * PhysicsScale.MeteorWarningLift;
 
             marker.Ring.localScale = new Vector3(diameter, DiscThickness, diameter);
 
-            // 안쪽은 <b>테두리 안에서</b> 차오른다. 0 이면 보이지 않아야 하므로 최소값을
-            // 두지 않는다 — 처음부터 점이 찍혀 있으면 "아직 안 찼다" 가 읽히지 않는다.
-            marker.Fill.localScale = new Vector3(diameter * fill, DiscThickness * 0.5f,
-                                                 diameter * fill);
+            // 안쪽은 테두리와 같은 크기에서 시작해 <b>운석 크기까지 줄어든다</b>
+            // (S15P21B202-268). 0 까지 줄이지 않는 이유는 MeteorWarningLook 에 적었다.
+            marker.Inner.localScale = new Vector3(diameter * countdown, DiscThickness * 0.5f,
+                                                  diameter * countdown);
 
             // 점멸은 알파에 곱한다. 색상까지 흔들면 주황 → 붉게 가는 것이 묻힌다.
             var ringColor = color;
             ringColor.a *= Mathf.Lerp(1f, BlinkFloor, blink);
 
-            var fillColor = color;
-            fillColor.a = Mathf.Min(1f, fillColor.a * FillAlphaScale);
-            fillColor.a *= Mathf.Lerp(1f, BlinkFloor, blink);
+            var innerColor = color;
+            innerColor.a = Mathf.Min(1f, innerColor.a * InnerAlphaScale);
+            innerColor.a *= Mathf.Lerp(1f, BlinkFloor, blink);
 
             SetColor(marker.RingMaterial, ringColor);
-            SetColor(marker.FillMaterial, fillColor);
+            SetColor(marker.InnerMaterial, innerColor);
         }
 
         Marker MarkerAt(int index)
@@ -139,25 +139,25 @@ namespace Metagame.Gameplay.Hazards
 
             var ring = Prim.Decor(Prim.Pipe($"Ring_{index}", Vector3.zero, 1f, DiscThickness,
                                             MeteorWarningLook.StartColor, 0.2f, root)).transform;
-            var fill = Prim.Decor(Prim.Pipe($"Fill_{index}", Vector3.zero, 1f, DiscThickness,
+            var inner = Prim.Decor(Prim.Pipe($"Inner_{index}", Vector3.zero, 1f, DiscThickness,
                                             MeteorWarningLook.StartColor, 0.2f, root)).transform;
 
             ring.localPosition = Vector3.zero;
-            fill.localPosition = Vector3.up * PhysicsScale.MeteorWarningLift * 0.5f;
+            inner.localPosition = Vector3.up * PhysicsScale.MeteorWarningLift * 0.5f;
 
             var ringMaterial = Prim.Ghost(MeteorWarningLook.StartColor, RingRimBoost);
-            var fillMaterial = Prim.Ghost(MeteorWarningLook.StartColor, FillRimBoost);
+            var innerMaterial = Prim.Ghost(MeteorWarningLook.StartColor, InnerRimBoost);
 
             ring.GetComponent<Renderer>().sharedMaterial = ringMaterial;
-            fill.GetComponent<Renderer>().sharedMaterial = fillMaterial;
+            inner.GetComponent<Renderer>().sharedMaterial = innerMaterial;
 
             return new Marker
             {
                 Root = root,
                 Ring = ring,
-                Fill = fill,
+                Inner = inner,
                 RingMaterial = ringMaterial,
-                FillMaterial = fillMaterial,
+                InnerMaterial = innerMaterial,
             };
         }
 
@@ -194,7 +194,7 @@ namespace Metagame.Gameplay.Hazards
             for (var i = 0; i < _pool.Count; i++)
             {
                 DestroyObject(_pool[i].RingMaterial);
-                DestroyObject(_pool[i].FillMaterial);
+                DestroyObject(_pool[i].InnerMaterial);
             }
 
             _pool.Clear();
@@ -223,9 +223,9 @@ namespace Metagame.Gameplay.Hazards
         const float BlinkFloor = 0.35f;
 
         /// <summary>안쪽을 테두리보다 진하게. 차오르는 것이 읽혀야 한다.</summary>
-        const float FillAlphaScale = 1.6f;
+        const float InnerAlphaScale = 1.6f;
 
         const float RingRimBoost = 2.4f;
-        const float FillRimBoost = 0.6f;
+        const float InnerRimBoost = 0.6f;
     }
 }
