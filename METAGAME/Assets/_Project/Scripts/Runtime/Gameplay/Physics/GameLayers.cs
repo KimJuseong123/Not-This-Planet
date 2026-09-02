@@ -58,6 +58,31 @@ namespace Metagame.Gameplay
         /// PartCarried             견인 중인 파츠는 곧 자리를 뜬다
         /// </code>
         /// </summary>
+        /// <summary>
+        /// 방망이가 밀칠 것을 찾는 범위(기획 §18).
+        ///
+        /// <b>예전에는 <see cref="PropMask"/> 하나만 봤다.</b> Prop 레이어 밖에 있는
+        /// 움직이는 물체는 찾지 못했고, 그 레이어 안에 있던 것은 용접기 · 방망이 자신 ·
+        /// 견인 운반체뿐이라 인게임에서 <b>아무것도 안 맞았다</b>
+        /// (2026-09-02 확인, S15P21B202-257).
+        ///
+        /// 빼는 것과 이유:
+        /// <code>
+        /// Player · PlayerDowned    동료 타격은 별 경로다(§18.3) — MeteorBat.FindPlayer
+        /// Meteor                   운석 반사도 별 경로다(§18.1) — MeteorBat.FindTarget
+        /// Part · PartCarried       §18.3 "파츠와 용접부에 피해를 주지는 않는다".
+        ///                          비드는 파츠와 같은 레이어라 함께 빠진다
+        /// Interactable · BeamQuery 물리 충돌이 없는 질의 전용 레이어다
+        /// </code>
+        ///
+        /// 남는 것(지면 · 자연물 포함)은 <c>MeteorBat.CanPush</c> 가 Rigidbody 로 다시
+        /// 거른다 — 조준한 쪽에 움직일 것이 없으면 헛스윙이 되는 것이 맞다.
+        /// </summary>
+        public const int BatStrikeMask =
+            ~((1 << Player) | (1 << PlayerDowned) | (1 << Meteor)
+              | (1 << Part) | (1 << PartCarried)
+              | (1 << Interactable) | (1 << BeamQuery));
+
         public const int SurfaceMask =
             ~((1 << Player) | (1 << PlayerDowned) | (1 << Interactable)
               | (1 << BeamQuery) | (1 << Meteor) | (1 << PartCarried));
