@@ -1,0 +1,88 @@
+using Mirror;
+using UnityEngine;
+
+namespace Metagame.Network
+{
+    /// <summary>
+    /// <see cref="WorldSync"/> 를 Mirror 에 등록하고, 서버가 게임 씬에 들어갈 때 하나 띄운다
+    /// (S15P21B202-152).
+    ///
+    /// <b>프리팹을 쓰지 않는다.</b> 처음에는 프리팹 에셋을 만들어 Resources 에서 읽었는데,
+    /// 그 프리팹이 리눅스 헤드리스 서버를 통째로 내렸다 — 로비 씬만 띄워도
+    /// <c>ThreadLog initialized</c> 직후 SIGSEGV 로 죽었다(-162 실측). 네이티브에서
+    /// 죽는 것이라 C# 의 try/catch 로도 막을 수 없었다.
+    ///
+    /// Mirror 는 프리팹 대신 <b>스폰 핸들러</b>를 등록할 수 있다. 번호(assetId)만 정해 두면
+    /// 서버는 그 번호로 스폰하고, 클라이언트는 같은 번호를 보고 여기 적힌 코드로 만든다.
+    /// 에셋 파일이 아예 없으니 읽다가 죽을 일도 없고, 로비 씬의 스폰 목록을 건드리지
+    /// 않아도 된다.
+    /// </summary>
+    public static class WorldSyncInstaller
+    {
+        /// <summary>
+        /// 서버와 클라이언트가 같은 것을 가리키기 위한 번호. 프리팹의 GUID 를 대신한다.
+        /// 아무 값이나 되지만 다른 스폰 대상과 겹치면 안 된다.
+        /// </summary>
+        const uint AssetId = 0x57530152;   // 'W''S' + 이슈 번호 152
+
+        static WorldSync live;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        static void Install()
+        {
+            NetworkClient.RegisterSpawnHandler(AssetId, SpawnOnClient, UnSpawnOnClient);
+
+            var manager = NetworkManager.singleton;
+            if (manager != null) manager.gameObject.AddComponent<WorldSyncSpawner>();
+        }
+
+        /// <summary>서버가 이것을 띄웠을 때 클라이언트가 만드는 것.</summary>
+        static GameObject SpawnOnClient(SpawnMessage message)
+        {
+            return Build().gameObject;
+        }
+
+        static void UnSpawnOnClient(GameObject spawned)
+        {
+            if (spawned != null) Object.Destroy(spawned);
+        }
+
+        /// <summary>양쪽이 같은 코드로 만든다 — 에셋을 읽지 않는다.</summary>
+        static WorldSync Build()
+        {
+            var go = new GameObject("~월드 동기화");
+            go.AddComponent<NetworkIdentity>();
+            return go.AddComponent<WorldSync>();
+        }
+
+        /// <summary>서버가 게임 씬에 들어간 뒤 한 번 띄운다.</summary>
+        internal static void SpawnIfNeeded()
+        {
+            if (!NetworkServer.active || live != null) return;
+
+            live = Build();
+            NetworkServer.Spawn(live.gameObject, AssetId);
+        }
+    }
+
+    /// <summary>
+    /// 씬이 바뀌는 시점을 잡기 위한 얇은 컴포넌트. 게임 씬의 오브젝트들이 다 선 뒤에
+    /// 띄워야 <see cref="WorldSync"/> 가 그것들을 찾을 수 있다.
+    /// </summary>
+    public sealed class WorldSyncSpawner : MonoBehaviour
+    {
+        bool spawned;
+
+        void Update()
+        {
+            if (spawned || !NetworkServer.active) return;
+
+            // 게임 씬이 올라왔는지는 "옮길 것이 있는가" 로 판단한다. 씬 이름을 박아 두면
+            // 스테이지가 늘 때마다 여기를 고쳐야 한다.
+            if (FindAnyObjectByType<Metagame.Gameplay.Parts.TransportVehicle>() == null) return;
+
+            WorldSyncInstaller.SpawnIfNeeded();
+            spawned = true;
+        }
+    }
+}
