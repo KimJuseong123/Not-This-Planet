@@ -142,6 +142,10 @@ namespace Metagame.Gameplay
 
                 if (LocalPlayer.Cam != null)
                 {
+                    // 기절 시점의 시간을 센다(기획 §10.3). Time 을 카메라가 직접 읽지
+                    // 않는 이유는 검증이 5초를 실제로 기다릴 수 없기 때문이다.
+                    LocalPlayer.Cam.TickDownedView(Time.deltaTime);
+
                     LocalPlayer.Cam.SetFreeLook(f.FreeLook);     // Steer 보다 먼저 — Alt 시점의 pitch 범위를 선택한다
                     bool clampButtons = f.GrabLeft || f.GrabRight;
                     LocalPlayer.Cam.SetClampLiftResistance(

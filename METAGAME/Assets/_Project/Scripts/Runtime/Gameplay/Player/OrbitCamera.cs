@@ -44,6 +44,9 @@ namespace Metagame.Gameplay
         bool clampLiftPitchLocked;
         float clampLiftPitchLock;
         bool vehicleView;
+        bool downedView;
+        Transform downedEyes;
+        float downedSeconds;
         bool savedFirstPerson;
         float savedDistance;
         float savedTargetHeight;
@@ -76,6 +79,108 @@ namespace Metagame.Gameplay
 
         /// <summary>Alt 를 누르고 있는가. 시점만 자유롭게 조작한다.</summary>
         public bool FreeLook { get; private set; }
+
+        /// <summary>기절 시점인가(기획 §10.3).</summary>
+        public bool DownedView => downedView;
+
+        /// <summary>
+        /// 아직 시야가 몸과 함께 넘어가는 중인가.
+        ///
+        /// 이 동안에는 마우스가 시점을 돌리지 않는다 — 몸이 넘어지는 회전과 마우스 회전이
+        /// 섞이면 무엇이 넘어지는 것인지 알 수 없다.
+        /// </summary>
+        public bool DownedFalling =>
+            downedView && downedSeconds < PhysicsScale.DownedFirstPersonSeconds;
+
+        /// <summary>기절한 뒤 지난 시간(초). 표시와 검증이 쓴다.</summary>
+        public float DownedSeconds => downedSeconds;
+
+        /// <summary>
+        /// 기절 시점을 켜고 끈다(기획 §10.1 · §10.3).
+        ///
+        /// <see cref="SetVehicleView"/> 와 같은 구조다 — 상태를 저장하고 모드를 강제한 뒤
+        /// 나갈 때 되돌린다. §10.3 "구조되면 1인칭으로 돌아온다" 가 그 복원이다.
+        ///
+        /// <paramref name="eyes"/> 는 <b>머리 본</b>이다. 그 회전을 따라가야 시야가 몸과
+        /// 함께 넘어간다 — 평소에는 일부러 쓰지 않는 값이다(<see cref="LateUpdate"/> 의
+        /// 주석 참고).
+        /// </summary>
+        public void SetDownedView(bool on, Transform eyes = null)
+        {
+            if (on == downedView) return;
+
+            if (on)
+            {
+                // 탑승 중이었다면 그쪽이 이미 값을 들고 있다. 두 번 저장하면 복원이 어긋난다.
+                if (!vehicleView)
+                {
+                    savedFirstPerson = FirstPerson;
+                    savedDistance = Distance;
+                    savedTargetHeight = TargetHeight;
+                    savedMinPitch = MinPitch;
+                    savedMaxPitch = MaxPitch;
+                    savedAimPitch = aimPitch;
+                }
+
+                downedView = true;
+                downedEyes = eyes;
+                downedSeconds = 0f;
+
+                FirstPerson = true;
+                FreeLook = false;
+            }
+            else
+            {
+                downedView = false;
+                downedEyes = null;
+                downedSeconds = 0f;
+
+                if (!vehicleView)
+                {
+                    FirstPerson = savedFirstPerson;
+                    Distance = savedDistance;
+                    TargetHeight = savedTargetHeight;
+                    MinPitch = savedMinPitch;
+                    MaxPitch = savedMaxPitch;
+                    aimPitch = Mathf.Clamp(savedAimPitch, MinPitch, MaxPitch);
+                    pitch = Mathf.Clamp(pitch, MinPitch, MaxPitch);
+                    currentDistance = FirstPerson ? 0f : Distance;
+                }
+            }
+
+            focusReady = false;
+        }
+
+        /// <summary>
+        /// 기절 시점의 시간을 센다. 소유자가 매 프레임 부른다.
+        ///
+        /// <c>Time</c> 을 직접 읽지 않는 이유는 저장소의 다른 것들과 같다 — 검증이 5초를
+        /// 실제로 기다릴 수는 없다.
+        /// </summary>
+        public void TickDownedView(float deltaTime)
+        {
+            if (!downedView || deltaTime <= 0f) return;
+
+            var wasFalling = DownedFalling;
+            downedSeconds += deltaTime;
+
+            // 넘어지기가 끝나면 3인칭으로 물러난다(§10.3 "쓰러진 캐릭터 중심의 3인칭
+            // 자유 시점"). 시점 각도는 지금 보고 있던 방향에서 이어간다.
+            if (!wasFalling || DownedFalling) return;
+
+            FirstPerson = false;
+            currentDistance = 0f;   // 몸에서 서서히 물러난다
+
+            if (downedEyes != null)
+            {
+                var euler = downedEyes.rotation.eulerAngles;
+                yaw = euler.y;
+                pitch = Mathf.Clamp(NormalizePitch(euler.x), MinPitch, MaxPitch);
+            }
+        }
+
+        static float NormalizePitch(float degrees) =>
+            degrees > 180f ? degrees - 360f : degrees;
 
         public void SetFreeLook(bool on)
         {
@@ -153,6 +258,11 @@ namespace Metagame.Gameplay
 
         public void Steer(Vector2 look)
         {
+            // 넘어지는 동안에는 마우스가 시점을 돌리지 않는다(기획 §10.3,
+            // S15P21B202-259). 몸이 넘어지는 회전과 마우스 회전이 섞이면 무엇이
+            // 넘어지는 것인지 알 수 없다. 3인칭으로 바뀌면 다시 열린다.
+            if (DownedFalling) return;
+
             float lo = VehicleView ? MinPitch : (FreeLook ? FreeMinPitch : MinPitch);
             float hi = VehicleView ? MaxPitch : (FreeLook ? FreeMaxPitch : MaxPitch);
 
@@ -211,6 +321,18 @@ namespace Metagame.Gameplay
             else smoothFocus = Vector3.Lerp(smoothFocus, raw, 1f - Mathf.Exp(-16f * Time.deltaTime));
 
             Quaternion rot = Quaternion.Euler(pitch, yaw, 0f);
+
+            // 기절해 넘어지는 동안에는 <b>머리 본의 회전</b>을 그대로 쓴다(기획 §10.3,
+            // S15P21B202-259). 아래 1인칭 경로가 회전을 세계 기준으로만 잡는 것은 걸을 때
+            // 래그돌 떨림이 시야에 들어오지 않게 하려는 것인데, 넘어질 때는 그 떨림이
+            // 곧 정보다.
+            if (DownedFalling && downedEyes != null)
+            {
+                transform.position = downedEyes.position;
+                transform.rotation = downedEyes.rotation;
+                currentDistance = 0f;
+                return;
+            }
 
             if (FirstPerson)
             {
