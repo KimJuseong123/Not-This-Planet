@@ -1,0 +1,1069 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dfdf17e017a54445a56b8028aa4bf6fb, type: 3}
+  m_Name: Stage1SoundBank
+  m_EditorClassIdentifier:
+  globalStyle: 0
+  slots:
+  - eventId: 0
+    selection: 0
+    stylized: {fileID: 8300000, guid: cc7beb4ece2e406596bb87404102db40, type: 3}
+    realistic: {fileID: 8300000, guid: cc7beb4ece2e406596bb87404102db40, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.55
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 12.0
+    routing: 0
+    loop: 0
+  - eventId: 1
+    selection: 0
+    stylized: {fileID: 8300000, guid: 6c0f94a6afc04d76acfad3f6ef4a2a3e, type: 3}
+    realistic: {fileID: 8300000, guid: 6c0f94a6afc04d76acfad3f6ef4a2a3e, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.68
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 14.0
+    routing: 0
+    loop: 0
+  - eventId: 2
+    selection: 0
+    stylized: {fileID: 8300000, guid: bc1a5d58c84c45da8a7c65e66cb1341c, type: 3}
+    realistic: {fileID: 8300000, guid: bc1a5d58c84c45da8a7c65e66cb1341c, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.52
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 12.0
+    routing: 0
+    loop: 0
+  - eventId: 3
+    selection: 0
+    stylized: {fileID: 8300000, guid: e296623eb7b240d2b2e42bab4e958995, type: 3}
+    realistic: {fileID: 8300000, guid: e296623eb7b240d2b2e42bab4e958995, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.76
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 18.0
+    routing: 0
+    loop: 0
+  - eventId: 4
+    selection: 0
+    stylized: {fileID: 8300000, guid: 53f184c828094a3c9f5749b370d3790c, type: 3}
+    realistic: {fileID: 8300000, guid: 53f184c828094a3c9f5749b370d3790c, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.72
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 35.0
+    routing: 0
+    loop: 0
+  - eventId: 5
+    selection: 0
+    stylized: {fileID: 8300000, guid: 51c2ea181bb940a6981d94d04a3fbdc4, type: 3}
+    realistic: {fileID: 8300000, guid: 51c2ea181bb940a6981d94d04a3fbdc4, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.7
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 35.0
+    routing: 0
+    loop: 0
+  - eventId: 6
+    selection: 0
+    stylized: {fileID: 8300000, guid: bb819d91a089485e807777965fa4ecfd, type: 3}
+    realistic: {fileID: 8300000, guid: bb819d91a089485e807777965fa4ecfd, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.7
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 35.0
+    routing: 0
+    loop: 0
+  - eventId: 7
+    selection: 0
+    stylized: {fileID: 8300000, guid: c0511db4e8ad41508278705f57851d46, type: 3}
+    realistic: {fileID: 8300000, guid: c0511db4e8ad41508278705f57851d46, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.64
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 30.0
+    routing: 0
+    loop: 0
+  - eventId: 8
+    selection: 0
+    stylized: {fileID: 8300000, guid: c97e08ee09564f50980e2b03d9896dae, type: 3}
+    realistic: {fileID: 8300000, guid: c97e08ee09564f50980e2b03d9896dae, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.68
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 35.0
+    routing: 0
+    loop: 0
+  - eventId: 9
+    selection: 0
+    stylized: {fileID: 8300000, guid: 27929c883b4c49cdab746717106cb8f8, type: 3}
+    realistic: {fileID: 8300000, guid: 27929c883b4c49cdab746717106cb8f8, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.62
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 30.0
+    routing: 0
+    loop: 0
+  - eventId: 10
+    selection: 0
+    stylized: {fileID: 8300000, guid: 2fc62df3631f466ca40d4232335dbe22, type: 3}
+    realistic: {fileID: 8300000, guid: 2fc62df3631f466ca40d4232335dbe22, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.56
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 26.0
+    routing: 0
+    loop: 0
+  - eventId: 11
+    selection: 0
+    stylized: {fileID: 8300000, guid: 6ea4c56eb2d94cb1bde1b42cb5870d0f, type: 3}
+    realistic: {fileID: 8300000, guid: 6ea4c56eb2d94cb1bde1b42cb5870d0f, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.78
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 45.0
+    routing: 0
+    loop: 0
+  - eventId: 12
+    selection: 0
+    stylized: {fileID: 8300000, guid: 4b089ac5ee2a479aa4c87cc8bb662b4a, type: 3}
+    realistic: {fileID: 8300000, guid: 4b089ac5ee2a479aa4c87cc8bb662b4a, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.88
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 50.0
+    routing: 0
+    loop: 0
+  - eventId: 13
+    selection: 0
+    stylized: {fileID: 8300000, guid: 70c63a11f9f44e1fae45101ab4102bc8, type: 3}
+    realistic: {fileID: 8300000, guid: 70c63a11f9f44e1fae45101ab4102bc8, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.54
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 25.0
+    routing: 0
+    loop: 0
+  - eventId: 14
+    selection: 0
+    stylized: {fileID: 8300000, guid: 4c5e0e0f99624c2ba3b5518121eb25aa, type: 3}
+    realistic: {fileID: 8300000, guid: 4c5e0e0f99624c2ba3b5518121eb25aa, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.66
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 30.0
+    routing: 0
+    loop: 0
+  - eventId: 15
+    selection: 0
+    stylized: {fileID: 8300000, guid: e6b3b46eb7a1476d93ab5c7041b924f6, type: 3}
+    realistic: {fileID: 8300000, guid: e6b3b46eb7a1476d93ab5c7041b924f6, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.43
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 40.0
+    routing: 0
+    loop: 1
+  - eventId: 16
+    selection: 0
+    stylized: {fileID: 8300000, guid: c83b5afff75d48c88a443972da9e9a97, type: 3}
+    realistic: {fileID: 8300000, guid: c83b5afff75d48c88a443972da9e9a97, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.5
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 45.0
+    routing: 0
+    loop: 1
+  - eventId: 17
+    selection: 0
+    stylized: {fileID: 8300000, guid: 9740c72535184f85bf4b166d5b8d6d73, type: 3}
+    realistic: {fileID: 8300000, guid: 9740c72535184f85bf4b166d5b8d6d73, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.47
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 40.0
+    routing: 0
+    loop: 1
+  - eventId: 18
+    selection: 0
+    stylized: {fileID: 8300000, guid: b46004c4692142acb67178713716ee47, type: 3}
+    realistic: {fileID: 8300000, guid: b46004c4692142acb67178713716ee47, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.65
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 30.0
+    routing: 0
+    loop: 0
+  - eventId: 19
+    selection: 0
+    stylized: {fileID: 8300000, guid: 5773a9e9dd684fa7aa2054329f1120c5, type: 3}
+    realistic: {fileID: 8300000, guid: 5773a9e9dd684fa7aa2054329f1120c5, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.34
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 22.0
+    routing: 0
+    loop: 1
+  - eventId: 20
+    selection: 0
+    stylized: {fileID: 8300000, guid: fc0be3ebf922429b9d6ed0fd7a91dd33, type: 3}
+    realistic: {fileID: 8300000, guid: fc0be3ebf922429b9d6ed0fd7a91dd33, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.38
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 24.0
+    routing: 0
+    loop: 1
+  - eventId: 21
+    selection: 0
+    stylized: {fileID: 8300000, guid: 13ab35e7b98a416daef14d28cc44d7d4, type: 3}
+    realistic: {fileID: 8300000, guid: 13ab35e7b98a416daef14d28cc44d7d4, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.44
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 25.0
+    routing: 0
+    loop: 1
+  - eventId: 22
+    selection: 0
+    stylized: {fileID: 8300000, guid: 9d92527667504c5fa569b3748137dc34, type: 3}
+    realistic: {fileID: 8300000, guid: 9d92527667504c5fa569b3748137dc34, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.48
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 25.0
+    routing: 0
+    loop: 1
+  - eventId: 23
+    selection: 0
+    stylized: {fileID: 8300000, guid: ad0c0b7e7c544819b36b608715386777, type: 3}
+    realistic: {fileID: 8300000, guid: ad0c0b7e7c544819b36b608715386777, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.54
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 28.0
+    routing: 0
+    loop: 1
+  - eventId: 24
+    selection: 0
+    stylized: {fileID: 8300000, guid: 273c6676089d480bb62c87d343a96f92, type: 3}
+    realistic: {fileID: 8300000, guid: 273c6676089d480bb62c87d343a96f92, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.72
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 28.0
+    routing: 0
+    loop: 0
+  - eventId: 25
+    selection: 0
+    stylized: {fileID: 8300000, guid: 59490bd88c4346678ba6641dd50062fc, type: 3}
+    realistic: {fileID: 8300000, guid: 59490bd88c4346678ba6641dd50062fc, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.46
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 25.0
+    routing: 0
+    loop: 1
+  - eventId: 26
+    selection: 0
+    stylized: {fileID: 8300000, guid: 4f2a165d5c984b50bca955a87b8a1378, type: 3}
+    realistic: {fileID: 8300000, guid: 4f2a165d5c984b50bca955a87b8a1378, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.43
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 25.0
+    routing: 0
+    loop: 1
+  - eventId: 27
+    selection: 0
+    stylized: {fileID: 8300000, guid: 10a86d7547d645018fb21adc90a17e30, type: 3}
+    realistic: {fileID: 8300000, guid: 10a86d7547d645018fb21adc90a17e30, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.7
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 28.0
+    routing: 0
+    loop: 0
+  - eventId: 28
+    selection: 0
+    stylized: {fileID: 8300000, guid: 3af03cf374a5f144d9142477516c3da0, type: 3}
+    realistic: {fileID: 8300000, guid: 3af03cf374a5f144d9142477516c3da0, type: 3}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.72
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 24.0
+    routing: 0
+    loop: 0
+  - eventId: 29
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.78
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 28.0
+    routing: 0
+    loop: 0
+  - eventId: 30
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.52
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 16.0
+    routing: 0
+    loop: 0
+  - eventId: 31
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.7
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 22.0
+    routing: 0
+    loop: 0
+  - eventId: 32
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.44
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 14.0
+    routing: 0
+    loop: 1
+  - eventId: 33
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.58
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 16.0
+    routing: 0
+    loop: 0
+  - eventId: 34
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.68
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 24.0
+    routing: 0
+    loop: 0
+  - eventId: 35
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.76
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 28.0
+    routing: 0
+    loop: 0
+  - eventId: 36
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.62
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 20.0
+    routing: 0
+    loop: 0
+  - eventId: 37
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.42
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 20.0
+    routing: 0
+    loop: 1
+  - eventId: 38
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.46
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 22.0
+    routing: 0
+    loop: 1
+  - eventId: 39
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.38
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 24.0
+    routing: 0
+    loop: 1
+  - eventId: 40
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.68
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 28.0
+    routing: 0
+    loop: 0
+  - eventId: 41
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.58
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 28.0
+    routing: 0
+    loop: 0
+  - eventId: 42
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.48
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 24.0
+    routing: 0
+    loop: 1
+  - eventId: 43
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.72
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 32.0
+    routing: 0
+    loop: 0
+  - eventId: 44
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.34
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 42.0
+    routing: 0
+    loop: 1
+  - eventId: 45
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.52
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 46.0
+    routing: 0
+    loop: 1
+  - eventId: 46
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.48
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 42.0
+    routing: 0
+    loop: 1
+  - eventId: 47
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.78
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 42.0
+    routing: 0
+    loop: 0
+  - eventId: 48
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.42
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 36.0
+    routing: 0
+    loop: 0
+  - eventId: 49
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.5
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 34.0
+    routing: 0
+    loop: 0
+  - eventId: 50
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.3
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 30.0
+    routing: 0
+    loop: 1
+  - eventId: 51
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.44
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 34.0
+    routing: 0
+    loop: 0
+  - eventId: 52
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.24
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 18.0
+    routing: 0
+    loop: 1
+  - eventId: 53
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.62
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 28.0
+    routing: 0
+    loop: 0
+  - eventId: 54
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.54
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 16.0
+    routing: 0
+    loop: 0
+  - eventId: 55
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.26
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 12.0
+    routing: 0
+    loop: 0
+  - eventId: 56
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.72
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 34.0
+    routing: 0
+    loop: 0
+  - eventId: 57
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.6
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 22.0
+    routing: 0
+    loop: 0
+  - eventId: 58
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.62
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 55.0
+    routing: 0
+    loop: 0
+  - eventId: 59
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.34
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 44.0
+    routing: 0
+    loop: 1
+  - eventId: 60
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.46
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 52.0
+    routing: 0
+    loop: 1
+  - eventId: 61
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.58
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 48.0
+    routing: 0
+    loop: 0
+  - eventId: 62
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.72
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 48.0
+    routing: 0
+    loop: 0
+  - eventId: 63
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.56
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 42.0
+    routing: 0
+    loop: 0
+  - eventId: 64
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.58
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 32.0
+    routing: 0
+    loop: 0
+  - eventId: 65
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.64
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 80.0
+    routing: 0
+    loop: 0
+  - eventId: 66
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.52
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 80.0
+    routing: 0
+    loop: 1
+  - eventId: 67
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.86
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 70.0
+    routing: 0
+    loop: 0
+  - eventId: 68
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.86
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 100.0
+    routing: 0
+    loop: 0
+  - eventId: 69
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.24
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 35.0
+    routing: 0
+    loop: 1
+  - eventId: 70
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.2
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 60.0
+    routing: 0
+    loop: 1
+  - eventId: 71
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.42
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 45.0
+    routing: 0
+    loop: 0
+  - eventId: 72
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.28
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 32.0
+    routing: 0
+    loop: 1
+  - eventId: 73
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.72
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 0.1
+    routing: 1
+    loop: 0
+  - eventId: 74
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.78
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 0.1
+    routing: 1
+    loop: 0
+  - eventId: 75
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.52
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 0.1
+    routing: 2
+    loop: 0
+  - eventId: 76
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.44
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 0.1
+    routing: 2
+    loop: 0
+  - eventId: 77
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.4
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 0.1
+    routing: 2
+    loop: 0
+  - eventId: 78
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.42
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 0.1
+    routing: 2
+    loop: 0
+  - eventId: 79
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.5
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 0.1
+    routing: 2
+    loop: 0
+  - eventId: 80
+    selection: 0
+    stylized: {fileID: 0}
+    realistic: {fileID: 0}
+    custom: {fileID: 0}
+    noise: {fileID: 0}
+    volume: 0.28
+    pitch: 1
+    noiseVolume: 1
+    noisePitch: 1
+    maxDistance: 0.1
+    routing: 2
+    loop: 0
