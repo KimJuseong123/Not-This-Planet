@@ -498,6 +498,10 @@ namespace Metagame.Gameplay
             RefreshRescueTarget();
             RefreshCarryTarget();
 
+            // 시야가 몸과 함께 넘어간 뒤 3인칭으로 물러난다(기획 §10.1 · §10.3,
+            // S15P21B202-259). 머리 본을 넘기는 이유는 OrbitCamera 쪽에 적었다.
+            if (Cam != null) Cam.SetDownedView(true, Doll?.Head?.transform);
+
             Debug.Log("[SpaceFlop] " + Nickname + " 기절 (" + source + ")");
         }
 
@@ -535,6 +539,9 @@ namespace Metagame.Gameplay
             SetDollLayer(GameLayers.Player);
             RefreshRescueTarget();
             RefreshCarryTarget();
+
+            // 기획 §10.3 "구조되면 1인칭으로 돌아온다".
+            if (Cam != null) Cam.SetDownedView(false);
         }
 
         /// <summary>
