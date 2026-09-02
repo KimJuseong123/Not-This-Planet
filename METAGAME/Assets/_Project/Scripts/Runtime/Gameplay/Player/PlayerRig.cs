@@ -514,6 +514,9 @@ namespace Metagame.Gameplay
             // S15P21B202-259). 머리 본을 넘기는 이유는 OrbitCamera 쪽에 적었다.
             if (Cam != null) Cam.SetDownedView(true, Doll?.Head?.transform);
 
+            // 시점이 바뀌었으니 몸을 그릴지 다시 정한다(S15P21B202-267).
+            RefreshDollVisibility();
+
             Debug.Log("[SpaceFlop] " + Nickname + " 기절 (" + source + ")");
         }
 
@@ -554,6 +557,8 @@ namespace Metagame.Gameplay
 
             // 기획 §10.3 "구조되면 1인칭으로 돌아온다".
             if (Cam != null) Cam.SetDownedView(false);
+
+            RefreshDollVisibility();
         }
 
         /// <summary>
@@ -908,6 +913,34 @@ namespace Metagame.Gameplay
             if (IsRiding) Doll.SetVisible(false);
             else if (Cam != null && Cam.FirstPerson) Doll.SetVisible(false, keepShadow: true);
             else Doll.SetVisible(true);
+
+            lastFirstPerson = Cam != null && Cam.FirstPerson;
+        }
+
+        /// <summary>
+        /// 마지막으로 몸을 그릴지 정할 때의 시점. 바뀐 것을 알아채는 데만 쓴다.
+        /// </summary>
+        bool lastFirstPerson;
+
+        /// <summary>
+        /// 시점이 바뀌었으면 몸을 그릴지 다시 정한다(S15P21B202-267).
+        ///
+        /// <b>왜 물어보는가.</b> 시점을 바꾸는 것은 <see cref="OrbitCamera"/> 안에서
+        /// 일어난다 — 기절 5초 뒤 3인칭으로 물러나는 것(S15P21B202-259)이 그렇다. 그런데
+        /// 인형을 그릴지 정하는 것은 이쪽 일이고, 카메라가 인형을 직접 만지게 하면
+        /// 의존 방향이 뒤집힌다(지금은 <c>PlayerRig</c> → <c>OrbitCamera</c> 한쪽이다).
+        ///
+        /// <b>매 프레임 갱신하지 않는다.</b> <see cref="RefreshDollVisibility"/> 는 인형
+        /// 아래 <b>모든</b> 렌더러를 훑는다(장식이 강체의 자식이라 그래야 한다). 바뀔 때만
+        /// 부르는 것이 지금 구조가 "사건마다 부르는" 이유이고, 그 구조를 지킨다.
+        /// </summary>
+        void RefreshDollVisibilityIfViewChanged()
+        {
+            if (Cam == null) return;
+
+            if (Cam.FirstPerson == lastFirstPerson) return;
+
+            RefreshDollVisibility();
         }
 
         /// <summary>하차한 탑승자를 지면 위로 살짝 띄우는 여유. 발이 표면에 박히지 않게 한다.</summary>
@@ -1026,6 +1059,10 @@ namespace Metagame.Gameplay
             if (!JointTools.IsFinite(Doll.Hips.position)) { return; }
 
             RefreshInteractionFocus();
+
+            // 기절 5초 뒤 3인칭으로 물러나는 것처럼(S15P21B202-259) 카메라가 스스로 시점을
+            // 바꾸는 경우가 있다. 기절 중에도 돌아야 하므로 아래 조기 반환보다 앞이다.
+            RefreshDollVisibilityIfViewChanged();
 
             // Release가 예약한 조인트 제거가 끝난 다음 틱에 속도를 넣어야 투척이 구속에 먹히지 않는다.
             if (pendingThrowBody != null)
