@@ -214,7 +214,23 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         // 세션을 열려면 참가자 전원의 공인 IP 가 필요한데 그 목록은 서버만 갖고 있다.
         // 실패하면 null 이고, 그때는 위의 직접 접속 주소로 간다.
         LinkedHashMap<Long, String> publicIps = publicIpsOf(room);
-        RelaySession relay = sameNetwork(publicIps) ? null : relayService.open(publicIps);
+        boolean same = sameNetwork(publicIps);
+        RelaySession relay = same ? null : relayService.open(publicIps);
+
+        // 무엇을 골랐는지 남긴다. 릴레이가 안 붙었을 때 어디서 갈렸는지 알아야 한다 —
+        // 실패하면 조용히 직접 접속으로 되돌아가므로 로그가 없으면 원인을 못 찾는다.
+        // IP 는 개인정보라 개수만 센다.
+        long localCount = publicIps.values().stream().filter(GameWebSocketHandler::isLocalIp).count();
+        log.info("game start: room={} players={} distinctIps={} localIps={} decision={}",
+                room.getRoomId(), publicIps.size(),
+                publicIps.values().stream().distinct().count(),
+                localCount,
+                same ? "direct(same network)" : (relay != null ? "relay" : "direct(relay failed)"));
+
+        if (localCount > 0) {
+            log.warn("공인 IP 를 못 읽었다 — nginx 가 X-Forwarded-For 를 넘기는지 확인할 것. "
+                    + "이대로면 모두 같은 주소로 보여 릴레이가 켜지지 않는다(-264).");
+        }
 
         for (Long playerId : room.playerIds()) {
             WebSocketSession target = sessions.get(playerId);
@@ -266,15 +282,44 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         LinkedHashMap<Long, String> ips = new LinkedHashMap<>();
         for (Long playerId : room.playerIds()) {
             WebSocketSession session = sessions.get(playerId);
-            if (session == null || session.getRemoteAddress() == null) {
-                continue;
-            }
-            String ip = session.getRemoteAddress().getAddress().getHostAddress();
+            String ip = clientIp(session);
             if (ip != null && !ip.isBlank()) {
                 ips.put(playerId, ip);
             }
         }
         return ips;
+    }
+
+    /**
+     * 이 사람이 밖에서 보이는 주소(S15P21B202-264).
+     *
+     * <p>우리 서버는 nginx 뒤에 있다. 소켓이 보는 상대는 nginx 자신(127.0.0.1)이므로
+     * 그것만 보면 <b>모두가 같은 주소로 보이고</b>, 그러면 릴레이가 영원히 안 켜진다.
+     * 게다가 그 값을 Edgegap 에 보내면 세션이 엉뚱하게 만들어진다.
+     *
+     * <p>그래서 핸드셰이크의 {@code X-Forwarded-For} 를 먼저 본다. nginx 가 그 헤더를
+     * 채워 주도록 설정돼 있어야 한다. 값이 여러 개면 맨 앞이 실제 사용자다.
+     */
+    private String clientIp(WebSocketSession session) {
+        if (session == null) {
+            return null;
+        }
+
+        String forwarded = session.getHandshakeHeaders().getFirst("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+
+        return session.getRemoteAddress() == null
+                ? null
+                : session.getRemoteAddress().getAddress().getHostAddress();
+    }
+
+    /** 사설·루프백 주소인가. 릴레이에 넘기면 안 되는 값이라 로그로 알린다. */
+    private static boolean isLocalIp(String ip) {
+        return ip == null || ip.startsWith("127.") || ip.startsWith("10.")
+                || ip.startsWith("192.168.") || ip.startsWith("172.16.")
+                || ip.equals("::1") || ip.equals("0:0:0:0:0:0:0:1");
     }
 
     /**

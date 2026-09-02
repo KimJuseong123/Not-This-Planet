@@ -149,7 +149,7 @@ public class EdgegapRelayService {
                     .body(JsonNode.class);
 
             if (body != null && body.path("ready").asBoolean(false)) {
-                return toSession(body, userIds);
+                return toSession(sessionId, body, userIds);
             }
 
             try {
@@ -165,7 +165,7 @@ public class EdgegapRelayService {
         return null;
     }
 
-    private RelaySession toSession(JsonNode body, List<Long> userIds) {
+    private RelaySession toSession(String sessionId, JsonNode body, List<Long> userIds) {
         JsonNode relay = body.path("relay");
         String address = relay.path("ip").asText("");
         int serverPort = relay.path("ports").path("server").path("port").asInt();
@@ -186,10 +186,21 @@ public class EdgegapRelayService {
 
         if (address.isBlank() || serverPort <= 0 || clientPort <= 0
                 || sessionToken <= 0 || userTokens.size() < userIds.size()) {
-            log.warn("relay session ready but incomplete — falling back to direct connect");
+            // 무엇이 비었는지 찍는다. 토큰 값은 남기지 않는다.
+            log.warn("relay incomplete — ip={} serverPort={} clientPort={} sessionToken={} "
+                            + "userTokens={}/{} · 응답 필드: {}",
+                    address.isBlank() ? "없음" : "있음", serverPort, clientPort,
+                    sessionToken > 0 ? "있음" : "없음",
+                    userTokens.size(), userIds.size(),
+                    body.propertyNames());
+
+            // 쓸 수 없는 세션은 붙잡고 있을 이유가 없다 — 두면 동시접속 한도만 먹는다.
+            close(sessionId);
             return null;
         }
 
+        log.info("relay ready: {} (server {} / client {}) for {} users",
+                address, serverPort, clientPort, userTokens.size());
         return new RelaySession(address, serverPort, clientPort, sessionToken, userTokens);
     }
 }
