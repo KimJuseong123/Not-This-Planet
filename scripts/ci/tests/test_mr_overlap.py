@@ -181,7 +181,9 @@ def _main(root: str) -> int:
         S2 = mr(7, "S15P21B202-7-s2", "2026-08-28T16:00:00Z", target="S15P21B202-1-a")
         rc, f = run(work, S2, [A, B, C], "S15P21B202-7-s2")
         assert rc == 1, rc
-        assert not f.puts, "이미 A 를 향하므로 대상을 또 바꾸면 안 된다"
+        # 대상은 그대로여야 한다 — 이미 A 를 향하므로 자동 전환이 다시 일어나선 안 된다.
+        # 머지 순서 강제는 별도 잡 stack-order 가 본다(S15P21B202-244) — mr-overlap 은 관여하지 않는다.
+        assert not f.puts, f"대상을 또 바꾸면 안 된다: {f.puts}"
         mine = f.notes[7][-1]
         assert "!3" in mine and "`other.txt`" in mine, mine
         assert "!2" not in mine, "A 에서 물려받은 f.cs 충돌을 S2 에게 물으면 안 된다"

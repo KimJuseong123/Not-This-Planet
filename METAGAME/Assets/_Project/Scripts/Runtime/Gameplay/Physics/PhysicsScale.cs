@@ -131,61 +131,120 @@ namespace Metagame.Gameplay
         public const float UnweldedBreakTorque = 5000f;
 
         // --- 용접 ---
-        /// <summary>용접점 하나를 채우는 데 걸리는 시간.</summary>
-        /// <summary>
-        /// 예전 용접점 하나를 채우는 시간. 원형 접합선으로 바뀐 뒤에는 쓰지 않는다.
-        /// </summary>
-        [System.Obsolete("원형 접합선으로 전환했다. WeldSeamSeconds 와 WeldSeamSegments 를 쓴다.")]
-        public const float WeldSecondsPerPoint = 3f;
+        //
+        // S15P21B202-230 에서 원형 접합선 관련 값을 모두 걷어냈다. 접합선이 하던 일을
+        // 비드가 하므로(S15P21B202-226 · 228 · 229) 시간·조각 수는 뜻을 잃었다.
+        // <b>사거리만 남는다</b> — 그것은 접합선의 값이 아니라 용접기의 값이었다.
 
         /// <summary>
-        /// 원형 접합선 하나를 <b>빠짐없이 훑었을 때</b>의 용접 시간(초).
-        ///
-        /// 기획 §16.1 "원형 접합부 하나의 최단 용접 시간은 약 10초, 일반적인 완료 시간은
-        /// 12~15초를 목표로 한다". 여기 적는 것이 <b>최단</b> 시간이다 — 12~15초는
-        /// 겹쳐 대거나 빠뜨렸다가 되돌아오는 실제 플레이에서 저절로 나온다.
-        ///
-        /// 예전 방식(용접점 4개 × 3초 = 12초)과 총량이 비슷하다. 바뀌는 것은 총량이
-        /// 아니라 <b>기제</b> 다 — 한 점에 대고 있으면 되던 것이 이제는 돌아야 한다.
-        /// </summary>
-        public const float WeldSeamSeconds = 10f;
-
-        /// <summary>
-        /// 원형 접합선을 몇 조각으로 나눌지.
-        ///
-        /// 조각 하나가 30도다. 이 값이 §16.1 의 "같은 위치에 계속 대고 있어도 추가
-        /// 진행되지 않는다" 를 만든다 — 조각이 차면 그 자리에서는 더 오르지 않는다.
-        ///
-        /// 너무 적으면(4개) 예전 점 용접과 다를 바 없고, 너무 많으면(72개) 한 조각이
-        /// 0.14초라 훑는 손맛이 사라진다.
-        /// </summary>
-        public const int WeldSeamSegments = 12;
-
-        /// <summary>
-        /// 조각 하나를 채우는 시간(초). 12조각 × 0.833초 ≈ 10초.
-        /// </summary>
-        public static float WeldSeamSecondsPerSegment => WeldSeamSeconds / WeldSeamSegments;
-
-        /// <summary>
-        /// 용접기가 접합선에 닿는다고 보는 거리(m).
+        /// 용접기가 몸체에 닿는다고 보는 거리(m).
         ///
         /// 기획 §16.1 "용접기 최대 사거리는 약 0.8m". <see cref="Metagame.Core.Tuning"/>
         /// 의 <c>ToolBeamRange</c> 가 이미 0.80m 이며 같은 값이어야 한다 — 빔이 닿아
         /// 보이는데 용접이 안 되거나 그 반대면 플레이어가 이유를 알 수 없다.
+        ///
+        /// 예전 이름은 <c>WeldSeamRange</c> 였다. 접합선이 사라져도 이 값은 남으므로
+        /// 이름에서 접합선을 뗐다 — 처음부터 접합선의 값이 아니라 <b>도구</b>의 값이었다.
         /// </summary>
-        public const float WeldSeamRange = 0.80f;
+        public const float WeldRange = 0.80f;
+
+        // --- 용접 비드 (기획 §16.2 의 "실제 금속 비드") ---
+        /// <summary>
+        /// 비드 덩어리 하나의 최대 반지름(m). 그림의 "상한선" 이다.
+        ///
+        /// 이 값에 이르면 그 덩어리는 더 자라지 않고 <b>다음 덩어리가 시작된다.</b>
+        /// 상한이 없으면 콜라이더 하나가 파츠보다 커진다.
+        ///
+        /// 0.10m 은 파츠 폭(<see cref="PartWidth"/>) 의 1/20 쯤이라 눈에는 확실히 보이고
+        /// 파츠 형태를 가리지는 않는 크기다.
+        /// </summary>
+        public const float WeldBeadMaxRadius = 0.10f;
 
         /// <summary>
-        /// 원형 접합선 하나를 <b>빠짐없이 훑었을 때</b>의 완전 절단 시간(초).
+        /// 갓 생긴 비드 덩어리의 반지름(m).
         ///
-        /// 기획 §16.3 "완전 절단의 최단 시간은 약 6초, 일반적인 시간은 8~10초이다".
-        /// 여기 적는 것이 <b>최단</b> 시간이다 — 8~10초는 겹쳐 대거나 빠뜨렸다가
-        /// 되돌아오는 실제 플레이에서 나온다(용접과 같은 이유로 상수로 넣지 않는다).
-        ///
-        /// 용접(10초)보다 빠른 것이 기획 의도다. 부수는 것이 만드는 것보다 쉬워야
-        /// 실수를 되돌리는 부담이 작다.
+        /// 0 에서 시작하면 좌클릭한 순간 아무것도 보이지 않아 "되고 있는지" 를 알 수 없다.
+        /// 기획 §16.2 가 진행 바를 금지하므로 <b>보이는 것 자체가 피드백이다</b> —
+        /// 첫 프레임부터 작게라도 보여야 한다.
         /// </summary>
-        public const float CutSeamSeconds = 6f;
+        public const float WeldBeadMinRadius = 0.03f;
+
+        /// <summary>
+        /// 덩어리 하나가 최소에서 최대까지 자라는 시간(초).
+        ///
+        /// 기획 §16.1 이 접합부 하나의 최단 용접 시간을 약 10초로 잡는다. 덩어리 하나에
+        /// 1.6초면 사슬 여섯 칸을 채우는 데 약 10초라, 그 총량이 그대로 유지된다.
+        ///
+        /// 이보다 빠르면 <b>쌓는</b> 느낌이 사라진다 — 비드는 훑는 작업이 아니라 한 자리에
+        /// 대고 있는 작업이므로, 덩어리가 커지는 것이 눈에 보일 만큼은 느려야 한다.
+        /// </summary>
+        public const float WeldBeadBlobSeconds = 1.6f;
+
+        /// <summary>
+        /// 한 사슬에 이어 붙는 덩어리 수 = <b>최대 다리 길이</b>.
+        ///
+        /// 6개 × <see cref="WeldBeadStep"/> 0.13m + 반지름 0.10m ≈ 0.75m 를 뻗는다.
+        /// 용접기 사거리(<see cref="WeldRange"/> 0.80m)보다 짧게 둔 것이 의도다 —
+        /// 길이 상한이 사거리보다 길면 플레이어가 자기 비드를 따라가지 못해 끝을
+        /// 놓치고, 왜 멈췄는지 알 수 없다.
+        /// </summary>
+        public const int WeldBeadBlobsPerChain = 6;
+
+        /// <summary>덩어리 중심 사이 간격(m). 지름(0.20m)보다 좁아 서로 겹쳐 기둥으로 보인다.</summary>
+        public const float WeldBeadStep = 0.13f;
+
+        /// <summary>
+        /// 사슬을 이어 붙일지 새로 시작할지 가르는 거리(m).
+        ///
+        /// 노즐이 기존 사슬의 끝에서 이 거리 안에 있으면 <b>그 사슬을 잇는다.</b>
+        /// 밖이면 새 사슬을 시작한다. 이 값이 없으면 좌클릭할 때마다 새 사슬이 생겨
+        /// 기둥이 자라지 않는다.
+        /// </summary>
+        public const float WeldBeadChainReuseRadius = 0.35f;
+
+        /// <summary>
+        /// 파츠 하나가 가질 수 있는 총 덩어리 수.
+        ///
+        /// 성능 상한이다. 콜라이더가 무한히 늘면 파츠의 컴파운드 콜라이더가 그만큼
+        /// 무거워진다. 48개 = 사슬 8개 × 6개.
+        /// </summary>
+        public const int WeldBeadsPerPart = 48;
+
+        /// <summary>
+        /// 최대 크기 덩어리 하나의 질량(kg). 작은 덩어리는 부피비(반지름의 세제곱)로 준다.
+        ///
+        /// 강철 밀도(7,800kg/m³)를 그대로 쓰면 덩어리 하나가 33kg 이라 48개가 1.6톤 —
+        /// 파츠(406~745kg)보다 무거워져 탑이 비드 무게로 무너진다. 비드는 속이 찬
+        /// 강철 덩어리가 아니라 <b>덧붙인 살</b> 이므로 훨씬 가볍게 둔다.
+        ///
+        /// 4kg × 48 = 192kg 이면 가장 가벼운 파츠의 절반이 안 되고, 그러면서도
+        /// 한쪽에만 잔뜩 쌓으면 무게중심이 눈에 보이게 치우친다.
+        /// </summary>
+        public const float WeldBeadFullMass = 4f;
+
+        /// <summary>
+        /// 비드가 다른 몸체에 <b>닿았다</b>고 보는 여유(m).
+        ///
+        /// 0 이면 콜라이더가 정확히 맞닿아야 하는데, 조인트가 걸리기 전의 두 파츠는
+        /// 언제나 조금씩 떨리므로 닿았다 말았다 한다. 그러면 접합이 붙었다 풀렸다 한다.
+        /// </summary>
+        public const float WeldBeadContactSkin = 0.02f;
+
+        /// <summary>
+        /// 접합이 <b>완전 용접 강도</b>에 이르는 데 필요한, 상대 몸체에 닿아 있는
+        /// 최대 크기 덩어리의 수.
+        ///
+        /// <b>기둥 길이가 아니라 닿아 있는 부피로 센다.</b> 6칸 기둥 하나가 2칸 기둥
+        /// 하나보다 튼튼하면 물리적으로 거꾸로다 — 얇고 긴 다리는 약해야 한다. 긴 기둥은
+        /// 끝만 닿으므로 저절로 한 덩어리 몫이 된다.
+        ///
+        /// 사슬이 여럿이면 <b>더해진다.</b> 그래서 한 자리에 몰아 쏘는 것으로는 3 을
+        /// 채울 수 없고 여러 군데를 이어야 한다 — 기획 §16.1 의 "원형 접합부 전체를
+        /// 따라간다" 를 비드 방식으로 되살린 것이 이 값이다.
+        ///
+        /// 3 은 기획서 용어로 <b>초기 테스트값</b>이며 플레이 테스트로 조정한다.
+        /// </summary>
+        public const int WeldBeadFullStrengthBlobs = 3;
 
         // --- 바닥 고정못 (기획 §12.1 · §12.2) ---
         /// <summary>
@@ -300,9 +359,6 @@ namespace Metagame.Gameplay
         /// (§22.4 의 발사 실패와 같은 원칙).
         /// </summary>
         public const float AllDownedRespawnSeconds = 8f;
-
-        /// <summary>조각 하나를 자르는 시간(초). 12조각 × 0.5초 = 6초.</summary>
-        public static float CutSeamSecondsPerSegment => CutSeamSeconds / WeldSeamSegments;
 
 
         /// <summary>
@@ -592,19 +648,354 @@ namespace Metagame.Gameplay
         public const float MeteorDropHeight = 30f;
 
         /// <summary>
-        /// 예고부터 낙하까지의 시간. 플레이어가 한 걸음 비킬 수 있어야 한다.
-        /// 기획의 미정 사항이던 "피할 수 있는 반응 시간" 을 이 값으로 정했다.
+        /// 낙하 예고가 켜져 있는 시간(초). 기획 §17.2 "착탄 3초 전".
+        ///
+        /// <b>이 시간 동안 운석이 실제로 떨어지고 있어야 한다.</b> 예전에는 1.8초였고,
+        /// 예고가 <b>끝난 뒤</b>에 운석을 30m 위에 만들었다. 중력 −2.8m/s² 에서 30m
+        /// 자유낙하는 4.63초이므로 표시가 착탄 4.63초 <b>전에 사라졌다</b> — 기획과
+        /// 정반대였고, S15P21B202-233 이 방망이를 만들며 드러났다(§18.1 이 "타격
+        /// 가능한 순간에는 낙하 표시가 강하게 점멸한다" 고 정하는데 그 순간에는 표시가
+        /// 없었다).
+        ///
+        /// 지금은 예고와 함께 운석을 만들고 <see cref="MeteorDropSpeed"/> 로 아래로
+        /// 밀어, 예고가 끝나는 순간 착탄하게 맞춘다.
         /// </summary>
-        public const float MeteorWarningSeconds = 1.8f;
+        public const float MeteorWarningSeconds = 3f;
 
-        /// <summary>착탄 시 넉백이 미치는 반경.</summary>
-        public const float MeteorImpactRadius = 4f;
+        /// <summary>
+        /// 운석을 만들 때 주는 초기 하강 속도(m/s).
+        ///
+        /// <see cref="MeteorDropHeight"/>(30m)에서 <see cref="MeteorWarningSeconds"/>(3초)에
+        /// 닿게 하는 값이다. h = v₀·t + ½·|g|·t² 를 v₀ 로 풀면
+        ///
+        ///   v₀ = (30 − ½ × 2.8 × 3²) / 3 = (30 − 12.6) / 3 = 5.8
+        ///
+        /// <b>높이를 낮추는 쪽을 고르지 않았다.</b> 3초에 자유낙하로 닿는 높이는 12.6m 인데,
+        /// 기획 §17.1 "하늘에서 낙하한다" 와 §17.2 "화면 밖 운석은 방향성 낙하음으로
+        /// 인지한다" 가 높이를 요구한다. 속도를 주는 편이 그 둘을 지킨다.
+        /// </summary>
+        public const float MeteorDropSpeed = 5.8f;
 
-        /// <summary>착탄 시 주변에 주는 폭발력.</summary>
+        /// <summary>
+        /// 소형 운석의 넉백 반경(m). 기획 §17.7 "소형 · 충격 반경 약 2m".
+        ///
+        /// <b>예전에는 크기 구분 없이 4m 하나였다</b> — §17.7 의 소형(2m)보다 두 배 넓고
+        /// 중형(3.5m)보다도 넓어, 기획 어느 값도 아니었다. S15P21B202-234 에서 나눴다.
+        /// </summary>
+        public const float MeteorSmallImpactRadius = 2f;
+
+        /// <summary>
+        /// 중형 운석의 넉백 반경(m). 기획 §17.7 "중형 · 충격 반경 약 3.5m".
+        /// 10분 이후에만 나온다.
+        /// </summary>
+        public const float MeteorMediumImpactRadius = 3.5f;
+
+        /// <summary>
+        /// 소형 운석이 착탄 시 주변에 주는 폭발력.
+        ///
+        /// <b>중형은 이 값을 쓰지 않는다.</b> 반경 비율만큼 커진다
+        /// (<see cref="Hazards.MeteorImpact.ForceFor"/>) — 크기를 나눠 놓고
+        /// (S15P21B202-234) 힘이 같으면 중형은 "맞는 범위만 넓고 아프지는 않다".
+        /// </summary>
         public const float MeteorImpactForce = 900f;
 
-        /// <summary>착탄 후 사라지기까지의 시간.</summary>
-        public const float MeteorDespawnSeconds = 6f;
+        /// <summary>
+        /// 충격 반경 중 <b>강한 충격</b>으로 취급하는 비율. 기획 §20.1.
+        ///
+        /// §20.1 은 충격을 약함·강함·직접 충돌로 나누는데 <b>경계를 정하지 않았다.</b>
+        /// 반경의 절반으로 잡았다. 새 기준을 만들지 않고
+        /// <see cref="UnityEngine.Rigidbody.AddExplosionForce"/> 가 이미 쓰는 거리 감쇠와
+        /// 같은 축을 쓴다 — 규칙이 둘이면 "밀리기만 했는데 장비를 놓쳤다" 가 생긴다.
+        /// </summary>
+        public const float MeteorHeavyImpactFraction = 0.5f;
+
+        /// <summary>
+        /// 강한 충격에 날아가는 속도(m/s). 기획 §20.1 "크게 날아가고".
+        ///
+        /// 방망이에 맞을 때(<see cref="BatPlayerKnockSpeed"/> 4m/s)의 두 배다. §18.3 이
+        /// 방망이는 "넘어지지만 기절하지는 않는다" 고 정하고, 운석은 그보다 강해야 한다 —
+        /// 동료가 때리는 것이 운석보다 아프면 방망이가 무기가 된다.
+        /// </summary>
+        public const float MeteorHeavyKnockSpeed = 8f;
+
+        // --- 운석 충돌 흔적 (기획 §19) ---
+        /// <summary>
+        /// 착탄한 운석이 지면에 박히는 깊이의 비율(반지름 기준).
+        ///
+        /// 기획 §19 "운석 본체는 <b>절반 이상</b> 지면에 박힌 모습으로 남는다".
+        /// 0.6 이면 절반보다 조금 더 들어가 "박혔다" 로 읽힌다.
+        /// </summary>
+        public const float MeteorScarSinkRatio = 0.6f;
+
+        /// <summary>
+        /// 흔적이 식는 시간(초). 기획 §19 "약 5초 동안 붉은 빛, 연기와 불꽃이 약해진다".
+        ///
+        /// 이 시간이 지나면 <b>흔적의 나이를 더 세지 않는다</b> — 150~200개가 쌓여도
+        /// 매 프레임 도는 비용이 0이 된다(§19 의 성능 기준).
+        /// </summary>
+        public const float MeteorScarCoolSeconds = 5f;
+
+        /// <summary>
+        /// 남겨 두는 흔적의 최대 개수.
+        ///
+        /// 기획 §19 가 "정상 20분 플레이에서 약 150~200개의 흔적이 누적되는 상황을
+        /// <b>성능 기준으로 삼는다</b>" 고 못박았다. 그 상한을 그대로 쓴다 — 넘으면 가장
+        /// 오래된 것부터 지우고 <b>로그를 남긴다.</b> 조용히 잘라내면 "다 남았다" 로 보인다.
+        /// </summary>
+        public const int MeteorScarLimit = 200;
+
+        // --- 낙하 예고 표시 (기획 §17.2) ---
+        /// <summary>
+        /// 마지막 몇 초를 "빠른 점멸" 로 볼지. 기획 §17.2 "마지막 0.5초에는 빠르게 점멸한다".
+        /// </summary>
+        public const float MeteorWarningImminentSeconds = 0.5f;
+
+        /// <summary>
+        /// 방망이로 쳐낼 수 있는 동안의 점멸 주기(Hz). 기획 §18.1 "강하게 점멸한다".
+        ///
+        /// 이 구간의 경계는 <see cref="BatSwingWindowSeconds"/> 가 정한다 — 표시가 알리는
+        /// 순간과 실제로 맞는 순간이 같아야 한다.
+        /// </summary>
+        public const float MeteorWarningStrikableBlinkHz = 3f;
+
+        /// <summary>마지막 0.5초의 점멸 주기(Hz). 더 빨라야 "임박" 이 읽힌다.</summary>
+        public const float MeteorWarningImminentBlinkHz = 8f;
+
+        /// <summary>
+        /// 표시를 지면에서 띄우는 높이(m).
+        ///
+        /// 0 이면 지면과 같은 평면이라 깜빡이며 서로를 가린다(z-fighting). 눈에 뜬 것처럼
+        /// 보이지 않을 만큼만 올린다.
+        ///
+        /// <b>지형 경사를 따라가지 않는 한계가 남는다.</b> 납작한 원판이므로 언덕에서는
+        /// 파고들거나 뜬다. URP 데칼로 바꾸면 해결되지만 그것은 렌더 파이프라인 결정이라
+        /// [Level]·[Art] 몫이다.
+        /// </summary>
+        public const float MeteorWarningLift = 0.03f;
+
+        // --- 파츠 수동 밀기 (기획 §13) ---
+        /// <summary>
+        /// 밀기가 시작되기까지 파츠 쪽으로 이동해야 하는 시간(초). 기획 §13.1.
+        ///
+        /// §13.1 이 "스쳐 지나가는 접촉으로 발동하지 않도록" 이라고 이유까지 적었다.
+        /// 파츠 옆을 지나가는 것과 파츠를 밀려는 것을 <b>시간으로</b> 가른다.
+        /// </summary>
+        public const float PartPushIntentSeconds = 0.2f;
+
+        /// <summary>
+        /// 이동 입력이 멈추거나 접촉이 끊긴 뒤 밀기가 끝나기까지의 시간(초). 기획 §13.1.
+        ///
+        /// 0 이면 걸음이 한 틱 끊길 때마다 밀기가 풀려 파츠가 덜컥거린다.
+        /// </summary>
+        public const float PartPushReleaseSeconds = 0.5f;
+
+        /// <summary>
+        /// 파츠에 "닿았다" 로 보는 거리(m).
+        ///
+        /// 실제 접촉 콜백을 쓰지 않는다. 인형은 뼈가 열두 개라 어느 뼈가 닿았는지에 따라
+        /// 판정이 흔들리고, 밀기는 <b>몸으로 미는 것</b>이지 손가락이 스치는 것이 아니다.
+        /// 콜라이더의 가장 가까운 점까지의 거리로 잰다.
+        /// </summary>
+        public const float PartPushContactDistance = 0.6f;
+
+        /// <summary>
+        /// 이동 방향이 파츠 쪽인지 보는 기준(내적). 0.5 면 60도 안이다.
+        ///
+        /// §13.1 "이동 방향을 검사한다" 이고 "<b>당기기는 제공하지 않으며</b> 반대편으로
+        /// 이동해 반대 방향으로 민다" 이므로, 파츠에서 멀어지는 입력은 밀기가 아니다.
+        /// </summary>
+        public const float PartPushAimDot = 0.5f;
+
+        /// <summary>
+        /// 밀기 가속(m/s²). 목표 속도까지 올라가는 빠르기다.
+        ///
+        /// 1.2 면 1명이 미는 0.4m/s 까지 3분의 1초쯤 걸린다. 즉시 목표 속도가 되면
+        /// 500kg 이 아니라 빈 상자를 미는 것으로 보인다.
+        /// </summary>
+        public const float PartPushAccel = 1.2f;
+
+        /// <summary>
+        /// 아무도 밀지 않을 때 관성이 줄어드는 시간 상수(초). 기획 §13.2 "약 1초 동안
+        /// 관성이 줄어든 뒤 정지".
+        /// </summary>
+        public const float PartPushDampSeconds = 1f;
+
+        /// <summary>
+        /// 이 배수보다 빠른 파츠는 <b>밀린 것이 아니라 맞은 것</b>으로 본다.
+        ///
+        /// §13.2 가 "운석 충격은 플레이어의 밀기보다 훨씬 강한 힘을 적용한다" 고 정한다.
+        /// 감쇠를 무조건 걸면 운석에 날아간 파츠도 1초 만에 멈춘다 — §13.2 가 말하는
+        /// 관성은 <b>밀어서 생긴 것</b>이다(S15P21B202-250).
+        /// </summary>
+        public const float PartPushForeignSpeedFactor = 1.5f;
+
+        // --- 기절한 동료 운반 (기획 §20.4) ---
+        /// <summary>
+        /// 기절한 동료를 끌고 갈 때의 이동 속도 배율. 기획 §20.4 "운반 중 이동 속도가
+        /// 느려지고".
+        ///
+        /// 인형 총 질량이 <b>34.9kg</b>(골반 8 + 가슴 10 + 머리 5 + 팔 3.9 + 다리 8)이라
+        /// 저중력(−2.8m/s²)에서도 가볍지 않다. 절반이면 "끌고 간다" 는 감각이 나고,
+        /// 그보다 더 느리면 운석을 피해 옮기는 것(§20.3 "주변을 확인하지 않고 구조하면
+        /// 두 플레이어가 함께 다시 맞을 수 있다")이 불가능해진다.
+        /// </summary>
+        public const float DownedCarrySpeedScale = 0.5f;
+
+        /// <summary>
+        /// 기절한 동료를 조준으로 잡을 수 있는 거리(m).
+        ///
+        /// <see cref="Metagame.Core.Tuning.ArmReach"/> 보다 넉넉하다. 쓰러진 사람은
+        /// 바닥에 있어 조준점이 발끝에 맞기 쉬운데, 팔 길이로 재면 서서 겨눌 수 없다.
+        /// </summary>
+        public const float DownedCarryReach = 2.5f;
+
+        /// <summary>기절한 동료를 조준으로 잡을 수 있는 각도(도).</summary>
+        public const float DownedCarryAngle = 35f;
+
+        // --- 끼임 복구 (기획 §21) ---
+        /// <summary>
+        /// 끼임 탈출을 위해 <c>T</c> 를 유지해야 하는 시간(초). 기획 §21.
+        ///
+        /// 동료 구조(<see cref="RescueSeconds"/> 2초)보다 <b>길다.</b> §21 이 3초로 정했고,
+        /// 그것이 맞다 — 구조는 남이 해 주는 것이고 탈출은 자기가 하는 것이니 자력 탈출이
+        /// 더 싸면 아무도 구조를 기다리지 않는다.
+        /// </summary>
+        public const float StuckEscapeSeconds = 3f;
+
+        /// <summary>
+        /// 안전한 지면을 찾는 최대 거리(m).
+        ///
+        /// §21 은 "<b>가까운</b> 안전 지면" 이라고만 한다. 8m 는 저중력 점프 한 번보다
+        /// 조금 넓은 정도다 — 이보다 멀리 보내면 "복구" 가 아니라 순간이동이 된다.
+        /// </summary>
+        public const float StuckEscapeSearchRadius = 8f;
+
+        /// <summary>안전한 지면을 찾을 때 반지름을 늘리는 간격(m).</summary>
+        public const float StuckEscapeSearchStep = 1f;
+
+        /// <summary>한 반지름에서 살펴보는 방향의 수. 8이면 45도마다다.</summary>
+        public const int StuckEscapeSearchDirections = 8;
+
+        /// <summary>
+        /// 후보 지점의 지면을 찾을 때 위에서 아래로 훑는 높이(m).
+        ///
+        /// 끼었다는 것은 대개 <b>지면보다 아래</b>에 박혀 있다는 뜻이므로 발 높이에서
+        /// 바로 쏘면 지면을 못 만난다. 넉넉히 위에서 시작한다.
+        /// </summary>
+        public const float StuckEscapeGroundProbe = 6f;
+
+        // --- 운석 방망이 (기획 §18) ---
+        /// <summary>
+        /// 착탄 몇 초 전부터 쳐낼 수 있는지.
+        ///
+        /// 기획 §18.1 "운석 착탄 약 1초 전부터 타격 가능하다".
+        ///
+        /// <b>이 값을 쓰려면 착탄 시각을 알아야 한다.</b> 낙하 예고
+        /// (<see cref="Hazards.PendingMeteorDrop"/>)는 운석이 <b>생기기 전</b>의 시간이고,
+        /// 운석은 예고가 끝난 뒤 30m 위에서 생겨 4.63초를 더 떨어진다. 그래서
+        /// <see cref="Hazards.Meteor.TryPredictImpact"/> 가 위치·속도·중력으로 직접 푼다.
+        /// </summary>
+        public const float BatSwingWindowSeconds = 1f;
+
+        /// <summary>
+        /// 낙하 지점에서 이만큼 안에 서 있어야 쳐낼 수 있다(m).
+        ///
+        /// 기획 §18.1 "플레이어가 낙하 지점 반경 약 2.5m 안에 있어야 한다".
+        /// 소형 운석의 충격 반경(<see cref="MeteorSmallImpactRadius"/> 2m)보다 조금 넓고
+        /// 중형(<see cref="MeteorMediumImpactRadius"/> 3.5m)보다는 좁다 — 맞을 자리에
+        /// 서야 쳐낼 수 있고, 그것이 §18 이 만드는 긴장이다. 중형은 쳐내지 못한 채
+        /// 맞을 수도 있는 자리가 생긴다.
+        ///
+        /// <b>S15P21B202-233 의 이 주석은 틀려 있었다.</b> "충격 반경 2m" 라고 적었지만
+        /// 당시 상수는 크기 구분 없이 4m 하나여서, 실제로는 이 값(2.5m)이 충격 반경보다
+        /// <b>좁았다</b>. 기획 §17.7 을 보고 코드 값을 확인하지 않은 것이다.
+        /// S15P21B202-234 에서 상수를 §17.7 의 두 값으로 나누며 함께 고쳤다.
+        ///
+        /// <b>방망이 메시가 운석에 닿는지는 보지 않는다.</b> 기획이 "실제 방망이 메시가
+        /// 운석과 정확히 닿지 않아도 넓은 에너지 궤적으로 판정을 납득시킨다" 고 정한다.
+        /// </summary>
+        public const float BatAssistRadius = 2.5f;
+
+        /// <summary>
+        /// 헛스윙 뒤 다시 휘두를 수 없는 시간(초). 기획 §18.1 "약 1초".
+        ///
+        /// <b>맞혔을 때는 쿨다운이 없다.</b> 기획이 헛스윙에만 대기를 두었고, 맞히면
+        /// 목표가 사라지므로 연타할 것이 남지 않는다.
+        /// </summary>
+        public const float BatMissCooldownSeconds = 1f;
+
+        /// <summary>
+        /// 쳐낸 운석의 속도(m/s).
+        ///
+        /// 30m 에서 떨어진 운석의 착탄 속도가 sqrt(2 x 2.8 x 30) = 12.96m/s 다. 그보다
+        /// 조금 빠르게 잡아, 쳐낸 운석이 되돌아오지 않고 멀리 날아가게 했다.
+        /// </summary>
+        public const float BatDeflectSpeed = 14f;
+
+        /// <summary>
+        /// 쳐낸 운석이 수평에서 들리는 각도(도).
+        ///
+        /// 기획 §18.2 "카메라의 수평 방향에 약간의 위쪽 각도를 더해 결정한다",
+        /// "카메라가 지나치게 위나 아래를 보더라도 수직 각도는 자동 보정한다".
+        /// <b>보정을 따로 만들지 않았다</b> — 조준의 수평 성분만 쓰고 이 각도를 더하면
+        /// 위를 보든 아래를 보든 결과가 같다. 규칙을 두 번 쓰지 않는 편이 어긋나지 않는다.
+        /// </summary>
+        public const float BatLaunchDegrees = 30f;
+
+        /// <summary>
+        /// 한 번 휘두르는 데 걸리는 시간(초).
+        ///
+        /// <b>짧아야 한다.</b> 기획 §18.1 이 "완벽한 프레임, 등급과 치명타 판정은 없다"
+        /// 고 정하므로 동작이 판정을 좌우하면 안 된다. 타격 창(<see cref="BatSwingWindowSeconds"/>
+        /// 1초)의 3분의 1쯤이면, 창 안에서 클릭한 스윙은 창이 닫히기 전에 끝난다.
+        /// </summary>
+        public const float BatSwingSeconds = 0.28f;
+
+        /// <summary>스윙이 시작될 때 도구가 조준선보다 위로 들리는 각도(도).</summary>
+        public const float BatSwingUpDegrees = 55f;
+
+        /// <summary>
+        /// 스윙이 끝날 때의 각도(도). 음수면 조준선보다 아래다.
+        ///
+        /// 위에서 앞아래로 내려찍는 궤적이다. 야구 스윙처럼 수평으로 돌리지 않는 이유는
+        /// 목표가 <b>떨어지는 운석</b>이라서다 — 위에서 내려오는 것을 아래에서 위로 걷어
+        /// 올리는 것이 §18.2 의 "약간의 위쪽 각도를 더해" 와도 맞는다.
+        /// </summary>
+        public const float BatSwingDownDegrees = -35f;
+
+        /// <summary>
+        /// 방망이가 닿는 거리(m). 동료(기획 §18.3)와 소품에 같이 쓴다.
+        ///
+        /// 예전 이름은 <c>BatPlayerReach</c> 였다. 사거리는 <b>도구의 성질</b>이지 맞는
+        /// 쪽의 성질이 아니다 — 소품이 대상에 들어오면서(S15P21B202-245) 이름이 사실과
+        /// 어긋났다. 동료와 소품이 다른 거리에서 맞으면 플레이어가 두 값을 배워야 한다.
+        ///
+        /// 운석은 이 값을 쓰지 않는다. 운석은 <see cref="BatAssistRadius"/>(2.5m)로
+        /// <b>낙하 지점</b>까지의 거리를 재기 때문이다 — 공중에 있는 것을 팔 길이로
+        /// 재면 맞을 수 없다.
+        /// </summary>
+        public const float BatStrikeReach = 2f;
+
+        /// <summary>
+        /// 소품을 밀치는 충격량(N·s). 기획에 없는 값이다(S15P21B202-245).
+        ///
+        /// <b>속도가 아니라 충격량이다.</b> 소품은 질량이 제각각인데(<c>LevelBuilder</c> 가
+        /// 개별로 받는다) 속도를 대입하면 무거운 상자와 가벼운 조각이 똑같이 날아간다.
+        /// 충격량은 질량이 나누므로 무거운 것이 덜 움직인다 — 방망이로 <b>밀친다</b> 는
+        /// 감각이 그것이다.
+        ///
+        /// 60kg 운석이 <see cref="BatDeflectSpeed"/>(14m/s)로 날아가는 것과 비슷한 크기로
+        /// 잡았다. 20kg 짜리 상자면 초속 4m 쯤이다.
+        /// </summary>
+        public const float BatPropImpulse = 80f;
+
+        /// <summary>
+        /// 직접 맞은 동료가 밀려나는 속도(m/s).
+        ///
+        /// 마지막 고정못이 빠질 때(<see cref="ClampSnapBackSpeed"/> 3.5m/s)와 비슷하게
+        /// 잡았다. 기획 §18.3 이 "넘어지지만 기절하지는 않는다" 고 정하므로 그 정도면 된다.
+        /// </summary>
+        public const float BatPlayerKnockSpeed = 4f;
 
         /// <summary>
         /// 착탄 여부와 무관한 수명 상한.
@@ -627,6 +1018,41 @@ namespace Metagame.Gameplay
         /// 1장의 목표 플레이 시간이 미정이라 임시값이다. 기획 확정 후 맞춘다.
         /// </summary>
         public const float MeteorRampSeconds = 180f;
+
+        // --- 운석 공세 (기획 §17.3~17.6) ---
+        /// <summary>
+        /// 공세가 시작되기 몇 초 전에 신호를 보내는지. 기획 §17.3 "공세 약 5초 전".
+        ///
+        /// 신호만 내보낸다 — 유성우가 많아지고 진동음이 울리고 조명이 깜빡이는 것은
+        /// [Art]·[Sound] 가 만든다. <b>문구나 카운트다운 숫자는 표시하지 않는다</b>(§17.3).
+        /// </summary>
+        public const float MeteorWaveLeadSeconds = 5f;
+
+        /// <summary>공세 안에서 운석 사이의 최소 간격(초). 기획 §17.4 "1~2초 간격".</summary>
+        public const float MeteorWithinWaveMinSeconds = 1f;
+
+        /// <summary>공세 안에서 운석 사이의 최대 간격(초).</summary>
+        public const float MeteorWithinWaveMaxSeconds = 2f;
+
+        /// <summary>
+        /// 플레이어를 노릴 때 그 사람에게서 떨어뜨리는 최소 거리(m).
+        ///
+        /// 기획 §17.5 "무작위 플레이어 주변 1~3m", "플레이어의 정확한 위치에 강제로
+        /// 명중시키지 않는다". 0 으로 두면 피할 수 없는 공격이 되어, §3.3 의 "실패는
+        /// 대부분 복구 가능하게 만든다" 와 어긋난다.
+        /// </summary>
+        public const float MeteorPlayerTargetMinRadius = 1f;
+
+        /// <summary>플레이어를 노릴 때의 최대 거리(m).</summary>
+        public const float MeteorPlayerTargetMaxRadius = 3f;
+
+        /// <summary>
+        /// 같은 자리를 연속으로 고르지 않기 위한 최소 이동 거리(m).
+        ///
+        /// 기획 §17.5 "동일한 플레이어나 위치를 연속 선택하지 않는다". 거리로 재는 이유는
+        /// 좌표가 실수여서 "같은 위치" 를 등호로 판정할 수 없기 때문이다.
+        /// </summary>
+        public const float MeteorTargetRepeatDistance = 4f;
 
         // --- 전역 물리 설정 기록값 (ProjectSettings/DynamicsManager.asset) ---
         // Unity 6 기본값이 이미 목표치 이상이라 변경하지 않았다. 회귀 감시용으로만 기록한다.

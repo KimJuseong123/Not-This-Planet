@@ -32,6 +32,11 @@ def main() -> int:
     if not files:
         print("테스트 파일이 없습니다"); return 1
     env = dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
+    # 테스트는 절대 밖으로 나가지 않는다. 2026-09-01 사고 — ci-tests 잡에 실제 MM_WEBHOOK_URL 이
+    # 있어서, 배포 알림을 붙인 테스트가 팀 채널로 진짜 카드 4장을 보냈다. 개별 테스트가 http 를
+    # 막는지에 의존하지 않고, 스위트가 값을 지운다(테스트마다 실수할 여지를 없앤다).
+    for leak in ("MM_WEBHOOK_URL", "GITLAB_TOKEN", "JIRA_API_TOKEN", "ANTHROPIC_API_KEY"):
+        env.pop(leak, None)
     sh = shell()
     cmds = [(f, [sys.executable, os.path.join(HERE, f)]) for f in files]
     if shells and sh:

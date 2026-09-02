@@ -96,6 +96,14 @@ namespace Metagame.Gameplay
         public Vector3 FacingDirection { get { return faceDir; } }
         /// <summary>현재 실제 수평 이동을 캐릭터 정면 기준 좌우·전후로 나타낸 값.</summary>
         public Vector2 MovementDirectionLocal { get { return movementDirectionLocal; } }
+
+        /// <summary>
+        /// 이번 틱의 <b>이동 의도</b>(월드 수평, 최대 길이 1). 실제 속도가 아니다.
+        ///
+        /// 파츠 밀기(기획 §13.1 "이동 방향을 검사한다")가 쓴다. 500kg 짜리 파츠를 밀 때는
+        /// 제자리걸음이라 속도로는 의도를 알 수 없다(S15P21B202-250).
+        /// </summary>
+        public Vector3 MoveWish { get; private set; }
         /// <summary>공중에서 자세제어 분사기를 쓰고 있는가 (HUD·연기 표시용).</summary>
         public bool Thrusting { get; private set; }
         public float AirTime { get; private set; }
@@ -120,8 +128,21 @@ namespace Metagame.Gameplay
         public bool ChargingTool { get { return chargingTool; } }
         /// <summary>현재 조준 중인 고정쇠를 찾고 해제 홀드를 진행하는 상호작용 주체.</summary>
         public Interactor ClampInteractor { get; private set; }
-        /// <summary>좌·우 중 하나 이상의 버튼으로 고정쇠를 잡은 상태.</summary>
-        public bool ClampGrabbed { get { return clampGrabbed; } }
+        /// <summary>실제로 한 손이 고정쇠에 결합된 상태.</summary>
+        public bool ClampGrabbed
+        {
+            get
+            {
+                return clampGrabbed && clampGrabHand != null && clampGrabTarget != null
+                       && !clampGrabTarget.IsReleased
+                       && clampGrabHand.Gripping
+                       && clampGrabHand.Held == clampGrabTarget.GripTarget;
+            }
+        }
+
+        /// <summary>HUD와 입력 처리가 공유하는 현재 화면 중심 상호작용 대상.</summary>
+        public PlayerInteractionTarget CurrentInteractionTarget { get; private set; } =
+            PlayerInteractionTarget.None;
 
         /// <summary>
         /// 지금 잡고 있는 고정못. 없으면 null. 연출과 검증이 쓴다.
@@ -130,13 +151,10 @@ namespace Metagame.Gameplay
 
         /// <summary>이번 틱에 고정못을 실제로 뒤로 당겼는가. 낑낑대는 연출이 붙을 신호다.</summary>
         public bool ClampPulling { get; private set; }
-        /// <summary>고정쇠를 위로 드는 거리 기준을 넘었는가.</summary>
         /// <summary>
-        /// 예전 조작(마우스를 위로 들어 홀드를 시작)의 잔재. 뒤로 이동 방식으로 바뀐
-        /// 뒤에는 "잡고 있는가" 와 같은 뜻이다. HUD 가 아직 이 이름을 쓴다.
+        /// 예전 조작의 호환용 이름. 현재는 실제 손 결합 여부를 반환한다.
         /// </summary>
-        public bool ClampLiftReady { get { return clampGrabbed; } }
-        /// <summary>고정쇠를 위로 드는 거리의 0~1 진행도.</summary>
+        public bool ClampLiftReady { get { return ClampGrabbed; } }
         /// <summary>
         /// 잡고 있는 고정못이 얼마나 뽑혔는가 0~1.
         ///
@@ -147,16 +165,37 @@ namespace Metagame.Gameplay
         {
             get { return clampGrabTarget != null ? clampGrabTarget.Progress : 0f; }
         }
-        /// <summary>위로 든 뒤 실제 해제 유지 시간을 진행 중인가.</summary>
+        /// <summary>실제로 결합된 손의 버튼을 계속 누르고 있는가.</summary>
         public bool ClampReleaseHolding
         {
-            get { return ClampInteractor != null && ClampInteractor.State == InteractorState.Holding; }
+            get
+            {
+                if (!ClampGrabbed) return false;
+                return clampGrabHand == LeftHand ? input.GrabLeft : input.GrabRight;
+            }
         }
 
         public Hand LeftHand { get { return Doll.Left.Hand; } }
         public Hand RightHand { get { return Doll.Right.Hand; } }
         public Rigidbody Hips { get { return Doll.Hips; } }
         public Vector3 Position { get { return Doll.Hips.position; } }
+
+        /// <summary>
+        /// 살아 있는 플레이어. <see cref="Parts.PartSocket.All"/> 과 같은 방식이다.
+        ///
+        /// 방망이(<see cref="MeteorBat"/>)가 때릴 동료를 여기서 찾는다(기획 §18.3).
+        /// 콜라이더를 훑지 않는 이유는 인형 하나가 <b>Rigidbody 여럿</b>이기 때문이다 —
+        /// 몸통·팔·다리가 각자 콜라이더라 같은 사람을 여러 번 찾게 되고, 어느 부위가
+        /// 맞았는지는 §18.3 이 구분하지 않는다.
+        /// </summary>
+        public static readonly List<PlayerRig> All = new();
+
+        void OnEnable()
+        {
+            if (!All.Contains(this)) All.Add(this);
+        }
+
+        void OnDisable() => All.Remove(this);
         public Vector3 FootPosition { get { return Doll.Hips.position - Vector3.up * RagdollBuilder.HipsY; } }
 
         InputFrame input;
@@ -188,6 +227,8 @@ namespace Metagame.Gameplay
         bool previousGrabRight;
         bool clampGrabbed;
         PartClamp clampGrabTarget;
+        Hand clampGrabHand;
+        TransportVehicle[] interactionVehicles = System.Array.Empty<TransportVehicle>();
         Rigidbody pendingThrowBody;
         Vector3 pendingThrowVelocity;
         Rigidbody groundBody;
@@ -197,6 +238,7 @@ namespace Metagame.Gameplay
         readonly Dictionary<Rigidbody, CarriedBodyState> carriedBodies = new Dictionary<Rigidbody, CarriedBodyState>(4);
         readonly List<CollisionPair> heldObjectCollisionPairs = new List<CollisionPair>(24);
         readonly RaycastHit[] rayHits = new RaycastHit[8];
+        readonly Collider[] interactionCandidates = new Collider[32];
 
         struct CarriedBodyState
         {
@@ -223,6 +265,7 @@ namespace Metagame.Gameplay
             var rig = go.AddComponent<PlayerRig>();
             rig.Nickname = nickname;
             bool model = useModel && SpaceSuit.Available;
+            if (!All.Contains(rig)) All.Add(rig);   // EditMode 에서는 OnEnable 이 돌지 않는다
             rig.Doll = RagdollBuilder.Build(nickname, footPos, facing, suit, accent, !model);
             rig.Doll.Root.SetParent(go.transform, true);
             rig.ClampInteractor = go.AddComponent<Interactor>();
@@ -235,6 +278,8 @@ namespace Metagame.Gameplay
 
         void OnDestroy()
         {
+            All.Remove(this);
+
             if (activeTool != null) activeTool.Unequip();
             RestoreAllCarriedBodies();
             ClearHeldObjectOwnerCollision();
@@ -253,6 +298,162 @@ namespace Metagame.Gameplay
 
             ClampInteractor.Configure(aim, ClampInteractionRange, ClampInteractionHalfAngle);
         }
+
+        /// <summary>운반 장치 후보를 단일 현장 포커스에 등록한다.</summary>
+        public void ConfigureTransportInteractionTargets(TransportVehicle[] vehicles)
+        {
+            interactionVehicles = vehicles ?? System.Array.Empty<TransportVehicle>();
+            RefreshInteractionFocus();
+        }
+
+        /// <summary>
+        /// 현재 카메라 중심에서 실제로 조작할 수 있는 대상을 하나만 고른다.
+        /// HUD가 별도 대상을 찾지 않도록 입력 직전에 갱신하고, 고정쇠를 이미 잡은 동안에는
+        /// 그 대상을 잠근다.
+        /// </summary>
+        public void RefreshInteractionFocus()
+        {
+            if (Doll == null || Doll.Head == null || IsRiding || Downed)
+            {
+                CurrentInteractionTarget = PlayerInteractionTarget.None;
+                return;
+            }
+
+            if (clampGrabbed)
+            {
+                if (ClampGrabbed)
+                {
+                    CurrentInteractionTarget = MakeTarget(
+                        PlayerInteractionKind.Clamp, clampGrabTarget, null, null,
+                        clampGrabTarget.transform.position, 0f,
+                        Vector3.Distance(InteractionOrigin(), clampGrabTarget.transform.position));
+                    return;
+                }
+
+                ResetClampGrab();
+            }
+
+            var origin = InteractionOrigin();
+            var forward = InteractionForward();
+            var best = PlayerInteractionTarget.None;
+
+            // Interactor의 고정쇠 탐색 규칙은 기존 테스트와의 호환을 위해 그대로 재사용한다.
+            ClampInteractor?.Tick(0f);
+            var clamp = ClampInteractor != null ? ClampInteractor.Focus as PartClamp : null;
+            if (clamp != null && !clamp.IsReleased
+                && (ClampInteractor == null || clamp.GetAvailability(ClampInteractor).IsAllowed))
+            {
+                var point = clamp.transform.position;
+                Consider(ref best, MakeTarget(PlayerInteractionKind.Clamp, clamp, null, null,
+                                              point, AngleFrom(origin, forward, point),
+                                              Vector3.Distance(origin, point)));
+            }
+
+            FindCrosshairGrabbable(origin, forward, ref best);
+            FindDownedTeammate(origin, forward, ref best);
+
+            if (Cam != null)
+            {
+                for (var i = 0; i < interactionVehicles.Length; i++)
+                {
+                    var vehicle = interactionVehicles[i];
+                    if (vehicle == null || !vehicle.isActiveAndEnabled || vehicle.IsReturning
+                        || !vehicle.CanBoardFrom(this)) continue;
+
+                    var point = vehicle.transform.position
+                                + Vector3.up * TransportVehicle.InteractionFocusHeight;
+                    var distance = Vector3.Distance(origin, point);
+                    if (distance > TransportVehicle.InteractionFocusRange) continue;
+
+                    var angle = AngleFrom(origin, forward, point);
+                    if (angle > TransportVehicle.InteractionFocusHalfAngle) continue;
+
+                    Consider(ref best, MakeTarget(PlayerInteractionKind.Transport, null, null,
+                                                  vehicle, point, angle, distance));
+                }
+            }
+
+            CurrentInteractionTarget = best;
+        }
+
+        Vector3 InteractionOrigin() => Cam != null ? Cam.transform.position : Doll.Head.transform.position;
+
+        Vector3 InteractionForward()
+        {
+            var forward = Cam != null ? Cam.transform.forward : Doll.Head.transform.forward;
+            return forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
+        }
+
+        void FindCrosshairGrabbable(Vector3 origin, Vector3 forward,
+                                    ref PlayerInteractionTarget best)
+        {
+            var center = origin + forward * Tuning.ArmReach;
+            var count = Physics.OverlapSphereNonAlloc(center, Tuning.GrabAssistRange,
+                                                       interactionCandidates,
+                                                       RagdollBuilder.WorldMask,
+                                                       QueryTriggerInteraction.Ignore);
+
+            for (var i = 0; i < count; i++)
+            {
+                var collider = interactionCandidates[i];
+                if (collider == null) continue;
+
+                var grabbable = collider.GetComponentInParent<Grabbable>();
+                if (grabbable == null || !grabbable.isActiveAndEnabled || !grabbable.CanGrab
+                    || grabbable == toolHeld)
+                    continue;
+
+                var point = collider.ClosestPoint(center);
+                var distance = Vector3.Distance(origin, point);
+                var angle = AngleFrom(origin, forward, point);
+                if (angle > Tuning.GrabAssistAngle) continue;
+
+                Consider(ref best, MakeTarget(PlayerInteractionKind.Grabbable, null, grabbable,
+                                              null, point, angle, distance));
+            }
+        }
+
+        static PlayerInteractionTarget MakeTarget(PlayerInteractionKind kind, PartClamp clamp,
+                                                   Grabbable grabbable, TransportVehicle vehicle,
+                                                   Vector3 point, float angle, float distance) =>
+            new PlayerInteractionTarget(kind, clamp, grabbable, vehicle, point, angle, distance);
+
+        static float AngleFrom(Vector3 origin, Vector3 forward, Vector3 point)
+        {
+            var offset = point - origin;
+            return offset.sqrMagnitude < 1e-6f ? 0f : Vector3.Angle(forward, offset);
+        }
+
+        static void Consider(ref PlayerInteractionTarget current,
+                             PlayerInteractionTarget candidate)
+        {
+            if (!candidate.IsValid) return;
+            if (current.Kind == PlayerInteractionKind.None || IsBetter(candidate, current))
+                current = candidate;
+        }
+
+        static bool IsBetter(PlayerInteractionTarget candidate, PlayerInteractionTarget current)
+        {
+            const float epsilon = 0.01f;
+            if (candidate.Angle < current.Angle - epsilon) return true;
+            if (candidate.Angle > current.Angle + epsilon) return false;
+            if (candidate.Distance < current.Distance - epsilon) return true;
+            if (candidate.Distance > current.Distance + epsilon) return false;
+
+            var comparison = ComparePosition(candidate.Point, current.Point);
+            if (comparison != 0) return comparison < 0;
+            return candidate.Kind < current.Kind;
+        }
+
+        static int ComparePosition(Vector3 left, Vector3 right)
+        {
+            var comparison = left.x.CompareTo(right.x);
+            if (comparison != 0) return comparison;
+
+            comparison = left.y.CompareTo(right.y);
+            return comparison != 0 ? comparison : left.z.CompareTo(right.z);
+        }
+
         public InputFrame CurrentInput { get { return input; } }
 
         /// <summary>체크포인트 부활이나 새 라운드에서 체력을 초기화한다.</summary>
@@ -291,16 +492,33 @@ namespace Metagame.Gameplay
             Ragdolled = true;
             uprightBlend = 0f;
 
+            DropEquipment();
+
+            SetDollLayer(GameLayers.PlayerDowned);
+            RefreshRescueTarget();
+            RefreshCarryTarget();
+
+            Debug.Log("[SpaceFlop] " + Nickname + " 기절 (" + source + ")");
+        }
+
+        /// <summary>
+        /// 들고 있던 것과 잡고 있던 것을 모두 놓는다.
+        ///
+        /// <b>기절과 분리해 둔다.</b> 기획 §20.1 의 "강한 충격: 크게 날아가고 들고 있던
+        /// 장비를 떨어뜨림" 은 기절이 아니다 — 예전에는 이 다섯 줄이
+        /// <see cref="GoDown"/> 안에만 있어서 <b>기절하지 않으면 장비를 떨어뜨릴 수가
+        /// 없었다</b>(S15P21B202-247).
+        ///
+        /// 고정못은 손만 뗀다. <see cref="ResetClampGrab"/> 이 진행분을 남기므로
+        /// §12.1 "운석에 맞아도 빠진 정도는 유지된다" 가 지켜진다.
+        /// </summary>
+        public void DropEquipment()
+        {
             ReleaseHand(LeftHand);
             ReleaseHand(RightHand);
             ClampInteractor?.Cancel();
             ResetClampGrab();
             ResetToolState();
-
-            SetDollLayer(GameLayers.PlayerDowned);
-            RefreshRescueTarget();
-
-            Debug.Log("[SpaceFlop] " + Nickname + " 기절 (" + source + ")");
         }
 
         /// <summary>
@@ -316,6 +534,7 @@ namespace Metagame.Gameplay
 
             SetDollLayer(GameLayers.Player);
             RefreshRescueTarget();
+            RefreshCarryTarget();
         }
 
         /// <summary>
@@ -346,6 +565,95 @@ namespace Metagame.Gameplay
 
             if (!Downed) RescueTarget.ResetProgress();
             RescueTarget.gameObject.SetActive(Downed);
+        }
+
+        /// <summary>
+        /// 운반 대상(기획 §20.4). 다운한 동안만 켜진다.
+        ///
+        /// <see cref="RescueTarget"/> 과 같은 방식이다 — 인형의 몸을 건드리지 않고 자식
+        /// 하나를 둔다. "몸의 레이어를 바꾸면 충돌 매트릭스가 함께 흔들린다".
+        ///
+        /// <b>콜라이더를 두지 않는다.</b> 찾는 것은 물리 질의가 아니라
+        /// <see cref="FindDownedTeammate"/> 가 <see cref="All"/> 을 훑어서 한다 —
+        /// 조준 탐색 마스크(<see cref="RagdollBuilder.WorldMask"/>)는 Player ·
+        /// PlayerDowned · Interactable 을 <b>모두</b> 빼고 트리거도 무시하므로 콜라이더로는
+        /// 어차피 걸리지 않는다. 마스크를 열면 고정못(파츠의 자식이다)이 파츠의 잡기
+        /// 지점으로 딸려 들어온다(S15P21B202-249).
+        /// </summary>
+        public Grabbable CarryTarget { get; private set; }
+
+        void RefreshCarryTarget()
+        {
+            if (Doll == null || Doll.Hips == null) return;
+
+            if (CarryTarget == null)
+            {
+                var go = new GameObject("운반 지점") { layer = GameLayers.Interactable };
+                go.transform.SetParent(Doll.Hips.transform, false);
+
+                CarryTarget = go.AddComponent<Grabbable>();
+                CarryTarget.Label = "기절한 동료";
+                CarryTarget.Role = GrabbableRole.Transport;
+                CarryTarget.PhysicsGrip = true;   // 도구처럼 몸 앞에 붙지 않게 (§20.4)
+            }
+
+            // 일으키는 순간 잡고 있던 손을 놓게 한다. 컴포넌트를 끄는 것만으로는
+            // 이미 만들어진 FixedJoint 가 사라지지 않는다.
+            if (!Downed) ReleaseCarriersOf(CarryTarget);
+
+            CarryTarget.gameObject.SetActive(Downed);
+        }
+
+        /// <summary>이 대상을 잡고 있는 모든 손을 놓게 한다.</summary>
+        static void ReleaseCarriersOf(Grabbable target)
+        {
+            if (target == null || target.HandCount <= 0) return;
+
+            for (var i = 0; i < All.Count; i++)
+            {
+                var rig = All[i];
+                if (rig == null || rig.Doll == null) continue;   // LeftHand 가 Doll 을 탄다
+
+                if (rig.LeftHand != null && rig.LeftHand.Held == target) rig.ReleaseHand(rig.LeftHand);
+                if (rig.RightHand != null && rig.RightHand.Held == target) rig.ReleaseHand(rig.RightHand);
+            }
+        }
+
+        /// <summary>지금 기절한 동료를 끌고 있는가(기획 §20.4).</summary>
+        public bool CarryingDownedTeammate =>
+            IsCarryPoint(LeftHand) || IsCarryPoint(RightHand);
+
+        static bool IsCarryPoint(Hand hand) =>
+            hand != null && hand.Held != null && hand.Held.PhysicsGrip;
+
+        /// <summary>
+        /// 조준 앞의 기절한 동료를 후보로 넣는다(기획 §20.4).
+        ///
+        /// <b>물리 질의를 쓰지 않는다.</b> 이유는 <see cref="CarryTarget"/> 에 적었다.
+        /// <see cref="Hazards.MeteorBat"/> 가 때릴 동료를 <see cref="All"/> 로 찾는 것과
+        /// 같은 방식이다.
+        /// </summary>
+        void FindDownedTeammate(Vector3 origin, Vector3 forward,
+                                ref PlayerInteractionTarget best)
+        {
+            for (var i = 0; i < All.Count; i++)
+            {
+                var other = All[i];
+                if (other == null || other == this || !other.Downed) continue;
+
+                var carry = other.CarryTarget;
+                if (carry == null || !carry.isActiveAndEnabled || !carry.CanGrab) continue;
+
+                var point = carry.transform.position;
+                var distance = Vector3.Distance(origin, point);
+                if (distance > PhysicsScale.DownedCarryReach) continue;
+
+                var angle = AngleFrom(origin, forward, point);
+                if (angle > PhysicsScale.DownedCarryAngle) continue;
+
+                Consider(ref best, MakeTarget(PlayerInteractionKind.Grabbable, null, carry,
+                                              null, point, angle, distance));
+            }
         }
 
         void SetDollLayer(int layer)
@@ -698,6 +1006,8 @@ namespace Metagame.Gameplay
             if (Doll == null || Doll.Hips == null) return;
             if (!JointTools.IsFinite(Doll.Hips.position)) { return; }
 
+            RefreshInteractionFocus();
+
             // Release가 예약한 조인트 제거가 끝난 다음 틱에 속도를 넣어야 투척이 구속에 먹히지 않는다.
             if (pendingThrowBody != null)
             {
@@ -943,9 +1253,18 @@ namespace Metagame.Gameplay
             }
             if (wish.sqrMagnitude > 1f) wish.Normalize();
 
+            // 파츠 밀기(기획 §13)가 이 값을 본다. MovementDirectionLocal 은 실제 속도를
+            // 우선하는 로컬 좌표라 쓸 수 없다 — 500kg 짜리 파츠에 막혀 제자리걸음일 때도
+            // "파츠 쪽으로 밀고 있다" 는 것을 알아야 한다.
+            MoveWish = wish;
+
             float top = Floating
                 ? PhysicsScale.FieldFloatSpeed
                 : (input.Run ? Tuning.RunSpeed : Tuning.WalkSpeed);
+
+            // 기절한 동료를 끌고 가는 동안 느려진다(기획 §20.4). 34.9kg 을 저중력에서
+            // 끌고 가는 것이라 그냥 걷는 것과 같으면 안 된다.
+            if (CarryingDownedTeammate) top *= PhysicsScale.DownedCarrySpeedScale;
             Vector3 targetVel = wish * top;
             targetVel.x += GroundVelocity.x;
             targetVel.z += GroundVelocity.z;
@@ -1190,9 +1509,18 @@ namespace Metagame.Gameplay
                     return;
                 }
                 SetActiveToolInput(aim, GetToolUtilityHeld());
-                HoldToolPose(aim);
-                DriveArm(Doll.Left, true, aim);
-                DriveArm(Doll.Right, true, aim);
+
+                // 도구가 자세를 흔들 수 있게 한다(S15P21B202-243). 방망이는 휘두르는 동안
+                // 조준선에서 벗어난 방향을 돌려주고, 그러면 도구가 카메라 주위로 호를
+                // 그린다 — HoldToolPose 가 방향 하나로 위치와 회전을 정하기 때문이다.
+                //
+                // <b>입력보다 뒤에 묻는다.</b> SetActiveToolInput 이 이번 틱의 클릭을
+                // 넘겨 스윙을 시작시키므로, 그 앞에서 물으면 한 틱 늦게 움직인다.
+                Vector3 carryAim = activeTool != null ? activeTool.CarryAim(aim) : aim;
+
+                HoldToolPose(carryAim);
+                DriveArm(Doll.Left, true, carryAim);
+                DriveArm(Doll.Right, true, carryAim);
                 SyncHeldObjectOwnerCollision();
                 return;
             }
@@ -1201,20 +1529,26 @@ namespace Metagame.Gameplay
             toolCharge = 0f;
             toolActionHeld = false;
 
-            // 고정쇠는 좌·우 어느 버튼이든 누르면 먼저 잡힌다. 이후 카메라를
-            // 위로 일정 각도 들었을 때만 해제 유지 판정으로 넘어간다.
             // 고정쇠가 조준 중이면 일반 손잡이/도구 탐색보다 우선한다.
+            // 단순히 클릭한 상태가 아니라 실제 한 손이 고정쇠에 결합되어야 시작한다.
             bool clampInteractionActive = ProcessClampInteraction();
             if (clampInteractionActive)
             {
-                DriveArm(Doll.Left, input.GrabLeft, aim);
-                DriveArm(Doll.Right, input.GrabRight, aim);
+                DriveArm(Doll.Left, clampGrabHand == LeftHand && input.GrabLeft,
+                         aim, null, false);
+                DriveArm(Doll.Right, clampGrabHand == RightHand && input.GrabRight,
+                         aim, null, false);
                 SyncHeldObjectOwnerCollision();
                 return;
             }
 
-            // 좌클릭과 우클릭 중 어느 쪽이든 Tool 역할의 대상을 조준하면 양손으로 함께 잡는다.
-            if ((input.GrabLeft || input.GrabRight) && toolThrowRegrabLock <= 0f && TryGrabTool(aim))
+            var focusedGrabbable = CurrentInteractionTarget.Kind == PlayerInteractionKind.Grabbable
+                ? CurrentInteractionTarget.Grabbable : null;
+            bool hasFocusedInteraction = focusedGrabbable != null;
+
+            // 좌클릭과 우클릭 중 어느 쪽이든 현재 단일 포커스가 Tool 역할이면 양손으로 함께 잡는다.
+            if ((input.GrabLeft || input.GrabRight) && toolThrowRegrabLock <= 0f
+                && TryGrabTool(aim, CurrentInteractionTarget))
             {
                 DriveArm(Doll.Left, true, aim);
                 DriveArm(Doll.Right, true, aim);
@@ -1224,8 +1558,8 @@ namespace Metagame.Gameplay
                 return;
             }
 
-            DriveArm(Doll.Left, input.GrabLeft, aim);
-            DriveArm(Doll.Right, input.GrabRight, aim);
+            DriveArm(Doll.Left, input.GrabLeft, aim, focusedGrabbable, hasFocusedInteraction);
+            DriveArm(Doll.Right, input.GrabRight, aim, focusedGrabbable, hasFocusedInteraction);
             ClimbAssist();
             if (leftPressed) LogHandInteraction("좌클릭", LeftHand);
             if (rightPressed) LogHandInteraction("우클릭", RightHand);
@@ -1233,9 +1567,8 @@ namespace Metagame.Gameplay
         }
 
         /// <summary>
-        /// 고정쇠를 버튼으로 먼저 잡고, 카메라를 위로 일정 각도 들어 올리면
-        /// 해제 유지 홀드를 시작한다. 기준을 넘은 뒤에는 위로 계속 움직이지 않아도
-        /// 버튼을 누르고 있는 동안 유지 시간이 진행된다.
+        /// 고정쇠를 클릭하면 실제 손을 결합하고, 결합에 성공한 뒤에만 뒤로 이동 입력으로
+        /// 뽑는 진행을 시작한다.
         /// </summary>
         bool ProcessClampInteraction()
         {
@@ -1245,37 +1578,71 @@ namespace Metagame.Gameplay
 
             if (!buttonHeld)
             {
-                ClampInteractor.Cancel();
                 ResetClampGrab();
-                ClampInteractor.Tick(0f);
                 return false;
             }
 
             if (clampGrabTarget != null && clampGrabTarget.IsReleased)
             {
-                ClampInteractor.Cancel();
                 ResetClampGrab();
-                ClampInteractor.Tick(0f);
                 return false;
             }
 
-            if (!clampGrabbed)
+            if (clampGrabbed)
             {
-                // 잡기 시작 순간의 포커스를 고정한다. 이후 무거운 카메라 반동으로
-                // 조준점이 살짝 움직여도 처음 잡은 고정못을 놓치지 않는다.
-                ClampInteractor.Tick(0f);
-                var focus = ClampInteractor.Focus as PartClamp;
-                if (focus != null && !focus.IsReleased && focus.TryJoinPull())
-                {
-                    clampGrabbed = true;
-                    clampGrabTarget = focus;
-                }
+                bool activeButtonHeld = clampGrabHand == LeftHand
+                    ? input.GrabLeft : clampGrabHand == RightHand && input.GrabRight;
+                if (!activeButtonHeld) ResetClampGrab();
             }
 
-            if (!clampGrabbed) return false;
+            if (clampGrabbed)
+            {
+                PullGrabbedClamp();
+                return true;
+            }
+
+            // 여러 후보 중 PlayerRig가 고른 하나만 고정쇠 입력 대상이다. 먼저 손을
+            // 실제 고정쇠 지점에 결합하고, 결합 성공 뒤에만 puller를 등록한다.
+            var target = CurrentInteractionTarget;
+            if (target.Kind != PlayerInteractionKind.Clamp || target.Clamp == null
+                || target.Clamp.IsReleased) return false;
+
+            var focus = target.Clamp;
+            var hand = TryAttachClampHand(focus);
+            if (hand == null) return false;
+
+            if (!focus.TryJoinPull())
+            {
+                ReleaseHand(hand);
+                return false;
+            }
+
+            clampGrabbed = true;
+            clampGrabTarget = focus;
+            clampGrabHand = hand;
 
             PullGrabbedClamp();
             return true;
+        }
+
+        Hand TryAttachClampHand(PartClamp target)
+        {
+            if (target == null || target.GripTarget == null) return null;
+
+            var point = target.transform.position;
+            var body = target.PartBody;
+
+            // 양쪽을 동시에 누르면 왼손을 우선한다. 한 손이 이미 다른 것을 잡고
+            // 있으면 오른손을 시도하되, 어느 손도 결합되지 않으면 pull을 시작하지 않는다.
+            if (input.GrabLeft && LeftHand != null && !LeftHand.Gripping && !LeftHand.Carrying
+                && LeftHand.GripToFixedAtPoint(target.GripTarget, body, point))
+                return LeftHand;
+
+            if (input.GrabRight && RightHand != null && !RightHand.Gripping && !RightHand.Carrying
+                && RightHand.GripToFixedAtPoint(target.GripTarget, body, point))
+                return RightHand;
+
+            return null;
         }
 
         /// <summary>
@@ -1357,14 +1724,36 @@ namespace Metagame.Gameplay
         }
 
         /// <summary>마지막 고정못이 빠져 뒤로 넘어진다(기획 §12.2).</summary>
-        void SnapBackFromClamp(Vector3 away)
+        void SnapBackFromClamp(Vector3 away) =>
+            KnockDown(away, PhysicsScale.ClampSnapBackSpeed);
+
+        /// <summary>
+        /// 넘어뜨린다. <b>기절시키지 않는다.</b>
+        ///
+        /// 기절 처리를 새로 만들지 않는다 — <see cref="Balance"/> 가 이미 넘어진 자세를
+        /// 스스로 세우므로, 충격만 주고 <see cref="Ragdolled"/> 를 켜면 구르다가 일어난다.
+        /// 체력도 깎지 않는다. 기획이 §12.2("뒤로 넘어질 수 있다")와 §18.3("넘어지지만
+        /// 기절하지는 않는다") 두 곳에서 기절과 구분하기 때문이다.
+        ///
+        /// <b>세 곳이 같은 것을 필요로 해서 여기로 모았다</b> — 마지막 고정못(§12.2),
+        /// 방망이 직접 타격(§18.3), 그리고 발사 실패 사출(§22.4)이다. 사출은 조인트를
+        /// 끊고 중력을 켜고 <c>faceDir</c> 까지 돌리므로 <see cref="EjectFromShip"/> 에
+        /// 그대로 남겼다 — 하는 일이 이것보다 넓다.
+        /// </summary>
+        public void KnockDown(Vector3 direction, float speed)
         {
+            if (Downed) return;
+
+            var away = direction;
+            if (away.sqrMagnitude < 1e-6f) away = -faceDir;
+            away.Normalize();
+
             for (var i = 0; i < Doll.Bodies.Count; i++)
             {
                 var body = Doll.Bodies[i];
                 if (body == null || body.isKinematic) continue;
 
-                body.linearVelocity += away * PhysicsScale.ClampSnapBackSpeed;
+                body.linearVelocity += away * speed;
             }
 
             Ragdolled = true;
@@ -1376,10 +1765,13 @@ namespace Metagame.Gameplay
         /// </summary>
         void ResetClampGrab()
         {
+            if (clampGrabHand != null)
+                ReleaseHand(clampGrabHand);
             if (clampGrabbed && clampGrabTarget != null) clampGrabTarget.LeavePull();
 
             clampGrabbed = false;
             clampGrabTarget = null;
+            clampGrabHand = null;
             ClampPulling = false;
         }
 
@@ -1415,30 +1807,20 @@ namespace Metagame.Gameplay
                       + " | 대상=" + label + " | 질량=" + mass);
         }
 
-        bool TryGrabTool(Vector3 aim)
+        bool TryGrabTool(Vector3 aim, PlayerInteractionTarget focus)
         {
             if (LeftHand.Gripping || LeftHand.Carrying || RightHand.Gripping || RightHand.Carrying)
                 return false;
 
-            Grabbable targetGrabbable;
-            Rigidbody body;
-            Vector3 point;
-            bool found = false;
+            var targetGrabbable = focus.Kind == PlayerInteractionKind.Grabbable
+                ? focus.Grabbable : null;
+            var body = BodyOf(targetGrabbable);
+            if (!IsUsableTool(targetGrabbable, body)) return false;
 
-            // 두 버튼이 동시에 들어오는 경우에도 한쪽 검색이 빗나갔다고 실패하지 않도록
-            // 클릭된 손을 순서대로 살핀다. 도구를 찾은 손이 어느 쪽인지는 중요하지 않다.
-            if (input.GrabLeft)
-                found = FindTool(Doll.Left, LeftHand, aim, out targetGrabbable, out body, out point);
-            else
-            {
-                targetGrabbable = null;
-                body = null;
-                point = Vector3.zero;
-            }
-
-            if (!found && input.GrabRight)
-                found = FindTool(Doll.Right, RightHand, aim, out targetGrabbable, out body, out point);
-            if (!found) return false;
+            LeftHand.Aimed = targetGrabbable;
+            LeftHand.AimedPoint = focus.Point;
+            RightHand.Aimed = targetGrabbable;
+            RightHand.AimedPoint = focus.Point;
 
             // 도구는 역할에 따라 양손 논리 고정 그립으로 잡는다. 잡은 직후 Rigidbody를
             // 키네마틱으로 전환하고 포즈를 직접 제어하므로 양손 FixedJoint 반작용을 만들지 않는다.
@@ -1537,18 +1919,6 @@ namespace Metagame.Gameplay
             suppressToolPrimary = false;
             suppressToolSecondary = false;
             suppressToolUtility = false;
-        }
-
-        static bool FindTool(Arm arm, Hand hand, Vector3 aim,
-                             out Grabbable targetGrabbable, out Rigidbody body, out Vector3 point)
-        {
-            Vector3 shoulder = arm.ShoulderAnchor != null ? arm.ShoulderAnchor.position : hand.Body.position;
-            Vector3 target = shoulder + aim * Tuning.ArmReach;
-            targetGrabbable = Hand.Search(target, Tuning.GrabAssistRange, shoulder, aim,
-                                          Tuning.GrabAssistAngle, out point, out body);
-            hand.Aimed = targetGrabbable;
-            hand.AimedPoint = point;
-            return IsUsableTool(targetGrabbable, body);
         }
 
         static bool IsUsableTool(Grabbable target, Rigidbody body)
@@ -1843,7 +2213,8 @@ namespace Metagame.Gameplay
             carriedBodies.Clear();
         }
 
-        void DriveArm(Arm arm, bool reaching, Vector3 aim)
+        void DriveArm(Arm arm, bool reaching, Vector3 aim,
+                      Grabbable focusedTarget = null, bool allowGeneralGrip = true)
         {
             var hand = arm.Hand;
 
@@ -1854,7 +2225,20 @@ namespace Metagame.Gameplay
                     ReleaseHand(hand);
                     regrabLock = Tuning.RegrabLock;
                 }
-                UpdateAimedTarget(arm, hand, aim);
+                if (!allowGeneralGrip)
+                {
+                    hand.Aimed = null;
+                    hand.AimedPoint = hand.Body != null ? hand.Body.position : Vector3.zero;
+                }
+                else if (focusedTarget != null)
+                {
+                    hand.Aimed = focusedTarget;
+                    hand.AimedPoint = CurrentInteractionTarget.Point;
+                }
+                else
+                {
+                    UpdateAimedTarget(arm, hand, aim);
+                }
                 JointTools.SetDrive(arm.Shoulder, 26f, 4f);
                 JointTools.SetDrive(arm.Elbow, 18f, 3f);
                 JointTools.SetTargetLocalRotation(arm.Shoulder, Quaternion.identity, arm.ShoulderStart);
@@ -1876,7 +2260,24 @@ namespace Metagame.Gameplay
             if (!hand.Gripping && !hand.Carrying)
             {
                 Vector3 p; Rigidbody b;
-                var g = Hand.Search(target, Tuning.GrabAssistRange, shoulder, aim, Tuning.GrabAssistAngle, out p, out b);
+                Grabbable g;
+                if (!allowGeneralGrip)
+                {
+                    g = null;
+                    p = target;
+                    b = null;
+                }
+                else if (focusedTarget != null)
+                {
+                    g = focusedTarget;
+                    p = CurrentInteractionTarget.Point;
+                    b = BodyOf(focusedTarget);
+                }
+                else
+                {
+                    g = Hand.Search(target, Tuning.GrabAssistRange, shoulder, aim,
+                                    Tuning.GrabAssistAngle, out p, out b);
+                }
                 hand.Aimed = g;
                 hand.AimedPoint = p;
                 toolTarget = IsUsableTool(g, b);
@@ -1907,6 +2308,11 @@ namespace Metagame.Gameplay
             if (toolHeld != null && hand.Held == toolHeld)
                 return;
 
+            // 고정쇠 경로는 FixedJoint가 손 위치를 책임진다. 다른 손의 자동 탐색이나
+            // 손끝 힘이 별도 대상과 경쟁하지 않도록 이 프레임의 일반 그립을 막는다.
+            if (!allowGeneralGrip)
+                return;
+
             if (hand.Carrying)
             {
                 if (toolHeld != null && hand.Held == toolHeld) CarryTool(aim);
@@ -1929,9 +2335,19 @@ namespace Metagame.Gameplay
                 hand.Body.AddForce(f, ForceMode.Force);
                 Doll.Chest.AddForce(-f * 0.25f, ForceMode.Force);
                 // Transport 역할의 가벼운 대상은 한 손 운반 경로로 잡는다.
-                if (regrabLock <= 0f && !toolTarget && hand.TryGrip() && hand.Carrying)
+                bool gripped = focusedTarget != null
+                    ? hand.GripTo(focusedTarget, BodyOf(focusedTarget))
+                    : hand.TryGrip();
+                if (regrabLock <= 0f && !toolTarget && gripped && hand.Carrying)
                     BeginCarriedBody(hand.HeldBody);
             }
+        }
+
+        static Rigidbody BodyOf(Grabbable target)
+        {
+            if (target == null) return null;
+            var body = target.GetComponent<Rigidbody>();
+            return body != null ? body : target.GetComponentInParent<Rigidbody>();
         }
 
         void UpdateAimedTarget(Arm arm, Hand hand, Vector3 aim)

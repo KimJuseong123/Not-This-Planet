@@ -29,7 +29,7 @@ namespace Metagame.Gameplay
         /// <summary>움직일 수 있는 물체를 들고 있는 상태 (나르기가 성립한다).</summary>
         public bool Carrying { get { return carrying && HeldBody != null; } }
 
-        /// <summary>자석 손이 지금 노리고 있는 것 — 손이 이쪽으로 휘어 간다. HUD 도 이걸 표시한다.</summary>
+        /// <summary>자석 손이 지금 노리고 있는 것 — 손이 이쪽으로 휘어 간다.</summary>
         public Grabbable Aimed { get; set; }
         public Vector3 AimedPoint { get; set; }
 
@@ -109,10 +109,32 @@ namespace Metagame.Gameplay
             // 가벼운 동적 물체는 손과 물체 사이에 물리 Joint를 만들지 않는다.
             // PlayerRig가 운반 상태를 Kinematic으로 전환하고 크로스헤드 위치를 직접 추적한다.
             // 무거운 물체와 세계 고정물만 아래 FixedJoint 경로를 사용한다.
-            if (targetBody != null && !targetBody.isKinematic && targetBody.mass < Tuning.FixedGripMass)
+            //
+            // PhysicsGrip 은 그 예외다. 기절한 동료는 잡히는 골반이 8kg 이라 무게로는
+            // 이 경로에 들어오는데, §20.4 가 "물리 오브젝트처럼 끌고 옮길 수 있다" 고
+            // 정하므로 사람을 도구처럼 몸 앞에 고정할 수는 없다(S15P21B202-249).
+            if (!target.PhysicsGrip
+                && targetBody != null && !targetBody.isKinematic
+                && targetBody.mass < Tuning.FixedGripMass)
                 return CarryTo(target, targetBody);
 
             return AttachFixed(target, targetBody);
+        }
+
+        /// <summary>
+        /// 지정한 월드 지점에 손을 고정한다.
+        ///
+        /// 고정쇠처럼 Collider의 중심과 실제 잡는 지점이 분리된 대상은 일반
+        /// <see cref="GripTo"/>의 자동 앵커만으로는 손이 대상에 결합되지 않는다.
+        /// 이 경로는 양쪽 앵커를 같은 월드 지점으로 명시해 실제 팔 결합을 만든다.
+        /// </summary>
+        public bool GripToFixedAtPoint(Grabbable target, Rigidbody targetBody, Vector3 worldPoint)
+        {
+            if (Grip != null || Held != null || target == null || Body == null)
+                return false;
+            if (!IsFinite(worldPoint)) return false;
+
+            return AttachFixed(target, targetBody, worldPoint);
         }
 
         /// <summary>
@@ -134,6 +156,24 @@ namespace Metagame.Gameplay
 
         bool AttachFixed(Grabbable target, Rigidbody targetBody)
         {
+            var j = CreateFixedJoint(target, targetBody);
+            j.autoConfigureConnectedAnchor = true;
+            return CompleteFixedGrip(target, targetBody, j);
+        }
+
+        bool AttachFixed(Grabbable target, Rigidbody targetBody, Vector3 worldPoint)
+        {
+            var j = CreateFixedJoint(target, targetBody);
+            j.autoConfigureConnectedAnchor = false;
+            j.anchor = transform.InverseTransformPoint(worldPoint);
+            j.connectedAnchor = targetBody != null
+                ? targetBody.transform.InverseTransformPoint(worldPoint)
+                : worldPoint;
+            return CompleteFixedGrip(target, targetBody, j);
+        }
+
+        FixedJoint CreateFixedJoint(Grabbable target, Rigidbody targetBody)
+        {
             var j = gameObject.AddComponent<FixedJoint>();
             j.connectedBody = targetBody;                     // null 이면 세계에 고정된다
             j.enableCollision = false;
@@ -144,6 +184,11 @@ namespace Metagame.Gameplay
             // 잡은 물체를 가볍게 느끼게 한다 — 궤짝을 들어도 팔이 뜯겨 나가지 않는다
             j.connectedMassScale = targetBody != null && !targetBody.isKinematic ? Tuning.CarryMassScale : 1f;
 
+            return j;
+        }
+
+        bool CompleteFixedGrip(Grabbable target, Rigidbody targetBody, FixedJoint j)
+        {
             Grip = j;
             Held = target;
             HeldBody = targetBody;
@@ -151,6 +196,11 @@ namespace Metagame.Gameplay
             target.NotifyGrabbed(this);
             return true;
         }
+
+        static bool IsFinite(Vector3 value) =>
+            !float.IsNaN(value.x) && !float.IsInfinity(value.x)
+            && !float.IsNaN(value.y) && !float.IsInfinity(value.y)
+            && !float.IsNaN(value.z) && !float.IsInfinity(value.z);
 
         /// <summary>
         /// 물리 Joint 없이 운반 상태만 설정한다. 실제 Rigidbody 상태 전환과

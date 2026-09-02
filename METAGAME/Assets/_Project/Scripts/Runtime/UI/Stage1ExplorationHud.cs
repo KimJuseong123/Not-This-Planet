@@ -9,9 +9,8 @@ namespace Metagame.UI
     /// <summary>
     /// 1장 탐험용 태블릿 화면.
     ///
-    /// 기존 HUD를 교체하지 않고 별도 오버레이로 붙인다. 태블릿이 닫혀 있을 때는
-    /// 발견 알림만 보여 주고, 열려 있을 때는 카탈로그의 네 우주선 파츠를 카드와
-    /// 단순화한 실루엣으로 보여 준다.
+    /// 기존 HUD를 교체하지 않고 별도 오버레이로 붙인다. 태블릿이 열려 있을 때만
+    /// 카탈로그의 네 우주선 파츠와 수동 도움말을 카드와 단순화한 실루엣으로 보여 준다.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class Stage1ExplorationHud : MonoBehaviour
@@ -44,7 +43,7 @@ namespace Metagame.UI
 
         static readonly HelpEntry[] InteractionHelp =
         {
-            new HelpEntry("좌·우클릭", "고정쇠를 잡고 위로 들어 올린 뒤 유지"),
+            new HelpEntry("좌·우클릭", "고정쇠에 손을 결합하고 반대 방향으로 뒤로 이동"),
             new HelpEntry("Ctrl", "팔을 위로 올려 레일·케이블 잡기"),
             new HelpEntry("W + 잡기", "잡은 레일·케이블을 따라 기어오르기"),
             new HelpEntry("Q 짧게", "현재 손 장비 내려놓기"),
@@ -125,8 +124,6 @@ namespace Metagame.UI
             var exploration = _exploration;
             if (exploration.TabletOpen)
                 DrawTablet(exploration);
-            else if (exploration.HasActiveNotice)
-                DrawDiscoveryNotice(exploration);
         }
 
         void DrawTablet(Stage1Exploration exploration)
@@ -437,15 +434,6 @@ namespace Metagame.UI
                     Box(new Rect(cx - 8f, cy + 8f, 16f, 15f), color);
                     break;
             }
-        }
-
-        void DrawDiscoveryNotice(Stage1Exploration exploration)
-        {
-            var width = Mathf.Min(520f, Screen.width - 40f);
-            var rect = new Rect((Screen.width - width) * 0.5f, Screen.height - 112f, width, 54f);
-            Box(rect, new Color(0.04f, 0.15f, 0.16f, 0.88f));
-            L(new Rect(rect.x + 18f, rect.y + 13f, rect.width - 36f, 28f),
-              exploration.DiscoveryNotice, _mid, new Color(0.58f, 1f, 0.70f));
         }
 
         void EnsureStyles()

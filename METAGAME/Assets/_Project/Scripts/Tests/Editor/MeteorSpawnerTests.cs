@@ -33,27 +33,252 @@ namespace Metagame.Gameplay.Tests
 
         // --- 예고와 낙하 -----------------------------------------------------
 
+        /// <summary>
+        /// <b>예고와 운석이 함께 나온다</b>(기획 §17.2 "착탄 3초 전에 표시").
+        ///
+        /// 예전에는 반대를 검증했다 — "예고 중에는 운석이 아직 없어야 한다". 그런데 그
+        /// 구조에서는 예고가 <b>끝난 뒤</b> 운석이 30m 위에 생겨 4.63초를 더 떨어졌고,
+        /// 결과적으로 표시가 착탄 4.63초 전에 사라졌다. S15P21B202-234 에서 뒤집었다.
+        /// </summary>
         [Test]
-        public void Spawner_SchedulesWarningBeforeDropping()
+        public void Warning_AndMeteor_AppearTogether()
         {
             var spawner = CreateSpawner();
 
-            Advance(spawner, PhysicsScale.MeteorIntervalStart + 0.05f);
+            AdvanceUntilPending(spawner);
 
-            Assert.AreEqual(1, spawner.Pending.Count, "먼저 예고가 떠야 한다.");
-            Assert.AreEqual(0, spawner.Live.Count, "예고 중에는 운석이 아직 없어야 한다.");
+            Assert.AreEqual(1, spawner.Pending.Count, "예고가 떠야 한다.");
+            Assert.AreEqual(1, spawner.Live.Count,
+                "예고가 켜져 있는 동안 운석이 실제로 떨어지고 있어야 한다.");
+        }
+
+        /// <summary>
+        /// 예고가 끝나는 순간이 <b>착탄 시각</b>이어야 한다.
+        ///
+        /// S15P21B202-233 의 <c>Meteor.TryPredictImpact</c> 로 실제 착탄 시각을 재어
+        /// 예고 시간과 맞는지 본다 — 이 둘이 어긋난 것이 S15P21B202-234 의 시작이었다.
+        /// </summary>
+        [Test]
+        public void TheWarningEndsWhenTheMeteorLands()
+        {
+            var spawner = CreateSpawner();
+
+            AdvanceUntilPending(spawner);
+
+            var meteor = spawner.Live[0];
+            var remaining = spawner.Pending[0].RemainingSeconds;
+
+            Assert.IsTrue(meteor.TryPredictImpact(out var seconds, out _));
+            Assert.AreEqual(remaining, seconds, 0.15f,
+                $"예고 {remaining:0.00}초와 실제 착탄 {seconds:0.00}초가 맞아야 한다.");
         }
 
         [Test]
-        public void Spawner_DropsAfterWarningElapses()
+        public void TheMeteorFallsFromAboveWithAnInitialPush()
+        {
+            var spawner = CreateSpawner();
+            AdvanceUntilPending(spawner);
+
+            var point = spawner.Pending[0].ImpactPoint;
+            var meteor = spawner.Live[0];
+
+            Assert.AreEqual(point.x, meteor.transform.position.x, 0.001f);
+            Assert.AreEqual(point.z, meteor.transform.position.z, 0.001f);
+            Assert.Greater(meteor.transform.position.y, point.y + 1f,
+                "예고 지점 위에서 떨어져야 한다(기획 §17.1 \"하늘에서 낙하한다\").");
+
+            var velocity = meteor.GetComponent<Rigidbody>().linearVelocity;
+            Assert.Less(velocity.y, 0f, "예고 시간에 맞추려면 아래로 밀려 시작해야 한다.");
+            Assert.AreEqual(PhysicsScale.MeteorDropSpeed, -velocity.y, 0.2f);
+        }
+
+        [Test]
+        public void SpawnedMeteor_UsesMeteorLayerAndMass()
+        {
+            var spawner = CreateSpawner();
+            AdvanceUntilPending(spawner);
+
+            var meteor = spawner.Live[0];
+
+            Assert.AreEqual(GameLayers.Meteor, meteor.gameObject.layer,
+                "Meteor 레이어여야 운석끼리 충돌하지 않는다.");
+            Assert.AreEqual(PhysicsScale.MeteorMass, meteor.GetComponent<Rigidbody>().mass, 0.01f);
+        }
+
+        /// <summary>
+        /// 예전에는 이 검증이 <c>DamageSource</c> 가 <b>있는지</b>를 잠갔다. 그것이
+        /// 문제였다 — "닿으면 25" 하나뿐이라 기획 §20.1 의 세 단계가 모두 같아지고,
+        /// <c>MaxHealth</c> 100 에서 네 번을 맞아야 기절했다. 착탄 후에도 0.5초마다
+        /// 다시 때려 §19 의 "충돌 순간에만" 도 어겼다. S15P21B202-247 에서 뒤집었다.
+        /// </summary>
+        [Test]
+        public void SpawnedMeteor_DoesNotCarryDamageSource()
+        {
+            var spawner = CreateSpawner();
+            AdvanceUntilPending(spawner);
+
+            Assert.IsNull(spawner.Live[0].GetComponent<DamageSource>(),
+                "Meteor 가 §20.1 의 단계를 직접 정한다. 균일 피해가 섞이면 안 된다.");
+        }
+
+        // --- 공세 구조 (기획 §17.4) ------------------------------------------
+
+        [Test]
+        public void WaveInterval_FollowsTheDesignTable()
         {
             var spawner = CreateSpawner();
 
-            Advance(spawner, PhysicsScale.MeteorIntervalStart + 0.05f);
-            Advance(spawner, PhysicsScale.MeteorWarningSeconds + 0.05f);
+            Assert.AreEqual(30f, spawner.IntervalAt(0f), 0.01f, "0~5분은 30초");
+            Assert.AreEqual(25f, spawner.IntervalAt(6f * 60f), 0.01f, "5~10분은 25초");
+            Assert.AreEqual(20f, spawner.IntervalAt(11f * 60f), 0.01f, "10~15분은 20초");
+            Assert.AreEqual(15f, spawner.IntervalAt(16f * 60f), 0.01f, "15~20분은 15초");
+            Assert.AreEqual(15f, spawner.IntervalAt(40f * 60f), 0.01f, "20분 이후도 15초");
+        }
 
-            Assert.AreEqual(0, spawner.Pending.Count);
-            Assert.AreEqual(1, spawner.Live.Count, "예고 시간이 지나면 떨어져야 한다.");
+        /// <summary>
+        /// 공세가 알린 개수만큼 <b>1~2초 간격으로</b> 떨어진다(기획 §17.4).
+        ///
+        /// 개수를 상수로 쓰지 않는다. 0~5분 구간은 1~2개이고 난수가 정하므로, 신호가
+        /// 말한 수를 받아 그만큼 오는지를 본다.
+        /// </summary>
+        [Test]
+        public void AWave_DropsWhatItAnnounced_SpacedApart()
+        {
+            var spawner = CreateSpawner();
+
+            var planned = 0;
+            var dropped = 0;
+            void OnIncoming(int size) => planned = size;
+            void OnDropped(PendingMeteorDrop _) => dropped++;
+
+            spawner.WaveIncoming += OnIncoming;
+            spawner.DropScheduled += OnDropped;
+
+            AdvanceUntilPending(spawner);
+            Assert.Greater(planned, 0, "신호가 먼저 와야 한다.");
+
+            // 공세가 다 나올 만큼 전진한다. 하나당 최대 2초다.
+            Advance(spawner, PhysicsScale.MeteorWithinWaveMaxSeconds * (planned + 1));
+
+            spawner.WaveIncoming -= OnIncoming;
+            spawner.DropScheduled -= OnDropped;
+
+            // <b>떨어진 수를 센다.</b> Live 는 착탄 6초 뒤 사라지므로 시간이 지난 뒤
+            // 세면 0 이 된다 — 처음에 그렇게 썼다가 알았다.
+            Assert.AreEqual(planned, dropped, $"알린 {planned}개가 모두 떨어져야 한다.");
+            Assert.IsFalse(spawner.WaveActive, "공세가 끝나야 한다.");
+        }
+
+        /// <summary>공세가 끝나면 다음 공세까지 <b>간격만큼</b> 쉰다.</summary>
+        [Test]
+        public void BetweenWaves_NothingFalls()
+        {
+            var spawner = CreateSpawner();
+
+            var planned = 0;
+            var dropped = 0;
+            void OnIncoming(int size) => planned = size;
+            void OnDropped(PendingMeteorDrop _) => dropped++;
+
+            spawner.WaveIncoming += OnIncoming;
+            spawner.DropScheduled += OnDropped;
+
+            AdvanceUntilPending(spawner);
+            Advance(spawner, PhysicsScale.MeteorWithinWaveMaxSeconds * (planned + 1));
+
+            var afterWave = dropped;
+            Assert.IsFalse(spawner.WaveActive);
+
+            // 다음 신호가 오기 전까지는 아무것도 늘지 않는다.
+            Advance(spawner, spawner.IntervalAt(spawner.Elapsed)
+                             - PhysicsScale.MeteorWaveLeadSeconds - 1f);
+            spawner.WaveIncoming -= OnIncoming;
+            spawner.DropScheduled -= OnDropped;
+
+            Assert.AreEqual(afterWave, dropped, "공세 사이에는 떨어지지 않는다.");
+        }
+
+        /// <summary>기획 §17.3 — 공세 약 5초 전에 신호가 나간다.</summary>
+        [Test]
+        public void AWaveIsAnnouncedInAdvance()
+        {
+            var spawner = CreateSpawner();
+
+            var announced = 0;
+            var sizeAtSignal = 0;
+            void OnIncoming(int size) { announced++; sizeAtSignal = size; }
+
+            spawner.WaveIncoming += OnIncoming;
+            Advance(spawner, spawner.IntervalAt(0f) - PhysicsScale.MeteorWaveLeadSeconds + 0.05f);
+
+            Assert.AreEqual(1, announced, "공세 5초 전에 한 번만 알려야 한다.");
+            Assert.AreEqual(0, spawner.Live.Count, "신호 시점에는 아직 떨어지지 않는다.");
+
+            AdvanceUntilPending(spawner);
+            spawner.WaveIncoming -= OnIncoming;
+
+            Assert.AreEqual(sizeAtSignal, spawner.WaveRemaining + 1,
+                "신호가 말한 개수와 실제 공세 개수가 같아야 한다.");
+        }
+
+        // --- 인원수 보정 (기획 §17.6) ----------------------------------------
+
+        [Test]
+        public void FewerPlayers_MeanFewerMeteors_ButTheSameInterval()
+        {
+            var solo = CreateSpawner();
+            solo.SetCrew(1);
+
+            var full = CreateSpawner();
+            full.SetCrew(4);
+
+            Assert.AreEqual(full.IntervalAt(0f), solo.IntervalAt(0f), 0.01f,
+                "간격은 인원수와 무관하다(기획 §17.6).");
+
+            // 20분 이후는 4명 기준 5개다. 1명이면 45% 로 줄어야 한다.
+            var late = 25f * 60f;
+            var fourCrew = MeteorWaveTable.WaveSizeAt(late, 4, 0.5);
+            var oneCrew = MeteorWaveTable.WaveSizeAt(late, 1, 0.5);
+
+            Assert.Less(oneCrew, fourCrew, "혼자면 운석이 줄어야 한다.");
+            Assert.GreaterOrEqual(oneCrew, 1, "0 개가 되면 신호만 울리고 아무것도 안 온다.");
+        }
+
+        // --- 소형과 중형 (기획 §17.7) ----------------------------------------
+
+        [Test]
+        public void MediumMeteors_DoNotAppearBeforeTenMinutes()
+        {
+            var spawner = CreateSpawner();
+
+            Assert.AreEqual(0f, spawner.MediumChanceAt(0f), 0.001f);
+            Assert.AreEqual(0f, spawner.MediumChanceAt(9f * 60f), 0.001f);
+            Assert.Greater(spawner.MediumChanceAt(11f * 60f), 0f, "10분 이후에는 나온다.");
+        }
+
+        [Test]
+        public void MediumChance_RisesWithTime()
+        {
+            var spawner = CreateSpawner();
+
+            Assert.AreEqual(0.15f, spawner.MediumChanceAt(11f * 60f), 0.001f);
+            Assert.AreEqual(0.25f, spawner.MediumChanceAt(16f * 60f), 0.001f);
+            Assert.AreEqual(0.30f, spawner.MediumChanceAt(25f * 60f), 0.001f);
+        }
+
+        [Test]
+        public void SizeDecidesTheKnockbackRadius()
+        {
+            var spawner = CreateSpawner();
+            AdvanceUntilPending(spawner);
+
+            var meteor = spawner.Live[0];
+
+            Assert.AreEqual(MeteorSize.Small, meteor.Size, "초반에는 소형만 나온다.");
+            Assert.AreEqual(PhysicsScale.MeteorSmallImpactRadius, meteor.ImpactRadius, 0.01f);
+
+            meteor.SetSize(MeteorSize.Medium);
+            Assert.AreEqual(PhysicsScale.MeteorMediumImpactRadius, meteor.ImpactRadius, 0.01f);
         }
 
         [Test]
@@ -75,70 +300,34 @@ namespace Metagame.Gameplay.Tests
                 "예고 중 착탄 지점이 바뀌면 플레이어가 피할 수 없다.");
         }
 
-        [Test]
-        public void Meteor_SpawnsAboveItsWarnedPoint()
-        {
-            var spawner = CreateSpawner();
-
-            Advance(spawner, PhysicsScale.MeteorIntervalStart + 0.05f);
-            var point = spawner.Pending[0].ImpactPoint;
-
-            Advance(spawner, PhysicsScale.MeteorWarningSeconds + 0.05f);
-            var meteor = spawner.Live[0];
-
-            Assert.AreEqual(point.x, meteor.transform.position.x, 0.001f);
-            Assert.AreEqual(point.z, meteor.transform.position.z, 0.001f);
-            Assert.Greater(meteor.transform.position.y, point.y + 1f,
-                "예고 지점 위에서 떨어져야 한다.");
-        }
-
-        [Test]
-        public void SpawnedMeteor_UsesMeteorLayerAndMass()
-        {
-            var spawner = CreateSpawner();
-            Advance(spawner, PhysicsScale.MeteorIntervalStart + PhysicsScale.MeteorWarningSeconds + 0.1f);
-
-            var meteor = spawner.Live[0];
-
-            Assert.AreEqual(GameLayers.Meteor, meteor.gameObject.layer,
-                "Meteor 레이어여야 운석끼리 충돌하지 않는다.");
-            Assert.AreEqual(PhysicsScale.MeteorMass, meteor.GetComponent<Rigidbody>().mass, 0.01f);
-        }
-
-        [Test]
-        public void SpawnedMeteor_CarriesDamageSource()
-        {
-            var spawner = CreateSpawner();
-            Advance(spawner, PhysicsScale.MeteorIntervalStart + PhysicsScale.MeteorWarningSeconds + 0.1f);
-
-            Assert.IsNotNull(spawner.Live[0].GetComponent<DamageSource>(),
-                "플레이어 피해는 새 시스템 없이 기존 DamageSource 로 전달한다.");
-        }
-
         // --- 난이도 곡선 -----------------------------------------------------
 
+        /// <summary>
+        /// 간격이 <b>계단으로</b> 줄어든다. 예전에는 8초에서 2초까지 선형이었고,
+        /// S15P21B202-234 에서 기획 §17.4 의 표(30 → 25 → 20 → 15)로 바꿨다.
+        /// </summary>
         [Test]
-        public void Interval_ShrinksOverTime()
+        public void Interval_ShrinksInSteps()
         {
             var spawner = CreateSpawner();
 
-            var start = spawner.IntervalAt(0f);
-            var mid = spawner.IntervalAt(PhysicsScale.MeteorRampSeconds * 0.5f);
-            var end = spawner.IntervalAt(PhysicsScale.MeteorRampSeconds);
+            var early = spawner.IntervalAt(0f);
+            var mid = spawner.IntervalAt(11f * 60f);
+            var late = spawner.IntervalAt(21f * 60f);
 
-            Assert.AreEqual(PhysicsScale.MeteorIntervalStart, start, 0.01f);
-            Assert.Less(mid, start, "시간이 지나면 간격이 줄어야 한다.");
-            Assert.AreEqual(PhysicsScale.MeteorIntervalMin, end, 0.01f);
+            Assert.Greater(early, mid, "시간이 지나면 짧아져야 한다.");
+            Assert.Greater(mid, late);
         }
 
         [Test]
-        public void Interval_StopsShrinkingAtMinimum()
+        public void Interval_StopsShrinkingAtTheLastRow()
         {
             var spawner = CreateSpawner();
 
-            Assert.AreEqual(PhysicsScale.MeteorIntervalMin,
-                spawner.IntervalAt(PhysicsScale.MeteorRampSeconds * 10f), 0.01f,
-                "최소 간격 아래로는 내려가지 않아야 한다.");
+            var last = spawner.IntervalAt(20f * 60f);
+
+            Assert.AreEqual(last, spawner.IntervalAt(60f * 60f), 0.01f,
+                "마지막 시간대 뒤로는 더 짧아지지 않아야 한다.");
         }
 
         [Test]
@@ -208,10 +397,7 @@ namespace Metagame.Gameplay.Tests
             _spawned.Add(go);
 
             var spawner = go.AddComponent<MeteorSpawner>();
-            spawner.Configure(seed,
-                PhysicsScale.MeteorIntervalStart,
-                PhysicsScale.MeteorIntervalMin,
-                PhysicsScale.MeteorRampSeconds);
+            spawner.Configure(seed);
             return spawner;
         }
 

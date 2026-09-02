@@ -1,0 +1,11 @@
+[Unit]
+Description=METAGAME 배포 스풀 감시 — RELEASE 표시 파일이 생기면 배포를 실행한다
+Documentation=https://lab.ssafy.com/s15-metaverse-game-sub1/S15P21B202/-/blob/develop/docs/records/S15P21B202-139-cd-strategy.md
+
+[Path]
+# CI 잡은 컨테이너 안이라 systemd 를 부를 수 없다. 파일 하나가 유일한 신호다.
+PathExists=/home/ubuntu/metagame/deploy/RELEASE
+Unit=metagame-deploy.service
+
+[Install]
+WantedBy=multi-user.target

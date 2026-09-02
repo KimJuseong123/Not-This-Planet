@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using Metagame.Core;
+using Metagame.Gameplay.Interaction;
 
 namespace Metagame.Gameplay.Parts
 {
@@ -15,11 +16,8 @@ namespace Metagame.Gameplay.Parts
     [DisallowMultipleComponent]
     public sealed class TractorBeamController : MonoBehaviour
     {
-        const float FocusRange = 34f;
-        const float FocusHalfAngle = 38f;
         const float ArenaLimit = 21f;
         const float PartAimRange = 60f;
-        const float VehicleFocusHeight = 1.2f;
         const int PartHitBufferSize = 12;
 
         PlayerRig player;
@@ -60,6 +58,7 @@ namespace Metagame.Gameplay.Parts
                 vehicles[i] = vehicle;
             }
 
+            player?.ConfigureTransportInteractionTargets(vehicles);
             if (randomizeVehicles) PlaceVehiclesRandomly();
             RefreshFocus();
         }
@@ -159,15 +158,11 @@ namespace Metagame.Gameplay.Parts
 
         void BoardFocusedVehicle()
         {
-            if (FocusedVehicle == null)
+            if (FocusedVehicle == null || player == null
+                || player.CurrentInteractionTarget.Kind != PlayerInteractionKind.Transport
+                || player.CurrentInteractionTarget.Transport != FocusedVehicle)
             {
                 SetStatus("먼저 운반 장치를 조준하세요");
-                return;
-            }
-
-            if (player == null)
-            {
-                SetStatus("운반 장치를 조작할 플레이어가 없습니다");
                 return;
             }
 
@@ -222,42 +217,9 @@ namespace Metagame.Gameplay.Parts
                 return;
             }
 
-            FocusedVehicle = FindFocusedVehicle();
-        }
-
-        TransportVehicle FindFocusedVehicle()
-        {
-            if (player == null || player.Cam == null) return null;
-
-            var origin = player.Cam.transform.position;
-            var forward = player.Cam.transform.forward;
-            TransportVehicle best = null;
-            var bestAngle = float.MaxValue;
-            var bestDistance = float.MaxValue;
-
-            for (var i = 0; i < vehicles.Length; i++)
-            {
-                var vehicle = vehicles[i];
-                if (vehicle == null || !vehicle.isActiveAndEnabled || vehicle.IsReturning) continue;
-
-                var target = vehicle.transform.position + Vector3.up * VehicleFocusHeight;
-                var offset = target - origin;
-                var distance = offset.magnitude;
-                if (distance > FocusRange || distance < 0.001f) continue;
-
-                var angle = Vector3.Angle(forward, offset);
-                if (angle > FocusHalfAngle) continue;
-
-                if (angle < bestAngle - 0.01f
-                    || Mathf.Abs(angle - bestAngle) <= 0.01f && distance < bestDistance)
-                {
-                    best = vehicle;
-                    bestAngle = angle;
-                    bestDistance = distance;
-                }
-            }
-
-            return best;
+            player?.RefreshInteractionFocus();
+            var target = player != null ? player.CurrentInteractionTarget : PlayerInteractionTarget.None;
+            FocusedVehicle = target.Kind == PlayerInteractionKind.Transport ? target.Transport : null;
         }
 
         SpaceshipPart FindAimedPart()

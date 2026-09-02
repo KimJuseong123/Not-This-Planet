@@ -99,12 +99,6 @@ namespace Metagame.Gameplay.Tests
                 socket.AddComponent<PartSocket>().SetRole(role);
             }
 
-            // 원형 용접선 하나(기획 §16.1). 예전에는 용접점 4개를 놓았다.
-            var seam = new GameObject("WeldSeam");
-            seam.transform.SetParent(root.transform, false);
-            seam.transform.localPosition = Vector3.down * (spec.Height * 0.5f);
-            seam.AddComponent<WeldSeam>();
-
             part.SetPlacedMass(spec.Mass);
             part.Initialize();
             part.RefreshSockets();
