@@ -197,9 +197,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6a5b4c3d2e1f09876543210fedcba987, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Metagame.Bootstrap::Metagame.Bootstrap.LobbyBootstrap
-  defaultServerAddress: 127.0.0.1:8080
-  httpBaseUrl: http://127.0.0.1:8080
-  webSocketUrl: ws://127.0.0.1:8080/ws/game
+  defaultServerAddress: j15b202.p.ssafy.io
+  httpBaseUrl: https://j15b202.p.ssafy.io:443
+  webSocketUrl: wss://j15b202.p.ssafy.io:443/ws/game
   defaultNickname: "\uBE44\uD589\uC0AC"
   deviceIdOverride: 
 --- !u!4 &910294653
@@ -228,7 +228,6 @@ GameObject:
   - component: {fileID: 1056712110}
   - component: {fileID: 1056712109}
   - component: {fileID: 1056712108}
-  - component: {fileID: 1056712107}
   - component: {fileID: 1056712111}
   m_Layer: 0
   m_Name: NetworkManager
@@ -237,20 +236,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1056712107
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1056712106}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6442dc8070ceb41f094e44de0bf87274, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Mirror::Mirror.NetworkManagerHUD
-  offsetX: 0
-  offsetY: 0
 --- !u!114 &1056712108
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -263,7 +248,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6b0fecffa3f624585964b0d0eb21b18e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Mirror.Transports::kcp2k.KcpTransport
-  port: 7777
+  port: 17777
   DualMode: 1
   NoDelay: 1
   Interval: 10

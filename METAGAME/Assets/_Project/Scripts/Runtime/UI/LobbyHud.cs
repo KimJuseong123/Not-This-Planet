@@ -12,7 +12,6 @@ namespace Metagame.UI
     {
         private NetworkSession network;
         private string nickname;
-        private string serverAddress;
         private string deviceIdOverride;
         private string roomIdInput = string.Empty;
         private string error = string.Empty;
@@ -29,8 +28,14 @@ namespace Metagame.UI
             Unsubscribe();
             network = session;
             nickname = string.IsNullOrWhiteSpace(defaultNickname) ? "비행사" : defaultNickname;
-            serverAddress = NetworkSession.ResolveServerAddress(defaultServerAddress);
             deviceIdOverride = deviceOverride;
+
+            // 주소는 화면에서 고를 수 없다. 여기서 한 번 정하고 끝낸다(-162).
+            string address = NetworkSession.ResolveServerAddress(defaultServerAddress);
+            string addressError;
+            if (!session.ApplyServerAddress(address, out addressError))
+                error = addressError;
+
             Subscribe();
         }
 
@@ -107,26 +112,22 @@ namespace Metagame.UI
             Label(new Rect(x + 42f, y + 142f, 180f, 30f), "닉네임", labelStyle);
             nickname = GUI.TextField(new Rect(x + 230f, y + 138f, width - 272f, 36f), nickname ?? string.Empty, 12);
 
-            Label(new Rect(x + 42f, y + 190f, 180f, 30f), "서버 주소", labelStyle);
-            serverAddress = GUI.TextField(new Rect(x + 230f, y + 186f, width - 272f, 36f), serverAddress ?? string.Empty, 64);
-
-            Label(new Rect(x + 42f, y + 238f, width - 84f, 52f),
-                "방장 PC의 주소를 입력하세요 (예: 192.168.0.15:8080). 같은 와이파이에 있어야 합니다.", smallStyle);
+            // 서버 주소는 화면에 내지 않는다. 배포 서버 한 곳으로 고정이라
+            // 사람이 고를 일이 없고, 잘못 적으면 조용히 접속에 실패한다.
+            // 개발자가 다른 서버를 볼 일은 실행 인자로 한다(NetworkSession.ResolveServerAddress).
+            Label(new Rect(x + 42f, y + 190f, width - 84f, 30f),
+                "서버: " + network.ServerAddress, smallStyle);
 
             bool canLogin = network.State != NetworkConnectionState.LoggingIn;
             GUI.enabled = canLogin;
-            if (GUI.Button(new Rect(x + 42f, y + 310f, width - 84f, 48f), "게스트 로그인", buttonStyle))
+            if (GUI.Button(new Rect(x + 42f, y + 246f, width - 84f, 48f), "게스트 로그인", buttonStyle))
             {
                 error = string.Empty;
-                string addressError;
-                if (!network.ApplyServerAddress(serverAddress, out addressError))
-                    error = addressError;
-                else
-                    network.LoginGuest(nickname, NetworkSession.ResolveDeviceId(deviceIdOverride));
+                network.LoginGuest(nickname, NetworkSession.ResolveDeviceId(deviceIdOverride));
             }
             GUI.enabled = true;
             if (network.State == NetworkConnectionState.LoggingIn)
-                Label(new Rect(x + 42f, y + 374f, width - 84f, 30f), "로그인 중...", smallStyle);
+                Label(new Rect(x + 42f, y + 310f, width - 84f, 30f), "로그인 중...", smallStyle);
         }
 
         private void DrawConnecting(float x, float y, float width)
