@@ -134,30 +134,98 @@ namespace Metagame.Gameplay.Tests
 
         // --- 궤적 ---------------------------------------------------------
 
-        /// <summary>위에서 앞아래로 내려찍는다. 목표가 <b>떨어지는</b> 운석이기 때문이다.</summary>
+        /// <summary>
+        /// 어깨 위에서 시작해 살짝 처지며 끝난다(우타자 야구 스윙, S15P21B202-261).
+        ///
+        /// 예전에는 위 55도 → 아래 −35도로 <b>내려찍었다.</b> 근거가 "목표가 떨어지는
+        /// 운석" 이었는데(S15P21B202-243) 인게임에서 보고 바꿨다.
+        /// </summary>
         [Test]
-        public void TheArcGoesFromAboveToBelow()
+        public void TheArcStartsHighAndEndsSlightlyLow()
         {
             var start = MeteorBat.SwingAim(Vector3.forward, 0f);
             var end = MeteorBat.SwingAim(Vector3.forward, 1f);
 
-            Assert.Greater(start.y, 0f, "시작은 조준선보다 위여야 한다.");
-            Assert.Less(end.y, 0f, "끝은 조준선보다 아래여야 한다.");
+            Assert.Greater(start.y, 0f, "어깨 위에서 시작한다.");
+            Assert.Less(end.y, 0f, "팔로스루로 살짝 처진다.");
             Assert.Greater(start.y, end.y);
         }
 
+        // --- 우타자 스윙 (S15P21B202-261) ----------------------------------
+
+        /// <summary>오른손잡이 타자는 배트를 <b>오른쪽 뒤</b>에 두고 시작한다.</summary>
         [Test]
-        public void TheArcKeepsTheAimedHeading()
+        public void ItStartsBehindTheRightShoulder()
+        {
+            Assert.Greater(SweepDegrees(0f), 90f,
+                "90도를 넘겨야 뒤쪽이다 — 넘지 않으면 들었다 내리는 것으로 보인다.");
+        }
+
+        /// <summary>맞는 순간에는 정면을 지난다.</summary>
+        [Test]
+        public void ItPassesTheFrontAtContact()
+        {
+            Assert.AreEqual(0f, SweepDegrees(PhysicsScale.BatSwingContactAt), 1f,
+                "맞는 순간이 정면이어야 어디를 쳤는지 읽힌다.");
+        }
+
+        [Test]
+        public void ItFinishesToTheLeftAndForward()
+        {
+            var end = SweepDegrees(1f);
+
+            Assert.Less(end, -20f, "왼쪽으로 빠진다.");
+            Assert.Greater(end, -90f, "앞쪽에서 끝난다 — 뒤로 넘어가지 않는다.");
+        }
+
+        /// <summary>
+        /// 좌우가 <b>한 방향으로만</b> 지나간다. 되돌아오면 부채질로 보인다.
+        /// </summary>
+        [Test]
+        public void TheSweepNeverReverses()
+        {
+            var previous = float.MaxValue;
+
+            for (var t = 0f; t <= 1f; t += 0.05f)
+            {
+                var sweep = SweepDegrees(t);
+
+                Assert.LessOrEqual(sweep, previous + 1e-2f,
+                    $"진행도 {t:0.00} 에서 오른쪽으로 되돌아갔다.");
+                previous = sweep;
+            }
+        }
+
+        /// <summary>
+        /// 시작이 오른쪽 110도, 끝이 왼쪽 70도다. 대칭이면 부채질이 된다.
+        /// </summary>
+        [Test]
+        public void TheSweepIsNotSymmetric()
+        {
+            Assert.Greater(Mathf.Abs(SweepDegrees(0f)), Mathf.Abs(SweepDegrees(1f)),
+                "뒤에서 시작해 앞으로 끝난다 — 좌우를 같은 폭으로 흔들지 않는다.");
+        }
+
+        /// <summary>
+        /// 겨눈 쪽을 기준으로 궤적이 돈다. 조준을 돌리면 스윙 전체가 함께 돈다.
+        ///
+        /// <b>예전 검증은 "겨눈 쪽을 벗어나지 않는다" 였다.</b> 좌우 성분이 없던 궤적이라
+        /// 성립했고, 야구 스윙에서는 성립할 수 없다 — 대신 <b>회전이 따라오는지</b>를
+        /// 본다(S15P21B202-261).
+        /// </summary>
+        [Test]
+        public void TheArcRotatesWithTheAim()
         {
             var aim = new Vector3(1f, 0f, 1f).normalized;
+            var turn = Quaternion.FromToRotation(Vector3.forward, aim);
 
             for (var t = 0f; t <= 1f; t += 0.1f)
             {
-                var swung = MeteorBat.SwingAim(aim, t);
-                var flat = new Vector3(swung.x, 0f, swung.z).normalized;
+                var straight = MeteorBat.SwingAim(Vector3.forward, t);
+                var turned = MeteorBat.SwingAim(aim, t);
 
-                Assert.Greater(Vector3.Dot(flat, aim), 0.99f,
-                    $"진행도 {t:0.0} 에서 겨눈 쪽을 벗어났다 — 옆으로 휘면 무엇을 쳤는지 알 수 없다.");
+                Assert.Greater(Vector3.Dot((turn * straight).normalized, turned.normalized),
+                    0.99f, $"진행도 {t:0.0} 에서 궤적이 조준을 따라오지 않았다.");
             }
         }
 
@@ -197,17 +265,56 @@ namespace Metagame.Gameplay.Tests
             Assert.IsFalse(float.IsNaN(swung.x), "수직으로 겨눠도 방향을 정하지 못하면 안 된다.");
         }
 
-        /// <summary>가속하며 내려간다. 등속이면 휘두르는 것이 아니라 미끄러지는 것으로 보인다.</summary>
+        /// <summary>
+        /// 맞는 순간까지 가속한다. 등속이면 휘두르는 것이 아니라 미끄러지는 것으로 보인다.
+        ///
+        /// 좌우 진행으로 본다 — 야구 스윙의 움직임은 대부분 좌우다(S15P21B202-261).
+        /// </summary>
         [Test]
-        public void TheArcAccelerates()
+        public void TheSwingAcceleratesIntoContact()
         {
-            var firstHalf = MeteorBat.SwingAim(Vector3.forward, 0f).y
-                            - MeteorBat.SwingAim(Vector3.forward, 0.5f).y;
-            var secondHalf = MeteorBat.SwingAim(Vector3.forward, 0.5f).y
-                             - MeteorBat.SwingAim(Vector3.forward, 1f).y;
+            var contact = PhysicsScale.BatSwingContactAt;
+
+            var firstHalf = SweepDegrees(0f) - SweepDegrees(contact * 0.5f);
+            var secondHalf = SweepDegrees(contact * 0.5f) - SweepDegrees(contact);
 
             Assert.Greater(secondHalf, firstHalf,
-                "뒤쪽 절반이 더 많이 움직여야 휘두르는 것으로 보인다.");
+                "맞는 순간에 가까울수록 더 많이 움직여야 한다.");
+        }
+
+        /// <summary>팔로스루는 감속한다. 배트가 몸을 감고 멈춘다.</summary>
+        [Test]
+        public void TheFollowThroughDecelerates()
+        {
+            var contact = PhysicsScale.BatSwingContactAt;
+            var mid = contact + (1f - contact) * 0.5f;
+
+            var firstHalf = SweepDegrees(contact) - SweepDegrees(mid);
+            var secondHalf = SweepDegrees(mid) - SweepDegrees(1f);
+
+            Assert.Greater(firstHalf, secondHalf,
+                "팔로스루 뒤쪽이 덜 움직여야 멈추는 것으로 보인다.");
+        }
+
+        /// <summary>
+        /// 진행도에서의 <b>좌우 각도</b>(도). 오른쪽이 양수다.
+        ///
+        /// <b>원시 내적으로 재면 안 된다.</b> 처음에 그렇게 썼다가 두 가지에 걸렸다.
+        ///
+        /// <code>
+        /// ① pitch 와 섞인다     45도 들린 방향은 수평 성분이 cos(45)=0.71 로 줄어든다.
+        ///                       그래서 pitch 가 평평해지는 것만으로 "오른쪽으로 되돌아간
+        ///                       것" 처럼 보였다.
+        /// ② 90도에서 꺾인다     sin(110)=0.94 이고 sin(90)=1.0 이라, yaw 가 110→90 으로
+        ///                       줄어드는 동안 성분은 오히려 커진다.
+        /// </code>
+        ///
+        /// 각도를 직접 재면 둘 다 사라진다.
+        /// </summary>
+        static float SweepDegrees(float progress01)
+        {
+            var swung = MeteorBat.SwingAim(Vector3.forward, progress01);
+            return Mathf.Atan2(swung.x, swung.z) * Mathf.Rad2Deg;
         }
 
         // --- 운반 자세로 돌아온다 ---------------------------------------------

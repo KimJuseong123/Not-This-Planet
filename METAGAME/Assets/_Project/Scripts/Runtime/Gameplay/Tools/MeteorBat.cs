@@ -214,9 +214,22 @@ namespace Metagame.Gameplay
         /// <summary>
         /// 휘두르기 궤적. 진행도 0~1 을 방향으로 바꾼다.
         ///
-        /// <b>위에서 앞아래로 내려찍는다.</b> 야구처럼 수평으로 돌리지 않는 이유는 목표가
-        /// 떨어지는 운석이라서다 — 위에서 오는 것을 맞이하는 궤적이어야 하고, §18.2 의
-        /// "약간의 위쪽 각도를 더해" 반사하는 것과도 맞는다.
+        /// <b>오른손잡이 야구 스윙이다.</b> 오른쪽 뒤 위에서 시작해 정면을 지나 왼쪽 앞으로
+        /// 빠진다(S15P21B202-261).
+        ///
+        /// <code>
+        /// 0.00   오른쪽 뒤 위      yaw +110  ·  pitch +45
+        /// 0.45   정면, 거의 수평    yaw    0  ·  pitch  +5   ← 맞는 순간
+        /// 1.00   왼쪽 앞, 살짝 아래  yaw  -70  ·  pitch -15
+        /// </code>
+        ///
+        /// <b>예전에는 위에서 앞아래로 내려찍었다.</b> 근거는 "목표가 떨어지는 운석"
+        /// 이었는데(S15P21B202-243), 인게임에서 보고 바꿨다. 기획 §18 은 궤적 모양을
+        /// 정하지 않으므로 손맛 결정이다.
+        ///
+        /// <b>가속이 앞뒤로 다르다.</b> 맞는 순간까지는 배트가 가속하고(t²), 그 뒤 팔로스루는
+        /// 감속한다. 한 곡선으로 처리하면 맞는 순간이 뒤로 밀려 "늦게 휘두르는" 것으로
+        /// 보인다.
         ///
         /// 조준의 <b>수평 성분</b>을 축으로 삼는다. 방망이가 위를 보든 아래를 보든 같은
         /// 궤적이어야 하고, 그것은 <see cref="LaunchDirection"/> 이 반사 방향을 정하는
@@ -234,15 +247,36 @@ namespace Metagame.Gameplay
             if (right.sqrMagnitude < 1e-4f) right = Vector3.right;
             right.Normalize();
 
-            // 가속하며 내려간다. 등속으로 두면 휘두르는 것이 아니라 미끄러지는 것으로 보인다.
             var t = Mathf.Clamp01(progress01);
-            var eased = t * t;
+            var contact = Mathf.Clamp(PhysicsScale.BatSwingContactAt, 0.05f, 0.95f);
 
-            var pitch = Mathf.Lerp(PhysicsScale.BatSwingUpDegrees,
-                                   PhysicsScale.BatSwingDownDegrees, eased);
+            float yaw, pitch;
 
-            // right 축을 기준으로 양의 각도가 아래를 향하므로 부호를 뒤집는다.
-            return Quaternion.AngleAxis(-pitch, right) * forward;
+            if (t <= contact)
+            {
+                // 맞는 순간까지 가속한다. 등속이면 휘두르는 것이 아니라 미끄러지는 것으로 보인다.
+                var e = t / contact;
+                e *= e;
+
+                yaw = Mathf.Lerp(PhysicsScale.BatSwingWindupYawDegrees, 0f, e);
+                pitch = Mathf.Lerp(PhysicsScale.BatSwingUpDegrees,
+                                   PhysicsScale.BatSwingContactPitchDegrees, e);
+            }
+            else
+            {
+                // 팔로스루는 감속한다. 배트가 몸을 감고 멈춘다.
+                var u = (t - contact) / (1f - contact);
+                var e = 1f - (1f - u) * (1f - u);
+
+                yaw = Mathf.Lerp(0f, PhysicsScale.BatSwingFollowYawDegrees, e);
+                pitch = Mathf.Lerp(PhysicsScale.BatSwingContactPitchDegrees,
+                                   PhysicsScale.BatSwingDownDegrees, e);
+            }
+
+            // pitch 를 먼저 기울이고 그 결과를 세계 위쪽으로 돌린다. right 축을 기준으로
+            // 양의 각도가 아래를 향하므로 부호를 뒤집는다.
+            var tilted = Quaternion.AngleAxis(-pitch, right) * forward;
+            return Quaternion.AngleAxis(yaw, Vector3.up) * tilted;
         }
 
         /// <summary>
