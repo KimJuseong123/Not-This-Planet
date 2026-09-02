@@ -30,6 +30,13 @@ namespace Metagame.Network
     {
         public string roomId;
         public bool ready;
+
+        /// <summary>
+        /// START_GAME 에서 방장이 자기 매치 주소를 알린다(S15P21B202-263).
+        /// 방장의 클라이언트가 곧 게임 서버이므로, 참가자가 어디로 붙을지는
+        /// 방장만 알 수 있다. 서버는 이 값을 GAME_STARTED 로 방 전원에게 전달한다.
+        /// </summary>
+        public string hostAddress;
     }
 
     /// <summary>PLAYER_MOVE — 내 위치를 서버에 알린다. 서버는 계산하지 않고 중계만 한다.</summary>
@@ -83,6 +90,9 @@ namespace Metagame.Network
         public string status;
         public bool ready;
         public string message;
+
+        /// <summary>GAME_STARTED 에 실려 오는 방장의 매치 주소(-263).</summary>
+        public string hostAddress;
 
         // PLAYER_MOVED 전용
         public long userId;

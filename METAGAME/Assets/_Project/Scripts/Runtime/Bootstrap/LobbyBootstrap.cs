@@ -99,18 +99,30 @@ namespace Metagame.Bootstrap
                 return;
             }
 
-            // 게임 서버는 로비와 같은 PC 에 있고 포트만 다르다. 로비에 입력한 호스트를 그대로 쓴다.
-            // 서버가 GAME_STARTED 에 주소를 실어 보내게 되면 그 값을 우선하도록 바꾼다.
-            string host = NetworkSession.HostOf(network.ServerAddress);
-            if (string.IsNullOrEmpty(host)) host = "127.0.0.1";
-            manager.networkAddress = host;
-
             // 게임 서버가 Spring 에 물어볼 때 쓸 값. 토큰은 여기 말고 어디에도 남기지 않는다.
             MatchAuthenticator.ClientToken = network.AccessToken;
             MatchAuthenticator.ClientRoomId = network.CurrentRoomId;
 
+            // 이 방을 맡은 게 나라면 내가 게임 서버가 된다(S15P21B202-263).
+            // 물리와 판정이 내 PC 에서 돌고, 참가자들이 나에게 붙는다.
+            if (network.IsRoomHost)
+            {
+                joiningMatch = true;
+                manager.StartHost();
+                Debug.Log("[LobbyBootstrap] 방장이므로 이 PC 가 게임 서버가 된다.");
+                return;
+            }
+
+            // 참가자는 방장이 알려 준 곳으로 붙는다. 그 값이 없으면(주소를 안 싣는 옛
+            // 서버이거나, 전용 서버로 돌릴 때) 예전처럼 로비와 같은 호스트로 붙는다.
+            string host = NetworkSession.HostOf(network.MatchAddress);
+            if (string.IsNullOrEmpty(host)) host = NetworkSession.HostOf(network.ServerAddress);
+            if (string.IsNullOrEmpty(host)) host = "127.0.0.1";
+            manager.networkAddress = host;
+
             joiningMatch = true;
             manager.StartClient();
+            Debug.Log("[LobbyBootstrap] 참가자로 " + host + " 에 붙는다.");
         }
 
         void OnDestroy()

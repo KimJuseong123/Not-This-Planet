@@ -69,7 +69,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 case JOIN_ROOM -> joinRoom(session, userId, msg.data().get("roomId").asString());
                 case LEAVE_ROOM -> leaveRoom(session, userId);
                 case READY -> ready(userId, msg.data().get("ready").asBoolean());
-                case START_GAME -> startGame(userId);
+                case START_GAME -> startGame(userId, msg.data());
                 case PLAYER_MOVE -> playerMove(userId, msg.data());
                 default -> send(session, WsMessage.Type.ERROR, Map.of("message", "unknown type"));
             }
@@ -191,7 +191,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
-    private void startGame(Long userId) {
+    private void startGame(Long userId, JsonNode data) {
         Room room = roomOf(userId);
         if (room == null || !userId.equals(room.getHostUserId()) || !room.start()) {
             WebSocketSession session = sessions.get(userId);
@@ -200,7 +200,22 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             }
             return;
         }
-        broadcast(room, WsMessage.Type.GAME_STARTED, Map.of("roomId", room.getRoomId()));
+
+        // 방장의 클라이언트가 곧 게임 서버다(S15P21B202-263). 참가자들이 어디로 붙을지는
+        // 방장만 알 수 있으므로 START_GAME 에 실려 온 값을 그대로 전달한다.
+        // 서버가 보는 방장의 주소(공인 IP)로는 안 된다 — 공유기가 밖에서 들어오는
+        // 연결을 막기 때문에 같은 네트워크 안에서 쓰는 사설 주소여야 한다.
+        // 서버는 이 값을 해석하지 않는다. 나중에 릴레이가 붙으면 같은 자리에
+        // 릴레이 세션 값이 실린다.
+        String hostAddress = data != null && data.hasNonNull("hostAddress")
+                ? data.get("hostAddress").asText("")
+                : "";
+
+        Map<String, Object> payload = hostAddress.isBlank()
+                ? Map.of("roomId", room.getRoomId())
+                : Map.of("roomId", room.getRoomId(), "hostAddress", hostAddress);
+
+        broadcast(room, WsMessage.Type.GAME_STARTED, payload);
     }
 
     /**
