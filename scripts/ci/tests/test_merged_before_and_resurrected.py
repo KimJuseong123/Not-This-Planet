@@ -42,6 +42,7 @@ MRS = [{"iid": 46, "web_url": "https://lab/mr/46", "source_branch": "S15P21B202-
         "merged_at": "2026-08-28T00:10:00.000Z", "should_remove_source_branch": True,
         "author": {"username": "chlwos1313"}}]
 EXISTING = {"S15P21B202-102-x"}   # 되살아난 브랜치만 존재한다
+AHEAD_COMMITS = 3                 # develop 에 없는 커밋 수 (-282: 0 이면 '지우면 끝', >0 이면 유실 후보)
 
 
 def http2(method, url, headers=None, body=None, timeout=30):
@@ -52,12 +53,18 @@ def http2(method, url, headers=None, body=None, timeout=30):
         if name in EXISTING:
             return 200, {"name": name, "commit": {"author_name": "금준영"}}
         return 404, {"message": "404 Branch Not Found"}
+    if "/repository/compare" in url:          # -282: develop 에 없는 커밋 수
+        return 200, {"commits": [{}] * AHEAD_COMMITS}
     raise AssertionError(url)
 
 
 ci_common.http = http2; mm_digest.http = http2
-rows = mm_digest.resurrected_branches(mm_digest.GitLab())
+from datetime import datetime, timezone  # noqa: E402
+NOW = datetime(2026, 8, 29, tzinfo=timezone.utc)     # 픽스처(08-28)가 7일 창 안에 들게 고정(-281)
+
+rows = mm_digest.resurrected_branches(mm_digest.GitLab(), now=NOW)
 assert len(rows) == 1 and "S15P21B202-102-x" in rows[0] and "!46" in rows[0] and "@rmawnsdud" in rows[0], rows
+assert "3개 — develop 에 없음" in rows[0], f"유실 후보로 표시돼야 한다: {rows[0]}"
 print("  아침 점검 되살아난 브랜치 ✅")
 
 print("TEST110 OK")
