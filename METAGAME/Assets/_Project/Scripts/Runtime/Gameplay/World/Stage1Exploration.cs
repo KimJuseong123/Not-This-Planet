@@ -48,6 +48,9 @@ namespace Metagame.Gameplay
                     if (!IsDiscovered) return "미발견";
                     if (Part == null) return "씬 배치 확인";
 
+                    var tractor = Part.GetComponent<PartTractorActivator>();
+                    if (tractor != null && tractor.IsActivated) return "견인 장치 활성화";
+
                     return Part.State switch
                     {
                         PartState.Locked => "발견",
@@ -252,18 +255,18 @@ namespace Metagame.Gameplay
 
         static PartInfo[] CreateDefinitions() => new[]
         {
-            new PartInfo(1, PartKind.HoverPod,
-                "SF_Stage1_Spaceship_HoverPod", "PF_Stage1_Spaceship_HoverPod",
-                "부양 추진부", "납작한 추진부. 기지의 운송 플랫폼처럼 보이는 파츠"),
-            new PartInfo(2, PartKind.Robot,
+            new PartInfo(1, PartKind.Robot,
                 "SF_Stage1_Spaceship_Robot", "PF_Stage1_Spaceship_Robot",
-                "로봇 파츠", "팔을 가진 정비 로봇. 오래된 기지 설비 속에 숨은 파츠"),
+                "주 추진·견인 모듈", "고정못을 모두 풀면 파츠를 옮기는 견인 장치로 작동하는 정비 로봇"),
+            new PartInfo(2, PartKind.HoverPod,
+                "SF_Stage1_Spaceship_HoverPod", "PF_Stage1_Spaceship_HoverPod",
+                "부양·안정화 모듈", "납작한 부양 추진부. 완성된 구조선의 하부를 안정화하는 파츠"),
             new PartInfo(3, PartKind.Capsule,
                 "SF_Stage1_Spaceship_Capsule", "PF_Stage1_Spaceship_Capsule",
                 "조종석 캡슐", "둥근 조종석 캡슐. 기지의 작은 관측실처럼 보이는 파츠"),
             new PartInfo(4, PartKind.TractorCraft,
                 "SF_Stage1_TractorCraft", "PF_Stage1_TractorCraft",
-                "견인 장치", "작은 비행접시 모양의 견인 장치. 파츠를 옮길 도구"),
+                "상단 조립 모듈", "작은 비행접시 모양의 최상단 조립 파츠"),
         };
 
         static int CompareParts(SpaceshipPart left, SpaceshipPart right)

@@ -31,7 +31,7 @@ namespace Metagame.Gameplay.Tests
             var exploration = CreateExploration();
             exploration.Configure(new[] { part3, part1, part4, part2 });
 
-            Assert.AreEqual("SF_Stage1_Spaceship_HoverPod", exploration.Parts[0].AssetName);
+            Assert.AreEqual("SF_Stage1_Spaceship_Robot", exploration.Parts[0].AssetName);
             Assert.AreSame(part1, exploration.Parts[0].Part);
             Assert.AreSame(part2, exploration.Parts[1].Part);
             Assert.AreSame(part3, exploration.Parts[2].Part);

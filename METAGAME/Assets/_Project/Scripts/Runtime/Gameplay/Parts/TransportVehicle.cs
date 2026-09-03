@@ -42,6 +42,7 @@ namespace Metagame.Gameplay.Parts
     [RequireComponent(typeof(Rigidbody))]
     public sealed class TransportVehicle : MonoBehaviour
     {
+        public static event Action<TransportVehicle> AnyActivated;
         public static event Action<TransportVehicle, PlayerRig> AnyBoarded;
         public static event Action<TransportVehicle, PlayerRig> AnyDismounted;
 
@@ -331,6 +332,9 @@ namespace Metagame.Gameplay.Parts
             RefreshSeat();
         }
 
+        /// <summary>새로 활성화된 운반체를 각 플레이어 컨트롤러에 알린다.</summary>
+        internal void NotifyActivated() => AnyActivated?.Invoke(this);
+
         void EnsurePhysics()
         {
             if (body == null) body = GetComponent<Rigidbody>();
@@ -388,13 +392,18 @@ namespace Metagame.Gameplay.Parts
         /// <summary>탑승하지 않은 장치를 맵의 바닥으로 되돌린다.</summary>
         public void PlaceOnGround(Vector3 position, float visualYaw)
         {
-            EnsurePhysics();
-
             var rootRotation = Quaternion.LookRotation(Vector3.down, Vector3.forward);
             var groundPosition = new Vector3(position.x, GroundY, position.z);
+            if (body == null) body = GetComponent<Rigidbody>();
             body.position = groundPosition;
             body.rotation = rootRotation;
             transform.SetPositionAndRotation(groundPosition, rootRotation);
+
+            // 플랫폼과 좌석은 루트가 아래를 보는 운반체 축을 기준으로 만든다. Part_1처럼
+            // 변환 전 루트가 일반 파츠 축을 가지고 있는 경우, 루트 자세를 먼저 바꾸지
+            // 않으면 자식의 월드 회전이 함께 틀어진다.
+            EnsurePhysics();
+
             body.linearVelocity = Vector3.zero;
             body.angularVelocity = Vector3.zero;
             body.useGravity = true;

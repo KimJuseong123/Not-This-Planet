@@ -8,9 +8,10 @@ namespace Metagame.Gameplay.Parts
     /// <summary>
     /// 운반 장치의 탑승·운전·견인 입력을 연결한다.
     ///
-    /// 운반 장치는 파츠와 무관하게 먼저 탑승할 수 있다. 탑승 중 좌·우클릭과 F는
-    /// 장치 아래의 광역 저중력장을 켜고 끈다. 단일 파츠를 정밀하게 드는 TractorBeam
-    /// API는 데모와 외부 호출을 위해 남겨 두지만, 일반 탑승 입력은 광역장만 사용한다.
+    /// 유일한 운반 장치인 해제된 Part_1에 탑승·운전·견인 입력을 연결한다. 탑승 중
+    /// 좌·우클릭과 F는 장치 아래의 광역 저중력장을 켜고 끈다. 단일 파츠를 정밀하게
+    /// 드는 TractorBeam API는 내부 동작과 테스트를 위해 남겨 두지만, 일반 탑승 입력은
+    /// 광역장만 사용한다.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class TractorBeamController : MonoBehaviour
@@ -62,15 +63,20 @@ namespace Metagame.Gameplay.Parts
         public bool IsControlling => mountedVehicle != null;
         public string StatusMessage => Time.unscaledTime <= statusUntil ? statusMessage : "";
 
+        void OnEnable() => TransportVehicle.AnyActivated += RegisterActivatedVehicle;
+
+        void OnDisable() => TransportVehicle.AnyActivated -= RegisterActivatedVehicle;
+
         /// <summary>
-        /// 장치가 씬에 배치되는 위치는 실행할 때마다 맵의 빈 지점으로 섞는다.
+        /// 명시적으로 전달된 레거시 빔의 위치만 실행 시 맵의 빈 지점으로 섞는다.
+        /// Main 씬의 Part_1은 고정못을 뽑은 자리에서 활성화되므로 임의로 옮기지 않는다.
         /// EditMode 테스트는 randomizeVehicles=false로 고정된 배치를 사용한다.
         /// </summary>
         public void Configure(PlayerRig localPlayer, TractorBeam[] beams, bool randomizeVehicles = true)
         {
             player = localPlayer;
             beams = beams ?? System.Array.Empty<TractorBeam>();
-            vehicles = new TransportVehicle[beams.Length];
+            vehicles = System.Array.Empty<TransportVehicle>();
 
             for (var i = 0; i < beams.Length; i++)
             {
@@ -80,13 +86,40 @@ namespace Metagame.Gameplay.Parts
                 var vehicle = beam.GetComponent<TransportVehicle>();
                 if (vehicle == null) vehicle = beam.gameObject.AddComponent<TransportVehicle>();
                 vehicle.Initialize(beam, TransportVehicle.BeamHoldDistance);
-                vehicles[i] = vehicle;
+                RegisterVehicle(vehicle);
             }
+
+            // 컨트롤러보다 먼저 활성화된 Part_1도 등록한다. 보통은 해제 순간의 이벤트가
+            // 처리하지만, 씬 저장 상태나 서버 초기화 순서가 달라도 동일하게 동작해야 한다.
+            var activators = FindObjectsByType<PartTractorActivator>(FindObjectsInactive.Include);
+            for (var i = 0; i < activators.Length; i++)
+                if (activators[i] != null) RegisterVehicle(activators[i].Vehicle);
 
             player?.ConfigureTransportInteractionTargets(vehicles);
             ApplyPhysicsAuthority();
-            if (randomizeVehicles) PlaceVehiclesRandomly();
+            if (randomizeVehicles && beams.Length > 0) PlaceVehiclesRandomly();
             RefreshFocus();
+        }
+
+        void RegisterActivatedVehicle(TransportVehicle vehicle)
+        {
+            RegisterVehicle(vehicle);
+            vehicle?.SetFieldPhysicsAuthority(physicsAuthority);
+            player?.ConfigureTransportInteractionTargets(vehicles);
+            RefreshFocus();
+        }
+
+        void RegisterVehicle(TransportVehicle vehicle)
+        {
+            if (vehicle == null) return;
+
+            for (var i = 0; i < vehicles.Length; i++)
+                if (vehicles[i] == vehicle) return;
+
+            var next = new TransportVehicle[vehicles.Length + 1];
+            System.Array.Copy(vehicles, next, vehicles.Length);
+            next[next.Length - 1] = vehicle;
+            vehicles = next;
         }
 
         void ApplyPhysicsAuthority()

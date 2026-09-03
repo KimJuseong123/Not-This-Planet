@@ -64,7 +64,8 @@ namespace Metagame.EditorTools
         /// <summary>
         /// 파츠별 스킨. 조립 순서는 기획에서 미정이라 시연 순서에 맞춰 정했다.
         /// 시연 드라이버가 Part_1 을 맨 아래, Part_2 를 그 위로 옮긴다.
-        /// 아래에서 위로 부양 추진부 → 로봇 → 조종석이고, 견인 장치는 도구 역할이다.
+        /// 아래에서 위로 부양 추진부 → 로봇 → 조종석이고, Part_1은 고정못 해제 뒤
+        /// 견인 장치 역할까지 겸한다.
         /// </summary>
         /// <summary>
         /// 파츠에 얹을 프리팹 경로. 어느 파츠에 무엇이 올라가는지는 <see cref="PartSpec"/> 가
@@ -79,7 +80,6 @@ namespace Metagame.EditorTools
         const string LegacyPinGroupName = "AnchorPins";
 
         const string AnchorPinPrefab = PropDir + "/PF_Stage1_AnchorPin.prefab";
-        const string TractorCraftPrefab = SpaceshipDir + "/PF_Stage1_TractorCraft.prefab";
 
         // --- 아레나 ---
         /// <summary>지면(ENV_Ground_Arena_50m)이 50 x 50 m 다.</summary>
@@ -163,7 +163,6 @@ namespace Metagame.EditorTools
 
             int parts = SkinParts(puzzle);
             int pins = SkinClamps(puzzle);
-            int beams = SkinBeams(puzzle);
             int walls = BuildBoundaries(environment);
             int nature = BuildNature(environment, puzzle, scene);
             int planets = BuildDistantBackground(environment);
@@ -174,7 +173,7 @@ namespace Metagame.EditorTools
             EditorSceneManager.SaveScene(scene);
             AssetDatabase.SaveAssets();
 
-            Debug.Log($"[Stage1Skin] 스킨 완료 — 파츠 {parts}기, 고정못 {pins}개, 견인 장치 {beams}기, "
+            Debug.Log($"[Stage1Skin] 스킨 완료 — 파츠 {parts}기, 고정못 {pins}개, "
                       + $"절벽 {walls}개, 자연물 {nature}개, 배경 행성 {planets}개, "
                       + $"지면 재질 {(ground ? "적용" : "실패")}, 템플릿 라이트 {(light ? "끔" : "이미 꺼짐")} → {ScenePath}");
         }
@@ -303,34 +302,6 @@ namespace Metagame.EditorTools
             }
 
             return null;
-        }
-
-        /// <summary>견인 빔 기준점에 비행접시형 운반 도구를 띄운다.</summary>
-        static int SkinBeams(Transform puzzle)
-        {
-            var prefab = Load(TractorCraftPrefab);
-            if (prefab == null) return 0;
-
-            var fit = Measure(prefab);
-            var done = 0;
-
-            foreach (var beam in puzzle.GetComponentsInChildren<TractorBeam>(true))
-            {
-                var visual = Attach(beam.transform, prefab);
-
-                // 빔 기준점은 아래를 겨누도록 회전해 있다. 도구는 수평으로 떠 있어야 하므로
-                // 부모 회전을 따라가지 않게 월드 기준으로 직접 세운다.
-                visual.rotation = Quaternion.identity;
-                // 빔 루트의 높이는 바닥 기준점이지 모델의 중심 높이가 아니다. 중심을
-                // 루트에 맞추면 실제 비행접시 높이의 절반이 지면 아래로 내려간다.
-                var bottomOffset = fit.Center.y - fit.Size.y * 0.5f;
-                visual.position = new Vector3(
-                    beam.transform.position.x - fit.Center.x,
-                    TransportVehicle.GroundY - bottomOffset,
-                    beam.transform.position.z - fit.Center.z);
-                done++;
-            }
-            return done;
         }
 
         // ---------------------------------------------------------------- 환경
