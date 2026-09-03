@@ -62,10 +62,11 @@ namespace Metagame.Gameplay
             IsEquipped = true;
             SuspendCollisions();
             currentInput = new ToolInputFrame();
+            // 카메라가 없다고 도구 자신의 forward 로 대신하면 안 된다 — 도구는 래그돌 손에
+            // 들려 흔들리므로 사람이 보는 곳과 무관해진다. 조준 창구는 카메라가 있으면
+            // 카메라를, 없으면 클라이언트가 보낸 각도를 쓴다(-147).
             currentAim = new ToolAimContext(owner, owner != null ? owner.Cam : null,
-                                            owner != null && owner.Cam != null
-                                                ? owner.Cam.AimDirection
-                                                : transform.forward);
+                                            owner != null ? owner.AimForward : transform.forward);
             ResolveMuzzle();
             OnEquipped();
         }
