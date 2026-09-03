@@ -8,6 +8,7 @@
 > 갱신 2026-09-01 — Stage1 운석 방어용 방망이 FBX·PBR 텍스처·Material·Prefab 추가 · 이슈 [S15P21B202-187](https://ssafy.atlassian.net/browse/S15P21B202-187)
 > 갱신 2026-09-01 — Stage1 Terrain 2타일 확장·자연물 군집 배치·갈라진 디딤돌 연결 · 이슈 [S15P21B202-236](https://ssafy.atlassian.net/browse/S15P21B202-236)
 > 갱신 2026-09-02 — Stage1 보라색 꽃 대형·소형 FBX·PBR 텍스처·프리뷰 추가 · 이슈 [S15P21B202-260](https://ssafy.atlassian.net/browse/S15P21B202-260)
+> 갱신 2026-09-03 — 기존 토끼 캐릭터용 Mixamo 걷기·달리기 모션 추가 · 이슈 [S15P21B202-278](https://ssafy.atlassian.net/browse/S15P21B202-278)
 > 관련 문서: [문서 목록](./README.md) · [1장 기획](./planning/chapter-1-plan.md) · [파트 구분](./parts.md)
 
 **어떤 에셋이 무엇이고, 씬에 갖다 쓸 수 있는 상태인지** 한 장에서 확인하는 문서다.
@@ -332,6 +333,23 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 - 콘셉트 이미지는 [§9](#9-참고-에셋)에 있다.
 
 [S15P21B202-75](https://ssafy.atlassian.net/browse/S15P21B202-75)에서 캐릭터 모델을 이것으로 통일했다. 이전 `SF_Astronaut_Base.fbx`는 삭제됐다.
+
+### 걷기·달리기 애니메이션 — S15P21B202-278
+
+기존 `SF_Rabbit_Base` 모델·프리팹·재질은 그대로 사용한다. 사용자가 제공한 Mixamo FBX는
+`Animations/Characters/Rabbit/Source/`에 원본 그대로 보관하고, 기존 토끼 뼈대에 맞춘 회전 클립을 별도로 생성한다.
+
+| 용도 | 제공 원본 | 실제 재생 클립 | 주기 |
+| --- | --- | --- | --- |
+| 걷기 | `Animations/Characters/Rabbit/Source/Standard Walk.fbx` | `Animations/Characters/Rabbit/Resources/RabbitLocomotion/Rabbit_Walk.anim` | 약 1.167초, 반복 |
+| 달리기 | `Animations/Characters/Rabbit/Source/Running.fbx` | `Animations/Characters/Rabbit/Resources/RabbitLocomotion/Rabbit_Run.anim` | 0.7초, 반복 |
+
+- 전진: 걷기 / Shift 전진: 달리기. 후진은 역재생, 순수 옆걸음은 기존 절차적 보행을 유지한다.
+- `SpaceSuit`의 물리 포즈 위에 `RabbitLocomotion`이 팔다리 모션을 적용한다. 골반 이동·콜라이더·기존 캐릭터 외형은 변경하지 않는다.
+- 정지 시 물리 포즈로 전환하고, 공중·기절·탑승·매달림에서는 모션을 중단한다. 물체를 잡거나 도구를 쓰는 팔은 물리 포즈를 유지한다.
+- Unity 메뉴: **Tools → Metagame → 캐릭터 → 걷기·달리기 미리보기**. 실제 맵을 열거나 저장하지 않는 별도 창이다.
+- Source FBX를 맵에 직접 배치하거나 기존 캐릭터 FBX 위에 덮어쓰지 않는다. 원본 Mixamo 리그와 기존 토끼 리그는 서로 다르다.
+- 재생성·검증·제한 사항: [작업 기록](./records/S15P21B202-278-rabbit-walk-run.md).
 
 ---
 
