@@ -52,6 +52,12 @@ namespace Metagame.Gameplay.Hazards
 
         Rigidbody _body;
         float _life;
+        float _sinceRolling = -1f;
+        float _sinceSettled = -1f;
+        float _atRestSeconds;
+
+        /// <summary>정착 안전망의 레이캐스트 버퍼. 매 틱 새로 만들지 않는다.</summary>
+        static readonly RaycastHit[] RestProbe = new RaycastHit[8];
 
         /// <summary>이미 부딪혔는지. 착탄은 한 번만 처리한다.</summary>
         public bool HasImpacted { get; private set; }
@@ -67,6 +73,33 @@ namespace Metagame.Gameplay.Hazards
         /// 충돌체로 전환한다" 이고, 150~200개가 쌓이는 것을 성능 기준으로 삼기 때문이다.
         /// </summary>
         public bool Settled { get; private set; }
+
+        /// <summary>
+        /// 쳐내서 <b>굴러다니는 소품</b>이 되었는가(S15P21B202-273).
+        ///
+        /// 운석은 날아간 뒤 두 갈래로 끝난다.
+        ///
+        /// <code>
+        /// 방망이로 쳐냄   →  동적 유지 · Prop 레이어 · 방망이로 밀린다 · 굴러다닌다
+        /// 못 쳐냄        →  키네마틱 · 반쯤 박힘 · 못 건드림 · 위에 올라갈 수만
+        /// </code>
+        ///
+        /// Prop 레이어로 옮기는 것이 핵심이다. <see cref="GameLayers.BatStrikeMask"/> 가
+        /// <see cref="GameLayers.Meteor"/> 를 빼고 <see cref="GameLayers.Prop"/> 은
+        /// 포함하므로(S15P21B202-257), 레이어만 옮기면 <b>때릴 수 있는 소품이 된다</b> —
+        /// 새 규칙을 만들지 않는다.
+        /// </summary>
+        public bool Rolling { get; private set; }
+
+        /// <summary>
+        /// 더 이상 사람을 때리지 않는가.
+        ///
+        /// 기획 §19 "충돌 <b>순간에만</b> 넉백과 기절 판정이 있다". 착지든 방망이 타격이든
+        /// <b>한 번 끝나면 다시 때리지 않는다</b> — 예전에는 <see cref="HasImpacted"/>
+        /// 하나로만 막아서, 쳐낸 운석이 날아가다 사람을 스치면 기절시켰다
+        /// (S15P21B202-273).
+        /// </summary>
+        public bool Harmless => HasImpacted || Rolling;
 
         /// <summary>
         /// 착탄한 지면 위치. 박히기 <b>전</b>의 지점이다.
@@ -227,16 +260,53 @@ namespace Metagame.Gameplay.Hazards
 
             _body.linearVelocity = velocity;
             WasDeflected = true;
+
+            // 맞은 순간부터 소품이다(S15P21B202-273). 날아가는 동안에도 사람을 때리지
+            // 않는다 — §19 의 "충돌 순간에만" 을 타격에도 적용한다.
+            BecomeRolling();
+        }
+
+        /// <summary>
+        /// 쳐낸 운석을 굴러다니는 소품으로 바꾼다(S15P21B202-273).
+        ///
+        /// <b>물리를 끄지 않는다.</b> 굴러다녀야 하고 방망이로 밀려야 한다 — 박힌 흔적과
+        /// 정반대다.
+        /// </summary>
+        void BecomeRolling()
+        {
+            if (Rolling) return;
+
+            Rolling = true;
+            _sinceRolling = 0f;
+
+            SetLayerDeep(gameObject, GameLayers.Prop);
+        }
+
+        static void SetLayerDeep(GameObject go, int layer)
+        {
+            go.layer = layer;
+
+            for (var i = 0; i < go.transform.childCount; i++)
+                SetLayerDeep(go.transform.GetChild(i).gameObject, layer);
         }
 
         void OnCollisionEnter(Collision collision)
         {
             if (collision.contactCount == 0) return;
 
+            // 쳐낸 운석은 이미 소품이다(S15P21B202-273). 착지해도 박히지 않고 굴러다니며,
+            // 사람을 때리지도 않는다 — 일반 PhysX 충돌에 맡긴다.
+            //
+            // <b>기획 §18.2 를 어긴다</b> — "반사 운석의 충돌과 폭발은 일반 운석과 같은
+            // 피해를 준다" 고 정한다. 2026-09-02 에 "방망이에 친 순간 데미지를 못 주는
+            // 물건이 된다" 로 정했다. 쳐낸 것이 동료를 때리면 방망이가 구제가 아니라
+            // 위험 전가가 되므로 협동에는 이쪽이 낫다 — [Plan] 확인이 필요하다.
+            if (Rolling) return;
+
             // 첫 접점이 아니라 가장 위를 받치는 접점을 고른다. 운석이 차량이나 파츠의
             // 옆면을 스치는 순간에는 지지면이 아니므로, 그 점을 착탄 지점으로 쓰면
             // 운석이 허공에 박힌 채 차량을 따라가는 문제가 생긴다.
-            if (!TryGetSupportContact(collision, out var support))
+            if (!TryGetSupportContact(collision, out var support, out var supportNormal))
             {
                 // 떨어지는 중 플레이어를 직접 맞힌 경우의 충격은 유지한다. 다만 같은
                 // 플레이어의 여러 limb collider가 한 운석에 반복 피해를 주지 않게 한다.
@@ -256,24 +326,27 @@ namespace Metagame.Gameplay.Hazards
 
             // 운석 본체가 몸에 닿았는가. 거리로는 알 수 없다 — 착탄 지점 바로 옆에 서
             // 있는 것과 운석에 얻어맞는 것은 §20.1 이 다른 단계로 나눈다.
-            var supportCollider = OtherCollider(support);
+            var supportCollider = Other(support).Collider;
             var supportDirect = supportCollider != null
                 ? supportCollider.GetComponentInParent<PlayerRig>()
                 : null;
 
-            ApplyImpact(support.point, supportDirect, support.normal);
+            ApplyImpact(support.point, supportDirect, supportNormal);
         }
 
-        bool TryGetSupportContact(Collision collision, out ContactPoint support)
+        bool TryGetSupportContact(Collision collision, out ContactPoint support,
+                                  out Vector3 supportNormal)
         {
             support = default;
+            supportNormal = Vector3.up;
+
             var found = false;
             var bestNormalY = MinimumSupportNormalY;
 
             for (var i = 0; i < collision.contactCount; i++)
             {
                 var contact = collision.GetContact(i);
-                var otherCollider = OtherCollider(contact);
+                var (otherCollider, normal) = Other(contact);
                 if (otherCollider == null) continue;
 
                 var otherBody = otherCollider.attachedRigidbody;
@@ -285,24 +358,48 @@ namespace Metagame.Gameplay.Hazards
                 if (otherCollider.GetComponentInParent<Metagame.Gameplay.Parts.TransportVehicle>() != null)
                     continue;
 
-                if (contact.normal.y < bestNormalY) continue;
-                bestNormalY = contact.normal.y;
+                // <b>운석 기준으로 뒤집은 법선</b>으로 판정한다(S15P21B202-273).
+                if (normal.y < bestNormalY) continue;
+
+                bestNormalY = normal.y;
                 support = contact;
+                supportNormal = normal;
                 found = true;
             }
 
             return found;
         }
 
-        static Collider OtherCollider(ContactPoint contact)
+        /// <summary>
+        /// 접점을 <b>운석 기준</b>으로 바꿔 돌려준다.
+        ///
+        /// <b>법선의 부호가 이 버그의 원인이었다</b>(S15P21B202-273). Unity 의
+        /// <see cref="ContactPoint.normal"/> 은 <c>thisCollider</c> 기준이고, 어느 쪽이
+        /// <c>thisCollider</c> 가 되는지는 <b>어느 오브젝트가 콜백을 받았는지에 따라
+        /// 달라진다.</b>
+        ///
+        /// 예전 코드는 그 모호함을 콜라이더에 대해서만 처리하고 법선은 그대로 썼다.
+        /// 지면이 <c>thisCollider</c> 로 잡히면 법선이 운석 반대쪽을 향해 y 가 −1 에
+        /// 가까워지고, <see cref="MinimumSupportNormalY"/>(0.35) 문턱을 넘지 못한다 —
+        /// 그러면 운석이 <b>영영 정착하지 않고</b> 살아 있는 동적 물체로 바닥에 누워,
+        /// 사람이 닿을 때마다 직접 충돌로 기절시켰다.
+        ///
+        /// 두 값이 같은 판단을 쓰므로 한 곳에서 함께 돌려준다.
+        /// </summary>
+        static (Collider Collider, Vector3 Normal) Other(ContactPoint contact)
         {
-            // ContactPoint exposes both sides rather than a generic collider property.
-            // Meteor is the receiver of OnCollisionEnter, so prefer the opposite side
-            // and keep the fallback for synthetic/test contacts.
-            if (contact.thisCollider != null
-                && contact.thisCollider.GetComponentInParent<Meteor>() != null)
-                return contact.otherCollider;
-            return contact.thisCollider != null ? contact.thisCollider : contact.otherCollider;
+            var meteorIsThis = contact.thisCollider != null
+                               && contact.thisCollider.GetComponentInParent<Meteor>() != null;
+
+            if (meteorIsThis)
+                return (contact.otherCollider, contact.normal);
+
+            // 지면 쪽이 콜백을 받았다. 법선을 뒤집어 운석 기준으로 맞춘다.
+            var collider = contact.thisCollider != null
+                ? contact.thisCollider
+                : contact.otherCollider;
+
+            return (collider, -contact.normal);
         }
 
         /// <summary>
@@ -317,6 +414,10 @@ namespace Metagame.Gameplay.Hazards
         void ApplyImpact(Vector3 point, PlayerRig directHit, Vector3 normal)
         {
             if (HasImpacted) return;
+
+            // 쳐낸 운석은 흔적이 되지 않는다(S15P21B202-273). 착지해도 굴러다니는 소품으로
+            // 남는다 — 두 상태가 섞이면 "쳐냈는데 박혀 있는" 것이 된다.
+            if (Rolling) return;
 
             Initialize();
             HasImpacted = true;
@@ -339,17 +440,110 @@ namespace Metagame.Gameplay.Hazards
         /// </summary>
         public void Tick(float deltaTime)
         {
-            // 박힌 뒤에는 아무것도 하지 않는다(기획 §19). 스포너가 흔적 목록으로 옮겨
-            // 더 부르지 않지만, 누가 불러도 안전해야 한다.
-            if (Settled) return;
+            if (deltaTime <= 0f) return;
+
+            // 박힌 흔적. 일정 시간 뒤 사라진다(S15P21B202-273).
+            //
+            // <b>기획 §19 를 어긴다</b> — "스테이지 동안 사라지지 않는다" 고 정하고
+            // S15P21B202-251 이 그 근거로 소멸을 지웠다. 2026-09-02 에 둘 다 사라지게
+            // 하기로 정했고 [Plan] 확인이 필요하다.
+            if (Settled)
+            {
+                _sinceSettled += deltaTime;
+                if (_sinceSettled >= PhysicsScale.MeteorScarDespawnSeconds) Expire();
+                return;
+            }
+
+            // 쳐내서 굴러다니는 소품. 더 짧게 남는다 — 플레이어가 처리한 것이고,
+            // 동적 물체가 조립 구역에 오래 굴러다니면 방해가 된다.
+            if (Rolling)
+            {
+                _sinceRolling += deltaTime;
+                if (_sinceRolling >= PhysicsScale.MeteorDeflectedDespawnSeconds) Expire();
+                return;
+            }
 
             _life += deltaTime;
 
+            // 접점 판정이 놓친 경우의 안전망(S15P21B202-273). 이유는
+            // <see cref="PhysicsScale.MeteorRestSpeed"/> 에 적었다.
+            SettleIfAtRest(deltaTime);
+            if (Settled) return;
+
             // 착탄 처리는 물리 충돌 콜백에 달려 있다. 운석이 플레이 공간 밖으로 떨어지거나
             // 콜백을 놓치면 영구히 남으므로 수명 상한으로 반드시 사라지게 한다.
-            //
-            // 착탄한 운석에는 이 상한이 걸리지 않는다 — Settled 에서 이미 돌아나갔다.
             if (_life >= _maxLifeSeconds) Expire();
+        }
+
+        /// <summary>
+        /// 거의 멈췄고 아래에 정적 지지면이 있으면 정착시킨다(S15P21B202-273).
+        ///
+        /// <b>접점 법선만 믿을 수 없다.</b> 지면이 자갈이 깔린 MeshCollider 라 급한
+        /// 삼각형에 먼저 닿으면 법선이 문턱을 넘지 못하고, 그러면 운석이 살아 있는
+        /// 동적 물체로 바닥에 누워 사람을 때린다 — 그것이 이 이슈의 증상이다.
+        ///
+        /// 아래를 훑어 <b>정적 지지면</b>을 확인한다. 그냥 "멈췄으면 정착" 으로 두면
+        /// 견인 운반체나 동적 파츠 위에 얹혀 잠깐 멈춘 것도 박혀 버린다 —
+        /// <see cref="TryGetSupportContact"/> 가 그것을 막으려고 만든 판정이므로 같은
+        /// 규칙을 지킨다.
+        /// </summary>
+        void SettleIfAtRest(float deltaTime)
+        {
+            if (_body == null || _body.isKinematic) return;
+
+            if (_body.linearVelocity.sqrMagnitude
+                > PhysicsScale.MeteorRestSpeed * PhysicsScale.MeteorRestSpeed)
+            {
+                _atRestSeconds = 0f;
+                return;
+            }
+
+            _atRestSeconds += deltaTime;
+            if (_atRestSeconds < PhysicsScale.MeteorRestSeconds) return;
+
+            if (!TryFindSupportBelow(out var point, out var normal)) return;
+
+            ApplyImpact(point, null, normal);
+        }
+
+        /// <summary>몸통 아래의 정적 지지면. 없으면 <c>false</c>.</summary>
+        bool TryFindSupportBelow(out Vector3 point, out Vector3 normal)
+        {
+            point = transform.position;
+            normal = Vector3.up;
+
+            var from = _body.worldCenterOfMass + Vector3.up * PhysicsScale.MeteorRadius;
+            var distance = PhysicsScale.MeteorRadius * 3f;
+
+            var count = UnityEngine.Physics.RaycastNonAlloc(
+                from, Vector3.down, RestProbe, distance,
+                GameLayers.SurfaceMask, QueryTriggerInteraction.Ignore);
+
+            var best = float.MaxValue;
+            var found = false;
+
+            for (var i = 0; i < count; i++)
+            {
+                var hit = RestProbe[i];
+                if (hit.collider == null) continue;
+
+                // 자기 자신은 지지면이 아니다.
+                if (hit.collider.GetComponentInParent<Meteor>() == this) continue;
+
+                // 동적 물체 위에 잠깐 얹힌 것은 정착이 아니다 — 접점 판정과 같은 규칙이다.
+                var body = hit.collider.attachedRigidbody;
+                if (body != null && !body.isKinematic) continue;
+                if (hit.collider.GetComponentInParent<Parts.TransportVehicle>() != null) continue;
+
+                if (hit.distance >= best) continue;
+
+                best = hit.distance;
+                point = hit.point;
+                normal = hit.normal;
+                found = true;
+            }
+
+            return found;
         }
 
         /// <summary>
@@ -366,6 +560,7 @@ namespace Metagame.Gameplay.Hazards
         void Settle(Vector3 point, Vector3 normal)
         {
             Settled = true;
+            _sinceSettled = 0f;
 
             if (_body != null)
             {

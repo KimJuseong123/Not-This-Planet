@@ -106,8 +106,13 @@ namespace Metagame.Gameplay.Tests
             Assert.IsTrue(collider.enabled, "걸려서 넘어갈 수 있어야 한다.");
         }
 
+        /// <summary>
+        /// <b>이 검증이 뒤집혔다.</b> S15P21B202-251 은 "흔적은 스테이지 동안 남는다"
+        /// (기획 §19)를 잠갔는데, 2026-09-02 에 둘 다 사라지게 하기로 정했다 —
+        /// §19 를 어기므로 [Plan] 확인이 필요하다(S15P21B202-273).
+        /// </summary>
         [Test]
-        public void ASettledMeteorIgnoresFurtherTicks()
+        public void ASettledMeteorDespawnsAfterItsTime()
         {
             var meteor = MakeMeteor(new Vector3(0f, 4f, 0f));
             meteor.ApplyImpact(Vector3.zero);
@@ -115,13 +120,15 @@ namespace Metagame.Gameplay.Tests
             var expired = false;
             meteor.Expired += _ => expired = true;
 
-            var where = meteor.transform.position;
+            // 분화구가 식는 동안에는 남아 있어야 한다.
+            for (var i = 0; i < Mathf.CeilToInt(PhysicsScale.MeteorScarCoolSeconds / Step); i++)
+                meteor.Tick(Step);
+            Assert.IsFalse(expired, "식는 연출이 끝나기 전에 사라지면 안 된다.");
 
-            // 예전 소멸 시간(6초)과 수명 상한을 모두 훌쩍 넘긴다.
-            for (var i = 0; i < 12000; i++) meteor.Tick(Step);
+            var guard = 0;
+            while (!expired && guard++ < 200000) meteor.Tick(Step);
 
-            Assert.IsFalse(expired, "흔적은 스테이지 동안 남는다(§19).");
-            Assert.AreEqual(where, meteor.transform.position);
+            Assert.IsTrue(expired);
         }
 
         // --- 스포너의 흔적 목록 --------------------------------------------
