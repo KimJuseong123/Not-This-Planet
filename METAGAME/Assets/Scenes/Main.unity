@@ -13874,7 +13874,6 @@ GameObject:
   - component: {fileID: 824525073}
   - component: {fileID: 824525071}
   - component: {fileID: 824525072}
-  - component: {fileID: 824525074}
   m_Layer: 9
   m_Name: Part_1
   m_TagString: Untagged
@@ -13968,18 +13967,6 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
---- !u!114 &824525074
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 824525069}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d3f0c0a24d1a4f2f8f6c1e9b7a5d3c81, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.Parts.PartTractorActivator
 --- !u!1001 &827774237
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -21098,6 +21085,7 @@ GameObject:
   - component: {fileID: 1170010218}
   - component: {fileID: 1170010216}
   - component: {fileID: 1170010217}
+  - component: {fileID: 1170010219}
   m_Layer: 9
   m_Name: Part_4
   m_TagString: Untagged
@@ -21114,7 +21102,7 @@ Transform:
   m_GameObject: {fileID: 1170010214}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 15, y: 1.224, z: 6}
+  m_LocalPosition: {x: 2.84, y: 1.224, z: 6}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -21192,6 +21180,18 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!114 &1170010219
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1170010214}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d3f0c0a24d1a4f2f8f6c1e9b7a5d3c81, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.Parts.PartTractorActivator
 --- !u!1 &1170795209
 GameObject:
   m_ObjectHideFlags: 0
