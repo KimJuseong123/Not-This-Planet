@@ -263,20 +263,32 @@ namespace Metagame.Gameplay.Tests
 
         // --- 쳐낸 운석 ----------------------------------------------------
 
-        /// <summary>기획 §20.1 "반사된 운석도 같은 규칙을 사용한다".</summary>
+        /// <summary>
+        /// <b>쳐낸 순간부터 순해진다</b>(S15P21B202-273).
+        ///
+        /// <b>기획 §18.2 를 어긴다.</b> §18.2 는 "반사된 운석의 충돌과 폭발은 일반
+        /// 운석과 같은 피해를 준다" 고 정하고, 이 검증이 원래 그것을 지켰다.
+        ///
+        /// 2026-09-02 에 운석을 두 상태로 나누기로 정했다 — 쳐낸 것은 <b>굴러다니며
+        /// 때릴 수 있는 소품</b>, 못 쳐낸 것은 <b>박힌 흔적</b>이고 둘 다 사람을 때리지
+        /// 않는다. 그러지 않으면 방망이로 쳐낸 운석이 날아가다 동료를 기절시켜,
+        /// <b>잘한 플레이가 팀을 해친다.</b> [Plan] 확인이 필요하다.
+        /// </summary>
         [Test]
-        public void ADeflectedMeteor_HurtsTheSameWay()
+        public void ADeflectedMeteor_StopsHurting()
         {
             var player = MakePlayer(new Vector3(0.6f, 0f, 0f));
             var meteor = MakeMeteor(new Vector3(0f, 5f, 0f));
 
             meteor.Deflect(Vector3.right * PhysicsScale.BatDeflectSpeed);
             Assert.IsTrue(meteor.WasDeflected);
+            Assert.IsTrue(meteor.Harmless, "맞은 순간부터 소품이다.");
 
             meteor.ApplyImpact(Vector3.zero);
             UnityEngine.Physics.Simulate(Step);
 
-            Assert.IsTrue(player.Ragdolled, "쳐냈다고 순해지지 않는다.");
+            Assert.IsFalse(player.Ragdolled, "쳐낸 운석은 동료를 때리지 않는다.");
+            Assert.IsFalse(player.Downed);
         }
 
         // --- 기절한 사람 --------------------------------------------------

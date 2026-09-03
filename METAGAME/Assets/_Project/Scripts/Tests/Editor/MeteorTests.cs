@@ -123,13 +123,13 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
-        /// 예전에는 이 검증이 착탄한 운석이 <b>사라지는지</b>를 잠갔다("착탄한 운석이 남아
-        /// 쌓이면 안 된다"). 기획 §19 는 정반대다 — "박힌 운석과 분화구는 발사 실패
-        /// 후에도 유지되며 <b>스테이지 동안 사라지지 않는다</b>".
-        /// S15P21B202-251 에서 뒤집었다.
+        /// <b>이 검증이 두 번 뒤집혔다.</b> 처음에는 "착탄한 운석이 남아 쌓이면 안 된다"
+        /// 였고, S15P21B202-251 이 기획 §19("스테이지 동안 사라지지 않는다")를 근거로
+        /// "영영 남는다" 로 뒤집었다. 2026-09-02 에 <b>둘 다 사라지게</b> 하기로 정해
+        /// 다시 뒤집는다 — §19 를 어기므로 [Plan] 확인이 필요하다(S15P21B202-273).
         /// </summary>
         [Test]
-        public void Meteor_StaysForeverOnceItSettles()
+        public void Meteor_ScarDespawnsAfterItsTime()
         {
             var meteor = CreateMeteor(Vector3.up * 10f);
             meteor.ApplyImpact(Vector3.zero);
@@ -137,14 +137,18 @@ namespace Metagame.Gameplay.Tests
             var expired = false;
             meteor.Expired += _ => expired = true;
 
-            Assert.IsTrue(meteor.Settled, "박혀야 한다.");
+            Assert.IsTrue(meteor.Settled);
 
-            // 예전 소멸 시간(6초)과 수명 상한을 모두 훌쩍 넘긴다.
-            for (var i = 0; i < Mathf.RoundToInt(120f / Tuning.FixedStep); i++)
+            // 분화구가 식는 시간(5초)보다는 오래 남아야 한다.
+            for (var i = 0; i < Mathf.RoundToInt(PhysicsScale.MeteorScarCoolSeconds
+                                                 / Tuning.FixedStep); i++)
                 meteor.Tick(Tuning.FixedStep);
+            Assert.IsFalse(expired, "식는 연출이 끝나기 전에 사라지면 안 된다.");
 
-            Assert.IsFalse(expired, "흔적은 스테이지 동안 남는다(§19).");
-            Assert.IsTrue(meteor != null);
+            var guard = 0;
+            while (!expired && guard++ < 200000) meteor.Tick(Tuning.FixedStep);
+
+            Assert.IsTrue(expired, "일정 시간 뒤 사라진다(S15P21B202-273).");
         }
 
         [Test]
@@ -233,10 +237,28 @@ namespace Metagame.Gameplay.Tests
 
         // --- 헬퍼 ------------------------------------------------------------
 
+        /// <summary>
+        /// 물리와 운석 틱을 함께 돌린다.
+        ///
+        /// <b>Tick 을 같이 불러야 한다</b>(S15P21B202-273). EditMode 에서는
+        /// <c>OnCollisionEnter</c> 가 오지 않으므로 접점 판정 경로가 돌지 않는다 —
+        /// 예전에는 이 도우미가 <c>Physics.Simulate</c> 만 돌려서
+        /// <c>Meteor_StaticSupportSettlesAndRaisesGlobalImpactOnce</c> 가 <b>원래 통과할
+        /// 수 없었다.</b> 정착 안전망은 <c>Tick</c> 에 있으므로 그것을 태운다.
+        /// </summary>
         void Simulate(float seconds)
         {
             var steps = Mathf.RoundToInt(seconds / Tuning.FixedStep);
-            for (var i = 0; i < steps; i++) UnityEngine.Physics.Simulate(Tuning.FixedStep);
+            for (var i = 0; i < steps; i++)
+            {
+                UnityEngine.Physics.Simulate(Tuning.FixedStep);
+
+                for (var m = Meteor.All.Count - 1; m >= 0; m--)
+                {
+                    var meteor = Meteor.All[m];
+                    if (meteor != null) meteor.Tick(Tuning.FixedStep);
+                }
+            }
         }
 
         /// <summary>정적 지면. 탑이 떠 있지 않게 받쳐 준다.</summary>
