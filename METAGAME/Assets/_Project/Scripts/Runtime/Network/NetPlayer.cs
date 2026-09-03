@@ -278,9 +278,19 @@ namespace Metagame.Network
         {
             if (body == null) return;
 
+            bool holding = (body.LeftHand != null && body.LeftHand.Held != null)
+                        || (body.RightHand != null && body.RightHand.Held != null);
+
+            // 무거운 부품은 손으로 쥐는 대신 "운반" 으로 간다. 둘은 다른 경로라
+            // 쥐기만 보면 운반이 되는 중인지 알 수 없다.
+            bool carrying = (body.LeftHand != null && body.LeftHand.Carrying)
+                         || (body.RightHand != null && body.RightHand.Carrying);
+
             string now = $"{body.CurrentInteractionTarget.Kind}"
                        + $"·탑승{(body.IsRiding ? "O" : "X")}"
-                       + $"·기절{(body.Downed ? "O" : "X")}";
+                       + $"·기절{(body.Downed ? "O" : "X")}"
+                       + $"·잡음{(holding ? "O" : "X")}"
+                       + $"·운반{(carrying ? "O" : "X")}";
             if (now == lastAim) return;
 
             lastAim = now;
