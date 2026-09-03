@@ -36,6 +36,15 @@ namespace Metagame.Network
         public bool IsLocalReady { get; private set; }
         public string ServerAddress { get; private set; } = DefaultServerAddress;
 
+        /// <summary>
+        /// 이 매치를 어디로 붙을지. GAME_STARTED 가 실어 준 방장의 주소다(-263).
+        /// 비어 있으면 예전처럼 로비와 같은 호스트로 붙는다(전용 서버 경로).
+        /// </summary>
+        public string MatchAddress { get; private set; } = string.Empty;
+
+        /// <summary>내가 이 방의 방장인가. 방장의 클라이언트가 게임 서버를 켠다(-263).</summary>
+        public bool IsRoomHost => CurrentRoom != null && CurrentRoom.HostUserId == UserId;
+
         /// 배포 서버. 포트를 적지 않으므로 https(443)·wss 로 붙는다.
         /// 로컬 개발은 로비 입력칸에 "127.0.0.1:8080" 을 넣으면 된다.
         public const string DefaultServerAddress = "j15b202.p.ssafy.io";
@@ -309,7 +318,49 @@ namespace Metagame.Network
 
         public void SetReady(bool ready) => Send("READY", new OutgoingData { ready = ready });
 
-        public void StartGame() => Send("START_GAME", new OutgoingData());
+        /// <summary>
+        /// 방을 시작한다. 방장의 클라이언트가 곧 게임 서버이므로(S15P21B202-263)
+        /// 참가자들이 붙을 주소를 함께 알린다 — 그 값은 방장만 안다.
+        /// </summary>
+        public void StartGame(string hostAddress = null)
+        {
+            if (string.IsNullOrWhiteSpace(hostAddress)) hostAddress = LocalMatchAddress();
+            Send("START_GAME", new OutgoingData { hostAddress = hostAddress });
+        }
+
+        /// <summary>
+        /// 참가자가 나에게 붙을 때 쓸 주소. 내 랜 주소를 찾는다(-263).
+        ///
+        /// 서버가 보는 내 주소(공인 IP)로는 안 된다 — 공유기가 밖에서 들어오는 연결을
+        /// 막기 때문이다. 같은 네트워크 안에서는 사설 주소로 서로 닿는다. 인터넷 너머는
+        /// 릴레이가 붙은 뒤에 그 세션 값을 대신 싣는다(후속 이슈).
+        ///
+        /// 포트는 붙이지 않는다. 참가자는 자기 빌드의 전송 설정(KcpTransport)에 적힌
+        /// 포트를 쓰고, 그 값은 방장과 같은 빌드라 항상 일치한다.
+        /// </summary>
+        public static string LocalMatchAddress()
+        {
+            try
+            {
+                // 밖으로 나가는 소켓을 하나 열어 보면 커널이 "이 주소로 나간다" 를 알려 준다.
+                // 실제로 보내지는 않는다. 랜카드가 여럿일 때 어느 것이 쓰이는지 고르는
+                // 가장 확실한 방법이다 — 이름으로 고르면 가상 어댑터를 집는다.
+                using (var probe = new System.Net.Sockets.Socket(
+                    System.Net.Sockets.AddressFamily.InterNetwork,
+                    System.Net.Sockets.SocketType.Dgram, System.Net.Sockets.ProtocolType.Udp))
+                {
+                    probe.Connect("8.8.8.8", 65530);
+                    var local = probe.LocalEndPoint as System.Net.IPEndPoint;
+                    if (local != null) return local.Address.ToString();
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning("[NetworkSession] 내 주소를 찾지 못했다: " + e.Message);
+            }
+
+            return string.Empty;
+        }
 
         public void LeaveRoom()
         {
@@ -467,6 +518,10 @@ namespace Metagame.Network
                     RoomStateChanged?.Invoke(CurrentRoom);
                     break;
                 case "GAME_STARTED":
+                    // 방장이 알려 준 매치 주소. 없으면(옛 서버) 로비 주소로 대신한다.
+                    MatchAddress = string.IsNullOrWhiteSpace(data.hostAddress)
+                        ? string.Empty
+                        : data.hostAddress.Trim();
                     GameStarted?.Invoke();
                     break;
                 case "PLAYER_MOVED":

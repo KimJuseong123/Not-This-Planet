@@ -50,6 +50,9 @@ namespace Metagame.Network
         /// <summary>이 사람의 운반 장치 조작. 서버에만 있다(-149).</summary>
         TractorBeamController transport;
 
+        /// <summary>게임 씬이 만든 몸을 넘겨받았는가. 그렇다면 여기서 없애지 않는다(-263).</summary>
+        bool adoptedBody;
+
         /// <summary>쓰러져 있은 시간. 전원 기절 구제를 재는 데 쓴다(-55).</summary>
         float downedSeconds;
 
@@ -109,6 +112,26 @@ namespace Metagame.Network
         void BuildServerBody()
         {
             var session = FindAnyObjectByType<GameSession>();
+
+            // 호스트 모드(방장의 PC 가 서버 겸 클라이언트)에서 방장 자신의 몸은
+            // 게임 씬이 이미 세웠다 — 카메라·HUD·태블릿이 전부 그 몸에 붙어 있다.
+            // 여기서 하나 더 만들면 방장만 몸이 두 벌이 되고, 카메라가 따라갈 대상이
+            // 모호해진다(S15P21B202-263).
+            if (isClient && isLocalPlayer && session != null && session.LocalPlayer != null)
+            {
+                body = session.LocalPlayer;
+                adoptedBody = true;
+
+                // 진행 판정(낙사·전원 기절)은 서버가 한다. 호스트에서는 내가 곧 서버라
+                // GameSession 이 로컬로 한 번 더 부활시키면 두 번 일어난다.
+                body.NetworkDriven = true;
+
+                AttachTransport();
+                transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
+                Debug.Log($"[NetPlayer] 방장의 몸을 넘겨받았다 · {nickname}(userId={userId})");
+                return;
+            }
+
             Vector3 foot = session != null ? session.SpawnFoot : transform.position;
             Quaternion facing = Quaternion.LookRotation(Vector3.right, Vector3.up);
 
@@ -119,14 +142,20 @@ namespace Metagame.Network
                 SuitColor(userId), AccentColor(userId),
                 useModel: !Application.isBatchMode);
 
-            // 운반 장치는 사람마다 따로 조작한다(S15P21B202-149). 컨트롤러는 1인용이라
-            // 접속자마다 하나씩 둔다 — 장치 자체는 씬에 하나뿐이고 여럿이 나눠 쓴다.
-            // 배치는 이미 끝나 있으므로 여기서 다시 섞지 않는다.
+            AttachTransport();
+            transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
+        }
+
+        /// <summary>
+        /// 운반 장치 조작을 이 사람 몫으로 하나 붙인다(S15P21B202-149).
+        /// 컨트롤러가 1인용이라 접속자마다 하나씩 둔다 — 장치 자체는 씬에 하나뿐이고
+        /// 여럿이 나눠 쓴다. 배치는 이미 끝나 있으므로 여기서 다시 섞지 않는다.
+        /// </summary>
+        void AttachTransport()
+        {
             transport = body.gameObject.AddComponent<TractorBeamController>();
             transport.Configure(body, FindObjectsByType<TractorBeam>(FindObjectsSortMode.None),
                                 randomizeVehicles: false);
-
-            transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
         }
 
         /// <summary>
@@ -344,8 +373,12 @@ namespace Metagame.Network
         void RemoveBody()
         {
             if (body == null) return;
-            if (!isLocalPlayer || isServer) Destroy(body.gameObject);
+
+            // 넘겨받은 몸은 게임 씬 것이다 — 카메라와 HUD 가 아직 보고 있다.
+            if (!adoptedBody && (!isLocalPlayer || isServer)) Destroy(body.gameObject);
+
             body = null;
+            adoptedBody = false;
         }
 
         /// 같은 사람은 누구 화면에서나 같은 색으로 보이게 userId 로 정한다.
