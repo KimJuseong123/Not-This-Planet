@@ -32,8 +32,14 @@ namespace Metagame.Network
         {
             NetworkClient.RegisterSpawnHandler(AssetId, SpawnOnClient, UnSpawnOnClient);
 
-            var manager = NetworkManager.singleton;
-            if (manager != null) manager.gameObject.AddComponent<WorldSyncSpawner>();
+            // 감시자를 우리 오브젝트에 둔다. 예전에는 NetworkManager.singleton 에 붙였는데,
+            // 그 값이 이 시점에 없으면 감시자가 아예 만들어지지 않고 월드 동기화가 통째로
+            // 조용히 빠진다 — 실제로 그랬다(2026-09-03 실측: 서버·클라이언트 모두
+            // [WorldSync] 로그가 한 줄도 없었다). 스스로 만들면 그 의존이 사라진다.
+            var watcher = new GameObject("~월드 동기화 감시");
+            Object.DontDestroyOnLoad(watcher);
+            watcher.AddComponent<WorldSyncSpawner>();
+            Debug.Log("[WorldSync] 감시자 설치 완료");
         }
 
         /// <summary>서버가 이것을 띄웠을 때 클라이언트가 만드는 것.</summary>
@@ -51,14 +57,33 @@ namespace Metagame.Network
         static WorldSync Build()
         {
             var go = new GameObject("~월드 동기화");
+
+            // 꺼진 채로 만들어 부품을 다 붙인 뒤에 켠다.
+            //
+            // NetworkIdentity 는 Awake 에서 자기 밑의 NetworkBehaviour 목록을 굳힌다.
+            // 켜진 오브젝트에 AddComponent 하면 그 자리에서 Awake 가 돌아 목록이 비어 있는
+            // 채로 굳고, 뒤에 붙인 WorldSync 는 목록에 없어 OnStartServer·OnStartClient 를
+            // 영영 받지 못한다 — 오브젝트 동기화가 통째로 조용히 빠졌다(2026-09-03 실측:
+            // 스폰은 되는데 [WorldSync] 로그가 한 줄도 없었다).
+            //
+            // 꺼져 있으면 AddComponent 가 Awake 를 미루고, 켜는 순간 한꺼번에 돌아
+            // Identity 가 WorldSync 를 제대로 본다.
+            go.SetActive(false);
             go.AddComponent<NetworkIdentity>();
-            return go.AddComponent<WorldSync>();
+            var sync = go.AddComponent<WorldSync>();
+            go.SetActive(true);
+
+            return sync;
         }
 
         /// <summary>서버가 게임 씬에 들어간 뒤 한 번 띄운다.</summary>
         internal static void SpawnIfNeeded()
         {
-            if (!NetworkServer.active || live != null) return;
+            if (!NetworkServer.active || live != null)
+            {
+                Debug.LogWarning($"[WorldSync] 띄우지 않았다 · 서버켜짐={NetworkServer.active} · 이미있음={live != null}");
+                return;
+            }
 
             live = Build();
             NetworkServer.Spawn(live.gameObject, AssetId);
@@ -73,13 +98,28 @@ namespace Metagame.Network
     {
         bool spawned;
 
+        float waited;
+        bool warned;
+
         void Update()
         {
             if (spawned || !NetworkServer.active) return;
 
             // 게임 씬이 올라왔는지는 "옮길 것이 있는가" 로 판단한다. 씬 이름을 박아 두면
             // 스테이지가 늘 때마다 여기를 고쳐야 한다.
-            if (FindAnyObjectByType<Metagame.Gameplay.Parts.TransportVehicle>() == null) return;
+            if (FindAnyObjectByType<Metagame.Gameplay.Parts.TransportVehicle>() == null)
+            {
+                // 영영 못 찾으면 월드 동기화가 조용히 빠진 채로 게임이 돌아간다.
+                // 오브젝트가 서로 다르게 보이는데 로그에는 아무 단서가 없어 찾기 어렵다.
+                waited += Time.deltaTime;
+                if (waited > 20f && !warned)
+                {
+                    warned = true;
+                    Debug.LogWarning("[WorldSync] 20초째 옮길 것을 찾지 못했다 — "
+                                     + "월드 동기화가 시작되지 않는다.");
+                }
+                return;
+            }
 
             WorldSyncInstaller.SpawnIfNeeded();
             spawned = true;

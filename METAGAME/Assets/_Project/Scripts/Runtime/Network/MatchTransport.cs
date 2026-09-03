@@ -86,6 +86,10 @@ namespace Metagame.Network
             manager.transport = transport;
             Transport.active = transport;
 
+            // 릴레이가 우리를 알아보는지 지켜본다. 답이 아예 없으면 Edgegap 전송은
+            // 아무 로그도 남기지 않아, 그때 무슨 일이 있었는지 알 길이 없다.
+            RelayWatch.Attach(transport);
+
             Debug.Log($"[MatchTransport] 릴레이로 간다 · {relay.Address} " +
                       $"(서버 {relay.ServerPort} · 클라 {relay.ClientPort})");
             return true;

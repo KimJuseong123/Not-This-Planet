@@ -43,6 +43,10 @@ namespace Metagame.Network
         Pose[] targets = Array.Empty<Pose>();
         float sendTimer;
         bool ready;
+        bool warnedMismatch;
+
+        /// <summary>클라이언트로서 챙길 것이 남았는가. 스폰이 등록된 뒤에만 참이 된다.</summary>
+        bool needsClientPrepare;
 
         public override void OnStartServer()
         {
@@ -53,9 +57,28 @@ namespace Metagame.Network
 
         public override void OnStartClient()
         {
-            if (isServer) return;   // 호스트 모드면 서버 쪽에서 이미 준비됐다
+            // 호스트 모드면 서버 쪽에서 이미 준비됐다.
+            if (isServer) return;
+
+            // 여기서 챙기지 않는다. 이 스폰은 방장의 씬이 준비되면 오는데, 내 게임 씬은
+            // 아직 뜨는 중일 수 있다. 그때 챙기면 0개를 챙긴 채 "준비 완료" 가 되고,
+            // 이후로는 서버가 보내는 개수와 영원히 어긋나 아무것도 따라가지 않는다
+            // (2026-09-03 실측 — 참가자만 오브젝트가 동기화되지 않았다).
+            // Update 가 씬이 올라올 때까지 기다렸다 챙긴다.
+            needsClientPrepare = true;
+        }
+
+        /// <summary>
+        /// 클라이언트가 따라갈 것들을 챙긴다. 게임 씬이 아직이면 거짓을 돌려주고 다음에 다시 본다.
+        /// </summary>
+        bool PrepareClient()
+        {
+            // 씬이 올라왔는지는 "옮길 것이 있는가" 로 판단한다(WorldSyncSpawner 와 같은 기준).
+            if (FindAnyObjectByType<TransportVehicle>() == null) return false;
 
             Collect();
+            if (tracked.Count == 0) return false;
+
             foreach (var body in tracked)
             {
                 if (body == null) continue;
@@ -68,6 +91,7 @@ namespace Metagame.Network
 
             ready = true;
             Debug.Log($"[WorldSync] 클라이언트가 {tracked.Count}개를 받는다");
+            return true;
         }
 
         /// <summary>
@@ -115,7 +139,13 @@ namespace Metagame.Network
 
         void Update()
         {
-            if (!ready) return;
+            if (!ready)
+            {
+                // 여기서 isServer 를 보면 안 된다 — 스폰 등록 전에는 netIdentity 가 없어
+                // 그 자리에서 NullReference 가 난다(실측). OnStartClient 가 세운 표시만 본다.
+                if (!needsClientPrepare) return;
+                if (!PrepareClient()) return;
+            }
 
             if (isServer) SendFromServer();
             else FollowOnClient();
@@ -140,13 +170,23 @@ namespace Metagame.Network
             if (isServer) return;               // 호스트 모드에서는 내 물리가 곧 정답이다
             if (poses == null) return;
 
+            // 아직 챙기는 중이다. 이때의 개수 차이는 정상이라 알릴 것이 없다 —
+            // 내 게임 씬이 방장보다 늦게 뜨면 반드시 한 번은 지나가는 자리다.
+            if (!ready) return;
+
             // 개수가 다르면 서로 다른 세계를 보고 있다는 뜻이다. 억지로 맞추면
             // 엉뚱한 물체가 엉뚱한 자리로 간다 — 그럴 때는 손대지 않고 알린다.
             if (poses.Length != tracked.Count)
             {
-                Debug.LogWarning($"[WorldSync] 개수가 다르다 — 서버 {poses.Length} · 여기 {tracked.Count}");
+                // 매 전송마다 찍으면 로그가 덮인다. 처음 한 번만 알린다.
+                if (!warnedMismatch)
+                {
+                    warnedMismatch = true;
+                    Debug.LogWarning($"[WorldSync] 개수가 다르다 — 서버 {poses.Length} · 여기 {tracked.Count}");
+                }
                 return;
             }
+            warnedMismatch = false;
 
             targets = poses;
         }
