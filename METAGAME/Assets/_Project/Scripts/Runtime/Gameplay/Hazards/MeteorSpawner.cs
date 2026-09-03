@@ -62,6 +62,9 @@ namespace Metagame.Gameplay.Hazards
         readonly List<Vector3> _workAreas = new();
 
         System.Random _random;
+
+        /// <summary>대각선 경로 검사의 버퍼. 운석마다 새로 만들지 않는다.</summary>
+        static readonly RaycastHit[] EntryProbe = new RaycastHit[16];
         float _elapsed;
 
         // 공세 상태. 공세 사이에는 _waveRemaining 이 0 이다.
@@ -504,6 +507,48 @@ namespace Metagame.Gameplay.Hazards
         }
 
         /// <summary>
+        /// 낙하 예고와 흔적을 <b>그리는 컴포넌트를 붙인다</b>(S15P21B202-275).
+        ///
+        /// <b>아무도 이것을 만들지 않았다.</b> S15P21B202-241 이
+        /// <see cref="MeteorWarningView"/> 를, 251 이 <see cref="MeteorScarView"/> 를
+        /// 만들고 268 이 줄어드는 원으로 바꿨지만, 씬에도 프리팹에도 붙어 있지 않았고
+        /// 런타임에 붙이는 코드도 없었다 — <b>세 이슈가 만든 표현이 인게임에서 한 번도
+        /// 실행된 적이 없다.</b> "운석 워닝포인트가 안보인다" 의 진짜 원인이 이것이다.
+        ///
+        /// S15P21B202-254 가 예고 지점을 실제 지면 위로 내린 것은 필요했지만, 그리는
+        /// 컴포넌트가 없으면 그것만으로는 아무것도 보이지 않는다.
+        ///
+        /// <b>검증이 이 실수를 잡을 수 없었다.</b> 검증은 뷰를 직접 만들어 붙이므로
+        /// "게임에서 아무도 만들지 않는다" 를 구조적으로 볼 수 없다. 그래서 붙이는
+        /// 장치를 여기 두고(검증이 부를 수 있다), 세계에 실제로 있는지는
+        /// <c>SpaceSelfTest</c> 가 본다.
+        ///
+        /// <b>부르는 쪽은 부트스트랩이다.</b> 여기서 <c>Awake</c> 로 스스로 붙이지 않는
+        /// 이유는 전용 서버다 — 화면이 없는 쪽에서 원판 200개를 만들 필요가 없고,
+        /// <c>Metagame.Gameplay</c> 는 <c>Metagame.Network</c> 를 참조하지 않으므로
+        /// 여기서는 전용 서버인지 알 수 없다. 그 판단은 부트스트랩이 갖는다.
+        /// </summary>
+        /// <returns>이번 호출로 새로 붙인 개수. 이미 있으면 0.</returns>
+        public int EnsureViews()
+        {
+            var added = 0;
+
+            if (GetComponent<MeteorWarningView>() == null)
+            {
+                gameObject.AddComponent<MeteorWarningView>().Configure(this);
+                added++;
+            }
+
+            if (GetComponent<MeteorScarView>() == null)
+            {
+                gameObject.AddComponent<MeteorScarView>().Configure(this);
+                added++;
+            }
+
+            return added;
+        }
+
+        /// <summary>
         /// 후보 지점을 <b>실제 지면 위</b>로 내린다(S15P21B202-254).
         ///
         /// 예전에는 스폰 영역 transform 의 y 를 그대로 썼다. 씬에서 그 값이 0 인데
@@ -694,10 +739,21 @@ namespace Metagame.Gameplay.Hazards
 
         /// <summary>
         /// 운석 하나를 만든다. <b>예고가 끝나는 순간 닿도록</b> 초기 속도를 준다.
+        ///
+        /// <b>대각선으로 온다</b>(S15P21B202-274). 착지 지점에서 수평으로 떨어진 곳에서
+        /// 만들어 비스듬히 날린다 — 이유는
+        /// <see cref="PhysicsScale.MeteorEntryAngleDegrees"/> 에 적었다.
+        ///
+        /// <b>착지 시각은 수직 낙하와 정확히 같다.</b> 중력은 y 만 건드리므로 수평 속도를
+        /// 얼마로 주든 <see cref="DropSpeedFor"/> 가 푼 착탄 시각이 변하지 않는다.
+        /// 방망이의 "착탄 몇 초 전" 계약(§18.1)을 그대로 지킨다.
         /// </summary>
         Meteor Spawn(Vector3 impactPoint, MeteorSize size)
         {
-            var position = impactPoint + Vector3.up * _dropHeight;
+            var fallSpeed = DropSpeedFor(_dropHeight);
+            var entry = EntryOffsetFor(impactPoint, Meteor.RadiusFor(size));
+
+            var position = impactPoint + entry + Vector3.up * _dropHeight;
             var meteor = _meteorPrefab != null
                 ? Instantiate(_meteorPrefab, position, Quaternion.identity)
                 : CreateFallbackMeteor(position);
@@ -710,11 +766,84 @@ namespace Metagame.Gameplay.Hazards
             meteor.SetGroundHeight(impactPoint.y);
 
             var body = meteor.GetComponent<Rigidbody>();
-            if (body != null) body.linearVelocity = Vector3.down * DropSpeedFor(_dropHeight);
+            if (body != null)
+            {
+                // 수평은 등속이다 — 공기 저항이 없으므로 거리 / 예고 시간이면 정확히
+                // 예고가 끝나는 순간 착지 지점에 온다.
+                var horizontal = _warningSeconds > 0f
+                    ? -entry / _warningSeconds
+                    : Vector3.zero;
+
+                body.linearVelocity = horizontal + Vector3.down * fallSpeed;
+            }
 
             meteor.Expired += OnMeteorExpired;
             _live.Add(meteor);
             return meteor;
+        }
+
+        /// <summary>
+        /// 착지 지점 기준의 <b>수평 생성 오프셋</b>. 수직으로 떨어뜨릴 때는 0 이다.
+        ///
+        /// 방향은 <see cref="_random"/> 으로 뽑아 시드가 같으면 같은 경로가 나오게
+        /// 한다 — 검증과 재현에 필요하다(<c>SameSeed_ProducesSameImpactPoints</c>).
+        ///
+        /// 경로가 막혀 있으면 방향을 다시 뽑고, 다 막히면 <see cref="Vector3.zero"/> 를
+        /// 돌려 수직 낙하로 되돌린다.
+        /// </summary>
+        Vector3 EntryOffsetFor(Vector3 impactPoint, float radius)
+        {
+            var angle = Mathf.Clamp(PhysicsScale.MeteorEntryAngleDegrees, 1f, 89.9f);
+            var reach = _dropHeight / Mathf.Tan(angle * Mathf.Deg2Rad);
+            if (reach <= 0.01f) return Vector3.zero;
+
+            for (var attempt = 0; attempt < PhysicsScale.MeteorEntryAttempts; attempt++)
+            {
+                var azimuth = (float)_random.NextDouble() * Mathf.PI * 2f;
+                var offset = new Vector3(Mathf.Cos(azimuth) * reach, 0f,
+                                         Mathf.Sin(azimuth) * reach);
+
+                if (PathIsClear(impactPoint + offset + Vector3.up * _dropHeight,
+                                impactPoint, radius))
+                    return offset;
+            }
+
+            return Vector3.zero;
+        }
+
+        /// <summary>
+        /// 생성 지점에서 착지 지점까지 <b>정적 지형에 막히지 않았는가</b>.
+        ///
+        /// 경로 끝에는 반드시 지면이 있으므로 마지막
+        /// <see cref="PhysicsScale.MeteorEntryClearance"/> 구간은 보지 않는다.
+        ///
+        /// <b>움직이는 것은 막힘으로 세지 않는다.</b> 플레이어나 굴러다니는 파츠가 잠깐
+        /// 경로에 들어와 방향이 바뀌면, 같은 시드에서 다른 경로가 나와 재현이 깨진다 —
+        /// 게다가 날아오는 운석에 맞는 것은 막을 일이 아니다. 판정 규칙은
+        /// <c>Meteor.TryFindSupportBelow</c> 와 같다.
+        /// </summary>
+        bool PathIsClear(Vector3 from, Vector3 to, float radius)
+        {
+            var along = to - from;
+            var length = along.magnitude - PhysicsScale.MeteorEntryClearance;
+            if (length <= 0.01f) return true;
+
+            var count = UnityEngine.Physics.SphereCastNonAlloc(
+                from, radius, along.normalized, EntryProbe, length,
+                GameLayers.SurfaceMask, QueryTriggerInteraction.Ignore);
+
+            for (var i = 0; i < count; i++)
+            {
+                var hit = EntryProbe[i];
+                if (hit.collider == null) continue;
+
+                var body = hit.collider.attachedRigidbody;
+                if (body != null && !body.isKinematic) continue;
+
+                return false;
+            }
+
+            return true;
         }
 
         /// <summary>

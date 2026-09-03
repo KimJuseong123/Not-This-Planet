@@ -1,0 +1,98 @@
+using Metagame.Gameplay;
+using UnityEngine;
+
+namespace Metagame.Gameplay.Parts
+{
+    /// <summary>
+    /// Part_1의 고정못이 모두 풀렸을 때만 파츠를 견인 조종 모듈로 전환한다.
+    ///
+    /// 전환 전에는 일반 SpaceshipPart로만 동작한다. 마지막 고정못 해제 이벤트 안에서
+    /// 기존 파츠용 물리와 상호작용을 끄고, 같은 루트에 TractorBeam과 TransportVehicle을
+    /// 붙인다. 그래서 씬 시작부터 별도 견인 장치를 둘 필요가 없고, Part_1 하나가 해제
+    /// 이후의 탑승·운전·견인을 모두 맡는다.
+    /// </summary>
+    [DisallowMultipleComponent]
+    [RequireComponent(typeof(SpaceshipPart))]
+    public sealed class PartTractorActivator : MonoBehaviour
+    {
+        SpaceshipPart part;
+        TransportVehicle vehicle;
+        bool activated;
+
+        public bool IsActivated => activated;
+        public TransportVehicle Vehicle => vehicle;
+
+        void Awake() => part = GetComponent<SpaceshipPart>();
+
+        void OnEnable()
+        {
+            if (part == null) part = GetComponent<SpaceshipPart>();
+            if (part == null) return;
+
+            part.StateChanged += OnPartStateChanged;
+            part.Initialize();
+
+            // 저장된/테스트 상태가 이미 Free인 경우에도 컨트롤러가 놓치지 않게 한다.
+            if (part.State == PartState.Free) Activate();
+        }
+
+        void OnDisable()
+        {
+            if (part != null) part.StateChanged -= OnPartStateChanged;
+        }
+
+        void OnPartStateChanged(PartState previous, PartState next)
+        {
+            if (next == PartState.Free) Activate();
+        }
+
+        void Activate()
+        {
+            if (activated || part == null || part.State != PartState.Free) return;
+
+            var startPosition = transform.position;
+            var startYaw = transform.eulerAngles.y;
+
+            // 기존 파츠의 몸체·소켓·밀기·손잡이를 먼저 끈다. 새 운반 플랫폼과 충돌하거나
+            // E 입력을 가로채지 않도록 같은 루트에 두 물리 표현을 동시에 남기지 않는다.
+            DisablePartRuntime();
+            Physics.SyncTransforms();
+
+            var beam = GetComponent<TractorBeam>();
+            if (beam == null) beam = gameObject.AddComponent<TractorBeam>();
+            beam.Configure(transform, PhysicsScale.BeamRange, TransportVehicle.BeamHoldDistance);
+
+            vehicle = GetComponent<TransportVehicle>();
+            if (vehicle == null) vehicle = gameObject.AddComponent<TransportVehicle>();
+            vehicle.Initialize(beam, TransportVehicle.BeamHoldDistance);
+            vehicle.PlaceOnGround(startPosition, startYaw);
+
+            activated = true;
+            vehicle.NotifyActivated();
+        }
+
+        void DisablePartRuntime()
+        {
+            if (part != null) part.enabled = false;
+
+            var colliders = GetComponentsInChildren<Collider>(true);
+            for (var i = 0; i < colliders.Length; i++)
+                if (colliders[i] != null) colliders[i].enabled = false;
+
+            var sockets = GetComponentsInChildren<PartSocket>(true);
+            for (var i = 0; i < sockets.Length; i++)
+                if (sockets[i] != null) sockets[i].enabled = false;
+
+            var push = GetComponent<PartPush>();
+            if (push != null) push.enabled = false;
+
+            var grabbable = GetComponent<Grabbable>();
+            if (grabbable != null)
+            {
+                grabbable.CanGrab = false;
+                grabbable.Climbable = false;
+                grabbable.enabled = false;
+            }
+        }
+    }
+}

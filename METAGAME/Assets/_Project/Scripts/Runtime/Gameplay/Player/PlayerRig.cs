@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using Metagame.Core;
@@ -193,6 +194,16 @@ namespace Metagame.Gameplay
         /// </summary>
         public static readonly List<PlayerRig> All = new();
 
+        public enum HandReleaseReason
+        {
+            Release,
+            Throw
+        }
+
+        public static event Action<PlayerRig, Hand, Grabbable> AnyHandGrabAttempted;
+        public static event Action<PlayerRig, Hand, Grabbable, HandReleaseReason> AnyHandReleased;
+        public static event Action<PlayerRig, Vector3, float> AnyFootstep;
+
         void OnEnable()
         {
             if (!All.Contains(this)) All.Add(this);
@@ -251,6 +262,7 @@ namespace Metagame.Gameplay
             public Vector3 AngularVelocity;
             public CollisionDetectionMode CollisionDetectionMode;
             public RigidbodyInterpolation Interpolation;
+            public RigidbodyConstraints Constraints;
             public Vector3 FollowPosition;
             public bool FollowInitialized;
         }
@@ -518,6 +530,9 @@ namespace Metagame.Gameplay
             // S15P21B202-259). 머리 본을 넘기는 이유는 OrbitCamera 쪽에 적었다.
             if (Cam != null) Cam.SetDownedView(true, Doll?.Head?.transform);
 
+            // 시점이 바뀌었으니 몸을 그릴지 다시 정한다(S15P21B202-267).
+            RefreshDollVisibility();
+
             Debug.Log("[SpaceFlop] " + Nickname + " 기절 (" + source + ")");
         }
 
@@ -558,6 +573,8 @@ namespace Metagame.Gameplay
 
             // 기획 §10.3 "구조되면 1인칭으로 돌아온다".
             if (Cam != null) Cam.SetDownedView(false);
+
+            RefreshDollVisibility();
         }
 
         /// <summary>
@@ -912,6 +929,34 @@ namespace Metagame.Gameplay
             if (IsRiding) Doll.SetVisible(false);
             else if (Cam != null && Cam.FirstPerson) Doll.SetVisible(false, keepShadow: true);
             else Doll.SetVisible(true);
+
+            lastFirstPerson = Cam != null && Cam.FirstPerson;
+        }
+
+        /// <summary>
+        /// 마지막으로 몸을 그릴지 정할 때의 시점. 바뀐 것을 알아채는 데만 쓴다.
+        /// </summary>
+        bool lastFirstPerson;
+
+        /// <summary>
+        /// 시점이 바뀌었으면 몸을 그릴지 다시 정한다(S15P21B202-267).
+        ///
+        /// <b>왜 물어보는가.</b> 시점을 바꾸는 것은 <see cref="OrbitCamera"/> 안에서
+        /// 일어난다 — 기절 5초 뒤 3인칭으로 물러나는 것(S15P21B202-259)이 그렇다. 그런데
+        /// 인형을 그릴지 정하는 것은 이쪽 일이고, 카메라가 인형을 직접 만지게 하면
+        /// 의존 방향이 뒤집힌다(지금은 <c>PlayerRig</c> → <c>OrbitCamera</c> 한쪽이다).
+        ///
+        /// <b>매 프레임 갱신하지 않는다.</b> <see cref="RefreshDollVisibility"/> 는 인형
+        /// 아래 <b>모든</b> 렌더러를 훑는다(장식이 강체의 자식이라 그래야 한다). 바뀔 때만
+        /// 부르는 것이 지금 구조가 "사건마다 부르는" 이유이고, 그 구조를 지킨다.
+        /// </summary>
+        void RefreshDollVisibilityIfViewChanged()
+        {
+            if (Cam == null) return;
+
+            if (Cam.FirstPerson == lastFirstPerson) return;
+
+            RefreshDollVisibility();
         }
 
         /// <summary>하차한 탑승자를 지면 위로 살짝 띄우는 여유. 발이 표면에 박히지 않게 한다.</summary>
@@ -1042,6 +1087,10 @@ namespace Metagame.Gameplay
             if (!JointTools.IsFinite(Doll.Hips.position)) { return; }
 
             RefreshInteractionFocus();
+
+            // 기절 5초 뒤 3인칭으로 물러나는 것처럼(S15P21B202-259) 카메라가 스스로 시점을
+            // 바꾸는 경우가 있다. 기절 중에도 돌아야 하므로 아래 조기 반환보다 앞이다.
+            RefreshDollVisibilityIfViewChanged();
 
             // Release가 예약한 조인트 제거가 끝난 다음 틱에 속도를 넣어야 투척이 구속에 먹히지 않는다.
             if (pendingThrowBody != null)
@@ -1501,12 +1550,18 @@ namespace Metagame.Gameplay
         void DriveLegs()
         {
             bool walking = Grounded && !Ragdolled && Speed > 0.40f;
+            var previousPhase = StepPhase;
 
             if (walking)
             {
                 float rate = Mathf.Clamp(Speed / Tuning.WalkSpeed, 0.55f, 1.8f);
                 StepPhase += Time.fixedDeltaTime * (Mathf.PI * 2f / Tuning.StepPeriod) * rate;
                 if (StepPhase > Mathf.PI * 2f) StepPhase -= Mathf.PI * 2f;
+
+                if (StepPhase < previousPhase)
+                    EmitFootstep(Doll.LeftLeg != null ? Doll.LeftLeg.Foot : null);
+                if (previousPhase < Mathf.PI && StepPhase >= Mathf.PI)
+                    EmitFootstep(Doll.RightLeg != null ? Doll.RightLeg.Foot : null);
             }
             else
             {
@@ -1517,6 +1572,13 @@ namespace Metagame.Gameplay
             float swing = walking ? Mathf.Lerp(22f, 40f, Mathf.Clamp01(Speed / Tuning.RunSpeed)) : 0f;
             PoseLeg(Doll.LeftLeg, StepPhase, swing, walking);
             PoseLeg(Doll.RightLeg, StepPhase + Mathf.PI, swing, walking);
+        }
+
+        void EmitFootstep(Rigidbody foot)
+        {
+            if (foot == null) return;
+            AnyFootstep?.Invoke(this, foot.position,
+                                Mathf.Clamp01(Speed / Mathf.Max(0.01f, Tuning.RunSpeed)));
         }
 
         void PoseLeg(Leg leg, float phase, float swing, bool walking)
@@ -1572,6 +1634,11 @@ namespace Metagame.Gameplay
             bool rightPressed = input.GrabRight && !previousGrabRight;
             previousGrabLeft = input.GrabLeft;
             previousGrabRight = input.GrabRight;
+
+            if (leftPressed)
+                AnyHandGrabAttempted?.Invoke(this, LeftHand, LeftHand != null ? LeftHand.Aimed : null);
+            if (rightPressed)
+                AnyHandGrabAttempted?.Invoke(this, RightHand, RightHand != null ? RightHand.Aimed : null);
 
             if (toolThrowRegrabLock > 0f) toolThrowRegrabLock -= Time.fixedDeltaTime;
 
@@ -1743,7 +1810,12 @@ namespace Metagame.Gameplay
         void PullGrabbedClamp()
         {
             ClampPulling = false;
-            if (clampGrabTarget == null || Doll == null || Doll.Hips == null) return;
+            // PartClamp.Pull() 은 마지막 고정못을 해제하면서 SpaceshipPart의 상태 이벤트를
+            // 발생시킨다. Part_1이 견인 장치로 전환되면 컨트롤러가 포커스를 갱신하고,
+            // 그 재진입 경로에서 ResetClampGrab()이 필드를 비울 수 있다. 한 틱의 작업
+            // 대상은 로컬 참조로 고정해 Pull() 복귀 직후의 null 역참조를 막는다.
+            var target = clampGrabTarget;
+            if (target == null || Doll == null || Doll.Hips == null) return;
 
             // 카메라가 없다고 월드 축(+Z·+X)으로 대신하면 어디를 보든 같은 방향으로 끌게 된다
             // — 서버가 입력과 무관하게 +Z 로만 걷던 것과 같은 실수다(-147).
@@ -1755,7 +1827,7 @@ namespace Metagame.Gameplay
             if (wish.sqrMagnitude < 0.0001f) return;
 
             // 고정못에서 몸을 향하는 수평 방향이 "뒤" 다.
-            var away = Doll.Hips.position - clampGrabTarget.transform.position;
+            var away = Doll.Hips.position - target.transform.position;
             away.y = 0f;
             if (away.sqrMagnitude < 0.0001f) return;
 
@@ -1771,13 +1843,13 @@ namespace Metagame.Gameplay
             var alignment = Vector3.Dot(wish.normalized, away.normalized);
             if (alignment < PhysicsScale.ClampPullAlignment) return;
 
-            var wasLast = clampGrabTarget.Part != null
-                          && clampGrabTarget.Part.RemainingRequiredClamps == 1;
+            var wasLast = target.Part != null
+                          && target.Part.RemainingRequiredClamps == 1;
 
-            ClampPulling = clampGrabTarget.Pull(Time.fixedDeltaTime);
+            ClampPulling = target.Pull(Time.fixedDeltaTime);
             if (ClampPulling) TetherToClamp(away.normalized);
 
-            if (!clampGrabTarget.IsReleased) return;
+            if (!target.IsReleased) return;
 
             // 기획 §12.2 — "마지막 고정못이 빠지면 플레이어가 뒤로 넘어질 수 있다".
             // 뒤로 당기던 힘이 갑자기 풀리는 것이다. 넘어짐은 Balance 가 스스로 세운다.
@@ -2049,8 +2121,8 @@ namespace Metagame.Gameplay
             Vector3 velocity = body != null ? body.linearVelocity : Vector3.zero;
             Vector3 direction = aim.sqrMagnitude > 1e-4f ? aim.normalized : Doll.Chest.transform.forward;
 
-            ReleaseHand(LeftHand);
-            ReleaseHand(RightHand);
+            ReleaseHand(LeftHand, HandReleaseReason.Throw);
+            ReleaseHand(RightHand, HandReleaseReason.Throw);
             ResetToolState();
             toolThrowRegrabLock = Tuning.ToolThrowRegrabLock;
 
@@ -2064,10 +2136,26 @@ namespace Metagame.Gameplay
         void ResetToolState()
         {
             ClearHeldObjectOwnerCollision();
-            activeTool?.Unequip();
+            var releasedTool = activeTool;
+            releasedTool?.Unequip();
             activeTool = null;
             RestoreCarriedBodyIfUnused(toolBody);
-            if (toolBody != null) toolBody.useGravity = toolBodyHadGravity;
+            if (toolBody != null)
+            {
+                // A dropped meteor bat is always a world prop. The generic cache keeps
+                // the old state for ordinary tools, but a bat must not remain floating
+                // or rotation-locked after a player releases it.
+                if (releasedTool is MeteorBat)
+                {
+                    toolBody.isKinematic = false;
+                    toolBody.useGravity = true;
+                    toolBody.constraints = RigidbodyConstraints.None;
+                }
+                else
+                {
+                    toolBody.useGravity = toolBodyHadGravity;
+                }
+            }
             toolBody = null;
             toolBodyHadGravity = false;
             toolHeld = null;
@@ -2192,6 +2280,7 @@ namespace Metagame.Gameplay
                     AngularVelocity = body.angularVelocity,
                     CollisionDetectionMode = body.collisionDetectionMode,
                     Interpolation = body.interpolation,
+                    Constraints = body.constraints,
                     FollowPosition = body.position,
                     FollowInitialized = false
                 });
@@ -2254,13 +2343,25 @@ namespace Metagame.Gameplay
             toolBody.MoveRotation(Quaternion.Slerp(toolBody.rotation, targetRotation, blend));
         }
 
-        void ReleaseHand(Hand hand)
+        void ReleaseHand(Hand hand, HandReleaseReason reason = HandReleaseReason.Release)
         {
             if (hand == null) return;
 
+            var target = hand.Held;
             Rigidbody body = hand.HeldBody;
+            if (target != null)
+                AnyHandReleased?.Invoke(this, hand, target, reason);
             hand.Release();
             RestoreCarriedBodyIfUnused(body);
+        }
+
+        // Hand owns the Unity joint-break callback, but the global audio/event contract
+        // belongs to PlayerRig. This bridge keeps an unexpected physics release visible
+        // without routing it back through ReleaseHand after the hand has already cleared.
+        internal void NotifyHandReleasedByPhysics(Hand hand, Grabbable target)
+        {
+            if (hand != null && target != null)
+                AnyHandReleased?.Invoke(this, hand, target, HandReleaseReason.Release);
         }
 
         void RestoreCarriedBodyIfUnused(Rigidbody body)
@@ -2277,6 +2378,7 @@ namespace Metagame.Gameplay
             body.useGravity = state.HadGravity;
             body.collisionDetectionMode = state.CollisionDetectionMode;
             body.interpolation = state.Interpolation;
+            body.constraints = state.Constraints;
             body.linearVelocity = state.LinearVelocity;
             body.angularVelocity = state.AngularVelocity;
             carriedBodies.Remove(body);
@@ -2294,6 +2396,7 @@ namespace Metagame.Gameplay
                 body.useGravity = state.HadGravity;
                 body.collisionDetectionMode = state.CollisionDetectionMode;
                 body.interpolation = state.Interpolation;
+                body.constraints = state.Constraints;
                 body.linearVelocity = state.LinearVelocity;
                 body.angularVelocity = state.AngularVelocity;
             }

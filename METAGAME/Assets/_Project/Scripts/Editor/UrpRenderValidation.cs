@@ -43,6 +43,7 @@ namespace Metagame.EditorTools
             "SpaceFlop/Dough",
             "SpaceFlop/Ghost",
             "SpaceFlop/Flat",
+            "SpaceFlop/PlanetNoFog",
             "Metagame/Atmosphere/SkyGradient",
             "Hidden/Metagame/Atmosphere/Haze",
             "Metagame/Atmosphere/Meteor"
@@ -295,6 +296,7 @@ namespace Metagame.EditorTools
                 "SpaceFlop/Dough",
                 "SpaceFlop/Ghost",
                 "SpaceFlop/Flat",
+                "SpaceFlop/PlanetNoFog",
                 "Universal Render Pipeline/Lit",
                 "Metagame/Atmosphere/SkyGradient",
                 "Hidden/Metagame/Atmosphere/Haze",

@@ -71,6 +71,23 @@ namespace Metagame.Gameplay.Tests
             Assert.IsTrue(body.detectCollisions, "장착하지 않았으면 건드리지 않아야 한다.");
         }
 
+        [Test]
+        public void DirectlyUnequippedBatRestoresGravityAndFreeRotation()
+        {
+            var (tool, body) = MakeTool<MeteorBat>();
+            body.isKinematic = true;
+            body.useGravity = false;
+            body.constraints = RigidbodyConstraints.FreezeRotation;
+
+            tool.Equip(null, body);
+            tool.Unequip();
+
+            Assert.IsFalse(body.isKinematic, "해제된 방망이는 다시 동적 Rigidbody여야 한다.");
+            Assert.IsTrue(body.useGravity, "해제된 방망이는 중력의 영향을 받아야 한다.");
+            Assert.AreEqual(RigidbodyConstraints.None, body.constraints,
+                "바닥에서 충돌에 의해 눕도록 회전 제한을 풀어야 한다.");
+        }
+
         /// <summary>
         /// 장착 중에 다시 장착되어도 <b>처음 값</b>을 지켜야 한다.
         ///

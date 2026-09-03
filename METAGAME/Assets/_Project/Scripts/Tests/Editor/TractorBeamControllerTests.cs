@@ -236,6 +236,38 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void MountedClickAndF_ToggleLowGravityOnlyOncePerFrame()
+        {
+            var player = MakePlayerWithCamera();
+            var vehicle = MakeVehicle(new Vector3(0f, TransportVehicle.GroundY, 3.2f));
+
+            var controllerObject = new GameObject("TransportController");
+            var controller = controllerObject.AddComponent<TractorBeamController>();
+            controller.Configure(player, new[] { vehicle.Beam }, false);
+            spawned.Add(controllerObject);
+
+            controller.SetInput(new InputFrame { TransportAction = true });
+            Assert.IsTrue(controller.IsControlling);
+            Assert.IsFalse(vehicle.Field.IsActive);
+
+            controller.SetInput(new InputFrame
+            {
+                GrabLeft = true,
+                GrabRight = true,
+                FieldToggle = true
+            });
+            controller.Tick(Time.fixedDeltaTime);
+            Assert.IsTrue(vehicle.Field.IsActive,
+                "탑승 중 클릭과 F는 저중력장 토글 경로를 사용해야 한다.");
+
+            controller.SetInput(new InputFrame());
+            controller.SetInput(new InputFrame { FieldToggle = true });
+            controller.Tick(Time.fixedDeltaTime);
+            Assert.IsFalse(vehicle.Field.IsActive,
+                "같은 프레임의 좌·우클릭·F가 토글을 여러 번 뒤집으면 안 된다.");
+        }
+
+        [Test]
         public void VehicleDrive_UsesCameraFacingSeparateFromSidewaysMove()
         {
             var beamObject = new GameObject("TractorBeam");

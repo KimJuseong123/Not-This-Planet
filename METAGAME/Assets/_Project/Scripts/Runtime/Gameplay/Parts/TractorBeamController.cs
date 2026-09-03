@@ -8,17 +8,15 @@ namespace Metagame.Gameplay.Parts
     /// <summary>
     /// 운반 장치의 탑승·운전·견인 입력을 연결한다.
     ///
-    /// 운반 장치는 파츠와 무관하게 먼저 탑승할 수 있다. 탑승 중 좌·우클릭을 누르면
-    /// 카메라가 겨눈 파츠를 선택하고, 실제로 장치 바로 아래에 들어왔을 때만 TractorBeam이
-    /// 같은 물리 규칙으로 들어 올린다. 따라서 고정쇠가 남은 파츠는 탑승을 막지 않지만,
-    /// 견인 순간에는 기존 고정쇠 규칙의 안내를 받는다.
+    /// 유일한 운반 장치인 해제된 Part_1에 탑승·운전·견인 입력을 연결한다. 탑승 중
+    /// 좌·우클릭과 F는 장치 아래의 광역 저중력장을 켜고 끈다. 단일 파츠를 정밀하게
+    /// 드는 TractorBeam API는 내부 동작과 테스트를 위해 남겨 두지만, 일반 탑승 입력은
+    /// 광역장만 사용한다.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class TractorBeamController : MonoBehaviour
     {
         const float ArenaLimit = 21f;
-        const float PartAimRange = 60f;
-        const int PartHitBufferSize = 12;
 
         PlayerRig player;
         TransportVehicle[] vehicles = System.Array.Empty<TransportVehicle>();
@@ -28,7 +26,8 @@ namespace Metagame.Gameplay.Parts
         float statusUntil;
         bool previousGrabLeft;
         bool previousGrabRight;
-        readonly RaycastHit[] partHits = new RaycastHit[PartHitBufferSize];
+        bool fieldToggleRequested;
+        bool physicsAuthority = true;
 
         /// <summary>
         /// 실제로 태우고·끌고·움직일 수 있는가. 매치에 붙은 클라이언트에서는 꺼 둔다
@@ -42,6 +41,21 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         public bool Authoritative = true;
 
+        /// <summary>
+        /// Physics ownership is separate from local input ownership. A dedicated server
+        /// has no local player and therefore disables <see cref="Authoritative"/> input,
+        /// but it still must simulate the shared low-gravity field.
+        /// </summary>
+        public bool PhysicsAuthority
+        {
+            get => physicsAuthority;
+            set
+            {
+                physicsAuthority = value;
+                ApplyPhysicsAuthority();
+            }
+        }
+
         public TransportVehicle FocusedVehicle { get; private set; }
         public TransportVehicle MountedVehicle => mountedVehicle;
         public TractorBeam ActiveBeam => mountedVehicle != null ? mountedVehicle.Beam : null;
@@ -49,15 +63,20 @@ namespace Metagame.Gameplay.Parts
         public bool IsControlling => mountedVehicle != null;
         public string StatusMessage => Time.unscaledTime <= statusUntil ? statusMessage : "";
 
+        void OnEnable() => TransportVehicle.AnyActivated += RegisterActivatedVehicle;
+
+        void OnDisable() => TransportVehicle.AnyActivated -= RegisterActivatedVehicle;
+
         /// <summary>
-        /// 장치가 씬에 배치되는 위치는 실행할 때마다 맵의 빈 지점으로 섞는다.
+        /// 명시적으로 전달된 레거시 빔의 위치만 실행 시 맵의 빈 지점으로 섞는다.
+        /// Main 씬의 Part_1은 고정못을 뽑은 자리에서 활성화되므로 임의로 옮기지 않는다.
         /// EditMode 테스트는 randomizeVehicles=false로 고정된 배치를 사용한다.
         /// </summary>
         public void Configure(PlayerRig localPlayer, TractorBeam[] beams, bool randomizeVehicles = true)
         {
             player = localPlayer;
             beams = beams ?? System.Array.Empty<TractorBeam>();
-            vehicles = new TransportVehicle[beams.Length];
+            vehicles = System.Array.Empty<TransportVehicle>();
 
             for (var i = 0; i < beams.Length; i++)
             {
@@ -67,12 +86,47 @@ namespace Metagame.Gameplay.Parts
                 var vehicle = beam.GetComponent<TransportVehicle>();
                 if (vehicle == null) vehicle = beam.gameObject.AddComponent<TransportVehicle>();
                 vehicle.Initialize(beam, TransportVehicle.BeamHoldDistance);
-                vehicles[i] = vehicle;
+                RegisterVehicle(vehicle);
             }
 
+            // 컨트롤러보다 먼저 활성화된 Part_1도 등록한다. 보통은 해제 순간의 이벤트가
+            // 처리하지만, 씬 저장 상태나 서버 초기화 순서가 달라도 동일하게 동작해야 한다.
+            var activators = FindObjectsByType<PartTractorActivator>(FindObjectsInactive.Include);
+            for (var i = 0; i < activators.Length; i++)
+                if (activators[i] != null) RegisterVehicle(activators[i].Vehicle);
+
             player?.ConfigureTransportInteractionTargets(vehicles);
-            if (randomizeVehicles) PlaceVehiclesRandomly();
+            ApplyPhysicsAuthority();
+            if (randomizeVehicles && beams.Length > 0) PlaceVehiclesRandomly();
             RefreshFocus();
+        }
+
+        void RegisterActivatedVehicle(TransportVehicle vehicle)
+        {
+            RegisterVehicle(vehicle);
+            vehicle?.SetFieldPhysicsAuthority(physicsAuthority);
+            player?.ConfigureTransportInteractionTargets(vehicles);
+            RefreshFocus();
+        }
+
+        void RegisterVehicle(TransportVehicle vehicle)
+        {
+            if (vehicle == null) return;
+
+            for (var i = 0; i < vehicles.Length; i++)
+                if (vehicles[i] == vehicle) return;
+
+            var next = new TransportVehicle[vehicles.Length + 1];
+            System.Array.Copy(vehicles, next, vehicles.Length);
+            next[next.Length - 1] = vehicle;
+            vehicles = next;
+        }
+
+        void ApplyPhysicsAuthority()
+        {
+            for (var i = 0; i < vehicles.Length; i++)
+                if (vehicles[i] != null)
+                    vehicles[i].SetFieldPhysicsAuthority(physicsAuthority);
         }
 
         public void SetInput(InputFrame frame)
@@ -91,6 +145,9 @@ namespace Metagame.Gameplay.Parts
             var leftPressed = frame.GrabLeft && !previousGrabLeft;
             var rightPressed = frame.GrabRight && !previousGrabRight;
             var beamPressed = leftPressed || rightPressed;
+            if (mountedVehicle != null && ((beamPressed && !frame.TransportAction)
+                                           || (frame.FieldToggle && !frame.TransportAction)))
+                fieldToggleRequested = true;
 
             if (frame.TransportAction)
             {
@@ -106,11 +163,6 @@ namespace Metagame.Gameplay.Parts
                     BoardFocusedVehicle();
                 }
             }
-
-            // E로 막 탑승한 같은 프레임에는 클릭을 소비하지 않는다. 장치를 띄운 뒤
-            // 조준하고 누르면 의도한 견인 입력이 된다.
-            if (mountedVehicle != null && beamPressed && !frame.TransportAction)
-                ToggleBeamFromAim();
 
             previousGrabLeft = frame.GrabLeft;
             previousGrabRight = frame.GrabRight;
@@ -128,6 +180,7 @@ namespace Metagame.Gameplay.Parts
             input = new InputFrame();
             previousGrabLeft = false;
             previousGrabRight = false;
+            fieldToggleRequested = false;
             RefreshFocus();
         }
 
@@ -163,9 +216,11 @@ namespace Metagame.Gameplay.Parts
             var vertical = (input.Jump ? 1f : 0f) - (input.ArmsUp ? 1f : 0f);
             mountedVehicle.SetVerticalInput(vertical);
 
-            // F 로 광역 저중력장을 켜고 끈다(기획 §14.1).
-            if (input.FieldToggle)
+            // 좌·우클릭과 F는 같은 rising-edge 토글 경로를 공유한다. SetInput에서
+            // 요청을 합치므로 같은 프레임에 두 입력이 들어와도 한 번만 바뀐다.
+            if (fieldToggleRequested)
             {
+                fieldToggleRequested = false;
                 mountedVehicle.Field.Toggle();
                 SetStatus(mountedVehicle.Field.IsActive ? "저중력장 켬" : "저중력장 끔");
             }
@@ -195,38 +250,7 @@ namespace Metagame.Gameplay.Parts
 
             mountedVehicle = FocusedVehicle;
             mountedVehicle.SetFacingDirection(player.PlanarForward);
-            SetStatus("탑승 완료 · WASD로 운전 · 좌/우클릭으로 견인 · E 하차");
-        }
-
-        void ToggleBeamFromAim()
-        {
-            if (mountedVehicle == null || mountedVehicle.Beam == null) return;
-
-            if (!mountedVehicle.IsHovering)
-            {
-                SetStatus("운반 장치가 부유 높이에 오르는 중입니다");
-                return;
-            }
-
-            var beam = mountedVehicle.Beam;
-            if (beam.IsHolding)
-            {
-                beam.Release();
-                SetStatus("파츠를 내려놓았습니다");
-                return;
-            }
-
-            var candidate = FindAimedPart();
-            if (candidate == null)
-            {
-                SetStatus("조준한 곳에 운반할 파츠가 없습니다");
-                return;
-            }
-
-            var result = beam.TryGrab(candidate);
-            SetStatus(result == BeamGrabResult.Grabbed
-                ? "견인 시작 · 좌/우클릭으로 내려놓기"
-                : FailureMessage(result));
+            SetStatus("탑승 완료 · WASD로 운전 · 좌/우클릭 또는 F로 저중력장 · E 하차");
         }
 
         void RefreshFocus()
@@ -242,32 +266,6 @@ namespace Metagame.Gameplay.Parts
             FocusedVehicle = target.Kind == PlayerInteractionKind.Transport ? target.Transport : null;
         }
 
-        SpaceshipPart FindAimedPart()
-        {
-            if (player == null) return null;
-
-            var origin = player.AimOrigin;
-            var direction = player.AimForward;
-            var count = Physics.SphereCastNonAlloc(origin, 0.35f, direction, partHits,
-                                                   PartAimRange, GameLayers.PartMask,
-                                                   QueryTriggerInteraction.Collide);
-
-            SpaceshipPart best = null;
-            var bestDistance = float.MaxValue;
-            for (var i = 0; i < count; i++)
-            {
-                var collider = partHits[i].collider;
-                if (collider == null) continue;
-
-                var part = collider.GetComponentInParent<SpaceshipPart>();
-                if (part == null || partHits[i].distance >= bestDistance) continue;
-
-                best = part;
-                bestDistance = partHits[i].distance;
-            }
-
-            return best;
-        }
 
         void PlaceVehiclesRandomly()
         {
@@ -331,17 +329,5 @@ namespace Metagame.Gameplay.Parts
             statusUntil = Time.unscaledTime + 4f;
         }
 
-        static string FailureMessage(BeamGrabResult result)
-        {
-            return result switch
-            {
-                BeamGrabResult.NoTarget => "운반 장치가 파츠 바로 위에 있어야 합니다",
-                BeamGrabResult.Clamped => "고정쇠를 모두 해제해야 파츠를 들어 올릴 수 있습니다",
-                BeamGrabResult.Welded => "용접된 파츠는 운반할 수 없습니다",
-                BeamGrabResult.AlreadyCarried => "다른 운반 작업이 진행 중입니다",
-                BeamGrabResult.BeamBusy => "이 견인 빔은 이미 파츠를 들고 있습니다",
-                _ => "견인 빔을 작동할 수 없습니다",
-            };
-        }
     }
 }

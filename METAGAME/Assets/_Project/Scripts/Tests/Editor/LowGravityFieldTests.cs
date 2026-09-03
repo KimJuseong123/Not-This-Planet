@@ -142,6 +142,24 @@ namespace Metagame.Gameplay.Tests
             Assert.Greater(c.position.y, startC, "소품 C 가 떠오르지 않았다.");
         }
 
+        [Test]
+        public void Field_DeduplicatesSeveralCollidersOnOneBody()
+        {
+            var field = MakeField(Vector3.zero);
+            var body = MakeBody(new Vector3(0f, -6f, 0f), GameLayers.Part);
+
+            var child = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            child.name = "CompoundChild";
+            child.layer = GameLayers.Part;
+            child.transform.SetParent(body.transform, false);
+            child.transform.localPosition = Vector3.right * 0.35f;
+
+            field.Tick(Step);
+
+            Assert.AreEqual(1, field.AffectedCount,
+                "compound collider 하나는 Rigidbody 기준으로 한 번만 처리해야 한다.");
+        }
+
         /// <summary>파츠는 기체 아래 5~6m 지점을 유지한다(기획 §14.3).</summary>
         [Test]
         public void Field_HoldsPartAtTargetDepth()
@@ -168,6 +186,19 @@ namespace Metagame.Gameplay.Tests
 
             Assert.AreEqual(0, field.AffectedCount, "운석에는 작용하지 않아야 한다.");
             Assert.Less(meteor.position.y, start, "운석은 그대로 떨어져야 한다.");
+        }
+
+        [Test]
+        public void Field_IgnoresLockedPart()
+        {
+            var field = MakeField(Vector3.zero);
+            var locked = SocketTestRig.CreatePart(spawned, new Vector3(0f, -6f, 0f));
+            var body = locked.GetComponent<Rigidbody>();
+
+            field.Tick(Step);
+
+            Assert.AreEqual(0, field.AffectedCount, "고정 파츠는 저중력장 대상이 아니다.");
+            Assert.IsTrue(body.isKinematic, "고정 파츠의 물리 상태를 저중력장이 바꾸면 안 된다.");
         }
 
         /// <summary>영역 밖은 건드리지 않는다. 옆으로 벗어나면 그냥 떨어진다.</summary>
@@ -229,6 +260,74 @@ namespace Metagame.Gameplay.Tests
             Run(field, 0.5f);
 
             Assert.AreEqual(0, field.AffectedCount, "기체 자신의 부품에 작용하면 스스로를 밀어 올린다.");
+        }
+
+        [Test]
+        public void Field_AffectsSiblingPartUnderSameSceneRoot()
+        {
+            var world = new GameObject("Stage1");
+            spawned.Add(world);
+
+            var craft = new GameObject("Transport") { layer = GameLayers.Prop };
+            craft.transform.SetParent(world.transform, false);
+            craft.transform.position = Vector3.zero;
+            var carrier = craft.AddComponent<Rigidbody>();
+            carrier.useGravity = false;
+
+            var field = craft.AddComponent<LowGravityField>();
+            field.Configure(craft.transform, carrier);
+            field.SetActive(true);
+
+            var partObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            partObject.name = "Part_4";
+            partObject.layer = GameLayers.Part;
+            partObject.transform.SetParent(world.transform, false);
+            partObject.transform.localPosition = new Vector3(0f, -6f, 0f);
+            var part = partObject.AddComponent<Rigidbody>();
+            part.useGravity = false;
+            spawned.Add(partObject);
+            UnityEngine.Physics.SyncTransforms();
+
+            field.Tick(Step);
+
+            Assert.AreEqual(1, field.AffectedCount,
+                "운반체와 같은 Stage1 루트 아래의 조립 파츠도 저중력장 대상이어야 한다.");
+        }
+
+        [Test]
+        public void Field_UsesCarrierMotionAsInterpolatedForce()
+        {
+            var field = MakeField(Vector3.zero);
+            var carrier = field.gameObject.AddComponent<Rigidbody>();
+            carrier.useGravity = false;
+            carrier.linearVelocity = Vector3.right * 2f;
+            field.Configure(field.transform, carrier);
+
+            var target = MakeBody(new Vector3(0f, -6f, 0f), GameLayers.Prop);
+            var before = target.position;
+
+            field.Tick(Step);
+            UnityEngine.Physics.Simulate(Step);
+
+            Assert.Greater(target.linearVelocity.x, 0.01f,
+                "운반체의 이동은 대상에 속도 대입이 아니라 보간된 힘으로 전달되어야 한다.");
+            Assert.Less(target.position.x - before.x, 0.2f,
+                "저중력장 대상이 운반체에 순간이동해서는 안 된다.");
+        }
+
+        [Test]
+        public void Field_DoesNotApplyWithoutPhysicsAuthority()
+        {
+            var field = MakeField(Vector3.zero);
+            var target = MakeBody(new Vector3(0f, -6f, 0f), GameLayers.Part);
+            target.useGravity = true;
+            field.SetPhysicsAuthority(false);
+
+            field.Tick(Step);
+
+            Assert.AreEqual(0, field.AffectedCount);
+            Assert.AreEqual(0f, target.linearVelocity.magnitude, 0.001f,
+                "권한 없는 인스턴스는 대상에 물리 힘을 적용하지 않아야 한다.");
         }
     }
 }

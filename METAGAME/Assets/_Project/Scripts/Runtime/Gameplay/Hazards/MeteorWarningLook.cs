@@ -5,8 +5,13 @@ namespace Metagame.Gameplay.Hazards
     /// <summary>낙하 예고가 지금 어느 단계인지(기획 §17.2 · §18.1).</summary>
     public enum MeteorWarningStage
     {
-        /// <summary>차오르는 중. 점멸하지 않는다.</summary>
-        Filling = 0,
+        /// <summary>
+        /// 다가오는 중. 점멸하지 않는다.
+        ///
+        /// 예전 이름은 <c>Filling</c> 이었다 — 안쪽 원이 차오르던 때의 이름이다.
+        /// 줄어드는 원으로 바꾸면서(S15P21B202-268) 이름이 사실과 어긋났다.
+        /// </summary>
+        Approaching = 0,
 
         /// <summary>
         /// 방망이로 쳐낼 수 있다. 기획 §18.1 "타격 가능한 순간에는 낙하 표시가
@@ -58,34 +63,60 @@ namespace Metagame.Gameplay.Hazards
             if (remaining <= PhysicsScale.BatSwingWindowSeconds)
                 return MeteorWarningStage.Strikable;
 
-            return MeteorWarningStage.Filling;
+            return MeteorWarningStage.Approaching;
         }
 
         /// <summary>테두리 색. 진행도에 따라 주황에서 붉게 간다.</summary>
         public static Color RingColorOf(in PendingMeteorDrop drop) =>
             Color.Lerp(StartColor, EndColor, drop.Progress01);
 
-        /// <summary>
-        /// 안쪽이 차오른 비율 0~1. 기획 §17.2 "<b>안쪽이 채워진다</b>".
-        ///
-        /// 진행도를 그대로 쓴다. 예고가 끝나는 순간이 착탄이므로(S15P21B202-234),
-        /// 가득 찬 순간이 곧 맞는 순간이다.
-        /// </summary>
-        public static float FillOf(in PendingMeteorDrop drop) => drop.Progress01;
-
         /// <summary>표시 지름(m). 기획 §17.2 "실제 충격 범위와 <b>같은 크기</b>".</summary>
         public static float DiameterOf(in PendingMeteorDrop drop) => drop.ImpactRadius * 2f;
 
         /// <summary>
+        /// 떨어질 운석의 겉보기 지름(m). 안쪽 원이 여기까지 줄어든다.
+        /// </summary>
+        public static float MeteorDiameter => PhysicsScale.MeteorRadius * 2f;
+
+        /// <summary>
+        /// 안쪽 원의 크기 비율. 테두리 지름에 곱해 쓴다. 1 이면 테두리와 같은 크기다.
+        ///
+        /// <b>기획과 반대다.</b> §17.2 는 "주황색으로 시작해 운석이 가까워질수록 붉게
+        /// 변하고 <b>안쪽이 채워진다</b>" 고 정하고, S15P21B202-241 이 그대로 만들었다.
+        /// 인게임에서 보고 <b>줄어드는 원</b>으로 뒤집었다(S15P21B202-268) — 시간이
+        /// 없어지는 것을 그쪽이 더 잘 읽힌다는 판단이다. [Plan] 확인이 필요하다.
+        ///
+        /// <code>
+        /// 예고 시작   테두리와 같은 크기        1.0
+        /// 착탄 순간   운석 겉보기 크기(0.9m)    MeteorDiameter / DiameterOf
+        /// </code>
+        ///
+        /// <b>0 까지 줄이지 않는다.</b> 0 이면 마지막 순간에 아무것도 안 보이고, 무엇이
+        /// 그 자리에 올지도 알려주지 못한다. 운석 크기에서 멈추면 <b>줄어들다 멈춘 그
+        /// 자리에 실제 운석이 박힌다</b> — 크기가 운석과 맞는다는 것이 그 뜻이다.
+        ///
+        /// 테두리는 건드리지 않는다. 그것이 §17.2 의 "실제 충격 범위" 이고 어디까지
+        /// 위험한지를 알린다.
+        /// </summary>
+        public static float CountdownScaleOf(in PendingMeteorDrop drop)
+        {
+            var ring = DiameterOf(drop);
+            if (ring <= 0f) return 1f;
+
+            var floor = Mathf.Clamp01(MeteorDiameter / ring);
+            return Mathf.Lerp(1f, floor, drop.Progress01);
+        }
+
+        /// <summary>
         /// 점멸 세기 0~1. 단계마다 주기가 다르다.
         ///
-        /// <see cref="MeteorWarningStage.Filling"/> 에서는 0 이다 — 예고 내내 깜빡이면
+        /// <see cref="MeteorWarningStage.Approaching"/> 에서는 0 이다 — 예고 내내 깜빡이면
         /// 마지막 0.5초의 "빠른 점멸" 이 눈에 띄지 않는다.
         /// </summary>
         public static float BlinkOf(in PendingMeteorDrop drop, float time)
         {
             var stage = StageOf(drop);
-            if (stage == MeteorWarningStage.Filling) return 0f;
+            if (stage == MeteorWarningStage.Approaching) return 0f;
 
             var hz = stage == MeteorWarningStage.Imminent
                 ? PhysicsScale.MeteorWarningImminentBlinkHz

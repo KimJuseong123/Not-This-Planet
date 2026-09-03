@@ -548,13 +548,20 @@ namespace Metagame.Gameplay
         public const float FieldCraftRadius = 0.8f;
 
         /// <summary>파츠가 유지하는 깊이(m). 기획의 "기체 아래 약 5~6m".</summary>
-        public const float FieldHoldDepth = 5.5f;
+        public const float FieldHoldDepth = 4f;
+
+        /// <summary>
+        /// 지면에 붙어 있던 동적 파츠를 저중력장에 넣을 때 확보하는 최소 부양 높이(m).
+        /// 운반체가 낮은 고도에 있으면 FieldHoldDepth 목표점이 지면 아래가 될 수 있으므로,
+        /// 표면에서 이만큼 먼저 떼어 낸 뒤 운반체가 올라갈 때 목표 깊이를 따라간다.
+        /// </summary>
+        public const float FieldSurfaceLift = 1f;
 
         /// <summary>
         /// 중력을 얼마나 대신 들어주는지. 1 이면 완전 무중력이다.
         /// 빔의 <see cref="BeamGravitySupport"/> 와 같은 뜻이며 값도 맞춰 둔다.
         /// </summary>
-        public const float FieldGravitySupport = 1f;
+        public const float FieldGravitySupport = 5f;
 
         /// <summary>
         /// 원뿔 축으로 모으는 가속(m/s²). 기획은 "영역 중심으로 <b>천천히</b> 끌린다" 고 하므로
@@ -602,7 +609,7 @@ namespace Metagame.Gameplay
         public const float FieldUprightDegreesPerSecond = 90f / FieldUprightSeconds;
 
         /// <summary>목표 높이까지의 오차에 곱하는 가속 계수(1/s²). 스프링의 k 다.</summary>
-        public const float FieldHoldAccel = 6f;
+        public const float FieldHoldAccel = 20f;
 
         /// <summary>
         /// 세로 속도에 곱하는 감쇠 계수(1/s). 임계 감쇠 조건은 2*sqrt(k) = 2*sqrt(6) ≈ 4.9 인데,
@@ -611,7 +618,16 @@ namespace Metagame.Gameplay
         public const float FieldHoldDamp = 4f;
 
         /// <summary>가속 상한(m/s²). 중력 보상분(2.8)보다 충분히 커야 파츠가 처지지 않는다.</summary>
-        public const float FieldAccelMax = 18f;
+        public const float FieldAccelMax = 40f;
+
+        /// <summary>
+        /// 견인장치가 움직일 때 저중력장 안의 물체가 따라오는 보정 계수(1/s).
+        /// 물체를 부모로 붙이지 않고 carrier 속도에 점진적으로 접근시킨다.
+        /// </summary>
+        public const float FieldCarrierFollowGain = 5f;
+
+        /// <summary>carrier 추종 보정의 최대 가속(m/s²).</summary>
+        public const float FieldCarrierFollowMaxAccel = 28f;
 
         /// <summary>
         /// 저중력장이 작용하는 레이어.
@@ -677,6 +693,53 @@ namespace Metagame.Gameplay
         public const float MeteorDropSpeed = 5.8f;
 
         /// <summary>
+        /// 운석이 지면과 이루는 <b>입사각</b>(도). 90 이면 수직이다.
+        ///
+        /// <b>예전에는 착지 지점 바로 위에서 수직으로 떨어뜨렸다</b>(S15P21B202-274).
+        /// 위에서 곧장 내려오면 화면에서 거의 움직이지 않아 속도감이 없고, "하늘에서
+        /// 뭔가 내려온다" 로만 보여 운석으로 읽히지 않았다.
+        ///
+        /// <b>속도는 예고 시간이 아니라 거리로 올린다.</b> 예고 3초를 줄이면 반응 시간이
+        /// 줄어 난이도가 오르고, 바닥 원으로 타이밍을 잡는다는 이 기믹의 핵심이
+        /// 사라진다. 대각선으로 만들면 같은 3초에 더 긴 거리를 지나므로 <b>반응 시간은
+        /// 그대로 두고 속도만 오른다.</b>
+        ///
+        /// 50도에서 <see cref="MeteorDropHeight"/>(30m) 기준으로 이렇게 된다.
+        ///
+        /// <code>
+        ///              수직        50도
+        /// 이동 거리    30m         39.2m
+        /// 평균 속도    10.0 m/s    13.1 m/s
+        /// 수평 이동    0m          25.2m
+        /// </code>
+        ///
+        /// 평균은 31% 빠르지만 <b>화면에서는 훨씬 빠르게 보인다</b> — 수평으로 25m 를
+        /// 긋고 지나가기 때문이다.
+        /// </summary>
+        public const float MeteorEntryAngleDegrees = 50f;
+
+        /// <summary>
+        /// 대각선 경로가 막혔을 때 방향을 다시 뽑는 횟수.
+        ///
+        /// <b>수직 낙하에는 없던 위험이다</b>(S15P21B202-274). 비스듬히 오면 우주선 ·
+        /// 발사대 · 타워에 <b>먼저</b> 부딪혀, 예고한 원이 아닌 곳에서 터진다 —
+        /// 플레이어는 이유를 알 수 없다.
+        ///
+        /// 다 막히면 수직으로 떨어뜨린다. <b>예고한 지점에 닿는 것이 대각선보다
+        /// 중요하다</b> — §17.2 가 "실제 충격 범위와 같은 크기의 원형 표시" 를 못박은
+        /// 뜻이 그것이다.
+        /// </summary>
+        public const int MeteorEntryAttempts = 6;
+
+        /// <summary>
+        /// 경로 검사에서 착지 지점 근처를 무시하는 거리(m).
+        ///
+        /// 경로 끝에는 <b>반드시 지면이 있다</b>(그게 착지 지점이다). 경로 전체를 훑으면
+        /// 늘 막힌 것으로 나오므로 마지막 구간은 보지 않는다.
+        /// </summary>
+        public const float MeteorEntryClearance = 2.5f;
+
+        /// <summary>
         /// 소형 운석의 넉백 반경(m). 기획 §17.7 "소형 · 충격 반경 약 2m".
         ///
         /// <b>예전에는 크기 구분 없이 4m 하나였다</b> — §17.7 의 소형(2m)보다 두 배 넓고
@@ -728,6 +791,52 @@ namespace Metagame.Gameplay
         public const float MeteorGroundProbe = 50f;
 
         // --- 운석 충돌 흔적 (기획 §19) ---
+        /// <summary>
+        /// 접점 판정이 놓쳤을 때 운석을 정착시키는 속도 문턱(m/s).
+        ///
+        /// <b>접점 법선만으로는 부족하다</b>(S15P21B202-273). 지면이 자갈이 깔린
+        /// MeshCollider 라 급한 삼각형에 먼저 닿으면 법선의 y 가
+        /// <c>MinimumSupportNormalY</c>(0.35)를 넘지 못하고, 그러면 운석이 <b>영영
+        /// 정착하지 않고</b> 살아 있는 동적 물체로 바닥에 누워 사람을 때린다.
+        ///
+        /// 그래서 "거의 멈췄고 아래에 정적 지지면이 있으면 정착" 이라는 안전망을 둔다.
+        /// <see cref="Parts.PartAssemblyLink"/> 가 <c>OnJointBreak</c> 콜백을 믿지 않고
+        /// <c>Tick</c> 에서 조인트 생존을 확인하는 것과 같은 방식이다 — <b>콜백은
+        /// 즉시성일 뿐이고 정확성은 안전망이 갖는다.</b>
+        /// </summary>
+        public const float MeteorRestSpeed = 0.35f;
+
+        /// <summary>
+        /// 위 문턱 아래로 이 시간만큼 머물면 정착한다(초).
+        ///
+        /// 튕겨 오르는 한 프레임에 정착해 버리지 않게 조금 기다린다.
+        /// </summary>
+        public const float MeteorRestSeconds = 0.3f;
+
+        /// <summary>
+        /// 쳐낸 운석이 굴러다니다 사라지기까지의 시간(초).
+        ///
+        /// <b>기획 §19 를 어긴다.</b> §19 는 "박힌 운석과 분화구는 발사 실패 후에도
+        /// 유지되며 <b>스테이지 동안 사라지지 않는다</b>" 고 정하고 S15P21B202-251 이
+        /// 그 근거로 소멸을 지웠다. 2026-09-02 에 둘 다 사라지게 하기로 정했다 —
+        /// [Plan] 확인이 필요하다(S15P21B202-273).
+        ///
+        /// 쳐낸 것이 더 짧다. 플레이어가 처리한 것이므로 치워지는 편이 맞고, 굴러다니는
+        /// 동적 물체가 오래 남으면 조립 구역을 어지럽힌다.
+        /// </summary>
+        public const float MeteorDeflectedDespawnSeconds = 12f;
+
+        /// <summary>
+        /// 박힌 운석이 흔적으로 남아 있다 사라지기까지의 시간(초).
+        ///
+        /// <see cref="MeteorScarCoolSeconds"/>(5초, 분화구가 식는 시간)보다 <b>길어야
+        /// 한다.</b> 식기 전에 사라지면 §19 의 "약 5초 동안 붉은 빛, 연기와 불꽃이
+        /// 약해진다" 가 화면에 보이지 않는다.
+        ///
+        /// 위와 같은 이유로 §19 를 어긴다(S15P21B202-273).
+        /// </summary>
+        public const float MeteorScarDespawnSeconds = 30f;
+
         /// <summary>
         /// 착탄한 운석이 지면에 박히는 깊이의 비율(반지름 기준).
         ///
@@ -877,6 +986,22 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float DownedFirstPersonSeconds = 5f;
 
+        /// <summary>
+        /// 3인칭으로 물러날 때 <b>쓰러진 몸을 내려다보는</b> 각도(도).
+        ///
+        /// <b>쓰러진 머리의 회전을 이어받으면 안 된다</b>(S15P21B202-267). 얼굴이 땅을
+        /// 보고 있으면 각도가 극단으로 가 <see cref="OrbitCamera.MinPitch"/> 에서 잘리고
+        /// 카메라가 지면 아래를 향한다. 옆으로 누웠으면 <c>eulerAngles</c> 의 x·y 분해에
+        /// roll 이 섞여 엉뚱한 방향이 된다 — 어느 쪽이든 <b>몸이 프레임에 없다.</b>
+        ///
+        /// 기획 §10.3 은 "쓰러진 캐릭터 <b>중심</b>의 3인칭 자유 시점" 이다. 전환 순간만
+        /// 고정하고 그 뒤에는 마우스로 자유롭게 돌린다.
+        ///
+        /// 25도면 초점(골반 + 0.55m)에서 3.6m 뒤 · 2.3m 높이에 선다. 화각 64도가 그
+        /// 거리에서 상하 ±2.2m 를 덮으므로 초점보다 0.55m 아래인 몸이 넉넉히 들어온다.
+        /// </summary>
+        public const float DownedThirdPersonPitchDegrees = 25f;
+
         // --- 끼임 복구 (기획 §21) ---
         /// <summary>
         /// 끼임 탈출을 위해 <c>T</c> 를 유지해야 하는 시간(초). 기획 §21.
@@ -948,6 +1073,71 @@ namespace Metagame.Gameplay
         /// 목표가 사라지므로 연타할 것이 남지 않는다.
         /// </summary>
         public const float BatMissCooldownSeconds = 1f;
+
+        /// <summary>
+        /// 스윙 궤적의 반지름(m). 플레이어에서 이만큼 떨어진 곡선을 그린다.
+        ///
+        /// <b>기획 §18.1 의 마지막 줄이 지켜지지 않았다</b>(S15P21B202-276). §18.1 은
+        /// "실제 방망이 메시가 운석과 정확히 닿지 않아도 <b>넓은 에너지 궤적으로 판정을
+        /// 납득시킨다</b>" 고 못박는데, 실제로 나오던 것은 0.05~0.09m 파티클 세 개였다.
+        ///
+        /// <b>이 기믹은 처음부터 물리적 접촉이 아니다.</b> 타격 순간(착탄
+        /// <see cref="BatSwingWindowSeconds"/> 1초 전)의 운석은 수직 낙하에서도 12.8m
+        /// 위에 있었고, S15P21B202-274 의 대각선에서는 수평 8.4m 가 더해져 약 15m 밖에
+        /// 있다. 판정이 "닿지 않아도 된다" 이므로 <b>연출이 그 간극을 메워야 한다.</b>
+        ///
+        /// 팔 길이(<see cref="Core.Tuning.ArmReach"/>)보다 넉넉히 크다 — 방망이 길이와
+        /// 에너지가 뻗는 만큼을 합친 값이고, "넓은" 을 만드는 것이 목적이다.
+        /// </summary>
+        public const float BatArcRadius = 1.6f;
+
+        /// <summary>궤적을 몇 점으로 그리는가. 적으면 곡선이 각져 보인다.</summary>
+        public const int BatArcSamples = 14;
+
+        /// <summary>
+        /// 궤적이 남기는 스윙 진행도의 길이(0~1).
+        ///
+        /// 지나온 만큼만 그린다 — 앞으로 갈 곳까지 그리면 아직 휘두르지 않은 자리가
+        /// 빛나고, 맞는 순간이 어디인지 읽히지 않는다.
+        /// </summary>
+        public const float BatArcTrail01 = 0.45f;
+
+        /// <summary>궤적의 굵기(m). §18.1 의 "넓은" 이 이 값이다.</summary>
+        public const float BatArcWidth = 0.32f;
+
+        /// <summary>
+        /// 맞은 뒤 방망이와 운석을 잇는 줄기가 남는 시간(초).
+        ///
+        /// <b>이 줄기가 "닿았다" 를 만든다.</b> 판정은 15m 떨어진 운석을 쳐내는데, 그
+        /// 사이에 아무것도 없으면 플레이어는 허공을 휘둘렀다고 본다.
+        ///
+        /// 짧아야 한다 — 쳐낸 운석이 날아가는 것이 가장 강한 피드백이므로 그것을
+        /// 가리면 안 된다(<c>MeteorBat.ShowSwing</c> 의 기존 주석과 같은 판단이다).
+        /// </summary>
+        public const float BatStreakSeconds = 0.18f;
+
+        /// <summary>줄기의 굵기(m). 궤적보다 얇다 — 궤적이 주역이다.</summary>
+        public const float BatStreakWidth = 0.22f;
+
+        /// <summary>
+        /// 떨어지는 운석이 남기는 꼬리의 길이(초).
+        ///
+        /// <b>대각선 낙하가 예고 없는 피격을 만들었다</b>(S15P21B202-274 · 276).
+        /// 274 의 경로 검사는 결정성을 위해 동적 물체를 막힘으로 세지 않으므로,
+        /// 대각선 경로에 서 있으면 <b>원에서 8m 떨어진 곳에서</b> 남의 운석에 맞는다 —
+        /// §17.2 의 "원이 어디 떨어질지 알려준다" 는 계약과 어긋난다.
+        ///
+        /// 꼬리를 붙여 옆에서 오는 것이 읽히게 한다. 이 값 × 운석 속도가 꼬리의 실제
+        /// 길이이므로, 대각선 13.1m/s 에서 약 6m 가 된다.
+        ///
+        /// <b>떨어지는 운석을 무해하게 만드는 쪽을 고르지 않았다.</b> §19 "충돌 순간에만
+        /// 넉백과 기절 판정이 있다" 를 어기고, §18.2 의 반사 운석 피해와도 어긋난다.
+        /// 꼬리를 붙여도 플레이로 보고 불공정하면 다시 검토한다.
+        /// </summary>
+        public const float MeteorTrailSeconds = 0.45f;
+
+        /// <summary>꼬리의 굵기(m). 운석 지름(0.9m)보다 좁게 시작해 사라진다.</summary>
+        public const float MeteorTrailWidth = 0.55f;
 
         /// <summary>
         /// 쳐낸 운석의 속도(m/s).

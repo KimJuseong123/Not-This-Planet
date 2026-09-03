@@ -30,7 +30,13 @@ namespace Metagame.EditorTools
             if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
                 return;
 
+            // The storm profile references the generated, external-material debris prefabs.
+            // Build those first so this menu is also safe to run independently of the full setup.
+            Stage1EnvironmentAssets.Build();
             var profile = EnsureProfileAsset();
+            ConfigureDustStorm(profile);
+            EditorUtility.SetDirty(profile);
+            AssetDatabase.SaveAssets();
             var scene = EditorSceneManager.OpenScene(MainScenePath, OpenSceneMode.Single);
             var bootstrap = Object.FindAnyObjectByType<SpaceBootstrap>();
             if (bootstrap == null)
@@ -68,6 +74,69 @@ namespace Metagame.EditorTools
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             return profile;
+        }
+
+        static void ConfigureDustStorm(AtmosphereProfile profile)
+        {
+            if (profile == null || profile.dustStorm == null) return;
+
+            bool unconfigured = !profile.dustStorm.enabled
+                && profile.dustStorm.largeDebrisPrefab == null
+                && profile.dustStorm.mediumDebrisPrefab == null
+                && profile.dustStorm.smallDebrisPrefab == null;
+            if (unconfigured)
+            {
+                profile.dustStorm.enabled = true;
+                profile.dustStorm.minimumInterval = 8f;
+                profile.dustStorm.maximumInterval = 14f;
+                profile.dustStorm.speed = 6f;
+                profile.dustStorm.halfExtents = new Vector3(12f, 2.5f, 5f);
+                profile.dustStorm.directionConeDegrees = 60f;
+                profile.dustStorm.spawnMargin = 6f;
+                profile.dustStorm.seed = 20260903;
+                profile.dustStorm.showDebugBoundary = true;
+                profile.dustStorm.debugBoundaryColor = Color.red;
+                profile.dustStorm.debugBoundaryWidth = 0.04f;
+                profile.dustStorm.debugSkyMarkerHeight = 80f;
+                profile.dustStorm.windForce = 6f;
+                profile.dustStorm.maximumAffectedMass = 40f;
+                profile.dustStorm.maxPhysicalFragments = 3;
+                profile.dustStorm.fragmentDamage = 5f;
+                profile.dustStorm.fragmentRepeatCooldown = 1f;
+                profile.dustStorm.fragmentLifetime = 2.5f;
+                profile.dustStorm.fragmentSpeed = 5f;
+                profile.dustStorm.maxVisualFragments = 6;
+                profile.dustStorm.maxDustParticles = 64;
+                profile.dustStorm.dustEmissionRate = 20f;
+                profile.dustStorm.dustLifetime = 3.5f;
+                profile.dustStorm.dustStartSize = 0.35f;
+                profile.dustStorm.dustEndSize = 0.08f;
+                profile.dustStorm.dustColor = new Color(0.68f, 0.50f, 0.36f, 0.30f);
+            }
+
+            string largePath = Stage1EnvironmentAssets.PrefabPath("MeteorDebrisLarge");
+            string mediumPath = Stage1EnvironmentAssets.PrefabPath("MeteorDebrisMedium");
+            string smallPath = Stage1EnvironmentAssets.PrefabPath("MeteorDebrisSmall");
+            var large = AssetDatabase.LoadAssetAtPath<GameObject>(largePath);
+            var medium = AssetDatabase.LoadAssetAtPath<GameObject>(mediumPath);
+            var small = AssetDatabase.LoadAssetAtPath<GameObject>(smallPath);
+            if (large != null && (profile.dustStorm.largeDebrisPrefab == null
+                || IsModelAsset(profile.dustStorm.largeDebrisPrefab)))
+                profile.dustStorm.largeDebrisPrefab = large;
+            if (medium != null && (profile.dustStorm.mediumDebrisPrefab == null
+                || IsModelAsset(profile.dustStorm.mediumDebrisPrefab)))
+                profile.dustStorm.mediumDebrisPrefab = medium;
+            if (small != null && (profile.dustStorm.smallDebrisPrefab == null
+                || IsModelAsset(profile.dustStorm.smallDebrisPrefab)))
+                profile.dustStorm.smallDebrisPrefab = small;
+
+            profile.Validate();
+        }
+
+        static bool IsModelAsset(GameObject asset)
+        {
+            return asset != null
+                && AssetDatabase.GetAssetPath(asset).EndsWith(".fbx", System.StringComparison.OrdinalIgnoreCase);
         }
 
         static void ConfigureDefaultProfile(AtmosphereProfile profile)
@@ -158,6 +227,22 @@ namespace Metagame.EditorTools
             profile.meteorShower.color = new Color(0.85f, 0.70f, 0.55f, 0.85f);
             profile.meteorShower.startSize = 0.10f;
             profile.meteorShower.endSize = 0.01f;
+
+            profile.dustGust.enabled = true;
+            profile.dustGust.direction = new Vector3(1f, 0f, 0.18f);
+            profile.dustGust.minimumInterval = 8f;
+            profile.dustGust.maximumInterval = 18f;
+            profile.dustGust.duration = 4f;
+            profile.dustGust.speed = 3.5f;
+            profile.dustGust.color = new Color(0.68f, 0.50f, 0.36f, 0.22f);
+            profile.dustGust.startSize = 0.22f;
+            profile.dustGust.endSize = 0.06f;
+            profile.dustGust.burstCount = 18;
+            profile.dustGust.maxParticles = 72;
+            profile.dustGust.spawnRadius = 10f;
+            profile.dustGust.verticalSpread = 3f;
+
+            ConfigureDustStorm(profile);
 
             profile.enableOnMobile = false;
             profile.mobileEffectScale = 0.5f;

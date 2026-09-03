@@ -62,6 +62,11 @@ namespace Metagame.Bootstrap
             Time.fixedDeltaTime = Tuning.FixedStep;      // 조인트가 많다 — 촘촘히 밟아야 안 떤다
             Application.targetFrameRate = 120;
 
+            // Existing Main scenes may predate the editor collider pass. Repair only static
+            // environment mesh surfaces here; moving gameplay objects keep their simple
+            // compound colliders, and this also makes headless physics match the client.
+            MeshColliderUtility.EnsureStage1EnvironmentColliders();
+
             var args = System.Environment.GetCommandLineArgs();
             bool selfTest = System.Array.IndexOf(args, "-space-selftest") >= 0;
             bool shot = System.Array.IndexOf(args, "-space-screenshot") >= 0;
@@ -73,12 +78,22 @@ namespace Metagame.Bootstrap
             sys.transform.SetParent(transform, false);
 
             bool useAtmosphere = atmosphereProfile != null && !Application.isBatchMode;
-            if (useAtmosphere)
+            Stage1DustStormHazard dustStormHazard = null;
+            AtmosphereDustStorm dustStormVisual = null;
+            if (atmosphereProfile != null)
             {
                 atmosphereProfile.Validate();
+                dustStormHazard = sys.AddComponent<Stage1DustStormHazard>();
+                if (useAtmosphere)
+                    dustStormVisual = sys.AddComponent<AtmosphereDustStorm>();
+            }
+
+            if (useAtmosphere)
+            {
                 Atmosphere = sys.AddComponent<AtmosphereController>();
                 sys.AddComponent<AtmosphereBackdrop>();
                 sys.AddComponent<AtmosphereMeteorShower>();
+                sys.AddComponent<AtmosphereDustGust>();
             }
             else
             {
@@ -94,6 +109,18 @@ namespace Metagame.Bootstrap
             ExplorationHud.Initialize(Exploration, Session);
 
             if (buildLevel) Level.Build();
+
+            if (dustStormHazard != null)
+            {
+                var mapBounds = DustStormBounds.FindOrFallback();
+                dustStormHazard.Configure(atmosphereProfile, mapBounds);
+                if (dustStormVisual != null)
+                    dustStormVisual.BindMapBounds(mapBounds);
+
+                var clockBridge = sys.AddComponent<DustStormClockBridge>();
+                clockBridge.Configure(dustStormVisual, dustStormHazard);
+            }
+
             Exploration.Configure(FindObjectsByType<SpaceshipPart>(FindObjectsSortMode.None));
             DisableDemoClampReleasers();
             DisableDemoBeamDrivers();
@@ -114,6 +141,7 @@ namespace Metagame.Bootstrap
                 // 접속자별 조작은 NetPlayer 가 자기 컨트롤러로 한다(-149).
                 Transport.Configure(null, beams);
                 Transport.Authoritative = false;
+                Transport.PhysicsAuthority = true;
                 Session.Transport = Transport;
                 Session.Begin(null, Level, Level.SpawnFoot, Exploration);
                 return;
@@ -143,6 +171,7 @@ namespace Metagame.Bootstrap
 
             // 매치 중에는 조준·안내만 하고 실행은 서버에 맡긴다(-149).
             Transport.Authoritative = !inMatch;
+            Transport.PhysicsAuthority = !inMatch;
 
             Hud.Local = Player;
             Hud.Transport = Transport;
@@ -167,6 +196,17 @@ namespace Metagame.Bootstrap
             {
                 Sky.ApplyToCameras();
             }
+
+            // 낙하 예고 원과 분화구를 그리는 컴포넌트를 붙인다(S15P21B202-275).
+            //
+            // 이 두 줄이 없어서 S15P21B202-241 · 251 · 268 이 만든 표현이 인게임에서
+            // 한 번도 실행되지 않았다. 방망이(§18)가 "낙하 지점 반경 2.5m 안" 을
+            // 요구하는데 원이 없으면 어디가 2.5m 인지 알 수 없다.
+            //
+            // 대기 연출과 달리 useAtmosphere 와 무관하다 — 진공에서도 운석은 떨어진다.
+            // 전용 서버는 위에서 이미 돌아나갔으므로 화면 없는 쪽에는 붙지 않는다.
+            var meteorSpawner = FindAnyObjectByType<Metagame.Gameplay.Hazards.MeteorSpawner>();
+            if (meteorSpawner != null) meteorSpawner.EnsureViews();
 
             if (selfTest) gameObject.AddComponent<SpaceSelfTest>();
             if (shot) gameObject.AddComponent<SpaceScreenshot>();

@@ -52,11 +52,11 @@ MonoBehaviour:
     ambientIntensity: 0.9
   fog:
     enabled: 1
-    mode: 3
-    color: {r: 0.18039216, g: 0.07058824, b: 0.097069845, a: 1}
-    density: 0.07
+    mode: 1
+    color: {r: 0.514151, g: 0.3869496, b: 0.21099593, a: 1}
+    density: 0.04
     startDistance: 2
-    endDistance: 80
+    endDistance: 25.01
   haze:
     enabled: 0
     requiresDepth: 1
@@ -66,15 +66,15 @@ MonoBehaviour:
     endDistance: 180
   groundFog:
     enabled: 0
-    color: {r: 0.2, g: 0.15, b: 0.32, a: 1}
-    density: 0.1
+    color: {r: 0.82, g: 0.63, b: 0.38, a: 1}
+    density: 0.4
     baseHeight: 0
-    heightFalloff: 0.2
+    heightFalloff: 0.1
     startDistance: 2
-    endDistance: 80
+    endDistance: 25
     noiseScale: 0.05
     noiseSpeed: {x: 0.006, y: -0.004}
-    noiseStrength: 0.22
+    noiseStrength: 0.7
   postProcessing:
     tonemapping: 2
     bloomEnabled: 1
@@ -99,5 +99,50 @@ MonoBehaviour:
     color: {r: 0.85, g: 0.7, b: 0.55, a: 0.85}
     startSize: 0.1
     endSize: 0.01
+  dustGust:
+    enabled: 1
+    direction: {x: 0.9841834, y: 0, z: 0.177153}
+    minimumInterval: 8
+    maximumInterval: 18
+    duration: 4
+    speed: 3.5
+    color: {r: 0.68, g: 0.5, b: 0.36, a: 0.22}
+    startSize: 0.22
+    endSize: 0.06
+    burstCount: 18
+    maxParticles: 72
+    spawnRadius: 10
+    verticalSpread: 3
+  dustStorm:
+    enabled: 1
+    minimumInterval: 8
+    maximumInterval: 14
+    speed: 6
+    halfExtents: {x: 12, y: 2.5, z: 5}
+    directionConeDegrees: 60
+    spawnMargin: 6
+    seed: 20260903
+    showDebugBoundary: 1
+    debugBoundaryColor: {r: 1, g: 0, b: 0, a: 1}
+    debugBoundaryWidth: 0.04
+    debugSkyMarkerHeight: 80
+    windForce: 6
+    maximumAffectedMass: 40
+    maxPhysicalFragments: 3
+    fragmentDamage: 5
+    fragmentRepeatCooldown: 1
+    fragmentLifetime: 2.5
+    fragmentSpeed: 5
+    affectedLayers: -1
+    maxVisualFragments: 6
+    maxDustParticles: 64
+    dustEmissionRate: 20
+    dustLifetime: 3.5
+    dustStartSize: 0.35
+    dustEndSize: 0.08
+    dustColor: {r: 0.68, g: 0.5, b: 0.36, a: 0.3}
+    largeDebrisPrefab: {fileID: 100100000, guid: b0a8e971df7ec6444885c4615a728ec6, type: 3}
+    mediumDebrisPrefab: {fileID: 100100000, guid: 3d8ee2dcb0fa85d4ca8b6decd954b8e1, type: 3}
+    smallDebrisPrefab: {fileID: 100100000, guid: a0de2ff8a3e44cc4594133fb1ce9ab38, type: 3}
   enableOnMobile: 0
   mobileEffectScale: 0.5

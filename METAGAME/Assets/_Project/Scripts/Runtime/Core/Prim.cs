@@ -93,7 +93,8 @@ namespace Metagame.Core
             if (parent != null) go.transform.SetParent(parent, true);
             go.transform.position = pos;
             go.transform.localScale = size;
-            go.GetComponent<Renderer>().sharedMaterial = Dough(color, softness);
+            var renderer = MeshVisual.EnsureRenderer(go);
+            if (renderer != null) renderer.sharedMaterial = Dough(color, softness);
             return go;
         }
 
@@ -105,7 +106,8 @@ namespace Metagame.Core
             if (parent != null) go.transform.SetParent(parent, true);
             go.transform.position = pos;
             go.transform.localScale = Vector3.one * diameter;
-            go.GetComponent<Renderer>().sharedMaterial = Dough(color, softness);
+            var renderer = MeshVisual.EnsureRenderer(go);
+            if (renderer != null) renderer.sharedMaterial = Dough(color, softness);
             return go;
         }
 
@@ -118,7 +120,8 @@ namespace Metagame.Core
             if (parent != null) go.transform.SetParent(parent, true);
             go.transform.position = pos;
             go.transform.localScale = new Vector3(diameter, Mathf.Max(height * 0.5f, diameter * 0.5f), diameter);
-            go.GetComponent<Renderer>().sharedMaterial = Dough(color, softness);
+            var renderer = MeshVisual.EnsureRenderer(go);
+            if (renderer != null) renderer.sharedMaterial = Dough(color, softness);
             return go;
         }
 
@@ -130,7 +133,8 @@ namespace Metagame.Core
             if (parent != null) go.transform.SetParent(parent, true);
             go.transform.position = pos;
             go.transform.localScale = new Vector3(diameter, height * 0.5f, diameter);
-            go.GetComponent<Renderer>().sharedMaterial = Dough(color, softness);
+            var renderer = MeshVisual.EnsureRenderer(go);
+            if (renderer != null) renderer.sharedMaterial = Dough(color, softness);
             return go;
         }
 

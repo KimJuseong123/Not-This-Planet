@@ -57,6 +57,7 @@ namespace Metagame.Gameplay.Parts
         Collider[] _colliders;
         Rigidbody _releasedBody;
         bool _initialized;
+        int _progressSoundBucket;
 
         public SpaceshipPart Part => _part;
 
@@ -124,6 +125,7 @@ namespace Metagame.Gameplay.Parts
         public Rigidbody ReleasedBody => _releasedBody;
 
         public event Action<PartClamp> Released;
+        public static event Action<PartClamp, int> AnyProgressed;
 
         void Awake() => Initialize();
 
@@ -141,6 +143,17 @@ namespace Metagame.Gameplay.Parts
             if (_part == null) _part = GetComponentInParent<SpaceshipPart>();
             _colliders = GetComponents<Collider>();
 
+            // 외양은 충돌 판정과 같은 Clamp 아래에 둔다. 구형 씬에서 직렬화된 외부
+            // 외양이 들어와도 여기서 소유 루트를 바로잡아 렌더러와 Collider가 함께 움직이게 한다.
+            // 렌더러가 없는 테스트용 외형이면 조용히 건너뛴다.
+            if (_releasedVisual != null)
+            {
+                if (!_releasedVisual.IsChildOf(transform))
+                    _releasedVisual.SetParent(transform, true);
+                _releasedVisual.gameObject.SetActive(true);
+                AlignReleasedVisual(_releasedVisual);
+            }
+
             // 고정쇠 Collider는 Interactable 레이어라 Hand.Search에는 걸리지 않는다.
             // 별도의 표식만 만들어 명시적 clamp grip 경로에서 사용한다.
             if (_gripTarget == null) _gripTarget = GetComponent<Grabbable>();
@@ -155,14 +168,68 @@ namespace Metagame.Gameplay.Parts
         }
 
         /// <summary>
-        /// Stage1SkinBuilder가 별도 AnchorPins 외형을 직접 연결한다.
-        /// 이름 검색은 구형 씬 호환용으로만 남기고, 새 씬은 이 참조를 사용한다.
+        /// Stage1SkinBuilder가 Clamp 아래의 외양을 직접 연결한다.
+        /// 외부에 남아 있는 구형 씬 외양도 이 메서드에서 Clamp 아래로 옮긴다.
         /// </summary>
         public void AssignReleasedVisual(Transform visual)
         {
             _releasedVisual = visual;
-            if (_releasedVisual != null) _releasedVisual.gameObject.SetActive(true);
+            if (_releasedVisual == null) return;
+
+            if (!_releasedVisual.IsChildOf(transform))
+                _releasedVisual.SetParent(transform, true);
+            _releasedVisual.gameObject.SetActive(true);
+            AlignReleasedVisual(_releasedVisual);
         }
+
+        /// <summary>
+        /// 외양 프리팹의 피벗이 무엇이든 실제 모델의 바닥과 중심을 고정못에 맞춘다.
+        ///
+        /// 스킨 프리팹은 루트가 모델 중심이 아닐 수 있고, 씬에 저장된 프리팹 인스턴스는
+        /// 파츠의 수동 배치 이전 좌표를 들고 있을 수 있다. 루트 위치를 직접 고정하면
+        /// 프리팹 피벗 때문에 모델이 반 높이만큼 어긋나므로 렌더러 경계를 기준으로 보정한다.
+        /// </summary>
+        void AlignReleasedVisual(Transform visual)
+        {
+            if (visual == null) return;
+
+            MeshVisual.EnsureRenderers(visual.gameObject);
+            var renderers = visual.GetComponentsInChildren<Renderer>(true);
+            if (renderers == null || renderers.Length == 0) return;
+
+            Bounds bounds = default;
+            var hasBounds = false;
+            for (var i = 0; i < renderers.Length; i++)
+            {
+                var renderer = renderers[i];
+                if (renderer == null) continue;
+
+                if (!hasBounds)
+                {
+                    bounds = renderer.bounds;
+                    hasBounds = true;
+                }
+                else
+                {
+                    bounds.Encapsulate(renderer.bounds);
+                }
+            }
+
+            if (!hasBounds || !IsFinite(bounds.center) || !IsFinite(bounds.min)) return;
+
+            var delta = new Vector3(
+                transform.position.x - bounds.center.x,
+                transform.position.y - bounds.min.y,
+                transform.position.z - bounds.center.z);
+            if (!IsFinite(delta)) return;
+
+            visual.position += delta;
+        }
+
+        static bool IsFinite(Vector3 value) =>
+            !float.IsNaN(value.x) && !float.IsInfinity(value.x)
+            && !float.IsNaN(value.y) && !float.IsInfinity(value.y)
+            && !float.IsNaN(value.z) && !float.IsInfinity(value.z);
 
         /// <summary>
         /// 이 고정못을 잡는다. 정원(기획 §12.2 "최대 2명")이 차 있으면 <c>false</c>.
@@ -204,6 +271,13 @@ namespace Metagame.Gameplay.Parts
             var rate = PhysicsScale.ClampPullSeconds / PullSecondsFor(Pullers);
             _pulledSeconds += deltaTime * rate;
 
+            var bucket = Mathf.FloorToInt(Progress * 10f);
+            if (bucket > _progressSoundBucket)
+            {
+                _progressSoundBucket = bucket;
+                AnyProgressed?.Invoke(this, bucket);
+            }
+
             if (_pulledSeconds < PhysicsScale.ClampPullSeconds) return true;
 
             Release();
@@ -234,6 +308,7 @@ namespace Metagame.Gameplay.Parts
         {
             Initialize();
             _pulledSeconds = 0f;
+            _progressSoundBucket = 0;
         }
 
         public override InteractionAvailability GetAvailability(Interactor actor)
@@ -272,6 +347,7 @@ namespace Metagame.Gameplay.Parts
             IsReleased = true;
             Pullers = 0;
             _pulledSeconds = PhysicsScale.ClampPullSeconds;
+            _progressSoundBucket = 10;
 
             // 고정쇠는 원래 파츠의 자식이므로 먼저 분리한다. Rigidbody를 파츠의
             // Rigidbody 아래에 둔 채 추가하면 두 물리 몸체가 한 계층에 겹친다.
@@ -294,6 +370,7 @@ namespace Metagame.Gameplay.Parts
             var visual = _releasedVisual != null ? _releasedVisual : FindSceneAnchorPin();
             if (visual != null)
             {
+                MeshVisual.EnsureRenderers(visual.gameObject);
                 var renderers = visual.GetComponentsInChildren<Renderer>(true);
                 if (renderers.Length == 0)
                 {
@@ -330,8 +407,9 @@ namespace Metagame.Gameplay.Parts
         {
             if (_part == null || string.IsNullOrEmpty(name)) return null;
 
-            // Stage1SkinBuilder가 AnchorPins 그룹에
-            // "<파츠 이름>_<고정쇠 이름>" 규칙으로 PF_Stage1_AnchorPin을 배치한다.
+            // 구형 씬 호환용. 새 씬에서는 _releasedVisual이 Clamp 자식으로 직렬화된다.
+            // 이전에 AnchorPins 그룹에 "<파츠 이름>_<고정쇠 이름>" 규칙으로 배치했던
+            // 프리팹을 찾아 오너 아래로 옮긴다.
             var pin = GameObject.Find(_part.name + "_" + name);
             return pin != null ? pin.transform : null;
         }

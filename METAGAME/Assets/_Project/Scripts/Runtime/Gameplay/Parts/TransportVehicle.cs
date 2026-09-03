@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using Metagame.Core;
 using Metagame.Gameplay;
@@ -41,6 +42,10 @@ namespace Metagame.Gameplay.Parts
     [RequireComponent(typeof(Rigidbody))]
     public sealed class TransportVehicle : MonoBehaviour
     {
+        public static event Action<TransportVehicle> AnyActivated;
+        public static event Action<TransportVehicle, PlayerRig> AnyBoarded;
+        public static event Action<TransportVehicle, PlayerRig> AnyDismounted;
+
         public const float GroundY = 0.06f;
         public const float HoverRootY = 5.0f;
         public const float BeamHoldDistance = 3.1f;
@@ -73,6 +78,9 @@ namespace Metagame.Gameplay.Parts
 
         /// <summary>목표 고도가 이 안에 들어오면 부양이 안정된 것으로 본다.</summary>
         const float HoverSettleBand = 0.4f;
+
+        /// <summary>상승 Cast가 장애물까지 남겨 두는 최소 여유.</summary>
+        const float VerticalClearance = 0.06f;
 
         // --- 임시 조종석 ---
         // 실제 조종석 에셋이 들어오기 전까지 쓰는 대체물이다. Prim 으로 세우므로 새 에셋이
@@ -167,6 +175,7 @@ namespace Metagame.Gameplay.Parts
         Transform cockpit;
         TractorBeam beam;
         LowGravityField field;
+        bool fieldPhysicsAuthority = true;
         PlayerRig rider;
         Vector3 driveVector;
         Vector3 facingDirection = Vector3.forward;
@@ -212,8 +221,10 @@ namespace Metagame.Gameplay.Parts
                 {
                     field = GetComponent<LowGravityField>();
                     if (field == null) field = gameObject.AddComponent<LowGravityField>();
-                    field.Configure(beam != null ? beam.BeamOrigin : transform);
                 }
+
+                field.Configure(beam != null ? beam.BeamOrigin : transform, body);
+                field.SetPhysicsAuthority(fieldPhysicsAuthority);
 
                 return field;
             }
@@ -222,6 +233,18 @@ namespace Metagame.Gameplay.Parts
         public bool IsOccupied => rider != null;
         public bool IsReturning => returning;
         public bool IsGrounded => grounded;
+        public bool VerticalBlocked { get; private set; }
+
+        /// <summary>
+        /// Sets whether this vehicle's low-gravity field may apply authoritative forces.
+        /// The value is retained before the field is lazily created so network clients
+        /// cannot briefly simulate a server-owned field during initialization.
+        /// </summary>
+        public void SetFieldPhysicsAuthority(bool authority)
+        {
+            fieldPhysicsAuthority = authority;
+            if (field != null) field.SetPhysicsAuthority(authority);
+        }
 
         /// <summary>
         /// 플랫폼 아랫면이 지금 무엇에든 닿아 있는지. 하차 완료 판정과 같은 검사다.
@@ -305,8 +328,12 @@ namespace Metagame.Gameplay.Parts
                 }
             }
 
+            if (visual != null) MeshVisual.EnsureRenderers(visual.gameObject);
             RefreshSeat();
         }
+
+        /// <summary>새로 활성화된 운반체를 각 플레이어 컨트롤러에 알린다.</summary>
+        internal void NotifyActivated() => AnyActivated?.Invoke(this);
 
         void EnsurePhysics()
         {
@@ -365,13 +392,18 @@ namespace Metagame.Gameplay.Parts
         /// <summary>탑승하지 않은 장치를 맵의 바닥으로 되돌린다.</summary>
         public void PlaceOnGround(Vector3 position, float visualYaw)
         {
-            EnsurePhysics();
-
             var rootRotation = Quaternion.LookRotation(Vector3.down, Vector3.forward);
             var groundPosition = new Vector3(position.x, GroundY, position.z);
+            if (body == null) body = GetComponent<Rigidbody>();
             body.position = groundPosition;
             body.rotation = rootRotation;
             transform.SetPositionAndRotation(groundPosition, rootRotation);
+
+            // 플랫폼과 좌석은 루트가 아래를 보는 운반체 축을 기준으로 만든다. Part_1처럼
+            // 변환 전 루트가 일반 파츠 축을 가지고 있는 경우, 루트 자세를 먼저 바꾸지
+            // 않으면 자식의 월드 회전이 함께 틀어진다.
+            EnsurePhysics();
+
             body.linearVelocity = Vector3.zero;
             body.angularVelocity = Vector3.zero;
             body.useGravity = true;
@@ -411,7 +443,9 @@ namespace Metagame.Gameplay.Parts
                 }
             }
 
-            if (visual == null || !TryVisualAndColliderBounds(out var bounds)) return;
+            if (visual == null) return;
+            MeshVisual.EnsureRenderers(visual.gameObject);
+            if (!TryVisualAndColliderBounds(out var bounds)) return;
 
             var delta = surfaceY + VisualSurfaceGap - bounds.min.y;
             if (float.IsNaN(delta) || float.IsInfinity(delta)) return;
@@ -427,6 +461,7 @@ namespace Metagame.Gameplay.Parts
             bounds = default;
             var first = true;
 
+            MeshVisual.EnsureRenderers(visual.gameObject);
             var renderers = visual.GetComponentsInChildren<Renderer>(true);
             for (var i = 0; i < renderers.Length; i++)
             {
@@ -488,6 +523,7 @@ namespace Metagame.Gameplay.Parts
 
             rider = player;
             SetCockpitVisible(true);
+            AnyBoarded?.Invoke(this, player);
             return true;
         }
 
@@ -552,7 +588,8 @@ namespace Metagame.Gameplay.Parts
             get
             {
                 var top = Boosting ? PhysicsScale.CraftBoostSpeed : MaxSpeed;
-                var towing = beam != null && beam.IsHolding;
+                var towing = (beam != null && beam.IsHolding)
+                             || (field != null && field.IsActive && field.AffectedCount > 0);
                 return towing ? top * PhysicsScale.CraftTowSpeedFactor : top;
             }
         }
@@ -723,7 +760,10 @@ namespace Metagame.Gameplay.Parts
             var currentRider = rider;
             rider = null;
             if (currentRider != null)
+            {
                 currentRider.CompleteTransportVehicleExit(this);
+                AnyDismounted?.Invoke(this, currentRider);
+            }
         }
 
         // ---------------------------------------------------------------- 좌석과 조종석
@@ -769,6 +809,7 @@ namespace Metagame.Gameplay.Parts
             bounds = default;
             if (visual == null) return false;
 
+            MeshVisual.EnsureRenderers(visual.gameObject);
             var renderers = visual.GetComponentsInChildren<Renderer>(true);
             var first = true;
             for (var i = 0; i < renderers.Length; i++)
@@ -867,6 +908,50 @@ namespace Metagame.Gameplay.Parts
                 targetAltitude = Mathf.Max(targetAltitude, body.position.y);
 
             targetAltitude = Mathf.Clamp(targetAltitude, GroundY, MaxAltitude);
+            VerticalBlocked = false;
+
+            // Only the vertical command is blocked. Steering, field toggles, and dismount
+            // remain available while an overhead collider occupies the rise path.
+            if (targetAltitude > body.position.y + VerticalClearance
+                && TryGetVerticalClearance(targetAltitude, out var allowedAltitude)
+                && allowedAltitude < targetAltitude)
+            {
+                targetAltitude = Mathf.Clamp(allowedAltitude, body.position.y, MaxAltitude);
+                VerticalBlocked = true;
+            }
+        }
+
+        bool TryGetVerticalClearance(float desiredAltitude, out float allowedAltitude)
+        {
+            allowedAltitude = desiredAltitude;
+            if (body == null || platform == null || platformAnchor == null) return false;
+
+            var rise = desiredAltitude - body.position.y;
+            if (rise <= 0f) return false;
+
+            var scale = platform.transform.lossyScale;
+            var halfExtents = new Vector3(Mathf.Abs(platform.size.x * scale.x) * 0.5f,
+                                          Mathf.Abs(platform.size.y * scale.y) * 0.5f,
+                                          Mathf.Abs(platform.size.z * scale.z) * 0.5f);
+            halfExtents.x = Mathf.Max(0.05f, halfExtents.x - ProbeShrink);
+            halfExtents.z = Mathf.Max(0.05f, halfExtents.z - ProbeShrink);
+            halfExtents.y = Mathf.Max(0.02f, halfExtents.y);
+
+            var count = Physics.BoxCastNonAlloc(platformAnchor.position, halfExtents, Vector3.up,
+                                                ProbeHits, Quaternion.identity, rise + VerticalClearance,
+                                                SurfaceMask, QueryTriggerInteraction.Ignore);
+            var nearest = float.PositiveInfinity;
+            for (var i = 0; i < count; i++)
+            {
+                var hit = ProbeHits[i];
+                if (hit.collider == null || hit.collider.transform.IsChildOf(transform)) continue;
+                nearest = Mathf.Min(nearest, hit.distance);
+            }
+
+            if (float.IsPositiveInfinity(nearest)) return false;
+
+            allowedAltitude = body.position.y + Mathf.Max(0f, nearest - VerticalClearance);
+            return true;
         }
 
         /// <summary>

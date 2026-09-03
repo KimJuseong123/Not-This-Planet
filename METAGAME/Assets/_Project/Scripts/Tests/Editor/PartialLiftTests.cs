@@ -140,6 +140,40 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void PartiallyReleasedPart_IsIncludedInLowGravityField()
+        {
+            var part = MakeClampedPart(new Vector3(0f, 1f, 0f));
+            ReleaseClamp(part, 0);
+
+            var field = MakeField(new Vector3(0f, 9f, 0f));
+            field.Tick(Step);
+
+            Assert.AreEqual(1, field.AffectedCount,
+                "상태가 Locked여도 고정쇠가 하나 풀려 동적이 된 파츠는 저중력장 대상이어야 한다.");
+        }
+
+        [Test]
+        public void ReleasedAssemblyPart_LiftsWhenNominalHoldDepthIsBelowFloor()
+        {
+            var part = MakeClampedPart(new Vector3(0f, 1f, 0f));
+            for (var i = 0; i < 4; i++) ReleaseClamp(part, i);
+
+            var floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            floor.name = "Floor";
+            floor.layer = GameLayers.Ground;
+            floor.transform.position = new Vector3(0f, -0.55f, 0f);
+            floor.transform.localScale = new Vector3(10f, 1f, 10f);
+            spawned.Add(floor);
+
+            var field = MakeField(new Vector3(0f, 5f, 0f));
+            var start = part.transform.position.y;
+            Run(field, 0.25f);
+
+            Assert.Greater(part.transform.position.y, start,
+                "운반체가 낮은 고도에 있어 목표 깊이가 바닥 아래여도, 해제된 조립 파츠는 먼저 지면에서 떠야 한다.");
+        }
+
+        [Test]
         public void ConstraintCount_FollowsRemainingClamps()
         {
             var part = MakeClampedPart(new Vector3(0f, 1f, 0f));
