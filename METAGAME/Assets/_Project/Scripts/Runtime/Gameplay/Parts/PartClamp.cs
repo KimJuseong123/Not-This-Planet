@@ -211,6 +211,25 @@ namespace Metagame.Gameplay.Parts
         }
 
         /// <summary>진행분을 0 으로 되돌린다. 레벨 초기화에서 쓴다.</summary>
+        /// <summary>
+        /// 서버가 보낸 진행 상태를 그대로 맞춘다 (S15P21B202-152).
+        ///
+        /// 다른 사람 화면에서도 고정쇠가 같이 뽑혀야 한다. 판정은 서버가 하고 여기서는
+        /// 그 결과만 따라간다 — 클라이언트가 스스로 진행도를 올리면 서버와 어긋난다.
+        /// </summary>
+        /// <param name="progress">0~1. 서버의 <see cref="Progress"/> 값.</param>
+        /// <param name="released">서버에서 이미 풀렸는가.</param>
+        public void ApplyNetworkState(float progress, bool released)
+        {
+            if (released)
+            {
+                Release();          // 이미 풀려 있으면 아무 일도 하지 않는다
+                return;
+            }
+
+            _pulledSeconds = Mathf.Clamp01(progress) * PhysicsScale.ClampPullSeconds;
+        }
+
         public void ResetProgress()
         {
             Initialize();

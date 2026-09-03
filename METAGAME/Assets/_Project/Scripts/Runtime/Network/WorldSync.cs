@@ -40,10 +40,15 @@ namespace Metagame.Network
         }
 
         readonly List<Rigidbody> tracked = new List<Rigidbody>();
+
+        /// <summary>고정쇠. 위치가 아니라 <b>진행도</b>가 사람마다 달라지는 것들이다.</summary>
+        readonly List<PartClamp> clamps = new List<PartClamp>();
+        ClampState[] clampTargets = Array.Empty<ClampState>();
         Pose[] targets = Array.Empty<Pose>();
         float sendTimer;
         bool ready;
         bool warnedMismatch;
+        bool warnedClampMismatch;
 
         /// <summary>클라이언트로서 챙길 것이 남았는가. 스폰이 등록된 뒤에만 참이 된다.</summary>
         bool needsClientPrepare;
@@ -52,7 +57,12 @@ namespace Metagame.Network
         {
             Collect();
             ready = true;
-            Debug.Log($"[WorldSync] 서버가 {tracked.Count}개를 맡는다 · {Order()}");
+
+            // 용접은 서버에서만 판정된다. 그 사건을 받아 모두에게 중계한다.
+            WorldEvents.WeldGrown += RpcWeldGrown;
+            WorldEvents.WeldShrunk += RpcWeldShrunk;
+
+            Debug.Log($"[WorldSync] 서버가 {tracked.Count}개를 맡는다 · 고정쇠 {clamps.Count}개 · {Order()}");
         }
 
         public override void OnStartClient()
@@ -89,8 +99,11 @@ namespace Metagame.Network
             for (int i = 0; i < tracked.Count; i++)
                 targets[i] = Read(tracked[i]);
 
+            // 이 화면은 그림이다. 세계를 스스로 바꾸면 서버가 보낸 것과 겹친다.
+            WorldEvents.RemoteDecides = true;
+
             ready = true;
-            Debug.Log($"[WorldSync] 클라이언트가 {tracked.Count}개를 받는다 · {Order()}");
+            Debug.Log($"[WorldSync] 클라이언트가 {tracked.Count}개를 받는다 · 고정쇠 {clamps.Count}개 · {Order()}");
             return true;
         }
 
@@ -100,6 +113,13 @@ namespace Metagame.Network
         /// 이름만으로는 같은 이름이 여럿일 때 순서가 흔들린다. 씬이 정해 준 처음
         /// 위치는 서버와 클라이언트가 똑같으므로, 이름이 같으면 그 위치로 가른다.
         /// </summary>
+        /// <summary>고정쇠 하나의 상태. 위치로는 알 수 없어 따로 실어 보낸다.</summary>
+        public struct ClampState
+        {
+            public float Progress;      // 0~1
+            public bool Released;
+        }
+
         void Collect()
         {
             tracked.Clear();
@@ -111,6 +131,21 @@ namespace Metagame.Network
                 Add(vehicle != null ? vehicle.GetComponent<Rigidbody>() : null);
 
             tracked.Sort(Compare);
+
+            clamps.Clear();
+            foreach (var clamp in FindObjectsByType<PartClamp>(FindObjectsInactive.Include,
+                                                               FindObjectsSortMode.None))
+                if (clamp != null) clamps.Add(clamp);
+
+            clamps.Sort(CompareByPath);
+        }
+
+        static int CompareByPath(Component a, Component b)
+        {
+            int byPath = string.CompareOrdinal(PathOf(a.transform), PathOf(b.transform));
+            return byPath != 0
+                ? byPath
+                : a.transform.GetSiblingIndex().CompareTo(b.transform.GetSiblingIndex());
         }
 
         void Add(Rigidbody body)
@@ -165,6 +200,18 @@ namespace Metagame.Network
                 : new Pose { Position = body.position, Rotation = body.rotation };
         }
 
+        public override void OnStopClient()
+        {
+            if (!isServer) WorldEvents.RemoteDecides = false;
+        }
+
+        public override void OnStopServer()
+        {
+            // 남겨 두면 다음 매치에서 이미 사라진 오브젝트를 향해 사건이 날아간다.
+            WorldEvents.WeldGrown -= RpcWeldGrown;
+            WorldEvents.WeldShrunk -= RpcWeldShrunk;
+        }
+
         void Update()
         {
             if (!ready)
@@ -190,6 +237,61 @@ namespace Metagame.Network
                 poses[i] = Read(tracked[i]);
 
             RpcApply(poses);
+
+            var states = new ClampState[clamps.Count];
+            for (int i = 0; i < clamps.Count; i++)
+            {
+                var clamp = clamps[i];
+                states[i] = clamp == null
+                    ? default
+                    : new ClampState { Progress = clamp.Progress, Released = clamp.IsReleased };
+            }
+            RpcApplyClamps(states);
+        }
+
+        /// <summary>
+        /// 고정쇠의 진행도와 해제 여부를 맞춘다. 판정은 서버가 하고 여기서는 따라만 간다.
+        /// </summary>
+        [ClientRpc]
+        void RpcApplyClamps(ClampState[] states)
+        {
+            if (isServer) return;               // 호스트는 자기 물리가 정답이다
+            if (states == null || !ready) return;
+
+            if (states.Length != clamps.Count)
+            {
+                if (!warnedClampMismatch)
+                {
+                    warnedClampMismatch = true;
+                    Debug.LogWarning($"[WorldSync] 고정쇠 개수가 다르다 — 서버 {states.Length} · 여기 {clamps.Count}");
+                }
+                return;
+            }
+            warnedClampMismatch = false;
+
+            for (int i = 0; i < clamps.Count; i++)
+                if (clamps[i] != null) clamps[i].ApplyNetworkState(states[i].Progress, states[i].Released);
+        }
+
+        // ── 용접 — 상태가 아니라 행동을 실어 나른다 ─────────────
+
+        /// <summary>
+        /// 서버에서 용접이 진행되면 그 사실을 모두에게 알린다.
+        /// 부품이 이미 같은 자리에 맞춰져 있으므로, 같은 자리에서 같은 양만큼 자라게 하면
+        /// 같은 모양이 나온다 — 덩어리 사슬을 통째로 보내지 않아도 된다(-152).
+        /// </summary>
+        [ClientRpc]
+        void RpcWeldGrown(Vector3 nozzle, float amount)
+        {
+            if (isServer) return;
+            WeldBead.TryGrowNear(nozzle, amount, out _);
+        }
+
+        [ClientRpc]
+        void RpcWeldShrunk(Vector3 nozzle, float amount)
+        {
+            if (isServer) return;
+            WeldBead.TryShrinkNear(nozzle, amount, out _);
         }
 
         [ClientRpc]
