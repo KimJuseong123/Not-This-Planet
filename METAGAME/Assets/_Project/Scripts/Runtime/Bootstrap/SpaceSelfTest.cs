@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using Metagame.Core;
 using Metagame.Gameplay;
+using Metagame.Gameplay.Hazards;
 using Metagame.Gameplay.Parts;
 
 namespace Metagame.Bootstrap
@@ -189,7 +190,35 @@ namespace Metagame.Bootstrap
             var rail = Grabbable.Find("핸드레일");
             Check(rail != null && rail.Climbable, "핸드레일은 기어오를 수 있는 것으로 표시됐다");
 
+            CheckHazardViews();
+
             yield break;
+        }
+
+        /// <summary>
+        /// 운석 표현이 <b>세계에 실제로 있는가</b>(S15P21B202-275).
+        ///
+        /// <b>이 점검이 없어서 세 이슈가 죽어 있었다.</b> S15P21B202-241 이 낙하 예고
+        /// 원을, 251 이 분화구를 만들고 268 이 줄어드는 원으로 바꿨지만 아무도 그
+        /// 컴포넌트를 붙이지 않았다 — 씬에도, 프리팹에도, 런타임에도 없었다.
+        ///
+        /// <b>EditMode 검증으로는 잡을 수 없는 종류다.</b> 검증은 뷰를 직접 만들어
+        /// 붙이므로 늘 통과한다. "게임에서 아무도 만들지 않는다" 는 세계를 실제로
+        /// 세워 봐야 보이고, 그것이 이 점검의 존재 이유다.
+        /// </summary>
+        void CheckHazardViews()
+        {
+            var spawner = Object.FindAnyObjectByType<MeteorSpawner>();
+            Check(spawner != null, "운석 스포너 존재");
+            if (spawner == null) return;
+
+            var warning = Object.FindAnyObjectByType<MeteorWarningView>();
+            var scars = Object.FindAnyObjectByType<MeteorScarView>();
+
+            // 방망이(§18)가 "낙하 지점 반경 2.5m 안" 을 요구한다. 원이 없으면
+            // 어디가 2.5m 인지 알 수 없어 기믹이 성립하지 않는다.
+            Check(warning != null, "낙하 예고 원을 그리는 것이 존재한다 (§17.2)");
+            Check(scars != null, "운석 분화구를 그리는 것이 존재한다 (§19)");
         }
 
         // ── 3. 서 있기 ──────────────────────────────────────────

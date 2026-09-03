@@ -171,6 +171,17 @@ namespace Metagame.Bootstrap
                 Sky.ApplyToCameras();
             }
 
+            // 낙하 예고 원과 분화구를 그리는 컴포넌트를 붙인다(S15P21B202-275).
+            //
+            // 이 두 줄이 없어서 S15P21B202-241 · 251 · 268 이 만든 표현이 인게임에서
+            // 한 번도 실행되지 않았다. 방망이(§18)가 "낙하 지점 반경 2.5m 안" 을
+            // 요구하는데 원이 없으면 어디가 2.5m 인지 알 수 없다.
+            //
+            // 대기 연출과 달리 useAtmosphere 와 무관하다 — 진공에서도 운석은 떨어진다.
+            // 전용 서버는 위에서 이미 돌아나갔으므로 화면 없는 쪽에는 붙지 않는다.
+            var meteorSpawner = FindAnyObjectByType<Metagame.Gameplay.Hazards.MeteorSpawner>();
+            if (meteorSpawner != null) meteorSpawner.EnsureViews();
+
             if (selfTest) gameObject.AddComponent<SpaceSelfTest>();
             if (shot) gameObject.AddComponent<SpaceScreenshot>();
         }

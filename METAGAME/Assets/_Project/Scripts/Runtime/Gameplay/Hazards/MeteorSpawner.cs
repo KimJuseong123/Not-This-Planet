@@ -504,6 +504,48 @@ namespace Metagame.Gameplay.Hazards
         }
 
         /// <summary>
+        /// 낙하 예고와 흔적을 <b>그리는 컴포넌트를 붙인다</b>(S15P21B202-275).
+        ///
+        /// <b>아무도 이것을 만들지 않았다.</b> S15P21B202-241 이
+        /// <see cref="MeteorWarningView"/> 를, 251 이 <see cref="MeteorScarView"/> 를
+        /// 만들고 268 이 줄어드는 원으로 바꿨지만, 씬에도 프리팹에도 붙어 있지 않았고
+        /// 런타임에 붙이는 코드도 없었다 — <b>세 이슈가 만든 표현이 인게임에서 한 번도
+        /// 실행된 적이 없다.</b> "운석 워닝포인트가 안보인다" 의 진짜 원인이 이것이다.
+        ///
+        /// S15P21B202-254 가 예고 지점을 실제 지면 위로 내린 것은 필요했지만, 그리는
+        /// 컴포넌트가 없으면 그것만으로는 아무것도 보이지 않는다.
+        ///
+        /// <b>검증이 이 실수를 잡을 수 없었다.</b> 검증은 뷰를 직접 만들어 붙이므로
+        /// "게임에서 아무도 만들지 않는다" 를 구조적으로 볼 수 없다. 그래서 붙이는
+        /// 장치를 여기 두고(검증이 부를 수 있다), 세계에 실제로 있는지는
+        /// <c>SpaceSelfTest</c> 가 본다.
+        ///
+        /// <b>부르는 쪽은 부트스트랩이다.</b> 여기서 <c>Awake</c> 로 스스로 붙이지 않는
+        /// 이유는 전용 서버다 — 화면이 없는 쪽에서 원판 200개를 만들 필요가 없고,
+        /// <c>Metagame.Gameplay</c> 는 <c>Metagame.Network</c> 를 참조하지 않으므로
+        /// 여기서는 전용 서버인지 알 수 없다. 그 판단은 부트스트랩이 갖는다.
+        /// </summary>
+        /// <returns>이번 호출로 새로 붙인 개수. 이미 있으면 0.</returns>
+        public int EnsureViews()
+        {
+            var added = 0;
+
+            if (GetComponent<MeteorWarningView>() == null)
+            {
+                gameObject.AddComponent<MeteorWarningView>().Configure(this);
+                added++;
+            }
+
+            if (GetComponent<MeteorScarView>() == null)
+            {
+                gameObject.AddComponent<MeteorScarView>().Configure(this);
+                added++;
+            }
+
+            return added;
+        }
+
+        /// <summary>
         /// 후보 지점을 <b>실제 지면 위</b>로 내린다(S15P21B202-254).
         ///
         /// 예전에는 스폰 영역 transform 의 y 를 그대로 썼다. 씬에서 그 값이 0 인데
