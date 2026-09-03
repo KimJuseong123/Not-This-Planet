@@ -83,6 +83,28 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void AssignedVisual_IsAlignedToTheCurrentClampPosition()
+        {
+            var part = CreatePart();
+            var clamp = AddClamp(part, Vector3.forward * 2f);
+            var visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            visual.name = "Stale AnchorPin";
+            visual.transform.position = new Vector3(-40f, 7f, 40f);
+            Object.DestroyImmediate(visual.GetComponent<Collider>());
+            _spawned.Add(visual);
+
+            clamp.AssignReleasedVisual(visual.transform);
+
+            var bounds = visual.GetComponent<Renderer>().bounds;
+            Assert.AreEqual(clamp.transform.position.x, bounds.center.x, 0.001f,
+                "시각 핀의 X 중심이 현재 고정못 위치를 따라야 한다.");
+            Assert.AreEqual(clamp.transform.position.y, bounds.min.y, 0.001f,
+                "시각 핀의 바닥이 현재 고정못 높이에 맞아야 한다.");
+            Assert.AreEqual(clamp.transform.position.z, bounds.center.z, 0.001f,
+                "시각 핀의 Z 중심이 현재 고정못 위치를 따라야 한다.");
+        }
+
+        [Test]
         public void Release_IsIdempotent()
         {
             var part = CreatePart();

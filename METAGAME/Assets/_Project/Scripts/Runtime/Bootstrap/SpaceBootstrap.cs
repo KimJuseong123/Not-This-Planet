@@ -62,6 +62,11 @@ namespace Metagame.Bootstrap
             Time.fixedDeltaTime = Tuning.FixedStep;      // 조인트가 많다 — 촘촘히 밟아야 안 떤다
             Application.targetFrameRate = 120;
 
+            // Existing Main scenes may predate the editor collider pass. Repair only static
+            // environment mesh surfaces here; moving gameplay objects keep their simple
+            // compound colliders, and this also makes headless physics match the client.
+            MeshColliderUtility.EnsureStage1EnvironmentColliders();
+
             var args = System.Environment.GetCommandLineArgs();
             bool selfTest = System.Array.IndexOf(args, "-space-selftest") >= 0;
             bool shot = System.Array.IndexOf(args, "-space-screenshot") >= 0;
@@ -73,9 +78,18 @@ namespace Metagame.Bootstrap
             sys.transform.SetParent(transform, false);
 
             bool useAtmosphere = atmosphereProfile != null && !Application.isBatchMode;
-            if (useAtmosphere)
+            Stage1DustStormHazard dustStormHazard = null;
+            AtmosphereDustStorm dustStormVisual = null;
+            if (atmosphereProfile != null)
             {
                 atmosphereProfile.Validate();
+                dustStormHazard = sys.AddComponent<Stage1DustStormHazard>();
+                if (useAtmosphere)
+                    dustStormVisual = sys.AddComponent<AtmosphereDustStorm>();
+            }
+
+            if (useAtmosphere)
+            {
                 Atmosphere = sys.AddComponent<AtmosphereController>();
                 sys.AddComponent<AtmosphereBackdrop>();
                 sys.AddComponent<AtmosphereMeteorShower>();
@@ -95,6 +109,18 @@ namespace Metagame.Bootstrap
             ExplorationHud.Initialize(Exploration, Session);
 
             if (buildLevel) Level.Build();
+
+            if (dustStormHazard != null)
+            {
+                var mapBounds = DustStormBounds.FindOrFallback();
+                dustStormHazard.Configure(atmosphereProfile, mapBounds);
+                if (dustStormVisual != null)
+                    dustStormVisual.BindMapBounds(mapBounds);
+
+                var clockBridge = sys.AddComponent<DustStormClockBridge>();
+                clockBridge.Configure(dustStormVisual, dustStormHazard);
+            }
+
             Exploration.Configure(FindObjectsByType<SpaceshipPart>(FindObjectsSortMode.None));
             DisableDemoClampReleasers();
             DisableDemoBeamDrivers();

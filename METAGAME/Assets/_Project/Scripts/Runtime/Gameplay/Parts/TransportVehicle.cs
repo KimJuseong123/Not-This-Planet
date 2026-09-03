@@ -327,6 +327,7 @@ namespace Metagame.Gameplay.Parts
                 }
             }
 
+            if (visual != null) MeshVisual.EnsureRenderers(visual.gameObject);
             RefreshSeat();
         }
 
@@ -433,7 +434,9 @@ namespace Metagame.Gameplay.Parts
                 }
             }
 
-            if (visual == null || !TryVisualAndColliderBounds(out var bounds)) return;
+            if (visual == null) return;
+            MeshVisual.EnsureRenderers(visual.gameObject);
+            if (!TryVisualAndColliderBounds(out var bounds)) return;
 
             var delta = surfaceY + VisualSurfaceGap - bounds.min.y;
             if (float.IsNaN(delta) || float.IsInfinity(delta)) return;
@@ -449,6 +452,7 @@ namespace Metagame.Gameplay.Parts
             bounds = default;
             var first = true;
 
+            MeshVisual.EnsureRenderers(visual.gameObject);
             var renderers = visual.GetComponentsInChildren<Renderer>(true);
             for (var i = 0; i < renderers.Length; i++)
             {
@@ -796,6 +800,7 @@ namespace Metagame.Gameplay.Parts
             bounds = default;
             if (visual == null) return false;
 
+            MeshVisual.EnsureRenderers(visual.gameObject);
             var renderers = visual.GetComponentsInChildren<Renderer>(true);
             var first = true;
             for (var i = 0; i < renderers.Length; i++)

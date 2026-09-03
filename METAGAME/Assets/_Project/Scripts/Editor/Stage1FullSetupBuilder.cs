@@ -55,10 +55,11 @@ namespace Metagame.EditorTools
 
             // 최종 외형과 1장 분위기
             Stage1SkinBuilder.Apply();
+            Stage1MeshColliderSetup.Apply();
             Stage1AtmosphereSetup.Apply();
 
             AssetDatabase.SaveAssets();
-            Debug.Log("[Stage1Setup] 1장 전체 구성 완료 — Resources·태블릿·퍼즐·운석·지형·맵 타일·용접 건·스킨·분위기");
+            Debug.Log("[Stage1Setup] 1장 전체 구성 완료 — Resources·태블릿·퍼즐·운석·지형·맵 타일·용접 건·스킨·메시 콜라이더·분위기");
         }
     }
 }

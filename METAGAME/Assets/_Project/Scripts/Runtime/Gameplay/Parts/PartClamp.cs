@@ -143,6 +143,15 @@ namespace Metagame.Gameplay.Parts
             if (_part == null) _part = GetComponentInParent<SpaceshipPart>();
             _colliders = GetComponents<Collider>();
 
+            // AnchorPins 는 파츠와 함께 움직이면 안 되는 별도 시각 그룹이다. 씬에서 파츠를
+            // 수동 배치한 뒤 스킨 빌드를 다시 하지 않아도 보이는 핀이 실제 상호작용 위치를
+            // 가리키게 한다. 렌더러가 없는 테스트용 외형이면 조용히 건너뛴다.
+            if (_releasedVisual != null)
+            {
+                _releasedVisual.gameObject.SetActive(true);
+                AlignReleasedVisual(_releasedVisual);
+            }
+
             // 고정쇠 Collider는 Interactable 레이어라 Hand.Search에는 걸리지 않는다.
             // 별도의 표식만 만들어 명시적 clamp grip 경로에서 사용한다.
             if (_gripTarget == null) _gripTarget = GetComponent<Grabbable>();
@@ -163,8 +172,60 @@ namespace Metagame.Gameplay.Parts
         public void AssignReleasedVisual(Transform visual)
         {
             _releasedVisual = visual;
-            if (_releasedVisual != null) _releasedVisual.gameObject.SetActive(true);
+            if (_releasedVisual == null) return;
+
+            _releasedVisual.gameObject.SetActive(true);
+            AlignReleasedVisual(_releasedVisual);
         }
+
+        /// <summary>
+        /// 외부 AnchorPins 의 피벗이 무엇이든 실제 모델의 바닥과 중심을 고정못에 맞춘다.
+        ///
+        /// 스킨 프리팹은 루트가 모델 중심이 아닐 수 있고, 씬에 저장된 프리팹 인스턴스는
+        /// 파츠의 수동 배치 이전 좌표를 들고 있을 수 있다. 루트 위치를 직접 고정하면
+        /// 프리팹 피벗 때문에 모델이 반 높이만큼 어긋나므로 렌더러 경계를 기준으로 보정한다.
+        /// </summary>
+        void AlignReleasedVisual(Transform visual)
+        {
+            if (visual == null) return;
+
+            MeshVisual.EnsureRenderers(visual.gameObject);
+            var renderers = visual.GetComponentsInChildren<Renderer>(true);
+            if (renderers == null || renderers.Length == 0) return;
+
+            Bounds bounds = default;
+            var hasBounds = false;
+            for (var i = 0; i < renderers.Length; i++)
+            {
+                var renderer = renderers[i];
+                if (renderer == null) continue;
+
+                if (!hasBounds)
+                {
+                    bounds = renderer.bounds;
+                    hasBounds = true;
+                }
+                else
+                {
+                    bounds.Encapsulate(renderer.bounds);
+                }
+            }
+
+            if (!hasBounds || !IsFinite(bounds.center) || !IsFinite(bounds.min)) return;
+
+            var delta = new Vector3(
+                transform.position.x - bounds.center.x,
+                transform.position.y - bounds.min.y,
+                transform.position.z - bounds.center.z);
+            if (!IsFinite(delta)) return;
+
+            visual.position += delta;
+        }
+
+        static bool IsFinite(Vector3 value) =>
+            !float.IsNaN(value.x) && !float.IsInfinity(value.x)
+            && !float.IsNaN(value.y) && !float.IsInfinity(value.y)
+            && !float.IsNaN(value.z) && !float.IsInfinity(value.z);
 
         /// <summary>
         /// 이 고정못을 잡는다. 정원(기획 §12.2 "최대 2명")이 차 있으면 <c>false</c>.
@@ -286,6 +347,7 @@ namespace Metagame.Gameplay.Parts
             var visual = _releasedVisual != null ? _releasedVisual : FindSceneAnchorPin();
             if (visual != null)
             {
+                MeshVisual.EnsureRenderers(visual.gameObject);
                 var renderers = visual.GetComponentsInChildren<Renderer>(true);
                 if (renderers.Length == 0)
                 {

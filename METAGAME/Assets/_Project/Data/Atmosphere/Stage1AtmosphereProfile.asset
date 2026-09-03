@@ -113,5 +113,36 @@ MonoBehaviour:
     maxParticles: 72
     spawnRadius: 10
     verticalSpread: 3
+  dustStorm:
+    enabled: 1
+    minimumInterval: 8
+    maximumInterval: 14
+    speed: 6
+    halfExtents: {x: 12, y: 2.5, z: 5}
+    directionConeDegrees: 60
+    spawnMargin: 6
+    seed: 20260903
+    showDebugBoundary: 1
+    debugBoundaryColor: {r: 1, g: 0, b: 0, a: 1}
+    debugBoundaryWidth: 0.04
+    debugSkyMarkerHeight: 80
+    windForce: 6
+    maximumAffectedMass: 40
+    maxPhysicalFragments: 3
+    fragmentDamage: 5
+    fragmentRepeatCooldown: 1
+    fragmentLifetime: 2.5
+    fragmentSpeed: 5
+    affectedLayers: -1
+    maxVisualFragments: 6
+    maxDustParticles: 64
+    dustEmissionRate: 20
+    dustLifetime: 3.5
+    dustStartSize: 0.35
+    dustEndSize: 0.08
+    dustColor: {r: 0.68, g: 0.5, b: 0.36, a: 0.3}
+    largeDebrisPrefab: {fileID: 100100000, guid: b0a8e971df7ec6444885c4615a728ec6, type: 3}
+    mediumDebrisPrefab: {fileID: 100100000, guid: 3d8ee2dcb0fa85d4ca8b6decd954b8e1, type: 3}
+    smallDebrisPrefab: {fileID: 100100000, guid: a0de2ff8a3e44cc4594133fb1ce9ab38, type: 3}
   enableOnMobile: 0
   mobileEffectScale: 0.5
