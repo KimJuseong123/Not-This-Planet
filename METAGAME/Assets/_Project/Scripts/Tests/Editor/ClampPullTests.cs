@@ -210,6 +210,31 @@ namespace Metagame.Gameplay.Tests
             Assert.IsFalse(rig.Player.IsDead, "고정못을 뽑다가 죽지는 않는다.");
         }
 
+        /// <summary>
+        /// 마지막 고정못 해제 중 Part_1 견인 전환이 상호작용 포커스를 재진입 갱신해도
+        /// 현재 Pull 호출이 null 대상에 접근하지 않는지 검증한다.
+        /// </summary>
+        [Test]
+        public void LastClamp_ActivatingPartTractorDoesNotClearPullTargetMidStep()
+        {
+            var rig = MakeRig(clampCount: 1);
+            var activator = rig.Part.gameObject.AddComponent<PartTractorActivator>();
+
+            var controllerObject = new GameObject("TransportController");
+            var controller = controllerObject.AddComponent<TractorBeamController>();
+            controller.Configure(rig.Player, System.Array.Empty<TractorBeam>(), false);
+            _spawned.Add(controllerObject);
+
+            for (var i = 0; i < 1000 && !rig.Clamp.IsReleased; i++)
+                Run(rig, PullMode.Away, 0.02f);
+
+            Assert.IsTrue(rig.Clamp.IsReleased, "마지막 고정못이 빠져야 한다.");
+            Assert.AreEqual(PartState.Free, rig.Part.State);
+            Assert.IsTrue(activator.IsActivated, "마지막 고정못 해제 중 Part_1이 견인 장치로 전환되어야 한다.");
+            Assert.IsNotNull(activator.Vehicle);
+            Assert.IsNull(rig.Player.ClampGrabTarget, "해제 후 고정못 대상은 정리되어야 한다.");
+        }
+
         /// <summary>마지막이 아닌 고정못은 넘어뜨리지 않는다.</summary>
         [Test]
         public void NonLastClamp_DoesNotKnockThePlayerBack()
