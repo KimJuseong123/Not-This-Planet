@@ -153,6 +153,51 @@ namespace Metagame.Gameplay
             [Min(0.1f)] public float verticalSpread = 3f;
         }
 
+        [Serializable]
+        public sealed class DustStormSettings
+        {
+            public bool enabled;
+            [Min(0.1f)] public float minimumInterval = 8f;
+            [Min(0.1f)] public float maximumInterval = 14f;
+            [Min(0.01f)] public float speed = 6f;
+            // Local X is the travel axis, Y is vertical, and Z is the lateral axis.
+            public Vector3 halfExtents = new Vector3(12f, 2.5f, 5f);
+            [Range(0f, 180f)] public float directionConeDegrees = 60f;
+            [Min(0f)] public float spawnMargin = 6f;
+            public int seed = 20260903;
+
+            [Header("Test visualization")]
+            public bool showDebugBoundary = true;
+            public Color debugBoundaryColor = Color.red;
+            [Min(0.001f)] public float debugBoundaryWidth = 0.04f;
+            [Min(10f)] public float debugSkyMarkerHeight = 80f;
+
+            [Header("Gameplay")]
+            [Min(0f)] public float windForce = 6f;
+            [Min(0f)] public float maximumAffectedMass = 40f;
+            [Min(0)] public int maxPhysicalFragments = 3;
+            [Min(0f)] public float fragmentDamage = 5f;
+            [Min(0.01f)] public float fragmentRepeatCooldown = 1f;
+            [Min(0.1f)] public float fragmentLifetime = 2.5f;
+            [Min(0.01f)] public float fragmentSpeed = 5f;
+            public int affectedLayers = ~0;
+
+            [Header("Visual debris")]
+            [Min(0)] public int maxVisualFragments = 6;
+            [Min(0)] public int maxDustParticles = 64;
+            [Min(0f)] public float dustEmissionRate = 20f;
+            [Min(0.05f)] public float dustLifetime = 3.5f;
+            [Min(0.001f)] public float dustStartSize = 0.35f;
+            [Min(0.001f)] public float dustEndSize = 0.08f;
+            public Color dustColor = new Color(0.68f, 0.50f, 0.36f, 0.30f);
+
+            // These are art-only prefabs generated from the Stage1 meteor debris FBX files.
+            // The hazard adds its own physics components at runtime.
+            public GameObject largeDebrisPrefab;
+            public GameObject mediumDebrisPrefab;
+            public GameObject smallDebrisPrefab;
+        }
+
         [Header("Sky and distant space")]
         public SkySettings sky = new SkySettings();
         public StarSettings stars = new StarSettings();
@@ -171,6 +216,9 @@ namespace Metagame.Gameplay
         public MeteorShowerSettings meteorShower = new MeteorShowerSettings();
         public DustGustSettings dustGust = new DustGustSettings();
 
+        [Header("Stage1 moving dust storm")]
+        public DustStormSettings dustStorm = new DustStormSettings();
+
         [Header("Quality")]
         public bool enableOnMobile;
         [Range(0.1f, 1f)] public float mobileEffectScale = 0.5f;
@@ -187,6 +235,7 @@ namespace Metagame.Gameplay
             if (postProcessing == null) postProcessing = new PostProcessingSettings();
             if (meteorShower == null) meteorShower = new MeteorShowerSettings();
             if (dustGust == null) dustGust = new DustGustSettings();
+            if (dustStorm == null) dustStorm = new DustStormSettings();
 
             stars.starCount = Mathf.Max(0, stars.starCount);
             stars.bandCount = Mathf.Max(0, stars.bandCount);
@@ -218,6 +267,31 @@ namespace Metagame.Gameplay
             dustGust.burstCount = Mathf.Clamp(dustGust.burstCount, 0, dustGust.maxParticles);
             dustGust.spawnRadius = Mathf.Max(0.1f, dustGust.spawnRadius);
             dustGust.verticalSpread = Mathf.Max(0.1f, dustGust.verticalSpread);
+
+            dustStorm.minimumInterval = Mathf.Max(0.1f, dustStorm.minimumInterval);
+            dustStorm.maximumInterval = Mathf.Max(dustStorm.minimumInterval, dustStorm.maximumInterval);
+            dustStorm.speed = Mathf.Max(0.01f, dustStorm.speed);
+            dustStorm.halfExtents = new Vector3(
+                Mathf.Max(0.1f, Mathf.Abs(dustStorm.halfExtents.x)),
+                Mathf.Max(0.1f, Mathf.Abs(dustStorm.halfExtents.y)),
+                Mathf.Max(0.1f, Mathf.Abs(dustStorm.halfExtents.z)));
+            dustStorm.directionConeDegrees = Mathf.Clamp(dustStorm.directionConeDegrees, 0f, 180f);
+            dustStorm.spawnMargin = Mathf.Max(0f, dustStorm.spawnMargin);
+            dustStorm.debugBoundaryWidth = Mathf.Max(0.001f, dustStorm.debugBoundaryWidth);
+            dustStorm.debugSkyMarkerHeight = Mathf.Max(10f, dustStorm.debugSkyMarkerHeight);
+            dustStorm.windForce = Mathf.Max(0f, dustStorm.windForce);
+            dustStorm.maximumAffectedMass = Mathf.Max(0f, dustStorm.maximumAffectedMass);
+            dustStorm.maxPhysicalFragments = Mathf.Clamp(dustStorm.maxPhysicalFragments, 0, 3);
+            dustStorm.fragmentDamage = Mathf.Max(0f, dustStorm.fragmentDamage);
+            dustStorm.fragmentRepeatCooldown = Mathf.Max(0.01f, dustStorm.fragmentRepeatCooldown);
+            dustStorm.fragmentLifetime = Mathf.Max(0.1f, dustStorm.fragmentLifetime);
+            dustStorm.fragmentSpeed = Mathf.Max(0.01f, dustStorm.fragmentSpeed);
+            dustStorm.maxVisualFragments = Mathf.Clamp(dustStorm.maxVisualFragments, 0, 12);
+            dustStorm.maxDustParticles = Mathf.Clamp(dustStorm.maxDustParticles, 0, 128);
+            dustStorm.dustEmissionRate = Mathf.Max(0f, dustStorm.dustEmissionRate);
+            dustStorm.dustLifetime = Mathf.Max(0.05f, dustStorm.dustLifetime);
+            dustStorm.dustStartSize = Mathf.Max(0.001f, dustStorm.dustStartSize);
+            dustStorm.dustEndSize = Mathf.Max(0.001f, dustStorm.dustEndSize);
             mobileEffectScale = Mathf.Clamp(mobileEffectScale, 0.1f, 1f);
         }
 

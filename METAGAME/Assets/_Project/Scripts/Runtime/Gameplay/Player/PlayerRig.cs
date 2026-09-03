@@ -1794,7 +1794,12 @@ namespace Metagame.Gameplay
         void PullGrabbedClamp()
         {
             ClampPulling = false;
-            if (clampGrabTarget == null || Doll == null || Doll.Hips == null) return;
+            // PartClamp.Pull() 은 마지막 고정못을 해제하면서 SpaceshipPart의 상태 이벤트를
+            // 발생시킨다. Part_1이 견인 장치로 전환되면 컨트롤러가 포커스를 갱신하고,
+            // 그 재진입 경로에서 ResetClampGrab()이 필드를 비울 수 있다. 한 틱의 작업
+            // 대상은 로컬 참조로 고정해 Pull() 복귀 직후의 null 역참조를 막는다.
+            var target = clampGrabTarget;
+            if (target == null || Doll == null || Doll.Hips == null) return;
 
             var fwd = Cam != null ? Cam.PlanarForward : Vector3.forward;
             var right = Cam != null ? Cam.PlanarRight : Vector3.right;
@@ -1805,7 +1810,7 @@ namespace Metagame.Gameplay
             if (wish.sqrMagnitude < 0.0001f) return;
 
             // 고정못에서 몸을 향하는 수평 방향이 "뒤" 다.
-            var away = Doll.Hips.position - clampGrabTarget.transform.position;
+            var away = Doll.Hips.position - target.transform.position;
             away.y = 0f;
             if (away.sqrMagnitude < 0.0001f) return;
 
@@ -1821,13 +1826,13 @@ namespace Metagame.Gameplay
             var alignment = Vector3.Dot(wish.normalized, away.normalized);
             if (alignment < PhysicsScale.ClampPullAlignment) return;
 
-            var wasLast = clampGrabTarget.Part != null
-                          && clampGrabTarget.Part.RemainingRequiredClamps == 1;
+            var wasLast = target.Part != null
+                          && target.Part.RemainingRequiredClamps == 1;
 
-            ClampPulling = clampGrabTarget.Pull(Time.fixedDeltaTime);
+            ClampPulling = target.Pull(Time.fixedDeltaTime);
             if (ClampPulling) TetherToClamp(away.normalized);
 
-            if (!clampGrabTarget.IsReleased) return;
+            if (!target.IsReleased) return;
 
             // 기획 §12.2 — "마지막 고정못이 빠지면 플레이어가 뒤로 넘어질 수 있다".
             // 뒤로 당기던 힘이 갑자기 풀리는 것이다. 넘어짐은 Balance 가 스스로 세운다.

@@ -490,26 +490,7 @@ namespace Metagame.EditorTools
 
         private static bool AddSurfaceMeshColliders(GameObject instance)
         {
-            var filters = instance.GetComponentsInChildren<MeshFilter>(true);
-            var generated = 0;
-            for (var i = 0; i < filters.Length; i++)
-            {
-                var filter = filters[i];
-                if (filter == null || filter.sharedMesh == null || filter.sharedMesh.vertexCount == 0)
-                    continue;
-                if (HasAuthoredCollider(filter.gameObject)) continue;
-
-                var meshCollider = filter.GetComponent<MeshCollider>();
-                if (meshCollider != null) continue;
-
-                meshCollider = filter.gameObject.AddComponent<MeshCollider>();
-                meshCollider.sharedMesh = filter.sharedMesh;
-                meshCollider.convex = false;
-                filter.gameObject.AddComponent<Stage1GeneratedCollider>();
-                generated++;
-            }
-
-            return generated > 0;
+            return MeshColliderUtility.EnsureMeshColliders(instance, false, true) > 0;
         }
 
         private static void AddCompoundFallback(GameObject instance, ColliderKind kind)

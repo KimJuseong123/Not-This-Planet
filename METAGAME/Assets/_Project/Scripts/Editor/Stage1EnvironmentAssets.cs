@@ -6,7 +6,7 @@ namespace Metagame.EditorTools
 {
     /// <summary>
     /// <c>Models/Environment/Stage1/</c> 아래 FBX 에 Material 에셋과 배치용 프리팹을 만들어 준다
-    /// (자연물 7종 + 운석 1종).
+    /// (자연물 7종 + 운석 4종).
     ///
     /// docs/asset-catalog.md 의 미해결 1번 — "환경 자연물 7종에 Material 에셋과 프리팹이 없다" —
     /// 를 해소하는 도구다. 텍스처가 <c>.fbm/</c> 임베드뿐이라 FBX 를 씬에 끌면 재질을
@@ -51,8 +51,11 @@ namespace Metagame.EditorTools
             ("alien_flower_cluster",  "FlowerCluster"),
             ("glowing_spiral_plant",  "SpiralPlant"),
 
-            // 운석 1종(S15P21B202-98). 자연물과 달리 BaseColor·Metallic·Normal·Roughness 4장 세트를 갖는다.
+            // 운석 4종. 자연물과 달리 BaseColor·Metallic·Normal·Roughness 4장 세트를 갖는다.
             ("Meteors/meteor_main", "MeteorMain"),
+            ("Meteors/meteor_debris_large", "MeteorDebrisLarge"),
+            ("Meteors/meteor_debris_medium", "MeteorDebrisMedium"),
+            ("Meteors/meteor_debris_small", "MeteorDebrisSmall"),
         };
 
         /// <summary>텍스처 확장자가 세트 안에서도 섞여 있다 (`.jpg` 와 `.jpeg`). 있는 것을 찾아 쓴다.</summary>
@@ -115,9 +118,11 @@ namespace Metagame.EditorTools
                 if (EnsurePrefab(path, name)) made++;
             }
 
+            var colliders = Stage1MeshColliderSetup.ApplyKnownPrefabColliders();
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log("[Stage1Env] 환경 자연물 에셋 점검 완료 — 새로 만든 것 " + made + "건, 모델 " + Models.Length + "종");
+            Debug.Log("[Stage1Env] 환경 자연물 에셋 점검 완료 — 새로 만든 것 " + made
+                      + "건, MeshCollider 연결 " + colliders + "개, 모델 " + Models.Length + "종");
         }
 
         /// <summary>

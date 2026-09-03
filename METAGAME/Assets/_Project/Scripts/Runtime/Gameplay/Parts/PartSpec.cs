@@ -122,7 +122,8 @@ namespace Metagame.Gameplay.Parts
 
         /// <summary>
         /// 기획 §7.1 의 조립 순서 — 1층 주 추진 엔진, 2층 부양·안정화, 3층 승무원 거주,
-        /// 4층 견인 조종. 예전 스킨 표는 이 순서가 정해지기 전에 시연 편의로 정한 것이라
+        /// 4층 상단 조립 모듈. Part_1은 고정못을 모두 풀면 별도의 장치 없이 견인 기능을
+        /// 겸한다. 예전 스킨 표는 이 순서가 정해지기 전에 시연 편의로 정한 것이라
         /// 1층과 2층이 뒤바뀌어 있었다.
         /// </summary>
         public static readonly PartSpec[] All =
@@ -150,7 +151,7 @@ namespace Metagame.Gameplay.Parts
             }),
 
             // 실측 1.902 x 2.448 x 1.848. 접시 위에 동체, 돔, 얇은 첨탑이 차례로 올라간다.
-            new("Part_4", "견인 조종 모듈", "PF_Stage1_TractorCraft", new[]
+            new("Part_4", "상단 조립 모듈", "PF_Stage1_TractorCraft", new[]
             {
                 new PartBox(0.00f, 0.98f, 1.90f, 1.85f),
                 new PartBox(0.98f, 1.71f, 1.73f, 1.64f),

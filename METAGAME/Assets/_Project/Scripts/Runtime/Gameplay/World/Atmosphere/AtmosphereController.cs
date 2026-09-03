@@ -193,6 +193,8 @@ namespace Metagame.Gameplay
             if (shower != null) shower.Clear();
             var dustGust = GetComponentInChildren<AtmosphereDustGust>();
             if (dustGust != null) dustGust.Clear();
+            var dustStorm = GetComponentInChildren<AtmosphereDustStorm>();
+            if (dustStorm != null) dustStorm.Clear();
 
             activeProfile = null;
             DestroyRuntimeObjects();
@@ -374,6 +376,10 @@ namespace Metagame.Gameplay
             if (dustGust == null) dustGust = gameObject.AddComponent<AtmosphereDustGust>();
             dustGust.BindCamera(targetCamera);
             dustGust.Apply(profile);
+
+            var dustStorm = GetComponentInChildren<AtmosphereDustStorm>();
+            if (dustStorm != null)
+                dustStorm.Apply(profile);
         }
 
         float GetEffectScale()

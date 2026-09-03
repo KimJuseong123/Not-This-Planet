@@ -36,16 +36,6 @@ namespace Metagame.EditorTools
             new(15f, 0f, 6f),
         };
 
-        /// <summary>빔 기준점에서 파츠 중심까지의 거리.</summary>
-        const float BeamHoldDistance = TransportVehicle.BeamHoldDistance;
-
-        /// <summary>실행 전 씬 미리보기용 운반 장치 위치. 실행 시에는 빈 지점으로 다시 섞는다.</summary>
-        static readonly Vector3[] VehicleStartSpots =
-        {
-            new(-10f, TransportVehicle.GroundY, -17f),
-            new(10f, TransportVehicle.GroundY, -17f),
-        };
-
         const int ClampsPerPart = 4;
 
         /// <summary>콜라이더 상자 자식의 이름 앞부분. 스킨이 이 렌더러들을 끈다.</summary>
@@ -105,7 +95,6 @@ namespace Metagame.EditorTools
             for (var i = 0; i < count; i++)
                 parts[i] = BuildPart(group, i, PartSpec.All[i]);
 
-            var beams = BuildBeams(group);
             var spawner = BuildMeteors(group);
 
             // 문이 발사 중 운석을 멈추고 실패 후 재개한다(기획 §22.3 · §22.4).
@@ -117,7 +106,7 @@ namespace Metagame.EditorTools
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
 
-            Debug.Log($"[Stage1Puzzle] 배치 완료 — 파츠 {parts.Length}기, 빔 {beams.Length}기 → {ScenePath}");
+            Debug.Log($"[Stage1Puzzle] 배치 완료 — 파츠 {parts.Length}기, 견인 장치 Part_1 해제형 1기 → {ScenePath}");
         }
 
         /// <summary>
@@ -185,6 +174,10 @@ namespace Metagame.EditorTools
             // 손으로 미는 것(기획 §13). Locked·Carried·Welded 는 컴포넌트 쪽에서 거른다.
             go.AddComponent<PartPush>();
 
+            // 별도 TractorBeam 오브젝트를 씬에 미리 배치하지 않는다. Part_1은 모든 고정못이
+            // 풀린 뒤에만 같은 루트가 견인·탑승·운전을 담당하는 장치로 전환된다.
+            if (spec.Name == "Part_1") go.AddComponent<PartTractorActivator>();
+
             return part;
         }
 
@@ -244,37 +237,6 @@ namespace Metagame.EditorTools
 
             go.AddComponent<PartClamp>();
         }
-        /// <summary>
-        /// 견인 빔 두 기. Stage1SkinBuilder가 TractorCraft 프리팹을 기준점에 얹고,
-        /// 런타임의 TractorBeamController가 기준점을 움직여 실제 운반에 사용한다.
-        /// </summary>
-        static TractorBeam[] BuildBeams(Transform group)
-        {
-            var beams = new TractorBeam[2];
-
-            for (var i = 0; i < beams.Length; i++)
-            {
-                var go = new GameObject($"TractorBeam_{i + 1}");
-                go.transform.SetParent(group, false);
-
-                // 실행 전에는 바닥에 놓인 운반 장치로 보인다. 실행 시 컨트롤러가
-                // 파츠와 조립 지점을 피한 랜덤 위치로 옮긴다.
-                go.transform.localPosition = VehicleStartSpots[i % VehicleStartSpots.Length];
-                go.transform.localRotation = Quaternion.LookRotation(Vector3.down, Vector3.forward);
-                go.layer = GameLayers.Prop;
-
-                var beam = go.AddComponent<TractorBeam>();
-                beam.Configure(go.transform, PhysicsScale.BeamRange, BeamHoldDistance);
-                var vehicle = go.AddComponent<TransportVehicle>();
-                vehicle.Initialize(beam, BeamHoldDistance);
-                vehicle.PlaceOnGround(go.transform.position, 0f);
-                beams[i] = beam;
-
-            }
-
-            return beams;
-        }
-
         static MeteorSpawner BuildMeteors(Transform group)
         {
             var go = new GameObject("MeteorSpawner");

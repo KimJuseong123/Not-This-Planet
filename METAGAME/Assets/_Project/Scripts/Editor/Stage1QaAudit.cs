@@ -178,6 +178,44 @@ namespace Metagame.EditorTools
                 if (clamps == 4)
                     Ok($"{spec.Name}({spec.DisplayName}) 고정못 4 · 상태 {part.State}");
             }
+
+            CheckClampVisualOwnership(scene, parts);
+        }
+
+        /// <summary>
+        /// 외양과 충돌 판정의 소유 루트가 분리되지 않았는지 확인한다.
+        /// 고정못은 Clamp가 Collider와 PartClamp를 소유하고, 그 아래 Visual이 Renderer를
+        /// 소유해야 한다. 예전 AnchorPins 그룹처럼 외양만 별도 그룹에 남으면 파츠가
+        /// 움직일 때 화면과 상호작용 위치가 갈라진다.
+        /// </summary>
+        static void CheckClampVisualOwnership(Scene scene, List<SpaceshipPart> parts)
+        {
+            Section("외양·충돌 소유");
+
+            var detached = Find(scene, "AnchorPins");
+            if (detached != null && detached.GetComponentsInChildren<Renderer>(true).Length > 0)
+                Fail("AnchorPins 아래에 고정못 외양이 남아 있다 — 각 Clamp/Visual 아래로 옮긴다");
+
+            var checkedClamps = 0;
+            foreach (var part in parts)
+            {
+                if (part == null) continue;
+
+                foreach (var clamp in part.Clamps)
+                {
+                    if (clamp == null) continue;
+                    checkedClamps++;
+
+                    if (clamp.GetComponents<Collider>().Length == 0)
+                        Fail($"{part.name}/{clamp.name} 에 충돌 판정이 없다");
+
+                    var visual = clamp.transform.Find("Visual");
+                    if (visual == null || visual.GetComponentsInChildren<Renderer>(true).Length == 0)
+                        Fail($"{part.name}/{clamp.name} 아래에 고정못 외양이 없다");
+                }
+            }
+
+            if (checkedClamps > 0) Ok($"고정못 {checkedClamps}개의 외양·충돌 소유 루트 확인");
         }
 
         static void CheckLaunchPad(Scene scene)
@@ -232,25 +270,32 @@ namespace Metagame.EditorTools
 
         static void CheckCraft(Scene scene)
         {
-            Section("견인 조종 모듈");
+            Section("Part_1 해제형 견인 장치");
 
             var crafts = new List<TransportVehicle>();
             foreach (var root in scene.GetRootGameObjects())
                 crafts.AddRange(root.GetComponentsInChildren<TransportVehicle>(true));
 
-            if (crafts.Count == 0)
+            if (crafts.Count > 0)
             {
-                Fail("TransportVehicle 이 없다 — 파츠를 옮길 수단이 없다(§14)");
+                Fail($"씬 시작부터 TransportVehicle {crafts.Count}기가 있다 — Part_1 해제 전 별도 견인 장치가 없어야 한다");
+            }
+            else Ok("씬 시작 시 별도 TransportVehicle 없음");
+
+            var activators = new List<PartTractorActivator>();
+            foreach (var root in scene.GetRootGameObjects())
+                activators.AddRange(root.GetComponentsInChildren<PartTractorActivator>(true));
+
+            var part1Activator = activators.Find(a => a != null && a.name == "Part_1");
+            if (part1Activator == null)
+            {
+                Fail("Part_1에 PartTractorActivator가 없다 — 모든 고정못 해제 후 견인 장치로 전환되지 않는다");
                 return;
             }
 
-            Ok($"견인 장치 {crafts.Count}기");
-
-            foreach (var craft in crafts)
-            {
-                if (craft.Field == null)
-                    Fail($"{Path(craft.transform)} 에 광역 저중력장이 없다(§14.3)");
-            }
+            if (activators.Count != 1)
+                Fail($"PartTractorActivator {activators.Count}개 — Part_1 하나만 해제형 견인 장치여야 한다");
+            else Ok($"{Path(part1Activator.transform)} 해제 후 견인 장치 전환 대기");
         }
 
         /// <summary>
