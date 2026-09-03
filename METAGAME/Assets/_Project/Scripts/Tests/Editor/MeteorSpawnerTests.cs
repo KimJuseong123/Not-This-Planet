@@ -73,6 +73,12 @@ namespace Metagame.Gameplay.Tests
                 $"예고 {remaining:0.00}초와 실제 착탄 {seconds:0.00}초가 맞아야 한다.");
         }
 
+        /// <summary>
+        /// <b>더 이상 착지 지점 바로 위가 아니다</b>(S15P21B202-274). 대각선으로
+        /// 오므로 수평으로 떨어진 곳에서 시작한다 — 자세한 검증은
+        /// <see cref="MeteorDiagonalFallTests"/> 에 있고, 여기서는 "하늘에서 낙하한다"
+        /// (§17.1)와 수직 속도만 지킨다.
+        /// </summary>
         [Test]
         public void TheMeteorFallsFromAboveWithAnInitialPush()
         {
@@ -82,14 +88,13 @@ namespace Metagame.Gameplay.Tests
             var point = spawner.Pending[0].ImpactPoint;
             var meteor = spawner.Live[0];
 
-            Assert.AreEqual(point.x, meteor.transform.position.x, 0.001f);
-            Assert.AreEqual(point.z, meteor.transform.position.z, 0.001f);
             Assert.Greater(meteor.transform.position.y, point.y + 1f,
-                "예고 지점 위에서 떨어져야 한다(기획 §17.1 \"하늘에서 낙하한다\").");
+                "하늘에서 떨어져야 한다(기획 §17.1 \"하늘에서 낙하한다\").");
 
             var velocity = meteor.GetComponent<Rigidbody>().linearVelocity;
             Assert.Less(velocity.y, 0f, "예고 시간에 맞추려면 아래로 밀려 시작해야 한다.");
-            Assert.AreEqual(PhysicsScale.MeteorDropSpeed, -velocity.y, 0.2f);
+            Assert.AreEqual(PhysicsScale.MeteorDropSpeed, -velocity.y, 0.2f,
+                "수직 속도는 대각선이 되어도 그대로다 — 착지 시각이 예고와 맞아야 한다.");
         }
 
         [Test]
