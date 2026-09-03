@@ -221,11 +221,14 @@ class GitLab:
                 return http("PUT", self._mr_url(f"/notes/{n['id']}"), self._h(), {"body": body})
         return http("POST", self._mr_url("/notes"), self._h(), {"body": body})
 
-    def merged_mrs(self, days: int = 7, max_pages: int = 5) -> tuple[list[dict], bool]:
+    def merged_mrs(self, days: int = 7, max_pages: int = 5, now=None) -> tuple[list[dict], bool]:
         """최근 N일 안에 **머지된** MR (merged_at 기준). updated_after 로 좁혀 페이지를 순회한 뒤 merged_at 으로 다시 거른다
-        (GitLab MR API 에는 merged_after 필터가 없음). 반환 (mrs, complete) — max_pages 안에 끝나지 않으면 complete=False."""
+        (GitLab MR API 에는 merged_after 필터가 없음). 반환 (mrs, complete) — max_pages 안에 끝나지 않으면 complete=False.
+
+        `now` 는 테스트가 주입한다. 고정 날짜 픽스처를 실제 현재 시각으로 자르면 테스트가 **시간이 지나면 깨진다** —
+        2026-09-03 17:06 KST 에 픽스처(08-27)가 7일 창 밖으로 나가 ci-tests 가 develop 그대로 실패했다(-281)."""
         from datetime import datetime, timedelta, timezone
-        since_dt = datetime.now(timezone.utc) - timedelta(days=days)
+        since_dt = (now or datetime.now(timezone.utc)) - timedelta(days=days)
         since = since_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
         out: list[dict] = []
         for page in range(1, max_pages + 1):

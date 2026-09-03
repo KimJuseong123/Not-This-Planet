@@ -32,7 +32,10 @@ def fake_http(method, url, headers=None, body=None, timeout=30):
                  "isLast": False, "nextPageToken": "p2"}
 ci_common.http = fake_http
 
-rows, stacks, complete = d.merged_not_done(d.GitLab(), ci_common.Jira())
+from datetime import datetime, timezone  # noqa: E402
+NOW = datetime(2026, 8, 28, 0, 0, tzinfo=timezone.utc)   # 픽스처(08-27)가 창 안에 들도록 고정(-281)
+
+rows, stacks, complete = d.merged_not_done(d.GitLab(), ci_common.Jira(), now=NOW)
 print(rows, stacks, complete)
 assert complete is True and len(rows) == 1 and "!31" in rows[0] and "@rmawnsdud" in rows[0], rows   # 2페이지째 이슈가 잡힘
 assert stacks == [], stacks

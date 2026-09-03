@@ -31,17 +31,29 @@ def fake_http(method, url, headers=None, body=None, timeout=30):
                  "isLast": False, "nextPageToken": "p2"}
 ci_common.http = fake_http
 
-mrs, ok = d.GitLab().merged_mrs(7)
+# 픽스처의 merged_at 은 2026-08-27 로 고정돼 있다. 창을 실제 현재 시각으로 자르면 이 테스트는
+# 2026-09-03 17:06 KST 부터 깨진다(실제로 그랬다, -281). 그래서 now 를 고정해 넘긴다.
+from datetime import datetime, timezone  # noqa: E402
+NOW = datetime(2026, 8, 28, 0, 0, tzinfo=timezone.utc)
+
+mrs, ok = d.GitLab().merged_mrs(7, now=NOW)
 assert ok is True and [m["iid"] for m in mrs] == [32, 31, 5, 9], mrs          # -34 는 7일 밖
-rows, stacks, complete = d.merged_not_done(d.GitLab(), ci_common.Jira())
+rows, stacks, complete = d.merged_not_done(d.GitLab(), ci_common.Jira(), now=NOW)
 assert complete is True and len(rows) == 1 and "!31" in rows[0] and "@rmawnsdud" in rows[0], rows
 assert stacks == [], stacks   # 이 표본에는 대상 브랜치가 없어 전부 develop 취급(-159)
 assert d.INFRA_MM == "rmawnsdud"
+
+# 7일 안에 이슈 키가 붙은 머지가 하나도 없는 날 — 반환값은 여전히 3개여야 한다(-281 의 두 번째 결함).
+# 예전엔 2개를 돌려줘 main() 이 ValueError 를 잡아 "조회 실패 → @Infra" 오탐 카드를 냈다.
+from datetime import timedelta  # noqa: E402
+empty = d.merged_not_done(d.GitLab(), ci_common.Jira(), now=NOW + timedelta(days=60))
+assert empty == ([], [], True), f"빈 경로도 (rows, stacks, complete) 3개여야 한다: {empty!r}"
+print("  머지 0건 → 3-tuple ✅")
 
 # 페이지 상한(100건 꽉 찬 페이지가 max_pages 만큼) → complete False
 def full_pages(method, url, headers=None, body=None, timeout=30):
     return 200, [dict(MRS[0], iid=i) for i in range(100)]
 ci_common.http = full_pages
-mrs2, ok2 = d.GitLab().merged_mrs(7, max_pages=2)
+mrs2, ok2 = d.GitLab().merged_mrs(7, max_pages=2, now=NOW)
 assert ok2 is False and len(mrs2) == 200
 print("TEST83e OK")
