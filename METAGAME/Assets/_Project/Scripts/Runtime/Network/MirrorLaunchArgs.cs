@@ -94,11 +94,14 @@ namespace Metagame.Network
                     // 자기 몸이 생긴다. 그래서 토큰을 여기서도 채운다.
                     ReadClientCredentials(args);
 
+                    // 방장은 전용 서버가 아니다 — 화면과 카메라가 필요하다.
+                    MatchRole.DedicatedServer = false;
                     manager.StartHost();
                     Debug.Log("[MirrorLaunchArgs] 방장(호스트)으로 시작");
                     return;
                 }
 
+                MatchRole.DedicatedServer = true;
                 manager.StartServer();
                 Debug.Log("[MirrorLaunchArgs] 서버로 시작");
                 return;
@@ -110,6 +113,7 @@ namespace Metagame.Network
 
             ReadClientCredentials(args);
 
+            MatchRole.DedicatedServer = false;
             manager.StartClient();
             Debug.Log("[MirrorLaunchArgs] 클라이언트로 시작 · 주소=" + manager.networkAddress
                       + " · 방=" + (MatchAuthenticator.ClientRoomId ?? "(없음)")

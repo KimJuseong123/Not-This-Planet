@@ -52,6 +52,9 @@ namespace Metagame.Gameplay
         /// </summary>
         public bool NetworkDriven;
 
+        /// <summary>조준 기준점. 카메라가 없는 서버에서도 겨냥이 가능하게 한다.</summary>
+        Transform aimPivot;
+
         // ── 상태 ────────────────────────────────────────────────
         public bool Grounded { get; private set; }
         public float GroundDistance { get; private set; }
@@ -281,7 +284,18 @@ namespace Metagame.Gameplay
             rig.Doll = RagdollBuilder.Build(nickname, footPos, facing, suit, accent, !model);
             rig.Doll.Root.SetParent(go.transform, true);
             rig.ClampInteractor = go.AddComponent<Interactor>();
-            rig.ConfigureClampInteraction(rig.Doll.Head.transform);
+
+            // 조준 기준점. 머리를 그대로 쓰면 안 된다 — 래그돌 머리는 물리로 흔들려서
+            // 어디를 겨냥하는지가 사람의 의도와 무관해진다. 서버의 참가자 몸에는 카메라가
+            // 없어 이 자리가 곧 조준이 되므로, 그때 아무 데도 겨냥할 수 없었다
+            // (2026-09-02 실측 — 참가자만 상호작용이 되지 않았다).
+            // 이 기준점은 AimOrigin·AimRotation 을 따라간다(카메라가 있으면 카메라, 없으면
+            // 클라이언트가 보낸 각도). 내 화면에서는 SpaceBootstrap 이 카메라로 바꿔 끼운다.
+            var aimPivot = new GameObject("~조준").transform;
+            aimPivot.SetParent(go.transform, false);
+            rig.aimPivot = aimPivot;
+            rig.SyncAimPivot();
+            rig.ConfigureClampInteraction(aimPivot);
             rig.ResetHealth();
             rig.fallPeakFootHeight = footPos.y;
             rig.faceDir = facing * Vector3.forward;
@@ -1042,7 +1056,19 @@ namespace Metagame.Gameplay
             mountedJoint = null;
         }
 
-        void FixedUpdate() => Tick();
+        void FixedUpdate()
+        {
+            // 조준 기준점을 먼저 맞춘다 — 이번 스텝의 상호작용이 그것을 본다.
+            SyncAimPivot();
+            Tick();
+        }
+
+        /// <summary>조준 기준점을 지금 보고 있는 곳에 맞춘다.</summary>
+        void SyncAimPivot()
+        {
+            if (aimPivot == null) return;
+            aimPivot.SetPositionAndRotation(AimOrigin, AimRotation);
+        }
 
         /// <summary>
         /// 물리 스텝 한 번. 런타임에서는 <c>FixedUpdate</c> 가 부르고, EditMode 테스트는

@@ -37,6 +37,16 @@ namespace Metagame.Network
         /// 방장만 알 수 있다. 서버는 이 값을 GAME_STARTED 로 방 전원에게 전달한다.
         /// </summary>
         public string hostAddress;
+
+        /// <summary>
+        /// 방을 만들거나 들어올 때 자기 랜 주소를 알린다(S15P21B202-264).
+        ///
+        /// 서버는 공인 IP 만으로 같은 망인지 판단했는데, 규모가 큰 망은 공인 IP 를
+        /// 여러 개 돌려써서 같은 WiFi 에 앉아 있어도 서로 달라 보인다. 그러면 릴레이를
+        /// 태우게 되고, 릴레이는 공인 IP 로 사람을 알아보므로 그마저 실패한다
+        /// (2026-09-02 SSAFY 교육장 실측). 랜 주소를 알려 주면 그 자리에서 갈린다.
+        /// </summary>
+        public string localAddress;
     }
 
     /// <summary>PLAYER_MOVE — 내 위치를 서버에 알린다. 서버는 계산하지 않고 중계만 한다.</summary>
@@ -83,6 +93,22 @@ namespace Metagame.Network
         public IncomingData data;
     }
 
+    /// <summary>
+    /// 릴레이 세션 한 벌(S15P21B202-264). Edgegap 응답을 서버가 이 모양으로 옮겨 준다.
+    ///
+    /// 주의: Edgegap 의 session_id 는 문자열이고 여기 sessionToken 은 숫자다 — 서로 다른
+    /// 것이다. 전송에 넣는 값은 세션 단위 authorization_token 이다(-145 §3-8-1).
+    /// </summary>
+    [Serializable]
+    public sealed class RelayData
+    {
+        public string address;
+        public int serverPort;
+        public int clientPort;
+        public long sessionToken;
+        public long userToken;
+    }
+
     public sealed class IncomingData
     {
         public string roomId;
@@ -93,6 +119,12 @@ namespace Metagame.Network
 
         /// <summary>GAME_STARTED 에 실려 오는 방장의 매치 주소(-263).</summary>
         public string hostAddress;
+
+        /// <summary>
+        /// GAME_STARTED 에 실려 오는 릴레이 세션(-264). 없으면 방장에게 직접 붙는다.
+        /// 사람마다 userToken 이 다르므로 이 메시지는 방송이 아니라 각자에게 따로 온다.
+        /// </summary>
+        public RelayData relay;
 
         // PLAYER_MOVED 전용
         public long userId;

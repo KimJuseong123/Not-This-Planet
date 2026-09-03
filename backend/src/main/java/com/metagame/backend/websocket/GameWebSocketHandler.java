@@ -4,7 +4,9 @@ import com.metagame.backend.domain.room.Room;
 import com.metagame.backend.domain.room.RoomManager;
 import com.metagame.backend.domain.user.UserRepository;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
@@ -24,12 +26,22 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
     private static final String ROOM_ID_ATTR = "roomId";
     private static final String NICKNAME_ATTR = "nickname";
+
+    /**
+     * 이 사람이 알려 준 자기 랜 주소(예 192.168.31.66).
+     *
+     * <p>공인 IP 만으로는 같은 망인지 알 수 없다. 규모가 큰 망은 공인 IP 를 여러 개
+     * 돌려쓰기 때문에, 같은 WiFi 에 앉아 있어도 서로 다른 공인 IP 로 보인다
+     * (2026-09-02 SSAFY 교육장 실측 — 같은 WiFi 인데 릴레이를 탔다).
+     */
+    private static final String LOCAL_IP_ATTR = "localIp";
     private static final String UNKNOWN_NICKNAME = "비행사";
 
     private final RoomManager roomManager;
     private final ReconnectGraceManager graceManager;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
+    private final EdgegapRelayService relayService;
 
     // userId → 세션. 브로드캐스트 대상 조회용
     private final Map<Long, WebSocketSession> sessions = new ConcurrentHashMap<>();
@@ -64,6 +76,10 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         }
 
         try {
+            // 방을 만들거나 들어올 때 자기 랜 주소를 함께 보낸다. 없으면 없는 대로 둔다 —
+            // 옛 클라이언트도 계속 붙을 수 있어야 한다.
+            rememberLocalIp(session, msg.data());
+
             switch (type) {
                 case CREATE_ROOM -> createRoom(session, userId);
                 case JOIN_ROOM -> joinRoom(session, userId, msg.data().get("roomId").asString());
@@ -205,17 +221,195 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         // 방장만 알 수 있으므로 START_GAME 에 실려 온 값을 그대로 전달한다.
         // 서버가 보는 방장의 주소(공인 IP)로는 안 된다 — 공유기가 밖에서 들어오는
         // 연결을 막기 때문에 같은 네트워크 안에서 쓰는 사설 주소여야 한다.
-        // 서버는 이 값을 해석하지 않는다. 나중에 릴레이가 붙으면 같은 자리에
-        // 릴레이 세션 값이 실린다.
         String hostAddress = data != null && data.hasNonNull("hostAddress")
                 ? data.get("hostAddress").asText("")
                 : "";
 
-        Map<String, Object> payload = hostAddress.isBlank()
-                ? Map.of("roomId", room.getRoomId())
-                : Map.of("roomId", room.getRoomId(), "hostAddress", hostAddress);
+        // 서로 다른 네트워크에서도 붙으려면 릴레이를 거쳐야 한다(-264).
+        // 세션을 열려면 참가자 전원의 공인 IP 가 필요한데 그 목록은 서버만 갖고 있다.
+        // 실패하면 null 이고, 그때는 위의 직접 접속 주소로 간다.
+        LinkedHashMap<Long, String> publicIps = publicIpsOf(room);
+        boolean same = sameNetwork(room, publicIps);
+        RelaySession relay = same ? null : relayService.open(publicIps);
 
-        broadcast(room, WsMessage.Type.GAME_STARTED, payload);
+        // 무엇을 골랐는지 남긴다. 릴레이가 안 붙었을 때 어디서 갈렸는지 알아야 한다 —
+        // 실패하면 조용히 직접 접속으로 되돌아가므로 로그가 없으면 원인을 못 찾는다.
+        // IP 는 개인정보라 개수만 센다.
+        long localCount = publicIps.values().stream().filter(GameWebSocketHandler::isLocalIp).count();
+        log.info("game start: room={} players={} distinctIps={} localIps={} decision={}",
+                room.getRoomId(), publicIps.size(),
+                publicIps.values().stream().distinct().count(),
+                localCount,
+                same ? "direct(same network)" : (relay != null ? "relay" : "direct(relay failed)"));
+
+        // 같은 망 판별이 왜 그렇게 나왔는지 남긴다. 같은 WiFi 인데 릴레이를 타면
+        // 여기서 갈린 것이다 — 공인 IP 는 다른데 랜 주소를 아무도 안 알려 준 경우다.
+        log.info("same network 판별: 공인IP종류={} · 같은랜대역={}",
+                publicIps.values().stream().distinct().count(), sameLocalSubnet(room));
+
+        if (localCount > 0) {
+            log.warn("공인 IP 를 못 읽었다 — nginx 가 X-Forwarded-For 를 넘기는지 확인할 것. "
+                    + "이대로면 모두 같은 주소로 보여 릴레이가 켜지지 않는다(-264).");
+        }
+
+        for (Long playerId : room.playerIds()) {
+            WebSocketSession target = sessions.get(playerId);
+            if (target == null || !target.isOpen()
+                    || !room.getRoomId().equals(target.getAttributes().get(ROOM_ID_ATTR))) {
+                continue;
+            }
+
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("roomId", room.getRoomId());
+            if (!hostAddress.isBlank()) {
+                payload.put("hostAddress", hostAddress);
+            }
+
+            // 사람마다 userToken 이 다르므로 방송하지 않고 각자에게 따로 보낸다.
+            if (relay != null) {
+                Map<String, Object> mine = relay.payloadFor(playerId);
+                if (mine != null) {
+                    payload.put("relay", mine);
+                }
+            }
+
+            send(target, WsMessage.Type.GAME_STARTED, payload);
+        }
+    }
+
+    /**
+     * 모두가 같은 공유기 뒤에 있는가 — 공인 IP 가 하나뿐이면 그렇다(S15P21B202-264).
+     *
+     * <p>그럴 때는 사설 주소로 서로 바로 닿으므로 릴레이가 필요 없다. 굳이 태우면
+     * 지연만 늘고 릴레이 동시접속 한도(과금 기준)를 쓴다. 교육장처럼 다 같이 있는
+     * 자리가 정확히 이 경우다.
+     *
+     * <p>같은 공인 IP 라도 공유기가 기기끼리의 통신을 막아 두면(AP isolation) 못 붙는다.
+     * 그때는 핫스팟으로 우회한다 — {@code -145 §4-3} 에 적어 둔 그대로다.
+     */
+    /**
+     * 다 같은 망에 있는가 — 그렇다면 릴레이 없이 서로 바로 닿는다.
+     *
+     * <p>둘 중 하나만 맞으면 같은 망으로 본다.
+     * <ul>
+     *   <li>공인 IP 가 전부 같다 — 한 공유기 뒤에 있다는 뜻</li>
+     *   <li>각자 알려 준 <b>랜 주소가 같은 대역</b>이다 — 공인 IP 를 여러 개 돌려쓰는
+     *       망에서도 이건 맞는다. 이것이 없어서 같은 WiFi 인데 릴레이를 탔다(2026-09-02)</li>
+     * </ul>
+     */
+    private boolean sameNetwork(Room room, LinkedHashMap<Long, String> publicIps) {
+        if (publicIps.size() < 2) {
+            return true;
+        }
+        if (publicIps.values().stream().distinct().count() == 1) {
+            return true;
+        }
+        return sameLocalSubnet(room);
+    }
+
+    /** 방 전원이 같은 사설 대역(앞 세 자리)에 있는가. 한 명이라도 안 알려 줬으면 거짓. */
+    private boolean sameLocalSubnet(Room room) {
+        String shared = null;
+        for (Long playerId : room.playerIds()) {
+            WebSocketSession session = sessions.get(playerId);
+            if (session == null) {
+                return false;
+            }
+            String local = (String) session.getAttributes().get(LOCAL_IP_ATTR);
+            String subnet = subnetOf(local);
+            if (subnet == null) {
+                return false;                       // 안 알려 줬거나 사설 주소가 아니다
+            }
+            if (shared == null) {
+                shared = subnet;
+            } else if (!shared.equals(subnet)) {
+                return false;
+            }
+        }
+        return shared != null;
+    }
+
+    /** 사설 주소의 앞 세 자리(192.168.31). 사설이 아니거나 형식이 아니면 null. */
+    private static String subnetOf(String ip) {
+        if (ip == null || ip.isBlank() || !isLocalIp(ip)) {
+            return null;
+        }
+        int last = ip.lastIndexOf('.');
+        return last > 0 ? ip.substring(0, last) : null;
+    }
+
+    /** 클라이언트가 알려 준 자기 랜 주소를 세션에 적어 둔다. */
+    private static void rememberLocalIp(WebSocketSession session, JsonNode data) {
+        if (data == null || !data.has("localAddress")) {
+            return;
+        }
+        String local = data.get("localAddress").asString();
+        if (local != null && !local.isBlank()) {
+            session.getAttributes().put(LOCAL_IP_ATTR, local.trim());
+        }
+    }
+
+    /**
+     * 방 사람들의 공인 IP 를 로비 연결에서 읽는다(-264). 릴레이 세션을 열 때 쓴다.
+     * 순서가 응답의 session_users 와 짝이 되므로 넣은 차례를 지키는 맵을 쓴다.
+     */
+    /**
+     * userId → 공인 IP. <b>방장을 맨 앞에 둔다.</b>
+     *
+     * <p>릴레이 세션에서 방장은 게임 서버 자리에 앉는다. Edgegap 이 목록 순서를 어떻게
+     * 해석하는지 문서에 분명치 않은데, 첫 번째를 서버로 보는 구현이라면 순서가 뒤바뀐 순간
+     * 방장이 세션 주인으로 인정받지 못하고 참가자는 SessionTimeout 을 받는다.
+     * 방장을 앞에 두는 것은 공짜이므로 그 위험을 없앤다(2026-09-02).
+     */
+    private LinkedHashMap<Long, String> publicIpsOf(Room room) {
+        LinkedHashMap<Long, String> ips = new LinkedHashMap<>();
+
+        List<Long> ordered = new ArrayList<>(room.playerIds());
+        Long host = room.getHostUserId();
+        if (host != null && ordered.remove(host)) {
+            ordered.add(0, host);
+        }
+
+        for (Long playerId : ordered) {
+            WebSocketSession session = sessions.get(playerId);
+            String ip = clientIp(session);
+            if (ip != null && !ip.isBlank()) {
+                ips.put(playerId, ip);
+            }
+        }
+        return ips;
+    }
+
+    /**
+     * 이 사람이 밖에서 보이는 주소(S15P21B202-264).
+     *
+     * <p>우리 서버는 nginx 뒤에 있다. 소켓이 보는 상대는 nginx 자신(127.0.0.1)이므로
+     * 그것만 보면 <b>모두가 같은 주소로 보이고</b>, 그러면 릴레이가 영원히 안 켜진다.
+     * 게다가 그 값을 Edgegap 에 보내면 세션이 엉뚱하게 만들어진다.
+     *
+     * <p>그래서 핸드셰이크의 {@code X-Forwarded-For} 를 먼저 본다. nginx 가 그 헤더를
+     * 채워 주도록 설정돼 있어야 한다. 값이 여러 개면 맨 앞이 실제 사용자다.
+     */
+    private String clientIp(WebSocketSession session) {
+        if (session == null) {
+            return null;
+        }
+
+        String forwarded = session.getHandshakeHeaders().getFirst("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+
+        return session.getRemoteAddress() == null
+                ? null
+                : session.getRemoteAddress().getAddress().getHostAddress();
+    }
+
+    /** 사설·루프백 주소인가. 릴레이에 넘기면 안 되는 값이라 로그로 알린다. */
+    private static boolean isLocalIp(String ip) {
+        return ip == null || ip.startsWith("127.") || ip.startsWith("10.")
+                || ip.startsWith("192.168.") || ip.startsWith("172.16.")
+                || ip.equals("::1") || ip.equals("0:0:0:0:0:0:0:1");
     }
 
     /**

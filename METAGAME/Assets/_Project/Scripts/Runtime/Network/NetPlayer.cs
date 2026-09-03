@@ -53,6 +53,9 @@ namespace Metagame.Network
         /// <summary>게임 씬이 만든 몸을 넘겨받았는가. 그렇다면 여기서 없애지 않는다(-263).</summary>
         bool adoptedBody;
 
+        /// <summary>몸을 못 세운 채 지나간 물리 스텝 수. 진단 로그를 한 번만 남기려고 센다.</summary>
+        int waitedSteps;
+
         /// <summary>쓰러져 있은 시간. 전원 기절 구제를 재는 데 쓴다(-55).</summary>
         float downedSeconds;
 
@@ -61,6 +64,7 @@ namespace Metagame.Network
 
         // ── 서버 ────────────────────────────────────────────────
         InputFrame pending;          // 이 사람이 마지막으로 보낸 입력
+        bool everReceived;           // 서버가 이 사람 입력을 한 번이라도 받았나(진단용)
 
         // ── 클라이언트(내 것) ───────────────────────────────────
         InputFrame lastSent;
@@ -89,8 +93,11 @@ namespace Metagame.Network
 
             name = "플레이어 " + nickname;
             ServerPlayers.Add(this);
-            BuildServerBody();
 
+            // 몸은 여기서 만들지 않는다. 호스트 모드에서는 게임 씬이 다 뜨기 전에
+            // 스폰이 먼저 오기 때문이다(S15P21B202-263 실측) — 그때 만들면 로비 씬에
+            // 래그돌이 생기고, 방장의 몸을 넘겨받을 기회도 놓친다.
+            // 준비되면 FixedUpdate 가 만든다.
             Debug.Log($"[NetPlayer] 서버 스폰 · {nickname}(userId={userId}) · 접속 인원 {NetworkServer.connections.Count}명");
         }
 
@@ -109,16 +116,36 @@ namespace Metagame.Network
         /// <summary>
         /// 물리가 도는 몸을 세운다. 이 몸이 부품을 밀고 지형을 밟는 유일한 실체다.
         /// </summary>
-        void BuildServerBody()
+        /// <returns>몸을 세웠으면 참. 게임 씬이 아직 준비되지 않았으면 거짓.</returns>
+        /// <summary>
+        /// 이 플레이어가 방장 자신인가 (호스트 모드에서 서버 겸 클라이언트인 그 사람).
+        ///
+        /// <c>isLocalPlayer</c> 로 판단하면 안 된다 — 그 값은 <b>클라이언트 쪽</b> 스폰 처리가
+        /// 끝나야 참이 되는데, 서버의 첫 <c>FixedUpdate</c> 가 그보다 먼저 도는 경우가 있다.
+        /// 그러면 방장을 못 알아보고 몸을 하나 더 만들어 버린다(2026-09-02 실측).
+        /// 연결이 서버 자신의 로컬 연결인지는 서버 쪽에서 바로 알 수 있어 이런 틈이 없다.
+        /// </summary>
+        bool IsHostOwnPlayer =>
+            NetworkServer.active
+            && NetworkServer.localConnection != null
+            && connectionToClient == NetworkServer.localConnection;
+
+        bool BuildServerBody()
         {
             var session = FindAnyObjectByType<GameSession>();
+
+            // 게임 씬이 아직이다. 다음 물리 스텝에 다시 본다.
+            if (session == null) return false;
 
             // 호스트 모드(방장의 PC 가 서버 겸 클라이언트)에서 방장 자신의 몸은
             // 게임 씬이 이미 세웠다 — 카메라·HUD·태블릿이 전부 그 몸에 붙어 있다.
             // 여기서 하나 더 만들면 방장만 몸이 두 벌이 되고, 카메라가 따라갈 대상이
             // 모호해진다(S15P21B202-263).
-            if (isClient && isLocalPlayer && session != null && session.LocalPlayer != null)
+            if (IsHostOwnPlayer)
             {
+                // 게임 씬이 아직 내 몸을 안 세웠으면 기다린다. 먼저 만들면 두 벌이 된다.
+                if (session.LocalPlayer == null) return false;
+
                 body = session.LocalPlayer;
                 adoptedBody = true;
 
@@ -129,7 +156,7 @@ namespace Metagame.Network
                 AttachTransport();
                 transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
                 Debug.Log($"[NetPlayer] 방장의 몸을 넘겨받았다 · {nickname}(userId={userId})");
-                return;
+                return true;
             }
 
             Vector3 foot = session != null ? session.SpawnFoot : transform.position;
@@ -144,6 +171,7 @@ namespace Metagame.Network
 
             AttachTransport();
             transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
+            return true;
         }
 
         /// <summary>
@@ -168,9 +196,33 @@ namespace Metagame.Network
         [ServerCallback]
         void FixedUpdate()
         {
-            if (body == null) return;
+            // 게임 씬이 준비될 때까지 기다렸다 몸을 세운다.
+            if (body == null)
+            {
+                if (BuildServerBody()) { waitedSteps = 0; }
+                else
+                {
+                    // 오래 기다리면 왜 못 세우는지 한 번 남긴다. 이 화면이 그대로 멈춘
+                    // 것처럼 보이므로, 로그가 없으면 원인을 찾을 실마리가 없다.
+                    if (++waitedSteps == 250)
+                    {
+                        var session = FindAnyObjectByType<GameSession>();
+                        Debug.LogWarning(
+                            $"[NetPlayer] 5초째 몸을 못 세우고 있다 · {nickname}(userId={userId}) · " +
+                            $"게임씬={(session != null ? "있음" : "없음")} · " +
+                            $"방장자신={IsHostOwnPlayer} · " +
+                            $"씬이세운내몸={(session != null && session.LocalPlayer != null ? "있음" : "없음")}");
+                    }
+                    return;
+                }
+            }
 
-            InputFrame frame = pending;
+            // 방장 자신의 몸은 게임 씬(GameSession)이 매 프레임 직접 입력을 넣는다.
+            // 그 몸에 pending 을 덮어쓰면 안 된다 — Update 가 body.CurrentInput 을 읽어
+            // 다시 보내므로 "내가 쓴 값을 내가 되읽는" 고리가 생기고, 입력이 처음 값에서
+            // 영원히 갱신되지 않는다. 그래서 방장만 움직이지 못했다(2026-09-02 실측).
+            // FixedUpdate 는 Update 보다 먼저 도니까 순서로도 막을 수 없다.
+            InputFrame frame = adoptedBody ? body.CurrentInput : pending;
 
             if (transport != null)
             {
@@ -195,7 +247,9 @@ namespace Metagame.Network
                 }
             }
 
-            body.SetInput(frame);
+            // 넘겨받은 몸(방장 자신)에는 넣지 않는다 — 위에서 적은 고리 때문이다.
+            if (!adoptedBody) body.SetInput(frame);
+
             JudgeProgress(Time.fixedDeltaTime);
             transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
         }
@@ -252,6 +306,11 @@ namespace Metagame.Network
         [Command]
         void CmdSendInput(InputFrame frame)
         {
+            if (!everReceived)
+            {
+                everReceived = true;
+                Debug.Log($"[NetPlayer] 서버가 입력을 받기 시작 · {nickname}(userId={userId})");
+            }
             pending = frame;
         }
 
@@ -300,6 +359,10 @@ namespace Metagame.Network
 
             bool changed = !everSent || !Same(now, lastSent);
             if (!changed && sendTimer < SendInterval) return;
+
+            if (!everSent)
+                Debug.Log($"[NetPlayer] 입력 전송 시작 · {nickname}(userId={userId}) · " +
+                          $"isServer={isServer} isLocalPlayer={isLocalPlayer}");
 
             CmdSendInput(now);
             lastSent = now;

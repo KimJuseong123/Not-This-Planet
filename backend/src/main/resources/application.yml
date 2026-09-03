@@ -28,3 +28,10 @@ game:
   # 연결이 끊긴 플레이어의 자리를 유지하는 시간.
   # 넘기면 그 사람만 제외하고 게임은 계속되며, 이후 재입장도 가능하다 (지침 문서 5-1)
   reconnect-grace-ms: ${GAME_RECONNECT_GRACE_MS:30000}
+
+relay:
+  edgegap:
+    # Edgegap 릴레이 API 토큰. 비워 두면 릴레이를 쓰지 않고 같은 네트워크 직접
+    # 접속으로 간다(S15P21B202-264) — 없다고 게임이 안 열리지는 않는다.
+    # 저장소에 두지 않고 환경변수로만 주입한다.
+    token: ${EDGEGAP_RELAY_TOKEN:}

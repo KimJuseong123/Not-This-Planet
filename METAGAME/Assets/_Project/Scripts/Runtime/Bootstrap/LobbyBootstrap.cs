@@ -103,6 +103,18 @@ namespace Metagame.Bootstrap
             MatchAuthenticator.ClientToken = network.AccessToken;
             MatchAuthenticator.ClientRoomId = network.CurrentRoomId;
 
+            // 릴레이 세션이 왔으면 그 길로 간다(-264). 서로 다른 네트워크에서는 공유기가
+            // 막아 방장에게 직접 붙을 수 없다. 값이 없거나 모자라면 직접 접속으로 남는다 —
+            // 릴레이 하나 때문에 같은 네트워크 시연까지 멈추면 안 된다.
+            if (network.MatchRelay.HasValue)
+                MatchTransport.UseRelay(manager, network.MatchRelay.Value);
+            else
+                MatchTransport.UseDirect(manager);
+
+            // 로비를 거쳐 들어오는 사람은 방장이든 참가자든 화면이 있다.
+            // 게임 씬이 이 값을 보고 캐릭터·카메라·HUD 를 만들지 정한다.
+            MatchRole.DedicatedServer = false;
+
             // 이 방을 맡은 게 나라면 내가 게임 서버가 된다(S15P21B202-263).
             // 물리와 판정이 내 PC 에서 돌고, 참가자들이 나에게 붙는다.
             if (network.IsRoomHost)
@@ -122,7 +134,10 @@ namespace Metagame.Bootstrap
 
             joiningMatch = true;
             manager.StartClient();
-            Debug.Log("[LobbyBootstrap] 참가자로 " + host + " 에 붙는다.");
+            // 릴레이를 탈 때는 이 주소를 쓰지 않는다 — 전송이 릴레이 주소로 붙는다.
+            Debug.Log(network.MatchRelay.HasValue
+                ? "[LobbyBootstrap] 참가자로 릴레이를 거쳐 붙는다."
+                : "[LobbyBootstrap] 참가자로 " + host + " 에 직접 붙는다.");
         }
 
         void OnDestroy()

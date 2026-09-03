@@ -45,6 +45,12 @@ namespace Metagame.Network
         /// <summary>내가 이 방의 방장인가. 방장의 클라이언트가 게임 서버를 켠다(-263).</summary>
         public bool IsRoomHost => CurrentRoom != null && CurrentRoom.HostUserId == UserId;
 
+        /// <summary>
+        /// 이 매치에 쓸 릴레이 세션(-264). 값이 없으면 방장에게 직접 붙는다.
+        /// 서버가 GAME_STARTED 로 각자에게 따로 보내 준다 — 사람마다 userToken 이 다르다.
+        /// </summary>
+        public MatchTransport.Relay? MatchRelay { get; private set; }
+
         /// 배포 서버. 포트를 적지 않으므로 https(443)·wss 로 붙는다.
         /// 로컬 개발은 로비 입력칸에 "127.0.0.1:8080" 을 넣으면 된다.
         public const string DefaultServerAddress = "j15b202.p.ssafy.io";
@@ -302,7 +308,8 @@ namespace Metagame.Network
             }
         }
 
-        public void CreateRoom() => Send("CREATE_ROOM", new OutgoingData());
+        public void CreateRoom() =>
+            Send("CREATE_ROOM", new OutgoingData { localAddress = LocalMatchAddress() });
 
         public void JoinRoom(string roomId)
         {
@@ -313,7 +320,8 @@ namespace Metagame.Network
                 return;
             }
 
-            Send("JOIN_ROOM", new OutgoingData { roomId = roomId });
+            Send("JOIN_ROOM",
+                new OutgoingData { roomId = roomId, localAddress = LocalMatchAddress() });
         }
 
         public void SetReady(bool ready) => Send("READY", new OutgoingData { ready = ready });
@@ -338,6 +346,39 @@ namespace Metagame.Network
         /// 포트는 붙이지 않는다. 참가자는 자기 빌드의 전송 설정(KcpTransport)에 적힌
         /// 포트를 쓰고, 그 값은 방장과 같은 빌드라 항상 일치한다.
         /// </summary>
+        /// <summary>
+        /// 서버가 보낸 릴레이 값을 전송이 쓰는 모양으로 옮긴다(-264).
+        /// 값이 모자라면 아무것도 돌려주지 않는다 — 그때는 직접 접속으로 간다.
+        /// </summary>
+        private static MatchTransport.Relay? ReadRelay(RelayData data)
+        {
+            if (data == null) return null;
+
+            var relay = new MatchTransport.Relay
+            {
+                Address = data.address,
+                ServerPort = (ushort)Mathf.Clamp(data.serverPort, 0, ushort.MaxValue),
+                ClientPort = (ushort)Mathf.Clamp(data.clientPort, 0, ushort.MaxValue),
+                SessionToken = ToToken(data.sessionToken),
+                UserToken = ToToken(data.userToken)
+            };
+
+            if (!relay.IsUsable)
+            {
+                Debug.LogWarning("[NetworkSession] 릴레이 값이 모자라 직접 접속으로 간다.");
+                return null;
+            }
+
+            return relay;
+        }
+
+        /// <summary>
+        /// 토큰은 uint 범위다. JSON 은 부호 있는 정수로 오므로 범위를 벗어나면 0 으로
+        /// 두어 "쓸 수 없는 값" 이 되게 한다 — 잘라 쓰면 엉뚱한 세션에 붙는다.
+        /// </summary>
+        private static uint ToToken(long value)
+            => value > 0 && value <= uint.MaxValue ? (uint)value : 0u;
+
         public static string LocalMatchAddress()
         {
             try
@@ -522,6 +563,7 @@ namespace Metagame.Network
                     MatchAddress = string.IsNullOrWhiteSpace(data.hostAddress)
                         ? string.Empty
                         : data.hostAddress.Trim();
+                    MatchRelay = ReadRelay(data.relay);
                     GameStarted?.Invoke();
                     break;
                 case "PLAYER_MOVED":

@@ -172,6 +172,84 @@ WebGL 은 계획에 없으므로(목표는 Steam) `SimpleWebTransport` 는 원�
 **예비 경로**로는 의미가 있다(wss/443, §4-3). Steam 출시 시 **FizzySteamworks 로 전송만 교체**하면 Steam 릴레이 P2P 가
 되어 매치 서버 비용이 0 이 된다 — 코드 구조는 그대로.
 
+### 3-8-1. 릴레이 방식 결정 — **Edgegap** (2026-09-02 조사, -264)
+
+§3-8 이 "☐ 결정 필요" 로 남긴 자리에 대한 답이다.
+
+| 후보 | 판정 |
+| --- | --- |
+| Light Reflective Mirror | ❌ **2022-09-05 보관(archived)**. 4년째 유지보수 없음, Mirror 96 대응 없음 |
+| **Edgegap 릴레이** | ✅ **Mirror 96.11.2 에 이미 들어 있다** — `Transports/Edgegap/EdgegapRelay/`. 새로 받을 것이 없다 |
+| Epic Online Services | 예비안. Mirror 공식 문서가 무료 릴레이로 소개 |
+| Steam(FizzySteamworks) | 출시 후. 그때 전송만 교체하면 매치 서버 비용 0 |
+
+**왜 Edgegap 인가.** `EdgegapKcpTransport : KcpTransport` 다 — 지금 쓰는 전송의 **자식 클래스**라
+컴포넌트만 갈아 끼우면 된다. Edgegap 문서가 *"릴레이는 권위 게임 서버가 아니다 — 연산을 포함하지
+않는다"* 고 못박는데, 물리를 방장이 돌리는 우리 구조에 정확히 맞는다.
+
+**무료 한도 — 계정에서 직접 확인할 것.** 가격 페이지는 *"Up to 50 CCU · 160 GB Egress"* 라고
+안내하는데, **실제 대시보드의 릴레이 탭에는 `0/20` 으로 보였다**(2026-09-02 실측). 어느 쪽이 맞는지는
+계정 화면이 정답이다. 초과 시 CCU 당 $0.14 · GB 당 $0.10.
+
+| 한도 | 4인 기준 동시 팀 수 |
+| --- | --- |
+| 20 CCU | **5팀** |
+| 50 CCU | 12팀 |
+
+**둘 중 어느 쪽이어도 시연에는 충분하다.** 그리고 같은 네트워크에서 직접 접속으로 붙는 사람은
+릴레이를 지나지 않으므로 이 한도를 쓰지 않는다. 한도가 모자라면 EOS(에픽 무료 릴레이)로 갈아탄다.
+
+**세션 만들기** (`https://api.edgegap.com`, 헤더 `Authorization: Token <API_TOKEN>`)
+
+| 무엇 | 어떻게 |
+| --- | --- |
+| 만들기 | `POST /v1/relays/sessions` · 본문 `{"users":[{"ip":"1.1.1.1"},{"ip":"2.2.2.2"}]}` |
+| 응답 | `session_id`(문자열) · `status:"Initializing"` · `ready:false` |
+| 준비 확인 | `GET /v1/relays/sessions/{session_id}` 를 `ready:true` 가 될 때까지 |
+| 끝내기 | `DELETE /v1/relays/sessions/{session_id}` |
+
+**참가자의 공인 IP 가 필요하다.** Spring 은 로비 WebSocket 으로 각자의 주소를 이미 보고 있으므로
+그것을 모아 쓴다. 이것이 릴레이 세션을 **Spring 이** 만들어야 하는 이유다 — 클라이언트는 남의 IP 를 모른다.
+
+**응답을 전송 설정에 옮기는 표** (`ready:true` 인 응답 기준)
+
+| `EdgegapKcpTransport` 필드 | API 응답 |
+| --- | --- |
+| `relayAddress` | `relay.ip` |
+| `relayGameServerPort` | `relay.ports.server.port` |
+| `relayGameClientPort` | `relay.ports.client.port` |
+| `sessionId` (uint) | `authorization_token` — **방 전원이 같은 값** |
+| `userId` (uint) | `session_users[i].authorization_token` — **사람마다 다른 값** |
+
+주의: Edgegap 의 `session_id` 는 **문자열**이고 전송의 `sessionId` 는 **uint** 다. 둘은 다른 것이다 —
+전송에 넣는 값은 세션 단위 `authorization_token` 이다. 헷갈리면 조용히 접속에 실패한다.
+
+**인증 헤더는 소문자 `token` 이어야 한다** (2026-09-02 EC2 실측):
+
+| 보낸 헤더 | 응답 |
+| --- | --- |
+| `Authorization: token <UUID>` | **200** ✅ |
+| `Authorization: Token <UUID>` | 401 `{"message": "Bad Api Token Provided"}` |
+| `Authorization: Bearer <UUID>` | 401 |
+
+대소문자를 가린다. 그리고 대시보드에서 토큰을 복사하면 **`token ` 접두어까지 딸려 온다** —
+그대로 설정에 넣으면 헤더가 `token token <UUID>` 가 되어 역시 401 이다(길이 42 = 6 + 36 으로 알 수 있다).
+코드가 읽을 때 접두어를 걷어내지만, 설정에는 UUID 만 넣는 것이 깔끔하다.
+
+**이 실수는 드러나지 않는다.** 릴레이 호출이 실패하면 직접 접속으로 조용히 되돌아가므로
+"왜 릴레이가 안 붙지" 로만 보인다. 의심되면 EC2 에서 curl 로 직접 불러 본다.
+
+**GAME_STARTED 가 실어 나른다.** -263 이 만든 `hostAddress` 자리를 그대로 쓰되, 릴레이일 때는
+주소 대신 위 다섯 값을 싣는다. 사람마다 `userId` 가 다르므로 **방송이 아니라 각자에게 따로** 보내야 한다.
+
+**직접 접속 경로를 남긴다.** 릴레이가 죽어도 같은 네트워크 시연은 굴러가야 한다(-263 의 랜 직접 접속).
+
+**모두 같은 공유기 뒤면 릴레이를 아예 만들지 않는다.** Spring 이 보는 공인 IP 가 하나뿐이면
+같은 네트워크라는 뜻이고, 그때는 사설 주소로 서로 바로 닿는다. 굳이 태우면 지연만 늘고
+**릴레이 동시접속 한도(과금 기준)를 쓴다** — 교육장처럼 다 같이 있는 자리가 정확히 이 경우다.
+같은 공인 IP 인데도 공유기가 기기끼리의 통신을 막아 두면(AP isolation) 못 붙는데,
+그때는 §4-3 대로 핫스팟으로 우회한다.
+
 ## 4. 어디서 도는가 — 호스팅 플레이어 + EC2 경유 (09-01 정정)
 
 ### 4-1. 구성
