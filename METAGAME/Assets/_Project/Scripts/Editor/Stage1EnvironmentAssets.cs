@@ -16,7 +16,8 @@ namespace Metagame.EditorTools
     /// 하는 일은 두 가지다.
     ///   1. Material 을 만들고 <c>.fbm</c> 텍스처(BaseColor·Normal·Metallic)를 물린 뒤, ModelImporter 의
     ///      외부 오브젝트 맵으로 FBX 임베드 재질을 이 Material 로 갈아끼운다(재질 추출).
-    ///      셰이더는 지금 켜져 있는 파이프라인을 보고 고른다 — <see cref="SurfaceShader"/> 참고.
+    ///      셰이더는 지금 켜져 있는 파이프라인을 보고 고른다 — 행성은 Fog 제외용
+    ///      <c>SpaceFlop/PlanetNoFog</c>, 나머지는 <c>Universal Render Pipeline/Lit</c>을 쓴다.
     ///   2. 그 FBX 를 감싸는 <c>PF_Stage1_*</c> 프리팹을 만든다.
     ///
     /// 이미 있는 에셋은 건드리지 않는다. 손으로 콜라이더를 붙여 둔 프리팹을 다시 돌렸다고
@@ -129,11 +130,18 @@ namespace Metagame.EditorTools
         /// Stage1 환경 자산이 사용할 표면 셰이더.
         ///
         /// 프로젝트는 URP를 기준으로 빌드하므로, 에디터의 현재 파이프라인 상태가
-        /// URP Lit만 사용한다. 파이프라인 전환 직후에도 Built-in Standard를 새 자산에
-        /// 기록하지 않아, Editor 상태와 빌드 상태가 달라지는 문제를 막는다.
+        /// 행성은 원경에서 Scene Fog와 프로젝트 후처리 Fog를 받지 않도록 전용 셰이더를
+        /// 사용한다. 그 외 자산은 URP Lit을 쓴다.
         /// </summary>
-        static Shader SurfaceShader()
+        static Shader SurfaceShader(string name)
         {
+            if (name == "Planet")
+            {
+                var planetShader = Shader.Find("SpaceFlop/PlanetNoFog");
+                if (planetShader == null) Debug.LogError("[Stage1Env] PlanetNoFog 셰이더를 찾지 못했다.");
+                return planetShader;
+            }
+
             var shader = Shader.Find("Universal Render Pipeline/Lit");
             if (shader == null) Debug.LogError("[Stage1Env] URP Lit 셰이더를 찾지 못했다.");
             return shader;
@@ -148,7 +156,7 @@ namespace Metagame.EditorTools
         static Material EnsureMaterial(string model, string name)
         {
             string assetPath = MaterialPath(model, name);
-            var shader = SurfaceShader();
+            var shader = SurfaceShader(name);
             if (shader == null) return null;
 
             var existing = AssetDatabase.LoadAssetAtPath<Material>(assetPath);

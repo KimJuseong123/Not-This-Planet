@@ -52,11 +52,11 @@ MonoBehaviour:
     ambientIntensity: 0.9
   fog:
     enabled: 1
-    mode: 3
-    color: {r: 0.18039216, g: 0.07058824, b: 0.097069845, a: 1}
-    density: 0.07
+    mode: 1
+    color: {r: 0.514151, g: 0.3869496, b: 0.21099593, a: 1}
+    density: 0.04
     startDistance: 2
-    endDistance: 80
+    endDistance: 25.01
   haze:
     enabled: 0
     requiresDepth: 1
@@ -66,15 +66,15 @@ MonoBehaviour:
     endDistance: 180
   groundFog:
     enabled: 0
-    color: {r: 0.2, g: 0.15, b: 0.32, a: 1}
-    density: 0.1
+    color: {r: 0.82, g: 0.63, b: 0.38, a: 1}
+    density: 0.4
     baseHeight: 0
-    heightFalloff: 0.2
+    heightFalloff: 0.1
     startDistance: 2
-    endDistance: 80
+    endDistance: 25
     noiseScale: 0.05
     noiseSpeed: {x: 0.006, y: -0.004}
-    noiseStrength: 0.22
+    noiseStrength: 0.7
   postProcessing:
     tonemapping: 2
     bloomEnabled: 1
@@ -101,7 +101,7 @@ MonoBehaviour:
     endSize: 0.01
   dustGust:
     enabled: 1
-    direction: {x: 1, y: 0, z: 0.18}
+    direction: {x: 0.9841834, y: 0, z: 0.177153}
     minimumInterval: 8
     maximumInterval: 18
     duration: 4
