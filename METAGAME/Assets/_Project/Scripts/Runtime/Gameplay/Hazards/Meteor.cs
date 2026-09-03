@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Metagame.Core;
 using UnityEngine;
 
 namespace Metagame.Gameplay.Hazards
@@ -167,11 +168,81 @@ namespace Metagame.Gameplay.Hazards
         {
             Register();
 
+            EnsureTrail();
+
             if (_body != null) return;
 
             _body = GetComponent<Rigidbody>();
             _body.mass = PhysicsScale.MeteorMass;
         }
+
+        /// <summary>
+        /// 낙하 꼬리. 끄면 만들지 않는다.
+        ///
+        /// <see cref="Metagame.Core.Puff.Enabled"/> 와 같은 자리다 — 검증이 수백 개의
+        /// 운석을 만들므로 연출을 끌 수단이 있어야 한다.
+        /// </summary>
+        public static bool TrailsEnabled = true;
+
+        /// <summary>
+        /// 모든 운석 꼬리가 <b>함께 쓰는</b> 머티리얼.
+        ///
+        /// 운석마다 따로 만들면 §19 의 기준(20분에 150~200개)에서 그만큼 늘어난다.
+        /// 색이 운석마다 다르지 않으므로 나눌 이유가 없다.
+        /// </summary>
+        static Material trailMaterial;
+
+        TrailRenderer _trail;
+
+        /// <summary>
+        /// 떨어지는 동안 꼬리를 남긴다(S15P21B202-276).
+        ///
+        /// <b>대각선 낙하가 예고 없는 피격을 만들었다.</b> S15P21B202-274 의 경로 검사는
+        /// 결정성을 위해 동적 물체를 막힘으로 세지 않으므로, 대각선 경로에 서 있으면
+        /// <b>원에서 8m 떨어진 곳에서</b> 남의 운석에 맞는다 — §17.2 의 "원이 어디
+        /// 떨어질지 알려준다" 는 계약과 어긋난다. 꼬리가 그 경우의 예고가 된다.
+        ///
+        /// <b>자식에 붙인다.</b> 운석 본체에 붙이면 <c>GetComponent&lt;Renderer&gt;</c> 가
+        /// 꼬리를 집어, 크기·재질을 다루는 기존 코드가 엉뚱한 것을 만진다.
+        /// </summary>
+        void EnsureTrail()
+        {
+            if (!TrailsEnabled || _trail != null) return;
+
+            if (trailMaterial == null)
+                trailMaterial = Prim.Ghost(TrailColor, 2.2f);
+
+            var go = new GameObject("낙하 꼬리");
+            go.transform.SetParent(transform, false);
+            go.transform.localPosition = Vector3.zero;
+
+            _trail = go.AddComponent<TrailRenderer>();
+            _trail.time = PhysicsScale.MeteorTrailSeconds;
+            _trail.startWidth = PhysicsScale.MeteorTrailWidth;
+            _trail.endWidth = 0f;
+            _trail.startColor = TrailColor;
+            _trail.endColor = new Color(TrailColor.r, TrailColor.g, TrailColor.b, 0f);
+            _trail.numCapVertices = 2;
+            _trail.alignment = LineAlignment.View;
+            _trail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            _trail.receiveShadows = false;
+            _trail.sharedMaterial = trailMaterial;
+        }
+
+        /// <summary>
+        /// 꼬리를 끊는다. 지면에 박힌 뒤에도 남아 있으면 흔적이 두 개로 보인다.
+        ///
+        /// <b>지우지 않고 멈춘다.</b> 지우면 이미 그려진 꼬리가 한 프레임에 사라져
+        /// 눈에 띈다. 방출만 끄면 남은 꼬리가 제 시간에 옅어진다.
+        /// </summary>
+        void StopTrail()
+        {
+            if (_trail == null) return;
+
+            _trail.emitting = false;
+        }
+
+        static readonly Color TrailColor = new(1f, 0.62f, 0.22f, 0.75f);
 
         void OnEnable() => Register();
 
@@ -561,6 +632,7 @@ namespace Metagame.Gameplay.Hazards
         {
             Settled = true;
             _sinceSettled = 0f;
+            StopTrail();
 
             if (_body != null)
             {

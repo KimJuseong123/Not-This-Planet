@@ -43,6 +43,25 @@ namespace Metagame.Gameplay
         float swingElapsed = -1f;
         Vector3 swingAim = Vector3.forward;
 
+        // --- 궤적 연출(S15P21B202-276) ---
+        LineRenderer arc;
+        LineRenderer streak;
+        Vector3 streakFrom;
+        Vector3 streakTo;
+        float sinceStreak = -1f;
+
+        /// <summary>궤적 점 버퍼. 매 프레임 새로 만들지 않는다.</summary>
+        static readonly Vector3[] ArcBuffer = new Vector3[PhysicsScale.BatArcSamples];
+
+        /// <summary>
+        /// 궤적과 줄기가 <b>함께 쓰는</b> 머티리얼.
+        ///
+        /// 방망이마다 따로 만들면 사람 수만큼 늘고, 색이 매 프레임 바뀌지 않으므로
+        /// 나눌 이유가 없다 — <see cref="Hazards.MeteorWarningView"/> 가 표시마다 따로
+        /// 갖는 것과 반대인데, 그쪽은 색이 매 프레임 변하기 때문이다.
+        /// </summary>
+        static Material trailMaterial;
+
         /// <summary>헛스윙 뒤 남은 대기 시간(초). 0 이면 휘두를 수 있다.</summary>
         public float Cooldown => cooldown;
 
@@ -316,6 +335,123 @@ namespace Metagame.Gameplay
                     : origin + direction * 0.5f;
 
             Puff.Thruster(point, direction);
+
+            // 방망이에서 맞은 자리까지 줄기를 남긴다(S15P21B202-276).
+            //
+            // <b>이 줄기가 "닿았다" 를 만든다.</b> 판정은 15m 떨어진 운석을 쳐내는데
+            // (§18.1 이 메시 접촉을 요구하지 않는다), 그 사이에 아무것도 없으면
+            // 플레이어는 허공을 휘둘렀다고 본다.
+            streakFrom = origin;
+            streakTo = point;
+            sinceStreak = 0f;
+        }
+
+        /// <summary>
+        /// 궤적과 줄기를 갱신한다(S15P21B202-276).
+        ///
+        /// <see cref="Tick"/> 이 아니라 여기서 하는 이유는 물리 스텝(0.01초)마다 선을
+        /// 다시 깔 필요가 없기 때문이다. 화면 갱신마다 한 번이면 충분하다.
+        /// </summary>
+        protected override void OnToolVisualUpdate(ToolInputFrame input, ToolAimContext aim)
+        {
+            EnsureTrails();
+
+            if (sinceStreak >= 0f) sinceStreak += Time.deltaTime;
+
+            DrawArc();
+            DrawStreak();
+        }
+
+        void DrawArc()
+        {
+            if (arc == null) return;
+
+            if (!BatSwingLook.ShowsArc(IsSwinging, SwingProgress01))
+            {
+                arc.enabled = false;
+                return;
+            }
+
+            var origin = Owner != null ? Owner.Position : transform.position;
+            var count = BatSwingLook.ArcPoints(origin, swingAim, SwingProgress01, ArcBuffer);
+            if (count < 2)
+            {
+                arc.enabled = false;
+                return;
+            }
+
+            arc.positionCount = count;
+            for (var i = 0; i < count; i++) arc.SetPosition(i, ArcBuffer[i]);
+
+            arc.enabled = true;
+        }
+
+        void DrawStreak()
+        {
+            if (streak == null) return;
+
+            var fade = BatSwingLook.StreakFade(sinceStreak);
+            if (sinceStreak < 0f || fade <= 0f)
+            {
+                streak.enabled = false;
+                return;
+            }
+
+            streak.SetPosition(0, streakFrom);
+            streak.SetPosition(1, streakTo);
+
+            // 굵기로 줄인다. 알파로만 줄이면 공유 머티리얼이라 다른 방망이까지 흐려진다.
+            streak.widthMultiplier = fade;
+            streak.enabled = true;
+        }
+
+        /// <summary>
+        /// 궤적과 줄기를 그릴 선을 만든다.
+        ///
+        /// <b>[Art] 가 실제 VFX 를 주면 이 메서드만 바뀐다.</b>
+        /// <see cref="Hazards.MeteorWarningView.CreateMarker"/> 와 같은 자리다.
+        /// </summary>
+        void EnsureTrails()
+        {
+            if (arc != null && streak != null) return;
+
+            if (trailMaterial == null)
+                trailMaterial = Prim.Ghost(BatSwingLook.ArcStartColor, 2.6f);
+
+            if (arc == null)
+                arc = MakeLine("스윙 궤적", PhysicsScale.BatArcWidth,
+                               BatSwingLook.ArcStartColor, BatSwingLook.ArcEndColor);
+
+            if (streak == null)
+                streak = MakeLine("타격 줄기", PhysicsScale.BatStreakWidth,
+                                  BatSwingLook.StreakColor, BatSwingLook.StreakColor);
+        }
+
+        LineRenderer MakeLine(string name, float width, Color from, Color to)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(transform, false);
+
+            var line = go.AddComponent<LineRenderer>();
+
+            // 세계 좌표로 넣는다. 방망이가 스윙 동안 회전하므로 지역 좌표면 궤적이
+            // 방망이와 함께 돌아 버린다.
+            line.useWorldSpace = true;
+            line.alignment = LineAlignment.View;
+            line.textureMode = LineTextureMode.Stretch;
+            line.numCapVertices = 2;
+            line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            line.receiveShadows = false;
+
+            line.widthMultiplier = 1f;
+            line.startWidth = width;
+            line.endWidth = width * 0.25f;
+            line.startColor = from;
+            line.endColor = to;
+            line.sharedMaterial = trailMaterial;
+            line.enabled = false;
+
+            return line;
         }
 
         /// <summary>
