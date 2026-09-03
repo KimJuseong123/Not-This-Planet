@@ -46,6 +46,9 @@ namespace Metagame.Gameplay
         }
 
         Link[] links;
+        PlayerRig _player;
+        public RabbitLocomotion Locomotion { get; private set; }
+        public RabbitLocomotion.State? NetworkLocomotionState { get; set; }
 
         public Transform Model { get; private set; }
         public int LinkCount { get { return links != null ? links.Length : 0; } }
@@ -92,6 +95,7 @@ namespace Metagame.Gameplay
             var suit = go.AddComponent<SpaceSuit>();
             suit.Model = go.transform;
             suit.Bind(doll);
+            if (Application.isPlaying) suit.InitializeLocomotion();
             return suit;
         }
 
@@ -242,7 +246,26 @@ namespace Metagame.Gameplay
         }
 
         // ── 매 프레임 따라가기 ──────────────────────────────────
-        void LateUpdate() { Sync(); }
+        public void InitializeLocomotion()
+        {
+            if (Locomotion == null) Locomotion = RabbitLocomotion.Create(Model, Prefab);
+        }
+
+        void LateUpdate()
+        {
+            Sync();
+            if (Locomotion == null) return;
+            if (_player == null) _player = GetComponentInParent<PlayerRig>();
+            if (_player == null || _player.Doll == null) return;
+            if (_player.NetworkDriven)
+            {
+                if (NetworkLocomotionState.HasValue)
+                    Locomotion.Apply(NetworkLocomotionState.Value, Time.deltaTime);
+            }
+            else Locomotion.Apply(RabbitLocomotion.ReadState(_player), Time.deltaTime);
+        }
+
+        void OnDestroy() { Locomotion?.Dispose(); }
 
         public void Sync()
         {

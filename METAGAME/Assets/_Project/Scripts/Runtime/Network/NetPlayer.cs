@@ -44,8 +44,20 @@ namespace Metagame.Network
         [SyncVar]
         public bool riding;
 
+        // 이동 판정을 복제하지 않고, 표시용 걷기/달리기 상태만 함께 전달한다.
+        [SyncVar]
+        RabbitLocomotion.State _locomotionState;
+
         /// <summary>서버에서 물리를 도는 진짜 몸. 클라이언트에서는 그림용 몸이다.</summary>
         PlayerRig body;
+
+        void LateUpdate()
+        {
+            if (body == null || body.Doll == null || body.Hips == null) return;
+            if (isServer) _locomotionState = RabbitLocomotion.ReadState(body);
+            if (body.Doll.Suit != null)
+                body.Doll.Suit.NetworkLocomotionState = _locomotionState;
+        }
 
         /// <summary>이 사람의 운반 장치 조작. 서버에만 있다(-149).</summary>
         TractorBeamController transport;
