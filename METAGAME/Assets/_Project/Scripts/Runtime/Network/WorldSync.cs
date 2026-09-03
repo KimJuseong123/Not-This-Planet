@@ -52,7 +52,7 @@ namespace Metagame.Network
         {
             Collect();
             ready = true;
-            Debug.Log($"[WorldSync] 서버가 {tracked.Count}개를 맡는다");
+            Debug.Log($"[WorldSync] 서버가 {tracked.Count}개를 맡는다 · {Order()}");
         }
 
         public override void OnStartClient()
@@ -90,7 +90,7 @@ namespace Metagame.Network
                 targets[i] = Read(tracked[i]);
 
             ready = true;
-            Debug.Log($"[WorldSync] 클라이언트가 {tracked.Count}개를 받는다");
+            Debug.Log($"[WorldSync] 클라이언트가 {tracked.Count}개를 받는다 · {Order()}");
             return true;
         }
 
@@ -118,16 +118,44 @@ namespace Metagame.Network
             if (body != null && !tracked.Contains(body)) tracked.Add(body);
         }
 
+        /// <summary>
+        /// 양쪽이 반드시 같은 순서를 내야 한다 — 번호 하나가 밀리면 그 뒤 전부가 남의 자리로 간다.
+        ///
+        /// 예전에는 이름이 같을 때 <b>지금 위치</b>로 동점을 갈랐다. 그런데 서버는 시작하자마자
+        /// 목록을 만들고 클라이언트는 자기 게임 씬이 다 뜬 뒤에 만든다. 그 사이에 서버가 물체를
+        /// 움직였으면 위치가 달라져 순서가 갈리고, 탈것 자리에 다른 물체의 좌표가 들어간다 —
+        /// 탈것은 그대로인데 사람만 날아다니는 것처럼 보인다(2026-09-03).
+        ///
+        /// 그래서 <b>시간이 지나도 변하지 않는 것</b>으로만 가른다. 계층 경로와 형제 순번은
+        /// 같은 씬을 같은 코드로 세우는 한 양쪽이 똑같다.
+        /// </summary>
         static int Compare(Rigidbody a, Rigidbody b)
         {
-            int byName = string.CompareOrdinal(a.name, b.name);
-            if (byName != 0) return byName;
+            int byPath = string.CompareOrdinal(PathOf(a.transform), PathOf(b.transform));
+            if (byPath != 0) return byPath;
 
-            Vector3 pa = a.transform.position, pb = b.transform.position;
-            int byX = pa.x.CompareTo(pb.x);
-            if (byX != 0) return byX;
-            int byZ = pa.z.CompareTo(pb.z);
-            return byZ != 0 ? byZ : pa.y.CompareTo(pb.y);
+            return a.transform.GetSiblingIndex().CompareTo(b.transform.GetSiblingIndex());
+        }
+
+        /// <summary>
+        /// 지금 줄 세운 순서를 이름으로 늘어놓는다. 양쪽 로그를 나란히 놓으면 어긋남이 바로 보인다 —
+        /// 개수만 같고 순서가 다르면 좌표가 남의 자리로 가는데, 그건 개수 검사로 못 잡는다.
+        /// </summary>
+        string Order()
+        {
+            var names = new string[tracked.Count];
+            for (int i = 0; i < tracked.Count; i++)
+                names[i] = tracked[i] != null ? tracked[i].name : "(없음)";
+            return string.Join(", ", names);
+        }
+
+        /// <summary>뿌리부터의 계층 경로. 이름이 겹쳐도 부모가 다르면 갈린다.</summary>
+        static string PathOf(Transform t)
+        {
+            var path = new System.Text.StringBuilder(t.name);
+            for (var parent = t.parent; parent != null; parent = parent.parent)
+                path.Insert(0, parent.name).Insert(0, '/');
+            return path.ToString();
         }
 
         static Pose Read(Rigidbody body)

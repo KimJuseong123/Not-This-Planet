@@ -228,6 +228,17 @@ namespace Metagame.Network
             if (transport != null)
             {
                 transport.SetInput(frame);
+
+                // 탑승이 실제로 서버에서 일어났는지, 그때 탈것이 움직이는지 남긴다.
+                // 참가자가 탄 탈것이 방장 화면에서 어긋나는데, 서버가 태우지 않은 것인지
+                // 태우고도 안 움직이는 것인지 구분할 방법이 없었다(2026-09-03).
+                if (transport.IsControlling != riding)
+                {
+                    var vehicle = transport.FocusedVehicle;
+                    Debug.Log($"[NetPlayer] {(transport.IsControlling ? "탑승" : "하차")} · "
+                              + $"{nickname}(userId={userId}) · "
+                              + $"탈것={(vehicle != null ? vehicle.name : "모름")}");
+                }
                 riding = transport.IsControlling;
 
                 // 탑승 중에는 몸이 운반체와 싸우지 않게 한다. 이동은 운반체가 처리하고
