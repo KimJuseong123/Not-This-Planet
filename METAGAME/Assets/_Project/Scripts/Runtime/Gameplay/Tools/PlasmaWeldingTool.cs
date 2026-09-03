@@ -166,9 +166,18 @@ namespace Metagame.Gameplay
                 return false;
             }
 
+            // 참가자 화면에서는 세계를 스스로 바꾸지 않는다. 여기서도 용접하면 서버가 보낸
+            // 것과 겹쳐 비드가 두 배로 자란다 — 판정은 서버, 여기는 받아 그리기만 한다.
+            if (WorldEvents.RemoteDecides) { GrowingBead = null; return false; }
+
             WeldingProgressed = WeldBead.TryGrowNear(Muzzle.position, deltaTime, out var bead);
             GrowingBead = bead;
-            if (WeldingProgressed) AnyWeldProgressed?.Invoke(this);
+
+            // 다른 사람 화면에도 같은 비드가 자라야 한다. 비드는 덩어리 사슬이라 상태를
+            // 통째로 보내기 어렵지만, 부품이 이미 같은 자리에 맞춰져 있으므로 같은 자리에서
+            // 같은 양만큼 자라게 하면 같은 모양이 된다(-152).
+            if (WeldingProgressed) WorldEvents.WeldGrown?.Invoke(Muzzle.position, deltaTime);
+
             return WeldingProgressed;
         }
 
@@ -234,9 +243,13 @@ namespace Metagame.Gameplay
                 return false;
             }
 
+            if (WorldEvents.RemoteDecides) { ShrinkingBead = null; return false; }
+
             CuttingProgressed = WeldBead.TryShrinkNear(Muzzle.position, deltaTime, out var bead);
             ShrinkingBead = bead;
-            if (CuttingProgressed) AnyCutProgressed?.Invoke(this);
+
+            if (CuttingProgressed) WorldEvents.WeldShrunk?.Invoke(Muzzle.position, deltaTime);
+
             return CuttingProgressed;
         }
 

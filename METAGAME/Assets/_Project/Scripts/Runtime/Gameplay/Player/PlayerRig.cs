@@ -378,7 +378,9 @@ namespace Metagame.Gameplay
             FindCrosshairGrabbable(origin, forward, ref best);
             FindDownedTeammate(origin, forward, ref best);
 
-            if (Cam != null)
+            // 카메라가 있을 때만 보던 자리다. 그러면 서버에 선 참가자의 몸은 카메라가 없어
+            // 운반체를 영영 후보로 잡지 못하고, 참가자만 탑승이 되지 않는다(2026-09-03 실측).
+            // 아래는 origin·forward 만 쓰므로 카메라가 없어도 그대로 성립한다.
             {
                 for (var i = 0; i < interactionVehicles.Length; i++)
                 {
@@ -1327,9 +1329,23 @@ namespace Metagame.Gameplay
             get
             {
                 if (Cam != null) return Cam.transform.position;
-                return Doll != null && Doll.Head != null ? Doll.Head.position : Position;
+
+                // 카메라가 없는 서버에서는 클라이언트가 보낸 시작점을 쓴다. 그래야 그 사람의
+                // 화면과 서버가 같은 곳을 겨냥한다 — 머리로 대신하면 카메라와 몇 미터
+                // 어긋나 화면에 보이는 대상을 잡지 못한다.
+                //
+                // 다만 그대로 믿지는 않는다. 클라이언트가 보내는 값이라 몸에서 너무 멀면
+                // 엉뚱한 곳에서 집는 셈이 된다. 상식 밖이면 머리로 되돌린다.
+                Vector3 head = Doll != null && Doll.Head != null ? Doll.Head.position : Position;
+                if (input.AimFrom == Vector3.zero) return head;
+
+                return (input.AimFrom - head).sqrMagnitude <= MaxAimOffset * MaxAimOffset
+                    ? input.AimFrom : head;
             }
         }
+
+        /// <summary>조준 시작점이 몸에서 떨어져 있어도 되는 한계(미터). 카메라가 뒤로 물러난 거리보다 넉넉하게.</summary>
+        const float MaxAimOffset = 8f;
 
         /// <summary>조준 방향(위아래 포함).</summary>
         public Vector3 AimForward { get { return AimRotation * Vector3.forward; } }
@@ -1801,11 +1817,12 @@ namespace Metagame.Gameplay
             var target = clampGrabTarget;
             if (target == null || Doll == null || Doll.Hips == null) return;
 
-            var fwd = Cam != null ? Cam.PlanarForward : Vector3.forward;
-            var right = Cam != null ? Cam.PlanarRight : Vector3.right;
-            var wish = Cam != null
-                ? Cam.CameraRelativeMove(input.Move)
-                : right * input.Move.x + fwd * input.Move.y;
+            // 카메라가 없다고 월드 축(+Z·+X)으로 대신하면 어디를 보든 같은 방향으로 끌게 된다
+            // — 서버가 입력과 무관하게 +Z 로만 걷던 것과 같은 실수다(-147).
+            // 조준 창구는 카메라가 있으면 카메라를, 없으면 클라이언트가 보낸 각도를 쓴다.
+            var fwd = PlanarForward;
+            var right = PlanarRight;
+            var wish = RelativeMove(input.Move);
             wish.y = 0f;
             if (wish.sqrMagnitude < 0.0001f) return;
 
@@ -2283,8 +2300,9 @@ namespace Metagame.Gameplay
             if (!carriedBodies.ContainsKey(body)) BeginCarriedBody(body);
 
             Vector3 direction = aim.sqrMagnitude > 1e-4f ? aim.normalized : Doll.Chest.transform.forward;
-            Vector3 cameraOrigin = Cam != null ? Cam.transform.position : Doll.Chest.position;
-            Vector3 holdPoint = cameraOrigin + direction * Tuning.ToolHoldDistance;
+            // 조준 창구를 쓴다. 가슴으로 대신하면 서버에서 든 물체가 그 사람 화면과
+            // 다른 자리에 떠 있게 된다.
+            Vector3 holdPoint = AimOrigin + direction * Tuning.ToolHoldDistance;
 
             body.isKinematic = true;
             body.useGravity = false;

@@ -17,6 +17,16 @@ namespace Metagame.Core
         // 혼자 돌릴 때는 카메라가 옆에 있으니 쓰이지 않는다.
         public float AimYaw;
         public float AimPitch;
+
+        /// <summary>
+        /// 조준이 시작되는 지점 — 내 화면의 카메라 위치다.
+        ///
+        /// 각도만으로는 모자란다. 내 화면은 카메라에서 재고 서버는 몸에서 재면 기준점이
+        /// 몇 미터 어긋나, 화면에는 "잡을 수 있다" 고 나오는데 눌러도 안 잡힌다.
+        /// 방장은 서버에 선 몸이 곧 내 몸이라 카메라가 있어 안 겪고, 참가자만 겪었다
+        /// (2026-09-03 실측). 시작점을 함께 보내면 양쪽이 같은 것을 본다.
+        /// </summary>
+        public Vector3 AimFrom;
         public bool Jump;
         public bool Run;
         public bool GrabLeft;     // 좌클릭 — 왼팔
