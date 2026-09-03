@@ -163,6 +163,24 @@ namespace Metagame.Gameplay
             muzzle = transform.Find("AttachPoints/Muzzle");
             if (muzzle == null) muzzle = transform.Find("Muzzle");
         }
+
+        /// <summary>
+        /// 기준점을 갈아 끼운다(S15P21B202-277).
+        ///
+        /// <b>프리팹의 <c>AttachPoints/Muzzle</c> 을 믿을 수 없는 경우가 있다.</b> 용접
+        /// 건의 그 자리는 코드로 만든 임시 총에 맞춰 놓은 값인데, 장착하면 실제 모델만
+        /// 옮겨져 기준점이 보이는 총에서 1.34m 떨어졌다. 그런 도구는 보이는 모델에서
+        /// 끝점을 구해 여기로 넣는다.
+        ///
+        /// <see cref="Muzzle"/> 을 읽는 곳이 빔 · 용접 · 절단 · 파티클로 여러 군데라,
+        /// <b>기준점 하나를 바꾸면 전부 따라온다</b> — 읽는 쪽마다 고치면 하나를 빼먹는다.
+        /// </summary>
+        protected void SetMuzzle(Transform replacement)
+        {
+            if (replacement == null) return;
+
+            muzzle = replacement;
+        }
     }
 
     /// <summary>도구가 바라보는 방향과 현재 플레이어/카메라를 묶은 컨텍스트.</summary>

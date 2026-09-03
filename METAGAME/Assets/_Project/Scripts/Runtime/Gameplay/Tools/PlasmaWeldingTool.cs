@@ -47,6 +47,12 @@ namespace Metagame.Gameplay
         Material runtimeMaterial;
         PlasmaGunPetalAnimator petalAnimator;
         Transform heldVisual;
+
+        // --- 노즐 끝 (S15P21B202-277) ---
+        Transform nozzleTip;
+        Bounds visibleLocalBounds;
+        bool visibleBoundsReady;
+
         Vector3 droppedVisualLocalPosition;
         Quaternion droppedVisualLocalRotation;
         Vector3 droppedVisualLocalScale;
@@ -168,6 +174,9 @@ namespace Metagame.Gameplay
 
         protected override void OnToolVisualUpdate(ToolInputFrame input, ToolAimContext aim)
         {
+            // 조준 방향이 바뀌면 "그 방향에서 본 총의 끝" 도 바뀐다(S15P21B202-277).
+            ResolveNozzleTip(aim.Direction);
+
             if (beam == null) EnsureBeam();
             ResolvePetalAnimator();
             var visualReady = petalAnimator == null ||
@@ -282,6 +291,9 @@ namespace Metagame.Gameplay
             heldVisual.SetLocalPositionAndRotation(
                 heldVisualLocalPosition, Quaternion.Euler(heldVisualLocalEuler));
             heldVisual.localScale = heldVisualLocalScale;
+
+            // 자세가 바뀌면 끝점도 따라와야 한다(S15P21B202-277).
+            ResolveNozzleTip(heldVisual.forward);
         }
 
         void RestoreDroppedVisualPose()
@@ -291,6 +303,55 @@ namespace Metagame.Gameplay
             heldVisual.SetLocalPositionAndRotation(
                 droppedVisualLocalPosition, droppedVisualLocalRotation);
             heldVisual.localScale = droppedVisualLocalScale;
+
+            ResolveNozzleTip(heldVisual.forward);
+        }
+
+        /// <summary>
+        /// 빔이 나갈 자리를 <b>보이는 모델의 끝</b>으로 옮긴다(S15P21B202-277).
+        ///
+        /// <b>프리팹의 <c>AttachPoints/Muzzle</c> 은 임시 총에 맞춰 놓은 값이었다.</b>
+        /// 장착하면 <see cref="ApplyHeldVisualPose"/> 가 <c>ReplacementModel</c> 아래의
+        /// 실제 모델만 (0.7, -0.9, 0.25) 로 옮기고 90도 돌리는데, Muzzle 은 그 모델의
+        /// 형제라 제자리에 남는다. 두 점의 거리가 <b>1.34m</b> 이고
+        /// <see cref="Tuning.ToolBeamRange"/> 는 0.80m 이므로, <b>보이는 총이 닿는 곳과
+        /// 빔이 닿는 곳이 겹칠 수가 없었다.</b>
+        ///
+        /// 연출만의 문제가 아니었다 — <see cref="WeldTick"/> 과 <see cref="CutTick"/> 도
+        /// 같은 좌표를 쓰므로 <b>용접·절단 판정이 총에서 1.34m 떨어진 허공에서</b>
+        /// 이뤄졌다. 기획 §16 의 조립이 여기에 걸려 있다.
+        ///
+        /// 끝점을 <see cref="ToolBase.SetMuzzle"/> 로 넣어 <b>읽는 쪽을 하나도 고치지
+        /// 않는다.</b> Muzzle 을 읽는 자리가 빔·용접·절단·파티클로 여러 군데라, 읽는
+        /// 쪽마다 고치면 하나를 빼먹는다.
+        /// </summary>
+        /// <returns>끝점을 실제로 옮겼는가. 보이는 모델이 없으면 <c>false</c>.</returns>
+        public bool ResolveNozzleTip(Vector3 direction)
+        {
+            ResolveHeldVisual();
+            if (heldVisual == null) return false;
+
+            if (!visibleBoundsReady)
+                visibleBoundsReady =
+                    NozzleGeometry.TryLocalBounds(heldVisual, out visibleLocalBounds);
+
+            if (!visibleBoundsReady) return false;
+
+            if (nozzleTip == null)
+            {
+                // 도구 루트에 매단다. 모델 아래에 매달면 자세를 되돌릴 때
+                // (RestoreDroppedVisualPose) 같이 끌려가 한 프레임 어긋난다.
+                var go = new GameObject("노즐 끝");
+                go.transform.SetParent(transform, false);
+                nozzleTip = go.transform;
+
+                SetMuzzle(nozzleTip);
+            }
+
+            nozzleTip.position =
+                NozzleGeometry.TipAlong(heldVisual, visibleLocalBounds, direction);
+
+            return true;
         }
 
         void ResolveHeldVisual()
