@@ -178,6 +178,44 @@ namespace Metagame.EditorTools
                 if (clamps == 4)
                     Ok($"{spec.Name}({spec.DisplayName}) 고정못 4 · 상태 {part.State}");
             }
+
+            CheckClampVisualOwnership(scene, parts);
+        }
+
+        /// <summary>
+        /// 외양과 충돌 판정의 소유 루트가 분리되지 않았는지 확인한다.
+        /// 고정못은 Clamp가 Collider와 PartClamp를 소유하고, 그 아래 Visual이 Renderer를
+        /// 소유해야 한다. 예전 AnchorPins 그룹처럼 외양만 별도 그룹에 남으면 파츠가
+        /// 움직일 때 화면과 상호작용 위치가 갈라진다.
+        /// </summary>
+        static void CheckClampVisualOwnership(Scene scene, List<SpaceshipPart> parts)
+        {
+            Section("외양·충돌 소유");
+
+            var detached = Find(scene, "AnchorPins");
+            if (detached != null && detached.GetComponentsInChildren<Renderer>(true).Length > 0)
+                Fail("AnchorPins 아래에 고정못 외양이 남아 있다 — 각 Clamp/Visual 아래로 옮긴다");
+
+            var checkedClamps = 0;
+            foreach (var part in parts)
+            {
+                if (part == null) continue;
+
+                foreach (var clamp in part.Clamps)
+                {
+                    if (clamp == null) continue;
+                    checkedClamps++;
+
+                    if (clamp.GetComponents<Collider>().Length == 0)
+                        Fail($"{part.name}/{clamp.name} 에 충돌 판정이 없다");
+
+                    var visual = clamp.transform.Find("Visual");
+                    if (visual == null || visual.GetComponentsInChildren<Renderer>(true).Length == 0)
+                        Fail($"{part.name}/{clamp.name} 아래에 고정못 외양이 없다");
+                }
+            }
+
+            if (checkedClamps > 0) Ok($"고정못 {checkedClamps}개의 외양·충돌 소유 루트 확인");
         }
 
         static void CheckLaunchPad(Scene scene)

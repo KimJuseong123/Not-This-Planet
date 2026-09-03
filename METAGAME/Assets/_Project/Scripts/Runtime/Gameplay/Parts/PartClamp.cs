@@ -143,11 +143,13 @@ namespace Metagame.Gameplay.Parts
             if (_part == null) _part = GetComponentInParent<SpaceshipPart>();
             _colliders = GetComponents<Collider>();
 
-            // AnchorPins 는 파츠와 함께 움직이면 안 되는 별도 시각 그룹이다. 씬에서 파츠를
-            // 수동 배치한 뒤 스킨 빌드를 다시 하지 않아도 보이는 핀이 실제 상호작용 위치를
-            // 가리키게 한다. 렌더러가 없는 테스트용 외형이면 조용히 건너뛴다.
+            // 외양은 충돌 판정과 같은 Clamp 아래에 둔다. 구형 씬에서 직렬화된 외부
+            // 외양이 들어와도 여기서 소유 루트를 바로잡아 렌더러와 Collider가 함께 움직이게 한다.
+            // 렌더러가 없는 테스트용 외형이면 조용히 건너뛴다.
             if (_releasedVisual != null)
             {
+                if (!_releasedVisual.IsChildOf(transform))
+                    _releasedVisual.SetParent(transform, true);
                 _releasedVisual.gameObject.SetActive(true);
                 AlignReleasedVisual(_releasedVisual);
             }
@@ -166,20 +168,22 @@ namespace Metagame.Gameplay.Parts
         }
 
         /// <summary>
-        /// Stage1SkinBuilder가 별도 AnchorPins 외형을 직접 연결한다.
-        /// 이름 검색은 구형 씬 호환용으로만 남기고, 새 씬은 이 참조를 사용한다.
+        /// Stage1SkinBuilder가 Clamp 아래의 외양을 직접 연결한다.
+        /// 외부에 남아 있는 구형 씬 외양도 이 메서드에서 Clamp 아래로 옮긴다.
         /// </summary>
         public void AssignReleasedVisual(Transform visual)
         {
             _releasedVisual = visual;
             if (_releasedVisual == null) return;
 
+            if (!_releasedVisual.IsChildOf(transform))
+                _releasedVisual.SetParent(transform, true);
             _releasedVisual.gameObject.SetActive(true);
             AlignReleasedVisual(_releasedVisual);
         }
 
         /// <summary>
-        /// 외부 AnchorPins 의 피벗이 무엇이든 실제 모델의 바닥과 중심을 고정못에 맞춘다.
+        /// 외양 프리팹의 피벗이 무엇이든 실제 모델의 바닥과 중심을 고정못에 맞춘다.
         ///
         /// 스킨 프리팹은 루트가 모델 중심이 아닐 수 있고, 씬에 저장된 프리팹 인스턴스는
         /// 파츠의 수동 배치 이전 좌표를 들고 있을 수 있다. 루트 위치를 직접 고정하면
@@ -384,8 +388,9 @@ namespace Metagame.Gameplay.Parts
         {
             if (_part == null || string.IsNullOrEmpty(name)) return null;
 
-            // Stage1SkinBuilder가 AnchorPins 그룹에
-            // "<파츠 이름>_<고정쇠 이름>" 규칙으로 PF_Stage1_AnchorPin을 배치한다.
+            // 구형 씬 호환용. 새 씬에서는 _releasedVisual이 Clamp 자식으로 직렬화된다.
+            // 이전에 AnchorPins 그룹에 "<파츠 이름>_<고정쇠 이름>" 규칙으로 배치했던
+            // 프리팹을 찾아 오너 아래로 옮긴다.
             var pin = GameObject.Find(_part.name + "_" + name);
             return pin != null ? pin.transform : null;
         }

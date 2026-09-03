@@ -16,7 +16,8 @@ namespace Metagame.EditorTools
     ///
     /// 규칙 두 가지를 지킨다.
     ///   · 물리·게임플레이는 건드리지 않는다. 콜라이더·Rigidbody·스크립트·좌표는 그대로 두고
-    ///     프리미티브의 MeshRenderer 만 끈 뒤 그 자리에 모델을 자식으로 얹는다.
+    ///     프리미티브의 MeshRenderer 만 끈 뒤 그 물리 오브젝트의 자식으로 모델을 얹는다.
+    ///     외양도 같은 소유 루트 아래에 있어야 하므로, 고정못 모델 역시 Clamp 의 자식으로 둔다.
     ///     그래서 이 도구를 되돌려도(스킨 자식만 지우면) 퍼즐이 그대로 돈다.
     ///   · 카탈로그 규칙대로 FBX 가 아니라 <c>PF_*</c> 프리팹만 인스턴스화한다.
     ///
@@ -71,8 +72,11 @@ namespace Metagame.EditorTools
         /// </summary>
         static string SkinPathOf(PartSpec spec) => SpaceshipDir + "/" + spec.SkinPrefab + ".prefab";
 
-        /// <summary>고정못을 모아 두는 그룹. 파츠와 함께 움직이지 않아야 해서 따로 둔다.</summary>
-        const string PinGroupName = "AnchorPins";
+        /// <summary>
+        /// 구형 씬에서만 남아 있을 수 있는 고정못 그룹 이름이다. 현재 고정못 외양은 각
+        /// Clamp 아래에 두며, Apply 때 이 그룹의 자식을 해당 Clamp 로 옮긴 뒤 빈 그룹을 제거한다.
+        /// </summary>
+        const string LegacyPinGroupName = "AnchorPins";
 
         const string AnchorPinPrefab = PropDir + "/PF_Stage1_AnchorPin.prefab";
         const string TractorCraftPrefab = SpaceshipDir + "/PF_Stage1_TractorCraft.prefab";
@@ -222,15 +226,14 @@ namespace Metagame.EditorTools
         /// <summary>
         /// 고정쇠 자리에 고정못 모델을 세운다. 고정쇠는 파츠 밑면 = 지면 높이에 있다.
         ///
-        /// 못을 고정쇠(= 파츠의 자식) 밑에 붙이지 않고 따로 모아 세운다. 자식으로 붙이면
-        /// 견인 빔이 파츠를 들어 올릴 때 못 16개가 같이 공중으로 따라 올라간다 — 빌드를 실행해
-        /// 확인했다. 못은 땅에 박혀 있는 물건이라 파츠가 떠나도 그 자리에 남아야 한다.
+        /// 외양은 충돌 판정과 같은 Clamp 아래에 둔다. 그래야 파츠가 움직이거나 고정못이
+        /// 해제될 때 렌더러와 Collider가 같은 소유 루트를 따라가며, 둘이 서로 다른 위치에
+        /// 남는 일이 없다. 예전 씬의 AnchorPins 그룹은 여기서 호환 마이그레이션한다.
         /// 크기는 카탈로그의 제작 크기(0.20 × 0.54 × 0.20 m) 그대로 둔다.
         /// </summary>
         static int SkinClamps(Transform puzzle)
         {
-            var group = EnsureGroup(puzzle, PinGroupName);
-            Clear(group);
+            var legacyGroup = puzzle.Find(LegacyPinGroupName);
 
             var prefab = Load(AnchorPinPrefab);
             if (prefab == null) return 0;
@@ -240,21 +243,66 @@ namespace Metagame.EditorTools
 
             foreach (var clamp in puzzle.GetComponentsInChildren<PartClamp>(true))
             {
-                // 예전 실행이 고정쇠 밑에 붙여 둔 못이 있으면 걷어낸다.
-                var stale = clamp.transform.Find(SkinName);
-                if (stale != null) Object.DestroyImmediate(stale.gameObject);
+                // 이미 올바른 위치에 있는 외양은 보존한다. 구형 AnchorPins 아래에 있던
+                // 외양이면 먼저 Clamp 로 옮겨서 같은 파일ID/직렬화 참조를 유지한다.
+                var visual = FindClampVisual(clamp.transform);
+                if (visual == null && legacyGroup != null)
+                {
+                    var legacyName = clamp.transform.parent != null
+                        ? clamp.transform.parent.name + "_" + clamp.name
+                        : clamp.name;
+                    visual = legacyGroup.Find(legacyName);
+                    if (visual != null)
+                    {
+                        visual.SetParent(clamp.transform, true);
+                        visual.name = SkinName;
+                    }
+                }
 
                 var spot = clamp.transform.position;
-                var pin = Attach(group, prefab);
-                pin.name = clamp.transform.parent.name + "_" + clamp.name;
-                pin.position = new Vector3(
+                if (visual == null)
+                    visual = Attach(clamp.transform, prefab);
+
+                visual.position = new Vector3(
                     spot.x - fit.Center.x,
                     -(fit.Center.y - fit.Size.y * 0.5f),                  // 못 바닥을 지면에
                     spot.z - fit.Center.z);
-                clamp.AssignReleasedVisual(pin);
+                clamp.AssignReleasedVisual(visual);
                 done++;
             }
+
+            // 마이그레이션이 끝난 뒤에는 빈 레거시 그룹을 남기지 않는다. 예상하지 못한
+            // 자식이 남아 있으면 삭제하지 않고 경고해 수동 확인이 가능하게 한다.
+            if (legacyGroup != null)
+            {
+                if (legacyGroup.childCount == 0)
+                    Object.DestroyImmediate(legacyGroup.gameObject);
+                else
+                    Debug.LogWarning("[Stage1Skin] AnchorPins 아래에 연결되지 않은 외양이 남아 있다: "
+                                     + legacyGroup.childCount + "개");
+            }
+
             return done;
+        }
+
+        /// <summary>
+        /// 현재 Clamp 아래에 있는 외양을 찾는다. 이전 구성에서는 외양 인스턴스 이름이
+        /// Part_X_Clamp_Y였고, 이후 구성에서는 Visual이므로 두 형태를 모두 한 번만
+        /// 마이그레이션할 수 있게 한다.
+        /// </summary>
+        static Transform FindClampVisual(Transform clamp)
+        {
+            var visual = clamp.Find(SkinName);
+            if (visual != null) return visual;
+
+            for (var i = 0; i < clamp.childCount; i++)
+            {
+                var candidate = clamp.GetChild(i);
+                if (candidate.GetComponentsInChildren<Renderer>(true).Length > 0)
+                    return candidate;
+            }
+
+            return null;
         }
 
         /// <summary>견인 빔 기준점에 비행접시형 운반 도구를 띄운다.</summary>
