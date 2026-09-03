@@ -1278,9 +1278,23 @@ namespace Metagame.Gameplay
             get
             {
                 if (Cam != null) return Cam.transform.position;
-                return Doll != null && Doll.Head != null ? Doll.Head.position : Position;
+
+                // 카메라가 없는 서버에서는 클라이언트가 보낸 시작점을 쓴다. 그래야 그 사람의
+                // 화면과 서버가 같은 곳을 겨냥한다 — 머리로 대신하면 카메라와 몇 미터
+                // 어긋나 화면에 보이는 대상을 잡지 못한다.
+                //
+                // 다만 그대로 믿지는 않는다. 클라이언트가 보내는 값이라 몸에서 너무 멀면
+                // 엉뚱한 곳에서 집는 셈이 된다. 상식 밖이면 머리로 되돌린다.
+                Vector3 head = Doll != null && Doll.Head != null ? Doll.Head.position : Position;
+                if (input.AimFrom == Vector3.zero) return head;
+
+                return (input.AimFrom - head).sqrMagnitude <= MaxAimOffset * MaxAimOffset
+                    ? input.AimFrom : head;
             }
         }
+
+        /// <summary>조준 시작점이 몸에서 떨어져 있어도 되는 한계(미터). 카메라가 뒤로 물러난 거리보다 넉넉하게.</summary>
+        const float MaxAimOffset = 8f;
 
         /// <summary>조준 방향(위아래 포함).</summary>
         public Vector3 AimForward { get { return AimRotation * Vector3.forward; } }

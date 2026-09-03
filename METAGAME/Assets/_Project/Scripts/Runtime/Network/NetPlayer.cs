@@ -65,6 +65,7 @@ namespace Metagame.Network
         // ── 서버 ────────────────────────────────────────────────
         InputFrame pending;          // 이 사람이 마지막으로 보낸 입력
         bool everReceived;           // 서버가 이 사람 입력을 한 번이라도 받았나(진단용)
+        string lastAim;              // 마지막으로 남긴 조준 상태(바뀔 때만 찍는다)
 
         // ── 클라이언트(내 것) ───────────────────────────────────
         InputFrame lastSent;
@@ -250,8 +251,29 @@ namespace Metagame.Network
             // 넘겨받은 몸(방장 자신)에는 넣지 않는다 — 위에서 적은 고리 때문이다.
             if (!adoptedBody) body.SetInput(frame);
 
+            ReportAim();
             JudgeProgress(Time.fixedDeltaTime);
             transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
+        }
+
+        /// <summary>
+        /// 서버가 이 사람의 조준을 어떻게 보고 있는지 남긴다. 바뀔 때만 찍는다.
+        ///
+        /// 참가자만 상호작용이 되지 않는 일이 있었는데, 서버가 대상을 못 잡는 것인지
+        /// 잡고도 실행이 막힌 것인지 구분할 방법이 없었다. 대상·탑승·기절을 함께 남기면
+        /// 그 자리에서 갈린다 — RefreshInteractionFocus 는 탑승·기절이면 대상을 비운다.
+        /// </summary>
+        void ReportAim()
+        {
+            if (body == null) return;
+
+            string now = $"{body.CurrentInteractionTarget.Kind}"
+                       + $"·탑승{(body.IsRiding ? "O" : "X")}"
+                       + $"·기절{(body.Downed ? "O" : "X")}";
+            if (now == lastAim) return;
+
+            lastAim = now;
+            Debug.Log($"[NetPlayer] 조준 · {nickname}(userId={userId}) · {now}");
         }
 
         /// <summary>
@@ -355,6 +377,10 @@ namespace Metagame.Network
             {
                 now.AimYaw = body.Cam.Yaw;
                 now.AimPitch = body.Cam.Pitch;
+
+                // 조준을 어디서 시작하는지도 보낸다. 각도만 보내면 서버는 몸에서 재게 되어
+                // 내 화면과 몇 미터 어긋난다 — 참가자가 눈앞의 부품을 못 잡던 이유다.
+                now.AimFrom = body.Cam.transform.position;
             }
 
             bool changed = !everSent || !Same(now, lastSent);
@@ -381,6 +407,9 @@ namespace Metagame.Network
                 && (a.Look - b.Look).sqrMagnitude < 0.0001f
                 && Mathf.Abs(Mathf.DeltaAngle(a.AimYaw, b.AimYaw)) < 1f
                 && Mathf.Abs(a.AimPitch - b.AimPitch) < 1f
+                // 조준 시작점도 늘 조금씩 흔들린다. 10cm 까지는 같은 것으로 본다 —
+                // 잡기 판정(보조 반경 1.1m)에 영향을 주지 않는 차이다.
+                && (a.AimFrom - b.AimFrom).sqrMagnitude < 0.01f
                 && a.Jump == b.Jump && a.Run == b.Run
                 && a.GrabLeft == b.GrabLeft && a.GrabRight == b.GrabRight
                 && a.ToolAction == b.ToolAction

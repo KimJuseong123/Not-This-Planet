@@ -89,8 +89,14 @@ namespace Metagame.Network
                 object holder = field.GetValue(transport);
                 if (holder == null) return null;              // 그쪽으로는 붙지 않았다
 
-                var state = holder.GetType().GetField("state", Where);
-                return state != null ? state.GetValue(holder)?.ToString() : null;
+                // 파생 클래스부터 훑는다. KcpClient 에도 state 가 있어서 그냥 찾으면
+                // 릴레이 상태 대신 KCP 접속 상태(Connected 등)가 잡힌다 — 우리가 볼 값이 아니다.
+                for (var t = holder.GetType(); t != null; t = t.BaseType)
+                {
+                    var state = t.GetField("state", Where | BindingFlags.DeclaredOnly);
+                    if (state != null) return state.GetValue(holder)?.ToString();
+                }
+                return null;
             }
             return null;
         }
