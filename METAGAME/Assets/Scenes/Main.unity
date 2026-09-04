@@ -168,6 +168,8 @@ MonoBehaviour:
   webSocketUrl: ws://127.0.0.1:8080/ws/game
   defaultNickname: "\uBE44\uD589\uC0AC"
   deviceIdOverride: 
+  lobbyBackgroundImage: {fileID: 0}
+  lobbyBackgroundVideo: {fileID: 0}
 --- !u!1001 &4307831
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1369,6 +1371,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 2890203517421186926, guid: 1b354e72e3c0aba4eb32252db99cfe2e, type: 3}
       insertIndex: -1
       addedObject: {fileID: 86143385}
+    - targetCorrespondingSourceObject: {fileID: 2890203517421186926, guid: 1b354e72e3c0aba4eb32252db99cfe2e, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 86143386}
   m_SourcePrefab: {fileID: 100100000, guid: 1b354e72e3c0aba4eb32252db99cfe2e, type: 3}
 --- !u!4 &86143383 stripped
 Transform:
@@ -1402,6 +1407,25 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 0}
+--- !u!114 &86143386
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 86143384}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0035cbf0efa4ccb4da5b62c29892682d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.Grabbable
+  Label: 
+  Climbable: 1
+  GripStrength: 1
+  Priority: 0
+  CanGrab: 1
+  PhysicsGrip: 0
+  Role: 0
 --- !u!4 &89041853 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 2789534746178464044, guid: 0ee1fc4e0208a7d43a4edf1004e8ab7f, type: 3}
@@ -6174,6 +6198,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 1441263903728317647, guid: 4269ad4a25a6d4d4b9663209c8387061, type: 3}
       insertIndex: -1
       addedObject: {fileID: 359477725}
+    - targetCorrespondingSourceObject: {fileID: 1441263903728317647, guid: 4269ad4a25a6d4d4b9663209c8387061, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 359477726}
   m_SourcePrefab: {fileID: 100100000, guid: 4269ad4a25a6d4d4b9663209c8387061, type: 3}
 --- !u!4 &359477723 stripped
 Transform:
@@ -6207,6 +6234,25 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 0}
+--- !u!114 &359477726
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 359477724}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0035cbf0efa4ccb4da5b62c29892682d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.Grabbable
+  Label: 
+  Climbable: 1
+  GripStrength: 1
+  Priority: 0
+  CanGrab: 1
+  PhysicsGrip: 0
+  Role: 0
 --- !u!1001 &374796197
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -6538,6 +6584,11 @@ Transform:
 Transform:
   m_CorrespondingSourceObject: {fileID: 2789534746178464044, guid: 0ee1fc4e0208a7d43a4edf1004e8ab7f, type: 3}
   m_PrefabInstance: {fileID: 1375121925}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &397976758 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3765318840711770380, guid: 0ff8161467430074ab8feb8d38aded0a, type: 3}
+  m_PrefabInstance: {fileID: 544308505}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &403601077
 PrefabInstance:
@@ -8469,6 +8520,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 4790503704565133843, guid: 3053c38f7c4ee734886d8c41692b6511, type: 3}
       insertIndex: -1
       addedObject: {fileID: 497377528}
+    - targetCorrespondingSourceObject: {fileID: 4790503704565133843, guid: 3053c38f7c4ee734886d8c41692b6511, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 497377529}
   m_SourcePrefab: {fileID: 100100000, guid: 3053c38f7c4ee734886d8c41692b6511, type: 3}
 --- !u!4 &497377526 stripped
 Transform:
@@ -8502,6 +8556,25 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 0}
+--- !u!114 &497377529
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 497377527}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0035cbf0efa4ccb4da5b62c29892682d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.Grabbable
+  Label: 
+  Climbable: 1
+  GripStrength: 1
+  Priority: 0
+  CanGrab: 1
+  PhysicsGrip: 0
+  Role: 0
 --- !u!1001 &498067871
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -9747,6 +9820,9 @@ PrefabInstance:
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 3765318840711770380, guid: 0ff8161467430074ab8feb8d38aded0a, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 544308507}
     - targetCorrespondingSourceObject: {fileID: 6223968077614241882, guid: 0ff8161467430074ab8feb8d38aded0a, type: 3}
       insertIndex: -1
       addedObject: {fileID: 423848182}
@@ -9756,6 +9832,25 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 7000975302312362816, guid: 0ff8161467430074ab8feb8d38aded0a, type: 3}
   m_PrefabInstance: {fileID: 544308505}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &544308507
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 397976758}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0035cbf0efa4ccb4da5b62c29892682d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.Grabbable
+  Label: 
+  Climbable: 1
+  GripStrength: 1
+  Priority: 0
+  CanGrab: 1
+  PhysicsGrip: 0
+  Role: 0
 --- !u!1001 &547525973
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -12542,6 +12637,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 5591574944096185781, guid: 2a254b794f3b5624face7c3c126c242b, type: 3}
       insertIndex: -1
       addedObject: {fileID: 733491661}
+    - targetCorrespondingSourceObject: {fileID: 5591574944096185781, guid: 2a254b794f3b5624face7c3c126c242b, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 733491662}
   m_SourcePrefab: {fileID: 100100000, guid: 2a254b794f3b5624face7c3c126c242b, type: 3}
 --- !u!4 &733491659 stripped
 Transform:
@@ -12575,6 +12673,25 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 0}
+--- !u!114 &733491662
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 733491660}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0035cbf0efa4ccb4da5b62c29892682d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.Grabbable
+  Label: 
+  Climbable: 1
+  GripStrength: 1
+  Priority: 0
+  CanGrab: 1
+  PhysicsGrip: 0
+  Role: 0
 --- !u!1001 &739978899
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -16345,6 +16462,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 1441263903728317647, guid: 4269ad4a25a6d4d4b9663209c8387061, type: 3}
       insertIndex: -1
       addedObject: {fileID: 943959314}
+    - targetCorrespondingSourceObject: {fileID: 1441263903728317647, guid: 4269ad4a25a6d4d4b9663209c8387061, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 943959315}
   m_SourcePrefab: {fileID: 100100000, guid: 4269ad4a25a6d4d4b9663209c8387061, type: 3}
 --- !u!4 &943959312 stripped
 Transform:
@@ -16378,6 +16498,25 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 0}
+--- !u!114 &943959315
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 943959313}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0035cbf0efa4ccb4da5b62c29892682d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.Grabbable
+  Label: 
+  Climbable: 1
+  GripStrength: 1
+  Priority: 0
+  CanGrab: 1
+  PhysicsGrip: 0
+  Role: 0
 --- !u!4 &948660351 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 2789534746178464044, guid: 0ee1fc4e0208a7d43a4edf1004e8ab7f, type: 3}
@@ -18992,6 +19131,11 @@ Transform:
 Transform:
   m_CorrespondingSourceObject: {fileID: 2789534746178464044, guid: 0ee1fc4e0208a7d43a4edf1004e8ab7f, type: 3}
   m_PrefabInstance: {fileID: 526175008}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &1075125939 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3765318840711770380, guid: 0ff8161467430074ab8feb8d38aded0a, type: 3}
+  m_PrefabInstance: {fileID: 1736230721}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &1075393978
 PrefabInstance:
@@ -24007,6 +24151,61 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 2789534746178464044, guid: 0ee1fc4e0208a7d43a4edf1004e8ab7f, type: 3}
   m_PrefabInstance: {fileID: 1307127513}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &1307270630
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1307270631}
+  - component: {fileID: 1307270632}
+  m_Layer: 13
+  m_Name: Handle_Collider
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1307270631
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1307270630}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0.27783442, y: -0.0591921, z: 0.33125836, w: 0.89976233}
+  m_LocalPosition: {x: 0.303, y: 0.268, z: 0.301}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2105819283}
+  m_LocalEulerAnglesHint: {x: -27.436, y: -19.112, z: 45.13}
+--- !u!136 &1307270632
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1307270630}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.1
+  m_Height: 0.6
+  m_Direction: 1
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1001 &1307793322
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -27847,6 +28046,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 4790503704565133843, guid: 3053c38f7c4ee734886d8c41692b6511, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1493325508}
+    - targetCorrespondingSourceObject: {fileID: 4790503704565133843, guid: 3053c38f7c4ee734886d8c41692b6511, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1493325509}
   m_SourcePrefab: {fileID: 100100000, guid: 3053c38f7c4ee734886d8c41692b6511, type: 3}
 --- !u!4 &1493325506 stripped
 Transform:
@@ -27880,6 +28082,25 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 0}
+--- !u!114 &1493325509
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1493325507}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0035cbf0efa4ccb4da5b62c29892682d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.Grabbable
+  Label: 
+  Climbable: 1
+  GripStrength: 1
+  Priority: 0
+  CanGrab: 1
+  PhysicsGrip: 0
+  Role: 0
 --- !u!4 &1495222138 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 2789534746178464044, guid: 0ee1fc4e0208a7d43a4edf1004e8ab7f, type: 3}
@@ -33843,6 +34064,9 @@ PrefabInstance:
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 3765318840711770380, guid: 0ff8161467430074ab8feb8d38aded0a, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1736230723}
     - targetCorrespondingSourceObject: {fileID: 6223968077614241882, guid: 0ff8161467430074ab8feb8d38aded0a, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1381660493}
@@ -33852,6 +34076,25 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 7000975302312362816, guid: 0ff8161467430074ab8feb8d38aded0a, type: 3}
   m_PrefabInstance: {fileID: 1736230721}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &1736230723
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1075125939}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0035cbf0efa4ccb4da5b62c29892682d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.Grabbable
+  Label: 
+  Climbable: 1
+  GripStrength: 1
+  Priority: 0
+  CanGrab: 1
+  PhysicsGrip: 0
+  Role: 0
 --- !u!1001 &1736322949
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -37617,6 +37860,61 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 2789534746178464044, guid: 0ee1fc4e0208a7d43a4edf1004e8ab7f, type: 3}
   m_PrefabInstance: {fileID: 2009019466}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &1904513657
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1904513658}
+  - component: {fileID: 1904513659}
+  m_Layer: 13
+  m_Name: Overall_Collider
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1904513658
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1904513657}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0.27783442, y: -0.0591921, z: 0.33125836, w: 0.89976233}
+  m_LocalPosition: {x: 0.007999897, y: 0.583, z: -0.0009999275}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2105819283}
+  m_LocalEulerAnglesHint: {x: -27.436, y: -19.112, z: 45.13}
+--- !u!136 &1904513659
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1904513657}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.2
+  m_Height: 1.8
+  m_Direction: 1
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1001 &1905365392
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -38770,6 +39068,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 4790503704565133843, guid: 3053c38f7c4ee734886d8c41692b6511, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1970702083}
+    - targetCorrespondingSourceObject: {fileID: 4790503704565133843, guid: 3053c38f7c4ee734886d8c41692b6511, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1970702084}
   m_SourcePrefab: {fileID: 100100000, guid: 3053c38f7c4ee734886d8c41692b6511, type: 3}
 --- !u!4 &1970702081 stripped
 Transform:
@@ -38803,6 +39104,25 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 0}
+--- !u!114 &1970702084
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1970702082}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0035cbf0efa4ccb4da5b62c29892682d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.Grabbable
+  Label: 
+  Climbable: 1
+  GripStrength: 1
+  Priority: 0
+  CanGrab: 1
+  PhysicsGrip: 0
+  Role: 0
 --- !u!1001 &1972103064
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -39234,6 +39554,25 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 0}
+--- !u!114 &2003073704
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2003073701}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0035cbf0efa4ccb4da5b62c29892682d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.Grabbable
+  Label: 
+  Climbable: 1
+  GripStrength: 1
+  Priority: 0
+  CanGrab: 1
+  PhysicsGrip: 0
+  Role: 0
 --- !u!1001 &2008285360
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -40827,6 +41166,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 4790503704565133843, guid: 3053c38f7c4ee734886d8c41692b6511, type: 3}
       insertIndex: -1
       addedObject: {fileID: 2003073703}
+    - targetCorrespondingSourceObject: {fileID: 4790503704565133843, guid: 3053c38f7c4ee734886d8c41692b6511, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2003073704}
   m_SourcePrefab: {fileID: 100100000, guid: 3053c38f7c4ee734886d8c41692b6511, type: 3}
 --- !u!1001 &2099440855
 PrefabInstance:
@@ -40914,6 +41256,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 602850239}
     m_Modifications:
+    - target: {fileID: 296463504008643616, guid: 3d5786d4b6c187e4db5ee2e6283066dd, type: 3}
+      propertyPath: m_Enabled
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 2806296892988998667, guid: 3d5786d4b6c187e4db5ee2e6283066dd, type: 3}
       propertyPath: m_LocalPosition.x
       value: 4
@@ -40958,9 +41304,16 @@ PrefabInstance:
       propertyPath: m_Name
       value: MeteorBat_Stage1
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 296463504008643616, guid: 3d5786d4b6c187e4db5ee2e6283066dd, type: 3}
     m_RemovedGameObjects: []
-    m_AddedGameObjects: []
+    m_AddedGameObjects:
+    - targetCorrespondingSourceObject: {fileID: 2806296892988998667, guid: 3d5786d4b6c187e4db5ee2e6283066dd, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1904513658}
+    - targetCorrespondingSourceObject: {fileID: 2806296892988998667, guid: 3d5786d4b6c187e4db5ee2e6283066dd, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1307270631}
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 3d5786d4b6c187e4db5ee2e6283066dd, type: 3}
 --- !u!4 &2105819283 stripped
