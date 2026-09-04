@@ -260,7 +260,10 @@ def test_health(gl: GitLab) -> str | None:
         return None
     job = max(jobs, key=lambda j: j.get("id") or 0)
     st = job.get("status")
-    if st in ("success", "running", "pending", "created", "manual", "skipped"):
+    # **실패만** 보고한다. 화이트리스트로 두면 `canceled` 가 실패로 새는데, GitLab 은 같은 ref 의
+    # 새 파이프라인을 만들 때 이전 파이프라인의 대기 잡을 자동 취소한다 — 배포 카드가 정확히 그 이유로
+    # 오탐을 냈다(-282 09-03 09:52 실측). 테스트가 취소된 것은 "테스트가 깨졌다" 는 정보가 아니다.
+    if st != "failed":
         return None
     where = job.get("web_url") or ""
     return (f"**🧪 오프라인 테스트 {st}** → @{INFRA_MM}\n\n"

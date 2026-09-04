@@ -69,7 +69,10 @@ assert 'CI_PIPELINE_SOURCE == "schedule"' in job("ci-tests"), "ci-tests 가 스�
 dg = job("mm-digest")
 assert "when: always" in dg, "mm-digest 가 when: always 가 아니다 — ci-tests 가 실패하면 카드가 안 나간다"
 assert "ci-tests" in needs_of("mm-digest"), "mm-digest 가 ci-tests 를 기다리지 않으면 결과를 실을 수 없다"
-print("  ③ 스케줄 테스트 + 실패해도 카드 발송 ✅")
+assert "when: always" in job("stack-order"), (
+    "stack-order 에 when: always 가 없다 — mr-overlap 이 실패하면 순서 강제가 조용히 건너뛰어진다. "
+    "only_allow_merge_if_pipeline_succeeds=false 라 빨간 파이프라인도 머지할 수 있다")
+print("  ③ 스케줄 테스트 + 실패해도 카드 발송 · 순서 강제는 항상 실행 ✅")
 
 # ── ④ 스풀 격리 회귀 검사가 살아 있다 (-252)
 assert "/spool" in job("repo-hygiene"), "repo-hygiene 에 스풀 격리 검사가 없다"
@@ -97,7 +100,10 @@ os.environ["CI_PIPELINE_ID"] = "178884"
 CASES["jobs"] = []
 assert D.test_health(gl) is None, "ci-tests 잡이 없으면 조용해야 한다"
 
-for quiet in ("success", "running", "pending", "created", "skipped", "manual"):
+# canceled 가 여기 들어 있는 것이 핵심이다. GitLab 이 중복 파이프라인의 대기 잡을 자동 취소하는데,
+# 그것을 실패로 세면 아침 카드 맨 위에 거짓 경고가 뜬다 — 배포 카드가 같은 이유로 오탐을 냈다(-282).
+for quiet in ("success", "running", "pending", "created", "skipped", "manual",
+              "canceled", "waiting_for_resource", "preparing", "scheduled"):
     CASES["jobs"] = [{"id": 1, "name": "ci-tests", "status": quiet, "web_url": "https://lab/j/1"}]
     assert D.test_health(gl) is None, f"{quiet} 인데 말을 했다"
 print("  ⑤ 통과·미완료는 조용함 ✅")

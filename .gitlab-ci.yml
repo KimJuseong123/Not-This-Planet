@@ -77,7 +77,12 @@ stack-order:              # 스택 자식은 부모가 develop 에 들어간 뒤
                           # 같은 스테이지에서 동시에 돌아 서로의 결과를 못 보고 같은 필드를 덮어쓴다(-289).
   rules:                  # mm-ci-failed 의 needs 에 **일부러 넣지 않는다** — 작성자가 무엇을 잘못한 것이
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"   # 아니라 아직 순서가 아닐 뿐이라, 🔴 카드 대신
-  script:                 # MR 코멘트로만 알린다. 하드 블록은 'Pipelines must succeed' 가 켜지면 생긴다.
+      when: always        # MR 코멘트로만 알린다. 하드 블록은 'Pipelines must succeed' 가 켜지면 생긴다.
+                          # when: always 가 없으면 mr-overlap 실패 시 이 잡이 **조용히 건너뛰어진다**.
+                          # only_allow_merge_if_pipeline_succeeds=false 라 빨간 파이프라인도 머지할 수
+                          # 있으므로, 그 순간 순서 강제가 통째로 사라진다. 순서는 needs 가 지키고
+                          # 실행은 when 이 보장한다.
+  script:
     - python scripts/ci/stack_order.py
 
 mr-overlap:               # 다른 열린 MR 과의 충돌을 MR 시점에 — 실제 3-way 머지 시험(git merge-tree), 나중 MR 이 조정
