@@ -82,7 +82,10 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
      잡이 `linux` 를 요구하므로 재개만으로는 안 받는다
   ② 러너 소유자(금준영): 내 PC 에서 관리자 PowerShell 로 `Start-Service gitlab-runner` (①의 태그 추가는 여전히 필요)
   ③ 팀장이 없을 때: `.gitlab-ci.yml` 의 `default.tags` 줄을 지우는 MR — 그러면 태그 없는 러너 아무 데서나 돈다.
-     `build-backend`·`deploy-backend` 는 잡에 태그가 박혀 있으니 그 줄도 함께 지워야 한다
+     `build-backend` 는 잡에 태그가 박혀 있으니 그 줄도 함께 지운다.
+     **`deploy-backend` 의 `tags: [deploy]` 는 절대 지우지 않는다**(-252). 지우면 그 잡이 무태그가 되어
+     스풀이 마운트된 배포 러너 밖으로 나가거나, 반대로 다른 잡이 배포 러너로 흘러든다.
+     배포는 팀장이 돌아온 뒤에 한다 — 비상 상황에 배포까지 밀어붙일 이유가 없다
   ④ EC2 쪽 1차 확인: `systemctl status gitlab-runner` · `journalctl -u gitlab-runner -n 50`
 
 - **EC2 러너 설치**: `sudo RUNNER_TOKEN=glrt-… bash scripts/runner/setup-linux-runner.sh` (토큰은 환경변수로만 — `read -rs` 로 받아 화면·히스토리에 남기지 않는다). 러너는 아웃바운드 443 만 쓰므로 **UFW 변경 불필요**.

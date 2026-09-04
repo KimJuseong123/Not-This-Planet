@@ -178,7 +178,10 @@ ai-review:                # 비차단. API 키(ANTHROPIC_API_KEY) 또는 러너 
 deploy-backend:           # develop 머지 뒤 **사람이 눌러서** 배포 (S15P21B202-141)
   stage: deploy           # 잡은 컨테이너 안이라 호스트 compose 를 못 부른다 → 스풀에 jar+RELEASE 를 놓고
   image: python:3.12      # 호스트의 systemd path 유닛이 deploy.sh 를 돌린다(도커 소켓 비노출, -139 결정)
-  tags: [linux]           # 스풀이 마운트된 EC2 러너에서만 의미가 있다
+  tags: [deploy]          # 배포 전용 러너(태그 deploy · Protected). 스풀은 이제 여기에만 마운트된다.
+                          # 공용 러너에 스풀이 있던 동안에는 아무 MR 이나 자기 브랜치의 .gitlab-ci.yml 에
+                          # /spool 에 쓰는 잡을 한 줄 넣어 배포를 쏠 수 있었다(S15P21B202-252).
+                          # 나머지 잡은 default.tags: [linux] 라 이 러너로 오지 않는다.
   needs: [build-backend]
   interruptible: false    # 배포 도중 취소되면 반쯤 적용된 상태가 남는다
   rules:
