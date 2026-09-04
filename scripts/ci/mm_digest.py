@@ -134,9 +134,25 @@ def _hdrs(gl: GitLab) -> dict:
     return gl.headers() if hasattr(gl, "headers") else gl._h()
 
 
+def ahead_of_develop(gl: GitLab, branch: str) -> int | None:
+    """그 브랜치에만 있고 develop 에는 없는 커밋 수. 조회 실패는 None(0 과 구분한다).
+
+    `0` = develop 에 이미 다 들어갔다(지우면 끝) · `>0` = 유실 후보. 이 구분이 없으면 둘을 같은
+    문구로 경고하게 되고, 그러면 사람이 카드를 안 읽는다(-282)."""
+    st, d = http("GET", f"{gl.api}/projects/{gl.project}/repository/compare"
+                        f"?from=develop&to={quote(branch, safe='')}&straight=true", _hdrs(gl))
+    if st != 200 or not isinstance(d, dict):
+        return None
+    return len(d.get("commits") or [])
+
+
 def resurrected_branches(gl: GitLab, days: int = 7, now=None) -> list[str]:
     """최근 N일 안에 머지된 MR 의 소스 브랜치가 **다시 존재**하면 표 행으로. 머지 후 같은 브랜치에 push 한 경우를 잡는다
-    (그렇게 push 하면 MR·파이프라인이 없어 조용히 유실된다 — S15P21B202-110)."""
+    (그렇게 push 하면 MR·파이프라인이 없어 조용히 유실된다 — S15P21B202-110).
+
+    **develop 에 없는 커밋 수를 함께 센다**(-282). 0 이면 브랜치만 남은 것이라 지우면 끝이고,
+    1 이상이면 그 커밋이 어디에도 없다 = 진짜 유실 후보다. 실측 예: `-126` 은 0, `-74` 는
+    `Main.unity` 126줄을 포함해 >0 이었는데 카드가 둘을 똑같이 경고했다."""
     mrs, _ = gl.merged_mrs(days, now=now)
     rows = []
     for mr in mrs:
@@ -148,7 +164,14 @@ def resurrected_branches(gl: GitLab, days: int = 7, now=None) -> list[str]:
             continue
         author = ((d.get("commit") or {}).get("author_name")) or (mr.get("author") or {}).get("username", "?")
         mention = next((f"@{m['mm']}" for m in TEAM["members"] if m["name"] == author or m["gitlab"] == author), author)
-        rows.append(f"| `{br}` | [!{mr['iid']}]({mr['web_url']}) | {mention} |")
+        ahead = ahead_of_develop(gl, br)
+        if ahead is None:
+            what = "⁇ 확인 실패"
+        elif ahead == 0:
+            what = "0 — 지우면 끝"
+        else:
+            what = f"**{ahead}개 — develop 에 없음**"
+        rows.append(f"| `{br}` | [!{mr['iid']}]({mr['web_url']}) | {what} | {mention} |")
     return rows
 
 
@@ -194,12 +217,21 @@ DEPLOY_JOB = "deploy-backend"
 DEPLOY_SCAN_PIPELINES = 20      # develop 파이프라인 몇 건까지 거슬러 볼지
 
 
+KST = timezone(timedelta(hours=9))
+
+
+def now_kst() -> str:
+    """카드 헤더용 현재 시각(KST). naive datetime.now() 를 쓰면 EC2 컨테이너 TZ 가 UTC 라
+    09:33 발송 카드에 '00:33' 이 찍힌다 — 09-01·02·03 사흘 연속 그렇게 나갔다(-282)."""
+    return datetime.now(KST).strftime("%m/%d %H:%M")
+
+
 def kst(iso: str | None) -> str:
     """GitLab 이 주는 UTC ISO 문자열을 한국 시간 표시로. 팀이 읽는 시각이 KST 다."""
     if not iso:
         return "?"
     try:
-        t = datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(timezone(timedelta(hours=9)))
+        t = datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(KST)
         return t.strftime("%m/%d %H:%M")
     except ValueError:
         return "?"
@@ -228,7 +260,12 @@ def deploy_state(gl: GitLab, ref: str = "develop") -> dict:
     둘을 섞으면 실패한 커밋이 배포된 것처럼 읽힌다."""
     jobs, complete = deploy_jobs(gl, ref)
     live = next((j for j in jobs if j.get("status") == "success"), None)
-    attempt = next((j for j in jobs if j.get("status") != "manual"), None)
+    # 시작조차 안 한 canceled 는 배포 시도가 아니다. GitLab 이 같은 ref 의 새 파이프라인을 만들 때
+    # 이전 파이프라인의 대기 잡을 자동 취소하는데(09-03 09:52 실측: 177699 의 잡이 177702 생성
+    # 0.2초 뒤 canceled, started_at=None), 그걸 시도로 세면 "배포가 취소로 남아 있다" 오탐이 난다.
+    attempt = next((j for j in jobs
+                    if j.get("status") != "manual"
+                    and not (j.get("status") == "canceled" and not j.get("started_at"))), None)
     pending = 0
     for j in jobs:                      # 마지막 시도보다 새로운 '눌리지 않은' 배포 = 배포 대기
         if j.get("status") != "manual":
@@ -326,7 +363,7 @@ def main() -> int:
             if res:
                 blocks.append(f"**🌿 머지 뒤 다시 생긴 브랜치** ({len(res)}) — 머지된 브랜치에 다시 push 하면 MR·파이프라인 없이 조용히 남습니다. "
                               f"후속 작업은 새 이슈·새 브랜치로, 남은 브랜치는 삭제하세요\n\n"
-                              f"| 브랜치 | 머지된 MR | 마지막 커밋 |\n|---|---|---|\n" + "\n".join(res))
+                              f"| 브랜치 | 머지된 MR | develop 에 없는 커밋 | 담당 |\n|---|---|---|---|\n" + "\n".join(res))
             note = f"\n_⚠ 목록이 페이지 상한에서 끊겨 일부가 빠졌을 수 있음 — @{INFRA_MM} 확인_" if not complete else ""
             if rows:   # 매칭이 없으면 블록 없음(잘림 경고도 각주로만) — "항목 없으면 보내지 않는다" 유지
                 blocks.append(f"**🔗 머지됐는데 완료 안 된 이슈** ({len(rows)}) — develop 으로 머지됐으니 자동 완료(R6)가 걸려야 했다. 담당자가 완료로 옮기면 허용됨(머지된 MR 있음)\n\n"
@@ -355,7 +392,7 @@ def main() -> int:
     if not blocks:
         print("보낼 항목 없음"); return 0
     tail = deploy_line(dep) if (gl.token and gl.project) else ""
-    text = f"📋 **아침 점검 — 확인 필요** ({datetime.now().strftime('%m/%d %H:%M')})\n" + "\n\n".join(blocks) + \
+    text = f"📋 **아침 점검 — 확인 필요** ({now_kst()})\n" + "\n\n".join(blocks) + \
            (f"\n\n{tail}" if tail else "") + \
            f"\n\n_각 항목의 @담당자가 처리 · 규칙: docs/leader-checklist.md · 자동 생성(mm-digest)_"
     st, d = http("POST", url, body={"text": text, "username": "METAGAME 봇"})
