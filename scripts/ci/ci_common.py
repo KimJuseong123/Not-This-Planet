@@ -348,6 +348,15 @@ class GitLab:
                      self._h())
         return d if st == 200 and isinstance(d, list) else []
 
+    def job_artifact_text(self, job_id: int | str, path: str) -> str | None:
+        """잡 아티팩트 한 개를 텍스트로. 없거나 못 읽으면 None.
+
+        http() 는 JSON 파싱에 실패하면 본문 문자열을 그대로 돌려주므로 XML 도 이걸로 읽힌다.
+        (-271: 대상 브랜치의 마지막 Unity 결과를 기준선으로 쓰는 데 필요하다)"""
+        st, d = http("GET", f"{self.api}/projects/{self.project}/jobs/{job_id}/artifacts/{path}",
+                     self._h())
+        return d if st == 200 and isinstance(d, str) and d.strip() else None
+
     def open_mrs(self) -> list[dict]:
         st, d = http("GET", f"{self.api}/projects/{self.project}/merge_requests?state=opened&per_page=100",
                      self._h())

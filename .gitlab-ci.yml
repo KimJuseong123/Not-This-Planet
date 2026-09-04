@@ -43,6 +43,12 @@ default:
 variables:
   GIT_DEPTH: "0"          # repo-hygiene 가 diff base 까지 필요
   PYTHONUTF8: "1"
+  # Unity 의 Library(2.2GB)를 잡 사이에 남긴다 — 콜드 임포트가 7분 30초인데 증분이면 훨씬 짧다.
+  # **전역이어야 한다**: 도커 실행기의 빌드 디렉터리는 그 슬롯의 **모든 잡이 공유**하므로,
+  # unity-compile 에만 예외를 주면 다음에 그 슬롯에서 도는 mr-lint 가 예외 없는
+  # git clean -ffdx 로 Library 를 지운다(2026-09-02 실측: 슬롯 2개 중 1개만 남았다).
+  # 다른 잡에는 무해하다 — Library 는 .gitignore 대상이고 검사들은 git diff 로만 판단한다.
+  GIT_CLEAN_FLAGS: -ffdx -e METAGAME/Library
 
 # ── 1단계 ────────────────────────────────────────────────────────────────
 mr-title:                 # Jira 이슈 기준으로 [Part]·type·(KEY) 자동 보정. 토큰 없으면 제안만 출력
@@ -152,21 +158,72 @@ repo-hygiene:             # 금지 파일·.meta 짝·에셋 위치·대용량 �
     - python scripts/ci/repo_hygiene.py
 
 # ── 2단계 ────────────────────────────────────────────────────────────────
-unity-compile:            # Unity 설치 Windows 러너에서만. UNITY_RUNNER=true 로 켬
-  stage: test
-  tags: [unity-win]
+unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도커 러너 (S15P21B202-271)
+  stage: test             # 이 잡이 없던 동안 검사가 0건이었다: CI 이력 잡 2,583건 중 unity-compile 0건.
+  # GameCI 이미지에 에디터·xvfb·라이선스 클라이언트가 다 들어 있다. 태그는 프로젝트 버전과 같아야 한다
+  # (다르면 batchmode 가 프로젝트를 조용히 업그레이드한다) — METAGAME/ProjectSettings/ProjectVersion.txt 와 맞춘다.
+  image: unityci/editor:ubuntu-6000.5.4f1-base-3.2.2
+  tags: [linux]
   needs: []
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $UNITY_RUNNER == "true"
-  allow_failure: true     # 안정화 후 false 로
+    # 자동 실행한다. 실측(2026-09-02): 콜드 8분 16초 → **웜 70초**(임포트 64초 + 테스트 20초).
+    # Library 2.2GB 가 슬롯에 남아 증분 임포트가 되기 때문이다. 슬롯이 비워지면 다시 8분이 든다.
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: ["METAGAME/**/*", ".gitlab-ci.yml"]
+    # 머지 직후에도 돈다 — 개별 MR 은 통과했는데 합쳐서 깨지는 경우를 잡는다.
+    # 09-02 사고는 감지까지 2시간 37분이 걸렸다(그 사이 develop 머지 0건). 이 규칙이면 2분이다.
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
+      changes: ["METAGAME/**/*"]
+  allow_failure: true     # 실측(잡 478077): 컴파일 통과, EditMode 647개 중 17개 실패.
+  timeout: 90m            # 실패가 정리되면 false 로 바꾼다.
+  # 동시에 두 개가 돌지 않게 한다. 러너가 concurrent 2 · vCPU 4 인데 Unity 임포트는 CPU·IO 를
+  # 다 쓴다 — 두 개가 겹치면 서로 느려지고 가벼운 검사들이 굶는다.
+  resource_group: unity
   script:
-    - '& "$env:UNITY_PATH" -batchmode -nographics -projectPath METAGAME -runTests -testPlatform EditMode -testResults "$env:CI_PROJECT_DIR\unity-results.xml" -logFile "$env:CI_PROJECT_DIR\unity.log"'
-    - 'if ($LASTEXITCODE -ne 0) { Get-Content "$env:CI_PROJECT_DIR\unity.log" | Select-String -Pattern "error CS|Exception" | Select-Object -First 40; exit $LASTEXITCODE }'
+    # 라이선스는 CI 변수가 아니라 러너 마운트로 온다(config.toml volumes). 환경변수가 아니라서
+    # 로그로 새어나갈 경로가 없고, MR 이 보호 브랜치가 아니어서 Protected 변수를 못 읽는 문제도 피한다.
+    - LIC=/root/.local/share/unity3d/Unity/Unity_lic.ulf
+    - |
+      if [ ! -s "$LIC" ]; then
+        echo "❌ Unity 라이선스가 마운트되지 않았다: $LIC"
+        echo "   EC2 러너 config.toml 의 volumes 에 아래가 있어야 한다 (S15P21B202-271):"
+        echo "   /home/ubuntu/unity-license/Unity_lic.ulf:/root/.local/share/unity3d/Unity/Unity_lic.ulf:ro"
+        exit 1
+      fi
+    # 만료를 미리 알린다 — 이 .ulf 는 time-limited 엔타이틀먼트다(갱신: --update-ulf).
+    - CLIENT=/opt/unity/Editor/Data/Resources/Licensing/Client/Unity.Licensing.Client
+    - '"$CLIENT" --showEntitlements 2>&1 | grep -E "Product Name|Expiration Date|com.unity.editor.headless" || true'
+    - echo "=== 임포트 + 컴파일 + EditMode 테스트 시작 ==="
+    - date -u +"시작 %H:%M:%S UTC"
+    # unity-editor 래퍼가 xvfb-run 과 -batchmode 를 붙여 준다(이미지 실측) — 여기서 또 주지 않는다.
+    # -nographics 도 주지 않는다: xvfb 가 있어 URP 셰이더 관련 임포트가 정상적으로 돈다.
+    - |
+      set +e
+      unity-editor \
+        -projectPath METAGAME \
+        -runTests -testPlatform EditMode \
+        -testResults "$CI_PROJECT_DIR/unity-results.xml" \
+        -logFile "$CI_PROJECT_DIR/unity.log"
+      RC=$?
+      set -e
+      date -u +"종료 %H:%M:%S UTC (exit $RC)"
+      echo "$RC" > "$CI_PROJECT_DIR/unity-rc.txt"
+    # 결과를 MR 에서 보이게 한다 (S15P21B202-271):
+    #   · NUnit3 → JUnit 변환. Unity 형식을 GitLab 이 못 읽어 reports: junit 이 **조용히 0건**이었다
+    #     (2026-09-02 실측: test_report_summary total 0). 변환하면 MR 테스트 위젯이 살아난다
+    #   · 대상 브랜치의 마지막 결과와 비교해 **이 MR 이 만든 실패만** 코멘트로 남긴다.
+    #     기존 실패(현재 17개)는 담당자가 고치는 중이라 나열하지 않는다 — 매번 나열하면 읽지 않게 된다
+    #   · 컴파일이 깨졌으면 error CS 줄을 코멘트 맨 위에 싣는다
+    # 이미지에 python3 3.10 이 있다(실측). 잡이 실패로 끝나도 보고는 남아야 하므로 exit 앞에 둔다.
+    - python3 scripts/ci/unity_report.py "$CI_PROJECT_DIR/unity-results.xml" "$CI_PROJECT_DIR/unity.log"
+    - exit "$(cat "$CI_PROJECT_DIR/unity-rc.txt")"
   artifacts:
     when: always
-    paths: [unity-results.xml, unity.log]
+    expire_in: 3 days
+    paths: [unity-results.xml, unity-junit.xml, unity.log]
     reports:
-      junit: unity-results.xml
+      # Unity 가 낸 NUnit3 가 아니라 변환한 JUnit 을 올린다 — 전자는 GitLab 이 0건으로 읽는다.
+      junit: unity-junit.xml
 
 build-backend:            # 백엔드 jar — MR 에서는 컴파일 검사, develop 머지에서는 배포용 산출물 (S15P21B202-140)
   stage: test             # 지금까지 백엔드는 MR 시점 빌드 검사가 아예 없었다
