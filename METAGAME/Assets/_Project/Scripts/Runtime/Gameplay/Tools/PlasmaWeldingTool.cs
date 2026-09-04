@@ -36,10 +36,9 @@ namespace Metagame.Gameplay
         [SerializeField] float beamWidth = 0.035f;
         [SerializeField] int beamMask = ~0;
 
-        [Header("1인칭 휴대 포즈")]
-        [SerializeField] Vector3 heldVisualLocalPosition = new Vector3(0.7f, -0.9f, 0.25f);
-        [SerializeField] Vector3 heldVisualLocalEuler = new Vector3(-90f, -80f, 10f);
-        [SerializeField] Vector3 heldVisualLocalScale = Vector3.one;
+        [Header("장착 기준점")]
+        [Tooltip("비우면 AttachPoints/HandGrip 자식을 자동으로 찾습니다.")]
+        [SerializeField] Transform handGrip;
 
         const int RaycastBufferSize = 32;
         readonly RaycastHit[] hits = new RaycastHit[RaycastBufferSize];
@@ -92,6 +91,18 @@ namespace Metagame.Gameplay
             {
                 return BeamMode == PlasmaBeamMode.Cut ? cutColor : weldColor;
             }
+        }
+
+        protected override void Awake()
+        {
+            base.Awake();
+            ResolveHandGrip();
+        }
+
+        protected override void OnValidate()
+        {
+            base.OnValidate();
+            ResolveHandGrip();
         }
 
         protected override void OnEquipped()
@@ -291,7 +302,8 @@ namespace Metagame.Gameplay
         void ApplyHeldVisualPose()
         {
             ResolveHeldVisual();
-            if (heldVisual == null) return;
+            ResolveHandGrip();
+            if (heldVisual == null || handGrip == null) return;
 
             if (!droppedVisualPoseCaptured)
             {
@@ -301,9 +313,10 @@ namespace Metagame.Gameplay
                 droppedVisualPoseCaptured = true;
             }
 
-            heldVisual.SetLocalPositionAndRotation(
-                heldVisualLocalPosition, Quaternion.Euler(heldVisualLocalEuler));
-            heldVisual.localScale = heldVisualLocalScale;
+            // 장착 포즈는 별도 숫자 세트가 아니라 HandGrip 마커를 단일 기준으로 사용한다.
+            // 씬/프리팹에서 HandGrip을 조정하면 다음 장착 시 보이는 모델도 같은 포즈를 따른다.
+            heldVisual.SetLocalPositionAndRotation(handGrip.localPosition, handGrip.localRotation);
+            heldVisual.localScale = handGrip.localScale;
 
             // 자세가 바뀌면 끝점도 따라와야 한다(S15P21B202-277).
             ResolveNozzleTip(heldVisual.forward);
@@ -325,7 +338,7 @@ namespace Metagame.Gameplay
         ///
         /// <b>프리팹의 <c>AttachPoints/Muzzle</c> 은 임시 총에 맞춰 놓은 값이었다.</b>
         /// 장착하면 <see cref="ApplyHeldVisualPose"/> 가 <c>ReplacementModel</c> 아래의
-        /// 실제 모델만 (0.7, -0.9, 0.25) 로 옮기고 90도 돌리는데, Muzzle 은 그 모델의
+        /// 실제 모델을 <c>HandGrip</c>의 로컬 포즈로 옮기는데, Muzzle 은 그 모델의
         /// 형제라 제자리에 남는다. 두 점의 거리가 <b>1.34m</b> 이고
         /// <see cref="Tuning.ToolBeamRange"/> 는 0.80m 이므로, <b>보이는 총이 닿는 곳과
         /// 빔이 닿는 곳이 겹칠 수가 없었다.</b>
@@ -381,6 +394,12 @@ namespace Metagame.Gameplay
                 if (replacement != null && replacement.childCount > 0)
                     heldVisual = replacement.GetChild(0);
             }
+        }
+
+        void ResolveHandGrip()
+        {
+            if (handGrip != null) return;
+            handGrip = transform.Find("AttachPoints/HandGrip");
         }
 
         bool IsOwnedCollider(Collider collider)

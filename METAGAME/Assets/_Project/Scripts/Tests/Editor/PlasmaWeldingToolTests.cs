@@ -124,12 +124,21 @@ namespace Metagame.Gameplay.Tests
             var tool = CreateTool(out _);
             var visual = tool.transform.Find(
                 "AttachPoints/ReplacementModel/SF_Stage1_PlasmaWeldingGun");
+            var handGrip = tool.transform.Find("AttachPoints/HandGrip");
             Assert.IsNotNull(visual);
+            Assert.IsNotNull(handGrip);
 
-            Assert.That(visual.localPosition, Is.EqualTo(new Vector3(0.7f, -0.9f, 0.25f)));
-            Assert.That(Quaternion.Angle(
-                visual.localRotation,
-                Quaternion.Euler(-90f, -80f, 10f)), Is.LessThan(0.01f));
+            var heldPosition = new Vector3(0.7f, -0.9f, 0.25f);
+            var heldRotation = Quaternion.Euler(-90f, -80f, 10f);
+            handGrip.localPosition = heldPosition;
+            handGrip.localRotation = heldRotation;
+            handGrip.localScale = new Vector3(0.9f, 1.1f, 1.2f);
+            tool.Equip(null, tool.GetComponent<Rigidbody>());
+
+            Assert.That(visual.localPosition, Is.EqualTo(handGrip.localPosition));
+            Assert.That(Quaternion.Angle(visual.localRotation, handGrip.localRotation),
+                        Is.LessThan(0.01f));
+            Assert.That(visual.localScale, Is.EqualTo(handGrip.localScale));
 
             tool.Unequip();
 
@@ -155,6 +164,9 @@ namespace Metagame.Gameplay.Tests
             var visual = new GameObject("SF_Stage1_PlasmaWeldingGun").transform;
             visual.SetParent(replacement, false);
             visual.localPosition = new Vector3(0f, -0.5f, 0.25f);
+
+            var handGrip = new GameObject("HandGrip").transform;
+            handGrip.SetParent(attachPoints, false);
 
             muzzle = new GameObject("Muzzle").transform;
             muzzle.SetParent(attachPoints, false);

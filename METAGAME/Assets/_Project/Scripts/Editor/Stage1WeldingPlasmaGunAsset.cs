@@ -321,6 +321,7 @@ namespace Metagame.EditorTools
 
             var plasma = root.AddComponent<PlasmaWeldingTool>();
             AssignMuzzle(plasma, muzzle);
+            AssignHandGrip(plasma, anchors.transform.Find("HandGrip"));
 
             var saved = PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
             Object.DestroyImmediate(root);
@@ -337,6 +338,7 @@ namespace Metagame.EditorTools
 
                 var muzzle = root.transform.Find("AttachPoints/Muzzle");
                 AssignMuzzle(plasma, muzzle);
+                AssignHandGrip(plasma, root.transform.Find("AttachPoints/HandGrip"));
                 PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
             }
             finally
@@ -395,6 +397,7 @@ namespace Metagame.EditorTools
             var plasma = root.GetComponent<PlasmaWeldingTool>();
             if (plasma == null) plasma = root.AddComponent<PlasmaWeldingTool>();
             AssignMuzzle(plasma, anchors.Find("Muzzle"));
+            AssignHandGrip(plasma, anchors.Find("HandGrip"));
         }
 
         static Material[] CreateProductionMaterials()
@@ -504,6 +507,18 @@ namespace Metagame.EditorTools
             if (property == null) return;
 
             property.objectReferenceValue = muzzle;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        static void AssignHandGrip(PlasmaWeldingTool tool, Transform handGrip)
+        {
+            if (tool == null || handGrip == null) return;
+
+            var serialized = new SerializedObject(tool);
+            var property = serialized.FindProperty("handGrip");
+            if (property == null) return;
+
+            property.objectReferenceValue = handGrip;
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 
