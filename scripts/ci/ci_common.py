@@ -316,6 +316,21 @@ class GitLab:
         st, d = http("GET", f"{self.api}/projects/{self.project}/merge_requests/{iid}/pipelines", self._h())
         return d if st == 200 and isinstance(d, list) else None
 
+    def mr_notes(self, iid: int | str) -> list[dict] | None:
+        """다른 MR 의 노트(최신 우선). `notes()` 는 이 파이프라인의 MR 만 본다.
+        조회 실패는 None — '노트가 없다' 와 '못 물어봤다' 를 섞으면 없는 경보를 만들어 낸다."""
+        st, d = http("GET", f"{self.api}/projects/{self.project}/merge_requests/{iid}"
+                            f"/notes?per_page=100&sort=desc", self._h())
+        return d if st == 200 and isinstance(d, list) else None
+
+    def create_mr_pipeline(self, iid: int | str) -> tuple[int, object]:
+        """그 MR 에 파이프라인을 새로 만든다(merge request 파이프라인).
+
+        GitLab 은 부모 브랜치 삭제로 자식 MR 을 자동 재대상할 때 **파이프라인을 만들지 않는다**
+        (2026-09-02~04 실측 16건 중 14건). 그러면 자식에 남은 마지막 결과가 **부모 위에서 돈 것**인데
+        초록으로 보인다 — S15P21B202-295."""
+        return http("POST", f"{self.api}/projects/{self.project}/merge_requests/{iid}/pipelines", self._h())
+
     def branch_pipelines(self, ref: str = "develop", per_page: int = 20) -> list[dict]:
         """브랜치의 파이프라인 목록(최신 우선). 조회 실패는 빈 목록 — 부르는 쪽이 '못 물어봤다' 를
         구분해야 하면 완전탐색 플래그로 받는다(deploy_history 가 그렇게 한다)."""
