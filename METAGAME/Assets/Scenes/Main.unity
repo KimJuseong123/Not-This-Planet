@@ -14583,7 +14583,7 @@ Transform:
   m_GameObject: {fileID: 866792720}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.159, y: 0.609, z: 0.68}
+  m_LocalPosition: {x: -0.32, y: 0.609, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -22204,7 +22204,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1647507256391323903, guid: c505667f5fafee649bad44427d301e90, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -0.159
+      value: -0.32
       objectReference: {fileID: 0}
     - target: {fileID: 1647507256391323903, guid: c505667f5fafee649bad44427d301e90, type: 3}
       propertyPath: m_LocalPosition.y
@@ -22212,7 +22212,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1647507256391323903, guid: c505667f5fafee649bad44427d301e90, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0.68
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1647507256391323903, guid: c505667f5fafee649bad44427d301e90, type: 3}
       propertyPath: m_LocalRotation.w
@@ -22358,7 +22358,7 @@ PrefabInstance:
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 5491623808448466414, guid: c505667f5fafee649bad44427d301e90, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 1570440507}
+      addedObject: {fileID: 0}
   m_SourcePrefab: {fileID: 100100000, guid: c505667f5fafee649bad44427d301e90, type: 3}
 --- !u!4 &1212651062
 Transform:
@@ -28823,7 +28823,7 @@ GameObject:
   - component: {fileID: 1570440510}
   - component: {fileID: 1570440509}
   - component: {fileID: 1570440508}
-  - component: {fileID: 1570440507}
+  - component: {fileID: 1570440511}
   m_Layer: 13
   m_Name: WeldingPlasmaGun_Stage1
   m_TagString: Untagged
@@ -28831,29 +28831,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!136 &1570440507
-CapsuleCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1570440503}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 2
-  m_Radius: 0.3
-  m_Height: 0.8
-  m_Direction: 1
-  m_Center: {x: 0.8, y: -0.3, z: 0.2}
 --- !u!114 &1570440508
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -28919,6 +28896,29 @@ Rigidbody:
   m_Interpolate: 1
   m_Constraints: 0
   m_CollisionDetection: 3
+--- !u!136 &1570440511
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1570440503}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.5
+  m_Height: 1
+  m_Direction: 1
+  m_Center: {x: 0, y: 1, z: 0}
 --- !u!1001 &1572756671
 PrefabInstance:
   m_ObjectHideFlags: 0
