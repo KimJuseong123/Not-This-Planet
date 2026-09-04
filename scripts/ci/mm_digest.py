@@ -237,6 +237,37 @@ def kst(iso: str | None) -> str:
         return "?"
 
 
+TEST_JOB = "ci-tests"
+
+
+def test_health(gl: GitLab) -> str | None:
+    """이 스케줄 파이프라인의 `ci-tests` 결과. **통과했으면 아무 말도 하지 않는다.**
+
+    스케줄에서 테스트를 돌리는 이유는 코드가 안 바뀌어도 시간이 흘러 깨지는 것을 잡기 위해서다 —
+    `-281` 이 그랬다(픽스처 08-27 고정 vs `now-7일` 창 → 09-03 17:06 KST 에 저절로 실패,
+    그 뒤 `scripts/ci` 를 건드린 MR 이 없어 사흘 가까이 아무도 몰랐다). 돌기만 하고 아무도 안 보면
+    의미가 없으므로 실패했을 때만 카드에 싣는다.
+
+    아직 안 끝난 상태(running/pending)는 **아무 말도 하지 않는다** — 거짓 경고를 내지 않는 쪽이 낫다."""
+    pid = env("CI_PIPELINE_ID")
+    if not pid:
+        return None
+    try:
+        jobs = [j for j in gl.pipeline_jobs(pid) if j.get("name") == TEST_JOB]
+    except Exception as e:  # noqa: BLE001
+        return f"**🧪 오프라인 테스트 결과를 못 읽었습니다** → @{INFRA_MM} ({type(e).__name__})"
+    if not jobs:
+        return None
+    job = max(jobs, key=lambda j: j.get("id") or 0)
+    st = job.get("status")
+    if st in ("success", "running", "pending", "created", "manual", "skipped"):
+        return None
+    where = job.get("web_url") or ""
+    return (f"**🧪 오프라인 테스트 {st}** → @{INFRA_MM}\n\n"
+            f"코드가 안 바뀌어도 시간이 흐르면 깨질 수 있습니다(`-281`). "
+            f"[{TEST_JOB} 로그]({where}) 를 보고 오늘 안에 고쳐 주세요.")
+
+
 def deploy_jobs(gl: GitLab, ref: str = "develop", max_pipelines: int = DEPLOY_SCAN_PIPELINES) -> tuple[list[dict], bool]:
     """develop 파이프라인을 최신부터 훑어 배포 잡을 모은다(최신 우선). 반환 (잡 목록, 전량 확인 여부).
 
@@ -314,6 +345,9 @@ def main() -> int:
     else:
         blocks.append("_(JIRA_USER/JIRA_API_TOKEN 없음 — Jira 항목 생략)_")
     if gl.token and gl.project:
+        th = test_health(gl)
+        if th:
+            blocks.insert(0, th)      # 인프라가 깨졌으면 맨 위에 — 나머지 항목의 신뢰도가 여기에 달려 있다
         now = datetime.now(timezone.utc)
         old = []
         for mr in gl.open_mrs():
