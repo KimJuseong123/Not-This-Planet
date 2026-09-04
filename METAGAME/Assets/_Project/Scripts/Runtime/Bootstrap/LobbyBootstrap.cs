@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Video;
 using Metagame.Network;
 using Metagame.UI;
 
@@ -27,7 +28,12 @@ namespace Metagame.Bootstrap
         [Tooltip("비워 두면 설치별 PlayerPrefs GUID를 사용합니다.")]
         [SerializeField] private string deviceIdOverride;
 
+        [Header("Lobby Visuals")]
+        [SerializeField] private Texture2D lobbyBackgroundImage;
+        [SerializeField] private VideoClip lobbyBackgroundVideo;
+
         private NetworkSession network;
+        private LobbyTransition transition;
         private bool joiningMatch;
 
         void Awake()
@@ -48,11 +54,15 @@ namespace Metagame.Bootstrap
             network.Configure(httpBaseUrl, webSocketUrl);
             network.GameStarted += EnterMatch;
 
+            transition = LobbyTransition.Ensure();
+            transition.Failed += OnTransitionFailed;
+
             // 같은 오브젝트가 재활성·재초기화되면 HUD 가 두 개 붙는다(전수 AI 리뷰 지적, S15P21B202-136).
             // ?? 는 UnityEngine.Object 의 == 오버로드를 우회하므로 쓰지 않고 == null 로 검사한다.
             var hud = GetComponent<LobbyHud>();
             if (hud == null) hud = gameObject.AddComponent<LobbyHud>();
-            hud.Initialize(network, defaultNickname, deviceIdOverride, defaultServerAddress);
+            hud.Initialize(network, defaultNickname, deviceIdOverride, defaultServerAddress,
+                lobbyBackgroundImage, lobbyBackgroundVideo);
         }
 
         /// <summary>
@@ -92,11 +102,23 @@ namespace Metagame.Bootstrap
         {
             if (joiningMatch) return;
 
+            joiningMatch = true;
+            var transition = LobbyTransition.Ensure();
+            if (!transition.BeginNetwork(StartMirrorMatch))
+                joiningMatch = false;
+        }
+
+        /// <summary>
+        /// 로비 fade가 끝난 뒤 호출되는 실제 Mirror 시작 부분.
+        /// UI 연출과 네트워크 초기화를 분리해 화면이 먼저 검게 덮이도록 한다.
+        /// </summary>
+        private bool StartMirrorMatch()
+        {
             var manager = Mirror.NetworkManager.singleton;
             if (manager == null)
             {
                 Debug.LogError("[LobbyBootstrap] NetworkManager 가 없어 매치에 들어갈 수 없다.", this);
-                return;
+                return false;
             }
 
             // 게임 서버가 Spring 에 물어볼 때 쓸 값. 토큰은 여기 말고 어디에도 남기지 않는다.
@@ -119,10 +141,9 @@ namespace Metagame.Bootstrap
             // 물리와 판정이 내 PC 에서 돌고, 참가자들이 나에게 붙는다.
             if (network.IsRoomHost)
             {
-                joiningMatch = true;
                 manager.StartHost();
                 Debug.Log("[LobbyBootstrap] 방장이므로 이 PC 가 게임 서버가 된다.");
-                return;
+                return true;
             }
 
             // 참가자는 방장이 알려 준 곳으로 붙는다. 그 값이 없으면(주소를 안 싣는 옛
@@ -132,18 +153,26 @@ namespace Metagame.Bootstrap
             if (string.IsNullOrEmpty(host)) host = "127.0.0.1";
             manager.networkAddress = host;
 
-            joiningMatch = true;
             manager.StartClient();
             // 릴레이를 탈 때는 이 주소를 쓰지 않는다 — 전송이 릴레이 주소로 붙는다.
             Debug.Log(network.MatchRelay.HasValue
                 ? "[LobbyBootstrap] 참가자로 릴레이를 거쳐 붙는다."
                 : "[LobbyBootstrap] 참가자로 " + host + " 에 직접 붙는다.");
+            return true;
         }
 
         void OnDestroy()
         {
             if (network != null)
                 network.GameStarted -= EnterMatch;
+
+            if (transition != null)
+                transition.Failed -= OnTransitionFailed;
+        }
+
+        private void OnTransitionFailed(string message)
+        {
+            joiningMatch = false;
         }
     }
 }
