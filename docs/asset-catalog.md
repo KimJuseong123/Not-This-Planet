@@ -9,6 +9,7 @@
 > 갱신 2026-09-01 — Stage1 Terrain 2타일 확장·자연물 군집 배치·갈라진 디딤돌 연결 · 이슈 [S15P21B202-236](https://ssafy.atlassian.net/browse/S15P21B202-236)
 > 갱신 2026-09-02 — Stage1 보라색 꽃 대형·소형 FBX·PBR 텍스처·프리뷰 추가 · 이슈 [S15P21B202-260](https://ssafy.atlassian.net/browse/S15P21B202-260)
 > 갱신 2026-09-03 — 기존 토끼 캐릭터용 Mixamo 걷기·달리기 모션 추가 · 이슈 [S15P21B202-278](https://ssafy.atlassian.net/browse/S15P21B202-278)
+> 갱신 2026-09-04 — 캐릭터 팔·손 원본 FBX·PBR 텍스처·정면 프리뷰 추가 · 이슈 [S15P21B202-283](https://ssafy.atlassian.net/browse/S15P21B202-283)
 > 관련 문서: [문서 목록](./README.md) · [1장 기획](./planning/chapter-1-plan.md) · [파트 구분](./parts.md)
 
 **어떤 에셋이 무엇이고, 씬에 갖다 쓸 수 있는 상태인지** 한 장에서 확인하는 문서다.
@@ -54,9 +55,9 @@ FBX 파일만 열어봐서는 크기를 알 수 없다. 기존 카탈로그에�
 
 | 종류 | 수량 | 상태 |
 | --- | ---: | --- |
-| FBX 모델 | 29 | 사용 가능 15 · 미연결 13 · 기존 1 |
+| FBX 모델 | 31 | 사용 가능 15 · 미연결 15 · 기존 1 |
 | 텍스처 (`Textures/`) | 29 | Stage1 PBR 24 · 리뉴얼 바닥 1 · 콘셉트 4 |
-| 텍스처 (`.fbm/` 임베드) | 67 | 캐릭터 2 · 환경 7 · 운석 PBR 16 · 리뉴얼 자연물 PBR 42 |
+| 텍스처 (`.fbm/` 임베드) | 77 | 캐릭터 12 · 환경 7 · 운석 PBR 16 · 리뉴얼 자연물 PBR 42 |
 | Material | 22 | Stage1 URP Lit 19 · 분위기/외부 패키지용 URP 3 |
 | Prefab | 19 | Stage1 17 · 기존 Resources 2 |
 | Shader | 6 | `SpaceFlop/*` URP 3 · 분위기 URP 3 |
@@ -350,6 +351,18 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 - Unity 메뉴: **Tools → Metagame → 캐릭터 → 걷기·달리기 미리보기**. 실제 맵을 열거나 저장하지 않는 별도 창이다.
 - Source FBX를 맵에 직접 배치하거나 기존 캐릭터 FBX 위에 덮어쓰지 않는다. 원본 Mixamo 리그와 기존 토끼 리그는 서로 다르다.
 - 재생성·검증·제한 사항: [작업 기록](./records/S15P21B202-278-rabbit-walk-run.md).
+
+### 캐릭터 팔·손 원본 — 미연결 (2종)
+
+| 프리뷰 | 모델 | FBX 원본 | 텍스처 | 상태 |
+| --- | --- | --- | --- | --- |
+| <img src="./assets/previews/character_arm_front.png" width="110"> | `character_arm` 팔·손 일체형 원본 | `Models/Characters/Parts/CharacterArm/character_arm.fbx` (1,053 KB) | BaseColor · Normal · Roughness · Metallic · RM | **미연결** |
+| <img src="./assets/previews/character_hand_front.png" width="110"> | `character_hand` 손 원본 | `Models/Characters/Parts/CharacterHand/character_hand.fbx` (1,078 KB) | BaseColor · Normal · Roughness · Metallic · RM | **미연결** |
+
+- 사용자가 제공한 Tripo 원본을 모델별 폴더에 보관했다. FBX 안의 텍스처 경로를 유지하기 위해 UUID가 포함된 `.fbm` 폴더명은 바꾸지 않았다.
+- BaseColor는 sRGB, Normal은 Normal map, Roughness·Metallic·RM은 선형 데이터로 임포트되도록 `.meta`를 포함했다.
+- Material·Prefab·리깅 연결은 만들지 않았으며 현재 `SF_Rabbit_Base` 캐릭터에도 연결하지 않았다. 캐릭터에 적용하려면 크기·축·피벗·스킨 가중치 확인과 재질 연결이 후속으로 필요하다.
+- 저장소 프리뷰에는 작업 범위에 따라 각 모델의 `front` 사진만 넣었다. 상세 파일 목록과 검증 결과는 [작업 기록](./records/S15P21B202-283-character-arm-hand-assets.md)에 있다.
 
 ---
 
