@@ -10,13 +10,17 @@ import java.util.Map;
  *
  * <p>사람마다 {@code userToken} 이 다르므로 이 값은 방송하지 않고 각자에게 따로 보낸다.
  *
- * @param address     릴레이 주소 (Edgegap 응답의 relay.ip)
+ * @param sessionId   릴레이 쪽 식별자. <b>방이 사라질 때 닫으려면 이것이 필요하다.</b>
+ *                    예전에는 이 값이 없어 {@code close()} 를 부를 수 없었고, 세션이 계속
+ *                    쌓였다(S15P21B202-298 §5-①). 클라이언트에는 보내지 않는다.
+ * @param address     릴레이 주소
  * @param serverPort  방장이 붙을 포트 (relay.ports.server.port)
  * @param clientPort  참가자가 붙을 포트 (relay.ports.client.port)
  * @param sessionToken 방 전원이 같은 값 (authorization_token)
  * @param userTokens  userId 별 개인 값 (session_users[i].authorization_token)
  */
 public record RelaySession(
+        String sessionId,
         String address,
         int serverPort,
         int clientPort,

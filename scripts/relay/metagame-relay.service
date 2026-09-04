@@ -1,0 +1,49 @@
+# METAGAME 릴레이 systemd 유닛 (S15P21B202-299)
+#
+# 설치:
+#   sudo ufw allow 17778/udp                                  # SSAFY 안내대로 우리가 직접 연다
+#   sudo mkdir -p /opt/metagame-relay
+#   sudo cp scripts/relay/metagame_relay.py /opt/metagame-relay/
+#   sudo cp scripts/relay/metagame-relay.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now metagame-relay
+#
+# 확인:
+#   systemctl status metagame-relay
+#   curl -s http://127.0.0.1:17779/health
+#   journalctl -u metagame-relay -f
+#
+# 되돌리기:
+#   sudo systemctl disable --now metagame-relay
+#   sudo ufw delete allow 17778/udp
+#
+# 제어 API 는 127.0.0.1 에만 열린다 — Spring 이 같은 호스트에서 부른다. 밖으로 내보내지 않는다.
+
+[Unit]
+Description=METAGAME 릴레이 — 방장과 참가자 사이의 UDP 중계 (S15P21B202-299)
+Documentation=https://ssafy.atlassian.net/browse/S15P21B202-299
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/metagame-relay
+ExecStart=/usr/bin/python3 -u /opt/metagame-relay/metagame_relay.py --port 17778 --control 17779
+Restart=always
+RestartSec=3
+
+# 로그는 journald 로. -u 로 버퍼링을 끄므로 바로 보인다.
+StandardOutput=journal
+StandardError=journal
+
+# 필요한 것 이상은 주지 않는다. 릴레이는 파일을 읽고 쓰지 않는다.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=
+# UDP 소켓만 쓴다
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target
