@@ -10,6 +10,7 @@
 
 로컬 실행: python scripts/ci/repo_hygiene.py [base-ref] [head-ref]  (기본 origin/develop 과의 merge-base .. HEAD)
 """
+import glob
 import os
 import re
 import subprocess
@@ -98,6 +99,71 @@ def location_problems(asset_added: list[str], base_top: set[str]) -> list[str]:
         msgs.append(f"Assets/ 에 새 최상위 폴더 '{top}' 금지 (파일 {len(ps)}개) — "
                     f"Assets/_Project/ 아래로 (기존 폴더: {known})")
     return msgs
+
+
+# 잡 이름처럼 생긴 것만 본다. 문서 전체를 검사하려 들면 오탐이 많아 아무도 안 보게 된다.
+JOB_PREFIXES = ("mr-", "mm-", "ci-", "repo-", "ai-", "unity-", "build-", "deploy-", "stack-", "jira-")
+# 없어진 잡을 **역사로** 적는 것은 정당하다("한동안 X 를 뒀지만 없앴습니다"). 그것과 "X 를 쓰세요" 를
+# 기계가 가를 수 없으므로 사람이 표시한다. 이 주석이 있는 줄은 검사에서 빠진다.
+DRIFT_OK = "<!-- drift-ok -->"
+
+
+def ci_jobs(path: str = ".gitlab-ci.yml") -> set[str]:
+    """`.gitlab-ci.yml` 에 실제로 있는 잡 이름."""
+    try:
+        s = open(path, encoding="utf-8").read()
+    except OSError:
+        return set()
+    return set(re.findall(r"(?m)^([a-z][a-z0-9-]*):", s)) - {
+        "stages", "variables", "default", "workflow", "include"}
+
+
+def ci_tags(path: str = ".gitlab-ci.yml") -> set[str]:
+    """러너 태그(`tags: [linux]` 의 linux). 잡 이름이 아니지만 생김새가 같아 오탐이 된다."""
+    try:
+        s = open(path, encoding="utf-8").read()
+    except OSError:
+        return set()
+    return {t.strip() for grp in re.findall(r"(?m)^\s+tags:\s*\[([^\]]*)\]", s) for t in grp.split(",") if t.strip()}
+
+
+def doc_job_drift(jobs: set[str]) -> list[str]:
+    """문서가 백틱으로 말하는 CI 잡 이름 중 **실제로 없는 것**.
+
+    문서가 틀리면 사람이 없는 잡을 찾다 시간을 버리고, 더 나쁘게는 "이미 처리된 일" 로 믿고 넘어간다.
+    `-139` §6 의 "develop·manual 이 막는다" 가 그랬다 — 실제로는 안 막았고, 그 문장 때문에 `-252` 의
+    구멍이 한동안 검토된 위험으로 분류돼 있었다. 이번 주에 문서-사실 불일치를 6곳 찾았는데 전부
+    실측하다 우연히 걸린 것이라, 사람이 아니라 CI 가 잡게 한다(-292).
+
+    거르는 것 셋. 손으로 관리하는 예외 목록보다 오래가는 규칙만 쓴다.
+      - **문서 파일 이름** — `ci-and-notifications`·`mr-flow` 처럼 접두사가 겹치는 문서 이름
+      - **러너 태그** — `unity-win`·`linux`. 잡이 아니지만 생김새가 같다
+      - **`docs/records/`** — 기록은 그 시점의 사실이거나 **앞으로 만들 것**을 적는다. `-284` 가
+        아직 없는 `deploy-dev`·`deploy-prod` 를 설명하는 것이 정상이다. 지금 유효해야 하는 것은
+        살아 있는 안내 문서(`docs/*.md`)뿐이다
+      - **`<!-- drift-ok -->` 가 달린 줄** — 없어진 잡을 역사로 적는 것은 정당하다("한동안 X 를 뒀지만
+        없앴습니다"). 그것과 "X 를 쓰세요" 는 기계가 가를 수 없으므로 **사람이 표시한다.** 표시가
+        없으면 실패하므로, 잡을 지웠는데 문서가 그대로면 반드시 한 번은 눈에 걸린다"""
+    if not jobs:
+        return []
+    docs = sorted(p for p in glob.glob("docs/*.md") if os.path.isfile(p))
+    docnames = {os.path.splitext(os.path.basename(p))[0]
+                for p in glob.glob("docs/**/*.md", recursive=True)}
+    skip = jobs | docnames | ci_tags()
+    bad = []
+    for path in docs:
+        try:
+            lines = open(path, encoding="utf-8").read().splitlines()
+        except OSError:
+            continue
+        for i, line in enumerate(lines, 1):
+            if DRIFT_OK in line:
+                continue
+            for name in re.findall(r"`([a-z][a-z0-9-]{2,})`", line):
+                if name in skip or not name.startswith(JOB_PREFIXES):
+                    continue
+                bad.append(f"{path}:{i} `{name}`")
+    return bad
 
 
 def scene_changes(changes: list[tuple[str, str]]) -> tuple[list[str], list[str]]:
@@ -216,7 +282,16 @@ def main() -> int:
     if added and not long_paths:
         rep.ok(f"경로 길이 OK (가장 긴 것 {max((len(p) for p in added), default=0)}자 / 상한 {MAX_PATH_LEN})")
 
-    # 6) 씬/프리팹 선언
+    # 6) 문서가 없어진 CI 잡을 설명하는지 (-292). diff 와 무관하게 항상 본다 —
+    #    잡을 지운 MR 이 문서를 안 고쳐도, 그 뒤 아무 MR 에서나 걸린다.
+    drift = doc_job_drift(ci_jobs())
+    if drift:
+        for d in drift:
+            rep.fail(f"문서가 없는 CI 잡을 말합니다: {d} — 문서를 고치거나, 역사 서술이면 그 줄 끝에 {DRIFT_OK}")
+    else:
+        rep.ok("문서가 말하는 CI 잡이 모두 실재함")
+
+    # 7) 씬/프리팹 선언
     scene_like, tp_imported = scene_changes(changes)
     if tp_imported:
         rep.ok(f"서드파티 패키지에서 새로 들어온 씬·프리팹 {len(tp_imported)}개는 선언 검사 제외")
