@@ -43,6 +43,8 @@ namespace Metagame.Bootstrap
             // 게임 씬에 있어서, 로비에 멈춰 선 채 아무것도 하지 않았다.
             if (SkipToGameScene()) return;
 
+            PrepareLobbyCursor();
+
             network = NetworkSession.Instance;
             if (network == null)
             {
@@ -63,6 +65,30 @@ namespace Metagame.Bootstrap
             if (hud == null) hud = gameObject.AddComponent<LobbyHud>();
             hud.Initialize(network, defaultNickname, deviceIdOverride, defaultServerAddress,
                 lobbyBackgroundImage, lobbyBackgroundVideo);
+        }
+
+        private void OnEnable()
+        {
+            PrepareLobbyCursor();
+        }
+
+        private void OnApplicationFocus(bool hasFocus)
+        {
+            if (hasFocus)
+                PrepareLobbyCursor();
+        }
+
+        /// <summary>
+        /// 게임 씬에서 잠근 커서 상태가 에디터 씬 전환이나 로비 재진입 뒤에
+        /// 남아 IMGUI 버튼을 막지 않도록 로비에서 명시적으로 포인터를 복구한다.
+        /// </summary>
+        private static void PrepareLobbyCursor()
+        {
+            if (Application.isBatchMode)
+                return;
+
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
         }
 
         /// <summary>
