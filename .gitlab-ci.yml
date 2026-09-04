@@ -53,6 +53,19 @@ mr-title:                 # Jira 이슈 기준으로 [Part]·type·(KEY) 자동 
     - python scripts/ci/mr_title.py
   allow_failure: true
 
+retarget-pipelines:       # 결함 ① — 부모 브랜치가 지워져 자동 재대상된 자식 MR 에 파이프라인을 만든다
+  stage: prepare          # GitLab 은 그때 파이프라인을 **만들지 않는다**(09-02~04 재대상 16건 중 14건).
+  needs: []               # 그러면 자식에 남은 마지막 결과가 **부모 위에서 돈 것**인데 초록으로 보이고,
+  rules:                  # 팀장이 그 초록을 믿고 머지한다. GitLab #381622 · #559008 (S15P21B202-295)
+    # 재대상이 일어나는 시점 — 부모가 develop 에 머지된 직후
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
+    # 안전망. develop push 파이프라인이 실패·취소된 날에도 다음 아침에 메운다
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: always
+  allow_failure: true     # 이 잡이 실패해도 머지·배포를 막을 이유가 없다. 다음 실행에서 다시 본다
+  script:
+    - python scripts/ci/retarget_pipeline.py
+
 mm-mr-opened:             # 🟢 리뷰 요청 알림 — 이 MR 의 첫 파이프라인일 때 1회, 팀장 @멘션 (GitLab 기본 MR 알림 대체)
   stage: prepare
   needs: []
