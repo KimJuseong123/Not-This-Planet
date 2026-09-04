@@ -405,7 +405,50 @@ namespace Metagame.Network
 
         public void LeaveRoom()
         {
-            Send("LEAVE_ROOM", new OutgoingData());
+            if (IsConnected && CurrentRoom != null)
+                Send("LEAVE_ROOM", new OutgoingData());
+            ClearRoomState();
+        }
+
+        /// <summary>
+        /// 로비 연결만 끊고 게스트 신원은 유지한다. 혼자 하기로 전환하거나
+        /// 로비 씬을 떠날 때 사용한다.
+        /// </summary>
+        public void DisconnectLobby()
+        {
+            if (IsConnected && CurrentRoom != null)
+                Send("LEAVE_ROOM", new OutgoingData());
+
+            CloseSocket();
+            ClearRoomState();
+            SetState(NetworkConnectionState.Disconnected);
+        }
+
+        /// <summary>
+        /// 게스트 세션을 클라이언트에서 정리한다. 백엔드는 JWT 무효화 API가 없는
+        /// 구조이므로 서버 호출은 하지 않으며, 다음 로그인 때 같은 deviceId로
+        /// 닉네임을 다시 갱신할 수 있다.
+        /// </summary>
+        public void LogoutGuest()
+        {
+            if (loginCoroutine != null)
+            {
+                StopCoroutine(loginCoroutine);
+                loginCoroutine = null;
+            }
+
+            DisconnectLobby();
+            accessToken = null;
+            UserId = 0;
+            Nickname = string.Empty;
+            MatchAddress = string.Empty;
+            MatchRelay = null;
+            MatchAuthenticator.ClientToken = null;
+            MatchAuthenticator.ClientRoomId = null;
+        }
+
+        private void ClearRoomState()
+        {
             CurrentRoomId = string.Empty;
             CurrentRoom = null;
             IsLocalReady = false;
