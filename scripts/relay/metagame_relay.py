@@ -29,7 +29,15 @@
 
 ## 세션 등록
 
-제어 API 는 **127.0.0.1 에만** 연다(Spring 이 같은 호스트에서 부른다).
+제어 API 는 기본으로 **127.0.0.1 에만** 연다. 다만 **Spring 은 컨테이너 안에서 돈다** —
+컨테이너의 `127.0.0.1` 은 컨테이너 자신이라 그대로는 닿지 않는다(S15P21B202-303 에서 실제로
+그랬다). EC2 에서는 `--control-host 0.0.0.0` 으로 열고 **UFW 로 도커 사설망만 허용**한다:
+
+    sudo ufw allow from 172.16.0.0/12 to any port 17779 proto tcp
+
+UFW 기본이 deny 라 밖에서는 여전히 닿지 않는다. 릴레이를 컨테이너로 옮기지 않는 이유는
+도커가 UDP 를 published 하면 **출발 IP 가 뭉개질 수 있어서**다 — 릴레이는 출발 주소로
+참가자를 가르므로(connId 배정) 그러면 통째로 깨진다.
 
     POST /sessions   {"users": [{"userId": 7, "host": true}, {"userId": 9}]}
       → {"sessionId": "...", "sessionToken": 123, "port": 17778,
@@ -277,7 +285,7 @@ class Relay:
 
 # ── 제어 API (127.0.0.1 전용) ─────────────────────────────────────────────────
 
-def control_server(relay: Relay, port: int) -> ThreadingHTTPServer:
+def control_server(relay: Relay, port: int, host: str = "127.0.0.1") -> ThreadingHTTPServer:
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
 
@@ -319,9 +327,13 @@ def control_server(relay: Relay, port: int) -> ThreadingHTTPServer:
         def log_message(self, fmt, *args):
             log.debug("control %s", fmt % args)
 
-    srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    srv = ThreadingHTTPServer((host, port), Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
-    log.info("제어 API http://127.0.0.1:%d (외부에 열지 않는다)", port)
+    if host in ("127.0.0.1", "localhost"):
+        log.info("제어 API http://%s:%d (이 호스트에서만)", host, port)
+    else:
+        log.info("제어 API http://%s:%d — **UFW 로 도커 사설망만 허용해야 한다** "
+                 "(ufw allow from 172.16.0.0/12 to any port %d proto tcp)", host, port, port)
     return srv
 
 
@@ -329,12 +341,14 @@ def main() -> int:
     p = argparse.ArgumentParser(description="METAGAME 릴레이")
     p.add_argument("--port", type=int, default=int(os.environ.get("RELAY_PORT", "17778")))
     p.add_argument("--control", type=int, default=int(os.environ.get("RELAY_CONTROL_PORT", "17779")))
+    p.add_argument("--control-host", default=os.environ.get("RELAY_CONTROL_HOST", "127.0.0.1"),
+                   help="제어 API 바인딩 주소. 컨테이너의 Spring 이 부르려면 0.0.0.0 (UFW 로 제한)")
     p.add_argument("--verbose", action="store_true")
     a = p.parse_args()
     logging.basicConfig(level=logging.DEBUG if a.verbose else logging.INFO,
                         format="%(asctime)s %(levelname)-5s %(message)s", datefmt="%H:%M:%S")
     relay = Relay(a.port)
-    control_server(relay, a.control)
+    control_server(relay, a.control, a.control_host)
     try:
         relay.serve()
     except KeyboardInterrupt:

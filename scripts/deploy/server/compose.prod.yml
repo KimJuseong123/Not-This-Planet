@@ -32,7 +32,21 @@ services:
       DB_USERNAME: metagame
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+      # 예전 릴레이. relay.provider=edgegap 으로 되돌릴 때만 쓴다 (S15P21B202-299 에서 폐기)
+      EDGEGAP_RELAY_TOKEN: ${EDGEGAP_RELAY_TOKEN:-}
+      # 우리 릴레이 (S15P21B202-299 · -303)
+      #   .env 에 있어도 여기 적지 않으면 컨테이너에 들어가지 않는다 — .env 는 이 파일 안
+      #   ${} 치환에만 쓰인다. -303 에서 그것 때문에 릴레이가 한 번도 안 붙었다.
+      RELAY_PROVIDER: ${RELAY_PROVIDER:-local}
+      #   컨테이너의 127.0.0.1 은 컨테이너 자신이다. host.docker.internal 로 호스트를 가리킨다.
+      RELAY_CONTROL_URL: ${RELAY_CONTROL_URL:-http://host.docker.internal:17779}
+      #   클라이언트가 붙을 공개 주소. 비어 있으면 릴레이를 쓰지 않고 직접 접속으로 간다.
+      RELAY_PUBLIC_ADDRESS: ${RELAY_PUBLIC_ADDRESS:-}
       TZ: Asia/Seoul
+    # host.docker.internal 은 리눅스 도커에서 기본 제공되지 않는다 — 이 줄이 있어야 생긴다.
+    # 게이트웨이 IP(172.18.0.1 등)를 박지 않으려고 이렇게 쓴다. compose 망이 바뀌어도 따라간다.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "127.0.0.1:8080:8080"
 

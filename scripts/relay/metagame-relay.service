@@ -1,7 +1,8 @@
 # METAGAME 릴레이 systemd 유닛 (S15P21B202-299)
 #
 # 설치:
-#   sudo ufw allow 17778/udp                                  # SSAFY 안내대로 우리가 직접 연다
+#   sudo ufw allow 17778/udp                                  # 게임 트래픽. SSAFY 안내대로 우리가 직접 연다
+#   sudo ufw allow from 172.16.0.0/12 to any port 17779 proto tcp   # 제어 API — 도커 사설망만
 #   sudo mkdir -p /opt/metagame-relay
 #   sudo cp scripts/relay/metagame_relay.py /opt/metagame-relay/
 #   sudo cp scripts/relay/metagame-relay.service /etc/systemd/system/
@@ -16,7 +17,9 @@
 #   sudo systemctl disable --now metagame-relay
 #   sudo ufw delete allow 17778/udp
 #
-# 제어 API 는 127.0.0.1 에만 열린다 — Spring 이 같은 호스트에서 부른다. 밖으로 내보내지 않는다.
+# 제어 API 는 0.0.0.0 에 열고 **UFW 로 도커 사설망만** 허용한다. Spring 은 컨테이너 안에서 돌기
+# 때문에 컨테이너의 127.0.0.1 로는 호스트에 닿지 않는다(S15P21B202-303 에서 실제로 막혔다).
+# UFW 기본이 deny 이므로 위 규칙 없이는 밖에서도, 컨테이너에서도 닿지 않는다.
 
 [Unit]
 Description=METAGAME 릴레이 — 방장과 참가자 사이의 UDP 중계 (S15P21B202-299)
@@ -28,7 +31,8 @@ Wants=network-online.target
 Type=simple
 User=ubuntu
 WorkingDirectory=/opt/metagame-relay
-ExecStart=/usr/bin/python3 -u /opt/metagame-relay/metagame_relay.py --port 17778 --control 17779
+ExecStart=/usr/bin/python3 -u /opt/metagame-relay/metagame_relay.py \
+    --port 17778 --control 17779 --control-host 0.0.0.0
 Restart=always
 RestartSec=3
 
