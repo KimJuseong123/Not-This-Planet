@@ -94,18 +94,31 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
   체크아웃은 되고 스크립트만 깨진다 — `mr-overlap`·`repo-hygiene` 도 같은 이유로 EC2 배정 시 깨진다.
   그래서 기본 이미지를 **`python:3.12`**(git 2.47.3 포함, 1.62GB)로 둔다. `pull_policy: if-not-present` 라 최초 1회만 받고,
   잡마다 `apt-get install git` 하는 것보다 빠르고 결정적이다.
-- **AI 리뷰를 도커 러너에서 돌리는 법**(2026-09-01 구성): 호스트에 Claude CLI 를 설치해 로그인하고, `config.toml` 에서 **바이너리는 읽기 전용·설정 디렉터리는 쓰기 가능**으로 잡 컨테이너에 마운트한다.
+- **AI 리뷰를 도커 러너에서 돌리는 법**(2026-09-01 구성 · 2026-09-04 `:ro` 로 변경): 호스트에 Claude CLI 를 설치해 로그인하고, `config.toml` 에서 **바이너리도 설정 디렉터리도 읽기 전용**으로 잡 컨테이너에 마운트한다.
 
   ```toml
   [[runners]]
     environment = ["CLAUDE_BIN=/usr/local/bin/claude", "CLAUDE_CONFIG_DIR=/claude-config", "DISABLE_AUTOUPDATER=1"]
     [runners.docker]
-      volumes = ["/cache", "/usr/local/bin/claude:/usr/local/bin/claude:ro", "/home/ubuntu/.claude:/claude-config:rw"]
+      cpu_shares = 256
+      volumes = ["/cache", "/usr/local/bin/claude:/usr/local/bin/claude:ro", "/home/ubuntu/.claude:/claude-config:ro"]
   ```
 
-  **자격증명을 환경변수가 아니라 마운트로 넣는 이유**: 환경변수는 CI 로그에 실수로 찍히기 쉽다. 설정 디렉터리는
-  토큰 갱신 때문에 쓰기가 필요하다. 바이너리는 버전 디렉터리 대신 `/usr/local/bin/claude` 로 복사해 경로를 고정하고,
-  `DISABLE_AUTOUPDATER=1` 로 CI 중 자동 업데이트를 막는다.
+  **자격증명을 환경변수가 아니라 마운트로 넣는 이유**: 환경변수는 CI 로그에 실수로 찍히기 쉽다. 바이너리는 버전
+  디렉터리 대신 `/usr/local/bin/claude` 로 복사해 경로를 고정하고, `DISABLE_AUTOUPDATER=1` 로 CI 중 자동
+  업데이트를 막는다.
+
+  **`:rw` 가 아니라 `:ro` 다**(2026-09-04, `-290`). 예전에는 "설정 디렉터리는 토큰 갱신 때문에 쓰기가 필요하다"
+  고 적혀 있었는데 **실측으로 사실이 아니었다** — `:ro` 로 바꾼 뒤 `ai-review` 잡 482652 가 정상 통과했다
+  (백엔드 `cli`, 모델 `claude-opus-5`, MR 코멘트 5,253자 갱신). `:rw` 였던 동안에는 **아무 MR 잡이나 팀 계정
+  자격증명을 읽고 덮어쓸 수 있었다** — MR 파이프라인은 소스 브랜치의 `.gitlab-ci.yml` 을 쓰므로 자기 브랜치에
+  `cat /claude-config/...` 한 줄을 넣으면 됐다. `-252`(배포 스풀)와 같은 종류의 구멍이다.
+
+  **`cpu_shares = 256`**(2026-09-04, `-291`). EC2 한 대가 CI·백엔드·Mirror 게임 서버를 전부 돌리는데
+  러너에 자원 제한이 없었다. `unity-compile` 이 4 vCPU 를 7분 30초 동안 전부 쓴다(`-271` 콜드 실측).
+  **하드 상한(`cpus`)이 아니라 상대 가중치를 쓴 이유**: `cpus` 는 아무도 CPU 를 안 쓰는 시간에도 CI 를
+  느리게 만든다(7분 30초 → 20분). `cpu_shares` 는 경합할 때만 작동해서, 놀고 있으면 CI 가 기계를 다 쓰고
+  게임 서버가 일하기 시작하면 양보한다. **배포 러너에는 걸지 않는다** — 배포는 짧고 급하다.
   실측: 컨테이너 안에서 `auth status` → `loggedIn: true`, `ai-review` 잡이 EC2 에서 **64초에 성공**(파이프라인 176070).
 - ~~러너 배치 계획~~(아래는 이전 계획 기록): ① **상시 러너 = 지급 EC2(Linux, Docker 실행기, 24시간)** — mr-title·mr-lint·repo-hygiene·ai-review·mm-digest 전부 여기서. `sudo RUNNER_TOKEN=glrt-… bash scripts/runner/setup-linux-runner.sh` 한 줄(Docker·gitlab-runner 설치·등록·systemd). ② **Unity 러너 = Unity 6000.5.4f1 설치 Windows PC**(태그 `unity-win`, 근무 시간만 켜져도 됨 — allow_failure 잡). ③ EC2 지급 전 임시: 팀 PC 1대에 Windows 러너(아래) — 꺼져 있는 시간엔 파이프라인이 pending 으로 대기하고, 다이제스트는 그 시각에 러너가 없으면 건너뜀. EC2 오면 임시 러너는 GitLab 에서 삭제.
 - **프로젝트 러너 등록(Windows, 20분)**: ① 팀장: Settings → CI/CD → Runners → *New project runner* → 태그 `windows`(+`unity-win`), **Run untagged jobs ✔** → 토큰(`glrt-…`) 발급해 등록할 사람에게 직접 전달 ② 등록자(관리자 PowerShell): `$env:RUNNER_TOKEN="glrt-…"; .\scripts\runner\setup-windows-runner.ps1 [-Unity]` — [setup-windows-runner.ps1](../scripts/runner/setup-windows-runner.ps1) 이 바이너리 다운로드·Python 3.12 확인/설치·등록·서비스 설치를 한다 ③ 팀장: 변수 **`CI_ENABLE=true`** → 그때부터 MR 파이프라인이 생성됨(그 전에는 pending 노이즈를 막기 위해 파이프라인을 만들지 않음). 주의: 러너 셸은 **`pwsh`(PowerShell 7, MSI 시스템 설치)** 여야 한다 — 5.1(`powershell`)은 잡 스크립트를 cp949 로 읽어 한글 CI 변수(MR 제목·본문·커밋 메시지)에서 파서 오류로 모든 잡이 실패(2026-08-27 파이프라인 #175296 실측). Store 판 pwsh 는 SYSTEM 서비스가 실행 못 하므로 `runner-use-pwsh.ps1` 로 MSI 설치 + 셸 전환. `glrt-` 토큰은 생성 직후 한 번만 보이니 그때 복사해 전달(`Verifying runner... is not valid` = 토큰 불일치)
