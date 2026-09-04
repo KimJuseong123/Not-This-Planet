@@ -47,14 +47,42 @@ def docs_text() -> str:
 
 ALL = docs_text()
 
-# ── 거르는 셋이 **실제로 문서에 있는데도** 지적되지 않는지. 안 그러면 위 '0건' 은 의미가 없다.
-for token, why in [("unity-win", "러너 태그"),
+# ── 거르는 것들이 **실제로 문서에 있는데도** 지적되지 않는지. 안 그러면 위 '0건' 은 의미가 없다.
+#    `unity-win` 은 `-271` 로 `unity-compile` 이 EC2 로 옮겨진 뒤 **태그 목록에서 빠졌다.** 그래서
+#    러너 태그 필터로는 더 안 걸러지고, 그 줄들은 문서를 고치거나 drift-ok 로 표시했다 — 태그 필터
+#    자체는 아래 임시 디렉터리 케이스에서 검사한다.
+for token, why in [("unity-win", "문서 수정 또는 drift-ok 표시"),
                    ("deploy-dev", "기록 문서가 설명하는 아직 없는 잡"),
                    ("jira-complete", "역사 서술(drift-ok 표시)")]:
     assert f"`{token}`" in ALL, f"{token} 이 문서에 없다 — 이 케이스가 무의미해졌다"
     assert token not in JOBS, f"{token} 이 실제 잡이 됐다 — 케이스를 갱신하라"
     assert not any(f"`{token}`" in b for b in now), f"{why} 인 {token} 이 지적됐다"
-print("  태그·기록·역사 서술 3종 오탐 없음 ✅")
+print("  기록·역사 서술·수정 3종 오탐 없음 ✅")
+
+# ── 러너 태그 필터를 저장소 내용에 의존하지 않고 검사한다. 임시 디렉터리에 통제된 파일을 만든다.
+import tempfile  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+with tempfile.TemporaryDirectory() as td:
+    root = Path(td)
+    (root / "docs").mkdir()
+    (root / ".gitlab-ci.yml").write_text(
+        "mr-lint:\n  tags: [linux]\n\nunity-compile:\n  tags: [unity-win]\n", encoding="utf-8")
+    (root / "docs" / "guide.md").write_text(
+        "러너 태그는 `unity-win` 이고 잡은 `unity-compile` 이다.\n"
+        "없어진 잡: `mr-ghost`\n"
+        "표시한 줄: `mm-ghost`  <!-- drift-ok -->\n", encoding="utf-8")
+    here = os.getcwd()
+    os.chdir(root)
+    try:
+        jobs = R.ci_jobs()
+        assert jobs == {"mr-lint", "unity-compile"}, jobs
+        assert R.ci_tags() == {"linux", "unity-win"}, R.ci_tags()
+        got = R.doc_job_drift(jobs)
+        assert len(got) == 1 and "`mr-ghost`" in got[0], got
+    finally:
+        os.chdir(here)
+print("  러너 태그 필터 · 미표시 이름만 지적 (임시 디렉터리) ✅")
 
 # ── 잡이 사라지면 반드시 걸린다. 이게 이 검사의 존재 이유다.
 gone = R.doc_job_drift(JOBS - {"mr-lint"})
