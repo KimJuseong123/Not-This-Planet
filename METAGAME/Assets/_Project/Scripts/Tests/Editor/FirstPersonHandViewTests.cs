@@ -122,7 +122,7 @@ namespace Metagame.Gameplay.Tests
             settings.maxSwayAngle = 0f;
 
             var (_, _, view) = MakeView(settings);
-            Tick(view);
+            Tick(view, 80);
 
             Assert.That(view.LeftHandRoot.localPosition.x, Is.EqualTo(-0.33f).Within(0.02f));
             Assert.That(view.LeftHandRoot.localPosition.y, Is.EqualTo(-0.08f).Within(0.02f));
@@ -130,6 +130,45 @@ namespace Metagame.Gameplay.Tests
             Assert.Less(Quaternion.Angle(view.LeftHandRoot.localRotation,
                                          Quaternion.Euler(settings.leftIdleEuler)), 1f,
                         "설정한 왼손 대기 각도가 적용되지 않았다.");
+        }
+
+        [Test]
+        public void 잡기중손목은유지되고손메시만움직인다()
+        {
+            var settings = FirstPersonHandView.Settings.Default;
+            settings.poseSmoothTime = 0.001f;
+            settings.rotationSmooth = 1000f;
+            settings.maxSwayPosition = 0f;
+            settings.maxSwayAngle = 0f;
+            settings.leftGrabOffset = new Vector3(0.04f, 0.02f, 0.03f);
+            settings.leftGrabEuler = new Vector3(-22f, -6f, -8f);
+
+            var (player, _, view) = MakeView(settings);
+            Tick(view, 80);
+            Quaternion wristIdleRotation = view.LeftHandRoot.localRotation;
+
+            player.SetInput(new InputFrame { GrabLeft = true });
+            Tick(view, 80);
+
+            Assert.Less(Quaternion.Angle(view.LeftHandRoot.localRotation, wristIdleRotation), 1f,
+                        "잡기 중 손목 래퍼가 함께 꺾였다.");
+            Assert.Greater(Quaternion.Angle(view.LeftHandVisual.localRotation, Quaternion.identity), 5f,
+                           "잡기 중 손 메시 상대 포즈가 변하지 않았다.");
+            Assert.That(view.LeftHandVisual.localPosition.x,
+                        Is.EqualTo(settings.leftGrabOffset.x).Within(0.01f));
+            Assert.That(view.LeftHandVisual.localPosition.y,
+                        Is.EqualTo(settings.leftGrabOffset.y).Within(0.01f));
+        }
+
+        [Test]
+        public void 원본왼손메시와반전한오른손메시를사용한다()
+        {
+            var (_, _, view) = MakeView();
+
+            Assert.Greater(view.LeftHandRoot.localScale.x, 0f,
+                           "CharacterHand 원본 방향을 왼손에 적용해야 한다.");
+            Assert.Less(view.RightHandRoot.localScale.x, 0f,
+                        "CharacterHand 원본을 반전해 오른손에 적용해야 한다.");
         }
 
         [Test]
@@ -173,11 +212,12 @@ namespace Metagame.Gameplay.Tests
             Assert.IsFalse(view.LeftHandRoot.gameObject.activeSelf, "기절 중 1인칭 손이 보인다.");
         }
 
-        static void Tick(FirstPersonHandView view)
+        static void Tick(FirstPersonHandView view, int count = 1)
         {
             // LateUpdate에서 카메라 뒤따르기와 입력 표시를 갱신한다. EditMode에서는
             // Unity 프레임이 자동 진행되지 않으므로 메시지로 해당 생명주기를 한 번 실행한다.
-            view.SendMessage("LateUpdate");
+            for (var i = 0; i < count; i++)
+                view.SendMessage("LateUpdate");
         }
     }
 }

@@ -33979,6 +33979,27 @@ MonoBehaviour:
   lockCursor: 1
   starfield: 1
   firstPerson: 1
+  firstPersonHandSettings:
+    leftIdlePosition: {x: -0.18, y: -0.14, z: 0.37}
+    rightIdlePosition: {x: 0.18, y: -0.14, z: 0.37}
+    leftIdleEuler: {x: -78, y: -7, z: 45}
+    rightIdleEuler: {x: -78, y: 7, z: -45}
+    leftGrabOffset: {x: 0.025, y: 0.018, z: 0.028}
+    rightGrabOffset: {x: -0.025, y: 0.018, z: 0.028}
+    leftGrabEuler: {x: -40, y: -18, z: -22}
+    rightGrabEuler: {x: -40, y: 18, z: 22}
+    leftGrabScale: {x: 1, y: 0.96, z: 1.03}
+    rightGrabScale: {x: 1, y: 0.96, z: 1.03}
+    visualLength: 0.28
+    mirrorLeftHand: 0
+    mirrorRightHand: 1
+    poseSmoothTime: 0.085
+    rotationSmooth: 16
+    movementSwayScale: {x: 0.01, y: 0.004, z: 0.004}
+    lookSwayMultiplier: 0.55
+    movementRollSwayMultiplier: 1.1
+    maxSwayPosition: 0.055
+    maxSwayAngle: 9
   useModel: 1
   nickname: "\uBE44\uD589\uC0AC"
   suit: {r: 0.93, g: 0.94, b: 0.96, a: 1}

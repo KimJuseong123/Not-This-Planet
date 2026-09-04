@@ -17,7 +17,8 @@ namespace Metagame.Gameplay
 
         /// <summary>
         /// 메인 씬의 SpaceBootstrap에서 조정하는 1인칭 손 표시 설정.
-        /// 위치·회전은 카메라 로컬 기준이며, Euler 각도는 손 래퍼에 적용된다.
+        /// 위치·회전은 카메라 로컬 기준이다. 대기 Euler는 손목 래퍼에,
+        /// 잡기 Euler·스케일은 그 아래 손 메시 래퍼에 각각 적용된다.
         /// </summary>
         [System.Serializable]
         public struct Settings
@@ -34,21 +35,27 @@ namespace Metagame.Gameplay
             [Tooltip("오른손 대기 Euler 각도")]
             public Vector3 rightIdleEuler;
 
-            [Header("잡기 포즈")]
-            [Tooltip("왼손 잡기 포즈에서 대기 위치에 더하는 오프셋")]
+            [Header("잡기 손 포즈")]
+            [Tooltip("왼손목을 고정한 채 왼손 메시를 이동하는 오프셋")]
             public Vector3 leftGrabOffset;
-            [Tooltip("오른손 잡기 포즈에서 대기 위치에 더하는 오프셋")]
+            [Tooltip("오른손목을 고정한 채 오른손 메시를 이동하는 오프셋")]
             public Vector3 rightGrabOffset;
-            [Tooltip("왼손 잡기 Euler 각도")]
+            [Tooltip("왼손 잡기 시 손 메시의 상대 Euler 각도. 손목에는 적용되지 않음")]
             public Vector3 leftGrabEuler;
-            [Tooltip("오른손 잡기 Euler 각도")]
+            [Tooltip("오른손 잡기 시 손 메시의 상대 Euler 각도. 손목에는 적용되지 않음")]
             public Vector3 rightGrabEuler;
+            [Tooltip("왼손 잡기 시 손 메시에 곱하는 상대 스케일. 손가락을 움켜쥔 인상을 조정")]
+            public Vector3 leftGrabScale;
+            [Tooltip("오른손 잡기 시 손 메시에 곱하는 상대 스케일. 손가락을 움켜쥔 인상을 조정")]
+            public Vector3 rightGrabScale;
 
             [Header("표시 크기")]
             [Tooltip("FBX의 가장 긴 축을 맞출 길이(m)")]
             [Min(0.001f)]
             public float visualLength;
-            [Tooltip("오른손 메시를 좌우 반전할지 여부")]
+            [Tooltip("원본 FBX의 좌우 방향을 왼손에 맞게 반전할지 여부")]
+            public bool mirrorLeftHand;
+            [Tooltip("원본 FBX의 좌우 방향을 오른손에 맞게 반전할지 여부")]
             public bool mirrorRightHand;
 
             [Header("보간")]
@@ -83,11 +90,14 @@ namespace Metagame.Gameplay
                         rightIdlePosition = new Vector3(0.18f, -0.14f, 0.37f),
                         leftIdleEuler = new Vector3(-78f, -7f, -3f),
                         rightIdleEuler = new Vector3(-78f, 7f, 3f),
-                        leftGrabOffset = new Vector3(0.025f, 0.018f, 0.028f),
-                        rightGrabOffset = new Vector3(-0.025f, 0.018f, 0.028f),
-                        leftGrabEuler = new Vector3(-40f, -18f, -22f),
-                        rightGrabEuler = new Vector3(-40f, 18f, 22f),
+                        leftGrabOffset = new Vector3(0.018f, 0.008f, 0.020f),
+                        rightGrabOffset = new Vector3(-0.018f, 0.008f, 0.020f),
+                        leftGrabEuler = new Vector3(-12f, -4f, -5f),
+                        rightGrabEuler = new Vector3(-12f, 4f, 5f),
+                        leftGrabScale = new Vector3(1f, 0.96f, 1.03f),
+                        rightGrabScale = new Vector3(1f, 0.96f, 1.03f),
                         visualLength = 0.28f,
+                        mirrorLeftHand = false,
                         mirrorRightHand = true,
                         poseSmoothTime = 0.085f,
                         rotationSmooth = 16f,
@@ -109,9 +119,15 @@ namespace Metagame.Gameplay
         Transform viewRoot;
         Transform leftHand;
         Transform rightHand;
+        Transform leftVisual;
+        Transform rightVisual;
 
         Vector3 leftPositionVelocity;
         Vector3 rightPositionVelocity;
+        Vector3 leftVisualPositionVelocity;
+        Vector3 rightVisualPositionVelocity;
+        Vector3 leftVisualBaseScale = Vector3.one;
+        Vector3 rightVisualBaseScale = Vector3.one;
         Vector3 previousCameraPosition;
         float previousYaw;
         float previousPitch;
@@ -127,6 +143,10 @@ namespace Metagame.Gameplay
         /// <summary>테스트와 진단에서 표시용 손의 존재를 확인하는 읽기 전용 루트.</summary>
         public Transform LeftHandRoot { get { return leftHand; } }
         public Transform RightHandRoot { get { return rightHand; } }
+        /// <summary>손목 래퍼와 분리된 왼손 메시 래퍼.</summary>
+        public Transform LeftHandVisual { get { return leftVisual; } }
+        /// <summary>손목 래퍼와 분리된 오른손 메시 래퍼.</summary>
+        public Transform RightHandVisual { get { return rightVisual; } }
 
         /// <summary>
         /// 카메라에 로컬 손을 붙인다. 같은 카메라에 이미 붙어 있으면 재사용해
@@ -176,17 +196,18 @@ namespace Metagame.Gameplay
                 return;
             }
 
-            leftHand = CreateHand(prefab, "왼손", -1f);
-            rightHand = CreateHand(prefab, "오른손", 1f);
+            leftHand = CreateHand(prefab, "왼손", -1f, out leftVisual, out leftVisualBaseScale);
+            rightHand = CreateHand(prefab, "오른손", 1f, out rightVisual, out rightVisualBaseScale);
             UpdateVisibility();
         }
 
-        Transform CreateHand(GameObject prefab, string name, float side)
+        Transform CreateHand(GameObject prefab, string name, float side,
+                             out Transform visual, out Vector3 visualBaseScale)
         {
             var hand = new GameObject(name).transform;
             hand.SetParent(viewRoot, false);
-            hand.localScale = new Vector3(side < 0f || !settings.mirrorRightHand ? 1f : -1f,
-                                          1f, 1f);
+            bool mirror = side < 0f ? settings.mirrorLeftHand : settings.mirrorRightHand;
+            hand.localScale = new Vector3(mirror ? -1f : 1f, 1f, 1f);
 
             var model = Instantiate(prefab);
             model.name = name + " 메시";
@@ -196,6 +217,8 @@ namespace Metagame.Gameplay
             NormalizeModel(model.transform, settings.visualLength);
             RemovePhysicsComponents(model);
             ConfigureRenderers(model);
+            visual = model.transform;
+            visualBaseScale = visual.localScale;
             return hand;
         }
 
@@ -285,11 +308,15 @@ namespace Metagame.Gameplay
                             -settings.maxSwayAngle, settings.maxSwayAngle));
 
             UpdateHand(leftHand, settings.leftIdlePosition, settings.leftGrabOffset,
-                       settings.leftIdleEuler, settings.leftGrabEuler, LeftGrabPoseActive,
-                       swayPosition, swayRotation, ref leftPositionVelocity, deltaTime);
+                       leftVisual, leftVisualBaseScale, settings.leftIdleEuler,
+                       settings.leftGrabEuler, settings.leftGrabScale, LeftGrabPoseActive,
+                       swayPosition, swayRotation, ref leftPositionVelocity,
+                       ref leftVisualPositionVelocity, deltaTime);
             UpdateHand(rightHand, settings.rightIdlePosition, settings.rightGrabOffset,
-                       settings.rightIdleEuler, settings.rightGrabEuler, RightGrabPoseActive,
-                       swayPosition, swayRotation, ref rightPositionVelocity, deltaTime);
+                       rightVisual, rightVisualBaseScale, settings.rightIdleEuler,
+                       settings.rightGrabEuler, settings.rightGrabScale, RightGrabPoseActive,
+                       swayPosition, swayRotation, ref rightPositionVelocity,
+                       ref rightVisualPositionVelocity, deltaTime);
         }
 
         static bool IsGripping(Hand hand)
@@ -297,24 +324,46 @@ namespace Metagame.Gameplay
             return hand != null && (hand.Gripping || hand.Carrying);
         }
 
-        void UpdateHand(Transform hand, Vector3 idlePosition, Vector3 grabOffset,
-                               Vector3 idleEuler, Vector3 grabEuler, bool grabbing,
-                               Vector3 swayPosition, Quaternion swayRotation,
-                               ref Vector3 positionVelocity, float deltaTime)
+        void UpdateHand(Transform wrist, Vector3 idlePosition, Vector3 grabOffset,
+                        Transform visual, Vector3 visualBaseScale,
+                        Vector3 wristEuler, Vector3 grabEuler, Vector3 grabScale,
+                        bool grabbing, Vector3 swayPosition, Quaternion swayRotation,
+                        ref Vector3 positionVelocity,
+                        ref Vector3 visualPositionVelocity, float deltaTime)
         {
-            if (hand == null) return;
+            if (wrist == null) return;
 
-            Vector3 poseOffset = grabbing ? grabOffset : Vector3.zero;
-            Vector3 targetPosition = idlePosition + poseOffset + swayPosition;
-            hand.localPosition = Vector3.SmoothDamp(hand.localPosition, targetPosition,
+            // 이동·시점 흔들림과 대기 자세는 손목 래퍼에만 적용한다.
+            // 잡기 입력이 들어와도 손목이 꺾이지 않도록 잡기 오프셋은 아래
+            // 메시 래퍼로 분리한다.
+            Vector3 targetPosition = idlePosition + swayPosition;
+            wrist.localPosition = Vector3.SmoothDamp(wrist.localPosition, targetPosition,
                                                     ref positionVelocity, settings.poseSmoothTime,
                                                     Mathf.Infinity, deltaTime);
 
-            Quaternion idleRotation = Quaternion.Euler(idleEuler);
-            Quaternion grabRotation = Quaternion.Euler(grabEuler);
-            Quaternion targetRotation = swayRotation * (grabbing ? grabRotation : idleRotation);
-            hand.localRotation = Quaternion.Slerp(hand.localRotation, targetRotation,
+            Quaternion targetRotation = swayRotation * Quaternion.Euler(wristEuler);
+            wrist.localRotation = Quaternion.Slerp(wrist.localRotation, targetRotation,
                                                   1f - Mathf.Exp(-settings.rotationSmooth * deltaTime));
+
+            if (visual == null) return;
+
+            Vector3 visualTargetPosition = grabbing ? grabOffset : Vector3.zero;
+            visual.localPosition = Vector3.SmoothDamp(visual.localPosition, visualTargetPosition,
+                                                       ref visualPositionVelocity,
+                                                       settings.poseSmoothTime,
+                                                       Mathf.Infinity, deltaTime);
+
+            Quaternion visualTargetRotation = grabbing
+                ? Quaternion.Euler(grabEuler)
+                : Quaternion.identity;
+            visual.localRotation = Quaternion.Slerp(visual.localRotation, visualTargetRotation,
+                                                     1f - Mathf.Exp(-settings.rotationSmooth * deltaTime));
+
+            Vector3 visualTargetScale = visualBaseScale;
+            if (grabbing)
+                visualTargetScale = Vector3.Scale(visualBaseScale, grabScale);
+            visual.localScale = Vector3.Lerp(visual.localScale, visualTargetScale,
+                                             1f - Mathf.Exp(-settings.rotationSmooth * deltaTime));
         }
 
         void UpdateVisibility()
@@ -335,6 +384,14 @@ namespace Metagame.Gameplay
             viewRoot = null;
             leftHand = null;
             rightHand = null;
+            leftVisual = null;
+            rightVisual = null;
+            leftPositionVelocity = Vector3.zero;
+            rightPositionVelocity = Vector3.zero;
+            leftVisualPositionVelocity = Vector3.zero;
+            rightVisualPositionVelocity = Vector3.zero;
+            leftVisualBaseScale = Vector3.one;
+            rightVisualBaseScale = Vector3.one;
         }
 
         void OnDestroy() => ClearVisuals();
@@ -359,6 +416,8 @@ namespace Metagame.Gameplay
             if (!IsFinite(value.rightGrabOffset)) value.rightGrabOffset = defaults.rightGrabOffset;
             if (!IsFinite(value.leftGrabEuler)) value.leftGrabEuler = defaults.leftGrabEuler;
             if (!IsFinite(value.rightGrabEuler)) value.rightGrabEuler = defaults.rightGrabEuler;
+            if (!IsValidScale(value.leftGrabScale)) value.leftGrabScale = defaults.leftGrabScale;
+            if (!IsValidScale(value.rightGrabScale)) value.rightGrabScale = defaults.rightGrabScale;
             if (!IsFinite(value.visualLength) || value.visualLength <= 0.001f)
                 value.visualLength = defaults.visualLength;
             if (!IsFinite(value.poseSmoothTime) || value.poseSmoothTime <= 0.001f)
@@ -389,6 +448,11 @@ namespace Metagame.Gameplay
         static bool IsFinite(Vector3 value)
         {
             return IsFinite(value.x) && IsFinite(value.y) && IsFinite(value.z);
+        }
+
+        static bool IsValidScale(Vector3 value)
+        {
+            return IsFinite(value) && value.x > 0.001f && value.y > 0.001f && value.z > 0.001f;
         }
     }
 }
