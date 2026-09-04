@@ -50,6 +50,7 @@ namespace Metagame.Network
 
         /// <summary>서버에서 물리를 도는 진짜 몸. 클라이언트에서는 그림용 몸이다.</summary>
         PlayerRig body;
+        RemoteAvatar remoteAvatar;
 
         void LateUpdate()
         {
@@ -57,6 +58,9 @@ namespace Metagame.Network
             if (isServer) _locomotionState = RabbitLocomotion.ReadState(body);
             if (body.Doll.Suit != null)
                 body.Doll.Suit.NetworkLocomotionState = _locomotionState;
+            if (remoteAvatar != null)
+                remoteAvatar.SetArmIntent(_locomotionState.LeftArmBusy,
+                                          _locomotionState.RightArmBusy);
         }
 
         /// <summary>이 사람의 운반 장치 조작. 서버에만 있다(-149).</summary>
@@ -385,7 +389,7 @@ namespace Metagame.Network
             body = session != null ? session.LocalPlayer : null;
             if (body == null) return false;
 
-            RemoteAvatar.Attach(body, transform, mine: true);
+            remoteAvatar = RemoteAvatar.Attach(body, transform, mine: true);
             Debug.Log($"[NetPlayer] 내 캐릭터를 서버에 맡겼다 · {nickname}(userId={userId})");
             return true;
         }
@@ -473,7 +477,7 @@ namespace Metagame.Network
             // 자식으로 붙이지 않는 이유는 RemoteAvatar 가 골반을 MovePosition 으로
             // 직접 옮기기 때문이다 — 부모를 따라 끌려가면 조인트가 그 이동을
             // 순간이동으로 받아들여 몸이 튄다.
-            RemoteAvatar.Attach(body, transform);
+            remoteAvatar = RemoteAvatar.Attach(body, transform);
 
             Debug.Log($"[NetPlayer] 다른 플레이어가 보인다 · {nickname}(userId={userId})");
         }
@@ -503,6 +507,7 @@ namespace Metagame.Network
             if (!adoptedBody && (!isLocalPlayer || isServer)) Destroy(body.gameObject);
 
             body = null;
+            remoteAvatar = null;
             adoptedBody = false;
         }
 

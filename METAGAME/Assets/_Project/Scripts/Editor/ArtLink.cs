@@ -20,16 +20,19 @@ namespace Metagame.EditorTools
         // 다른 모델을 쓰려면 SpaceSuit.ResourceKey 를 바꾸고 여기에 한 줄 더한다.
         public const string RabbitFbx = "Assets/_Project/Models/Characters/SF_Rabbit_Base.fbx";
         public const string CapsuleFbx = "Assets/_Project/Models/Spaceships/SF_Spaceship_Capsule.fbx";
+        public const string HandFbx = "Assets/_Project/Models/Characters/Parts/CharacterHand/character_hand.fbx";
 
         /// <summary>런타임 코드가 이 이름으로 찾는다.</summary>
         public const string RabbitKey = "SF_Rabbit_Base";
         public const string CapsuleKey = "SF_Spaceship_Capsule";
+        public const string HandKey = "CharacterHand";
 
         public static void BuildPrefabs()
         {
             Directory.CreateDirectory(ResourceDir);
             Link(RabbitFbx, RabbitKey);
             Link(CapsuleFbx, CapsuleKey);
+            Link(HandFbx, HandKey);
             CleanStale();
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
@@ -38,7 +41,7 @@ namespace Metagame.EditorTools
         /// <summary>더 이상 쓰지 않는 프리팹은 지운다 — 안 그러면 빌드에 계속 딸려 들어간다.</summary>
         static void CleanStale()
         {
-            string[] keep = { RabbitKey, CapsuleKey };
+            string[] keep = { RabbitKey, CapsuleKey, HandKey };
             foreach (var guid in AssetDatabase.FindAssets("t:Prefab", new[] { ResourceDir }))
             {
                 string path = AssetDatabase.GUIDToAssetPath(guid);

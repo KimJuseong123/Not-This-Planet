@@ -24,6 +24,10 @@ namespace Metagame.Bootstrap
         [Header("카메라")]
         public bool firstPerson = true;
 
+        [Header("1인칭 손")]
+        [Tooltip("카메라 기준 손 위치·각도와 잡기 포즈를 조정한다")]
+        public FirstPersonHandView.Settings firstPersonHandSettings = FirstPersonHandView.Settings.Default;
+
         [Header("우주비행사")]
         [Tooltip("끄면 블렌더 메시 대신 프리미티브 룩으로 돈다 (물리는 완전히 같다)")]
         public bool useModel = true;
@@ -165,6 +169,7 @@ namespace Metagame.Bootstrap
             Player.Cam.Yaw = 90f;                        // +X 를 바라보고 시작한다
             Player.Cam.transform.SetParent(transform, true);
             Player.Cam.SnapToTarget();
+            FirstPersonHandView.Create(Player, Player.Cam, firstPersonHandSettings);
             ExplorationHud.AttachTablet(Player.Cam.Cam);
             Player.ConfigureClampInteraction(Player.Cam.transform);
             Transport.Configure(Player, beams, randomizeVehicles: !inMatch);
