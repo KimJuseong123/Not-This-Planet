@@ -3,6 +3,7 @@ package com.metagame.backend.websocket;
 import tools.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -27,7 +28,8 @@ import java.util.Map;
  */
 @Slf4j
 @Service
-public class EdgegapRelayService {
+@ConditionalOnProperty(name = "relay.provider", havingValue = "edgegap")
+public class EdgegapRelayService implements RelayProvider {
 
     private static final String BASE_URL = "https://api.edgegap.com";
 
@@ -65,6 +67,7 @@ public class EdgegapRelayService {
         return value;
     }
 
+    @Override
     public boolean isEnabled() {
         return !apiToken.isBlank();
     }
@@ -75,7 +78,10 @@ public class EdgegapRelayService {
      * @param userIps userId → 공인 IP. 순서가 응답의 session_users 와 짝이 된다.
      * @return 쓸 수 있는 세션, 또는 실패 시 null (그때는 직접 접속)
      */
-    public RelaySession open(LinkedHashMap<Long, String> userIps) {
+    @Override
+    public RelaySession open(LinkedHashMap<Long, String> userIps, Long hostUserId) {
+        // hostUserId 는 쓰지 않는다 — Edgegap 은 세션 안에서 서버를 지정하는 방법이 없고,
+        // 서버 포트로 핑한 쪽이 서버가 된다. userIps 의 순서(방장 먼저)만 의미가 있었다.
         if (!isEnabled() || userIps == null || userIps.isEmpty()) {
             return null;
         }
@@ -93,6 +99,7 @@ public class EdgegapRelayService {
     }
 
     /** 세션을 닫는다. 실패해도 무시한다 — 방치해도 Edgegap 이 스스로 정리한다. */
+    @Override
     public void close(String sessionId) {
         if (!isEnabled() || sessionId == null || sessionId.isBlank()) {
             return;
@@ -244,6 +251,6 @@ public class EdgegapRelayService {
 
         log.info("relay ready: {} (server {} / client {}) for {} users",
                 address, serverPort, clientPort, userTokens.size());
-        return new RelaySession(address, serverPort, clientPort, sessionToken, userTokens);
+        return new RelaySession(sessionId, address, serverPort, clientPort, sessionToken, userTokens);
     }
 }

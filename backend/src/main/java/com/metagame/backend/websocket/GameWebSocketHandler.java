@@ -41,10 +41,12 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     private final ReconnectGraceManager graceManager;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
-    private final EdgegapRelayService relayService;
+    private final RelayProvider relayService;
 
     // userId → 세션. 브로드캐스트 대상 조회용
     private final Map<Long, WebSocketSession> sessions = new ConcurrentHashMap<>();
+    /** roomId → 릴레이 세션 식별자. 방이 사라질 때 릴레이에서도 지운다 (S15P21B202-299). */
+    private final Map<String, String> relaySessions = new ConcurrentHashMap<>();
 
     /** 닉네임은 연결 시 한 번만 조회해 세션에 보관한다 (브로드캐스트마다 DB를 보지 않기 위해). */
     @Override
@@ -138,9 +140,22 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     }
 
     private void removeFromRoom(Room room, Long userId) {
+        String roomId = room.getRoomId();
         room.leave(userId);
-        roomManager.removeIfEmpty(room.getRoomId());
+        roomManager.removeIfEmpty(roomId);
+        // 방이 실제로 사라졌으면 릴레이 세션도 닫는다. removeIfEmpty 는 void 라 조회로 확인한다.
+        if (roomManager.find(roomId) == null) {
+            closeRelay(roomId);
+        }
         broadcastRoomState(room);
+    }
+
+    /** 그 방의 릴레이 세션을 닫는다. 없으면 아무 것도 하지 않는다. */
+    private void closeRelay(String roomId) {
+        String sessionId = relaySessions.remove(roomId);
+        if (sessionId != null) {
+            relayService.close(sessionId);
+        }
     }
 
     private void createRoom(WebSocketSession session, Long userId) {
@@ -230,7 +245,11 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         // 실패하면 null 이고, 그때는 위의 직접 접속 주소로 간다.
         LinkedHashMap<Long, String> publicIps = publicIpsOf(room);
         boolean same = sameNetwork(room, publicIps);
-        RelaySession relay = same ? null : relayService.open(publicIps);
+        RelaySession relay = same ? null : relayService.open(publicIps, room.getHostUserId());
+        if (relay != null) {
+            // 방이 사라질 때 닫기 위해 기억한다. 예전에는 이것이 없어 세션이 쌓였다(-298 §5-①).
+            relaySessions.put(room.getRoomId(), relay.sessionId());
+        }
 
         // 무엇을 골랐는지 남긴다. 릴레이가 안 붙었을 때 어디서 갈렸는지 알아야 한다 —
         // 실패하면 조용히 직접 접속으로 되돌아가므로 로그가 없으면 원인을 못 찾는다.

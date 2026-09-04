@@ -60,6 +60,9 @@ HEADER = struct.Struct("<IIB")          # userId, sessionId, type
 CONN = struct.Struct("<i")              # connectionId
 # 양쪽 다 0.5초마다 핑한다(킵얼라이브). 그보다 넉넉히 잡아 잠깐의 유실로 끊지 않는다.
 IDLE_TIMEOUT = float(os.environ.get("RELAY_IDLE_TIMEOUT", "8"))
+# 안전망. Spring 이 방을 닫을 때 DELETE 를 부르지만, 백엔드가 죽거나 배포로 재시작되면
+# 아무도 안 닫는 세션이 남는다. 아무 왕래도 없이 이만큼 지나면 릴레이가 스스로 지운다.
+SESSION_TTL = float(os.environ.get("RELAY_SESSION_TTL", "1800"))
 SWEEP_INTERVAL = 2.0
 
 log = logging.getLogger("relay")
@@ -81,6 +84,7 @@ class Session:
         self.seen: dict[tuple[str, int], float] = {}
         self.next_conn = 1
         self.created = time.time()
+        self.last_seen = self.created          # 아무 유효 패킷이든 오면 갱신한다
 
     def client_conn(self, addr) -> int:
         """참가자에게 connectionId 를 배정한다. 같은 주소면 같은 번호를 유지한다."""
@@ -108,6 +112,7 @@ class Session:
             "serverConnected": self.server_addr is not None,
             "clients": len(self.conn_of),
             "ageSeconds": round(time.time() - self.created, 1),
+            "idleSeconds": round(time.time() - self.last_seen, 1),
         }
 
 
@@ -190,6 +195,7 @@ class Relay:
             return
 
         now = time.time()
+        s.last_seen = now
         is_host = user_token == s.host_token
         # **핑이든 데이터든 첫 유효 패킷에 등록한다.** 클라이언트는 kcp 핸드셰이크가 끝난 뒤에야
         # 릴레이 핑을 보내므로(TickOutgoing 의 `if (connected)`), 데이터가 먼저 올 수 있다.
@@ -232,10 +238,15 @@ class Relay:
             self.send(s.server_addr, bytes((DATA,)) + CONN.pack(cid) + body)
 
     def sweep(self) -> None:
-        """오래 조용한 참가자·서버를 정리한다. 양쪽 다 0.5초마다 핑하므로 8초면 넉넉하다."""
+        """오래 조용한 참가자·서버를 정리하고, 아무도 닫지 않은 세션을 지운다.
+
+        양쪽 다 0.5초마다 핑하므로 8초면 끊긴 것으로 봐도 된다. 세션 자체는
+        `SESSION_TTL` 동안 아무 왕래가 없을 때만 지운다 — Spring 이 DELETE 를 못 부른
+        경우(백엔드 재시작·배포)의 안전망이다."""
         while True:
             time.sleep(SWEEP_INTERVAL)
-            cut = time.time() - IDLE_TIMEOUT
+            now = time.time()
+            cut = now - IDLE_TIMEOUT
             with self.lock:
                 items = list(self.by_id.values())
             for s in items:
@@ -244,6 +255,10 @@ class Relay:
                 if s.server_addr and s.server_seen < cut:
                     log.info("[%s] 방장이 조용해짐 — 서버 등록 해제", s.sid)
                     s.server_addr = None
+                if now - s.last_seen > SESSION_TTL:
+                    log.warning("[%s] %.0f분 동안 왕래가 없어 지운다 — 아무도 닫지 않은 세션이다",
+                                s.sid, SESSION_TTL / 60)
+                    self.close_session(s.sid)
 
     def serve(self) -> None:
         log.info("릴레이 UDP %d 대기 · idle timeout %.0f초", self.port, IDLE_TIMEOUT)

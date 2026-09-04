@@ -30,6 +30,15 @@ game:
   reconnect-grace-ms: ${GAME_RECONNECT_GRACE_MS:30000}
 
 relay:
+  # 어느 릴레이를 쓸지. local(기본) = 우리 EC2 릴레이 · edgegap = 예전 방식(되돌릴 길)
+  # -298 에서 Edgegap 의 서버 검증이 우리 세션에서 동작하지 않음을 확정하고 -299 에서 바꿨다.
+  provider: ${RELAY_PROVIDER:local}
+  local:
+    # 릴레이 제어 API. 같은 호스트의 별 프로세스이고 127.0.0.1 에만 열려 있다.
+    base-url: ${RELAY_CONTROL_URL:http://127.0.0.1:17779}
+    # 클라이언트가 붙을 **공개 주소**. 제어 API 는 자기 포트만 알고 밖에서 어떤 이름으로
+    # 보이는지는 모른다. 비어 있으면 릴레이를 쓰지 않고 직접 접속으로 간다.
+    public-address: ${RELAY_PUBLIC_ADDRESS:}
   edgegap:
     # Edgegap 릴레이 API 토큰. 비워 두면 릴레이를 쓰지 않고 같은 네트워크 직접
     # 접속으로 간다(S15P21B202-264) — 없다고 게임이 안 열리지는 않는다.
