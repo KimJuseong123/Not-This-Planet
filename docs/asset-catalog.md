@@ -352,16 +352,16 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 - Source FBX를 맵에 직접 배치하거나 기존 캐릭터 FBX 위에 덮어쓰지 않는다. 원본 Mixamo 리그와 기존 토끼 리그는 서로 다르다.
 - 재생성·검증·제한 사항: [작업 기록](./records/S15P21B202-278-rabbit-walk-run.md).
 
-### 캐릭터 팔·손 원본 — 미연결 (2종)
+### 캐릭터 팔·손 원본 — 팔 미연결 / 손 1인칭 연결
 
 | 프리뷰 | 모델 | FBX 원본 | 텍스처 | 상태 |
 | --- | --- | --- | --- | --- |
 | <img src="./assets/previews/character_arm_front.png" width="110"> | `character_arm` 팔·손 일체형 원본 | `Models/Characters/Parts/CharacterArm/character_arm.fbx` (1,053 KB) | BaseColor · Normal · Roughness · Metallic · RM | **미연결** |
-| <img src="./assets/previews/character_hand_front.png" width="110"> | `character_hand` 손 원본 | `Models/Characters/Parts/CharacterHand/character_hand.fbx` (1,078 KB) | BaseColor · Normal · Roughness · Metallic · RM | **미연결** |
+| <img src="./assets/previews/character_hand_front.png" width="110"> | `character_hand` 손 원본 | `Models/Characters/Parts/CharacterHand/character_hand.fbx` (1,078 KB) | BaseColor · Normal · Roughness · Metallic · RM | **1인칭 손 표시 연결** (`Resources/CharacterHand`) |
 
 - 사용자가 제공한 Tripo 원본을 모델별 폴더에 보관했다. FBX 안의 텍스처 경로를 유지하기 위해 UUID가 포함된 `.fbm` 폴더명은 바꾸지 않았다.
 - BaseColor는 sRGB, Normal은 Normal map, Roughness·Metallic·RM은 선형 데이터로 임포트되도록 `.meta`를 포함했다.
-- Material·Prefab·리깅 연결은 만들지 않았으며 현재 `SF_Rabbit_Base` 캐릭터에도 연결하지 않았다. 캐릭터에 적용하려면 크기·축·피벗·스킨 가중치 확인과 재질 연결이 후속으로 필요하다.
+- `character_arm`은 기존 래그돌 팔과의 리깅 연결 없이 원본으로 보관한다. `character_hand`는 `ArtLink`가 `Resources/CharacterHand` 프리팹으로 연결하고, 로컬 1인칭 카메라 아래에서만 표시한다. 실제 잡기 판정은 기존 물리 손이 담당한다.
 - 저장소 프리뷰에는 작업 범위에 따라 각 모델의 `front` 사진만 넣었다. 상세 파일 목록과 검증 결과는 [작업 기록](./records/S15P21B202-283-character-arm-hand-assets.md)에 있다.
 
 ---

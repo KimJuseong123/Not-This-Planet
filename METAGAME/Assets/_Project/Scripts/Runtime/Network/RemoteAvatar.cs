@@ -22,6 +22,10 @@ namespace Metagame.Network
         /// 조인트가 기본 자세를 붙드는 힘. 약하면 늘어지고 세면 뻣뻣하다.
         const float JointSpring = 120f;
         const float JointDamper = 12f;
+        const float ReachShoulderSpring = 220f;
+        const float ReachShoulderDamper = 18f;
+        const float ReachElbowSpring = 90f;
+        const float ReachElbowDamper = 9f;
 
         /// <summary>
         /// 이만큼 넘게 한 번에 벌어지면 보간하지 않고 그 자리로 옮긴다.
@@ -35,6 +39,8 @@ namespace Metagame.Network
         Transform source;
 
         bool mine;
+        bool leftArmIntent;
+        bool rightArmIntent;
 
         /// <summary>
         /// 서버가 보낸 자리를 그리는 몸으로 바꾼다. <paramref name="source"/> 는 서버가
@@ -53,6 +59,17 @@ namespace Metagame.Network
             avatar.mine = mine;
             avatar.Configure();
             return avatar;
+        }
+
+        /// <summary>
+        /// 원격 플레이어의 표시용 팔 상태를 갱신한다. 입력 자체나 잡기 결과를
+        /// 네트워크로 새로 보내지 않고, NetPlayer가 이미 복제하는 locomotion 상태만
+        /// 사용한다. 실제 판정은 계속 서버의 PlayerRig가 담당한다.
+        /// </summary>
+        public void SetArmIntent(bool left, bool right)
+        {
+            leftArmIntent = left;
+            rightArmIntent = right;
         }
 
         void Configure()
@@ -151,6 +168,9 @@ namespace Metagame.Network
         {
             if (source == null || doll == null || doll.Hips == null) return;
 
+            ApplyArmPose(doll.Left, leftArmIntent);
+            ApplyArmPose(doll.Right, rightArmIntent);
+
             Vector3 target = source.position;
             Quaternion facing = source.rotation;
 
@@ -162,6 +182,40 @@ namespace Metagame.Network
 
             doll.Hips.MovePosition(target);
             doll.Hips.MoveRotation(facing);
+        }
+
+        void ApplyArmPose(Arm arm, bool reaching)
+        {
+            if (arm == null || arm.Shoulder == null || arm.Elbow == null) return;
+
+            if (!reaching)
+            {
+                JointTools.SetDrive(arm.Shoulder, JointSpring, JointDamper);
+                JointTools.SetDrive(arm.Elbow, JointSpring, JointDamper);
+                JointTools.SetTargetLocalRotation(arm.Shoulder, Quaternion.identity, arm.ShoulderStart);
+                JointTools.SetTargetLocalRotation(arm.Elbow, Quaternion.identity, arm.ElbowStart);
+                return;
+            }
+
+            JointTools.SetDrive(arm.Shoulder, ReachShoulderSpring, ReachShoulderDamper);
+            JointTools.SetDrive(arm.Elbow, ReachElbowSpring, ReachElbowDamper);
+
+            Vector3 direction = source != null ? source.forward : Vector3.forward;
+            direction.y = 0f;
+            if (direction.sqrMagnitude < 0.0001f)
+            {
+                direction = doll.Chest != null ? doll.Chest.transform.forward : Vector3.forward;
+                direction.y = 0f;
+            }
+            if (direction.sqrMagnitude < 0.0001f) direction = Vector3.forward;
+            direction.Normalize();
+
+            Quaternion aimWorld = Quaternion.FromToRotation(Vector3.down, direction);
+            Quaternion aimLocal = doll.Chest != null
+                ? Quaternion.Inverse(doll.Chest.rotation) * aimWorld
+                : aimWorld;
+            JointTools.SetTargetLocalRotation(arm.Shoulder, aimLocal, arm.ShoulderStart);
+            JointTools.SetTargetLocalRotation(arm.Elbow, Quaternion.identity, arm.ElbowStart);
         }
     }
 }

@@ -158,5 +158,34 @@ namespace Metagame.Gameplay.Tests
                     $"{body.name} 이 RemotePlayer 레이어가 아니다.");
             }
         }
+
+        [Test]
+        public void 팔잡기상태를받으면기존조인트가뻗는다()
+        {
+            var (avatar, rig, source) = Spawn(Vector3.zero);
+
+            avatar.SetArmIntent(false, false);
+            avatar.Follow();
+            var rest = rig.Doll.Right.Shoulder.targetRotation;
+
+            // 네트워크에는 골반 회전만 오므로, 원격 팔은 그 사람의 수평 몸 방향을 사용한다.
+            source.rotation = Quaternion.Euler(0f, 90f, 0f);
+            avatar.SetArmIntent(false, true);
+            avatar.Follow();
+            var reaching = rig.Doll.Right.Shoulder.targetRotation;
+
+            Assert.Greater(Quaternion.Angle(rest, reaching), 5f,
+                "오른쪽 잡기 intent가 기존 어깨 조인트 목표를 바꾸지 않았다.");
+            Assert.AreEqual(220f, rig.Doll.Right.Shoulder.slerpDrive.positionSpring,
+                            "뻗는 동안 어깨 조인트 스프링이 강화되지 않았다.");
+            Assert.AreEqual(90f, rig.Doll.Right.Elbow.slerpDrive.positionSpring,
+                            "뻗는 동안 팔꿈치 조인트 스프링이 강화되지 않았다.");
+
+            avatar.SetArmIntent(false, false);
+            avatar.Follow();
+
+            Assert.Less(Quaternion.Angle(rest, rig.Doll.Right.Shoulder.targetRotation), 0.1f,
+                "잡기 intent를 해제했는데 어깨 조인트가 기본 자세로 돌아오지 않았다.");
+        }
     }
 }
