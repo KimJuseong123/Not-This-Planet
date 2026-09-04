@@ -225,7 +225,10 @@ MR 이 이슈 K개에 연결되면 **K−1번은 반드시 `수행한 작업 없
 ### 4.2 머지 설정 — Settings → Merge requests
 
 - Merge method **Merge commit** · Squash commits **Encourage** · Enable "Delete source branch" by default ✔
-- Merge checks: **All threads must be resolved** ✔ · Pipelines must succeed (러너 확보 후) ✔ · Skipped pipelines are considered successful ✔
+- Merge checks: **All threads must be resolved** ✔ · Pipelines must succeed ✔ · **Skipped pipelines are considered successful ✘**
+  - 2026-09-04 실측 정정: `allow_merge_on_skipped_pipeline = false` 다. 이 항목을 켜면 **파이프라인이 안 생긴 MR 도 통과**하므로 끈 채로 둔다
+  - `All threads must be resolved` 는 편의 항목이 아니라 **스택 순서 강제의 일부**다(`-297`). `stack-order` 가 미해소 스레드로 자식 MR 의 머지 버튼을 잠그는데, 이 항목을 끄면 그 차단이 조용히 무력화된다 — 그 경우 `stack-order` 잡이 경고를 찍는다
+  - `Pipelines must succeed` 는 **`-295`(재대상 뒤 파이프라인 생성) 뒤에** 켠다. 순서를 바꾸면 재대상된 자식이 파이프라인이 없어 영구히 머지 불가가 된다
 - (Premium일 때만) Approval rules: Approvals required 1
 
 ### 4.3 멤버 — Settings → Members

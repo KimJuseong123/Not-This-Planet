@@ -21,10 +21,18 @@ R6 가 각 이슈를 자연히 완료시킨다. 빈틈이 없다.
 MR 생성 = 리뷰 요청"). CI 가 그 상태를 대신 쓰면 규칙에 예외가 생기고, 그 예외를 사람이 흉내 내
 검사를 우회할 수 있다.
 
-하드 블록의 조건: 프로젝트 설정 **Settings → Merge requests → Pipelines must succeed**.
-그 전까지는 빨간 X 와 코멘트까지만 남는다(=강한 경고).
+**막는 방식은 미해소 스레드다**(S15P21B202-297). 검사 실패만으로는 부족하다 —
+`Pipelines must succeed` 는 MR 의 **마지막 파이프라인**만 보므로, 부모가 머지돼 자식이 재대상된
+직후의 **낡은 초록**(부모 기준으로 통과한 결과)을 그대로 통과시킨다. 실측한 재대상 → 머지 간격
+중위값이 약 20초라 그 창에 들어간다(재대상 16건 중 파이프라인 미생성 14건, 그중 6건이 초록).
+
+그래서 이 잡은 안내를 **스레드로** 달고 미해소로 둔다. `only_allow_merge_if_all_discussions_are_resolved`
+가 켜져 있으므로(2026-09-04 확인) **미해소 스레드 하나가 머지 버튼을 잠근다.** 부모가 머지되고
+`retarget-pipelines`(-295)가 만든 새 파이프라인에서 이 잡이 통과하면 **스레드를 자동으로 해소**한다.
+사람이 개입하는 자리가 없고, 불확실하면 잠긴 채로 남는다(fail-safe).
 
 로컬 실행: CI_MERGE_REQUEST_IID=167 GITLAB_TOKEN=… python scripts/ci/stack_order.py
+
 """
 import os
 import sys
@@ -63,13 +71,17 @@ BLOCKED = MARKER + """
 
 1. 부모 MR 을 먼저 develop 에 머지합니다
 2. GitLab 이 이 MR 의 대상을 자동으로 develop 으로 되돌립니다
-3. 그때 파이프라인이 다시 돌고 이 검사가 **저절로 통과**합니다
+3. `retarget-pipelines` 가 **새 파이프라인을 만듭니다**(GitLab 은 그때 파이프라인을 만들지 않습니다)
+4. 그 파이프라인에서 이 검사가 통과하면서 **이 스레드가 자동으로 해소되고** 머지 버튼이 풀립니다
+
+**이 스레드를 손으로 해소하지 마세요.** 아직 순서가 아니라는 사실은 클릭으로 바뀌지 않으므로,
+다음 파이프라인이 다시 미해소로 되돌립니다.
 
 <sub>순서 규칙: `docs/mr-flow.md` §3 (머지는 아래부터) · 자동 생성(stack-order)</sub>"""
 
 CLEARED = MARKER + """
 🔓 **풀렸습니다** — 부모가 develop 에 머지되어 이 MR 의 대상이 `develop` 으로 돌아왔습니다.
-`stack-order` 검사가 통과했고, 이제 리뷰·머지 대상입니다.
+`stack-order` 검사가 통과했고 이 스레드도 해소됐습니다. 이제 리뷰·머지 대상입니다.
 
 <sub>자동 생성(stack-order)</sub>"""
 
@@ -114,8 +126,8 @@ def main() -> int:
     if completes_on_merge(target):
         # 대상이 develop·master 다. 전에 막혔던 MR 이면 풀렸다고 알린다.
         if any(MARKER in (n.get("body") or "") for n in gl.notes()):
-            gl.upsert_note(MARKER, CLEARED)
-            rep.ok(f"부모가 머지돼 대상이 `{target}` 으로 돌아왔다 — 순서 조건 충족")
+            _st, what = gl.upsert_thread(MARKER, CLEARED, resolved=True)
+            rep.ok(f"부모가 머지돼 대상이 `{target}` 으로 돌아왔다 — 순서 조건 충족 ({what})")
         else:
             rep.ok(f"대상이 `{target}` — 스택이 아니다")
         return rep.finish()
@@ -134,15 +146,21 @@ def main() -> int:
                else f"부모 MR !{merged['iid']} 가 이미 머지됐다(브랜치만 남아 있다)")
         st, _ = gl.update_mr(target_branch="develop")
         if st == 200:
-            gl.upsert_note(MARKER, CLEARED)
-            rep.ok(f"{why} → 대상을 `develop` 으로 되돌렸다. 다음 파이프라인에서 통과한다")
+            _st, what = gl.upsert_thread(MARKER, CLEARED, resolved=True)
+            rep.ok(f"{why} → 대상을 `develop` 으로 되돌렸다. 다음 파이프라인에서 통과한다 ({what})")
             return rep.finish()
         rep.fail(f"{why} 그런데 대상 전환에 실패했다({st}) — "
                  f"MR 화면에서 대상을 `develop` 으로 바꿔 주세요")
         return rep.finish()
 
-    # ③ 부모가 아직 develop 에 없다 → 지금 머지하면 안 된다
-    gl.upsert_note(MARKER, BLOCKED.format(target=target, parent=" " + parent_note(gl, target)))
+    # ③ 부모가 아직 develop 에 없다 → 지금 머지하면 안 된다.
+    #    검사 실패만으로는 낡은 초록을 못 막으므로 **미해소 스레드**로 머지 버튼까지 잠근다(-297).
+    _st, what = gl.upsert_thread(
+        MARKER, BLOCKED.format(target=target, parent=" " + parent_note(gl, target)), resolved=False)
+    print(f"  스레드: {what}")
+    if gl.project_flag("only_allow_merge_if_all_discussions_are_resolved") is False:
+        rep.warn("프로젝트 설정 'All threads must be resolved' 가 꺼져 있어 스레드가 머지를 막지 못한다 "
+                 "— Settings → Merge requests 에서 켜야 이 잡의 차단이 실제로 작동한다")
     rep.fail(f"대상이 `{target}`(다른 이슈의 작업 브랜치)이고 그 부모가 아직 develop 에 없다 — "
              f"**부모를 먼저 머지하세요.** 이 MR 은 고칠 것이 없고, 부모가 머지되면 이 검사는 "
              f"저절로 통과한다(GitLab 이 대상을 develop 으로 되돌린다). 규칙: docs/mr-flow.md §3")
