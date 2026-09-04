@@ -87,7 +87,7 @@ def landed_on_develop(gl: GitLab, target: str, depth: int = 5) -> bool | None:
     return False
 
 
-def merged_not_done(gl: GitLab, jira: Jira, days: int = 7) -> tuple[list[str], list[str], bool]:
+def merged_not_done(gl: GitLab, jira: Jira, days: int = 7, now=None) -> tuple[list[str], list[str], bool]:
     """최근 N일 안에 머지됐는데 Jira 상태가 완료가 아닌 이슈 → 표 행. **두 갈래로 나눠** 돌려준다.
 
     - `rows`  : 대상이 develop·master 인 MR — R6 가 걸려야 했는데 안 걸린 것. **이상 상황**
@@ -100,13 +100,15 @@ def merged_not_done(gl: GitLab, jira: Jira, days: int = 7) -> tuple[list[str], l
 
     키로 직접 조회하고(가벼움), 존재하지 않는 키(오타·삭제된 테스트 이슈)가 섞여 JQL 이 거부되면 미완료 이슈 전량 조회로 폴백해 로컬에서 교차한다(-134)."""
     by_key: dict[str, dict] = {}
-    mrs, mrs_complete = gl.merged_mrs(days)
+    mrs, mrs_complete = gl.merged_mrs(days, now=now)
     for mr in mrs:
         k = key_from_branch(mr.get("source_branch") or "")
         if k and k not in by_key:
             by_key[k] = mr
     if not by_key:
-        return [], mrs_complete
+        # 반드시 3개를 돌려준다. 예전엔 2개였고, 7일 안에 이슈 키가 붙은 머지가 없으면 main() 이
+        # ValueError 를 잡아 "조회 실패 → @Infra" 오탐 카드를 냈다(-281). 매일 머지가 있어 숨어 있던 경로다.
+        return [], [], mrs_complete
     issues, complete = not_done_issues(jira, list(by_key))
     rows, stacks = [], []
     for i in issues:
@@ -132,10 +134,10 @@ def _hdrs(gl: GitLab) -> dict:
     return gl.headers() if hasattr(gl, "headers") else gl._h()
 
 
-def resurrected_branches(gl: GitLab, days: int = 7) -> list[str]:
+def resurrected_branches(gl: GitLab, days: int = 7, now=None) -> list[str]:
     """최근 N일 안에 머지된 MR 의 소스 브랜치가 **다시 존재**하면 표 행으로. 머지 후 같은 브랜치에 push 한 경우를 잡는다
     (그렇게 push 하면 MR·파이프라인이 없어 조용히 유실된다 — S15P21B202-110)."""
-    mrs, _ = gl.merged_mrs(days)
+    mrs, _ = gl.merged_mrs(days, now=now)
     rows = []
     for mr in mrs:
         br = mr.get("source_branch") or ""
