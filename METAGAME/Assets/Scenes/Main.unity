@@ -24151,6 +24151,61 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 2789534746178464044, guid: 0ee1fc4e0208a7d43a4edf1004e8ab7f, type: 3}
   m_PrefabInstance: {fileID: 1307127513}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &1307270630
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1307270631}
+  - component: {fileID: 1307270632}
+  m_Layer: 13
+  m_Name: Handle_Collider
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1307270631
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1307270630}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0.27783442, y: -0.0591921, z: 0.33125836, w: 0.89976233}
+  m_LocalPosition: {x: 0.303, y: 0.268, z: 0.301}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2105819283}
+  m_LocalEulerAnglesHint: {x: -27.436, y: -19.112, z: 45.13}
+--- !u!136 &1307270632
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1307270630}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.1
+  m_Height: 0.6
+  m_Direction: 1
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1001 &1307793322
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -37816,7 +37871,7 @@ GameObject:
   - component: {fileID: 1904513658}
   - component: {fileID: 1904513659}
   m_Layer: 13
-  m_Name: Collider Manager
+  m_Name: Overall_Collider
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -41256,6 +41311,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 2806296892988998667, guid: 3d5786d4b6c187e4db5ee2e6283066dd, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1904513658}
+    - targetCorrespondingSourceObject: {fileID: 2806296892988998667, guid: 3d5786d4b6c187e4db5ee2e6283066dd, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1307270631}
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 3d5786d4b6c187e4db5ee2e6283066dd, type: 3}
 --- !u!4 &2105819283 stripped
