@@ -221,6 +221,59 @@ class GitLab:
                 return http("PUT", self._mr_url(f"/notes/{n['id']}"), self._h(), {"body": body})
         return http("POST", self._mr_url("/notes"), self._h(), {"body": body})
 
+    def discussions(self) -> list[dict] | None:
+        """이 MR 의 스레드 목록. 조회 실패는 None — '스레드가 없다' 와 섞으면 잘못 만든다."""
+        st, d = http("GET", self._mr_url("/discussions?per_page=100"), self._h())
+        return d if st == 200 and isinstance(d, list) else None
+
+    def project_flag(self, name: str) -> bool | None:
+        """프로젝트 설정 한 개. 조회 실패는 None."""
+        st, d = http("GET", f"{self.api}/projects/{self.project}", self._h())
+        return d.get(name) if st == 200 and isinstance(d, dict) else None
+
+    def upsert_thread(self, marker: str, body: str, resolved: bool) -> tuple[int, str]:
+        """마커가 든 **스레드**를 만들거나 갱신하고 **해소 상태까지 맞춘다.** 반환 (HTTP, 한 일).
+
+        평범한 노트(`upsert_note`)와 다른 점: 스레드는 해소 대상이고,
+        `only_allow_merge_if_all_discussions_are_resolved` 가 켜져 있으면 **미해소 스레드 하나가
+        머지 버튼을 잠근다**(2026-09-04 실측: `resolvable=True` · `blocking_discussions_resolved=False`).
+        `Pipelines must succeed` 는 마지막 파이프라인만 보므로 재대상 직후의 **낡은 초록**을 막지
+        못한다 — 그 창을 이 스레드가 닫는다(S15P21B202-297).
+
+        `resolved=False` 로 부르면 **사람이 손으로 해소해 둔 것도 되돌린다.** 아직 순서가 아니라는
+        사실은 사람의 클릭으로 바뀌지 않는다."""
+        ds = self.discussions()
+        if ds is None:
+            return 0, "스레드 조회 실패"
+        found = next((d for d in ds
+                      if any(marker in (nt.get("body") or "") for nt in (d.get("notes") or []))), None)
+
+        # 예전 방식(POST /notes)으로 남은 개별 노트는 해소 대상이 아니다 → 지우고 스레드로 다시 만든다
+        if found is not None and found.get("individual_note"):
+            for nt in found.get("notes") or []:
+                http("DELETE", self._mr_url(f"/notes/{nt['id']}"), self._h())
+            found = None
+
+        if found is None:
+            st, d = http("POST", self._mr_url("/discussions"), self._h(), {"body": body})
+            if st not in (200, 201):
+                return st, "스레드 생성 실패"
+            if resolved:
+                did = (d or {}).get("id")
+                http("PUT", self._mr_url(f"/discussions/{did}"), self._h(), {"resolved": True})
+            return st, "스레드 생성" + (" + 해소" if resolved else " (미해소 — 머지 잠김)")
+
+        did = found.get("id")
+        note = (found.get("notes") or [{}])[0]
+        did_what = []
+        if (note.get("body") or "") != body:
+            http("PUT", self._mr_url(f"/discussions/{did}/notes/{note['id']}"), self._h(), {"body": body})
+            did_what.append("본문 갱신")
+        if bool(note.get("resolved")) != resolved:
+            http("PUT", self._mr_url(f"/discussions/{did}"), self._h(), {"resolved": resolved})
+            did_what.append("해소" if resolved else "**미해소로 되돌림**")
+        return 200, " + ".join(did_what) or "변경 없음"
+
     def merged_mrs(self, days: int = 7, max_pages: int = 5, now=None) -> tuple[list[dict], bool]:
         """최근 N일 안에 **머지된** MR (merged_at 기준). updated_after 로 좁혀 페이지를 순회한 뒤 merged_at 으로 다시 거른다
         (GitLab MR API 에는 merged_after 필터가 없음). 반환 (mrs, complete) — max_pages 안에 끝나지 않으면 complete=False.
