@@ -1,0 +1,17 @@
+# claude-token-refresh.service 를 주기적으로 돌린다 (S15P21B202-304)
+#
+# 주기: 3시간. 액세스 토큰 수명이 8시간이므로(2026-09-04 실측: 발급 01:04 → 만료 09:04 UTC)
+# 3시간이면 한두 번 실패해도 만료 전에 다시 시도할 여유가 있다.
+# 부팅 뒤에도 한 번 돌린다 — 오래 꺼져 있었으면 그 사이 만료됐을 수 있다.
+
+[Unit]
+Description=Claude 액세스 토큰 갱신 타이머 (S15P21B202-304)
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=3h
+AccuracySec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
