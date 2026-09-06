@@ -56,6 +56,22 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void ValidateClampsDustStormWindTuning()
+        {
+            profile.dustStorm.windForce = -1f;
+            profile.dustStorm.playerWindForceMultiplier = -1f;
+            profile.dustStorm.objectWindForceMultiplier = -1f;
+            profile.dustStorm.maximumAffectedMass = -1f;
+
+            profile.Validate();
+
+            Assert.That(profile.dustStorm.windForce, Is.EqualTo(0f));
+            Assert.That(profile.dustStorm.playerWindForceMultiplier, Is.EqualTo(0f));
+            Assert.That(profile.dustStorm.objectWindForceMultiplier, Is.EqualTo(0f));
+            Assert.That(profile.dustStorm.maximumAffectedMass, Is.EqualTo(0f));
+        }
+
+        [Test]
         public void ProfileDefaultsKeepAtmosphereEffectsOptIn()
         {
             Assert.That(profile.fog.enabled, Is.False);

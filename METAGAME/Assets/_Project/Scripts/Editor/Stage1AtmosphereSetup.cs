@@ -100,6 +100,8 @@ namespace Metagame.EditorTools
                 profile.dustStorm.debugBoundaryWidth = 0.04f;
                 profile.dustStorm.debugSkyMarkerHeight = 80f;
                 profile.dustStorm.windForce = 6f;
+                profile.dustStorm.playerWindForceMultiplier = 0.45f;
+                profile.dustStorm.objectWindForceMultiplier = 1.25f;
                 profile.dustStorm.maximumAffectedMass = 40f;
                 profile.dustStorm.maxPhysicalFragments = 3;
                 profile.dustStorm.fragmentDamage = 5f;
