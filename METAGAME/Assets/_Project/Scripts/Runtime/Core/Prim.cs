@@ -66,15 +66,29 @@ namespace Metagame.Core
             return m;
         }
 
-        public static Material Ghost(Color c, float rimBoost = 1.6f, float pulse = 0f)
+        /// <summary>
+        /// 반투명 림 재질을 만든다.
+        ///
+        /// <paramref name="fogExempt"/> 는 월드 깊이와 상관없이 읽혀야 하는 표시용
+        /// 효과에만 쓴다. 이 재질은 기본적으로 기존처럼 일반 FOG를 받고, 예외를 켠
+        /// 재질은 Ghost 셰이더의 FOG와 Atmosphere의 전체 화면 패스를 함께 건너뛴다.
+        /// </summary>
+        public static Material Ghost(Color c, float rimBoost = 1.6f, float pulse = 0f,
+                                     bool fogExempt = false)
         {
             var m = new Material(GhostShader);
             m.name = "Ghost";
             if (m.HasProperty("_Color")) m.SetColor("_Color", c);
             if (m.HasProperty("_RimBoost")) m.SetFloat("_RimBoost", rimBoost);
             if (m.HasProperty("_Pulse")) m.SetFloat("_Pulse", pulse);
+            if (m.HasProperty("_FogStrength")) m.SetFloat("_FogStrength", fogExempt ? 0f : 1f);
+            if (m.HasProperty("_AtmosphereFogExemptMask"))
+                m.SetFloat("_AtmosphereFogExemptMask", fogExempt ? AtmosphereFogExemptMask : 0f);
             return m;
         }
+
+        // Haze.shader reserves stencil bit 6 for pixels that must remain readable.
+        const float AtmosphereFogExemptMask = 64f;
 
         public static Material Flat(Color c)
         {

@@ -7,12 +7,26 @@ Shader "SpaceFlop/Ghost"
         _RimPower ("Rim Power", Range(0.5, 6)) = 2.2
         _RimBoost ("Rim Boost", Range(0, 4)) = 1.6
         _Pulse ("Pulse", Range(0, 2)) = 0.0
+        _FogStrength ("Fog Strength", Range(0, 1)) = 1.0
+        _AtmosphereFogExemptMask ("Atmosphere Fog Exempt Mask", Float) = 0.0
     }
 
     SubShader
     {
         Tags { "Queue"="Transparent" "RenderType"="Transparent" "IgnoreProjector"="True" "RenderPipeline"="UniversalPipeline" }
         LOD 100
+
+        // Bit 6 is shared with the fullscreen atmosphere pass. Only materials
+        // that opt in through _AtmosphereFogExemptMask write it, so existing
+        // Ghost effects keep their normal atmosphere behavior.
+        Stencil
+        {
+            Ref 64
+            Comp Always
+            Pass Replace
+            ReadMask 64
+            WriteMask [_AtmosphereFogExemptMask]
+        }
 
         Pass
         {
@@ -35,6 +49,7 @@ Shader "SpaceFlop/Ghost"
                 half _RimPower;
                 half _RimBoost;
                 half _Pulse;
+                half _FogStrength;
             CBUFFER_END
 
             struct Attributes
@@ -72,7 +87,8 @@ Shader "SpaceFlop/Ghost"
                 half4 color = _Color;
                 color.rgb *= (0.75h + rim) * pulse;
                 color.a = saturate(color.a * pulse + rim * 0.55h);
-                color.rgb = MixFog(color.rgb, ComputeFogFactor(input.positionCS.z));
+                half3 fogged = MixFog(color.rgb, ComputeFogFactor(input.positionCS.z));
+                color.rgb = lerp(color.rgb, fogged, _FogStrength);
                 return color;
             }
             ENDHLSL

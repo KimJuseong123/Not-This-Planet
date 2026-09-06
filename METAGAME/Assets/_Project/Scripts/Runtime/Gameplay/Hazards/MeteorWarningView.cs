@@ -146,8 +146,12 @@ namespace Metagame.Gameplay.Hazards
             ring.localPosition = Vector3.zero;
             inner.localPosition = Vector3.zero;
 
-            var ringMaterial = Prim.Ghost(MeteorWarningLook.StartColor, RingRimBoost);
-            var innerMaterial = Prim.Ghost(MeteorWarningLook.StartColor, InnerRimBoost);
+            // 착탄 위치는 멀리서도 읽혀야 한다. 일반 Ghost 효과의 FOG뿐 아니라
+            // Atmosphere의 마지막 전체 화면 Haze 패스도 이 두 머티리얼만 제외한다.
+            var ringMaterial = Prim.Ghost(MeteorWarningLook.StartColor, RingRimBoost,
+                                          0f, true);
+            var innerMaterial = Prim.Ghost(MeteorWarningLook.StartColor, InnerRimBoost,
+                                           0f, true);
 
             ring.GetComponent<Renderer>().sharedMaterial = ringMaterial;
             inner.GetComponent<Renderer>().sharedMaterial = innerMaterial;

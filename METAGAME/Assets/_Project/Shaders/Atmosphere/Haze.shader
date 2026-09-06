@@ -8,9 +8,9 @@ Shader "Hidden/Metagame/Atmosphere/Haze"
         Cull Off
         ZWrite Off
         ZTest Always
-        // PlanetNoFog writes bit 6 on its opaque/depth passes. Keep the
-        // distant planets outside both Haze and Ground Fog in this fullscreen
-        // pass while preserving the other stencil bits used by URP.
+        // Atmosphere-exempt materials write bit 6. Keep distant planets and
+        // critical world markers outside both Haze and Ground Fog in this
+        // fullscreen pass while preserving the other stencil bits used by URP.
         Stencil
         {
             Ref 64
