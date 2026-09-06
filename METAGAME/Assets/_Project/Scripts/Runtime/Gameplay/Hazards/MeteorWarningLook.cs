@@ -57,10 +57,10 @@ namespace Metagame.Gameplay.Hazards
         {
             var remaining = drop.RemainingSeconds;
 
-            if (remaining <= PhysicsScale.MeteorWarningImminentSeconds)
+            if (remaining <= drop.WarningImminentSeconds)
                 return MeteorWarningStage.Imminent;
 
-            if (remaining <= PhysicsScale.BatSwingWindowSeconds)
+            if (remaining <= drop.BatSwingWindowSeconds)
                 return MeteorWarningStage.Strikable;
 
             return MeteorWarningStage.Approaching;
@@ -103,7 +103,7 @@ namespace Metagame.Gameplay.Hazards
             var ring = DiameterOf(drop);
             if (ring <= 0f) return 1f;
 
-            var floor = Mathf.Clamp01(MeteorDiameter / ring);
+            var floor = Mathf.Clamp01(drop.MeteorRadius * 2f / ring);
             return Mathf.Lerp(1f, floor, drop.Progress01);
         }
 
@@ -119,8 +119,8 @@ namespace Metagame.Gameplay.Hazards
             if (stage == MeteorWarningStage.Approaching) return 0f;
 
             var hz = stage == MeteorWarningStage.Imminent
-                ? PhysicsScale.MeteorWarningImminentBlinkHz
-                : PhysicsScale.MeteorWarningStrikableBlinkHz;
+                ? drop.WarningImminentBlinkHz
+                : drop.WarningStrikableBlinkHz;
 
             // 0~1 로 오르내린다. 색이나 알파에 곱해 쓴다.
             return 0.5f + 0.5f * Mathf.Sin(time * hz * Mathf.PI * 2f);

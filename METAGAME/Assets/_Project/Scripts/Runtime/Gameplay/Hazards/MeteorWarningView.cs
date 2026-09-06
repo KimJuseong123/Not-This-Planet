@@ -97,7 +97,8 @@ namespace Metagame.Gameplay.Hazards
             var countdown = MeteorWarningLook.CountdownScaleOf(drop);
             var blink = MeteorWarningLook.BlinkOf(drop, time);
 
-            marker.Root.position = drop.ImpactPoint + Vector3.up * PhysicsScale.MeteorWarningLift;
+            marker.Root.position = drop.ImpactPoint + Vector3.up * drop.WarningLift;
+            marker.Inner.localPosition = Vector3.up * drop.WarningLift * 0.5f;
 
             marker.Ring.localScale = new Vector3(diameter, DiscThickness, diameter);
 
@@ -143,7 +144,7 @@ namespace Metagame.Gameplay.Hazards
                                             MeteorWarningLook.StartColor, 0.2f, root)).transform;
 
             ring.localPosition = Vector3.zero;
-            inner.localPosition = Vector3.up * PhysicsScale.MeteorWarningLift * 0.5f;
+            inner.localPosition = Vector3.zero;
 
             var ringMaterial = Prim.Ghost(MeteorWarningLook.StartColor, RingRimBoost);
             var innerMaterial = Prim.Ghost(MeteorWarningLook.StartColor, InnerRimBoost);

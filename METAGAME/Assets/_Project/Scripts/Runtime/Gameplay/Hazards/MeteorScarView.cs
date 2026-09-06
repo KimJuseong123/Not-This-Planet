@@ -86,7 +86,7 @@ namespace Metagame.Gameplay.Hazards
                 marker.Root.gameObject.SetActive(true);
 
                 if (!scar.Cooled)
-                    marker.Material.SetColor("_Color", MeteorScarLook.ColorOf(scar.Age));
+                    marker.Material.SetColor("_Color", MeteorScarLook.ColorOf(scar.Age, scar.CoolSeconds));
             }
 
             Hide(scars.Count);

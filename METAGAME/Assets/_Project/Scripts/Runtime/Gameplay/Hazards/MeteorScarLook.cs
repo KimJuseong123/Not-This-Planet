@@ -28,18 +28,22 @@ namespace Metagame.Gameplay.Hazards
         /// 처음이 빠르게 식는다. 등속으로 두면 5초 내내 붉어 보여서 "약해진다" 가
         /// 읽히지 않는다.
         /// </summary>
-        public static Color ColorOf(float age)
+        public static Color ColorOf(float age) => ColorOf(age, PhysicsScale.MeteorScarCoolSeconds);
+
+        public static Color ColorOf(float age, float coolSeconds)
         {
             // sqrt 라서 처음이 빠르게 식는다. 등속으로 두면 5초 내내 붉어 보여
             // "약해진다" 가 읽히지 않는다.
-            return Color.Lerp(HotColor, ColdColor, Mathf.Sqrt(Progress01(age)));
+            return Color.Lerp(HotColor, ColdColor, Mathf.Sqrt(Progress01(age, coolSeconds)));
         }
 
         /// <summary>식은 정도 0~1.</summary>
-        public static float Progress01(float age)
+        public static float Progress01(float age) => Progress01(age, PhysicsScale.MeteorScarCoolSeconds);
+
+        public static float Progress01(float age, float coolSeconds)
         {
-            if (PhysicsScale.MeteorScarCoolSeconds <= 0f) return 1f;
-            return Mathf.Clamp01(age / PhysicsScale.MeteorScarCoolSeconds);
+            if (coolSeconds <= 0f) return 1f;
+            return Mathf.Clamp01(age / coolSeconds);
         }
 
         /// <summary>

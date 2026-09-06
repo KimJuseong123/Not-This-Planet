@@ -52,6 +52,8 @@ namespace Metagame.Gameplay.Hazards
         public static readonly List<Meteor> All = new();
 
         Rigidbody _body;
+        MeteorTuning _tuning;
+        bool _tuningScaleApplied;
         float _life;
         float _sinceRolling = -1f;
         float _sinceSettled = -1f;
@@ -134,12 +136,45 @@ namespace Metagame.Gameplay.Hazards
         /// <summary>넉백이 미치는 반경(m). 크기가 정한다.</summary>
         public float ImpactRadius => _impactRadius;
 
+        /// <summary>스포너가 넘긴 장면별 방망이 판정 창.</summary>
+        public float BatSwingWindowSeconds =>
+            _tuning != null ? _tuning.BatSwingWindowSeconds : PhysicsScale.BatSwingWindowSeconds;
+
+        /// <summary>스포너가 넘긴 장면별 방망이 보조 반경.</summary>
+        public float BatAssistRadius =>
+            _tuning != null ? _tuning.BatAssistRadius : PhysicsScale.BatAssistRadius;
+
+        /// <summary>
+        /// 스포너의 장면별 조정값을 적용한다. Instantiate 직후에도 호출할 수 있도록
+        /// 이미 Rigidbody 가 만들어진 경우 질량을 즉시 갱신한다.
+        /// </summary>
+        public void ApplyTuning(MeteorTuning tuning)
+        {
+            _tuning = tuning;
+
+            if (tuning == null) return;
+
+            _impactRadius = tuning.ImpactRadiusFor(Size);
+            _impactForce = tuning.ImpactForceFor(Size);
+            _maxLifeSeconds = tuning.MaxLifeSeconds;
+
+            if (!_tuningScaleApplied && PhysicsScale.MeteorRadius > 0f && tuning.Radius > 0f)
+            {
+                transform.localScale *= tuning.Radius / PhysicsScale.MeteorRadius;
+                _tuningScaleApplied = true;
+            }
+
+            if (_body != null) _body.mass = tuning.Mass;
+        }
+
         /// <summary>스포너가 크기를 정한다. 반경이 함께 바뀐다.</summary>
         public void SetSize(MeteorSize size)
         {
             Size = size;
-            _impactRadius = RadiusFor(size);
-            _impactForce = MeteorImpact.ForceFor(size);
+            _impactRadius = _tuning != null ? _tuning.ImpactRadiusFor(size) : RadiusFor(size);
+            _impactForce = _tuning != null
+                ? _tuning.ImpactForceFor(size)
+                : MeteorImpact.ForceFor(size);
         }
 
         /// <summary>
@@ -173,7 +208,7 @@ namespace Metagame.Gameplay.Hazards
             if (_body != null) return;
 
             _body = GetComponent<Rigidbody>();
-            _body.mass = PhysicsScale.MeteorMass;
+            _body.mass = _tuning != null ? _tuning.Mass : PhysicsScale.MeteorMass;
         }
 
         /// <summary>
@@ -521,7 +556,7 @@ namespace Metagame.Gameplay.Hazards
             if (Settled)
             {
                 _sinceSettled += deltaTime;
-                if (_sinceSettled >= PhysicsScale.MeteorScarDespawnSeconds) Expire();
+                if (_sinceSettled >= ScarDespawnSeconds) Expire();
                 return;
             }
 
@@ -530,7 +565,7 @@ namespace Metagame.Gameplay.Hazards
             if (Rolling)
             {
                 _sinceRolling += deltaTime;
-                if (_sinceRolling >= PhysicsScale.MeteorDeflectedDespawnSeconds) Expire();
+                if (_sinceRolling >= DeflectedDespawnSeconds) Expire();
                 return;
             }
 
@@ -562,15 +597,14 @@ namespace Metagame.Gameplay.Hazards
         {
             if (_body == null || _body.isKinematic) return;
 
-            if (_body.linearVelocity.sqrMagnitude
-                > PhysicsScale.MeteorRestSpeed * PhysicsScale.MeteorRestSpeed)
+            if (_body.linearVelocity.sqrMagnitude > RestSpeed * RestSpeed)
             {
                 _atRestSeconds = 0f;
                 return;
             }
 
             _atRestSeconds += deltaTime;
-            if (_atRestSeconds < PhysicsScale.MeteorRestSeconds) return;
+            if (_atRestSeconds < RestSeconds) return;
 
             if (!TryFindSupportBelow(out var point, out var normal)) return;
 
@@ -583,8 +617,8 @@ namespace Metagame.Gameplay.Hazards
             point = transform.position;
             normal = Vector3.up;
 
-            var from = _body.worldCenterOfMass + Vector3.up * PhysicsScale.MeteorRadius;
-            var distance = PhysicsScale.MeteorRadius * 3f;
+            var from = _body.worldCenterOfMass + Vector3.up * MeteorRadius;
+            var distance = MeteorRadius * 3f;
 
             var count = UnityEngine.Physics.RaycastNonAlloc(
                 from, Vector3.down, RestProbe, distance,
@@ -646,8 +680,8 @@ namespace Metagame.Gameplay.Hazards
             if (normal.sqrMagnitude < 0.0001f) normal = Vector3.up;
             normal.Normalize();
             transform.position = point
-                                + normal * (PhysicsScale.MeteorRadius
-                                             * (1f - 2f * PhysicsScale.MeteorScarSinkRatio));
+                                + normal * (MeteorRadius
+                                             * (1f - 2f * ScarSinkRatio));
         }
 
         void Expire()
@@ -716,7 +750,7 @@ namespace Metagame.Gameplay.Hazards
             {
                 // "날아간 뒤 기절". 순서가 중요하다 — GoDown 이 먼저면 KnockDown 이
                 // Downed 를 보고 즉시 돌아나가 <b>날아가지 않는다</b>.
-                player.KnockDown(AwayFrom(player, point), PhysicsScale.MeteorHeavyKnockSpeed);
+                player.KnockDown(AwayFrom(player, point), HeavyKnockSpeed);
                 player.GoDown("운석 직접 충돌");
                 return;
             }
@@ -725,9 +759,10 @@ namespace Metagame.Gameplay.Hazards
             // 만들고 래그돌만 발 위치에 놓아 부모로 붙인다 — transform.position 으로
             // 재면 모든 플레이어가 원점 기준이 된다. 착탄 지점이 지면이므로 발에서 잰다.
             var distance = Vector3.Distance(player.FootPosition, point);
-            if (MeteorImpact.TierFor(distance, _impactRadius) != MeteorImpactTier.Heavy) return;
+            if (MeteorImpact.TierFor(distance, _impactRadius, HeavyImpactFraction)
+                != MeteorImpactTier.Heavy) return;
 
-            player.KnockDown(AwayFrom(player, point), PhysicsScale.MeteorHeavyKnockSpeed);
+            player.KnockDown(AwayFrom(player, point), HeavyKnockSpeed);
             player.DropEquipment();
         }
 
@@ -738,5 +773,19 @@ namespace Metagame.Gameplay.Hazards
             away.y = 0f;
             return away.sqrMagnitude < 1e-6f ? Vector3.zero : away.normalized;
         }
+
+        float MeteorRadius => _tuning != null ? _tuning.Radius : PhysicsScale.MeteorRadius;
+        float HeavyImpactFraction =>
+            _tuning != null ? _tuning.HeavyImpactFraction : PhysicsScale.MeteorHeavyImpactFraction;
+        float HeavyKnockSpeed =>
+            _tuning != null ? _tuning.HeavyKnockSpeed : PhysicsScale.MeteorHeavyKnockSpeed;
+        float RestSpeed => _tuning != null ? _tuning.RestSpeed : PhysicsScale.MeteorRestSpeed;
+        float RestSeconds => _tuning != null ? _tuning.RestSeconds : PhysicsScale.MeteorRestSeconds;
+        float DeflectedDespawnSeconds =>
+            _tuning != null ? _tuning.DeflectedDespawnSeconds : PhysicsScale.MeteorDeflectedDespawnSeconds;
+        float ScarDespawnSeconds =>
+            _tuning != null ? _tuning.ScarDespawnSeconds : PhysicsScale.MeteorScarDespawnSeconds;
+        float ScarSinkRatio =>
+            _tuning != null ? _tuning.ScarSinkRatio : PhysicsScale.MeteorScarSinkRatio;
     }
 }

@@ -40,8 +40,39 @@ namespace Metagame.Gameplay.Hazards
 
         [SerializeField] Vector2 _areaSize = new(40f, 40f);
 
+        [Header("낙하")]
         [SerializeField, Min(0f)] float _warningSeconds = PhysicsScale.MeteorWarningSeconds;
         [SerializeField, Min(0f)] float _dropHeight = PhysicsScale.MeteorDropHeight;
+        [SerializeField]
+        [Tooltip("켜면 낙하 속도를 직접 사용한다. 끄면 고도·예고 시간·중력으로 자동 계산한다.")]
+        bool _overrideDropSpeed;
+        [SerializeField, Min(0f)] float _dropSpeed = PhysicsScale.MeteorDropSpeed;
+        [SerializeField, Range(1f, 89.9f)] float _entryAngleDegrees = PhysicsScale.MeteorEntryAngleDegrees;
+        [SerializeField, Min(0)] int _entryAttempts = PhysicsScale.MeteorEntryAttempts;
+        [SerializeField, Min(0f)] float _entryClearance = PhysicsScale.MeteorEntryClearance;
+        [SerializeField, Min(0f)] float _groundProbe = PhysicsScale.MeteorGroundProbe;
+
+        [Header("공세")]
+        [SerializeField] MeteorWaveBand[] _waveBands = MeteorWaveBand.CreateDefaults();
+        [SerializeField, Min(0f)] float _waveLeadSeconds = PhysicsScale.MeteorWaveLeadSeconds;
+        [SerializeField, Min(0f)] float _withinWaveMinSeconds = PhysicsScale.MeteorWithinWaveMinSeconds;
+        [SerializeField, Min(0f)] float _withinWaveMaxSeconds = PhysicsScale.MeteorWithinWaveMaxSeconds;
+        [SerializeField, Range(0f, 1f)] float _soloCrewScale = 0.45f;
+        [SerializeField, Range(0f, 1f)] float _twoCrewScale = 0.65f;
+        [SerializeField, Range(0f, 1f)] float _threeCrewScale = 0.80f;
+        [SerializeField, Range(0f, 1f)] float _fourCrewScale = 1f;
+
+        [Header("목표 위치")]
+        [SerializeField, Range(0f, 1f)] float _environmentWeight = 0.35f;
+        [SerializeField, Range(0f, 1f)] float _nearPlayerWeight = 0.30f;
+        [SerializeField, Range(0f, 1f)] float _workAreaWeight = 0.25f;
+        [SerializeField, Range(0f, 1f)] float _launchPadWeight = 0.10f;
+        [SerializeField, Min(0f)] float _playerTargetMinRadius = PhysicsScale.MeteorPlayerTargetMinRadius;
+        [SerializeField, Min(0f)] float _playerTargetMaxRadius = PhysicsScale.MeteorPlayerTargetMaxRadius;
+        [SerializeField, Min(0f)] float _targetRepeatDistance = PhysicsScale.MeteorTargetRepeatDistance;
+
+        [Header("운석 물리·경고·방망이")]
+        [SerializeField] MeteorTuning _tuning = new();
 
         [SerializeField]
         [Tooltip("발사 구역. 기획 §17.5 의 10% 후보이며, 비우면 그 후보를 환경으로 돌린다.")]
@@ -65,6 +96,7 @@ namespace Metagame.Gameplay.Hazards
 
         /// <summary>대각선 경로 검사의 버퍼. 운석마다 새로 만들지 않는다.</summary>
         static readonly RaycastHit[] EntryProbe = new RaycastHit[16];
+        static readonly MeteorWaveBand DefaultWaveBand = new(0f, 30f, 1, 2, 0f);
         float _elapsed;
 
         // 공세 상태. 공세 사이에는 _waveRemaining 이 0 이다.
@@ -112,7 +144,9 @@ namespace Metagame.Gameplay.Hazards
             public float Age;
 
             /// <summary>다 식었는가. 기획 §19 "약 5초 동안 … 약해진다".</summary>
-            public bool Cooled => Age >= PhysicsScale.MeteorScarCoolSeconds;
+            public float CoolSeconds;
+
+            public bool Cooled => Age >= CoolSeconds;
         }
 
         readonly List<Scar> _scars = new();
@@ -130,6 +164,12 @@ namespace Metagame.Gameplay.Hazards
         public int ScarsTrimmed { get; private set; }
 
         public float Elapsed => _elapsed;
+
+        /// <summary>이 스포너가 생성하는 운석에 적용할 Inspector 설정.</summary>
+        public MeteorTuning Tuning => _tuning;
+
+        /// <summary>현재 설정으로 계산한 운석의 초기 수직 하강 속도(m/s).</summary>
+        public float CurrentDropSpeed => _overrideDropSpeed ? _dropSpeed : DropSpeedFor(_dropHeight);
 
         /// <summary>지금 적용되는 공세 간격(초). 기획 §17.4 의 표가 정한다.</summary>
         public float CurrentInterval => IntervalAt(_elapsed);
@@ -166,13 +206,25 @@ namespace Metagame.Gameplay.Hazards
 
         Transform Area => _area != null ? _area : transform;
 
-        void Awake() => ResetRun();
+        void Awake()
+        {
+            EnsureConfiguration();
+            ResetRun();
+        }
+
+        void EnsureConfiguration()
+        {
+            if (_tuning == null) _tuning = new MeteorTuning();
+            if (_waveBands == null || _waveBands.Length == 0)
+                _waveBands = MeteorWaveBand.CreateDefaults();
+        }
 
         /// <summary>
         /// 시드를 다시 심고 진행 상황을 비운다. 씬 시작과 재시도에서 부른다.
         /// </summary>
         public void ResetRun()
         {
+            EnsureConfiguration();
             _random = new System.Random(_seed);
             _elapsed = 0f;
             _sinceLastWave = 0f;
@@ -263,12 +315,56 @@ namespace Metagame.Gameplay.Hazards
         /// 끊임없이 하나씩 오는 것과 <b>묶음으로</b> 오는 것은 다른 리듬이고, 기획이
         /// 요구하는 것은 후자다.
         /// </summary>
-        public float IntervalAt(float elapsedSeconds) =>
-            MeteorWaveTable.WaveIntervalAt(elapsedSeconds);
+        public float IntervalAt(float elapsedSeconds) => WaveBandAt(elapsedSeconds).WaveIntervalSeconds;
 
         /// <summary>그 시각의 중형 확률 0~1. 10분 전에는 0 이다(§17.7).</summary>
-        public float MediumChanceAt(float elapsedSeconds) =>
-            MeteorWaveTable.MediumChanceAt(elapsedSeconds);
+        public float MediumChanceAt(float elapsedSeconds) => WaveBandAt(elapsedSeconds).MediumChance;
+
+        MeteorWaveBand WaveBandAt(float elapsedSeconds)
+        {
+            EnsureConfiguration();
+
+            var minutes = Mathf.Max(0f, elapsedSeconds) / 60f;
+            var selected = DefaultWaveBand;
+
+            for (var i = 0; i < _waveBands.Length; i++)
+            {
+                var band = _waveBands[i];
+                if (band != null && minutes >= band.FromMinutes) selected = band;
+            }
+
+            return selected;
+        }
+
+        float CrewScaleFor(int crew)
+        {
+            return Mathf.Clamp(crew, 1, 4) switch
+            {
+                1 => _soloCrewScale,
+                2 => _twoCrewScale,
+                3 => _threeCrewScale,
+                _ => _fourCrewScale,
+            };
+        }
+
+        MeteorTargetKind TargetKindFor(double roll)
+        {
+            var environmentWeight = Mathf.Max(0f, _environmentWeight);
+            var nearPlayerWeight = Mathf.Max(0f, _nearPlayerWeight);
+            var workAreaWeight = Mathf.Max(0f, _workAreaWeight);
+            var launchPadWeight = Mathf.Max(0f, _launchPadWeight);
+            var total = environmentWeight + nearPlayerWeight + workAreaWeight + launchPadWeight;
+            if (total <= 0f) return MeteorTargetKind.Environment;
+
+            var value = Mathf.Clamp01((float)roll) * total;
+            if (value < environmentWeight) return MeteorTargetKind.Environment;
+            value -= environmentWeight;
+            if (value < nearPlayerWeight) return MeteorTargetKind.NearPlayer;
+            value -= nearPlayerWeight;
+            if (value < workAreaWeight) return MeteorTargetKind.WorkArea;
+
+            return MeteorTargetKind.LaunchPad;
+        }
 
         /// <summary>
         /// 소유자가 매 물리 스텝 호출한다.
@@ -305,7 +401,7 @@ namespace Metagame.Gameplay.Hazards
 
             // 5초 전 신호. 간격이 5초보다 짧을 일은 없지만(표의 최소가 15초다) 그래도
             // 0 아래로 내려가지 않게 잡는다.
-            var leadAt = Mathf.Max(0f, interval - PhysicsScale.MeteorWaveLeadSeconds);
+            var leadAt = Mathf.Max(0f, interval - _waveLeadSeconds);
             if (!_leadSent && _sinceLastWave >= leadAt)
             {
                 _leadSent = true;
@@ -329,8 +425,16 @@ namespace Metagame.Gameplay.Hazards
         /// 이번 공세의 운석 수를 뽑는다. <b>한 공세에 한 번만 부른다</b> —
         /// <see cref="_plannedWaveSize"/> 의 주석이 그 이유를 적어 두었다.
         /// </summary>
-        int RollWaveSize() =>
-            MeteorWaveTable.WaveSizeAt(_elapsed, _crew, _random.NextDouble());
+        int RollWaveSize()
+        {
+            var band = WaveBandAt(_elapsed);
+            var span = band.MaxMeteors - band.MinMeteors;
+            var raw = band.MinMeteors
+                      + (int)(Mathf.Clamp01((float)_random.NextDouble()) * (span + 1));
+            raw = Mathf.Clamp(raw, band.MinMeteors, band.MaxMeteors);
+
+            return Mathf.Max(1, Mathf.RoundToInt(raw * CrewScaleFor(_crew)));
+        }
 
         void AdvanceWithinWave(float deltaTime)
         {
@@ -339,8 +443,8 @@ namespace Metagame.Gameplay.Hazards
 
             _sinceLastInWave = 0f;
             _nextInWaveDelay = Mathf.Lerp(
-                PhysicsScale.MeteorWithinWaveMinSeconds,
-                PhysicsScale.MeteorWithinWaveMaxSeconds,
+                _withinWaveMinSeconds,
+                _withinWaveMaxSeconds,
                 (float)_random.NextDouble());
 
             _waveRemaining--;
@@ -358,7 +462,13 @@ namespace Metagame.Gameplay.Hazards
             var meteor = Spawn(point, size);
 
             var drop = new PendingMeteorDrop(point, _warningSeconds, _warningSeconds,
-                                             Meteor.RadiusFor(size));
+                                             _tuning.ImpactRadiusFor(size),
+                                             _tuning.BatSwingWindowSeconds,
+                                             _tuning.WarningImminentSeconds,
+                                             _tuning.WarningStrikableBlinkHz,
+                                             _tuning.WarningImminentBlinkHz,
+                                             _tuning.WarningLift,
+                                             _tuning.Radius);
             _pending.Add(drop);
             DropScheduled?.Invoke(drop);
 
@@ -423,6 +533,7 @@ namespace Metagame.Gameplay.Hazards
                 Point = meteor.ImpactPoint,
                 Radius = meteor.ImpactRadius,
                 Age = 0f,
+                CoolSeconds = _tuning.ScarCoolSeconds,
             });
 
             Trim();
@@ -435,7 +546,7 @@ namespace Metagame.Gameplay.Hazards
         /// </summary>
         void Trim()
         {
-            while (_scars.Count > PhysicsScale.MeteorScarLimit)
+            while (_scars.Count > _tuning.ScarLimit)
             {
                 var oldest = _scars[0];
                 _scars.RemoveAt(0);
@@ -444,7 +555,7 @@ namespace Metagame.Gameplay.Hazards
                 if (oldest?.Meteor != null) oldest.Meteor.Despawn();
 
                 Debug.Log("[SpaceFlop] 운석 흔적 상한("
-                          + PhysicsScale.MeteorScarLimit
+                          + _tuning.ScarLimit
                           + ")을 넘어 가장 오래된 것을 지웠다 — 누적 "
                           + ScarsTrimmed + "개");
             }
@@ -489,12 +600,12 @@ namespace Metagame.Gameplay.Hazards
         {
             for (var attempt = 0; attempt < 4; attempt++)
             {
-                var kind = MeteorWaveTable.TargetKindFor(_random.NextDouble());
+                var kind = TargetKindFor(_random.NextDouble());
                 var point = PointFor(kind);
 
                 // 같은 자리를 연속으로 고르지 않는다(§17.5).
                 if (_hasLastTarget &&
-                    Vector3.Distance(point, _lastTarget) < PhysicsScale.MeteorTargetRepeatDistance)
+                    Vector3.Distance(point, _lastTarget) < _targetRepeatDistance)
                     continue;
 
                 Remember(point);
@@ -562,8 +673,8 @@ namespace Metagame.Gameplay.Hazards
         /// </summary>
         Vector3 OnGround(Vector3 point)
         {
-            var from = point + Vector3.up * PhysicsScale.MeteorGroundProbe;
-            var distance = PhysicsScale.MeteorGroundProbe * 2f;
+            var from = point + Vector3.up * _groundProbe;
+            var distance = _groundProbe * 2f;
 
             return UnityEngine.Physics.Raycast(from, Vector3.down, out var hit, distance,
                                                GameLayers.SurfaceMask,
@@ -627,8 +738,8 @@ namespace Metagame.Gameplay.Hazards
 
             var angle = (float)_random.NextDouble() * Mathf.PI * 2f;
             var radius = Mathf.Lerp(
-                PhysicsScale.MeteorPlayerTargetMinRadius,
-                PhysicsScale.MeteorPlayerTargetMaxRadius,
+                _playerTargetMinRadius,
+                _playerTargetMaxRadius,
                 (float)_random.NextDouble());
 
             var position = target.Position;
@@ -703,8 +814,8 @@ namespace Metagame.Gameplay.Hazards
             var around = _workAreas[index];
             var angle = (float)_random.NextDouble() * Mathf.PI * 2f;
             var radius = Mathf.Lerp(
-                PhysicsScale.MeteorPlayerTargetMinRadius,
-                PhysicsScale.MeteorPlayerTargetMaxRadius,
+                _playerTargetMinRadius,
+                _playerTargetMaxRadius,
                 (float)_random.NextDouble());
 
             return new Vector3(
@@ -738,7 +849,8 @@ namespace Metagame.Gameplay.Hazards
         }
 
         /// <summary>
-        /// 운석 하나를 만든다. <b>예고가 끝나는 순간 닿도록</b> 초기 속도를 준다.
+        /// 운석 하나를 만든다. 자동 속도 모드에서는 <b>예고가 끝나는 순간 닿도록</b>
+        /// 초기 속도를 계산해 준다.
         ///
         /// <b>대각선으로 온다</b>(S15P21B202-274). 착지 지점에서 수평으로 떨어진 곳에서
         /// 만들어 비스듬히 날린다 — 이유는
@@ -750,14 +862,15 @@ namespace Metagame.Gameplay.Hazards
         /// </summary>
         Meteor Spawn(Vector3 impactPoint, MeteorSize size)
         {
-            var fallSpeed = DropSpeedFor(_dropHeight);
-            var entry = EntryOffsetFor(impactPoint, Meteor.RadiusFor(size));
+            var fallSpeed = CurrentDropSpeed;
+            var entry = EntryOffsetFor(impactPoint, _tuning.ImpactRadiusFor(size));
 
             var position = impactPoint + entry + Vector3.up * _dropHeight;
             var meteor = _meteorPrefab != null
                 ? Instantiate(_meteorPrefab, position, Quaternion.identity)
                 : CreateFallbackMeteor(position);
 
+            meteor.ApplyTuning(_tuning);
             meteor.Initialize();
             meteor.SetSize(size);
 
@@ -793,11 +906,11 @@ namespace Metagame.Gameplay.Hazards
         /// </summary>
         Vector3 EntryOffsetFor(Vector3 impactPoint, float radius)
         {
-            var angle = Mathf.Clamp(PhysicsScale.MeteorEntryAngleDegrees, 1f, 89.9f);
+            var angle = Mathf.Clamp(_entryAngleDegrees, 1f, 89.9f);
             var reach = _dropHeight / Mathf.Tan(angle * Mathf.Deg2Rad);
             if (reach <= 0.01f) return Vector3.zero;
 
-            for (var attempt = 0; attempt < PhysicsScale.MeteorEntryAttempts; attempt++)
+            for (var attempt = 0; attempt < _entryAttempts; attempt++)
             {
                 var azimuth = (float)_random.NextDouble() * Mathf.PI * 2f;
                 var offset = new Vector3(Mathf.Cos(azimuth) * reach, 0f,
@@ -825,7 +938,7 @@ namespace Metagame.Gameplay.Hazards
         bool PathIsClear(Vector3 from, Vector3 to, float radius)
         {
             var along = to - from;
-            var length = along.magnitude - PhysicsScale.MeteorEntryClearance;
+            var length = along.magnitude - _entryClearance;
             if (length <= 0.01f) return true;
 
             var count = UnityEngine.Physics.SphereCastNonAlloc(
@@ -847,11 +960,11 @@ namespace Metagame.Gameplay.Hazards
         }
 
         /// <summary>
-        /// 예고 시간에 맞춰 닿게 하는 초기 하강 속도(m/s).
+        /// 예고 시간에 맞춰 닿게 하는 자동 초기 하강 속도(m/s).
         ///
         /// h = v₀·t + ½·|g|·t² 를 v₀ 로 푼다. 기본값(30m · 3초 · 2.8m/s²)에서 5.8m/s 이며
-        /// <see cref="PhysicsScale.MeteorDropSpeed"/> 와 같아야 한다 — 상수는 사람이 읽는
-        /// 값이고 이 계산은 높이나 예고 시간을 바꿔도 맞게 두기 위한 것이다.
+        /// <see cref="PhysicsScale.MeteorDropSpeed"/> 와 같은 기본값을 만들지만, 이 계산은
+        /// 높이나 예고 시간을 바꿔도 착탄 시각을 맞추기 위한 것이다.
         ///
         /// 자유낙하만으로 예고보다 빨리 닿는 높이라면 음수가 나온다. 그때는 0 으로 둔다 —
         /// <b>위로 던지지 않는다.</b> 하늘에서 떨어지는 것이 §17.1 이다.

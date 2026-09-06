@@ -12,11 +12,32 @@ namespace Metagame.Gameplay.Hazards
     {
         public PendingMeteorDrop(Vector3 impactPoint, float remainingSeconds, float warningSeconds,
                                  float impactRadius)
+            : this(impactPoint, remainingSeconds, warningSeconds, impactRadius,
+                   PhysicsScale.BatSwingWindowSeconds,
+                   PhysicsScale.MeteorWarningImminentSeconds,
+                   PhysicsScale.MeteorWarningStrikableBlinkHz,
+                   PhysicsScale.MeteorWarningImminentBlinkHz,
+                   PhysicsScale.MeteorWarningLift,
+                   PhysicsScale.MeteorRadius)
+        {
+        }
+
+        public PendingMeteorDrop(Vector3 impactPoint, float remainingSeconds, float warningSeconds,
+                                 float impactRadius, float batSwingWindowSeconds,
+                                 float warningImminentSeconds, float warningStrikableBlinkHz,
+                                 float warningImminentBlinkHz, float warningLift,
+                                 float meteorRadius)
         {
             ImpactPoint = impactPoint;
             RemainingSeconds = remainingSeconds;
             WarningSeconds = warningSeconds;
             ImpactRadius = impactRadius;
+            BatSwingWindowSeconds = batSwingWindowSeconds;
+            WarningImminentSeconds = warningImminentSeconds;
+            WarningStrikableBlinkHz = warningStrikableBlinkHz;
+            WarningImminentBlinkHz = warningImminentBlinkHz;
+            WarningLift = warningLift;
+            MeteorRadius = meteorRadius;
         }
 
         /// <summary>떨어질 지점.</summary>
@@ -40,11 +61,31 @@ namespace Metagame.Gameplay.Hazards
         /// </summary>
         public float ImpactRadius { get; }
 
+        /// <summary>이 예고에서 방망이 타격이 허용되는 착탄 전 시간.</summary>
+        public float BatSwingWindowSeconds { get; }
+
+        /// <summary>빠른 임박 점멸로 전환되는 남은 시간.</summary>
+        public float WarningImminentSeconds { get; }
+
+        /// <summary>타격 가능 구간의 점멸 주기(Hz).</summary>
+        public float WarningStrikableBlinkHz { get; }
+
+        /// <summary>임박 구간의 점멸 주기(Hz).</summary>
+        public float WarningImminentBlinkHz { get; }
+
+        /// <summary>낙하 표시를 지면에서 띄우는 높이.</summary>
+        public float WarningLift { get; }
+
+        /// <summary>표시 안쪽 원이 수렴할 실제 운석 반지름.</summary>
+        public float MeteorRadius { get; }
+
         /// <summary>0 에서 1 로 차오르는 예고 진행도.</summary>
         public float Progress01 =>
             WarningSeconds <= 0f ? 1f : Mathf.Clamp01(1f - RemainingSeconds / WarningSeconds);
 
         public PendingMeteorDrop Advanced(float deltaTime) =>
-            new(ImpactPoint, RemainingSeconds - deltaTime, WarningSeconds, ImpactRadius);
+            new(ImpactPoint, RemainingSeconds - deltaTime, WarningSeconds, ImpactRadius,
+                BatSwingWindowSeconds, WarningImminentSeconds, WarningStrikableBlinkHz,
+                WarningImminentBlinkHz, WarningLift, MeteorRadius);
     }
 }

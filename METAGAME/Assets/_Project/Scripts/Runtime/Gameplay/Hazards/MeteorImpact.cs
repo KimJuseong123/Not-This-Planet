@@ -39,10 +39,13 @@ namespace Metagame.Gameplay.Hazards
         /// 그래서 <see cref="MeteorImpactTier.Direct"/> 는 여기서 나오지 않는다.
         /// </summary>
         public static MeteorImpactTier TierFor(float distance, float radius)
+            => TierFor(distance, radius, PhysicsScale.MeteorHeavyImpactFraction);
+
+        public static MeteorImpactTier TierFor(float distance, float radius, float heavyImpactFraction)
         {
             if (radius <= 0f || distance > radius) return MeteorImpactTier.None;
 
-            var heavy = radius * PhysicsScale.MeteorHeavyImpactFraction;
+            var heavy = radius * Mathf.Clamp01(heavyImpactFraction);
             return distance <= heavy ? MeteorImpactTier.Heavy : MeteorImpactTier.Shockwave;
         }
 
