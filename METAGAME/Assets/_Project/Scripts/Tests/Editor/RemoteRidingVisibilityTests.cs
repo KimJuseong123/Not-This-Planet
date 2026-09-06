@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using Metagame.Core;
 using NUnit.Framework;
 using UnityEngine;
-using UnityEngine.TestTools;
 
 namespace Metagame.Gameplay.Tests
 {
@@ -26,7 +25,6 @@ namespace Metagame.Gameplay.Tests
     {
         readonly List<GameObject> _spawned = new();
         bool _puffWas;
-        bool _ignoreWas;
 
         [SetUp]
         public void SetUp()
@@ -35,17 +33,12 @@ namespace Metagame.Gameplay.Tests
 
             _puffWas = Puff.Enabled;
             Puff.Enabled = false;
-
-            // 되돌리지 않으면 뒤에 도는 다른 스위트가 로그 실패를 놓친다.
-            _ignoreWas = LogAssert.ignoreFailingMessages;
-            LogAssert.ignoreFailingMessages = true;
         }
 
         [TearDown]
         public void TearDown()
         {
             Puff.Enabled = _puffWas;
-            LogAssert.ignoreFailingMessages = _ignoreWas;
 
             foreach (var go in _spawned)
                 if (go != null)

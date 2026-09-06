@@ -117,7 +117,13 @@ namespace Metagame.Gameplay
         /// </summary>
         public void SetRemoteRiding(bool riding)
         {
-            if (RemoteRiding == riding) return;
+            // <b>인형이 아직 없을 때를 같은 값으로 걸러내면 안 된다.</b> 그러면 플래그만
+            // 참으로 남고, 인형이 생긴 뒤 같은 값이 다시 와도 여기서 돌아나가 렌더러가
+            // 끝내 꺼지지 않는다 — <b>원래 증상이 조용히 되돌아온다.</b>
+            //
+            // 지금 경로에서는 PlayerRig.Create 가 인형을 만들고 나서 돌려주므로 닿지
+            // 않지만, Doll 은 public 필드라 불변식이 없다.
+            if (RemoteRiding == riding && Doll != null) return;
 
             RemoteRiding = riding;
             RefreshDollVisibility();
