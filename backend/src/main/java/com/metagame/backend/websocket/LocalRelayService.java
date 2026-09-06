@@ -1,6 +1,7 @@
 package com.metagame.backend.websocket;
 
 import tools.jackson.databind.JsonNode;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -34,6 +35,13 @@ import java.util.Map;
  *
  * <p><b>공개 주소는 설정에서 받는다.</b> 제어 API 는 자기 포트만 알고 밖에서 어떤 이름으로
  * 보이는지는 모른다. 클라이언트가 붙을 주소이므로 비어 있으면 세션을 만들지 않는다.
+ *
+ * <p><b>부팅할 때 제어 API 에 한 번 물어본다</b>({@link #probe()}, S15P21B202-303). 그렇게 하는
+ * 이유가 있다 — {@code -299} 는 테스트가 통과하고 배포도 성공했는데 <b>backend → relay 경로가
+ * 한 번도 동작하지 않았다.</b> 컨테이너 안의 {@code 127.0.0.1} 은 컨테이너 자신이라 기본값으로는
+ * 호스트의 릴레이에 닿지 않는데, 그 사실이 <b>첫 게임이 시작될 때까지 드러나지 않았다.</b>
+ * 테스트는 같은 JVM 안 stub 을 불러서 컨테이너 경계를 넘지 않았다. 그래서 코드가 아니라
+ * <b>기동 로그</b>가 알려 주게 한다.
  */
 @Slf4j
 @Service
@@ -58,6 +66,34 @@ public class LocalRelayService implements RelayProvider {
     @Override
     public boolean isEnabled() {
         return !publicAddress.isEmpty();
+    }
+
+    /**
+     * 제어 API 에 실제로 닿는지 한 번 확인하고 로그에 남긴다. 반환은 도달 여부.
+     *
+     * <p><b>절대 예외를 밖으로 내지 않는다.</b> 릴레이가 아직 안 떴다고 백엔드가 못 뜨면 안 된다 —
+     * 릴레이 없이도 같은 네트워크 직접 접속은 굴러가야 한다.
+     */
+    @PostConstruct
+    public boolean probe() {
+        if (!isEnabled()) {
+            return false;
+        }
+        try {
+            JsonNode health = client.get().uri("/health").retrieve().body(JsonNode.class);
+            boolean ok = health != null && health.path("ok").asBoolean(false);
+            if (ok) {
+                log.info("relay 제어 API 도달 OK · UDP 포트 {} · 세션 {}개",
+                        health.path("port").asInt(), health.path("sessions").asInt());
+            } else {
+                log.warn("relay 제어 API 가 응답했지만 ok 가 아니다 — 릴레이 상태를 확인하라");
+            }
+            return ok;
+        } catch (RuntimeException e) {
+            log.warn("relay 제어 API 에 닿지 못한다 — 다른 망 플레이가 직접 접속으로 떨어진다. "
+                    + "컨테이너의 127.0.0.1 은 컨테이너 자신이다(S15P21B202-303): {}", e.toString());
+            return false;
+        }
     }
 
     @Override

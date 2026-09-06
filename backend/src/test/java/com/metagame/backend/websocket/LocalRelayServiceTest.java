@@ -151,6 +151,25 @@ class LocalRelayServiceTest {
     }
 
     @Test
+    void probeTellsWhetherTheControlApiIsReachable() {
+        // /health 를 주는 경로를 붙인다
+        server.createContext("/health", exchange -> {
+            byte[] body = "{\"ok\":true,\"port\":17778,\"sessions\":0}".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        assertThat(service().probe()).isTrue();
+
+        // 주소가 없으면 릴레이를 안 쓰므로 물어보지도 않는다
+        assertThat(new LocalRelayService(baseUrl, "").probe()).isFalse();
+
+        // 닿지 않는 곳이면 **예외를 내지 않고** false 를 돌려준다 — 릴레이가 없어도 백엔드는 떠야 한다
+        assertThat(new LocalRelayService("http://127.0.0.1:1", "j15b202.p.ssafy.io").probe()).isFalse();
+    }
+
+    @Test
     void closeSendsDelete() {
         service().close("abc123");
         assertThat(deleted).containsExactly("/sessions/abc123");
