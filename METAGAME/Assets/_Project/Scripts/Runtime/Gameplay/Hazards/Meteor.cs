@@ -6,7 +6,7 @@ using UnityEngine;
 namespace Metagame.Gameplay.Hazards
 {
     /// <summary>
-    /// 1장의 방해 요소인 작은 운석. 떨어져서 부딪히고 잠시 뒤 사라진다.
+    /// 1장의 방해 요소인 작은 운석. 떨어져서 부딪힌 뒤 일반 운반물로 전환된다.
     ///
     /// 파츠를 무너뜨리는 힘은 이 코드가 아니라 물리 솔버가 만든다.
     /// 조립된 파츠는 breakForce 가 정해진 조인트로 붙어 있으므로, 운석이 부딪히면
@@ -66,25 +66,25 @@ namespace Metagame.Gameplay.Hazards
         public bool HasImpacted { get; private set; }
 
         /// <summary>
-        /// 지면에 박혀 흔적으로 남았는지(기획 §19).
+        /// 낙하 착탄 처리가 끝났는지.
         ///
         /// <b>예전에는 착탄 6초 뒤에 사라졌다.</b> §19 는 "박힌 운석과 분화구는 발사 실패
         /// 후에도 유지되며 <b>스테이지 동안 사라지지 않는다</b>" 고 정한다 — 정확히
         /// 반대였다(S15P21B202-251).
         ///
-        /// 박히면 물리를 끈다. §19 "충돌 후 고비용 물리, 빛과 파티클을 끄고 … 단순
-        /// 충돌체로 전환한다" 이고, 150~200개가 쌓이는 것을 성능 기준으로 삼기 때문이다.
+        /// 착탄 이벤트와 충격 처리는 한 번만 실행하고, 이후에는 일반 운반물 물리로
+        /// 전환한다. 시각적인 분화구 기록은 스포너가 별도로 유지한다.
         /// </summary>
         public bool Settled { get; private set; }
 
         /// <summary>
         /// 쳐내서 <b>굴러다니는 소품</b>이 되었는가(S15P21B202-273).
         ///
-        /// 운석은 날아간 뒤 두 갈래로 끝난다.
+        /// 운석은 방망이로 쳐내거나 바닥에 닿은 뒤 소품이 된다.
         ///
         /// <code>
         /// 방망이로 쳐냄   →  동적 유지 · Prop 레이어 · 방망이로 밀린다 · 굴러다닌다
-        /// 못 쳐냄        →  키네마틱 · 반쯤 박힘 · 못 건드림 · 위에 올라갈 수만
+        /// 바닥에 닿음     →  동적 유지 · Prop 레이어 · 손으로 운반할 수 있다
         /// </code>
         ///
         /// Prop 레이어로 옮기는 것이 핵심이다. <see cref="GameLayers.BatStrikeMask"/> 가
@@ -93,6 +93,14 @@ namespace Metagame.Gameplay.Hazards
         /// 새 규칙을 만들지 않는다.
         /// </summary>
         public bool Rolling { get; private set; }
+
+        /// <summary>
+        /// 착지 처리가 끝나 일반 운반물로 전환되었는가.
+        ///
+        /// 착지한 운석은 낙하 위험물로 남지 않고 일반 <see cref="Grabbable"/> 소품이
+        /// 된다. 방망이의 소품 밀기와 플레이어의 운반 경로가 같은 Rigidbody를 사용한다.
+        /// </summary>
+        public bool GroundProp { get; private set; }
 
         /// <summary>
         /// 더 이상 사람을 때리지 않는가.
@@ -105,11 +113,7 @@ namespace Metagame.Gameplay.Hazards
         public bool Harmless => HasImpacted || Rolling;
 
         /// <summary>
-        /// 착탄한 지면 위치. 박히기 <b>전</b>의 지점이다.
-        ///
-        /// <see cref="Settle"/> 이 몸통을 반지름의 0.6배만큼 <b>지면 아래로</b> 내리므로
-        /// <c>transform.position</c> 은 지면보다 낮다. 분화구를 거기에 그리면 바닥에
-        /// 묻힌다 — 그래서 표시가 쓸 값을 따로 남긴다(S15P21B202-254).
+        /// 착탄한 지면 위치. 분화구와 충격 표시가 사용할 기준점이다.
         /// </summary>
         public Vector3 ImpactPoint { get; private set; }
 
@@ -204,6 +208,12 @@ namespace Metagame.Gameplay.Hazards
             Register();
 
             EnsureTrail();
+
+            // 예전 프리팹에 남아 있던 일반 DamageSource는 운석의 충돌 규칙과 중복된다.
+            // 운석 피해는 ApplyImpact/ApplyKnockback이 한 번만 소유해야 하므로, 기존
+            // 씬·프리팹 인스턴스가 있어도 초기화 즉시 비활성화한다.
+            var legacyDamageSource = GetComponent<DamageSource>();
+            if (legacyDamageSource != null) legacyDamageSource.enabled = false;
 
             if (_body != null) return;
 
@@ -398,6 +408,9 @@ namespace Metagame.Gameplay.Hazards
 
         void OnCollisionEnter(Collision collision)
         {
+            // 착탄이 끝난 운석은 일반 운반물이다. 착지 후 새 충돌을 직접 충돌로
+            // 해석하면 몸이 스치기만 해도 다시 기절하므로, 이후 접촉은 PhysX에 맡긴다.
+            if (HasImpacted || Rolling || GroundProp) return;
             if (collision.contactCount == 0) return;
 
             // 쳐낸 운석은 이미 소품이다(S15P21B202-273). 착지해도 박히지 않고 굴러다니며,
@@ -519,11 +532,10 @@ namespace Metagame.Gameplay.Hazards
 
         void ApplyImpact(Vector3 point, PlayerRig directHit, Vector3 normal)
         {
-            if (HasImpacted) return;
+            if (HasImpacted || Rolling || GroundProp) return;
 
             // 쳐낸 운석은 흔적이 되지 않는다(S15P21B202-273). 착지해도 굴러다니는 소품으로
             // 남는다 — 두 상태가 섞이면 "쳐냈는데 박혀 있는" 것이 된다.
-            if (Rolling) return;
 
             Initialize();
             HasImpacted = true;
@@ -652,19 +664,16 @@ namespace Metagame.Gameplay.Hazards
         }
 
         /// <summary>
-        /// 지면에 박아 흔적으로 만든다(기획 §19).
-        ///
-        /// <b>물리를 끈다.</b> 키네마틱으로 바꾸고 속도를 지운다 — 200개가 쌓여도 솔버가
-        /// 매 스텝 풀어야 할 것이 없어야 한다. 콜라이더는 남긴다: §19 이 "접촉 피해가
-        /// 없는 <b>낮은 정적 장애물</b>" 이라고 정하므로 걸려서 넘어갈 수 있어야 한다.
+        /// 착탄 후 일반 운반물로 전환한다.
         ///
         /// 피해는 이미 한 번만 돈다 — <see cref="HasImpacted"/> 가
-        /// <see cref="ApplyImpact"/> 를 막고, <c>DamageSource</c> 는 운석에 붙어 있지 않다
-        /// (S15P21B202-247).
+        /// <see cref="ApplyImpact"/> 와 후속 충돌 콜백을 막고, <c>DamageSource</c> 는
+        /// 운석에 붙지 않는다.
         /// </summary>
         void Settle(Vector3 point, Vector3 normal)
         {
             Settled = true;
+            GroundProp = true;
             _sinceSettled = 0f;
             StopTrail();
 
@@ -672,16 +681,22 @@ namespace Metagame.Gameplay.Hazards
             {
                 _body.linearVelocity = Vector3.zero;
                 _body.angularVelocity = Vector3.zero;
-                _body.isKinematic = true;
+                _body.isKinematic = false;
+                _body.useGravity = true;
             }
 
-            // "절반 이상 지면에 박힌 모습"(§19). y만 조정하지 않고 접촉 법선 방향으로
-            // 묻어 경사진 MeshCollider에서도 실제 표면을 따라간다.
+            // 착지 직후에도 일반 운반물처럼 바닥 위에 남는다. 기존의 반쯤 묻는 위치
+            // 보정은 Collider를 지면 아래에 남겨 운반·방망이 판정을 막았다.
             if (normal.sqrMagnitude < 0.0001f) normal = Vector3.up;
             normal.Normalize();
             transform.position = point
-                                + normal * (MeteorRadius
-                                             * (1f - 2f * ScarSinkRatio));
+                                + normal * MeteorRadius;
+
+            // 착지한 운석은 일반 운반물과 같은 상호작용 경로를 사용한다. 레이어를
+            // 바꾸면 방망이의 소품 판정에 들어가고, Grabbable을 붙이면 손으로 집을 수
+            // 있다. Rigidbody는 동적으로 유지해 밀기·운반·놓기가 모두 가능하다.
+            SetLayerDeep(gameObject, GameLayers.Prop);
+            Grabbable.Mark(gameObject, "운석", false, 1f, 0f, GrabbableRole.Transport);
         }
 
         void Expire()

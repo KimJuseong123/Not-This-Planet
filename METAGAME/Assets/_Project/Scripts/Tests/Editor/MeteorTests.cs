@@ -97,7 +97,9 @@ namespace Metagame.Gameplay.Tests
                 Simulate(2f);
 
                 Assert.IsTrue(meteor.Settled, "실제 정적 지지면에 닿은 경우에만 정착해야 한다.");
-                Assert.IsTrue(meteor.GetComponent<Rigidbody>().isKinematic);
+                Assert.IsTrue(meteor.GroundProp);
+                Assert.IsFalse(meteor.GetComponent<Rigidbody>().isKinematic,
+                    "착지 후 일반 운반물 물리를 유지해야 한다.");
                 Assert.AreEqual(1, raised, "실제 착탄 이벤트는 한 번만 발생해야 한다.");
                 Assert.AreEqual(0f, meteor.ImpactPoint.y, 0.08f);
             }

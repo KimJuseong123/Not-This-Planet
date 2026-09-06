@@ -11,7 +11,6 @@ GameObject:
   - component: {fileID: 5477504607344680482}
   - component: {fileID: 4713270630999307294}
   - component: {fileID: 6241414534161893580}
-  - component: {fileID: 5365452115393440081}
   - component: {fileID: 4353752562785007050}
   m_Layer: 11
   m_Name: PF_Stage1_Meteor
@@ -84,21 +83,6 @@ SphereCollider:
   serializedVersion: 3
   m_Radius: 0.45
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &5365452115393440081
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8592255222310786878}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fe721cb86cb0445186f5719f9e114314, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.DamageSource
-  damage: 25
-  minImpactSpeed: 0
-  repeatCooldown: 0.5
 --- !u!114 &4353752562785007050
 MonoBehaviour:
   m_ObjectHideFlags: 0
