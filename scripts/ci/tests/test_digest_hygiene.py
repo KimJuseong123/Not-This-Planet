@@ -98,6 +98,8 @@ def deploy_http(method, url, headers=None, body=None, timeout=30):
         return 200, PIPES
     if "/pipelines/" in url and url.endswith("/jobs?per_page=100"):
         return 200, JOBS.get(int(url.split("/pipelines/")[1].split("/")[0]), [])
+    if "/repository/compare" in url:        # 배포 표류 확인 (S15P21B202-309)
+        return 200, {"diffs": []}
     raise AssertionError(url)
 
 

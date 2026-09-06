@@ -88,3 +88,11 @@ id_*.pub
 # Python (scripts/ci)
 __pycache__/
 *.pyc
+
+# 개인 작업 메모 — 팀에 파일로 전달하는 중간 산출물이라 리포에 들어가면 안 된다
+# (TEAM-SHARE.local.md · ARCHITECTURE-REVIEW.local.md 등). git add -A 한 번에 딸려
+# 들어갈 수 있어서 무시 + repo-hygiene 금지 목록 양쪽에 넣었다 (S15P21B202-309).
+*.local.md
+*.local.txt
+*.local.json
+*.local.yml

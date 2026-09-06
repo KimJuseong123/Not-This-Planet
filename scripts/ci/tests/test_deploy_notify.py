@@ -30,7 +30,15 @@ PIPELINES: list[dict] = []    # develop 파이프라인 (최신 우선)
 JOBS: dict[int, list[dict]] = {}
 
 
+DIFFS: list = []          # compare 가 돌려줄 변경 목록 (S15P21B202-309)
+COMPARE_FAILS: list = []  # 비어 있지 않으면 compare 가 404
+
+
 def fake_http(method, url, headers=None, body=None, timeout=30):
+    if "/repository/compare" in url:
+        if COMPARE_FAILS:
+            return 404, {}
+        return 200, {"diffs": list(DIFFS)}
     if url.startswith("https://mm.example/"):
         sent.append((body or {}).get("text", ""))
         return 200, {}
@@ -137,7 +145,8 @@ gl = ci_common.GitLab()
 # ⑦ 배포 이력 없음 — 파이프라인은 있지만 배포 잡이 없다(backend 를 안 건드린 커밋들)
 setup([(300, [{"id": 1, "name": "ci-tests", "status": "success"}]), (299, [])])
 st = D.deploy_state(gl)
-assert st == {"live": None, "attempt": None, "pending": 0, "complete": True}, st
+# 배포된 커밋이 없으면 비교할 기준도 없다 → drift 는 None(빈 목록이 아니다)
+assert st == {"live": None, "attempt": None, "pending": 0, "complete": True, "drift": None}, st
 assert "이력 없음" in D.deploy_line(st)
 print("  배포 잡이 없는 이력 ✅")
 
@@ -200,5 +209,33 @@ for jobname, expect_send in (("", False), ("ci-tests", False), ("mm-digest", Fal
     assert bool(sent) is expect_send, f"CI_JOB_NAME={jobname!r} 에서 전송={bool(sent)} (기대 {expect_send})"
 os.environ.pop("CI_JOB_NAME", None)
 print("  배포 잡에서만 알림 ✅")
+
+# ⑫ 배포 잡이 **아예 없는데** 코드가 다르다 — 09-06 에 릴레이가 이틀 묻힌 그 상태 (S15P21B202-309)
+#    pending 은 '눌리지 않은 잡' 을 세므로 이 경우 0 이다. 잡 목록만 보면 아무 문제가 없어 보인다.
+setup([(310, [{"id": 20, "name": "ci-tests", "status": "success"}]),
+       (300, [job(11, "success", "abc1234")])])
+DIFFS[:] = [{"new_path": "backend/src/main/java/A.java"}, {"new_path": "METAGAME/Assets/x.cs"}]
+st = D.deploy_state(gl)
+assert st["pending"] == 0, st
+assert st["drift"] == ["backend/src/main/java/A.java"], st          # backend/ 만 센다
+line = D.deploy_line(st)
+assert "배포 대기 잡이 없는데" in line and "파일 1개" in line, line
+print("  배포 잡이 사라진 표류 감지 ✅")
+
+# ⑬ backend 밖의 변경만 쌓였으면 아무 말도 하지 않는다 (Unity·docs 머지가 대부분이다)
+DIFFS[:] = [{"new_path": "METAGAME/Assets/x.cs"}, {"new_path": "docs/y.md"}]
+st = D.deploy_state(gl)
+assert st["drift"] == [], st
+assert "배포 대기 잡이 없는데" not in D.deploy_line(st)
+print("  backend 밖 변경은 표류가 아님 ✅")
+
+# ⑭ 비교를 못 했으면 경고하지 않는다 — None 과 [] 를 섞으면 조용히 오탐/미탐이 된다
+DIFFS[:] = [{"new_path": "backend/src/main/java/A.java"}]
+COMPARE_FAILS.append(True)
+st = D.deploy_state(gl)
+assert st["drift"] is None, st
+assert "배포 대기 잡이 없는데" not in D.deploy_line(st)
+COMPARE_FAILS.clear()
+print("  비교 실패는 경고하지 않음 ✅")
 
 print("TEST144 OK")

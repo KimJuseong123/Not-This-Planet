@@ -350,6 +350,22 @@ class GitLab:
                             f"?from={quote(base_sha, safe='')}&to={quote(ref, safe='')}&straight=true", self._h())
         return len(d.get("commits") or []) if st == 200 and isinstance(d, dict) else None
 
+    def compare_paths(self, from_sha: str, to_ref: str = "develop") -> list[str] | None:
+        """from_sha..to_ref 사이에 바뀐 파일 경로. 못 읽으면 None — 빈 목록과 구분한다.
+
+        빈 목록("바뀐 것이 없다")과 None("확인하지 못했다")을 섞으면 배포 표류 경고가
+        조용히 사라진다. 배포는 안 하고도 초록으로 보이는 것이 제일 위험한 상태다(-309)."""
+        st, d = http("GET", f"{self.api}/projects/{self.project}/repository/compare"
+                            f"?from={quote(from_sha, safe='')}&to={quote(to_ref, safe='')}&straight=true", self._h())
+        if st != 200 or not isinstance(d, dict):
+            return None
+        out: list[str] = []
+        for f in (d.get("diffs") or []):
+            for k in ("new_path", "old_path"):
+                if f.get(k):
+                    out.append(f[k])
+        return sorted(set(out))
+
     def mr_commits(self, max_pages: int = 5) -> list[dict]:
         """MR 의 커밋 전체. 페이징을 돌지 않으면 커밋 100개가 넘는 MR 에서 뒤쪽 커밋에 섞인
         다른 이슈 키를 놓친다 — 오래 묵은 브랜치일수록 커밋이 많고, 그게 검사가 필요한 경우다(-134)."""
