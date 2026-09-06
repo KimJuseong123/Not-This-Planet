@@ -92,6 +92,36 @@ namespace Metagame.Gameplay
 
         /// <summary>무엇에든 붙어 실려 가는 중인가.</summary>
         public bool IsRiding { get { return RidingBody != null; } }
+
+        /// <summary>
+        /// <b>남의 화면에서</b> 이 사람이 운반 장치를 타고 있는가(S15P21B202-305).
+        ///
+        /// <see cref="IsRiding"/> 은 <see cref="RidingBody"/> 로 판단하는데, 그 값은
+        /// <c>Board()</c> 가 채우므로 <b>탄 본인의 컴퓨터에서만</b> 참이다. 남의 화면에
+        /// 있는 몸은 <c>NetPlayer</c> 가 따로 만든 <see cref="PlayerRig"/> 이고 거기서는
+        /// <c>Board()</c> 가 돌지 않는다 — 그래서 몸이 계속 그려졌고, 조종석에 묻힌
+        /// 몸통과 달리 <b>귀만 기체 밖으로 튀어나왔다.</b>
+        ///
+        /// 서버가 이미 <c>NetPlayer.riding</c> 으로 그 사실을 모두에게 보내고 있었다.
+        /// 읽는 곳이 없었을 뿐이다.
+        /// </summary>
+        public bool RemoteRiding { get; private set; }
+
+        /// <summary>
+        /// 남이 보는 이 몸의 탑승 여부를 갱신한다(S15P21B202-305).
+        ///
+        /// <b>몸을 지우거나 비활성화하지 않는다.</b> 자세 동기화가 계속 돌아야 하차한
+        /// 자리에 서 있고, 기절 판정과 구조 상호작용(§20)이 몸에 붙어 있다. 감추는
+        /// 방법은 1인칭·기절 3인칭에서 쓰던 것과 같은 <see cref="Doll.SetVisible"/> 하나로
+        /// 둔다 — 새 방법을 만들면 상태가 두 갈래가 된다.
+        /// </summary>
+        public void SetRemoteRiding(bool riding)
+        {
+            if (RemoteRiding == riding) return;
+
+            RemoteRiding = riding;
+            RefreshDollVisibility();
+        }
         public bool Hanging { get { return LeftHand.Hanging || RightHand.Hanging; } }
         public bool Carrying { get { return LeftHand.Carrying || RightHand.Carrying; } }
         public bool Ragdolled { get; private set; }      // 크게 넘어져 조종이 잠깐 풀린 상태
@@ -926,7 +956,10 @@ namespace Metagame.Gameplay
         {
             if (Doll == null) return;
 
-            if (IsRiding) Doll.SetVisible(false);
+            // 탑승 중에는 그림자도 남기지 않는다. 조종석 안에 있는 몸의 그림자가 기체
+            // 밖 지면에 생기면 몸이 보이는 것보다 더 이상하다 — 1인칭에서 그림자를
+            // 남기는 것(§10.1 "발밑을 읽는 단서가 제 그림자다")과는 사정이 다르다.
+            if (IsRiding || RemoteRiding) Doll.SetVisible(false);
             else if (Cam != null && Cam.FirstPerson) Doll.SetVisible(false, keepShadow: true);
             else Doll.SetVisible(true);
 
