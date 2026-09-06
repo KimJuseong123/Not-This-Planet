@@ -166,8 +166,11 @@ namespace Metagame.Gameplay
             [Min(0f)] public float spawnMargin = 6f;
             public int seed = 20260903;
 
+            [Header("Grounding")]
+            [Min(0f)] public float groundClearance = 0.08f;
+
             [Header("Test visualization")]
-            public bool showDebugBoundary = true;
+            public bool showDebugBoundary;
             public Color debugBoundaryColor = Color.red;
             [Min(0.001f)] public float debugBoundaryWidth = 0.04f;
             [Min(10f)] public float debugSkyMarkerHeight = 80f;
@@ -277,6 +280,7 @@ namespace Metagame.Gameplay
                 Mathf.Max(0.1f, Mathf.Abs(dustStorm.halfExtents.z)));
             dustStorm.directionConeDegrees = Mathf.Clamp(dustStorm.directionConeDegrees, 0f, 180f);
             dustStorm.spawnMargin = Mathf.Max(0f, dustStorm.spawnMargin);
+            dustStorm.groundClearance = Mathf.Max(0f, dustStorm.groundClearance);
             dustStorm.debugBoundaryWidth = Mathf.Max(0.001f, dustStorm.debugBoundaryWidth);
             dustStorm.debugSkyMarkerHeight = Mathf.Max(10f, dustStorm.debugSkyMarkerHeight);
             dustStorm.windForce = Mathf.Max(0f, dustStorm.windForce);

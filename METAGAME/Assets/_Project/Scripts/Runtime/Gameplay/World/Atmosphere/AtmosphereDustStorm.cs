@@ -104,13 +104,18 @@ namespace Metagame.Gameplay
                 var go = new GameObject("Atmosphere Dust Storm");
                 go.transform.SetParent(transform, false);
                 dustParticles = go.AddComponent<ParticleSystem>();
-                go.AddComponent<ParticleSystemRenderer>();
             }
 
             var renderer = dustParticles.GetComponent<ParticleSystemRenderer>();
             if (renderer == null) renderer = dustParticles.gameObject.AddComponent<ParticleSystemRenderer>();
-            renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            // Stretch the billboard along the wind direction. A static round billboard
+            // reads as floating dots; the stretched pass gives the effect a clear sand
+            // flow even when the storm is seen from the side.
+            renderer.renderMode = ParticleSystemRenderMode.Stretch;
             renderer.alignment = ParticleSystemRenderSpace.View;
+            renderer.lengthScale = 1.6f;
+            renderer.velocityScale = 0.45f;
+            renderer.cameraVelocityScale = 0.05f;
             renderer.shadowCastingMode = ShadowCastingMode.Off;
             renderer.receiveShadows = false;
 
@@ -154,8 +159,18 @@ namespace Metagame.Gameplay
             main.startSpeed = 0f;
             main.startSize = new ParticleSystem.MinMaxCurve(
                 settings.dustStartSize * 0.65f, settings.dustStartSize * 1.35f);
-            main.startColor = settings.dustColor;
+            // The custom shader multiplies its material color by the particle color.
+            // Keep the particle white so the profile alpha is not multiplied twice.
+            main.startColor = Color.white;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
+
+            if (dustMaterial != null)
+            {
+                if (dustMaterial.HasProperty("_Color"))
+                    dustMaterial.SetColor("_Color", settings.dustColor);
+                if (dustMaterial.HasProperty("_BaseColor"))
+                    dustMaterial.SetColor("_BaseColor", settings.dustColor);
+            }
 
             var emission = dustParticles.emission;
             emission.enabled = settings.enabled && GetEffectScale() > 0f;
@@ -178,21 +193,21 @@ namespace Metagame.Gameplay
             colors.enabled = true;
             var gradient = new Gradient();
             gradient.SetKeys(
-                new[] { new GradientColorKey(settings.dustColor, 0f),
-                        new GradientColorKey(settings.dustColor, 1f) },
-                new[] { new GradientAlphaKey(settings.dustColor.a, 0f),
+                new[] { new GradientColorKey(Color.white, 0f),
+                        new GradientColorKey(Color.white, 1f) },
+                new[] { new GradientAlphaKey(1f, 0f),
                         new GradientAlphaKey(0f, 1f) });
             colors.color = new ParticleSystem.MinMaxGradient(gradient);
         }
 
         void ConfigureDebrisParticles()
         {
-            ConfigureDebrisParticle(0, "Large", settings.largeDebrisPrefab, 2);
-            ConfigureDebrisParticle(1, "Medium", settings.mediumDebrisPrefab, 2);
-            ConfigureDebrisParticle(2, "Small", settings.smallDebrisPrefab, 2);
+            ConfigureDebrisParticle(0, "Large", settings.largeDebrisPrefab);
+            ConfigureDebrisParticle(1, "Medium", settings.mediumDebrisPrefab);
+            ConfigureDebrisParticle(2, "Small", settings.smallDebrisPrefab);
         }
 
-        void ConfigureDebrisParticle(int index, string label, GameObject prefab, int maxParticles)
+        void ConfigureDebrisParticle(int index, string label, GameObject prefab)
         {
             bool sourceWasAssigned = !ReferenceEquals(prefab, null);
             if (!TryResolveDebrisVisual(prefab, out var mesh, out var material))
@@ -212,7 +227,6 @@ namespace Metagame.Gameplay
                 var go = new GameObject("Dust Storm Debris " + label);
                 go.transform.SetParent(transform, false);
                 debrisParticles[index] = go.AddComponent<ParticleSystem>();
-                go.AddComponent<ParticleSystemRenderer>();
             }
 
             var system = debrisParticles[index];
@@ -221,15 +235,17 @@ namespace Metagame.Gameplay
             renderer.shadowCastingMode = ShadowCastingMode.Off;
             renderer.receiveShadows = false;
             renderer.mesh = mesh;
-            renderer.sharedMaterial = material;
+            renderer.sharedMaterial = IsAlive(material)
+                ? material
+                : Prim.Dough(new Color(0.38f, 0.25f, 0.16f, 1f), 0.8f);
 
             var main = system.main;
             main.loop = false;
             main.playOnAwake = false;
-            main.maxParticles = maxParticles;
+            main.maxParticles = index == 0 ? 2 : index == 1 ? 4 : 8;
             main.startLifetime = settings.fragmentLifetime;
             main.startSpeed = 0f;
-            main.startSize = index == 0 ? 0.32f : index == 1 ? 0.24f : 0.16f;
+            main.startSize = index == 0 ? 0.72f : index == 1 ? 0.42f : 0.24f;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
 
             var emission = system.emission;
@@ -253,10 +269,19 @@ namespace Metagame.Gameplay
             var velocity = dustParticles.velocityOverLifetime;
             velocity.enabled = true;
             velocity.space = ParticleSystemSimulationSpace.World;
-            Vector3 drift = direction * (settings.speed * 0.25f);
+            Vector3 drift = direction * (settings.speed * 0.65f);
             velocity.x = new ParticleSystem.MinMaxCurve(drift.x);
             velocity.y = new ParticleSystem.MinMaxCurve(drift.y);
             velocity.z = new ParticleSystem.MinMaxCurve(drift.z);
+
+            var noise = dustParticles.noise;
+            noise.enabled = true;
+            noise.separateAxes = false;
+            noise.strength = 0.55f;
+            noise.frequency = 0.45f;
+            noise.scrollSpeed = 0.22f;
+            noise.octaveCount = 2;
+            noise.damping = true;
         }
 
         void ConfigureDebrisDirection(Vector3 direction)
@@ -284,7 +309,7 @@ namespace Metagame.Gameplay
                 var system = debrisParticles[i];
                 if (system == null || system.GetComponent<ParticleSystemRenderer>().mesh == null) continue;
 
-                int wanted = i == 0 ? 1 : i == 1 ? 2 : 3;
+                int wanted = i == 0 ? 1 : i == 1 ? 3 : 6;
                 int count = Mathf.Min(wanted, budget);
                 system.randomSeed = unchecked((uint)(settings.seed + cycle * 6151 + i * 97 + 11));
                 system.useAutoRandomSeed = false;
@@ -345,7 +370,7 @@ namespace Metagame.Gameplay
         {
             mesh = null;
             material = null;
-            if (!IsAlive(prefab)) return false;
+            if (!IsAlive(prefab)) return TryCreateFallbackDebrisVisual(out mesh, out material);
 
             GameObject sample = null;
             Object clone = null;
@@ -359,22 +384,37 @@ namespace Metagame.Gameplay
                     if (component != null) sample = component.gameObject;
                 }
 
-                if (!IsAlive(sample)) return false;
+                if (!IsAlive(sample))
+                    return TryCreateFallbackDebrisVisual(out mesh, out material);
                 sample.SetActive(false);
                 MeshVisual.EnsureRenderers(sample);
 
                 var filter = sample.GetComponentInChildren<MeshFilter>(true);
                 if (filter != null) mesh = filter.sharedMesh;
+                if (!IsAlive(mesh))
+                {
+                    var skinned = sample.GetComponentInChildren<SkinnedMeshRenderer>(true);
+                    if (skinned != null) mesh = skinned.sharedMesh;
+                }
 
                 var renderer = sample.GetComponentInChildren<Renderer>(true);
                 if (renderer != null) material = renderer.sharedMaterial;
-                return IsAlive(mesh);
+                if (IsAlive(mesh) && !IsAlive(material))
+                    material = Prim.Dough(new Color(0.38f, 0.25f, 0.16f, 1f), 0.8f);
+                return IsAlive(mesh)
+                    || TryCreateFallbackDebrisVisual(out mesh, out material);
             }
             catch (MissingReferenceException)
             {
                 mesh = null;
                 material = null;
-                return false;
+                return TryCreateFallbackDebrisVisual(out mesh, out material);
+            }
+            catch (System.InvalidCastException)
+            {
+                mesh = null;
+                material = null;
+                return TryCreateFallbackDebrisVisual(out mesh, out material);
             }
             finally
             {
@@ -388,6 +428,25 @@ namespace Metagame.Gameplay
                     if (Application.isPlaying) Object.Destroy(clone);
                     else Object.DestroyImmediate(clone);
                 }
+            }
+        }
+
+        static bool TryCreateFallbackDebrisVisual(out Mesh mesh, out Material material)
+        {
+            mesh = null;
+            material = null;
+            var fallback = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            try
+            {
+                var filter = fallback.GetComponent<MeshFilter>();
+                if (filter != null) mesh = filter.sharedMesh;
+                material = Prim.Dough(new Color(0.38f, 0.25f, 0.16f, 1f), 0.8f);
+                return IsAlive(mesh) && IsAlive(material);
+            }
+            finally
+            {
+                if (Application.isPlaying) Destroy(fallback);
+                else DestroyImmediate(fallback);
             }
         }
 

@@ -44,5 +44,37 @@ namespace Metagame.Gameplay
 
             return found && bounds.size.x > 0.01f && bounds.size.z > 0.01f;
         }
+
+        /// <summary>
+        /// Returns the actual terrain surface at a world X/Z position. Terrain collider
+        /// bounds include the full height range of a tile, so their center is not a
+        /// playable ground height and must not be used to place a low sand effect.
+        /// </summary>
+        public static float SampleGroundHeight(Vector3 worldPosition, Bounds fallbackBounds)
+        {
+            var terrains = Terrain.activeTerrains;
+            for (int i = 0; i < terrains.Length; i++)
+            {
+                var terrain = terrains[i];
+                var data = terrain != null ? terrain.terrainData : null;
+                if (terrain == null || !terrain.enabled || data == null) continue;
+
+                Vector3 local = terrain.transform.InverseTransformPoint(worldPosition);
+                Vector3 size = data.size;
+                if (size.x <= 0.001f || size.z <= 0.001f
+                    || local.x < 0f || local.z < 0f
+                    || local.x > size.x || local.z > size.z)
+                    continue;
+
+                float normalizedX = Mathf.Clamp01(local.x / size.x);
+                float normalizedZ = Mathf.Clamp01(local.z / size.z);
+                float localHeight = data.GetInterpolatedHeight(normalizedX, normalizedZ);
+                return terrain.transform.TransformPoint(
+                    new Vector3(local.x, localHeight, local.z)).y;
+            }
+
+            // Tests and scenes without Terrain still get a stable low-volume placement.
+            return fallbackBounds.min.y;
+        }
     }
 }

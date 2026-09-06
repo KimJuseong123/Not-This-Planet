@@ -94,7 +94,8 @@ namespace Metagame.EditorTools
                 profile.dustStorm.directionConeDegrees = 60f;
                 profile.dustStorm.spawnMargin = 6f;
                 profile.dustStorm.seed = 20260903;
-                profile.dustStorm.showDebugBoundary = true;
+                profile.dustStorm.groundClearance = 0.08f;
+                profile.dustStorm.showDebugBoundary = false;
                 profile.dustStorm.debugBoundaryColor = Color.red;
                 profile.dustStorm.debugBoundaryWidth = 0.04f;
                 profile.dustStorm.debugSkyMarkerHeight = 80f;
@@ -105,13 +106,13 @@ namespace Metagame.EditorTools
                 profile.dustStorm.fragmentRepeatCooldown = 1f;
                 profile.dustStorm.fragmentLifetime = 2.5f;
                 profile.dustStorm.fragmentSpeed = 5f;
-                profile.dustStorm.maxVisualFragments = 6;
-                profile.dustStorm.maxDustParticles = 64;
-                profile.dustStorm.dustEmissionRate = 20f;
-                profile.dustStorm.dustLifetime = 3.5f;
-                profile.dustStorm.dustStartSize = 0.35f;
-                profile.dustStorm.dustEndSize = 0.08f;
-                profile.dustStorm.dustColor = new Color(0.68f, 0.50f, 0.36f, 0.30f);
+                profile.dustStorm.maxVisualFragments = 12;
+                profile.dustStorm.maxDustParticles = 128;
+                profile.dustStorm.dustEmissionRate = 56f;
+                profile.dustStorm.dustLifetime = 2.4f;
+                profile.dustStorm.dustStartSize = 0.28f;
+                profile.dustStorm.dustEndSize = 0.10f;
+                profile.dustStorm.dustColor = new Color(0.72f, 0.52f, 0.34f, 0.46f);
             }
 
             string largePath = Stage1EnvironmentAssets.PrefabPath("MeteorDebrisLarge");
