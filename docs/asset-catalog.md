@@ -10,6 +10,7 @@
 > 갱신 2026-09-02 — Stage1 보라색 꽃 대형·소형 FBX·PBR 텍스처·프리뷰 추가 · 이슈 [S15P21B202-260](https://ssafy.atlassian.net/browse/S15P21B202-260)
 > 갱신 2026-09-03 — 기존 토끼 캐릭터용 Mixamo 걷기·달리기 모션 추가 · 이슈 [S15P21B202-278](https://ssafy.atlassian.net/browse/S15P21B202-278)
 > 갱신 2026-09-04 — 캐릭터 팔·손 원본 FBX·PBR 텍스처·정면 프리뷰 추가 · 이슈 [S15P21B202-283](https://ssafy.atlassian.net/browse/S15P21B202-283)
+> 갱신 2026-09-06 — Stage1 바닥 텍스처 3종·자연물 FBX/PBR 4종·정면 프리뷰 추가 · 이슈 [S15P21B202-306](https://ssafy.atlassian.net/browse/S15P21B202-306)
 > 관련 문서: [문서 목록](./README.md) · [1장 기획](./planning/chapter-1-plan.md) · [파트 구분](./parts.md)
 
 **어떤 에셋이 무엇이고, 씬에 갖다 쓸 수 있는 상태인지** 한 장에서 확인하는 문서다.
@@ -55,9 +56,9 @@ FBX 파일만 열어봐서는 크기를 알 수 없다. 기존 카탈로그에�
 
 | 종류 | 수량 | 상태 |
 | --- | ---: | --- |
-| FBX 모델 | 31 | 사용 가능 15 · 미연결 15 · 기존 1 |
-| 텍스처 (`Textures/`) | 29 | Stage1 PBR 24 · 리뉴얼 바닥 1 · 콘셉트 4 |
-| 텍스처 (`.fbm/` 임베드) | 77 | 캐릭터 12 · 환경 7 · 운석 PBR 16 · 리뉴얼 자연물 PBR 42 |
+| FBX 모델 | 35 | 사용 가능 15 · 미연결 19 · 기존 1 |
+| 텍스처 (`Textures/`) | 32 | Stage1 PBR 24 · 바닥 후보 3 · 리뉴얼 바닥 1 · 콘셉트 4 |
+| 텍스처 (`.fbm/` 임베드) | 97 | 캐릭터 12 · 환경 7 · 운석 PBR 16 · 리뉴얼 자연물 PBR 62 |
 | Material | 22 | Stage1 URP Lit 19 · 분위기/외부 패키지용 URP 3 |
 | Prefab | 19 | Stage1 17 · 기존 Resources 2 |
 | Shader | 6 | `SpaceFlop/*` URP 3 · 분위기 URP 3 |
@@ -249,7 +250,7 @@ FBX 내부의 Tripo UUID 경로도 새 영문 경로로 다시 내보냈으며, 
 
 ---
 
-## 6-2. Stage1 자연물·맵 타일 리뉴얼 — 연결 현황 (자연물 10종 + 타일 1종)
+## 6-2. Stage1 자연물·맵 타일 리뉴얼 — 연결 현황 (자연물 14종 + 타일 4종)
 
 [S15P21B202-163](https://ssafy.atlassian.net/browse/S15P21B202-163)에서 신규 원본 에셋을 추가했다.
 기존 Stage1 자연물 파일을 덮어쓰지 않고, 각 신규 자연물을 Stage1 바로 아래의 개별 폴더로 분리했다.
@@ -267,6 +268,10 @@ FBX 내부의 Tripo UUID 경로도 새 영문 경로로 다시 내보냈으며, 
 | <img src="./assets/previews/alien_rock_round_cracked_front.png" width="100"> | `alien_rock_round_cracked` | 갈라진 둥근 바위 | 미연결 |
 | <img src="./assets/previews/purple_flower_large_front.png" width="100"> | `purple_flower_large` | 대형 보라색 꽃 | 미연결 |
 | <img src="./assets/previews/purple_flower_small_front.png" width="100"> | `purple_flower_small` | 소형 보라색 꽃 | 미연결 |
+| <img src="./assets/previews/moss_cliff_front.png" width="100"> | `moss_cliff` | 이끼가 덮인 소형 바위 절벽 | 미연결 |
+| <img src="./assets/previews/moss_cliff_large_front.png" width="100"> | `moss_cliff_large` | 이끼가 덮인 대형 바위 절벽 | 미연결 |
+| <img src="./assets/previews/mush_tree_front.png" width="100"> | `mush_tree` | 두 그루로 구성된 보라색 버섯 나무 | 미연결 |
+| <img src="./assets/previews/umbrella_tree_front.png" width="100"> | `umbrella_tree` | 우산형 보라색 버섯 나무 | 미연결 |
 
 자연물 기준 경로는 `Models/Environment/Stage1/<모델>/`이다. 각 폴더에는 같은 이름의
 FBX와 `tripo_convert_<id>.fbm/` 폴더가 있고, `.fbm` 안에 Base Color·Normal·Metallic·Roughness 4장이 있다.
@@ -277,16 +282,27 @@ FBX와 `tripo_convert_<id>.fbm/` 폴더가 있고, `.fbm` 안에 Base Color·Nor
 Base Color·Normal·RM·Roughness·Metallic 5장이며, 원본의 UUID 파일명은 에셋 이름으로 정리했다.
 현재 Material·Prefab·Collider·LOD·씬 배치는 하지 않은 원본 에셋 상태다.
 
+[S15P21B202-306](https://ssafy.atlassian.net/browse/S15P21B202-306)에서 `moss_cliff`,
+`moss_cliff_large`, `mush_tree`, `umbrella_tree` 원본을 추가했다. 각 모델은 FBX 1개와
+Base Color·Normal·RM·Roughness·Metallic 텍스처 5장으로 구성된다. FBX 내부 텍스처 경로를
+보존하기 위해 `tripo_convert_<id>.fbm` 폴더명은 원본 그대로 유지했다. Material·Prefab·Collider·LOD·씬 배치는 하지 않았다.
+
 ### 맵 타일
 
 | 용도 | 경로 | 상태 |
 | --- | --- | --- |
 | Stage1 신규 바닥 Base Color | `Textures/Environment/Stage1/Renewal/Ground/T_Stage1_AlienGroundTile_BaseColor.png` | 1024 × 1024 seamless 원본·Terrain 연결 |
+| Stage1 풀 바닥 후보 | `Textures/Environment/Stage1/GrassTexture.png` | 1254 × 1254 Base Color 원본·미연결 |
+| Stage1 모래 바닥 후보 | `Textures/Environment/Stage1/SandTexture.png` | 1254 × 1254 Base Color 원본·미연결 |
+| Stage1 돌 바닥 후보 | `Textures/Environment/Stage1/StoneTexture.png` | 1254 × 1254 Base Color 원본·미연결 |
 
 현재 Base Color 한 장을 [S15P21B202-74](https://ssafy.atlassian.net/browse/S15P21B202-74)에서
 `TL_Stage1_AlienGround` Terrain Layer로 연결했다. 50 × 50m Terrain에 5m 단위로 반복되어
 화면에는 10 × 10 타일처럼 보인다. Wrap Mode는 `Repeat`, Mipmap과 Aniso Level 4를 사용한다.
 Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
+
+풀·모래·돌 후보 3종은 [S15P21B202-306](https://ssafy.atlassian.net/browse/S15P21B202-306)에서
+원본 PNG와 Unity `.meta`만 등록했다. 기존 Terrain Layer와 Material에는 연결하지 않았으므로 비교 후 후속 작업에서 적용한다.
 
 ### Terrain 확장과 자연물 배치
 
