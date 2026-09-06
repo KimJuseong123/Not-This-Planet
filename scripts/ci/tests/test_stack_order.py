@@ -178,20 +178,14 @@ with contextlib.redirect_stdout(io.StringIO()):
 os.environ["CI_MERGE_REQUEST_IID"] = "77"
 print("  MR 아님 → 생략 ✅")
 
-# ── ⑪ 이행: -244 의 Draft 방식이 걸어 둔 흔적을 지운다 (2026-09-02 실제로 !173·!174·!176 이 그 상태였다)
-rc, puts, note, out = run("S15P21B202-241-puzzle", branches=["S15P21B202-241-puzzle"],
-                          title="Draft: [Puzzle] feat: x (S15P21B202-247)", labels=["stack-blocked"])
-assert any(p.get("remove_labels") == "stack-blocked" for p in puts), puts
-assert any(p.get("title") == "[Puzzle] feat: x (S15P21B202-247)" for p in puts), puts
-assert rc != 0, "흔적을 지운 뒤에도 스택 자식이면 실패해야 한다"
-assert note and "부모가 먼저 머지돼야" in note, note
-print("  예전 Draft 흔적 제거 + 판정 유지 ✅")
-
-# ── ⑫ 레이블이 없으면 이행 코드가 아무 것도 하지 않는다(사람이 건 Draft 는 mr-lint 가 본다)
+# ── ⑪ CI 는 제목·레이블을 건드리지 않는다
+#    -244 의 Draft 방식이 남긴 흔적을 지우던 이행 코드(clear_legacy)는 -301 에서 제거했다.
+#    대상이던 MR 5건(!173·!174·!176·!177·!178)이 전부 머지돼 다시 돌 일이 없었다.
+#    사람이 건 Draft 는 mr-lint 가 본다 — 이 잡은 순서만 본다.
 rc, puts, note, _ = run("develop", branches=["develop"],
-                        title="Draft: [Puzzle] feat: x (S15P21B202-247)")
-assert not puts, f"사람이 건 Draft 를 CI 가 풀면 안 된다: {puts}"
-print("  사람이 건 Draft 는 건드리지 않음 ✅")
+                        title="Draft: [Puzzle] feat: x (S15P21B202-247)", labels=["stack-blocked"])
+assert not puts, f"제목·레이블을 건드리면 안 된다: {puts}"
+print("  ⑪ 제목·레이블 무개입 ✅")
 
 # ══ 여기부터 S15P21B202-297 — 검사 실패만으로는 낡은 초록을 못 막으므로 스레드로 잠근다 ══
 
