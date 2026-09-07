@@ -306,15 +306,60 @@ def control_server(relay: Relay, port: int, host: str = "127.0.0.1") -> Threadin
             else:
                 self._json(404, {"error": "not found"})
 
+        def _body(self) -> bytes:
+            """요청 본문을 읽는다. **Content-Length 와 chunked 를 모두 받는다.**
+
+            예전에는 Content-Length 만 봤다(S15P21B202-314). 그러면 헤더가 없는 요청에서
+            n=0 이 되어 **본문을 통째로 버리고** 빈 payload 로 진행했다. 2026-09-07 실측:
+            Spring RestClient 가 Transfer-Encoding: chunked 로 보내자 릴레이가
+            "users 가 비었다" 400 을 돌려줬고, 백엔드는 조용히 직접 접속으로 떨어졌다.
+            서로 다른 망의 두 사람이 실제로 붙지 못한 원인이 이것이었다.
+
+            왜 두 번의 시험이 이걸 못 잡았나 — curl 은 Content-Length 를 붙이고,
+            LocalRelayServiceTest 가 쓰는 com.sun.net.httpserver 는 chunked 를 알아서
+            풀어 준다. 둘 다 이 경로를 지나지 않았다.
+            """
+            if "chunked" in self.headers.get("Transfer-Encoding", "").lower():
+                out = []
+                while True:
+                    line = self.rfile.readline()
+                    if not line:
+                        break                       # 연결이 끊겼다
+                    size = int(line.split(b";")[0].strip() or b"0", 16)
+                    if size == 0:
+                        # 마지막 청크. 트레일러가 있을 수 있으니 빈 줄까지 읽어 버린다.
+                        while True:
+                            trailer = self.rfile.readline()
+                            if not trailer or trailer in (b"\r\n", b"\n"):
+                                break
+                        break
+                    out.append(self.rfile.read(size))
+                    self.rfile.readline()           # 청크 뒤 CRLF
+                return b"".join(out)
+            n = int(self.headers.get("Content-Length", "0") or 0)
+            return self.rfile.read(n) if n > 0 else b""
+
         def do_POST(self):
             if self.path != "/sessions":
                 self._json(404, {"error": "not found"})
                 return
             try:
-                n = int(self.headers.get("Content-Length", "0"))
-                payload = json.loads(self.rfile.read(n) or b"{}")
-                self._json(201, relay.open_session(payload.get("users") or []))
+                raw = self._body()
+                # 본문이 비었다는 것과 users 가 비었다는 것을 **구분해서** 말한다.
+                # 예전에는 둘 다 "users 가 비었다" 로 나와, 실제 원인(본문 유실)을 찾는 데
+                # 한참 걸렸다(S15P21B202-314).
+                if not raw.strip():
+                    raise ValueError("본문이 비었다 — Content-Length 도 chunked 도 없다"
+                                     " (Transfer-Encoding=%r Content-Length=%r)"
+                                     % (self.headers.get("Transfer-Encoding"),
+                                        self.headers.get("Content-Length")))
+                payload = json.loads(raw)
+                users = payload.get("users") or []
+                if not users:
+                    raise ValueError("users 가 비었다 (본문 %d바이트는 읽었다)" % len(raw))
+                self._json(201, relay.open_session(users))
             except (ValueError, KeyError, TypeError) as e:
+                log.warning("제어 API 400: %s", e)
                 self._json(400, {"error": str(e)})
 
         def do_DELETE(self):
