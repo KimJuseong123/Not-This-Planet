@@ -5,6 +5,7 @@
     "Metagame.Core",
     "Metagame.Gameplay",
     "Metagame.Network",
+    "Mirror",
     "UnityEngine.UI"
   ],
   "includePlatforms": [],

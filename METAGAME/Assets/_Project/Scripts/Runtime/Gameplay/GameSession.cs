@@ -36,6 +36,13 @@ namespace Metagame.Gameplay
         public int Falls { get; private set; }
         public bool CursorLocked { get; private set; }
 
+        readonly PingLifetimeState localPing = new PingLifetimeState();
+
+        /// <summary>멀티플레이 오브젝트가 없을 때 HUD가 사용하는 로컬 핑.</summary>
+        public bool LocalPingActive { get { return localPing.IsActive; } }
+        public Vector3 LocalPingPosition { get { return localPing.Position; } }
+        public double LocalPingExpiresAt { get { return localPing.ExpiresAt; } }
+
         /// <summary>true 면 사람 입력을 읽지 않는다 (셀프테스트가 직접 넣는다).</summary>
         public bool ScriptedInput;
 
@@ -71,6 +78,7 @@ namespace Metagame.Gameplay
             Elapsed = 0f;
             Falls = 0;
             Cleared = false;
+            localPing.Clear();
             if (Exploration != null) Exploration.ResetRun();
             SetCursor(true);
         }
@@ -78,6 +86,8 @@ namespace Metagame.Gameplay
         void Update()
         {
             if (LocalPlayer == null) return;
+
+            localPing.Tick(Time.timeAsDouble);
 
             if (!Cleared) Elapsed += Time.deltaTime;
 
@@ -114,6 +124,7 @@ namespace Metagame.Gameplay
                     f.ToolUtility = false;
                     f.TransportAction = false;
                     f.FreeLook = false;
+                    f.PingPressed = false;
                 }
 
                 if (Exploration != null && Exploration.TabletOpen)
@@ -131,6 +142,7 @@ namespace Metagame.Gameplay
                     f.TransportAction = false;
                     f.ArmsUp = false;
                     f.FreeLook = false;
+                    f.PingPressed = false;
                 }
 
                 // 끼임 탈출은 3초 유지다(기획 §21). 예전에는 GetKeyDown 으로 즉시
@@ -159,6 +171,13 @@ namespace Metagame.Gameplay
                 // 카메라가 갱신된 뒤 같은 프레임에 하나의 상호작용 대상을 고른다.
                 // 운반 장치·고정쇠·손잡기 입력과 HUD가 모두 이 결과를 공유한다.
                 LocalPlayer.RefreshInteractionFocus();
+
+                if (f.PingPressed && !LocalPlayer.Downed)
+                {
+                    if (PingPlacement.TryResolve(LocalPlayer.AimOrigin, LocalPlayer.AimForward,
+                                                  LocalPlayer, out var point, out _))
+                        localPing.Place(point, Time.timeAsDouble, Tuning.PingLifetimeSeconds);
+                }
 
                 if (Transport != null)
                 {

@@ -41,6 +41,8 @@ namespace Metagame.Gameplay
         OrbitCamera cam;
         public bool IsLocal = true;
         public string Nickname = "비행사";
+        /// <summary>이 플레이어의 액센트 색. 핑과 다른 팀 표시가 같은 색을 쓴다.</summary>
+        public Color TeamColor { get; private set; }
 
         /// <summary>
         /// 이 몸의 위치를 서버가 정하는가. 켜져 있으면 물리는 여기서 돌지 않고,
@@ -315,6 +317,7 @@ namespace Metagame.Gameplay
             var go = new GameObject("플레이어 " + nickname);
             var rig = go.AddComponent<PlayerRig>();
             rig.Nickname = nickname;
+            rig.TeamColor = accent;
             bool model = useModel && SpaceSuit.Available;
             if (!All.Contains(rig)) All.Add(rig);   // EditMode 에서는 OnEnable 이 돌지 않는다
             rig.Doll = RagdollBuilder.Build(nickname, footPos, facing, suit, accent, !model);

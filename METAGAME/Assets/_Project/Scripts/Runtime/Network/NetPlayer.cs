@@ -51,6 +51,25 @@ namespace Metagame.Network
         [SyncVar(hook = nameof(OnRidingChanged))]
         public bool riding;
 
+        /// <summary>서버가 확정한 이 플레이어의 현재 팀 핑.</summary>
+        [SyncVar]
+        public bool pingActive;
+
+        [SyncVar]
+        public Vector3 pingPosition;
+
+        [SyncVar]
+        public double pingExpiresAt;
+
+        /// <summary>화면에 그릴 수 있는, 서버 시각 기준의 활성 핑인가.</summary>
+        public bool HasActivePing
+        {
+            get { return pingActive && NetworkTime.time < pingExpiresAt; }
+        }
+
+        public Vector3 PingPosition { get { return pingPosition; } }
+        public Color PingColor { get { return AccentColor(userId); } }
+
         // 이동 판정을 복제하지 않고, 표시용 걷기/달리기 상태만 함께 전달한다.
         [SyncVar]
         RabbitLocomotion.State _locomotionState;
@@ -85,10 +104,18 @@ namespace Metagame.Network
         /// <summary>서버가 들고 있는 접속자 목록. "전원 기절" 의 '전원' 이 이것이다.</summary>
         static readonly List<NetPlayer> ServerPlayers = new List<NetPlayer>();
 
+        /// <summary>현재 클라이언트가 화면에 표시할 네트워크 플레이어 목록.</summary>
+        static readonly List<NetPlayer> ClientPlayers = new List<NetPlayer>();
+        public static IReadOnlyList<NetPlayer> AllClientPlayers
+        {
+            get { return ClientPlayers; }
+        }
+
         // ── 서버 ────────────────────────────────────────────────
         InputFrame pending;          // 이 사람이 마지막으로 보낸 입력
         bool everReceived;           // 서버가 이 사람 입력을 한 번이라도 받았나(진단용)
         string lastAim;              // 마지막으로 남긴 조준 상태(바뀔 때만 찍는다)
+        bool previousPingPressed;
 
         // ── 클라이언트(내 것) ───────────────────────────────────
         InputFrame lastSent;
@@ -127,6 +154,8 @@ namespace Metagame.Network
 
         public override void OnStartClient()
         {
+            if (!ClientPlayers.Contains(this)) ClientPlayers.Add(this);
+
             // 서버 겸 클라이언트(호스트 모드)라면 몸은 이미 서버 쪽에서 만들었다.
             if (isServer) return;
 
@@ -287,9 +316,40 @@ namespace Metagame.Network
             // 넘겨받은 몸(방장 자신)에는 넣지 않는다 — 위에서 적은 고리 때문이다.
             if (!adoptedBody) body.SetInput(frame);
 
+            HandlePing(frame);
+
             ReportAim();
             JudgeProgress(Time.fixedDeltaTime);
             transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
+        }
+
+        /// <summary>
+        /// 서버만 핑을 확정한다. 입력의 조준 원점·방향으로 월드 표면을 찾고,
+        /// 새 핑은 이전 핑을 같은 SyncVar 슬롯에서 즉시 대체한다.
+        /// </summary>
+        [Server]
+        void HandlePing(InputFrame frame)
+        {
+            double now = NetworkTime.time;
+            if (pingActive && now >= pingExpiresAt)
+            {
+                pingActive = false;
+                pingExpiresAt = 0d;
+            }
+
+            bool pressed = frame.PingPressed;
+            if (pressed && !previousPingPressed && body != null && !body.Downed)
+            {
+                if (PingPlacement.TryResolve(body.AimOrigin, body.AimForward, body,
+                                              out var point, out _))
+                {
+                    pingPosition = point;
+                    pingExpiresAt = now + Tuning.PingLifetimeSeconds;
+                    pingActive = true;
+                }
+            }
+
+            previousPingPressed = pressed;
         }
 
         /// <summary>
@@ -466,7 +526,8 @@ namespace Metagame.Network
                 && a.TabletToggle == b.TabletToggle && a.FieldToggle == b.FieldToggle
                 && a.TabletPreviousPage == b.TabletPreviousPage
                 && a.TabletNextPage == b.TabletNextPage
-                && a.Restart == b.Restart;
+                && a.Restart == b.Restart
+                && a.PingPressed == b.PingPressed;
         }
 
         // ── 클라이언트: 남의 몸 ─────────────────────────────────
@@ -530,10 +591,15 @@ namespace Metagame.Network
             body.SetRemoteRiding(nowRiding);
         }
 
-        public override void OnStopClient() => RemoveBody();
+        public override void OnStopClient()
+        {
+            ClientPlayers.Remove(this);
+            RemoveBody();
+        }
         public override void OnStopServer()
         {
             ServerPlayers.Remove(this);
+            ClientPlayers.Remove(this);
             RemoveBody();
         }
 

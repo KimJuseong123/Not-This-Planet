@@ -118,5 +118,11 @@ namespace Metagame.Core
         // ── 카메라 ──────────────────────────────────────────────
         public const float CamDistance = 3.6f;
         public const float CamHeight = 0.55f;
+
+        // ── 팀 핑 ───────────────────────────────────────────────
+        /// <summary>핑이 생성된 뒤 서버에 남아 있는 시간(초).</summary>
+        public const float PingLifetimeSeconds = 3f;
+        /// <summary>표면을 찾지 못했을 때 핑을 놓을 가상 끝점까지의 거리(m).</summary>
+        public const float PingMaxDistance = 200f;
     }
 }

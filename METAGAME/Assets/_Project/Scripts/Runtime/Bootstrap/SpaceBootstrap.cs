@@ -51,6 +51,7 @@ namespace Metagame.Bootstrap
         public Starfield Space { get; private set; }
         public AtmosphereController Atmosphere { get; private set; }
         public GameHud Hud { get; private set; }
+        public TeamPingHud PingHud { get; private set; }
         public Stage1Exploration Exploration { get; private set; }
         public Stage1ExplorationHud ExplorationHud { get; private set; }
         public TractorBeamController Transport { get; private set; }
@@ -117,6 +118,8 @@ namespace Metagame.Bootstrap
             Session = sys.AddComponent<GameSession>();
             Level = sys.AddComponent<LevelBuilder>();
             Hud = sys.AddComponent<GameHud>();
+            PingHud = sys.AddComponent<TeamPingHud>();
+            PingHud.Initialize(Session);
             Exploration = sys.AddComponent<Stage1Exploration>();
             ExplorationHud = sys.AddComponent<Stage1ExplorationHud>();
             Transport = sys.AddComponent<TractorBeamController>();
