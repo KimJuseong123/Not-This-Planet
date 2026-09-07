@@ -33,11 +33,19 @@
 #   sudo cp scripts/runner/claude-token-refresh.* /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable --now claude-token-refresh.timer
 #
-#   알림을 받으려면 웹훅 URL 을 **사람이 직접** 넣는다(값은 이슈·문서·채팅에 적지 않는다):
+#   알림을 받으려면 웹훅 URL 을 **사람이 직접** 넣는다(값은 이슈·문서·채팅에 적지 않는다).
+#   ubuntu 로 로그인한 대화형 bash 에서 그대로 붙여넣는다:
 #     sudo install -d -o ubuntu -g ubuntu -m 750 /etc/metagame
-#     sudo -u ubuntu sh -c 'read -rsp "MM webhook URL: " U; printf "MM_WEBHOOK_URL=%s\n" "$U" > /etc/metagame/alert.env'
-#     sudo chmod 600 /etc/metagame/alert.env
-#   URL 이 없어도 점검은 돈다 — journal 에만 남는다.
+#     read -rsp 'MM webhook URL: ' U; echo
+#     printf 'MM_WEBHOOK_URL=%s\n' "$U" > /etc/metagame/alert.env
+#     chmod 600 /etc/metagame/alert.env; unset U
+#     wc -c /etc/metagame/alert.env      # 16 이면 값이 비었다는 뜻 — 다시 넣는다
+#
+#   **`sh -c` 로 감싸지 말 것.** dash 의 read 에는 -s 가 없어서 조용히 빈 값이 들어간다
+#   (2026-09-07 에 실제로 그랬다). 그래서 점검 스크립트가 매 회차 알림 경로를 검사하고,
+#   비어 있으면 journal 에 [warn] 을 남기고 종료 코드 2 로 끝낸다.
+#
+#   URL 이 없어도 점검 자체는 돈다 — 알림만 생략된다.
 #
 # 확인:
 #   systemctl list-timers claude-token-refresh

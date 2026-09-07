@@ -18,6 +18,9 @@ MR 코멘트만 소리 없이 사라진다. 2026-09-06 에 `!229` 가 401 로 �
   3. 상태 파일을 보고 정책대로 MM 에 알린다. 시끄러우면 무시당하므로 문턱을 둔다.
   4. 리프레시 토큰 만료가 3일 안이면 미리 경고한다 — 그날이 오면 갱신 자체가 불가능하고
      사람이 러너 호스트에서 재로그인해야 한다.
+  5. **알릴 수 있는 상태인지 매 회차 말한다.** 알릴 일이 없어도 말한다 — 웹훅이 비어 있으면
+     자격이 죽어도 아무도 못 듣는데, 그때 로그가 `정상` 만 찍으면 점검 장치가 자기 침묵을
+     감추는 셈이다. 자격은 멀쩡한데 알릴 수단이 없으면 종료 코드 2 로 끝난다.
 
 **자격 값은 어디에도 남기지 않는다.** 만료 시각(숫자)만 읽고, `claude` 의 stdout/stderr 는
 분류에만 쓰고 로그·알림에 싣지 않는다.
@@ -41,6 +44,7 @@ CLAUDE = os.environ.get("CLAUDE_BIN", "/usr/local/bin/claude")
 MODEL = os.environ.get("CLAUDE_CHECK_MODEL", "claude-opus-5")
 MENTION = os.environ.get("ALERT_MENTION", "rmawnsdud")      # team.json 의 infra
 CALL_TIMEOUT = int(os.environ.get("CLAUDE_CHECK_TIMEOUT", "120"))
+ALERT_ENV = os.environ.get("CLAUDE_ALERT_ENV", "/etc/metagame/alert.env")   # 안내 문구용 경로
 
 # 몇 번 연속 실패해야 알리나. 저절로 낫는 것과 사람이 손대야 하는 것을 가른다.
 # 20분 주기이므로 2회 ≈ 40분, 3회 ≈ 1시간, 6회 ≈ 2시간.
@@ -143,13 +147,33 @@ def save_state(state: dict) -> None:
 
 
 # ── 알림 ─────────────────────────────────────────────────────────────────────
+def alert_channel() -> tuple[bool, str]:
+    """(보낼 수 있나, 사람이 읽을 설명).
+
+    **왜 매 회차마다 확인하나.** 2026-09-07 에 웹훅을 넣었는데 값이 비어 들어갔다
+    (`sh -c` 안에서 `read -rsp` 를 썼는데 dash 에는 `-s` 가 없다). 그동안 로그는
+    `claude 종료 0 · 정상` 만 찍었고, 알림이 나갈 수 없는 상태인 줄 아무도 몰랐다.
+    **점검 장치가 자기 침묵을 감지하지 못하는 것**은 이 이슈가 고치려던 것과 같은 결함이다.
+    그래서 실제로 알릴 일이 없어도 알릴 수 있는 상태인지는 매번 말한다."""
+    url = os.environ.get("MM_WEBHOOK_URL", "").strip()
+    if not url:
+        return False, ("알림 경로 **없음** — MM_WEBHOOK_URL 이 비어 있다 "
+                       f"({ALERT_ENV} 확인). 자격이 죽어도 알림이 가지 않는다")
+    if not url.startswith("https://"):
+        # 값이 잘못 들어간 것을 '설정됨' 으로 세면 없는 것보다 나쁘다 — 안심시키기 때문이다
+        return False, (f"알림 경로 **깨짐** — MM_WEBHOOK_URL 이 https:// 로 시작하지 않는다 "
+                       f"(길이 {len(url)}). {ALERT_ENV} 를 다시 넣어야 한다")
+    return True, "알림 경로 OK (MM 웹훅)"
+
+
 def notify(text: str, dry_run: bool = False) -> bool:
     """MM 으로 보낸다. URL 이 없거나 실패해도 **예외를 내지 않는다** — 알림 때문에
     점검 자체가 죽으면 본말이 전도된다."""
     print(text)
+    can, why = alert_channel()
     url = os.environ.get("MM_WEBHOOK_URL", "").strip()
-    if dry_run or not url:
-        print(f"MM 전송 생략 ({'--dry-run' if dry_run else 'MM_WEBHOOK_URL 없음'})")
+    if dry_run or not can:
+        print(f"MM 전송 생략 ({'--dry-run' if dry_run else why})")
         return False
     try:
         req = urllib.request.Request(
@@ -241,6 +265,9 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
 
     now = time.time()
+    can_alert, why = alert_channel()
+    print(why if can_alert else f"[warn] {why}")
+
     rc, out, err = call_claude()
     ok = rc == 0
     cat = None if ok else classify(out, err)[0]
@@ -258,7 +285,13 @@ def main(argv: list[str] | None = None) -> int:
     save_state(state)
     # 실패면 0 이 아닌 값으로 끝낸다 — `systemctl status` 와 journal 이 사실을 말하게 한다.
     # oneshot 이 실패해도 타이머는 계속 돈다.
-    return 0 if ok else 1
+    if not ok:
+        return 1
+    # 자격은 멀쩡한데 알릴 수단이 없는 상태도 **정상이 아니다.** 이걸 초록으로 두면
+    # `systemctl status` 가 "잘 돌고 있다" 고 말하는데 실제로는 아무도 못 듣는다.
+    if not (can_alert or a.dry_run):
+        return 2
+    return 0
 
 
 if __name__ == "__main__":

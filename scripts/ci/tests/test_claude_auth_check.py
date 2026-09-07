@@ -135,6 +135,7 @@ def creds(days_left, tmp):
 
 
 sent = []
+REAL_NOTIFY = A.notify              # ⑥ 에서 진짜 함수를 봐야 하므로 덮어쓰기 전에 잡아 둔다
 A.notify = lambda text, dry_run=False: sent.append(text)          # noqa: E731
 
 with tempfile.TemporaryDirectory() as tmp:
@@ -194,5 +195,40 @@ import inspect                                                    # noqa: E402
 params = set(inspect.signature(A.decide).parameters)
 assert params == {"state", "ok", "category", "now"}, f"decide 가 원문을 받으면 안 된다: {params}"
 print("  알림에 자격 원문이 실릴 경로 없음 ✅")
+
+# ── ⑥ 알림 경로 점검 — 점검 장치가 자기 침묵을 감지해야 한다 (2026-09-07)
+#    웹훅을 넣었는데 값이 비어 들어간 일이 실제로 있었다(`sh -c` 안의 `read -rsp`;
+#    dash 에는 -s 가 없다). 그동안 로그는 `claude 종료 0 · 정상` 만 찍어서,
+#    자격이 죽어도 아무도 못 듣는 상태인 줄 몰랐다.
+CASES = [
+    ("", False, "없음"),                              # 미설정
+    ("   ", False, "없음"),                           # 공백만
+    ("http://mm.example/hooks/x", False, "깨짐"),      # https 아님
+    ("mm.example/hooks/x", False, "깨짐"),             # 스킴 없음
+    ("https://mm.example/hooks/abc", True, "OK"),
+]
+_saved = os.environ.get("MM_WEBHOOK_URL")
+try:
+    for value, expect_can, expect_word in CASES:
+        os.environ["MM_WEBHOOK_URL"] = value
+        can, why = A.alert_channel()
+        assert can is expect_can, f"{value!r} → {can}, 기대 {expect_can}"
+        assert expect_word in why, f"{value!r} → {why}"
+        # 사람이 어디를 고쳐야 하는지 알 수 있어야 한다
+        if not can:
+            assert A.ALERT_ENV in why, why
+        # URL 자체는 절대 로그에 싣지 않는다 — 웹훅 URL 은 그 자체가 발송 권한이다
+        assert value.strip() not in why or not value.strip(), f"URL 이 문구에 실렸다: {why}"
+    print(f"  알림 경로 판정 {len(CASES)}가지 ✅")
+
+    # 잘못된 값이면 notify 가 보내지 않는다 (전송 시도 자체를 안 한다)
+    os.environ["MM_WEBHOOK_URL"] = "http://mm.example/hooks/x"
+    assert REAL_NOTIFY("테스트", dry_run=False) is False, "https 가 아니면 보내면 안 된다"
+    print("  깨진 URL 로는 전송 시도조차 안 함 ✅")
+finally:
+    if _saved is None:
+        os.environ.pop("MM_WEBHOOK_URL", None)
+    else:
+        os.environ["MM_WEBHOOK_URL"] = _saved
 
 print("TEST310 OK")
