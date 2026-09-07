@@ -58,6 +58,10 @@ namespace Metagame.Network
             Collect();
             ready = true;
 
+            // 견인 장치는 **나중에** 생긴다(사람이 Part_1 을 해제하면 AddComponent). 한 번만
+            // 수집하면 그것은 끝까지 추적 밖에 남아 혼자만 움직인다(S15P21B202-315).
+            TransportVehicle.AnyActivated += OnVehicleActivated;
+
             // 용접은 서버에서만 판정된다. 그 사건을 받아 모두에게 중계한다.
             WorldEvents.WeldGrown += RpcWeldGrown;
             WorldEvents.WeldShrunk += RpcWeldShrunk;
@@ -76,6 +80,9 @@ namespace Metagame.Network
             // (2026-09-03 실측 — 참가자만 오브젝트가 동기화되지 않았다).
             // Update 가 씬이 올라올 때까지 기다렸다 챙긴다.
             needsClientPrepare = true;
+
+            // 서버와 같은 이유로 클라이언트도 견인 장치가 생기면 다시 센다(S15P21B202-315).
+            TransportVehicle.AnyActivated += OnVehicleActivated;
         }
 
         /// <summary>
@@ -84,7 +91,9 @@ namespace Metagame.Network
         bool PrepareClient()
         {
             // 씬이 올라왔는지는 "옮길 것이 있는가" 로 판단한다(WorldSyncSpawner 와 같은 기준).
-            if (FindAnyObjectByType<TransportVehicle>() == null) return false;
+            // **SpaceshipPart 로 본다**(S15P21B202-315) — TransportVehicle 은 씬에 없는 것이
+            // 정상이라 그것을 기다리면 영영 준비되지 않는다. 자세한 사정은 WorldSyncInstaller.
+            if (FindAnyObjectByType<SpaceshipPart>() == null) return false;
 
             Collect();
             if (tracked.Count == 0) return false;
@@ -203,6 +212,7 @@ namespace Metagame.Network
         public override void OnStopClient()
         {
             if (!isServer) WorldEvents.RemoteDecides = false;
+            if (!isServer) TransportVehicle.AnyActivated -= OnVehicleActivated;
         }
 
         public override void OnStopServer()
@@ -210,6 +220,42 @@ namespace Metagame.Network
             // 남겨 두면 다음 매치에서 이미 사라진 오브젝트를 향해 사건이 날아간다.
             WorldEvents.WeldGrown -= RpcWeldGrown;
             WorldEvents.WeldShrunk -= RpcWeldShrunk;
+            TransportVehicle.AnyActivated -= OnVehicleActivated;
+        }
+
+        /// <summary>
+        /// 견인 장치가 활성화됐다 — 추적 목록을 다시 세운다 (S15P21B202-315).
+        ///
+        /// <para>양쪽이 각자 자기 시점에 다시 세우므로 잠깐 개수가 어긋날 수 있다. 그 사이
+        /// <see cref="RpcApply"/> 가 개수 불일치를 보고 <b>손대지 않고 넘긴다</b> — 억지로 맞추면
+        /// 엉뚱한 물체가 엉뚱한 자리로 간다. 몇 프레임 뒤 양쪽이 같아지면 저절로 이어진다.</para>
+        ///
+        /// <para>순서는 계층 경로와 형제 순번으로만 가르므로(<see cref="Compare"/>) 다시 세워도
+        /// 양쪽이 같은 줄을 얻는다.</para>
+        /// </summary>
+        void OnVehicleActivated(TransportVehicle vehicle)
+        {
+            if (!ready) return;                 // 아직 처음 수집도 안 됐다 — 그때 같이 잡힌다
+
+            int before = tracked.Count;
+            Collect();
+            if (tracked.Count == before) return;
+
+            if (isServer)
+            {
+                Debug.Log($"[WorldSync] 견인 장치가 생겨 다시 세었다 · {before} → {tracked.Count} · {Order()}");
+                return;
+            }
+
+            // 클라이언트는 따라가기만 하므로 새로 들어온 것도 서버 자세를 받게 만든다.
+            foreach (var body in tracked)
+                if (body != null) body.isKinematic = true;
+
+            targets = new Pose[tracked.Count];
+            for (int i = 0; i < tracked.Count; i++)
+                targets[i] = Read(tracked[i]);
+            warnedMismatch = false;             // 개수가 바뀌었으니 다시 알릴 수 있게 한다
+            Debug.Log($"[WorldSync] 견인 장치가 생겨 다시 세었다(클라) · {before} → {tracked.Count} · {Order()}");
         }
 
         void Update()
