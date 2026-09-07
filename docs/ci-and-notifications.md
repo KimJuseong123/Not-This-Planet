@@ -1,5 +1,6 @@
-# CI · 알림 — 1·2단계 구현 (2026-08-27)
+# CI · 알림 — 참고서 (잡별 결정 근거와 사고 이력)
 
+> **전체 구조를 먼저 보려면 [ci-cd-pipeline.md](./ci-cd-pipeline.md)(한 장 지도)** — 파이프라인 3종 · 잡 15종 · 머지 조건 · 러너·EC2 · 알림 지도. 이 문서는 그 지도의 각 칸이 **왜** 그렇게 됐는지를 적는 참고서다.
 > 기준: [workflow-plan.md §5](./workflow-plan.md) 1-a~2-b. 0단계(Jira 자동화·GitLab 보호 브랜치·템플릿)는 [jira-gitlab-automation.md](./jira-gitlab-automation.md).
 > 파일: [`.gitlab-ci.yml`](../.gitlab-ci.yml), [`scripts/ci/`](../scripts/ci/) — Python 표준 라이브러리만 사용(러너에 pip 불필요).
 

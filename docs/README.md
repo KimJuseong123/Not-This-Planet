@@ -11,11 +11,11 @@
 | **브랜치를 만들고 작업한다** | [git-convention.md](./git-convention.md) (브랜치 이름·커밋 메시지·push 전 자동 반영) |
 | **Unity 코드·에셋을 넣는다** | [unity-convention.md](./unity-convention.md) (C# 규칙·어셈블리 방향·`Assets/_Project` 구조·`.meta`·LFS) |
 | **MR 을 올린다** | [mr-flow.md](./mr-flow.md) — 검사가 무엇을 보는지 · 다른 MR 과 같은 파일을 고쳤을 때 · 스택 쌓기(그림) |
-| **검사가 빨간불이다** | [ci-and-notifications.md](./ci-and-notifications.md) (잡별로 무엇을 보는지·실패 이유를 어디서 보는지) |
-| **팀장이 리뷰·머지한다** | MR 본문 하단 "리뷰어 확인" 5항목 · [mr-flow.md](./mr-flow.md) §3 머지 순서(아래부터) |
-| **팀장 권한이 필요한 일이 남았다** | [leader-checklist.md](./leader-checklist.md) (설정·결정 대기 항목만) |
+| **검사가 빨간불이다** | [ci-cd-pipeline.md](./ci-cd-pipeline.md) §2 잡 표·§7 증상별 볼 곳 → 근거는 [ci-and-notifications.md](./ci-and-notifications.md) |
+| **CI/CD 전체가 어떻게 생겼는지 알고 싶다** | [ci-cd-pipeline.md](./ci-cd-pipeline.md) — 한 장 지도: 파이프라인 3종 · 잡 15종 · 머지 조건 · 러너·EC2 · 변수 위치 · 알림 |
+| **팀장이 리뷰·머지한다** | MR 본문 하단 "리뷰어 확인" 5항목 · [mr-flow.md](./mr-flow.md) §3 머지 순서(아래부터) · 팀장 권한이 필요한 남은 설정은 [ci-cd-pipeline.md](./ci-cd-pipeline.md) §8 |
 | **Jira 자동화가 이상하다** | [jira-gitlab-automation.md](./jira-gitlab-automation.md) (규칙 R1~R9 명세·실측 기록·사고 이력) |
-| **CI·알림을 고친다** (Infra) | [ci-and-notifications.md](./ci-and-notifications.md) → `scripts/ci/` → 오프라인 테스트 `python scripts/ci/tests/run_all.py` |
+| **CI·알림을 고친다** (Infra) | [ci-cd-pipeline.md](./ci-cd-pipeline.md) 로 자리를 잡고 → [ci-and-notifications.md](./ci-and-notifications.md) 의 근거 → `scripts/ci/` → 오프라인 테스트 `python scripts/ci/tests/run_all.py` |
 | **자동화를 사람이 확인한다** | [e2e-checklist.md](./e2e-checklist.md) (시나리오별 준비·행동·기대·실측 결과) |
 | **왜 이렇게 정했는지 알고 싶다** | [conventions.md](./conventions.md) §2 세 가지 이유 → [workflow-plan.md](./workflow-plan.md) (검토한 대안·검증 근거) |
 | **AI 도구를 쓴다** | [ai-tooling.md](./ai-tooling.md) (공용 계정 금지·로컬 MCP·토큰 취급) |

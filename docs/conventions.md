@@ -20,7 +20,7 @@
 | 브랜치 생성 | **Jira 이슈 화면 "브랜치 만들기"** — 이것이 진행 중으로 가는 길이다. 로컬에서 만들어도 이름이 이슈 키로 시작하면 같다 | [git-convention](./git-convention.md) §2 |
 | 커밋 | `<type>(<scope>): <요약> (<이슈키>)` — Conventional Commits + 이슈 키 | [git-convention](./git-convention.md) §4 |
 | MR | 대상 `develop` · 제목 `[파트] type: 요약 (이슈키)`(CI 가 자동 교정) · 템플릿 필수 · **Draft 금지** · squash 머지 | [git-convention](./git-convention.md) §5 |
-| 승인 | **팀장(Maintainer)만 develop 에 머지**한다 — 팀장의 머지가 승인이다. 리뷰 기준 5항목은 MR 템플릿 하단 "리뷰어 확인" | [leader-checklist](./leader-checklist.md) |
+| 승인 | **팀장(Maintainer)만 develop 에 머지**한다 — 팀장의 머지가 승인이다. 리뷰 기준 5항목은 MR 템플릿 하단 "리뷰어 확인". 머지 버튼을 잠그는 조건(파이프라인 성공·스레드 해소)은 GitLab 설정 | [mr-flow](./mr-flow.md) §3 · [ci-cd-pipeline](./ci-cd-pipeline.md) §3 |
 | 겹침 | 다른 열린 MR 과 같은 파일을 고쳤으면 **나중에 올린 쪽이 그 위에 얹는다**(스택 MR). 머지는 develop 에 가까운 쪽부터 | [mr-flow](./mr-flow.md) |
 | 릴리즈 | 마일스톤마다 `develop → master` MR + 버전 태그(`v0.1.0`). master 직접 커밋·push 없음 | [git-convention](./git-convention.md) §1 |
 | Unity | `.meta` 는 에셋과 함께 · 씬·프리팹 동시 수정 금지(먼저 선언) · 새 에셋은 `Assets/_Project/` 아래 | [unity-convention](./unity-convention.md) |

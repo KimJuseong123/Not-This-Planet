@@ -151,4 +151,4 @@
 
 ## 9. 더 읽기 (팀 리포 `docs/`)
 
-컨벤션 요약 [conventions](./conventions.md) · Jira [jira-convention](./jira-convention.md) · Git [git-convention](./git-convention.md) · 자동화 명세 [jira-gitlab-automation](./jira-gitlab-automation.md) · CI·알림 [ci-and-notifications](./ci-and-notifications.md) · 결정 근거 [workflow-plan](./workflow-plan.md) · E2E 점검표 [e2e-checklist](./e2e-checklist.md) · 팀장 할 일 [leader-checklist](./leader-checklist.md)
+컨벤션 요약 [conventions](./conventions.md) · Jira [jira-convention](./jira-convention.md) · Git [git-convention](./git-convention.md) · 자동화 명세 [jira-gitlab-automation](./jira-gitlab-automation.md) · CI/CD 지도 [ci-cd-pipeline](./ci-cd-pipeline.md) · CI·알림 근거 [ci-and-notifications](./ci-and-notifications.md) · 결정 근거 [workflow-plan](./workflow-plan.md) · E2E 점검표 [e2e-checklist](./e2e-checklist.md)
