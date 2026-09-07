@@ -25,6 +25,8 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
+    - _AtmosphereFogExemptMask: 0
+    - _FogStrength: 1
     - _Pulse: 0
     - _RimBoost: 1.6
     - _RimPower: 2.2

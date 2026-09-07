@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Metagame.Core
@@ -74,6 +75,10 @@ namespace Metagame.Core
     /// <summary>입력 매핑을 한 곳에 (Legacy Input Manager).</summary>
     public static class Controls
     {
+        public static KeyCode MoveForward = KeyCode.W;
+        public static KeyCode MoveBack = KeyCode.S;
+        public static KeyCode MoveLeft = KeyCode.A;
+        public static KeyCode MoveRight = KeyCode.D;
         public static KeyCode Jump = KeyCode.Space;
         public static KeyCode Run = KeyCode.LeftShift;
         public static KeyCode ArmsUp = KeyCode.LeftControl;
@@ -91,10 +96,67 @@ namespace Metagame.Core
         public static KeyCode TabletNextPageAlternate = KeyCode.D;
         public static KeyCode FreeCursor = KeyCode.Escape;
 
+        public static float LookSensitivity = 2.4f;
+        public static bool InvertLookY;
+
+        /// <summary>설정 파일의 키와 감도를 현재 입력 소비자에 적용한다.</summary>
+        public static void Apply(GameSettingsData.ControlSettings settings)
+        {
+            if (settings == null) return;
+
+            MoveForward = SafeKey(settings.moveForward, KeyCode.W);
+            MoveBack = SafeKey(settings.moveBack, KeyCode.S);
+            MoveLeft = SafeKey(settings.moveLeft, KeyCode.A);
+            MoveRight = SafeKey(settings.moveRight, KeyCode.D);
+            Jump = SafeKey(settings.jump, KeyCode.Space);
+            Run = SafeKey(settings.run, KeyCode.LeftShift);
+            ArmsUp = SafeKey(settings.armsUp, KeyCode.LeftControl);
+            FreeLook = SafeKey(settings.freeLook, KeyCode.LeftAlt);
+            Restart = SafeKey(settings.restart, KeyCode.R);
+            StuckEscape = SafeKey(settings.stuckEscape, KeyCode.T);
+            ToolAction = SafeKey(settings.toolAction, KeyCode.Q);
+            TransportAction = SafeKey(settings.transportAction, KeyCode.E);
+            Tablet = SafeKey(settings.tablet, KeyCode.Tab);
+            FieldToggle = SafeKey(settings.fieldToggle, KeyCode.F);
+            TabletPreviousPage = SafeKey(settings.tabletPreviousPage, KeyCode.LeftArrow);
+            TabletNextPage = SafeKey(settings.tabletNextPage, KeyCode.RightArrow);
+            FreeCursor = SafeKey(settings.freeCursor, KeyCode.Escape);
+            LookSensitivity = Mathf.Clamp(settings.lookSensitivity, 0.1f, 5f);
+            InvertLookY = settings.invertLookY;
+        }
+
+        /// <summary>재지정할 주 키들이 서로 충돌하는지 확인한다.</summary>
+        public static bool HasDuplicateBindings(GameSettingsData.ControlSettings settings,
+                                                out KeyCode duplicate)
+        {
+            duplicate = KeyCode.None;
+            if (settings == null) return false;
+
+            var used = new HashSet<KeyCode>();
+            return !AddBinding(settings.moveForward, used, ref duplicate)
+                || !AddBinding(settings.moveBack, used, ref duplicate)
+                || !AddBinding(settings.moveLeft, used, ref duplicate)
+                || !AddBinding(settings.moveRight, used, ref duplicate)
+                || !AddBinding(settings.jump, used, ref duplicate)
+                || !AddBinding(settings.run, used, ref duplicate)
+                || !AddBinding(settings.armsUp, used, ref duplicate)
+                || !AddBinding(settings.freeLook, used, ref duplicate)
+                || !AddBinding(settings.restart, used, ref duplicate)
+                || !AddBinding(settings.stuckEscape, used, ref duplicate)
+                || !AddBinding(settings.toolAction, used, ref duplicate)
+                || !AddBinding(settings.transportAction, used, ref duplicate)
+                || !AddBinding(settings.tablet, used, ref duplicate)
+                || !AddBinding(settings.fieldToggle, used, ref duplicate)
+                || !AddBinding(settings.tabletPreviousPage, used, ref duplicate)
+                || !AddBinding(settings.tabletNextPage, used, ref duplicate)
+                || !AddBinding(settings.freeCursor, used, ref duplicate);
+        }
+
         public static InputFrame Read()
         {
             var f = new InputFrame();
-            f.Move = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
+            f.Move = new Vector2(KeyAxis(MoveLeft, MoveRight),
+                                 KeyAxis(MoveBack, MoveForward));
             f.Look = new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y"));
             f.Jump = Input.GetKey(Jump);
             f.Run = Input.GetKey(Run);
@@ -116,6 +178,25 @@ namespace Metagame.Core
             f.Restart = Input.GetKeyDown(Restart);
             f.StuckEscapeHeld = Input.GetKey(StuckEscape);
             return f;
+        }
+
+        static float KeyAxis(KeyCode negative, KeyCode positive)
+        {
+            float value = 0f;
+            if (Input.GetKey(negative)) value -= 1f;
+            if (Input.GetKey(positive)) value += 1f;
+            return value;
+        }
+
+        static KeyCode SafeKey(KeyCode value, KeyCode fallback) =>
+            value == KeyCode.None ? fallback : value;
+
+        static bool AddBinding(KeyCode key, HashSet<KeyCode> used, ref KeyCode duplicate)
+        {
+            if (key == KeyCode.None) return true;
+            if (used.Add(key)) return true;
+            duplicate = key;
+            return false;
         }
     }
 }

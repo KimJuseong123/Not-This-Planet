@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.Video;
+using Metagame.Core;
 using Metagame.Network;
 using Metagame.UI;
 
@@ -33,6 +34,7 @@ namespace Metagame.Bootstrap
         [SerializeField] private VideoClip lobbyBackgroundVideo;
 
         private NetworkSession network;
+        private GameSettingsRuntime settings;
         private LobbyTransition transition;
         private bool joiningMatch;
 
@@ -43,6 +45,7 @@ namespace Metagame.Bootstrap
             // 게임 씬에 있어서, 로비에 멈춰 선 채 아무것도 하지 않았다.
             if (SkipToGameScene()) return;
 
+            settings = GameSettingsRuntime.Ensure();
             PrepareLobbyCursor();
 
             network = NetworkSession.Instance;
@@ -64,7 +67,7 @@ namespace Metagame.Bootstrap
             var hud = GetComponent<LobbyHud>();
             if (hud == null) hud = gameObject.AddComponent<LobbyHud>();
             hud.Initialize(network, defaultNickname, deviceIdOverride, defaultServerAddress,
-                lobbyBackgroundImage, lobbyBackgroundVideo);
+                lobbyBackgroundImage, lobbyBackgroundVideo, settings);
         }
 
         private void OnEnable()

@@ -22,6 +22,7 @@ namespace Metagame.Gameplay
         public float TargetHeight = Tuning.CamHeight;
         public float FirstPersonForward = 0.20f;
         public float Sensitivity = 2.4f;
+        public bool InvertLookY;
         public float MinPitch = -42f;
         public float MaxPitch = 74f;
         [Header("자유 시점 (Alt)")]
@@ -217,6 +218,14 @@ namespace Metagame.Gameplay
             FreeLook = on;
         }
 
+        /// <summary>개인 설정의 감도와 Y축 반전을 이 카메라에 즉시 반영한다.</summary>
+        public void ApplySettings(GameSettingsData.ControlSettings settings)
+        {
+            if (settings == null) return;
+            Sensitivity = Mathf.Clamp(settings.lookSensitivity, 0.1f, 5f);
+            InvertLookY = settings.invertLookY;
+        }
+
         /// <summary>고정쇠를 잡은 동안 위쪽 시점 조작에 하중감을 켠다.</summary>
         public void SetClampLiftResistance(bool on)
         {
@@ -299,15 +308,16 @@ namespace Metagame.Gameplay
             clampLiftResistanceBlend = Mathf.MoveTowards(
                 clampLiftResistanceBlend, targetResistance, 10f * Time.deltaTime);
 
-            float verticalLook = look.y;
+            float sensitivity = Mathf.Max(0.01f, Sensitivity);
+            float verticalLook = InvertLookY ? -look.y : look.y;
             if (verticalLook > 0f && clampLiftResistanceBlend > 0f)
             {
                 float response = Mathf.Lerp(1f, ClampUpwardLookScale, clampLiftResistanceBlend);
                 verticalLook *= response;
             }
 
-            yaw += look.x * Sensitivity;
-            pitch = Mathf.Clamp(pitch - verticalLook * Sensitivity, lo, hi);
+            yaw += look.x * sensitivity;
+            pitch = Mathf.Clamp(pitch - verticalLook * sensitivity, lo, hi);
 
             // 위로 올리려는 동안에는 시점이 조금씩 아래로 되돌아가도록 해,
             // 무거운 고정쇠를 억지로 드는 듯한 끙끙거리는 반응을 만든다.
