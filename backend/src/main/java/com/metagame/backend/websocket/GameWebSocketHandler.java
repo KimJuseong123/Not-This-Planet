@@ -104,6 +104,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 case LEAVE_ROOM -> leaveRoom(session, userId);
                 case READY -> ready(userId, msg.data().get("ready").asBoolean());
                 case START_GAME -> startGame(userId, msg.data());
+                case GAME_END -> endGame(session, userId);
                 case PLAYER_MOVE -> playerMove(userId, msg.data());
                 default -> send(session, WsMessage.Type.ERROR, Map.of("message", "unknown type"));
             }
@@ -352,6 +353,36 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
             send(target, WsMessage.Type.GAME_STARTED, payload);
         }
+    }
+
+    /**
+     * 판이 끝났음을 방장이 알린다 — 방을 대기 상태로 되돌린다 (S15P21B202-316).
+     *
+     * <p><b>서버는 판정하지 않는다.</b> 클리어 여부는 호스트가 판단한다(-145 호스트
+     * 권위). 서버는 그 결과만 받아 방 상태를 되돌리는 일만 한다.
+     *
+     * <p><b>새 서버→클라이언트 메시지를 만들지 않았다.</b> {@code ROOM_STATE} 가 이미
+     * {@code status} 를 실어 보내고 클라이언트에도 핸들러가 있으므로, {@code WAITING}
+     * 으로 바뀐 {@code ROOM_STATE} 하나가 곧 "로비로 돌아가라" 다. 결과 화면에 필요한
+     * 클리어 여부·경과 시간은 호스트가 SyncVar 로 내리는 몫이다(-54).
+     *
+     * <p><b>릴레이 세션은 닫지 않는다.</b> 같은 방에서 바로 한 판 더 하는 것이 흔하고,
+     * 그때 세션을 다시 열면 주소와 토큰이 새로 발급돼 전원이 다시 붙어야 한다. 세션은
+     * 방이 실제로 사라질 때({@link #removeFromRoom}) 닫히고, 백엔드가 죽어 그마저
+     * 못 하면 릴레이의 30분 TTL 이 걷어낸다(-299).
+     *
+     * <p>유예 중인 사람의 타이머도 취소하지 않는다. 취소하면 이미 연결이 끊긴 그
+     * 사람의 자리가 영구히 남는다 — 만료되도록 두면 자리가 정리된다.
+     */
+    private void endGame(WebSocketSession session, Long userId) {
+        Room room = roomOf(userId);
+        if (room == null || !userId.equals(room.getHostUserId()) || !room.end()) {
+            send(session, WsMessage.Type.ERROR, Map.of("message", "cannot end game"));
+            return;
+        }
+
+        broadcastRoomState(room);
+        log.info("game end: room={} by userId={}", room.getRoomId(), userId);
     }
 
     /**

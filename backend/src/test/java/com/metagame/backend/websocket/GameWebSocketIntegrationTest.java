@@ -393,6 +393,48 @@ class GameWebSocketIntegrationTest {
         assertThat(state.get("players").properties()).hasSize(1);
     }
 
+    // ---------- 판 종료 (S15P21B202-316) ----------
+
+    @Test
+    void hostEndsGameAndRoomReturnsToWaiting() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        startedRoom(host, guest);
+
+        host.send("GAME_END", Map.of());
+        JsonNode state = guest.await("ROOM_STATE");
+
+        assertThat(state.get("status").asString()).isEqualTo("WAITING");
+        assertThat(state.get("players").properties()).hasSize(2);
+        assertThat(state.get("players").get(String.valueOf(host.userId))
+                .get("ready").asBoolean()).isFalse();
+    }
+
+    @Test
+    void guestCannotEndGame() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        startedRoom(host, guest);
+
+        guest.send("GAME_END", Map.of());
+
+        assertThat(guest.await("ERROR").get("message").asString()).isEqualTo("cannot end game");
+    }
+
+    @Test
+    void newPlayerCanJoinAfterGameEnds() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        String code = startedRoom(host, guest);
+        host.send("GAME_END", Map.of());
+        host.await("ROOM_STATE");
+
+        TestClient latecomer = connect("민수", "device-c");
+        latecomer.send("JOIN_ROOM", Map.of("roomId", code));
+
+        assertThat(latecomer.await("ROOM_STATE").get("players").properties()).hasSize(3);
+    }
+
     // ---------- 도우미 ----------
 
     private String createRoom(TestClient host) throws Exception {
