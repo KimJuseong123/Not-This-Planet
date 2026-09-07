@@ -43,7 +43,8 @@ namespace Metagame.Gameplay
                 if (collider == null || Hits[i].distance >= nearest) continue;
 
                 var player = collider.GetComponentInParent<PlayerRig>();
-                if (player != null || player == ignoredPlayer) continue;
+                // 전달받은 플레이어 자신뿐 아니라 다른 플레이어의 몸도 핑 표면으로 쓰지 않는다.
+                if (player != null) continue;
 
                 nearest = Hits[i].distance;
                 point = Hits[i].point;
