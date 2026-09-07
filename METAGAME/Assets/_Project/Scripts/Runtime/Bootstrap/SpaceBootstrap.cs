@@ -1,6 +1,7 @@
 using UnityEngine;
 using Metagame.Core;
 using Metagame.Gameplay;
+using Metagame.Gameplay.Audio;
 using Metagame.Gameplay.Demo;
 using Metagame.Gameplay.Parts;
 using Metagame.Network;
@@ -39,6 +40,10 @@ namespace Metagame.Bootstrap
         [Tooltip("지정하면 이 Stage는 Vacuum·레거시 Starfield 대신 공용 URP 분위기 프레임워크를 사용한다.")]
         [SerializeField] AtmosphereProfile atmosphereProfile;
 
+        [Header("오디오")]
+        [Tooltip("비워 두면 Resources/Audio/Stage1AudioManager를 사용한다.")]
+        [SerializeField] AudioManager audioManager;
+
         public GameSession Session { get; private set; }
         public LevelBuilder Level { get; private set; }
         public PlayerRig Player { get; private set; }
@@ -49,9 +54,15 @@ namespace Metagame.Bootstrap
         public Stage1Exploration Exploration { get; private set; }
         public Stage1ExplorationHud ExplorationHud { get; private set; }
         public TractorBeamController Transport { get; private set; }
+        public SoundRuntime Sound { get; private set; }
+
+        GameSettingsRuntime settingsRuntime;
 
         void Awake()
         {
+            settingsRuntime = GameSettingsRuntime.Ensure();
+            settingsRuntime.Changed += OnSettingsChanged;
+
             // SampleScene처럼 기본 Main Camera가 들어 있는 씬에서도 런타임 카메라만 사용한다.
             var sceneCameras = FindObjectsByType<Camera>();
             for (int i = 0; i < sceneCameras.Length; i++)
@@ -64,7 +75,6 @@ namespace Metagame.Bootstrap
 
             Physics.gravity = gravity;
             Time.fixedDeltaTime = Tuning.FixedStep;      // 조인트가 많다 — 촘촘히 밟아야 안 떤다
-            Application.targetFrameRate = 120;
 
             // Existing Main scenes may predate the editor collider pass. Repair only static
             // environment mesh surfaces here; moving gameplay objects keep their simple
@@ -140,6 +150,8 @@ namespace Metagame.Bootstrap
             // 뜨는 동안에는 그 값이 거짓이라 전용 서버로 오인된다(MatchRole 주석 참고).
             if (Metagame.Network.MatchRole.DedicatedServer)
             {
+                Sound = CreateSoundRuntime(sys, true, true);
+
                 // 운반체 배치는 서버가 정한다(-152). 위치는 WorldSync 로 내려간다.
                 // 조작은 사람마다 다르므로 이 컨트롤러는 배치만 하고 손을 뗀다 —
                 // 접속자별 조작은 NetPlayer 가 자기 컨트롤러로 한다(-149).
@@ -158,6 +170,8 @@ namespace Metagame.Bootstrap
             // 그 값이 거짓이라 운반체를 혼자 섞어 버리고, 서버가 보낸 위치와 어긋난다.
             bool inMatch = Mirror.NetworkClient.active || Mirror.NetworkServer.active;
 
+            Sound = CreateSoundRuntime(sys, !inMatch, inMatch);
+
             Vector3 spawn = Level.SpawnFoot + Vector3.up * 0.10f;
             Quaternion facing = Quaternion.LookRotation(Vector3.right, Vector3.up);
 
@@ -166,6 +180,8 @@ namespace Metagame.Bootstrap
 
             Color cameraSkyColor = useAtmosphere ? atmosphereProfile.sky.horizonColor : Sky.SkyColor;
             Player.Cam = OrbitCamera.Create(Player.Hips.transform, cameraSkyColor, firstPerson);
+            if (settingsRuntime != null && settingsRuntime.Current != null)
+                Player.Cam.ApplySettings(settingsRuntime.Current.controls);
             Player.Cam.Yaw = 90f;                        // +X 를 바라보고 시작한다
             Player.Cam.transform.SetParent(transform, true);
             Player.Cam.SnapToTarget();
@@ -215,6 +231,35 @@ namespace Metagame.Bootstrap
 
             if (selfTest) gameObject.AddComponent<SpaceSelfTest>();
             if (shot) gameObject.AddComponent<SpaceScreenshot>();
+        }
+
+        SoundRuntime CreateSoundRuntime(GameObject systemRoot, bool authority, bool networked)
+        {
+            var runtime = systemRoot.AddComponent<SoundRuntime>();
+            var manager = audioManager != null
+                ? audioManager
+                : Resources.Load<AudioManager>("Audio/Stage1AudioManager");
+            runtime.Configure(manager, authority, networked);
+
+            if (networked)
+            {
+                var bridge = systemRoot.AddComponent<NetworkSoundBridge>();
+                bridge.Configure(runtime);
+            }
+
+            return runtime;
+        }
+
+        void OnSettingsChanged(GameSettingsData settings)
+        {
+            if (Player != null && Player.Cam != null && settings != null)
+                Player.Cam.ApplySettings(settings.controls);
+        }
+
+        void OnDestroy()
+        {
+            if (settingsRuntime != null)
+                settingsRuntime.Changed -= OnSettingsChanged;
         }
 
         /// <summary>

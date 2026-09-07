@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Video;
+using Metagame.Core;
 using Metagame.Network;
 
 namespace Metagame.UI
@@ -15,10 +16,55 @@ namespace Metagame.UI
         private enum LobbyView
         {
             Main,
-            Multiplayer
+            Multiplayer,
+            Settings
         }
 
+        private enum BindingAction
+        {
+            MoveForward,
+            MoveBack,
+            MoveLeft,
+            MoveRight,
+            Jump,
+            Run,
+            ArmsUp,
+            FreeLook,
+            TransportAction,
+            ToolAction,
+            Tablet,
+            FieldToggle,
+            StuckEscape,
+            Restart,
+            TabletPreviousPage,
+            TabletNextPage,
+            FreeCursor
+        }
+
+        private static readonly BindingAction[] BindingActions =
+        {
+            BindingAction.MoveForward,
+            BindingAction.MoveBack,
+            BindingAction.MoveLeft,
+            BindingAction.MoveRight,
+            BindingAction.Jump,
+            BindingAction.Run,
+            BindingAction.ArmsUp,
+            BindingAction.FreeLook,
+            BindingAction.TransportAction,
+            BindingAction.ToolAction,
+            BindingAction.Tablet,
+            BindingAction.FieldToggle,
+            BindingAction.StuckEscape,
+            BindingAction.Restart,
+            BindingAction.TabletPreviousPage,
+            BindingAction.TabletNextPage,
+            BindingAction.FreeCursor
+        };
+
         private NetworkSession network;
+        private GameSettingsRuntime settings;
+        private GameSettingsData editingSettings;
         private LobbyTransition transition;
         private LobbyView view = LobbyView.Main;
         private string nickname = string.Empty;
@@ -28,6 +74,10 @@ namespace Metagame.UI
         private string notice = string.Empty;
         private bool subscribed;
         private bool fontWarmed;
+        private BindingAction? rebindingAction;
+        private Vector2 settingsScroll;
+        private readonly List<Vector2Int> resolutionOptions = new List<Vector2Int>();
+        private string[] qualityOptions = new string[0];
 
         private GUIStyle titleStyle;
         private GUIStyle labelStyle;
@@ -48,10 +98,11 @@ namespace Metagame.UI
         /// </summary>
         public void Initialize(NetworkSession session, string defaultNickname, string deviceOverride,
             string defaultServerAddress = null, Texture2D backgroundImage = null,
-            VideoClip backgroundVideo = null)
+            VideoClip backgroundVideo = null, GameSettingsRuntime settingsRuntime = null)
         {
             Unsubscribe();
             network = session;
+            settings = settingsRuntime != null ? settingsRuntime : GameSettingsRuntime.Ensure();
             deviceIdOverride = deviceOverride;
             nickname = network != null && network.IsLoggedIn
                 ? network.Nickname
@@ -87,6 +138,10 @@ namespace Metagame.UI
 
         private void OnDisable()
         {
+            if (editingSettings != null && settings != null)
+                settings.RestoreSaved();
+            editingSettings = null;
+            rebindingAction = null;
             Font.textureRebuilt -= OnFontRebuilt;
             Unsubscribe();
         }
@@ -152,8 +207,10 @@ namespace Metagame.UI
             EnsureStyles();
             if (view == LobbyView.Main)
                 DrawMainMenu();
-            else
+            else if (view == LobbyView.Multiplayer)
                 DrawMultiplayer();
+            else
+                DrawSettings();
         }
 
         private void DrawMainMenu()
@@ -187,14 +244,453 @@ namespace Metagame.UI
             if (GUI.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 2, gap),
                     "설정", buttonStyle))
             {
-                notice = "설정 기능은 준비 중입니다.";
-                error = string.Empty;
+                OpenSettings();
             }
             if (GUI.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 3, gap),
                     "종료하기", buttonStyle))
                 Application.Quit();
 
             DrawMessage(new Rect(x, y + totalHeight + 10f * scale, buttonWidth, 42f * scale));
+        }
+
+        private void OpenSettings()
+        {
+            settings = settings != null ? settings : GameSettingsRuntime.Ensure();
+            editingSettings = settings.Current != null
+                ? settings.Current.Clone() : GameSettingsData.CreateDefaults();
+            RefreshSettingsOptions();
+            settingsScroll = Vector2.zero;
+            rebindingAction = null;
+            error = string.Empty;
+            notice = string.Empty;
+            view = LobbyView.Settings;
+        }
+
+        private void DrawSettings()
+        {
+            if (settings == null || editingSettings == null)
+            {
+                view = LobbyView.Main;
+                return;
+            }
+
+            CaptureBindingInput();
+
+            float width = Mathf.Min(1040f, Screen.width - 36f);
+            float height = Mathf.Min(840f, Screen.height - 36f);
+            float x = (Screen.width - width) * 0.5f;
+            float y = (Screen.height - height) * 0.5f;
+            DrawBox(new Rect(x, y, width, height), new Color(0.01f, 0.03f, 0.09f, 0.94f));
+            DrawLabel(new Rect(x + 30f, y + 20f, width - 260f, 44f),
+                "설정", titleStyle, Color.white);
+            DrawLabel(new Rect(x + 32f, y + 63f, width - 64f, 24f),
+                "변경값은 즉시 미리보기로 적용되며 저장 버튼을 눌러야 파일에 기록됩니다.",
+                smallStyle, new Color(0.72f, 0.86f, 0.98f));
+
+            if (GUI.Button(new Rect(x + width - 226f, y + 24f, 92f, 40f),
+                    "기본값", smallButtonStyle))
+                ResetSettingsPreview();
+            if (GUI.Button(new Rect(x + width - 126f, y + 24f, 92f, 40f),
+                    "취소", smallButtonStyle))
+                CancelSettings();
+
+            Rect viewport = new Rect(x + 24f, y + 104f, width - 48f, height - 174f);
+            Rect content = new Rect(0f, 0f, viewport.width - 24f, 1410f);
+            settingsScroll = GUI.BeginScrollView(viewport, settingsScroll, content);
+
+            float left = 22f;
+            float rowWidth = content.width - 44f;
+            float rowY = 16f;
+
+            DrawSettingsSection(new Rect(left, rowY, rowWidth, 30f), "그래픽");
+            rowY += 38f;
+            DrawDisplaySettings(left, ref rowY, rowWidth);
+
+            rowY += 22f;
+            DrawSettingsSection(new Rect(left, rowY, rowWidth, 30f), "오디오");
+            rowY += 38f;
+            DrawAudioSettings(left, ref rowY, rowWidth);
+
+            rowY += 22f;
+            DrawSettingsSection(new Rect(left, rowY, rowWidth, 30f), "조작");
+            rowY += 38f;
+            DrawControlSettings(left, ref rowY, rowWidth);
+
+            GUI.EndScrollView();
+
+            if (GUI.Button(new Rect(x + width - 218f, y + height - 56f, 184f, 42f),
+                    "저장", buttonStyle))
+                SaveSettings();
+
+            if (!string.IsNullOrEmpty(error))
+                DrawLabel(new Rect(x + 34f, y + height - 54f, width - 270f, 36f),
+                    error, smallStyle, new Color(1f, 0.58f, 0.48f));
+        }
+
+        private void DrawDisplaySettings(float x, ref float y, float width)
+        {
+            DrawLabel(new Rect(x, y, 190f, 30f), "해상도", labelStyle, Color.white);
+            DrawLabel(new Rect(x + 210f, y, 210f, 30f),
+                editingSettings.display.width + " × " + editingSettings.display.height,
+                smallStyle, new Color(0.82f, 0.92f, 1f));
+            if (GUI.Button(new Rect(x + width - 174f, y, 76f, 30f), "이전", smallButtonStyle))
+                CycleResolution(-1);
+            if (GUI.Button(new Rect(x + width - 86f, y, 76f, 30f), "다음", smallButtonStyle))
+                CycleResolution(1);
+            y += 38f;
+
+            DrawLabel(new Rect(x, y, 190f, 30f), "화면 모드", labelStyle, Color.white);
+            DrawLabel(new Rect(x + 210f, y, 260f, 30f),
+                FullscreenModeLabel(editingSettings.display.fullscreenMode),
+                smallStyle, new Color(0.82f, 0.92f, 1f));
+            if (GUI.Button(new Rect(x + width - 86f, y, 76f, 30f), "변경", smallButtonStyle))
+                CycleFullscreenMode(1);
+            y += 38f;
+
+            DrawLabel(new Rect(x, y, 190f, 30f), "품질", labelStyle, Color.white);
+            string quality = editingSettings.display.qualityLevel >= 0
+                          && editingSettings.display.qualityLevel < qualityOptions.Length
+                ? qualityOptions[editingSettings.display.qualityLevel] : "기본값";
+            DrawLabel(new Rect(x + 210f, y, 260f, 30f), quality,
+                smallStyle, new Color(0.82f, 0.92f, 1f));
+            if (GUI.Button(new Rect(x + width - 86f, y, 76f, 30f), "변경", smallButtonStyle))
+                CycleQuality(1);
+            y += 38f;
+
+            bool vSync = GUI.Toggle(new Rect(x, y, width - 12f, 30f),
+                editingSettings.display.vSync, "수직 동기화", labelStyle);
+            if (vSync != editingSettings.display.vSync)
+            {
+                editingSettings.display.vSync = vSync;
+                ApplySettingsPreview();
+            }
+            y += 38f;
+
+            DrawLabel(new Rect(x, y, 190f, 30f), "프레임 제한", labelStyle, Color.white);
+            DrawLabel(new Rect(x + 210f, y, 260f, 30f),
+                FrameRateLabel(editingSettings.display.frameRateLimit),
+                smallStyle, new Color(0.82f, 0.92f, 1f));
+            if (GUI.Button(new Rect(x + width - 86f, y, 76f, 30f), "변경", smallButtonStyle))
+                CycleFrameRate(1);
+            y += 38f;
+        }
+
+        private void DrawAudioSettings(float x, ref float y, float width)
+        {
+            float master = GUI.HorizontalSlider(new Rect(x + 210f, y + 7f, 300f, 20f),
+                editingSettings.audio.masterVolume, 0f, 1f);
+            DrawLabel(new Rect(x, y, 190f, 30f), "전체 음량", labelStyle, Color.white);
+            DrawLabel(new Rect(x + 530f, y, 90f, 30f),
+                Mathf.RoundToInt(master * 100f) + "%", smallStyle,
+                new Color(0.82f, 0.92f, 1f));
+            if (!Mathf.Approximately(master, editingSettings.audio.masterVolume))
+            {
+                editingSettings.audio.masterVolume = master;
+                ApplySettingsPreview();
+            }
+            y += 38f;
+
+            float sfx = GUI.HorizontalSlider(new Rect(x + 210f, y + 7f, 300f, 20f),
+                editingSettings.audio.sfxVolume, 0f, 1f);
+            DrawLabel(new Rect(x, y, 190f, 30f), "효과음", labelStyle, Color.white);
+            DrawLabel(new Rect(x + 530f, y, 90f, 30f),
+                Mathf.RoundToInt(sfx * 100f) + "%", smallStyle,
+                new Color(0.82f, 0.92f, 1f));
+            if (!Mathf.Approximately(sfx, editingSettings.audio.sfxVolume))
+            {
+                editingSettings.audio.sfxVolume = sfx;
+                ApplySettingsPreview();
+            }
+            y += 38f;
+
+            DrawDisabledAudioRow(x, ref y, width, "음악", "음악 시스템 준비 중");
+            DrawDisabledAudioRow(x, ref y, width, "음성", "음성 채팅 시스템 준비 중");
+            DrawDisabledAudioRow(x, ref y, width, "마이크", "음성 채팅 시스템 준비 중");
+        }
+
+        private void DrawDisabledAudioRow(float x, ref float y, float width,
+                                          string label, string reason)
+        {
+            DrawLabel(new Rect(x, y, 190f, 30f), label, labelStyle,
+                new Color(0.50f, 0.56f, 0.64f));
+            bool previous = GUI.enabled;
+            GUI.enabled = false;
+            GUI.HorizontalSlider(new Rect(x + 210f, y + 7f, 300f, 20f), 1f, 0f, 1f);
+            GUI.enabled = previous;
+            DrawLabel(new Rect(x + 530f, y, width - 530f, 30f), reason,
+                smallStyle, new Color(0.50f, 0.56f, 0.64f));
+            y += 38f;
+        }
+
+        private void DrawControlSettings(float x, ref float y, float width)
+        {
+            float sensitivity = GUI.HorizontalSlider(new Rect(x + 210f, y + 7f, 300f, 20f),
+                editingSettings.controls.lookSensitivity, 0.1f, 5f);
+            DrawLabel(new Rect(x, y, 190f, 30f), "마우스 감도", labelStyle, Color.white);
+            DrawLabel(new Rect(x + 530f, y, 90f, 30f), sensitivity.ToString("0.0"),
+                smallStyle, new Color(0.82f, 0.92f, 1f));
+            if (!Mathf.Approximately(sensitivity, editingSettings.controls.lookSensitivity))
+            {
+                editingSettings.controls.lookSensitivity = sensitivity;
+                ApplySettingsPreview();
+            }
+            y += 38f;
+
+            bool invert = GUI.Toggle(new Rect(x, y, width - 12f, 30f),
+                editingSettings.controls.invertLookY, "Y축 반전", labelStyle);
+            if (invert != editingSettings.controls.invertLookY)
+            {
+                editingSettings.controls.invertLookY = invert;
+                ApplySettingsPreview();
+            }
+            y += 44f;
+
+            DrawLabel(new Rect(x, y, width, 28f),
+                "키 재매핑", labelStyle, new Color(0.72f, 0.91f, 1f));
+            y += 34f;
+            for (int i = 0; i < BindingActions.Length; i++)
+            {
+                DrawBindingRow(x, ref y, width, BindingActions[i]);
+            }
+        }
+
+        private void DrawBindingRow(float x, ref float y, float width, BindingAction action)
+        {
+            DrawLabel(new Rect(x, y, 250f, 30f), BindingLabel(action), smallStyle, Color.white);
+            string value = rebindingAction.HasValue && rebindingAction.Value == action
+                ? "입력 대기 중 (Esc 취소)" : GetBinding(action).ToString();
+            if (GUI.Button(new Rect(x + 270f, y, Mathf.Min(300f, width - 270f), 30f),
+                    value, smallButtonStyle))
+                rebindingAction = action;
+            y += 34f;
+        }
+
+        private void CaptureBindingInput()
+        {
+            if (!rebindingAction.HasValue || Event.current.type != EventType.KeyDown)
+                return;
+
+            if (Event.current.keyCode == KeyCode.Escape)
+            {
+                rebindingAction = null;
+                Event.current.Use();
+                return;
+            }
+
+            KeyCode key = Event.current.keyCode;
+            if (key == KeyCode.None) return;
+
+            var candidate = editingSettings.Clone();
+            SetBinding(candidate.controls, rebindingAction.Value, key);
+            if (Controls.HasDuplicateBindings(candidate.controls, out var duplicate))
+            {
+                error = "이미 사용 중인 키입니다: " + duplicate;
+                Event.current.Use();
+                return;
+            }
+
+            SetBinding(editingSettings.controls, rebindingAction.Value, key);
+            rebindingAction = null;
+            error = string.Empty;
+            ApplySettingsPreview();
+            Event.current.Use();
+        }
+
+        private void RefreshSettingsOptions()
+        {
+            resolutionOptions.Clear();
+            Resolution[] resolutions = Screen.resolutions;
+            for (int i = 0; i < resolutions.Length; i++)
+            {
+                var value = new Vector2Int(resolutions[i].width, resolutions[i].height);
+                if (!resolutionOptions.Contains(value)) resolutionOptions.Add(value);
+            }
+
+            var current = new Vector2Int(editingSettings.display.width, editingSettings.display.height);
+            if (resolutionOptions.Count == 0 || !resolutionOptions.Contains(current))
+                resolutionOptions.Add(current);
+            qualityOptions = QualitySettings.names ?? new string[0];
+        }
+
+        private void CycleResolution(int direction)
+        {
+            if (resolutionOptions.Count == 0) return;
+            var current = new Vector2Int(editingSettings.display.width, editingSettings.display.height);
+            int index = resolutionOptions.IndexOf(current);
+            if (index < 0) index = 0;
+            index = (index + direction + resolutionOptions.Count) % resolutionOptions.Count;
+            editingSettings.display.width = resolutionOptions[index].x;
+            editingSettings.display.height = resolutionOptions[index].y;
+            ApplySettingsPreview();
+        }
+
+        private void CycleFullscreenMode(int direction)
+        {
+            int[] modes = { (int)FullScreenMode.Windowed, (int)FullScreenMode.FullScreenWindow,
+                            (int)FullScreenMode.ExclusiveFullScreen,
+                            (int)FullScreenMode.MaximizedWindow };
+            int index = System.Array.IndexOf(modes, editingSettings.display.fullscreenMode);
+            if (index < 0) index = 0;
+            index = (index + direction + modes.Length) % modes.Length;
+            editingSettings.display.fullscreenMode = modes[index];
+            ApplySettingsPreview();
+        }
+
+        private void CycleQuality(int direction)
+        {
+            if (qualityOptions.Length == 0) return;
+            int index = Mathf.Clamp(editingSettings.display.qualityLevel, 0, qualityOptions.Length - 1);
+            index = (index + direction + qualityOptions.Length) % qualityOptions.Length;
+            editingSettings.display.qualityLevel = index;
+            ApplySettingsPreview();
+        }
+
+        private void CycleFrameRate(int direction)
+        {
+            int[] values = { 0, 30, 60, 120, 144, 240 };
+            int index = System.Array.IndexOf(values, editingSettings.display.frameRateLimit);
+            if (index < 0) index = 0;
+            index = (index + direction + values.Length) % values.Length;
+            editingSettings.display.frameRateLimit = values[index];
+            ApplySettingsPreview();
+        }
+
+        private void ApplySettingsPreview()
+        {
+            editingSettings.Normalize();
+            settings.Preview(editingSettings);
+            editingSettings = settings.Current.Clone();
+        }
+
+        private void ResetSettingsPreview()
+        {
+            editingSettings = settings.ResetDefaults();
+            RefreshSettingsOptions();
+            rebindingAction = null;
+            error = string.Empty;
+        }
+
+        private void CancelSettings()
+        {
+            settings.RestoreSaved();
+            editingSettings = null;
+            rebindingAction = null;
+            error = string.Empty;
+            notice = string.Empty;
+            view = LobbyView.Main;
+        }
+
+        private void SaveSettings()
+        {
+            if (Controls.HasDuplicateBindings(editingSettings.controls, out var duplicate))
+            {
+                error = "중복된 키를 먼저 변경해 주세요: " + duplicate;
+                return;
+            }
+
+            if (!settings.Save(editingSettings, out var saveError))
+            {
+                error = saveError;
+                return;
+            }
+
+            editingSettings = null;
+            rebindingAction = null;
+            error = string.Empty;
+            notice = "설정을 저장했습니다.";
+            view = LobbyView.Main;
+        }
+
+        private void DrawSettingsSection(Rect area, string title)
+        {
+            DrawBox(area, new Color(0.05f, 0.25f, 0.42f, 0.76f));
+            DrawLabel(area, title, labelStyle, new Color(0.72f, 0.94f, 1f));
+        }
+
+        private static string FullscreenModeLabel(int value)
+        {
+            switch ((FullScreenMode)value)
+            {
+                case FullScreenMode.Windowed: return "창 모드";
+                case FullScreenMode.ExclusiveFullScreen: return "전체 화면";
+                case FullScreenMode.MaximizedWindow: return "최대화 창";
+                default: return "테두리 없는 창";
+            }
+        }
+
+        private static string FrameRateLabel(int value) => value <= 0 ? "제한 없음" : value + " FPS";
+
+        private static string BindingLabel(BindingAction action)
+        {
+            switch (action)
+            {
+                case BindingAction.MoveForward: return "앞으로 이동";
+                case BindingAction.MoveBack: return "뒤로 이동";
+                case BindingAction.MoveLeft: return "왼쪽 이동";
+                case BindingAction.MoveRight: return "오른쪽 이동";
+                case BindingAction.Jump: return "점프";
+                case BindingAction.Run: return "달리기";
+                case BindingAction.ArmsUp: return "팔 올리기";
+                case BindingAction.FreeLook: return "자유 시점";
+                case BindingAction.TransportAction: return "상호작용 / 탑승";
+                case BindingAction.ToolAction: return "장비 동작";
+                case BindingAction.Tablet: return "태블릿";
+                case BindingAction.FieldToggle: return "저중력장";
+                case BindingAction.StuckEscape: return "끼임 탈출";
+                case BindingAction.Restart: return "재시작";
+                case BindingAction.TabletPreviousPage: return "태블릿 이전";
+                case BindingAction.TabletNextPage: return "태블릿 다음";
+                default: return "커서 해제";
+            }
+        }
+
+        private static KeyCode GetBinding(BindingAction action)
+        {
+            switch (action)
+            {
+                case BindingAction.MoveForward: return Controls.MoveForward;
+                case BindingAction.MoveBack: return Controls.MoveBack;
+                case BindingAction.MoveLeft: return Controls.MoveLeft;
+                case BindingAction.MoveRight: return Controls.MoveRight;
+                case BindingAction.Jump: return Controls.Jump;
+                case BindingAction.Run: return Controls.Run;
+                case BindingAction.ArmsUp: return Controls.ArmsUp;
+                case BindingAction.FreeLook: return Controls.FreeLook;
+                case BindingAction.TransportAction: return Controls.TransportAction;
+                case BindingAction.ToolAction: return Controls.ToolAction;
+                case BindingAction.Tablet: return Controls.Tablet;
+                case BindingAction.FieldToggle: return Controls.FieldToggle;
+                case BindingAction.StuckEscape: return Controls.StuckEscape;
+                case BindingAction.Restart: return Controls.Restart;
+                case BindingAction.TabletPreviousPage: return Controls.TabletPreviousPage;
+                case BindingAction.TabletNextPage: return Controls.TabletNextPage;
+                default: return Controls.FreeCursor;
+            }
+        }
+
+        private static void SetBinding(GameSettingsData.ControlSettings settings,
+                                       BindingAction action, KeyCode value)
+        {
+            switch (action)
+            {
+                case BindingAction.MoveForward: settings.moveForward = value; break;
+                case BindingAction.MoveBack: settings.moveBack = value; break;
+                case BindingAction.MoveLeft: settings.moveLeft = value; break;
+                case BindingAction.MoveRight: settings.moveRight = value; break;
+                case BindingAction.Jump: settings.jump = value; break;
+                case BindingAction.Run: settings.run = value; break;
+                case BindingAction.ArmsUp: settings.armsUp = value; break;
+                case BindingAction.FreeLook: settings.freeLook = value; break;
+                case BindingAction.TransportAction: settings.transportAction = value; break;
+                case BindingAction.ToolAction: settings.toolAction = value; break;
+                case BindingAction.Tablet: settings.tablet = value; break;
+                case BindingAction.FieldToggle: settings.fieldToggle = value; break;
+                case BindingAction.StuckEscape: settings.stuckEscape = value; break;
+                case BindingAction.Restart: settings.restart = value; break;
+                case BindingAction.TabletPreviousPage: settings.tabletPreviousPage = value; break;
+                case BindingAction.TabletNextPage: settings.tabletNextPage = value; break;
+                case BindingAction.FreeCursor: settings.freeCursor = value; break;
+            }
         }
 
         private void BeginSolo()
@@ -577,7 +1073,12 @@ namespace Metagame.UI
             characters.Append("방 코드로 입장 새 방 만들기 방 입장 방장 참가자 준비 취소 게임 시작 방 나가기");
             characters.Append("게스트 로그아웃 복사 클립보드에 복사되었습니다 대기 중 게임 중 알 수 없음");
             characters.Append("친구에게 방 코드를 공유해 함께 출발하세요 최대 12자 바로 시작합니다 로그인 완료 유저 명");
-            characters.Append("서버 연결이 끊어졌습니다 설정 기능은 준비 중입니다 게임 서버 연결 시간이 초과되었습니다");
+            characters.Append("설정 변경값은 즉시 미리보기로 적용되며 저장 버튼을 눌러야 파일에 기록됩니다");
+            characters.Append("그래픽 오디오 조작 해상도 화면 모드 품질 수직 동기화 프레임 제한 전체 음량 효과음 음악 음성 마이크");
+            characters.Append("음악 시스템 준비 중 음성 채팅 시스템 준비 중 마우스 감도 Y축 반전 키 재매핑 입력 대기 중 취소 저장 기본값");
+            characters.Append("앞으로 이동 뒤로 이동 왼쪽 이동 오른쪽 이동 점프 달리기 팔 올리기 자유 시점 상호작용 탑승 장비 동작 태블릿 저중력장 끼임 탈출 재시작 이전 다음 커서 해제");
+            characters.Append("이미 사용 중인 키입니다 중복된 키를 먼저 변경해 주세요 제한 없음 창 모드 전체 화면 최대화 창 테두리 없는 창");
+            characters.Append("설정을 저장했습니다 설정을 저장하지 못했습니다");
 
             int[] sizes = { 15, 16, 19, 20, 29 };
             for (int i = 0; i < sizes.Length; i++)

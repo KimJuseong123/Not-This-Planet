@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using Metagame.Core;
 using Metagame.Gameplay;
 using Metagame.Gameplay.Hazards;
 using Metagame.Gameplay.Parts;
@@ -45,6 +46,8 @@ namespace Metagame.Gameplay.Audio
         bool worldAuthority;
         bool networked;
         bool audioAvailable;
+        float userSfxVolume = 1f;
+        GameSettingsRuntime settingsRuntime;
         float registryRefresh;
         Transform audioRoot;
         int lastGrabSuccessFrame = -1;
@@ -67,6 +70,8 @@ namespace Metagame.Gameplay.Audio
             public AudioSource source;
             public AudioSource noiseSource;
             public SoundEventId eventId;
+            public float baseTargetVolume;
+            public float baseTargetNoiseVolume;
             public float targetVolume;
             public float targetNoiseVolume;
             public float fadeInSeconds;
@@ -84,6 +89,7 @@ namespace Metagame.Gameplay.Audio
             globalStyle = manager != null ? manager.GlobalStyle : SoundStyle.Stylized;
             worldAuthority = authority;
             networked = networkedMode;
+            BindSettings();
             RefreshRegistries();
             ArmRigidbodies();
         }
@@ -96,6 +102,7 @@ namespace Metagame.Gameplay.Audio
             globalStyle = style;
             worldAuthority = authority;
             networked = networkedMode;
+            BindSettings();
             RefreshRegistries();
             ArmRigidbodies();
         }
@@ -104,8 +111,75 @@ namespace Metagame.Gameplay.Audio
 
         public void SetNetworked(bool enabled) => networked = enabled;
 
+        void BindSettings()
+        {
+            var current = GameSettingsRuntime.Instance;
+            if (settingsRuntime == current)
+            {
+                if (current != null && current.Current != null)
+                    ApplyUserAudio(current.Current);
+                return;
+            }
+
+            if (settingsRuntime != null)
+                settingsRuntime.Changed -= OnSettingsChanged;
+
+            settingsRuntime = current;
+            if (settingsRuntime == null) return;
+
+            settingsRuntime.Changed += OnSettingsChanged;
+            ApplyUserAudio(settingsRuntime.Current);
+        }
+
+        void OnSettingsChanged(GameSettingsData settings)
+        {
+            ApplyUserAudio(settings);
+        }
+
+        void ApplyUserAudio(GameSettingsData settings)
+        {
+            float previousVolume = userSfxVolume;
+            userSfxVolume = settings != null && settings.audio != null
+                ? Mathf.Clamp01(settings.audio.sfxVolume) : 1f;
+            float volumeRatio = previousVolume > 0.0001f
+                ? userSfxVolume / previousVolume : 0f;
+
+            foreach (var state in oneShotStates.Values)
+            {
+                if (state == null) continue;
+                state.targetVolume = state.baseTargetVolume * userSfxVolume;
+                state.targetNoiseVolume = state.baseTargetNoiseVolume * userSfxVolume;
+                if (state.source != null && state.source.isPlaying)
+                {
+                    float elapsed = Mathf.Max(0f, Time.unscaledTime - state.startedAt);
+                    float envelope = FadeEnvelope(elapsed, state.duration,
+                                                  state.fadeInSeconds, state.fadeOutSeconds);
+                    state.source.volume = state.targetVolume * envelope;
+                    if (state.noiseSource != null)
+                        state.noiseSource.volume = state.targetNoiseVolume * envelope;
+                }
+            }
+
+            foreach (var state in vehicleLoops.Values)
+            {
+                if (state == null) continue;
+                state.volume = Mathf.Clamp(state.volume * volumeRatio, 0f, 2f);
+                state.noiseVolume = Mathf.Clamp(state.noiseVolume * volumeRatio, 0f, 2f);
+                ApplyLoopVolumes(state);
+            }
+
+            foreach (var state in toolLoops.Values)
+            {
+                if (state == null) continue;
+                state.volume = Mathf.Clamp(state.volume * volumeRatio, 0f, 2f);
+                state.noiseVolume = Mathf.Clamp(state.noiseVolume * volumeRatio, 0f, 2f);
+                ApplyLoopVolumes(state);
+            }
+        }
+
         void OnEnable()
         {
+            BindSettings();
             PlayerRig.AnyHandGrabAttempted += OnHandGrabAttempted;
             PlayerRig.AnyHandReleased += OnHandReleased;
             PlayerRig.AnyFootstep += OnFootstep;
@@ -122,6 +196,10 @@ namespace Metagame.Gameplay.Audio
 
         void OnDisable()
         {
+            if (settingsRuntime != null)
+                settingsRuntime.Changed -= OnSettingsChanged;
+            settingsRuntime = null;
+
             PlayerRig.AnyHandGrabAttempted -= OnHandGrabAttempted;
             PlayerRig.AnyHandReleased -= OnHandReleased;
             PlayerRig.AnyFootstep -= OnFootstep;
@@ -261,6 +339,10 @@ namespace Metagame.Gameplay.Audio
                 source = source,
                 noiseSource = noiseSource,
                 eventId = eventId,
+                baseTargetVolume = userSfxVolume > 0.0001f
+                    ? targetVolume / userSfxVolume : 0f,
+                baseTargetNoiseVolume = userSfxVolume > 0.0001f
+                    ? targetNoiseVolume / userSfxVolume : 0f,
                 targetVolume = targetVolume,
                 targetNoiseVolume = targetNoiseVolume,
                 fadeInSeconds = FadeInSeconds(eventId),
@@ -374,7 +456,8 @@ namespace Metagame.Gameplay.Audio
             return slot != null ? slot.noise : null;
         }
 
-        float MasterVolume => audioManager != null ? audioManager.MasterVolume : 1f;
+        float MasterVolume => (audioManager != null ? audioManager.MasterVolume : 1f)
+                              * userSfxVolume;
         float VolumeScale(SoundEventId eventId) =>
             audioManager != null ? audioManager.VolumeScale(eventId) : 1f;
         float PitchScale(SoundEventId eventId) =>
