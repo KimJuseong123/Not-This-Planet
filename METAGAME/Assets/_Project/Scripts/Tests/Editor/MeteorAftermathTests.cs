@@ -8,11 +8,11 @@ using UnityEngine.TestTools;
 namespace Metagame.Gameplay.Tests
 {
     /// <summary>
-    /// 운석이 날아간 뒤의 두 상태를 검증한다(S15P21B202-273).
+    /// 운석이 날아간 뒤의 두 상태를 검증한다.
     ///
     /// <code>
     /// 방망이로 쳐냄  →  굴러다니는 소품   동적 · Prop 레이어 · 밀린다
-    /// 못 쳐냄       →  박힌 흔적        키네마틱 · 못 건드림 · 위에 올라갈 수만
+    /// 바닥에 닿음    →  운반 가능한 소품  동적 · Prop 레이어 · 집고 밀 수 있다
     /// </code>
     ///
     /// <b>증상은 즉사 지뢰였다.</b> 바닥에 놓인 운석에 닿기만 해도 기절했다 — 접점 법선이
@@ -206,32 +206,52 @@ namespace Metagame.Gameplay.Tests
             Assert.IsTrue(meteor.Rolling);
         }
 
-        // --- 박힌 흔적 ------------------------------------------------------
+        // --- 착지 후 운반물 -------------------------------------------------
 
         [Test]
-        public void AScarIsKinematicAndBuried()
+        public void ASettledMeteorBecomesACarryableProp()
         {
             var meteor = MakeMeteor(new Vector3(0f, 4f, 0f));
             var body = meteor.GetComponent<Rigidbody>();
 
             meteor.ApplyImpact(Vector3.zero);
 
-            Assert.IsTrue(body.isKinematic, "못 건드린다.");
+            Assert.IsTrue(meteor.GroundProp, "착지한 운석은 일반 운반물이어야 한다.");
+            Assert.IsFalse(body.isKinematic, "착지 후에도 밀고 운반할 수 있어야 한다.");
+            Assert.IsTrue(body.useGravity, "일반 운반물처럼 중력을 받아야 한다.");
             Assert.IsFalse(meteor.Rolling);
-            Assert.Less(meteor.transform.position.y, meteor.ImpactPoint.y,
-                "반쯤 묻혀 위에 올라갈 수만 있어야 한다(§19).");
+            Assert.AreEqual(GameLayers.Prop, meteor.gameObject.layer);
+            Assert.IsNotNull(meteor.GetComponent<Grabbable>(),
+                "손 운반 경로에 들어가야 한다.");
+            Assert.GreaterOrEqual(meteor.transform.position.y, meteor.ImpactPoint.y,
+                "착지한 운반물은 지면 아래로 묻히면 안 된다.");
         }
 
         [Test]
-        public void AScarKeepsTheMeteorLayer()
+        public void ASettledMeteorCanBePushedByTheBat()
+        {
+            var meteor = MakeMeteor(new Vector3(1f, 4f, 0f));
+            meteor.ApplyImpact(new Vector3(1f, 0f, 0f));
+
+            var batObject = new GameObject("MeteorBat") { layer = GameLayers.Prop };
+            _spawned.Add(batObject);
+            var bat = batObject.AddComponent<MeteorBat>();
+
+            Assert.IsTrue(bat.Swing(Vector3.zero, Vector3.right),
+                "착지한 운석은 일반 소품처럼 방망이에 맞아야 한다.");
+            Assert.AreSame(meteor.GetComponent<Rigidbody>(), bat.LastPushed);
+        }
+
+        [Test]
+        public void ASettledMeteorHasNoLegacyDamageSource()
         {
             var meteor = MakeMeteor(new Vector3(0f, 4f, 0f));
+            var legacy = meteor.gameObject.AddComponent<DamageSource>();
 
             meteor.ApplyImpact(Vector3.zero);
 
-            Assert.AreEqual(GameLayers.Meteor, meteor.gameObject.layer);
-            Assert.AreEqual(0, GameLayers.BatStrikeMask & (1 << meteor.gameObject.layer),
-                "박힌 흔적은 방망이 대상이 아니다.");
+            Assert.IsFalse(legacy.enabled,
+                "운석의 착탄 피해와 일반 DamageSource가 중복되면 착지 후 접촉 피해가 생긴다.");
         }
 
         [Test]

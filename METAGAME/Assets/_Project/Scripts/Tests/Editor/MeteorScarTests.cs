@@ -8,12 +8,10 @@ using UnityEngine.TestTools;
 namespace Metagame.Gameplay.Tests
 {
     /// <summary>
-    /// 운석 충돌 흔적을 검증한다(기획 §19, S15P21B202-251).
+    /// 운석 착탄 기록과 충돌 흔적을 검증한다(기획 §19, S15P21B202-251).
     ///
-    /// <b>예전에는 정확히 반대였다.</b> <c>MeteorDespawnSeconds = 6f</c> 로 착탄 6초 뒤에
-    /// <c>Destroy</c> 했고, 검증도 "착탄한 운석이 남아 쌓이면 안 된다" 를 잠갔다. §19 는
-    /// "박힌 운석과 분화구는 발사 실패 후에도 유지되며 <b>스테이지 동안 사라지지
-    /// 않는다</b>" 고 정한다.
+    /// 착탄한 운석은 일반 운반물로 전환되고, 스포너는 분화구 연출에 사용할 착탄 기록을
+    /// 별도로 유지한다.
     /// </summary>
     public sealed class MeteorScarTests
     {
@@ -62,9 +60,9 @@ namespace Metagame.Gameplay.Tests
             Assert.IsTrue(meteor.Settled);
         }
 
-        /// <summary>§19 "운석 본체는 <b>절반 이상</b> 지면에 박힌 모습으로 남는다".</summary>
+        /// <summary>착지한 운석은 지면 위의 운반 가능한 물체로 남는다.</summary>
         [Test]
-        public void ASettledMeteorIsBuriedMoreThanHalfway()
+        public void ASettledMeteorStaysAboveTheGround()
         {
             var meteor = MakeMeteor(new Vector3(0f, 4f, 0f));
 
@@ -75,13 +73,14 @@ namespace Metagame.Gameplay.Tests
             var above = top;                       // 지면이 y=0 이다
             var height = top - bottom;
 
-            Assert.Less(above / height, 0.5f, "절반 이상 묻혀야 한다.");
-            Assert.Greater(above, 0f, "완전히 사라지면 장애물이 못 된다(§19).");
+            Assert.AreEqual(1f, above / height, 1e-3f,
+                "운반 가능한 운석은 지면 아래로 묻히지 않아야 한다.");
+            Assert.Greater(above, 0f, "운석 전체가 지면 위에 있어야 한다.");
         }
 
-        /// <summary>§19 "충돌 후 <b>고비용 물리</b> … 를 끄고".</summary>
+        /// <summary>착지 후에도 일반 소품 물리를 유지한다.</summary>
         [Test]
-        public void ASettledMeteorHasItsPhysicsTurnedOff()
+        public void ASettledMeteorKeepsDynamicPhysics()
         {
             var meteor = MakeMeteor(new Vector3(0f, 4f, 0f));
             var body = meteor.GetComponent<Rigidbody>();
@@ -89,11 +88,11 @@ namespace Metagame.Gameplay.Tests
 
             meteor.ApplyImpact(Vector3.zero);
 
-            Assert.IsTrue(body.isKinematic, "200개가 쌓여도 솔버가 풀 것이 없어야 한다.");
+            Assert.IsFalse(body.isKinematic, "착지 후에도 방망이와 운반 물리로 움직여야 한다.");
             Assert.AreEqual(0f, body.linearVelocity.magnitude, 1e-3f);
         }
 
-        /// <summary>§19 "접촉 피해가 없는 <b>낮은 정적 장애물</b>" — 콜라이더는 남는다.</summary>
+        /// <summary>착지 후에도 운반물 콜라이더는 남는다.</summary>
         [Test]
         public void ASettledMeteorKeepsItsCollider()
         {

@@ -344,6 +344,29 @@ namespace Metagame.Gameplay.Tests
                 "표시가 부딪히면 플레이어가 원 위에서 걸린다.");
         }
 
+        [Test]
+        public void TheMarkerRemainsReadableThroughAtmosphereFog()
+        {
+            var spawner = MakeSpawner();
+            var view = MakeView(spawner);
+
+            AdvanceUntilPending(spawner);
+            view.Tick(0f);
+
+            var marker = FirstMarker(view);
+            var ringMaterial = marker.Find("Ring_0").GetComponent<Renderer>().sharedMaterial;
+            var innerMaterial = marker.Find("Inner_0").GetComponent<Renderer>().sharedMaterial;
+
+            Assert.AreEqual(0f, ringMaterial.GetFloat("_FogStrength"), 0.001f,
+                "착탄 위치 표시는 일반 FOG를 받지 않아야 한다.");
+            Assert.AreEqual(0f, innerMaterial.GetFloat("_FogStrength"), 0.001f,
+                "착탄 위치 내부 표시도 일반 FOG를 받지 않아야 한다.");
+            Assert.AreEqual(64f, ringMaterial.GetFloat("_AtmosphereFogExemptMask"), 0.001f,
+                "전체 화면 Atmosphere 패스에서도 착탄 위치를 제외해야 한다.");
+            Assert.AreEqual(64f, innerMaterial.GetFloat("_AtmosphereFogExemptMask"), 0.001f,
+                "전체 화면 Atmosphere 패스에서도 내부 표시를 제외해야 한다.");
+        }
+
         // --- 리그 ---------------------------------------------------------
 
         const float SMALL_RADIUS = PhysicsScale.MeteorSmallImpactRadius;

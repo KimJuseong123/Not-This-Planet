@@ -97,7 +97,8 @@ namespace Metagame.Gameplay.Hazards
             var countdown = MeteorWarningLook.CountdownScaleOf(drop);
             var blink = MeteorWarningLook.BlinkOf(drop, time);
 
-            marker.Root.position = drop.ImpactPoint + Vector3.up * PhysicsScale.MeteorWarningLift;
+            marker.Root.position = drop.ImpactPoint + Vector3.up * drop.WarningLift;
+            marker.Inner.localPosition = Vector3.up * drop.WarningLift * 0.5f;
 
             marker.Ring.localScale = new Vector3(diameter, DiscThickness, diameter);
 
@@ -143,10 +144,14 @@ namespace Metagame.Gameplay.Hazards
                                             MeteorWarningLook.StartColor, 0.2f, root)).transform;
 
             ring.localPosition = Vector3.zero;
-            inner.localPosition = Vector3.up * PhysicsScale.MeteorWarningLift * 0.5f;
+            inner.localPosition = Vector3.zero;
 
-            var ringMaterial = Prim.Ghost(MeteorWarningLook.StartColor, RingRimBoost);
-            var innerMaterial = Prim.Ghost(MeteorWarningLook.StartColor, InnerRimBoost);
+            // 착탄 위치는 멀리서도 읽혀야 한다. 일반 Ghost 효과의 FOG뿐 아니라
+            // Atmosphere의 마지막 전체 화면 Haze 패스도 이 두 머티리얼만 제외한다.
+            var ringMaterial = Prim.Ghost(MeteorWarningLook.StartColor, RingRimBoost,
+                                          0f, true);
+            var innerMaterial = Prim.Ghost(MeteorWarningLook.StartColor, InnerRimBoost,
+                                           0f, true);
 
             ring.GetComponent<Renderer>().sharedMaterial = ringMaterial;
             inner.GetComponent<Renderer>().sharedMaterial = innerMaterial;

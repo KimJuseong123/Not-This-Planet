@@ -11826,8 +11826,76 @@ MonoBehaviour:
   _meteorPrefab: {fileID: 4353752562785007050, guid: 6663f1fe94a140f4ca6ef56d3d1e4513, type: 3}
   _area: {fileID: 683485868}
   _areaSize: {x: 36, y: 36}
-  _warningSeconds: 1.8
-  _dropHeight: 30
+  _warningSeconds: 4
+  _dropHeight: 90
+  _overrideDropSpeed: 0
+  _dropSpeed: 15
+  _entryAngleDegrees: 50
+  _entryAttempts: 6
+  _entryClearance: 2.5
+  _groundProbe: 50
+  _waveBands:
+  - _fromMinutes: 0
+    _waveIntervalSeconds: 30
+    _minMeteors: 1
+    _maxMeteors: 2
+    _mediumChance: 0
+  - _fromMinutes: 5
+    _waveIntervalSeconds: 25
+    _minMeteors: 2
+    _maxMeteors: 3
+    _mediumChance: 0
+  - _fromMinutes: 10
+    _waveIntervalSeconds: 20
+    _minMeteors: 3
+    _maxMeteors: 4
+    _mediumChance: 0.15
+  - _fromMinutes: 15
+    _waveIntervalSeconds: 15
+    _minMeteors: 4
+    _maxMeteors: 5
+    _mediumChance: 0.25
+  - _fromMinutes: 20
+    _waveIntervalSeconds: 15
+    _minMeteors: 5
+    _maxMeteors: 5
+    _mediumChance: 0.3
+  _waveLeadSeconds: 5
+  _withinWaveMinSeconds: 1
+  _withinWaveMaxSeconds: 2
+  _soloCrewScale: 0.45
+  _twoCrewScale: 0.65
+  _threeCrewScale: 0.8
+  _fourCrewScale: 1
+  _environmentWeight: 0.35
+  _nearPlayerWeight: 0.3
+  _workAreaWeight: 0.25
+  _launchPadWeight: 0.1
+  _playerTargetMinRadius: 1
+  _playerTargetMaxRadius: 3
+  _targetRepeatDistance: 4
+  _tuning:
+    _mass: 60
+    _radius: 0.45
+    _smallImpactRadius: 2
+    _mediumImpactRadius: 3.5
+    _impactForce: 900
+    _heavyImpactFraction: 0.5
+    _heavyKnockSpeed: 8
+    _restSpeed: 0.35
+    _restSeconds: 0.3
+    _deflectedDespawnSeconds: 12
+    _scarDespawnSeconds: 30
+    _scarSinkRatio: 0.6
+    _scarCoolSeconds: 5
+    _scarLimit: 200
+    _maxLifeSeconds: 20
+    _warningImminentSeconds: 0.5
+    _warningStrikableBlinkHz: 3
+    _warningImminentBlinkHz: 8
+    _warningLift: 0.03
+    _batSwingWindowSeconds: 1
+    _batAssistRadius: 2.5
   _launchPad: {fileID: 0}
   _crew: 4
   _seed: 20260827

@@ -474,13 +474,13 @@ namespace Metagame.Gameplay
 
                 // 너무 이르면 헛스윙이다. 이 조건이 §18.1 의 "너무 일찍 휘두르면
                 // 헛스윙하지만 다시 시도할 수 있다" 를 만든다.
-                if (seconds > PhysicsScale.BatSwingWindowSeconds) continue;
+                if (seconds > meteor.BatSwingWindowSeconds) continue;
 
                 // 낙하 지점까지의 거리는 <b>수평으로</b> 잰다. 운석은 아직 공중에 있고
                 // 플레이어는 지면에 있으므로, 3차원 거리로 재면 높이 차가 판정을 먹는다.
                 var offset = point - origin;
                 offset.y = 0f;
-                if (offset.magnitude > PhysicsScale.BatAssistRadius) continue;
+                if (offset.magnitude > meteor.BatAssistRadius) continue;
 
                 if (seconds >= bestSeconds) continue;
 
