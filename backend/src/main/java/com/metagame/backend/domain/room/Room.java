@@ -115,6 +115,38 @@ public class Room {
         return true;
     }
 
+    /**
+     * 판을 끝내고 방을 대기 상태로 되돌린다 (S15P21B202-316).
+     *
+     * <p>이것이 없어서 한 번 시작한 방은 영구히 {@code PLAYING} 이었다.
+     * {@link #join} 은 {@code WAITING} 만 받으므로 끝난 방에는 아무도 들어올 수 없었고,
+     * 다시 하려면 방을 새로 만들어 코드를 다시 공유해야 했다.
+     *
+     * <p><b>준비 상태를 전부 내린다.</b> 그러지 않으면 판이 끝난 직후 방장이 시작을
+     * 한 번 더 누르는 것만으로 다음 판이 곧바로 시작된다 — 결과 화면을 보고 있을
+     * 사람들이 영문도 모르고 다음 판에 들어간다.
+     *
+     * <p><b>참가자 명단({@code participants})도 비운다.</b> 이 목록은 "이 판에 참가했던
+     * 사람" 이고 {@link #rejoin} 의 자격 판정에만 쓰인다. 비우지 않으면 1라운드에 있다가
+     * 나간 사람이 2라운드 명단에 남아, 참가하지도 않은 판에 복귀할 수 있게 된다.
+     *
+     * <p><b>끊김 표시({@code disconnected})는 건드리지 않는다.</b> 유예 타이머가 아직
+     * 돌고 있으므로 그대로 두면 만료 시점에 자리가 정리된다. 여기서 지우면 만료
+     * 처리가 그 사람을 못 찾아 빈 자리가 영구히 남는다.
+     *
+     * @return 되돌렸으면 true. {@code PLAYING} 이 아니었으면 false
+     */
+    public synchronized boolean end() {
+        if (status != Status.PLAYING) {
+            return false;
+        }
+        status = Status.WAITING;
+        participants.clear();
+        players.values().forEach(player -> player.setReady(false));
+        gameState = null;
+        return true;
+    }
+
     public boolean isEmpty() {
         return players.isEmpty();
     }
