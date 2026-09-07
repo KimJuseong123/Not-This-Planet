@@ -45,6 +45,7 @@ namespace Metagame.Core
         public bool TabletPreviousPage; // ← 또는 A — 태블릿 이전 페이지
         public bool TabletNextPage;     // → 또는 D — 태블릿 다음 페이지
         public bool Restart;
+        public bool PingPressed;        // 마우스 휠 클릭 — 팀 핑
 
         /// <summary>
         /// T — 끼임 탈출(기획 §21). <b>누른 순간이 아니라 누르고 있는 상태</b>다.
@@ -176,6 +177,7 @@ namespace Metagame.Core
             f.TabletNextPage = Input.GetKeyDown(TabletNextPage)
                                || Input.GetKeyDown(TabletNextPageAlternate);
             f.Restart = Input.GetKeyDown(Restart);
+            f.PingPressed = Input.GetMouseButtonDown(2);
             f.StuckEscapeHeld = Input.GetKey(StuckEscape);
             return f;
         }
