@@ -8,6 +8,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import java.time.Duration;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -54,7 +56,15 @@ public class LocalRelayService implements RelayProvider {
     public LocalRelayService(
             @Value("${relay.local.base-url:http://127.0.0.1:17779}") String baseUrl,
             @Value("${relay.local.public-address:}") String publicAddress) {
-        this.client = RestClient.builder().baseUrl(baseUrl).build();
+        // **타임아웃을 반드시 준다** (S15P21B202-313 ⑤). 기본 RestClient 는 무한정 기다린다.
+        // 이 호출은 startGame 안에서 **동기로** 일어나고 그 다음에 GAME_STARTED 가 나가므로,
+        // 릴레이 제어 API 가 멈추면 방은 이미 PLAYING 인데 아무도 게임에 들어가지 못한다.
+        // 게다가 close 는 유예 스케줄러(단일 스레드)에서 돌아, 한 번 막히면 **다른 모든 방의
+        // 유예 만료가 함께 멈춘다.** 릴레이는 같은 호스트에 있으니 이 정도면 넉넉하다.
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(2));
+        factory.setReadTimeout(Duration.ofSeconds(3));
+        this.client = RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
         this.publicAddress = publicAddress == null ? "" : publicAddress.trim();
         if (this.publicAddress.isEmpty()) {
             log.warn("relay.local.public-address 가 비어 있다 — 릴레이를 쓰지 않고 직접 접속으로 간다");

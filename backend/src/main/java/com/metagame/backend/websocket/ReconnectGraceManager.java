@@ -51,13 +51,26 @@ public class ReconnectGraceManager {
         log.info("grace started: room={} user={} ({}ms)", roomId, userId, graceMs);
     }
 
-    /** 유예 타이머를 취소한다 (재접속 성공). */
-    public void cancel(String roomId, Long userId) {
+    /**
+     * 유예 타이머를 취소한다 (재접속 성공). <b>실제로 취소한 것이 있으면 true.</b>
+     *
+     * <p>반환값이 있는 이유(S15P21B202-313 ②) — 예전에는 호출부가 <b>정규화되지 않은</b> 방
+     * 코드를 넘겨서 취소가 조용히 빗나갔다. 아무 일도 일어나지 않는 것과 구분이 안 됐다.
+     * 이제 호출부가 "취소할 것이 없었다" 를 알아채고 경고할 수 있다.
+     *
+     * <p><b>이미 실행이 시작된 태스크는 이 함수로 멈출 수 없다.</b> 아래 schedule 의 태스크가
+     * 먼저 {@code pending} 에서 자기를 지우기 때문에 여기서 키를 찾지 못하고, 찾았더라도
+     * {@code cancel(false)} 는 실행 중인 것을 건드리지 않는다. 그래서 만료 동작 쪽에서
+     * <b>다시 확인</b>해야 한다 — {@code GameWebSocketHandler.onGraceExpired} 참고.
+     */
+    public boolean cancel(String roomId, Long userId) {
         ScheduledFuture<?> f = pending.remove(key(roomId, userId));
-        if (f != null) {
-            f.cancel(false);
-            log.info("grace cancelled: room={} user={}", roomId, userId);
+        if (f == null) {
+            return false;
         }
+        f.cancel(false);
+        log.info("grace cancelled: room={} user={}", roomId, userId);
+        return true;
     }
 
     private String key(String roomId, Long userId) {
