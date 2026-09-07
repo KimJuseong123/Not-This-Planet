@@ -15,6 +15,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator;
+import org.springframework.web.socket.handler.WebSocketSessionDecorator;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -43,8 +45,14 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     private final ObjectMapper objectMapper;
     private final RelayProvider relayService;
 
-    // userId → 세션. 브로드캐스트 대상 조회용
+    // userId → 세션. 브로드캐스트 대상 조회용.
+    // **여기 담기는 것은 동시 쓰기를 직렬화하도록 감싼 세션이다**(S15P21B202-313 ③).
     private final Map<Long, WebSocketSession> sessions = new ConcurrentHashMap<>();
+
+    /** 한 세션의 쓰기가 이만큼 밀리면 그 세션을 닫는다. 느린 클라이언트가 방 전체를 붙잡지 않게. */
+    private static final int SEND_TIME_LIMIT_MS = 5_000;
+    /** 밀린 메시지 버퍼 상한. 우리 메시지는 작아서 이 정도면 한참 밀려도 여유가 있다. */
+    private static final int SEND_BUFFER_LIMIT_BYTES = 256 * 1024;
     /** roomId → 릴레이 세션 식별자. 방이 사라질 때 릴레이에서도 지운다 (S15P21B202-299). */
     private final Map<String, String> relaySessions = new ConcurrentHashMap<>();
 
@@ -52,7 +60,15 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         Long userId = userId(session);
-        sessions.put(userId, session);
+        // **세션당 쓰기를 직렬화한다**(S15P21B202-313 ③). Spring 의 WebSocketSession 은
+        // 스레드 안전하지 않은데 같은 세션에 쓰는 주체가 여럿이다 — 다른 플레이어들의
+        // PLAYER_MOVED 중계(입력 주기마다), 접속 종료 처리, 그리고 **별 스레드**인 유예 스케줄러.
+        //
+        // 2026-09-07 EC2 실측에서 Tomcat 이 던지는 것을 현장에서 잡았다:
+        //   IllegalStateException: The remote endpoint was in state [TEXT_PARTIAL_WRITING]
+        // 그 메시지는 그대로 유실됐고, 받아야 할 클라이언트는 5초를 굶고 실패했다.
+        sessions.put(userId, new ConcurrentWebSocketSessionDecorator(
+                session, SEND_TIME_LIMIT_MS, SEND_BUFFER_LIMIT_BYTES));
         session.getAttributes().put(NICKNAME_ATTR, userRepository.findById(userId)
                 .map(user -> user.getNickname())
                 .orElse(UNKNOWN_NICKNAME));
@@ -105,8 +121,13 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         Long userId = userId(session);
-        // 재접속으로 이미 새 세션이 등록된 뒤 옛 세션이 닫히는 경우가 있어, 같은 세션일 때만 정리한다
-        if (!sessions.remove(userId, session)) {
+        // 재접속으로 이미 새 세션이 등록된 뒤 옛 세션이 닫히는 경우가 있어, 같은 세션일 때만 정리한다.
+        // 저장된 것은 감싼 세션이므로 **객체 동일성으로 비교할 수 없다** — 감싼 대상을 벗겨서 본다.
+        // remove(k, v) 로 원자적으로 지우고, 그 사이 새 세션이 들어왔으면 정리하지 않는다.
+        WebSocketSession stored = sessions.get(userId);
+        if (stored == null
+                || WebSocketSessionDecorator.unwrap(stored) != WebSocketSessionDecorator.unwrap(session)
+                || !sessions.remove(userId, stored)) {
             log.info("stale session closed: userId={}", userId);
             return;
         }
@@ -132,16 +153,31 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     /** 유예 시간 만료 — 참가자 목록에서 제외한다. 게임은 남은 인원으로 계속된다. */
     private void onGraceExpired(String roomId, Long userId) {
         Room room = roomManager.find(roomId);
-        if (room == null || !room.isDisconnected(userId)) {
-            return;   // 방이 사라졌거나 이미 복귀함
+        if (room == null) {
+            return;   // 방이 사라졌다
         }
-        removeFromRoom(room, userId);
+        // **판정과 제거가 한 임계구역이어야 한다** (S15P21B202-313 ①). 둘 사이에 재입장이
+        // 끼어들면 막 돌아온 사람을 지우게 된다. 방송·릴레이 호출은 락 밖에서 한다.
+        synchronized (room) {
+            if (!room.isDisconnected(userId)) {
+                return;   // 이미 복귀했다
+            }
+            room.leave(userId);
+        }
+        afterLeave(room);
         log.info("grace expired, removed: userId={} room={}", userId, roomId);
     }
 
     private void removeFromRoom(Room room, Long userId) {
+        synchronized (room) {
+            room.leave(userId);
+        }
+        afterLeave(room);
+    }
+
+    /** 자리에서 빠진 뒤의 정리. **락 밖에서** 한다 — 방송과 릴레이 호출이 들어 있다. */
+    private void afterLeave(Room room) {
         String roomId = room.getRoomId();
-        room.leave(userId);
         roomManager.removeIfEmpty(roomId);
         // 방이 실제로 사라졌으면 릴레이 세션도 닫는다. removeIfEmpty 는 void 라 조회로 확인한다.
         if (roomManager.find(roomId) == null) {
@@ -177,13 +213,35 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         }
 
         if (room.getStatus() == Room.Status.PLAYING) {
-            Room.RejoinResult result = room.rejoin(userId, nickname(session));
+            // 재입장 판정과 유예 취소를 **한 임계구역**에서 한다 (S15P21B202-313 ①).
+            // 예전에는 유예 만료 스레드가 isDisconnected 를 읽은 직후 여기서 재입장이 성공하면,
+            // 그 스레드가 **막 돌아온 사람을 방에서 지웠다.** 그 사람은 playerIds() 에서 빠져
+            // ROOM_STATE·PLAYER_MOVED 를 하나도 못 받는 유령이 됐다.
+            // cancel 로는 막을 수 없다 — 만료 태스크가 먼저 pending 에서 자기를 지우기 때문에
+            // cancel 이 키를 찾지도 못한다(ReconnectGraceManager 참고).
+            Room.RejoinResult result;
+            synchronized (room) {
+                result = room.rejoin(userId, nickname(session));
+                if (result == Room.RejoinResult.OK) {
+                    // **정규화된** 방 코드로 취소한다 (S15P21B202-313 ②). 예전에는 클라이언트가
+                    // 보낸 원본 문자열을 썼는데 타이머는 정규화된 코드로 걸려 있어,
+                    // 소문자 코드로 재입장하면 취소가 **반드시** 빗나갔다.
+                    //
+                    // 취소할 것이 없으면 경고한다 — 여기 도달했다는 것은 PLAYING 인 방에
+                    // 끊겨 있던 사람이 돌아왔다는 뜻이고, 그러면 타이머가 있어야 정상이다.
+                    // 없다면 키가 어긋났거나 유예가 이미 만료된 것이다. 조용히 넘기면
+                    // ② 같은 실수가 또 눈에 안 보인다.
+                    if (!graceManager.cancel(room.getRoomId(), userId)) {
+                        log.warn("rejoin: 취소할 유예 타이머가 없다 — 키 불일치 또는 이미 만료. "
+                                + "room={} user={}", room.getRoomId(), userId);
+                    }
+                }
+            }
             if (result != Room.RejoinResult.OK) {
                 send(session, WsMessage.Type.ERROR, Map.of("message",
                         result == Room.RejoinResult.FULL ? "room is full" : "cannot join room"));
                 return;
             }
-            graceManager.cancel(roomId, userId);
             session.getAttributes().put(ROOM_ID_ATTR, room.getRoomId());   // 클라이언트가 보낸 대소문자가 아닌 정규화된 코드를 보관
             if (room.getGameState() != null) {
                 room.getGameState().setDowned(userId, true);   // 재입장 시 기절 상태로 복귀
@@ -499,21 +557,69 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 continue;
             }
             WebSocketSession session = sessions.get(playerId);
-            if (session != null && session.isOpen()
-                    && room.getRoomId().equals(session.getAttributes().get(ROOM_ID_ATTR))) {
-                send(session, type, data);
+            // 왜 빠졌는지 반드시 남긴다 (S15P21B202-313 ④). 예전에는 조용히 continue 해서
+            // 메시지 유실이 서버 로그에 아무 흔적도 남기지 않았다 — 진단이 불가능했다.
+            if (session == null) {
+                // 유예 중인 사람은 세션이 없는 것이 **정상**이다(끊겼지만 자리는 유지). 그때는 조용히
+                // 넘어가고, 끊김 표시도 없는데 세션이 없으면 그것만 경고한다 — 그것이 이상한 경우다.
+                if (room.isDisconnected(playerId)) {
+                    log.debug("broadcast skip: type={} user={} room={} 이유=유예중(세션없음)",
+                            type, playerId, room.getRoomId());
+                } else {
+                    log.warn("broadcast skip: type={} user={} room={} 이유=세션없음(끊김 표시도 없다)",
+                            type, playerId, room.getRoomId());
+                }
+                continue;
             }
+            if (!session.isOpen()) {
+                log.warn("broadcast skip: type={} user={} room={} 이유=세션닫힘", type, playerId, room.getRoomId());
+                continue;
+            }
+            Object attr = session.getAttributes().get(ROOM_ID_ATTR);
+            if (!room.getRoomId().equals(attr)) {
+                log.warn("broadcast skip: type={} user={} room={} 이유=방불일치(attr={})",
+                        type, playerId, room.getRoomId(), attr);
+                continue;
+            }
+            send(session, type, data);
         }
     }
 
+    /**
+     * 한 세션에 한 건 보낸다.
+     *
+     * <p><b>예외를 여기서 끝낸다</b>(S15P21B202-313 ③). 예전에는 {@code IOException} 만 잡았는데,
+     * Tomcat 은 동시 쓰기·닫힌 엔드포인트에 <b>{@code IllegalStateException}</b>(unchecked)을 던진다.
+     * 그것이 {@code send} 를 뚫고 나가면 팬아웃 루프가 그 자리에서 끝나 <b>뒤 순번의 사람들이
+     * 그 메시지를 영구히 잃었다.</b> 한 명에게 못 보낸 것이 나머지 전원의 손실로 번지면 안 된다.
+     *
+     * <p>대상은 {@link #writeTarget}(감싼 세션)으로 바꾼다 — 호출부가 스프링이 준 원본 세션을
+     * 넘기더라도 실제 쓰기는 직렬화된 쪽으로 나간다.
+     */
     private void send(WebSocketSession session, WsMessage.Type type, Map<String, Object> data) {
+        WebSocketSession target = writeTarget(session);
         try {
             String payload = objectMapper.writeValueAsString(
                     Map.of("type", type.name(), "data", data));
-            session.sendMessage(new TextMessage(payload));
+            target.sendMessage(new TextMessage(payload));
         } catch (IOException e) {
-            log.warn("send failed: {}", e.getMessage());
+            log.warn("send failed: type={} sid={} : {}", type, target.getId(), e.getMessage());
+        } catch (RuntimeException e) {
+            // 여기서 멈춘다. 세션 하나의 문제가 방 전체의 손실이 되지 않게.
+            log.warn("send threw: type={} sid={} {}: {}",
+                    type, target.getId(), e.getClass().getSimpleName(), e.getMessage());
         }
+    }
+
+    /** 이 세션에 쓸 때 실제로 써야 하는 대상 — 등록돼 있으면 감싼 세션, 아니면 그대로. */
+    private WebSocketSession writeTarget(WebSocketSession session) {
+        Long userId = userId(session);
+        WebSocketSession stored = userId == null ? null : sessions.get(userId);
+        if (stored != null
+                && WebSocketSessionDecorator.unwrap(stored) == WebSocketSessionDecorator.unwrap(session)) {
+            return stored;
+        }
+        return session;
     }
 
     private Long userId(WebSocketSession session) {

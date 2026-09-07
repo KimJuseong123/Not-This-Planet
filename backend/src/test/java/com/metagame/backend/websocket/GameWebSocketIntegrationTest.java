@@ -130,6 +130,59 @@ class GameWebSocketIntegrationTest {
         assertThat(players.get(String.valueOf(guestId)).get("nickname").asString()).isEqualTo("영희");
     }
 
+    /**
+     * 소문자 방 코드로 재입장한 뒤 유예 시간을 넘겨도 자리가 유지된다 (S15P21B202-313).
+     *
+     * <p><b>이 테스트가 무엇을 보증하고 무엇을 보증하지 않는지 분명히 해 둔다.</b>
+     *
+     * <p>보증하는 것 — 방 코드를 소문자로 보내 재입장한 사람이 유예 만료 시점을 지난 뒤에도
+     * 방의 방송을 계속 받는다. {@code broadcastExcept} 는 {@code room.playerIds()} 를 돌기
+     * 때문에, 자리에서 지워졌다면 이 방송을 받을 수 없다.
+     *
+     * <p><b>보증하지 않는 것 — 원래 결함의 경쟁 조건 자체.</b> `-313` ① 은 만료 태스크가
+     * {@code isDisconnected} 를 읽은 <b>직후</b> 재입장이 끼어드는 인터리빙에서만 터진다.
+     * 실측으로 확인했다: ①② 를 둘 다 되돌리고 이 테스트를 3회 돌렸으나 모두 통과했다.
+     * 재입장이 유예 창 안에서 일어나므로 만료 태스크가 아직 시작하지 않았고, 나중에 시작할
+     * 때는 이미 {@code isDisconnected} 가 false 라 그냥 반환한다.
+     *
+     * <p>즉 <b>그 경쟁 조건에는 자동 테스트가 없다.</b> 코드 상의 논증(판정과 제거가 한
+     * 임계구역이어야 한다)과 리뷰로만 지킨다. 재현 가능한 테스트를 만들려면 만료 태스크에
+     * 시험용 훅을 넣어야 하는데, 프로덕션 코드에 시험 전용 구멍을 내는 값이 크지 않다고 봤다.
+     *
+     * <p>유예는 테스트에서 1초다({@code src/test/resources/application.yml}).
+     */
+    @Test
+    void rejoiningWithLowercaseCodeKeepsTheSeatPastGrace() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        String code = startedRoom(host, guest);
+        long guestId = guest.userId;
+
+        guest.close();
+        host.await("ROOM_STATE");                     // 끊김이 방송된다
+
+        // **소문자로** 재입장한다. RoomManager.find 는 대소문자를 무시하므로 입장 자체는 된다.
+        TestClient returning = connect("영희", "device-b");
+        returning.send("JOIN_ROOM", Map.of("roomId", code.toLowerCase()));
+        returning.await("STATE_SYNC");
+        host.await("ROOM_STATE");
+
+        // 유예(1초)를 넘겨 기다린다. 취소가 빗나갔으면 이 사이에 자리에서 지워진다.
+        Thread.sleep(1_600);
+
+        // **아직 방에 있어야 한다.** 이 단정이 결정적인 이유: broadcastExcept 는
+        // room.playerIds() 를 돌기 때문에, 유예 만료가 이 사람을 자리에서 지웠다면
+        // 이 방송을 **받을 수 없다.** 그것이 정확히 유령 상태다.
+        host.send("PLAYER_MOVE", Map.of("x", 1.5, "y", 0.0, "z", 3.25, "yaw", 90.0));
+        JsonNode moved = returning.await("PLAYER_MOVED");
+        assertThat(moved.get("userId").asLong()).isEqualTo(host.userId);
+        assertThat(moved.get("x").asDouble()).isEqualTo(1.5);
+
+        // 반대 방향도 — 이 사람이 움직이면 남이 본다(방 소속이 양쪽으로 살아 있다).
+        returning.send("PLAYER_MOVE", Map.of("x", 3.0, "y", 0.0, "z", 4.0));
+        assertThat(host.await("PLAYER_MOVED").get("userId").asLong()).isEqualTo(guestId);
+    }
+
     @Test
     void stateChangesAreBroadcastToEveryoneInRoom() throws Exception {
         TestClient host = connect("철수", "device-a");

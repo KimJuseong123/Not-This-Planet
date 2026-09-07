@@ -46,4 +46,12 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	// 테스트 JVM 의 표준출력을 넘긴다. 기본값이면 **서버 로그가 통째로 묻힌다** —
+	// 2026-09-07 에 방송 유실을 진단하려는데 서버가 남긴 WARN 이 하나도 안 보여서
+	// 원인을 찾는 데 한참 걸렸다(S15P21B202-313 ④). CI 에서 테스트를 켤 때(-302)
+	// 이것이 없으면 실패 원인을 똑같이 못 본다.
+	testLogging {
+		showStandardStreams = true
+		exceptionFormat = 'full'
+	}
 }
