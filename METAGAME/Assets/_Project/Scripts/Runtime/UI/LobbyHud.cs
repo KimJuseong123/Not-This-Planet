@@ -20,6 +20,13 @@ namespace Metagame.UI
             Settings
         }
 
+        private enum SettingsTab
+        {
+            Graphics,
+            Audio,
+            Controls
+        }
+
         private enum BindingAction
         {
             MoveForward,
@@ -67,6 +74,7 @@ namespace Metagame.UI
         private GameSettingsData editingSettings;
         private LobbyTransition transition;
         private LobbyView view = LobbyView.Main;
+        private SettingsTab settingsTab = SettingsTab.Graphics;
         private string nickname = string.Empty;
         private string deviceIdOverride;
         private string roomIdInput = string.Empty;
@@ -258,11 +266,13 @@ namespace Metagame.UI
             settings = settings != null ? settings : GameSettingsRuntime.Ensure();
             editingSettings = settings.Current != null
                 ? settings.Current.Clone() : GameSettingsData.CreateDefaults();
+            editingSettings.Normalize();
             RefreshSettingsOptions();
             settingsScroll = Vector2.zero;
             rebindingAction = null;
             error = string.Empty;
             notice = string.Empty;
+            settingsTab = SettingsTab.Graphics;
             view = LobbyView.Settings;
         }
 
@@ -292,29 +302,40 @@ namespace Metagame.UI
                 ResetSettingsPreview();
             if (GUI.Button(new Rect(x + width - 126f, y + 24f, 92f, 40f),
                     "취소", smallButtonStyle))
+            {
                 CancelSettings();
+                return;
+            }
 
-            Rect viewport = new Rect(x + 24f, y + 104f, width - 48f, height - 174f);
-            Rect content = new Rect(0f, 0f, viewport.width - 24f, 1410f);
+            DrawSettingsTabs(new Rect(x + 32f, y + 92f, width - 64f, 38f));
+
+            Rect viewport = new Rect(x + 24f, y + 142f, width - 48f, height - 212f);
+            Rect content = new Rect(0f, 0f, viewport.width - 24f,
+                settingsTab == SettingsTab.Controls ? 980f : 420f);
             settingsScroll = GUI.BeginScrollView(viewport, settingsScroll, content);
 
             float left = 22f;
             float rowWidth = content.width - 44f;
             float rowY = 16f;
 
-            DrawSettingsSection(new Rect(left, rowY, rowWidth, 30f), "그래픽");
-            rowY += 38f;
-            DrawDisplaySettings(left, ref rowY, rowWidth);
-
-            rowY += 22f;
-            DrawSettingsSection(new Rect(left, rowY, rowWidth, 30f), "오디오");
-            rowY += 38f;
-            DrawAudioSettings(left, ref rowY, rowWidth);
-
-            rowY += 22f;
-            DrawSettingsSection(new Rect(left, rowY, rowWidth, 30f), "조작");
-            rowY += 38f;
-            DrawControlSettings(left, ref rowY, rowWidth);
+            if (settingsTab == SettingsTab.Graphics)
+            {
+                DrawSettingsSection(new Rect(left, rowY, rowWidth, 30f), "그래픽");
+                rowY += 38f;
+                DrawDisplaySettings(left, ref rowY, rowWidth);
+            }
+            else if (settingsTab == SettingsTab.Audio)
+            {
+                DrawSettingsSection(new Rect(left, rowY, rowWidth, 30f), "오디오");
+                rowY += 38f;
+                DrawAudioSettings(left, ref rowY, rowWidth);
+            }
+            else
+            {
+                DrawSettingsSection(new Rect(left, rowY, rowWidth, 30f), "조작");
+                rowY += 38f;
+                DrawControlSettings(left, ref rowY, rowWidth);
+            }
 
             GUI.EndScrollView();
 
@@ -325,6 +346,33 @@ namespace Metagame.UI
             if (!string.IsNullOrEmpty(error))
                 DrawLabel(new Rect(x + 34f, y + height - 54f, width - 270f, 36f),
                     error, smallStyle, new Color(1f, 0.58f, 0.48f));
+        }
+
+        private void DrawSettingsTabs(Rect area)
+        {
+            float gap = 8f;
+            float tabWidth = (area.width - gap * 2f) / 3f;
+            DrawSettingsTab(new Rect(area.x, area.y, tabWidth, area.height),
+                SettingsTab.Graphics, "그래픽");
+            DrawSettingsTab(new Rect(area.x + tabWidth + gap, area.y, tabWidth, area.height),
+                SettingsTab.Audio, "오디오");
+            DrawSettingsTab(new Rect(area.x + (tabWidth + gap) * 2f, area.y,
+                tabWidth, area.height), SettingsTab.Controls, "조작");
+        }
+
+        private void DrawSettingsTab(Rect area, SettingsTab tab, string label)
+        {
+            bool selected = settingsTab == tab;
+            if (selected)
+                DrawBox(area, new Color(0.05f, 0.35f, 0.56f, 0.92f));
+
+            if (GUI.Button(area, label, selected ? buttonStyle : smallButtonStyle)
+                && !selected)
+            {
+                settingsTab = tab;
+                settingsScroll = Vector2.zero;
+                error = string.Empty;
+            }
         }
 
         private void DrawDisplaySettings(float x, ref float y, float width)

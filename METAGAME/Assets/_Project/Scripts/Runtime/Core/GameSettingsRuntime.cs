@@ -11,13 +11,24 @@ namespace Metagame.Core
     {
         public static GameSettingsRuntime Instance { get; private set; }
 
-        readonly GameSettingsStore store = new GameSettingsStore();
+        // Unity가 도메인 리로드 없이 오브젝트를 재사용하거나 직렬화 경계를
+        // 통과해도 저장소가 반드시 존재하도록 필요할 때 생성한다.
+        GameSettingsStore store;
         GameSettingsData defaults;
         GameSettingsData saved;
 
         public GameSettingsData Current { get; private set; }
-        public string FilePath { get { return store.FilePath; } }
+        public string FilePath { get { return Store.FilePath; } }
         public event Action<GameSettingsData> Changed;
+
+        GameSettingsStore Store
+        {
+            get
+            {
+                if (store == null) store = new GameSettingsStore();
+                return store;
+            }
+        }
 
         public static GameSettingsRuntime Ensure()
         {
@@ -49,7 +60,7 @@ namespace Metagame.Core
         {
             defaults = GameSettingsData.CreateDefaults();
             bool recovered;
-            saved = store.Load(out recovered);
+            saved = Store.Load(out recovered);
             saved.Normalize();
             Current = saved.Clone();
             Apply(Current);
@@ -77,7 +88,7 @@ namespace Metagame.Core
             }
 
             var copy = candidate.Clone();
-            if (!store.Save(copy, out error)) return false;
+            if (!Store.Save(copy, out error)) return false;
 
             saved = copy.Clone();
             Current = copy;
