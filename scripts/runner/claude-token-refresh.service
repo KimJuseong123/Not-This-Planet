@@ -1,6 +1,6 @@
-# 러너 호스트의 Claude 액세스 토큰을 주기적으로 갱신한다 (S15P21B202-304)
+# 러너 호스트의 Claude 자격을 갱신하고 **점검·알림**한다 (S15P21B202-304 · -309 · -310)
 #
-# 왜 필요한가
+# 왜 필요한가 — ① 갱신
 #   ai-review 는 러너 호스트에 로그인된 Claude CLI 자격을 잡 컨테이너에 **읽기 전용**으로
 #   마운트해 쓴다(-290). 그런데 **액세스 토큰 수명이 8시간**이고, 만료되면 CLI 가 리프레시
 #   토큰으로 새 토큰을 받아 `~/.claude/.credentials.json` 에 **쓴다.**
@@ -11,6 +11,15 @@
 #   :rw 로 되돌리면 아무 MR 잡이나 팀 자격증명을 읽고 덮어쓸 수 있게 되므로(-252 와 같은 종류)
 #   그 길은 쓰지 않는다.
 #
+# 왜 필요한가 — ② 점검·알림 (S15P21B202-310)
+#   자격이 죽어도 **아무도 모른다.** ai-review 는 allow_failure 라 파이프라인이 초록이고,
+#   MR 코멘트만 소리 없이 사라진다. 아침 점검 카드에도 ai-review 항목이 없다.
+#   2026-09-06 에 !229 가 401 로 죽었는데 잡 로그를 뒤져서야 찾았다.
+#
+#   이 유닛이 이미 20분마다 `claude -p` 를 부르고 있으므로 **그 결과를 판정하고 알리기만**
+#   하면 된다. 새 타이머를 만들지 않는다 — 갱신과 점검은 같은 호출로 동시에 된다.
+#   알림 정책·문턱은 scripts/runner/claude_auth_check.py 참고.
+#
 # 소유권 주의
 #   잡 컨테이너는 **root** 로 돈다. :rw 였을 때 컨테이너가 갱신을 쓰면 파일이 root:root 600 이
 #   되고, 그 뒤로 호스트의 ubuntu 는 자기 자격을 읽지도 못한다(2026-09-04 실제로 그랬다).
@@ -19,25 +28,39 @@
 #
 # 설치:
 #   sudo chown -R ubuntu:ubuntu /home/ubuntu/.claude     # 컨테이너가 가져간 소유권 되돌리기
+#   sudo install -d -o ubuntu -g ubuntu /opt/metagame-runner
+#   sudo install -o ubuntu -g ubuntu scripts/runner/claude_auth_check.py /opt/metagame-runner/
 #   sudo cp scripts/runner/claude-token-refresh.* /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable --now claude-token-refresh.timer
+#
+#   알림을 받으려면 웹훅 URL 을 **사람이 직접** 넣는다(값은 이슈·문서·채팅에 적지 않는다):
+#     sudo install -d -o ubuntu -g ubuntu -m 750 /etc/metagame
+#     sudo -u ubuntu sh -c 'read -rsp "MM webhook URL: " U; printf "MM_WEBHOOK_URL=%s\n" "$U" > /etc/metagame/alert.env'
+#     sudo chmod 600 /etc/metagame/alert.env
+#   URL 이 없어도 점검은 돈다 — journal 에만 남는다.
 #
 # 확인:
 #   systemctl list-timers claude-token-refresh
 #   journalctl -u claude-token-refresh -n 20
+#   sudo -u ubuntu MM_WEBHOOK_URL= python3 /opt/metagame-runner/claude_auth_check.py --dry-run
 #
 # 되돌리기:
 #   sudo systemctl disable --now claude-token-refresh.timer
 
 [Unit]
-Description=러너 호스트의 Claude 액세스 토큰 갱신 (S15P21B202-304)
-Documentation=https://ssafy.atlassian.net/browse/S15P21B202-304
+Description=러너 호스트의 Claude 자격 갱신·점검 (S15P21B202-304 · -310)
+Documentation=https://ssafy.atlassian.net/browse/S15P21B202-310
 
 [Service]
 Type=oneshot
 User=ubuntu
 WorkingDirectory=/home/ubuntu
-# 한 마디 물어보는 것만으로 CLI 가 만료된 액세스 토큰을 리프레시 토큰으로 갈아 준다.
-# 출력은 버린다 — 로그에 남길 값이 없고, 자격 관련 문자열이 섞일 여지도 주지 않는다.
-ExecStart=/bin/sh -c '/usr/local/bin/claude -p PONG > /dev/null 2>&1 && echo "토큰 갱신 OK" || echo "토큰 갱신 실패 — 러너 호스트에서 claude 재로그인이 필요할 수 있다"'
+# 웹훅 URL. `-` 라서 파일이 없어도 유닛이 돈다 — 알림만 생략된다.
+EnvironmentFile=-/etc/metagame/alert.env
+# /var/lib/metagame 을 ubuntu 소유로 만들어 준다. 연속 실패 횟수·마지막 알림 시각이 여기 있다.
+StateDirectory=metagame
+Environment=CLAUDE_AUTH_STATE=/var/lib/metagame/claude-auth.json
+# 갱신과 점검을 한 번의 claude 호출로 같이 한다. 실패하면 0 이 아닌 값으로 끝나서
+# `systemctl status` 와 journal 이 사실을 말한다 — oneshot 이 실패해도 타이머는 계속 돈다.
+ExecStart=/usr/bin/python3 /opt/metagame-runner/claude_auth_check.py
 TimeoutStartSec=180

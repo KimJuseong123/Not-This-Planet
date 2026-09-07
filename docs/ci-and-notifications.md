@@ -121,7 +121,8 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
   > 토큰이 아직 유효한 동안의 성공은 "갱신이 된다" 를 증명하지 않는다.
 
   **그래서 갱신을 호스트가 한다.** `claude-token-refresh.timer` 가 **20분마다** 호스트에서
-  `claude -p PONG` 을 돌려 토큰을 살려 둔다(`scripts/runner/claude-token-refresh.{service,timer}`).
+  `claude -p` 를 돌려 토큰을 살려 두고, **같은 호출로 자격이 살아 있는지 점검해 알린다**
+  (`scripts/runner/claude-token-refresh.{service,timer}` · `scripts/runner/claude_auth_check.py`).
 
   > **왜 20분인가**(`-309`). 처음 3시간으로 뒀는데 `!229` 의 `ai-review` 가 08:34 UTC 에 401 로
   > 죽고 08:48 틱 뒤에야 살아났다. 원인은 **CLI 가 만료된 뒤에만 갱신한다**는 것이다 —
@@ -137,10 +138,30 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
   (`claude -p` → `Not logged in`). 그래서 `:rw` 로 되돌리는 것은 답이 아니다. 소유권이 넘어갔으면
   `sudo chown -R ubuntu:ubuntu /home/ubuntu/.claude` 로 회수한다.
 
-  **리프레시 토큰은 2026-09-29 에 만료된다.** 그때는 사람이 러너 호스트에서 재로그인해야 한다.
-  타이머가 죽으면 8시간 뒤 조용히 다시 실패하는데, `ai-review` 가 비차단이라 **파이프라인은 초록이고
-  MR 코멘트만 사라진다** — 알아채기 어렵다. 근본적으로는 `ANTHROPIC_API_KEY` 백엔드로 바꾸면
-  마운트·갱신·소유권 문제가 모두 사라진다(비용은 든다).
+  **자격이 죽으면 알림이 온다**(`-310`). 예전에는 알아챌 방법이 없었다 — `ai-review` 가
+  비차단이라 **파이프라인은 초록이고 MR 코멘트만 사라졌다.** 09-06 에 `!229` 가 401 로 죽은 것을
+  잡 로그를 뒤져서야 찾았다. 이제 매 회차가 결과를 판정하고 원인별 문턱을 넘으면 MM 으로 보낸다.
+
+  | 원인 | 알림 문턱 | 왜 |
+  | --- | --- | --- |
+  | `authentication` | 연속 **2회**(약 40분) | 사람이 재로그인해야 한다. 저절로 낫지 않는다 |
+  | `invalid_request` | 연속 2회 | 옵션·모델명 문제. 역시 사람 일 |
+  | `network`·`server_error` | 연속 3회(약 1시간) | 대개 저절로 낫는다 |
+  | `rate_limit` | 연속 6회(약 2시간) | 구독 한도는 정상 동작의 일부다 |
+  | 복구 | 즉시 1회 | "이제 괜찮다" 를 알아야 다음 실패가 신호가 된다 |
+  | 계속 실패 | 6시간마다 1회 | 도배 방지 |
+
+  실패 분류는 `ai_review.classify_claude_failure` 와 **같은 규칙**이다. 호스트 스크립트는
+  `/opt` 에서 도는 독립 파일이라 `scripts/ci` 를 임포트할 수 없어 규칙이 두 벌인데,
+  `test_claude_auth_check.py` 가 같은 입력으로 두 판정을 비교해 **한쪽만 고치면 실패**한다.
+
+  **리프레시 토큰은 2026-09-30 에 만료된다**(`.credentials.json` 의 `refreshTokenExpiresAt` 실측).
+  그때는 사람이 러너 호스트에서 재로그인해야 하고, 그 전까지는 **3일 전부터 하루 한 번** 경고가
+  온다 — 터진 뒤에 아는 것과 미리 아는 것은 다르다. 근본적으로는 `ANTHROPIC_API_KEY` 백엔드로
+  바꾸면 마운트·갱신·소유권 문제가 모두 사라진다(비용은 든다).
+
+  **웹훅 URL 은 EC2 의 `/etc/metagame/alert.env`(600, ubuntu 소유)에 사람이 직접 넣는다.**
+  없어도 점검은 돈다 — journal 에만 남고 알림이 생략된다. 값은 이슈·문서·채팅에 적지 않는다.
 
   **`cpu_shares = 256`**(2026-09-04, `-291`). EC2 한 대가 CI·백엔드·Mirror 게임 서버를 전부 돌리는데
   러너에 자원 제한이 없었다. `unity-compile` 이 4 vCPU 를 7분 30초 동안 전부 쓴다(`-271` 콜드 실측).
