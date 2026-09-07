@@ -147,6 +147,11 @@ def save_state(state: dict) -> None:
 
 
 # ── 알림 ─────────────────────────────────────────────────────────────────────
+# **여기서 만드는 글은 Mattermost 로 간다. MM 은 HTML 을 렌더링하지 않는다.**
+# `<sub>...</sub>` 는 GitLab MR 코멘트에서만 작은 글씨가 되고 MM 에서는 태그가 글자 그대로
+# 보인다(2026-09-07 실측 — 배송 시험 글에 `<sub>` 가 그대로 찍혔다). scripts/ci 의 코멘트용
+# 관례를 그대로 가져오면 안 된다. 꼬리는 `_기울임_` 으로 쓴다 — mm_digest 도 그렇게 한다.
+# 밑줄이 들어간 낱말(`claude_auth_check.py`)은 기울임을 깨뜨리므로 꼬리에 넣지 않는다.
 def alert_channel() -> tuple[bool, str]:
     """(보낼 수 있나, 사람이 읽을 설명).
 
@@ -219,7 +224,7 @@ def check_refresh_expiry(state: dict, now: float, dry_run: bool) -> None:
         tail = "만료되면 자동 갱신이 불가능해지고 `ai-review` 가 멈춥니다."
     notify(f"{head} (만료 {when})\n\n{tail}\n"
            f"러너 호스트에서 재로그인해 주세요 → @{MENTION}\n"
-           f"<sub>S15P21B202-310 · claude-auth-check</sub>", dry_run)
+           f"_S15P21B202-310 · claude-auth-check_", dry_run)
 
 
 # ── 배송 시험 ────────────────────────────────────────────────────────────────
@@ -249,7 +254,7 @@ def test_alert(dry_run: bool) -> int:
             f"20분마다 Claude 자격을 점검하고, 죽으면 여기로 알립니다(`S15P21B202-310`).\n\n"
             f"진짜 장애는 이런 모양으로 옵니다 — 앞에 {TEST_MARK} 가 **붙지 않습니다**:\n\n"
             f"{quoted}\n\n"
-            f"<sub>`claude_auth_check.py --test-alert` · 상태 파일은 건드리지 않았습니다</sub>")
+            f"_claude-auth-check --test-alert · 상태 파일은 건드리지 않았습니다_")
     ok = notify(text, dry_run)
     if dry_run:
         print("(--dry-run 이라 실제로 보내지 않았다)")
@@ -272,7 +277,7 @@ def decide(state: dict, ok: bool, category: str | None, now: float) -> tuple[dic
             # 알렸던 장애가 끝났다. "이제 괜찮다" 를 말해야 다음 실패가 신호가 된다.
             return new, (f"🟢 **Claude 자격 복구됨** — `ai-review` 가 다시 동작합니다\n"
                          f"(연속 실패 {fails}회 뒤 복구)\n"
-                         f"<sub>S15P21B202-310 · claude-auth-check</sub>")
+                         f"_S15P21B202-310 · claude-auth-check_")
         return new, None
 
     cat = category or "unknown"
@@ -292,7 +297,7 @@ def decide(state: dict, ok: bool, category: str | None, now: float) -> tuple[dic
                  f"연속 실패 **{fails}회** (20분 주기). {HINT.get(cat, '')}\n"
                  f"이 동안 `ai-review` 는 **조용히 건너뜁니다** — 파이프라인은 초록이지만 "
                  f"MR 리뷰 코멘트가 달리지 않습니다. → @{MENTION}\n"
-                 f"<sub>S15P21B202-310 · claude-auth-check</sub>")
+                 f"_S15P21B202-310 · claude-auth-check_")
 
 
 def main(argv: list[str] | None = None) -> int:

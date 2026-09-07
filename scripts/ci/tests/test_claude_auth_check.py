@@ -266,4 +266,37 @@ print("  웹훅 없으면 시험이 실패로 끝남 ✅")
 A.notify = REAL_NOTIFY
 os.environ.pop("MM_WEBHOOK_URL", None)
 
+# ── ⑧ MM 으로 나가는 글에 HTML 이 섞이면 안 된다 (2026-09-07)
+#    MM 은 HTML 을 렌더링하지 않아 `<sub>` 가 글자 그대로 보인다. scripts/ci 의 GitLab
+#    코멘트 관례(<sub>작은 글씨</sub>)를 그대로 가져와서 실제로 그렇게 나갔다.
+sent.clear()
+A.notify = lambda text, dry_run=False: (sent.append(text), True)[1]   # noqa: E731
+os.environ["MM_WEBHOOK_URL"] = "https://mm.example/hooks/abc"
+
+bodies = []
+# 장애 · 복구 · 만료 경고 · 배송 시험 — MM 으로 나가는 글 전부
+_, m = run({"fails": 1, "category": "authentication"}, False, "authentication", T0)
+bodies.append(m)
+_, m = run({"fails": 3, "category": "network", "alerted_at": T0 - 10 * 3600}, True, None, T0)
+bodies.append(m)
+with tempfile.TemporaryDirectory() as tmp:
+    A.CREDS_PATH = creds(1, tmp)
+    A.check_refresh_expiry({}, T0, True)
+    bodies.extend(sent)
+    sent.clear()
+    A.STATE_PATH = os.path.join(tmp, "s.json")
+    A.test_alert(dry_run=False)
+    bodies.extend(sent)
+
+import re as _re                                                      # noqa: E402
+for b in bodies:
+    assert b, "본문이 비었다"
+    tags = _re.findall(r"</?[a-zA-Z][a-zA-Z0-9]*\s*/?>", b)
+    assert not tags, f"MM 으로 가는 글에 HTML 태그: {tags} in {b[:120]!r}"
+assert len(bodies) >= 4, bodies
+print(f"  MM 본문 {len(bodies)}개에 HTML 태그 없음 ✅")
+
+A.notify = REAL_NOTIFY
+os.environ.pop("MM_WEBHOOK_URL", None)
+
 print("TEST310 OK")
