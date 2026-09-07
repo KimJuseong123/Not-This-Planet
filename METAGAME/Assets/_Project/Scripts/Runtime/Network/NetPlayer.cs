@@ -39,9 +39,16 @@ namespace Metagame.Network
         /// <summary>
         /// 지금 운반 장치를 타고 있는가. 서버가 정하고 모두에게 전달된다(-149).
         /// 클라이언트의 화면에는 조작 결과가 자세로만 오므로, "저 사람이 탔다" 는
-        /// 사실 자체는 따로 알려 줘야 HUD 가 옳게 그린다.
+        /// 사실 자체를 따로 알려 줘야 한다.
+        ///
+        /// <b>지금 이 값을 읽는 곳은 <see cref="OnRidingChanged"/> 하나다</b>
+        /// (S15P21B202-305). 남의 화면에 있는 몸을 감추는 데 쓴다 — 그러지 않으면
+        /// 조종석에 묻힌 몸에서 귀만 기체 밖으로 튀어나온다.
+        ///
+        /// 원래 주석은 "HUD 가 옳게 그린다" 였는데 <b>HUD 는 이 값을 읽지 않는다.</b>
+        /// 그 용도는 아직 구현되지 않았고 후속 이슈로 남아 있다.
         /// </summary>
-        [SyncVar]
+        [SyncVar(hook = nameof(OnRidingChanged))]
         public bool riding;
 
         // 이동 판정을 복제하지 않고, 표시용 걷기/달리기 상태만 함께 전달한다.
@@ -172,6 +179,7 @@ namespace Metagame.Network
 
                 AttachTransport();
                 transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
+                ApplyRiding(riding);
                 Debug.Log($"[NetPlayer] 방장의 몸을 넘겨받았다 · {nickname}(userId={userId})");
                 return true;
             }
@@ -188,6 +196,7 @@ namespace Metagame.Network
 
             AttachTransport();
             transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
+            ApplyRiding(riding);
             return true;
         }
 
@@ -479,6 +488,10 @@ namespace Metagame.Network
             // 순간이동으로 받아들여 몸이 튄다.
             remoteAvatar = RemoteAvatar.Attach(body, transform);
 
+            // 이미 타고 있는 사람이라면 지금 바로 감춘다. 훅은 값이 <b>바뀔 때만</b>
+            // 돌므로, 탄 채로 접속한 사람에게는 오지 않는다(S15P21B202-305).
+            ApplyRiding(riding);
+
             Debug.Log($"[NetPlayer] 다른 플레이어가 보인다 · {nickname}(userId={userId})");
         }
 
@@ -486,6 +499,35 @@ namespace Metagame.Network
         {
             if (body == null) return;
             body.Nickname = string.IsNullOrEmpty(newNickname) ? "비행사" : newNickname;
+        }
+
+        /// <summary>
+        /// 탑승 여부가 바뀌면 <b>남의 화면에 있는 몸</b>을 감추거나 되돌린다
+        /// (S15P21B202-305).
+        ///
+        /// <b><see cref="riding"/> 은 값을 쓰기만 하고 아무도 읽지 않았다.</b> 서버가
+        /// 매 물리 스텝 채워 모든 클라이언트에 보내고 있었는데, 받는 쪽에서 쓰는 곳이
+        /// 없어 남의 몸이 계속 그려졌다 — 조종석에 묻힌 몸통과 달리 <b>귀가 기체 밖으로
+        /// 튀어나왔다.</b>
+        ///
+        /// <b>필드가 아니라 인수를 쓴다.</b> 훅이 도는 시점에 필드가 이미 갱신되었는지는
+        /// Mirror 버전에 달려 있고, 인수는 어느 버전에서나 새 값이다.
+        /// </summary>
+        void OnRidingChanged(bool _, bool nowRiding) => ApplyRiding(nowRiding);
+
+        /// <summary>
+        /// 탑승 여부를 몸에 적용한다.
+        ///
+        /// <b>몸이 아직 없을 때 훅이 먼저 올 수 있다.</b> 스폰 메시지가 몸을 세우기 전에
+        /// 도착하는 경우가 있어(<c>Update</c> 의 주석이 같은 상황을 적어 두었다), 몸을
+        /// 만드는 자리에서도 한 번 더 부른다. 그러지 않으면 <b>탄 채로 접속한 사람이
+        /// 계속 보인다.</b>
+        /// </summary>
+        void ApplyRiding(bool nowRiding)
+        {
+            if (body == null) return;
+
+            body.SetRemoteRiding(nowRiding);
         }
 
         public override void OnStopClient() => RemoveBody();
