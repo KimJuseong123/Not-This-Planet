@@ -86,7 +86,13 @@ assert d.landed_on_develop(d.GitLab(), "S15P21B202-99-experiment") is False  # �
 assert d.landed_on_develop(d.GitLab(), "develop") is True
 
 # ── ④ 분류 결과
-rows, stacks, complete = d.merged_not_done(d.GitLab(), ci_common.Jira())
+# 픽스처(08-31)가 7일 창 안에 들게 시각을 고정한다 (-281 과 같은 종류의 고장을 막는다).
+# 이것이 없어서 2026-09-07 에 **저절로** 실패했다 — 코드가 안 바뀌었는데 08-31 이 창 밖으로
+# 밀려났을 뿐이다. `merged_not_done` 은 그 목적으로 now 를 받는다(-281).
+from datetime import datetime, timezone  # noqa: E402
+NOW = datetime(2026, 9, 1, tzinfo=timezone.utc)
+
+rows, stacks, complete = d.merged_not_done(d.GitLab(), ci_common.Jira(), now=NOW)
 assert complete is True, complete
 assert len(rows) == 1 and "S15P21B202-70" in rows[0] and "!70" in rows[0], rows
 assert not any("S15P21B202-82" in r for r in rows), rows        # 자식이 첫 표에 섞이지 않는다
@@ -100,7 +106,7 @@ assert not any("⁇" in s for s in stacks), "조회가 성공했으면 물음표
 
 # ── ⑤ 부모 조회 실패 → 숨기지 않고 물음표로 남긴다
 fail_refs = True
-rows2, stacks2, _ = d.merged_not_done(d.GitLab(), ci_common.Jira())
+rows2, stacks2, _ = d.merged_not_done(d.GitLab(), ci_common.Jira(), now=NOW)
 assert len(rows2) == 1, rows2
 assert len(stacks2) == 3 and all("⁇" in s for s in stacks2), stacks2
 
