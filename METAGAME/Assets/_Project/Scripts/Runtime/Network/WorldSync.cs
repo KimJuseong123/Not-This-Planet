@@ -48,6 +48,10 @@ namespace Metagame.Network
         float sendTimer;
         bool ready;
         bool warnedMismatch;
+        /// <summary>고정쇠별로 굳혀 둔 줄 세우기 키 — <see cref="KeyOf"/> 참고.</summary>
+        readonly Dictionary<PartClamp, string> clampKeys = new Dictionary<PartClamp, string>();
+        float notReadySeconds;
+        bool warnedNotReady;
         bool warnedClampMismatch;
 
         /// <summary>클라이언트로서 챙길 것이 남았는가. 스폰이 등록된 뒤에만 참이 된다.</summary>
@@ -57,6 +61,10 @@ namespace Metagame.Network
         {
             Collect();
             ready = true;
+
+            // 견인 장치는 **나중에** 생긴다(사람이 Part_1 을 해제하면 AddComponent). 한 번만
+            // 수집하면 그것은 끝까지 추적 밖에 남아 혼자만 움직인다(S15P21B202-315).
+            TransportVehicle.AnyActivated += OnVehicleActivated;
 
             // 용접은 서버에서만 판정된다. 그 사건을 받아 모두에게 중계한다.
             WorldEvents.WeldGrown += RpcWeldGrown;
@@ -76,6 +84,9 @@ namespace Metagame.Network
             // (2026-09-03 실측 — 참가자만 오브젝트가 동기화되지 않았다).
             // Update 가 씬이 올라올 때까지 기다렸다 챙긴다.
             needsClientPrepare = true;
+
+            // 서버와 같은 이유로 클라이언트도 견인 장치가 생기면 다시 센다(S15P21B202-315).
+            TransportVehicle.AnyActivated += OnVehicleActivated;
         }
 
         /// <summary>
@@ -84,7 +95,9 @@ namespace Metagame.Network
         bool PrepareClient()
         {
             // 씬이 올라왔는지는 "옮길 것이 있는가" 로 판단한다(WorldSyncSpawner 와 같은 기준).
-            if (FindAnyObjectByType<TransportVehicle>() == null) return false;
+            // **SpaceshipPart 로 본다**(S15P21B202-315) — TransportVehicle 은 씬에 없는 것이
+            // 정상이라 그것을 기다리면 영영 준비되지 않는다. 자세한 사정은 WorldSyncInstaller.
+            if (FindAnyObjectByType<SpaceshipPart>() == null) return false;
 
             Collect();
             if (tracked.Count == 0) return false;
@@ -137,16 +150,33 @@ namespace Metagame.Network
                                                                FindObjectsSortMode.None))
                 if (clamp != null) clamps.Add(clamp);
 
-            clamps.Sort(CompareByPath);
+            clamps.Sort(CompareClamps);
         }
 
-        static int CompareByPath(Component a, Component b)
+        /// <summary>
+        /// 고정쇠의 줄 세우기 키. <b>처음 본 순간의 것을 굳혀 두고 그 뒤로는 바꾸지 않는다</b>
+        /// (S15P21B202-315).
+        ///
+        /// <para>고정쇠는 해제되면 부모에서 떨어져 나온다 —
+        /// <c>PartClamp.Release()</c> 의 <c>transform.SetParent(null, true)</c>.
+        /// 그러면 계층 경로가 <c>".../Part_1/Clamp_x"</c> 에서 <c>"Clamp_x"</c> 로 바뀌고
+        /// 형제 순번도 달라진다. 서버와 클라이언트가 <b>서로 다른 해제 상태에서</b> 줄을
+        /// 세우면 개수는 16 대 16 으로 같은데 <b>순서만 어긋나</b> 남의 고정쇠에 진행도가
+        /// 들어간다. 개수 검사로는 절대 못 잡는다.</para>
+        ///
+        /// <para>2026-09-03 에 자세 목록에서 같은 종류의 사고가 있었는데(그때는 '지금 위치'로
+        /// 동점을 갈랐다) 고정쇠 쪽에는 같은 처리가 없었다. 다시 세는 일이 생기면서
+        /// 실제로 드러날 수 있는 자리가 됐다.</para>
+        /// </summary>
+        string KeyOf(PartClamp clamp)
         {
-            int byPath = string.CompareOrdinal(PathOf(a.transform), PathOf(b.transform));
-            return byPath != 0
-                ? byPath
-                : a.transform.GetSiblingIndex().CompareTo(b.transform.GetSiblingIndex());
+            if (clampKeys.TryGetValue(clamp, out var key)) return key;
+            key = PathOf(clamp.transform) + "#" + clamp.transform.GetSiblingIndex();
+            clampKeys[clamp] = key;
+            return key;
         }
+
+        int CompareClamps(PartClamp a, PartClamp b) => string.CompareOrdinal(KeyOf(a), KeyOf(b));
 
         void Add(Rigidbody body)
         {
@@ -203,6 +233,7 @@ namespace Metagame.Network
         public override void OnStopClient()
         {
             if (!isServer) WorldEvents.RemoteDecides = false;
+            if (!isServer) TransportVehicle.AnyActivated -= OnVehicleActivated;
         }
 
         public override void OnStopServer()
@@ -210,6 +241,42 @@ namespace Metagame.Network
             // 남겨 두면 다음 매치에서 이미 사라진 오브젝트를 향해 사건이 날아간다.
             WorldEvents.WeldGrown -= RpcWeldGrown;
             WorldEvents.WeldShrunk -= RpcWeldShrunk;
+            TransportVehicle.AnyActivated -= OnVehicleActivated;
+        }
+
+        /// <summary>
+        /// 견인 장치가 활성화됐다 — 추적 목록을 다시 세운다 (S15P21B202-315).
+        ///
+        /// <para>양쪽이 각자 자기 시점에 다시 세우므로 잠깐 개수가 어긋날 수 있다. 그 사이
+        /// <see cref="RpcApply"/> 가 개수 불일치를 보고 <b>손대지 않고 넘긴다</b> — 억지로 맞추면
+        /// 엉뚱한 물체가 엉뚱한 자리로 간다. 몇 프레임 뒤 양쪽이 같아지면 저절로 이어진다.</para>
+        ///
+        /// <para>순서는 계층 경로와 형제 순번으로만 가르므로(<see cref="Compare"/>) 다시 세워도
+        /// 양쪽이 같은 줄을 얻는다.</para>
+        /// </summary>
+        void OnVehicleActivated(TransportVehicle vehicle)
+        {
+            if (!ready) return;                 // 아직 처음 수집도 안 됐다 — 그때 같이 잡힌다
+
+            int before = tracked.Count;
+            Collect();
+            if (tracked.Count == before) return;
+
+            if (isServer)
+            {
+                Debug.Log($"[WorldSync] 견인 장치가 생겨 다시 세었다 · {before} → {tracked.Count} · {Order()}");
+                return;
+            }
+
+            // 클라이언트는 따라가기만 하므로 새로 들어온 것도 서버 자세를 받게 만든다.
+            foreach (var body in tracked)
+                if (body != null) body.isKinematic = true;
+
+            targets = new Pose[tracked.Count];
+            for (int i = 0; i < tracked.Count; i++)
+                targets[i] = Read(tracked[i]);
+            warnedMismatch = false;             // 개수가 바뀌었으니 다시 알릴 수 있게 한다
+            Debug.Log($"[WorldSync] 견인 장치가 생겨 다시 세었다(클라) · {before} → {tracked.Count} · {Order()}");
         }
 
         void Update()
@@ -219,7 +286,22 @@ namespace Metagame.Network
                 // 여기서 isServer 를 보면 안 된다 — 스폰 등록 전에는 netIdentity 가 없어
                 // 그 자리에서 NullReference 가 난다(실측). OnStartClient 가 세운 표시만 본다.
                 if (!needsClientPrepare) return;
-                if (!PrepareClient()) return;
+                if (!PrepareClient())
+                {
+                    // 준비되지 않는 동안 서버가 보내는 것을 **전부 버린다**(RpcApply·
+                    // RpcApplyClamps 의 !ready 조기 반환). 그런데 그 조기 반환이 개수 검사보다
+                    // 위에 있어 경고가 한 줄도 안 찍힌다 — 2026-09-07 에 그래서 원인을 찾는 데
+                    // 한참 걸렸다. 오래 이어지면 여기서 한 번 알린다 (S15P21B202-315).
+                    notReadySeconds += Time.deltaTime;
+                    if (notReadySeconds > 15f && !warnedNotReady)
+                    {
+                        warnedNotReady = true;
+                        Debug.LogWarning("[WorldSync] 15초째 준비되지 않았다 — 게임 씬에 "
+                                         + "SpaceshipPart 가 있는지 확인할 것. 이 동안 서버가 "
+                                         + "보내는 자세·고정쇠를 전부 버린다.");
+                    }
+                    return;
+                }
             }
 
             if (isServer) SendFromServer();

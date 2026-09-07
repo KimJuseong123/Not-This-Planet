@@ -30,7 +30,7 @@ namespace Metagame.Network
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Install()
         {
-            NetworkClient.RegisterSpawnHandler(AssetId, SpawnOnClient, UnSpawnOnClient);
+            RegisterHandler();
 
             // 감시자를 우리 오브젝트에 둔다. 예전에는 NetworkManager.singleton 에 붙였는데,
             // 그 값이 이 시점에 없으면 감시자가 아예 만들어지지 않고 월드 동기화가 통째로
@@ -40,6 +40,22 @@ namespace Metagame.Network
             Object.DontDestroyOnLoad(watcher);
             watcher.AddComponent<WorldSyncSpawner>();
             Debug.Log("[WorldSync] 감시자 설치 완료");
+        }
+
+        /// <summary>
+        /// 스폰 핸들러를 등록한다. <b>매 접속마다 다시 불러야 한다</b>(S15P21B202-315).
+        ///
+        /// <para><c>NetworkClient.Shutdown()</c> 이 <c>ClearSpawners()</c> 를 부르기 때문에
+        /// 접속이 끊기면 이 등록이 사라진다. 그런데 <see cref="Install"/> 은
+        /// <c>RuntimeInitializeOnLoadMethod</c> 라 <b>프로세스당 한 번</b>만 돈다 — 그래서
+        /// 두 번째 매치나 재접속에서는 핸들러가 없고, 서버가 띄운 WorldSync 가 클라이언트에
+        /// 만들어지지 않는다. 게임을 껐다 켜야만 고쳐지는 종류의 고장이다.</para>
+        ///
+        /// <para>같은 번호로 다시 등록하는 것은 무해하다 — Mirror 가 덮어쓴다.</para>
+        /// </summary>
+        internal static void RegisterHandler()
+        {
+            NetworkClient.RegisterSpawnHandler(AssetId, SpawnOnClient, UnSpawnOnClient);
         }
 
         /// <summary>서버가 이것을 띄웠을 때 클라이언트가 만드는 것.</summary>
@@ -100,14 +116,36 @@ namespace Metagame.Network
 
         float waited;
         bool warned;
+        bool clientWasActive;
 
         void Update()
         {
+            // 접속할 때마다 스폰 핸들러를 다시 등록한다 — 끊길 때 지워지기 때문이다.
+            // 자세한 사정은 WorldSyncInstaller.RegisterHandler (S15P21B202-315).
+            bool clientActive = NetworkClient.active;
+            if (clientActive && !clientWasActive) WorldSyncInstaller.RegisterHandler();
+            clientWasActive = clientActive;
+
             if (spawned || !NetworkServer.active) return;
 
             // 게임 씬이 올라왔는지는 "옮길 것이 있는가" 로 판단한다. 씬 이름을 박아 두면
             // 스테이지가 늘 때마다 여기를 고쳐야 한다.
-            if (FindAnyObjectByType<Metagame.Gameplay.Parts.TransportVehicle>() == null)
+            //
+            // **찾는 대상이 SpaceshipPart 여야 한다**(S15P21B202-315). 예전에는
+            // TransportVehicle 을 찾았는데 그것은 **씬에 없는 것이 정상**이다 — 견인 장치는
+            // 사람이 Part_1 을 해제한 뒤 런타임에 AddComponent 로 생긴다
+            // (PartTractorActivator·TractorBeamController). 저장소의 QA 검사도 그것을 못박는다:
+            // Stage1QaAudit 의 "씬 시작 시 별도 TransportVehicle 없음".
+            //
+            // 그래서 이 문지기는 **영영 열리지 않았다.** WorldSync 가 한 번도 스폰되지 않아
+            // 월드 동기화가 통째로 빠진 채 게임이 돌았고, 두 사람이 각자 물리를 굴려
+            // 물체가 서로 다르게 보였다(2026-09-07 실측: 방장 로그에 "20초째 옮길 것을
+            // 찾지 못했다" 만 남고 그 뒤 아무 일도 없었다).
+            //
+            // SpaceshipPart 는 씬에 실제로 있고(Main.unity 4기) Collect 가 주로 추적하는
+            // 대상이기도 하다. 혼자 테스트하면 이 결함이 보이지 않는다 — 호스트는 자기
+            // 물리가 곧 정답이라 화면이 멀쩡하다.
+            if (FindAnyObjectByType<Metagame.Gameplay.Parts.SpaceshipPart>() == null)
             {
                 // 영영 못 찾으면 월드 동기화가 조용히 빠진 채로 게임이 돌아간다.
                 // 오브젝트가 서로 다르게 보이는데 로그에는 아무 단서가 없어 찾기 어렵다.
@@ -115,8 +153,8 @@ namespace Metagame.Network
                 if (waited > 20f && !warned)
                 {
                     warned = true;
-                    Debug.LogWarning("[WorldSync] 20초째 옮길 것을 찾지 못했다 — "
-                                     + "월드 동기화가 시작되지 않는다.");
+                    Debug.LogWarning("[WorldSync] 20초째 SpaceshipPart 를 찾지 못했다 — "
+                                     + "월드 동기화가 시작되지 않는다. 게임 씬이 맞는지 확인할 것.");
                 }
                 return;
             }
