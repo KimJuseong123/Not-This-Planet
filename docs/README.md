@@ -66,4 +66,4 @@ git lfs install --skip-repo           # --skip-repo 필수: 우리 훅을 덮어
 - 버전 번호·개수(예: "시나리오 25종")는 문서 안에 두고 이 색인에는 적지 않습니다 — 색인이 먼저 낡습니다.
 - 규칙은 **한 곳에만** 적습니다. 같은 값을 두 문서가 적으면 한쪽이 반드시 낡습니다 — 실제로 [parts.md](./parts.md) 가 9종으로 남아 있는 동안 Jira·CI 는 13종을 쓰고 있었습니다.
 - [conventions.md](./conventions.md) 는 **요약**입니다. 값이 링크된 상세 문서와 어긋나면 상세 문서가 맞고, 요약을 고칩니다.
-- [workflow.md](./workflow.md) 와 [e2e-checklist.md](./e2e-checklist.md) 는 **팀 외부 공유·제출용**입니다. 내용을 바꿀 때는 공유본(`Desktop/METAGAME-share/`)도 함께 갱신합니다 — 그 폴더의 HTML·PDF 는 md 로부터 만든 생성물이라 리포에 넣지 않습니다.
+- [workflow.md](./workflow.md) 와 [e2e-checklist.md](./e2e-checklist.md) 는 **팀 외부 공유·제출용**입니다. 내용을 바꿀 때는 공유본(`Desktop/METAGAME-share/`)도 함께 갱신합니다 — 그 폴더의 HTML·PDF 는 md 로부터 만든 생성물이라 리포에 넣지 않고, 만드는 법만 둡니다: `python scripts/docs/render_share.py docs/workflow.md docs/e2e-checklist.md --out <공유 폴더>` (`pip install --user markdown` 필요, PDF 는 Edge 헤드리스).
