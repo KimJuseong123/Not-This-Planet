@@ -104,7 +104,8 @@ namespace Metagame.Gameplay
 
             Vector3 start = perimeter - direction * (halfExtents.x + settings.spawnMargin);
             Vector3 center = start + direction * (float)elapsed * settings.speed;
-            center.y = mapBounds.center.y;
+            center.y = DustStormBounds.SampleGroundHeight(center, mapBounds)
+                       + halfExtents.y + settings.groundClearance;
             return new StormPose(true, center, direction, halfExtents, cycle);
         }
 

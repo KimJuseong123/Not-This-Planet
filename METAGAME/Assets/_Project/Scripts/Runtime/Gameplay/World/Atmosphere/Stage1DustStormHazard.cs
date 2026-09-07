@@ -108,7 +108,10 @@ namespace Metagame.Gameplay
                 settings.affectedLayers,
                 QueryTriggerInteraction.Ignore);
 
-            Vector3 force = pose.Direction * settings.windForce;
+            Vector3 playerForce = pose.Direction
+                                * (settings.windForce * settings.playerWindForceMultiplier);
+            Vector3 objectForce = pose.Direction
+                                * (settings.windForce * settings.objectWindForceMultiplier);
             for (int i = 0; i < count; i++)
             {
                 var collider = overlapBuffer[i];
@@ -124,14 +127,16 @@ namespace Metagame.Gameplay
                     if (!affectedPlayers.Add(player) || player.Doll == null || player.Doll.Hips == null)
                         continue;
                     if (player.Doll.TotalMass <= settings.maximumAffectedMass
-                        && !player.Doll.Hips.isKinematic)
-                        player.Doll.Hips.AddForce(force, ForceMode.Force);
+                        && !player.Doll.Hips.isKinematic
+                        && playerForce.sqrMagnitude > 0.000001f)
+                        player.Doll.Hips.AddForce(playerForce, ForceMode.Force);
                     continue;
                 }
 
                 if (!affectedBodies.Add(body) || body.mass > settings.maximumAffectedMass)
                     continue;
-                body.AddForce(force, ForceMode.Force);
+                if (objectForce.sqrMagnitude > 0.000001f)
+                    body.AddForce(objectForce, ForceMode.Force);
             }
         }
 

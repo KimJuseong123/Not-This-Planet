@@ -166,14 +166,23 @@ namespace Metagame.Gameplay
             [Min(0f)] public float spawnMargin = 6f;
             public int seed = 20260903;
 
+            [Header("Grounding")]
+            [Min(0f)] public float groundClearance = 0.08f;
+
             [Header("Test visualization")]
-            public bool showDebugBoundary = true;
+            public bool showDebugBoundary;
             public Color debugBoundaryColor = Color.red;
             [Min(0.001f)] public float debugBoundaryWidth = 0.04f;
             [Min(10f)] public float debugSkyMarkerHeight = 80f;
 
             [Header("Gameplay")]
+            [Tooltip("폭풍이 적용하는 기준 힘의 크기입니다. 단위는 Newton이며 FixedUpdate마다 지속 적용됩니다.")]
             [Min(0f)] public float windForce = 6f;
+            [Tooltip("플레이어 골반에 적용할 기준 힘의 배율입니다. 낮출수록 플레이어는 덜 밀립니다.")]
+            [Min(0f)] public float playerWindForceMultiplier = 0.45f;
+            [Tooltip("일반 Rigidbody에 적용할 기준 힘의 배율입니다. 플레이어보다 크게 설정하면 가벼운 물체가 더 잘 밀립니다.")]
+            [Min(0f)] public float objectWindForceMultiplier = 1.25f;
+            [Tooltip("이 질량을 초과하는 플레이어 또는 일반 Rigidbody에는 폭풍 힘을 적용하지 않습니다.")]
             [Min(0f)] public float maximumAffectedMass = 40f;
             [Min(0)] public int maxPhysicalFragments = 3;
             [Min(0f)] public float fragmentDamage = 5f;
@@ -277,9 +286,12 @@ namespace Metagame.Gameplay
                 Mathf.Max(0.1f, Mathf.Abs(dustStorm.halfExtents.z)));
             dustStorm.directionConeDegrees = Mathf.Clamp(dustStorm.directionConeDegrees, 0f, 180f);
             dustStorm.spawnMargin = Mathf.Max(0f, dustStorm.spawnMargin);
+            dustStorm.groundClearance = Mathf.Max(0f, dustStorm.groundClearance);
             dustStorm.debugBoundaryWidth = Mathf.Max(0.001f, dustStorm.debugBoundaryWidth);
             dustStorm.debugSkyMarkerHeight = Mathf.Max(10f, dustStorm.debugSkyMarkerHeight);
             dustStorm.windForce = Mathf.Max(0f, dustStorm.windForce);
+            dustStorm.playerWindForceMultiplier = Mathf.Max(0f, dustStorm.playerWindForceMultiplier);
+            dustStorm.objectWindForceMultiplier = Mathf.Max(0f, dustStorm.objectWindForceMultiplier);
             dustStorm.maximumAffectedMass = Mathf.Max(0f, dustStorm.maximumAffectedMass);
             dustStorm.maxPhysicalFragments = Mathf.Clamp(dustStorm.maxPhysicalFragments, 0, 3);
             dustStorm.fragmentDamage = Mathf.Max(0f, dustStorm.fragmentDamage);

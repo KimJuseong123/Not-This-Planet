@@ -51,6 +51,18 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void ActiveStormUsesGroundBaseInsteadOfBoundsCenterHeight()
+        {
+            profile.dustStorm.groundClearance = 0.25f;
+            var bounds = new Bounds(new Vector3(5025f, 30f, 5000f), new Vector3(150f, 60f, 100f));
+            var pose = new DustStormSchedule(profile.dustStorm).Evaluate(12.0d, bounds);
+
+            Assert.IsTrue(pose.IsActive);
+            Assert.That(pose.Center.y,
+                Is.EqualTo(pose.HalfExtents.y + profile.dustStorm.groundClearance).Within(0.001f));
+        }
+
+        [Test]
         public void ValidateCapsStormBudgetsAndNormalizesVolumeSize()
         {
             profile.dustStorm.halfExtents = new Vector3(-1f, 0f, -2f);
@@ -66,6 +78,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(profile.dustStorm.halfExtents.x, Is.EqualTo(1f));
             Assert.That(profile.dustStorm.halfExtents.y, Is.EqualTo(0.1f));
             Assert.That(profile.dustStorm.halfExtents.z, Is.EqualTo(2f));
+            Assert.That(profile.dustStorm.groundClearance, Is.GreaterThanOrEqualTo(0f));
             Assert.That(profile.dustStorm.maximumInterval,
                 Is.GreaterThanOrEqualTo(profile.dustStorm.minimumInterval));
             Assert.That(profile.dustStorm.maxPhysicalFragments, Is.EqualTo(3));
