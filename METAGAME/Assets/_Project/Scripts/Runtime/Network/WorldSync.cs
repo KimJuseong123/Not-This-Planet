@@ -48,6 +48,10 @@ namespace Metagame.Network
         float sendTimer;
         bool ready;
         bool warnedMismatch;
+        /// <summary>고정쇠별로 굳혀 둔 줄 세우기 키 — <see cref="KeyOf"/> 참고.</summary>
+        readonly Dictionary<PartClamp, string> clampKeys = new Dictionary<PartClamp, string>();
+        float notReadySeconds;
+        bool warnedNotReady;
         bool warnedClampMismatch;
 
         /// <summary>클라이언트로서 챙길 것이 남았는가. 스폰이 등록된 뒤에만 참이 된다.</summary>
@@ -146,16 +150,33 @@ namespace Metagame.Network
                                                                FindObjectsSortMode.None))
                 if (clamp != null) clamps.Add(clamp);
 
-            clamps.Sort(CompareByPath);
+            clamps.Sort(CompareClamps);
         }
 
-        static int CompareByPath(Component a, Component b)
+        /// <summary>
+        /// 고정쇠의 줄 세우기 키. <b>처음 본 순간의 것을 굳혀 두고 그 뒤로는 바꾸지 않는다</b>
+        /// (S15P21B202-315).
+        ///
+        /// <para>고정쇠는 해제되면 부모에서 떨어져 나온다 —
+        /// <c>PartClamp.Release()</c> 의 <c>transform.SetParent(null, true)</c>.
+        /// 그러면 계층 경로가 <c>".../Part_1/Clamp_x"</c> 에서 <c>"Clamp_x"</c> 로 바뀌고
+        /// 형제 순번도 달라진다. 서버와 클라이언트가 <b>서로 다른 해제 상태에서</b> 줄을
+        /// 세우면 개수는 16 대 16 으로 같은데 <b>순서만 어긋나</b> 남의 고정쇠에 진행도가
+        /// 들어간다. 개수 검사로는 절대 못 잡는다.</para>
+        ///
+        /// <para>2026-09-03 에 자세 목록에서 같은 종류의 사고가 있었는데(그때는 '지금 위치'로
+        /// 동점을 갈랐다) 고정쇠 쪽에는 같은 처리가 없었다. 다시 세는 일이 생기면서
+        /// 실제로 드러날 수 있는 자리가 됐다.</para>
+        /// </summary>
+        string KeyOf(PartClamp clamp)
         {
-            int byPath = string.CompareOrdinal(PathOf(a.transform), PathOf(b.transform));
-            return byPath != 0
-                ? byPath
-                : a.transform.GetSiblingIndex().CompareTo(b.transform.GetSiblingIndex());
+            if (clampKeys.TryGetValue(clamp, out var key)) return key;
+            key = PathOf(clamp.transform) + "#" + clamp.transform.GetSiblingIndex();
+            clampKeys[clamp] = key;
+            return key;
         }
+
+        int CompareClamps(PartClamp a, PartClamp b) => string.CompareOrdinal(KeyOf(a), KeyOf(b));
 
         void Add(Rigidbody body)
         {
@@ -265,7 +286,22 @@ namespace Metagame.Network
                 // 여기서 isServer 를 보면 안 된다 — 스폰 등록 전에는 netIdentity 가 없어
                 // 그 자리에서 NullReference 가 난다(실측). OnStartClient 가 세운 표시만 본다.
                 if (!needsClientPrepare) return;
-                if (!PrepareClient()) return;
+                if (!PrepareClient())
+                {
+                    // 준비되지 않는 동안 서버가 보내는 것을 **전부 버린다**(RpcApply·
+                    // RpcApplyClamps 의 !ready 조기 반환). 그런데 그 조기 반환이 개수 검사보다
+                    // 위에 있어 경고가 한 줄도 안 찍힌다 — 2026-09-07 에 그래서 원인을 찾는 데
+                    // 한참 걸렸다. 오래 이어지면 여기서 한 번 알린다 (S15P21B202-315).
+                    notReadySeconds += Time.deltaTime;
+                    if (notReadySeconds > 15f && !warnedNotReady)
+                    {
+                        warnedNotReady = true;
+                        Debug.LogWarning("[WorldSync] 15초째 준비되지 않았다 — 게임 씬에 "
+                                         + "SpaceshipPart 가 있는지 확인할 것. 이 동안 서버가 "
+                                         + "보내는 자세·고정쇠를 전부 버린다.");
+                    }
+                    return;
+                }
             }
 
             if (isServer) SendFromServer();
