@@ -83,7 +83,9 @@ retarget-pipelines:       # 결함 ① — 부모 브랜치가 지워져 자동 
 
 mm-mr-opened:             # 🟢 리뷰 요청 알림 — 이 MR 의 첫 파이프라인일 때 1회, 팀장 @멘션 (GitLab 기본 MR 알림 대체)
   stage: prepare
-  needs: []
+  needs: [mr-title]       # 보정된 제목을 카드에 싣는다. needs: [] 였을 때는 mr-title 과 동시에 돌아 카드에
+                          # GitLab 기본 제목(S15p21b202 321 ci cd map)이 실렸다(S15P21B202-322).
+                          # mr-title 은 allow_failure 라 실패해도 이 잡은 돈다.
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $MM_WEBHOOK_URL
   script:
