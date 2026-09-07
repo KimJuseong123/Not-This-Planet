@@ -13,6 +13,7 @@ import json
 import os
 import sys
 import tempfile
+from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CI = os.path.dirname(HERE)                      # .../scripts/ci
@@ -230,5 +231,39 @@ finally:
         os.environ.pop("MM_WEBHOOK_URL", None)
     else:
         os.environ["MM_WEBHOOK_URL"] = _saved
+
+# ── ⑦ --test-alert — 팀 채널에 나가는 글이므로 테스트임이 보여야 한다
+sent.clear()
+A.notify = lambda text, dry_run=False: (sent.append(text), True)[1]   # noqa: E731
+os.environ["MM_WEBHOOK_URL"] = "https://mm.example/hooks/abc"
+
+with tempfile.TemporaryDirectory() as tmp:
+    A.STATE_PATH = os.path.join(tmp, "claude-auth.json")
+    A.save_state({"fails": 4, "category": "authentication", "alerted_at": T0})
+    before = Path(A.STATE_PATH).read_text(encoding="utf-8")
+
+    rc = A.test_alert(dry_run=False)
+    assert rc == 0, rc
+    assert len(sent) == 1, sent
+    body = sent[0]
+    assert body.startswith(A.TEST_MARK), "첫 글자부터 테스트임이 보여야 한다"
+    assert "실제 장애가 아닙니다" in body, body
+    # 진짜 알림 모양을 인용으로 같이 실어서 구분법을 알려 준다
+    assert "> 🔴" in body and "붙지 않습니다" in body, body
+    # 웹훅 URL 은 본문에 없어야 한다 — URL 이 곧 발송 권한이다
+    assert "mm.example" not in body and "hooks/abc" not in body, body
+
+    # **진짜 장애 카운터를 건드리지 않는다** — 시험이 상태를 오염시키면 다음 알림이 어긋난다
+    assert Path(A.STATE_PATH).read_text(encoding="utf-8") == before, "상태 파일이 바뀌었다"
+print("  --test-alert 표시·상태 무개입 ✅")
+
+# 웹훅이 없으면 보내지 않고 2 로 끝난다 (사람이 넣기 전에 성공했다고 오해하지 않게)
+sent.clear()
+os.environ["MM_WEBHOOK_URL"] = ""
+assert A.test_alert(dry_run=False) == 2 and not sent
+print("  웹훅 없으면 시험이 실패로 끝남 ✅")
+
+A.notify = REAL_NOTIFY
+os.environ.pop("MM_WEBHOOK_URL", None)
 
 print("TEST310 OK")

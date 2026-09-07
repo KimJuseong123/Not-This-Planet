@@ -222,6 +222,42 @@ def check_refresh_expiry(state: dict, now: float, dry_run: bool) -> None:
            f"<sub>S15P21B202-310 · claude-auth-check</sub>", dry_run)
 
 
+# ── 배송 시험 ────────────────────────────────────────────────────────────────
+TEST_MARK = "🧪 **[테스트]**"
+
+
+def test_alert(dry_run: bool) -> int:
+    """웹훅을 넣은 뒤 **실제로 배송되는지** 한 번 확인한다.
+
+    정책·판정은 오프라인 테스트가 다 보지만 HTTP 전송만은 진짜 URL 이 있어야 확인된다.
+    그래서 사람이 웹훅을 넣은 직후 한 번 부르는 용도다.
+
+    두 가지를 지킨다.
+      · **상태 파일을 건드리지 않는다** — 시험이 진짜 장애 카운터를 오염시키면 안 된다
+      · 팀 채널에 나가는 글이므로 **테스트임이 한눈에 보여야 한다.** 진짜 알림 모양을
+        인용으로 같이 실어서, 앞에 🧪 가 붙는지로 구분할 수 있게 한다
+    """
+    can, why = alert_channel()
+    if not can and not dry_run:
+        print(f"[error] {why}")
+        return 2
+    # 진짜 알림이 어떻게 생겼는지 그대로 만들어 보여 준다(상태는 저장하지 않는다)
+    _, sample = decide({"fails": 1, "category": "authentication"}, False, "authentication", time.time())
+    quoted = "> " + (sample or "").replace("\n", "\n> ")
+    text = (f"{TEST_MARK} Claude 자격 점검 — **알림 배송 시험**입니다. 실제 장애가 아닙니다.\n\n"
+            f"이 메시지가 보이면 러너 호스트의 알림 경로가 정상입니다. "
+            f"20분마다 Claude 자격을 점검하고, 죽으면 여기로 알립니다(`S15P21B202-310`).\n\n"
+            f"진짜 장애는 이런 모양으로 옵니다 — 앞에 {TEST_MARK} 가 **붙지 않습니다**:\n\n"
+            f"{quoted}\n\n"
+            f"<sub>`claude_auth_check.py --test-alert` · 상태 파일은 건드리지 않았습니다</sub>")
+    ok = notify(text, dry_run)
+    if dry_run:
+        print("(--dry-run 이라 실제로 보내지 않았다)")
+        return 0
+    print("배송 성공" if ok else "배송 실패 — 웹훅 URL·네트워크 확인")
+    return 0 if ok else 1
+
+
 # ── 본체 ─────────────────────────────────────────────────────────────────────
 def decide(state: dict, ok: bool, category: str | None, now: float) -> tuple[dict, str | None]:
     """(새 상태, 보낼 알림 본문 또는 None).
@@ -262,7 +298,12 @@ def decide(state: dict, ok: bool, category: str | None, now: float) -> tuple[dic
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="러너 호스트의 Claude 자격 점검 (S15P21B202-310)")
     ap.add_argument("--dry-run", action="store_true", help="MM 전송 없이 판정만 출력")
+    ap.add_argument("--test-alert", action="store_true",
+                    help="테스트 알림을 한 번 보내 배송을 확인한다 (상태 파일은 건드리지 않는다)")
     a = ap.parse_args(argv)
+
+    if a.test_alert:
+        return test_alert(a.dry_run)
 
     now = time.time()
     can_alert, why = alert_channel()

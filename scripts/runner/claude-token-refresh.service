@@ -41,6 +41,11 @@
 #     chmod 600 /etc/metagame/alert.env; unset U
 #     wc -c /etc/metagame/alert.env      # 16 이면 값이 비었다는 뜻 — 다시 넣는다
 #
+#   넣었으면 **배송까지 한 번 확인한다**(팀 채널에 테스트 표시가 붙은 글 1건이 올라간다):
+#     sudo systemctl show claude-token-refresh -p Environment >/dev/null   # 유닛이 읽는지
+#     set -a; . /etc/metagame/alert.env; set +a
+#     python3 /opt/metagame-runner/claude_auth_check.py --test-alert
+#
 #   **`sh -c` 로 감싸지 말 것.** dash 의 read 에는 -s 가 없어서 조용히 빈 값이 들어간다
 #   (2026-09-07 에 실제로 그랬다). 그래서 점검 스크립트가 매 회차 알림 경로를 검사하고,
 #   비어 있으면 journal 에 [warn] 을 남기고 종료 코드 2 로 끝낸다.
