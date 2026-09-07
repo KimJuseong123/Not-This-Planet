@@ -206,7 +206,7 @@ namespace Metagame.EditorTools
                     if (clamp == null) continue;
                     checkedClamps++;
 
-                    if (clamp.GetComponents<Collider>().Length == 0)
+                    if (clamp.GetComponentsInChildren<Collider>(true).Length == 0)
                         Fail($"{part.name}/{clamp.name} 에 충돌 판정이 없다");
 
                     var visual = clamp.transform.Find("Visual");

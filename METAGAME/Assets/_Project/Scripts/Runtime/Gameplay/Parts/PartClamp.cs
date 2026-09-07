@@ -141,7 +141,7 @@ namespace Metagame.Gameplay.Parts
             _initialized = true;
 
             if (_part == null) _part = GetComponentInParent<SpaceshipPart>();
-            _colliders = GetComponents<Collider>();
+            _colliders = GetComponentsInChildren<Collider>(true);
 
             // 외양은 충돌 판정과 같은 Clamp 아래에 둔다. 구형 씬에서 직렬화된 외부
             // 외양이 들어와도 여기서 소유 루트를 바로잡아 렌더러와 Collider가 함께 움직이게 한다.
@@ -427,6 +427,7 @@ namespace Metagame.Gameplay.Parts
                 foreach (var c in _colliders)
                 {
                     if (c == null) continue;
+                    c.gameObject.layer = GameLayers.Prop;
                     c.enabled = true;
                     c.isTrigger = false;
                     c.material = Prim.GroundPhysics;
