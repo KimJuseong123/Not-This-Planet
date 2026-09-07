@@ -4,7 +4,7 @@
 
 경우:
   1. 경로 길이 상한 — 2026-08-31 파이프라인 10건을 죽인 189자 경로를 그대로 재현
-  2. 인증키·비밀키 금지 (.pem / id_rsa)
+  2. 인증키·비밀키 금지 (.pem / id_rsa) · 개인 작업 메모 금지 (*.local.*)
   3. 에셋 위치 위반을 최상위 폴더 단위로 묶기 (Mirror 임포트 수백 줄 노이즈)
   4. 서드파티 패키지에서 새로 들어온 씬·프리팹은 선언 검사에서 제외 (수정한 것은 검사 유지)
 """
@@ -55,7 +55,13 @@ def test_key_files_forbidden():
                "METAGAME/Assets/_Project/Scripts/Runtime/Network/NetworkSession.cs",
                "backend/src/main/resources/application.yml", "monkey.keystore.md"):
         assert why(ok) is None, ok
-    print("  인증키 금지: .pem/.key/.p12/id_rsa 차단 · 정상 파일 오탐 없음")
+    # 개인 작업 메모 (S15P21B202-309) — git add -A 에 딸려 들어가는 것을 막는다
+    assert why("TEAM-SHARE.local.md") == "개인 작업 메모(.local.*)"
+    assert why("ARCHITECTURE-REVIEW.local.md") == "개인 작업 메모(.local.*)"
+    assert why("notes.local.json") == "개인 작업 메모(.local.*)"
+    assert why("docs/records/S15P21B202-309-ci-signal-holes.md") is None, "보통 문서는 통과"
+    assert why("METAGAME/Assets/_Project/Scripts/LocalPlayer.cs") is None, "이름에 local 이 들어간 코드는 통과"
+    print("  인증키 금지: .pem/.key/.p12/id_rsa 차단 · 개인 메모(.local.*) 차단 · 정상 파일 오탐 없음")
 
 
 def test_location_problems_deduped():

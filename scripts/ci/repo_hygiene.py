@@ -27,6 +27,10 @@ FORBIDDEN = [
     # 인증키가 리포에 올라가면 되돌릴 수 없다(이력에 남는다). 2026-08-31 EC2 pem 이 작업 폴더에 있던 것을 발견.
     (re.compile(r"\.(pem|ppk|key|p12|pfx|jks|keystore)$", re.I), "인증키·비밀키"),
     (re.compile(r"(^|/)(id_rsa|id_ed25519|id_ecdsa|id_dsa)(\.pub)?$"), "SSH 개인키"),
+    # 개인 작업 메모. .gitignore 에도 있지만 이미 추적 중인 파일은 무시가 듣지 않으므로
+    # 검사 쪽에도 둔다 — 2026-09-06 에 git add -A 로 ARCHITECTURE-REVIEW.local.md 가
+    # 스테이징됐다(S15P21B202-309).
+    (re.compile(r"\.local\.(md|txt|json|ya?ml)$", re.I), "개인 작업 메모(.local.*)"),
 ]
 ASSETS = "METAGAME/Assets/"
 THIRDPARTY = ASSETS + "_Project/ThirdParty/"

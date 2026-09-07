@@ -24,6 +24,15 @@ workflow:
     # develop 머지 직후(=push) 파이프라인 — 백엔드 jar 빌드·배포가 여기서 돈다(S15P21B202-140·-141).
     # 다른 잡은 전부 merge_request_event 조건이라 생성되지 않는다. 앞으로 배포(CD)도 이 자리에 붙는다.
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
+      # **뒤따라오는 머지가 이 파이프라인을 죽이지 못하게 한다** (S15P21B202-309).
+      # 09-06 19:43 에 -303(릴레이)이 머지돼 build-backend + deploy-backend 가 생겼는데,
+      # 1분 뒤 -304 가 머지되면서 GitLab 이 앞 파이프라인을 자동 취소했다. default.interruptible
+      # 이 true 라 아직 시작 안 한 build-backend 가 취소 대상이었다. 그런데 -304 는 backend/ 를
+      # 건드리지 않아 **새 파이프라인에는 백엔드 잡이 아예 없었다** — 누를 배포 버튼이 사라졌고,
+      # 파이프라인은 초록이라 아무도 몰랐다. 백엔드는 이틀 전 것으로 계속 돌았다.
+      # MR 파이프라인은 그대로 둔다 — 거기서는 새 push 가 앞 것을 죽이는 게 맞다.
+      auto_cancel:
+        on_new_commit: none
 
 stages: [prepare, lint, test, review, deploy, notify]
 
@@ -174,8 +183,18 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
     # 09-02 사고는 감지까지 2시간 37분이 걸렸다(그 사이 develop 머지 0건). 이 규칙이면 2분이다.
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
       changes: ["METAGAME/**/*"]
-  allow_failure: true     # 실측(잡 478077): 컴파일 통과, EditMode 647개 중 17개 실패.
-  timeout: 90m            # 실패가 정리되면 false 로 바꾼다.
+  # 종료 코드로 판정을 나눈다 (S15P21B202-309). unity_report.py 가 **대상 브랜치 기준선과
+  # 비교해서** 정한다:
+  #   0 = 통과(기존 실패만 있음) · 1 = **이 MR 이 만든** 컴파일 오류·새 테스트 실패 → 막는다
+  #   2 = 기준선 없음·라이선스 만료 등 판단 불가 → ⚠ 경고만
+  # 전에는 allow_failure: true 였고 잡이 Unity 의 원시 종료 코드(테스트가 하나라도 실패하면 2)를
+  # 그대로 뱉었다. 그래서 신호가 **양쪽으로 다 틀렸다**:
+  #   · 기존 실패 25건뿐인 MR 세 건(!228·!229·!230)에 전부 빨간 ⚠ 가 붙었고 — 코멘트는
+  #     "새로 생긴 것 0" 이라고 정확히 적고 있었는데도 그랬다
+  #   · 반대로 컴파일이 깨져도 비차단이라 머지가 됐다. 09-02 에 develop 이 2시간 37분 멈춘 그 경로다.
+  allow_failure:
+    exit_codes: [2]       # 2(판단 불가)만 비차단. 1 은 실제로 막는다.
+  timeout: 90m
   # 동시에 두 개가 돌지 않게 한다. 러너가 concurrent 2 · vCPU 4 인데 Unity 임포트는 CPU·IO 를
   # 다 쓴다 — 두 개가 겹치면 서로 느려지고 가벼운 검사들이 굶는다.
   resource_group: unity
@@ -215,12 +234,19 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
     #     기존 실패(현재 17개)는 담당자가 고치는 중이라 나열하지 않는다 — 매번 나열하면 읽지 않게 된다
     #   · 컴파일이 깨졌으면 error CS 줄을 코멘트 맨 위에 싣는다
     # 이미지에 python3 3.10 이 있다(실측). 잡이 실패로 끝나도 보고는 남아야 하므로 exit 앞에 둔다.
-    - python3 scripts/ci/unity_report.py "$CI_PROJECT_DIR/unity-results.xml" "$CI_PROJECT_DIR/unity.log"
-    - exit "$(cat "$CI_PROJECT_DIR/unity-rc.txt")"
+    - python3 scripts/ci/unity_report.py "$CI_PROJECT_DIR/unity-results.xml" "$CI_PROJECT_DIR/unity.log" "$(cat "$CI_PROJECT_DIR/unity-rc.txt")"
+    # 판정은 unity_report.py 가 파일로 남긴다. 보고 자체가 죽어 파일이 없으면 2(경고)로 끝낸다 —
+    # **판정하지 못한 것을 회귀로 단정하지 않는다.** Unity 원시 코드로 되돌아가면 기존 실패에
+    # 다시 걸린다.
+    - |
+      V="$CI_PROJECT_DIR/unity-verdict.txt"
+      if [ -s "$V" ]; then RC=$(cat "$V"); else echo "⚠ 판정 파일이 없다 — 보고 스크립트가 죽었다"; RC=2; fi
+      echo "unity-compile 종료 $RC (0 통과 · 1 이 MR 이 만든 문제 · 2 판단 불가)"
+      exit "$RC"
   artifacts:
     when: always
     expire_in: 3 days
-    paths: [unity-results.xml, unity-junit.xml, unity.log]
+    paths: [unity-results.xml, unity-junit.xml, unity.log, unity-verdict.txt]
     reports:
       # Unity 가 낸 NUnit3 가 아니라 변환한 JUnit 을 올린다 — 전자는 GitLab 이 0건으로 읽는다.
       junit: unity-junit.xml
@@ -276,12 +302,24 @@ deploy-backend:           # develop 머지 뒤 **사람이 눌러서** 배포 (S
                           # /spool 에 쓰는 잡을 한 줄 넣어 배포를 쏠 수 있었다(S15P21B202-252).
                           # 나머지 잡은 default.tags: [linux] 라 이 러너로 오지 않는다.
   needs: [build-backend]
-  interruptible: false    # 배포 도중 취소되면 반쯤 적용된 상태가 남는다
+  interruptible: false    # 배포 도중 취소되면 반쯤 적용된 상태가 남는다.
+                          # 다만 이것만으로는 부족했다 — 아직 **시작도 안 한** 잡은 GitLab 이
+                          # 그냥 취소한다. 그래서 workflow 쪽에서 auto_cancel 을 껐다(-309).
+  # 배포 이력을 GitLab 이 들고 있게 한다 (S15P21B202-309). 아침 점검이 "지금 서버에 뭐가
+  # 올라가 있나" 를 잡 목록을 훑지 않고 이 기록으로 답할 수 있다.
+  environment:
+    name: production
+    url: https://j15b202.p.ssafy.io
   rules:
     # 왜 manual 인가: 팀원이 이 서버로 테스트 중이고 재시작은 WebSocket 세션을 전부 끊는다.
     # 머지가 하루 28건인 날도 있어 자동 재시작이면 테스트가 불가능하다. 자동으로 바꾸려면 이 줄을 지운다.
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
-      changes: ["backend/**/*"]
+      # `.gitlab-ci.yml` 을 넣은 이유 두 가지 (S15P21B202-309):
+      #   ① 배포 정의가 바뀌었으면 그것을 실제로 배포해 볼 수 있어야 한다
+      #   ② build-backend 는 이미 이 조건이라 **잡 두 개의 조건이 어긋나 있었다** — deploy 는
+      #      needs: [build-backend] 이므로 build 만 생기는 조합이 계속 만들어졌다
+      # 수동 잡은 눌리기 전까지 러너를 쓰지 않으므로, 버튼이 더 자주 생기는 비용은 0 이다.
+      changes: ["backend/**/*", ".gitlab-ci.yml"]
       when: manual
   script:
     - python scripts/ci/deploy_backend.py

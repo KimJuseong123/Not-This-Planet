@@ -25,9 +25,9 @@
 | `stack-order` | lint | **스택 자식 MR 은 부모가 develop 에 들어간 뒤에만 머지**(-244). 대상이 다른 이슈의 작업 브랜치면 실패하고 MR 코멘트로 이유를 남긴다. 부모가 머지되면 GitLab 이 대상을 develop 으로 되돌린다. **다만 그때 파이프라인은 생기지 않는다** — 2026-09-01 의 "1초 안에 생긴다" 는 **API 재대상에서만** 참이었고, 브랜치 삭제로 인한 자동 재대상은 09-02~04 실측 16건 중 14건이 미생성이었다(`-295`). 그래서 `retarget-pipelines` 잡이 그 MR 을 찾아 파이프라인을 만들고, 그 파이프라인에서 검사가 통과한다. 부모가 이미 머지됐는데 브랜치만 남은 경우·브랜치가 사라진 경우에는 **대상을 develop 으로 되돌리고 통과**시킨다(억울한 차단 방지). `mm-ci-failed` 의 `needs` 에 **일부러 넣지 않아** 🔴 카드를 보내지 않는다 — 작성자가 잘못한 것이 아니라 아직 순서가 아닐 뿐이다. Draft 를 쓰지 않는 이유: 팀 규칙이 Draft 를 금지하므로(git-convention §5) CI 가 그 상태를 쓰면 규칙에 예외가 생기고 사람이 흉내 내 우회할 수 있다. 비상 스위치 `STACK_ORDER_ENFORCE=0`(경고만). **`needs: [mr-overlap]` + `when: always`** — 둘 다 `target_branch` 를 쓰므로 순서가 필요하고(동시에 돌면 서로의 결과를 못 보고 덮어쓴다), `when` 이 없으면 `mr-overlap` 실패 시 이 잡이 조용히 건너뛰어져 순서 강제가 사라진다(`only_allow_merge_if_pipeline_succeeds=false` 라 빨간 파이프라인도 머지할 수 있다). `-289`. **막는 방식은 미해소 스레드다**(`-297`) — 검사 실패만으로는 부족하다. `Pipelines must succeed` 는 MR 의 **마지막 파이프라인**만 보므로 재대상 직후의 낡은 초록을 그대로 통과시킨다(재대상 → 머지 간격 중위값 약 20초). 그래서 안내를 스레드로 달아 미해소로 두면 `All threads must be resolved` 가 **머지 버튼을 잠근다**. `retarget-pipelines` 가 만든 새 파이프라인에서 이 잡이 통과하면 스레드를 자동 해소한다. 사람이 손으로 해소해도 아직 스택이면 다음 실행이 되돌린다 | **예** — 단 하드 블록은 `Pipelines must succeed` 가 켜진 뒤 |
 | `ci-tests` | lint | `scripts/ci/tests/run_all.py` — CI 스크립트 자신의 오프라인 회귀 테스트(네트워크·토큰 없이 `http()` 를 가짜로 바꿔 실행). `scripts/ci/**` 이 바뀐 MR 에서만 잡이 생긴다. 새 규칙·판정 로직을 넣을 때 여기에 케이스를 추가한다(-103). **테스트는 현재 시각에 의존하지 않는다** — 날짜 창을 쓰는 함수(`merged_mrs`·`merged_not_done`·`resurrected_branches`)는 `now` 를 주입받고 테스트가 고정값을 넘긴다. 2026-09-03 17:06 에 08-27 픽스처가 7일 창 밖으로 나가 develop 그대로 실패한 적이 있다(-281). **매일 스케줄에서도 돈다**(-289) — 코드가 안 바뀌어도 시간이 흘러 깨지는 것을 잡기 위해서다. 실패하면 `mm_digest.test_health()` 가 아침 카드 맨 위에 싣는다(**실패만**. `canceled` 는 중복 파이프라인 자동 취소일 뿐이라 보고하지 않는다). `mm-digest` 는 `needs: [ci-tests optional]` + `when: always` 라 테스트가 실패해도 카드는 나간다 | **예**. **릴리즈 MR(develop → master)은 Draft 금지와 대상 브랜치 규칙만 보고 나머지는 건너뛴다** — 이슈 키도 템플릿도 없는 정렬용 MR 이고 내용은 develop 에 들어올 때 이미 검사했다(-122) |
 | `build-backend` | test | `eclipse-temurin:17-jdk` 컨테이너에서 `./gradlew --no-daemon bootJar`. **`backend/**` 가 바뀐 MR 에서는 컴파일 검사**(그전에는 백엔드가 MR 시점 빌드 검사 없이 머지됐다), develop 머지에서는 배포용 jar 아티팩트(3일 보관). Gradle 의존성은 `gradle-backend` 캐시로. `gradlew` 는 git 에 실행 권한이 없어 `chmod +x` 가 필요하다. 실측 2026-09-01: 캐시 있는 상태에서 48초 |
-| `unity-compile` | test | **Unity C# 컴파일 + EditMode 테스트**(-271). EC2 도커 러너에서 GameCI 이미지(`unityci/editor:ubuntu-6000.5.4f1-base-3.2.2`, 태그는 프로젝트 버전과 같아야 한다 — 다르면 batchmode 가 프로젝트를 조용히 업그레이드한다)로 돈다. **MR(METAGAME 또는 .gitlab-ci.yml 변경) + develop push 에서 자동**. 실측 2026-09-02: 콜드 **8분 16초** → 웜 **70초**(`Library` 2.2GB 가 슬롯에 남아 증분 임포트). 그래서 `GIT_CLEAN_FLAGS: -ffdx -e METAGAME/Library` 가 **전역**에 있다 — 빌드 디렉터리는 그 슬롯의 모든 잡이 공유하므로 잡별 예외는 다음 잡의 `git clean` 에 지워진다(실측). `resource_group: unity` 로 동시 1개만(vCPU 4 · concurrent 2 라 겹치면 가벼운 검사가 굶는다). 라이선스는 **CI 변수가 아니라 러너 마운트**로 온다 — MR 은 보호 브랜치가 아니라 Protected 변수를 못 읽고, 끄면 값이 환경변수로 들어가 로그로 샐 길이 생긴다. 경로·계정 조건·만료(2026-10-09, `--update-ulf` 갱신)는 `docs/records/S15P21B202-271-unity-ci-license.md`. 지금은 `allow_failure: true` — 첫 실행에서 647개 중 **17개 실패**가 드러났고(컴파일은 통과) 그것이 정리되면 차단으로 바꾼다 | **예** — 단 `allow_failure` 라 머지를 막지는 않는다 |
+| `unity-compile` | test | **Unity C# 컴파일 + EditMode 테스트**(-271). EC2 도커 러너에서 GameCI 이미지(`unityci/editor:ubuntu-6000.5.4f1-base-3.2.2`, 태그는 프로젝트 버전과 같아야 한다 — 다르면 batchmode 가 프로젝트를 조용히 업그레이드한다)로 돈다. **MR(METAGAME 또는 .gitlab-ci.yml 변경) + develop push 에서 자동**. 실측 2026-09-02: 콜드 **8분 16초** → 웜 **70초**(`Library` 2.2GB 가 슬롯에 남아 증분 임포트). 그래서 `GIT_CLEAN_FLAGS: -ffdx -e METAGAME/Library` 가 **전역**에 있다 — 빌드 디렉터리는 그 슬롯의 모든 잡이 공유하므로 잡별 예외는 다음 잡의 `git clean` 에 지워진다(실측). `resource_group: unity` 로 동시 1개만(vCPU 4 · concurrent 2 라 겹치면 가벼운 검사가 굶는다). 라이선스는 **CI 변수가 아니라 러너 마운트**로 온다 — MR 은 보호 브랜치가 아니라 Protected 변수를 못 읽고, 끄면 값이 환경변수로 들어가 로그로 샐 길이 생긴다. 경로·계정 조건·만료(2026-10-09, `--update-ulf` 갱신)는 `docs/records/S15P21B202-271-unity-ci-license.md`. **종료 코드로 판정을 나눈다**(-309): `0` 통과(기존 실패만) · `1` **이 MR 이 만든** 컴파일 오류·새 테스트 실패 → **막는다** · `2` 기준선 없음·라이선스 만료 등 판단 불가 → ⚠ 경고. `allow_failure: exit_codes: [2]` 라 2 만 비차단이다. 전에는 `allow_failure: true` 였고 잡이 **Unity 의 원시 종료 코드**(테스트가 하나라도 실패하면 2)를 그대로 뱉어 신호가 양쪽으로 다 틀렸다 — 기존 실패 25건뿐인 MR 세 건(`!228`·`!229`·`!230`)이 전부 빨간 ⚠ 였고(코멘트는 "새로 생긴 것 0" 이라고 정확히 적고 있었다), 반대로 컴파일이 깨져도 머지가 됐다 | **예** — `1` 이면 실제로 막는다 |
 | `ai-review` | review | **v2(2026-08-27, -82)**: 역할별 리뷰어 3(범위·완료 조건·기록 / C#·Unity·네트워크 코드 / 에셋·씬·프리팹·구조)이 변경 내용에 따라 필요한 것만 **병렬** 실행되어 JSON 만 내고, 요약 에이전트가 "팀장이 확인할 것" 1~3개를 쓴다. 최종 코멘트 1개(재실행 시 갱신) = 결론(✅ 머지 가능 / ⚠️ 확인 후 머지 / ⛔ 보류) → 확인할 것 → **리뷰어 확인 5항목 판정표**(범위·완료 조건·씬/프리팹·구조·기록) → 발견 사항 표(높음·중간) → `<details>` 상세. 팀장은 ⚠️/❓ 만 본다. **백엔드**: `cli` = 러너 호스트 Claude Code CLI(Team 플랜, 채택) / `api` = `ANTHROPIC_API_KEY`. `AI_REVIEW_CLI=true` 또는 키가 있을 때만 잡 생성 | 아니오 |
-| `deploy-backend` | deploy | **develop push + `backend/**` 변경 + `when: manual`**. 빌드된 jar 을 호스트 스풀에 원자적으로 놓고(`.part`→rename) `RELEASE` 표시 파일을 쓰면, 호스트의 systemd path 유닛이 `deploy.sh` 를 돌린다 — jar 교체 → `compose up -d --build backend` → 준비 확인(`POST /auth/guest` 200, deviceId 고정이라 사용자 행은 최대 1개) → 실패 시 **직전 jar 로 자동 롤백**(3개 보관). 잡은 `STATUS` 에 자기 sha 가 찍힐 때까지 기다려 판정한다(최대 420초). **수동인 이유**: 재시작이 WebSocket 세션을 전부 끊어 팀원 테스트를 깨뜨린다. 도커 소켓을 잡에 노출하지 않으려고 파일로 신호를 준다(백엔드·DB 가 같은 호스트 — 소켓 = 사실상 root) |
+| `deploy-backend` | deploy | **develop push + (`backend/**` 또는 `.gitlab-ci.yml`) 변경 + `when: manual`**. `.gitlab-ci.yml` 이 조건에 들어간 이유는 `build-backend` 가 이미 그 조건이어서 **두 잡의 조건이 어긋나 있었기 때문**이다(`deploy` 는 `needs: [build-backend]` 라 build 만 생기는 조합이 계속 만들어졌다, -309). 수동 잡은 눌리기 전까지 러너를 쓰지 않으므로 버튼이 더 자주 생기는 비용은 0 이다. `environment: production` 을 달아 **배포 이력을 GitLab 이 들고 있게** 했다. 빌드된 jar 을 호스트 스풀에 원자적으로 놓고(`.part`→rename) `RELEASE` 표시 파일을 쓰면, 호스트의 systemd path 유닛이 `deploy.sh` 를 돌린다 — jar 교체 → `compose up -d --build backend` → 준비 확인(`POST /auth/guest` 200, deviceId 고정이라 사용자 행은 최대 1개) → 실패 시 **직전 jar 로 자동 롤백**(3개 보관). 잡은 `STATUS` 에 자기 sha 가 찍힐 때까지 기다려 판정한다(최대 420초). **수동인 이유**: 재시작이 WebSocket 세션을 전부 끊어 팀원 테스트를 깨뜨린다. 도커 소켓을 잡에 노출하지 않으려고 파일로 신호를 준다(백엔드·DB 가 같은 호스트 — 소켓 = 사실상 root) |
 | `mm-digest` | notify | **스케줄 전용**(CI/CD → Schedules 에 `30 9 * * *` Asia/Seoul, develop — 2026-08-28 등록, id 24. Maintainer 소유 필요. **매일**이며 실제 발송은 09:33 — GitLab 이 프로젝트마다 몇 분 오프셋을 더한다). needs-fix · 기한 초과 · 3일 정체 진행 중 · 스프린트 내 담당자 없음 · 24시간 넘게 열린 MR · **머지 뒤 다시 생긴 브랜치**(-110) · **최근 7일 안에 머지됐는데(merged_at) 완료 아닌 이슈**(R6 누락 감지, -83 — 규칙 실패 이메일은 유지하고 이 표가 보조. 규칙 실행 이력은 Jira 프로젝트 설정 → 자동화 → 감사 로그) 를 MM 표 카드로. 항목 없으면 보내지 않음 · **검사가 돌지 않은 MR**(-130 — ① 파이프라인이 아예 없는 MR: 소스 브랜치에 `.gitlab-ci.yml` 이 없다(master 기반 브랜치, 2026-08-28 MR !74 실측) ② 최신 파이프라인이 `DIGEST_PENDING_HOURS`(기본 2)시간 넘게 대기: 러너가 꺼져 있다. 둘 다 **빨간불이 없어 통과한 것처럼 보이는** 상태라 사람이 보지 않으면 그대로 머지된다) 를 MM 표 카드로. 항목 없으면 보내지 않음. **카드가 사실을 말하게 고친 것(-282)**: 헤더 시각을 KST 로(사흘 연속 UTC `00:33` 로 나갔다) · 🌿 는 `develop 에 없는 커밋 수`를 세어 **빈 브랜치**(지우면 끝)와 **유실 후보**(그 커밋이 어디에도 없다)를 가른다 · 🚀 는 **시작조차 안 한 `canceled`** 잡을 배포 시도로 세지 않는다(GitLab 이 같은 ref 의 새 파이프라인을 만들 때 대기 잡을 자동 취소한다 — 09-03 09:52 실측) | — | — |
 
 정규식(단일 출처 `scripts/ci/ci_common.py`):
@@ -120,8 +120,15 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
   > 라고 정정했는데, **그 정정이 틀렸다.** 근거로 삼은 성공(잡 482652)이 **만료 4.5시간 전**이었다.
   > 토큰이 아직 유효한 동안의 성공은 "갱신이 된다" 를 증명하지 않는다.
 
-  **그래서 갱신을 호스트가 한다.** `claude-token-refresh.timer` 가 **3시간마다** 호스트에서
+  **그래서 갱신을 호스트가 한다.** `claude-token-refresh.timer` 가 **20분마다** 호스트에서
   `claude -p PONG` 을 돌려 토큰을 살려 둔다(`scripts/runner/claude-token-refresh.{service,timer}`).
+
+  > **왜 20분인가**(`-309`). 처음 3시간으로 뒀는데 `!229` 의 `ai-review` 가 08:34 UTC 에 401 로
+  > 죽고 08:48 틱 뒤에야 살아났다. 원인은 **CLI 가 만료된 뒤에만 갱신한다**는 것이다 —
+  > 2026-09-06 EC2 실측: 만료까지 2.8시간 남은 상태에서 `claude -p` 를 돌려도
+  > `.credentials.json` 의 mtime 이 바뀌지 않았다. 그러므로 **타이머 주기가 그대로 최대
+  > 무응답 구간**이 된다. 8시간 TTL 을 자주 두드리는 것으로는 만료 직후의 구멍이 사라지지 않고,
+  > 줄일 수만 있다.
   컨테이너는 읽기만 하고, `:ro` 의 보안 이득을 지킨다. root 는 남의 `600` 파일도 읽으므로 읽기에
   문제가 없다.
 
@@ -188,11 +195,24 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 운영 사고 기록 중 우리에게도 해당하는 것:
 - **오탐 알림은 신뢰를 깎는다**(2026-08-04, 이미 고쳐진 과거 실패를 "지금 실패"처럼 알림) → `mm-digest` 는 "지금 상태"만 보고(오래 열린 MR·현재 needs-fix), 과거 이벤트를 재통보하지 않는다.
 - **default branch 실패는 가장 강한 알림이 필요한데 아무도 mention 되지 않았다**(2026-08-04, 20분 방치) → GitLab MM 통합의 Pipeline 이벤트는 켜 두고, develop 실패는 다이제스트에도 포함할 것(후속).
+- **develop 푸시 파이프라인은 자동 취소하지 않는다**(`workflow.rules` 의 `auto_cancel: on_new_commit: none`, -309).
+  2026-09-06 19:43 에 `-303`(릴레이)이 머지돼 `build-backend` + `deploy-backend` 가 생겼는데,
+  1분 뒤 `-304` 가 머지되면서 GitLab 이 앞 파이프라인을 자동 취소했다 — `default.interruptible: true`
+  라 아직 시작하지 않은 `build-backend` 가 취소 대상이었다(`deploy-backend` 는 `interruptible: false`
+  였지만 **시작하지 않은 잡은 그것과 무관하게 취소된다**). 그리고 `-304` 는 `backend/` 를 건드리지
+  않아 **새 파이프라인에는 백엔드 잡이 아예 없었다.** 결과: 릴레이 수정이 develop 에 들어갔는데
+  **누를 배포 버튼이 어디에도 없고, 파이프라인은 전부 초록이라 아무도 몰랐다.** 백엔드는 이틀 전
+  코드로 계속 돌았다. MR 파이프라인은 그대로 둔다 — 거기서는 새 push 가 앞 것을 죽이는 게 맞다.
+- **아침 카드가 배포 표류를 말한다**(`mm_digest.backend_drift`, -309). `pending`(눌리지 않은 배포 잡 수)
+  만으로는 위 상황을 볼 수 없다 — **없는 잡은 셀 수 없다.** 그래서 마지막 성공 배포의 커밋과
+  develop 을 직접 비교해 `backend/` 변경이 있으면 경고한다. 비교를 못 했으면(`None`) 경고하지 않는다 —
+  빈 목록과 섞으면 조용한 오탐·미탐이 된다.
 - **GitLab 내장 MM Pipeline 알림을 all branches 로 두면 MR 파이프라인 자동 취소가 "failed" 로 통보돼 노이즈** → 내장 알림은 default branch 로 한정(체크리스트 §5 반영).
 - **PowerShell 5.1 러너의 한글 변수 파손**은 이번 프로젝트에서 새로 겪은 것(Linux Docker 러너였던 지난 프로젝트엔 없음) → pwsh 필수.
 - **테스트 없는 알림 항목은 조용히 죽는다**(2026-08-31 실측) — 아침 점검의 `🌿 머지 뒤 다시 생긴 브랜치` 는 `resurrected_branches()` 가 표 행을 만들고도 **반환하지 않아** 도입(-110) 이후 한 번도 나가지 않았다. 호출부가 `if res:` 로 판단하므로 오류도 없이 항목만 사라진다. 미룬 테스트를 옮기다가 잡혔다(-133) → **알림 항목을 만들면 그 자리에서 오프라인 테스트를 같이 만든다.**
 - 리뷰 결과는 사실 검증 전까지 증거가 아니다 — 지난 프로젝트도 Medium/Low 는 참고, Critical/High 만 차단으로 썼다. 우리는 전부 참고(비차단)이며 판단은 팀장.
 ## 6. 앞으로
 - 파이프라인 필수(Settings → Merge requests → Pipelines must succeed)는 mr-lint·repo-hygiene 이 1주 안정화된 뒤 켠다 — 그 전에는 빨간불을 팀장이 보고 머지 여부 판단
-- `unity-compile` 은 `allow_failure: true` 로 시작해 안정화 후 차단으로
+- ~~`unity-compile` 은 `allow_failure: true` 로 시작해 안정화 후 차단으로~~ → **완료**(-309):  <!-- drift-ok -->
+  기존 실패는 통과, **이 MR 이 만든 것만** 차단한다. 기준선 비교로 가르므로 "안정화" 를 기다릴 필요가 없었다
 - AI 리뷰 결과의 유용성은 스프린트 회고에서 평가(모델·프롬프트·비용 조정)

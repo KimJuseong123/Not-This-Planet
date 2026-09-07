@@ -7,9 +7,16 @@
 [Unit]
 Description=Claude 액세스 토큰 갱신 타이머 (S15P21B202-304)
 
+# 주기를 왜 20분으로 잡았나 (S15P21B202-309)
+#   CLI 는 **만료된 뒤에만** 토큰을 갈아 준다 — 2026-09-06 EC2 실측: 만료까지 2.8시간 남은
+#   상태에서 `claude -p` 를 돌려도 .credentials.json 의 mtime 이 바뀌지 않았다.
+#   그래서 **타이머 주기가 그대로 최대 무응답 구간**이 된다. 처음 3시간으로 뒀더니 !229 의
+#   ai-review 가 08:34 UTC 에 401 로 죽고 08:48 틱 뒤에야 살아났다.
+#   8시간 TTL 을 아무리 자주 두드려도 만료 직후의 구멍은 남으므로, 그 구멍을 줄이는 수밖에 없다.
+#   비용은 20분마다 짧은 호출 하나(실측 1.5~1.8초 CPU).
 [Timer]
 OnBootSec=2min
-OnUnitActiveSec=3h
+OnUnitActiveSec=20min
 AccuracySec=1min
 Persistent=true
 

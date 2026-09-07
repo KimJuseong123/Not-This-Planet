@@ -10,6 +10,10 @@
   2. **기존 실패와 새 실패를 갈라서** MR 코멘트로 남긴다. 위젯은 눌러야 보이니 코멘트로도 남긴다.
      기준선은 대상 브랜치의 마지막 unity-compile 아티팩트다.
   3. 컴파일이 깨졌으면 그것을 맨 위에 크게 적는다 — 테스트 목록보다 그게 급하다.
+  4. **잡의 종료 코드를 정한다**(S15P21B202-309). 전에는 잡이 Unity 의 원시 종료 코드를 그대로
+     뱉었다 — Unity 는 테스트가 하나라도 실패하면 2 로 끝나므로, 기존 실패 25건만 있는 MR 도
+     빨간불이 됐다. 이 스크립트는 이미 새/기존을 가르고 있었는데 **그 판정이 종료 코드에
+     반영되지 않았다.** 이제 `unity-verdict.txt` 에 적고 잡이 그 값으로 끝난다.
 
 왜 "새 실패" 를 굳이 구분하나 — 매번 실패 17개를 나열하면 사람이 읽지 않게 된다. mr-lint 의
 스택 경고가 그렇게 무시됐다(실측 26 대 0). 그 MR 이 바꾼 것만 보여야 읽힌다.
@@ -32,6 +36,10 @@ JOB_NAME = "unity-compile"
 ARTIFACT = "unity-results.xml"
 MAX_LISTED = 15          # 코멘트에 나열할 실패 개수 상한
 MAX_COMPILE_ERRORS = 20
+VERDICT_FILE = "unity-verdict.txt"      # 잡이 이 파일의 값으로 끝난다(.gitlab-ci.yml)
+
+# 종료 코드 — .gitlab-ci.yml 의 `allow_failure: exit_codes: [2]` 와 짝이다
+PASS, REGRESSION, UNKNOWN = 0, 1, 2
 
 
 # ── NUnit3 읽기 ──────────────────────────────────────────────────────────────
@@ -126,6 +134,45 @@ def baseline_failures(gl: GitLab, ref: str, max_pipelines: int = 15) -> set | No
     return None
 
 
+# ── 판정 ────────────────────────────────────────────────────────────────────
+def failed_names(data: dict) -> set:
+    return {f'{c["cls"]}.{c["name"]}' for c in data["cases"] if c["result"] == "Failed"}
+
+
+def decide(data: dict, errs: list[str], base: set | None, unity_rc: int) -> tuple[int, str]:
+    """잡의 종료 코드와 그 이유. (S15P21B202-309)
+
+    원칙은 하나다 — **이 MR 이 만든 것만 막는다.** 나머지는 경고이거나 통과다.
+    판단하지 못한 것을 회귀로 단정하면 아무 잘못 없는 사람의 머지가 막히고, 그러면
+    사람들이 이 신호를 우회하는 법을 배운다(mr-lint 의 스택 경고가 실측 26 대 0 으로 무시됐다).
+    """
+    if errs:
+        # 컴파일 오류는 기준선을 볼 필요가 없다. develop 이 컴파일되면 이 MR 이 깬 것이다.
+        return REGRESSION, f"컴파일 오류 {len(errs)}건 — 이 MR 이 깼다"
+    if base is None:
+        if unity_rc == 0:
+            return PASS, "기준선을 못 봤지만 Unity 가 성공으로 끝났다"
+        return UNKNOWN, (f"기준선을 못 봐서 새 실패인지 가릴 수 없다(Unity 종료 {unity_rc}) — "
+                         f"경고로 둔다")
+    new = failed_names(data) - base
+    if new:
+        return REGRESSION, f"이 MR 이 만든 테스트 실패 {len(new)}건"
+    if data["failed"] == 0 and unity_rc != 0:
+        # 실패가 없는데 죽었다 = 테스트 얘기가 아니다(라이선스 만료·에디터 크래시·타임아웃).
+        # 사람이 손댈 것은 인프라 쪽이므로 머지를 막지 않는다.
+        return UNKNOWN, f"테스트 실패는 없는데 Unity 가 {unity_rc} 로 끝났다 — 환경 문제로 본다"
+    if data["failed"]:
+        return PASS, f"실패 {data['failed']}건이 전부 기준선에도 있다 — 이 MR 탓이 아니다"
+    return PASS, "실패 없음"
+
+
+def write_verdict(path_dir: str, code: int) -> str:
+    out = os.path.join(path_dir or ".", VERDICT_FILE)
+    with open(out, "w", encoding="utf-8") as f:
+        f.write(str(code))
+    return out
+
+
 # ── 코멘트 ──────────────────────────────────────────────────────────────────
 def body(data: dict, errs: list[str], base: set | None, ref: str) -> str:
     now_fail = {f'{c["cls"]}.{c["name"]}': c for c in data["cases"] if c["result"] == "Failed"}
@@ -177,6 +224,12 @@ def main(argv: list[str] | None = None) -> int:
     argv = argv if argv is not None else sys.argv[1:]
     nunit_path = argv[0] if argv else "unity-results.xml"
     log_path = argv[1] if len(argv) > 1 else "unity.log"
+    # 세 번째 인자는 Unity 의 원시 종료 코드. 판정을 못 할 때만 쓴다(환경 문제 구분).
+    try:
+        unity_rc = int(argv[2]) if len(argv) > 2 and str(argv[2]).strip() else 0
+    except ValueError:
+        unity_rc = 0
+    where = os.path.dirname(nunit_path) or "."
 
     errs: list[str] = []
     if os.path.isfile(log_path):
@@ -189,7 +242,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"컴파일 오류 {len(errs)}건 — 테스트가 돌지 못한 것이다")
             data = {"total": 0, "passed": 0, "failed": 0, "skipped": 0, "duration": 0.0, "cases": []}
         else:
+            # 결과도 없고 컴파일 오류도 없다 = 판정 근거가 아무것도 없다. 회귀로 단정하지 않는다.
             print("컴파일 오류도 없다 — 잡이 결과를 남기기 전에 죽은 것이다")
+            print(f"판정 {UNKNOWN} → {write_verdict(where, UNKNOWN)}")
             return 0
     else:
         with open(nunit_path, encoding="utf-8", errors="replace") as f:
@@ -206,6 +261,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"기준선 없음 — `{ref}` 에서 이 잡이 돈 결과를 찾지 못했다")
     else:
         print(f"기준선: `{ref}` 실패 {len(base)}건")
+
+    code, why = decide(data, errs, base, unity_rc)
+    label = {PASS: "통과", REGRESSION: "이 MR 이 만든 문제 — 막는다", UNKNOWN: "판단 불가 — 경고"}[code]
+    print(f"판정 {code} ({label}): {why}")
+    write_verdict(where, code)
 
     text = body(data, errs, base, ref)
     if gl.can_write:

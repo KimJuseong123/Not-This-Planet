@@ -10,6 +10,7 @@ test_report_summary total 0). 조용히 실패하는 종류라 테스트로 못 
 그리고 **새 실패와 기존 실패를 갈라야** 읽힌다. 매번 17개를 나열하면 사람이 무시한다 —
 mr-lint 의 스택 경고가 그렇게 무시됐다(실측 26 대 0).
 """
+from pathlib import Path
 import os
 import sys
 
@@ -174,5 +175,72 @@ def no_artifact(method, url, headers=None, body=None, timeout=30):
 ci_common.http = no_artifact
 assert R.baseline_failures(ci_common.GitLab(), "develop") is None
 print("  아티팩트 없음 → None ✅")
+
+# ── ⑫ 종료 코드 판정 (S15P21B202-309) ────────────────────────────────────────
+#    전에는 잡이 Unity 의 원시 종료 코드를 그대로 뱉었다. Unity 는 테스트가 하나라도 실패하면
+#    2 로 끝나므로, 기준선에도 있는 실패 25건만 가진 MR 세 건(!228·!229·!230)이 전부 빨간 ⚠ 였다.
+#    코멘트는 "새로 생긴 것 0" 이라고 정확히 적고 있었는데도 그랬다 — 판정과 종료 코드가 따로였다.
+def data(failed_names, total=100):
+    cases = [{"cls": "A", "name": nm, "msg": "", "result": "Failed"} for nm in failed_names]
+    return {"total": total, "passed": total - len(cases), "failed": len(cases),
+            "skipped": 0, "duration": 1.0, "cases": cases}
+
+
+PASS, REG, UNK = R.PASS, R.REGRESSION, R.UNKNOWN
+assert (PASS, REG, UNK) == (0, 1, 2), "allow_failure: exit_codes: [2] 와 짝이다"
+
+# 기존 실패만 → **통과**. 이 한 줄이 09-06 의 거짓 경고 세 건을 없앤다.
+code, why = R.decide(data(["t1", "t2"]), [], {"A.t1", "A.t2"}, 2)
+assert code == PASS, (code, why)
+
+# 이 MR 이 만든 실패 → 막는다
+code, _ = R.decide(data(["t1", "t2"]), [], {"A.t1"}, 2)
+assert code == REG, code
+
+# 컴파일 오류는 기준선을 볼 필요가 없다 — develop 이 컴파일되면 이 MR 이 깬 것이다
+code, _ = R.decide(data([]), ["error CS1002: ; expected"], {"A.t1"}, 1)
+assert code == REG, code
+code, _ = R.decide(data([]), ["error CS1002: ; expected"], None, 1)
+assert code == REG, "기준선이 없어도 컴파일 오류는 막는다"
+
+# 기준선을 못 봤다 + Unity 가 죽었다 → 판단 불가(경고). 회귀로 단정하지 않는다.
+code, _ = R.decide(data(["t1"]), [], None, 2)
+assert code == UNK, code
+
+# 기준선을 못 봤지만 Unity 가 성공 → 통과
+code, _ = R.decide(data([]), [], None, 0)
+assert code == PASS, code
+
+# 실패는 없는데 Unity 가 죽었다 = 라이선스·크래시·타임아웃. 인프라 일이므로 머지를 막지 않는다.
+code, why = R.decide(data([]), [], set(), 1)
+assert code == UNK and "환경" in why, (code, why)
+
+# 전부 통과
+assert R.decide(data([]), [], set(), 0)[0] == PASS
+
+# 되살린 것이 있어도(기준선에 있고 지금은 없음) 통과다
+assert R.decide(data([]), [], {"A.t1", "A.t2"}, 0)[0] == PASS
+print("  종료 코드 판정 9가지 ✅")
+
+
+# ── ⑬ 판정은 파일로 넘어간다 — 잡이 이 값으로 끝난다
+import tempfile
+
+with tempfile.TemporaryDirectory() as d:
+    out = R.write_verdict(d, UNK)
+    assert Path(out).name == R.VERDICT_FILE, out
+    assert Path(out).read_text(encoding="utf-8") == "2"
+print("  판정 파일 기록 ✅")
+
+
+# ── ⑭ 결과 파일이 아예 없으면 판정 2 를 남긴다 (회귀로 단정하지 않는다)
+with tempfile.TemporaryDirectory() as d:
+    nunit = str(Path(d) / "unity-results.xml")      # 만들지 않는다
+    ci_common.http = lambda *a, **k: (404, {})
+    rc = R.main([nunit, str(Path(d) / "nope.log"), "1"])
+    assert rc == 0, rc
+    v = Path(d) / R.VERDICT_FILE
+    assert v.exists() and v.read_text(encoding="utf-8") == "2", "판정 근거가 없으면 경고여야 한다"
+print("  결과·로그 둘 다 없음 → 2 ✅")
 
 print("TEST271 OK")

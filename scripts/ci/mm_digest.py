@@ -305,7 +305,25 @@ def deploy_state(gl: GitLab, ref: str = "develop") -> dict:
         if j.get("status") != "manual":
             break
         pending += 1
-    return {"live": live, "attempt": attempt, "pending": pending, "complete": complete}
+    return {"live": live, "attempt": attempt, "pending": pending, "complete": complete,
+            "drift": backend_drift(gl, live, ref)}
+
+
+def backend_drift(gl: GitLab, live: dict | None, ref: str = "develop") -> list[str] | None:
+    """배포된 커밋 이후 `ref` 에 쌓인 `backend/` 변경 파일. 확인 못 하면 None.
+
+    **`pending` 만으로는 부족하다.** pending 은 '눌리지 않은 배포 잡' 을 세는데, 배포 잡이
+    아예 만들어지지 않는 경우가 있다 — 09-06 에 -303(릴레이)의 파이프라인이 1분 뒤 머지된
+    -304 때문에 자동 취소됐고, -304 는 `backend/` 를 건드리지 않아 새 파이프라인에는 배포 잡이
+    없었다(-309). 그래서 pending=0, 파이프라인 전부 초록, 그런데 서버는 이틀 전 코드였다.
+    잡 목록으로는 없는 것을 볼 수 없으니 **커밋을 직접 비교**한다."""
+    sha = ((live or {}).get("commit") or {}).get("id")
+    if not sha:
+        return None
+    paths = gl.compare_paths(sha, ref)
+    if paths is None:
+        return None
+    return [p for p in paths if p.startswith("backend/")]
 
 
 def deploy_line(st: dict) -> str:
@@ -318,6 +336,12 @@ def deploy_line(st: dict) -> str:
         head = f"🚀 배포: `{sha}` ({kst(live.get('finished_at'))})"
     if pending:
         head += f" · 백엔드 변경 **{pending}건 배포 대기**(수동 잡을 눌러야 올라갑니다)"
+    elif st.get("drift"):
+        # 눌릴 잡이 없는데 코드가 다르다 = 배포 잡이 사라진 것이다. 이쪽이 훨씬 위험하다 —
+        # 대기 잡은 보이지만 없는 잡은 안 보인다.
+        head += (f" · ⚠ **배포 대기 잡이 없는데 develop 의 backend 가 배포본과 다릅니다**"
+                 f"(파일 {len(st['drift'])}개) — 배포 잡이 만들어지지 않은 것입니다"
+                 f" → @{INFRA_MM} 확인")
     return head
 
 
