@@ -104,7 +104,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 case LEAVE_ROOM -> leaveRoom(session, userId);
                 case READY -> ready(userId, msg.data().get("ready").asBoolean());
                 case START_GAME -> startGame(userId, msg.data());
-                case GAME_END -> endGame(session, userId);
+                case GAME_END -> endGame(userId);
                 case PLAYER_MOVE -> playerMove(userId, msg.data());
                 default -> send(session, WsMessage.Type.ERROR, Map.of("message", "unknown type"));
             }
@@ -374,10 +374,14 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
      * <p>유예 중인 사람의 타이머도 취소하지 않는다. 취소하면 이미 연결이 끊긴 그
      * 사람의 자리가 영구히 남는다 — 만료되도록 두면 자리가 정리된다.
      */
-    private void endGame(WebSocketSession session, Long userId) {
+    private void endGame(Long userId) {
         Room room = roomOf(userId);
         if (room == null || !userId.equals(room.getHostUserId()) || !room.end()) {
-            send(session, WsMessage.Type.ERROR, Map.of("message", "cannot end game"));
+            // 저장된 세션은 동시 쓰기를 직렬화하도록 감싼 것이다(-313). 원본으로 보내면 그 보호를 잃는다.
+            WebSocketSession session = sessions.get(userId);
+            if (session != null) {
+                send(session, WsMessage.Type.ERROR, Map.of("message", "cannot end game"));
+            }
             return;
         }
 
