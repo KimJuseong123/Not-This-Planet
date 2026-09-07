@@ -271,7 +271,7 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 
 [Infra](금준영)는 **GitLab Developer · Jira 일반 사용자**로 유지된다(승급 없음). 따라서 권한이 필요한 설정은 팀장(김수호, GitLab Maintainer)이 클릭하고, [Infra]는 그 외 전부를 준비·실행한다.
 
-| 구분 | [Infra]가 직접 (지금) | 팀장 클릭 필요 → [leader-checklist.md](./leader-checklist.md) |
+| 구분 | [Infra]가 직접 (지금) | 팀장 클릭 필요 (당시 팀장 체크리스트로 관리 — 지금은 [ci-cd-pipeline.md](./ci-cd-pipeline.md) §8) |
 | --- | --- | --- |
 | GitLab | 문서·템플릿·훅·`.mcp.json`·CI 파일을 이슈 브랜치 → MR로 올리기 · 브랜치 정리 요청 | 보호 브랜치 `*`/`S15P21B202-*`/`hotfix/*` 추가 · squash 기본 · 스레드 해결 필수 · 러너 확인 · 보호된 작업 브랜치 삭제 |
 | Jira | 레이블 10종 생성 · 기존 이슈 제목/레이블/담당자 정리(팀장 OK 후) · 테스트 이슈로 흐름 검증 · 수동 전환(자동화 전까지) | Automation R1~R9 · (Jira 관리자) 필수 필드 · 워크플로우 전환 제한 · Epic 담당자 결정 |

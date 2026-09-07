@@ -455,7 +455,7 @@ def main() -> int:
     tail = deploy_line(dep) if (gl.token and gl.project) else ""
     text = f"📋 **아침 점검 — 확인 필요** ({now_kst()})\n" + "\n\n".join(blocks) + \
            (f"\n\n{tail}" if tail else "") + \
-           f"\n\n_각 항목의 @담당자가 처리 · 규칙: docs/leader-checklist.md · 자동 생성(mm-digest)_"
+           f"\n\n_각 항목의 @담당자가 처리 · 항목 설명: docs/ci-cd-pipeline.md §6 · 자동 생성(mm-digest)_"
     st, d = http("POST", url, body={"text": text, "username": "METAGAME 봇"})
     print(text)
     print(f"\nMM 전송 → {st}")
