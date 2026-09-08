@@ -22,13 +22,75 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from ci_common import banner, env  # noqa: E402
+from ci_common import GitLab, banner, env  # noqa: E402
 
 DEFAULT_SPOOL = "/spool"
 JAR_GLOB = "backend/build/libs/*.jar"
 MIN_JAR_BYTES = 10_000_000        # 10MB 미만이면 정상 jar 이 아니다
 TIMEOUT = int(env("DEPLOY_TIMEOUT", "420") or 420)
 INTERVAL = 5
+BACKEND_PREFIX = "backend/"       # 이 접두의 변경만 "백엔드가 달라졌다" 로 센다
+DRIFT_SHOWN = 5                   # 경고에 파일 이름을 몇 개까지 늘어놓나
+
+
+def staleness(sha: str, ref: str = "develop") -> tuple[int | None, list[str] | None]:
+    """이 배포가 `ref` 의 끝인가 (S15P21B202-333).
+
+    돌려주는 것: `(ref 가 이 커밋보다 앞선 커밋 수, 그 사이 바뀐 backend/ 파일)`.
+    **확인하지 못하면 `(None, None)`** — `0`·`[]` 과 섞지 않는다. `-309` 에서 얻은 교훈이다:
+    "확인 못 했다" 를 "이상 없다" 로 접으면 조용한 미탐이 된다.
+
+    왜 필요한가: `deploy-backend` 는 `needs: [build-backend]` 라 **자기 파이프라인의** 아티팩트를
+    배포한다. 그래서 옛 파이프라인의 버튼을 누르면 그 시점의 jar 이 올라가는데, 옛 jar 도 정상
+    jar 이라 헬스체크를 통과하고 `STATUS ok` 로 끝난다 — 뒤로 갔다는 신호가 어디에도 없었다.
+
+    토큰이 없으면 **네트워크를 열지 않고** 바로 모른다고 답한다(오프라인 테스트가 이 경로를 탄다).
+    """
+    gl = GitLab()
+    if not (gl.token and gl.project) or not sha or sha == "local":
+        return None, None
+    # **어떤 예외도 배포를 막지 않는다.** ci_common.http 는 4xx/5xx 는 튜플로 주지만
+    # URLError(DNS·연결 거부·타임아웃)는 그대로 올린다. 이것은 배포를 돕는 경고일 뿐이므로,
+    # 네트워크가 흔들렸다고 배포가 죽으면 고치려던 것보다 나쁜 것을 만든다.
+    try:
+        head = gl.branch_head(ref)
+        if not head:
+            return None, None
+        if head == sha:
+            return 0, []
+        behind = gl.behind_count(sha, ref)
+        paths = gl.compare_paths(sha, ref)
+    except Exception as e:  # noqa: BLE001 — 경고가 배포 판정을 바꾸면 안 된다
+        print(f"[warn] develop 비교 실패({type(e).__name__}: {e}) — 최신 여부를 판단하지 않는다")
+        return None, None
+    drift = None if paths is None else [x for x in paths if x.startswith(BACKEND_PREFIX)]
+    return behind, drift
+
+
+def stale_verdict(behind: int | None, drift: list[str] | None) -> tuple[str, str]:
+    """`(종류, 사람이 읽을 한 줄)`. 순수 함수 — 판정이 한 곳에만 있게 한다.
+
+    종류
+      · `warn`    최신이 아니고 그 사이 `backend/` 가 바뀌었다 = 정말로 뒤로 간다
+      · `same`    뒤처졌지만 `backend/` 변경이 0 = 배포되는 백엔드가 같다. 경고할 것이 없다
+      · `tip`     `develop` 의 끝이다
+      · `unknown` **확인하지 못했다**
+
+    **`unknown` 을 나머지와 반드시 구분한다.** `behind` 를 읽었어도 변경 목록을 못 읽었으면
+    "backend 변경이 없다" 고 말할 근거가 없다 — 처음 이 함수와 호출부에 분기가 갈려 있어
+    `drift is None`(못 읽음)이 `same`(변경 없음)으로 떨어졌다(`!252` AI 리뷰가 잡았다).
+    `-309` 의 교훈과 같은 자리다: "확인 못 했다" 를 "이상 없다" 로 접으면 조용한 미탐이 된다.
+    """
+    if behind is None or drift is None:
+        return "unknown", ("develop 과 비교하지 못했다 — 최신 여부를 판단하지 않는다"
+                           " (GITLAB_TOKEN 이 없거나 조회 실패)")
+    if behind == 0:
+        return "tip", "develop 의 끝을 배포한다"
+    if not drift:
+        return "same", (f"develop 보다 {behind}커밋 뒤처졌지만 그 사이 backend/ 변경이 없다"
+                        " — 배포되는 백엔드는 같다")
+    return "warn", (f"최신이 아닌 커밋을 배포한다 — develop 보다 {behind}커밋 뒤 · "
+                    f"그 사이 backend/ 변경 {len(drift)}개")
 
 
 NOTIFY_JOB = "deploy-backend"        # 이 이름의 잡에서만 알린다
@@ -128,6 +190,21 @@ def main(argv: list[str] | None = None) -> int:
     pipeline = env("CI_PIPELINE_ID", "-") or "-"
     print(f"jar={jar} ({size / 1e6:.1f}MB) sha={sha[:8]} pipeline={pipeline}")
 
+    # 최신 여부를 **배포 전에** 알린다 (S15P21B202-333). 막지는 않는다 — 옛 커밋 배포는
+    # 롤백이라는 정당한 용도가 있다. 다만 모르고 뒤로 가는 일이 없게 한다.
+    behind, drift = staleness(sha)
+    kind, line = stale_verdict(behind, drift)
+    note = line if kind == "warn" else ""
+    if kind == "warn":
+        print(f"⚠ {line}")
+        for path in (drift or [])[:DRIFT_SHOWN]:
+            print(f"     - {path}")
+        if drift and len(drift) > DRIFT_SHOWN:
+            print(f"     … 그 밖에 {len(drift) - DRIFT_SHOWN}개")
+        print("   롤백이면 정상이다. 최신을 올리려면 develop 의 **가장 최신** 파이프라인에서 누른다")
+    else:
+        print(f"[알림] {line}" if kind == "unknown" else line)
+
     put(spool, jar, sha, pipeline)
     print(f"스풀에 올렸다 → 호스트가 배포한다. 최대 {TIMEOUT}초 기다린다")
 
@@ -141,7 +218,8 @@ def main(argv: list[str] | None = None) -> int:
     result, detail = st.get("result"), st.get("detail", "")
     if result == "ok":
         print(f"✅ 배포 완료 — {detail}")
-        announce("ok", detail)
+        # 경고는 카드에도 싣는다. 로그를 여는 사람보다 카드를 보는 사람이 많다.
+        announce("ok", f"{detail} · ⚠ {note}" if note else detail)
         return 0
     if result == "rollback":
         print(f"⚠ 롤백됨 — {detail}")
