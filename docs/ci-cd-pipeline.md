@@ -34,6 +34,8 @@
     │                                                            EC2 systemd metagame-deploy.path → deploy.sh
     │                                                            (교체 → 헬스체크 → 실패 시 롤백 → MM 🟢/🔴)
     ▼
+ 팀장이 release/ 브랜치를 master 에 머지 ▶ ⑥ master 파이프라인 (§2-D): release-windows — 버전 → Windows 빌드 → 패키지 → GitLab Release(태그) → MM 🟢
+
  매일 09:30 스케줄 ────────────▶ ⑤ 스케줄 파이프라인 (§2-C): ci-tests · retarget-pipelines · mm-digest(📋)
 
  EC2 호스트 (파이프라인 밖, §4): gitlab-runner ×2 · claude-token-refresh.timer(20분) · metagame-relay · nginx · docker(backend·mysql)
@@ -48,6 +50,7 @@
 | **A. MR** (`merge_request_event`) | MR 이 열리거나 소스 브랜치에 push | §2-A 전부 (조건부: `ci-tests` `unity-compile` `build-backend` `ai-review`) | 새 push 가 앞 파이프라인을 자동 취소한다(정상) |
 | **B. develop push** | 팀장이 MR 을 머지한 직후 | `retarget-pipelines` · `unity-compile`(METAGAME 변경) · `build-backend` → `deploy-backend`(backend 변경, **수동**) | **자동 취소 없음**(`auto_cancel: none`, -309) — 연달아 머지돼도 배포 버튼이 사라지지 않는다 |
 | **C. 스케줄** | 매일 09:30 KST (id 24, `30 9 * * *`, ref develop) — 실제 발송 09:33 | `ci-tests` · `retarget-pipelines` · `mm-digest` | 카드는 항목이 있을 때만 나간다 |
+| **D. master push** | 팀장이 `release/<키>-vX.Y.Z` 브랜치(또는 hotfix)를 master 에 머지한 직후 | `release-windows` | **릴리스 = 자동**: 버전 → Windows 빌드 → 패키지 → GitLab Release(태그) → MM. 자동 취소 없음(-326) |
 
 전부 `CI_ENABLE=true` 변수가 있어야 **파이프라인 자체가 생성**된다(없으면 조용히 0건 — §7).
 
@@ -92,6 +95,16 @@
 | `ci-tests` | 코드가 안 바뀌어도 **시간이 흘러** 깨지는 것을 잡는다(-281 이 그랬다). 실패하면 아침 카드 맨 위에 🧪 |
 | `retarget-pipelines` | 전날 develop 파이프라인이 실패·취소됐어도 다음 아침에 메운다 |
 | `mm-digest` | 📋 아침 점검 카드(§6). `needs: ci-tests(optional)` + `when: always` — 테스트가 빨개도 카드는 나간다 |
+
+---
+
+### 2-D. master push 파이프라인 (릴리스)
+
+| 잡 | 조건 | 하는 일 | 실패 시 |
+| --- | --- | --- | --- |
+| `release-windows` | master push · `resource_group: unity` · 90분 | ① 버전 확정(머지 커밋의 `release/…-vX.Y.Z`, 없으면 hotfix PATCH+1, 그것도 없으면 빌드 전에 실패) ② GameCI windows-mono 이미지에서 `SpaceBuild.BuildWindows` ③ zip(`metagame-vX.Y.Z-날짜-시각.zip`) ④ **패키지 레지스트리** 업로드(잡 토큰 — 100MB 첨부 상한을 피한다) ⑤ GitLab Release + 태그(변경 목록 = 이전 태그 이후 develop 머지 MR) ⑥ MM 🟢(팀장) ⑦ 변수 있으면 Jira 릴리스 웹훅(-327) | 어느 단계에서 왜 인지 MM 🔴(Infra). 같은 버전 재실행은 멱등 |
+
+팀장이 하는 일은 릴리스 브랜치를 머지하는 것까지다 — [git-convention §8](./git-convention.md) · [records/-326](./records/S15P21B202-326-release-pipeline.md).
 
 ---
 
@@ -172,6 +185,7 @@ UFW: 22 · 80 · 443 · 17777/udp · 17778/udp · 17779/tcp(172.16.0.0/12 만). 
 | 🟠 규칙 위반 | Jira 웹 요청 (R2 제목 형식 · R5 진행 중 되돌림 · R7 머지 없이 닫힘 · R9 완료 되돌림) | 규칙이 되돌릴 때 | 끈 사람 / 담당자 |
 | 🟢 머지 완료 · 이슈 완료 | Jira 웹 요청 (R6) | 머지 직후 | 담당자 |
 | 🟢 배포 완료 / 🔴 롤백 / 🔴 무응답 | `deploy_backend.py` | 배포 잡 끝 | 실패·롤백·무응답만 Infra. 성공도 보낸다 — "진행 중이던 접속이 끊겼다" 를 알려야 하므로 |
+| 🟢 릴리스 vX.Y.Z / 🔴 릴리스 실패 | `release-windows`(`publish_release.py`) | master 머지 뒤 Release 발행 / 빌드·업로드·발행 어느 단계 실패 | 팀장 / Infra |
 | 📋 아침 점검 | `mm-digest` | 09:33, 항목 있을 때 | 항목별 담당자 |
 | 🔔 Claude 자격 | 호스트 `claude_auth_check.py` | 인증 2회 연속 실패 등 문턱 · 복구 시 · 6시간마다 재알림 | Infra |
 | 🔴 develop 파이프라인 실패 | GitLab 내장 통합 | default branch 만 | 없음 |
@@ -203,8 +217,9 @@ MR 하나에 붙을 수 있는 봇 코멘트: `mr-lint` ⚠ · `mr-overlap` · `
 | 무엇 | 상태 |
 | --- | --- |
 | develop 보호가 push **Maintainers** — 문서는 No one | 팀장 설정 1분. 그동안 develop 직접 push 가 가능하다(검사 0건으로 들어간다) |
-| 릴리스 자동화 — 태그 · Windows 빌드 · GitLab Release · Jira 릴리스 | -326 · -327. 규칙(`release/` 브랜치 · squash 자동 해제 · 자기 커밋 금지 · 빌드 폴더 금지)은 -325 로 들어갔다 |
+| 릴리스 파이프라인 **첫 실측 전** | `release-windows`(-326)는 들어갔지만 실제 릴리스는 아직 0회 — 첫 릴리스에서 빌드 시간·zip 크기·패키지 업로드 상한을 실측해 records/-326 §4 에 적는다 |
 | ~~Jira R6·R7 정규식이 `release/` 를 모른다~~ | **2026-09-07 해결** — `scripts/jira/apply_rules17.py` 로 3곳을 `^(?:hotfix/\|release/)?` 로 바꿨다(PUT 200 확인). 첫 실전 확인은 릴리스 MR 머지 때 R6 가 그 이슈를 완료시키는지 |
+| ~~Jira 릴리스 fixVersion(-327)~~ | **2026-09-07 규칙 R10 완성** — `scripts/jira/apply_rules18.py`. 남은 것은 CI 변수 `JIRA_RELEASE_WEBHOOK`(팀장, masked·protected)과 첫 릴리스에서 Jira 릴리스 화면 확인 |
 | `build-backend` 가 테스트를 안 돈다 | -302. 플래키 원인(-313)이 배포됐으니 `test bootJar` + junit 으로 |
 | `metagame.service`(데디케이티드 서버) 가 아직 돈다 | 리슨 서버 + 릴레이 전환 뒤 사용 여부 확인 |
 | `deploy-backend` 가 수동 · dev/prod 미분리 | -284. 보안그룹 답(dev 포트) 대기 |
