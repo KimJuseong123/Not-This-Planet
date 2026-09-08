@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Metagame.Gameplay.Hazards;
 using NUnit.Framework;
+using UnityEditor;
 using UnityEngine;
 
 namespace Metagame.Gameplay.Tests
@@ -135,6 +136,50 @@ namespace Metagame.Gameplay.Tests
             bat.Unequip();
 
             Assert.IsTrue(own.detectCollisions, "껐던 그 몸이 되돌아와야 한다.");
+        }
+
+        /// <summary>
+        /// <b>모든 도구가 이 길을 견뎌야 한다.</b>
+        ///
+        /// <para>원격 경로에서는 <c>OnEquipped</c>·<c>OnUnequipped</c> 가 <c>Owner</c> 와
+        /// <c>Body</c> 가 <c>null</c> 인 채로 불린다(<c>ApplyRemoteHeld</c> 의 계약).
+        /// 파생 클래스가 그 둘을 무심코 참조하면 <b>참가자 기계에서만</b> NullReference 가
+        /// 난다 — 호스트에서는 절대 재현되지 않는 종류다.</para>
+        ///
+        /// <para><see cref="TypeCache"/> 로 파생을 <b>전수</b> 가져오므로, 도구를 새로
+        /// 만들고 이 테스트를 늘리지 않으면 <b>여기서 실패한다.</b> 계약이 주석에만 남지
+        /// 않게 하는 장치다(AI 리뷰 지적, 2026-09-08).</para>
+        /// </summary>
+        [Test]
+        public void RemoteHeld_IsSurvivedByEveryToolType()
+        {
+            var types = TypeCache.GetTypesDerivedFrom<ToolBase>();
+            var covered = new List<System.Type> { typeof(MeteorBat), typeof(PlasmaWeldingTool) };
+
+            foreach (var type in types)
+            {
+                if (type.IsAbstract) continue;
+
+                Assert.Contains(type, covered,
+                    $"도구 {type.Name} 이 이 테스트에 없다 — 원격 휴대 경로를 태워 볼 것. "
+                    + "그 경로에서는 Owner·Body 가 null 이다(ApplyRemoteHeld 의 계약).");
+            }
+
+            foreach (var type in covered)
+            {
+                var go = new GameObject(type.Name) { layer = GameLayers.Prop };
+                _spawned.Add(go);
+                go.AddComponent<BoxCollider>();
+                go.AddComponent<Rigidbody>().useGravity = false;
+                MakeVisual(go.transform);
+
+                var tool = (ToolBase)go.AddComponent(type);
+
+                Assert.DoesNotThrow(() => tool.ApplyRemoteHeld(true),
+                    $"{type.Name}: 원격이 들었다고 알렸을 때 터졌다.");
+                Assert.DoesNotThrow(() => tool.ApplyRemoteHeld(false),
+                    $"{type.Name}: 원격이 놓았다고 알렸을 때 터졌다.");
+            }
         }
 
         // --- 낙하 운석 그림 --------------------------------------------------

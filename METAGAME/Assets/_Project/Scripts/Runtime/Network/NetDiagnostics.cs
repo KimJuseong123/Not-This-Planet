@@ -28,9 +28,9 @@ namespace Metagame.Network
     ///
     /// <para>한 줄 형식(1초마다):
     /// <code>
-    /// [NETDIAG] t=12.3 role=host rtt=75.2 fps=118 btm=2.48 buftime=82.6 buf=6
+    /// [NETDIAG] t=12.0 role=host rtt=75.2 fps=118 btm=2.48 buftime=82.6 buf=6
     ///           tracked=6 clamps=16 tools=2 drops=3 pending=3 live=2 scars=5 crew=2
-    ///           poses=a1b2c3d4
+    ///           seq=360 poses=a1b2c3d4
     /// </code>
     /// <c>KcpTransport.statisticsLog</c> 도 함께 켜므로 <c>SendQueue</c>·<c>MaxSendRate</c> 는
     /// kcp 자신이 1초마다 남긴다 — 그 값들은 <c>client</c> 필드가 protected 라 밖에서
@@ -82,7 +82,7 @@ namespace Metagame.Network
             }
 
             Debug.Log("[NETDIAG] 시작. 형식: t role rtt fps btm buftime buf tracked clamps "
-                      + "tools drops pending live scars crew poses");
+                      + "tools drops pending live scars crew seq poses");
         }
 
         void Update()
@@ -161,8 +161,11 @@ namespace Metagame.Network
             Append("scars", spawner != null ? spawner.Scars.Count.ToString() : "-");
             Append("crew", spawner != null ? spawner.Crew.ToString() : "-");
 
-            // 세계가 실제로 같은지 증명하는 값. 양쪽 로그에서 같은 t 의 이것을 견준다.
-            Append("poses", worldSync != null ? worldSync.PoseHash().ToString("x8") : "-");
+            // 세계가 실제로 같은지 증명하는 값. **같은 seq 의 poses 를** 견준다 —
+            // 시각으로 짝지으면 보간 지연 때문에 움직이는 것이 늘 갈려 보인다
+            // (WorldSync.BundleSeq 의 주석에 그 계산이 있다).
+            Append("seq", worldSync != null ? worldSync.BundleSeq.ToString() : "-");
+            Append("poses", worldSync != null ? worldSync.BundleHash.ToString("x8") : "-");
 
             Debug.Log(line.ToString());
         }

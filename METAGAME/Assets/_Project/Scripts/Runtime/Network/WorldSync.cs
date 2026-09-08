@@ -109,8 +109,12 @@ namespace Metagame.Network
         bool everMeteor;
         bool warnedMeteorCap;
 
-        /// <summary>직전에 보낸 낙하 자세 개수. 0이 이어질 때 빈 묶음을 멈추는 데 쓴다.</summary>
-        int lastSentMeteors;
+        /// <summary>
+        /// "운석 0개" 를 몇 번 더 보낼지. 신뢰 없는 채널에서 그림을 지우는 신호가 한 번에
+        /// 유실되는 것을 막는다 — <see cref="SendMeteors"/> 의 주석 참고.
+        /// </summary>
+        const int ZeroRepeats = 15;
+        int zeroSends;
 
         /// <summary>
         /// 보낸 순서. <b>신뢰 없는 채널은 순서를 지켜 주지 않는다</b> — 늦게 도착한
@@ -226,39 +230,96 @@ namespace Metagame.Network
         public int ToolCount => tools.Count;
 
         /// <summary>
-        /// 나르는 물체들의 자세를 한 값으로 접는다.
-        ///
-        /// <para><b>왜 체크섬인가.</b> 호스트와 참가자 로그에서 같은 시각의 이 값을 견주면
-        /// <b>세계가 실제로 같은지 한 눈에 안다</b> — 좌표를 전부 적어 눈으로 비교할 필요가
-        /// 없다. 1cm·1도로 양자화하므로 보간 차이로는 안 흔들리고, 물체가 다른 자리에
-        /// 있으면 값이 갈린다.</para>
-        ///
-        /// <para>순서에 민감하다 — 그것도 일부러다. 양쪽 정렬이 어긋나면(개수는 같은데
-        /// 순서만 다른 사고, `KeyOf`·`Compare` 주석 참고) 이 값이 달라져 드러난다.</para>
+        /// 체크섬을 남기는 묶음 간격. <c>sendRate 30</c> 에서 약 1초에 한 번이라
+        /// <c>NetDiagnostics</c> 의 기록 주기와 맞는다.
         /// </summary>
-        public uint PoseHash()
+        const uint HashEvery = 30;
+
+        uint bundleSeq;
+        uint bundleHash;
+        bool everBundle;
+
+        /// <summary>
+        /// 체크섬을 남긴 묶음의 번호. 0 이면 아직 하나도 없다.
+        ///
+        /// <para><b>번호로 짝짓는 이유.</b> 예전에는 <b>지금 물체들의 자세</b>를 접어
+        /// 시각(<c>t</c>)으로 짝지었다. 그건 움직이는 것에 대해 **반드시 갈린다** —
+        /// 참가자 쪽 물체는 받은 자세로 <b>보간해 가는 중</b>이라(<c>FollowOnClient</c> 의
+        /// <c>Smoothing</c>) 호스트의 실시간 자세보다 뒤에 있고, 그 차이는 초당 2m 로
+        /// 끌리는 파츠에서 10cm, 초당 10m 로 떨어지는 운석에서 50cm 다. 1cm 로
+        /// 양자화한 값이 늘 달라져 **검증 도구가 거짓 빨강만 내게 된다.**</para>
+        ///
+        /// <para>그래서 <b>실제로 주고받은 묶음</b>을 접는다. 같은 번호의 묶음은 양쪽에서
+        /// 바이트가 같으므로 양자화도 필요 없고 —
+        /// 오일러 각의 <c>359.6°</c>↔<c>0.4°</c> 경계 문제도 사라진다 — 값이 다르면
+        /// <b>정말로 다른 데이터가 적용된 것</b>이다.</para>
+        ///
+        /// <para>줄 세우기가 어긋난 사고(개수는 같은데 순서만 다른 것)는 이 값으로는
+        /// 안 잡힌다. 그건 <see cref="TrackedNames"/> 줄을 그대로 비교하는 쪽이
+        /// <b>더 정확하게</b> 잡는다 — <c>netdiag.py</c> 가 그것을 먼저 본다.</para>
+        /// </summary>
+        public uint BundleSeq => everBundle ? bundleSeq : 0u;
+
+        /// <summary>체크섬. <see cref="BundleSeq"/> 의 주석이 뜻을 적었다.</summary>
+        public uint BundleHash => bundleHash;
+
+        /// <summary>
+        /// 이 묶음의 체크섬을 남길 차례인가. 남길 차례면 접어서 기억한다.
+        /// </summary>
+        void MarkBundle(uint seq, Pose[] poses, int count)
+        {
+            if (seq % HashEvery != 0) return;
+
+            bundleSeq = seq;
+            bundleHash = HashBundle(poses, count);
+            everBundle = true;
+        }
+
+        /// <summary>
+        /// 묶음을 한 값으로 접는다 (FNV-1a).
+        ///
+        /// <para><b>비트를 그대로 접는다.</b> 양쪽이 같은 번호의 같은 묶음을 보므로
+        /// 반올림할 이유가 없다. <c>BitConverter.DoubleToInt64Bits</c> 를 쓰는 것은
+        /// <c>float</c> → <c>double</c> 이 무손실이고 이 API 는 모든 런타임에 있기
+        /// 때문이다.</para>
+        /// </summary>
+        static uint HashBundle(Pose[] poses, int count)
         {
             unchecked
             {
-                uint h = 2166136261u;   // FNV-1a
-                for (int i = 0; i < tracked.Count; i++)
+                uint h = 2166136261u;
+                h = FoldInt(h, count);
+
+                for (int i = 0; i < count && i < poses.Length; i++)
                 {
-                    var b = tracked[i];
-                    if (b == null) { h = (h ^ 0xFFu) * 16777619u; continue; }
-                    var p = b.position;
-                    var e = b.rotation.eulerAngles;
-                    h = Fold(h, Mathf.RoundToInt(p.x * 100f));
-                    h = Fold(h, Mathf.RoundToInt(p.y * 100f));
-                    h = Fold(h, Mathf.RoundToInt(p.z * 100f));
-                    h = Fold(h, Mathf.RoundToInt(e.x));
-                    h = Fold(h, Mathf.RoundToInt(e.y));
-                    h = Fold(h, Mathf.RoundToInt(e.z));
+                    h = FoldFloat(h, poses[i].Position.x);
+                    h = FoldFloat(h, poses[i].Position.y);
+                    h = FoldFloat(h, poses[i].Position.z);
+                    h = FoldFloat(h, poses[i].Rotation.x);
+                    h = FoldFloat(h, poses[i].Rotation.y);
+                    h = FoldFloat(h, poses[i].Rotation.z);
+                    h = FoldFloat(h, poses[i].Rotation.w);
+                }
+
+                return h;
+            }
+        }
+
+        static uint FoldFloat(uint h, float value)
+        {
+            long bits = BitConverter.DoubleToInt64Bits(value);
+            unchecked
+            {
+                for (int k = 0; k < 8; k++)
+                {
+                    h = (h ^ (uint)(bits & 0xFF)) * 16777619u;
+                    bits >>= 8;
                 }
                 return h;
             }
         }
 
-        static uint Fold(uint h, int v)
+        static uint FoldInt(uint h, int v)
         {
             unchecked
             {
@@ -530,6 +591,9 @@ namespace Metagame.Network
             // UnreliableMaxMessageSize 를 넘으면 그 자리에서 예외가 된다. 씬의 부품은
             // 4개이고 견인 장치까지 합쳐도 8개라 닿을 일이 없지만, 나중에 늘어났을 때
             // 조용히 끊기는 대신 신뢰 채널로 되돌아가게 해 둔다.
+            // 진단용 체크섬 (S15P21B202-352). **보낸 그 묶음**을 접어 둔다.
+            MarkBundle(sendSeq, sendPoses, tracked.Count);
+
             if (tracked.Count <= UnreliablePoseCapacity) RpcApply(sendSeq, sendPoses);
             else RpcApplySafe(sendSeq, sendPoses);
 
@@ -806,9 +870,19 @@ namespace Metagame.Network
             // 운석은 대부분의 시간에 0개다. 그런데도 매 송신 틱마다 RPC 를 내면 사람 수만큼
             // 빈 패킷이 상시 나간다 — 이 MR 이 문제로 든 그 업링크 비용이다.
             //
-            // 0으로 **떨어진 첫 번째**는 보낸다. 그것이 참가자의 그림을 지우는 신호다.
-            if (n == 0 && lastSentMeteors == 0) return;
-            lastSentMeteors = n;
+            // **다만 한 번만 보내면 안 된다**(AI 리뷰 2차 지적). "0개" 는 참가자의 그림을
+            // 지우는 신호인데 이 채널은 신뢰가 없다. 그 한 패킷이 유실되면 그림은 충돌러가
+            // 꺼진 채 중력만 받아 **지면을 뚫고 영원히 떨어진다** — 경기 중이라
+            // OnStopClient 정리도 오지 않는다.
+            //
+            // 그래서 0이 된 뒤 ZeroRepeats 번은 계속 보내고 그다음에 조용해진다.
+            // sendRate 30 에서 15번이면 0.5초 — 고정쇠 keepalive 와 같은 창이다.
+            if (n == 0)
+            {
+                if (zeroSends >= ZeroRepeats) return;
+                zeroSends++;
+            }
+            else zeroSends = 0;
 
             if (sendMeteors.Length != n) sendMeteors = new MeteorPose[n];
             for (int i = 0; i < n; i++)
@@ -969,6 +1043,9 @@ namespace Metagame.Network
             lastPoseSeq = seq;
             everPose = true;
             targets = poses;
+
+            // 호스트와 **같은 규칙**으로 접는다 — 같은 번호의 묶음이면 값이 같아야 한다.
+            MarkBundle(seq, poses, poses.Length);
         }
 
         void FollowOnClient()

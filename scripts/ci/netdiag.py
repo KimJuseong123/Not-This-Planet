@@ -134,43 +134,71 @@ def main(argv):
         print("  (한쪽에 tracked 목록 줄이 없다)")
 
     # ── 세계가 실제로 같았는가. 이 도구의 핵심
-    print("\n--- 세계 일치 (poses 체크섬) ---")
-    by_t = {}
-    for r in client:
-        by_t[r["t"]] = r
-    pairs = [(r, by_t[r["t"]]) for r in host if r["t"] in by_t]
-    if not pairs:
-        print("  ❌ 같은 t 를 가진 줄이 없다 — 두 로그가 겹치는 구간이 없다")
-    else:
-        # 겹치는 표본이 너무 적으면 **판정 자체를 믿을 수 없다**. 두 창이 공유 시계로
-        # 찍지 않으면(옛 빌드는 프로세스 로컬 시간을 찍었다) 겹치는 t 가 거의 없고,
-        # 그 몇 개로 "일치 100%" 가 나와도 아무것도 증명하지 못한다.
-        smaller = min(len(host), len(client))
-        if smaller and len(pairs) < smaller * 0.5:
-            print(f"  ⚠ 겹치는 시각이 적다 — {len(pairs)}개 / 적은 쪽 {smaller}개. "
-                  "두 창이 같은 빌드인지, 그 빌드가 공유 시계로 t 를 찍는지 확인할 것 "
-                  "(옛 빌드는 프로세스별 로컬 시간을 찍어 겹치지 않는다). "
-                  "아래 판정은 이 적은 표본에만 해당한다")
+    #
+    # **번호로 짝짓는다, 시각이 아니라.** 참가자 쪽 물체는 받은 자세로 보간해 가는
+    # 중이라 호스트의 실시간 자세보다 늘 뒤에 있다(초당 2m 로 끌리는 파츠에서 10cm).
+    # 시각으로 짝지어 좌표를 견주면 **움직이는 것이 항상 갈려 보인다** — 거짓 빨강이다.
+    # 그래서 양쪽이 같은 규칙으로 접어 둔 **실제 주고받은 묶음**을 번호로 짝짓는다.
+    print("\n--- 세계 일치 (묶음 체크섬 · seq 로 짝짓는다) ---")
+    host_marks = {r["seq"]: r for r in host if r.get("seq", "-") not in ("-", "0")}
+    client_marks = {r["seq"]: r for r in client if r.get("seq", "-") not in ("-", "0")}
+    shared = sorted(set(host_marks) & set(client_marks), key=lambda v: int(v))
 
-        same = [p for p in pairs if p[0].get("poses") == p[1].get("poses")]
-        print(f"  겹치는 시각 {len(pairs)}개 중 체크섬 일치 {len(same)}개 "
-              f"({100.0 * len(same) / len(pairs):.0f}%)")
-        if len(same) == len(pairs):
-            print("  ✅ 겹치는 모든 시각에서 세계가 같았다")
+    if not host_marks or not client_marks:
+        print("  ❌ 한쪽에 묶음 번호가 없다 — 자세를 주고받지 못했다("
+              "호스트가 안 보냈거나 참가자가 하나도 받지 못했다)")
+    elif not shared:
+        print(f"  ❌ 같은 번호의 묶음이 없다 — 호스트 {len(host_marks)}개 · "
+              f"참가자 {len(client_marks)}개인데 겹치는 번호가 0이다. "
+              "두 로그가 같은 경기인지, 같은 빌드인지 확인할 것")
+    else:
+        same = [k for k in shared if host_marks[k].get("poses") == client_marks[k].get("poses")]
+        print(f"  겹치는 묶음 {len(shared)}개 중 체크섬 일치 {len(same)}개 "
+              f"({100.0 * len(same) / len(shared):.0f}%)")
+
+        if len(same) == len(shared):
+            print("  ✅ 주고받은 모든 묶음에서 세계가 같았다")
         else:
-            print("  ❌ 갈린 시각 (처음 10개):")
+            print("  ❌ 갈린 묶음 (처음 10개):")
             shown = 0
-            for h, c in pairs:
-                if h.get("poses") == c.get("poses"):
+            for k in shared:
+                if host_marks[k].get("poses") == client_marks[k].get("poses"):
                     continue
-                print(f"    t={h['t']}  호스트 {h.get('poses')} tracked={h.get('tracked')}"
-                      f"  ·  참가자 {c.get('poses')} tracked={c.get('tracked')}")
+                h, c = host_marks[k], client_marks[k]
+                print(f"    seq={k}  호스트 {h.get('poses')} (t={h.get('t')})"
+                      f"  ·  참가자 {c.get('poses')} (t={c.get('t')})")
                 shown += 1
                 if shown >= 10:
                     break
 
-    # ── 개수가 갈린 항목
+        # 표본이 너무 적으면 **판정 자체를 믿을 수 없다**. 옛 빌드는 묶음 번호를
+        # 아예 안 찍었고, 다른 경기의 로그를 섞으면 겹치는 번호가 몇 개뿐이다.
+        # 그 몇 개로 "일치 100%" 가 나와도 아무것도 증명하지 못한다.
+        smaller = min(len(host_marks), len(client_marks))
+        if smaller and len(shared) < smaller * 0.5:
+            print(f"  ⚠ 겹치는 묶음이 적다 — {len(shared)}개 / 적은 쪽 {smaller}개. "
+                  "두 로그가 같은 경기·같은 빌드인지 확인할 것. "
+                  "위 판정은 이 적은 표본에만 해당한다")
+
+        # 한쪽에만 있는 번호는 **갈린 것이 아니라 표본이 없는 것**이다. 신뢰 없는
+        # 채널이라 참가자가 그 묶음을 놓치면 다음 표시까지 기다린다 — 흔하지 않지만
+        # 일어난다. 갈림과 섞어 세면 판정이 흐려지므로 따로 적는다.
+        only_host = len(set(host_marks) - set(client_marks))
+        only_client = len(set(client_marks) - set(host_marks))
+        if only_host or only_client:
+            print(f"  (한쪽에만 있는 번호 — 호스트 {only_host}개 · 참가자 {only_client}개. "
+                  "유실이나 기록 시점 차이다. 갈림이 아니다)")
+
+    # ── 개수가 갈린 항목. **여기는 시각으로 짝짓는다** — 개수는 순간값이고,
+    #    한쪽이 한 틱 늦게 반영하는 것은 정상이므로 번호로 묶을 이유가 없다.
+    by_t = {}
+    for r in client:
+        by_t[r["t"]] = r
+    pairs = [(r, by_t[r["t"]]) for r in host if r["t"] in by_t]
+
     print("\n--- 개수 대조 (겹치는 시각에서 다른 것만) ---")
+    if not pairs:
+        print("  (겹치는 시각이 없다 — 두 창이 같은 빌드인지, 공유 시계로 t 를 찍는지 확인할 것)")
     keys = ("tracked", "clamps", "tools", "pending", "live", "scars", "crew")
     diffs = {k: 0 for k in keys}
     for h, c in pairs:
@@ -216,7 +244,8 @@ def main(argv):
                   f"({len(rs)}개 표본)")
 
     print("\n판정 기준")
-    print("  · poses 가 겹치는 시각 전부에서 같으면 **세계가 같았다** — 이게 이 검증의 결론이다")
+    print("  · 같은 seq 의 poses 가 전부 같으면 **세계가 같았다** — 이게 이 검증의 결론이다")
+    print("  · 나르는 목록의 순서까지 같아야 한다 — 순서가 갈리면 남의 자리에 값이 들어간다")
     print("  · tracked 가 다르면 그 순간 자세가 하나도 적용되지 않는다. 빌드가 같은지 먼저 본다")
     print("  · SendQueue 가 계속 커지면 적체다(가설 ③). 0 근처면 -328 수정이 유효하다")
     print("  · buftime 이 -328 예산표의 항과 맞는지 본다(예측 67ms → 1차 실측 83ms)")

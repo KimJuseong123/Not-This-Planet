@@ -112,6 +112,15 @@ namespace Metagame.Gameplay
         /// <para><b>소유권을 옮기지 않는다</b> — <see cref="Owner"/> 와 <see cref="Body"/> 는
         /// 건드리지 않고 <see cref="IsEquipped"/> 도 그대로다. 판정은 서버 몫이고 여기서
         /// 바꾸는 것은 보이는 것뿐이다.</para>
+        ///
+        /// <para><b>파생 클래스의 계약</b>(AI 리뷰 지적, 2026-09-08): 이 길로 오면
+        /// <see cref="OnEquipped"/>·<see cref="OnUnequipped"/> 가 <see cref="Owner"/> 와
+        /// <see cref="Body"/> 가 <c>null</c> 인 채로 불린다. 그러므로 두 훅은 <b>그 둘을
+        /// 참조하지 않거나 null 을 견뎌야 한다.</b> 지금 파생은 방망이와 용접 건 둘뿐이고
+        /// 전수 확인했다 — 방망이의 <c>OnUnequipped</c> 는 <c>Body != null</c> 로 감싸고,
+        /// 용접 건은 두 훅에서 그 둘을 아예 쓰지 않는다(비주얼·빔·꽃잎 애니메이터만
+        /// 만진다). <c>NetworkReceivedStateTests</c> 가 두 도구 모두에 이 길을 태워
+        /// 이 계약을 지킨다.</para>
         /// </summary>
         public void ApplyRemoteHeld(bool held)
         {
