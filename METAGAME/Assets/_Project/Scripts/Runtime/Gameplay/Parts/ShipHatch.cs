@@ -256,6 +256,10 @@ namespace Metagame.Gameplay.Parts
                 return;
             }
 
+            // <b>부서지는 동안은 기다린다</b>(S15P21B202-340). Breaking 을 실패 진행으로
+            // 보면 모듈이 그 사이에 착지해 사출이 먼저 일어나고, 위 주석이 말하는
+            // "떨어지는 동안은 타고 있어야 한다" 가 짧아진다. Failed 부터 착지를 보는
+            // 지금 규칙이 그 연출을 온전히 남긴다.
             if (_launch.State != LaunchState.Failed) return;
 
             _restTime += deltaTime;

@@ -301,9 +301,13 @@ namespace Metagame.Gameplay.Tests
             Assert.AreEqual(BoardingState.Launching, rig.Hatch.State, "발사가 시작되어야 한다.");
 
             // 접합부가 터지는 순간을 찾는다.
+            //
+            // 400 스텝(8초)으로는 부족해졌다(S15P21B202-340). 접합이 끊어진 뒤
+            // LaunchBreakupSeconds 만큼 추력이 남아 공중에서 부서지므로, 착지까지
+            // 그만큼 더 걸린다. 검증의 뜻은 그대로다 — 착지하면 수습으로 넘어간다.
             var brokeAt = -1f;
             var elapsed = 0f;
-            for (var s = 0; s < 400 && rig.Hatch.State == BoardingState.Launching; s++)
+            for (var s = 0; s < 700 && rig.Hatch.State == BoardingState.Launching; s++)
             {
                 Run(rig.Assembly, rig.Hatch, rig.Launch, player, Step);
                 elapsed += Step;
