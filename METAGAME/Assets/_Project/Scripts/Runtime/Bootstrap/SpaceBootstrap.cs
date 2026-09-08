@@ -138,6 +138,18 @@ namespace Metagame.Bootstrap
                 clockBridge.Configure(dustStormVisual, dustStormHazard);
             }
 
+            // 운석 공세도 호스트 하나가 정한다 (S15P21B202-352). 위의 모래바람과 같은
+            // 모양이다 — Gameplay 는 Mirror 를 모르고, 네트워크 판단은 어댑터가 소유한다.
+            //
+            // 전용 서버 조기 반환(아래)보다 **먼저** 설치해야 한다: 세계는 서버에서도
+            // 돌아야 하고, 운석을 정하는 것이 바로 그 서버다.
+            var meteorSpawnerForClock = FindAnyObjectByType<Metagame.Gameplay.Hazards.MeteorSpawner>();
+            if (meteorSpawnerForClock != null)
+            {
+                var meteorBridge = sys.AddComponent<Metagame.Network.MeteorClockBridge>();
+                meteorBridge.Configure(meteorSpawnerForClock);
+            }
+
             Exploration.Configure(FindObjectsByType<SpaceshipPart>(FindObjectsSortMode.None));
             DisableDemoClampReleasers();
             DisableDemoBeamDrivers();
