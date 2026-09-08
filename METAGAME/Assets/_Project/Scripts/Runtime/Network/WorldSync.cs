@@ -75,6 +75,16 @@ namespace Metagame.Network
 
         /// <summary>마지막으로 내보낸 고정쇠 상태. 바뀐 것이 없으면 보내지 않는다.</summary>
         ClampState[] lastSentClamps = Array.Empty<ClampState>();
+
+        // 운석 예고 (S15P21B202-352). 고정쇠와 같은 모양 — 바뀔 때만 + keepalive.
+        DropState[] sendDrops = Array.Empty<DropState>();
+        DropState[] lastSentDrops = Array.Empty<DropState>();
+        System.Collections.Generic.List<Metagame.Gameplay.Hazards.PendingMeteorDrop> recvDrops;
+        float dropKeepaliveTimer;
+        uint lastDropSeq;
+        bool everDrop;
+        Metagame.Gameplay.Hazards.MeteorSpawner meteorSpawnerCached;
+        bool meteorSpawnerLooked;
         float clampKeepaliveTimer;
 
         /// <summary>
@@ -352,6 +362,7 @@ namespace Metagame.Network
         {
             sendTimer += Time.deltaTime;
             clampKeepaliveTimer += Time.deltaTime;
+            dropKeepaliveTimer += Time.deltaTime;
             if (sendTimer < SendInterval) return;
             sendTimer = 0f;
 
@@ -392,6 +403,9 @@ namespace Metagame.Network
                     lastSentClamps = new ClampState[sendClamps.Length];
                 Array.Copy(sendClamps, lastSentClamps, sendClamps.Length);
             }
+
+            // ── 운석 예고 ────────────────────────────────────────
+            SendDrops();
         }
 
         /// <summary>한 묶음에 실을 수 있는 자세 개수. 전송 계층이 정하는 값이다.</summary>
@@ -404,6 +418,111 @@ namespace Metagame.Network
                     : 1194;
                 return Mathf.Max(0, (max - PacketHeadroom) / PoseBytes);
             }
+        }
+
+        /// <summary>
+        /// 운석 예고 하나. <see cref="Metagame.Gameplay.Hazards.PendingMeteorDrop"/> 은 필드가
+        /// 열이지만 <b>여섯은 <c>PhysicsScale</c> 상수</b>라 양쪽이 이미 같다 — 달라지는 넷만
+        /// 싣는다(24바이트). 그리고 그쪽은 <c>readonly struct</c> 라 Mirror 위버가 쓰기를
+        /// 만들지 못하므로, <see cref="ClampState"/> 처럼 평범한 필드 구조체를 따로 둔다.
+        /// </summary>
+        public struct DropState
+        {
+            public Vector3 Point;
+            public float Remaining;
+            public float Warning;
+            public float Radius;
+        }
+
+        /// <summary>
+        /// 이 씬의 운석 스포너. 없으면 <c>null</c> 이고 그때는 예고를 주고받지 않는다
+        /// (샌드박스·테스트 씬).
+        /// </summary>
+        Metagame.Gameplay.Hazards.MeteorSpawner MeteorSpawner
+        {
+            get
+            {
+                if (meteorSpawnerCached == null && !meteorSpawnerLooked)
+                {
+                    meteorSpawnerLooked = true;
+                    meteorSpawnerCached =
+                        FindAnyObjectByType<Metagame.Gameplay.Hazards.MeteorSpawner>();
+                }
+                return meteorSpawnerCached;
+            }
+        }
+
+        void SendDrops()
+        {
+            var spawner = MeteorSpawner;
+            if (spawner == null) return;
+
+            var pending = spawner.Pending;
+            int n = pending != null ? pending.Count : 0;
+            if (sendDrops.Length != n) sendDrops = new DropState[n];
+            for (int i = 0; i < n; i++)
+            {
+                var d = pending[i];
+                sendDrops[i] = new DropState
+                {
+                    Point = d.ImpactPoint,
+                    Remaining = d.RemainingSeconds,
+                    Warning = d.WarningSeconds,
+                    Radius = d.ImpactRadius,
+                };
+            }
+
+            // 남은 시간은 참가자가 로컬에서 센다(AgeNetworkPending). 그래서 **목록이
+            // 달라질 때만** 보낸다 — 고정쇠와 같은 이유다. 신뢰 없는 채널이라 잃을 수
+            // 있으므로 조용해도 가끔 다시 보낸다.
+            bool changed = !SameDrops(sendDrops, lastSentDrops);
+            if (!changed && dropKeepaliveTimer < ClampKeepalive) return;
+
+            RpcApplyDrops(sendSeq, sendDrops);
+            dropKeepaliveTimer = 0f;
+
+            if (lastSentDrops.Length != sendDrops.Length)
+                lastSentDrops = new DropState[sendDrops.Length];
+            Array.Copy(sendDrops, lastSentDrops, sendDrops.Length);
+        }
+
+        /// <summary>
+        /// 예고가 <b>달라졌는가</b>. 남은 시간은 참가자가 세므로 비교에서 뺀다 — 넣으면
+        /// 매 틱 달라져서 "바뀔 때만 보낸다" 가 무의미해진다. 자리·크기·개수만 본다.
+        /// </summary>
+        static bool SameDrops(DropState[] a, DropState[] b)
+        {
+            if (a.Length != b.Length) return false;
+            for (int i = 0; i < a.Length; i++)
+            {
+                if ((a[i].Point - b[i].Point).sqrMagnitude > 0.0001f) return false;
+                if (Mathf.Abs(a[i].Radius - b[i].Radius) > 0.0005f) return false;
+                if (Mathf.Abs(a[i].Warning - b[i].Warning) > 0.0005f) return false;
+            }
+            return true;
+        }
+
+        [ClientRpc]
+        void RpcApplyDrops(uint seq, DropState[] drops)
+        {
+            if (!ready) return;
+            if (!IsNewer(seq, lastDropSeq, everDrop)) return;
+            lastDropSeq = seq;
+            everDrop = true;
+
+            var spawner = MeteorSpawner;
+            if (spawner == null) return;
+
+            if (recvDrops == null || recvDrops.Count != drops.Length)
+            {
+                recvDrops = new List<Metagame.Gameplay.Hazards.PendingMeteorDrop>(drops.Length);
+                for (int i = 0; i < drops.Length; i++) recvDrops.Add(default);
+            }
+            for (int i = 0; i < drops.Length; i++)
+                recvDrops[i] = new Metagame.Gameplay.Hazards.PendingMeteorDrop(
+                    drops[i].Point, drops[i].Remaining, drops[i].Warning, drops[i].Radius);
+
+            spawner.ApplyNetworkPending(recvDrops);
         }
 
         static bool SameClamps(ClampState[] a, ClampState[] b)

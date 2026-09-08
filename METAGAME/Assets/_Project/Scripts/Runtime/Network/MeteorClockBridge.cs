@@ -28,10 +28,14 @@ namespace Metagame.Network
     /// <b>첫 공세 안에 난수 스트림이 영구히 갈린다.</b> 공유 시계(<c>NetworkTime.time</c>)로도
     /// 못 고치는 종류다.</para>
     ///
-    /// <para>그래서 참가자 화면에는 <b>운석이 생기지 않는다.</b> 예고·흔적·낙하하는 돌덩이를
-    /// 호스트에서 받아 오는 것은 다음 단계다 — 다만 그 전에도 지금보다 낫다: 예고 없이 날아가
-    /// 기절하던 것(참가자 쪽 유령 운석의 <c>OnCollisionEnter</c>)과, 서로 다른 자리에 쌓이던
-    /// 로컬 프롭 운석이 사라진다.</para>
+    /// <para>그래서 참가자 화면에는 <b>운석 실물이 생기지 않는다.</b> 대신 <b>예고는 호스트에서
+    /// 받는다</b>(<c>WorldSync.RpcApplyDrops</c> → <c>MeteorSpawner.ApplyNetworkPending</c>) —
+    /// 참가자가 붉은 원을 보고 피하고 방망이 타이밍을 맞출 수 있다. 남은 시간은 이 어댑터가
+    /// 로컬에서 센다(<c>AgeNetworkPending</c>).</para>
+    ///
+    /// <para>남은 것은 <b>낙하하는 돌덩이의 그림</b>이다. <c>Meteor</c> 컴포넌트를 끈 채 띄우면
+    /// 충돌 콜백이 안 오므로(그 클래스에는 자체 <c>Update</c> 가 없다) 로컬 판정 없이 보이게만
+    /// 할 수 있다 — <c>Meteor.cs</c> 를 열지 않아 열린 MR 과 충돌하지 않는다.</para>
     /// </summary>
     public sealed class MeteorClockBridge : MonoBehaviour
     {
@@ -70,6 +74,11 @@ namespace Metagame.Network
                     loggedRole = true;
                     Debug.Log("[MeteorClockBridge] 참가자다 — 운석 공세를 돌리지 않는다(호스트가 정한다)");
                 }
+
+                // 호스트가 보낸 예고(WorldSync.RpcApplyDrops)의 남은 시간만 센다. 목록은
+                // 달라질 때만 오므로 그 사이를 여기서 메워 원이 매끄럽게 줄어들게 한다.
+                // 스폰·난수·스케줄 전진은 하지 않는다 — 갈림의 원인이 그 셋이다.
+                spawner.AgeNetworkPending(Time.fixedDeltaTime);
                 return;
             }
 

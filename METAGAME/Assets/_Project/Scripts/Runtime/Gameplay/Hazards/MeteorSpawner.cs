@@ -482,6 +482,43 @@ namespace Metagame.Gameplay.Hazards
         /// 예고와 운석을 함께 내므로, 이 함수는 표시가 끝난 예고를 치우기만 한다 —
         /// 그 순간이 곧 착탄 시각이다(기획 §17.2).
         /// </summary>
+        // ── 네트워크에서 받은 예고 (S15P21B202-352) ──────────────────────────
+        //
+        // 참가자 기계는 공세를 **스스로 계산하지 않는다** — MeteorClockBridge 가 Tick 을
+        // 부르지 않는다. 시드가 같아도 난수를 뽑는 횟수가 로컬 세계 상태에 달려 스트림이
+        // 갈리기 때문이다(NearPlayerPoint 의 candidates, WorkAreaPoint 의 _workAreas).
+        //
+        // 그러면 참가자는 예고 원을 못 봐서 피하지도 쳐내지도 못한다. 그래서 호스트가 정한
+        // 예고를 받아 여기 넣는다. **소비처는 하나도 안 고친다** — MeteorWarningView 와
+        // Stage1AtmosphereAlert 가 둘 다 Pending 을 읽으므로 목록을 갈면 그대로 그려진다.
+
+        /// <summary>
+        /// 호스트가 정한 예고 목록으로 갈아 끼운다 (S15P21B202-352).
+        ///
+        /// <para><b>권위 쪽에서 부르면 안 된다</b> — 자기 스케줄을 지운다.
+        /// <see cref="Tick"/> 을 돌리는 기계와 이것을 부르는 기계는 서로 배타적이다.</para>
+        /// </summary>
+        public void ApplyNetworkPending(IReadOnlyList<PendingMeteorDrop> drops)
+        {
+            _pending.Clear();
+            if (drops == null) return;
+            for (var i = 0; i < drops.Count; i++) _pending.Add(drops[i]);
+        }
+
+        /// <summary>
+        /// 받은 예고의 남은 시간만 줄인다 (S15P21B202-352).
+        ///
+        /// <para>예고는 남은 시간 하나만 바뀌므로 매 틱 실어 보내기에는 아깝다(핫스팟
+        /// 업링크에서는 패킷 수가 비용이다). 목록이 <b>달라질 때만</b> 받고 그 사이는
+        /// 이 함수가 로컬에서 세어 원이 매끄럽게 줄어들게 한다.</para>
+        ///
+        /// <para><see cref="AdvancePending"/> 를 그대로 쓴다 — 그쪽은 <b>뺄셈과 목록 정리뿐</b>
+        /// 이고 스폰·난수·스케줄 전진이 없다(스폰은 <see cref="AdvanceSchedule"/> 안에 있다).
+        /// 갈림의 원인 셋이 다 그 밖에 있으므로 참가자가 불러도 안전하다.</para>
+        /// </summary>
+        public void AgeNetworkPending(float deltaTime) => AdvancePending(deltaTime);
+
+
         void AdvancePending(float deltaTime)
         {
             for (var i = _pending.Count - 1; i >= 0; i--)
