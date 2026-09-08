@@ -63,6 +63,16 @@ namespace Metagame.Gameplay
         {
             if (IsEquipped) Unequip();
 
+            // **원격으로 껐던 것을 먼저 되돌린다**(AI 리뷰 지적, 2026-09-08).
+            // 그 상태에서는 collisionsSuspended 가 이미 참이라 아래 SuspendCollisions 가
+            // 조기 반환하고, **정작 장착 판정이 준 몸의 충돌은 켜진 채 남는다**
+            // (원격 경로가 끈 것은 이 오브젝트의 몸이고 그 둘은 다를 수 있다).
+            if (remoteHeld)
+            {
+                remoteHeld = false;
+                RestoreCollisions();
+            }
+
             Owner = owner;
             Body = body;
             IsEquipped = true;

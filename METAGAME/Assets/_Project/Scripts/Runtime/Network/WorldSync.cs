@@ -393,7 +393,12 @@ namespace Metagame.Network
             {
                 if (tool == null) continue;
 
-                Add(tool.GetComponent<Rigidbody>());
+                // **`ToolBase.CollisionBody` 와 같은 술어여야 한다**(AI 리뷰 지적,
+                // 2026-09-08). 그쪽은 부모까지 올라가 몸을 찾는데 여기서 자기 오브젝트만
+                // 보면, 스크립트가 자식에 있는 배치에서 **휴대 비트만 가고 자세는 안 나간다**
+                // — 도구가 상대 화면에서 제자리에 멈추는, 고치려던 그 증상이다.
+                // `Add` 가 중복을 걸러 주므로 부모 몸이 이미 목록에 있으면 두 번 들어가지 않는다.
+                Add(tool.GetComponentInParent<Rigidbody>());
 
                 // 휴대 비트는 몸이 없어도 나른다 — 보이는 것만 바꾸는 값이라
                 // `Rigidbody` 가 필요 없다. 그래서 목록을 따로 둔다.
@@ -781,14 +786,25 @@ namespace Metagame.Network
             var spawner = MeteorSpawner;
             if (spawner == null) return;
 
-            if (recvDrops == null || recvDrops.Count != drops.Length)
-            {
-                recvDrops = new List<Metagame.Gameplay.Hazards.PendingMeteorDrop>(drops.Length);
-                for (int i = 0; i < drops.Length; i++) recvDrops.Add(default);
-            }
+            // **이미 끝난 예고를 되살리지 않는다**(AI 리뷰 지적, 2026-09-08).
+            //
+            // `SameDrops` 는 남은 시간을 비교에서 뺀다 — 그래야 "바뀔 때만 보낸다" 가
+            // 뜻이 있다. 그래서 조용한 사이에 나가는 keepalive 는 **보낼 때의 남은 시간**을
+            // 싣는다. 참가자가 로컬 카운트다운으로 먼저 만료시킨 뒤 그 묶음을 그대로 넣으면
+            // 원이 사라졌다가 **되살아나 깜빡인다.** 피하고 쳐내는 데 쓰는 표시다.
+            //
+            // 그래서 끝난 것은 아예 빼고 넣는다. 개수가 줄어드는 순간은 목록이 달라지는
+            // 순간이라 호스트가 곧 보내 준다(`SameDrops` 가 길이부터 본다).
+            if (recvDrops == null) recvDrops = new List<Metagame.Gameplay.Hazards.PendingMeteorDrop>();
+            recvDrops.Clear();
+
             for (int i = 0; i < drops.Length; i++)
-                recvDrops[i] = new Metagame.Gameplay.Hazards.PendingMeteorDrop(
-                    drops[i].Point, drops[i].Remaining, drops[i].Warning, drops[i].Radius);
+            {
+                if (drops[i].Remaining <= 0f) continue;
+
+                recvDrops.Add(new Metagame.Gameplay.Hazards.PendingMeteorDrop(
+                    drops[i].Point, drops[i].Remaining, drops[i].Warning, drops[i].Radius));
+            }
 
             spawner.ApplyNetworkPending(recvDrops);
         }

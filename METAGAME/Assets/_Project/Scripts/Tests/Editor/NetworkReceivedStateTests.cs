@@ -133,9 +133,17 @@ namespace Metagame.Gameplay.Tests
             Assert.IsFalse(own.detectCollisions, "원격 휴대가 자기 몸을 껐다.");
 
             bat.Equip(null, other);
+
+            // **장착하면 그때부터는 장착 몸이 꺼져야 한다**(AI 리뷰 지적, 2026-09-08).
+            // 원격이 껐던 표시가 남아 있으면 SuspendCollisions 가 조기 반환해서
+            // 정작 손에 든 몸의 충돌이 켜진 채 남는다.
+            Assert.IsFalse(other.detectCollisions, "장착 판정이 준 몸이 꺼져야 한다.");
+            Assert.IsTrue(own.detectCollisions, "원격이 껐던 몸은 이때 되돌아온다.");
+
             bat.Unequip();
 
             Assert.IsTrue(own.detectCollisions, "껐던 그 몸이 되돌아와야 한다.");
+            Assert.IsTrue(other.detectCollisions, "장착 몸도 되돌아와야 한다.");
         }
 
         /// <summary>
