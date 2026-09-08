@@ -154,13 +154,33 @@ namespace Metagame.Gameplay
         /// 충돌을 끄고 켤 몸.
         ///
         /// <para>장착 판정이 건네준 <see cref="Body"/> 가 있으면 그것을 쓴다. 없으면
-        /// 이 오브젝트의 <c>Rigidbody</c> 로 물러난다 — <see cref="ApplyRemoteHeld"/> 로
-        /// 오는 길에는 <see cref="Body"/> 가 <c>null</c> 이다(그 기계에서는
-        /// <see cref="Equip"/> 가 불리지 않는다). 그 경우를 빼먹으면 <b>참가자 화면에서
-        /// 충돌이 안 꺼져</b> 남이 든 도구가 내 몸을 막는다 — 자세를 서버가 몰아 주므로
-        /// 그 도구는 키네마틱이고, 키네마틱은 사람을 밀어낸다.</para>
+        /// 스스로 찾는다 — <see cref="ApplyRemoteHeld"/> 로 오는 길에는
+        /// <see cref="Body"/> 가 <c>null</c> 이다(그 기계에서는 <see cref="Equip"/> 가
+        /// 불리지 않는다). 그 경우를 빼먹으면 <b>참가자 화면에서 충돌이 안 꺼져</b> 남이
+        /// 든 도구가 내 몸을 막는다 — 자세를 서버가 몰아 주므로 그 도구는 키네마틱이고,
+        /// 키네마틱은 사람을 밀어낸다.</para>
+        ///
+        /// <para><b>부모까지 올라가며 찾는다</b>(AI 리뷰 지적, 2026-09-08).
+        /// <c>PlayerRig</c> 는 도구 컴포넌트를 <c>GetComponentInChildren&lt;ToolBase&gt;</c> 로도
+        /// 찾으므로(<c>PlayerRig.cs:2107</c>) 스크립트가 자식에 있고 몸은 뿌리에 있는 배치가
+        /// 허용된다. 그 배치에서 <c>GetComponent</c> 만 보면 <b>몸을 못 찾아 조용히 아무것도
+        /// 안 한다</b> — 고치려던 증상이 그대로 재현된다. 지금 두 프리팹
+        /// (<c>PF_Stage1_MeteorBat</c>·<c>PF_Stage1_WeldingPlasmaGun</c>)은 둘 다 뿌리에
+        /// 함께 있지만, 배치를 바꿔도 깨지지 않게 <c>GetComponentInParent</c>(자기 자신을
+        /// 포함한다)로 찾는다.</para>
         /// </summary>
-        Rigidbody CollisionBody => Body != null ? Body : GetComponent<Rigidbody>();
+        Rigidbody CollisionBody
+        {
+            get
+            {
+                if (Body != null) return Body;
+                if (ownBody == null) ownBody = GetComponentInParent<Rigidbody>();
+                return ownBody;
+            }
+        }
+
+        /// <summary>스스로 찾은 몸. 매번 계층을 훑지 않게 기억해 둔다.</summary>
+        Rigidbody ownBody;
 
         /// <summary>
         /// 휴대 중 충돌을 끈다. 원래 값을 기억해 두고 <see cref="RestoreCollisions"/> 가

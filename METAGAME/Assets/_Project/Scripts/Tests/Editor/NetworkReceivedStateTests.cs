@@ -139,6 +139,40 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
+        /// 도구 컴포넌트가 <b>자식</b>에 있고 몸이 뿌리에 있어도 충돌이 꺼져야 한다.
+        ///
+        /// <para><c>PlayerRig</c> 가 도구를 <c>GetComponentInChildren&lt;ToolBase&gt;</c> 로도
+        /// 찾으므로(<c>PlayerRig.cs:2107</c>) 이 배치가 허용된다. 그런데 원격 경로의 폴백이
+        /// <c>GetComponent&lt;Rigidbody&gt;</c> 뿐이면 <b>몸을 못 찾아 조용히 아무것도 안 한다</b> —
+        /// 남이 든 도구가 몸을 막는 원래 증상이 그대로 돌아온다(AI 리뷰 지적, 2026-09-08).</para>
+        ///
+        /// <para>지금 두 프리팹은 뿌리에 함께 있어 <b>이 테스트만이</b> 그 배치를 지킨다.</para>
+        /// </summary>
+        [Test]
+        public void RemoteHeld_FindsTheBodyOnTheParent_WhenTheToolSitsOnAChild()
+        {
+            var root = new GameObject("도구 뿌리") { layer = GameLayers.Prop };
+            _spawned.Add(root);
+            root.AddComponent<BoxCollider>();
+            var body = root.AddComponent<Rigidbody>();
+            body.useGravity = false;
+
+            var child = new GameObject("Tool");
+            child.transform.SetParent(root.transform, false);
+            MakeVisual(child.transform);
+            var bat = child.AddComponent<MeteorBat>();
+
+            Assert.IsNull(child.GetComponent<Rigidbody>(), "자식에는 몸이 없는 배치다.");
+            Assert.IsTrue(body.detectCollisions);
+
+            bat.ApplyRemoteHeld(true);
+            Assert.IsFalse(body.detectCollisions, "부모의 몸을 찾아 충돌을 꺼야 한다.");
+
+            bat.ApplyRemoteHeld(false);
+            Assert.IsTrue(body.detectCollisions, "놓았으면 그 몸을 되돌려야 한다.");
+        }
+
+        /// <summary>
         /// <b>모든 도구가 이 길을 견뎌야 한다.</b>
         ///
         /// <para>원격 경로에서는 <c>OnEquipped</c>·<c>OnUnequipped</c> 가 <c>Owner</c> 와

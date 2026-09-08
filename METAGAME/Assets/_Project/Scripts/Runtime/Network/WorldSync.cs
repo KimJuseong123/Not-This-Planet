@@ -223,8 +223,20 @@ namespace Metagame.Network
         /// <summary>고정쇠 수. 개수 검사가 따로 걸리는 배열이다.</summary>
         public int ClampCount => clamps.Count;
 
-        /// <summary>받은 예고 수(참가자) 또는 보낸 예고 수(호스트).</summary>
-        public int DropCount => sendDrops.Length;
+        /// <summary>
+        /// 받은 예고 수(참가자) 또는 보낸 예고 수(호스트).
+        ///
+        /// <para><b>예전에는 늘 <c>sendDrops.Length</c> 였다</b>(AI 리뷰 지적, 2026-09-08).
+        /// 그건 보내는 쪽 버퍼라 참가자에서는 언제나 0이고, 그래서 <c>netdiag</c> 의
+        /// <c>drops</c> 항이 <b>매 표본 갈려 보였다</b> — 검증 도구가 상시 거짓 불일치를
+        /// 내는 것이 이 이슈에서 가장 피하려던 일이다.</para>
+        ///
+        /// <para>역할을 <c>isServer</c> 로 묻지 않는다 — 스폰 등록 전에는 그 속성이
+        /// <c>NullReference</c> 를 낸다(<see cref="Update"/> 의 주석에 실측이 적혀 있고,
+        /// 이 값은 진단이 매 초 읽는다). <see cref="recvDrops"/> 는 <b>받는 쪽만</b>
+        /// 채우므로 그것이 있으면 참가자다.</para>
+        /// </summary>
+        public int DropCount => recvDrops != null ? recvDrops.Count : sendDrops.Length;
 
         /// <summary>나르는 도구 수. 휴대 비트 배열의 길이 검사가 이 값에 걸린다.</summary>
         public int ToolCount => tools.Count;
