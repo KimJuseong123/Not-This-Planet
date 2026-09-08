@@ -31,6 +31,8 @@ TIMEOUT = int(env("DEPLOY_TIMEOUT", "420") or 420)
 INTERVAL = 5
 BACKEND_PREFIX = "backend/"       # 이 접두의 변경만 "백엔드가 달라졌다" 로 센다
 DRIFT_SHOWN = 5                   # 경고에 파일 이름을 몇 개까지 늘어놓나
+CARD_KINDS = ("warn", "unknown")  # 배포 카드에 싣는 종류 — 나머지는 정상이라 알릴 것이 없다
+CARD_ICON = {"warn": "⚠", "unknown": "❔"}
 
 
 def staleness(sha: str, ref: str = "develop") -> tuple[int | None, list[str] | None]:
@@ -194,7 +196,11 @@ def main(argv: list[str] | None = None) -> int:
     # 롤백이라는 정당한 용도가 있다. 다만 모르고 뒤로 가는 일이 없게 한다.
     behind, drift = staleness(sha)
     kind, line = stale_verdict(behind, drift)
-    note = line if kind == "warn" else ""
+    # **카드에도 싣는 것은 warn 과 unknown 둘 다다** (S15P21B202-338). 처음에는 warn 만 실었는데,
+    # 그러면 카드만 보는 사람이 "최신 확인됨" 과 "확인 못 함" 을 구분할 수 없다 — 토큰이 만료되면
+    # 검사가 조용히 꺼진 것과 같아진다. `-333` 이 막으려던 미탐이 카드 경로에 남아 있었다(!252 AI 리뷰).
+    # 아이콘으로 가른다: ⚠ 는 "정말 뒤로 간다", ❔ 는 "판단하지 못했다".
+    note = f"{CARD_ICON[kind]} {line}" if kind in CARD_KINDS else ""
     if kind == "warn":
         print(f"⚠ {line}")
         for path in (drift or [])[:DRIFT_SHOWN]:
@@ -219,7 +225,7 @@ def main(argv: list[str] | None = None) -> int:
     if result == "ok":
         print(f"✅ 배포 완료 — {detail}")
         # 경고는 카드에도 싣는다. 로그를 여는 사람보다 카드를 보는 사람이 많다.
-        announce("ok", f"{detail} · ⚠ {note}" if note else detail)
+        announce("ok", f"{detail} · {note}" if note else detail)
         return 0
     if result == "rollback":
         print(f"⚠ 롤백됨 — {detail}")

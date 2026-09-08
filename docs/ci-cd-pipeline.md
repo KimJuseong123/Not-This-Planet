@@ -218,8 +218,8 @@ MR 하나에 붙을 수 있는 봇 코멘트: `mr-lint` ⚠ · `mr-overlap` · `
 | --- | --- |
 | develop 보호가 push **Maintainers** — 문서는 No one | 팀장 설정 1분. 그동안 develop 직접 push 가 가능하다(검사 0건으로 들어간다) |
 | 릴리스 파이프라인 **첫 실측 전** | `release-windows`(-326)는 들어갔지만 실제 릴리스는 아직 0회 — 첫 릴리스에서 빌드 시간·zip 크기·패키지 업로드 상한을 실측해 records/-326 §4 에 적는다 |
-| ~~Jira R6·R7 정규식이 `release/` 를 모른다~~ | **2026-09-07 해결** — `scripts/jira/apply_rules17.py` 로 3곳을 `^(?:hotfix/\|release/)?` 로 바꿨다(PUT 200 확인). 첫 실전 확인은 릴리스 MR 머지 때 R6 가 그 이슈를 완료시키는지 |
-| ~~Jira 릴리스 fixVersion(-327)~~ | **2026-09-07 규칙 R10 완성** — `scripts/jira/apply_rules18.py`. 남은 것은 CI 변수 `JIRA_RELEASE_WEBHOOK`(팀장, masked·protected)과 첫 릴리스에서 Jira 릴리스 화면 확인 |
+| ~~Jira R6·R7 정규식이 `release/` 를 모른다~~ | **2026-09-07 해결** — 3곳을 `^(?:hotfix/\|release/)?` 로 바꿨다(부록 A 방식, PUT 200 확인). 첫 실전 확인은 릴리스 MR 머지 때 R6 가 그 이슈를 완료시키는지 |
+| ~~Jira 릴리스 fixVersion(-327)~~ | **2026-09-07 규칙 R10 완성**(부록 A 방식). 남은 것은 CI 변수 `JIRA_RELEASE_WEBHOOK` 과 첫 릴리스에서 Jira 릴리스 화면 확인 |
 | `build-backend` 가 테스트를 안 돈다 | -302. 플래키 원인(-313)이 배포됐으니 `test bootJar` + junit 으로 |
 | `metagame.service`(데디케이티드 서버) 가 아직 돈다 | 리슨 서버 + 릴레이 전환 뒤 사용 여부 확인 |
 | `deploy-backend` 가 수동 · dev/prod 미분리 | -284. 보안그룹 답(dev 포트) 대기 |

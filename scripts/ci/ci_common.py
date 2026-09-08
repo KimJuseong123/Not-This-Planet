@@ -26,7 +26,12 @@ BRANCH_RE = re.compile(rf"^((?:hotfix|release)/)?({PROJECT_KEY}-\d+)(-[A-Za-z0-9
 # 태그·Release 를 만들 수 있다 (S15P21B202-325). 예: release/S15P21B202-318-v0.1.0
 RELEASE_BRANCH_RE = re.compile(rf"^release/({PROJECT_KEY}-\d+)-v(\d+\.\d+\.\d+)$")
 # 대상 브랜치가 "이슈 브랜치처럼 보이는가" — Jira 규칙 R6 의 조건과 같은 정규식(시작 고정, 끝은 열림).
-STACK_TARGET_RE = re.compile(rf"^(?:hotfix/)?{PROJECT_KEY}-\d+")
+# `release/` 도 포함한다 (S15P21B202-338). 릴리스 브랜치를 대상으로 머지하는 것은 develop 에
+# 넣는 것이 아니므로 이슈가 완료되지 않는다 — **Jira R6 가 정확히 그렇게 판단한다**(대상 정규식에
+# release/ 가 들어가 키가 잡히면 조건이 실패해 완료 전환을 하지 않는다). 여기에 빠져 있던 동안
+# CI 는 "완료된다" 로 보아 Jira 와 어긋났다: stack-order 가 머지 순서 게이트를 건너뛰고,
+# 아침 점검의 🧩·🔗 분류가 틀린다. -325 가 BRANCH_RE·R6·R7 에는 넣고 여기만 빠뜨렸다(!246 AI 리뷰).
+STACK_TARGET_RE = re.compile(rf"^(?:hotfix/|release/)?{PROJECT_KEY}-\d+")
 KEY_RE = re.compile(rf"{PROJECT_KEY}-\d+")
 DRAFT_RE = re.compile(r"^(\[?draft\]?:?\s*|\(draft\)\s*|wip:\s*)", re.IGNORECASE)
 

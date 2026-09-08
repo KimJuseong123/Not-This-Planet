@@ -29,6 +29,11 @@ assert d.completes_on_merge("master") is True
 assert d.completes_on_merge("S15P21B202-166-physics") is False
 assert d.completes_on_merge("hotfix/S15P21B202-12-x") is False
 assert d.completes_on_merge("") is True          # 대상 정보가 없으면 develop 취급(기존 동작 유지)
+# 릴리스 브랜치도 스택 대상이다 (S15P21B202-338). 그리로 머지하는 것은 develop 에 넣는 것이
+# 아니므로 이슈가 완료되지 않는다 — **Jira R6 가 정확히 그렇게 판단한다.** -325 가 BRANCH_RE·
+# R6·R7 에는 release/ 를 넣고 STACK_TARGET_RE 만 빠뜨려서 CI 와 Jira 가 어긋나 있었다.
+assert d.completes_on_merge("release/S15P21B202-318-v0.1.0") is False
+assert d.completes_on_merge("release/S15P21B202-1-v1.2.3") is False
 
 # ── ② 표본: 네 갈래
 #  -70 : develop 대상인데 이슈가 미완료          → 🔗 (R6 누락)
