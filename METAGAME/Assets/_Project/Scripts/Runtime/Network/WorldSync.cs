@@ -193,6 +193,27 @@ namespace Metagame.Network
             foreach (var vehicle in FindObjectsByType<TransportVehicle>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 Add(vehicle != null ? vehicle.GetComponent<Rigidbody>() : null);
 
+            // 씬에 놓인 도구도 나른다 (S15P21B202-352). 방망이·용접 플라스마 건은
+            // 처음 위치만 같고 **움직임이 상대에게 가지 않았다** — 한쪽이 집어 옮기면
+            // 다른 쪽 화면에서는 제자리에 그대로 있었다. 조립의 주 도구가 그랬다.
+            //
+            // **술어를 `ToolBase` 로 좁힌 이유.** `Grabbable` 이나 Prop 레이어로 잡으면
+            // 개수가 갈려 **지금 잘 되는 부품 동기화까지 멈춘다**: `PartClamp` 는 해제될 때
+            // 자기 오브젝트를 Prop 레이어로 바꾸고 `Rigidbody` 를 붙이고
+            // `Grabbable.Mark(gameObject, "해제된 고정쇠")` 를 부른다(`PartClamp.cs:423·437·456`).
+            // 그 해제 시점이 서버와 클라이언트에서 다르므로 재계수하는 순간 집합이 어긋난다.
+            // 착지한 운석도 `Meteor` 가 같은 표시를 한다.
+            //
+            // `ToolBase` 파생은 방망이와 용접 건 둘뿐이고 **런타임에 만들어지지 않는다**
+            // (전수 확인). 그래서 양쪽이 같은 집합을 같은 순서로 발견한다 — 정렬은
+            // 계층 경로+형제 순번이라 시간이 지나도 안 변한다(`Compare` 참고).
+            // ⚠ 나중에 도구를 런타임에 만들게 되면 이 술어가 깨진다. 그때는 씬 배치
+            // 전용 표식 컴포넌트로 바꿀 것.
+            foreach (var tool in FindObjectsByType<Metagame.Gameplay.ToolBase>(
+                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+                Add(tool != null ? tool.GetComponent<Rigidbody>() : null);
+
+
             tracked.Sort(Compare);
 
             clamps.Clear();
