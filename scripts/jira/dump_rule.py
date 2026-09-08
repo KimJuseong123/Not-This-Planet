@@ -67,7 +67,10 @@ def rules_list(page):
             print(f"  목록 조회 {i + 1}/{len(LIST_BODIES)}: 실패 {r.status} {r.text()[:120]}")
             continue
         d = r.json()
-        rules = d.get("data") or d.get("rules") or d
+        # 항목은 **values** 에 온다 (2026-09-08 실측: 최상위 키 limit·links·offset·total·values).
+        # data/rules 로만 찾다가 total=10 인데 0건으로 읽혔다 — `--name` 으로 규칙을 못 찾던 원인이
+        # 이것이었다(전에는 systemLabelId 필터 탓으로 짐작했는데 그쪽이 아니었다).
+        rules = d.get("values") or d.get("data") or d.get("rules") or d
         if isinstance(rules, dict):
             rules = rules.get("rules", [])
         rules = rules if isinstance(rules, list) else []
