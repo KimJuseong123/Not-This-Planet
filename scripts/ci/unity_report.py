@@ -236,7 +236,7 @@ def failed_names(data: dict) -> set:
 
 
 def decide(data: dict, errs: list[str], base: set | None, unity_rc: int,
-           target: str = "") -> tuple[int, str]:
+           errs_ours: bool | None = None) -> tuple[int, str]:
     """잡의 종료 코드와 그 이유. (S15P21B202-309)
 
     원칙은 하나다 — **이 MR 이 만든 것만 막는다.** 나머지는 경고이거나 통과다.
@@ -247,10 +247,9 @@ def decide(data: dict, errs: list[str], base: set | None, unity_rc: int,
         # 컴파일 오류는 기준선을 볼 필요가 없다 — **오류가 이 MR 이 바꾼 파일에서 났다면.**
         # 이제 잡이 대상 브랜치를 합친 뒤 검사하므로(S15P21B202-342 ⓞ) develop 자신의
         # 컴파일 오류가 이 MR 의 오류로 나타난다. 그때는 단정하지 않는다 — errors_are_ours 참고.
-        ours = errors_are_ours(errs, target)
-        if ours is False:
+        if errs_ours is False:
             return UNKNOWN, (f"컴파일 오류 {len(errs)}건이 전부 이 MR 이 바꾸지 않은 파일에서 "
-                             f"났다 — `{target}` 쪽 문제로 본다")
+                             "났다 — 대상 브랜치 쪽 문제로 본다")
         return REGRESSION, f"컴파일 오류 {len(errs)}건 — 이 MR 이 깼다"
     if base is None:
         if unity_rc == 0:
@@ -292,19 +291,18 @@ def merged_note() -> str:
 
 
 def body(data: dict, errs: list[str], base: set | None, ref: str,
-         stale_base: dict | None = None) -> str:
+         stale_base: dict | None = None, errs_ours: bool | None = None) -> str:
     now_fail = {f'{c["cls"]}.{c["name"]}': c for c in data["cases"] if c["result"] == "Failed"}
     if errs:
         # 오류가 전부 이 MR 밖 파일이면 대상 브랜치 쪽 문제다 (S15P21B202-342).
         # 판정도 main 에서 2(경고)로 낮춘다 — 남의 오류로 사람을 막지 않는다.
-        ours = errors_are_ours(errs, os.environ.get("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", ""))
-        if ours is False:
+        if errs_ours is False:
             head = "⚠ **Unity C# 컴파일 실패 — 다만 이 MR 이 바꾼 파일이 아닙니다**"
         else:
             head = "🔴 **Unity C# 컴파일 실패** — 테스트는 돌지 못했습니다"
         tail = ("이 MR 을 머지하면 develop 이 컴파일되지 않습니다. "
                 "(09-02 에 같은 일로 develop 이 2시간 37분 멈췄습니다.)")
-        if ours is False:
+        if errs_ours is False:
             tail = ("오류가 난 파일이 **전부 이 MR 밖**입니다 — 대상 브랜치가 이미 컴파일되지 "
                     "않는 상태로 보입니다. 이 MR 탓으로 단정하지 않고 경고로 낮췄습니다. "
                     "대상 브랜치가 고쳐진 뒤 이 파이프라인을 재실행해 주세요.")
@@ -455,7 +453,10 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(f"기준선: `{ref}` 실패 {len(base)}건")
 
-    code, why = decide(data, errs, base, unity_rc, target=tgt)
+    # 컴파일 오류 귀속은 **한 번만** 계산해 판정과 코멘트에 같은 값을 넘긴다.
+    # 전에는 body 가 환경변수를 다시 읽어, 같은 입력에 환경에 따라 다른 코멘트가 나왔다.
+    errs_ours = errors_are_ours(errs, tgt) if errs else None
+    code, why = decide(data, errs, base, unity_rc, errs_ours=errs_ours)
     # 낡은 기준선으로 회귀를 단정하지 않는다 (S15P21B202-342 · metagame_changed 참고).
     # 이제 develop 을 합친 결과를 검사하므로 develop 의 실패를 함께 물려받는데, 기준선이
     # 그보다 옛것이면 남의 실패가 내 몫으로 계산된다. 그 경우 차단(1) 대신 경고(2)로 낮춘다.
@@ -474,7 +475,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"판정 {code} ({label}): {why}")
     write_verdict(where, code)
 
-    text = body(data, errs, base, ref, stale_base=bmeta if stale else None)
+    text = body(data, errs, base, ref, stale_base=bmeta if stale else None, errs_ours=errs_ours)
     if gl.can_write:
         st, _ = gl.upsert_note(MARKER, text)
         print(f"MR 코멘트 {'갱신' if st == 200 else '작성' if st == 201 else f'실패({st})'}")

@@ -429,65 +429,48 @@ print("  METAGAME 변경 판단 — 참·거짓·판단불가 3갈래 ✅")
 #     뒤 검사하므로 **develop 자신의 컴파일 오류가 이 MR 의 오류로 나타난다.** 09-02 에
 #     develop 은 2시간 37분 깨져 있었다 — 그 사이 올라온 모든 MR 이 "이 MR 이 깼다" 라는
 #     사실이 아닌 이유로 막힌다. `!259` 의 AI 리뷰가 이 구멍을 지적했다.
+#
+#     **귀속 판단은 main 에서 한 번만 하고 decide·body 에 같은 값을 넘긴다.** 전에는 body 가
+#     환경변수를 다시 읽어, 같은 입력에 환경에 따라 다른 코멘트가 나왔다 — CI 에서 이 파일의
+#     컴파일 코멘트 검사가 그렇게 깨졌다(MR 파이프라인에는 대상 브랜치가 설정돼 있다).
 UNITY_ERR = "Assets/_Project/Scripts/Runtime/Gameplay/Parts/LaunchTest.cs(88,17): error CS0103: 이름 'Foo'"
-WIN_ERR = "METAGAME\\Assets\\_Project\\Scripts\\Runtime\\Core\\Tuning.cs(12,5): error CS1002: ; expected"
+WIN_ERR = "METAGAME" + chr(92) + "Assets" + chr(92) + "Tuning.cs(12,5): error CS1002: ; expected"
 
 assert R.error_files([UNITY_ERR]) == {"Assets/_Project/Scripts/Runtime/Gameplay/Parts/LaunchTest.cs"}
-assert R.error_files([WIN_ERR]) == {"METAGAME/Assets/_Project/Scripts/Runtime/Core/Tuning.cs"}
+assert R.error_files([WIN_ERR]) == {"METAGAME/Assets/Tuning.cs"}
 assert R.error_files(["error CS9999: 경로가 없는 줄"]) == set()
 print("  오류 줄에서 파일 경로 추출 (유닉스·윈도우·경로없음) ✅")
 
 _own = R.mr_own_files
-
-
-def own(files):
-    R.mr_own_files = lambda target: (set(files) if target else None)
-
-
-# 오류 파일이 이 MR 것 → 우리 것
-own({"METAGAME/Assets/_Project/Scripts/Runtime/Gameplay/Parts/LaunchTest.cs", "docs/x.md"})
+R.mr_own_files = lambda target: {"METAGAME/Assets/_Project/Scripts/Runtime/Gameplay/Parts/LaunchTest.cs"}
 assert R.errors_are_ours([UNITY_ERR], "develop") is True
-print("  오류가 내 파일 → True(차단) ✅")
-
-# 오류 파일이 이 MR 밖 → 대상 브랜치 문제
-own({"scripts/ci/unity_report.py", "docs/x.md"})
+R.mr_own_files = lambda target: {"scripts/ci/unity_report.py", "docs/x.md"}
 assert R.errors_are_ours([UNITY_ERR], "develop") is False
-print("  오류가 내 파일 밖 → False(경고로) ✅")
-
-# 하나라도 우리 것이면 우리 것 — 애매할 때 통과시키지 않는다
-own({"METAGAME/Assets/_Project/Scripts/Runtime/Core/Tuning.cs"})
-assert R.errors_are_ours([UNITY_ERR, WIN_ERR], "develop") is True
-print("  섞여 있으면 → True ✅")
-
-# 판단 못 하는 두 경우는 None — 단정하지 않는다
-own(None)
+R.mr_own_files = lambda target: {"METAGAME/Assets/Tuning.cs"}
+assert R.errors_are_ours([UNITY_ERR, WIN_ERR], "develop") is True, "하나라도 내 것이면 내 것"
 R.mr_own_files = lambda target: None
-assert R.errors_are_ours([UNITY_ERR], "develop") is None
-own({"a.cs"})
-assert R.errors_are_ours(["error CS9999: 경로가 없는 줄"], "develop") is None
-print("  파일 목록·경로를 못 읽으면 → None ✅")
+assert R.errors_are_ours([UNITY_ERR], "develop") is None, "파일 목록을 못 읽으면 단정하지 않는다"
+R.mr_own_files = lambda target: {"a.cs"}
+assert R.errors_are_ours(["error CS9999: 경로가 없는 줄"], "develop") is None, "경로를 못 읽으면 단정하지 않는다"
+R.mr_own_files = _own
+print("  귀속 판단 — 내것·남의것·섞임·판단불가 2가지 ✅")
 
 # decide: None 이면 지금까지처럼 차단한다 (기본을 약하게 만들지 않는다)
-R.mr_own_files = lambda target: None
-assert R.decide(data([]), [UNITY_ERR], set(), 2, target="develop")[0] == REG
-print("  판단 불가 → 차단 유지 ✅")
+assert R.decide(data([]), [UNITY_ERR], set(), 2)[0] == REG
+assert R.decide(data([]), [UNITY_ERR], set(), 2, errs_ours=True)[0] == REG
+print("  판단 불가·내 오류 → 차단 유지 ✅")
 
-# decide: 남의 오류면 2(경고)
-R.mr_own_files = lambda target: {"scripts/ci/unity_report.py"}
-code, why = R.decide(data([]), [UNITY_ERR], set(), 2, target="develop")
+code, why = R.decide(data([]), [UNITY_ERR], set(), 2, errs_ours=False)
 assert code == UNK and "바꾸지 않은 파일" in why, (code, why)
 print("  남의 컴파일 오류 → 판정 2 ✅")
 
-# 코멘트도 그렇게 말한다
-os.environ["CI_MERGE_REQUEST_TARGET_BRANCH_NAME"] = "develop"
-b = R.body(data([]), [UNITY_ERR], set(), "develop")
+# 코멘트도 같은 값을 받아 같은 말을 한다 — 환경을 읽지 않는다
+b = R.body(data([]), [UNITY_ERR], set(), "develop", errs_ours=False)
 assert "이 MR 이 바꾼 파일이 아닙니다" in b and "전부 이 MR 밖" in b, b
 assert "🔴" not in b, "차단하지 않으므로 🔴 를 쓰지 않는다"
-R.mr_own_files = lambda target: {"METAGAME/Assets/_Project/Scripts/Runtime/Gameplay/Parts/LaunchTest.cs"}
-b2 = R.body(data([]), [UNITY_ERR], set(), "develop")
-assert "🔴" in b2 and "2시간 37분" in b2, b2
-os.environ.pop("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", None)
-print("  코멘트가 남의 오류와 내 오류를 가른다 ✅")
-R.mr_own_files = _own
+for own in (True, None):
+    b2 = R.body(data([]), [UNITY_ERR], set(), "develop", errs_ours=own)
+    assert "🔴" in b2 and "2시간 37분" in b2, (own, b2)
+print("  코멘트가 남의 오류와 내 오류를 가른다 (환경 무관) ✅")
 
 print("TEST271 OK")
