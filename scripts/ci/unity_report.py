@@ -409,6 +409,15 @@ def main(argv: list[str] | None = None) -> int:
             code = UNKNOWN
             why = ("기준선이 합친 base 보다 낡았다 — 그 사이 develop 이 만든 실패와 "
                    "이 MR 이 만든 실패를 가릴 수 없다")
+        elif stale is False:
+            # **판단했다는 사실을 남긴다.** 아무 것도 안 찍으면 "검사했는데 신선했다" 와
+            # "이 검사가 아예 안 돌았다" 를 로그로 가릴 수 없다 — 조용한 검사는 없는
+            # 검사와 같다(S15P21B202-342 · -335 와 같은 교훈).
+            print(f"기준선 신선도: 합친 base({merged})까지 METAGAME 변경 없음 — "
+                  f"기준선({bsha})이 유효하다")
+        else:
+            print(f"기준선 신선도: 판단하지 않았다"
+                  f"({'합친 base 없음' if not merged else '확인 실패'}) — 판정을 그대로 둔다")
     label = {PASS: "통과", REGRESSION: "이 MR 이 만든 문제 — 막는다", UNKNOWN: "판단 불가 — 경고"}[code]
     print(f"판정 {code} ({label}): {why}")
     write_verdict(where, code)
