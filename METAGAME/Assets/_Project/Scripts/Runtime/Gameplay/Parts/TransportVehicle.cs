@@ -359,8 +359,12 @@ namespace Metagame.Gameplay.Parts
             // 아무도 타지 않고 호버도 아니면 굴릴 이유가 없다 — 이미 바닥에 있다.
             if (rider == null && !Unmanned) return;
 
+            // <b>이미 돌고 있으면 시계를 되돌리지 않는다.</b> 운석 비처럼 연달아 맞으면
+            // 상한이 매번 갱신되어 영원히 갇힌다 — 340 이 남긴 교훈이 그것이다.
+            // 다시 맞으면 충격은 더해지지만 안전선은 그대로다.
+            if (!tumbling) tumbleElapsed = 0f;
+
             tumbling = true;
-            tumbleElapsed = 0f;
             righting = false;
             body.constraints = RigidbodyConstraints.None;
             body.useGravity = true;

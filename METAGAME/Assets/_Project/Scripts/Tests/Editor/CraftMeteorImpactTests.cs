@@ -370,6 +370,52 @@ namespace Metagame.Gameplay.Tests
                 $"공중 {rig.Vehicle.transform.position.y:0.00}m 에서 복구를 시작했다.");
         }
 
+        /// <summary>
+        /// <b>연달아 맞아도 갇히지 않는다.</b> 처음에는 충격마다 상한 시계를 0 으로
+        /// 되돌렸다 — 운석 비에서 상한이 매번 갱신되어 탑승자가 영원히 조종할 수 없다.
+        /// 340 이 남긴 교훈이 그것이다.
+        ///
+        /// <b>지면을 없애고 잰다.</b> 접지가 정상 종료이므로 바닥이 있으면 상한이
+        /// 시험되지 않는다.
+        /// </summary>
+        [Test]
+        public void RepeatedHitsDoNotExtendTheSafetyCap()
+        {
+            var rig = MakeFlyingRig();
+            RemoveGround();
+
+            Physics.simulationMode = SimulationMode.Script;
+            var steps = Mathf.RoundToInt((PhysicsScale.CraftTumbleMaxSeconds + 3f) / Step);
+            var sinceHit = 0f;
+            var endedAt = -1f;
+
+            for (var i = 0; i < steps; i++)
+            {
+                // 1초마다 다시 때린다.
+                if (sinceHit <= 0f)
+                {
+                    rig.Vehicle.TakeDirectMeteorImpact(
+                        rig.Vehicle.Body.worldCenterOfMass + new Vector3(0.7f, 0.2f, 0f),
+                        new Vector3(1f, -12f, 0f));
+                    sinceHit = 1f;
+                }
+
+                sinceHit -= Step;
+                rig.Vehicle.Tick(Step);
+                Physics.Simulate(Step);
+
+                if (rig.Vehicle.Tumbling) continue;
+
+                endedAt = (i + 1) * Step;
+                break;
+            }
+
+            Assert.Greater(endedAt, 0f,
+                "연달아 맞으면 굴림이 끝나지 않는다. 상한이 매번 갱신된다.");
+            Assert.LessOrEqual(endedAt, PhysicsScale.CraftTumbleMaxSeconds + 0.5f,
+                $"굴림이 {endedAt:0.0}초까지 이어졌다. 상한이 갱신됐다.");
+        }
+
         // --- 직접 충돌이 방아쇠다 (S15P21B202-353) ----------------------------
 
         /// <summary>
@@ -763,6 +809,17 @@ namespace Metagame.Gameplay.Tests
                                           Color.white, Color.gray, false);
             _spawned.Add(player.gameObject);
             return player;
+        }
+
+        /// <summary>지면을 없애 접지가 일어나지 않게 한다 — 상한을 시험할 때 쓴다.</summary>
+        void RemoveGround()
+        {
+            for (var i = _spawned.Count - 1; i >= 0; i--)
+            {
+                if (_spawned[i] == null || _spawned[i].name != "Ground") continue;
+                Object.DestroyImmediate(_spawned[i]);
+                _spawned.RemoveAt(i);
+            }
         }
 
         void MakeSurface(string name, Vector3 center, Vector3 size)

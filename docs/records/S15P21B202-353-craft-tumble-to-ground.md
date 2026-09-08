@@ -87,7 +87,7 @@ Quaternion rot = viewTilt * Quaternion.Euler(pitch, yaw, 0f);
 
 ## 검증
 
-`CraftMeteorImpactTests` 31개(349 의 15개 + 16개).
+`CraftMeteorImpactTests` 32개(349 의 15개 + 17개).
 
 ```
 develop                : 816개 중 784 통과 / 32 실패
@@ -106,6 +106,7 @@ S15P21B202-345(MR !260)에 있다. 그 파일만 얹으면 실패 집합이 deve
 | 무엇을 빼면 | 빨간불 |
 |---|---|
 | 접지 종료 조건 | `TheTumbleEndsOnTheStepItLands` |
+| 상한 시계를 되돌리지 않는 것 | `RepeatedHitsDoNotExtendTheSafetyCap` |
 | 탑승자→기체 라우팅 | `HittingTheRiderCountsAsHittingTheCraft` |
 | 카메라 기준 회전 곱셈 | `TheViewTiltActuallyRotatesTheCamera` |
 
@@ -159,6 +160,18 @@ var landed = body.position.y <= GroundY + PhysicsScale.CraftTumbleLandingBand
 없애므로 재사용 경로가 없지만, 풀링이 들어오면 두 번째 생애에서 같은 상대를 다시
 때리지 못한다. `Initialize()` 에서 `_directPlayersHit` 과 함께 비운다 — 그 필드도 같은
 문제를 갖고 있었다.
+
+### 연달아 맞으면 상한이 무한 갱신됐다 (고쳤다)
+
+`Tumble()` 이 충격마다 `tumbleElapsed = 0f` 로 되돌렸다. **운석 비에서 상한이 매번
+갱신되어 탑승자가 영원히 조종할 수 없다** — 340 이 남긴 교훈이 정확히 되돌아온 것이다.
+
+이미 돌고 있으면 시계를 되돌리지 않는다. 다시 맞으면 충격은 더해지지만 안전선은
+그대로다.
+
+`RepeatedHitsDoNotExtendTheSafetyCap` 이 그 자리를 잠근다. **지면을 없애고 잰다** —
+접지가 정상 종료이므로 바닥이 있으면 상한이 시험되지 않는다. 되돌리기를 다시 넣으면
+그 하나가 정확히 빨간불이 된다.
 
 ### 카메라 변경은 범위 안이다 (설명)
 
