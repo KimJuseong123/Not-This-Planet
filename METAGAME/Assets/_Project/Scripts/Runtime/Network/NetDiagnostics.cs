@@ -47,6 +47,10 @@ namespace Metagame.Network
         float timer;
         float frames;
         bool namesLogged;
+
+        /// <summary>마지막으로 찍은 공유 시계의 초. <see cref="Update"/> 의 주석 참고.</summary>
+        long lastBucket;
+        bool hasBucket;
         readonly StringBuilder line = new StringBuilder(256);
 
         /// <summary>인자나 환경변수로 켜졌는가. 평소 실행에서는 이 컴포넌트를 붙이지 않는다.</summary>
@@ -85,9 +89,35 @@ namespace Metagame.Network
         {
             frames += 1f;
             timer += Time.unscaledDeltaTime;
-            if (timer < Interval) return;
 
-            float fps = frames / timer;
+            // **공유 시계의 정수 초에 맞춰 찍는다** (AI 리뷰 지적, 2026-09-08).
+            //
+            // 예전에는 각자 자기 프로세스 시작부터 1초마다 찍고 t 에
+            // `Time.timeAsDouble` 을 넣었다. 그러면 두 창을 30초 차이로 띄웠을 때
+            // 호스트는 12.3·13.3·… 참가자는 12.8·13.8·… 을 찍어 **겹치는 t 가 하나도
+            // 없다** — netdiag.py 는 t 가 같은 줄끼리 짝지으므로 "겹치는 구간이 없다"
+            // 로 끝나거나, 더 나쁘게는 **서로 다른 실제 순간을 같은 시각으로 비교**한다.
+            // 검증 도구가 조용히 거짓 판정을 내는 것이 이 이슈에서 가장 피하려던 것이다.
+            //
+            // 그래서 표본 시각을 공유 시계(NetworkTime.time)의 초 경계로 삼는다. 양쪽이
+            // 같은 t 를 찍고, 그 t 는 **실제로 같은 순간**이다.
+            var bucket = (long)System.Math.Floor(SimulationTime());
+            if (bucket == lastBucket) return;
+
+            bool firstBucket = !hasBucket;
+            hasBucket = true;
+            lastBucket = bucket;
+
+            // 첫 구간은 길이를 모른다(붙은 시점이 초 경계와 무관하다) — FPS 를 왜곡하므로
+            // 값을 버리고 다음 초부터 찍는다.
+            if (firstBucket)
+            {
+                timer = 0f;
+                frames = 0f;
+                return;
+            }
+
+            float fps = timer > 0f ? frames / timer : 0f;
             timer = 0f;
             frames = 0f;
 
@@ -104,7 +134,7 @@ namespace Metagame.Network
 
             line.Length = 0;
             line.Append("[NETDIAG]");
-            Append("t", Time.timeAsDouble.ToString("F1"));
+            Append("t", ((double)bucket).ToString("F1"));
             Append("role", Role());
             Append("rtt", NetworkClient.active ? (NetworkTime.rtt * 1000.0).ToString("F1") : "-");
             Append("fps", fps.ToString("F0"));
@@ -140,6 +170,20 @@ namespace Metagame.Network
         void Append(string key, string value)
         {
             line.Append(' ').Append(key).Append('=').Append(value);
+        }
+
+        /// <summary>
+        /// 두 로그를 <b>짝지을 수 있는</b> 시각.
+        ///
+        /// <para>접속해 있으면 <c>NetworkTime.time</c> — Mirror 가 맞춰 주는 공유 시계라
+        /// 호스트와 참가자가 같은 값을 본다. 혼자 실행일 때만 로컬 시간으로 물러난다.
+        /// <see cref="DustStormClockBridge"/> 가 시뮬레이션 시각을 고르는 방식과 같다.</para>
+        /// </summary>
+        static double SimulationTime()
+        {
+            return NetworkClient.active || NetworkServer.active
+                ? NetworkTime.time
+                : Time.unscaledTimeAsDouble;
         }
 
         /// <summary>

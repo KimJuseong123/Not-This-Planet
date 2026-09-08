@@ -109,6 +109,9 @@ namespace Metagame.Network
         bool everMeteor;
         bool warnedMeteorCap;
 
+        /// <summary>직전에 보낸 낙하 자세 개수. 0이 이어질 때 빈 묶음을 멈추는 데 쓴다.</summary>
+        int lastSentMeteors;
+
         /// <summary>
         /// 보낸 순서. <b>신뢰 없는 채널은 순서를 지켜 주지 않는다</b> — 늦게 도착한
         /// 옛 묶음을 그대로 받으면 물체가 뒤로 한 번 튄다. 번호로 걸러 낸다.
@@ -798,6 +801,14 @@ namespace Metagame.Network
                 }
                 n = cap;
             }
+
+            // **0개일 때 빈 묶음을 계속 보내지 않는다** (AI 리뷰 지적, 2026-09-08).
+            // 운석은 대부분의 시간에 0개다. 그런데도 매 송신 틱마다 RPC 를 내면 사람 수만큼
+            // 빈 패킷이 상시 나간다 — 이 MR 이 문제로 든 그 업링크 비용이다.
+            //
+            // 0으로 **떨어진 첫 번째**는 보낸다. 그것이 참가자의 그림을 지우는 신호다.
+            if (n == 0 && lastSentMeteors == 0) return;
+            lastSentMeteors = n;
 
             if (sendMeteors.Length != n) sendMeteors = new MeteorPose[n];
             for (int i = 0; i < n; i++)

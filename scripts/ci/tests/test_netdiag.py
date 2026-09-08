@@ -115,12 +115,25 @@ assert "SendQueue 7 ~ 7" in out, out
 assert "60.00 KB/s" in out, out
 print("  kcp 통계 파싱 (SendQueue·MaxSendRate) ✅")
 
-# ── Ⓤ 도구 개수가 갈리면 잡는다 (휴대 비트 배열의 길이 검사가 여기 걸린다)
+# ── ⑩ 도구 개수가 갈리면 잡는다 (휴대 비트 배열의 길이 검사가 여기 걸린다)
 c10 = [NAMES] + [line(f"{10+k}.0", "client", "aabbccdd", tools=1) for k in range(4)]
 h10 = [NAMES] + [line(f"{10+k}.0", "host", "aabbccdd", tools=2) for k in range(4)]
 rc, out = run(h10, c10)
 assert "tools:" in out and "4/4" in out, out
 assert "호스트=2 참가자=1" in out, out
 print("  도구 개수 갈림 → 잡는다 ✅")
+
+# ── ⑪ 거짓 초록을 만들지 않는다 — 겹치는 표본이 적으면 그렇게 말한다
+#     옛 빌드는 t 를 프로세스별 로컬 시간으로 찍어 겹치는 시각이 거의 없다.
+#     그 몇 개로 "일치 100%" 가 나오면 무엇도 증명하지 못하면서 초록으로 보인다.
+h11 = [NAMES] + [line(f"{10+k}.0", "host", "aabbccdd") for k in range(10)]
+c11 = [NAMES] \
+    + [line(f"{10+k}.0", "client", "aabbccdd") for k in range(2)] \
+    + [line(f"{30+k}.0", "client", "aabbccdd") for k in range(8)]
+rc, out = run(h11, c11)
+assert "겹치는 시각이 적다" in out, out
+assert "공유 시계" in out, "원인 후보를 짚어 줘야 한다: " + out
+assert "적은 표본에만 해당" in out, out
+print("  겹치는 표본이 적으면 경고 ✅")
 
 print("TEST352 OK")

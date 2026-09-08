@@ -142,6 +142,16 @@ def main(argv):
     if not pairs:
         print("  ❌ 같은 t 를 가진 줄이 없다 — 두 로그가 겹치는 구간이 없다")
     else:
+        # 겹치는 표본이 너무 적으면 **판정 자체를 믿을 수 없다**. 두 창이 공유 시계로
+        # 찍지 않으면(옛 빌드는 프로세스 로컬 시간을 찍었다) 겹치는 t 가 거의 없고,
+        # 그 몇 개로 "일치 100%" 가 나와도 아무것도 증명하지 못한다.
+        smaller = min(len(host), len(client))
+        if smaller and len(pairs) < smaller * 0.5:
+            print(f"  ⚠ 겹치는 시각이 적다 — {len(pairs)}개 / 적은 쪽 {smaller}개. "
+                  "두 창이 같은 빌드인지, 그 빌드가 공유 시계로 t 를 찍는지 확인할 것 "
+                  "(옛 빌드는 프로세스별 로컬 시간을 찍어 겹치지 않는다). "
+                  "아래 판정은 이 적은 표본에만 해당한다")
+
         same = [p for p in pairs if p[0].get("poses") == p[1].get("poses")]
         print(f"  겹치는 시각 {len(pairs)}개 중 체크섬 일치 {len(same)}개 "
               f"({100.0 * len(same) / len(pairs):.0f}%)")

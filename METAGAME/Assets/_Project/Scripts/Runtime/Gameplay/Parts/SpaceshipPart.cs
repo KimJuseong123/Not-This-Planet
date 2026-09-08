@@ -337,6 +337,12 @@ namespace Metagame.Gameplay.Parts
             // 여기서 풀면 그 뒤로 로컬 중력(-5)이 파츠를 끌어내려 서버 자세와 매 프레임
             // 다투고, 참가자 화면에서만 파츠가 떨리거나 처진다. 고정못을 뽑기 시작하는
             // 순간부터 그랬다 — `HasReleasedClamp` 가 참이 되는 자리가 여기다.
+// 두 곳에서 막는 이유(AI 리뷰 질문, 2026-09-08). WorldSync.FollowOnClient 도
+            // 매 프레임 kinematic 을 세우지만 그것은 **자기 Update 차례**에서다. 이 줄은
+            // 그 사이에 이 컴포넌트가 스스로 푸는 것을 막는다 — 풀린 한 물리 스텝에
+            // 로컬 중력·충격이 들어가면 서버 자세와 다투어 처지고 떨린다.
+            // 반대로 탈것으로 바뀐 파츠는 enabled = false 라 이 줄을 안 타므로
+            // 그쪽은 WorldSync 의 방어선만이 막는다. 둘 다 필요하다.
             _body.isKinematic = WorldEvents.RemoteDecides || (isKinematic && !HasReleasedClamp);
 
             // 견인 중에는 덧붙은 질량을 더하지 않는다. CarriedPartMass 는 크기와 무관하게
