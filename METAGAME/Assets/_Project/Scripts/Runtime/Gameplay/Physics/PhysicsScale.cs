@@ -331,6 +331,63 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float CraftHoverDriftBand = 0.5f;
 
+        /// <summary>
+        /// 운석에 맞은 기체가 <b>돌며 밀리는</b> 시간의 상한(초).
+        ///
+        /// 기획 §14.1 "충돌 후 기체는 자동으로 수평을 회복한다" · §14.2 "호버 중 운석이나
+        /// 파츠에 맞으면 기체와 저중력장 위치가 함께 밀린다".
+        ///
+        /// <b>상한이 필수다</b>(S15P21B202-340 과 같은 이유). 여기 머물면 탑승자가 조종할
+        /// 수 없는 상태로 갇힌다. 잦아들면 상한 전에도 나온다.
+        /// </summary>
+        public const float CraftTumbleSeconds = 2.2f;
+
+        /// <summary>
+        /// 운석 충격이 기체에 주는 속도 변화(m/s).
+        ///
+        /// <b>폭발력으로는 기체가 움직이지 않는다.</b> <c>AddExplosionForce</c> 는
+        /// <see cref="MeteorImpactForce"/>(900N)를 <c>ForceMode.Force</c> 로 주므로
+        /// 80kg 기체에는 한 스텝에 0.11m/s 밖에 안 된다. 사람이 날아가는 것도 폭발력이
+        /// 아니라 <see cref="MeteorHeavyKnockSpeed"/> 를 속도에 직접 더해서다 —
+        /// 기체도 같은 방식으로 다룬다.
+        /// </summary>
+        public const float CraftImpactSpeed = 7f;
+
+        /// <summary>
+        /// 운석 충격이 기체에 주는 각속도(rad/s).
+        ///
+        /// <b>회전 잠금을 먼저 풀어야 남는다.</b> <c>FreezeRotation</c> 이 걸린 채로는
+        /// 그 스텝에 지워진다 — S15P21B202-216 이 자세 복구 코드를 넣고도 아무 일이
+        /// 없었던 이유가 그것이다.
+        ///
+        /// <b>탑승자 인형이 회전을 먹는다.</b> 조인트가 골반 하나만 묶으므로 나머지 뼈의
+        /// 관절이 회전 에너지를 흡수한다. 그래서 각속도가 그대로 유지되지 않고 굴림
+        /// 구간 안에서 잦아든다 — 값은 <b>누적 회전각으로 재서</b> 정했다.
+        ///
+        /// <code>
+        ///  6.5 rad/s → 303도      18 rad/s → 895도
+        /// 12.0 rad/s → 534도      26 rad/s → 1223도
+        /// </code>
+        ///
+        /// 13 은 가까이 맞으면 약 1.5회전, 반경 절반에서 맞으면 약 0.8회전이다.
+        /// </summary>
+        public const float CraftImpactSpin = 13f;
+
+        /// <summary>돌던 기체가 잦아들었다고 보는 속도(m/s).</summary>
+        public const float CraftTumbleRestSpeed = 0.6f;
+
+        /// <summary>돌던 기체가 잦아들었다고 보는 각속도(rad/s).</summary>
+        public const float CraftTumbleRestSpin = 0.5f;
+
+        /// <summary>
+        /// 수평을 되찾는 속도(도/초). 기획 §14.1 · §14.2 · §14.4 가 모두 자세 복구를
+        /// 요구한다.
+        ///
+        /// <b>즉시 세우지 않는다.</b> 뒤집힌 기체가 한 프레임에 수평이 되면 충격이 없던
+        /// 일이 된다. 돌기를 멈춘 뒤 눈에 보이게 돌아온다.
+        /// </summary>
+        public const float CraftRightingDegreesPerSecond = 220f;
+
         // --- 기절과 동료 구조 (기획 §26-13) ---
         /// <summary>
         /// 다운한 동료를 일으키는 데 걸리는 시간(초).

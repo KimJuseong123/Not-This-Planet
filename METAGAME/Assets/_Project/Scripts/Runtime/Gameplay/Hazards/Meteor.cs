@@ -34,6 +34,12 @@ namespace Metagame.Gameplay.Hazards
 
         /// <summary>이번 착탄에 재사용하는 버퍼. 한 플레이어의 여러 뼈가 함께 걸린다.</summary>
         static readonly List<PlayerRig> Struck = new();
+
+        /// <summary>
+        /// 이번 충격으로 굴릴 기체. 콜라이더가 여러 개라 같은 기체가 여러 번 걸리므로
+        /// 모아서 한 번만 밀어야 한다 — 여러 번 주면 회전량이 예측할 수 없게 커진다.
+        /// </summary>
+        static readonly List<Parts.TransportVehicle> StruckCraft = new();
         readonly List<PlayerRig> _directPlayersHit = new();
         [SerializeField, Min(0f)] float _maxLifeSeconds = PhysicsScale.MeteorMaxLifeSeconds;
 
@@ -733,12 +739,39 @@ namespace Metagame.Gameplay.Hazards
                 var body = hit.attachedRigidbody;
                 if (body == null || body == _body) continue;
 
-                body.AddExplosionForce(_impactForce, point, _impactRadius);
-
                 // 래그돌은 뼈마다 Rigidbody 다. 한 사람을 열 번 처리하면 안 된다.
                 var player = hit.GetComponentInParent<PlayerRig>();
+
+                // <b>탑승 중인 사람의 뼈에는 힘을 주지 않는다</b>(S15P21B202-349).
+                // 기획 §14.1 이 "기체와 파츠는 충돌로 파괴되지 않는다" 로 정했으므로
+                // 기체가 대신 맞는다. 예전에는 골반만 조인트로 묶여 있고 나머지 뼈에
+                // 폭발력이 들어가 <b>몸이 흩어졌다</b> — 조종석에 앉아 있는데 떨어져
+                // 나온 것처럼 보였다.
+                if (player != null && player.IsMounted)
+                {
+                    if (!Struck.Contains(player)) Struck.Add(player);
+                    continue;
+                }
+
+                // 기체는 모아서 한 번만 처리한다. 폭발력으로는 80kg 기체가 움직이지
+                // 않으므로 <see cref="Parts.TransportVehicle.TakeMeteorImpact"/> 가
+                // 속도와 각속도를 직접 준다.
+                var craft = hit.GetComponentInParent<Parts.TransportVehicle>();
+                if (craft != null)
+                {
+                    if (!StruckCraft.Contains(craft)) StruckCraft.Add(craft);
+                    continue;
+                }
+
+                body.AddExplosionForce(_impactForce, point, _impactRadius);
+
                 if (player != null && !Struck.Contains(player)) Struck.Add(player);
             }
+
+            for (var i = 0; i < StruckCraft.Count; i++)
+                StruckCraft[i].TakeMeteorImpact(point, _impactRadius);
+
+            StruckCraft.Clear();
 
             // 직접 맞은 사람은 반경 밖에 있을 수도 있다 — 떨어지는 중에 얻어맞으면
             // 착탄 지점이 그 사람 발밑이 아니다.
@@ -760,6 +793,13 @@ namespace Metagame.Gameplay.Hazards
         void ApplyTier(PlayerRig player, Vector3 point, bool direct)
         {
             if (player == null) return;
+
+            // <b>탑승 중이면 기체가 맞았다</b>(S15P21B202-349, 기획 §14.1 · §14.2).
+            // 기절시키지 않는다 — 조종석에 앉아 있는 사람을 운석이 직접 때릴 수는 없다.
+            // 콜라이더로도 그렇다: 조종석은 기체 콜라이더 안이라 운석은 기체를 먼저
+            // 맞는다. 밀림은 기체가 돌며 밀리는 것으로 표현된다(§20.1 "밀려나지만
+            // 바로 행동 가능").
+            if (player.IsMounted) return;
 
             if (direct)
             {

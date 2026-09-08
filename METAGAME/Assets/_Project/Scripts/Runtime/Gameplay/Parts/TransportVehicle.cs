@@ -230,6 +230,83 @@ namespace Metagame.Gameplay.Parts
             }
         }
         public PlayerRig Rider => rider;
+        /// <summary>
+        /// 운석에 맞아 <b>돌며 밀리는 중</b>인가(기획 §14.2, S15P21B202-349).
+        ///
+        /// 이 동안은 조작을 받지 않고 <see cref="DriveHover"/> 도 돌지 않는다 — 호버
+        /// 루프가 매 스텝 속도와 각속도를 덮어쓰기 때문에, 그것을 멈추지 않으면 충격이
+        /// 한 스텝에 지워진다.
+        /// </summary>
+        public bool Tumbling => tumbleLeft > 0f;
+
+        /// <summary>
+        /// 돌기를 멈추고 <b>수평을 되찾는 중</b>인가(기획 §14.1 "충돌 후 기체는 자동으로
+        /// 수평을 회복한다").
+        ///
+        /// 이 동안 호버는 다시 돈다 — 자세만 되돌린다. 고도는 되찾지 않는다(§14.2).
+        /// </summary>
+        public bool Righting => righting;
+
+        float tumbleLeft;
+        bool righting;
+
+        /// <summary>
+        /// 운석 충격을 받는다(기획 §14.1 · §14.2, S15P21B202-349).
+        ///
+        /// <b>회전 잠금을 먼저 푼다.</b> <c>FreezeRotation</c> 이 걸린 채로 토크를 주면
+        /// 그 스텝에 지워진다 — S15P21B202-216 이 자세 복구 코드를 넣고도 아무 일이
+        /// 없었던 이유가 그것이다.
+        ///
+        /// <b>폭발력을 쓰지 않는다.</b> <c>AddExplosionForce</c> 로는
+        /// <see cref="PhysicsScale.MeteorImpactForce"/>(900N)가 80kg 기체에 한 스텝
+        /// 0.11m/s 밖에 주지 못한다. 사람이 날아가는 것도 폭발력이 아니라 속도를 직접
+        /// 더해서다(<see cref="PhysicsScale.MeteorHeavyKnockSpeed"/>).
+        ///
+        /// <b>하차 중에는 받지 않는다.</b> <see cref="returning"/> 은 대본대로 내려앉는
+        /// 중이라 끊으면 탑승자가 공중에 갇힐 수 있다.
+        /// </summary>
+        public void TakeMeteorImpact(Vector3 point, float radius)
+        {
+            if (body == null) body = GetComponent<Rigidbody>();
+            if (body == null || returning) return;
+
+            // 아무도 타지 않고 호버도 아니면 Tick 이 돌지 않는다. 그 상태로 잠금을 풀면
+            // 되돌릴 사람이 없다.
+            if (rider == null && !Unmanned) return;
+
+            var offset = body.position - point;
+            var distance = offset.magnitude;
+            var falloff = radius > 0f ? Mathf.Clamp01(1f - distance / radius) : 1f;
+            if (falloff <= 0f) return;
+
+            var away = offset.sqrMagnitude > 1e-6f ? offset.normalized : Vector3.up;
+
+            tumbleLeft = PhysicsScale.CraftTumbleSeconds;
+            righting = false;
+            body.constraints = RigidbodyConstraints.None;
+            body.useGravity = true;
+
+            // 밀리는 방향과 수직인 수평축으로 넘어간다. 무작위를 쓰지 않는다 — 같은
+            // 충격에서 같은 결과가 나와야 한다(§22.3 과 같은 원칙).
+            var axis = Vector3.Cross(Vector3.up, away);
+            if (axis.sqrMagnitude < 1e-6f) axis = Vector3.right;
+
+            // <b>속도에 직접 더한다.</b> <c>AddForce</c> 는 다음 물리 스텝에야 반영되므로
+            // 그 사이 <see cref="StepTumble"/> 이 "아직 안 움직인다" 를 보고 굴림을 즉시
+            // 끝낸다 — 처음에 그렇게 만들었고 검증이 7도만 돌았다고 잡았다.
+            // <see cref="PlayerRig.KnockDown"/> 도 같은 이유로 속도를 직접 더한다.
+            var push = away * (PhysicsScale.CraftImpactSpeed * falloff);
+            var spin = axis.normalized * (PhysicsScale.CraftImpactSpin * falloff);
+
+            body.linearVelocity += push;
+            body.angularVelocity += spin;
+
+            // <b>탑승자에게도 같이 준다.</b> 조인트가 골반 하나만 묶으므로 나머지 뼈가
+            // 정지한 채 매달려 진자가 되고, 그것이 회전 에너지를 먹어 기체가 거의 돌지
+            // 못한다 — 무인 3.25→3.14 대 탑승 3.25→0.03 으로 측정했다.
+            if (rider != null) rider.RideAlong(push, spin, body.worldCenterOfMass);
+        }
+
         public bool IsOccupied => rider != null;
         public bool IsReturning => returning;
         public bool IsGrounded => grounded;
@@ -407,6 +484,8 @@ namespace Metagame.Gameplay.Parts
             body.linearVelocity = Vector3.zero;
             body.angularVelocity = Vector3.zero;
             body.useGravity = true;
+            tumbleLeft = 0f;
+            righting = false;
             driveVector = Vector3.zero;
             returning = false;
             grounded = true;
@@ -596,7 +675,14 @@ namespace Metagame.Gameplay.Parts
 
         public void SetDriveVector(Vector3 worldDirection)
         {
-            if (rider == null || returning) return;
+            // 도는 동안은 조작을 받지 않는다(S15P21B202-349). 자세를 되찾는 동안에는
+            // 다시 받는다 — 호버가 이미 돌고 있으므로 조종을 막을 이유가 없다.
+            if (rider == null || returning || tumbleLeft > 0f)
+            {
+                driveVector = Vector3.zero;
+                return;
+            }
+
             worldDirection.y = 0f;
             driveVector = worldDirection.sqrMagnitude > 1f
                 ? worldDirection.normalized
@@ -609,7 +695,9 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         public void SetFacingDirection(Vector3 worldDirection)
         {
-            if (rider == null || returning) return;
+            // 도는 동안 외형을 수평으로 맞추면 <b>루트만 돌고 보이는 것은 가만히
+            // 있는다</b>(S15P21B202-349). 자세 복구가 끝날 때까지 손대지 않는다.
+            if (rider == null || returning || tumbleLeft > 0f || righting) return;
 
             worldDirection.y = 0f;
             if (worldDirection.sqrMagnitude < 0.0001f) return;
@@ -626,7 +714,7 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         public void SetVerticalInput(float value)
         {
-            if (rider == null || returning) { verticalInput = 0f; return; }
+            if (rider == null || returning || tumbleLeft > 0f) { verticalInput = 0f; return; }
             verticalInput = Mathf.Clamp(value, -1f, 1f);
         }
 
@@ -658,8 +746,87 @@ namespace Metagame.Gameplay.Parts
         {
             if (rider == null && !Unmanned) return;
 
+            // 돌고 있는 동안은 물리에 맡긴다. 호버 루프를 돌리면 그것이 매 스텝 속도와
+            // 각속도를 덮어써서 충격이 사라진다(S15P21B202-349).
+            if (tumbleLeft > 0f)
+            {
+                StepTumble(deltaTime);
+                return;
+            }
+
             if (returning) DriveToGround(deltaTime);
             else DriveHover(deltaTime);
+
+            // 기획 §14.1 "충돌 후 기체는 자동으로 수평을 회복한다".
+            if (righting) StepRighting(deltaTime);
+        }
+
+        /// <summary>
+        /// 도는 동안. <b>아무것도 하지 않는 것이 일이다</b> — 물리가 굴린다.
+        ///
+        /// 상한이 지나거나 잦아들면 나온다. <b>어떤 경로로도 나온다</b> — 여기 머물면
+        /// 탑승자가 조종할 수 없는 상태로 갇힌다(S15P21B202-340 의 교훈).
+        /// </summary>
+        void StepTumble(float deltaTime)
+        {
+            tumbleLeft -= deltaTime;
+
+            var settled =
+                body.linearVelocity.sqrMagnitude
+                    < PhysicsScale.CraftTumbleRestSpeed * PhysicsScale.CraftTumbleRestSpeed
+                && body.angularVelocity.sqrMagnitude
+                    < PhysicsScale.CraftTumbleRestSpin * PhysicsScale.CraftTumbleRestSpin;
+
+            if (tumbleLeft > 0f && !settled) return;
+
+            EndTumble();
+        }
+
+        /// <summary>
+        /// 돌기를 멈추고 자세 복구로 넘긴다.
+        ///
+        /// <b>고도는 되찾지 않는다</b>(기획 §14.2 "수평은 복구하지만 호버 위치를 자동으로
+        /// 되찾지는 않는다"). 밀려 내려간 높이를 새 목표로 삼는다 — 그러지 않으면 맞고
+        /// 떨어진 기체가 스스로 원래 높이로 올라간다.
+        ///
+        /// <b>여기서 한 번만 옮긴다.</b> <see cref="DriveHover"/> 의 같은 규칙이
+        /// <see cref="Unmanned"/> 일 때만 도는 이유는 조종 중 상승 명령과 얽히기
+        /// 때문이다 — 매 스텝 옮기면 상승이 취소된다.
+        /// </summary>
+        void EndTumble()
+        {
+            tumbleLeft = 0f;
+            righting = true;
+
+            body.constraints = RigidbodyConstraints.FreezeRotation;
+            body.angularVelocity = Vector3.zero;
+
+            targetAltitude = Mathf.Clamp(body.position.y, GroundY, MaxAltitude);
+        }
+
+        /// <summary>
+        /// 수평으로 돌아간다. 루트는 빔이 아래를 보는 자세가 기준이다.
+        ///
+        /// 회전이 다시 잠겨 있으므로 <see cref="Rigidbody.rotation"/> 을 직접 옮긴다.
+        /// 토크로 하면 잠금 때문에 아무 일도 일어나지 않는다(S15P21B202-216).
+        /// </summary>
+        void StepRighting(float deltaTime)
+        {
+            var level = Quaternion.LookRotation(Vector3.down, Vector3.forward);
+            var step = PhysicsScale.CraftRightingDegreesPerSecond * deltaTime;
+            var next = Quaternion.RotateTowards(body.rotation, level, step);
+
+            body.rotation = next;
+            transform.rotation = next;
+
+            if (Quaternion.Angle(next, level) > 0.5f) return;
+
+            body.rotation = level;
+            transform.rotation = level;
+            righting = false;
+
+            // 플랫폼과 좌석은 루트 기준으로 다시 잡는다 — 도는 동안 월드 자세가 틀어졌다.
+            EnsurePhysics();
         }
 
         void DriveHover(float deltaTime)
