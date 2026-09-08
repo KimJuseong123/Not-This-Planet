@@ -247,8 +247,19 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
           echo "✅ origin/$T ($UNITY_MERGED_BASE) 를 합친 결과에서 검사한다"
         else
           # 충돌이면 GitLab 이 이미 '머지할 수 없음' 으로 막고 mr-overlap 이 자세히 알린다.
-          # 여기서 회귀로 단정하지 않는다 — 워크트리만 되돌리고 브랜치 끝에서 검사한다.
-          git merge --abort 2>/dev/null || true
+          # 여기서 회귀로 단정하지 않는다 — 워크트리를 되돌리고 브랜치 끝에서 검사한다.
+          #
+          # **되돌리기 실패를 삼키지 않는다.** abort 가 실패하면 워크트리에 충돌 마커가
+          # 남은 채 Unity 가 돌고, 그 마커는 이 MR 이 바꾼 파일에 있으므로 근거 없는
+          # 컴파일 오류로 차단된다(`!259` AI 리뷰 지적). 그래서 abort 가 안 되면
+          # MR 커밋으로 하드 리셋하고, 그것도 안 되면 검사를 아예 하지 않는다.
+          git merge --abort 2>/dev/null             || git reset --hard "$CI_COMMIT_SHA" >/dev/null 2>&1             || true
+          if [ -n "$(git ls-files -u 2>/dev/null)" ]; then
+            echo "❌ 워크트리에 충돌이 남았다 — 이 상태의 검사 결과는 신뢰할 수 없다"
+            echo "   파이프라인을 재실행하면 새 워크스페이스에서 다시 시도한다"
+            echo 2 > "$CI_PROJECT_DIR/unity-verdict.txt"
+            exit 2
+          fi
           # 원인을 갈라 적는다. 얕은 클론이면 공통 조상이 없어 '관련 없는 히스토리' 로 떨어지는데,
           # 그건 충돌과 대처가 다르다(전역 GIT_DEPTH: "0" 을 누가 바꾼 것이다).
           if [ -z "$(git merge-base HEAD "origin/$T" 2>/dev/null)" ]; then

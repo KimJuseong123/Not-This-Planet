@@ -423,54 +423,39 @@ assert R.metagame_changed("a", "b") is None, "git 이 실패하면 판단하지 
 SP.run = _real_run
 print("  METAGAME 변경 판단 — 참·거짓·판단불가 3갈래 ✅")
 
-# ── ㉒ 남의 컴파일 오류로 사람을 막지 않는다 (S15P21B202-342) ────────────────
-#     ⓞ 가 만든 위험이다. decide 는 컴파일 오류를 기준선과 견주지 않고 바로 차단하는데,
-#     그 근거는 "develop 이 컴파일되면 이 MR 이 깬 것" 이었다. 이제 잡이 develop 을 합친
-#     뒤 검사하므로 **develop 자신의 컴파일 오류가 이 MR 의 오류로 나타난다.** 09-02 에
-#     develop 은 2시간 37분 깨져 있었다 — 그 사이 올라온 모든 MR 이 "이 MR 이 깼다" 라는
-#     사실이 아닌 이유로 막힌다. `!259` 의 AI 리뷰가 이 구멍을 지적했다.
+# ── ㉒ 컴파일 오류는 막는다. 다만 코멘트가 단정하지 않는다 (S15P21B202-342) ──
+#     ⓞ(대상 브랜치를 합친 뒤 검사)가 만든 상황이다. 대상 브랜치 자신이 깨져 있으면
+#     그 오류도 여기로 온다. **그래도 막는 것이 맞다** — 깨진 브랜치 위로는 아무도
+#     머지하면 안 된다. 틀린 것은 판정이 아니라 "이 MR 이 깼다" 라는 문구였다.
 #
-#     **귀속 판단은 main 에서 한 번만 하고 decide·body 에 같은 값을 넘긴다.** 전에는 body 가
-#     환경변수를 다시 읽어, 같은 입력에 환경에 따라 다른 코멘트가 나왔다 — CI 에서 이 파일의
-#     컴파일 코멘트 검사가 그렇게 깨졌다(MR 파이프라인에는 대상 브랜치가 설정돼 있다).
+#     한때 "오류 파일이 전부 이 MR 밖이면 경고로 낮춘다" 를 넣었다가 되돌렸다.
+#     파일 단위 귀속은 한 방향으로만 성립한다 — A 를 바꿔 B 에서 오류가 날 수 있다
+#     (시그니처 변경 → 호출부 깨짐). "오류가 내 파일 밖" 은 결백의 증거가 아닌데
+#     그것으로 차단을 풀면 09-02 사고 경로가 다시 열린다.
 UNITY_ERR = "Assets/_Project/Scripts/Runtime/Gameplay/Parts/LaunchTest.cs(88,17): error CS0103: 이름 'Foo'"
-WIN_ERR = "METAGAME" + chr(92) + "Assets" + chr(92) + "Tuning.cs(12,5): error CS1002: ; expected"
 
-assert R.error_files([UNITY_ERR]) == {"Assets/_Project/Scripts/Runtime/Gameplay/Parts/LaunchTest.cs"}
-assert R.error_files([WIN_ERR]) == {"METAGAME/Assets/Tuning.cs"}
-assert R.error_files(["error CS9999: 경로가 없는 줄"]) == set()
-print("  오류 줄에서 파일 경로 추출 (유닉스·윈도우·경로없음) ✅")
+code, why = R.decide(data([]), [UNITY_ERR], set(), 2)
+assert code == REG, (code, why)
+assert "컴파일" in why, why
+print("  컴파일 오류 → 차단 (기준선과 무관) ✅")
 
-_own = R.mr_own_files
-R.mr_own_files = lambda target: {"METAGAME/Assets/_Project/Scripts/Runtime/Gameplay/Parts/LaunchTest.cs"}
-assert R.errors_are_ours([UNITY_ERR], "develop") is True
-R.mr_own_files = lambda target: {"scripts/ci/unity_report.py", "docs/x.md"}
-assert R.errors_are_ours([UNITY_ERR], "develop") is False
-R.mr_own_files = lambda target: {"METAGAME/Assets/Tuning.cs"}
-assert R.errors_are_ours([UNITY_ERR, WIN_ERR], "develop") is True, "하나라도 내 것이면 내 것"
-R.mr_own_files = lambda target: None
-assert R.errors_are_ours([UNITY_ERR], "develop") is None, "파일 목록을 못 읽으면 단정하지 않는다"
-R.mr_own_files = lambda target: {"a.cs"}
-assert R.errors_are_ours(["error CS9999: 경로가 없는 줄"], "develop") is None, "경로를 못 읽으면 단정하지 않는다"
-R.mr_own_files = _own
-print("  귀속 판단 — 내것·남의것·섞임·판단불가 2가지 ✅")
+# 기준선을 못 봤어도 컴파일 오류는 막는다 — 여기서 약해지면 09-02 가 돌아온다
+assert R.decide(data([]), [UNITY_ERR], None, 2)[0] == REG
+assert R.decide(data(["A.x"]), [UNITY_ERR], {"A.x"}, 2)[0] == REG, "기존 실패만 있어도 컴파일 오류가 우선"
+print("  기준선 없음·기존 실패만 → 그래도 차단 ✅")
 
-# decide: None 이면 지금까지처럼 차단한다 (기본을 약하게 만들지 않는다)
-assert R.decide(data([]), [UNITY_ERR], set(), 2)[0] == REG
-assert R.decide(data([]), [UNITY_ERR], set(), 2, errs_ours=True)[0] == REG
-print("  판단 불가·내 오류 → 차단 유지 ✅")
+# 코멘트: 막지만 대상 브랜치가 원인일 수 있음을 알린다
+b = R.body(data([]), [UNITY_ERR], set(), "develop")
+assert "🔴" in b, b
+assert "2시간 37분" in b, "왜 급한지 근거가 있어야 한다"
+assert "develop` 를 합친 결과에서 돌았습니다" in b, b
+assert "최신 `unity-compile` 이 초록인지" in b, "무엇을 먼저 볼지 알려 줘야 한다"
+assert UNITY_ERR in b, "오류 줄이 코멘트 맨 위에 실려야 한다"
+print("  코멘트가 막으면서도 단정하지 않는다 ✅")
 
-code, why = R.decide(data([]), [UNITY_ERR], set(), 2, errs_ours=False)
-assert code == UNK and "바꾸지 않은 파일" in why, (code, why)
-print("  남의 컴파일 오류 → 판정 2 ✅")
-
-# 코멘트도 같은 값을 받아 같은 말을 한다 — 환경을 읽지 않는다
-b = R.body(data([]), [UNITY_ERR], set(), "develop", errs_ours=False)
-assert "이 MR 이 바꾼 파일이 아닙니다" in b and "전부 이 MR 밖" in b, b
-assert "🔴" not in b, "차단하지 않으므로 🔴 를 쓰지 않는다"
-for own in (True, None):
-    b2 = R.body(data([]), [UNITY_ERR], set(), "develop", errs_ours=own)
-    assert "🔴" in b2 and "2시간 37분" in b2, (own, b2)
-print("  코멘트가 남의 오류와 내 오류를 가른다 (환경 무관) ✅")
+# 대상 브랜치 이름이 그대로 실린다 (릴리스 MR 은 master 대신 develop 기준선)
+b2 = R.body(data([]), [UNITY_ERR], set(), "master")
+assert "master` 를 합친 결과에서 돌았습니다" in b2, b2
+print("  대상 브랜치 이름을 그대로 쓴다 ✅")
 
 print("TEST271 OK")
