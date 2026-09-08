@@ -35,6 +35,9 @@ namespace Metagame.Gameplay
 
         /// <summary>휴대 전의 <c>detectCollisions</c>. 해제할 때 이 값으로 돌린다.</summary>
         bool restoreCollisions;
+
+        /// <summary>실제로 껐던 몸. <see cref="SuspendCollisions"/> 의 주석이 이유를 적었다.</summary>
+        Rigidbody suspendedBody;
         bool collisionsSuspended;
 
         /// <summary>원격이 알려 준 휴대 상태. <see cref="ApplyRemoteHeld"/> 참고.</summary>
@@ -163,6 +166,12 @@ namespace Metagame.Gameplay
             var body = CollisionBody;
             if (collisionsSuspended || body == null) return;
 
+            // **끈 몸을 기억해 둔다**(AI 리뷰 지적, 2026-09-08). 껐을 때와 되돌릴 때
+            // <see cref="CollisionBody"/> 가 서로 다른 몸을 가리킬 수 있다 — 원격
+            // 경로에서는 자기 몸이고, 그 사이에 이 기계가 장착하면 그때부터는
+            // <see cref="Body"/> 다(도구 컴포넌트가 자식에 있으면 부모의 몸일 수 있다).
+            // 다른 몸에 되돌리면 껐던 쪽이 **영원히 충돌 없는 상태로 남는다.**
+            suspendedBody = body;
             restoreCollisions = body.detectCollisions;
             collisionsSuspended = true;
             body.detectCollisions = false;
@@ -175,8 +184,9 @@ namespace Metagame.Gameplay
 
             collisionsSuspended = false;
 
-            var body = CollisionBody;
-            if (body != null) body.detectCollisions = restoreCollisions;
+            // 껐던 그 몸으로만 되돌린다 — SuspendCollisions 의 주석 참고.
+            if (suspendedBody != null) suspendedBody.detectCollisions = restoreCollisions;
+            suspendedBody = null;
         }
 
         /// <summary>

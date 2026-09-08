@@ -111,6 +111,32 @@ namespace Metagame.Gameplay.Tests
             Assert.AreEqual(held, visual.localPosition, "쥔 자세가 유지돼야 한다.");
         }
 
+        /// <summary>
+        /// 껐던 <b>그 몸</b>으로 되돌려야 한다.
+        ///
+        /// 원격이 "들고 있다" 고 해서 이 오브젝트의 몸을 껐는데, 그 사이에 이 기계가
+        /// 장착하면 그때부터 <c>Body</c> 는 장착 판정이 준 <b>다른 몸</b>일 수 있다
+        /// (도구 컴포넌트가 자식에 있으면 부모의 몸이 온다). 되돌릴 때 그 다른 몸을
+        /// 보면 껐던 쪽이 **영원히 충돌 없는 상태로 남는다.**
+        /// </summary>
+        [Test]
+        public void RemoteHeld_ThenLocalEquip_RestoresTheBodyItActuallyMuted()
+        {
+            var bat = MakeBat(out var own);
+
+            var otherGo = new GameObject("장착 판정이 주는 다른 몸");
+            _spawned.Add(otherGo);
+            var other = otherGo.AddComponent<Rigidbody>();
+
+            bat.ApplyRemoteHeld(true);
+            Assert.IsFalse(own.detectCollisions, "원격 휴대가 자기 몸을 껐다.");
+
+            bat.Equip(null, other);
+            bat.Unequip();
+
+            Assert.IsTrue(own.detectCollisions, "껐던 그 몸이 되돌아와야 한다.");
+        }
+
         // --- 낙하 운석 그림 --------------------------------------------------
 
         /// <summary>받은 개수만큼 띄우고, 줄면 지운다.</summary>

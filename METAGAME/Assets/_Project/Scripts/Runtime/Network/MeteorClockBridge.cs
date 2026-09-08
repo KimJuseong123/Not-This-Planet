@@ -22,8 +22,8 @@ namespace Metagame.Network
     /// <c>MeteorSpawner</c> 는 <c>System.Random(_seed)</c> 로 결정적 스케줄을 만들지만,
     /// <b>난수를 몇 번 뽑는지가 로컬 세계 상태에 달렸다</b>:
     /// <c>NearPlayerPoint</c> 는 <c>PlayerRig.All</c> 로 센 후보가 0이면 뽑기 전에 반환하고
-    /// (<c>MeteorSpawner.cs:764</c>), <c>WorkAreaPoint</c> 는 <c>clamp.Pullers</c>·
-    /// <c>bead.BlobCount</c> 로 만든 목록이 비면 다른 갈래로 간다(<c>:809</c>). 참가자 쪽
+    /// (<c>MeteorSpawner.NearPlayerPoint</c>), <c>WorkAreaPoint</c> 는 <c>clamp.Pullers</c>·
+    /// <c>bead.BlobCount</c> 로 만든 목록이 비면 다른 갈래로 간다(<c>WorkAreaPoint</c>). 참가자 쪽
     /// 리그는 그림뿐이고 고정못 진행도는 호스트가 정하므로 그 값들이 다르다 →
     /// <b>첫 공세 안에 난수 스트림이 영구히 갈린다.</b> 공유 시계(<c>NetworkTime.time</c>)로도
     /// 못 고치는 종류다.</para>
@@ -42,6 +42,9 @@ namespace Metagame.Network
         MeteorSpawner spawner;
         bool configured;
         bool loggedRole;
+
+        /// <summary>직전 틱의 권위. 참 → 거짓으로 바뀌는 순간을 잡는다(FixedUpdate 주석).</summary>
+        bool wasAuthority = true;
 
         public void Configure(MeteorSpawner meteorSpawner)
         {
@@ -67,7 +70,28 @@ namespace Metagame.Network
         {
             if (!configured || spawner == null) return;
 
-            if (!HasAuthority())
+            var authority = HasAuthority();
+
+            // **권위를 잃는 순간 로컬 계산 결과를 버린다** (AI 리뷰 지적, 2026-09-08).
+            //
+            // 접속이 끝나기 전에는 NetworkClient.active 가 아직 거짓이라 참가자 기계도
+            // 위 식에서 권위로 나온다(혼자 실행과 구별할 수 없다 — 그래서 그 식은
+            // 옳다). 그동안 Tick 이 돌아 **진짜 운석과 예고가 이 기계에만 생긴다.**
+            // 접속이 끝나 Tick 이 멈춰도 그것들은 남아, 호스트에 없는 돌과 착탄 판정이
+            // 참가자 쪽에만 존재한다.
+            //
+            // ResetRun 을 쓴다 — 예고를 비우고 살아 있는 운석을 지우고 흔적까지
+            // 정리한다. 참가자 쪽의 그 셋은 전부 **이 기계가 혼자 만든 것**이므로
+            // 남길 이유가 하나도 없다.
+            if (wasAuthority && !authority)
+            {
+                Debug.Log("[MeteorClockBridge] 권위를 넘긴다 — 접속 전에 이 기계가 만든 "
+                          + "운석·예고·흔적을 버린다(호스트가 보낸 것으로 다시 채워진다)");
+                spawner.ResetRun();
+            }
+            wasAuthority = authority;
+
+            if (!authority)
             {
                 if (!loggedRole)
                 {

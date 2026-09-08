@@ -672,9 +672,23 @@ namespace Metagame.Network
             return true;
         }
 
-        [ClientRpc]
+        /// <summary>
+        /// 호스트가 정한 예고를 참가자에게 맞춘다.
+        ///
+        /// <para><b>호스트에서는 돌지 않아야 한다</b>(AI 리뷰 지적, 2026-09-08).
+        /// <c>[ClientRpc]</c> 는 호스트에서도 실행되는데, <c>ApplyNetworkPending</c> 은
+        /// 목록을 <b>갈아 끼운다</b> — 그쪽 주석이 "권위 쪽에서 부르면 안 된다, 자기
+        /// 스케줄을 지운다" 고 적어 둔 그 호출이다. 게이트가 없으면 호스트의 예고가
+        /// 마지막으로 보낸 값(최대 keepalive 0.5초 전)으로 <b>되감긴다.</b></para>
+        ///
+        /// <para>채널은 고정쇠와 같다 — 끊임없이 다시 보내는 <b>현재 상태</b>이므로
+        /// 신뢰 채널의 재전송 줄에 세우지 않는다(<see cref="RpcApply"/> 의 설명).
+        /// 잃은 것은 keepalive 가 메우고 순서는 <paramref name="seq"/> 로 가른다.</para>
+        /// </summary>
+        [ClientRpc(channel = Channels.Unreliable)]
         void RpcApplyDrops(uint seq, DropState[] drops)
         {
+            if (isServer) return;               // 호스트는 자기 스케줄이 정답이다
             if (!ready) return;
             if (!IsNewer(seq, lastDropSeq, everDrop)) return;
             lastDropSeq = seq;
