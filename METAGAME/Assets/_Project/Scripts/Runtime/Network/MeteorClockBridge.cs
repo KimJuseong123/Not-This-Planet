@@ -83,6 +83,10 @@ namespace Metagame.Network
             // ResetRun 을 쓴다 — 예고를 비우고 살아 있는 운석을 지우고 흔적까지
             // 정리한다. 참가자 쪽의 그 셋은 전부 **이 기계가 혼자 만든 것**이므로
             // 남길 이유가 하나도 없다.
+            // 반대 전이도 치운다. 지금 구조에서는 호스트가 넘어오는 길이 없지만, 그림과
+            // 진짜 운석이 겹쳐 뜨는 것은 눈에 바로 보이는 종류라 한 줄로 막아 둔다.
+            if (!wasAuthority && authority) spawner.ClearNetworkMeteors();
+
             if (wasAuthority && !authority)
             {
                 Debug.Log("[MeteorClockBridge] 권위를 넘긴다 — 접속 전에 이 기계가 만든 "

@@ -645,6 +645,11 @@ namespace Metagame.Network
             // 남은 시간은 참가자가 로컬에서 센다(AgeNetworkPending). 그래서 **목록이
             // 달라질 때만** 보낸다 — 고정쇠와 같은 이유다. 신뢰 없는 채널이라 잃을 수
             // 있으므로 조용해도 가끔 다시 보낸다.
+            //
+            // 한 묶음 한도를 따로 검사하지 않는 이유: 예고 하나가 24바이트이고 동시
+            // 개수는 **한 공세의 상한**을 넘지 않는다(표의 최대가 5 — MeteorWaveTable.Rows).
+            // 신뢰 없는 채널의 여유가 47개쯤이라 자리 수가 다르다. 낙하 자세(40바이트)는
+            // 여유가 절반이라 그쪽에만 상한 검사를 두었다.
             bool changed = !SameDrops(sendDrops, lastSentDrops);
             if (!changed && dropKeepaliveTimer < ClampKeepalive) return;
 
