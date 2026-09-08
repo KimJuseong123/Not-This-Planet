@@ -167,4 +167,11 @@ finally:
     os.environ.pop("GITLAB_TOKEN", None)
 print("  조회가 예외를 던져도 (None, None) — 배포를 막지 않는다 ✅")
 
+# ── 카드에 실리는 종류 (S15P21B202-338) ─────────────────────────
+# warn 만 싣던 동안에는 "최신 확인됨" 과 "확인 못 함" 이 카드에서 구분되지 않았다.
+# 토큰이 만료되면 검사가 조용히 꺼진 것과 같아지는데, 그것이 -333 이 막으려던 미탐이다.
+assert set(D.CARD_KINDS) == {"warn", "unknown"}, D.CARD_KINDS
+assert D.CARD_ICON["warn"] != D.CARD_ICON["unknown"], "두 종류가 같은 아이콘이면 구분하려던 뜻이 사라진다"
+print(f"  카드에 싣는 종류 = warn·unknown, 아이콘 구분 {D.CARD_ICON['warn']}/{D.CARD_ICON['unknown']} ✅")
+
 print("TEST141 OK")

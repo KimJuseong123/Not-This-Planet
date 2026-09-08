@@ -1,5 +1,5 @@
 {
-  "_comment": "팀원 계정 매핑 — MM @멘션·Jira 담당자·GitLab 작성자를 잇는 단일 출처. 변경 시 이 파일과 Jira 규칙 문구(apply_rules 스크립트)를 함께 갱신. 개인 식별자(Jira accountId)는 비밀은 아니지만 필요한 곳에만 사용.",
+  "_comment": "팀원 계정 매핑 — MM @멘션·Jira 담당자·GitLab 작성자를 잇는 단일 출처. 변경 시 이 파일과 Jira 규칙 문구(규칙의 웹 요청 액션 본문)를 함께 갱신. 개인 식별자(Jira accountId)는 비밀은 아니지만 필요한 곳에만 사용.",
   "roles": { "lead": "suho6347", "infra": "rmawnsdud" },
   "members": [
     { "name": "김수호", "gitlab": "suho6347",    "mm": "suho6347",    "jira": "712020:b3c7a812-8150-4a71-b692-bb289a034463", "parts": ["UI", "Sound", "Character", "Physics", "Level", "QA"] },

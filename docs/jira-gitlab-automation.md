@@ -32,8 +32,10 @@ MR 머지 ────▶ [완료]         ⚙ 손으로 끌면 되돌림 (R9 �
 1. **레이블:** 미리 만들 필요 없음 — R2가 제목의 `[파트]`를 읽어 자동으로 붙이고, `needs-fix`도 규칙이 생성한다. 값은 파트 태그와 글자까지 동일(대소문자 구분).
    규칙이 쓰는 레이블은 셋이다 — `<파트>`(R2) · `has-branch`(R4가 붙인다, R5가 읽는다) ·
    **`automation-missed`**(사람이 붙인다, R5·R9가 읽는다 — §2 R9 아래 "자동화가 이벤트를 놓쳤을 때" 참고).
-   `automation-missed` 는 **JQL 에서 쓰이므로 값이 하나라도 존재해야 한다.** 프로젝트에서 한 번도 쓰이지
-   않아 라벨이 사라지면 조건이 값 검증에 걸릴 수 있다 — 지금은 `-322` 에 붙어 있다.
+   `automation-missed` 를 **아무 이슈도 들고 있지 않아도 괜찮다** — 2026-09-08 실측: `labels` 는 자유
+   입력 필드라 없는 값으로 물어도 **오류가 아니라 0건**이다(옵션 목록이 정해진 `component`·`fixVersion`
+   과 다르다). 그때 R5 의 허용 항은 항상 거짓이 되고 R9 의 예외 항은 항상 참이 되어 **두 규칙 다
+   override 가 없던 때로 돌아간다** — 가드가 풀리는 쪽이 아니라 지켜지는 쪽이다.
 2. **필수 필드:** Task 유형에서 **담당자 · 상위 항목 · 기한**을 필수로.
    - 팀 관리형: 프로젝트 설정 → 이슈 유형 → Task → 각 필드의 "필수" 체크 (프로젝트 관리자)
    - 회사 관리형: 필드 구성에서 Required (Jira 관리자에게 요청)
@@ -228,7 +230,7 @@ GitLab Release 가 발행되면 CI(`scripts/ci/publish_release.py`)가 이 규�
   | 3 | `jira.version.release` | `versionName = {{webhookData.version}}` · `releaseDate = {{webhookData.date}}` · 같은 project |
 
 - **왜 편집을 `operations` 가 아니라 `advancedFields` 로 하나**: UI 가 만든 `operations` 는 `type: "SET"` + `value: [{"type":"REFERENCE","value":"LAST_RELEASED_VERSION"}]` 이었다 — **기존 `fixVersion` 을 지우고 엉뚱한 버전을 넣는다.** 스마트값을 `operations` 의 값 항목에 어떤 `type` 으로 싣는지는 문서화돼 있지 않아, 부록 A 에 실측으로 남은 `advancedFields`(Jira REST 편집 JSON 문자열, `add` 로 기존 값 유지) 를 쓴다. UI 에서는 "고급" 칸에 JSON 으로 보인다 — 정상이다
-- 적용: [`scripts/jira/apply_rules18.py`](../scripts/jira/apply_rules18.py) — dry-run 이 기본, `--apply` 로 PUT. 2026-09-07 `PUT 200` 후 재조회로 7항목 전부 확인(액션 순서·타입 · 세 스마트값 · advancedFields · `operations` 빈 것 · 트리거 기준)
+- 적용: 부록 A 방식으로 `PUT`(dry-run 으로 먼저 확인). 2026-09-07 `PUT 200` 후 재조회로 7항목 전부 확인(액션 순서·타입 · 세 스마트값 · advancedFields · `operations` 빈 것 · 트리거 기준)
 - 실패는 CI 쪽에서 **비차단**이다 — Release 는 이미 났으므로 웹훅이 실패해도 MM 카드에 한 줄만 남는다. 같은 버전을 다시 보내면 1) 이 "이미 있음" 으로 실패할 수 있는데 그것도 무해하다
 - **첫 실전 확인**: 릴리스가 나면 Jira 릴리스 화면에 버전 `vX.Y.Z` 와 그 안의 이슈 목록이 보이는지
 
@@ -265,8 +267,11 @@ R4·R6·R5·R9 는 **모두 같은 하나의 입력**을 읽는다: Jira 가 Git
 값이 그 위험보다 크다. 어떤 이슈에 가드를 되살려야 하면 **라벨을 떼면 된다** — 그 이슈만 원래대로
 돌아온다.
 
-또 하나: 이 라벨은 JQL 에 쓰이므로 **프로젝트에서 값이 완전히 사라지면 조건이 성립하지 않을 수 있다.**
-검증용 임시 이슈를 지울 때 라벨이 그 이슈에만 있었다면 함께 사라진다 — 지금은 `-322` 가 들고 있다.
+**라벨이 프로젝트에서 0건이 되어도 규칙은 깨지지 않는다** (2026-09-08 실측). `labels` 는 자유 입력
+필드라 없는 값으로 물어도 오류가 아니라 0건이다. 그러면 R5 의 `OR labels = automation-missed` 는 항상
+거짓, R9 의 `labels != automation-missed` 는 항상 참이 되어 **두 규칙 다 override 가 없던 때와 같이
+동작한다** — 즉 가드가 살아 있는 쪽으로 떨어진다(fail-safe). 다시 라벨을 붙이면 그 순간부터 통한다.
+그래서 **라벨을 억지로 살려 둘 필요가 없다.**
 
 규칙 교정은 **부록 A 의 방식**으로 했다 — 덤프로 구조를 확인한 뒤 `jira.jql.condition` 의 값
 문자열 두 개만 바꿔 `PUT 200`. 컴포넌트를 새로 만들지 않았으므로 `__NEW__COMPONENT__` 는 쓰지 않았다.
@@ -398,10 +403,10 @@ R4·R6·R5·R9 는 **모두 같은 하나의 입력**을 읽는다: Jira 가 Git
 
 2026-08-27 실측: `{{pullRequest.sourceBranch}}` 는 렌더링하면 이름이지만 **객체**라 `.match()` 등 문자열 함수는 `.name` 에 걸어야 함(`{{pullRequest.sourceBranch.name.match(...)}}`). `{{pullRequest.title}}`·`{{pullRequest.url}}` 정상. `match(regex)` 는 부분 일치, `\d`·캡처 그룹 정상(issue.key/summary 탐침). 조건식 문자열 리터럴은 큰따옴표만.
 - **새 컴포넌트의 id는 `"__NEW__COMPONENT__<uuid>"`** (null·임의 UUID는 "컴포넌트 ID 불일치/중복" 400). 중첩은 `children`/`conditions` 배열로.
-- **수신 웹훅 트리거를 건드릴 때**(2026-09-07 R10 실측): GET 이 `value.webhookToken` 을 **별표로 마스킹**해서 준다. 그대로 PUT 하면 토큰이 별표로 덮여 웹훅 URL 이 깨질 수 있으므로, `tags` 의 `WEBHOOK_TOKEN` 항목에 있는 **실제 값으로 복원해서** 보낸다(`apply_rules18.py` 가 그렇게 한다). 트리거를 다른 타입에서 **바꿔 끼우면 이전 값이 남아** 규칙 화면에 `유효한 값을 입력해 주세요` 가 뜬다 — 암호를 생성하거나 트리거를 지우고 새로 추가하면 풀린다. 트리거 타입은 `jira.incoming.webhook`, 액션은 `jira.version.create`·`jira.version.release`(둘 다 `project: {"type":"ID","value":"22557","additional":"software"}`)
+- **수신 웹훅 트리거를 건드릴 때**(2026-09-07 R10 실측): GET 이 `value.webhookToken` 을 **별표로 마스킹**해서 준다. 그대로 PUT 하면 토큰이 별표로 덮여 웹훅 URL 이 깨질 수 있으므로, `tags` 의 `WEBHOOK_TOKEN` 항목에 있는 **실제 값으로 복원해서** 보낸다(2026-09-07 R10 적용에서 그렇게 했다). 트리거를 다른 타입에서 **바꿔 끼우면 이전 값이 남아** 규칙 화면에 `유효한 값을 입력해 주세요` 가 뜬다 — 암호를 생성하거나 트리거를 지우고 새로 추가하면 풀린다. 트리거 타입은 `jira.incoming.webhook`, 액션은 `jira.version.create`·`jira.version.release`(둘 다 `project: {"type":"ID","value":"22557","additional":"software"}`)
 - 컴포넌트 타입: `jira.issue.event.trigger:created|transitioned`, `jira.issue.field.changed`(value `{"changeType":"ANY_CHANGE","fields":[{"value":"<fieldId>","type":"field"}],"actions":[],"eventFilters":[ARI]}`), `devops.branch.event.trigger:created`, `devops.pr.event.trigger:merged|declined`, `jira.issue.condition`, `jira.comparator.condition`, `jira.jql.condition`(value=JQL 문자열), `jira.condition.container.block` + `jira.condition.if.block`(ELSE = 조건 없는 if.block), `jira.issue.transition`(destinationStatus NAME 영문), `jira.issue.comment`, `jira.issue.edit`(`advancedFields`에 Jira REST 편집 JSON 문자열), `jira.issue.refresh.issue`, `codebarrel.action.log`.
-- **이 경로로 규칙을 실제로 고칠 수 있다 — 2026-09-07 실측.** [`scripts/jira/apply_rules17.py`](../scripts/jira/apply_rules17.py) 가 R6·R7 의 브랜치 정규식 3곳을 `PUT 200` 으로 바꿨다(`새 정규식 2곳·1곳 · 옛 정규식 0곳` 재조회 확인). 실행은 리포 밖 venv 로:
-  `cd <scratchpad>\pw` → `.\.venv\Scripts\python.exe apply_rules17.py`(dry-run) → `--apply`.
+- **이 경로로 규칙을 실제로 고칠 수 있다 — 2026-09-07 실측.** R6·R7 의 브랜치 정규식 3곳을 `PUT 200` 으로 바꿨다(`새 정규식 2곳·1곳 · 옛 정규식 0곳` 재조회 확인). 실행은 리포 밖 venv 로:
+  실행은 `cd <scratchpad>\pw` → `.\.venv\Scripts\python.exe <교정 스크립트>`(dry-run) → `--apply`.
 
   | 함정 | 사실 |
   | --- | --- |
@@ -410,9 +415,24 @@ R4·R6·R5·R9 는 **모두 같은 하나의 입력**을 읽는다: Jira 가 Git
   | PUT body | GET 응답이 곧 `ruleConfigBean` 본문이다(최상위에 `components` 가 보인다). 그것을 고쳐 `{"ruleConfigBean": …, "newConnections": []}` 로 감싸 `PUT …/rule/{ruleUuid}` — 숫자 id 가 아니라 **uuid** 다 |
   | 검증 | PUT 뒤 다시 GET 해서 새 정규식 개수 ≥ 바꾼 개수, 옛 정규식 0 을 확인한다. `before-<id>.json`·`after-<id>.json` 을 남긴다. PUT 은 규칙 상태(사용 중)를 바꾸지 않는다 |
 
-  스크립트를 리포에 두는 이유: 이전 `apply_rules2·8·14·15·16.py` 는 스크래치패드에만 있어 temp 정리로 사라졌고, 2026-09-07 에 같은 일을 다시 하려다 방식을 되짚는 데 시간을 썼다. **UI 절차(부록 B)도 그대로 유효하다** — 규칙을 새로 만드는 것은 내부 `POST /rule` 이 403 이라 여전히 UI 뿐이다.
+  **리포에는 도구만 둔다 — 일회성 교정 스크립트는 두지 않는다**(2026-09-08, `-338`).
+  한동안 `apply_rulesN.py` 를 남겼다. 이전 `apply_rules2·8·14·15·16.py` 가 스크래치패드에만 있어
+  temp 정리로 사라지고 방식을 되짚는 데 시간을 썼기 때문이다. **그때 잃은 것은 방식이었고, 그
+  방식은 지금 이 부록과 `dump_rule.py` 에 남아 있다.** 교정 스크립트는 한 번 적용하면 다시 돌지
+  않는데 번호가 계속 쌓이고, `CLOUD_ID`·`PROJECT_ID`·규칙 id 가 박혀 있어 오래되면 사실과
+  어긋난다. 반대로 **최종 규칙 형태는 위 R1~R10 절이 단일 출처다** — 다시 적용해야 하면 그 값을
+  읽어 이 부록의 방식으로 PUT 하면 된다.
 
-  **지금 리포에 있는 것** — [`scripts/jira/dump_rule.py`](../scripts/jira/dump_rule.py) 규칙 하나를 떠서 구조를 본다(읽기 전용, `--id` 는 숫자·uuid 둘 다) · [`apply_rules17.py`](../scripts/jira/apply_rules17.py) R6·R7 브랜치 정규식 · [`apply_rules18.py`](../scripts/jira/apply_rules18.py) R10 형태 맞추기. 실행은 리포 밖 venv(`<scratchpad>\pw\.venv`)에서. **순서는 언제나 덤프 → 값 교정** 이다: 컴포넌트 타입 문자열을 추측하면 400 이거나 조용히 깨진 규칙이 된다. **새 컴포넌트를 추가할 때만** `__NEW__COMPONENT__<uuid>` 를 쓰고, 기존 것은 id 를 그대로 물려받는다(2026-09-07 R10 에 `jira.version.create` 를 그렇게 추가해 `PUT 200`).
+  **UI 절차(부록 B)도 그대로 유효하다** — 규칙을 새로 만드는 것은 내부 `POST /rule` 이 403 이라 여전히 UI 뿐이다.
+
+  **지금 리포에 있는 것** — [`scripts/jira/dump_rule.py`](../scripts/jira/dump_rule.py) 하나뿐이다.
+  규칙 하나를 떠서 구조를 보여 준다(읽기 전용 · `--id` 는 숫자·uuid 둘 다 · `--list` 는 목록).
+  실행은 리포 밖 venv(`<scratchpad>\pw\.venv`)에서. **순서는 언제나 덤프 → 값 교정** 이다:
+  컴포넌트 타입 문자열을 추측하면 400 이거나 조용히 깨진 규칙이 된다.
+  **새 컴포넌트를 추가할 때만** `__NEW__COMPONENT__<uuid>` 를 쓰고, 기존 것은 id 를 그대로
+  물려받는다(2026-09-07 R10 에 `jira.version.create` 를 그렇게 추가해 `PUT 200`).
+
+  교정 스크립트는 스크래치패드에서 쓰고 버린다. **남길 것은 이 부록의 방식과 R 절의 최종 값이다.**
 ## 부록 B · 자동화 편집기 조작법 (UI에서 규칙을 만들거나 고칠 때)
 
 ```

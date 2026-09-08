@@ -169,4 +169,4 @@ docs: 로비 BGM 레퍼런스 조사 기록 (S15P21B202-27)
 | 릴리스 뒤 develop 재머지 **없음** | 브랜치에 자기 커밋이 없으니 develop 에 넣을 것이 없다 |
 | hotfix 는 그대로 | `hotfix/<키>-…` 를 master 에서 분기 → master·develop 양쪽 머지. 태그·Release 는 -326 에서 정한다 |
 
-Jira 쪽: 릴리스 이슈는 `[Plan]`(또는 `[Infra]`) 작업으로, 제목에 버전(`[Plan] 릴리스 v0.1.0`). 자동화 R6·R7 의 소스·대상 브랜치 정규식은 **2026-09-07 에 `^(?:hotfix/|release/)?` 로 고쳤다**(3곳, [부록 A](./jira-gitlab-automation.md#부록-a--규칙을-api로-고치는-법-내부-api-규약-2026-08-27-실측) 방식 · `scripts/jira/apply_rules17.py`) — 그래서 릴리스 브랜치 MR 을 머지하면 릴리스 이슈가 자동 완료된다. [jira-gitlab-automation.md](./jira-gitlab-automation.md) R6·R7.
+Jira 쪽: 릴리스 이슈는 `[Plan]`(또는 `[Infra]`) 작업으로, 제목에 버전(`[Plan] 릴리스 v0.1.0`). 자동화 R6·R7 의 소스·대상 브랜치 정규식은 **2026-09-07 에 `^(?:hotfix/|release/)?` 로 고쳤다**(3곳, [부록 A](./jira-gitlab-automation.md#부록-a--규칙을-api로-고치는-법-내부-api-규약-2026-08-27-실측) 방식) — 그래서 릴리스 브랜치 MR 을 머지하면 릴리스 이슈가 자동 완료된다. [jira-gitlab-automation.md](./jira-gitlab-automation.md) R6·R7.
