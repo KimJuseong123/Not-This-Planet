@@ -98,6 +98,30 @@ namespace Metagame.Gameplay
         public bool DownedView => downedView;
 
         /// <summary>
+        /// 화면 전체를 기울이는 기준 회전. 평소에는 항등이다.
+        ///
+        /// <see cref="Metagame.Gameplay.Parts.TransportVehicle.LevelOffset"/> 을
+        /// <see cref="PlayerRig"/> 가 매 물리 스텝 넣어 준다.
+        /// </summary>
+        public Quaternion ViewTilt => viewTilt;
+
+        Quaternion viewTilt = Quaternion.identity;
+
+        /// <summary>
+        /// 기준 회전을 정한다. 항등이면 평소와 같다.
+        ///
+        /// <b>부드럽게 만들지 않는다.</b> 기체의 자세가 이미 물리로 연속이고, 굴림은
+        /// 수평에서 시작해 수평으로 끝나므로 들어올 때와 나갈 때 튀지 않는다.
+        /// </summary>
+        public void SetViewTilt(Quaternion tilt) => viewTilt = tilt;
+
+        /// <summary>
+        /// 화면을 갱신한다. EditMode 검증에서 <c>LateUpdate</c> 가 돌지 않으므로
+        /// 갈라 뒀다 — 이 저장소가 <c>Initialize()</c> · <c>Tick()</c> 로 맞춰 온 방식이다.
+        /// </summary>
+        public void Tick() => LateUpdate();
+
+        /// <summary>
         /// 아직 시야가 몸과 함께 넘어가는 중인가.
         ///
         /// 이 동안에는 마우스가 시점을 돌리지 않는다 — 몸이 넘어지는 회전과 마우스 회전이
@@ -373,7 +397,13 @@ namespace Metagame.Gameplay
             else smoothFocus = Vector3.Lerp(smoothFocus, raw,
                                             1f - Mathf.Exp(-FocusSmoothing * Time.deltaTime));
 
-            Quaternion rot = Quaternion.Euler(pitch, yaw, 0f);
+            // <b>기준 회전을 앞에 곱한다</b>(S15P21B202-353). 탑승체가 운석에 맞아
+            // 돌면 화면도 함께 돌아야 한다 — 그러지 않으면 기체는 도는데 세상은
+            // 수평이라 무엇이 일어났는지 알 수 없다.
+            //
+            // <see cref="ViewRotation"/> 은 건드리지 않는다. 이동·조준은 계속 수평
+            // 기준이어야 한다 — 굴는 동안 조작이 뒤집히면 복구가 불가능해진다.
+            Quaternion rot = viewTilt * Quaternion.Euler(pitch, yaw, 0f);
 
             // 기절해 넘어지는 동안에는 <b>머리 본의 회전</b>을 그대로 쓴다(기획 §10.3,
             // S15P21B202-259). 아래 1인칭 경로가 회전을 세계 기준으로만 잡는 것은 걸을 때

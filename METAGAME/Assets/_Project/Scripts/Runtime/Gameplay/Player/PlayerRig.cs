@@ -1107,6 +1107,26 @@ namespace Metagame.Gameplay
             Tick();
         }
 
+        /// <summary>
+        /// 탑승체가 돌면 화면도 함께 기울인다(기획 §14.1, S15P21B202-353).
+        ///
+        /// <b>여기서 하는 이유.</b> <see cref="MountedVehicle"/> 과
+        /// <see cref="Cam"/> 을 둘 다 아는 곳이 여기뿐이다. 조종 컨트롤러에 두면 원격
+        /// 플레이어나 컨트롤러가 없는 경로에서 빠진다.
+        ///
+        /// 굴림·복구가 끝나면 항등으로 돌아간다 — 그 두 상태가 반드시 끝나는 것은
+        /// <c>TransportVehicle</c> 쪽 검증이 잠근다.
+        /// </summary>
+        void SyncCameraTilt()
+        {
+            if (Cam == null) return;
+
+            var craft = MountedVehicle;
+            var tilting = craft != null && (craft.Tumbling || craft.Righting);
+
+            Cam.SetViewTilt(tilting ? craft.LevelOffset : Quaternion.identity);
+        }
+
         /// <summary>조준 기준점을 지금 보고 있는 곳에 맞춘다.</summary>
         void SyncAimPivot()
         {
@@ -1125,6 +1145,8 @@ namespace Metagame.Gameplay
         /// </summary>
         public void Tick()
         {
+            SyncCameraTilt();
+
             if (Doll == null || Doll.Hips == null) return;
             if (!JointTools.IsFinite(Doll.Hips.position)) { return; }
 
