@@ -334,9 +334,13 @@ namespace Metagame.Gameplay.Tests
                 Physics.Simulate(Step);
                 var now = (i + 1) * Step;
 
+                // <b>운영 코드와 같은 것을 재야 한다.</b> 코드는 몸체에서 아래로
+                // CraftTumbleLandingBand 안에 지면이 있는지 본다. 하니스의 지면은 y=0
+                // 이므로 몸체 높이가 곧 그 거리다. GroundY 를 더해 재면 0.06m 만큼
+                // 느슨해져 두 스텝이 어긋난다 — 그렇게 써서 한 번 틀렸다.
                 if (landedAt < 0f
                     && rig.Vehicle.transform.position.y
-                       <= TransportVehicle.GroundY + PhysicsScale.CraftTumbleLandingBand)
+                       <= PhysicsScale.CraftTumbleLandingBand)
                     landedAt = now;
 
                 if (rig.Vehicle.Tumbling) continue;

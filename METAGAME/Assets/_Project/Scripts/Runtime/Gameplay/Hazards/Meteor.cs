@@ -248,6 +248,12 @@ namespace Metagame.Gameplay.Hazards
         {
             Register();
 
+            // 재사용에 대비해 한 생애의 기록을 비운다. 지금 스포너는 운석을
+            // <c>Instantiate</c> 하고 <c>Despawn</c> 으로 없애므로 재사용 경로가 없지만,
+            // 풀링이 들어오면 두 번째 생애에서 같은 상대를 다시 때리지 못한다.
+            _directPlayersHit.Clear();
+            _craftHit.Clear();
+
             EnsureTrail();
 
             // 예전 프리팹에 남아 있던 일반 DamageSource는 운석의 충돌 규칙과 중복된다.

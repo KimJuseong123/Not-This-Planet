@@ -869,9 +869,7 @@ namespace Metagame.Gameplay.Parts
         {
             tumbleElapsed += deltaTime;
 
-            // 기울면 아래를 향한 탐사가 빗나갈 수 있으므로 높이로도 함께 본다.
-            var landed = body.position.y <= GroundY + PhysicsScale.CraftTumbleLandingBand
-                         || ProbeGround(out _);
+            var landed = TouchedDown();
 
             var settled =
                 body.linearVelocity.sqrMagnitude
@@ -883,6 +881,49 @@ namespace Metagame.Gameplay.Parts
                 && tumbleElapsed < PhysicsScale.CraftTumbleMaxSeconds) return;
 
             EndTumble();
+        }
+
+        /// <summary>
+        /// 굴던 기체가 바닥에 닿았는가(S15P21B202-353).
+        ///
+        /// <b><see cref="ProbeGround"/> 만으로는 부족하다.</b> 그 탐사는 플랫폼 아래
+        /// 0.28m(<see cref="ProbeLift"/> + <see cref="ProbeReach"/>)만 본다 — 호버 고도에서
+        /// 걸릴 수 없어 안전하지만, <b>기울면 원점이 아래를 향하지 않아 빗나간다.</b>
+        ///
+        /// <b>절대 높이로도 부족하다.</b> <see cref="GroundY"/> 기준으로 보면 지형이 그보다
+        /// 높은 곳에 떨어졌을 때 성립하지 않는다. 그러면 8초 상한까지 계속 돈다.
+        ///
+        /// 그래서 몸체에서 곧장 아래로 <b>선 하나를</b> 더 쏜다. 루트는 접지 상태에서
+        /// <see cref="GroundY"/> 에 있으므로 이 거리가 곧 지면까지의 높이다. 기울기와
+        /// 지형 고도에 모두 무관하다.
+        ///
+        /// <b>자기 플랫폼과 탑승자는 지면이 아니다</b> — <see cref="ProbeGround"/> 와 같은
+        /// 걸러내기를 쓴다(<see cref="SurfaceMask"/> 가 플레이어 레이어를 이미 뺀다).
+        /// </summary>
+        bool TouchedDown()
+        {
+            if (ProbeGround(out var ground)
+                && ground.distance <= PhysicsScale.CraftTumbleLandingBand)
+                return true;
+
+            // <b>반경을 주지 않는다.</b> 구체로 재면 반경만큼 일찍 걸려 기체가 1m 쯤
+            // 위에서 굴림을 멈춘다 — 검증이 "바닥에 닿지 않았다" 로 잡았다.
+            var count = Physics.RaycastNonAlloc(
+                body.position, Vector3.down, ProbeHits,
+                PhysicsScale.CraftTumbleLandingBand, SurfaceMask,
+                QueryTriggerInteraction.Ignore);
+
+            for (var i = 0; i < count; i++)
+            {
+                var hit = ProbeHits[i];
+                if (hit.collider == null) continue;
+                if (hit.collider.transform.IsChildOf(transform)) continue;   // 자기 플랫폼
+                if (hit.normal.y < MinGroundNormalY) continue;               // 벽은 바닥이 아니다
+
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>
