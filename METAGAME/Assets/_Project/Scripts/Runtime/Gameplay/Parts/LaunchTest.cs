@@ -22,6 +22,21 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         Ascending,
 
+        /// <summary>
+        /// 접합부가 끊어져 <b>공중에서 부서지는 중</b>이다(기획 §22.4,
+        /// S15P21B202-340).
+        ///
+        /// <b>추력이 남아 있다.</b> 엔진은 접합부가 끊어진 것을 모르므로 계속 타고,
+        /// 그래서 아래쪽은 올라가고 위쪽은 떨어지며 찢어진다. 남은 접합에 하중이 몰려
+        /// 연쇄로 끊어지는 것도 이 동안 일어난다 — §22.4 의 "파츠가 실제 물리로
+        /// 무너진다" 가 그것이다.
+        ///
+        /// <see cref="PhysicsScale.LaunchBreakupSeconds"/> 가 지나면 반드시
+        /// <see cref="Failed"/> 로 간다. 여기 머물면 §22.4 의 사출이 오지 않아
+        /// 플레이어가 탄 채로 갇힌다.
+        /// </summary>
+        Breaking,
+
         /// <summary>5초를 견디고 떠올랐다.</summary>
         Success,
 
@@ -116,6 +131,7 @@ namespace Metagame.Gameplay.Parts
             Output = 0f;
             Elapsed = 0f;
             AscentElapsed = 0f;
+            _breakupLeft = 0f;
             FailureReason = "";
             State = LaunchState.Idle;
 
@@ -182,6 +198,12 @@ namespace Metagame.Gameplay.Parts
                 return;
             }
 
+            if (State == LaunchState.Breaking)
+            {
+                BreakUp(deltaTime);
+                return;
+            }
+
             if (State != LaunchState.Ramping) return;
 
             Elapsed += deltaTime;
@@ -204,9 +226,13 @@ namespace Metagame.Gameplay.Parts
                 var link = _links[i];
                 if (link == null || !link.IsIntact)
                 {
-                    // 기획 §22.4 — 약한 접합부부터 끊어진다. 끊어진 순간 실패로 확정하고
-                    // 나머지 접합은 그대로 둔다. 붙은 덩어리로 남아 무너지는 것이 연출이다.
-                    Fail("접합부가 하중을 버티지 못했다");
+                    // 기획 §22.4 — 약한 접합부부터 끊어진다. 나머지 접합은 봉인하지
+                    // 않는다. 남은 하중이 몰려 연쇄로 끊어지는 것이 연출이다.
+                    //
+                    // <b>즉시 실패로 확정하지 않는다</b>(S15P21B202-340). 추력을 잠깐
+                    // 남겨 공중에서 부서지게 한다 — 여기서 끊으면 엔진이 그 프레임에
+                    // 꺼져 "주저앉는" 것으로 보인다.
+                    BreakUnderLoad("접합부가 하중을 버티지 못했다");
                     return;
                 }
             }
@@ -300,10 +326,59 @@ namespace Metagame.Gameplay.Parts
             Completed?.Invoke(this);
         }
 
+        /// <summary>
+        /// 공중에서 부서지기 시작한다(기획 §22.4, S15P21B202-340).
+        ///
+        /// <b>발사 전 실패와 구분해서 쓴다.</b> <see cref="Fail"/> 을 부르는 자리가
+        /// 여섯 군데인데 성격이 다르다 — 최하단 파츠가 없거나 자기 무게로 서 있지
+        /// 못하는 것(§22.3 이 "추력을 주기 전에" 확인한다고 정했다)은 공중에서 일어나지
+        /// 않으므로 그대로 즉시 실패다. <b>접합부 파손만</b> 이 경로를 탄다.
+        /// </summary>
+        void BreakUnderLoad(string reason)
+        {
+            FailureReason = reason;
+            _breakupLeft = PhysicsScale.LaunchBreakupSeconds;
+            State = LaunchState.Breaking;
+        }
+
+        /// <summary>
+        /// 부서지는 동안 추력을 남긴다.
+        ///
+        /// <b>램프 추력을 그대로 쓰지 않는다.</b> 그 값은 탑 전체 기준이라 엔진만
+        /// 남으면 자기 무게의 12.8배를 받아 화면 밖으로 날아간다. 남은 덩어리의 무게
+        /// 대비 <see cref="PhysicsScale.LaunchBreakupThrustRatio"/> 로 묶어 잠깐 버티다
+        /// 함께 무너지게 한다 — 연출의 주역은 위쪽이 떨어져 나가는 것이다.
+        ///
+        /// <b>어떤 경로로도 <see cref="LaunchState.Failed"/> 에 도달한다.</b> 시간이
+        /// 지나거나 엔진이 사라지거나 — 여기 머물면 §22.4 의 사출이 오지 않아 플레이어가
+        /// 갇힌다.
+        /// </summary>
+        void BreakUp(float deltaTime)
+        {
+            _breakupLeft -= deltaTime;
+
+            if (_engine == null || _breakupLeft <= 0f)
+            {
+                State = LaunchState.Failed;
+                return;
+            }
+
+            var weight = _engine.mass * Mathf.Abs(UnityEngine.Physics.gravity.y);
+            var thrust = weight * PhysicsScale.LaunchBreakupThrustRatio;
+
+            // 노즐 위치는 그대로다 — 토크가 계속 걸려 비뚤어진 덩어리가 돌며 무너진다.
+            var nozzle = _engine.worldCenterOfMass;
+            nozzle.y = _engine.position.y - PhysicsScale.LaunchNozzleDrop;
+            _engine.AddForceAtPosition(Vector3.up * thrust, nozzle, ForceMode.Force);
+        }
+
         void Fail(string reason)
         {
             FailureReason = reason;
             State = LaunchState.Failed;
         }
+
+        /// <summary>부서지는 연출이 남은 시간(초).</summary>
+        float _breakupLeft;
     }
 }
