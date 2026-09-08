@@ -140,6 +140,8 @@ CALLS = []
 
 def fake_http(method, url, headers=None, body=None, timeout=30):
     CALLS.append(url)
+    if "/jobs?per_page=100&page=" in url:
+        return 500, {}                  # 잡 목록을 못 읽는다 → 파이프라인 훑기로 폴백
     if "/pipelines?ref=" in url:
         return 200, [{"id": 900}, {"id": 899}]
     if url.endswith("/jobs?per_page=100"):
@@ -163,6 +165,8 @@ print("  기준선 조회 ✅")
 
 # ── ⑪ 아티팩트가 없으면 None (빈 집합이 아니다)
 def no_artifact(method, url, headers=None, body=None, timeout=30):
+    if "/jobs?per_page=100&page=" in url:
+        return 500, {}
     if "/pipelines?ref=" in url:
         return 200, [{"id": 899}]
     if url.endswith("/jobs?per_page=100"):
@@ -242,5 +246,110 @@ with tempfile.TemporaryDirectory() as d:
     v = Path(d) / R.VERDICT_FILE
     assert v.exists() and v.read_text(encoding="utf-8") == "2", "판정 근거가 없으면 경고여야 한다"
 print("  결과·로그 둘 다 없음 → 2 ✅")
+
+# ── ⑮ 기준선을 **잡 목록 API** 로 찾는다 (S15P21B202-342) ─────────────────────
+#    파이프라인 15개만 훑던 동안 창이 자주 비었다 — unity-compile 은 changes: METAGAME/**
+#    게이트라 문서·스크립트만 머지되는 날에는 develop 에 그 잡이 아예 생기지 않는다.
+#    2026-09-08 실측: 가장 최근 것이 7번째 뒤, 그 전은 14번째 뒤(창 경계).
+#    기준선을 못 찾으면 판정이 2 로 떨어지고 그 잡은 비차단이라 **새 실패가 그대로 통과한다.**
+JOBS_CALLS = []
+
+
+def jobs_api(method, url, headers=None, body=None, timeout=30):
+    JOBS_CALLS.append(url)
+    if "/jobs?per_page=100&page=1" in url:
+        return 200, [
+            {"id": 31, "name": "mr-lint", "ref": "develop", "status": "success"},
+            {"id": 30, "name": "unity-compile", "ref": "refs/merge-requests/9/head",
+             "status": "failed"},                      # 다른 ref — 기준선이 아니다
+            {"id": 29, "name": "unity-compile", "ref": "develop", "status": "running"},
+            {"id": 28, "name": "unity-compile", "ref": "develop", "status": "failed"},
+        ]
+    if "/jobs/28/artifacts/unity-results.xml" in url:
+        return 200, NUNIT
+    if "/pipelines?ref=" in url:
+        raise AssertionError("잡 목록으로 찾았으면 파이프라인을 훑지 않아야 한다")
+    raise AssertionError(f"예상 못한 호출: {method} {url}")
+
+
+ci_common.http = jobs_api
+assert R.baseline_failures(ci_common.GitLab(), "develop") == fails
+assert not any("/pipelines?ref=" in u for u in JOBS_CALLS), JOBS_CALLS
+print("  기준선 — 잡 목록 API ✅")
+
+
+# ── ⑯ 아티팩트가 만료된 잡은 건너뛰고 **더 옛것**을 본다
+#    expire_in 을 14일로 늘렸어도 경계는 남는다. 첫 후보가 비었을 때 포기하면 안 된다.
+def expired_newest(method, url, headers=None, body=None, timeout=30):
+    if "/jobs?per_page=100&page=1" in url:
+        return 200, [{"id": 40, "name": "unity-compile", "ref": "develop", "status": "failed"},
+                     {"id": 39, "name": "unity-compile", "ref": "develop", "status": "success"}]
+    if "/jobs/40/artifacts/" in url:
+        return 404, {"message": "404 Not Found"}       # 만료
+    if "/jobs/39/artifacts/unity-results.xml" in url:
+        return 200, NUNIT
+    if "/pipelines?ref=" in url:
+        return 200, []
+    raise AssertionError(url)
+
+
+ci_common.http = expired_newest
+assert R.baseline_failures(ci_common.GitLab(), "develop") == fails
+print("  만료된 아티팩트 → 다음 후보 ✅")
+
+
+# ── ⑰ 잡 목록이 비면 파이프라인 훑기로 되돌아간다 (둘 중 하나는 되도록)
+def empty_jobs(method, url, headers=None, body=None, timeout=30):
+    if "/jobs?per_page=100&page=" in url:
+        return 200, []                                 # 200 이지만 비었다
+    if "/pipelines?ref=" in url:
+        return 200, [{"id": 899}]
+    if url.endswith("/jobs?per_page=100"):
+        return 200, [{"id": 20, "name": "unity-compile", "status": "failed"}]
+    if "/artifacts/unity-results.xml" in url:
+        return 200, NUNIT
+    raise AssertionError(url)
+
+
+ci_common.http = empty_jobs
+assert R.baseline_failures(ci_common.GitLab(), "develop") == fails
+print("  잡 목록 빔 → 파이프라인 폴백 ✅")
+
+
+# ── ⑱ 판단 불가 코멘트가 **비차단이라는 사실**을 말한다 (S15P21B202-342)
+#     판정 2 는 allow_failure 라 파이프라인이 초록이다. 그 사실을 적지 않으면 초록이
+#     '실패를 검사했고 문제없었다' 로 읽힌다 — 실제로는 아무것도 가리지 못한 것이다.
+b = R.body(data(["A.x", "A.y"]), [], None, "develop")
+assert "막지 않습니다" in b, b
+assert "2건" in b, b
+print("  판단 불가 → 비차단임을 명시 ✅")
+
+# 실패가 0건이면 그 경고는 없어야 한다 — 가릴 것이 없다
+b0 = R.body(data([]), [], None, "develop")
+assert "막지 않습니다" not in b0, b0
+print("  실패 0건이면 경고 없음 ✅")
+
+
+# ── ⑲ 무엇을 검사했는지 코멘트가 밝힌다 — 대상 브랜치를 합친 결과인가 (S15P21B202-342)
+#     GitLab 의 MR 파이프라인은 refs/merge-requests/N/head — 소스 브랜치 끝에서 돈다.
+#     2026-09-08 에 -331(테스트 7건 추가)과 -339(중력 -2.8 → -5)가 서로를 못 본 채 각자
+#     초록이었고, 머지되자 3건이 깨졌다. 이제 잡이 대상 브랜치를 합친 뒤 검사하고 그 sha 를
+#     UNITY_MERGED_BASE 로 넘긴다. 코멘트가 검사 범위를 밝혀야 초록의 뜻이 분명해진다.
+os.environ.pop("UNITY_MERGED_BASE", None)
+os.environ.pop("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", None)
+assert R.merged_note() == "", "MR 이 아니면 아무 말도 하지 않는다"
+
+os.environ["CI_MERGE_REQUEST_TARGET_BRANCH_NAME"] = "develop"
+assert "합치지 못해" in R.merged_note(), R.merged_note()
+assert "합친 결과에서 검사했습니다" not in R.merged_note()
+print("  합치지 못했으면 그렇게 적는다 ✅")
+
+os.environ["UNITY_MERGED_BASE"] = "33d0907"
+assert "33d0907" in R.merged_note() and "합친 결과" in R.merged_note(), R.merged_note()
+assert "33d0907" in R.body(data(["A.x"]), [], set(), "develop"), "각주에 검사 범위가 실려야 한다"
+assert "33d0907" in R.body(data(["A.x"]), [], None, "develop"), "판단 불가 코멘트에도 실려야 한다"
+print("  합친 sha 를 각주에 싣는다 ✅")
+os.environ.pop("UNITY_MERGED_BASE", None)
+os.environ.pop("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", None)
 
 print("TEST271 OK")

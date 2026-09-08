@@ -111,6 +111,39 @@ def compile_errors(log_text: str, cap: int = MAX_COMPILE_ERRORS) -> list[str]:
 
 
 # ── 기준선(대상 브랜치의 마지막 결과) ────────────────────────────────────────
+def baseline_candidates(gl: GitLab, ref: str, max_pipelines: int) -> list[dict]:
+    """기준선으로 쓸 `unity-compile` 잡을 최신 순으로 준다 (S15P21B202-342).
+
+    **먼저 잡 목록 API 로 찾는다.** 한 번 호출로 100건이 오고 `ref`·`status` 가 함께 오므로,
+    파이프라인을 하나씩 훑는 것(파이프라인당 호출 1회)보다 같은 비용으로 훨씬 멀리 되짚는다.
+
+    <para>왜 멀리 되짚어야 하나: `unity-compile` 은 `changes: METAGAME/**` 게이트를 쓰므로
+    문서·스크립트만 머지되는 날에는 develop 에 그 잡이 아예 생기지 않는다. 파이프라인 15개만
+    보던 동안 창이 자주 비었다 — 2026-09-08 실측으로 가장 최근 것이 7번째 뒤, 그 전은 14번째
+    뒤였다(창 경계). 기준선을 못 찾으면 판정이 2(판단 불가)로 떨어지고 그 잡은 비차단이라
+    **이 MR 이 만든 새 실패가 그대로 통과한다.**</para>
+
+    잡 목록을 못 읽으면 **예전 방식(파이프라인 훑기)으로 되돌아간다** — 둘 중 하나는 되도록.
+    """
+    out: list[dict] = []
+    try:
+        for j in gl.project_jobs():
+            if j.get("name") == JOB_NAME and j.get("ref") == ref and j.get("status") in ("success", "failed"):
+                out.append(j)
+    except Exception as e:  # noqa: BLE001
+        print(f"[warn] 잡 목록 조회 실패({type(e).__name__}: {e}) — 파이프라인 훑기로 되돌아간다")
+    if out:
+        return out
+    try:
+        for p in gl.branch_pipelines(ref, per_page=max_pipelines):
+            jobs = [j for j in gl.pipeline_jobs(p.get("id")) if j.get("name") == JOB_NAME]
+            out += [j for j in sorted(jobs, key=lambda x: x.get("id") or 0, reverse=True)
+                    if j.get("status") in ("success", "failed")]
+    except Exception as e:  # noqa: BLE001
+        print(f"[warn] 파이프라인 훑기도 실패({type(e).__name__}: {e})")
+    return out
+
+
 def baseline_failures(gl: GitLab, ref: str, max_pipelines: int = 15) -> set | None:
     """대상 브랜치에서 마지막으로 돈 unity-compile 의 실패 집합. 못 구하면 None.
 
@@ -119,16 +152,13 @@ def baseline_failures(gl: GitLab, ref: str, max_pipelines: int = 15) -> set | No
     if not (gl.token and gl.project):
         return None
     try:
-        for p in gl.branch_pipelines(ref, per_page=max_pipelines):
-            jobs = [j for j in gl.pipeline_jobs(p.get("id")) if j.get("name") == JOB_NAME]
-            for j in sorted(jobs, key=lambda x: x.get("id") or 0, reverse=True):
-                if j.get("status") not in ("success", "failed"):
-                    continue
-                txt = gl.job_artifact_text(j["id"], ARTIFACT)
-                if not txt:
-                    continue
-                d = parse_nunit(txt)
-                return {f'{c["cls"]}.{c["name"]}' for c in d["cases"] if c["result"] == "Failed"}
+        for j in baseline_candidates(gl, ref, max_pipelines):
+            txt = gl.job_artifact_text(j["id"], ARTIFACT)
+            if not txt:
+                continue          # 아티팩트 만료(expire_in) — 더 최신 것부터 계속 본다
+            d = parse_nunit(txt)
+            print(f"기준선: 잡 {j['id']} ({j.get('status')}, {str(j.get('created_at'))[:16]})")
+            return {f'{c["cls"]}.{c["name"]}' for c in d["cases"] if c["result"] == "Failed"}
     except Exception as e:  # noqa: BLE001 — 기준선 실패가 보고 자체를 막지 않는다
         print(f"[warn] 기준선 조회 실패({type(e).__name__}: {e}) — 새/기존 구분 없이 보고한다")
     return None
@@ -174,6 +204,20 @@ def write_verdict(path_dir: str, code: int) -> str:
 
 
 # ── 코멘트 ──────────────────────────────────────────────────────────────────
+def merged_note() -> str:
+    """무엇을 검사했는지 한 줄로 밝힌다 (S15P21B202-342).
+
+    `.gitlab-ci.yml` 의 unity-compile 이 대상 브랜치를 합친 뒤 검사하고 그 sha 를
+    `UNITY_MERGED_BASE` 로 넘긴다. 없으면 브랜치 끝만 검사한 것이므로 **그렇게 적는다** —
+    검사 범위를 읽는 사람이 착각하면 초록의 의미를 잘못 읽는다."""
+    base = (os.environ.get("UNITY_MERGED_BASE") or "").strip()
+    if base:
+        return f"`{base}` 를 합친 결과에서 검사했습니다"
+    if os.environ.get("CI_MERGE_REQUEST_TARGET_BRANCH_NAME"):
+        return "**대상 브랜치를 합치지 못해 브랜치 끝에서만 검사했습니다** — 합쳐서 깨지는 경우는 가리지 못합니다"
+    return ""
+
+
 def body(data: dict, errs: list[str], base: set | None, ref: str) -> str:
     now_fail = {f'{c["cls"]}.{c["name"]}': c for c in data["cases"] if c["result"] == "Failed"}
     if errs:
@@ -189,7 +233,16 @@ def body(data: dict, errs: list[str], base: set | None, ref: str) -> str:
         parts = [head, "",
                  f"| 총 | 통과 | 실패 |", "|---|---|---|", f"| {total} | {passed} | {failed} |", "",
                  f"`{ref}` 의 기준 결과를 찾지 못해 **새로 생긴 실패인지 가릴 수 없었습니다**"
-                 f"(그 브랜치에서 이 잡이 아직 돌지 않았을 수 있습니다)."]
+                 f"(그 브랜치에서 이 잡이 아직 돌지 않았거나 아티팩트가 만료됐을 수 있습니다)."]
+        if failed:
+            # 판정 2 는 비차단(allow_failure: exit_codes: [2])이다. 그 사실을 적지 않으면
+            # 초록 파이프라인이 '실패를 검사했고 문제없었다' 로 읽힌다 (S15P21B202-342).
+            parts += ["",
+                      f"⚠ **이 판정은 머지를 막지 않습니다.** 그래서 이 MR 이 만든 새 실패가 "
+                      f"있어도 그대로 통과합니다 — 실패 {failed}건을 직접 확인해 주세요."]
+        note = merged_note()
+        if note:
+            parts += ["", f"<sub>{note} · 자동 생성(unity-compile)</sub>"]
         return MARKER + "\n" + "\n".join(parts)
 
     new = [k for k in now_fail if k not in base]
@@ -214,8 +267,10 @@ def body(data: dict, errs: list[str], base: set | None, ref: str) -> str:
             parts.append(f"- … 외 {len(new) - MAX_LISTED}건")
     if fixed:
         parts += ["", f"**되살린 것** {len(fixed)}건: " + ", ".join(f"`{k.split('.')[-1]}`" for k in sorted(fixed)[:8])]
+    note = merged_note()
     parts += ["", "<sub>기존 실패는 담당자가 정리 중일 수 있어 나열하지 않습니다. 전체 목록은 "
-              "MR 의 테스트 리포트 탭 · 잡 아티팩트 `unity-results.xml` · 자동 생성(unity-compile)</sub>"]
+              "MR 의 테스트 리포트 탭 · 잡 아티팩트 `unity-results.xml`"
+              + (f" · {note}" if note else "") + " · 자동 생성(unity-compile)</sub>"]
     return MARKER + "\n" + "\n".join(parts)
 
 
