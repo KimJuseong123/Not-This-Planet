@@ -85,7 +85,10 @@ namespace Metagame.Network
         uint lastDropSeq;
         bool everDrop;
         Metagame.Gameplay.Hazards.MeteorSpawner meteorSpawnerCached;
-        bool meteorSpawnerLooked;
+
+        /// <summary>못 찾은 동안 다시 보는 간격(초). <see cref="MeteorSpawner"/> 의 주석 참고.</summary>
+        const float SpawnerLookInterval = 1f;
+        float lastSpawnerLook = float.NegativeInfinity;
         float clampKeepaliveTimer;
 
         // 도구 휴대 (S15P21B202-352). 고정쇠와 같은 모양 — 바뀔 때만 + keepalive.
@@ -398,6 +401,10 @@ namespace Metagame.Network
                 // 보면, 스크립트가 자식에 있는 배치에서 **휴대 비트만 가고 자세는 안 나간다**
                 // — 도구가 상대 화면에서 제자리에 멈추는, 고치려던 그 증상이다.
                 // `Add` 가 중복을 걸러 주므로 부모 몸이 이미 목록에 있으면 두 번 들어가지 않는다.
+                //
+                // 그리고 이 술어는 **`PlayerRig.BodyOf`(`PlayerRig.cs:2649`)와 같다** —
+                // 잡기 판정이 도구의 몸을 정하는 그 규칙이다. 여기서 다르게 정하면
+                // "한 성질을 두 곳에서 판단" 하는 것이 되어 반드시 갈린다.
                 Add(tool.GetComponentInParent<Rigidbody>());
 
                 // 휴대 비트는 몸이 없어도 나른다 — 보이는 것만 바꾸는 값이라
@@ -691,17 +698,27 @@ namespace Metagame.Network
         /// <summary>
         /// 이 씬의 운석 스포너. 없으면 <c>null</c> 이고 그때는 예고를 주고받지 않는다
         /// (샌드박스·테스트 씬).
+        ///
+        /// <para><b>못 찾으면 다시 찾는다</b>(AI 리뷰 지적, 2026-09-08). 예전에는 첫 조회에
+        /// 표시를 세워 두고 다시 보지 않았다 — 그 순간 스포너가 아직 없으면
+        /// <b>영구히 null</b> 이고, 예고·낙하 그림 동기화가 <b>경고 한 줄 없이 통째로
+        /// 꺼진다.</b> 이 클래스가 이미 두 번 겪은 모양이다(늦게 뜨는 게임 씬 ·
+        /// 나중에 생기는 견인 장치). <c>FindAnyObjectByType</c> 은 공짜가 아니므로
+        /// 못 찾은 동안은 1초에 한 번만 다시 본다.</para>
         /// </summary>
         Metagame.Gameplay.Hazards.MeteorSpawner MeteorSpawner
         {
             get
             {
-                if (meteorSpawnerCached == null && !meteorSpawnerLooked)
-                {
-                    meteorSpawnerLooked = true;
-                    meteorSpawnerCached =
-                        FindAnyObjectByType<Metagame.Gameplay.Hazards.MeteorSpawner>();
-                }
+                if (meteorSpawnerCached != null) return meteorSpawnerCached;
+
+                if (Time.unscaledTime - lastSpawnerLook < SpawnerLookInterval)
+                    return null;
+
+                lastSpawnerLook = Time.unscaledTime;
+                meteorSpawnerCached =
+                    FindAnyObjectByType<Metagame.Gameplay.Hazards.MeteorSpawner>();
+
                 return meteorSpawnerCached;
             }
         }

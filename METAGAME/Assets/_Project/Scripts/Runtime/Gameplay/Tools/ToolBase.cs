@@ -178,6 +178,17 @@ namespace Metagame.Gameplay
         /// (<c>PF_Stage1_MeteorBat</c>·<c>PF_Stage1_WeldingPlasmaGun</c>)은 둘 다 뿌리에
         /// 함께 있지만, 배치를 바꿔도 깨지지 않게 <c>GetComponentInParent</c>(자기 자신을
         /// 포함한다)로 찾는다.</para>
+        ///
+        /// <para><b>이 술어는 내가 고른 것이 아니다</b> — <c>PlayerRig.BodyOf</c>
+        /// (<c>PlayerRig.cs:2649</c>)가 잡기 판정에서 쓰는 것과 <b>같은 규칙</b>이다
+        /// (자기 것 먼저, 없으면 부모). 여기서 다르게 정하면 같은 성질을 두 곳에서
+        /// 판단하는 것이 되어 반드시 갈린다.</para>
+        ///
+        /// <para>부모를 훑으므로 <b>도구가 남의 계층 아래 놓이면</b> 그쪽 몸을 잡는다는
+        /// 지적이 있었다. 맞지만 그 배치는 <c>PlayerRig.BodyOf</c> 도 똑같이 남의 몸을
+        /// 집어 <b>잡기 자체가 이미 깨진다</b> — 도구는 런타임에 재부모화되지 않으므로
+        /// (그렇게 하는 코드가 없다) 씬을 그렇게 짜지 않는 것이 계약이다. 여기서만
+        /// 다르게 막으면 위의 갈림을 되살린다.</para>
         /// </summary>
         Rigidbody CollisionBody
         {
