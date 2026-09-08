@@ -31,7 +31,7 @@
     │                                                                                       │
     │                                                                        /spool 에 jar + RELEASE
     │                                                                                       ▼
-    │                                                            EC2 systemd metagame-deploy.path → deploy.sh
+    │                                                            EC2 systemd metagame-deploy.path → /opt/metagame-deploy/deploy.sh
     │                                                            (교체 → 헬스체크 → 실패 시 롤백 → MM 🟢/🔴)
     ▼
  팀장이 release/ 브랜치를 master 에 머지 ▶ ⑥ master 파이프라인 (§2-D): release-windows — 버전 → Windows 빌드 → 패키지 → GitLab Release(태그) → MM 🟢
@@ -134,17 +134,17 @@
 | 러너 | 태그 | 실행기 | 마운트(볼륨) | 몫 |
 | --- | --- | --- | --- | --- |
 | `METAGAME-ip-172-26-13-34` (공용) | `linux` | docker · `cpu_shares = 256`(경합 시 게임 서버에 양보) | `/cache` · Claude 바이너리 **ro** · `~/.claude` **ro** · Unity 라이선스 `.ulf` **ro** | `deploy-backend` 빼고 전부 (`default.tags: [linux]`) |
-| `METAGAME-deploy-ip-172-26-13-34` (배포 전용, id 2068) | `deploy` · Protected(팀장 UI 설정 — 확인 필요) | docker | `/cache` · `/home/ubuntu/metagame/deploy` → **`/spool` rw** | `deploy-backend` 만. 스풀은 여기에만 있다 |
+| `METAGAME-deploy-ip-172-26-13-34` (배포 전용, id 2068) | `deploy` · **Protected(`ref_protected`)** · `run_untagged` 없음 — 2026-09-08 러너 API 실측 | docker | `/cache` · `/home/ubuntu/metagame/deploy` → **`/spool` rw** | `deploy-backend` 만. 스풀은 여기에만 있고 **데이터만** 들어 있다 — 실행되는 코드는 `/opt/metagame-deploy/`(-324) |
 | 내 PC 윈도우 러너 | — | shell(pwsh) | — | **정지 · 예비.** 받을 잡이 없다 |
 
-잡 컨테이너는 root 로 돈다. 공용 러너에 `:rw` 마운트를 두면 아무 MR 이나 자기 브랜치의 `.gitlab-ci.yml` 한 줄로 그것을 읽고 쓸 수 있다 — 그래서 자격증명은 `:ro`, 스풀은 배포 러너에만(-290 · -252).
+잡 컨테이너는 root 로 돈다. 공용 러너에 `:rw` 마운트를 두면 아무 MR 이나 자기 브랜치의 `.gitlab-ci.yml` 한 줄로 그것을 읽고 쓸 수 있다 — 그래서 자격증명은 `:ro`, 스풀은 배포 러너에만(-290 · -252). 그리고 **rw 마운트 안에는 실행되는 코드를 두지 않는다**(-324): 스풀에는 데이터(jar·RELEASE·STATUS·로그·previous)만, `deploy.sh` 는 마운트 밖 root 소유.
 
 ### 호스트 systemd (파이프라인 밖에서 도는 것)
 
 | 유닛 | 상태 | 하는 일 | 소스 |
 | --- | --- | --- | --- |
 | `gitlab-runner.service` | 상시 | 위 러너 2대 | `scripts/runner/setup-linux-runner.sh` · `setup-deploy-runner.sh` |
-| `metagame-deploy.path` → `metagame-deploy.service` | 감시 대기 | `/spool/RELEASE` 가 생기면 `deploy.sh` 실행 — 잡에 도커 소켓을 주지 않기 위한 우회 | `scripts/deploy/host/` |
+| `metagame-deploy.path` → `metagame-deploy.service` | 감시 대기 | 스풀에 `RELEASE` 가 생기면 **`/opt/metagame-deploy/deploy.sh`**(root 소유, 스풀 **밖**) 실행 — 잡에 도커 소켓을 주지 않기 위한 우회. 코드가 마운트 안에 있으면 잡이 덮어써 호스트 권한으로 돌 수 있어 밖으로 옮겼다(-324) | `scripts/deploy/host/` |
 | `claude-token-refresh.timer` → `.service` | **20분마다** | 호스트에서 `claude -p` 로 토큰을 살려 두고(컨테이너는 ro 라 못 씀) 같은 호출로 자격 점검 → 문턱 넘으면 MM 알림(`/etc/metagame/alert.env` 의 웹훅) · 리프레시 토큰 만료 3일 전 경고 | `scripts/runner/claude_auth_check.py` · `.timer` · `.service` |
 | `metagame-relay.service` | 상시 | 방장↔참가자 UDP 중계(**17778/udp**) + 제어 API(**17779/tcp**, 도커 사설망만) — 백엔드가 방 성립 때 세션 등록·종료. `GET /health` 로 세션 수 | `scripts/relay/` |
 | `metagame.service` | 상시 | Mirror **데디케이티드** 게임 서버(**17777/udp**, `-verifyUrl` 로 백엔드 인증). -162 에서 올렸다. 지금 매치 경로는 **리슨 서버 + 릴레이**라 실제로 쓰이는지 **확인 필요** | -162 (담당 최재현) |
@@ -203,7 +203,7 @@ MR 하나에 붙을 수 있는 봇 코멘트: `mr-lint` ⚠ · `mr-overlap` · `
 | 파이프라인이 **아예 없다** | `CI_ENABLE` 변수 · 소스 브랜치가 master 기반(`.gitlab-ci.yml` 이 없다) | 아침 카드 🚫 가 다음 날 알려 준다 |
 | 잡이 `pending` 에서 안 움직인다 | EC2 `systemctl status gitlab-runner` · `journalctl -u gitlab-runner -n 50` | 참고서 §4 비상 복귀 3단계 |
 | `ai-review` 코멘트가 없다 | 잡 로그의 `category=` 줄 · EC2 `journalctl -u claude-token-refresh -n 20` | 🔔 알림이 이미 왔어야 한다. `authentication` 이면 호스트 재로그인 |
-| 배포 버튼을 눌렀는데 결과가 없다 | EC2 `/home/ubuntu/metagame/deploy/STATUS` · `deploy.log` | `systemctl status metagame-deploy.path` |
+| 배포 버튼을 눌렀는데 결과가 없다 | EC2 `/home/ubuntu/metagame/deploy/STATUS` · `deploy.log` | `systemctl status metagame-deploy.path` · 스크립트가 있는지 `ls -l /opt/metagame-deploy/deploy.sh` |
 | 배포 후 서버가 이상하다 | 🔴 롤백 카드가 왔는지 — 왔으면 **직전 jar 로 돌고 있다** | `docker logs metagame-backend` |
 | 아침 카드가 안 왔다 | 항목이 0이면 정상. 스케줄 24 활성 여부 · 스케줄 파이프라인 잡 로그 | `MM_WEBHOOK_URL` |
 | 릴레이가 안 붙는다 | EC2 `curl 127.0.0.1:17779/health` · 백엔드 기동 로그 `relay 제어 API 도달` 줄 | [multiplayer-test-guide.md](./multiplayer-test-guide.md) |
