@@ -352,4 +352,75 @@ print("  합친 sha 를 각주에 싣는다 ✅")
 os.environ.pop("UNITY_MERGED_BASE", None)
 os.environ.pop("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", None)
 
+# ── ⑳ 낡은 기준선으로 회귀를 단정하지 않는다 (S15P21B202-342) ────────────────
+#    ⓞ 와 ① 이 서로 얽힌다. 이제 MR 은 develop 을 합친 결과를 검사하므로 develop 의 실패를
+#    함께 물려받는데, 기준선은 develop 의 *마지막* unity-compile 이고 아티팩트 14일 보관
+#    덕에 며칠 전 것일 수 있다. 그 사이 develop 에 들어온 실패는 기준선에 없고 내 결과에는
+#    있다 → "이 MR 이 만든 새 실패" 로 오탐되어 **남의 실패로 내 MR 이 막힌다.**
+#
+#    2026-09-08 실측 반례: 기준선이 한 파이프라인만 더 옛것(906fdfd2, 실패 27건)이었다면
+#    -339(중력 조정)가 깨뜨린 6건이 전부 내 몫으로 계산됐다. 실제로는 8b5978e6 이 잡혀
+#    그 사이 METAGAME 변경이 0건이었고 판정 0 이 나왔다 — 운이 좋았을 뿐이다.
+STALE = {"job": 494810, "sha": "906fdfd2", "when": "2026-09-08T14:10"}
+
+b = R.body(data(["A.x", "A.y"]), [], set(), "develop", stale_base=STALE)
+assert "가릴 수 없습니다" in b, b
+assert "906fdfd2" in b and "494810" in b, "어느 기준선이 낡았는지 밝혀야 한다"
+assert "경고로 낮췄습니다" in b, b
+assert "unity-compile` 을 한 번 돌려" in b, "가리는 방법을 알려 줘야 한다"
+assert "🔴" not in b, "차단하지 않으므로 🔴 를 쓰지 않는다"
+print("  낡은 기준선 → 코멘트가 단정하지 않는다 ✅")
+
+# 기준선이 신선하면 평소대로 🔴
+b2 = R.body(data(["A.x", "A.y"]), [], set(), "develop")
+assert "🔴" in b2 and "가릴 수 없습니다" not in b2, b2
+print("  신선한 기준선 → 평소대로 🔴 ✅")
+
+
+# ── ㉑ METAGAME 이 안 바뀌었으면 낡은 기준선도 유효하다
+#     테스트 거동이 바뀔 수 없으므로 그때는 그대로 차단해야 한다. 오늘 실제로 이 경우였다.
+import subprocess as SP
+
+_real_run = SP.run
+
+
+def fake_run(argv, **kw):
+    class R_:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+    class Changed(R_):
+        stdout = "METAGAME/Assets/_Project/Scripts/Runtime/Core/Tuning.cs"
+    # a..b 가 ('old','new') 면 바뀐 것으로, ('same','new') 면 안 바뀐 것으로 답한다
+    return Changed() if "old" in argv else R_()
+
+
+SP.run = fake_run
+R.subprocess = SP
+assert R.metagame_changed("old", "new") is True
+assert R.metagame_changed("same", "new") is False
+assert R.metagame_changed("", "new") is None, "sha 를 모르면 판단하지 않는다"
+
+
+def boom(argv, **kw):
+    raise FileNotFoundError("git")
+
+
+SP.run = boom
+assert R.metagame_changed("a", "b") is None, "git 이 없으면 판단하지 않는다"
+
+
+def rc1(argv, **kw):
+    class R_:
+        returncode = 128
+        stdout = ""
+        stderr = "bad object"
+    return R_()
+
+
+SP.run = rc1
+assert R.metagame_changed("a", "b") is None, "git 이 실패하면 판단하지 않는다"
+SP.run = _real_run
+print("  METAGAME 변경 판단 — 참·거짓·판단불가 3갈래 ✅")
+
 print("TEST271 OK")

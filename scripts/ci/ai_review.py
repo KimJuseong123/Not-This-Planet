@@ -376,6 +376,17 @@ def with_fail_reasons(body: str, fail_why: dict[str, str]) -> str:
 
     각주는 이름만 적어서 `category=unknown` 만 남으면 모델 이름 문제인지 자격증명 문제인지
     사람이 가릴 수 없었다. `render` 의 시그니처를 건드리지 않고 뒤에 덧붙인다.
+
+    **두 가지가 여기 섞여 들어온다. 기준은 이렇다** (S15P21B202-342):
+
+    - `failed` = **호출 자체가 실패**한 리뷰어. 판정 합치기(`merge`)에서 ✅ 를 막는 근거가 되고
+      `render` 의 "실행 실패 리뷰어" 각주에 이름이 오른다
+    - `fail_why` 에만 있는 리뷰어 = **호출은 됐고 출력이 JSON 이 아니었다.** `results[role]` 이
+      `None` 이라 판정은 이미 `unknown` 으로 떨어진다. `failed` 에 넣으면 "실행 실패" 로
+      잘못 읽히므로 **넣지 않고** 이 줄에만 `출력 해석 실패` 로 적는다
+
+    즉 이 각주는 `failed` 의 상위집합이다 — 이름이 여기 있고 "실행 실패 리뷰어" 에 없으면
+    해석 실패다.
     """
     if not fail_why:
         return body

@@ -249,7 +249,13 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
           # 충돌이면 GitLab 이 이미 '머지할 수 없음' 으로 막고 mr-overlap 이 자세히 알린다.
           # 여기서 회귀로 단정하지 않는다 — 워크트리만 되돌리고 브랜치 끝에서 검사한다.
           git merge --abort 2>/dev/null || true
-          echo "⚠ origin/$T 와 충돌 — 브랜치 끝에서만 검사한다(합친 결과는 검사하지 못했다)"
+          # 원인을 갈라 적는다. 얕은 클론이면 공통 조상이 없어 '관련 없는 히스토리' 로 떨어지는데,
+          # 그건 충돌과 대처가 다르다(전역 GIT_DEPTH: "0" 을 누가 바꾼 것이다).
+          if [ -z "$(git merge-base HEAD "origin/$T" 2>/dev/null)" ]; then
+            echo "⚠ origin/$T 와 공통 조상이 없다 — 얕은 클론이다. 전역 GIT_DEPTH 를 0 으로 두어야 한다"
+          else
+            echo "⚠ origin/$T 와 충돌 — 브랜치 끝에서만 검사한다(합친 결과는 검사하지 못했다)"
+          fi
         fi
       fi
     - echo "=== 임포트 + 컴파일 + EditMode 테스트 시작 ==="

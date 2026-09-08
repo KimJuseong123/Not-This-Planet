@@ -21,6 +21,7 @@
 로컬 실행: python3 scripts/ci/unity_report.py <nunit.xml> [unity.log]
            (GITLAB_TOKEN·CI_MERGE_REQUEST_IID 가 있으면 MR 코멘트까지)
 """
+import subprocess
 import os
 import sys
 import xml.etree.ElementTree as ET
@@ -144,7 +145,8 @@ def baseline_candidates(gl: GitLab, ref: str, max_pipelines: int) -> list[dict]:
     return out
 
 
-def baseline_failures(gl: GitLab, ref: str, max_pipelines: int = 15) -> set | None:
+def baseline_failures(gl: GitLab, ref: str, max_pipelines: int = 15,
+                      meta: dict | None = None) -> set | None:
     """대상 브랜치에서 마지막으로 돈 unity-compile 의 실패 집합. 못 구하면 None.
 
     None 과 빈 집합을 구분한다 — '기준선을 못 봤다' 와 '기준선에 실패가 없다' 는 다르다.
@@ -157,7 +159,11 @@ def baseline_failures(gl: GitLab, ref: str, max_pipelines: int = 15) -> set | No
             if not txt:
                 continue          # 아티팩트 만료(expire_in) — 더 최신 것부터 계속 본다
             d = parse_nunit(txt)
-            print(f"기준선: 잡 {j['id']} ({j.get('status')}, {str(j.get('created_at'))[:16]})")
+            when = (j.get('created_at') or '시각미상')[:16]
+            sha = ((j.get('commit') or {}).get('id') or '')[:8]
+            print(f"기준선: 잡 {j['id']} ({j.get('status')}, {when}, {sha or 'sha미상'})")
+            if meta is not None:
+                meta.update(job=j['id'], sha=sha, when=when)
             return {f'{c["cls"]}.{c["name"]}' for c in d["cases"] if c["result"] == "Failed"}
     except Exception as e:  # noqa: BLE001 — 기준선 실패가 보고 자체를 막지 않는다
         print(f"[warn] 기준선 조회 실패({type(e).__name__}: {e}) — 새/기존 구분 없이 보고한다")
@@ -218,7 +224,8 @@ def merged_note() -> str:
     return ""
 
 
-def body(data: dict, errs: list[str], base: set | None, ref: str) -> str:
+def body(data: dict, errs: list[str], base: set | None, ref: str,
+         stale_base: dict | None = None) -> str:
     now_fail = {f'{c["cls"]}.{c["name"]}': c for c in data["cases"] if c["result"] == "Failed"}
     if errs:
         head = "🔴 **Unity C# 컴파일 실패** — 테스트는 돌지 못했습니다"
@@ -251,6 +258,10 @@ def body(data: dict, errs: list[str], base: set | None, ref: str) -> str:
         head = "✅ **Unity 컴파일 통과 · 이 MR 이 만든 테스트 실패 없음**"
     else:
         head = f"🔴 **이 MR 에서 새로 실패하는 테스트 {len(new)}개**"
+        if stale_base:
+            # 기준선이 합친 base 보다 낡았다 — 그 차이에 develop 이 만든 실패가 섞여 있다.
+            # 이 경우 판정은 main() 이 2(경고)로 낮춘다 (S15P21B202-342).
+            head = f"⚠ **새로 실패하는 테스트 {len(new)}개 — 다만 이 MR 탓인지 가릴 수 없습니다**"
     parts = [head, "",
              "| 항목 | 수 |", "|---|---|",
              f"| 이 MR 의 실패 | {failed} |",
@@ -267,11 +278,51 @@ def body(data: dict, errs: list[str], base: set | None, ref: str) -> str:
             parts.append(f"- … 외 {len(new) - MAX_LISTED}건")
     if fixed:
         parts += ["", f"**되살린 것** {len(fixed)}건: " + ", ".join(f"`{k.split('.')[-1]}`" for k in sorted(fixed)[:8])]
+    if stale_base:
+        job, sha, when = stale_base.get("job"), stale_base.get("sha"), stale_base.get("when")
+        parts += ["",
+                  f"기준 결과가 **합친 base 보다 낡았습니다**(잡 `{job}` · `{sha}` · {when}). "
+                  f"그 사이 `{ref}` 의 `METAGAME/` 이 바뀌었으므로 위 **새로 생긴 것** 안에는 "
+                  f"`{ref}` 가 만든 실패가 섞여 있을 수 있습니다 — "
+                  "**이 MR 탓으로 단정하지 않고 경고로 낮췄습니다.**",
+                  "",
+                  f"가리려면 `{ref}` 에서 `unity-compile` 을 한 번 돌려 기준선을 최신으로 만든 뒤 "
+                  "이 MR 의 파이프라인을 재실행하면 됩니다."]
     note = merged_note()
     parts += ["", "<sub>기존 실패는 담당자가 정리 중일 수 있어 나열하지 않습니다. 전체 목록은 "
               "MR 의 테스트 리포트 탭 · 잡 아티팩트 `unity-results.xml`"
               + (f" · {note}" if note else "") + " · 자동 생성(unity-compile)</sub>"]
     return MARKER + "\n" + "\n".join(parts)
+
+
+def metagame_changed(a: str, b: str) -> bool | None:
+    """`a`..`b` 사이에 `METAGAME/` 아래가 바뀌었는지. 판단 못 하면 None (S15P21B202-342).
+
+    **왜 필요한가 — ⓞ 와 ① 이 서로 얽힌다.** 이제 MR 은 `develop` 을 합친 결과를 검사하므로
+    develop 의 실패를 함께 물려받는다. 그런데 기준선은 develop 의 *마지막* `unity-compile`
+    이고, 그 잡은 아티팩트 14일 보관 덕에 며칠 전 것일 수 있다. 그 사이 develop 에 들어온
+    실패는 **기준선에 없고 내 결과에는 있다** → "이 MR 이 만든 새 실패" 로 오탐되어 남의
+    실패로 내 MR 이 막힌다.
+
+    2026-09-08 실측 반례: 기준선이 한 파이프라인만 더 옛것(`906fdfd2`, 실패 27건)이었다면
+    `-339`(중력 조정)가 깨뜨린 실패가 전부 내 몫으로 계산됐다. 실제로는 `8b5978e6` 이
+    잡혀 그 사이 METAGAME 변경이 0건이었고 판정 0 이 나왔다 — 운이 좋았을 뿐이다.
+
+    `METAGAME/` 아래가 안 바뀌었다면 테스트 거동이 바뀔 수 없으므로 낡은 기준선도 유효하다.
+    바뀌었다면 **회귀로 단정하지 않는다**(`-309`)."""
+    if not (a and b):
+        return None
+    try:
+        r = subprocess.run(["git", "diff", "--name-only", a, b, "--", "METAGAME/"],
+                           capture_output=True, text=True, timeout=30)
+    except Exception as e:  # noqa: BLE001 — git 이 없거나 sha 를 모르면 판단하지 않는다
+        print(f"[warn] 기준선 신선도 확인 실패({type(e).__name__}: {e})")
+        return None
+    if r.returncode != 0:
+        print(f"[warn] 기준선 신선도 확인 실패(git diff {r.returncode}) — {r.stderr.strip()[:120]}")
+        return None
+    return bool(r.stdout.strip())
+
 
 
 def baseline_ref(target: str | None) -> str:
@@ -319,18 +370,33 @@ def main(argv: list[str] | None = None) -> int:
 
     gl = GitLab()
     ref = baseline_ref(env("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "develop"))
-    base = baseline_failures(gl, ref)
+    bmeta: dict = {}
+    base = baseline_failures(gl, ref, meta=bmeta)
     if base is None:
         print(f"기준선 없음 — `{ref}` 에서 이 잡이 돈 결과를 찾지 못했다")
     else:
         print(f"기준선: `{ref}` 실패 {len(base)}건")
 
     code, why = decide(data, errs, base, unity_rc)
+    # 낡은 기준선으로 회귀를 단정하지 않는다 (S15P21B202-342 · metagame_changed 참고).
+    # 이제 develop 을 합친 결과를 검사하므로 develop 의 실패를 함께 물려받는데, 기준선이
+    # 그보다 옛것이면 남의 실패가 내 몫으로 계산된다. 그 경우 차단(1) 대신 경고(2)로 낮춘다.
+    stale = None
+    if code == REGRESSION:
+        merged = (env("UNITY_MERGED_BASE", "") or "").strip()
+        bsha = bmeta.get("sha", "")
+        stale = metagame_changed(bsha, merged) if merged else None
+        if stale:
+            print(f"기준선({bsha})이 합친 base({merged})보다 낡았고 그 사이 METAGAME 이 "
+                  f"바뀌었다 — 새 실패를 이 MR 탓으로 단정하지 않는다")
+            code = UNKNOWN
+            why = ("기준선이 합친 base 보다 낡았다 — 그 사이 develop 이 만든 실패와 "
+                   "이 MR 이 만든 실패를 가릴 수 없다")
     label = {PASS: "통과", REGRESSION: "이 MR 이 만든 문제 — 막는다", UNKNOWN: "판단 불가 — 경고"}[code]
     print(f"판정 {code} ({label}): {why}")
     write_verdict(where, code)
 
-    text = body(data, errs, base, ref)
+    text = body(data, errs, base, ref, stale_base=bmeta if stale else None)
     if gl.can_write:
         st, _ = gl.upsert_note(MARKER, text)
         print(f"MR 코멘트 {'갱신' if st == 200 else '작성' if st == 201 else f'실패({st})'}")
