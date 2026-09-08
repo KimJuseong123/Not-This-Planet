@@ -238,6 +238,19 @@ namespace Metagame.Gameplay.Parts
             for (var i = 0; i < _links.Count; i++)
                 if (_links[i] != null) _links[i].SealForLaunch();
 
+            // 하중 시험 동안 쌓인 속도는 상승 연출의 속도 상한을 넘길 수 있다.
+            // 행성 중력이 바뀌어도 시험의 충격량이 연출 속도로 새어 나오지 않게,
+            // 시험을 통과하는 경계에서 탑 전체의 수직 속도만 상한으로 맞춘다.
+            for (var i = 0; i < _tower.Count; i++)
+            {
+                var body = _tower[i] != null ? _tower[i].GetComponent<Rigidbody>() : null;
+                if (body == null || body.linearVelocity.y <= PhysicsScale.AscentMaxSpeed) continue;
+
+                var velocity = body.linearVelocity;
+                velocity.y = PhysicsScale.AscentMaxSpeed;
+                body.linearVelocity = velocity;
+            }
+
             Output = 1f;
             AscentElapsed = 0f;
             State = LaunchState.Ascending;

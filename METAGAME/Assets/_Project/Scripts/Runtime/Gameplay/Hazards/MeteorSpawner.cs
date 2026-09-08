@@ -962,7 +962,7 @@ namespace Metagame.Gameplay.Hazards
         /// <summary>
         /// 예고 시간에 맞춰 닿게 하는 자동 초기 하강 속도(m/s).
         ///
-        /// h = v₀·t + ½·|g|·t² 를 v₀ 로 푼다. 기본값(30m · 3초 · 2.8m/s²)에서 5.8m/s 이며
+        /// h = v₀·t + ½·|g|·t² 를 v₀ 로 푼다. 기본값(30m · 3초 · 5m/s²)에서 2.5m/s 이며
         /// <see cref="PhysicsScale.MeteorDropSpeed"/> 와 같은 기본값을 만들지만, 이 계산은
         /// 높이나 예고 시간을 바꿔도 착탄 시각을 맞추기 위한 것이다.
         ///

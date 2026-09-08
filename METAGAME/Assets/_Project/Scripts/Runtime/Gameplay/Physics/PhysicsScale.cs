@@ -122,13 +122,14 @@ namespace Metagame.Gameplay
         ///
         /// 붕괴는 이 강도가 아니라 <b>기하</b>가 결정한다. 토크 상한을 5000 에서 500 까지
         /// 낮춰도 경계가 움직이지 않았다 — 무게중심이 밑면을 벗어나면 넘어지고, 조인트는
-        /// 그 결과로 끊어진다. 그래서 이 값들은 조정하지 않았다.
+        /// 그 결과로 끊어진다. 1Stage 중력을 −2.8에서 −5로 바꾸면서 같은 정적 하중 경계를
+        /// 유지하도록 힘과 토크는 중력 비율(5 / 2.8)만큼 함께 올렸다.
         /// 실측 근거는 docs/records/S15P21B202-194-tower-collapse.md 에 있다.
         /// </summary>
-        public const float UnweldedBreakForce = 8000f;
+        public const float UnweldedBreakForce = 14300f;
 
         /// <summary>용접 전 조인트가 끊어지는 토크. 위 항목과 함께 S15P21B202-70 에서 확정했다.</summary>
-        public const float UnweldedBreakTorque = 5000f;
+        public const float UnweldedBreakTorque = 8930f;
 
         // --- 용접 ---
         //
@@ -367,10 +368,10 @@ namespace Metagame.Gameplay
         /// 무한으로 두지 않았다. 기획서가 "운석 충격에도 쉽게 분리되지 않는다" 라고
         /// 표현하고 있어, 극단적인 충격에는 떨어질 여지를 남기는 편이 의도에 맞다.
         /// </summary>
-        public const float WeldedBreakForce = 200000f;
+        public const float WeldedBreakForce = 357000f;
 
         /// <summary>용접이 끝난 접합이 버티는 토크.</summary>
-        public const float WeldedBreakTorque = 150000f;
+        public const float WeldedBreakTorque = 268000f;
 
         // --- 발사 하중 시험 ---
         //
@@ -561,7 +562,7 @@ namespace Metagame.Gameplay
         /// 중력을 얼마나 대신 들어주는지. 1 이면 완전 무중력이다.
         /// 빔의 <see cref="BeamGravitySupport"/> 와 같은 뜻이며 값도 맞춰 둔다.
         /// </summary>
-        public const float FieldGravitySupport = 5f;
+        public const float FieldGravitySupport = 1f;
 
         /// <summary>
         /// 원뿔 축으로 모으는 가속(m/s²). 기획은 "영역 중심으로 <b>천천히</b> 끌린다" 고 하므로
@@ -648,7 +649,7 @@ namespace Metagame.Gameplay
         /// 계산으로는 정할 수 없다. 접촉 지속 시간에 따라 실제로 걸리는 힘이 달라지므로
         /// 미접합 탑과 용접 탑에 실제로 떨어뜨려 스윕으로 잡았다.
         ///
-        /// 낙하 고도 30m, 저중력 -2.8 기준 실측 결과:
+        /// 기존 중력 -2.8, 낙하 고도 30m 기준 실측 결과:
         ///   20 ~ 140kg  미접합만 끊어진다 (의도한 구간)
         ///   150kg 이상  용접한 접합까지 끊어진다
         /// 안전 구간의 중앙 부근인 60kg 으로 정했다. 위아래로 여유가 있다.
@@ -667,7 +668,7 @@ namespace Metagame.Gameplay
         /// 낙하 예고가 켜져 있는 시간(초). 기획 §17.2 "착탄 3초 전".
         ///
         /// <b>이 시간 동안 운석이 실제로 떨어지고 있어야 한다.</b> 예전에는 1.8초였고,
-        /// 예고가 <b>끝난 뒤</b>에 운석을 30m 위에 만들었다. 중력 −2.8m/s² 에서 30m
+        /// 예고가 <b>끝난 뒤</b>에 운석을 30m 위에 만들었다. 당시 중력 −2.8m/s² 에서 30m
         /// 자유낙하는 4.63초이므로 표시가 착탄 4.63초 <b>전에 사라졌다</b> — 기획과
         /// 정반대였고, S15P21B202-233 이 방망이를 만들며 드러났다(§18.1 이 "타격
         /// 가능한 순간에는 낙하 표시가 강하게 점멸한다" 고 정하는데 그 순간에는 표시가
@@ -684,13 +685,13 @@ namespace Metagame.Gameplay
         /// <see cref="MeteorDropHeight"/>(30m)에서 <see cref="MeteorWarningSeconds"/>(3초)에
         /// 닿게 하는 값이다. h = v₀·t + ½·|g|·t² 를 v₀ 로 풀면
         ///
-        ///   v₀ = (30 − ½ × 2.8 × 3²) / 3 = (30 − 12.6) / 3 = 5.8
+        ///   v₀ = (30 − ½ × 5 × 3²) / 3 = (30 − 22.5) / 3 = 2.5
         ///
-        /// <b>높이를 낮추는 쪽을 고르지 않았다.</b> 3초에 자유낙하로 닿는 높이는 12.6m 인데,
+        /// <b>높이를 낮추는 쪽을 고르지 않았다.</b> 3초에 자유낙하로 닿는 높이는 22.5m 인데,
         /// 기획 §17.1 "하늘에서 낙하한다" 와 §17.2 "화면 밖 운석은 방향성 낙하음으로
         /// 인지한다" 가 높이를 요구한다. 속도를 주는 편이 그 둘을 지킨다.
         /// </summary>
-        public const float MeteorDropSpeed = 5.8f;
+        public const float MeteorDropSpeed = 2.5f;
 
         /// <summary>
         /// 운석이 지면과 이루는 <b>입사각</b>(도). 90 이면 수직이다.

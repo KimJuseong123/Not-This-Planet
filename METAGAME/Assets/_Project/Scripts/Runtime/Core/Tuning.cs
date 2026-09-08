@@ -14,8 +14,8 @@ namespace Metagame.Core
     public static class Tuning
     {
         // ── 세계 ────────────────────────────────────────────────
-        // 달(1.62)보다 조금 무겁고 화성(3.71)보다 가볍다. 조종 가능한 선에서 가장 둥실거리는 값.
-        public const float Gravity = -2.8f;
+        // 중력 트릭 행성은 아니므로 기본 조작감을 확보하되, 지구보다 약하게 두어 외계 행성의 부유감을 남긴다.
+        public const float Gravity = -5f;
         public const float FixedStep = 0.01f;       // 100Hz. 조인트가 많아서 촘촘하게 밟는다
         public const float DeathHeight = -30f;      // 이 아래로 떨어지면 체크포인트로 되돌린다
 
