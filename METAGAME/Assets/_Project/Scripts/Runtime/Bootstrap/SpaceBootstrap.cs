@@ -150,6 +150,11 @@ namespace Metagame.Bootstrap
                 meteorBridge.Configure(meteorSpawnerForClock);
             }
 
+            // 로그 진단 (S15P21B202-352). `-netdiag` 또는 METAGAME_NETDIAG=1 일 때만.
+            // GUI 를 눈으로 읽는 대신 양쪽 로그를 기계로 대조해 검증한다.
+            if (Metagame.Network.NetDiagnostics.Requested)
+                sys.AddComponent<Metagame.Network.NetDiagnostics>();
+
             Exploration.Configure(FindObjectsByType<SpaceshipPart>(FindObjectsSortMode.None));
             DisableDemoClampReleasers();
             DisableDemoBeamDrivers();

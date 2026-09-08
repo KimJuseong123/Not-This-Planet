@@ -183,6 +183,83 @@ namespace Metagame.Network
             public bool Released;
         }
 
+        // ── 로그 진단용 (S15P21B202-352) ──────────────────────────────────
+        //
+        // 화면의 GUI 로 값을 읽어 손으로 적는 것은 느리고 놓치기 쉽다. 대신 양쪽 로그에
+        // 같은 형식으로 남겨 **대조로 일치 여부를 증명**한다. NetDiagnostics 가 쓴다.
+
+        /// <summary>지금 나르고 있는 물체 수. 양쪽이 다르면 그 순간 동기화가 멈춘다.</summary>
+        public int TrackedCount => tracked.Count;
+
+        /// <summary>고정쇠 수. 개수 검사가 따로 걸리는 배열이다.</summary>
+        public int ClampCount => clamps.Count;
+
+        /// <summary>받은 예고 수(참가자) 또는 보낸 예고 수(호스트).</summary>
+        public int DropCount => sendDrops.Length;
+
+        /// <summary>
+        /// 나르는 물체들의 자세를 한 값으로 접는다.
+        ///
+        /// <para><b>왜 체크섬인가.</b> 호스트와 참가자 로그에서 같은 시각의 이 값을 견주면
+        /// <b>세계가 실제로 같은지 한 눈에 안다</b> — 좌표를 전부 적어 눈으로 비교할 필요가
+        /// 없다. 1cm·1도로 양자화하므로 보간 차이로는 안 흔들리고, 물체가 다른 자리에
+        /// 있으면 값이 갈린다.</para>
+        ///
+        /// <para>순서에 민감하다 — 그것도 일부러다. 양쪽 정렬이 어긋나면(개수는 같은데
+        /// 순서만 다른 사고, `KeyOf`·`Compare` 주석 참고) 이 값이 달라져 드러난다.</para>
+        /// </summary>
+        public uint PoseHash()
+        {
+            unchecked
+            {
+                uint h = 2166136261u;   // FNV-1a
+                for (int i = 0; i < tracked.Count; i++)
+                {
+                    var b = tracked[i];
+                    if (b == null) { h = (h ^ 0xFFu) * 16777619u; continue; }
+                    var p = b.position;
+                    var e = b.rotation.eulerAngles;
+                    h = Fold(h, Mathf.RoundToInt(p.x * 100f));
+                    h = Fold(h, Mathf.RoundToInt(p.y * 100f));
+                    h = Fold(h, Mathf.RoundToInt(p.z * 100f));
+                    h = Fold(h, Mathf.RoundToInt(e.x));
+                    h = Fold(h, Mathf.RoundToInt(e.y));
+                    h = Fold(h, Mathf.RoundToInt(e.z));
+                }
+                return h;
+            }
+        }
+
+        static uint Fold(uint h, int v)
+        {
+            unchecked
+            {
+                uint u = (uint)v;
+                for (int k = 0; k < 4; k++)
+                {
+                    h = (h ^ (u & 0xFFu)) * 16777619u;
+                    u >>= 8;
+                }
+                return h;
+            }
+        }
+
+        /// <summary>
+        /// 나르는 물체의 이름을 순서대로. **개수가 갈렸을 때 어느 물체가 다른지** 가르는 데
+        /// 쓴다 — 시작할 때 한 번만 찍는다(매 초 찍으면 로그가 덮인다).
+        /// </summary>
+        public string TrackedNames()
+        {
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < tracked.Count; i++)
+            {
+                if (i > 0) sb.Append(" | ");
+                sb.Append(tracked[i] != null ? tracked[i].name : "(없음)");
+            }
+            return sb.ToString();
+        }
+
+
         void Collect()
         {
             tracked.Clear();
