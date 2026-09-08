@@ -120,6 +120,13 @@ namespace Metagame.Network
         int zeroSends;
 
         /// <summary>
+        /// 이만큼 낙하 자세가 안 오면 남은 그림을 치운다 — <see cref="ClearGhostsIfSilent"/>.
+        /// 공세 간격의 최소가 15초이므로(기획 §17.4) 정상 조용함과 헷갈리지 않는다.
+        /// </summary>
+        const float GhostSilenceTimeout = 2f;
+        float lastMeteorAt;
+
+        /// <summary>
         /// 보낸 순서. <b>신뢰 없는 채널은 순서를 지켜 주지 않는다</b> — 늦게 도착한
         /// 옛 묶음을 그대로 받으면 물체가 뒤로 한 번 튄다. 번호로 걸러 낸다.
         /// </summary>
@@ -591,8 +598,14 @@ namespace Metagame.Network
                 }
             }
 
-            if (isServer) SendFromServer();
-            else FollowOnClient();
+            if (isServer)
+            {
+                SendFromServer();
+                return;
+            }
+
+            FollowOnClient();
+            ClearGhostsIfSilent();
         }
 
         void SendFromServer()
@@ -898,30 +911,35 @@ namespace Metagame.Network
             if (spawner == null) return;
 
             var live = spawner.Live;
-            int n = live != null ? live.Count : 0;
-
             int cap = UnreliableMeteorCapacity;
-            if (n > cap)
+
+            // **없어진 운석 자리에 원점의 돌을 실어 보내지 않는다**(AI 리뷰 지적,
+            // 2026-09-08). 예전에는 `live[i]` 가 null 이면 `default` 를 넣었는데, 그러면
+            // 참가자 화면에 좌표 (0,0,0)·속도 0 의 돌 그림이 하나 생긴다. 착탄 프레임에
+            // 목록이 비는 것은 정상 경로라 실제로 일어난다. 유효한 것만 세어 압축한다.
+            int n = 0;
+            if (live != null)
             {
-                if (!warnedMeteorCap)
-                {
-                    warnedMeteorCap = true;
-                    Debug.LogWarning($"[WorldSync] 운석이 한 묶음에 안 들어간다 — {n}개 중 {cap}개만 보낸다");
-                }
-                n = cap;
+                for (int i = 0; i < live.Count && n < cap; i++)
+                    if (live[i] != null) n++;
+            }
+
+            int liveCount = live != null ? live.Count : 0;
+            if (liveCount > cap && !warnedMeteorCap)
+            {
+                warnedMeteorCap = true;
+                Debug.LogWarning($"[WorldSync] 운석이 한 묶음에 안 들어간다 — {liveCount}개 중 {cap}개만 보낸다");
             }
 
             // **0개일 때 빈 묶음을 계속 보내지 않는다** (AI 리뷰 지적, 2026-09-08).
             // 운석은 대부분의 시간에 0개다. 그런데도 매 송신 틱마다 RPC 를 내면 사람 수만큼
             // 빈 패킷이 상시 나간다 — 이 MR 이 문제로 든 그 업링크 비용이다.
             //
-            // **다만 한 번만 보내면 안 된다**(AI 리뷰 2차 지적). "0개" 는 참가자의 그림을
-            // 지우는 신호인데 이 채널은 신뢰가 없다. 그 한 패킷이 유실되면 그림은 충돌러가
-            // 꺼진 채 중력만 받아 **지면을 뚫고 영원히 떨어진다** — 경기 중이라
-            // OnStopClient 정리도 오지 않는다.
-            //
-            // 그래서 0이 된 뒤 ZeroRepeats 번은 계속 보내고 그다음에 조용해진다.
-            // sendRate 30 에서 15번이면 0.5초 — 고정쇠 keepalive 와 같은 창이다.
+            // "0개" 는 참가자의 그림을 지우는 신호이고 이 채널은 신뢰가 없다. 그래서 0이
+            // 된 뒤 ZeroRepeats 번은 계속 보낸다. **다만 그것만으로는 부족하다**(AI 리뷰
+            // 3차 지적) — 그 0.5초 창이 손실 버스트에 겹치거나 `!ready`·seq 필터에 걸리면
+            // 신호가 영영 안 간다. 그 경우를 받는 쪽 타임아웃이 막는다
+            // (`ClearGhostsIfSilent`). 여기는 **빠른 정리**, 그쪽은 **최후 보증**이다.
             if (n == 0)
             {
                 if (zeroSends >= ZeroRepeats) return;
@@ -930,15 +948,17 @@ namespace Metagame.Network
             else zeroSends = 0;
 
             if (sendMeteors.Length != n) sendMeteors = new MeteorPose[n];
-            for (int i = 0; i < n; i++)
+
+            int w = 0;
+            for (int i = 0; i < liveCount && w < n; i++)
             {
                 var meteor = live[i];
-                if (meteor == null) { sendMeteors[i] = default; continue; }
+                if (meteor == null) continue;
 
                 // 보내는 쪽도 받는 쪽도 `body` 로 읽고 쓴다 — 운석은 보간이 걸려 있어
                 // `transform.position` 은 **표시 위치**다(FollowOnClient 의 주석과 같은 이유).
                 var body = meteor.GetComponent<Rigidbody>();
-                sendMeteors[i] = body != null
+                sendMeteors[w++] = body != null
                     ? new MeteorPose
                     {
                         Position = body.position,
@@ -956,6 +976,32 @@ namespace Metagame.Network
             RpcApplyMeteors(sendSeq, sendMeteors);
         }
 
+        /// <summary>
+        /// 낙하 그림이 <b>오래 소식이 없으면</b> 치운다 (S15P21B202-352).
+        ///
+        /// <para><b>왜 필요한가</b>(AI 리뷰 3차 지적). 그림을 지우는 신호는 "운석 0개"
+        /// 묶음뿐이고 그 채널은 신뢰가 없다. 보내는 쪽이 0.5초 동안 반복해 주지만, 그
+        /// 창이 손실 버스트에 겹치거나 아직 <c>ready</c> 가 아니라 걸러지면 신호가 영영
+        /// 오지 않는다. 그림은 충돌러가 꺼진 채 중력만 받으므로 <b>지면을 뚫고 영원히
+        /// 떨어진다</b> — 경기 중이라 <see cref="OnStopClient"/> 정리도 오지 않는다.</para>
+        ///
+        /// <para>그래서 마지막으로 받은 시점을 기억해 두고, 조용한 시간이 길어지면
+        /// 스스로 치운다. 호스트가 운석을 계속 보내는 동안에는 매 틱 갱신되므로 이 길로
+        /// 오지 않는다. <b>보내는 쪽의 반복은 빠른 정리, 이것은 최후 보증</b>이다.</para>
+        /// </summary>
+        void ClearGhostsIfSilent()
+        {
+            var spawner = MeteorSpawner;
+            if (spawner == null || spawner.Ghosts.Count == 0) return;
+
+            if (Time.unscaledTime - lastMeteorAt < GhostSilenceTimeout) return;
+
+            Debug.LogWarning("[WorldSync] 낙하 자세가 "
+                             + GhostSilenceTimeout.ToString("0.0")
+                             + "초째 오지 않는다 — 남은 그림을 치운다(지우는 신호를 놓쳤을 수 있다)");
+            spawner.ClearNetworkMeteors();
+        }
+
         [ClientRpc(channel = Channels.Unreliable)]
         void RpcApplyMeteors(uint seq, MeteorPose[] poses)
         {
@@ -964,6 +1010,8 @@ namespace Metagame.Network
             if (!IsNewer(seq, lastMeteorSeq, everMeteor)) return;
             lastMeteorSeq = seq;
             everMeteor = true;
+
+            lastMeteorAt = Time.unscaledTime;
 
             var spawner = MeteorSpawner;
             if (spawner != null) spawner.ApplyNetworkMeteors(poses);
