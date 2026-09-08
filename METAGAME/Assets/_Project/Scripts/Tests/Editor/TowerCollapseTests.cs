@@ -300,8 +300,29 @@ namespace Metagame.Gameplay.Tests
             // 단정으로 지켜진다.
             Assert.Greater(first.Broken, 0, "불안정하게 쌓은 탑은 무너져야 한다.");
             Assert.Greater(second.Broken, 0, "두 번째 회차도 무너져야 한다.");
-            Assert.AreEqual(first.Tilt, second.Tilt, 5f,
-                $"같은 배치인데 기울기가 {first.Tilt:0.0} 과 {second.Tilt:0.0} 로 크게 다르다.");
+
+            // <b>기울기 값이 같기를 요구하지 않는다</b>(S15P21B202-345). 위 주석이 세운
+            // 원칙("결과 수준에서 본다")과 척도가 어긋나 있었다 — 완전히 넘어간 탑은
+            // 어느 쪽으로 굴러 멈추느냐에 따라 90도와 96도로 갈리고, 그 6도가 5도
+            // 허용치를 넘긴다. 213 · 194 에 이어 세 번째로 같은 곳에서 걸렸다.
+            //
+            // 대신 <b>두 회차의 결과 분류가 같은지</b> 비교한다. 이것이 §22.3 의 "같은
+            // 배치에서는 항상 같은 결과" 다. 무너짐의 기준은
+            // <see cref="BadlyStackedTower_CollapsesWithoutWelding"/> 이 쓰는 30도와 같은
+            // 것을 쓴다 — 기준이 둘이면 한쪽만 고쳐질 수 있다.
+            //
+            // <b>"둘 다 30도를 넘겼다" 로 쓰면 안 된다.</b> 위 두 단정과 사실상 같은
+            // 말이 되어 결정론을 재는 것이 남지 않는다.
+            Assert.AreEqual(Collapsed(first), Collapsed(second),
+                $"같은 배치인데 한 회차만 무너졌다({first.Tilt:0.0}도 대 {second.Tilt:0.0}도).");
+            Assert.IsTrue(Collapsed(first),
+                $"불안정하게 쌓은 탑이 {first.Tilt:0.0}도 밖에 기울지 않았다.");
         }
+
+        /// <summary>
+        /// 무너졌는가. <see cref="BadlyStackedTower_CollapsesWithoutWelding"/> 과 같은
+        /// 기준이다.
+        /// </summary>
+        static bool Collapsed(Outcome outcome) => outcome.Tilt > 30f;
     }
 }

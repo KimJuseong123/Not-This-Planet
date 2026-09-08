@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text;
 using Metagame.Gameplay;
 using Metagame.Gameplay.Parts;
@@ -27,7 +28,10 @@ namespace Metagame.UI
         GameObject helpRoot;
         Text previousArrow;
         Text nextArrow;
-        readonly PartCardView[] partCards = new PartCardView[Stage1Exploration.RequiredPartCount];
+        readonly TowerFloorView[] towerFloors =
+            new TowerFloorView[Stage1Exploration.RequiredPartCount];
+
+        ShipAssembly assembly;
         readonly Image[] discoveryDots = new Image[Stage1Exploration.RequiredPartCount];
         readonly Image[] pageDots = new Image[Stage1Exploration.TabletPageCount];
         readonly HelpCardView[] helpCards = new HelpCardView[9];
@@ -37,14 +41,17 @@ namespace Metagame.UI
         string lastBody;
         string lastFooter;
 
-        sealed class PartCardView
+        /// <summary>
+        /// 탑 한 층. 실루엣 채움·외곽선과 층 이름을 함께 갖는다(S15P21B202-345).
+        ///
+        /// 채움과 외곽선이 따로인 이유는 기획 §11.1 의 단계가 <b>둘을 다르게</b> 쓰기
+        /// 때문이다 — 탑에 올라간 것은 외곽선만, 용접까지 끝난 것은 안까지 채운다.
+        /// </summary>
+        sealed class TowerFloorView
         {
-            public Image Background;
-            public Image Accent;
-            public Text Number;
+            public PartSilhouetteGraphic Fill;
+            public PartSilhouetteGraphic Outline;
             public Text Name;
-            public Image[] StateSegments;
-            public Image[] SilhouetteShapes;
         }
 
         sealed class HelpCardView
@@ -107,11 +114,41 @@ namespace Metagame.UI
             Refresh(true);
         }
 
-        void Update()
+        // 기획 §11.1 의 단계별 색. 표의 네 줄을 그대로 옮기고 두 줄을 더했다 —
+        // 사용자 스케치의 "제대로 쌓이고 용접되면 초록, 뭔가 잘못되면 빨강" 이다.
+        //
+        // §11.1 은 빨강을 "다음으로 쌓아야 함" 에 썼다. 한 화면에서 빨강이 안내와 경고를
+        // 겸할 수 없으므로 안내는 점멸로 옮겼다. "초록" 은 §11.1 이 직접 지정한 청록으로
+        // 읽는다.
+        static readonly Color Undiscovered = new(0.16f, 0.22f, 0.26f, 1f);
+        static readonly Color Discovered = new(0.55f, 0.66f, 0.72f, 1f);
+        static readonly Color NextUp = new(0.86f, 0.94f, 0.98f, 1f);
+        static readonly Color Stacked = new(0.26f, 0.90f, 0.82f, 1f);
+        static readonly Color Wrong = new(1f, 0.30f, 0.28f, 1f);
+
+        void Update() => Tick();
+
+        /// <summary>
+        /// 화면을 갱신한다.
+        ///
+        /// <c>Update</c> 와 갈라 둔 이유는 EditMode 검증에서 <c>Update</c> 가 돌지 않기
+        /// 때문이다 — 이 저장소가 <c>Initialize()</c> · <c>Tick()</c> 로 맞춰 온 방식이다.
+        /// </summary>
+        public void Tick()
         {
             if (exploration == null) return;
+
             if (uiRoot != null && uiRoot.activeSelf != exploration.TabletOpen)
+            {
                 uiRoot.SetActive(exploration.TabletOpen);
+
+                // <b>열 때마다 탐색 예산을 되돌린다.</b> 상한만 두면 소진한 뒤 영구히
+                // 안 찾는다 — 조립대가 늦게 만들어지거나 씬을 다시 들어오면 탑이 통째로
+                // 빈칸이 되고 아무 오류도 나지 않는다. 막으려던 S15P21B202-275 형
+                // 결함과 같은 모양이다.
+                if (exploration.TabletOpen) assemblySearches = 0;
+            }
+
             Refresh(false);
         }
 
@@ -201,24 +238,95 @@ namespace Metagame.UI
             if (force || nextFooter != lastFooter) footer.text = lastFooter = nextFooter;
         }
 
+        /// <summary>
+        /// 0페이지 — <b>실루엣 탑</b>. 왼쪽에 층으로 쌓인 파츠 형태, 오른쪽에 층 이름이다
+        /// (기획 §11.1 "우주선 조립 상태표", S15P21B202-345).
+        ///
+        /// <b>탑은 실제 비율이다.</b> 층 높이는 <see cref="PartSpec.Height"/>, 폭은
+        /// <see cref="PartSpec.Footprint"/> 를 쓴다 — 둘 다 프리팹 메시를 재서 얻은 값이라
+        /// 부양 모듈은 납작하고 상단 모듈은 첨탑이 솟는다. 형태를 보고 어느 파츠인지
+        /// 알아볼 수 있어야 태블릿이 상태표로 쓸모가 있다.
+        ///
+        /// <b>위치·회전은 그리지 않는다.</b> §11 이 정확한 위치·중심점·회전값·자동 정렬
+        /// 가이드를 금지한다. 여기 있는 것은 <b>순서와 상태</b>뿐이다.
+        /// </summary>
         void CreatePartsPage(Transform parent)
         {
             partsRoot = Panel(parent, "PartsPage", Color.clear,
                 new Vector2(0f, 0.12f), new Vector2(1f, 0.84f),
                 new Vector2(32f, 14f), new Vector2(-32f, -10f));
 
-            for (var i = 0; i < partCards.Length; i++)
+            // 파츠 중 가장 넓은 폭을 1 로 두고 나머지를 그 비율로 좁힌다.
+            var widest = 0f;
+            for (var i = 0; i < PartSpec.All.Length; i++)
+                widest = Mathf.Max(widest, PartSpec.All[i].Footprint.x);
+
+            var stacked = PartSpec.StackedHeight;
+            var bottom = 0f;
+
+            for (var i = 0; i < towerFloors.Length && i < PartSpec.All.Length; i++)
             {
-                var column = i % 2;
-                var row = i / 2;
-                var xMin = column == 0 ? 0f : 0.51f;
-                var xMax = column == 0 ? 0.49f : 1f;
-                var yMin = row == 0 ? 0.52f : 0f;
-                var yMax = row == 0 ? 1f : 0.48f;
-                var info = i < exploration.Parts.Count ? exploration.Parts[i] : null;
-                partCards[i] = CreatePartCard(partsRoot.transform, i,
-                    new Vector2(xMin, yMin), new Vector2(xMax, yMax), info?.Kind);
+                var spec = PartSpec.All[i];
+                var share = stacked > 0f ? spec.Height / stacked : 0.25f;
+                var top = bottom + share;
+                var halfWidth = widest > 0f ? spec.Footprint.x / widest * 0.5f : 0.5f;
+
+                towerFloors[i] = CreateTowerFloor(partsRoot.transform, i, spec,
+                    TowerCenterX - halfWidth * TowerWidth,
+                    TowerCenterX + halfWidth * TowerWidth,
+                    bottom, top);
+                bottom = top;
             }
+        }
+
+        /// <summary>실루엣 탑이 차지하는 가로 폭(0~1). 오른쪽은 층 이름 자리다.</summary>
+        const float TowerWidth = 0.36f;
+
+        const float TowerCenterX = 0.20f;
+
+        TowerFloorView CreateTowerFloor(Transform parent, int index, PartSpec spec,
+                                        float xMin, float xMax, float yMin, float yMax)
+        {
+            var view = new TowerFloorView
+            {
+                Fill = Silhouette(parent, $"Floor{index + 1}_Fill",
+                                  PartSilhouetteGraphic.DrawMode.Fill,
+                                  xMin, xMax, yMin, yMax),
+                Outline = Silhouette(parent, $"Floor{index + 1}_Outline",
+                                     PartSilhouetteGraphic.DrawMode.Outline,
+                                     xMin, xMax, yMin, yMax),
+                Name = Label(parent, $"Floor{index + 1}_Name", 25, TextAnchor.MiddleLeft,
+                             Discovered,
+                             new Vector2(0.44f, yMin), new Vector2(1f, yMax),
+                             Vector2.zero, Vector2.zero),
+            };
+
+            view.Name.fontStyle = FontStyle.Bold;
+            view.Name.text = $"{index + 1}층   {spec.DisplayName}";
+            return view;
+        }
+
+        PartSilhouetteGraphic Silhouette(Transform parent, string name,
+                                         PartSilhouetteGraphic.DrawMode mode,
+                                         float xMin, float xMax, float yMin, float yMax)
+        {
+            var go = new GameObject(name, typeof(RectTransform));
+            go.layer = UiLayer;
+            var rect = (RectTransform)go.transform;
+            rect.SetParent(parent, false);
+            rect.anchorMin = new Vector2(xMin, yMin);
+            rect.anchorMax = new Vector2(xMax, yMax);
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+
+            // <b>어트리뷰트에만 맡기지 않는다.</b> 한 줄로 확실해지는 것을 어트리뷰트
+            // 상속 규칙에 걸어 둘 이유가 없다.
+            go.AddComponent<CanvasRenderer>();
+
+            var graphic = go.AddComponent<PartSilhouetteGraphic>();
+            graphic.Mode = mode;
+            graphic.raycastTarget = false;
+            return graphic;
         }
 
         void CreateHelpPage(Transform parent)
@@ -282,124 +390,156 @@ namespace Metagame.UI
             }
         }
 
-        PartCardView CreatePartCard(Transform parent, int index, Vector2 anchorMin,
-                                    Vector2 anchorMax, Stage1Exploration.PartKind? kind)
-        {
-            var root = Panel(parent, $"PartCard_{index + 1}",
-                new Color(0.09f, 0.13f, 0.18f, 1f), anchorMin, anchorMax,
-                Vector2.zero, Vector2.zero);
-            var view = new PartCardView
-            {
-                Background = root.GetComponent<Image>(),
-                Accent = Panel(root.transform, "Accent", Color.gray,
-                    new Vector2(0f, 0.965f), Vector2.one, Vector2.zero, Vector2.zero)
-                    .GetComponent<Image>(),
-                Number = Label(root.transform, "Number", 29, TextAnchor.MiddleLeft,
-                    new Color(0.72f, 0.90f, 0.96f, 1f),
-                    new Vector2(0.43f, 0.60f), new Vector2(0.94f, 0.88f),
-                    Vector2.zero, Vector2.zero),
-                Name = Label(root.transform, "Name", 21, TextAnchor.MiddleLeft,
-                    new Color(0.80f, 0.90f, 0.94f, 1f),
-                    new Vector2(0.43f, 0.38f), new Vector2(0.94f, 0.62f),
-                    Vector2.zero, Vector2.zero),
-                StateSegments = new Image[4],
-            };
-            view.Number.fontStyle = FontStyle.Bold;
-            view.Name.gameObject.SetActive(false);
-
-            var silhouette = Panel(root.transform, "Silhouette",
-                new Color(0.04f, 0.10f, 0.14f, 1f),
-                new Vector2(0.035f, 0.14f), new Vector2(0.385f, 0.84f),
-                Vector2.zero, Vector2.zero);
-            view.SilhouetteShapes = CreateSilhouette(silhouette.transform,
-                kind ?? Stage1Exploration.PartKind.Capsule);
-
-            for (var i = 0; i < view.StateSegments.Length; i++)
-            {
-                var xMin = i * 0.255f;
-                view.StateSegments[i] = Panel(root.transform, $"State_{i + 1}",
-                    new Color(0.12f, 0.20f, 0.25f, 1f),
-                    new Vector2(0.43f + xMin * 0.51f, 0.17f),
-                    new Vector2(0.43f + (xMin + 0.20f) * 0.51f, 0.31f),
-                    Vector2.zero, Vector2.zero).GetComponent<Image>();
-            }
-            return view;
-        }
-
-        static Image[] CreateSilhouette(Transform parent, Stage1Exploration.PartKind kind)
-        {
-            return kind switch
-            {
-                Stage1Exploration.PartKind.HoverPod => new[]
-                {
-                    Shape(parent, "Body", .25f, .38f, .75f, .58f),
-                    Shape(parent, "Top", .34f, .58f, .66f, .74f),
-                    Shape(parent, "Wing", .12f, .31f, .88f, .36f),
-                },
-                Stage1Exploration.PartKind.Robot => new[]
-                {
-                    Shape(parent, "Head", .38f, .60f, .62f, .82f),
-                    Shape(parent, "Body", .27f, .30f, .73f, .60f),
-                    Shape(parent, "ArmL", .12f, .42f, .27f, .50f),
-                    Shape(parent, "ArmR", .73f, .42f, .88f, .50f),
-                    Shape(parent, "LegL", .31f, .12f, .43f, .30f),
-                    Shape(parent, "LegR", .57f, .12f, .69f, .30f),
-                },
-                Stage1Exploration.PartKind.TractorCraft => new[]
-                {
-                    Shape(parent, "Body", .18f, .40f, .82f, .54f),
-                    Shape(parent, "Canopy", .36f, .54f, .64f, .70f),
-                    Shape(parent, "Stem", .45f, .25f, .55f, .40f),
-                },
-                _ => new[]
-                {
-                    Shape(parent, "Body", .30f, .25f, .70f, .75f),
-                    Shape(parent, "Belt", .20f, .47f, .80f, .54f),
-                    Shape(parent, "Top", .42f, .75f, .58f, .88f),
-                },
-            };
-        }
-
-        static Image Shape(Transform parent, string name, float xMin, float yMin,
-                           float xMax, float yMax)
-        {
-            return Panel(parent, name, Color.gray,
-                new Vector2(xMin, yMin), new Vector2(xMax, yMax),
-                Vector2.zero, Vector2.zero).GetComponent<Image>();
-        }
-
+        /// <summary>
+        /// 층별로 색을 칠한다(기획 §11.1, S15P21B202-345).
+        ///
+        /// <b>발견 여부는 <see cref="Stage1Exploration"/>, 쌓임 여부는
+        /// <see cref="ShipAssembly"/> 가 안다.</b> 둘을 합쳐야 §11.1 의 단계가 나온다 —
+        /// 발견은 탐사의 결과이고 쌓임은 조립의 결과다.
+        /// </summary>
         void RefreshParts()
         {
+            ResolveAssembly();
+
             for (var i = 0; i < discoveryDots.Length; i++)
             {
                 discoveryDots[i].gameObject.SetActive(true);
                 discoveryDots[i].color = i < exploration.DiscoveredCount
-                    ? new Color(0.45f, 1f, 0.70f, 0.95f)
-                    : new Color(0.24f, 0.36f, 0.42f, 0.95f);
+                    ? Stacked
+                    : Undiscovered;
             }
-            for (var i = 0; i < partCards.Length; i++)
+
+            var floors = assembly != null ? assembly.Floors : null;
+            var nextFloor = assembly != null ? assembly.NextFloor : 0;
+
+            // <b>잘못된 층이 있으면 "다음으로 쌓아야 함" 점멸을 끈다.</b>
+            // <see cref="ShipAssembly.NextFloor"/> 는 첫 빈 층을 사실대로 알려 주므로
+            // 아래층이 틀렸어도 위층을 가리킨다. 그대로 그리면 화면이 "3층을 치워라"
+            // 와 "4층을 올려라" 를 동시에 말한다 — 지금 할 일은 치우는 쪽이다.
+            if (HasWrongFloor(floors)) nextFloor = -1;
+
+            // 점멸. "다음으로 쌓아야 함" 에만 쓴다(§11.1).
+            var blink = 0.55f + 0.45f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 3f));
+
+            for (var i = 0; i < towerFloors.Length; i++)
             {
-                var view = partCards[i];
+                var view = towerFloors[i];
+                if (view == null) continue;
+
+                var spec = i < PartSpec.All.Length ? PartSpec.All[i] : null;
+                var silhouette = spec != null ? PartSilhouette.Find(spec.Name) : null;
+                if (silhouette != null && !view.Outline.HasProfile)
+                {
+                    view.Fill.SetProfile(silhouette.Left, silhouette.Right);
+                    view.Outline.SetProfile(silhouette.Left, silhouette.Right);
+                }
+
                 var info = i < exploration.Parts.Count ? exploration.Parts[i] : null;
                 var discovered = info != null && info.IsDiscovered;
-                var accent = PartAccent(info);
-                view.Background.color = discovered
-                    ? new Color(0.07f, 0.18f, 0.19f, 1f)
-                    : new Color(0.08f, 0.12f, 0.17f, 1f);
-                view.Accent.color = accent;
-                view.Number.text = info == null ? "--" : info.Number.ToString("00");
-                view.Name.text = discovered ? info.DisplayName : "미발견 파츠";
+                var floor = floors != null && i < floors.Count
+                    ? floors[i]
+                    : ShipAssembly.FloorState.Empty;
 
-                var level = StateLevel(info);
-                for (var segment = 0; segment < view.StateSegments.Length; segment++)
-                    view.StateSegments[segment].color = segment < level
-                        ? accent : new Color(0.12f, 0.20f, 0.25f, 1f);
-                var silhouetteColor = discovered
-                    ? new Color(0.48f, 1f, 0.72f, 0.82f)
-                    : new Color(0.38f, 0.52f, 0.62f, 0.72f);
-                foreach (var shape in view.SilhouetteShapes) shape.color = silhouetteColor;
+                Paint(view, floor, discovered, i == nextFloor, blink);
             }
         }
+
+        /// <summary>
+        /// 한 층의 색을 정한다. 기획 §11.1 의 표를 그대로 옮긴 자리다.
+        ///
+        /// <b>순서가 규칙이다.</b> 잘못된 것이 먼저다 — 3층이 틀렸는데 "다음으로 쌓아야 함"
+        /// 점멸이 이기면 플레이어는 잘못을 못 본다.
+        /// </summary>
+        static void Paint(TowerFloorView view, ShipAssembly.FloorState floor,
+                          bool discovered, bool isNext, float blink)
+        {
+            Color outline;
+            var fill = Color.clear;
+
+            switch (floor)
+            {
+                case ShipAssembly.FloorState.WrongPart:
+                case ShipAssembly.FloorState.Tilted:
+                    outline = Wrong;
+                    fill = Fade(Wrong, 0.22f);
+                    break;
+
+                case ShipAssembly.FloorState.Welded:
+                    outline = Stacked;
+                    fill = Fade(Stacked, 0.70f);
+                    break;
+
+                case ShipAssembly.FloorState.Stacked:
+                    outline = Stacked;
+                    fill = Fade(Stacked, 0.16f);
+                    break;
+
+                default:
+                    if (!discovered)
+                    {
+                        // 미발견은 어두운 회색 실루엣이다 — 채워서 형태만 보인다(§11.1).
+                        outline = Undiscovered;
+                        fill = Fade(Undiscovered, 0.55f);
+                    }
+                    else if (isNext)
+                    {
+                        outline = Fade(NextUp, blink);
+                    }
+                    else
+                    {
+                        outline = Discovered;
+                    }
+
+                    break;
+            }
+
+            view.Outline.color = outline;
+            view.Fill.color = fill;
+            view.Name.color = outline;
+        }
+
+        static bool HasWrongFloor(IReadOnlyList<ShipAssembly.FloorState> floors)
+        {
+            if (floors == null) return false;
+
+            for (var i = 0; i < floors.Count; i++)
+                if (floors[i] is ShipAssembly.FloorState.WrongPart
+                                or ShipAssembly.FloorState.Tilted)
+                    return true;
+
+            return false;
+        }
+
+        static Color Fade(Color color, float alpha) =>
+            new(color.r, color.g, color.b, alpha);
+
+        /// <summary>
+        /// 조립대를 찾는다.
+        ///
+        /// <b>한 번 실패로 포기할 수 없다.</b> 늦게 만들어지는 경우가 있고, 못 찾으면
+        /// 탑이 통째로 빈칸이 되면서 아무 오류도 나지 않는다(S15P21B202-275 가 그렇게
+        /// 사라졌다).
+        ///
+        /// <b>그렇다고 영원히 뒤질 수도 없다.</b> 조립대가 없는 씬에서 태블릿을 열어 두면
+        /// 매 프레임 씬 전체 탐색이 돈다. <b>한 번 열려 있는 동안</b>의 횟수로 묶고,
+        /// 다시 열면 예산을 되돌린다(<see cref="Tick"/>).
+        ///
+        /// <b>시계로 묶지 않는 이유.</b> EditMode 에서 <c>Time.unscaledTime</c> 은
+        /// 나아가지 않으므로 간격을 두면 첫 실패 뒤 영구히 막힌다 — 검증이 조립대를
+        /// 영원히 못 찾는다.
+        /// </summary>
+        void ResolveAssembly()
+        {
+            if (assembly != null || assemblySearches >= MaxAssemblySearches) return;
+
+            assemblySearches++;
+            assembly = FindAnyObjectByType<ShipAssembly>();
+        }
+
+        /// <summary>약 2초(60fps) 분량이면 씬이 다 세워진다.</summary>
+        const int MaxAssemblySearches = 120;
+
+        int assemblySearches;
 
         void RefreshHelp(int page)
         {
@@ -449,27 +589,6 @@ namespace Metagame.UI
                     : new Color(0.28f, 0.42f, 0.50f, 0.95f);
         }
 
-        string PartsText()
-        {
-            var text = new StringBuilder(512);
-            text.Append("발견한 파츠  ").Append(exploration.DiscoveredCount)
-                .Append(" / ").Append(Stage1Exploration.RequiredPartCount).AppendLine().AppendLine();
-
-            foreach (var info in exploration.Parts)
-            {
-                if (info == null) continue;
-                var level = StateLevel(info);
-                var color = level >= 4 ? "#55FFA6" : info.IsDiscovered ? "#70DFFF" : "#71818C";
-                text.Append("<color=").Append(color).Append(">")
-                    .Append(info.Number.ToString("00")).Append("   ")
-                    .Append(info.IsDiscovered ? info.DisplayName : "미발견 파츠")
-                    .Append("     ");
-                for (var i = 0; i < 4; i++) text.Append(i < level ? "■" : "□");
-                text.Append("</color>").AppendLine().AppendLine();
-            }
-            return text.ToString();
-        }
-
         static string HelpText(int page)
         {
             return page switch
@@ -490,33 +609,6 @@ namespace Metagame.UI
                 2 => "조작 안내 · 손과 도구",
                 3 => "조작 안내 · 운반과 복구",
                 _ => "탐사 태블릿",
-            };
-        }
-
-        static int StateLevel(Stage1Exploration.PartInfo info)
-        {
-            if (info == null || !info.IsDiscovered) return 0;
-            if (info.Part == null) return 1;
-            return info.Part.State switch
-            {
-                PartState.Locked => 1,
-                PartState.Free => 2,
-                PartState.Carried => 3,
-                PartState.Placed or PartState.Welded => 4,
-                _ => 1,
-            };
-        }
-
-        static Color PartAccent(Stage1Exploration.PartInfo info)
-        {
-            if (info == null) return new Color(1f, 0.36f, 0.30f, 0.95f);
-            if (!info.IsDiscovered) return new Color(0.30f, 0.42f, 0.52f, 0.95f);
-            if (info.Part == null) return new Color(0.62f, 0.78f, 0.84f, 0.95f);
-            return info.Part.State switch
-            {
-                PartState.Placed or PartState.Welded => new Color(0.32f, 1f, 0.64f, 0.95f),
-                PartState.Free or PartState.Carried => new Color(0.38f, 0.88f, 1f, 0.95f),
-                _ => new Color(0.62f, 0.78f, 0.84f, 0.95f),
             };
         }
 
