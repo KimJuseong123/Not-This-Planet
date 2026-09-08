@@ -39,6 +39,11 @@
 .cache/
 
 # Build/export artifacts
+# Unity 플레이어 빌드 폴더 — 빌드는 git 이 아니라 GitLab Release 로 관리한다(git-convention §8, S15P21B202-325).
+# 2026-09-07 !240 에 218MB · 경로 232자의 빌드 폴더가 통째로 커밋돼 검사에 걸렸다.
+/METAGAME/Release/
+/METAGAME/Build/
+/METAGAME/Builds/
 *.apk
 *.aab
 *.unitypackage

@@ -21,7 +21,10 @@ PROJECT_KEY = os.environ.get("JIRA_PROJECT_KEY", "S15P21B202")
 
 TITLE_RE = re.compile(
     rf"^\[({'|'.join(PARTS)})\] ({'|'.join(TYPES)})(\([^)]+\))?: (.+?) \(({PROJECT_KEY}-\d+)\)$")
-BRANCH_RE = re.compile(rf"^(hotfix/)?({PROJECT_KEY}-\d+)(-[A-Za-z0-9._-]+)?$")
+BRANCH_RE = re.compile(rf"^((?:hotfix|release)/)?({PROJECT_KEY}-\d+)(-[A-Za-z0-9._-]+)?$")
+# 릴리스 브랜치 — develop 의 스냅샷을 master 로 가져가는 브랜치. 버전이 이름에 있어야 CI 가 머지 뒤
+# 태그·Release 를 만들 수 있다 (S15P21B202-325). 예: release/S15P21B202-318-v0.1.0
+RELEASE_BRANCH_RE = re.compile(rf"^release/({PROJECT_KEY}-\d+)-v(\d+\.\d+\.\d+)$")
 # 대상 브랜치가 "이슈 브랜치처럼 보이는가" — Jira 규칙 R6 의 조건과 같은 정규식(시작 고정, 끝은 열림).
 STACK_TARGET_RE = re.compile(rf"^(?:hotfix/)?{PROJECT_KEY}-\d+")
 KEY_RE = re.compile(rf"{PROJECT_KEY}-\d+")
@@ -111,6 +114,12 @@ def key_from_branch(branch: str) -> str | None:
     return m.group(2) if m else None
 
 
+def release_version(branch: str) -> str | None:
+    """`release/S15P21B202-318-v0.1.0` → `v0.1.0`. 릴리스 브랜치 형식이 아니면 None."""
+    m = RELEASE_BRANCH_RE.match(branch or "")
+    return f"v{m.group(2)}" if m else None
+
+
 def completes_on_merge(target: str) -> bool:
     """이 대상 브랜치로 머지되면 Jira 자동 완료(R6)가 걸리는가.
 
@@ -126,16 +135,21 @@ def completes_on_merge(target: str) -> bool:
 
 
 def is_release_mr(source: str, target: str) -> bool:
-    """릴리즈 MR — develop → master (master 정렬).
+    """릴리즈 MR — develop 의 내용을 master 로 가져가는 MR. 두 형태:
+      · `develop → master` (처음 형태, master 정렬)
+      · `release/<키>-vX.Y.Z → master` (2026-09-07 채택 — develop 에서 딴 스냅샷 브랜치, S15P21B202-325)
 
     이 MR 의 내용은 develop 으로 들어올 때 이미 MR 단위로 검사를 통과했고, 비교 기준이 master 라
     develop 의 기존 파일까지 전부 '추가됨' 으로 잡혀 오탐만 나온다
-    (2026-08-28 MR !68 실측: .gitkeep 의 .meta 누락 14건). 그래서 내용 검사를 건너뛴다.
-    Draft 금지와 대상 브랜치 규칙은 그대로 적용된다.
+    (2026-08-28 MR !68 실측: .gitkeep 의 .meta 누락 14건 · 2026-09-07 !240: LFS 폰트·씬 선언 등 4건).
+    그래서 내용 검사를 건너뛴다. Draft 금지·대상 브랜치 규칙·릴리스 규칙(squash 해제, 자기 커밋 없음)은 적용된다.
 
+    형식이 틀린 `release/…`(버전 없음)는 릴리즈 MR 이 아니다 — 일반 검사로 가서 대상 규칙에 걸린다.
     hotfix/* → master 는 **예외가 아니다** — develop 을 거치지 않은 새 코드라
     이슈 키·템플릿·위생 검사를 모두 받아야 한다 (S15P21B202-122)."""
-    return (source or "") == "develop" and (target or "") == "master"
+    if (target or "") != "master":
+        return False
+    return (source or "") == "develop" or bool(RELEASE_BRANCH_RE.match(source or ""))
 
 
 def http(method: str, url: str, headers: dict | None = None, body: dict | str | None = None,
@@ -348,6 +362,15 @@ class GitLab:
         """base_sha 이후 ref 에 쌓인 커밋 수 = 그 시작점이 ref 보다 얼마나 뒤처졌는지."""
         st, d = http("GET", f"{self.api}/projects/{self.project}/repository/compare"
                             f"?from={quote(base_sha, safe='')}&to={quote(ref, safe='')}&straight=true", self._h())
+        return len(d.get("commits") or []) if st == 200 and isinstance(d, dict) else None
+
+    def ahead_count(self, branch: str, base: str = "develop") -> int | None:
+        """branch 에만 있고 base 에는 없는 커밋 수. 조회 실패는 None(0 과 구분한다).
+
+        릴리스 브랜치는 develop 의 스냅샷이어야 하므로 이 값이 0 이어야 한다 — 자기 커밋이 있으면
+        그 변경은 develop 에 없어 다음 릴리스에서 사라지고, develop 재머지라는 절차가 하나 더 생긴다(S15P21B202-325)."""
+        st, d = http("GET", f"{self.api}/projects/{self.project}/repository/compare"
+                            f"?from={quote(base, safe='')}&to={quote(branch, safe='')}&straight=true", self._h())
         return len(d.get("commits") or []) if st == 200 and isinstance(d, dict) else None
 
     def compare_paths(self, from_sha: str, to_ref: str = "develop") -> list[str] | None:

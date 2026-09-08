@@ -124,8 +124,8 @@ MR 머지 ────▶ [완료]         ⚙ 손으로 끌면 무조건 되돌
   > `development[branches]`는 Cloud JQL에 없음(실측) → 이슈 키가 든 커밋/MR 존재로 대체. 정상 경로는 R4가 처리.
 
 ### R6 · MR 머지 → 완료
-- 조건(2026-08-28 추가, 스택 MR 대응) **고급 비교** `{{pullRequest.destinationBranch.name.match("^(?:hotfix/)?(S15P21B202-\d+)")}}` **EQUALS** `""` — 대상이 작업 브랜치면 키가 잡혀 조건이 실패하므로 완료 전환하지 않는다(스택 MR 은 develop 에 들어간 것이 아니므로). 일부러 "대상 = develop" 이 아니라 이렇게 쓴 이유는 스마트 값이 비어도 `""` 가 되어 **기존 동작(완료)이 유지**되기 때문(fail-open). 실측(MR !43 머지): `dest=develop | name=develop | match=(빈 값)` → 조건 통과 → 이슈 완료 확인
-- 조건(최종 2026-08-27 18:00) **고급 비교** `{{pullRequest.sourceBranch.name.match("^(?:hotfix/)?(S15P21B202-\d+)")}}` = `{{issue.key}}` — MR 본문에 언급된 다른 이슈에는 반응하지 않음 · **이슈 유형 ≠ Epic** · 액션 끝에 **웹 요청 보내기**(🟢 머지 완료 카드, 담당자 @멘션). ※ `pullRequest.sourceBranch` 는 **객체**여서 직접 `.match()` 하면 빈 값(두 차례 R6 정지 사고의 원인) — 문자열은 `.name`. `match()` 자체는 부분 일치·`\d`·캡처 그룹 모두 정상(탐침 검증)
+- 조건(2026-08-28 추가, 스택 MR 대응 · 2026-09-07 `release/` 추가) **고급 비교** `{{pullRequest.destinationBranch.name.match("^(?:hotfix/|release/)?(S15P21B202-\d+)")}}` **EQUALS** `""` — 대상이 작업 브랜치면 키가 잡혀 조건이 실패하므로 완료 전환하지 않는다(스택 MR 은 develop 에 들어간 것이 아니므로). 일부러 "대상 = develop" 이 아니라 이렇게 쓴 이유는 스마트 값이 비어도 `""` 가 되어 **기존 동작(완료)이 유지**되기 때문(fail-open). 실측(MR !43 머지): `dest=develop | name=develop | match=(빈 값)` → 조건 통과 → 이슈 완료 확인
+- 조건(최종 2026-08-27 18:00 · 2026-09-07 `release/` 추가) **고급 비교** `{{pullRequest.sourceBranch.name.match("^(?:hotfix/|release/)?(S15P21B202-\d+)")}}` = `{{issue.key}}` — MR 본문에 언급된 다른 이슈에는 반응하지 않음 · **이슈 유형 ≠ Epic** · 액션 끝에 **웹 요청 보내기**(🟢 머지 완료 카드, 담당자 @멘션). ※ `pullRequest.sourceBranch` 는 **객체**여서 직접 `.match()` 하면 빈 값(두 차례 R6 정지 사고의 원인) — 문자열은 `.name`. `match()` 자체는 부분 일치·`\d`·캡처 그룹 모두 정상(탐침 검증)
 - 트리거 **풀 리퀘스트 병합됨**
 - 액션 **이슈 전환** → `완료`
 - **실제 구성 순서**(2026-09-01 편집기 화면 확인): 트리거 → 두 개 값 비교(대상 브랜치) → 두 개 값 비교(소스 브랜치 = 이슈 키)
@@ -165,7 +165,7 @@ MR 이 이슈 K개에 연결되면 **K−1번은 반드시 `수행한 작업 없
 ### R7 · MR 닫힘 알림
 - **알려진 현상(2026-08-28 확인)**: GitLab 이 MR 닫기 한 번에 `풀리퀘스트 거부됨` 이벤트를 **두 번** 보낸다(감사 로그: 10:50:30·10:50:31 두 실행, 각각 성공). 댓글은 `한 번만 추가` 옵션으로 합쳐지지만 **웹훅에는 중복 억제 옵션이 없어 MM 카드가 2회** 온다. 억제 방법 검토 결과 두 실행이 1초 차이라 "직전 댓글 확인" 조건도 경합이고 `데이터 다시 가져오기` 지연도 양쪽에 동일하게 걸려 무효 → **그대로 두기로 결정**(머지 없이 닫는 일 자체가 드물고 내용이 같은 카드라 오해 소지 없음)
 - 트리거 **풀 리퀘스트 거부됨(declined)**
-- 조건(최종 2026-08-27) **고급 비교** `{{pullRequest.sourceBranch.name.match("^(?:hotfix/)?(S15P21B202-\d+)")}}` = `{{issue.key}}` · 액션 끝에 **웹 요청 보내기**(MM 표 카드, 담당자 @멘션)
+- 조건(최종 2026-08-27 · 2026-09-07 `release/` 추가) **고급 비교** `{{pullRequest.sourceBranch.name.match("^(?:hotfix/|release/)?(S15P21B202-\d+)")}}` = `{{issue.key}}` · 액션 끝에 **웹 요청 보내기**(MM 표 카드, 담당자 @멘션)
 - **MM 웹 요청 공통(2026-08-27 적용)**: R2(제목 위반·상위 Epic 없음 분기), R5·R9(되돌림 분기 끝), R7 에 `jira.issue.outgoing.webhook` 액션. 본문 `{"text": "…"}`, 요약·이름은 `{{issue.summary.jsonEncode}}` 처럼 JSON 이스케이프. 웹훅 URL 은 규칙 안에만 존재(리포·채팅 X). 새 규칙에 알림을 붙일 땐 R7 의 액션을 복사
 - 액션 코멘트 `MR이 머지 없이 닫혔습니다. 다시 열거나 새 MR을 만드세요.`
 
@@ -192,6 +192,31 @@ MR 이 이슈 K개에 연결되면 **K−1번은 반드시 `수행한 작업 없
   !115 가 열려 있어 수동 완료가 되돌려졌고, 위에 쌓인 것이 없던 -122·-130 은 그대로 유지됐다(대조 실측).
   Cloud JQL 로는 MR 의 소스·대상을 구분할 수 없어 JQL 로는 고칠 수 없다 — CI 쪽 판정으로 옮긴다(S15P21B202-199).
   임시 우회: 자식 MR 의 대상을 develop 으로 바꾸면 부모의 열린 MR 이 0 이 되어 수동 완료가 유지된다.
+
+### R10 · 릴리스 발행 → fixVersion·버전 릴리스 (2026-09-07 신설, S15P21B202-327)
+
+GitLab Release 가 발행되면 CI(`scripts/ci/publish_release.py`)가 이 규칙의 **수신 웹훅**으로 보낸다. **CI 는 Jira 를 쓰지 않는다**(-242)는 원칙을 지키려고 CI 가 `fixVersion` 을 직접 찍지 않고, 쓰는 주체는 이 규칙 하나다.
+
+- 규칙 이름 `R10 릴리스 발행 → fixVersion·버전 릴리스` · id `5953916` / uuid `01a07c26-15a4-7b2d-b828-e0866f942f1b` · ENABLED
+- 트리거 **수신 웹훅** `jira.incoming.webhook` · `searchOrProvide: "provided"`(업무 항목 기준 = **웹후크 HTTP POST 본문에서 제공되는 이슈**). 웹훅 URL·암호는 규칙 화면에만 있고 **GitLab CI 변수 `JIRA_RELEASE_WEBHOOK`**(masked·protected)에 넣는다 — 값은 이슈·문서·채팅에 적지 않는다
+- CI 가 보내는 본문:
+  ```json
+  {"issues": ["S15P21B202-313", "S15P21B202-315"],
+   "data": {"version": "v0.1.0", "releaseUrl": "https://…/-/releases/v0.1.0", "date": "2026-09-07"}}
+  ```
+  `issues` 가 규칙이 다룰 이슈이고, `data` 는 규칙 안에서 `{{webhookData.…}}` 로 읽는다.
+- 액션 **순서가 중요하다** — 버전이 없으면 `fixVersions` 부여가 실패한다:
+
+  | # | 액션 | 값 |
+  | --- | --- | --- |
+  | 1 | `jira.version.create` | `versionName = {{webhookData.version}}` · project id `22557`(software) · `overrideReleaseDate: SET_ON_EMPTY` |
+  | 2 | `jira.issue.edit` | `operations: []` · `advancedFields = {"update": {"fixVersions": [{"add": {"name": "{{webhookData.version}}"}}]}}` · `sendNotifications: false` |
+  | 3 | `jira.version.release` | `versionName = {{webhookData.version}}` · `releaseDate = {{webhookData.date}}` · 같은 project |
+
+- **왜 편집을 `operations` 가 아니라 `advancedFields` 로 하나**: UI 가 만든 `operations` 는 `type: "SET"` + `value: [{"type":"REFERENCE","value":"LAST_RELEASED_VERSION"}]` 이었다 — **기존 `fixVersion` 을 지우고 엉뚱한 버전을 넣는다.** 스마트값을 `operations` 의 값 항목에 어떤 `type` 으로 싣는지는 문서화돼 있지 않아, 부록 A 에 실측으로 남은 `advancedFields`(Jira REST 편집 JSON 문자열, `add` 로 기존 값 유지) 를 쓴다. UI 에서는 "고급" 칸에 JSON 으로 보인다 — 정상이다
+- 적용: [`scripts/jira/apply_rules18.py`](../scripts/jira/apply_rules18.py) — dry-run 이 기본, `--apply` 로 PUT. 2026-09-07 `PUT 200` 후 재조회로 7항목 전부 확인(액션 순서·타입 · 세 스마트값 · advancedFields · `operations` 빈 것 · 트리거 기준)
+- 실패는 CI 쪽에서 **비차단**이다 — Release 는 이미 났으므로 웹훅이 실패해도 MM 카드에 한 줄만 남는다. 같은 버전을 다시 보내면 1) 이 "이미 있음" 으로 실패할 수 있는데 그것도 무해하다
+- **첫 실전 확인**: 릴리스가 나면 Jira 릴리스 화면에 버전 `vX.Y.Z` 와 그 안의 이슈 목록이 보이는지
 
 ## 3. (권한 있으면) 워크플로우 전환 제한 — 드래그 자체 차단
 
@@ -263,6 +288,7 @@ MR 이 이슈 K개에 연결되면 **K−1번은 반드시 `수행한 작업 없
 | R7 MR 닫힘 알림 | 5800235 | ✅ 활성 | 트리거 "풀 리퀘스트 거부됨" |
 | R8 기한 = 스프린트 종료 | 5800237 | ✅ 활성 | 트리거 "필드 값 변경(스프린트)", 다른 규칙 트리거 허용 ON |
 | R9 완료는 머지로만 | 5799839 | ✅ 활성 | 유형 ≠ Epic · 실행자 ≠ Automation · JQL `development[pullrequests].all = 0 OR .open > 0`(08-27 보강: 머지된 MR만 있으면 수동 완료 허용) |
+| R10 릴리스 → fixVersion | 5953916 | ✅ 활성 | 2026-09-07 신설. 수신 웹훅(본문에서 이슈 제공) → 버전 만들기 → fixVersions add(advancedFields) → 버전 릴리스. CI 는 웹훅만 부른다(-242 원칙 유지) |
 | (팀장) 자동 스프린트 활성 | 5782244 | ⏸ 비활성 | 팀장 의도는 "백로그 자동 생성"이었음 → 스프린트가 비면 곧 백로그이므로 규칙 불필요, 비활성화 |
 
 - 생성 방식: UI에서 직접(R5·R9·R1 초안) + 공개 API 템플릿 껍데기 + 내부 API PUT(R2·R7·R8·R1 보정·R4 조건). 내부 API 규약은 계획서 부록 참고.
@@ -306,8 +332,8 @@ MR 이 이슈 K개에 연결되면 **K−1번은 반드시 `수행한 작업 없
 
 | 동작 | 요청 |
 | --- | --- |
-| 목록 | `POST {base}/{projectId}/rules` body `{"offset":0,"limit":50,"filter":"","actionTypes":[],"triggerTypes":[],"orchestrationTypes":[],"systemLabelId":"CONTAINER","sortKey":"NAME","sortOrder":"ASC"}` |
-| 상세 | `GET {base}/{projectId}/rule/{숫자 id}` |
+| 목록 | `POST {base}/{projectId}/rules` body `{"offset":0,"limit":50,"filter":"","actionTypes":[],"triggerTypes":[],"orchestrationTypes":[],"systemLabelId":"CONTAINER","sortKey":"NAME","sortOrder":"ASC"}` — **`systemLabelId:"CONTAINER"` 를 넣으면 새로 만든 규칙이 빠진다**(2026-09-07: UI 로 만든 R10 이 목록에 없었다). 그 키를 빼고 부르거나 id 로 직접 조회한다 |
+| 상세 | `GET {base}/{projectId}/rule/{id}` — **숫자 id 와 uuid 모두 받는다.** 새 UI 로 만든 규칙은 주소창(`…/settings/automate#/rule/<값>`)에 **uuid 만** 나온다(2026-09-07 R10). 응답은 `ruleConfigBean` 래핑 없이 규칙 본문 그대로이고, **트리거는 `components` 가 아니라 최상위 `trigger` 키**에 따로 있다 |
 | 수정 | `PUT {base}/{projectId}/rule/{ruleUuid}` body `{"ruleConfigBean": <GET 결과를 고친 것>, "newConnections": []}` |
 | 활성/비활성 | `PATCH {base}/{projectId}/rule/{ruleUuid}` body `[{"op":"replace","path":"/state","value":"ENABLED"}]` |
 | 신규 | 내부 `POST /rule`은 403 → 공개 API `POST …/automation/public/jira/{cloudId}/rest/v1/template/create` `{"templateId":"software_template_26","ruleHome":"<프로젝트 ARI>","state":"DISABLED"}`로 껍데기를 만든 뒤 PUT으로 덮어쓴다 |
@@ -318,14 +344,21 @@ MR 이 이슈 K개에 연결되면 **K−1번은 반드시 `수행한 작업 없
 
 2026-08-27 실측: `{{pullRequest.sourceBranch}}` 는 렌더링하면 이름이지만 **객체**라 `.match()` 등 문자열 함수는 `.name` 에 걸어야 함(`{{pullRequest.sourceBranch.name.match(...)}}`). `{{pullRequest.title}}`·`{{pullRequest.url}}` 정상. `match(regex)` 는 부분 일치, `\d`·캡처 그룹 정상(issue.key/summary 탐침). 조건식 문자열 리터럴은 큰따옴표만.
 - **새 컴포넌트의 id는 `"__NEW__COMPONENT__<uuid>"`** (null·임의 UUID는 "컴포넌트 ID 불일치/중복" 400). 중첩은 `children`/`conditions` 배열로.
+- **수신 웹훅 트리거를 건드릴 때**(2026-09-07 R10 실측): GET 이 `value.webhookToken` 을 **별표로 마스킹**해서 준다. 그대로 PUT 하면 토큰이 별표로 덮여 웹훅 URL 이 깨질 수 있으므로, `tags` 의 `WEBHOOK_TOKEN` 항목에 있는 **실제 값으로 복원해서** 보낸다(`apply_rules18.py` 가 그렇게 한다). 트리거를 다른 타입에서 **바꿔 끼우면 이전 값이 남아** 규칙 화면에 `유효한 값을 입력해 주세요` 가 뜬다 — 암호를 생성하거나 트리거를 지우고 새로 추가하면 풀린다. 트리거 타입은 `jira.incoming.webhook`, 액션은 `jira.version.create`·`jira.version.release`(둘 다 `project: {"type":"ID","value":"22557","additional":"software"}`)
 - 컴포넌트 타입: `jira.issue.event.trigger:created|transitioned`, `jira.issue.field.changed`(value `{"changeType":"ANY_CHANGE","fields":[{"value":"<fieldId>","type":"field"}],"actions":[],"eventFilters":[ARI]}`), `devops.branch.event.trigger:created`, `devops.pr.event.trigger:merged|declined`, `jira.issue.condition`, `jira.comparator.condition`, `jira.jql.condition`(value=JQL 문자열), `jira.condition.container.block` + `jira.condition.if.block`(ELSE = 조건 없는 if.block), `jira.issue.transition`(destinationStatus NAME 영문), `jira.issue.comment`, `jira.issue.edit`(`advancedFields`에 Jira REST 편집 JSON 문자열), `jira.issue.refresh.issue`, `codebarrel.action.log`.
-- **이 API 경로는 보조 수단이다. 규칙을 고치는 기본 방식은 부록 B 의 UI 절차 — 담당자가 직접 클릭한다.**
-  내부 API 는 API 토큰이 403 이라 브라우저 로그인 세션이 필요한데, 그 세션을 스크립트로 얻는 것이 막힌다:
-  Playwright(`launch_persistent_context`, channel="chrome")로 창을 띄워도 프로필이 새로 생겨 로그인 상태가 없고,
-  Atlassian 로그인은 이메일 → 계속 → 비밀번호/구글 SSO → 2단계 인증의 다단계 흐름이라 사람이 그 창에서 직접
-  로그인을 끝내야 한다(2026-08-31 실측: 로그인 단계에서 넘어가지 않음). 사람 손이 필요한 것은 어차피 같으므로
-  **규칙 편집에는 쓰지 않는다** — 쓸 만한 곳은 사람이 로그인해 둔 창을 이어받아 규칙 JSON 을 **읽어오는** 경우뿐이다.
-  그때 동기 API 대기는 `time.sleep` 대신 `page.wait_for_timeout`.
+- **이 경로로 규칙을 실제로 고칠 수 있다 — 2026-09-07 실측.** [`scripts/jira/apply_rules17.py`](../scripts/jira/apply_rules17.py) 가 R6·R7 의 브랜치 정규식 3곳을 `PUT 200` 으로 바꿨다(`새 정규식 2곳·1곳 · 옛 정규식 0곳` 재조회 확인). 실행은 리포 밖 venv 로:
+  `cd <scratchpad>\pw` → `.\.venv\Scripts\python.exe apply_rules17.py`(dry-run) → `--apply`.
+
+  | 함정 | 사실 |
+  | --- | --- |
+  | 로그인 | Playwright `launch_persistent_context(channel="chrome")` 로 창을 띄우고 **사람이 그 창에서 로그인**하면 프로필에 세션이 남아 다음 실행부터 바로 통과한다. 2026-08-31 에 "프로필이 새로 생겨 로그인 상태가 없다" 고 적었던 것은 프로필을 재사용하지 않은 탓이었다 |
+  | `input()` 금지 | 로그인 대기를 `input()` 으로 잡아 두면 **그 뒤 `page.request.*` 가 진행되지 않는다**(2026-09-07: dry-run 은 되고 `--apply` 만 멈췄다). 규칙 조회가 200 이 될 때까지 `page.wait_for_timeout` 으로 폴링해 로그인 완료를 감지한다 |
+  | PUT body | GET 응답이 곧 `ruleConfigBean` 본문이다(최상위에 `components` 가 보인다). 그것을 고쳐 `{"ruleConfigBean": …, "newConnections": []}` 로 감싸 `PUT …/rule/{ruleUuid}` — 숫자 id 가 아니라 **uuid** 다 |
+  | 검증 | PUT 뒤 다시 GET 해서 새 정규식 개수 ≥ 바꾼 개수, 옛 정규식 0 을 확인한다. `before-<id>.json`·`after-<id>.json` 을 남긴다. PUT 은 규칙 상태(사용 중)를 바꾸지 않는다 |
+
+  스크립트를 리포에 두는 이유: 이전 `apply_rules2·8·14·15·16.py` 는 스크래치패드에만 있어 temp 정리로 사라졌고, 2026-09-07 에 같은 일을 다시 하려다 방식을 되짚는 데 시간을 썼다. **UI 절차(부록 B)도 그대로 유효하다** — 규칙을 새로 만드는 것은 내부 `POST /rule` 이 403 이라 여전히 UI 뿐이다.
+
+  **지금 리포에 있는 것** — [`scripts/jira/dump_rule.py`](../scripts/jira/dump_rule.py) 규칙 하나를 떠서 구조를 본다(읽기 전용, `--id` 는 숫자·uuid 둘 다) · [`apply_rules17.py`](../scripts/jira/apply_rules17.py) R6·R7 브랜치 정규식 · [`apply_rules18.py`](../scripts/jira/apply_rules18.py) R10 형태 맞추기. 실행은 리포 밖 venv(`<scratchpad>\pw\.venv`)에서. **순서는 언제나 덤프 → 값 교정** 이다: 컴포넌트 타입 문자열을 추측하면 400 이거나 조용히 깨진 규칙이 된다. **새 컴포넌트를 추가할 때만** `__NEW__COMPONENT__<uuid>` 를 쓰고, 기존 것은 id 를 그대로 물려받는다(2026-09-07 R10 에 `jira.version.create` 를 그렇게 추가해 `PUT 200`).
 ## 부록 B · 자동화 편집기 조작법 (UI에서 규칙을 만들거나 고칠 때)
 
 ```

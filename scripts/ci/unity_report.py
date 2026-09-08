@@ -219,6 +219,14 @@ def body(data: dict, errs: list[str], base: set | None, ref: str) -> str:
     return MARKER + "\n" + "\n".join(parts)
 
 
+def baseline_ref(target: str | None) -> str:
+    """기준선을 읽을 브랜치. 릴리즈 MR(대상 master)은 develop 을 쓴다 — master 에서는 이 잡이 돈 적이 없어
+    기준선이 없고(그래서 항상 '판단 불가' 였다, 2026-09-07 !240), 릴리스 브랜치의 내용은 develop 의
+    스냅샷이라 develop 의 마지막 결과가 곧 기준선이다 (S15P21B202-325)."""
+    t = (target or "").strip()
+    return "develop" if t in ("", "master") else t
+
+
 def main(argv: list[str] | None = None) -> int:
     banner("unity-report")
     argv = argv if argv is not None else sys.argv[1:]
@@ -255,7 +263,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"JUnit 변환: {out} (총 {data['total']} · 실패 {data['failed']})")
 
     gl = GitLab()
-    ref = env("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "develop") or "develop"
+    ref = baseline_ref(env("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "develop"))
     base = baseline_failures(gl, ref)
     if base is None:
         print(f"기준선 없음 — `{ref}` 에서 이 잡이 돈 결과를 찾지 못했다")
