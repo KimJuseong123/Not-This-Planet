@@ -330,7 +330,14 @@ namespace Metagame.Gameplay.Parts
             // 고정못이 하나라도 풀렸으면 kinematic 을 풀어 부분 부양을 허용한다(기획 §14.4).
             // 하나도 안 풀린 파츠는 예전 그대로 kinematic 이다 — 들 것이 없고, 그래야
             // 저중력장·운석이 손대지 않는다.
-            _body.isKinematic = isKinematic && !HasReleasedClamp;
+            //
+            // **참가자 화면에서는 절대 풀지 않는다** (S15P21B202-352). 그 화면은 그림이고
+            // 자세는 서버가 보낸 것을 따라간다 — `WorldSync.PrepareClient` 가 tracked 전부를
+            // `isKinematic = true` 로 세우는 것과 같은 뜻이다("서버가 보낸 자세만 따라간다").
+            // 여기서 풀면 그 뒤로 로컬 중력(-5)이 파츠를 끌어내려 서버 자세와 매 프레임
+            // 다투고, 참가자 화면에서만 파츠가 떨리거나 처진다. 고정못을 뽑기 시작하는
+            // 순간부터 그랬다 — `HasReleasedClamp` 가 참이 되는 자리가 여기다.
+            _body.isKinematic = WorldEvents.RemoteDecides || (isKinematic && !HasReleasedClamp);
 
             // 견인 중에는 덧붙은 질량을 더하지 않는다. CarriedPartMass 는 크기와 무관하게
             // "플레이어를 압사시키지 않는 값" 이라 파츠 질량조차 무시하는 자리다 —

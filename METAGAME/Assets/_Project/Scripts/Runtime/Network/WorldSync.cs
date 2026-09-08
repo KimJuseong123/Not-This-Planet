@@ -676,9 +676,18 @@ namespace Metagame.Network
                 var body = tracked[i];
                 if (body == null) continue;
 
-                body.transform.SetPositionAndRotation(
-                    Vector3.Lerp(body.transform.position, targets[i].Position, t),
-                    Quaternion.Slerp(body.transform.rotation, targets[i].Rotation, t));
+                // **방어선** (S15P21B202-352). PrepareClient 가 kinematic 으로 세워 두지만
+                // 게임플레이 코드가 나중에 다시 풀 수 있다. 탈것으로 바뀐 파츠는
+                // `part.enabled = false` 라 SpaceshipPart 의 게이트를 타지 않으므로 그쪽은
+                // 이 한 줄만이 막는다. 풀린 채로 두면 로컬 물리가 서버 자세와 다툰다.
+                if (!body.isKinematic) body.isKinematic = true;
+
+                // `transform` 이 아니라 `body` 로 읽고 쓴다. 탈것은 보간
+                // (`RigidbodyInterpolation.Interpolate`)이 걸려 있어 `transform.position` 은
+                // **보간된 표시 위치**다 — 그 값을 Lerp 의 출발점으로 다시 읽으면 되먹임으로
+                // 계속 뒤로 끌린다. 보내는 쪽(`Read`)도 `body.position` 을 쓰므로 대칭이 맞는다.
+                body.position = Vector3.Lerp(body.position, targets[i].Position, t);
+                body.rotation = Quaternion.Slerp(body.rotation, targets[i].Rotation, t);
             }
         }
     }
