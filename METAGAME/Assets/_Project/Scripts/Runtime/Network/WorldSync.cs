@@ -26,8 +26,28 @@ namespace Metagame.Network
     /// </summary>
     public sealed class WorldSync : NetworkBehaviour
     {
-        /// 초당 20번. 사람과 같은 주기다(-148 §5-1).
-        const float SendInterval = 1f / 20f;
+        /// <summary>
+        /// 세계 상태를 내보내는 주기. <b>NetworkManager 의 <c>sendRate</c> 를 따라간다</b>
+        /// (S15P21B202-328).
+        ///
+        /// <para>예전에는 여기에 20Hz 를 따로 박아 두었다. 그래서 씬에서 <c>sendRate</c> 를
+        /// 올려도 부품만 옛 주기에 남았다 — 조절 손잡이가 둘이면 하나를 돌린 사람이
+        /// 나머지를 모른다. 손잡이는 하나여야 한다.</para>
+        /// </summary>
+        static float SendInterval =>
+            NetworkServer.sendInterval > 0f ? NetworkServer.sendInterval : 1f / 20f;
+
+        /// <summary>자세 하나의 바이트 수 — Vector3 12 + Quaternion 16. Mirror 는 둘 다 그대로 쓴다.</summary>
+        const int PoseBytes = 28;
+
+        /// <summary>RPC 머리말·배치 여유. 정확히 셀 이유는 없고 넉넉히 잡는다.</summary>
+        const int PacketHeadroom = 64;
+
+        /// <summary>
+        /// 고정쇠 상태는 바뀌지 않아도 이 간격마다 한 번은 다시 보낸다.
+        /// 신뢰 없는 채널이라 한 번 잃으면 다음 변화까지 어긋난 채로 남기 때문이다.
+        /// </summary>
+        const float ClampKeepalive = 0.5f;
 
         /// 받은 자세로 옮겨 가는 속도. 20Hz 로 받은 사이를 메운다.
         const float Smoothing = 20f;
@@ -46,6 +66,26 @@ namespace Metagame.Network
         ClampState[] clampTargets = Array.Empty<ClampState>();
         Pose[] targets = Array.Empty<Pose>();
         float sendTimer;
+
+        // ── 보내는 쪽에서 다시 쓰는 버퍼 ──────────────────────────
+        // 20~30Hz 로 매번 새 배열을 만들면 초당 수십 개의 쓰레기가 생긴다. Mirror 는
+        // 부르는 그 자리에서 직렬화하므로 같은 배열을 계속 써도 안전하다.
+        Pose[] sendPoses = Array.Empty<Pose>();
+        ClampState[] sendClamps = Array.Empty<ClampState>();
+
+        /// <summary>마지막으로 내보낸 고정쇠 상태. 바뀐 것이 없으면 보내지 않는다.</summary>
+        ClampState[] lastSentClamps = Array.Empty<ClampState>();
+        float clampKeepaliveTimer;
+
+        /// <summary>
+        /// 보낸 순서. <b>신뢰 없는 채널은 순서를 지켜 주지 않는다</b> — 늦게 도착한
+        /// 옛 묶음을 그대로 받으면 물체가 뒤로 한 번 튄다. 번호로 걸러 낸다.
+        /// </summary>
+        uint sendSeq;
+        uint lastPoseSeq;
+        bool everPose;
+        uint lastClampSeq;
+        bool everClamp;
         bool ready;
         bool warnedMismatch;
         /// <summary>고정쇠별로 굳혀 둔 줄 세우기 키 — <see cref="KeyOf"/> 참고.</summary>
@@ -311,34 +351,92 @@ namespace Metagame.Network
         void SendFromServer()
         {
             sendTimer += Time.deltaTime;
+            clampKeepaliveTimer += Time.deltaTime;
             if (sendTimer < SendInterval) return;
             sendTimer = 0f;
 
-            var poses = new Pose[tracked.Count];
+            sendSeq++;
+
+            // ── 자세 ────────────────────────────────────────────
+            if (sendPoses.Length != tracked.Count) sendPoses = new Pose[tracked.Count];
             for (int i = 0; i < tracked.Count; i++)
-                poses[i] = Read(tracked[i]);
+                sendPoses[i] = Read(tracked[i]);
 
-            RpcApply(poses);
+            // 신뢰 없는 채널은 조각내지 않는다 — 한 묶음이 kcp 의
+            // UnreliableMaxMessageSize 를 넘으면 그 자리에서 예외가 된다. 씬의 부품은
+            // 4개이고 견인 장치까지 합쳐도 8개라 닿을 일이 없지만, 나중에 늘어났을 때
+            // 조용히 끊기는 대신 신뢰 채널로 되돌아가게 해 둔다.
+            if (tracked.Count <= UnreliablePoseCapacity) RpcApply(sendSeq, sendPoses);
+            else RpcApplySafe(sendSeq, sendPoses);
 
-            var states = new ClampState[clamps.Count];
+            // ── 고정쇠 ──────────────────────────────────────────
+            if (sendClamps.Length != clamps.Count) sendClamps = new ClampState[clamps.Count];
             for (int i = 0; i < clamps.Count; i++)
             {
                 var clamp = clamps[i];
-                states[i] = clamp == null
+                sendClamps[i] = clamp == null
                     ? default
                     : new ClampState { Progress = clamp.Progress, Released = clamp.IsReleased };
             }
-            RpcApplyClamps(states);
+
+            // 고정쇠는 사람이 당기는 몇 초를 빼면 내내 그대로다. 자세와 달리 매 틱마다
+            // 실어 보낼 이유가 없다 — 핫스팟 업링크에서는 패킷 수 자체가 비용이다.
+            // 다만 신뢰 없는 채널이라 잃을 수 있으므로 조용해도 가끔은 다시 보낸다.
+            bool changed = !SameClamps(sendClamps, lastSentClamps);
+            if (changed || clampKeepaliveTimer >= ClampKeepalive)
+            {
+                RpcApplyClamps(sendSeq, sendClamps);
+                clampKeepaliveTimer = 0f;
+
+                if (lastSentClamps.Length != sendClamps.Length)
+                    lastSentClamps = new ClampState[sendClamps.Length];
+                Array.Copy(sendClamps, lastSentClamps, sendClamps.Length);
+            }
         }
+
+        /// <summary>한 묶음에 실을 수 있는 자세 개수. 전송 계층이 정하는 값이다.</summary>
+        static int UnreliablePoseCapacity
+        {
+            get
+            {
+                int max = Transport.active != null
+                    ? Transport.active.GetMaxPacketSize(Channels.Unreliable)
+                    : 1194;
+                return Mathf.Max(0, (max - PacketHeadroom) / PoseBytes);
+            }
+        }
+
+        static bool SameClamps(ClampState[] a, ClampState[] b)
+        {
+            if (a.Length != b.Length) return false;
+            for (int i = 0; i < a.Length; i++)
+            {
+                if (a[i].Released != b[i].Released) return false;
+                if (Mathf.Abs(a[i].Progress - b[i].Progress) > 0.0005f) return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// 이 묶음이 지금 쓸 것인가. <b>신뢰 없는 채널은 순서를 지켜 주지 않는다</b> —
+        /// 늦게 온 옛 묶음을 그대로 쓰면 물체가 한 번 뒤로 튄다.
+        ///
+        /// <para>부호 없는 뺄셈으로 비교하므로 번호가 한 바퀴 돌아도 옳게 갈린다
+        /// (uint 라 초당 30번 보내도 4년 반이 걸리지만, 공짜로 맞출 수 있는 것은 맞춰 둔다).</para>
+        /// </summary>
+        static bool IsNewer(uint seq, uint last, bool ever) => !ever || (int)(seq - last) > 0;
 
         /// <summary>
         /// 고정쇠의 진행도와 해제 여부를 맞춘다. 판정은 서버가 하고 여기서는 따라만 간다.
         /// </summary>
-        [ClientRpc]
-        void RpcApplyClamps(ClampState[] states)
+        [ClientRpc(channel = Channels.Unreliable)]
+        void RpcApplyClamps(uint seq, ClampState[] states)
         {
             if (isServer) return;               // 호스트는 자기 물리가 정답이다
             if (states == null || !ready) return;
+            if (!IsNewer(seq, lastClampSeq, everClamp)) return;
+            lastClampSeq = seq;
+            everClamp = true;
 
             if (states.Length != clamps.Count)
             {
@@ -376,11 +474,35 @@ namespace Metagame.Network
             WeldBead.TryShrinkNear(nozzle, amount, out _);
         }
 
+        /// <summary>
+        /// 자세를 내려보낸다 — <b>신뢰 없는 채널</b>이다 (S15P21B202-328).
+        ///
+        /// <para>예전에는 기본값인 신뢰 채널로 보냈다. 그런데 이것은 <b>끊임없이 다시
+        /// 보내지는 현재 상태</b>이지 놓치면 안 되는 사건이 아니다. 신뢰 채널에 실으면
+        /// 패킷 하나가 빠졌을 때 그 뒤에 도착한 <b>더 새로운</b> 자세들이 재전송을
+        /// 기다리며 줄을 선다(head-of-line blocking). 방장이 모바일 핫스팟처럼 흔들리는
+        /// 업링크에 있으면 그 줄이 계속 길어져, 참가자 화면만 점점 뒤로 밀린다 —
+        /// 2026-09-08 2대 PC 실측에서 나온 그 증상이다.</para>
+        ///
+        /// <para>신뢰 없는 채널에서는 잃은 묶음을 그냥 버리고 다음 묶음으로 넘어간다.
+        /// 매 틱 전체 상태를 다시 보내므로 손실은 저절로 메워진다. 대신 순서가 보장되지
+        /// 않아 <paramref name="seq"/> 로 옛 묶음을 걸러 낸다.</para>
+        /// </summary>
+        [ClientRpc(channel = Channels.Unreliable)]
+        void RpcApply(uint seq, Pose[] poses) => ApplyPoses(seq, poses);
+
+        /// <summary>
+        /// 자세가 한 묶음에 안 들어갈 만큼 많아졌을 때만 쓰는 신뢰 채널 경로.
+        /// 지금 씬에서는 불리지 않는다 — 늘어났을 때 조용히 끊기지 않게 두는 안전줄이다.
+        /// </summary>
         [ClientRpc]
-        void RpcApply(Pose[] poses)
+        void RpcApplySafe(uint seq, Pose[] poses) => ApplyPoses(seq, poses);
+
+        void ApplyPoses(uint seq, Pose[] poses)
         {
             if (isServer) return;               // 호스트 모드에서는 내 물리가 곧 정답이다
             if (poses == null) return;
+            if (!IsNewer(seq, lastPoseSeq, everPose)) return;
 
             // 아직 챙기는 중이다. 이때의 개수 차이는 정상이라 알릴 것이 없다 —
             // 내 게임 씬이 방장보다 늦게 뜨면 반드시 한 번은 지나가는 자리다.
@@ -400,6 +522,8 @@ namespace Metagame.Network
             }
             warnedMismatch = false;
 
+            lastPoseSeq = seq;
+            everPose = true;
             targets = poses;
         }
 

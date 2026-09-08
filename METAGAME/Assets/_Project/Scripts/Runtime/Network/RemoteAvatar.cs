@@ -34,6 +34,12 @@ namespace Metagame.Network
         /// </summary>
         const float SnapDistance = 3f;
 
+        /// <summary>
+        /// 서버가 몰아 주는 내 몸을 좇을 때 카메라가 쓰는 추종 속도 (S15P21B202-328).
+        /// 시정수 25ms — 기본값 16(62ms)보다 빠르다.
+        /// </summary>
+        const float NetworkFocusSmoothing = 40f;
+
         PlayerRig rig;
         Doll doll;
         Transform source;
@@ -80,6 +86,12 @@ namespace Metagame.Network
             if (rig.ClampInteractor != null) rig.ClampInteractor.enabled = false;
             rig.NetworkDriven = true;
             if (!mine) rig.IsLocal = false;
+
+            // 내 카메라가 좇는 몸은 여기 닿기까지 이미 두 번 다듬어졌다 — 서버가 보낸
+            // 자세를 Mirror 의 스냅샷 보간이 잇고, 골반 강체가 물리 스텝 사이를 또 잇는다.
+            // 그 위에 카메라의 기본 스무딩(62ms)까지 얹으면 더해지는 것은 부드러움이
+            // 아니라 지연뿐이다. 2026-09-08 2대 PC 실측에서 참가자 쪽 랙의 한 겹이었다.
+            if (mine && rig.Cam != null) rig.Cam.FocusSmoothing = NetworkFocusSmoothing;
 
             // 골반을 세계에 붙들어 인형을 세우는 조인트다. 골반을 우리가 직접
             // 옮길 것이므로 남겨 두면 서로 잡아당긴다.
