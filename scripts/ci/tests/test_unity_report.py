@@ -445,6 +445,7 @@ assert R.decide(data(["A.x"]), [UNITY_ERR], {"A.x"}, 2)[0] == REG, "기존 실�
 print("  기준선 없음·기존 실패만 → 그래도 차단 ✅")
 
 # 코멘트: 막지만 대상 브랜치가 원인일 수 있음을 알린다
+os.environ["UNITY_MERGED_BASE"] = "abc1234"   # 합친 경우의 문구를 본다
 b = R.body(data([]), [UNITY_ERR], set(), "develop")
 assert "🔴" in b, b
 assert "2시간 37분" in b, "왜 급한지 근거가 있어야 한다"
@@ -456,6 +457,76 @@ print("  코멘트가 막으면서도 단정하지 않는다 ✅")
 # 대상 브랜치 이름이 그대로 실린다 (릴리스 MR 은 master 대신 develop 기준선)
 b2 = R.body(data([]), [UNITY_ERR], set(), "master")
 assert "master` 를 합친 결과에서 돌았습니다" in b2, b2
+os.environ.pop("UNITY_MERGED_BASE", None)
 print("  대상 브랜치 이름을 그대로 쓴다 ✅")
+
+
+# ── ㉓ R1 완화는 컴파일 오류에 걸리지 않는다 = R2 를 지킨다 (S15P21B202-342) ──
+#     `!259` 3차 AI 리뷰가 **높음**으로 잡은 실제 결함이다. `decide` 는 컴파일 오류에도
+#     REGRESSION 을 주는데, main() 의 R1 완화가 `if code == REGRESSION:` 로 조건 없이
+#     걸려 있었다. 그러면 기준선이 낡았을 때 **컴파일이 깨진 MR 이 판정 2(비차단)로
+#     통과한다** — 문서가 확정한 R2("컴파일은 기준선을 보지 않고 막는다")와 정면으로
+#     어긋나고 09-02 사고 경로가 다시 열린다.
+#
+#     여기서는 main() 을 통째로 돌려 **판정 파일에 실제로 무엇이 남는지**를 본다.
+#     decide/body 단위 검사로는 main() 의 게이트 실수를 못 잡는다 — 그게 이번 결함이었다.
+import tempfile as _tf
+
+_NUNIT_ERR = """<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" total="0" passed="0" failed="0" skipped="0" duration="0.1"></test-run>
+"""
+_LOG_ERR = ("Assets/_Project/Scripts/Runtime/Gameplay/Parts/LaunchTest.cs(88,17): "
+            "error CS0103: The name 'Foo' does not exist in the current context")
+
+_real_mc = R.metagame_changed
+try:
+    # 기준선은 낡았다(METAGAME 이 바뀌었다)고 답하게 만든다 — R1 이 발동할 조건
+    R.metagame_changed = lambda a, b: True
+    os.environ["UNITY_MERGED_BASE"] = "deadbeef"
+    ci_common.http = lambda *a, **k: (404, {})      # 기준선 조회는 실패해도 무관
+
+    with _tf.TemporaryDirectory() as d:
+        nunit = os.path.join(d, "unity-results.xml")
+        log = os.path.join(d, "unity.log")
+        open(nunit, "w", encoding="utf-8").write(_NUNIT_ERR)
+        open(log, "w", encoding="utf-8").write(_LOG_ERR)
+        R.main([nunit, log, "2"])
+        verdict = open(os.path.join(d, R.VERDICT_FILE), encoding="utf-8").read()
+    assert verdict == str(REG), f"컴파일 오류는 낡은 기준선에도 차단해야 한다 — 판정 {verdict}"
+    print("  낡은 기준선 + 컴파일 오류 → 판정 1 유지 (R2) ✅")
+
+    # 대조: 컴파일 오류가 없고 새 실패만 있으면 R1 이 실제로 발동한다
+    _NUNIT_NEW = """<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" total="1" passed="0" failed="1" skipped="0" duration="0.1">
+  <test-suite type="TestFixture" name="A" fullname="A">
+    <test-case id="1" name="x" fullname="A.x" result="Failed" duration="0.01">
+      <failure><message>깨졌다</message></failure>
+    </test-case>
+  </test-suite>
+</test-run>
+"""
+    with _tf.TemporaryDirectory() as d:
+        nunit = os.path.join(d, "unity-results.xml")
+        open(nunit, "w", encoding="utf-8").write(_NUNIT_NEW)
+        # 기준선을 빈 집합으로 주어 'A.x' 가 새 실패가 되게 한다
+        R.baseline_failures = lambda gl, ref, max_pipelines=15, meta=None: (
+            meta.update(job=1, sha="0badcafe", when="2026-09-01T00:00") or set()
+        ) if meta is not None else set()
+        R.main([nunit, os.path.join(d, "nope.log"), "2"])
+        verdict = open(os.path.join(d, R.VERDICT_FILE), encoding="utf-8").read()
+    assert verdict == str(UNK), f"낡은 기준선 + 새 테스트 실패는 경고로 낮춘다(R1) — 판정 {verdict}"
+    print("  낡은 기준선 + 새 테스트 실패 → 판정 2 로 완화 (R1) ✅")
+finally:
+    R.metagame_changed = _real_mc
+    os.environ.pop("UNITY_MERGED_BASE", None)
+
+# 컴파일 코멘트가 합치지 못한 경우를 단정하지 않는다 (3차 리뷰 중간 ③)
+os.environ["UNITY_MERGED_BASE"] = "abc1234"
+b = R.body(data([]), [_LOG_ERR], set(), "develop")
+assert "합친 결과에서 돌았습니다" in b, b
+os.environ.pop("UNITY_MERGED_BASE", None)
+b2 = R.body(data([]), [_LOG_ERR], set(), "develop")
+assert "브랜치 끝에서만" in b2 and "합친 결과에서 돌았습니다" not in b2, b2
+print("  컴파일 코멘트가 검사 범위를 정직하게 말한다 ✅")
 
 print("TEST271 OK")

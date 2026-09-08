@@ -246,9 +246,14 @@ def body(data: dict, errs: list[str], base: set | None, ref: str,
                  # 자신이 깨져 있으면 그 오류도 여기 실린다. 판정은 그대로 막지만
                  # (깨진 브랜치 위로는 머지하면 안 된다) **문구가 단정하지 않는다** —
                  # "이 MR 이 깼다" 는 그 경우 사실이 아니다.
-                 f"이 검사는 `{ref}` 를 합친 결과에서 돌았습니다. 그래서 `{ref}` 가 "
-                 f"이미 컴파일되지 않는 상태였다면 그 오류도 위에 함께 실립니다 — "
-                 f"`{ref}` 의 최신 `unity-compile` 이 초록인지 먼저 확인해 주세요."]
+                 # 합치지 못한 경우(충돌·fetch 실패)에는 이렇게 말하면 사람을 엉뚱한
+                 # 브랜치로 보낸다. merged_note() 가 무엇을 검사했는지 이미 알고 있다.
+                 (f"이 검사는 `{ref}` 를 합친 결과에서 돌았습니다. 그래서 `{ref}` 가 "
+                  f"이미 컴파일되지 않는 상태였다면 그 오류도 위에 함께 실립니다 — "
+                  f"`{ref}` 의 최신 `unity-compile` 이 초록인지 먼저 확인해 주세요."
+                  if os.environ.get("UNITY_MERGED_BASE") else
+                  f"이 검사는 **브랜치 끝에서만** 돌았습니다(대상 브랜치를 합치지 못했습니다) — "
+                  f"`{ref}` 를 합치면 결과가 달라질 수 있습니다.")]
         return MARKER + "\n" + "\n".join(parts)
 
     total, passed, failed = data["total"], data["passed"], data["failed"]
@@ -399,7 +404,12 @@ def main(argv: list[str] | None = None) -> int:
     # 이제 develop 을 합친 결과를 검사하므로 develop 의 실패를 함께 물려받는데, 기준선이
     # 그보다 옛것이면 남의 실패가 내 몫으로 계산된다. 그 경우 차단(1) 대신 경고(2)로 낮춘다.
     stale = None
-    if code == REGRESSION:
+    # **컴파일 오류에는 이 완화를 걸지 않는다(R2).** `decide` 는 컴파일 오류에도
+    # REGRESSION 을 주는데, 여기서 조건 없이 낮추면 기준선이 낡았을 때 **컴파일이 깨진
+    # MR 이 판정 2(비차단)로 통과한다** — 문서가 확정한 R2 와 정면으로 어긋나고 09-02
+    # 사고 경로(컴파일 깨진 채 머지되어 develop 2시간 37분 정지)가 다시 열린다.
+    # `!259` 3차 AI 리뷰가 높음으로 잡았다. R1 은 **테스트 실패에만** 적용된다.
+    if code == REGRESSION and not errs:
         merged = (env("UNITY_MERGED_BASE", "") or "").strip()
         bsha = bmeta.get("sha", "")
         stale = metagame_changed(bsha, merged) if merged else None
