@@ -37,6 +37,9 @@ namespace Metagame.Gameplay
         bool restoreCollisions;
         bool collisionsSuspended;
 
+        /// <summary>원격이 알려 준 휴대 상태. <see cref="ApplyRemoteHeld"/> 참고.</summary>
+        bool remoteHeld;
+
         public PlayerRig Owner { get; private set; }
         public Rigidbody Body { get; private set; }
         public Transform Muzzle { get { return muzzle != null ? muzzle : transform; } }
@@ -60,6 +63,7 @@ namespace Metagame.Gameplay
             Owner = owner;
             Body = body;
             IsEquipped = true;
+            remoteHeld = false;   // 내 손이 우선이다 — ApplyRemoteHeld 의 주석
             SuspendCollisions();
             currentInput = new ToolInputFrame();
             // 카메라가 없다고 도구 자신의 forward 로 대신하면 안 된다 — 도구는 래그돌 손에
@@ -81,8 +85,47 @@ namespace Metagame.Gameplay
             IsEquipped = false;
             Owner = null;
             Body = null;
+            remoteHeld = false;
             currentInput = new ToolInputFrame();
             currentAim = new ToolAimContext(null, null, transform.forward);
+        }
+
+
+        /// <summary>
+        /// 원격이 정한 휴대 상태를 <b>이 기계의 그림에</b> 반영한다 (S15P21B202-352).
+        ///
+        /// <para><b>왜 필요한가.</b> 잡기·장착 판정은 서버에서만 돈다(-145) — 참가자의
+        /// <c>PlayerRig</c> 는 입력을 <c>[Command]</c> 로 보내고 결과를 받아 그리는 그림일
+        /// 뿐이라 이 기계에서는 <see cref="Equip"/> 가 <b>한 번도 불리지 않는다</b>.
+        /// 그래서 <c>WorldSync</c> 가 뿌리 자세를 나르기 시작한 뒤에도(-352) 도구는
+        /// 어긋난 채로 남았다: 방망이의 자식 <c>Visual_ZUpToYUp</c> 이 손에 쥔 각도
+        /// (<c>+0.45/-0.55/+0.35 · -35°</c>)로 안 돌아가고, 휴대 중에 꺼야 할 충돌이 켜진
+        /// 채라 남의 도구가 내 몸을 막았다.</para>
+        ///
+        /// <para><b>이 기계가 주인이면 무시한다.</b> 자기 손의 도구는 로컬
+        /// <see cref="Equip"/> 가 이미 옳게 세워 두었고, 그 위에 원격 값을 덮으면 잡은
+        /// 순간과 놓은 순간에 한 프레임씩 튄다.</para>
+        ///
+        /// <para><b>소유권을 옮기지 않는다</b> — <see cref="Owner"/> 와 <see cref="Body"/> 는
+        /// 건드리지 않고 <see cref="IsEquipped"/> 도 그대로다. 판정은 서버 몫이고 여기서
+        /// 바꾸는 것은 보이는 것뿐이다.</para>
+        /// </summary>
+        public void ApplyRemoteHeld(bool held)
+        {
+            if (IsEquipped) return;
+            if (remoteHeld == held) return;
+
+            remoteHeld = held;
+
+            if (held)
+            {
+                SuspendCollisions();
+                OnEquipped();
+                return;
+            }
+
+            RestoreCollisions();
+            OnUnequipped();
         }
 
         /// <summary>

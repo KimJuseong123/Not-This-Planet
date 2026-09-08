@@ -161,7 +161,7 @@ def main(argv):
 
     # ── 개수가 갈린 항목
     print("\n--- 개수 대조 (겹치는 시각에서 다른 것만) ---")
-    keys = ("tracked", "clamps", "pending", "live", "scars", "crew")
+    keys = ("tracked", "clamps", "tools", "pending", "live", "scars", "crew")
     diffs = {k: 0 for k in keys}
     for h, c in pairs:
         for k in keys:

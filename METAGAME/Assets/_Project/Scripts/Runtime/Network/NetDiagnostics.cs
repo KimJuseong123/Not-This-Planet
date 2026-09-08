@@ -29,7 +29,8 @@ namespace Metagame.Network
     /// <para>한 줄 형식(1초마다):
     /// <code>
     /// [NETDIAG] t=12.3 role=host rtt=75.2 fps=118 btm=2.48 buftime=82.6 buf=6
-    ///           tracked=6 clamps=16 drops=3 pending=3 live=2 scars=5 crew=2 poses=a1b2c3d4
+    ///           tracked=6 clamps=16 tools=2 drops=3 pending=3 live=2 scars=5 crew=2
+    ///           poses=a1b2c3d4
     /// </code>
     /// <c>KcpTransport.statisticsLog</c> 도 함께 켜므로 <c>SendQueue</c>·<c>MaxSendRate</c> 는
     /// kcp 자신이 1초마다 남긴다 — 그 값들은 <c>client</c> 필드가 protected 라 밖에서
@@ -77,7 +78,7 @@ namespace Metagame.Network
             }
 
             Debug.Log("[NETDIAG] 시작. 형식: t role rtt fps btm buftime buf tracked clamps "
-                      + "drops pending live scars crew poses");
+                      + "tools drops pending live scars crew poses");
         }
 
         void Update()
@@ -116,9 +117,17 @@ namespace Metagame.Network
             // 세계 상태 — 이 값들이 양쪽에서 다르면 그 자리가 갈린 지점이다.
             Append("tracked", worldSync != null ? worldSync.TrackedCount.ToString() : "-");
             Append("clamps", worldSync != null ? worldSync.ClampCount.ToString() : "-");
+            Append("tools", worldSync != null ? worldSync.ToolCount.ToString() : "-");
             Append("drops", worldSync != null ? worldSync.DropCount.ToString() : "-");
             Append("pending", spawner != null ? spawner.Pending.Count.ToString() : "-");
-            Append("live", spawner != null ? spawner.Live.Count.ToString() : "-");
+
+            // **양쪽을 견줄 수 있는 값으로 만든다.** 참가자에게는 진짜 운석이 없고
+            // 그림만 있으므로(MeteorSpawner.Ghosts) Live 만 찍으면 호스트 3 대 참가자 0 이
+            // 되어 "다르다" 가 늘 참이 된다. 뜻은 하나다 — **지금 하늘에 떠 있는 운석이
+            // 몇 개인가**. 그러니 한 항으로 합쳐 찍는다.
+            Append("live", spawner != null
+                ? (spawner.Live.Count + spawner.Ghosts.Count).ToString()
+                : "-");
             Append("scars", spawner != null ? spawner.Scars.Count.ToString() : "-");
             Append("crew", spawner != null ? spawner.Crew.ToString() : "-");
 

@@ -115,4 +115,12 @@ assert "SendQueue 7 ~ 7" in out, out
 assert "60.00 KB/s" in out, out
 print("  kcp 통계 파싱 (SendQueue·MaxSendRate) ✅")
 
+# ── Ⓤ 도구 개수가 갈리면 잡는다 (휴대 비트 배열의 길이 검사가 여기 걸린다)
+c10 = [NAMES] + [line(f"{10+k}.0", "client", "aabbccdd", tools=1) for k in range(4)]
+h10 = [NAMES] + [line(f"{10+k}.0", "host", "aabbccdd", tools=2) for k in range(4)]
+rc, out = run(h10, c10)
+assert "tools:" in out and "4/4" in out, out
+assert "호스트=2 참가자=1" in out, out
+print("  도구 개수 갈림 → 잡는다 ✅")
+
 print("TEST352 OK")

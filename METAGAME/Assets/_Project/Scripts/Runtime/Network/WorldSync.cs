@@ -4,6 +4,7 @@ using Mirror;
 using UnityEngine;
 using Metagame.Gameplay;
 using Metagame.Gameplay.Parts;
+using MeteorPose = Metagame.Gameplay.Hazards.MeteorSpawner.NetworkMeteorPose;
 
 namespace Metagame.Network
 {
@@ -86,6 +87,27 @@ namespace Metagame.Network
         Metagame.Gameplay.Hazards.MeteorSpawner meteorSpawnerCached;
         bool meteorSpawnerLooked;
         float clampKeepaliveTimer;
+
+        // 도구 휴대 (S15P21B202-352). 고정쇠와 같은 모양 — 바뀔 때만 + keepalive.
+        //
+        // 자세만 나르면 부족하다. 장착 판정은 서버에서만 도는데(-145) 그때
+        // `ToolBase.OnEquipped` 가 자식 `Visual_ZUpToYUp` 을 손에 쥔 각도로 돌리고
+        // 휴대 중 충돌을 끈다. 참가자 기계에서는 그 함수가 한 번도 불리지 않아
+        // **뿌리는 제자리에 오는데 메시가 어긋나** 있었고 남의 도구가 몸을 막았다.
+        readonly List<ToolBase> tools = new List<ToolBase>();
+        bool[] sendTools = Array.Empty<bool>();
+        bool[] lastSentTools = Array.Empty<bool>();
+        float toolKeepaliveTimer;
+        uint lastToolSeq;
+        bool everTool;
+        bool warnedToolMismatch;
+
+        // 낙하 운석 그림 (S15P21B202-352). 자세와 같이 **매 틱** 보낸다 — 예고와 달리
+        // 매 순간 값이 달라지므로 "바뀔 때만" 이 의미가 없다.
+        MeteorPose[] sendMeteors = Array.Empty<MeteorPose>();
+        uint lastMeteorSeq;
+        bool everMeteor;
+        bool warnedMeteorCap;
 
         /// <summary>
         /// 보낸 순서. <b>신뢰 없는 채널은 순서를 지켜 주지 않는다</b> — 늦게 도착한
@@ -197,6 +219,9 @@ namespace Metagame.Network
         /// <summary>받은 예고 수(참가자) 또는 보낸 예고 수(호스트).</summary>
         public int DropCount => sendDrops.Length;
 
+        /// <summary>나르는 도구 수. 휴대 비트 배열의 길이 검사가 이 값에 걸린다.</summary>
+        public int ToolCount => tools.Count;
+
         /// <summary>
         /// 나르는 물체들의 자세를 한 값으로 접는다.
         ///
@@ -286,9 +311,19 @@ namespace Metagame.Network
             // 계층 경로+형제 순번이라 시간이 지나도 안 변한다(`Compare` 참고).
             // ⚠ 나중에 도구를 런타임에 만들게 되면 이 술어가 깨진다. 그때는 씬 배치
             // 전용 표식 컴포넌트로 바꿀 것.
-            foreach (var tool in FindObjectsByType<Metagame.Gameplay.ToolBase>(
+            tools.Clear();
+            foreach (var tool in FindObjectsByType<ToolBase>(
                          FindObjectsInactive.Include, FindObjectsSortMode.None))
-                Add(tool != null ? tool.GetComponent<Rigidbody>() : null);
+            {
+                if (tool == null) continue;
+
+                Add(tool.GetComponent<Rigidbody>());
+
+                // 휴대 비트는 몸이 없어도 나른다 — 보이는 것만 바꾸는 값이라
+                // `Rigidbody` 가 필요 없다. 그래서 목록을 따로 둔다.
+                tools.Add(tool);
+            }
+            tools.Sort(CompareTools);
 
 
             tracked.Sort(Compare);
@@ -325,6 +360,19 @@ namespace Metagame.Network
         }
 
         int CompareClamps(PartClamp a, PartClamp b) => string.CompareOrdinal(KeyOf(a), KeyOf(b));
+
+        /// <summary>
+        /// 도구의 줄 세우기. <see cref="Compare"/> 와 <b>같은 규칙</b>이다 — 계층 경로와
+        /// 형제 순번만 본다. 도구는 손에 들려도 부모가 바뀌지 않으므로(<c>PlayerRig</c> 는
+        /// 자세만 잡는다) 고정쇠처럼 키를 굳혀 둘 필요가 없다.
+        /// </summary>
+        static int CompareTools(ToolBase a, ToolBase b)
+        {
+            int byPath = string.CompareOrdinal(PathOf(a.transform), PathOf(b.transform));
+            if (byPath != 0) return byPath;
+
+            return a.transform.GetSiblingIndex().CompareTo(b.transform.GetSiblingIndex());
+        }
 
         void Add(Rigidbody body)
         {
@@ -382,6 +430,9 @@ namespace Metagame.Network
         {
             if (!isServer) WorldEvents.RemoteDecides = false;
             if (!isServer) TransportVehicle.AnyActivated -= OnVehicleActivated;
+
+            // 낙하 그림은 충돌러가 꺼져 있어 남으면 지면을 뚫고 영원히 떨어진다.
+            if (!isServer && MeteorSpawner != null) MeteorSpawner.ClearNetworkMeteors();
         }
 
         public override void OnStopServer()
@@ -461,6 +512,7 @@ namespace Metagame.Network
             sendTimer += Time.deltaTime;
             clampKeepaliveTimer += Time.deltaTime;
             dropKeepaliveTimer += Time.deltaTime;
+            toolKeepaliveTimer += Time.deltaTime;
             if (sendTimer < SendInterval) return;
             sendTimer = 0f;
 
@@ -504,6 +556,26 @@ namespace Metagame.Network
 
             // ── 운석 예고 ────────────────────────────────────────
             SendDrops();
+
+            // ── 도구 휴대 ────────────────────────────────────────
+            if (sendTools.Length != tools.Count) sendTools = new bool[tools.Count];
+            for (int i = 0; i < tools.Count; i++)
+                sendTools[i] = tools[i] != null && tools[i].IsEquipped;
+
+            // 도구를 쥐고 놓는 것은 몇 초에 한 번이다 — 고정쇠와 같은 이유로 바뀔 때만
+            // 보내고, 신뢰 없는 채널이라 잃을 수 있으므로 조용해도 가끔 다시 보낸다.
+            if (!SameTools(sendTools, lastSentTools) || toolKeepaliveTimer >= ClampKeepalive)
+            {
+                RpcApplyTools(sendSeq, sendTools);
+                toolKeepaliveTimer = 0f;
+
+                if (lastSentTools.Length != sendTools.Length)
+                    lastSentTools = new bool[sendTools.Length];
+                Array.Copy(sendTools, lastSentTools, sendTools.Length);
+            }
+
+            // ── 낙하 운석 그림 ──────────────────────────────────
+            SendMeteors();
         }
 
         /// <summary>한 묶음에 실을 수 있는 자세 개수. 전송 계층이 정하는 값이다.</summary>
@@ -621,6 +693,131 @@ namespace Metagame.Network
                     drops[i].Point, drops[i].Remaining, drops[i].Warning, drops[i].Radius);
 
             spawner.ApplyNetworkPending(recvDrops);
+        }
+
+        static bool SameTools(bool[] a, bool[] b)
+        {
+            if (a.Length != b.Length) return false;
+            for (int i = 0; i < a.Length; i++)
+                if (a[i] != b[i]) return false;
+
+            return true;
+        }
+
+        /// <summary>
+        /// 어느 도구가 <b>지금 누군가의 손에 있는가</b>를 맞춘다 (S15P21B202-352).
+        ///
+        /// <para>판정은 서버가 하고 여기서는 그림만 따라간다 —
+        /// <see cref="ToolBase.ApplyRemoteHeld"/> 가 소유권을 옮기지 않는 이유를 적어 두었다.</para>
+        ///
+        /// <para>개수가 다르면 <b>손대지 않는다.</b> 고정쇠와 같다 — 억지로 맞추면 남의
+        /// 도구에 남의 상태가 들어간다.</para>
+        /// </summary>
+        [ClientRpc(channel = Channels.Unreliable)]
+        void RpcApplyTools(uint seq, bool[] held)
+        {
+            if (isServer) return;               // 호스트는 자기 판정이 정답이다
+            if (held == null || !ready) return;
+            if (!IsNewer(seq, lastToolSeq, everTool)) return;
+            lastToolSeq = seq;
+            everTool = true;
+
+            if (held.Length != tools.Count)
+            {
+                if (!warnedToolMismatch)
+                {
+                    warnedToolMismatch = true;
+                    Debug.LogWarning($"[WorldSync] 도구 개수가 다르다 — 서버 {held.Length} · 여기 {tools.Count}");
+                }
+                return;
+            }
+            warnedToolMismatch = false;
+
+            for (int i = 0; i < tools.Count; i++)
+                if (tools[i] != null) tools[i].ApplyRemoteHeld(held[i]);
+        }
+
+        /// <summary>낙하 자세 하나의 바이트 수 — 자세 28 + 속도 12.</summary>
+        const int MeteorPoseBytes = PoseBytes + 12;
+
+        /// <summary>
+        /// 한 묶음에 실을 수 있는 낙하 자세 개수. 공세 최대가 표에서 8개이므로 닿을 일이
+        /// 없지만, 넘겼을 때 <b>전송 계층이 예외를 던지는 대신</b> 앞쪽만 보내고 알린다.
+        /// </summary>
+        static int UnreliableMeteorCapacity
+        {
+            get
+            {
+                int max = Transport.active != null
+                    ? Transport.active.GetMaxPacketSize(Channels.Unreliable)
+                    : 1194;
+                return Mathf.Max(0, (max - PacketHeadroom) / MeteorPoseBytes);
+            }
+        }
+
+        /// <summary>
+        /// 살아 있는 운석의 자세를 내려보낸다 (S15P21B202-352).
+        ///
+        /// <para>참가자는 공세를 스스로 계산하지 않으므로(<c>MeteorSpawner.ApplyNetworkPending</c>
+        /// 의 주석) 예고 원만 받으면 <b>떨어지는 돌이 안 보인다</b>. 그 그림을 여기서 나른다.</para>
+        /// </summary>
+        void SendMeteors()
+        {
+            var spawner = MeteorSpawner;
+            if (spawner == null) return;
+
+            var live = spawner.Live;
+            int n = live != null ? live.Count : 0;
+
+            int cap = UnreliableMeteorCapacity;
+            if (n > cap)
+            {
+                if (!warnedMeteorCap)
+                {
+                    warnedMeteorCap = true;
+                    Debug.LogWarning($"[WorldSync] 운석이 한 묶음에 안 들어간다 — {n}개 중 {cap}개만 보낸다");
+                }
+                n = cap;
+            }
+
+            if (sendMeteors.Length != n) sendMeteors = new MeteorPose[n];
+            for (int i = 0; i < n; i++)
+            {
+                var meteor = live[i];
+                if (meteor == null) { sendMeteors[i] = default; continue; }
+
+                // 보내는 쪽도 받는 쪽도 `body` 로 읽고 쓴다 — 운석은 보간이 걸려 있어
+                // `transform.position` 은 **표시 위치**다(FollowOnClient 의 주석과 같은 이유).
+                var body = meteor.GetComponent<Rigidbody>();
+                sendMeteors[i] = body != null
+                    ? new MeteorPose
+                    {
+                        Position = body.position,
+                        Rotation = body.rotation,
+                        Velocity = body.linearVelocity,
+                    }
+                    : new MeteorPose
+                    {
+                        Position = meteor.transform.position,
+                        Rotation = meteor.transform.rotation,
+                        Velocity = Vector3.zero,
+                    };
+            }
+
+            RpcApplyMeteors(sendSeq, sendMeteors);
+        }
+
+        [ClientRpc(channel = Channels.Unreliable)]
+        void RpcApplyMeteors(uint seq, MeteorPose[] poses)
+        {
+            if (isServer) return;               // 호스트에는 진짜 운석이 있다
+            if (!ready) return;
+            if (!IsNewer(seq, lastMeteorSeq, everMeteor)) return;
+            lastMeteorSeq = seq;
+            everMeteor = true;
+
+            var spawner = MeteorSpawner;
+            if (spawner != null) spawner.ApplyNetworkMeteors(poses);
         }
 
         static bool SameClamps(ClampState[] a, ClampState[] b)
