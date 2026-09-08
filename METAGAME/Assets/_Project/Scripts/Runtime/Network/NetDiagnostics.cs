@@ -51,6 +51,9 @@ namespace Metagame.Network
         /// <summary>마지막으로 찍은 공유 시계의 초. <see cref="Update"/> 의 주석 참고.</summary>
         long lastBucket;
         bool hasBucket;
+
+        /// <summary>이미 통계를 켜 둔 전송. 갈리면 새로 켠다.</summary>
+        Transport loggedTransport;
         readonly StringBuilder line = new StringBuilder(256);
 
         /// <summary>인자나 환경변수로 켜졌는가. 평소 실행에서는 이 컴포넌트를 붙이지 않는다.</summary>
@@ -68,18 +71,7 @@ namespace Metagame.Network
 
         void Start()
         {
-            // kcp 는 자기 통계를 스스로 로그에 남긴다(1초마다 SendQueue·MaxSendRate 등).
-            // 그쪽 내부 카운터는 protected 라 밖에서 못 읽으므로 그 기능을 그대로 쓴다.
-            // 씬을 고치지 않고 여기서 켠다 — 씬 편집은 배치모드 빌드가 재직렬화한다.
-            if (Transport.active is KcpTransport kcp)
-            {
-                kcp.statisticsLog = true;
-                Debug.Log("[NETDIAG] kcp statisticsLog 를 켰다 — SendQueue·MaxSendRate 는 kcp 가 남긴다");
-            }
-            else
-            {
-                Debug.Log("[NETDIAG] 활성 전송이 kcp 가 아니다 — 전송 통계는 남지 않는다");
-            }
+            EnableKcpLog();
 
             Debug.Log("[NETDIAG] 시작. 형식: t role rtt fps btm buftime buf tracked clamps "
                       + "tools drops pending live scars crew seq poses");
@@ -120,6 +112,9 @@ namespace Metagame.Network
             float fps = timer > 0f ? frames / timer : 0f;
             timer = 0f;
             frames = 0f;
+
+            // 전송이 늦게 뜨거나 갈려도 통계를 놓치지 않는다 — EnableKcpLog 의 주석 참고.
+            EnableKcpLog();
 
             if (worldSync == null) worldSync = FindAnyObjectByType<WorldSync>();
             if (spawner == null) spawner = FindAnyObjectByType<MeteorSpawner>();
@@ -168,6 +163,28 @@ namespace Metagame.Network
             Append("poses", worldSync != null ? worldSync.BundleHash.ToString("x8") : "-");
 
             Debug.Log(line.ToString());
+        }
+
+        /// <summary>
+        /// kcp 가 자기 통계를 로그에 남기게 한다(1초마다 <c>SendQueue</c>·<c>MaxSendRate</c> 등).
+        /// 그쪽 내부 카운터는 <c>protected</c> 라 밖에서 못 읽으므로 그 기능을 그대로 쓴다.
+        /// 씬을 고치지 않고 코드에서 켠다 — 씬 편집은 배치모드 빌드가 재직렬화한다.
+        ///
+        /// <para><b>될 때까지 다시 시도한다.</b> 한 번만 켜면 두 가지에 진다: 붙는 순간
+        /// <c>Transport.active</c> 가 아직 없을 수 있고, <c>MatchTransport</c> 가 나중에
+        /// <b>다른 전송으로 갈아 끼울</b> 수도 있다(직결 → 릴레이). 그러면
+        /// <c>SendQueue</c>·<c>MaxSendRate</c> 가 로그에 하나도 남지 않는다 — 1차 실측에서
+        /// 가설 ③④ 가 빈칸이던 바로 그 결과다.</para>
+        /// </summary>
+        void EnableKcpLog()
+        {
+            var kcp = Transport.active as KcpTransport;
+            if (kcp == null) return;
+            if (ReferenceEquals(kcp, loggedTransport)) return;
+
+            kcp.statisticsLog = true;
+            loggedTransport = kcp;
+            Debug.Log("[NETDIAG] kcp statisticsLog 를 켰다 — SendQueue·MaxSendRate 는 kcp 가 남긴다");
         }
 
         void Append(string key, string value)
