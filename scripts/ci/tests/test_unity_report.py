@@ -571,4 +571,38 @@ assert R.baseline_failures(ci_common.GitLab(), "develop") is None
 assert len(ART_CALLS) == R.MAX_BASELINE_CANDIDATES,     f"후보 {R.MAX_BASELINE_CANDIDATES}개까지만 열어야 한다 — 실제 {len(ART_CALLS)}회"
 print(f"  후보 300개 → 아티팩트 요청 {len(ART_CALLS)}회로 제한 ✅")
 
+
+# ── ㉕ 검사를 못 했으면 **그 사실을 코멘트로 남긴다** (S15P21B202-342) ────────
+#     `!259` 5차 AI 리뷰가 잡았다. 워크트리에 충돌이 남으면 잡이 Unity 를 돌리지 않고
+#     끝나는데, 판정 2 는 비차단이라 파이프라인이 초록이다. 코멘트가 없으면
+#     "문서만 바뀌어 잡이 안 돌았다" 와 구분되지 않는다 — **이 MR 이 없애려던 침묵과
+#     같은 모양이다.** `-335` 가 AI 리뷰에서 고친 것과 같은 종류다.
+POSTED = []
+
+
+def capture_note(method, url, headers=None, body=None, timeout=30):
+    if "/notes" in url:
+        POSTED.append((method, body))
+        return (200, {"id": 1}) if method in ("POST", "PUT") else (200, [])
+    return 404, {}
+
+
+ci_common.http = capture_note
+os.environ["UNITY_ABORTED"] = "대상 브랜치를 합치다 충돌이 남아 워크트리를 되돌리지 못했다"
+with tempfile.TemporaryDirectory() as d:
+    # 결과 파일이 아예 없는 상태 — 잡이 Unity 를 돌리지 못했다
+    rc = R.main([os.path.join(d, "unity-results.xml"), os.path.join(d, "unity.log"), "2"])
+    assert rc == 0, rc
+    v = Path(d) / R.VERDICT_FILE
+    assert v.exists() and v.read_text(encoding="utf-8") == str(UNK), "판정 2 를 남겨야 한다"
+os.environ.pop("UNITY_ABORTED", None)
+
+assert POSTED, "검사를 못 했으면 코멘트를 남겨야 한다 — 조용히 끝내면 안 된다"
+sent = str(POSTED[-1][1])
+assert "검사를 하지 못했습니다" in sent, sent
+assert "충돌이 남아" in sent, "사유가 실려야 한다"
+assert "머지를 막지 않으므로" in sent, "비차단이라는 사실을 말해야 한다"
+assert R.MARKER in sent, "같은 마커로 갱신되어야 한다"
+print("  검사 못 함 → 판정 2 + 사유 코멘트 ✅")
+
 print("TEST271 OK")

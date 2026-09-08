@@ -374,6 +374,28 @@ def main(argv: list[str] | None = None) -> int:
         unity_rc = 0
     where = os.path.dirname(nunit_path) or "."
 
+    # 검사를 아예 못 한 경우 — 잡이 그 사유를 `UNITY_ABORTED` 로 넘긴다.
+    # **조용히 끝내지 않는다**: 판정 2 는 비차단이라 파이프라인이 초록인데 코멘트가 없으면
+    # "문서만 바뀌어 잡이 안 돌았다" 와 구분되지 않는다 — `-335` 가 AI 리뷰에서 고친 것과
+    # 같은 종류의 침묵이다 (S15P21B202-342 · `!259` 5차 AI 리뷰).
+    aborted = (env("UNITY_ABORTED", "") or "").strip()
+    if aborted:
+        print(f"검사하지 못했다: {aborted}")
+        note = "\n".join([
+            MARKER,
+            "⚠ **Unity 검사를 하지 못했습니다** — 결과가 없습니다",
+            "",
+            f"사유: {aborted}",
+            "",
+            "파이프라인을 재실행하면 새 워크스페이스에서 다시 시도합니다. 이 판정은 머지를 "
+            "막지 않으므로, **이 MR 의 Unity 검사는 아직 이뤄지지 않았다는 뜻입니다.**",
+        ])
+        st0, _ = GitLab().upsert_note(MARKER, note)
+        print(note)
+        print("코멘트 " + ("게시" if st0 in (200, 201) else f"실패 {st0}"))
+        print(f"판정 {UNKNOWN} → {write_verdict(where, UNKNOWN)}")
+        return 0
+
     errs: list[str] = []
     if os.path.isfile(log_path):
         with open(log_path, encoding="utf-8", errors="replace") as f:

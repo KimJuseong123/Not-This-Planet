@@ -256,8 +256,11 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
           git merge --abort 2>/dev/null             || git reset --hard "$CI_COMMIT_SHA" >/dev/null 2>&1             || true
           if [ -n "$(git ls-files -u 2>/dev/null)" ]; then
             echo "❌ 워크트리에 충돌이 남았다 — 이 상태의 검사 결과는 신뢰할 수 없다"
-            echo "   파이프라인을 재실행하면 새 워크스페이스에서 다시 시도한다"
-            echo 2 > "$CI_PROJECT_DIR/unity-verdict.txt"
+            # **조용히 끝내지 않는다.** 판정 2 는 비차단이라 파이프라인이 초록인데 코멘트가
+            # 없으면 "문서만 바뀌어 잡이 안 돌았다" 와 구분되지 않는다 — 이 MR 이 없애려던
+            # 침묵과 같은 모양이다(`!259` 5차 AI 리뷰). 보고 스크립트가 사유를 코멘트로 남긴다.
+            export UNITY_ABORTED="대상 브랜치를 합치다 충돌이 남아 워크트리를 되돌리지 못했다"
+            python3 scripts/ci/unity_report.py "$CI_PROJECT_DIR/unity-results.xml"                                                "$CI_PROJECT_DIR/unity.log" 2 || true
             exit 2
           fi
           # 원인을 갈라 적는다. 얕은 클론이면 공통 조상이 없어 '관련 없는 히스토리' 로 떨어지는데,

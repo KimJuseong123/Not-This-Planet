@@ -190,7 +190,11 @@ def call_api(model: str, system: str, user: str) -> str:
                  {"model": model, "max_tokens": 3000, "system": system,
                   "messages": [{"role": "user", "content": user}]}, timeout=180)
     if st != 200:
-        raise RuntimeError(f"Anthropic API {st}: {str(d)[:300]}")
+        # 응답 본문은 **로그에만** 남긴다. `fail_reason` 이 우리 RuntimeError 의 메시지를
+        # 그대로 공개 코멘트에 싣기 때문에, 여기 원문을 넣으면 ②의 목적이 무너진다
+        # (S15P21B202-342 · `!259` 5차 AI 리뷰). 아래 두 raise 는 이미 이 방식이다.
+        print(f"[api] 응답 {st}: {str(d)[:300]}")
+        raise RuntimeError(f"Anthropic API {st} → 키·모델명·사용량 확인")
     return "".join(b.get("text", "") for b in d.get("content", []) if b.get("type") == "text")
 
 
