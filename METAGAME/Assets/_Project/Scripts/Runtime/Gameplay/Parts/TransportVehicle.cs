@@ -744,21 +744,47 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         public void Tick(float deltaTime)
         {
-            if (rider == null && !Unmanned) return;
+            var idle = rider == null && !Unmanned;
 
-            // 돌고 있는 동안은 물리에 맡긴다. 호버 루프를 돌리면 그것이 매 스텝 속도와
-            // 각속도를 덮어써서 충격이 사라진다(S15P21B202-349).
+            // <b>굴림과 자세 복구는 탑승자가 없어도 끝까지 진행한다.</b>
+            //
+            // 이 함수는 예전에 <c>if (rider == null && !Unmanned) return;</c> 로 시작했다.
+            // 그러면 굴림 중에 탑승자가 사라지는 경로가 생길 때(저중력장이 꺼져 있으면
+            // Unmanned 도 false 다) <c>tumbleLeft</c> 가 남고 회전 잠금이 풀린 채로
+            // 방치된다 — 그 상태에서는 <see cref="SetFacingDirection"/> 이 계속 막혀
+            // 조종석이 시야를 따라가지 못한다.
+            //
+            // <b>실제로 그 경로를 만들지는 못했다.</b> <c>CompleteDismount</c> 는 굴림이
+            // 끝난 뒤에야 도달하고 <c>ForceReset</c> 은 상태를 지운다. 그래도 상태가
+            // 남을 수 있는 구조 자체를 없애 두는 편이 맞다.
             if (tumbleLeft > 0f)
             {
+                // 돌고 있는 동안은 물리에 맡긴다. 호버 루프를 돌리면 그것이 매 스텝
+                // 속도와 각속도를 덮어써서 충격이 사라진다.
                 StepTumble(deltaTime);
                 return;
             }
 
+            if (righting)
+            {
+                // 호버는 탄 사람이 있을 때만 돌린다. 빈 기체를 여기서 띄우면 §14.2 의
+                // 무인 호버 조건(저중력장을 켠 채 하차)을 우회한다.
+                if (!idle) StepDrive(deltaTime);
+
+                // 기획 §14.1 "충돌 후 기체는 자동으로 수평을 회복한다".
+                StepRighting(deltaTime);
+                return;
+            }
+
+            if (idle) return;
+
+            StepDrive(deltaTime);
+        }
+
+        void StepDrive(float deltaTime)
+        {
             if (returning) DriveToGround(deltaTime);
             else DriveHover(deltaTime);
-
-            // 기획 §14.1 "충돌 후 기체는 자동으로 수평을 회복한다".
-            if (righting) StepRighting(deltaTime);
         }
 
         /// <summary>

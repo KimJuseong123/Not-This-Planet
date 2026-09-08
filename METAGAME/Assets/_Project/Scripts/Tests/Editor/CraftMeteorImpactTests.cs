@@ -356,6 +356,51 @@ namespace Metagame.Gameplay.Tests
             return rig.Vehicle.Body.angularVelocity;
         }
 
+        // --- 조종석이 시야를 따른다 (§14.1) ----------------------------------
+
+        /// <summary>
+        /// 굴림과 복구가 끝나면 조종석이 <b>다시</b> 시야를 따라야 한다.
+        /// </summary>
+        [Test]
+        public void TheCockpitFollowsTheViewAgainAfterTheTumble()
+        {
+            var rig = MakeFlyingRig();
+            var visual = rig.Vehicle.transform.Find("Visual");
+            Assert.IsNotNull(visual);
+
+            Strike(rig, direct: false);
+            Run(rig.Vehicle, PhysicsScale.CraftTumbleSeconds + 4f);
+
+            Assert.IsFalse(rig.Vehicle.Tumbling);
+            Assert.IsFalse(rig.Vehicle.Righting);
+
+            rig.Vehicle.SetFacingDirection(Vector3.right);
+            Run(rig.Vehicle, 0.1f);
+
+            var facing = visual.rotation * Vector3.forward;
+            facing.y = 0f;
+
+            Assert.Greater(Vector3.Dot(facing.normalized, Vector3.right), 0.9f,
+                $"조종석이 시야를 따라가지 않는다. 정면 {facing}");
+        }
+
+        /// <summary>맞기 전에는 당연히 따라가야 한다 — 과잉 교정 방어선.</summary>
+        [Test]
+        public void TheCockpitFollowsTheViewWhenNothingHappened()
+        {
+            var rig = MakeFlyingRig();
+            var visual = rig.Vehicle.transform.Find("Visual");
+
+            rig.Vehicle.SetFacingDirection(Vector3.right);
+            Run(rig.Vehicle, 0.1f);
+
+            var facing = visual.rotation * Vector3.forward;
+            facing.y = 0f;
+
+            Assert.Greater(Vector3.Dot(facing.normalized, Vector3.right), 0.9f,
+                $"맞지도 않았는데 조종석이 시야를 따라가지 않는다. 정면 {facing}");
+        }
+
         // --- 하니스 -----------------------------------------------------------
 
         struct Rig
