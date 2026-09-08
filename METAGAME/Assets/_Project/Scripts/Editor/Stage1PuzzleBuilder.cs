@@ -250,6 +250,7 @@ namespace Metagame.EditorTools
             var capsule = go.AddComponent<CapsuleCollider>();
             capsule.radius = radius;
             capsule.height = height;
+            capsule.isTrigger = true;
         }
         static MeteorSpawner BuildMeteors(Transform group)
         {

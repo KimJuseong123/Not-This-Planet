@@ -76,6 +76,15 @@ namespace Metagame.Core
         public const float GrabAssistRange = 1.10f;
         /// <summary>조준 방향에서 이 각도 안에 있는 것만 자석이 먹는다.</summary>
         public const float GrabAssistAngle = 75f;
+        /// <summary>
+        /// 도구처럼 작고 중요한 특수 물체를 화면 중심 주변에서 놓치지 않게 하는 보정 반경.
+        /// 일반 운반물에는 적용하지 않는다.
+        /// </summary>
+        public const float SpecialGrabAssistRadius = 0.18f;
+        /// <summary>특수 물체에 허용하는 좁은 화면 중심 보정 각도.</summary>
+        public const float SpecialGrabAssistAngle = 28f;
+        /// <summary>Clamp의 실제 손 결합에만 더하는 좁은 팔 도달 여유(m).</summary>
+        public const float ClampGrabAssistReach = 0.16f;
         public const float GripBreakForce = 4000f;  // 저중력이라 사실상 놓치지 않는다
         public const float GripBreakTorque = 2600f;
         /// <summary>손을 뗀 뒤 다시 잡을 수 있게 되기까지. 짧을수록 관대하다.</summary>
