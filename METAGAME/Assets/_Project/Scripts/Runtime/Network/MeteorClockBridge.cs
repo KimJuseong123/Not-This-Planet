@@ -129,6 +129,19 @@ namespace Metagame.Network
         /// <para><c>NetworkClient.active</c> 만 보면 안 된다: 방장은 게임 씬이 뜨는 동안 그 값이
         /// 거짓이라 전용 서버로 오인된다(<c>MatchRole</c>·<c>SpaceBootstrap</c> 주석이 같은
         /// 함정을 두 번 적어 두었다). 혼자 실행(<c>!NetworkClient.active</c>)은 권위가 있다.</para>
+        ///
+        /// <para><b>"접속 확정 전까지 틱을 보류하라" 는 지적을 받았고 그렇게 하지 않았다</b>
+        /// (AI 리뷰 8차, 2026-09-08). 참가자가 그 창에 걸리지 않는다는 것을 확인했다 —
+        /// <c>StartClient()</c> 는 <c>LobbyBootstrap</c>(<c>:185</c>) 또는
+        /// <c>MirrorLaunchArgs</c>(<c>:117</c>)에서 <b>게임 씬이 뜨기 전에</b> 불리고,
+        /// 그 순간 <c>NetworkClient.active</c> 가 참이 된다. 그러므로 이 어댑터가 도는
+        /// 시점에 참가자는 이미 비권위로 판정된다.</para>
+        ///
+        /// <para>반대로 <c>NetworkClient.active</c> 가 거짓인 채 게임 씬이 도는 경우는
+        /// <b>정말로 혼자 실행</b>일 때뿐이고, 그때는 <b>틱이 돌아야 맞다</b> — 보류하면
+        /// 1인 플레이에서 운석이 아예 안 떨어진다. 접속 의사를 적어 둔 플래그도 없다
+        /// (<c>MatchRole</c> 에는 <c>DedicatedServer</c> 하나뿐이다). 남는 잔재는
+        /// <see cref="FixedUpdate"/> 의 권위 전이 정리가 치운다.</para>
         /// </summary>
         static bool HasAuthority()
         {
