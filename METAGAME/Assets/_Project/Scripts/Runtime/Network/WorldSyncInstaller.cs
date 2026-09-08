@@ -87,6 +87,11 @@ namespace Metagame.Network
             go.SetActive(false);
             go.AddComponent<NetworkIdentity>();
             var sync = go.AddComponent<WorldSync>();
+
+            // 진행도 동기화도 같은 오브젝트에 얹는다 (S15P21B202-54). 여기 붙이면
+            // 위 주석의 함정들(프리팹 SIGSEGV·핸들러 재등록·Awake 순서)을 그대로 피한다.
+            // **반드시 SetActive(true) 앞에서** 붙일 것 — 위 설명과 같은 이유다.
+            go.AddComponent<ProgressSync>();
             go.SetActive(true);
 
             return sync;

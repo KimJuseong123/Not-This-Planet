@@ -403,6 +403,24 @@ namespace Metagame.Network
             return string.Empty;
         }
 
+
+        /// <summary>
+        /// 판이 끝났음을 백엔드에 알린다 — 방이 <c>WAITING</c> 으로 돌아온다
+        /// (S15P21B202-316 · S15P21B202-54).
+        ///
+        /// <para><b>방장만 부르는 것이다.</b> 백엔드도 방장이 아니면 거절한다. 클리어를
+        /// 판정하는 것은 호스트이고, 호스트가 곧 방장이다(-145 호스트 권위).</para>
+        ///
+        /// <para>본문은 비어 있다 — 서버는 누가 보냈는지로 방을 찾는다. 결과 화면에
+        /// 필요한 기록(클리어 시간·추락 횟수)은 이 메시지가 아니라 Mirror 의 SyncVar 로
+        /// 이미 모두에게 가 있다(<c>ProgressSync</c>).</para>
+        /// </summary>
+        public void SendGameEnd()
+        {
+            if (IsConnected && CurrentRoom != null)
+                Send("GAME_END", new OutgoingData());
+        }
+
         public void LeaveRoom()
         {
             if (IsConnected && CurrentRoom != null)
