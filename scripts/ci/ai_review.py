@@ -354,6 +354,19 @@ def render(mr_meta: str, roles: list[str], results: dict, raw: dict, merged: dic
     return "\n".join(out)
 
 
+def with_fail_reasons(body: str, fail_why: dict[str, str]) -> str:
+    """실패한 리뷰어의 **이유**를 코멘트에 한 줄 붙인다 (S15P21B202-335).
+
+    각주는 이름만 적어서 `category=unknown` 만 남으면 모델 이름 문제인지 자격증명 문제인지
+    사람이 가릴 수 없었다. `render` 의 시그니처를 건드리지 않고 뒤에 덧붙인다.
+    """
+    if not fail_why:
+        return body
+    lines = " · ".join(f"`{ROLES[r]['label'] if r in ROLES else r}`: {md_cell(w)[:180]}"
+                       for r, w in fail_why.items())
+    return f"{body}\n\n<sub>실패 이유 — {lines}</sub>"
+
+
 # ── 메인 ────────────────────────────────────────────────────────────────────
 def main() -> int:
     banner("ai-review")
@@ -387,24 +400,49 @@ def main() -> int:
         return role, call(backend, model, ROLES[role]["system"], user_payload(mr, title, issue_txt, info, role))
 
     results, raw, failed = {}, {}, []
+    fail_why: dict[str, str] = {}      # 왜 실패했는지 — 코멘트에 싣는다(S15P21B202-335)
     with ThreadPoolExecutor(max_workers=max(1, int(env("AI_REVIEW_PARALLEL", "3")))) as ex:
         futs = {ex.submit(run_role, r): r for r in roles}
         for fut, role in futs.items():
             try:
                 _, text = fut.result()
             except Exception as e:  # 비차단: 어떤 예외든 기록만 하고 계속
-                print(f"[{role}] 호출 실패: {e}"); failed.append(role); continue
+                print(f"[{role}] 호출 실패: {e}"); failed.append(role); fail_why[role] = str(e); continue
             raw[role] = text
             results[role] = parse_json(text)
             print(f"[{role}] {'JSON OK' if results[role] else 'JSON 해석 실패'} · {len(text)}자")
-    if not raw:
-        print("모든 리뷰어 실패"); return 1
-    merged = merge(results, failed)
+    # 모델이 아니라 **파일 목록으로 정해지는 것**은 리뷰어가 죽어도 사실이다. 먼저 계산해 둔다.
     defaults: dict[str, tuple[str, str]] = {}
     if not info["scene_like"] and not info["assets"]:
         defaults["scene"] = ("ok", "씬·프리팹·에셋 파일 변경 없음")
     if not info["code"] and not info["assets"]:
         defaults["structure"] = ("ok", "코드·에셋 변경 없음(문서/설정만)")
+
+    if not raw:
+        # **리뷰어가 전부 실패해도 코멘트를 남긴다** (S15P21B202-335).
+        #
+        # 예전에는 여기서 그냥 `return 1` 했다. 그래서 `❓ 판정 불가` 경로(VERDICT_LINE·항목별 ❓·
+        # 실행 실패 리뷰어 각주)가 다 구현돼 있는데도 **전부 실패할 때만 그 앞에서 빠져나갔다.**
+        # 일부만 실패하면 ❓ 가 잘 나오고 전부 실패하면 아무것도 안 남는 셈이었다.
+        #
+        # 하필 모델 이름·자격증명·CLI 경로처럼 **모든 리뷰어에 공통으로 걸리는 원인**은 항상 전부
+        # 실패로 나타난다. 즉 사람이 실제로 겪는 실패가 대부분 이 조용한 쪽이었다. 잡이
+        # `allow_failure: true` 라 파이프라인도 초록이어서, "AI 코멘트가 없는 MR" 이
+        # ① 문서만 바뀌어 건너뛴 것과 ② 리뷰가 죽은 것 두 가지를 동시에 뜻하게 됐다.
+        print("모든 리뷰어 실패 — ❓ 판정 불가 코멘트를 남긴다")
+        body = render(mr_meta, roles, {}, {}, merge({}, failed), None,
+                      len(info["skipped"]), failed, defaults)
+        body = with_fail_reasons(body, fail_why)
+        st, _ = gl.upsert_note(MARKER, body)
+        print(body)
+        if st in (200, 201):
+            print("\n❓ 판정 불가 코멘트 게시")
+        else:
+            # 여기까지 오면 결국 코멘트가 없는 상태다 — 이 이슈가 고치려던 그 증상이므로 크게 남긴다.
+            print(f"\n❌ ❓ 코멘트 게시 실패({st}) — MR 에 아무 표시도 남지 않았다")
+        return 1
+
+    merged = merge(results, failed)
     summary = None
     try:
         s_user = (f"# MR 제목\n{title}\n\n# Jira\n{issue_txt[:1500]}\n\n# 합쳐진 판정\n{json.dumps({'verdict': merged['verdict'], 'checks': merged['checks'], 'findings': merged['findings'][:10], 'questions': merged['questions']}, ensure_ascii=False)}\n\n"
@@ -413,6 +451,7 @@ def main() -> int:
     except Exception as e:  # 비차단: 어떤 예외든 기록만 하고 계속
         print(f"요약 호출 실패(표만 게시): {e}")
     body = render(mr_meta, roles, results, raw, merged, summary, len(info["skipped"]), failed, defaults)
+    body = with_fail_reasons(body, fail_why)
     st, _ = gl.upsert_note(MARKER, body)
     print(body)
     print(f"\n코멘트 {'게시' if st in (200, 201) else '실패 ' + str(st)}")
