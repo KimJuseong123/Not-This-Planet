@@ -130,4 +130,41 @@ with tempfile.TemporaryDirectory() as tmp:
     assert D.main([jar]) == 1
     print("  스풀 없음 안내 ✅")
 
+# ── 최신 아님 경고 (S15P21B202-333) ─────────────────────────────
+# stale_verdict 는 순수 함수다 — 네 종류를 그대로 넣어 본다.
+# 지키려는 것: **"확인 못 했다"(unknown) 를 "이상 없다" 로 접지 않는다.** 섞으면 조용한 미탐이 된다.
+
+assert D.stale_verdict(0, []) == ("tip", "develop 의 끝을 배포한다")
+print("  최신 → tip ✅")
+
+kind, line = D.stale_verdict(3, ["backend/src/A.java", "backend/build.gradle"])
+assert kind == "warn" and "3커밋 뒤" in line and "2개" in line, (kind, line)
+print(f"  뒤처짐 + backend 변경 → warn ✅ ({line})")
+
+kind, line = D.stale_verdict(3, [])
+assert kind == "same", (kind, line)
+print("  뒤처졌지만 backend 변경 0 → same(경고 없음) ✅")
+
+# **!252 AI 리뷰가 잡은 미탐**: behind 는 읽었지만 변경 목록을 못 읽은 경우.
+# 예전에는 판정이 함수와 호출부로 갈려 있어 이 경우가 "backend 변경이 없다" 로 단정됐다.
+for args in [(None, None), (3, None), (None, [])]:
+    kind, line = D.stale_verdict(*args)
+    assert kind == "unknown", f"{args} 를 {kind} 로 단정했다: {line}"
+assert "판단하지 않는다" in D.stale_verdict(3, None)[1]
+print("  확인 불가(behind 만 읽힌 경우 포함) → unknown ✅")
+
+# 토큰이 없으면 **네트워크를 열지 않고** 모른다고 답한다.
+os.environ.pop("GITLAB_TOKEN", None)
+assert D.staleness("deadbeef") == (None, None), "토큰 없이 판단했다"
+print("  토큰 없음 → 네트워크 없이 (None, None) ✅")
+
+# **경고가 배포를 죽여선 안 된다.** 이 파일의 ci_common.http 는 부르면 AssertionError 를 던진다
+# (URLError 처럼 http() 가 잡지 않는 예외의 대역이다). 토큰이 있으면 조회를 시도하므로 그 경로를 탄다.
+os.environ["GITLAB_TOKEN"] = "테스트용-가짜"
+try:
+    assert D.staleness("deadbeef") == (None, None), "예외를 삼키지 않았다"
+finally:
+    os.environ.pop("GITLAB_TOKEN", None)
+print("  조회가 예외를 던져도 (None, None) — 배포를 막지 않는다 ✅")
+
 print("TEST141 OK")
