@@ -479,6 +479,7 @@ _LOG_ERR = ("Assets/_Project/Scripts/Runtime/Gameplay/Parts/LaunchTest.cs(88,17)
             "error CS0103: The name 'Foo' does not exist in the current context")
 
 _real_mc = R.metagame_changed
+_real_bf = R.baseline_failures   # 아래에서 갈아 쓰므로 반드시 되돌린다
 try:
     # 기준선은 낡았다(METAGAME 이 바뀌었다)고 답하게 만든다 — R1 이 발동할 조건
     R.metagame_changed = lambda a, b: True
@@ -496,6 +497,7 @@ try:
     print("  낡은 기준선 + 컴파일 오류 → 판정 1 유지 (R2) ✅")
 
     # 대조: 컴파일 오류가 없고 새 실패만 있으면 R1 이 실제로 발동한다
+    os.environ["CI_MERGE_REQUEST_TARGET_BRANCH_NAME"] = "develop"   # ref == tgt
     _NUNIT_NEW = """<?xml version="1.0" encoding="utf-8"?>
 <test-run id="2" total="1" passed="0" failed="1" skipped="0" duration="0.1">
   <test-suite type="TestFixture" name="A" fullname="A">
@@ -516,8 +518,22 @@ try:
         verdict = open(os.path.join(d, R.VERDICT_FILE), encoding="utf-8").read()
     assert verdict == str(UNK), f"낡은 기준선 + 새 테스트 실패는 경고로 낮춘다(R1) — 판정 {verdict}"
     print("  낡은 기준선 + 새 테스트 실패 → 판정 2 로 완화 (R1) ✅")
+
+    # 릴리스 MR(대상 master)에서는 R1 을 적용하지 않는다 — baseline_ref 가 develop 을
+    # 쓰는데 합친 base 는 master 끝이라 두 값이 서로 다른 브랜치 위에 있다. 그 둘을 diff
+    # 하면 METAGAME 이 거의 항상 다르므로, 적용하면 릴리스 MR 의 차단이 통째로 무력화된다.
+    os.environ["CI_MERGE_REQUEST_TARGET_BRANCH_NAME"] = "master"     # ref=develop != tgt=master
+    with _tf.TemporaryDirectory() as d:
+        nunit = os.path.join(d, "unity-results.xml")
+        open(nunit, "w", encoding="utf-8").write(_NUNIT_NEW)
+        R.main([nunit, os.path.join(d, "nope.log"), "2"])
+        verdict = open(os.path.join(d, R.VERDICT_FILE), encoding="utf-8").read()
+    assert verdict == str(REG), f"릴리스 MR 에서는 R1 을 적용하지 않는다 — 판정 {verdict}"
+    print("  릴리스 MR(ref≠tgt) → R1 적용 안 함, 차단 유지 ✅")
 finally:
     R.metagame_changed = _real_mc
+    R.baseline_failures = _real_bf
+    os.environ.pop("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", None)
     os.environ.pop("UNITY_MERGED_BASE", None)
 
 # 컴파일 코멘트가 합치지 못한 경우를 단정하지 않는다 (3차 리뷰 중간 ③)
@@ -528,5 +544,31 @@ os.environ.pop("UNITY_MERGED_BASE", None)
 b2 = R.body(data([]), [_LOG_ERR], set(), "develop")
 assert "브랜치 끝에서만" in b2 and "합친 결과에서 돌았습니다" not in b2, b2
 print("  컴파일 코멘트가 검사 범위를 정직하게 말한다 ✅")
+
+# ── ㉔ 기준선 후보에 상한이 있다 (S15P21B202-342) ──────────────────────────
+#     잡 목록 API 는 최대 800건을 준다. 그중 unity-compile 이 수십~수백 건이면 아티팩트가
+#     만료된 옛 잡마다 404 요청이 한 번씩 나가 잡이 오래 매달린다(14일 이전은 전부 만료).
+#     `!259` 3차 AI 리뷰가 중간으로 잡았다.
+ART_CALLS = []
+
+
+def many_expired(method, url, headers=None, body=None, timeout=30):
+    if "/jobs?per_page=100&page=1" in url:
+        return 200, [{"id": 1000 + k, "name": "unity-compile", "ref": "develop", "status": "failed"}
+                     for k in range(300)]
+    if "/jobs?per_page=100&page=" in url:
+        return 200, []
+    if "/artifacts/" in url:
+        ART_CALLS.append(url)
+        return 404, {"message": "404"}          # 전부 만료
+    if "/pipelines?ref=" in url:
+        return 200, []
+    raise AssertionError(url)
+
+
+ci_common.http = many_expired
+assert R.baseline_failures(ci_common.GitLab(), "develop") is None
+assert len(ART_CALLS) == R.MAX_BASELINE_CANDIDATES,     f"후보 {R.MAX_BASELINE_CANDIDATES}개까지만 열어야 한다 — 실제 {len(ART_CALLS)}회"
+print(f"  후보 300개 → 아티팩트 요청 {len(ART_CALLS)}회로 제한 ✅")
 
 print("TEST271 OK")

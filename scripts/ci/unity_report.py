@@ -34,6 +34,10 @@ from ci_common import GitLab, banner, env  # noqa: E402
 
 MARKER = "<!-- unity-compile:metagame -->"
 JOB_NAME = "unity-compile"
+# 기준선 후보를 몇 개까지 열어 볼지. 아티팩트가 만료된 옛 잡은 404 가 한 번씩 나가므로
+# 상한이 없으면 잡 목록 800건 중 unity-compile 수십~수백 건에 요청이 그만큼 붙는다
+# (14일 이전은 전부 만료). 넘으면 기준선을 못 찾은 것으로 보고 판정 2 로 떨어진다.
+MAX_BASELINE_CANDIDATES = 10   # !259 3차 AI 리뷰 (S15P21B202-342)
 ARTIFACT = "unity-results.xml"
 MAX_LISTED = 15          # 코멘트에 나열할 실패 개수 상한
 MAX_COMPILE_ERRORS = 20
@@ -154,7 +158,10 @@ def baseline_failures(gl: GitLab, ref: str, max_pipelines: int = 15,
     if not (gl.token and gl.project):
         return None
     try:
-        for j in baseline_candidates(gl, ref, max_pipelines):
+        cands = baseline_candidates(gl, ref, max_pipelines)
+        if len(cands) > MAX_BASELINE_CANDIDATES:
+            print(f"기준선 후보 {len(cands)}개 중 최신 {MAX_BASELINE_CANDIDATES}개만 본다")
+        for j in cands[:MAX_BASELINE_CANDIDATES]:
             txt = gl.job_artifact_text(j["id"], ARTIFACT)
             if not txt:
                 continue          # 아티팩트 만료(expire_in) — 더 최신 것부터 계속 본다
@@ -391,6 +398,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"JUnit 변환: {out} (총 {data['total']} · 실패 {data['failed']})")
 
     gl = GitLab()
+    tgt = (env("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "") or "").strip()
     ref = baseline_ref(env("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "develop"))
     bmeta: dict = {}
     base = baseline_failures(gl, ref, meta=bmeta)
@@ -409,7 +417,11 @@ def main(argv: list[str] | None = None) -> int:
     # MR 이 판정 2(비차단)로 통과한다** — 문서가 확정한 R2 와 정면으로 어긋나고 09-02
     # 사고 경로(컴파일 깨진 채 머지되어 develop 2시간 37분 정지)가 다시 열린다.
     # `!259` 3차 AI 리뷰가 높음으로 잡았다. R1 은 **테스트 실패에만** 적용된다.
-    if code == REGRESSION and not errs:
+    # 그리고 **기준선 브랜치와 머지 대상이 같을 때만** 적용한다. 릴리스 MR(대상 master)은
+    # baseline_ref 가 develop 을 쓰는데(-325) 합친 base 는 master 끝이라, 두 값이 서로 다른
+    # 브랜치 위에 있다. 그 둘을 diff 하면 METAGAME 이 거의 항상 다르므로 R1 이 상시 발동해
+    # **릴리스 MR 의 차단이 통째로 무력화된다**(`!259` 3차 AI 리뷰). 그때는 완화하지 않는다.
+    if code == REGRESSION and not errs and ref == tgt:
         merged = (env("UNITY_MERGED_BASE", "") or "").strip()
         bsha = bmeta.get("sha", "")
         stale = metagame_changed(bsha, merged) if merged else None
@@ -428,6 +440,9 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(f"기준선 신선도: 판단하지 않았다"
                   f"({'합친 base 없음' if not merged else '확인 실패'}) — 판정을 그대로 둔다")
+    elif code == REGRESSION and not errs and ref != tgt:
+        print(f"기준선 신선도: 적용하지 않는다 — 기준선 브랜치({ref})와 머지 대상({tgt})이 "
+              f"다르다(릴리스 MR). 차단을 그대로 둔다")
     label = {PASS: "통과", REGRESSION: "이 MR 이 만든 문제 — 막는다", UNKNOWN: "판단 불가 — 경고"}[code]
     print(f"판정 {code} ({label}): {why}")
     write_verdict(where, code)
