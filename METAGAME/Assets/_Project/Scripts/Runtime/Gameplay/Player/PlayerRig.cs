@@ -1221,7 +1221,7 @@ namespace Metagame.Gameplay
             else if (!wasGrounded)
             {
                 float fallHeight = Mathf.Max(0f, fallPeakFootHeight - footHeight);
-                ApplyFallDamage(fallHeight, fallSpeed);
+                ApplyFallImpact(fallHeight);
                 fallPeakFootHeight = footHeight;
             }
             else
@@ -1236,15 +1236,79 @@ namespace Metagame.Gameplay
                 Puff.Regolith(FootPosition, Mathf.Clamp01(fallSpeed / 7f));
         }
 
-        void ApplyFallDamage(float fallHeight, float impactSpeed)
+        /// <summary>
+        /// 착지를 <b>자세</b>로 처리한다(기획 §20.2, S15P21B202-334).
+        ///
+        /// <code>
+        /// 낮음        정상 착지
+        /// 중간        잠시 휘청인다
+        /// 높음        넘어지고 1~2초 뒤 스스로 일어난다
+        /// 매우 높음   + <b>머리부터</b> 충돌이면 기절할 수 있다
+        /// </code>
+        ///
+        /// <b>체력을 깎지 않는다.</b> 예전에는 2.75m·3.8m/s 를 넘으면
+        /// <see cref="ApplyDamage"/> 로 체력을 깎았고, 누적되면 <see cref="GoDown"/> 까지
+        /// 갔다. §20.1 은 "체력, 사망과 영구 탈락은 없다" 이고 §20.2 는 기절 조건을
+        /// <b>"매우 높은 곳에서 머리부터"</b> 하나로 못박는다.
+        ///
+        /// 저중력에서 이 차이가 크다. 우주선 4층 접합부가 5.71m 에 있어 공중 용접
+        /// (§14.3)을 하다 저중력장을 벗어나면 그 높이에서 떨어지는데, 예전 규칙에서는
+        /// 그것이 상시 체력 소모였다.
+        ///
+        /// <b>넘어짐은 <see cref="KnockDown"/> 을 쓴다.</b> 그 메서드가 이미 "기절시키지
+        /// 않고 체력도 깎지 않는다" 를 §12.2·§18.3·§22.4 세 곳에 제공하고 있으므로,
+        /// 낙하가 네 번째 호출자가 된다 — 넘어지는 규칙을 두 번 쓰지 않는다.
+        /// </summary>
+        void ApplyFallImpact(float fallHeight)
         {
-            if (fallHeight < Tuning.FallDamageMinHeight || impactSpeed < Tuning.FallDamageMinSpeed)
-                return;
+            if (Downed) return;
+            if (fallHeight < PhysicsScale.FallStaggerHeight) return;
 
-            float damage = Tuning.FallDamageBase +
-                           (impactSpeed - Tuning.FallDamageMinSpeed) * Tuning.FallDamagePerSpeed;
-            ApplyDamage(damage, "낙하");
+            if (fallHeight < PhysicsScale.FallKnockHeight)
+            {
+                Stagger(PhysicsScale.FallStaggerSeconds);
+                return;
+            }
+
+            // 매우 높은 곳에서 <b>머리부터</b> 충돌한 경우만 기절이다(§20.2). 높이만으로는
+            // 기절하지 않는다 — "일반 몸통 충돌만으로 기절하지 않는다" 가 같은 절에 있다.
+            if (fallHeight >= PhysicsScale.FallStunHeight && LandedHeadFirst())
+            {
+                GoDown("높은 곳에서 머리부터 떨어졌다");
+                return;
+            }
+
+            KnockDown(-faceDir, PhysicsScale.FallKnockSpeed);
         }
+
+        /// <summary>
+        /// 착지 순간 머리가 골반보다 낮았는가.
+        ///
+        /// <see cref="UpdateSpeed"/> 가 자빠짐을 판정하는 식과 <b>같은 것을 쓴다</b> —
+        /// "머리가 골반보다 낮으면 자빠진 것" 이라는 규칙을 두 번 적지 않는다.
+        /// </summary>
+        bool LandedHeadFirst() =>
+            Doll != null && Doll.Head != null && Doll.Hips != null
+            && Doll.Head.position.y < Doll.Hips.position.y + 0.12f;
+
+        /// <summary>
+        /// 잠시 휘청이게 한다(기획 §20.2 "중간 높이에서는 잠시 휘청인다").
+        ///
+        /// <b>조종을 잃지 않는다.</b> 그것이 넘어짐(<see cref="KnockDown"/>)과 휘청임을
+        /// 가르는 것이다 — <see cref="Ragdolled"/> 를 켜지 않으므로 점프도 걷기도 된다.
+        /// 세우는 힘만 잠깐 약해져 몸이 흔들린다.
+        /// </summary>
+        public void Stagger(float seconds)
+        {
+            if (Downed || seconds <= 0f) return;
+
+            staggerSeconds = Mathf.Max(staggerSeconds, seconds);
+        }
+
+        /// <summary>휘청임이 남은 시간(초). 0 보다 크면 세우는 힘이 약하다.</summary>
+        public bool Staggering => staggerSeconds > 0f;
+
+        float staggerSeconds;
 
         void UpdateSpeed()
         {
@@ -1255,10 +1319,17 @@ namespace Metagame.Gameplay
             if (jumpLock > 0f) jumpLock -= Time.fixedDeltaTime;
             if (regrabLock > 0f) regrabLock -= Time.fixedDeltaTime;
 
+            if (staggerSeconds > 0f) staggerSeconds -= Time.fixedDeltaTime;
+
             // 머리가 골반보다 낮으면 완전히 자빠진 것 — 잠깐 조종을 놓았다가 천천히 일어난다
             bool down = Doll.Head.position.y < Doll.Hips.position.y + 0.12f;
             Ragdolled = down && !Hanging;
-            float want = Ragdolled ? 0.18f : 1f;
+
+            // 휘청임은 그 사이 단계다(§20.2, S15P21B202-334). 세우는 힘만 약해지고
+            // Ragdolled 는 켜지 않으므로 걷기와 점프가 유지된다.
+            float want = Ragdolled ? 0.18f
+                       : Staggering ? PhysicsScale.FallStaggerUpright
+                       : 1f;
             uprightBlend = Mathf.MoveTowards(uprightBlend, want, Time.fixedDeltaTime * (want > uprightBlend ? 0.8f : 4f));
         }
 

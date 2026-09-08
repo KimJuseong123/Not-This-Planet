@@ -740,6 +740,65 @@ namespace Metagame.Gameplay
         public const float MeteorEntryClearance = 2.5f;
 
         /// <summary>
+        /// 착지가 <b>휘청임</b>으로 넘어가는 낙하 높이(m). 기획 §20.2 "중간 높이에서는
+        /// 잠시 휘청인다".
+        ///
+        /// <b>점프 최고점보다 높아야 한다.</b> <see cref="Core.Tuning.JumpSpeed"/>(3.4)에서
+        /// v²/2g = 3.4²/(2×2.8) = <b>2.06m</b> 이므로, 이 값이 그보다 낮으면 §20.2 첫 줄
+        /// "낮은 높이에서는 정상 착지한다" 를 어긴다 — 평지에서 점프만 해도 휘청인다.
+        ///
+        /// 예전에는 <c>Tuning.FallDamageMinHeight</c>(2.75m)에서 <b>체력이 깎였다</b>.
+        /// 저중력에서 조금 높은 지형에서 점프하면 넘는 값이었다(S15P21B202-334).
+        /// </summary>
+        public const float FallStaggerHeight = 2.5f;
+
+        /// <summary>
+        /// 착지가 <b>넘어짐</b>으로 넘어가는 낙하 높이(m). 기획 §20.2 "높은 위치에서는
+        /// 넘어지고 1~2초 뒤 스스로 일어난다".
+        ///
+        /// <b>우주선 4층 접합부(5.71m)가 이 구간에 들어와야 한다.</b> 저중력장으로 떠서
+        /// 공중 용접을 하다 영역을 벗어나면 그 높이에서 떨어지는데, 기획이 요구하는
+        /// 작업(§14.3)이 기절로 이어지면 안 된다 — 넘어지고 스스로 일어나야 한다.
+        /// </summary>
+        public const float FallKnockHeight = 4.5f;
+
+        /// <summary>
+        /// 기절이 <b>가능해지는</b> 낙하 높이(m). 기획 §20.2 "매우 높은 곳에서 머리부터
+        /// 충돌하면 기절할 수 있다".
+        ///
+        /// <b>높이만으로는 기절하지 않는다.</b> §20.2 가 "머리부터" 를 조건으로 달았고
+        /// "일반 몸통 충돌만으로 기절하지 않는다" 로 한 번 더 못박는다. 머리부터가
+        /// 아니면 아무리 높아도 <see cref="FallKnockHeight"/> 와 같은 넘어짐이다.
+        /// </summary>
+        public const float FallStunHeight = 9f;
+
+        /// <summary>
+        /// 휘청임이 이어지는 시간(초).
+        ///
+        /// <b>조종을 잃지 않는다</b> — 그것이 넘어짐과 휘청임을 가르는 것이다(§20.2).
+        /// 세우는 힘만 잠깐 약해져 몸이 흔들린다.
+        /// </summary>
+        public const float FallStaggerSeconds = 0.55f;
+
+        /// <summary>
+        /// 휘청이는 동안 세우는 힘의 비율.
+        ///
+        /// 넘어짐의 0.18 과 정상 1.0 사이다. <c>PlayerRig.uprightBlend</c> 가 이 값으로
+        /// 내려가면 <c>Balance</c> 가 약해져 몸이 휘청이지만, 다리 구동
+        /// (<c>Ragdolled</c> 가 0.2배로 줄이는 것)은 그대로라 걸을 수 있다.
+        /// </summary>
+        public const float FallStaggerUpright = 0.55f;
+
+        /// <summary>
+        /// 넘어질 때 뒤로 밀리는 속도(m/s).
+        ///
+        /// <see cref="ClampSnapBackSpeed"/> 와 같은 자리다 — <c>PlayerRig.KnockDown</c> 이
+        /// 기획 세 곳(§12.2 마지막 고정못 · §18.3 방망이 직접 타격 · §22.4 발사 실패
+        /// 사출)에서 이미 쓰이고, 낙하가 네 번째다.
+        /// </summary>
+        public const float FallKnockSpeed = 1.6f;
+
+        /// <summary>
         /// 소형 운석의 넉백 반경(m). 기획 §17.7 "소형 · 충격 반경 약 2m".
         ///
         /// <b>예전에는 크기 구분 없이 4m 하나였다</b> — §17.7 의 소형(2m)보다 두 배 넓고

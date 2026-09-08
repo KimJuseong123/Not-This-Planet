@@ -48,10 +48,8 @@ namespace Metagame.Core
         // ── 체력 · 피해 ────────────────────────────────────────
         // 일반 점프는 안전하게 유지하고, 높은 곳에서 빠르게 착지했을 때만 낙하 피해를 준다.
         public const float MaxHealth = 100f;
-        public const float FallDamageMinHeight = 2.75f;
-        public const float FallDamageMinSpeed = 3.8f;
-        public const float FallDamageBase = 10f;
-        public const float FallDamagePerSpeed = 15f;
+        // 낙하 피해 상수를 걷어냈다(S15P21B202-334). 기획 §20.2 는 낙하를 피해가 아니라
+        // 자세로 처리한다 — 단계와 경계는 PhysicsScale.FallStagger/Knock/StunHeight 에 있다.
 
         // ── 균형 ────────────────────────────────────────────────
         // 골반을 세우는 일은 "세계에 매인 보이지 않는 조인트" 가 한다.
