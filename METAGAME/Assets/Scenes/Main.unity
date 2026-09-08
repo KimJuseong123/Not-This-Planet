@@ -34371,7 +34371,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Metagame.Bootstrap::Metagame.Bootstrap.SpaceBootstrap
   buildLevel: 0
-  gravity: {x: 0, y: -2.8, z: 0}
+  gravity: {x: 0, y: -5, z: 0}
   lockCursor: 1
   starfield: 1
   firstPerson: 1
