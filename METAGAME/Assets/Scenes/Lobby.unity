@@ -283,7 +283,7 @@ MonoBehaviour:
   runInBackground: 1
   headlessStartMode: 1
   editorAutoStart: 0
-  sendRate: 20
+  sendRate: 30
   unreliableBaselineRate: 1
   unreliableRedundancy: 0
   transport: {fileID: 1056712108}

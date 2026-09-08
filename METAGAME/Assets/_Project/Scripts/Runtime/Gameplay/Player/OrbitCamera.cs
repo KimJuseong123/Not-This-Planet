@@ -20,6 +20,19 @@ namespace Metagame.Gameplay
         public bool FirstPerson;
         public float Distance = Tuning.CamDistance;
         public float TargetHeight = Tuning.CamHeight;
+
+        /// <summary>
+        /// 따라갈 지점을 얼마나 빨리 좇는가. 클수록 빠르고, 그만큼 목표의 떨림이 그대로 보인다.
+        /// 시정수는 <c>1/FocusSmoothing</c> 초다 — 기본값 16 이면 62ms 뒤처진다.
+        ///
+        /// <para><b>왜 밖에서 바꿀 수 있게 두는가</b> (S15P21B202-328). 이 스무딩은 목표가
+        /// 물리로 직접 움직이는 몸일 때를 위한 것이다. 그런데 참가자 화면에서 내 몸은
+        /// 이미 두 번 다듬어진 뒤에 온다 — 서버가 보낸 자세를 Mirror 의 스냅샷 보간이
+        /// 잇고, 골반 강체가 다시 물리 스텝 사이를 보간한다. 그 위에 62ms 를 또 얹으면
+        /// 남는 것은 부드러움이 아니라 지연뿐이라, 그 경우에는 <see cref="RemoteAvatar"/>
+        /// 가 이 값을 올려 잡는다.</para>
+        /// </summary>
+        public float FocusSmoothing = 16f;
         public float FirstPersonForward = 0.20f;
         public float Sensitivity = 2.4f;
         public bool InvertLookY;
@@ -357,7 +370,8 @@ namespace Metagame.Gameplay
 
             Vector3 raw = Target.position + Vector3.up * TargetHeight;
             if (!focusReady) { smoothFocus = raw; focusReady = true; }
-            else smoothFocus = Vector3.Lerp(smoothFocus, raw, 1f - Mathf.Exp(-16f * Time.deltaTime));
+            else smoothFocus = Vector3.Lerp(smoothFocus, raw,
+                                            1f - Mathf.Exp(-FocusSmoothing * Time.deltaTime));
 
             Quaternion rot = Quaternion.Euler(pitch, yaw, 0f);
 
