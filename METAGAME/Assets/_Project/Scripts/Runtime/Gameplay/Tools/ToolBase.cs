@@ -139,6 +139,18 @@ namespace Metagame.Gameplay
         }
 
         /// <summary>
+        /// 충돌을 끄고 켤 몸.
+        ///
+        /// <para>장착 판정이 건네준 <see cref="Body"/> 가 있으면 그것을 쓴다. 없으면
+        /// 이 오브젝트의 <c>Rigidbody</c> 로 물러난다 — <see cref="ApplyRemoteHeld"/> 로
+        /// 오는 길에는 <see cref="Body"/> 가 <c>null</c> 이다(그 기계에서는
+        /// <see cref="Equip"/> 가 불리지 않는다). 그 경우를 빼먹으면 <b>참가자 화면에서
+        /// 충돌이 안 꺼져</b> 남이 든 도구가 내 몸을 막는다 — 자세를 서버가 몰아 주므로
+        /// 그 도구는 키네마틱이고, 키네마틱은 사람을 밀어낸다.</para>
+        /// </summary>
+        Rigidbody CollisionBody => Body != null ? Body : GetComponent<Rigidbody>();
+
+        /// <summary>
         /// 휴대 중 충돌을 끈다. 원래 값을 기억해 두고 <see cref="RestoreCollisions"/> 가
         /// 되돌린다.
         ///
@@ -148,11 +160,12 @@ namespace Metagame.Gameplay
         /// </summary>
         void SuspendCollisions()
         {
-            if (collisionsSuspended || Body == null) return;
+            var body = CollisionBody;
+            if (collisionsSuspended || body == null) return;
 
-            restoreCollisions = Body.detectCollisions;
+            restoreCollisions = body.detectCollisions;
             collisionsSuspended = true;
-            Body.detectCollisions = false;
+            body.detectCollisions = false;
         }
 
         /// <summary>휴대 전 상태로 되돌린다. 끈 적이 없으면 아무것도 하지 않는다.</summary>
@@ -161,7 +174,9 @@ namespace Metagame.Gameplay
             if (!collisionsSuspended) return;
 
             collisionsSuspended = false;
-            if (Body != null) Body.detectCollisions = restoreCollisions;
+
+            var body = CollisionBody;
+            if (body != null) body.detectCollisions = restoreCollisions;
         }
 
         /// <summary>

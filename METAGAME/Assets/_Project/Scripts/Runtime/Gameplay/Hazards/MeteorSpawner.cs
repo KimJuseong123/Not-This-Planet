@@ -572,7 +572,7 @@ namespace Metagame.Gameplay.Hazards
             while (_ghosts.Count > n)
             {
                 var last = _ghosts.Count - 1;
-                if (_ghosts[last] != null) Destroy(_ghosts[last].gameObject);
+                if (_ghosts[last] != null) _ghosts[last].Despawn();
                 _ghosts.RemoveAt(last);
             }
             while (_ghosts.Count < n) _ghosts.Add(CreateGhost());
@@ -598,11 +598,15 @@ namespace Metagame.Gameplay.Hazards
         /// <summary>
         /// 그림을 모두 지운다. 매치가 끝나면 씬에 남겨 두지 않는다 — 충돌러가 꺼져 있어
         /// 남으면 지면을 뚫고 영원히 떨어진다.
+        ///
+        /// <para><see cref="Meteor.Despawn"/> 를 쓴다 — 이 파일의 다른 정리 경로와 같다.
+        /// 그쪽이 <c>Application.isPlaying</c> 을 갈라 에디터에서도 옳게 지우고
+        /// <c>Meteor.All</c> 에서도 빼 준다.</para>
         /// </summary>
         public void ClearNetworkMeteors()
         {
             for (var i = 0; i < _ghosts.Count; i++)
-                if (_ghosts[i] != null) Destroy(_ghosts[i].gameObject);
+                if (_ghosts[i] != null) _ghosts[i].Despawn();
 
             _ghosts.Clear();
         }
