@@ -17,20 +17,45 @@ namespace Metagame.Gameplay.Tests
     /// </summary>
     public sealed class HostProgressTests
     {
+        /// <summary>
+        /// 원점에서 멀리 떨어뜨려 만든다.
+        ///
+        /// <para><see cref="TowerCollapseTests.Collapse_IsDeterministic"/> 은 같은 배치를 두 번
+        /// 돌려 비교하므로 <b>이웃 픽스처가 남긴 물체까지 같아야 한다</b>. 그 테스트가
+        /// 자기 무대를 (400,0,400) 으로 옮긴 이유이고(S15P21B202-213 에서 실제로 깨졌다),
+        /// 여기도 원점을 비워 둔다. 이 픽스처에는 콜라이더가 없어 지금은 무해하지만,
+        /// 나중에 콜라이더가 붙으면 그때 원인을 찾기 어려운 실패가 된다.</para>
+        /// </summary>
+        static readonly Vector3 FarFromOrigin = new(600f, 0f, 600f);
+
         GameObject holder;
         GameSession session;
 
         [SetUp]
         public void SetUp()
         {
+            // 정적 목록을 비운 상태에서 시작한다 — 앞 픽스처가 남긴 것에 기대지 않는다.
+            Checkpoint.All.Clear();
+
             holder = new GameObject("~진행도 테스트");
+            holder.transform.position = FarFromOrigin;
             session = holder.AddComponent<GameSession>();
         }
 
+        /// <summary>
+        /// 정적 상태를 원래대로 돌린다.
+        ///
+        /// <para><see cref="GameSession.Instance"/> 는 <c>Awake</c> 가 채우는 <b>정적</b>
+        /// 필드다. 오브젝트만 지우면 파괴된 참조가 남아, 뒤에 도는 테스트가 보는 상태가
+        /// 이 픽스처를 돌렸는지에 따라 달라진다.</para>
+        /// </summary>
         [TearDown]
         public void TearDown()
         {
             if (holder != null) Object.DestroyImmediate(holder);
+
+            Checkpoint.All.Clear();
+            GameSession.Instance = null;
         }
 
         [Test]
@@ -83,7 +108,9 @@ namespace Metagame.Gameplay.Tests
         {
             session.ApplyHostProgress(1, cleared: false, clearTime: 0f, elapsed: 5f, falls: 0);
 
-            var cp = new GameObject("~체크포인트").AddComponent<Checkpoint>();
+            var cpHolder = new GameObject("~체크포인트");
+            cpHolder.transform.position = FarFromOrigin;
+            var cp = cpHolder.AddComponent<Checkpoint>();
             cp.Index = 3;
             try
             {
@@ -114,6 +141,22 @@ namespace Metagame.Gameplay.Tests
 
             session.Clear();
             Assert.That(session.Cleared, Is.True, "로컬로 돌아왔으면 다시 스스로 판정한다");
+        }
+
+        /// <summary>
+        /// 재시작도 진행도를 바꾸는 일이다. 참가자가 <c>R</c> 을 눌러 판을 되돌리면
+        /// 다음 수신에 덮여, 눌린 것도 아니고 안 눌린 것도 아닌 상태가 된다.
+        /// </summary>
+        [Test]
+        public void ParticipantCannotRestartTheRunOnItsOwn()
+        {
+            session.ApplyHostProgress(3, cleared: false, clearTime: 0f, elapsed: 20f, falls: 4);
+
+            session.Restart();
+
+            Assert.That(session.CheckpointIndex, Is.EqualTo(3));
+            Assert.That(session.Elapsed, Is.EqualTo(20f).Within(0.001f));
+            Assert.That(session.Falls, Is.EqualTo(4));
         }
     }
 }

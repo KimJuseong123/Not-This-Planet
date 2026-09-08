@@ -40,6 +40,17 @@ namespace Metagame.Network
         /// <summary>백엔드에 <c>GAME_END</c> 를 이미 알렸는가. 한 판에 한 번만 보낸다.</summary>
         bool toldBackend;
 
+        /// <summary>서버 첫 틱에 toldBackend 를 맞췄는가.</summary>
+        bool primed;
+
+        // 참가자가 마지막으로 GameSession 에 넣은 값. 바뀐 것이 없으면 다시 넣지 않는다.
+        bool applied;
+        int appliedCheckpoint;
+        bool appliedCleared;
+        float appliedClearTime;
+        float appliedElapsed;
+        int appliedFalls;
+
         void Awake()
         {
             syncInterval = SyncInterval;
@@ -65,6 +76,15 @@ namespace Metagame.Network
         /// <summary>호스트: <see cref="GameSession"/> 이 센 값을 SyncVar 에 올린다.</summary>
         void PushFromHost(GameSession session)
         {
+            // 이미 클리어된 판에 이 오브젝트가 새로 떠도(재스폰·재접속) 다시 알리지 않는다.
+            // 그러지 않으면 첫 프레임에 GAME_END 가 한 번 더 나가고, 방은 이미 WAITING
+            // 이므로 백엔드가 ERROR 로 되돌려준다.
+            if (!primed)
+            {
+                primed = true;
+                toldBackend = session.Cleared;
+            }
+
             checkpointIndex = session.CheckpointIndex;
             cleared = session.Cleared;
             clearTime = session.ClearTime;
@@ -79,6 +99,26 @@ namespace Metagame.Network
         /// <summary>참가자: 받은 값을 <see cref="GameSession"/> 에 넣는다. 자기가 세지 않는다.</summary>
         void ApplyOnParticipant(GameSession session)
         {
+            // 바뀐 것이 없으면 넣지 않는다. 매 프레임 무조건 덮어쓰면 StageHint 까지 계속
+            // 다시 세우고, 참가자가 R(재시작)을 눌러도 다음 프레임에 되돌려져 입력이
+            // 씹힌 것처럼 보인다. 값은 10Hz 로만 오므로 대개 그대로다.
+            if (applied
+                && appliedCheckpoint == checkpointIndex
+                && appliedCleared == cleared
+                && appliedClearTime == clearTime
+                && appliedElapsed == elapsed
+                && appliedFalls == falls)
+            {
+                return;
+            }
+
+            applied = true;
+            appliedCheckpoint = checkpointIndex;
+            appliedCleared = cleared;
+            appliedClearTime = clearTime;
+            appliedElapsed = elapsed;
+            appliedFalls = falls;
+
             session.ApplyHostProgress(checkpointIndex, cleared, clearTime, elapsed, falls);
         }
 
@@ -114,6 +154,23 @@ namespace Metagame.Network
         }
 
         /// <summary>
+        /// <summary>
+        /// 접속이 끊기면 참가자는 곧바로 로컬로 되돌아간다.
+        ///
+        /// <para><b><see cref="OnDestroy"/> 만으로는 부족하다.</b> 오브젝트가 살아 있는 채
+        /// 값이 더 오지 않는 경우(호스트가 멈춤·연결 끊김)에는 파괴 콜백이 오지 않고,
+        /// 그러면 <c>ProgressFromHost</c> 가 켜진 채로 남아 <b>경과 시간이 영구히 얼고</b>
+        /// <c>Clear</c>·<c>ReachCheckpoint</c> 도 계속 막힌다. 게임을 껐다 켜야만 풀린다.</para>
+        ///
+        /// <para>Mirror 가 끊김을 알려 주는 자리가 여기다 — 파괴보다 먼저, 그리고 파괴가
+        /// 오지 않는 경우에도 온다.</para>
+        /// </summary>
+        public override void OnStopClient()
+        {
+            RestoreLocalProgress();
+        }
+
+        /// <summary>
         /// 이 오브젝트가 사라지면 참가자는 다시 로컬로 진행도를 센다.
         ///
         /// <para>없으면 마지막으로 받은 값에 시계가 멈춘 채로 남는다 — 매치가 끝나
@@ -121,6 +178,16 @@ namespace Metagame.Network
         /// </summary>
         void OnDestroy()
         {
+            RestoreLocalProgress();
+        }
+
+        /// <summary>
+        /// 참가자를 로컬 진행도로 되돌린다. 두 경로(<see cref="OnStopClient"/>·
+        /// <see cref="OnDestroy"/>)에서 불리므로 여러 번 불려도 안전해야 한다.
+        /// </summary>
+        void RestoreLocalProgress()
+        {
+            // 호스트는 애초에 ProgressFromHost 를 켜지 않는다 — 끌 것도 없다.
             if (isServer) return;
 
             GameSession session = GameSession.Instance;

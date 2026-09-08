@@ -387,6 +387,11 @@ namespace Metagame.Gameplay
 
         public void Restart()
         {
+            // 재시작도 진행도를 바꾸는 일이다. 호스트가 정할 때는 참가자가 누른 R 로
+            // 판이 되돌아가지 않는다 (S15P21B202-54). 막지 않으면 로컬 값이 0으로
+            // 되돌아갔다가 다음 수신에 덮여, 눌린 것도 아니고 안 눌린 것도 아닌 상태가 된다.
+            if (ProgressFromHost) return;
+
             CheckpointIndex = 0;
             SpawnFoot = Vector3.zero;
             StageHint = Hints[0];

@@ -417,8 +417,13 @@ namespace Metagame.Network
         /// </summary>
         public void SendGameEnd()
         {
-            if (IsConnected && CurrentRoom != null)
-                Send("GAME_END", new OutgoingData());
+            if (!IsConnected || CurrentRoom == null) return;
+
+            // 방장만 보낼 수 있다. 부르는 쪽(ProgressSync)도 검사하지만 여기서도 막는다 —
+            // 다른 호출자가 생기면 조용히 ERROR 왕복만 생기고 원인이 안 보인다.
+            if (!IsRoomHost) return;
+
+            Send("GAME_END", new OutgoingData());
         }
 
         public void LeaveRoom()
