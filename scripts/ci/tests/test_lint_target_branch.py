@@ -27,7 +27,18 @@ assert L.target_verdict("hotfix/S15P21B202-40-crash", "master")[0] == "ok"
 # develop → master (릴리즈) : ok
 assert L.target_verdict("develop", "master")[0] == "ok"
 # 일반 작업 브랜치 → master : fail
-assert L.target_verdict("S15P21B202-96-x", "master") == ("fail", "master 로는 develop 또는 hotfix/* 만 머지")
+lvl, msg = L.target_verdict("S15P21B202-96-x", "master")
+assert lvl == "fail" and "release/<키>-vX.Y.Z" in msg, (lvl, msg)
+# 릴리스 브랜치 → master : ok, 버전을 읽어 준다 (S15P21B202-325)
+lvl, msg = L.target_verdict("release/S15P21B202-318-v0.1.0", "master")
+assert lvl == "ok" and "v0.1.0" in msg, (lvl, msg)
+# 릴리스 브랜치인데 버전이 없다 → fail (CI 가 태그를 만들 수 없다)
+lvl, msg = L.target_verdict("release/S15P21B202-318", "master")
+assert lvl == "fail" and "형식 위반" in msg and "vX.Y.Z" in msg, (lvl, msg)
+lvl, msg = L.target_verdict("release/S15P21B202-318-2026-09-07", "master")
+assert lvl == "fail", (lvl, msg)
+# 릴리스 브랜치를 develop 으로 → 그냥 develop 대상(허용). 규칙은 master 쪽에만 있다
+assert L.target_verdict("release/S15P21B202-318-v0.1.0", "develop")[0] == "ok"
 # 알 수 없는 대상(키 없는 브랜치) → fail
 lvl, msg = L.target_verdict("S15P21B202-96-x", "some-random-branch")
 assert lvl == "fail" and "스택 MR" in msg, (lvl, msg)

@@ -13,10 +13,11 @@
 #   master, develop
 #   <JIRA키>-<번호>-<설명>              예) S15P21B202-12-player-jump
 #   hotfix/<JIRA키>-<번호>-<설명>       예) hotfix/S15P21B202-40-crash-on-join
+#   release/<JIRA키>-<번호>-vX.Y.Z      예) release/S15P21B202-318-v0.1.0  (develop 스냅샷 → master, S15P21B202-325)
 # 최종 방어는 서버가 아니라 CI(mr-lint) 이다 — 이 훅은 가장 빨리 알려 주는 안내.
-# 근거: docs/git-convention.md §3, §6
+# 근거: docs/git-convention.md §3, §6, §8
 # ------------------------------------------------------------------
-PATTERN='^(master|develop|(hotfix/)?[A-Z][A-Z0-9]+-[0-9]+(-[A-Za-z0-9._-]+)?)$'
+PATTERN='^(master|develop|((hotfix|release)/)?[A-Z][A-Z0-9]+-[0-9]+(-[A-Za-z0-9._-]+)?)$'
 ZERO=0000000000000000000000000000000000000000
 status=0
 
@@ -59,7 +60,7 @@ printf '%s\n' "$input" | while read -r local_ref local_sha remote_ref remote_sha
   # 이미 가져와 둔 원격 추적 참조만 보므로 네트워크 접근이 없다. master 는 develop 의 조상이라
   # develop 기준 merge-base 와 master 기준 merge-base 가 같으면 master 시점(또는 그 이전)에서 갈라진 것.
   case "$branch" in
-    master|develop|hotfix/*) ;;
+    master|develop|hotfix/*|release/*) ;;
     *)
       if git rev-parse -q --verify origin/develop >/dev/null 2>&1 && git rev-parse -q --verify origin/master >/dev/null 2>&1; then
         base_dev=$(git merge-base "$local_sha" origin/develop 2>/dev/null)
@@ -137,7 +138,8 @@ stacked_parent() {    # 이 브랜치가 얹혀 있는 다른 작업 브랜치(o
 
 if [ "${METAGAME_AUTOREBASE:-1}" != "0" ] && [ -n "$cur" ] && [ "$pushing_cur" = "yes" ] && ! autorebase_busy; then
   case "$cur" in
-    master|develop|hotfix/*) ;;                   # hotfix 는 master 기반이 정상, 보호 브랜치는 대상 아님
+    master|develop|hotfix/*|release/*) ;;         # hotfix 는 master 기반이 정상, 보호 브랜치는 대상 아님.
+                                                  # release 는 develop 스냅샷 — 자동 반영으로 스냅샷을 움직이지 않는다(-325)
     *)
       if [ "${METAGAME_AUTOREBASE_FETCH:-1}" != "0" ]; then
         git fetch -q origin develop 2>/dev/null \
@@ -231,7 +233,7 @@ if [ -n "$cur" ] && [ "$pushing_cur" = "yes" ]; then
         subject=$(git log -1 --format=%s HEAD 2>/dev/null)
         case "$subject" in *"$key"*) title=$subject ;; *) title=$key ;; esac
         case "$cur" in
-          hotfix/*) target=master ;;
+          hotfix/*|release/*) target=master ;;
           *) target=$(stacked_parent "$cur" 2>/dev/null); [ -n "$target" ] || target=develop ;;
         esac
         echo "" >&2

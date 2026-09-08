@@ -42,6 +42,15 @@ def main() -> int:
     banner("mr-title")
     gl, jira = GitLab(), Jira()
     mr = gl.get_mr()
+    # master 대상 MR(릴리즈)은 squash 를 끈다 (S15P21B202-325). 프로젝트 기본값이 squash ON 이라 팀장이 체크를
+    # 풀어야 했는데, 켜진 채 머지하면 이후 릴리스가 전부 충돌한다. 제목 보정보다 먼저 처리한다 —
+    # develop → master 는 브랜치에 Jira 키가 없어 아래 보정이 일찍 끝나기 때문이다. 결과는 mr-lint 가 검사한다.
+    if (mr.get("target_branch") or "") == "master" and mr.get("squash"):
+        if gl.can_write:
+            st, _d = gl.update_mr(squash=False)
+            print("master 대상 MR — squash 해제" + ("" if st == 200 else f" 실패({st}) — mr-lint 가 막는다"))
+        else:
+            print("master 대상 MR 인데 squash 가 켜져 있음 — GITLAB_TOKEN 없어 끄지 못함(mr-lint 가 막는다)")
     raw_title = mr.get("title") or ""
     title, is_draft = strip_draft(raw_title)
     branch = mr.get("source_branch") or ""

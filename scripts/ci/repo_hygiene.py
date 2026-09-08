@@ -19,7 +19,8 @@ import sys
 from ci_common import GitLab, Report, banner, env, find_section, is_release_mr, sections
 
 FORBIDDEN = [
-    (re.compile(r"^METAGAME/(Library|Temp|Logs|obj|UserSettings|Build|Builds|\.vs|\.idea)/"), "Unity/IDE 생성물"),
+    # Release/ 는 2026-09-07 !240 — 팀장 빌드 폴더(218MB · 경로 232자)가 통째로 커밋됐다. 빌드는 GitLab Release 로(-325)
+    (re.compile(r"^METAGAME/(Library|Temp|Logs|obj|UserSettings|Build|Builds|Release|\.vs|\.idea)/"), "Unity/IDE 생성물·빌드 폴더"),
     (re.compile(r"\.(csproj|sln|suo|user|pidb|booproj|svd|pdb|mdb|opendb|VC\.db)$", re.I), "IDE/빌드 산출물"),
     (re.compile(r"(^|/)(Thumbs\.db|\.DS_Store|desktop\.ini)$", re.I), "OS 잡파일"),
     (re.compile(r"^(\.vs|\.idea)/"), "IDE 설정"),

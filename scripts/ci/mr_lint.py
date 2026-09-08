@@ -10,7 +10,7 @@ from urllib.parse import quote
 
 from ci_common import (BRANCH_RE, KEY_RE, PROJECT_KEY, TITLE_RE, GitLab, Jira, Report, banner, env,
                        env_int, find_section, http, is_release_mr, key_from_branch, load_team,
-                       part_of_issue, sections, strip_draft)
+                       part_of_issue, release_version, sections, strip_draft)
 
 REQUIRED_SECTIONS = ["Jira", "무엇을 · 왜", "산출물 위치", "확인 방법", "작성자 체크리스트", "리뷰어 확인"]
 _TEAM = load_team()
@@ -105,7 +105,7 @@ def base_warnings(gl: GitLab, branch: str, target: str, bkey: str | None) -> lis
 def target_verdict(branch: str, target: str) -> tuple[str, str]:
     """대상 브랜치 판정 — (레벨, 메시지). 레벨: ok | warn | fail
       develop  : 기본 경로
-      master   : 릴리즈·핫픽스만(develop 또는 hotfix/*)
+      master   : 릴리즈·핫픽스만(develop · release/<키>-vX.Y.Z · hotfix/*) — S15P21B202-325
       작업 브랜치: **스택 MR** 허용(팀 결정 2026-08-28, S15P21B202-99). 단 머지해도 Jira 이슈가 자동 완료되지 않는다 —
                   부모 브랜치가 develop 에 머지된 뒤 손으로 완료해야 한다(R9 가 허용).
 
@@ -120,7 +120,13 @@ def target_verdict(branch: str, target: str) -> tuple[str, str]:
     if target == "master":
         if branch.startswith("hotfix/") or branch == "develop":
             return "ok", "대상 브랜치 master (릴리즈·핫픽스)"
-        return "fail", "master 로는 develop 또는 hotfix/* 만 머지"
+        if branch.startswith("release/"):
+            ver = release_version(branch)
+            if ver:
+                return "ok", f"대상 브랜치 master — 릴리스 브랜치 {branch} (버전 {ver}; 머지되면 CI 가 태그·Release 를 만든다)"
+            return "fail", (f"릴리스 브랜치 이름 형식 위반: {branch!r} — `release/{PROJECT_KEY}-번호-vX.Y.Z` "
+                            f"(예: release/{PROJECT_KEY}-318-v0.1.0). 버전이 이름에 있어야 CI 가 태그·Release 를 만든다")
+        return "fail", "master 로는 develop · hotfix/* · release/<키>-vX.Y.Z 만 머지 (git-convention §8)"
     if target.startswith("hotfix/"):
         # hotfix 는 master 로 직행하는 브랜치다. 그 위에 또 MR 을 쌓으면 R6 조건이 대상 이름에서 키를 잡아
         # 완료 전환이 막히는 데다, 검증받지 않은 변경이 핫픽스에 얹혀 master 로 들어간다(-134).
@@ -191,7 +197,26 @@ def main() -> int:
     if is_release_mr(branch, target):
         tlevel, tmsg = target_verdict(branch, target)   # 대상 규칙은 가정하지 않고 실제로 판정한다
         {"ok": rep.ok, "warn": rep.warn, "fail": rep.fail}[tlevel](tmsg)
-        rep.ok("릴리즈 MR (develop → master) — 이슈 키 · 제목 형식 · 템플릿 · 체크리스트 검사는 "
+        # squash 는 꺼져 있어야 한다 (S15P21B202-325). 켜진 채 머지하면 develop 수백 커밋이 squash 1개로 master 에
+        # 들어가 두 브랜치가 역사를 공유하지 않고, 머지 베이스가 초기 커밋에 고정돼 **다음 릴리스부터 겹치는 파일이
+        # 전부 충돌**한다. mr-title 이 먼저 API 로 끄므로(needs) 여기서 켜져 있다면 토큰·권한 문제거나 사람이 다시 켠 것이다.
+        if mr.get("squash"):
+            rep.fail("master 대상 MR 인데 squash 가 켜져 있음 — 릴리즈 MR 은 squash 해제 필수(켜진 채 머지하면 이후 릴리스가 전부 충돌). "
+                     "mr-title 이 자동으로 끄는데 아직 켜져 있으면 GITLAB_TOKEN 권한을 확인하거나 MR 화면에서 'Squash commits' 를 해제")
+        else:
+            rep.ok("squash 해제 — master 가 develop 의 역사를 그대로 받는다")
+        if branch.startswith("release/"):
+            # 릴리스 브랜치는 develop 의 스냅샷이다. 자기 커밋이 있으면 그 변경은 develop 에 없어 다음 릴리스에서
+            # 사라지고, develop 재머지라는 절차가 하나 더 생긴다. 규칙: 릴리스 브랜치에는 커밋하지 않는다.
+            ahead = gl.ahead_count(branch, "develop") if gl.token else None
+            if ahead is None:
+                rep.warn("릴리스 브랜치에 develop 밖 커밋이 있는지 확인하지 못함(GITLAB_TOKEN 없음 또는 조회 실패)")
+            elif ahead:
+                rep.fail(f"릴리스 브랜치에 develop 에 없는 커밋 {ahead}개 — 릴리스 브랜치에는 커밋하지 않는다(develop 의 스냅샷). "
+                         f"develop 에서 고친 뒤 브랜치를 다시 따세요(git-convention §8)")
+            else:
+                rep.ok("릴리스 브랜치에 자기 커밋 없음 — develop 스냅샷 그대로")
+        rep.ok(f"릴리즈 MR ({branch} → master) — 이슈 키 · 제목 형식 · 템플릿 · 체크리스트 검사는 "
                "적용하지 않음 (내용은 develop 에 머지될 때 이미 검사됨)")
         return rep.finish()
 
@@ -200,7 +225,7 @@ def main() -> int:
     if bkey:
         rep.ok(f"소스 브랜치 형식 OK (키 {bkey})")
     else:
-        rep.fail(f"소스 브랜치 형식 위반: {branch!r} — `{PROJECT_KEY}-번호[-설명]` 또는 `hotfix/…`")
+        rep.fail(f"소스 브랜치 형식 위반: {branch!r} — `{PROJECT_KEY}-번호[-설명]` · `hotfix/…` · `release/{PROJECT_KEY}-번호-vX.Y.Z`")
     tlevel, tmsg = target_verdict(branch, target)
     {"ok": rep.ok, "warn": rep.warn, "fail": rep.fail}[tlevel](tmsg)
 

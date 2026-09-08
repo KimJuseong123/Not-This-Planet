@@ -95,10 +95,12 @@ print(f"  잡이 사라지면 지적함 ({len(gone)}곳, 파일:행 포함) ✅"
 assert not any(("records/" in g or "records\\" in g) for g in gone), gone
 print("  docs/records/ 는 검사 대상 아님 ✅")
 
-# ── drift-ok 표시가 그 줄만 빼는지
-marked = [p for p in ("docs/e2e-checklist.md", "docs/jira-gitlab-automation.md", "docs/mr-flow.md")
-          if R.DRIFT_OK in open(p, encoding="utf-8").read()]
-assert len(marked) == 3, f"역사 서술 표시가 {len(marked)}곳뿐: {marked}"
+# ── drift-ok 표시가 그 줄만 빼는지 — 표시가 있는 문서를 **찾아서** 본다.
+#    파일 이름 3개를 박아 두었더니 -323 이 e2e-checklist 의 역사 서술을 정리하며 표시를 없앤 순간 깨졌다(문서 정리는
+#    정상이고, 표시 개수는 변하는 값이다). 검사 대상은 "표시가 있는 문서가 줄 단위로 걸러지는가" 이므로 개수는 보지 않는다.
+marked = [f"docs/{f}" for f in sorted(os.listdir("docs"))
+          if f.endswith(".md") and R.DRIFT_OK in open(f"docs/{f}", encoding="utf-8").read()]
+assert marked, "drift-ok 표시가 있는 문서가 하나도 없다 — 표시 자체가 사라졌으면 줄 단위 필터를 검증할 수 없다"
 # 표시된 파일에서도 **다른 줄**은 여전히 검사된다
 norm = [g.replace(chr(92), "/") for g in gone]                      # Windows 경로 구분자
 still = [g for g in norm if any(g.startswith(m) for m in marked)]

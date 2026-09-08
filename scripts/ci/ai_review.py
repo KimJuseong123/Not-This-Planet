@@ -21,6 +21,8 @@ import os
 import re
 import shutil
 import subprocess
+
+from ci_common import is_release_mr
 import sys
 from concurrent.futures import ThreadPoolExecutor
 
@@ -365,6 +367,10 @@ def main() -> int:
     summary_model = env("AI_REVIEW_SUMMARY_MODEL", model)
     print(f"백엔드={backend} 모델={model} 요약={summary_model}" + (f" claude={find_claude()}" if backend == "cli" else ""))
     mr = gl.get_mr()
+    if is_release_mr(mr.get("source_branch") or "", mr.get("target_branch") or ""):
+        # 릴리즈 MR 의 diff 는 develop 전체 대 master 다 — 수백 파일을 다시 읽어도 새 정보가 없고 구독만 쓴다.
+        # 내용은 develop 에 들어올 때 MR 단위로 이미 리뷰됐다 (S15P21B202-325).
+        print("릴리즈 MR(→ master) — develop 에 들어올 때 이미 리뷰된 내용이라 생략"); return 0
     title, _ = strip_draft(mr.get("title") or "")
     key = key_from_branch(mr.get("source_branch") or "")
     issue_txt = jira_text(jira, key)

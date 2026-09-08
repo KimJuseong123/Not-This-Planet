@@ -63,7 +63,7 @@
 | --- | --- | --- | --- | --- | --- |
 | `mr-title` | prepare | 항상 | 브랜치의 Jira 키로 이슈를 읽어 제목을 `[파트] type: 요약 (키)` 로 보정, 본문 `- 이슈:` 채움 | MR 제목·본문 | 비차단 |
 | `mm-mr-opened` | prepare | `MM_WEBHOOK_URL` | 🟢 리뷰 요청 카드 — 이 MR 의 **첫** 파이프라인일 때 1회, 리뷰어(기본 팀장) 멘션. Draft 제외 | MM | 비차단 |
-| `mr-lint` | lint | 항상 · `needs: mr-title` | Draft 금지 · 소스/대상 브랜치 규칙(master 는 develop·hotfix/* 만) · 제목 형식 · 키 일치 · 템플릿 6섹션 · 작성자 체크리스트 · Jira 이슈 실존·담당자·상위 에픽 · 파트 일치. 경고(브랜치가 master 기반 · develop 대비 뒤처짐 · 다른 키 커밋 섞임 · 담당자 ≠ 작성자)는 MR 코멘트 `⚠ 확인 사항` 로 | MR 코멘트 · MM 🟠(master 기반일 때만) | **막음** |
+| `mr-lint` | lint | 항상 · `needs: mr-title` | Draft 금지 · 소스/대상 브랜치 규칙(master 는 develop·hotfix/*·`release/<키>-vX.Y.Z` 만 — 릴리즈 MR 은 squash 해제·자기 커밋 없음까지 본다, -325) · 제목 형식 · 키 일치 · 템플릿 6섹션 · 작성자 체크리스트 · Jira 이슈 실존·담당자·상위 에픽 · 파트 일치. 경고(브랜치가 master 기반 · develop 대비 뒤처짐 · 다른 키 커밋 섞임 · 담당자 ≠ 작성자)는 MR 코멘트 `⚠ 확인 사항` 로 | MR 코멘트 · MM 🟠(master 기반일 때만) | **막음** |
 | `mr-overlap` | lint | 항상 | 같은 대상을 향한 **다른 열린 MR 마다** `git merge-tree` 로 실제 3-way 머지를 시험. 텍스트 충돌이면 **나중 MR** 이 ❌, 먼저 MR 은 ⚠ + 머지 순서. 이 MR 이 다른 MR 위에 얹혀 있으면 대상을 그 브랜치로 **자동 전환**(스택 MR) | MR 코멘트(양쪽) · MR 대상 브랜치 | **막음**(나중 MR 의 텍스트 충돌만) |
 | `stack-order` | lint | 항상 · `needs: mr-overlap` · `when: always` | 스택 자식 MR 은 부모가 develop 에 들어간 뒤에만 — 아니면 실패 + **미해소 스레드 🔒** 로 머지 버튼을 잠근다. 부모가 이미 머지됐으면 대상을 develop 으로 되돌리고 통과 | MR 스레드 · MR 대상 브랜치 | **막음**(🔴 카드는 안 보냄 — 잘못이 아니라 순서일 뿐) |
 | `repo-hygiene` | lint | 항상 | 경로 180자 상한 · 금지 파일(Library·빌드 산출물·인증키 …) · `.meta` 짝 · Assets 최상위 금지 · LFS 대상이 바이너리로 커밋 · 비-LFS 5MB · **씬/프리팹 변경 vs 본문 선언** · 문서가 말하는 CI 잡 이름 실존 · **MR 잡에 `/spool` 이 보이면 실패**(배포 격리 회귀). 릴리즈 MR(develop → master)은 통째로 건너뜀 | 잡 로그 | **막음** |
@@ -102,7 +102,7 @@
 | Pipelines must succeed | **켜짐** | 마지막 파이프라인이 빨간불이면 머지 버튼이 잠긴다. 아래 "막음" 잡이 하드 블록이 되는 근거 |
 | Skipped pipelines are considered successful | 꺼짐 | 파이프라인이 없는 MR 도 머지 불가 |
 | All threads must be resolved | **켜짐** | `stack-order` 의 🔒 스레드가 머지 버튼을 잠그는 근거 |
-| Squash commits | 기본 켜짐(선택 가능) | **릴리즈 MR(→ master)은 반드시 해제** — 켜진 채 머지하면 이후 모든 릴리즈가 충돌한다(§8) |
+| Squash commits | 기본 켜짐(선택 가능) | **릴리즈 MR(→ master)은 해제** — 켜진 채 머지하면 이후 모든 릴리즈가 충돌한다. `mr-title` 이 master 대상 MR 의 squash 를 자동으로 끄고 `mr-lint` 가 확인한다(-325) |
 | Merge method | merge commit | |
 | 소스 브랜치 삭제 | 기본 켜짐 | 머지되면 브랜치가 사라진다 → 후속은 새 이슈·새 브랜치 |
 | 보호 브랜치 | `master` push No one / merge Maintainers · `develop` push **Maintainers** / merge Maintainers · `hotfix/S15P21B202-*` push Maintainers / merge No one | develop 이 문서(git-convention §6 "No one")와 **다르다** — 팀장 직접 push 가 가능한 상태 |
@@ -203,7 +203,8 @@ MR 하나에 붙을 수 있는 봇 코멘트: `mr-lint` ⚠ · `mr-overlap` · `
 | 무엇 | 상태 |
 | --- | --- |
 | develop 보호가 push **Maintainers** — 문서는 No one | 팀장 설정 1분. 그동안 develop 직접 push 가 가능하다(검사 0건으로 들어간다) |
-| 릴리즈 MR 의 squash 를 막는 장치가 없다 | `mr-lint` 에 "master 대상 + squash → 실패" 추가 예정. 릴리스 브랜치 방식(develop 에서 딴 브랜치 → master) 채택 여부와 함께 |
+| 릴리스 자동화 — 태그 · Windows 빌드 · GitLab Release · Jira 릴리스 | -326 · -327. 규칙(`release/` 브랜치 · squash 자동 해제 · 자기 커밋 금지 · 빌드 폴더 금지)은 -325 로 들어갔다 |
+| ~~Jira R6·R7 정규식이 `release/` 를 모른다~~ | **2026-09-07 해결** — `scripts/jira/apply_rules17.py` 로 3곳을 `^(?:hotfix/\|release/)?` 로 바꿨다(PUT 200 확인). 첫 실전 확인은 릴리스 MR 머지 때 R6 가 그 이슈를 완료시키는지 |
 | `build-backend` 가 테스트를 안 돈다 | -302. 플래키 원인(-313)이 배포됐으니 `test bootJar` + junit 으로 |
 | `metagame.service`(데디케이티드 서버) 가 아직 돈다 | 리슨 서버 + 릴레이 전환 뒤 사용 여부 확인 |
 | `deploy-backend` 가 수동 · dev/prod 미분리 | -284. 보안그룹 답(dev 포트) 대기 |

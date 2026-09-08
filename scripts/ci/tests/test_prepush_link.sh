@@ -77,4 +77,13 @@ OUT=$( { printf '%s\n' "$LINE" | sh .githooks/pre-push origin "/some/local/path.
 echo "$OUT" | grep -q "merge_requests/new" && { echo "실패5: 로컬 경로 원격인데 링크를 찍었다"; echo "$OUT"; exit 1; }
 echo "  5) https·ssh 원격 → .git 을 뗀 https 프로젝트 주소 · 로컬 경로면 링크 생략 ✅"
 
+# ── 6) release/<키>-vX.Y.Z 브랜치: 훅이 허용하고 MR 대상은 master (S15P21B202-325) ──
+export METAGAME_PROJECT_URL="https://lab.example.com/grp/proj"
+setup release/S15P21B202-5-v0.1.0 "chore: release v0.1.0 (S15P21B202-5)"
+OUT=$( { git push -u origin HEAD; } 2>&1 || true )
+echo "$OUT" | grep -q "push 거부" && { echo "실패6: release/ 브랜치가 거부됐다"; echo "$OUT"; exit 1; }
+echo "$OUT" | grep -q "merge_request%5Btarget_branch%5D=master" || { echo "실패6: release 대상은 master"; echo "$OUT"; exit 1; }
+git rev-parse -q --verify origin/release/S15P21B202-5-v0.1.0 >/dev/null || { echo "실패6: push 가 안 됐다"; exit 1; }
+echo "  6) release/<키>-vX.Y.Z → 훅 허용 · 대상 master ✅"
+
 echo "TEST_PREPUSH_LINK OK"
