@@ -21,6 +21,7 @@
 로컬 실행: python3 scripts/ci/unity_report.py <nunit.xml> [unity.log]
            (GITLAB_TOKEN·CI_MERGE_REQUEST_IID 가 있으면 MR 코멘트까지)
 """
+import re
 import subprocess
 import os
 import sys
@@ -109,6 +110,65 @@ def compile_errors(log_text: str, cap: int = MAX_COMPILE_ERRORS) -> list[str]:
         if len(out) >= cap:
             break
     return out
+ERR_PATH_RE = re.compile(r"([A-Za-z0-9_./\\-]+\.cs)\((\d+),(\d+)\)")
+
+
+def error_files(errs: list[str]) -> set[str]:
+    """`error CS` 줄에서 파일 경로만 뽑아 `/` 로 정규화한다 (S15P21B202-342).
+
+    Unity 는 `Assets/_Project/.../Foo.cs(12,34): error CS0103: ...` 처럼 **프로젝트
+    상대 경로**로 적는데 git 은 `METAGAME/Assets/...` 이다. 그래서 뒤쪽 일치로 견준다."""
+    out = set()
+    for e in errs:
+        m = ERR_PATH_RE.search(e)
+        if m:
+            out.add(m.group(1).replace("\\", "/"))
+    return out
+
+
+def mr_own_files(target: str) -> set[str] | None:
+    """이 MR 이 대상 브랜치 대비 바꾼 파일. 판단 못 하면 None (S15P21B202-342).
+
+    `unity-compile` 이 대상 브랜치를 합친 뒤 검사하므로, 합친 상태에서
+    `git diff origin/<target> HEAD` 가 곧 **이 MR 의 기여분**이다."""
+    if not target:
+        return None
+    try:
+        r = subprocess.run(["git", "diff", "--name-only", f"origin/{target}", "HEAD"],
+                           capture_output=True, text=True, timeout=30)
+    except Exception as e:  # noqa: BLE001
+        print(f"[warn] 이 MR 의 파일 목록 확인 실패({type(e).__name__}: {e})")
+        return None
+    if r.returncode != 0:
+        print(f"[warn] 이 MR 의 파일 목록 확인 실패(git diff {r.returncode})")
+        return None
+    return {ln.strip().replace("\\", "/") for ln in r.stdout.splitlines() if ln.strip()}
+
+
+def errors_are_ours(errs: list[str], target: str) -> bool | None:
+    """컴파일 오류가 **이 MR 이 바꾼 파일**에서 났는지. 판단 못 하면 None (S15P21B202-342).
+
+    **왜 필요한가 — ⓞ 가 만든 위험이다.** `decide` 는 컴파일 오류를 기준선과 견주지 않고
+    바로 차단한다. 그 근거는 "develop 이 컴파일되면 이 MR 이 깬 것" 이었는데, 이제 잡이
+    **develop 을 합친 뒤** 검사하므로 develop 자신의 컴파일 오류가 이 MR 의 오류로 나타난다.
+    09-02 에 develop 은 2시간 37분 깨져 있었다 — 그 사이 올라온 모든 MR 이 "이 MR 이 깼다"
+    라는 **사실이 아닌** 이유로 막힌다. 그러면 사람들이 이 신호를 우회하는 법을 배운다
+    (`decide` 의 원칙 주석 참고). `!259` 의 AI 리뷰가 이 구멍을 지적했다.
+
+    가리는 방법: `error CS` 줄의 파일 경로가 이 MR 이 바꾼 파일 중 하나인지 본다.
+    **하나라도 우리 것이면 우리 것으로 본다** — 애매할 때 통과시키지 않는다."""
+    files = mr_own_files(target)
+    if files is None:
+        return None
+    paths = error_files(errs)
+    if not paths:
+        return None          # 경로를 못 읽었다 — 단정하지 않는다
+    for ep in paths:
+        if any(f == ep or f.endswith("/" + ep) for f in files):
+            return True
+    return False
+
+
 
 
 # ── 기준선(대상 브랜치의 마지막 결과) ────────────────────────────────────────
@@ -175,7 +235,8 @@ def failed_names(data: dict) -> set:
     return {f'{c["cls"]}.{c["name"]}' for c in data["cases"] if c["result"] == "Failed"}
 
 
-def decide(data: dict, errs: list[str], base: set | None, unity_rc: int) -> tuple[int, str]:
+def decide(data: dict, errs: list[str], base: set | None, unity_rc: int,
+           target: str = "") -> tuple[int, str]:
     """잡의 종료 코드와 그 이유. (S15P21B202-309)
 
     원칙은 하나다 — **이 MR 이 만든 것만 막는다.** 나머지는 경고이거나 통과다.
@@ -183,7 +244,13 @@ def decide(data: dict, errs: list[str], base: set | None, unity_rc: int) -> tupl
     사람들이 이 신호를 우회하는 법을 배운다(mr-lint 의 스택 경고가 실측 26 대 0 으로 무시됐다).
     """
     if errs:
-        # 컴파일 오류는 기준선을 볼 필요가 없다. develop 이 컴파일되면 이 MR 이 깬 것이다.
+        # 컴파일 오류는 기준선을 볼 필요가 없다 — **오류가 이 MR 이 바꾼 파일에서 났다면.**
+        # 이제 잡이 대상 브랜치를 합친 뒤 검사하므로(S15P21B202-342 ⓞ) develop 자신의
+        # 컴파일 오류가 이 MR 의 오류로 나타난다. 그때는 단정하지 않는다 — errors_are_ours 참고.
+        ours = errors_are_ours(errs, target)
+        if ours is False:
+            return UNKNOWN, (f"컴파일 오류 {len(errs)}건이 전부 이 MR 이 바꾸지 않은 파일에서 "
+                             f"났다 — `{target}` 쪽 문제로 본다")
         return REGRESSION, f"컴파일 오류 {len(errs)}건 — 이 MR 이 깼다"
     if base is None:
         if unity_rc == 0:
@@ -228,10 +295,20 @@ def body(data: dict, errs: list[str], base: set | None, ref: str,
          stale_base: dict | None = None) -> str:
     now_fail = {f'{c["cls"]}.{c["name"]}': c for c in data["cases"] if c["result"] == "Failed"}
     if errs:
-        head = "🔴 **Unity C# 컴파일 실패** — 테스트는 돌지 못했습니다"
-        parts = [head, "", "```"] + errs + ["```", "",
-                 "이 MR 을 머지하면 develop 이 컴파일되지 않습니다. "
-                 "(09-02 에 같은 일로 develop 이 2시간 37분 멈췄습니다.)"]
+        # 오류가 전부 이 MR 밖 파일이면 대상 브랜치 쪽 문제다 (S15P21B202-342).
+        # 판정도 main 에서 2(경고)로 낮춘다 — 남의 오류로 사람을 막지 않는다.
+        ours = errors_are_ours(errs, os.environ.get("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", ""))
+        if ours is False:
+            head = "⚠ **Unity C# 컴파일 실패 — 다만 이 MR 이 바꾼 파일이 아닙니다**"
+        else:
+            head = "🔴 **Unity C# 컴파일 실패** — 테스트는 돌지 못했습니다"
+        tail = ("이 MR 을 머지하면 develop 이 컴파일되지 않습니다. "
+                "(09-02 에 같은 일로 develop 이 2시간 37분 멈췄습니다.)")
+        if ours is False:
+            tail = ("오류가 난 파일이 **전부 이 MR 밖**입니다 — 대상 브랜치가 이미 컴파일되지 "
+                    "않는 상태로 보입니다. 이 MR 탓으로 단정하지 않고 경고로 낮췄습니다. "
+                    "대상 브랜치가 고쳐진 뒤 이 파이프라인을 재실행해 주세요.")
+        parts = [head, "", "```"] + errs + ["```", "", tail]
         return MARKER + "\n" + "\n".join(parts)
 
     total, passed, failed = data["total"], data["passed"], data["failed"]
@@ -369,6 +446,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"JUnit 변환: {out} (총 {data['total']} · 실패 {data['failed']})")
 
     gl = GitLab()
+    tgt = (env("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "") or "").strip()
     ref = baseline_ref(env("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "develop"))
     bmeta: dict = {}
     base = baseline_failures(gl, ref, meta=bmeta)
@@ -377,7 +455,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(f"기준선: `{ref}` 실패 {len(base)}건")
 
-    code, why = decide(data, errs, base, unity_rc)
+    code, why = decide(data, errs, base, unity_rc, target=tgt)
     # 낡은 기준선으로 회귀를 단정하지 않는다 (S15P21B202-342 · metagame_changed 참고).
     # 이제 develop 을 합친 결과를 검사하므로 develop 의 실패를 함께 물려받는데, 기준선이
     # 그보다 옛것이면 남의 실패가 내 몫으로 계산된다. 그 경우 차단(1) 대신 경고(2)로 낮춘다.

@@ -423,4 +423,71 @@ assert R.metagame_changed("a", "b") is None, "git 이 실패하면 판단하지 
 SP.run = _real_run
 print("  METAGAME 변경 판단 — 참·거짓·판단불가 3갈래 ✅")
 
+# ── ㉒ 남의 컴파일 오류로 사람을 막지 않는다 (S15P21B202-342) ────────────────
+#     ⓞ 가 만든 위험이다. decide 는 컴파일 오류를 기준선과 견주지 않고 바로 차단하는데,
+#     그 근거는 "develop 이 컴파일되면 이 MR 이 깬 것" 이었다. 이제 잡이 develop 을 합친
+#     뒤 검사하므로 **develop 자신의 컴파일 오류가 이 MR 의 오류로 나타난다.** 09-02 에
+#     develop 은 2시간 37분 깨져 있었다 — 그 사이 올라온 모든 MR 이 "이 MR 이 깼다" 라는
+#     사실이 아닌 이유로 막힌다. `!259` 의 AI 리뷰가 이 구멍을 지적했다.
+UNITY_ERR = "Assets/_Project/Scripts/Runtime/Gameplay/Parts/LaunchTest.cs(88,17): error CS0103: 이름 'Foo'"
+WIN_ERR = "METAGAME\\Assets\\_Project\\Scripts\\Runtime\\Core\\Tuning.cs(12,5): error CS1002: ; expected"
+
+assert R.error_files([UNITY_ERR]) == {"Assets/_Project/Scripts/Runtime/Gameplay/Parts/LaunchTest.cs"}
+assert R.error_files([WIN_ERR]) == {"METAGAME/Assets/_Project/Scripts/Runtime/Core/Tuning.cs"}
+assert R.error_files(["error CS9999: 경로가 없는 줄"]) == set()
+print("  오류 줄에서 파일 경로 추출 (유닉스·윈도우·경로없음) ✅")
+
+_own = R.mr_own_files
+
+
+def own(files):
+    R.mr_own_files = lambda target: (set(files) if target else None)
+
+
+# 오류 파일이 이 MR 것 → 우리 것
+own({"METAGAME/Assets/_Project/Scripts/Runtime/Gameplay/Parts/LaunchTest.cs", "docs/x.md"})
+assert R.errors_are_ours([UNITY_ERR], "develop") is True
+print("  오류가 내 파일 → True(차단) ✅")
+
+# 오류 파일이 이 MR 밖 → 대상 브랜치 문제
+own({"scripts/ci/unity_report.py", "docs/x.md"})
+assert R.errors_are_ours([UNITY_ERR], "develop") is False
+print("  오류가 내 파일 밖 → False(경고로) ✅")
+
+# 하나라도 우리 것이면 우리 것 — 애매할 때 통과시키지 않는다
+own({"METAGAME/Assets/_Project/Scripts/Runtime/Core/Tuning.cs"})
+assert R.errors_are_ours([UNITY_ERR, WIN_ERR], "develop") is True
+print("  섞여 있으면 → True ✅")
+
+# 판단 못 하는 두 경우는 None — 단정하지 않는다
+own(None)
+R.mr_own_files = lambda target: None
+assert R.errors_are_ours([UNITY_ERR], "develop") is None
+own({"a.cs"})
+assert R.errors_are_ours(["error CS9999: 경로가 없는 줄"], "develop") is None
+print("  파일 목록·경로를 못 읽으면 → None ✅")
+
+# decide: None 이면 지금까지처럼 차단한다 (기본을 약하게 만들지 않는다)
+R.mr_own_files = lambda target: None
+assert R.decide(data([]), [UNITY_ERR], set(), 2, target="develop")[0] == REG
+print("  판단 불가 → 차단 유지 ✅")
+
+# decide: 남의 오류면 2(경고)
+R.mr_own_files = lambda target: {"scripts/ci/unity_report.py"}
+code, why = R.decide(data([]), [UNITY_ERR], set(), 2, target="develop")
+assert code == UNK and "바꾸지 않은 파일" in why, (code, why)
+print("  남의 컴파일 오류 → 판정 2 ✅")
+
+# 코멘트도 그렇게 말한다
+os.environ["CI_MERGE_REQUEST_TARGET_BRANCH_NAME"] = "develop"
+b = R.body(data([]), [UNITY_ERR], set(), "develop")
+assert "이 MR 이 바꾼 파일이 아닙니다" in b and "전부 이 MR 밖" in b, b
+assert "🔴" not in b, "차단하지 않으므로 🔴 를 쓰지 않는다"
+R.mr_own_files = lambda target: {"METAGAME/Assets/_Project/Scripts/Runtime/Gameplay/Parts/LaunchTest.cs"}
+b2 = R.body(data([]), [UNITY_ERR], set(), "develop")
+assert "🔴" in b2 and "2시간 37분" in b2, b2
+os.environ.pop("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", None)
+print("  코멘트가 남의 오류와 내 오류를 가른다 ✅")
+R.mr_own_files = _own
+
 print("TEST271 OK")
