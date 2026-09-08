@@ -27,7 +27,7 @@ EC2 에 러너가 올라왔으므로(-214) 이걸 자동화할 수 있게 됐다
 | --- | --- |
 | 빌드 | CI 잡이 `eclipse-temurin:17-jdk` 컨테이너에서 `./gradlew bootJar` → jar 을 아티팩트로 |
 | 전달 | 배포 잡이 jar 을 **호스트에 마운트된 스풀 디렉터리**에 놓고 완료 표시 파일을 쓴다 |
-| 적용 | 호스트의 **systemd path 유닛**이 표시 파일을 보고 `deploy.sh` 실행 — jar 교체 · `compose up -d --build backend` · 헬스체크 |
+| 적용 | 호스트의 **systemd path 유닛**이 표시 파일을 보고 `deploy.sh` 실행 — jar 교체 · `compose up -d --build backend` · 헬스체크. **그 스크립트는 스풀 밖**(`/opt/metagame-deploy/`, root 소유)에 둔다 — 스풀은 배포 러너 컨테이너에 rw 라 안에 두면 잡이 덮어써 호스트 권한으로 돌 수 있다(2026-09-07 발견, `-324`) |
 | 방아쇠 | develop 머지 파이프라인에서 **`when: manual`**(사람이 누른다). 자동 아님 |
 | 롤백 | 직전 jar 3개를 보관. 헬스체크 실패 시 **직전 jar 로 자동 복귀** |
 | 시크릿 | `.env` 는 **서버에만**(권한 600). CI 는 시크릿을 보지 않는다 |
