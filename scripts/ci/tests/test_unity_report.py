@@ -865,8 +865,19 @@ try:
         ci_common.http = _boom_http
         r1 = os.path.join(d, "unity-recheck-1.xml")
         open(r1, "w", encoding="utf-8").write(_RECHECK_A.replace("Hatch", "Load"))
-        R.main([nunit, os.path.join(d, "nope.log"), "2",
-                "--recheck-dir", d, "--baseline-from", pinned])
+        # 이 테스트가 보는 것은 **기준선 고정**이다. 판정 낮추기(!272 4차)와 엉키지
+        # 않게 "이 MR 은 METAGAME/ 을 안 바꿨다" 를 명시한다 — 그 경우 0 이 맞다.
+        _mc = R.metagame_changed
+        R.metagame_changed = lambda a, b: False
+        os.environ["CI_MERGE_REQUEST_DIFF_BASE_SHA"] = "aaaaaaa1"
+        os.environ["CI_COMMIT_SHA"] = "bbbbbbb2"
+        try:
+            R.main([nunit, os.path.join(d, "nope.log"), "2",
+                    "--recheck-dir", d, "--baseline-from", pinned])
+        finally:
+            R.metagame_changed = _mc
+            os.environ.pop("CI_MERGE_REQUEST_DIFF_BASE_SHA", None)
+            os.environ.pop("CI_COMMIT_SHA", None)
         verdict = open(os.path.join(d, R.VERDICT_FILE), encoding="utf-8").read()
     # Load 는 재실행에서 통과했다(_RECHECK_A 의 Hatch 자리) → 면제되어 통과
     assert verdict == "0", f"고정 기준선 + 재실행 통과 → 판정 0 이어야 한다 (판정 {verdict})"
@@ -966,5 +977,48 @@ for _n in ("G.T.Load(1,2)", "G.T.Plain"):
     assert any(_re.fullmatch(_p, _n) for _p in _fv.split(";")), (_n, _fv)
 assert R.testfilter_value(set()) == "", R.testfilter_value(set())
 print("  -testFilter 값이 정규식 이스케이프된다 ✅")
+
+
+# ⑪ 면제했는데 **이 MR 이 게임 코드를 건드렸으면** 판정을 2(경고)로 낮춘다 (!272 4차 리뷰).
+#    격리 재실행 통과는 "실패가 실행 맥락에 달렸다" 는 뜻이고, 그 맥락이 이 MR 이 만든
+#    전역·정적 상태 오염일 수 있다. METAGAME/ 을 안 바꿨으면 그 경우가 불가능하므로 0.
+_keep_bf5 = R.baseline_failures
+_keep_mc5 = R.metagame_changed
+_MINE = "aaaaaaa1"
+_HEAD = "bbbbbbb2"
+
+
+def _run_flaky_case(touched):
+    """새 실패 하나가 재실행에서 통과하는 상황을 만들고 판정을 돌려준다."""
+    R.metagame_changed = lambda a, b: touched
+    with _tf.TemporaryDirectory() as d:
+        nunit = os.path.join(d, "unity-results.xml")
+        open(nunit, "w", encoding="utf-8").write(_PLAN_NUNIT)   # G.ShipAscentTests.Load 실패
+        r1 = os.path.join(d, "unity-recheck-1.xml")
+        open(r1, "w", encoding="utf-8").write(_RECHECK_A.replace("Hatch", "Load"))
+        R.main([nunit, os.path.join(d, "nope.log"), "2", "--recheck-dir", d])
+        return open(os.path.join(d, R.VERDICT_FILE), encoding="utf-8").read()
+
+
+try:
+    R.baseline_failures = lambda gl, ref, max_pipelines=15, meta=None, runs=3: set()
+    os.environ["CI_MERGE_REQUEST_DIFF_BASE_SHA"] = _MINE
+    os.environ["CI_COMMIT_SHA"] = _HEAD
+
+    assert _run_flaky_case(False) == "0", "METAGAME/ 을 안 바꿨으면 0 을 유지해야 한다"
+    assert _run_flaky_case(True) == str(UNK), (
+        "METAGAME/ 을 바꿨으면 상태 오염 가능성이 남아 2(경고)로 낮춰야 한다")
+    assert _run_flaky_case(None) == str(UNK), (
+        "판단하지 못했으면 낮추는 쪽으로 틀린다")
+
+    # diff base 를 모르면(로컬 실행 등) 판단할 수 없으니 낮춘다
+    os.environ.pop("CI_MERGE_REQUEST_DIFF_BASE_SHA", None)
+    assert _run_flaky_case(False) == str(UNK), "diff base 가 없으면 낮춘다"
+finally:
+    R.baseline_failures = _keep_bf5
+    R.metagame_changed = _keep_mc5
+    os.environ.pop("CI_MERGE_REQUEST_DIFF_BASE_SHA", None)
+    os.environ.pop("CI_COMMIT_SHA", None)
+print("  면제 + 게임 코드 변경 → 판정 2 로 낮춘다 · 변경 없으면 0 유지 ✅")
 
 print("TEST271 OK")

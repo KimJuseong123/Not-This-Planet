@@ -736,6 +736,36 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  확인 못함(회귀로 둔다): {name}")
 
     code, why = decide(data, errs, base, unity_rc, flaky=flaky)
+
+    # 면제했는데 **이 MR 이 게임 코드를 건드렸으면** 판정을 2(경고)로 낮춘다
+    # (`!272` 4차 AI 리뷰). 격리 재실행 통과는 "실패가 실행 맥락에 달렸다" 는 뜻이고,
+    # 그 맥락이 **이 MR 이 만든 전역·정적 상태 오염**일 수 있다 — 그러면 진짜 회귀다.
+    #
+    # `METAGAME/` 을 하나도 안 바꿨으면 그 경우가 **불가능하므로** 0 을 그대로 둔다.
+    # 그래야 문서·CI 만 바꾼 MR(오늘 막힌 셋이 전부 그랬다)에 경고가 붙지 않는다 —
+    # 흔한 경우에 ⚠ 를 붙이면 사람이 그 신호를 무시하는 법을 배운다.
+    #
+    # 2 는 비차단이라 **막지는 않는다.** 사람이 한 번 보게 만드는 것이 목적이다.
+    if code == PASS and flaky:
+        mine = env("CI_MERGE_REQUEST_DIFF_BASE_SHA", "") or ""
+        head = env("CI_COMMIT_SHA", "") or ""
+        touched = metagame_changed(mine, head) if (mine and head) else None
+        if touched:
+            print(f"플래키 면제 {len(flaky)}건 · 이 MR 이 METAGAME/ 을 바꿨다 "
+                  f"({mine[:8]}..{head[:8]}) — 상태 오염 가능성이 남아 경고로 낮춘다")
+            code = UNKNOWN
+            why = (f"새 실패 {len(flaky)}건이 격리 재실행에서 통과했다(플래키). "
+                   f"다만 이 MR 이 게임 코드를 바꿨으므로 **이 MR 이 만든 상태 오염**일 "
+                   f"가능성이 남는다 — 막지 않되 사람이 확인한다")
+        elif touched is False:
+            print(f"플래키 면제 {len(flaky)}건 · 이 MR 은 METAGAME/ 을 바꾸지 않았다 — "
+                  f"상태 오염이 불가능하므로 판정 0 을 유지한다")
+        else:
+            print(f"플래키 면제 {len(flaky)}건 · METAGAME/ 변경 여부를 판단하지 못했다"
+                  f"({'diff base 없음' if not mine else '확인 실패'}) — 경고로 낮춘다")
+            code = UNKNOWN
+            why = (f"새 실패 {len(flaky)}건이 격리 재실행에서 통과했다(플래키). "
+                   f"이 MR 이 게임 코드를 바꿨는지 확인하지 못해 경고로 둔다")
     # 낡은 기준선으로 회귀를 단정하지 않는다 (S15P21B202-342 · metagame_changed 참고).
     # 이제 develop 을 합친 결과를 검사하므로 develop 의 실패를 함께 물려받는데, 기준선이
     # 그보다 옛것이면 남의 실패가 내 몫으로 계산된다. 그 경우 차단(1) 대신 경고(2)로 낮춘다.
