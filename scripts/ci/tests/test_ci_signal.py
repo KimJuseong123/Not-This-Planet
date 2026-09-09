@@ -144,15 +144,23 @@ _uc = job("unity-compile")
 assert "--recheck-plan" in _uc, (
     "unity-compile 에서 --recheck-plan 이 사라졌다 — 새 실패를 다시 돌리지 않으면 "
     "비결정 테스트가 무관한 MR 을 무작위로 막는다(-347)")
-assert "unity-recheck-args.txt" in _uc, (
+assert "--recheck-dir" in _uc, (
     "재실행 결과를 unity_report.py 에 넘기지 않는다 — 돌려도 판정에 반영되지 않는다")
+assert "--baseline-from" in _uc, (
+    "최종 판정이 기준선을 다시 조회한다 — 계획과 어긋날 창이 열린다(!272 리뷰)")
 assert "-testFilter" in _uc, "재실행이 그 테스트만 골라 돌지 않는다"
 # 계획 단계가 판정 파일을 남기면 잡이 재실행 전에 끝난다 — 두 호출의 순서를 확인한다
 _plan_at = _uc.index("--recheck-plan")
 _final_at = _uc.rindex("unity_report.py")
 assert _plan_at < _final_at, "계획 호출이 최종 보고보다 뒤에 있다 — 순서가 뒤집혔다"
 # 재실행 근거를 남겨야 판정을 다시 볼 수 있다
-assert "unity-recheck-1.xml" in _uc, "재실행 결과가 아티팩트에 없다 — 판정 근거가 사라진다"
+assert "unity-recheck-*.xml" in _uc, "재실행 결과가 아티팩트에 없다 — 판정 근거가 사라진다"
+assert "unity-baseline.json" in _uc, "고정한 기준선이 아티팩트에 없다 — 판정을 다시 볼 수 없다"
+# 횟수·상한은 **한 곳에만** 있어야 한다 — 파이썬에 같은 상수를 두면 한쪽만 바뀐다
+assert "RECHECK_RUNS" in _uc and "RECHECK_MAX_NEW" in _uc, "재실행 횟수·상한이 변수로 없다"
+import unity_report as _UR
+assert not hasattr(_UR, "RECHECK_RUNS"), (
+    "unity_report.py 에 RECHECK_RUNS 가 다시 생겼다 — YAML 과 이중 관리가 된다(!272 리뷰)")
 print("  ⑨ 플래키 재실행 단계 · 결과 전달 · 아티팩트 ✅")
 
 print("TEST289 OK")

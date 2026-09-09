@@ -21,6 +21,8 @@
 로컬 실행: python3 scripts/ci/unity_report.py <nunit.xml> [unity.log]
            (GITLAB_TOKEN·CI_MERGE_REQUEST_IID 가 있으면 MR 코멘트까지)
 """
+import glob
+import json
 import os
 import subprocess
 import sys
@@ -52,10 +54,21 @@ MAX_BASELINE_CANDIDATES = 10   # !259 3차 AI 리뷰 (S15P21B202-342)
 # 남긴다. 이것만으로는 부족해서 아래 재실행(RECHECK_RUNS)을 함께 쓴다.
 BASELINE_RUNS = 3
 
-# 새 실패를 그 테스트만 골라 몇 번 다시 돌리는가 (S15P21B202-347).
-# 한 번이라도 통과하면 플래키로 판단하고 판정에서 뺀다 — **조용히 빼지 않고 코멘트에 적는다.**
-RECHECK_RUNS = 2
+# 재실행 **횟수와 상한은 여기 없다** — `.gitlab-ci.yml` 의 `RECHECK_RUNS`·`RECHECK_MAX_NEW`
+# 하나에만 둔다 (S15P21B202-347, `!272` AI 리뷰). 이 스크립트는 Unity 를 돌리지 않으므로
+# 그 값이 필요 없고, 두 곳에 두면 한쪽만 바뀌어 아티팩트 목록과 어긋난다.
+#
+# 여기서 하는 일은 하나다 — 잡이 준 재실행 결과를 읽어 **한 번이라도 통과했는지** 보고
+# 플래키를 가린다. 뺀 것은 **조용히 빼지 않고 코멘트에 적는다.**
 RECHECK_PLAN = "unity-recheck.txt"     # 잡이 이 파일을 읽어 -testFilter 를 만든다
+
+# 계획 단계가 조회한 기준선을 최종 판정이 **그대로 다시 쓴다** (`!272` AI 리뷰).
+#
+# 두 단계가 각각 GitLab 에 물으면, 그 사이 develop 의 unity-compile 이 끝났을 때 합집합이
+# 달라진다. 그러면 **재실행한 집합과 판정 대상이 어긋난다** — 실제 새 실패인데 재실행되지
+# 않아 '확인 못함' 으로 회귀 처리되거나, 반대로 재실행한 이름이 판정 대상에서 사라진다.
+# 파일로 못 박으면 그 창이 닫히고 API 호출도 절반이 된다.
+BASELINE_FILE = "unity-baseline.json"
 ARTIFACT = "unity-results.xml"
 MAX_LISTED = 15          # 코멘트에 나열할 실패 개수 상한
 MAX_COMPILE_ERRORS = 20
@@ -257,20 +270,35 @@ def classify_rechecks(new: set, paths: list[str]) -> tuple[set, set, set]:
         except Exception as e:  # noqa: BLE001 — 재실행 판독 실패가 판정을 뒤집지 않는다
             print(f"[warn] 재실행 결과를 읽지 못했다({type(e).__name__}: {e}): {p}")
             continue
-        ran = 0
+        # **이 회차만** 센다. 누적값을 찍으면 2회차 로그가 1회차 통과분까지 포함해 보여
+        # 로그를 근거로 판독하는 사람을 오도한다(`!272` AI 리뷰).
+        ran: set = set()
+        passed_here: set = set()
         for c in d["cases"]:
             name = f'{c["cls"]}.{c["name"]}'
             if name not in new:
                 continue
-            ran += 1
-            seen.add(name)
+            ran.add(name)
             if c["result"] != "Failed":
-                passed_any.add(name)
-        print(f"재실행 {os.path.basename(p)}: 대상 {ran}건 중 통과 {len([n for n in passed_any if n in new])}건")
+                passed_here.add(name)
+        seen |= ran
+        passed_any |= passed_here
+        print(f"재실행 {os.path.basename(p)}: 대상 {len(ran)}/{len(new)}건 · "
+              f"이 회차 통과 {len(passed_here)}건")
+        if not ran:
+            # **필터가 아무것도 못 잡았다.** `-testFilter` 구분자가 이 Unity 버전에서
+            # 안 통하면 이렇게 된다 — 그러면 전원 '확인 못함' → 회귀가 되어 이 장치가
+            # 있으나 마나 해진다. 조용히 넘기지 않고 크게 적는다(`!272` AI 리뷰).
+            print(f"[warn] {os.path.basename(p)} 에 재실행 대상이 하나도 없다 — "
+                  f"-testFilter 가 이름을 못 잡은 것으로 보인다. "
+                  f"구분자(;)가 이 Unity 버전에서 통하는지 확인해야 한다")
 
     flaky = passed_any & new
     unverified = new - seen
     still = new - flaky - unverified
+    if new and not seen:
+        print("[warn] 재실행이 돌았는데 대상 이름을 하나도 못 찾았다 — "
+              "플래키 판별이 동작하지 않았다. 전부 회귀로 남는다")
     return flaky, still, unverified
 
 
@@ -495,8 +523,12 @@ def main(argv: list[str] | None = None) -> int:
     # 플래그를 먼저 떼어 낸다 — 위치 인자 셋(결과·로그·Unity 종료코드)은 그대로 둔다.
     #   --recheck-plan <파일>  새 실패 이름을 그 파일에 적고 **판정도 코멘트도 하지 않는다**
     #   --recheck <xml>        필터 재실행 결과(여러 번 줄 수 있다)
+    #   --recheck-dir <디렉터리>  그 안의 unity-recheck-*.xml 을 스스로 모은다
+    #   --baseline-from <파일>    계획 단계가 적어 둔 기준선을 그대로 쓴다(재조회 안 함)
     plan_path = ""
     recheck_paths: list[str] = []
+    recheck_dir = ""
+    baseline_from = ""
     rest: list[str] = []
     i = 0
     while i < len(argv):
@@ -505,8 +537,20 @@ def main(argv: list[str] | None = None) -> int:
             plan_path = argv[i + 1]; i += 2; continue
         if a == "--recheck" and i + 1 < len(argv):
             recheck_paths.append(argv[i + 1]); i += 2; continue
+        if a == "--recheck-dir" and i + 1 < len(argv):
+            recheck_dir = argv[i + 1]; i += 2; continue
+        if a == "--baseline-from" and i + 1 < len(argv):
+            baseline_from = argv[i + 1]; i += 2; continue
         rest.append(a); i += 1
     argv = rest
+
+    # 디렉터리로 받으면 셸이 인자를 이어 붙이지 않아도 된다 — 경로에 공백이 섞여도
+    # 조용히 깨지지 않는다(`!272` AI 리뷰). 회차 순서대로 읽는다.
+    if recheck_dir:
+        found = sorted(glob.glob(os.path.join(recheck_dir, "unity-recheck-*.xml")))
+        if found:
+            print(f"재실행 결과 {len(found)}개를 {recheck_dir} 에서 모았다")
+        recheck_paths += found
 
     nunit_path = argv[0] if argv else "unity-results.xml"
     log_path = argv[1] if len(argv) > 1 else "unity.log"
@@ -566,7 +610,26 @@ def main(argv: list[str] | None = None) -> int:
     tgt = (env("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "") or "").strip()
     ref = baseline_ref(env("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "develop"))
     bmeta: dict = {}
-    base = baseline_failures(gl, ref, meta=bmeta)
+    base: set | None = None
+    pinned = False
+    if baseline_from and os.path.isfile(baseline_from):
+        try:
+            with open(baseline_from, encoding="utf-8") as f:
+                saved = json.load(f)
+            raw = saved.get("base")
+            base = None if raw is None else set(raw)
+            bmeta.update(saved.get("meta") or {})
+            pinned = True
+            print(f"기준선을 계획 단계 값으로 고정한다: {baseline_from} "
+                  f"(실패 {'없음' if base is None else len(base)}건)")
+        except (ValueError, TypeError, OSError) as e:
+            # **조용히 넘기지 않는다.** 고정에 실패하면 다시 조회하는데, 그러면 계획과
+            # 판정이 어긋날 창이 다시 열린다 — 그 사실이 로그에 있어야 한다.
+            print(f"[warn] 기준선 고정 파일을 읽지 못했다({type(e).__name__}: {e}) — 다시 조회한다")
+    elif baseline_from:
+        print(f"[warn] 기준선 고정 파일이 없다: {baseline_from} — 다시 조회한다")
+    if not pinned:
+        base = baseline_failures(gl, ref, meta=bmeta)
     if base is None:
         print(f"기준선 없음 — `{ref}` 에서 이 잡이 돈 결과를 찾지 못했다")
     else:
@@ -581,6 +644,16 @@ def main(argv: list[str] | None = None) -> int:
         with open(plan_path, "w", encoding="utf-8") as f:
             for name in sorted(new_now):
                 f.write(name + "\n")
+        # 최종 판정이 **같은 기준선**을 쓰도록 못 박는다 (`!272` AI 리뷰).
+        saved_at = os.path.join(os.path.dirname(plan_path) or where, BASELINE_FILE)
+        try:
+            with open(saved_at, "w", encoding="utf-8") as f:
+                json.dump({"base": None if base is None else sorted(base),
+                           "meta": bmeta, "ref": ref}, f, ensure_ascii=False)
+            print(f"기준선을 고정해 뒀다: {saved_at}")
+        except OSError as e:
+            print(f"[warn] 기준선을 고정하지 못했다({type(e).__name__}: {e}) — "
+                  f"최종 판정이 다시 조회하므로 그 사이 develop 이 바뀌면 어긋날 수 있다")
         if not new_now:
             print("재실행 계획: 새 실패가 없다 — 재실행하지 않는다"
                   + ("(컴파일 오류가 있어 테스트 얘기가 아니다)" if errs else ""))

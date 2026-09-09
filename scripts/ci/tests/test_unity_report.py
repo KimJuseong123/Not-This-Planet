@@ -788,4 +788,107 @@ assert "재실행에서 통과" in _txt2, _txt2
 assert "실패 없음" in _txt2, _txt2
 print("  전부 플래키여도 '실패 없음' 뒤에 이유가 붙는다 ✅")
 
+import json as _json
+
+# ── !272 AI 리뷰 반영 ────────────────────────────────────────────────────────
+
+# ⑥ 필터가 아무것도 못 잡으면 전부 '확인 못함' 이고, 그 사실이 크게 남아야 한다.
+#    -testFilter 구분자가 이 Unity 버전에서 안 통하면 이렇게 된다 — 조용히 넘기면
+#    이 장치가 있으나 마나 해진다.
+_OTHER = """<?xml version="1.0" encoding="utf-8"?>
+<test-run id="9" total="1" passed="1" failed="0" skipped="0" duration="0.1">
+  <test-suite type="TestFixture" name="Zzz" fullname="G.Zzz">
+    <test-case id="1" name="q" fullname="G.Zzz.q" result="Passed" duration="0.1" />
+  </test-suite>
+</test-run>
+"""
+with _tf.TemporaryDirectory() as d:
+    p = os.path.join(d, "unity-recheck-1.xml")
+    open(p, "w", encoding="utf-8").write(_OTHER)
+    _f, _s, _u = R.classify_rechecks({"G.ShipAscentTests.Load"}, [p])
+    assert _f == set(), _f
+    assert _u == {"G.ShipAscentTests.Load"}, _u
+    assert _s == set(), _s
+print("  필터가 대상을 못 잡으면 면제 없이 전부 '확인 못함' ✅")
+
+# ⑦ 계획 단계가 기준선을 고정하고, 최종 판정이 그것을 그대로 쓴다(재조회 안 함).
+#    두 단계가 각각 조회하면 그 사이 develop 잡이 끝났을 때 재실행한 집합과 판정
+#    대상이 어긋난다.
+_PIN_NUNIT = """<?xml version="1.0" encoding="utf-8"?>
+<test-run id="4" total="2" passed="0" failed="2" skipped="0" duration="0.4">
+  <test-suite type="TestFixture" name="ShipAscentTests" fullname="G.ShipAscentTests">
+    <test-case id="1" name="Load" fullname="G.ShipAscentTests.Load" result="Failed" duration="0.2">
+      <failure><message>버티지 못했다</message></failure>
+    </test-case>
+    <test-case id="2" name="Old" fullname="G.ShipAscentTests.Old" result="Failed" duration="0.2">
+      <failure><message>원래 실패</message></failure>
+    </test-case>
+  </test-suite>
+</test-run>
+"""
+
+
+def _boom_http(method, url, headers=None, body=None, timeout=30):
+    # 코멘트 경로는 정상 동작해야 한다 — 막을 것은 **기준선 재조회**뿐이다.
+    if "/notes" in url:
+        return capture_note(method, url, headers, body, timeout)
+    raise AssertionError("기준선을 고정했는데 다시 조회했다: %s" % url)
+
+
+_keep_bf2 = R.baseline_failures
+_keep_http2 = ci_common.http
+_before2 = len(POSTED)
+try:
+    # 계획 단계: 기준선에 Old 만 있다 → 새 실패는 Load 하나
+    R.baseline_failures = (lambda gl, ref, max_pipelines=15, meta=None, runs=3:
+                           (meta.update(job=1, sha="deadbeef", when="2026-09-09T09:45")
+                            if meta is not None else None) or {"G.ShipAscentTests.Old"})
+    with _tf.TemporaryDirectory() as d:
+        nunit = os.path.join(d, "unity-results.xml")
+        open(nunit, "w", encoding="utf-8").write(_PIN_NUNIT)
+        plan = os.path.join(d, "unity-recheck.txt")
+        R.main([nunit, os.path.join(d, "nope.log"), "2", "--recheck-plan", plan])
+        assert open(plan, encoding="utf-8").read().split() == ["G.ShipAscentTests.Load"]
+        pinned = os.path.join(d, R.BASELINE_FILE)
+        assert os.path.isfile(pinned), "계획 단계가 기준선을 고정하지 않았다"
+        saved = _json.load(open(pinned, encoding="utf-8"))
+        assert saved["base"] == ["G.ShipAscentTests.Old"], saved
+        assert saved["meta"]["sha"] == "deadbeef", saved
+
+        # 최종 판정: 고정 파일을 주면 **조회하지 않는다.** 조회하면 _boom_http 가 터진다.
+        R.baseline_failures = _boom_http
+        ci_common.http = _boom_http
+        r1 = os.path.join(d, "unity-recheck-1.xml")
+        open(r1, "w", encoding="utf-8").write(_RECHECK_A.replace("Hatch", "Load"))
+        R.main([nunit, os.path.join(d, "nope.log"), "2",
+                "--recheck-dir", d, "--baseline-from", pinned])
+        verdict = open(os.path.join(d, R.VERDICT_FILE), encoding="utf-8").read()
+    # Load 는 재실행에서 통과했다(_RECHECK_A 의 Hatch 자리) → 면제되어 통과
+    assert verdict == "0", f"고정 기준선 + 재실행 통과 → 판정 0 이어야 한다 (판정 {verdict})"
+    assert len(POSTED) > _before2, "최종 판정은 코멘트를 남긴다"
+    assert "플래키로 판정에서 뺀" in str(POSTED[-1][1]), str(POSTED[-1][1])[:300]
+finally:
+    R.baseline_failures = _keep_bf2
+    ci_common.http = _keep_http2
+print("  --baseline-from 이 기준선을 고정한다(재조회 없음) · --recheck-dir 이 결과를 모은다 ✅")
+
+# 고정 파일이 깨졌거나 없으면 **다시 조회한다** — 조용히 기준선 없음으로 떨어지지 않는다
+_keep_bf3 = R.baseline_failures
+_asked = []
+try:
+    def _spy(gl, ref, max_pipelines=15, meta=None, runs=3):
+        _asked.append(ref)
+        return set()
+    R.baseline_failures = _spy
+    with _tf.TemporaryDirectory() as d:
+        nunit = os.path.join(d, "unity-results.xml")
+        open(nunit, "w", encoding="utf-8").write(_PIN_NUNIT)
+        bad = os.path.join(d, "unity-baseline.json")
+        open(bad, "w", encoding="utf-8").write("{깨진 JSON")
+        R.main([nunit, os.path.join(d, "nope.log"), "2", "--baseline-from", bad])
+    assert _asked, "고정 파일이 깨졌으면 다시 조회해야 한다"
+finally:
+    R.baseline_failures = _keep_bf3
+print("  고정 파일이 깨지면 다시 조회한다 ✅")
+
 print("TEST271 OK")
