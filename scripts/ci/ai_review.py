@@ -95,8 +95,23 @@ todo 는 리뷰어 findings/questions 중 사람이 판단해야 하는 것만 �
 
 # ── 자료 준비 ───────────────────────────────────────────────────────────────
 def classify(changes: list[dict]) -> dict:
-    code, assets, text_blocks, skipped, scene_like = [], [], [], [], []
-    total = 0
+    """리뷰에 넣을 diff 를 고른다. 빠진 것은 **이름과 사유를 함께** 남긴다.
+
+    <para><b>왜 사유를 갈라 적나</b> (S15P21B202-354). 예전에는 개수만 세고 각주가
+    사유를 <b>하드코딩</b>했다 — "리뷰 대상 외 파일 2개(에셋·바이너리·메타·용량 초과)".
+    실제 이유가 그 넷이 아니어도 그렇게 적혔고, <b>어떤 파일인지도 안 적었다.</b>
+    그래서 코드 파일이 통째로 빠져도 읽는 사람이 알 수 없었다.</para>
+
+    <para><b>코드 파일을 먼저 담는다.</b> 예산(`MAX_DIFF_CHARS`)이 모자라면 뒤가 잘리는데,
+    API 가 주는 순서대로 담으면 큰 코드 파일이 뒤에 올 때 통째로 빠진다. 문서가 빠지는
+    것과 `.cs`·`.py` 가 빠지는 것은 무게가 다르다.</para>
+    """
+    code, assets, scene_like = [], [], []
+    # 빠진 것: (경로, 사유). 사유는 각주가 그대로 쓴다.
+    skipped: list[tuple[str, str]] = []
+    # 담을 후보를 먼저 모은다 — 순서를 정하려면 전부 본 뒤여야 한다.
+    candidates: list[tuple[bool, str, str]] = []      # (코드인가, 경로, 블록)
+
     for c in changes:
         path = c.get("new_path") or c.get("old_path") or ""
         low = path.lower()
@@ -105,18 +120,59 @@ def classify(changes: list[dict]) -> dict:
             scene_like.append(path)
         if path.startswith("METAGAME/Assets/") or path.startswith("METAGAME/ProjectSettings/") or path.startswith("METAGAME/Packages/"):
             assets.append(path + flag)
-        if low.endswith(CODE_EXT):
+        is_code = low.endswith(CODE_EXT)
+        if is_code:
             code.append(path)
-        if low.endswith(BINARY_EXT) or (c.get("diff", "") == "" and not c.get("deleted_file")):
-            skipped.append(path)
+
+        if low.endswith(BINARY_EXT):
+            skipped.append((path, "바이너리·메타"))
             continue
-        block = f"--- {c.get('old_path')}\n+++ {path}{flag}\n{c.get('diff', '')}\n"
+
+        # diff 가 비어 있는 이유를 갈라 적는다. `collapsed` 는 GitLab 이 접은 것이고
+        # `access_raw_diffs=true` 로 피한다(`ci_common.changes()`) — 그래도 오면 그 사실을
+        # 적어야 한다. 예전에는 이것을 "용량 초과" 라고 적어 원인을 엉뚱하게 가리켰다.
+        if (c.get("diff") or "") == "" and not c.get("deleted_file"):
+            if c.get("collapsed"):
+                why = "GitLab 이 접었다 (access_raw_diffs 가 안 먹었다)"
+            elif c.get("too_large"):
+                why = "GitLab 이 너무 크다고 했다"
+            else:
+                why = "diff 가 비어 있다"
+            skipped.append((path, why))
+            continue
+
+        candidates.append((is_code, path, f"--- {c.get('old_path')}\n+++ {path}{flag}\n{c.get('diff') or ''}\n"))
+
+    # **코드 파일 먼저.** 같은 부류 안에서는 받은 순서를 지킨다(안정 정렬).
+    candidates.sort(key=lambda t: not t[0])
+
+    text_blocks, total = [], 0
+    for is_code, path, block in candidates:
         if total + len(block) > MAX_DIFF_CHARS:
-            skipped.append(f"{path} (용량 초과로 생략)")
+            skipped.append((path, f"예산 초과 (diff 총량 {MAX_DIFF_CHARS}자 상한)"))
             continue
         text_blocks.append(block)
         total += len(block)
-    return {"diff": "".join(text_blocks), "code": code, "assets": assets, "skipped": skipped, "scene_like": scene_like}
+
+    return {"diff": "".join(text_blocks), "code": code, "assets": assets,
+            "skipped": skipped, "scene_like": scene_like}
+
+
+def skipped_note(skipped: list[tuple[str, str]]) -> str:
+    """각주에 실을 문구. **이름과 사유를 적고, 코드 파일이 빠졌으면 드러낸다.**"""
+    if not skipped:
+        return ""
+    missing_code = [p for p, _ in skipped if p.lower().endswith(CODE_EXT)]
+    listed = " · ".join(f"{p} ({why})" for p, why in skipped[:6])
+    if len(skipped) > 6:
+        listed += f" · 외 {len(skipped) - 6}개"
+    out = f"리뷰 대상 외 {len(skipped)}개 — {listed}"
+    if missing_code:
+        # 문서·에셋이 빠지는 것과 무게가 다르다. 판정 근거가 반쪽이라는 뜻이므로 크게 적는다.
+        out = (f"⚠ **코드 파일 {len(missing_code)}개가 리뷰 입력에서 빠졌다** "
+               f"({', '.join(missing_code[:3])}{' 외' if len(missing_code) > 3 else ''}) — "
+               f"이 리뷰의 판정은 그만큼 근거가 부족하다. " + out)
+    return out
 
 
 def pick_roles(info: dict) -> list[str]:
@@ -300,7 +356,7 @@ def merge(results: dict[str, dict | None], failed: list[str] | None = None) -> d
 VERDICT_LINE = {"ok": "✅ **머지 가능**", "warn": "⚠️ **확인 후 머지**", "block": "⛔ **보류 권고**", "unknown": "❓ **판정 불가**"}
 
 
-def render(mr_meta: str, roles: list[str], results: dict, raw: dict, merged: dict, summary: dict | None, skipped: int, failed: list[str],
+def render(mr_meta: str, roles: list[str], results: dict, raw: dict, merged: dict, summary: dict | None, skipped: list[tuple[str, str]], failed: list[str],
            defaults: dict[str, tuple[str, str]] | None = None) -> str:
     out = [MARKER, f"🤖 **AI 리뷰 요약** · {VERDICT_LINE[merged['verdict']]} · {mr_meta}"]
     if summary and summary.get("reason"):
@@ -351,7 +407,9 @@ def render(mr_meta: str, roles: list[str], results: dict, raw: dict, merged: dic
             det.append("\n```\n" + raw[r][:2500] + "\n```")
     det.append("\n</details>")
     out += det
-    foot = f"비차단(참고용) · 리뷰 대상 외 파일 {skipped}개(에셋·바이너리·메타·용량 초과) · 재실행 시 이 코멘트가 갱신됩니다"
+    # 사유를 하드코딩하지 않는다 (S15P21B202-354). 빠진 것이 없으면 그 말도 하지 않는다.
+    note = skipped_note(skipped)
+    foot = "비차단(참고용)" + (f" · {note}" if note else "") + " · 재실행 시 이 코멘트가 갱신됩니다"
     if failed:
         foot += f" · **실행 실패 리뷰어: {', '.join(ROLES[r]['label'] for r in failed)}**"
     out.append(f"\n<sub>{foot}</sub>")
@@ -469,7 +527,7 @@ def main() -> int:
         # ① 문서만 바뀌어 건너뛴 것과 ② 리뷰가 죽은 것 두 가지를 동시에 뜻하게 됐다.
         print("모든 리뷰어 실패 — ❓ 판정 불가 코멘트를 남긴다")
         body = render(mr_meta, roles, {}, {}, merge({}, failed), None,
-                      len(info["skipped"]), failed, defaults)
+                      info["skipped"], failed, defaults)
         body = with_fail_reasons(body, fail_why)
         st, _ = gl.upsert_note(MARKER, body)
         print(body)
@@ -488,7 +546,7 @@ def main() -> int:
         summary = parse_json(call(backend, summary_model, SUMMARY_SYSTEM, s_user))
     except Exception as e:  # 비차단: 어떤 예외든 기록만 하고 계속
         print(f"요약 호출 실패(표만 게시): {e}")
-    body = render(mr_meta, roles, results, raw, merged, summary, len(info["skipped"]), failed, defaults)
+    body = render(mr_meta, roles, results, raw, merged, summary, info["skipped"], failed, defaults)
     body = with_fail_reasons(body, fail_why)
     st, _ = gl.upsert_note(MARKER, body)
     print(body)
