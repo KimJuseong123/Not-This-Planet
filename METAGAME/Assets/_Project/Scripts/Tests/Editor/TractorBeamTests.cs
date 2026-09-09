@@ -219,6 +219,93 @@ namespace Metagame.Gameplay.Tests
             Assert.AreEqual(PartState.Placed, part.State);
         }
 
+        // ---------- 사거리 판정의 유예 (S15P21B202-362) ----------
+        //
+        // 예전에는 사거리를 넘긴 그 프레임에 즉시 놓았다. 그래서 빠르게 움직이다 방향을
+        // 바꾸면 파츠가 순간적으로 뒤처지며 놓쳐졌다. 아래 시험들이 "잠깐 넘긴 것" 과
+        // "정말로 떠난 것" 을 가르는 규칙을 고정한다.
+        //
+        // 물리를 돌리지 않으므로(SimulationMode.Script + Simulate 호출 없음) 파츠는
+        // 제자리에 있고 거리가 틱마다 그대로다 — 시간만 흐르는 상황을 만들 수 있다.
+
+        /// <summary>사거리를 조금 넘긴 상태가 유예보다 짧으면 계속 들고 있다.</summary>
+        [Test]
+        public void Beam_KeepsHoldingWhileBrieflyOutOfRange()
+        {
+            var beam = GrabbedBeamThenMoveTo(new Vector3(0f, 0f, -6f));   // 파츠와 14m — 사거리 12 초과
+
+            Tick(beam, seconds: PhysicsScale.BeamHoldGraceSeconds * 0.5f);
+
+            Assert.IsTrue(beam.IsHolding, "잠깐 뒤처진 것으로 놓아서는 안 된다");
+        }
+
+        /// <summary>같은 상태가 유예를 넘겨 이어지면 놓는다.</summary>
+        [Test]
+        public void Beam_ReleasesWhenOutOfRangePersists()
+        {
+            var beam = GrabbedBeamThenMoveTo(new Vector3(0f, 0f, -6f));
+
+            Tick(beam, seconds: PhysicsScale.BeamHoldGraceSeconds + 0.05f);
+
+            Assert.IsFalse(beam.IsHolding);
+        }
+
+        /// <summary>
+        /// 사거리 안으로 돌아오면 쌓인 시간이 0 으로 되돌아간다.
+        ///
+        /// 누적되면 급기동을 여러 번 하는 동안 합계가 유예를 넘겨, 멀쩡한 상태에서 놓친다.
+        /// </summary>
+        [Test]
+        public void Beam_GraceResetsWhenComingBackIntoRange()
+        {
+            var beam = GrabbedBeamThenMoveTo(new Vector3(0f, 0f, -6f));
+            Tick(beam, seconds: PhysicsScale.BeamHoldGraceSeconds * 0.75f);
+
+            MoveBeamTo(beam, Vector3.zero);                 // 사거리 안으로 복귀
+            Tick(beam, seconds: Tuning.FixedStep);
+
+            MoveBeamTo(beam, new Vector3(0f, 0f, -6f));     // 다시 벗어남
+            Tick(beam, seconds: PhysicsScale.BeamHoldGraceSeconds * 0.75f);
+
+            Assert.IsTrue(beam.IsHolding, "합계는 유예를 넘지만 이어진 시간은 넘지 않았다");
+        }
+
+        /// <summary>충분히 멀어지면 유예 없이 즉시 놓는다 — 뒤처짐이 아니라 이탈이다.</summary>
+        [Test]
+        public void Beam_ReleasesImmediatelyWhenFarBeyondRange()
+        {
+            var beam = GrabbedBeamThenMoveTo(
+                new Vector3(0f, 0f, 8f - (PhysicsScale.BeamHardReleaseDistance + 1f)));
+
+            Tick(beam, seconds: Tuning.FixedStep);
+
+            Assert.IsFalse(beam.IsHolding, "즉시 놓기 거리를 넘겼다");
+        }
+
+        /// <summary>파츠를 (0,0,8) 에서 잡은 뒤 빔 기준점을 옮긴다.</summary>
+        TractorBeam GrabbedBeamThenMoveTo(Vector3 beamPosition)
+        {
+            Freed(new Vector3(0f, 0f, 8f));
+            var beam = CreateBeam();
+            Assert.AreEqual(BeamGrabResult.Grabbed, beam.TryGrab(), "먼저 잡혀 있어야 한다");
+
+            MoveBeamTo(beam, beamPosition);
+            return beam;
+        }
+
+        static void MoveBeamTo(TractorBeam beam, Vector3 position)
+        {
+            beam.transform.position = position;
+            UnityEngine.Physics.SyncTransforms();
+        }
+
+        static void Tick(TractorBeam beam, float seconds)
+        {
+            var steps = Mathf.CeilToInt(seconds / Tuning.FixedStep);
+            for (var i = 0; i < steps && beam.IsHolding; i++)
+                beam.Tick(Tuning.FixedStep);
+        }
+
         [Test]
         public void Beam_KeepsAngularSpeedWithinPartLimit()
         {
