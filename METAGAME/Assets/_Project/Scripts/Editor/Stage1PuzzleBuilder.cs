@@ -44,11 +44,12 @@ namespace Metagame.EditorTools
         /// <summary>고정쇠를 밑면 발자국의 몇 배 지점에 둘지. 0.5 가 모서리다.</summary>
         const float ClampInset = 0.40f;
 
-        /// <summary>
-        /// 상호작용 콜라이더 반지름(m). 예전에는 루트 스케일(최대 3.7배)이 곱해져
-        /// 실제로는 0.44m·0.37m 였다. 루트 스케일이 1 이 되었으므로 실측값을 그대로 적는다.
-        /// </summary>
-        const float ClampRadius = 0.35f;
+        const float ClampHeadOffset = 0.207f;
+        const float ClampHeadRadius = 0.1f;
+        const float ClampHeadHeight = 0.1f;
+        const float ClampBodyOffset = -0.029f;
+        const float ClampBodyRadius = 0.07f;
+        const float ClampBodyHeight = 0.45f;
 
         /// <summary>
         /// 출입문 상호작용 부피. 높이는 엔진 모듈(2.16m) 중간쯤이고, 반지름은 완성된
@@ -231,11 +232,25 @@ namespace Metagame.EditorTools
             go.transform.localPosition = corners[index % corners.Length]
                                          + Vector3.down * (spec.Height * 0.5f);
 
-            var sphere = go.AddComponent<SphereCollider>();
-            sphere.radius = ClampRadius;
-            sphere.isTrigger = true;
+            AddClampCollider(go.transform, "Head_Collider", ClampHeadOffset,
+                             ClampHeadRadius, ClampHeadHeight);
+            AddClampCollider(go.transform, "Body_Collider", ClampBodyOffset,
+                             ClampBodyRadius, ClampBodyHeight);
 
             go.AddComponent<PartClamp>();
+        }
+
+        static void AddClampCollider(Transform parent, string name, float y,
+                                     float radius, float height)
+        {
+            var go = new GameObject(name) { layer = GameLayers.Interactable };
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = new Vector3(0f, y, 0f);
+
+            var capsule = go.AddComponent<CapsuleCollider>();
+            capsule.radius = radius;
+            capsule.height = height;
+            capsule.isTrigger = true;
         }
         static MeteorSpawner BuildMeteors(Transform group)
         {

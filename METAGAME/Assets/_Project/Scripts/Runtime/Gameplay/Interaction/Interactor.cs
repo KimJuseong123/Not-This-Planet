@@ -28,6 +28,15 @@ namespace Metagame.Gameplay.Interaction
         public float Angle { get; }
         public float Distance { get; }
 
+        /// <summary>
+        /// 탐색 포커스가 살아 있는 것과 실제 클릭이 가능한 것은 다르다.
+        /// 예를 들어 고정못은 멀리서도 탐색 포커스로 잡아 크로스헤드 색상을 바꾸지만,
+        /// 손이 실제 Collider 표면에 닿을 수 있을 때만 이 값이 참이다.
+        /// </summary>
+        readonly bool _canInteract;
+
+        public bool CanInteract => _canInteract && IsValid;
+
         public bool IsValid
         {
             get
@@ -52,7 +61,8 @@ namespace Metagame.Gameplay.Interaction
 
         public PlayerInteractionTarget(PlayerInteractionKind kind, PartClamp clamp,
                                        Grabbable grabbable, TransportVehicle transport,
-                                       Vector3 point, float angle, float distance)
+                                       Vector3 point, float angle, float distance,
+                                       bool canInteract = true)
         {
             Kind = kind;
             Clamp = clamp;
@@ -61,11 +71,12 @@ namespace Metagame.Gameplay.Interaction
             Point = point;
             Angle = angle;
             Distance = distance;
+            _canInteract = canInteract;
         }
 
         public static PlayerInteractionTarget None =>
             new PlayerInteractionTarget(PlayerInteractionKind.None, null, null, null,
-                                        Vector3.zero, float.MaxValue, float.MaxValue);
+                                        Vector3.zero, float.MaxValue, float.MaxValue, false);
     }
 
     /// <summary>

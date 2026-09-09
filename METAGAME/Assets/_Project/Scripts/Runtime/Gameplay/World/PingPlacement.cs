@@ -1,5 +1,6 @@
 using UnityEngine;
 using Metagame.Core;
+using Metagame.Gameplay.Parts;
 
 namespace Metagame.Gameplay
 {
@@ -31,7 +32,7 @@ namespace Metagame.Gameplay
             direction.Normalize();
             maxDistance = Mathf.Max(0.01f, maxDistance);
             int count = Physics.RaycastNonAlloc(origin, direction, Hits, maxDistance,
-                                                PingMask, QueryTriggerInteraction.Ignore);
+                                                PingMask, QueryTriggerInteraction.Collide);
 
             float nearest = maxDistance;
             point = origin + direction * maxDistance;
@@ -41,6 +42,13 @@ namespace Metagame.Gameplay
             {
                 var collider = Hits[i].collider;
                 if (collider == null || Hits[i].distance >= nearest) continue;
+
+                // 박힌 Clamp는 바닥과 실제 충돌하지 않도록 Trigger로 둔다. 핑은
+                // 그 Trigger를 표면으로 써야 고정못 뒤의 바닥에 찍히지 않는다.
+                // 구조 지점·소켓·기타 질의 전용 Trigger까지 핑 표면이 되면 안 되므로
+                // Clamp 외의 Trigger는 기존처럼 건너뛴다.
+                if (collider.isTrigger && collider.GetComponentInParent<PartClamp>() == null)
+                    continue;
 
                 var player = collider.GetComponentInParent<PlayerRig>();
                 // 전달받은 플레이어 자신뿐 아니라 다른 플레이어의 몸도 핑 표면으로 쓰지 않는다.

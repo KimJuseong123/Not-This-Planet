@@ -60,6 +60,21 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void AnchoredClamp_UsesTriggerUntilRelease()
+        {
+            var part = CreatePart();
+            var clamp = AddClamp(part, Vector3.forward * 2f);
+
+            foreach (var c in clamp.GetComponentsInChildren<Collider>(true))
+                Assert.IsTrue(c.isTrigger, "박힌 고정못은 조준만 받고 바닥을 밀어내면 안 된다.");
+
+            clamp.Release();
+
+            foreach (var c in clamp.GetComponentsInChildren<Collider>(true))
+                Assert.IsFalse(c.isTrigger, "뽑힌 고정못은 바닥과 실제로 충돌해야 한다.");
+        }
+
+        [Test]
         public void Release_UsesTheDirectVisualReference()
         {
             var part = CreatePart();
@@ -306,6 +321,17 @@ namespace Metagame.Gameplay.Tests
             interactor.Tick(0.02f);
 
             Assert.IsNull(interactor.Focus);
+        }
+
+        [Test]
+        public void InteractionPoint_UsesTheClosestClampColliderSurface()
+        {
+            var part = CreatePart();
+            var clamp = AddClamp(part, Vector3.forward * 2f);
+
+            Assert.IsTrue(clamp.TryGetClosestColliderPoint(Vector3.zero, out var point));
+            Assert.AreEqual(1.7f, point.z, 0.001f,
+                "실제 클릭/그립 위치는 고정못 루트가 아니라 Collider 표면이어야 한다.");
         }
 
         // --- 헬퍼 ---

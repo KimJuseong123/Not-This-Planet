@@ -268,7 +268,9 @@ namespace Metagame.UI
         void Reticle(float w, float h)
         {
             var focus = Local != null ? Local.CurrentInteractionTarget : PlayerInteractionTarget.None;
-            bool hasTarget = focus.IsValid && Local != null && !Local.IsMounted;
+            // 탐색 포커스와 클릭 가능 상태는 분리한다. Clamp는 멀리서도 색상 포커스는
+            // 보여 주지만, 팔이 실제 Collider에 닿을 때만 "클릭" 문구를 활성화한다.
+            bool hasTarget = focus.CanInteract && Local != null && !Local.IsMounted;
             bool clampGrabbed = Local != null && Local.ClampGrabbed;
             bool releasingClamp = Local != null && Local.ClampReleaseHolding;
             bool mountedVehicle = Local != null && Local.IsMounted;

@@ -22,6 +22,13 @@ namespace Metagame.Gameplay
     public class PlayerRig : MonoBehaviour
     {
         const float ClampInteractionRange = 3f;
+        const float ClampCrosshairAssistRadius = 0.14f;
+        const int ClampHitBufferSize = 32;
+
+        [SerializeField, Min(0f)]
+        [Tooltip("직접 조준한 고정못의 실제 Collider 표면까지 플레이어 골반에서 클릭할 수 있는 최대 거리(m). 고정못은 특수 보정으로 처리됨")]
+        // Clamp가 본체 아래에 있어 어깨 높이 때문에 막히지 않도록 특수 보정으로 처리한다.
+        float clampGrabDistanceFromPlayer = 0.72f;
 
         /// <summary>구조 상호작용 트리거의 반지름(m). 쓰러진 몸 옆에 서면 닿는다.</summary>
         const float RescueTriggerRadius = 1.1f;
@@ -291,6 +298,7 @@ namespace Metagame.Gameplay
         readonly List<CollisionPair> heldObjectCollisionPairs = new List<CollisionPair>(24);
         readonly RaycastHit[] rayHits = new RaycastHit[8];
         readonly Collider[] interactionCandidates = new Collider[32];
+        readonly RaycastHit[] clampHits = new RaycastHit[ClampHitBufferSize];
 
         struct CarriedBodyState
         {
@@ -402,16 +410,37 @@ namespace Metagame.Gameplay
             var forward = InteractionForward();
             var best = PlayerInteractionTarget.None;
 
-            // Interactor의 고정쇠 탐색 규칙은 기존 테스트와의 호환을 위해 그대로 재사용한다.
+            // 직접 조준 우선 처리를 하기 전에도 Interactor의 포커스 상태를 갱신한다.
+            // 그래야 직접 조준을 벗어난 다음 프레임에 이전 Clamp 포커스가 남지 않는다.
             ClampInteractor?.Tick(0f);
+
+            // 크로스헤드가 Clamp Collider를 직접 맞히면, 팔 주변의 일반 Grabbable 보정이
+            // 옆 본체를 대신 고르지 못하게 한다. 실제로 잡을 수 없는 거리여도 후보를
+            // Clamp로 고정해 노란 조준점은 유지하고, 클릭 문구만 숨긴다.
+            var crosshairClamp = FindCrosshairClamp(origin, forward, out var crosshairPoint,
+                                                    out var crosshairDistance);
+            if (crosshairClamp != null)
+            {
+                var canInteract = crosshairClamp.GetAvailability(ClampInteractor).IsAllowed
+                                  && CanReachClamp(crosshairClamp);
+                CurrentInteractionTarget = MakeTarget(
+                    PlayerInteractionKind.Clamp, crosshairClamp, null, null,
+                    crosshairPoint, 0f, crosshairDistance, canInteract);
+                return;
+            }
+
+            // Interactor의 고정쇠 탐색 규칙은 기존 테스트와의 호환을 위해 그대로 재사용한다.
             var clamp = ClampInteractor != null ? ClampInteractor.Focus as PartClamp : null;
             if (clamp != null && !clamp.IsReleased
                 && (ClampInteractor == null || clamp.GetAvailability(ClampInteractor).IsAllowed))
             {
-                var point = clamp.transform.position;
+                if (!clamp.TryGetClosestColliderPoint(origin, out var point))
+                    point = clamp.transform.position;
+
                 Consider(ref best, MakeTarget(PlayerInteractionKind.Clamp, clamp, null, null,
                                               point, AngleFrom(origin, forward, point),
-                                              Vector3.Distance(origin, point)));
+                                              Vector3.Distance(origin, point),
+                                              CanReachClamp(clamp)));
             }
 
             FindCrosshairGrabbable(origin, forward, ref best);
@@ -451,6 +480,52 @@ namespace Metagame.Gameplay
 
         Vector3 InteractionForward() => AimForward;
 
+        /// <summary>
+        /// 화면 중심 광선이 실제 Clamp Collider를 맞혔는지 확인한다.
+        ///
+        /// 넓은 OverlapSphere 탐색은 크로스헤드 색상과 후보 발견을 위한 보정으로 남긴다.
+        /// 반면 이 광선에 맞은 Clamp는 플레이어가 명시적으로 바라본 대상으로 취급해
+        /// 주변 본체 Grabbable이 거리 우선으로 끼어들지 못하게 한다.
+        /// </summary>
+        PartClamp FindCrosshairClamp(Vector3 origin, Vector3 forward,
+                                     out Vector3 point, out float distance)
+        {
+            point = Vector3.zero;
+            distance = float.MaxValue;
+
+            if (forward.sqrMagnitude < 1e-6f) return null;
+
+            var hitCount = Physics.SphereCastNonAlloc(
+                origin, ClampCrosshairAssistRadius, forward.normalized, clampHits,
+                ClampInteractionRange, GameLayers.InteractableMask,
+                QueryTriggerInteraction.Collide);
+
+            PartClamp bestClamp = null;
+            var bestDistance = float.MaxValue;
+            var bestPoint = Vector3.zero;
+            for (var i = 0; i < hitCount; i++)
+            {
+                var hit = clampHits[i];
+                var candidate = hit.collider != null
+                    ? hit.collider.GetComponentInParent<PartClamp>() : null;
+                if (candidate == null || !candidate.isActiveAndEnabled || candidate.IsReleased)
+                    continue;
+
+                if (hit.distance >= bestDistance) continue;
+
+                bestClamp = candidate;
+                bestDistance = hit.distance;
+                bestPoint = hit.point;
+            }
+
+            if (bestClamp == null)
+                return null;
+
+            point = bestPoint;
+            distance = bestDistance;
+            return bestClamp;
+        }
+
         void FindCrosshairGrabbable(Vector3 origin, Vector3 forward,
                                     ref PlayerInteractionTarget best)
         {
@@ -471,9 +546,15 @@ namespace Metagame.Gameplay
                     continue;
 
                 var point = collider.ClosestPoint(center);
+                var centerDistance = Vector3.Distance(center, point);
                 var distance = Vector3.Distance(origin, point);
                 var angle = AngleFrom(origin, forward, point);
-                if (angle > Tuning.GrabAssistAngle) continue;
+                var isSpecial = grabbable.IsTool;
+                var assistRadius = isSpecial ? Tuning.SpecialGrabAssistRadius
+                                              : Tuning.GrabAssistRange;
+                var assistAngle = isSpecial ? Tuning.SpecialGrabAssistAngle
+                                             : Tuning.GrabAssistAngle;
+                if (centerDistance > assistRadius || angle > assistAngle) continue;
 
                 Consider(ref best, MakeTarget(PlayerInteractionKind.Grabbable, null, grabbable,
                                               null, point, angle, distance));
@@ -482,8 +563,59 @@ namespace Metagame.Gameplay
 
         static PlayerInteractionTarget MakeTarget(PlayerInteractionKind kind, PartClamp clamp,
                                                    Grabbable grabbable, TransportVehicle vehicle,
-                                                   Vector3 point, float angle, float distance) =>
-            new PlayerInteractionTarget(kind, clamp, grabbable, vehicle, point, angle, distance);
+                                                   Vector3 point, float angle, float distance,
+                                                   bool canInteract = true) =>
+            new PlayerInteractionTarget(kind, clamp, grabbable, vehicle, point, angle, distance,
+                                        canInteract);
+
+        /// <summary>
+        /// 탐색 포커스가 된 고정못을 실제로 클릭할 수 있는지 판정한다.
+        ///
+        /// Interactor의 넓은 반경/각도 보정은 탐색 피드백용으로만 남긴다. Clamp는
+        /// 본체 아래에 배치되어 어깨-Collider 직선 거리로만 검사하면 실제 손이 닿을
+        /// 수 있는 위치도 탈락할 수 있으므로, 직접 조준된 Clamp에 한해 골반에서 실제
+        /// Collider 표면까지의 직렬화된 거리만 클릭 보정으로 사용한다.
+        /// </summary>
+        bool CanReachClamp(PartClamp clamp)
+        {
+            if (clamp == null || Doll == null) return false;
+
+            var left = Doll.Left;
+            var right = Doll.Right;
+            return left != null && CanReachClampHand(clamp, left, left.Hand, out _)
+                   || right != null && CanReachClampHand(clamp, right, right.Hand, out _);
+        }
+
+        bool CanReachClampHand(PartClamp clamp, Arm arm, Hand hand, out Vector3 point)
+        {
+            point = Vector3.zero;
+            if (clamp == null || arm == null || hand == null || hand.Gripping || hand.Carrying)
+                return false;
+
+            var shoulder = arm.ShoulderAnchor != null
+                ? arm.ShoulderAnchor.position
+                : Doll != null && Doll.Chest != null ? Doll.Chest.position : Vector3.positiveInfinity;
+            var handOrigin = hand.Body != null ? hand.Body.position : shoulder;
+            if (!IsFinite(handOrigin)) return false;
+
+            // 실제 손 위치에서 가장 가까운 Collider 표면을 그립 지점으로 사용한다.
+            // Clamp는 일반 Hand.Search(트리거 무시) 대신 이 명시적 경로로만 결합된다.
+            if (!clamp.TryGetClosestColliderPoint(handOrigin, out point)) return false;
+
+            if (Doll == null || Doll.Hips == null) return false;
+
+            // Position은 플레이어 골반(RagdollBuilder.HipsY) 기준이다. Inspector에서 이
+            // 값을 줄이면 접근을 더 엄격하게, 늘리면 플레이어 중심 기준 제한을 완화할 수 있다.
+            var playerDistance = point - Doll.Hips.position;
+            var maxPlayerDistance = Mathf.Max(0f, clampGrabDistanceFromPlayer);
+            if (playerDistance.sqrMagnitude > maxPlayerDistance * maxPlayerDistance)
+                return false;
+
+            // 이 지점까지는 직접 조준한 실제 Clamp Collider와 플레이어 거리로 이미
+            // 검증했으므로, 어깨 기준 팔 길이 검사를 다시 적용하지 않는다. 본체 아래의
+            // Clamp를 잡을 때 어깨 높이/각도 때문에 클릭이 막히는 것을 방지한다.
+            return true;
+        }
 
         static float AngleFrom(Vector3 origin, Vector3 forward, Vector3 point)
         {
@@ -520,6 +652,11 @@ namespace Metagame.Gameplay
             comparison = left.y.CompareTo(right.y);
             return comparison != 0 ? comparison : left.z.CompareTo(right.z);
         }
+
+        static bool IsFinite(Vector3 value) =>
+            !float.IsNaN(value.x) && !float.IsInfinity(value.x)
+            && !float.IsNaN(value.y) && !float.IsInfinity(value.y)
+            && !float.IsNaN(value.z) && !float.IsInfinity(value.z);
 
         public InputFrame CurrentInput { get { return input; } }
 
@@ -1818,13 +1955,21 @@ namespace Metagame.Gameplay
 
             // 고정쇠가 조준 중이면 일반 손잡이/도구 탐색보다 우선한다.
             // 단순히 클릭한 상태가 아니라 실제 한 손이 고정쇠에 결합되어야 시작한다.
+            bool clampFocused = CurrentInteractionTarget.Kind == PlayerInteractionKind.Clamp
+                                && CurrentInteractionTarget.Clamp != null;
             bool clampInteractionActive = ProcessClampInteraction();
-            if (clampInteractionActive)
+            if (clampInteractionActive || clampFocused)
             {
                 DriveArm(Doll.Left, clampGrabHand == LeftHand && input.GrabLeft,
                          aim, null, false);
                 DriveArm(Doll.Right, clampGrabHand == RightHand && input.GrabRight,
                          aim, null, false);
+                if ((leftPressed || rightPressed) && !clampInteractionActive)
+                {
+                    string branch = CurrentInteractionTarget.CanInteract
+                        ? "고정못 잡기 실패" : "고정못 접근 불가";
+                    LogInteraction(branch, leftPressed, rightPressed, null, null);
+                }
                 SyncHeldObjectOwnerCollision();
                 return;
             }
@@ -1892,7 +2037,7 @@ namespace Metagame.Gameplay
             // 실제 고정쇠 지점에 결합하고, 결합 성공 뒤에만 puller를 등록한다.
             var target = CurrentInteractionTarget;
             if (target.Kind != PlayerInteractionKind.Clamp || target.Clamp == null
-                || target.Clamp.IsReleased) return false;
+                || target.Clamp.IsReleased || !target.CanInteract) return false;
 
             var focus = target.Clamp;
             var hand = TryAttachClampHand(focus);
@@ -1916,18 +2061,21 @@ namespace Metagame.Gameplay
         {
             if (target == null || target.GripTarget == null) return null;
 
-            var point = target.transform.position;
             var body = target.PartBody;
+            var left = Doll != null ? Doll.Left : null;
+            var right = Doll != null ? Doll.Right : null;
 
             // 양쪽을 동시에 누르면 왼손을 우선한다. 한 손이 이미 다른 것을 잡고
             // 있으면 오른손을 시도하되, 어느 손도 결합되지 않으면 pull을 시작하지 않는다.
-            if (input.GrabLeft && LeftHand != null && !LeftHand.Gripping && !LeftHand.Carrying
-                && LeftHand.GripToFixedAtPoint(target.GripTarget, body, point))
-                return LeftHand;
+            if (input.GrabLeft && left != null
+                && CanReachClampHand(target, left, left.Hand, out var leftPoint)
+                && left.Hand.GripToFixedAtPoint(target.GripTarget, body, leftPoint))
+                return left.Hand;
 
-            if (input.GrabRight && RightHand != null && !RightHand.Gripping && !RightHand.Carrying
-                && RightHand.GripToFixedAtPoint(target.GripTarget, body, point))
-                return RightHand;
+            if (input.GrabRight && right != null
+                && CanReachClampHand(target, right, right.Hand, out var rightPoint)
+                && right.Hand.GripToFixedAtPoint(target.GripTarget, body, rightPoint))
+                return right.Hand;
 
             return null;
         }

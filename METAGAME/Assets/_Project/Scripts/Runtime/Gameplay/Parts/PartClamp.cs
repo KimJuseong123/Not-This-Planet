@@ -64,6 +64,41 @@ namespace Metagame.Gameplay.Parts
         /// <summary>실제 팔을 연결할 때 사용하는 숨김 Grabbable 표식.</summary>
         public Grabbable GripTarget => _gripTarget;
 
+        /// <summary>
+        /// 주어진 월드 지점에서 가장 가까운 활성화된 Clamp Collider 표면을 찾는다.
+        ///
+        /// 탐색은 고정못 루트의 위치를 사용해도 되지만, 실제 손이 닿는지는
+        /// Head_Collider/Body_Collider 같은 형상 자체를 기준으로 봐야 한다. 이 메서드는
+        /// 그 두 판정을 분리하면서도 Collider가 없는 손상된 구형 데이터는 클릭되지 않게 한다.
+        /// </summary>
+        public bool TryGetClosestColliderPoint(Vector3 from, out Vector3 point)
+        {
+            Initialize();
+            point = transform.position;
+
+            if (IsReleased || !IsFinite(from) || _colliders == null || _colliders.Length == 0)
+                return false;
+
+            var bestSqrDistance = float.MaxValue;
+            for (var i = 0; i < _colliders.Length; i++)
+            {
+                var collider = _colliders[i];
+                if (collider == null || !collider.enabled || !collider.gameObject.activeInHierarchy)
+                    continue;
+
+                var candidate = collider.ClosestPoint(from);
+                if (!IsFinite(candidate)) continue;
+
+                var sqrDistance = (candidate - from).sqrMagnitude;
+                if (sqrDistance >= bestSqrDistance) continue;
+
+                bestSqrDistance = sqrDistance;
+                point = candidate;
+            }
+
+            return bestSqrDistance < float.MaxValue;
+        }
+
         /// <summary>고정쇠가 붙어 있는 파츠의 물리 몸체.</summary>
         public Rigidbody PartBody => _part != null ? _part.GetComponent<Rigidbody>() : null;
 
@@ -141,7 +176,8 @@ namespace Metagame.Gameplay.Parts
             _initialized = true;
 
             if (_part == null) _part = GetComponentInParent<SpaceshipPart>();
-            _colliders = GetComponents<Collider>();
+            _colliders = GetComponentsInChildren<Collider>(true);
+            ConfigureAnchoredPhysics();
 
             // 외양은 충돌 판정과 같은 Clamp 아래에 둔다. 구형 씬에서 직렬화된 외부
             // 외양이 들어와도 여기서 소유 루트를 바로잡아 렌더러와 Collider가 함께 움직이게 한다.
@@ -151,7 +187,11 @@ namespace Metagame.Gameplay.Parts
                 if (!_releasedVisual.IsChildOf(transform))
                     _releasedVisual.SetParent(transform, true);
                 _releasedVisual.gameObject.SetActive(true);
-                AlignReleasedVisual(_releasedVisual);
+                // 씬에서 고정못을 일부러 땅에 박아 둔 배치를 보존한다. 피벗 보정은
+                // Stage1SkinBuilder가 에디터에서 이미 수행하며, 런타임에 다시 실행하면
+                // Play Mode 시작 순간에 보이는 모델만 위로 떠오른다.
+                if (!Application.isPlaying)
+                    AlignReleasedVisual(_releasedVisual);
             }
 
             // 고정쇠 Collider는 Interactable 레이어라 Hand.Search에는 걸리지 않는다.
@@ -179,7 +219,8 @@ namespace Metagame.Gameplay.Parts
             if (!_releasedVisual.IsChildOf(transform))
                 _releasedVisual.SetParent(transform, true);
             _releasedVisual.gameObject.SetActive(true);
-            AlignReleasedVisual(_releasedVisual);
+            if (!Application.isPlaying)
+                AlignReleasedVisual(_releasedVisual);
         }
 
         /// <summary>
@@ -414,6 +455,22 @@ namespace Metagame.Gameplay.Parts
             return pin != null ? pin.transform : null;
         }
 
+        void ConfigureAnchoredPhysics()
+        {
+            // 박혀 있는 동안에는 Clamp가 파츠의 일부다. Collider는 조준 쿼리에는
+            // 남겨 두되 Trigger로만 두어 바닥을 밀어내거나 파츠를 띄우지 않는다.
+            gameObject.layer = GameLayers.Interactable;
+
+            if (_colliders == null) return;
+            foreach (var c in _colliders)
+            {
+                if (c == null) continue;
+                c.gameObject.layer = GameLayers.Interactable;
+                c.enabled = true;
+                c.isTrigger = true;
+            }
+        }
+
         void PrepareReleasedPhysics()
         {
             // 고정쇠의 원래 중심은 파츠 밑면과 같은 높이라 구형 콜라이더의 절반이
@@ -427,6 +484,7 @@ namespace Metagame.Gameplay.Parts
                 foreach (var c in _colliders)
                 {
                     if (c == null) continue;
+                    c.gameObject.layer = GameLayers.Prop;
                     c.enabled = true;
                     c.isTrigger = false;
                     c.material = Prim.GroundPhysics;

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 using Metagame.Core;
+using Metagame.Gameplay.Parts;
 
 namespace Metagame.Gameplay.Tests
 {
@@ -79,6 +80,36 @@ namespace Metagame.Gameplay.Tests
             Assert.IsTrue(resolved);
             Assert.IsTrue(hitSurface);
             Assert.That(point.z, Is.EqualTo(origin.z + 9f).Within(0.01f));
+        }
+
+        [Test]
+        public void PingPlacement_UsesAnchoredClampTriggerAsSurface()
+        {
+            Vector3 origin = new Vector3(40000f, 40000f, 40000f);
+            var clampRoot = new GameObject("Clamp") { layer = GameLayers.Interactable };
+            clampRoot.transform.position = origin + Vector3.forward * 10f;
+
+            var colliderObject = new GameObject("Body_Collider")
+            {
+                layer = GameLayers.Interactable
+            };
+            colliderObject.transform.SetParent(clampRoot.transform, false);
+            var collider = colliderObject.AddComponent<CapsuleCollider>();
+            collider.radius = 0.1f;
+            collider.height = 0.45f;
+
+            var clamp = clampRoot.AddComponent<PartClamp>();
+            clamp.Initialize();
+            spawned.Add(clampRoot);
+            Physics.SyncTransforms();
+
+            bool resolved = PingPlacement.TryResolve(origin, Vector3.forward, null,
+                                                      out var point, out var hitSurface, 20f);
+
+            Assert.IsTrue(resolved);
+            Assert.IsTrue(hitSurface);
+            Assert.That(point.z, Is.EqualTo(origin.z + 9.9f).Within(0.01f));
+            Assert.IsTrue(collider.isTrigger, "박힌 Clamp는 물리 충돌 없이 핑 질의에는 보여야 한다.");
         }
 
         GameObject MakeBox(string name, Vector3 position, Vector3 size, int layer, bool trigger)
