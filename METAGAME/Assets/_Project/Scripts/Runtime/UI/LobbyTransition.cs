@@ -14,7 +14,7 @@ namespace Metagame.UI
     public sealed class LobbyTransition : MonoBehaviour
     {
         private const string GameSceneName = "Main";
-        private const string TitleSceneName = "Lobby";
+        private const string TitleScenePath = "Assets/Scenes/Lobby.unity";
         private const float FadeOutSeconds = 0.35f;
         private const float LoadingHoldSeconds = 0.80f;
         private const float FadeInSeconds = 0.45f;
@@ -148,15 +148,23 @@ namespace Metagame.UI
 
             if (!IsTitleSceneActive())
             {
+                int titleBuildIndex = SceneUtility.GetBuildIndexByScenePath(TitleScenePath);
+                if (titleBuildIndex < 0)
+                {
+                    yield return FailRoutine(
+                        "빌드 설정에 타이틀 씬이 등록되지 않았습니다: " + TitleScenePath);
+                    yield break;
+                }
+
                 AsyncOperation load = null;
                 string loadError = null;
                 try
                 {
-                    load = SceneManager.LoadSceneAsync(TitleSceneName);
+                    load = SceneManager.LoadSceneAsync(titleBuildIndex);
                 }
                 catch (Exception exception)
                 {
-                    loadError = "타이틀 씬을 열 수 없습니다: " + exception.Message;
+                    loadError = "타이틀 씬을 열 수 없습니다 (" + TitleScenePath + "): " + exception.Message;
                 }
 
                 if (!string.IsNullOrEmpty(loadError) || load == null)
@@ -245,7 +253,7 @@ namespace Metagame.UI
 
         private static bool IsTitleSceneActive()
         {
-            return string.Equals(SceneManager.GetActiveScene().name, TitleSceneName,
+            return string.Equals(SceneManager.GetActiveScene().path, TitleScenePath,
                                  StringComparison.Ordinal);
         }
 
