@@ -8,7 +8,10 @@ namespace Metagame.EditorTools
 {
     /// <summary>
     /// 윈도우 빌드 한 방.
-    /// CI:  Unity.exe -batchmode -quit -projectPath . -executeMethod SpaceFlop.EditorTools.SpaceBuild.BuildWindows
+    /// CI:  Unity.exe -batchmode -quit -projectPath . -executeMethod Metagame.EditorTools.SpaceBuild.BuildWindows
+    ///      (개발 빌드는 BuildWindowsDev. 네임스페이스가 `SpaceFlop.EditorTools` 로 적혀 있었는데
+    ///       실제는 `Metagame.EditorTools` 다 — 그대로 복사하면 `class could not be found` 로 죽는다,
+    ///       2026-09-08 실측. `.gitlab-ci.yml` 의 release-windows 잡이 옳은 문자열을 쓰고 있었다.)
     ///
     /// 환경변수
     ///   SPACE_BUILD_DIR : 출력 폴더 (기본 Build/Windows)

@@ -140,6 +140,8 @@ CALLS = []
 
 def fake_http(method, url, headers=None, body=None, timeout=30):
     CALLS.append(url)
+    if "/jobs?per_page=100&page=" in url:
+        return 500, {}                  # 잡 목록을 못 읽는다 → 파이프라인 훑기로 폴백
     if "/pipelines?ref=" in url:
         return 200, [{"id": 900}, {"id": 899}]
     if url.endswith("/jobs?per_page=100"):
@@ -163,6 +165,8 @@ print("  기준선 조회 ✅")
 
 # ── ⑪ 아티팩트가 없으면 None (빈 집합이 아니다)
 def no_artifact(method, url, headers=None, body=None, timeout=30):
+    if "/jobs?per_page=100&page=" in url:
+        return 500, {}
     if "/pipelines?ref=" in url:
         return 200, [{"id": 899}]
     if url.endswith("/jobs?per_page=100"):
@@ -242,5 +246,363 @@ with tempfile.TemporaryDirectory() as d:
     v = Path(d) / R.VERDICT_FILE
     assert v.exists() and v.read_text(encoding="utf-8") == "2", "판정 근거가 없으면 경고여야 한다"
 print("  결과·로그 둘 다 없음 → 2 ✅")
+
+# ── ⑮ 기준선을 **잡 목록 API** 로 찾는다 (S15P21B202-342) ─────────────────────
+#    파이프라인 15개만 훑던 동안 창이 자주 비었다 — unity-compile 은 changes: METAGAME/**
+#    게이트라 문서·스크립트만 머지되는 날에는 develop 에 그 잡이 아예 생기지 않는다.
+#    2026-09-08 실측: 가장 최근 것이 7번째 뒤, 그 전은 14번째 뒤(창 경계).
+#    기준선을 못 찾으면 판정이 2 로 떨어지고 그 잡은 비차단이라 **새 실패가 그대로 통과한다.**
+JOBS_CALLS = []
+
+
+def jobs_api(method, url, headers=None, body=None, timeout=30):
+    JOBS_CALLS.append(url)
+    if "/jobs?per_page=100&page=1" in url:
+        return 200, [
+            {"id": 31, "name": "mr-lint", "ref": "develop", "status": "success"},
+            {"id": 30, "name": "unity-compile", "ref": "refs/merge-requests/9/head",
+             "status": "failed"},                      # 다른 ref — 기준선이 아니다
+            {"id": 29, "name": "unity-compile", "ref": "develop", "status": "running"},
+            {"id": 28, "name": "unity-compile", "ref": "develop", "status": "failed"},
+        ]
+    if "/jobs/28/artifacts/unity-results.xml" in url:
+        return 200, NUNIT
+    if "/pipelines?ref=" in url:
+        raise AssertionError("잡 목록으로 찾았으면 파이프라인을 훑지 않아야 한다")
+    raise AssertionError(f"예상 못한 호출: {method} {url}")
+
+
+ci_common.http = jobs_api
+assert R.baseline_failures(ci_common.GitLab(), "develop") == fails
+assert not any("/pipelines?ref=" in u for u in JOBS_CALLS), JOBS_CALLS
+print("  기준선 — 잡 목록 API ✅")
+
+
+# ── ⑯ 아티팩트가 만료된 잡은 건너뛰고 **더 옛것**을 본다
+#    expire_in 을 14일로 늘렸어도 경계는 남는다. 첫 후보가 비었을 때 포기하면 안 된다.
+def expired_newest(method, url, headers=None, body=None, timeout=30):
+    if "/jobs?per_page=100&page=1" in url:
+        return 200, [{"id": 40, "name": "unity-compile", "ref": "develop", "status": "failed"},
+                     {"id": 39, "name": "unity-compile", "ref": "develop", "status": "success"}]
+    if "/jobs/40/artifacts/" in url:
+        return 404, {"message": "404 Not Found"}       # 만료
+    if "/jobs/39/artifacts/unity-results.xml" in url:
+        return 200, NUNIT
+    if "/pipelines?ref=" in url:
+        return 200, []
+    raise AssertionError(url)
+
+
+ci_common.http = expired_newest
+assert R.baseline_failures(ci_common.GitLab(), "develop") == fails
+print("  만료된 아티팩트 → 다음 후보 ✅")
+
+
+# ── ⑰ 잡 목록이 비면 파이프라인 훑기로 되돌아간다 (둘 중 하나는 되도록)
+def empty_jobs(method, url, headers=None, body=None, timeout=30):
+    if "/jobs?per_page=100&page=" in url:
+        return 200, []                                 # 200 이지만 비었다
+    if "/pipelines?ref=" in url:
+        return 200, [{"id": 899}]
+    if url.endswith("/jobs?per_page=100"):
+        return 200, [{"id": 20, "name": "unity-compile", "status": "failed"}]
+    if "/artifacts/unity-results.xml" in url:
+        return 200, NUNIT
+    raise AssertionError(url)
+
+
+ci_common.http = empty_jobs
+assert R.baseline_failures(ci_common.GitLab(), "develop") == fails
+print("  잡 목록 빔 → 파이프라인 폴백 ✅")
+
+
+# ── ⑱ 판단 불가 코멘트가 **비차단이라는 사실**을 말한다 (S15P21B202-342)
+#     판정 2 는 allow_failure 라 파이프라인이 초록이다. 그 사실을 적지 않으면 초록이
+#     '실패를 검사했고 문제없었다' 로 읽힌다 — 실제로는 아무것도 가리지 못한 것이다.
+b = R.body(data(["A.x", "A.y"]), [], None, "develop")
+assert "막지 않습니다" in b, b
+assert "2건" in b, b
+print("  판단 불가 → 비차단임을 명시 ✅")
+
+# 실패가 0건이면 그 경고는 없어야 한다 — 가릴 것이 없다
+b0 = R.body(data([]), [], None, "develop")
+assert "막지 않습니다" not in b0, b0
+print("  실패 0건이면 경고 없음 ✅")
+
+
+# ── ⑲ 무엇을 검사했는지 코멘트가 밝힌다 — 대상 브랜치를 합친 결과인가 (S15P21B202-342)
+#     GitLab 의 MR 파이프라인은 refs/merge-requests/N/head — 소스 브랜치 끝에서 돈다.
+#     2026-09-08 에 -331(테스트 7건 추가)과 -339(중력 -2.8 → -5)가 서로를 못 본 채 각자
+#     초록이었고, 머지되자 3건이 깨졌다. 이제 잡이 대상 브랜치를 합친 뒤 검사하고 그 sha 를
+#     UNITY_MERGED_BASE 로 넘긴다. 코멘트가 검사 범위를 밝혀야 초록의 뜻이 분명해진다.
+os.environ.pop("UNITY_MERGED_BASE", None)
+os.environ.pop("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", None)
+assert R.merged_note() == "", "MR 이 아니면 아무 말도 하지 않는다"
+
+os.environ["CI_MERGE_REQUEST_TARGET_BRANCH_NAME"] = "develop"
+assert "합치지 못해" in R.merged_note(), R.merged_note()
+assert "합친 결과에서 검사했습니다" not in R.merged_note()
+print("  합치지 못했으면 그렇게 적는다 ✅")
+
+os.environ["UNITY_MERGED_BASE"] = "33d0907"
+assert "33d0907" in R.merged_note() and "합친 결과" in R.merged_note(), R.merged_note()
+assert "33d0907" in R.body(data(["A.x"]), [], set(), "develop"), "각주에 검사 범위가 실려야 한다"
+assert "33d0907" in R.body(data(["A.x"]), [], None, "develop"), "판단 불가 코멘트에도 실려야 한다"
+print("  합친 sha 를 각주에 싣는다 ✅")
+os.environ.pop("UNITY_MERGED_BASE", None)
+os.environ.pop("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", None)
+
+# ── ⑳ 낡은 기준선으로 회귀를 단정하지 않는다 (S15P21B202-342) ────────────────
+#    ⓞ 와 ① 이 서로 얽힌다. 이제 MR 은 develop 을 합친 결과를 검사하므로 develop 의 실패를
+#    함께 물려받는데, 기준선은 develop 의 *마지막* unity-compile 이고 아티팩트 14일 보관
+#    덕에 며칠 전 것일 수 있다. 그 사이 develop 에 들어온 실패는 기준선에 없고 내 결과에는
+#    있다 → "이 MR 이 만든 새 실패" 로 오탐되어 **남의 실패로 내 MR 이 막힌다.**
+#
+#    2026-09-08 실측 반례: 기준선이 한 파이프라인만 더 옛것(906fdfd2, 실패 27건)이었다면
+#    -339(중력 조정)가 깨뜨린 6건이 전부 내 몫으로 계산됐다. 실제로는 8b5978e6 이 잡혀
+#    그 사이 METAGAME 변경이 0건이었고 판정 0 이 나왔다 — 운이 좋았을 뿐이다.
+STALE = {"job": 494810, "sha": "906fdfd2", "when": "2026-09-08T14:10"}
+
+b = R.body(data(["A.x", "A.y"]), [], set(), "develop", stale_base=STALE)
+assert "가릴 수 없습니다" in b, b
+assert "906fdfd2" in b and "494810" in b, "어느 기준선이 낡았는지 밝혀야 한다"
+assert "경고로 낮췄습니다" in b, b
+assert "unity-compile` 을 한 번 돌려" in b, "가리는 방법을 알려 줘야 한다"
+assert "🔴" not in b, "차단하지 않으므로 🔴 를 쓰지 않는다"
+print("  낡은 기준선 → 코멘트가 단정하지 않는다 ✅")
+
+# 기준선이 신선하면 평소대로 🔴
+b2 = R.body(data(["A.x", "A.y"]), [], set(), "develop")
+assert "🔴" in b2 and "가릴 수 없습니다" not in b2, b2
+print("  신선한 기준선 → 평소대로 🔴 ✅")
+
+
+# ── ㉑ METAGAME 이 안 바뀌었으면 낡은 기준선도 유효하다
+#     테스트 거동이 바뀔 수 없으므로 그때는 그대로 차단해야 한다. 오늘 실제로 이 경우였다.
+import subprocess as SP
+
+_real_run = SP.run
+
+
+def fake_run(argv, **kw):
+    class R_:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+    class Changed(R_):
+        stdout = "METAGAME/Assets/_Project/Scripts/Runtime/Core/Tuning.cs"
+    # a..b 가 ('old','new') 면 바뀐 것으로, ('same','new') 면 안 바뀐 것으로 답한다
+    return Changed() if "old" in argv else R_()
+
+
+SP.run = fake_run
+R.subprocess = SP
+assert R.metagame_changed("old", "new") is True
+assert R.metagame_changed("same", "new") is False
+assert R.metagame_changed("", "new") is None, "sha 를 모르면 판단하지 않는다"
+
+
+def boom(argv, **kw):
+    raise FileNotFoundError("git")
+
+
+SP.run = boom
+assert R.metagame_changed("a", "b") is None, "git 이 없으면 판단하지 않는다"
+
+
+def rc1(argv, **kw):
+    class R_:
+        returncode = 128
+        stdout = ""
+        stderr = "bad object"
+    return R_()
+
+
+SP.run = rc1
+assert R.metagame_changed("a", "b") is None, "git 이 실패하면 판단하지 않는다"
+SP.run = _real_run
+print("  METAGAME 변경 판단 — 참·거짓·판단불가 3갈래 ✅")
+
+# ── ㉒ 컴파일 오류는 막는다. 다만 코멘트가 단정하지 않는다 (S15P21B202-342) ──
+#     ⓞ(대상 브랜치를 합친 뒤 검사)가 만든 상황이다. 대상 브랜치 자신이 깨져 있으면
+#     그 오류도 여기로 온다. **그래도 막는 것이 맞다** — 깨진 브랜치 위로는 아무도
+#     머지하면 안 된다. 틀린 것은 판정이 아니라 "이 MR 이 깼다" 라는 문구였다.
+#
+#     한때 "오류 파일이 전부 이 MR 밖이면 경고로 낮춘다" 를 넣었다가 되돌렸다.
+#     파일 단위 귀속은 한 방향으로만 성립한다 — A 를 바꿔 B 에서 오류가 날 수 있다
+#     (시그니처 변경 → 호출부 깨짐). "오류가 내 파일 밖" 은 결백의 증거가 아닌데
+#     그것으로 차단을 풀면 09-02 사고 경로가 다시 열린다.
+UNITY_ERR = "Assets/_Project/Scripts/Runtime/Gameplay/Parts/LaunchTest.cs(88,17): error CS0103: 이름 'Foo'"
+
+code, why = R.decide(data([]), [UNITY_ERR], set(), 2)
+assert code == REG, (code, why)
+assert "컴파일" in why, why
+print("  컴파일 오류 → 차단 (기준선과 무관) ✅")
+
+# 기준선을 못 봤어도 컴파일 오류는 막는다 — 여기서 약해지면 09-02 가 돌아온다
+assert R.decide(data([]), [UNITY_ERR], None, 2)[0] == REG
+assert R.decide(data(["A.x"]), [UNITY_ERR], {"A.x"}, 2)[0] == REG, "기존 실패만 있어도 컴파일 오류가 우선"
+print("  기준선 없음·기존 실패만 → 그래도 차단 ✅")
+
+# 코멘트: 막지만 대상 브랜치가 원인일 수 있음을 알린다
+os.environ["UNITY_MERGED_BASE"] = "abc1234"   # 합친 경우의 문구를 본다
+b = R.body(data([]), [UNITY_ERR], set(), "develop")
+assert "🔴" in b, b
+assert "2시간 37분" in b, "왜 급한지 근거가 있어야 한다"
+assert "develop` 를 합친 결과에서 돌았습니다" in b, b
+assert "최신 `unity-compile` 이 초록인지" in b, "무엇을 먼저 볼지 알려 줘야 한다"
+assert UNITY_ERR in b, "오류 줄이 코멘트 맨 위에 실려야 한다"
+print("  코멘트가 막으면서도 단정하지 않는다 ✅")
+
+# 대상 브랜치 이름이 그대로 실린다 (릴리스 MR 은 master 대신 develop 기준선)
+b2 = R.body(data([]), [UNITY_ERR], set(), "master")
+assert "master` 를 합친 결과에서 돌았습니다" in b2, b2
+os.environ.pop("UNITY_MERGED_BASE", None)
+print("  대상 브랜치 이름을 그대로 쓴다 ✅")
+
+
+# ── ㉓ R1 완화는 컴파일 오류에 걸리지 않는다 = R2 를 지킨다 (S15P21B202-342) ──
+#     `!259` 3차 AI 리뷰가 **높음**으로 잡은 실제 결함이다. `decide` 는 컴파일 오류에도
+#     REGRESSION 을 주는데, main() 의 R1 완화가 `if code == REGRESSION:` 로 조건 없이
+#     걸려 있었다. 그러면 기준선이 낡았을 때 **컴파일이 깨진 MR 이 판정 2(비차단)로
+#     통과한다** — 문서가 확정한 R2("컴파일은 기준선을 보지 않고 막는다")와 정면으로
+#     어긋나고 09-02 사고 경로가 다시 열린다.
+#
+#     여기서는 main() 을 통째로 돌려 **판정 파일에 실제로 무엇이 남는지**를 본다.
+#     decide/body 단위 검사로는 main() 의 게이트 실수를 못 잡는다 — 그게 이번 결함이었다.
+import tempfile as _tf
+
+_NUNIT_ERR = """<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" total="0" passed="0" failed="0" skipped="0" duration="0.1"></test-run>
+"""
+_LOG_ERR = ("Assets/_Project/Scripts/Runtime/Gameplay/Parts/LaunchTest.cs(88,17): "
+            "error CS0103: The name 'Foo' does not exist in the current context")
+
+_real_mc = R.metagame_changed
+_real_bf = R.baseline_failures   # 아래에서 갈아 쓰므로 반드시 되돌린다
+try:
+    # 기준선은 낡았다(METAGAME 이 바뀌었다)고 답하게 만든다 — R1 이 발동할 조건
+    R.metagame_changed = lambda a, b: True
+    os.environ["UNITY_MERGED_BASE"] = "deadbeef"
+    ci_common.http = lambda *a, **k: (404, {})      # 기준선 조회는 실패해도 무관
+
+    with _tf.TemporaryDirectory() as d:
+        nunit = os.path.join(d, "unity-results.xml")
+        log = os.path.join(d, "unity.log")
+        open(nunit, "w", encoding="utf-8").write(_NUNIT_ERR)
+        open(log, "w", encoding="utf-8").write(_LOG_ERR)
+        R.main([nunit, log, "2"])
+        verdict = open(os.path.join(d, R.VERDICT_FILE), encoding="utf-8").read()
+    assert verdict == str(REG), f"컴파일 오류는 낡은 기준선에도 차단해야 한다 — 판정 {verdict}"
+    print("  낡은 기준선 + 컴파일 오류 → 판정 1 유지 (R2) ✅")
+
+    # 대조: 컴파일 오류가 없고 새 실패만 있으면 R1 이 실제로 발동한다
+    os.environ["CI_MERGE_REQUEST_TARGET_BRANCH_NAME"] = "develop"   # ref == tgt
+    _NUNIT_NEW = """<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" total="1" passed="0" failed="1" skipped="0" duration="0.1">
+  <test-suite type="TestFixture" name="A" fullname="A">
+    <test-case id="1" name="x" fullname="A.x" result="Failed" duration="0.01">
+      <failure><message>깨졌다</message></failure>
+    </test-case>
+  </test-suite>
+</test-run>
+"""
+    with _tf.TemporaryDirectory() as d:
+        nunit = os.path.join(d, "unity-results.xml")
+        open(nunit, "w", encoding="utf-8").write(_NUNIT_NEW)
+        # 기준선을 빈 집합으로 주어 'A.x' 가 새 실패가 되게 한다
+        R.baseline_failures = lambda gl, ref, max_pipelines=15, meta=None: (
+            meta.update(job=1, sha="0badcafe", when="2026-09-01T00:00") or set()
+        ) if meta is not None else set()
+        R.main([nunit, os.path.join(d, "nope.log"), "2"])
+        verdict = open(os.path.join(d, R.VERDICT_FILE), encoding="utf-8").read()
+    assert verdict == str(UNK), f"낡은 기준선 + 새 테스트 실패는 경고로 낮춘다(R1) — 판정 {verdict}"
+    print("  낡은 기준선 + 새 테스트 실패 → 판정 2 로 완화 (R1) ✅")
+
+    # 릴리스 MR(대상 master)에서는 R1 을 적용하지 않는다 — baseline_ref 가 develop 을
+    # 쓰는데 합친 base 는 master 끝이라 두 값이 서로 다른 브랜치 위에 있다. 그 둘을 diff
+    # 하면 METAGAME 이 거의 항상 다르므로, 적용하면 릴리스 MR 의 차단이 통째로 무력화된다.
+    os.environ["CI_MERGE_REQUEST_TARGET_BRANCH_NAME"] = "master"     # ref=develop != tgt=master
+    with _tf.TemporaryDirectory() as d:
+        nunit = os.path.join(d, "unity-results.xml")
+        open(nunit, "w", encoding="utf-8").write(_NUNIT_NEW)
+        R.main([nunit, os.path.join(d, "nope.log"), "2"])
+        verdict = open(os.path.join(d, R.VERDICT_FILE), encoding="utf-8").read()
+    assert verdict == str(REG), f"릴리스 MR 에서는 R1 을 적용하지 않는다 — 판정 {verdict}"
+    print("  릴리스 MR(ref≠tgt) → R1 적용 안 함, 차단 유지 ✅")
+finally:
+    R.metagame_changed = _real_mc
+    R.baseline_failures = _real_bf
+    os.environ.pop("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", None)
+    os.environ.pop("UNITY_MERGED_BASE", None)
+
+# 컴파일 코멘트가 합치지 못한 경우를 단정하지 않는다 (3차 리뷰 중간 ③)
+os.environ["UNITY_MERGED_BASE"] = "abc1234"
+b = R.body(data([]), [_LOG_ERR], set(), "develop")
+assert "합친 결과에서 돌았습니다" in b, b
+os.environ.pop("UNITY_MERGED_BASE", None)
+b2 = R.body(data([]), [_LOG_ERR], set(), "develop")
+assert "브랜치 끝에서만" in b2 and "합친 결과에서 돌았습니다" not in b2, b2
+print("  컴파일 코멘트가 검사 범위를 정직하게 말한다 ✅")
+
+# ── ㉔ 기준선 후보에 상한이 있다 (S15P21B202-342) ──────────────────────────
+#     잡 목록 API 는 최대 800건을 준다. 그중 unity-compile 이 수십~수백 건이면 아티팩트가
+#     만료된 옛 잡마다 404 요청이 한 번씩 나가 잡이 오래 매달린다(14일 이전은 전부 만료).
+#     `!259` 3차 AI 리뷰가 중간으로 잡았다.
+ART_CALLS = []
+
+
+def many_expired(method, url, headers=None, body=None, timeout=30):
+    if "/jobs?per_page=100&page=1" in url:
+        return 200, [{"id": 1000 + k, "name": "unity-compile", "ref": "develop", "status": "failed"}
+                     for k in range(300)]
+    if "/jobs?per_page=100&page=" in url:
+        return 200, []
+    if "/artifacts/" in url:
+        ART_CALLS.append(url)
+        return 404, {"message": "404"}          # 전부 만료
+    if "/pipelines?ref=" in url:
+        return 200, []
+    raise AssertionError(url)
+
+
+ci_common.http = many_expired
+assert R.baseline_failures(ci_common.GitLab(), "develop") is None
+assert len(ART_CALLS) == R.MAX_BASELINE_CANDIDATES,     f"후보 {R.MAX_BASELINE_CANDIDATES}개까지만 열어야 한다 — 실제 {len(ART_CALLS)}회"
+print(f"  후보 300개 → 아티팩트 요청 {len(ART_CALLS)}회로 제한 ✅")
+
+
+# ── ㉕ 검사를 못 했으면 **그 사실을 코멘트로 남긴다** (S15P21B202-342) ────────
+#     `!259` 5차 AI 리뷰가 잡았다. 워크트리에 충돌이 남으면 잡이 Unity 를 돌리지 않고
+#     끝나는데, 판정 2 는 비차단이라 파이프라인이 초록이다. 코멘트가 없으면
+#     "문서만 바뀌어 잡이 안 돌았다" 와 구분되지 않는다 — **이 MR 이 없애려던 침묵과
+#     같은 모양이다.** `-335` 가 AI 리뷰에서 고친 것과 같은 종류다.
+POSTED = []
+
+
+def capture_note(method, url, headers=None, body=None, timeout=30):
+    if "/notes" in url:
+        POSTED.append((method, body))
+        return (200, {"id": 1}) if method in ("POST", "PUT") else (200, [])
+    return 404, {}
+
+
+ci_common.http = capture_note
+os.environ["UNITY_ABORTED"] = "대상 브랜치를 합치다 충돌이 남아 워크트리를 되돌리지 못했다"
+with tempfile.TemporaryDirectory() as d:
+    # 결과 파일이 아예 없는 상태 — 잡이 Unity 를 돌리지 못했다
+    rc = R.main([os.path.join(d, "unity-results.xml"), os.path.join(d, "unity.log"), "2"])
+    assert rc == 0, rc
+    v = Path(d) / R.VERDICT_FILE
+    assert v.exists() and v.read_text(encoding="utf-8") == str(UNK), "판정 2 를 남겨야 한다"
+os.environ.pop("UNITY_ABORTED", None)
+
+assert POSTED, "검사를 못 했으면 코멘트를 남겨야 한다 — 조용히 끝내면 안 된다"
+sent = str(POSTED[-1][1])
+assert "검사를 하지 못했습니다" in sent, sent
+assert "충돌이 남아" in sent, "사유가 실려야 한다"
+assert "머지를 막지 않으므로" in sent, "비차단이라는 사실을 말해야 한다"
+assert R.MARKER in sent, "같은 마커로 갱신되어야 한다"
+print("  검사 못 함 → 판정 2 + 사유 코멘트 ✅")
 
 print("TEST271 OK")
