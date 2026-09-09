@@ -25,16 +25,17 @@ def comment(verdict_line: str, sha: str = "abc1234") -> str:
             f"요약 문장.\n\n**팀장이 확인할 것**\n1. 무언가\n")
 
 
-def run(notes, sha="abc1234"):
+def run(notes, sha="abc1234", mr=None):
     """게이트를 돌리고 (종료코드, MM 으로 보낸 카드들) 를 준다."""
     sent = []
+    meta = mr if mr is not None else {"source_branch": "S15P21B202-1-x", "target_branch": "develop"}
 
     def http(method, url, headers=None, body=None, timeout=30):
         if url.startswith("https://mm.example"):
             sent.append(body["text"]); return 200, {}
         if "/notes" in url:
             return 200, notes
-        return 200, {}
+        return 200, meta
 
     os.environ["CI_COMMIT_SHORT_SHA"] = sha
     ci_common.http = http
@@ -150,5 +151,23 @@ for _v in ("warn", "ok", "unknown"):
     _passing = AR.render(merged={"verdict": _v, "checks": {}, "findings": [], "questions": []}, **_common)
     assert "막지 않습니다(참고용)" in _passing, f"{_v}: " + _passing[-300:]
 print("  각주가 ⛔ 에는 '막습니다', 나머지에는 '막지 않습니다' 를 적는다 ✅")
+
+
+# ── ⑬ 릴리즈 MR(→ master)은 건너뛴다 ─────────────────────────────────────
+#     ai_review.py 가 같은 조건에서 리뷰를 생략한다. 그러면 코멘트가 없어 게이트가
+#     "판정을 못 읽었다" 로 떨어지고, **릴리스마다 헛된 🟠 카드**가 나간다. 헛된 카드가
+#     반복되면 사람이 카드를 무시하게 되어 fail-open 경고 자체가 무력해진다.
+for _src, _tgt in (("release/S15P21B202-318-v0.1.0", "master"), ("develop", "master")):
+    _rc, _sent = run([], mr={"source_branch": _src, "target_branch": _tgt})
+    assert _rc == 0, f"릴리즈 MR 을 막으면 안 된다: {_src} → {_tgt}"
+    assert not _sent, f"릴리즈 MR 에 카드를 보내면 안 된다: {_sent}"
+# 릴리즈가 아닌 MR 에서 코멘트가 없으면 여전히 알린다 (④ 와 같은 경로가 살아 있는지)
+_rc, _sent = run([], mr={"source_branch": "S15P21B202-1-x", "target_branch": "develop"})
+assert _rc == 0 and len(_sent) == 1, "일반 MR 의 fail-open 경고가 사라졌다"
+# hotfix → master 는 예외가 아니다 — develop 을 거치지 않은 새 코드다
+_rc, _sent = run([{"id": 1, "body": comment(AR.VERDICT_LINE["block"])}],
+                 mr={"source_branch": "hotfix/S15P21B202-9-x", "target_branch": "master"})
+assert _rc == 1, "hotfix → master 는 검사 예외가 아니다"
+print("  릴리즈 MR 은 건너뛴다 · hotfix 는 예외가 아니다 ✅")
 
 print("TEST341 OK")

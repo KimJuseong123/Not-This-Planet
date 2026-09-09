@@ -19,6 +19,11 @@
 대신 조용히 꺼지지 않게 잡 로그와 MM 카드에 남긴다. 이 fail-open 이 우회로가 되지는
 않는다: 고쳐서 push 하면 리뷰가 다시 돌아 새 판정이 붙고, 살아 있는 리뷰가 ⛔ 를 내면 막힌다.
 
+**릴리즈 MR(→ master)은 건너뛴다.** `ai_review.py` 가 같은 조건에서 리뷰를 생략하므로
+코멘트가 아예 없고, 그러면 게이트가 "판정을 못 읽었다" 로 떨어져 **릴리스마다 헛된 🟠
+카드**를 보낸다. 헛된 카드가 반복되면 사람이 카드를 무시하게 되어 fail-open 경고 자체가
+무력해진다. 릴리스 내용은 develop 에 들어올 때 이미 리뷰됐다.
+
 **탈출구를 두지 않는다.** 게이트를 끄는 변수는 없다. `ai-review` 만 다시 돌리는 길도 열지
 않는다 — 그 우회가 있으면 수정 과정에서 `repo-hygiene`·`mr-lint` 를 새로 위반해도 안 걸린다.
 리뷰가 틀렸다고 판단되면 **MR 본문에 근거를 적는다.** 다음 리뷰의 입력에 그 본문이 들어간다.
@@ -30,7 +35,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import ai_review as AR                      # noqa: E402  마커·판정 문구를 한 곳에서 가져온다
 import mm_notify as MM                      # noqa: E402
-from ci_common import GitLab, env           # noqa: E402
+from ci_common import GitLab, env, is_release_mr   # noqa: E402
 
 # 판정 문구 → 판정 키. `ai_review.VERDICT_LINE` 을 뒤집어 쓴다 — 문구가 바뀌면 여기도 같이
 # 바뀌어야 하는데, 상수를 복사해 두면 조용히 어긋나 게이트가 모든 것을 ❓ 로 보게 된다.
@@ -99,6 +104,15 @@ def warn(reason: str, detail: str) -> int:
 
 def main() -> int:
     gl = GitLab()
+    mr = gl.get_mr() or {}
+    if is_release_mr(mr.get("source_branch") or "", mr.get("target_branch") or ""):
+        # `ai_review.py` 가 같은 조건에서 리뷰를 생략한다 — develop 에 들어올 때 이미 리뷰된
+        # 내용이고 비교 기준이 master 라 오탐만 나온다. 그러면 코멘트가 없으니 게이트는
+        # `warn()` 으로 떨어져 **릴리스마다 헛된 🟠 카드를 보낸다.** 헛된 카드가 반복되면
+        # 사람이 카드를 무시하게 되고, 그것이 이 게이트의 fail-open 경고를 무력화한다.
+        print("릴리즈 MR(→ master) — AI 리뷰를 생략하는 MR 이라 게이트도 건너뛴다")
+        return 0
+
     body = find_review(gl.notes())
     if body is None:
         # `-335` 이후 리뷰는 전부 실패해도 ❓ 코멘트를 남긴다. 그래도 없다면 코멘트 게시
