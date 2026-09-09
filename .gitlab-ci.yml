@@ -392,8 +392,13 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
       # Unity 가 낸 NUnit3 가 아니라 변환한 JUnit 을 올린다 — 전자는 GitLab 이 0건으로 읽는다.
       junit: unity-junit.xml
 
-build-backend:            # 백엔드 jar — MR 에서는 컴파일 검사, develop 머지에서는 배포용 산출물 (S15P21B202-140)
-  stage: test             # 지금까지 백엔드는 MR 시점 빌드 검사가 아예 없었다
+build-backend:            # 백엔드 **테스트 + jar** — MR 에서는 검사, develop 머지에서는 배포용 산출물
+  stage: test             # 처음에는 컴파일 검사만 있었다(-140). 테스트 58개는 CI 에서 한 번도
+                          # 돌지 않았는데, 켤 수 없던 이유가 플래키였다 — 2026-09-04 실측에서
+                          # 같은 명령 3회가 매번 다른 테스트를 떨어뜨렸다. 원인은
+                          # GameWebSocketIntegrationTest 의 헬퍼가 찾던 타입이 아닌 메시지를
+                          # 버려서 뒤의 await 가 굶는 것이었고(-302), 고친 뒤 EC2 도커 러너에서
+                          # **10회 연속 통과**(파이프라인 186069)를 확인하고 켰다.
   image: eclipse-temurin:17-jdk    # 프로젝트는 Java 17 · Gradle 9.7.1 래퍼
   tags: [linux]           # 이미지가 필요한 잡이므로 도커 러너를 못 박는다 — 셸 러너(내 PC)로 가면
                           # image 가 무시되고 chmod 도 없어 실패한다(2026-09-01 실측: 파이프라인 176688)
@@ -411,58 +416,16 @@ build-backend:            # 백엔드 jar — MR 에서는 컴파일 검사, dev
   script:
     - cd backend
     - chmod +x ./gradlew            # git 에 실행 권한이 없다(mode 100644)
-    - ./gradlew --no-daemon bootJar
+    - ./gradlew --no-daemon test bootJar
   artifacts:
+    when: always          # 테스트가 깨져도 junit 리포트는 올린다 — 그것이 없으면 GitLab 이
+                          # 어느 테스트가 깨졌는지 못 보여 주고 사람이 로그를 뒤져야 한다
     name: "backend-jar-$CI_COMMIT_SHORT_SHA"
     paths: ["backend/build/libs/*.jar"]
+    reports:              # MR 위젯에 **이 MR 이 새로 깨뜨린 테스트만** 뜬다.
+                          # unity-compile 이 NUnit3 → JUnit 변환을 하는 것과 같은 이유(-271)
+      junit: ["backend/build/test-results/test/*.xml"]
     expire_in: 3 days     # 60MB — 배포(-141)가 쓸 만큼만 남긴다
-
-# ── 임시 실측 (S15P21B202-302) — 다음 커밋에서 지운다 ──────────────────────
-# 완료 조건이 "GameWebSocketIntegrationTest 를 10회 연속 돌려 전부 통과" 다.
-# 로컬에 JDK·도커가 없어(재부팅 뒤 도커 데몬 꺼짐) 이슈가 실측한 환경과 같은
-# EC2 도커 러너에서 잰다. 회차별 결과를 세어 마지막에 요약한다.
-tmp-backend-flaky:
-  stage: test
-  image: eclipse-temurin:17-jdk
-  tags: [linux]
-  needs: []
-  timeout: 40m
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes: ["backend/**/*", ".gitlab-ci.yml"]
-  variables:
-    GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
-    RUNS: "10"
-  cache:
-    key: gradle-backend
-    paths: [".gradle/caches/modules-2", ".gradle/wrapper"]
-  script:
-    - cd backend
-    - chmod +x ./gradlew
-    - PASS=0; FAIL=0; FAILED_NAMES=""
-    - |
-      for i in $(seq 1 "$RUNS"); do
-        echo "===== 회차 $i / $RUNS ====="
-        if ./gradlew --no-daemon --rerun-tasks test --tests '*GameWebSocketIntegrationTest*' > "/tmp/run-$i.log" 2>&1; then
-          PASS=$((PASS+1)); echo "회차 $i: 통과"
-        else
-          FAIL=$((FAIL+1)); echo "회차 $i: 실패"
-          # 어느 테스트가 떨어졌는지만 뽑는다 — 로그 전체는 아티팩트에 남는다
-          grep -E "^[A-Za-z].*(FAILED|> )" "/tmp/run-$i.log" | head -12 || true
-          NAMES=$(grep -oE "[a-zA-Z]+\(\) FAILED" "/tmp/run-$i.log" | sort -u | tr '\n' ' ')
-          echo "  실패한 테스트: ${NAMES:-(이름을 못 뽑았다 — 로그 확인)}"
-          FAILED_NAMES="$FAILED_NAMES $NAMES"
-        fi
-      done
-      echo "===== 요약: 통과 $PASS · 실패 $FAIL / $RUNS ====="
-      echo "실패한 테스트 전체: ${FAILED_NAMES:-없음}"
-      [ "$FAIL" -eq 0 ] || echo "❌ 10회 연속 통과가 아니다 — 통과 $PASS · 실패 $FAIL"
-  artifacts:
-    when: always
-    name: "backend-flaky-$CI_COMMIT_SHORT_SHA"
-    paths: ["backend/build/reports/tests/test"]
-    expire_in: 3 days
-  allow_failure: true     # 측정용이다. 이 잡이 MR 을 막지는 않는다.
 
 ai-review:                # 비차단. API 키(ANTHROPIC_API_KEY) 또는 러너 호스트의 로그인된 Claude Code CLI(AI_REVIEW_CLI=true) 중 하나 있을 때 생성
   stage: review           # 문서(docs/**, *.md)만 바뀐 MR 은 건너뜀 — 구독 사용량 절약, 문서는 팀장 리뷰로 충분
