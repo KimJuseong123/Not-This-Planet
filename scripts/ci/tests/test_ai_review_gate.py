@@ -170,4 +170,39 @@ _rc, _sent = run([{"id": 1, "body": comment(AR.VERDICT_LINE["block"])}],
 assert _rc == 1, "hotfix → master 는 검사 예외가 아니다"
 print("  릴리즈 MR 은 건너뛴다 · hotfix 는 예외가 아니다 ✅")
 
+
+# ── ⑭ 커밋 표기가 없는 코멘트는 판정으로 쓰지 않는다 ─────────────────────
+#     `if head and seen` 이면 commit_of() 가 None 일 때 sha 검증을 건너뛰고 판정을 그대로
+#     믿는다 — 낡은 ✅ 코멘트가 새 커밋을 통과시킬 수 있다 (!279 AI 리뷰 중간).
+_no_sha = f"{AR.MARKER}\n🤖 **AI 리뷰 요약** · {AR.VERDICT_LINE['ok']} · `cli/x`\n"
+_rc, _sent = run([{"id": 1, "body": _no_sha}])
+assert _rc == 0, "막지는 않는다(fail-open)"
+assert len(_sent) == 1 and "커밋 표기가 없다" in _sent[0], _sent
+# ⛔ 라도 마찬가지다 — 확인하지 못한 것은 어느 방향으로도 판정으로 쓰지 않는다
+_no_sha_block = f"{AR.MARKER}\n🤖 **AI 리뷰 요약** · {AR.VERDICT_LINE['block']} · `cli/x`\n"
+_rc, _sent = run([{"id": 1, "body": _no_sha_block}])
+assert _rc == 0 and "커밋 표기가 없다" in _sent[0], _sent
+print("  커밋 표기가 없으면 판정으로 쓰지 않는다 \u2705")
+
+# ── ⑮ 🤖 줄이 여러 개면 전부 본다 ───────────────────────────────────────
+#     첫 🤖 줄에서 못 찾고 바로 None 을 내면, 요약 줄 포맷이 바뀌어 🤖 가 다른 줄에
+#     먼저 나오는 순간 **모든 MR 이 ❓ 가 되어 게이트가 사실상 꺼진다.**
+_two = (f"{AR.MARKER}\n"
+        f"🤖 이번 리뷰는 리뷰어 3명이 돌았습니다\n"
+        f"🤖 **AI 리뷰 요약** · {AR.VERDICT_LINE['block']} · `cli/x` · 커밋 `abc1234`\n")
+_rc, _sent = run([{"id": 1, "body": _two}])
+assert _rc == 1, "판정 문구가 두 번째 🤖 줄에 있어도 읽어야 한다"
+print("  🤖 줄이 여러 개면 전부 훑는다 \u2705")
+
+# ── ⑯ 판정 문구를 못 찾을 때 로그에 **요약 줄**을 싣는다 ────────────────
+#     첫 줄은 MARKER(HTML 주석)라 원인 추적에 쓸모가 없다.
+#     카드에는 사유만, **잡 로그에는 요약 줄까지** 싣는다 — 원인 추적은 로그에서 한다.
+_buf2 = _io.StringIO()
+with _ctx.redirect_stdout(_buf2):
+    run([{"id": 1, "body": AR.MARKER + chr(10) + "🤖 판정 문구가 없는 요약 줄 · 커밋 `abc1234`" + chr(10)}])
+_log = _buf2.getvalue()
+assert "판정 문구가 없는 요약 줄" in _log, "잡 로그에 요약 줄이 실려야 한다: " + _log
+assert AR.MARKER not in _log, "MARKER 를 싣지 않는다: " + _log
+print("  판정을 못 읽으면 로그에 요약 줄을 싣는다(MARKER 아님) ✅")
+
 print("TEST341 OK")

@@ -57,7 +57,9 @@ def verdict_of(body: str) -> str | None:
         for phrase, key in _BY_LINE.items():
             if phrase in line:
                 return key
-        return None                          # 요약 줄은 찾았는데 판정 문구가 없다
+        # 이 🤖 줄에는 판정 문구가 없다. 여기서 멈추지 않고 다음 🤖 줄을 본다 —
+        # 요약 줄 포맷이 바뀌어 🤖 가 다른 줄에 먼저 나오면, 멈추는 쪽은 모든 MR 을
+        # ❓ 로 만들어 **게이트를 사실상 꺼 버린다.**
     return None
 
 
@@ -121,10 +123,17 @@ def main() -> int:
 
     verdict = verdict_of(body)
     if verdict is None:
-        return warn("코멘트에서 판정 문구를 찾지 못했다", f"첫 줄: {body.splitlines()[0][:120] if body else ''}")
+        # 첫 줄은 MARKER(HTML 주석)라 원인 추적에 쓸모가 없다. 문제인 요약 줄을 싣는다.
+        head_line = next((l.strip() for l in body.splitlines() if l.strip().startswith("🤖")), "")
+        return warn("코멘트에서 판정 문구를 찾지 못했다",
+                    f"요약 줄: {head_line[:150]}" if head_line else "🤖 로 시작하는 요약 줄이 없다")
 
     head = env("CI_COMMIT_SHORT_SHA")
     seen = commit_of(body)
+    if head and not seen:
+        # 코멘트에 커밋 표기가 없으면 **언제 것인지 알 수 없다.** 그대로 믿으면 낡은 ✅ 가
+        # 새 커밋을 통과시킨다. 확인하지 못한 것은 판정으로 쓰지 않는다.
+        return warn("코멘트에 커밋 표기가 없다", f"지금 `{head}` · 코멘트가 어느 커밋의 것인지 알 수 없다")
     if head and seen and not (head.startswith(seen) or seen.startswith(head)):
         # 지난 push 의 코멘트가 남아 있는 상태다. 낡은 ⛔ 로 고쳐진 코드를 막아서도,
         # 낡은 ✅ 로 새 코드를 통과시켜서도 안 된다.

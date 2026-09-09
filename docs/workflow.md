@@ -43,7 +43,7 @@
         🤖 stack-order    부모 MR 이 먼저 들어가야 자식이 머지된다
         🤖 unity-compile  C# 컴파일 + EditMode — 이 MR 이 만든 실패만 막는다
         🧠 ai-review      역할별 리뷰 → 팀장용 한 장  (⚠️·✅ 는 의견)
-        🔒 ai-review-gate ⛔ 보류 권고면 막는다 — 나머지 판정은 통과
+        🔒 ai-review-gate ⛔ 보류 권고면 막는다 — 나머지 판정·릴리스는 통과
              통과 → 🟢 리뷰 요청 카드(팀장)
              실패 → 🔴 카드 + MR 코멘트(작성자), 이유가 함께 온다
 
