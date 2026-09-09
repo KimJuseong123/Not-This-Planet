@@ -604,8 +604,16 @@ class GameWebSocketIntegrationTest {
             return (BlockingQueue<String>) session.getAttributes().get("inbox");
         }
 
+        /**
+         * payload 의 {@code type}. 없으면 자리표시자를 준다.
+         *
+         * <p>{@code get("type")} 이 null 일 때 NPE 를 던지면, 특히 실패 메시지를 만드는
+         * 루프에서 터져 <b>원래의 AssertionError(무엇을 기다렸는지)가 무관한 NPE 로
+         * 바뀐다</b> — 진단이 더 어려워지는 쪽이다.
+         */
         private String typeOf(String raw) throws Exception {
-            return objectMapper.readTree(raw).get("type").asString();
+            JsonNode ty = objectMapper.readTree(raw).get("type");
+            return ty == null ? "<타입 없음>" : ty.asString();
         }
 
         /**
@@ -627,9 +635,8 @@ class GameWebSocketIntegrationTest {
                 if (raw == null) {
                     break;
                 }
-                JsonNode node = objectMapper.readTree(raw);
-                if (type.equals(node.get("type").asString())) {
-                    return node.get("data");
+                if (type.equals(typeOf(raw))) {
+                    return objectMapper.readTree(raw).get("data");
                 }
                 held.add(raw);
             }
@@ -643,17 +650,22 @@ class GameWebSocketIntegrationTest {
         }
 
         /**
-         * 주어진 시간 동안 도착한 메시지. 아무것도 안 오면 null
+         * 주어진 시간 동안 <b>새로</b> 도착한 메시지. 아무것도 안 오면 null
          * (실패 시 내용을 보여주기 위해 문자열을 돌려준다).
          *
-         * <p>앞선 {@code await} 가 남겨 둔 것이 있으면 그것을 먼저 준다 — 그것도
-         * <b>실제로 도착한</b> 메시지이므로, 없는 것처럼 굴면 "아무것도 오지 않아야 한다"
-         * 단정이 거짓으로 통과한다.
+         * <p><b>{@link #held} 는 보지 않는다.</b> 한때 held 를 먼저 돌려주게 했는데
+         * 되돌렸다 — 이 메서드는 "아무것도 오지 않아야 한다" 단정에만 쓰이고, 그 단정
+         * 바로 앞에 같은 클라이언트의 {@code await} 가 있다. 앞선 {@code await} 가
+         * 기대되던 다른 메시지를 남겨 뒀을 뿐인데도 단정이 <b>거짓으로 실패</b>하게 된다
+         * (플래키의 방향만 뒤집는 것이다).
+         *
+         * <p>대신 남는 구멍을 적어 둔다: 서버가 <b>예상 밖</b> 메시지를 보냈고 앞선
+         * {@code await} 가 그것을 held 에 담았으면 이 단정은 통과한다. 이 구멍은
+         * S15P21B202-302 이전에도 같았다 — 그때는 {@code await} 가 아예 버렸으므로
+         * 결과가 같다. 예상 밖 메시지를 잡는 것은 이 단정의 목적이 아니고, 필요하면
+         * 별 단정으로 held 를 직접 보는 것이 맞다.
          */
         String messageWithin(long ms) throws Exception {
-            if (!held.isEmpty()) {
-                return held.remove(0);
-            }
             return inbox().poll(ms, TimeUnit.MILLISECONDS);
         }
 

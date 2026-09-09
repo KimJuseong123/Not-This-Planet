@@ -419,7 +419,11 @@ build-backend:            # 백엔드 **테스트 + jar** — MR 에서는 검�
     - ./gradlew --no-daemon test bootJar
   artifacts:
     when: always          # 테스트가 깨져도 junit 리포트는 올린다 — 그것이 없으면 GitLab 이
-                          # 어느 테스트가 깨졌는지 못 보여 주고 사람이 로그를 뒤져야 한다
+                          # 어느 테스트가 깨졌는지 못 보여 주고 사람이 로그를 뒤져야 한다.
+                          # 대가: 테스트가 깨지면 bootJar 가 안 돌아 아래 *.jar 가 없고
+                          # "no matching files" 경고가 남는다. 잡 결과는 바뀌지 않고,
+                          # 그 경우 사람이 볼 것은 어차피 테스트 실패다. 잡을 둘로 쪼개면
+                          # Gradle 이 두 번 돌아 잡 시간이 배가 된다 — 경고 한 줄이 더 싸다
     name: "backend-jar-$CI_COMMIT_SHORT_SHA"
     paths: ["backend/build/libs/*.jar"]
     reports:              # MR 위젯에 **이 MR 이 새로 깨뜨린 테스트만** 뜬다.
