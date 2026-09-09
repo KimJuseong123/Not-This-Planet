@@ -25,7 +25,7 @@ sent, notes = [], []
 def fake_http(method, url, headers=None, body=None, timeout=30):
     if url.startswith("https://mm.example"):
         sent.append(body["text"]); return 200, {}
-    if url.endswith("/jobs?per_page=50") or "/pipelines/" in url and url.endswith("/jobs?per_page=50"):
+    if "/pipelines/" in url and "/jobs?per_page=100" in url:   # -361 로 100 · include_retried 경로 추가
         return 200, [{"id": 1, "name": "mr-lint", "status": "failed", "allow_failure": False,
                       "web_url": "https://lab/jobs/1"},
                      {"id": 2, "name": "ai-review", "status": "failed", "allow_failure": True,

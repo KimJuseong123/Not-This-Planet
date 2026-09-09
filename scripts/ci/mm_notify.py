@@ -165,17 +165,18 @@ def ci_failed(gl: GitLab) -> int:
     mention = mm_of(author)
     if not mention:
         print(f"작성자 {author!r} 매핑 없음 → 인프라에게"); mention = f"@{BY_GITLAB[INFRA]['mm']}"
-    failed = []
-    if gl.token and env("CI_PIPELINE_ID"):
-        st, jobs = http("GET", f"{gl.api}/projects/{gl.project}/pipelines/{env('CI_PIPELINE_ID')}/jobs?per_page=50", gl._h())
-        if st == 200 and isinstance(jobs, list):
-            failed = [j for j in jobs if j.get("status") == "failed" and not j.get("allow_failure")]
+    failed, retried = failed_jobs(gl)
     title, _ = strip_draft(mr.get("title") or "")
     reasons = failure_reasons(gl, failed) if failed else []
     if failed:
         parts = " · ".join(f"[{j['name']}]({j['web_url']})" for j in failed)
+        if retried:
+            # 이미 지나간 실패다. 말하지 않으면 사람이 고쳐진 것을 다시 쫓는다 (-361).
+            parts += " — **재시도 뒤 통과**"
         hint = {"mr-lint": "제목/본문/Jira 규칙", "repo-hygiene": "금지 파일·.meta·LFS·씬 선언", "unity-compile": "컴파일 오류"}
         hints = ", ".join(sorted({hint.get(j["name"], j["name"]) for j in failed}))
+        if retried:
+            hints = "이미 통과했으니 확인만 하면 된다"
     else:
         parts, hints = f"[파이프라인]({env('CI_PIPELINE_URL', '')})", "잡 로그 확인"
     shown = reasons[:MAX_REASONS]
@@ -226,15 +227,61 @@ def ci_failed(gl: GitLab) -> int:
 # 정해지지 않으므로, 되돌릴 수 있는 사람을 부르는 것이 맞다.
 
 
-def branch_pipeline_jobs(gl: GitLab) -> list[dict]:
-    """이 파이프라인에서 실패한 잡(allow_failure 제외). MR 경로와 같은 규칙이다."""
+def _blocking_failures(jobs: list[dict]) -> list[dict]:
+    """막는 실패만. `allow_failure` 잡의 실패는 파이프라인을 빨갛게 만들지 않는다."""
+    return [j for j in jobs if j.get("status") == "failed" and not j.get("allow_failure")]
+
+
+def failed_jobs(gl: GitLab) -> tuple[list[dict], bool]:
+    """(막는 실패 잡, 재시도로 가려졌는가). MR 경로와 develop 경로가 같은 규칙을 쓴다.
+
+    **왜 두 번 묻는가** (S15P21B202-361). GitLab 의 기본 잡 목록은 이름당 **최신 시도만**
+    준다. 그래서 빠르게 실패한 검사(`mr-lint` 6초)를 재실행하는 동안 느린 잡
+    (`unity-compile` 2분)이 아직 돌고 있으면, `when: on_failure` + `needs` 인 알림 잡이
+    도는 시점에 목록에 실패 상태 잡이 **하나도 없다.** 그러면 카드가
+    "실패한 잡 | 파이프라인 · 이유 | 로그에서 이유를 찾지 못함" 이라는 **눈먼 카드**가 된다
+    (2026-09-09 실측: 파이프라인 184897 · `mr-lint` 500782 실패 → 500804 재실행 통과 →
+    500790 카드). 카드가 거짓을 말한 것은 아니고 **쓸모가 없어진 것**이며, 그 카드의 존재
+    이유가 로그를 열지 않고도 무엇이 왜 깨졌는지 아는 것이다.
+
+    그래서 현재 실패가 없으면 `include_retried=true` 로 다시 물어 **실패했던 시도**를 찾는다.
+    카드를 생략하지는 않는다 — 실패가 있었던 사실 자체가 사라지면 조용해지는 쪽으로 틀린다.
+    대신 두 번째 값으로 "이미 재시도 뒤 통과했다" 를 알려 카드가 그 사실을 말하게 한다.
+    """
     pid = env("CI_PIPELINE_ID")
     if not (gl.token and pid):
-        return []
-    st, jobs = http("GET", f"{gl.api}/projects/{gl.project}/pipelines/{pid}/jobs?per_page=50", gl.headers())
+        return [], False
+    base = f"{gl.api}/projects/{gl.project}/pipelines/{pid}/jobs"
+    st, jobs = http("GET", f"{base}?per_page=100", gl.headers())
     if st != 200 or not isinstance(jobs, list):
-        return []
-    return [j for j in jobs if j.get("status") == "failed" and not j.get("allow_failure")]
+        return [], False
+    live = _blocking_failures(jobs)
+    if live:
+        return live, False
+
+    # 현재 실패가 없다 — 재시도에 가려진 실패를 찾는다.
+    st, all_tries = http("GET", f"{base}?per_page=100&include_retried=true", gl.headers())
+    if st != 200 or not isinstance(all_tries, list):
+        return [], False
+    # 이름별 최신 시도. id 는 단조 증가하므로 그것으로 최신을 가른다.
+    latest: dict[str, int] = {}
+    for j in all_tries:
+        n = j.get("name") or "?"
+        latest[n] = max(latest.get(n, -1), int(j.get("id") or 0))
+    hidden = [j for j in _blocking_failures(all_tries)
+              if int(j.get("id") or 0) != latest.get(j.get("name") or "?", -1)]
+    # 같은 이름이 여러 번 실패했으면 가장 최근 실패 하나만 싣는다 — 카드는 짧아야 한다.
+    best: dict[str, dict] = {}
+    for j in hidden:
+        n = j.get("name") or "?"
+        if int(j.get("id") or 0) >= int((best.get(n) or {}).get("id") or 0):
+            best[n] = j
+    return list(best.values()), bool(best)
+
+
+def branch_pipeline_jobs(gl: GitLab) -> list[dict]:
+    """옛 이름 — 실패 잡만 준다. 재시도 여부까지 필요하면 `failed_jobs()` 를 쓴다."""
+    return failed_jobs(gl)[0]
 
 
 def branch_failed(gl: GitLab) -> int:
@@ -247,10 +294,12 @@ def branch_failed(gl: GitLab) -> int:
     # 매핑이 없어도 알림은 나가야 한다 — 조용해지는 것이 가장 나쁘다.
     mention = " ".join(dict.fromkeys(mentions)) or f"@{BY_GITLAB[INFRA]['mm']}"
 
-    failed = branch_pipeline_jobs(gl)
+    failed, retried = failed_jobs(gl)
     reasons = failure_reasons(gl, failed) if failed else []
     if failed:
         parts = " · ".join(f"[{j['name']}]({j['web_url']})" for j in failed)
+        if retried:
+            parts += " — **재시도 뒤 통과**"
     else:
         parts = f"[파이프라인]({env('CI_PIPELINE_URL', '')})"
 
