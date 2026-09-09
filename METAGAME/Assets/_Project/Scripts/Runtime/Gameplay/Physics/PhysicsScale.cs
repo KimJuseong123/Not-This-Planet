@@ -585,7 +585,8 @@ namespace Metagame.Gameplay
         public const float BeamDamp = 10f;
 
         /// <summary>
-        /// 가속 상한(m/s²). 중력 보상분(2.8)보다 충분히 커야 파츠가 처지지 않는다.
+        /// 가속 상한(m/s²). 중력 보상분(5, 1Stage 중력)보다 충분히 커야 파츠가 처지지 않는다.
+        /// 추적에 쓸 수 있는 것은 그 차이인 약 25m/s² 다.
         /// </summary>
         public const float BeamAccelMax = 30f;
 
@@ -599,6 +600,31 @@ namespace Metagame.Gameplay
         /// 목표 회전으로 돌리는 각속도 계수(1/s). 결과는 PartMaxAngularSpeed 로 잘린다.
         /// </summary>
         public const float BeamAngularGain = 6f;
+
+        /// <summary>
+        /// 사거리를 넘긴 상태가 이만큼 이어지면 놓는다(초) — S15P21B202-362.
+        ///
+        /// <para>예전에는 <see cref="BeamRange"/> 를 넘긴 <b>그 프레임에 즉시</b> 놓았다.
+        /// 그래서 빠르게 움직이다 방향을 바꾸면 파츠가 순간적으로 뒤처지며 놓쳐졌다 —
+        /// 따라잡을 기회가 없었다.</para>
+        ///
+        /// <para>여유는 <see cref="BeamRange"/>(12) - <see cref="BeamHoldDistance"/>(6) = 6m 다.
+        /// 등속 뒤처짐은 <see cref="BeamDamp"/>/<see cref="BeamAccel"/> × 속도 = 0.4 × 속도 이므로
+        /// 부스트(12m/s)에서도 4.8m 로 여유 안이다. 넘기는 것은 급기동의 <b>순간</b>이고,
+        /// 0.4초면 추적 가속(약 25m/s²)으로 충분히 되돌아온다.</para>
+        /// </summary>
+        public const float BeamHoldGraceSeconds = 0.4f;
+
+        /// <summary>
+        /// 이 거리를 넘기면 유예 없이 즉시 놓는다(m) — S15P21B202-362.
+        ///
+        /// <para>유예는 "뒤처졌다" 를 위한 것이고, 이 값은 "정말로 떠났다" 를 위한 것이다.
+        /// 플레이어가 파츠를 두고 날아가 버렸는데 0.4초 동안 붙어 있으면 파츠가 끌려간다.</para>
+        ///
+        /// <para><see cref="BeamRange"/> 의 약 1.7배다. 등속 뒤처짐의 최대(4.8m)에 목표점
+        /// 거리(6m)를 더해도 11m 를 넘지 않으므로, 정상 운반이 여기에 닿지 않는다.</para>
+        /// </summary>
+        public const float BeamHardReleaseDistance = 20f;
 
         // --- 광역 저중력장 ---
         //

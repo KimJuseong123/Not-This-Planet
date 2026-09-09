@@ -37,10 +37,21 @@ namespace Metagame.Gameplay.Parts
         [SerializeField, Range(0f, 1f)] float _gravitySupport = PhysicsScale.BeamGravitySupport;
         [SerializeField, Min(0f)] float _angularGain = PhysicsScale.BeamAngularGain;
 
+        [SerializeField, Min(0f)]
+        [Tooltip("사거리를 넘긴 상태가 이만큼 이어지면 놓는다(초). 급기동의 순간 초과를 버티게 한다.")]
+        float _holdGraceSeconds = PhysicsScale.BeamHoldGraceSeconds;
+
+        [SerializeField, Min(0f)]
+        [Tooltip("이 거리를 넘기면 유예 없이 즉시 놓는다(m). 사거리보다 커야 뜻이 통한다.")]
+        float _hardReleaseDistance = PhysicsScale.BeamHardReleaseDistance;
+
         readonly RaycastHit[] _hits = new RaycastHit[HitBufferSize];
 
         Rigidbody _heldBody;
         Quaternion _targetRotation = Quaternion.identity;
+        /// <summary>사거리를 넘긴 상태가 이어진 시간. 안으로 돌아오면 0 으로 되돌린다.</summary>
+        float _outOfRangeSeconds;
+
 
         /// <summary>지금 들고 있는 파츠. 없으면 null.</summary>
         public SpaceshipPart Held { get; private set; }
@@ -127,6 +138,7 @@ namespace Metagame.Gameplay.Parts
             if (!candidate.TryTransitionTo(PartState.Carried)) return BeamGrabResult.NoTarget;
 
             Held = candidate;
+            _outOfRangeSeconds = 0f;
             _heldBody = candidate.GetComponent<Rigidbody>();
 
             // 붙잡은 순간의 자세를 유지한다. 파츠가 제멋대로 굴러가면 조립 위치를 맞출 수 없다.
@@ -169,6 +181,7 @@ namespace Metagame.Gameplay.Parts
 
             Held = null;
             _heldBody = null;
+            _outOfRangeSeconds = 0f;
             SetMatch(SocketMatch.None);
 
             if (part != null && match.HasValue && match.MovingSocket.Owner == part)
@@ -210,7 +223,7 @@ namespace Metagame.Gameplay.Parts
             }
 
             var toHoldPoint = HoldPoint - _heldBody.worldCenterOfMass;
-            if (Vector3.Distance(Origin.position, _heldBody.worldCenterOfMass) > _range)
+            if (!KeepHolding(deltaTime))
             {
                 Release();
                 return;
@@ -219,6 +232,43 @@ namespace Metagame.Gameplay.Parts
             UpdateMatch();
             ApplyTracking(toHoldPoint);
             ApplyRotation();
+        }
+
+        /// <summary>
+        /// 계속 붙잡고 있을지 판정한다 (S15P21B202-362).
+        ///
+        /// <para><b>예전에는 사거리를 넘긴 그 프레임에 즉시 놓았다.</b> 그래서 빠르게
+        /// 움직이다 방향을 바꾸면 파츠가 순간적으로 뒤처지며 놓쳐졌다 — 따라잡을 기회가
+        /// 없었다. 여유는 <c>BeamRange</c>(12) - <c>BeamHoldDistance</c>(6) = 6m 이고,
+        /// 등속 뒤처짐은 부스트에서도 4.8m 라 여유 안이다. 넘기는 것은 급기동의
+        /// <b>순간</b>이었다.</para>
+        ///
+        /// <para>그래서 판정을 둘로 나눴다.</para>
+        /// <list type="bullet">
+        ///   <item><b>뒤처짐</b> — 사거리를 넘긴 상태가 <see cref="_holdGraceSeconds"/> 동안
+        ///     이어질 때만 놓는다. 그 사이에도 <see cref="ApplyTracking"/> 이 계속 끌어당기므로
+        ///     유예가 실제로 회복 기회가 된다.</item>
+        ///   <item><b>이탈</b> — <see cref="_hardReleaseDistance"/> 를 넘기면 유예 없이 놓는다.
+        ///     플레이어가 파츠를 두고 날아가 버렸는데 붙어 있으면 파츠가 끌려간다.</item>
+        /// </list>
+        ///
+        /// <para>사거리 안으로 돌아오면 쌓인 시간을 <b>0으로 되돌린다</b>. 그러지 않으면
+        /// 급기동을 여러 번 하는 동안 누적돼 멀쩡한 상태에서 놓친다.</para>
+        /// </summary>
+        bool KeepHolding(float deltaTime)
+        {
+            var distance = Vector3.Distance(Origin.position, _heldBody.worldCenterOfMass);
+
+            if (distance > _hardReleaseDistance) return false;
+
+            if (distance <= _range)
+            {
+                _outOfRangeSeconds = 0f;
+                return true;
+            }
+
+            _outOfRangeSeconds += deltaTime;
+            return _outOfRangeSeconds < _holdGraceSeconds;
         }
 
         /// <summary>
