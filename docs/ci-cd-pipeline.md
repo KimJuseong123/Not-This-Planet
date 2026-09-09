@@ -215,6 +215,34 @@ MR 하나에 붙을 수 있는 봇 코멘트: `mr-lint` ⚠ · `mr-overlap` · `
 
 ## 8. 알려진 불일치·남은 일 (2026-09-07)
 
+### 로컬에서 Unity 배치모드 빌드를 돌린 뒤에는 `git status` 를 본다
+
+**배치모드 빌드는 프로젝트를 고친다.** 임포트 과정에서 URP 에셋·`ProjectSettings` 를
+재직렬화하고(정상), 에디터 스크립트가 **에셋을 지우기도 한다.**
+
+`ArtLink.CleanStale` 이 `Assets/_Project/Prefabs/Resources` 에서 자기가 만드는 셋만 남기고
+나머지를 지웠다 — 손으로 만든 `PF_Stage1_Tablet.prefab` 이 **매 빌드 삭제됐다**(`-351`).
+지금은 이름을 아는 것만 지우도록 고쳤지만, 배치모드가 프로젝트를 건드리는 성질 자체는
+남아 있다.
+
+```
+# 빌드 뒤 반드시
+git status --short
+
+# 의도한 파일만 남기고 되돌린다
+git checkout -- METAGAME/
+```
+
+커밋 전에는 **실제로 담긴 파일**을 본다 — `git add -A` 때 EOL 재stat 경고가 떠도 내용이
+같으면 커밋에는 안 들어간다.
+
+```
+git show --name-status --format="" HEAD
+```
+
+`release-windows` 는 빌드 뒤 `git status --porcelain -- METAGAME/` 를 보고 **삭제(`D`)가
+있으면 릴리스를 실패시킨다**(`-351`). 재직렬화(`M`)는 정상이라 개수만 센다.
+
 | 무엇 | 상태 |
 | --- | --- |
 | 릴리스 파이프라인 **첫 실측 전** | `release-windows`(-326)는 들어갔지만 실제 릴리스는 아직 0회 — 첫 릴리스에서 빌드 시간·zip 크기·패키지 업로드 상한을 실측해 records/-326 §4 에 적는다 |

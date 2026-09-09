@@ -8,7 +8,8 @@
     "Metagame.Gameplay",
     "Metagame.Network",
     "Metagame.UI",
-    "UnityEngine.UI"
+    "UnityEngine.UI",
+    "Metagame.Editor"
   ],
   "includePlatforms": [
     "Editor"
