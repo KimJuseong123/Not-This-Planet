@@ -454,6 +454,29 @@ ai-review-gate:           # ⛔ 보류 권고면 **막는다**. ⚠️·✅·❓
   script:
     - python scripts/ci/ai_review_gate.py
 
+# ── 임시 실측 (S15P21B202-341) — 다음 커밋에서 지운다 ──────────────────────
+# 질문: `allow_failure: true` 인 잡이 **실패**했을 때, 그것을 needs 로 가리키는
+# 잡이 도는가 skip 되는가. AI 리뷰가 "skip 된다(GitLab 기본 동작)" 고 높음으로
+# 지적했고, 그 말이 맞으면 게이트가 정작 막아야 할 때 조용히 안 돈다.
+tmp-allow-fail:
+  stage: review
+  needs: []
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - echo "일부러 실패한다"; exit 1
+
+tmp-needs-it:
+  stage: review
+  needs:
+    - job: tmp-allow-fail
+      optional: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - echo "TMP-RAN — allow_failure 실패한 잡을 needs 로 가리켜도 돌았다"
+
 # ── 배포 ─────────────────────────────────────────────────────────────────
 deploy-backend:           # develop 머지 뒤 **사람이 눌러서** 배포 (S15P21B202-141)
   stage: deploy           # 잡은 컨테이너 안이라 호스트 compose 를 못 부른다 → 스풀에 jar+RELEASE 를 놓고
