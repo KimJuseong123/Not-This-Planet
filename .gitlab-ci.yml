@@ -437,17 +437,29 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
     paths: [unity-build.log, release-version.txt, release-notes.md]   # zip 은 아티팩트에 싣지 않는다 — 상한(100MB)에 걸린다. 패키지 레지스트리에 있다
 
 # ── 알림 ─────────────────────────────────────────────────────────────────
-mm-ci-failed:             # 🔴 CI 실패 알림 — mr-lint/repo-hygiene/mr-overlap 실패 시 MR 작성자 @멘션 + 실패 잡 링크
+mm-ci-failed:             # 🔴 CI 실패 알림 — 실패한 잡 이름·링크·이유 + 담당 @멘션
   stage: notify
+  # **전부 optional 이어야 한다**(S15P21B202-344). develop push 파이프라인에는 mr-lint·
+  # repo-hygiene·mr-overlap 이 아예 없고(그 잡들의 rules 가 merge_request_event 다),
+  # optional 이 아닌 needs 는 그 자리에서 파이프라인 생성을 실패시킨다.
+  # MR 파이프라인에서는 그 셋이 항상 만들어지므로 뜻이 달라지지 않는다.
   needs:
     - job: mr-lint
+      optional: true
     - job: repo-hygiene
+      optional: true
     - job: ci-tests
       optional: true      # CI 스크립트를 건드리지 않은 MR 에는 이 잡이 없다
     - job: mr-overlap
+      optional: true
+    - job: unity-compile  # 이것이 빠져 있어 unity-compile 만 실패하면 카드가 안 나갔다(-344)
+      optional: true      # changes: 게이트라 없는 파이프라인이 있다
   when: on_failure
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $MM_WEBHOOK_URL
+    # develop 이 빨간 것은 MR 실패와 성격이 다르다 — 그 순간 모든 사람의 다음 브랜치가
+    # 빨간 기준선 위에서 시작한다. 2026-09-08 에 두 커밋 연속 실패하고 카드가 0건이었다.
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop" && $MM_WEBHOOK_URL
   script:
     - python scripts/ci/mm_notify.py ci-failed
   allow_failure: true
@@ -456,13 +468,21 @@ mm-ci-resolved:           # 검사 통과 시, 남아 있는 CI 실패 코멘트
   stage: notify
   needs:                  # mm-ci-failed 와 **같은 목록**이어야 한다. 달랐을 때는 ci-tests·mr-overlap 이
     - job: mr-lint        # 실패해도 '해소됨' 이 찍혔고, 같은 파이프라인에서 🔴 와 ✅ 가 같은 마커에
-    - job: repo-hygiene   # 동시에 써서 결과가 비결정적이었다(-289). 실패한 잡이 needs 에 있으면
-    - job: ci-tests       # when: on_success 가 알아서 이 잡을 건너뛴다.
+      optional: true      # 동시에 써서 결과가 비결정적이었다(-289). 실패한 잡이 needs 에 있으면
+    - job: repo-hygiene   # when: on_success 가 알아서 이 잡을 건너뛴다.
+      optional: true      # optional 인 이유는 mm-ci-failed 쪽 주석 참고(-344).
+    - job: ci-tests
       optional: true      # CI 스크립트를 건드리지 않은 MR 에는 이 잡이 없다
     - job: mr-overlap
+      optional: true
+    - job: unity-compile
+      optional: true
   when: on_success
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # develop 이 초록으로 돌아온 것도 알린다 — 🔴 카드가 "빨간 기준선 위에서 시작한다" 고
+    # 경고했으니 풀렸다는 말도 같은 채널에 있어야 한다. 직전 파이프라인이 실패였을 때만 보낸다.
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop" && $MM_WEBHOOK_URL
   script:
     - python scripts/ci/mm_notify.py ci-resolved
   allow_failure: true

@@ -54,6 +54,33 @@ assert failed == resolved, (
     f"  failed  : {sorted(failed)}\n  resolved: {sorted(resolved)}\n"
     f"  → 한쪽에만 있는 잡이 실패하면 '해소됨' 오탐이 나가고, 같은 파이프라인에서 🔴 와 ✅ 가 충돌한다")
 assert "ci-tests" in resolved and "mr-overlap" in resolved, sorted(resolved)
+
+# ── ①-b `unity-compile` 이 두 목록에 다 있어야 한다 (S15P21B202-344)
+#     빠져 있던 동안에는 그 잡만 실패하면 on_failure 조건을 못 만나 카드가 안 나갔다.
+for name, got in (("mm-ci-failed", failed), ("mm-ci-resolved", resolved)):
+    assert "unity-compile" in got, (
+        f"{name} 의 needs 에 unity-compile 이 없다 → 그 잡만 실패하면 알림이 안 나간다(-344).\n"
+        f"  현재: {sorted(got)}")
+
+# ── ①-c 두 잡의 needs 는 **전부 optional** 이어야 한다 (S15P21B202-344)
+#     develop push 파이프라인에는 mr-lint·repo-hygiene·mr-overlap 이 아예 없다
+#     (그 잡들의 rules 가 merge_request_event 다). optional 이 아닌 needs 는 그 자리에서
+#     파이프라인 생성을 실패시키므로, 알림이 안 나가는 것으로 끝나지 않고 **파이프라인이 죽는다.**
+for name in ("mm-ci-failed", "mm-ci-resolved"):
+    block = re.search(r"(?ms)^  needs:(.*?)(?=^  [a-z])", job(name)).group(1)
+    entries = re.findall(r"- job:\s*([a-z][a-z0-9-]+)[^\n]*((?:\n(?!\s*- job:)[^\n]*)*)", block)
+    assert entries, f"{name} 의 needs 항목을 못 읽었다"
+    for jobname, tail in entries:
+        assert "optional: true" in tail, (
+            f"{name} 의 needs 에서 {jobname} 이 optional 이 아니다 → develop push 파이프라인이 "
+            f"생성에 실패한다(-344)")
+
+# ── ①-d 두 잡이 develop push 에서도 돌아야 한다 (S15P21B202-344)
+#     2026-09-08 14:11 에 develop 이 두 커밋 연속 빨갰는데 카드가 0건이었다.
+for name in ("mm-ci-failed", "mm-ci-resolved"):
+    body = job(name)
+    assert '$CI_COMMIT_BRANCH == "develop"' in body, (
+        f"{name} 에 develop push 규칙이 없다 → develop 이 빨개도 알림이 없다(-344)")
 print("  ① 해소/실패 알림의 needs 일치 ✅")
 
 # ── ② target_branch 를 쓰는 두 잡은 순서가 있어야 한다

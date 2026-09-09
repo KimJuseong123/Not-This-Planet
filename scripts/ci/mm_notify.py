@@ -4,6 +4,11 @@
   python scripts/ci/mm_notify.py ci-failed   # 🔴 CI 실패 — 실패한 잡 이름·링크, **실패 이유(❌ 줄)**, MR 작성자 @멘션 + 같은 내용을 MR 코멘트로
   python scripts/ci/mm_notify.py ci-resolved # 검사 통과 시, 이전 실패 코멘트가 있으면 "해소됨" 으로 갱신(없으면 아무 것도 하지 않음)
 
+같은 두 명령이 **보호 브랜치 push 파이프라인에서도** 돈다(S15P21B202-344). 그때는 MR 이 없어
+작성자 멘션·MR 코멘트를 쓸 수 없고 알릴 내용도 다르다 — `develop` 이 빨간 순간부터
+**모든 사람의 다음 브랜치가 빨간 기준선 위에서 시작하기** 때문이다. `branch_failed`·
+`branch_resolved` 가 그 경우를 맡는다.
+
 원칙(docs/ci-and-notifications.md §5): 태그할 사람이 없는 메시지는 보내지 않는다. 첫 줄 = 등급 이모지 + 굵은 제목 + 링크,
 둘째 줄 = @멘션 + 조치. 사용자 매핑은 scripts/ci/team.json. 필요 변수: MM_WEBHOOK_URL, GITLAB_TOKEN(파이프라인·잡 조회).
 """
@@ -208,6 +213,102 @@ def ci_failed(gl: GitLab) -> int:
     return rc
 
 
+# ── 보호 브랜치(develop) 가 빨간 경우 (S15P21B202-344) ───────────
+#
+# **왜 따로 다루나.** MR 실패와 성격이 다르다. MR 은 그 사람이 고칠 때까지 남의 일이
+# 아닌데, `develop` 이 빨간 순간부터는 **모든 사람의 다음 브랜치가 빨간 기준선 위에서
+# 시작한다.** 그리고 `unity-compile` 은 머지 직후에도 도는데(개별 MR 은 통과했는데
+# 합쳐서 깨지는 경우를 잡는다) 그 실패에 알림이 없었다 — 2026-09-08 14:11 에 두 커밋
+# 연속 실패하고 카드가 0건이었다.
+#
+# MR 이 없으므로 작성자 멘션 경로를 쓸 수 없다. **밀어 넣은 사람**(머지 버튼을 누른
+# 사람이 대부분이다)과 Infra 를 함께 부른다 — 원인이 두 MR 의 조합이면 저자가 하나로
+# 정해지지 않으므로, 되돌릴 수 있는 사람을 부르는 것이 맞다.
+
+
+def branch_pipeline_jobs(gl: GitLab) -> list[dict]:
+    """이 파이프라인에서 실패한 잡(allow_failure 제외). MR 경로와 같은 규칙이다."""
+    pid = env("CI_PIPELINE_ID")
+    if not (gl.token and pid):
+        return []
+    st, jobs = http("GET", f"{gl.api}/projects/{gl.project}/pipelines/{pid}/jobs?per_page=50", gl.headers())
+    if st != 200 or not isinstance(jobs, list):
+        return []
+    return [j for j in jobs if j.get("status") == "failed" and not j.get("allow_failure")]
+
+
+def branch_failed(gl: GitLab) -> int:
+    branch = env("CI_COMMIT_BRANCH", "") or "?"
+    sha = env("CI_COMMIT_SHORT_SHA", "") or "?"
+    title = env("CI_COMMIT_TITLE", "") or ""
+
+    pusher = env("GITLAB_USER_LOGIN", "")
+    mentions = [m for m in (mm_of(pusher), mm_of(INFRA)) if m]
+    # 매핑이 없어도 알림은 나가야 한다 — 조용해지는 것이 가장 나쁘다.
+    mention = " ".join(dict.fromkeys(mentions)) or f"@{BY_GITLAB[INFRA]['mm']}"
+
+    failed = branch_pipeline_jobs(gl)
+    reasons = failure_reasons(gl, failed) if failed else []
+    if failed:
+        parts = " · ".join(f"[{j['name']}]({j['web_url']})" for j in failed)
+    else:
+        parts = f"[파이프라인]({env('CI_PIPELINE_URL', '')})"
+
+    shown = reasons[:MAX_REASONS]
+    numbered = " ".join(f"{i}) {r}" for i, (_, r) in enumerate(shown, 1)) if len(shown) > 1 else (shown[0][1] if shown else "")
+    more = f" … 외 {len(reasons) - len(shown)}건" if len(reasons) > len(shown) else ""
+    reason_cell = (numbered + more) if shown else "로그에서 이유를 찾지 못함 — 잡 링크에서 확인"
+
+    return send(card(f"🔴 **{branch} 가 빨갛다**", [
+        ("커밋", f"[`{sha}`]({env('CI_PROJECT_URL', '')}/-/commit/{env('CI_COMMIT_SHA', '')}) {title}".strip()),
+        ("실패한 잡", parts),
+        ("이유", reason_cell),
+        ("영향", f"지금 `{branch}` 에서 딴 브랜치는 **빨간 기준선 위에서 시작한다** — 남의 실패를 물려받는다"),
+        ("담당", mention),
+        ("조치", "고치는 MR 을 올리거나 원인 MR 을 되돌린다. 고쳐지면 다음 초록 파이프라인이 ✅ 카드를 보낸다"),
+    ]))
+
+
+def branch_resolved(gl: GitLab) -> int:
+    """빨갛던 보호 브랜치가 초록으로 돌아왔을 때만 알린다.
+
+    **직전 파이프라인이 실패였는지 본다.** 그것을 안 보면 초록일 때마다 카드가 나가
+    채널이 시끄러워지고, 반대로 아무것도 안 보내면 사람들이 언제 다시 브랜치를 따도
+    되는지 알 수 없다. 🔴 카드가 "빨간 기준선 위에서 시작한다" 고 경고했으므로 **풀렸다는
+    말도 같은 채널에 있어야 한다.**
+    """
+    branch = env("CI_COMMIT_BRANCH", "") or "?"
+    pid = env("CI_PIPELINE_ID", "")
+    if not (gl.token and branch != "?"):
+        print("토큰·브랜치 없음 → 생략"); return 0
+
+    st, pipes = http("GET", f"{gl.api}/projects/{gl.project}/pipelines"
+                            f"?ref={branch}&per_page=10&order_by=id&sort=desc", gl.headers())
+    if st != 200 or not isinstance(pipes, list):
+        print(f"파이프라인 목록 조회 실패 {st} → 생략"); return 0
+
+    previous = None
+    for p in pipes:
+        if str(p.get("id")) == str(pid):
+            continue
+        if p.get("status") in ("success", "failed"):   # running·canceled 는 판단 근거가 아니다
+            previous = p
+            break
+
+    if previous is None:
+        print("직전 파이프라인을 찾지 못했다 → 생략"); return 0
+    if previous.get("status") != "failed":
+        print(f"직전 파이프라인이 {previous.get('status')} → 알릴 것 없음"); return 0
+
+    sha = env("CI_COMMIT_SHORT_SHA", "") or "?"
+    title = env("CI_COMMIT_TITLE", "") or ""
+    return send(card(f"✅ **{branch} 가 초록으로 돌아왔다**", [
+        ("커밋", f"[`{sha}`]({env('CI_PROJECT_URL', '')}/-/commit/{env('CI_COMMIT_SHA', '')}) {title}".strip()),
+        ("직전", f"[실패한 파이프라인]({previous.get('web_url', '')})"),
+        ("조치", f"이제 `{branch}` 에서 브랜치를 따도 된다"),
+    ]))
+
+
 # ── 배포 (S15P21B202-144) ─────────────────────────────────────
 # 왜 잡을 따로 두지 않고 deploy_backend.py 가 직접 부르나 — 결과를 아는 곳이 거기다.
 # 스크립트는 성공/롤백/무응답/실패를 구분하는데, 잡의 종료 코드는 '실패' 하나로 뭉갠다.
@@ -262,6 +363,13 @@ def main() -> int:
                       sys.argv[3] if len(sys.argv) > 3 else "")
     gl = GitLab()
     if not gl.iid:
+        # 보호 브랜치 push 파이프라인 (S15P21B202-344). MR 이 없으므로 작성자 멘션·MR
+        # 코멘트 경로를 쓸 수 없고, 알릴 내용도 다르다 — branch_* 가 따로 처리한다.
+        branch = env("CI_COMMIT_BRANCH", "")
+        if branch and mode == "ci-failed":
+            return branch_failed(gl)
+        if branch and mode == "ci-resolved":
+            return branch_resolved(gl)
         print("MR 파이프라인이 아님 → 생략"); return 0
     if mode == "mr-opened":
         return mr_opened(gl)
