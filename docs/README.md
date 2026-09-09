@@ -14,6 +14,7 @@
 | **검사가 빨간불이다** | [ci-cd-pipeline.md](./ci-cd-pipeline.md) §2 잡 표·§7 증상별 볼 곳 → 근거는 [ci-and-notifications.md](./ci-and-notifications.md) |
 | **CI/CD 전체가 어떻게 생겼는지 알고 싶다** | [ci-cd-pipeline.md](./ci-cd-pipeline.md) — 한 장 지도: 파이프라인 3종 · 잡 15종 · 머지 조건 · 러너·EC2 · 변수 위치 · 알림 |
 | **팀장이 리뷰·머지한다** | MR 본문 하단 "리뷰어 확인" 5항목 · [mr-flow.md](./mr-flow.md) §3 머지 순서(아래부터) · 팀장 권한이 필요한 남은 설정은 [ci-cd-pipeline.md](./ci-cd-pipeline.md) §8 |
+| **네트워크에 닿는 것을 만든다** | [network-sync-policy.md](./network-sync-policy.md) — 동기화 방식 P1~P4 와 **각 동작이 어디에 속하는지.** 새 동작을 추가하면 그 표에 한 줄 더한다 |
 | **Jira 자동화가 이상하다** | [jira-gitlab-automation.md](./jira-gitlab-automation.md) (규칙 R1~R9 명세·실측 기록·사고 이력) |
 | **CI·알림을 고친다** (Infra) | [ci-cd-pipeline.md](./ci-cd-pipeline.md) 로 자리를 잡고 → [ci-and-notifications.md](./ci-and-notifications.md) 의 근거 → `scripts/ci/` → 오프라인 테스트 `python scripts/ci/tests/run_all.py` |
 | **자동화를 사람이 확인한다** | [e2e-checklist.md](./e2e-checklist.md) (시나리오별 준비·행동·기대·실측 결과) |
@@ -25,6 +26,7 @@
 | 파트 | 읽을 것 |
 | --- | --- |
 | 전체 · 역할 배분 | [parts.md](./parts.md) — 파트 태그 정의와 담당 (**지속 갱신**) |
+| Network | [network-sync-policy.md](./network-sync-policy.md) — 동기화 정책과 적용 현황 (**동작 추가 시 갱신**) |
 | Backend | [backend-guidelines.md](./backend-guidelines.md) — 기술스택·설계 원칙·로컬 개발 환경 |
 | Art · Level | [asset-catalog.md](./asset-catalog.md) — 에셋 프리뷰·배치 크기·`Texture→Material→Prefab` 연결 (**에셋 추가 시 갱신**) |
 | Plan | [planning/](./planning/) — 기획 문서 |
