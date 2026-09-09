@@ -429,6 +429,28 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
       set -e
       date -u +"종료 %H:%M:%S UTC (exit $RC)"
       grep -n "error CS\|\[SpaceFlop\] 빌드" "$CI_PROJECT_DIR/unity-build.log" | tail -5 || true
+    # 2-b) **빌드가 추적되는 에셋을 지웠는지 본다** (S15P21B202-351).
+    #
+    # 배치모드 빌드는 임포트 과정에서 에셋을 재직렬화하고, 에디터 스크립트가 에셋을
+    # 지우기도 한다 — `ArtLink.CleanStale` 이 실제로 `PF_Stage1_Tablet.prefab` 을 매
+    # 빌드 지웠다. 그러면 **그 에셋이 빠진 플레이어가 빌드되고**, `Resources` 아래는
+    # `Resources.Load` 로만 쓰여 컴파일 검사에 안 걸리고, CI 워크스페이스는 매번
+    # `git clean` 되므로 **삭제가 커밋되지 않아 흔적도 안 남는다.** 종료 코드는 0이다.
+    #
+    # 삭제(D)만 막는다. 재직렬화(M)는 배치모드에서 정상적으로 자주 생기므로 세기만 한다.
+    # **여기서 exit 하지 않는다** — 아래 3) 이 🔴 카드를 보내고 실패시키는 구조이므로
+    # RC 만 올려 그쪽에 맡긴다. 앞에서 죽으면 릴리스 실패가 MM 에 안 알려진다.
+    - |
+      DELETED=$(git status --porcelain -- METAGAME/ | grep -E "^(.?D|D.?) " || true)
+      RESERIALIZED=$(git status --porcelain -- METAGAME/ | grep -Ec "^(.?M|M.?) " || true)
+      echo "빌드 뒤 METAGAME/ — 재직렬화 ${RESERIALIZED}건"
+      if [ -n "$DELETED" ]; then
+        echo "❌ 빌드가 추적되는 에셋을 삭제했다 — 이 릴리스는 그 에셋 없이 만들어졌다 (S15P21B202-351)"
+        echo "$DELETED"
+        RC=1
+      else
+        echo "✅ 삭제된 에셋 없음"
+      fi
     # 3) zip → 패키지 레지스트리(잡 토큰) → Release(태그는 ref 로 생성) → MM 🟢. RC≠0 이면 🔴 만 보내고 실패
     - python3 scripts/ci/publish_release.py publish "$RC"
   artifacts:

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
@@ -38,18 +39,84 @@ namespace Metagame.EditorTools
             AssetDatabase.Refresh();
         }
 
-        /// <summary>더 이상 쓰지 않는 프리팹은 지운다 — 안 그러면 빌드에 계속 딸려 들어간다.</summary>
+        /// <summary>
+        /// 런타임 키가 바뀌어 더 이상 만들지 않는 프리팹 이름. **여기 적은 것만 지운다.**
+        ///
+        /// <para>키를 바꾸거나 없앨 때 옛 이름을 여기 한 줄 더한다. 그 지식은 키를 고치는
+        /// 사람에게만 있으므로, 코드가 추측하는 대신 적어 두게 한다.</para>
+        /// </summary>
+        static readonly string[] Retired = { };
+
+        /// <summary>지금 ArtLink 가 만드는 것들. 이건 절대 지우지 않는다.</summary>
+        static readonly string[] Generated = { RabbitKey, CapsuleKey, HandKey };
+
+        /// <summary>
+        /// 이 이름의 프리팹을 지워도 되는가.
+        ///
+        /// <para><b>모르는 이름은 지우지 않는다</b>(S15P21B202-351). 이 폴더는 ArtLink 것이
+        /// 아니라 <c>Resources.Load</c> 를 쓰는 모두의 것이다 — 손으로 만든
+        /// <c>PF_Stage1_Tablet</c> 이 여기 살고, 예전 규칙은 그것을 매 빌드 지웠다.</para>
+        ///
+        /// <para>테스트가 부를 수 있게 공개한 이유는 테스트가 이 판단만 따로 확인하기 때문이다 —
+        /// 실제 <see cref="CleanStale"/> 을 테스트에서 돌리면 프로젝트 에셋을 건드린다.</para>
+        /// </summary>
+        public static bool ShouldDelete(string name)
+        {
+            if (System.Array.IndexOf(Generated, name) >= 0) return false;
+            return System.Array.IndexOf(Retired, name) >= 0;
+        }
+
+        /// <summary>
+        /// 안 쓰는 프리팹을 정리한다 — <b>이름을 아는 것만.</b>
+        ///
+        /// <para><b>예전에는 <see cref="ResourceDir"/> 에서 <see cref="RabbitKey"/> 셋을 뺀
+        /// 나머지 전부를 지웠다.</b> 그런데 그 폴더는 ArtLink 것이 아니다 — 런타임이
+        /// <c>Resources.Load</c> 로 집는 프리팹은 <b>모두</b> 여기 있어야 하므로 손으로
+        /// 만든 것도 함께 산다. 그래서 <c>PF_Stage1_Tablet.prefab</c> 이
+        /// <b>빌드마다 조용히 지워졌다</b>(S15P21B202-351).</para>
+        ///
+        /// <para>피해가 큰 이유는 세 가지가 겹치기 때문이다 — ① <see cref="BuildPrefabs"/> 를
+        /// <c>SpaceBuild.Build</c> 가 맨 처음 부르므로 <b>지워진 상태로 플레이어가 빌드된다</b>
+        /// ② <c>Resources</c> 아래는 <c>Resources.Load</c> 로만 쓰여 <b>컴파일 검사에 안 걸린다</b>
+        /// ③ CI 워크스페이스는 매번 <c>git clean</c> 되므로 <b>삭제가 커밋되지 않아 흔적이
+        /// 남지 않는다.</b> 종료 코드는 0이고 빌드는 "성공" 이다.</para>
+        ///
+        /// <para><b>왜 전용 폴더로 옮기지 않았나.</b> <c>Resources.Load</c> 는 이름이 아니라
+        /// <c>Resources</c> 아래 <b>경로</b>로 찾는다. <c>Resources/ArtLink/</c> 로 옮기면 키가
+        /// <c>"ArtLink/SF_Rabbit_Base"</c> 로 바뀌어 <c>SpaceSuit.ResourceKey</c> ·
+        /// <c>FirstPersonHandView.ResourceKey</c> 같은 런타임 상수를 함께 고쳐야 한다.
+        /// 에셋 이동까지 묶이므로 이 수정의 범위를 넘는다.</para>
+        ///
+        /// <para><b>이제 모르는 것은 지우지 않고 알린다.</b> 빌드 단계가 추적되는 에셋을
+        /// 지우는 것은 어느 경우에도 기본 동작이면 안 된다.</para>
+        /// </summary>
         static void CleanStale()
         {
-            string[] keep = { RabbitKey, CapsuleKey, HandKey };
+            var unknown = new List<string>();
+
             foreach (var guid in AssetDatabase.FindAssets("t:Prefab", new[] { ResourceDir }))
             {
                 string path = AssetDatabase.GUIDToAssetPath(guid);
                 string name = System.IO.Path.GetFileNameWithoutExtension(path);
-                if (System.Array.IndexOf(keep, name) >= 0) continue;
-                AssetDatabase.DeleteAsset(path);
-                Debug.Log("[ArtLink] 안 쓰는 프리팹 정리: " + path);
+
+                if (System.Array.IndexOf(Generated, name) >= 0) continue;
+
+                if (ShouldDelete(name))
+                {
+                    AssetDatabase.DeleteAsset(path);
+                    Debug.Log("[ArtLink] 쓰지 않게 된 프리팹 정리: " + path);
+                    continue;
+                }
+
+                unknown.Add(name);
             }
+
+            // 손으로 만든 것일 수 있으므로 지우지 않는다. 진짜 쓰레기라면 사람이 지우거나
+            // 위 Retired 에 이름을 적는다.
+            if (unknown.Count > 0)
+                Debug.Log("[ArtLink] ArtLink 가 만들지 않은 프리팹 " + unknown.Count
+                          + "개는 그대로 둔다 (지우려면 ArtLink.Retired 에 이름을 적는다): "
+                          + string.Join(", ", unknown));
         }
 
         static void Link(string fbxPath, string key)
