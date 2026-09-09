@@ -778,8 +778,13 @@ print("  --recheck-plan 은 이름만 적고 판정·코멘트를 하지 않는�
 _txt = R.body(_D, [], set(), "develop", flaky={"G.ShipAscentTests.Hatch"})
 assert "플래키로 판정에서 뺀 1건" in _txt, _txt
 assert "Hatch" in _txt, _txt
-assert "테스트 결함" in _txt, _txt
-assert "S15P21B202-347" in _txt, _txt
+assert "실행 맥락에 달려" in _txt, _txt
+# **격리 통과를 무죄로 단정하지 않는다** — 이 MR 이 상태를 오염시킨 경우도 격리에서는
+# 통과한다(!272 3차 리뷰). 코멘트가 그 갈래와 가리는 방법을 적어야 한다.
+assert "전역·정적 상태를 오염" in _txt, _txt
+assert "METAGAME/` 을 하나도 건드리지 않았다면" in _txt, _txt
+# 후속 이슈를 가리켜야 한다 — -347 은 곧 닫히므로 그걸 가리키면 아무도 안 고친다
+assert "S15P21B202-360" in _txt, _txt
 print("  코멘트가 면제한 건을 드러낸다 ✅")
 
 _txt2 = R.body(_D, [], set(), "develop",
@@ -947,5 +952,19 @@ try:
 finally:
     R.baseline_failures = _keep_bf4
 print("  계획 옵션 + 재실행 옵션을 함께 주면 경고한다 ✅")
+
+
+# ⑩ -testFilter 값은 **정규식 이스케이프**되어야 한다 (!272 3차 리뷰).
+#    파라미터화 이름(`Load(1,2)`)을 그대로 넘기면 매칭에 실패하고, 그러면 전원
+#    '확인 못함' → 회귀가 되어 이 장치가 무력화된다.
+_fv = R.testfilter_value({"G.T.Load(1,2)", "G.T.Plain"})
+assert "G\.T\.Load" in _fv, _fv
+assert "\(1" in _fv, _fv
+assert _fv.count(";") == 1, _fv
+import re as _re
+for _n in ("G.T.Load(1,2)", "G.T.Plain"):
+    assert any(_re.fullmatch(_p, _n) for _p in _fv.split(";")), (_n, _fv)
+assert R.testfilter_value(set()) == "", R.testfilter_value(set())
+print("  -testFilter 값이 정규식 이스케이프된다 ✅")
 
 print("TEST271 OK")

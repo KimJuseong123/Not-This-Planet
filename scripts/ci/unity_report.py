@@ -24,6 +24,7 @@
 import glob
 import json
 import os
+import re
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
@@ -60,7 +61,15 @@ BASELINE_RUNS = 3
 #
 # 여기서 하는 일은 하나다 — 잡이 준 재실행 결과를 읽어 **한 번이라도 통과했는지** 보고
 # 플래키를 가린다. 뺀 것은 **조용히 빼지 않고 코멘트에 적는다.**
-RECHECK_PLAN = "unity-recheck.txt"     # 잡이 이 파일을 읽어 -testFilter 를 만든다
+RECHECK_PLAN = "unity-recheck.txt"     # 재실행할 테스트 이름 (한 줄에 하나)
+
+# 잡이 `-testFilter` 에 그대로 넣는 값. **여기서 만든다** (`!272` 3차 AI 리뷰).
+#
+# `-testFilter` 는 이름을 **정규식으로** 해석한다. 파라미터화 테스트 이름에는 `(`·`)`·`,`
+# 가 들어가고(`Load(1,2)`), 그것을 그대로 넘기면 매칭에 실패한다 — 그러면 전원 '확인 못함'
+# → 회귀가 되어 **이 장치가 무력화된다.** 셸에서 sed 로 이스케이프하면 백슬래시가 몇 겹
+# 먹히는지가 애매해지므로, 파이썬에서 만들어 파일로 넘긴다. 테스트로 못 박을 수 있다.
+RECHECK_FILTER = "unity-recheck-filter.txt"
 
 # 계획 단계가 조회한 기준선을 최종 판정이 **그대로 다시 쓴다** (`!272` AI 리뷰).
 #
@@ -236,6 +245,16 @@ def failed_names(data: dict) -> set:
     return {f'{c["cls"]}.{c["name"]}' for c in data["cases"] if c["result"] == "Failed"}
 
 
+def testfilter_value(names) -> str:
+    """`-testFilter` 에 넣을 값. 이름을 정규식 이스케이프해 세미콜론으로 잇는다.
+
+    `-testFilter` 는 정규식이므로 `Load(1,2)` 같은 파라미터화 이름을 그대로 넘기면
+    매칭에 실패한다 (`!272` 3차 AI 리뷰). `re.escape` 는 필요한 문자만 감싸므로
+    평범한 이름은 그대로 남는다.
+    """
+    return ";".join(re.escape(n) for n in sorted(names))
+
+
 def classify_rechecks(new: set, paths: list[str]) -> tuple[set, set, set]:
     """새 실패를 재실행 결과로 세 갈래로 나눈다 (S15P21B202-347).
 
@@ -248,9 +267,15 @@ def classify_rechecks(new: set, paths: list[str]) -> tuple[set, set, set]:
       죽었다). **회귀로 둔다** — 확인하지 못한 것을 면제하면 진짜 회귀가 빠져나간다
 
     <para>재실행은 그 테스트만 골라 돌리므로 **거의 빈 테스트 세션**에서 돈다. 그래서
-    여기서 통과한 것은 두 가지 중 하나다 — 진짜 무작위이거나, 다른 테스트가 남긴 상태에
-    걸려 넘어진 것(테스트 격리 결함). 둘 다 "이 MR 이 만든 것" 은 아니므로 판정에서 빼는
-    것이 맞다. 다만 **후자는 테스트 쪽 결함이므로 코멘트가 그렇게 말한다** — 조용히 빼면
+    여기서 통과한 것은 실패가 **실행 맥락에 달려 있다**는 뜻이고, 원인은 셋 중 하나다.
+    ① 원래 있던 무작위성 ② 다른 테스트가 남긴 상태에 걸려 넘어진 것(테스트 격리 결함)
+    ③ **이 MR 이 전역·정적 상태를 오염시켜** 다른 테스트를 깨뜨린 것.</para>
+
+    <para>**③ 이면 이 MR 이 원인이다** — 그래서 "격리에서 통과했으니 무죄" 라고 단정하지
+    않는다(`!272` 3차 AI 리뷰). 그래도 판정에서 빼는 쪽을 택한 이유는, ③ 은 이 MR 이
+    `METAGAME/` 을 건드렸을 때만 가능하고 그 경우 **사람이 목록을 보면 몇 초에 가릴 수
+    있는데**, ①②로 막는 쪽은 아무 잘못 없는 사람이 원인을 찾을 방법이 없기 때문이다.
+    코멘트가 세 갈래를 그대로 적고 ③ 을 가리는 방법까지 알려 준다 — 조용히 빼면
     아무도 고치지 않는다.</para>
     """
     if not new:
@@ -468,10 +493,17 @@ def body(data: dict, errs: list[str], base: set | None, ref: str,
                          + (f" — {c['msg'][:160]}" if c["msg"] else ""))
         if len(excused) > MAX_LISTED:
             parts.append(f"- … 외 {len(excused) - MAX_LISTED}건")
-        parts += ["", f"전체 실행에서는 실패했고 그 테스트만 골라 다시 돌리면 통과합니다. "
-                      f"같은 코드로 결과가 갈리므로 이 MR 이 만든 것이 아닙니다. "
-                      f"원인은 무작위성이거나 테스트 간 상태 누출입니다 — "
-                      f"`S15P21B202-347` 에서 다룹니다.", "</details>"]
+        parts += ["", "전체 실행에서는 실패했고 그 테스트만 골라 다시 돌리면 통과합니다. "
+                      "즉 실패가 **실행 맥락에 달려 있다**는 뜻입니다.", "",
+                  "- 원래 있던 무작위성이면 이 MR 탓이 아닙니다 (대부분 이 경우입니다)",
+                  "- **이 MR 이 전역·정적 상태를 오염시켜** 다른 테스트를 깨뜨린 경우에도 "
+                  "격리 재실행은 통과합니다. 그때는 이 MR 이 원인입니다",
+                  "",
+                  "**이 MR 이 `METAGAME/` 을 하나도 건드리지 않았다면 두 번째는 불가능하므로 "
+                  "확정입니다.** 게임 코드를 바꿨다면 위 목록의 테스트가 그 변경과 닿는지 "
+                  "한 번 보십시오.", "",
+                  "테스트 자체를 결정적으로 만드는 것은 `S15P21B202-360` 에서 다룹니다.",
+                  "</details>"]
     if fixed:
         parts += ["", f"**되살린 것** {len(fixed)}건: " + ", ".join(f"`{k.split('.')[-1]}`" for k in sorted(fixed)[:8])]
     if stale_base:
@@ -663,8 +695,17 @@ def main(argv: list[str] | None = None) -> int:
         with open(plan_path, "w", encoding="utf-8") as f:
             for name in sorted(new_now):
                 f.write(name + "\n")
+        # `-testFilter` 값도 여기서 만든다 — 정규식 이스케이프가 필요하다.
+        here = os.path.dirname(plan_path) or where
+        filt_at = os.path.join(here, RECHECK_FILTER)
+        try:
+            with open(filt_at, "w", encoding="utf-8") as f:
+                f.write(testfilter_value(new_now))
+        except OSError as e:
+            print(f"[warn] -testFilter 값을 쓰지 못했다({type(e).__name__}: {e}) — 재실행이 생략된다")
+
         # 최종 판정이 **같은 기준선**을 쓰도록 못 박는다 (`!272` AI 리뷰).
-        saved_at = os.path.join(os.path.dirname(plan_path) or where, BASELINE_FILE)
+        saved_at = os.path.join(here, BASELINE_FILE)
         try:
             with open(saved_at, "w", encoding="utf-8") as f:
                 json.dump({"base": None if base is None else sorted(base),
