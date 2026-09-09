@@ -106,6 +106,10 @@ namespace Metagame.Network
                 return;
             }
 
+            // 새 판이다 — 지난 판의 복귀 자리를 버린다 (S15P21B202-150).
+            // 남겨 두면 판을 다시 시작한 직후 들어온 사람이 옛 자리에 선다.
+            RejoinMemory.Clear();
+
             live = Build();
             live.InitializeDustStormSeed(DustStormMatchSeed.EnsureServerMatch());
             NetworkServer.Spawn(live.gameObject, AssetId);

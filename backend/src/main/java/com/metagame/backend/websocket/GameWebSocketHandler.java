@@ -53,8 +53,23 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     private static final int SEND_TIME_LIMIT_MS = 5_000;
     /** 밀린 메시지 버퍼 상한. 우리 메시지는 작아서 이 정도면 한참 밀려도 여유가 있다. */
     private static final int SEND_BUFFER_LIMIT_BYTES = 256 * 1024;
-    /** roomId → 릴레이 세션 식별자. 방이 사라질 때 릴레이에서도 지운다 (S15P21B202-299). */
-    private final Map<String, String> relaySessions = new ConcurrentHashMap<>();
+    /**
+     * roomId → 그 매치의 접속 정보 (S15P21B202-150).
+     *
+     * <p>예전에는 릴레이 <b>세션 id 만</b> 담았다(방이 사라질 때 닫으려고 — -299).
+     * 그래서 재입장한 사람에게 다시 줄 것이 남아 있지 않았다. 방장 주소와 릴레이 세션을
+     * 함께 들고 있으면 {@code GAME_STARTED} 를 그 사람 몫으로 다시 만들 수 있다.
+     */
+    private final Map<String, MatchEntry> matches = new ConcurrentHashMap<>();
+
+    /**
+     * 한 매치에 붙는 데 필요한 것. {@code relay} 는 같은 망이면 null 이다(직접 접속).
+     *
+     * @param hostAddress 방장이 알려 준 접속 주소. 서버가 보는 공인 IP 로는 안 된다(-263)
+     * @param relay       릴레이 세션. 사람별 토큰이 여기 있다
+     */
+    private record MatchEntry(String hostAddress, RelaySession relay) {
+    }
 
     /** 닉네임은 연결 시 한 번만 조회해 세션에 보관한다 (브로드캐스트마다 DB를 보지 않기 위해). */
     @Override
@@ -187,11 +202,11 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         broadcastRoomState(room);
     }
 
-    /** 그 방의 릴레이 세션을 닫는다. 없으면 아무 것도 하지 않는다. */
+    /** 그 방의 릴레이 세션을 닫고 접속 정보를 버린다. 없으면 아무 것도 하지 않는다. */
     private void closeRelay(String roomId) {
-        String sessionId = relaySessions.remove(roomId);
-        if (sessionId != null) {
-            relayService.close(sessionId);
+        MatchEntry entry = matches.remove(roomId);
+        if (entry != null && entry.relay() != null) {
+            relayService.close(entry.relay().sessionId());
         }
     }
 
@@ -249,6 +264,15 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             }
             sendStateSync(session, room);
             broadcastRoomState(room);
+            // 어디로 붙어야 하는지 다시 알려 준다 (S15P21B202-150).
+            //
+            // 이것이 없어서 재접속이 성립하지 않았다 — 방에는 들어오는데 매치 주소와
+            // 사람별 릴레이 토큰을 못 들어 로비에 갇혔다. 게임이 이미 PLAYING 이라
+            // 시작 버튼도 비활성이므로(LobbyHud 의 room.IsWaiting 조건) 들어갈 길이 없었다.
+            //
+            // 클라이언트는 GAME_STARTED 를 받으면 알아서 매치로 들어간다
+            // (NetworkSession 이 주소를 담고 LobbyBootstrap.EnterMatch 가 씬을 넘긴다).
+            sendGameStarted(session, room, userId);
             log.info("rejoined: userId={} room={}", userId, roomId);
             return;
         }
@@ -305,10 +329,10 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         LinkedHashMap<Long, String> publicIps = publicIpsOf(room);
         boolean same = sameNetwork(room, publicIps);
         RelaySession relay = same ? null : relayService.open(publicIps, room.getHostUserId());
-        if (relay != null) {
-            // 방이 사라질 때 닫기 위해 기억한다. 예전에는 이것이 없어 세션이 쌓였다(-298 §5-①).
-            relaySessions.put(room.getRoomId(), relay.sessionId());
-        }
+
+        // 재입장한 사람에게 다시 보낼 수 있게 방마다 기억한다 (S15P21B202-150).
+        // **릴레이가 null 이어도 보관한다** — 같은 망 직접 접속도 주소를 다시 줘야 한다.
+        matches.put(room.getRoomId(), new MatchEntry(hostAddress, relay));
 
         // 무엇을 골랐는지 남긴다. 릴레이가 안 붙었을 때 어디서 갈렸는지 알아야 한다 —
         // 실패하면 조용히 직접 접속으로 되돌아가므로 로그가 없으면 원인을 못 찾는다.
@@ -337,22 +361,47 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 continue;
             }
 
-            Map<String, Object> payload = new LinkedHashMap<>();
-            payload.put("roomId", room.getRoomId());
-            if (!hostAddress.isBlank()) {
-                payload.put("hostAddress", hostAddress);
-            }
-
-            // 사람마다 userToken 이 다르므로 방송하지 않고 각자에게 따로 보낸다.
-            if (relay != null) {
-                Map<String, Object> mine = relay.payloadFor(playerId);
-                if (mine != null) {
-                    payload.put("relay", mine);
-                }
-            }
-
-            send(target, WsMessage.Type.GAME_STARTED, payload);
+            sendGameStarted(target, room, playerId);
         }
+    }
+
+    /**
+     * 이 사람 몫의 {@code GAME_STARTED} 를 보낸다 — 매치에 붙는 데 필요한 것 전부.
+     *
+     * <p><b>게임 시작과 재입장이 같은 코드를 쓴다</b>(S15P21B202-150). 예전에는 시작
+     * 경로에만 있었고, 그래서 재입장한 사람은 방에는 들어오지만 <b>어디로 붙어야 하는지를
+     * 못 들었다.</b> 로비에 갇히고, 게임이 이미 {@code PLAYING} 이라 시작 버튼도 비활성이라
+     * 들어갈 길이 없었다.
+     *
+     * <p>사람마다 {@code userToken} 이 다르므로 방송하지 않고 각자에게 따로 보낸다.
+     */
+    private void sendGameStarted(WebSocketSession target, Room room, Long playerId) {
+        MatchEntry entry = matches.get(room.getRoomId());
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("roomId", room.getRoomId());
+
+        if (entry == null) {
+            // 접속 정보가 없다 — 서버가 재시작된 뒤 진행 중인 방이 남은 경우다.
+            // 방 번호만이라도 보내면 클라이언트가 옛 주소로 시도하지 않고 멈춘다.
+            log.warn("no match entry: room={} userId={} — 접속 정보 없이 GAME_STARTED 를 보낸다",
+                    room.getRoomId(), playerId);
+            send(target, WsMessage.Type.GAME_STARTED, payload);
+            return;
+        }
+
+        if (!entry.hostAddress().isBlank()) {
+            payload.put("hostAddress", entry.hostAddress());
+        }
+
+        if (entry.relay() != null) {
+            Map<String, Object> mine = entry.relay().payloadFor(playerId);
+            if (mine != null) {
+                payload.put("relay", mine);
+            }
+        }
+
+        send(target, WsMessage.Type.GAME_STARTED, payload);
     }
 
     /**
