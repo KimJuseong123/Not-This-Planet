@@ -101,6 +101,12 @@ namespace Metagame.UI
         private static bool koreanFontSearched;
         private static readonly Dictionary<int, Font> Fonts = new Dictionary<int, Font>();
 
+        /// <summary>게임 씬에서 설정 오버레이로 재사용될 때만 참이다.</summary>
+        public bool IsSettingsOnlyOpen
+        {
+            get { return network == null && view == LobbyView.Settings && editingSettings != null; }
+        }
+
         /// <summary>
         /// 기존 호출부와 테스트가 사용할 수 있도록 영상 참조는 선택 인자로 둔다.
         /// </summary>
@@ -136,6 +142,28 @@ namespace Metagame.UI
             transition = LobbyTransition.Ensure();
             WarmFont();
             Subscribe();
+        }
+
+        /// <summary>
+        /// 게임 씬의 로컬 메뉴에서 설정 화면만 재사용한다. 네트워크나 로비 배경은 만들지 않는다.
+        /// </summary>
+        public void InitializeSettingsOnly(GameSettingsRuntime settingsRuntime = null)
+        {
+            Unsubscribe();
+            network = null;
+            settings = settingsRuntime != null ? settingsRuntime : GameSettingsRuntime.Ensure();
+            editingSettings = settings.Current != null
+                ? settings.Current.Clone() : GameSettingsData.CreateDefaults();
+            editingSettings.Normalize();
+            transition = null;
+            view = LobbyView.Settings;
+            settingsTab = SettingsTab.Graphics;
+            settingsScroll = Vector2.zero;
+            rebindingAction = null;
+            error = string.Empty;
+            notice = string.Empty;
+            RefreshSettingsOptions();
+            WarmFont();
         }
 
         private void OnEnable()
@@ -209,7 +237,7 @@ namespace Metagame.UI
 
         private void OnGUI()
         {
-            if (network == null)
+            if (network == null && !IsSettingsOnlyOpen)
                 return;
 
             EnsureStyles();

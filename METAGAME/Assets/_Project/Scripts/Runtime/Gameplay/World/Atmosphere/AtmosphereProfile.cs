@@ -205,6 +205,17 @@ namespace Metagame.Gameplay
             public GameObject largeDebrisPrefab;
             public GameObject mediumDebrisPrefab;
             public GameObject smallDebrisPrefab;
+
+            /// <summary>
+            /// Creates a runtime copy so a match can override only the seed without
+            /// mutating the shared ScriptableObject asset.
+            /// </summary>
+            public DustStormSettings WithSeed(int matchSeed)
+            {
+                var copy = (DustStormSettings)MemberwiseClone();
+                copy.seed = matchSeed;
+                return copy;
+            }
         }
 
         [Header("Sky and distant space")]

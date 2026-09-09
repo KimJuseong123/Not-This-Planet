@@ -21,6 +21,7 @@ namespace Metagame.Gameplay
         Bounds mapBounds;
         bool hasMapBounds;
         int activeCycle = -1;
+        int? matchSeedOverride;
         Material dustMaterial;
 
         public void BindMapBounds(Bounds bounds)
@@ -40,6 +41,8 @@ namespace Metagame.Gameplay
             profile = atmosphereProfile;
             profile.Validate();
             settings = profile.dustStorm;
+            if (matchSeedOverride.HasValue)
+                settings = settings.WithSeed(matchSeedOverride.Value);
             schedule = new DustStormSchedule(settings);
             if (!hasMapBounds) BindMapBounds(DustStormBounds.FindOrFallback());
 
@@ -51,6 +54,25 @@ namespace Metagame.Gameplay
                               settings.debugBoundaryWidth,
                               settings.debugSkyMarkerHeight);
             activeCycle = -1;
+        }
+
+        /// <summary>
+        /// Applies the server-selected match seed to a runtime copy of the profile.
+        /// The shared ScriptableObject remains unchanged for the next match.
+        /// </summary>
+        public void SetMatchSeed(int matchSeed)
+        {
+            matchSeedOverride = matchSeed;
+            if (profile == null || profile.dustStorm == null)
+                return;
+
+            if (settings != null && settings.seed == matchSeed)
+                return;
+
+            settings = profile.dustStorm.WithSeed(matchSeed);
+            schedule = new DustStormSchedule(settings);
+            activeCycle = -1;
+            StopVisuals();
         }
 
         public void Tick(double simulationTime)
@@ -77,8 +99,9 @@ namespace Metagame.Gameplay
             activeCycle = pose.CycleIndex;
             ConfigureDustDirection(pose.Direction);
             ConfigureDebrisDirection(pose.Direction);
-            dustParticles.randomSeed = unchecked((uint)(settings.seed + pose.CycleIndex * 7919 + 1));
+            dustParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             dustParticles.useAutoRandomSeed = false;
+            dustParticles.randomSeed = unchecked((uint)(settings.seed + pose.CycleIndex * 7919 + 1));
             dustParticles.Clear(true);
             dustParticles.Play(true);
             EmitDebris(pose.CycleIndex);
@@ -311,11 +334,11 @@ namespace Metagame.Gameplay
 
                 int wanted = i == 0 ? 1 : i == 1 ? 3 : 6;
                 int count = Mathf.Min(wanted, budget);
-                system.randomSeed = unchecked((uint)(settings.seed + cycle * 6151 + i * 97 + 11));
-                system.useAutoRandomSeed = false;
                 system.transform.position = transform.position;
                 system.transform.rotation = transform.rotation;
-                system.Clear(true);
+                system.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                system.useAutoRandomSeed = false;
+                system.randomSeed = unchecked((uint)(settings.seed + cycle * 6151 + i * 97 + 11));
                 system.Emit(count);
                 budget -= count;
             }
