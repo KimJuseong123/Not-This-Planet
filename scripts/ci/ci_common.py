@@ -435,6 +435,28 @@ class GitLab:
                             f"?ref={quote(ref, safe='')}&per_page={per_page}&order_by=id&sort=desc", self._h())
         return d if st == 200 and isinstance(d, list) else []
 
+    def project_jobs(self, max_pages: int = 8, per_page: int = 100) -> list[dict]:
+        """프로젝트의 잡 목록(최신 우선). 한 번 호출로 100건이 오고 `ref`·`status`·`artifacts` 가 함께 온다.
+
+        **왜 이것이 필요한가** (S15P21B202-342). Unity 기준선을 찾을 때 파이프라인을 하나씩 훑으면
+        파이프라인당 잡 목록 호출이 한 번씩 든다. 그래서 창을 15개로 잡아 뒀는데, 문서·스크립트만
+        머지되는 날이 이어지면 그 창 안에 `unity-compile` 이 아예 없다(그 잡은 `changes: METAGAME/**`
+        게이트를 쓴다). 2026-09-08 실측: 가장 최근 것이 7번째 뒤, 그 전은 14번째 뒤 — 창 경계였다.
+        이 API 는 잡을 바로 주므로 같은 호출 수로 훨씬 멀리 되짚는다.
+
+        조회 실패는 **빈 목록이 아니라 그때까지 모은 것**을 준다 — 부르는 쪽이 폴백을 판단한다.
+        """
+        out: list[dict] = []
+        for page in range(1, max_pages + 1):
+            st, d = http("GET", f"{self.api}/projects/{self.project}/jobs"
+                                f"?per_page={per_page}&page={page}", self._h())
+            if st != 200 or not isinstance(d, list) or not d:
+                break
+            out.extend(d)
+            if len(d) < per_page:
+                break
+        return out
+
     def pipeline_jobs(self, pipeline_id: int | str) -> list[dict]:
         """파이프라인 한 건의 잡 목록.
 

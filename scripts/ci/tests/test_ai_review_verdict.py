@@ -60,4 +60,51 @@ print("  일부 실패 → ✅ 아님 · 전부 성공 → ✅ ✅")
 assert A.with_fail_reasons("본문", {}) == "본문"
 print("  실패가 없으면 이유 줄 없음 ✅")
 
+# ── 실패 이유는 **우리가 쓴 문구만** 싣는다 (S15P21B202-342) ─────────────────
+#    `-335` 가 실패 이유를 코멘트에 싣게 했고, 같은 MR 의 문서에 "분류만 싣는다 — 상류 응답
+#    원문은 로그에만" 이라고 적었다. 그런데 코드는 `str(e)` 로 원문을 실었다(`!256` 지적).
+#    `subprocess.TimeoutExpired` 의 `str()` 에는 **argv 전체**가 들어간다 — 모델명·경로·
+#    `--system-prompt` 내용까지. 자격증명이 새는 것은 아니지만 공개 코멘트에 통제하지 않은
+#    상류 문자열이 들어가는 구조이고, 무엇보다 **문서가 사실이 아니었다.**
+import subprocess
+
+# 우리가 만든 RuntimeError — 문구를 우리가 썼으므로 그대로 싣는다
+mine = RuntimeError("Anthropic API 401 → 키·모델명·사용량 확인")
+assert A.fail_reason(mine) == "Anthropic API 401 → 키·모델명·사용량 확인"
+print("  우리 RuntimeError → 메시지 그대로 ✅")
+
+# 남의 예외 — 종류만. argv 가 새어나가서는 안 된다
+boom = subprocess.TimeoutExpired(
+    cmd=["claude", "-p", "--model", "claude-opus-5", "--system-prompt", "내부 지침 전문"], timeout=600)
+got = A.fail_reason(boom)
+assert got == "TimeoutExpired", got
+assert "claude-opus-5" not in got and "내부 지침" not in got, got
+print("  다른 예외 → 종류만(argv 안 샌다) ✅")
+
+# RuntimeError 의 **하위 클래스**도 원문을 싣지 않는다 — 라이브러리 예외가 자주 그렇다
+class VendorError(RuntimeError):
+    pass
+
+
+assert A.fail_reason(VendorError("http://gitlab.example/api/v4/... 응답 본문")) == "VendorError"
+print("  RuntimeError 하위 클래스 → 종류만 ✅")
+
+# 그리고 그 결과가 실제로 각주에 실린다
+foot = A.with_fail_reasons("본문", {ROLES[0]: A.fail_reason(boom)})
+assert "TimeoutExpired" in foot and "claude-opus-5" not in foot, foot
+print("  각주에 분류만 실린다 ✅")
+
+
+# ── 출력 해석 실패한 리뷰어도 각주에 드러난다 (S15P21B202-342) ───────────────
+#    호출은 됐는데 JSON 이 아니면 `results[role] = None` 이 되고 판정은 unknown 으로 옳게
+#    떨어진다. 그런데 `failed` 에도 `fail_why` 에도 안 들어가서 **각주에서 사라졌다** —
+#    어느 리뷰어의 출력이 깨졌는지 사람이 알 수 없었다.
+assert A.parse_json("이건 JSON 이 아니다") is None
+body2 = A.with_fail_reasons(
+    A.render("메타", ROLES, {ROLES[0]: None}, {ROLES[0]: "쓰레기"}, A.merge({ROLES[0]: None}, []),
+             None, 0, [], {}),
+    {ROLES[0]: "출력 해석 실패(JSON 아님)"})
+assert "출력 해석 실패" in body2, body2
+print("  JSON 해석 실패 리뷰어가 각주에 드러난다 ✅")
+
 print("TEST335 OK")
