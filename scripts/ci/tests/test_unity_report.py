@@ -605,4 +605,420 @@ assert "머지를 막지 않으므로" in sent, "비차단이라는 사실을 �
 assert R.MARKER in sent, "같은 마커로 갱신되어야 한다"
 print("  검사 못 함 → 판정 2 + 사유 코멘트 ✅")
 
+
+# ── S15P21B202-347 · 비결정 테스트가 무관한 MR 을 막지 않게 한다 ──────────────
+#
+# 판정("기준선에 없던 실패는 이 MR 탓")은 실행이 결정적이라는 것을 전제한다. 물리
+# 시뮬레이션 테스트 몇 개가 경계에 앉아 있어 그 전제가 깨져 있다. 2026-09-09 실측:
+# `!267` 의 METAGAME 트리가 기준선 잡과 **바이트 단위로 동일**한데(merge-base 가 develop
+# 팁이고 diff 0) 같은 커밋으로 4회 돌려 4회 다 실패했고, MR 3건이 동시에 막혔다.
+#
+# 두 장치를 함께 넣는다. **둘 다 필요하다** — 그날 건은 기준선 합집합만으로는 안 풀렸다
+# (최근 develop 3회가 전부 통과 쪽이었다).
+print("― S15P21B202-347 플래키 판별 ―")
+
+_RECHECK_A = """<?xml version="1.0" encoding="utf-8"?>
+<test-run id="9" total="2" passed="1" failed="1" skipped="0" duration="0.4">
+  <test-suite type="TestFixture" name="ShipAscentTests" fullname="G.ShipAscentTests">
+    <test-case id="1" name="Hatch" fullname="G.ShipAscentTests.Hatch" result="Passed" duration="0.2" />
+    <test-case id="2" name="Load" fullname="G.ShipAscentTests.Load" result="Failed" duration="0.2">
+      <failure><message>버티지 못했다</message></failure>
+    </test-case>
+  </test-suite>
+</test-run>
+"""
+_RECHECK_B = """<?xml version="1.0" encoding="utf-8"?>
+<test-run id="9" total="2" passed="0" failed="2" skipped="0" duration="0.4">
+  <test-suite type="TestFixture" name="ShipAscentTests" fullname="G.ShipAscentTests">
+    <test-case id="1" name="Hatch" fullname="G.ShipAscentTests.Hatch" result="Failed" duration="0.2">
+      <failure><message>또 버티지 못했다</message></failure>
+    </test-case>
+    <test-case id="2" name="Load" fullname="G.ShipAscentTests.Load" result="Failed" duration="0.2">
+      <failure><message>버티지 못했다</message></failure>
+    </test-case>
+  </test-suite>
+</test-run>
+"""
+
+# ① 재실행 결과를 세 갈래로 나눈다
+with _tf.TemporaryDirectory() as d:
+    pa = os.path.join(d, "r1.xml")
+    open(pa, "w", encoding="utf-8").write(_RECHECK_A)
+    pb = os.path.join(d, "r2.xml")
+    open(pb, "w", encoding="utf-8").write(_RECHECK_B)
+    new = {"G.ShipAscentTests.Hatch", "G.ShipAscentTests.Load", "G.OtherTests.Gone"}
+    flaky, still, unver = R.classify_rechecks(new, [pa, pb])
+    assert flaky == {"G.ShipAscentTests.Hatch"}, flaky
+    assert still == {"G.ShipAscentTests.Load"}, still
+    assert unver == {"G.OtherTests.Gone"}, unver
+print("  한 번이라도 통과 → 플래키 · 전부 실패 → 회귀 · 결과에 없음 → 확인 못함 ✅")
+
+# 재실행을 아예 안 돌렸으면 아무것도 면제하지 않는다 — 기본값이 "막는다" 쪽이어야 한다
+_f, _s, _u = R.classify_rechecks({"A.b"}, [])
+assert _f == set() and _s == {"A.b"} and _u == set(), (_f, _s, _u)
+print("  재실행이 없으면 면제 없음 ✅")
+
+# 결과가 깨졌거나 없으면 면제하지 않는다 — 확인 못 한 것을 면제하면 회귀가 빠져나간다
+with _tf.TemporaryDirectory() as d:
+    bad = os.path.join(d, "bad.xml")
+    open(bad, "w", encoding="utf-8").write("<<<깨진 XML")
+    _f, _s, _u = R.classify_rechecks({"A.b"}, [bad, os.path.join(d, "없는파일.xml")])
+    assert _f == set(), _f
+    assert _u == {"A.b"}, _u
+print("  재실행 결과가 깨졌거나 없으면 면제하지 않는다 ✅")
+
+# ② 판정이 플래키를 뺀다
+_D = {"total": 2, "passed": 0, "failed": 2, "skipped": 0, "duration": 1.0, "cases": [
+    {"cls": "G.ShipAscentTests", "name": "Hatch", "result": "Failed", "msg": "x", "dur": 0.1},
+    {"cls": "G.ShipAscentTests", "name": "Load", "result": "Failed", "msg": "y", "dur": 0.1},
+]}
+code, why = R.decide(_D, [], set(), 2, flaky={"G.ShipAscentTests.Hatch"})
+assert code == REG, (code, why)
+assert "1건" in why, why
+print("  플래키를 빼도 남은 새 실패가 있으면 막는다 ✅")
+
+code, why = R.decide(_D, [], set(), 2,
+                     flaky={"G.ShipAscentTests.Hatch", "G.ShipAscentTests.Load"})
+assert code == 0, (code, why)
+assert "플래키" in why, why
+print("  새 실패가 전부 플래키면 통과 ✅")
+
+# 컴파일 오류에는 면제가 끼어들지 않는다 — 09-02 사고 경로를 다시 열면 안 된다
+code, why = R.decide(_D, ["error CS0103: 뭔가"], set(), 2,
+                     flaky={"G.ShipAscentTests.Hatch", "G.ShipAscentTests.Load"})
+assert code == REG and "컴파일" in why, (code, why)
+print("  컴파일 오류는 플래키와 무관하게 막는다 ✅")
+
+# ③ 기준선은 최근 실행의 합집합이다
+_B1 = """<?xml version="1.0" encoding="utf-8"?>
+<test-run id="1" total="1" passed="0" failed="1" skipped="0" duration="0.1">
+  <test-suite type="TestFixture" name="T" fullname="G.T">
+    <test-case id="1" name="a" fullname="G.T.a" result="Failed" duration="0.1">
+      <failure><message>a</message></failure>
+    </test-case>
+  </test-suite>
+</test-run>
+"""
+_B2 = """<?xml version="1.0" encoding="utf-8"?>
+<test-run id="1" total="1" passed="0" failed="1" skipped="0" duration="0.1">
+  <test-suite type="TestFixture" name="T" fullname="G.T">
+    <test-case id="1" name="b" fullname="G.T.b" result="Failed" duration="0.1">
+      <failure><message>b</message></failure>
+    </test-case>
+  </test-suite>
+</test-run>
+"""
+
+
+def _union_http(method, url, headers=None, body=None, timeout=30):
+    if "/jobs?per_page=100&page=" in url:
+        # "page=" 로 자르면 "per_page=" 에도 걸린다 — 앞의 & 까지 넣어야 한다
+        page = url.split("&page=")[1].split("&")[0]
+        if page != "1":
+            return 200, []
+        return 200, [
+            {"id": 71, "name": "unity-compile", "ref": "develop", "status": "success",
+             "created_at": "2026-09-09T09:45:00", "commit": {"id": "aaaaaaaa1111"}},
+            {"id": 70, "name": "unity-compile", "ref": "develop", "status": "success",
+             "created_at": "2026-09-09T09:41:00", "commit": {"id": "bbbbbbbb2222"}},
+        ]
+    if "/jobs/71/artifacts/unity-results.xml" in url:
+        return 200, _B1
+    if "/jobs/70/artifacts/unity-results.xml" in url:
+        return 200, _B2
+    raise AssertionError("예상 못한 호출: %s %s" % (method, url))
+
+
+_keep_http = ci_common.http
+try:
+    ci_common.http = _union_http
+    meta = {}
+    got = R.baseline_failures(ci_common.GitLab(), "develop", meta=meta)
+    assert got == {"G.T.a", "G.T.b"}, got
+    # 신선도 검사는 **가장 최신 실행**을 봐야 한다 — 합집합에 옛 실행이 섞였어도 그렇다.
+    assert meta.get("sha") == "aaaaaaaa", meta
+    assert meta.get("runs") == ["71", "70"], meta
+    # runs=1 이면 예전과 같다 — 되돌릴 수 있는 장치라는 것을 못 박아 둔다
+    one = R.baseline_failures(ci_common.GitLab(), "develop", runs=1)
+    assert one == {"G.T.a"}, one
+finally:
+    ci_common.http = _keep_http
+print("  기준선 = 최근 실행 합집합 · 신선도는 최신 실행 기준 · runs=1 은 예전 동작 ✅")
+
+# ④ 계획 단계는 판정도 코멘트도 하지 않는다
+_PLAN_NUNIT = """<?xml version="1.0" encoding="utf-8"?>
+<test-run id="3" total="1" passed="0" failed="1" skipped="0" duration="0.2">
+  <test-suite type="TestFixture" name="ShipAscentTests" fullname="G.ShipAscentTests">
+    <test-case id="1" name="Load" fullname="G.ShipAscentTests.Load" result="Failed" duration="0.2">
+      <failure><message>버티지 못했다</message></failure>
+    </test-case>
+  </test-suite>
+</test-run>
+"""
+_keep_bf = R.baseline_failures
+_before = len(POSTED)
+try:
+    R.baseline_failures = lambda gl, ref, max_pipelines=15, meta=None, runs=3: set()
+    with _tf.TemporaryDirectory() as d:
+        nunit = os.path.join(d, "unity-results.xml")
+        open(nunit, "w", encoding="utf-8").write(_PLAN_NUNIT)
+        plan = os.path.join(d, "unity-recheck.txt")
+        rc = R.main([nunit, os.path.join(d, "nope.log"), "2", "--recheck-plan", plan])
+        assert rc == 0, rc
+        got = open(plan, encoding="utf-8").read()
+        assert got.split() == ["G.ShipAscentTests.Load"], got
+        assert not (Path(d) / R.VERDICT_FILE).exists(), \
+            "계획 단계에서 판정을 남기면 잡이 재실행 전에 끝난다"
+    assert len(POSTED) == _before, "계획 단계는 코멘트를 남기지 않는다"
+finally:
+    R.baseline_failures = _keep_bf
+print("  --recheck-plan 은 이름만 적고 판정·코멘트를 하지 않는다 ✅")
+
+# ⑤ 면제한 것을 코멘트가 드러낸다 — 조용히 빼면 아무도 테스트를 고치지 않는다
+_txt = R.body(_D, [], set(), "develop", flaky={"G.ShipAscentTests.Hatch"})
+assert "플래키로 판정에서 뺀 1건" in _txt, _txt
+assert "Hatch" in _txt, _txt
+assert "실행 맥락에 달려" in _txt, _txt
+# **격리 통과를 무죄로 단정하지 않는다** — 이 MR 이 상태를 오염시킨 경우도 격리에서는
+# 통과한다(!272 3차 리뷰). 코멘트가 그 갈래와 가리는 방법을 적어야 한다.
+assert "전역·정적 상태를 오염" in _txt, _txt
+assert "METAGAME/` 을 하나도 건드리지 않았다면" in _txt, _txt
+# 후속 이슈를 가리켜야 한다 — -347 은 곧 닫히므로 그걸 가리키면 아무도 안 고친다
+assert "S15P21B202-360" in _txt, _txt
+print("  코멘트가 면제한 건을 드러낸다 ✅")
+
+_txt2 = R.body(_D, [], set(), "develop",
+               flaky={"G.ShipAscentTests.Hatch", "G.ShipAscentTests.Load"})
+assert "재실행에서 통과" in _txt2, _txt2
+assert "실패 없음" in _txt2, _txt2
+print("  전부 플래키여도 '실패 없음' 뒤에 이유가 붙는다 ✅")
+
+import json as _json
+
+# ── !272 AI 리뷰 반영 ────────────────────────────────────────────────────────
+
+# ⑥ 필터가 아무것도 못 잡으면 전부 '확인 못함' 이고, 그 사실이 크게 남아야 한다.
+#    -testFilter 구분자가 이 Unity 버전에서 안 통하면 이렇게 된다 — 조용히 넘기면
+#    이 장치가 있으나 마나 해진다.
+_OTHER = """<?xml version="1.0" encoding="utf-8"?>
+<test-run id="9" total="1" passed="1" failed="0" skipped="0" duration="0.1">
+  <test-suite type="TestFixture" name="Zzz" fullname="G.Zzz">
+    <test-case id="1" name="q" fullname="G.Zzz.q" result="Passed" duration="0.1" />
+  </test-suite>
+</test-run>
+"""
+with _tf.TemporaryDirectory() as d:
+    p = os.path.join(d, "unity-recheck-1.xml")
+    open(p, "w", encoding="utf-8").write(_OTHER)
+    _f, _s, _u = R.classify_rechecks({"G.ShipAscentTests.Load"}, [p])
+    assert _f == set(), _f
+    assert _u == {"G.ShipAscentTests.Load"}, _u
+    assert _s == set(), _s
+print("  필터가 대상을 못 잡으면 면제 없이 전부 '확인 못함' ✅")
+
+# ⑦ 계획 단계가 기준선을 고정하고, 최종 판정이 그것을 그대로 쓴다(재조회 안 함).
+#    두 단계가 각각 조회하면 그 사이 develop 잡이 끝났을 때 재실행한 집합과 판정
+#    대상이 어긋난다.
+_PIN_NUNIT = """<?xml version="1.0" encoding="utf-8"?>
+<test-run id="4" total="2" passed="0" failed="2" skipped="0" duration="0.4">
+  <test-suite type="TestFixture" name="ShipAscentTests" fullname="G.ShipAscentTests">
+    <test-case id="1" name="Load" fullname="G.ShipAscentTests.Load" result="Failed" duration="0.2">
+      <failure><message>버티지 못했다</message></failure>
+    </test-case>
+    <test-case id="2" name="Old" fullname="G.ShipAscentTests.Old" result="Failed" duration="0.2">
+      <failure><message>원래 실패</message></failure>
+    </test-case>
+  </test-suite>
+</test-run>
+"""
+
+
+def _boom_http(method, url, headers=None, body=None, timeout=30):
+    # 코멘트 경로는 정상 동작해야 한다 — 막을 것은 **기준선 재조회**뿐이다.
+    if "/notes" in url:
+        return capture_note(method, url, headers, body, timeout)
+    raise AssertionError("기준선을 고정했는데 다시 조회했다: %s" % url)
+
+
+_keep_bf2 = R.baseline_failures
+_keep_http2 = ci_common.http
+_before2 = len(POSTED)
+try:
+    # 계획 단계: 기준선에 Old 만 있다 → 새 실패는 Load 하나
+    R.baseline_failures = (lambda gl, ref, max_pipelines=15, meta=None, runs=3:
+                           (meta.update(job=1, sha="deadbeef", when="2026-09-09T09:45")
+                            if meta is not None else None) or {"G.ShipAscentTests.Old"})
+    with _tf.TemporaryDirectory() as d:
+        nunit = os.path.join(d, "unity-results.xml")
+        open(nunit, "w", encoding="utf-8").write(_PIN_NUNIT)
+        plan = os.path.join(d, "unity-recheck.txt")
+        R.main([nunit, os.path.join(d, "nope.log"), "2", "--recheck-plan", plan])
+        assert open(plan, encoding="utf-8").read().split() == ["G.ShipAscentTests.Load"]
+        pinned = os.path.join(d, R.BASELINE_FILE)
+        assert os.path.isfile(pinned), "계획 단계가 기준선을 고정하지 않았다"
+        saved = _json.load(open(pinned, encoding="utf-8"))
+        assert saved["base"] == ["G.ShipAscentTests.Old"], saved
+        assert saved["meta"]["sha"] == "deadbeef", saved
+
+        # 최종 판정: 고정 파일을 주면 **조회하지 않는다.** 조회하면 _boom_http 가 터진다.
+        R.baseline_failures = _boom_http
+        ci_common.http = _boom_http
+        r1 = os.path.join(d, "unity-recheck-1.xml")
+        open(r1, "w", encoding="utf-8").write(_RECHECK_A.replace("Hatch", "Load"))
+        # 이 테스트가 보는 것은 **기준선 고정**이다. 판정 낮추기(!272 4차)와 엉키지
+        # 않게 "이 MR 은 METAGAME/ 을 안 바꿨다" 를 명시한다 — 그 경우 0 이 맞다.
+        _mc = R.metagame_changed
+        R.metagame_changed = lambda a, b: False
+        os.environ["CI_MERGE_REQUEST_DIFF_BASE_SHA"] = "aaaaaaa1"
+        os.environ["CI_COMMIT_SHA"] = "bbbbbbb2"
+        try:
+            R.main([nunit, os.path.join(d, "nope.log"), "2",
+                    "--recheck-dir", d, "--baseline-from", pinned])
+        finally:
+            R.metagame_changed = _mc
+            os.environ.pop("CI_MERGE_REQUEST_DIFF_BASE_SHA", None)
+            os.environ.pop("CI_COMMIT_SHA", None)
+        verdict = open(os.path.join(d, R.VERDICT_FILE), encoding="utf-8").read()
+    # Load 는 재실행에서 통과했다(_RECHECK_A 의 Hatch 자리) → 면제되어 통과
+    assert verdict == "0", f"고정 기준선 + 재실행 통과 → 판정 0 이어야 한다 (판정 {verdict})"
+    assert len(POSTED) > _before2, "최종 판정은 코멘트를 남긴다"
+    assert "플래키로 판정에서 뺀" in str(POSTED[-1][1]), str(POSTED[-1][1])[:300]
+finally:
+    R.baseline_failures = _keep_bf2
+    ci_common.http = _keep_http2
+print("  --baseline-from 이 기준선을 고정한다(재조회 없음) · --recheck-dir 이 결과를 모은다 ✅")
+
+# 고정 파일이 깨졌거나 없으면 **다시 조회한다** — 조용히 기준선 없음으로 떨어지지 않는다
+_keep_bf3 = R.baseline_failures
+_asked = []
+try:
+    def _spy(gl, ref, max_pipelines=15, meta=None, runs=3):
+        _asked.append(ref)
+        return set()
+    R.baseline_failures = _spy
+    with _tf.TemporaryDirectory() as d:
+        nunit = os.path.join(d, "unity-results.xml")
+        open(nunit, "w", encoding="utf-8").write(_PIN_NUNIT)
+        bad = os.path.join(d, "unity-baseline.json")
+        open(bad, "w", encoding="utf-8").write("{깨진 JSON")
+        R.main([nunit, os.path.join(d, "nope.log"), "2", "--baseline-from", bad])
+    assert _asked, "고정 파일이 깨졌으면 다시 조회해야 한다"
+finally:
+    R.baseline_failures = _keep_bf3
+print("  고정 파일이 깨지면 다시 조회한다 ✅")
+
+
+# ⑧ 재실행에서 Skipped·Inconclusive 는 **통과로 세지 않는다** (`!272` AI 리뷰).
+#    스킵된 것을 면제하면 진짜 회귀가 판정에서 빠진다.
+_SKIPPED = """<?xml version="1.0" encoding="utf-8"?>
+<test-run id="9" total="2" passed="0" failed="0" skipped="2" duration="0.1">
+  <test-suite type="TestFixture" name="ShipAscentTests" fullname="G.ShipAscentTests">
+    <test-case id="1" name="Load" fullname="G.ShipAscentTests.Load" result="Skipped" duration="0" />
+    <test-case id="2" name="Hatch" fullname="G.ShipAscentTests.Hatch" result="Inconclusive" duration="0" />
+  </test-suite>
+</test-run>
+"""
+with _tf.TemporaryDirectory() as d:
+    p = os.path.join(d, "unity-recheck-1.xml")
+    open(p, "w", encoding="utf-8").write(_SKIPPED)
+    new = {"G.ShipAscentTests.Load", "G.ShipAscentTests.Hatch"}
+    _f, _s, _u = R.classify_rechecks(new, [p])
+    assert _f == set(), f"스킵을 면제하면 안 된다: {_f}"
+    assert _u == new, f"통과도 실패도 아니면 '확인 못함' 이어야 한다: {_u}"
+print("  Skipped·Inconclusive 는 면제하지 않고 '확인 못함' 으로 둔다 ✅")
+
+# 통과가 섞여 있으면 그것만 면제한다
+_MIXED = """<?xml version="1.0" encoding="utf-8"?>
+<test-run id="9" total="2" passed="1" failed="0" skipped="1" duration="0.1">
+  <test-suite type="TestFixture" name="ShipAscentTests" fullname="G.ShipAscentTests">
+    <test-case id="1" name="Load" fullname="G.ShipAscentTests.Load" result="Passed" duration="0.1" />
+    <test-case id="2" name="Hatch" fullname="G.ShipAscentTests.Hatch" result="Skipped" duration="0" />
+  </test-suite>
+</test-run>
+"""
+with _tf.TemporaryDirectory() as d:
+    p = os.path.join(d, "unity-recheck-1.xml")
+    open(p, "w", encoding="utf-8").write(_MIXED)
+    _f, _s, _u = R.classify_rechecks({"G.ShipAscentTests.Load", "G.ShipAscentTests.Hatch"}, [p])
+    assert _f == {"G.ShipAscentTests.Load"}, _f
+    assert _u == {"G.ShipAscentTests.Hatch"}, _u
+print("  통과한 것만 면제하고 스킵된 것은 회귀로 남는다 ✅")
+
+# ⑨ 계획 옵션과 재실행 옵션을 함께 주면 **말한다** — 조용히 무시되면 통과처럼 보인다
+_keep_bf4 = R.baseline_failures
+try:
+    R.baseline_failures = lambda gl, ref, max_pipelines=15, meta=None, runs=3: set()
+    with _tf.TemporaryDirectory() as d:
+        nunit = os.path.join(d, "unity-results.xml")
+        open(nunit, "w", encoding="utf-8").write(_PLAN_NUNIT)
+        open(os.path.join(d, "unity-recheck-1.xml"), "w", encoding="utf-8").write(_RECHECK_A)
+        plan = os.path.join(d, "unity-recheck.txt")
+        import io as _io2
+        import contextlib as _cl
+        _buf = _io2.StringIO()
+        with _cl.redirect_stdout(_buf):
+            R.main([nunit, os.path.join(d, "nope.log"), "2",
+                    "--recheck-plan", plan, "--recheck-dir", d])
+        assert "--recheck-plan 과 재실행 옵션을 함께" in _buf.getvalue(), _buf.getvalue()[-400:]
+finally:
+    R.baseline_failures = _keep_bf4
+print("  계획 옵션 + 재실행 옵션을 함께 주면 경고한다 ✅")
+
+
+# ⑩ -testFilter 값은 **정규식 이스케이프**되어야 한다 (!272 3차 리뷰).
+#    파라미터화 이름(`Load(1,2)`)을 그대로 넘기면 매칭에 실패하고, 그러면 전원
+#    '확인 못함' → 회귀가 되어 이 장치가 무력화된다.
+_fv = R.testfilter_value({"G.T.Load(1,2)", "G.T.Plain"})
+assert "G\.T\.Load" in _fv, _fv
+assert "\(1" in _fv, _fv
+assert _fv.count(";") == 1, _fv
+import re as _re
+for _n in ("G.T.Load(1,2)", "G.T.Plain"):
+    assert any(_re.fullmatch(_p, _n) for _p in _fv.split(";")), (_n, _fv)
+assert R.testfilter_value(set()) == "", R.testfilter_value(set())
+print("  -testFilter 값이 정규식 이스케이프된다 ✅")
+
+
+# ⑪ 면제했는데 **이 MR 이 게임 코드를 건드렸으면** 판정을 2(경고)로 낮춘다 (!272 4차 리뷰).
+#    격리 재실행 통과는 "실패가 실행 맥락에 달렸다" 는 뜻이고, 그 맥락이 이 MR 이 만든
+#    전역·정적 상태 오염일 수 있다. METAGAME/ 을 안 바꿨으면 그 경우가 불가능하므로 0.
+_keep_bf5 = R.baseline_failures
+_keep_mc5 = R.metagame_changed
+_MINE = "aaaaaaa1"
+_HEAD = "bbbbbbb2"
+
+
+def _run_flaky_case(touched):
+    """새 실패 하나가 재실행에서 통과하는 상황을 만들고 판정을 돌려준다."""
+    R.metagame_changed = lambda a, b: touched
+    with _tf.TemporaryDirectory() as d:
+        nunit = os.path.join(d, "unity-results.xml")
+        open(nunit, "w", encoding="utf-8").write(_PLAN_NUNIT)   # G.ShipAscentTests.Load 실패
+        r1 = os.path.join(d, "unity-recheck-1.xml")
+        open(r1, "w", encoding="utf-8").write(_RECHECK_A.replace("Hatch", "Load"))
+        R.main([nunit, os.path.join(d, "nope.log"), "2", "--recheck-dir", d])
+        return open(os.path.join(d, R.VERDICT_FILE), encoding="utf-8").read()
+
+
+try:
+    R.baseline_failures = lambda gl, ref, max_pipelines=15, meta=None, runs=3: set()
+    os.environ["CI_MERGE_REQUEST_DIFF_BASE_SHA"] = _MINE
+    os.environ["CI_COMMIT_SHA"] = _HEAD
+
+    assert _run_flaky_case(False) == "0", "METAGAME/ 을 안 바꿨으면 0 을 유지해야 한다"
+    assert _run_flaky_case(True) == str(UNK), (
+        "METAGAME/ 을 바꿨으면 상태 오염 가능성이 남아 2(경고)로 낮춰야 한다")
+    assert _run_flaky_case(None) == str(UNK), (
+        "판단하지 못했으면 낮추는 쪽으로 틀린다")
+
+    # diff base 를 모르면(로컬 실행 등) 판단할 수 없으니 낮춘다
+    os.environ.pop("CI_MERGE_REQUEST_DIFF_BASE_SHA", None)
+    assert _run_flaky_case(False) == str(UNK), "diff base 가 없으면 낮춘다"
+finally:
+    R.baseline_failures = _keep_bf5
+    R.metagame_changed = _keep_mc5
+    os.environ.pop("CI_MERGE_REQUEST_DIFF_BASE_SHA", None)
+    os.environ.pop("CI_COMMIT_SHA", None)
+print("  면제 + 게임 코드 변경 → 판정 2 로 낮춘다 · 변경 없으면 0 유지 ✅")
+
 print("TEST271 OK")

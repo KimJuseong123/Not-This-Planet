@@ -21,7 +21,10 @@
 로컬 실행: python3 scripts/ci/unity_report.py <nunit.xml> [unity.log]
            (GITLAB_TOKEN·CI_MERGE_REQUEST_IID 가 있으면 MR 코멘트까지)
 """
+import glob
+import json
 import os
+import re
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
@@ -38,6 +41,43 @@ JOB_NAME = "unity-compile"
 # 상한이 없으면 잡 목록 800건 중 unity-compile 수십~수백 건에 요청이 그만큼 붙는다
 # (14일 이전은 전부 만료). 넘으면 기준선을 못 찾은 것으로 보고 판정 2 로 떨어진다.
 MAX_BASELINE_CANDIDATES = 10   # !259 3차 AI 리뷰 (S15P21B202-342)
+
+# 기준선으로 **합집합**할 실행 수 (S15P21B202-347). 1 이면 예전과 같다.
+#
+# 왜 합집합인가: 판정은 "기준선에 없던 실패" 를 이 MR 탓으로 돌린다. 그 계산은 실행이
+# 결정적이라는 것을 전제하는데, 물리 시뮬레이션 테스트 몇 개가 경계에 앉아 있어 같은
+# 커밋으로도 결과가 갈린다. 기준선이 단 한 번의 실행이면 **그 한 번이 경계의 어느 쪽에
+# 떨어졌는지가 이후 모든 MR 의 "정상" 을 정한다.** 2026-09-09 에 그래서 MR 3건이 동시에
+# 막혔다 — develop 의 09:45 실행이 운 좋게 통과한 쪽이었다.
+#
+# 대가를 분명히 안다: 최근 develop 에서 한 번 실패한 적 있는 테스트는 **진짜 회귀여도
+# 기준선에 들어가 넘어간다.** 그래서 3 으로 좁게 두고, 어느 잡이 무엇을 보탰는지 로그에
+# 남긴다. 이것만으로는 부족해서 아래 재실행(RECHECK_RUNS)을 함께 쓴다.
+BASELINE_RUNS = 3
+
+# 재실행 **횟수와 상한은 여기 없다** — `.gitlab-ci.yml` 의 `RECHECK_RUNS`·`RECHECK_MAX_NEW`
+# 하나에만 둔다 (S15P21B202-347, `!272` AI 리뷰). 이 스크립트는 Unity 를 돌리지 않으므로
+# 그 값이 필요 없고, 두 곳에 두면 한쪽만 바뀌어 아티팩트 목록과 어긋난다.
+#
+# 여기서 하는 일은 하나다 — 잡이 준 재실행 결과를 읽어 **한 번이라도 통과했는지** 보고
+# 플래키를 가린다. 뺀 것은 **조용히 빼지 않고 코멘트에 적는다.**
+RECHECK_PLAN = "unity-recheck.txt"     # 재실행할 테스트 이름 (한 줄에 하나)
+
+# 잡이 `-testFilter` 에 그대로 넣는 값. **여기서 만든다** (`!272` 3차 AI 리뷰).
+#
+# `-testFilter` 는 이름을 **정규식으로** 해석한다. 파라미터화 테스트 이름에는 `(`·`)`·`,`
+# 가 들어가고(`Load(1,2)`), 그것을 그대로 넘기면 매칭에 실패한다 — 그러면 전원 '확인 못함'
+# → 회귀가 되어 **이 장치가 무력화된다.** 셸에서 sed 로 이스케이프하면 백슬래시가 몇 겹
+# 먹히는지가 애매해지므로, 파이썬에서 만들어 파일로 넘긴다. 테스트로 못 박을 수 있다.
+RECHECK_FILTER = "unity-recheck-filter.txt"
+
+# 계획 단계가 조회한 기준선을 최종 판정이 **그대로 다시 쓴다** (`!272` AI 리뷰).
+#
+# 두 단계가 각각 GitLab 에 물으면, 그 사이 develop 의 unity-compile 이 끝났을 때 합집합이
+# 달라진다. 그러면 **재실행한 집합과 판정 대상이 어긋난다** — 실제 새 실패인데 재실행되지
+# 않아 '확인 못함' 으로 회귀 처리되거나, 반대로 재실행한 이름이 판정 대상에서 사라진다.
+# 파일로 못 박으면 그 창이 닫히고 API 호출도 절반이 된다.
+BASELINE_FILE = "unity-baseline.json"
 ARTIFACT = "unity-results.xml"
 MAX_LISTED = 15          # 코멘트에 나열할 실패 개수 상한
 MAX_COMPILE_ERRORS = 20
@@ -150,31 +190,54 @@ def baseline_candidates(gl: GitLab, ref: str, max_pipelines: int) -> list[dict]:
 
 
 def baseline_failures(gl: GitLab, ref: str, max_pipelines: int = 15,
-                      meta: dict | None = None) -> set | None:
-    """대상 브랜치에서 마지막으로 돈 unity-compile 의 실패 집합. 못 구하면 None.
+                      meta: dict | None = None, runs: int = BASELINE_RUNS) -> set | None:
+    """대상 브랜치의 최근 `runs` 회 unity-compile 실패의 **합집합**. 못 구하면 None.
 
     None 과 빈 집합을 구분한다 — '기준선을 못 봤다' 와 '기준선에 실패가 없다' 는 다르다.
-    전자에서 새 실패를 단정하면 없는 회귀를 만들어 낸다."""
+    전자에서 새 실패를 단정하면 없는 회귀를 만들어 낸다.
+
+    <para>`runs` 회를 합치는 이유는 `BASELINE_RUNS` 주석에 있다. `meta` 의 `sha`·`when` 은
+    **가장 최신 실행**의 것을 담는다 — 기준선 신선도 검사(`metagame_changed`)가 "기준선이
+    합친 base 보다 낡았나" 를 묻기 때문이다. 합집합에 옛 실행이 섞여도 그 질문의 답은
+    가장 최신 실행으로 정해진다.</para>
+    """
     if not (gl.token and gl.project):
         return None
+    union: set = set()
+    used: list[str] = []
     try:
         cands = baseline_candidates(gl, ref, max_pipelines)
         if len(cands) > MAX_BASELINE_CANDIDATES:
             print(f"기준선 후보 {len(cands)}개 중 최신 {MAX_BASELINE_CANDIDATES}개만 본다")
         for j in cands[:MAX_BASELINE_CANDIDATES]:
+            if len(used) >= max(1, runs):
+                break
             txt = gl.job_artifact_text(j["id"], ARTIFACT)
             if not txt:
                 continue          # 아티팩트 만료(expire_in) — 더 최신 것부터 계속 본다
             d = parse_nunit(txt)
             when = (j.get('created_at') or '시각미상')[:16]
             sha = ((j.get('commit') or {}).get('id') or '')[:8]
-            print(f"기준선: 잡 {j['id']} ({j.get('status')}, {when}, {sha or 'sha미상'})")
-            if meta is not None:
+            fails = {f'{c["cls"]}.{c["name"]}' for c in d["cases"] if c["result"] == "Failed"}
+            added = fails - union
+            print(f"기준선: 잡 {j['id']} ({j.get('status')}, {when}, {sha or 'sha미상'}) "
+                  f"실패 {len(fails)}건 · 합집합에 새로 보탠 것 {len(added)}건")
+            for name in sorted(added):
+                if union:                      # 첫 실행은 전부 '보탠 것' 이라 나열하지 않는다
+                    print(f"  + {name}")
+            union |= fails
+            if meta is not None and not used:  # 최신 실행의 것만 남긴다
                 meta.update(job=j['id'], sha=sha, when=when)
-            return {f'{c["cls"]}.{c["name"]}' for c in d["cases"] if c["result"] == "Failed"}
+            used.append(str(j['id']))
     except Exception as e:  # noqa: BLE001 — 기준선 실패가 보고 자체를 막지 않는다
         print(f"[warn] 기준선 조회 실패({type(e).__name__}: {e}) — 새/기존 구분 없이 보고한다")
-    return None
+    if not used:
+        return None
+    if meta is not None:
+        meta.update(runs=used)
+    if len(used) > 1:
+        print(f"기준선 = 최근 {len(used)}회 합집합 (잡 {', '.join(used)}) → 실패 {len(union)}건")
+    return union
 
 
 # ── 판정 ────────────────────────────────────────────────────────────────────
@@ -182,7 +245,103 @@ def failed_names(data: dict) -> set:
     return {f'{c["cls"]}.{c["name"]}' for c in data["cases"] if c["result"] == "Failed"}
 
 
-def decide(data: dict, errs: list[str], base: set | None, unity_rc: int) -> tuple[int, str]:
+def testfilter_value(names) -> str:
+    """`-testFilter` 에 넣을 값. 이름을 정규식 이스케이프해 세미콜론으로 잇는다.
+
+    `-testFilter` 는 정규식이므로 `Load(1,2)` 같은 파라미터화 이름을 그대로 넘기면
+    매칭에 실패한다 (`!272` 3차 AI 리뷰). `re.escape` 는 필요한 문자만 감싸므로
+    평범한 이름은 그대로 남는다.
+    """
+    return ";".join(re.escape(n) for n in sorted(names))
+
+
+def classify_rechecks(new: set, paths: list[str]) -> tuple[set, set, set]:
+    """새 실패를 재실행 결과로 세 갈래로 나눈다 (S15P21B202-347).
+
+    돌려주는 것은 `(플래키, 계속실패, 확인못함)` 이다.
+
+    - **플래키** — 재실행에서 **한 번이라도 통과**했다. 같은 코드로 결과가 갈렸으므로
+      이 MR 이 만든 것이 아니다. 판정에서 뺀다
+    - **계속실패** — 재실행 전부 실패. 회귀로 둔다
+    - **확인못함** — 재실행 결과에 그 이름이 아예 없다(`-testFilter` 가 못 잡았거나 재실행이
+      죽었다). **회귀로 둔다** — 확인하지 못한 것을 면제하면 진짜 회귀가 빠져나간다
+
+    <para>재실행은 그 테스트만 골라 돌리므로 **거의 빈 테스트 세션**에서 돈다. 그래서
+    여기서 통과한 것은 실패가 **실행 맥락에 달려 있다**는 뜻이고, 원인은 셋 중 하나다.
+    ① 원래 있던 무작위성 ② 다른 테스트가 남긴 상태에 걸려 넘어진 것(테스트 격리 결함)
+    ③ **이 MR 이 전역·정적 상태를 오염시켜** 다른 테스트를 깨뜨린 것.</para>
+
+    <para>**③ 이면 이 MR 이 원인이다** — 그래서 "격리에서 통과했으니 무죄" 라고 단정하지
+    않는다(`!272` 3차 AI 리뷰). 그래도 판정에서 빼는 쪽을 택한 이유는, ③ 은 이 MR 이
+    `METAGAME/` 을 건드렸을 때만 가능하고 그 경우 **사람이 목록을 보면 몇 초에 가릴 수
+    있는데**, ①②로 막는 쪽은 아무 잘못 없는 사람이 원인을 찾을 방법이 없기 때문이다.
+    코멘트가 세 갈래를 그대로 적고 ③ 을 가리는 방법까지 알려 준다 — 조용히 빼면
+    아무도 고치지 않는다.</para>
+    """
+    if not new:
+        return set(), set(), set()
+    if not paths:
+        return set(), set(new), set()
+
+    passed_any: set = set()
+    seen: set = set()
+    for p in paths:
+        if not p or not os.path.isfile(p) or os.path.getsize(p) == 0:
+            print(f"[warn] 재실행 결과가 없다: {p}")
+            continue
+        try:
+            with open(p, encoding="utf-8", errors="replace") as f:
+                d = parse_nunit(f.read())
+        except Exception as e:  # noqa: BLE001 — 재실행 판독 실패가 판정을 뒤집지 않는다
+            print(f"[warn] 재실행 결과를 읽지 못했다({type(e).__name__}: {e}): {p}")
+            continue
+        # **이 회차만** 센다. 누적값을 찍으면 2회차 로그가 1회차 통과분까지 포함해 보여
+        # 로그를 근거로 판독하는 사람을 오도한다(`!272` AI 리뷰).
+        ran: set = set()
+        passed_here: set = set()
+        other_here: set = set()
+        for c in d["cases"]:
+            name = f'{c["cls"]}.{c["name"]}'
+            if name not in new:
+                continue
+            res = c["result"]
+            if res == "Passed":
+                ran.add(name)
+                passed_here.add(name)
+            elif res == "Failed":
+                ran.add(name)
+            else:
+                # **Skipped·Inconclusive 를 통과로 세지 않는다** (`!272` AI 리뷰).
+                # 재실행에서 스킵된 테스트를 면제하면 진짜 회귀가 판정에서 빠진다.
+                # `ran` 에 넣지 않으므로 '확인 못함' 으로 남아 회귀로 처리된다.
+                other_here.add(name)
+        seen |= ran
+        passed_any |= passed_here
+        print(f"재실행 {os.path.basename(p)}: 대상 {len(ran)}/{len(new)}건 · "
+              f"이 회차 통과 {len(passed_here)}건")
+        if other_here:
+            print(f"  이 회차에 통과도 실패도 아닌 결과 {len(other_here)}건 "
+                  f"(Skipped·Inconclusive) — 확인한 것으로 세지 않는다: "
+                  f"{', '.join(sorted(other_here)[:5])}")
+        if not ran:
+            # **필터가 아무것도 못 잡았다.** `-testFilter` 구분자가 이 Unity 버전에서
+            # 안 통하면 이렇게 된다 — 그러면 전원 '확인 못함' → 회귀가 되어 이 장치가
+            # 있으나 마나 해진다. 조용히 넘기지 않고 크게 적는다(`!272` AI 리뷰).
+            print(f"[warn] {os.path.basename(p)} 에 재실행 대상이 하나도 없다 — "
+                  f"-testFilter 가 이름을 못 잡은 것으로 보인다. "
+                  f"구분자(;)가 이 Unity 버전에서 통하는지 확인해야 한다")
+
+    flaky = passed_any & new
+    unverified = new - seen
+    still = new - flaky - unverified
+    if new and not seen:
+        print("[warn] 재실행이 돌았는데 대상 이름을 하나도 못 찾았다 — "
+              "플래키 판별이 동작하지 않았다. 전부 회귀로 남는다")
+    return flaky, still, unverified
+
+
+def decide(data: dict, errs: list[str], base: set | None, unity_rc: int,
+           flaky: set | None = None) -> tuple[int, str]:
     """잡의 종료 코드와 그 이유. (S15P21B202-309)
 
     원칙은 하나다 — **이 MR 이 만든 것만 막는다.** 나머지는 경고이거나 통과다.
@@ -208,8 +367,18 @@ def decide(data: dict, errs: list[str], base: set | None, unity_rc: int) -> tupl
         return UNKNOWN, (f"기준선을 못 봐서 새 실패인지 가릴 수 없다(Unity 종료 {unity_rc}) — "
                          f"경고로 둔다")
     new = failed_names(data) - base
+    # 재실행에서 한 번이라도 통과한 것은 이 MR 이 만든 것이 아니다 (S15P21B202-347).
+    # `classify_rechecks` 가 정한다 — 확인하지 못한 것은 여기 들어오지 않는다.
+    excused = (flaky or set()) & new
+    new = new - excused
     if new:
-        return REGRESSION, f"이 MR 이 만든 테스트 실패 {len(new)}건"
+        why = f"이 MR 이 만든 테스트 실패 {len(new)}건"
+        if excused:
+            why += f" (재실행에서 통과한 {len(excused)}건은 플래키로 빼고 센 것)"
+        return REGRESSION, why
+    if excused:
+        return PASS, (f"새 실패로 보였던 {len(excused)}건이 재실행에서 통과했다 — "
+                      f"플래키다. 이 MR 탓이 아니다")
     if data["failed"] == 0 and unity_rc != 0:
         # 실패가 없는데 죽었다 = 테스트 얘기가 아니다(라이선스 만료·에디터 크래시·타임아웃).
         # 사람이 손댈 것은 인프라 쪽이므로 머지를 막지 않는다.
@@ -242,7 +411,7 @@ def merged_note() -> str:
 
 
 def body(data: dict, errs: list[str], base: set | None, ref: str,
-         stale_base: dict | None = None) -> str:
+         stale_base: dict | None = None, flaky: set | None = None) -> str:
     now_fail = {f'{c["cls"]}.{c["name"]}': c for c in data["cases"] if c["result"] == "Failed"}
     if errs:
         head = "🔴 **Unity C# 컴파일 실패** — 테스트는 돌지 못했습니다"
@@ -281,10 +450,16 @@ def body(data: dict, errs: list[str], base: set | None, ref: str,
             parts += ["", f"<sub>{note} · 자동 생성(unity-compile)</sub>"]
         return MARKER + "\n" + "\n".join(parts)
 
-    new = [k for k in now_fail if k not in base]
+    # 재실행에서 통과한 것은 "새 실패" 에서 뺀다 — 다만 **아래에 반드시 적는다**
+    # (S15P21B202-347). 조용히 빼면 테스트 격리 결함을 아무도 고치지 않는다.
+    excused = sorted((flaky or set()) & set(now_fail))
+    new = [k for k in now_fail if k not in base and k not in excused]
     fixed = [k for k in base if k not in now_fail]
     if not new:
         head = "✅ **Unity 컴파일 통과 · 이 MR 이 만든 테스트 실패 없음**"
+        if excused:
+            head = (f"✅ **이 MR 이 만든 테스트 실패 없음** — 새 실패로 보였던 "
+                    f"{len(excused)}건은 재실행에서 통과했습니다(플래키)")
     else:
         head = f"🔴 **이 MR 에서 새로 실패하는 테스트 {len(new)}개**"
         if stale_base:
@@ -305,6 +480,30 @@ def body(data: dict, errs: list[str], base: set | None, ref: str,
             parts.append(f"- `{c['cls'].split('.')[-1]}.{c['name']}`" + (f" — {c['msg'][:160]}" if c["msg"] else ""))
         if len(new) > MAX_LISTED:
             parts.append(f"- … 외 {len(new) - MAX_LISTED}건")
+    if excused:
+        # **판정에서 뺀 것을 드러낸다** (S15P21B202-347). 그 테스트만 골라 다시 돌렸을 때
+        # 통과했다는 뜻이고, 그러면 원인은 둘 중 하나다 — 진짜 무작위이거나, 전체 실행에서
+        # 다른 테스트가 남긴 상태에 걸려 넘어진 것(테스트 격리 결함). 어느 쪽이든 이 MR 이
+        # 만든 것은 아니지만 **둘 다 테스트 쪽 결함이므로 고쳐야 한다.**
+        parts += ["", f"<details><summary>플래키로 판정에서 뺀 {len(excused)}건 "
+                      f"(재실행에서 통과) — 이 MR 탓은 아니지만 테스트 결함입니다</summary>", ""]
+        for k in excused[:MAX_LISTED]:
+            c = now_fail[k]
+            parts.append(f"- `{c['cls'].split('.')[-1]}.{c['name']}`"
+                         + (f" — {c['msg'][:160]}" if c["msg"] else ""))
+        if len(excused) > MAX_LISTED:
+            parts.append(f"- … 외 {len(excused) - MAX_LISTED}건")
+        parts += ["", "전체 실행에서는 실패했고 그 테스트만 골라 다시 돌리면 통과합니다. "
+                      "즉 실패가 **실행 맥락에 달려 있다**는 뜻입니다.", "",
+                  "- 원래 있던 무작위성이면 이 MR 탓이 아닙니다 (대부분 이 경우입니다)",
+                  "- **이 MR 이 전역·정적 상태를 오염시켜** 다른 테스트를 깨뜨린 경우에도 "
+                  "격리 재실행은 통과합니다. 그때는 이 MR 이 원인입니다",
+                  "",
+                  "**이 MR 이 `METAGAME/` 을 하나도 건드리지 않았다면 두 번째는 불가능하므로 "
+                  "확정입니다.** 게임 코드를 바꿨다면 위 목록의 테스트가 그 변경과 닿는지 "
+                  "한 번 보십시오.", "",
+                  "테스트 자체를 결정적으로 만드는 것은 `S15P21B202-360` 에서 다룹니다.",
+                  "</details>"]
     if fixed:
         parts += ["", f"**되살린 것** {len(fixed)}건: " + ", ".join(f"`{k.split('.')[-1]}`" for k in sorted(fixed)[:8])]
     if stale_base:
@@ -364,7 +563,46 @@ def baseline_ref(target: str | None) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     banner("unity-report")
-    argv = argv if argv is not None else sys.argv[1:]
+    argv = list(argv if argv is not None else sys.argv[1:])
+
+    # 플래그를 먼저 떼어 낸다 — 위치 인자 셋(결과·로그·Unity 종료코드)은 그대로 둔다.
+    #   --recheck-plan <파일>  새 실패 이름을 그 파일에 적고 **판정도 코멘트도 하지 않는다**
+    #   --recheck <xml>        필터 재실행 결과(여러 번 줄 수 있다)
+    #   --recheck-dir <디렉터리>  그 안의 unity-recheck-*.xml 을 스스로 모은다
+    #   --baseline-from <파일>    계획 단계가 적어 둔 기준선을 그대로 쓴다(재조회 안 함)
+    plan_path = ""
+    recheck_paths: list[str] = []
+    recheck_dir = ""
+    baseline_from = ""
+    rest: list[str] = []
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--recheck-plan" and i + 1 < len(argv):
+            plan_path = argv[i + 1]; i += 2; continue
+        if a == "--recheck" and i + 1 < len(argv):
+            recheck_paths.append(argv[i + 1]); i += 2; continue
+        if a == "--recheck-dir" and i + 1 < len(argv):
+            recheck_dir = argv[i + 1]; i += 2; continue
+        if a == "--baseline-from" and i + 1 < len(argv):
+            baseline_from = argv[i + 1]; i += 2; continue
+        rest.append(a); i += 1
+    argv = rest
+
+    # 디렉터리로 받으면 셸이 인자를 이어 붙이지 않아도 된다 — 경로에 공백이 섞여도
+    # 조용히 깨지지 않는다(`!272` AI 리뷰). 회차 순서대로 읽는다.
+    if recheck_dir:
+        found = sorted(glob.glob(os.path.join(recheck_dir, "unity-recheck-*.xml")))
+        if found:
+            print(f"재실행 결과 {len(found)}개를 {recheck_dir} 에서 모았다")
+        recheck_paths += found
+
+    # 계획 단계는 판정을 하지 않으므로 재실행 결과를 받아도 쓸 곳이 없다. 두 옵션을 함께
+    # 주면 **조용히 무시되어 통과처럼 보인다** — 인자 조합 오류를 말한다(`!272` AI 리뷰).
+    if plan_path and recheck_paths:
+        print(f"[warn] --recheck-plan 과 재실행 옵션을 함께 줬다 — 계획 단계는 판정하지 "
+              f"않으므로 재실행 결과 {len(recheck_paths)}개를 쓰지 않는다. 잡 스크립트를 확인하라")
+
     nunit_path = argv[0] if argv else "unity-results.xml"
     log_path = argv[1] if len(argv) > 1 else "unity.log"
     # 세 번째 인자는 Unity 의 원시 종료 코드. 판정을 못 할 때만 쓴다(환경 문제 구분).
@@ -423,13 +661,111 @@ def main(argv: list[str] | None = None) -> int:
     tgt = (env("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "") or "").strip()
     ref = baseline_ref(env("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "develop"))
     bmeta: dict = {}
-    base = baseline_failures(gl, ref, meta=bmeta)
+    base: set | None = None
+    pinned = False
+    if baseline_from and os.path.isfile(baseline_from):
+        try:
+            with open(baseline_from, encoding="utf-8") as f:
+                saved = json.load(f)
+            raw = saved.get("base")
+            base = None if raw is None else set(raw)
+            bmeta.update(saved.get("meta") or {})
+            pinned = True
+            print(f"기준선을 계획 단계 값으로 고정한다: {baseline_from} "
+                  f"(실패 {'없음' if base is None else len(base)}건)")
+        except (ValueError, TypeError, OSError) as e:
+            # **조용히 넘기지 않는다.** 고정에 실패하면 다시 조회하는데, 그러면 계획과
+            # 판정이 어긋날 창이 다시 열린다 — 그 사실이 로그에 있어야 한다.
+            print(f"[warn] 기준선 고정 파일을 읽지 못했다({type(e).__name__}: {e}) — 다시 조회한다")
+    elif baseline_from:
+        print(f"[warn] 기준선 고정 파일이 없다: {baseline_from} — 다시 조회한다")
+    if not pinned:
+        base = baseline_failures(gl, ref, meta=bmeta)
     if base is None:
         print(f"기준선 없음 — `{ref}` 에서 이 잡이 돈 결과를 찾지 못했다")
     else:
         print(f"기준선: `{ref}` 실패 {len(base)}건")
 
-    code, why = decide(data, errs, base, unity_rc)
+    # 기준선에 없던 실패 — 재실행 대상이자 판정의 근거 (S15P21B202-347).
+    new_now: set = set() if (base is None or errs) else (failed_names(data) - base)
+
+    # ── 계획 단계: 재실행할 이름만 적고 끝낸다 ────────────────────────────
+    # 판정도 코멘트도 하지 않는다 — 잡이 재실행을 돌린 뒤 이 스크립트를 다시 부른다.
+    if plan_path:
+        with open(plan_path, "w", encoding="utf-8") as f:
+            for name in sorted(new_now):
+                f.write(name + "\n")
+        # `-testFilter` 값도 여기서 만든다 — 정규식 이스케이프가 필요하다.
+        here = os.path.dirname(plan_path) or where
+        filt_at = os.path.join(here, RECHECK_FILTER)
+        try:
+            with open(filt_at, "w", encoding="utf-8") as f:
+                f.write(testfilter_value(new_now))
+        except OSError as e:
+            print(f"[warn] -testFilter 값을 쓰지 못했다({type(e).__name__}: {e}) — 재실행이 생략된다")
+
+        # 최종 판정이 **같은 기준선**을 쓰도록 못 박는다 (`!272` AI 리뷰).
+        saved_at = os.path.join(here, BASELINE_FILE)
+        try:
+            with open(saved_at, "w", encoding="utf-8") as f:
+                json.dump({"base": None if base is None else sorted(base),
+                           "meta": bmeta, "ref": ref}, f, ensure_ascii=False)
+            print(f"기준선을 고정해 뒀다: {saved_at}")
+        except OSError as e:
+            print(f"[warn] 기준선을 고정하지 못했다({type(e).__name__}: {e}) — "
+                  f"최종 판정이 다시 조회하므로 그 사이 develop 이 바뀌면 어긋날 수 있다")
+        if not new_now:
+            print("재실행 계획: 새 실패가 없다 — 재실행하지 않는다"
+                  + ("(컴파일 오류가 있어 테스트 얘기가 아니다)" if errs else ""))
+        else:
+            print(f"재실행 계획: 새 실패 {len(new_now)}건 → {plan_path}")
+            for name in sorted(new_now):
+                print(f"  · {name}")
+        return 0
+
+    # ── 재실행 결과로 플래키를 가린다 ────────────────────────────────────
+    flaky: set = set()
+    unverified: set = set()
+    if recheck_paths:
+        flaky, still, unverified = classify_rechecks(new_now, recheck_paths)
+        print(f"재실행 판별: 플래키 {len(flaky)}건 · 계속 실패 {len(still)}건 · "
+              f"확인 못함 {len(unverified)}건")
+        for name in sorted(flaky):
+            print(f"  플래키(판정에서 뺀다): {name}")
+        for name in sorted(unverified):
+            print(f"  확인 못함(회귀로 둔다): {name}")
+
+    code, why = decide(data, errs, base, unity_rc, flaky=flaky)
+
+    # 면제했는데 **이 MR 이 게임 코드를 건드렸으면** 판정을 2(경고)로 낮춘다
+    # (`!272` 4차 AI 리뷰). 격리 재실행 통과는 "실패가 실행 맥락에 달렸다" 는 뜻이고,
+    # 그 맥락이 **이 MR 이 만든 전역·정적 상태 오염**일 수 있다 — 그러면 진짜 회귀다.
+    #
+    # `METAGAME/` 을 하나도 안 바꿨으면 그 경우가 **불가능하므로** 0 을 그대로 둔다.
+    # 그래야 문서·CI 만 바꾼 MR(오늘 막힌 셋이 전부 그랬다)에 경고가 붙지 않는다 —
+    # 흔한 경우에 ⚠ 를 붙이면 사람이 그 신호를 무시하는 법을 배운다.
+    #
+    # 2 는 비차단이라 **막지는 않는다.** 사람이 한 번 보게 만드는 것이 목적이다.
+    if code == PASS and flaky:
+        mine = env("CI_MERGE_REQUEST_DIFF_BASE_SHA", "") or ""
+        head = env("CI_COMMIT_SHA", "") or ""
+        touched = metagame_changed(mine, head) if (mine and head) else None
+        if touched:
+            print(f"플래키 면제 {len(flaky)}건 · 이 MR 이 METAGAME/ 을 바꿨다 "
+                  f"({mine[:8]}..{head[:8]}) — 상태 오염 가능성이 남아 경고로 낮춘다")
+            code = UNKNOWN
+            why = (f"새 실패 {len(flaky)}건이 격리 재실행에서 통과했다(플래키). "
+                   f"다만 이 MR 이 게임 코드를 바꿨으므로 **이 MR 이 만든 상태 오염**일 "
+                   f"가능성이 남는다 — 막지 않되 사람이 확인한다")
+        elif touched is False:
+            print(f"플래키 면제 {len(flaky)}건 · 이 MR 은 METAGAME/ 을 바꾸지 않았다 — "
+                  f"상태 오염이 불가능하므로 판정 0 을 유지한다")
+        else:
+            print(f"플래키 면제 {len(flaky)}건 · METAGAME/ 변경 여부를 판단하지 못했다"
+                  f"({'diff base 없음' if not mine else '확인 실패'}) — 경고로 낮춘다")
+            code = UNKNOWN
+            why = (f"새 실패 {len(flaky)}건이 격리 재실행에서 통과했다(플래키). "
+                   f"이 MR 이 게임 코드를 바꿨는지 확인하지 못해 경고로 둔다")
     # 낡은 기준선으로 회귀를 단정하지 않는다 (S15P21B202-342 · metagame_changed 참고).
     # 이제 develop 을 합친 결과를 검사하므로 develop 의 실패를 함께 물려받는데, 기준선이
     # 그보다 옛것이면 남의 실패가 내 몫으로 계산된다. 그 경우 차단(1) 대신 경고(2)로 낮춘다.
@@ -469,7 +805,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"판정 {code} ({label}): {why}")
     write_verdict(where, code)
 
-    text = body(data, errs, base, ref, stale_base=bmeta if stale else None)
+    text = body(data, errs, base, ref, stale_base=bmeta if stale else None, flaky=flaky)
     if gl.can_write:
         st, _ = gl.upsert_note(MARKER, text)
         print(f"MR 코멘트 {'갱신' if st == 200 else '작성' if st == 201 else f'실패({st})'}")

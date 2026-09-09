@@ -161,4 +161,47 @@ msg = D.test_health(ci_common.GitLab())
 assert msg and f"@{D.INFRA_MM}" in msg, "조회 실패도 조치할 사람을 붙여야 한다"
 print("  ⑧ 조회 실패 → @Infra ✅")
 
+
+# ── ⑨ 플래키 재실행 단계가 살아 있어야 한다 (S15P21B202-347)
+#
+# 이 단계가 사라지면 판정이 다시 "단 한 번의 실행" 을 근거로 막는다. 2026-09-09 에
+# 그래서 MR 3건이 동시에 막혔다 — 같은 커밋 4회가 전부 실패했고 기준선만 통과였다.
+# 조용히 없어질 수 있는 종류라 YAML 을 직접 읽어 못 박는다.
+_uc = job("unity-compile")
+assert "--recheck-plan" in _uc, (
+    "unity-compile 에서 --recheck-plan 이 사라졌다 — 새 실패를 다시 돌리지 않으면 "
+    "비결정 테스트가 무관한 MR 을 무작위로 막는다(-347)")
+assert "--recheck-dir" in _uc, (
+    "재실행 결과를 unity_report.py 에 넘기지 않는다 — 돌려도 판정에 반영되지 않는다")
+assert "--baseline-from" in _uc, (
+    "최종 판정이 기준선을 다시 조회한다 — 계획과 어긋날 창이 열린다(!272 리뷰)")
+assert "-testFilter" in _uc, "재실행이 그 테스트만 골라 돌지 않는다"
+# 계획 단계가 판정 파일을 남기면 잡이 재실행 전에 끝난다 — 두 호출의 순서를 확인한다
+_plan_at = _uc.index("--recheck-plan")
+_final_at = _uc.rindex("unity_report.py")
+assert _plan_at < _final_at, "계획 호출이 최종 보고보다 뒤에 있다 — 순서가 뒤집혔다"
+# 재실행 근거를 남겨야 판정을 다시 볼 수 있다
+assert "unity-recheck-*.xml" in _uc, "재실행 결과가 아티팩트에 없다 — 판정 근거가 사라진다"
+assert "unity-baseline.json" in _uc, "고정한 기준선이 아티팩트에 없다 — 판정을 다시 볼 수 없다"
+# 횟수·상한은 **한 곳에만** 있어야 한다 — 파이썬에 같은 상수를 두면 한쪽만 바뀐다
+assert "RECHECK_RUNS" in _uc and "RECHECK_MAX_NEW" in _uc, "재실행 횟수·상한이 변수로 없다"
+import unity_report as _UR
+assert not hasattr(_UR, "RECHECK_RUNS"), (
+    "unity_report.py 에 RECHECK_RUNS 가 다시 생겼다 — YAML 과 이중 관리가 된다(!272 리뷰)")
+# 지난 실행이 남긴 재실행 결과를 지워야 한다 — 워크스페이스가 재사용되면 옛 통과
+# 기록으로 새 실패가 면제된다(!272 리뷰)
+assert "rm -f" in _uc and "unity-recheck-*.xml" in _uc.split("rm -f")[1][:200], (
+    "재실행 전에 지난 결과를 지우지 않는다 — 옛 통과 기록으로 새 실패가 면제될 수 있다")
+# **파일 이름이 파이썬 상수와 YAML 양쪽에 있다.** 파이썬만 바꾸면 잡의 cat·
+# --baseline-from 이 조용히 깨져 재실행 면제가 사라진다(!272 5차 리뷰).
+# RECHECK_RUNS 처럼 한 곳으로 모을 수는 없다 — 잡이 파일을 읽어야 하고 파이썬이
+# 써야 한다. 그래서 **양쪽이 같은 이름을 쓰는지**를 여기서 못 박는다.
+for _const, _val in (("RECHECK_PLAN", _UR.RECHECK_PLAN),
+                     ("RECHECK_FILTER", _UR.RECHECK_FILTER),
+                     ("BASELINE_FILE", _UR.BASELINE_FILE)):
+    assert _val in _uc, (
+        f"unity_report.{_const} = {_val!r} 이 unity-compile 잡에 없다 — "
+        f"한쪽만 바뀌면 재실행 면제가 조용히 사라진다")
+print("  ⑨ 플래키 재실행 단계 · 결과 전달 · 아티팩트 · 지난 결과 정리 · 파일명 일치 ✅")
+
 print("TEST289 OK")
