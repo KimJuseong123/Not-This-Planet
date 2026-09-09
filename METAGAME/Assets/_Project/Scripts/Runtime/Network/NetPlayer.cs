@@ -44,12 +44,6 @@ namespace Metagame.Network
         /// <summary>보낸 입력의 자세를 몇 개까지 기억하나. 30Hz 로 왕복 2초분이면 넉넉하다.</summary>
         const int HistorySize = 64;
 
-        /// <summary>
-        /// 이보다 멀어지면 부드럽게 좁히지 않고 그 자리로 옮긴다. 리스폰·순간이동·탑승처럼
-        /// 물리로 이어질 수 없는 이동이 있어서다. 부드럽게 좁히려 하면 벽을 뚫고 기어간다.
-        /// </summary>
-        const float PredictionSnapDistance = 3f;
-
         /// <summary>보낸 입력의 순번과 그때 내 골반이 있던 자리.</summary>
         struct SentPose
         {
@@ -64,6 +58,15 @@ namespace Metagame.Network
         /// <summary>서버가 마지막으로 적용한 입력의 순번. 그 결과 자세와 함께 돌려준다.</summary>
         uint appliedSeq;
         float echoTimer;
+
+        /// <summary>
+        /// 마지막으로 받아들인 echo 의 순번 (`!275` AI 리뷰).
+        ///
+        /// <para>신뢰 없는 채널이라 <b>순서가 뒤집혀 도착할 수 있다.</b> 늦게 온 옛 echo 를
+        /// 그대로 받으면 이미 갚은 오차를 다시 얹어 <b>되돌린다</b> — 가만히 서 있는데
+        /// 미끄러지는 증상이 된다. 그래서 뒤로 가는 순번은 버린다.</para>
+        /// </summary>
+        uint lastEchoSeq;
 
         /// 서버가 정하고 모두에게 전달된다. 접속을 확인할 때 Spring 이 알려 준 값이다.
         [SyncVar(hook = nameof(OnIdentityChanged))]
@@ -607,12 +610,19 @@ namespace Metagame.Network
             if (isServer || !isLocalPlayer) return;
             if (seq == 0 || remoteAvatar == null || body == null) return;
 
+            // 순서가 뒤집혀 온 옛 소식은 버린다. 받아들이면 이미 갚은 오차를 되돌린다.
+            if (seq <= lastEchoSeq) return;
+            lastEchoSeq = seq;
+
             // 오차는 **같은 순번끼리** 견줘야 한다. 지금 자세와 견주면 왕복 시간만큼
             // 뒤로 끌린다 — 가만히 서 있어도 계속 뒤로 밀린다.
             if (!TryRecall(seq, out Vector3 mine)) return;
 
             Vector3 error = position - mine;
-            if (error.sqrMagnitude > PredictionSnapDistance * PredictionSnapDistance)
+
+            // 임계값은 `PredictionCorrection` 한 곳에만 둔다 (`!275` AI 리뷰). 여기 따로
+            // 상수를 두면 한쪽만 바꿔도 테스트는 통과하는데 런타임이 어긋난다.
+            if (!PredictionCorrection.CanConverge(error))
             {
                 // 물리로 이어질 수 없는 이동이다(리스폰·순간이동). 그 자리로 옮긴다.
                 body.Doll?.Teleport(position, body.Hips != null ? body.Hips.rotation : transform.rotation);

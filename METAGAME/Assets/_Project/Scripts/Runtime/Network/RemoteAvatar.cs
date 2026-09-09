@@ -97,6 +97,18 @@ namespace Metagame.Network
             // 참가자 쪽 입력 지연 ~166ms 의 대부분이 여기서 없어진다.
             if (mine)
             {
+                // **물리만 살린다. 판정은 그대로 서버 몫이다** (`!275` AI 리뷰).
+                //
+                // 이 MR 이 선언한 것은 "위치만 예측" 이다. 아래 둘을 함께 건너뛰면 그
+                // 경계를 넘는다 —
+                //   · ClampInteractor: 고정쇠 잡기가 클라에서도 돌아 서버와 이중 판정이 된다.
+                //     게이지 표시를 P1 으로 올리는 것은 같은 이슈의 **다음 몫**이다
+                //   · NetworkDriven: `GameSession` 이 이 표시를 보고 낙사·전원 기절의
+                //     **부활 판정에서 물러난다**. 끄면 클라가 로컬로 부활시키고 서버가
+                //     보낸 자세가 그것을 되돌려, 스폰 지점과 원래 자리 사이에서 튄다
+                if (rig.ClampInteractor != null) rig.ClampInteractor.enabled = false;
+                rig.NetworkDriven = true;
+
                 // 카메라 스무딩만 낮춘다. 예측이 들어와 이제 표시가 한 겹 덜 다듬어지므로
                 // 기본값(62ms)을 그대로 두면 더해지는 것은 지연뿐이다.
                 if (rig.Cam != null) rig.Cam.FocusSmoothing = NetworkFocusSmoothing;
