@@ -237,7 +237,24 @@ namespace Metagame.Gameplay.Parts
         /// 루프가 매 스텝 속도와 각속도를 덮어쓰기 때문에, 그것을 멈추지 않으면 충격이
         /// 한 스텝에 지워진다.
         /// </summary>
-        public bool Tumbling => tumbleLeft > 0f;
+        public bool Tumbling => tumbling;
+
+        /// <summary>
+        /// 루트의 <b>수평 자세</b>. 빔이 아래를 보는 것이 기준이다.
+        /// </summary>
+        public static readonly Quaternion LevelRotation =
+            Quaternion.LookRotation(Vector3.down, Vector3.forward);
+
+        /// <summary>
+        /// 수평에서 얼마나 돌아가 있는가. 수평이면 항등이다.
+        ///
+        /// 카메라가 기체와 함께 돌 때 이것을 시야 회전 앞에 곱한다
+        /// (S15P21B202-353).
+        /// </summary>
+        public Quaternion LevelOffset =>
+            body != null
+                ? body.rotation * Quaternion.Inverse(LevelRotation)
+                : Quaternion.identity;
 
         /// <summary>
         /// 돌기를 멈추고 <b>수평을 되찾는 중</b>인가(기획 §14.1 "충돌 후 기체는 자동으로
@@ -247,7 +264,8 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         public bool Righting => righting;
 
-        float tumbleLeft;
+        bool tumbling;
+        float tumbleElapsed;
         bool righting;
 
         /// <summary>
@@ -268,35 +286,88 @@ namespace Metagame.Gameplay.Parts
         public void TakeMeteorImpact(Vector3 point, float radius)
         {
             if (body == null) body = GetComponent<Rigidbody>();
-            if (body == null || returning) return;
-
-            // 아무도 타지 않고 호버도 아니면 Tick 이 돌지 않는다. 그 상태로 잠금을 풀면
-            // 되돌릴 사람이 없다.
-            if (rider == null && !Unmanned) return;
+            if (body == null) return;
 
             var offset = body.position - point;
-            var distance = offset.magnitude;
-            var falloff = radius > 0f ? Mathf.Clamp01(1f - distance / radius) : 1f;
+            var falloff = radius > 0f
+                ? Mathf.Clamp01(1f - offset.magnitude / radius)
+                : 1f;
             if (falloff <= 0f) return;
 
             var away = offset.sqrMagnitude > 1e-6f ? offset.normalized : Vector3.up;
 
-            tumbleLeft = PhysicsScale.CraftTumbleSeconds;
-            righting = false;
-            body.constraints = RigidbodyConstraints.None;
-            body.useGravity = true;
-
-            // 밀리는 방향과 수직인 수평축으로 넘어간다. 무작위를 쓰지 않는다 — 같은
-            // 충격에서 같은 결과가 나와야 한다(§22.3 과 같은 원칙).
+            // 밀리는 방향과 수직인 수평축으로 넘어간다.
             var axis = Vector3.Cross(Vector3.up, away);
             if (axis.sqrMagnitude < 1e-6f) axis = Vector3.right;
 
-            // <b>속도에 직접 더한다.</b> <c>AddForce</c> 는 다음 물리 스텝에야 반영되므로
-            // 그 사이 <see cref="StepTumble"/> 이 "아직 안 움직인다" 를 보고 굴림을 즉시
-            // 끝낸다 — 처음에 그렇게 만들었고 검증이 7도만 돌았다고 잡았다.
-            // <see cref="PlayerRig.KnockDown"/> 도 같은 이유로 속도를 직접 더한다.
-            var push = away * (PhysicsScale.CraftImpactSpeed * falloff);
-            var spin = axis.normalized * (PhysicsScale.CraftImpactSpin * falloff);
+            Tumble(away * (PhysicsScale.CraftImpactSpeed * falloff),
+                   axis.normalized * (PhysicsScale.CraftImpactSpin * falloff));
+        }
+
+        /// <summary>
+        /// 운석 <b>본체</b>가 기체를 때렸다(S15P21B202-353).
+        ///
+        /// <b>이것이 실제로 일어나는 경로다.</b> 폭발 반경은 2m 인데 호버 고도는 5~8m 라,
+        /// <see cref="TakeMeteorImpact"/> 의 반경 판정은 떠 있는 기체에 닿지 않는다
+        /// (S15P21B202-349 에서 측정했다 — 거리 8.13m, 반경 2m).
+        ///
+        /// 세기는 운석의 <b>진행 방향</b>에서 온다. 반경 falloff 가 아니라 맞은 방향으로
+        /// 밀려야 자연스럽다.
+        /// </summary>
+        /// <param name="point">맞은 자리. 무게중심에서 벗어난 만큼 회전이 생긴다.</param>
+        /// <param name="meteorVelocity">운석의 속도. 방향만 쓴다.</param>
+        public void TakeDirectMeteorImpact(Vector3 point, Vector3 meteorVelocity)
+        {
+            if (body == null) body = GetComponent<Rigidbody>();
+            if (body == null) return;
+
+            var direction = meteorVelocity.sqrMagnitude > 1e-6f
+                ? meteorVelocity.normalized
+                : Vector3.down;
+
+            // 무게중심에서 벗어난 자리를 때리면 돈다 — 토크는 arm × force 다.
+            var arm = point - body.worldCenterOfMass;
+            var axis = Vector3.Cross(arm, direction);
+
+            // 정중앙을 맞으면 회전축이 없다. 그때는 진행 방향과 수직인 수평축을 쓴다.
+            if (axis.sqrMagnitude < 1e-4f) axis = Vector3.Cross(Vector3.up, direction);
+            if (axis.sqrMagnitude < 1e-6f) axis = Vector3.right;
+
+            Tumble(direction * PhysicsScale.CraftImpactSpeed,
+                   axis.normalized * PhysicsScale.CraftImpactSpin);
+        }
+
+        /// <summary>
+        /// 돌며 떨어지기 시작한다.
+        ///
+        /// <b>회전 잠금을 먼저 푼다.</b> <c>FreezeRotation</c> 이 걸린 채로는 각속도가
+        /// 그 스텝에 지워진다 — S15P21B202-216 이 자세 복구 코드를 넣고도 아무 일이
+        /// 없었던 이유가 그것이다.
+        ///
+        /// <b>속도에 직접 더한다.</b> <c>AddForce</c> 는 다음 물리 스텝에야 반영되므로
+        /// 그 사이 <see cref="StepTumble"/> 이 "아직 안 움직인다" 를 보고 굴림을 즉시
+        /// 끝낸다 — S15P21B202-349 에서 검증이 7도만 돌았다고 잡았다.
+        /// <see cref="PlayerRig.KnockDown"/> 도 같은 이유로 속도를 직접 더한다.
+        ///
+        /// <b>하차 중에는 받지 않는다.</b> <see cref="returning"/> 은 대본대로 내려앉는
+        /// 중이라 끊으면 탑승자가 공중에 갇힐 수 있다.
+        /// </summary>
+        void Tumble(Vector3 push, Vector3 spin)
+        {
+            if (returning) return;
+
+            // 아무도 타지 않고 호버도 아니면 굴릴 이유가 없다 — 이미 바닥에 있다.
+            if (rider == null && !Unmanned) return;
+
+            // <b>이미 돌고 있으면 시계를 되돌리지 않는다.</b> 운석 비처럼 연달아 맞으면
+            // 상한이 매번 갱신되어 영원히 갇힌다 — 340 이 남긴 교훈이 그것이다.
+            // 다시 맞으면 충격은 더해지지만 안전선은 그대로다.
+            if (!tumbling) tumbleElapsed = 0f;
+
+            tumbling = true;
+            righting = false;
+            body.constraints = RigidbodyConstraints.None;
+            body.useGravity = true;
 
             body.linearVelocity += push;
             body.angularVelocity += spin;
@@ -484,7 +555,8 @@ namespace Metagame.Gameplay.Parts
             body.linearVelocity = Vector3.zero;
             body.angularVelocity = Vector3.zero;
             body.useGravity = true;
-            tumbleLeft = 0f;
+            tumbling = false;
+            tumbleElapsed = 0f;
             righting = false;
             driveVector = Vector3.zero;
             returning = false;
@@ -677,7 +749,7 @@ namespace Metagame.Gameplay.Parts
         {
             // 도는 동안은 조작을 받지 않는다(S15P21B202-349). 자세를 되찾는 동안에는
             // 다시 받는다 — 호버가 이미 돌고 있으므로 조종을 막을 이유가 없다.
-            if (rider == null || returning || tumbleLeft > 0f)
+            if (rider == null || returning || tumbling)
             {
                 driveVector = Vector3.zero;
                 return;
@@ -697,7 +769,7 @@ namespace Metagame.Gameplay.Parts
         {
             // 도는 동안 외형을 수평으로 맞추면 <b>루트만 돌고 보이는 것은 가만히
             // 있는다</b>(S15P21B202-349). 자세 복구가 끝날 때까지 손대지 않는다.
-            if (rider == null || returning || tumbleLeft > 0f || righting) return;
+            if (rider == null || returning || tumbling || righting) return;
 
             worldDirection.y = 0f;
             if (worldDirection.sqrMagnitude < 0.0001f) return;
@@ -714,7 +786,7 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         public void SetVerticalInput(float value)
         {
-            if (rider == null || returning || tumbleLeft > 0f) { verticalInput = 0f; return; }
+            if (rider == null || returning || tumbling) { verticalInput = 0f; return; }
             verticalInput = Mathf.Clamp(value, -1f, 1f);
         }
 
@@ -750,14 +822,14 @@ namespace Metagame.Gameplay.Parts
             //
             // 이 함수는 예전에 <c>if (rider == null && !Unmanned) return;</c> 로 시작했다.
             // 그러면 굴림 중에 탑승자가 사라지는 경로가 생길 때(저중력장이 꺼져 있으면
-            // Unmanned 도 false 다) <c>tumbleLeft</c> 가 남고 회전 잠금이 풀린 채로
+            // Unmanned 도 false 다) <c>tumbling</c> 이 남고 회전 잠금이 풀린 채로
             // 방치된다 — 그 상태에서는 <see cref="SetFacingDirection"/> 이 계속 막혀
             // 조종석이 시야를 따라가지 못한다.
             //
             // <b>실제로 그 경로를 만들지는 못했다.</b> <c>CompleteDismount</c> 는 굴림이
             // 끝난 뒤에야 도달하고 <c>ForceReset</c> 은 상태를 지운다. 그래도 상태가
             // 남을 수 있는 구조 자체를 없애 두는 편이 맞다.
-            if (tumbleLeft > 0f)
+            if (tumbling)
             {
                 // 돌고 있는 동안은 물리에 맡긴다. 호버 루프를 돌리면 그것이 매 스텝
                 // 속도와 각속도를 덮어써서 충격이 사라진다.
@@ -790,12 +862,18 @@ namespace Metagame.Gameplay.Parts
         /// <summary>
         /// 도는 동안. <b>아무것도 하지 않는 것이 일이다</b> — 물리가 굴린다.
         ///
-        /// 상한이 지나거나 잦아들면 나온다. <b>어떤 경로로도 나온다</b> — 여기 머물면
-        /// 탑승자가 조종할 수 없는 상태로 갇힌다(S15P21B202-340 의 교훈).
+        /// <b>정상 종료는 접지다</b>(S15P21B202-353). 기획 §14.1 이 수평 회복을
+        /// "<b>충돌 후</b>" 로 정했으므로 공중에서 자세를 되찾으면 안 된다 — 기울어진 채
+        /// 바닥까지 떨어져야 한다.
+        ///
+        /// <b>어떤 경로로도 나온다</b> — 접지 · 잦아듦 · 절대 상한. 여기 머물면 탑승자가
+        /// 조종할 수 없는 상태로 갇힌다(S15P21B202-340 의 교훈).
         /// </summary>
         void StepTumble(float deltaTime)
         {
-            tumbleLeft -= deltaTime;
+            tumbleElapsed += deltaTime;
+
+            var landed = TouchedDown();
 
             var settled =
                 body.linearVelocity.sqrMagnitude
@@ -803,9 +881,53 @@ namespace Metagame.Gameplay.Parts
                 && body.angularVelocity.sqrMagnitude
                     < PhysicsScale.CraftTumbleRestSpin * PhysicsScale.CraftTumbleRestSpin;
 
-            if (tumbleLeft > 0f && !settled) return;
+            if (!landed && !settled
+                && tumbleElapsed < PhysicsScale.CraftTumbleMaxSeconds) return;
 
             EndTumble();
+        }
+
+        /// <summary>
+        /// 굴던 기체가 바닥에 닿았는가(S15P21B202-353).
+        ///
+        /// <b><see cref="ProbeGround"/> 만으로는 부족하다.</b> 그 탐사는 플랫폼 아래
+        /// 0.28m(<see cref="ProbeLift"/> + <see cref="ProbeReach"/>)만 본다 — 호버 고도에서
+        /// 걸릴 수 없어 안전하지만, <b>기울면 원점이 아래를 향하지 않아 빗나간다.</b>
+        ///
+        /// <b>절대 높이로도 부족하다.</b> <see cref="GroundY"/> 기준으로 보면 지형이 그보다
+        /// 높은 곳에 떨어졌을 때 성립하지 않는다. 그러면 8초 상한까지 계속 돈다.
+        ///
+        /// 그래서 몸체에서 곧장 아래로 <b>선 하나를</b> 더 쏜다. 루트는 접지 상태에서
+        /// <see cref="GroundY"/> 에 있으므로 이 거리가 곧 지면까지의 높이다. 기울기와
+        /// 지형 고도에 모두 무관하다.
+        ///
+        /// <b>자기 플랫폼과 탑승자는 지면이 아니다</b> — <see cref="ProbeGround"/> 와 같은
+        /// 걸러내기를 쓴다(<see cref="SurfaceMask"/> 가 플레이어 레이어를 이미 뺀다).
+        /// </summary>
+        bool TouchedDown()
+        {
+            if (ProbeGround(out var ground)
+                && ground.distance <= PhysicsScale.CraftTumbleLandingBand)
+                return true;
+
+            // <b>반경을 주지 않는다.</b> 구체로 재면 반경만큼 일찍 걸려 기체가 1m 쯤
+            // 위에서 굴림을 멈춘다 — 검증이 "바닥에 닿지 않았다" 로 잡았다.
+            var count = Physics.RaycastNonAlloc(
+                body.position, Vector3.down, ProbeHits,
+                PhysicsScale.CraftTumbleLandingBand, SurfaceMask,
+                QueryTriggerInteraction.Ignore);
+
+            for (var i = 0; i < count; i++)
+            {
+                var hit = ProbeHits[i];
+                if (hit.collider == null) continue;
+                if (hit.collider.transform.IsChildOf(transform)) continue;   // 자기 플랫폼
+                if (hit.normal.y < MinGroundNormalY) continue;               // 벽은 바닥이 아니다
+
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -821,7 +943,8 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         void EndTumble()
         {
-            tumbleLeft = 0f;
+            tumbling = false;
+            tumbleElapsed = 0f;
             righting = true;
 
             body.constraints = RigidbodyConstraints.FreezeRotation;
@@ -838,8 +961,8 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         void StepRighting(float deltaTime)
         {
-            var level = Quaternion.LookRotation(Vector3.down, Vector3.forward);
             var step = PhysicsScale.CraftRightingDegreesPerSecond * deltaTime;
+            var level = LevelRotation;
             var next = Quaternion.RotateTowards(body.rotation, level, step);
 
             body.rotation = next;

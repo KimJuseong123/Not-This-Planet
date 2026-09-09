@@ -40,6 +40,41 @@ namespace Metagame.Gameplay.Hazards
         /// 모아서 한 번만 밀어야 한다 — 여러 번 주면 회전량이 예측할 수 없게 커진다.
         /// </summary>
         static readonly List<Parts.TransportVehicle> StruckCraft = new();
+
+        /// <summary>
+        /// 이 운석이 이미 굴린 기체. 콜라이더가 여러 개라 한 충돌에서 여러 번 들어오고,
+        /// 그때마다 굴리면 회전량이 예측할 수 없게 커진다
+        /// (<see cref="_directPlayersHit"/> 와 같은 이유다).
+        /// </summary>
+        readonly HashSet<Parts.TransportVehicle> _craftHit = new();
+
+        /// <summary>
+        /// 이 충돌이 어느 탑승체를 때린 것인가. 아니면 null 이다
+        /// (S15P21B202-353).
+        ///
+        /// <b>탑승자를 맞힌 것도 기체를 맞힌 것이다.</b> 인형은 조인트로 붙어 있을 뿐
+        /// 기체의 <b>자식이 아니므로</b> <c>GetComponentInParent</c> 로는 찾을 수 없다.
+        /// 조종석에 앉은 사람이 운석에 맞으면 기체가 대신 받는다(기획 §14.1 "기체와
+        /// 파츠는 충돌로 파괴되지 않는다").
+        ///
+        /// <b>실제로는 이 경로가 먼저 걸린다</b> — 인형이 플랫폼 위에 서 있으므로 위에서
+        /// 떨어지는 운석은 플랫폼보다 인형을 먼저 만난다. 측정에서 운석이 인형 머리
+        /// (9.25m)에 닿아 튕겼다.
+        ///
+        /// <b>갈라 둔 이유.</b> <c>OnCollisionEnter</c> 는 EditMode 에서 돌지 않으므로
+        /// (이 저장소의 다른 운석 검증도 <see cref="ApplyImpact"/> 를 직접 부른다) 판정
+        /// 규칙만이라도 검증할 수 있어야 한다.
+        /// </summary>
+        public static Parts.TransportVehicle CraftHitBy(Collider collider, PlayerRig direct)
+        {
+            var craft = collider != null
+                ? collider.GetComponentInParent<Parts.TransportVehicle>()
+                : null;
+
+            if (craft == null && direct != null) craft = direct.MountedVehicle;
+
+            return craft;
+        }
         readonly List<PlayerRig> _directPlayersHit = new();
         [SerializeField, Min(0f)] float _maxLifeSeconds = PhysicsScale.MeteorMaxLifeSeconds;
 
@@ -212,6 +247,12 @@ namespace Metagame.Gameplay.Hazards
         public void Initialize()
         {
             Register();
+
+            // 재사용에 대비해 한 생애의 기록을 비운다. 지금 스포너는 운석을
+            // <c>Instantiate</c> 하고 <c>Despawn</c> 으로 없애므로 재사용 경로가 없지만,
+            // 풀링이 들어오면 두 번째 생애에서 같은 상대를 다시 때리지 못한다.
+            _directPlayersHit.Clear();
+            _craftHit.Clear();
 
             EnsureTrail();
 
@@ -442,6 +483,24 @@ namespace Metagame.Gameplay.Hazards
                 {
                     _directPlayersHit.Add(direct);
                     ApplyKnockback(collision.GetContact(0).point, direct);
+                }
+
+                // <b>기체를 직접 맞혔으면 굴린다</b>(S15P21B202-353).
+                //
+                // 이것이 실제로 일어나는 경로다. <see cref="ApplyKnockback"/> 의 반경
+                // 판정은 2m 인데 호버 고도는 5~8m 라 떠 있는 기체에 닿지 않는다
+                // (S15P21B202-349 에서 거리 8.13m 로 측정했다).
+                //
+                // 운석을 착탄시키지는 않는다 — 위 <c>TryGetSupportContact</c> 가 운반체를
+                // 건너뛰는 예전 결정을 그대로 둔다. 기체에 박히면 따라다닌다.
+                var craft = CraftHitBy(collision.collider, direct);
+
+                if (craft != null && !_craftHit.Contains(craft))
+                {
+                    _craftHit.Add(craft);
+                    craft.TakeDirectMeteorImpact(collision.GetContact(0).point,
+                                                 _body != null ? _body.linearVelocity
+                                                               : Vector3.down);
                 }
 
                 // 동적 물체와의 접촉은 일반 PhysX 충돌에 맡긴다. 이 경로에서는

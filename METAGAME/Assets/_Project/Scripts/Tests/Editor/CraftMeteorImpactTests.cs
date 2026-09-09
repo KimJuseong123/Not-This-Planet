@@ -146,7 +146,7 @@ namespace Metagame.Gameplay.Tests
             Strike(rig, direct: false);
 
             var turned = 0f;
-            var steps = Mathf.RoundToInt((PhysicsScale.CraftTumbleSeconds + 0.5f) / Step);
+            var steps = Mathf.RoundToInt((PhysicsScale.CraftTumbleMaxSeconds + 1f) / Step);
             for (var i = 0; i < steps; i++)
             {
                 rig.Vehicle.Tick(Step);
@@ -220,7 +220,7 @@ namespace Metagame.Gameplay.Tests
             var rig = MakeFlyingRig();
 
             Strike(rig, direct: false);
-            Run(rig.Vehicle, PhysicsScale.CraftTumbleSeconds + 1f);
+            Run(rig.Vehicle, PhysicsScale.CraftTumbleMaxSeconds + 1f);
 
             Assert.IsFalse(rig.Vehicle.Tumbling,
                 "상한이 지났는데 아직 돌고 있다. 탑승자가 갇힌다.");
@@ -232,7 +232,7 @@ namespace Metagame.Gameplay.Tests
             var rig = MakeFlyingRig();
 
             Strike(rig, direct: false);
-            Run(rig.Vehicle, PhysicsScale.CraftTumbleSeconds + 3f);
+            Run(rig.Vehicle, PhysicsScale.CraftTumbleMaxSeconds + 4f);
 
             Assert.IsFalse(rig.Vehicle.Righting, "자세 복구가 끝나지 않았다.");
 
@@ -245,7 +245,7 @@ namespace Metagame.Gameplay.Tests
 
         /// <summary>
         /// <b>즉시 세우지 않는다.</b> 뒤집힌 기체가 한 프레임에 수평이 되면 충격이 없던
-        /// 일이 된다.
+        /// 일이 된다. 굴림이 끝난 <b>그 순간</b>에는 아직 되찾는 중이어야 한다.
         /// </summary>
         [Test]
         public void TheRightingIsVisibleAndNotInstant()
@@ -253,11 +253,342 @@ namespace Metagame.Gameplay.Tests
             var rig = MakeFlyingRig();
 
             Strike(rig, direct: false);
-            Run(rig.Vehicle, PhysicsScale.CraftTumbleSeconds + 0.05f);
+            var ended = RunUntilTumbleEnds(rig.Vehicle);
 
+            Assert.Greater(ended, 0f, "굴림이 끝나지 않았다.");
             Assert.IsTrue(rig.Vehicle.Righting,
                 "돌기를 멈춘 직후에는 자세를 되찾는 중이어야 한다.");
         }
+
+        // --- 기울어진 채 바닥까지 떨어진다 (S15P21B202-353) --------------------
+
+        /// <summary>
+        /// <b>이것이 이 이슈의 요구다.</b> 기획 §14.1 은 수평 회복을 "<b>충돌 후</b>" 로
+        /// 정했다. 예전에는 상한 2.2초가 지나면 <b>공중에서</b> 자세를 되찾고 호버가 그
+        /// 고도를 잡았다 — 그래서 "쿵" 이 아니라 통제된 하강으로 보였다.
+        /// </summary>
+        [Test]
+        public void TheCraftStaysTiltedWhileItIsStillInTheAir()
+        {
+            var rig = MakeFlyingRig();
+
+            Strike(rig, direct: false);
+
+            var sawAirborneTilt = false;
+            var rightedInTheAir = false;
+            var steps = Mathf.RoundToInt((PhysicsScale.CraftTumbleMaxSeconds + 1f) / Step);
+
+            for (var i = 0; i < steps; i++)
+            {
+                rig.Vehicle.Tick(Step);
+                Physics.Simulate(Step);
+
+                var airborne = rig.Vehicle.transform.position.y
+                               > TransportVehicle.GroundY
+                                 + PhysicsScale.CraftTumbleLandingBand + 0.5f;
+                if (!airborne) break;
+
+                var tilt = Quaternion.Angle(rig.Vehicle.transform.rotation,
+                                            TransportVehicle.LevelRotation);
+                if (tilt > 30f) sawAirborneTilt = true;
+                if (rig.Vehicle.Righting) rightedInTheAir = true;
+            }
+
+            Assert.IsTrue(sawAirborneTilt, "공중에서 기울지 않았다.");
+            Assert.IsFalse(rightedInTheAir,
+                "공중에서 자세를 되찾았다. §14.1 은 '충돌 후' 회복이라고 정했다.");
+        }
+
+        [Test]
+        public void TheCraftEndsUpOnTheGround()
+        {
+            var rig = MakeFlyingRig();
+
+            Strike(rig, direct: false);
+            Run(rig.Vehicle, PhysicsScale.CraftTumbleMaxSeconds + 4f);
+
+            Assert.Less(rig.Vehicle.transform.position.y,
+                TransportVehicle.GroundY + PhysicsScale.CraftTumbleLandingBand + 0.5f,
+                "맞은 기체가 바닥까지 떨어지지 않았다.");
+        }
+
+        /// <summary>
+        /// <b>착지가 종료 조건이라는 것을 구분하는 척도다.</b> "착지 뒤에 복구한다" 만
+        /// 보면 상한으로 끝나도 통과한다 — 어차피 그때는 이미 바닥이기 때문이다.
+        /// 굴림이 <b>닿는 그 스텝에</b> 끝나는지를 본다.
+        /// </summary>
+        [Test]
+        public void TheTumbleEndsOnTheStepItLands()
+        {
+            var rig = MakeFlyingRig();
+            Strike(rig, direct: false);
+
+            Physics.simulationMode = SimulationMode.Script;
+            var landedAt = -1f;
+            var endedAt = -1f;
+            var steps = Mathf.RoundToInt((PhysicsScale.CraftTumbleMaxSeconds + 2f) / Step);
+
+            for (var i = 0; i < steps; i++)
+            {
+                rig.Vehicle.Tick(Step);
+                Physics.Simulate(Step);
+                var now = (i + 1) * Step;
+
+                // <b>운영 코드와 같은 것을 재야 한다.</b> 코드는 몸체에서 아래로
+                // CraftTumbleLandingBand 안에 지면이 있는지 본다. 하니스의 지면은 y=0
+                // 이므로 몸체 높이가 곧 그 거리다. GroundY 를 더해 재면 0.06m 만큼
+                // 느슨해져 두 스텝이 어긋난다 — 그렇게 써서 한 번 틀렸다.
+                if (landedAt < 0f
+                    && rig.Vehicle.transform.position.y
+                       <= PhysicsScale.CraftTumbleLandingBand)
+                    landedAt = now;
+
+                if (rig.Vehicle.Tumbling) continue;
+
+                endedAt = now;
+                break;
+            }
+
+            Assert.Greater(landedAt, 0f, "기체가 바닥에 닿지 않았다.");
+            Assert.Greater(endedAt, 0f, "굴림이 끝나지 않았다.");
+            Assert.LessOrEqual(endedAt - landedAt, Step * 1.5f,
+                $"착지 {landedAt:0.00}초인데 굴림은 {endedAt:0.00}초에 끝났다. "
+                + "접지가 종료 조건이 아니다.");
+        }
+
+        [Test]
+        public void TheRightingStartsNearTheGround()
+        {
+            var rig = MakeFlyingRig();
+
+            Strike(rig, direct: false);
+            var ended = RunUntilTumbleEnds(rig.Vehicle);
+            Assert.Greater(ended, 0f, "굴림이 끝나지 않았다.");
+
+            Assert.Less(rig.Vehicle.transform.position.y,
+                TransportVehicle.GroundY + PhysicsScale.CraftTumbleLandingBand + 0.5f,
+                $"공중 {rig.Vehicle.transform.position.y:0.00}m 에서 복구를 시작했다.");
+        }
+
+        /// <summary>
+        /// <b>연달아 맞아도 갇히지 않는다.</b> 처음에는 충격마다 상한 시계를 0 으로
+        /// 되돌렸다 — 운석 비에서 상한이 매번 갱신되어 탑승자가 영원히 조종할 수 없다.
+        /// 340 이 남긴 교훈이 그것이다.
+        ///
+        /// <b>지면을 없애고 잰다.</b> 접지가 정상 종료이므로 바닥이 있으면 상한이
+        /// 시험되지 않는다.
+        /// </summary>
+        [Test]
+        public void RepeatedHitsDoNotExtendTheSafetyCap()
+        {
+            var rig = MakeFlyingRig();
+            RemoveGround();
+
+            Physics.simulationMode = SimulationMode.Script;
+            var steps = Mathf.RoundToInt((PhysicsScale.CraftTumbleMaxSeconds + 3f) / Step);
+            var sinceHit = 0f;
+            var endedAt = -1f;
+
+            for (var i = 0; i < steps; i++)
+            {
+                // 1초마다 다시 때린다.
+                if (sinceHit <= 0f)
+                {
+                    rig.Vehicle.TakeDirectMeteorImpact(
+                        rig.Vehicle.Body.worldCenterOfMass + new Vector3(0.7f, 0.2f, 0f),
+                        new Vector3(1f, -12f, 0f));
+                    sinceHit = 1f;
+                }
+
+                sinceHit -= Step;
+                rig.Vehicle.Tick(Step);
+                Physics.Simulate(Step);
+
+                if (rig.Vehicle.Tumbling) continue;
+
+                endedAt = (i + 1) * Step;
+                break;
+            }
+
+            Assert.Greater(endedAt, 0f,
+                "연달아 맞으면 굴림이 끝나지 않는다. 상한이 매번 갱신된다.");
+            Assert.LessOrEqual(endedAt, PhysicsScale.CraftTumbleMaxSeconds + 0.5f,
+                $"굴림이 {endedAt:0.0}초까지 이어졌다. 상한이 갱신됐다.");
+        }
+
+        // --- 직접 충돌이 방아쇠다 (S15P21B202-353) ----------------------------
+
+        /// <summary>
+        /// <b>349 가 못 한 것이다.</b> 폭발 반경은 2m 인데 호버 고도는 5~8m 라 반경
+        /// 판정으로는 떠 있는 기체에 닿지 않는다. 여기서 그 사실도 함께 못박는다.
+        /// </summary>
+        [Test]
+        public void TheBlastRadiusAloneNeverReachesAHoveringCraft()
+        {
+            var rig = MakeFlyingRig();
+
+            // 지면에서 터진 운석 — 실제 상황이다.
+            rig.Vehicle.TakeMeteorImpact(new Vector3(1.5f, 0f, 0f),
+                                         PhysicsScale.MeteorSmallImpactRadius);
+
+            Assert.IsFalse(rig.Vehicle.Tumbling,
+                "반경 판정이 호버 고도에 닿았다. 전제가 바뀌었으면 이 검증을 지워야 한다.");
+        }
+
+        [Test]
+        public void ADirectHitStartsTheTumbleAtHoverAltitude()
+        {
+            var rig = MakeFlyingRig();
+            var point = rig.Vehicle.transform.position + new Vector3(0.7f, 0.2f, 0f);
+
+            rig.Vehicle.TakeDirectMeteorImpact(point, new Vector3(2f, -12f, 1f));
+
+            Assert.IsTrue(rig.Vehicle.Tumbling, "직접 충돌이 굴림을 시작하지 않았다.");
+            Assert.Greater(rig.Vehicle.Body.angularVelocity.magnitude, 1f,
+                "직접 충돌인데 회전이 거의 없다.");
+        }
+
+        /// <summary>
+        /// 무게중심을 정통으로 맞아도 돌아야 한다 — 회전축이 없으면 진행 방향과 수직인
+        /// 수평축을 쓴다.
+        /// </summary>
+        [Test]
+        public void ADeadCentreHitStillTumbles()
+        {
+            var rig = MakeFlyingRig();
+
+            rig.Vehicle.TakeDirectMeteorImpact(rig.Vehicle.Body.worldCenterOfMass,
+                                               Vector3.down * 12f);
+
+            Assert.IsTrue(rig.Vehicle.Tumbling);
+            Assert.Greater(rig.Vehicle.Body.angularVelocity.magnitude, 1f,
+                "정통으로 맞으면 회전축이 0 이 된다. 대체 축이 없다.");
+        }
+
+        /// <summary>
+        /// <b>탑승자를 맞힌 것도 기체를 맞힌 것이다.</b> 인형은 조인트로 붙어 있을 뿐
+        /// 기체의 자식이 아니므로 <c>GetComponentInParent</c> 로는 찾을 수 없다.
+        ///
+        /// 측정에서 위에서 떨어지는 운석이 <b>인형 머리(9.25m)에 먼저 닿아 튕겼다</b> —
+        /// 플랫폼(8.38m)보다 인형이 위에 있으므로 이 경로가 실제로 먼저 걸린다.
+        ///
+        /// <b>충돌 콜백으로는 검증할 수 없다.</b> <c>OnCollisionEnter</c> 는 EditMode 에서
+        /// 돌지 않는다 — 이 저장소의 다른 운석 검증도 <c>ApplyImpact</c> 를 직접 부른다.
+        /// 그래서 판정 규칙만 떼어 검증한다. <b>인게임 확인이 필수다.</b>
+        /// </summary>
+        [Test]
+        public void HittingTheRiderCountsAsHittingTheCraft()
+        {
+            var rig = MakeFlyingRig();
+            var head = rig.Player.Doll.Head.GetComponentInChildren<Collider>();
+            Assert.IsNotNull(head, "인형 머리에 콜라이더가 있어야 한다.");
+
+            var craft = Meteor.CraftHitBy(head, rig.Player);
+
+            Assert.AreSame(rig.Vehicle, craft,
+                "탑승자를 맞혔는데 기체를 찾지 못한다. 인형은 기체의 자식이 아니다.");
+        }
+
+        [Test]
+        public void HittingTheCraftItselfAlsoCounts()
+        {
+            var rig = MakeFlyingRig();
+            var platform = rig.Vehicle.GetComponentInChildren<BoxCollider>();
+            Assert.IsNotNull(platform);
+
+            Assert.AreSame(rig.Vehicle, Meteor.CraftHitBy(platform, null),
+                "기체 콜라이더를 맞혔는데 기체를 찾지 못한다.");
+        }
+
+        /// <summary>
+        /// <b>타지 않은 사람을 맞힌 것은 기체와 무관하다.</b> 이 문이 넓으면 걸어 다니는
+        /// 사람이 맞을 때마다 엉뚱한 기체가 굴러간다.
+        /// </summary>
+        [Test]
+        public void HittingSomeoneOnFootIsNotACraftHit()
+        {
+            MakeSurface("Ground", new Vector3(0f, -0.5f, 0f), new Vector3(60f, 1f, 60f));
+            var player = MakePlayer(new Vector3(20f, 0.5f, 20f));
+            var head = player.Doll.Head.GetComponentInChildren<Collider>();
+
+            Assert.IsNull(Meteor.CraftHitBy(head, player),
+                "타지 않은 사람을 맞혔는데 기체를 찾았다.");
+        }
+
+        // --- 카메라가 함께 돈다 (S15P21B202-353) ------------------------------
+
+        /// <summary>
+        /// <b>화면이 실제로 돌아가는지 본다.</b> 처음에는 <c>ViewTilt</c> 값만 확인했는데
+        /// 그것은 저장한 값이라 <c>LateUpdate</c> 의 곱셈을 빼도 통과했다 — 대조로
+        /// 잡았다.
+        /// </summary>
+        [Test]
+        public void TheViewTiltActuallyRotatesTheCamera()
+        {
+            MakeSurface("Ground", new Vector3(0f, -0.5f, 0f), new Vector3(60f, 1f, 60f));
+            var player = MakePlayer(new Vector3(20f, 0.5f, 20f));
+            var cam = MakeCamera(player);
+
+            cam.SetViewTilt(Quaternion.identity);
+            cam.Tick();
+            var level = cam.transform.rotation;
+
+            cam.SetViewTilt(Quaternion.AngleAxis(50f, Vector3.forward));
+            cam.Tick();
+            var tilted = cam.transform.rotation;
+
+            Assert.AreEqual(50f, Quaternion.Angle(level, tilted), 3f,
+                "기준 회전을 넣었는데 카메라가 돌지 않는다.");
+        }
+
+        /// <summary>탑승체의 기울기가 카메라까지 전달되는가 — 배선 검증.</summary>
+        [Test]
+        public void TheCraftTiltReachesTheCamera()
+        {
+            var rig = MakeFlyingRig();
+            var cam = MakeCamera(rig.Player);
+
+            Strike(rig, direct: false);
+            Run(rig.Vehicle, 0.4f);
+            rig.Player.Tick();
+
+            Assert.Greater(Quaternion.Angle(cam.ViewTilt, Quaternion.identity), 20f,
+                $"기체가 도는데 화면 기준이 수평이다. {cam.ViewTilt.eulerAngles}");
+            Assert.AreEqual(
+                Quaternion.Angle(rig.Vehicle.LevelOffset, Quaternion.identity),
+                Quaternion.Angle(cam.ViewTilt, Quaternion.identity), 1f,
+                "화면 기울기가 기체 기울기와 다르다.");
+        }
+
+        [Test]
+        public void TheCameraComesBackLevelAfterTheTumble()
+        {
+            var rig = MakeFlyingRig();
+            var cam = MakeCamera(rig.Player);
+
+            Strike(rig, direct: false);
+            Run(rig.Vehicle, PhysicsScale.CraftTumbleMaxSeconds + 4f);
+            rig.Player.Tick();
+
+            Assert.Less(Quaternion.Angle(cam.ViewTilt, Quaternion.identity), 1f,
+                $"굴림이 끝났는데 화면이 기울어 있다. {cam.ViewTilt.eulerAngles}");
+        }
+
+        /// <summary>타지 않은 사람의 화면은 절대 기울지 않는다 — 과잉 교정 방어선.</summary>
+        [Test]
+        public void TheCameraStaysLevelWhenNotMounted()
+        {
+            MakeSurface("Ground", new Vector3(0f, -0.5f, 0f), new Vector3(60f, 1f, 60f));
+            var player = MakePlayer(new Vector3(20f, 0.5f, 20f));
+            var cam = MakeCamera(player);
+
+            player.Tick();
+
+            Assert.Less(Quaternion.Angle(cam.ViewTilt, Quaternion.identity), 0.01f,
+                "타지도 않았는데 화면이 기울었다.");
+        }
+
+        // --- 하니스 -----------------------------------------------------------
 
         /// <summary>
         /// §14.2 "수평은 복구하지만 <b>호버 위치를 자동으로 되찾지는 않는다</b>".
@@ -271,7 +602,7 @@ namespace Metagame.Gameplay.Tests
             var before = rig.Vehicle.transform.position.y;
 
             Strike(rig, direct: false);
-            Run(rig.Vehicle, PhysicsScale.CraftTumbleSeconds + 4f);
+            Run(rig.Vehicle, PhysicsScale.CraftTumbleMaxSeconds + 4f);
 
             var after = rig.Vehicle.transform.position.y;
 
@@ -369,7 +700,7 @@ namespace Metagame.Gameplay.Tests
             Assert.IsNotNull(visual);
 
             Strike(rig, direct: false);
-            Run(rig.Vehicle, PhysicsScale.CraftTumbleSeconds + 4f);
+            Run(rig.Vehicle, PhysicsScale.CraftTumbleMaxSeconds + 4f);
 
             Assert.IsFalse(rig.Vehicle.Tumbling);
             Assert.IsFalse(rig.Vehicle.Righting);
@@ -480,12 +811,48 @@ namespace Metagame.Gameplay.Tests
             return player;
         }
 
+        /// <summary>지면을 없애 접지가 일어나지 않게 한다 — 상한을 시험할 때 쓴다.</summary>
+        void RemoveGround()
+        {
+            for (var i = _spawned.Count - 1; i >= 0; i--)
+            {
+                if (_spawned[i] == null || _spawned[i].name != "Ground") continue;
+                Object.DestroyImmediate(_spawned[i]);
+                _spawned.RemoveAt(i);
+            }
+        }
+
         void MakeSurface(string name, Vector3 center, Vector3 size)
         {
             var go = new GameObject(name) { layer = 0 };
             go.transform.position = center;
             go.AddComponent<BoxCollider>().size = size;
             _spawned.Add(go);
+        }
+
+        /// <summary>굴림이 끝날 때까지 돌린다. 끝난 시각(초)을 준다. 안 끝나면 -1.</summary>
+        float RunUntilTumbleEnds(TransportVehicle vehicle)
+        {
+            Physics.simulationMode = SimulationMode.Script;
+            var steps = Mathf.RoundToInt((PhysicsScale.CraftTumbleMaxSeconds + 2f) / Step);
+
+            for (var i = 0; i < steps; i++)
+            {
+                vehicle.Tick(Step);
+                Physics.Simulate(Step);
+                if (!vehicle.Tumbling) return (i + 1) * Step;
+            }
+
+            return -1f;
+        }
+
+        OrbitCamera MakeCamera(PlayerRig player)
+        {
+            LogAssert.ignoreFailingMessages = true;
+            var cam = OrbitCamera.Create(player.Doll.Hips.transform, Color.black);
+            _spawned.Add(cam.gameObject);
+            player.Cam = cam;
+            return cam;
         }
 
         void Run(TransportVehicle vehicle, float seconds)
