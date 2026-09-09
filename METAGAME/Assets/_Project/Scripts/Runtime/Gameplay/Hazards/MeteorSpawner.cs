@@ -482,6 +482,174 @@ namespace Metagame.Gameplay.Hazards
         /// 예고와 운석을 함께 내므로, 이 함수는 표시가 끝난 예고를 치우기만 한다 —
         /// 그 순간이 곧 착탄 시각이다(기획 §17.2).
         /// </summary>
+        // ── 네트워크에서 받은 예고 (S15P21B202-352) ──────────────────────────
+        //
+        // 참가자 기계는 공세를 **스스로 계산하지 않는다** — MeteorClockBridge 가 Tick 을
+        // 부르지 않는다. 시드가 같아도 난수를 뽑는 횟수가 로컬 세계 상태에 달려 스트림이
+        // 갈리기 때문이다(NearPlayerPoint 의 candidates, WorkAreaPoint 의 _workAreas).
+        //
+        // 그러면 참가자는 예고 원을 못 봐서 피하지도 쳐내지도 못한다. 그래서 호스트가 정한
+        // 예고를 받아 여기 넣는다. **소비처는 하나도 안 고친다** — MeteorWarningView 와
+        // Stage1AtmosphereAlert 가 둘 다 Pending 을 읽으므로 목록을 갈면 그대로 그려진다.
+
+        /// <summary>
+        /// 호스트가 정한 예고 목록으로 갈아 끼운다 (S15P21B202-352).
+        ///
+        /// <para><b>권위 쪽에서 부르면 안 된다</b> — 자기 스케줄을 지운다.
+        /// <see cref="Tick"/> 을 돌리는 기계와 이것을 부르는 기계는 서로 배타적이다.</para>
+        /// </summary>
+        public void ApplyNetworkPending(IReadOnlyList<PendingMeteorDrop> drops)
+        {
+            _pending.Clear();
+            if (drops == null) return;
+            for (var i = 0; i < drops.Count; i++) _pending.Add(drops[i]);
+        }
+
+        /// <summary>
+        /// 받은 예고의 남은 시간만 줄인다 (S15P21B202-352).
+        ///
+        /// <para>예고는 남은 시간 하나만 바뀌므로 매 틱 실어 보내기에는 아깝다(핫스팟
+        /// 업링크에서는 패킷 수가 비용이다). 목록이 <b>달라질 때만</b> 받고 그 사이는
+        /// 이 함수가 로컬에서 세어 원이 매끄럽게 줄어들게 한다.</para>
+        ///
+        /// <para><see cref="AdvancePending"/> 를 그대로 쓴다 — 그쪽은 <b>뺄셈과 목록 정리뿐</b>
+        /// 이고 스폰·난수·스케줄 전진이 없다(스폰은 <see cref="AdvanceSchedule"/> 안에 있다).
+        /// 갈림의 원인 셋이 다 그 밖에 있으므로 참가자가 불러도 안전하다.</para>
+        /// </summary>
+        public void AgeNetworkPending(float deltaTime) => AdvancePending(deltaTime);
+
+        // ── 네트워크에서 받은 낙하 그림 (S15P21B202-352) ──────────────────
+        //
+        // 예고 원만 받으면 참가자 화면에 **돌이 안 보인다** — 하늘에서 떨어지는 그림이
+        // 없고 바닥의 원만 깜빡인다("운석이 한쪽에서만 보인다", 2026-09-08 2대 실측).
+        //
+        // 참가자가 스스로 만들 수는 없다. 스폰은 AdvanceSchedule 안에 있고 그 난수
+        // 스트림은 로컬 세계 상태에 달려 갈린다(ApplyNetworkPending 의 주석). 그래서
+        // 호스트가 **지금 살아 있는 운석의 자세**를 실어 보내고 참가자는 그림만 띄운다.
+        //
+        // 그림은 판정에 관여하지 않는다: Meteor 컴포넌트를 끄고 충돌러를 모두 끈다.
+        // 그래서 Meteor.cs 를 한 줄도 안 고친다 — 꺼진 컴포넌트에는 OnCollisionEnter 도
+        // Tick 도 오지 않고, OnDisable 이 Meteor.All 에서 빼 준다.
+
+        /// <summary>
+        /// 살아 있는 운석 하나의 자세.
+        ///
+        /// <para><b>크기는 싣지 않는다</b> — <see cref="Meteor.SetSize"/> 는 충격 반경과
+        /// 힘만 바꾸고 그림 크기는 건드리지 않는다. 판정에 관여하지 않는 그림에는 그 둘이
+        /// 필요 없다.</para>
+        ///
+        /// <para><b>속도를 함께 싣는 이유.</b> 자세만 받아 보간하면 빠르게 떨어지는 물체는
+        /// 눈에 보이게 뒤처진다(초당 10m 를 20의 속도로 좇으면 정상 편차가 0.5m — 운석
+        /// 지름만큼이다). 속도를 한 번 맞춰 주면 다음 묶음이 올 때까지 <b>로컬 중력이
+        /// 정확히 같은 궤적</b>을 그린다. 보간으로 흉내내는 대신 물리에 맡긴다.</para>
+        /// </summary>
+        public struct NetworkMeteorPose
+        {
+            public Vector3 Position;
+            public Quaternion Rotation;
+            public Vector3 Velocity;
+        }
+
+        readonly List<Meteor> _ghosts = new();
+
+        /// <summary>참가자 화면에 떠 있는 낙하 그림. 권위 쪽에서는 항상 비어 있다.</summary>
+        public IReadOnlyList<Meteor> Ghosts => _ghosts;
+
+        /// <summary>
+        /// 호스트가 보낸 낙하 자세로 그림을 맞춘다 (S15P21B202-352).
+        ///
+        /// <para><b>권위 쪽에서 부르면 안 된다</b> — 자기 운석 위에 그림을 겹쳐 띄운다.
+        /// <see cref="Tick"/> 을 돌리는 기계와 이것을 부르는 기계는 서로 배타적이다.</para>
+        ///
+        /// <para>짝은 번호로 짓는다. 돌은 서로 구별되지 않으므로 어느 그림이 어느 운석인지는
+        /// 중요하지 않고 <b>몇 개가 어디에 있는지</b>가 중요하다 — 자세 목록처럼 순서가
+        /// 어긋나 남의 자리로 가는 사고가 여기서는 눈에 보이지 않는다.</para>
+        /// </summary>
+        public void ApplyNetworkMeteors(IReadOnlyList<NetworkMeteorPose> poses)
+        {
+            var n = poses != null ? poses.Count : 0;
+
+            while (_ghosts.Count > n)
+            {
+                var last = _ghosts.Count - 1;
+                if (_ghosts[last] != null) _ghosts[last].Despawn();
+                _ghosts.RemoveAt(last);
+            }
+            while (_ghosts.Count < n) _ghosts.Add(CreateGhost());
+
+            for (var i = 0; i < n; i++)
+            {
+                var ghost = _ghosts[i];
+                if (ghost == null) continue;
+
+                var body = ghost.GetComponent<Rigidbody>();
+                if (body != null)
+                {
+                    body.position = poses[i].Position;
+                    body.rotation = poses[i].Rotation;
+                    body.linearVelocity = poses[i].Velocity;
+                    continue;
+                }
+
+                ghost.transform.SetPositionAndRotation(poses[i].Position, poses[i].Rotation);
+            }
+        }
+
+        /// <summary>
+        /// 그림을 모두 지운다. 매치가 끝나면 씬에 남겨 두지 않는다 — 충돌러가 꺼져 있어
+        /// 남으면 지면을 뚫고 영원히 떨어진다.
+        ///
+        /// <para><see cref="Meteor.Despawn"/> 를 쓴다 — 이 파일의 다른 정리 경로와 같다.
+        /// 그쪽이 <c>Application.isPlaying</c> 을 갈라 에디터에서도 옳게 지우고
+        /// <c>Meteor.All</c> 에서도 빼 준다.</para>
+        /// </summary>
+        public void ClearNetworkMeteors()
+        {
+            for (var i = 0; i < _ghosts.Count; i++)
+                if (_ghosts[i] != null) _ghosts[i].Despawn();
+
+            _ghosts.Clear();
+        }
+
+        /// <summary>
+        /// 판정에 관여하지 않는 낙하 그림 하나. <see cref="_live"/> 에는 넣지 않는다 —
+        /// 그 목록은 권위 쪽의 것이고 <see cref="AdvanceLive"/> 가 틱한다.
+        ///
+        /// <para>낙하 꼬리는 그대로 나온다. <c>Meteor.Awake</c> 가 <c>EnsureTrail</c> 로
+        /// 만들고 방출을 끄는 곳은 착탄 처리(<c>StopTrail</c>)뿐이라, 컴포넌트를 꺼도 이미
+        /// 만들어진 <c>TrailRenderer</c> 는 계속 그린다 — 하늘에서 뭔가 떨어지는 것이
+        /// 보이는 데 이 꼬리가 큰 몫을 한다.</para>
+        /// </summary>
+        Meteor CreateGhost()
+        {
+            EnsureConfiguration();
+
+            var ghost = _meteorPrefab != null
+                ? Instantiate(_meteorPrefab)
+                : CreateFallbackMeteor(Vector3.zero);
+
+            ghost.ApplyTuning(_tuning);
+            ghost.name = "Meteor(원격 그림)";
+
+            // 끄는 것이 핵심이다. 꺼진 컴포넌트에는 충돌 통보도 틱도 오지 않는다.
+            ghost.enabled = false;
+
+            foreach (var collider in ghost.GetComponentsInChildren<Collider>(true))
+                collider.enabled = false;
+
+            var body = ghost.GetComponent<Rigidbody>();
+            if (body != null)
+            {
+                body.detectCollisions = false;
+                body.isKinematic = false;
+                body.useGravity = true;
+                body.interpolation = RigidbodyInterpolation.Interpolate;
+            }
+
+            return ghost;
+        }
+
+
         void AdvancePending(float deltaTime)
         {
             for (var i = _pending.Count - 1; i >= 0; i--)
