@@ -365,6 +365,42 @@ class GameWebSocketIntegrationTest {
         assertThat(host.await("ROOM_STATE").get("disconnected")).isEmpty();
     }
 
+    /**
+     * 재입장한 사람이 <b>어디로 붙어야 하는지</b> 다시 듣는다 (S15P21B202-150).
+     *
+     * <p>이것이 없어서 재접속이 성립하지 않았다 — 방에는 들어오는데 매치 주소를 못 들어
+     * 로비에 갇혔고, 게임이 이미 {@code PLAYING} 이라 시작 버튼도 비활성이었다.
+     */
+    @Test
+    void rejoiningPlayerGetsGameStartedSoItCanEnterTheMatch() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        String code = startedRoom(host, guest, "192.168.0.7:7777");
+        guest.close();
+        host.await("ROOM_STATE");
+
+        TestClient returning = connect("영희", "device-b");
+        returning.send("JOIN_ROOM", Map.of("roomId", code));
+
+        JsonNode started = returning.await("GAME_STARTED");
+        assertThat(started.get("roomId").asString()).isEqualTo(code);
+        assertThat(started.get("hostAddress").asString()).isEqualTo("192.168.0.7:7777");
+    }
+
+    /** 대기 중인 방에 일반 입장한 사람에게는 매치 접속 정보를 보내지 않는다. */
+    @Test
+    void joiningAWaitingRoomDoesNotSendGameStarted() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        String code = createRoom(host);
+
+        TestClient guest = connect("영희", "device-b");
+        guest.send("JOIN_ROOM", Map.of("roomId", code));
+
+        assertThat(guest.await("ROOM_STATE").get("status").asString()).isEqualTo("WAITING");
+        assertThatThrownBy(() -> guest.await("GAME_STARTED"))
+                .isInstanceOf(AssertionError.class);
+    }
+
     @Test
     void outsiderCannotJoinRoomThatIsAlreadyPlaying() throws Exception {
         TestClient host = connect("철수", "device-a");
@@ -446,6 +482,15 @@ class GameWebSocketIntegrationTest {
 
     /** 두 명이 들어와 준비를 마치고 게임이 시작된 방을 만든다. */
     private String startedRoom(TestClient host, TestClient guest) throws Exception {
+        return startedRoom(host, guest, "");
+    }
+
+    /**
+     * 방장 주소를 실어 시작한다. 재입장 때 그 값이 되돌아오는지 보려면 필요하다
+     * (S15P21B202-150).
+     */
+    private String startedRoom(TestClient host, TestClient guest, String hostAddress)
+            throws Exception {
         String code = createRoom(host);
         guest.send("JOIN_ROOM", Map.of("roomId", code));
         host.await("ROOM_STATE");
@@ -456,7 +501,9 @@ class GameWebSocketIntegrationTest {
         guest.send("READY", Map.of("ready", true));
         host.await("ROOM_STATE");
         guest.await("ROOM_STATE");
-        host.send("START_GAME", Map.of());
+        host.send("START_GAME", hostAddress.isBlank()
+                ? Map.of()
+                : Map.of("hostAddress", hostAddress));
         host.await("GAME_STARTED");
         guest.await("GAME_STARTED");
         return code;
