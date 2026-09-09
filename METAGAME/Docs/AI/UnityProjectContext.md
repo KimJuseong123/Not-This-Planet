@@ -4,10 +4,10 @@
 
 ## Project Summary
 
-- Latest feature change: the project now has an IMGUI lobby menu with looping MP4 background/fallback PNG, guest room flow, clipboard room-code copy, and fade/loading transitions into the Mirror game scene. The earlier URP 17.5.0 atmosphere and build-safety work remains in place.
+- Latest feature change: the project now has an IMGUI lobby menu with looping MP4 background/fallback PNG, guest room flow, clipboard room-code copy, fade/loading transitions into the Mirror game scene, and a local Main-scene Esc menu that reuses the full settings UI and returns to the Lobby title. The earlier URP 17.5.0 atmosphere and build-safety work remains in place.
 
 - Project root: `METAGAME/`
-- Last analyzed: 2026-09-04
+- Last analyzed: 2026-09-09
 - Last analyzed commit: `edeeaaf`; current working branch: `S15P21B202-288-ui`.
 - Latest structural change: the `Assets/SpaceFlop/` prototype tree was folded into the `Assets/_Project/` convention layout (folders, assemblies, namespaces, and hardcoded asset paths).
 
@@ -68,7 +68,7 @@
 | Pattern | Finding | Confidence | Evidence |
 | --- | --- | --- | --- |
 | Project maturity | The SpaceFlop physics-ragdoll prototype runs on URP with a reusable atmosphere layer and explicit build-time shader protection | Confirmed | `Assets/Settings/`, `Assets/_Project/Scripts/Runtime/Gameplay/World/Atmosphere/`, `Assets/_Project/Scripts/Editor/UrpRenderValidation.cs` |
-| Runtime architecture | Code-driven: one bootstrap component builds the runtime world; lobby bootstrap composes IMGUI menu and Spring/Mirror session flow with the scene's puzzle parts | Confirmed | `SpaceBootstrap.cs`, `LobbyBootstrap.cs`, `LobbyHud.cs`, `NetworkSession.cs` |
+| Runtime architecture | Code-driven: one bootstrap component builds the runtime world; lobby bootstrap composes IMGUI menu and Spring/Mirror session flow with the scene's puzzle parts; `GamePauseMenu` owns local Esc presentation and delegates settings to `LobbyHud` | Confirmed | `SpaceBootstrap.cs`, `GamePauseMenu.cs`, `LobbyBootstrap.cs`, `LobbyHud.cs`, `NetworkSession.cs` |
 | Assembly architecture | Core to Gameplay, Network and UI, then Bootstrap; Editor sits on top | Confirmed | First-party `.asmdef` files |
 | Editor architecture | `Metagame.Editor` build/scene/art tooling, URP setup, renderer-feature wiring, and pink-shader validation, plus the template `ReadmeEditor` | Confirmed | `Assets/_Project/Scripts/Editor/`, `Assets/TutorialInfo/Scripts/Editor/ReadmeEditor.cs` |
 
@@ -85,7 +85,7 @@
 - EditMode tests: Unity Test Framework suites exist under `Assets/_Project/Scripts/Tests/Editor/`; `AtmosphereProfileTests.cs` covers profile validation/default opt-in behavior. Lobby-specific behavior is currently intended for Play Mode/manual integration checks because it depends on `VideoPlayer`, scene loading, IMGUI, Mirror, and the live Spring WebSocket contract.
 - PlayMode tests: none; `Assets/_Project/Scripts/Tests/Runtime/` is still empty.
 - Runtime self-test: `SpaceSelfTest` feeds input straight into `PlayerRig.SetInput()` and asserts roughly 112 invariants. The Stage1 exploration flow additionally needs a Play Mode smoke test for Tab, proximity discovery, and tablet input lock. The current Windows-player run reached 110/112 checks; its 2 failures are unrelated existing light-box/crater-geometry checks.
-- CI/build validation: no CI configuration. `Metagame.EditorTools.SpaceBuild.BuildWindows` is callable via `-executeMethod` and invokes `UrpRenderValidation` before building; `Metagame.UI` and `Metagame.Bootstrap` static C# compilation passed with 0 errors for this change. A fresh Unity asset import/Windows build still needs the already-open Editor session to finish importing and acquire the project lock/license.
+- CI/build validation: no CI configuration. `Metagame.EditorTools.SpaceBuild.BuildWindows` is callable via `-executeMethod` and invokes `UrpRenderValidation` before building; the current static checks compiled `Metagame.Gameplay` and `Metagame.UI` with 0 errors, and the new `GamePauseMenu` source compiled against the generated Unity references with 0 errors. The generated `Metagame.Bootstrap.csproj` still reports pre-existing missing `MeteorClockBridge`/`NetDiagnostics` types in its generated Network reference set. A fresh Unity asset import/Windows build still needs the already-open Editor session to finish importing and acquire the project lock/license.
 
 ## Available Unity Tooling
 
@@ -111,12 +111,14 @@
 
 - Save design and supported release platforms are not established yet.
 - The multiplayer flow is a hybrid: Spring owns guest auth, room code, ready/start, and WebSocket state; Mirror owns the match scene and replicated gameplay. It is not a new backend protocol.
-- Settings is intentionally a notice-only menu item; no persistent settings screen is implemented yet.
+- Settings is implemented as a persistent local JSON-backed settings screen in the Lobby and is now reachable from the Main-scene Esc menu through the same preview/save/cancel flow.
 - The current Stage1 exploration state is local runtime state and is not network-replicated or persisted; supported release platforms are not established yet.
 
 ## Source Files Inspected
 
 - Updated `Assets/_Project/Scripts/Runtime/Gameplay/GameSession.cs`, `Assets/_Project/Scripts/Runtime/Bootstrap/SpaceBootstrap.cs`, `Assets/_Project/Scripts/Runtime/Core/Controls.cs`, and `Assets/_Project/Scripts/Runtime/UI/GameHud.cs` for Stage1 exploration composition, Tab input, tablet pause, and hints.
+- Added `Assets/_Project/Scripts/Runtime/UI/GamePauseMenu.cs` and updated `GameSession.cs`/`SpaceBootstrap.cs` for per-player Esc menu toggling, local input suppression without pausing world time, settings entry, and title return.
+- Updated `Assets/_Project/Scripts/Runtime/UI/LobbyHud.cs` to expose a settings-only reuse path and `Assets/_Project/Scripts/Runtime/UI/LobbyTransition.cs` to cleanly return to the Lobby scene from Main.
 - Added `Assets/_Project/Scripts/Runtime/UI/LobbyBackground.cs`, `Assets/_Project/Scripts/Runtime/UI/LobbyTransition.cs`, and the expanded `Assets/_Project/Scripts/Runtime/UI/LobbyHud.cs` for the looping lobby background, menu/room UI, hover styles, clipboard copy, and fade/loading flow.
 - Updated `Assets/_Project/Scripts/Runtime/Network/NetworkSession.cs` with lobby disconnect and client-only guest logout cleanup, and `Assets/_Project/Scripts/Runtime/Bootstrap/LobbyBootstrap.cs`/`Assets/Scenes/Lobby.unity` to connect the visual assets and defer Mirror startup through the transition overlay.
 - Added `Assets/_Project/UI/Not This Planet.png` and `Assets/_Project/UI/Not This Planet lobby motion.mp4` with Unity `.meta` files.

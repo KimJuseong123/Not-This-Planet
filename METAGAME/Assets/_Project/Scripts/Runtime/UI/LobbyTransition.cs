@@ -3,6 +3,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Metagame.Gameplay;
+using Metagame.Network;
 
 namespace Metagame.UI
 {
@@ -13,6 +14,7 @@ namespace Metagame.UI
     public sealed class LobbyTransition : MonoBehaviour
     {
         private const string GameSceneName = "Main";
+        private const string TitleSceneName = "Lobby";
         private const float FadeOutSeconds = 0.35f;
         private const float LoadingHoldSeconds = 0.80f;
         private const float FadeInSeconds = 0.45f;
@@ -60,6 +62,17 @@ namespace Metagame.UI
 
             busy = true;
             transitionRoutine = StartCoroutine(LoadSoloRoutine());
+            return true;
+        }
+
+        /// <summary>게임 씬에서 네트워크를 정리하고 로비 타이틀로 돌아간다.</summary>
+        public bool BeginTitle()
+        {
+            if (busy)
+                return false;
+
+            busy = true;
+            transitionRoutine = StartCoroutine(LoadTitleRoutine());
             return true;
         }
 
@@ -114,6 +127,47 @@ namespace Metagame.UI
             {
                 yield return FailRoutine("게임 씬 준비 시간이 초과되었습니다.");
                 yield break;
+            }
+
+            yield return FadeTo(0f, FadeInSeconds);
+            Finish();
+        }
+
+        private IEnumerator LoadTitleRoutine()
+        {
+            yield return FadeTo(1f, FadeOutSeconds);
+            yield return HoldLoading();
+
+            StopNetworkForTitle();
+
+            // Mirror의 offlineScene이 먼저 Lobby를 열 수 있으므로 잠시 기다린 뒤,
+            // 실제로 열리지 않은 경우에만 직접 로드한다.
+            float deadline = Time.unscaledTime + NetworkTimeoutSeconds;
+            while (!IsTitleSceneActive() && Time.unscaledTime < deadline)
+                yield return null;
+
+            if (!IsTitleSceneActive())
+            {
+                AsyncOperation load = null;
+                string loadError = null;
+                try
+                {
+                    load = SceneManager.LoadSceneAsync(TitleSceneName);
+                }
+                catch (Exception exception)
+                {
+                    loadError = "타이틀 씬을 열 수 없습니다: " + exception.Message;
+                }
+
+                if (!string.IsNullOrEmpty(loadError) || load == null)
+                {
+                    yield return FailRoutine(string.IsNullOrEmpty(loadError)
+                        ? "타이틀 씬을 열 수 없습니다." : loadError);
+                    yield break;
+                }
+
+                while (!load.isDone)
+                    yield return null;
             }
 
             yield return FadeTo(0f, FadeInSeconds);
@@ -187,6 +241,28 @@ namespace Metagame.UI
                 return false;
 
             return FindAnyObjectByType<GameSession>() != null;
+        }
+
+        private static bool IsTitleSceneActive()
+        {
+            return string.Equals(SceneManager.GetActiveScene().name, TitleSceneName,
+                                 StringComparison.Ordinal);
+        }
+
+        private static void StopNetworkForTitle()
+        {
+            var manager = Mirror.NetworkManager.singleton;
+            if (manager != null)
+            {
+                if (Mirror.NetworkServer.active && Mirror.NetworkClient.active)
+                    manager.StopHost();
+                else if (Mirror.NetworkClient.active)
+                    manager.StopClient();
+                else if (Mirror.NetworkServer.active)
+                    manager.StopServer();
+            }
+
+            NetworkSession.Instance?.DisconnectLobby();
         }
 
         private IEnumerator HoldLoading()

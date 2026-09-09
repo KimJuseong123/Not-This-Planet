@@ -58,6 +58,12 @@ namespace Metagame.Gameplay
         /// <summary>true 면 사람 입력을 읽지 않는다 (셀프테스트가 직접 넣는다).</summary>
         public bool ScriptedInput;
 
+        /// <summary>
+        /// 로컬 메뉴가 열렸을 때만 사람 입력을 잠시 막는다.
+        /// 세계 시간과 물리·운석 진행은 계속 흘러야 하므로 Time.timeScale을 바꾸지 않는다.
+        /// </summary>
+        public bool InputSuppressed { get; private set; }
+
         /// <summary>체크포인트 N 에 서 있을 때 화면에 뜨는 "지금 할 일".</summary>
         static readonly string[] Hints =
         {
@@ -91,6 +97,7 @@ namespace Metagame.Gameplay
             Falls = 0;
             Cleared = false;
             ProgressFromHost = false;   // 새 판은 로컬로 시작한다. 호스트 값이 오면 켜진다 (S15P21B202-54)
+            InputSuppressed = false;
             localPing.Clear();
             if (Exploration != null) Exploration.ResetRun();
             SetCursor(true);
@@ -107,6 +114,9 @@ namespace Metagame.Gameplay
             if (!Cleared && !ProgressFromHost) Elapsed += Time.deltaTime;
 
             if (Exploration != null) Exploration.Tick();
+
+            if (InputSuppressed)
+                return;
 
             if (!ScriptedInput)
             {
@@ -274,6 +284,14 @@ namespace Metagame.Gameplay
             Cursor.visible = !locked;
         }
 
+        /// <summary>로컬 메뉴가 열릴 때 플레이어의 다음 입력을 소비하지 않게 한다.</summary>
+        public void SetInputSuppressed(bool suppressed)
+        {
+            InputSuppressed = suppressed;
+            if (suppressed && LocalPlayer != null)
+                LocalPlayer.SetInput(new InputFrame());
+        }
+
         public void ReachCheckpoint(Checkpoint cp)
         {
             // 체크포인트도 호스트가 정한다 (S15P21B202-54). Checkpoint 의 트리거는
@@ -398,6 +416,7 @@ namespace Metagame.Gameplay
             Elapsed = 0f;
             Falls = 0;
             Cleared = false;
+            InputSuppressed = false;
             if (Exploration != null) Exploration.ResetRun();
             SetCursor(true);
             Respawn();
