@@ -55,7 +55,24 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 | `ANTHROPIC_API_KEY` | (대안) API 종량제로 AI 리뷰 — Team 플랜엔 포함되지 않음, 별도 콘솔·크레딧 필요 | — | cli 백엔드 사용 |
 | `MM_WEBHOOK_URL` | Mattermost 수신 웹훅 | MM 채널 → 통합 → 수신 웹훅 | `mm-digest` 생기지 않음 |
 | `CI_ENABLE` | 파이프라인 전체 게이트 | 러너 등록 직후 팀장이 `true` | 파이프라인이 생성되지 않음(의도) |
-| `UNITY_RUNNER`, `UNITY_PATH` | Unity 잡 게이트·경로 | Unity 러너 준비 시 | `unity-compile` 생기지 않음 |
+| `JIRA_RELEASE_WEBHOOK` | (선택) 릴리스 뒤 Jira 에 버전·이슈 목록을 보낸다(-327) | Jira 자동화 수신 웹훅 | Jira 릴리스 연동만 조용히 멈춤 |
+
+> ~~`UNITY_RUNNER`·`UNITY_PATH`~~ 행은 **지웠다**(-336). CI 가 그 값을 **읽는 곳이 없다** —
+> `.gitlab-ci.yml` 머리 주석과 러너 설치 안내문에만 남아 있었고, `unity-compile` 은
+> `tags: [linux]` 로 **EC2 도커 러너**에서 Unity 이미지로 돈다(-271).
+
+### ⚠ 이 변수들에 `protected` 를 걸면 안 된다 (S15P21B202-336)
+
+**MR 파이프라인은 `refs/merge-requests/N/head` 에서 돈다 — 보호 ref 가 아니다.**
+그래서 `protected` 변수는 MR 파이프라인에 **주입되지 않고**, 그 변수를 `rules` 에서
+읽는 잡은 **생성 자체가 안 된다.** 실패가 아니라 **조용한 부재**라 아무도 모른다.
+
+| 변수 | `protected` 를 걸면 |
+| --- | --- |
+| `MM_WEBHOOK_URL` | 🟢·🔴 카드가 **조용히 멈춘다**(잡이 안 만들어진다). 2026-09-08 에 실제로 걸려 있었다 |
+| `CI_ENABLE` | **파이프라인 자체가** 생성되지 않는다 |
+| `AI_REVIEW_CLI` | `ai-review` 가 사라진다 |
+| `JIRA_RELEASE_WEBHOOK` | **이것만 걸어도 된다** — 릴리스는 `master`(보호 ref)에서만 도므로 |
 
 토큰은 **CI 변수에만** 둔다 — 리포·문서·채팅 어디에도 적지 않는다. 프로젝트 액세스 토큰은 봇 사용자로 동작하므로 코멘트 작성자가 `project_…_bot` 으로 보인다(정상).
 

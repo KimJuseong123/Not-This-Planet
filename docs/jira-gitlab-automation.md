@@ -297,7 +297,6 @@ R4·R6·R5·R9 는 **모두 같은 하나의 입력**을 읽는다: Jira 가 Git
 | 패턴 | Allowed to push | Allowed to merge | Allowed to force push |
 | --- | --- | --- | --- |
 | `*` | **No one** | **No one** | off |
-| `S15P21B202-*` | Developers + Maintainers | No one | **on** |
 | `hotfix/S15P21B202-*` | Maintainers | No one | on |
 | `develop` | No one | **Maintainers** | off |
 | `master` | No one | Maintainers | off |

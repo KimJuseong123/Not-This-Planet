@@ -137,7 +137,6 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 | 패턴 | Allowed to push | Allowed to merge | Force push | 효과 |
 | --- | --- | --- | --- | --- |
 | `*` | **No one** | **No one** | off | 아래 규칙에 안 맞는 이름은 **생성·push·삭제 전부 거부** |
-| `S15P21B202-*` | Developers + Maintainers | No one | **on** | 이슈 키로 시작하는 작업 브랜치 생성·push 허용 |
 | `hotfix/S15P21B202-*` | Maintainers | No one | on | master 긴급 수정 |
 | `develop` | No one | **Maintainers** | off | MR로만, 팀장이 머지 |
 | `master` | No one | Maintainers | off | 릴리즈 MR만 |
