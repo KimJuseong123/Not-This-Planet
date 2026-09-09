@@ -417,6 +417,53 @@ build-backend:            # 백엔드 jar — MR 에서는 컴파일 검사, dev
     paths: ["backend/build/libs/*.jar"]
     expire_in: 3 days     # 60MB — 배포(-141)가 쓸 만큼만 남긴다
 
+# ── 임시 실측 (S15P21B202-302) — 다음 커밋에서 지운다 ──────────────────────
+# 완료 조건이 "GameWebSocketIntegrationTest 를 10회 연속 돌려 전부 통과" 다.
+# 로컬에 JDK·도커가 없어(재부팅 뒤 도커 데몬 꺼짐) 이슈가 실측한 환경과 같은
+# EC2 도커 러너에서 잰다. 회차별 결과를 세어 마지막에 요약한다.
+tmp-backend-flaky:
+  stage: test
+  image: eclipse-temurin:17-jdk
+  tags: [linux]
+  needs: []
+  timeout: 40m
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: ["backend/**/*", ".gitlab-ci.yml"]
+  variables:
+    GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
+    RUNS: "10"
+  cache:
+    key: gradle-backend
+    paths: [".gradle/caches/modules-2", ".gradle/wrapper"]
+  script:
+    - cd backend
+    - chmod +x ./gradlew
+    - PASS=0; FAIL=0; FAILED_NAMES=""
+    - |
+      for i in $(seq 1 "$RUNS"); do
+        echo "===== 회차 $i / $RUNS ====="
+        if ./gradlew --no-daemon --rerun-tasks test --tests '*GameWebSocketIntegrationTest*' > "/tmp/run-$i.log" 2>&1; then
+          PASS=$((PASS+1)); echo "회차 $i: 통과"
+        else
+          FAIL=$((FAIL+1)); echo "회차 $i: 실패"
+          # 어느 테스트가 떨어졌는지만 뽑는다 — 로그 전체는 아티팩트에 남는다
+          grep -E "^[A-Za-z].*(FAILED|> )" "/tmp/run-$i.log" | head -12 || true
+          NAMES=$(grep -oE "[a-zA-Z]+\(\) FAILED" "/tmp/run-$i.log" | sort -u | tr '\n' ' ')
+          echo "  실패한 테스트: ${NAMES:-(이름을 못 뽑았다 — 로그 확인)}"
+          FAILED_NAMES="$FAILED_NAMES $NAMES"
+        fi
+      done
+      echo "===== 요약: 통과 $PASS · 실패 $FAIL / $RUNS ====="
+      echo "실패한 테스트 전체: ${FAILED_NAMES:-없음}"
+      [ "$FAIL" -eq 0 ] || echo "❌ 10회 연속 통과가 아니다 — 통과 $PASS · 실패 $FAIL"
+  artifacts:
+    when: always
+    name: "backend-flaky-$CI_COMMIT_SHORT_SHA"
+    paths: ["backend/build/reports/tests/test"]
+    expire_in: 3 days
+  allow_failure: true     # 측정용이다. 이 잡이 MR 을 막지는 않는다.
+
 ai-review:                # 비차단. API 키(ANTHROPIC_API_KEY) 또는 러너 호스트의 로그인된 Claude Code CLI(AI_REVIEW_CLI=true) 중 하나 있을 때 생성
   stage: review           # 문서(docs/**, *.md)만 바뀐 MR 은 건너뜀 — 구독 사용량 절약, 문서는 팀장 리뷰로 충분
   needs: []
