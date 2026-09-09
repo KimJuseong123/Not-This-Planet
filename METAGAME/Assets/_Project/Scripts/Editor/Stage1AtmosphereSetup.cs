@@ -30,13 +30,8 @@ namespace Metagame.EditorTools
             if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
                 return;
 
-            // The storm profile references the generated, external-material debris prefabs.
-            // Build those first so this menu is also safe to run independently of the full setup.
-            Stage1EnvironmentAssets.Build();
-            var profile = EnsureProfileAsset();
-            ConfigureDustStorm(profile);
-            EditorUtility.SetDirty(profile);
-            AssetDatabase.SaveAssets();
+            var profile = PrepareProfileForBuild();
+            if (profile == null) return;
             var scene = EditorSceneManager.OpenScene(MainScenePath, OpenSceneMode.Single);
             var bootstrap = Object.FindAnyObjectByType<SpaceBootstrap>();
             if (bootstrap == null)
@@ -61,6 +56,23 @@ namespace Metagame.EditorTools
             EditorSceneManager.SaveScene(scene);
 
             Debug.Log("[Stage1Atmosphere] Stage1 프로필을 Main 씬에 연결했습니다: " + ProfilePath);
+        }
+
+        /// <summary>
+        /// Builds the external-material debris assets and repairs the Stage1 profile
+        /// references without opening or changing a scene. The Windows build calls this
+        /// so a clean checkout cannot serialize FBX model assets into GameObject fields.
+        /// </summary>
+        public static AtmosphereProfile PrepareProfileForBuild()
+        {
+            // The storm profile references the generated, external-material debris prefabs.
+            // Build those first so both the menu and the headless build use the same assets.
+            Stage1EnvironmentAssets.Build();
+            var profile = EnsureProfileAsset();
+            ConfigureDustStorm(profile);
+            EditorUtility.SetDirty(profile);
+            AssetDatabase.SaveAssets();
+            return profile;
         }
 
         static AtmosphereProfile EnsureProfileAsset()

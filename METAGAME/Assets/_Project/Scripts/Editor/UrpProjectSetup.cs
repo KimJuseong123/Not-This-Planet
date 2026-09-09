@@ -51,7 +51,9 @@ namespace Metagame.EditorTools
                 "SpaceFlop/PlanetNoFog",
                 "Metagame/Atmosphere/SkyGradient",
                 "Hidden/Metagame/Atmosphere/Haze",
-                "Metagame/Atmosphere/Meteor");
+                "Metagame/Atmosphere/Meteor",
+                "Metagame/Atmosphere/Dust",
+                "Metagame/Atmosphere/DustStormBoundary");
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();

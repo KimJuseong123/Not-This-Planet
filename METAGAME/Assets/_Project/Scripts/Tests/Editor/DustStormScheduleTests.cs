@@ -176,5 +176,59 @@ namespace Metagame.Gameplay.Tests
                 Object.DestroyImmediate(root);
             }
         }
+
+        [Test]
+        public void BuiltInDebrisMaterial_FallsBackToProjectSurface()
+        {
+            var root = new GameObject("Dust Storm Built-in Material Test");
+            var debris = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var builtInShader = Shader.Find("Standard");
+            Assume.That(builtInShader, Is.Not.Null,
+                "이 테스트 환경에는 Built-in Standard 셰이더가 없습니다.");
+            var builtInMaterial = new Material(builtInShader);
+            debris.GetComponent<Renderer>().sharedMaterial = builtInMaterial;
+            profile.dustStorm.largeDebrisPrefab = debris;
+
+            try
+            {
+                var storm = root.AddComponent<AtmosphereDustStorm>();
+                storm.Apply(profile);
+
+                var debrisRenderer = root.transform.Find("Dust Storm Debris Large")
+                    .GetComponent<ParticleSystemRenderer>();
+                Assert.IsNotNull(debrisRenderer.sharedMaterial);
+                Assert.AreNotEqual("Standard", debrisRenderer.sharedMaterial.shader.name);
+                Assert.AreNotEqual("Hidden/InternalErrorShader", debrisRenderer.sharedMaterial.shader.name);
+            }
+            finally
+            {
+                Object.DestroyImmediate(builtInMaterial);
+                Object.DestroyImmediate(debris);
+                Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
+        public void RuntimeAtmosphereParticleSystem_UsesItsExistingRenderer()
+        {
+            var root = new GameObject("Atmosphere Particle Renderer Test");
+            profile.dustGust.enabled = true;
+            profile.meteorShower.enabled = true;
+
+            try
+            {
+                root.AddComponent<AtmosphereDustGust>().Apply(profile);
+                root.AddComponent<AtmosphereMeteorShower>().Apply(profile);
+
+                var renderers = root.GetComponentsInChildren<ParticleSystemRenderer>(true);
+                Assert.That(renderers.Length, Is.EqualTo(2));
+                for (int i = 0; i < renderers.Length; i++)
+                    Assert.That(renderers[i].GetComponents<ParticleSystemRenderer>().Length, Is.EqualTo(1));
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+        }
     }
 }

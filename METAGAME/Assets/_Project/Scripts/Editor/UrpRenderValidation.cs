@@ -46,7 +46,9 @@ namespace Metagame.EditorTools
             "SpaceFlop/PlanetNoFog",
             "Metagame/Atmosphere/SkyGradient",
             "Hidden/Metagame/Atmosphere/Haze",
-            "Metagame/Atmosphere/Meteor"
+            "Metagame/Atmosphere/Meteor",
+            "Metagame/Atmosphere/Dust",
+            "Metagame/Atmosphere/DustStormBoundary"
         };
 
         [MenuItem("Metagame/Rendering/Validate URP Build Safety")]
@@ -300,7 +302,9 @@ namespace Metagame.EditorTools
                 "Universal Render Pipeline/Lit",
                 "Metagame/Atmosphere/SkyGradient",
                 "Hidden/Metagame/Atmosphere/Haze",
-                "Metagame/Atmosphere/Meteor"
+                "Metagame/Atmosphere/Meteor",
+                "Metagame/Atmosphere/Dust",
+                "Metagame/Atmosphere/DustStormBoundary"
             };
 
             foreach (string shaderName in shaderNames)
