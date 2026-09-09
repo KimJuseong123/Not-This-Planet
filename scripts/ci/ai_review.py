@@ -178,8 +178,11 @@ def skipped_note(skipped: list[tuple[str, str]]) -> str:
     out = f"리뷰 대상 외 {len(skipped)}개 — {listed}"
     if missing_code:
         # 문서·에셋이 빠지는 것과 무게가 다르다. 판정 근거가 반쪽이라는 뜻이므로 크게 적는다.
+        # 이름은 3개까지만 싣는다(각주가 길어지면 안 읽힌다). 나머지가 몇 개인지는
+        # 반드시 적는다 — 전에는 맨 " 외" 여서 얼마나 더 가려졌는지 알 수 없었다.
+        more = f" 외 {len(missing_code) - 3}개" if len(missing_code) > 3 else ""
         out = (f"⚠ **코드 파일 {len(missing_code)}개가 리뷰 입력에서 빠졌다** "
-               f"({', '.join(missing_code[:3])}{' 외' if len(missing_code) > 3 else ''}) — "
+               f"({', '.join(missing_code[:3])}{more}) — "
                f"이 리뷰의 판정은 그만큼 근거가 부족하다. " + out)
     return out
 

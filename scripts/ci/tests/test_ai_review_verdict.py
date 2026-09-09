@@ -187,6 +187,7 @@ _many = [(f"docs/d{i}.md", "예산 초과") for i in range(8)] + [
 _note6 = A.skipped_note(_many)
 _head = _note6.split("리뷰 대상 외")[0]           # 앞머리 경고
 _list = _note6.split("리뷰 대상 외", 1)[1]        # 목록
+assert "scripts/ci/late.py" in _head, "앞머리에 코드 파일 이름이 없다: " + _note6
 assert "scripts/ci/late.py" in _list, "코드 파일이 목록에서 잘려 나갔다: " + _note6
 assert "METAGAME/Runtime/Late.cs" in _list, "코드 파일이 목록에서 잘려 나갔다: " + _note6
 assert "외 4개" in _list, "잘림 상한 6개가 유지돼야 한다: " + _note6
@@ -194,6 +195,14 @@ assert _note6.startswith("⚠ **코드 파일 2개"), _note6
 # 같은 부류 안에서는 받은 순서를 지킨다 — 문서 8개 중 앞의 것부터 남는다
 assert "docs/d0.md" in _list and "docs/d7.md" not in _list, _note6
 print("  목록이 잘려도 코드 파일이 먼저 남는다 ✅")
+
+# 코드 파일이 앞머리 상한(3개)을 넘으면 **몇 개가 더 가려졌는지** 적는다.
+# 전에는 맨 " 외" 여서 나머지가 1개인지 20개인지 알 수 없었다 (S15P21B202-365)
+_five = [(f"scripts/ci/c{i}.py", "GitLab 이 접었다") for i in range(5)]
+_note5 = A.skipped_note(_five)
+assert _note5.startswith("⚠ **코드 파일 5개"), _note5
+assert "외 2개" in _note5.split("리뷰 대상 외")[0], "앞머리에 남은 개수가 없다: " + _note5
+print("  앞머리가 가려진 코드 파일 개수를 적는다 ✅")
 
 # ⑤ **회귀 방지** — access_raw_diffs 가 빠지면 GitLab 이 큰 diff 를 접어 보낸다.
 #    2026-08-27 부터 있던 것을 내가 "없다" 고 잘못 진단했다. 그 착각을 막는다.
