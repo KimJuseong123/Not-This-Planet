@@ -49,7 +49,7 @@
 | --- | --- | --- | --- |
 | **A. MR** (`merge_request_event`) | MR 이 열리거나 소스 브랜치에 push | §2-A 전부 (조건부: `ci-tests` `unity-compile` `build-backend` `ai-review`) | 새 push 가 앞 파이프라인을 자동 취소한다(정상) |
 | **B. develop push** | 팀장이 MR 을 머지한 직후 | `retarget-pipelines` · `unity-compile`(METAGAME 변경) · `build-backend` → `deploy-backend`(backend 변경, **수동**) | **자동 취소 없음**(`auto_cancel: none`, -309) — 연달아 머지돼도 배포 버튼이 사라지지 않는다 |
-| **C. 스케줄** | 매일 09:30 KST (id 24, `30 9 * * *`, ref develop) — 실제 발송 09:33 | `ci-tests` · `retarget-pipelines` · `mm-digest` | 카드는 항목이 있을 때만 나간다 |
+| **C. 스케줄** | **평일** 09:30 KST (id 28, `30 9 * * 1-5`, ref develop) — 실제 발송 09:33 | `ci-tests` · `retarget-pipelines` · `mm-digest` | 카드는 항목이 있을 때만 나간다 |
 | **D. master push** | 팀장이 `release/<키>-vX.Y.Z` 브랜치(또는 hotfix)를 master 에 머지한 직후 | `release-windows` | **릴리스 = 자동**: 버전 → Windows 빌드 → 패키지 → GitLab Release(태그) → MM. 자동 취소 없음(-326) |
 
 전부 `CI_ENABLE=true` 변수가 있어야 **파이프라인 자체가 생성**된다(없으면 조용히 0건 — §7).
@@ -84,7 +84,7 @@
 | `retarget-pipelines` | 항상 (+ 스케줄) | 부모 브랜치 삭제로 develop 에 **자동 재대상된 자식 MR** 을 찾아 파이프라인을 만든다 — GitLab 이 그때 안 만들기 때문(-295). 그 파이프라인에서 `stack-order` 가 통과하며 🔒 스레드를 해소한다 | 비차단 |
 | `unity-compile` | `METAGAME/**` 변경 | 개별 MR 은 통과했는데 합쳐서 깨지는 경우를 2분 안에 잡는다(MR 에서 합친 결과를 검사하게 된 `-342` 뒤에도 안전망으로 남긴다). 이 결과가 다음 MR 들의 **기준선**이 된다. **주의 — 여기서 실패해도 MM 알림이 없다**: `mm-ci-failed` 가 `merge_request_event` 에서만 돈다(`-344`) | 경고(기준선용) |
 | `build-backend` | `backend/**` · `.gitlab-ci.yml` 변경 | 배포용 jar 아티팩트 | 실패 |
-| `deploy-backend` | 위와 같음 · `needs: build-backend` · **`when: manual`** · `tags: [deploy]` · `interruptible: false` · `environment: production` | jar 을 `/spool` 에 원자적으로 놓고 `RELEASE` 표시 → 호스트 `deploy.sh` 가 교체·헬스체크(`POST /auth/guest` 200)·실패 시 **직전 jar 로 롤백**(3개 보관) → 잡은 `STATUS` 에 자기 sha 가 찍힐 때까지 기다림(최대 420초) → MM 🟢 배포 완료 / 🔴 롤백 / 🔴 무응답 | 실패 → MM 🔴(Infra 멘션) |
+| `deploy-backend` | 위와 같음 · `needs: build-backend` · **`when: manual`** · `tags: [deploy]` · `interruptible: false` · `environment: production` · **옛 파이프라인의 버튼을 누르면 경고**(-333) | jar 을 `/spool` 에 원자적으로 놓고 `RELEASE` 표시 → 호스트 `deploy.sh` 가 교체·헬스체크(`POST /auth/guest` 200)·실패 시 **직전 jar 로 롤백**(3개 보관) → 잡은 `STATUS` 에 자기 sha 가 찍힐 때까지 기다림(최대 420초) → MM 🟢 배포 완료 / 🔴 롤백 / 🔴 무응답 | 실패 → MM 🔴(Infra 멘션) |
 
 **왜 수동인가**: 서버 한 대가 테스트 서버이자 시연 서버라 재시작이 WebSocket 세션을 전부 끊는다. dev/prod 가 갈리면(-284) dev 만 자동으로 바꾼다.
 
@@ -118,7 +118,7 @@
 | Squash commits | 기본 켜짐(선택 가능) | **릴리즈 MR(→ master)은 해제** — 켜진 채 머지하면 이후 모든 릴리즈가 충돌한다. `mr-title` 이 master 대상 MR 의 squash 를 자동으로 끄고 `mr-lint` 가 확인한다(-325) |
 | Merge method | merge commit | |
 | 소스 브랜치 삭제 | 기본 켜짐 | 머지되면 브랜치가 사라진다 → 후속은 새 이슈·새 브랜치 |
-| 보호 브랜치 | `master` push No one / merge Maintainers · `develop` push **Maintainers** / merge Maintainers · `hotfix/S15P21B202-*` push Maintainers / merge No one | develop 이 문서(git-convention §6 "No one")와 **다르다** — 팀장 직접 push 가 가능한 상태 |
+| 보호 브랜치 | `master` push **No one** / merge Maintainers · `develop` push **No one** / merge Maintainers · `hotfix/S15P21B202-*` push Maintainers / merge No one / force push 허용 | **2026-09-09 API 실측** (`protected_branches`). 규칙은 **이 셋뿐**이다 — `S15P21B202-*` 작업 브랜치 보호는 2026-08-27 해제됐다(git-convention §6). develop 이 문서와 어긋나 있던 것은 해소됐다 |
 
 머지를 막는 잡: `mr-lint` · `mr-overlap`(나중 MR 텍스트 충돌) · `stack-order` · `repo-hygiene` · `ci-tests` · `unity-compile`(종료 1) · `build-backend`.
 막지 않는 잡: `mr-title` · `mm-*` · `ai-review` · `retarget-pipelines` · `unity-compile`(종료 2).
@@ -217,13 +217,11 @@ MR 하나에 붙을 수 있는 봇 코멘트: `mr-lint` ⚠ · `mr-overlap` · `
 
 | 무엇 | 상태 |
 | --- | --- |
-| develop 보호가 push **Maintainers** — 문서는 No one | 팀장 설정 1분. 그동안 develop 직접 push 가 가능하다(검사 0건으로 들어간다) |
 | 릴리스 파이프라인 **첫 실측 전** | `release-windows`(-326)는 들어갔지만 실제 릴리스는 아직 0회 — 첫 릴리스에서 빌드 시간·zip 크기·패키지 업로드 상한을 실측해 records/-326 §4 에 적는다 |
 | ~~Jira R6·R7 정규식이 `release/` 를 모른다~~ | **2026-09-07 해결** — 3곳을 `^(?:hotfix/\|release/)?` 로 바꿨다(부록 A 방식, PUT 200 확인). 첫 실전 확인은 릴리스 MR 머지 때 R6 가 그 이슈를 완료시키는지 |
 | ~~Jira 릴리스 fixVersion(-327)~~ | **2026-09-07 규칙 R10 완성**(부록 A 방식). 남은 것은 CI 변수 `JIRA_RELEASE_WEBHOOK` 과 첫 릴리스에서 Jira 릴리스 화면 확인 |
 | `build-backend` 가 테스트를 안 돈다 | -302. 플래키 원인(-313)이 배포됐으니 `test bootJar` + junit 으로 |
 | `metagame.service`(데디케이티드 서버) 가 아직 돈다 | 리슨 서버 + 릴레이 전환 뒤 사용 여부 확인 |
 | `deploy-backend` 가 수동 · dev/prod 미분리 | -284. 보안그룹 답(dev 포트) 대기 |
-| `.gitlab-ci.yml` 머리 주석의 `UNITY_RUNNER`/`UNITY_PATH`, 47행 "내 PC 로 간다" | 낡음. 다음 `.gitlab-ci.yml` 수정 때 정리 |
 | Unity 라이선스 만료 10-09 · Claude 리프레시 토큰 만료 09-30 | 사람이 갱신·재로그인. 후자는 3일 전부터 알림 |
 | 봇 코멘트 최대 6종 | 합칠지 결정 남음 |

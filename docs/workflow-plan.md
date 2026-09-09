@@ -134,10 +134,13 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 
 ### 2.5 GitLab 보호 브랜치 규칙 — 서버 측 이름 강제 ✅ (부록 B)
 
+> 아래 표는 **해제 전(2026-08-26 ~ 08-27 오전)** 설정 기록이다. 2026-09-09 실측으로 현재
+> 규칙은 `master`·`develop`·`hotfix/S15P21B202-*` **셋뿐**이다 — `*` 규칙은 없다
+> (근거는 `ci-cd-pipeline.md` §8). 바로 아래 "비용" 항이 그 삭제를 설명한다.
+
 | 패턴 | Allowed to push | Allowed to merge | Force push | 효과 |
 | --- | --- | --- | --- | --- |
 | `*` | **No one** | **No one** | off | 아래 규칙에 안 맞는 이름은 **생성·push·삭제 전부 거부** |
-| `S15P21B202-*` | Developers + Maintainers | No one | **on** | 이슈 키로 시작하는 작업 브랜치 생성·push 허용 |
 | `hotfix/S15P21B202-*` | Maintainers | No one | on | master 긴급 수정 |
 | `develop` | No one | **Maintainers** | off | MR로만, 팀장이 머지 |
 | `master` | No one | Maintainers | off | 릴리즈 MR만 |
@@ -285,6 +288,9 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 ## 부록 A · Jira Automation 규칙 명세 (한도 절약형 — 트리거 1개에 액션 묶음)
 
 > ⚠️ 아래는 **v1.0 확정 당시의 설계안**이다. 실제로 적용된 규칙의 현재 명세는 [jira-gitlab-automation.md §2](./jira-gitlab-automation.md) 가 단일 출처다. 특히 파트 태그는 그 뒤 **13종**으로 늘었고(2026-08-27), R1 의 보고자 액션은 폐기됐고, R2 에는 상위 Epic 필수 검사가 붙었다.
+> 그 뒤 **R4 에 `has-branch` 라벨 추가와 스프린트 자동 추가 블록**이 붙었고, **R5·R9 에는
+> `automation-missed` override 가드**가 붙었다(2026-09-09 실측). 규칙 전문은
+> [records/S15P21B202-336-jira-rules-2026-09-09.md](./records/S15P21B202-336-jira-rules-2026-09-09.md).
 
 | # | 이름 | 트리거 | 조건 | 액션 | 실행 카운트 |
 | --- | --- | --- | --- | --- | --- |

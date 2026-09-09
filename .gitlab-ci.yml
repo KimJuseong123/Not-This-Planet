@@ -14,7 +14,6 @@
 #   MM_WEBHOOK_URL              : Mattermost 수신 웹훅 — mm-digest 용 — masked
 #   JIRA_RELEASE_WEBHOOK        : (선택, S15P21B202-327) Jira 자동화 수신 웹훅 — 릴리스 뒤 버전·이슈 목록을 보낸다 — masked·protected
 #   CI_ENABLE=true              : 러너 등록 후 켬 — 없으면 파이프라인 자체가 생성되지 않음
-#   UNITY_RUNNER=true, UNITY_PATH : Unity 설치 Windows 러너(tag unity-win) 준비 후
 
 workflow:
   rules:
@@ -50,7 +49,8 @@ default:
   image: python:3.12
   # 모든 잡을 EC2 러너(태그 linux)로 고정한다. 두 러너가 태그 없이 돌던 동안 잡이 양쪽으로 갈려
   # ① 내 PC 를 꺼면 절반이 멈추고 ② 러너에 따라 환경이 달라졌다(-214 의 git 문제).
-  # unity-compile 만 tags: [unity-win] 으로 덮어써 내 PC 로 간다.
+  # unity-compile 도 여기서 돈다 — image 로 Unity 이미지를 쓰고 tags 는 linux 다(-271).
+  # 예전 주석은 "tags: [unity-win] 으로 덮어써 내 PC 로 간다" 였는데 그 덮어쓰기는 없어졌다.
   # EC2 장애 시: 팀장이 내 PC 러너에 linux 태그를 추가하면 즉시 예비 투입(docs/ci-and-notifications.md §4).
   tags: [linux]
   interruptible: true
