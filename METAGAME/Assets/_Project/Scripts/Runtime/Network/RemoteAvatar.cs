@@ -16,6 +16,11 @@ namespace Metagame.Network
     ///
     /// 물리는 서버가 돈다(S15P21B202-145). 여기 있는 몸은 판정에 관여하지 않는
     /// 그림일 뿐이라 충돌을 모두 끊고 RemotePlayer 레이어로 옮긴다.
+    ///
+    /// <para><b>내 몸은 예외다</b>(S15P21B202-363). 참가자도 자기 캐릭터는 로컬 물리로
+    /// 즉시 돌린다(정책 P1) — 그래서 <c>mine</c> 이면 위의 개조를 <b>하나도 하지 않고</b>
+    /// 서버 자세와의 오차만 <see cref="AddCorrection"/> 으로 조금씩 갚는다. 남의 몸에만
+    /// 위의 설명이 그대로 적용된다. <c>docs/network-sync-policy.md</c></para>
     /// </summary>
     public sealed class RemoteAvatar : MonoBehaviour
     {
@@ -53,8 +58,9 @@ namespace Metagame.Network
         /// 위치를 넣어 주는 네트워크 오브젝트(NetPlayer)의 Transform 이다.
         /// </summary>
         /// <param name="mine">
-        /// 내 캐릭터인가. 내 것이어도 물리는 서버가 돌리므로 하는 일은 같지만,
-        /// 카메라가 붙어 있어 1인칭 표시(<see cref="PlayerRig.IsLocal"/>)는 남겨 둔다.
+        /// 내 캐릭터인가. <b>내 것이면 개조하지 않는다</b> — 로컬 물리가 계속 돌아 입력이
+        /// 즉시 반영되고(P1), 서버 자세와의 오차만 조금씩 갚는다(S15P21B202-363).
+        /// 남의 것이면 서버 자세를 끌고 다니는 그림으로 바꾼다.
         /// </param>
         public static RemoteAvatar Attach(PlayerRig rig, Transform source, bool mine = false)
         {
@@ -80,18 +86,29 @@ namespace Metagame.Network
 
         void Configure()
         {
+            // ── 내 몸은 개조하지 않는다 (S15P21B202-363, P1) ──────────────
+            //
+            // 아래의 개조는 **남의 몸을 서버 자세로 끌고 다니기 위한 것**이다. 내 몸에
+            // 그것을 하면 로컬 물리가 돌 수 없다 — `Balance` 조인트가 없어 인형이 서지
+            // 못하고, 충돌이 꺼져 땅에 닿지 않고, 골반이 kinematic 이라 힘을 받지 않는다.
+            //
+            // 그래서 내 몸은 **그대로 둔다.** `PlayerRig` 가 계속 돌아 내 입력이 즉시
+            // 반영되고, 서버 자세와의 오차는 `AddCorrection` 으로 부드럽게 얹는다.
+            // 참가자 쪽 입력 지연 ~166ms 의 대부분이 여기서 없어진다.
+            if (mine)
+            {
+                // 카메라 스무딩만 낮춘다. 예측이 들어와 이제 표시가 한 겹 덜 다듬어지므로
+                // 기본값(62ms)을 그대로 두면 더해지는 것은 지연뿐이다.
+                if (rig.Cam != null) rig.Cam.FocusSmoothing = NetworkFocusSmoothing;
+                return;
+            }
+
             // 조종 로직을 멈춘다. PlayerRig 는 매 물리 스텝마다 힘을 넣는데,
             // 그대로 두면 서버가 보낸 위치와 계속 싸운다.
             rig.enabled = false;
             if (rig.ClampInteractor != null) rig.ClampInteractor.enabled = false;
             rig.NetworkDriven = true;
-            if (!mine) rig.IsLocal = false;
-
-            // 내 카메라가 좇는 몸은 여기 닿기까지 이미 두 번 다듬어졌다 — 서버가 보낸
-            // 자세를 Mirror 의 스냅샷 보간이 잇고, 골반 강체가 물리 스텝 사이를 또 잇는다.
-            // 그 위에 카메라의 기본 스무딩(62ms)까지 얹으면 더해지는 것은 부드러움이
-            // 아니라 지연뿐이다. 2026-09-08 2대 PC 실측에서 참가자 쪽 랙의 한 겹이었다.
-            if (mine && rig.Cam != null) rig.Cam.FocusSmoothing = NetworkFocusSmoothing;
+            rig.IsLocal = false;
 
             // 골반을 세계에 붙들어 인형을 세우는 조인트다. 골반을 우리가 직접
             // 옮길 것이므로 남겨 두면 서로 잡아당긴다.
@@ -166,6 +183,29 @@ namespace Metagame.Network
             JointTools.SetDrive(joint, JointSpring, JointDamper);
         }
 
+        // ── 내 몸의 오차 갚기 (S15P21B202-363) ──────────────────────────
+
+        Vector3 correction;
+
+        /// <summary>서버가 알려 준 오차를 쌓는다. 갚는 것은 물리 스텝에서 조금씩 한다.</summary>
+        public void AddCorrection(Vector3 error)
+        {
+            // 덧붙이지 않고 **덮어쓴다.** 오차는 누적량이 아니라 "지금 얼마나 벌어져
+            // 있나" 이고, 새 소식이 옛 소식을 대체한다. 더하면 같은 오차를 여러 번 갚아
+            // 지나쳐 버린다.
+            correction = error;
+        }
+
+        /// <summary>스냅했으니 갚을 것이 없다.</summary>
+        public void ClearCorrection() => correction = Vector3.zero;
+
+        /// <summary>남은 오차의 일부를 갚는다. 힘이 아니라 위치로 옮긴다 — 오차는 물리가 아니다.</summary>
+        void Converge()
+        {
+            Vector3 step = PredictionCorrection.Step(correction, out correction);
+            if (step != Vector3.zero) doll.Hips.position += step;
+        }
+
         void FixedUpdate() => Follow();
 
         /// <summary>
@@ -179,6 +219,13 @@ namespace Metagame.Network
         public void Follow()
         {
             if (source == null || doll == null || doll.Hips == null) return;
+
+            // 내 몸은 로컬 물리가 돌린다. 여기서는 서버와의 **오차만** 조금씩 갚는다.
+            if (mine)
+            {
+                Converge();
+                return;
+            }
 
             ApplyArmPose(doll.Left, leftArmIntent);
             ApplyArmPose(doll.Right, rightArmIntent);

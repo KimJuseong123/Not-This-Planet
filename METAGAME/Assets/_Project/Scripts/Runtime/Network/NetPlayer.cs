@@ -29,6 +29,42 @@ namespace Metagame.Network
         /// </summary>
         const float SendInterval = 1f / 20f;
 
+        // ── 내 캐릭터 예측 (P1) · S15P21B202-363 ────────────────────────
+        //
+        // 참가자는 자기 캐릭터조차 서버가 보낸 과거 자세를 보간해 그렸다. 그래서 왕복
+        // 78ms + 보간 버퍼 83ms 가 **둘 다 내 몸에** 붙어 점프가 ~166ms 늦게 보였다
+        // (2026-09-09 3인 QA 실측). 이제 참가자도 자기 몸은 로컬 물리로 즉시 돌리고,
+        // 서버 자세와의 **오차만 부드럽게 얹는다**(되감기·재시뮬레이션은 하지 않는다 —
+        // 래그돌 전체 상태를 저장·복원해야 하고, 우리는 판정이 없어 그만한 정확도가
+        // 필요하지 않다. docs/network-sync-policy.md §2).
+
+        /// <summary>서버가 "여기까지 적용했다" 를 돌려주는 주기. 매 물리 스텝(100Hz)일 이유가 없다.</summary>
+        const float EchoInterval = 1f / 30f;
+
+        /// <summary>보낸 입력의 자세를 몇 개까지 기억하나. 30Hz 로 왕복 2초분이면 넉넉하다.</summary>
+        const int HistorySize = 64;
+
+        /// <summary>
+        /// 이보다 멀어지면 부드럽게 좁히지 않고 그 자리로 옮긴다. 리스폰·순간이동·탑승처럼
+        /// 물리로 이어질 수 없는 이동이 있어서다. 부드럽게 좁히려 하면 벽을 뚫고 기어간다.
+        /// </summary>
+        const float PredictionSnapDistance = 3f;
+
+        /// <summary>보낸 입력의 순번과 그때 내 골반이 있던 자리.</summary>
+        struct SentPose
+        {
+            public uint Seq;
+            public Vector3 Position;
+        }
+
+        readonly SentPose[] history = new SentPose[HistorySize];
+        int historyCount;
+        uint nextSeq;
+
+        /// <summary>서버가 마지막으로 적용한 입력의 순번. 그 결과 자세와 함께 돌려준다.</summary>
+        uint appliedSeq;
+        float echoTimer;
+
         /// 서버가 정하고 모두에게 전달된다. 접속을 확인할 때 Spring 이 알려 준 값이다.
         [SyncVar(hook = nameof(OnIdentityChanged))]
         public string nickname = string.Empty;
@@ -285,6 +321,17 @@ namespace Metagame.Network
                 }
             }
 
+            // **먼저 돌려준다** (S15P21B202-363). 지금 골반 자세는 `직전에 적용한 입력`
+            // 까지의 결과다 — 이번 입력은 아래에서 넣고 물리는 그 뒤에 돈다. 그래서
+            // 짝지을 순번은 `appliedSeq`(직전 것)이고, 이 순서를 바꾸면 한 스텝씩 어긋난다.
+            echoTimer += Time.fixedDeltaTime;
+            if (echoTimer >= EchoInterval && appliedSeq != 0 && !IsHostOwnPlayer
+                && body.Hips != null)
+            {
+                echoTimer = 0f;
+                TargetEcho(appliedSeq, body.Hips.position);
+            }
+
             // 방장 자신의 몸은 게임 씬(GameSession)이 매 프레임 직접 입력을 넣는다.
             // 그 몸에 pending 을 덮어쓰면 안 된다 — Update 가 body.CurrentInput 을 읽어
             // 다시 보내므로 "내가 쓴 값을 내가 되읽는" 고리가 생기고, 입력이 처음 값에서
@@ -328,6 +375,9 @@ namespace Metagame.Network
 
             // 넘겨받은 몸(방장 자신)에는 넣지 않는다 — 위에서 적은 고리 때문이다.
             if (!adoptedBody) body.SetInput(frame);
+
+            // 이번에 적용한 순번을 기억한다. 다음 스텝의 echo 가 이 값을 쓴다.
+            if (frame.Seq != 0) appliedSeq = frame.Seq;
 
             HandlePing(frame);
 
@@ -509,10 +559,68 @@ namespace Metagame.Network
                 Debug.Log($"[NetPlayer] 입력 전송 시작 · {nickname}(userId={userId}) · " +
                           $"isServer={isServer} isLocalPlayer={isLocalPlayer}");
 
+            // 순번을 붙이고 **그때 내 골반이 있던 자리를 적어 둔다** (S15P21B202-363).
+            // 서버가 이 순번의 결과를 돌려주면 이 자리와 견주어 오차를 뽑는다.
+            // 방장 자신의 몸은 서버가 곧 정답이라 필요 없다.
+            if (!isServer)
+            {
+                now.Seq = ++nextSeq;
+                Remember(now.Seq, body.Hips != null ? body.Hips.position : transform.position);
+            }
+
             CmdSendInput(now);
             lastSent = now;
             everSent = true;
             sendTimer = 0f;
+        }
+
+        /// <summary>보낸 순번과 그때의 자세를 고리 버퍼에 적는다.</summary>
+        void Remember(uint seq, Vector3 position)
+        {
+            history[historyCount % HistorySize] = new SentPose { Seq = seq, Position = position };
+            historyCount++;
+        }
+
+        /// <summary>그 순번을 보낼 때 내가 있던 자리. 너무 오래돼 밀려났으면 거짓.</summary>
+        bool TryRecall(uint seq, out Vector3 position)
+        {
+            int have = Mathf.Min(historyCount, HistorySize);
+            for (int i = 0; i < have; i++)
+            {
+                if (history[i].Seq != seq) continue;
+                position = history[i].Position;
+                return true;
+            }
+            position = Vector3.zero;
+            return false;
+        }
+
+        /// <summary>
+        /// 서버가 "순번 <paramref name="seq"/> 까지 적용한 결과는 이 자세다" 를 소유자에게만
+        /// 돌려준다. 신뢰 없는 채널이다 — 하나 빠져도 다음 것이 오고, 신뢰 채널에 실으면
+        /// 재전송 대기가 지연으로 쌓인다(S15P21B202-328 에서 겪은 것과 같은 종류).
+        /// </summary>
+        [TargetRpc(channel = Channels.Unreliable)]
+        void TargetEcho(uint seq, Vector3 position)
+        {
+            // 방장은 자기가 정답이라 보정할 것이 없다. 원격 아바타도 이 경로를 타지 않는다.
+            if (isServer || !isLocalPlayer) return;
+            if (seq == 0 || remoteAvatar == null || body == null) return;
+
+            // 오차는 **같은 순번끼리** 견줘야 한다. 지금 자세와 견주면 왕복 시간만큼
+            // 뒤로 끌린다 — 가만히 서 있어도 계속 뒤로 밀린다.
+            if (!TryRecall(seq, out Vector3 mine)) return;
+
+            Vector3 error = position - mine;
+            if (error.sqrMagnitude > PredictionSnapDistance * PredictionSnapDistance)
+            {
+                // 물리로 이어질 수 없는 이동이다(리스폰·순간이동). 그 자리로 옮긴다.
+                body.Doll?.Teleport(position, body.Hips != null ? body.Hips.rotation : transform.rotation);
+                remoteAvatar.ClearCorrection();
+                return;
+            }
+
+            remoteAvatar.AddCorrection(error);
         }
 
         /// <summary>
