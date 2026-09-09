@@ -34,6 +34,18 @@ namespace Metagame.Gameplay
         public float ClearTime { get; private set; }
         public float Elapsed { get; private set; }
         public int Falls { get; private set; }
+
+        /// <summary>
+        /// 진행도를 호스트가 정하는가 (S15P21B202-54).
+        ///
+        /// <para>멀티플레이에서 판의 진행도(경과 시간·클리어·체크포인트)는 <b>호스트 하나만</b>
+        /// 정한다. 참가자가 각자 세면 같은 판인데 기록이 사람마다 달라진다.</para>
+        ///
+        /// <para>혼자 할 때는 <c>false</c> 다 — 네트워크가 없으면 이 값을 켜는 것이 없으므로
+        /// 예전과 똑같이 로컬이 판을 진행한다.</para>
+        /// </summary>
+        public bool ProgressFromHost { get; private set; }
+
         public bool CursorLocked { get; private set; }
 
         readonly PingLifetimeState localPing = new PingLifetimeState();
@@ -78,6 +90,7 @@ namespace Metagame.Gameplay
             Elapsed = 0f;
             Falls = 0;
             Cleared = false;
+            ProgressFromHost = false;   // 새 판은 로컬로 시작한다. 호스트 값이 오면 켜진다 (S15P21B202-54)
             localPing.Clear();
             if (Exploration != null) Exploration.ResetRun();
             SetCursor(true);
@@ -89,7 +102,9 @@ namespace Metagame.Gameplay
 
             localPing.Tick(Time.timeAsDouble);
 
-            if (!Cleared) Elapsed += Time.deltaTime;
+            // 경과 시간은 호스트가 정할 때는 세지 않는다 (S15P21B202-54) —
+            // 각자 세면 사람마다 다른 기록이 남는다.
+            if (!Cleared && !ProgressFromHost) Elapsed += Time.deltaTime;
 
             if (Exploration != null) Exploration.Tick();
 
@@ -261,6 +276,10 @@ namespace Metagame.Gameplay
 
         public void ReachCheckpoint(Checkpoint cp)
         {
+            // 체크포인트도 호스트가 정한다 (S15P21B202-54). Checkpoint 의 트리거는
+            // 참가자 화면에서도 돌기 때문이다.
+            if (ProgressFromHost) return;
+
             if (cp == null || cp.Index < CheckpointIndex) return;
             CheckpointIndex = cp.Index;
             SpawnFoot = cp.SpawnFoot;
@@ -311,6 +330,11 @@ namespace Metagame.Gameplay
 
         public void Clear()
         {
+            // 진행도를 호스트가 정할 때는 여기서 물러난다 (S15P21B202-54).
+            // Goal 의 트리거는 참가자 화면에서도 돌기 때문에, 막지 않으면 참가자가
+            // 자기 시계로 ClearTime 을 정해 버린다.
+            if (ProgressFromHost) return;
+
             if (Cleared) return;
             Cleared = true;
             ClearTime = Elapsed;
@@ -318,8 +342,56 @@ namespace Metagame.Gameplay
             Debug.Log("[SpaceFlop] 도착 — " + ClearTime.ToString("0.0") + "초, 추락 " + Falls + "회");
         }
 
+        /// <summary>
+        /// 호스트가 정한 진행도를 받아 넣는다 (S15P21B202-54).
+        ///
+        /// <para>이 함수를 한 번이라도 부르면 <see cref="ProgressFromHost"/> 가 켜지고,
+        /// 그 뒤로는 이 클래스가 진행도를 <b>스스로 바꾸지 않는다</b> — 경과 시간을 세지
+        /// 않고, <see cref="Clear"/> 와 <see cref="ReachCheckpoint"/> 도 물러난다.</para>
+        ///
+        /// <para><b>Mirror 를 여기서 참조하지 않는다.</b> 값만 받는다. <c>Metagame.Gameplay</c>
+        /// 는 네트워크 라이브러리를 참조하지 않으며(그래서 -145 에서 물리 코드가 한 줄도
+        /// 바뀌지 않았다), 그 경계를 이 이슈에서도 지킨다. 부르는 쪽은
+        /// <c>Metagame.Network</c> 의 <c>ProgressSync</c> 다.</para>
+        ///
+        /// <para><see cref="StageHint"/> 도 체크포인트에 맞춰 함께 고친다 — 참가자 화면의
+        /// 안내문이 호스트와 달라지지 않게.</para>
+        /// </summary>
+        public void ApplyHostProgress(int checkpointIndex, bool cleared, float clearTime,
+                                      float elapsed, int falls)
+        {
+            ProgressFromHost = true;
+
+            CheckpointIndex = checkpointIndex;
+            Cleared = cleared;
+            ClearTime = clearTime;
+            Elapsed = elapsed;
+            Falls = falls;
+
+            StageHint = cleared
+                ? "구조 로켓 탑승! R 을 누르면 처음부터 다시"
+                : Hints[Mathf.Clamp(checkpointIndex, 0, Hints.Length - 1)];
+        }
+
+        /// <summary>
+        /// 다시 로컬이 진행도를 갖게 되돌린다 (S15P21B202-54).
+        ///
+        /// <para>매치가 끝나거나 연결이 끊겨 호스트에게서 값이 더 오지 않을 때 부른다.
+        /// 이것이 없으면 마지막으로 받은 값에 시계가 멈춘 채로 남는다 — 혼자 하기로
+        /// 넘어가도 경과 시간이 흐르지 않는다.</para>
+        /// </summary>
+        public void ClearHostProgress()
+        {
+            ProgressFromHost = false;
+        }
+
         public void Restart()
         {
+            // 재시작도 진행도를 바꾸는 일이다. 호스트가 정할 때는 참가자가 누른 R 로
+            // 판이 되돌아가지 않는다 (S15P21B202-54). 막지 않으면 로컬 값이 0으로
+            // 되돌아갔다가 다음 수신에 덮여, 눌린 것도 아니고 안 눌린 것도 아닌 상태가 된다.
+            if (ProgressFromHost) return;
+
             CheckpointIndex = 0;
             SpawnFoot = Vector3.zero;
             StageHint = Hints[0];

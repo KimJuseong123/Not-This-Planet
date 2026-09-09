@@ -2011,6 +2011,36 @@ namespace Metagame.Gameplay
         /// 끊고 중력을 켜고 <c>faceDir</c> 까지 돌리므로 <see cref="EjectFromShip"/> 에
         /// 그대로 남겼다 — 하는 일이 이것보다 넓다.
         /// </summary>
+        /// <summary>
+        /// 탑승체가 받은 충격을 인형에도 <b>강체처럼</b> 같이 준다
+        /// (S15P21B202-349).
+        ///
+        /// <b>이것이 없으면 탑승체가 돌지 못한다.</b> 조인트는 골반 하나만 묶으므로
+        /// 나머지 뼈는 정지한 채 매달려 있고, 인형이 진자가 되어 회전 에너지를 먹는다.
+        /// 측정값 — 무인 기체는 각속도 3.25 를 0.8초 동안 3.14 로 유지했는데, 탑승
+        /// 중에는 <b>3.25 에서 0.03 으로</b> 죽었다.
+        ///
+        /// <b><see cref="KnockDown"/> 과 다르다.</b> 저것은 뼈마다 다른 힘을 주어 몸을
+        /// 흩는 것이 목적이고, 이것은 <c>v = ω × r</c> 로 <b>한 덩어리로</b> 움직인다.
+        /// </summary>
+        /// <param name="velocityChange">덩어리 전체의 속도 변화(m/s).</param>
+        /// <param name="spin">덩어리 전체의 각속도 변화(rad/s).</param>
+        /// <param name="pivot">회전 중심. 탑승체의 무게중심을 넣는다.</param>
+        public void RideAlong(Vector3 velocityChange, Vector3 spin, Vector3 pivot)
+        {
+            if (Doll == null) return;
+
+            for (var i = 0; i < Doll.Bodies.Count; i++)
+            {
+                var body = Doll.Bodies[i];
+                if (body == null || body.isKinematic) continue;
+
+                var arm = body.worldCenterOfMass - pivot;
+                body.linearVelocity += velocityChange + Vector3.Cross(spin, arm);
+                body.angularVelocity += spin;
+            }
+        }
+
         public void KnockDown(Vector3 direction, float speed)
         {
             if (Downed) return;

@@ -190,7 +190,11 @@ def call_api(model: str, system: str, user: str) -> str:
                  {"model": model, "max_tokens": 3000, "system": system,
                   "messages": [{"role": "user", "content": user}]}, timeout=180)
     if st != 200:
-        raise RuntimeError(f"Anthropic API {st}: {str(d)[:300]}")
+        # 응답 본문은 **로그에만** 남긴다. `fail_reason` 이 우리 RuntimeError 의 메시지를
+        # 그대로 공개 코멘트에 싣기 때문에, 여기 원문을 넣으면 ②의 목적이 무너진다
+        # (S15P21B202-342 · `!259` 5차 AI 리뷰). 아래 두 raise 는 이미 이 방식이다.
+        print(f"[api] 응답 {st}: {str(d)[:300]}")
+        raise RuntimeError(f"Anthropic API {st} → 키·모델명·사용량 확인")
     return "".join(b.get("text", "") for b in d.get("content", []) if b.get("type") == "text")
 
 
@@ -354,11 +358,39 @@ def render(mr_meta: str, roles: list[str], results: dict, raw: dict, merged: dic
     return "\n".join(out)
 
 
+def fail_reason(e: BaseException) -> str:
+    """공개 코멘트에 실을 실패 이유 (S15P21B202-342).
+
+    **우리가 직접 만든 `RuntimeError` 의 메시지만 그대로 싣는다** — 그 문구는 우리가 쓴
+    분류(`키·모델명·사용량 확인` 등)라 안전하다. 나머지는 **종류만** 적는다:
+    `subprocess.TimeoutExpired` 의 `str()` 은 argv 전체(모델명·경로·`--system-prompt`
+    내용)를 담고, `urllib` 오류는 URL 을 담는다. 원문은 `print` 로 로그에만 남는다.
+
+    `-335` 의 문서가 "실패 메시지는 분류만 싣는다" 고 적었는데 코드는 `str(e)` 로 원문을
+    실었다(`!256` AI 리뷰 지적). 문서가 아니라 코드를 문서에 맞춘다.
+
+    `type(e) is RuntimeError` 로 **정확히 그 타입만** 본다 — 하위 클래스를 허용하면
+    라이브러리 예외가 다시 원문을 싣는 길이 열린다.
+    """
+    return str(e) if type(e) is RuntimeError else type(e).__name__
+
+
 def with_fail_reasons(body: str, fail_why: dict[str, str]) -> str:
     """실패한 리뷰어의 **이유**를 코멘트에 한 줄 붙인다 (S15P21B202-335).
 
     각주는 이름만 적어서 `category=unknown` 만 남으면 모델 이름 문제인지 자격증명 문제인지
     사람이 가릴 수 없었다. `render` 의 시그니처를 건드리지 않고 뒤에 덧붙인다.
+
+    **두 가지가 여기 섞여 들어온다. 기준은 이렇다** (S15P21B202-342):
+
+    - `failed` = **호출 자체가 실패**한 리뷰어. 판정 합치기(`merge`)에서 ✅ 를 막는 근거가 되고
+      `render` 의 "실행 실패 리뷰어" 각주에 이름이 오른다
+    - `fail_why` 에만 있는 리뷰어 = **호출은 됐고 출력이 JSON 이 아니었다.** `results[role]` 이
+      `None` 이라 판정은 이미 `unknown` 으로 떨어진다. `failed` 에 넣으면 "실행 실패" 로
+      잘못 읽히므로 **넣지 않고** 이 줄에만 `출력 해석 실패` 로 적는다
+
+    즉 이 각주는 `failed` 의 상위집합이다 — 이름이 여기 있고 "실행 실패 리뷰어" 에 없으면
+    해석 실패다.
     """
     if not fail_why:
         return body
@@ -407,9 +439,15 @@ def main() -> int:
             try:
                 _, text = fut.result()
             except Exception as e:  # 비차단: 어떤 예외든 기록만 하고 계속
-                print(f"[{role}] 호출 실패: {e}"); failed.append(role); fail_why[role] = str(e); continue
+                print(f"[{role}] 호출 실패: {e}")   # 원문은 로그에만
+                failed.append(role); fail_why[role] = fail_reason(e); continue
             raw[role] = text
             results[role] = parse_json(text)
+            if results[role] is None:
+                # 호출은 됐는데 JSON 이 아니었다. `failed` 와 **구분해** 각주에 싣는다 —
+                # 판정은 unknown 으로 옳게 떨어지지만, 각주에 없으면 어느 리뷰어의 출력이
+                # 깨졌는지 사람이 알 수 없다 (S15P21B202-342).
+                fail_why[role] = "출력 해석 실패(JSON 아님)"
             print(f"[{role}] {'JSON OK' if results[role] else 'JSON 해석 실패'} · {len(text)}자")
     # 모델이 아니라 **파일 목록으로 정해지는 것**은 리뷰어가 죽어도 사실이다. 먼저 계산해 둔다.
     defaults: dict[str, tuple[str, str]] = {}
