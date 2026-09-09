@@ -26,7 +26,7 @@ ROLES = list(A.ROLES)[:2]          # 실제 역할 이름을 쓴다(각주가 la
 
 def render_all_failed(defaults=None):
     merged = A.merge({}, ROLES)
-    body = A.render("메타", ROLES, {}, {}, merged, None, 0, ROLES, defaults or {})
+    body = A.render("메타", ROLES, {}, {}, merged, None, [], ROLES, defaults or {})
     return merged, A.with_fail_reasons(body, {r: "claude -p 종료 코드 1 category=unknown" for r in ROLES})
 
 
@@ -102,9 +102,84 @@ print("  각주에 분류만 실린다 ✅")
 assert A.parse_json("이건 JSON 이 아니다") is None
 body2 = A.with_fail_reasons(
     A.render("메타", ROLES, {ROLES[0]: None}, {ROLES[0]: "쓰레기"}, A.merge({ROLES[0]: None}, []),
-             None, 0, [], {}),
+             None, [], [], {}),
     {ROLES[0]: "출력 해석 실패(JSON 아님)"})
 assert "출력 해석 실패" in body2, body2
 print("  JSON 해석 실패 리뷰어가 각주에 드러난다 ✅")
+
+import ci_common
+
+# ── S15P21B202-354 · 빠진 파일을 이름과 사유로 말한다 ────────────────────────
+#
+# 예전에는 개수만 세고 각주가 사유를 **하드코딩**했다 —
+# "리뷰 대상 외 파일 2개(에셋·바이너리·메타·용량 초과)". 실제 이유가 그 넷이 아니어도
+# 그렇게 적혔고 어떤 파일인지도 안 적었다. 그래서 **코드 파일이 통째로 빠져도 읽는
+# 사람이 알 수 없었다.**
+#
+# 그리고 이 이슈를 만들 때 내가 "코드가 access_raw_diffs 를 안 붙인다" 고 잘못
+# 진단했다 — 2026-08-27 부터 붙어 있었다. **그것을 지키는 테스트가 없어서** 코드를
+# 확인하지 않고 단정했다. ⑤ 가 그 회귀 테스트다.
+print("― S15P21B202-354 빠진 파일 보고 ―")
+
+# ① 사유를 갈라 적는다 — collapsed 를 "용량 초과" 라고 하지 않는다
+_changes = [
+    {"new_path": "a.py", "old_path": "a.py", "diff": "@@ -1 +1 @@\n-x\n+y\n"},
+    {"new_path": "b.py", "old_path": "b.py", "diff": "", "collapsed": True},
+    {"new_path": "c.md", "old_path": "c.md", "diff": "", "too_large": True},
+    {"new_path": "d.png", "old_path": "d.png", "diff": "binary"},
+    {"new_path": "e.cs", "old_path": "e.cs", "diff": ""},
+]
+_info = A.classify(_changes)
+_why = dict(_info["skipped"])
+assert "접었다" in _why["b.py"], _why
+assert "너무 크다" in _why["c.md"], _why
+assert _why["d.png"] == "바이너리·메타", _why
+assert "비어 있다" in _why["e.cs"], _why
+assert "a.py" not in _why, "diff 가 있는 파일은 빠지지 않는다"
+print("  collapsed·too_large·바이너리·빈 diff 를 갈라 적는다 ✅")
+
+# ② 각주가 이름과 사유를 싣는다
+_note = A.skipped_note(_info["skipped"])
+assert "b.py" in _note and "접었다" in _note, _note
+assert "2개" not in _note.split("—")[0] or "리뷰 대상 외 4개" in _note, _note
+print("  각주가 파일 이름과 사유를 싣는다 ✅")
+
+# ③ **코드 파일이 빠지면 크게 드러난다** — 문서·에셋이 빠지는 것과 무게가 다르다
+assert "코드 파일" in _note and "근거가 부족" in _note, _note
+_docs_only = A.skipped_note([("x.md", "예산 초과"), ("y.png", "바이너리·메타")])
+assert "코드 파일" not in _docs_only, "문서·에셋만 빠졌으면 크게 알리지 않는다: " + _docs_only
+print("  코드 파일이 빠진 경우만 크게 알린다 ✅")
+
+# 빠진 것이 없으면 아무 말도 하지 않는다
+assert A.skipped_note([]) == "", A.skipped_note([])
+print("  빠진 것이 없으면 각주에 그 말이 없다 ✅")
+
+# ④ 예산이 모자라면 **코드 파일을 먼저** 담는다
+_keep = A.MAX_DIFF_CHARS
+try:
+    A.MAX_DIFF_CHARS = 400
+    _big = "@@\n" + ("+x\n" * 90)          # 한 파일이 ~280자
+    _mixed = [
+        {"new_path": "doc.md", "old_path": "doc.md", "diff": _big},   # 먼저 온 문서
+        {"new_path": "code.py", "old_path": "code.py", "diff": _big},  # 뒤에 온 코드
+    ]
+    _r = A.classify(_mixed)
+    _dropped = dict(_r["skipped"])
+    assert "code.py" not in _dropped, "코드가 먼저 담겨야 한다: " + str(_dropped)
+    assert "doc.md" in _dropped, "예산이 모자라면 문서가 밀린다: " + str(_dropped)
+    assert "예산 초과" in _dropped["doc.md"], _dropped
+    assert "code.py" in _r["diff"], _r["diff"][:80]
+finally:
+    A.MAX_DIFF_CHARS = _keep
+print("  예산이 모자라면 코드 파일을 먼저 담는다 ✅")
+
+# ⑤ **회귀 방지** — access_raw_diffs 가 빠지면 GitLab 이 큰 diff 를 접어 보낸다.
+#    2026-08-27 부터 있던 것을 내가 "없다" 고 잘못 진단했다. 그 착각을 막는다.
+import inspect as _insp
+_src = _insp.getsource(ci_common.GitLab.changes)
+assert "access_raw_diffs=true" in _src, (
+    "GitLab.changes() 에서 access_raw_diffs 가 빠졌다 — 큰 파일 diff 가 collapsed 로 "
+    "비어 오고, 리뷰가 그 파일을 못 본다(S15P21B202-354)")
+print("  changes() 가 access_raw_diffs 를 붙인다 ✅")
 
 print("TEST335 OK")
