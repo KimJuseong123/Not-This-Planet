@@ -141,7 +141,10 @@ print("  collapsed·too_large·바이너리·빈 diff 를 갈라 적는다 ✅")
 # ② 각주가 이름과 사유를 싣는다
 _note = A.skipped_note(_info["skipped"])
 assert "b.py" in _note and "접었다" in _note, _note
-assert "2개" not in _note.split("—")[0] or "리뷰 대상 외 4개" in _note, _note
+# 검사하려는 것이 둘이므로 assert 도 둘이다. `or` 로 묶으면 왼쪽이 참이 되는 순간
+# 오른쪽을 안 보고 통과해 회귀를 놓친다 (S15P21B202-365)
+assert "리뷰 대상 외 4개" in _note, _note
+assert _note.startswith("⚠ **코드 파일 2개"), _note
 print("  각주가 파일 이름과 사유를 싣는다 ✅")
 
 # ③ **코드 파일이 빠지면 크게 드러난다** — 문서·에셋이 빠지는 것과 무게가 다르다
@@ -172,6 +175,25 @@ try:
 finally:
     A.MAX_DIFF_CHARS = _keep
 print("  예산이 모자라면 코드 파일을 먼저 담는다 ✅")
+
+# ⑥ **빠진 파일이 많아 목록이 잘릴 때 코드 파일이 먼저 남는다** (S15P21B202-365)
+#    받은 순서대로 6개에서 자르면, 코드 파일이 뒤쪽에 있을 때 목록에 한 개도 안 나온다.
+#    앞머리 경고의 이름도 3개에서 잘리므로 "어떤 코드 파일이 빠졌는지" 를 알 수 없어져
+#    -354 가 고치려던 상태로 되돌아간다.
+_many = [(f"docs/d{i}.md", "예산 초과") for i in range(8)] + [
+    ("scripts/ci/late.py", "GitLab 이 접었다"),
+    ("METAGAME/Runtime/Late.cs", "diff 가 비어 있다"),
+]
+_note6 = A.skipped_note(_many)
+_head = _note6.split("리뷰 대상 외")[0]           # 앞머리 경고
+_list = _note6.split("리뷰 대상 외", 1)[1]        # 목록
+assert "scripts/ci/late.py" in _list, "코드 파일이 목록에서 잘려 나갔다: " + _note6
+assert "METAGAME/Runtime/Late.cs" in _list, "코드 파일이 목록에서 잘려 나갔다: " + _note6
+assert "외 4개" in _list, "잘림 상한 6개가 유지돼야 한다: " + _note6
+assert _note6.startswith("⚠ **코드 파일 2개"), _note6
+# 같은 부류 안에서는 받은 순서를 지킨다 — 문서 8개 중 앞의 것부터 남는다
+assert "docs/d0.md" in _list and "docs/d7.md" not in _list, _note6
+print("  목록이 잘려도 코드 파일이 먼저 남는다 ✅")
 
 # ⑤ **회귀 방지** — access_raw_diffs 가 빠지면 GitLab 이 큰 diff 를 접어 보낸다.
 #    2026-08-27 부터 있던 것을 내가 "없다" 고 잘못 진단했다. 그 착각을 막는다.

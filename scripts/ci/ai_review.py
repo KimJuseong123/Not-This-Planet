@@ -159,13 +159,22 @@ def classify(changes: list[dict]) -> dict:
 
 
 def skipped_note(skipped: list[tuple[str, str]]) -> str:
-    """각주에 실을 문구. **이름과 사유를 적고, 코드 파일이 빠졌으면 드러낸다.**"""
+    """각주에 실을 문구. **이름과 사유를 적고, 코드 파일이 빠졌으면 드러낸다.**
+
+    목록은 6개에서 자른다 — 각주가 길어지면 그것도 안 읽힌다. **자를 때 코드 파일을
+    먼저 남긴다**(S15P21B202-365). 받은 순서대로 자르면 코드 파일이 뒤쪽에 있을 때
+    목록에 한 개도 안 나오고, 앞머리 경고의 이름도 3개에서 잘려 **어떤 코드 파일이
+    빠졌는지 알 수 없는 상태**로 돌아간다 — `-354` 가 고치려던 바로 그것이다.
+    예산을 채울 때 `classify()` 가 쓰는 규칙과 같고, 같은 부류 안에서는 받은 순서를
+    지킨다(`sorted` 는 안정 정렬).
+    """
     if not skipped:
         return ""
-    missing_code = [p for p, _ in skipped if p.lower().endswith(CODE_EXT)]
-    listed = " · ".join(f"{p} ({why})" for p, why in skipped[:6])
-    if len(skipped) > 6:
-        listed += f" · 외 {len(skipped) - 6}개"
+    ordered = sorted(skipped, key=lambda t: not t[0].lower().endswith(CODE_EXT))
+    missing_code = [p for p, _ in ordered if p.lower().endswith(CODE_EXT)]
+    listed = " · ".join(f"{p} ({why})" for p, why in ordered[:6])
+    if len(ordered) > 6:
+        listed += f" · 외 {len(ordered) - 6}개"
     out = f"리뷰 대상 외 {len(skipped)}개 — {listed}"
     if missing_code:
         # 문서·에셋이 빠지는 것과 무게가 다르다. 판정 근거가 반쪽이라는 뜻이므로 크게 적는다.
