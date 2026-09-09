@@ -145,12 +145,12 @@ namespace Metagame.Gameplay
             if (dustMaterial == null)
             {
                 var shader = Shader.Find("Metagame/Atmosphere/Dust");
-                if (shader == null) shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
-                if (shader != null)
-                {
-                    dustMaterial = new Material(shader) { name = "Atmosphere Dust Storm (Runtime)" };
-                    dustMaterial.hideFlags = HideFlags.DontSave;
-                }
+                if (shader == null || !shader.isSupported)
+                    shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+                if (shader == null || !shader.isSupported) return;
+
+                dustMaterial = new Material(shader) { name = "Atmosphere Dust Storm (Runtime)" };
+                dustMaterial.hideFlags = HideFlags.DontSave;
             }
 
             renderer.sharedMaterial = dustMaterial;
@@ -422,7 +422,7 @@ namespace Metagame.Gameplay
 
                 var renderer = sample.GetComponentInChildren<Renderer>(true);
                 if (renderer != null) material = renderer.sharedMaterial;
-                if (IsAlive(mesh) && !IsAlive(material))
+                if (IsAlive(mesh) && !IsSafeDebrisMaterial(material))
                     material = Prim.Dough(new Color(0.38f, 0.25f, 0.16f, 1f), 0.8f);
                 return IsAlive(mesh)
                     || TryCreateFallbackDebrisVisual(out mesh, out material);
@@ -475,6 +475,26 @@ namespace Metagame.Gameplay
 
         static bool IsAlive(Object target) =>
             !ReferenceEquals(target, null) && target != null;
+
+        /// <summary>
+        /// FBX debris can still carry a Built-in/failed shader when the editor-side
+        /// material extraction step has not been run. Passing that material to the
+        /// particle renderer produces the URP magenta error shader in a player.
+        /// Keep the imported mesh, but use the project's guaranteed URP surface for
+        /// the visual fallback instead of mutating the source asset at runtime.
+        /// </summary>
+        static bool IsSafeDebrisMaterial(Material candidate)
+        {
+            if (!IsAlive(candidate) || !IsAlive(candidate.shader) || !candidate.shader.isSupported)
+                return false;
+
+            string shaderName = candidate.shader.name;
+            return shaderName != "Standard"
+                && shaderName != "Diffuse"
+                && shaderName != "Legacy Shaders/Diffuse"
+                && shaderName != "Legacy Shaders/Specular"
+                && shaderName != "Hidden/InternalErrorShader";
+        }
 
         float GetEffectScale()
         {

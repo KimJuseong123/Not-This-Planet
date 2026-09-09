@@ -71,6 +71,13 @@ namespace Metagame.EditorTools
 
             bool dev = forceDev || System.Environment.GetEnvironmentVariable("SPACE_DEV") == "1";
 
+            if (Stage1AtmosphereSetup.PrepareProfileForBuild() == null)
+            {
+                Debug.LogError("[SpaceFlop] Stage1 분위기 프로필을 빌드용 에셋과 연결하지 못했습니다.");
+                if (Application.isBatchMode) EditorApplication.Exit(1);
+                return;
+            }
+
             ArtLink.BuildPrefabs();            // 블렌더 FBX → Resources 프리팹 (런타임이 이걸 집는다)
             if (!EnsureRequiredScenesListed()) return;
             ApplyPlayerSettings();
@@ -130,7 +137,9 @@ namespace Metagame.EditorTools
                 "SpaceFlop/PlanetNoFog",
                 "Metagame/Atmosphere/SkyGradient",
                 "Hidden/Metagame/Atmosphere/Haze",
-                "Metagame/Atmosphere/Meteor");
+                "Metagame/Atmosphere/Meteor",
+                "Metagame/Atmosphere/Dust",
+                "Metagame/Atmosphere/DustStormBoundary");
         }
     }
 }

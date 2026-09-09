@@ -112,7 +112,6 @@ namespace Metagame.Gameplay
                 var go = new GameObject("Atmosphere Dust Gust");
                 go.transform.SetParent(transform, false);
                 particleSystem = go.AddComponent<ParticleSystem>();
-                go.AddComponent<ParticleSystemRenderer>();
             }
 
             var renderer = particleSystem.GetComponent<ParticleSystemRenderer>();
@@ -125,8 +124,9 @@ namespace Metagame.Gameplay
             if (particleMaterial == null)
             {
                 var shader = Shader.Find("Metagame/Atmosphere/Dust");
-                if (shader == null) shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
-                if (shader == null)
+                if (shader == null || !shader.isSupported)
+                    shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+                if (shader == null || !shader.isSupported)
                 {
                     Debug.LogError("[Atmosphere] Dust 셰이더를 찾지 못했습니다.");
                     return;
