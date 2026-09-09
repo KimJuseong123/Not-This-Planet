@@ -133,4 +133,78 @@ assert "failed_jobs(gl)" in _src, "develop 카드가 재시도 폴백을 안 쓴
 assert "재시도 뒤 통과" in _src, "develop 카드도 그 사실을 말해야 한다"
 print("  develop 카드도 같은 규칙 ✅")
 
+
+# ── ⑧ 재시도로 통과했으면 **MR 코멘트를 건드리지 않는다** ────────────────
+#     같은 파이프라인에서 `mm-ci-resolved` 가 같은 마커에 ✅ 를 쓴다 — 2026-09-09 실측:
+#     파이프라인 184897 에서 mm-ci-failed(500790)와 mm-ci-resolved(500791)가 둘 다 돌았다.
+#     둘이 경쟁하면 최종 내용이 비결정적이 되고(-289 가 고친 사고) 초록 파이프라인에
+#     🔴 코멘트가 남을 수 있다. **카드는 그대로 보낸다** — 덮어쓰이지 않는 통로다.
+_card, _notes = run([LINT_RETRY_OK, UNITY_OK], [LINT_FAILED, LINT_RETRY_OK, UNITY_OK])
+assert "🔴" in _card, "카드는 나가야 한다"
+assert _notes == [], f"재시도 뒤 통과에는 MR 코멘트를 쓰지 않는다: {_notes}"
+# 현재 실패가 있으면 코멘트는 그대로 남긴다
+_card, _notes = run([LINT_FAILED, UNITY_OK], None)
+assert len(_notes) == 1 and N.FAIL_MARKER in _notes[0], _notes
+print("  재시도 뒤 통과 → 카드만, 코멘트는 resolved 에 맡긴다 \u2705")
+
+# ── ⑨ 잡별 힌트를 덮어쓰지 않는다 ──────────────────────────────────────
+#     카드의 본론이 "무엇을 확인해야 하나" 다. 통째로 갈아 끼우면 분류가 사라진다.
+_card, _notes = run([LINT_RETRY_OK, UNITY_OK], [LINT_FAILED, LINT_RETRY_OK, UNITY_OK])
+_hints = cell(_card, "확인할 것")
+assert "제목/본문/Jira 규칙" in _hints, "mr-lint 분류가 사라졌다: " + _hints
+assert "이미 통과했으니" in _hints, _hints
+print("  잡별 힌트를 덮어쓰지 않고 덧붙인다 \u2705")
+
+# ── ⑩ 잡 목록을 **페이지 끝까지** 읽는다 ───────────────────────────────
+#     include_retried 는 잡 수가 시도 수만큼 늘어난다. 한 페이지만 읽으면 상한을 넘는
+#     순간 조용히 잘려 이 이슈가 고친 실패 모드가 그대로 재발한다 (!281 AI 리뷰 중간).
+def run_paged(pages: dict):
+    """pages: {(retried, page): [잡…]} — 100개 미만이면 마지막 페이지로 본다."""
+    seen = []
+
+    def http(method, url, headers=None, body=None, timeout=30):
+        if url.startswith("https://mm.example"):
+            return 200, {}
+        if "/pipelines/" in url and "/jobs?" in url:
+            retried = "include_retried=true" in url
+            page = int(url.split("&page=", 1)[1].split("&", 1)[0])   # per_page= 를 먼저 잡지 않게
+            seen.append((retried, page))
+            return 200, pages.get((retried, page), [])
+        if url.endswith("/jobs/500782/trace"):
+            return 200, TRACE
+        if url.endswith("/notes?per_page=100&sort=desc"):
+            return 200, []
+        if "/notes" in url:
+            return 201, {}
+        if "/merge_requests/41" in url:
+            return 200, MR
+        raise AssertionError(url)
+
+    ci_common.http = http
+    N.http = http
+    jobs, was_retried = N.failed_jobs(ci_common.GitLab())
+    return jobs, was_retried, seen
+
+
+# 기본 조회 1페이지가 꽉 찼다 → 2페이지도 읽어야 한다. 실패는 2페이지에만 있다.
+_filler = [{"id": 1000 + i, "name": f"pad-{i}", "status": "success", "allow_failure": False,
+            "web_url": "https://lab/jobs/x"} for i in range(100)]
+_jobs, _ret, _seen = run_paged({(False, 1): _filler, (False, 2): [LINT_FAILED]})
+assert [j["id"] for j in _jobs] == [500782], f"2페이지의 실패를 못 찾았다: {_jobs}"
+assert (False, 2) in _seen, f"2페이지를 읽지 않았다: {_seen}"
+print("  기본 조회가 페이지 끝까지 읽는다 \u2705")
+
+# include_retried 쪽도 같다 — 가려진 실패가 2페이지에 있다.
+_jobs, _ret, _seen = run_paged({
+    (False, 1): [LINT_RETRY_OK, UNITY_OK],
+    (True, 1): _filler, (True, 2): [LINT_FAILED, LINT_RETRY_OK]})
+assert _ret is True and [j["id"] for j in _jobs] == [500782], f"{_jobs} · {_ret}"
+assert (True, 2) in _seen, f"재시도 조회가 2페이지를 읽지 않았다: {_seen}"
+print("  재시도 조회도 페이지 끝까지 읽는다 \u2705")
+
+# 무한 순회하지 않는다 — 모든 페이지가 꽉 차 있어도 상한에서 멈춘다
+_jobs, _ret, _seen = run_paged({(False, p): _filler for p in range(1, 20)})
+assert len([s for s in _seen if not s[0]]) == N.MAX_JOB_PAGES, f"상한에서 멈춰야 한다: {_seen}"
+print("  페이지 순회에 상한이 있다 \u2705")
+
 print("TEST361 OK")

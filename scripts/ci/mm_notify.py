@@ -55,7 +55,7 @@ def is_first_pipeline(gl: GitLab) -> bool | None:
     파이프라인이 2개가 된 MR 은 그 뒤로 **영구히** 리뷰 요청 알림을 받지 못했다(-134).
     id 가 가장 작은(=먼저 만들어진) 파이프라인만 보내면 개수와 무관하게 정확히 한 번 보낸다.
     판정할 수 없으면 None — 호출부가 생략한다(알림 하나보다 매 파이프라인 도배가 더 나쁘다)."""
-    st, pls = http("GET", gl._mr_url("/pipelines?per_page=100"), gl._h())
+    st, pls = http("GET", gl._mr_url("/pipelines?per_page=100"), gl.headers())
     if st != 200 or not isinstance(pls, list) or not pls:
         print(f"파이프라인 목록 조회 실패 {st} → 판정 불가")
         return None
@@ -97,6 +97,7 @@ FAIL_MARKER = "<!-- ci-failed:metagame -->"
 MAX_REASONS = 3          # 카드에 싣는 이유 개수
 MAX_COMMENT_REASONS = 20  # MR 코멘트 상한 — 위반이 수십 건이어도 코멘트가 비대해지지 않게
 MAX_REASON_CHARS = 200
+MAX_JOB_PAGES = 5        # 잡 목록 조회 상한 — 무한 순회 방지(잡 13개 남짓이라 1페이지로 끝난다)
 
 
 def clean_reason(text: str) -> str:
@@ -176,7 +177,8 @@ def ci_failed(gl: GitLab) -> int:
         hint = {"mr-lint": "제목/본문/Jira 규칙", "repo-hygiene": "금지 파일·.meta·LFS·씬 선언", "unity-compile": "컴파일 오류"}
         hints = ", ".join(sorted({hint.get(j["name"], j["name"]) for j in failed}))
         if retried:
-            hints = "이미 통과했으니 확인만 하면 된다"
+            # 덮어쓰지 않는다 — 잡별 분류("제목/본문/Jira 규칙" 등)가 카드의 본론이다.
+            hints = f"{hints} · 이미 통과했으니 확인만 하면 된다"
     else:
         parts, hints = f"[파이프라인]({env('CI_PIPELINE_URL', '')})", "잡 로그 확인"
     shown = reasons[:MAX_REASONS]
@@ -193,7 +195,14 @@ def ci_failed(gl: GitLab) -> int:
         ("확인할 것", hints),
         ("조치", "MR 코멘트의 '무엇이 왜 실패했는지' 를 보고 고친 뒤 push 하면 자동 재검사"),
     ]
-    # MR 코멘트: 사람이 이미 보고 있는 곳에 이유를 그대로 남긴다
+    # MR 코멘트: 사람이 이미 보고 있는 곳에 이유를 그대로 남긴다.
+    #
+    # **재시도로 이미 통과했으면 코멘트를 건드리지 않는다**(-361). 그 경우 같은
+    # 파이프라인에서 `mm-ci-resolved` 가 **같은 마커**에 ✅ 를 쓴다 — 2026-09-09 실측:
+    # 파이프라인 184897 에서 `mm-ci-failed`(500790)와 `mm-ci-resolved`(500791)가 둘 다
+    # 돌았다. 둘이 경쟁하면 최종 내용이 비결정적이 되고(-289 가 고친 그 사고), 초록인
+    # 파이프라인에 🔴 코멘트가 남을 수 있다. 카드는 그대로 보낸다 — 실패가 있었던 사실은
+    # 사라지면 안 되고, MM 카드는 덮어쓰이지 않는 통로다. 지속 상태는 resolved 에 맡긴다.
     if reasons:
         lines = "\n".join(f"- **{name}** — {reason}" for name, reason in capped)
         if len(reasons) > len(capped):
@@ -210,7 +219,17 @@ def ci_failed(gl: GitLab) -> int:
         rc = 0
     else:
         rc = send(card("🔴 **CI 실패**", rows))   # 카드 먼저 — 코멘트 경로가 막혀도 알림은 나간다
-    upsert_mr_comment(gl, comment)
+    if retried:
+        # **재시도로 이미 통과했으면 코멘트를 건드리지 않는다**(-361). 그 경우 같은
+        # 파이프라인에서 `mm-ci-resolved` 가 **같은 마커**(FAIL_MARKER)에 ✅ 를 쓴다 —
+        # 2026-09-09 실측: 파이프라인 184897 에서 `mm-ci-failed`(500790)와
+        # `mm-ci-resolved`(500791)가 둘 다 돌았다. 둘이 같은 코멘트를 경쟁해서 쓰면
+        # 최종 내용이 비결정적이 되고(-289 가 고친 그 사고), 초록인 파이프라인에 🔴
+        # 코멘트가 남을 수 있다. **카드는 그대로 보낸다** — 실패가 있었던 사실은 사라지면
+        # 안 되고 MM 카드는 덮어쓰이지 않는 통로다. 지속 상태는 resolved 에 맡긴다.
+        print("재시도 뒤 통과 — MR 코멘트는 mm-ci-resolved 에 맡긴다(마커 경합 방지)")
+    else:
+        upsert_mr_comment(gl, comment)
     return rc
 
 
@@ -230,6 +249,27 @@ def ci_failed(gl: GitLab) -> int:
 def _blocking_failures(jobs: list[dict]) -> list[dict]:
     """막는 실패만. `allow_failure` 잡의 실패는 파이프라인을 빨갛게 만들지 않는다."""
     return [j for j in jobs if j.get("status") == "failed" and not j.get("allow_failure")]
+
+
+def _all_jobs(gl: GitLab, base: str, retried: bool = False) -> list[dict] | None:
+    """파이프라인의 잡 전부. 조회가 실패하면 None — "잡이 없다" 와 섞으면 잘못 판단한다.
+
+    **페이지를 끝까지 읽는다.** `include_retried=true` 는 잡 수가 시도 수만큼 늘어나므로,
+    한 페이지만 읽으면 상한을 넘는 순간 조용히 잘려 **이 함수가 고치려는 그 실패 모드가
+    그대로 재발한다**(가려진 실패를 못 찾는다). 지금 파이프라인은 잡 13개 남짓이라 한
+    페이지로 끝나지만, 조용히 틀리는 쪽으로 여지를 남기지 않는다.
+    """
+    extra = "&include_retried=true" if retried else ""
+    out: list[dict] = []
+    for page in range(1, MAX_JOB_PAGES + 1):
+        st, chunk = http("GET", f"{base}?per_page=100&page={page}{extra}", gl.headers())
+        if st != 200 or not isinstance(chunk, list):
+            return None if page == 1 else out
+        out.extend(chunk)
+        if len(chunk) < 100:
+            return out
+    print(f"  잡 목록이 {MAX_JOB_PAGES} 페이지를 넘는다 — 뒤쪽을 못 봤을 수 있다")
+    return out
 
 
 def failed_jobs(gl: GitLab) -> tuple[list[dict], bool]:
@@ -252,16 +292,16 @@ def failed_jobs(gl: GitLab) -> tuple[list[dict], bool]:
     if not (gl.token and pid):
         return [], False
     base = f"{gl.api}/projects/{gl.project}/pipelines/{pid}/jobs"
-    st, jobs = http("GET", f"{base}?per_page=100", gl.headers())
-    if st != 200 or not isinstance(jobs, list):
+    jobs = _all_jobs(gl, base)
+    if jobs is None:
         return [], False
     live = _blocking_failures(jobs)
     if live:
         return live, False
 
     # 현재 실패가 없다 — 재시도에 가려진 실패를 찾는다.
-    st, all_tries = http("GET", f"{base}?per_page=100&include_retried=true", gl.headers())
-    if st != 200 or not isinstance(all_tries, list):
+    all_tries = _all_jobs(gl, base, retried=True)
+    if all_tries is None:
         return [], False
     # 이름별 최신 시도. id 는 단조 증가하므로 그것으로 최신을 가른다.
     latest: dict[str, int] = {}
