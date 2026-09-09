@@ -134,4 +134,25 @@ msg = D.test_health(ci_common.GitLab())
 assert msg and f"@{D.INFRA_MM}" in msg, "조회 실패도 조치할 사람을 붙여야 한다"
 print("  ⑧ 조회 실패 → @Infra ✅")
 
+
+# ── ⑨ 플래키 재실행 단계가 살아 있어야 한다 (S15P21B202-347)
+#
+# 이 단계가 사라지면 판정이 다시 "단 한 번의 실행" 을 근거로 막는다. 2026-09-09 에
+# 그래서 MR 3건이 동시에 막혔다 — 같은 커밋 4회가 전부 실패했고 기준선만 통과였다.
+# 조용히 없어질 수 있는 종류라 YAML 을 직접 읽어 못 박는다.
+_uc = job("unity-compile")
+assert "--recheck-plan" in _uc, (
+    "unity-compile 에서 --recheck-plan 이 사라졌다 — 새 실패를 다시 돌리지 않으면 "
+    "비결정 테스트가 무관한 MR 을 무작위로 막는다(-347)")
+assert "unity-recheck-args.txt" in _uc, (
+    "재실행 결과를 unity_report.py 에 넘기지 않는다 — 돌려도 판정에 반영되지 않는다")
+assert "-testFilter" in _uc, "재실행이 그 테스트만 골라 돌지 않는다"
+# 계획 단계가 판정 파일을 남기면 잡이 재실행 전에 끝난다 — 두 호출의 순서를 확인한다
+_plan_at = _uc.index("--recheck-plan")
+_final_at = _uc.rindex("unity_report.py")
+assert _plan_at < _final_at, "계획 호출이 최종 보고보다 뒤에 있다 — 순서가 뒤집혔다"
+# 재실행 근거를 남겨야 판정을 다시 볼 수 있다
+assert "unity-recheck-1.xml" in _uc, "재실행 결과가 아티팩트에 없다 — 판정 근거가 사라진다"
+print("  ⑨ 플래키 재실행 단계 · 결과 전달 · 아티팩트 ✅")
+
 print("TEST289 OK")

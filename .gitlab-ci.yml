@@ -293,8 +293,51 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
     #   · 대상 브랜치의 마지막 결과와 비교해 **이 MR 이 만든 실패만** 코멘트로 남긴다.
     #     기존 실패(현재 17개)는 담당자가 고치는 중이라 나열하지 않는다 — 매번 나열하면 읽지 않게 된다
     #   · 컴파일이 깨졌으면 error CS 줄을 코멘트 맨 위에 싣는다
+    # 새 실패가 있으면 **그 테스트만 골라 다시 돌린다** (S15P21B202-347).
+    #
+    # 판정("기준선에 없던 실패는 이 MR 탓")은 실행이 결정적이라는 것을 전제한다. 물리
+    # 시뮬레이션 테스트 몇 개가 경계에 앉아 있어 그 전제가 깨져 있다 — 2026-09-09 에 같은
+    # 커밋으로 4회 돌려 4회 다 실패했는데 기준선은 통과였고, MR 3건이 동시에 막혔다.
+    # 한 번이라도 통과하면 같은 코드로 결과가 갈린 것이므로 이 MR 탓이 아니다.
+    #
+    # 새 실패가 없으면 이 단계는 아무것도 하지 않는다 — 평소 비용 0이다.
+    - |
+      PLAN="$CI_PROJECT_DIR/unity-recheck.txt"
+      python3 scripts/ci/unity_report.py "$CI_PROJECT_DIR/unity-results.xml" \
+        "$CI_PROJECT_DIR/unity.log" "$(cat "$CI_PROJECT_DIR/unity-rc.txt")" \
+        --recheck-plan "$PLAN" || true
+      : > "$CI_PROJECT_DIR/unity-recheck-args.txt"
+      N=0
+      [ -s "$PLAN" ] && N=$(grep -c . "$PLAN" || true)
+      # 30건이 넘으면 재실행하지 않는다 — 그 정도면 플래키가 아니라 실제 회귀이고,
+      # -testFilter 명령줄만 길어진다. **건너뛴 사실을 로그에 적는다.**
+      if [ "$N" -gt 30 ]; then
+        echo "새 실패 ${N}건 — 30건을 넘어 재실행을 건너뛴다(플래키로 볼 규모가 아니다)"
+      elif [ "$N" -gt 0 ]; then
+        F=$(tr '\n' ';' < "$PLAN" | sed 's/;*$//')
+        echo "새 실패 ${N}건 — 그 테스트만 골라 2회 다시 돌린다"
+        for i in 1 2; do
+          set +e
+          unity-editor \
+            -projectPath METAGAME \
+            -runTests -testPlatform EditMode \
+            -testFilter "$F" \
+            -testResults "$CI_PROJECT_DIR/unity-recheck-$i.xml" \
+            -logFile "$CI_PROJECT_DIR/unity-recheck-$i.log"
+          echo "재실행 $i 종료 $?"
+          set -e
+          if [ -s "$CI_PROJECT_DIR/unity-recheck-$i.xml" ]; then
+            printf ' --recheck %s' "$CI_PROJECT_DIR/unity-recheck-$i.xml" \
+              >> "$CI_PROJECT_DIR/unity-recheck-args.txt"
+          else
+            # 결과가 없으면 그 회차는 판별에 못 쓴다. unity_report.py 는 결과에 이름이
+            # 없는 것을 **회귀로 둔다** — 확인 못 한 것을 면제하지 않는다.
+            echo "재실행 $i 결과 없음 — 이 회차는 판별에 쓰지 않는다"
+          fi
+        done
+      fi
     # 이미지에 python3 3.10 이 있다(실측). 잡이 실패로 끝나도 보고는 남아야 하므로 exit 앞에 둔다.
-    - python3 scripts/ci/unity_report.py "$CI_PROJECT_DIR/unity-results.xml" "$CI_PROJECT_DIR/unity.log" "$(cat "$CI_PROJECT_DIR/unity-rc.txt")"
+    - python3 scripts/ci/unity_report.py "$CI_PROJECT_DIR/unity-results.xml" "$CI_PROJECT_DIR/unity.log" "$(cat "$CI_PROJECT_DIR/unity-rc.txt")" $(cat "$CI_PROJECT_DIR/unity-recheck-args.txt")
     # 판정은 unity_report.py 가 파일로 남긴다. 보고 자체가 죽어 파일이 없으면 2(경고)로 끝낸다 —
     # **판정하지 못한 것을 회귀로 단정하지 않는다.** Unity 원시 코드로 되돌아가면 기존 실패에
     # 다시 걸린다.
@@ -311,7 +354,11 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
     # **새 실패가 그대로 통과한다**(비차단). 14일이면 그 구멍이 실질적으로 닫힌다.
     # 용량: 4개 합쳐 MR 당 ~3MB 라 5배 늘려도 부담이 없다 (S15P21B202-342).
     expire_in: 14 days
-    paths: [unity-results.xml, unity-junit.xml, unity.log, unity-verdict.txt]
+    # unity-recheck-* 는 플래키 판별 근거다 (S15P21B202-347) — 판정을 다시 볼 때 필요하다.
+    # 기준선으로 읽히는 것은 unity-results.xml 하나뿐이므로 재실행 결과가 섞이지 않는다.
+    paths: [unity-results.xml, unity-junit.xml, unity.log, unity-verdict.txt,
+            unity-recheck.txt, unity-recheck-1.xml, unity-recheck-2.xml,
+            unity-recheck-1.log, unity-recheck-2.log]
     reports:
       # Unity 가 낸 NUnit3 가 아니라 변환한 JUnit 을 올린다 — 전자는 GitLab 이 0건으로 읽는다.
       junit: unity-junit.xml
