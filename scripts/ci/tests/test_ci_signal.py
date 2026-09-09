@@ -165,6 +165,16 @@ assert not hasattr(_UR, "RECHECK_RUNS"), (
 # 기록으로 새 실패가 면제된다(!272 리뷰)
 assert "rm -f" in _uc and "unity-recheck-*.xml" in _uc.split("rm -f")[1][:200], (
     "재실행 전에 지난 결과를 지우지 않는다 — 옛 통과 기록으로 새 실패가 면제될 수 있다")
-print("  ⑨ 플래키 재실행 단계 · 결과 전달 · 아티팩트 · 지난 결과 정리 ✅")
+# **파일 이름이 파이썬 상수와 YAML 양쪽에 있다.** 파이썬만 바꾸면 잡의 cat·
+# --baseline-from 이 조용히 깨져 재실행 면제가 사라진다(!272 5차 리뷰).
+# RECHECK_RUNS 처럼 한 곳으로 모을 수는 없다 — 잡이 파일을 읽어야 하고 파이썬이
+# 써야 한다. 그래서 **양쪽이 같은 이름을 쓰는지**를 여기서 못 박는다.
+for _const, _val in (("RECHECK_PLAN", _UR.RECHECK_PLAN),
+                     ("RECHECK_FILTER", _UR.RECHECK_FILTER),
+                     ("BASELINE_FILE", _UR.BASELINE_FILE)):
+    assert _val in _uc, (
+        f"unity_report.{_const} = {_val!r} 이 unity-compile 잡에 없다 — "
+        f"한쪽만 바뀌면 재실행 면제가 조용히 사라진다")
+print("  ⑨ 플래키 재실행 단계 · 결과 전달 · 아티팩트 · 지난 결과 정리 · 파일명 일치 ✅")
 
 print("TEST289 OK")
