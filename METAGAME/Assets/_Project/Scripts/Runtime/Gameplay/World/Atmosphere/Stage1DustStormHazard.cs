@@ -24,6 +24,7 @@ namespace Metagame.Gameplay
         bool configured;
         bool physicsAuthority;
         int spawnedCycle = -1;
+        int? matchSeedOverride;
 
         public void Configure(AtmosphereProfile atmosphereProfile, Bounds bounds)
         {
@@ -39,9 +40,30 @@ namespace Metagame.Gameplay
 
             profile.Validate();
             settings = profile.dustStorm;
+            if (matchSeedOverride.HasValue)
+                settings = settings.WithSeed(matchSeedOverride.Value);
             schedule = new DustStormSchedule(settings);
             mapBounds = bounds;
             configured = bounds.size.x > 0.01f && bounds.size.z > 0.01f;
+            spawnedCycle = -1;
+        }
+
+        /// <summary>
+        /// Applies the server-selected match seed to a runtime copy of the profile.
+        /// This keeps physical fragment placement identical to every client visual.
+        /// </summary>
+        public void SetMatchSeed(int matchSeed)
+        {
+            matchSeedOverride = matchSeed;
+            if (profile == null || profile.dustStorm == null)
+                return;
+
+            if (settings != null && settings.seed == matchSeed)
+                return;
+
+            ReleaseAllFragments();
+            settings = profile.dustStorm.WithSeed(matchSeed);
+            schedule = new DustStormSchedule(settings);
             spawnedCycle = -1;
         }
 

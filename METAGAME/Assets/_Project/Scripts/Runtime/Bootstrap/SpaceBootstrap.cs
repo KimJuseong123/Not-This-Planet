@@ -98,6 +98,9 @@ namespace Metagame.Bootstrap
             AtmosphereDustStorm dustStormVisual = null;
             if (atmosphereProfile != null)
             {
+                // 방장/서버만 매치 시드를 만들고, 참가자는 Mirror 동기화가 올 때까지 기다린다.
+                // 그래서 같은 방의 폭풍 물리와 시각 효과가 같은 시퀀스를 사용한다.
+                DustStormMatchSeed.PrepareForMatch();
                 atmosphereProfile.Validate();
                 dustStormHazard = sys.AddComponent<Stage1DustStormHazard>();
                 if (useAtmosphere)

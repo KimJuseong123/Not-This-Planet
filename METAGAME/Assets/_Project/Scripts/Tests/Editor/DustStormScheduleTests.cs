@@ -38,6 +38,16 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void MatchSeedOverrideChangesOnlyTheRuntimeDustStormCopy()
+        {
+            var runtimeSettings = profile.dustStorm.WithSeed(777);
+
+            Assert.That(runtimeSettings.seed, Is.EqualTo(777));
+            Assert.That(runtimeSettings.speed, Is.EqualTo(profile.dustStorm.speed));
+            Assert.That(profile.dustStorm.seed, Is.EqualTo(12345));
+        }
+
+        [Test]
         public void ScheduleKeepsOneStormInactiveDuringTheConfiguredGap()
         {
             var bounds = new Bounds(new Vector3(25f, 3f, 0f), new Vector3(150f, 6f, 100f));

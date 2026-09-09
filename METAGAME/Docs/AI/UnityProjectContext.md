@@ -4,7 +4,7 @@
 
 ## Project Summary
 
-- Latest feature change: the project now has an IMGUI lobby menu with looping MP4 background/fallback PNG, guest room flow, clipboard room-code copy, fade/loading transitions into the Mirror game scene, and a local Main-scene Esc menu that reuses the full settings UI and returns to the Lobby title. The earlier URP 17.5.0 atmosphere and build-safety work remains in place.
+- Latest feature change: the project now has an IMGUI lobby menu with looping MP4 background/fallback PNG, guest room flow, clipboard room-code copy, fade/loading transitions into the Mirror game scene, and a local Main-scene Esc menu that reuses the full settings UI and returns to the Lobby title. The Stage1 dust storm now receives one random seed per match from the server and applies it to every client without mutating the shared atmosphere asset. The earlier URP 17.5.0 atmosphere and build-safety work remains in place.
 
 - Project root: `METAGAME/`
 - Last analyzed: 2026-09-09
@@ -123,7 +123,7 @@
 - Updated `Assets/_Project/Scripts/Runtime/Network/NetworkSession.cs` with lobby disconnect and client-only guest logout cleanup, and `Assets/_Project/Scripts/Runtime/Bootstrap/LobbyBootstrap.cs`/`Assets/Scenes/Lobby.unity` to connect the visual assets and defer Mirror startup through the transition overlay.
 - Added `Assets/_Project/UI/Not This Planet.png` and `Assets/_Project/UI/Not This Planet lobby motion.mp4` with Unity `.meta` files.
 - Added `Assets/_Project/Scripts/Runtime/Gameplay/World/Stage1Exploration.cs`, `Assets/_Project/Scripts/Runtime/UI/Stage1ExplorationHud.cs`, and `Assets/_Project/Scripts/Tests/Editor/Stage1ExplorationTests.cs` with Unity `.meta` files.
-- Added `Assets/_Project/Scripts/Runtime/Gameplay/World/Atmosphere/` (`AtmosphereProfile`, `AtmosphereController`, `AtmosphereBackdrop`, `AtmosphereMeteorShower`, `Stage1AtmosphereAlert`, `AtmosphereHazeRendererFeature`) and the reusable URP atmosphere shaders/materials. Added `Stage1AtmosphereProfile.asset` and wired it to `Main` through `SpaceBootstrap`; the `Stage1AtmosphereSetup` editor tool is included in the full Stage1 setup.
+- Added `Assets/_Project/Scripts/Runtime/Gameplay/World/Atmosphere/` (`AtmosphereProfile`, `AtmosphereController`, `AtmosphereBackdrop`, `AtmosphereMeteorShower`, `Stage1AtmosphereAlert`, `AtmosphereHazeRendererFeature`) and the reusable URP atmosphere shaders/materials. Added `Stage1AtmosphereProfile.asset` and wired it to `Main` through `SpaceBootstrap`; the `Stage1AtmosphereSetup` editor tool is included in the full Stage1 setup. `DustStormClockBridge` and `WorldSync` now share one server-created match seed between the physical hazard and every client visual.
 - Added `Assets/_Project/Scripts/Editor/UrpProjectSetup.cs` and `UrpRenderValidation.cs`; updated `SpaceBuild.cs` to enforce the pre-build validation and shader inclusion.
 - Converted the first-party material set to URP Lit and rewrote `Assets/_Project/Shaders/Resources/DoughSurface.shader`, `GhostSurface.shader`, and `FlatUnlit.shader` for URP while preserving shader names and runtime property names.
 - `ProjectSettings/ProjectVersion.txt`

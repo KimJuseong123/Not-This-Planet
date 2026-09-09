@@ -107,6 +107,7 @@ namespace Metagame.Network
             }
 
             live = Build();
+            live.InitializeDustStormSeed(DustStormMatchSeed.EnsureServerMatch());
             NetworkServer.Spawn(live.gameObject, AssetId);
         }
     }

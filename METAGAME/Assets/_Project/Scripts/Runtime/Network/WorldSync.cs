@@ -143,11 +143,16 @@ namespace Metagame.Network
         bool warnedNotReady;
         bool warnedClampMismatch;
 
+        /// <summary>이번 방의 먼지 폭풍 시드. 서버가 정하고 참가자에게 한 번 내려보낸다.</summary>
+        [SyncVar(hook = nameof(OnDustStormSeedChanged))]
+        int dustStormSeed;
+
         /// <summary>클라이언트로서 챙길 것이 남았는가. 스폰이 등록된 뒤에만 참이 된다.</summary>
         bool needsClientPrepare;
 
         public override void OnStartServer()
         {
+            dustStormSeed = DustStormMatchSeed.EnsureServerMatch();
             Collect();
             ready = true;
 
@@ -164,6 +169,9 @@ namespace Metagame.Network
 
         public override void OnStartClient()
         {
+            if (dustStormSeed != 0)
+                DustStormMatchSeed.ApplyServerSeed(dustStormSeed);
+
             // 호스트 모드면 서버 쪽에서 이미 준비됐다.
             if (isServer) return;
 
@@ -176,6 +184,19 @@ namespace Metagame.Network
 
             // 서버와 같은 이유로 클라이언트도 견인 장치가 생기면 다시 센다(S15P21B202-315).
             TransportVehicle.AnyActivated += OnVehicleActivated;
+        }
+
+        /// <summary>
+        /// Mirror 가 스폰하기 전에 서버가 초기 SyncVar 값을 채운다.
+        /// </summary>
+        internal void InitializeDustStormSeed(int seed)
+        {
+            dustStormSeed = seed;
+        }
+
+        void OnDustStormSeedChanged(int oldSeed, int newSeed)
+        {
+            DustStormMatchSeed.ApplyServerSeed(newSeed);
         }
 
         /// <summary>
