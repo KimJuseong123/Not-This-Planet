@@ -206,4 +206,4 @@ git push --force-with-lease
 
 ---
 
-관련 문서: [git-convention.md](./git-convention.md)(브랜치·커밋 규칙) · [ci-and-notifications.md](./ci-and-notifications.md)(검사 잡별 상세) · [workflow.md](./workflow.md)(전체 흐름과 시나리오)
+관련 문서: [git-convention.md](./git-convention.md)(브랜치·커밋 규칙) · [ci-and-notifications.md](./ci-and-notifications.md)(검사 잡별 상세) · [workflow.md](./workflow.md)(전체 흐름) · [e2e-checklist.md](./e2e-checklist.md)(어긋나는 시나리오 정의와 실측)
