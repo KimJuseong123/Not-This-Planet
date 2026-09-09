@@ -1,4 +1,8 @@
-"""ai-review v2 — 역할별 리뷰어 + 팀장용 요약 한 장. 코멘트 1개(재실행 시 갱신). 비차단.
+"""ai-review v2 — 역할별 리뷰어 + 팀장용 요약 한 장. 코멘트 1개(재실행 시 갱신).
+
+이 잡 자체는 비차단(`allow_failure: true`)이다. 다만 **판정이 ⛔ 면 별 잡
+`ai-review-gate` 가 파이프라인을 막는다**(S15P21B202-341) — 리뷰를 *돌리는* 실패와
+그 결과로 *막는* 것을 한 잡에 섞지 않기 위해 나눠 놓았다. ⚠️·✅·❓ 는 통과한다.
 
 구성 (S15P21B202-82, 2026-08-27)
   리뷰어 3 역할 — 변경 내용에 따라 필요한 것만 실행, 병렬:
@@ -421,7 +425,11 @@ def render(mr_meta: str, roles: list[str], results: dict, raw: dict, merged: dic
     out += det
     # 사유를 하드코딩하지 않는다 (S15P21B202-354). 빠진 것이 없으면 그 말도 하지 않는다.
     note = skipped_note(skipped)
-    foot = "비차단(참고용)" + (f" · {note}" if note else "") + " · 재실행 시 이 코멘트가 갱신됩니다"
+    # ⛔ 는 `ai-review-gate` 가 막는다(-341). 각주가 "참고용" 이라고만 적으면 거짓이 된다 —
+    # 읽는 사람이 "의견이니 넘어가도 된다" 로 받아들이는데 실제로는 머지 버튼이 잠긴다.
+    gate = ("⛔ 는 `ai-review-gate` 가 막습니다 — 고쳐서 다시 push 하세요"
+            if merged["verdict"] == "block" else "⚠️·✅·❓ 는 막지 않습니다(참고용)")
+    foot = gate + (f" · {note}" if note else "") + " · 재실행 시 이 코멘트가 갱신됩니다"
     if failed:
         foot += f" · **실행 실패 리뷰어: {', '.join(ROLES[r]['label'] for r in failed)}**"
     out.append(f"\n<sub>{foot}</sub>")

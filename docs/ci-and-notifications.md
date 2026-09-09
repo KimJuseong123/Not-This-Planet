@@ -11,7 +11,7 @@
 | 1 사람 | 컨벤션 문서 · MR 템플릿 · 팀장 리뷰 체크리스트 | ✅ 운영 중 |
 | 2 서버 설정 | GitLab 보호 브랜치(master·develop·hotfix) · 머지 시 브랜치 자동 삭제 · Jira 자동화 8개(MM 표 카드 알림 포함) | ✅ 운영 중 — 2026-08-27 자동 삭제·R6 조건·MM 멘션 실전 확인 |
 | **3 CI 검사** | `mr-title` → `mr-lint` · `repo-hygiene` · (`unity-compile`) | ✅ 2026-08-27 파이프라인 #175312 에서 전부 성공(임시 Windows 러너, pwsh). 파이프라인 필수 설정 전까지는 "빨간불"만 |
-| **4 AI·알림** | `ai-review`(비차단) · Mattermost(GitLab 통합 + Jira 웹 요청 + `mm-digest`) | `ai-review` ✅ 검증(Opus 5/medium, 75초, 코드·설정 변경 MR 에만 실행). Jira→MM ✅ 적용. GitLab→MM 통합은 팀장 설정 대기 |
+| **4 AI·알림** | `ai-review`(⛔ 만 `ai-review-gate` 가 차단) · Mattermost(GitLab 통합 + Jira 웹 요청 + `mm-digest`) | `ai-review` ✅ 검증(Opus 5/medium, 75초, 코드·설정 변경 MR 에만 실행). Jira→MM ✅ 적용. GitLab→MM 통합은 팀장 설정 대기 |
 
 ## 2. MR 파이프라인 잡
 
@@ -223,7 +223,7 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 **한계**: Jira 자동화 규칙 자체의 *실행 오류*(-46 의 "이슈가 존재하지 않음" 같은)는 MM 으로 보낼 수 없다 — Jira 는 규칙 소유자 이메일 알림만 지원. 감사 로그가 유일한 창이며 `mm-digest` 의 needs-fix·정체 항목이 결과적으로 드러내 준다.
 ## 7. 지난 프로젝트(FlowerKnot, `s15-webmobile2-sub1/S15P11B210`) 교훈 반영 — 2026-08-27 조사
 
-지난 프로젝트는 EC2 systemd Worker 가 open MR 을 폴링해 **Opus 5 / effort medium** Reviewer 2개(코드·테스트 품질)를 병렬 실행하고 Critical/High 0건이면 Project Bot 이 Squash Auto-Merge 까지 했다(`docs/ai-review-automation.md`, `infra/ai-review/worker.py`). 이번 프로젝트는 **팀장 머지 원칙**이라 Auto-Merge·Gate 는 채택하지 않고, MR 파이프라인 안의 비차단 잡 1개로 단순화했다. 계승한 것:
+지난 프로젝트는 EC2 systemd Worker 가 open MR 을 폴링해 **Opus 5 / effort medium** Reviewer 2개(코드·테스트 품질)를 병렬 실행하고 Critical/High 0건이면 Project Bot 이 Squash Auto-Merge 까지 했다(`docs/ai-review-automation.md`, `infra/ai-review/worker.py`). 이번 프로젝트는 **팀장 머지 원칙**이라 Auto-Merge 는 채택하지 않았고, 처음에는 Gate 도 빼고 MR 파이프라인 안의 비차단 잡 1개로 단순화했다. **그 원칙이 실제로는 "아무도 안 읽음" 으로 귀결돼 2026-09-09 에 Gate 를 넣었다**(`-341`) — ⛔ 만 막고 ⚠️·✅·❓ 는 통과한다. Auto-Merge 는 여전히 없다. 계승한 것:
 
 | 항목 | 지난 프로젝트 | 이번 적용 |
 | --- | --- | --- |
@@ -251,7 +251,7 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 - **GitLab 내장 MM Pipeline 알림을 all branches 로 두면 MR 파이프라인 자동 취소가 "failed" 로 통보돼 노이즈** → 내장 알림은 default branch 로 한정(체크리스트 §5 반영).
 - **PowerShell 5.1 러너의 한글 변수 파손**은 이번 프로젝트에서 새로 겪은 것(Linux Docker 러너였던 지난 프로젝트엔 없음) → pwsh 필수.
 - **테스트 없는 알림 항목은 조용히 죽는다**(2026-08-31 실측) — 아침 점검의 `🌿 머지 뒤 다시 생긴 브랜치` 는 `resurrected_branches()` 가 표 행을 만들고도 **반환하지 않아** 도입(-110) 이후 한 번도 나가지 않았다. 호출부가 `if res:` 로 판단하므로 오류도 없이 항목만 사라진다. 미룬 테스트를 옮기다가 잡혔다(-133) → **알림 항목을 만들면 그 자리에서 오프라인 테스트를 같이 만든다.**
-- 리뷰 결과는 사실 검증 전까지 증거가 아니다 — 지난 프로젝트도 Medium/Low 는 참고, Critical/High 만 차단으로 썼다. 우리는 전부 참고(비차단)이며 판단은 팀장.
+- 리뷰 결과는 사실 검증 전까지 증거가 아니다 — 지난 프로젝트도 Medium/Low 는 참고, Critical/High 만 차단으로 썼다. 우리도 같은 선을 쓴다: **⛔ 보류 권고만 막고**(`-341`) ⚠️·✅·❓ 는 참고이며 판단은 팀장이다.
 ### 비결정 테스트가 무관한 MR 을 막지 않게 한다 (S15P21B202-347)
 
 판정("기준선에 없던 실패는 이 MR 탓")은 **실행이 결정적이라는 것을 전제한다.** 물리

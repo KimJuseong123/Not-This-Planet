@@ -138,4 +138,17 @@ for _job in ("mm-ci-failed:", "mm-ci-resolved:"):
     assert "optional: true" in _blk.split("job: ai-review-gate", 1)[1], f"{_job} 의 게이트 needs 가 optional 이 아니다"
 print("  잡 배선: 게이트는 차단·ai-review 는 비차단·알림 두 곳이 기다린다 ✅")
 
+
+# ── ⑫ 각주가 판정에 따라 달라진다 — ⛔ 에 "참고용" 은 거짓이다 ──────────
+#     읽는 사람이 "의견이니 넘어가도 된다" 로 받아들이는데 실제로는 머지 버튼이 잠긴다.
+_common = dict(mr_meta="`cli/x` · 커밋 `abc1234`", roles=["scope"], results={}, raw={},
+               summary=None, skipped=[], failed=[], defaults={})
+_blocked = AR.render(merged={"verdict": "block", "checks": {}, "findings": [], "questions": []}, **_common)
+assert "ai-review-gate` 가 막습니다" in _blocked, _blocked[-400:]
+assert "참고용" not in _blocked.rsplit("<sub>", 1)[-1], "⛔ 각주에 '참고용' 이 남아 있다"
+for _v in ("warn", "ok", "unknown"):
+    _passing = AR.render(merged={"verdict": _v, "checks": {}, "findings": [], "questions": []}, **_common)
+    assert "막지 않습니다(참고용)" in _passing, f"{_v}: " + _passing[-300:]
+print("  각주가 ⛔ 에는 '막습니다', 나머지에는 '막지 않습니다' 를 적는다 ✅")
+
 print("TEST341 OK")
