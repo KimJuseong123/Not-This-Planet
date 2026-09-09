@@ -308,14 +308,22 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
     # 새 실패가 없으면 이 단계는 아무것도 하지 않는다 — 평소 비용 0이다.
     - |
       PLAN="$CI_PROJECT_DIR/unity-recheck.txt"
+      # **지난 실행이 남긴 것을 먼저 지운다**(`!272` AI 리뷰). 최종 판정이 이 디렉터리에서
+      # unity-recheck-*.xml 을 글롭으로 모으므로, 워크스페이스가 재사용되면 **이번에 재실행
+      # 하지 않았는데도 옛 통과 기록으로 새 실패가 면제될 수 있다.** GIT_CLEAN_FLAGS 가
+      # 보통 지우지만 그 보장을 여기에 두는 것이 맞다.
+      rm -f "$CI_PROJECT_DIR"/unity-recheck-*.xml "$CI_PROJECT_DIR"/unity-recheck-*.log \
+            "$PLAN" "$CI_PROJECT_DIR/unity-baseline.json"
       # 계획 단계는 기준선을 조회해 `unity-baseline.json` 에 **고정해 둔다.** 최종 판정이
       # 그것을 그대로 읽으므로, 그 사이 develop 의 unity-compile 이 끝나도 재실행한 집합과
       # 판정 대상이 어긋나지 않는다(`!272` AI 리뷰).
       python3 scripts/ci/unity_report.py "$CI_PROJECT_DIR/unity-results.xml" \
         "$CI_PROJECT_DIR/unity.log" "$(cat "$CI_PROJECT_DIR/unity-rc.txt")" \
         --recheck-plan "$PLAN" || true
+      # `[ -s "$PLAN" ] && N=…` 로 써도 set -e 가 끊지 않는다(&& 목록의 마지막이 아닌
+      # 실패는 면제된다 — 2026-09-09 실측). 그래도 읽는 사람에게 애매해서 if 로 둔다.
       N=0
-      [ -s "$PLAN" ] && N=$(grep -c . "$PLAN" || true)
+      if [ -s "$PLAN" ]; then N=$(grep -c . "$PLAN" || true); fi
       # 상한을 넘으면 재실행하지 않는다 — 그 정도면 플래키가 아니라 실제 회귀이고,
       # -testFilter 명령줄만 길어진다. **건너뛴 사실을 로그에 적는다.**
       if [ "$N" -gt "$RECHECK_MAX_NEW" ]; then

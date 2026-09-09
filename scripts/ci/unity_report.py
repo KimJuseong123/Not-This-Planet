@@ -274,17 +274,30 @@ def classify_rechecks(new: set, paths: list[str]) -> tuple[set, set, set]:
         # 로그를 근거로 판독하는 사람을 오도한다(`!272` AI 리뷰).
         ran: set = set()
         passed_here: set = set()
+        other_here: set = set()
         for c in d["cases"]:
             name = f'{c["cls"]}.{c["name"]}'
             if name not in new:
                 continue
-            ran.add(name)
-            if c["result"] != "Failed":
+            res = c["result"]
+            if res == "Passed":
+                ran.add(name)
                 passed_here.add(name)
+            elif res == "Failed":
+                ran.add(name)
+            else:
+                # **Skipped·Inconclusive 를 통과로 세지 않는다** (`!272` AI 리뷰).
+                # 재실행에서 스킵된 테스트를 면제하면 진짜 회귀가 판정에서 빠진다.
+                # `ran` 에 넣지 않으므로 '확인 못함' 으로 남아 회귀로 처리된다.
+                other_here.add(name)
         seen |= ran
         passed_any |= passed_here
         print(f"재실행 {os.path.basename(p)}: 대상 {len(ran)}/{len(new)}건 · "
               f"이 회차 통과 {len(passed_here)}건")
+        if other_here:
+            print(f"  이 회차에 통과도 실패도 아닌 결과 {len(other_here)}건 "
+                  f"(Skipped·Inconclusive) — 확인한 것으로 세지 않는다: "
+                  f"{', '.join(sorted(other_here)[:5])}")
         if not ran:
             # **필터가 아무것도 못 잡았다.** `-testFilter` 구분자가 이 Unity 버전에서
             # 안 통하면 이렇게 된다 — 그러면 전원 '확인 못함' → 회귀가 되어 이 장치가
@@ -551,6 +564,12 @@ def main(argv: list[str] | None = None) -> int:
         if found:
             print(f"재실행 결과 {len(found)}개를 {recheck_dir} 에서 모았다")
         recheck_paths += found
+
+    # 계획 단계는 판정을 하지 않으므로 재실행 결과를 받아도 쓸 곳이 없다. 두 옵션을 함께
+    # 주면 **조용히 무시되어 통과처럼 보인다** — 인자 조합 오류를 말한다(`!272` AI 리뷰).
+    if plan_path and recheck_paths:
+        print(f"[warn] --recheck-plan 과 재실행 옵션을 함께 줬다 — 계획 단계는 판정하지 "
+              f"않으므로 재실행 결과 {len(recheck_paths)}개를 쓰지 않는다. 잡 스크립트를 확인하라")
 
     nunit_path = argv[0] if argv else "unity-results.xml"
     log_path = argv[1] if len(argv) > 1 else "unity.log"

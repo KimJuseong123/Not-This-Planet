@@ -161,6 +161,10 @@ assert "RECHECK_RUNS" in _uc and "RECHECK_MAX_NEW" in _uc, "재실행 횟수·�
 import unity_report as _UR
 assert not hasattr(_UR, "RECHECK_RUNS"), (
     "unity_report.py 에 RECHECK_RUNS 가 다시 생겼다 — YAML 과 이중 관리가 된다(!272 리뷰)")
-print("  ⑨ 플래키 재실행 단계 · 결과 전달 · 아티팩트 ✅")
+# 지난 실행이 남긴 재실행 결과를 지워야 한다 — 워크스페이스가 재사용되면 옛 통과
+# 기록으로 새 실패가 면제된다(!272 리뷰)
+assert "rm -f" in _uc and "unity-recheck-*.xml" in _uc.split("rm -f")[1][:200], (
+    "재실행 전에 지난 결과를 지우지 않는다 — 옛 통과 기록으로 새 실패가 면제될 수 있다")
+print("  ⑨ 플래키 재실행 단계 · 결과 전달 · 아티팩트 · 지난 결과 정리 ✅")
 
 print("TEST289 OK")

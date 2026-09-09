@@ -891,4 +891,61 @@ finally:
     R.baseline_failures = _keep_bf3
 print("  고정 파일이 깨지면 다시 조회한다 ✅")
 
+
+# ⑧ 재실행에서 Skipped·Inconclusive 는 **통과로 세지 않는다** (`!272` AI 리뷰).
+#    스킵된 것을 면제하면 진짜 회귀가 판정에서 빠진다.
+_SKIPPED = """<?xml version="1.0" encoding="utf-8"?>
+<test-run id="9" total="2" passed="0" failed="0" skipped="2" duration="0.1">
+  <test-suite type="TestFixture" name="ShipAscentTests" fullname="G.ShipAscentTests">
+    <test-case id="1" name="Load" fullname="G.ShipAscentTests.Load" result="Skipped" duration="0" />
+    <test-case id="2" name="Hatch" fullname="G.ShipAscentTests.Hatch" result="Inconclusive" duration="0" />
+  </test-suite>
+</test-run>
+"""
+with _tf.TemporaryDirectory() as d:
+    p = os.path.join(d, "unity-recheck-1.xml")
+    open(p, "w", encoding="utf-8").write(_SKIPPED)
+    new = {"G.ShipAscentTests.Load", "G.ShipAscentTests.Hatch"}
+    _f, _s, _u = R.classify_rechecks(new, [p])
+    assert _f == set(), f"스킵을 면제하면 안 된다: {_f}"
+    assert _u == new, f"통과도 실패도 아니면 '확인 못함' 이어야 한다: {_u}"
+print("  Skipped·Inconclusive 는 면제하지 않고 '확인 못함' 으로 둔다 ✅")
+
+# 통과가 섞여 있으면 그것만 면제한다
+_MIXED = """<?xml version="1.0" encoding="utf-8"?>
+<test-run id="9" total="2" passed="1" failed="0" skipped="1" duration="0.1">
+  <test-suite type="TestFixture" name="ShipAscentTests" fullname="G.ShipAscentTests">
+    <test-case id="1" name="Load" fullname="G.ShipAscentTests.Load" result="Passed" duration="0.1" />
+    <test-case id="2" name="Hatch" fullname="G.ShipAscentTests.Hatch" result="Skipped" duration="0" />
+  </test-suite>
+</test-run>
+"""
+with _tf.TemporaryDirectory() as d:
+    p = os.path.join(d, "unity-recheck-1.xml")
+    open(p, "w", encoding="utf-8").write(_MIXED)
+    _f, _s, _u = R.classify_rechecks({"G.ShipAscentTests.Load", "G.ShipAscentTests.Hatch"}, [p])
+    assert _f == {"G.ShipAscentTests.Load"}, _f
+    assert _u == {"G.ShipAscentTests.Hatch"}, _u
+print("  통과한 것만 면제하고 스킵된 것은 회귀로 남는다 ✅")
+
+# ⑨ 계획 옵션과 재실행 옵션을 함께 주면 **말한다** — 조용히 무시되면 통과처럼 보인다
+_keep_bf4 = R.baseline_failures
+try:
+    R.baseline_failures = lambda gl, ref, max_pipelines=15, meta=None, runs=3: set()
+    with _tf.TemporaryDirectory() as d:
+        nunit = os.path.join(d, "unity-results.xml")
+        open(nunit, "w", encoding="utf-8").write(_PLAN_NUNIT)
+        open(os.path.join(d, "unity-recheck-1.xml"), "w", encoding="utf-8").write(_RECHECK_A)
+        plan = os.path.join(d, "unity-recheck.txt")
+        import io as _io2
+        import contextlib as _cl
+        _buf = _io2.StringIO()
+        with _cl.redirect_stdout(_buf):
+            R.main([nunit, os.path.join(d, "nope.log"), "2",
+                    "--recheck-plan", plan, "--recheck-dir", d])
+        assert "--recheck-plan 과 재실행 옵션을 함께" in _buf.getvalue(), _buf.getvalue()[-400:]
+finally:
+    R.baseline_failures = _keep_bf4
+print("  계획 옵션 + 재실행 옵션을 함께 주면 경고한다 ✅")
+
 print("TEST271 OK")
