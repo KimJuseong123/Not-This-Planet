@@ -213,8 +213,21 @@ namespace Metagame.Network
                 return true;
             }
 
-            Vector3 foot = session != null ? session.SpawnFoot : transform.position;
-            Quaternion facing = Quaternion.LookRotation(Vector3.right, Vector3.up);
+            // 끊겼다 돌아온 사람이면 그 자리에 세운다 (S15P21B202-150).
+            // 없으면(첫 입장·유예 초과) 스폰 지점이다.
+            Vector3 foot;
+            Quaternion facing;
+            if (RejoinMemory.TryTake(userId, out Vector3 lastFoot, out Vector3 lastForward))
+            {
+                foot = lastFoot;
+                facing = Quaternion.LookRotation(lastForward, Vector3.up);
+                Debug.Log($"[NetPlayer] 끊긴 자리로 복귀 · {nickname}(userId={userId}) · {foot}");
+            }
+            else
+            {
+                foot = session != null ? session.SpawnFoot : transform.position;
+                facing = Quaternion.LookRotation(Vector3.right, Vector3.up);
+            }
 
             // 헤드리스 서버에는 모델을 씌우지 않는다. 그릴 일이 없고 로딩만 든다.
             body = PlayerRig.Create(
@@ -598,6 +611,16 @@ namespace Metagame.Network
         }
         public override void OnStopServer()
         {
+            // 어디에 서 있었는지 적어 둔다 (S15P21B202-150). 이것이 없으면 다시 붙었을 때
+            // 새 몸이 스폰 지점에 서서, 멀리까지 걸어간 사람이 처음으로 되돌아간다.
+            //
+            // 넘겨받은 몸(방장 자기 몸)은 적지 않는다 — 게임 씬이 만든 것이고 호스트가
+            // 끊기면 매치 자체가 끝난다.
+            if (body != null && !adoptedBody)
+            {
+                RejoinMemory.Remember(userId, body.FootPosition, body.PlanarForward);
+            }
+
             ServerPlayers.Remove(this);
             ClientPlayers.Remove(this);
             RemoveBody();
