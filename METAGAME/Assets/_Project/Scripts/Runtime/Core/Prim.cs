@@ -47,10 +47,11 @@ namespace Metagame.Core
             return Shader.Find("Universal Render Pipeline/Lit");
         }
 
-        /// <summary>같은 색/말랑함이면 머티리얼을 공유한다.</summary>
-        public static Material Dough(Color c, float softness)
+        /// <summary>같은 색/말랑함/안개 설정이면 머티리얼을 공유한다.</summary>
+        public static Material Dough(Color c, float softness, bool fogExempt = false)
         {
             string key = string.Format("{0:0.00}_{1:0.00}_{2:0.00}_{3:0.00}", c.r, c.g, c.b, softness);
+            if (fogExempt) key += "_NoFog";
             Material m;
             if (doughCache.TryGetValue(key, out m) && m != null) return m;
 
@@ -62,6 +63,9 @@ namespace Metagame.Core
             if (m.HasProperty("_Mottle")) m.SetFloat("_Mottle", Mathf.Lerp(0.10f, 0.20f, softness));
             // 진공에는 하늘빛이 없다 — 앰비언트를 낮게 두어야 그림자가 새까맣게 떨어진다
             if (m.HasProperty("_Ambient")) m.SetFloat("_Ambient", 0.22f);
+            if (m.HasProperty("_FogStrength")) m.SetFloat("_FogStrength", fogExempt ? 0f : 1f);
+            if (m.HasProperty("_AtmosphereFogExemptMask"))
+                m.SetFloat("_AtmosphereFogExemptMask", fogExempt ? AtmosphereFogExemptMask : 0f);
             doughCache[key] = m;
             return m;
         }

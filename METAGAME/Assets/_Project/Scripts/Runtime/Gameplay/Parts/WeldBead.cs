@@ -735,7 +735,7 @@ namespace Metagame.Gameplay.Parts
 
             // 다리 중간 덩어리도 연결을 유지하므로 사슬 전체를 같은 색으로 표시한다.
             // 공유 재질 자체를 수정하면 무관한 비드까지 변하므로 재질 참조만 바꾼다.
-            var material = Prim.Dough(helpful ? HelpfulBeadColor : BeadColor, BeadSoftness);
+            var material = Prim.Dough(helpful ? HelpfulBeadColor : BeadColor, BeadSoftness, fogExempt: true);
             for (var b = 0; b < chain.Blobs.Count; b++)
             {
                 var blob = chain.Blobs[b];
