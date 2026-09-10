@@ -427,10 +427,17 @@ namespace Metagame.Gameplay.Tests
             Assert.AreEqual(0, push.HaulerCount);
         }
 
-        // --- 버티는 중 (연출이 볼 값) ---------------------------------------
+        // --- 밀려고 하는 것과 실제로 움직이는 것 ------------------------------
+        //
+        // 두 값을 가르는 이유는 기획 §10.2 의 밀기 카메라다. 3인칭 전환은 파츠가
+        // **실제로 밀릴 때**만 걸려야 하므로 IsHauling 이 아니라 IsMoving 을 봐야 한다.
+        //
+        // 한두 명이 붙었을 때의 "버티는 중" 연출은 만들지 않기로 했다(2026-09-10
+        // 기획 판단). 그래서 그 상태를 위한 별도 값은 두지 않는다 — 필요하면
+        // IsHauling && !IsMoving 으로 언제든 물을 수 있다.
 
         [Test]
-        public void OneOrTwoHaulers_AreBracing()
+        public void OneOrTwoHaulers_TryButDoNotMoveIt()
         {
             var push = MakePart();
             MakePlayer(new Vector3(-1f, 0f, 0.4f), Vector3.right);
@@ -441,11 +448,10 @@ namespace Metagame.Gameplay.Tests
             Assert.AreEqual(2, push.HaulerCount);
             Assert.IsTrue(push.IsHauling, "밀려고 하고 있다.");
             Assert.IsFalse(push.IsMoving, "인원이 마찰을 못 이긴다.");
-            Assert.IsTrue(push.Bracing, "연출이 이 값을 본다.");
         }
 
         [Test]
-        public void ThreeHaulers_AreNotBracing()
+        public void ThreeHaulers_ActuallyMoveIt_ByCount()
         {
             var push = MakePart();
             ThreeHaulers(push);
@@ -453,19 +459,19 @@ namespace Metagame.Gameplay.Tests
             Tick(push, 1f);
 
             Assert.AreEqual(3, push.HaulerCount);
-            Assert.IsTrue(push.IsMoving);
-            Assert.IsFalse(push.Bracing);
+            Assert.IsTrue(push.IsHauling);
+            Assert.IsTrue(push.IsMoving, "밀기 카메라가 이 값을 본다.");
         }
 
         [Test]
-        public void NobodyHauling_IsNotBracing()
+        public void NobodyHauling_IsNeitherHaulingNorMoving()
         {
             var push = MakePart();
 
             Tick(push, 1f);
 
             Assert.IsFalse(push.IsHauling);
-            Assert.IsFalse(push.Bracing, "아무도 없으면 버티는 것도 아니다.");
+            Assert.IsFalse(push.IsMoving, "아무도 없으면 움직이지 않는다.");
         }
 
         // --- 실제로 움직이는가 — 지면·중력·Physics.Simulate ------------------

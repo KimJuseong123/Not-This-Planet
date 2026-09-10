@@ -73,15 +73,11 @@ namespace Metagame.Gameplay.Parts
         public bool IsMoving => IsHauling && HaulerCount >= PartPushTable.MinPeople;
 
         /// <summary>
-        /// 붙어서 밀고 있지만 인원이 모자라 파츠가 꿈쩍하지 않는 상태.
+        /// 파츠가 움직이기 시작하는 최소 인원.
         ///
-        /// <b>이 값은 연출을 위해 있다.</b> 한두 명이 붙었을 때 화면에 아무 반응이 없으면
-        /// 플레이어는 고장으로 읽는다. 버티는 자세나 "○/3" 표시가 이 값을 본다
-        /// (연출은 S15P21B202-394 의 후속이다 — 지금 쓰는 곳은 검증뿐이다).
+        /// 기획 §10.2 의 밀기 카메라가 "밀기가 실제로 걸렸는가" 를 물을 때
+        /// <see cref="IsMoving"/> 과 함께 쓴다.
         /// </summary>
-        public bool Bracing => IsHauling && !IsMoving;
-
-        /// <summary>파츠가 움직이기 시작하는 최소 인원. HUD 의 "○/3" 이 쓴다.</summary>
         public static int MinPeopleToMove => PartPushTable.MinPeopleToMove;
 
         void Awake() => Initialize();
