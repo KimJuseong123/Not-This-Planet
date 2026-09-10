@@ -112,7 +112,7 @@ public bool CanPush =>
 
 ## 4. 검증
 
-**`PartPushTests` 42 → 45 · `PartPushCameraTests` 26. 합 71개 전부 통과.**
+**`PartPushTests` 42 → 46 · `PartPushCameraTests` 26. 합 72개 전부 통과.**
 
 | 검증 | 무엇을 잠그나 |
 | --- | --- |
@@ -120,6 +120,12 @@ public bool CanPush =>
 | **`APlacedPartIsOutOfScope`** | **조립대에 올린 파츠는 `CanPush` 가 처음부터 거절한다** |
 | **`PushingAtASteepAngle_StillCounts`** | **70도로 비스듬히 서도 인원에 센다** |
 | **`PushingPastARightAngle_DoesNotCount`** | 직각(110도)을 넘으면 세지 않는다 — 관용의 한계 |
+| **`PushingExactlySideways_CountsAtTheBoundary`** | **정확히 직각(dot 0)은 포함이다** |
+
+`PartPushTests` 는 45 → 46 이 됐다. 마지막 검증은 !316 의 AI 리뷰가 짚어 더했다 —
+70도와 110도만 잠그면 `Gather` 의 비교를 `>=` 에서 `>` 로 바꿔도 전부 통과해,
+**경계가 어느 쪽인지 아무도 정하지 않은 상태**가 된다. `AimDot` 0 은 포함 경계다:
+90도를 *넘어야* 멀어지는 쪽이다.
 
 하네스도 손봤다. `PartPushTests.MakePart` 의 기본 상태가 `Placed` 였고 지면 하네스
 셋도 그랬다. `Free` 로 바꿨다 — 두 상태는 물리 표현(질량·kinematic)이 같아
@@ -131,13 +137,14 @@ public bool CanPush =>
 | --- | --- |
 | `CanPush` 에 `Placed` 를 되돌린다 | **1개 실패** — `APlacedPartIsOutOfScope` |
 | `PartPushAimDot` 을 0.5 로 되돌린다 | **1개 실패** — `PushingAtASteepAngle_StillCounts` |
+| `Gather` 의 판정을 `>=` 에서 `>` 로 바꾼다 | **1개 실패** — `PushingExactlySideways_CountsAtTheBoundary` |
 
 ### 4-2. 기준선 대조
 
 | | 검증 수 | 실패 |
 | --- | --- | --- |
 | develop (`8dc8c32`) | 1080 | 34 |
-| 이 브랜치 | **1083** (+3) | **33** |
+| 이 브랜치 | **1084** (+4) | **33** |
 
 **새로 생긴 실패 0개.** 줄어든 1개
 (`CeilingOnlyBlocksRise_WhileDriveAndDismountRemainAvailable`)는 탈것 천장 판정이라

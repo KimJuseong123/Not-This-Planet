@@ -296,6 +296,29 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
+        /// <b>정확히 직각(dot 0)은 포함이다.</b>
+        ///
+        /// 70도와 110도만 잠그면 <c>Gather</c> 의 비교를 <c>&gt;=</c> 에서 <c>&gt;</c> 로
+        /// 바꿔도 전부 통과한다 — 경계가 어느 쪽인지 아무도 정하지 않은 상태가 된다
+        /// (!316 AI 리뷰가 짚었다). <see cref="PhysicsScale.PartPushAimDot"/> 가 0 이고
+        /// 판정이 <c>&gt;=</c> 이므로 직각은 <b>센다</b>. 그것이 이 값의 뜻이다 —
+        /// 90도를 <b>넘어야</b> 멀어지는 쪽이다.
+        /// </summary>
+        [Test]
+        public void PushingExactlySideways_CountsAtTheBoundary()
+        {
+            var push = MakePart();
+
+            // 파츠는 원점, 사람은 -x 쪽. 파츠 방향은 +x 이고 직각은 +z 다.
+            MakePlayer(new Vector3(-1f, 0f, 0f), Vector3.forward);
+
+            Tick(push, 1f);
+
+            Assert.AreEqual(1, push.HaulerCount,
+                "직각은 아직 멀어지는 것이 아니다 — AimDot 0 은 포함 경계다.");
+        }
+
+        /// <summary>
         /// 그래도 <b>멀어지는</b> 입력은 밀기가 아니다 — §13.1 "당기기는 제공하지 않으며".
         /// 이 검증이 관용의 한계를 잠근다. 0 보다 더 낮추면 이것이 깨진다.
         /// </summary>
