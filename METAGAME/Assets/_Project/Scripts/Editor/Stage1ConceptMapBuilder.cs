@@ -14,7 +14,7 @@ namespace Metagame.EditorTools
     /// <summary>Builds only the standalone concept scene; production scenes and shared prefabs are never saved.</summary>
     public static class Stage1ConceptMapBuilder
     {
-        public const string ScenePath = "Assets/_Project/Scenes/Stage1_Concept.unity";
+        public const string ScenePath = "Assets/Scenes/Stage1_Concept.unity";
         private const string Generated = "Assets/_Project/Art/Stage1Concept";
         private const string Environment = "Assets/_Project/Prefabs/Environment/Stage1/PF_Stage1_";
         private const string Ships = "Assets/_Project/Prefabs/Spaceships/Stage1/PF_Stage1_";

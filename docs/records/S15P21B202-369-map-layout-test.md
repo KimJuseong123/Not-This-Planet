@@ -16,7 +16,7 @@
 
 1. 기존 작업을 저장하고, 가능하면 별도 폴더에서 이 브랜치를 받는다. Git LFS를 설치하고 `git lfs pull`로 에셋을 받는다.
 2. Unity Hub에서 저장소의 `METAGAME` 폴더를 Unity **6000.5.4f1**로 연다.
-3. `Assets/_Project/Scenes/Stage1_Concept_Playable.unity`를 열고 Play를 누른다.
+3. `Assets/Scenes/Stage1_Concept_Playable.unity`를 열고 Play를 누른다.
    메뉴 `Tools → NOT THIS PLANET → 컨셉 맵 → 플레이용 씬 열기`로도 열 수 있다.
 4. 남서 시작기지에서 중앙 조립대, 남동 견인 모듈, 동쪽 언덕, 북서 격납고의 배치와 접근 경로를 살펴본다.
 

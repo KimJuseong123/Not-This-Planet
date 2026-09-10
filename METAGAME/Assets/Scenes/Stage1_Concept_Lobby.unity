@@ -293,8 +293,8 @@ MonoBehaviour:
   disconnectInactiveTimeout: 60
   exceptionsDisconnect: 1
   authenticator: {fileID: 1056712111}
-  offlineScene: Assets/_Project/Scenes/Stage1_Concept_Lobby.unity
-  onlineScene: Assets/_Project/Scenes/Stage1_Concept_Playable.unity
+  offlineScene: Assets/Scenes/Stage1_Concept_Lobby.unity
+  onlineScene: Assets/Scenes/Stage1_Concept_Playable.unity
   offlineSceneLoadDelay: 0
   playerPrefab: {fileID: 26762391954626869, guid: 57644986c8965944aa0ef6c8c4c0c4a5, type: 3}
   autoCreatePlayer: 1

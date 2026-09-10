@@ -17,8 +17,8 @@ namespace Metagame.EditorTools
     /// <summary>Integrates a copy of Main's real puzzle into the separate concept environment.</summary>
     public static class Stage1ConceptPlayableBuilder
     {
-        public const string ScenePath = "Assets/_Project/Scenes/Stage1_Concept_Playable.unity";
-        public const string LobbyPath = "Assets/_Project/Scenes/Stage1_Concept_Lobby.unity";
+        public const string ScenePath = "Assets/Scenes/Stage1_Concept_Playable.unity";
+        public const string LobbyPath = "Assets/Scenes/Stage1_Concept_Lobby.unity";
         private const string MainPath = "Assets/Scenes/Main.unity";
         private const string Art = "Assets/_Project/Art/Stage1Concept";
 

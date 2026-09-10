@@ -67,7 +67,7 @@ OS 마우스 수동 완주나 네트워크 테스트는 아니다.
 ### 바로 플레이하기
 
 Unity에서 `Tools → NOT THIS PLANET → 컨셉 맵 → 플레이용 씬 열기`를 선택한 뒤 Play.
-대상은 `Assets/_Project/Scenes/Stage1_Concept_Playable.unity`다.
+대상은 `Assets/Scenes/Stage1_Concept_Playable.unity`다.
 남서쪽 기지에서 기존 플레이어로 시작한다. Tab 태블릿, 장비 줍기와 사용,
 좌클릭 용접 / 우클릭 절단, 견인체 가까이에서 E 탑승 등 기존 조작을 사용한다.
 `Stage1_Concept`는 자유 카메라 아트 검토용이므로 플레이용과 혼동하지 않는다.
@@ -183,7 +183,7 @@ Play 중 Transform 변경은 영구 저장되지 않는다. 배치 수정은 Pla
 
 ## 파일과 편집 경계
 
-- 씬: `Assets/_Project/Scenes/Stage1_Concept.unity`
+- 씬: `Assets/Scenes/Stage1_Concept.unity`
 - 생성한 메시·재질·Volume·컨셉용 URP 복제본: `Assets/_Project/Art/Stage1Concept/`
 - 생성 메뉴: `Assets/_Project/Scripts/Editor/Stage1ConceptMapBuilder.cs`
 - 독립 카메라: `Assets/_Project/Scripts/Runtime/Gameplay/World/Stage1ConceptExplorer.cs`

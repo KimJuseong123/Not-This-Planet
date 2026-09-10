@@ -12,9 +12,9 @@ EditorBuildSettings:
     path: Assets/Scenes/Main.unity
     guid: 34cccf1ffdfdf8e45bae5f6b50bf8765
   - enabled: 1
-    path: Assets/_Project/Scenes/Stage1_Concept_Lobby.unity
+    path: Assets/Scenes/Stage1_Concept_Lobby.unity
     guid: 9180006dfe3f21c4284bf09221037e09
   - enabled: 1
-    path: Assets/_Project/Scenes/Stage1_Concept_Playable.unity
+    path: Assets/Scenes/Stage1_Concept_Playable.unity
     guid: ce6caa2b12af38445a9182cfe1d00a8e
   m_configObjects: {}
