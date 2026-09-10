@@ -578,6 +578,24 @@ namespace Metagame.Network
             // 과 같은 일이다 — 물리가 낸 결과를 SyncVar·NetworkTransform 에 넘긴다.
             downed = body.Downed;
 
+            // **이 기계가 서버라고 몸에 알린다** (S15P21B202-414).
+            //
+            // 이 메서드는 [ServerCallback] 이다 — 여기 있다는 사실 자체가 근거다.
+            // PlayerRig 안에서는 계산할 수 없다: NetworkServer.active 를 봐야 하고
+            // Metagame.Gameplay 는 Mirror 를 참조하지 않는다.
+            //
+            // **-390 에서 이 대입을 지운 것이 잘못이었다.** 그때 기본값을 참으로
+            // 바꾸면서 "쓰는 곳을 하나로" 라며 함께 지웠는데, 그러자 이 필드를
+            // **거짓으로 쓰는 곳만 남았다**(RemoteAvatar.Attach 두 자리). 되돌아올
+            // 길이 없어져서, **한 번 참가자였던 기계는 호스트를 이어받은 뒤에도
+            // 영원히 거짓**이었다 — TickRescue 가 예측 상한(0.98)에서 자기 자신인
+            // 서버를 기다리며 멈췄고 동료는 일어나지 않았다(2026-09-10 16:00 QA,
+            // 방장 49 → 47 이전 회차).
+            //
+            // downed·hauling 과 같은 자리에 둔다. 그리고 위 둘과 같은 이유로
+            // `if (transport != null)` 안에 두지 않는다 — 권위는 탑승과 무관하다(-378).
+            body.ServerAuthority = true;
+
             // 밀기 상태도 같은 자리에서 실어 보낸다 (S15P21B202-400). 위 downed 와 같은
             // 이유로 transport 블록 안에 두지 않는다 — 밀기는 탑승과 아무 상관이 없다.
             hauling = body.Hauling;

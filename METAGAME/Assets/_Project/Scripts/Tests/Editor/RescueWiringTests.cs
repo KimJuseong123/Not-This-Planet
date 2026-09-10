@@ -273,18 +273,34 @@ namespace Metagame.Gameplay.Tests
                 UnityEngine.Object.DestroyImmediate(probe.gameObject);
             }
 
-            // **내려놓는 곳은 클라이언트 한 곳뿐이다.** RemoteAvatar.Attach 가 이미
-            // NetworkDriven 을 켜고 ClampInteractor 를 끄는 자리다 — 같은 이유의 같은
-            // 자리라 새 불변식을 만들지 않는다. 내 몸과 남의 몸 **두 경로**가 있다.
+            // **내려놓는 곳은 한 함수뿐이다** (S15P21B202-414). 처음에는 두 경로
+            // (내 몸·남의 몸)에 대입을 각각 두었는데, 거기에 서버 가드를 붙여야 하게
+            // 되면서 조건이 두 곳으로 갈렸다 — 다음 사람이 한쪽만 고친다. 그래서
+            // DisownJudgement 하나로 모으고 조건을 그 안에 뒀다.
             var avatar = TestSource.Blank(TestSource.Read("Runtime/Network/RemoteAvatar.cs"));
-            Assert.That(TestSource.Count(avatar, "ServerAuthority = false"), Is.EqualTo(2),
+            Assert.That(TestSource.Count(avatar, "ServerAuthority = false"), Is.EqualTo(1),
+                "거짓으로 쓰는 자리가 둘 이상이면 서버 가드가 한쪽에만 붙는다");
+            Assert.That(TestSource.Count(avatar, "DisownJudgement(rig)"), Is.EqualTo(2),
                 "클라이언트의 두 경로(내 몸·남의 몸)에서 모두 내려놓아야 한다 — "
                 + "한쪽이 빠지면 그 몸에서 부활이 일어나 서버와 어긋난다");
 
-            // 쓰는 곳이 둘이면 갈라진다 — 서버 쪽에서 다시 켜지 않는다.
+            // **그리고 서버는 다시 집는다** (S15P21B202-414).
+            //
+            // 예전에 이 자리에는 `Does.Not.Contain("ServerAuthority")` 가 있었다 —
+            // "쓰는 곳이 둘이면 갈라진다" 는 이유였다. **그 단정이 결함을 지키고
+            // 있었다.** 거짓으로 쓰는 곳만 남으면 되돌아올 길이 없어서, 한 번
+            // 참가자였던 기계는 호스트를 이어받은 뒤에도 영원히 거짓이다
+            // (HostMigration 은 RemoteAvatar 를 떼지 않는다). 2026-09-10 16:00 QA 의
+            // 방장 49 → 47 이전 회차가 그 상태였다.
+            //
+            // 값을 쓰는 곳이 둘인 것은 의도다: **거짓은 클라이언트가, 참은 서버가**
+            // 말하고 두 말은 같은 기계에서 겹치지 않는다.
             var net = TestSource.Blank(TestSource.Read("Runtime/Network/NetPlayer.cs"));
-            Assert.That(net, Does.Not.Contain("ServerAuthority"),
-                "서버가 다시 켜면 쓰는 곳이 둘이 된다 — 기본값이 이미 참이다");
+            Assert.That(TestSource.Count(net, "ServerAuthority = true"), Is.EqualTo(1),
+                "서버가 권위를 되찾지 않으면 호스트를 이어받은 기계에서 부활이 "
+                + "예측 상한에서 영원히 멈춘다");
+            Assert.That(net, Does.Not.Contain("ServerAuthority = false"),
+                "서버 쪽에서 내려놓으면 클라이언트의 판정과 겹친다");
         }
 
         /// <summary>
@@ -355,5 +371,110 @@ namespace Metagame.Gameplay.Tests
                 "0 이면 누른 순간 완료돼 게이지가 보이지 않는다");
             Assert.That(PhysicsScale.RescueHealthRatio, Is.InRange(0f, 1f));
         }
+
+        /// <summary>
+        /// <b>권위를 되찾는 자리가 탑승 블록 밖에 있다</b> (S15P21B202-414).
+        ///
+        /// <c>-378</c> 이 같은 함정을 겪었다 — <c>downed</c> 대입을 처음에
+        /// <c>if (transport != null)</c> 안에 두었고, 지금은 non-null 이라 증상이 나지
+        /// 않았지만 그 조건에 손대는 다음 사람이 복제를 조용히 끊을 수 있었다.
+        /// 권위도 탑승과 아무 상관이 없다.
+        /// </summary>
+        [Test]
+        public void TheServerReclaimsAuthorityOutsideTheTransportBlock()
+        {
+            var loop = TestSource.Method(
+                TestSource.Read("Runtime/Network/NetPlayer.cs"), "void FixedUpdate()");
+
+            var claim = loop.IndexOf("body.ServerAuthority = true;", System.StringComparison.Ordinal);
+            Assert.That(claim, Is.GreaterThanOrEqualTo(0),
+                "서버 루프가 권위를 되찾지 않는다");
+
+            // 이 줄은 탑승 블록이 끝난 **뒤**에 있다. 그래서 이보다 뒤라면 블록 밖이다.
+            var afterTransport = loop.IndexOf("if (!adoptedBody) body.SetInput(frame);",
+                                              System.StringComparison.Ordinal);
+            Assert.That(afterTransport, Is.GreaterThanOrEqualTo(0),
+                "기준으로 삼은 줄이 사라졌다 — 이 테스트를 다시 맞춰야 한다");
+            Assert.That(claim, Is.GreaterThan(afterTransport),
+                "권위 대입이 탑승 블록 안에 있다 — 그 조건이 바뀌면 조용히 끊긴다");
+        }
+
+        /// <summary>
+        /// <b>서버는 권위를 내려놓지 않는다</b> (S15P21B202-414, `!320` AI 리뷰).
+        ///
+        /// <para><b>이 테스트의 첫 판은 틀렸고, 그 실패가 리뷰가 옳았음을 증명했다.</b>
+        /// 리뷰는 "호스트는 서버이자 클라이언트라 같은 기계에서 <c>Attach(false)</c> 와
+        /// 서버 루프(<c>true</c>)가 모두 실행될 수 있다" 고 지적했다. 나는
+        /// <c>OnStartClient</c> 의 <c>if (isServer) return;</c> 이 막아 준다고 답하고
+        /// 그것을 단정하는 테스트를 썼다.</para>
+        ///
+        /// <para>그 테스트가 <c>NetPlayer.Update</c> 에서 실패했다 —
+        /// <b>거기에는 <c>isServer</c> 가드가 없다.</b> <c>if (!isLocalPlayer) return;</c>
+        /// 뿐이고, 호스트에서도 <c>body == null</c> 인 프레임에 <c>AdoptLocalBody()</c>
+        /// 를 부르며 그것이 <c>Attach(mine: true)</c> 로 이어진다. <b>호출부 규율로는
+        /// 지킬 수 없다.</b></para>
+        ///
+        /// <para>그래서 조건을 <c>RemoteAvatar.DisownJudgement</c> 안에 뒀고, 이 테스트는
+        /// 그 자리를 지킨다. 지키지 않으면 호스트에서 한 프레임 권위가 거짓이 되고,
+        /// 그 프레임에 홀드가 끝나면 부활이 조용히 사라진다.</para>
+        /// </summary>
+        [Test]
+        public void TheServerNeverDisownsJudgement()
+        {
+            var disown = TestSource.Method(
+                TestSource.Read("Runtime/Network/RemoteAvatar.cs"),
+                "static void DisownJudgement(PlayerRig rig)");
+
+            Assert.That(disown, Does.Contain("NetworkServer.active"),
+                "서버에서도 내려놓으면 호스트를 이어받은 기계에서 부활이 멈춘다");
+            Assert.That(disown, Does.Contain("ServerAuthority = false"),
+                "내려놓는 대입이 이 함수 안에 있어야 조건이 함께 간다");
+
+            // **호출부는 호스트를 걸러 주지 못한다.** 이것이 위 조건이 필요한 이유이고,
+            // 그 사실이 바뀌면(가드가 생기면) 이 주석도 함께 고쳐야 한다.
+            var net = TestSource.Read("Runtime/Network/NetPlayer.cs");
+            var update = TestSource.Method(net, "void Update()");
+            var adopt = update.IndexOf("AdoptLocalBody()", System.StringComparison.Ordinal);
+            Assert.Greater(adopt, 0,
+                "Update 가 몸을 맡기는 경로가 사라졌다 — 이 테스트의 근거를 다시 맞춰야 한다");
+
+            // `isServer` 자체는 Update 안에 있다(전송 로그·순번 붙이기). 없어야 하는 것은
+            // **AdoptLocalBody 앞의 조기 반환**이므로 위치로 본다.
+            // **없어도 통과해야 한다** (`!320` AI 리뷰). `isServer` 가 Update 에서 아예
+            // 사라지는 리팩터링은 가드가 생긴 것이 아니므로 이 검사가 막을 일이 아니다 —
+            // 처음에는 `IndexOf` 가 -1 일 때도 실패해서, 무관한 정리에 깨졌다.
+            var firstServer = update.IndexOf("isServer", System.StringComparison.Ordinal);
+            Assert.That(firstServer < 0 || firstServer > adopt, Is.True,
+                "Update 에 호스트 가드가 생겼다면 DisownJudgement 의 근거 주석을 갱신할 것");
+
+            // 내려놓는 곳이 그 한 함수뿐인지. 다른 곳에서 직접 대입하면 조건이 빠진다.
+            Assert.That(TestSource.Count(TestSource.Blank(net), "RemoteAvatar.Attach"), Is.EqualTo(2),
+                "Attach 를 부르는 곳은 AdoptLocalBody·BuildRemoteBody 둘뿐이어야 한다");
+        }
+
+        /// <summary>
+        /// <b>참가자가 남의 기절을 받았는지 로그에 남는다</b> (S15P21B202-414).
+        ///
+        /// 2026-09-10 16:00 QA 의 "부활 게이지가 안 보였다" 를 로그로 판정할 수 없었다.
+        /// <c>[NetPlayer] 조준</c> 진단은 <b>로컬 플레이어</b>만 찍어서(기절O/X 도 자기
+        /// 값이다) 참가자가 동료의 기절을 아는지가 어디에도 남지 않았다 — 후보가 없던
+        /// 것인지 누르지 않은 것인지 구별할 근거가 없었다.
+        /// </summary>
+        [Test]
+        public void ReceivingSomeoneElsesDownedStateIsLogged()
+        {
+            var body = TestSource.Method(
+                TestSource.Read("Runtime/Gameplay/Player/PlayerRig.cs"),
+                "public void SetRemoteDowned(bool nowDowned)");
+
+            Assert.That(body, Does.Contain("Debug.Log"),
+                "받았는지 남지 않으면 다음 QA 에서도 같은 판정을 못 한다");
+
+            // **값이 바뀔 때만 부르는 함수여야 한다.** 매 프레임 찍으면 로그가 묻힌다 —
+            // 그 조기 반환이 이 로그의 전제다.
+            Assert.That(body, Does.Contain("if (Downed == nowDowned"),
+                "같은 값을 걸러내는 조기 반환이 없으면 이 로그가 매 프레임 찍힌다");
+        }
+
     }
 }
