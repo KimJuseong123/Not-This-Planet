@@ -42,15 +42,28 @@ def main() -> int:
     banner("mr-title")
     gl, jira = GitLab(), Jira()
     mr = gl.get_mr()
-    # master 대상 MR(릴리즈)은 squash 를 끈다 (S15P21B202-325). 프로젝트 기본값이 squash ON 이라 팀장이 체크를
-    # 풀어야 했는데, 켜진 채 머지하면 이후 릴리스가 전부 충돌한다. 제목 보정보다 먼저 처리한다 —
-    # develop → master 는 브랜치에 Jira 키가 없어 아래 보정이 일찍 끝나기 때문이다. 결과는 mr-lint 가 검사한다.
-    if (mr.get("target_branch") or "") == "master" and mr.get("squash"):
+    # **모든 MR 에서 squash 를 끈다** (S15P21B202-417). 프로젝트 기본값이 squash ON 이라
+    # 사람이 매번 체크를 풀어야 했고, 잊으면 그 MR 이 스택의 부모일 때 자식이 부모의 변경을
+    # 다시 짊어진다. 제목 보정보다 먼저 처리한다 — develop → master 는 브랜치에 Jira 키가
+    # 없어 아래 보정이 일찍 끝나기 때문이다. 결과는 mr-lint 가 검사한다.
+    #
+    # 처음에는 master 대상 MR 만 껐다 (S15P21B202-325). 그때는 스택 MR 이 없었다. 지금은
+    # mr-overlap 이 스택을 감지해 대상을 자동 전환하고 stack-order 가 순서를 강제한다 —
+    # 즉 스택이 일상이 되었고, squash 는 **스택의 부모**에서 문제가 된다:
+    #
+    #   squash 는 부모의 커밋을 버리고 같은 내용의 새 커밋을 만든다 → 자식과 develop 의
+    #   조상 관계가 끊긴다 → 머지 베이스가 뒤로 밀린다 → 자식을 리베이스할 때 git 이
+    #   **부모의 커밋까지 다시 재생**한다. 그 사이 누가 같은 줄을 고쳐 놨으면 충돌이다.
+    #   (2026-09-10 재현: 같은 상황에서 squash 만 충돌, 머지 커밋은 통과)
+    #
+    # 껴야 하는 쪽이 부모라서 "스택만 해제" 로는 못 막는다 — 부모를 머지하는 시점에 자식이
+    # 아직 없다가 나중에 생기면 그 판정이 소용없다. 그래서 전면 해제다.
+    if mr.get("squash"):
         if gl.can_write:
             st, _d = gl.update_mr(squash=False)
-            print("master 대상 MR — squash 해제" + ("" if st == 200 else f" 실패({st}) — mr-lint 가 막는다"))
+            print("squash 해제" + ("" if st == 200 else f" 실패({st}) — mr-lint 가 막는다"))
         else:
-            print("master 대상 MR 인데 squash 가 켜져 있음 — GITLAB_TOKEN 없어 끄지 못함(mr-lint 가 막는다)")
+            print("squash 가 켜져 있음 — GITLAB_TOKEN 없어 끄지 못함(mr-lint 가 막는다)")
     raw_title = mr.get("title") or ""
     title, is_draft = strip_draft(raw_title)
     branch = mr.get("source_branch") or ""

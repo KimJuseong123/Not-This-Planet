@@ -38,6 +38,37 @@ JIRA_BY_GITLAB = {m["gitlab"]: m.get("jira", "") for m in _TEAM["members"]}
 NAME_BY_GITLAB = {m["gitlab"]: m.get("name", "") for m in _TEAM["members"]}
 
 
+def check_squash(rep: Report, mr: dict, target: str) -> None:
+    """squash 는 **모든 MR 에서** 꺼져 있어야 한다 (S15P21B202-417).
+
+    `mr-title` 이 먼저 API 로 끄므로(needs) 여기서 켜져 있다면 토큰·권한 문제거나
+    사람이 다시 켠 것이다.
+
+    **왜 전면인가.** 처음에는 master 대상만 껐다(`-325`) — 그때는 스택 MR 이 없었다.
+    지금은 `mr-overlap` 이 스택을 감지해 대상을 자동 전환하고 `stack-order` 가 순서를
+    강제한다. squash 는 **스택의 부모**에서 문제가 된다: 부모의 커밋을 버리고 같은
+    내용의 새 커밋을 만들므로 자식과 develop 의 조상 관계가 끊기고, 머지 베이스가 뒤로
+    밀려 자식을 리베이스할 때 **부모의 커밋까지 다시 재생**한다. 그 사이 누가 같은 줄을
+    고쳐 놨으면 충돌이다(2026-09-10 재현).
+
+    껴야 하는 쪽이 부모라서 "스택만 해제" 로는 못 막는다 — 부모를 머지할 때 자식이 아직
+    없다가 나중에 생기면 그 판정이 소용없다.
+
+    **잃는 것이 없다.** `merge_method = merge` 라 MR 하나마다 `Merge branch '…'` 커밋이
+    반드시 하나 생긴다 — "이슈 1개 = develop 커밋 1개" 가 원한 표식이 그것이고,
+    `publish_release.collect_entries` 가 세는 것도 그 머지 커밋이다.
+    """
+    if not mr.get("squash"):
+        rep.ok("squash 해제")
+        return
+
+    where = "master 대상 MR" if target == "master" else "MR"
+    rep.fail(f"{where} 에 squash 가 켜져 있음 — 스택 MR 의 부모가 squash 되면 자식이 부모의 변경을 "
+             f"다시 짊어지고, 그 사이 누가 같은 줄을 고쳤으면 충돌한다(S15P21B202-417). "
+             f"mr-title 이 자동으로 끄는데 아직 켜져 있으면 GITLAB_TOKEN 권한을 확인하거나 "
+             f"MR 화면에서 'Squash commits' 를 해제")
+
+
 def human_checks_content(section: str | None) -> list[str]:
     """섹션에서 **내용 있는 줄**만 골라 준다.
 
@@ -268,19 +299,13 @@ def main() -> int:
     else:
         rep.ok("Draft 아님")
 
+    check_squash(rep, mr, target)
+
     # 1b) 릴리즈 MR(develop → master)은 여기까지만 — 브랜치·제목·템플릿은 이 MR 에 해당하지 않는다.
     #    내용은 develop 으로 들어올 때 이미 검사했다 (S15P21B202-122)
     if is_release_mr(branch, target):
         tlevel, tmsg = target_verdict(branch, target)   # 대상 규칙은 가정하지 않고 실제로 판정한다
         {"ok": rep.ok, "warn": rep.warn, "fail": rep.fail}[tlevel](tmsg)
-        # squash 는 꺼져 있어야 한다 (S15P21B202-325). 켜진 채 머지하면 develop 수백 커밋이 squash 1개로 master 에
-        # 들어가 두 브랜치가 역사를 공유하지 않고, 머지 베이스가 초기 커밋에 고정돼 **다음 릴리스부터 겹치는 파일이
-        # 전부 충돌**한다. mr-title 이 먼저 API 로 끄므로(needs) 여기서 켜져 있다면 토큰·권한 문제거나 사람이 다시 켠 것이다.
-        if mr.get("squash"):
-            rep.fail("master 대상 MR 인데 squash 가 켜져 있음 — 릴리즈 MR 은 squash 해제 필수(켜진 채 머지하면 이후 릴리스가 전부 충돌). "
-                     "mr-title 이 자동으로 끄는데 아직 켜져 있으면 GITLAB_TOKEN 권한을 확인하거나 MR 화면에서 'Squash commits' 를 해제")
-        else:
-            rep.ok("squash 해제 — master 가 develop 의 역사를 그대로 받는다")
         if branch.startswith("release/"):
             # 릴리스 브랜치는 develop 의 스냅샷이다. 자기 커밋이 있으면 그 변경은 develop 에 없어 다음 릴리스에서
             # 사라지고, develop 재머지라는 절차가 하나 더 생긴다. 규칙: 릴리스 브랜치에는 커밋하지 않는다.
