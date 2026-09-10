@@ -171,8 +171,8 @@ namespace Metagame.Network
         ScarState[] sendScarMoves = System.Array.Empty<ScarState>();
         int[] lastScarIds = System.Array.Empty<int>();
         float scarKeepaliveTimer;
-        uint lastScarMoveSeq;
-        bool everScarMove;
+        uint lastScarSeq;
+        bool everScar;
         bool warnedScarCap;
         uint lastToolSeq;
         bool everTool;
@@ -928,7 +928,7 @@ namespace Metagame.Network
                     sendScarSet[w++] = StateOf(scar);
                 }
 
-                RpcScarSet(sendScarSet);
+                RpcScarSet(sendSeq, sendScarSet);
                 scarKeepaliveTimer = 0f;
                 return;     // 같은 틱에 두 묶음을 내지 않는다
             }
@@ -982,7 +982,20 @@ namespace Metagame.Network
             // 상한 200개 × 30Hz 면 프레임당 수백 회가 된다. `-374` 가 열려 있는
             // 동안 그런 것을 얹으면 원인을 가릴 수 없다.
             var body = scar.Meteor.Body;
-            return body != null && !body.IsSleeping();
+            if (body == null) return false;
+
+            // **잡힌 돌은 kinematic 이라 "잠든" 것으로 보인다** (`!321` AI 리뷰 높음).
+            //
+            // `PlayerRig.BeginCarriedBody`(`:3110`)가 집는 순간 `isKinematic = true` 로
+            // 만들고, 유니티에서 kinematic 강체는 `IsSleeping()` 이 **항상 참**이다.
+            // `IsSleeping()` 만 봤을 때는 **끌고 다니는 내내 이동 묶음이 비어서**,
+            // 참가자 화면에서 돌이 2초 되보내기마다 툭툭 순간이동했다 — 이 이슈의
+            // 완료 조건 1번("한쪽이 옮기면 다른 쪽에서도 움직인다")이 무너지는 자리다.
+            //
+            // 흔적에게 `isKinematic` 은 곧 "누가 들고 있다" 다. 착지한 돌은 `Settle` 이
+            // `isKinematic = false` 로 두고(`Meteor.cs:749`), 그것을 참으로 바꾸는 곳은
+            // 운반뿐이며 `RestoreCarriedBodyIfUnused` 가 놓을 때 되돌린다.
+            return !body.IsSleeping() || body.isKinematic;
         }
 
         static ScarState StateOf(ScarRecord scar)
@@ -1024,10 +1037,22 @@ namespace Metagame.Network
         /// 사라지거나 유령이 남고, 다음 착탄까지 그대로다.
         /// </summary>
         [ClientRpc]
-        void RpcScarSet(ScarState[] states)
+        void RpcScarSet(uint seq, ScarState[] states)
         {
             if (isServer) return;               // 호스트에는 진짜 흔적이 있다
             if (!ready) return;
+
+            // **이동 묶음과 같은 순번 축으로 본다** (`!321` AI 리뷰).
+            //
+            // 두 묶음은 채널이 달라(이쪽은 신뢰, 이동은 비신뢰) 서로 순서가 보장되지
+            // 않는다. 순번을 안 보면 **늦게 도착한 전체 목록이 최신 이동을 덮어**,
+            // 끌고 있는 돌이 2초마다 옛 자리로 되돌아간다.
+            //
+            // 늦은 목록은 버린다. 그러면 그 목록이 실어 온 생성·삭제도 함께 놓치는데,
+            // 되보내기가 2초마다 오므로 스스로 낫는다 — 돌이 뒤로 튀는 것보다 낫다.
+            if (!IsNewer(seq, lastScarSeq, everScar)) return;
+            lastScarSeq = seq;
+            everScar = true;
 
             var spawner = MeteorSpawner;
             if (spawner != null) spawner.ApplyNetworkScars(states, full: true);
@@ -1042,9 +1067,9 @@ namespace Metagame.Network
         {
             if (isServer) return;
             if (!ready) return;
-            if (!IsNewer(seq, lastScarMoveSeq, everScarMove)) return;
-            lastScarMoveSeq = seq;
-            everScarMove = true;
+            if (!IsNewer(seq, lastScarSeq, everScar)) return;
+            lastScarSeq = seq;
+            everScar = true;
 
             var spawner = MeteorSpawner;
             if (spawner != null) spawner.ApplyNetworkScars(states, full: false);

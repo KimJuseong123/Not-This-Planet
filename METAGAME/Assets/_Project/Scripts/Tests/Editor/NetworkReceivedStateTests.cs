@@ -496,6 +496,62 @@ namespace Metagame.Gameplay.Tests
                 "받는 쪽도 목록 크기만큼 컴포넌트를 찾는다 — Meteor.Body 를 쓸 것");
         }
 
+        /// <summary>
+        /// <b>잡힌 돌도 "움직이는 것" 에 든다</b> (S15P21B202-355, `!321` AI 리뷰 높음).
+        ///
+        /// <para><c>PlayerRig.BeginCarriedBody</c>(<c>:3110</c>)가 집는 순간
+        /// <c>isKinematic = true</c> 로 만들고, 유니티에서 kinematic 강체는
+        /// <c>IsSleeping()</c> 이 <b>항상 참</b>이다. <c>IsSleeping()</c> 만 보면
+        /// <b>끌고 다니는 내내 이동 묶음이 비어서</b> 참가자 화면에서 돌이 2초
+        /// 되보내기마다 툭툭 순간이동한다 — 이 이슈 완료 조건 1번이 무너지는 자리다.</para>
+        ///
+        /// <para>흔적에게 <c>isKinematic</c> 은 곧 "누가 들고 있다" 다. 착지한 돌은
+        /// <c>Settle</c> 이 <c>isKinematic = false</c> 로 두고, 참으로 바꾸는 곳은
+        /// 운반뿐이며 놓을 때 되돌린다.</para>
+        /// </summary>
+        [Test]
+        public void CarriedScarsCountAsMoving()
+        {
+            var awake = TestSource.Method(
+                TestSource.Read("Runtime/Network/WorldSync.cs"),
+                "static bool IsScarAwake(ScarRecord scar)");
+
+            Assert.That(awake, Does.Contain("IsSleeping"),
+                "잠든 돌을 걸러내는 것이 이 채널의 값이다");
+            Assert.That(awake, Does.Contain("isKinematic"),
+                "잡힌 돌은 kinematic 이라 잠든 것으로 보인다 — 그것만 보면 끌어도 "
+                + "이동 묶음이 비고, 완료 조건 1번이 무너진다");
+        }
+
+        /// <summary>
+        /// <b>두 묶음이 같은 순번 축을 쓴다</b> (S15P21B202-355, `!321` AI 리뷰).
+        ///
+        /// <para>전체 목록은 <b>신뢰</b> 채널, 이동은 <b>비신뢰</b> 채널이라 서로 순서가
+        /// 보장되지 않는다. 순번을 안 보면 <b>늦게 도착한 전체 목록이 최신 이동을
+        /// 덮어</b>, 끌고 있는 돌이 2초마다 옛 자리로 되돌아간다.</para>
+        /// </summary>
+        [Test]
+        public void BothScarPacketsShareOneSequenceAxis()
+        {
+            var sync = TestSource.Read("Runtime/Network/WorldSync.cs");
+
+            foreach (var name in new[]
+                     {
+                         "void RpcScarSet(uint seq, ScarState[] states)",
+                         "void RpcScarMoves(uint seq, ScarState[] states)",
+                     })
+            {
+                var body = TestSource.Method(sync, name);
+                Assert.That(body, Does.Contain("lastScarSeq"),
+                    $"{name} 이 순번을 보지 않으면 늦게 온 묶음이 최신 자세를 덮는다");
+            }
+
+            // **축이 둘이면 뜻이 없다.** 각자 자기 순번만 보면 서로를 거르지 못한다.
+            var blanked = TestSource.Blank(sync);
+            Assert.That(blanked, Does.Not.Contain("lastScarMoveSeq"),
+                "순번 축이 둘로 갈라져 있다 — 두 묶음이 서로를 거르지 못한다");
+        }
+
         static MeteorSpawner.NetworkScarState Scar(int id, Vector3 at) =>
             new MeteorSpawner.NetworkScarState
             {
