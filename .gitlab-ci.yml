@@ -176,6 +176,15 @@ repo-hygiene:             # 금지 파일·.meta 짝·에셋 위치·대용량 �
 
 # ── 2단계 ────────────────────────────────────────────────────────────────
 unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도커 러너 (S15P21B202-271)
+  # changes 게이트는 **빌드에 영향 있는 폴더만** 본다 (S15P21B202-420).
+  #
+  # 예전에는 `METAGAME/**/*` 였다. 그래서 `METAGAME/README.md` 나 `METAGAME/Docs/` 의
+  # 문서만 고쳐도 Unity 임포트·컴파일·테스트가 한 번 돌았다(콜드 임포트 7분 30초).
+  # Unity 빌드에 들어가는 것은 `Assets/`·`Packages/`·`ProjectSettings/` 뿐이고,
+  # `Docs/`·`BlenderSource/`·`Tools/`·`Screenshots/`·`README.md` 는 프로젝트 밖이다.
+  #
+  # 남는 것 하나: `Assets/` 아래의 `.md`(예: `Models/README_KO.md`)는 여전히 돈다.
+  # 그것까지 빼려면 부정 패턴이 필요한데 GitLab `rules:changes` 에는 없다.
   stage: test             # 이 잡이 없던 동안 검사가 0건이었다: CI 이력 잡 2,583건 중 unity-compile 0건.
   # GameCI 이미지에 에디터·xvfb·라이선스 클라이언트가 다 들어 있다. 태그는 프로젝트 버전과 같아야 한다
   # (다르면 batchmode 가 프로젝트를 조용히 업그레이드한다) — METAGAME/ProjectSettings/ProjectVersion.txt 와 맞춘다.
@@ -186,11 +195,14 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
     # 자동 실행한다. 실측(2026-09-02): 콜드 8분 16초 → **웜 70초**(임포트 64초 + 테스트 20초).
     # Library 2.2GB 가 슬롯에 남아 증분 임포트가 되기 때문이다. 슬롯이 비워지면 다시 8분이 든다.
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes: ["METAGAME/**/*", ".gitlab-ci.yml"]
+      changes: ["METAGAME/Assets/**/*", "METAGAME/Packages/**/*", "METAGAME/ProjectSettings/**/*", ".gitlab-ci.yml"]
     # 머지 직후에도 돈다 — 개별 MR 은 통과했는데 합쳐서 깨지는 경우를 잡는다.
     # 09-02 사고는 감지까지 2시간 37분이 걸렸다(그 사이 develop 머지 0건). 이 규칙이면 2분이다.
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
-      changes: ["METAGAME/**/*"]
+      # 여기에는 `.gitlab-ci.yml` 을 넣지 않는다 — 위 MR 규칙에 이미 있어서 **머지 전에**
+      # 이 잡 정의로 한 번 돈다. 여기서 또 보면 CI 만 고친 MR 이 머지될 때마다 Unity 가
+      # 한 번 더 돌고, 4 vCPU 를 게임 서버와 나눠 쓰는 EC2 라 실유저 응답이 느려진다.
+      changes: ["METAGAME/Assets/**/*", "METAGAME/Packages/**/*", "METAGAME/ProjectSettings/**/*"]
   # 종료 코드로 판정을 나눈다 (S15P21B202-309). unity_report.py 가 **대상 브랜치 기준선과
   # 비교해서** 정한다:
   #   0 = 통과(기존 실패만 있음) · 1 = **이 MR 이 만든** 컴파일 오류·새 테스트 실패 → 막는다

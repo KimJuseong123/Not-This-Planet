@@ -30,7 +30,7 @@ from ci_common import is_release_mr
 import sys
 from concurrent.futures import ThreadPoolExecutor
 
-from ci_common import GitLab, Jira, banner, env, http, key_from_branch, strip_draft
+from ci_common import GitLab, Jira, banner, bot_line, env, http, key_from_branch, strip_draft
 
 MARKER = "<!-- ai-review:metagame -->"
 BINARY_EXT = (".meta", ".asset", ".mat", ".anim", ".controller", ".fbx", ".png", ".jpg", ".jpeg", ".psd", ".tga",
@@ -452,10 +452,57 @@ def merge(results: dict[str, dict | None], failed: list[str] | None = None) -> d
 
 VERDICT_LINE = {"ok": "✅ **머지 가능**", "warn": "⚠️ **확인 후 머지**", "block": "⛔ **보류 권고**", "unknown": "❓ **판정 불가**"}
 
+# 판정별로 "이 코멘트가 머지를 막는가" 를 한 문장으로 (S15P21B202-420).
+#
+# 예전에는 이 말이 **각주**에 있었다. 그래서 ⛔ 인데도 "AI 의견이니 넘어가도 된다" 로
+# 읽혔고, 반대로 ⚠️ 를 막는 것으로 오해하기도 했다. 판정 바로 옆이 그 말의 자리다.
+BLOCKS_LINE = {
+    "block": "이 판정으로 `ai-review-gate` 가 **머지를 막습니다** — 아래 차단 사유를 고쳐서 다시 push 하세요",
+    "ok": "**머지를 막지 않습니다**",
+    "warn": "**머지를 막지 않습니다** — ⚠️ 는 참고입니다",
+    "unknown": "**머지를 막지 않습니다** — 다만 판정하지 못했으니 아래 상세를 보세요",
+}
+
+
+def blocking_findings(merged: dict) -> list[dict]:
+    """차단 사유로 앞에 세울 것 (S15P21B202-420).
+
+    **왜 골라내나.** 예전에는 ⛔ 일 때도 "발견 사항 표" 에서 사람이 무엇이 막는지 찾아야
+    했다. 고쳐야 할 것이 목록으로 맨 앞에 있어야 "이것만 고치면 통과" 가 한눈에 보인다.
+
+    고르는 순서
+      1. 높음 발견 사항 — 판정을 ⛔ 로 만드는 것은 거의 이것이다
+      2. 없으면 중간까지 — 리뷰어가 높음 없이 block 을 낸 경우다
+      3. 그것도 없으면 빈 목록 — 그때는 요약 문장이 유일한 근거이므로 그대로 보여 준다
+    """
+    if merged["verdict"] != "block":
+        return []
+    high = [f for f in merged["findings"] if f["severity"] == "high"]
+    return high or [f for f in merged["findings"] if f["severity"] == "medium"]
+
 
 def render(mr_meta: str, roles: list[str], results: dict, raw: dict, merged: dict, summary: dict | None, skipped: list[tuple[str, str]], failed: list[str],
            defaults: dict[str, tuple[str, str]] | None = None) -> str:
-    out = [MARKER, f"🤖 **AI 리뷰 요약** · {VERDICT_LINE[merged['verdict']]} · {mr_meta}"]
+    verdict = merged["verdict"]
+    # **머리줄은 `🤖` 로 시작하고 커밋 표기를 담아야 한다** (S15P21B202-341·-420).
+    #
+    # `ai_review_gate.verdict_of` 가 `🤖` 로 시작하는 줄에서 판정 문구와 `커밋 \`` 을
+    # 찾는다. `-420` 에서 이 줄을 `### 🤖 …` 로 바꾸고 커밋을 다음 줄로 내렸다가
+    # **게이트가 판정을 못 읽어 ⛔ 가 막지 못하는 상태**를 만들었다(구현 중 실측:
+    # `verdict_of(...) = None`). 그래서 그 계약은 그대로 두고, 막는지 여부만 다음 줄에
+    # 붙인다. 아래 테스트가 render → verdict_of 왕복을 단정한다.
+    out = [MARKER, f"🤖 **AI 리뷰** · {VERDICT_LINE[verdict]} · {mr_meta}",
+           bot_line("ai-review", BLOCKS_LINE[verdict], with_sha=False)]
+
+    # **차단 사유가 맨 앞이다** (S15P21B202-420).
+    blocking = blocking_findings(merged)
+    if blocking:
+        out.append(f"\n**막고 있는 것 {len(blocking)}건 — 이것만 고치면 통과합니다**")
+        for i, f in enumerate(blocking, 1):
+            loc = md_cell(f.get("file", "")) + (f":{md_cell(f['line'])}" if f.get("line") else "")
+            fix = f" → {md_cell(f['fix'])}" if f.get("fix") else ""
+            out.append(f"{i}. `{loc}` — {md_cell(f['issue'])}{fix}")
+
     if summary and summary.get("reason"):
         out.append(f"\n{summary['reason']}")
     todo = (summary or {}).get("todo") or []
@@ -464,23 +511,53 @@ def render(mr_meta: str, roles: list[str], results: dict, raw: dict, merged: dic
     if todo:
         out.append("\n**팀장이 확인할 것**")
         out += [f"{i}. {t}" for i, t in enumerate(todo[:3], 1)]
-    out.append("\n| 리뷰어 확인 항목 | 판정 | 근거 |\n| --- | --- | --- |")
+
+    # 판정 표 — **전부 ✅ 면 접는다** (S15P21B202-420). 근거 문장이 붙어 표가 길고,
+    # 볼 것이 없을 때 그것이 코멘트의 절반을 차지했다. ⚠️·❓ 가 있으면 펼쳐 둔다.
+    rows = []
+    icons = []
     for k in CHECK_ORDER:
         c = merged["checks"].get(k)
         if c:
-            out.append(f"| {CHECK_LABELS[k]} | {STATUS_ICON[c['status']]} | {md_cell(c['why'])} |")
+            icon, why = STATUS_ICON[c["status"]], md_cell(c["why"])
         elif defaults and k in defaults:
-            out.append(f"| {CHECK_LABELS[k]} | {STATUS_ICON[defaults[k][0]]} | {md_cell(defaults[k][1])} |")
+            icon, why = STATUS_ICON[defaults[k][0]], md_cell(defaults[k][1])
         else:
-            out.append(f"| {CHECK_LABELS[k]} | ❓ | 담당 리뷰어 미실행 또는 실패 |")
-    main = [f for f in merged["findings"] if f["severity"] in ("high", "medium")]
+            icon, why = "❓", "담당 리뷰어 미실행 또는 실패"
+        icons.append(icon)
+        rows.append(f"| {CHECK_LABELS[k]} | {icon} | {why} |")
+
+    head = "| 리뷰어 확인 항목 | 판정 | 근거 |\n| --- | --- | --- |"
+    if all(i == "✅" for i in icons):
+        out.append(f"\n<details><summary>판정 표 — {len(icons)}항목 전부 ✅</summary>\n")
+        out.append(head)
+        out += rows
+        out.append("\n</details>")
+    else:
+        out.append("\n" + head)
+        out += rows
+    # 위에 "막고 있는 것" 으로 이미 세운 것은 표에서 뺀다 (S15P21B202-420).
+    # 같은 발견 사항을 목록과 표에 두 번 적으면 "간략화" 가 아니라 두 배가 된다.
+    # 판정이 ⛔ 가 아니면 blocking 이 비어 있으므로 표는 그대로다.
+    #
+    # **값이 아니라 그 객체를 뺀다.** `f not in blocking` 은 dict 동등 비교라, 내용이
+    # 같은 발견 사항이 둘 있으면 하나만 목록에 올라가도 표에서 **둘 다** 사라진다.
+    # 리뷰어가 여럿이고 같은 자리를 함께 지목하는 일이 있으므로 실제로 생긴다 —
+    # 그러면 "위 차단 1건 외" 라고 적으면서 2건을 감춘다.
+    picked = {id(f) for f in blocking}
+    main = [f for f in merged["findings"]
+            if f["severity"] in ("high", "medium") and id(f) not in picked]
     low = [f for f in merged["findings"] if f["severity"] == "low"]
     if main:
-        out.append(f"\n**발견 사항 {len(main)}건**" + (f" (낮음 {len(low)}건은 아래 상세)" if low else ""))
+        out.append(f"\n**발견 사항 {len(main)}건**"
+                   + (f" (위 차단 {len(blocking)}건 외)" if blocking else "")
+                   + (f" (낮음 {len(low)}건은 아래 상세)" if low else ""))
         out.append("| 심각도 | 위치 | 문제 | 제안 |\n| --- | --- | --- | --- |")
         for f in main:
             loc = md_cell(f.get("file", "")) + (f":{md_cell(f['line'])}" if f.get("line") else "")
             out.append(f"| {SEV_LABEL[f['severity']]} | `{loc}` | {md_cell(f['issue'])} | {md_cell(f.get('fix', ''))} |")
+    elif blocking:
+        pass  # 막고 있는 것을 위에 이미 적었다. 여기서 "없음" 을 적으면 거짓이 된다.
     elif low:
         out.append(f"\n높음·중간 발견 사항 없음 (낮음 {len(low)}건은 아래 상세)")
     elif any(v for v in results.values()):
@@ -506,11 +583,9 @@ def render(mr_meta: str, roles: list[str], results: dict, raw: dict, merged: dic
     out += det
     # 사유를 하드코딩하지 않는다 (S15P21B202-354). 빠진 것이 없으면 그 말도 하지 않는다.
     note = skipped_note(skipped)
-    # ⛔ 는 `ai-review-gate` 가 막는다(-341). 각주가 "참고용" 이라고만 적으면 거짓이 된다 —
-    # 읽는 사람이 "의견이니 넘어가도 된다" 로 받아들이는데 실제로는 머지 버튼이 잠긴다.
-    gate = ("⛔ 는 `ai-review-gate` 가 막습니다 — 고쳐서 다시 push 하세요"
-            if merged["verdict"] == "block" else "⚠️·✅·❓ 는 막지 않습니다(참고용)")
-    foot = gate + (f" · {note}" if note else "") + " · 재실행 시 이 코멘트가 갱신됩니다"
+    # 게이트 문구는 **머리줄로 옮겼다** (S15P21B202-420) — 각주에 있는 동안 ⛔ 인데도
+    # "의견이니 넘어가도 된다" 로 읽혔다. 각주에는 재실행 안내만 남긴다.
+    foot = (note + " · " if note else "") + "재실행하면 이 코멘트가 갱신됩니다"
     if failed:
         foot += f" · **실행 실패 리뷰어: {', '.join(ROLES[r]['label'] for r in failed)}**"
     out.append(f"\n<sub>{foot}</sub>")

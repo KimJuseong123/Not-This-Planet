@@ -140,20 +140,122 @@ for _job in ("mm-ci-failed:", "mm-ci-resolved:"):
 print("  잡 배선: 게이트는 차단·ai-review 는 비차단·알림 두 곳이 기다린다 ✅")
 
 
-# ── ⑫ 각주가 판정에 따라 달라진다 — ⛔ 에 "참고용" 은 거짓이다 ──────────
-#     읽는 사람이 "의견이니 넘어가도 된다" 로 받아들이는데 실제로는 머지 버튼이 잠긴다.
+# ── ⑫ 막는지 여부가 판정 바로 옆에 있다 (S15P21B202-420) ────────────────
+#
+#     예전에는 이 말이 **각주**에 있었다. 그래서 ⛔ 인데도 "의견이니 넘어가도 된다" 로
+#     읽혔다. 머리줄로 옮겼으므로 이제 코멘트 **앞쪽**에 있어야 한다.
 _common = dict(mr_meta="`cli/x` · 커밋 `abc1234`", roles=["scope"], results={}, raw={},
                summary=None, skipped=[], failed=[], defaults={})
 _blocked = AR.render(merged={"verdict": "block", "checks": {}, "findings": [], "questions": []}, **_common)
-assert "ai-review-gate` 가 막습니다" in _blocked, _blocked[-400:]
-assert "참고용" not in _blocked.rsplit("<sub>", 1)[-1], "⛔ 각주에 '참고용' 이 남아 있다"
+assert "ai-review-gate` 가 **머지를 막습니다**" in _blocked, _blocked[:400]
+_head = _blocked.split("\n\n", 1)[0]
+assert "막습니다" in _head, "막는다는 말이 머리줄에 없다: " + _head
+assert "참고용" not in _blocked, "⛔ 코멘트에 '참고용' 이 남아 있다"
 for _v in ("warn", "ok", "unknown"):
     _passing = AR.render(merged={"verdict": _v, "checks": {}, "findings": [], "questions": []}, **_common)
-    assert "막지 않습니다(참고용)" in _passing, f"{_v}: " + _passing[-300:]
-print("  각주가 ⛔ 에는 '막습니다', 나머지에는 '막지 않습니다' 를 적는다 ✅")
+    assert "**머지를 막지 않습니다**" in _passing.split("\n\n", 1)[0], f"{_v}: " + _passing[:300]
+print("  막는지 여부가 판정 바로 옆(머리줄)에 있다 ✅")
 
 
-# ── ⑬ 릴리즈 MR(→ master)은 건너뛴다 ─────────────────────────────────────
+# ── ⑬ ⛔ 면 막고 있는 것이 맨 앞에 목록으로 (S15P21B202-420) ─────────────
+#
+#     예전에는 ⛔ 일 때도 "발견 사항 표" 에서 사람이 무엇이 막는지 찾아야 했다.
+_high = {"severity": "high", "file": "a/b.cs", "line": "12", "issue": "널 참조",
+         "fix": "가드 추가", "role": "code"}
+_low = {"severity": "low", "file": "c.cs", "line": "", "issue": "사소", "fix": "", "role": "code"}
+_m = {"verdict": "block", "checks": {}, "findings": [_high, _low], "questions": []}
+assert AR.blocking_findings(_m) == [_high], "높음만 차단 사유로 세워야 한다"
+_out = AR.render(merged=_m, **_common)
+assert "막고 있는 것 1건" in _out, _out[:500]
+# 차단 목록이 판정 표보다 앞이어야 한다 — 뒤에 있으면 찾아야 한다.
+assert _out.index("막고 있는 것") < _out.index("리뷰어 확인 항목"), "차단 목록이 표 뒤에 있다"
+assert "`a/b.cs:12`" in _out and "가드 추가" in _out, "위치와 제안이 목록에 없다"
+
+# 높음이 없으면 중간까지 올린다 — 리뷰어가 높음 없이 block 을 낸 경우다.
+_med = dict(_high, severity="medium")
+assert AR.blocking_findings({"verdict": "block", "checks": {}, "findings": [_med, _low],
+                             "questions": []}) == [_med]
+# 막지 않는 판정에는 차단 목록이 없다.
+for _v in ("ok", "warn", "unknown"):
+    assert AR.blocking_findings({"verdict": _v, "checks": {}, "findings": [_high],
+                                 "questions": []}) == []
+
+# 같은 발견 사항을 목록과 표에 두 번 적으면 간략화가 아니라 두 배다.
+_m2 = {"severity": "medium", "file": "d.cs", "line": "3", "issue": "캐시 없음",
+       "fix": "캐시", "role": "code"}
+_two = AR.render(merged={"verdict": "block", "checks": {}, "findings": [_high, _m2],
+                         "questions": []}, **dict(_common, results={"scope": {"x": 1}}))
+assert _two.count("널 참조") == 1, "차단 사유가 목록과 표에 두 번 나온다"
+assert "캐시 없음" in _two, "차단 사유가 아닌 발견 사항이 표에서 사라졌다"
+assert "위 차단 1건 외" in _two, "표가 차단 사유를 뺀 나머지임을 밝히지 않는다"
+
+# 높음 하나뿐이면 표가 비는데, 그때 "발견 사항 없음" 은 거짓이다 — 막고 있는데 없다고 적힌다.
+_only = AR.render(merged={"verdict": "block", "checks": {}, "findings": [_high],
+                          "questions": []}, **dict(_common, results={"scope": {"x": 1}}))
+assert "발견 사항 없음" not in _only, "막는 것이 있는데 '발견 사항 없음' 이라고 적혀 있다"
+
+# 커밋 표기는 머리줄에만 — 게이트가 그 줄에서 읽으므로 뺄 수 없고, 둘째 줄에 또 적으면 중복이다.
+assert _only.splitlines()[2].count("커밋 `") == 0, "커밋 표기가 두 줄에 나온다"
+
+# 값이 같은 발견 사항이 둘이면, 하나만 목록에 올라가도 표에서 둘 다 사라지면 안 된다.
+# 리뷰어가 여럿이라 같은 자리를 함께 지목하는 일이 실제로 생긴다.
+_dup_a = {"severity": "high", "file": "e.cs", "line": "7", "issue": "같은 문제",
+          "fix": "같은 제안", "role": "scope"}
+_dup_b = dict(_dup_a)          # 값은 같고 객체는 다르다
+assert _dup_a == _dup_b and _dup_a is not _dup_b
+_dm = {"verdict": "block", "checks": {}, "findings": [_dup_a, _dup_b], "questions": []}
+assert len(AR.blocking_findings(_dm)) == 2, "높음 둘 다 차단 사유여야 한다"
+
+# 높음 하나 + 값이 같은 중간 하나 — 중간은 표에 남아야 한다.
+_half = {"verdict": "block", "checks": {},
+         "findings": [_dup_a, dict(_dup_a, severity="medium")], "questions": []}
+assert len(AR.blocking_findings(_half)) == 1, "높음이 있으면 높음만 차단 사유다"
+_half_out = AR.render(merged=_half, **dict(_common, results={"scope": {"x": 1}}))
+assert "발견 사항 1건" in _half_out, ("값이 같은 중간 항목이 표에서 사라졌다: "
+                                    + _half_out[:500])
+print("  값이 같은 발견 사항을 표에서 함께 지우지 않는다 ✅")
+print("  차단 사유·커밋 표기를 두 번 적지 않는다 ✅")
+print("  ⛔ 면 막고 있는 것이 맨 앞에 목록으로 나온다 ✅")
+
+
+# ── ⑭ 판정 표는 전부 ✅ 일 때만 접힌다 (S15P21B202-420) ─────────────────
+_all_ok = {k: {"status": "ok", "why": "괜찮다"} for k in AR.CHECK_ORDER}
+_folded = AR.render(merged={"verdict": "ok", "checks": _all_ok, "findings": [], "questions": []}, **_common)
+assert "<details><summary>판정 표" in _folded, "전부 ✅ 인데 표가 펼쳐져 있다"
+
+_one_warn = dict(_all_ok, scope={"status": "warn", "why": "확인 필요"})
+_open = AR.render(merged={"verdict": "warn", "checks": _one_warn, "findings": [], "questions": []}, **_common)
+assert "<details><summary>판정 표" not in _open, "⚠️ 가 있는데 표가 접혀 있다"
+assert "| 범위 | ⚠️" in _open, "⚠️ 행이 보이지 않는다"
+print("  판정 표가 전부 ✅ 면 접히고, ⚠️ 가 있으면 펼쳐진다 ✅")
+
+
+# ── ⑮ 어느 잡의 결과인지 밝힌다 (S15P21B202-420) ────────────────────────
+assert "`ai-review` 잡의 결과" in _blocked or "](" in _blocked.split("\n")[2], \
+    "어느 잡의 결과인지 적혀 있지 않다: " + _blocked[:300]
+print("  코멘트가 어느 잡의 결과인지 밝힌다 ✅")
+
+
+# ── ⑯ render 가 낸 코멘트를 게이트가 실제로 읽는다 (S15P21B202-420) ──────
+#
+#     **이 테스트가 없어서 실제로 깨질 뻔했다.** `-420` 에서 머리줄을 `### 🤖 …` 로
+#     바꾸고 커밋 표기를 다음 줄(`<sub>`)로 내렸더니 `verdict_of` 가 None 을 돌려줬다.
+#     ⛔ 가 막지 못하는 상태였는데 아래 ①~⑮ 는 전부 통과했다 — 판정을 **손으로 만든**
+#     본문으로만 시험했기 때문이다. 그래서 render 의 실제 출력으로 왕복을 확인한다.
+#
+#     계약(`verdict_of`): 판정 문구와 커밋 표기가 `🤖` 로 시작하는 **같은 줄**에 있다.
+for _v in ("block", "warn", "ok", "unknown"):
+    _body = AR.render(merged={"verdict": _v, "checks": {}, "findings": [],
+                              "questions": []}, **_common)
+    _why = f"게이트가 render 출력에서 {_v} 를 못 읽는다 → ⛔ 가 막지 못한다"
+    assert G.verdict_of(_body) == _v, _why + "\n" + _body[:300]
+    _head = _body.splitlines()[1]
+    assert _head.startswith("🤖"), f"{_v}: 머리줄이 🤖 로 시작하지 않는다: {_head}"
+    assert "커밋 `" in _head, f"{_v}: 커밋 표기가 머리줄에 없다: {_head}"
+print("  render 출력을 게이트가 네 판정 모두 읽는다 ✅  (-420 에서 깨질 뻔했다)")
+
+
+# ── ⑰ 릴리즈 MR(→ master)은 건너뛴다 ─────────────────────────────────────
 #     ai_review.py 가 같은 조건에서 리뷰를 생략한다. 그러면 코멘트가 없어 게이트가
 #     "판정을 못 읽었다" 로 떨어지고, **릴리스마다 헛된 🟠 카드**가 나간다. 헛된 카드가
 #     반복되면 사람이 카드를 무시하게 되어 fail-open 경고 자체가 무력해진다.
@@ -171,7 +273,7 @@ assert _rc == 1, "hotfix → master 는 검사 예외가 아니다"
 print("  릴리즈 MR 은 건너뛴다 · hotfix 는 예외가 아니다 ✅")
 
 
-# ── ⑭ 커밋 표기가 없는 코멘트는 판정으로 쓰지 않는다 ─────────────────────
+# ── ⑱ 커밋 표기가 없는 코멘트는 판정으로 쓰지 않는다 ─────────────────────
 #     `if head and seen` 이면 commit_of() 가 None 일 때 sha 검증을 건너뛰고 판정을 그대로
 #     믿는다 — 낡은 ✅ 코멘트가 새 커밋을 통과시킬 수 있다 (!279 AI 리뷰 중간).
 _no_sha = f"{AR.MARKER}\n🤖 **AI 리뷰 요약** · {AR.VERDICT_LINE['ok']} · `cli/x`\n"
@@ -184,7 +286,7 @@ _rc, _sent = run([{"id": 1, "body": _no_sha_block}])
 assert _rc == 0 and "커밋 표기가 없다" in _sent[0], _sent
 print("  커밋 표기가 없으면 판정으로 쓰지 않는다 \u2705")
 
-# ── ⑮ 🤖 줄이 여러 개면 전부 본다 ───────────────────────────────────────
+# ── ⑲ 🤖 줄이 여러 개면 전부 본다 ───────────────────────────────────────
 #     첫 🤖 줄에서 못 찾고 바로 None 을 내면, 요약 줄 포맷이 바뀌어 🤖 가 다른 줄에
 #     먼저 나오는 순간 **모든 MR 이 ❓ 가 되어 게이트가 사실상 꺼진다.**
 _two = (f"{AR.MARKER}\n"
@@ -194,7 +296,7 @@ _rc, _sent = run([{"id": 1, "body": _two}])
 assert _rc == 1, "판정 문구가 두 번째 🤖 줄에 있어도 읽어야 한다"
 print("  🤖 줄이 여러 개면 전부 훑는다 \u2705")
 
-# ── ⑯ 판정 문구를 못 찾을 때 로그에 **요약 줄**을 싣는다 ────────────────
+# ── ⑳ 판정 문구를 못 찾을 때 로그에 **요약 줄**을 싣는다 ────────────────
 #     첫 줄은 MARKER(HTML 주석)라 원인 추적에 쓸모가 없다.
 #     카드에는 사유만, **잡 로그에는 요약 줄까지** 싣는다 — 원인 추적은 로그에서 한다.
 _buf2 = _io.StringIO()

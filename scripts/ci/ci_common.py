@@ -574,6 +574,31 @@ def sections(desc: str) -> dict[str, str]:
     return out
 
 
+def bot_line(job: str, blocks: str, with_sha: bool = True) -> str:
+    """봇 코멘트의 둘째 줄 — 어느 잡의 결과이고 머지를 막는지 (S15P21B202-420).
+
+    **왜 필요한가.** MR 하나에 봇 코멘트가 다섯 개까지 붙는다(`ai-review` ·
+    `unity-compile` · `mr-overlap` · `stack-order` · `mm-notify`). 어느 잡이 낸
+    것인지 머리줄에서 알 수 없어, 로그를 보려면 파이프라인을 열어 잡을 찾아야 했다.
+
+    **그리고 막는지 여부가 더 중요하다.** 2026-09-10 에 `!320` 이 파이프라인 초록인 채
+    머지가 잠겼고 이유가 어디에도 없었다 — 미해소 스레드 하나 때문이었다. 코멘트마다
+    "이건 막는다/안 막는다" 가 적혀 있으면 그 자리에서 갈린다.
+
+    `blocks` 는 사람이 읽을 한 문장이다. 잡마다 사정이 달라 여기서 문구를 정하지 않는다
+    (`-354`: 사유를 부르는 쪽이 안다).
+
+    `with_sha=False` 는 머리줄에 이미 커밋이 적혀 있는 잡을 위한 것이다 — `ai-review` 가
+    그렇다. 게이트(`ai_review_gate.verdict_of`)가 판정과 커밋을 **같은 줄**에서 읽기
+    때문에 그 줄에서 커밋을 뺄 수 없고, 여기서 또 적으면 한 코멘트에 두 번 나온다.
+    """
+    url = env("CI_JOB_URL", "")
+    where = f"[`{job}`]({url}) 잡의 결과" if url else f"`{job}` 잡의 결과"
+    sha = env("CI_COMMIT_SHORT_SHA", "") if with_sha else ""
+    parts = [where] + ([f"커밋 `{sha}`"] if sha else []) + [blocks]
+    return "> " + " · ".join(parts)
+
+
 def find_section(secs: dict[str, str], prefix: str) -> str | None:
     for k, v in secs.items():
         if k.startswith(prefix):
