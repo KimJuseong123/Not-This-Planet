@@ -74,6 +74,13 @@ namespace Metagame.Gameplay
         /// 테스트와 혼자 실행이 깨졌다 — 거기에는 <c>NetPlayer</c> 가 없어서 아무도
         /// 켜 주지 않는다(<c>DownedRescueTests</c> 2건이 그것을 잡았다).</para>
         ///
+        /// <para><b>그리고 서버는 다시 집는다</b> (S15P21B202-414). 기본값만으로는
+        /// 부족하다 — 내려놓은 뒤 되돌아올 길이 없으면 <b>호스트를 이어받은 기계가
+        /// 영원히 거짓</b>으로 남는다(<c>HostMigration</c> 은 <c>RemoteAvatar</c> 를
+        /// 떼지 않는다). 그래서 <c>NetPlayer</c> 의 서버 루프가 매 스텝 참으로 둔다.
+        /// 값을 쓰는 곳이 둘인 것은 의도다: <b>거짓은 클라이언트가, 참은 서버가</b>
+        /// 말하고, 두 말은 같은 기계에서 겹치지 않는다.</para>
+        ///
         /// <para><see cref="NetworkDriven"/> 으로는 구별할 수 없다. 그 값은 호스트가
         /// 넘겨받은 자기 몸에도 참이라서, 서버와 클라이언트를 가르지 못한다.</para>
         /// </summary>
@@ -190,6 +197,17 @@ namespace Metagame.Gameplay
             RefreshRescueTarget();
             RefreshCarryTarget();
             RefreshDollVisibility();
+
+            // **이 기계가 남의 기절을 받았는지 남긴다** (S15P21B202-414).
+            //
+            // 2026-09-10 16:00 QA 의 "부활 게이지가 안 보였다" 를 로그로 판정할 수
+            // 없었다. `[NetPlayer] 조준` 진단은 **로컬 플레이어**만 찍어서(기절O/X 도
+            // 자기 값이다) 참가자가 동료의 기절을 아는지가 어디에도 남지 않았다 —
+            // 후보가 없던 것인지 누르지 않은 것인지 구별할 근거가 없었다.
+            //
+            // 값이 **바뀔 때만** 오는 함수이므로 로그가 늘지 않는다.
+            Debug.Log($"[NotThisPlanet][구조] 원격 기절 {(nowDowned ? "O" : "X")}"
+                      + $" · 대상={Nickname}");
         }
 
         public bool Hanging { get { return LeftHand.Hanging || RightHand.Hanging; } }

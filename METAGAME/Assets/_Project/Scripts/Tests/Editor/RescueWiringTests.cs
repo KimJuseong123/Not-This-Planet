@@ -281,10 +281,23 @@ namespace Metagame.Gameplay.Tests
                 "클라이언트의 두 경로(내 몸·남의 몸)에서 모두 내려놓아야 한다 — "
                 + "한쪽이 빠지면 그 몸에서 부활이 일어나 서버와 어긋난다");
 
-            // 쓰는 곳이 둘이면 갈라진다 — 서버 쪽에서 다시 켜지 않는다.
+            // **그리고 서버는 다시 집는다** (S15P21B202-414).
+            //
+            // 예전에 이 자리에는 `Does.Not.Contain("ServerAuthority")` 가 있었다 —
+            // "쓰는 곳이 둘이면 갈라진다" 는 이유였다. **그 단정이 결함을 지키고
+            // 있었다.** 거짓으로 쓰는 곳만 남으면 되돌아올 길이 없어서, 한 번
+            // 참가자였던 기계는 호스트를 이어받은 뒤에도 영원히 거짓이다
+            // (HostMigration 은 RemoteAvatar 를 떼지 않는다). 2026-09-10 16:00 QA 의
+            // 방장 49 → 47 이전 회차가 그 상태였다.
+            //
+            // 값을 쓰는 곳이 둘인 것은 의도다: **거짓은 클라이언트가, 참은 서버가**
+            // 말하고 두 말은 같은 기계에서 겹치지 않는다.
             var net = TestSource.Blank(TestSource.Read("Runtime/Network/NetPlayer.cs"));
-            Assert.That(net, Does.Not.Contain("ServerAuthority"),
-                "서버가 다시 켜면 쓰는 곳이 둘이 된다 — 기본값이 이미 참이다");
+            Assert.That(TestSource.Count(net, "ServerAuthority = true"), Is.EqualTo(1),
+                "서버가 권위를 되찾지 않으면 호스트를 이어받은 기계에서 부활이 "
+                + "예측 상한에서 영원히 멈춘다");
+            Assert.That(net, Does.Not.Contain("ServerAuthority = false"),
+                "서버 쪽에서 내려놓으면 클라이언트의 판정과 겹친다");
         }
 
         /// <summary>
@@ -355,5 +368,57 @@ namespace Metagame.Gameplay.Tests
                 "0 이면 누른 순간 완료돼 게이지가 보이지 않는다");
             Assert.That(PhysicsScale.RescueHealthRatio, Is.InRange(0f, 1f));
         }
+
+        /// <summary>
+        /// <b>권위를 되찾는 자리가 탑승 블록 밖에 있다</b> (S15P21B202-414).
+        ///
+        /// <c>-378</c> 이 같은 함정을 겪었다 — <c>downed</c> 대입을 처음에
+        /// <c>if (transport != null)</c> 안에 두었고, 지금은 non-null 이라 증상이 나지
+        /// 않았지만 그 조건에 손대는 다음 사람이 복제를 조용히 끊을 수 있었다.
+        /// 권위도 탑승과 아무 상관이 없다.
+        /// </summary>
+        [Test]
+        public void TheServerReclaimsAuthorityOutsideTheTransportBlock()
+        {
+            var loop = TestSource.Method(
+                TestSource.Read("Runtime/Network/NetPlayer.cs"), "void FixedUpdate()");
+
+            var claim = loop.IndexOf("body.ServerAuthority = true;", System.StringComparison.Ordinal);
+            Assert.That(claim, Is.GreaterThanOrEqualTo(0),
+                "서버 루프가 권위를 되찾지 않는다");
+
+            // 이 줄은 탑승 블록이 끝난 **뒤**에 있다. 그래서 이보다 뒤라면 블록 밖이다.
+            var afterTransport = loop.IndexOf("if (!adoptedBody) body.SetInput(frame);",
+                                              System.StringComparison.Ordinal);
+            Assert.That(afterTransport, Is.GreaterThanOrEqualTo(0),
+                "기준으로 삼은 줄이 사라졌다 — 이 테스트를 다시 맞춰야 한다");
+            Assert.That(claim, Is.GreaterThan(afterTransport),
+                "권위 대입이 탑승 블록 안에 있다 — 그 조건이 바뀌면 조용히 끊긴다");
+        }
+
+        /// <summary>
+        /// <b>참가자가 남의 기절을 받았는지 로그에 남는다</b> (S15P21B202-414).
+        ///
+        /// 2026-09-10 16:00 QA 의 "부활 게이지가 안 보였다" 를 로그로 판정할 수 없었다.
+        /// <c>[NetPlayer] 조준</c> 진단은 <b>로컬 플레이어</b>만 찍어서(기절O/X 도 자기
+        /// 값이다) 참가자가 동료의 기절을 아는지가 어디에도 남지 않았다 — 후보가 없던
+        /// 것인지 누르지 않은 것인지 구별할 근거가 없었다.
+        /// </summary>
+        [Test]
+        public void ReceivingSomeoneElsesDownedStateIsLogged()
+        {
+            var body = TestSource.Method(
+                TestSource.Read("Runtime/Gameplay/Player/PlayerRig.cs"),
+                "public void SetRemoteDowned(bool nowDowned)");
+
+            Assert.That(body, Does.Contain("Debug.Log"),
+                "받았는지 남지 않으면 다음 QA 에서도 같은 판정을 못 한다");
+
+            // **값이 바뀔 때만 부르는 함수여야 한다.** 매 프레임 찍으면 로그가 묻힌다 —
+            // 그 조기 반환이 이 로그의 전제다.
+            Assert.That(body, Does.Contain("if (Downed == nowDowned"),
+                "같은 값을 걸러내는 조기 반환이 없으면 이 로그가 매 프레임 찍힌다");
+        }
+
     }
 }
