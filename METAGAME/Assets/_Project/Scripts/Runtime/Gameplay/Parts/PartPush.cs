@@ -213,16 +213,35 @@ namespace Metagame.Gameplay.Parts
         }
 
         /// <summary>
-        /// 밀 수 있는 상태인가.
+        /// 밀 수 있는 상태인가 — <b><see cref="PartState.Free"/> 뿐이다.</b>
         ///
-        /// <see cref="PartState.Locked"/> 는 고정쇠로 박혀 "운석에 맞아도 움직이지
-        /// 않는다", <see cref="PartState.Carried"/> 는 견인 빔이 잡고 있다.
-        /// <see cref="PartState.Welded"/> 는 미는 것이 <b>탑 전체를 미는 것</b>이 되므로
-        /// 이 이슈에서 제외했다 — 기획 판단이 필요하다(S15P21B202-250).
+        /// 기획 §13 이 노리는 것은 "약 15m 떨어진 중앙 조립대를 향해 함께 밀기"
+        /// (§상세 5번)다. 그 대상은 고정못을 다 뽑아 바닥에서 떨어진 파츠, 즉
+        /// <c>Free</c> 다. 나머지는 각자 이유가 있다.
+        ///
+        /// <list type="bullet">
+        /// <item><see cref="PartState.Locked"/> — 고정쇠로 박혀 "운석에 맞아도 움직이지
+        /// 않는다". 하나라도 남아 있으면 <c>ConfigurableJoint</c> 가 그 자리에 묶는다</item>
+        /// <item><see cref="PartState.Carried"/> — 견인 빔이 잡고 있다</item>
+        /// <item><see cref="PartState.Welded"/> — 미는 것이 <b>탑 전체를 미는 것</b>이 된다
+        /// (S15P21B202-250 의 기획 보류)</item>
+        /// <item><b><see cref="PartState.Placed"/> — 예전에는 여기 포함돼 있었다.
+        /// 빼는 이유가 이 목록에서 가장 중요하다.</b></item>
+        /// </list>
+        ///
+        /// <b>Placed 를 뺀 이유.</b> <c>PartAssembler.Assemble</c> 이 <c>Carried</c> 에서
+        /// <c>Placed</c> 로 올리면서 <see cref="PartAssemblyLink"/>(FixedJoint)로 아래
+        /// 파츠에 묶는다. 그래서 <c>Placed</c> 파츠는 <b>밀 수 있다고 답하면서 실제로는
+        /// 절대 움직이지 않았다</b> — 셋이 붙어 8843N 이 들어가는데 2초에 0.0000m 였다
+        /// (S15P21B202-400 후속 실측). 조인트가 붙잡는 것을 힘으로 이길 수 없고, 이길
+        /// 수 있게 만들면 위에 얹힌 층까지 끌고 가거나 탑이 무너진다.
+        ///
+        /// 조립대에 올린 파츠는 이미 목적지에 도착한 것이다. 다시 옮기려면 견인 빔으로
+        /// 들어 올리는 경로가 있다(<c>Placed → Carried</c> 전이가 허용된다).
         /// </summary>
         public bool CanPush =>
             _part != null && _body != null && !_body.isKinematic
-            && (_part.State == PartState.Free || _part.State == PartState.Placed);
+            && _part.State == PartState.Free;
 
         void FixedUpdate() => Tick(Time.fixedDeltaTime);
 
