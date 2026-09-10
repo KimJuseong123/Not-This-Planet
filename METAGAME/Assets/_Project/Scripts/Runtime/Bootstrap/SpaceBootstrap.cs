@@ -141,6 +141,9 @@ namespace Metagame.Bootstrap
             // (S15P21B202-385). 감시와 표시를 나눠 둔다 — 감시는 네트워크, 표시는 UI.
             sys.AddComponent<Metagame.Network.HostLinkWatch>();
             sys.AddComponent<HostNoticeHud>();
+            // 방장이 사라지면 남은 사람 중 하나가 이어받는다 (S15P21B202-389).
+            // 게임 씬에만 둔다 — 그래서 여기서 받는 GAME_STARTED 는 언제나 이전이다.
+            sys.AddComponent<Metagame.Network.HostMigration>();
             Exploration = sys.AddComponent<Stage1Exploration>();
             ExplorationHud = sys.AddComponent<Stage1ExplorationHud>();
             Transport = sys.AddComponent<TractorBeamController>();

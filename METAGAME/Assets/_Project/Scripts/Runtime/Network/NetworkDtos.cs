@@ -183,6 +183,9 @@ namespace Metagame.Network
         public string Status { get; }
         public IReadOnlyList<PlayerSnapshot> Players => players;
         public bool IsWaiting => string.Equals(Status, "WAITING", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>판이 돌고 있는가. 호스트 이전은 이때만 일어난다 (S15P21B202-389).</summary>
+        public bool IsPlaying => string.Equals(Status, "PLAYING", StringComparison.OrdinalIgnoreCase);
         public bool AllReady
         {
             get

@@ -120,6 +120,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 case READY -> ready(userId, msg.data().get("ready").asBoolean());
                 case START_GAME -> startGame(userId, msg.data());
                 case GAME_END -> endGame(userId);
+                case HOST_TAKEOVER -> hostTakeover(userId, msg.data());
                 case PLAYER_MOVE -> playerMove(userId, msg.data());
                 default -> send(session, WsMessage.Type.ERROR, Map.of("message", "unknown type"));
             }
@@ -157,9 +158,30 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
         if (room.getStatus() == Room.Status.PLAYING) {
             room.markDisconnected(userId);
+
+            // 방장이 끊겼으면 <b>기다리지 않고</b> 방장만 넘긴다 (S15P21B202-389).
+            //
+            // 자리는 위에서 유예로 남겼고 그것은 그대로 둔다 — 그 사람이 30초 안에
+            // 돌아올 수 있어야 한다(-150). 하지만 방장 자리는 기다릴 수 없다: 방장의
+            // PC 가 곧 게임 서버라(-145) 유예가 끝날 때까지 아무도 게임을 할 수 없다.
+            //
+            // 새 방장에게 따로 알리지 않는다. 바로 아래 broadcastRoomState 의
+            // ROOM_STATE 가 이미 hostUserId 를 싣고, 클라이언트는 그것으로
+            // IsRoomHost 를 판단한다(NetworkSession) — "게임 중인데 내가 방장이 되었다"
+            // 를 보면 스스로 HOST_TAKEOVER 를 보낸다.
+            Long newHost = userId.equals(room.getHostUserId())
+                    ? room.passHostToConnected()
+                    : null;
+
             broadcastRoomState(room);
             graceManager.schedule(roomId, userId, () -> onGraceExpired(roomId, userId));
-            log.info("disconnected (grace): userId={} room={}", userId, roomId);
+
+            if (newHost != null) {
+                log.info("host disconnected, passing host: room={} old={} new={}",
+                        roomId, userId, newHost);
+            } else {
+                log.info("disconnected (grace): userId={} room={}", userId, roomId);
+            }
         } else {
             removeFromRoom(room, userId);
             log.info("disconnected (left): userId={} room={}", userId, roomId);
@@ -195,22 +217,29 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
             room.leave(userId);
 
-            // 방장이 게임 중에 빠지면 판을 끝낸다 (S15P21B202-385).
+            // 방장이 게임 중에 빠졌고 <b>이어받을 사람이 없으면</b> 판을 끝낸다
+            // (S15P21B202-385 · 조건을 -389 에서 좁혔다).
             //
-            // 방장의 PC 가 곧 게임 서버다(-145 호스트 권위). 그 사람이 사라지면 아무도
-            // 판을 이어갈 수 없는데, 예전에는 방장만 다음 사람에게 넘기고 상태를
-            // PLAYING 으로 남겼다. 그래서 참가자가 로비로 돌아가도 시작 버튼이 비활성이라
-            // (LobbyHud 의 room.IsWaiting 조건) 새 방장이 다시 시작할 수 없었다.
+            // 방장의 PC 가 곧 게임 서버다(-145 호스트 권위). 예전에는 방장만 다음 사람에게
+            // 넘기고 상태를 PLAYING 으로 남겼고, 그래서 참가자가 로비로 돌아가도 시작
+            // 버튼이 비활성이라(LobbyHud 의 room.IsWaiting 조건) 새 방장이 다시 시작할 수
+            // 없었다. -385 는 그것을 "방장이 빠지면 판을 끝낸다" 로 고쳤다.
+            //
+            // <b>-389 가 이어받는 길을 만들면서 그 조건이 너무 넓어졌다.</b> 남은 사람이
+            // 있으면 그 중 하나가 서버가 되어 판을 이어갈 수 있으므로, 여기서 끝내면
+            // 이어받기가 시작되기도 전에 방이 대기로 돌아간다. 그래서 <b>아무도 남지
+            // 않았을 때만</b> 끝낸다 — leave() 가 방장을 못 채우면(null) 그것이 곧
+            // "남은 사람이 없다" 다.
             //
             // 잠깐 끊긴 것과는 구분된다. 게임 중 연결이 끊기면 이 함수가 아니라 유예
             // 스케줄러로 가고, 30초 안에 돌아오면 여기 오지 않는다.
-            matchEnded = wasHost && wasPlaying && room.end();
+            matchEnded = wasHost && wasPlaying && room.getHostUserId() == null && room.end();
         }
 
         afterLeave(room);
 
         if (matchEnded) {
-            log.info("host left mid-match, room back to WAITING: room={} host={}",
+            log.info("host left with nobody to take over, room back to WAITING: room={} host={}",
                     room.getRoomId(), userId);
         }
     }
@@ -426,6 +455,62 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         }
 
         send(target, WsMessage.Type.GAME_STARTED, payload);
+    }
+
+    /**
+     * 새 방장이 매치를 이어받는다 (S15P21B202-389).
+     *
+     * <p><b>왜 클라이언트가 먼저 말을 걸어야 하나.</b> 참가자들이 붙을 주소는 방장만 안다 —
+     * 서버가 보는 주소는 공인 IP 라 공유기가 밖에서 들어오는 연결을 막는다. {@code START_GAME}
+     * 이 {@code hostAddress} 를 싣는 것과 같은 이유이고, 그래서 이전도 같은 모양이다.
+     *
+     * <p><b>릴레이 세션을 새로 연다.</b> 우리 릴레이는 누가 서버인지를 <b>토큰으로</b> 가른다
+     * ({@code metagame_relay.py} 의 {@code host_token}). 방장이 바뀌면 그 토큰의 주인이
+     * 달라지므로 세션을 고쳐 쓸 수 없다. 새로 열고 옛 세션은 닫는다 — 닫지 않으면 릴레이에
+     * 세션이 쌓인다({@code -298} §5-① 에서 실제로 그랬다).
+     *
+     * <p><b>방장만 부를 수 있다.</b> 아니면 남이 이 메시지를 보내 남의 매치를 자기 PC 로
+     * 끌어갈 수 있다. 방 상태도 확인한다 — 대기 중인 방에는 이어받을 매치가 없다.
+     *
+     * <p>전원에게 {@code GAME_STARTED} 를 다시 보낸다. <b>새 메시지를 만들지 않았다</b> —
+     * 클라이언트가 매치에 붙는 데 필요한 것이 이미 그 메시지에 다 들어 있고, 받는 쪽은
+     * "매치 중에 온 {@code GAME_STARTED}" 를 이전으로 읽는다.
+     */
+    private void hostTakeover(Long userId, JsonNode data) {
+        Room room = roomOf(userId);
+        if (room == null || room.getStatus() != Room.Status.PLAYING
+                || !userId.equals(room.getHostUserId())) {
+            log.info("host takeover rejected: userId={} room={}", userId,
+                    room == null ? null : room.getRoomId());
+            return;
+        }
+
+        String hostAddress = data != null && data.hasNonNull("hostAddress")
+                ? data.get("hostAddress").asText("")
+                : "";
+
+        LinkedHashMap<Long, String> publicIps = publicIpsOf(room);
+        boolean same = sameNetwork(room, publicIps);
+        RelaySession relay = same ? null : relayService.open(publicIps, room.getHostUserId());
+
+        MatchEntry previous = matches.put(room.getRoomId(), new MatchEntry(hostAddress, relay));
+        if (previous != null && previous.relay() != null) {
+            relayService.close(previous.relay().sessionId());
+        }
+
+        log.info("host takeover: room={} newHost={} players={} decision={}",
+                room.getRoomId(), userId, publicIps.size(),
+                same ? "direct(same network)" : (relay != null ? "relay" : "direct(relay failed)"));
+
+        for (Long playerId : room.playerIds()) {
+            WebSocketSession target = sessions.get(playerId);
+            if (target == null || !target.isOpen()
+                    || !room.getRoomId().equals(target.getAttributes().get(ROOM_ID_ATTR))) {
+                continue;
+            }
+
+            sendGameStarted(target, room, playerId);
+        }
     }
 
     /**

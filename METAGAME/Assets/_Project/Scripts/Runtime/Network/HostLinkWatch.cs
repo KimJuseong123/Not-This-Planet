@@ -64,9 +64,24 @@ namespace Metagame.Network
 
             quietFor = Time.time - connection.lastMessageTime;
 
-            if (quietFor >= GiveUpAfter)
+            // 이전이 오는 중이면 기다린다 (S15P21B202-389).
+            //
+            // <b>추측이 아니라 들은 것이다.</b> 방장이 바뀐 것은 로비 웹소켓으로 오는데
+            // 그 연결은 Spring 에 붙어 있어 방장의 PC 와 무관하게 살아 있다. 그것을 듣고도
+            // 5초에 로비로 내려보내면 <b>이어받기가 시작되기 전에 사람들이 나간다</b>.
+            //
+            // 그래도 언젠가는 포기한다 — 새 방장까지 함께 죽으면 아무 소식이 오지 않는다.
+            float giveUp = HostMigration.Pending ? HostMigration.WaitForTakeover : GiveUpAfter;
+
+            if (quietFor >= giveUp)
             {
                 GiveUp();
+                return;
+            }
+
+            if (HostMigration.Pending)
+            {
+                Notice = "방장이 바뀌었습니다 · 다시 연결하는 중…";
                 return;
             }
 
