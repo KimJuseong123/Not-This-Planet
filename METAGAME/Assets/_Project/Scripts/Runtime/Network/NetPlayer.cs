@@ -212,7 +212,19 @@ namespace Metagame.Network
             //
             // 방장 자신의 몸에는 넣지 않는다. 그쪽은 PlayerRig.Tick 이 파츠를 직접
             // 조회해 이미 채웠고, 여기서 덮으면 한 프레임 늦은 값으로 되돌린다.
-            if (!isServer) body.SetHaulState(hauling, haulDirection, haulGrasp);
+            //
+            // **내 몸에만 넣는다.** 이 LateUpdate 는 모든 NetPlayer 에서 돌고, 남의
+            // 몸도 PlayerRig 다(BuildRemoteBody 가 만든다). 카메라는 내 것만 쓰므로
+            // 남의 몸에 넣는 것은 무의미하고, 그 값이 Locomotion 의 이동 기준
+            // (haulBasisSet)에 섞일 자리를 남긴다. 지금은 RemoteAvatar 가
+            // `rig.enabled = false` 로 조종을 멈춰 증상이 없지만, 그 전제가 바뀌면
+            // 조용히 깨진다(!312 AI 리뷰가 이 자리를 물었다).
+            //
+            // 여기서 isLocalPlayer 를 쓰는 것은 안전하다. 그것을 피하라는 주의
+            // (IsHostOwnPlayer 주석)는 **서버 쪽 몸 세우기**의 스폰 경쟁 이야기고,
+            // 이 자리는 body 가 이미 있는지 확인한 뒤이며 한 프레임 늦어도 무해하다.
+            if (!isServer && isLocalPlayer)
+                body.SetHaulState(hauling, haulDirection, haulGrasp);
 
             if (isServer) _locomotionState = RabbitLocomotion.ReadState(body);
             if (body.Doll.Suit != null)
