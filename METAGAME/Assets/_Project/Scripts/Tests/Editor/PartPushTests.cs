@@ -333,6 +333,94 @@ namespace Metagame.Gameplay.Tests
             Assert.AreEqual(1, push.PusherCount);
         }
 
+        [Test]
+        public void OneOrTwoGrabbersHoldThePartWithoutMovingIt()
+        {
+            var push = MakePart();
+            var first = MakePlayer(new Vector3(1.2f, 0f, 0f), Vector3.zero);
+            var second = MakePlayer(new Vector3(1.2f, 0f, 0.8f), Vector3.zero);
+
+            Assert.IsTrue(push.TryGrab(first, first.RightHand));
+            Assert.IsTrue(push.TryGrab(second, second.RightHand));
+
+            Push(push, 1f);
+
+            Assert.AreEqual(2, push.PullerCount);
+            Assert.IsFalse(push.IsPulled);
+            Assert.AreEqual(0f, Horizontal(push).magnitude, 0.02f);
+        }
+
+        [Test]
+        public void BothHandsOfOnePlayerCountAsOneGrabber()
+        {
+            var push = MakePart();
+            var first = MakePlayer(new Vector3(1.2f, 0f, -0.4f), Vector3.zero);
+            var second = MakePlayer(new Vector3(1.2f, 0f, 0.4f), Vector3.zero);
+
+            Assert.IsTrue(push.TryGrab(first, first.LeftHand));
+            Assert.IsTrue(push.TryGrab(first, first.RightHand));
+            Assert.IsTrue(push.TryGrab(second, second.RightHand));
+
+            Push(push, 1f);
+
+            Assert.AreEqual(2, push.PullerCount);
+            Assert.IsFalse(push.IsPulled);
+        }
+
+        [Test]
+        public void LockedPartCannotBeGrabbedForPulling()
+        {
+            var push = MakePart(PartState.Locked);
+            var player = MakePlayer(new Vector3(1.2f, 0f, 0f), Vector3.zero);
+
+            Assert.IsFalse(push.TryGrab(player, player.RightHand));
+            Push(push, 1f);
+
+            Assert.AreEqual(0, push.PullerCount);
+            Assert.IsFalse(push.IsPulled);
+        }
+
+        [Test]
+        public void ThreeGrabbersPullThePartTowardTheirSide()
+        {
+            var push = MakePart();
+            var first = MakePlayer(new Vector3(1.2f, 0f, -0.8f), Vector3.zero);
+            var second = MakePlayer(new Vector3(1.2f, 0f, 0f), Vector3.zero);
+            var third = MakePlayer(new Vector3(1.2f, 0f, 0.8f), Vector3.zero);
+
+            Assert.IsTrue(push.TryGrab(first, first.RightHand));
+            Assert.IsTrue(push.TryGrab(second, second.RightHand));
+            Assert.IsTrue(push.TryGrab(third, third.RightHand));
+
+            Push(push, 1f);
+
+            Assert.AreEqual(3, push.PullerCount);
+            Assert.IsTrue(push.IsPulled);
+            Assert.Greater(Horizontal(push).x, 0.3f);
+            Assert.Greater(Vector3.Dot(push.PullDirection, Vector3.right), 0.9f);
+        }
+
+        [Test]
+        public void PullersOnOppositeSidesCancelOut()
+        {
+            var push = MakePart();
+            var rightA = MakePlayer(new Vector3(1.2f, 0f, -0.8f), Vector3.zero);
+            var rightB = MakePlayer(new Vector3(1.2f, 0f, 0.8f), Vector3.zero);
+            var leftA = MakePlayer(new Vector3(-1.2f, 0f, -0.8f), Vector3.zero);
+            var leftB = MakePlayer(new Vector3(-1.2f, 0f, 0.8f), Vector3.zero);
+
+            Assert.IsTrue(push.TryGrab(rightA, rightA.RightHand));
+            Assert.IsTrue(push.TryGrab(rightB, rightB.RightHand));
+            Assert.IsTrue(push.TryGrab(leftA, leftA.RightHand));
+            Assert.IsTrue(push.TryGrab(leftB, leftB.RightHand));
+
+            Push(push, 1f);
+
+            Assert.AreEqual(4, push.PullerCount);
+            Assert.IsFalse(push.IsPulled);
+            Assert.AreEqual(0f, Horizontal(push).magnitude, 0.02f);
+        }
+
         // --- 밀 수 없는 사람 -----------------------------------------------
 
         [Test]

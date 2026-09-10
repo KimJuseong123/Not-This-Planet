@@ -2838,12 +2838,26 @@ namespace Metagame.Gameplay
                 hand.Body.AddForce(f, ForceMode.Force);
                 Doll.Chest.AddForce(-f * 0.25f, ForceMode.Force);
                 // Transport 역할의 가벼운 대상은 한 손 운반 경로로 잡는다.
-                bool gripped = focusedTarget != null
-                    ? hand.GripTo(focusedTarget, BodyOf(focusedTarget))
-                    : hand.TryGrip();
+                bool gripped = TryGripTarget(hand, focusedTarget);
                 if (regrabLock <= 0f && !toolTarget && gripped && hand.Carrying)
                     BeginCarriedBody(hand.HeldBody);
             }
+        }
+
+        bool TryGripTarget(Hand hand, Grabbable focusedTarget)
+        {
+            var target = focusedTarget != null ? focusedTarget : hand.Aimed;
+            var partPush = target != null ? target.GetComponentInParent<PartPush>() : null;
+
+            // 파츠는 일반 운반 경로가 아니라 협동 견인 집계 경로를 사용한다.
+            // PartPush가 비활성/고정 상태면 여기서 거부해 Locked 파츠를 손으로
+            // 세계에 고정하는 기존 FixedJoint 경로로 우회하지 않는다.
+            if (partPush != null)
+                return partPush.TryGrab(this, hand);
+
+            return focusedTarget != null
+                ? hand.GripTo(focusedTarget, BodyOf(focusedTarget))
+                : hand.TryGrip();
         }
 
         static Rigidbody BodyOf(Grabbable target)
