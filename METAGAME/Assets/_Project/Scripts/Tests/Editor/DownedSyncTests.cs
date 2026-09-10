@@ -1,0 +1,115 @@
+using System.Reflection;
+using Metagame.Network;
+using NUnit.Framework;
+
+namespace Metagame.Gameplay.Tests
+{
+    /// <summary>
+    /// 기절 상태가 <b>참가자에게 전달되는 배선</b>을 검증한다 (S15P21B202-378).
+    ///
+    /// <para><b>왜 필요했나.</b> 2026-09-10 QA 에서 호스트가 기절했는데 참가자가
+    /// 일으키려 해도 아무 반응이 없었다. 원인은 <c>PlayerRig.Downed</c> 가 복제되지
+    /// 않아 참가자 기계에서 <b>언제나 false</b> 였던 것이다 —
+    /// <c>FindDownedTeammate</c> 가 그 플래그로 후보를 걸러내므로 조준이 정확해도
+    /// 대상이 없었다. 기획 §26-13 이 호스트에서만 성립하고 있었다.</para>
+    ///
+    /// <para>실제 복제는 Mirror 서버가 떠 있어야 하므로 여기서 돌리지 않는다. 대신
+    /// <b>배선이 제자리에 있는지</b>를 리플렉션과 소스로 잡는다 — 이 배선은 조용히
+    /// 빠지기 쉽고, 빠지면 증상이 "클릭이 안 먹는다" 로 보여 엉뚱한 곳을 파게 된다.</para>
+    /// </summary>
+    public sealed class DownedSyncTests
+    {
+        static FieldInfo Field(string name)
+        {
+            return typeof(NetPlayer).GetField(name,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        }
+
+        /// <summary><c>downed</c> 필드가 있고 <b>SyncVar</b> 로 표시돼 있다.</summary>
+        [Test]
+        public void DownedIsASyncVar()
+        {
+            var field = Field("downed");
+            Assert.That(field, Is.Not.Null, "NetPlayer.downed 가 없다 — 기절이 복제되지 않는다");
+            Assert.That(field.FieldType, Is.EqualTo(typeof(bool)));
+
+            // Mirror 의 weaver 가 SyncVar 를 다시 쓰지만 어트리뷰트는 남는다.
+            var attrs = field.GetCustomAttributes(inherit: false);
+            bool isSyncVar = false;
+            foreach (var a in attrs)
+                if (a.GetType().Name == "SyncVarAttribute") isSyncVar = true;
+
+            Assert.That(isSyncVar, Is.True,
+                "[SyncVar] 가 빠지면 값이 참가자에게 가지 않는다 — 증상이 조용히 되돌아온다");
+        }
+
+        /// <summary>
+        /// <b>표시용 경로가 열려 있다.</b> 참가자 쪽에서 <c>GoDown()</c> 을 부르면 안 되므로
+        /// (넉백·장비 해제·레이어·카메라까지 하고 그것들은 서버 권위다) 따로 있어야 한다.
+        /// </summary>
+        [Test]
+        public void PlayerRigHasADisplayOnlyEntryPoint()
+        {
+            var method = typeof(PlayerRig).GetMethod(
+                "SetRemoteDowned", BindingFlags.Instance | BindingFlags.Public);
+
+            Assert.That(method, Is.Not.Null,
+                "PlayerRig.SetRemoteDowned 가 없다 — 참가자 쪽에서 기절 표시를 맞출 길이 없다");
+            Assert.That(method.GetParameters().Length, Is.EqualTo(1));
+            Assert.That(method.GetParameters()[0].ParameterType, Is.EqualTo(typeof(bool)));
+        }
+
+        /// <summary>
+        /// <b>후보 자격까지 맞춰야 한다.</b> 플래그만 세우면 후보가 되지 않는다 —
+        /// <c>FindDownedTeammate</c> 는 잡을 지점(<c>CarryTarget</c>)도 요구하고, 그것을
+        /// 만드는 <c>RefreshCarryTarget</c> 은 <c>GoDown</c>·<c>Revive</c> 안에서만 불려
+        /// 클라이언트에서는 비어 있다.
+        /// </summary>
+        [Test]
+        public void DisplayPathAlsoRebuildsTheGrabPoint()
+        {
+            var source = TestSource.Read("Runtime/Gameplay/Player/PlayerRig.cs");
+            var body = TestSource.Method(source, "public void SetRemoteDowned(bool nowDowned)");
+
+            Assert.That(body, Does.Contain("RefreshCarryTarget()"),
+                "잡을 지점을 만들지 않으면 플래그만 맞고 후보가 되지 않는다");
+            Assert.That(body, Does.Contain("RefreshRescueTarget()"));
+
+            // 레이어는 건드리지 않는다 — RemoteAvatar 가 원격 몸을 RemotePlayer 로
+            // 옮겨 두었고, 여기서 PlayerDowned 로 바꾸면 그 의도가 깨진다.
+            Assert.That(body, Does.Not.Contain("SetDollLayer"),
+                "원격 몸의 레이어는 RemoteAvatar 의 것이다 — 여기서 바꾸면 안 된다");
+        }
+
+        /// <summary>
+        /// <b>서버에서는 SyncVar 값으로 되쓰지 않는다.</b> 서버의 몸이 진짜 상태이고,
+        /// 한 틱 늦은 값이 방금 바뀐 상태를 지울 수 있다.
+        /// </summary>
+        [Test]
+        public void ServerDoesNotOverwriteItsOwnState()
+        {
+            var source = TestSource.Read("Runtime/Network/NetPlayer.cs");
+            var body = TestSource.Method(source, "void ApplyDowned(bool nowDowned)");
+
+            Assert.That(body, Does.Contain("isServer"),
+                "서버에서 되쓰면 권위가 뒤집힌다 — isServer 가드가 있어야 한다");
+        }
+
+        /// <summary>
+        /// <b>이미 기절한 채로 접속한 사람도 기절해 보여야 한다.</b> 훅은 값이 바뀔 때만
+        /// 불리므로 몸을 만드는 자리에서도 한 번 적용해야 한다 — <c>ApplyRiding</c> 이
+        /// 같은 이유로 그렇게 되어 있다("탄 채로 접속한 사람이 계속 보인다").
+        /// </summary>
+        [Test]
+        public void LateJoinersSeeSomeoneAlreadyDowned()
+        {
+            var source = TestSource.Read("Runtime/Network/NetPlayer.cs");
+            int applied = TestSource.Count(source, "ApplyDowned(downed);");
+
+            Assert.That(applied, Is.GreaterThanOrEqualTo(2),
+                "몸을 만드는 자리마다 적용해야 한다 — 훅만으로는 접속 시점의 상태를 놓친다");
+            Assert.That(TestSource.Count(source, "ApplyRiding(riding);"), Is.EqualTo(applied),
+                "riding 과 같은 자리에서 적용돼야 한다 — 한쪽만 늘어나면 다음에 어긋난다");
+        }
+    }
+}

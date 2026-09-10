@@ -91,6 +91,20 @@ namespace Metagame.Network
         public bool riding;
 
         /// <summary>
+        /// 이 사람이 <b>기절해 쓰러져 있는가</b> (S15P21B202-378).
+        ///
+        /// <para>기절 판정은 서버가 한다. 이 값이 없던 동안 참가자 기계에서는 원격
+        /// 플레이어의 <c>PlayerRig.Downed</c> 가 언제나 false 였고, 그래서
+        /// <b>참가자는 동료를 일으킬 수 없었다</b> — 후보 탐색이 그 플래그로 걸러진다.
+        /// 2026-09-10 QA 에서 호스트가 기절했는데 참가자가 아무 반응을 못 얻었다.</para>
+        ///
+        /// <para>훅은 <b>표시와 후보 자격만</b> 맞춘다(<c>PlayerRig.SetRemoteDowned</c>).
+        /// 물리·카메라·장비 해제는 서버가 한다.</para>
+        /// </summary>
+        [SyncVar(hook = nameof(OnDownedChanged))]
+        public bool downed;
+
+        /// <summary>
         /// 방 안의 자리 번호(0~3). 색이 여기서 나온다 (S15P21B202-375).
         ///
         /// <para><b>서버가 <see cref="OnStartServer"/> 에서 정한다.</b> 그 시점에 넣으면
@@ -362,6 +376,7 @@ namespace Metagame.Network
                 AttachTransport();
                 transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
                 ApplyRiding(riding);
+                ApplyDowned(downed);
                 Debug.Log($"[NetPlayer] 방장의 몸을 넘겨받았다 · {nickname}(userId={userId})");
                 return true;
             }
@@ -392,6 +407,7 @@ namespace Metagame.Network
             AttachTransport();
             transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
             ApplyRiding(riding);
+            ApplyDowned(downed);
             return true;
         }
 
@@ -471,6 +487,10 @@ namespace Metagame.Network
                               + $"탈것={(vehicle != null ? vehicle.name : "모름")}");
                 }
                 riding = transport.IsControlling;
+
+                // 기절 여부도 같은 자리에서 실어 보낸다 (S15P21B202-378).
+                // 이것이 없으면 참가자 화면에서 동료가 기절한 것으로 보이지 않는다.
+                downed = body.Downed;
 
                 // 탑승 중에는 몸이 운반체와 싸우지 않게 한다. 이동은 운반체가 처리하고
                 // 몸은 좌석에 앉아 있기만 한다 — 혼자 실행할 때 GameSession 이 하는 것과
@@ -797,7 +817,7 @@ namespace Metagame.Network
             // 이미 타고 있는 사람이라면 지금 바로 감춘다. 훅은 값이 <b>바뀔 때만</b>
             // 돌므로, 탄 채로 접속한 사람에게는 오지 않는다(S15P21B202-305).
             ApplyRiding(riding);
-
+            ApplyDowned(downed);
             Debug.Log($"[NetPlayer] 다른 플레이어가 보인다 · {nickname}(userId={userId})");
         }
 
@@ -820,6 +840,24 @@ namespace Metagame.Network
         /// Mirror 버전에 달려 있고, 인수는 어느 버전에서나 새 값이다.
         /// </summary>
         void OnRidingChanged(bool _, bool nowRiding) => ApplyRiding(nowRiding);
+
+        void OnDownedChanged(bool _, bool nowDowned) => ApplyDowned(nowDowned);
+
+        /// <summary>
+        /// 남의 화면의 기절 표시를 맞춘다 (S15P21B202-378).
+        ///
+        /// <para><b>서버에서는 하지 않는다.</b> 서버의 몸이 진짜 상태이고, SyncVar 값으로
+        /// 되쓰면 권위가 뒤집힌다 — 한 틱 늦은 값이 방금 바뀐 상태를 지울 수 있다.</para>
+        ///
+        /// <para>몸을 만드는 자리에서도 부른다. 그러지 않으면 <b>이미 기절한 채로 접속한
+        /// 사람이 멀쩡해 보인다</b> — <c>ApplyRiding</c> 이 같은 이유로 그렇게 되어 있다.</para>
+        /// </summary>
+        void ApplyDowned(bool nowDowned)
+        {
+            if (body == null || isServer) return;
+
+            body.SetRemoteDowned(nowDowned);
+        }
 
         /// <summary>
         /// 탑승 여부를 몸에 적용한다.
