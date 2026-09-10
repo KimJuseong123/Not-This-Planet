@@ -130,13 +130,13 @@ namespace Metagame.Bootstrap
             PauseMenu.Initialize(Session);
             PingHud = sys.AddComponent<TeamPingHud>();
             PingHud.Initialize(Session);
-            // 동료 일으키기 진행도 (S15P21B202-390). 핑과 같은 방식이라 옆에 둔다 —
-            // 판단은 PlayerRig.TickRescue 가 하고 이쪽은 그리기만 한다.
-            RescueHud = sys.AddComponent<DownedRescueHud>();
-            RescueHud.Initialize(Session);
             // 팀원 머리 위 이름표 (S15P21B202-375). 핑과 같은 방식이라 옆에 둔다.
             NameplateHud = sys.AddComponent<TeamNameplateHud>();
             NameplateHud.Initialize(Session);
+            // 동료 일으키기 진행도 (S15P21B202-390). 핑·이름표와 같은 방식이다 —
+            // 판단은 PlayerRig.TickRescue 가 하고 이쪽은 그리기만 한다.
+            RescueHud = sys.AddComponent<DownedRescueHud>();
+            RescueHud.Initialize(Session);
             Exploration = sys.AddComponent<Stage1Exploration>();
             ExplorationHud = sys.AddComponent<Stage1ExplorationHud>();
             Transport = sys.AddComponent<TractorBeamController>();
