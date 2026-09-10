@@ -401,6 +401,56 @@ class GameWebSocketIntegrationTest {
                 .isInstanceOf(AssertionError.class);
     }
 
+    // ---------- 방장 이탈 (S15P21B202-385) ----------
+
+    /**
+     * 방장이 게임 중에 나가면 방이 대기 상태로 돌아온다.
+     *
+     * <p>예전에는 방장만 다음 사람에게 넘기고 {@code PLAYING} 으로 남겨서, 참가자가
+     * 로비로 돌아가도 시작 버튼이 비활성이라 다시 시작할 수 없었다.
+     */
+    @Test
+    void hostLeavingMidMatchReturnsTheRoomToWaiting() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        startedRoom(host, guest);
+
+        host.send("LEAVE_ROOM", Map.of());
+
+        JsonNode state = guest.await("ROOM_STATE");
+        assertThat(state.get("status").asString()).isEqualTo("WAITING");
+        assertThat(state.get("hostUserId").asLong()).isEqualTo(guest.userId);
+    }
+
+    /** 남은 사람이 새 방장이 되어 바로 다시 시작할 수 있다. */
+    @Test
+    void theNewHostCanStartAgainAfterTheOldHostLeft() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        String code = startedRoom(host, guest);
+        host.send("LEAVE_ROOM", Map.of());
+        guest.await("ROOM_STATE");
+
+        // 판이 끝나며 준비가 풀렸으므로 다시 누른다.
+        guest.send("READY", Map.of("ready", true));
+        guest.await("ROOM_STATE");
+        guest.send("START_GAME", Map.of());
+
+        assertThat(guest.await("GAME_STARTED").get("roomId").asString()).isEqualTo(code);
+    }
+
+    /** 참가자가 나가는 것으로는 판이 끝나지 않는다 — 게임은 계속된다. */
+    @Test
+    void aGuestLeavingDoesNotEndTheMatch() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        startedRoom(host, guest);
+
+        guest.send("LEAVE_ROOM", Map.of());
+
+        assertThat(host.await("ROOM_STATE").get("status").asString()).isEqualTo("PLAYING");
+    }
+
     @Test
     void outsiderCannotJoinRoomThatIsAlreadyPlaying() throws Exception {
         TestClient host = connect("철수", "device-a");
