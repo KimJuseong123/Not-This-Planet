@@ -397,6 +397,63 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
+        /// <b>클라이언트만 권위를 내려놓는다</b> — 호스트에서는 그 코드가 돌지 않는다
+        /// (S15P21B202-414, `!320` AI 리뷰).
+        ///
+        /// <para>리뷰가 이렇게 지적했다: "호스트는 서버이자 클라이언트라 같은 기계에서
+        /// <c>RemoteAvatar.Attach(false)</c> 와 서버 루프(<c>true</c>)가 모두 실행될 수
+        /// 있다." <b>지금 코드에서는 일어나지 않는다</b> — <c>OnStartClient</c> 가
+        /// <c>AdoptLocalBody</c>·<c>BuildRemoteBody</c> <b>앞에서</b>
+        /// <c>if (isServer) return;</c> 하고, <c>Update</c> 의 재시도 경로도
+        /// <c>if (isServer || !isLocalPlayer) return;</c> 로 막혀 있다.</para>
+        ///
+        /// <para><b>그런데 그 불변식을 아무것도 지키지 않았다.</b> 그 두 가드 중 하나가
+        /// 사라지면 호스트에서 <c>Attach</c> 가 돌아 한 프레임 동안 권위가 거짓이 되고,
+        /// 그 프레임에 홀드가 끝나면 부활이 조용히 사라진다. 그래서 여기서 못박는다 —
+        /// 런타임 가드를 하나 더 두는 대신 이 검사를 둔다. 권위를 정하는 곳이 또 늘면
+        /// `-390` 이 겪은 그 문제(쓰는 곳이 흩어져 되돌아올 길이 없어진다)가 되풀이된다.
+        /// </para>
+        /// </summary>
+        [Test]
+        public void TheHostNeverRunsTheClientDisown()
+        {
+            var net = TestSource.Read("Runtime/Network/NetPlayer.cs");
+
+            var start = TestSource.Method(net, "public override void OnStartClient()");
+            var guard = start.IndexOf("if (isServer) return;", System.StringComparison.Ordinal);
+            Assert.Greater(guard, 0, "OnStartClient 에 호스트를 걸러내는 가드가 없다");
+
+            foreach (var call in new[] { "AdoptLocalBody()", "BuildRemoteBody()" })
+            {
+                var at = start.IndexOf(call, System.StringComparison.Ordinal);
+                Assert.Greater(at, 0, $"OnStartClient 가 {call} 를 부르지 않는다 — 이 테스트를 다시 맞춰야 한다");
+                Assert.Greater(at, guard,
+                    $"{call} 가 호스트 가드보다 앞이면 호스트에서도 RemoteAvatar.Attach 가 돌아 "
+                    + "권위가 한 프레임 거짓이 된다");
+            }
+
+            // Update 의 재시도 경로도 같은 가드 뒤에 있어야 한다.
+            var update = TestSource.Method(net, "void Update()");
+            var retryGuard = update.IndexOf("if (isServer || !isLocalPlayer) return;",
+                                            System.StringComparison.Ordinal);
+            var retry = update.IndexOf("AdoptLocalBody()", System.StringComparison.Ordinal);
+            if (retry >= 0)
+            {
+                Assert.Greater(retryGuard, 0,
+                    "Update 가 AdoptLocalBody 를 부르는데 호스트 가드가 없다");
+                Assert.Greater(retry, retryGuard,
+                    "재시도가 가드보다 앞이면 호스트에서도 몸을 맡겨 권위를 내려놓는다");
+            }
+
+            // 내려놓는 곳이 그 두 경로뿐인지. 다른 곳에서 Attach 를 부르면 위 두 가드가
+            // 지키지 못한다.
+            var blanked = TestSource.Blank(net);
+            Assert.That(TestSource.Count(blanked, "RemoteAvatar.Attach"), Is.EqualTo(2),
+                "Attach 를 부르는 곳은 AdoptLocalBody·BuildRemoteBody 둘뿐이어야 한다 — "
+                + "늘면 호스트 가드 밖에서 권위를 내려놓을 수 있다");
+        }
+
+        /// <summary>
         /// <b>참가자가 남의 기절을 받았는지 로그에 남는다</b> (S15P21B202-414).
         ///
         /// 2026-09-10 16:00 QA 의 "부활 게이지가 안 보였다" 를 로그로 판정할 수 없었다.
