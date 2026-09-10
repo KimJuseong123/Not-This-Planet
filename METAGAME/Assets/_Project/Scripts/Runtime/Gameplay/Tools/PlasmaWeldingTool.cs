@@ -36,10 +36,21 @@ namespace Metagame.Gameplay
         [SerializeField] float beamWidth = 0.035f;
         [SerializeField] int beamMask = ~0;
 
-        [Header("1인칭 휴대 포즈")]
-        [SerializeField] Vector3 heldVisualLocalPosition = new Vector3(0.7f, -0.9f, 0.25f);
+        [Header("월드 휴대 포즈")]
+        [Tooltip("3인칭/원격 화면에서 장착 중 보이는 용접건 모델의 로컬 위치입니다.")]
+        [SerializeField] Vector3 heldVisualLocalPosition = new Vector3(0.18f, -0.14f, 0.12f);
+        [Tooltip("3인칭/원격 화면에서 장착 중 보이는 용접건 모델의 로컬 회전(Euler)입니다.")]
         [SerializeField] Vector3 heldVisualLocalEuler = new Vector3(-90f, -80f, 10f);
-        [SerializeField] Vector3 heldVisualLocalScale = Vector3.one;
+        [Tooltip("3인칭/원격 화면에서 장착 중에만 적용할 모델 크기입니다.")]
+        [SerializeField] Vector3 heldVisualLocalScale = Vector3.one * 0.55f;
+
+        [Header("로컬 1인칭 화면 포즈")]
+        [Tooltip("카메라 기준 용접건 모델 위치입니다. Play 중 Inspector에서 바로 조절할 수 있습니다.")]
+        [SerializeField] Vector3 firstPersonVisualLocalPosition = new Vector3(0.20f, -0.17f, 0.52f);
+        [Tooltip("카메라 기준 용접건 모델 회전(Euler)입니다.")]
+        [SerializeField] Vector3 firstPersonVisualLocalEuler = new Vector3(-90f, -80f, 10f);
+        [Tooltip("카메라 아래로 분리된 용접건 모델의 크기입니다.")]
+        [SerializeField] Vector3 firstPersonVisualLocalScale = Vector3.one * 0.275f;
 
         const int RaycastBufferSize = 32;
         readonly RaycastHit[] hits = new RaycastHit[RaycastBufferSize];
@@ -56,7 +67,10 @@ namespace Metagame.Gameplay
         Vector3 droppedVisualLocalPosition;
         Quaternion droppedVisualLocalRotation;
         Vector3 droppedVisualLocalScale;
+        Transform droppedVisualParent;
+        int droppedVisualSiblingIndex;
         bool droppedVisualPoseCaptured;
+        bool firstPersonVisualAttached;
 
         public PlasmaBeamMode BeamMode { get; private set; }
         public bool BeamActive { get; private set; }
@@ -92,6 +106,15 @@ namespace Metagame.Gameplay
             {
                 return BeamMode == PlasmaBeamMode.Cut ? cutColor : weldColor;
             }
+        }
+
+        protected override void OnValidate()
+        {
+            base.OnValidate();
+
+            // Play 중 Inspector에서 값을 조절하면 다시 내려놓고 집을 필요 없이
+            // 현재 보이는 모델과 노즐 기준점에 바로 반영한다.
+            if (Application.isPlaying && IsEquipped) ApplyHeldVisualPose();
         }
 
         protected override void OnEquipped()
@@ -183,6 +206,8 @@ namespace Metagame.Gameplay
 
         protected override void OnToolVisualUpdate(ToolInputFrame input, ToolAimContext aim)
         {
+            UpdateHeldVisualPose();
+
             // 조준 방향이 바뀌면 "그 방향에서 본 총의 끝" 도 바뀐다(S15P21B202-277).
             ResolveNozzleTip(aim.Direction);
 
@@ -284,6 +309,8 @@ namespace Metagame.Gameplay
 
         void ResolvePetalAnimator()
         {
+            if (petalAnimator == null && heldVisual != null)
+                petalAnimator = heldVisual.GetComponentInChildren<PlasmaGunPetalAnimator>(true);
             if (petalAnimator == null)
                 petalAnimator = GetComponentInChildren<PlasmaGunPetalAnimator>(true);
         }
@@ -293,17 +320,8 @@ namespace Metagame.Gameplay
             ResolveHeldVisual();
             if (heldVisual == null) return;
 
-            if (!droppedVisualPoseCaptured)
-            {
-                droppedVisualLocalPosition = heldVisual.localPosition;
-                droppedVisualLocalRotation = heldVisual.localRotation;
-                droppedVisualLocalScale = heldVisual.localScale;
-                droppedVisualPoseCaptured = true;
-            }
-
-            heldVisual.SetLocalPositionAndRotation(
-                heldVisualLocalPosition, Quaternion.Euler(heldVisualLocalEuler));
-            heldVisual.localScale = heldVisualLocalScale;
+            CaptureDroppedVisualPose();
+            UpdateHeldVisualPose();
 
             // 자세가 바뀌면 끝점도 따라와야 한다(S15P21B202-277).
             ResolveNozzleTip(heldVisual.forward);
@@ -313,6 +331,7 @@ namespace Metagame.Gameplay
         {
             if (!droppedVisualPoseCaptured || heldVisual == null) return;
 
+            RestoreVisualParent();
             heldVisual.SetLocalPositionAndRotation(
                 droppedVisualLocalPosition, droppedVisualLocalRotation);
             heldVisual.localScale = droppedVisualLocalScale;
@@ -320,19 +339,77 @@ namespace Metagame.Gameplay
             ResolveNozzleTip(heldVisual.forward);
         }
 
+        void CaptureDroppedVisualPose()
+        {
+            if (droppedVisualPoseCaptured || heldVisual == null) return;
+
+            droppedVisualParent = heldVisual.parent;
+            droppedVisualSiblingIndex = heldVisual.GetSiblingIndex();
+            droppedVisualLocalPosition = heldVisual.localPosition;
+            droppedVisualLocalRotation = heldVisual.localRotation;
+            droppedVisualLocalScale = heldVisual.localScale;
+            droppedVisualPoseCaptured = true;
+        }
+
+        /// <summary>
+        /// 로컬 1인칭에서는 모델만 카메라 아래로 옮긴다. 물리 본체는 기존처럼
+        /// FixedUpdate에서 따라오므로 판정·네트워크·충돌 규칙을 건드리지 않지만,
+        /// 화면 모델은 카메라와 같은 렌더 프레임에 움직여 한 박자 늦지 않는다.
+        /// </summary>
+        void UpdateHeldVisualPose()
+        {
+            if (heldVisual == null) return;
+
+            var camera = Owner != null && Owner.IsLocal ? Owner.Cam : null;
+            if (camera != null && camera.FirstPerson)
+            {
+                if (!firstPersonVisualAttached)
+                {
+                    heldVisual.SetParent(camera.transform, false);
+                    firstPersonVisualAttached = true;
+                }
+
+                ApplyFirstPersonPose();
+                return;
+            }
+
+            RestoreVisualParent();
+            heldVisual.SetLocalPositionAndRotation(
+                heldVisualLocalPosition, Quaternion.Euler(heldVisualLocalEuler));
+            heldVisual.localScale = heldVisualLocalScale;
+        }
+
+        void ApplyFirstPersonPose()
+        {
+            heldVisual.SetLocalPositionAndRotation(
+                firstPersonVisualLocalPosition,
+                Quaternion.Euler(firstPersonVisualLocalEuler));
+            heldVisual.localScale = firstPersonVisualLocalScale;
+        }
+
+        void RestoreVisualParent()
+        {
+            if (!firstPersonVisualAttached || heldVisual == null) return;
+
+            heldVisual.SetParent(droppedVisualParent, false);
+            if (droppedVisualParent != null)
+                heldVisual.SetSiblingIndex(Mathf.Clamp(
+                    droppedVisualSiblingIndex, 0, droppedVisualParent.childCount - 1));
+            firstPersonVisualAttached = false;
+        }
+
         /// <summary>
         /// 빔이 나갈 자리를 <b>보이는 모델의 끝</b>으로 옮긴다(S15P21B202-277).
         ///
         /// <b>프리팹의 <c>AttachPoints/Muzzle</c> 은 임시 총에 맞춰 놓은 값이었다.</b>
         /// 장착하면 <see cref="ApplyHeldVisualPose"/> 가 <c>ReplacementModel</c> 아래의
-        /// 실제 모델만 (0.7, -0.9, 0.25) 로 옮기고 90도 돌리는데, Muzzle 은 그 모델의
-        /// 형제라 제자리에 남는다. 두 점의 거리가 <b>1.34m</b> 이고
-        /// <see cref="Tuning.ToolBeamRange"/> 는 0.80m 이므로, <b>보이는 총이 닿는 곳과
-        /// 빔이 닿는 곳이 겹칠 수가 없었다.</b>
+        /// 실제 모델만 1인칭 휴대 위치로 옮기고 돌리는데, Muzzle 은 그 모델의 형제라
+        /// 제자리에 남는다. 따라서 고정된 Muzzle 을 그대로 쓰면 <b>보이는 총이 닿는
+        /// 곳과 빔이 닿는 곳이 어긋난다.</b>
         ///
         /// 연출만의 문제가 아니었다 — <see cref="WeldTick"/> 과 <see cref="CutTick"/> 도
-        /// 같은 좌표를 쓰므로 <b>용접·절단 판정이 총에서 1.34m 떨어진 허공에서</b>
-        /// 이뤄졌다. 기획 §16 의 조립이 여기에 걸려 있다.
+        /// 같은 좌표를 쓰므로 <b>용접·절단 판정도 보이는 총과 다른 곳에서</b> 이뤄진다.
+        /// 기획 §16 의 조립이 여기에 걸려 있다.
         ///
         /// 끝점을 <see cref="ToolBase.SetMuzzle"/> 로 넣어 <b>읽는 쪽을 하나도 고치지
         /// 않는다.</b> Muzzle 을 읽는 자리가 빔·용접·절단·파티클로 여러 군데라, 읽는
@@ -388,11 +465,16 @@ namespace Metagame.Gameplay
             if (collider == null) return true;
             if (collider.transform == transform || collider.transform.IsChildOf(transform))
                 return true;
+            if (heldVisual != null &&
+                (collider.transform == heldVisual || collider.transform.IsChildOf(heldVisual)))
+                return true;
             return Owner != null && collider.GetComponentInParent<PlayerRig>() == Owner;
         }
 
         protected override void OnDestroy()
         {
+            // 카메라 밑으로 분리한 모델이 도구 파괴 뒤에 고아로 남지 않게 되돌린다.
+            RestoreVisualParent();
             base.OnDestroy();
             if (runtimeMaterial != null)
             {

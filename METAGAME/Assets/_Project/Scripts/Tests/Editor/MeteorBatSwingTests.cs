@@ -381,6 +381,76 @@ namespace Metagame.Gameplay.Tests
             Assert.AreEqual(aim, gun.CarryAim(aim));
         }
 
+        [Test]
+        public void Bat_AppliesCompactHeldVisualPoseAndRestoresDroppedPose()
+        {
+            var bat = MakeBat();
+            var body = bat.gameObject.AddComponent<Rigidbody>();
+            body.useGravity = false;
+
+            var visual = new GameObject("Visual_ZUpToYUp").transform;
+            visual.SetParent(bat.transform, false);
+            visual.localPosition = new Vector3(0.02f, 0.03f, 0.04f);
+            visual.localRotation = Quaternion.Euler(5f, 10f, 15f);
+            visual.localScale = Vector3.one * 1.2244761f;
+
+            var droppedPosition = visual.localPosition;
+            var droppedRotation = visual.localRotation;
+            var droppedScale = visual.localScale;
+
+            bat.Equip(null, body);
+
+            Assert.That(visual.localPosition,
+                Is.EqualTo(new Vector3(0.18f, -0.12f, 0.12f)));
+            Assert.That(Quaternion.Angle(
+                visual.localRotation,
+                Quaternion.Euler(0f, 0f, -35f)), Is.LessThan(0.01f));
+            Assert.That(visual.localScale, Is.EqualTo(Vector3.one * 0.64f));
+
+            bat.Unequip();
+
+            Assert.That(visual.localPosition, Is.EqualTo(droppedPosition));
+            Assert.That(Quaternion.Angle(visual.localRotation, droppedRotation), Is.LessThan(0.01f));
+            Assert.That(visual.localScale, Is.EqualTo(droppedScale));
+        }
+
+        [Test]
+        public void Bat_LocalFirstPersonVisualFollowsCameraAndReturnsForThirdPerson()
+        {
+            var player = PlayerRig.Create("방망이 화면 표시 테스트", Vector3.zero,
+                                          Quaternion.identity, Color.white, Color.gray,
+                                          useModel: false);
+            _spawned.Add(player.gameObject);
+            var camera = OrbitCamera.Create(player.Hips.transform, Color.black, true);
+            _spawned.Add(camera.gameObject);
+            player.Cam = camera;
+
+            var bat = MakeBat();
+            var body = bat.gameObject.AddComponent<Rigidbody>();
+            body.useGravity = false;
+            var visual = new GameObject("Visual_ZUpToYUp").transform;
+            visual.SetParent(bat.transform, false);
+
+            bat.Equip(player, body);
+
+            Assert.AreSame(camera.transform, visual.parent,
+                           "1인칭 방망이 모델이 카메라 아래로 분리되지 않았다.");
+            Assert.That(visual.localPosition,
+                        Is.EqualTo(new Vector3(0.23f, -0.20f, 0.58f)));
+
+            body.position = new Vector3(-12f, 4f, 8f);
+            bat.SendMessage("LateUpdate");
+            Assert.AreSame(camera.transform, visual.parent,
+                           "물리 본체 이동 뒤 화면 모델이 카메라에서 떨어졌다.");
+
+            camera.FirstPerson = false;
+            bat.SendMessage("LateUpdate");
+            Assert.AreSame(bat.transform, visual.parent,
+                           "3인칭 전환 때 모델이 물리 도구 계층으로 돌아오지 않았다.");
+            Assert.That(visual.localPosition,
+                        Is.EqualTo(new Vector3(0.18f, -0.12f, 0.12f)));
+        }
+
         // --- 리그 ---------------------------------------------------------
 
         MeteorBat MakeBat()

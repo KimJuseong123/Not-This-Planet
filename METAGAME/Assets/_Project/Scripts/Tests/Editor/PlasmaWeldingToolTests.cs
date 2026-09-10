@@ -126,18 +126,51 @@ namespace Metagame.Gameplay.Tests
                 "AttachPoints/ReplacementModel/SF_Stage1_PlasmaWeldingGun");
             Assert.IsNotNull(visual);
 
-            Assert.That(visual.localPosition, Is.EqualTo(new Vector3(0.7f, -0.9f, 0.25f)));
+            Assert.That(visual.localPosition, Is.EqualTo(new Vector3(0.18f, -0.14f, 0.12f)));
             Assert.That(Quaternion.Angle(
                 visual.localRotation,
                 Quaternion.Euler(-90f, -80f, 10f)), Is.LessThan(0.01f));
+            Assert.That(visual.localScale, Is.EqualTo(Vector3.one * 0.55f));
 
             tool.Unequip();
 
             Assert.That(visual.localPosition, Is.EqualTo(new Vector3(0f, -0.5f, 0.25f)));
             Assert.That(visual.localRotation, Is.EqualTo(Quaternion.identity));
+            Assert.That(visual.localScale, Is.EqualTo(Vector3.one));
         }
 
-        PlasmaWeldingTool CreateTool(out Transform muzzle)
+        [Test]
+        public void PlasmaTool_LocalFirstPersonVisualFollowsCameraWithoutPhysicsLag()
+        {
+            var player = PlayerRig.Create("용접건 화면 표시 테스트", Vector3.zero,
+                                          Quaternion.identity, Color.white, Color.gray,
+                                          useModel: false);
+            spawned.Add(player.gameObject);
+            var camera = OrbitCamera.Create(player.Hips.transform, Color.black, true);
+            spawned.Add(camera.gameObject);
+            player.Cam = camera;
+
+            var tool = CreateTool(out _, player);
+            var visual = tool.transform.Find(
+                "AttachPoints/ReplacementModel/SF_Stage1_PlasmaWeldingGun");
+            Assert.IsNull(visual, "1인칭 모델이 아직 물리 도구 아래에 남아 있다.");
+            visual = camera.transform.Find("SF_Stage1_PlasmaWeldingGun");
+            Assert.IsNotNull(visual, "1인칭 모델이 카메라 아래로 분리되지 않았다.");
+            Assert.That(visual.localPosition,
+                        Is.EqualTo(new Vector3(0.20f, -0.17f, 0.52f)));
+
+            Vector3 before = visual.localPosition;
+            tool.GetComponent<Rigidbody>().position = new Vector3(20f, 5f, -10f);
+            InvokeLateUpdate(tool);
+            Assert.That(visual.localPosition, Is.EqualTo(before),
+                        "물리 본체 이동이 화면 모델 위치를 늦게 끌고 갔다.");
+
+            tool.Unequip();
+            Assert.AreSame(tool.transform.Find("AttachPoints/ReplacementModel"), visual.parent,
+                           "내려놓을 때 모델이 원래 물리 계층으로 돌아오지 않았다.");
+        }
+
+        PlasmaWeldingTool CreateTool(out Transform muzzle, PlayerRig owner = null)
         {
             var root = new GameObject("PlasmaTool");
             spawned.Add(root);
@@ -161,7 +194,7 @@ namespace Metagame.Gameplay.Tests
             muzzle.localPosition = new Vector3(0f, 0f, 0.10f);
 
             var tool = root.AddComponent<PlasmaWeldingTool>();
-            tool.Equip(null, body);
+            tool.Equip(owner, body);
             return tool;
         }
 
