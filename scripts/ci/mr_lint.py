@@ -12,7 +12,16 @@ from ci_common import (BRANCH_RE, KEY_RE, PROJECT_KEY, TITLE_RE, GitLab, Jira, R
                        env_int, find_section, http, is_release_mr, key_from_branch, load_team,
                        part_of_issue, release_version, sections, strip_draft)
 
-REQUIRED_SECTIONS = ["Jira", "무엇을 · 왜", "산출물 위치", "확인 방법", "리뷰어 확인"]
+# 본문에 있어야 하는 절 (S15P21B202-419).
+#
+# **`확인 방법`·`산출물 위치`·`리뷰어 확인` 을 뺐다.**
+#   · `산출물 위치` — Changes 탭이 그대로 보여 준다. 사람이 한 번 더 옮겨 적을 이유가 없다
+#   · `확인 방법`·`리뷰어 확인` — `머지 전에 팀장이 확인할 것` 하나로 합쳤다. 같은 질문의
+#     세 판본이었고, 셋으로 나뉘어 있는 동안 아무도 읽지 않았다(2026-09-10 팀 확인)
+#
+# `-395`(작성자 체크리스트)·`-415`(리뷰어 체크리스트)와 같은 근거다 — 기계가 이미 보는
+# 것을 사람에게 다시 적으라고 하면 채우기만 한다.
+REQUIRED_SECTIONS = ["Jira", "무엇을 · 왜"]
 
 # 머지 전에 사람이 해야 하는 확인 (S15P21B202-395).
 #
@@ -31,8 +40,14 @@ REQUIRED_SECTIONS = ["Jira", "무엇을 · 왜", "산출물 위치", "확인 방
 #
 # 그래서 상자를 없애고 **문장**을 요구한다. 상자는 찍고 싶게 만들고 문장은 그렇지 않다.
 # 그리고 문장은 AI 리뷰가 diff 와 맞춰 판정할 수 있다.
-HUMAN_CHECKS_SECTION = "머지 전에 사람이 해야 하는 확인"
-LEGACY_CHECKLIST_SECTION = "작성자 체크리스트"
+#
+# `-419` 에서 이름을 한 번 더 바꿨다. 이 절이 `확인 방법`·`리뷰어 확인` 까지 흡수했으므로
+# "사람이 해야 하는 확인" 보다 "팀장이 머지 전에 확인할 것" 이 그 역할을 그대로 말한다.
+HUMAN_CHECKS_SECTION = "머지 전에 팀장이 확인할 것"
+
+# 옛 이름들 — 이미 열려 있는 MR 을 막지 않기 위해 **경고**로 둔다. 규칙을 바꾸는 순간
+# 열려 있던 MR 이 전부 빨간불이 되면, 규칙이 아니라 사람이 막힌다(`-395` 에서 정한 것).
+LEGACY_CHECK_SECTIONS = ["머지 전에 사람이 해야 하는 확인", "작성자 체크리스트"]
 _TEAM = load_team()
 JIRA_BY_GITLAB = {m["gitlab"]: m.get("jira", "") for m in _TEAM["members"]}
 NAME_BY_GITLAB = {m["gitlab"]: m.get("name", "") for m in _TEAM["members"]}
@@ -71,10 +86,11 @@ def human_checks_content(section: str | None) -> list[str]:
 
 
 def check_human_checks(rep: Report, secs) -> None:
-    """머지 전에 사람이 해야 하는 확인 (S15P21B202-395).
+    """머지 전에 팀장이 확인할 것 (S15P21B202-395 · -419).
 
-    옛 `작성자 체크리스트` 로 올라온 MR 은 **경고**로 둔다. 규칙을 바꾸는 순간
-    이미 열려 있던 MR 이 전부 빨간불이 되면, 규칙이 아니라 사람이 막힌다."""
+    옛 이름(`작성자 체크리스트` · `머지 전에 사람이 해야 하는 확인`)으로 올라온 MR 은
+    **경고**로 둔다. 규칙을 바꾸는 순간 이미 열려 있던 MR 이 전부 빨간불이 되면,
+    규칙이 아니라 사람이 막힌다."""
     section = find_section(secs, HUMAN_CHECKS_SECTION)
     if section is not None:
         lines = human_checks_content(section)
@@ -85,11 +101,12 @@ def check_human_checks(rep: Report, secs) -> None:
             rep.ok(f"머지 전 사람 확인 {len(lines)}줄")
         return
 
-    if find_section(secs, LEGACY_CHECKLIST_SECTION) is not None:
-        rep.warn(f"옛 `## {LEGACY_CHECKLIST_SECTION}` 절 — 새 템플릿의 "
-                 f"`## {HUMAN_CHECKS_SECTION}` 으로 바꿔 주세요(S15P21B202-395). "
-                 f"상자 5개 중 4개는 CI 가 이미 검사한다")
-        return
+    for legacy in LEGACY_CHECK_SECTIONS:
+        if find_section(secs, legacy) is not None:
+            rep.warn(f"옛 `## {legacy}` 절 — 새 템플릿의 `## {HUMAN_CHECKS_SECTION}` 으로 "
+                     f"바꿔 주세요(S15P21B202-419). 그 절이 `확인 방법`·`리뷰어 확인` 까지 "
+                     f"흡수했습니다")
+            return
 
     rep.fail(f"본문 템플릿 섹션 누락: ## {HUMAN_CHECKS_SECTION} — 템플릿 섹션 제목은 지우지 말 것")
 

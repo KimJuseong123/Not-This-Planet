@@ -4,7 +4,7 @@
 2. .meta 짝: Assets/ 아래 추가 파일·폴더에는 .meta 가 함께 있어야 하고, .meta 만 남거나(고아) 파일만 지우면 실패
 3. 에셋 위치: Assets/ 바로 아래 새 최상위 폴더 금지(대상 브랜치에 이미 있는 폴더 또는 _Project/ 만)
 4. LFS: .gitattributes 로 LFS 추적되는 파일은 포인터여야 함(실 바이너리 커밋 = git lfs install 누락). 비-LFS 5MB 초과 실패
-5. 씬/프리팹: .unity/.prefab 변경이 있는데 MR 본문 '씬 / 프리팹 변경' 이 '없음' 이면 실패
+5. 씬/프리팹: .unity/.prefab 변경 목록을 보고한다 (본문에 묻지 않는다 — S15P21B202-419)
    (서드파티 패키지에서 새로 들어온 것은 제외 — 임포트마다 수십 개가 딸려 온다)
 6. 경로 길이: 리포 상대 경로가 MAX_PATH_LEN 을 넘으면 실패 — Windows 러너에서 checkout 자체가 죽는다
 
@@ -171,6 +171,9 @@ def doc_job_drift(jobs: set[str]) -> list[str]:
     return bad
 
 
+SCENE_SHOWN = 5          # 한 줄에 늘어놓는 씬·프리팹 개수 — 서드파티 임포트면 수십 개다
+
+
 def scene_changes(changes: list[tuple[str, str]]) -> tuple[list[str], list[str]]:
     """(선언 검사 대상 씬·프리팹, 서드파티 임포트로 새로 들어와 제외한 것).
 
@@ -301,16 +304,22 @@ def main() -> int:
     if tp_imported:
         rep.ok(f"서드파티 패키지에서 새로 들어온 씬·프리팹 {len(tp_imported)}개는 선언 검사 제외")
     desc = GitLab().get_mr().get("description") or ""
-    sec = find_section(sections(desc), "씬 / 프리팹 변경") or ""
-    declared_none = re.search(r"변경한 씬·프리팹\s*:\s*없음", sec) is not None
+    # **본문에 묻지 않는다** (S15P21B202-419).
+    #
+    # 예전에는 MR 본문의 `씬 / 프리팹 변경` 절과 실제 diff 를 대조해, "없음" 이라고
+    # 적혀 있는데 `.unity`/`.prefab` 이 바뀌면 실패시켰다. 그런데 그 칸을 아무도 읽지
+    # 않고 채웠고(2026-09-10 팀 확인), 실제로 막아야 하는 것은 "선언과 diff 가 다르다"
+    # 가 아니라 **겹치는 변경**이다 — 그것은 `mr-overlap` 이 `git merge-tree` 로
+    # 증명하고 AI 판정이 의미 충돌을 본다.
+    #
+    # 그래서 이 검사는 **목록을 보고**한다. 사람이 채우는 칸이 아니라 이 목록을 보고
+    # 사전 선언 여부를 판단한다.
     if scene_like:
         print("  씬/프리팹 변경: " + ", ".join(scene_like))
-        if declared_none:
-            rep.fail(f"씬/프리팹 {len(scene_like)}개가 바뀌었는데 MR 본문은 '변경한 씬·프리팹: 없음' — 본문 갱신 + 사전 선언 링크")
-        elif not sec:
-            rep.warn("MR 본문에 '씬 / 프리팹 변경' 섹션이 없어 선언 일치 확인 불가")
-        else:
-            rep.ok("씬/프리팹 변경이 본문에 선언됨")
+        shown = ", ".join(scene_like[:SCENE_SHOWN])
+        more = f" 외 {len(scene_like) - SCENE_SHOWN}개" if len(scene_like) > SCENE_SHOWN else ""
+        rep.ok(f"씬/프리팹 {len(scene_like)}개 변경 — {shown}{more} "
+               f"(겹치는 변경은 mr-overlap 이 본다)")
     else:
         rep.ok("씬/프리팹 변경 없음")
 
