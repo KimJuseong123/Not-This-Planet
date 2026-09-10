@@ -60,6 +60,17 @@ namespace Metagame.EditorTools
             // 그 사실을 숨기면 해시가 거짓말이 된다 — 실제로 커밋 전 코드를 빌드해 나눠 준 적이 있다.
             if (!string.IsNullOrEmpty(Git("status --porcelain"))) line.Append(" · +커밋안한변경");
 
+            // 실험 라벨은 **둘째 줄**에 기계가 읽는 형식으로 박는다 (S15P21B202-376).
+            // 첫 줄에 섞으면 사람이 읽는 표시를 파싱해야 하고, 그 형식이 바뀔 때마다
+            // 런타임이 조용히 라벨을 놓친다.
+            string experiment = (Environment.GetEnvironmentVariable("SPACE_EXPERIMENT") ?? string.Empty).Trim();
+            if (!string.IsNullOrEmpty(experiment))
+            {
+                // 줄바꿈이 섞이면 둘째 줄 규칙이 깨진다.
+                experiment = experiment.Replace("\r", " ").Replace("\n", " ");
+                line.Append('\n').Append(BuildInfo.ExperimentPrefix).Append(experiment);
+            }
+
             return line.ToString();
         }
 

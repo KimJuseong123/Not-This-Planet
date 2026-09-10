@@ -23,6 +23,24 @@ namespace Metagame.Core
         public static string Stamp { get; private set; } = "에디터에서 실행";
 
         /// <summary>
+        /// 이 빌드가 어느 <b>실험</b>인가 (S15P21B202-376). 평소 빌드는 빈 문자열이다.
+        ///
+        /// <para>빌드할 때 <c>SPACE_EXPERIMENT</c> 환경변수로 넣는다. 이 값이 있으면
+        /// 진단 로그를 <b>인자 없이</b> 켠다 — 실험용 빌드를 받은 사람이 PowerShell 로
+        /// 무엇을 붙일 필요가 없어야 하는 것이 이 이슈의 목적이다.</para>
+        /// </summary>
+        public static string Experiment { get; private set; } = string.Empty;
+
+        /// <summary>실험용 빌드인가. 이 값으로 진단을 켤지 정한다.</summary>
+        public static bool IsExperiment { get { return !string.IsNullOrEmpty(Experiment); } }
+
+        /// <summary>
+        /// 라벨 줄의 머리표. 에디터(<c>BuildStamp</c>)와 런타임이 같은 문자열을 봐야
+        /// 하므로 한곳에 둔다 — 예전에 파일 이름을 양쪽에 적어 두고 어긋난 적이 있다.
+        /// </summary>
+        public const string ExperimentPrefix = "실험=";
+
+        /// <summary>
         /// 씬이 뜨기 전에 찍는다. 뒤에서 어떤 오류가 나든 이 줄은 로그 앞쪽에 남는다 —
         /// 문제가 난 로그를 받았을 때 가장 먼저 확인해야 하는 값이다.
         /// </summary>
@@ -31,6 +49,8 @@ namespace Metagame.Core
         {
             Stamp = Read();
             Debug.Log("[빌드] " + Stamp);
+
+            if (IsExperiment) Debug.Log("[빌드] 실험 " + Experiment);
         }
 
         /// <summary>
@@ -47,7 +67,19 @@ namespace Metagame.Core
                 if (!File.Exists(path)) return "빌드 정보 없음 (이 표시가 없던 시절 빌드)";
 
                 string text = File.ReadAllText(path).Trim();
-                return string.IsNullOrEmpty(text) ? "빌드 정보 비어 있음" : text;
+                if (string.IsNullOrEmpty(text)) return "빌드 정보 비어 있음";
+
+                // 첫 줄은 사람이 읽는 표시, 둘째 줄부터는 기계가 읽는 값이다.
+                // 라벨이 없는 예전 빌드는 첫 줄만 있으므로 그대로 동작한다.
+                var lines = text.Split('\n');
+                for (int i = 1; i < lines.Length; i++)
+                {
+                    string line = lines[i].Trim();
+                    if (line.StartsWith(ExperimentPrefix))
+                        Experiment = line.Substring(ExperimentPrefix.Length).Trim();
+                }
+
+                return lines[0].Trim();
             }
             catch (IOException e)
             {
