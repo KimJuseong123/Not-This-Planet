@@ -164,16 +164,30 @@ namespace Metagame.Gameplay.Tests
         /// 않는다" 고 물었다. 실제로는 있는데 diff 밖이었다. 이 단정이 그 근거를
         /// 코드 안에 남긴다 — 어트리뷰트가 사라지면 클라이언트가 자기 <c>downed</c> 를
         /// 덮어써서 <b>본인 화면에서만 기절이 풀린 것처럼</b> 남는다.</para>
+        ///
+        /// <para><b>첫 판은 원본에서 찾고 바로 앞이 어트리뷰트로 끝날 것을 요구했다.</b>
+        /// 그러면 주석에 같은 글자가 먼저 나오거나 어트리뷰트가 하나 더 붙기만 해도
+        /// 배선이 멀쩡한데 실패한다 — <b>바로 앞 커밋에서 고친 그 실수를 새 테스트에서
+        /// 저지른 것이다</b>(<c>!287</c> 4회차 리뷰가 짚었다). 지금은 <see cref="TestSource"/>
+        /// 를 거치고, 앞선 멤버가 끝난 자리부터 서명까지를 <b>어트리뷰트 구역</b>으로
+        /// 보아 그 안에 있는지만 확인한다.</para>
         /// </summary>
         [Test]
         public void TheServerLoopIsServerOnly()
         {
-            var source = TestSource.Read("Runtime/Network/NetPlayer.cs");
+            // 주석·문자열을 지운 뒤에 찾는다. 설명에 적어 둔 서명에 걸리면 안 된다.
+            var code = TestSource.Blank(TestSource.Read("Runtime/Network/NetPlayer.cs"));
 
-            int at = source.IndexOf("void FixedUpdate()", System.StringComparison.Ordinal);
+            int at = code.IndexOf("void FixedUpdate()", System.StringComparison.Ordinal);
             Assert.That(at, Is.GreaterThan(0), "서버 루프를 찾지 못했다");
 
-            Assert.That(source.Substring(0, at).TrimEnd(), Does.EndWith("[ServerCallback]"),
+            // 앞선 멤버가 끝나는 자리(} 또는 ;)부터 서명까지가 어트리뷰트 구역이다.
+            // 독스트링은 이미 공백이므로 여기 남는 것은 어트리뷰트뿐이다.
+            int prev = code.LastIndexOfAny(new[] { '}', ';' }, at);
+            var attributes = prev >= 0 ? code.Substring(prev + 1, at - prev - 1)
+                                       : code.Substring(0, at);
+
+            Assert.That(attributes, Does.Contain("[ServerCallback]"),
                 "[ServerCallback] 이 없으면 클라이언트도 이 루프를 돌려 SyncVar 를 덮어쓴다");
         }
     }
