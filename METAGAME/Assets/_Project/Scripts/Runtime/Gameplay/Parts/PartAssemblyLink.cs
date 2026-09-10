@@ -392,6 +392,228 @@ namespace Metagame.Gameplay.Parts
             else DestroyImmediate(target);
         }
 
+
+        // ── 상태를 읽고 다시 세우기 (S15P21B202-388) ────────────────────────
+        //
+        // 참가자 화면의 부품은 isKinematic 으로 서버가 보낸 자세만 따라가고
+        // **관절이 하나도 없다**. 보기에는 이어붙은 탑인데 실제로는 나란히 놓인
+        // 부품들이다. 누군가 이어받아 물리를 켜는 순간 무너진다(호스트 이전).
+        //
+        // 그래서 접합을 자료로 읽어 그대로 다시 세울 수 있게 한다. 용접 비드가
+        // 같은 이유로 S15P21B202-386 에서 이 길을 먼저 갔다.
+
+        /// <summary>
+        /// 접합 하나를 다시 세우는 데 필요한 것 전부 (S15P21B202-388).
+        ///
+        /// <para>부품은 <b>번호로</b> 가리킨다. 부르는 쪽이 양쪽에서 같은 순서인 목록을
+        /// 주고, 그 안의 자리를 적는다 — 이름이나 경로를 싣는 것보다 짧고, 순서를 정하는
+        /// 책임이 한 곳에 모인다.</para>
+        ///
+        /// <para><b>용접 강도는 싣지 않는다.</b> S15P21B202-230 이 원형 접합선을 걷어낸
+        /// 뒤로 강도의 출처는 비드 하나뿐이고(<see cref="BeadWeldRatio"/> 의 주석),
+        /// 비드는 이미 복제된다(S15P21B202-386). 여기서 또 실어 보내면 <b>한 성질을 두
+        /// 곳에서 판단</b>하는 것이 되어 어느 쪽이 맞는지 물어야 한다 — 이 저장소가
+        /// 여러 주석에서 경계하는 그 모양이다. 접합을 세우면
+        /// <see cref="Bind"/> 가 <c>WeldBead.RefreshBetween</c> 으로 비드에게 직접 묻는다.</para>
+        /// </summary>
+        [Serializable]
+        public struct LinkState
+        {
+            /// <summary>조인트를 가진 쪽. 부르는 쪽이 준 목록에서의 자리.</summary>
+            public int MovingPart;
+
+            /// <summary><c>connectedBody</c> 쪽.</summary>
+            public int TargetPart;
+
+            /// <summary>맞물린 소켓의 자리(파츠 안에서). 비드로 이은 접합은 <b>-1</b> 이다.</summary>
+            public int MovingSocket;
+
+            /// <summary>상대 소켓의 자리. 비드로 이은 접합은 <b>-1</b> 이다.</summary>
+            public int TargetSocket;
+        }
+
+        /// <summary>
+        /// 지금 살아 있는 접합을 <paramref name="into"/> 에 담는다.
+        ///
+        /// <para><paramref name="parts"/> 는 부르는 쪽이 정한 순서다. 그 목록에 없는
+        /// 부품이 끼어 있는 접합은 <b>건너뛴다</b> — 번호로 가리킬 수 없으므로 실어
+        /// 보낼 방법이 없다.</para>
+        ///
+        /// <para><b>번호 순으로 줄 세운다.</b> <see cref="All"/> 의 순서는 접합이 생긴
+        /// 순서라 양쪽이 다를 수 있고, 그러면 내용이 같은데도 "바뀌었다" 로 보여 보낼
+        /// 이유가 없는 것을 계속 보낸다.</para>
+        /// </summary>
+        public static void ReadAll(IReadOnlyList<SpaceshipPart> parts, List<LinkState> into)
+        {
+            if (into == null) return;
+            into.Clear();
+            if (parts == null) return;
+
+            for (var i = 0; i < All.Count; i++)
+            {
+                var link = All[i];
+                if (link == null || !link.IsIntact) continue;
+
+                int moving = IndexOf(parts, link._movingPart);
+                int target = IndexOf(parts, link._targetPart);
+                if (moving < 0 || target < 0) continue;
+
+                into.Add(new LinkState
+                {
+                    MovingPart = moving,
+                    TargetPart = target,
+                    MovingSocket = SocketIndex(link._movingPart, link._movingSocket),
+                    TargetSocket = SocketIndex(link._targetPart, link._targetSocket),
+                });
+            }
+
+            into.Sort(CompareStates);
+        }
+
+        static int CompareStates(LinkState a, LinkState b)
+        {
+            if (a.MovingPart != b.MovingPart) return a.MovingPart.CompareTo(b.MovingPart);
+            return a.TargetPart.CompareTo(b.TargetPart);
+        }
+
+        static int IndexOf(IReadOnlyList<SpaceshipPart> parts, SpaceshipPart part)
+        {
+            if (part == null) return -1;
+
+            for (var i = 0; i < parts.Count; i++)
+                if (ReferenceEquals(parts[i], part)) return i;
+
+            return -1;
+        }
+
+        /// <summary>파츠 안에서 이 소켓의 자리. 소켓이 없는 접합은 -1 이다.</summary>
+        static int SocketIndex(SpaceshipPart part, PartSocket socket)
+        {
+            if (part == null || socket == null) return -1;
+
+            var sockets = part.Sockets;
+            for (var i = 0; i < sockets.Count; i++)
+                if (ReferenceEquals(sockets[i], socket)) return i;
+
+            return -1;
+        }
+
+        static PartSocket SocketAt(SpaceshipPart part, int index)
+        {
+            if (part == null || index < 0) return null;
+
+            var sockets = part.Sockets;
+            return index < sockets.Count ? sockets[index] : null;
+        }
+
+        /// <summary>
+        /// 접합을 <paramref name="states"/> 와 같은 모양으로 맞춘다 (S15P21B202-388).
+        ///
+        /// <para><b>지우고 다시 만들지 않는다.</b> 없는 것만 만들고, 있어야 할 이유가
+        /// 없어진 것만 푼다. 매번 전부 다시 세우면 주기적으로 보내는 것만으로
+        /// 조인트가 계속 새로 생기고, 그 순간마다 물리가 흔들린다.</para>
+        ///
+        /// <para>여기서 푸는 것은 <paramref name="parts"/> 안의 두 부품을 잇는 접합만이다.
+        /// 목록 밖의 부품이 끼어 있는 접합은 <see cref="ReadAll"/> 이 실어 보내지 못하므로
+        /// "명단에 없다" 를 "풀어야 한다" 로 읽으면 남의 접합을 지운다.</para>
+        /// </summary>
+        public static void RestoreAll(IReadOnlyList<SpaceshipPart> parts, LinkState[] states, int count)
+        {
+            if (parts == null) return;
+
+            int wanted = states != null ? Mathf.Clamp(count, 0, states.Length) : 0;
+
+            // ① 있어야 할 이유가 없어진 접합을 푼다.
+            //
+            // Release() 가 All 에서 자기를 지우므로 그 목록을 돌면서 부를 수 없다.
+            // 먼저 골라 담아 두고 그 뒤에 푼다.
+            var stale = new List<PartAssemblyLink>();
+            for (var i = 0; i < All.Count; i++)
+            {
+                var link = All[i];
+                if (link == null || !link.IsIntact) continue;
+
+                int moving = IndexOf(parts, link._movingPart);
+                int target = IndexOf(parts, link._targetPart);
+                if (moving < 0 || target < 0) continue;   // 이 목록의 소관이 아니다
+
+                bool keep = false;
+                for (var s = 0; s < wanted; s++)
+                {
+                    var state = states[s];
+                    if ((state.MovingPart == moving && state.TargetPart == target) ||
+                        (state.MovingPart == target && state.TargetPart == moving))
+                    {
+                        keep = true;
+                        break;
+                    }
+                }
+
+                if (!keep) stale.Add(link);
+            }
+
+            for (var i = 0; i < stale.Count; i++) stale[i].Release();
+
+            // ② 없는 접합을 만든다.
+            for (var s = 0; s < wanted; s++)
+            {
+                var state = states[s];
+                if (state.MovingPart < 0 || state.MovingPart >= parts.Count) continue;
+                if (state.TargetPart < 0 || state.TargetPart >= parts.Count) continue;
+
+                var moving = parts[state.MovingPart];
+                var target = parts[state.TargetPart];
+                if (moving == null || target == null || ReferenceEquals(moving, target)) continue;
+
+                if (FindBetween(moving, target) != null) continue;
+
+                Rebuild(moving, target,
+                        SocketAt(moving, state.MovingSocket),
+                        SocketAt(target, state.TargetSocket));
+            }
+        }
+
+        /// <summary>
+        /// 접합 하나를 만든다. 자료에서 다시 세울 때만 쓴다 (S15P21B202-388).
+        ///
+        /// <para><b>조립·용접이 만드는 것과 같은 조인트여야 한다</b> —
+        /// <c>PartAssembler</c> 와 <see cref="WeldBead"/> 가 각각
+        /// <c>FixedJoint</c> 에 <c>enablePreprocessing = false</c> 를 준다. 강도는 여기서
+        /// 정하지 않는다: <see cref="Bind"/>·<see cref="BindBeadWeld"/> 가
+        /// <c>ApplyJointStrength</c> 로 용접 비율에서 다시 계산한다.</para>
+        ///
+        /// <para>소켓 둘이 다 있으면 소켓 접합으로, 아니면 비드 접합으로 맺는다 —
+        /// 그 둘을 가르는 것이 <see cref="HasSockets"/> 이고, 강도를 올릴 때 어느 부품을
+        /// <c>Welded</c> 로 올리는지가 갈린다.</para>
+        /// </summary>
+        public static PartAssemblyLink Rebuild(SpaceshipPart moving, SpaceshipPart target,
+                                               PartSocket movingSocket, PartSocket targetSocket)
+        {
+            if (moving == null || target == null || ReferenceEquals(moving, target)) return null;
+            if (FindBetween(moving, target) != null) return null;
+
+            var movingBody = moving.GetComponent<Rigidbody>();
+            var targetBody = target.GetComponent<Rigidbody>();
+            if (movingBody == null || targetBody == null) return null;
+
+            var joint = moving.gameObject.AddComponent<FixedJoint>();
+            joint.connectedBody = targetBody;
+            joint.enablePreprocessing = false;
+
+            var link = moving.gameObject.AddComponent<PartAssemblyLink>();
+
+            if (movingSocket != null && targetSocket != null)
+            {
+                movingSocket.Connect(targetSocket);
+                link.Bind(movingSocket, targetSocket, joint);
+            }
+            else
+            {
+                link.BindBeadWeld(moving, target, joint);
+            }
+
+            return link;
+        }
         /// <summary>
         /// 맞물림을 풀고 이 컴포넌트를 지운다. 여러 번 불러도 한 번만 동작한다.
         /// 용접 티켓에서 조인트를 교체할 때도 이 경로를 쓴다.

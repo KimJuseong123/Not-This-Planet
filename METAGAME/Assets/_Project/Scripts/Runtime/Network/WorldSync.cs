@@ -113,6 +113,46 @@ namespace Metagame.Network
         readonly List<WeldBead.ChainState> weldChains = new List<WeldBead.ChainState>();
         bool warnedWeldMismatch;
 
+        /// <summary>
+        /// 조립 연결을 조용해도 이 간격마다 한 번은 다시 보낸다(초) — S15P21B202-388.
+        /// 용접과 같은 이유·같은 값이다: <c>ClientRpc</c> 는 지금 붙어 있는 사람에게만 가므로
+        /// 늦게 들어온 사람에게는 이 주기가 유일한 경로다.
+        /// </summary>
+        const float LinkKeepalive = 1f;
+
+        /// <summary>
+        /// 속도를 보내는 간격(초) — S15P21B202-388.
+        ///
+        /// <para><b>바뀔 때만 보내지 않는다.</b> 속도는 물체가 움직이는 동안 매 틱 달라지므로
+        /// "바뀔 때만" 이 곧 "매 틱" 이 되어 아무것도 아끼지 못한다. 대신 <b>드물게, 무조건</b>
+        /// 보낸다 — 이 값을 읽는 곳은 이어받는 순간 하나뿐이고, 그 순간은 이미 몇 초가
+        /// 끊긴 뒤라 0.5초 묵은 속도로 충분하다.</para>
+        ///
+        /// <para>비용은 자세에 비하면 없는 것과 같다. 물체 8개면 한 번에 192바이트이고
+        /// 2Hz 라 초당 384바이트다 — 자세는 같은 8개를 30Hz 로 보내 초당 6.7KB 다.</para>
+        /// </summary>
+        const float VelocityInterval = 0.5f;
+
+        // ── 조립 연결과 속도 (S15P21B202-388) ─────────────────────
+        //
+        // 참가자 화면의 부품은 isKinematic 으로 자세만 따라가고 **관절이 없다**. 보기에는
+        // 이어붙은 탑인데 실제로는 나란히 놓인 부품들이라, 누군가 이어받아 물리를 켜면
+        // 그 순간 무너진다. 속도도 안 가서 날아가던 것이 제자리에 멈춘 채 다시 출발한다.
+        //
+        // 둘 다 **보이는 것을 바꾸지 않는다** — 참가자 부품은 계속 kinematic 이다.
+        // 이어받을 때만 쓰이는 값이고, 그것이 호스트 이전의 전제다(S15P21B202-389).
+        readonly List<SpaceshipPart> trackedParts = new List<SpaceshipPart>();
+        readonly List<PartAssemblyLink.LinkState> linkStates = new List<PartAssemblyLink.LinkState>();
+        PartAssemblyLink.LinkState[] sendLinks = Array.Empty<PartAssemblyLink.LinkState>();
+        PartAssemblyLink.LinkState[] lastSentLinks = Array.Empty<PartAssemblyLink.LinkState>();
+        float linkKeepaliveTimer;
+        bool warnedLinkMismatch;
+
+        Velocity[] sendVelocities = Array.Empty<Velocity>();
+        Velocity[] recvVelocities = Array.Empty<Velocity>();
+        float velocityTimer;
+        bool warnedVelocityMismatch;
+
         // 도구 휴대 (S15P21B202-352). 고정쇠와 같은 모양 — 바뀔 때만 + keepalive.
         //
         // 자세만 나르면 부족하다. 장착 판정은 서버에서만 도는데(-145) 그때
@@ -472,6 +512,13 @@ namespace Metagame.Network
                 if (clamp != null) clamps.Add(clamp);
 
             clamps.Sort(CompareClamps);
+
+            // 번호로 부품을 되찾을 수 있게 자리를 맞춰 들고 있는다 (S15P21B202-388).
+            // **줄 세우기가 끝난 뒤에** 만들어야 자세와 같은 색인이 된다.
+            // 부품이 아닌 자리(탈것·도구)는 null 이다.
+            trackedParts.Clear();
+            for (int i = 0; i < tracked.Count; i++)
+                trackedParts.Add(tracked[i] != null ? tracked[i].GetComponent<SpaceshipPart>() : null);
         }
 
         /// <summary>
@@ -656,6 +703,8 @@ namespace Metagame.Network
             sendTimer += Time.deltaTime;
             clampKeepaliveTimer += Time.deltaTime;
             weldKeepaliveTimer += Time.deltaTime;
+            linkKeepaliveTimer += Time.deltaTime;
+            velocityTimer += Time.deltaTime;
             dropKeepaliveTimer += Time.deltaTime;
             toolKeepaliveTimer += Time.deltaTime;
             if (sendTimer < SendInterval) return;
@@ -715,6 +764,40 @@ namespace Metagame.Network
                 RememberSentWeld();
             }
 
+
+            // ── 조립 연결 ────────────────────────────────────────
+            //
+            // 용접 **뒤에** 보낸다. 접합을 세우면 Bind 가 비드에게 강도를 물어보므로
+            // (WeldBead.RefreshBetween) 비드가 먼저 서 있어야 제 강도가 나온다.
+            // 같은 틱에 신뢰 채널로 잇달아 보내므로 순서가 지켜진다.
+            BuildLinkSnapshot();
+            if (!SameLinks() || linkKeepaliveTimer >= LinkKeepalive)
+            {
+                RpcApplyLinks(tracked.Count, sendLinks);
+                linkKeepaliveTimer = 0f;
+                RememberSentLinks();
+            }
+
+            // ── 속도 ────────────────────────────────────────────
+            //
+            // 이어받을 때만 쓰이는 값이라 드물게 보낸다 — VelocityInterval 의 주석 참고.
+            if (velocityTimer >= VelocityInterval)
+            {
+                velocityTimer = 0f;
+
+                if (sendVelocities.Length != tracked.Count)
+                    sendVelocities = new Velocity[tracked.Count];
+
+                for (int i = 0; i < tracked.Count; i++)
+                {
+                    var body = tracked[i];
+                    sendVelocities[i] = body == null
+                        ? default
+                        : new Velocity { Linear = body.linearVelocity, Angular = body.angularVelocity };
+                }
+
+                RpcApplyVelocities(sendVelocities);
+            }
             // ── 운석 예고 ────────────────────────────────────────
             SendDrops();
 
@@ -812,10 +895,9 @@ namespace Metagame.Network
             {
                 sendWeldCounts[i] = 0;
 
-                var body = tracked[i];
-                if (body == null) continue;
-
-                var part = body.GetComponent<SpaceshipPart>();
+                // 부품 조회는 Collect 가 만들어 둔 색인을 쓴다 (S15P21B202-388) — "몇 번이
+                // 어느 부품인가" 를 두 곳에서 각자 답하면 언젠가 갈린다.
+                var part = i < trackedParts.Count ? trackedParts[i] : null;
                 if (part == null) continue;
 
                 var bead = part.GetComponent<WeldBead>();
@@ -892,8 +974,7 @@ namespace Metagame.Network
             {
                 int count = counts[i];
 
-                var body = tracked[i];
-                var part = body != null ? body.GetComponent<SpaceshipPart>() : null;
+                var part = i < trackedParts.Count ? trackedParts[i] : null;
                 if (part != null)
                 {
                     var bead = part.GetComponent<WeldBead>();
@@ -907,6 +988,143 @@ namespace Metagame.Network
                 cursor += count;
             }
         }
+
+        /// <summary>
+        /// 물체 하나의 속도 (S15P21B202-388).
+        ///
+        /// <para><see cref="Pose"/> 에 끼워 넣지 않았다. 자세는 신뢰 없는 채널로 매 틱
+        /// 가는데 속도는 신뢰 채널로 드물게 가면 된다 — 한 구조체에 넣으면 둘 중 하나의
+        /// 주기를 상대에게 맞춰야 하고, 그러면 아끼려던 것을 그대로 잃는다.</para>
+        /// </summary>
+        public struct Velocity
+        {
+            public Vector3 Linear;
+            public Vector3 Angular;
+        }
+
+        /// <summary>
+        /// 지금 조립 연결을 <see cref="sendLinks"/> 에 담는다 (S15P21B202-388).
+        ///
+        /// <para>부품 순서는 <b>자세와 같은 색인</b>이다 — <see cref="trackedParts"/> 가
+        /// <see cref="tracked"/> 와 자리를 맞춰 들고 있고, 부품이 아닌 자리는 null 이다.
+        /// 여기서 따로 줄을 세우면 -315 가 기록한 종류의 사고(개수는 같은데 순서만 어긋나
+        /// 남의 부품에 값이 들어감)를 새로 만든다.</para>
+        /// </summary>
+        void BuildLinkSnapshot()
+        {
+            PartAssemblyLink.ReadAll(trackedParts, linkStates);
+
+            if (sendLinks.Length != linkStates.Count)
+                sendLinks = new PartAssemblyLink.LinkState[linkStates.Count];
+            linkStates.CopyTo(sendLinks);
+        }
+
+        /// <summary>보낸 것과 같은가. 접합은 조립·용접·파손이 있을 때만 바뀐다.</summary>
+        bool SameLinks()
+        {
+            if (sendLinks.Length != lastSentLinks.Length) return false;
+
+            for (int i = 0; i < sendLinks.Length; i++)
+            {
+                var a = sendLinks[i];
+                var b = lastSentLinks[i];
+                if (a.MovingPart != b.MovingPart) return false;
+                if (a.TargetPart != b.TargetPart) return false;
+                if (a.MovingSocket != b.MovingSocket) return false;
+                if (a.TargetSocket != b.TargetSocket) return false;
+            }
+
+            return true;
+        }
+
+        void RememberSentLinks()
+        {
+            if (lastSentLinks.Length != sendLinks.Length)
+                lastSentLinks = new PartAssemblyLink.LinkState[sendLinks.Length];
+            Array.Copy(sendLinks, lastSentLinks, sendLinks.Length);
+        }
+
+        /// <summary>
+        /// 조립 연결을 그대로 세운다 (S15P21B202-388).
+        ///
+        /// <para><b>부품 수를 함께 보낸다.</b> 접합 배열의 길이는 접합 수라서 그것만으로는
+        /// 양쪽 부품 목록이 같은지 알 수 없다. 어긋난 채로 적용하면 번호가 남의 부품을
+        /// 가리켜 <b>엉뚱한 두 부품이 이어진다</b> — 용접·고정쇠와 같은 이유로 개수를
+        /// 먼저 확인하고, 다르면 손대지 않는다.</para>
+        /// </summary>
+        [ClientRpc]
+        void RpcApplyLinks(int partCount, PartAssemblyLink.LinkState[] states)
+        {
+            if (isServer) return;
+            if (!ready) return;
+
+            if (partCount != tracked.Count)
+            {
+                if (!warnedLinkMismatch)
+                {
+                    warnedLinkMismatch = true;
+                    Debug.LogWarning($"[WorldSync] 조립 개수가 다르다 — 서버 {partCount} · 여기 {tracked.Count}");
+                }
+                return;
+            }
+
+            PartAssemblyLink.RestoreAll(trackedParts, states, states != null ? states.Length : 0);
+        }
+
+        /// <summary>
+        /// 속도를 받아 둔다 (S15P21B202-388).
+        ///
+        /// <para><b>여기서 Rigidbody 에 넣지 않는다.</b> 참가자 부품은 kinematic 이라 속도를
+        /// 넣어도 움직이지 않는다 — 넣는 것은 물리를 이어받는 그 순간이고,
+        /// <see cref="RestoreVelocities"/> 가 그때 부른다.</para>
+        /// </summary>
+        [ClientRpc]
+        void RpcApplyVelocities(Velocity[] velocities)
+        {
+            if (isServer) return;
+            if (!ready) return;
+            if (velocities == null) return;
+
+            if (velocities.Length != tracked.Count)
+            {
+                if (!warnedVelocityMismatch)
+                {
+                    warnedVelocityMismatch = true;
+                    Debug.LogWarning($"[WorldSync] 속도 개수가 다르다 — 서버 {velocities.Length} · 여기 {tracked.Count}");
+                }
+                return;
+            }
+
+            if (recvVelocities.Length != velocities.Length)
+                recvVelocities = new Velocity[velocities.Length];
+            Array.Copy(velocities, recvVelocities, velocities.Length);
+        }
+
+        /// <summary>
+        /// 마지막으로 받은 속도를 물체에 넣는다. 물리를 이어받을 때 부른다 (S15P21B202-388).
+        ///
+        /// <para><b>kinematic 인 물체는 건너뛴다.</b> 이어받는 쪽은 먼저 kinematic 을 끄고
+        /// 이것을 부른다 — 순서가 뒤바뀌면 아무 일도 일어나지 않으므로 그 순서가 곧 조건이다.</para>
+        ///
+        /// <para>받은 것이 없으면 아무것도 하지 않는다. 속도가 0 인 것과 "모르는 것" 은
+        /// 다르다 — 모를 때 0 을 넣으면 날아가던 물체를 세워 버린다.</para>
+        /// </summary>
+        public void RestoreVelocities()
+        {
+            if (recvVelocities.Length != tracked.Count) return;
+
+            for (int i = 0; i < tracked.Count; i++)
+            {
+                var body = tracked[i];
+                if (body == null || body.isKinematic) continue;
+
+                body.linearVelocity = recvVelocities[i].Linear;
+                body.angularVelocity = recvVelocities[i].Angular;
+            }
+        }
+
+        /// <summary>받아 둔 속도가 있는가. 이어받는 쪽이 물어본다.</summary>
+        public bool HasVelocities => recvVelocities.Length == tracked.Count && tracked.Count > 0;
         void SendDrops()
         {
             var spawner = MeteorSpawner;
