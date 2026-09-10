@@ -105,6 +105,30 @@ namespace Metagame.Network
         public bool downed;
 
         /// <summary>
+        /// 셋 이상이 모여 파츠를 실제로 밀고 있는가 (기획 §13 · §10.2).
+        ///
+        /// <b>참가자는 이 값을 스스로 알 수 없어서 실어 보낸다.</b> 파츠 물리는 서버에서만
+        /// 돌고 참가자 화면의 파츠는 kinematic 이라 <c>PartPush.CanPush</c> 가 false 다 —
+        /// 그쪽에서 조회하면 늘 "밀고 있지 않다" 가 나온다. 그러면 방장만 3인칭으로
+        /// 물러나고 참가자는 1인칭에 갇혀, 셋이 함께 미는 장면이 참가자 화면에서는
+        /// 그냥 걷는 화면이 된다(S15P21B202-400).
+        ///
+        /// <b>파츠를 짝지어 보내지 않는다.</b> 카메라가 필요한 것은 파츠가 무엇인지가
+        /// 아니라 <b>어느 지점을 어느 쪽으로</b> 밀고 있는가뿐이다. 그래서 사람당 세
+        /// 값으로 끝나고 <see cref="WorldSync"/> 의 번호 짝짓기를 건드리지 않는다.
+        /// </summary>
+        [SyncVar]
+        public bool hauling;
+
+        /// <summary>미는 방향(수평 단위). 카메라의 자유 시점 기준이 된다.</summary>
+        [SyncVar]
+        public Vector3 haulDirection;
+
+        /// <summary>파츠 표면에서 이 사람이 잡거나 짚은 지점(월드). 카메라 초점이 쓴다.</summary>
+        [SyncVar]
+        public Vector3 haulGrasp;
+
+        /// <summary>
         /// 방 안의 자리 번호(0~3). 색이 여기서 나온다 (S15P21B202-375).
         ///
         /// <para><b>서버가 <see cref="OnStartServer"/> 에서 정한다.</b> 그 시점에 넣으면
@@ -179,6 +203,29 @@ namespace Metagame.Network
         void LateUpdate()
         {
             if (body == null || body.Doll == null || body.Hips == null) return;
+
+            // 서버가 보낸 밀기 상태를 몸에 넣는다 (S15P21B202-400).
+            //
+            // **SyncVar hook 으로는 안 된다.** hook 은 그 변수가 바뀔 때만 불리는데
+            // 방향·접촉 지점은 매 틱 조금씩 움직인다 — hauling 하나에만 hook 을 걸면
+            // 켜지는 순간의 값으로 굳어 카메라 초점이 파츠를 따라가지 않는다.
+            //
+            // 방장 자신의 몸에는 넣지 않는다. 그쪽은 PlayerRig.Tick 이 파츠를 직접
+            // 조회해 이미 채웠고, 여기서 덮으면 한 프레임 늦은 값으로 되돌린다.
+            //
+            // **내 몸에만 넣는다.** 이 LateUpdate 는 모든 NetPlayer 에서 돌고, 남의
+            // 몸도 PlayerRig 다(BuildRemoteBody 가 만든다). 카메라는 내 것만 쓰므로
+            // 남의 몸에 넣는 것은 무의미하고, 그 값이 Locomotion 의 이동 기준
+            // (haulBasisSet)에 섞일 자리를 남긴다. 지금은 RemoteAvatar 가
+            // `rig.enabled = false` 로 조종을 멈춰 증상이 없지만, 그 전제가 바뀌면
+            // 조용히 깨진다(!312 AI 리뷰가 이 자리를 물었다).
+            //
+            // 여기서 isLocalPlayer 를 쓰는 것은 안전하다. 그것을 피하라는 주의
+            // (IsHostOwnPlayer 주석)는 **서버 쪽 몸 세우기**의 스폰 경쟁 이야기고,
+            // 이 자리는 body 가 이미 있는지 확인한 뒤이며 한 프레임 늦어도 무해하다.
+            if (!isServer && isLocalPlayer)
+                body.SetHaulState(hauling, haulDirection, haulGrasp);
+
             if (isServer) _locomotionState = RabbitLocomotion.ReadState(body);
             if (body.Doll.Suit != null)
                 body.Doll.Suit.NetworkLocomotionState = _locomotionState;
@@ -530,6 +577,12 @@ namespace Metagame.Network
             // 그래서 몸의 결과를 옮겨 싣는 이 자리에 둔다. 위의 SetPositionAndRotation
             // 과 같은 일이다 — 물리가 낸 결과를 SyncVar·NetworkTransform 에 넘긴다.
             downed = body.Downed;
+
+            // 밀기 상태도 같은 자리에서 실어 보낸다 (S15P21B202-400). 위 downed 와 같은
+            // 이유로 transport 블록 안에 두지 않는다 — 밀기는 탑승과 아무 상관이 없다.
+            hauling = body.Hauling;
+            haulDirection = body.HaulDirection;
+            haulGrasp = body.HaulGrasp;
 
             transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
         }
