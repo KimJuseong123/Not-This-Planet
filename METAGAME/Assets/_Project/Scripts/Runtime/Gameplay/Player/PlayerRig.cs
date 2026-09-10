@@ -137,6 +137,43 @@ namespace Metagame.Gameplay
             RemoteRiding = riding;
             RefreshDollVisibility();
         }
+        /// <summary>
+        /// 남의 화면에서 이 몸이 <b>기절한 것으로 보이고 후보로 잡히게</b> 한다
+        /// (S15P21B202-378).
+        ///
+        /// <para><b>왜 필요한가.</b> 기절은 서버가 판정한다(<see cref="GoDown"/> 를 부르는
+        /// 곳은 서버 물리뿐이다). 그래서 참가자 기계에서 원격 플레이어의
+        /// <see cref="Downed"/> 는 <b>언제나 false</b> 였고,
+        /// <see cref="FindDownedTeammate"/> 가 <c>!other.Downed</c> 로 건너뛰어
+        /// <b>참가자는 동료를 일으킬 수 없었다.</b> 기획 §26-13 이 호스트에서만
+        /// 성립하고 있었다.</para>
+        ///
+        /// <para><b>표시와 후보 자격만 맞춘다.</b> <see cref="GoDown"/> 을 그대로 부르면
+        /// 안 된다 — 그 함수는 넉백·장비 해제·레이어 변경·카메라 전환까지 하고 그것들은
+        /// 서버 권위다(S15P21B202-145). 특히 레이어는 건드리지 않는다:
+        /// <c>RemoteAvatar</c> 가 원격 몸을 <c>RemotePlayer</c> 레이어로 옮겨 두었고
+        /// 여기서 <c>PlayerDowned</c> 로 바꾸면 그 의도가 깨진다. 후보 판정은 레이어를
+        /// 보지 않고 <see cref="All"/> 을 훑으므로 바꿀 이유도 없다.</para>
+        ///
+        /// <para><see cref="RefreshCarryTarget"/> 을 부르는 이유: 그 함수는
+        /// <see cref="GoDown"/>·<see cref="Revive"/> 안에서만 불린다. 클라이언트에서는
+        /// 둘 다 돌지 않으므로 <see cref="CarryTarget"/> 이 비어 있고, 그러면
+        /// <b>플래그만 맞춰도 후보가 되지 않는다</b>(잡을 지점이 없다).</para>
+        /// </summary>
+        public void SetRemoteDowned(bool nowDowned)
+        {
+            // 인형이 아직 없을 때를 같은 값으로 걸러내면 안 된다 — 플래그만 남고
+            // 인형이 생긴 뒤 같은 값이 다시 와도 여기서 돌아나가 잡을 지점이 끝내
+            // 만들어지지 않는다. SetRemoteRiding 이 같은 함정을 적어 두고 있다.
+            if (Downed == nowDowned && Doll != null) return;
+
+            Downed = nowDowned;
+
+            RefreshRescueTarget();
+            RefreshCarryTarget();
+            RefreshDollVisibility();
+        }
+
         public bool Hanging { get { return LeftHand.Hanging || RightHand.Hanging; } }
         public bool Carrying { get { return LeftHand.Carrying || RightHand.Carrying; } }
         public bool Ragdolled { get; private set; }      // 크게 넘어져 조종이 잠깐 풀린 상태
