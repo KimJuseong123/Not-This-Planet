@@ -185,10 +185,34 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     }
 
     private void removeFromRoom(Room room, Long userId) {
+        boolean matchEnded;
+
         synchronized (room) {
+            // 방장이 누구였는지는 leave() 앞에서 봐야 한다 — leave() 가 다음 사람에게
+            // 방장을 넘기므로 뒤에서 보면 이미 남이다.
+            boolean wasHost = userId.equals(room.getHostUserId());
+            boolean wasPlaying = room.getStatus() == Room.Status.PLAYING;
+
             room.leave(userId);
+
+            // 방장이 게임 중에 빠지면 판을 끝낸다 (S15P21B202-385).
+            //
+            // 방장의 PC 가 곧 게임 서버다(-145 호스트 권위). 그 사람이 사라지면 아무도
+            // 판을 이어갈 수 없는데, 예전에는 방장만 다음 사람에게 넘기고 상태를
+            // PLAYING 으로 남겼다. 그래서 참가자가 로비로 돌아가도 시작 버튼이 비활성이라
+            // (LobbyHud 의 room.IsWaiting 조건) 새 방장이 다시 시작할 수 없었다.
+            //
+            // 잠깐 끊긴 것과는 구분된다. 게임 중 연결이 끊기면 이 함수가 아니라 유예
+            // 스케줄러로 가고, 30초 안에 돌아오면 여기 오지 않는다.
+            matchEnded = wasHost && wasPlaying && room.end();
         }
+
         afterLeave(room);
+
+        if (matchEnded) {
+            log.info("host left mid-match, room back to WAITING: room={} host={}",
+                    room.getRoomId(), userId);
+        }
     }
 
     /** 자리에서 빠진 뒤의 정리. **락 밖에서** 한다 — 방송과 릴레이 호출이 들어 있다. */
