@@ -231,6 +231,11 @@ namespace Metagame.Network
             teamSlot = (byte)TeamSlots.Claim(userId);
 
             name = "플레이어 " + nickname;
+
+            // 같은 사람이 이미 붙어 있으면 낡은 쪽을 먼저 걷어낸다 (S15P21B202-373).
+            // 이 줄이 없어서 재접속할 때마다 이전 캐릭터가 유령으로 남았다.
+            EvictStaleDuplicates();
+
             ServerPlayers.Add(this);
 
             // 몸은 여기서 만들지 않는다. 호스트 모드에서는 게임 씬이 다 뜨기 전에
@@ -238,6 +243,58 @@ namespace Metagame.Network
             // 래그돌이 생기고, 방장의 몸을 넘겨받을 기회도 놓친다.
             // 준비되면 FixedUpdate 가 만든다.
             Debug.Log($"[NetPlayer] 서버 스폰 · {nickname}(userId={userId}) · 접속 인원 {NetworkServer.connections.Count}명");
+        }
+
+        /// <summary>
+        /// 같은 <c>userId</c> 의 낡은 접속을 걷어낸다 (S15P21B202-373).
+        ///
+        /// <b>왜 필요한가.</b> Mirror 는 연결이 죽어도 그것을 <b>바로</b> 알지 못한다 —
+        /// 전송 타임아웃까지 그 사람의 플레이어 오브젝트가 살아 있다. 그 사이에 같은
+        /// 사람이 다시 붙으면(백엔드가 재접속 유예로 자리를 지켜 주므로 붙는다,
+        /// S15P21B202-150) <b>한 사람에 대해 NetPlayer 가 둘이 된다.</b> 그러면 옛
+        /// 몸이 그 자리에 그대로 서 있어 유령처럼 보인다.
+        ///
+        /// 2026-09-10 4인 QA 의 참가자 로그에서 <c>userId=19</c> 에 대해
+        /// "다른 플레이어가 보인다" 가 두 번 찍혔다 — 클라이언트 로그이므로 서버가
+        /// 같은 사람을 두 번 들였다는 뜻이다.
+        ///
+        /// <b>지우는 순서가 중요하다.</b> 먼저 오브젝트를 지워야 그 자리에서
+        /// <see cref="OnStopServer"/> 가 돌아 <see cref="RejoinMemory"/> 에 자리를 적는다.
+        /// 새 몸은 <c>FixedUpdate</c> 가 나중에 세우므로 그때 <c>TryTake</c> 가 그 값을
+        /// 받는다 — 순서가 뒤집히면 돌아온 사람이 스폰 지점에 선다.
+        ///
+        /// <b>누구를 걷어낼지는 <see cref="RejoinMemory.IsStaleDuplicate"/> 가 정한다.</b>
+        /// 이 클래스는 <c>NetworkBehaviour</c> 라 EditMode 테스트에서 건드리면 테스트
+        /// 어셈블리가 Mirror 를 참조해야 한다(2026-09-10 실측: <c>error CS0012</c> 5건).
+        /// 판정만 Mirror 와 무관한 곳에 두면 규칙을 테스트가 지킬 수 있다.
+        /// </summary>
+        void EvictStaleDuplicates()
+        {
+            // 걷어낼 대상을 먼저 모은다. OnStopServer 가 ServerPlayers 를 건드리므로
+            // 순회 중에 지우면 목록이 흐트러진다.
+            var stale = new List<NetPlayer>();
+            for (int i = 0; i < ServerPlayers.Count; i++)
+            {
+                var other = ServerPlayers[i];
+                if (other == null || other == this) continue;
+                if (RejoinMemory.IsStaleDuplicate(userId, other.userId, other.adoptedBody)) stale.Add(other);
+            }
+
+            for (int i = 0; i < stale.Count; i++)
+            {
+                var old = stale[i];
+                var conn = old.connectionToClient;
+
+                Debug.Log($"[NetPlayer] 같은 사람의 낡은 접속을 걷어낸다 · "
+                          + $"{nickname}(userId={userId}) · 낡은 연결 "
+                          + (conn != null ? conn.connectionId.ToString() : "없음"));
+
+                // 오브젝트를 먼저 — OnStopServer 가 여기서 돌아 자리를 적는다.
+                if (old != null && old.gameObject != null) NetworkServer.Destroy(old.gameObject);
+
+                // 죽은 연결이 목록에 남아 입력을 보내지 못하게 끊는다.
+                if (conn != null) conn.Disconnect();
+            }
         }
 
         public override void OnStartClient()
