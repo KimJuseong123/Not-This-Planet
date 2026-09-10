@@ -86,6 +86,27 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void LookAround_KeepsEyeAtCockpitOrigin()
+        {
+            var vehicle = MakeVehicle(new Vector3(0f, 5f, 0f), true);
+            var player = MakePlayer(new Vector3(0f, 5f, 1.5f));
+            var camera = OrbitCamera.Create(player.Hips.transform, Color.black, true);
+            player.Cam = camera;
+            spawned.Add(camera.gameObject);
+            Assert.IsTrue(vehicle.TryBoard(player));
+
+            foreach (float yaw in new[] { 0f, 90f, 180f, 270f })
+            {
+                camera.Yaw = yaw;
+                camera.Pitch = 35f;
+                vehicle.SetFacingDirection(camera.PlanarForward);
+                camera.Tick();
+                Assert.Less(Vector3.Distance(camera.transform.position, vehicle.CockpitEye.position), 0.001f);
+                Assert.Less(vehicle.CockpitEye.InverseTransformPoint(camera.transform.position).magnitude, 0.001f);
+            }
+        }
+
+        [Test]
         public void Board_SwitchesToFirstPerson_AndExitRestores()
         {
             MakeSurface("Ground", new Vector3(0f, -0.5f, 0f), new Vector3(60f, 1f, 60f));

@@ -682,10 +682,10 @@ namespace Metagame.Gameplay
         public const float FieldFloatSpeed = 3f;
 
         /// <summary>부유 중 상승·하강 속도(m/s).</summary>
-        public const float FieldFloatVerticalSpeed = 2f;
+        public const float FieldFloatVerticalSpeed = 3f;
 
-        /// <summary>입력을 놓고 멈추기까지의 시간(s). 기획의 "약 0.5초 관성 후 정지".</summary>
-        public const float FieldFloatStopSeconds = 0.5f;
+        /// <summary>입력을 놓고 멈추기까지의 시간(s). 상승 반응 개선을 위해 0.25초로 조정.</summary>
+        public const float FieldFloatStopSeconds = 0.25f;
 
         /// <summary>
         /// 저중력장이 자유 파츠의 바닥을 아래로 돌려 세우는 데 걸리는 시간(s).

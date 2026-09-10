@@ -173,6 +173,27 @@ namespace Metagame.Gameplay.Parts
         Transform seat;
         Transform visual;
         Transform cockpit;
+        Material cockpitConsoleMaterial;
+        Material cockpitScreenMaterial;
+
+        public Transform CockpitEye
+        {
+            get { EnsureCockpit(); return cockpit; }
+        }
+
+        void OnDestroy()
+        {
+            if (cockpitConsoleMaterial != null)
+            {
+                if (Application.isPlaying) Destroy(cockpitConsoleMaterial);
+                else DestroyImmediate(cockpitConsoleMaterial);
+            }
+            if (cockpitScreenMaterial != null)
+            {
+                if (Application.isPlaying) Destroy(cockpitScreenMaterial);
+                else DestroyImmediate(cockpitScreenMaterial);
+            }
+        }
         TractorBeam beam;
         LowGravityField field;
         bool fieldPhysicsAuthority = true;
@@ -695,23 +716,11 @@ namespace Metagame.Gameplay.Parts
             verticalInput = 0f;
             dismountElapsed = 0f;
 
-            // 기획 §14.2 — "저중력장을 켠 채 하차해도 기체가 마지막 위치와 높이에서
-            // 자동 호버한다". 그래야 §14.5 의 "조종사가 저중력장을 유지해 아래의 용접
-            // 담당자를 띄운다" 가 성립한다. 예전에는 하차하면 무조건 중력을 켜서
-            // 기체가 떨어졌고, 내리는 순간 저중력장이 사라졌다.
-            if (Field != null && Field.IsActive)
-            {
-                Unmanned = true;
-                returning = false;
-                grounded = false;
-
-                // 마지막 높이를 그대로 지킨다. HoverRootY 로 되돌리면 "마지막 높이" 가 아니다.
-                targetAltitude = Mathf.Clamp(body.position.y, GroundY, MaxAltitude);
-
-                CompleteDismount();
-                return;
-            }
-
+            // Current controls: exit immediately, switch off lift, and let the empty
+            // craft settle against real collision surfaces under gravity.
+            Field.SetActive(false);
+            Unmanned = false;
+            CompleteDismount();
             returning = true;
             grounded = false;
 
@@ -777,6 +786,8 @@ namespace Metagame.Gameplay.Parts
             facingDirection = worldDirection.normalized;
             if (visual != null)
                 visual.rotation = Quaternion.LookRotation(facingDirection, Vector3.up);
+            if (cockpit != null)
+                cockpit.rotation = Quaternion.LookRotation(facingDirection, Vector3.up);
         }
 
         /// <summary>
@@ -816,7 +827,7 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         public void Tick(float deltaTime)
         {
-            var idle = rider == null && !Unmanned;
+            var idle = rider == null && !Unmanned && !returning;
 
             // <b>굴림과 자세 복구는 탑승자가 없어도 끝까지 진행한다.</b>
             //
@@ -1181,7 +1192,7 @@ namespace Metagame.Gameplay.Parts
         {
             if (cockpit != null) return;
 
-            var parent = visual != null ? visual : transform;
+            var parent = transform;
             var holder = new GameObject("VehicleCockpit");
             cockpit = holder.transform;
             cockpit.SetParent(parent, false);
@@ -1201,6 +1212,17 @@ namespace Metagame.Gameplay.Parts
                 eye + forward * ScreenForward - Vector3.up * ScreenDrop,
                 ScreenSize, ScreenColor, 0.1f, cockpit));
             screen.transform.rotation = look * Quaternion.Euler(-ScreenTiltDegrees, 0f, 0f);
+
+            var shader = Resources.Load<Shader>("CockpitNoFog");
+            if (shader != null)
+            {
+                cockpitConsoleMaterial = new Material(shader) { name = "Cockpit Console No Fog" };
+                cockpitConsoleMaterial.SetColor("_BaseColor", ConsoleColor);
+                cockpitScreenMaterial = new Material(shader) { name = "Cockpit Screen No Fog" };
+                cockpitScreenMaterial.SetColor("_BaseColor", ScreenColor);
+                console.GetComponent<Renderer>().sharedMaterial = cockpitConsoleMaterial;
+                screen.GetComponent<Renderer>().sharedMaterial = cockpitScreenMaterial;
+            }
 
             cockpit.gameObject.SetActive(false);
         }

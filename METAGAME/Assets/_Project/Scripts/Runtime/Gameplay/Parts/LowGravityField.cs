@@ -120,6 +120,12 @@ namespace Metagame.Gameplay.Parts
         {
             Register();
             IsActive = on;
+            if (on && Application.isPlaying)
+            {
+                var effect = GetComponent<LowGravityFieldVisual>();
+                if (effect == null) effect = gameObject.AddComponent<LowGravityFieldVisual>();
+                effect.Initialize(this);
+            }
             if (!on)
             {
                 AffectedCount = 0;

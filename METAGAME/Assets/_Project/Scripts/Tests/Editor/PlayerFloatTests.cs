@@ -93,6 +93,19 @@ namespace Metagame.Gameplay.Tests
         // --- 상태 전환 -------------------------------------------------------
 
         [Test]
+        public void Player_IsLiftedWithoutJump_ThenHoldsHeight()
+        {
+            MakeGround();
+            MakeField(new Vector3(0f, 8f, 0f));
+            var player = MakePlayer(Vector3.zero);
+            float start = player.Doll.Hips.position.y;
+            Run(player, default, 2f);
+            Assert.Greater(player.Doll.Hips.position.y, start + 1f);
+            Run(player, default, 1f);
+            Assert.Less(Mathf.Abs(player.Doll.Hips.linearVelocity.y), 0.4f);
+        }
+
+        [Test]
         public void Player_EntersFloating_InsideTheField()
         {
             MakeGround();
