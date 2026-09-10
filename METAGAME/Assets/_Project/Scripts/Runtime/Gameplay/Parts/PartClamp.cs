@@ -58,6 +58,11 @@ namespace Metagame.Gameplay.Parts
         Rigidbody _releasedBody;
         bool _initialized;
         int _progressSoundBucket;
+        LineRenderer _tether;
+        Material _tetherMaterial;
+        Vector3 _tetherPartLocal;
+        Vector3 _tetherPinLocal;
+        readonly Vector3[] _tetherPoints = new Vector3[25];
 
         public SpaceshipPart Part => _part;
 
@@ -123,7 +128,96 @@ namespace Metagame.Gameplay.Parts
 
         void OnEnable() => Register();
 
-        void OnDisable() => Unregister();
+        void OnDisable()
+        {
+            Unregister();
+            if (_tether != null) _tether.enabled = false;
+        }
+
+        void Start() => CreateTether();
+
+        void CreateTether()
+        {
+            Initialize();
+            if (_part == null || IsReleased || !IsRequired) return;
+            var shader = Resources.Load<Shader>("GuidanceNoFog");
+            if (shader == null) return;
+
+            Material source = null;
+            foreach (var guide in FindObjectsByType<AssemblyGuidanceLight>())
+                if (guide.gameObject.scene == gameObject.scene && (source = guide.MaterialForPart(_part)) != null)
+                    break;
+            _tetherMaterial = source != null ? new Material(source) : new Material(shader);
+            _tetherMaterial.name = "Clamp fluorescent rope (No Fog)";
+            _tetherMaterial.shader = shader;
+            if (source == null)
+            {
+                _tetherMaterial.SetColor("_BaseColor", new Color(0.05f, 1f, 0.85f));
+                _tetherMaterial.SetColor("_EmissionColor", new Color(0.05f, 1f, 0.85f));
+            }
+
+            // 본체의 가까운 표면과 못 머리를 연결한다. 장식/다른 못의 Collider는 제외한다.
+            var pinPoint = transform.position + Vector3.up * 0.25f;
+            if (_colliders != null && _colliders.Length > 0)
+            {
+                var pinBounds = _colliders[0].bounds;
+                foreach (var c in _colliders) if (c != null) pinBounds.Encapsulate(c.bounds);
+                pinPoint = pinBounds.center + Vector3.up * pinBounds.extents.y * 0.65f;
+            }
+            var partPoint = _part.transform.position;
+            var best = float.PositiveInfinity;
+            foreach (var c in _part.GetComponentsInChildren<Collider>())
+            {
+                if (!c.enabled || c.isTrigger || c.GetComponentInParent<PartClamp>() != null) continue;
+                var candidate = c.ClosestPoint(new Vector3(pinPoint.x, _part.transform.position.y, pinPoint.z));
+                var distance = (candidate - pinPoint).sqrMagnitude;
+                if (distance >= best) continue;
+                best = distance;
+                partPoint = candidate;
+            }
+            _tetherPartLocal = _part.transform.InverseTransformPoint(partPoint);
+            _tetherPinLocal = transform.InverseTransformPoint(pinPoint);
+            var rope = new GameObject("Fluorescent anchor rope");
+            rope.transform.SetParent(transform, false);
+            // LineRenderer만 생성하므로 이동·조준·견인에 걸리는 Collider가 없다.
+            _tether = rope.AddComponent<LineRenderer>();
+            _tether.sharedMaterial = _tetherMaterial;
+            _tether.useWorldSpace = true;
+            _tether.positionCount = _tetherPoints.Length;
+            _tether.widthMultiplier = 0.055f;
+            _tether.numCapVertices = 4;
+            _tether.numCornerVertices = 3;
+            _tether.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            _tether.receiveShadows = false;
+            LateUpdate();
+        }
+
+        void LateUpdate()
+        {
+            if (_tether == null) return;
+            _tether.enabled = !IsReleased && IsRequired && _part != null && _part.isActiveAndEnabled;
+            if (!_tether.enabled) return;
+            var start = transform.TransformPoint(_tetherPinLocal);
+            var end = _part.transform.TransformPoint(_tetherPartLocal);
+            var side = Vector3.Cross(end - start, Vector3.up).normalized;
+            var sag = Mathf.Min(0.14f, Vector3.Distance(start, end) * 0.06f);
+            for (int i = 0; i < _tetherPoints.Length; i++)
+            {
+                var t = i / (float)(_tetherPoints.Length - 1);
+                var envelope = Mathf.Sin(t * Mathf.PI);
+                var shake = Mathf.Sin(t * 19f - Time.time * 22f) * Progress * 0.035f;
+                _tetherPoints[i] = Vector3.Lerp(start, end, t)
+                    + envelope * (Vector3.down * sag + side * shake);
+            }
+            _tether.SetPositions(_tetherPoints);
+            // 색은 유지하고 굵기만 떨려, 진행 중에도 연결이 완전히 끊겨 보이지 않는다.
+            _tether.widthMultiplier = 0.055f * (1f + Progress * 0.22f * Mathf.Sin(Time.time * 26f));
+        }
+
+        void OnDestroy()
+        {
+            if (_tetherMaterial != null) Destroy(_tetherMaterial);
+        }
 
         public void Register()
         {
@@ -386,6 +480,7 @@ namespace Metagame.Gameplay.Parts
 
             if (IsReleased) return;
             IsReleased = true;
+            if (_tether != null) _tether.enabled = false;
             Pullers = 0;
             _pulledSeconds = PhysicsScale.ClampPullSeconds;
             _progressSoundBucket = 10;
