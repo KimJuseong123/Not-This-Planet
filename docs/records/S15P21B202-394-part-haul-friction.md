@@ -173,28 +173,60 @@ pusher.Direction = heading;      // 위치가 아니라 입력
 이동 입력이 없으면 참여로 세지 않는다 — 잡고 가만히 서 있는 것은 힘을 쓰는 것이
 아니다.
 
-### 3-6. 접촉을 모든 콜라이더로 판정한다
+### 3-6. 접촉을 자식의 몸통 콜라이더로 판정한다
 
-**조사 중에 드러난 별개의 결함이다.** `PartPush` 는 `GetComponent<Collider>()` 로
-**첫 콜라이더 하나만** 봤다. 파츠는 실제 형태를 따르는 상자 여럿이므로(§25.3),
-Part_1 은 그것이 최하단 0.94 x 0.94 받침이 되어 **골반이 1.08m 떨어진 것으로
-계산되고 몸으로 미는 것이 아예 시작되지 않았다.**
+**조사 중에 드러난 별개의 결함이고, 사실 이것이 더 심각했다.**
 
-`Initialize()` 에서 `GetComponents<Collider>()` 로 전부 모으고, `IsTouching` 은
-가장 가까운 상자로, `Toward` 는 모든 상자를 감싼 범위의 중심으로 판정한다.
+`PartPush` 는 `GetComponent<Collider>()` 로 콜라이더를 찾았다. 그런데 **파츠 루트에는
+콜라이더가 하나도 없다.**
+
+```csharp
+// Stage1PuzzleBuilder.BuildPart — 루트에는 Rigidbody·SpaceshipPart·PartPush 만
+var go = new GameObject(spec.Name) { layer = GameLayers.Part };
+for (var i = 0; i < spec.Boxes.Length; i++) AddBody(go.transform, spec, i);
+//                                          ↑ 자식 Body_0, Body_1, … 에 붙는다
+```
+
+즉 `_collider` 가 **항상 null** 이었고 `IsTouching` 은 첫 줄에서 늘 false 를 돌려줬다.
+
+> **몸으로 미는 것은 실제 게임에서 한 번도 작동한 적이 없다.**
+> 마찰 이전의 문제였다. 손으로 잡는 경로는 콜라이더를 보지 않으므로 살아 있었다.
+
+**내 검증도 이것을 놓쳤다.** 하네스가 콜라이더를 **파츠 루트에** 붙였기 때문에 전부
+통과했다. 42개를 다 짜고 대조까지 돌린 뒤에도 몰랐고, AI 리뷰가 "자식 콜라이더에서
+조용히 죽지 않는지 확인하라" 고 짚어 준 뒤에 `Stage1PuzzleBuilder` 를 읽어서 알았다.
+**§2 에서 지적한 것과 정확히 같은 실수를 이 이슈 안에서 한 번 더 한 것이다** —
+검증이 자기가 만든 좁은 세계 안에서만 맞았다.
+
+고친 방식은 `GetComponentsInChildren<Collider>()` 로 훑고 **레이어로 가르는** 것이다.
+
+```csharp
+if (collider.gameObject.layer != GameLayers.Part) continue;
+```
+
+자식에는 고정못(`Clamp_*`, `GameLayers.Interactable`)도 있고 그 콜라이더는 파츠 밑면
+**아래로** 내려가 있다. 함께 세면 접촉 판정이 발밑까지 늘어나 4m 밖에서도 밀 수 있게
+된다. 몸통은 `GameLayers.Part` 뿐이라 레이어로 정확히 갈린다.
+
+`IsTouching` 은 가장 가까운 상자로, `Toward` 는 모든 상자를 감싼 범위의 중심으로
+판정한다.
 
 ---
 
 ## 4. 검증
 
-`PartPushTests` 를 다시 썼다. **하네스가 둘이고 그 이유가 이 검증의 핵심이다.**
+`PartPushTests` 를 다시 썼다. **하네스가 셋이고 그 이유가 이 검증의 핵심이다.**
 
 | 하네스 | 조건 | 무엇을 단정하는가 |
 | --- | --- | --- |
 | `MakePart` | 지면 없음 · 파츠 중력 꺼짐 · `Physics.Simulate` 돈다 | 집계 규칙(인원·방향·유예)과 속도 규칙(표 상한·운석 충격 보존) |
 | `MakeGroundedPart` | `Prim.GroundPhysics` 지면 · 중력 켜짐 · `Physics.Simulate` | **이동 거리** |
+| `MakeSceneShapedPart` | **콜라이더가 자식에 있고 고정못이 섞여 있다** — 실제 씬과 같은 모양 | 컴포넌트가 씬의 물체를 실제로 찾는가 |
 
-**27개 → 40개.** 전부 통과.
+셋째가 §3-6 의 결함을 잡는다. 앞의 둘은 콜라이더를 파츠 루트에 붙이므로, 실제
+씬처럼 자식에 있을 때 판정이 죽는 것을 **영원히 통과시킨다.**
+
+**27개 → 42개.** 전부 통과.
 
 새로 넣은 것 중 요점.
 
@@ -213,6 +245,8 @@ Part_1 은 그것이 최하단 0.94 x 0.94 받침이 되어 **골반이 1.08m �
 | `TheForceForThreeBeatsGroundFriction` | 힘이 지면 재질에서 계산되는가 · 여유가 2.05배 초과인가 |
 | `TheForceScalesWithMass` | 질량 2배면 힘 2배 |
 | `ThreeHaulersStopAtTheTableSpeed` | 오버슈트 없이 표의 1.2 에 머문다 |
+| `APartWithCollidersOnChildren_CanStillBeBodyPushed` | **루트에 콜라이더가 없는 실제 씬 구성** |
+| `ClampCollidersDoNotCountAsThePartSurface` | 고정못이 파츠 표면으로 세어지지 않는다 |
 
 ### 4-1. 대조 실험
 
@@ -222,6 +256,8 @@ Part_1 은 그것이 최하단 0.94 x 0.94 받침이 되어 **골반이 1.08m �
 | --- | --- |
 | `FrictionMargin` 2.5 → 1.0 (이론값만 준다) | 4개 실패 — 이동 검증 3개 + `TheForceForThreeBeatsGroundFriction` |
 | 잡기 방향을 위치 기반으로 되돌림 | 6개 실패 — `GrabbingAndWalkingForward…` 포함 |
+| 콜라이더를 자식까지 훑지 않음(예전 동작) | **1개 실패** — `APartWithCollidersOnChildren…` 만 |
+| 콜라이더를 레이어로 가르지 않음 | **1개 실패** — `ClampCollidersDoNotCountAsThePartSurface` 만 |
 
 ### 4-2. develop 기준선 대조
 
@@ -314,3 +350,13 @@ kinematic 이라 `CanPush` 가 false 이고 `TryGrab` 도 거부되는데, **이
 그래서 힘을 넣는 상수 옆에는 **이겨야 하는 저항을 같은 단위로 적어 두기로 했다.**
 `PartPushAccel = 1.2f` 옆에 "필요: μs 0.95 x g 5 = 4.75 m/s²" 가 적혀 있었다면
 코드 리뷰에서 잡혔다.
+
+그리고 하나 더. **이 이슈 안에서 같은 실수를 한 번 더 했다.** §3-6 의 콜라이더
+결함은 하네스가 콜라이더를 루트에 붙였기 때문에 42개 검증과 대조 실험을 전부
+통과한 뒤에도 드러나지 않았다. AI 리뷰의 지적을 받고 `Stage1PuzzleBuilder` 를
+읽어서 알았다.
+
+교훈은 이렇다. **검증이 만드는 물체는 씬이 만드는 물체와 같은 모양이어야 한다.**
+지금은 하네스가 셋이다 — 무마찰(집계·속도 규칙), 지면(이동 거리), 그리고
+**실제 씬 구성**(콜라이더가 자식에 있고 고정못이 섞여 있다). 셋째가 없으면
+"컴포넌트가 씬의 물체를 실제로 찾는가" 는 영원히 통과한다.

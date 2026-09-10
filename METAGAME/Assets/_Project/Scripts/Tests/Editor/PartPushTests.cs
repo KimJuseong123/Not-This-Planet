@@ -544,6 +544,91 @@ namespace Metagame.Gameplay.Tests
                 "이 파츠가 둘에 밀리면 1·2명 가속에 값을 준 것이다.");
         }
 
+        // --- 실제 씬 구성 (콜라이더가 자식에 있다) ---------------------------
+
+        /// <summary>
+        /// <b>이 검증이 없어서 몸으로 미는 것이 죽어 있는 줄 몰랐다.</b>
+        ///
+        /// 실제 파츠는 루트에 콜라이더가 <b>하나도 없다</b> — `Stage1PuzzleBuilder` 가
+        /// `PartSpec` 의 상자마다 자식 `Body_*` 를 만들어 붙인다. 그래서 예전의
+        /// <c>GetComponent&lt;Collider&gt;()</c> 는 항상 null 이었고 <c>IsTouching</c> 이
+        /// 늘 false 였다. 예전 검증은 콜라이더를 <b>루트에</b> 붙였기 때문에 통과했다.
+        /// </summary>
+        [Test]
+        public void APartWithCollidersOnChildren_CanStillBeBodyPushed()
+        {
+            var push = MakeSceneShapedPart();
+            MakePlayer(new Vector3(-1.4f, 0f, 0f), Vector3.right);
+
+            Tick(push, PhysicsScale.PartPushIntentSeconds + Step * 4f);
+
+            Assert.AreEqual(1, push.HaulerCount,
+                "루트에 콜라이더가 없는 실제 구성에서도 접촉이 잡혀야 한다.");
+            Assert.AreEqual(1, push.PusherCount, "몸으로 밀었다.");
+        }
+
+        /// <summary>
+        /// 고정못 콜라이더는 접촉 판정에서 빠진다. 고정못은 파츠 밑면보다 아래로
+        /// 내려가 있어 함께 세면 접촉 범위가 발밑까지 늘어난다.
+        /// </summary>
+        [Test]
+        public void ClampCollidersDoNotCountAsThePartSurface()
+        {
+            var push = MakeSceneShapedPart(withClampFarAway: true);
+
+            // 몸통에서는 멀고 고정못에서는 가까운 자리에 세운다.
+            MakePlayer(new Vector3(-4.2f, 0f, 0f), Vector3.right);
+
+            Tick(push, 1f);
+
+            Assert.AreEqual(0, push.HaulerCount,
+                "고정못이 파츠 표면으로 세어지면 4m 밖에서도 밀 수 있게 된다.");
+        }
+
+        /// <summary>
+        /// 실제 씬처럼 <b>자식</b>에 몸통 콜라이더를 붙인 파츠. 루트에는 없다.
+        /// </summary>
+        PartPush MakeSceneShapedPart(bool withClampFarAway = false)
+        {
+            var spec = PartSpec.Find("Part_1");
+
+            var root = new GameObject(spec.Name) { layer = GameLayers.Part };
+            root.transform.position = new Vector3(0f, spec.Height * 0.5f, 0f);
+            _spawned.Add(root);
+
+            for (var i = 0; i < spec.Boxes.Length; i++)
+            {
+                var box = spec.Boxes[i];
+                var body = new GameObject($"Body_{i}") { layer = GameLayers.Part };
+                body.transform.SetParent(root.transform, false);
+                body.transform.localPosition = box.CenterFromPartCenter(spec.Height);
+                body.AddComponent<BoxCollider>().size = box.Size;
+            }
+
+            if (withClampFarAway)
+            {
+                // 고정못을 일부러 멀리 둔다 — 이것이 표면으로 세어지면 검증이 잡는다.
+                var clamp = new GameObject("Clamp_0") { layer = GameLayers.Interactable };
+                clamp.transform.SetParent(root.transform, false);
+                clamp.transform.localPosition = new Vector3(-3.5f, -spec.Height * 0.5f, 0f);
+                clamp.AddComponent<BoxCollider>().size = Vector3.one * 0.4f;
+            }
+
+            var rigidbody = root.AddComponent<Rigidbody>();
+            rigidbody.useGravity = false;
+
+            var part = root.AddComponent<SpaceshipPart>();
+            part.SetPlacedMass(spec.Mass);
+            part.Initialize();
+            TransitionTo(part, PartState.Placed);
+
+            var push = root.AddComponent<PartPush>();
+            push.Initialize();
+
+            UnityEngine.Physics.SyncTransforms();
+            return push;
+        }
+
         // --- 관성과 운석 (§13.2) — 속도 규칙만 본다 --------------------------
 
         /// <summary>§13.2 "아무도 밀지 않으면 약 1초 동안 관성이 줄어든 뒤 정지".</summary>
