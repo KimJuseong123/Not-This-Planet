@@ -440,8 +440,11 @@ namespace Metagame.Gameplay.Tests
 
             // `isServer` 자체는 Update 안에 있다(전송 로그·순번 붙이기). 없어야 하는 것은
             // **AdoptLocalBody 앞의 조기 반환**이므로 위치로 본다.
+            // **없어도 통과해야 한다** (`!320` AI 리뷰). `isServer` 가 Update 에서 아예
+            // 사라지는 리팩터링은 가드가 생긴 것이 아니므로 이 검사가 막을 일이 아니다 —
+            // 처음에는 `IndexOf` 가 -1 일 때도 실패해서, 무관한 정리에 깨졌다.
             var firstServer = update.IndexOf("isServer", System.StringComparison.Ordinal);
-            Assert.That(firstServer, Is.GreaterThan(adopt),
+            Assert.That(firstServer < 0 || firstServer > adopt, Is.True,
                 "Update 에 호스트 가드가 생겼다면 DisownJudgement 의 근거 주석을 갱신할 것");
 
             // 내려놓는 곳이 그 한 함수뿐인지. 다른 곳에서 직접 대입하면 조건이 빠진다.

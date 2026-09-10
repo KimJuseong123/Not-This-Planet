@@ -55,15 +55,6 @@ namespace Metagame.Network
         bool rightArmIntent;
 
         /// <summary>
-        /// 서버가 보낸 자리를 그리는 몸으로 바꾼다. <paramref name="source"/> 는 서버가
-        /// 위치를 넣어 주는 네트워크 오브젝트(NetPlayer)의 Transform 이다.
-        /// </summary>
-        /// <param name="mine">
-        /// 내 캐릭터인가. <b>내 것이면 개조하지 않는다</b> — 로컬 물리가 계속 돌아 입력이
-        /// 즉시 반영되고(P1), 서버 자세와의 오차만 조금씩 갚는다(S15P21B202-363).
-        /// 남의 것이면 서버 자세를 끌고 다니는 그림으로 바꾼다.
-        /// </param>
-        /// <summary>
         /// 부활 판정을 서버에 넘긴다 — <b>이 기계가 서버가 아닐 때만</b>
         /// (S15P21B202-414, <c>!320</c> AI 리뷰).
         ///
@@ -88,6 +79,15 @@ namespace Metagame.Network
             rig.ServerAuthority = false;
         }
 
+        /// <summary>
+        /// 서버가 보낸 자리를 그리는 몸으로 바꾼다. <paramref name="source"/> 는 서버가
+        /// 위치를 넣어 주는 네트워크 오브젝트(NetPlayer)의 Transform 이다.
+        /// </summary>
+        /// <param name="mine">
+        /// 내 캐릭터인가. <b>내 것이면 개조하지 않는다</b> — 로컬 물리가 계속 돌아 입력이
+        /// 즉시 반영되고(P1), 서버 자세와의 오차만 조금씩 갚는다(S15P21B202-363).
+        /// 남의 것이면 서버 자세를 끌고 다니는 그림으로 바꾼다.
+        /// </param>
         public static RemoteAvatar Attach(PlayerRig rig, Transform source, bool mine = false)
         {
             var avatar = rig.gameObject.AddComponent<RemoteAvatar>();
