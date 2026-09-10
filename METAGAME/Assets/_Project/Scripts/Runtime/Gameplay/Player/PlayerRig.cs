@@ -678,16 +678,27 @@ namespace Metagame.Gameplay
                     || grabbable == toolHeld)
                     continue;
 
-                var point = collider.ClosestPoint(center);
+                // 도구 보정 반경은 손끝 중심의 작은 구가 아니라 조준선 주위의 폭이다.
+                // 기존 구 판정은 정면의 도구도 카메라에서 약 0.49m를 넘으면 탈락시켰다.
+                var isSpecial = grabbable.IsTool;
+                var probePoint = center;
+                if (isSpecial)
+                {
+                    var depth = Mathf.Clamp(Vector3.Dot(collider.bounds.center - origin, forward),
+                                            0f, Tuning.ArmReach + Tuning.GrabAssistRange);
+                    probePoint = origin + forward * depth;
+                }
+                var point = collider.ClosestPoint(probePoint);
                 var centerDistance = Vector3.Distance(center, point);
                 var distance = Vector3.Distance(origin, point);
                 var angle = AngleFrom(origin, forward, point);
-                var isSpecial = grabbable.IsTool;
                 var assistRadius = isSpecial ? Tuning.SpecialGrabAssistRadius
                                               : Tuning.GrabAssistRange;
                 var assistAngle = isSpecial ? Tuning.SpecialGrabAssistAngle
                                              : Tuning.GrabAssistAngle;
-                if (centerDistance > assistRadius || angle > assistAngle) continue;
+                var assistDistance = isSpecial ? Vector3.Distance(probePoint, point) : centerDistance;
+                if (assistDistance > assistRadius || angle > assistAngle) continue;
+                if (isSpecial && distance > Tuning.ArmReach + Tuning.GrabAssistRange) continue;
 
                 Consider(ref best, MakeTarget(PlayerInteractionKind.Grabbable, null, grabbable,
                                               null, point, angle, distance));

@@ -105,6 +105,9 @@ namespace Metagame.Gameplay
         public bool GripTo(Grabbable target, Rigidbody targetBody)
         {
             if (Grip != null || Held != null || target == null) return false;
+            // 손 장비는 PlayerRig.TryGrabTool의 양손 장착 경로로만 잡는다.
+            // 한 손 운반으로 우회하면 HeldTool/ActiveTool이 비어 Q 충전도 동작하지 않는다.
+            if (target.IsTool) return false;
 
             // 가벼운 동적 물체는 손과 물체 사이에 물리 Joint를 만들지 않는다.
             // PlayerRig가 운반 상태를 Kinematic으로 전환하고 크로스헤드 위치를 직접 추적한다.
