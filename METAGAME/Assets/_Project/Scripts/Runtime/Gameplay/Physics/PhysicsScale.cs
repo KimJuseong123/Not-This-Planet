@@ -70,6 +70,12 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float PartMaxAngularSpeed = 5f;
 
+        /// <summary>
+        /// 손으로 파츠를 당길 때 실제 이동을 허용하는 최소 플레이어 수.
+        /// 한두 명은 파츠를 붙잡고 버티기만 하고, 세 명부터 협동 견인이 시작된다.
+        /// </summary>
+        public const int PartPullMinPlayers = 3;
+
         // --- 견인 도구 ---
         /// <summary>비행접시형 운반 도구. 파츠에 끌려다니지 않을 정도의 무게.</summary>
         public const float CarrierMass = 25f;
