@@ -11,6 +11,7 @@
 > 갱신 2026-09-03 — 기존 토끼 캐릭터용 Mixamo 걷기·달리기 모션 추가 · 이슈 [S15P21B202-278](https://ssafy.atlassian.net/browse/S15P21B202-278)
 > 갱신 2026-09-04 — 캐릭터 팔·손 원본 FBX·PBR 텍스처·정면 프리뷰 추가 · 이슈 [S15P21B202-283](https://ssafy.atlassian.net/browse/S15P21B202-283)
 > 갱신 2026-09-06 — Stage1 바닥 텍스처 3종·자연물 FBX/PBR 4종·정면 프리뷰 추가 · 이슈 [S15P21B202-306](https://ssafy.atlassian.net/browse/S15P21B202-306)
+> 갱신 2026-09-10 — 캐릭터 1인칭 손 FBX·PBR 텍스처·정면 프리뷰 교체 · 이슈 [S15P21B202-387](https://ssafy.atlassian.net/browse/S15P21B202-387)
 > 관련 문서: [문서 목록](./README.md) · [1장 기획](./planning/chapter-1-plan.md) · [파트 구분](./parts.md)
 
 **어떤 에셋이 무엇이고, 씬에 갖다 쓸 수 있는 상태인지** 한 장에서 확인하는 문서다.
@@ -373,12 +374,13 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 | 프리뷰 | 모델 | FBX 원본 | 텍스처 | 상태 |
 | --- | --- | --- | --- | --- |
 | <img src="./assets/previews/character_arm_front.png" width="110"> | `character_arm` 팔·손 일체형 원본 | `Models/Characters/Parts/CharacterArm/character_arm.fbx` (1,053 KB) | BaseColor · Normal · Roughness · Metallic · RM | **미연결** |
-| <img src="./assets/previews/character_hand_front.png" width="110"> | `character_hand` 손 원본 | `Models/Characters/Parts/CharacterHand/character_hand.fbx` (1,078 KB) | BaseColor · Normal · Roughness · Metallic · RM | **1인칭 손 표시 연결** (`Resources/CharacterHand`) |
+| <img src="./assets/previews/character_hand_front.png" width="110"> | `character_hand` 손 원본 | `Models/Characters/Parts/CharacterHand/character_hand.fbx` (591 KB) | BaseColor · Normal · Roughness · Metallic · RM | **1인칭 손 표시 연결** (`Resources/CharacterHand`) |
 
 - 사용자가 제공한 Tripo 원본을 모델별 폴더에 보관했다. FBX 안의 텍스처 경로를 유지하기 위해 UUID가 포함된 `.fbm` 폴더명은 바꾸지 않았다.
 - BaseColor는 sRGB, Normal은 Normal map, Roughness·Metallic·RM은 선형 데이터로 임포트되도록 `.meta`를 포함했다.
 - `character_arm`은 기존 래그돌 팔과의 리깅 연결 없이 원본으로 보관한다. `character_hand`는 `ArtLink`가 `Resources/CharacterHand` 프리팹으로 연결하고, 로컬 1인칭 카메라 아래에서만 표시한다. 실제 잡기 판정은 기존 물리 손이 담당한다.
-- 저장소 프리뷰에는 작업 범위에 따라 각 모델의 `front` 사진만 넣었다. 상세 파일 목록과 검증 결과는 [작업 기록](./records/S15P21B202-283-character-arm-hand-assets.md)에 있다.
+- [S15P21B202-387](https://ssafy.atlassian.net/browse/S15P21B202-387)에서 `character_hand`의 FBX와 PBR 텍스처 5장, 정면 프리뷰를 신규 손 외형으로 교체했다. FBX와 텍스처의 Unity GUID는 유지해 기존 프리팹 연결이 끊기지 않게 했다.
+- 저장소 프리뷰에는 작업 범위에 따라 각 모델의 `front` 사진만 넣었다. 최초 추가 내역은 [S15P21B202-283 기록](./records/S15P21B202-283-character-arm-hand-assets.md), 신규 손 교체 내역과 검증 결과는 [S15P21B202-387 기록](./records/S15P21B202-387-character-hand-replacement.md)에 있다.
 
 ---
 
