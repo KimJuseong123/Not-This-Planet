@@ -53,6 +53,9 @@ namespace Metagame.Bootstrap
         public GameHud Hud { get; private set; }
         public GamePauseMenu PauseMenu { get; private set; }
         public TeamPingHud PingHud { get; private set; }
+
+        /// <summary>기절한 동료 일으키기 진행도 (S15P21B202-390).</summary>
+        public DownedRescueHud RescueHud { get; private set; }
         public TeamNameplateHud NameplateHud { get; private set; }
         public Stage1Exploration Exploration { get; private set; }
         public Stage1ExplorationHud ExplorationHud { get; private set; }
@@ -127,6 +130,10 @@ namespace Metagame.Bootstrap
             PauseMenu.Initialize(Session);
             PingHud = sys.AddComponent<TeamPingHud>();
             PingHud.Initialize(Session);
+            // 동료 일으키기 진행도 (S15P21B202-390). 핑과 같은 방식이라 옆에 둔다 —
+            // 판단은 PlayerRig.TickRescue 가 하고 이쪽은 그리기만 한다.
+            RescueHud = sys.AddComponent<DownedRescueHud>();
+            RescueHud.Initialize(Session);
             // 팀원 머리 위 이름표 (S15P21B202-375). 핑과 같은 방식이라 옆에 둔다.
             NameplateHud = sys.AddComponent<TeamNameplateHud>();
             NameplateHud.Initialize(Session);

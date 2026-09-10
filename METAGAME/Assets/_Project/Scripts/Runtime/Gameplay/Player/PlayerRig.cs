@@ -214,6 +214,39 @@ namespace Metagame.Gameplay
         public bool ChargingTool { get { return chargingTool; } }
         /// <summary>현재 조준 중인 고정쇠를 찾고 해제 홀드를 진행하는 상호작용 주체.</summary>
         public Interactor ClampInteractor { get; private set; }
+
+        /// <summary>
+        /// 기절한 동료를 <b>일으키는</b> 홀드를 도는 인터랙터 (S15P21B202-390).
+        ///
+        /// <para><b>왜 따로 두는가.</b> <see cref="ClampInteractor"/> 와 나누지 않으면
+        /// 둘이 서로의 대상을 점유한다 — 한 인터랙터는 홀드 하나만 들 수 있다
+        /// (<c>InteractorState.Holding</c>). 고정쇠를 잡고 있는 동안 동료를 일으킬 수
+        /// 없게 되는 것도 이유다.</para>
+        ///
+        /// <para><see cref="Interactor.Accepts"/> 로 <see cref="DownedRescue"/> 만 받게
+        /// 해 둔다. 그러지 않으면 <b>고정쇠를 점유해 버린다</b> — 후보 탐색이
+        /// <c>Interactable</c> 레이어의 아무 대상이나 잡고, <c>PartClamp</c> 는
+        /// <c>HoldSeconds</c> 가 0 이라 그 자리에서 완료로 처리된다.</para>
+        /// </summary>
+        public Interactor RescueInteractor { get; private set; }
+
+        /// <summary>지금 일으키는 중인 진행도 0~1. HUD 가 이 값을 그린다.</summary>
+        public float RescueProgress01 =>
+            RescueInteractor != null && RescueInteractor.State == InteractorState.Holding
+                ? Mathf.Clamp01(RescueInteractor.HoldProgress) : 0f;
+
+        /// <summary>지금 일으킬 수 있는 사람. 없으면 <c>null</c> — HUD 가 문구를 띄운다.</summary>
+        public PlayerRig RescueCandidate
+        {
+            get
+            {
+                var focus = RescueInteractor != null
+                    ? (RescueInteractor.State == InteractorState.Holding
+                        ? RescueInteractor.Held : RescueInteractor.Focus)
+                    : null;
+                return focus is DownedRescue rescue ? rescue.Target : null;
+            }
+        }
         /// <summary>실제로 한 손이 고정쇠에 결합된 상태.</summary>
         public bool ClampGrabbed
         {
@@ -368,6 +401,7 @@ namespace Metagame.Gameplay
             rig.Doll = RagdollBuilder.Build(nickname, footPos, facing, suit, accent, !model);
             rig.Doll.Root.SetParent(go.transform, true);
             rig.ClampInteractor = go.AddComponent<Interactor>();
+            rig.RescueInteractor = go.AddComponent<Interactor>();
 
             // 조준 기준점. 머리를 그대로 쓰면 안 된다 — 래그돌 머리는 물리로 흔들려서
             // 어디를 겨냥하는지가 사람의 의도와 무관해진다. 서버의 참가자 몸에는 카메라가
@@ -418,6 +452,15 @@ namespace Metagame.Gameplay
                 ClampInteractor = gameObject.AddComponent<Interactor>();
 
             ClampInteractor.Configure(aim, ClampInteractionRange, ClampInteractionHalfAngle);
+
+            // 살리기는 운반 후보를 고르는 것과 같은 사거리·시야각을 쓴다
+            // (S15P21B202-390). 같은 사람을 겨냥하는 두 동작이므로 기준이 달라지면
+            // "옮기기는 되는데 일으키기는 안 되는" 자리가 생긴다.
+            if (RescueInteractor == null)
+                RescueInteractor = gameObject.AddComponent<Interactor>();
+            RescueInteractor.Configure(aim, PhysicsScale.DownedCarryReach,
+                                       PhysicsScale.DownedCarryAngle);
+            RescueInteractor.Accepts = OnlyDownedRescue;
         }
 
         /// <summary>운반 장치 후보를 단일 현장 포커스에 등록한다.</summary>
@@ -425,6 +468,7 @@ namespace Metagame.Gameplay
         {
             interactionVehicles = vehicles ?? System.Array.Empty<TransportVehicle>();
             RefreshInteractionFocus();
+            TickRescue();
         }
 
         /// <summary>
@@ -2280,6 +2324,83 @@ namespace Metagame.Gameplay
         /// 고정못에서 손을 뗀다. <b>진행분은 지우지 않는다</b> — 기획 §12.1 "좌클릭을
         /// 놓거나 운석에 맞아도 빠진 정도는 유지된다".
         /// </summary>
+        /// <summary><see cref="RescueInteractor"/> 가 받는 것 — 구조 지점뿐이다.</summary>
+        static bool OnlyDownedRescue(IInteractable candidate) => candidate is DownedRescue;
+
+        /// <summary>
+        /// 누르고 있는 동안 동료를 일으킨다 (S15P21B202-390).
+        ///
+        /// <para><b>이 함수가 없어서 기능이 돌지 않았다.</b> <see cref="DownedRescue"/> 는
+        /// 홀드·진행분 누적·이어받기까지 완성돼 있었는데 <b>부르는 곳이 없었다</b> —
+        /// 2026-09-10 QA 의 "사람 살리는 과정이 게이지로 표시되어야 하는 거 같다" 가
+        /// 그것이다. 게이지가 없었던 것이 아니라 상호작용이 한 번도 시작되지 않았다.</para>
+        ///
+        /// <para><b>운반과 다른 버튼이다.</b> 대상은 같은 사람 하나이고, 좌클릭은
+        /// <c>CarryTarget</c>(들어 옮기기), 이 키는 <c>구조 지점</c>(일으키기)에
+        /// 작용한다. 그래서 <see cref="CurrentInteractionTarget"/> 을 쪼개지 않았다 —
+        /// "대상 후보를 여러 시스템이 각각 고르면 화면에는 하나가 보여도 다른 대상이
+        /// 작동한다" 는 <c>PlayerInteractionTarget</c> 의 경고가 그대로 적용된다.</para>
+        /// </summary>
+        void TickRescue()
+        {
+            if (RescueInteractor == null) return;
+
+            // 기절한 사람은 남을 일으킬 수 없다. 홀드 중이었으면 놓는다 —
+            // 진행분은 남으므로 다른 사람이 이어받는다(DownedRescue.Release).
+            if (Downed)
+            {
+                if (RescueInteractor.State == InteractorState.Holding)
+                    LogRescue("중단", "내가 기절했다");
+                RescueInteractor.Cancel();
+                return;
+            }
+
+            // 홀드 중이면 진행도를 올리고, 아니면 후보를 갱신한다. 먼저 도는 이유는
+            // 아래 시작 판정이 이번 프레임의 후보를 봐야 하기 때문이다.
+            bool wasHolding = RescueInteractor.State == InteractorState.Holding;
+            RescueInteractor.Tick(Time.fixedDeltaTime);
+
+            if (input.RescueHeld)
+            {
+                if (RescueInteractor.State == InteractorState.Holding) return;
+
+                // 손을 떼지 않았는데 홀드가 끝났다 = 다 채웠다. Interactor 가 대상의
+                // OnCompleted 를 부르고 Idle 로 돌아가는 것이 완료의 신호다.
+                if (wasHolding)
+                {
+                    LogRescue("완료", "일어났다");
+                    return;
+                }
+
+                if (RescueInteractor.TryBegin()) LogRescue("시작", "누르고 있는다");
+            }
+            else if (wasHolding)
+            {
+                LogRescue("중단", "손을 뗐다 · 진행분은 남는다");
+                RescueInteractor.Cancel();
+            }
+        }
+
+        string RescueTargetName()
+        {
+            var target = RescueCandidate;
+            return target != null ? target.Nickname : "모름";
+        }
+
+        /// <summary>
+        /// 살리기 과정을 남긴다 (S15P21B202-390).
+        ///
+        /// <para>이 기능에 계측이 <b>0건</b>이어서 QA 신고를 로그로 확인할 수 없었다 —
+        /// 3인 로그 64,000줄에 구조·부활 흔적이 하나도 없었다. <c>-383</c>·<c>-354</c>·
+        /// <c>-361</c> 과 같은 계열을 만들지 않으려면 <b>무엇이 왜 안 됐는지</b>가
+        /// 남아야 한다.</para>
+        /// </summary>
+        void LogRescue(string what, string detail)
+        {
+            Debug.Log($"[SpaceFlop][구조] {what} · 대상={RescueTargetName()} · {detail}"
+                      + $" · 진행={RescueProgress01:0.00}");
+        }
+
         void ResetClampGrab()
         {
             if (clampGrabHand != null)

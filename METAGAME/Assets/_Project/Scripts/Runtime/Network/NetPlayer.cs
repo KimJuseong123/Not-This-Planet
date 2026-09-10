@@ -801,7 +801,10 @@ namespace Metagame.Network
                 && a.TabletPreviousPage == b.TabletPreviousPage
                 && a.TabletNextPage == b.TabletNextPage
                 && a.Restart == b.Restart
-                && a.PingPressed == b.PingPressed;
+                && a.PingPressed == b.PingPressed
+                // 여기 빠지면 눌러도 서버가 모른다 (S15P21B202-390). Same() 이 같다고
+                // 보면 그 프레임을 보내지 않는다 — StuckEscapeHeld 가 실제로 그 상태다.
+                && a.RescueHeld == b.RescueHeld;
         }
 
         // ── 클라이언트: 남의 몸 ─────────────────────────────────
