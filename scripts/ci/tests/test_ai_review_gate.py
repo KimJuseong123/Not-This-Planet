@@ -196,6 +196,24 @@ assert "발견 사항 없음" not in _only, "막는 것이 있는데 '발견 사
 
 # 커밋 표기는 머리줄에만 — 게이트가 그 줄에서 읽으므로 뺄 수 없고, 둘째 줄에 또 적으면 중복이다.
 assert _only.splitlines()[2].count("커밋 `") == 0, "커밋 표기가 두 줄에 나온다"
+
+# 값이 같은 발견 사항이 둘이면, 하나만 목록에 올라가도 표에서 둘 다 사라지면 안 된다.
+# 리뷰어가 여럿이라 같은 자리를 함께 지목하는 일이 실제로 생긴다.
+_dup_a = {"severity": "high", "file": "e.cs", "line": "7", "issue": "같은 문제",
+          "fix": "같은 제안", "role": "scope"}
+_dup_b = dict(_dup_a)          # 값은 같고 객체는 다르다
+assert _dup_a == _dup_b and _dup_a is not _dup_b
+_dm = {"verdict": "block", "checks": {}, "findings": [_dup_a, _dup_b], "questions": []}
+assert len(AR.blocking_findings(_dm)) == 2, "높음 둘 다 차단 사유여야 한다"
+
+# 높음 하나 + 값이 같은 중간 하나 — 중간은 표에 남아야 한다.
+_half = {"verdict": "block", "checks": {},
+         "findings": [_dup_a, dict(_dup_a, severity="medium")], "questions": []}
+assert len(AR.blocking_findings(_half)) == 1, "높음이 있으면 높음만 차단 사유다"
+_half_out = AR.render(merged=_half, **dict(_common, results={"scope": {"x": 1}}))
+assert "발견 사항 1건" in _half_out, ("값이 같은 중간 항목이 표에서 사라졌다: "
+                                    + _half_out[:500])
+print("  값이 같은 발견 사항을 표에서 함께 지우지 않는다 ✅")
 print("  차단 사유·커밋 표기를 두 번 적지 않는다 ✅")
 print("  ⛔ 면 막고 있는 것이 맨 앞에 목록으로 나온다 ✅")
 

@@ -539,8 +539,14 @@ def render(mr_meta: str, roles: list[str], results: dict, raw: dict, merged: dic
     # 위에 "막고 있는 것" 으로 이미 세운 것은 표에서 뺀다 (S15P21B202-420).
     # 같은 발견 사항을 목록과 표에 두 번 적으면 "간략화" 가 아니라 두 배가 된다.
     # 판정이 ⛔ 가 아니면 blocking 이 비어 있으므로 표는 그대로다.
+    #
+    # **값이 아니라 그 객체를 뺀다.** `f not in blocking` 은 dict 동등 비교라, 내용이
+    # 같은 발견 사항이 둘 있으면 하나만 목록에 올라가도 표에서 **둘 다** 사라진다.
+    # 리뷰어가 여럿이고 같은 자리를 함께 지목하는 일이 있으므로 실제로 생긴다 —
+    # 그러면 "위 차단 1건 외" 라고 적으면서 2건을 감춘다.
+    picked = {id(f) for f in blocking}
     main = [f for f in merged["findings"]
-            if f["severity"] in ("high", "medium") and f not in blocking]
+            if f["severity"] in ("high", "medium") and id(f) not in picked]
     low = [f for f in merged["findings"] if f["severity"] == "low"]
     if main:
         out.append(f"\n**발견 사항 {len(main)}건**"

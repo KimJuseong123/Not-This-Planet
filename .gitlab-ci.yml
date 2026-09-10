@@ -199,6 +199,9 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
     # 머지 직후에도 돈다 — 개별 MR 은 통과했는데 합쳐서 깨지는 경우를 잡는다.
     # 09-02 사고는 감지까지 2시간 37분이 걸렸다(그 사이 develop 머지 0건). 이 규칙이면 2분이다.
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
+      # 여기에는 `.gitlab-ci.yml` 을 넣지 않는다 — 위 MR 규칙에 이미 있어서 **머지 전에**
+      # 이 잡 정의로 한 번 돈다. 여기서 또 보면 CI 만 고친 MR 이 머지될 때마다 Unity 가
+      # 한 번 더 돌고, 4 vCPU 를 게임 서버와 나눠 쓰는 EC2 라 실유저 응답이 느려진다.
       changes: ["METAGAME/Assets/**/*", "METAGAME/Packages/**/*", "METAGAME/ProjectSettings/**/*"]
   # 종료 코드로 판정을 나눈다 (S15P21B202-309). unity_report.py 가 **대상 브랜치 기준선과
   # 비교해서** 정한다:

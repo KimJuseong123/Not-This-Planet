@@ -53,6 +53,27 @@ JIRA_BY_GITLAB = {m["gitlab"]: m.get("jira", "") for m in _TEAM["members"]}
 NAME_BY_GITLAB = {m["gitlab"]: m.get("name", "") for m in _TEAM["members"]}
 
 
+def is_bot_thread(first_note: dict) -> bool:
+    """봇이 스스로 관리하는 스레드인가 (S15P21B202-420).
+
+    `stack-order` 는 **일부러** 미해소 스레드를 남긴다 — 스택 순서를 어긴 머지를 막는
+    수단이 그것이고, 조건이 풀리면 스스로 해결 처리한다(`upsert_thread(resolved=True)`).
+    그래서 이것을 사람 답글과 같이 세면, 스택 MR 마다 "봇이 스레드를 남겼다" 가 떠서
+    **정작 찾으려던 사람 답글이 묻힌다.**
+
+    **첫 줄 마커로 가른다.** 봇 코멘트는 갱신을 위해 첫 줄에 HTML 주석 마커를 둔다는
+    규약이 이미 있다(`ai-review:metagame` · `stack-order:metagame` · `mr-lint:advice` 등).
+    이름 목록을 여기 박지 않는 이유는 잡이 늘 때마다 이 함수를 고쳐야 하기 때문이고,
+    `:metagame` 만 보면 `mr-lint:advice` 를 놓친다.
+
+    계정 이름으로 가르지 않는 이유: CI 토큰이 어느 계정으로 도는지는 설정에 따라 달라지고,
+    사람이 그 계정으로 답글을 달 수도 있다. 사람은 첫 줄에 HTML 주석을 쓰지 않는다.
+    """
+    lines = (first_note.get("body") or "").lstrip().splitlines()[:1]
+    first = lines[0].strip() if lines else ""
+    return first.startswith("<!--") and first.endswith("-->")
+
+
 def check_open_threads(rep: Report, gl: GitLab) -> None:
     """미해소 스레드가 있으면 알린다 (S15P21B202-420).
 
@@ -80,6 +101,7 @@ def check_open_threads(rep: Report, gl: GitLab) -> None:
         return
 
     open_by = {}
+    bots = 0
     for d in threads:
         notes = d.get("notes") or []
         first = notes[0] if notes else None
@@ -87,12 +109,15 @@ def check_open_threads(rep: Report, gl: GitLab) -> None:
             continue
         if all(n.get("resolved") for n in notes if n.get("resolvable")):
             continue
+        if is_bot_thread(first):
+            bots += 1
+            continue
         who = (first.get("author") or {}).get("username", "?")
         open_by[who] = open_by.get(who, 0) + 1
 
     total = sum(open_by.values())
     if not total:
-        rep.ok("미해소 스레드 없음")
+        rep.ok("미해소 스레드 없음" + (f" (봇 스레드 {bots}개는 조건이 해소되면 스스로 풀립니다)" if bots else ""))
         return
 
     who = " · ".join(f"{u} {n}개" for u, n in sorted(open_by.items(), key=lambda kv: -kv[1]))
