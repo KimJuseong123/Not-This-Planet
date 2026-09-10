@@ -52,6 +52,14 @@ namespace Metagame.Gameplay.Parts
 
             var startPosition = transform.position;
             var startYaw = transform.eulerAngles.y;
+            var hull = new System.Collections.Generic.List<BoxCollider>();
+            var partBody = part.GetComponent<Rigidbody>();
+            foreach (var box in GetComponentsInChildren<BoxCollider>(true))
+                if (box.enabled && box.gameObject.activeInHierarchy && !box.isTrigger
+                    && box.attachedRigidbody == partBody
+                    && box.GetComponentInParent<PartClamp>() == null
+                    && box.GetComponentInParent<PartSocket>() == null)
+                    hull.Add(box);
 
             // 기존 파츠의 몸체·소켓·밀기·손잡이를 먼저 끈다. 새 운반 플랫폼과 충돌하거나
             // E 입력을 가로채지 않도록 같은 루트에 두 물리 표현을 동시에 남기지 않는다.
@@ -65,6 +73,7 @@ namespace Metagame.Gameplay.Parts
             vehicle = GetComponent<TransportVehicle>();
             if (vehicle == null) vehicle = gameObject.AddComponent<TransportVehicle>();
             vehicle.Initialize(beam, TransportVehicle.BeamHoldDistance);
+            vehicle.ConfigureHull(hull);
             vehicle.PlaceOnGround(startPosition, startYaw);
 
             activated = true;

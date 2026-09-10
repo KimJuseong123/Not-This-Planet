@@ -7,6 +7,8 @@ Shader "SpaceFlop/TractorFieldBeam"
     SubShader
     {
         Tags { "RenderType"="Transparent" "Queue"="Transparent" "RenderPipeline"="UniversalPipeline" }
+        // Same opt-out bit as the planet and meteor warning materials.
+        Stencil { Ref 64 Comp Always Pass Replace ReadMask 64 WriteMask 64 }
         Pass
         {
             Tags { "LightMode"="UniversalForward" }
@@ -37,13 +39,20 @@ Shader "SpaceFlop/TractorFieldBeam"
             {
                 float endFade = smoothstep(0, 0.04, input.uv.y) * (1 - smoothstep(0.72, 1, input.uv.y));
                 float face = abs(dot(normalize(input.normalWS), normalize(GetWorldSpaceViewDir(input.positionWS))));
-                float edgeFade = smoothstep(0.02, 0.45, face);
+                // From the cockpit the view runs almost along the cone wall.
+                // Keep a visible floor instead of fading the entire beam away.
+                float edgeFade = lerp(0.4, 1.0, smoothstep(0.02, 0.45, face));
                 float streak = pow(saturate(sin(input.uv.x * 150.796 + sin(input.uv.y * 7 + _Time.y))), 12);
                 float flow = pow(saturate(sin(input.uv.y * 55 + _Time.y * 6 + input.uv.x * 25.133)), 14);
                 float sceneDepth = LinearEyeDepth(SampleSceneDepth(GetNormalizedScreenSpaceUV(input.positionCS)), _ZBufferParams);
                 float beamDepth = -TransformWorldToView(input.positionWS).z;
                 float softContact = saturate((sceneDepth - beamDepth) / 0.5);
+                // A missing depth texture may resolve to the near plane. Hardware
+                // ZTest still handles occlusion; don't erase the effect in that case.
+                if (sceneDepth <= _ProjectionParams.y * 1.01) softContact = 1;
                 float alpha = input.color.a * _Visibility * endFade * edgeFade * softContact;
+                // Fully faded pixels must not write the atmosphere exclusion bit.
+                clip(alpha - 0.002);
                 return half4(input.color.rgb * (1.2 + streak * 1.8 + streak * flow * 4), alpha);
             }
             ENDHLSL

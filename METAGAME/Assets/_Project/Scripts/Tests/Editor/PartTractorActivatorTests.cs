@@ -52,7 +52,9 @@ namespace Metagame.Gameplay.Tests
             Assert.IsNotNull(vehicle);
             Assert.IsNotNull(vehicle.Beam);
             Assert.IsNotNull(part.GetComponent<TransportVehicle>());
-            Assert.IsFalse(bodyCollider.enabled, "기존 Part_1 몸체 충돌은 운반 플랫폼과 함께 남으면 안 된다.");
+            Assert.IsFalse(bodyCollider.enabled, "원본은 끄고 동일한 형상을 견인 외형 좌표계에 유지한다.");
+            Assert.IsFalse(vehicle.transform.Find("VehiclePlatform").GetComponent<Collider>().enabled);
+            Assert.IsTrue(vehicle.transform.Find("Visual/VehicleHull_0").GetComponent<Collider>().enabled);
             Assert.IsFalse(push.enabled, "전환 뒤 일반 파츠 밀기 입력은 남으면 안 된다.");
             Assert.IsFalse(socket.enabled, "전환 뒤 조립용 소켓 판정은 남으면 안 된다.");
             Assert.IsFalse(part.GetComponent<Grabbable>().enabled,
@@ -60,6 +62,46 @@ namespace Metagame.Gameplay.Tests
             Assert.IsNotNull(vehicle.transform.Find("VehiclePlatform"));
             Assert.IsNotNull(vehicle.transform.Find("VehicleSeat"));
             Assert.AreEqual(GameLayers.Prop, vehicle.gameObject.layer);
+        }
+
+        [Test]
+        public void ConversionAndDismount_PreserveCompoundHullAndEmptySpace()
+        {
+            var part = CreatePart(out var activator, out var lower, out _, out _, out var clamps);
+            lower.center = new Vector3(0f, 0.5f, 0f);
+            var upper = part.gameObject.AddComponent<BoxCollider>();
+            upper.center = new Vector3(0f, 1.5f, 0f);
+            upper.size = new Vector3(2f, 1f, 1f);
+            foreach (var clamp in clamps) clamp.Release();
+            var vehicle = activator.Vehicle;
+            AssertCompoundShape(vehicle);
+
+            var player = PlayerRig.Create("Hull rider", vehicle.transform.position + Vector3.forward * 1.5f,
+                Quaternion.identity, Color.white, Color.gray, false);
+            spawned.Add(player.gameObject);
+            Assert.IsTrue(vehicle.TryBoard(player));
+            AssertCompoundShape(vehicle);
+            vehicle.BeginDismount();
+            AssertCompoundShape(vehicle);
+            vehicle.ForceReset();
+            AssertCompoundShape(vehicle);
+        }
+
+        static void AssertCompoundShape(TransportVehicle vehicle)
+        {
+            Physics.SyncTransforms();
+            var lower = vehicle.transform.Find("Visual/VehicleHull_0").GetComponent<BoxCollider>();
+            var upper = vehicle.transform.Find("Visual/VehicleHull_1").GetComponent<BoxCollider>();
+            Assert.IsFalse(vehicle.transform.Find("VehiclePlatform").GetComponent<Collider>().enabled);
+            Assert.AreEqual(Vector3.one, lower.size);
+            Assert.AreEqual(new Vector3(2f, 1f, 1f), upper.size);
+            var bottom = lower.bounds.min.y;
+            var center = lower.bounds.center;
+            // Wide upper body must collide, but the empty space beside its narrow foot must not.
+            Assert.IsTrue(upper.Raycast(new Ray(new Vector3(center.x + 0.9f, bottom + 1.5f,
+                center.z - 3f), Vector3.forward), out _, 6f));
+            Assert.IsFalse(lower.Raycast(new Ray(new Vector3(center.x + 0.9f, bottom + 0.5f,
+                center.z - 3f), Vector3.forward), out _, 6f));
         }
 
         [Test]

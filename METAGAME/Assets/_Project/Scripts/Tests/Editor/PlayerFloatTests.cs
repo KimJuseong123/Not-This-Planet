@@ -93,6 +93,29 @@ namespace Metagame.Gameplay.Tests
         // --- 상태 전환 -------------------------------------------------------
 
         [Test]
+        public void FieldVisual_TogglesAndStaysWorldDownWhenCraftRolls()
+        {
+            var field = MakeField(new Vector3(0f, 8f, 0f));
+            var effect = field.gameObject.AddComponent<LowGravityFieldVisual>();
+            effect.Initialize(field);
+            effect.TickVisual(0.3f);
+            var renderer = field.GetComponentInChildren<MeshRenderer>();
+            Assert.IsNotNull(renderer);
+            Assert.IsTrue(renderer.enabled);
+            Assert.Greater(renderer.sharedMaterial.GetFloat("_Visibility"), 0.9f);
+            field.transform.rotation = Quaternion.Euler(85f, 60f, 20f);
+            effect.TickVisual(0.1f);
+            Assert.Less(Vector3.Distance(renderer.transform.position, field.Origin.position), 0.001f);
+            Assert.Greater(Vector3.Dot(renderer.transform.up, Vector3.up), 0.999f);
+            field.SetActive(false);
+            effect.TickVisual(0.3f);
+            Assert.IsFalse(renderer.enabled);
+            field.SetActive(true);
+            effect.TickVisual(0.3f);
+            Assert.IsTrue(renderer.enabled);
+        }
+
+        [Test]
         public void Player_IsLiftedWithoutJump_ThenHoldsHeight()
         {
             MakeGround();

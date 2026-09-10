@@ -169,6 +169,35 @@ namespace Metagame.Gameplay.Parts
 
         Rigidbody body;
         BoxCollider platform;
+        BoxCollider[] hullColliders = Array.Empty<BoxCollider>();
+
+        /// <summary>Preserve authored compound boxes in the visual frame before the beam root rotates.</summary>
+        internal void ConfigureHull(System.Collections.Generic.IReadOnlyList<BoxCollider> sources)
+        {
+            if (sources.Count == 0 || hullColliders.Length != 0) return;
+            if (visual == null)
+            {
+                visual = new GameObject("Visual").transform;
+                visual.SetParent(transform, false);
+            }
+
+            hullColliders = new BoxCollider[sources.Count];
+            for (int i = 0; i < sources.Count; i++)
+            {
+                var source = sources[i];
+                var go = new GameObject("VehicleHull_" + i) { layer = GameLayers.Prop };
+                go.transform.SetPositionAndRotation(source.transform.position, source.transform.rotation);
+                go.transform.localScale = source.transform.lossyScale;
+                go.transform.SetParent(visual, true);
+                var box = go.AddComponent<BoxCollider>();
+                box.center = source.center;
+                box.size = source.size;
+                box.sharedMaterial = source.sharedMaterial;
+                box.contactOffset = source.contactOffset;
+                hullColliders[i] = box;
+            }
+            platform.enabled = false;
+        }
         Transform platformAnchor;
         Transform seat;
         Transform visual;
@@ -538,6 +567,7 @@ namespace Metagame.Gameplay.Parts
             platform.center = Vector3.zero;
             platform.size = new Vector3(2.4f, 0.34f, 2.2f);
             platform.isTrigger = false;
+            platform.enabled = hullColliders.Length == 0;
 
             if (seat == null)
             {
@@ -1267,25 +1297,23 @@ namespace Metagame.Gameplay.Parts
             var rise = desiredAltitude - body.position.y;
             if (rise <= 0f) return false;
 
-            var scale = platform.transform.lossyScale;
-            var halfExtents = new Vector3(Mathf.Abs(platform.size.x * scale.x) * 0.5f,
-                                          Mathf.Abs(platform.size.y * scale.y) * 0.5f,
-                                          Mathf.Abs(platform.size.z * scale.z) * 0.5f);
-            halfExtents.x = Mathf.Max(0.05f, halfExtents.x - ProbeShrink);
-            halfExtents.z = Mathf.Max(0.05f, halfExtents.z - ProbeShrink);
-            halfExtents.y = Mathf.Max(0.02f, halfExtents.y);
-
-            var count = Physics.BoxCastNonAlloc(platformAnchor.position, halfExtents, Vector3.up,
-                                                ProbeHits, Quaternion.identity, rise + VerticalClearance,
-                                                SurfaceMask, QueryTriggerInteraction.Ignore);
             var nearest = float.PositiveInfinity;
-            for (var i = 0; i < count; i++)
+            int boxes = hullColliders.Length == 0 ? 1 : hullColliders.Length;
+            for (int b = 0; b < boxes; b++)
             {
-                var hit = ProbeHits[i];
-                if (hit.collider == null || hit.collider.transform.IsChildOf(transform)) continue;
-                nearest = Mathf.Min(nearest, hit.distance);
+                var box = hullColliders.Length == 0 ? platform : hullColliders[b];
+                if (box == null || !box.enabled) continue;
+                GetProbeBox(box, out var center, out var half);
+                var count = Physics.BoxCastNonAlloc(center, half, Vector3.up,
+                    ProbeHits, box.transform.rotation, rise + VerticalClearance,
+                    SurfaceMask, QueryTriggerInteraction.Ignore);
+                for (var i = 0; i < count; i++)
+                {
+                    var hit = ProbeHits[i];
+                    if (IsSelfHit(hit.collider)) continue;
+                    nearest = Mathf.Min(nearest, hit.distance);
+                }
             }
-
             if (float.IsPositiveInfinity(nearest)) return false;
 
             allowedAltitude = body.position.y + Mathf.Max(0f, nearest - VerticalClearance);
@@ -1293,39 +1321,51 @@ namespace Metagame.Gameplay.Parts
         }
 
         /// <summary>
-        /// 플랫폼 아랫면 아래로 표면이 있는지 본다. 지면이든 절벽이든 파츠든 가리지 않는다.
-        /// 시작 박스가 이미 겹쳐 있으면 BoxCast 가 놓치므로 <see cref="ProbeLift"/> 만큼 띄워서 쏜다.
+        /// 월드 크기와 중심을 보존해 회전된 복합 충돌체를 탐사한다.
         /// </summary>
+        static void GetProbeBox(BoxCollider box, out Vector3 center, out Vector3 half)
+        {
+            center = box.transform.TransformPoint(box.center);
+            var scale = box.transform.lossyScale;
+            half = new Vector3(Mathf.Abs(box.size.x * scale.x) * 0.5f,
+                Mathf.Abs(box.size.y * scale.y) * 0.5f,
+                Mathf.Abs(box.size.z * scale.z) * 0.5f);
+            half.x = Mathf.Max(0.01f, half.x - ProbeShrink);
+            half.z = Mathf.Max(0.01f, half.z - ProbeShrink);
+        }
+
+        bool IsSelfHit(Collider collider) => collider == null
+            || collider.transform.IsChildOf(transform)
+            || (rider != null && collider.GetComponentInParent<PlayerRig>() == rider);
+
+        // Lift each box before casting down, so a box resting on a surface does
+        // not start overlapped. Separate boxes retain empty gaps in the hull.
         bool ProbeGround(out RaycastHit ground)
         {
             ground = default;
             if (platform == null || platformAnchor == null) return false;
 
-            var bottom = platformAnchor.position.y - platform.size.y * 0.5f;
-            var origin = new Vector3(platformAnchor.position.x, bottom + ProbeLift, platformAnchor.position.z);
-            var half = new Vector3(Mathf.Max(0.05f, platform.size.x * 0.5f - ProbeShrink),
-                                   0.02f,
-                                   Mathf.Max(0.05f, platform.size.z * 0.5f - ProbeShrink));
-
-            var count = Physics.BoxCastNonAlloc(origin, half, Vector3.down, ProbeHits, Quaternion.identity,
-                                                ProbeLift + ProbeReach, SurfaceMask,
-                                                QueryTriggerInteraction.Ignore);
-
             var found = false;
-            for (var i = 0; i < count; i++)
+            int boxes = hullColliders.Length == 0 ? 1 : hullColliders.Length;
+            for (int b = 0; b < boxes; b++)
             {
-                var hit = ProbeHits[i];
-                if (hit.collider == null) continue;
-                if (hit.collider.transform.IsChildOf(transform)) continue;   // 자기 플랫폼
-                if (hit.normal.y < MinGroundNormalY) continue;               // 벽은 바닥이 아니다
-
-                if (!found || hit.distance < ground.distance)
+                var box = hullColliders.Length == 0 ? platform : hullColliders[b];
+                if (box == null || !box.enabled) continue;
+                GetProbeBox(box, out var center, out var half);
+                var count = Physics.BoxCastNonAlloc(center + Vector3.up * ProbeLift,
+                    half, Vector3.down, ProbeHits, box.transform.rotation,
+                    ProbeLift + ProbeReach, SurfaceMask, QueryTriggerInteraction.Ignore);
+                for (var i = 0; i < count; i++)
                 {
-                    ground = hit;
-                    found = true;
+                    var hit = ProbeHits[i];
+                    if (IsSelfHit(hit.collider) || hit.normal.y < MinGroundNormalY) continue;
+                    if (!found || hit.distance < ground.distance)
+                    {
+                        ground = hit;
+                        found = true;
+                    }
                 }
             }
-
             return found;
         }
 

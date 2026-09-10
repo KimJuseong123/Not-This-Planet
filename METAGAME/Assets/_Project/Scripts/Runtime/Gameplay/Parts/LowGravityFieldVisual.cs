@@ -20,7 +20,11 @@ namespace Metagame.Gameplay.Parts
             if (beam != null) return;
             field = owner;
             var shader = Resources.Load<Shader>("TractorFieldBeam");
-            if (shader == null) return;
+            if (shader == null)
+            {
+                Debug.LogError("[LowGravityFieldVisual] TractorFieldBeam shader resource is missing.", this);
+                return;
+            }
             material = new Material(shader) { name = "Tractor Field Cyan Glow" };
             var go = new GameObject("Tractor Field Beam");
             beam = go.transform;
@@ -34,11 +38,13 @@ namespace Metagame.Gameplay.Parts
             beamRenderer.enabled = false;
         }
 
-        void LateUpdate()
+        void LateUpdate() => TickVisual(Time.deltaTime);
+
+        public void TickVisual(float deltaTime)
         {
             if (field == null || beam == null) return;
             visibility = Mathf.MoveTowards(visibility,
-                field.isActiveAndEnabled && field.IsActive ? 1f : 0f, Time.deltaTime * 4f);
+                field.isActiveAndEnabled && field.IsActive ? 1f : 0f, Mathf.Max(0f, deltaTime) * 4f);
             beamRenderer.enabled = visibility > 0f;
             material.SetFloat(VisibilityId, visibility);
             // Gameplay uses world down even when the ship rolls. Cancel root scale too.
