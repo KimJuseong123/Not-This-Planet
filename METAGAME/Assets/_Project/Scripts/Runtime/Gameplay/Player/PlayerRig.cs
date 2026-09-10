@@ -2415,11 +2415,20 @@ namespace Metagame.Gameplay
 
             bool wasHolding = RescueHolding;
 
+            // **로그에 쓸 값을 미리 잡아 둔다** (S15P21B202-390). 홀드가 끝나면
+            // 인터랙터가 Idle 로 돌아가고 포커스가 **다른 기절자**로 옮겨갈 수 있다 —
+            // 그러면 "완료 · 대상=X · 진행=0.75" 처럼 **방금 일으킨 사람이 아닌** 쪽을
+            // 보고한다. 2026-09-10 QA 로그에 실제로 그렇게 찍혔고, 기본 닉네임이 모두
+            // `비행사` 라 사람 눈으로는 구별도 되지 않았다. -383 과 같은 계열이다.
+            string heldName = wasHolding ? RescueTargetName() : null;
+            float heldProgress = wasHolding ? RescueProgress01 : 0f;
+
             if (!input.RescueHeld)
             {
                 if (wasHolding)
                 {
-                    LogRescue("중단", "손을 뗐다 · 진행분은 남는다");
+                    LogHeldRescue("중단", heldName, heldProgress,
+                                  "손을 뗐다 · 진행분은 남는다");
                     RescueInteractor.Cancel();
                 }
                 waitingForServerRescue = false;
@@ -2450,7 +2459,8 @@ namespace Metagame.Gameplay
             // OnCompleted 를 부르고 Idle 로 돌아가는 것이 완료의 신호다.
             if (wasHolding)
             {
-                LogRescue("완료", "일어났다");
+                LogHeldRescue("완료", heldName, heldProgress, "일어났다");
+                waitingForServerRescue = false;
                 return;
             }
 
@@ -2484,6 +2494,17 @@ namespace Metagame.Gameplay
         /// <c>-361</c> 과 같은 계열을 만들지 않으려면 <b>무엇이 왜 안 됐는지</b>가
         /// 남아야 한다.</para>
         /// </summary>
+        /// <summary>
+        /// <b>붙들고 있던</b> 대상으로 남긴다 (S15P21B202-390). 홀드가 끝난 뒤에는
+        /// <see cref="RescueCandidate"/> 가 이미 다른 사람을 가리킬 수 있으므로,
+        /// 완료·중단은 이쪽을 쓴다.
+        /// </summary>
+        static void LogHeldRescue(string what, string who, float progress, string detail)
+        {
+            Debug.Log($"[SpaceFlop][구조] {what} · 대상={who ?? "모름"} · {detail}"
+                      + $" · 채운진행={progress:0.00}");
+        }
+
         void LogRescue(string what, string detail)
         {
             Debug.Log($"[SpaceFlop][구조] {what} · 대상={RescueTargetName()} · {detail}"
