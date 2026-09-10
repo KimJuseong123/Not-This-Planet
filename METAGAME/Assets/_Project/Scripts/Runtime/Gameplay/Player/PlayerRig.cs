@@ -2642,7 +2642,7 @@ namespace Metagame.Gameplay
         /// </summary>
         static void LogHeldRescue(string what, string who, float progress, string detail)
         {
-            Debug.Log($"[SpaceFlop][구조] {what} · 대상={who ?? "모름"} · {detail}"
+            Debug.Log($"[NotThisPlanet][구조] {what} · 대상={who ?? "모름"} · {detail}"
                       + $" · 채운진행={progress:0.00}");
         }
 
