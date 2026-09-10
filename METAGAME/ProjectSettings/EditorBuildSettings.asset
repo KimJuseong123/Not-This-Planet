@@ -11,4 +11,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Main.unity
     guid: 34cccf1ffdfdf8e45bae5f6b50bf8765
+  - enabled: 1
+    path: Assets/Scenes/Stage1_Astra.unity
+    guid: 84f5601a7badca045af1f75bdd5b85c5
   m_configObjects: {}

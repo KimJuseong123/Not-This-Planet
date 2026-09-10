@@ -23,6 +23,21 @@ Inspector의 **인게임 BGM** 영역에서 다음 직렬화 필드를 조정할
 
 ## 검증 (2026-09-11)
 
+### Stage1_Astra 연결
+
+- `S15P21B202-426-sound-bgm`의 `99ba39b`까지 428 브랜치에 병합했다.
+- `Lobby`의 솔로 및 Mirror 목적지는 `Stage1_Astra`이며 빌드 목록에도 포함한다.
+- `Stage1_Astra`의 `SpaceBootstrap.audioManager`는 `Stage1AudioManager.asset`를
+  직접 참조한다. Main과 같은 BGM·효과음 설정을 사용한다.
+- 저장된 화면·조작 설정, 음악·효과음·전체 음량, Esc 메뉴 및 HUD는 공용
+  `SpaceBootstrap`과 `GameSettingsRuntime` 경로를 그대로 사용한다.
+- Astra의 수제 조명은 유지한다. 모래폭풍 시각 효과는 조명 교체 여부와 분리해
+  기존 폭풍 물리와 동일한 프로필·맵 범위·네트워크 시계로 초기화한다.
+- 병합 후 Bootstrap 및 참조 런타임 어셈블리 컴파일: 오류 0, 경고 53.
+  씬 오디오 자산과 BGM GUID 연결을 확인했다. 전체 씬 실행·청취 검증은 미수행이다.
+
+### BGM 구현 당시 검증
+
 - Gameplay, UI, Bootstrap, Editor 코드를 Unity 참조 어셈블리로 컴파일: 오류 0.
 - 격리된 Unity 6000.5.4f1 Play Mode에서 실제 `GameMusicPlayer.cs`와 4초 테스트
   클립으로 페이드 인·아웃, 음악 음소거·복원, 5초 대기, 재시작 페이드 및 비활성화

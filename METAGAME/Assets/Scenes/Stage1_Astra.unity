@@ -87968,7 +87968,7 @@ MonoBehaviour:
   suit: {r: 0.93, g: 0.94, b: 0.96, a: 1}
   accent: {r: 0.96, g: 0.5, b: 0.16, a: 1}
   atmosphereProfile: {fileID: 11400000, guid: d271b19624ff44b1a8d05e2342e6691a, type: 2}
-  audioManager: {fileID: 0}
+  audioManager: {fileID: 11400000, guid: 30172e6644094138ac8b5ca0d778cf70, type: 2}
 --- !u!4 &1614633189
 Transform:
   m_ObjectHideFlags: 0

@@ -109,7 +109,8 @@ namespace Metagame.Bootstrap
                 DustStormMatchSeed.PrepareForMatch();
                 atmosphereProfile.Validate();
                 dustStormHazard = sys.AddComponent<Stage1DustStormHazard>();
-                if (useAtmosphere)
+                // 수제 맵의 조명을 보존해도 플레이어에게 영향을 주는 폭풍은 보여야 한다.
+                if (!Application.isBatchMode && !Metagame.Network.MatchRole.DedicatedServer)
                     dustStormVisual = sys.AddComponent<AtmosphereDustStorm>();
             }
 
@@ -167,7 +168,12 @@ namespace Metagame.Bootstrap
                 var mapBounds = DustStormBounds.FindOrFallback();
                 dustStormHazard.Configure(atmosphereProfile, mapBounds);
                 if (dustStormVisual != null)
+                {
                     dustStormVisual.BindMapBounds(mapBounds);
+                    // 일반 맵은 아래 Atmosphere.Apply가 초기화한다. 수제 맵은 직접 연결한다.
+                    if (!useAtmosphere)
+                        dustStormVisual.Apply(atmosphereProfile);
+                }
 
                 var clockBridge = sys.AddComponent<DustStormClockBridge>();
                 clockBridge.Configure(dustStormVisual, dustStormHazard);
