@@ -65,6 +65,40 @@ namespace Metagame.Network
         }
 
         /// <summary>
+        /// 이미 쓰고 있던 자리를 그대로 물려받는다 (S15P21B202-396).
+        ///
+        /// <para><b>이어받을 때만 쓴다.</b> 색은 방장이 배정해 <c>NetPlayer.teamSlot</c>
+        /// SyncVar 로 내려가고, 참가자는 <b>받기만</b> 한다 — 자기 기계에는 배정 기록이
+        /// 없다. 그래서 이어받은 새 방장이 그냥 다시 배정하면 접속 순서대로 색이 다시
+        /// 정해져 <b>사람마다 색이 바뀐다.</b> "빨강이 누구였는지" 를 기억하고 플레이하던
+        /// 사람이 헷갈리고, 그것은 고정 4색을 넣은 S15P21B202-375 의 목적을 되돌린다.</para>
+        ///
+        /// <para><b>남이 쓰는 자리는 덮지 않는다.</b> 같은 자리를 두 사람이 가지면 색이
+        /// 겹쳐 구분이 안 된다 — 그때는 적지 않고 <see cref="Claim"/> 이 빈 자리를
+        /// 고르게 둔다. 정상 흐름에서는 오지 않는 길이다(방장이 이미 유일하게 배정했다).</para>
+        /// </summary>
+        public static void Remember(long userId, int slot)
+        {
+            if (userId == 0) return;
+
+            int wanted = Wrap(slot);
+
+            foreach (var pair in Assigned)
+            {
+                if (pair.Value != wanted) continue;
+
+                // 이미 나에게 배정된 자리면 할 일이 없다.
+                if (pair.Key == userId) return;
+
+                Debug.LogWarning($"[TeamSlots] {wanted}번 자리를 이미 userId={pair.Key} 가 쓴다 "
+                                 + $"— userId={userId} 는 새로 배정한다");
+                return;
+            }
+
+            Assigned[userId] = wanted;
+        }
+
+        /// <summary>
         /// 배정을 전부 버린다. 새 판이 시작될 때 서버가 부른다.
         ///
         /// <para>없으면 지난 판의 배정이 남아 새 판에서 자리가 이어진다 — 두 명만 남았는데

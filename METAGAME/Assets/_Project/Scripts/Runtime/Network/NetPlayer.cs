@@ -988,6 +988,13 @@ namespace Metagame.Network
                 RejoinMemory.Remember(userId, body.FootPosition, body.PlanarForward);
             }
 
+            // 쓰던 색도 물려받는다 (S15P21B202-396). <b>내 것까지 적는다</b> — 자리 기록과
+            // 달리 내 색도 방장이 정해 준 것이라, 안 적으면 내 색이 바뀐다.
+            if (HostMigration.Taking)
+            {
+                TeamSlots.Remember(userId, teamSlot);
+            }
+
             ClientPlayers.Remove(this);
             PerfLog.Players = ClientPlayers.Count;
             RemoveBody();
