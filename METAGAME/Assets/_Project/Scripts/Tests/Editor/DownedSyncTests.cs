@@ -125,17 +125,56 @@ namespace Metagame.Gameplay.Tests
         /// <b>이미 기절한 채로 접속한 사람도 기절해 보여야 한다.</b> 훅은 값이 바뀔 때만
         /// 불리므로 몸을 만드는 자리에서도 한 번 적용해야 한다 — <c>ApplyRiding</c> 이
         /// 같은 이유로 그렇게 되어 있다("탄 채로 접속한 사람이 계속 보인다").
+        ///
+        /// <para><b>자리별로 본다.</b> 처음에는 파일 전체에서 두 호출의 개수가 같은지만
+        /// 봤는데, 그러면 <c>riding</c> 쪽에 정당한 호출이 하나 늘기만 해도 기절과
+        /// 무관하게 실패한다(<c>!287</c> AI 리뷰 지적). 몸을 세우는 메서드 안에서
+        /// 짝이 맞는지 보고, 전체는 "적지 않다" 로만 확인한다.</para>
         /// </summary>
         [Test]
         public void LateJoinersSeeSomeoneAlreadyDowned()
         {
             var source = TestSource.Read("Runtime/Network/NetPlayer.cs");
-            int applied = TestSource.Count(source, "ApplyDowned(downed);");
 
-            Assert.That(applied, Is.GreaterThanOrEqualTo(2),
-                "몸을 만드는 자리마다 적용해야 한다 — 훅만으로는 접속 시점의 상태를 놓친다");
-            Assert.That(TestSource.Count(source, "ApplyRiding(riding);"), Is.EqualTo(applied),
-                "riding 과 같은 자리에서 적용돼야 한다 — 한쪽만 늘어나면 다음에 어긋난다");
+            // 몸을 세우는 자리는 두 메서드다 — 서버가 세우거나 넘겨받는 쪽,
+            // 그리고 남의 몸을 그리는 쪽.
+            foreach (var maker in new[] { "bool BuildServerBody()", "void BuildRemoteBody()" })
+            {
+                var body = TestSource.Method(source, maker);
+
+                Assert.That(TestSource.Count(body, "ApplyDowned(downed);"),
+                    Is.EqualTo(TestSource.Count(body, "ApplyRiding(riding);")),
+                    $"{maker} 안에서 riding 은 적용하고 downed 는 빼면, 이미 기절한 채로 "
+                    + "접속한 사람이 남의 화면에 멀쩡해 보인다");
+            }
+
+            // 자리가 새로 생기는 것까지 잡는다. 동수가 아니라 "적지 않다" 인 이유는
+            // 위 문단과 같다.
+            Assert.That(TestSource.Count(source, "ApplyDowned(downed);"),
+                Is.GreaterThanOrEqualTo(TestSource.Count(source, "ApplyRiding(riding);")),
+                "몸을 세우는 자리가 새로 생겼는데 riding 만 적용했다");
+        }
+
+        /// <summary>
+        /// <b>서버 루프는 서버에서만 돈다.</b> <c>downed = body.Downed;</c> 앞에 따로
+        /// 가드를 두지 않는 근거가 이것이다 — <c>[ServerCallback]</c> 이 메서드 단위로
+        /// 막는다. <c>riding</c> 도 같은 자리에서 같은 방식으로 실린다.
+        ///
+        /// <para><c>!287</c> AI 리뷰가 "대입에 권한 가드가 diff 범위 안에서 보이지
+        /// 않는다" 고 물었다. 실제로는 있는데 diff 밖이었다. 이 단정이 그 근거를
+        /// 코드 안에 남긴다 — 어트리뷰트가 사라지면 클라이언트가 자기 <c>downed</c> 를
+        /// 덮어써서 <b>본인 화면에서만 기절이 풀린 것처럼</b> 남는다.</para>
+        /// </summary>
+        [Test]
+        public void TheServerLoopIsServerOnly()
+        {
+            var source = TestSource.Read("Runtime/Network/NetPlayer.cs");
+
+            int at = source.IndexOf("void FixedUpdate()", System.StringComparison.Ordinal);
+            Assert.That(at, Is.GreaterThan(0), "서버 루프를 찾지 못했다");
+
+            Assert.That(source.Substring(0, at).TrimEnd(), Does.EndWith("[ServerCallback]"),
+                "[ServerCallback] 이 없으면 클라이언트도 이 루프를 돌려 SyncVar 를 덮어쓴다");
         }
     }
 }
