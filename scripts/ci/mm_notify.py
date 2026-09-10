@@ -97,12 +97,26 @@ FAIL_MARKER = "<!-- ci-failed:metagame -->"
 MAX_REASONS = 3          # 카드에 싣는 이유 개수
 MAX_COMMENT_REASONS = 20  # MR 코멘트 상한 — 위반이 수십 건이어도 코멘트가 비대해지지 않게
 MAX_REASON_CHARS = 200
+
+# 잡 로그에서 "실패 이유" 로 뽑을 줄의 머리표 (S15P21B202-416).
+#
+# **예전에는 `❌` 한 글자가 코드에 박혀 있었다.** 그런데 `unity-compile`
+# (`unity_report.py`)은 판정을 `🔴` 로 적는다 — 그래서 **가장 자주 실패하는 잡의
+# 이유가 구조적으로 영원히 안 나왔다.** 2026-09-10 하루에 세 번 "로그에서 이유를
+# 찾지 못함" 카드가 나갔고, 세 번 다 이유가 로그에 있었다.
+#
+# 다른 잡(`mr-lint`·`repo-hygiene`)이 `❌` 를 쓰는 덕에 오래 안 보였다. 목록으로
+# 두어 다음에 표시가 늘어도 여기 한 줄만 고치면 되게 한다.
+REASON_MARKERS = ("❌", "🔴")
 MAX_JOB_PAGES = 5        # 잡 목록 조회 상한 — 무한 순회 방지(잡 13개 남짓이라 1페이지로 끝난다)
 
 
 def clean_reason(text: str) -> str:
     """로그 한 줄을 표·코멘트에 넣어도 안전하게 — 표 구분자와 태그를 지우고 길이를 자른다."""
-    t = " ".join(text.split()).replace("|", "／").replace("<", "&lt;").replace(">", "&gt;")
+    # 마크다운 굵게는 지운다 (S15P21B202-416). `unity-compile` 의 판정 줄이
+    # `🔴 **이 MR 에서 새로 실패하는 테스트 1개**` 라, 그대로 실으면 카드에 별표가 남는다.
+    t = " ".join(text.split()).replace("**", "")
+    t = t.replace("|", "／").replace("<", "&lt;").replace(">", "&gt;")
     return t[:MAX_REASON_CHARS] + ("…" if len(t) > MAX_REASON_CHARS else "")
 
 
@@ -119,11 +133,36 @@ def failure_reasons(gl: GitLab, jobs: list[dict]) -> list[tuple[str, str]]:
         # 잡 로그는 JSON 이 아니라 text/plain 이며, 공용 http() 는 파싱 실패 시 원문 문자열을 돌려준다(ci_common.http)
         if st != 200 or not isinstance(trace, str):
             continue
-        for line in trace.splitlines():
-            if "❌" in line:
-                reason = clean_reason(line.split("❌", 1)[1])
-                if reason and (name, reason) not in out:
-                    out.append((name, reason))
+        for reason in reasons_from_trace(trace):
+            if (name, reason) not in out:
+                out.append((name, reason))
+    return out
+
+
+def reasons_from_trace(trace: str) -> list[str]:
+    """로그에서 이유 줄만 골라 준다 (S15P21B202-416).
+
+    순수 함수로 떼어 둔다 — 네트워크 없이 시험할 수 있어야 한다(`-395` 의
+    `human_checks_content` 와 같은 이유). 마커는 `REASON_MARKERS` 가 정한다.
+
+    같은 줄에 마커가 여럿이면 **처음 나온 것**을 기준으로 자른다. 순서대로 찾아
+    가장 앞의 것을 쓴다 — 뒤의 마커로 자르면 앞부분이 이유에서 사라진다.
+    """
+    out: list[str] = []
+    for line in (trace or "").splitlines():
+        cut = -1
+        marker = ""
+        for candidate in REASON_MARKERS:
+            at = line.find(candidate)
+            if at >= 0 and (cut < 0 or at < cut):
+                cut, marker = at, candidate
+
+        if cut < 0:
+            continue
+
+        reason = clean_reason(line[cut + len(marker):])
+        if reason and reason not in out:
+            out.append(reason)
     return out
 
 
@@ -174,7 +213,7 @@ def ci_failed(gl: GitLab) -> int:
         if retried:
             # 이미 지나간 실패다. 말하지 않으면 사람이 고쳐진 것을 다시 쫓는다 (-361).
             parts += " — **재시도 뒤 통과**"
-        hint = {"mr-lint": "제목/본문/Jira 규칙", "repo-hygiene": "금지 파일·.meta·LFS·씬 선언", "unity-compile": "컴파일 오류"}
+        hint = {"mr-lint": "제목/본문/Jira 규칙", "repo-hygiene": "금지 파일·.meta·LFS·씬 선언", "unity-compile": "컴파일 · EditMode 테스트"}
         hints = ", ".join(sorted({hint.get(j["name"], j["name"]) for j in failed}))
         if retried:
             # 덮어쓰지 않는다 — 잡별 분류("제목/본문/Jira 규칙" 등)가 카드의 본론이다.
