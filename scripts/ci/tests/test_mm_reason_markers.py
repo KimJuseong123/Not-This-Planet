@@ -87,14 +87,21 @@ print("  너무 길면 자른다 ✅")
 
 
 # ── '확인할 것' 이 컴파일이라고 단정하지 않는다 ──────────────────────────
-# unity-compile 은 컴파일 + EditMode 테스트를 돌린다. 오늘 세 건은 전부 테스트
+# unity-compile 은 컴파일 + EditMode 테스트를 돌린다. 2026-09-10 세 건은 전부 테스트
 # 실패였고 컴파일은 통과했다 — 카드가 컴파일이라고 말하면 엉뚱한 로그를 뒤진다.
-src = open(os.path.join(os.path.dirname(HERE), "mm_notify.py"), encoding="utf-8").read()
-assert '"unity-compile": "컴파일 오류"' not in src, \
-    "unity-compile 은 테스트도 돌린다 — 컴파일이라고 단정하면 안 된다"
-assert "테스트" in src.split('"unity-compile":', 1)[1][:40], \
-    "확인할 것에 테스트가 들어가야 한다"
+#
+# **값으로 단정한다.** 첫 판은 mm_notify.py 소스를 훑었는데, 그러면 동작이 아니라 코드
+# 표기에 묶여 사전 포맷만 바꿔도 깨진다(`!322` AI 리뷰). 그래서 JOB_HINTS 를 모듈
+# 상수로 빼고 여기서 값을 본다.
+unity_hint = N.JOB_HINTS["unity-compile"]
+assert "테스트" in unity_hint, f"확인할 것에 테스트가 들어가야 한다: {unity_hint!r}"
+assert unity_hint != "컴파일 오류", "unity-compile 은 테스트도 돌린다"
 print("  확인할 것이 컴파일이라고 단정하지 않는다 ✅")
+
+# 다른 잡의 문구가 사라지면 카드가 잡 이름만 말한다.
+for job in ("mr-lint", "repo-hygiene"):
+    assert N.JOB_HINTS.get(job), f"{job} 의 안내 문구가 없다"
+print("  다른 잡의 안내 문구도 남아 있다 ✅")
 
 
 print("\ntest_mm_reason_markers: 통과")

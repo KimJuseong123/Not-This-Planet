@@ -108,6 +108,19 @@ MAX_REASON_CHARS = 200
 # 다른 잡(`mr-lint`·`repo-hygiene`)이 `❌` 를 쓰는 덕에 오래 안 보였다. 목록으로
 # 두어 다음에 표시가 늘어도 여기 한 줄만 고치면 되게 한다.
 REASON_MARKERS = ("❌", "🔴")
+
+# 잡 이름 → "확인할 것" 문구 (S15P21B202-416).
+#
+# **모듈 상수여야 한다.** 함수 안의 지역 사전이면 테스트가 소스 문자열을 훑어야 하고,
+# 그러면 동작이 아니라 코드 표기에 묶인다(`!322` AI 리뷰). 값으로 단정할 수 있게 둔다.
+#
+# `unity-compile` 은 **컴파일과 EditMode 테스트를 둘 다** 돌린다. 예전에는 "컴파일 오류"
+# 라고만 적어서, 테스트로 실패한 카드가 사람을 컴파일 로그로 보냈다.
+JOB_HINTS = {
+    "mr-lint": "제목/본문/Jira 규칙",
+    "repo-hygiene": "금지 파일·.meta·LFS·씬 선언",
+    "unity-compile": "컴파일 · EditMode 테스트",
+}
 MAX_JOB_PAGES = 5        # 잡 목록 조회 상한 — 무한 순회 방지(잡 13개 남짓이라 1페이지로 끝난다)
 
 
@@ -213,8 +226,7 @@ def ci_failed(gl: GitLab) -> int:
         if retried:
             # 이미 지나간 실패다. 말하지 않으면 사람이 고쳐진 것을 다시 쫓는다 (-361).
             parts += " — **재시도 뒤 통과**"
-        hint = {"mr-lint": "제목/본문/Jira 규칙", "repo-hygiene": "금지 파일·.meta·LFS·씬 선언", "unity-compile": "컴파일 · EditMode 테스트"}
-        hints = ", ".join(sorted({hint.get(j["name"], j["name"]) for j in failed}))
+        hints = ", ".join(sorted({JOB_HINTS.get(j["name"], j["name"]) for j in failed}))
         if retried:
             # 덮어쓰지 않는다 — 잡별 분류("제목/본문/Jira 규칙" 등)가 카드의 본론이다.
             hints = f"{hints} · 이미 통과했으니 확인만 하면 된다"
