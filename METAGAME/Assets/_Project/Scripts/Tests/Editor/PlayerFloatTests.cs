@@ -93,6 +93,42 @@ namespace Metagame.Gameplay.Tests
         // --- 상태 전환 -------------------------------------------------------
 
         [Test]
+        public void FieldVisual_TogglesAndStaysWorldDownWhenCraftRolls()
+        {
+            var field = MakeField(new Vector3(0f, 8f, 0f));
+            var effect = field.gameObject.AddComponent<LowGravityFieldVisual>();
+            effect.Initialize(field);
+            effect.TickVisual(0.3f);
+            var renderer = field.GetComponentInChildren<MeshRenderer>();
+            Assert.IsNotNull(renderer);
+            Assert.IsTrue(renderer.enabled);
+            Assert.Greater(renderer.sharedMaterial.GetFloat("_Visibility"), 0.9f);
+            field.transform.rotation = Quaternion.Euler(85f, 60f, 20f);
+            effect.TickVisual(0.1f);
+            Assert.Less(Vector3.Distance(renderer.transform.position, field.Origin.position), 0.001f);
+            Assert.Greater(Vector3.Dot(renderer.transform.up, Vector3.up), 0.999f);
+            field.SetActive(false);
+            effect.TickVisual(0.3f);
+            Assert.IsFalse(renderer.enabled);
+            field.SetActive(true);
+            effect.TickVisual(0.3f);
+            Assert.IsTrue(renderer.enabled);
+        }
+
+        [Test]
+        public void Player_IsLiftedWithoutJump_ThenHoldsHeight()
+        {
+            MakeGround();
+            MakeField(new Vector3(0f, 8f, 0f));
+            var player = MakePlayer(Vector3.zero);
+            float start = player.Doll.Hips.position.y;
+            Run(player, default, 2f);
+            Assert.Greater(player.Doll.Hips.position.y, start + 1f);
+            Run(player, default, 1f);
+            Assert.Less(Mathf.Abs(player.Doll.Hips.linearVelocity.y), 0.4f);
+        }
+
+        [Test]
         public void Player_EntersFloating_InsideTheField()
         {
             MakeGround();
@@ -209,13 +245,32 @@ namespace Metagame.Gameplay.Tests
 
         /// <summary>영역을 벗어나면 일반 중력이 즉시 복구된다(기획 §14.3).</summary>
         [Test]
+        public void Player_RegainsGravityWhileStillRisingWhenFieldTurnsOff()
+        {
+            MakeGround();
+            var field = MakeField(new Vector3(0f, 9f, 0f));
+            var player = MakePlayer(new Vector3(0f, 4f, 0f));
+            Run(player, default, 0.4f);
+            float risingSpeed = player.Doll.Hips.linearVelocity.y;
+            Assert.Greater(risingSpeed, 0f);
+            field.SetActive(false);
+            Run(player, default, 0.2f);
+            Assert.IsFalse(player.Floating);
+            foreach (var body in player.Doll.Bodies)
+                Assert.IsTrue(body.useGravity);
+            Assert.Less(player.Doll.Hips.linearVelocity.y, risingSpeed,
+                "상승 관성은 남아도 장을 끄면 중력으로 감속해야 한다.");
+        }
+
+        [Test]
         public void Player_FallsAfterFieldTurnsOff()
         {
             MakeGround();
             var field = MakeField(new Vector3(0f, 9f, 0f));
             var player = MakePlayer(new Vector3(0f, 4f, 0f));
 
-            Run(player, default, 0.4f);
+            // Let the new entry lift settle before testing a fall from rest.
+            Run(player, default, 3f);
             Assert.IsTrue(player.Floating, "먼저 떠 있어야 한다.");
 
             field.SetActive(false);

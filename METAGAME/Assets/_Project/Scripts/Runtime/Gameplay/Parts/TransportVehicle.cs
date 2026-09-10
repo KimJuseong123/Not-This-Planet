@@ -169,10 +169,60 @@ namespace Metagame.Gameplay.Parts
 
         Rigidbody body;
         BoxCollider platform;
+        BoxCollider[] hullColliders = Array.Empty<BoxCollider>();
+
+        /// <summary>Preserve authored compound boxes in the visual frame before the beam root rotates.</summary>
+        internal void ConfigureHull(System.Collections.Generic.IReadOnlyList<BoxCollider> sources)
+        {
+            if (sources.Count == 0 || hullColliders.Length != 0) return;
+            if (visual == null)
+            {
+                visual = new GameObject("Visual").transform;
+                visual.SetParent(transform, false);
+            }
+
+            hullColliders = new BoxCollider[sources.Count];
+            for (int i = 0; i < sources.Count; i++)
+            {
+                var source = sources[i];
+                var go = new GameObject("VehicleHull_" + i) { layer = GameLayers.Prop };
+                go.transform.SetPositionAndRotation(source.transform.position, source.transform.rotation);
+                go.transform.localScale = source.transform.lossyScale;
+                go.transform.SetParent(visual, true);
+                var box = go.AddComponent<BoxCollider>();
+                box.center = source.center;
+                box.size = source.size;
+                box.sharedMaterial = source.sharedMaterial;
+                box.contactOffset = source.contactOffset;
+                hullColliders[i] = box;
+            }
+            platform.enabled = false;
+        }
         Transform platformAnchor;
         Transform seat;
         Transform visual;
         Transform cockpit;
+        Material cockpitConsoleMaterial;
+        Material cockpitScreenMaterial;
+
+        public Transform CockpitEye
+        {
+            get { EnsureCockpit(); return cockpit; }
+        }
+
+        void OnDestroy()
+        {
+            if (cockpitConsoleMaterial != null)
+            {
+                if (Application.isPlaying) Destroy(cockpitConsoleMaterial);
+                else DestroyImmediate(cockpitConsoleMaterial);
+            }
+            if (cockpitScreenMaterial != null)
+            {
+                if (Application.isPlaying) Destroy(cockpitScreenMaterial);
+                else DestroyImmediate(cockpitScreenMaterial);
+            }
+        }
         TractorBeam beam;
         LowGravityField field;
         bool fieldPhysicsAuthority = true;
@@ -517,6 +567,7 @@ namespace Metagame.Gameplay.Parts
             platform.center = Vector3.zero;
             platform.size = new Vector3(2.4f, 0.34f, 2.2f);
             platform.isTrigger = false;
+            platform.enabled = hullColliders.Length == 0;
 
             if (seat == null)
             {
@@ -695,23 +746,11 @@ namespace Metagame.Gameplay.Parts
             verticalInput = 0f;
             dismountElapsed = 0f;
 
-            // 기획 §14.2 — "저중력장을 켠 채 하차해도 기체가 마지막 위치와 높이에서
-            // 자동 호버한다". 그래야 §14.5 의 "조종사가 저중력장을 유지해 아래의 용접
-            // 담당자를 띄운다" 가 성립한다. 예전에는 하차하면 무조건 중력을 켜서
-            // 기체가 떨어졌고, 내리는 순간 저중력장이 사라졌다.
-            if (Field != null && Field.IsActive)
-            {
-                Unmanned = true;
-                returning = false;
-                grounded = false;
-
-                // 마지막 높이를 그대로 지킨다. HoverRootY 로 되돌리면 "마지막 높이" 가 아니다.
-                targetAltitude = Mathf.Clamp(body.position.y, GroundY, MaxAltitude);
-
-                CompleteDismount();
-                return;
-            }
-
+            // Current controls: exit immediately, switch off lift, and let the empty
+            // craft settle against real collision surfaces under gravity.
+            Field.SetActive(false);
+            Unmanned = false;
+            CompleteDismount();
             returning = true;
             grounded = false;
 
@@ -777,6 +816,8 @@ namespace Metagame.Gameplay.Parts
             facingDirection = worldDirection.normalized;
             if (visual != null)
                 visual.rotation = Quaternion.LookRotation(facingDirection, Vector3.up);
+            if (cockpit != null)
+                cockpit.rotation = Quaternion.LookRotation(facingDirection, Vector3.up);
         }
 
         /// <summary>
@@ -832,7 +873,7 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         public void Tick(float deltaTime)
         {
-            var idle = rider == null && !Unmanned;
+            var idle = rider == null && !Unmanned && !returning;
 
             // <b>굴림과 자세 복구는 탑승자가 없어도 끝까지 진행한다.</b>
             //
@@ -1197,7 +1238,7 @@ namespace Metagame.Gameplay.Parts
         {
             if (cockpit != null) return;
 
-            var parent = visual != null ? visual : transform;
+            var parent = transform;
             var holder = new GameObject("VehicleCockpit");
             cockpit = holder.transform;
             cockpit.SetParent(parent, false);
@@ -1217,6 +1258,17 @@ namespace Metagame.Gameplay.Parts
                 eye + forward * ScreenForward - Vector3.up * ScreenDrop,
                 ScreenSize, ScreenColor, 0.1f, cockpit));
             screen.transform.rotation = look * Quaternion.Euler(-ScreenTiltDegrees, 0f, 0f);
+
+            var shader = Resources.Load<Shader>("CockpitNoFog");
+            if (shader != null)
+            {
+                cockpitConsoleMaterial = new Material(shader) { name = "Cockpit Console No Fog" };
+                cockpitConsoleMaterial.SetColor("_BaseColor", ConsoleColor);
+                cockpitScreenMaterial = new Material(shader) { name = "Cockpit Screen No Fog" };
+                cockpitScreenMaterial.SetColor("_BaseColor", ScreenColor);
+                console.GetComponent<Renderer>().sharedMaterial = cockpitConsoleMaterial;
+                screen.GetComponent<Renderer>().sharedMaterial = cockpitScreenMaterial;
+            }
 
             cockpit.gameObject.SetActive(false);
         }
@@ -1261,25 +1313,29 @@ namespace Metagame.Gameplay.Parts
             var rise = desiredAltitude - body.position.y;
             if (rise <= 0f) return false;
 
-            var scale = platform.transform.lossyScale;
-            var halfExtents = new Vector3(Mathf.Abs(platform.size.x * scale.x) * 0.5f,
-                                          Mathf.Abs(platform.size.y * scale.y) * 0.5f,
-                                          Mathf.Abs(platform.size.z * scale.z) * 0.5f);
-            halfExtents.x = Mathf.Max(0.05f, halfExtents.x - ProbeShrink);
-            halfExtents.z = Mathf.Max(0.05f, halfExtents.z - ProbeShrink);
-            halfExtents.y = Mathf.Max(0.02f, halfExtents.y);
-
-            var count = Physics.BoxCastNonAlloc(platformAnchor.position, halfExtents, Vector3.up,
-                                                ProbeHits, Quaternion.identity, rise + VerticalClearance,
-                                                SurfaceMask, QueryTriggerInteraction.Ignore);
             var nearest = float.PositiveInfinity;
-            for (var i = 0; i < count; i++)
+            int boxes = hullColliders.Length == 0 ? 1 : hullColliders.Length;
+            for (int b = 0; b < boxes; b++)
             {
-                var hit = ProbeHits[i];
-                if (hit.collider == null || hit.collider.transform.IsChildOf(transform)) continue;
-                nearest = Mathf.Min(nearest, hit.distance);
+                var box = hullColliders.Length == 0 ? platform : hullColliders[b];
+                if (box == null || !box.enabled) continue;
+                GetProbeBox(box, out var center, out var half);
+                // Sweep only the leading top face. Sweeping the whole body from
+                // contact with the floor reports an initial overlap at distance 0
+                // and incorrectly blocks taking off again.
+                var capHeight = Mathf.Min(0.02f, half.y);
+                center += box.transform.up * (half.y - capHeight);
+                half.y = capHeight;
+                var count = Physics.BoxCastNonAlloc(center, half, Vector3.up,
+                    ProbeHits, box.transform.rotation, rise + VerticalClearance,
+                    SurfaceMask, QueryTriggerInteraction.Ignore);
+                for (var i = 0; i < count; i++)
+                {
+                    var hit = ProbeHits[i];
+                    if (IsSelfHit(hit.collider)) continue;
+                    nearest = Mathf.Min(nearest, hit.distance);
+                }
             }
-
             if (float.IsPositiveInfinity(nearest)) return false;
 
             allowedAltitude = body.position.y + Mathf.Max(0f, nearest - VerticalClearance);
@@ -1287,39 +1343,52 @@ namespace Metagame.Gameplay.Parts
         }
 
         /// <summary>
-        /// 플랫폼 아랫면 아래로 표면이 있는지 본다. 지면이든 절벽이든 파츠든 가리지 않는다.
-        /// 시작 박스가 이미 겹쳐 있으면 BoxCast 가 놓치므로 <see cref="ProbeLift"/> 만큼 띄워서 쏜다.
+        /// 월드 크기와 중심을 보존해 회전된 복합 충돌체를 탐사한다.
         /// </summary>
+        static void GetProbeBox(BoxCollider box, out Vector3 center, out Vector3 half)
+        {
+            center = box.transform.TransformPoint(box.center);
+            var scale = box.transform.lossyScale;
+            half = new Vector3(Mathf.Abs(box.size.x * scale.x) * 0.5f,
+                Mathf.Abs(box.size.y * scale.y) * 0.5f,
+                Mathf.Abs(box.size.z * scale.z) * 0.5f);
+            half.x = Mathf.Max(0.01f, half.x - ProbeShrink);
+            half.z = Mathf.Max(0.01f, half.z - ProbeShrink);
+        }
+
+        bool IsSelfHit(Collider collider) => collider == null
+            || collider.transform.IsChildOf(transform)
+            || (rider != null && collider.GetComponentInParent<PlayerRig>() == rider);
+
+        // Lift each box before casting down, so a box resting on a surface does
+        // not start overlapped. Separate boxes retain empty gaps in the hull.
         bool ProbeGround(out RaycastHit ground)
         {
             ground = default;
             if (platform == null || platformAnchor == null) return false;
 
-            var bottom = platformAnchor.position.y - platform.size.y * 0.5f;
-            var origin = new Vector3(platformAnchor.position.x, bottom + ProbeLift, platformAnchor.position.z);
-            var half = new Vector3(Mathf.Max(0.05f, platform.size.x * 0.5f - ProbeShrink),
-                                   0.02f,
-                                   Mathf.Max(0.05f, platform.size.z * 0.5f - ProbeShrink));
-
-            var count = Physics.BoxCastNonAlloc(origin, half, Vector3.down, ProbeHits, Quaternion.identity,
-                                                ProbeLift + ProbeReach, SurfaceMask,
-                                                QueryTriggerInteraction.Ignore);
-
             var found = false;
-            for (var i = 0; i < count; i++)
+            int boxes = hullColliders.Length == 0 ? 1 : hullColliders.Length;
+            for (int b = 0; b < boxes; b++)
             {
-                var hit = ProbeHits[i];
-                if (hit.collider == null) continue;
-                if (hit.collider.transform.IsChildOf(transform)) continue;   // 자기 플랫폼
-                if (hit.normal.y < MinGroundNormalY) continue;               // 벽은 바닥이 아니다
-
-                if (!found || hit.distance < ground.distance)
+                var box = hullColliders.Length == 0 ? platform : hullColliders[b];
+                if (box == null || !box.enabled) continue;
+                GetProbeBox(box, out var center, out var half);
+                var count = Physics.BoxCastNonAlloc(center + Vector3.up * ProbeLift,
+                    half, Vector3.down, ProbeHits, box.transform.rotation,
+                    ProbeLift + ProbeReach + box.contactOffset * 2f,
+                    SurfaceMask, QueryTriggerInteraction.Ignore);
+                for (var i = 0; i < count; i++)
                 {
-                    ground = hit;
-                    found = true;
+                    var hit = ProbeHits[i];
+                    if (IsSelfHit(hit.collider) || hit.normal.y < MinGroundNormalY) continue;
+                    if (!found || hit.distance < ground.distance)
+                    {
+                        ground = hit;
+                        found = true;
+                    }
                 }
             }
-
             return found;
         }
 

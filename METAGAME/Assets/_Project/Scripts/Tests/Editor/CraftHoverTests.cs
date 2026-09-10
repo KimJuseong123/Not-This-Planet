@@ -6,19 +6,7 @@ using UnityEngine.TestTools;
 
 namespace Metagame.Gameplay.Tests
 {
-    /// <summary>
-    /// 견인 조종 모듈의 무인 호버와 충돌 반응을 검증한다
-    /// (기획 S15P21B202-107 §14.1 · §14.2).
-    ///
-    /// 예전에는 하차하면 <c>body.useGravity = true</c> 로 기체가 <b>떨어졌다</b>.
-    /// 그러면 §14.2 의 여섯 항목이 모두 성립하지 않고, 무엇보다 §14.5 의
-    /// "조종사가 저중력장을 유지해 아래의 용접 담당자를 띄운다" 가 불가능하다 —
-    /// 조종사가 내리는 순간 장이 사라진다. 1인승 기체로 협동을 만드는 유일한 장치다.
-    ///
-    /// <c>LogAssert.ignoreFailingMessages</c> 를 검증 본문에서 켜는 이유는
-    /// <c>TransportAltitudeTests</c> 와 같다 — <c>PlayerRig.Create</c> 경로의
-    /// <c>Prim.Decor</c> 가 EditMode 에서 에러 로그를 남긴다.
-    /// </summary>
+    /// <summary>탑승 비행과 하차 후 무인 착륙을 검증한다 (2026-09-10 조작 변경).</summary>
     public sealed class CraftHoverTests
     {
         const float Step = 0.02f;
@@ -49,54 +37,23 @@ namespace Metagame.Gameplay.Tests
             LowGravityField.All.Clear();
         }
 
-        // --- 무인 호버 (기획 §14.2) -----------------------------------------
+        // --- 하차 후 착륙 (2026-09-10 요청) -----------------------------------------
 
-        /// <summary>
-        /// <b>이 이슈의 핵심이다.</b> 기획 §14.2 — "저중력장을 켠 채 하차해도 기체가
-        /// 마지막 위치와 높이에서 자동 호버한다".
-        /// </summary>
         [Test]
-        public void DismountWithFieldOn_KeepsHovering()
+        public void DismountWithFieldOn_ReleasesRiderAndLands()
         {
             var rig = MakeRig();
             rig.Vehicle.Field.SetActive(true);
-
             rig.Vehicle.SetVerticalInput(1f);
             Run(rig.Vehicle, 2f);
-            rig.Vehicle.SetVerticalInput(0f);
-            Run(rig.Vehicle, 1f);
-
-            var height = rig.Vehicle.transform.position.y;
-            Assert.Greater(height, 1f, "먼저 떠 있어야 한다.");
-
+            Assert.Greater(rig.Vehicle.transform.position.y, 1f);
             rig.Vehicle.BeginDismount();
-            Run(rig.Vehicle, 3f);
-
-            Assert.IsTrue(rig.Vehicle.Unmanned, "조종사 없이 호버를 유지해야 한다.");
-            Assert.AreEqual(height, rig.Vehicle.transform.position.y, 0.6f,
-                $"마지막 높이에서 떠 있어야 한다. {height:0.00}m → {rig.Vehicle.transform.position.y:0.00}m");
+            Assert.IsFalse(rig.Vehicle.IsOccupied, "하차 요청 즉시 조종사를 놓아야 한다.");
+            Run(rig.Vehicle, 6f);
+            Assert.IsFalse(rig.Vehicle.Unmanned);
+            Assert.Less(rig.Vehicle.transform.position.y, 1.5f);
         }
 
-        /// <summary>기획 §14.2 — "저중력장도 켜진 상태를 유지한다".</summary>
-        [Test]
-        public void DismountWithFieldOn_KeepsTheFieldOn()
-        {
-            var rig = MakeRig();
-            rig.Vehicle.Field.SetActive(true);
-
-            rig.Vehicle.SetVerticalInput(1f);
-            Run(rig.Vehicle, 2f);
-            rig.Vehicle.BeginDismount();
-            Run(rig.Vehicle, 2f);
-
-            Assert.IsTrue(rig.Vehicle.Field.IsActive,
-                "장이 꺼지면 아래에서 용접하던 사람이 떨어진다(기획 §14.5).");
-        }
-
-        /// <summary>
-        /// 저중력장이 꺼져 있으면 예전대로 내려앉는다.
-        /// 기획 §14.2 는 <b>켠 채</b> 하차한 경우만 말한다.
-        /// </summary>
         [Test]
         public void DismountWithFieldOff_StillLands()
         {
@@ -113,108 +70,58 @@ namespace Metagame.Gameplay.Tests
             Assert.Less(rig.Vehicle.transform.position.y, 1.5f, "내려앉아야 한다.");
         }
 
-        // --- 조종 이어받기 (기획 §14.2) --------------------------------------
+        // --- 착륙 후 재탑승 --------------------------------------
 
-        /// <summary>
-        /// 기획 §14.2 — "다른 플레이어가 … 탑승해 조종을 이어받을 수 있다.
-        /// 누가 탑승하든 조종 권한을 즉시 획득한다".
-        ///
-        /// 이어받는 것이므로 <b>고도를 초기화하지 않는다.</b> 예전 코드는 탑승할 때마다
-        /// 목표 고도를 5m 로 되돌렸다 — 새로 탄 사람이 기체를 끌어올리게 된다.
-        /// </summary>
         [Test]
-        public void BoardingUnmannedCraft_TakesOverAtCurrentAltitude()
+        public void BoardingAfterLanding_StartsANewFlight()
         {
             var rig = MakeRig();
             rig.Vehicle.Field.SetActive(true);
-
             rig.Vehicle.SetVerticalInput(1f);
-            Run(rig.Vehicle, 2.5f);
-            rig.Vehicle.SetVerticalInput(0f);
-            Run(rig.Vehicle, 1f);
-
-            rig.Vehicle.BeginDismount();
             Run(rig.Vehicle, 2f);
-
-            var height = rig.Vehicle.transform.position.y;
-            Assert.IsTrue(rig.Vehicle.Unmanned, "먼저 무인 호버여야 한다.");
-            Assert.Greater(height, TransportVehicle.HoverRootY + 0.5f,
-                "이 검증은 기본 호버 높이보다 위에 있어야 의미가 있다.");
-
+            rig.Vehicle.BeginDismount();
+            Run(rig.Vehicle, 6f);
             var second = MakePlayer(rig.Vehicle.transform.position);
-            Assert.IsTrue(rig.Vehicle.TryBoard(second), "무인 호버 중인 기체에 탈 수 있어야 한다.");
-
-            Assert.IsFalse(rig.Vehicle.Unmanned, "탑승하면 무인 상태가 풀린다.");
-            Assert.AreEqual(height, rig.Vehicle.TargetAltitude, 0.6f,
-                $"이어받은 고도를 지켜야 한다. {height:0.00}m 인데 목표가 {rig.Vehicle.TargetAltitude:0.00}m 다.");
+            Assert.IsTrue(rig.Vehicle.TryBoard(second));
+            Assert.IsFalse(rig.Vehicle.Unmanned);
+            Assert.IsFalse(rig.Vehicle.Field.IsActive);
+            Run(rig.Vehicle, 2f);
+            Assert.Greater(rig.Vehicle.transform.position.y, 1.5f);
         }
 
         // --- 충돌 반응 (기획 §14.1 · §14.2) ----------------------------------
 
-        /// <summary>
-        /// 기획 §14.2 — "호버 중 운석이나 파츠에 맞으면 기체와 저중력장 위치가 함께
-        /// 밀린다 … 호버 위치를 자동으로 되찾지는 않는다".
-        /// </summary>
         [Test]
-        public void ImpactPushesTheCraft_AndItDoesNotReturn()
+        public void ImpactPushesPilotedCraft_WithoutPositionSnapping()
         {
             var rig = MakeRig();
             rig.Vehicle.Field.SetActive(true);
 
             rig.Vehicle.SetVerticalInput(1f);
             Run(rig.Vehicle, 2f);
-            rig.Vehicle.BeginDismount();
+            rig.Vehicle.SetVerticalInput(0f);
             Run(rig.Vehicle, 2f);
 
             var before = rig.Vehicle.transform.position;
             var body = rig.Vehicle.GetComponent<Rigidbody>();
             body.linearVelocity += new Vector3(4f, 0f, 0f);
 
-            Run(rig.Vehicle, 3f);
+            Run(rig.Vehicle, 1f);
 
             var after = rig.Vehicle.transform.position;
             var moved = Vector3.Distance(new Vector3(before.x, 0f, before.z),
                                          new Vector3(after.x, 0f, after.z));
 
-            Assert.Greater(moved, 0.5f, $"충격이 전달되어야 한다. {moved:0.00}m 만 밀렸다.");
-            Assert.IsTrue(rig.Vehicle.Unmanned, "밀린 뒤에도 호버를 유지한다.");
+            // Piloted braking is stronger than the former unmanned scenario.
+            // Verify displacement and no return, rather than a minimum travel distance.
+            Assert.Greater(moved, 0.1f, "충격이 실제 위치에 전달되어야 한다.");
+            Run(rig.Vehicle, 2f);
+            var settled = rig.Vehicle.transform.position;
+            Assert.Less(new Vector2(settled.x - after.x, settled.z - after.z).magnitude, 0.02f,
+                "감속 후 밀려난 위치를 유지해야 하며 원래 위치로 되돌아가면 안 된다.");
+            Assert.IsTrue(rig.Vehicle.IsOccupied);
         }
 
-        /// <summary>저중력장은 기체에 붙어 있으므로 함께 밀린다(기획 §14.2).</summary>
-        [Test]
-        public void ImpactMovesTheFieldWithTheCraft()
-        {
-            var rig = MakeRig();
-            rig.Vehicle.Field.SetActive(true);
-
-            rig.Vehicle.SetVerticalInput(1f);
-            Run(rig.Vehicle, 2f);
-            rig.Vehicle.BeginDismount();
-            Run(rig.Vehicle, 1f);
-
-            var body = rig.Vehicle.GetComponent<Rigidbody>();
-            body.linearVelocity += new Vector3(4f, 0f, 0f);
-            Run(rig.Vehicle, 2f);
-
-            var craft = rig.Vehicle.transform.position;
-            var origin = rig.Vehicle.Field.Origin.position;
-
-            Assert.AreEqual(craft.x, origin.x, 0.01f, "장이 기체를 따라와야 한다.");
-            Assert.AreEqual(craft.z, origin.z, 0.01f, "장이 기체를 따라와야 한다.");
-        }
-
-        /// <summary>
-        /// 기획 §14.1 — "충돌 후 기체는 자동으로 수평을 회복한다".
-        ///
-        /// <b>이미 성립한다 — 기체가 애초에 기울지 않기 때문이다.</b>
-        /// <c>EnsurePhysics</c> 가 <c>RigidbodyConstraints.FreezeRotation</c> 을 건다.
-        /// 자세 복구 코드를 넣어 봤지만 회전이 잠겨 있어 아무 일도 하지 않았다.
-        ///
-        /// 실제로 기울었다 돌아오게 하려면 잠금을 풀어야 하는데, 그러면 탑승자가 서 있는
-        /// 플랫폼이 함께 기울고 조인트로 붙은 인형이 흔들린다. 별 결정이므로 이 이슈에서는
-        /// 하지 않았다. 이 검증은 <b>플레이어가 보는 보장</b>을 잠근다 — 충격을 받아도
-        /// 기체는 수평이다.
-        /// </summary>
         [Test]
         public void ImpactedCraft_StaysLevel()
         {

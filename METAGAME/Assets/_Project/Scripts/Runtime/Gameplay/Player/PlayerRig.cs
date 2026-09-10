@@ -378,6 +378,8 @@ namespace Metagame.Gameplay
 
         /// <summary>부유하느라 인형의 중력을 꺼 둔 상태인가. 켜고 끄는 시점을 한 번씩만 만든다.</summary>
         bool floatingGravityOff;
+        float floatingLiftTarget;
+        bool floatingAutoLift;
         Grabbable toolHeld;
         float toolCharge;
         bool toolActionHeld;
@@ -1103,7 +1105,11 @@ namespace Metagame.Gameplay
             // 첫 목적이고, 3인칭으로 강제 전환해도 기체 밖으로 튀어나온 몸이 보이지 않는다.
             RefreshDollVisibility();
 
-            if (Cam != null) Cam.SetVehicleView(true);
+            if (Cam != null)
+            {
+                Cam.SetVehicleEye(vehicle.CockpitEye);
+                Cam.SetVehicleView(true);
+            }
             return true;
         }
 
@@ -1654,6 +1660,10 @@ namespace Metagame.Gameplay
             // 훑지 않는다.
             if (wants != floatingGravityOff)
             {
+                floatingAutoLift = wants;
+                if (wants)
+                    floatingLiftTarget = Mathf.Min(Doll.Hips.position.y + 1.5f,
+                        field.Origin.position.y - 1.2f);
                 for (int i = 0; i < Doll.Bodies.Count; i++)
                     if (Doll.Bodies[i] != null)
                         Doll.Bodies[i].useGravity = !wants;
@@ -1672,7 +1682,11 @@ namespace Metagame.Gameplay
 
             // Space 로 올라가고 Ctrl 로 내려간다. 탑승 중 고도 조작과 같은 두 키다.
             float wish = (input.Jump ? 1f : 0f) - (input.ArmsUp ? 1f : 0f);
+            if (wish != 0f) floatingAutoLift = false;
             float target = wish * PhysicsScale.FieldFloatVerticalSpeed;
+            if (floatingAutoLift)
+                target = Mathf.Clamp((floatingLiftTarget - Doll.Hips.position.y) * 3f,
+                    0f, PhysicsScale.FieldFloatVerticalSpeed);
             float rate = PhysicsScale.FieldFloatVerticalSpeed / PhysicsScale.FieldFloatStopSeconds;
 
             for (int i = 0; i < Doll.Bodies.Count; i++)

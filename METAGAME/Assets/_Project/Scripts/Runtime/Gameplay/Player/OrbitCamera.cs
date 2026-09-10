@@ -279,6 +279,9 @@ namespace Metagame.Gameplay
         }
 
         public bool VehicleView { get { return vehicleView; } }
+        Transform vehicleEye;
+
+        public void SetVehicleEye(Transform eye) => vehicleEye = eye;
 
         /// <summary>
         /// 운반 장치에 탑승하면 조종석 1인칭으로 전환한다.
@@ -317,6 +320,7 @@ namespace Metagame.Gameplay
             else
             {
                 vehicleView = false;
+                vehicleEye = null;
                 FirstPerson = savedFirstPerson;
                 Distance = savedDistance;
                 TargetHeight = savedTargetHeight;
@@ -391,6 +395,16 @@ namespace Metagame.Gameplay
         void LateUpdate()
         {
             if (Target == null) return;
+
+            // Use the same rigid frame as the cockpit, never the joint-driven pelvis
+            // or a forward offset that orbits when the mouse changes yaw.
+            if (vehicleView && vehicleEye != null)
+            {
+                transform.SetPositionAndRotation(vehicleEye.position,
+                    viewTilt * Quaternion.Euler(pitch, yaw, 0f));
+                currentDistance = 0f;
+                return;
+            }
 
             Vector3 raw = Target.position + Vector3.up * TargetHeight;
             if (!focusReady) { smoothFocus = raw; focusReady = true; }
