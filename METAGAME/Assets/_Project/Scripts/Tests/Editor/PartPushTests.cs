@@ -427,10 +427,17 @@ namespace Metagame.Gameplay.Tests
             Assert.AreEqual(0, push.HaulerCount);
         }
 
-        // --- 버티는 중 (연출이 볼 값) ---------------------------------------
+        // --- 밀려고 하는 것과 실제로 움직이는 것 ------------------------------
+        //
+        // 두 값을 가르는 이유는 기획 §10.2 의 밀기 카메라다. 3인칭 전환은 파츠가
+        // **실제로 밀릴 때**만 걸려야 하므로 IsHauling 이 아니라 IsMoving 을 봐야 한다.
+        //
+        // 한두 명이 붙었을 때의 "버티는 중" 연출은 만들지 않기로 했다(2026-09-10
+        // 기획 판단). 그래서 그 상태를 위한 별도 값은 두지 않는다 — 필요하면
+        // IsHauling && !IsMoving 으로 언제든 물을 수 있다.
 
         [Test]
-        public void OneOrTwoHaulers_AreBracing()
+        public void OneOrTwoHaulers_TryButDoNotMoveIt()
         {
             var push = MakePart();
             MakePlayer(new Vector3(-1f, 0f, 0.4f), Vector3.right);
@@ -441,11 +448,10 @@ namespace Metagame.Gameplay.Tests
             Assert.AreEqual(2, push.HaulerCount);
             Assert.IsTrue(push.IsHauling, "밀려고 하고 있다.");
             Assert.IsFalse(push.IsMoving, "인원이 마찰을 못 이긴다.");
-            Assert.IsTrue(push.Bracing, "연출이 이 값을 본다.");
         }
 
         [Test]
-        public void ThreeHaulers_AreNotBracing()
+        public void ThreeHaulers_ActuallyMoveIt_ByCount()
         {
             var push = MakePart();
             ThreeHaulers(push);
@@ -453,19 +459,19 @@ namespace Metagame.Gameplay.Tests
             Tick(push, 1f);
 
             Assert.AreEqual(3, push.HaulerCount);
-            Assert.IsTrue(push.IsMoving);
-            Assert.IsFalse(push.Bracing);
+            Assert.IsTrue(push.IsHauling);
+            Assert.IsTrue(push.IsMoving, "밀기 카메라가 이 값을 본다.");
         }
 
         [Test]
-        public void NobodyHauling_IsNotBracing()
+        public void NobodyHauling_IsNeitherHaulingNorMoving()
         {
             var push = MakePart();
 
             Tick(push, 1f);
 
             Assert.IsFalse(push.IsHauling);
-            Assert.IsFalse(push.Bracing, "아무도 없으면 버티는 것도 아니다.");
+            Assert.IsFalse(push.IsMoving, "아무도 없으면 움직이지 않는다.");
         }
 
         // --- 실제로 움직이는가 — 지면·중력·Physics.Simulate ------------------
@@ -542,6 +548,91 @@ namespace Metagame.Gameplay.Tests
 
             Assert.Less(HaulOnGround(2, spec), 0.1f,
                 "이 파츠가 둘에 밀리면 1·2명 가속에 값을 준 것이다.");
+        }
+
+        // --- 실제 씬 구성 (콜라이더가 자식에 있다) ---------------------------
+
+        /// <summary>
+        /// <b>이 검증이 없어서 몸으로 미는 것이 죽어 있는 줄 몰랐다.</b>
+        ///
+        /// 실제 파츠는 루트에 콜라이더가 <b>하나도 없다</b> — `Stage1PuzzleBuilder` 가
+        /// `PartSpec` 의 상자마다 자식 `Body_*` 를 만들어 붙인다. 그래서 예전의
+        /// <c>GetComponent&lt;Collider&gt;()</c> 는 항상 null 이었고 <c>IsTouching</c> 이
+        /// 늘 false 였다. 예전 검증은 콜라이더를 <b>루트에</b> 붙였기 때문에 통과했다.
+        /// </summary>
+        [Test]
+        public void APartWithCollidersOnChildren_CanStillBeBodyPushed()
+        {
+            var push = MakeSceneShapedPart();
+            MakePlayer(new Vector3(-1.4f, 0f, 0f), Vector3.right);
+
+            Tick(push, PhysicsScale.PartPushIntentSeconds + Step * 4f);
+
+            Assert.AreEqual(1, push.HaulerCount,
+                "루트에 콜라이더가 없는 실제 구성에서도 접촉이 잡혀야 한다.");
+            Assert.AreEqual(1, push.PusherCount, "몸으로 밀었다.");
+        }
+
+        /// <summary>
+        /// 고정못 콜라이더는 접촉 판정에서 빠진다. 고정못은 파츠 밑면보다 아래로
+        /// 내려가 있어 함께 세면 접촉 범위가 발밑까지 늘어난다.
+        /// </summary>
+        [Test]
+        public void ClampCollidersDoNotCountAsThePartSurface()
+        {
+            var push = MakeSceneShapedPart(withClampFarAway: true);
+
+            // 몸통에서는 멀고 고정못에서는 가까운 자리에 세운다.
+            MakePlayer(new Vector3(-4.2f, 0f, 0f), Vector3.right);
+
+            Tick(push, 1f);
+
+            Assert.AreEqual(0, push.HaulerCount,
+                "고정못이 파츠 표면으로 세어지면 4m 밖에서도 밀 수 있게 된다.");
+        }
+
+        /// <summary>
+        /// 실제 씬처럼 <b>자식</b>에 몸통 콜라이더를 붙인 파츠. 루트에는 없다.
+        /// </summary>
+        PartPush MakeSceneShapedPart(bool withClampFarAway = false)
+        {
+            var spec = PartSpec.Find("Part_1");
+
+            var root = new GameObject(spec.Name) { layer = GameLayers.Part };
+            root.transform.position = new Vector3(0f, spec.Height * 0.5f, 0f);
+            _spawned.Add(root);
+
+            for (var i = 0; i < spec.Boxes.Length; i++)
+            {
+                var box = spec.Boxes[i];
+                var body = new GameObject($"Body_{i}") { layer = GameLayers.Part };
+                body.transform.SetParent(root.transform, false);
+                body.transform.localPosition = box.CenterFromPartCenter(spec.Height);
+                body.AddComponent<BoxCollider>().size = box.Size;
+            }
+
+            if (withClampFarAway)
+            {
+                // 고정못을 일부러 멀리 둔다 — 이것이 표면으로 세어지면 검증이 잡는다.
+                var clamp = new GameObject("Clamp_0") { layer = GameLayers.Interactable };
+                clamp.transform.SetParent(root.transform, false);
+                clamp.transform.localPosition = new Vector3(-3.5f, -spec.Height * 0.5f, 0f);
+                clamp.AddComponent<BoxCollider>().size = Vector3.one * 0.4f;
+            }
+
+            var rigidbody = root.AddComponent<Rigidbody>();
+            rigidbody.useGravity = false;
+
+            var part = root.AddComponent<SpaceshipPart>();
+            part.SetPlacedMass(spec.Mass);
+            part.Initialize();
+            TransitionTo(part, PartState.Placed);
+
+            var push = root.AddComponent<PartPush>();
+            push.Initialize();
+
+            UnityEngine.Physics.SyncTransforms();
+            return push;
         }
 
         // --- 관성과 운석 (§13.2) — 속도 규칙만 본다 --------------------------

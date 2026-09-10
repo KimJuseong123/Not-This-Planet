@@ -42,6 +42,7 @@ namespace Metagame.Gameplay.Parts
         Rigidbody _body;
         Collider _collider;
         Collider[] _colliders;
+        bool _collidersCollected;
 
         float _lastTopSpeed;
         bool _pushedRecently;
@@ -72,15 +73,11 @@ namespace Metagame.Gameplay.Parts
         public bool IsMoving => IsHauling && HaulerCount >= PartPushTable.MinPeople;
 
         /// <summary>
-        /// 붙어서 밀고 있지만 인원이 모자라 파츠가 꿈쩍하지 않는 상태.
+        /// 파츠가 움직이기 시작하는 최소 인원.
         ///
-        /// <b>이 값은 연출을 위해 있다.</b> 한두 명이 붙었을 때 화면에 아무 반응이 없으면
-        /// 플레이어는 고장으로 읽는다. 버티는 자세나 "○/3" 표시가 이 값을 본다
-        /// (연출은 S15P21B202-394 의 후속이다 — 지금 쓰는 곳은 검증뿐이다).
+        /// 기획 §10.2 의 밀기 카메라가 "밀기가 실제로 걸렸는가" 를 물을 때
+        /// <see cref="IsMoving"/> 과 함께 쓴다.
         /// </summary>
-        public bool Bracing => IsHauling && !IsMoving;
-
-        /// <summary>파츠가 움직이기 시작하는 최소 인원. HUD 의 "○/3" 이 쓴다.</summary>
         public static int MinPeopleToMove => PartPushTable.MinPeopleToMove;
 
         void Awake() => Initialize();
@@ -100,12 +97,18 @@ namespace Metagame.Gameplay.Parts
             if (_body == null) _body = GetComponent<Rigidbody>();
             if (_collider == null) _collider = GetComponent<Collider>();
 
-            // **콜라이더를 전부 모은다.** 파츠는 실제 형태를 따르는 상자 여럿이다
-            // (기획 §25.3 · PartSpec). 예전에는 GetComponent 로 첫 상자만 봤는데,
-            // Part_1 은 그것이 최하단 0.94 x 0.94 받침이라 골반이 1.08m 떨어진 것으로
-            // 계산되어 **몸으로 미는 것이 아예 시작되지 않았다**(S15P21B202-394).
-            if (_colliders == null || _colliders.Length == 0)
-                _colliders = GetComponents<Collider>();
+            // **몸통 콜라이더를 자식까지 훑어 모은다.**
+            //
+            // 파츠 루트에는 콜라이더가 아예 없다 — Stage1PuzzleBuilder 가 PartSpec 의
+            // 상자마다 자식 `Body_*` 를 만들어 붙인다(기획 §25.3). 그래서 예전의
+            // `GetComponent<Collider>()` 는 **항상 null 이었고, IsTouching 이 늘 false
+            // 여서 몸으로 미는 것은 실제 게임에서 한 번도 작동한 적이 없다.**
+            // (검증은 콜라이더를 루트에 붙였기 때문에 통과했다 — S15P21B202-394.)
+            //
+            // **레이어로 가른다.** 자식에는 고정못(`Clamp_*`, GameLayers.Interactable)도
+            // 있고 그 콜라이더는 파츠 밑면보다 아래로 내려가 있다. 함께 세면 접촉
+            // 판정이 발밑까지 늘어난다. 몸통은 GameLayers.Part 뿐이다.
+            if (!_collidersCollected) _colliders = CollectBodyColliders();
 
             if (!All.Contains(this)) All.Add(this);
         }
@@ -372,6 +375,36 @@ namespace Metagame.Gameplay.Parts
         }
 
         /// <summary>
+        /// 몸통 콜라이더만 모은다 — <see cref="GameLayers.Part"/> 레이어의 것들이다.
+        /// 고정못은 <see cref="GameLayers.Interactable"/> 이라 걸러진다.
+        /// </summary>
+        Collider[] CollectBodyColliders()
+        {
+            // **한 번만 훑는다.** 이 함수는 GetComponentsInChildren 과 List 할당을
+            // 하는데, IsTouching 이 사람 수 x 프레임으로 부른다. Part 레이어
+            // 콜라이더가 없는 파츠에서 "비었으면 다시" 로 두면 매 호출마다 훑는다.
+            _collidersCollected = true;
+
+            var found = GetComponentsInChildren<Collider>();
+            var kept = new List<Collider>(found.Length);
+
+            for (var i = 0; i < found.Length; i++)
+            {
+                var collider = found[i];
+                if (collider == null) continue;
+                if (collider.gameObject.layer != GameLayers.Part) continue;
+
+                kept.Add(collider);
+            }
+
+            // 루트에 콜라이더가 있고 레이어가 다른 예외적인 구성에서도 판정이 죽지
+            // 않게 한다. 아무것도 못 찾았으면 있는 것이라도 쓴다.
+            if (kept.Count == 0 && _collider != null) kept.Add(_collider);
+
+            return kept.ToArray();
+        }
+
+        /// <summary>
         /// 파츠 전체의 중심. <b>상자 하나가 아니라 모든 상자를 감싼 범위</b>로 잡는다 —
         /// Part_1 처럼 받침만 좁은 파츠에서 첫 상자의 중심을 쓰면 미는 방향이 실제
         /// 몸통과 어긋난다.
@@ -414,6 +447,7 @@ namespace Metagame.Gameplay.Parts
             var hips = player.Doll.Hips;
             if (hips == null) return false;
 
+            if (!_collidersCollected) _colliders = CollectBodyColliders();
             if (_colliders == null || _colliders.Length == 0) return false;
 
             // **가장 가까운 상자로 판정한다.** 첫 상자만 보면 Part_1 의 좁은 받침이
