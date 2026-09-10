@@ -9,6 +9,18 @@ namespace Metagame.Core
     /// </summary>
     public struct InputFrame
     {
+        /// <summary>
+        /// 이 입력의 순번. 클라이언트가 보낼 때 하나씩 올린다 (S15P21B202-363).
+        ///
+        /// <para><b>내 캐릭터를 예측(P1)하려면 짝을 지을 열쇠가 필요하다.</b> 서버가
+        /// "순번 N 까지 적용한 결과는 이 자세다" 를 돌려주면, 클라이언트는 자기가 그 순번을
+        /// 보낼 때 있던 자리와 견주어 <b>오차</b>를 뽑는다. 순번이 없으면 지금 자세를
+        /// 80ms 전 서버 자세와 견주게 되어 <b>가만히 있어도 뒤로 끌린다.</b></para>
+        ///
+        /// <para>0 은 "순번 없음" 이다 — 혼자 돌릴 때와 방장 자신의 몸은 쓰지 않는다.</para>
+        /// </summary>
+        public uint Seq;
+
         public Vector2 Move;      // x=좌우, y=앞뒤
         public Vector2 Look;      // 마우스 델타
 
