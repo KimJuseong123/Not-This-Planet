@@ -71,13 +71,25 @@ namespace Metagame.Gameplay.Tests
         public void TheExecutableNameIsNotTheDisplayName()
         {
             var raw = TestSource.Read("Editor/SpaceBuild.cs");
-            var tail = RawAt(raw, "locationPathName", "빌드 산출 경로");
+            var head = Window(RawAt(raw, "locationPathName", "빌드 산출 경로"));
 
-            Assert.That(tail.Substring(0, 120), Does.Contain("SpaceFlop.exe"),
+            Assert.That(head, Does.Contain("SpaceFlop.exe"),
                 "실행 파일 이름을 바꾸려면 팀장 확인이 필요하다(-391) — 기존 빌드 폴더·"
                 + "바로가기와 문서의 SpaceFlop_Data 경로가 함께 어긋난다");
-            Assert.That(tail.Substring(0, 120), Does.Not.Contain(Expected),
+            Assert.That(head, Does.Not.Contain(Expected),
                 "실행 파일 이름을 표시 이름으로 바꾸면 위와 같은 이유로 어긋난다");
         }
+
+        /// <summary>
+        /// 찾은 자리부터 <b>한 문장 정도</b>만 본다. 파일 전체를 보면 다른 곳의
+        /// 같은 글자에 걸리고, 길이를 넘겨 자르면 <b>어긋남이 아니라 편집 위치 때문에
+        /// 터진다</b> — 처음 판이 <c>Substring(0, 120)</c> 이어서 그 자리가
+        /// 파일 끝 120자 안으로 옮겨지면 예외가 났다(<c>!295</c> AI 리뷰 지적).
+        /// </summary>
+        static string Window(string tail) =>
+            tail.Substring(0, System.Math.Min(StatementWindow, tail.Length));
+
+        /// <summary>대입문 한 줄이 들어갈 만큼 — 근거는 그것뿐이라 이름으로 밝혀 둔다.</summary>
+        const int StatementWindow = 120;
     }
 }
