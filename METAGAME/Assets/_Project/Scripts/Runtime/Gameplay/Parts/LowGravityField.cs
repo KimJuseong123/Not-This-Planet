@@ -192,7 +192,7 @@ namespace Metagame.Gameplay.Parts
                 // Origin.root를 쓰면 실제 씬의 최상위 Stage1 루트가 되어, 같은 루트의
                 // 조립 파츠까지 전부 "내 자식"으로 오판한다. 운반체 Rigidbody의 실제
                 // Transform만 기준으로 자식 계층을 제외한다.
-                if (body == _carrierBody
+                if (body.transform.IsChildOf(transform) || body == _carrierBody
                     || (_carrierBody != null && body.transform.IsChildOf(_carrierBody.transform)))
                     continue;
 
@@ -201,6 +201,7 @@ namespace Metagame.Gameplay.Parts
                 // 저중력장 대상에서 제외하라는 뜻이 아니다. 완전히 고정된 파츠만 건너뛴다.
                 var part = body.GetComponentInParent<SpaceshipPart>();
                 if (part != null && part.State == PartState.Locked && !part.HasReleasedClamp) continue;
+                if (IsAssemblyProtected(part)) continue;
 
                 var collider = _hits[i];
                 var inside = Contains(body.worldCenterOfMass)
@@ -245,6 +246,18 @@ namespace Metagame.Gameplay.Parts
             }
 
             return count;
+        }
+
+        // Each linked body must be excluded, including the unwelded bottom member.
+        // Otherwise the field fights the joints and raises the whole completed stack.
+        public static bool IsAssemblyProtected(SpaceshipPart part)
+        {
+            if (part == null) return false;
+            if (!part.enabled || part.State == PartState.Welded) return true;
+            foreach (var socket in part.Sockets)
+                if (socket != null && socket.ConnectedTo != null) return true;
+            var hover = part.GetComponent<PartGroundHover>();
+            return hover != null && hover.IsParked;
         }
 
         /// <summary>
@@ -382,23 +395,18 @@ namespace Metagame.Gameplay.Parts
                 ? -lateral.normalized * PhysicsScale.FieldPullAccel
                 : Vector3.zero;
 
-            pull -= lateralVelocity * PhysicsScale.FieldPullDamp;
-            body.AddForce(Vector3.ClampMagnitude(pull, PhysicsScale.FieldAccelMax), ForceMode.Acceleration);
-
-            // 장치의 속도를 물체에 그대로 순간 대입하지 않고, 속도 차이를 가속도로
-            // 보정한다. 가장자리와 깊은 곳의 물체는 낮은 비율로 따라와 지연과 흔들림이
-            // 남고, 장치를 움직인다고 물체가 장치에 붙지는 않는다.
+            // Damping is relative to the carrier, not the stationary world. World damping
+            // fought forward movement, and the old edge weight reduced recovery to zero
+            // exactly when a load was about to leave the cone.
             if (_carrierBody != null)
             {
-                var depth = Mathf.Clamp01(-offset.y / Depth);
-                var radius = Mathf.Max(0.001f, RadiusAt(-offset.y));
-                var lateralRatio = Mathf.Clamp01(lateral.magnitude / radius);
-                var followWeight = Mathf.Clamp01(1f - Mathf.Max(lateralRatio, depth * 0.35f));
-                var follow = (_carrierBody.linearVelocity - velocity)
-                             * (PhysicsScale.FieldCarrierFollowGain * followWeight);
-                body.AddForce(Vector3.ClampMagnitude(follow, PhysicsScale.FieldCarrierFollowMaxAccel),
-                              ForceMode.Acceleration);
+                var carrierVelocity = Vector3.ProjectOnPlane(_carrierBody.linearVelocity, Vector3.up);
+                pull = -lateral * (PhysicsScale.FieldCarrierFollowGain * 2f)
+                       + (carrierVelocity - lateralVelocity)
+                       * (PhysicsScale.FieldCarrierFollowGain + PhysicsScale.FieldPullDamp);
             }
+            else pull -= lateralVelocity * PhysicsScale.FieldPullDamp;
+            body.AddForce(Vector3.ClampMagnitude(pull, PhysicsScale.FieldCarrierFollowMaxAccel), ForceMode.Acceleration);
         }
     }
 }

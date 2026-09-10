@@ -22,6 +22,12 @@ namespace Metagame.Bootstrap
         public bool lockCursor = true;
         public bool starfield = true;
 
+        [Header("씬별 배치 (비우면 기존 시작점 사용)")]
+        public Transform playerSpawn;
+        public bool randomizeTransportVehicles = true;
+        [Tooltip("씬에 배치한 하늘·조명·후처리를 유지합니다. 기존 Main은 이 옵션을 사용하지 않습니다.")]
+        public bool preserveSceneAtmosphere;
+
         [Header("카메라")]
         public bool firstPerson = true;
 
@@ -59,6 +65,7 @@ namespace Metagame.Bootstrap
         public SoundRuntime Sound { get; private set; }
 
         GameSettingsRuntime settingsRuntime;
+        Vector3 SpawnFoot => playerSpawn != null ? playerSpawn.position : Level.SpawnFoot;
 
         void Awake()
         {
@@ -93,7 +100,7 @@ namespace Metagame.Bootstrap
             var sys = new GameObject("~시스템");
             sys.transform.SetParent(transform, false);
 
-            bool useAtmosphere = atmosphereProfile != null && !Application.isBatchMode;
+            bool useAtmosphere = atmosphereProfile != null && !Application.isBatchMode && !preserveSceneAtmosphere;
             Stage1DustStormHazard dustStormHazard = null;
             AtmosphereDustStorm dustStormVisual = null;
             if (atmosphereProfile != null)
@@ -103,8 +110,11 @@ namespace Metagame.Bootstrap
                 DustStormMatchSeed.PrepareForMatch();
                 atmosphereProfile.Validate();
                 dustStormHazard = sys.AddComponent<Stage1DustStormHazard>();
-                if (useAtmosphere)
+                if (!Application.isBatchMode)
+                {
                     dustStormVisual = sys.AddComponent<AtmosphereDustStorm>();
+                    if (preserveSceneAtmosphere) dustStormVisual.Apply(atmosphereProfile);
+                }
             }
 
             if (useAtmosphere)
@@ -114,7 +124,7 @@ namespace Metagame.Bootstrap
                 sys.AddComponent<AtmosphereMeteorShower>();
                 sys.AddComponent<AtmosphereDustGust>();
             }
-            else
+            else if (!preserveSceneAtmosphere)
             {
                 Sky = sys.AddComponent<Vacuum>();
             }
@@ -164,7 +174,7 @@ namespace Metagame.Bootstrap
             Exploration.Configure(FindObjectsByType<SpaceshipPart>(FindObjectsSortMode.None));
             DisableDemoClampReleasers();
             DisableDemoBeamDrivers();
-            if (!useAtmosphere && starfield && !Application.isBatchMode)
+            if (Sky != null && starfield && !Application.isBatchMode)
                 Space = Starfield.Create(transform, Sky.SunDirection);
 
             var beams = FindObjectsByType<TractorBeam>(FindObjectsSortMode.None);
@@ -181,11 +191,11 @@ namespace Metagame.Bootstrap
                 // 운반체 배치는 서버가 정한다(-152). 위치는 WorldSync 로 내려간다.
                 // 조작은 사람마다 다르므로 이 컨트롤러는 배치만 하고 손을 뗀다 —
                 // 접속자별 조작은 NetPlayer 가 자기 컨트롤러로 한다(-149).
-                Transport.Configure(null, beams);
+                Transport.Configure(null, beams, randomizeTransportVehicles);
                 Transport.Authoritative = false;
                 Transport.PhysicsAuthority = true;
                 Session.Transport = Transport;
-                Session.Begin(null, Level, Level.SpawnFoot, Exploration);
+                Session.Begin(null, Level, SpawnFoot, Exploration);
                 return;
             }
 
@@ -198,23 +208,23 @@ namespace Metagame.Bootstrap
 
             Sound = CreateSoundRuntime(sys, !inMatch, inMatch);
 
-            Vector3 spawn = Level.SpawnFoot + Vector3.up * 0.10f;
-            Quaternion facing = Quaternion.LookRotation(Vector3.right, Vector3.up);
+            Vector3 spawn = SpawnFoot + Vector3.up * 0.10f;
+            Quaternion facing = playerSpawn != null ? playerSpawn.rotation : Quaternion.LookRotation(Vector3.right, Vector3.up);
 
             Player = PlayerRig.Create(nickname, spawn, facing, suit, accent, useModel);
             Player.transform.SetParent(transform, true);
 
-            Color cameraSkyColor = useAtmosphere ? atmosphereProfile.sky.horizonColor : Sky.SkyColor;
+            Color cameraSkyColor = useAtmosphere ? atmosphereProfile.sky.horizonColor : Sky != null ? Sky.SkyColor : RenderSettings.ambientSkyColor;
             Player.Cam = OrbitCamera.Create(Player.Hips.transform, cameraSkyColor, firstPerson);
             if (settingsRuntime != null && settingsRuntime.Current != null)
                 Player.Cam.ApplySettings(settingsRuntime.Current.controls);
-            Player.Cam.Yaw = 90f;                        // +X 를 바라보고 시작한다
+            Player.Cam.Yaw = facing.eulerAngles.y;
             Player.Cam.transform.SetParent(transform, true);
             Player.Cam.SnapToTarget();
             FirstPersonHandView.Create(Player, Player.Cam, firstPersonHandSettings);
             ExplorationHud.AttachTablet(Player.Cam.Cam);
             Player.ConfigureClampInteraction(Player.Cam.transform);
-            Transport.Configure(Player, beams, randomizeVehicles: !inMatch);
+            Transport.Configure(Player, beams, randomizeVehicles: !inMatch && randomizeTransportVehicles);
 
             // 매치 중에는 조준·안내만 하고 실행은 서버에 맡긴다(-149).
             Transport.Authoritative = !inMatch;
@@ -225,7 +235,7 @@ namespace Metagame.Bootstrap
             Hud.Exploration = Exploration;
             Session.Transport = Transport;
             Exploration.Begin(Player);
-            Session.Begin(Player, Level, Level.SpawnFoot, Exploration);
+            Session.Begin(Player, Level, SpawnFoot, Exploration);
             if (!lockCursor) Session.SetCursor(false);
 
             // 다른 사람의 몸은 Mirror 가 세운다(NetPlayer). 예전에는 WebSocket 으로
@@ -239,7 +249,7 @@ namespace Metagame.Bootstrap
                 var atmosphereAlert = sys.AddComponent<Stage1AtmosphereAlert>();
                 atmosphereAlert.Configure(Atmosphere, FindAnyObjectByType<Metagame.Gameplay.Hazards.MeteorSpawner>());
             }
-            else
+            else if (Sky != null)
             {
                 Sky.ApplyToCameras();
             }

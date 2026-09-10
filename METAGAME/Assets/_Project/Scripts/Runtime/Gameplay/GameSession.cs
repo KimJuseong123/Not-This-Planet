@@ -29,6 +29,7 @@ namespace Metagame.Gameplay
 
         public int CheckpointIndex { get; private set; }
         public Vector3 SpawnFoot { get; private set; }
+        Vector3 initialSpawnFoot;
         public string StageHint { get; private set; }
         public bool Cleared { get; private set; }
         public float ClearTime { get; private set; }
@@ -92,6 +93,7 @@ namespace Metagame.Gameplay
             Level = level;
             Exploration = exploration;
             SpawnFoot = spawnFoot;
+            initialSpawnFoot = spawnFoot;
             CheckpointIndex = 0;
             Elapsed = 0f;
             Falls = 0;
@@ -411,7 +413,7 @@ namespace Metagame.Gameplay
             if (ProgressFromHost) return;
 
             CheckpointIndex = 0;
-            SpawnFoot = Vector3.zero;
+            SpawnFoot = initialSpawnFoot;
             StageHint = Hints[0];
             Elapsed = 0f;
             Falls = 0;

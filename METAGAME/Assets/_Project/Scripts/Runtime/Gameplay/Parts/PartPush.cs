@@ -10,8 +10,7 @@ namespace Metagame.Gameplay.Parts
     /// (§13.1). 그래서 이 클래스가 하는 일의 대부분은 "밀려는 것" 과 "지나가는 것" 을
     /// 가르는 판정이다.
     ///
-    /// <b>당기기는 없다</b>(§13.1). 미는 방향은 항상 사람에서 파츠로 향하는 쪽이므로,
-    /// 반대로 밀려면 반대편으로 걸어가야 한다.
+    /// 기본은 기존 접촉 밀기다. Allow Pull을 켠 씬에서는 손으로 잡은 채 이동해 당길 수도 있다.
     ///
     /// EditMode 에서 <c>Awake</c>·<c>FixedUpdate</c> 가 돌지 않으므로
     /// <see cref="Initialize"/> 와 <see cref="Tick"/> 을 공개한다 —
@@ -21,6 +20,32 @@ namespace Metagame.Gameplay.Parts
     [DisallowMultipleComponent]
     public sealed class PartPush : MonoBehaviour
     {
+        [SerializeField, Min(0f), Tooltip("수동 밀기/당기기 속도 배율. 1이면 1~4인: 0.4/0.8/1.2/1.5 m/s")]
+        private float _speedMultiplier = 1f;
+        [SerializeField, Tooltip("손으로 이 파츠를 잡은 채 이동하면 당기기도 허용합니다.")]
+        private bool _allowPull;
+
+        public float SpeedMultiplier => Mathf.Max(0f, _speedMultiplier);
+        public void ConfigureManualTransport(float speedMultiplier, bool allowPull)
+        {
+            _speedMultiplier = Mathf.Max(0f, speedMultiplier);
+            _allowPull = allowPull;
+        }
+
+        /// <summary>운반 중 보행 속도도 맞춰 플레이어 충돌이 설정 속도를 우회하지 않게 한다.</summary>
+        public static float MovementSpeedLimit(PlayerRig player, Vector3 wish)
+        {
+            float limit = float.PositiveInfinity;
+            if (player == null || player.Doll == null || player.Downed || player.IsRiding || wish.sqrMagnitude < .0001f) return limit;
+            foreach (var push in All)
+            {
+                if (push == null || !push.isActiveAndEnabled || !push._allowPull || !push.CanPush) continue;
+                bool held = push.Holds(player.LeftHand) || push.Holds(player.RightHand);
+                if (!held && (!push.IsTouching(player) || Vector3.Dot(wish.normalized, push.Toward(player)) < PhysicsScale.PartPushAimDot)) continue;
+                limit = Mathf.Min(limit, PartPushTable.SpeedFor(Mathf.Max(1, push.PusherCount)) * push.SpeedMultiplier);
+            }
+            return limit;
+        }
         /// <summary>살아 있는 밀기 대상. 검증과 진단이 쓴다.</summary>
         public static readonly List<PartPush> All = new();
 
@@ -38,7 +63,7 @@ namespace Metagame.Gameplay.Parts
 
         SpaceshipPart _part;
         Rigidbody _body;
-        Collider _collider;
+        Collider[] _colliders;
 
         float _lastTopSpeed;
         bool _pushedRecently;
@@ -66,7 +91,7 @@ namespace Metagame.Gameplay.Parts
         {
             if (_part == null) _part = GetComponent<SpaceshipPart>();
             if (_body == null) _body = GetComponent<Rigidbody>();
-            if (_collider == null) _collider = GetComponent<Collider>();
+            if (_colliders == null) _colliders = GetComponentsInChildren<Collider>(true);
             if (!All.Contains(this)) All.Add(this);
         }
 
@@ -79,7 +104,7 @@ namespace Metagame.Gameplay.Parts
         /// 이 이슈에서 제외했다 — 기획 판단이 필요하다(S15P21B202-250).
         /// </summary>
         public bool CanPush =>
-            _part != null && _body != null && !_body.isKinematic
+            _part != null && _body != null && !_body.isKinematic && !WorldEvents.RemoteDecides
             && (_part.State == PartState.Free || _part.State == PartState.Placed);
 
         void FixedUpdate() => Tick(Time.fixedDeltaTime);
@@ -127,10 +152,11 @@ namespace Metagame.Gameplay.Parts
 
                 // 파츠 쪽으로 향하는 이동인가. 멀어지는 입력은 밀기가 아니다 —
                 // "당기기는 제공하지 않으며 반대편으로 이동해 반대 방향으로 민다".
-                var intent = touching
+                var held = _allowPull && able && (Holds(player.LeftHand) || Holds(player.RightHand));
+                var intent = (touching || held)
                              && wish.sqrMagnitude > 1e-4f
-                             && Vector3.Dot(wish.normalized, toPart)
-                                >= PhysicsScale.PartPushAimDot;
+                             && (held || Vector3.Dot(wish.normalized, toPart)
+                                >= PhysicsScale.PartPushAimDot);
 
                 if (!_pushers.TryGetValue(player, out var pusher))
                 {
@@ -144,7 +170,7 @@ namespace Metagame.Gameplay.Parts
                 {
                     pusher.IntentSeconds += deltaTime;
                     pusher.GraceSeconds = PhysicsScale.PartPushReleaseSeconds;
-                    pusher.Direction = toPart;
+                    pusher.Direction = held ? wish.normalized : toPart;
                 }
                 else
                 {
@@ -206,14 +232,14 @@ namespace Metagame.Gameplay.Parts
 
             if (PusherCount > 0)
             {
-                var top = PartPushTable.SpeedFor(PusherCount);
+                var top = PartPushTable.SpeedFor(PusherCount) * SpeedMultiplier;
                 _lastTopSpeed = top;
                 _pushedRecently = true;
 
                 var along = Vector3.Dot(horizontal, PushDirection);
                 if (along >= top) return;   // 이미 더 빠르다 — 건드리지 않는다
 
-                var add = Mathf.Min(PhysicsScale.PartPushAccel * deltaTime, top - along);
+                var add = Mathf.Min(PhysicsScale.PartPushAccel * SpeedMultiplier * deltaTime, top - along);
                 _body.linearVelocity = velocity + PushDirection * add;
                 return;
             }
@@ -245,7 +271,7 @@ namespace Metagame.Gameplay.Parts
         Vector3 Toward(PlayerRig player)
         {
             var from = player.FootPosition;
-            var to = _collider != null ? _collider.bounds.center : transform.position;
+            var to = _body.worldCenterOfMass;
 
             var offset = to - from;
             offset.y = 0f;
@@ -260,16 +286,23 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         bool IsTouching(PlayerRig player)
         {
-            if (_collider == null) return false;
+            if (_colliders == null) return false;
 
             var hips = player.Doll.Hips;
             if (hips == null) return false;
 
-            var point = _collider.ClosestPoint(hips.position);
-            var offset = point - hips.position;
-            offset.y = 0f;
-
-            return offset.magnitude <= PhysicsScale.PartPushContactDistance;
+            foreach (var collider in _colliders)
+            {
+                if (collider == null || !collider.enabled || collider.isTrigger
+                    || collider.attachedRigidbody != _body || collider.GetComponentInParent<PartClamp>() != null) continue;
+                var offset = collider.ClosestPoint(hips.position) - hips.position;
+                if (Mathf.Abs(offset.y) > .6f) continue;
+                offset.y = 0f;
+                if (offset.magnitude <= PhysicsScale.PartPushContactDistance) return true;
+            }
+            return false;
         }
+
+        private bool Holds(Hand hand) => hand != null && hand.Gripping && hand.HeldBody == _body;
     }
 }

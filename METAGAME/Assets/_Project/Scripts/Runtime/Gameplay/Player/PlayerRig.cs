@@ -30,6 +30,9 @@ namespace Metagame.Gameplay
         // Clamp가 본체 아래에 있어 어깨 높이 때문에 막히지 않도록 특수 보정으로 처리한다.
         float clampGrabDistanceFromPlayer = 0.72f;
 
+        // Optional level accessibility setting. Zero preserves the production pickup rules.
+        public float DirectToolPickupRange { get; set; }
+
         /// <summary>구조 상호작용 트리거의 반지름(m). 쓰러진 몸 옆에 서면 닿는다.</summary>
         const float RescueTriggerRadius = 1.1f;
         const float ClampInteractionHalfAngle = 60f;
@@ -444,6 +447,7 @@ namespace Metagame.Gameplay
             }
 
             FindCrosshairGrabbable(origin, forward, ref best);
+            FindDirectTool(origin, forward, ref best);
             FindDownedTeammate(origin, forward, ref best);
 
             // 카메라가 있을 때만 보던 자리다. 그러면 서버에 선 참가자의 몸은 카메라가 없어
@@ -559,6 +563,17 @@ namespace Metagame.Gameplay
                 Consider(ref best, MakeTarget(PlayerInteractionKind.Grabbable, null, grabbable,
                                               null, point, angle, distance));
             }
+        }
+
+        void FindDirectTool(Vector3 origin, Vector3 forward, ref PlayerInteractionTarget best)
+        {
+            // First solid hit only: never pick equipment through terrain or a module.
+            if (DirectToolPickupRange <= 0f || !Physics.Raycast(origin, forward, out var hit,
+                    DirectToolPickupRange, RagdollBuilder.WorldMask, QueryTriggerInteraction.Ignore)) return;
+            var item = hit.collider.GetComponentInParent<Grabbable>();
+            if (item == null || !item.isActiveAndEnabled || !item.CanGrab || !item.IsTool || item == toolHeld) return;
+            Consider(ref best, MakeTarget(PlayerInteractionKind.Grabbable, null, item, null,
+                hit.point, 0f, hit.distance));
         }
 
         static PlayerInteractionTarget MakeTarget(PlayerInteractionKind kind, PartClamp clamp,
@@ -1671,6 +1686,7 @@ namespace Metagame.Gameplay
             // 기절한 동료를 끌고 가는 동안 느려진다(기획 §20.4). 34.9kg 을 저중력에서
             // 끌고 가는 것이라 그냥 걷는 것과 같으면 안 된다.
             if (CarryingDownedTeammate) top *= PhysicsScale.DownedCarrySpeedScale;
+            top = Mathf.Min(top, PartPush.MovementSpeedLimit(this, wish));
             Vector3 targetVel = wish * top;
             targetVel.x += GroundVelocity.x;
             targetVel.z += GroundVelocity.z;
@@ -2599,10 +2615,13 @@ namespace Metagame.Gameplay
                 });
             }
 
+            if (!body.isKinematic)
+            {
+                body.linearVelocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+            }
             body.isKinematic = true;
             body.useGravity = false;
-            body.linearVelocity = Vector3.zero;
-            body.angularVelocity = Vector3.zero;
             body.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
             body.interpolation = RigidbodyInterpolation.Interpolate;
         }
@@ -2617,10 +2636,13 @@ namespace Metagame.Gameplay
             // 다른 자리에 떠 있게 된다.
             Vector3 holdPoint = AimOrigin + direction * Tuning.ToolHoldDistance;
 
+            if (!body.isKinematic)
+            {
+                body.linearVelocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+            }
             body.isKinematic = true;
             body.useGravity = false;
-            body.linearVelocity = Vector3.zero;
-            body.angularVelocity = Vector3.zero;
 
             CarriedBodyState state = carriedBodies[body];
             Vector3 desiredPosition = body.position + holdPoint - body.worldCenterOfMass;

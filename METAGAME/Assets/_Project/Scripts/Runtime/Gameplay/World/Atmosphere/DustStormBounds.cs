@@ -15,6 +15,13 @@ namespace Metagame.Gameplay
 
         public static bool TryFind(out Bounds bounds)
         {
+            var playArea = Object.FindFirstObjectByType<Stage1PlayArea>();
+            if (playArea != null)
+            {
+                bounds = new Bounds(playArea.transform.position + Vector3.up * 10f,
+                    new Vector3(playArea.FlightHalfSize.x * 2f, 20f, playArea.FlightHalfSize.y * 2f));
+                return true;
+            }
             bounds = default;
             bool found = false;
             var terrains = Terrain.activeTerrains;

@@ -74,7 +74,8 @@ namespace Metagame.Gameplay.Parts
         /// 아레나 경계 벽에 붙여 둔 보이지 않는 콜라이더가 9m 다(docs/asset-catalog.md §10).
         /// 그보다 낮게 잡아 벽을 넘어 밖으로 나가지 못하게 한다.
         /// </summary>
-        const float MaxAltitude = 8f;
+        Stage1PlayArea playArea;
+        float MaxAltitude => playArea != null ? playArea.MaximumAltitude : 8f;
 
         /// <summary>목표 고도가 이 안에 들어오면 부양이 안정된 것으로 본다.</summary>
         const float HoverSettleBand = 0.4f;
@@ -452,6 +453,7 @@ namespace Metagame.Gameplay.Parts
 
         void Awake()
         {
+            playArea = FindFirstObjectByType<Stage1PlayArea>();
             EnsurePhysics();
         }
 
@@ -541,7 +543,8 @@ namespace Metagame.Gameplay.Parts
         public void PlaceOnGround(Vector3 position, float visualYaw)
         {
             var rootRotation = Quaternion.LookRotation(Vector3.down, Vector3.forward);
-            var groundPosition = new Vector3(position.x, GroundY, position.z);
+            float floorY = playArea != null ? playArea.VehicleFloor(position) : GroundY;
+            var groundPosition = new Vector3(position.x, floorY, position.z);
             if (body == null) body = GetComponent<Rigidbody>();
             body.position = groundPosition;
             body.rotation = rootRotation;
@@ -569,7 +572,7 @@ namespace Metagame.Gameplay.Parts
             if (visual != null)
             {
                 visual.rotation = Quaternion.Euler(0f, visualYaw, 0f);
-                AlignVisualToSurface(GroundY);
+                AlignVisualToSurface(floorY);
             }
             RefreshSeat();
         }
@@ -640,7 +643,7 @@ namespace Metagame.Gameplay.Parts
 
         public bool TryBoard(PlayerRig player)
         {
-            if (player == null || rider != null || returning) return false;
+            if (!isActiveAndEnabled || player == null || rider != null || returning) return false;
 
             if (!CanBoardFrom(player)) return false;
 
@@ -691,6 +694,8 @@ namespace Metagame.Gameplay.Parts
         public void BeginDismount()
         {
             if (rider == null || returning) return;
+            var module = GetComponent<PartTractorActivator>();
+            if (module != null && module.TryDock()) return;
             driveVector = Vector3.zero;
             verticalInput = 0f;
             dismountElapsed = 0f;
@@ -793,6 +798,7 @@ namespace Metagame.Gameplay.Parts
         /// <summary>부활 때 탑승체와 플레이어를 함께 안전한 바닥 상태로 돌린다.</summary>
         public void ForceReset()
         {
+            if (!enabled) return; // A docked module now belongs to SpaceshipPart/PartAssembler.
             var currentPosition = transform.position;
             PlaceOnGround(currentPosition, 0f);
 
@@ -816,6 +822,7 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         public void Tick(float deltaTime)
         {
+            if (!enabled) return;
             var idle = rider == null && !Unmanned;
 
             // <b>굴림과 자세 복구는 탑승자가 없어도 끝까지 진행한다.</b>
@@ -987,12 +994,19 @@ namespace Metagame.Gameplay.Parts
             planar = Vector3.MoveTowards(planar, target, rate * deltaTime);
 
             var position = body.position;
-            if ((position.x <= -ArenaLimit && planar.x < 0f) || (position.x >= ArenaLimit && planar.x > 0f))
-                planar.x = 0f;
-            if ((position.z <= -ArenaLimit && planar.z < 0f) || (position.z >= ArenaLimit && planar.z > 0f))
-                planar.z = 0f;
-            position.x = Mathf.Clamp(position.x, -ArenaLimit, ArenaLimit);
-            position.z = Mathf.Clamp(position.z, -ArenaLimit, ArenaLimit);
+            if (playArea != null)
+            {
+                position = playArea.ClampFlight(position, ref planar);
+            }
+            else
+            {
+                if ((position.x <= -ArenaLimit && planar.x < 0f) || (position.x >= ArenaLimit && planar.x > 0f))
+                    planar.x = 0f;
+                if ((position.z <= -ArenaLimit && planar.z < 0f) || (position.z >= ArenaLimit && planar.z > 0f))
+                    planar.z = 0f;
+                position.x = Mathf.Clamp(position.x, -ArenaLimit, ArenaLimit);
+                position.z = Mathf.Clamp(position.z, -ArenaLimit, ArenaLimit);
+            }
             body.position = position;
 
             AdvanceTargetAltitude(deltaTime);
@@ -1057,7 +1071,21 @@ namespace Metagame.Gameplay.Parts
                 Debug.LogWarning($"[TransportVehicle] 하차가 {DismountTimeout}초 안에 접지하지 못해 그대로 내린다. "
                                  + $"위치 {body.position}");
 
+            var finalModule = GetComponent<PartTractorActivator>();
+            if (settled && finalModule != null && finalModule.TryDock()) return;
+
             CompleteDismount();
+        }
+
+        internal void FinishForAssembly()
+        {
+            Field.SetActive(false);
+            Unmanned = false;
+            driveVector = Vector3.zero;
+            verticalInput = 0f;
+            CompleteDismount();
+            enabled = false;
+            if (beam != null) beam.enabled = false;
         }
 
         void CompleteDismount()

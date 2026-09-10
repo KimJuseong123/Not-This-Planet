@@ -63,7 +63,13 @@ namespace Metagame.Gameplay.Parts
         public bool IsControlling => mountedVehicle != null;
         public string StatusMessage => Time.unscaledTime <= statusUntil ? statusMessage : "";
 
-        void OnEnable() => TransportVehicle.AnyActivated += RegisterActivatedVehicle;
+        void OnEnable() => SubscribeToActivation();
+
+        void SubscribeToActivation()
+        {
+            TransportVehicle.AnyActivated -= RegisterActivatedVehicle;
+            TransportVehicle.AnyActivated += RegisterActivatedVehicle;
+        }
 
         void OnDisable() => TransportVehicle.AnyActivated -= RegisterActivatedVehicle;
 
@@ -74,6 +80,7 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         public void Configure(PlayerRig localPlayer, TractorBeam[] beams, bool randomizeVehicles = true)
         {
+            if (isActiveAndEnabled) SubscribeToActivation();
             player = localPlayer;
             beams = beams ?? System.Array.Empty<TractorBeam>();
             vehicles = System.Array.Empty<TransportVehicle>();
@@ -156,7 +163,8 @@ namespace Metagame.Gameplay.Parts
                     if (mountedVehicle.Beam != null && mountedVehicle.Beam.IsHolding)
                         mountedVehicle.Beam.Release();
                     mountedVehicle.BeginDismount();
-                    SetStatus("하차 중 · 운반 장치가 바닥으로 내려갑니다");
+                    SetStatus(mountedVehicle.enabled ? "하차 중 · 운반 장치가 바닥으로 내려갑니다"
+                        : "상단 모듈 안착 · 접합부를 용접하세요");
                 }
                 else
                 {

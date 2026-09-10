@@ -49,6 +49,45 @@ namespace Metagame.Gameplay.Tests
         }
 
         // --- 표 (§13.2) ---------------------------------------------------
+        [Test]
+        public void SpeedMultiplierScalesManualMovement()
+        {
+            var push = MakePart();
+            push.ConfigureManualTransport(2f, true);
+            MakePlayer(new Vector3(-1f, 0f, 0f), Vector3.right);
+            Push(push, 3f);
+            Assert.AreEqual(.8f, Horizontal(push).x, .01f);
+        }
+
+        [Test]
+        public void ChildColliderIsRecognizedForPushing()
+        {
+            var push = MakePart();
+            var child = new GameObject("Compound body");
+            child.transform.SetParent(push.transform, false);
+            child.AddComponent<BoxCollider>();
+            Object.DestroyImmediate(push.GetComponent<BoxCollider>());
+            Object.DestroyImmediate(push);
+            push = child.transform.parent.gameObject.AddComponent<PartPush>();
+            MakePlayer(new Vector3(-1f, 0f, 0f), Vector3.right);
+            Push(push, 1f);
+            Assert.AreEqual(1, push.PusherCount);
+        }
+
+        [Test]
+        public void HoldingAndWalkingAwayPullsOnlyWhenEnabled()
+        {
+            var push = MakePart();
+            var player = MakePlayer(new Vector3(-1f, 0f, 0f), Vector3.left);
+            Assert.IsTrue(player.LeftHand.GripToFixedAtPoint(push.GetComponent<Grabbable>(),
+                push.GetComponent<Rigidbody>(), new Vector3(-.5f, .6f, 0)));
+            Push(push, 1f);
+            Assert.AreEqual(0, push.PusherCount);
+            push.ConfigureManualTransport(1f, true);
+            Push(push, 1f);
+            Assert.AreEqual(1, push.PusherCount);
+            Assert.Less(Horizontal(push).x, -.1f);
+        }
 
         /// <summary>
         /// 표가 <b>선형이 아니다</b> — 1·2·3명은 0.4씩 오르는데 4명은 0.3만 오른다.

@@ -132,6 +132,7 @@ namespace Metagame.Gameplay.Tests
             part.RefreshClamps();
             part.RefreshSockets();
             activator = go.AddComponent<PartTractorActivator>();
+            activator.Initialize(); // EditMode does not invoke MonoBehaviour.OnEnable.
             return part;
         }
     }
