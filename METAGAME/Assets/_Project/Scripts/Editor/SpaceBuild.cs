@@ -19,7 +19,7 @@ namespace Metagame.EditorTools
     /// </summary>
     public static class SpaceBuild
     {
-        static readonly string[] RequiredScenes = { "Assets/Scenes/Lobby.unity", "Assets/Scenes/Main.unity" };
+        static readonly string[] RequiredScenes = { "Assets/Scenes/Lobby.unity", "Assets/Scenes/Main.unity", "Assets/Scenes/Stage1_Astra.unity" };
 
         public static void BuildWindows() { Build(false); }
 
@@ -135,6 +135,7 @@ namespace Metagame.EditorTools
                 "NotThisPlanet/Ghost",
                 "NotThisPlanet/Flat",
                 "NotThisPlanet/PlanetNoFog",
+            "Metagame/Guidance/NoFog",
                 "Metagame/Atmosphere/SkyGradient",
                 "Hidden/Metagame/Atmosphere/Haze",
                 "Metagame/Atmosphere/Meteor",

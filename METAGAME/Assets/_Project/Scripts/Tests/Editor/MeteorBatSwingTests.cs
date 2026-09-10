@@ -452,6 +452,41 @@ namespace Metagame.Gameplay.Tests
                         Is.EqualTo(new Vector3(0.18f, -0.12f, 0.12f)));
         }
 
+        [UnityEngine.TestTools.UnityTest]
+        public System.Collections.IEnumerator Bat_DestroyWhileHeldRemovesCameraVisual()
+        {
+            // A plain EditMode object has not entered the runtime lifecycle, so its
+            // OnDestroy is not a reliable cleanup trigger. Exercise actual destruction.
+            yield return new UnityEngine.TestTools.EnterPlayMode();
+
+            var playerObject = new GameObject("방망이 파괴 테스트");
+            _spawned.Add(playerObject);
+            var player = playerObject.AddComponent<PlayerRig>();
+            player.enabled = false;
+            var camera = OrbitCamera.Create(player.transform, Color.black, true);
+            // This lifecycle test does not need audio alongside the test scene's listener.
+            camera.GetComponent<AudioListener>().enabled = false;
+            _spawned.Add(camera.gameObject);
+            player.Cam = camera;
+            var bat = MakeBat();
+            var body = bat.gameObject.AddComponent<Rigidbody>();
+            var visual = new GameObject("Visual_ZUpToYUp");
+            visual.transform.SetParent(bat.transform, false);
+            bat.Equip(player, body);
+            Assert.AreSame(camera.transform, visual.transform.parent);
+
+            Object.Destroy(bat.gameObject);
+            // The tool's OnDestroy schedules destruction of the camera-owned visual.
+            // Allow both the tool and that separately owned GameObject to be removed.
+            yield return null;
+            yield return null;
+
+            Assert.IsTrue(visual == null, "파괴된 방망이 외형이 카메라 아래에 남으면 안 된다.");
+            Assert.IsTrue(camera != null, "외형 정리가 카메라를 파괴하면 안 된다.");
+            UnityEngine.TestTools.LogAssert.NoUnexpectedReceived();
+            yield return new UnityEngine.TestTools.ExitPlayMode();
+        }
+
         // --- 리그 ---------------------------------------------------------
 
         MeteorBat MakeBat()

@@ -109,7 +109,8 @@ namespace Metagame.Bootstrap
                 DustStormMatchSeed.PrepareForMatch();
                 atmosphereProfile.Validate();
                 dustStormHazard = sys.AddComponent<Stage1DustStormHazard>();
-                if (useAtmosphere)
+                // 수제 맵의 조명을 보존해도 플레이어에게 영향을 주는 폭풍은 보여야 한다.
+                if (!Application.isBatchMode && !Metagame.Network.MatchRole.DedicatedServer)
                     dustStormVisual = sys.AddComponent<AtmosphereDustStorm>();
             }
 
@@ -167,7 +168,12 @@ namespace Metagame.Bootstrap
                 var mapBounds = DustStormBounds.FindOrFallback();
                 dustStormHazard.Configure(atmosphereProfile, mapBounds);
                 if (dustStormVisual != null)
+                {
                     dustStormVisual.BindMapBounds(mapBounds);
+                    // 일반 맵은 아래 Atmosphere.Apply가 초기화한다. 수제 맵은 직접 연결한다.
+                    if (!useAtmosphere)
+                        dustStormVisual.Apply(atmosphereProfile);
+                }
 
                 var clockBridge = sys.AddComponent<DustStormClockBridge>();
                 clockBridge.Configure(dustStormVisual, dustStormHazard);
@@ -275,6 +281,15 @@ namespace Metagame.Bootstrap
                 Player.Cam.Cam.farClipPlane = 400f;
                 Player.Cam.Cam.allowHDR = true;
                 authoredMap.ConfigureCamera(Player.Cam.Cam);
+                if (atmosphereProfile != null && !Application.isBatchMode)
+                {
+                    // 별도 오브젝트에 두어 안개 초기화가 기존 모래폭풍을 해제하지 않게 한다.
+                    var fogRoot = new GameObject("Atmosphere Fog");
+                    fogRoot.transform.SetParent(sys.transform, false);
+                    Atmosphere = fogRoot.AddComponent<AtmosphereController>();
+                    Atmosphere.BindCamera(Player.Cam.Cam);
+                    Atmosphere.ApplyFogOnly(atmosphereProfile);
+                }
             }
 
             // 낙하 예고 원과 분화구를 그리는 컴포넌트를 붙인다(S15P21B202-275).
@@ -299,6 +314,8 @@ namespace Metagame.Bootstrap
                 ? audioManager
                 : Resources.Load<AudioManager>("Audio/Stage1AudioManager");
             runtime.Configure(manager, authority, networked);
+            if (!MatchRole.DedicatedServer && !Application.isBatchMode)
+                systemRoot.AddComponent<GameMusicPlayer>().Configure(manager);
 
             if (networked)
             {

@@ -80,6 +80,9 @@ namespace Metagame.Gameplay
         {
             var go = new GameObject("카메라");
             var cam = go.AddComponent<Camera>();
+            // SpaceBootstrap disables the authored cameras and their listeners.
+            // The local player camera must own the listener for both BGM and world audio.
+            go.AddComponent<AudioListener>();
             cam.fieldOfView = 64f;
             cam.nearClipPlane = firstPerson ? 0.03f : 0.1f;
             cam.farClipPlane = 900f;      // 별밭이 반지름 300 짜리 껍데기다

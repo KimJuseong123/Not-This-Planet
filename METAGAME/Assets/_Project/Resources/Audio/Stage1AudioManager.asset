@@ -14,6 +14,11 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   soundBank: {fileID: 11400000, guid: d1c27bc8e51843968e346dea8a200cd6, type: 2}
   globalStyle: 0
+  musicClip: {fileID: 8300000, guid: d595100fcc974ccfaa06ac610105ea4a, type: 3}
+  musicBaseVolume: 0.18
+  musicFadeInSeconds: 4
+  musicFadeOutSeconds: 6
+  musicRepeatDelaySeconds: 5
   masterVolume: 1
   muted: 0
   outputMixerGroup: {fileID: 0}

@@ -760,7 +760,17 @@ namespace Metagame.Gameplay
 
         protected override void OnDestroy()
         {
-            RestoreVisualParent();
+            // The bat's hierarchy may already be tearing down. A visual borrowed by
+            // the camera still belongs to this tool: dispose it instead of reparenting
+            // it to a Transform Unity is currently destroying.
+            if (firstPersonVisualAttached && heldVisual != null)
+            {
+                var visual = heldVisual.gameObject;
+                heldVisual = null;
+                firstPersonVisualAttached = false;
+                if (Application.isPlaying) Destroy(visual);
+                else DestroyImmediate(visual);
+            }
             base.OnDestroy();
         }
 

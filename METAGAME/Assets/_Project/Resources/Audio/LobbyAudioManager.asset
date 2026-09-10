@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 35cb5fbb83cc44a5a0da55b42105d849, type: 3}
+  m_Name: LobbyAudioManager
+  m_EditorClassIdentifier:
+  soundBank: {fileID: 0}
+  globalStyle: 0
+  musicClip: {fileID: 8300000, guid: 5a5f707269c14e27a46fbc9d77e01867, type: 3}
+  musicBaseVolume: 0.25
+  musicFadeInSeconds: 3
+  musicFadeOutSeconds: 5
+  musicRepeatDelaySeconds: 5
+  masterVolume: 1
+  muted: 0
+  outputMixerGroup: {fileID: 0}
+  spatialMinDistance: 1.2
+  defaultFadeInSeconds: 0.005
+  defaultFadeOutSeconds: 0.04
+  noiseMasterVolume: 1
+  noiseMasterPitch: 1
+  eventOverrides: []
+

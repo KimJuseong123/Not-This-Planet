@@ -53,10 +53,10 @@ MonoBehaviour:
   fog:
     enabled: 1
     mode: 1
-    color: {r: 0.514151, g: 0.3869496, b: 0.21099593, a: 1}
+    color: {r: 0.4433962, g: 0.4433962, b: 0.4433962, a: 1}
     density: 0.04
-    startDistance: 2
-    endDistance: 25.01
+    startDistance: 10
+    endDistance: 60
   haze:
     enabled: 0
     requiresDepth: 1

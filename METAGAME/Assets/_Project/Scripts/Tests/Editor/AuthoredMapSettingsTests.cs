@@ -16,6 +16,17 @@ namespace Metagame.Gameplay.Tests
             Assert.IsTrue(map.Bounds.Contains(new Vector3(28,8.1f,19)));
             Assert.IsTrue(map.Bounds.Contains(new Vector3(-29,5.4f,25)));
         }
+        [Test] public void RuntimeCameraGetsPostProcessingAndHdrWithoutDuplicateComponents()
+        {
+            var camera = root.AddComponent<Camera>();
+            camera.allowHDR = false;
+            map.ConfigureCamera(camera);
+            map.ConfigureCamera(camera);
+            var data = root.GetComponents<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>();
+            Assert.That(data.Length, Is.EqualTo(1));
+            Assert.That(data[0].renderPostProcessing, Is.True);
+            Assert.That(camera.allowHDR, Is.True);
+        }
         [Test] public void BoundaryStopsOnlyOutwardMovement()
         {
             var velocity = new Vector3(3,2,-1);

@@ -13,7 +13,7 @@ namespace Metagame.UI
     /// </summary>
     public sealed class LobbyTransition : MonoBehaviour
     {
-        private const string GameSceneName = "Main";
+        private const string GameSceneName = "Stage1_Astra";
         private const string TitleScenePath = "Assets/Scenes/Lobby.unity";
         private const float FadeOutSeconds = 0.35f;
         private const float LoadingHoldSeconds = 0.80f;
@@ -54,7 +54,7 @@ namespace Metagame.UI
             DontDestroyOnLoad(gameObject);
         }
 
-        /// <summary>혼자 하기 전환. 네트워크를 시작하지 않고 Main 씬을 직접 연다.</summary>
+        /// <summary>혼자 하기 전환. 네트워크를 시작하지 않고 Stage1_Astra 씬을 직접 연다.</summary>
         public bool BeginSolo()
         {
             if (busy)

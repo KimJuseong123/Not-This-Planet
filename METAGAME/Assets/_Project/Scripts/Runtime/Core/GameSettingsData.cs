@@ -38,7 +38,7 @@ namespace Metagame.Core
             [Range(0f, 1f)] public float masterVolume = 1f;
             [Range(0f, 1f)] public float sfxVolume = 1f;
 
-            // 음악 재생기가 붙기 전까지는 로비에서 비활성으로 표시한다.
+            // BGM 기본 음량에 곱하는 사용자 음량. 효과음과 독립적으로 저장한다.
             [Range(0f, 1f)] public float musicVolume = 1f;
             [Range(0f, 1f)] public float voiceVolume = 1f;
         }

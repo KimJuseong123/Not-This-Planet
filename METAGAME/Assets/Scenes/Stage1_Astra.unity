@@ -46312,7 +46312,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 2ef7b693829146d43a40f425a7e580ae, type: 2}
+  - {fileID: 2100000, guid: e8f5f3e387534f1fa516463232599bfe, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -84286,7 +84286,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 37ec00059bfe97142b46c5bcd790e05b, type: 2}
+  - {fileID: 2100000, guid: f5299a84a67b44b8ab7d9452777b020c, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -87968,7 +87968,7 @@ MonoBehaviour:
   suit: {r: 0.93, g: 0.94, b: 0.96, a: 1}
   accent: {r: 0.96, g: 0.5, b: 0.16, a: 1}
   atmosphereProfile: {fileID: 11400000, guid: d271b19624ff44b1a8d05e2342e6691a, type: 2}
-  audioManager: {fileID: 0}
+  audioManager: {fileID: 11400000, guid: 30172e6644094138ac8b5ca0d778cf70, type: 2}
 --- !u!4 &1614633189
 Transform:
   m_ObjectHideFlags: 0
@@ -103355,7 +103355,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 3fa08e9cf17e8374783caf678baaa477, type: 2}
+  - {fileID: 2100000, guid: 00b98a365b4d4c8c9d83902b28d0545d, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -105700,7 +105700,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: e22892947d7cc2c44b71aee8c7a8064a, type: 2}
+  - {fileID: 2100000, guid: 3ca2442b361a4f3f94d863cfdde4ed56, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0

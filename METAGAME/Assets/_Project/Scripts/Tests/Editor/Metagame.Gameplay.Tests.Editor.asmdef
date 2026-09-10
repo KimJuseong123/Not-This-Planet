@@ -9,6 +9,7 @@
     "Metagame.Network",
     "Metagame.UI",
     "UnityEngine.UI",
+    "Unity.RenderPipelines.Universal.Runtime",
     "Metagame.Editor"
   ],
   "includePlatforms": [
