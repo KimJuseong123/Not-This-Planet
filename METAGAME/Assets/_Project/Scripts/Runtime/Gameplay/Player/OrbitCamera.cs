@@ -362,8 +362,23 @@ namespace Metagame.Gameplay
             }
         }
 
+        /// <summary>
+        /// Alt 자유 시점. <b>밀기 중에는 받지 않는다.</b>
+        ///
+        /// 소유자가 매 프레임 Alt 입력을 그대로 넘기므로, 그러지 않으면
+        /// <see cref="SetPushView"/> 가 끈 <see cref="FreeLook"/> 이 다음 프레임에
+        /// 되살아난다. 그러면 <see cref="Steer"/> 가 넓은 pitch 범위
+        /// (<see cref="FreeMinPitch"/>·<see cref="FreeMaxPitch"/>)를 쓰면서 §10.2 의
+        /// "<b>제한적인</b> 자유 시점" 이 깨진다 — 좌우는 TickPushView 가 계속 묶지만
+        /// 위아래로는 열려 버린다(!312 AI 리뷰가 짚었다).
+        ///
+        /// 탑승 시야는 같은 문제를 <see cref="Steer"/> 쪽에서 막고 있다
+        /// (<c>VehicleView ? MinPitch : (FreeLook ? …)</c>). 밀기는 pitch 범위를
+        /// 따로 두지 않으므로 여기서 막는 것이 맞다.
+        /// </summary>
         public void SetFreeLook(bool on)
         {
+            if (on && pushView) return;
             if (on == FreeLook) return;
             FreeLook = on;
         }

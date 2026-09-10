@@ -269,6 +269,67 @@ namespace Metagame.Gameplay.Tests
                 "한계를 넘어 뒤를 보면 무엇을 어디로 밀고 있는지 화면에서 사라진다.");
         }
 
+        // --- 벽 끼임 (§10.2) ------------------------------------------------
+
+        /// <summary>
+        /// §10.2 "벽과 파츠 사이에 카메라가 끼면 자동으로 가까워진다".
+        ///
+        /// <b>이 항목은 새로 만들지 않았다 — 이미 있는 것을 확인한다.</b>
+        /// <c>OrbitCamera.LateUpdate</c> 의 <c>SphereCastNonAlloc</c> 이 3인칭이면 항상
+        /// 그 일을 하고, 밀기 3인칭도 그 경로를 지난다.
+        ///
+        /// <b>내가 쓴 지라 본문은 "반경 있는 SphereCast 를 쓰지 않는다" 고 못박았고,
+        /// 그 금지가 잘못이었다.</b> S15P21B202-353 에서 반경이 문제였던 것은
+        /// <b>지면 착지 판정</b>이다 — 발밑을 재는데 반경이 있으면 1m 위에서 걸린다.
+        /// 카메라 벽 회피는 반대다. 카메라는 점이 아니라 시야를 가진 물체이므로
+        /// 반경 0.20m 의 여유가 <b>있어야</b> 벽을 뚫지 않는다. 용도가 다른 교훈을
+        /// 잘못 일반화한 것이다(!312 AI 리뷰가 짚었다).
+        ///
+        /// 그래서 주장 대신 재 둔다 — 밀기 거리 5.6m 에서 실제로 당겨지는가.
+        /// </summary>
+        [Test]
+        public void AWallBehindThePlayer_PullsTheCameraCloser()
+        {
+            var player = MakePlayerWithCamera(Vector3.zero);
+
+            // +x 를 미니 카메라는 -x 쪽에 선다. 그 자리에 벽을 세운다.
+            var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            wall.name = "벽";
+            wall.transform.position = new Vector3(-2f, 1.5f, 0f);
+            wall.transform.localScale = new Vector3(0.4f, 4f, 8f);
+            _spawned.Add(wall);
+            UnityEngine.Physics.SyncTransforms();
+
+            Haul(player, Vector3.right);
+            Frame(player, 1.5f);   // 거리가 수렴할 시간을 준다
+
+            var back = player.Hips.position.x - player.Cam.transform.position.x;
+
+            // **문턱은 실측으로 정했다.** 벽 2m 앞이면 1.48m, 벽이 없으면 4.91m 다.
+            // 처음에는 `back < PartPushCamDistance(5.6)` 로 썼는데 그 단정은 벽 회피를
+            // 지워도 통과했다 — 수렴이 완전하지 않아 벽 없이도 4.91 로 5.6 미만이다.
+            // 대조 실험이 그것을 잡았다.
+            Assert.Less(back, 3f, "벽이 있으면 절반도 못 물러난다 — §10.2.");
+            Assert.Greater(back, 0.5f, "그렇다고 몸 안으로 파고들지도 않는다.");
+        }
+
+        /// <summary>
+        /// 벽이 없으면 밀기 거리를 온전히 물러난다. 위 검증의 짝이다 — 이것이 없으면
+        /// "항상 가까이 붙어 있다" 도 위 검증을 통과한다.
+        /// </summary>
+        [Test]
+        public void WithNothingBehind_ItPullsBackTheFullPushDistance()
+        {
+            var player = MakePlayerWithCamera(Vector3.zero);
+
+            Haul(player, Vector3.right);
+            Frame(player, 2f);
+
+            var back = player.Hips.position.x - player.Cam.transform.position.x;
+
+            Assert.Greater(back, 4f, "막는 것이 없으면 밀기 거리(5.6)에 가깝게 물러난다.");
+        }
+
         // --- 다른 시야와의 우선순위 ------------------------------------------
 
         /// <summary>
@@ -335,6 +396,42 @@ namespace Metagame.Gameplay.Tests
 
             Assert.IsFalse(player.Cam.PushView);
             Assert.IsTrue(player.Cam.VehicleView);
+        }
+
+        /// <summary>
+        /// 밀기 중 Alt 를 눌러도 넓은 자유 시점으로 열리지 않는다.
+        ///
+        /// 소유자가 매 프레임 Alt 입력을 그대로 넘기므로, 막지 않으면
+        /// <c>SetPushView</c> 가 끈 <c>FreeLook</c> 이 다음 프레임에 되살아나
+        /// §10.2 의 "제한적인" 이 깨진다(!312 AI 리뷰).
+        /// </summary>
+        [Test]
+        public void PressingAltWhileHauling_DoesNotOpenTheFreeLook()
+        {
+            var player = MakePlayerWithCamera(Vector3.zero);
+
+            Haul(player, Vector3.right);
+            Assert.IsFalse(player.Cam.FreeLook, "밀기에 들어갈 때 꺼진다.");
+
+            player.Cam.SetFreeLook(true);   // GameSession 이 Alt 를 넘긴 것과 같다
+            Frame(player, 0.1f);
+
+            Assert.IsFalse(player.Cam.FreeLook, "밀기 중에는 받지 않는다.");
+        }
+
+        /// <summary>밀기가 끝나면 Alt 는 다시 듣는다.</summary>
+        [Test]
+        public void AfterHauling_TheAltFreeLookWorksAgain()
+        {
+            var player = MakePlayerWithCamera(Vector3.zero);
+
+            Haul(player, Vector3.right);
+            player.SetHaulState(false, Vector3.zero, Vector3.zero);
+            Frame(player, 0.1f);
+
+            player.Cam.SetFreeLook(true);
+
+            Assert.IsTrue(player.Cam.FreeLook);
         }
 
         // --- 서버가 참가자에게 보내는 경로 ------------------------------------

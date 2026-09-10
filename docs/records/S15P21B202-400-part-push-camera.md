@@ -72,7 +72,7 @@ QA 기록의 유형 A(만들었는데 아무도 안 씀)가 되기 직전이었�
 좌우 자유 시점은 그 기준 ±`PartPushCamYawRangeDegrees`(55도)로 묶는다. 제한이 없으면
 카메라를 뒤로 돌린 채 밀게 되어 무엇을 어디로 밀는지 화면에서 사라진다.
 
-### 2-5. 벽 끼임 — 이미 있었다
+### 2-5. 벽 끼임 — 이미 있었다. 그리고 내가 쓴 지라가 틀렸다
 
 §10.2 "벽과 파츠 사이에 카메라가 끼면 자동으로 가까워진다".
 
@@ -80,7 +80,43 @@ QA 기록의 유형 A(만들었는데 아무도 안 씀)가 되기 직전이었�
 **새로 만들지 않았다.** 자기 몸만 제외하고 나머지는 다 막는 것으로 보므로 파츠·벽
 모두 걸린다.
 
-### 2-6. 참가자 화면까지 전환된다
+> **그런데 이 이슈의 지라 본문은 "반경 있는 SphereCast 를 쓰지 않는다 —
+> `-353` 에서 반경 때문에 1m 위에서 멈춘 적이 있다" 고 못박았다. 그 금지가
+> 틀렸다.** MR !312 의 AI 리뷰가 "완료 조건 항목이 Jira 가 배제한 수단으로
+> 채워졌다" 고 [높음]으로 짚었고, 짚은 것이 맞다.
+>
+> `-353` 에서 반경이 문제였던 것은 **지면 착지 판정**이다. 발밑을 재는데 반경이
+> 있으면 지면에서 1m 위에서 걸린다. 카메라 벽 회피는 반대다 — 카메라는 점이 아니라
+> 시야를 가진 물체이므로 반경 0.20m 의 여유가 **있어야** 벽을 뚫지 않는다.
+> **용도가 다른 교훈을 잘못 일반화한 것이다.**
+>
+> 그래서 지라 문면을 따르지 않고, 대신 **주장 대신 재 두었다** — §3 의
+> `AWallBehindThePlayer_PullsTheCameraCloser` 가 밀기 거리 5.6m 에서 실제로 당겨지는지
+> 확인한다. `-353` 의 결정은 그 이슈의 용도(지면 판정)에 한정해 읽어야 한다.
+
+### 2-6. 밀기 중에는 Alt 자유 시점을 받지 않는다
+
+**MR !312 의 AI 리뷰가 찾은 실제 결함이다.**
+
+`SetPushView(true)` 가 `FreeLook = false` 로 직접 대입하는데, 소유자가 **매 프레임**
+Alt 입력을 `SetFreeLook(f.FreeLook)` 로 넘긴다. 그래서 Alt 를 누른 채 밀기에
+들어가면 다음 프레임에 `FreeLook` 이 되살아나고, `Steer` 가 넓은 pitch 범위
+(`FreeMinPitch` −78 · `FreeMaxPitch` 84)를 쓰면서 §10.2 의 "**제한적인** 자유 시점"
+이 깨진다. 좌우는 `TickPushView` 가 계속 묶지만 위아래로는 열려 버린다.
+
+탑승 시야는 같은 문제를 `Steer` 쪽에서 막고 있다
+(`VehicleView ? MinPitch : (FreeLook ? …)`). 밀기는 pitch 범위를 따로 두지 않으므로
+`SetFreeLook` 에서 막는 것이 맞다.
+
+```csharp
+public void SetFreeLook(bool on)
+{
+    if (on && pushView) return;
+    ...
+}
+```
+
+### 2-7. 참가자 화면까지 전환된다
 
 **이것이 이 이슈의 절반이다.** 2026-09-10 부터 모든 기능이 멀티를 전제한다.
 
@@ -122,7 +158,7 @@ QA 기록의 유형 A(만들었는데 아무도 안 씀)가 되기 직전이었�
 
 ## 3. 검증
 
-**`PartPushCameraTests` 22개.** 카메라는 `LateUpdate` 표현이라 화면을 볼 수 없으므로
+**`PartPushCameraTests` 26개.** 카메라는 `LateUpdate` 표현이라 화면을 볼 수 없으므로
 `DownedCameraTests` 와 같은 방식으로 **상태와 전환을** 잠근다.
 
 | 검증 | 무엇을 잠그나 |
@@ -149,6 +185,10 @@ QA 기록의 유형 A(만들었는데 아무도 안 씀)가 되기 직전이었�
 | `MovingPartFor_IgnoresAPartThatIsOnlyBracedByTwo` | 둘이면 찾지 않는다 |
 | `TheGraspPointIsOnThePartSurface` | 접촉 지점이 표면이다(중심 아님) |
 | `WalkingAround_ThereIsNoPushView` | 기본 상태 |
+| `AWallBehindThePlayer_PullsTheCameraCloser` | **벽이 있으면 절반도 못 물러난다(§10.2)** |
+| `WithNothingBehind_ItPullsBackTheFullPushDistance` | 막는 것이 없으면 5.6m 근처까지 |
+| `PressingAltWhileHauling_DoesNotOpenTheFreeLook` | 밀기 중 Alt 를 막는다 |
+| `AfterHauling_TheAltFreeLookWorksAgain` | 밀기가 끝나면 다시 듣는다 |
 
 ### 3-1. 대조 실험 — 그리고 첫 번째 대조가 실패했다
 
@@ -157,6 +197,8 @@ QA 기록의 유형 A(만들었는데 아무도 안 씀)가 되기 직전이었�
 | 전환 조건을 `Hauling` 대신 `true` 로 | **처음: 22개 전부 통과** ❌ → 고친 뒤: 3개 실패 ⭕ |
 | 이동 기준을 매 틱 밀기 방향으로 따라가게 | 1개 실패 — `TheHaulBasisIsFixedAtTheStart…` ⭕ |
 | 참가자 화면에서 로컬 조회가 서버 값을 덮게 | 1개 실패 — `OnAParticipant…` ⭕ |
+| `SetFreeLook` 의 밀기 보호 제거 | 1개 실패 — `PressingAltWhileHauling…` ⭕ |
+| 벽 회피(`want = Min(...)`) 제거 | **처음: 26개 전부 통과** ❌ → 문턱을 고친 뒤: 1개 실패 ⭕ |
 
 **첫 번째 대조가 아무것도 잡지 못했다.** 전환 로직을 `GameSession` 안에 두었는데
 검증 하네스가 같은 두 줄을 흉내내는 꼴이 되어, **실제 배선이 검증 경로 밖**이었다.
@@ -178,6 +220,19 @@ player.Cam.TickPushView(player.HaulGrasp, player.HaulDirection, Step);
 > 그래서 규칙을 하나 더 얻었다 — **전환·판정 로직을 소유자(`GameSession`) 안에
 > 두지 않는다.** 검증이 부를 수 있는 자리(`PlayerRig`)에 두고 소유자는 한 줄만
 > 부른다. 그러면 대조 실험이 실제 경로를 지난다.
+
+**그리고 대조가 한 번 더 잡았다.** 벽 회피를 지웠는데 26개가 전부 통과했다.
+단정을 `back < PartPushCamDistance(5.6)` 로 썼기 때문이다 — 실제로 재 보니 벽이
+없어도 4.91m 에서 수렴해 5.6 미만이었다. 즉 **단정이 늘 참이었다.**
+
+```
+[진단] 벽 있음 · back=1.484
+[진단] 벽 없음 · back=4.909
+```
+
+문턱을 그 두 값 사이(3m)로 옮기자 대조가 정확히 그 검증 하나를 잡았다.
+**문턱은 계산이 아니라 실측으로 정한다** — `-394` 에서 이론값 4.75 가 실제로는
+안 움직였던 것과 같은 종류다.
 
 ### 3-2. 기준선 대조
 
