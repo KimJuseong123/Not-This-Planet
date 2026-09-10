@@ -137,6 +137,15 @@ namespace Metagame.Bootstrap
 
             if (buildLevel) Level.Build();
 
+            Session.RecoveryFromServer = Mirror.NetworkClient.active || Mirror.NetworkServer.active;
+            var recovery = sys.AddComponent<MapRecovery>();
+            Session.Recovery = recovery;
+            recovery.Configure(Session, DustStormBounds.FindOrFallback(),
+                FindObjectsByType<SpaceshipPart>(FindObjectsSortMode.None),
+                FindObjectsByType<ToolBase>(FindObjectsSortMode.None),
+                FindObjectsByType<LaunchTest>(FindObjectsSortMode.None));
+            sys.AddComponent<MapRecoveryBridge>().Configure(recovery);
+
             if (dustStormHazard != null)
             {
                 var mapBounds = DustStormBounds.FindOrFallback();

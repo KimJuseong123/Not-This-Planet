@@ -217,6 +217,8 @@ namespace Metagame.Network
 
         // ── 클라이언트(내 것) ───────────────────────────────────
         InputFrame lastSent;
+        bool respawnWasPressed;
+        double nextManualRespawnTime;
         float sendTimer;
         bool everSent;
 
@@ -602,11 +604,11 @@ namespace Metagame.Network
         void JudgeProgress(float deltaTime)
         {
             var session = GameSession.Instance;
-            if (session == null) return;
+            if (session == null || (session.Recovery != null && session.Recovery.RecoverySuspended)) return;
 
             if (GameSession.HasFallen(body))
             {
-                session.RespawnPlayer(body, transport);
+                session.RecoverFallenPlayer(body, transport);
                 downedSeconds = 0f;
                 return;
             }
@@ -637,9 +639,21 @@ namespace Metagame.Network
         }
 
         /// <summary>
-        /// 클라이언트가 누른 키. 서버는 보관만 하고 다음 물리 스텝에 적용한다 —
-        /// 받은 즉시 물리를 돌리면 패킷이 몰려 올 때 그 사람만 여러 번 움직인다.
+        /// 소유자가 요청한 개인 복구. 반복 요청은 서버에서 1초 간격으로 제한한다.
         /// </summary>
+        [Command]
+        void CmdRequestRespawn()
+        {
+            var session = GameSession.Instance;
+            if (body == null || session == null || session.Cleared
+                || NetworkTime.time < nextManualRespawnTime
+                || (session.Recovery != null && session.Recovery.RecoverySuspended)) return;
+            nextManualRespawnTime = NetworkTime.time + 1.0;
+            session.RespawnPlayer(body, transport);
+            downedSeconds = 0f;
+        }
+
+        /// <summary>입력을 보관하고 다음 물리 스텝에 적용한다.</summary>
         [Command]
         void CmdSendInput(InputFrame frame)
         {
@@ -688,6 +702,9 @@ namespace Metagame.Network
             // 카메라는 내 PC 에만 있다. 서버가 "앞" 이 어느 쪽인지 알 수 있도록
             // 지금 보고 있는 각도를 입력에 실어 함께 보낸다.
             InputFrame now = body.CurrentInput;
+            // 일회성 복구는 신뢰성 있는 Command로 보낸다. 이동 패킷 반복으로 재발동하지 않는다.
+            if (now.Restart && !respawnWasPressed) CmdRequestRespawn();
+            respawnWasPressed = now.Restart;
             if (body.Cam != null)
             {
                 now.AimYaw = body.Cam.Yaw;

@@ -132,6 +132,17 @@ namespace Metagame.Network
         bool warned;
         bool clientWasActive;
 
+        void OnEnable() => UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnSceneLoaded;
+        void OnDisable() => UnityEngine.SceneManagement.SceneManager.sceneLoaded -= OnSceneLoaded;
+
+        void OnSceneLoaded(UnityEngine.SceneManagement.Scene scene, UnityEngine.SceneManagement.LoadSceneMode mode)
+        {
+            if (mode != UnityEngine.SceneManagement.LoadSceneMode.Single) return;
+            spawned = false;
+            waited = 0f;
+            warned = false;
+        }
+
         void Update()
         {
             // 접속할 때마다 스폰 핸들러를 다시 등록한다 — 끊길 때 지워지기 때문이다.
