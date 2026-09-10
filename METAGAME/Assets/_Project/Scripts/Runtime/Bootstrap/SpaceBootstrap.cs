@@ -126,6 +126,10 @@ namespace Metagame.Bootstrap
             PauseMenu.Initialize(Session);
             PingHud = sys.AddComponent<TeamPingHud>();
             PingHud.Initialize(Session);
+            // 방장과의 연결이 조용해지면 알리고, 오래 조용하면 로비로 돌려보낸다
+            // (S15P21B202-385). 감시와 표시를 나눠 둔다 — 감시는 네트워크, 표시는 UI.
+            sys.AddComponent<Metagame.Network.HostLinkWatch>();
+            sys.AddComponent<HostNoticeHud>();
             Exploration = sys.AddComponent<Stage1Exploration>();
             ExplorationHud = sys.AddComponent<Stage1ExplorationHud>();
             Transport = sys.AddComponent<TractorBeamController>();
