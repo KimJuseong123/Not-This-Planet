@@ -138,6 +138,18 @@ namespace Metagame.Gameplay.Hazards
         /// </summary>
         public sealed class Scar
         {
+            /// <summary>
+            /// 이 흔적의 고유 번호 (S15P21B202-355).
+            ///
+            /// <para><b>인덱스로는 짝을 지을 수 없다.</b> <see cref="Trim"/> 이
+            /// <c>_scars.RemoveAt(0)</c> 으로 <b>앞에서</b> 지우므로, 상한을 넘는 순간
+            /// 남은 전부가 한 칸씩 밀린다 — 인덱스로 자세를 보내면 그 프레임에 돌들이
+            /// 서로의 자리로 순간이동한다. 하늘의 운석은 "몇 개가 어디에" 만 중요해서
+            /// 번호로 짝지을 필요가 없었지만(<c>ApplyNetworkMeteors</c> 의 주석),
+            /// 흔적은 사람이 <b>집어 옮기므로</b> 신원이 필요하다.</para>
+            /// </summary>
+            public int Id;
+
             public Meteor Meteor;
             public Vector3 Point;
             public float Radius;
@@ -150,6 +162,9 @@ namespace Metagame.Gameplay.Hazards
         }
 
         readonly List<Scar> _scars = new();
+
+        /// <summary>다음에 줄 흔적 번호. 0 은 "번호 없음" 으로 남겨 둔다.</summary>
+        int _nextScarId;
 
         /// <summary>
         /// 지면에 박힌 흔적. 오래된 것이 앞이다(기획 §19).
@@ -611,6 +626,126 @@ namespace Metagame.Gameplay.Hazards
             _ghosts.Clear();
         }
 
+        // ── 네트워크에서 받은 흔적 (S15P21B202-355) ───────────────────────
+        //
+        // 참가자는 착탄을 스스로 계산하지 않으므로(MeteorClockBridge 가 조기 반환한다)
+        // **착지한 돌이 아예 없다.** 그런데 상호작용은 서버가 판정하므로 — 입력 프레임이
+        // 서버로 가고 서버 세계에서 포커스를 고른다 — **안 보이는 돌을 집을 수 있었다.**
+        // 2026-09-10 QA 신고가 그것이다: "호스트 화면에서 운석이 보이는데 나는 안 보여.
+        // 그런데 보이지만 않고 상호작용은 돼."
+        //
+        // 낙하 그림과 같은 방식이다(ApplyNetworkMeteors) — 판정에 관여하지 않는 그림만
+        // 만들고 Meteor 컴포넌트와 충돌러를 끈다. 다른 점은 **번호로 짝을 짓는다는
+        // 것**뿐이다. 사람이 집어 옮기므로 어느 돌인지가 중요하다.
+
+        /// <summary>
+        /// 착지한 흔적 하나의 자세. <b>속도를 싣지 않는다</b> — 쉬는 돌은 속도가 0이고,
+        /// 끌리는 동안의 궤적은 자세를 자주 보내는 것으로 충분하다(낙하와 달리 초당
+        /// 10m 로 움직이지 않는다).
+        /// </summary>
+        public struct NetworkScarState
+        {
+            public int Id;
+            public Vector3 Position;
+            public Quaternion Rotation;
+        }
+
+        readonly Dictionary<int, Meteor> _scarGhosts = new();
+
+        /// <summary>참가자 화면에 놓인 흔적 그림의 수. 권위 쪽에서는 항상 0 이다.</summary>
+        public int ScarGhostCount => _scarGhosts.Count;
+
+        /// <summary>번호로 흔적 그림을 찾는다. 테스트와 진단이 쓴다.</summary>
+        public bool TryGetScarGhost(int id, out Meteor ghost) => _scarGhosts.TryGetValue(id, out ghost);
+
+        /// <summary>
+        /// 호스트가 보낸 흔적으로 그림을 맞춘다 (S15P21B202-355).
+        ///
+        /// <para><b>권위 쪽에서 부르면 안 된다</b> — 자기 흔적 위에 그림을 겹쳐 놓는다.
+        /// <see cref="Tick"/> 을 돌리는 기계와 이것을 부르는 기계는 서로 배타적이다.</para>
+        ///
+        /// <para><paramref name="full"/> 이 참이면 <b>이 목록이 전부</b>라는 뜻이라, 목록에
+        /// 없는 그림을 지운다. 거짓이면 <b>움직인 것만</b> 온 것이므로 자세만 얹고 아무것도
+        /// 지우지 않는다 — 그 묶음은 신뢰 없는 채널로 오고, 하나 잃었다고 돌을 지우면
+        /// 화면에서 돌이 깜빡인다.</para>
+        /// </summary>
+        public void ApplyNetworkScars(IReadOnlyList<NetworkScarState> states, bool full)
+        {
+            var n = states != null ? states.Count : 0;
+
+            if (full)
+            {
+                _seenScarIds.Clear();
+                for (var i = 0; i < n; i++) _seenScarIds.Add(states[i].Id);
+
+                _staleScarIds.Clear();
+                foreach (var pair in _scarGhosts)
+                    if (!_seenScarIds.Contains(pair.Key)) _staleScarIds.Add(pair.Key);
+
+                for (var i = 0; i < _staleScarIds.Count; i++)
+                {
+                    var id = _staleScarIds[i];
+                    if (_scarGhosts.TryGetValue(id, out var gone) && gone != null) gone.Despawn();
+                    _scarGhosts.Remove(id);
+                }
+            }
+
+            for (var i = 0; i < n; i++)
+            {
+                var state = states[i];
+
+                // **움직임 묶음으로는 새로 만들지 않는다.** 그 묶음은 신뢰가 없어서
+                // 순서가 어긋나 도착할 수 있고, 전체 목록이 오기 전에 만들면 지울 근거가
+                // 없는 그림이 생긴다.
+                if (!_scarGhosts.TryGetValue(state.Id, out var ghost))
+                {
+                    if (!full) continue;
+                    ghost = CreateGhost();
+                    ghost.name = "Meteor(원격 흔적)";
+                    _scarGhosts[state.Id] = ghost;
+                }
+
+                if (ghost == null) continue;
+
+                // 보내는 쪽도 받는 쪽도 body 로 읽고 쓴다 — 보간이 걸려 있어
+                // transform.position 은 표시 위치다(ApplyNetworkMeteors 와 같은 이유).
+                //
+                // `Meteor.Body` 를 쓴다 (`!321` AI 리뷰) — 전체 목록은 흔적 전부를
+                // 훑으므로 여기서 GetComponent 를 부르면 그 개수만큼 쌓인다.
+                var body = ghost.Body;
+                if (body != null)
+                {
+                    body.position = state.Position;
+                    body.rotation = state.Rotation;
+
+                    // **쉬는 돌은 떨어지지 않아야 한다.** 낙하 그림은 중력으로 궤적을
+                    // 흉내내지만 흔적은 땅에 박혀 있다 — 충돌러가 꺼져 있으므로 중력을
+                    // 그대로 두면 지면을 뚫고 영영 내려간다.
+                    body.linearVelocity = Vector3.zero;
+                    body.angularVelocity = Vector3.zero;
+                    body.useGravity = false;
+                    continue;
+                }
+
+                ghost.transform.SetPositionAndRotation(state.Position, state.Rotation);
+            }
+        }
+
+        readonly HashSet<int> _seenScarIds = new();
+        readonly List<int> _staleScarIds = new();
+
+        /// <summary>
+        /// 흔적 그림을 모두 지운다. 접속이 끝나거나 이 기계가 호스트를 이어받으면
+        /// 그림 대신 진짜 흔적을 쓴다.
+        /// </summary>
+        public void ClearNetworkScars()
+        {
+            foreach (var pair in _scarGhosts)
+                if (pair.Value != null) pair.Value.Despawn();
+
+            _scarGhosts.Clear();
+        }
+
         /// <summary>
         /// 판정에 관여하지 않는 낙하 그림 하나. <see cref="_live"/> 에는 넣지 않는다 —
         /// 그 목록은 권위 쪽의 것이고 <see cref="AdvanceLive"/> 가 틱한다.
@@ -696,6 +831,7 @@ namespace Metagame.Gameplay.Hazards
         {
             _scars.Add(new Scar
             {
+                Id = ++_nextScarId,
                 Meteor = meteor,
                 // 박힌 몸통은 지면 아래다 — 분화구를 거기에 그리면 묻힌다.
                 Point = meteor.ImpactPoint,

@@ -5,6 +5,8 @@ using UnityEngine;
 using Metagame.Gameplay;
 using Metagame.Gameplay.Parts;
 using MeteorPose = Metagame.Gameplay.Hazards.MeteorSpawner.NetworkMeteorPose;
+using ScarState = Metagame.Gameplay.Hazards.MeteorSpawner.NetworkScarState;
+using ScarRecord = Metagame.Gameplay.Hazards.MeteorSpawner.Scar;
 
 namespace Metagame.Network
 {
@@ -163,6 +165,15 @@ namespace Metagame.Network
         bool[] sendTools = Array.Empty<bool>();
         bool[] lastSentTools = Array.Empty<bool>();
         float toolKeepaliveTimer;
+
+        // ── 착지한 운석(흔적) (S15P21B202-355) ────────────────────────────
+        ScarState[] sendScarSet = System.Array.Empty<ScarState>();
+        ScarState[] sendScarMoves = System.Array.Empty<ScarState>();
+        int[] lastScarIds = System.Array.Empty<int>();
+        float scarKeepaliveTimer;
+        uint lastScarSeq;
+        bool everScar;
+        bool warnedScarCap;
         uint lastToolSeq;
         bool everTool;
         bool warnedToolMismatch;
@@ -186,6 +197,21 @@ namespace Metagame.Network
         /// 공세 간격의 최소가 15초이므로(기획 §17.4) 정상 조용함과 헷갈리지 않는다.
         /// </summary>
         const float GhostSilenceTimeout = 2f;
+
+        /// <summary>
+        /// 흔적 전체 목록을 다시 보내는 간격 (S15P21B202-355).
+        ///
+        /// <para>목록은 <b>바뀔 때만</b> 나가는데, 그것만으로는 <b>늦게 들어온 참가자</b>가
+        /// 다음 착탄까지 빈 땅을 본다. 그리고 이 묶음은 신뢰 채널이라 잃지는 않지만,
+        /// 참가자가 <c>ready</c> 가 되기 전에 나간 것은 걸러진다.</para>
+        ///
+        /// <para>고정쇠·도구의 되보내기와 같은 방식이다. 그쪽보다 간격이 긴 것은 묶음이
+        /// 크기 때문이다 — 40개 × 32B 는 약 1.3KB 다.</para>
+        /// </summary>
+        const float ScarKeepalive = 2f;
+
+        /// <summary>흔적 자세 하나 — 자세 28 + 번호 4. 속도는 싣지 않는다.</summary>
+        const int ScarStateBytes = PoseBytes + 4;
         float lastMeteorAt;
 
         /// <summary>
@@ -623,6 +649,10 @@ namespace Metagame.Network
 
             // 낙하 그림은 충돌러가 꺼져 있어 남으면 지면을 뚫고 영원히 떨어진다.
             if (!isServer && MeteorSpawner != null) MeteorSpawner.ClearNetworkMeteors();
+
+            // 흔적 그림도 함께 치운다 (S15P21B202-355). 이쪽은 중력을 끄고 세워 두므로
+            // 지면을 뚫지는 않지만, 남으면 다음 경기의 빈 땅에 옛 돌이 서 있다.
+            if (!isServer && MeteorSpawner != null) MeteorSpawner.ClearNetworkScars();
         }
 
         public override void OnStopServer()
@@ -712,6 +742,7 @@ namespace Metagame.Network
             velocityTimer += Time.deltaTime;
             dropKeepaliveTimer += Time.deltaTime;
             toolKeepaliveTimer += Time.deltaTime;
+            scarKeepaliveTimer += Time.deltaTime;
             if (sendTimer < SendInterval) return;
             sendTimer = 0f;
 
@@ -830,6 +861,218 @@ namespace Metagame.Network
 
             // ── 낙하 운석 그림 ──────────────────────────────────
             SendMeteors();
+
+            // ── 착지한 운석(흔적) ───────────────────────────────
+            SendScars();
+        }
+
+        /// <summary>한 묶음에 실을 수 있는 흔적 개수. 움직임 묶음(신뢰 없음)에만 쓴다.</summary>
+        static int UnreliableScarCapacity
+        {
+            get
+            {
+                int max = Transport.active != null
+                    ? Transport.active.GetMaxPacketSize(Channels.Unreliable)
+                    : 1194;
+                return Mathf.Max(0, (max - PacketHeadroom) / ScarStateBytes);
+            }
+        }
+
+        /// <summary>
+        /// 착지한 운석을 내려보낸다 (S15P21B202-355).
+        ///
+        /// <para><b>왜 필요한가.</b> 참가자는 착탄을 스스로 계산하지 않으므로
+        /// (<c>MeteorClockBridge</c> 가 조기 반환한다) 착지한 돌이 <b>아예 없다</b>.
+        /// 그런데 상호작용은 서버가 판정하므로 <b>안 보이는 돌을 집을 수 있었다</b> —
+        /// 2026-09-10 QA: "호스트 화면에서 운석이 보이는데 나는 안 보여. 그런데 보이지만
+        /// 않고 상호작용은 돼."</para>
+        ///
+        /// <para><b>두 묶음으로 나눈다.</b> 낙하 운석처럼 매 틱 전부 보낼 수 없다 —
+        /// 동시 흔적이 30~40개(상한 200, 수명 30초)라 한 묶음이 1.3KB 이고, 그것을 30Hz
+        /// 로 내면 사람당 40KB/s 다.</para>
+        ///
+        /// <list type="bullet">
+        /// <item><b>전체 목록</b> — 번호 집합이 바뀔 때(착탄·상한 정리)와 되보내기 간격마다.
+        /// <b>신뢰 채널</b>이라 한 번 가면 도착한다. 40개 × 32B 는 약 1.3KB 이고 kcp 가
+        /// 신뢰 채널을 조각내 나르므로 쪼갤 필요가 없다.</item>
+        /// <item><b>움직임</b> — <b>깨어 있는 강체만</b>. 쉬는 돌은 잠들어 있어 보낼 것이
+        /// 없다. 사람이 끌고 있는 것은 사람당 최대 하나라 현실적으로 1~2개다 —
+        /// 2개 × 32B × 30Hz 는 2KB/s 이고, 이미 도는 낙하 채널의 최대치(28개 × 40B ×
+        /// 30Hz 는 약 34KB/s)에 비하면 없는 것과 같다.</item>
+        /// </list>
+        /// </summary>
+        void SendScars()
+        {
+            var spawner = MeteorSpawner;
+            if (spawner == null) return;
+
+            var scars = spawner.Scars;
+            int total = scars != null ? scars.Count : 0;
+
+            if (!SameScarIds(scars) || scarKeepaliveTimer >= ScarKeepalive)
+            {
+                int n = 0;
+                for (int i = 0; i < total; i++)
+                    if (scars[i] != null && scars[i].Meteor != null) n++;
+
+                if (sendScarSet.Length != n) sendScarSet = new ScarState[n];
+                if (lastScarIds.Length != n) lastScarIds = new int[n];
+
+                int w = 0;
+                for (int i = 0; i < total && w < n; i++)
+                {
+                    var scar = scars[i];
+                    if (scar == null || scar.Meteor == null) continue;
+
+                    lastScarIds[w] = scar.Id;
+                    sendScarSet[w++] = StateOf(scar);
+                }
+
+                RpcScarSet(sendSeq, sendScarSet);
+                scarKeepaliveTimer = 0f;
+                return;     // 같은 틱에 두 묶음을 내지 않는다
+            }
+
+            // 움직이는 것만. 잠든 강체는 자세가 그대로다.
+            int cap = UnreliableScarCapacity;
+            int awake = 0;
+            for (int i = 0; i < total && awake < cap; i++)
+                if (IsScarAwake(scars[i])) awake++;
+
+            if (awake == 0) return;
+
+            // **상한에 닿았을 때만 전부 센다** (`!321` AI 리뷰). 처음에는 경고를 아직
+            // 내지 않았으면 매 틱 전체를 한 번 더 훑었는데, 경고가 한 번도 안 뜨는
+            // 정상 상황에서 그 순회가 영구히 매 틱 돌았다.
+            if (!warnedScarCap && cap > 0 && awake == cap)
+            {
+                int moving = 0;
+                for (int i = 0; i < total; i++) if (IsScarAwake(scars[i])) moving++;
+                if (moving > cap)
+                {
+                    warnedScarCap = true;
+                    Debug.LogWarning($"[WorldSync] 움직이는 흔적이 한 묶음에 안 들어간다 — {moving}개 중 {cap}개만 보낸다");
+                }
+            }
+
+            if (sendScarMoves.Length != awake) sendScarMoves = new ScarState[awake];
+
+            int m = 0;
+            for (int i = 0; i < total && m < awake; i++)
+            {
+                var scar = scars[i];
+                if (!IsScarAwake(scar)) continue;
+                sendScarMoves[m++] = StateOf(scar);
+            }
+
+            RpcScarMoves(sendSeq, sendScarMoves);
+        }
+
+        /// <summary>
+        /// 이 흔적이 지금 움직이는가. <b>잠든 강체는 보낼 것이 없다</b> — 유니티가
+        /// 쉬는 물체를 재우고, 사람이 집어 흔들면 깨어난다. 그래서 이 한 줄이
+        /// "끌리는 돌만" 을 그대로 뜻한다.
+        /// </summary>
+        static bool IsScarAwake(ScarRecord scar)
+        {
+            if (scar == null || scar.Meteor == null) return false;
+
+            // **`Meteor.Body` 를 쓴다 — 여기서 GetComponent 를 부르면 안 된다**
+            // (`!321` AI 리뷰). 이 함수는 송신 틱마다 흔적 전체에 대해 불리므로,
+            // 상한 200개 × 30Hz 면 프레임당 수백 회가 된다. `-374` 가 열려 있는
+            // 동안 그런 것을 얹으면 원인을 가릴 수 없다.
+            var body = scar.Meteor.Body;
+            if (body == null) return false;
+
+            // **잡힌 돌은 kinematic 이라 "잠든" 것으로 보인다** (`!321` AI 리뷰 높음).
+            //
+            // `PlayerRig.BeginCarriedBody`(`:3110`)가 집는 순간 `isKinematic = true` 로
+            // 만들고, 유니티에서 kinematic 강체는 `IsSleeping()` 이 **항상 참**이다.
+            // `IsSleeping()` 만 봤을 때는 **끌고 다니는 내내 이동 묶음이 비어서**,
+            // 참가자 화면에서 돌이 2초 되보내기마다 툭툭 순간이동했다 — 이 이슈의
+            // 완료 조건 1번("한쪽이 옮기면 다른 쪽에서도 움직인다")이 무너지는 자리다.
+            //
+            // 흔적에게 `isKinematic` 은 곧 "누가 들고 있다" 다. 착지한 돌은 `Settle` 이
+            // `isKinematic = false` 로 두고(`Meteor.cs:749`), 그것을 참으로 바꾸는 곳은
+            // 운반뿐이며 `RestoreCarriedBodyIfUnused` 가 놓을 때 되돌린다.
+            return !body.IsSleeping() || body.isKinematic;
+        }
+
+        static ScarState StateOf(ScarRecord scar)
+        {
+            var body = scar.Meteor.Body;      // 위와 같은 이유로 GetComponent 를 쓰지 않는다
+            return body != null
+                ? new ScarState { Id = scar.Id, Position = body.position, Rotation = body.rotation }
+                : new ScarState
+                {
+                    Id = scar.Id,
+                    Position = scar.Meteor.transform.position,
+                    Rotation = scar.Meteor.transform.rotation,
+                };
+        }
+
+        /// <summary>
+        /// 번호 집합이 지난번과 같은가. <b>자세는 보지 않는다</b> — 자세가 바뀐 것은
+        /// 움직임 묶음이 나르고, 전체 목록은 <b>무엇이 생기고 사라졌는지</b>만 알린다.
+        /// </summary>
+        bool SameScarIds(System.Collections.Generic.IReadOnlyList<ScarRecord> scars)
+        {
+            int w = 0;
+            int total = scars != null ? scars.Count : 0;
+
+            for (int i = 0; i < total; i++)
+            {
+                var scar = scars[i];
+                if (scar == null || scar.Meteor == null) continue;
+
+                if (w >= lastScarIds.Length || lastScarIds[w] != scar.Id) return false;
+                w++;
+            }
+
+            return w == lastScarIds.Length;
+        }
+
+        /// <summary>
+        /// 흔적 전체 목록. <b>신뢰 채널</b>이다 — 이 묶음을 잃으면 참가자 화면에서 돌이
+        /// 사라지거나 유령이 남고, 다음 착탄까지 그대로다.
+        /// </summary>
+        [ClientRpc]
+        void RpcScarSet(uint seq, ScarState[] states)
+        {
+            if (isServer) return;               // 호스트에는 진짜 흔적이 있다
+            if (!ready) return;
+
+            // **이동 묶음과 같은 순번 축으로 본다** (`!321` AI 리뷰).
+            //
+            // 두 묶음은 채널이 달라(이쪽은 신뢰, 이동은 비신뢰) 서로 순서가 보장되지
+            // 않는다. 순번을 안 보면 **늦게 도착한 전체 목록이 최신 이동을 덮어**,
+            // 끌고 있는 돌이 2초마다 옛 자리로 되돌아간다.
+            //
+            // 늦은 목록은 버린다. 그러면 그 목록이 실어 온 생성·삭제도 함께 놓치는데,
+            // 되보내기가 2초마다 오므로 스스로 낫는다 — 돌이 뒤로 튀는 것보다 낫다.
+            if (!IsNewer(seq, lastScarSeq, everScar)) return;
+            lastScarSeq = seq;
+            everScar = true;
+
+            var spawner = MeteorSpawner;
+            if (spawner != null) spawner.ApplyNetworkScars(states, full: true);
+        }
+
+        /// <summary>
+        /// 움직이는 흔적의 자세. 신뢰 없는 채널이고 <b>아무것도 만들지 않는다</b> —
+        /// 만드는 것은 전체 목록의 몫이다(<c>ApplyNetworkScars</c> 의 <c>full</c>).
+        /// </summary>
+        [ClientRpc(channel = Channels.Unreliable)]
+        void RpcScarMoves(uint seq, ScarState[] states)
+        {
+            if (isServer) return;
+            if (!ready) return;
+            if (!IsNewer(seq, lastScarSeq, everScar)) return;
+            lastScarSeq = seq;
+            everScar = true;
+
+            var spawner = MeteorSpawner;
+            if (spawner != null) spawner.ApplyNetworkScars(states, full: false);
         }
 
         /// <summary>한 묶음에 실을 수 있는 자세 개수. 전송 계층이 정하는 값이다.</summary>
