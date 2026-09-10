@@ -44,7 +44,10 @@ namespace Metagame.Gameplay
         /// <summary>출발 지점에 놓인 캡슐 (모델이 없으면 null).</summary>
         public GameObject Lander { get; private set; }
 
-        public Vector3 SpawnFoot { get { return new Vector3(0f, 0f, 0f); } }
+        AuthoredMapSettings authoredMap;
+        void Awake() => authoredMap = FindAnyObjectByType<AuthoredMapSettings>();
+        public Vector3 SpawnFoot => authoredMap != null && authoredMap.playerSpawn != null
+            ? authoredMap.playerSpawn.position : Vector3.zero;
 
         /// <summary>저중력 점프의 최고 높이 — 코스 설계가 전부 이 값에 매여 있다.</summary>
         public static float JumpHeight

@@ -15,6 +15,8 @@ namespace Metagame.Gameplay
 
         public static bool TryFind(out Bounds bounds)
         {
+            var authored = Object.FindAnyObjectByType<AuthoredMapSettings>();
+            if (authored != null) { bounds = authored.Bounds; return true; }
             bounds = default;
             bool found = false;
             var terrains = Terrain.activeTerrains;
@@ -52,6 +54,8 @@ namespace Metagame.Gameplay
         /// </summary>
         public static float SampleGroundHeight(Vector3 worldPosition, Bounds fallbackBounds)
         {
+            var authored = Object.FindAnyObjectByType<AuthoredMapSettings>();
+            if (authored != null) return authored.GroundHeight(worldPosition, fallbackBounds.min.y);
             var terrains = Terrain.activeTerrains;
             for (int i = 0; i < terrains.Length; i++)
             {
