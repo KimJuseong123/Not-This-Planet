@@ -14,10 +14,15 @@ namespace Metagame.Gameplay.Tests
     /// 플레이어 오브젝트를 들고 있고, 그 사이에 재접속이 성공하면(백엔드가 자리를 지켜
     /// 준다, S15P21B202-150) 한 사람에 대해 <c>NetPlayer</c> 가 둘이 된다.</para>
     ///
-    /// <para>걷어내는 <b>동작</b>(오브젝트 파괴·연결 끊기)은 Mirror 서버가 떠 있어야
-    /// 하므로 여기서 돌리지 않는다. 대신 <b>누구를 걷어낼지 고르는 판정</b>이 값만 보는
-    /// 순수 함수로 떼어져 있고, 이 스위트가 그 규칙을 지킨다 — 잘못 고르면 멀쩡한
-    /// 접속이나 호스트를 끊게 되고, <b>그쪽이 유령보다 나쁘다.</b></para>
+    /// <para>걷어내는 <b>동작</b>(오브젝트 파괴·연결 끊기)은 <c>NetPlayer</c> 가 하고
+    /// Mirror 서버가 떠 있어야 하므로 여기서 돌리지 않는다. 대신 <b>누구를 걷어낼지
+    /// 고르는 판정</b>이 <see cref="RejoinMemory"/> 에 값만 보는 순수 함수로 있고, 이
+    /// 스위트가 그 규칙을 지킨다 — 잘못 고르면 멀쩡한 접속이나 호스트를 끊게 되고,
+    /// <b>그쪽이 유령보다 나쁘다.</b></para>
+    ///
+    /// <para>판정을 <c>NetPlayer</c> 에 두었다가 옮겼다. 그 클래스는
+    /// <c>NetworkBehaviour</c> 라 여기서 부르면 테스트 어셈블리가 Mirror 를 참조해야
+    /// 한다 — 2026-09-10 에 <c>error CS0012</c> 5건으로 실측했다.</para>
     /// </summary>
     public sealed class RejoinDuplicateTests
     {
@@ -25,7 +30,7 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void SameUserIsEvicted()
         {
-            Assert.That(NetPlayer.IsStaleDuplicate(19, 19, false), Is.True,
+            Assert.That(RejoinMemory.IsStaleDuplicate(19, 19, false), Is.True,
                 "같은 userId 의 낡은 접속을 걷어내지 않으면 이전 캐릭터가 유령으로 남는다");
         }
 
@@ -33,7 +38,7 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void OtherUsersAreLeftAlone()
         {
-            Assert.That(NetPlayer.IsStaleDuplicate(19, 23, false), Is.False,
+            Assert.That(RejoinMemory.IsStaleDuplicate(19, 23, false), Is.False,
                 "남의 접속을 끊는 것은 유령보다 나쁘다");
         }
 
@@ -47,7 +52,7 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void UnknownIdentityIsNeverEvicted()
         {
-            Assert.That(NetPlayer.IsStaleDuplicate(0, 0, false), Is.False,
+            Assert.That(RejoinMemory.IsStaleDuplicate(0, 0, false), Is.False,
                 "userId 0 은 신원이 없다는 뜻이다 — 서로 다른 사람일 수 있으므로 끊지 않는다");
         }
 
@@ -61,7 +66,7 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void HostIsNeverEvicted()
         {
-            Assert.That(NetPlayer.IsStaleDuplicate(19, 19, true), Is.False,
+            Assert.That(RejoinMemory.IsStaleDuplicate(19, 19, true), Is.False,
                 "호스트를 끊으면 남의 재접속이 판을 없앨 수 있다");
         }
 
@@ -72,7 +77,7 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void KnownUserDoesNotEvictUnknownOne()
         {
-            Assert.That(NetPlayer.IsStaleDuplicate(19, 0, false), Is.False);
+            Assert.That(RejoinMemory.IsStaleDuplicate(19, 0, false), Is.False);
         }
     }
 }

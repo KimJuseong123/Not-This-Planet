@@ -213,6 +213,11 @@ namespace Metagame.Network
         /// <see cref="OnStopServer"/> 가 돌아 <see cref="RejoinMemory"/> 에 자리를 적는다.
         /// 새 몸은 <c>FixedUpdate</c> 가 나중에 세우므로 그때 <c>TryTake</c> 가 그 값을
         /// 받는다 — 순서가 뒤집히면 돌아온 사람이 스폰 지점에 선다.
+        ///
+        /// <b>누구를 걷어낼지는 <see cref="RejoinMemory.IsStaleDuplicate"/> 가 정한다.</b>
+        /// 이 클래스는 <c>NetworkBehaviour</c> 라 EditMode 테스트에서 건드리면 테스트
+        /// 어셈블리가 Mirror 를 참조해야 한다(2026-09-10 실측: <c>error CS0012</c> 5건).
+        /// 판정만 Mirror 와 무관한 곳에 두면 규칙을 테스트가 지킬 수 있다.
         /// </summary>
         void EvictStaleDuplicates()
         {
@@ -223,7 +228,7 @@ namespace Metagame.Network
             {
                 var other = ServerPlayers[i];
                 if (other == null || other == this) continue;
-                if (IsStaleDuplicate(userId, other.userId, other.adoptedBody)) stale.Add(other);
+                if (RejoinMemory.IsStaleDuplicate(userId, other.userId, other.adoptedBody)) stale.Add(other);
             }
 
             for (int i = 0; i < stale.Count; i++)
@@ -241,32 +246,6 @@ namespace Metagame.Network
                 // 죽은 연결이 목록에 남아 입력을 보내지 못하게 끊는다.
                 if (conn != null) conn.Disconnect();
             }
-        }
-
-        /// <summary>
-        /// 이미 붙어 있는 접속이 <b>같은 사람의 낡은 것</b>인가.
-        ///
-        /// <para><b>값만 보고 판정한다.</b> Mirror 를 띄우지 않고 EditMode 에서 이 규칙을
-        /// 잡을 수 있어야 한다 — 잘못 고르면 멀쩡한 접속이나 호스트를 끊게 되고,
-        /// 그쪽이 유령보다 나쁘다. 참조 동일성(자기 자신)과 <c>null</c> 은 부르는 쪽이 본다.</para>
-        ///
-        /// <para><c>joiningUserId == 0</c> 은 걷어내지 않는다 — 인증자 없이 띄운 검증용
-        /// 실행에서는 신원이 없어 <b>서로 다른 사람이 모두 0</b> 이 될 수 있고, 그때
-        /// 걷어내면 멀쩡한 접속을 끊는다. <see cref="RejoinMemory"/> 도 같은 이유로 0 을
-        /// 건너뛴다.</para>
-        ///
-        /// <para><b>호스트는 걷어내지 않는다</b>(<paramref name="otherAdoptedBody"/>).
-        /// 방장의 몸은 게임 씬이 만든 것을 넘겨받은 것이고, 호스트가 나가면 판 자체가
-        /// 끝난다(<c>docs/network-sync-policy.md</c> §5). 여기서 끊을 수 있으면 남의
-        /// 재접속이 판을 없애는 길이 열린다.</para>
-        /// </summary>
-        public static bool IsStaleDuplicate(long joiningUserId, long otherUserId, bool otherAdoptedBody)
-        {
-            if (joiningUserId == 0) return false;
-            if (otherUserId != joiningUserId) return false;
-            if (otherAdoptedBody) return false;
-
-            return true;
         }
 
         public override void OnStartClient()

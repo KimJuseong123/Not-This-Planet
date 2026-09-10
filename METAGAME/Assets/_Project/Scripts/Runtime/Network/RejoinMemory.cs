@@ -47,6 +47,43 @@ namespace Metagame.Network
 
         static readonly Dictionary<long, Spot> Spots = new Dictionary<long, Spot>();
 
+        /// <summary>
+        /// 이미 붙어 있는 접속이 <b>같은 사람의 낡은 것</b>인가 (S15P21B202-373).
+        ///
+        /// <para><b>왜 필요한가.</b> Mirror 는 연결이 죽어도 그것을 바로 알지 못한다 —
+        /// 전송 타임아웃까지 그 사람의 플레이어 오브젝트가 살아 있다. 그 사이에 같은
+        /// 사람이 다시 붙으면(백엔드가 재접속 유예로 자리를 지켜 주므로 붙는다)
+        /// <c>NetPlayer</c> 가 둘이 되고 옛 몸이 <b>유령처럼</b> 그 자리에 남는다.
+        /// 2026-09-10 4인 QA 의 참가자 로그에서 <c>userId=19</c> 가 두 번 스폰됐다.</para>
+        ///
+        /// <para><b>왜 여기 있나.</b> 걷어내는 동작은 <c>NetPlayer</c> 가 하지만 그 클래스는
+        /// <c>NetworkBehaviour</c> 라, 판정을 거기 두면 EditMode 테스트가 Mirror 를
+        /// 참조해야 한다(2026-09-10 실측: <c>error CS0012</c> 5건). 재접속 정책은 이미
+        /// 이 클래스가 들고 있으므로 판정도 여기 둔다 — <see cref="GraceSeconds"/> 와
+        /// <c>userId == 0</c> 규칙이 한자리에 모인다.</para>
+        ///
+        /// <para>참조 동일성(자기 자신)과 <c>null</c> 은 부르는 쪽이 본다.</para>
+        /// </summary>
+        /// <param name="joiningUserId">지금 들어오는 사람.</param>
+        /// <param name="otherUserId">이미 목록에 있는 접속의 사람.</param>
+        /// <param name="otherAdoptedBody">
+        /// 그 접속이 <b>게임 씬의 몸을 넘겨받았나</b> — 곧 호스트인가.
+        /// <b>호스트는 걷어내지 않는다.</b> 호스트가 나가면 판 자체가 끝나므로
+        /// (<c>docs/network-sync-policy.md</c> §5) 여기서 끊을 수 있으면 남의 재접속이
+        /// 판을 없애는 길이 열린다.
+        /// </param>
+        public static bool IsStaleDuplicate(long joiningUserId, long otherUserId, bool otherAdoptedBody)
+        {
+            // 신원이 없으면 판단하지 않는다. 인증자 없이 띄운 검증용 실행에서는
+            // 서로 다른 사람이 모두 0 이 될 수 있어, 그때 걷어내면 멀쩡한 접속을 끊는다.
+            // Remember·TryTake 가 0 을 건너뛰는 것과 같은 이유다.
+            if (joiningUserId == 0) return false;
+            if (otherUserId != joiningUserId) return false;
+            if (otherAdoptedBody) return false;
+
+            return true;
+        }
+
         /// <summary>지금 서 있는 자리를 적어 둔다. 연결이 끊기는 순간 서버가 부른다.</summary>
         public static void Remember(long userId, Vector3 foot, Vector3 planarForward)
         {
