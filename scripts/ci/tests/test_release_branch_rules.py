@@ -100,20 +100,37 @@ repo_hygiene.git = lambda *a, **k: (_ for _ in ()).throw(AssertionError("git 을
 assert repo_hygiene.main() == 0
 print("  5) repo-hygiene 릴리스 브랜치 MR: 건너뜀 ✅")
 
-# ── 6) mr-title 이 master 대상 MR 의 squash 를 API 로 끈다 ──
+# ── 6) mr-title 이 **모든** MR 의 squash 를 API 로 끈다 (S15P21B202-417) ──
+#
+# 예전에는 master 대상만 껐다(-325) — 그때는 스택 MR 이 없었다. 지금은 스택이 일상이고,
+# squash 는 **스택의 부모**에서 문제가 된다(부모의 커밋이 사라져 자식이 그것을 다시
+# 짊어진다). 껴야 하는 쪽이 부모라서 "스택만 해제" 로는 못 막는다.
 PUTS.clear()
 set_mr("develop", "master", "S15p21b202 release", squash=True)
 assert mr_title.main() == 0
 assert any(p.get("squash") is False for p in PUTS), PUTS
+
 PUTS.clear()
 set_mr(REL, "master", "release v0.1.0", squash=False)
 mr_title.main()
 assert not any("squash" in p for p in PUTS), "이미 꺼져 있으면 건드리지 않는다"
+
 PUTS.clear()
 set_mr("S15P21B202-1-x", "develop", "[Infra] docs: x (S15P21B202-1)", squash=True)
 mr_title.main()
-assert not any("squash" in p for p in PUTS), "develop 대상은 squash 를 건드리지 않는다"
-print("  6) mr-title: master 대상 + squash 켜짐 → squash=false PUT · 그 외 무동작 ✅")
+assert any(p.get("squash") is False for p in PUTS),     "develop 대상도 꺼야 한다 — 이 MR 이 스택의 부모이면 자식이 부모의 변경을 다시 짊어진다"
+
+# 작업 브랜치를 대상으로 하는 스택 MR 도 같다.
+PUTS.clear()
+set_mr("S15P21B202-2-y", "S15P21B202-1-x", "[Infra] docs: y (S15P21B202-2)", squash=True)
+mr_title.main()
+assert any(p.get("squash") is False for p in PUTS), "스택 MR 도 꺼야 한다"
+
+PUTS.clear()
+set_mr("S15P21B202-1-x", "develop", "[Infra] docs: x (S15P21B202-1)", squash=False)
+mr_title.main()
+assert not any("squash" in p for p in PUTS), "develop 대상도 이미 꺼져 있으면 건드리지 않는다"
+print("  6) mr-title: 대상 무관 + squash 켜짐 → squash=false PUT · 꺼져 있으면 무동작 ✅")
 
 # ── 7) unity 기준선: master 대상은 develop 을 본다 ──
 assert unity_report.baseline_ref("master") == "develop"
