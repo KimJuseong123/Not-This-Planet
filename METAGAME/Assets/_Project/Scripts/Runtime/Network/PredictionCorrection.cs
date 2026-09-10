@@ -30,7 +30,11 @@ namespace Metagame.Network
         /// <para><b>0 으로 두면 예측 이전과 같아지지 않는다</b> — 예측은 계속 돌고 보정만
         /// 멈춘다. 되돌리려면 <c>RemoteAvatar.Configure</c> 의 <c>mine</c> 분기를 지워야 한다.</para>
         /// </summary>
-        public const float Rate = 0.1f;
+        // ── 실험 중 (S15P21B202-374) — 이 브랜치는 머지하지 않는다 ──────────────
+        // 원래 값은 0.1f 다. 0 으로 두면 예측 경로는 살아 있고 **수렴만 멈춘다** —
+        // 그것으로 프레임이 돌아오면 -363 의 수렴이 원인이고, 아니면 다른 원인이다.
+        // 되돌리기가 한 줄이어야 하므로 값만 바꾼다.
+        public const float Rate = 0f;
 
         /// <summary>이 정도로 좁혀졌으면 멈춘다(m). 끝없이 미세하게 미는 것을 막는다.</summary>
         public const float Epsilon = 0.01f;
