@@ -34,7 +34,7 @@ Unity.exe -batchmode -quit -projectPath METAGAME \
   -executeMethod Metagame.EditorTools.Stage1QaAudit.Run
 ```
 
-실패가 있으면 종료 코드 1 이다. 메뉴에도 있다 — `Tools/둥실둥실 우주 대탈출/1장 QA 점검`.
+실패가 있으면 종료 코드 1 이다. 메뉴에도 있다 — `Tools/Not This Planet/1장 QA 점검`.
 
 ## 기획 §26 항목별 현재 판정
 

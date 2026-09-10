@@ -22,7 +22,7 @@
 
 | Area | Finding | Confidence | Evidence |
 | --- | --- | --- | --- |
-| Rendering | URP `17.5.0`, explicit PC/Mobile pipeline assets, URP Lit materials, `SpaceFlop/*` URP shaders, reusable atmosphere shaders/features | Confirmed | `Packages/manifest.json`, `Assets/Settings/`, `ProjectSettings/GraphicsSettings.asset`, `Assets/_Project/Shaders/` |
+| Rendering | URP `17.5.0`, explicit PC/Mobile pipeline assets, URP Lit materials, `NotThisPlanet/*` URP shaders, reusable atmosphere shaders/features | Confirmed | `Packages/manifest.json`, `Assets/Settings/`, `ProjectSettings/GraphicsSettings.asset`, `Assets/_Project/Shaders/` |
 | Input | Unity Input System `1.19.0` with an input-actions asset | Confirmed | `Packages/manifest.json`, `Assets/InputSystem_Actions.inputactions`, `ProjectSettings/ProjectSettings.asset` |
 | Navigation | AI Navigation `2.0.13` | Confirmed | `Packages/manifest.json` |
 | UI/content | uGUI `2.5.0`, Timeline `1.8.12`, Visual Scripting `1.9.11` | Confirmed | `Packages/manifest.json` |
@@ -102,9 +102,9 @@
 - Keep `Packages/manifest.json` and `Packages/packages-lock.json` versioned so collaborators resolve the same dependencies.
 - Assets moved between folders must carry their `.meta` files so GUIDs, and therefore scene and prefab references, survive.
 - `Prim` and the model loaders resolve assets by `Resources.Load` name, so `Shaders/Resources/` and `Prefabs/Resources/` have to stay inside a folder literally named `Resources`.
-- `Prim` uses only `SpaceFlop/*` URP shaders with URP Lit as the last safe fallback; Built-in Standard/Diffuse is not a runtime fallback. The required shaders are protected through Graphics Settings Always Included Shaders and validated before builds.
+- `Prim` uses only `NotThisPlanet/*` URP shaders with URP Lit as the last safe fallback; Built-in Standard/Diffuse is not a runtime fallback. The required shaders are protected through Graphics Settings Always Included Shaders and validated before builds.
 - Atmosphere is stage-independent: `Main` uses `Assets/_Project/Data/Atmosphere/Stage1AtmosphereProfile.asset`; create another profile under the same folder for Stage2+ and apply it through `AtmosphereController`. Keep Stage-specific values out of the baseline Volume profile and `Lobby`.
-- Editor tooling holds absolute asset paths (`ArtLink`, `SpaceBuild`, `SpaceSceneBuilder`, `ArtInspect`, `SpaceFlopModelValidator`); moving the models or the scene means updating those constants.
+- Editor tooling holds absolute asset paths (`ArtLink`, `SpaceBuild`, `SpaceSceneBuilder`, `ArtInspect`, `ModelValidator`); moving the models or the scene means updating those constants.
 - Large binary assets are configured for Git LFS in the repository-root `.gitattributes`; Unity YAML assets remain regular text files because project serialization is ForceText.
 
 ## Unknowns And Confidence

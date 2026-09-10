@@ -143,7 +143,7 @@ Main 하나로 통일한 뒤에는 이런 도구가 메뉴 한 번에 레벨을 
 - `Runtime/Gameplay/Demo/DemoClampReleaser.cs` (신규)
 - `Runtime/Gameplay/Demo/DemoBeamDriver.cs`, `DemoMeteorDriver.cs` (Physics 에서 이동·개칭)
 - 삭제: `Runtime/Gameplay/Physics/SandboxLauncher.cs`
-- `Editor/SpaceFlopModelValidator.cs` (검사 대상과 기준치)
+- `Editor/ModelValidator.cs` (검사 대상과 기준치 · 당시 이름 `SpaceFlopModelValidator.cs`)
 - `Editor/ArtLink.cs` (주석)
 - `Editor/SpaceBuild.cs` (빌드 대상 씬, 목록 덮어쓰기 제거)
 - `Runtime/Bootstrap/LobbyBootstrap.cs` (전환 안전 처리)

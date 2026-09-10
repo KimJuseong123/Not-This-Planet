@@ -14,7 +14,7 @@ master 머지에서 Windows 빌드·패키지·태그·GitLab Release를 생성�
 팀장이 `release/<키>-vX.Y.Z` 브랜치를 master에 머지하면 잡 `release-windows` 가:
 
 1. **버전 확정** — 머지 커밋 메시지의 `release/…-vX.Y.Z`. 없으면 `hotfix/` 머지로 보고 마지막 태그의 PATCH+1. 그것도 없으면 빌드 전에 실패(master에 릴리스·핫픽스 아닌 것이 들어온 것)
-2. **Windows 빌드** — GameCI `windows-mono` 이미지에서 기존 `Metagame.EditorTools.SpaceBuild.BuildWindows`를 `-executeMethod`로. 출력은 `$CI_PROJECT_DIR/release/SpaceFlop` (METAGAME/ 밖)
+2. **Windows 빌드** — GameCI `windows-mono` 이미지에서 기존 `Metagame.EditorTools.SpaceBuild.BuildWindows`를 `-executeMethod`로. 출력은 `$CI_PROJECT_DIR/release/NotThisPlanet` (METAGAME/ 밖)
 3. **zip** — `metagame-vX.Y.Z-YYYYMMDD-HHMM.zip`(-269 이름 규칙 + 버전). `*_DoNotShip`·`*_BackUpThisFolder…` 제외
 4. **패키지 레지스트리 업로드**(generic, 잡 토큰) — Release 첨부 상한(100MB)을 피한다
 5. **GitLab Release** — 태그 `vX.Y.Z`는 `ref`로 GitLab이 만든다. 설명 = 이전 태그 이후 develop으로 머지된 MR 목록(`git log --merges`, MR 번호·이슈 키 링크). 에셋 링크 = 패키지 파일
@@ -40,7 +40,7 @@ master 머지에서 Windows 빌드·패키지·태그·GitLab Release를 생성�
 
 | 증상 | 볼 것 |
 | --- | --- |
-| 🔴 "Unity 빌드 (exit N)" | 잡 아티팩트 `unity-build.log`의 `error CS`·`[SpaceFlop] 빌드` 줄. 컴파일이면 develop이 깨진 것(unity-compile이 놓친 경우), 셰이더·씬이면 `SpaceBuild.cs`의 검증 |
+| 🔴 "Unity 빌드 (exit N)" | 잡 아티팩트 `unity-build.log`의 `error CS`·`[NotThisPlanet] 빌드` 줄. 컴파일이면 develop이 깨진 것(unity-compile이 놓친 경우), 셰이더·씬이면 `SpaceBuild.cs`의 검증 |
 | 🔴 "패키지 업로드 (HTTP 413)" | 인스턴스의 generic 패키지 상한. `Settings → Packages` 또는 관리자 |
 | 🔴 "Release … (HTTP 403)" | 잡 토큰 권한 — 태그 보호 규칙이 생겼거나 프로젝트 설정 변경 |
 | 버전 단계에서 실패 | master에 릴리스 브랜치·hotfix가 아닌 것이 머지됐다. 릴리스 브랜치로 다시 |

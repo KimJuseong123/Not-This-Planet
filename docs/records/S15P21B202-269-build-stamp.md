@@ -71,7 +71,7 @@ metagame-<YYYYMMDD>-<HHMM>-<이슈번호>.zip
 팀원에게 받을 때 알려 줄 경로:
 
 ```
-%USERPROFILE%\AppData\LocalLow\<회사명>\둥실둥실 우주 대탈출\Player.log
+%USERPROFILE%\AppData\LocalLow\Not This Planet\Not This Planet\Player.log
 ```
 
 실행할 때 `-logFile <경로>`를 붙이면 원하는 곳에 남길 수도 있다.

@@ -1,4 +1,4 @@
-# 둥실둥실 우주 대탈출 (SpaceFlop)
+# Not This Planet
 
 휴먼 폴 플랫 식 **물리 인형 장애물 코스** — 소행성 표면 버전.
 Unity 6000.5.4f1 / Universal Render Pipeline 17.5.0.
@@ -6,7 +6,7 @@ Unity 6000.5.4f1 / Universal Render Pipeline 17.5.0.
 
 지구 버전([../FloppyFall](../FloppyFall))에서 세 가지를 바꿨다.
 
-| | FloppyFall (지구) | SpaceFlop (소행성) |
+| | FloppyFall (지구) | Not This Planet (소행성) |
 |---|---|---|
 | 캐릭터 | 키 1.95m, 7등신 인형 | **귀 끝까지 1.33m, 약 2.1등신 우주 토끼** (헬멧 지름 0.636m) |
 | 중력 | −18 m/s² (현실보다 무겁게) | **−2.8 m/s²** (지구의 29%). 점프 2.06m · 체공 2.4초 |
@@ -15,17 +15,17 @@ Unity 6000.5.4f1 / Universal Render Pipeline 17.5.0.
 
 ```
 Unity.exe -batchmode -quit -projectPath . -executeMethod Metagame.EditorTools.SpaceBuild.BuildWindows
-Build/Windows/SpaceFlop.exe                                     # 그냥 플레이
-Build/Windows/SpaceFlop.exe -batchmode -nographics -space-selftest -logFile out.log   # 종료코드 0 = 통과
-Build/Windows/SpaceFlop.exe -space-screenshot -space-shotdir Screenshots -screen-width 1280 -screen-height 720
+Build/Windows/NotThisPlanet.exe                                     # 그냥 플레이
+Build/Windows/NotThisPlanet.exe -batchmode -nographics -space-selftest -logFile out.log   # 종료코드 0 = 통과
+Build/Windows/NotThisPlanet.exe -space-screenshot -space-shotdir Screenshots -screen-width 1280 -screen-height 720
 ```
 
 ## 렌더 파이프라인과 분위기 기반
 
 프로젝트는 URP를 사용한다. Graphics Settings의 기본 파이프라인은 `PC_RPAsset`이며,
 품질 단계는 Very Low·Low·Medium에서 `Mobile_RPAsset`, High·Very High·Ultra에서
-`PC_RPAsset`를 명시적으로 사용한다. 프로젝트 머티리얼과 `SpaceFlop/Dough`,
-`SpaceFlop/Ghost`, `SpaceFlop/Flat` 셰이더는 URP용으로 이관되어 있다.
+`PC_RPAsset`를 명시적으로 사용한다. 프로젝트 머티리얼과 `NotThisPlanet/Dough`,
+`NotThisPlanet/Ghost`, `NotThisPlanet/Flat` 셰이더는 URP용으로 이관되어 있다.
 
 빌드 전에 `UrpRenderValidation`이 파이프라인·품질 매핑·씬/프리팹 머티리얼·렌더러
 기능·런타임 셰이더 참조를 검사하며, 실패하면 핑크 셰이더 위험이 있는 빌드를 중단한다.
@@ -38,7 +38,7 @@ Build/Windows/SpaceFlop.exe -space-screenshot -space-shotdir Screenshots -screen
 시각 유성우를 적용한다. `Lobby`와 공용 기본 Volume Profile은 중립 상태를 유지한다.
 Stage2 이후에는 같은 프로필 구조를 복사해 Stage별 값을 별도로 연결한다.
 
-에디터 메뉴는 `Tools/둥실둥실 우주 대탈출/` 아래에 있다.
+에디터 메뉴는 `Tools/Not This Planet/` 아래에 있다.
 1장에 필요한 에셋·태블릿·퍼즐·운석·지형·맵 타일·용접 건(실제 모델)·스킨·분위기 연결은 `Main 씬에 1장 전체 구성`으로 한 번에 만들 수 있다.
 실제 빌드 씬은 `Assets/Scenes/Lobby.unity`와 `Assets/Scenes/Main.unity`이며,
 `Main`에는 `SpaceBootstrap`과 Stage1 배치가 있다.
@@ -266,7 +266,7 @@ y < −30 으로 떨어지면 마지막 표지로 되돌아온다.
 - 해는 세고 하얗다 (intensity 1.75, shadowStrength 0.94)
 
 별 2400개는 **메시 하나**로 찍는다 (GameObject 로 만들면 드로우콜이 2400개다).
-정점 색을 쓰는 `SpaceFlop/Flat` 셰이더로 그리고, 별밭·행성·해는 카메라를 따라다니되 회전하지 않는다
+정점 색을 쓰는 `NotThisPlanet/Flat` 셰이더로 그리고, 별밭·행성·해는 카메라를 따라다니되 회전하지 않는다
 (스카이박스와 같은 원리 — 그래서 150m 코스를 걸어도 별자리가 흐르지 않는다).
 
 행성의 구름 띠는 **같은 중심의 납작한 타원체**다. 표면 위로 삐져나온 테두리만 보이므로
@@ -305,7 +305,7 @@ Assets/_Project/
                                        ShipModel(캡슐 우주선) · RopeBuilder · Grabbable · Puff(먼지) · Vacuum(빛) · Starfield(하늘)   → Metagame.Gameplay
   Scripts/Runtime/UI/         GameHud (한글 IMGUI)                                            → Metagame.UI
   Scripts/Runtime/Bootstrap/  SpaceBootstrap · SpaceSelfTest · SpaceScreenshot                → Metagame.Bootstrap
-  Scripts/Editor/             SpaceBuild · SpaceSceneBuilder · ArtLink(FBX → Resources 프리팹) · ArtInspect(모델 구조 찍기) · SpaceFlopModelValidator → Metagame.Editor
+  Scripts/Editor/             SpaceBuild · SpaceSceneBuilder · ArtLink(FBX → Resources 프리팹) · ArtInspect(모델 구조 찍기) · ModelValidator → Metagame.Editor
   Scenes/Main.unity           Stage1 배치와 Global Volume
   Scenes/Lobby.unity          빌드 진입 씬
   Models/                     Characters/SF_Rabbit_Base.fbx(+.fbm 텍스처) · Spaceships/SF_Spaceship_Capsule.fbx · Characters/SF_Astronaut_Base.fbx(안 씀)
