@@ -17,6 +17,14 @@ public class Room {
     /** 진행 중인 게임 복귀 요청의 처리 결과. */
     public enum RejoinResult { OK, DENIED, FULL }
 
+    /**
+     * 입장 요청의 처리 결과 (S15P21B202-413).
+     *
+     * <p>실패 이유를 나눠 두는 이유는 <b>사용자가 해야 할 일이 다르기 때문</b>이다 —
+     * 꽉 찬 방은 기다리면 자리가 나고, 이미 시작된 방은 다른 방을 찾아야 한다.
+     */
+    public enum JoinResult { OK, ROOM_PLAYING, ROOM_FULL }
+
     public static final int MAX_PLAYERS = 4;   // TODO: 기획 확정 후 조정
 
     private final String roomId;
@@ -42,12 +50,33 @@ public class Room {
         this.players.put(hostUserId, new RoomPlayer(hostNickname));
     }
 
-    public synchronized boolean join(Long userId, String nickname) {
-        if (status != Status.WAITING || players.size() >= MAX_PLAYERS) {
-            return false;
+    /**
+     * 입장을 시도하고 <b>왜 안 되는지까지</b> 알려준다 (S15P21B202-413).
+     *
+     * <p>예전에는 {@link #join} 이 {@code boolean} 만 돌려줬고, 그래서 클라이언트에는
+     * 이유를 가리지 않고 {@code "cannot join room"} 하나만 갔다. 방이 꽉 찬 것과 이미
+     * 게임이 시작된 것은 사용자가 <b>해야 할 일이 다르다</b> — 앞은 기다리면 되고 뒤는
+     * 다른 방을 찾아야 한다.
+     *
+     * <p><b>판단은 여기 한 곳에서만 한다.</b> 부르는 쪽에서 {@code getStatus()} 와
+     * 인원수를 다시 보고 이유를 짐작하면, 그 조건이 이 메서드와 갈리는 날이 온다.
+     */
+    public synchronized JoinResult tryJoin(Long userId, String nickname) {
+        if (status != Status.WAITING) {
+            return JoinResult.ROOM_PLAYING;
+        }
+        if (players.size() >= MAX_PLAYERS) {
+            return JoinResult.ROOM_FULL;
         }
         players.put(userId, new RoomPlayer(nickname));
-        return true;
+        return JoinResult.OK;
+    }
+
+    /**
+     * 들어갔는지만 알면 되는 곳에서 쓴다. 이유가 필요하면 {@link #tryJoin} 을 쓴다.
+     */
+    public synchronized boolean join(Long userId, String nickname) {
+        return tryJoin(userId, nickname) == JoinResult.OK;
     }
 
     /**

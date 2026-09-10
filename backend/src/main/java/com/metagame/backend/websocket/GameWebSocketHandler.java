@@ -295,7 +295,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     private void joinRoom(WebSocketSession session, Long userId, String roomId) {
         Room room = roomManager.find(roomId);
         if (room == null) {
-            send(session, WsMessage.Type.ERROR, Map.of("message", "cannot join room"));
+            sendJoinError(session, "ROOM_NOT_FOUND", "cannot join room");
             return;
         }
 
@@ -325,8 +325,10 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 }
             }
             if (result != Room.RejoinResult.OK) {
-                send(session, WsMessage.Type.ERROR, Map.of("message",
-                        result == Room.RejoinResult.FULL ? "room is full" : "cannot join room"));
+                boolean full = result == Room.RejoinResult.FULL;
+                sendJoinError(session,
+                        full ? "ROOM_FULL" : "REJOIN_DENIED",
+                        full ? "room is full" : "cannot join room");
                 return;
             }
             session.getAttributes().put(ROOM_ID_ATTR, room.getRoomId());   // 클라이언트가 보낸 대소문자가 아닌 정규화된 코드를 보관
@@ -348,8 +350,17 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
-        if (!room.join(userId, nickname(session))) {
-            send(session, WsMessage.Type.ERROR, Map.of("message", "cannot join room"));
+        // 왜 안 되는지까지 받아 그대로 전달한다 (S15P21B202-413). 꽉 찬 방과 이미 시작된
+        // 방은 사용자가 해야 할 일이 다르다 — 앞은 기다리면 되고 뒤는 다른 방을 찾아야 한다.
+        //
+        // 여기까지 왔으면 방은 WAITING 이므로 대개 OK 아니면 ROOM_FULL 이다. ROOM_PLAYING 은
+        // 위 검사와 이 호출 사이에 방장이 시작을 누른 경우에만 오는데, tryJoin 이 그것을
+        // 스스로 판단하므로 여기서 다시 세지 않는다.
+        Room.JoinResult joined = room.tryJoin(userId, nickname(session));
+        if (joined != Room.JoinResult.OK) {
+            sendJoinError(session,
+                    joined == Room.JoinResult.ROOM_FULL ? "ROOM_FULL" : "ROOM_PLAYING",
+                    joined == Room.JoinResult.ROOM_FULL ? "room is full" : "cannot join room");
             return;
         }
         session.getAttributes().put(ROOM_ID_ATTR, room.getRoomId());   // 클라이언트가 보낸 대소문자가 아닌 정규화된 코드를 보관
@@ -828,6 +839,20 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             log.warn("send threw: type={} sid={} {}: {}",
                     type, target.getId(), e.getClass().getSimpleName(), e.getMessage());
         }
+    }
+
+    /**
+     * 입장이 안 된 이유를 함께 보낸다 (S15P21B202-413).
+     *
+     * <p><b>{@code message} 는 그대로 둔다.</b> 이미 쓰이는 값이고 로그·시험이 그것을
+     * 보고 있다. 옆에 {@code reason} 을 더해 클라이언트가 사람이 읽을 문구를 고르게 한다 —
+     * 화면에 보일 말은 <b>화면을 가진 쪽</b>이 정하는 것이 맞고, 그래야 문구를 고칠 때
+     * 서버를 다시 배포하지 않는다.
+     *
+     * <p>{@code reason} 을 모르는 옛 클라이언트는 예전처럼 {@code message} 를 보여 준다.
+     */
+    private void sendJoinError(WebSocketSession session, String reason, String message) {
+        send(session, WsMessage.Type.ERROR, Map.of("message", message, "reason", reason));
     }
 
     /** 이 세션에 쓸 때 실제로 써야 하는 대상 — 등록돼 있으면 감싼 세션, 아니면 그대로. */

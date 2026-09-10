@@ -656,7 +656,9 @@ namespace Metagame.Network
                     // 받기만 하고 넘긴다 — 모르는 메시지로 취급해 오류를 띄우지 않기 위해서다.
                     break;
                 case "ERROR":
-                    ReportError(string.IsNullOrEmpty(data.message) ? "요청을 처리할 수 없습니다." : data.message);
+                    // 사유 코드가 있으면 그것으로 문구를 고른다 (S15P21B202-413).
+                    ReportError(DescribeError(data.reason,
+                        string.IsNullOrEmpty(data.message) ? "요청을 처리할 수 없습니다." : data.message));
                     break;
                 default:
                     ReportError("알 수 없는 서버 메시지입니다: " + message.type);
@@ -854,6 +856,41 @@ namespace Metagame.Network
         {
             ErrorReceived?.Invoke(string.IsNullOrEmpty(message) ? "알 수 없는 네트워크 오류입니다." : message);
         }
+
+        /// <summary>
+        /// 서버가 준 사유 코드를 사람이 읽는 문구로 바꾼다 (S15P21B202-413).
+        ///
+        /// <para><b>왜 클라이언트가 정하나.</b> 예전에는 서버가 보낸
+        /// <c>"cannot join room"</c> 을 그대로 띄웠다 — 영어이고, 방이 꽉 찬 것인지 이미
+        /// 시작된 것인지 코드가 없는 것인지 구분되지 않았다. 사용자가 <b>다음에 뭘 해야
+        /// 하는지</b>가 그 셋에서 다른데 한 문구로 뭉쳐 있었다.</para>
+        ///
+        /// <para>문구를 여기 두면 말을 다듬을 때 서버를 다시 배포하지 않는다. 모르는 코드가
+        /// 오면(옛 서버·새 사유) 서버가 보낸 <paramref name="fallback"/> 을 그대로 쓴다 —
+        /// 조용히 삼키면 사용자가 아무 설명도 못 받는다.</para>
+        /// </summary>
+        public static string DescribeError(string reason, string fallback)
+        {
+            switch (reason)
+            {
+                case "ROOM_FULL":
+                    return $"방 인원이 다 찼습니다. (최대 {MaxRoomPlayers}명)";
+                case "ROOM_PLAYING":
+                    return "이미 게임이 시작된 방입니다. 끝나면 다시 시도해 주세요.";
+                case "ROOM_NOT_FOUND":
+                    return "그런 방이 없습니다. 방 코드를 다시 확인해 주세요.";
+                case "REJOIN_DENIED":
+                    return "이 판에 참가했던 사람만 돌아올 수 있습니다.";
+                default:
+                    return fallback;
+            }
+        }
+
+        /// <summary>
+        /// 한 방의 최대 인원. 백엔드 <c>Room.MAX_PLAYERS</c> 와 같은 값이다 —
+        /// 문구에 숫자를 박아 두면 정원이 바뀔 때 여기가 거짓말을 한다.
+        /// </summary>
+        public const int MaxRoomPlayers = 4;
 
         private void CloseSocket()
         {

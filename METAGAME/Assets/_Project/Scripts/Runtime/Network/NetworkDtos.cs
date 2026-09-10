@@ -117,6 +117,14 @@ namespace Metagame.Network
         public bool ready;
         public string message;
 
+        /// <summary>
+        /// ERROR 가 실어 오는 사유 코드 (S15P21B202-413). 없으면 빈 문자열이다.
+        ///
+        /// <para>화면에 보일 문구는 <b>화면을 가진 쪽</b>이 고른다 — 그래야 말을 다듬을 때
+        /// 서버를 다시 배포하지 않는다. 모르는 코드가 오면 <see cref="message"/> 를 그대로 쓴다.</para>
+        /// </summary>
+        public string reason;
+
         /// <summary>GAME_STARTED 에 실려 오는 방장의 매치 주소(-263).</summary>
         public string hostAddress;
 
