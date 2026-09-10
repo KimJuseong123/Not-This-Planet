@@ -273,11 +273,14 @@ namespace Metagame.Gameplay.Tests
                 UnityEngine.Object.DestroyImmediate(probe.gameObject);
             }
 
-            // **내려놓는 곳은 클라이언트 한 곳뿐이다.** RemoteAvatar.Attach 가 이미
-            // NetworkDriven 을 켜고 ClampInteractor 를 끄는 자리다 — 같은 이유의 같은
-            // 자리라 새 불변식을 만들지 않는다. 내 몸과 남의 몸 **두 경로**가 있다.
+            // **내려놓는 곳은 한 함수뿐이다** (S15P21B202-414). 처음에는 두 경로
+            // (내 몸·남의 몸)에 대입을 각각 두었는데, 거기에 서버 가드를 붙여야 하게
+            // 되면서 조건이 두 곳으로 갈렸다 — 다음 사람이 한쪽만 고친다. 그래서
+            // DisownJudgement 하나로 모으고 조건을 그 안에 뒀다.
             var avatar = TestSource.Blank(TestSource.Read("Runtime/Network/RemoteAvatar.cs"));
-            Assert.That(TestSource.Count(avatar, "ServerAuthority = false"), Is.EqualTo(2),
+            Assert.That(TestSource.Count(avatar, "ServerAuthority = false"), Is.EqualTo(1),
+                "거짓으로 쓰는 자리가 둘 이상이면 서버 가드가 한쪽에만 붙는다");
+            Assert.That(TestSource.Count(avatar, "DisownJudgement(rig)"), Is.EqualTo(2),
                 "클라이언트의 두 경로(내 몸·남의 몸)에서 모두 내려놓아야 한다 — "
                 + "한쪽이 빠지면 그 몸에서 부활이 일어나 서버와 어긋난다");
 
@@ -397,60 +400,53 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
-        /// <b>클라이언트만 권위를 내려놓는다</b> — 호스트에서는 그 코드가 돌지 않는다
-        /// (S15P21B202-414, `!320` AI 리뷰).
+        /// <b>서버는 권위를 내려놓지 않는다</b> (S15P21B202-414, `!320` AI 리뷰).
         ///
-        /// <para>리뷰가 이렇게 지적했다: "호스트는 서버이자 클라이언트라 같은 기계에서
-        /// <c>RemoteAvatar.Attach(false)</c> 와 서버 루프(<c>true</c>)가 모두 실행될 수
-        /// 있다." <b>지금 코드에서는 일어나지 않는다</b> — <c>OnStartClient</c> 가
-        /// <c>AdoptLocalBody</c>·<c>BuildRemoteBody</c> <b>앞에서</b>
-        /// <c>if (isServer) return;</c> 하고, <c>Update</c> 의 재시도 경로도
-        /// <c>if (isServer || !isLocalPlayer) return;</c> 로 막혀 있다.</para>
+        /// <para><b>이 테스트의 첫 판은 틀렸고, 그 실패가 리뷰가 옳았음을 증명했다.</b>
+        /// 리뷰는 "호스트는 서버이자 클라이언트라 같은 기계에서 <c>Attach(false)</c> 와
+        /// 서버 루프(<c>true</c>)가 모두 실행될 수 있다" 고 지적했다. 나는
+        /// <c>OnStartClient</c> 의 <c>if (isServer) return;</c> 이 막아 준다고 답하고
+        /// 그것을 단정하는 테스트를 썼다.</para>
         ///
-        /// <para><b>그런데 그 불변식을 아무것도 지키지 않았다.</b> 그 두 가드 중 하나가
-        /// 사라지면 호스트에서 <c>Attach</c> 가 돌아 한 프레임 동안 권위가 거짓이 되고,
-        /// 그 프레임에 홀드가 끝나면 부활이 조용히 사라진다. 그래서 여기서 못박는다 —
-        /// 런타임 가드를 하나 더 두는 대신 이 검사를 둔다. 권위를 정하는 곳이 또 늘면
-        /// `-390` 이 겪은 그 문제(쓰는 곳이 흩어져 되돌아올 길이 없어진다)가 되풀이된다.
-        /// </para>
+        /// <para>그 테스트가 <c>NetPlayer.Update</c> 에서 실패했다 —
+        /// <b>거기에는 <c>isServer</c> 가드가 없다.</b> <c>if (!isLocalPlayer) return;</c>
+        /// 뿐이고, 호스트에서도 <c>body == null</c> 인 프레임에 <c>AdoptLocalBody()</c>
+        /// 를 부르며 그것이 <c>Attach(mine: true)</c> 로 이어진다. <b>호출부 규율로는
+        /// 지킬 수 없다.</b></para>
+        ///
+        /// <para>그래서 조건을 <c>RemoteAvatar.DisownJudgement</c> 안에 뒀고, 이 테스트는
+        /// 그 자리를 지킨다. 지키지 않으면 호스트에서 한 프레임 권위가 거짓이 되고,
+        /// 그 프레임에 홀드가 끝나면 부활이 조용히 사라진다.</para>
         /// </summary>
         [Test]
-        public void TheHostNeverRunsTheClientDisown()
+        public void TheServerNeverDisownsJudgement()
         {
+            var disown = TestSource.Method(
+                TestSource.Read("Runtime/Network/RemoteAvatar.cs"),
+                "static void DisownJudgement(PlayerRig rig)");
+
+            Assert.That(disown, Does.Contain("NetworkServer.active"),
+                "서버에서도 내려놓으면 호스트를 이어받은 기계에서 부활이 멈춘다");
+            Assert.That(disown, Does.Contain("ServerAuthority = false"),
+                "내려놓는 대입이 이 함수 안에 있어야 조건이 함께 간다");
+
+            // **호출부는 호스트를 걸러 주지 못한다.** 이것이 위 조건이 필요한 이유이고,
+            // 그 사실이 바뀌면(가드가 생기면) 이 주석도 함께 고쳐야 한다.
             var net = TestSource.Read("Runtime/Network/NetPlayer.cs");
-
-            var start = TestSource.Method(net, "public override void OnStartClient()");
-            var guard = start.IndexOf("if (isServer) return;", System.StringComparison.Ordinal);
-            Assert.Greater(guard, 0, "OnStartClient 에 호스트를 걸러내는 가드가 없다");
-
-            foreach (var call in new[] { "AdoptLocalBody()", "BuildRemoteBody()" })
-            {
-                var at = start.IndexOf(call, System.StringComparison.Ordinal);
-                Assert.Greater(at, 0, $"OnStartClient 가 {call} 를 부르지 않는다 — 이 테스트를 다시 맞춰야 한다");
-                Assert.Greater(at, guard,
-                    $"{call} 가 호스트 가드보다 앞이면 호스트에서도 RemoteAvatar.Attach 가 돌아 "
-                    + "권위가 한 프레임 거짓이 된다");
-            }
-
-            // Update 의 재시도 경로도 같은 가드 뒤에 있어야 한다.
             var update = TestSource.Method(net, "void Update()");
-            var retryGuard = update.IndexOf("if (isServer || !isLocalPlayer) return;",
-                                            System.StringComparison.Ordinal);
-            var retry = update.IndexOf("AdoptLocalBody()", System.StringComparison.Ordinal);
-            if (retry >= 0)
-            {
-                Assert.Greater(retryGuard, 0,
-                    "Update 가 AdoptLocalBody 를 부르는데 호스트 가드가 없다");
-                Assert.Greater(retry, retryGuard,
-                    "재시도가 가드보다 앞이면 호스트에서도 몸을 맡겨 권위를 내려놓는다");
-            }
+            var adopt = update.IndexOf("AdoptLocalBody()", System.StringComparison.Ordinal);
+            Assert.Greater(adopt, 0,
+                "Update 가 몸을 맡기는 경로가 사라졌다 — 이 테스트의 근거를 다시 맞춰야 한다");
 
-            // 내려놓는 곳이 그 두 경로뿐인지. 다른 곳에서 Attach 를 부르면 위 두 가드가
-            // 지키지 못한다.
-            var blanked = TestSource.Blank(net);
-            Assert.That(TestSource.Count(blanked, "RemoteAvatar.Attach"), Is.EqualTo(2),
-                "Attach 를 부르는 곳은 AdoptLocalBody·BuildRemoteBody 둘뿐이어야 한다 — "
-                + "늘면 호스트 가드 밖에서 권위를 내려놓을 수 있다");
+            // `isServer` 자체는 Update 안에 있다(전송 로그·순번 붙이기). 없어야 하는 것은
+            // **AdoptLocalBody 앞의 조기 반환**이므로 위치로 본다.
+            var firstServer = update.IndexOf("isServer", System.StringComparison.Ordinal);
+            Assert.That(firstServer, Is.GreaterThan(adopt),
+                "Update 에 호스트 가드가 생겼다면 DisownJudgement 의 근거 주석을 갱신할 것");
+
+            // 내려놓는 곳이 그 한 함수뿐인지. 다른 곳에서 직접 대입하면 조건이 빠진다.
+            Assert.That(TestSource.Count(TestSource.Blank(net), "RemoteAvatar.Attach"), Is.EqualTo(2),
+                "Attach 를 부르는 곳은 AdoptLocalBody·BuildRemoteBody 둘뿐이어야 한다");
         }
 
         /// <summary>

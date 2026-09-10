@@ -1,3 +1,4 @@
+using Mirror;
 using UnityEngine;
 using Metagame.Gameplay;
 
@@ -62,6 +63,31 @@ namespace Metagame.Network
         /// 즉시 반영되고(P1), 서버 자세와의 오차만 조금씩 갚는다(S15P21B202-363).
         /// 남의 것이면 서버 자세를 끌고 다니는 그림으로 바꾼다.
         /// </param>
+        /// <summary>
+        /// 부활 판정을 서버에 넘긴다 — <b>이 기계가 서버가 아닐 때만</b>
+        /// (S15P21B202-414, <c>!320</c> AI 리뷰).
+        ///
+        /// <para><b>왜 조건이 필요한가.</b> 리뷰가 "호스트는 서버이자 클라이언트라 같은
+        /// 기계에서 <c>Attach(false)</c> 와 서버 루프(<c>true</c>)가 모두 실행될 수 있다"
+        /// 고 지적했고, 처음에는 <c>OnStartClient</c> 의 <c>if (isServer) return;</c> 이
+        /// 막아 준다고 답했다. <b>그 답이 틀렸다.</b> <c>NetPlayer.Update</c> 는
+        /// <c>if (!isLocalPlayer) return;</c> 뿐이고 <c>isServer</c> 가드가 없다 —
+        /// 호스트에서도 <c>body == null</c> 인 프레임에 <c>AdoptLocalBody()</c> 를 부르고,
+        /// 그것이 <c>Attach(mine: true)</c> 로 여기까지 온다. 그 사실을 이 이슈에서 쓴
+        /// 테스트가 실패하며 알려 주었다.</para>
+        ///
+        /// <para><b>호출부 규율로는 지킬 수 없으므로 여기서 막는다.</b> 쓰는 곳을 하나로
+        /// 모아 두고 조건을 그 안에 둔다 — 두 자리에 조건을 흩뿌리면 다음 사람이 한쪽만
+        /// 고친다. 값을 <b>거짓으로 쓰는 유일한 자리</b>가 이 함수다.</para>
+        /// </summary>
+        static void DisownJudgement(PlayerRig rig)
+        {
+            // 서버는 판정을 한다. 넘길 상대가 자기 자신이면 넘기는 것이 아니라 잃는 것이다.
+            if (NetworkServer.active) return;
+
+            rig.ServerAuthority = false;
+        }
+
         public static RemoteAvatar Attach(PlayerRig rig, Transform source, bool mine = false)
         {
             var avatar = rig.gameObject.AddComponent<RemoteAvatar>();
@@ -113,7 +139,7 @@ namespace Metagame.Network
                 // 완료되면 DownedRescue 가 되살리는데, 그러면 **이 화면에서만**
                 // 일어나고 되돌아오지도 않는다 — downed 훅은 값이 바뀔 때만 불려서
                 // 서버가 여전히 true 인 동안 다시 내려오는 것이 없다(-378).
-                rig.ServerAuthority = false;
+                DisownJudgement(rig);
 
                 // 카메라 스무딩만 낮춘다. 예측이 들어와 이제 표시가 한 겹 덜 다듬어지므로
                 // 기본값(62ms)을 그대로 두면 더해지는 것은 지연뿐이다.
@@ -129,7 +155,7 @@ namespace Metagame.Network
             rig.IsLocal = false;
 
             // 남의 몸에서도 내려놓는다 (S15P21B202-390) — 위와 같은 이유다.
-            rig.ServerAuthority = false;
+            DisownJudgement(rig);
 
             // 골반을 세계에 붙들어 인형을 세우는 조인트다. 골반을 우리가 직접
             // 옮길 것이므로 남겨 두면 서로 잡아당긴다.
