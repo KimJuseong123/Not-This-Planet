@@ -59,6 +59,10 @@ namespace Metagame.Gameplay
         float clampLiftPitchLock;
         bool vehicleView;
         bool downedView;
+        bool pushView;
+        float pushYawCenter;
+        Vector3 pushFocus;
+        bool pushFocusReady;
         Transform downedEyes;
         float downedSeconds;
         bool savedFirstPerson;
@@ -149,6 +153,11 @@ namespace Metagame.Gameplay
 
             if (on)
             {
+                // 밀기 3인칭이었다면 먼저 끈다. 그러지 않으면 아래 저장이 **밀기 값을**
+                // 담아, 구조된 뒤 밀기 거리·각도로 돌아간다. 기절하면 그 사람은
+                // PartPush 집계에서 빠지므로 밀기는 어차피 끝난다.
+                if (pushView) SetPushView(false);
+
                 // 탑승 중이었다면 그쪽이 이미 값을 들고 있다. 두 번 저장하면 복원이 어긋난다.
                 if (!vehicleView)
                 {
@@ -249,6 +258,110 @@ namespace Metagame.Gameplay
             yaw = Mathf.Atan2(along.x, along.z) * Mathf.Rad2Deg;
         }
 
+        /// <summary>지금 파츠 밀기 3인칭인가.</summary>
+        public bool PushView => pushView;
+
+        /// <summary>밀기 자유 시점의 기준 방향(도). 이 값 ±한계 안에서만 돌아간다.</summary>
+        public float PushYawCenter => pushYawCenter;
+
+        /// <summary>
+        /// 파츠를 셋 이상이 밀기 시작하면 3인칭으로 물러난다(기획 §10.2).
+        ///
+        /// <b>기절·탑승 시야에는 양보한다.</b> 그 둘이 켜져 있으면 이 함수는 아무 일도
+        /// 하지 않는다 — 저장 슬롯(<c>savedFirstPerson</c> 등)을 세 모드가 공유하므로,
+        /// 겹쳐 켜면 복원이 어긋나 구조된 뒤 엉뚱한 거리로 돌아간다.
+        /// 반대 방향은 <see cref="SetDownedView"/>·<see cref="SetVehicleView"/> 가
+        /// 켜질 때 이쪽을 먼저 끄는 것으로 맞춘다.
+        ///
+        /// <paramref name="haulDirection"/> 은 <see cref="Parts.PartPush.HaulDirection"/>
+        /// 이다. 그 방향을 등지고 서면 파츠와 미는 사람들이 함께 프레임에 들어온다.
+        /// §10.2 "캐릭터는 기존 밀기 방향을 유지한다" 의 기준도 이 값이다.
+        /// </summary>
+        public void SetPushView(bool on, Vector3 haulDirection = default)
+        {
+            if (on && (downedView || vehicleView)) return;
+            if (on == pushView) return;
+
+            if (on)
+            {
+                savedFirstPerson = FirstPerson;
+                savedDistance = Distance;
+                savedTargetHeight = TargetHeight;
+                savedMinPitch = MinPitch;
+                savedMaxPitch = MaxPitch;
+                savedAimPitch = aimPitch;
+
+                pushView = true;
+                pushFocusReady = false;
+
+                FirstPerson = false;
+                Distance = PhysicsScale.PartPushCamDistance;
+                FreeLook = false;
+
+                // 밀기 방향을 등지고 선다. 방향이 아직 0 이면(합산이 상쇄된 순간)
+                // 지금 보는 쪽을 그대로 기준으로 삼는다.
+                var flat = new Vector3(haulDirection.x, 0f, haulDirection.z);
+                pushYawCenter = flat.sqrMagnitude > 1e-6f
+                    ? Mathf.Atan2(flat.x, flat.z) * Mathf.Rad2Deg
+                    : yaw;
+
+                yaw = pushYawCenter;
+                pitch = PhysicsScale.PartPushCamPitchDegrees;
+                aimYaw = yaw;
+                aimPitch = pitch;
+
+                // 물러나는 것이 보이게 몸에서 출발한다 — 기절 3인칭과 같은 방식이다.
+                currentDistance = 0f;
+            }
+            else
+            {
+                pushView = false;
+                pushFocusReady = false;
+
+                FirstPerson = savedFirstPerson;
+                Distance = savedDistance;
+                TargetHeight = savedTargetHeight;
+                MinPitch = savedMinPitch;
+                MaxPitch = savedMaxPitch;
+                aimPitch = Mathf.Clamp(savedAimPitch, MinPitch, MaxPitch);
+                pitch = Mathf.Clamp(pitch, MinPitch, MaxPitch);
+                currentDistance = FirstPerson ? 0f : Distance;
+            }
+
+            focusReady = false;
+        }
+
+        /// <summary>
+        /// 밀기 중 매 프레임 접촉 지점과 방향을 갱신한다. 소유자가 부른다.
+        ///
+        /// 파츠가 밀려 나가므로 접촉 지점은 매 프레임 움직인다. 그래서 켤 때 한 번
+        /// 받는 것으로는 안 되고, <c>Time</c> 을 직접 읽지 않는 것도 저장소의 다른
+        /// 것들과 같은 이유다 — 검증이 실제로 기다릴 수는 없다.
+        /// </summary>
+        public void TickPushView(Vector3 graspPoint, Vector3 haulDirection, float deltaTime)
+        {
+            if (!pushView || deltaTime <= 0f) return;
+
+            // 초점은 사람과 접촉 지점 사이다(§10.2). 파츠가 흔들려도 화면이 떨지 않게
+            // 부드럽게 좇는다 — LateUpdate 의 smoothFocus 와 같은 시정수를 쓴다.
+            if (!pushFocusReady) { pushFocus = graspPoint; pushFocusReady = true; }
+            else pushFocus = Vector3.Lerp(pushFocus, graspPoint,
+                                          1f - Mathf.Exp(-FocusSmoothing * deltaTime));
+
+            var flat = new Vector3(haulDirection.x, 0f, haulDirection.z);
+            if (flat.sqrMagnitude > 1e-6f)
+                pushYawCenter = Mathf.Atan2(flat.x, flat.z) * Mathf.Rad2Deg;
+
+            // 좌우 자유 시점을 밀기 방향 기준으로 묶는다(§10.2 "제한적인").
+            var offset = Mathf.DeltaAngle(pushYawCenter, yaw);
+            var limit = PhysicsScale.PartPushCamYawRangeDegrees;
+            if (Mathf.Abs(offset) > limit)
+            {
+                yaw = pushYawCenter + Mathf.Clamp(offset, -limit, limit);
+                aimYaw = yaw;
+            }
+        }
+
         public void SetFreeLook(bool on)
         {
             if (on == FreeLook) return;
@@ -298,6 +411,9 @@ namespace Metagame.Gameplay
 
             if (on)
             {
+                // 밀기 3인칭이었다면 먼저 끈다 — SetDownedView 와 같은 이유다.
+                if (pushView) SetPushView(false);
+
                 savedFirstPerson = FirstPerson;
                 savedDistance = Distance;
                 savedTargetHeight = TargetHeight;
@@ -393,6 +509,15 @@ namespace Metagame.Gameplay
             if (Target == null) return;
 
             Vector3 raw = Target.position + Vector3.up * TargetHeight;
+
+            // 밀기 중에는 초점을 파츠 접촉 지점 쪽으로 옮긴다(기획 §10.2 "카메라 중심은
+            // 플레이어와 파츠 접촉 지점 사이"). 전부 옮기지 않는 이유는
+            // PartPushCamFocusBias 에 적었다 — 파츠가 화면 가운데를 차지하면 미는
+            // 사람이 보이지 않는다.
+            if (pushView && pushFocusReady)
+                raw = Vector3.Lerp(raw, pushFocus + Vector3.up * TargetHeight,
+                                   PhysicsScale.PartPushCamFocusBias);
+
             if (!focusReady) { smoothFocus = raw; focusReady = true; }
             else smoothFocus = Vector3.Lerp(smoothFocus, raw,
                                             1f - Mathf.Exp(-FocusSmoothing * Time.deltaTime));

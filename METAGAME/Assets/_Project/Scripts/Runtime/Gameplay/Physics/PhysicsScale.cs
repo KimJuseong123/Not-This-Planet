@@ -1162,6 +1162,43 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float DownedThirdPersonPitchDegrees = 25f;
 
+        // --- 파츠 밀기 카메라 (기획 §10.2) ---
+        /// <summary>
+        /// 밀기 3인칭에서 카메라가 물러나는 거리(m).
+        ///
+        /// 걸을 때(<see cref="Core.Tuning.CamDistance"/> 3.6)보다 멀다. 파츠가 폭 2.3m ·
+        /// 높이 2.2m 짜리라 걷기 거리에서는 화면이 파츠로 가득 차고, 셋이 함께 미는
+        /// 모습이 프레임에 안 들어온다 — 그 모습이 §10.2 가 3인칭으로 빠지는 이유다.
+        /// </summary>
+        public const float PartPushCamDistance = 5.6f;
+
+        /// <summary>
+        /// 밀기 3인칭의 시선을 내려보는 각도(도).
+        ///
+        /// 파츠 위쪽 빈 하늘을 덜 담고 발밑의 파츠·사람을 담는다. 기절 3인칭
+        /// (<see cref="DownedThirdPersonPitchDegrees"/> 25도)보다 완만한 이유는 여기서는
+        /// 쓰러진 몸을 내려다보는 것이 아니라 앞으로 밀고 가는 방향을 보기 때문이다.
+        /// </summary>
+        public const float PartPushCamPitchDegrees = 14f;
+
+        /// <summary>
+        /// 카메라 초점을 사람에서 <b>파츠 접촉 지점 쪽으로</b> 옮기는 비율.
+        ///
+        /// 기획 §10.2 "카메라 중심은 플레이어와 파츠 접촉 지점 사이이다". 0.5 면 정확히
+        /// 가운데인데, 그러면 파츠가 화면 가운데를 차지해 미는 사람이 보이지 않는다.
+        /// 사람 쪽에 더 두어 "내가 밀고 있다" 를 남긴다.
+        /// </summary>
+        public const float PartPushCamFocusBias = 0.35f;
+
+        /// <summary>
+        /// 밀기 중 좌우 자유 시점의 한계(도). 밀기 방향을 기준으로 ±이 값이다.
+        ///
+        /// 기획 §10.2 "마우스로 <b>제한적인</b> 자유 시점이 가능하되 캐릭터는 기존 밀기
+        /// 방향을 유지한다". 제한이 없으면 카메라를 뒤로 돌린 채 밀게 되어 무엇을
+        /// 어디로 밀고 있는지 화면에서 사라진다.
+        /// </summary>
+        public const float PartPushCamYawRangeDegrees = 55f;
+
         // --- 끼임 복구 (기획 §21) ---
         /// <summary>
         /// 끼임 탈출을 위해 <c>T</c> 를 유지해야 하는 시간(초). 기획 §21.

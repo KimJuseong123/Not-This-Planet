@@ -189,6 +189,10 @@ namespace Metagame.Gameplay
                     // 않는 이유는 검증이 5초를 실제로 기다릴 수 없기 때문이다.
                     LocalPlayer.Cam.TickDownedView(Time.deltaTime);
 
+                    // 셋 이상이 모여 파츠를 밀면 3인칭으로 물러난다(기획 §10.2).
+                    // 판단은 PlayerRig 가 한다 — 여기 두면 검증이 잠그지 못한다.
+                    LocalPlayer.SyncPushCamera(Time.deltaTime);
+
                     LocalPlayer.Cam.SetFreeLook(f.FreeLook);     // Steer 보다 먼저 — Alt 시점의 pitch 범위를 선택한다
                     bool clampButtons = f.GrabLeft || f.GrabRight;
                     LocalPlayer.Cam.SetClampLiftResistance(

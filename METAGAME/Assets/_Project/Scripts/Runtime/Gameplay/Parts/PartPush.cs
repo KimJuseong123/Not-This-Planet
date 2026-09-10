@@ -32,6 +32,7 @@ namespace Metagame.Gameplay.Parts
             public Vector3 Direction;      // 마지막으로 민 방향(수평, 이동 입력)
             public bool Active;            // 이번 틱에 미는 사람으로 세는가
             public bool Holding;           // 손으로 잡아서 참여하는가
+            public Vector3 Grasp;          // 파츠 표면에서 이 사람에게 가장 가까운 점
         }
 
         readonly Dictionary<PlayerRig, Pusher> _pushers = new();
@@ -136,6 +137,82 @@ namespace Metagame.Gameplay.Parts
         }
 
         /// <summary>
+        /// <paramref name="player"/> 가 참여해 <b>실제로 움직이는</b> 파츠. 없으면 null.
+        ///
+        /// 기획 §10.2 의 밀기 카메라가 "지금 무엇을 밀고 있는가" 를 물을 때 쓴다.
+        /// <see cref="IsHauling"/> 이 아니라 <see cref="IsMoving"/> 을 보는 이유는
+        /// 한두 명이 붙어 꿈쩍하지 않을 때 시점이 바뀌면 "시점은 바뀌었는데 아무 일도
+        /// 안 일어나는" 화면이 되기 때문이다(S15P21B202-400).
+        /// </summary>
+        public static PartPush MovingPartFor(PlayerRig player)
+        {
+            if (player == null) return null;
+
+            for (var i = 0; i < All.Count; i++)
+            {
+                var push = All[i];
+                if (push == null || !push.IsMoving) continue;
+                if (push.Participates(player)) return push;
+            }
+
+            return null;
+        }
+
+        /// <summary>이번 틱에 이 사람이 미는 사람으로 세어졌는가.</summary>
+        public bool Participates(PlayerRig player)
+        {
+            return player != null
+                   && _pushers.TryGetValue(player, out var pusher)
+                   && pusher.Active;
+        }
+
+        /// <summary>
+        /// 이 사람이 파츠를 잡거나 짚고 있는 지점(월드). 참여 중이 아니면
+        /// 파츠 표면에서 그 사람에게 가장 가까운 점을 즉석에서 계산한다.
+        ///
+        /// <b>밖에서 다시 재지 않게 여기서 준다.</b> 접촉 판정
+        /// (<see cref="IsTouching"/>)이 쓰는 것과 같은 계산이어야 카메라 중심과
+        /// 밀기 판정이 어긋나지 않는다.
+        /// </summary>
+        public Vector3 GraspPointFor(PlayerRig player)
+        {
+            if (player != null && _pushers.TryGetValue(player, out var pusher)
+                && pusher.Active && pusher.Grasp.sqrMagnitude > 0f)
+                return pusher.Grasp;
+
+            return ClosestSurfacePoint(player);
+        }
+
+        /// <summary>파츠 몸통 콜라이더 중 이 사람의 골반에 가장 가까운 점.</summary>
+        Vector3 ClosestSurfacePoint(PlayerRig player)
+        {
+            var from = player != null && player.Doll != null && player.Doll.Hips != null
+                ? player.Doll.Hips.position
+                : transform.position;
+
+            if (!_collidersCollected) _colliders = CollectBodyColliders();
+            if (_colliders == null || _colliders.Length == 0) return Center();
+
+            var best = Center();
+            var bestSqr = float.MaxValue;
+
+            for (var i = 0; i < _colliders.Length; i++)
+            {
+                var collider = _colliders[i];
+                if (collider == null || !collider.enabled) continue;
+
+                var point = collider.ClosestPoint(from);
+                var sqr = (point - from).sqrMagnitude;
+                if (sqr >= bestSqr) continue;
+
+                bestSqr = sqr;
+                best = point;
+            }
+
+            return best;
+        }
+
+        /// <summary>
         /// 밀 수 있는 상태인가.
         ///
         /// <see cref="PartState.Locked"/> 는 고정쇠로 박혀 "운석에 맞아도 움직이지
@@ -236,6 +313,7 @@ namespace Metagame.Gameplay.Parts
                     pusher.GraceSeconds = PhysicsScale.PartPushReleaseSeconds;
                     pusher.Direction = heading;
                     pusher.Holding = holding;
+                    pusher.Grasp = ClosestSurfacePoint(player);
                 }
                 else
                 {

@@ -208,6 +208,116 @@ namespace Metagame.Gameplay
         /// 제자리걸음이라 속도로는 의도를 알 수 없다(S15P21B202-250).
         /// </summary>
         public Vector3 MoveWish { get; private set; }
+
+        /// <summary>
+        /// 셋 이상이 모여 파츠를 <b>실제로 밀고 있는가</b>(기획 §13 · §10.2).
+        /// 밀기 카메라가 이 값으로 3인칭 전환을 판단한다.
+        ///
+        /// <b>서버와 참가자가 채우는 경로가 다르다.</b> 파츠 물리는 서버에서만 도므로
+        /// (참가자 화면의 파츠는 kinematic 이고 <c>PartPush.CanPush</c> 가 false 다)
+        /// 참가자는 이 값을 스스로 알 수 없다. 서버는 <see cref="Tick"/> 에서
+        /// <c>PartPush</c> 를 직접 조회하고, 참가자는 <see cref="NetPlayer"/> 가
+        /// SyncVar 로 받아 <see cref="SetHaulState"/> 로 넣어 준다.
+        /// </summary>
+        public bool Hauling { get; private set; }
+
+        /// <summary>미는 방향(수평 단위). 밀고 있지 않으면 0 이다.</summary>
+        public Vector3 HaulDirection { get; private set; }
+
+        /// <summary>파츠 표면에서 이 사람이 잡거나 짚은 지점(월드).</summary>
+        public Vector3 HaulGrasp { get; private set; }
+
+        /// <summary>
+        /// 참가자 화면에서 서버가 보낸 밀기 상태를 넣는다.
+        /// 서버·혼자 실행에서는 <see cref="Tick"/> 이 직접 채우므로 부르지 않는다.
+        /// </summary>
+        public void SetHaulState(bool hauling, Vector3 direction, Vector3 grasp)
+        {
+            ApplyHaulState(hauling, direction, grasp);
+        }
+
+        // 밀기 중 이동 기준. **시점이 아니라 밀기를 시작한 방향이다** — §10.2
+        // "마우스로 제한적인 자유 시점이 가능하되 캐릭터는 기존 밀기 방향을 유지한다".
+        //
+        // 시작 순간에 한 번 정하고 밀기가 끝날 때까지 붙든다. 매 틱 HaulDirection 을
+        // 따라가게 하면 순환이 된다 — HaulDirection 은 사람들의 MoveWish 합이고
+        // MoveWish 는 이 기준으로 만들어지므로, A 만 눌러도 기준이 계속 왼쪽으로
+        // 돌아 제자리에서 빙빙 도는 조작이 된다.
+        float haulBasisYaw;
+        bool haulBasisSet;
+
+        /// <summary>밀기 중 이동·조작의 기준 방향(도). 밀고 있지 않으면 의미가 없다.</summary>
+        public float HaulBasisYaw => haulBasisYaw;
+
+        void ApplyHaulState(bool hauling, Vector3 direction, Vector3 grasp)
+        {
+            var flat = new Vector3(direction.x, 0f, direction.z);
+
+            Hauling = hauling && flat.sqrMagnitude > 1e-6f;
+            HaulDirection = Hauling ? flat.normalized : Vector3.zero;
+            HaulGrasp = grasp;
+
+            if (Hauling)
+            {
+                // 기준은 **처음 한 번만** 정한다. 위 주석의 순환을 막는 자리다.
+                if (!haulBasisSet)
+                {
+                    haulBasisYaw = Mathf.Atan2(HaulDirection.x, HaulDirection.z)
+                                   * Mathf.Rad2Deg;
+                    haulBasisSet = true;
+                }
+            }
+            else
+            {
+                haulBasisSet = false;
+            }
+        }
+
+        /// <summary>
+        /// 밀기 상태를 내 카메라에 반영한다. 소유자가 <b>매 프레임</b> 부른다.
+        ///
+        /// <b>이 로직이 GameSession 안에 있으면 검증이 잠그지 못한다.</b> 처음에는
+        /// 거기에 두었는데, 검증 하네스가 같은 두 줄을 흉내내는 꼴이 되어
+        /// <b>전환 조건을 <c>true</c> 로 바꿔도 22개가 전부 통과했다</b> — 배선이
+        /// 검증 경로 밖이었다(S15P21B202-400). 그래서 여기로 옮겼다.
+        ///
+        /// 0.5초 복귀 유예를 여기서 세지 않는다 — 위 <see cref="RefreshHaulState"/>
+        /// 주석에 이유를 적었다.
+        /// </summary>
+        public void SyncPushCamera(float deltaTime)
+        {
+            if (Cam == null || deltaTime <= 0f) return;
+
+            // 조건이 Hauling 인 이유는 그 값이 **실제로 밀리는 중**만 참이기 때문이다.
+            // 한두 명이 붙어 꿈쩍하지 않을 때 시점이 바뀌면 "시점은 바뀌었는데 아무
+            // 일도 안 일어나는" 화면이 된다(기획 §10.2).
+            Cam.SetPushView(Hauling, HaulDirection);
+            Cam.TickPushView(HaulGrasp, HaulDirection, deltaTime);
+        }
+
+        /// <summary>
+        /// 서버·혼자 실행에서 파츠 밀기 상태를 읽어 온다.
+        ///
+        /// 0.5초 유예를 여기서 따로 세지 않는다 — <c>PartPush.Gather</c> 가 이미
+        /// <see cref="PhysicsScale.PartPushReleaseSeconds"/> 동안 인원을 유지하므로,
+        /// 걸음을 멈춰도 <c>IsMoving</c> 이 0.5초간 참이다. 기획 §10.2 의 "밀기를
+        /// 멈추거나 접촉이 끊기면 0.5초 뒤 1인칭으로 복귀한다" 가 그대로 나온다.
+        /// </summary>
+        void RefreshHaulState()
+        {
+            // 참가자 화면에서는 서버가 보낸 값을 쓴다. 여기서 조회하면 파츠가
+            // kinematic 이라 늘 "밀고 있지 않다" 가 되어 서버 값을 덮어쓴다.
+            if (WorldEvents.RemoteDecides) return;
+
+            var push = Parts.PartPush.MovingPartFor(this);
+            if (push == null)
+            {
+                ApplyHaulState(false, Vector3.zero, Vector3.zero);
+                return;
+            }
+
+            ApplyHaulState(true, push.HaulDirection, push.GraspPointFor(this));
+        }
         /// <summary>공중에서 자세제어 분사기를 쓰고 있는가 (HUD·연기 표시용).</summary>
         public bool Thrusting { get; private set; }
         public float AirTime { get; private set; }
@@ -1415,6 +1525,10 @@ namespace Metagame.Gameplay
         {
             SyncCameraTilt();
 
+            // 파츠 밀기 상태를 먼저 갱신한다 — 아래 Locomotion 이 이 값으로 이동
+            // 기준을 정하고(§10.2), 밀기 카메라도 같은 값을 본다.
+            RefreshHaulState();
+
             if (Doll == null || Doll.Hips == null) return;
             if (!JointTools.IsFinite(Doll.Hips.position)) { return; }
 
@@ -1777,7 +1891,23 @@ namespace Metagame.Gameplay
         void Locomotion()
         {
             Vector3 fwd, right, wish;
-            if (Cam != null)
+
+            // 파츠를 밀고 있으면 **시점이 아니라 밀기 방향**이 이동 기준이다
+            // (기획 §10.2 "캐릭터는 기존 밀기 방향을 유지한다"). 그래서 3인칭으로
+            // 물러난 카메라를 좌우로 돌려도 미는 방향이 흔들리지 않는다.
+            //
+            // 서버에도 카메라가 없으므로 이 분기가 양쪽에서 같은 결과를 낸다.
+            if (haulBasisSet)
+            {
+                var basis = Quaternion.Euler(0f, haulBasisYaw, 0f);
+                fwd = Flatten(basis * Vector3.forward, Vector3.forward);
+                right = Flatten(basis * Vector3.right, Vector3.right);
+
+                Vector2 pushMove = input.Move.sqrMagnitude > 1f
+                    ? input.Move.normalized : input.Move;
+                wish = right * pushMove.x + fwd * pushMove.y;
+            }
+            else if (Cam != null)
             {
                 fwd = Cam.PlanarForward;
                 right = Cam.PlanarRight;
