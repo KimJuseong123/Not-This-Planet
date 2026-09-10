@@ -51,6 +51,11 @@ namespace Metagame.Core
             Debug.Log("[빌드] " + Stamp);
 
             if (IsExperiment) Debug.Log("[빌드] 실험 " + Experiment);
+
+            // 라벨을 읽은 **직후** 시작한다 (S15P21B202-380). 같은 초기화 단계의 순서는
+            // 보장되지 않으므로 RunLog 가 스스로 훅을 달면 Experiment 가 아직 비어
+            // 있을 수 있다. 읽은 쪽이 부르면 순서가 정해진다.
+            RunLog.Start();
         }
 
         /// <summary>

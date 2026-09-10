@@ -196,6 +196,13 @@ namespace Metagame.Network
             if (!ClientPlayers.Contains(this)) ClientPlayers.Add(this);
             PerfLog.Players = ClientPlayers.Count;
 
+            // 내 역할을 로그 앞쪽에 한 줄로 남긴다 (S15P21B202-380). 2026-09-09 에
+            // "누가 호스트였는지" 를 잘못 읽어 분석을 한 번 되돌린 적이 있다.
+            if (isLocalPlayer)
+            {
+                Debug.Log($"[RUN] 역할={(isServer ? "호스트" : "참가자")} · {nickname}(userId={userId})");
+            }
+
             // 서버 겸 클라이언트(호스트 모드)라면 몸은 이미 서버 쪽에서 만들었다.
             if (isServer) return;
 
