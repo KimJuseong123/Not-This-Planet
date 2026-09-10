@@ -13,7 +13,7 @@ namespace Metagame.EditorTools
     /// </summary>
     public static class Stage1FullSetupBuilder
     {
-        [MenuItem("Tools/둥실둥실 우주 대탈출/Main 씬에 1장 전체 구성", false, 1)]
+        [MenuItem("Tools/Not This Planet/Main 씬에 1장 전체 구성", false, 1)]
         public static void Build()
         {
             if (EditorApplication.isPlayingOrWillChangePlaymode)

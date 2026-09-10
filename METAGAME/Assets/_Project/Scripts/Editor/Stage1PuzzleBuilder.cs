@@ -58,7 +58,7 @@ namespace Metagame.EditorTools
         const float HatchHeight = 1.1f;
         const float HatchRadius = 1.6f;
 
-        [MenuItem("Tools/둥실둥실 우주 대탈출/Main 씬에 1장 퍼즐 배치", false, 3)]
+        [MenuItem("Tools/Not This Planet/Main 씬에 1장 퍼즐 배치", false, 3)]
         public static void Build()
         {
             var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);

@@ -18,7 +18,7 @@ namespace Metagame.EditorTools
         const string PrefabPath = PrefabDirectory + "/PF_Stage1_Tablet.prefab";
         const float TargetWidth = 0.36f;
 
-        [MenuItem("Tools/둥실둥실 우주 대탈출/1Stage 태블릿 프리팹 재생성", false, 10)]
+        [MenuItem("Tools/Not This Planet/1Stage 태블릿 프리팹 재생성", false, 10)]
         public static void Build()
         {
             EnsureDirectory(MaterialDirectory);

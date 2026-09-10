@@ -116,7 +116,7 @@ namespace Metagame.EditorTools
         static void ApplyPlayerSettings()
         {
             PlayerSettings.companyName = "SpaceFlop";
-            PlayerSettings.productName = "둥실둥실 우주 대탈출";
+            PlayerSettings.productName = "Not This Planet";
 
             PlayerSettings.defaultScreenWidth = 1600;
             PlayerSettings.defaultScreenHeight = 900;

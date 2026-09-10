@@ -107,7 +107,7 @@ namespace Metagame.EditorTools
             Debug.Log("[Stage1WeldingGun] 완료 — " + PrefabPath);
         }
 
-        [MenuItem("Tools/둥실둥실 우주 대탈출/플라즈마 용접기 실제 모델 적용", false, 9)]
+        [MenuItem("Tools/Not This Planet/플라즈마 용접기 실제 모델 적용", false, 9)]
         public static void ApplyProductionModel()
         {
             Directory.CreateDirectory(ProductionMaterialDirectory);

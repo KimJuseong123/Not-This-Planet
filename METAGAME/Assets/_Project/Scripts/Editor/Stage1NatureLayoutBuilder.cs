@@ -64,7 +64,7 @@ namespace Metagame.EditorTools
             }
         }
 
-        [MenuItem("Tools/둥실둥실 우주 대탈출/Stage1 지형 확장 및 자연물 배치", false, 9)]
+        [MenuItem("Tools/Not This Planet/Stage1 지형 확장 및 자연물 배치", false, 9)]
         public static void Apply()
         {
             if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())

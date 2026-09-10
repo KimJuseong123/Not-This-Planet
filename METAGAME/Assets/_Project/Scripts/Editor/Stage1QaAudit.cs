@@ -38,7 +38,7 @@ namespace Metagame.EditorTools
         static int _failed;
         static int _warned;
 
-        [MenuItem("Tools/둥실둥실 우주 대탈출/1장 QA 점검", false, 21)]
+        [MenuItem("Tools/Not This Planet/1장 QA 점검", false, 21)]
         public static void Run()
         {
             Lines.Clear();
