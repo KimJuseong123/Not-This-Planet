@@ -12,6 +12,8 @@ Shader "NotThisPlanet/Dough"
         _Mottle       ("얼룩",       Range(0,1)) = 0.22
         _MottleScale  ("얼룩 크기",  Range(0.1,24)) = 1.4
         _Ambient      ("Ambient",    Range(0,2)) = 0.45
+        _FogStrength ("Fog Strength", Range(0,1)) = 1.0
+        _AtmosphereFogExemptMask ("Atmosphere Fog Exempt Mask", Float) = 0.0
     }
 
     SubShader
@@ -23,6 +25,17 @@ Shader "NotThisPlanet/Dough"
         {
             Name "ForwardLit"
             Tags { "LightMode"="UniversalForward" }
+
+            // Bit 6 excludes the visible surface from fullscreen haze/ground fog.
+            // Ordinary opaque surfaces clear it when they cover an exempt surface.
+            Stencil
+            {
+                Ref [_AtmosphereFogExemptMask]
+                Comp Always
+                Pass Replace
+                ReadMask 64
+                WriteMask 64
+            }
 
             HLSLPROGRAM
             #pragma target 3.5
@@ -45,6 +58,7 @@ Shader "NotThisPlanet/Dough"
                 half _Mottle;
                 half _MottleScale;
                 half _Ambient;
+                half _FogStrength;
             CBUFFER_END
 
             struct Attributes
@@ -143,7 +157,7 @@ Shader "NotThisPlanet/Dough"
                 }
                 #endif
 
-                color = MixFog(color, ComputeFogFactor(input.positionCS.z));
+                color = lerp(color, MixFog(color, ComputeFogFactor(input.positionCS.z)), _FogStrength);
                 return half4(color, 1.0h);
             }
             ENDHLSL
