@@ -392,8 +392,13 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
       # Unity 가 낸 NUnit3 가 아니라 변환한 JUnit 을 올린다 — 전자는 GitLab 이 0건으로 읽는다.
       junit: unity-junit.xml
 
-build-backend:            # 백엔드 jar — MR 에서는 컴파일 검사, develop 머지에서는 배포용 산출물 (S15P21B202-140)
-  stage: test             # 지금까지 백엔드는 MR 시점 빌드 검사가 아예 없었다
+build-backend:            # 백엔드 **테스트 + jar** — MR 에서는 검사, develop 머지에서는 배포용 산출물
+  stage: test             # 처음에는 컴파일 검사만 있었다(-140). 테스트 58개는 CI 에서 한 번도
+                          # 돌지 않았는데, 켤 수 없던 이유가 플래키였다 — 2026-09-04 실측에서
+                          # 같은 명령 3회가 매번 다른 테스트를 떨어뜨렸다. 원인은
+                          # GameWebSocketIntegrationTest 의 헬퍼가 찾던 타입이 아닌 메시지를
+                          # 버려서 뒤의 await 가 굶는 것이었고(-302), 고친 뒤 EC2 도커 러너에서
+                          # **10회 연속 통과**(파이프라인 186069)를 확인하고 켰다.
   image: eclipse-temurin:17-jdk    # 프로젝트는 Java 17 · Gradle 9.7.1 래퍼
   tags: [linux]           # 이미지가 필요한 잡이므로 도커 러너를 못 박는다 — 셸 러너(내 PC)로 가면
                           # image 가 무시되고 chmod 도 없어 실패한다(2026-09-01 실측: 파이프라인 176688)
@@ -411,10 +416,19 @@ build-backend:            # 백엔드 jar — MR 에서는 컴파일 검사, dev
   script:
     - cd backend
     - chmod +x ./gradlew            # git 에 실행 권한이 없다(mode 100644)
-    - ./gradlew --no-daemon bootJar
+    - ./gradlew --no-daemon test bootJar
   artifacts:
+    when: always          # 테스트가 깨져도 junit 리포트는 올린다 — 그것이 없으면 GitLab 이
+                          # 어느 테스트가 깨졌는지 못 보여 주고 사람이 로그를 뒤져야 한다.
+                          # 대가: 테스트가 깨지면 bootJar 가 안 돌아 아래 *.jar 가 없고
+                          # "no matching files" 경고가 남는다. 잡 결과는 바뀌지 않고,
+                          # 그 경우 사람이 볼 것은 어차피 테스트 실패다. 잡을 둘로 쪼개면
+                          # Gradle 이 두 번 돌아 잡 시간이 배가 된다 — 경고 한 줄이 더 싸다
     name: "backend-jar-$CI_COMMIT_SHORT_SHA"
     paths: ["backend/build/libs/*.jar"]
+    reports:              # MR 위젯에 **이 MR 이 새로 깨뜨린 테스트만** 뜬다.
+                          # unity-compile 이 NUnit3 → JUnit 변환을 하는 것과 같은 이유(-271)
+      junit: ["backend/build/test-results/test/*.xml"]
     expire_in: 3 days     # 60MB — 배포(-141)가 쓸 만큼만 남긴다
 
 ai-review:                # 비차단. API 키(ANTHROPIC_API_KEY) 또는 러너 호스트의 로그인된 Claude Code CLI(AI_REVIEW_CLI=true) 중 하나 있을 때 생성
