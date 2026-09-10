@@ -276,6 +276,41 @@ namespace Metagame.Gameplay.Tests
             Assert.Greater(direction.z, 0.5f);
         }
 
+        /// <summary>
+        /// 몸으로 밀 때 <b>비스듬히 서도</b> 세어진다.
+        ///
+        /// <see cref="PhysicsScale.PartPushAimDot"/> 를 0.5(60도)에서 0(직각)으로
+        /// 완화했다. 셋이 정확히 정렬해야만 세어지던 것이 "셋이 모여도 안 된다" 는
+        /// 보고의 한 원인이었다. 70도로 비스듬히 밀면 dot 0.342 로, 예전에는 빠졌다.
+        /// </summary>
+        [Test]
+        public void PushingAtASteepAngle_StillCounts()
+        {
+            var push = MakePart();
+            var player = MakePlayer(new Vector3(-1f, 0f, 0f),
+                                    Quaternion.Euler(0f, 70f, 0f) * Vector3.right);
+
+            Tick(push, 1f);
+
+            Assert.AreEqual(1, push.HaulerCount, "70도로 비스듬해도 미는 것이다.");
+        }
+
+        /// <summary>
+        /// 그래도 <b>멀어지는</b> 입력은 밀기가 아니다 — §13.1 "당기기는 제공하지 않으며".
+        /// 이 검증이 관용의 한계를 잠근다. 0 보다 더 낮추면 이것이 깨진다.
+        /// </summary>
+        [Test]
+        public void PushingPastARightAngle_DoesNotCount()
+        {
+            var push = MakePart();
+            MakePlayer(new Vector3(-1f, 0f, 0f),
+                       Quaternion.Euler(0f, 110f, 0f) * Vector3.right);
+
+            Tick(push, 1f);
+
+            Assert.AreEqual(0, push.HaulerCount, "직각을 넘으면 멀어지는 쪽이다.");
+        }
+
         // --- 잡고 미는 것과 잡고 당기는 것 (S15P21B202-394) ------------------
 
         /// <summary>
@@ -626,7 +661,7 @@ namespace Metagame.Gameplay.Tests
             var part = root.AddComponent<SpaceshipPart>();
             part.SetPlacedMass(spec.Mass);
             part.Initialize();
-            TransitionTo(part, PartState.Placed);
+            TransitionTo(part, PartState.Free);   // Placed 는 조립 조인트가 붙잡는다
 
             var push = root.AddComponent<PartPush>();
             push.Initialize();
@@ -775,16 +810,37 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
-        public void APlacedPartCanBeHauled()
+        public void AFreePartCanBeHauled()
+        {
+            var push = MakePart(PartState.Free);
+            ThreeHaulers(push);
+
+            Tick(push, 1f);
+
+            Assert.IsTrue(push.CanPush, "§13 이 노리는 상태다 — 고정못을 다 뽑은 파츠.");
+            Assert.AreEqual(3, push.HaulerCount);
+            Assert.IsTrue(push.IsMoving);
+        }
+
+        /// <summary>
+        /// <b>조립대에 올린 파츠는 밀 수 없다.</b>
+        ///
+        /// 예전에는 <c>CanPush</c> 가 <c>Placed</c> 를 포함해 "밀 수 있다" 고 답했지만,
+        /// <c>PartAssembler.Assemble</c> 이 그 상태로 올리면서 FixedJoint 로 아래 파츠에
+        /// 묶으므로 <b>실제로는 절대 움직이지 않았다</b> — 셋이 붙어 8843N 이 들어가는데
+        /// 2초에 0.0000m 였다. 답과 결과가 어긋나면 플레이어는 고장으로 읽는다.
+        /// </summary>
+        [Test]
+        public void APlacedPartIsOutOfScope()
         {
             var push = MakePart(PartState.Placed);
             ThreeHaulers(push);
 
             Tick(push, 1f);
 
-            Assert.IsTrue(push.CanPush, "§13 이 노리는 상태다.");
-            Assert.AreEqual(3, push.HaulerCount);
-            Assert.IsTrue(push.IsMoving);
+            Assert.IsFalse(push.CanPush, "조립 조인트가 붙잡으므로 처음부터 거절한다.");
+            Assert.AreEqual(0, push.HaulerCount);
+            Assert.IsFalse(push.IsMoving);
         }
 
         // --- 하네스 1: 집계·속도 규칙 (물리를 돌리지 않는다) -------------------
@@ -830,7 +886,7 @@ namespace Metagame.Gameplay.Tests
             UnityEngine.Physics.SyncTransforms();
         }
 
-        PartPush MakePart(PartState state = PartState.Placed)
+        PartPush MakePart(PartState state = PartState.Free)
         {
             var go = new GameObject("Part_1") { layer = GameLayers.Part };
             go.transform.position = new Vector3(0f, 0.5f, 0f);
@@ -967,7 +1023,7 @@ namespace Metagame.Gameplay.Tests
 
             var part = go.AddComponent<SpaceshipPart>();
             part.Initialize();
-            TransitionTo(part, PartState.Placed);
+            TransitionTo(part, PartState.Free);   // Placed 는 조립 조인트가 붙잡는다
 
             var push = go.AddComponent<PartPush>();
             push.Initialize();
@@ -996,7 +1052,7 @@ namespace Metagame.Gameplay.Tests
             var part = go.AddComponent<SpaceshipPart>();
             part.Initialize();
             part.SetPlacedMass(spec.Mass);
-            TransitionTo(part, PartState.Placed);
+            TransitionTo(part, PartState.Free);   // Placed 는 조립 조인트가 붙잡는다
 
             var push = go.AddComponent<PartPush>();
             push.Initialize();

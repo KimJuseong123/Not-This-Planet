@@ -655,9 +655,10 @@ namespace Metagame.Gameplay.Tests
 
             var part = go.AddComponent<SpaceshipPart>();
             part.Initialize();
+
+            // Free 로 둔다 — 조립대에 올린 Placed 파츠는 조립 조인트가 붙잡으므로
+            // CanPush 가 거절한다(S15P21B202-400 후속).
             part.TryTransitionTo(PartState.Free);
-            part.TryTransitionTo(PartState.Carried);
-            part.TryTransitionTo(PartState.Placed);
 
             var push = go.AddComponent<PartPush>();
             push.Initialize();
