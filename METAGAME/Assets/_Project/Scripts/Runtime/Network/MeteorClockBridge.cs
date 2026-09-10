@@ -85,7 +85,14 @@ namespace Metagame.Network
             // 남길 이유가 하나도 없다.
             // 반대 전이도 치운다. 지금 구조에서는 호스트가 넘어오는 길이 없지만, 그림과
             // 진짜 운석이 겹쳐 뜨는 것은 눈에 바로 보이는 종류라 한 줄로 막아 둔다.
-            if (!wasAuthority && authority) spawner.ClearNetworkMeteors();
+            if (!wasAuthority && authority)
+            {
+                spawner.ClearNetworkMeteors();
+
+                // 흔적 그림도 버린다 (S15P21B202-355). 이 기계가 이제 착탄을 판정하므로
+                // 진짜 흔적이 생긴다 — 그림을 남기면 돌이 두 벌로 보인다.
+                spawner.ClearNetworkScars();
+            }
 
             if (wasAuthority && !authority)
             {

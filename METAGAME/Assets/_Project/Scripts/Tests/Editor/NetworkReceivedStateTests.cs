@@ -302,6 +302,169 @@ namespace Metagame.Gameplay.Tests
                 "씬에도 남아 있으면 안 된다.");
         }
 
+        // --- 받은 흔적 (착지한 운석, S15P21B202-355) -------------------------
+        //
+        // 참가자는 착탄을 스스로 계산하지 않으므로(MeteorClockBridge 가 조기 반환한다)
+        // 착지한 돌이 **아예 없었다.** 그런데 상호작용은 서버가 판정해서 **안 보이는 돌을
+        // 집을 수 있었다** — 2026-09-10 QA: "보이지만 않고 상호작용은 돼."
+
+        /// <summary>
+        /// <b>번호로 짝을 짓는다.</b> 인덱스로는 안 된다 — <c>Trim</c> 이 상한을 넘으면
+        /// <c>RemoveAt(0)</c> 으로 앞에서 지우므로 남은 전부가 한 칸씩 밀리고, 그 프레임에
+        /// 돌들이 서로의 자리로 순간이동한다.
+        /// </summary>
+        [Test]
+        public void ScarSet_KeepsGhostsByIdAndDropsTheAbsent()
+        {
+            var spawner = MakeSpawner();
+
+            spawner.ApplyNetworkScars(new List<MeteorSpawner.NetworkScarState>
+            {
+                Scar(7, new Vector3(1f, 0f, 2f)),
+                Scar(9, new Vector3(5f, 0f, 6f)),
+            }, full: true);
+
+            Assert.AreEqual(2, spawner.ScarGhostCount);
+            Assert.IsTrue(spawner.TryGetScarGhost(7, out var seven));
+            Assert.IsTrue(spawner.TryGetScarGhost(9, out _));
+
+            // 9 가 사라지고 11 이 생긴 목록. **7 은 같은 그림이어야 한다** — 다시 만들면
+            // 매 착탄마다 온 화면의 돌이 새로 생긴다.
+            spawner.ApplyNetworkScars(new List<MeteorSpawner.NetworkScarState>
+            {
+                Scar(7, new Vector3(1f, 0f, 2f)),
+                Scar(11, new Vector3(9f, 0f, 9f)),
+            }, full: true);
+
+            Assert.AreEqual(2, spawner.ScarGhostCount);
+            Assert.IsTrue(spawner.TryGetScarGhost(7, out var stillSeven));
+            Assert.AreSame(seven, stillSeven, "같은 번호는 같은 그림을 써야 한다.");
+            Assert.IsFalse(spawner.TryGetScarGhost(9, out _), "목록에 없는 흔적은 지워야 한다.");
+            Assert.IsTrue(spawner.TryGetScarGhost(11, out _));
+        }
+
+        /// <summary>
+        /// <b>쉬는 돌은 떨어지지 않아야 한다.</b> 낙하 그림은 중력으로 궤적을 흉내내지만
+        /// 흔적은 땅에 박혀 있다 — 충돌러가 꺼져 있으므로 중력을 그대로 두면 지면을 뚫고
+        /// 영영 내려간다.
+        /// </summary>
+        [Test]
+        public void ScarSet_PlacesTheGhostAndLeavesItAtRest()
+        {
+            var spawner = MakeSpawner();
+            var at = new Vector3(3f, 0.4f, -4f);
+
+            spawner.ApplyNetworkScars(new List<MeteorSpawner.NetworkScarState>
+            {
+                Scar(1, at),
+            }, full: true);
+
+            Assert.IsTrue(spawner.TryGetScarGhost(1, out var ghost));
+            var body = ghost.GetComponent<Rigidbody>();
+            Assert.AreEqual(at, body.position);
+            Assert.AreEqual(Vector3.zero, body.linearVelocity);
+            Assert.IsFalse(body.useGravity, "중력을 두면 충돌러가 꺼진 그림이 지면을 뚫고 내려간다.");
+        }
+
+        /// <summary>
+        /// <b>움직임 묶음은 만들지도 지우지도 않는다.</b> 그 묶음은 신뢰 없는 채널로 오고
+        /// 깨어 있는 돌만 실린다 — 그것으로 목록을 판단하면, 사람이 하나를 끌 때
+        /// <b>나머지 전부가 사라진다.</b>
+        /// </summary>
+        [Test]
+        public void ScarMoves_MoveOnly()
+        {
+            var spawner = MakeSpawner();
+
+            spawner.ApplyNetworkScars(new List<MeteorSpawner.NetworkScarState>
+            {
+                Scar(4, new Vector3(0f, 0f, 0f)),
+                Scar(5, new Vector3(2f, 0f, 0f)),
+            }, full: true);
+
+            var moved = new Vector3(8f, 1f, 8f);
+            spawner.ApplyNetworkScars(new List<MeteorSpawner.NetworkScarState>
+            {
+                Scar(4, moved),
+                Scar(99, new Vector3(-7f, 0f, -7f)),     // 아직 목록에 없는 번호
+            }, full: false);
+
+            Assert.AreEqual(2, spawner.ScarGhostCount,
+                "움직임 묶음으로는 만들지도 지우지도 않아야 한다.");
+            Assert.IsTrue(spawner.TryGetScarGhost(4, out var four));
+            Assert.AreEqual(moved, four.GetComponent<Rigidbody>().position);
+            Assert.IsTrue(spawner.TryGetScarGhost(5, out _), "실리지 않은 흔적을 지우면 안 된다.");
+            Assert.IsFalse(spawner.TryGetScarGhost(99, out _), "움직임 묶음이 새로 만들면 안 된다.");
+        }
+
+        /// <summary>접속이 끝나면 남기지 않는다 — 다음 경기의 빈 땅에 옛 돌이 서 있다.</summary>
+        [Test]
+        public void ClearNetworkScars_LeavesNothingBehind()
+        {
+            var spawner = MakeSpawner();
+            spawner.ApplyNetworkScars(new List<MeteorSpawner.NetworkScarState>
+            {
+                Scar(1, Vector3.zero),
+                Scar(2, Vector3.one),
+            }, full: true);
+
+            spawner.ClearNetworkScars();
+
+            Assert.AreEqual(0, spawner.ScarGhostCount);
+            Assert.AreEqual(0, Object.FindObjectsByType<Meteor>(FindObjectsSortMode.None).Length,
+                "씬에도 남아 있으면 안 된다.");
+        }
+
+        /// <summary>
+        /// <b>두 묶음의 채널이 다르다</b> (S15P21B202-355).
+        ///
+        /// 전체 목록은 <b>신뢰 채널</b>이어야 한다 — 잃으면 참가자 화면에서 돌이 사라지거나
+        /// 유령이 남고 다음 착탄까지 그대로다. 움직임은 매 틱 새 값이 오므로 신뢰가 필요
+        /// 없고, 신뢰 채널로 보내면 재전송이 쌓인다.
+        ///
+        /// 그리고 움직임은 <b>깨어 있는 강체만</b> 실어야 한다. 전부 실으면 30~40개를
+        /// 30Hz 로 내보내 사람당 40KB/s 가 된다.
+        /// </summary>
+        [Test]
+        public void ScarChannelsAreChosenOnPurpose()
+        {
+            var sync = TestSource.Blank(TestSource.Read("Runtime/Network/WorldSync.cs"));
+
+            var full = sync.IndexOf("void RpcScarSet(", System.StringComparison.Ordinal);
+            var moves = sync.IndexOf("void RpcScarMoves(", System.StringComparison.Ordinal);
+            Assert.Greater(full, 0, "전체 목록 RPC 가 없다");
+            Assert.Greater(moves, 0, "움직임 RPC 가 없다");
+
+            // 각 RPC 바로 앞의 특성 줄만 본다.
+            var fullAttr = sync.LastIndexOf("[ClientRpc", full, System.StringComparison.Ordinal);
+            var movesAttr = sync.LastIndexOf("[ClientRpc", moves, System.StringComparison.Ordinal);
+            Assert.That(sync.Substring(fullAttr, full - fullAttr),
+                Does.Not.Contain("Unreliable"),
+                "전체 목록을 신뢰 없는 채널로 보내면 잃은 뒤 다음 착탄까지 어긋난 채로 남는다");
+            Assert.That(sync.Substring(movesAttr, moves - movesAttr),
+                Does.Contain("Unreliable"),
+                "움직임을 신뢰 채널로 보내면 재전송이 쌓인다 — 매 틱 새 값이 온다");
+
+            var send = TestSource.Method(
+                TestSource.Read("Runtime/Network/WorldSync.cs"), "void SendScars()");
+            Assert.That(send, Does.Contain("IsScarAwake"),
+                "깨어 있는 것만 골라야 한다 — 전부 실으면 사람당 40KB/s 다");
+
+            var awake = TestSource.Method(
+                TestSource.Read("Runtime/Network/WorldSync.cs"),
+                "static bool IsScarAwake(ScarRecord scar)");
+            Assert.That(awake, Does.Contain("IsSleeping"),
+                "잠든 강체를 걸러내는 것이 \"끌리는 돌만\" 을 뜻한다");
+        }
+
+        static MeteorSpawner.NetworkScarState Scar(int id, Vector3 at) =>
+            new MeteorSpawner.NetworkScarState
+            {
+                Id = id,
+                Position = at,
+                Rotation = Quaternion.identity,
+            };
+
         // --- 받은 예고 -------------------------------------------------------
 
         /// <summary>
