@@ -42,6 +42,7 @@ namespace Metagame.Gameplay.Parts
         Rigidbody _body;
         Collider _collider;
         Collider[] _colliders;
+        bool _collidersCollected;
 
         float _lastTopSpeed;
         bool _pushedRecently;
@@ -111,8 +112,7 @@ namespace Metagame.Gameplay.Parts
             // **레이어로 가른다.** 자식에는 고정못(`Clamp_*`, GameLayers.Interactable)도
             // 있고 그 콜라이더는 파츠 밑면보다 아래로 내려가 있다. 함께 세면 접촉
             // 판정이 발밑까지 늘어난다. 몸통은 GameLayers.Part 뿐이다.
-            if (_colliders == null || _colliders.Length == 0)
-                _colliders = CollectBodyColliders();
+            if (!_collidersCollected) _colliders = CollectBodyColliders();
 
             if (!All.Contains(this)) All.Add(this);
         }
@@ -384,6 +384,11 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         Collider[] CollectBodyColliders()
         {
+            // **한 번만 훑는다.** 이 함수는 GetComponentsInChildren 과 List 할당을
+            // 하는데, IsTouching 이 사람 수 x 프레임으로 부른다. Part 레이어
+            // 콜라이더가 없는 파츠에서 "비었으면 다시" 로 두면 매 호출마다 훑는다.
+            _collidersCollected = true;
+
             var found = GetComponentsInChildren<Collider>();
             var kept = new List<Collider>(found.Length);
 
@@ -446,10 +451,8 @@ namespace Metagame.Gameplay.Parts
             var hips = player.Doll.Hips;
             if (hips == null) return false;
 
-            if (_colliders == null || _colliders.Length == 0)
-                _colliders = CollectBodyColliders();
-
-            if (_colliders.Length == 0) return false;
+            if (!_collidersCollected) _colliders = CollectBodyColliders();
+            if (_colliders == null || _colliders.Length == 0) return false;
 
             // **가장 가까운 상자로 판정한다.** 첫 상자만 보면 Part_1 의 좁은 받침이
             // 기준이 되어, 넓은 몸통에 몸을 붙이고 걸어도 "닿지 않았다" 가 된다.
