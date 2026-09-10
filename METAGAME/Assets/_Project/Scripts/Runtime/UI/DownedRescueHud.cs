@@ -75,15 +75,21 @@ namespace Metagame.UI
             float progress = me.RescueProgress01;
             var center = new Vector2(Screen.width * 0.5f, Screen.height - BarBottomMargin);
 
-            // 아직 안 누른 상태에서는 안내만, 누르는 동안에는 막대까지 그린다.
+            // 진행분이 없으면 안내만 그린다.
             if (progress <= 0f)
             {
                 DrawLabel(center, $"[{Controls.RescueTeammate}] {target.Nickname} 일으키기");
                 return;
             }
 
-            DrawLabel(new Vector2(center.x, center.y - LabelHeight),
-                      $"{target.Nickname} 일으키는 중…");
+            // **누르지 않아도 막대를 그린다.** 앞사람이 남긴 진행분이 있으면 그것이
+            // 보여야 이어받는다는 것을 알 수 있다(기획 §12.1 과 같은 규칙 —
+            // `DownedRescue.Release` 가 누른 만큼을 남긴다).
+            string label = me.RescueHolding
+                ? $"{target.Nickname} 일으키는 중…"
+                : $"[{Controls.RescueTeammate}] {target.Nickname} 이어서 일으키기";
+
+            DrawLabel(new Vector2(center.x, center.y - LabelHeight), label);
             DrawBar(center, progress);
         }
 

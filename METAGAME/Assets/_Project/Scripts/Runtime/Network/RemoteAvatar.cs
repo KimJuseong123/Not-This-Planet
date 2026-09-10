@@ -109,6 +109,12 @@ namespace Metagame.Network
                 if (rig.ClampInteractor != null) rig.ClampInteractor.enabled = false;
                 rig.NetworkDriven = true;
 
+                // 부활 판정도 내려놓는다 (S15P21B202-390). 클라이언트에서 홀드가
+                // 완료되면 DownedRescue 가 되살리는데, 그러면 **이 화면에서만**
+                // 일어나고 되돌아오지도 않는다 — downed 훅은 값이 바뀔 때만 불려서
+                // 서버가 여전히 true 인 동안 다시 내려오는 것이 없다(-378).
+                rig.ServerAuthority = false;
+
                 // 카메라 스무딩만 낮춘다. 예측이 들어와 이제 표시가 한 겹 덜 다듬어지므로
                 // 기본값(62ms)을 그대로 두면 더해지는 것은 지연뿐이다.
                 if (rig.Cam != null) rig.Cam.FocusSmoothing = NetworkFocusSmoothing;
@@ -121,6 +127,9 @@ namespace Metagame.Network
             if (rig.ClampInteractor != null) rig.ClampInteractor.enabled = false;
             rig.NetworkDriven = true;
             rig.IsLocal = false;
+
+            // 남의 몸에서도 내려놓는다 (S15P21B202-390) — 위와 같은 이유다.
+            rig.ServerAuthority = false;
 
             // 골반을 세계에 붙들어 인형을 세우는 조인트다. 골반을 우리가 직접
             // 옮길 것이므로 남겨 두면 서로 잡아당긴다.
