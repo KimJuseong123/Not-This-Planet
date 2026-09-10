@@ -518,7 +518,7 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
   variables:
     # SpaceBuild 의 출력 폴더. METAGAME/ 밖(리포 루트 아래)이라 위생 검사·.gitignore 와 무관하고,
     # 다음 잡의 git clean 이 지운다(GIT_CLEAN_FLAGS 의 예외는 Library 만).
-    SPACE_BUILD_DIR: "$CI_PROJECT_DIR/release/SpaceFlop"
+    SPACE_BUILD_DIR: "$CI_PROJECT_DIR/release/NotThisPlanet"
   script:
     - LIC=/root/.local/share/unity3d/Unity/Unity_lic.ulf
     - |
@@ -541,7 +541,7 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
       RC=$?
       set -e
       date -u +"종료 %H:%M:%S UTC (exit $RC)"
-      grep -n "error CS\|\[SpaceFlop\] 빌드" "$CI_PROJECT_DIR/unity-build.log" | tail -5 || true
+      grep -n "error CS\|\[NotThisPlanet\] 빌드" "$CI_PROJECT_DIR/unity-build.log" | tail -5 || true
     # 2-b) **빌드가 추적되는 에셋을 지웠는지 본다** (S15P21B202-351).
     #
     # 배치모드 빌드는 임포트 과정에서 에셋을 재직렬화하고, 에디터 스크립트가 에셋을

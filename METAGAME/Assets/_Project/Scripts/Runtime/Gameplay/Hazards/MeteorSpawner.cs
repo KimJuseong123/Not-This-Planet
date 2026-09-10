@@ -722,7 +722,7 @@ namespace Metagame.Gameplay.Hazards
 
                 if (oldest?.Meteor != null) oldest.Meteor.Despawn();
 
-                Debug.Log("[SpaceFlop] 운석 흔적 상한("
+                Debug.Log("[NotThisPlanet] 운석 흔적 상한("
                           + _tuning.ScarLimit
                           + ")을 넘어 가장 오래된 것을 지웠다 — 누적 "
                           + ScarsTrimmed + "개");

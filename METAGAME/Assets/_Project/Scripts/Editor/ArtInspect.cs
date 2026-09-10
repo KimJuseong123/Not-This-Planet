@@ -8,7 +8,7 @@ namespace Metagame.EditorTools
     /// 임포트된 FBX 의 계층·본·메시·재질을 로그로 쏟는다.
     /// 모델을 코드에 붙이기 전에 "실제로 뭐가 들어왔는지" 를 보기 위한 도구다.
     ///
-    /// CI: Unity.exe -batchmode -quit -projectPath . -executeMethod SpaceFlop.EditorTools.ArtInspect.DumpAll
+    /// CI: Unity.exe -batchmode -quit -projectPath . -executeMethod NotThisPlanet.EditorTools.ArtInspect.DumpAll
     /// </summary>
     public static class ArtInspect
     {

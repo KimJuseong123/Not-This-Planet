@@ -9,7 +9,7 @@ namespace Metagame.EditorTools
     /// <summary>
     /// 윈도우 빌드 한 방.
     /// CI:  Unity.exe -batchmode -quit -projectPath . -executeMethod Metagame.EditorTools.SpaceBuild.BuildWindows
-    ///      (개발 빌드는 BuildWindowsDev. 네임스페이스가 `SpaceFlop.EditorTools` 로 적혀 있었는데
+    ///      (개발 빌드는 BuildWindowsDev. 네임스페이스가 `NotThisPlanet.EditorTools` 로 적혀 있었는데
     ///       실제는 `Metagame.EditorTools` 다 — 그대로 복사하면 `class could not be found` 로 죽는다,
     ///       2026-09-08 실측. `.gitlab-ci.yml` 의 release-windows 잡이 옳은 문자열을 쓰고 있었다.)
     ///
@@ -37,7 +37,7 @@ namespace Metagame.EditorTools
             {
                 if (!System.IO.File.Exists(scenePath))
                 {
-                    Debug.LogError("[SpaceFlop] 빌드할 씬이 없다 → " + scenePath);
+                    Debug.LogError("[NotThisPlanet] 빌드할 씬이 없다 → " + scenePath);
                     return false;
                 }
             }
@@ -73,7 +73,7 @@ namespace Metagame.EditorTools
 
             if (Stage1AtmosphereSetup.PrepareProfileForBuild() == null)
             {
-                Debug.LogError("[SpaceFlop] Stage1 분위기 프로필을 빌드용 에셋과 연결하지 못했습니다.");
+                Debug.LogError("[NotThisPlanet] Stage1 분위기 프로필을 빌드용 에셋과 연결하지 못했습니다.");
                 if (Application.isBatchMode) EditorApplication.Exit(1);
                 return;
             }
@@ -90,7 +90,7 @@ namespace Metagame.EditorTools
             var scenes = EnabledBuildScenes();
             if (scenes.Length == 0)
             {
-                Debug.LogError("[SpaceFlop] 활성화된 빌드 씬이 없습니다.");
+                Debug.LogError("[NotThisPlanet] 활성화된 빌드 씬이 없습니다.");
                 if (Application.isBatchMode) EditorApplication.Exit(1);
                 return;
             }
@@ -98,14 +98,14 @@ namespace Metagame.EditorTools
             var options = new BuildPlayerOptions
             {
                 scenes = scenes,
-                locationPathName = System.IO.Path.Combine(outDir, "SpaceFlop.exe"),
+                locationPathName = System.IO.Path.Combine(outDir, "NotThisPlanet.exe"),
                 target = BuildTarget.StandaloneWindows64,
                 options = dev ? BuildOptions.Development : BuildOptions.None
             };
 
             var report = BuildPipeline.BuildPlayer(options);
             var s = report.summary;
-            Debug.Log("[SpaceFlop] 빌드 " + s.result + " (" + (dev ? "개발용" : "배포용") + ") — "
+            Debug.Log("[NotThisPlanet] 빌드 " + s.result + " (" + (dev ? "개발용" : "배포용") + ") — "
                       + (s.totalSize / 1048576f).ToString("0.0") + " MB, 오류 " + s.totalErrors
                       + "개 → " + s.outputPath);
 
@@ -115,7 +115,7 @@ namespace Metagame.EditorTools
 
         static void ApplyPlayerSettings()
         {
-            PlayerSettings.companyName = "SpaceFlop";
+            PlayerSettings.companyName = "Not This Planet";
             PlayerSettings.productName = "Not This Planet";
 
             PlayerSettings.defaultScreenWidth = 1600;
@@ -131,10 +131,10 @@ namespace Metagame.EditorTools
 
             // 런타임에 Resources.Load / Shader.Find 로 찾는 셰이더가 빌드에 반드시 들어가게
             UrpProjectSetup.EnsureAlwaysIncludedShaders(
-                "SpaceFlop/Dough",
-                "SpaceFlop/Ghost",
-                "SpaceFlop/Flat",
-                "SpaceFlop/PlanetNoFog",
+                "NotThisPlanet/Dough",
+                "NotThisPlanet/Ghost",
+                "NotThisPlanet/Flat",
+                "NotThisPlanet/PlanetNoFog",
                 "Metagame/Atmosphere/SkyGradient",
                 "Hidden/Metagame/Atmosphere/Haze",
                 "Metagame/Atmosphere/Meteor",

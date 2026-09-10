@@ -96,7 +96,7 @@ namespace Metagame.Gameplay
         /// 기절해 쓰러져 있는가(기획 §26-13). 동료가 일으켜야 다시 움직인다.
         ///
         /// <b>예전에는 이 상태가 없었다.</b> 체력이 0이 되면 <c>GameSession</c> 이
-        /// 곧바로 <c>Respawn()</c> 을 불러 스폰 지점에 되살렸다 — 예전 SpaceFlop 코스의
+        /// 곧바로 <c>Respawn()</c> 을 불러 스폰 지점에 되살렸다 — 예전 NotThisPlanet 코스의
         /// 낙사 처리를 그대로 쓴 것이다. 팀원이 도우러 갈 틈도 이유도 없었다.
         /// </summary>
         public bool Downed { get; private set; }
@@ -842,7 +842,7 @@ namespace Metagame.Gameplay
             // 시점이 바뀌었으니 몸을 그릴지 다시 정한다(S15P21B202-267).
             RefreshDollVisibility();
 
-            Debug.Log("[SpaceFlop] " + Nickname + " 기절 (" + source + ")");
+            Debug.Log("[NotThisPlanet] " + Nickname + " 기절 (" + source + ")");
         }
 
         /// <summary>
@@ -2486,7 +2486,7 @@ namespace Metagame.Gameplay
         /// </summary>
         void LogRescue(string what, string detail)
         {
-            Debug.Log($"[SpaceFlop][구조] {what} · 대상={RescueTargetName()} · {detail}"
+            Debug.Log($"[NotThisPlanet][구조] {what} · 대상={RescueTargetName()} · {detail}"
                       + $" · 진행={RescueProgress01:0.00}");
         }
 
@@ -2559,7 +2559,7 @@ namespace Metagame.Gameplay
             var clamp = CurrentInteractionTarget.Clamp;
             if (clamp == null)
             {
-                Debug.Log($"[SpaceFlop][상호작용] {buttons} → 고정못 거부 (조준 대상 없음)");
+                Debug.Log($"[NotThisPlanet][상호작용] {buttons} → 고정못 거부 (조준 대상 없음)");
                 return;
             }
 
@@ -2578,7 +2578,7 @@ namespace Metagame.Gameplay
 
             // 사유와 무관하게 점유·거리를 함께 적는다. 다음 신고 때 로그 한 줄로
             // 끝나야 한다 — 두 값을 따로 찾아 맞춰 보게 만들면 또 코드를 읽는다.
-            Debug.Log($"[SpaceFlop][상호작용] {buttons} → 고정못 거부 ({reason}) · {clamp.name}"
+            Debug.Log($"[NotThisPlanet][상호작용] {buttons} → 고정못 거부 ({reason}) · {clamp.name}"
                       + $" · 당기는 사람 {clamp.Pullers}/{PhysicsScale.ClampMaxPullers}"
                       + $" · 닿음={(reachable ? "O" : "X")}");
         }
@@ -2620,7 +2620,7 @@ namespace Metagame.Gameplay
             string buttons = left && right ? "좌+우클릭" : left ? "좌클릭" : "우클릭";
             string label = target != null && !string.IsNullOrEmpty(target.Label) ? target.Label : "없음";
             string mass = body != null ? body.mass.ToString("0.0") + "kg" : "고정";
-            Debug.Log("[SpaceFlop][상호작용] " + buttons + " → " + branch
+            Debug.Log("[NotThisPlanet][상호작용] " + buttons + " → " + branch
                       + " | 대상=" + label + " | 질량=" + mass);
         }
 

@@ -17,7 +17,7 @@ namespace Metagame.EditorTools
     ///   1. Material 을 만들고 <c>.fbm</c> 텍스처(BaseColor·Normal·Metallic)를 물린 뒤, ModelImporter 의
     ///      외부 오브젝트 맵으로 FBX 임베드 재질을 이 Material 로 갈아끼운다(재질 추출).
     ///      셰이더는 지금 켜져 있는 파이프라인을 보고 고른다 — 행성은 Fog 제외용
-    ///      <c>SpaceFlop/PlanetNoFog</c>, 나머지는 <c>Universal Render Pipeline/Lit</c>을 쓴다.
+    ///      <c>NotThisPlanet/PlanetNoFog</c>, 나머지는 <c>Universal Render Pipeline/Lit</c>을 쓴다.
     ///   2. 그 FBX 를 감싸는 <c>PF_Stage1_*</c> 프리팹을 만든다.
     ///
     /// 이미 있는 에셋은 건드리지 않는다. 손으로 콜라이더를 붙여 둔 프리팹을 다시 돌렸다고
@@ -137,7 +137,7 @@ namespace Metagame.EditorTools
         {
             if (name == "Planet")
             {
-                var planetShader = Shader.Find("SpaceFlop/PlanetNoFog");
+                var planetShader = Shader.Find("NotThisPlanet/PlanetNoFog");
                 if (planetShader == null) Debug.LogError("[Stage1Env] PlanetNoFog 셰이더를 찾지 못했다.");
                 return planetShader;
             }

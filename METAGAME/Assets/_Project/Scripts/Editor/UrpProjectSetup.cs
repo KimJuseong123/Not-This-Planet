@@ -45,10 +45,10 @@ namespace Metagame.EditorTools
             CreateMirrorMaterialCopies();
             UpdateSceneVolumes(baselineVolume);
             EnsureAlwaysIncludedShaders(
-                "SpaceFlop/Dough",
-                "SpaceFlop/Ghost",
-                "SpaceFlop/Flat",
-                "SpaceFlop/PlanetNoFog",
+                "NotThisPlanet/Dough",
+                "NotThisPlanet/Ghost",
+                "NotThisPlanet/Flat",
+                "NotThisPlanet/PlanetNoFog",
                 "Metagame/Atmosphere/SkyGradient",
                 "Hidden/Metagame/Atmosphere/Haze",
                 "Metagame/Atmosphere/Meteor",
@@ -247,7 +247,7 @@ namespace Metagame.EditorTools
         static void CreateMirrorMaterialCopies()
         {
             Directory.CreateDirectory(MirrorMaterialDirectory);
-            var ghostShader = Shader.Find("SpaceFlop/Ghost");
+            var ghostShader = Shader.Find("NotThisPlanet/Ghost");
             if (ghostShader == null) return;
 
             CopyGhostMaterial(
