@@ -174,13 +174,17 @@ namespace Metagame.Network
 
             Debug.Log($"[HostMigration] 이어받기 시작 · 내가 서버가 되는가={becomingHost}");
 
-            // WorldSync.OnStopClient 가 이 표시를 보고 물리를 넘겨받는다.
-            // 그 컴포넌트는 아래 StopClient 에서 사라지므로 <b>먼저</b> 세워야 한다.
+            // 이 표시를 보고 두 곳이 움직인다.
+            //
+            //  · <c>WorldSync.OnStopClient</c> — 물리를 넘겨받는다
+            //  · <c>NetPlayer.OnStopClient</c> — 팀원이 서 있던 자리를 적어 둔다
+            //
+            // 둘 다 <b>사라지기 전에</b> 해야 하므로 StopClient 앞에 세운다. 그리고
+            // <c>WorldSyncInstaller.SpawnIfNeeded</c> 가 이것을 보고 그 자리 기록을
+            // 지우지 않으므로, <b>StartHost 가 끝날 때까지</b> 내리지 않는다.
             Taking = becomingHost;
 
             if (NetworkClient.active || NetworkServer.active) manager.StopClient();
-
-            Taking = false;
 
             // 전송이 소켓을 정리할 틈을 준다. 같은 프레임에 다시 켜면 옛 소켓이 아직
             // 살아 있어 포트를 물고 있다.
@@ -208,6 +212,9 @@ namespace Metagame.Network
                     ? "[HostMigration] 새 방장에게 릴레이를 거쳐 붙는다."
                     : "[HostMigration] 새 방장 " + host + " 에 직접 붙는다.");
             }
+
+            // 여기서 내린다 — SpawnIfNeeded 가 자리 기록을 지키는 것까지 끝났다.
+            Taking = false;
 
             manager.offlineScene = offline;
             Pending = false;

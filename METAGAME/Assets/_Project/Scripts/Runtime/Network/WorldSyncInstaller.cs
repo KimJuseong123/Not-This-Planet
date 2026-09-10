@@ -108,7 +108,11 @@ namespace Metagame.Network
 
             // 새 판이다 — 지난 판의 복귀 자리를 버린다 (S15P21B202-150).
             // 남겨 두면 판을 다시 시작한 직후 들어온 사람이 옛 자리에 선다.
-            RejoinMemory.Clear();
+            //
+            // <b>이어받는 중이면 버리지 않는다</b> (S15P21B202-389). 새 판이 아니라 같은
+            // 판이고, 방금 <c>NetPlayer.OnStopClient</c> 가 팀원들이 서 있던 자리를 여기
+            // 적어 두었다 — 버리면 전원이 시작 지점으로 되돌아간다.
+            if (!HostMigration.Taking) RejoinMemory.Clear();
 
             // 자리(색) 배정도 새로 시작한다 (S15P21B202-375). 남겨 두면 두 명만 남았는데
             // 2번·3번 자리를 쓰는 식이 된다.
