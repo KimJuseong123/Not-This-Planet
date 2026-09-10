@@ -106,14 +106,20 @@ namespace Metagame.Gameplay.Tests
             var body = rig.Vehicle.GetComponent<Rigidbody>();
             body.linearVelocity += new Vector3(4f, 0f, 0f);
 
-            Run(rig.Vehicle, 3f);
+            Run(rig.Vehicle, 1f);
 
             var after = rig.Vehicle.transform.position;
             var moved = Vector3.Distance(new Vector3(before.x, 0f, before.z),
                                          new Vector3(after.x, 0f, after.z));
 
-            Assert.Greater(moved, 0.5f, $"충격이 전달되어야 한다. {moved:0.00}m 만 밀렸다.");
-            Assert.IsFalse(rig.Vehicle.Unmanned, "하차한 기체는 무인 호버로 돌아가지 않는다.");
+            // Piloted braking is stronger than the former unmanned scenario.
+            // Verify displacement and no return, rather than a minimum travel distance.
+            Assert.Greater(moved, 0.1f, "충격이 실제 위치에 전달되어야 한다.");
+            Run(rig.Vehicle, 2f);
+            var settled = rig.Vehicle.transform.position;
+            Assert.Less(new Vector2(settled.x - after.x, settled.z - after.z).magnitude, 0.02f,
+                "감속 후 밀려난 위치를 유지해야 하며 원래 위치로 되돌아가면 안 된다.");
+            Assert.IsTrue(rig.Vehicle.IsOccupied);
         }
 
         [Test]

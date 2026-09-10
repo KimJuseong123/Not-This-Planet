@@ -24,11 +24,17 @@ namespace Metagame.Gameplay.Parts
 
         void Awake() => part = GetComponent<SpaceshipPart>();
 
-        void OnEnable()
+        bool initialized;
+
+        void OnEnable() => Initialize();
+
+        public void Initialize()
         {
+            if (initialized) return;
             if (part == null) part = GetComponent<SpaceshipPart>();
             if (part == null) return;
 
+            initialized = true;
             part.StateChanged += OnPartStateChanged;
             part.Initialize();
 
@@ -39,6 +45,7 @@ namespace Metagame.Gameplay.Parts
         void OnDisable()
         {
             if (part != null) part.StateChanged -= OnPartStateChanged;
+            initialized = false;
         }
 
         void OnPartStateChanged(PartState previous, PartState next)

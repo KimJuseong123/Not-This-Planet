@@ -89,6 +89,7 @@ namespace Metagame.Gameplay.Tests
 
         static void AssertCompoundShape(TransportVehicle vehicle)
         {
+            Assert.IsNotNull(vehicle, "고정못 해제 이벤트가 견인 전환을 실행해야 한다.");
             Physics.SyncTransforms();
             var lower = vehicle.transform.Find("Visual/VehicleHull_0").GetComponent<BoxCollider>();
             var upper = vehicle.transform.Find("Visual/VehicleHull_1").GetComponent<BoxCollider>();
@@ -174,6 +175,7 @@ namespace Metagame.Gameplay.Tests
             part.RefreshClamps();
             part.RefreshSockets();
             activator = go.AddComponent<PartTractorActivator>();
+            activator.Initialize(); // EditMode does not invoke MonoBehaviour.OnEnable.
             return part;
         }
     }

@@ -245,13 +245,32 @@ namespace Metagame.Gameplay.Tests
 
         /// <summary>영역을 벗어나면 일반 중력이 즉시 복구된다(기획 §14.3).</summary>
         [Test]
+        public void Player_RegainsGravityWhileStillRisingWhenFieldTurnsOff()
+        {
+            MakeGround();
+            var field = MakeField(new Vector3(0f, 9f, 0f));
+            var player = MakePlayer(new Vector3(0f, 4f, 0f));
+            Run(player, default, 0.4f);
+            float risingSpeed = player.Doll.Hips.linearVelocity.y;
+            Assert.Greater(risingSpeed, 0f);
+            field.SetActive(false);
+            Run(player, default, 0.2f);
+            Assert.IsFalse(player.Floating);
+            foreach (var body in player.Doll.Bodies)
+                Assert.IsTrue(body.useGravity);
+            Assert.Less(player.Doll.Hips.linearVelocity.y, risingSpeed,
+                "상승 관성은 남아도 장을 끄면 중력으로 감속해야 한다.");
+        }
+
+        [Test]
         public void Player_FallsAfterFieldTurnsOff()
         {
             MakeGround();
             var field = MakeField(new Vector3(0f, 9f, 0f));
             var player = MakePlayer(new Vector3(0f, 4f, 0f));
 
-            Run(player, default, 0.4f);
+            // Let the new entry lift settle before testing a fall from rest.
+            Run(player, default, 3f);
             Assert.IsTrue(player.Floating, "먼저 떠 있어야 한다.");
 
             field.SetActive(false);

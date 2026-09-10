@@ -230,9 +230,9 @@ namespace Metagame.Gameplay.Tests
 
             controller.SetInput(new InputFrame { TransportAction = true });
 
-            Assert.IsTrue(controller.IsControlling, "하차 요청 직후에는 장치가 바닥으로 내려가는 동안 탑승 상태를 유지한다.");
+            Assert.IsFalse(controller.IsControlling, "하차 요청 즉시 플레이어 조작으로 복귀한다.");
             Assert.IsTrue(vehicle.IsReturning);
-            Assert.IsTrue(player.IsMounted);
+            Assert.IsFalse(player.IsMounted);
         }
 
         [Test]

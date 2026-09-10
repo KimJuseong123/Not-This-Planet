@@ -156,6 +156,7 @@ namespace Metagame.Gameplay.Parts
                     if (mountedVehicle.Beam != null && mountedVehicle.Beam.IsHolding)
                         mountedVehicle.Beam.Release();
                     mountedVehicle.BeginDismount();
+                    if (!mountedVehicle.IsOccupied) mountedVehicle = null;
                     SetStatus("하차 중 · 운반 장치가 바닥으로 내려갑니다");
                 }
                 else

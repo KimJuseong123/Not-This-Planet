@@ -1304,6 +1304,12 @@ namespace Metagame.Gameplay.Parts
                 var box = hullColliders.Length == 0 ? platform : hullColliders[b];
                 if (box == null || !box.enabled) continue;
                 GetProbeBox(box, out var center, out var half);
+                // Sweep only the leading top face. Sweeping the whole body from
+                // contact with the floor reports an initial overlap at distance 0
+                // and incorrectly blocks taking off again.
+                var capHeight = Mathf.Min(0.02f, half.y);
+                center += box.transform.up * (half.y - capHeight);
+                half.y = capHeight;
                 var count = Physics.BoxCastNonAlloc(center, half, Vector3.up,
                     ProbeHits, box.transform.rotation, rise + VerticalClearance,
                     SurfaceMask, QueryTriggerInteraction.Ignore);
@@ -1354,7 +1360,8 @@ namespace Metagame.Gameplay.Parts
                 GetProbeBox(box, out var center, out var half);
                 var count = Physics.BoxCastNonAlloc(center + Vector3.up * ProbeLift,
                     half, Vector3.down, ProbeHits, box.transform.rotation,
-                    ProbeLift + ProbeReach, SurfaceMask, QueryTriggerInteraction.Ignore);
+                    ProbeLift + ProbeReach + box.contactOffset * 2f,
+                    SurfaceMask, QueryTriggerInteraction.Ignore);
                 for (var i = 0; i < count; i++)
                 {
                     var hit = ProbeHits[i];
