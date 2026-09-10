@@ -12,10 +12,86 @@ from ci_common import (BRANCH_RE, KEY_RE, PROJECT_KEY, TITLE_RE, GitLab, Jira, R
                        env_int, find_section, http, is_release_mr, key_from_branch, load_team,
                        part_of_issue, release_version, sections, strip_draft)
 
-REQUIRED_SECTIONS = ["Jira", "무엇을 · 왜", "산출물 위치", "확인 방법", "작성자 체크리스트", "리뷰어 확인"]
+REQUIRED_SECTIONS = ["Jira", "무엇을 · 왜", "산출물 위치", "확인 방법", "리뷰어 확인"]
+
+# 머지 전에 사람이 해야 하는 확인 (S15P21B202-395).
+#
+# 예전에는 `작성자 체크리스트` 상자 5개를 **전부 체크**하라고 했다. 그런데 그중 4개는
+# **CI 가 이미 검사한다** — `develop` 최신·충돌(merge_status·mr-overlap·pre-push 훅) ·
+# 컴파일(unity-compile) · `.meta`·위치와 금지 파일(repo-hygiene). 기계가 증명한 것을
+# 사람에게 다시 단정하라고 하니 한계 정보가 0 이고, 그래서 **아무도 읽지 않고 기계적으로
+# 찍었다.** 템플릿의 리뷰어 절 주석이 이미 "형식·메타·컴파일·위생은 CI가 봤고" 라고
+# 적고 있었다.
+#
+# 남은 하나(Jira 완료 조건)는 **기계가 못 보고, 올리는 시점에 대개 거짓**이다. 우리
+# 완료 조건에는 사람이 해야 하는 실물 확인이 자주 들어간다. 그래서 정직하게 비워 두면
+# 이 검사가 막고, 도장을 찍으면 통과했다 — **인센티브가 뒤집혀 있었다**(2026-09-10
+# 실제로 그랬다: !290 AI 리뷰가 "미수행인데 체크돼 있다" 고 해서 풀었고 !295·!297 이
+# 막혔다).
+#
+# 그래서 상자를 없애고 **문장**을 요구한다. 상자는 찍고 싶게 만들고 문장은 그렇지 않다.
+# 그리고 문장은 AI 리뷰가 diff 와 맞춰 판정할 수 있다.
+HUMAN_CHECKS_SECTION = "머지 전에 사람이 해야 하는 확인"
+LEGACY_CHECKLIST_SECTION = "작성자 체크리스트"
 _TEAM = load_team()
 JIRA_BY_GITLAB = {m["gitlab"]: m.get("jira", "") for m in _TEAM["members"]}
 NAME_BY_GITLAB = {m["gitlab"]: m.get("name", "") for m in _TEAM["members"]}
+
+
+def human_checks_content(section: str | None) -> list[str]:
+    """섹션에서 **내용 있는 줄**만 골라 준다.
+
+    주석(`<!-- -->`)과 빈 줄은 내용이 아니다 — 템플릿을 그대로 두고 올리는 경우가
+    통과하면 안 된다. 목록 기호만 있는 줄(`-`)도 내용이 아니다."""
+    if section is None:
+        return []
+
+    lines = []
+    in_comment = False
+    for raw in section.splitlines():
+        line = raw.strip()
+        if in_comment:
+            if "-->" in line:
+                in_comment = False
+                line = line.split("-->", 1)[1].strip()
+            else:
+                continue
+        while "<!--" in line:
+            head, rest = line.split("<!--", 1)
+            if "-->" in rest:
+                line = (head + rest.split("-->", 1)[1]).strip()
+            else:
+                line = head.strip()
+                in_comment = True
+                break
+        line = line.lstrip("-*").strip()
+        if line:
+            lines.append(line)
+    return lines
+
+
+def check_human_checks(rep: Report, secs) -> None:
+    """머지 전에 사람이 해야 하는 확인 (S15P21B202-395).
+
+    옛 `작성자 체크리스트` 로 올라온 MR 은 **경고**로 둔다. 규칙을 바꾸는 순간
+    이미 열려 있던 MR 이 전부 빨간불이 되면, 규칙이 아니라 사람이 막힌다."""
+    section = find_section(secs, HUMAN_CHECKS_SECTION)
+    if section is not None:
+        lines = human_checks_content(section)
+        if not lines:
+            rep.fail(f"본문 `## {HUMAN_CHECKS_SECTION}` 이 비어 있음 — 기계가 못 보는 확인을 "
+                     f"적거나 `없음` 이라고 쓸 것(주석만 남기면 통과하지 않는다)")
+        else:
+            rep.ok(f"머지 전 사람 확인 {len(lines)}줄")
+        return
+
+    if find_section(secs, LEGACY_CHECKLIST_SECTION) is not None:
+        rep.warn(f"옛 `## {LEGACY_CHECKLIST_SECTION}` 절 — 새 템플릿의 "
+                 f"`## {HUMAN_CHECKS_SECTION}` 으로 바꿔 주세요(S15P21B202-395). "
+                 f"상자 5개 중 4개는 CI 가 이미 검사한다")
+        return
+
+    rep.fail(f"본문 템플릿 섹션 누락: ## {HUMAN_CHECKS_SECTION} — 템플릿 섹션 제목은 지우지 말 것")
 
 
 def existence_problem(key: str | None, issue: dict | None, lookup_failed: bool) -> str | None:
@@ -262,7 +338,7 @@ def main() -> int:
     if missing:
         rep.fail(f"본문 템플릿 섹션 누락: {', '.join('## ' + s for s in missing)} — 템플릿 섹션 제목은 지우지 말 것")
     else:
-        rep.ok("템플릿 섹션 6개 존재")
+        rep.ok(f"템플릿 섹션 {len(REQUIRED_SECTIONS)}개 존재")
     jira_sec = find_section(secs, "Jira") or ""
     dm = re.search(rf"이슈\s*:\s*`?({PROJECT_KEY}-\d+)`?", jira_sec)
     if not dm:
@@ -271,13 +347,7 @@ def main() -> int:
         rep.fail(f"본문 이슈 키({dm.group(1)})와 브랜치 키({bkey})가 다름")
     else:
         rep.ok(f"본문 이슈 키 {dm.group(1)}")
-    author = find_section(secs, "작성자 체크리스트")
-    if author is not None:
-        unchecked = [ln.strip() for ln in author.splitlines() if re.match(r"^\s*-\s*\[\s\]", ln)]
-        if unchecked:
-            rep.fail(f"작성자 체크리스트 미완료 {len(unchecked)}개 — 전부 체크(해당 없으면 '해당 없음' 표기 후 체크)")
-        else:
-            rep.ok("작성자 체크리스트 완료")
+    check_human_checks(rep, secs)
 
     # 5) Jira 실존·상태·파트 일치
     key = bkey or tkey
