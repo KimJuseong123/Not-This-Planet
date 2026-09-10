@@ -38,6 +38,13 @@ BINARY_EXT = (".meta", ".asset", ".mat", ".anim", ".controller", ".fbx", ".png",
               ".physicMaterial", ".lighting", ".cubemap", ".spriteatlas", ".unity", ".prefab")
 CODE_EXT = (".cs", ".asmdef", ".shader", ".hlsl", ".cginc", ".compute", ".py", ".ps1", ".sh", ".yml", ".yaml", ".json", ".toml")
 MAX_DIFF_CHARS = int(env("AI_REVIEW_MAX_CHARS", "90000"))
+# Jira 설명 예산 (S15P21B202-384). 예전에는 3000 이었는데, ADF 를 json.dumps 한
+# **JSON 문자열**을 자르고 있었다 — 구조 잡음이 본문보다 많아서 실제로 담긴 글자는
+# 약 660자였다(2026-09-10 실측, 배율 4.5배). 그런데 우리 이슈 틀은
+# `현상 → 원인 → 완료 조건 → 참고` 라서 **완료 조건이 거의 항상 잘려 나갔다.**
+# 지금은 평문으로 펴서 담으므로 같은 글자 수가 그대로 글자 수다. diff 예산이
+# 90000 인데 설명이 3000 인 것은 균형이 맞지 않았다.
+MAX_JIRA_DESC_CHARS = int(env("AI_REVIEW_JIRA_DESC_CHARS", "12000"))
 DEFAULT_MODEL = "claude-opus-5"          # 팀 결정 2026-08-27: Opus + effort medium
 DEFAULT_EFFORT = "medium"
 
@@ -203,6 +210,66 @@ def pick_roles(info: dict) -> list[str]:
     return roles
 
 
+def adf_to_text(node) -> str:
+    """ADF(Atlassian Document Format) 를 평문으로 편다 (S15P21B202-384).
+
+    **왜 필요한가.** `Jira.get_issue` 가 REST v3 를 쓰므로 설명이 ADF(dict)로 온다.
+    예전에는 그것을 `json.dumps` 해서 잘랐는데, 구조 잡음이 본문보다 많아
+    3000자 예산에 실제로 담긴 글자가 약 660자였다(2026-09-10 실측, 배율 4.5배).
+    우리 이슈 틀은 `현상 → 원인 → 완료 조건 → 참고` 라서 **완료 조건이 거의 항상
+    잘려 나갔다** — 리뷰어 확인 5항목 중 하나가 없는 근거로 판정되고 있었다.
+
+    파서가 아니다. 우리 이슈에 실제로 나오는 것만 다룬다 — 문단·제목·목록·표·
+    코드블록·인용·구분선. 모르는 노드는 자식만 따라 내려간다(글자를 잃지 않는다).
+    """
+    if node is None:
+        return ""
+    if isinstance(node, str):
+        return node
+    if isinstance(node, list):
+        return "".join(adf_to_text(n) for n in node)
+    if not isinstance(node, dict):
+        return str(node)
+
+    kind = node.get("type")
+    kids = node.get("content")
+
+    if kind == "text":
+        return str(node.get("text") or "")
+    if kind == "hardBreak":
+        return "\n"
+    if kind == "rule":
+        return "\n---\n"
+    if kind in ("mention", "emoji"):
+        # 사람·이모지는 표시용 문구가 attrs 에 있다. 없으면 버린다.
+        a = node.get("attrs") or {}
+        return str(a.get("text") or a.get("shortName") or "")
+    if kind == "inlineCard":
+        a = node.get("attrs") or {}
+        return str(a.get("url") or "")
+
+    inner = adf_to_text(kids)
+
+    if kind == "heading":
+        level = ((node.get("attrs") or {}).get("level") or 1)
+        return f"\n{'#' * int(level)} {inner.strip()}\n"
+    if kind in ("paragraph", "blockquote", "panel"):
+        return inner.strip() + "\n"
+    if kind == "codeBlock":
+        return f"\n```\n{inner}\n```\n"
+    if kind == "listItem":
+        return f"- {inner.strip()}\n"
+    if kind in ("bulletList", "orderedList"):
+        return inner
+    if kind in ("tableCell", "tableHeader"):
+        return f"{inner.strip()} | "
+    if kind == "tableRow":
+        return inner.rstrip(" |") + "\n"
+    if kind == "table":
+        return "\n" + inner
+    return inner
+
+
 def jira_text(jira: Jira, key: str | None) -> str:
     if not (key and jira.available):
         return "(Jira 이슈 정보 없음)"
@@ -213,10 +280,24 @@ def jira_text(jira: Jira, key: str | None) -> str:
     if not issue:
         return "(Jira 이슈 없음)"
     f = issue["fields"]
+
     d = f.get("description")
-    dtext = json.dumps(d, ensure_ascii=False)[:3000] if isinstance(d, dict) else str(d or "")[:3000]
+    body = adf_to_text(d) if isinstance(d, dict) else str(d or "")
+    body = re.sub(r"\n{3,}", "\n\n", body).strip()
+
+    # **잘렸으면 잘렸다고 적는다.** 안 잘렸으면 이 문구가 없어야 한다 — 항상 붙이면
+    # 신호가 죽는다. 리뷰어가 이 문구를 보고 **의도적으로** ❓ 를 낼 수 있어야 한다.
+    # (2026-09-10 !287 3회차 리뷰가 스스로 "설명이 잘려 확인할 수 없다" 고 적었다.
+    #  눈치채지 못하면 잘린 설명으로 판정한다.)
+    note = ""
+    if len(body) > MAX_JIRA_DESC_CHARS:
+        note = (f"\n\n[!] 설명이 길어 {MAX_JIRA_DESC_CHARS}자에서 잘렸다(원문 {len(body)}자) — "
+                f"완료 조건 전문을 보지 못했을 수 있다. 그 경우 완료 조건 판정을 ❓ 로 둔다.")
+        body = body[:MAX_JIRA_DESC_CHARS]
+
+    label = "설명(평문으로 펴서 전문)" if not note else "설명(평문, 일부)"
     return (f"{key} · {f.get('summary')}\n상태 {f.get('status', {}).get('name')} · 담당 {(f.get('assignee') or {}).get('displayName')}\n"
-            f"설명(완료 조건 포함, ADF/텍스트 일부): {dtext}")
+            f"{label}: {body}{note}")
 
 
 def user_payload(mr: dict, title: str, issue_txt: str, info: dict, role: str) -> str:
