@@ -238,7 +238,7 @@ namespace Metagame.UI
                 L(new Rect(0f, h * 0.5f - 44f, w, 48f), "구조 로켓 탑승!", big, new Color(0.60f, 1f, 0.70f));
                 L(new Rect(0f, h * 0.5f + 6f, w, 30f),
                   "기록 " + s.ClearTime.ToString("0.0") + "초 · 추락 " + s.Falls + "회", center, Color.white);
-                L(new Rect(0f, h * 0.5f + 40f, w, 30f), "R 처음부터 다시", center, new Color(0.85f, 0.9f, 0.95f));
+                L(new Rect(0f, h * 0.5f + 40f, w, 30f), "로켓 탈출 성공", center, new Color(0.85f, 0.9f, 0.95f));
             }
 
             if (Local != null)

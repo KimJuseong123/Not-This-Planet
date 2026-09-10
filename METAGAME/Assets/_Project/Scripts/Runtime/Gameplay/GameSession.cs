@@ -19,6 +19,8 @@ namespace Metagame.Gameplay
         public LevelBuilder Level;
         public Stage1Exploration Exploration;
         public TractorBeamController Transport;
+        public MapRecovery Recovery;
+        public bool RecoveryFromServer;
 
         /// <summary>
         /// 끼임 탈출(기획 §21). <see cref="Begin"/> 이 만든다.
@@ -155,6 +157,7 @@ namespace Metagame.Gameplay
                 if (Exploration != null && Exploration.TabletOpen)
                 {
                     f.Move = Vector2.zero;
+                    f.Restart = false;
                     f.Look = Vector2.zero;
                     f.Jump = false;
                     f.Run = false;
@@ -173,9 +176,12 @@ namespace Metagame.Gameplay
                 // 끼임 탈출은 3초 유지다(기획 §21). 예전에는 GetKeyDown 으로 즉시
                 // 스폰 지점으로 보내면서 Revive 까지 불러 §20 의 기절·구조를 우회했다
                 // (S15P21B202-248).
-                Escape?.Tick(Time.deltaTime, f.StuckEscapeHeld);
+                if (!RecoveryFromServer) Escape?.Tick(Time.deltaTime, f.StuckEscapeHeld);
 
-                if (f.Restart) Restart();
+                // 기존 R 바인딩은 이제 개인 리스폰이다. 멀티는 소유자의 Command로 요청한다.
+                if (f.Restart && !RecoveryFromServer && !Cleared
+                    && (Exploration == null || !Exploration.TabletOpen)
+                    && (Recovery == null || !Recovery.RecoverySuspended)) Respawn();
 
                 if (LocalPlayer.Cam != null)
                 {
@@ -230,7 +236,8 @@ namespace Metagame.Gameplay
             // 위치를 서버가 정할 때는(-147) 서버 몫이므로 여기서 물러난다. 그러지
             // 않으면 화면 속 몸만 스폰 지점으로 옮겨지고, 서버가 보낸 다음 위치에
             // 곧바로 도로 끌려간다.
-            if (LocalPlayer.NetworkDriven) return;
+            if (LocalPlayer.NetworkDriven || RecoveryFromServer
+                || (Recovery != null && Recovery.RecoverySuspended)) return;
 
             // 떨어졌는가 — 여기는 <b>낙사만</b> 본다.
             //
@@ -240,8 +247,7 @@ namespace Metagame.Gameplay
             // 체력 0 은 이제 PlayerRig 가 기절로 처리한다.
             if (HasFallen(LocalPlayer))
             {
-                Falls++;
-                Respawn();
+                RecoverFallenPlayer(LocalPlayer, Transport);
                 return;
             }
 
@@ -306,17 +312,20 @@ namespace Metagame.Gameplay
         }
 
         /// <summary>
-        /// 스폰 지점으로 되돌린다. <b>이제 재시작 전용이다</b>(<see cref="Restart"/>).
-        ///
-        /// 예전에는 <c>T</c> 가 이것을 직접 불렀다. §21 은 "가까운 안전 지면" 을 요구하고
-        /// "파츠, 비행체와 장비를 복구하는 기능은 아니다" 라고 정하는데, 이 함수는
-        /// 스폰으로 보내고 <see cref="Transport"/> 를 되돌리고 <see cref="PlayerRig.Revive"/>
-        /// 까지 부른다 — 재시작에는 맞고 끼임 탈출에는 전부 어긋난다.
-        /// 끼임 탈출은 <see cref="Escape"/> 가 맡는다(S15P21B202-248).
+        /// R 또는 맵 이탈 시 개인을 리스폰 지점에서 부활시킨다.
+        /// 파츠·운반체·진행 기록은 초기화하지 않는다.
         /// </summary>
         public void Respawn()
         {
             RespawnPlayer(LocalPlayer, Transport);
+        }
+
+        /// <summary>이탈 횟수를 기록하고 해당 플레이어만 복구한다.</summary>
+        public void RecoverFallenPlayer(PlayerRig rig, TractorBeamController transport = null)
+        {
+            if (rig == null || !HasFallen(rig)) return;
+            Falls++;
+            RespawnPlayer(rig, transport);
         }
 
         /// <summary>
@@ -326,11 +335,14 @@ namespace Metagame.Gameplay
         /// 접속자마다 부른다(S15P21B202-55). 되돌리는 방법을 두 벌로 두면 한쪽만
         /// 고쳐지므로 여기 한 곳에 모아 둔다.
         /// </summary>
-        /// <param name="transport">그 사람이 타고 있던 운반 장치 조작. 내려놓고 초기화한다.</param>
+        /// <param name="transport">그 사람이 타고 있던 운반 장치 조작. 탑승만 해제한다.</param>
         public void RespawnPlayer(PlayerRig rig, Parts.TractorBeamController transport = null)
         {
             if (rig == null) return;
-            if (transport != null) transport.Reset();
+            if (Recovery != null && Recovery.RecoverySuspended) return;
+            rig.DropEquipment();
+            if (transport != null) transport.ReleaseForRespawn();
+            if (rig.MountedVehicle != null) rig.MountedVehicle.ReleaseRiderForRespawn();
 
             // 기절한 채로 순간이동하면 스폰 지점에 쓰러져 있게 된다.
             rig.Revive(rig.MaxHealth);
@@ -342,8 +354,12 @@ namespace Metagame.Gameplay
         public static bool HasFallen(PlayerRig rig)
         {
             if (rig == null) return false;
+            if (Instance != null && Instance.Recovery != null)
+                return !Instance.Recovery.RecoverySuspended && Instance.Recovery.IsOutside(rig.Position);
             Vector3 p = rig.Position;
-            return p.y < Tuning.DeathHeight || float.IsNaN(p.x);
+            return p.y < Tuning.DeathHeight
+                || float.IsNaN(p.x) || float.IsNaN(p.y) || float.IsNaN(p.z)
+                || float.IsInfinity(p.x) || float.IsInfinity(p.y) || float.IsInfinity(p.z);
         }
 
         public void Clear()
@@ -356,7 +372,7 @@ namespace Metagame.Gameplay
             if (Cleared) return;
             Cleared = true;
             ClearTime = Elapsed;
-            StageHint = "구조 로켓 탑승! R 을 누르면 처음부터 다시";
+            StageHint = "로켓 탈출 성공!";
             Debug.Log("[SpaceFlop] 도착 — " + ClearTime.ToString("0.0") + "초, 추락 " + Falls + "회");
         }
 
@@ -387,7 +403,7 @@ namespace Metagame.Gameplay
             Falls = falls;
 
             StageHint = cleared
-                ? "구조 로켓 탑승! R 을 누르면 처음부터 다시"
+                ? "로켓 탈출 성공!"
                 : Hints[Mathf.Clamp(checkpointIndex, 0, Hints.Length - 1)];
         }
 

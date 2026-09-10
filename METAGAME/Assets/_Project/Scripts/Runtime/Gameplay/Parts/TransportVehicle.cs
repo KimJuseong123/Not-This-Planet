@@ -790,6 +790,22 @@ namespace Metagame.Gameplay.Parts
             verticalInput = Mathf.Clamp(value, -1f, 1f);
         }
 
+        /// <summary>개인 리스폰 전 좌석 연결만 해제한다. 선체 위치·용접 상태는 유지한다.</summary>
+        public void ReleaseRiderForRespawn()
+        {
+            var currentRider = rider;
+            rider = null;
+            returning = false;
+            driveVector = Vector3.zero;
+            verticalInput = 0f;
+            SetCockpitVisible(false);
+            if (currentRider != null)
+            {
+                currentRider.ForceExitTransportVehicle(this);
+                AnyDismounted?.Invoke(this, currentRider);
+            }
+        }
+
         /// <summary>부활 때 탑승체와 플레이어를 함께 안전한 바닥 상태로 돌린다.</summary>
         public void ForceReset()
         {

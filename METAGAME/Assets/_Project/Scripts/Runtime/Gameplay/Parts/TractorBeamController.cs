@@ -168,6 +168,19 @@ namespace Metagame.Gameplay.Parts
             previousGrabRight = frame.GrabRight;
         }
 
+        /// <summary>개인 복구 시 탑승만 해제한다. 다른 운반체와 파츠 위치는 유지한다.</summary>
+        public void ReleaseForRespawn()
+        {
+            if (mountedVehicle != null && mountedVehicle.Beam != null && mountedVehicle.Beam.IsHolding)
+                mountedVehicle.Beam.Release();
+            if (mountedVehicle != null) mountedVehicle.ReleaseRiderForRespawn();
+            mountedVehicle = null;
+            input = new InputFrame();
+            previousGrabLeft = false;
+            previousGrabRight = false;
+            fieldToggleRequested = false;
+        }
+
         public void Reset()
         {
             if (mountedVehicle != null && mountedVehicle.Beam != null && mountedVehicle.Beam.IsHolding)

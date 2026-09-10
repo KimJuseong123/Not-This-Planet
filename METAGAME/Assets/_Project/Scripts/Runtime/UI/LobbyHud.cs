@@ -713,7 +713,7 @@ namespace Metagame.UI
                 case BindingAction.Tablet: return "태블릿";
                 case BindingAction.FieldToggle: return "저중력장";
                 case BindingAction.StuckEscape: return "끼임 탈출";
-                case BindingAction.Restart: return "재시작";
+                case BindingAction.Restart: return "개인 리스폰";
                 case BindingAction.TabletPreviousPage: return "태블릿 이전";
                 case BindingAction.TabletNextPage: return "태블릿 다음";
                 default: return "커서 해제";
