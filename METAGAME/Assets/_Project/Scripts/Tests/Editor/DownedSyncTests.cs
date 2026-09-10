@@ -96,6 +96,32 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
+        /// <b>서버가 값을 싣는 자리는 탑승 블록 밖이다.</b>
+        ///
+        /// <para>첫 판은 <c>riding = transport.IsControlling;</c> 옆에 두었는데 그 자리는
+        /// <c>if (transport != null)</c> 안이다. 몸을 세운 두 경로가 모두 곧바로
+        /// <c>AttachTransport()</c> 를 부르므로 지금은 non-null 이고 증상이 나지
+        /// 않았지만, <b>기절은 탑승과 아무 상관이 없다</b> — 그 조건에 손대는 다음
+        /// 사람이 복제를 조용히 끊을 수 있다. 이 경우가 그것을 막는다.</para>
+        /// </summary>
+        [Test]
+        public void TheServerPushesDownedOutsideTheTransportBlock()
+        {
+            var source = TestSource.Read("Runtime/Network/NetPlayer.cs");
+            var fixedUpdate = TestSource.Method(source, "void FixedUpdate()");
+
+            Assert.That(fixedUpdate, Does.Contain("downed = body.Downed;"),
+                "서버가 값을 싣지 않으면 SyncVar 가 있어도 아무것도 가지 않는다");
+
+            // TestSource.Method 는 '이 글자부터 중괄호가 맞는 곳까지' 를 잘라 주므로
+            // 메서드가 아닌 블록에도 그대로 쓸 수 있다.
+            var transportBlock = TestSource.Method(fixedUpdate, "if (transport != null)");
+
+            Assert.That(transportBlock, Does.Not.Contain("downed = body.Downed;"),
+                "탑승 블록 안에 두면 그 조건이 바뀌는 날 기절 복제가 조용히 끊긴다");
+        }
+
+        /// <summary>
         /// <b>이미 기절한 채로 접속한 사람도 기절해 보여야 한다.</b> 훅은 값이 바뀔 때만
         /// 불리므로 몸을 만드는 자리에서도 한 번 적용해야 한다 — <c>ApplyRiding</c> 이
         /// 같은 이유로 그렇게 되어 있다("탄 채로 접속한 사람이 계속 보인다").

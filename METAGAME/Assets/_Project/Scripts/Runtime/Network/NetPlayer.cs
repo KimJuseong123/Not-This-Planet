@@ -488,10 +488,6 @@ namespace Metagame.Network
                 }
                 riding = transport.IsControlling;
 
-                // 기절 여부도 같은 자리에서 실어 보낸다 (S15P21B202-378).
-                // 이것이 없으면 참가자 화면에서 동료가 기절한 것으로 보이지 않는다.
-                downed = body.Downed;
-
                 // 탑승 중에는 몸이 운반체와 싸우지 않게 한다. 이동은 운반체가 처리하고
                 // 몸은 좌석에 앉아 있기만 한다 — 혼자 실행할 때 GameSession 이 하는 것과
                 // 같은 정리다(그쪽은 클라이언트, 여기는 서버라 각자 한 번씩 필요하다).
@@ -520,6 +516,19 @@ namespace Metagame.Network
 
             ReportAim();
             JudgeProgress(Time.fixedDeltaTime);
+
+            // 기절 여부를 실어 보낸다 (S15P21B202-378).
+            //
+            // **transport 블록 안에 두면 안 된다.** 처음에는 riding 대입 옆에 두었는데
+            // 그 자리는 `if (transport != null)` 안이다. 몸을 세운 두 경로가 모두 곧바로
+            // AttachTransport() 를 부르므로 지금은 non-null 이고 증상이 나지 않았지만,
+            // **기절은 탑승과 아무 상관이 없다** — 그 블록의 조건에 손대는 다음 사람이
+            // 복제를 조용히 끊을 수 있다(!287 AI 리뷰가 이 배치를 짚었다).
+            //
+            // 그래서 몸의 결과를 옮겨 싣는 이 자리에 둔다. 위의 SetPositionAndRotation
+            // 과 같은 일이다 — 물리가 낸 결과를 SyncVar·NetworkTransform 에 넘긴다.
+            downed = body.Downed;
+
             transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
         }
 
@@ -851,6 +860,18 @@ namespace Metagame.Network
         ///
         /// <para>몸을 만드는 자리에서도 부른다. 그러지 않으면 <b>이미 기절한 채로 접속한
         /// 사람이 멀쩡해 보인다</b> — <c>ApplyRiding</c> 이 같은 이유로 그렇게 되어 있다.</para>
+        ///
+        /// <para><b><c>isLocalPlayer</c> 를 빼지 않는다</b>(!287 AI 리뷰가 물은 것).
+        /// 참가자 기계에서 자기 자신의 몸에도 이 값이 선다. 그것이 맞다 — 그 전에는
+        /// 참가자 본인의 <c>PlayerRig.Downed</c> 가 <b>서버와 의견이 달랐다.</b>
+        /// 기절 판정은 서버가 하는데 로컬 게이트들(<c>RefreshInteractionFocus</c> ·
+        /// <c>ApplyFallImpact</c> · <c>Stagger</c> · <c>KnockDown</c>)은 false 를 보고
+        /// 계속 돌았다. 특히 기절한 참가자의 화면이 <b>여전히 고정쇠를 조준 대상으로
+        /// 잡아 줬다.</b> 이제 호스트(<c>GoDown</c> 이 도는 쪽)와 같게 닫힌다.</para>
+        ///
+        /// <para>넉백·장비 해제·레이어·카메라는 여기서 하지 않는다. 그것들은 서버
+        /// 권위이고 <c>SetRemoteDowned</c> 도 손대지 않는다. <b>참가자 본인의 기절
+        /// 카메라 전환은 이 이슈 범위가 아니다</b> — 원래도 없었고 따로 봐야 한다.</para>
         /// </summary>
         void ApplyDowned(bool nowDowned)
         {
