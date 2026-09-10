@@ -128,6 +128,100 @@ namespace Metagame.Gameplay.Parts
             }
         }
 
+
+        // ── 상태 읽기·복원 (S15P21B202-386) ──────────────────────────
+        //
+        // 용접은 지금까지 "이 자리에서 이만큼 자랐다" 는 **행동**으로만 전달됐다
+        // (WorldSync 의 RpcWeldGrown). 처음부터 같이 있던 사람은 그 행동들을 다 들어
+        // 같은 모양이 되지만, **중간에 들어온 사람은 그 전 행동을 못 들어 아무 비드도
+        // 없다.** "지금 이만큼 되어 있다" 를 말할 수단이 없었다.
+        //
+        // 성장을 합쳐 한 번에 보내는 압축은 틀리다 — GrowChain 은 한 번 부를 때 덩어리를
+        // 최대 하나만 올리므로, 열 번을 한 번으로 합치면 결과가 다르다. 그래서 행동이
+        // 아니라 **상태**를 주고받는다.
+
+        /// <summary>
+        /// 사슬 하나를 다시 세우는 데 필요한 값. 시작점·방향은 <b>컨테이너 로컬</b>이라
+        /// 파츠가 움직여도 따라간다.
+        ///
+        /// <para><b>접촉 파츠는 들어 있지 않다.</b> <see cref="RefreshContact"/> 가 형상으로
+        /// 스스로 찾으므로 보낼 필요가 없다.</para>
+        /// </summary>
+        [Serializable]
+        public struct ChainState
+        {
+            public Vector3 Origin;
+            public Vector3 Direction;
+            public float TipRadius;
+            public int BlobCount;
+        }
+
+        /// <summary>사슬 하나의 상태를 읽는다. 서버가 스냅샷을 만들 때 쓴다.</summary>
+        public ChainState ReadChain(int index)
+        {
+            Initialize();
+
+            var chain = _chains[index];
+            return new ChainState
+            {
+                Origin = chain.Origin,
+                Direction = chain.Direction,
+                TipRadius = chain.TipRadius,
+                BlobCount = chain.Blobs != null ? chain.Blobs.Count : 0,
+            };
+        }
+
+        /// <summary>
+        /// 받은 상태로 사슬을 통째로 다시 세운다. <b>기존 사슬은 버린다.</b>
+        ///
+        /// <para>클라이언트에서만 부른다 — 서버는 원본을 갖고 있다. 만드는 순서는
+        /// <see cref="StartChain"/> 과 같다(사슬 추가 → 덩어리 → 질량 → 접촉).</para>
+        /// </summary>
+        public void RestoreChains(ChainState[] states, int offset, int count)
+        {
+            Initialize();
+
+            ClearChains();
+            if (states == null) return;
+
+            for (var i = 0; i < count; i++)
+            {
+                var at = offset + i;
+                if (at < 0 || at >= states.Length) break;
+
+                var state = states[at];
+                if (state.BlobCount <= 0) continue;
+
+                var chain = new Chain
+                {
+                    Origin = state.Origin,
+                    Direction = state.Direction,
+                    TipRadius = state.TipRadius,
+                };
+
+                _chains.Add(chain);
+                for (var b = 0; b < state.BlobCount; b++) SpawnBlob(chain, b);
+                RefreshContact(_chains.Count - 1);
+            }
+
+            ApplyMass();
+        }
+
+        /// <summary>덩어리와 사슬을 전부 치운다. 다시 세우기 전에 부른다.</summary>
+        void ClearChains()
+        {
+            for (var i = 0; i < _chains.Count; i++)
+            {
+                var chain = _chains[i];
+                if (chain?.Blobs == null) continue;
+
+                // 편집 모드에서 Destroy 는 에러만 남기고 아무 일도 하지 않는다 —
+                // 이 클래스가 이미 갖고 있는 DestroyObject 를 쓴다.
+                for (var b = 0; b < chain.Blobs.Count; b++) DestroyObject(chain.Blobs[b]);
+            }
+
+            _chains.Clear();
+        }
         /// <summary>현재 파츠 사이에 살아 있는 비드 다리가 있는가.</summary>
         public bool HasLiveBridge
         {
@@ -806,6 +900,7 @@ namespace Metagame.Gameplay.Parts
 
             _chains.Clear();
             ApplyMass();
+
 
             for (var i = 0; i < bridged.Count; i++) ApplyStrengthTo(bridged[i]);
         }

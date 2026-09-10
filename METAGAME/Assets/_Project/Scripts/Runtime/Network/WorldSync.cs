@@ -50,6 +50,15 @@ namespace Metagame.Network
         /// </summary>
         const float ClampKeepalive = 0.5f;
 
+        /// <summary>
+        /// 용접 상태를 조용해도 이 간격마다 한 번은 다시 보낸다(초) — S15P21B202-386.
+        ///
+        /// <para>ClientRpc 는 <b>지금 붙어 있는 사람에게만</b> 간다. 그래서 늦게 들어온
+        /// 사람에게는 이 주기가 유일한 경로다. 고정쇠(0.5초)보다 길게 잡았다 — 스냅샷이
+        /// 더 크고, 늦참자가 1초 안에 보게 되면 충분하다.</para>
+        /// </summary>
+        const float WeldKeepalive = 1f;
+
         /// 받은 자세로 옮겨 가는 속도. 20Hz 로 받은 사이를 메운다.
         const float Smoothing = 20f;
 
@@ -90,6 +99,19 @@ namespace Metagame.Network
         const float SpawnerLookInterval = 1f;
         float lastSpawnerLook = float.NegativeInfinity;
         float clampKeepaliveTimer;
+
+        // ── 용접 스냅샷 (S15P21B202-386) ───────────────────────────
+        //
+        // 용접은 RpcWeldGrown 으로 **행동**만 나르고 있었다. 처음부터 있던 사람은 그
+        // 행동들을 다 들어 같은 모양이 되지만 **중간에 들어온 사람은 아무 비드도 없다.**
+        // 그래서 상태도 함께 보낸다. 파츠 순서는 자세와 같은 색인을 쓴다.
+        WeldBead.ChainState[] sendWeld = Array.Empty<WeldBead.ChainState>();
+        int[] sendWeldCounts = Array.Empty<int>();
+        WeldBead.ChainState[] lastSentWeld = Array.Empty<WeldBead.ChainState>();
+        int[] lastSentWeldCounts = Array.Empty<int>();
+        float weldKeepaliveTimer;
+        readonly List<WeldBead.ChainState> weldChains = new List<WeldBead.ChainState>();
+        bool warnedWeldMismatch;
 
         // 도구 휴대 (S15P21B202-352). 고정쇠와 같은 모양 — 바뀔 때만 + keepalive.
         //
@@ -633,6 +655,7 @@ namespace Metagame.Network
         {
             sendTimer += Time.deltaTime;
             clampKeepaliveTimer += Time.deltaTime;
+            weldKeepaliveTimer += Time.deltaTime;
             dropKeepaliveTimer += Time.deltaTime;
             toolKeepaliveTimer += Time.deltaTime;
             if (sendTimer < SendInterval) return;
@@ -677,6 +700,19 @@ namespace Metagame.Network
                 if (lastSentClamps.Length != sendClamps.Length)
                     lastSentClamps = new ClampState[sendClamps.Length];
                 Array.Copy(sendClamps, lastSentClamps, sendClamps.Length);
+            }
+
+            // ── 용접 ────────────────────────────────────────────
+            //
+            // 파츠 순서는 **자세와 같은 색인**을 쓴다. 여기서 따로 줄을 세우면 -315 가
+            // 기록한 종류의 사고(개수는 같은데 순서만 어긋남)를 새로 만들게 된다.
+            // 파츠가 아닌 항목(탈것·도구)은 개수 0 이다.
+            BuildWeldSnapshot();
+            if (!SameWeld() || weldKeepaliveTimer >= WeldKeepalive)
+            {
+                RpcApplyWeld(sendWeldCounts, sendWeld);
+                weldKeepaliveTimer = 0f;
+                RememberSentWeld();
             }
 
             // ── 운석 예고 ────────────────────────────────────────
@@ -757,6 +793,120 @@ namespace Metagame.Network
             }
         }
 
+
+        /// <summary>
+        /// 지금 용접 상태를 <see cref="sendWeld"/> 에 담는다 (S15P21B202-386).
+        ///
+        /// <para>개수 배열은 <see cref="tracked"/> 와 길이가 같고, 파츠가 아닌 자리는 0 이다.
+        /// 사슬은 그 뒤로 이어 붙인 하나의 평평한 배열이다 — 배열의 배열은 Mirror 가
+        /// 직렬화하지 못한다.</para>
+        /// </summary>
+        void BuildWeldSnapshot()
+        {
+            if (sendWeldCounts.Length != tracked.Count)
+                sendWeldCounts = new int[tracked.Count];
+
+            weldChains.Clear();
+
+            for (int i = 0; i < tracked.Count; i++)
+            {
+                sendWeldCounts[i] = 0;
+
+                var body = tracked[i];
+                if (body == null) continue;
+
+                var part = body.GetComponent<SpaceshipPart>();
+                if (part == null) continue;
+
+                var bead = part.GetComponent<WeldBead>();
+                if (bead == null) continue;
+
+                int count = bead.ChainCount;
+                for (int c = 0; c < count; c++) weldChains.Add(bead.ReadChain(c));
+                sendWeldCounts[i] = count;
+            }
+
+            if (sendWeld.Length != weldChains.Count)
+                sendWeld = new WeldBead.ChainState[weldChains.Count];
+            weldChains.CopyTo(sendWeld);
+        }
+
+        /// <summary>보낸 것과 같은가. 용접은 사람이 쏘는 몇 초를 빼면 내내 그대로다.</summary>
+        bool SameWeld()
+        {
+            if (sendWeldCounts.Length != lastSentWeldCounts.Length) return false;
+            if (sendWeld.Length != lastSentWeld.Length) return false;
+
+            for (int i = 0; i < sendWeldCounts.Length; i++)
+                if (sendWeldCounts[i] != lastSentWeldCounts[i]) return false;
+
+            for (int i = 0; i < sendWeld.Length; i++)
+            {
+                var a = sendWeld[i];
+                var b = lastSentWeld[i];
+                if (a.BlobCount != b.BlobCount) return false;
+                if (Mathf.Abs(a.TipRadius - b.TipRadius) > 1e-4f) return false;
+                if ((a.Origin - b.Origin).sqrMagnitude > 1e-8f) return false;
+                if ((a.Direction - b.Direction).sqrMagnitude > 1e-8f) return false;
+            }
+
+            return true;
+        }
+
+        void RememberSentWeld()
+        {
+            if (lastSentWeldCounts.Length != sendWeldCounts.Length)
+                lastSentWeldCounts = new int[sendWeldCounts.Length];
+            Array.Copy(sendWeldCounts, lastSentWeldCounts, sendWeldCounts.Length);
+
+            if (lastSentWeld.Length != sendWeld.Length)
+                lastSentWeld = new WeldBead.ChainState[sendWeld.Length];
+            Array.Copy(sendWeld, lastSentWeld, sendWeld.Length);
+        }
+
+        /// <summary>
+        /// 용접 상태를 그대로 세운다 (S15P21B202-386).
+        ///
+        /// <para><b>신뢰 채널이다.</b> 스냅샷은 도착해야 뜻이 있다. 그리고 이 RPC 가
+        /// 지금 붙어 있는 사람에게만 가므로, <b>늦게 들어온 사람에게는 keepalive 가
+        /// 유일한 경로</b>다 — 그래서 조용해도 주기적으로 한 번은 보낸다.</para>
+        /// </summary>
+        [ClientRpc]
+        void RpcApplyWeld(int[] counts, WeldBead.ChainState[] chains)
+        {
+            if (isServer) return;
+            if (counts == null || chains == null) return;
+
+            if (counts.Length != tracked.Count)
+            {
+                if (!warnedWeldMismatch)
+                {
+                    warnedWeldMismatch = true;
+                    Debug.LogWarning($"[WorldSync] 용접 개수가 다르다 — 서버 {counts.Length} · 여기 {tracked.Count}");
+                }
+                return;
+            }
+
+            int cursor = 0;
+            for (int i = 0; i < counts.Length; i++)
+            {
+                int count = counts[i];
+
+                var body = tracked[i];
+                var part = body != null ? body.GetComponent<SpaceshipPart>() : null;
+                if (part != null)
+                {
+                    var bead = part.GetComponent<WeldBead>();
+
+                    // 없던 곳에 생겼으면 붙인다. 둘 다 없으면 할 일이 없다 —
+                    // 빈 비드 컴포넌트를 만들어 두지 않는다.
+                    if (bead == null && count > 0) bead = WeldBead.Attach(part);
+                    if (bead != null) bead.RestoreChains(chains, cursor, count);
+                }
+
+                cursor += count;
+            }
+        }
         void SendDrops()
         {
             var spawner = MeteorSpawner;
