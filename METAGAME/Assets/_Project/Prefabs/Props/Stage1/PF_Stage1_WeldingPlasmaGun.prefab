@@ -821,9 +821,12 @@ MonoBehaviour:
   beamRange: 0.8
   beamWidth: 0.035
   beamMask: -1
-  heldVisualLocalPosition: {x: 0.7, y: -0.9, z: 0.25}
+  heldVisualLocalPosition: {x: 0.18, y: -0.14, z: 0.12}
   heldVisualLocalEuler: {x: -90, y: -80, z: 10}
-  heldVisualLocalScale: {x: 1, y: 1, z: 1}
+  heldVisualLocalScale: {x: 0.55, y: 0.55, z: 0.55}
+  firstPersonVisualLocalPosition: {x: 0.2, y: -0.17, z: 0.52}
+  firstPersonVisualLocalEuler: {x: -90, y: -80, z: 10}
+  firstPersonVisualLocalScale: {x: 0.275, y: 0.275, z: 0.275}
 --- !u!1 &6112219749281977927
 GameObject:
   m_ObjectHideFlags: 0

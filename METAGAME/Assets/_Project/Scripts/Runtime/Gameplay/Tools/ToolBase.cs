@@ -23,6 +23,7 @@ namespace Metagame.Gameplay
     /// 방망이를 들고 바닥을 보면 플레이어가 날아갔다. 도구 전체의 규칙이므로 상속하는
     /// 쪽이 기억할 일이 아니다.
     /// </summary>
+    [DefaultExecutionOrder(200)]
     [DisallowMultipleComponent]
     public abstract class ToolBase : MonoBehaviour
     {

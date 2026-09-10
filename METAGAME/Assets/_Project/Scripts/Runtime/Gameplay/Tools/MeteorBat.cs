@@ -23,14 +23,30 @@ namespace Metagame.Gameplay
     [DisallowMultipleComponent]
     public sealed class MeteorBat : ToolBase
     {
-        [Header("1인칭 휴대 포즈")]
-        [SerializeField] Vector3 heldVisualLocalPosition = new Vector3(0.45f, -0.55f, 0.35f);
+        [Header("월드 휴대 포즈")]
+        [Tooltip("3인칭/원격 화면에서 장착 중 보이는 방망이 모델의 로컬 위치입니다.")]
+        [SerializeField] Vector3 heldVisualLocalPosition = new Vector3(0.18f, -0.12f, 0.12f);
+        [Tooltip("3인칭/원격 화면에서 장착 중 보이는 방망이 모델의 로컬 회전(Euler)입니다.")]
         [SerializeField] Vector3 heldVisualLocalEuler = new Vector3(0f, 0f, -35f);
+        [Tooltip("3인칭/원격 화면에서 장착 중에만 적용할 모델 크기입니다.")]
+        [SerializeField] Vector3 heldVisualLocalScale = Vector3.one * 0.64f;
+
+        [Header("로컬 1인칭 화면 포즈")]
+        [Tooltip("카메라 기준 방망이 모델 위치입니다. Play 중 Inspector에서 바로 조절할 수 있습니다.")]
+        [SerializeField] Vector3 firstPersonVisualLocalPosition = new Vector3(0.23f, -0.20f, 0.58f);
+        [Tooltip("카메라 기준 방망이 모델 회전(Euler)입니다.")]
+        [SerializeField] Vector3 firstPersonVisualLocalEuler = new Vector3(0f, 0f, -35f);
+        [Tooltip("카메라 아래로 분리된 방망이 모델의 크기입니다.")]
+        [SerializeField] Vector3 firstPersonVisualLocalScale = Vector3.one * 0.64f;
 
         Transform heldVisual;
         Vector3 droppedVisualLocalPosition;
         Quaternion droppedVisualLocalRotation;
+        Vector3 droppedVisualLocalScale;
+        Transform droppedVisualParent;
+        int droppedVisualSiblingIndex;
         bool droppedVisualPoseCaptured;
+        bool firstPersonVisualAttached;
 
         /// <summary>
         /// 소품을 찾는 겹침 질의 버퍼. 매 스윙 새로 만들지 않는다
@@ -89,15 +105,23 @@ namespace Metagame.Gameplay
         /// <summary>휘둘렀을 때. 애니메이션과 소리가 여기에 붙는다(맞았는지 여부 포함).</summary>
         public event Action<MeteorBat, bool> Swung;
 
+        protected override void OnValidate()
+        {
+            base.OnValidate();
+
+            // Play 중 Inspector에서 값을 조절하면 현재 보이는 모델에 바로 반영한다.
+            if (Application.isPlaying && IsEquipped) ApplyHeldVisualPose();
+        }
+
         protected override void OnEquipped()
         {
-            ApplyHeldVisualPose();
             cooldown = 0f;
             swingElapsed = -1f;
             LastDeflected = null;
             LastStruck = null;
             LastPushed = null;
             LastSwingConnected = false;
+            ApplyHeldVisualPose();
         }
 
         protected override void OnUnequipped()
@@ -354,6 +378,12 @@ namespace Metagame.Gameplay
         /// </summary>
         protected override void OnToolVisualUpdate(ToolInputFrame input, ToolAimContext aim)
         {
+            Vector3 visualDirection = IsSwinging
+                ? CarryAim(aim.Direction)
+                : Owner != null && Owner.Cam != null
+                    ? Owner.Cam.transform.forward
+                    : aim.Direction;
+            UpdateHeldVisualPose(visualDirection);
             EnsureTrails();
 
             if (sinceStreak >= 0f) sinceStreak += Time.deltaTime;
@@ -641,23 +671,97 @@ namespace Metagame.Gameplay
             ResolveHeldVisual();
             if (heldVisual == null) return;
 
-            if (!droppedVisualPoseCaptured)
-            {
-                droppedVisualLocalPosition = heldVisual.localPosition;
-                droppedVisualLocalRotation = heldVisual.localRotation;
-                droppedVisualPoseCaptured = true;
-            }
-
-            heldVisual.SetLocalPositionAndRotation(
-                heldVisualLocalPosition, Quaternion.Euler(heldVisualLocalEuler));
+            CaptureDroppedVisualPose();
+            UpdateHeldVisualPose(Owner != null && Owner.Cam != null
+                ? Owner.Cam.transform.forward
+                : transform.forward);
         }
 
         void RestoreDroppedVisualPose()
         {
             if (!droppedVisualPoseCaptured || heldVisual == null) return;
 
+            RestoreVisualParent();
             heldVisual.SetLocalPositionAndRotation(
                 droppedVisualLocalPosition, droppedVisualLocalRotation);
+            heldVisual.localScale = droppedVisualLocalScale;
+        }
+
+        void CaptureDroppedVisualPose()
+        {
+            if (droppedVisualPoseCaptured || heldVisual == null) return;
+
+            droppedVisualParent = heldVisual.parent;
+            droppedVisualSiblingIndex = heldVisual.GetSiblingIndex();
+            droppedVisualLocalPosition = heldVisual.localPosition;
+            droppedVisualLocalRotation = heldVisual.localRotation;
+            droppedVisualLocalScale = heldVisual.localScale;
+            droppedVisualPoseCaptured = true;
+        }
+
+        /// <summary>
+        /// 로컬 1인칭 모델은 카메라 아래에서 LateUpdate로 움직인다. 물리 본체와
+        /// 타격 판정은 기존 FixedUpdate 경로를 그대로 쓰되 화면에서만 지연을 없앤다.
+        /// </summary>
+        void UpdateHeldVisualPose(Vector3 carryDirection)
+        {
+            if (heldVisual == null) return;
+
+            var camera = Owner != null && Owner.IsLocal ? Owner.Cam : null;
+            if (camera != null && camera.FirstPerson)
+            {
+                if (!firstPersonVisualAttached)
+                {
+                    heldVisual.SetParent(camera.transform, false);
+                    firstPersonVisualAttached = true;
+                }
+
+                ApplyFirstPersonPose(camera.transform, carryDirection);
+                return;
+            }
+
+            RestoreVisualParent();
+            heldVisual.SetLocalPositionAndRotation(
+                heldVisualLocalPosition, Quaternion.Euler(heldVisualLocalEuler));
+            heldVisual.localScale = heldVisualLocalScale;
+        }
+
+        void ApplyFirstPersonPose(Transform cameraTransform, Vector3 carryDirection)
+        {
+            // 대기 중에는 카메라 로컬 포즈를 그대로 쓴다. FixedUpdate에서 전달된
+            // aim을 다시 적용하면 그 오래된 한 스텝 때문에 오히려 화면 지연이 생긴다.
+            Vector3 localDirection = IsSwinging
+                ? cameraTransform.InverseTransformDirection(carryDirection)
+                : Vector3.forward;
+            if (localDirection.sqrMagnitude < 1e-4f) localDirection = Vector3.forward;
+            localDirection.Normalize();
+
+            Vector3 up = Mathf.Abs(Vector3.Dot(localDirection, Vector3.up)) > 0.98f
+                ? Vector3.right
+                : Vector3.up;
+            Quaternion carryRotation = Quaternion.LookRotation(localDirection, up);
+
+            heldVisual.SetLocalPositionAndRotation(
+                carryRotation * firstPersonVisualLocalPosition,
+                carryRotation * Quaternion.Euler(firstPersonVisualLocalEuler));
+            heldVisual.localScale = firstPersonVisualLocalScale;
+        }
+
+        void RestoreVisualParent()
+        {
+            if (!firstPersonVisualAttached || heldVisual == null) return;
+
+            heldVisual.SetParent(droppedVisualParent, false);
+            if (droppedVisualParent != null)
+                heldVisual.SetSiblingIndex(Mathf.Clamp(
+                    droppedVisualSiblingIndex, 0, droppedVisualParent.childCount - 1));
+            firstPersonVisualAttached = false;
+        }
+
+        protected override void OnDestroy()
+        {
+            RestoreVisualParent();
+            base.OnDestroy();
         }
 
         /// <summary>

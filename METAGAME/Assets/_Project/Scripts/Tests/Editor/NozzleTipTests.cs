@@ -12,18 +12,10 @@ namespace Metagame.Gameplay.Tests
     /// <b>연출 문제가 아니었다.</b> 용접 건 프리팹의 <c>AttachPoints/Muzzle</c> 은
     /// 코드로 만든 임시 총(<c>PlaceholderVisual</c>, 끝이 z 0.79)에 맞춰 z 0.84 에
     /// 놓은 값인데, 장착하면 <c>ApplyHeldVisualPose</c> 가 <c>ReplacementModel</c> 아래의
-    /// 실제 모델만 (0.7, −0.9, 0.25) 로 옮기고 90도 돌린다. Muzzle 은 그 모델의
-    /// <b>형제</b>라 제자리에 남는다.
-    ///
-    /// <code>
-    /// 두 점의 거리          1.34m
-    /// Tuning.ToolBeamRange  0.80m
-    /// </code>
-    ///
-    /// <b>사거리가 어긋난 거리보다 짧다.</b> 보이는 총이 닿는 곳과 빔이 닿는 곳이 겹칠
-    /// 수가 없었고, <c>WeldBead.TryGrowNear(Muzzle.position, …)</c> 도 같은 좌표를 쓰므로
-    /// 용접·절단 판정이 총에서 1.34m 떨어진 허공에서 이뤄졌다. 기획 §16 의 조립이
-    /// 여기에 걸려 있다.
+    /// 실제 모델만 1인칭 휴대 포즈로 옮기고 돌린다. Muzzle 은 그 모델의 <b>형제</b>라
+    /// 자동으로 따라가지 않는다. <c>WeldBead.TryGrowNear(Muzzle.position, …)</c> 도 같은
+    /// 좌표를 쓰므로 모델이 이동하거나 크기가 달라져도 보이는 노즐 끝을 다시 계산해야
+    /// 한다. 기획 §16 의 조립이 여기에 걸려 있다.
     /// </summary>
     public sealed class NozzleTipTests
     {
@@ -37,27 +29,6 @@ namespace Metagame.Gameplay.Tests
                     Object.DestroyImmediate(go);
 
             _spawned.Clear();
-        }
-
-        // --- 어긋남의 크기 (이 이슈가 존재하는 이유) --------------------------
-
-        /// <summary>
-        /// <b>사거리가 어긋난 거리보다 짧다는 것</b>이 이 이슈의 핵심이다. 이 검증은
-        /// 그 산술을 문서로 남긴다 — 휴대 자세를 누가 조정하면 함께 다시 봐야 한다.
-        /// </summary>
-        [Test]
-        public void TheStaleAttachPointIsFartherThanTheBeamCanReach()
-        {
-            // 프리팹에 적힌 값이다.
-            var staleMuzzle = new Vector3(0f, 0.08f, 0.84f);
-            var heldVisual = new Vector3(0.7f, -0.9f, 0.25f);
-
-            var gap = (staleMuzzle - heldVisual).magnitude;
-
-            Assert.Greater(gap, Tuning.ToolBeamRange,
-                $"어긋남 {gap:0.00}m 가 사거리 {Tuning.ToolBeamRange:0.00}m 보다 짧으면 "
-                + "보이는 총이 닿는 곳과 빔이 닿는 곳이 겹칠 수 있다 — 이 이슈의 전제가 사라진다.");
-            Assert.AreEqual(1.34f, gap, 0.01f);
         }
 
         // --- 끝점을 실제로 옮긴다 ---------------------------------------------
@@ -95,8 +66,9 @@ namespace Metagame.Gameplay.Tests
             var before = tool.Muzzle.position;
 
             // 장착 자세가 하는 일이다 — 모델만 옮기고 돌린다.
-            model.localPosition = new Vector3(0.7f, -0.9f, 0.25f);
+            model.localPosition = new Vector3(0.18f, -0.14f, 0.12f);
             model.localRotation = Quaternion.Euler(-90f, -80f, 10f);
+            model.localScale = Vector3.one * 0.55f;
             UnityEngine.Physics.SyncTransforms();
 
             tool.ResolveNozzleTip(Vector3.forward);
