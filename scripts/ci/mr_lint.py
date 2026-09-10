@@ -53,6 +53,53 @@ JIRA_BY_GITLAB = {m["gitlab"]: m.get("jira", "") for m in _TEAM["members"]}
 NAME_BY_GITLAB = {m["gitlab"]: m.get("name", "") for m in _TEAM["members"]}
 
 
+def check_open_threads(rep: Report, gl: GitLab) -> None:
+    """미해소 스레드가 있으면 알린다 (S15P21B202-420).
+
+    **왜 필요한가.** 프로젝트 설정
+    `only_allow_merge_if_all_discussions_are_resolved` 가 켜져 있으면 **미해소 스레드
+    하나가 머지 버튼을 잠근다.** 그런데 그 사실이 어디에도 나오지 않는다 — 파이프라인은
+    초록이고 카드도 안 나온다. MR 화면에서 "미해결 스레드" 를 직접 찾아야 안다.
+
+    2026-09-10 에 `!320`·`!321`·`!322`·`!324` 가 그 상태였다. 전부 초록인데 잠겨 있었고,
+    원인은 사람이 남긴 답글이 스레드로 만들어진 것이었다(`glab mr note create`).
+
+    **실패로 만들지 않는다.** 스레드는 리뷰가 진행 중이라는 정상 상태일 수 있다. 막는
+    것이 목적이 아니라 **모르는 채로 두지 않는 것**이 목적이다(`-309` 와 같은 결).
+
+    설정이 꺼져 있으면 잠기지 않으므로 말하지 않는다. 설정을 못 읽으면(권한·오프라인)
+    조용히 넘긴다 — 확인하지 못한 것을 경고로 만들면 늑대 소년이 된다.
+    """
+    if not gl.token:
+        return
+    if gl.project_flag("only_allow_merge_if_all_discussions_are_resolved") is not True:
+        return
+
+    threads = gl.discussions()
+    if threads is None:
+        return
+
+    open_by = {}
+    for d in threads:
+        notes = d.get("notes") or []
+        first = notes[0] if notes else None
+        if not first or not first.get("resolvable"):
+            continue
+        if all(n.get("resolved") for n in notes if n.get("resolvable")):
+            continue
+        who = (first.get("author") or {}).get("username", "?")
+        open_by[who] = open_by.get(who, 0) + 1
+
+    total = sum(open_by.values())
+    if not total:
+        rep.ok("미해소 스레드 없음")
+        return
+
+    who = " · ".join(f"{u} {n}개" for u, n in sorted(open_by.items(), key=lambda kv: -kv[1]))
+    rep.warn(f"미해소 스레드 {total}개({who}) — **파이프라인이 초록이어도 머지가 잠깁니다** "
+             f"(프로젝트 설정: 모든 스레드 해결 필수). 답한 스레드는 해결 처리하세요")
+
+
 def check_squash(rep: Report, mr: dict, target: str) -> None:
     """squash 는 **모든 MR 에서** 꺼져 있어야 한다 (S15P21B202-417).
 
@@ -317,6 +364,7 @@ def main() -> int:
         rep.ok("Draft 아님")
 
     check_squash(rep, mr, target)
+    check_open_threads(rep, gl)
 
     # 1b) 릴리즈 MR(develop → master)은 여기까지만 — 브랜치·제목·템플릿은 이 MR 에 해당하지 않는다.
     #    내용은 develop 으로 들어올 때 이미 검사했다 (S15P21B202-122)
