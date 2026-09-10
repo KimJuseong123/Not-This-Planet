@@ -135,6 +135,7 @@ namespace Metagame.EditorTools
                 "NotThisPlanet/Ghost",
                 "NotThisPlanet/Flat",
                 "NotThisPlanet/PlanetNoFog",
+            "Metagame/Guidance/NoFog",
                 "Metagame/Atmosphere/SkyGradient",
                 "Hidden/Metagame/Atmosphere/Haze",
                 "Metagame/Atmosphere/Meteor",

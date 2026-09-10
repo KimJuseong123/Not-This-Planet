@@ -38,6 +38,7 @@ namespace Metagame.Gameplay
         Light fillLight;
         bool capturedRenderSettings;
         bool capturedCamera;
+        bool fogOnly;
         RenderSettingsSnapshot renderSettingsSnapshot;
         CameraSnapshot cameraSnapshot;
         float alertIntensity;
@@ -110,8 +111,23 @@ namespace Metagame.Gameplay
         {
             targetCamera = camera;
             groundFogCameraPositionCaptured = false;
-            if (Application.isPlaying && activeProfile != null)
+            if (Application.isPlaying && activeProfile != null && !fogOnly)
                 ApplyCamera(activeProfile);
+        }
+
+        /// <summary>수제 맵의 하늘·조명·후처리를 유지하고 공용 안개만 적용한다.</summary>
+        public void ApplyFogOnly(AtmosphereProfile profile)
+        {
+            ResetToDefaults();
+            if (profile == null) return;
+
+            profile.Validate();
+            CaptureRenderSettings();
+            fogOnly = true;
+            activeProfile = profile;
+            ApplyFog(profile.fog);
+            ApplyHaze(profile.haze);
+            ApplyGroundFog(profile.groundFog);
         }
 
         public void Apply(AtmosphereProfile profile)
@@ -122,6 +138,7 @@ namespace Metagame.Gameplay
                 return;
             }
 
+            fogOnly = false;
             profile.Validate();
             CaptureRenderSettings();
             CaptureCamera();
@@ -146,8 +163,11 @@ namespace Metagame.Gameplay
             // affect the depth haze, post-processing, and meteor visuals, but they
             // must not make the world fog appear to move toward the player.
             ApplyHaze(activeProfile.haze);
-            ApplyVolume(activeProfile.postProcessing);
-            ApplyMeteorIntensity();
+            if (!fogOnly)
+            {
+                ApplyVolume(activeProfile.postProcessing);
+                ApplyMeteorIntensity();
+            }
         }
 
         public void SetMeteorShowerIntensity(float value)
@@ -197,6 +217,7 @@ namespace Metagame.Gameplay
             if (dustStorm != null) dustStorm.Clear();
 
             activeProfile = null;
+            fogOnly = false;
             DestroyRuntimeObjects();
             capturedRenderSettings = false;
             capturedCamera = false;

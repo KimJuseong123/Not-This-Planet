@@ -62,6 +62,12 @@ namespace Metagame.Gameplay
 
         sealed class AtmosphereHazePass : ScriptableRenderPass
         {
+            sealed class PassData
+            {
+                public TextureHandle source;
+                public Material material;
+            }
+
             Material material;
 
             public void Setup(Material value) { material = value; }
@@ -79,9 +85,19 @@ namespace Metagame.Gameplay
                 var source = renderGraph.CreateTexture(descriptor);
                 renderGraph.AddCopyPass(resources.cameraColor, source, "Atmosphere Haze Source");
 
-                var parameters = new RenderGraphUtils.BlitMaterialParameters(
-                    source, resources.activeColorTexture, material, 0);
-                renderGraph.AddBlitPass(parameters, "Atmosphere Haze");
+                // The shader's stencil exclusion needs the camera's actual depth/stencil
+                // attachment. A color-only blit cannot honor fog-exempt guide materials.
+                using (var builder = renderGraph.AddRasterRenderPass<PassData>("Atmosphere Haze", out var data))
+                {
+                    data.source = source;
+                    data.material = material;
+                    builder.UseTexture(source, AccessFlags.Read);
+                    builder.UseAllGlobalTextures(true);
+                    builder.SetRenderAttachment(resources.activeColorTexture, 0, AccessFlags.ReadWrite);
+                    builder.SetRenderAttachmentDepth(resources.activeDepthTexture, AccessFlags.Read);
+                    builder.SetRenderFunc((PassData passData, RasterGraphContext context) =>
+                        Blitter.BlitTexture(context.cmd, passData.source, new Vector4(1, 1, 0, 0), passData.material, 0));
+                }
             }
         }
     }

@@ -21,6 +21,53 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void FogOnlyPreservesAuthoredLightingAndRestoresFog()
+        {
+            var root = new GameObject("FogOnlyTest");
+            var controller = root.AddComponent<AtmosphereController>();
+            var camera = root.AddComponent<Camera>();
+            var originalSky = RenderSettings.skybox;
+            var originalAmbient = RenderSettings.ambientSkyColor;
+            var originalSun = RenderSettings.sun;
+            bool originalFog = RenderSettings.fog;
+            float originalDensity = RenderSettings.fogDensity;
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = Color.magenta;
+            profile.fog.enabled = true;
+            profile.fog.density = 0.025f;
+            profile.haze.enabled = true;
+            profile.haze.requiresDepth = true;
+            profile.groundFog.enabled = true;
+            try
+            {
+                controller.BindCamera(camera);
+                controller.ApplyFogOnly(profile);
+                controller.SetAlertIntensity(1f);
+                Assert.That(RenderSettings.fog, Is.True);
+                Assert.That(RenderSettings.fogDensity, Is.EqualTo(0.025f));
+                Assert.That(Shader.GetGlobalFloat(AtmosphereController.HazeEnabledId), Is.EqualTo(1f));
+                Assert.That(Shader.GetGlobalFloat(AtmosphereController.GroundFogEnabledId), Is.EqualTo(1f));
+                Assert.That(RenderSettings.skybox, Is.EqualTo(originalSky));
+                Assert.That(RenderSettings.ambientSkyColor, Is.EqualTo(originalAmbient));
+                Assert.That(RenderSettings.sun, Is.EqualTo(originalSun));
+                Assert.That(camera.clearFlags, Is.EqualTo(CameraClearFlags.SolidColor));
+                Assert.That(camera.backgroundColor, Is.EqualTo(Color.magenta));
+                Assert.That(root.GetComponentsInChildren<Light>(), Is.Empty);
+                Assert.That(root.transform.childCount, Is.Zero, "Fog-only mode must not create a post-processing volume or backdrop.");
+                controller.ResetToDefaults();
+                Assert.That(RenderSettings.fog, Is.EqualTo(originalFog));
+                Assert.That(RenderSettings.fogDensity, Is.EqualTo(originalDensity));
+                Assert.That(Shader.GetGlobalFloat(AtmosphereController.HazeEnabledId), Is.Zero);
+                Assert.That(Shader.GetGlobalFloat(AtmosphereController.GroundFogEnabledId), Is.Zero);
+            }
+            finally
+            {
+                controller.ResetToDefaults();
+                Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
         public void ValidateClampsEffectLimits()
         {
             profile.stars.radius = 0f;

@@ -13,8 +13,12 @@ namespace Metagame.Gameplay
 
         public void ConfigureCamera(Camera camera)
         {
+            if (camera == null) return;
             var data = camera.GetComponent<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>();
-            if (data != null) data.renderPostProcessing = true;
+            if (data == null)
+                data = camera.gameObject.AddComponent<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>();
+            camera.allowHDR = true;
+            data.renderPostProcessing = true;
         }
 
         public Bounds Bounds => new Bounds(transform.position + Vector3.up * 10f,

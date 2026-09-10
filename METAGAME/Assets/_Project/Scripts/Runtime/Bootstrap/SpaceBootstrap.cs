@@ -281,6 +281,15 @@ namespace Metagame.Bootstrap
                 Player.Cam.Cam.farClipPlane = 400f;
                 Player.Cam.Cam.allowHDR = true;
                 authoredMap.ConfigureCamera(Player.Cam.Cam);
+                if (atmosphereProfile != null && !Application.isBatchMode)
+                {
+                    // 별도 오브젝트에 두어 안개 초기화가 기존 모래폭풍을 해제하지 않게 한다.
+                    var fogRoot = new GameObject("Atmosphere Fog");
+                    fogRoot.transform.SetParent(sys.transform, false);
+                    Atmosphere = fogRoot.AddComponent<AtmosphereController>();
+                    Atmosphere.BindCamera(Player.Cam.Cam);
+                    Atmosphere.ApplyFogOnly(atmosphereProfile);
+                }
             }
 
             // 낙하 예고 원과 분화구를 그리는 컴포넌트를 붙인다(S15P21B202-275).
