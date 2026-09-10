@@ -631,6 +631,59 @@ class GameWebSocketIntegrationTest {
                 .as("그 사이 돌아온 사람도 새 방장에게 붙을 수 있어야 한다")
                 .isEqualTo("192.168.0.9");
     }
+
+    // ---------- 입장 실패 사유 (S15P21B202-413) ----------
+
+    /**
+     * 방이 꽉 찼으면 <b>그 사유가 함께 온다</b>.
+     *
+     * <p>예전에는 이유를 가리지 않고 {@code "cannot join room"} 하나만 갔다. 꽉 찬 방과
+     * 이미 시작된 방은 사용자가 해야 할 일이 다르다 — 앞은 기다리면 되고 뒤는 다른 방을
+     * 찾아야 한다.
+     */
+    @Test
+    void joiningAFullRoomSaysItIsFull() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        String code = createRoom(host);
+
+        TestClient[] guests = {
+            connect("영희", "device-b"), connect("민수", "device-c"), connect("지연", "device-d"),
+        };
+        for (TestClient guest : guests) {
+            guest.send("JOIN_ROOM", Map.of("roomId", code));
+            guest.await("ROOM_STATE");
+        }
+
+        TestClient fifth = connect("다섯", "device-e");
+        fifth.send("JOIN_ROOM", Map.of("roomId", code));
+
+        JsonNode error = fifth.await("ERROR");
+        assertThat(error.get("reason").asString()).isEqualTo("ROOM_FULL");
+        assertThat(error.get("message").asString()).isEqualTo("room is full");
+    }
+
+    /** 이미 시작된 방에는 다른 사유가 온다 — 정원과 구분된다. */
+    @Test
+    void joiningAPlayingRoomSaysItAlreadyStarted() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        String code = startedRoom(host, guest);
+
+        TestClient outsider = connect("민수", "device-c");
+        outsider.send("JOIN_ROOM", Map.of("roomId", code));
+
+        assertThat(outsider.await("ERROR").get("reason").asString()).isEqualTo("REJOIN_DENIED");
+    }
+
+    /** 없는 방 코드도 구분된다 — 사용자는 코드를 다시 확인해야 한다. */
+    @Test
+    void joiningAnUnknownCodeSaysTheRoomIsNotThere() throws Exception {
+        TestClient client = connect("철수", "device-a");
+
+        client.send("JOIN_ROOM", Map.of("roomId", "ZZZZ"));
+
+        assertThat(client.await("ERROR").get("reason").asString()).isEqualTo("ROOM_NOT_FOUND");
+    }
     // ---------- 판 종료 (S15P21B202-316) ----------
 
     @Test

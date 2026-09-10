@@ -945,14 +945,34 @@ namespace Metagame.UI
                 network.StartGame();
             GUI.enabled = true;
 
-            if (GUI.Button(new Rect(x + 54f, controlsY + 64f, width - 108f, 40f),
+            // 게임 중인 방에 앉아 있는데 매치로 못 들어간 상태를 설명한다 (S15P21B202-413).
+            //
+            // <b>버튼이 죽어 있는 것만 보이면 사용자는 고장으로 읽는다.</b> 방장이 사라져
+            // 이전이 진행되는 동안 서버는 접속 정보를 주지 않고(S15P21B202-401), 그 사이
+            // 이 화면에는 "상태: 게임 중" 과 비활성 시작 버튼만 남는다 — 왜 기다려야 하는지
+            // 알 길이 없었다.
+            //
+            // 방장인지에 따라 할 일이 다르다. 방장이면 이어받기가 곧 시작되므로 기다리면
+            // 되고, 참가자라면 새 방장이 이어받을 때까지 기다리는 것이다.
+            float waitNotice = 0f;
+            if (!room.IsWaiting)
+            {
+                waitNotice = 30f;
+                DrawLabel(new Rect(x + 54f, controlsY + 56f, width - 108f, 26f),
+                    isHost
+                        ? "게임에 다시 들어가는 중입니다 · 잠시만 기다려 주세요"
+                        : "방장이 바뀌는 중입니다 · 잠시만 기다려 주세요",
+                    smallStyle, new Color(1f, 0.86f, 0.5f));
+            }
+
+            if (GUI.Button(new Rect(x + 54f, controlsY + 64f + waitNotice, width - 108f, 40f),
                     "방 나가기", smallButtonStyle))
             {
                 error = string.Empty;
                 network.LeaveRoom();
             }
 
-            if (GUI.Button(new Rect(x + 54f, controlsY + 116f, width - 108f, 40f),
+            if (GUI.Button(new Rect(x + 54f, controlsY + 116f + waitNotice, width - 108f, 40f),
                     "게스트 로그아웃", smallButtonStyle))
                 LogoutGuest();
         }
@@ -1155,6 +1175,11 @@ namespace Metagame.UI
             characters.Append("앞으로 이동 뒤로 이동 왼쪽 이동 오른쪽 이동 점프 달리기 팔 올리기 자유 시점 상호작용 탑승 장비 동작 태블릿 저중력장 끼임 탈출 재시작 이전 다음 커서 해제");
             characters.Append("이미 사용 중인 키입니다 중복된 키를 먼저 변경해 주세요 제한 없음 창 모드 전체 화면 최대화 창 테두리 없는 창");
             characters.Append("설정을 저장했습니다 설정을 저장하지 못했습니다");
+            // 입장 실패 사유와 이전 대기 안내 (S15P21B202-413). 이 목록에 없는 글자는
+            // 예열되지 않으므로 새 문구를 넣을 때마다 여기도 더해야 한다.
+            characters.Append(".,인원이 다 찼습니다 이미 시작된 방입니다 끝나면 다시 시도해 주세요");
+            characters.Append("그런 방이 없습니다 코드를 확인해 주세요 판에 참가했던 사람만 돌아올 수 있습니다");
+            characters.Append("게임에 들어가는 중입니다 잠시만 기다려 주세요 방장이 바뀌는 중입니다");
 
             int[] sizes = { 15, 16, 19, 20, 29 };
             for (int i = 0; i < sizes.Length; i++)
