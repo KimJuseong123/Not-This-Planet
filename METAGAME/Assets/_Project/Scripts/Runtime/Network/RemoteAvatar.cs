@@ -53,6 +53,61 @@ namespace Metagame.Network
         bool mine;
         bool leftArmIntent;
         bool rightArmIntent;
+        bool followingRide;
+        bool[] rideKinematic;
+        bool[] rideCollisions;
+
+        // 탑승은 서버만 처리한다. 참가자의 보행 예측을 그대로 두면 선체와 충돌하며
+        // 서버의 좌석 위치 보정과 싸운다. 원래 물리 설정을 저장해 하차 때 복원한다.
+        public void ApplyRidingState()
+        {
+            if (!mine || NetworkServer.active || doll == null) return;
+            bool riding = rig.RemoteRiding;
+            if (followingRide == riding) return;
+
+            ClearCorrection();
+            if (riding)
+            {
+                rideKinematic = new bool[doll.Bodies.Count];
+                rideCollisions = new bool[doll.Bodies.Count];
+                for (int i = 0; i < doll.Bodies.Count; i++)
+                {
+                    var body = doll.Bodies[i];
+                    if (body == null) continue;
+                    rideKinematic[i] = body.isKinematic;
+                    rideCollisions[i] = body.detectCollisions;
+                    body.detectCollisions = false;
+                    body.isKinematic = true;
+                }
+                followingRide = true;
+                rig.Cam?.SetVehicleView(true);
+            }
+            else
+            {
+                RestoreRidePhysics();
+            }
+
+            if (source != null) doll.Teleport(source.position, source.rotation);
+        }
+
+        void RestoreRidePhysics()
+        {
+            if (!followingRide) return;
+            for (int i = 0; i < doll.Bodies.Count && i < rideKinematic.Length; i++)
+            {
+                var body = doll.Bodies[i];
+                if (body == null) continue;
+                body.isKinematic = rideKinematic[i];
+                body.detectCollisions = rideCollisions[i];
+            }
+            followingRide = false;
+            rideKinematic = null;
+            rideCollisions = null;
+            ClearCorrection();
+            rig.Cam?.SetVehicleView(false);
+        }
+
+        void OnDisable() => RestoreRidePhysics();
 
         /// <summary>
         /// 부활 판정을 서버에 넘긴다 — <b>이 기계가 서버가 아닐 때만</b>
@@ -270,6 +325,19 @@ namespace Metagame.Network
             // 내 몸은 로컬 물리가 돌린다. 여기서는 서버와의 **오차만** 조금씩 갚는다.
             if (mine)
             {
+                ApplyRidingState();
+                if (followingRide)
+                {
+                    ClearCorrection();
+                    for (int i = 0; i < doll.Bodies.Count; i++)
+                    {
+                        var body = doll.Bodies[i];
+                        if (body == null) continue;
+                        body.MovePosition(source.position + source.rotation * doll.RestOffsets[i]);
+                        body.MoveRotation(source.rotation * doll.RestRotations[i]);
+                    }
+                    return;
+                }
                 Converge();
                 return;
             }

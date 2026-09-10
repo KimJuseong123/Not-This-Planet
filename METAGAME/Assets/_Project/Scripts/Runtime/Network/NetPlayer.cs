@@ -80,12 +80,8 @@ namespace Metagame.Network
         /// 클라이언트의 화면에는 조작 결과가 자세로만 오므로, "저 사람이 탔다" 는
         /// 사실 자체를 따로 알려 줘야 한다.
         ///
-        /// <b>지금 이 값을 읽는 곳은 <see cref="OnRidingChanged"/> 하나다</b>
-        /// (S15P21B202-305). 남의 화면에 있는 몸을 감추는 데 쓴다 — 그러지 않으면
-        /// 조종석에 묻힌 몸에서 귀만 기체 밖으로 튀어나온다.
-        ///
-        /// 원래 주석은 "HUD 가 옳게 그린다" 였는데 <b>HUD 는 이 값을 읽지 않는다.</b>
-        /// 그 용도는 아직 구현되지 않았고 후속 이슈로 남아 있다.
+        /// 남의 몸을 감추고, 참가자 본인의 보행 예측을 탑승 추종으로 전환한다.
+        /// HUD와 상호작용도 PlayerRig의 공통 탑승 상태를 읽는다.
         /// </summary>
         [SyncVar(hook = nameof(OnRidingChanged))]
         public bool riding;
@@ -511,7 +507,7 @@ namespace Metagame.Network
                 && body.Hips != null)
             {
                 echoTimer = 0f;
-                TargetEcho(appliedSeq, body.Hips.position);
+                TargetEcho(appliedSeq, body.Hips.position, body.IsRiding);
             }
 
             // 방장 자신의 몸은 게임 씬(GameSession)이 매 프레임 직접 입력을 넣는다.
@@ -753,6 +749,8 @@ namespace Metagame.Network
             if (body == null) return false;
 
             remoteAvatar = RemoteAvatar.Attach(body, transform, mine: true);
+            ApplyRiding(riding);
+            ApplyDowned(downed);
             Debug.Log($"[NetPlayer] 내 캐릭터를 서버에 맡겼다 · {nickname}(userId={userId})");
             return true;
         }
@@ -835,7 +833,7 @@ namespace Metagame.Network
         /// 재전송 대기가 지연으로 쌓인다(S15P21B202-328 에서 겪은 것과 같은 종류).
         /// </summary>
         [TargetRpc(channel = Channels.Unreliable)]
-        void TargetEcho(uint seq, Vector3 position)
+        void TargetEcho(uint seq, Vector3 position, bool serverRiding)
         {
             // 방장은 자기가 정답이라 보정할 것이 없다. 원격 아바타도 이 경로를 타지 않는다.
             if (isServer || !isLocalPlayer) return;
@@ -844,6 +842,10 @@ namespace Metagame.Network
             // 순서가 뒤집혀 온 옛 소식은 버린다. 받아들이면 이미 갚은 오차를 되돌린다.
             if (seq <= lastEchoSeq) return;
             lastEchoSeq = seq;
+
+            // 탑승 자세는 NetworkTransform을 따른다. 보행 오차로 갚으면 좌석에서 밀린다.
+            // 이전 탑승 상태의 지연된 echo도 새 보행 상태에 섞지 않는다.
+            if (serverRiding || body.IsRiding) return;
 
             // 오차는 **같은 순번끼리** 견줘야 한다. 지금 자세와 견주면 왕복 시간만큼
             // 뒤로 끌린다 — 가만히 서 있어도 계속 뒤로 밀린다.
@@ -981,9 +983,15 @@ namespace Metagame.Network
         /// </summary>
         void ApplyRiding(bool nowRiding)
         {
-            if (body == null) return;
+            if (body == null || isServer) return;
 
+            if (body.RemoteRiding != nowRiding)
+            {
+                historyCount = 0;
+                remoteAvatar?.ClearCorrection();
+            }
             body.SetRemoteRiding(nowRiding);
+            remoteAvatar?.ApplyRidingState();
         }
 
         public override void OnStopClient()
@@ -1041,6 +1049,15 @@ namespace Metagame.Network
         void RemoveBody()
         {
             if (body == null) return;
+
+            // 로컬 리그는 씬에 남는다. 연결 종료/호스트 전환 때 탑승용 물리를
+            // 복원하고 이전 서버를 따르던 컴포넌트를 제거한다.
+            if (remoteAvatar != null)
+            {
+                remoteAvatar.enabled = false;
+                body.SetRemoteRiding(false);
+                Destroy(remoteAvatar);
+            }
 
             // 넘겨받은 몸은 게임 씬 것이다 — 카메라와 HUD 가 아직 보고 있다.
             if (!adoptedBody && (!isLocalPlayer || isServer)) Destroy(body.gameObject);

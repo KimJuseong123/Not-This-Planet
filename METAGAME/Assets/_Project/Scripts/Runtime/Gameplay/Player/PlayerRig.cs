@@ -108,7 +108,7 @@ namespace Metagame.Gameplay
         /// </summary>
         public bool Downed { get; private set; }
         public TransportVehicle MountedVehicle { get; private set; }
-        public bool IsMounted { get { return MountedVehicle != null; } }
+        public bool IsMounted { get { return MountedVehicle != null || RemoteRiding; } }
 
         /// <summary>
         /// 몸이 조인트로 붙어 있는 강체. 운반 장치 탑승도, 우주선 탑승도 이것을 채운다.
@@ -125,19 +125,12 @@ namespace Metagame.Gameplay
         public Rigidbody RidingBody { get; private set; }
 
         /// <summary>무엇에든 붙어 실려 가는 중인가.</summary>
-        public bool IsRiding { get { return RidingBody != null; } }
+        public bool IsRiding { get { return RidingBody != null || RemoteRiding; } }
 
         /// <summary>
-        /// <b>남의 화면에서</b> 이 사람이 운반 장치를 타고 있는가(S15P21B202-305).
-        ///
-        /// <see cref="IsRiding"/> 은 <see cref="RidingBody"/> 로 판단하는데, 그 값은
-        /// <c>Board()</c> 가 채우므로 <b>탄 본인의 컴퓨터에서만</b> 참이다. 남의 화면에
-        /// 있는 몸은 <c>NetPlayer</c> 가 따로 만든 <see cref="PlayerRig"/> 이고 거기서는
-        /// <c>Board()</c> 가 돌지 않는다 — 그래서 몸이 계속 그려졌고, 조종석에 묻힌
-        /// 몸통과 달리 <b>귀만 기체 밖으로 튀어나왔다.</b>
-        ///
-        /// 서버가 이미 <c>NetPlayer.riding</c> 으로 그 사실을 모두에게 보내고 있었다.
-        /// 읽는 곳이 없었을 뿐이다.
+        /// 서버가 확정한 견인장치 탑승 상태. 참가자 본인에게도 적용한다.
+        /// 클라이언트에서는 좌석 조인트를 만들지 않으므로 RidingBody가 없어도
+        /// 보행·부유·상호작용 판정은 탑승 상태를 사용해야 한다.
         /// </summary>
         public bool RemoteRiding { get; private set; }
 
@@ -1587,7 +1580,7 @@ namespace Metagame.Gameplay
 
             // 몸이 조인트로 붙어 있으면 보행 물리를 돌리지 않는다. 돌리면 부양·이동력이
             // 구속과 싸운다. 운반 장치는 제 속도를 알려 주고, 우주선은 강체에서 읽는다.
-            if (RidingBody != null)
+            if (IsRiding)
             {
                 Grounded = true;
                 GroundDistance = Tuning.RideHeight;
@@ -1597,12 +1590,17 @@ namespace Metagame.Gameplay
                     GroundVelocity = MountedVehicle.HorizontalVelocity;
                     Speed = MountedVehicle.HorizontalSpeed;
                 }
-                else
+                else if (RidingBody != null)
                 {
                     var flat = RidingBody.linearVelocity;
                     flat.y = 0f;
                     GroundVelocity = flat;
                     Speed = flat.magnitude;
+                }
+                else
+                {
+                    GroundVelocity = Vector3.zero;
+                    Speed = 0f;
                 }
 
                 AirTime = 0f;

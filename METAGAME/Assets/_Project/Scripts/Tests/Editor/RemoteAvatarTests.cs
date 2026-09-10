@@ -42,7 +42,7 @@ namespace Metagame.Gameplay.Tests
         /// 원격 아바타 한 구와, 서버가 위치를 넣어 주는 자리를 만든다.
         /// 모델(SpaceSuit)은 쓰지 않는다 — 에셋 로딩 없이 물리만 본다.
         /// </summary>
-        (RemoteAvatar Avatar, PlayerRig Rig, Transform Source) Spawn(Vector3 at)
+        (RemoteAvatar Avatar, PlayerRig Rig, Transform Source) Spawn(Vector3 at, bool mine = false)
         {
             var source = new GameObject("서버가 보낸 자리").transform;
             source.position = at;
@@ -52,7 +52,85 @@ namespace Metagame.Gameplay.Tests
                                        Color.white, Color.gray, useModel: false);
             _spawned.Add(rig.gameObject);
 
-            return (RemoteAvatar.Attach(rig, source), rig, source);
+            return (RemoteAvatar.Attach(rig, source, mine), rig, source);
+        }
+
+        [Test]
+        public void LocalRiderFollowsServerWithoutWalkingOrColliding()
+        {
+            var (avatar, rig, source) = Spawn(Vector3.zero, mine: true);
+            rig.SetRemoteRiding(true);
+            source.position = new Vector3(2f, 5f, 0f);
+            avatar.AddCorrection(Vector3.left * 10f);
+
+            for (int i = 0; i < 20; i++)
+            {
+                source.position += Vector3.forward * 0.1f;
+                rig.SetInput(new Metagame.Core.InputFrame { Move = Vector2.up, Jump = true });
+                avatar.Follow();
+                rig.Tick();
+                Physics.Simulate(Time.fixedDeltaTime);
+                Assert.Less(Vector3.Distance(rig.Hips.position, source.position), 0.01f);
+            }
+
+            Assert.IsTrue(rig.IsRiding, "서버의 탑승 상태가 보행·상호작용 판정에도 적용되어야 한다.");
+            foreach (var body in rig.Doll.Bodies)
+            {
+                Assert.IsTrue(body.isKinematic);
+                Assert.IsFalse(body.detectCollisions);
+            }
+        }
+
+        [Test]
+        public void LocalDismountRestoresPhysicsAndClearsSeatCorrection()
+        {
+            var (avatar, rig, source) = Spawn(Vector3.zero, mine: true);
+            var balance = rig.Doll.Balance;
+            var gravity = rig.Hips.useGravity;
+            for (int i = 0; i < 3; i++)
+            {
+                rig.SetRemoteRiding(true);
+                avatar.Follow();
+                avatar.AddCorrection(Vector3.right * 10f);
+                rig.SetRemoteRiding(false);
+                source.position = new Vector3(3f + i, 1f, 0f);
+                avatar.Follow();
+                var exit = rig.Hips.position;
+                avatar.Follow();
+
+                Assert.IsFalse(rig.IsRiding);
+                Assert.IsFalse(rig.Hips.isKinematic);
+                Assert.IsTrue(rig.Hips.detectCollisions);
+                Assert.AreEqual(gravity, rig.Hips.useGravity);
+                Assert.AreSame(balance, rig.Doll.Balance);
+                Assert.AreEqual(exit, rig.Hips.position, "탑승 중 쌓인 보정이 하차 후 적용되면 안 된다.");
+            }
+        }
+
+        [Test]
+        public void LocalRidePreservesDrivingInputAndRestoresCameraOnDisable()
+        {
+            var (avatar, rig, _) = Spawn(Vector3.zero, mine: true);
+            rig.Cam = OrbitCamera.Create(rig.Hips.transform, Color.black, firstPerson: false);
+            _spawned.Add(rig.Cam.gameObject);
+            rig.SetInput(new Metagame.Core.InputFrame { Move = Vector2.up, Jump = true });
+            rig.SetRemoteRiding(true);
+            avatar.ApplyRidingState();
+            rig.Tick();
+
+            Assert.IsTrue(rig.Cam.FirstPerson);
+            Assert.IsTrue(rig.IsMounted);
+            Assert.AreEqual(Vector2.up, rig.CurrentInput.Move);
+            Assert.IsTrue(rig.CurrentInput.Jump, "서버로 보낼 상승 입력은 유지해야 한다.");
+
+            avatar.enabled = false;
+            // EditMode에서는 일반 MonoBehaviour의 OnDisable을 자동 호출하지 않는다.
+            typeof(RemoteAvatar).GetMethod("OnDisable",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                .Invoke(avatar, null);
+            Assert.IsFalse(rig.Hips.isKinematic);
+            Assert.IsTrue(rig.Hips.detectCollisions);
+            Assert.IsFalse(rig.Cam.FirstPerson);
         }
 
         /// <summary>PlayerRig 내부와 같은 간격으로 돌린다 — 프로젝트 Fixed Timestep 은 0.01초다.</summary>
