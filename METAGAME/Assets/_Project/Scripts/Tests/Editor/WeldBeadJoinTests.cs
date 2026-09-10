@@ -48,6 +48,67 @@ namespace Metagame.Gameplay.Tests
 
         // --- 닿으면 접합 ---------------------------------------------------
 
+        [Test]
+        public void BridgingChainChangesColor_WithoutRecoloringUnusedBeads()
+        {
+            var (lower, upper) = SeparatedPair();
+            var nozzle = NozzleForBridge(lower);
+            var bead = GrowAt(nozzle, Step);
+            var container = bead.transform.Find(WeldBead.ContainerName);
+            var seed = container.GetChild(0).GetComponent<Renderer>();
+            var unusedMaterial = seed.sharedMaterial;
+            Assert.IsNull(PartAssemblyLink.FindBetween(lower, upper));
+
+            BridgeUp(lower);
+            Assert.Greater(bead.BlobsIn(0), 1, "다리 중간 덩어리도 검증한다.");
+            Assert.AreNotEqual(unusedMaterial.color, seed.sharedMaterial.color);
+            foreach (var renderer in container.GetComponentsInChildren<Renderer>())
+                Assert.AreSame(seed.sharedMaterial, renderer.sharedMaterial);
+
+            // 같은 파츠의 아래쪽에 만든 비드는 위 파츠와의 접합에 기여하지 않는다.
+            var bottomNozzle = lower.transform.position - Vector3.up *
+                (PhysicsScale.PartHeight * 0.5f + NozzleStandoff);
+            GrowAt(bottomNozzle, Step);
+            Assert.AreSame(unusedMaterial,
+                container.GetChild(container.childCount - 1).GetComponent<Renderer>().sharedMaterial);
+            Assert.AreNotSame(unusedMaterial, seed.sharedMaterial);
+        }
+
+        [Test]
+        public void BrokenBridgeReturnsToUnusedColor_WithoutRecreatingJoint()
+        {
+            var (lower, upper) = SeparatedPair();
+            var bead = GrowAt(NozzleForBridge(lower), Step);
+            var seed = bead.transform.Find(WeldBead.ContainerName).GetChild(0).GetComponent<Renderer>();
+            var unusedMaterial = seed.sharedMaterial;
+            BridgeUp(lower);
+            Assert.AreNotSame(unusedMaterial, seed.sharedMaterial);
+
+            PartAssemblyLink.FindBetween(lower, upper).Release();
+            bead.SendMessage("LateUpdate");
+
+            Assert.AreSame(unusedMaterial, seed.sharedMaterial);
+            Assert.IsNull(PartAssemblyLink.FindBetween(lower, upper));
+        }
+
+        [Test]
+        public void RestoredBridgeRecoversItsHelpfulColor()
+        {
+            var (lower, upper) = SeparatedPair();
+            var bead = BridgeUp(lower);
+            var helpfulMaterial = bead.transform.Find(WeldBead.ContainerName)
+                .GetChild(0).GetComponent<Renderer>().sharedMaterial;
+            var snapshot = new[] { bead.ReadChain(0) };
+
+            bead.Clear();
+            bead.RestoreChains(snapshot, 0, snapshot.Length);
+
+            Assert.IsNotNull(PartAssemblyLink.FindBetween(lower, upper));
+            foreach (var renderer in bead.transform.Find(WeldBead.ContainerName)
+                         .GetComponentsInChildren<Renderer>())
+                Assert.AreSame(helpfulMaterial, renderer.sharedMaterial);
+        }
+
         /// <summary>그림의 "아래 물체 한 지점에 계속 가했더니 위의 물체와 만나 하나가 된다".</summary>
         [Test]
         public void ABeadReachingAnotherBody_CreatesOneJoint()

@@ -82,6 +82,8 @@ namespace Metagame.Gameplay.Parts
             /// 한 칸 뛴다.
             /// </summary>
             public float ContactBlobs;
+
+            [NonSerialized] public bool? AppliedHelpfulColor;
         }
 
         [SerializeField] List<Chain> _chains = new();
@@ -260,6 +262,13 @@ namespace Metagame.Gameplay.Parts
         void OnEnable() => Register();
 
         void OnDisable() => Unregister();
+
+        void LateUpdate()
+        {
+            // 접합 파손과 네트워크 링크 복원도 반영한다. 물리 접촉을 다시 재거나
+            // 접합을 만들지 않고, 기존 판정에 따라 외형만 갱신한다.
+            for (var i = 0; i < _chains.Count; i++) RefreshAppearance(_chains[i]);
+        }
 
         /// <summary>
         /// 소유 파츠와 비드 컨테이너를 찾는다. 여러 번 불러도 안전하다.
@@ -627,6 +636,7 @@ namespace Metagame.Gameplay.Parts
 
         void SpawnBlob(Chain chain, int index)
         {
+            chain.AppliedHelpfulColor = null;
             var local = chain.Origin + chain.Direction * (index * PhysicsScale.WeldBeadStep);
             var world = _container.TransformPoint(local);
 
@@ -711,6 +721,29 @@ namespace Metagame.Gameplay.Parts
             // 그러지 않으면 떠난 접합이 옛 강도를 그대로 들고 남는다.
             if (previous != null && previous != chain.Touched) ApplyStrengthTo(previous);
             if (chain.Touched != null) ApplyStrengthTo(chain.Touched);
+            RefreshAppearance(chain);
+        }
+
+        void RefreshAppearance(Chain chain)
+        {
+            if (chain == null) return;
+
+            var link = chain.Touched != null && chain.ContactBlobs > 0f
+                ? PartAssemblyLink.FindBetween(_owner, chain.Touched) : null;
+            var helpful = link != null && link.IsIntact;
+            if (chain.AppliedHelpfulColor == helpful) return;
+
+            // 다리 중간 덩어리도 연결을 유지하므로 사슬 전체를 같은 색으로 표시한다.
+            // 공유 재질 자체를 수정하면 무관한 비드까지 변하므로 재질 참조만 바꾼다.
+            var material = Prim.Dough(helpful ? HelpfulBeadColor : BeadColor, BeadSoftness);
+            for (var b = 0; b < chain.Blobs.Count; b++)
+            {
+                var blob = chain.Blobs[b];
+                if (blob != null && blob.TryGetComponent<Renderer>(out var renderer))
+                    renderer.sharedMaterial = material;
+            }
+
+            chain.AppliedHelpfulColor = helpful;
         }
 
         /// <summary>사슬이 어느 파츠에 얼마나 닿아 있는지 잰다.</summary>
@@ -880,6 +913,9 @@ namespace Metagame.Gameplay.Parts
         /// <see cref="SpawnBlob"/> 의 <c>Prim.Ball</c> 자리만 바꾼다.
         /// </summary>
         static Color BeadColor => new Color(0.42f, 0.36f, 0.32f, 1f);
+
+        // 접합에 기여한다는 뜻이며, 완전 강도나 올바른 조립 순서의 표시는 아니다.
+        static Color HelpfulBeadColor => new Color(0.12f, 0.78f, 0.72f, 1f);
 
         const float BeadSoftness = 0.15f;
 
