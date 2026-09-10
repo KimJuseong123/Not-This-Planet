@@ -116,7 +116,11 @@ namespace Metagame.Network
 
             // 자리(색) 배정도 새로 시작한다 (S15P21B202-375). 남겨 두면 두 명만 남았는데
             // 2번·3번 자리를 쓰는 식이 된다.
-            TeamSlots.Clear();
+            //
+            // <b>이어받는 중이면 버리지 않는다</b> (S15P21B202-396). 위와 같은 이유다 —
+            // 새 판이 아니라 같은 판이고, 방금 NetPlayer.OnStopClient 가 각자 쓰던 색을
+            // 여기 적어 두었다. 버리면 접속 순서대로 다시 배정돼 사람마다 색이 바뀐다.
+            if (!HostMigration.Taking) TeamSlots.Clear();
 
             live = Build();
             live.InitializeDustStormSeed(DustStormMatchSeed.EnsureServerMatch());
