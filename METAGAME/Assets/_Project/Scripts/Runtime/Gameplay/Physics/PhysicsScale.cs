@@ -70,11 +70,10 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float PartMaxAngularSpeed = 5f;
 
-        /// <summary>
-        /// 손으로 파츠를 당길 때 실제 이동을 허용하는 최소 플레이어 수.
-        /// 한두 명은 파츠를 붙잡고 버티기만 하고, 세 명부터 협동 견인이 시작된다.
-        /// </summary>
-        public const int PartPullMinPlayers = 3;
+        // 협동 밀기의 최소 인원은 여기에 상수로 두지 않는다.
+        // 그 값은 "가속이 0 보다 큰 첫 인원" 이므로 표 하나에서 따라 나온다 —
+        // Parts.PartPushTable.MinPeopleToMove 를 보라. 상수를 따로 두면 표를 고칠 때
+        // 둘이 어긋나고, 어긋나면 "셋이 모였는데 안 움직인다" 가 다시 생긴다.
 
         // --- 견인 도구 ---
         /// <summary>비행접시형 운반 도구. 파츠에 끌려다니지 않을 정도의 무게.</summary>
@@ -1085,13 +1084,13 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float PartPushAimDot = 0.5f;
 
-        /// <summary>
-        /// 밀기 가속(m/s²). 목표 속도까지 올라가는 빠르기다.
-        ///
-        /// 1.2 면 1명이 미는 0.4m/s 까지 3분의 1초쯤 걸린다. 즉시 목표 속도가 되면
-        /// 500kg 이 아니라 빈 상자를 미는 것으로 보인다.
-        /// </summary>
-        public const float PartPushAccel = 1.2f;
+        // 밀기 가속은 인원수에 따라 달라지므로 상수가 아니라 표다 —
+        // Parts.PartPushTable.Accels 를 보라.
+        //
+        // 예전에는 여기에 인원과 무관한 1.2f 가 있었다. 그 값은 지면 정지 마찰이
+        // 요구하는 4.75 m/s² (0.95 x 중력 5)의 4분의 1이라, 몇 명이 모여도 마찰이
+        // 같은 물리 스텝에 전부 지웠다 — 협동 밀기가 한 번도 작동한 적이 없었다
+        // (S15P21B202-394). 힘을 넣는 상수는 이겨야 하는 저항을 같은 단위로 적어 둔다.
 
         /// <summary>
         /// 아무도 밀지 않을 때 관성이 줄어드는 시간 상수(초). 기획 §13.2 "약 1초 동안

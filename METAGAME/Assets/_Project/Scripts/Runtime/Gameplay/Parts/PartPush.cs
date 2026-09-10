@@ -27,10 +27,11 @@ namespace Metagame.Gameplay.Parts
         /// <summary>한 사람의 밀기 상태.</summary>
         sealed class Pusher
         {
-            public float IntentSeconds;    // 파츠 쪽으로 이동한 시간
+            public float IntentSeconds;    // 밀려는 이동을 유지한 시간
             public float GraceSeconds;     // 의도가 끊긴 뒤 남은 시간
-            public Vector3 Direction;      // 마지막으로 민 방향(수평)
+            public Vector3 Direction;      // 마지막으로 민 방향(수평, 이동 입력)
             public bool Active;            // 이번 틱에 미는 사람으로 세는가
+            public bool Holding;           // 손으로 잡아서 참여하는가
         }
 
         readonly Dictionary<PlayerRig, Pusher> _pushers = new();
@@ -40,28 +41,47 @@ namespace Metagame.Gameplay.Parts
         Grabbable _grabbable;
         Rigidbody _body;
         Collider _collider;
+        Collider[] _colliders;
 
         float _lastTopSpeed;
         bool _pushedRecently;
 
-        /// <summary>이번 틱에 미는 사람 수. 기획 §13.2 의 표가 이 값을 받는다.</summary>
-        public int PusherCount { get; private set; }
+        /// <summary>
+        /// 이번 틱에 파츠를 미는 사람 수 — <b>손으로 잡은 사람과 몸으로 미는 사람의
+        /// 합</b>이다. 기획 §13.2 의 표가 이 값을 받는다.
+        ///
+        /// 둘을 합치는 이유는 §13 이 "힘을 합쳐 민다" 이지 "잡는 것과 미는 것이 다른
+        /// 기능" 이 아니기 때문이다. 둘이 잡고 하나가 몸으로 밀어도 셋이다.
+        /// 같은 사람이 잡고 동시에 몸으로 밀어도 <b>한 명</b>이다.
+        /// </summary>
+        public int HaulerCount { get; private set; }
 
         /// <summary>이번 틱의 합산 밀기 방향(수평, 단위). 아무도 없으면 0이다.</summary>
-        public Vector3 PushDirection { get; private set; }
+        public Vector3 HaulDirection { get; private set; }
 
-        /// <summary>이번 틱에 손으로 파츠를 붙잡은 플레이어 수. 양손은 한 명으로 센다.</summary>
+        /// <summary>그중 손으로 잡아서 참여한 사람 수. 양손은 한 명으로 센다.</summary>
         public int PullerCount { get; private set; }
 
-        /// <summary>잡고 있는 플레이어들이 파츠에서 바깥으로 당기는 합산 방향.</summary>
-        public Vector3 PullDirection { get; private set; }
+        /// <summary>그중 몸으로만 밀어 참여한 사람 수.</summary>
+        public int PusherCount { get; private set; }
 
-        /// <summary>최소 인원과 방향이 갖춰져 실제 협동 견인이 가능한가.</summary>
-        public bool IsPulled => PullerCount >= PhysicsScale.PartPullMinPlayers
-                                && PullDirection.sqrMagnitude > 1e-6f;
+        /// <summary>누군가 밀려고 하는가. 실제로 움직이는지와는 별개다.</summary>
+        public bool IsHauling => HaulerCount > 0 && HaulDirection.sqrMagnitude > 1e-6f;
 
-        /// <summary>지금 밀리고 있는가.</summary>
-        public bool IsPushed => PusherCount > 0;
+        /// <summary>이번 틱에 파츠가 실제로 가속되는가 — 인원이 마찰을 이기는가.</summary>
+        public bool IsMoving => IsHauling && HaulerCount >= PartPushTable.MinPeople;
+
+        /// <summary>
+        /// 붙어서 밀고 있지만 인원이 모자라 파츠가 꿈쩍하지 않는 상태.
+        ///
+        /// <b>이 값은 연출을 위해 있다.</b> 한두 명이 붙었을 때 화면에 아무 반응이 없으면
+        /// 플레이어는 고장으로 읽는다. 버티는 자세나 "○/3" 표시가 이 값을 본다
+        /// (연출은 S15P21B202-394 의 후속이다 — 지금 쓰는 곳은 검증뿐이다).
+        /// </summary>
+        public bool Bracing => IsHauling && !IsMoving;
+
+        /// <summary>파츠가 움직이기 시작하는 최소 인원. HUD 의 "○/3" 이 쓴다.</summary>
+        public static int MinPeopleToMove => PartPushTable.MinPeopleToMove;
 
         void Awake() => Initialize();
 
@@ -79,6 +99,14 @@ namespace Metagame.Gameplay.Parts
             if (_grabbable == null) _grabbable = GetComponent<Grabbable>();
             if (_body == null) _body = GetComponent<Rigidbody>();
             if (_collider == null) _collider = GetComponent<Collider>();
+
+            // **콜라이더를 전부 모은다.** 파츠는 실제 형태를 따르는 상자 여럿이다
+            // (기획 §25.3 · PartSpec). 예전에는 GetComponent 로 첫 상자만 봤는데,
+            // Part_1 은 그것이 최하단 0.94 x 0.94 받침이라 골반이 1.08m 떨어진 것으로
+            // 계산되어 **몸으로 미는 것이 아예 시작되지 않았다**(S15P21B202-394).
+            if (_colliders == null || _colliders.Length == 0)
+                _colliders = GetComponents<Collider>();
+
             if (!All.Contains(this)) All.Add(this);
         }
 
@@ -128,10 +156,10 @@ namespace Metagame.Gameplay.Parts
             if (!CanPush)
             {
                 _pushers.Clear();
-                PusherCount = 0;
-                PushDirection = Vector3.zero;
+                HaulerCount = 0;
+                HaulDirection = Vector3.zero;
                 PullerCount = 0;
-                PullDirection = Vector3.zero;
+                PusherCount = 0;
                 _pushedRecently = false;
                 return;
             }
@@ -140,10 +168,23 @@ namespace Metagame.Gameplay.Parts
             Drive(deltaTime);
         }
 
-        /// <summary>미는 사람을 모은다(기획 §13.1).</summary>
+        /// <summary>
+        /// 미는 사람을 모은다(기획 §13.1).
+        ///
+        /// <b>손으로 잡은 사람과 몸으로 미는 사람을 한 번에 센다.</b> 참여 자격만 다르고
+        /// 그 뒤는 같다 — 인원에 1을 더하고 <b>그 사람의 이동 입력 방향</b>을 합산한다.
+        ///
+        /// <b>방향을 위치가 아니라 이동 입력에서 얻는 이유.</b> 예전에는 잡은 사람의
+        /// 방향을 "파츠 중심에서 그 사람 쪽" 으로 정했다. 그러면 잡은 채로 어느 쪽으로
+        /// 걸어가든 파츠는 <b>언제나 사람 쪽으로</b> 왔다 — 셋이 잡고 앞으로 밀면 파츠가
+        /// 자기들 쪽으로 와서 몸에 부딪혔고, 가만히 잡고 서 있어도 움직이려 들었다.
+        /// 입력에서 얻으면 잡고 밀면 밀리고 잡고 당기면 당겨진다. 규칙이 하나다.
+        /// </summary>
         void Gather(float deltaTime)
         {
-            var count = 0;
+            var haulers = 0;
+            var pullers = 0;
+            var pushers = 0;
             var sum = Vector3.zero;
 
             var players = PlayerRig.All;
@@ -155,18 +196,28 @@ namespace Metagame.Gameplay.Parts
                 // 기절한 사람과 탑승 중인 사람은 밀지 않는다.
                 var able = !player.Downed && !player.IsRiding;
 
-                var toPart = Toward(player);
-                var touching = able && toPart.sqrMagnitude > 1e-6f && IsTouching(player);
-
                 var wish = player.MoveWish;
                 wish.y = 0f;
+                var moving = wish.sqrMagnitude > 1e-4f;
+                var heading = moving ? wish.normalized : Vector3.zero;
 
-                // 파츠 쪽으로 향하는 이동인가. 멀어지는 입력은 밀기가 아니다 —
-                // "당기기는 제공하지 않으며 반대편으로 이동해 반대 방향으로 민다".
-                var intent = touching
-                             && wish.sqrMagnitude > 1e-4f
-                             && Vector3.Dot(wish.normalized, toPart)
-                                >= PhysicsScale.PartPushAimDot;
+                // 손으로 잡았으면 접촉·조준을 다시 보지 않는다. 잡는 것 자체가
+                // 이미 의도적인 행동이고, 잡은 사람은 어느 쪽으로든 끌 수 있다.
+                var holding = able && (IsHoldingPart(player.LeftHand)
+                                       || IsHoldingPart(player.RightHand));
+
+                // 몸으로 밀 때만 "파츠 쪽으로 향하는 이동인가" 를 본다. 멀어지는 입력은
+                // 밀기가 아니다 — §13.1 "당기기는 제공하지 않으며 반대편으로 이동해
+                // 반대 방향으로 민다". 손이 비었으면 파츠를 당길 수단이 없다.
+                var toPart = Toward(player);
+                var bodyPushing = able && !holding
+                                  && toPart.sqrMagnitude > 1e-6f
+                                  && IsTouching(player)
+                                  && moving
+                                  && Vector3.Dot(heading, toPart)
+                                     >= PhysicsScale.PartPushAimDot;
+
+                var intent = moving && (holding || bodyPushing);
 
                 if (!_pushers.TryGetValue(player, out var pusher))
                 {
@@ -180,7 +231,8 @@ namespace Metagame.Gameplay.Parts
                 {
                     pusher.IntentSeconds += deltaTime;
                     pusher.GraceSeconds = PhysicsScale.PartPushReleaseSeconds;
-                    pusher.Direction = toPart;
+                    pusher.Direction = heading;
+                    pusher.Holding = holding;
                 }
                 else
                 {
@@ -202,49 +254,19 @@ namespace Metagame.Gameplay.Parts
                 }
 
                 pusher.Active = true;
-                count++;
+                haulers++;
+                if (pusher.Holding) pullers++; else pushers++;
                 sum += pusher.Direction;
             }
 
             Forget();
 
-            PusherCount = count;
+            HaulerCount = haulers;
+            PullerCount = pullers;
+            PusherCount = pushers;
 
-            // 서로 다른 방향으로 밀면 힘 벡터를 합산한다(§13.2).
-            PushDirection = sum.sqrMagnitude > 1e-6f ? sum.normalized : Vector3.zero;
-
-            GatherPullers();
-        }
-
-        /// <summary>
-        /// 손으로 파츠를 짚은 플레이어를 모은다. 같은 플레이어가 양손을 사용해도
-        /// 한 명으로 계산한다. 당기는 방향은 파츠 중심에서 플레이어 쪽이다.
-        /// </summary>
-        void GatherPullers()
-        {
-            var count = 0;
-            var sum = Vector3.zero;
-
-            var players = PlayerRig.All;
-            for (var i = 0; i < players.Count; i++)
-            {
-                var player = players[i];
-                if (player == null || player.Doll == null
-                    || player.Downed || player.IsRiding)
-                    continue;
-
-                if (!IsHoldingPart(player.LeftHand) && !IsHoldingPart(player.RightHand))
-                    continue;
-
-                var away = AwayFrom(player);
-                if (away.sqrMagnitude <= 1e-6f) continue;
-
-                count++;
-                sum += away;
-            }
-
-            PullerCount = count;
-            PullDirection = sum.sqrMagnitude > 1e-6f ? sum.normalized : Vector3.zero;
+            // 서로 다른 방향으로 밀면 힘 벡터를 합산한다(§13.2). 마주보고 밀면 상쇄된다.
+            HaulDirection = sum.sqrMagnitude > 1e-6f ? sum.normalized : Vector3.zero;
         }
 
         bool IsHoldingPart(Hand hand) => hand != null
@@ -277,31 +299,41 @@ namespace Metagame.Gameplay.Parts
             var velocity = _body.linearVelocity;
             var horizontal = new Vector3(velocity.x, 0f, velocity.z);
 
-            if (IsPulled)
+            var force = PartPushTable.ForceFor(HaulerCount, _body.mass);
+
+            // 인원이 문턱에 못 미치면 **파츠를 건드리지 않는다.**
+            //
+            // 예전에는 인원과 무관한 고정 가속(1.2 m/s²)으로 속도를 직접 대입했다.
+            // 그 값은 지면 마찰이 요구하는 4.75 m/s² 의 4분의 1이라 마찰이 같은 물리
+            // 스텝에 전부 지웠고, 파츠는 3초를 밀어도 0.0000m 움직였다 —
+            // 협동 밀기가 한 번도 작동한 적이 없었다(S15P21B202-394).
+            //
+            // 지우는 것을 알면서 매 스텝 넣으면 파츠가 미세하게 떨리고, 아래의
+            // _pushedRecently 가 계속 켜져 감쇠와 외부 충격 판별이 내내 헛돈다.
+            if (IsHauling && force > 0f)
             {
-                var top = PartPushTable.SpeedFor(PullerCount);
+                var top = PartPushTable.SpeedFor(HaulerCount);
                 _lastTopSpeed = top;
                 _pushedRecently = true;
 
-                var along = Vector3.Dot(horizontal, PullDirection);
-                if (along >= top) return;
-
-                var add = Mathf.Min(PhysicsScale.PartPushAccel * deltaTime, top - along);
-                _body.linearVelocity = velocity + PullDirection * add;
-                return;
-            }
-
-            if (PusherCount > 0)
-            {
-                var top = PartPushTable.SpeedFor(PusherCount);
-                _lastTopSpeed = top;
-                _pushedRecently = true;
-
-                var along = Vector3.Dot(horizontal, PushDirection);
+                var along = Vector3.Dot(horizontal, HaulDirection);
                 if (along >= top) return;   // 이미 더 빠르다 — 건드리지 않는다
 
-                var add = Mathf.Min(PhysicsScale.PartPushAccel * deltaTime, top - along);
-                _body.linearVelocity = velocity + PushDirection * add;
+                // **남은 여유에 맞춰 힘을 깎는다.** AddForce 는 다음 물리 스텝에야
+                // 속도가 되므로, 상한 바로 아래에서 온 힘을 넣으면 그 한 스텝이
+                // 표를 넘어선다 — 셋이 미는데 1.2 대신 1.31 m/s 가 나왔다.
+                var room = (top - along) * _body.mass / deltaTime;
+                var applied = Mathf.Min(force, room);
+
+                // **속도를 대입하지 않고 힘으로 준다.** 속도를 대입하면 마찰이 그것을
+                // 지우는지가 접촉점 개수에 달려, 같은 값이 어떤 파츠는 밀고 어떤
+                // 파츠는 못 민다 — 평평한 2 x 2 바닥은 8 m/s² 로도 꿈쩍하지 않았고
+                // Part_1 은 2.4 에 밀렸다. 힘은 solver 가 마찰과 한 층에서 풀어
+                // 형태와 무관하고, 질량이 실제로 의미를 갖는다.
+                //
+                // 질량중심에 넣어 토크를 만들지 않는다 — 미는 것이 파츠를 넘어뜨리는
+                // 것이 되면 §13 이 아니라 §22.4 의 붕괴가 된다.
+                _body.AddForce(HaulDirection * applied, ForceMode.Force);
                 return;
             }
 
@@ -332,22 +364,43 @@ namespace Metagame.Gameplay.Parts
         Vector3 Toward(PlayerRig player)
         {
             var from = player.FootPosition;
-            var to = _collider != null ? _collider.bounds.center : transform.position;
+            var to = Center();
 
             var offset = to - from;
             offset.y = 0f;
             return offset.sqrMagnitude < 1e-6f ? Vector3.zero : offset.normalized;
         }
 
-        /// <summary>파츠 중심에서 플레이어 쪽으로 향하는 수평 단위 벡터.</summary>
-        Vector3 AwayFrom(PlayerRig player)
+        /// <summary>
+        /// 파츠 전체의 중심. <b>상자 하나가 아니라 모든 상자를 감싼 범위</b>로 잡는다 —
+        /// Part_1 처럼 받침만 좁은 파츠에서 첫 상자의 중심을 쓰면 미는 방향이 실제
+        /// 몸통과 어긋난다.
+        /// </summary>
+        Vector3 Center()
         {
-            var from = _collider != null ? _collider.bounds.center : transform.position;
-            var to = player.FootPosition;
+            if (_colliders == null || _colliders.Length == 0)
+                return _collider != null ? _collider.bounds.center : transform.position;
 
-            var offset = to - from;
-            offset.y = 0f;
-            return offset.sqrMagnitude < 1e-6f ? Vector3.zero : offset.normalized;
+            var bounds = new Bounds();
+            var started = false;
+
+            for (var i = 0; i < _colliders.Length; i++)
+            {
+                var collider = _colliders[i];
+                if (collider == null || !collider.enabled) continue;
+
+                if (!started)
+                {
+                    bounds = collider.bounds;
+                    started = true;
+                }
+                else
+                {
+                    bounds.Encapsulate(collider.bounds);
+                }
+            }
+
+            return started ? bounds.center : transform.position;
         }
 
         /// <summary>
@@ -358,16 +411,27 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         bool IsTouching(PlayerRig player)
         {
-            if (_collider == null) return false;
-
             var hips = player.Doll.Hips;
             if (hips == null) return false;
 
-            var point = _collider.ClosestPoint(hips.position);
-            var offset = point - hips.position;
-            offset.y = 0f;
+            if (_colliders == null || _colliders.Length == 0) return false;
 
-            return offset.magnitude <= PhysicsScale.PartPushContactDistance;
+            // **가장 가까운 상자로 판정한다.** 첫 상자만 보면 Part_1 의 좁은 받침이
+            // 기준이 되어, 넓은 몸통에 몸을 붙이고 걸어도 "닿지 않았다" 가 된다.
+            for (var i = 0; i < _colliders.Length; i++)
+            {
+                var collider = _colliders[i];
+                if (collider == null || !collider.enabled) continue;
+
+                var point = collider.ClosestPoint(hips.position);
+                var offset = point - hips.position;
+                offset.y = 0f;
+
+                if (offset.magnitude <= PhysicsScale.PartPushContactDistance)
+                    return true;
+            }
+
+            return false;
         }
     }
 }
