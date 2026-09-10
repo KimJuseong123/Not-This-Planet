@@ -123,7 +123,7 @@ assert unity_report.baseline_ref("S15P21B202-1-x") == "S15P21B202-1-x"
 print("  7) unity 기준선: master → develop ✅")
 
 # ── 8) hygiene 금지 목록에 빌드 폴더 ──
-assert any(p.match("METAGAME/Release/v0000.20260907.1257/SpaceFlop.exe") for p, _ in repo_hygiene.FORBIDDEN), \
+assert any(p.match("METAGAME/Release/v0000.20260907.1257/NotThisPlanet.exe") for p, _ in repo_hygiene.FORBIDDEN), \
     "METAGAME/Release/ 가 금지 경로여야 한다"
 print("  8) repo-hygiene: METAGAME/Release/ 금지 ✅")
 

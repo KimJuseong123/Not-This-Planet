@@ -40,10 +40,10 @@ namespace Metagame.EditorTools
 
         static readonly string[] ProtectedShaderNames =
         {
-            "SpaceFlop/Dough",
-            "SpaceFlop/Ghost",
-            "SpaceFlop/Flat",
-            "SpaceFlop/PlanetNoFog",
+            "NotThisPlanet/Dough",
+            "NotThisPlanet/Ghost",
+            "NotThisPlanet/Flat",
+            "NotThisPlanet/PlanetNoFog",
             "Metagame/Atmosphere/SkyGradient",
             "Hidden/Metagame/Atmosphere/Haze",
             "Metagame/Atmosphere/Meteor",
@@ -295,10 +295,10 @@ namespace Metagame.EditorTools
         {
             string[] shaderNames =
             {
-                "SpaceFlop/Dough",
-                "SpaceFlop/Ghost",
-                "SpaceFlop/Flat",
-                "SpaceFlop/PlanetNoFog",
+                "NotThisPlanet/Dough",
+                "NotThisPlanet/Ghost",
+                "NotThisPlanet/Flat",
+                "NotThisPlanet/PlanetNoFog",
                 "Universal Render Pipeline/Lit",
                 "Metagame/Atmosphere/SkyGradient",
                 "Hidden/Metagame/Atmosphere/Haze",

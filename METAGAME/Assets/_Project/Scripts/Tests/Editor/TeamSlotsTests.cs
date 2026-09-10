@@ -1,6 +1,7 @@
 using Metagame.Network;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace Metagame.Gameplay.Tests
 {
@@ -107,6 +108,83 @@ namespace Metagame.Gameplay.Tests
         {
             Assert.That(TeamSlots.Suit(TeamSlots.Count), Is.EqualTo(TeamSlots.Suit(0)));
             Assert.That(TeamSlots.Name(-1), Is.EqualTo(TeamSlots.Name(TeamSlots.Count - 1)));
+        }
+
+        // --- 이어받을 때 색 물려받기 (S15P21B202-396) -----------------------
+
+        /// <summary>
+        /// 쓰던 자리를 물려받으면 <see cref="TeamSlots.Claim"/> 이 그 자리를 돌려준다.
+        ///
+        /// <para>색은 방장이 배정해 SyncVar 로 내려가고 참가자는 받기만 한다 — 자기 기계에는
+        /// 기록이 없다. 그래서 이어받은 새 방장이 그냥 다시 배정하면 접속 순서대로 색이
+        /// 정해져 사람마다 색이 바뀐다.</para>
+        /// </summary>
+        [Test]
+        public void RememberedSeatsSurviveTheTakeover()
+        {
+            // 옛 방장이 배정해 둔 그림: 11번이 2번 자리, 22번이 0번 자리.
+            TeamSlots.Remember(11L, 2);
+            TeamSlots.Remember(22L, 0);
+
+            Assert.That(TeamSlots.Claim(11L), Is.EqualTo(2), "물려받은 자리가 아니다");
+            Assert.That(TeamSlots.Claim(22L), Is.EqualTo(0));
+        }
+
+        /// <summary>물려받지 않은 사람은 남은 자리를 받는다 — 겹치지 않는다.</summary>
+        [Test]
+        public void SomeoneWithoutARememberedSeatTakesAFreeOne()
+        {
+            TeamSlots.Remember(11L, 0);
+            TeamSlots.Remember(22L, 1);
+
+            int fresh = TeamSlots.Claim(33L);
+
+            Assert.That(fresh, Is.Not.EqualTo(0));
+            Assert.That(fresh, Is.Not.EqualTo(1));
+            Assert.That(fresh, Is.InRange(0, TeamSlots.Count - 1));
+        }
+
+        /// <summary>
+        /// 남이 쓰는 자리는 덮지 않는다 — 두 사람이 같은 색이면 구분이 안 된다.
+        /// </summary>
+        [Test]
+        public void RememberDoesNotStealAnotherPersonsSeat()
+        {
+            TeamSlots.Remember(11L, 3);
+
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("TeamSlots"));
+            TeamSlots.Remember(22L, 3);
+
+            Assert.That(TeamSlots.Claim(11L), Is.EqualTo(3), "먼저 쓰던 사람의 자리가 바뀌었다");
+            Assert.That(TeamSlots.Claim(22L), Is.Not.EqualTo(3), "같은 자리를 둘이 가졌다");
+        }
+
+        /// <summary>같은 사람에게 같은 자리를 두 번 적어도 문제가 없다.</summary>
+        [Test]
+        public void RememberingTheSameSeatTwiceIsHarmless()
+        {
+            TeamSlots.Remember(11L, 1);
+            TeamSlots.Remember(11L, 1);
+
+            Assert.That(TeamSlots.Claim(11L), Is.EqualTo(1));
+        }
+
+        /// <summary>범위를 벗어난 자리는 감싼다 — 던지지 않는다.</summary>
+        [Test]
+        public void RememberWrapsOutOfRangeSeats()
+        {
+            Assert.DoesNotThrow(() => TeamSlots.Remember(11L, TeamSlots.Count + 1));
+            Assert.That(TeamSlots.Claim(11L), Is.InRange(0, TeamSlots.Count - 1));
+        }
+
+        /// <summary>새 판이면 물려받은 것도 버린다 — 이어받기가 아니다.</summary>
+        [Test]
+        public void ANewMatchDropsRememberedSeats()
+        {
+            TeamSlots.Remember(11L, 3);
+            TeamSlots.Clear();
+
+            Assert.That(TeamSlots.Claim(11L), Is.EqualTo(0), "새 판은 첫 자리부터다");
         }
     }
 }

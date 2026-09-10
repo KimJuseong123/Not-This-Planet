@@ -96,7 +96,7 @@ namespace Metagame.Gameplay
         /// 기절해 쓰러져 있는가(기획 §26-13). 동료가 일으켜야 다시 움직인다.
         ///
         /// <b>예전에는 이 상태가 없었다.</b> 체력이 0이 되면 <c>GameSession</c> 이
-        /// 곧바로 <c>Respawn()</c> 을 불러 스폰 지점에 되살렸다 — 예전 SpaceFlop 코스의
+        /// 곧바로 <c>Respawn()</c> 을 불러 스폰 지점에 되살렸다 — 예전 NotThisPlanet 코스의
         /// 낙사 처리를 그대로 쓴 것이다. 팀원이 도우러 갈 틈도 이유도 없었다.
         /// </summary>
         public bool Downed { get; private set; }
@@ -208,6 +208,116 @@ namespace Metagame.Gameplay
         /// 제자리걸음이라 속도로는 의도를 알 수 없다(S15P21B202-250).
         /// </summary>
         public Vector3 MoveWish { get; private set; }
+
+        /// <summary>
+        /// 셋 이상이 모여 파츠를 <b>실제로 밀고 있는가</b>(기획 §13 · §10.2).
+        /// 밀기 카메라가 이 값으로 3인칭 전환을 판단한다.
+        ///
+        /// <b>서버와 참가자가 채우는 경로가 다르다.</b> 파츠 물리는 서버에서만 도므로
+        /// (참가자 화면의 파츠는 kinematic 이고 <c>PartPush.CanPush</c> 가 false 다)
+        /// 참가자는 이 값을 스스로 알 수 없다. 서버는 <see cref="Tick"/> 에서
+        /// <c>PartPush</c> 를 직접 조회하고, 참가자는 <see cref="NetPlayer"/> 가
+        /// SyncVar 로 받아 <see cref="SetHaulState"/> 로 넣어 준다.
+        /// </summary>
+        public bool Hauling { get; private set; }
+
+        /// <summary>미는 방향(수평 단위). 밀고 있지 않으면 0 이다.</summary>
+        public Vector3 HaulDirection { get; private set; }
+
+        /// <summary>파츠 표면에서 이 사람이 잡거나 짚은 지점(월드).</summary>
+        public Vector3 HaulGrasp { get; private set; }
+
+        /// <summary>
+        /// 참가자 화면에서 서버가 보낸 밀기 상태를 넣는다.
+        /// 서버·혼자 실행에서는 <see cref="Tick"/> 이 직접 채우므로 부르지 않는다.
+        /// </summary>
+        public void SetHaulState(bool hauling, Vector3 direction, Vector3 grasp)
+        {
+            ApplyHaulState(hauling, direction, grasp);
+        }
+
+        // 밀기 중 이동 기준. **시점이 아니라 밀기를 시작한 방향이다** — §10.2
+        // "마우스로 제한적인 자유 시점이 가능하되 캐릭터는 기존 밀기 방향을 유지한다".
+        //
+        // 시작 순간에 한 번 정하고 밀기가 끝날 때까지 붙든다. 매 틱 HaulDirection 을
+        // 따라가게 하면 순환이 된다 — HaulDirection 은 사람들의 MoveWish 합이고
+        // MoveWish 는 이 기준으로 만들어지므로, A 만 눌러도 기준이 계속 왼쪽으로
+        // 돌아 제자리에서 빙빙 도는 조작이 된다.
+        float haulBasisYaw;
+        bool haulBasisSet;
+
+        /// <summary>밀기 중 이동·조작의 기준 방향(도). 밀고 있지 않으면 의미가 없다.</summary>
+        public float HaulBasisYaw => haulBasisYaw;
+
+        void ApplyHaulState(bool hauling, Vector3 direction, Vector3 grasp)
+        {
+            var flat = new Vector3(direction.x, 0f, direction.z);
+
+            Hauling = hauling && flat.sqrMagnitude > 1e-6f;
+            HaulDirection = Hauling ? flat.normalized : Vector3.zero;
+            HaulGrasp = grasp;
+
+            if (Hauling)
+            {
+                // 기준은 **처음 한 번만** 정한다. 위 주석의 순환을 막는 자리다.
+                if (!haulBasisSet)
+                {
+                    haulBasisYaw = Mathf.Atan2(HaulDirection.x, HaulDirection.z)
+                                   * Mathf.Rad2Deg;
+                    haulBasisSet = true;
+                }
+            }
+            else
+            {
+                haulBasisSet = false;
+            }
+        }
+
+        /// <summary>
+        /// 밀기 상태를 내 카메라에 반영한다. 소유자가 <b>매 프레임</b> 부른다.
+        ///
+        /// <b>이 로직이 GameSession 안에 있으면 검증이 잠그지 못한다.</b> 처음에는
+        /// 거기에 두었는데, 검증 하네스가 같은 두 줄을 흉내내는 꼴이 되어
+        /// <b>전환 조건을 <c>true</c> 로 바꿔도 22개가 전부 통과했다</b> — 배선이
+        /// 검증 경로 밖이었다(S15P21B202-400). 그래서 여기로 옮겼다.
+        ///
+        /// 0.5초 복귀 유예를 여기서 세지 않는다 — 위 <see cref="RefreshHaulState"/>
+        /// 주석에 이유를 적었다.
+        /// </summary>
+        public void SyncPushCamera(float deltaTime)
+        {
+            if (Cam == null || deltaTime <= 0f) return;
+
+            // 조건이 Hauling 인 이유는 그 값이 **실제로 밀리는 중**만 참이기 때문이다.
+            // 한두 명이 붙어 꿈쩍하지 않을 때 시점이 바뀌면 "시점은 바뀌었는데 아무
+            // 일도 안 일어나는" 화면이 된다(기획 §10.2).
+            Cam.SetPushView(Hauling, HaulDirection);
+            Cam.TickPushView(HaulGrasp, HaulDirection, deltaTime);
+        }
+
+        /// <summary>
+        /// 서버·혼자 실행에서 파츠 밀기 상태를 읽어 온다.
+        ///
+        /// 0.5초 유예를 여기서 따로 세지 않는다 — <c>PartPush.Gather</c> 가 이미
+        /// <see cref="PhysicsScale.PartPushReleaseSeconds"/> 동안 인원을 유지하므로,
+        /// 걸음을 멈춰도 <c>IsMoving</c> 이 0.5초간 참이다. 기획 §10.2 의 "밀기를
+        /// 멈추거나 접촉이 끊기면 0.5초 뒤 1인칭으로 복귀한다" 가 그대로 나온다.
+        /// </summary>
+        void RefreshHaulState()
+        {
+            // 참가자 화면에서는 서버가 보낸 값을 쓴다. 여기서 조회하면 파츠가
+            // kinematic 이라 늘 "밀고 있지 않다" 가 되어 서버 값을 덮어쓴다.
+            if (WorldEvents.RemoteDecides) return;
+
+            var push = Parts.PartPush.MovingPartFor(this);
+            if (push == null)
+            {
+                ApplyHaulState(false, Vector3.zero, Vector3.zero);
+                return;
+            }
+
+            ApplyHaulState(true, push.HaulDirection, push.GraspPointFor(this));
+        }
         /// <summary>공중에서 자세제어 분사기를 쓰고 있는가 (HUD·연기 표시용).</summary>
         public bool Thrusting { get; private set; }
         public float AirTime { get; private set; }
@@ -678,16 +788,27 @@ namespace Metagame.Gameplay
                     || grabbable == toolHeld)
                     continue;
 
-                var point = collider.ClosestPoint(center);
+                // 도구 보정 반경은 손끝 중심의 작은 구가 아니라 조준선 주위의 폭이다.
+                // 기존 구 판정은 정면의 도구도 카메라에서 약 0.49m를 넘으면 탈락시켰다.
+                var isSpecial = grabbable.IsTool;
+                var probePoint = center;
+                if (isSpecial)
+                {
+                    var depth = Mathf.Clamp(Vector3.Dot(collider.bounds.center - origin, forward),
+                                            0f, Tuning.ArmReach + Tuning.GrabAssistRange);
+                    probePoint = origin + forward * depth;
+                }
+                var point = collider.ClosestPoint(probePoint);
                 var centerDistance = Vector3.Distance(center, point);
                 var distance = Vector3.Distance(origin, point);
                 var angle = AngleFrom(origin, forward, point);
-                var isSpecial = grabbable.IsTool;
                 var assistRadius = isSpecial ? Tuning.SpecialGrabAssistRadius
                                               : Tuning.GrabAssistRange;
                 var assistAngle = isSpecial ? Tuning.SpecialGrabAssistAngle
                                              : Tuning.GrabAssistAngle;
-                if (centerDistance > assistRadius || angle > assistAngle) continue;
+                var assistDistance = isSpecial ? Vector3.Distance(probePoint, point) : centerDistance;
+                if (assistDistance > assistRadius || angle > assistAngle) continue;
+                if (isSpecial && distance > Tuning.ArmReach + Tuning.GrabAssistRange) continue;
 
                 Consider(ref best, MakeTarget(PlayerInteractionKind.Grabbable, null, grabbable,
                                               null, point, angle, distance));
@@ -842,7 +963,7 @@ namespace Metagame.Gameplay
             // 시점이 바뀌었으니 몸을 그릴지 다시 정한다(S15P21B202-267).
             RefreshDollVisibility();
 
-            Debug.Log("[SpaceFlop] " + Nickname + " 기절 (" + source + ")");
+            Debug.Log("[NotThisPlanet] " + Nickname + " 기절 (" + source + ")");
         }
 
         /// <summary>
@@ -1421,6 +1542,10 @@ namespace Metagame.Gameplay
         {
             SyncCameraTilt();
 
+            // 파츠 밀기 상태를 먼저 갱신한다 — 아래 Locomotion 이 이 값으로 이동
+            // 기준을 정하고(§10.2), 밀기 카메라도 같은 값을 본다.
+            RefreshHaulState();
+
             if (Doll == null || Doll.Hips == null) return;
             if (!JointTools.IsFinite(Doll.Hips.position)) { return; }
 
@@ -1791,7 +1916,23 @@ namespace Metagame.Gameplay
         void Locomotion()
         {
             Vector3 fwd, right, wish;
-            if (Cam != null)
+
+            // 파츠를 밀고 있으면 **시점이 아니라 밀기 방향**이 이동 기준이다
+            // (기획 §10.2 "캐릭터는 기존 밀기 방향을 유지한다"). 그래서 3인칭으로
+            // 물러난 카메라를 좌우로 돌려도 미는 방향이 흔들리지 않는다.
+            //
+            // 서버에도 카메라가 없으므로 이 분기가 양쪽에서 같은 결과를 낸다.
+            if (haulBasisSet)
+            {
+                var basis = Quaternion.Euler(0f, haulBasisYaw, 0f);
+                fwd = Flatten(basis * Vector3.forward, Vector3.forward);
+                right = Flatten(basis * Vector3.right, Vector3.right);
+
+                Vector2 pushMove = input.Move.sqrMagnitude > 1f
+                    ? input.Move.normalized : input.Move;
+                wish = right * pushMove.x + fwd * pushMove.y;
+            }
+            else if (Cam != null)
             {
                 fwd = Cam.PlanarForward;
                 right = Cam.PlanarRight;
@@ -2415,11 +2556,20 @@ namespace Metagame.Gameplay
 
             bool wasHolding = RescueHolding;
 
+            // **로그에 쓸 값을 미리 잡아 둔다** (S15P21B202-390). 홀드가 끝나면
+            // 인터랙터가 Idle 로 돌아가고 포커스가 **다른 기절자**로 옮겨갈 수 있다 —
+            // 그러면 "완료 · 대상=X · 진행=0.75" 처럼 **방금 일으킨 사람이 아닌** 쪽을
+            // 보고한다. 2026-09-10 QA 로그에 실제로 그렇게 찍혔고, 기본 닉네임이 모두
+            // `비행사` 라 사람 눈으로는 구별도 되지 않았다. -383 과 같은 계열이다.
+            string heldName = wasHolding ? RescueTargetName() : null;
+            float heldProgress = wasHolding ? RescueProgress01 : 0f;
+
             if (!input.RescueHeld)
             {
                 if (wasHolding)
                 {
-                    LogRescue("중단", "손을 뗐다 · 진행분은 남는다");
+                    LogHeldRescue("중단", heldName, heldProgress,
+                                  "손을 뗐다 · 진행분은 남는다");
                     RescueInteractor.Cancel();
                 }
                 waitingForServerRescue = false;
@@ -2450,7 +2600,8 @@ namespace Metagame.Gameplay
             // OnCompleted 를 부르고 Idle 로 돌아가는 것이 완료의 신호다.
             if (wasHolding)
             {
-                LogRescue("완료", "일어났다");
+                LogHeldRescue("완료", heldName, heldProgress, "일어났다");
+                waitingForServerRescue = false;
                 return;
             }
 
@@ -2484,9 +2635,20 @@ namespace Metagame.Gameplay
         /// <c>-361</c> 과 같은 계열을 만들지 않으려면 <b>무엇이 왜 안 됐는지</b>가
         /// 남아야 한다.</para>
         /// </summary>
+        /// <summary>
+        /// <b>붙들고 있던</b> 대상으로 남긴다 (S15P21B202-390). 홀드가 끝난 뒤에는
+        /// <see cref="RescueCandidate"/> 가 이미 다른 사람을 가리킬 수 있으므로,
+        /// 완료·중단은 이쪽을 쓴다.
+        /// </summary>
+        static void LogHeldRescue(string what, string who, float progress, string detail)
+        {
+            Debug.Log($"[SpaceFlop][구조] {what} · 대상={who ?? "모름"} · {detail}"
+                      + $" · 채운진행={progress:0.00}");
+        }
+
         void LogRescue(string what, string detail)
         {
-            Debug.Log($"[SpaceFlop][구조] {what} · 대상={RescueTargetName()} · {detail}"
+            Debug.Log($"[NotThisPlanet][구조] {what} · 대상={RescueTargetName()} · {detail}"
                       + $" · 진행={RescueProgress01:0.00}");
         }
 
@@ -2559,7 +2721,7 @@ namespace Metagame.Gameplay
             var clamp = CurrentInteractionTarget.Clamp;
             if (clamp == null)
             {
-                Debug.Log($"[SpaceFlop][상호작용] {buttons} → 고정못 거부 (조준 대상 없음)");
+                Debug.Log($"[NotThisPlanet][상호작용] {buttons} → 고정못 거부 (조준 대상 없음)");
                 return;
             }
 
@@ -2578,7 +2740,7 @@ namespace Metagame.Gameplay
 
             // 사유와 무관하게 점유·거리를 함께 적는다. 다음 신고 때 로그 한 줄로
             // 끝나야 한다 — 두 값을 따로 찾아 맞춰 보게 만들면 또 코드를 읽는다.
-            Debug.Log($"[SpaceFlop][상호작용] {buttons} → 고정못 거부 ({reason}) · {clamp.name}"
+            Debug.Log($"[NotThisPlanet][상호작용] {buttons} → 고정못 거부 ({reason}) · {clamp.name}"
                       + $" · 당기는 사람 {clamp.Pullers}/{PhysicsScale.ClampMaxPullers}"
                       + $" · 닿음={(reachable ? "O" : "X")}");
         }
@@ -2620,7 +2782,7 @@ namespace Metagame.Gameplay
             string buttons = left && right ? "좌+우클릭" : left ? "좌클릭" : "우클릭";
             string label = target != null && !string.IsNullOrEmpty(target.Label) ? target.Label : "없음";
             string mass = body != null ? body.mass.ToString("0.0") + "kg" : "고정";
-            Debug.Log("[SpaceFlop][상호작용] " + buttons + " → " + branch
+            Debug.Log("[NotThisPlanet][상호작용] " + buttons + " → " + branch
                       + " | 대상=" + label + " | 질량=" + mass);
         }
 

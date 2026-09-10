@@ -308,6 +308,45 @@ namespace Metagame.Gameplay.Tests
                 "너무 낮으면 게이지가 어중간한 데서 멈춰 사람이 고장으로 본다");
         }
 
+        /// <summary>
+        /// <b>완료·중단은 붙들고 있던 대상을 보고한다.</b> 홀드가 끝나면 포커스가
+        /// <b>다른 기절자</b>로 옮겨갈 수 있어, 지금 포커스를 읽으면 <b>방금 일으킨
+        /// 사람이 아닌</b> 쪽을 보고한다 — 2026-09-10 QA 로그에 실제로
+        /// <c>완료 · 진행=0.75</c> 로 찍혔다(완료 직후면 0 이어야 한다).
+        ///
+        /// <para>기본 닉네임이 모두 <c>비행사</c> 라 사람 눈으로는 구별되지 않았다.
+        /// <c>-383</c>·<c>-354</c>·<c>-361</c> 과 같은 계열이다 — <b>엉뚱한 것을 자신
+        /// 있게 말하는 로그.</b></para>
+        /// </summary>
+        [Test]
+        public void TheOutcomeIsReportedForTheHeldTarget()
+        {
+            var tick = TestSource.Method(
+                TestSource.Read("Runtime/Gameplay/Player/PlayerRig.cs"), "void TickRescue()");
+
+            Assert.That(tick, Does.Contain("heldName"),
+                "붙들고 있던 대상을 미리 잡아 두지 않으면 완료 직후 포커스를 보고한다");
+            Assert.That(tick, Does.Contain("LogHeldRescue"),
+                "완료·중단은 지금 포커스가 아니라 붙들고 있던 쪽으로 남긴다");
+        }
+
+        /// <summary>
+        /// <b>게이지 문구가 잘리지 않는다.</b> 2026-09-10 QA: "게이지 위의 글자가 두
+        /// 줄로 나오는데 표시 화면이 높이가 작아서 글자가 안 보여." 닉네임이 길면
+        /// (`졸다일어난우주인송승우`) 한 줄에 안 들어간다.
+        /// </summary>
+        [Test]
+        public void TheGaugeLabelMakesRoomForTwoLines()
+        {
+            var hud = TestSource.Read("Runtime/UI/DownedRescueHud.cs");
+            var code = TestSource.Blank(hud);
+
+            Assert.That(code, Does.Contain("wordWrap = true"),
+                "줄바꿈이 없으면 긴 닉네임이 칸을 넘어가 잘린다");
+            Assert.That(code, Does.Contain("CalcHeight"),
+                "필요한 높이를 재지 않으면 두 줄이 고정 높이에 잘린다");
+        }
+
         /// <summary>홀드 시간이 기획 값 그대로다 — 게이지가 채워지는 속도가 이 값이다.</summary>
         [Test]
         public void TheHoldTakesThePlannedTime()

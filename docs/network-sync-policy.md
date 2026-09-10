@@ -81,7 +81,8 @@ Mirror 가 `bufferTime = sendInterval × bufferTimeMultiplier` 만큼 뒤로 잡
 | 핑(위치·만료) | **P3** | ✅ | `NetPlayer` SyncVar | 이산 이벤트. 지연이 문제 안 된다 |
 | 닉네임·`userId` | **P3** | ✅ | `NetPlayer` SyncVar | 거의 안 바뀐다 |
 | 진행도(체크포인트·클리어·경과·낙하) | **P3** | ✅ | `ProgressSync` SyncVar | 이산. 서버가 정답 |
-| 카메라·HUD·태블릿 | **P4** | ✅ | `OrbitCamera` · `GameHud` | 남이 볼 필요가 없다 |
+| **파츠 밀기 상태** (밀고 있는가 · 방향 · 접촉 지점) | **P3** | 📐 | `NetPlayer` SyncVar `hauling`·`haulDirection`·`haulGrasp` | **파츠 물리는 서버에서만 돈다** — 참가자 화면의 파츠는 kinematic 이고 `PartPush.CanPush` 가 false 라 스스로 알 수 없다. 밀기 카메라 전환 조건이므로 정밀도보다 **켜짐/꺼짐이 갈리지 않는 것**이 중요하다. **`-400` 에서 적용** — 3인 실측은 아직 |
+| 카메라·HUD·태블릿 | **P4** | ✅ | `OrbitCamera` · `GameHud` | 남이 볼 필요가 없다. **밀기 3인칭 전환도 P4 다** — 전환 *조건*만 위 줄로 받고, 카메라 자체는 각자 화면에서 돈다 |
 
 ### 알려진 구멍 — 정책이 정해졌는데 **아직 그 정책대로 동작하지 않는 것**
 

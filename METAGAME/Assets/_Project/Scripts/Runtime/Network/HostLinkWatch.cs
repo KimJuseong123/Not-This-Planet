@@ -71,7 +71,27 @@ namespace Metagame.Network
             // 5초에 로비로 내려보내면 <b>이어받기가 시작되기 전에 사람들이 나간다</b>.
             //
             // 그래도 언젠가는 포기한다 — 새 방장까지 함께 죽으면 아무 소식이 오지 않는다.
-            float giveUp = HostMigration.Pending ? HostMigration.WaitForTakeover : GiveUpAfter;
+            // 이전이 올 수 있으면 기다린다 (S15P21B202-389).
+            //
+            // <b>이전 알림을 기다리는 것으로는 늦다.</b> 예전에는 <c>HostMigration.Pending</c>
+            // 만 봤는데, 그 값은 <b>로비 웹소켓으로 ROOM_STATE 가 도착한 뒤에야</b> 참이
+            // 된다. 게임 연결(KCP)은 방장이 사라지는 순간 조용해지지만 방 상태는 서버를
+            // 거쳐 오므로 몇 초 늦을 수 있고, 그 사이 5초가 지나면 <b>이전이 시작되기도
+            // 전에 전원이 로비로 내려간다.</b>
+            //
+            // 그 다음이 더 나쁘다. 로비에서 다시 들어가면 새 방장이 된 사람이
+            // <c>StartHost</c> 로 <b>새 판을 연다</b> — 게임은 되는데 탑·용접·시간이 전부
+            // 초기화된다. 돌아온 옛 방장은 릴레이에서 아직 <b>서버 토큰</b>의 주인이라
+            // 참가자로 붙지 못하고 로딩창에서 끊긴다.
+            //
+            // 그래서 <b>알림이 아니라 방 상태</b>를 본다. 로비 연결은 Spring 에 붙어 있어
+            // 방장의 PC 와 무관하게 살아 있으므로, 그 연결이 "이 방은 아직 PLAYING" 이라고
+            // 말하는 동안은 기다릴 이유가 있다.
+            //
+            //  · 방이 PLAYING 이 아니게 되면(판 종료·방 사라짐) 곧바로 나간다
+            //  · 로비 연결까지 끊겼으면 내 인터넷 문제다 — 기다릴 이유가 없다
+            //  · 그래도 상한은 둔다. 새 방장까지 함께 죽으면 아무 소식도 오지 않는다
+            float giveUp = MatchMayResume ? HostMigration.WaitForTakeover : GiveUpAfter;
 
             if (quietFor >= giveUp)
             {
@@ -85,9 +105,36 @@ namespace Metagame.Network
                 return;
             }
 
+            if (quietFor >= WarnAfter && MatchMayResume)
+            {
+                Notice = "방장과 연결이 끊겼습니다 · 이어받기를 기다리는 중…";
+                return;
+            }
+
             Notice = quietFor >= WarnAfter
                 ? "방장과 연결이 불안정합니다…"
                 : string.Empty;
+        }
+
+        /// <summary>
+        /// 이 판이 다시 이어질 수 있는가 (S15P21B202-389).
+        ///
+        /// <para>이미 이전 알림을 받았거나, 로비 연결이 살아 있고 그 방이 아직
+        /// <c>PLAYING</c> 이면 참이다. 후자가 중요하다 — 알림이 오기 <b>전에도</b>
+        /// 기다려야 하기 때문이다.</para>
+        /// </summary>
+        static bool MatchMayResume
+        {
+            get
+            {
+                if (HostMigration.Pending) return true;
+
+                var session = NetworkSession.Instance;
+                if (session == null || !session.IsConnected) return false;
+
+                var room = session.CurrentRoom;
+                return room != null && room.IsPlaying;
+            }
         }
 
         void Clear()

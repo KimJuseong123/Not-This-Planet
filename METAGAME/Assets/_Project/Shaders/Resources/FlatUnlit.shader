@@ -1,5 +1,5 @@
 // URP compatible vertex-color unlit material used by stars and distant markers.
-Shader "SpaceFlop/Flat"
+Shader "NotThisPlanet/Flat"
 {
     Properties
     {

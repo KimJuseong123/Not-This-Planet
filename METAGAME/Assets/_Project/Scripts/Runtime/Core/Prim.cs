@@ -21,18 +21,18 @@ namespace Metagame.Core
 
         public static Shader DoughShader
         {
-            get { if (doughShader == null) doughShader = Find("DoughSurface", "SpaceFlop/Dough"); return doughShader; }
+            get { if (doughShader == null) doughShader = Find("DoughSurface", "NotThisPlanet/Dough"); return doughShader; }
         }
 
         public static Shader GhostShader
         {
-            get { if (ghostShader == null) ghostShader = Find("GhostSurface", "SpaceFlop/Ghost"); return ghostShader; }
+            get { if (ghostShader == null) ghostShader = Find("GhostSurface", "NotThisPlanet/Ghost"); return ghostShader; }
         }
 
         /// <summary>빛을 받지 않는 순수 발광 — 별·행성 테두리·표시등에 쓴다.</summary>
         public static Shader FlatShader
         {
-            get { if (flatShader == null) flatShader = Find("FlatUnlit", "SpaceFlop/Flat"); return flatShader; }
+            get { if (flatShader == null) flatShader = Find("FlatUnlit", "NotThisPlanet/Flat"); return flatShader; }
         }
 
         static Shader Find(string resourceName, string shaderName)

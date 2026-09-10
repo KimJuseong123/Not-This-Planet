@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
+using Metagame.Core;
+using Metagame.Gameplay.Interaction;
 
 namespace Metagame.Gameplay.Tests
 {
@@ -19,6 +21,86 @@ namespace Metagame.Gameplay.Tests
     public sealed class ToolCarryCollisionTests
     {
         readonly List<GameObject> _spawned = new();
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void AimedEquipmentAtPickupRange_EquipsAndChargesUntilQIsReleased(bool welding)
+        {
+            var player = PlayerRig.Create("Tool pickup test", new Vector3(100f, 20f, 100f),
+                Quaternion.identity, Color.white, Color.gray, false);
+            _spawned.Add(player.gameObject);
+            ToolBase tool;
+            Rigidbody body;
+            if (welding) (tool, body) = MakeTool<PlasmaWeldingTool>();
+            else (tool, body) = MakeTool<MeteorBat>();
+            var target = tool.gameObject.AddComponent<Grabbable>();
+            target.Role = GrabbableRole.Tool;
+            tool.gameObject.AddComponent<BoxCollider>().size = Vector3.one * 0.12f;
+            body.position = player.AimOrigin + player.AimForward * 0.9f;
+            Physics.SyncTransforms();
+
+            player.RefreshInteractionFocus();
+            Assert.AreEqual(PlayerInteractionKind.Grabbable, player.CurrentInteractionTarget.Kind);
+            Assert.AreSame(target, player.CurrentInteractionTarget.Grabbable);
+            player.SetInput(new InputFrame { GrabLeft = true });
+            player.Tick();
+            Assert.AreSame(target, player.HeldTool);
+            Assert.AreSame(tool, player.ActiveTool);
+            Assert.AreSame(target, player.LeftHand.Held);
+            Assert.AreSame(target, player.RightHand.Held);
+
+            player.SetInput(new InputFrame { ToolAction = true });
+            for (var i = 0; i < 30; i++) player.Tick();
+            Assert.IsTrue(player.ChargingTool, "HUD must receive the Q charging state.");
+            Assert.Greater(player.ToolCharge, Tuning.ToolDropChargeThreshold);
+
+            player.SetInput(new InputFrame());
+            player.Tick();
+            Assert.IsNull(player.HeldTool);
+            Assert.IsFalse(player.ChargingTool);
+            Assert.AreEqual(0f, player.ToolCharge);
+            Assert.IsFalse(body.isKinematic);
+            player.Tick();
+            Assert.Greater(body.linearVelocity.magnitude, 0f);
+        }
+
+        [Test]
+        public void EquipmentCannotBypassEquippingThroughAnOrdinaryHandGrip()
+        {
+            var (tool, body) = MakeTool<MeteorBat>();
+            var target = tool.gameObject.AddComponent<Grabbable>();
+            target.Role = GrabbableRole.Tool;
+            var handObject = new GameObject("Hand");
+            _spawned.Add(handObject);
+            var hand = handObject.AddComponent<Hand>();
+            hand.Body = handObject.AddComponent<Rigidbody>();
+
+            Assert.IsFalse(hand.GripTo(target, body));
+            Assert.IsNull(hand.Held);
+            Assert.AreEqual(0, target.HandCount);
+
+            target.Role = GrabbableRole.Transport;
+            Assert.IsTrue(hand.GripTo(target, body), "Ordinary cargo must still be carried.");
+            hand.Release();
+        }
+
+        [TestCase(1.8f, 0f)]
+        [TestCase(0.9f, 0.4f)]
+        public void EquipmentOutsideReachOrCrosshairAssist_IsNotFocused(float depth, float side)
+        {
+            var player = PlayerRig.Create("Tool range test", new Vector3(100f, 20f, 100f),
+                Quaternion.identity, Color.white, Color.gray, false);
+            _spawned.Add(player.gameObject);
+            var (tool, body) = MakeTool<MeteorBat>();
+            tool.gameObject.AddComponent<Grabbable>().Role = GrabbableRole.Tool;
+            tool.gameObject.AddComponent<BoxCollider>().size = Vector3.one * 0.12f;
+            body.position = player.AimOrigin + player.AimForward * depth + Vector3.right * side;
+            Physics.SyncTransforms();
+
+            player.RefreshInteractionFocus();
+
+            Assert.AreEqual(PlayerInteractionKind.None, player.CurrentInteractionTarget.Kind);
+        }
 
         [TearDown]
         public void TearDown()

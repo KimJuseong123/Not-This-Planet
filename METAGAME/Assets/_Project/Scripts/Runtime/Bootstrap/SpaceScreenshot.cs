@@ -8,7 +8,7 @@ namespace Metagame.Bootstrap
 {
     /// <summary>
     /// 룩 확인용 스크린샷 모드.
-    /// 실행:  SpaceFlop.exe -space-screenshot -space-shotdir "C:\out" -screen-width 1280 -screen-height 720
+    /// 실행:  NotThisPlanet.exe -space-screenshot -space-shotdir "C:\out" -screen-width 1280 -screen-height 720
     /// 정해진 앵글을 찍고 스스로 종료한다.
     /// </summary>
     public class SpaceScreenshot : MonoBehaviour

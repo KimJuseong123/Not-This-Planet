@@ -115,9 +115,9 @@ SENT.clear()
 assert P.phase_publish(1) == 1
 assert SENT and "🔴" in SENT[0] and "릴리스 실패 v0.1.0" in SENT[0] and "Unity 빌드" in SENT[0], SENT
 # 성공 경로 — zip·업로드·git 은 가짜로
-os.makedirs(os.path.join(tmp, "release", "SpaceFlop"), exist_ok=True)
-open(os.path.join(tmp, "release", "SpaceFlop", "SpaceFlop.exe"), "wb").write(b"x" * 10)
-os.environ["SPACE_BUILD_DIR"] = os.path.join(tmp, "release", "SpaceFlop")
+os.makedirs(os.path.join(tmp, "release", "NotThisPlanet"), exist_ok=True)
+open(os.path.join(tmp, "release", "NotThisPlanet", "NotThisPlanet.exe"), "wb").write(b"x" * 10)
+os.environ["SPACE_BUILD_DIR"] = os.path.join(tmp, "release", "NotThisPlanet")
 P.upload_package = lambda path, version, file_name: 201
 P.git = lambda *a: "Merge branch 'S15P21B202-1-x' into 'develop'\x1f\nSee merge request g/p!1\n\x1e" if a[0] == "log" else ""
 SENT.clear(); CALLS.clear(); RELEASE_EXISTS.clear()
@@ -126,10 +126,10 @@ assert SENT and "🟢" in SENT[0] and "릴리스 v0.1.0" in SENT[0] and "MR 1건
 assert any(c[0] == "POST" and "/releases" in c[1] and c[2].get("tag_name") == "v0.1.0" for c in CALLS), CALLS
 assert os.path.exists(os.path.join(tmp, P.NOTES_FILE))
 # 배포 금지 폴더는 zip 에서 빠진다
-os.makedirs(os.path.join(tmp, "release", "SpaceFlop", "SpaceFlop_BurstDebugInformation_DoNotShip"), exist_ok=True)
-open(os.path.join(tmp, "release", "SpaceFlop", "SpaceFlop_BurstDebugInformation_DoNotShip", "a.txt"), "w").write("x")
+os.makedirs(os.path.join(tmp, "release", "NotThisPlanet", "NotThisPlanet_BurstDebugInformation_DoNotShip"), exist_ok=True)
+open(os.path.join(tmp, "release", "NotThisPlanet", "NotThisPlanet_BurstDebugInformation_DoNotShip", "a.txt"), "w").write("x")
 import zipfile
-zp = os.path.join(tmp, "t.zip"); P.zip_dir(os.path.join(tmp, "release", "SpaceFlop"), zp)
+zp = os.path.join(tmp, "t.zip"); P.zip_dir(os.path.join(tmp, "release", "NotThisPlanet"), zp)
 assert not any("DoNotShip" in n for n in zipfile.ZipFile(zp).namelist())
 print("  6) publish: 빌드 실패 → 🔴 만 · 성공 → zip·업로드·Release·🟢 · DoNotShip 제외 ✅")
 

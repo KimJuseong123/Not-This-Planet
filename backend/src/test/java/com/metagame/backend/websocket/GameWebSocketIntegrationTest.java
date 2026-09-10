@@ -568,6 +568,69 @@ class GameWebSocketIntegrationTest {
                 .as("끊긴 사람이 아니라 붙어 있는 사람이 방장이 되어야 한다")
                 .isEqualTo(third.userId);
     }
+
+    /**
+     * 방장이 끊기면 <b>옛 접속 정보를 버린다</b> — 돌아온 사람에게 죽은 서버를 알려 주지
+     * 않는다 (S15P21B202-389).
+     *
+     * <p><b>실측으로 드러난 결함이다.</b> 2026-09-10 팀 테스트에서 "호스트가 나갔다가 다시
+     * 들어올 때 로딩창에서 연결이 끊긴다" 가 나왔다. 옛 정보를 그대로 주면 두 가지가
+     * 깨진다.
+     *
+     * <p>① 돌아온 옛 방장은 그 릴레이 세션에서 <b>서버 토큰의 주인</b>이다. 우리 릴레이는
+     * 누가 서버인지를 토큰으로 가르므로, 참가자로 붙으려 해도 릴레이가 서버로 등록해
+     * 버린다 — KCP 핸드셰이크가 끝나지 않아 로딩창에서 멈춘다.
+     *
+     * <p>② 클라이언트는 {@code GAME_STARTED} 를 받으면 주소가 없어도 매치로 들어간다
+     * ({@code LobbyBootstrap} 이 로비 주소나 {@code 127.0.0.1} 로 대신 붙는다). 그래서
+     * 방 번호만 보내는 것도 안 된다 — 아무것도 보내지 않아야 로비에 남는다.
+     */
+    @Test
+    void afterHostPassesTheOldConnectionInfoIsDropped() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        String code = startedRoom(host, guest, "192.168.0.7");
+
+        host.close();
+        guest.await("ROOM_STATE");                 // 방장이 넘어갔다
+
+        // 옛 방장이 돌아온다. 같은 deviceId 라 같은 userId 다.
+        TestClient returned = connect("철수", "device-a");
+        returned.send("JOIN_ROOM", Map.of("roomId", code));
+
+        returned.await("STATE_SYNC");              // 방에는 들어간다
+        assertThatThrownBy(() -> returned.await("GAME_STARTED"))
+                .as("죽은 서버의 접속 정보를 주면 로딩창에서 멈춘다")
+                .isInstanceOf(AssertionError.class);
+    }
+
+    /**
+     * 새 방장이 이어받으면 <b>그 사이 돌아온 사람까지</b> 새 정보를 받는다 — 스스로 낫는다.
+     *
+     * <p>위 시험이 "아무것도 안 보낸다" 를 못 박았으므로, 그 사람이 영원히 로비에 갇히지
+     * 않는다는 것도 함께 못 박아야 한다.
+     */
+    @Test
+    void theTakeoverAlsoReachesSomeoneWhoCameBackMeanwhile() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        String code = startedRoom(host, guest, "192.168.0.7");
+
+        host.close();
+        guest.await("ROOM_STATE");
+
+        TestClient returned = connect("철수", "device-a");
+        returned.send("JOIN_ROOM", Map.of("roomId", code));
+        returned.await("STATE_SYNC");
+
+        // 새 방장이 이어받는다.
+        guest.send("HOST_TAKEOVER", Map.of("hostAddress", "192.168.0.9"));
+
+        assertThat(guest.await("GAME_STARTED").get("hostAddress").asString()).isEqualTo("192.168.0.9");
+        assertThat(returned.await("GAME_STARTED").get("hostAddress").asString())
+                .as("그 사이 돌아온 사람도 새 방장에게 붙을 수 있어야 한다")
+                .isEqualTo("192.168.0.9");
+    }
     // ---------- 판 종료 (S15P21B202-316) ----------
 
     @Test
