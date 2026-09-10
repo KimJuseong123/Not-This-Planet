@@ -20,7 +20,7 @@
     │                              prepare  mr-title · mm-mr-opened(🟢)
     │                              lint     mr-lint · mr-overlap → stack-order · repo-hygiene · ci-tests
     │                              test     unity-compile · build-backend
-    │                              review   ai-review
+    │                              review   ai-review → ai-review-gate (⛔ 만 차단)
     │                              notify   mm-ci-failed(🔴) / mm-ci-resolved(✅)
     ▼
  팀장 머지 ──R6──▶ 이슈 완료    ③ 머지 조건: 파이프라인 성공 + 스레드 전부 해소 (GitLab 설정)
@@ -73,7 +73,8 @@
 | `ci-tests` | lint | `scripts/ci/**` 변경 (+ 스케줄) | `scripts/ci/tests/run_all.py` — CI 스크립트 자신의 오프라인 테스트 34파일. 네트워크·토큰 없이, 발신 비밀은 env 에서 지운 채 | 잡 로그 | **막음** |
 | `unity-compile` | test | `METAGAME/**` 또는 `.gitlab-ci.yml` 변경 | GameCI 이미지에서 C# 컴파일 + EditMode 테스트. **대상 브랜치를 합친 뒤** 돌리고 **대상 브랜치 기준선과 비교**해 종료 코드로 판정: `0` 통과(기존 실패만) · `1` **이 MR 이 만든** 컴파일 오류·새 실패 · `2` 판단 불가(기준선 없음·라이선스). 판정 2 는 비차단이라 코멘트가 **막지 않는다는 사실**을 적는다. 기준선은 잡 목록 API 로 찾고 아티팩트는 14일 보관(-342). **기준선은 최근 3회의 합집합**이고, 새 실패가 있으면 **그 테스트만 골라 2회 다시 돌려** 한 번이라도 통과하면 플래키로 판정에서 뺀다 — 뺀 것은 코멘트에 적는다. 새 실패가 `RECHECK_MAX_NEW`(30)를 넘으면 재실행을 건너뛰고 그 사실을 로그에 적는다. **면제가 있었고 그 MR 이 `METAGAME/` 을 바꿨으면 판정을 `0` → `2`(경고)로 낮춘다** — 격리 통과가 그 MR 이 만든 상태 오염일 수도 있어서다. 안 바꿨으면 그 경우가 불가능하므로 `0` 이다(-347). 웜 70초 / 콜드 8분(`Library` 슬롯 캐시). 동시 1개(`resource_group`) | MR 코멘트(새 실패만, `error CS` 맨 위) · 테스트 위젯(JUnit) | `1` **막음** · `2` 경고 |
 | `build-backend` | test | `backend/**` 또는 `.gitlab-ci.yml` 변경 | `./gradlew bootJar` — 컴파일 검사. **테스트는 아직 돌지 않는다**(-302) | jar 아티팩트(3일) | **막음** |
-| `ai-review` | review | `AI_REVIEW_CLI=true`(또는 API 키) · 코드/설정 변경 (문서만이면 생략) | 역할별 리뷰어(범위·완료 조건 / C#·네트워크 / 에셋·씬) 병렬 → 요약 1개: ✅/⚠️/⛔ + 리뷰어 확인 5항목 판정표. 러너 호스트의 Claude CLI 로 | MR 코멘트 1개(재실행 시 갱신) | 비차단 |
+| `ai-review` | review | `AI_REVIEW_CLI=true`(또는 API 키) · 코드/설정 변경 (문서만이면 생략) | 역할별 리뷰어(범위·완료 조건 / C#·네트워크 / 에셋·씬) 병렬 → 요약 1개: ✅/⚠️/⛔ + 리뷰어 확인 5항목 판정표. 러너 호스트의 Claude CLI 로 | MR 코멘트 1개(재실행 시 갱신) | 비차단 (⛔ 는 아래 `ai-review-gate` 가 막는다) |
+| `ai-review-gate` | review | `ai-review` 와 같은 조건 (**릴리즈 MR → master 는 건너뜀** — `ai-review` 가 그 MR 의 리뷰를 생략하므로 판정이 없다) | 위 코멘트의 판정을 읽어 **⛔ 면 막는다**. ⚠️·✅·❓ 는 통과. 코멘트가 없거나 ❓ 거나 **다른 커밋의 것**이면 막지 않고 🟠 카드로 알린다(fail-open) | 잡 로그 · 🟠 카드 | **예** — ⛔ 일 때만 |
 | `mm-ci-failed` | notify | `on_failure` · needs: `mr-lint` `repo-hygiene` `ci-tests`(opt) `mr-overlap` | 🔴 CI 실패 카드(작성자 멘션 · 실패 잡 · `❌` 이유 3개) + 같은 내용 MR 코멘트. Draft 제외 | MM · MR 코멘트 | 비차단 |
 | `mm-ci-resolved` | notify | `on_success` · needs **동일** | 남아 있는 🔴 코멘트를 ✅ 해소됨으로 갱신 | MR 코멘트 | 비차단 |
 
@@ -122,6 +123,7 @@
 
 머지를 막는 잡: `mr-lint` · `mr-overlap`(나중 MR 텍스트 충돌) · `stack-order` · `repo-hygiene` · `ci-tests` · `unity-compile`(종료 1) · `build-backend`.
 막지 않는 잡: `mr-title` · `mm-*` · `ai-review` · `retarget-pipelines` · `unity-compile`(종료 2).
+`ai-review-gate` 는 **⛔ 일 때만** 막는다 — 판정을 못 읽으면 통과시키고 알린다(-341).
 
 ---
 

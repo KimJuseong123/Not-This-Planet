@@ -448,6 +448,29 @@ ai-review:                # 비차단. API 키(ANTHROPIC_API_KEY) 또는 러너 
   script:
     - python scripts/ci/ai_review.py
 
+ai-review-gate:           # ⛔ 보류 권고면 **막는다**. ⚠️·✅·❓ 는 통과 (S15P21B202-341)
+  stage: review           # ai-review 는 allow_failure 그대로 남긴다 — 리뷰를 '돌리는' 실패와
+                          # 그 결과로 '막는' 것은 성격이 다르고, 되돌리기가 이 잡 지우기로 끝나야 한다.
+  needs:
+    - job: ai-review      # ai-review 가 **실패해도 이 잡은 돈다** — 2026-09-09 파이프라인 186028 에서
+      optional: true      # 실측했다(allow_failure: true 로 exit 1 한 잡을 needs 로 가리킨 잡이
+                          # success 로 실행됐다). needs 실패가 후속 잡을 skip 시킨다는 통설과 달라
+                          # 임시 잡 두 개로 직접 쟀다. optional 은 rules 가 어긋나 ai-review 가
+                          # 아예 없는 파이프라인에서 파이프라인 생성이 깨지지 않게 하는 보험이다.
+  rules:                  # **ai-review 와 같은 조건이어야 한다** — 리뷰가 없는 파이프라인에서
+                          # 게이트만 돌면 매번 "코멘트가 없다" 경고가 나간다.
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && ($ANTHROPIC_API_KEY || $AI_REVIEW_CLI == "true")
+      changes:
+        - "METAGAME/**/*"
+        - "scripts/**/*"
+        - ".gitlab-ci.yml"
+        - ".gitlab/**/*"
+        - ".githooks/**/*"
+        - ".gitattributes"
+        - ".gitignore"
+  script:
+    - python scripts/ci/ai_review_gate.py
+
 # ── 배포 ─────────────────────────────────────────────────────────────────
 deploy-backend:           # develop 머지 뒤 **사람이 눌러서** 배포 (S15P21B202-141)
   stage: deploy           # 잡은 컨테이너 안이라 호스트 compose 를 못 부른다 → 스풀에 jar+RELEASE 를 놓고
@@ -566,6 +589,8 @@ mm-ci-failed:             # 🔴 CI 실패 알림 — 실패한 잡 이름·링�
       optional: true
     - job: unity-compile  # 이것이 빠져 있어 unity-compile 만 실패하면 카드가 안 나갔다(-344)
       optional: true      # changes: 게이트라 없는 파이프라인이 있다
+    - job: ai-review-gate # ⛔ 로 막힌 것도 카드로 알린다. 이유(❌ 줄)는 잡 로그에서 뽑힌다(-341)
+      optional: true
   when: on_failure
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $MM_WEBHOOK_URL
@@ -589,6 +614,8 @@ mm-ci-resolved:           # 검사 통과 시, 남아 있는 CI 실패 코멘트
       optional: true
     - job: unity-compile
       optional: true
+    - job: ai-review-gate # mm-ci-failed 와 같은 목록이어야 한다 — 다르면 ⛔ 로 막힌 MR 에
+      optional: true      # '해소됨' 이 찍힌다(-289 와 같은 사고)
   when: on_success
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
