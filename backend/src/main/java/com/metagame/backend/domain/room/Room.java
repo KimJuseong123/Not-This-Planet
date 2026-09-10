@@ -78,8 +78,54 @@ public class Room {
         disconnected.remove(userId);
         // 방장이 나가면 남은 사람에게 위임
         if (userId.equals(hostUserId)) {
-            hostUserId = players.keySet().stream().findFirst().orElse(null);
+            hostUserId = pickHost(userId);
         }
+    }
+
+    /**
+     * 방장 자리를 붙어 있는 다른 사람에게 넘긴다. <b>자리는 건드리지 않는다</b>
+     * (S15P21B202-389).
+     *
+     * <p>방장의 연결이 끊기면 {@code afterConnectionClosed} 는 자리를 30초 유예로 남긴다.
+     * 그 사람이 돌아올 수 있게 하려는 것이고 그것은 유지해야 한다 — 하지만 <b>방장 자리는
+     * 기다릴 수 없다.</b> 방장의 PC 가 곧 게임 서버라(-145) 30초를 기다리면 그동안 아무도
+     * 게임을 할 수 없다. 그래서 자리는 남기고 방장만 즉시 넘긴다.
+     *
+     * <p><b>끊긴 사람은 고르지 않는다.</b> 게임 서버가 될 수 없기 때문이다 — 유예를
+     * 기다리는 중인 사람에게 넘기면 판이 그대로 멈춘다.
+     *
+     * @return 새 방장. 넘길 사람이 없으면 {@code null} 이고 <b>방장은 그대로 남는다</b> —
+     *         null 로 비우면 {@link #rejoin} 이 아무나 방장으로 만든다
+     */
+    public synchronized Long passHostToConnected() {
+        Long next = pickHost(hostUserId);
+        if (next != null) {
+            hostUserId = next;
+        }
+        return next;
+    }
+
+    /**
+     * 방장이 될 사람을 고른다. <b>붙어 있는 사람을 먼저 본다</b> (S15P21B202-389).
+     *
+     * <p>예전에는 {@code players.keySet().stream().findFirst()} 였다. 그러면 게임 중에
+     * 끊겨 유예를 기다리는 사람이 방장이 될 수 있고, 그 사람은 게임 서버가 될 수 없으므로
+     * 판이 멈춘다.
+     *
+     * <p>아무도 붙어 있지 않으면 그때는 끊긴 사람이라도 고른다 — 방이 아직 있으므로
+     * 방장이 비어 있는 것보다 낫다.
+     *
+     * @param except 제외할 사람(나가는 사람 또는 지금 방장)
+     */
+    private Long pickHost(Long except) {
+        return players.keySet().stream()
+                .filter(id -> !id.equals(except))
+                .filter(id -> !disconnected.contains(id))
+                .findFirst()
+                .orElseGet(() -> players.keySet().stream()
+                        .filter(id -> !id.equals(except))
+                        .findFirst()
+                        .orElse(null));
     }
 
     /** 연결이 끊겼음을 표시한다. 자리는 유예 시간 동안 유지된다. */

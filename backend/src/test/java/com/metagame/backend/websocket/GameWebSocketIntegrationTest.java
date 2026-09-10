@@ -401,34 +401,173 @@ class GameWebSocketIntegrationTest {
                 .isInstanceOf(AssertionError.class);
     }
 
+    // ---------- 방장 이탈 (S15P21B202-385 · 이전은 -389) ----------
+
+    /**
+     * 방장이 게임 중에 나가면 <b>판은 이어지고</b> 남은 사람이 방장이 된다.
+     *
+     * <p><b>S15P21B202-385 에서 뜻이 바뀐 자리다.</b> 그때는 "방장이 빠지면 판을 끝낸다"
+     * 였다 — 방장의 PC 가 곧 게임 서버라(-145) 아무도 이어갈 수 없었기 때문이다. 그리고
+     * 상태를 {@code PLAYING} 으로 남기면 로비의 시작 버튼이 비활성이라({@code room.IsWaiting}
+     * 조건) 다시 시작할 길조차 없었다.
+     *
+     * <p>-389 가 이어받는 길을 만들었으므로 이제는 끝내지 않는다. 남은 사람 중 하나가
+     * 서버가 되어 그 판을 계속한다. 이어받기가 실패하면 그 사람의 클라이언트가
+     * {@code GAME_END} 를 보내 방을 풀어 준다 — 갇히는 길은 그렇게 막혀 있다.
+     */
     @Test
-    void outsiderCannotJoinRoomThatIsAlreadyPlaying() throws Exception {
+    void hostLeavingMidMatchPassesHostAndKeepsTheMatch() throws Exception {
         TestClient host = connect("철수", "device-a");
         TestClient guest = connect("영희", "device-b");
-        String code = startedRoom(host, guest);
-
-        TestClient outsider = connect("민수", "device-c");
-        outsider.send("JOIN_ROOM", Map.of("roomId", code));
-
-        assertThat(outsider.await("ERROR").get("message").asString()).isNotBlank();
-    }
-
-    @Test
-    void leavingHostDelegatesHostToRemainingPlayerWhileWaiting() throws Exception {
-        TestClient host = connect("철수", "device-a");
-        TestClient guest = connect("영희", "device-b");
-        String code = createRoom(host);
-        guest.send("JOIN_ROOM", Map.of("roomId", code));
-        host.await("ROOM_STATE");
-        guest.await("ROOM_STATE");
+        startedRoom(host, guest);
 
         host.send("LEAVE_ROOM", Map.of());
 
         JsonNode state = guest.await("ROOM_STATE");
+        assertThat(state.get("status").asString()).isEqualTo("PLAYING");
         assertThat(state.get("hostUserId").asLong()).isEqualTo(guest.userId);
-        assertThat(state.get("players").properties()).hasSize(1);
     }
 
+    /** 아무도 남지 않으면 판을 끝낸다 — 이어받을 사람이 없다. */
+    @Test
+    void hostLeavingAloneEndsTheMatch() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        String code = startedRoom(host, guest);
+
+        // 참가자를 먼저 내보내 방장 혼자 남긴다.
+        guest.send("LEAVE_ROOM", Map.of());
+        host.await("ROOM_STATE");
+
+        host.send("LEAVE_ROOM", Map.of());
+
+        // 방이 사라졌으므로 새로 들어가려면 같은 코드가 없어야 한다.
+        TestClient latecomer = connect("민수", "device-c");
+        latecomer.send("JOIN_ROOM", Map.of("roomId", code));
+        assertThat(latecomer.await("ERROR").get("message").asString()).isNotBlank();
+    }
+
+    /** 새 방장이 다시 시작할 길은 남아 있다 — 이어받기가 실패한 경우다. */
+    @Test
+    void theNewHostCanEndTheMatchAndStartAgain() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        String code = startedRoom(host, guest);
+        host.send("LEAVE_ROOM", Map.of());
+        guest.await("ROOM_STATE");
+
+        // 이어받지 못한 새 방장이 판을 풀어 준다.
+        guest.send("GAME_END", Map.of());
+        assertThat(guest.await("ROOM_STATE").get("status").asString()).isEqualTo("WAITING");
+
+        guest.send("READY", Map.of("ready", true));
+        guest.await("ROOM_STATE");
+        guest.send("START_GAME", Map.of());
+
+        assertThat(guest.await("GAME_STARTED").get("roomId").asString()).isEqualTo(code);
+    }
+
+    // ---------- 호스트 이전 (S15P21B202-389) ----------
+
+    /**
+     * 방장의 연결이 끊기면 <b>유예를 기다리지 않고</b> 방장을 넘긴다.
+     *
+     * <p>자리는 30초 유예로 남는다(-150) — 그 사람이 돌아올 수 있어야 한다. 하지만 방장
+     * 자리는 기다릴 수 없다: 방장의 PC 가 곧 게임 서버라 유예가 끝날 때까지 아무도 게임을
+     * 할 수 없다.
+     */
+    @Test
+    void hostDisconnectPassesHostImmediatelyWithoutWaitingForGrace() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        startedRoom(host, guest);
+
+        host.close();
+
+        JsonNode state = guest.await("ROOM_STATE");
+        assertThat(state.get("hostUserId").asLong()).isEqualTo(guest.userId);
+        assertThat(state.get("status").asString()).isEqualTo("PLAYING");
+        // 자리는 남아 있다 — 끊김으로 표시될 뿐이다.
+        assertThat(state.get("players").properties()).hasSize(2);
+        assertThat(state.get("disconnected").valueStream()
+                .anyMatch(id -> id.asLong() == host.userId)).isTrue();
+    }
+
+    /** 새 방장이 이어받겠다고 하면 전원이 새 접속 정보를 받는다. */
+    @Test
+    void hostTakeoverSendsFreshConnectionInfoToEveryone() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        TestClient third = connect("민수", "device-c");
+        String code = startedRoomOfThree(host, guest, third);
+
+        host.close();
+        guest.await("ROOM_STATE");
+        third.await("ROOM_STATE");
+
+        guest.send("HOST_TAKEOVER", Map.of("hostAddress", "192.168.0.9"));
+
+        assertThat(guest.await("GAME_STARTED").get("hostAddress").asString()).isEqualTo("192.168.0.9");
+        JsonNode forThird = third.await("GAME_STARTED");
+        assertThat(forThird.get("roomId").asString()).isEqualTo(code);
+        assertThat(forThird.get("hostAddress").asString()).isEqualTo("192.168.0.9");
+    }
+
+    /**
+     * 방장이 아닌 사람이 이어받겠다고 해도 아무 일도 일어나지 않는다.
+     *
+     * <p>막지 않으면 남의 매치를 자기 PC 로 끌어갈 수 있다 — 참가자 전원이 그 사람에게
+     * 붙게 된다.
+     */
+    @Test
+    void aNonHostCannotTakeOverTheMatch() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        startedRoom(host, guest, "192.168.0.7");
+
+        guest.send("HOST_TAKEOVER", Map.of("hostAddress", "10.0.0.66"));
+
+        assertThatThrownBy(() -> guest.await("GAME_STARTED"))
+                .isInstanceOf(AssertionError.class);
+    }
+
+    /** 대기 중인 방에는 이어받을 매치가 없다. */
+    @Test
+    void takeoverIsIgnoredWhileTheRoomIsWaiting() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        createRoom(host);
+
+        host.send("HOST_TAKEOVER", Map.of("hostAddress", "192.168.0.9"));
+
+        assertThatThrownBy(() -> host.await("GAME_STARTED"))
+                .isInstanceOf(AssertionError.class);
+    }
+
+    /**
+     * 끊겨 유예를 기다리는 사람은 방장이 되지 않는다.
+     *
+     * <p>그 사람은 게임 서버가 될 수 없으므로 넘겨도 판이 멈춘다. 예전 {@code leave()} 는
+     * {@code players.keySet().findFirst()} 라 그것을 가리지 않았다.
+     */
+    @Test
+    void aDisconnectedPlayerIsNotChosenAsTheNewHost() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        TestClient third = connect("민수", "device-c");
+        startedRoomOfThree(host, guest, third);
+
+        // 참가자 하나가 먼저 끊긴다 — 자리는 유예로 남는다.
+        guest.close();
+        host.await("ROOM_STATE");
+        third.await("ROOM_STATE");
+
+        host.close();
+
+        JsonNode state = third.await("ROOM_STATE");
+        assertThat(state.get("hostUserId").asLong())
+                .as("끊긴 사람이 아니라 붙어 있는 사람이 방장이 되어야 한다")
+                .isEqualTo(third.userId);
+    }
     // ---------- 판 종료 (S15P21B202-316) ----------
 
     @Test
@@ -507,6 +646,41 @@ class GameWebSocketIntegrationTest {
         host.await("GAME_STARTED");
         guest.await("GAME_STARTED");
         return code;
+    }
+
+    /**
+     * 셋이 들어간 판을 시작한다 (S15P21B202-389).
+     *
+     * <p>이전은 <b>셋 이상이어야 제대로 보인다</b>. 둘이면 남는 사람이 하나뿐이라
+     * "끊긴 사람을 고르지 않는다" 나 "나머지 전원에게 새 정보가 간다" 를 확인할 수 없다.
+     */
+    private String startedRoomOfThree(TestClient host, TestClient guest, TestClient third)
+            throws Exception {
+        String code = createRoom(host);
+
+        guest.send("JOIN_ROOM", Map.of("roomId", code));
+        drainRoomState(host, guest);
+
+        third.send("JOIN_ROOM", Map.of("roomId", code));
+        drainRoomState(host, guest, third);
+
+        for (TestClient client : new TestClient[] { host, guest, third }) {
+            client.send("READY", Map.of("ready", true));
+            drainRoomState(host, guest, third);
+        }
+
+        host.send("START_GAME", Map.of("hostAddress", "192.168.0.7"));
+        host.await("GAME_STARTED");
+        guest.await("GAME_STARTED");
+        third.await("GAME_STARTED");
+        return code;
+    }
+
+    /** 방 상태 방송을 사람 수만큼 받아 비운다 — 남겨 두면 다음 await 가 옛 것을 집는다. */
+    private void drainRoomState(TestClient... clients) throws Exception {
+        for (TestClient client : clients) {
+            client.await("ROOM_STATE");
+        }
     }
 
     private TestClient connect(String nickname, String deviceId) {

@@ -317,6 +317,26 @@ namespace Metagame.Gameplay.Parts
             }
         }
 
+        /// <summary>
+        /// 물리 표현을 지금 상태로 다시 쓴다 (S15P21B202-389).
+        ///
+        /// <para><b>물리를 이어받을 때 쓴다.</b> 참가자 화면에서는
+        /// <c>WorldEvents.RemoteDecides</c> 가 참이라 <see cref="ApplyRepresentation"/> 이
+        /// 무조건 <c>isKinematic = true</c> 를 준다. 그 사람이 새 방장이 되면 그 깃발이
+        /// 내려가는데, 그것만으로는 <b>이미 써 둔 값이 바뀌지 않는다</b> — 다시 써야 한다.
+        /// 그러지 않으면 세계가 그림인 채로 멈춘다.</para>
+        ///
+        /// <para>구속도 함께 다시 잡는다. 고정못을 하나 풀었을 때 하는 것과 같은 쌍이다
+        /// (<see cref="NotifyClampReleased"/> 참고) — 표현만 고치고 구속을 두면 자유 파츠가
+        /// 여전히 한 점에 묶여 들리지 않는다.</para>
+        /// </summary>
+        public void RefreshRepresentation()
+        {
+            Initialize();
+            ApplyRepresentation(_state);
+            RefreshClampConstraints();
+        }
+
         void ApplyRepresentation(PartState state)
         {
             var (layer, mass, isKinematic) = RepresentationOf(state, PlacedMass);

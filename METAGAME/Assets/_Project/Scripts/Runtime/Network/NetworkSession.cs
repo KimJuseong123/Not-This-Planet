@@ -426,6 +426,22 @@ namespace Metagame.Network
             Send("GAME_END", new OutgoingData());
         }
 
+        /// <summary>
+        /// 매치를 이어받겠다고 알린다 (S15P21B202-389). 참가자들이 붙을 내 주소를 함께 보낸다.
+        ///
+        /// <para><b>내가 말을 걸어야 하는 이유.</b> 그 주소는 나만 안다 — 서버가 보는 내
+        /// 주소는 공인 IP 라 공유기가 밖에서 들어오는 연결을 막는다. <see cref="StartGame"/>
+        /// 가 <c>hostAddress</c> 를 싣는 것과 같은 이유이고, 그래서 이전도 같은 모양이다.</para>
+        ///
+        /// <para>서버가 방장인지 다시 확인하므로 여기서는 막지 않는다 — 방장이 아닌데
+        /// 보내면 서버가 조용히 무시한다.</para>
+        /// </summary>
+        public void SendHostTakeover(string hostAddress = null)
+        {
+            if (string.IsNullOrWhiteSpace(hostAddress)) hostAddress = LocalMatchAddress();
+            Send("HOST_TAKEOVER", new OutgoingData { hostAddress = hostAddress });
+        }
+
         public void LeaveRoom()
         {
             if (IsConnected && CurrentRoom != null)

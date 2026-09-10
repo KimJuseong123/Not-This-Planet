@@ -917,6 +917,24 @@ namespace Metagame.Network
 
         public override void OnStopClient()
         {
+            // 내가 이어받는 중이면 이 사람이 서 있던 자리를 적어 둔다 (S15P21B202-389).
+            //
+            // <b>적지 않으면 팀원 전원이 시작 지점으로 되돌아간다.</b> 탑·용접은 씬에
+            // 남지만 사람은 그렇지 않다 — 남의 몸은 서버가 스폰한 것이라 아래
+            // <see cref="RemoveBody"/> 가 지우고, 내가 서버가 된 뒤 새로 만든다.
+            // 그때 <c>RejoinMemory</c> 에 자리가 없으면 스폰 지점이 된다.
+            //
+            // 원래 이 기록은 서버가 <see cref="OnStopServer"/> 에서 남긴다(S15P21B202-150).
+            // 그런데 이어받기에서는 <b>그 서버가 이미 죽어</b> 아무것도 남기지 못하므로,
+            // 마지막으로 받은 자세를 본 사람이 대신 적는다.
+            //
+            // 내 몸은 적지 않는다. 게임 씬 것이라 <see cref="RemoveBody"/> 가 남겨 두고,
+            // 서버가 된 뒤 <see cref="OnStartServer"/> 가 그것을 그대로 넘겨받는다.
+            if (HostMigration.Taking && body != null && !isLocalPlayer)
+            {
+                RejoinMemory.Remember(userId, body.FootPosition, body.PlanarForward);
+            }
+
             ClientPlayers.Remove(this);
             PerfLog.Players = ClientPlayers.Count;
             RemoveBody();

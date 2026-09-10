@@ -613,6 +613,11 @@ namespace Metagame.Network
 
         public override void OnStopClient()
         {
+            // 내가 새 방장이 되는 길이면 세계를 물리로 돌려놓는다 (S15P21B202-389).
+            // 이 컴포넌트가 사라지기 전이어야 한다 — 받아 둔 속도와 줄 세운 순서를
+            // 아는 것이 여기뿐이다. RemoteDecides 는 그 안에서 내린다.
+            if (!isServer && HostMigration.Taking) TakeOverPhysics();
+
             if (!isServer) WorldEvents.RemoteDecides = false;
             if (!isServer) TransportVehicle.AnyActivated -= OnVehicleActivated;
 
@@ -793,7 +798,12 @@ namespace Metagame.Network
                     var body = tracked[i];
                     sendVelocities[i] = body == null
                         ? default
-                        : new Velocity { Linear = body.linearVelocity, Angular = body.angularVelocity };
+                        : new Velocity
+                        {
+                            Linear = body.linearVelocity,
+                            Angular = body.angularVelocity,
+                            Kinematic = body.isKinematic,
+                        };
                 }
 
                 RpcApplyVelocities(sendVelocities);
@@ -1000,6 +1010,17 @@ namespace Metagame.Network
         {
             public Vector3 Linear;
             public Vector3 Angular;
+
+            /// <summary>
+            /// 서버에서 이 물체가 kinematic 인가 (S15P21B202-389).
+            ///
+            /// <para><b>이어받을 때 이것이 없으면 무엇을 물리에 돌려줄지 알 수 없다.</b>
+            /// 참가자 화면은 <see cref="tracked"/> 전부를 kinematic 으로 세우므로
+            /// (<see cref="PrepareClient"/>) 자기 상태로는 답이 나오지 않는다. 부품은
+            /// 상태에서 되계산할 수 있지만 탈것·도구는 그럴 근거가 없다 — 서버만 아는
+            /// 값이라 서버가 말해 준다.</para>
+            /// </summary>
+            public bool Kinematic;
         }
 
         /// <summary>
@@ -1125,6 +1146,56 @@ namespace Metagame.Network
 
         /// <summary>받아 둔 속도가 있는가. 이어받는 쪽이 물어본다.</summary>
         public bool HasVelocities => recvVelocities.Length == tracked.Count && tracked.Count > 0;
+
+        /// <summary>
+        /// 그림이던 세계를 물리로 돌려놓는다 (S15P21B202-389).
+        ///
+        /// <para><b>이 컴포넌트가 사라지기 전에 해야 한다.</b> 이것은 서버가 스폰한
+        /// 오브젝트라 연결이 끊기면 Mirror 가 지운다. 그런데 받아 둔 속도와
+        /// <see cref="tracked"/> 순서를 아는 것이 여기뿐이므로, 넘겨받는 일은
+        /// <see cref="OnStopClient"/> 안에서 끝내야 한다.</para>
+        ///
+        /// <para><b>씬은 내려가지 않는다.</b> 이어받는 동안 <c>offlineScene</c> 을 비워
+        /// 두므로(<see cref="HostMigration"/>) 부품·용접·조립이 메모리에 그대로 남는다 —
+        /// 그래서 여기서 할 일은 "다시 세우기" 가 아니라 <b>물리를 켜는 것</b>뿐이다.</para>
+        ///
+        /// <para>순서가 중요하다. <c>RemoteDecides</c> 를 먼저 내려야
+        /// <see cref="SpaceshipPart.RefreshRepresentation"/> 이 kinematic 을 풀 수 있고,
+        /// kinematic 이 풀린 뒤에야 속도가 들어간다.</para>
+        /// </summary>
+        void TakeOverPhysics()
+        {
+            // ① 이제 내가 정한다. 이 줄이 없으면 아래 RefreshRepresentation 이
+            //    여전히 kinematic = true 를 쓴다(SpaceshipPart.ApplyRepresentation).
+            WorldEvents.RemoteDecides = false;
+
+            // ② 부품은 자기 상태로 물리 표현을 다시 쓴다 — 질량·레이어·구속까지 함께다.
+            for (int i = 0; i < trackedParts.Count; i++)
+            {
+                var part = trackedParts[i];
+                if (part != null) part.RefreshRepresentation();
+            }
+
+            // ③ 부품이 아닌 것(탈것·도구)은 되계산할 근거가 없다. 서버가 보내 준
+            //    kinematic 을 그대로 쓴다.
+            if (recvVelocities.Length == tracked.Count)
+            {
+                for (int i = 0; i < tracked.Count; i++)
+                {
+                    var body = tracked[i];
+                    if (body == null) continue;
+                    if (i < trackedParts.Count && trackedParts[i] != null) continue;
+
+                    body.isKinematic = recvVelocities[i].Kinematic;
+                }
+            }
+
+            // ④ 마지막으로 속도. kinematic 이 풀린 물체에만 들어간다.
+            RestoreVelocities();
+
+            Debug.Log($"[WorldSync] 물리를 이어받았다 · 물체 {tracked.Count}개 · "
+                      + $"속도 {(HasVelocities ? "복원" : "없음")}");
+        }
         void SendDrops()
         {
             var spawner = MeteorSpawner;
