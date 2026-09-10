@@ -93,6 +93,21 @@ namespace Metagame.Gameplay.Hazards
         public static readonly List<Meteor> All = new();
 
         Rigidbody _body;
+
+        /// <summary>
+        /// 이 돌의 강체. <b>이미 캐시되어 있으니 다시 찾지 않는다</b>
+        /// (S15P21B202-355, `!321` AI 리뷰).
+        ///
+        /// <para>흔적 동기화가 송신 틱마다 흔적 전체를 훑는데, 거기서
+        /// <c>GetComponent&lt;Rigidbody&gt;()</c> 를 부르면 상한 200개 × 30Hz 로
+        /// <b>프레임당 수백 회</b>가 된다. <c>-374</c>(여러 명이 같이 뭔가 하면 프레임이
+        /// 떨어진다)가 열려 있는 동안 그런 것을 얹으면 원인을 가릴 수 없다.</para>
+        ///
+        /// <para>착지한 뒤에도 <b>kinematic 이 아니다</b>(<c>Settle</c> 이
+        /// <c>isKinematic = false</c> 로 둔다) — 그래서 스스로 잠들고, 방망이에 맞으면
+        /// 깨어난다. 흔적 동기화가 "움직이는 것만" 을 그 잠듦으로 판별한다.</para>
+        /// </summary>
+        public Rigidbody Body => _body;
         MeteorTuning _tuning;
         bool _tuningScaleApplied;
         float _life;

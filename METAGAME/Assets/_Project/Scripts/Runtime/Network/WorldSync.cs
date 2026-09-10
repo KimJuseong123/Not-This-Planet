@@ -941,7 +941,10 @@ namespace Metagame.Network
 
             if (awake == 0) return;
 
-            if (!warnedScarCap && cap > 0)
+            // **상한에 닿았을 때만 전부 센다** (`!321` AI 리뷰). 처음에는 경고를 아직
+            // 내지 않았으면 매 틱 전체를 한 번 더 훑었는데, 경고가 한 번도 안 뜨는
+            // 정상 상황에서 그 순회가 영구히 매 틱 돌았다.
+            if (!warnedScarCap && cap > 0 && awake == cap)
             {
                 int moving = 0;
                 for (int i = 0; i < total; i++) if (IsScarAwake(scars[i])) moving++;
@@ -974,13 +977,17 @@ namespace Metagame.Network
         {
             if (scar == null || scar.Meteor == null) return false;
 
-            var body = scar.Meteor.GetComponent<Rigidbody>();
+            // **`Meteor.Body` 를 쓴다 — 여기서 GetComponent 를 부르면 안 된다**
+            // (`!321` AI 리뷰). 이 함수는 송신 틱마다 흔적 전체에 대해 불리므로,
+            // 상한 200개 × 30Hz 면 프레임당 수백 회가 된다. `-374` 가 열려 있는
+            // 동안 그런 것을 얹으면 원인을 가릴 수 없다.
+            var body = scar.Meteor.Body;
             return body != null && !body.IsSleeping();
         }
 
         static ScarState StateOf(ScarRecord scar)
         {
-            var body = scar.Meteor.GetComponent<Rigidbody>();
+            var body = scar.Meteor.Body;      // 위와 같은 이유로 GetComponent 를 쓰지 않는다
             return body != null
                 ? new ScarState { Id = scar.Id, Position = body.position, Rotation = body.rotation }
                 : new ScarState

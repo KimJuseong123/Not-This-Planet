@@ -457,6 +457,45 @@ namespace Metagame.Gameplay.Tests
                 "잠든 강체를 걸러내는 것이 \"끌리는 돌만\" 을 뜻한다");
         }
 
+        /// <summary>
+        /// <b>흔적을 훑는 길에서 <c>GetComponent</c> 를 부르지 않는다</b>
+        /// (S15P21B202-355, `!321` AI 리뷰).
+        ///
+        /// 처음에는 <c>IsScarAwake</c>·<c>StateOf</c> 가 각각
+        /// <c>GetComponent&lt;Rigidbody&gt;()</c> 를 불렀다. 이 둘은 송신 틱마다 흔적
+        /// 전체에 대해 불리므로 <b>상한 200개 × 30Hz 면 프레임당 수백 회</b>가 된다.
+        /// <c>-374</c>(여러 명이 같이 뭔가 하면 프레임이 떨어진다)가 열려 있는 동안
+        /// 그런 것을 얹으면 어느 쪽이 원인인지 못 가른다.
+        ///
+        /// <c>Meteor</c> 가 이미 <c>_body</c> 를 캐시하고 있어서, 그것을 내보내는 것으로
+        /// 끝났다 — 값을 한 벌 더 들고 있지 않는다.
+        /// </summary>
+        [Test]
+        public void ScarSendingDoesNotSearchComponentsEveryTick()
+        {
+            var sync = TestSource.Read("Runtime/Network/WorldSync.cs");
+
+            foreach (var name in new[]
+                     {
+                         "void SendScars()",
+                         "static bool IsScarAwake(ScarRecord scar)",
+                         "static ScarState StateOf(ScarRecord scar)",
+                     })
+            {
+                var body = TestSource.Method(sync, name);
+                Assert.That(body, Does.Not.Contain("GetComponent"),
+                    $"{name} 이 매 틱 컴포넌트를 찾는다 — 흔적 200개 × 30Hz 면 "
+                    + "프레임당 수백 회다. Meteor.Body 를 쓸 것");
+            }
+
+            // 받는 쪽도 같다. 전체 목록은 흔적 전부를 훑는다.
+            var apply = TestSource.Method(
+                TestSource.Read("Runtime/Gameplay/Hazards/MeteorSpawner.cs"),
+                "public void ApplyNetworkScars(IReadOnlyList<NetworkScarState> states, bool full)");
+            Assert.That(apply, Does.Not.Contain("GetComponent"),
+                "받는 쪽도 목록 크기만큼 컴포넌트를 찾는다 — Meteor.Body 를 쓸 것");
+        }
+
         static MeteorSpawner.NetworkScarState Scar(int id, Vector3 at) =>
             new MeteorSpawner.NetworkScarState
             {

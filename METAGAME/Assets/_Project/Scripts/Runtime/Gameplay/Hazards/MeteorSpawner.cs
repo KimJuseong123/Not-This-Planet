@@ -709,7 +709,10 @@ namespace Metagame.Gameplay.Hazards
 
                 // 보내는 쪽도 받는 쪽도 body 로 읽고 쓴다 — 보간이 걸려 있어
                 // transform.position 은 표시 위치다(ApplyNetworkMeteors 와 같은 이유).
-                var body = ghost.GetComponent<Rigidbody>();
+                //
+                // `Meteor.Body` 를 쓴다 (`!321` AI 리뷰) — 전체 목록은 흔적 전부를
+                // 훑으므로 여기서 GetComponent 를 부르면 그 개수만큼 쌓인다.
+                var body = ghost.Body;
                 if (body != null)
                 {
                     body.position = state.Position;
