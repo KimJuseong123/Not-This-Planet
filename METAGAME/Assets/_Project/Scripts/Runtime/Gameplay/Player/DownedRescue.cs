@@ -102,8 +102,12 @@ namespace Metagame.Gameplay
             // downed 훅은 값이 **바뀔 때만** 불리므로, 서버가 여전히 true 인 동안에는
             // 다시 내려오는 것이 없다. -383 의 "판정을 두 곳에 두면 반드시 갈라진다"
             // 가 그대로 적용된다.
+            // **권위를 내려놓은 몸만 막는다.** 구조자를 못 찾은 경우(rig 에 붙지 않은
+            // 독립 인터랙터 — 에디터 테스트가 그렇게 만든다)는 막지 않는다. 실제
+            // 게임에서 살리기 인터랙터는 언제나 rig 의 오브젝트에 붙어 있으므로,
+            // 클라이언트라면 여기서 반드시 rig 를 찾고 그 값이 거짓이다.
             var rescuer = actor != null ? actor.GetComponentInParent<PlayerRig>() : null;
-            if (rescuer == null || !rescuer.ServerAuthority) return;
+            if (rescuer != null && !rescuer.ServerAuthority) return;
 
             _rescuedSeconds = 0f;
             _liveSeconds = 0f;

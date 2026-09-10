@@ -64,14 +64,20 @@ namespace Metagame.Gameplay
         /// <summary>
         /// 이 몸의 <b>판정을 이 기계가 하는가</b> (S15P21B202-390).
         ///
-        /// <para>서버만 도는 <c>NetPlayer.FixedUpdate</c>(<c>[ServerCallback]</c>)가
-        /// 세운다. 그래서 <b>서버가 들고 있는 몸에만 참</b>이다 — 클라이언트의 몸
-        /// (자기 것이든 남의 것이든)에는 거짓이다.</para>
+        /// <para><b>기본이 참이고 클라이언트가 내려놓는다.</b> 그 자리는
+        /// <c>RemoteAvatar.Attach</c> 다 — 거기서 이미 <see cref="NetworkDriven"/> 을
+        /// 켜고 <see cref="ClampInteractor"/> 를 끈다("고정쇠 잡기가 클라에서도 돌아
+        /// 서버와 이중 판정이 된다", <c>!275</c> AI 리뷰). 같은 이유의 같은 자리라
+        /// 새 불변식을 만들지 않는다.</para>
+        ///
+        /// <para><b>처음에는 기본을 거짓으로 두고 서버가 켜게 했다.</b> 그러자 에디터
+        /// 테스트와 혼자 실행이 깨졌다 — 거기에는 <c>NetPlayer</c> 가 없어서 아무도
+        /// 켜 주지 않는다(<c>DownedRescueTests</c> 2건이 그것을 잡았다).</para>
         ///
         /// <para><see cref="NetworkDriven"/> 으로는 구별할 수 없다. 그 값은 호스트가
         /// 넘겨받은 자기 몸에도 참이라서, 서버와 클라이언트를 가르지 못한다.</para>
         /// </summary>
-        public bool ServerAuthority;
+        public bool ServerAuthority = true;
 
         /// <summary>조준 기준점. 카메라가 없는 서버에서도 겨냥이 가능하게 한다.</summary>
         Transform aimPivot;

@@ -531,11 +531,6 @@ namespace Metagame.Network
             // 과 같은 일이다 — 물리가 낸 결과를 SyncVar·NetworkTransform 에 넘긴다.
             downed = body.Downed;
 
-            // 이 몸의 판정을 이 기계가 한다 (S15P21B202-390). 이 루프는
-            // [ServerCallback] 이므로 서버에서만 돈다 — 그것이 이 표시의 근거다.
-            // 몸을 세운 다음 틱에 켜지는데, 4초 홀드에는 영향이 없다.
-            body.ServerAuthority = true;
-
             transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
         }
 

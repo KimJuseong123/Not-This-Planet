@@ -258,16 +258,33 @@ namespace Metagame.Gameplay.Tests
                 BindingFlags.Instance | BindingFlags.Public);
             Assert.That(authority, Is.Not.Null, "PlayerRig.ServerAuthority 가 없다");
 
-            // 세우는 곳은 서버만 도는 루프여야 한다. NetworkDriven 으로는 구별할 수
-            // 없다 — 호스트가 넘겨받은 자기 몸에도 참이다.
-            var net = TestSource.Blank(TestSource.Read("Runtime/Network/NetPlayer.cs"));
-            Assert.That(net, Does.Contain("body.ServerAuthority = true;"),
-                "서버가 표시를 세우지 않으면 어디서도 참이 되지 않는다");
+            // **기본이 참이다.** 처음에는 거짓으로 두고 서버가 켜게 했는데, 에디터
+            // 테스트와 혼자 실행에는 NetPlayer 가 없어 아무도 켜 주지 않아
+            // DownedRescueTests 2건이 깨졌다.
+            var probe = new GameObject("권위 기본값").AddComponent<PlayerRig>();
+            try
+            {
+                Assert.That(probe.ServerAuthority, Is.True,
+                    "기본이 거짓이면 NetPlayer 가 없는 곳(에디터 테스트·혼자 실행)에서 "
+                    + "부활이 영원히 일어나지 않는다");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(probe.gameObject);
+            }
 
-            var fixedUpdate = TestSource.Method(
-                TestSource.Read("Runtime/Network/NetPlayer.cs"), "void FixedUpdate()");
-            Assert.That(fixedUpdate, Does.Contain("body.ServerAuthority = true;"),
-                "[ServerCallback] 루프 안에서 세워야 서버에서만 참이 된다");
+            // **내려놓는 곳은 클라이언트 한 곳뿐이다.** RemoteAvatar.Attach 가 이미
+            // NetworkDriven 을 켜고 ClampInteractor 를 끄는 자리다 — 같은 이유의 같은
+            // 자리라 새 불변식을 만들지 않는다. 내 몸과 남의 몸 **두 경로**가 있다.
+            var avatar = TestSource.Blank(TestSource.Read("Runtime/Network/RemoteAvatar.cs"));
+            Assert.That(TestSource.Count(avatar, "ServerAuthority = false"), Is.EqualTo(2),
+                "클라이언트의 두 경로(내 몸·남의 몸)에서 모두 내려놓아야 한다 — "
+                + "한쪽이 빠지면 그 몸에서 부활이 일어나 서버와 어긋난다");
+
+            // 쓰는 곳이 둘이면 갈라진다 — 서버 쪽에서 다시 켜지 않는다.
+            var net = TestSource.Blank(TestSource.Read("Runtime/Network/NetPlayer.cs"));
+            Assert.That(net, Does.Not.Contain("ServerAuthority"),
+                "서버가 다시 켜면 쓰는 곳이 둘이 된다 — 기본값이 이미 참이다");
         }
 
         /// <summary>
