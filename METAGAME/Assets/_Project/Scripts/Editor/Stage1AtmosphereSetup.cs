@@ -18,7 +18,7 @@ namespace Metagame.EditorTools
         const string ProfilePath = "Assets/_Project/Data/Atmosphere/Stage1AtmosphereProfile.asset";
         const string MainScenePath = "Assets/Scenes/Main.unity";
 
-        [MenuItem("Tools/둥실둥실 우주 대탈출/Main 씬에 1장 분위기 적용", false, 4)]
+        [MenuItem("Tools/Not This Planet/Main 씬에 1장 분위기 적용", false, 4)]
         public static void Apply()
         {
             if (EditorApplication.isPlayingOrWillChangePlaymode)

@@ -44,7 +44,7 @@ namespace Metagame.EditorTools
             "RockClusters",
         };
 
-        [MenuItem("Tools/둥실둥실 우주 대탈출/Stage1 정적 메시 콜라이더 연결", false, 10)]
+        [MenuItem("Tools/Not This Planet/Stage1 정적 메시 콜라이더 연결", false, 10)]
         public static void Apply()
         {
             if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())

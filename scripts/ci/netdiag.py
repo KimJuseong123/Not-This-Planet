@@ -13,7 +13,7 @@
 다르면 그 시각에 갈렸다는 증거다. 좌표를 눈으로 비교할 필요가 없다.
 
 로그 위치(윈도우):
-    %USERPROFILE%\\AppData\\LocalLow\\SpaceFlop\\둥실둥실 우주 대탈출\\Player.log
+    %USERPROFILE%\\AppData\\LocalLow\\SpaceFlop\\Not This Planet\\Player.log
     (직전 실행은 Player-prev.log)
 """
 import io

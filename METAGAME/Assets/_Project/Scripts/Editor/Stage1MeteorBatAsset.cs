@@ -37,7 +37,7 @@ namespace Metagame.EditorTools
         /// <summary>발사대에서 이만큼 떨어진 곳에 둔다. 조립대 반경(9m) 안이다.</summary>
         static readonly Vector3 FallbackPosition = new(4f, 0.7f, -3f);
 
-        [MenuItem("Tools/둥실둥실 우주 대탈출/운석 방망이 배치", false, 10)]
+        [MenuItem("Tools/Not This Planet/운석 방망이 배치", false, 10)]
         public static void Build()
         {
             var prefab = EnsureToolComponent();

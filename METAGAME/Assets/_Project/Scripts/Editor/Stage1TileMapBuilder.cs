@@ -24,7 +24,7 @@ namespace Metagame.EditorTools
 
         const float TileSize = 5f;
 
-        [MenuItem("Tools/둥실둥실 우주 대탈출/Stage1 맵 타일 적용", false, 8)]
+        [MenuItem("Tools/Not This Planet/Stage1 맵 타일 적용", false, 8)]
         public static void Apply()
         {
             if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
