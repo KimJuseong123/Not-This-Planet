@@ -141,7 +141,7 @@ def changelog(prev: str | None, head: str = "HEAD") -> tuple[list[dict], int]:
 def render_notes(version: str, entries: list[dict], others: int, prev: str | None, zip_name: str, zip_url: str,
                  size_bytes: int, project_url: str, jira_browse: str) -> str:
     lines = [f"# METAGAME {version}", "",
-             f"**내려받기**: [{zip_name}]({zip_url}) ({size_bytes / 1048576:.1f} MB) — 압축을 풀고 `SpaceFlop.exe` 실행",
+             f"**내려받기**: [{zip_name}]({zip_url}) ({size_bytes / 1048576:.1f} MB) — 압축을 풀고 `NotThisPlanet.exe` 실행",
              f"이전 릴리스: {prev or '없음(첫 릴리스)'} · 포함 MR {len(entries)}건" + (f" · 그 밖 머지 {others}건" if others else ""),
              "", "## 들어간 것", ""]
     shown = entries[:MAX_NOTE_LINES]
@@ -285,7 +285,7 @@ def phase_publish(unity_rc: int) -> int:
                                  ("링크", links)])
         return 1
 
-    build_dir = env("SPACE_BUILD_DIR", "release/SpaceFlop") or "release/SpaceFlop"
+    build_dir = env("SPACE_BUILD_DIR", "release/NotThisPlanet") or "release/NotThisPlanet"
     name = zip_name(version)
     zip_path = os.path.join(os.path.dirname(build_dir.rstrip("/\\")) or ".", name)
     t0 = time.time()
@@ -318,7 +318,7 @@ def phase_publish(unity_rc: int) -> int:
 
     who = env("GITLAB_USER_LOGIN", "") or ""
     notify(True, version, [("Release", f"[{version}]({release_url})"),
-                           ("내려받기", f"[{name}]({pkg_url}) — {size / 1048576:.1f} MB, 압축을 풀고 `SpaceFlop.exe`"),
+                           ("내려받기", f"[{name}]({pkg_url}) — {size / 1048576:.1f} MB, 압축을 풀고 `NotThisPlanet.exe`"),
                            ("들어간 것", f"MR {len(entries)}건" + (f" (이전 {prev} 이후)" if prev else " (첫 릴리스)")),
                            ("머지한 사람", who or "?"), ("링크", links)])
     jira_release_webhook(version, [e["key"] for e in entries if e.get("key")], release_url)

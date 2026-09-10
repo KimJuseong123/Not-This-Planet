@@ -123,7 +123,7 @@ namespace Metagame.EditorTools
         /// <summary>
         /// 아레나 지면을 살짝 띄우는 높이.
         ///
-        /// 런타임 <c>LevelBuilder</c> 가 예전 SpaceFlop 코스를 같은 좌표에 세우는데(카탈로그 §11-9),
+        /// 런타임 <c>LevelBuilder</c> 가 예전 NotThisPlanet 코스를 같은 좌표에 세우는데(카탈로그 §11-9),
         /// 그 착륙장 슬랩이 y=0, 크레이터 바닥이 y≈0.05 라 지면과 같은 평면에서 z-파이팅이 난다.
         /// 6cm 띄우면 아레나 안에서는 Stage1 지면만 보인다. <c>buildLevel</c> 을 끄면 필요 없는 값이다.
         /// </summary>

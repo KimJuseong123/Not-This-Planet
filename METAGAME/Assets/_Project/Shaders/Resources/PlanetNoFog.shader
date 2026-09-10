@@ -1,6 +1,6 @@
 // URP planet material that keeps the distant background readable through the
 // scene fog and the project's fullscreen atmosphere pass.
-Shader "SpaceFlop/PlanetNoFog"
+Shader "NotThisPlanet/PlanetNoFog"
 {
     Properties
     {
