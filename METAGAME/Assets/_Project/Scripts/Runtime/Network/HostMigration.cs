@@ -60,6 +60,21 @@ namespace Metagame.Network
         /// </summary>
         public const float WaitForTakeover = 20f;
 
+        /// <summary>
+        /// 이어받은 직후 이만큼은 맵 이탈 복구를 쉰다(초) — S15P21B202-401.
+        ///
+        /// <para>넘겨받는 순간 세계가 그림에서 물리로 바뀐다. 조인트가 걸리고 속도가
+        /// 들어가는 그 몇 프레임은 물체가 튈 수 있고, 그때 <c>MapRecovery</c> 가
+        /// "부품이 맵을 벗어났다" 로 읽으면 <b>씬을 통째로 다시 로드해</b> 판을 날린다.
+        /// 물리가 다시 맞물릴 틈을 준다.</para>
+        /// </summary>
+        public const float SettleAfterTakeover = 3f;
+
+        static float settleUntil;
+
+        /// <summary>이어받은 직후라 복구 판정을 미뤄야 하는가.</summary>
+        public static bool Settling => Time.time < settleUntil;
+
         NetworkSession session;
         long knownHost;
         bool migrating;
@@ -215,6 +230,9 @@ namespace Metagame.Network
 
             // 여기서 내린다 — SpawnIfNeeded 가 자리 기록을 지키는 것까지 끝났다.
             Taking = false;
+
+            // 물리가 다시 맞물릴 틈을 준다 — SettleAfterTakeover 의 주석 참고.
+            settleUntil = Time.time + SettleAfterTakeover;
 
             manager.offlineScene = offline;
             Pending = false;
