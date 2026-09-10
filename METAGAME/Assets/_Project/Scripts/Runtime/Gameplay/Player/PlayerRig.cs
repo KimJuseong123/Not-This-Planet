@@ -61,6 +61,18 @@ namespace Metagame.Gameplay
         /// </summary>
         public bool NetworkDriven;
 
+        /// <summary>
+        /// 이 몸의 <b>판정을 이 기계가 하는가</b> (S15P21B202-390).
+        ///
+        /// <para>서버만 도는 <c>NetPlayer.FixedUpdate</c>(<c>[ServerCallback]</c>)가
+        /// 세운다. 그래서 <b>서버가 들고 있는 몸에만 참</b>이다 — 클라이언트의 몸
+        /// (자기 것이든 남의 것이든)에는 거짓이다.</para>
+        ///
+        /// <para><see cref="NetworkDriven"/> 으로는 구별할 수 없다. 그 값은 호스트가
+        /// 넘겨받은 자기 몸에도 참이라서, 서버와 클라이언트를 가르지 못한다.</para>
+        /// </summary>
+        public bool ServerAuthority;
+
         /// <summary>조준 기준점. 카메라가 없는 서버에서도 겨냥이 가능하게 한다.</summary>
         Transform aimPivot;
 
@@ -230,21 +242,43 @@ namespace Metagame.Gameplay
         /// </summary>
         public Interactor RescueInteractor { get; private set; }
 
-        /// <summary>지금 일으키는 중인 진행도 0~1. HUD 가 이 값을 그린다.</summary>
-        public float RescueProgress01 =>
-            RescueInteractor != null && RescueInteractor.State == InteractorState.Holding
-                ? Mathf.Clamp01(RescueInteractor.HoldProgress) : 0f;
-
-        /// <summary>지금 일으킬 수 있는 사람. 없으면 <c>null</c> — HUD 가 문구를 띄운다.</summary>
-        public PlayerRig RescueCandidate
+        /// <summary>
+        /// 지금 겨냥한 사람을 다 일으키기까지의 진행도 0~1. HUD 가 이 값을 그린다.
+        ///
+        /// <para><b>인터랙터의 <c>HoldProgress</c> 가 아니라 <see cref="DownedRescue"/>
+        /// 의 값이다</b> (<c>!297</c> AI 리뷰). 앞사람이 남긴 진행분이 포함돼야
+        /// 이어받는 화면에서 게이지가 0 부터 다시 차 보이지 않는다. 세는 곳은 한
+        /// 곳이어야 한다 — <c>-383</c> 에서 겪은 것이다.</para>
+        /// </summary>
+        public float RescueProgress01
         {
             get
             {
-                var focus = RescueInteractor != null
-                    ? (RescueInteractor.State == InteractorState.Holding
-                        ? RescueInteractor.Held : RescueInteractor.Focus)
-                    : null;
-                return focus is DownedRescue rescue ? rescue.Target : null;
+                var rescue = RescueFocus;
+                return rescue != null ? rescue.Progress : 0f;
+            }
+        }
+
+        /// <summary>지금 누르고 있는가. HUD 문구가 "일으키기" 와 "일으키는 중" 을 가른다.</summary>
+        public bool RescueHolding =>
+            RescueInteractor != null && RescueInteractor.State == InteractorState.Holding;
+
+        /// <summary>지금 일으킬 수 있는 사람. 없으면 <c>null</c> — HUD 가 문구를 띄운다.</summary>
+        public PlayerRig RescueCandidate => RescueFocus != null ? RescueFocus.Target : null;
+
+        /// <summary>
+        /// 지금 겨냥한(또는 붙들고 있는) 구조 지점. 홀드 중에는 <c>Focus</c> 가 아니라
+        /// <c>Held</c> 를 봐야 한다 — 인터랙터는 홀드 중에 포커스를 갱신하지 않는다.
+        /// </summary>
+        DownedRescue RescueFocus
+        {
+            get
+            {
+                if (RescueInteractor == null) return null;
+
+                var focus = RescueInteractor.State == InteractorState.Holding
+                    ? RescueInteractor.Held : RescueInteractor.Focus;
+                return focus as DownedRescue;
             }
         }
         /// <summary>실제로 한 손이 고정쇠에 결합된 상태.</summary>
@@ -468,7 +502,6 @@ namespace Metagame.Gameplay
         {
             interactionVehicles = vehicles ?? System.Array.Empty<TransportVehicle>();
             RefreshInteractionFocus();
-            TickRescue();
         }
 
         /// <summary>
@@ -1380,6 +1413,11 @@ namespace Metagame.Gameplay
             if (!JointTools.IsFinite(Doll.Hips.position)) { return; }
 
             RefreshInteractionFocus();
+
+            // 매 고정틱 돌아야 한다. Time.fixedDeltaTime 을 적산하므로 호출 빈도가
+            // 곧 게이지 속도다 (!297 AI 리뷰가 첫 판의 자리를 짚었다 — 운반 장치
+            // 목록 갱신 함수 안에 들어가 있었다).
+            TickRescue();
 
             // 기절 5초 뒤 3인칭으로 물러나는 것처럼(S15P21B202-259) 카메라가 스스로 시점을
             // 바꾸는 경우가 있다. 기절 중에도 돌아야 하므로 아래 조기 반환보다 앞이다.
@@ -2355,31 +2393,62 @@ namespace Metagame.Gameplay
                 return;
             }
 
-            // 홀드 중이면 진행도를 올리고, 아니면 후보를 갱신한다. 먼저 도는 이유는
-            // 아래 시작 판정이 이번 프레임의 후보를 봐야 하기 때문이다.
-            bool wasHolding = RescueInteractor.State == InteractorState.Holding;
-            RescueInteractor.Tick(Time.fixedDeltaTime);
+            bool wasHolding = RescueHolding;
 
-            if (input.RescueHeld)
+            if (!input.RescueHeld)
             {
-                if (RescueInteractor.State == InteractorState.Holding) return;
-
-                // 손을 떼지 않았는데 홀드가 끝났다 = 다 채웠다. Interactor 가 대상의
-                // OnCompleted 를 부르고 Idle 로 돌아가는 것이 완료의 신호다.
                 if (wasHolding)
                 {
-                    LogRescue("완료", "일어났다");
-                    return;
+                    LogRescue("중단", "손을 뗐다 · 진행분은 남는다");
+                    RescueInteractor.Cancel();
                 }
-
-                if (RescueInteractor.TryBegin()) LogRescue("시작", "누르고 있는다");
+                waitingForServerRescue = false;
+                RescueInteractor.Tick(Time.fixedDeltaTime);   // 후보 갱신
+                return;
             }
-            else if (wasHolding)
+
+            // **클라이언트는 예측만 한다.** 완료를 서버가 하므로(-145 · DownedRescue
+            // 의 권위 가드), 다 찬 것처럼 보이는 데서 진행을 멈추고 `downed` SyncVar
+            // 가 내려오기를 기다린다(-378). 그러지 않으면 인터랙터가 그 프레임에
+            // 완료로 넘어가 아무 일도 일어나지 않는 완료를 매 틱 되풀이한다.
+            if (wasHolding && !ServerAuthority
+                && RescueInteractor.HoldProgress >= RescuePredictionCap)
             {
-                LogRescue("중단", "손을 뗐다 · 진행분은 남는다");
-                RescueInteractor.Cancel();
+                if (!waitingForServerRescue)
+                {
+                    waitingForServerRescue = true;
+                    LogRescue("대기", "다 찼다 · 서버 판정을 기다린다");
+                }
+                return;
+            }
+
+            RescueInteractor.Tick(Time.fixedDeltaTime);
+
+            if (RescueHolding) return;
+
+            // 손을 떼지 않았는데 홀드가 끝났다 = 다 채웠다. Interactor 가 대상의
+            // OnCompleted 를 부르고 Idle 로 돌아가는 것이 완료의 신호다.
+            if (wasHolding)
+            {
+                LogRescue("완료", "일어났다");
+                return;
+            }
+
+            if (RescueInteractor.TryBegin())
+            {
+                waitingForServerRescue = false;
+                LogRescue("시작", "누르고 있는다");
             }
         }
+
+        /// <summary>
+        /// 클라이언트의 예측이 멈추는 자리. 1 에 닿으면 인터랙터가 완료로 넘어가므로
+        /// 그 앞에서 세운다 — 화면은 거의 다 찬 것으로 보이고, 실제로 일어나는 것은
+        /// 서버가 정한다.
+        /// </summary>
+        public const float RescuePredictionCap = 0.98f;
+
+        bool waitingForServerRescue;
 
         string RescueTargetName()
         {

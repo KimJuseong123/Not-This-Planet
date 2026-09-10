@@ -30,6 +30,17 @@ namespace Metagame.Gameplay
 
         public PlayerRig Target => _target;
 
+        /// <summary>
+        /// 다 채우기까지의 <b>전체</b> 진행도 0~1.
+        ///
+        /// <para><b>화면은 이 값을 그려야 한다</b> (S15P21B202-390). 인터랙터의
+        /// <c>HoldProgress</c> 는 <b>이번에 누른 시간</b>만 알아서, 그 값을 그리면
+        /// 이어받는 사람 화면에서 게이지가 <b>0부터 다시 차 보인다.</b> 실제로는
+        /// <see cref="RefreshRemainingHoldSeconds"/> 가 남은 시간만 요구하므로 완료는
+        /// 빨리 오는데 화면은 그것을 말하지 않는다(<c>!297</c> AI 리뷰 지적).</para>
+        ///
+        /// <para>이 프로퍼티는 원래 있었다 — 배선이 없어서 아무도 읽지 않았을 뿐이다.</para>
+        /// </summary>
         public float Progress =>
             Mathf.Clamp01((_rescuedSeconds + _liveSeconds) / PhysicsScale.RescueSeconds);
 
@@ -82,6 +93,17 @@ namespace Metagame.Gameplay
         public override void OnCompleted(Interactor actor)
         {
             if (_target == null || !_target.Downed) return;
+
+            // 부활은 서버가 판정한다 (S15P21B202-145). 클라이언트에서 여기까지 오는
+            // 것은 **예측**이고, 실제로 일어나는 것은 서버가 정해 `downed` SyncVar 로
+            // 내려온다 (S15P21B202-378).
+            //
+            // 여기서 되살리면 그 화면에서만 일어난다. 그리고 되돌아오지도 않는다 —
+            // downed 훅은 값이 **바뀔 때만** 불리므로, 서버가 여전히 true 인 동안에는
+            // 다시 내려오는 것이 없다. -383 의 "판정을 두 곳에 두면 반드시 갈라진다"
+            // 가 그대로 적용된다.
+            var rescuer = actor != null ? actor.GetComponentInParent<PlayerRig>() : null;
+            if (rescuer == null || !rescuer.ServerAuthority) return;
 
             _rescuedSeconds = 0f;
             _liveSeconds = 0f;

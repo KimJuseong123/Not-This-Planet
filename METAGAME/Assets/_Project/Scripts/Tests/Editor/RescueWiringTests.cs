@@ -190,6 +190,107 @@ namespace Metagame.Gameplay.Tests
                 "설정을 적용하지 않으면 기본값에서 벗어날 수 없다");
         }
 
+        /// <summary>
+        /// <b>매 고정틱 돌아야 한다.</b> 첫 판은 <c>TickRescue()</c> 를
+        /// <c>ConfigureTransportInteractionTargets</c>(운반 장치 목록 갱신) 안에
+        /// 넣었다 — <c>RefreshInteractionFocus();</c> 의 첫 번째 자리를 잡은 실수였고
+        /// 그러면 <b>게이지가 목록이 바뀔 때만 움직인다</b>(<c>!297</c> AI 리뷰).
+        /// <c>Time.fixedDeltaTime</c> 을 적산하므로 호출 빈도가 곧 게이지 속도다.
+        /// </summary>
+        [Test]
+        public void TheHoldIsDrivenFromTheFixedTick()
+        {
+            var rig = TestSource.Read("Runtime/Gameplay/Player/PlayerRig.cs");
+
+            var tick = TestSource.Method(rig, "public void Tick()");
+            Assert.That(tick, Does.Contain("TickRescue()"),
+                "고정틱 진입점에서 부르지 않으면 게이지 속도가 호출 빈도에 휘둘린다");
+
+            var vehicles = TestSource.Method(
+                rig, "public void ConfigureTransportInteractionTargets(TransportVehicle[] vehicles)");
+            Assert.That(vehicles, Does.Not.Contain("TickRescue()"),
+                "운반 장치 목록 갱신은 매 틱 불리지 않는다 — 첫 판이 거기 있었다");
+        }
+
+        /// <summary>
+        /// <b>진행도는 <see cref="DownedRescue"/> 의 값이다.</b> 인터랙터의
+        /// <c>HoldProgress</c> 는 <b>이번에 누른 시간</b>만 알아서, 그것을 그리면
+        /// 이어받는 사람 화면에서 게이지가 0 부터 다시 차 보인다(<c>!297</c> AI 리뷰).
+        /// 세는 곳은 한 곳이어야 한다 — <c>-383</c> 에서 겪은 것이다.
+        /// </summary>
+        [Test]
+        public void TheGaugeReadsTheAccumulatedProgress()
+        {
+            var body = TestSource.Method(
+                TestSource.Read("Runtime/Gameplay/Player/PlayerRig.cs"),
+                "public float RescueProgress01");
+
+            Assert.That(body, Does.Contain(".Progress"),
+                "DownedRescue 의 진행도를 읽어야 앞사람이 남긴 분이 보인다");
+            Assert.That(body, Does.Not.Contain("HoldProgress"),
+                "인터랙터의 홀드 진행도를 그리면 이어받기가 0 부터 다시 차 보인다");
+
+            // 진행도를 **정규화하는** 식이 두 곳에 생기지 않았는지. 누적 자체
+            // (Release 가 _liveSeconds 를 _rescuedSeconds 에 접는 것)는 다른 일이므로
+            // 세지 않는다 — 처음에 그 둘을 같은 것으로 세어 틀렸다.
+            var rescue = TestSource.Blank(
+                TestSource.Read("Runtime/Gameplay/Player/DownedRescue.cs"));
+            Assert.That(TestSource.Count(rescue, "/ PhysicsScale.RescueSeconds"), Is.EqualTo(1),
+                "진행도를 0~1 로 만드는 식이 둘이면 갈라진다");
+        }
+
+        /// <summary>
+        /// <b>부활은 서버가 한다</b>(`-145`). 클라이언트에서 홀드가 완료되어도
+        /// 되살리면 <b>그 화면에서만 일어난다</b> — <c>downed</c> 훅은 값이 바뀔 때만
+        /// 불리므로 서버가 여전히 <c>true</c> 인 동안 되돌아오지도 않는다(`-378`).
+        /// </summary>
+        [Test]
+        public void OnlyTheServerActuallyRevives()
+        {
+            var completed = TestSource.Method(
+                TestSource.Read("Runtime/Gameplay/Player/DownedRescue.cs"),
+                "public override void OnCompleted(Interactor actor)");
+
+            Assert.That(completed, Does.Contain("ServerAuthority"),
+                "권위 가드가 없으면 클라이언트에서 부활이 일어나 서버와 어긋난다");
+
+            var authority = typeof(PlayerRig).GetField("ServerAuthority",
+                BindingFlags.Instance | BindingFlags.Public);
+            Assert.That(authority, Is.Not.Null, "PlayerRig.ServerAuthority 가 없다");
+
+            // 세우는 곳은 서버만 도는 루프여야 한다. NetworkDriven 으로는 구별할 수
+            // 없다 — 호스트가 넘겨받은 자기 몸에도 참이다.
+            var net = TestSource.Blank(TestSource.Read("Runtime/Network/NetPlayer.cs"));
+            Assert.That(net, Does.Contain("body.ServerAuthority = true;"),
+                "서버가 표시를 세우지 않으면 어디서도 참이 되지 않는다");
+
+            var fixedUpdate = TestSource.Method(
+                TestSource.Read("Runtime/Network/NetPlayer.cs"), "void FixedUpdate()");
+            Assert.That(fixedUpdate, Does.Contain("body.ServerAuthority = true;"),
+                "[ServerCallback] 루프 안에서 세워야 서버에서만 참이 된다");
+        }
+
+        /// <summary>
+        /// <b>클라이언트의 예측이 완료로 넘어가지 않는다.</b> 넘어가면 아무 일도
+        /// 일어나지 않는 완료를 매 틱 되풀이한다 — 위 가드가 되살리지 않으므로.
+        /// </summary>
+        [Test]
+        public void ThePredictionStopsShortOfCompleting()
+        {
+            var tick = TestSource.Method(
+                TestSource.Read("Runtime/Gameplay/Player/PlayerRig.cs"), "void TickRescue()");
+
+            Assert.That(tick, Does.Contain("ServerAuthority"),
+                "클라이언트와 서버를 가르지 않으면 예측이 완료까지 간다");
+            Assert.That(tick, Does.Contain("PredictionCap"),
+                "멈추는 자리가 없으면 인터랙터가 그 프레임에 완료로 넘어간다");
+
+            Assert.That(PlayerRig.RescuePredictionCap, Is.LessThan(1f),
+                "1 이면 완료를 막지 못한다");
+            Assert.That(PlayerRig.RescuePredictionCap, Is.GreaterThan(0.5f),
+                "너무 낮으면 게이지가 어중간한 데서 멈춰 사람이 고장으로 본다");
+        }
+
         /// <summary>홀드 시간이 기획 값 그대로다 — 게이지가 채워지는 속도가 이 값이다.</summary>
         [Test]
         public void TheHoldTakesThePlannedTime()
