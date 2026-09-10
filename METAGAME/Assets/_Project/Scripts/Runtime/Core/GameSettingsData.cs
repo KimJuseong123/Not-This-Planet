@@ -59,6 +59,7 @@ namespace Metagame.Core
             public KeyCode freeLook = KeyCode.LeftAlt;
             public KeyCode restart = KeyCode.R;
             public KeyCode stuckEscape = KeyCode.T;
+            public KeyCode rescueTeammate = KeyCode.G;
             public KeyCode toolAction = KeyCode.Q;
             public KeyCode transportAction = KeyCode.E;
             public KeyCode tablet = KeyCode.Tab;
@@ -132,6 +133,7 @@ namespace Metagame.Core
             controls.freeLook = NormalizeKey(controls.freeLook, KeyCode.LeftAlt);
             controls.restart = NormalizeKey(controls.restart, KeyCode.R);
             controls.stuckEscape = NormalizeKey(controls.stuckEscape, KeyCode.T);
+            controls.rescueTeammate = NormalizeKey(controls.rescueTeammate, KeyCode.G);
             controls.toolAction = NormalizeKey(controls.toolAction, KeyCode.Q);
             controls.transportAction = NormalizeKey(controls.transportAction, KeyCode.E);
             controls.tablet = NormalizeKey(controls.tablet, KeyCode.Tab);
@@ -182,6 +184,7 @@ namespace Metagame.Core
                     freeLook = controls != null ? controls.freeLook : KeyCode.LeftAlt,
                     restart = controls != null ? controls.restart : KeyCode.R,
                     stuckEscape = controls != null ? controls.stuckEscape : KeyCode.T,
+                    rescueTeammate = controls != null ? controls.rescueTeammate : KeyCode.G,
                     toolAction = controls != null ? controls.toolAction : KeyCode.Q,
                     transportAction = controls != null ? controls.transportAction : KeyCode.E,
                     tablet = controls != null ? controls.tablet : KeyCode.Tab,

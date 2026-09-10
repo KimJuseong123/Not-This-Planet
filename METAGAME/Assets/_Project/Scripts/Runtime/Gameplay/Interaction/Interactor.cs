@@ -114,6 +114,19 @@ namespace Metagame.Gameplay.Interaction
         /// <summary>지금 바라보고 있는 대상. 없으면 null.</summary>
         public IInteractable Focus { get; private set; }
 
+        /// <summary>
+        /// 이 인터랙터가 <b>받아들일 대상</b>만 고르게 한다 (S15P21B202-390).
+        /// <c>null</c> 이면 전부 받는다 — 기존 사용처의 동작은 그대로다.
+        ///
+        /// <para><b>왜 필요한가.</b> <see cref="FindBestCandidate"/> 는
+        /// <c>Interactable</c> 레이어의 <see cref="IInteractable"/> 이면 <b>아무거나</b>
+        /// 잡는다. 그래서 용도가 다른 인터랙터를 하나 더 두면 <b>남의 대상을 점유해
+        /// 버린다</b> — 살리기 인터랙터가 고정쇠를 잡으면, <c>PartClamp</c> 는
+        /// <c>HoldSeconds</c> 가 0 이라 그 자리에서 완료로 처리되고 실제 고정쇠 조작이
+        /// 막힌다.</para>
+        /// </summary>
+        public System.Predicate<IInteractable> Accepts;
+
         /// <summary>홀드를 진행 중인 대상. 진행 중이 아니면 null.</summary>
         public IInteractable Held { get; private set; }
 
@@ -329,6 +342,7 @@ namespace Metagame.Gameplay.Interaction
 
                 var candidate = candidateCollider.GetComponentInParent<IInteractable>();
                 if (!IsAlive(candidate)) continue;
+                if (Accepts != null && !Accepts(candidate)) continue;
 
                 var position = candidate.Transform.position;
                 var offset = position - origin;

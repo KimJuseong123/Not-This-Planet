@@ -60,6 +60,14 @@ namespace Metagame.Core
         public bool PingPressed;        // 마우스 휠 클릭 — 팀 핑
 
         /// <summary>
+        /// 기절한 동료를 <b>일으키는 중</b>인가 (S15P21B202-390). 누르고 있는 동안 참이다.
+        ///
+        /// <para>운반(좌클릭)과 <b>다른 버튼</b>이다. 대상은 같은 사람 하나이고 버튼이
+        /// 둘이다 — 들어 옮기기는 <c>CarryTarget</c>, 일으키기는 <c>구조 지점</c>.</para>
+        /// </summary>
+        public bool RescueHeld;
+
+        /// <summary>
         /// T — 끼임 탈출(기획 §21). <b>누른 순간이 아니라 누르고 있는 상태</b>다.
         /// §21 이 "3초 동안 유지하면" 이라고 정하므로 유지 여부를 매 프레임 알아야 한다.
         /// </summary>
@@ -98,6 +106,15 @@ namespace Metagame.Core
         public static KeyCode FreeLook = KeyCode.LeftAlt;
         public static KeyCode Restart = KeyCode.R;
         public static KeyCode StuckEscape = KeyCode.T;  // 끼었을 때 탈출 (기획 §21)
+
+        /// <summary>
+        /// 기절한 동료 일으키기 (S15P21B202-390). 누르고 있으면 진행된다.
+        ///
+        /// <para><b>왜 T 가 아닌가.</b> <see cref="StuckEscape"/> 가 기획 §21 로 T 를
+        /// 예약해 두었다. 그 기능도 아직 배선되지 않았지만(<c>StuckEscapeHeld</c> 를
+        /// 읽는 곳이 없다) 예약된 키를 빼앗지 않는다.</para>
+        /// </summary>
+        public static KeyCode RescueTeammate = KeyCode.G;
         public static KeyCode ToolAction = KeyCode.Q;   // 도구 놓기 / 충전 투척
         public static KeyCode TransportAction = KeyCode.E; // 운반 장치 탑승 / 하차
         public static KeyCode Tablet = KeyCode.Tab;
@@ -126,6 +143,7 @@ namespace Metagame.Core
             ArmsUp = SafeKey(settings.armsUp, KeyCode.LeftControl);
             FreeLook = SafeKey(settings.freeLook, KeyCode.LeftAlt);
             Restart = SafeKey(settings.restart, KeyCode.R);
+            RescueTeammate = SafeKey(settings.rescueTeammate, KeyCode.G);
             StuckEscape = SafeKey(settings.stuckEscape, KeyCode.T);
             ToolAction = SafeKey(settings.toolAction, KeyCode.Q);
             TransportAction = SafeKey(settings.transportAction, KeyCode.E);
@@ -156,6 +174,7 @@ namespace Metagame.Core
                 || !AddBinding(settings.freeLook, used, ref duplicate)
                 || !AddBinding(settings.restart, used, ref duplicate)
                 || !AddBinding(settings.stuckEscape, used, ref duplicate)
+                || !AddBinding(settings.rescueTeammate, used, ref duplicate)
                 || !AddBinding(settings.toolAction, used, ref duplicate)
                 || !AddBinding(settings.transportAction, used, ref duplicate)
                 || !AddBinding(settings.tablet, used, ref duplicate)
@@ -191,6 +210,7 @@ namespace Metagame.Core
             f.Restart = Input.GetKeyDown(Restart);
             f.PingPressed = Input.GetMouseButtonDown(2);
             f.StuckEscapeHeld = Input.GetKey(StuckEscape);
+            f.RescueHeld = Input.GetKey(RescueTeammate);
             return f;
         }
 
