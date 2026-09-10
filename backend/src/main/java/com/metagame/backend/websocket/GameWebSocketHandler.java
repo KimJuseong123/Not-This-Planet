@@ -173,6 +173,24 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                     ? room.passHostToConnected()
                     : null;
 
+            // 방장이 넘어갔으면 <b>옛 접속 정보를 버린다</b> (S15P21B202-389).
+            //
+            // 그 정보는 이제 없는 서버를 가리킨다. 그대로 두면 두 가지가 깨진다.
+            //
+            // <p>① <b>돌아온 옛 방장이 릴레이에서 서버 토큰의 주인이다.</b> 우리 릴레이는
+            // 누가 서버인지를 토큰으로 가르므로({@code metagame_relay.py} 의
+            // {@code host_token}), 그 사람이 참가자로 붙으려 해도 릴레이가 <b>서버로
+            // 등록</b>해 버린다. KCP 핸드셰이크가 끝나지 않아 로딩창에서 멈춘다.
+            //
+            // <p>② 남은 사람이 재입장하면 죽은 방장의 주소를 다시 받아 그리로 붙으려 한다.
+            //
+            // 버리면 {@link #sendGameStarted} 가 접속 정보를 못 만들어 아무것도 보내지
+            // 않고, 그 사람은 로비에서 기다린다. 새 방장이 {@code HOST_TAKEOVER} 를 보내는
+            // 순간 그 사람까지 포함해 전원에게 새 정보가 간다 — 스스로 낫는다.
+            if (newHost != null) {
+                closeRelay(roomId);
+            }
+
             broadcastRoomState(room);
             graceManager.schedule(roomId, userId, () -> onGraceExpired(roomId, userId));
 
@@ -435,11 +453,19 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         payload.put("roomId", room.getRoomId());
 
         if (entry == null) {
-            // 접속 정보가 없다 — 서버가 재시작된 뒤 진행 중인 방이 남은 경우다.
-            // 방 번호만이라도 보내면 클라이언트가 옛 주소로 시도하지 않고 멈춘다.
-            log.warn("no match entry: room={} userId={} — 접속 정보 없이 GAME_STARTED 를 보낸다",
+            // 접속 정보가 없다 — 방장이 사라져 옛 정보를 버렸거나(-389), 서버가 재시작된
+            // 뒤 진행 중인 방이 남은 경우다.
+            //
+            // <b>이때는 아무것도 보내지 않는다</b>(S15P21B202-389). 예전에는 방 번호만
+            // 실어 보냈는데, 클라이언트는 {@code GAME_STARTED} 를 받으면 <b>주소가 없어도
+            // 매치로 들어간다</b> — {@code LobbyBootstrap.StartMirrorMatch} 가 주소를 못
+            // 찾으면 로비 서버 주소로, 그것도 없으면 {@code 127.0.0.1} 로 붙는다. 붙을 곳이
+            // 없는데 게임 씬을 열어 로딩창에서 멈추는 것이 그래서다.
+            //
+            // 보내지 않으면 그 사람은 로비에 남는다. 새 방장이 {@code HOST_TAKEOVER} 를
+            // 보내는 순간 전원에게 새 정보가 가므로 그때 함께 들어간다 — 스스로 낫는다.
+            log.warn("no match entry: room={} userId={} — 접속 정보가 없어 GAME_STARTED 를 보내지 않는다",
                     room.getRoomId(), playerId);
-            send(target, WsMessage.Type.GAME_STARTED, payload);
             return;
         }
 
