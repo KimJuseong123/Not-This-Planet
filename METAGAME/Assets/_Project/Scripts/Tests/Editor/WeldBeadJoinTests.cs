@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Metagame.Gameplay.Parts;
 using NUnit.Framework;
 using UnityEngine;
@@ -85,7 +86,11 @@ namespace Metagame.Gameplay.Tests
             Assert.AreNotSame(unusedMaterial, seed.sharedMaterial);
 
             PartAssemblyLink.FindBetween(lower, upper).Release();
-            bead.SendMessage("LateUpdate");
+            // EditMode에서는 Unity 메시지 디스패치를 거치지 않고 갱신 본문만 실행한다.
+            var lateUpdate = typeof(WeldBead).GetMethod("LateUpdate",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(lateUpdate);
+            lateUpdate.Invoke(bead, null);
 
             Assert.AreSame(unusedMaterial, seed.sharedMaterial);
             Assert.IsNull(PartAssemblyLink.FindBetween(lower, upper));
