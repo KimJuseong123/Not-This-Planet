@@ -299,6 +299,8 @@ namespace Metagame.Bootstrap
                 ? audioManager
                 : Resources.Load<AudioManager>("Audio/Stage1AudioManager");
             runtime.Configure(manager, authority, networked);
+            if (!MatchRole.DedicatedServer && !Application.isBatchMode)
+                systemRoot.AddComponent<GameMusicPlayer>().Configure(manager);
 
             if (networked)
             {

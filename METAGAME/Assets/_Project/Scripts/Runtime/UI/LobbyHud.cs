@@ -479,7 +479,18 @@ namespace Metagame.UI
             }
             y += 38f;
 
-            DrawDisabledAudioRow(x, ref y, width, "음악", "음악 시스템 준비 중");
+            float music = GUI.HorizontalSlider(new Rect(x + 210f, y + 7f, 300f, 20f),
+                editingSettings.audio.musicVolume, 0f, 1f);
+            DrawLabel(new Rect(x, y, 190f, 30f), "음악", labelStyle, Color.white);
+            DrawLabel(new Rect(x + 530f, y, 90f, 30f),
+                Mathf.RoundToInt(music * 100f) + "%", smallStyle,
+                new Color(0.82f, 0.92f, 1f));
+            if (!Mathf.Approximately(music, editingSettings.audio.musicVolume))
+            {
+                editingSettings.audio.musicVolume = music;
+                ApplySettingsPreview();
+            }
+            y += 38f;
             DrawDisabledAudioRow(x, ref y, width, "음성", "음성 채팅 시스템 준비 중");
             DrawDisabledAudioRow(x, ref y, width, "마이크", "음성 채팅 시스템 준비 중");
         }

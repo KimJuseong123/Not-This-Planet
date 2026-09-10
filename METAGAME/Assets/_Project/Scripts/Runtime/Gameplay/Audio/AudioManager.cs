@@ -66,6 +66,19 @@ namespace Metagame.Gameplay.Audio
         [SerializeField] bool muted;
         [SerializeField] AudioMixerGroup outputMixerGroup;
 
+        [Header("인게임 BGM")]
+        [SerializeField] AudioClip musicClip;
+        [Range(0f, 1f)] [SerializeField] float musicBaseVolume = 0.18f;
+        [Min(0f)] [SerializeField] float musicFadeInSeconds = 4f;
+        [Min(0f)] [SerializeField] float musicFadeOutSeconds = 6f;
+        [Min(0f)] [SerializeField] float musicRepeatDelaySeconds = 5f;
+
+        public AudioClip MusicClip => musicClip;
+        public float MusicBaseVolume => Mathf.Clamp01(musicBaseVolume);
+        public float MusicFadeInSeconds => Mathf.Max(0f, musicFadeInSeconds);
+        public float MusicFadeOutSeconds => Mathf.Max(0f, musicFadeOutSeconds);
+        public float MusicRepeatDelaySeconds => Mathf.Max(0f, musicRepeatDelaySeconds);
+
         [Header("공간음 기본값")]
         [Tooltip("모든 신규 효과음은 3D로 재생되며, 이 값은 청취 거리 감쇠 시작점이다.")]
         [Min(0.1f)] [SerializeField] float spatialMinDistance = 1.2f;
