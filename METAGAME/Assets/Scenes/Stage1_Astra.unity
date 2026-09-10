@@ -15,11 +15,11 @@ RenderSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 10
   m_Fog: 1
-  m_FogColor: {r: 0.085, g: 0.078, b: 0.17, a: 1}
-  m_FogMode: 3
+  m_FogColor: {r: 0.19, g: 0.22, b: 0.34, a: 1}
+  m_FogMode: 1
   m_FogDensity: 0.0028
-  m_LinearFogStart: 0
-  m_LinearFogEnd: 300
+  m_LinearFogStart: 15
+  m_LinearFogEnd: 90
   m_AmbientSkyColor: {r: 0.53, g: 0.59, b: 0.78, a: 1}
   m_AmbientEquatorColor: {r: 0.42, g: 0.45, b: 0.59, a: 1}
   m_AmbientGroundColor: {r: 0.28, g: 0.28, b: 0.37, a: 1}
@@ -57610,6 +57610,56 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1044102360}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &1046251275
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1046251277}
+  - component: {fileID: 1046251276}
+  m_Layer: 0
+  m_Name: Stage1 Distance Fog
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1046251276
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1046251275}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 332b0efbe716d5647bbd07dc9537734f, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.Stage1FogController
+  fogShader: {fileID: 4800000, guid: d0aabbc84dc612946826f5ec49c08348, type: 3}
+  skyBeacons:
+  - {fileID: 825126780}
+  - {fileID: 1881040483}
+  - {fileID: 1924680461}
+  - {fileID: 1549314272}
+--- !u!4 &1046251277
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1046251275}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1046608963
 GameObject:
   m_ObjectHideFlags: 0
@@ -118495,3 +118545,4 @@ SceneRoots:
   - {fileID: 1614633189}
   - {fileID: 1476801188}
   - {fileID: 698323701}
+  - {fileID: 1046251277}
