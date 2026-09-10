@@ -92,7 +92,7 @@ FBX 파일만 열어봐서는 크기를 알 수 없다. 기존 카탈로그에�
 | 텍스처 (`.fbm/` 임베드) | 97 | 캐릭터 12 · 환경 7 · 운석 PBR 16 · 리뉴얼 자연물 PBR 62 |
 | Material | 22 | Stage1 URP Lit 19 · 분위기/외부 패키지용 URP 3 |
 | Prefab | 19 | Stage1 17 · 기존 Resources 2 |
-| Shader | 6 | `SpaceFlop/*` URP 3 · 분위기 URP 3 |
+| Shader | 6 | `NotThisPlanet/*` URP 3 · 분위기 URP 3 |
 | Scene | 2 | `Scenes/Lobby.unity` · `Scenes/Main.unity` — Main에 Stage1 프리팹 12종이 122개 배치돼 있다 |
 | Unity 설정 Asset | 10 | URP 설정 8 · 공용 기본 Volume Profile 1 · Stage1 분위기 프로필 1 |
 | Input Actions | 1 | Unity 기본 액션 맵 |
@@ -237,7 +237,7 @@ Material은 각 FBX의 `.meta` 외부 오브젝트 맵(재질 추출)으로 물�
 기존 FBX·프리팹·씬 참조를 유지한 채 머티리얼 셰이더만 이관했다.
 
 Material·프리팹은 `Stage1EnvironmentAssets` 에디터 도구가 만든다
-(`Tools/둥실둥실 우주 대탈출/Main 씬에 1장 전체 구성`에서 자동 실행). 이미 있는 파일은 건드리지 않으므로
+(`Tools/Not This Planet/Main 씬에 1장 전체 구성`에서 자동 실행). 이미 있는 파일은 건드리지 않으므로
 다시 만들려면 해당 파일을 지우고 실행한다. 콜라이더는 붙어 있지 않다(§4 와 같다).
 
 `.fbm` 텍스처가 크다 — 3.3 MB(`glowing_spiral_plant`) ~ 7.0 MB(`mossy_boulder_cluster`), **합계 약 34 MB**.
@@ -258,7 +258,7 @@ Material·프리팹은 `Stage1EnvironmentAssets` 에디터 도구가 만든다
 | TerrainData | `Terrain/Stage1/TerrainData/TD_Stage1_Arena.asset` |
 
 `Stage1TerrainBuilder` 에디터 도구가 에셋 생성과 씬 배치를 함께 수행한다
-(`Tools/둥실둥실 우주 대탈출/Main 씬에 1장 전체 구성`에서 자동 실행). 반복 실행하면 기존 Terrain 인스턴스를
+(`Tools/Not This Planet/Main 씬에 1장 전체 구성`에서 자동 실행). 반복 실행하면 기존 Terrain 인스턴스를
 교체하므로 씬에 중복되지 않는다.
 
 ---
@@ -365,7 +365,7 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 | 갈라진 디딤돌 Material | `Materials/Environment/Stage1/M_Stage1_FlatRockCracked.mat` |
 | 재배치 도구 | `Scripts/Editor/Stage1NatureLayoutBuilder.cs` |
 
-재배치가 필요하면 Unity 메뉴 `Tools > 둥실둥실 우주 대탈출 > Stage1 지형 확장 및 자연물 배치`를
+재배치가 필요하면 Unity 메뉴 `Tools > Not This Planet > Stage1 지형 확장 및 자연물 배치`를
 실행한다. 같은 메뉴를 다시 실행하면 기존 `Ground`와 `Nature` 하위 배치를 지우고 동일한 결과를 만든다.
 
 ### 적용 전 확인
@@ -449,9 +449,9 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 
 | 파일 | Shader 이름 |
 | --- | --- |
-| `Shaders/Resources/DoughSurface.shader` | `SpaceFlop/Dough` |
-| `Shaders/Resources/FlatUnlit.shader` | `SpaceFlop/Flat` |
-| `Shaders/Resources/GhostSurface.shader` | `SpaceFlop/Ghost` |
+| `Shaders/Resources/DoughSurface.shader` | `NotThisPlanet/Dough` |
+| `Shaders/Resources/FlatUnlit.shader` | `NotThisPlanet/Flat` |
+| `Shaders/Resources/GhostSurface.shader` | `NotThisPlanet/Ghost` |
 
 ---
 
@@ -485,7 +485,7 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 
 ### `Main.unity` 의 아트 배치 (S15P21B202-84)
 
-`Stage1SkinBuilder` 에디터 도구가 만들며, `Tools/둥실둥실 우주 대탈출/Main 씬에 1장 전체 구성`에서 자동 실행된다.
+`Stage1SkinBuilder` 에디터 도구가 만들며, `Tools/Not This Planet/Main 씬에 1장 전체 구성`에서 자동 실행된다.
 **물리와 좌표는 건드리지 않는다** — 프리미티브의 MeshRenderer만 끄고 같은 자리에 모델을 `Visual` 자식으로 얹는다.
 그래서 `Visual` 자식만 지우면 프리미티브 룩으로 돌아간다.
 

@@ -101,7 +101,7 @@ C(Mirror 스폰)를 **하늘에 있는 운석에는 쓰지 않았다.** 대신 �
 python scripts/ci/netdiag.py <호스트 Player.log> <참가자 Player.log>
 ```
 
-로그 위치: `%USERPROFILE%\AppData\LocalLow\SpaceFlop\둥실둥실 우주 대탈출\Player.log`
+로그 위치: `%USERPROFILE%\AppData\LocalLow\Not This Planet\Not This Planet\Player.log`
 (직전 실행은 `Player-prev.log`)
 
 ## 실측값
