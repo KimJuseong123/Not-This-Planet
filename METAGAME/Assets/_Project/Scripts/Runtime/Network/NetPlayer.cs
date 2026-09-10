@@ -90,6 +90,51 @@ namespace Metagame.Network
         [SyncVar(hook = nameof(OnRidingChanged))]
         public bool riding;
 
+        /// <summary>
+        /// 방 안의 자리 번호(0~3). 색이 여기서 나온다 (S15P21B202-375).
+        ///
+        /// <para><b>서버가 <see cref="OnStartServer"/> 에서 정한다.</b> 그 시점에 넣으면
+        /// 스폰 메시지에 실려 가므로, 클라이언트가 몸을 세울 때 이미 값이 있다. 몸을
+        /// 만든 뒤에 색을 바꾸는 경로를 만들 필요가 없다(<c>PlayerRig</c> 에 recolor 가
+        /// 없다).</para>
+        ///
+        /// <para>예전에는 색을 <c>userId</c> 에서 뽑았다 — DB 자동 증가라 같은 사람이
+        /// 판마다 다른 색이었다.</para>
+        /// </summary>
+        [SyncVar]
+        public byte teamSlot;
+
+        /// <summary>이 사람의 팀 색(우주복).</summary>
+        public Color TeamSuitColor { get { return TeamSlots.Suit(teamSlot); } }
+
+        /// <summary>이 사람의 팀 색(글씨·아이콘용). 어두운 화면에서도 읽힌다.</summary>
+        public Color TeamAccentColor { get { return TeamSlots.Accent(teamSlot); } }
+
+        /// <summary>"빨강" 처럼 말로 부를 수 있는 자리 이름.</summary>
+        public string TeamName { get { return TeamSlots.Name(teamSlot); } }
+
+        /// <summary>
+        /// 이름표를 띄울 자리 — 헬멧 위쪽 (S15P21B202-375).
+        ///
+        /// <para>몸이 아직 없으면(스폰 직후·전용 서버) 이 오브젝트의 위치를 준다.
+        /// 쓰러져 있으면 머리가 땅에 있으므로 이름표도 낮게 뜬다 — 그게 맞다.</para>
+        /// </summary>
+        public Vector3 NameplateAnchor
+        {
+            get
+            {
+                if (body == null || body.Doll == null || body.Doll.Head == null)
+                {
+                    return transform.position + Vector3.up * 0.45f;
+                }
+
+                return body.Doll.Head.position + Vector3.up * 0.34f;
+            }
+        }
+
+        /// <summary>몸이 서 있는가. 이름표는 몸이 있을 때만 그린다.</summary>
+        public bool HasBody { get { return body != null; } }
+
         /// <summary>서버가 확정한 이 플레이어의 현재 팀 핑.</summary>
         [SyncVar]
         public bool pingActive;
@@ -107,7 +152,7 @@ namespace Metagame.Network
         }
 
         public Vector3 PingPosition { get { return pingPosition; } }
-        public Color PingColor { get { return AccentColor(userId); } }
+        public Color PingColor { get { return TeamAccentColor; } }
 
         // 이동 판정을 복제하지 않고, 표시용 걷기/달리기 상태만 함께 전달한다.
         [SyncVar]
@@ -180,6 +225,10 @@ namespace Metagame.Network
                 userId = connectionToClient != null ? connectionToClient.connectionId : 0;
                 nickname = "비행사 " + userId;
             }
+
+            // 자리(색)를 정한다 (S15P21B202-375). userId 가 확정된 뒤여야 한다 —
+            // 같은 사람이 끊겼다 돌아오면 같은 자리를 다시 받는다.
+            teamSlot = (byte)TeamSlots.Claim(userId);
 
             name = "플레이어 " + nickname;
             ServerPlayers.Add(this);
@@ -272,7 +321,7 @@ namespace Metagame.Network
             body = PlayerRig.Create(
                 string.IsNullOrEmpty(nickname) ? "비행사" : nickname,
                 foot + Vector3.up * 0.10f, facing,
-                SuitColor(userId), AccentColor(userId),
+                TeamSuitColor, TeamAccentColor,
                 useModel: !Application.isBatchMode);
 
             AttachTransport();
@@ -672,8 +721,8 @@ namespace Metagame.Network
                 string.IsNullOrEmpty(nickname) ? "비행사" : nickname,
                 transform.position,
                 transform.rotation,
-                SuitColor(userId),
-                AccentColor(userId));
+                TeamSuitColor,
+                TeamAccentColor);
 
             // 자식으로 붙이지 않는 이유는 RemoteAvatar 가 골반을 MovePosition 으로
             // 직접 옮기기 때문이다 — 부모를 따라 끌려가면 조인트가 그 이동을
@@ -758,19 +807,6 @@ namespace Metagame.Network
             body = null;
             remoteAvatar = null;
             adoptedBody = false;
-        }
-
-        /// 같은 사람은 누구 화면에서나 같은 색으로 보이게 userId 로 정한다.
-        static Color SuitColor(long id)
-        {
-            float hue = Mathf.Repeat(id * 0.6180339f, 1f);   // 황금비로 흩뿌린다
-            return Color.HSVToRGB(hue, 0.35f, 0.95f);
-        }
-
-        static Color AccentColor(long id)
-        {
-            float hue = Mathf.Repeat(id * 0.6180339f + 0.5f, 1f);
-            return Color.HSVToRGB(hue, 0.7f, 0.9f);
         }
     }
 }
