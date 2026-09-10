@@ -74,7 +74,8 @@ namespace Metagame.Gameplay.Parts
         /// 아레나 경계 벽에 붙여 둔 보이지 않는 콜라이더가 9m 다(docs/asset-catalog.md §10).
         /// 그보다 낮게 잡아 벽을 넘어 밖으로 나가지 못하게 한다.
         /// </summary>
-        const float MaxAltitude = 8f;
+        AuthoredMapSettings authoredMap;
+        float MaxAltitude => authoredMap != null ? authoredMap.maximumAltitude : 8f;
 
         /// <summary>목표 고도가 이 안에 들어오면 부양이 안정된 것으로 본다.</summary>
         const float HoverSettleBand = 0.4f;
@@ -502,6 +503,7 @@ namespace Metagame.Gameplay.Parts
 
         void Awake()
         {
+            authoredMap = FindAnyObjectByType<AuthoredMapSettings>();
             EnsurePhysics();
         }
 
@@ -592,7 +594,8 @@ namespace Metagame.Gameplay.Parts
         public void PlaceOnGround(Vector3 position, float visualYaw)
         {
             var rootRotation = Quaternion.LookRotation(Vector3.down, Vector3.forward);
-            var groundPosition = new Vector3(position.x, GroundY, position.z);
+            float floor = authoredMap != null ? authoredMap.GroundHeight(position, 0f) + GroundY : GroundY;
+            var groundPosition = new Vector3(position.x, floor, position.z);
             if (body == null) body = GetComponent<Rigidbody>();
             body.position = groundPosition;
             body.rotation = rootRotation;
@@ -620,7 +623,7 @@ namespace Metagame.Gameplay.Parts
             if (visual != null)
             {
                 visual.rotation = Quaternion.Euler(0f, visualYaw, 0f);
-                AlignVisualToSurface(GroundY);
+                AlignVisualToSurface(floor);
             }
             RefreshSeat();
         }
@@ -1044,12 +1047,17 @@ namespace Metagame.Gameplay.Parts
             planar = Vector3.MoveTowards(planar, target, rate * deltaTime);
 
             var position = body.position;
+            if (authoredMap != null)
+                position = authoredMap.ClampFlight(position, ref planar);
+            else
+            {
             if ((position.x <= -ArenaLimit && planar.x < 0f) || (position.x >= ArenaLimit && planar.x > 0f))
                 planar.x = 0f;
             if ((position.z <= -ArenaLimit && planar.z < 0f) || (position.z >= ArenaLimit && planar.z > 0f))
                 planar.z = 0f;
             position.x = Mathf.Clamp(position.x, -ArenaLimit, ArenaLimit);
             position.z = Mathf.Clamp(position.z, -ArenaLimit, ArenaLimit);
+            }
             body.position = position;
 
             AdvanceTargetAltitude(deltaTime);

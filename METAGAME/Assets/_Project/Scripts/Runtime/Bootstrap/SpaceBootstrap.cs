@@ -66,6 +66,8 @@ namespace Metagame.Bootstrap
 
         void Awake()
         {
+            var authoredMap = FindAnyObjectByType<AuthoredMapSettings>();
+            bool authoredLighting = authoredMap != null && authoredMap.preserveSceneLighting;
             settingsRuntime = GameSettingsRuntime.Ensure();
             settingsRuntime.Changed += OnSettingsChanged;
 
@@ -97,7 +99,7 @@ namespace Metagame.Bootstrap
             var sys = new GameObject("~시스템");
             sys.transform.SetParent(transform, false);
 
-            bool useAtmosphere = atmosphereProfile != null && !Application.isBatchMode;
+            bool useAtmosphere = !authoredLighting && atmosphereProfile != null && !Application.isBatchMode;
             Stage1DustStormHazard dustStormHazard = null;
             AtmosphereDustStorm dustStormVisual = null;
             if (atmosphereProfile != null)
@@ -118,7 +120,7 @@ namespace Metagame.Bootstrap
                 sys.AddComponent<AtmosphereMeteorShower>();
                 sys.AddComponent<AtmosphereDustGust>();
             }
-            else
+            else if (!authoredLighting)
             {
                 Sky = sys.AddComponent<Vacuum>();
             }
@@ -191,7 +193,7 @@ namespace Metagame.Bootstrap
             Exploration.Configure(FindObjectsByType<SpaceshipPart>(FindObjectsSortMode.None));
             DisableDemoClampReleasers();
             DisableDemoBeamDrivers();
-            if (!useAtmosphere && starfield && !Application.isBatchMode)
+            if (!authoredLighting && !useAtmosphere && starfield && !Application.isBatchMode)
                 Space = Starfield.Create(transform, Sky.SunDirection);
 
             var beams = FindObjectsByType<TractorBeam>(FindObjectsSortMode.None);
@@ -231,7 +233,7 @@ namespace Metagame.Bootstrap
             Player = PlayerRig.Create(nickname, spawn, facing, suit, accent, useModel);
             Player.transform.SetParent(transform, true);
 
-            Color cameraSkyColor = useAtmosphere ? atmosphereProfile.sky.horizonColor : Sky.SkyColor;
+            Color cameraSkyColor = useAtmosphere ? atmosphereProfile.sky.horizonColor : Sky != null ? Sky.SkyColor : RenderSettings.ambientSkyColor;
             Player.Cam = OrbitCamera.Create(Player.Hips.transform, cameraSkyColor, firstPerson);
             if (settingsRuntime != null && settingsRuntime.Current != null)
                 Player.Cam.ApplySettings(settingsRuntime.Current.controls);
@@ -241,7 +243,7 @@ namespace Metagame.Bootstrap
             FirstPersonHandView.Create(Player, Player.Cam, firstPersonHandSettings);
             ExplorationHud.AttachTablet(Player.Cam.Cam);
             Player.ConfigureClampInteraction(Player.Cam.transform);
-            Transport.Configure(Player, beams, randomizeVehicles: !inMatch);
+            Transport.Configure(Player, beams, randomizeVehicles: !inMatch && (authoredMap == null || authoredMap.randomizeVehicles));
 
             // 매치 중에는 조준·안내만 하고 실행은 서버에 맡긴다(-149).
             Transport.Authoritative = !inMatch;
@@ -266,9 +268,13 @@ namespace Metagame.Bootstrap
                 var atmosphereAlert = sys.AddComponent<Stage1AtmosphereAlert>();
                 atmosphereAlert.Configure(Atmosphere, FindAnyObjectByType<Metagame.Gameplay.Hazards.MeteorSpawner>());
             }
+            else if (Sky != null) Sky.ApplyToCameras();
             else
             {
-                Sky.ApplyToCameras();
+                Player.Cam.Cam.clearFlags = CameraClearFlags.Skybox;
+                Player.Cam.Cam.farClipPlane = 400f;
+                Player.Cam.Cam.allowHDR = true;
+                authoredMap.ConfigureCamera(Player.Cam.Cam);
             }
 
             // 낙하 예고 원과 분화구를 그리는 컴포넌트를 붙인다(S15P21B202-275).
