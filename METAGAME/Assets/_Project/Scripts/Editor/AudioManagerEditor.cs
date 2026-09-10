@@ -58,7 +58,7 @@ namespace Metagame.EditorTools
             EditorGUILayout.PropertyField(outputMixerGroup, new GUIContent("Output Mixer Group"));
 
             EditorGUILayout.Space(4f);
-            EditorGUILayout.LabelField("인게임 BGM", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("BGM", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(serializedObject.FindProperty("musicClip"), new GUIContent("Music Clip"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("musicBaseVolume"), new GUIContent("기본 음량"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("musicFadeInSeconds"), new GUIContent("페이드 인 (초)"));

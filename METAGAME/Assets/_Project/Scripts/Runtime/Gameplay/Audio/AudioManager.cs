@@ -66,7 +66,7 @@ namespace Metagame.Gameplay.Audio
         [SerializeField] bool muted;
         [SerializeField] AudioMixerGroup outputMixerGroup;
 
-        [Header("인게임 BGM")]
+        [Header("BGM")]
         [SerializeField] AudioClip musicClip;
         [Range(0f, 1f)] [SerializeField] float musicBaseVolume = 0.18f;
         [Min(0f)] [SerializeField] float musicFadeInSeconds = 4f;

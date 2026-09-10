@@ -3,6 +3,7 @@ using UnityEngine.Video;
 using Metagame.Core;
 using Metagame.Network;
 using Metagame.UI;
+using Metagame.Gameplay.Audio;
 
 namespace Metagame.Bootstrap
 {
@@ -33,6 +34,10 @@ namespace Metagame.Bootstrap
         [SerializeField] private Texture2D lobbyBackgroundImage;
         [SerializeField] private VideoClip lobbyBackgroundVideo;
 
+        [Header("Lobby BGM")]
+        [Tooltip("로비 음악의 클립·기본 음량·페이드 시간을 설정합니다. 비워 두면 Resources/Audio/LobbyAudioManager를 사용합니다.")]
+        [SerializeField] private AudioManager lobbyAudioManager;
+
         private NetworkSession network;
         private GameSettingsRuntime settings;
         private LobbyTransition transition;
@@ -46,6 +51,13 @@ namespace Metagame.Bootstrap
             if (SkipToGameScene()) return;
 
             settings = GameSettingsRuntime.Ensure();
+            if (!Application.isBatchMode && !MatchRole.DedicatedServer)
+            {
+                var music = GetComponent<GameMusicPlayer>();
+                if (music == null) music = gameObject.AddComponent<GameMusicPlayer>();
+                music.Configure(lobbyAudioManager != null ? lobbyAudioManager
+                    : Resources.Load<AudioManager>("Audio/LobbyAudioManager"));
+            }
             PrepareLobbyCursor();
 
             network = NetworkSession.Instance;
