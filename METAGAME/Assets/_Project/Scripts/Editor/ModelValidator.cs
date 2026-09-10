@@ -9,7 +9,7 @@ namespace Metagame.EditorTools
     /// 생성한 Blender FBX가 Unity에서 의도한 구조로 임포트됐는지 검사한다.
     /// 메뉴와 batchmode 양쪽에서 동일한 검사를 실행한다.
     /// </summary>
-    public static class SpaceFlopModelValidator
+    public static class ModelValidator
     {
         // 런타임이 쓰는 모델은 SF_Rabbit_Base 하나다 (SpaceSuit.ResourceKey, ArtLink.RabbitKey).
         // 예전에는 SF_Astronaut_Base 를 검사해, 실제로 쓰지 않는 파일을 검증하고 있었다.
@@ -47,15 +47,15 @@ namespace Metagame.EditorTools
         {
             var failures = ValidateAll();
             if (failures.Count == 0)
-                EditorUtility.DisplayDialog("SpaceFlop 3D 모델", "캐릭터와 우주선 FBX 검사를 통과했습니다.", "확인");
+                EditorUtility.DisplayDialog("NotThisPlanet 3D 모델", "캐릭터와 우주선 FBX 검사를 통과했습니다.", "확인");
             else
-                EditorUtility.DisplayDialog("SpaceFlop 3D 모델", string.Join("\n", failures.ToArray()), "확인");
+                EditorUtility.DisplayDialog("NotThisPlanet 3D 모델", string.Join("\n", failures.ToArray()), "확인");
         }
 
         /// <summary>
         /// CI:
         /// Unity.exe -batchmode -quit -projectPath .
-        ///   -executeMethod SpaceFlop.EditorTools.SpaceFlopModelValidator.ValidateBatch
+        ///   -executeMethod NotThisPlanet.EditorTools.ModelValidator.ValidateBatch
         /// </summary>
         public static void ValidateBatch()
         {
@@ -157,7 +157,7 @@ namespace Metagame.EditorTools
             // FBX assets may carry an importer root-axis correction. Renderer.bounds on a
             // short-lived scene instance includes that correction exactly as gameplay does.
             var instance = UnityEngine.Object.Instantiate(prefab);
-            instance.name = "~SpaceFlopModelValidation";
+            instance.name = "~NotThisPlanetModelValidation";
             instance.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
             var renderers = instance.GetComponentsInChildren<Renderer>(true);
             bool initialized = false;

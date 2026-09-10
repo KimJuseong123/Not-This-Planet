@@ -10,7 +10,7 @@ namespace Metagame.Bootstrap
 {
     /// <summary>
     /// 사람 손 없이 핵심 시스템을 순서대로 돌려보는 통합 점검.
-    /// 실행:  SpaceFlop.exe -batchmode -nographics -space-selftest -logFile out.log
+    /// 실행:  NotThisPlanet.exe -batchmode -nographics -space-selftest -logFile out.log
     /// 종료 코드 0 = 전부 통과.
     ///
     /// 이 프로토타입에서 특별히 지켜야 하는 것 셋:

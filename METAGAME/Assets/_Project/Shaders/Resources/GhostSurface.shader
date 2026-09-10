@@ -1,5 +1,5 @@
 // URP compatible transparent rim material. The shader name is kept stable for Prim.
-Shader "SpaceFlop/Ghost"
+Shader "NotThisPlanet/Ghost"
 {
     Properties
     {

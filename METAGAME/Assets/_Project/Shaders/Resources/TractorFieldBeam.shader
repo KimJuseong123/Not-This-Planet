@@ -1,4 +1,4 @@
-Shader "SpaceFlop/TractorFieldBeam"
+Shader "NotThisPlanet/TractorFieldBeam"
 {
     Properties
     {

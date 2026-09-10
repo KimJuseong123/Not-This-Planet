@@ -373,7 +373,7 @@ namespace Metagame.Gameplay
             Cleared = true;
             ClearTime = Elapsed;
             StageHint = "로켓 탈출 성공!";
-            Debug.Log("[SpaceFlop] 도착 — " + ClearTime.ToString("0.0") + "초, 추락 " + Falls + "회");
+            Debug.Log("[NotThisPlanet] 도착 — " + ClearTime.ToString("0.0") + "초, 추락 " + Falls + "회");
         }
 
         /// <summary>

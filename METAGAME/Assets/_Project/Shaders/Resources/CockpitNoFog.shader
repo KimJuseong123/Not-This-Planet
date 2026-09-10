@@ -1,4 +1,4 @@
-Shader "SpaceFlop/CockpitNoFog"
+Shader "NotThisPlanet/CockpitNoFog"
 {
     Properties { _BaseColor ("Color", Color) = (0.12,0.16,0.2,1) }
     SubShader

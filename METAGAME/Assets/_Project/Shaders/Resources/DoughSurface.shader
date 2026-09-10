@@ -1,6 +1,6 @@
 // URP compatible toy/clay surface. The shader name and material properties are
 // intentionally kept stable so runtime-created Prim materials keep working.
-Shader "SpaceFlop/Dough"
+Shader "NotThisPlanet/Dough"
 {
     Properties
     {

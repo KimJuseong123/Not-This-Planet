@@ -24,7 +24,7 @@ namespace Metagame.Network
     /// <c>METAGAME_NETDIAG=1</c>. 평소 실행에는 아무 영향이 없다.</para>
     ///
     /// <para><b>로그 위치</b>:
-    /// <c>%USERPROFILE%\AppData\LocalLow\SpaceFlop\Not This Planet\Player.log</c></para>
+    /// <c>%USERPROFILE%\AppData\LocalLow\NotThisPlanet\Not This Planet\Player.log</c></para>
     ///
     /// <para>한 줄 형식(1초마다):
     /// <code>
