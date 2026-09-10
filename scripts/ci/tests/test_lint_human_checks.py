@@ -167,10 +167,14 @@ rep = judge(template)
 assert rep.fails == [], f"템플릿 그대로가 실패한다: {rep}"
 print("  템플릿 기본값(`없음`)이 통과한다 ✅")
 
-# 리뷰어 절의 상자는 그대로 둔다 — 그쪽은 팀장이 읽고 채우는 자리다.
-assert "## 리뷰어 확인" in template
-assert "- [ ] **범위**" in template
-print("  리뷰어 확인 절은 손대지 않았다 ✅")
+# 리뷰어 절도 상자를 없앴다 (S15P21B202-415). `-395` 가 작성자 상자를 없앤 것과 같은
+# 이유다 — 그 다섯 항목은 **AI 리뷰가 이미 표로 판정한다**(`ai_review.py` 의 리뷰어가
+# `범위 · 완료 조건 · 기록` 과 `에셋 · 씬 · 프리팹 · 구조` 로 1:1 이다). 상자는 그 표를
+# 손으로 한 번 더 옮겨 적는 자리였고, `mr_lint` 는 그 상자를 검사한 적이 없다.
+assert "## 리뷰어 확인" in template, "절 제목은 남아야 한다 — mr-lint 의 필수 절이다"
+assert "- [ ]" not in template, "템플릿에 상자가 남아 있다 — 무의미한 클릭이 다시 생긴다"
+assert "AI 리뷰" in template, "무엇을 보라는 것인지 절 안에 적혀 있어야 한다"
+print("  리뷰어 절에 상자가 없고 볼 곳이 적혀 있다 ✅")
 
 
 print("\ntest_lint_human_checks: 통과")
