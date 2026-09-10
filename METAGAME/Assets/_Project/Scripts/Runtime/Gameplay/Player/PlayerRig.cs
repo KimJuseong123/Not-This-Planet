@@ -393,6 +393,17 @@ namespace Metagame.Gameplay
             if (activeTool != null) activeTool.Unequip();
             RestoreAllCarriedBodies();
             ClearHeldObjectOwnerCollision();
+
+            // 잡고 있던 고정쇠의 당기기 자리를 반납한다 (S15P21B202-383).
+            //
+            // 이것이 없어서 접속이 끊기면 Pullers 가 줄지 않았다. 기획 §12.2 로
+            // 고정쇠 하나에 최대 2명이므로 **한 번 새면 그 고정쇠는 딱 한 명만 더
+            // 잡을 수 있고, 두 번 새면 아무도 못 잡는다.** 그리고 그 상태는
+            // 되돌아오지 않는다 — 레벨을 다시 시작해야 한다.
+            //
+            // RestoreAllCarriedBodies() 옆이 자리다: 둘 다 "죽을 때 남에게 남긴
+            // 상태를 되돌린다" 다. 진행분은 지우지 않는다(§12.1).
+            ResetClampGrab();
         }
 
         public void SetInput(InputFrame frame)
@@ -2003,9 +2014,7 @@ namespace Metagame.Gameplay
                          aim, null, false);
                 if ((leftPressed || rightPressed) && !clampInteractionActive)
                 {
-                    string branch = CurrentInteractionTarget.CanInteract
-                        ? "고정못 잡기 실패" : "고정못 접근 불가";
-                    LogInteraction(branch, leftPressed, rightPressed, null, null);
+                    LogClampRefusal(leftPressed, rightPressed);
                 }
                 SyncHeldObjectOwnerCollision();
                 return;
@@ -2304,6 +2313,96 @@ namespace Metagame.Gameplay
             }
 
             LogInteraction("대상 없음", button == "좌클릭", button == "우클릭", null, null);
+        }
+
+        /// <summary>
+        /// 고정쇠를 못 잡은 <b>이유를 갈라 적는다</b> (S15P21B202-383).
+        ///
+        /// <para><b>왜 필요했나.</b> 예전에는 두 갈래뿐이었고 대상도 버렸다.</para>
+        /// <code>
+        /// string branch = CurrentInteractionTarget.CanInteract
+        ///     ? "고정못 잡기 실패" : "고정못 접근 불가";
+        /// LogInteraction(branch, leftPressed, rightPressed, null, null);   // ← null
+        /// </code>
+        /// <para>그런데 <c>CanInteract</c> 는 <b>점유·해제됨·거리를 한 불리언으로 합친
+        /// 값</b>이다(<c>GetAvailability().IsAllowed &amp;&amp; CanReachClamp()</c>). 그래서
+        /// "점유돼서 못 잡았다" 와 "너무 멀어서 못 잡았다" 가 <b>같은 문구</b>로 찍혔고,
+        /// 대상까지 <c>null</c> 로 버려서 어느 고정쇠였는지도 남지 않았다.</para>
+        ///
+        /// <para>2026-09-10 QA 에서 "한 사람은 되고 다른 사람은 안 된다" 는 신고가 왔을 때
+        /// 로그에 이 줄이 57건·90건 있었지만 <b>그중 무엇이 점유 때문인지 알 수 없었다.</b>
+        /// 그래서 로그로 진단하지 못하고 코드를 읽어야 했다. <c>-354</c>(각주가 사유를
+        /// 하드코딩) · <c>-361</c>(카드가 실패한 잡을 못 찾음) 과 같은 계열이다 —
+        /// <b>말은 하는데 쓸모가 없는 로그.</b></para>
+        ///
+        /// <para><b>사유는 <see cref="PartClamp.GetAvailability"/> 에게 묻는다.</b>
+        /// 이 함수의 첫 판은 <c>IsReleased</c>·<c>Pullers</c> 를 직접 보고 사유를
+        /// 다시 짜맞췄는데, <c>InteractableBase.GetAvailability</c> 가 단일
+        /// <c>Occupant</c> 잠금으로도 <c>Occupied</c> 를 내므로 그 경우가
+        /// <b>"너무 멀다" 로 찍혔다.</b> 판정을 두 곳에 두면 반드시 갈라진다.</para>
+        /// </summary>
+        void LogClampRefusal(bool leftPressed, bool rightPressed)
+        {
+            string buttons = leftPressed && rightPressed ? "좌+우클릭"
+                : leftPressed ? "좌클릭" : "우클릭";
+
+            var clamp = CurrentInteractionTarget.Clamp;
+            if (clamp == null)
+            {
+                Debug.Log($"[SpaceFlop][상호작용] {buttons} → 고정못 거부 (조준 대상 없음)");
+                return;
+            }
+
+            // 사유를 손으로 다시 짜맞추지 않고 규칙의 주인에게 묻는다.
+            //
+            // 처음에는 여기서 IsReleased·Pullers 를 직접 보고 사유를 만들었는데,
+            // base.GetAvailability 가 **Pullers 와 다른 규칙**(단일 Occupant 잠금)으로도
+            // Occupied 를 낸다. 그 경우가 "너무 멀다" 로 찍혔다 — 고치려던 실수를
+            // 같은 함수 안에서 되풀이한 것이다. 판정은 한 곳에만 둔다.
+            var availability = clamp.GetAvailability(ClampInteractor);
+            bool reachable = CanReachClamp(clamp);
+
+            string reason = !availability.IsAllowed
+                ? RefusalReason(availability.Failure, clamp.Pullers)
+                : reachable ? "닿는데 결합 안 됨" : "너무 멀다";
+
+            // 사유와 무관하게 점유·거리를 함께 적는다. 다음 신고 때 로그 한 줄로
+            // 끝나야 한다 — 두 값을 따로 찾아 맞춰 보게 만들면 또 코드를 읽는다.
+            Debug.Log($"[SpaceFlop][상호작용] {buttons} → 고정못 거부 ({reason}) · {clamp.name}"
+                      + $" · 당기는 사람 {clamp.Pullers}/{PhysicsScale.ClampMaxPullers}"
+                      + $" · 닿음={(reachable ? "O" : "X")}");
+        }
+
+        /// <summary>
+        /// 거부 <b>사유 하나를 사람 말로</b> 옮긴다 (S15P21B202-383).
+        ///
+        /// <para>순수 함수로 떼어 둔 이유는 <b>값으로 검증되게</b> 하려는 것이다.
+        /// 사유가 새로 생겼는데 여기에 없으면 <c>모르는 사유(...)</c> 로 찍히고,
+        /// <c>ClampOccupancyTests</c> 가 그것을 실패로 잡는다. 문구가 한 갈래로
+        /// 뭉치는 것도 같은 테스트가 막는다.</para>
+        ///
+        /// <para><b><see cref="InteractionFailure.Occupied"/> 는 두 규칙이 겹쳐 있다.</b>
+        /// <c>InteractableBase</c> 의 단일 <c>Occupant</c> 잠금과 기획 §12.2 의
+        /// "최대 2명" 이 같은 값을 낸다. 인원으로 갈라 적어야 "두 명이 이미 붙어서"
+        /// 인지 "다른 사람이 먼저 집어서" 인지 구별된다.</para>
+        /// </summary>
+        public static string RefusalReason(InteractionFailure failure, int pullers)
+        {
+            switch (failure)
+            {
+                case InteractionFailure.Occupied:
+                    return pullers >= PhysicsScale.ClampMaxPullers
+                        ? $"점유 {pullers}/{PhysicsScale.ClampMaxPullers}명"
+                        : "다른 사람이 선점";
+                case InteractionFailure.NotReady: return "이미 풀림";
+                case InteractionFailure.OutOfRange: return "사거리·시야각 밖";
+                case InteractionFailure.Busy: return "내가 다른 상호작용 중";
+                case InteractionFailure.NoTarget: return "조준 대상 없음";
+
+                // 허용인데 거부 분기로 들어온 것이므로 부르는 쪽이 잘못됐다.
+                case InteractionFailure.None: return "허용인데 거부됨";
+                default: return $"모르는 사유({failure})";
+            }
         }
 
         static void LogInteraction(string branch, bool left, bool right, Grabbable target, Rigidbody body)
