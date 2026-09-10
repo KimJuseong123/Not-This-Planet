@@ -194,6 +194,7 @@ namespace Metagame.Network
         public override void OnStartClient()
         {
             if (!ClientPlayers.Contains(this)) ClientPlayers.Add(this);
+            PerfLog.Players = ClientPlayers.Count;
 
             // 서버 겸 클라이언트(호스트 모드)라면 몸은 이미 서버 쪽에서 만들었다.
             if (isServer) return;
@@ -725,6 +726,7 @@ namespace Metagame.Network
         public override void OnStopClient()
         {
             ClientPlayers.Remove(this);
+            PerfLog.Players = ClientPlayers.Count;
             RemoveBody();
         }
         public override void OnStopServer()
