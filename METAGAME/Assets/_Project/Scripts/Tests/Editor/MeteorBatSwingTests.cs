@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Reflection;
 using Metagame.Gameplay.Hazards;
 using NUnit.Framework;
 using UnityEngine;
@@ -439,12 +440,12 @@ namespace Metagame.Gameplay.Tests
                         Is.EqualTo(new Vector3(0.23f, -0.20f, 0.58f)));
 
             body.position = new Vector3(-12f, 4f, 8f);
-            bat.SendMessage("LateUpdate");
+            RunLateUpdate(bat);
             Assert.AreSame(camera.transform, visual.parent,
                            "물리 본체 이동 뒤 화면 모델이 카메라에서 떨어졌다.");
 
             camera.FirstPerson = false;
-            bat.SendMessage("LateUpdate");
+            RunLateUpdate(bat);
             Assert.AreSame(bat.transform, visual.parent,
                            "3인칭 전환 때 모델이 물리 도구 계층으로 돌아오지 않았다.");
             Assert.That(visual.localPosition,
@@ -458,6 +459,14 @@ namespace Metagame.Gameplay.Tests
             var go = new GameObject("MeteorBat") { layer = GameLayers.Prop };
             _spawned.Add(go);
             return go.AddComponent<MeteorBat>();
+        }
+
+        static void RunLateUpdate(ToolBase tool)
+        {
+            var method = typeof(ToolBase).GetMethod(
+                "LateUpdate", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null, "ToolBase.LateUpdate를 찾지 못했다.");
+            method.Invoke(tool, null);
         }
 
         /// <summary>착탄까지 타격 창 안인 높이의 운석.</summary>
