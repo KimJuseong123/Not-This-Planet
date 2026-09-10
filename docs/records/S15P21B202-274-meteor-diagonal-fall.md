@@ -1,6 +1,14 @@
 # S15P21B202-274 운석이 대각선으로 빠르게 낙하하게 한다
 
-## 왜 했는가
+[문서 안내](../README.md) → [작업 기록](README.md) → 운석·환경
+
+운석을 목표 지점 위에서 수직 낙하시키던 방식에서 빠른 대각선 낙하로 변경했습니다. 착탄 시각 유지, 이동 중 충돌, 시드 기반 방향 선택을 설명합니다.
+
+본문의 “현재”, 검증 수치, 미완료 항목은 **기록 당시 기준**입니다. 후속 변경은 관련 이슈와 [주제별 색인](README.md)을 함께 확인합니다.
+
+<a id="왜-했는가"></a>
+
+## 변경 배경
 
 > "지금은 공중에 생성 후 그냥 직선으로 중력대로 떨어지는 느낌인데 … 대각선으로 빠르게
 > 떨어지는걸로 진짜 운석이란 느낌을 더해주고 바닥의 원으로 타이밍 맞춰서 운석방망이로
@@ -26,7 +34,7 @@ body.linearVelocity = Vector3.down * DropSpeedFor(_dropHeight);   // 아래로�
 | 이동 거리를 늘린다 (대각선) | 반응 시간은 그대로, 속도만 오른다 |
 
 **뒤쪽을 골랐다.** 바닥 원으로 타이밍을 잡는 것이 이 기믹의 핵심이므로 §17.2 의 예고
-3초는 건드리지 않았다. `TheReactionTimeIsUnchanged` 가 그 결정을 지킨다.
+3초는 건드리지 않았다. `TheReactionTimeIsUnchanged`가 그 결정을 지킨다.
 
 입사각 50도, 낙하 높이 30m 기준으로 이렇게 된다.
 
@@ -43,7 +51,7 @@ body.linearVelocity = Vector3.down * DropSpeedFor(_dropHeight);   // 아래로�
 
 ## 착지 시각을 건드리지 않은 이유
 
-**중력은 y 만 바꾼다.** 그래서 수평 속도를 얼마로 주든 `DropSpeedFor` 가 푼 착탄 시각이
+**중력은 y만 바꾼다.** 그래서 수평 속도를 얼마로 주든 `DropSpeedFor`가 푼 착탄 시각이
 변하지 않는다. 수평은 공기 저항이 없으니 등속이고, `거리 / 예고 시간` 이면 정확히 예고가
 끝나는 순간 착지 지점에 온다.
 
@@ -55,8 +63,8 @@ var horizontal = _warningSeconds > 0f
 body.linearVelocity = horizontal + Vector3.down * fallSpeed;
 ```
 
-**방망이 쪽은 손댈 것이 없었다.** `Meteor.TryPredictImpact` 이 이미 시간은 수직으로 풀고
-x/z 를 투영한다.
+**방망이 쪽은 손댈 것이 없었다.** `Meteor.TryPredictImpact`이 이미 시간은 수직으로 풀고
+x/z를 투영한다.
 
 ```csharp
 point = new Vector3(
@@ -82,20 +90,20 @@ point = new Vector3(
 **② 움직이는 것은 막힘으로 세지 않는다.** 플레이어나 굴러다니는 파츠가 잠깐 경로에
 들어와 방향이 바뀌면 같은 시드에서 다른 경로가 나와 재현이 깨진다 — 게다가 날아오는
 운석에 맞는 것은 막을 일이 아니다. 판정 규칙은 S15P21B202-273 의
-`Meteor.TryFindSupportBelow` 와 같다.
+`Meteor.TryFindSupportBelow`와 같다.
 
 ## 방향은 시드로 뽑는다
 
-`_random` 을 쓰므로 시드가 같으면 같은 경로가 나온다. `SameSeed_ProducesSameImpactPoints`
-가 이미 있었고, `SameSeed_ProducesTheSameEntryPath` 를 더했다.
+`_random`을 쓰므로 시드가 같으면 같은 경로가 나온다. `SameSeed_ProducesSameImpactPoints`
+가 이미 있었고, `SameSeed_ProducesTheSameEntryPath`를 더했다.
 
-`Spawn` 이 난수를 하나 더 쓰게 되어 **운석마다의 난수 소비 순서가 바뀌었다.** 착탄
-지점은 `NextImpactPoint()` 가 먼저 뽑으므로 시드별 재현성은 그대로다.
+`Spawn`이 난수를 하나 더 쓰게 되어 **운석마다의 난수 소비 순서가 바뀌었다.** 착탄
+지점은 `NextImpactPoint()`가 먼저 뽑으므로 시드별 재현성은 그대로다.
 
 ## 검증
 
 새 `MeteorDiagonalFallTests` 15개. `MeteorSpawnerTests` ·
-`MeteorWarningTests` · `MeteorTargetingTests` 와 함께 **64개 전부 통과.**
+`MeteorWarningTests` · `MeteorTargetingTests`와 함께 **64개 전부 통과.**
 
 develop 기준선과 실패 목록을 집합으로 비교했다.
 
@@ -110,14 +118,16 @@ develop : 647개 중 630 통과 / 17 실패
 
 ### 기존 검증 하나를 고쳤다
 
-`MeteorSpawnerTests.TheMeteorFallsFromAboveWithAnInitialPush` 가 착지 지점과 생성
-지점의 x·z 가 같은지 봤다. 대각선이 되면서 전제가 사라졌다. §17.1 "하늘에서 낙하한다"
+`MeteorSpawnerTests.TheMeteorFallsFromAboveWithAnInitialPush`가 착지 지점과 생성
+지점의 x·z가 같은지 봤다. 대각선이 되면서 전제가 사라졌다. §17.1 "하늘에서 낙하한다"
 와 수직 속도만 남기고, 경로 검증은 새 스위트로 옮겼다.
 
-## 남은 것
+<a id="남은-것"></a>
+
+## 남은 작업
 
 - **C** 착지 지점 빨간 원 + 시간 표현. **대각선이면 "공중에서 수직으로 내려찍는 빨간
-  선" 은 맞지 않는다** — 선을 대각선 궤적으로 바꿀지 없앨지 C 에서 정한다
+  선" 은 맞지 않는다** — 선을 대각선 궤적으로 바꿀지 없앨지 C에서 정한다
 - **D** 대각선 낙하에 맞춘 방망이 타격 판정 재확인. 예측은 이미 맞지만 조준 범위와
   사거리가 비스듬히 오는 운석에도 맞는지는 따로 봐야 한다
 - **E** 플라즈마 용접 건 빔이 노즐 끝에서 나가게

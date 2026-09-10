@@ -1,4 +1,10 @@
-# [Network] 참가자 쪽 랙 — 지연 예산을 세어 보고 줄인다 (S15P21B202-328)
+# 참가자 입력 지연 분석과 개선 (S15P21B202-328)
+
+[문서 안내](../README.md) → [작업 기록](README.md) → 네트워크
+
+서로 다른 망의 2인 플레이에서 참가자에게만 발생한 지연을 조사했습니다. 대역폭과 입력 지연을 구분하고 지연 구성·수정 범위·다음 실측 항목을 정리합니다.
+
+본문의 “현재”, 검증 수치, 미완료 항목은 **기록 당시 기준**입니다. 후속 변경은 관련 이슈와 [주제별 색인](README.md)을 함께 확인합니다.
 
 | 항목 | 내용 |
 | --- | --- |
@@ -10,7 +16,7 @@
 
 ## 증상
 
-2026-09-08, PC 2대로 처음 서로 다른 LAN 에서 붙였다. 방장은 **모바일 핫스팟**, 참가자는 **와이파이**.
+2026-09-08, PC 2대로 처음 서로 다른 LAN에서 붙였다. 방장은 **모바일 핫스팟**, 참가자는 **와이파이**.
 **참가자 쪽만 랙이 심하다**는 피드백. 방장 화면은 멀쩡하다.
 
 ## 먼저 확인한 것 — 대역폭이 아니다
@@ -30,7 +36,7 @@
 
 ## 지연 예산 — 참가자가 자기 캐릭터를 움직일 때
 
-`NetPlayer` 의 머리말이 구조를 그대로 적어 두고 있다.
+`NetPlayer`의 머리말이 구조를 그대로 적어 두고 있다.
 
 > 물리는 서버에서만 돈다(-145·-147). 클라이언트는 누른 키를 `[Command]` 로 보내고, 서버의
 > `PlayerRig` 가 그 입력으로 힘을 가한다. 결과인 골반 위치가 `NetworkTransform` 으로 모두에게
@@ -44,18 +50,18 @@
 | 입력이 배치를 기다림 | 평균 25ms | `NetworkClient.sendRate` = `NetworkManager.sendRate` = 20 |
 | 클라 → 서버 | RTT/2 | |
 | 서버 물리 한 스텝 | ~10ms | `TimeManager` Fixed Timestep 0.01 (100Hz) |
-| `NetworkTransform` 이 브로드캐스트를 기다림 | 평균 25ms | `syncInterval: 0` → `sendRate` ×1 |
+| `NetworkTransform`이 브로드캐스트를 기다림 | 평균 25ms | `syncInterval: 0` → `sendRate` ×1 |
 | 서버 → 클라 | RTT/2 | |
 | **스냅샷 보간 버퍼** | **100ms + 지터** | 아래 계산 |
 | `RemoteAvatar` 물리 스텝 + 조인트 | ~10ms | `Hips.MovePosition` in `FixedUpdate` |
 | **카메라 `smoothFocus`** | **62ms** | `1 - exp(-16·dt)` → 시정수 1/16초 |
 | **합** | **약 232ms + RTT + 지터** | |
 
-핫스팟↔와이파이 RTT 를 50~150ms 로 보면 **280~380ms**. 이 정도면 "랙이 심하다" 가 맞는 표현이다.
+핫스팟↔와이파이 RTT를 50~150ms 로 보면 **280~380ms**. 이 정도면 "랙이 심하다" 가 맞는 표현이다.
 
 **보간 버퍼가 왜 100ms 인가.** `bufferTime = sendInterval × bufferTimeMultiplier` 인데, 씬에
-`dynamicAdjustment: 1` 이 켜져 있어 그 배수는 실측 지터로 매번 새로 정해진다
-(`SnapshotInterpolation.DynamicAdjustment`) — 씬의 `bufferTimeMultiplier: 3` 은 접속 직후 3초짜리
+`dynamicAdjustment: 1`이 켜져 있어 그 배수는 실측 지터로 매번 새로 정해진다
+(`SnapshotInterpolation.DynamicAdjustment`) — 씬의 `bufferTimeMultiplier: 3`은 접속 직후 3초짜리
 초기값일 뿐 그 뒤로는 덮인다.
 
 ```
@@ -64,15 +70,17 @@ safezone  = multiples + tolerance          # 씬 설정 tolerance = 1
 bufferTime = sendInterval × safezone = 2 × sendInterval + 지터
 ```
 
-**`sendInterval` 에 정비례한다.** 그래서 `sendRate` 를 올리면 버퍼가 같이 줄어든다 — 아래 ①이
+**`sendInterval`에 정비례한다.** 그래서 `sendRate`를 올리면 버퍼가 같이 줄어든다 — 아래 ①이
 효과가 큰 이유다.
 
-**증상 감별에 쓸 수 있는 것**: 시점 회전은 `GameSession` 이 로컬 카메라를 직접 돌려서
+**증상 감별에 쓸 수 있는 것**: 시점 회전은 `GameSession`이 로컬 카메라를 직접 돌려서
 (`LocalPlayer.Cam.Steer(f.Look)`) **즉각적이다**. 늦는 것은 **걷는 것**뿐이다. 참가자가
 "돌아보는 건 괜찮은데 걸을 때 밀린다" 고 하면 이 진단이 맞은 것이고, 둘 다 늦으면 다른 원인
 (프레임률 자체)이다.
 
-## 고친 것
+<a id="고친-것"></a>
+
+## 변경 내용
 
 ### ① `sendRate` 20 → 30 (`Lobby.unity`)
 
@@ -81,14 +89,14 @@ bufferTime = sendInterval × safezone = 2 × sendInterval + 지터
 
 ### ② 자세·고정쇠를 신뢰 없는 채널로 (`WorldSync.cs`)
 
-`[ClientRpc]` 의 기본값은 **Reliable** 이다. 그런데 여기 실리는 것은 매 틱 통째로 다시 보내는
+`[ClientRpc]`의 기본값은 **Reliable** 이다. 그런데 여기 실리는 것은 매 틱 통째로 다시 보내는
 **현재 상태**이지 놓치면 안 되는 사건이 아니다. 신뢰 채널에 실으면 패킷 하나가 빠졌을 때 그 뒤에
 도착한 **더 새로운** 자세들이 재전송을 기다리며 줄을 선다(head-of-line blocking). 방장이 흔들리는
 핫스팟 업링크에 있으면 그 줄이 계속 길어지고, **참가자 화면만** 점점 뒤로 밀린다.
 
 kcp 설정이 이것을 키운다 — `SendWindowSize: 4096` 이라 밀린 것을 버리지 않고 계속 쌓는다.
 
-`[ClientRpc(channel = Channels.Unreliable)]` 로 옮겼다. 잃은 묶음은 버리고 다음 것으로 간다.
+`[ClientRpc(channel = Channels.Unreliable)]`로 옮겼다. 잃은 묶음은 버리고 다음 것으로 간다.
 전체 상태를 매 틱 다시 보내므로 손실은 저절로 메워진다. 대신 **순서가 보장되지 않아** 번호를
 하나 실어 옛 묶음을 걸러 낸다(`IsNewer`) — 없으면 늦게 온 옛 자세에 물체가 한 번 뒤로 튄다.
 
@@ -98,16 +106,16 @@ kcp 설정이 이것을 키운다 — `SendWindowSize: 4096` 이라 밀린 것�
 
 ### ③ 카메라의 중복 스무딩 제거 (`OrbitCamera.cs` · `RemoteAvatar.cs`)
 
-참가자 화면에서 내 몸은 여기 닿기까지 **이미 두 번 다듬어졌다** — Mirror 의 스냅샷 보간이 서버
-자세를 잇고, 골반 강체가 `RigidbodyInterpolation.Interpolate` 로 물리 스텝 사이를 또 잇는다.
+참가자 화면에서 내 몸은 여기 닿기까지 **이미 두 번 다듬어졌다** — Mirror의 스냅샷 보간이 서버
+자세를 잇고, 골반 강체가 `RigidbodyInterpolation.Interpolate`로 물리 스텝 사이를 또 잇는다.
 그 위에 카메라가 시정수 62ms 로 한 번 더 좇으면 더해지는 것은 부드러움이 아니라 지연뿐이다.
 
-`FocusSmoothing` 을 밖에서 조절할 수 있게 하고, `RemoteAvatar` 가 **내 몸일 때만** 40(25ms)으로
+`FocusSmoothing`을 밖에서 조절할 수 있게 하고, `RemoteAvatar`가 **내 몸일 때만** 40(25ms)으로
 올려 잡는다. 방장은 목표가 진짜 물리 몸이라 기본값 16 그대로다. **약 37ms.**
 
 ### ④ 매 틱 배열 할당 제거 · 고정쇠는 바뀔 때만 (`WorldSync.cs`)
 
-`SendFromServer` 가 매 틱 `new Pose[]` 와 `new ClampState[]` 를 만들고 있었다. 버퍼를 다시 쓴다.
+`SendFromServer`가 매 틱 `new Pose[]`와 `new ClampState[]`를 만들고 있었다. 버퍼를 다시 쓴다.
 
 고정쇠는 사람이 당기는 몇 초를 빼면 내내 그대로인데 매 틱 16개를 전부 보내고 있었다. 바뀔 때만
 보내되, 신뢰 없는 채널이라 잃을 수 있으므로 조용해도 0.5초마다 한 번은 다시 보낸다.
@@ -130,7 +138,7 @@ kcp 설정이 이것을 키운다 — `SendWindowSize: 4096` 이라 밀린 것�
 ## 고치지 않은 것과 그 이유
 
 **클라이언트 예측이 없는 것 — 진짜 원인이고, 팀 결정이 필요하다.**
-남는 `RTT` 는 위 어떤 조정으로도 못 없앤다. 없애려면 참가자가 자기 몸을 **먼저 움직이고** 서버
+남는 `RTT`는 위 어떤 조정으로도 못 없앤다. 없애려면 참가자가 자기 몸을 **먼저 움직이고** 서버
 결과로 되맞추는(reconcile) 구조여야 하는데, 그것은 -145·-147 의 "물리는 서버에서만" 결정과 정면으로
 부딪힌다. 그 결정에는 이유가 있었다 — 두 사람이 부품 하나를 같이 옮길 때 각자 계산하면 결과가
 갈린다. **몸의 이동만 예측하고 부품 판정은 서버에 남기는** 절충이 표준적인 답이지만, 지금 몸이
@@ -141,20 +149,29 @@ kcp 설정이 이것을 키운다 — `SendWindowSize: 4096` 이라 밀린 것�
 
 **물리 100Hz + `m_DefaultSolverIterations: 14`.** Unity 기본값(50Hz·6)의 약 4.7배다. 약한 PC 라면
 프레임률 자체가 떨어져 이것도 "랙" 으로 보인다. 다만 래그돌 안정성에 직결되는 값이라 실측 없이
-건드리지 않았다. 다음 테스트에서 양쪽 FPS 를 같이 적는다.
+건드리지 않았다. 다음 테스트에서 양쪽 FPS를 같이 적는다.
 
-**`WorldSync.Smoothing = 20`.** 부품이 시정수 50ms 만큼 뒤처진다. `sendRate` 를 올려 전송 간격이
+**`WorldSync.Smoothing = 20`.** 부품이 시정수 50ms 만큼 뒤처진다. `sendRate`를 올려 전송 간격이
 33ms 가 됐으니 이제는 스무딩이 더 큰 항이다. 이것도 측정 후에 정한다.
 
-**클라이언트가 자기 `MeteorSpawner` 를 계속 돌린다.** 화면이 갈리는 별개 버그다(멀티플레이 검증
+**클라이언트가 자기 `MeteorSpawner`를 계속 돌린다.** 화면이 갈리는 별개 버그다(멀티플레이 검증
 목록). 양쪽이 똑같이 부담하므로 **이번 랙의 원인은 아니다.**
 
+## 다음 테스트에서 잴 것
+
+PC 2대, 방장 핫스팟 / 참가자 와이파이 — 같은 조건으로 다시 붙이고 아래를 적는다.
+
+1. 참가자에게 **회전은 즉각적인데 이동만 늦는지** — 진단이 맞았는지 가르는 질문이다
+2. 양쪽 FPS (`Application.targetFrameRate` 없이 그냥 통계)
+3. RTT — Mirror의 `NetworkTime.rtt`
+4. 참가자 화면에서 **부품**과 **내 몸** 중 어느 쪽이 더 늦는지 (전자면 `Smoothing`, 후자면 예산표)
+5. 30 으로 충분한지, `sendRate 60`을 시험할지
 ## 검증 (2026-09-08)
 
-처음에는 Editor 가 열려 있어 batchmode 를 쓸 수 없어서 Unity 가 생성한 csproj 로 컴파일만 봤다
+처음에는 Editor가 열려 있어 batchmode를 쓸 수 없어서 Unity가 생성한 csproj로 컴파일만 봤다
 (`Metagame.Network`·`Metagame.Gameplay`·`Metagame.Gameplay.Tests.Editor` 오류 0). **그 경로로는
-Mirror 위버가 돌지 않아** 신뢰 없는 채널 RPC 가 위버를 통과하는지 알 수 없었다 — 남은 유일한
-미검증 위험이 그것이었다. Editor 를 닫은 뒤 실제로 돌려 닫았다.
+Mirror 위버가 돌지 않아** 신뢰 없는 채널 RPC가 위버를 통과하는지 알 수 없었다 — 남은 유일한
+미검증 위험이 그것이었다. Editor를 닫은 뒤 실제로 돌려 닫았다.
 
 **batchmode EditMode 실행** — 그리고 **대상 브랜치 기준선을 따로 한 번 더 돌려** 비교했다.
 
@@ -165,24 +182,14 @@ Mirror 위버가 돌지 않아** 신뢰 없는 채널 RPC 가 위버를 통과�
 | 실패 | 27 | 27 |
 
 **새로 생긴 실패 0건 · 사라진 실패 0건 — 실패 집합이 완전히 동일하다.** 27건은 전부 기존
-`Metagame.Gameplay.Tests` 실패다. `OrbitCamera` 는 기본값 `16f` 를 그대로 두어 동작이 바뀌지
-않는다(값을 바꾸는 것은 `RemoteAvatar` 가 네트워크 아바타일 때뿐이라 이 테스트들에 닿지 않는다).
+`Metagame.Gameplay.Tests` 실패다. `OrbitCamera`는 기본값 `16f`를 그대로 두어 동작이 바뀌지
+않는다(값을 바꾸는 것은 `RemoteAvatar`가 네트워크 아바타일 때뿐이라 이 테스트들에 닿지 않는다).
 
 - **컴파일 오류 0**
-- **Mirror 위버 오류 0** — `[ClientRpc(channel = Channels.Unreliable)]` 에 `uint` + 구조체 배열을
+- **Mirror 위버 오류 0** — `[ClientRpc(channel = Channels.Unreliable)]`에 `uint` + 구조체 배열을
   실은 것이 위버를 통과했다. csproj 빌드로는 확인할 수 없던 부분이다
-- CI 의 `unity-compile` 도 통과했다(1분 33초, MR `!249` 파이프라인 182445) — EC2 러너에서 재현됐다
+- CI의 `unity-compile`도 통과했다(1분 33초, MR `!249` 파이프라인 182445) — EC2 러너에서 재현됐다
 
 batchmode 실행이 에셋 4개를 재직렬화했는데 내용 차이는 0이고 줄바꿈뿐이라 되돌렸다.
 
 **체감 개선은 아직 재지 않았다** — 다음 2대 PC 테스트 몫이다(아래).
-
-## 다음 테스트에서 잴 것
-
-PC 2대, 방장 핫스팟 / 참가자 와이파이 — 같은 조건으로 다시 붙이고 아래를 적는다.
-
-1. 참가자에게 **회전은 즉각적인데 이동만 늦는지** — 진단이 맞았는지 가르는 질문이다
-2. 양쪽 FPS (`Application.targetFrameRate` 없이 그냥 통계)
-3. RTT — Mirror 의 `NetworkTime.rtt`
-4. 참가자 화면에서 **부품**과 **내 몸** 중 어느 쪽이 더 늦는지 (전자면 `Smoothing`, 후자면 예산표)
-5. 30 으로 충분한지, `sendRate 60` 을 시험할지

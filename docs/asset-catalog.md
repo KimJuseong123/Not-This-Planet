@@ -14,16 +14,42 @@
 > 갱신 2026-09-10 — 캐릭터 1인칭 손 FBX·PBR 텍스처·정면 프리뷰 교체 · 이슈 [S15P21B202-387](https://ssafy.atlassian.net/browse/S15P21B202-387)
 > 관련 문서: [문서 목록](./README.md) · [1장 기획](./planning/chapter-1-plan.md) · [파트 구분](./parts.md)
 
-**어떤 에셋이 무엇이고, 씬에 갖다 쓸 수 있는 상태인지** 한 장에서 확인하는 문서다.
-연결 관계는 모두 `.meta` GUID를 역참조해 실측했다 — 파일명으로 추측한 값은 없다.
+씬에 사용할 에셋의 외형, 준비 상태, 실제 크기와 파일 연결을 확인하는 카탈로그입니다. 배치 전 주의사항과 상태 라벨을 확인한 뒤 우주선·도구·환경·캐릭터 항목을 찾습니다. 각 항목의 경로는 `METAGAME/Assets/_Project/` 기준입니다.
 
-이 표의 경로는 앞에 `METAGAME/Assets/_Project/`가 붙는다.
+[문서 안내](README.md) · 선행: [1장 기획](planning/README.md) · 파일 관리: [Unity 규칙](unity-convention.md)
+
+> 관련 문서: [문서 목록](./README.md) · [1장 기획](./planning/chapter-1-plan.md) · [파트 구분](./parts.md)
+
+연결 관계는 `.meta` GUID를 역참조해 확인했다. 경로 표기는 프로젝트 에셋 루트를 생략한다.
 예: `Models/Props/Stage1/SF_Stage1_AnchorPin.fbx` →
 `METAGAME/Assets/_Project/Models/Props/Stage1/SF_Stage1_AnchorPin.fbx`
 
 ---
 
-## 1. 쓰기 전에 알아야 할 것 3가지
+<a id="1-쓰기-전에-알아야-할-것-3가지"></a>
+
+**이 문서의 내용**
+
+- [1. 에셋 배치 전 확인 사항](#section-1)
+- [2. 상태 라벨](#section-2)
+- [3. 전체 요약](#section-3)
+- [4. Stage1 우주선 파츠 — 사용 가능 (4종)](#section-4)
+- [5. Stage1 고정못 — 사용 가능 (1종)](#section-5)
+- [5-1. Stage1 운석 방어용 방망이 — 사용 가능 (1종)](#section-6)
+- [6. Stage1 환경 자연물 — 사용 가능 (7종)](#section-7)
+- [6-1. Stage1 운석 — 본체 사용 가능 · 파편 미연결 (4종)](#section-8)
+- [6-2. Stage1 자연물·맵 타일 리뉴얼 — 연결 현황 (자연물 14종 + 타일 4종)](#section-9)
+- [7. 플레이어 캐릭터 — 사용 가능 (1종)](#section-10)
+- [8. 기존 SpaceFlop 에셋 — 기존](#section-11)
+- [9. 참고 에셋](#section-12)
+- [10. 씬 · 설정 · 텍스처 전체 목록](#section-13)
+- [11. 미해결 목록](#section-14)
+- [12. 이 문서 갱신하기](#section-15)
+- [카탈로그 갱신 이력](#section-16)
+
+<a id="section-1"></a>
+
+## 1. 에셋 배치 전 확인 사항
 
 **① `PF_*` 프리팹을 쓴다. FBX를 씬에 직접 끌지 않는다.**
 Stage1 FBX는 전부 **Z-up으로 제작**되어 Unity에 그대로 넣으면 누워서 들어온다.
@@ -43,6 +69,8 @@ FBX 파일만 열어봐서는 크기를 알 수 없다. 기존 카탈로그에�
 
 ---
 
+<a id="section-2"></a>
+
 ## 2. 상태 라벨
 
 | 라벨 | 의미 |
@@ -52,6 +80,8 @@ FBX 파일만 열어봐서는 크기를 알 수 없다. 기존 카탈로그에�
 | **기존** | 이전 SpaceFlop 프로토타입 에셋. 신규 Stage1 작업에는 쓰지 않는다 |
 | **참고** | 제작 참고용. 런타임에 쓰지 않는다 |
 | **설정** | URP·입력 설정 또는 Unity 프로젝트 템플릿 잔여물 |
+
+<a id="section-3"></a>
 
 ## 3. 전체 요약
 
@@ -72,6 +102,8 @@ FBX 파일만 열어봐서는 크기를 알 수 없다. 기존 카탈로그에�
 FBX·JPG·PNG는 전부 **Git LFS** 대상이다(`.gitattributes`).
 
 ---
+
+<a id="section-4"></a>
 
 ## 4. Stage1 우주선 파츠 — 사용 가능 (4종)
 
@@ -105,6 +137,8 @@ PF_Stage1_*.prefab  (루트: Transform 만)
 
 ---
 
+<a id="section-5"></a>
+
 ## 5. Stage1 고정못 — 사용 가능 (1종)
 
 | 프리뷰 | 용도 | FBX 원본 | 프리팹 스케일 | **실제 크기** | 삼각형 |
@@ -117,6 +151,8 @@ PF_Stage1_*.prefab  (루트: Transform 만)
 - 텍스처: `Textures/Props/Stage1/AnchorPin/T_Stage1_AnchorPin_{BaseColor,Normal,Metallic,Roughness}.jpg`
 
 ---
+
+<a id="section-6"></a>
 
 ## 5-1. Stage1 운석 방어용 방망이 — 사용 가능 (1종)
 
@@ -150,6 +186,8 @@ Material은 URP **Lit**이며 BaseColor·Normal·Metallic 3장을 참조한다. 
 
 ---
 
+<a id="section-7"></a>
+
 ## 6. Stage1 환경 자연물 — 사용 가능 (7종)
 
 [S15P21B202-84](https://ssafy.atlassian.net/browse/S15P21B202-84)에서 Material 7개와
@@ -172,8 +210,8 @@ Material은 URP **Lit**이며 BaseColor·Normal·Metallic 3장을 참조한다. 
 
 ### 파일 경로
 
-FBX 는 Tripo3D 산출 이름(소문자 snake_case)을 그대로 두고, 새로 만든 Material·프리팹만
-프로젝트 명명 규칙인 PascalCase 로 맞췄다.
+FBX는 Tripo3D 산출 이름(소문자 snake_case)을 그대로 두고, 새로 만든 Material·프리팹만
+프로젝트 명명 규칙인 PascalCase로 맞췄다.
 
 | 모델 | Prefab | Material |
 | --- | --- | --- |
@@ -193,8 +231,8 @@ PF_Stage1_*.prefab  (루트: Transform 만)
       └─ <모델>.fbx
 ```
 
-Material 은 각 FBX 의 `.meta` 외부 오브젝트 맵(재질 추출)으로 물려 있다. 즉 임베드 재질이 아니라
-`M_Stage1_*.mat` 을 쓰므로, FBX 를 어디에 인스턴스화하든 같은 재질이 따라오고 에디터에서 편집할 수 있다.
+Material은 각 FBX의 `.meta` 외부 오브젝트 맵(재질 추출)으로 물려 있다. 즉 임베드 재질이 아니라
+`M_Stage1_*.mat`을 쓰므로, FBX를 어디에 인스턴스화하든 같은 재질이 따라오고 에디터에서 편집할 수 있다.
 셰이더는 URP **Lit**이다. BaseColor 한 장뿐이라 Metallic 0 · Smoothness 0.2 로 두었고,
 기존 FBX·프리팹·씬 참조를 유지한 채 머티리얼 셰이더만 이관했다.
 
@@ -225,6 +263,8 @@ Material·프리팹은 `Stage1EnvironmentAssets` 에디터 도구가 만든다
 
 ---
 
+<a id="section-8"></a>
+
 ## 6-1. Stage1 운석 — 본체 사용 가능 · 파편 미연결 (4종)
 
 [S15P21B202-98](https://ssafy.atlassian.net/browse/S15P21B202-98)에서 Tripo 산출물을
@@ -250,6 +290,8 @@ FBX 내부의 Tripo UUID 경로도 새 영문 경로로 다시 내보냈으며, 
 각 모델의 앞·뒤·좌·우 프리뷰는 `docs/assets/previews/<모델>_{front,back,left,right}.png`에 있다.
 
 ---
+
+<a id="section-9"></a>
 
 ## 6-2. Stage1 자연물·맵 타일 리뉴얼 — 연결 현황 (자연물 14종 + 타일 4종)
 
@@ -338,6 +380,8 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 
 ---
 
+<a id="section-10"></a>
+
 ## 7. 플레이어 캐릭터 — 사용 가능 (1종)
 
 | 프리뷰 | 모델 | FBX 원본 | 삼각형 | 비고 |
@@ -384,6 +428,8 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 
 ---
 
+<a id="section-11"></a>
+
 ## 8. 기존 SpaceFlop 에셋 — 기존
 
 이전 프로토타입 자산이다. **신규 Stage1 작업에는 쓰지 않는다.** 런타임 코드가 아직 참조하므로 남아 있다.
@@ -409,6 +455,8 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 
 ---
 
+<a id="section-12"></a>
+
 ## 9. 참고 에셋
 
 런타임에 쓰지 않는 제작 참고용 이미지다.
@@ -424,6 +472,8 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 
 ---
 
+<a id="section-13"></a>
+
 ## 10. 씬 · 설정 · 텍스처 전체 목록
 
 ### 씬 (2개)
@@ -436,13 +486,13 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 ### `Main.unity` 의 아트 배치 (S15P21B202-84)
 
 `Stage1SkinBuilder` 에디터 도구가 만들며, `Tools/둥실둥실 우주 대탈출/Main 씬에 1장 전체 구성`에서 자동 실행된다.
-**물리와 좌표는 건드리지 않는다** — 프리미티브의 MeshRenderer 만 끄고 같은 자리에 모델을 `Visual` 자식으로 얹는다.
+**물리와 좌표는 건드리지 않는다** — 프리미티브의 MeshRenderer만 끄고 같은 자리에 모델을 `Visual` 자식으로 얹는다.
 그래서 `Visual` 자식만 지우면 프리미티브 룩으로 돌아간다.
 
 | 씬 위치 | 배치 | 개수 |
 | --- | --- | ---: |
 | `Stage1/Gameplay/Puzzle/Part_1‥4` | HoverPod → Robot → Capsule, 그리고 TractorCraft | 4 |
-| `…/Puzzle/AnchorPins` | AnchorPin — 각 `Clamp_0‥3` 의 좌표에, 제작 크기 그대로 바닥을 지면에 | 16 |
+| `…/Puzzle/AnchorPins` | AnchorPin — 각 `Clamp_0‥3`의 좌표에, 제작 크기 그대로 바닥을 지면에 | 16 |
 | `…/TractorBeam_1‥2` | TractorCraft (빔 기준점 y=12 에 수평으로) | 2 |
 | `Stage1/Environment/Boundaries` | CliffWall 링 (배율 1.6, 한 변 8개, ±23.5m) | 32 |
 | `Stage1/Environment/Nature` | RockPillars 8 · MushroomTree 10 · BoulderCluster 12 · FlowerCluster 20 · SpiralPlant 16 | 66 |
@@ -450,16 +500,16 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 | `Stage1/Environment/Ground` | `M_Stage1_ArenaGround` 재질 + y를 0.06m 로 올림 | 1 |
 | `Stage1/Lighting/Directional Light` | Light 컴포넌트를 끔 (아래) | 1 |
 
-- **파츠 스킨 배율은 1이다**(S15P21B202-166). 파츠 콜라이더가 `PartSpec` 의 실측 형태를 따르므로
+- **파츠 스킨 배율은 1이다**(S15P21B202-166). 파츠 콜라이더가 `PartSpec`의 실측 형태를 따르므로
   모델을 배율 1로 얹고 바닥만 맞추면 둘이 일치한다. 프리팹 피벗은 모두 바닥에 있다(실측 확인).
 
-  그 전에는 4기 모두 `PhysicsScale` 의 3 × 3.7 × 3 m 상자를 써서, 모델을 균일 배율로 넣은 뒤 세로로
+  그 전에는 4기 모두 `PhysicsScale`의 3 × 3.7 × 3 m 상자를 써서, 모델을 균일 배율로 넣은 뒤 세로로
   1.35배까지 늘렸다(Robot 3.70 · TractorCraft 3.70 · Capsule 3.53 · HoverPod 2.34 / 3.70m). 납작한
-  HoverPod 은 그래도 박스를 못 채워 위에 쌓인 파츠와 사이가 벌어졌다. 상세 기획(S15P21B202-107 §7.1)이
+  HoverPod은 그래도 박스를 못 채워 위에 쌓인 파츠와 사이가 벌어졌다. 상세 기획(S15P21B202-107 §7.1)이
   "동일한 3 × 3.7 × 3m 상자로 늘리지 않는다" 고 정하면서 물리 기준값 쪽을 바꾸었다.
 
 - **파츠별 콜라이더·질량**(S15P21B202-166): 프리팹 메시를 높이 10구간으로 잘라 각 구간의 x·z 폭을 재고,
-  폭이 크게 달라지는 경계에서 상자를 나눠 컴파운드 콜라이더를 만들었다. 값은 `PartSpec` 에 있다.
+  폭이 크게 달라지는 경계에서 상자를 나눠 컴파운드 콜라이더를 만들었다. 값은 `PartSpec`에 있다.
 
   | 파츠 | 조립 순서 | 상자 | 높이 | 질량 | 중심질량 y |
   | --- | --- | --- | --- | --- | --- |
@@ -469,23 +519,23 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
   | TractorCraft | 4층 견인 조종 | 4 | 2.45 m | 406 kg | −0.360 |
 
   합산 높이 **8.16m** — 기획 §7.1 의 약 8.2m 와 맞는다. 질량은 부피 × `PhysicsScale.PartDensity`(70)로
-  계산하므로 튜닝 손잡이가 하나다. 중심질량은 지정하지 않는다 — Unity 가 콜라이더에서 계산하므로
+  계산하므로 튜닝 손잡이가 하나다. 중심질량은 지정하지 않는다 — Unity가 콜라이더에서 계산하므로
   상자가 형태를 따르면 저절로 따라온다. 위 값은 고정쇠가 풀린(non-kinematic) 상태에서 잰 것이다.
 - **자연물 배치**는 씨앗 20260827 결정론적 난수다. 파츠 자리·조립 위치·플레이어 스폰 주변은 비운다.
-  결과가 매번 같으므로 다시 실행해도 씬 diff 가 늘지 않는다.
-- **콜라이더**: 자연물은 장식이라 붙이지 않았다. 절벽 벽에는 보이지 않는 높이 9m `BoxCollider` 를 붙였다 —
+  결과가 매번 같으므로 다시 실행해도 씬 diff가 늘지 않는다.
+- **콜라이더**: 자연물은 장식이라 붙이지 않았다. 절벽 벽에는 보이지 않는 높이 9m `BoxCollider`를 붙였다 —
   모델 높이(약 3.4m)만으로는 저중력(-2.8) 점프로 넘어간다.
 - **고정못은 고정쇠의 자식이 아니다.** 자식으로 붙였더니 견인 빔이 파츠를 들어 올릴 때 못 16개가
   같이 공중으로 따라 올라갔다(빌드 실행으로 확인). 못은 땅에 박힌 물건이라 파츠가 떠나도 남아야 하므로
   좌표만 빌려 별도 그룹에 세운다.
-- **지면 재질**: 프리미티브 Plane 에 기본 흰색 재질이 붙어 있어 해를 받으면 화면이 하얗게 날아갔다.
+- **지면 재질**: 프리미티브 Plane에 기본 흰색 재질이 붙어 있어 해를 받으면 화면이 하얗게 날아갔다.
   `M_Stage1_ArenaGround`(URP Lit, 바위 군락 BaseColor 10회 타일링, 틴트 0.46 회색, Smoothness 0.08)를
-  물렸다. 색·타일링은 `Stage1SkinBuilder` 의 `GroundTint`·`GroundTiling` 한 줄로 조정한다.
-- **지면 높이 0.06m**: 런타임 `LevelBuilder` 의 착륙장 슬랩(y=0)·크레이터 바닥(y≈0.05)과 같은 평면이라
+  물렸다. 색·타일링은 `Stage1SkinBuilder`의 `GroundTint`·`GroundTiling` 한 줄로 조정한다.
+- **지면 높이 0.06m**: 런타임 `LevelBuilder`의 착륙장 슬랩(y=0)·크레이터 바닥(y≈0.05)과 같은 평면이라
   z-파이팅으로 지면이 지글거렸다. 6cm 띄워 아레나 안에서는 Stage1 지면만 보이게 했다. §11-9 의 임시 대응이며
-  `buildLevel` 을 끄면 필요 없다.
-- **템플릿 Directional Light 를 껐다.** 런타임 조명은 `Vacuum` 이 소유한다(해 1.75 Soft + 행성 반사광 0.16).
-  `SpaceBootstrap` 은 씬 카메라만 끄고 라이트는 끄지 않아 Unity 템플릿 라이트(강도 2.0, Soft 그림자)가
+  `buildLevel`을 끄면 필요 없다.
+- **템플릿 Directional Light를 껐다.** 런타임 조명은 `Vacuum`이 소유한다(해 1.75 Soft + 행성 반사광 0.16).
+  `SpaceBootstrap`은 씬 카메라만 끄고 라이트는 끄지 않아 Unity 템플릿 라이트(강도 2.0, Soft 그림자)가
   함께 켜져 있었다. 결과가 두 가지였고 둘 다 빌드 실행으로 확인했다.
   ① 빛이 약 두 배가 되어 지면이 날아간다 ② 그림자를 굽는 방향성 광원이 둘인데 강도가 2.0 대 1.75 로
   비슷해 프레임마다 주광원 선택이 뒤집히며 그림자가 깜빡인다.
@@ -527,6 +577,8 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 
 ---
 
+<a id="section-14"></a>
+
 ## 11. 미해결 목록
 
 카탈로그 작성 중 실측으로 확인된 것들이다. **판단은 각 파트에 맡기고 사실만 적는다.**
@@ -536,10 +588,10 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 | 1 | ~~환경 자연물 7종에 Material 에셋과 프리팹이 없다.~~ **해소** — S15P21B202-84 에서 `M_Stage1_*` 7개를 만들어 재질 추출로 물리고 `PF_Stage1_*` 7개를 만들었다(§6). | Art |
 | 2 | **Roughness 텍스처 5장이 어떤 Material에도 참조되지 않는다.** Material 5개 전부 BaseColor·Normal·Metallic 3장만 참조한다. URP에서 Metallic 맵 알파를 smoothness로 쓰는 관례상 의도일 수 있다. | Art |
 | 3 | ~~`Main.unity`에 아트 에셋이 하나도 배치되지 않았다.~~ **해소** — S15P21B202-84 에서 12종 122개를 배치했다(§10). | Level · Puzzle |
-| 11 | **`SpaceBootstrap` 이 씬 카메라만 끄고 씬 라이트는 끄지 않는다.** 그래서 Unity 템플릿 Directional Light 가 `Vacuum` 의 해와 함께 켜져 있었다(§10 에서 씬 쪽 라이트를 꺼 대응). 근본적으로는 `Vacuum` 이 조명을 소유한다는 규칙을 코드로 강제하는 편이 맞다 — 카메라를 끄는 그 루프에서 `Light` 도 같이 끄면 된다. | Bootstrap |
-| 4 | **프리팹에 Collider·Rigidbody가 없다.** 퍼즐 물리를 붙일 때 배치하는 쪽에서 추가해야 한다. 절벽 벽만 씬 배치 쪽에서 `BoxCollider` 를 붙여 경계로 쓰고 있다. | Puzzle |
-| 8 | **납작한 HoverPod 이 파츠 박스 높이(3.7m)를 못 채운다** — 스킨 높이 2.34m. 파츠 위에 다른 파츠를 쌓으면 사이가 벌어진다. 파츠별 높이를 따로 두거나(=`PhysicsScale.PartHeight` 분리, 물리 기준값 변경) 모델을 고쳐야 한다. | Art · Puzzle |
-| 9 | **런타임 `LevelBuilder` 가 예전 SpaceFlop 코스를 Stage1 아레나와 같은 좌표에 겹쳐 세운다** (`SpaceBootstrap.buildLevel = 1`, 스폰 `(0,0,0)`). 빌드를 실행해 확인했다 — 아레나 위에 예전 코스의 지형·소품·HUD("표지 0/6")가 겹쳐 보인다. 스킨 작업 범위가 아니라 그대로 두었다. | Level · Puzzle |
+| 11 | **`SpaceBootstrap`이 씬 카메라만 끄고 씬 라이트는 끄지 않는다.** 그래서 Unity 템플릿 Directional Light가 `Vacuum`의 해와 함께 켜져 있었다(§10 에서 씬 쪽 라이트를 꺼 대응). 근본적으로는 `Vacuum`이 조명을 소유한다는 규칙을 코드로 강제하는 편이 맞다 — 카메라를 끄는 그 루프에서 `Light`도 같이 끄면 된다. | Bootstrap |
+| 4 | **프리팹에 Collider·Rigidbody가 없다.** 퍼즐 물리를 붙일 때 배치하는 쪽에서 추가해야 한다. 절벽 벽만 씬 배치 쪽에서 `BoxCollider`를 붙여 경계로 쓰고 있다. | Puzzle |
+| 8 | **납작한 HoverPod이 파츠 박스 높이(3.7m)를 못 채운다** — 스킨 높이 2.34m. 파츠 위에 다른 파츠를 쌓으면 사이가 벌어진다. 파츠별 높이를 따로 두거나(=`PhysicsScale.PartHeight` 분리, 물리 기준값 변경) 모델을 고쳐야 한다. | Art · Puzzle |
+| 9 | **런타임 `LevelBuilder`가 예전 SpaceFlop 코스를 Stage1 아레나와 같은 좌표에 겹쳐 세운다** (`SpaceBootstrap.buildLevel = 1`, 스폰 `(0,0,0)`). 빌드를 실행해 확인했다 — 아레나 위에 예전 코스의 지형·소품·HUD("표지 0/6")가 겹쳐 보인다. 스킨 작업 범위가 아니라 그대로 두었다. | Level · Puzzle |
 | 10 | ~~프로젝트가 URP가 아니라 Built-in 파이프라인으로 돈다.~~ **해소** — Graphics 기본 파이프라인과 6개 품질 단계에 PC/Mobile URP Asset을 명시했고, Stage1 머티리얼은 URP Lit으로, `SpaceFlop/*` 3종은 URP 셰이더로 이관했다. `SpaceBuild`는 빌드 전 `UrpRenderValidation`을 실행해 Built-in 머티리얼·누락 셰이더·잘못된 Renderer Feature를 발견하면 빌드를 중단한다. | Infra · Art |
 | 5 | **`.fbm` 임베드 텍스처가 크다** (합계 약 34 MB, 최대 7.0 MB). LFS 용량과 임포트 시간에 영향이 있다. 다운스케일 여부 검토 필요. | Art · Infra |
 | 6 | `METAGAME/Assets/_Project/Models/README_KO.md`가 삭제된 `SF_Astronaut_Base.fbx`를 안내한다. 루트 `README.md`도 삭제된 `Surface.unity`를 안내한다. | Plan · Infra |
@@ -549,11 +601,13 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 
 ---
 
+<a id="section-15"></a>
+
 ## 12. 이 문서 갱신하기
 
 에셋을 추가·교체하는 MR에서는 **이 문서도 같이 고친다.**
 
-**① 프리뷰 이미지 재생성** — 리포 루트에서:
+**① 프리뷰 이미지 재생성** — 저장소 루트에서:
 
 ```powershell
 & 'C:\Program Files\Blender Foundation\Blender 5.2\blender.exe' --background --python 'METAGAME/Tools/Blender/generate_asset_previews.py'
@@ -580,3 +634,20 @@ Normal·Mask/Metallic·Height가 필요하면 별도로 제작해야 한다.
 | (소문자 snake_case) | 외주·생성 도구 산출 환경 모델 | `alien_mushroom_tree.fbx` |
 
 환경 모델만 소문자 규칙인 것은 Tripo3D 산출물 이름을 그대로 둔 결과다. 통일 여부는 정해지지 않았다.
+
+
+<a id="section-16"></a>
+
+## 카탈로그 갱신 이력
+
+> 기준 커밋: `develop` **054a2a6** · 작성 2026-08-27 · 이슈 [S15P21B202-80](https://ssafy.atlassian.net/browse/S15P21B202-80)
+> 갱신 2026-08-27 — 환경 자연물 연결과 `Main.unity` 아트 배치 · 이슈 [S15P21B202-84](https://ssafy.atlassian.net/browse/S15P21B202-84)
+> 갱신 2026-08-28 — Stage1 운석 모델·PBR 텍스처 4종 교체 · 이슈 [S15P21B202-98](https://ssafy.atlassian.net/browse/S15P21B202-98)
+> 갱신 2026-08-31 — Stage1 자연물 8종·맵 타일 리뉴얼 원본 추가 · 이슈 [S15P21B202-163](https://ssafy.atlassian.net/browse/S15P21B202-163)
+> 갱신 2026-08-31 — URP 17.5 전환·빌드 핑크 셰이더 검증·공용 분위기 기반 추가
+> 갱신 2026-09-01 — Stage1 운석 방어용 방망이 FBX·PBR 텍스처·Material·Prefab 추가 · 이슈 [S15P21B202-187](https://ssafy.atlassian.net/browse/S15P21B202-187)
+> 갱신 2026-09-01 — Stage1 Terrain 2타일 확장·자연물 군집 배치·갈라진 디딤돌 연결 · 이슈 [S15P21B202-236](https://ssafy.atlassian.net/browse/S15P21B202-236)
+> 갱신 2026-09-02 — Stage1 보라색 꽃 대형·소형 FBX·PBR 텍스처·프리뷰 추가 · 이슈 [S15P21B202-260](https://ssafy.atlassian.net/browse/S15P21B202-260)
+> 갱신 2026-09-03 — 기존 토끼 캐릭터용 Mixamo 걷기·달리기 모션 추가 · 이슈 [S15P21B202-278](https://ssafy.atlassian.net/browse/S15P21B202-278)
+> 갱신 2026-09-04 — 캐릭터 팔·손 원본 FBX·PBR 텍스처·정면 프리뷰 추가 · 이슈 [S15P21B202-283](https://ssafy.atlassian.net/browse/S15P21B202-283)
+> 갱신 2026-09-06 — Stage1 바닥 텍스처 3종·자연물 FBX/PBR 4종·정면 프리뷰 추가 · 이슈 [S15P21B202-306](https://ssafy.atlassian.net/browse/S15P21B202-306)

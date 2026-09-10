@@ -1,14 +1,22 @@
-# S15P21B202-345 태블릿이 우주선 조립 상태를 층별로 보여주게 한다
+# 태블릿의 층별 우주선 조립 상태 표시 (S15P21B202-345)
 
-## 무엇이 없었나
+[문서 안내](../README.md) → [작업 기록](README.md) → 조립·용접·발사
+
+태블릿에 우주선의 층별 조립 상태를 표시했습니다. 에셋 단면 실루엣과 색 규칙, 조립 상태 데이터, 테스트·인게임 확인에서 발견한 누락과 수정 과정을 남깁니다.
+
+본문의 “현재”, 검증 수치, 미완료 항목은 **기록 당시 기준**입니다. 후속 변경은 관련 이슈와 [주제별 색인](README.md)을 함께 확인합니다.
+
+<a id="무엇이-없었나"></a>
+
+## 기존 구현의 누락
 
 기획 §11.1 은 태블릿을 "지도나 위치 추적기가 아니라 **우주선 조립 상태표**" 로 정했다.
-그 역할을 하는 것이 없었다.
+기존 태블릿에는 조립 상태표가 구현되지 않았다.
 
 - `Stage1TabletScreen` 0페이지는 파츠 카드 네 장을 2×2 로 놓고 **발견·운반 진행만**
   보여줬다. 탑이 어떻게 쌓였는지는 어디에도 없다
-- `ShipAssembly.Blocker` 가 막는 이유를 문장으로 만들어 두는데 **읽는 곳이 0곳**
-- `ShipAssembly.IsBoardable` 은 `ShipHatch` 네 곳만 읽고 **UI 는 0곳**
+- `ShipAssembly.Blocker`가 막는 이유를 문장으로 만들어 두는데 **읽는 곳이 0곳**
+- `ShipAssembly.IsBoardable`은 `ShipHatch` 네 곳만 읽고 **UI는 0곳**
 
 S15P21B202-331 의 측정이 이것을 급하게 만들었다. 층당 0.6~0.8m 어긋난 탑은 **발사
 시험까지 가지 않는다** — 문이 열리지 않거나 카운트다운이 취소된다. §15.1 이 "오류
@@ -25,11 +33,11 @@ Shape(parent, "Top",  .34f, .58f, .66f, .74f),
 Shape(parent, "Wing", .12f, .31f, .88f, .36f),
 ```
 
-`PartSpec.Boxes` 도 프리팹 메시를 재서 얻은 값이지만 **파츠당 2~4개**다. 물리에는
+`PartSpec.Boxes`도 프리팹 메시를 재서 얻은 값이지만 **파츠당 2~4개**다. 물리에는
 충분해도 그림으로 그리면 접시 굽·돔·첨탑이 하나의 사각형으로 뭉개진다.
 
-`Editor/PartSilhouetteProbe.cs` 로 프리팹 메시의 정점을 모아 **높이를 40구간으로 잘라
-구간마다 좌우 끝을 따로** 재고, 그 표를 `PartSilhouette` 에 굳혔다.
+`Editor/PartSilhouetteProbe.cs`로 프리팹 메시의 정점을 모아 **높이를 40구간으로 잘라
+구간마다 좌우 끝을 따로** 재고, 그 표를 `PartSilhouette`에 굳혔다.
 
 ```
 -- PF_Stage1_Spaceship_Robot     높이 2.163m   폭 x 2.296m
@@ -63,17 +71,17 @@ Shape(parent, "Wing", .12f, .31f, .88f, .36f),
       ######                          (좁은 받침)
 ```
 
-**탑은 실제 비율이다.** 높이는 `PartSpec.Height`, 폭은 `PartSpec.Footprint` 를 쓴다.
-`PartSilhouette` 은 **미터를 갖고 있지 않다** — 정규화한 형태만 갖는다. 크기의 출처가
+**탑은 실제 비율이다.** 높이는 `PartSpec.Height`, 폭은 `PartSpec.Footprint`를 쓴다.
+`PartSilhouette`은 **미터를 갖고 있지 않다** — 정규화한 형태만 갖는다. 크기의 출처가
 둘이면 모델이 바뀔 때 어긋난다.
 
 ### `Image` 로는 안 된다
 
-`Image` 는 사각형이다. `PartSilhouetteGraphic` 은 `MaskableGraphic` 을 상속해
-`OnPopulateMesh` 에서 외곽선을 직접 만든다. 구간 값을 그 구간 **가운데** 높이의 폭으로
+`Image`는 사각형이다. `PartSilhouetteGraphic`은 `MaskableGraphic`을 상속해
+`OnPopulateMesh`에서 외곽선을 직접 만든다. 구간 값을 그 구간 **가운데** 높이의 폭으로
 보고 이웃과 이어 붙이므로 계단이 아니라 기울어진 변이 된다.
 
-채움과 외곽선을 `Mode` 로 갈랐다. `Graphic.color` 가 하나뿐이라 한 메시에 담으면 색을
+채움과 외곽선을 `Mode`로 갈랐다. `Graphic.color`가 하나뿐이라 한 메시에 담으면 색을
 따로 바꿀 수 없고, 태블릿은 "올라감(외곽선)" 과 "용접 완료(채움)" 를 색으로 구분한다.
 
 ## 색 규칙 — 기획과 스케치가 어긋났다
@@ -96,12 +104,12 @@ Shape(parent, "Wing", .12f, .31f, .88f, .36f),
 **용접 완료를 채움으로 구분하는 것**. §11.1 이 "노란색 용접 중과 초록색 완료 표시는
 사용하지 않는다" 로 막아 둔 자리다.
 
-**용접률은 표시하지 않는다.** `PartState.Welded` 는 이분법이므로 §11.1 의 "용접률과
+**용접률은 표시하지 않는다.** `PartState.Welded`는 이분법이므로 §11.1 의 "용접률과
 접합 강도는 표시하지 않는다" 를 넘지 않는다.
 
 ## `Blocker` 로는 만들 수 없었다
 
-`Evaluate()` 는 **첫 문제에서 즉시 돌아나간다.**
+`Evaluate()`는 **첫 문제에서 즉시 돌아나간다.**
 
 ```csharp
 if (_tower.Count < PartSpec.All.Length)
@@ -114,20 +122,20 @@ if (_tower.Count < PartSpec.All.Length)
 3층까지 쌓았는데 2층이 기울어 있으면 **태블릿이 그것을 모른다.** 그리고 그 문장은 어느
 층의 문제인지 담고 있지 않으며, §15.1 이 금지하므로 화면에 띄울 수도 없다.
 
-`ShipAssembly.FloorState` 와 `Floors` · `NextFloor` 를 새로 만들었다. `EvaluateFloors()`
+`ShipAssembly.FloorState`와 `Floors` · `NextFloor`를 새로 만들었다. `EvaluateFloors()`
 는 조기 탈출보다 **앞에서** 돌고 **끝까지** 돈다.
 
-**판정 기준을 새로 만들지 않았다.** "틀린 파츠" 와 "기울었다" 는 `IsBoardable` 이 쓰는
-것과 같은 `PartSpec.All` 의 이름과 `PhysicsScale.BoardingMaxTilt` 를 쓴다. 기준이 둘이면
-태블릿은 초록인데 문은 열리지 않는 상태가 생기고, 그러면 §15.1 이 거짓말이 된다.
+**판정 기준을 새로 만들지 않았다.** "틀린 파츠" 와 "기울었다" 는 `IsBoardable`이 쓰는
+것과 같은 `PartSpec.All`의 이름과 `PhysicsScale.BoardingMaxTilt`를 쓴다. 기준이 둘이면
+태블릿은 통과 상태인데 문은 열리지 않는 상태가 생기고, 그러면 §15.1 이 거짓말이 된다.
 
 ### 최하단 층은 놓이는 순간 완료다 — 한 번 틀렸다
 
-처음에는 `_floors[i] = part.State == PartState.Welded ? Welded : Stacked` 로 썼다.
+처음에는 `_floors[i] = part.State == PartState.Welded ? Welded : Stacked`로 썼다.
 **검증이 그것을 뒤집었다.**
 
-`PartAssemblyLink` 는 용접이 끝나면 **위쪽** 파츠만 `PartState.Welded` 로 올린다.
-최하단은 아래에 상대가 없으므로 **영원히 `Placed` 에 머문다.** 그대로 두면 태블릿의
+`PartAssemblyLink`는 용접이 끝나면 **위쪽** 파츠만 `PartState.Welded`로 올린다.
+최하단은 아래에 상대가 없으므로 **영원히 `Placed`에 머문다.** 그대로 두면 태블릿의
 1층이 **끝낼 방법 없이** 계속 미완성으로 보인다.
 
 ```csharp
@@ -136,8 +144,122 @@ var jointDone = part.State == PartState.Welded
 ```
 
 플레이어가 해야 할 용접은 셋(1–2, 2–3, 3–4)이고 1층에는 할 일이 없다. 할 일이 없는데
-남은 것처럼 보이는 것이 더 나쁘다. `TheBottomFloorIsDoneAsSoonAsItIsPlaced` 가 이 규칙을
-못박는다 — 없으면 다음 사람이 `i == 0` 을 특례로 보고 지운다.
+남은 것처럼 보이는 것이 더 나쁘다. `TheBottomFloorIsDoneAsSoonAsItIsPlaced`가 이 규칙을
+못박는다 — 없으면 다음 사람이 `i == 0`을 특례로 보고 지운다.
+
+## AI 리뷰 지적 3건을 반영했다
+
+### 결정성 검증이 남지 않았다 — 내 수정이 부족했다
+
+`Collapse_IsDeterministic`의 척도를 "두 회차 모두 30도 초과" 로 바꿨더니 **바로 위의
+`Broken > 0` 두 단정과 사실상 같은 말**이 되어, 결정론을 재는 것이 남지 않았다.
+
+**두 회차의 결과 분류가 같은지**를 비교하도록 다시 고쳤다. 이것이 §22.3 의 "같은 배치
+에서는 항상 같은 결과" 다.
+
+```csharp
+Assert.AreEqual(Collapsed(first), Collapsed(second), ...);
+Assert.IsTrue(Collapsed(first), ...);
+
+static bool Collapsed(Outcome outcome) => outcome.Tilt > 30f;
+```
+
+### 조립대 탐색이 매 프레임 돌았다
+
+`ResolveAssembly`가 못 찾는 동안 매 프레임 `FindAnyObjectByType`을 불렀다. 조립대가
+없는 씬에서 태블릿을 열어 두면 그 탐색이 계속 돈다.
+
+**시계로 묶으려다 한 번 틀렸다.** `Time.unscaledTime` 간격을 뒀더니 EditMode에서 시계가
+나아가지 않아 **첫 실패 뒤 영구히 막혔다** — 검증 세 개가 조립대를 영원히 못 찾았다.
+**횟수로 묶었다**(120회, 60fps 로 약 2초).
+
+### 잘못된 층이 있는데 위층이 "다음으로 쌓아야 함" 으로 점멸했다
+
+`NextFloor`는 첫 빈 층을 **사실대로** 알려 준다. 그래서 3층이 기울어 있어도 4층을
+가리킨다. 그대로 그리면 화면이 "3층을 치워라" 와 "4층을 올려라" 를 동시에 말한다.
+
+`ShipAssembly`는 사실 그대로 두고 **태블릿에서** 점멸을 끄게 했다. 판정은 게임플레이의
+일이고 무엇을 보여줄지는 표현의 일이다.
+
+<a id="내-검증-세-개가-조용히-헛돌고-있었다"></a>
+
+## 세 테스트에서 검증이 실행되지 않은 원인
+
+색 검증을 잠근 뒤 **점멸 억제를 일부러 빼고 돌려 봤더니 그래도 통과했다.** 헛돌고
+있었다는 뜻이다.
+
+원인은 하니스였다. `exploration.Configure(null)`로 만들었는데 `TryDiscover`는
+`info.Part == part`로 짝을 찾는다. `Configure(null)`은 아무것도 바인딩하지 않으므로
+**무엇을 발견 처리해도 미발견으로 남는다.** 미발견 색이 먼저 이기므로 세 검증이 모두
+그 분기만 밟고 통과했다.
+
+씬의 파츠로 `Configure` 하도록 고치고, 탑을 먼저 세운 뒤 화면을 만들게 순서를 바꿨다.
+`DiscoverEverything`에 발견 개수 단정을 넣어 다시 헛돌면 바로 걸리게 했다.
+
+**억제를 다시 빼서 확인했다** — 이제 `TheNextFloorHintGoesQuietWhileSomethingIsWrong`
+하나가 정확히 실패 표시이 된다.
+
+S15P21B202-340(추력을 묶은 뒤 "속도가 오른다" 로 잰 것) · 276(호의 현으로 "넓음") ·
+261(`Dot`으로 스윙 각도)과 같은 종류다. **검증이 초록불이라고 그것이 무언가를 재고
+있다는 뜻은 아니다.**
+
+<a id="성능-지적을-고치다-275형-결함을-새로-만들었다"></a>
+
+## 최적화 중 발생한 초기화 누락
+
+탐색을 120회로 묶은 것을 **되돌리는 곳이 없었다.** 소진하면 영구히 안 찾으므로 조립대가
+2초 뒤에 만들어지거나 씬을 다시 들어오면 **탑이 통째로 빈칸이 되고 아무 오류도 나지
+않는다** — 이 이슈가 막으려던 S15P21B202-275 와 정확히 같은 모양이다. 2차 AI 리뷰가
+잡았다.
+
+**태블릿을 열 때마다 예산을 되돌린다.** 한 번 열려 있는 동안은 묶이고, 다시 열면
+새 예산을 받는다.
+
+`ReopeningTheTabletLooksForTheAssemblyAgain`이 그 자리를 잠근다. 되돌리기를 일부러
+빼고 돌려 **그 하나가 정확히 실패 표시이 되는 것을 확인했다.**
+
+그 검증을 처음 4층 완전 용접으로 썼더니 `ShipAscentTests.Completion_LeavesTheHatchLocked`
+가 다시 갈렸다. **2층 미용접으로 줄였다** — 2층이 청록이 되는지만 보므로 그것으로 족하고,
+씬에 남기는 물리 이력이 작을수록 좋다.
+
+<a id="실루엣이-화면에-아예-안-나왔다--인게임에서-발견"></a>
+
+## 인게임에서 발견한 실루엣 표시 누락
+
+태블릿을 열어 보니 **층 이름만 있고 실루엣이 없었다.** 검증 36개가 전부 초록불이었다.
+
+진단으로 재 보니 메시는 정상이었다 — 정점 246·504개, 범위도 rect를 채운다. Unity가
+이유를 직접 말했다.
+
+```
+There is no 'CanvasRenderer' attached to the "Floor1_Fill" game object
+```
+
+**`[RequireComponent]`는 상속되지 않는다.** `Graphic`에 붙은 것은 `Graphic`을 직접
+넣을 때만 적용된다. `Image`와 `Text`는 각자 자기 클래스에 **다시** 붙여 두었고, 그래서
+런타임 `AddComponent` 로도 잘 그려진다. `PartSilhouetteGraphic`은 붙이지 않았으니
+`CanvasRenderer`가 없었다 — **메시는 만들어지는데 그릴 대상이 없었다.**
+
+어트리뷰트를 직접 붙이고, 런타임 생성에서도 `AddComponent<CanvasRenderer>()`를 먼저
+불렀다. 한 줄로 확실해지는 것을 어트리뷰트 상속 규칙에 걸어 둘 이유가 없다.
+
+### 검증이 왜 못 잡았나 — 네 번째다
+
+`EverySilhouetteActuallyProducesTriangles`가 `BuildMesh`를 **직접** 불렀다. 그 경로는
+`CanvasRenderer`를 지나지 않는다. 그리고 `Quad`는 크기가 0 이어도 삼각형을 만들므로
+`currentIndexCount > 0`은 아무것도 보증하지 않았다.
+
+세 개로 갈랐다.
+
+- `EverySilhouetteHasACanvasRenderer` — 컴포넌트가 있는가
+- `EverySilhouetteSurvivesARealRebuild` — `Rebuild(CanvasUpdate.PreRender)`를 실제로
+  지나가고 재질이 들어가는가
+- `EverySilhouetteFillsItsRect` — 정점이 rect를 실제로 채우는가
+
+**대조로 확인했다** — `CanvasRenderer`를 다시 빼면 앞의 둘이 정확히 실패 표시이 된다.
+
+S15P21B202-261 · 276 · 340 · 그리고 이 이슈에서 두 번. **초록불은 무언가를 재고 있다는
+뜻이 아니다.** 인게임 확인이 검증을 대신할 수 없다는 것이 다시 확인됐다.
 
 ## 검증
 
@@ -160,10 +282,10 @@ develop 에서만 실패 : 없음
 
 ### 275 형 결함을 겨냥한 검증이 둘이다
 
-`MeteorWarningView` 를 아무도 만들지 않아 예고 원이 조용히 사라진 일이 있었다. 태블릿도
-같은 모양의 위험을 갖는다 — `ShipAssembly` 를 찾지 못하면 탑이 통째로 빈칸이 되면서 아무
-오류도 나지 않는다. `EverySilhouetteGetsItsShape` 와
-`TheTowerStillDrawsWhenThereIsNoAssembly` 가 그 자리를 막는다.
+`MeteorWarningView`를 아무도 만들지 않아 예고 원이 조용히 사라진 일이 있었다. 태블릿도
+같은 모양의 위험을 갖는다 — `ShipAssembly`를 찾지 못하면 탑이 통째로 빈칸이 되면서 아무
+오류도 나지 않는다. `EverySilhouetteGetsItsShape`와
+`TheTowerStillDrawsWhenThereIsNoAssembly`가 그 자리를 막는다.
 
 ### 내 검증이 순서를 흔들었다 — 뒷정리를 강화했다
 
@@ -175,148 +297,44 @@ TowerCollapseTests.Collapse_IsDeterministic
 ```
 
 **둘 다 순서 의존이었다.** 그 두 스위트만 좁은 필터로 돌리면 **develop 에서도 똑같이**
-`Collapse_IsDeterministic` 이 실패한다 — 내 운영 코드가 아니다.
+`Collapse_IsDeterministic`이 실패한다 — 내 운영 코드가 아니다.
 
-`Completion_LeavesTheHatchLocked` 는 내 스위트가 `PartAssemblyLink.All` 과
-`WeldBead.All` 을 채우고 비우지 않아 생긴 것이었다. 뒷정리에 씬의 잔여 파츠·조립대·인형
+`Completion_LeavesTheHatchLocked`는 내 스위트가 `PartAssemblyLink.All`과
+`WeldBead.All`을 채우고 비우지 않아 생긴 것이었다. 뒷정리에 씬의 잔여 파츠·조립대·인형
 파괴와 정적 목록 정리를 더해 해결했다(S15P21B202-334 가 같은 이유로 같은 방식을 썼다).
 
 ### 기존 검증 하나의 측정이 틀렸다
 
-`Collapse_IsDeterministic` 은 기울기를 5도 안에서 같기를 요구했다. 측정값은 **95.7도와
+`Collapse_IsDeterministic`은 기울기를 5도 안에서 같기를 요구했다. 측정값은 **95.7도와
 90.1도** — **둘 다 완전히 넘어갔다.** 완전히 쓰러진 탑은 어느 쪽으로 굴러 멈추느냐에
 따라 6도가 갈리고 그것이 허용치를 넘는다.
 
 그 검증의 주석이 이미 원칙을 적어 뒀다 — "무너지는가 서는가 하는 **결과**가 같으면
 된다"(S15P21B202-194). **척도가 그 원칙과 어긋나 있었다.** 무너짐의 기준은
-`BadlyStackedTower_CollapsesWithoutWelding` 이 쓰는 30도와 같은 것을 쓴다.
+`BadlyStackedTower_CollapsesWithoutWelding`이 쓰는 30도와 같은 것을 쓴다.
 
 처음 고칠 때 "두 회차 모두 30도 초과" 로 썼는데 그것도 부족했다 — 아래 "AI 리뷰 지적"
 에 적었다.
 
 이 검증은 194 · 213 에 이어 **세 번째**로 같은 곳에서 걸렸다.
 
-## AI 리뷰 지적 3건을 반영했다
+<a id="넘지-않은-선"></a>
 
-### 결정성 검증이 남지 않았다 — 내 수정이 부족했다
-
-`Collapse_IsDeterministic` 의 척도를 "두 회차 모두 30도 초과" 로 바꿨더니 **바로 위의
-`Broken > 0` 두 단정과 사실상 같은 말**이 되어, 결정론을 재는 것이 남지 않았다.
-
-**두 회차의 결과 분류가 같은지**를 비교하도록 다시 고쳤다. 이것이 §22.3 의 "같은 배치
-에서는 항상 같은 결과" 다.
-
-```csharp
-Assert.AreEqual(Collapsed(first), Collapsed(second), ...);
-Assert.IsTrue(Collapsed(first), ...);
-
-static bool Collapsed(Outcome outcome) => outcome.Tilt > 30f;
-```
-
-### 조립대 탐색이 매 프레임 돌았다
-
-`ResolveAssembly` 가 못 찾는 동안 매 프레임 `FindAnyObjectByType` 을 불렀다. 조립대가
-없는 씬에서 태블릿을 열어 두면 그 탐색이 계속 돈다.
-
-**시계로 묶으려다 한 번 틀렸다.** `Time.unscaledTime` 간격을 뒀더니 EditMode 에서 시계가
-나아가지 않아 **첫 실패 뒤 영구히 막혔다** — 검증 세 개가 조립대를 영원히 못 찾았다.
-**횟수로 묶었다**(120회, 60fps 로 약 2초).
-
-### 잘못된 층이 있는데 위층이 "다음으로 쌓아야 함" 으로 점멸했다
-
-`NextFloor` 는 첫 빈 층을 **사실대로** 알려 준다. 그래서 3층이 기울어 있어도 4층을
-가리킨다. 그대로 그리면 화면이 "3층을 치워라" 와 "4층을 올려라" 를 동시에 말한다.
-
-`ShipAssembly` 는 사실 그대로 두고 **태블릿에서** 점멸을 끄게 했다. 판정은 게임플레이의
-일이고 무엇을 보여줄지는 표현의 일이다.
-
-## 내 검증 세 개가 조용히 헛돌고 있었다
-
-색 검증을 잠근 뒤 **점멸 억제를 일부러 빼고 돌려 봤더니 그래도 통과했다.** 헛돌고
-있었다는 뜻이다.
-
-원인은 하니스였다. `exploration.Configure(null)` 로 만들었는데 `TryDiscover` 는
-`info.Part == part` 로 짝을 찾는다. `Configure(null)` 은 아무것도 바인딩하지 않으므로
-**무엇을 발견 처리해도 미발견으로 남는다.** 미발견 색이 먼저 이기므로 세 검증이 모두
-그 분기만 밟고 통과했다.
-
-씬의 파츠로 `Configure` 하도록 고치고, 탑을 먼저 세운 뒤 화면을 만들게 순서를 바꿨다.
-`DiscoverEverything` 에 발견 개수 단정을 넣어 다시 헛돌면 바로 걸리게 했다.
-
-**억제를 다시 빼서 확인했다** — 이제 `TheNextFloorHintGoesQuietWhileSomethingIsWrong`
-하나가 정확히 빨간불이 된다.
-
-S15P21B202-340(추력을 묶은 뒤 "속도가 오른다" 로 잰 것) · 276(호의 현으로 "넓음") ·
-261(`Dot` 으로 스윙 각도)과 같은 종류다. **검증이 초록불이라고 그것이 무언가를 재고
-있다는 뜻은 아니다.**
-
-## 성능 지적을 고치다 275형 결함을 새로 만들었다
-
-탐색을 120회로 묶은 것을 **되돌리는 곳이 없었다.** 소진하면 영구히 안 찾으므로 조립대가
-2초 뒤에 만들어지거나 씬을 다시 들어오면 **탑이 통째로 빈칸이 되고 아무 오류도 나지
-않는다** — 이 이슈가 막으려던 S15P21B202-275 와 정확히 같은 모양이다. 2차 AI 리뷰가
-잡았다.
-
-**태블릿을 열 때마다 예산을 되돌린다.** 한 번 열려 있는 동안은 묶이고, 다시 열면
-새 예산을 받는다.
-
-`ReopeningTheTabletLooksForTheAssemblyAgain` 이 그 자리를 잠근다. 되돌리기를 일부러
-빼고 돌려 **그 하나가 정확히 빨간불이 되는 것을 확인했다.**
-
-그 검증을 처음 4층 완전 용접으로 썼더니 `ShipAscentTests.Completion_LeavesTheHatchLocked`
-가 다시 갈렸다. **2층 미용접으로 줄였다** — 2층이 청록이 되는지만 보므로 그것으로 족하고,
-씬에 남기는 물리 이력이 작을수록 좋다.
-
-## 실루엣이 화면에 아예 안 나왔다 — 인게임에서 발견
-
-태블릿을 열어 보니 **층 이름만 있고 실루엣이 없었다.** 검증 36개가 전부 초록불이었다.
-
-진단으로 재 보니 메시는 정상이었다 — 정점 246·504개, 범위도 rect 를 채운다. Unity 가
-이유를 직접 말했다.
-
-```
-There is no 'CanvasRenderer' attached to the "Floor1_Fill" game object
-```
-
-**`[RequireComponent]` 는 상속되지 않는다.** `Graphic` 에 붙은 것은 `Graphic` 을 직접
-넣을 때만 적용된다. `Image` 와 `Text` 는 각자 자기 클래스에 **다시** 붙여 두었고, 그래서
-런타임 `AddComponent` 로도 잘 그려진다. `PartSilhouetteGraphic` 은 붙이지 않았으니
-`CanvasRenderer` 가 없었다 — **메시는 만들어지는데 그릴 대상이 없었다.**
-
-어트리뷰트를 직접 붙이고, 런타임 생성에서도 `AddComponent<CanvasRenderer>()` 를 먼저
-불렀다. 한 줄로 확실해지는 것을 어트리뷰트 상속 규칙에 걸어 둘 이유가 없다.
-
-### 검증이 왜 못 잡았나 — 네 번째다
-
-`EverySilhouetteActuallyProducesTriangles` 가 `BuildMesh` 를 **직접** 불렀다. 그 경로는
-`CanvasRenderer` 를 지나지 않는다. 그리고 `Quad` 는 크기가 0 이어도 삼각형을 만들므로
-`currentIndexCount > 0` 은 아무것도 보증하지 않았다.
-
-세 개로 갈랐다.
-
-- `EverySilhouetteHasACanvasRenderer` — 컴포넌트가 있는가
-- `EverySilhouetteSurvivesARealRebuild` — `Rebuild(CanvasUpdate.PreRender)` 를 실제로
-  지나가고 재질이 들어가는가
-- `EverySilhouetteFillsItsRect` — 정점이 rect 를 실제로 채우는가
-
-**대조로 확인했다** — `CanvasRenderer` 를 다시 빼면 앞의 둘이 정확히 빨간불이 된다.
-
-S15P21B202-261 · 276 · 340 · 그리고 이 이슈에서 두 번. **초록불은 무언가를 재고 있다는
-뜻이 아니다.** 인게임 확인이 검증을 대신할 수 없다는 것이 다시 확인됐다.
-
-## 넘지 않은 선
+## 구현 범위와 제약
 
 - **§3.4** 자동 배치·정렬 점수·자동 스냅 없음
 - **§11** 정확한 위치·중심점·회전값·자동 정렬 가이드 없음
 - **§15.1** 오류 문구 없음 — `Blocker` 문장은 색으로만 쓰이고 화면에 나오지 않는다
-- **§22.4** `LaunchTest.FailureReason` 은 붙이지 않았다. 실패는 물리로 보인다
+- **§22.4** `LaunchTest.FailureReason`은 붙이지 않았다. 실패는 물리로 보인다
   (S15P21B202-340)
 - **§22.1** 용접은 탑승 조건이 아니다. 보여주기만 한다
 
 상태는 보여주고 **정답은 보여주지 않는다.** 태블릿은 "3층이 틀렸다" 를 보여주지만
 "3층에 무엇을 놓아야 한다" 는 §7.1 의 층별 명칭이 우측에 적혀 있는 것으로 끝낸다.
 
-## 남은 것
+<a id="남은-것"></a>
+
+## 남은 작업
 
 - **인게임 확인이 필수다.** 표현이라 눈으로만 판단된다. 태블릿을 열어 탑 형태가
   파츠로 알아볼 수 있는지, 잘못 쌓았을 때 그 층만 빨개지는지 봐야 한다
@@ -325,8 +343,8 @@ S15P21B202-261 · 276 · 340 · 그리고 이 이슈에서 두 번. **초록불�
   그러면 스케치 2·3 의 "용접되면" 이 사라진다
 - **"우주선이 발사 구역 밖에 있다" 는 층 색으로 표현하지 않았다.** 층 하나에 귀속되지
   않는다. 별건이다
-- `Stage1Exploration` 의 파츠 이름이 `PartSpec` 과 다르다("주 추진·견인 모듈" 대
+- `Stage1Exploration`의 파츠 이름이 `PartSpec`과 다르다("주 추진·견인 모듈" 대
   "주 추진 엔진 모듈", "조종석 캡슐" 대 "승무원 거주 모듈"). 태블릿은 §7.1 의 표인
-  `PartSpec` 을 쓴다. 두 표를 맞추는 것은 별건이다
-- **`Collapse_IsDeterministic` 은 여전히 순서에 민감하다.** 척도를 결과 수준으로
+  `PartSpec`을 쓴다. 두 표를 맞추는 것은 별건이다
+- **`Collapse_IsDeterministic`은 여전히 순서에 민감하다.** 척도를 결과 수준으로
   낮췄을 뿐 원인(선행 픽스처의 물리 이력)은 그대로다

@@ -1,5 +1,11 @@
 # S15P21B202-233 — 운석 방망이로 낙하 운석 쳐내기
 
+[문서 안내](../README.md) → [작업 기록](README.md) → 운석·환경
+
+운석 방망이의 장착·타격 판정·반사를 구현했습니다. 낙하 예측을 이용한 판정과 기존 에셋 연결, 후속 애니메이션·피드백 작업을 구분합니다.
+
+본문의 “현재”, 검증 수치, 미완료 항목은 **기록 당시 기준**입니다. 후속 변경은 관련 이슈와 [주제별 색인](README.md)을 함께 확인합니다.
+
 운석은 떨어지고(§17), 맞으면 넉백·기절하고(§20, S15P21B202-223), 미접합 탑은
 무너지는데(S15P21B202-194) <b>막을 방법이 없었다.</b> 기획 §5 의 장비 셋 중 유일한
 미구현이었다.
@@ -13,7 +19,7 @@
 <b>"착탄 1초 전" 을 알 방법이 없었다.</b> 기획 §18.1 이 그 시각을 요구하는데, 있는
 것은 낙하 예고(`PendingMeteorDrop`)뿐이고 그것은 <b>운석이 생기기 전</b>의 시간이다.
 
-`MeteorSpawner` 가 이렇게 돈다.
+`MeteorSpawner`가 이렇게 돈다.
 
 ```
 경고 시작 → PendingMeteorDrop (1.8초) → 경고 만료 → 30m 위에 Meteor 생성 → 자유낙하
@@ -33,7 +39,7 @@
 * 경고가 꺼진 뒤 4.63초 동안 아무 표시가 없고 그 사이에 착탄한다. 기획 §17.2
   "착탄 3초 전에 원형 표시" 와 <b>정반대로 표시가 착탄 4.63초 전에 사라진다</b>.
 
-그래서 `Meteor.TryPredictImpact` 를 만들었다. 등가속도 운동을 그대로 푼다.
+그래서 `Meteor.TryPredictImpact`를 만들었다. 등가속도 운동을 그대로 푼다.
 
 ```
 y + v·t + ½g·t² = 지면
@@ -42,7 +48,7 @@ y + v·t + ½g·t² = 지면
 
 <b>레이캐스트로 재지 않았다.</b> 쳐낸 운석은 위로 날아가므로 아래로 쏜 광선이 맞히는
 지점과 실제 착탄 지점이 다르다 — 포물선이기 때문이다.
-`RisingMeteor_PredictsWhenItComesBackDown` 이 그 경우를 잠근다.
+`RisingMeteor_PredictsWhenItComesBackDown`이 그 경우를 잠근다.
 
 기준면은 스포너가 넣는다(`SetGroundHeight`). 콜라이더를 찾지 않는 이유는 예측이
 <b>매 스윙마다 여러 운석에 대해</b> 돌고, 스포너가 이미 착탄 지점을 알고 있어 다시
@@ -71,8 +77,8 @@ y + v·t + ½g·t² = 지면
 
 기획 §18.1 이 "같은 범위에 운석이 여러 개면 가장 먼저 착탄할 운석을 선택한다" 다.
 <b>가장 가까운 것이 아니다</b> — 막아야 하는 것은 곧 떨어질 쪽이다.
-`SeveralMeteors_TheSoonestIsChosen` 이 멀지만 낮은 운석과 가깝지만 높은 운석으로
-그것을 잠근다.
+`SeveralMeteors_TheSoonestIsChosen`이 멀지만 낮은 운석과 가깝지만 높은 운석으로
+그 동작을 검증한다.
 
 ## 수직 각도 보정을 따로 만들지 않았다
 
@@ -81,51 +87,55 @@ y + v·t + ½g·t² = 지면
 
 <b>조준의 수평 성분만 쓰면 두 번째 줄이 저절로 성립한다.</b> 위를 보든 아래를 보든
 결과가 같으므로 보정이라는 규칙을 따로 쓸 필요가 없다.
-`AimingUpOrDown_GivesTheSameLaunchAngle` 이 위 4 · 아래 −4 로 겨눠 같은 결과를 잠근다.
+`AimingUpOrDown_GivesTheSameLaunchAngle`이 위 4 · 아래 −4 로 겨눠 같은 결과를 잠근다.
 
 수직으로 겨누면 수평 성분이 사라진다. 그때는 들고 있는 사람이 보는 쪽으로, 그마저
 없으면 도구의 정면으로 물러난다 — `AimingStraightDown_StillPicksAHorizontalDirection`
-이 NaN 이 나오지 않는 것까지 본다.
+이 NaN이 나오지 않는 것까지 본다.
 
 ## 넘어뜨리는 방법을 하나로 모았다
 
 기획이 <b>두 곳에서</b> 기절과 넘어짐을 구분한다 — §12.2 "마지막 고정못이 빠지면
 플레이어가 뒤로 넘어질 수 있다", §18.3 "정면으로 맞으면 넘어지지만 기절하지는 않는다".
 
-`PlayerRig` 에 `SnapBackFromClamp` 라는 private 메서드가 이미 그 일을 하고 있었다.
-방망이가 세 번째 사용처가 되므로 `KnockDown(direction, speed)` 로 공개하고 고정못
+`PlayerRig`에 `SnapBackFromClamp` 라는 private 메서드가 이미 그 일을 하고 있었다.
+방망이가 세 번째 사용처가 되므로 `KnockDown(direction, speed)`로 공개하고 고정못
 경로를 그리로 통과시켰다.
 
-기절 처리를 새로 만들지 않는다 — `Balance` 가 이미 넘어진 자세를 스스로 세우므로
-충격만 주고 `Ragdolled` 를 켜면 구르다가 일어난다. 체력도 깎지 않는다.
+기절 처리를 새로 만들지 않는다 — `Balance`가 이미 넘어진 자세를 스스로 세우므로
+충격만 주고 `Ragdolled`를 켜면 구르다가 일어난다. 체력도 깎지 않는다.
 
 `EjectFromShip`(§22.4)은 <b>합치지 않았다</b>. 조인트를 끊고 중력을 켜고 `faceDir`
 까지 돌리므로 하는 일이 이것보다 넓다.
 
 ## 운석 등록부를 만들었다
 
-방망이가 쳐낼 대상을 `Meteor.All` 에서 찾는다. 스포너를 거치지 않는 이유는 <b>쳐낸
+방망이가 쳐낼 대상을 `Meteor.All`에서 찾는다. 스포너를 거치지 않는 이유는 <b>쳐낸
 운석</b>이다 — 반사된 운석은 스포너가 만든 것이 아니지만 여전히 운석이고, 다시
 떨어지면 또 쳐낼 수 있어야 한다.
 
-## 프리팹을 새로 만들지 않았다
+<a id="프리팹을-새로-만들지-않았다"></a>
 
-`Stage1MeteorBatAsset` 이 [Art] 프리팹을 열어 빠진 것만 얹는다 —
+## 기존 프리팹의 사용
+
+`Stage1MeteorBatAsset`이 [Art] 프리팹을 열어 빠진 것만 얹는다 —
 `Rigidbody`(3kg) · `BoxCollider`(없을 때만) · `Grabbable(Tool)` · `MeteorBat`.
 
-`Grabbable` 의 역할을 `Tool` 로 주는 것이 핵심이다. 그래야 `PlayerRig` 가 집을 때
-도구 장착 경로를 타고 `ToolBase.Equip` 이 불린다 — 용접기와 같은 규약이다.
+`Grabbable`의 역할을 `Tool`로 주는 것이 핵심이다. 그래야 `PlayerRig`가 집을 때
+도구 장착 경로를 타고 `ToolBase.Equip`이 불린다 — 용접기와 같은 규약이다.
 
-절차는 `Stage1WeldingPlasmaGunAsset` 과 같다. <b>씬에 이미 있으면 건드리지 않는다</b> —
+절차는 `Stage1WeldingPlasmaGunAsset`과 같다. <b>씬에 이미 있으면 건드리지 않는다</b> —
 손으로 옮겨 둔 배치를 도구가 되돌리면 안 된다.
 
 실행 결과: `Main` 씬 `Stage1/Gameplay/Puzzle/Equipment/MeteorBat_Stage1` (4.00, 0.70, 7.00).
-프리팹에 `Rigidbody`·`BoxCollider`·`Grabbable`·`MeteorBat` 이 붙은 것을 확인했다.
+프리팹에 `Rigidbody`·`BoxCollider`·`Grabbable`·`MeteorBat`이 붙은 것을 확인했다.
 
-## 맞히면 대기가 없다
+<a id="맞히면-대기가-없다"></a>
+
+## 타격 성공 후 대기 시간
 
 기획 §18.1 이 헛스윙에만 대기(약 1초)를 두었다. 맞히면 목표가 날아가 버리므로 연타할
-것이 남지 않는다. `AHitLeavesNoCooldown` 과 `AMissLocksTheBatForAWhile` 이 짝이다.
+것이 남지 않는다. `AHitLeavesNoCooldown`과 `AMissLocksTheBatForAWhile`이 짝이다.
 
 <b>누른 순간에만</b> 휘두른다(`PrimaryPressed`). 유지로 판정하면 좌클릭을 붙잡고 있는
 것이 가장 좋은 전략이 되어 §18.1 의 "너무 일찍 휘두르면 헛스윙한다" 가 사라진다.
@@ -137,32 +147,34 @@ y + v·t + ½g·t² = 지면
 374 → 391 은 새로 더한 17개와 정확히 맞는다. 230 시점 369 통과 + 17 = 386 이고,
 실패 6개 중 하나는 아래의 작업 트리 문제이므로 <b>기존 검증에서 늘어난 실패가 없다</b>.
 
-실패 5개는 develop 에 이미 있던 것이다(S15P21B202-226 에서 develop 만 체크아웃해 확인).
+실패 5개는 develop에 이미 있던 것이다(S15P21B202-226 에서 develop만 체크아웃해 확인).
 
 | 실패 | 원인 | 몫 |
 | --- | --- | --- |
-| `PartClampTests.Pull_TakesThePlannedTime` | `4abb9c9` 가 `ClampPullSeconds` 를 8초→2초로 바꿨다 | [Character] |
+| `PartClampTests.Pull_TakesThePlannedTime` | `4abb9c9`가 `ClampPullSeconds`를 8초→2초로 바꿨다 | [Character] |
 | `ClampPullTests.GrabbingAgain_...` · `LastClamp_...` | 같은 원인 | [Character] |
 | `DownedRescueTests.PlayerKnockedBackByLastClamp_...` | 같은 원인 | [Character] |
 | `TractorBeamControllerTests.VehicleDrive_...` | S15P21B202-218 부터 실패 중 | [Character] |
 
 `Stage1TabletViewTests` 한 개는 <b>내 배치 실행이 만든 것</b>이다. 빌드가
-`ArtLink.CleanStale()` 로 `PF_Stage1_Tablet.prefab` 을 지운다(226 기록에 적어 두었다).
-`git checkout --` 로 되돌렸다.
+`ArtLink.CleanStale()`로 `PF_Stage1_Tablet.prefab`을 지운다(226 기록에 적어 두었다).
+`git checkout --`로 되돌렸다.
 
 ## 인게임 확인은 못 했다
 
 <b>이 이슈는 손맛이 전부인 조각이다.</b> 2.5m·1초·30도가 맞는지는 실제로 쳐 봐야 안다.
-빌드가 develop 에서 깨져 있어 못 했다.
+빌드가 develop에서 깨져 있어 못 했다.
 
-1. `.gitattributes:4` 의 `*.asset text` 가 바이너리 TerrainData 를 손상시킨다.
-   <b>저장된 데이터는 멀쩡하다</b> — raw blob 을 쓰면 지형이 로드되고 QA 가
-   `실패 6 · 경고 2` → `실패 2 · 경고 0` 이 된다(실험으로 확인).
+1. `.gitattributes:4`의 `*.asset text`가 바이너리 TerrainData를 손상시킨다.
+   <b>저장된 데이터는 멀쩡하다</b> — raw blob을 쓰면 지형이 로드되고 QA가
+   `실패 6 · 경고 2` → `실패 2 · 경고 0`이 된다(실험으로 확인).
    팀 논의 중이다.
-2. `Lobby.unity` 가 공용 URP Volume Profile 을 참조하지 않는다 ([Art]·[Level]·[Network]).
+2. `Lobby.unity`가 공용 URP Volume Profile을 참조하지 않는다 ([Art]·[Level]·[Network]).
    <b>지형을 살려도 이것이 남아 빌드가 멈춘다</b> — 실측했다.
 
-## 남은 것
+<a id="남은-것"></a>
+
+## 남은 작업
 
 | 항목 | 몫 |
 | --- | --- |
