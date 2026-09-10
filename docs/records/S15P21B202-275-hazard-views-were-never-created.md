@@ -1,8 +1,14 @@
-# S15P21B202-275 낙하 예고 원과 분화구 표현이 실제로 화면에 나오게 한다
+# 운석 예고·분화구 표시의 런타임 생성 연결 (S15P21B202-275)
+
+[문서 안내](../README.md) → [작업 기록](README.md) → 운석·환경
+
+스크립트만 존재하던 운석 예고·분화구 표현을 실제 런타임 생성 경로에 연결했습니다. 생성 누락 원인과 기존 테스트가 놓친 조건, 추가 검증을 기록합니다.
+
+본문의 “현재”, 검증 수치, 미완료 항목은 **기록 당시 기준**입니다. 후속 변경은 관련 이슈와 [주제별 색인](README.md)을 함께 확인합니다.
 
 ## 원인 — 아무도 그 컴포넌트를 만들지 않았다
 
-스크립트 GUID 로 `*.unity` · `*.prefab` 전체를 훑었다.
+스크립트 GUID로 `*.unity` · `*.prefab` 전체를 훑었다.
 
 | 컴포넌트 | 씬·프리팹에 붙어 있는 곳 | 런타임 생성 |
 |---|---|---|
@@ -20,16 +26,18 @@ atmosphereAlert.Configure(Atmosphere, FindAnyObjectByType<MeteorSpawner>());
 
 그래서 이렇게 되어 있었다.
 
-- **S15P21B202-241** 이 원을 그리는 `MeteorWarningView` 를 만들었다 → 실행된 적 없음
-- **S15P21B202-251** 이 분화구 `MeteorScarView` 를 만들었다 → 실행된 적 없음
-- **S15P21B202-268** 이 줄어드는 원으로 바꿨다 → 실행된 적 없음
-- **S15P21B202-254** 가 예고 지점을 실제 지면 위로 내렸다 → 필요했지만 그것만으로는
+- **S15P21B202-241**이 원을 그리는 `MeteorWarningView`를 만들었다 → 실행된 적 없음
+- **S15P21B202-251**이 분화구 `MeteorScarView`를 만들었다 → 실행된 적 없음
+- **S15P21B202-268**이 줄어드는 원으로 바꿨다 → 실행된 적 없음
+- **S15P21B202-254**가 예고 지점을 실제 지면 위로 내렸다 → 필요했지만 그것만으로는
   아무것도 보이지 않는다
 
 "운석 워닝포인트가 안보인다" 의 진짜 원인이 이것이다. 254 에서 지면 높이(바닥 메시
 0.06 vs 리프트 0.03)를 찾아 고쳤는데, **그리는 컴포넌트가 있는지는 확인하지 않았다.**
 
-## 고친 것
+<a id="고친-것"></a>
+
+## 변경 내용
 
 **장치는 `MeteorSpawner`, 정책은 부트스트랩.** 어셈블리 경계가 그렇게 나누게 했다.
 
@@ -39,7 +47,7 @@ Metagame.Gameplay.Tests    → Bootstrap 을 참조하지 않는다
 ```
 
 그래서 `MeteorSpawner` 안에서는 전용 서버인지 알 수 없고, 검증에서는
-`SpaceBootstrap` 을 볼 수 없다. 나눠 두면 둘 다 풀린다.
+`SpaceBootstrap`을 볼 수 없다. 나눠 두면 둘 다 풀린다.
 
 ```csharp
 public int EnsureViews()
@@ -68,8 +76,8 @@ var meteorSpawner = FindAnyObjectByType<MeteorSpawner>();
 if (meteorSpawner != null) meteorSpawner.EnsureViews();
 ```
 
-**`Awake` 로 스스로 붙이지 않았다.** 화면 없는 전용 서버에서 원판 200개를 만들 이유가
-없고, 그 판단에 필요한 `MatchRole` 은 Gameplay 에서 보이지 않는다.
+**`Awake`로 스스로 붙이지 않았다.** 화면 없는 전용 서버에서 원판 200개를 만들 이유가
+없고, 그 판단에 필요한 `MatchRole`은 Gameplay에서 보이지 않는다.
 
 **`useAtmosphere` 안에 넣지 않았다.** 진공에서도 운석은 떨어진다.
 
@@ -87,7 +95,7 @@ var view = go.AddComponent<MeteorWarningView>();
 
 두 겹으로 막았다.
 
-**① `HazardViewWiringTests`(8개)** — 배선을 본다. `EnsureViews` 가 붙이는지, 두 번
+**① `HazardViewWiringTests`(8개)** — 배선을 본다. `EnsureViews`가 붙이는지, 두 번
 불러도 하나씩인지, **손으로 붙이지 않고** 예고와 분화구가 나오는지, 지면 위에 있는지.
 
 **② `SpaceSelfTest.CheckHazardViews`** — 세계에 실제로 있는지 본다. EditMode 로는
@@ -119,15 +127,17 @@ develop : 647개 중 630 통과 / 17 실패
 275 에서만 실패 : 없음
 ```
 
-새 `HazardViewWiringTests` 8개 포함, `MeteorWarningTests` · `MeteorScarTests` 와 함께
+새 `HazardViewWiringTests` 8개 포함, `MeteorWarningTests` · `MeteorScarTests`와 함께
 **45개 전부 통과.** 17개는 모두 develop 것이다(S15P21B202-232 건).
 
-`TheWarningSitsAboveTheGroundSurface` 는 씬과 같은 조건(바닥 메시 y=0.06)에서 표시가
+`TheWarningSitsAboveTheGroundSurface`는 씬과 같은 조건(바닥 메시 y=0.06)에서 표시가
 그 위에 오는지 본다 — 254 가 고친 것이 실제로 효과가 있는지를 처음으로 확인한 검증이다.
 
-## 남은 것
+<a id="남은-것"></a>
 
-**인게임 확인이 필요하다.** 이 표현들은 지금까지 화면에 나온 적이 없으므로, 원 크기 ·
+## 남은 작업
+
+**인게임 확인이 필요하다.**이 표현들은 지금까지 화면에 나온 적이 없으므로, 원 크기 ·
 리프트 · 머티리얼 · 점멸 · 분화구 색이 전부 첫 노출이다. 어긋난 것이 나오면 별건으로
 잡는다.
 

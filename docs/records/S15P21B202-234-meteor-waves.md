@@ -1,5 +1,11 @@
 # S15P21B202-234 — 운석 공세 구조와 낙하 예고 타이밍
 
+[문서 안내](../README.md) → [작업 기록](README.md) → 운석·환경
+
+운석을 공세 단위로 생성하고 낙하 예고를 실제 착탄 시점에 맞췄습니다. 목표 위치, 크기, 인원수 보정과 기존 테스트 변경 이유를 정리합니다.
+
+본문의 “현재”, 검증 수치, 미완료 항목은 **기록 당시 기준**입니다. 후속 변경은 관련 이슈와 [주제별 색인](README.md)을 함께 확인합니다.
+
 지금 스포너는 <b>간격만 줄어드는 단순 반복</b>이었다. 기획 §17.2~17.7 이 정한 다섯 가지가
 없었고, 그중 하나는 S15P21B202-233 이 방망이를 만들며 <b>버그로 드러났다.</b>
 
@@ -11,7 +17,7 @@
 | 예고 만료 후 30m 자유낙하 (중력 −2.8 m/s²) | **4.63초** |
 | 합계 | 6.43초 |
 
-`MeteorSpawner` 는 예고가 끝난 <b>뒤에</b> 운석을 만들었다. 그래서 원형 표시가 착탄
+`MeteorSpawner`는 예고가 끝난 <b>뒤에</b> 운석을 만들었다. 그래서 원형 표시가 착탄
 4.63초 <b>전에 사라지고</b> 아무 표시 없이 떨어졌다. 기획 §17.2 "착탄 3초 전에 실제
 충격 범위와 같은 크기의 원형 표시를 지면에 만든다" 와 정반대다.
 
@@ -30,16 +36,16 @@ h = v₀·t + ½·|g|·t²  →  v₀ = (30 − ½ × 2.8 × 3²) / 3 = 5.8 m/s
 §17.1 "하늘에서 낙하한다" 와 §17.2 "화면 밖 운석은 방향성 낙하음으로 인지한다" 가
 높이를 요구한다.
 
-계산은 `DropSpeedFor(height)` 가 한다. `MeteorDropSpeed` 상수는 사람이 읽는 값이고,
+계산은 `DropSpeedFor(height)`가 한다. `MeteorDropSpeed` 상수는 사람이 읽는 값이고,
 높이나 예고 시간을 바꿔도 맞게 두기 위해 계산을 남겼다.
 
-`TheWarningEndsWhenTheMeteorLands` 가 S15P21B202-233 의 `Meteor.TryPredictImpact` 로
+`TheWarningEndsWhenTheMeteorLands`가 S15P21B202-233 의 `Meteor.TryPredictImpact`로
 실제 착탄 시각을 재어 예고 시간과 맞는지 본다 — <b>이 둘이 어긋난 것이 이 이슈의
 시작이었다.</b>
 
 ## 2. 공세(wave) 묶음
 
-기획 §17.4 를 `MeteorWaveTable` 로 옮겼다.
+기획 §17.4 를 `MeteorWaveTable`로 옮겼다.
 
 | 경과 | 간격 | 공세당 | 중형 |
 | --- | --- | --- | --- |
@@ -50,20 +56,20 @@ h = v₀·t + ½·|g|·t²  →  v₀ = (30 − ½ × 2.8 × 3²) / 3 = 5.8 m/s
 | 20분~ | 15초 | 5 | 30% |
 
 <b>상수로 흩어 두지 않고 표로 뒀다.</b> 다섯 시간대 × 세 값이 서로 맞물려 있어서 하나만
-고치면 난이도 곡선이 어긋난다 — `PartSpec` 이 파츠 치수를 표로 두는 것과 같은 이유다.
+고치면 난이도 곡선이 어긋난다 — `PartSpec`이 파츠 치수를 표로 두는 것과 같은 이유다.
 
 예전 곡선은 8초 → 2초 선형이었다. 총량은 비슷하지만 <b>리듬이 없었고</b>, 그래서 §17.3 의
 "공세 약 5초 전 신호" 가 붙을 자리가 없었다. `WaveIncoming` 이벤트로 그 자리를 만들었다.
 
-`Configure` 가 간격 인수를 더 받지 않는다. 곡선을 인수로 흉내내면 표와 어긋난다.
+`Configure`가 간격 인수를 더 받지 않는다. 곡선을 인수로 흉내내면 표와 어긋난다.
 
 ### 신호와 공세가 어긋났다 — 만들면서 겪은 것
 
-처음에는 공세 크기를 `Mathf.Repeat(_elapsed * 0.618f, 1f)` 로 경과 시간에서 뽑았다.
+처음에는 공세 크기를 `Mathf.Repeat(_elapsed * 0.618f, 1f)`로 경과 시간에서 뽑았다.
 "같은 시각이면 같은 답" 이라고 주석까지 달았는데, <b>신호와 공세 시작은 5초 차이가
 난다.</b> 검증에서 신호가 1개라 하고 실제로 2개가 떨어지는 것을 보고 알았다.
 
-신호 때 뽑아 `_plannedWaveSize` 에 기억하도록 고쳤다. 한 공세에 <b>한 번만</b> 뽑는다.
+신호 때 뽑아 `_plannedWaveSize`에 기억하도록 고쳤다. 한 공세에 <b>한 번만</b> 뽑는다.
 
 ## 3. 목표 위치가 균등 무작위였다
 
@@ -96,7 +102,7 @@ h = v₀·t + ½·|g|·t²  →  v₀ = (30 − ½ × 2.8 × 3²) / 3 = 5.8 m/s
 
 ### 연속 금지가 플레이어를 영구히 제외했다
 
-`_lastTargetPlayer` 를 한 번 정하면 지우지 않았다. 혼자 하는 동안에는 후보가 그 한 명뿐이라
+`_lastTargetPlayer`를 한 번 정하면 지우지 않았다. 혼자 하는 동안에는 후보가 그 한 명뿐이라
 <b>두 번째부터 플레이어 주변이 아예 나오지 않았다</b> — 200번 중 6번(3%)이었다.
 기획은 30% 다.
 
@@ -105,7 +111,7 @@ h = v₀·t + ½·|g|·t²  →  v₀ = (30 − ½ × 2.8 × 3²) / 3 = 5.8 m/s
 ## 4. 소형과 중형
 
 `MeteorImpactRadius = 4f` 하나였고 <b>기획 어느 값도 아니었다</b> — §17.7 의 소형(2m)보다
-두 배 넓고 중형(3.5m)보다도 넓었다. 두 상수로 나누고 `Meteor.SetSize` 가 크기에서 반경을
+두 배 넓고 중형(3.5m)보다도 넓었다. 두 상수로 나누고 `Meteor.SetSize`가 크기에서 반경을
 정하게 했다. 중형은 10분 이후에만 나온다.
 
 ### S15P21B202-233 의 주석이 틀려 있었다
@@ -120,15 +126,15 @@ h = v₀·t + ½·|g|·t²  →  v₀ = (30 − ½ × 2.8 × 3²) / 3 = 5.8 m/s
 
 ## 5. 인원수 보정
 
-§17.6 의 45/65/80/100% 를 표에 넣고 `SetCrew` 로 받는다. <b>운석 수만 조정하고 간격은
+§17.6 의 45/65/80/100% 를 표에 넣고 `SetCrew`로 받는다. <b>운석 수만 조정하고 간격은
 그대로 둔다</b> — §17.6 이 못박은 것이고, 간격까지 늘리면 혼자 할 때 난이도가 아니라
 <b>플레이 시간</b>이 달라진다.
 
 보정 뒤에도 최소 한 개는 나온다. 0 이 되면 5초 전 신호만 울리고 아무것도 떨어지지 않아
 플레이어가 신호를 믿지 않게 된다.
 
-`DemoMeteorDriver` 가 `PlayerRig.All.Count` 로 넘긴다. `GameSession` 이 스포너를 갖고
-있지 않아서(스포너의 Tick 은 아직 디버그 드라이버가 돌린다) 그쪽에 붙이지 못했다 —
+`DemoMeteorDriver`가 `PlayerRig.All.Count`로 넘긴다. `GameSession`이 스포너를 갖고
+있지 않아서(스포너의 Tick은 아직 디버그 드라이버가 돌린다) 그쪽에 붙이지 못했다 —
 멀티가 붙으면 [Network] 가 세는 값으로 바뀔 자리이고, 넘기는 곳은 여기 하나다.
 
 ## 기존 검증에서 뜻이 바뀐 것들
@@ -146,10 +152,10 @@ h = v₀·t + ½·|g|·t²  →  v₀ = (30 − ½ × 2.8 × 3²) / 3 = 5.8 m/s
 
 ### 리그 두 곳도 고쳤다
 
-`ShipRideTests` · `ShipAscentTests` 가 `Configure(seed, 1000f, 1000f, 1f)` 로 간격을
+`ShipRideTests` · `ShipAscentTests`가 `Configure(seed, 1000f, 1000f, 1f)`로 간격을
 1000초로 줘서 스포너를 사실상 껐다. 간격이 표로 바뀌어 인수로 늘릴 수 없다.
 
-처음에는 `SetPaused(true)` 로 바꿨는데 <b>`ShipRideTests` 에 일시정지 자체를 검증하는
+처음에는 `SetPaused(true)`로 바꿨는데 <b>`ShipRideTests`에 일시정지 자체를 검증하는
 항목이 있어서</b> 그 검증이 무너졌다(`Meteors_PauseForLaunchAndResumeAfterFailure` —
 "처음에는 돌고 있어야 한다"). 착탄 영역을 500m 밖으로 보내는 것으로 바꿨다.
 
@@ -160,11 +166,11 @@ h = v₀·t + ½·|g|·t²  →  v₀ = (30 − ½ × 2.8 × 3²) / 3 = 5.8 m/s
 
 EditMode 전체 <b>418개 중 413 통과</b>. 391 + 27 = 418 이고 늘어난 실패가 없다.
 
-실패 5개는 develop 에 이미 있던 것이다(S15P21B202-226 에서 develop 만 체크아웃해 확인).
+실패 5개는 develop에 이미 있던 것이다(S15P21B202-226 에서 develop만 체크아웃해 확인).
 
 | 실패 | 원인 | 몫 |
 | --- | --- | --- |
-| `PartClampTests.Pull_TakesThePlannedTime` | `4abb9c9` 가 `ClampPullSeconds` 를 8초→2초로 바꿨다 | [Character] |
+| `PartClampTests.Pull_TakesThePlannedTime` | `4abb9c9`가 `ClampPullSeconds`를 8초→2초로 바꿨다 | [Character] |
 | `ClampPullTests.GrabbingAgain_...` · `LastClamp_...` | 같은 원인 | [Character] |
 | `DownedRescueTests.PlayerKnockedBackByLastClamp_...` | 같은 원인 | [Character] |
 | `TractorBeamControllerTests.VehicleDrive_...` | S15P21B202-218 부터 실패 중 | [Character] |
@@ -179,20 +185,22 @@ EditMode 전체 <b>418개 중 413 통과</b>. 391 + 27 = 418 이고 늘어난 �
 
 ## 인게임 확인은 못 했다
 
-<b>§17.4 표의 리듬이 손에 맞는지는 실제로 20분을 해 봐야 안다.</b> 빌드가 develop 에서
+<b>§17.4 표의 리듬이 손에 맞는지는 실제로 20분을 해 봐야 안다.</b> 빌드가 develop에서
 멈춘다.
 
-1. `.gitattributes:4` 의 `*.asset text` 가 바이너리 TerrainData 를 손상시킨다.
+1. `.gitattributes:4`의 `*.asset text`가 바이너리 TerrainData를 손상시킨다.
    `S15P21B202-215-terrain-data-repair` 브랜치가 있어 진행 중인 것으로 보인다.
-2. `Lobby.unity` 가 공용 URP Volume Profile 을 참조하지 않는다. <b>지형을 살려도 이것이
+2. `Lobby.unity`가 공용 URP Volume Profile을 참조하지 않는다. <b>지형을 살려도 이것이
    남아 빌드가 멈춘다</b> — 실측했다.
 
-## 남은 것
+<a id="남은-것"></a>
+
+## 남은 작업
 
 | 항목 | 몫 |
 | --- | --- |
-| 공세 경고 연출 (유성우·진동음·조명) | [Art] · [Sound] — `WaveIncoming` 에 붙는다 |
-| 낙하 예고 원형 데칼 | [Art] — `PendingMeteorDrop` 을 읽는다 |
+| 공세 경고 연출 (유성우·진동음·조명) | [Art] · [Sound] — `WaveIncoming`에 붙는다 |
+| 낙하 예고 원형 데칼 | [Art] — `PendingMeteorDrop`을 읽는다 |
 | 소형·중형 <b>모델</b> 구분 | [Art] — 크기만 코드로 준다 |
 | 운석 충돌 흔적 남기기 | §19 — 지금은 6초 뒤 사라진다 |
 | 접속 인원을 실제 세션에서 받기 | [Network] — `SetCrew` 한 곳 |

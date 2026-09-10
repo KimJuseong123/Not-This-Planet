@@ -1,16 +1,24 @@
-# S15P21B202-349 탑승 중 운석에 맞으면 탑승체가 돌며 밀린다
+# 탑승체의 운석 충격과 회전 반응 (S15P21B202-349)
 
-## 무엇이 잘못됐나
+[문서 안내](../README.md) → [작업 기록](README.md) → 운석·환경
 
-탑승 중 운석에 맞으면 **탑승자만 부서졌다.** 기체는 아무 일도 없었다. 원인이 셋이다.
+탑승 중 운석 충격이 탑승자에게만 적용되던 처리를 기체의 밀림·회전으로 연결했습니다. 수치 측정과 검증 뒤 인게임에서 충격 경로에 도달하지 못한 한계가 발견되어 -353으로 이어졌습니다.
+
+본문의 “현재”, 검증 수치, 미완료 항목은 **기록 당시 기준**입니다. 후속 변경은 관련 이슈와 [주제별 색인](README.md)을 함께 확인합니다.
+
+<a id="무엇이-잘못됐나"></a>
+
+## 증상과 원인
+
+탑승 중 운석에 맞으면 **탑승자의 래그돌만 흩어지고 기체에는 충격 반응이 나타나지 않았다.** 원인은 다음 세 가지였다.
 
 | 자리 | 예전 |
 |---|---|
-| `Meteor.ApplyTier` | **탑승 여부를 보지 않았다.** `KnockDown` 이 인형 뼈 전부에 속도를 넣고, 직접 충돌이면 `GoDown` 까지 불렀다 |
-| `PlayerRig.mountedJoint` | `breakForce` 가 무한이라 **골반만** 묶여 있어 나머지 뼈만 흩어졌다 — 그것이 "떨어져 나왔다" 로 보였다 |
-| `TransportVehicle` | `FreezeRotation` 때문에 **애초에 기울 수 없고**, `DriveHover` 가 매 스텝 속도·각속도를 덮어써 충격을 지웠다 |
+| `Meteor.ApplyTier` | **탑승 여부를 보지 않았다.** `KnockDown`이 인형 뼈 전부에 속도를 넣고, 직접 충돌이면 `GoDown`까지 불렀다 |
+| `PlayerRig.mountedJoint` | `breakForce`가 무한이라 **골반만** 묶여 있어 나머지 뼈만 흩어졌다 — 그것이 "떨어져 나왔다" 로 보였다 |
+| `TransportVehicle` | `FreezeRotation` 때문에 **애초에 기울 수 없고**, `DriveHover`가 매 스텝 속도·각속도를 덮어써 충격을 지웠다 |
 
-그리고 `Meteor` 는 플레이어만 봤다 — 기체에 아무 힘도 주지 않았다.
+그리고 `Meteor`는 플레이어만 봤다 — 기체에 아무 힘도 주지 않았다.
 
 ### 코드가 이 작업을 예고해 뒀다
 
@@ -39,21 +47,23 @@ FreezeRotation 을 걸어 기체가 애초에 기울지 않는다. 자세 복구
 §14 는 **기울었다가 수평 회복**을 원한다. "복구 불가로 날아가 버린다" 는 §14.1 의
 "파괴되지 않는다" 와 어긋나므로 하지 않았다.
 
-## 고친 것
+<a id="고친-것"></a>
+
+## 변경 내용
 
 ```
 Hover → (운석 충격) → Tumbling (상한 2.2초) → Righting (수평 회복) → Hover
 ```
 
-- 충격 구간에만 `FreezeRotation` 을 풀고 `useGravity` 를 켠다. **평상시에는 그대로 잠근다**
-- 그 구간에는 `DriveHover` 를 돌리지 않는다 — 돌리면 속도·각속도를 덮어써 충격이 한
+- 충격 구간에만 `FreezeRotation`을 풀고 `useGravity`를 켠다. **평상시에는 그대로 잠근다**
+- 그 구간에는 `DriveHover`를 돌리지 않는다 — 돌리면 속도·각속도를 덮어써 충격이 한
   스텝에 사라진다
 - 조작 입력을 무시한다(`SetDriveVector` · `SetVerticalInput` · `SetFacingDirection`)
 - 상한이 지나거나 잦아들면 나온다. **어떤 경로로도 나온다**(340 의 교훈)
 - 수평은 `CraftRightingDegreesPerSecond`(220도/초)로 눈에 보이게 되돌린다
-- 고도는 되찾지 않는다 — `EndTumble` 이 지금 높이를 새 목표로 삼는다(§14.2)
+- 고도는 되찾지 않는다 — `EndTumble`이 지금 높이를 새 목표로 삼는다(§14.2)
 
-`Meteor.ApplyTier` 는 탑승 중인 플레이어를 만나면 그대로 돌아간다. `ApplyKnockback` 은
+`Meteor.ApplyTier`는 탑승 중인 플레이어를 만나면 그대로 돌아간다. `ApplyKnockback`은
 탑승자의 뼈에 폭발력을 주지 않고, 기체를 모아서 한 번만 처리한다.
 
 ### `SetFacingDirection` 을 막지 않으면 루트만 돈다
@@ -65,15 +75,15 @@ Hover → (운석 충격) → Tumbling (상한 2.2초) → Righting (수평 회�
 
 ### 폭발력으로는 기체가 움직이지 않는다
 
-`AddExplosionForce` 는 `MeteorImpactForce`(900N)를 `ForceMode.Force` 로 준다. 80kg
+`AddExplosionForce`는 `MeteorImpactForce`(900N)를 `ForceMode.Force`로 준다. 80kg
 기체에는 한 스텝에 **0.11m/s** 다. 사람이 날아가는 것도 폭발력이 아니라
-`MeteorHeavyKnockSpeed` 를 속도에 **직접** 더해서다 — 기체도 같은 방식으로 다뤘다.
+`MeteorHeavyKnockSpeed`를 속도에 **직접** 더해서다 — 기체도 같은 방식으로 다뤘다.
 
 ### `AddForce` 로 주면 굴림이 즉시 끝났다
 
-`AddForce` 는 다음 물리 스텝에야 반영된다. 그 사이 `StepTumble` 이 "아직 안 움직인다"
+`AddForce`는 다음 물리 스텝에야 반영된다. 그 사이 `StepTumble`이 "아직 안 움직인다"
 를 보고 잦아들었다고 판단해 **첫 스텝에 굴림을 끝냈다.** 검증이 "7도밖에 안 돌았다" 로
-잡았다. `KnockDown` 과 같이 속도에 직접 더하도록 고쳤다.
+잡았다. `KnockDown`과 같이 속도에 직접 더하도록 고쳤다.
 
 ### 탑승자 인형이 회전을 먹는다 — 이것이 핵심이었다
 
@@ -88,8 +98,8 @@ Hover → (운석 충격) → Tumbling (상한 2.2초) → Righting (수평 회�
 조인트가 **골반 하나만** 묶으므로 나머지 뼈는 정지한 채 매달려 있고, 인형이 진자가 되어
 회전 에너지를 먹는다.
 
-`PlayerRig.RideAlong(velocityChange, spin, pivot)` 을 만들어 충격을 인형에도 **강체처럼**
-같이 준다 — `v = ω × r` 로 한 덩어리로 움직인다. `KnockDown` 과 목적이 반대다(저것은
+`PlayerRig.RideAlong(velocityChange, spin, pivot)`을 만들어 충격을 인형에도 **강체처럼**
+같이 준다 — `v = ω × r`로 한 덩어리로 움직인다. `KnockDown`과 목적이 반대다(저것은
 뼈마다 다른 힘으로 몸을 흩는 것이다).
 
 그 뒤 첫 스텝이 3.25 → 3.18 로 살았다. 다만 인형 관절이 구간 안에서 계속 흡수하므로
@@ -101,8 +111,21 @@ Hover → (운석 충격) → Tumbling (상한 2.2초) → Righting (수평 회�
                         36 rad/s → 1281도
 ```
 
-`CraftImpactSpin = 13` 으로 잡았다 — 가까이 맞으면 약 1.5회전, 반경 절반에서 맞으면 약
+`CraftImpactSpin = 13`으로 잡았다 — 가까이 맞으면 약 1.5회전, 반경 절반에서 맞으면 약
 0.8회전이다.
+
+## 조종석이 시야를 따라가지 않는다는 보고 — 재현하지 못했다
+
+`SetFacingDirection`을 굴림·복구 중에 막았으므로 그 상태가 갇히면 조종석이 굳는다고
+의심했다. **증명하지 못했다.**
+
+- 진단에서 굴림 전과 끝난 뒤 모두 정면 추종이 1.00 으로 정상이었다
+- 갇히는 경로를 만들려 했지만 `CompleteDismount`는 굴림이 끝난 뒤에야 도달하고
+  `ForceReset`은 상태를 지운다
+- 그 경로를 잡겠다고 쓴 검증은 **헛돌았다**(옛 `Tick`으로 되돌려도 통과) — 지웠다
+
+`Tick`은 굴림·복구가 점유와 무관하게 끝까지 진행하도록 고쳐 뒀다. 고친 버그가 아니라
+**상태가 남을 수 있는 구조를 없앤 것**이다. 조종석 문제의 조건은 별도로 확인이 필요하다.
 
 ## 검증
 
@@ -118,32 +141,34 @@ develop                : 816개 중 784 통과 / 32 실패
 
 늘어난 하나는 `TowerCollapseTests.Collapse_IsDeterministic` 이고 **내 코드가 아니다.**
 기울기 95.7도 대 90.1도로 5도 허용치를 넘는 그 순서 의존 검증이며, 척도 수정이
-S15P21B202-345(MR !260)에 들어 있다. 그 파일만 얹어 돌리면 실패 집합이 develop 과
+S15P21B202-345(MR !260)에 들어 있다. 그 파일만 얹어 돌리면 실패 집합이 develop과
 완전히 같아지는 것을 확인했다.
 
 ### 헛돌지 않는지 대조했다
 
-| 무엇을 빼면 | 빨간불 |
+| 무엇을 빼면 | 실패 표시 |
 |---|---|
 | `constraints = None` | `TheCraftActuallySpins` · `TheRightingIsVisibleAndNotInstant` · `TheSameImpactGivesTheSameSpinDirection` |
-| `ApplyTier` 의 `IsMounted` 예외 | `TheRiderIsNotKnockedOut` |
+| `ApplyTier`의 `IsMounted` 예외 | `TheRiderIsNotKnockedOut` |
 
 ### 내 검증이 두 번 틀렸다
 
-**시간 예산.** `TheCraftActuallySpins` 를 0.8초만 돌려 "32도밖에 안 돈다" 고 판단했다.
+**시간 예산.** `TheCraftActuallySpins`를 0.8초만 돌려 "32도밖에 안 돈다" 고 판단했다.
 각속도가 구간 안에서 잦아들지만 **누적으로는 한 바퀴 가까이 돈다.** 굴림 구간 전체를
 돌리도록 고쳤다.
 
-**방향을 단정했다.** `TheCraftLosesAltitude` 로 "떨어진다" 를 기대했는데 **올라갔다.**
+**방향을 단정했다.** `TheCraftLosesAltitude`로 "떨어진다" 를 기대했는데 **올라갔다.**
 운석은 지면에서 터지므로 떠 있는 기체는 **아래에서** 맞는다. §14.2 가 요구하는 것은
-방향이 아니라 "밀린다" 이므로 `TheCraftIsPushedVertically` 로 바꿨다. 같은 이유로
-`TheCraftDoesNotReturnToItsOldAltitude` 도 방향을 보지 않게 했다.
+방향이 아니라 "밀린다" 이므로 `TheCraftIsPushedVertically`로 바꿨다. 같은 이유로
+`TheCraftDoesNotReturnToItsOldAltitude`도 방향을 보지 않게 했다.
 
 S15P21B202-345 에서 검증 다섯 개가 조용히 헛돈 뒤라 대조를 먼저 돌렸다.
 
-## 넘지 않은 선
+<a id="넘지-않은-선"></a>
 
-- **평상시 `FreezeRotation` 을 풀지 않았다.** §14.1 의 일반 충돌 기울기(우주선·파츠·
+## 구현 범위와 제약
+
+- **평상시 `FreezeRotation`을 풀지 않았다.** §14.1 의 일반 충돌 기울기(우주선·파츠·
   플레이어)는 별건이다 — 216 이 우려한 "탑승자 인형이 항상 흔들린다" 를 받지 않았다
 - **카메라를 건드리지 않았다.** 기체와 함께 도는 것은 다음 이슈다
 - 기체를 파괴하지 않는다(§14.1)
@@ -162,8 +187,8 @@ S15P21B202-345 에서 검증 다섯 개가 조용히 헛돈 뒤라 대조를 먼
 [지면 착탄] 6.0초 높이=7.99 기울기=0도            ← 아무 일도 없다
 ```
 
-**폭발 반경이 2m 인데 호버 고도는 5~8m 다.** 떠 있는 기체는 `ApplyKnockback` 의
-`OverlapSphere` 에 절대 들어오지 않는다. 이 이슈가 붙인 자리가 그 함수 안이므로
+**폭발 반경이 2m 인데 호버 고도는 5~8m 다.** 떠 있는 기체는 `ApplyKnockback`의
+`OverlapSphere`에 절대 들어오지 않는다. 이 이슈가 붙인 자리가 그 함수 안이므로
 **실제 플레이에서는 발동하지 않는다.**
 
 기체 바로 옆에서 터뜨리면 의도대로 동작한다.
@@ -176,34 +201,23 @@ S15P21B202-345 에서 검증 다섯 개가 조용히 헛돈 뒤라 대조를 먼
 ```
 
 즉 **기계는 맞고 방아쇠가 없다.** 진짜 경로는 운석이 기체에 **직접 부딪히는** 것인데,
-`Meteor.OnCollisionEnter` 는 그것을 아무것도 하지 않는다 — `TryGetSupportContact` 가
-운반체를 명시적으로 건너뛰고(예전 결정), 그 뒤 `direct` 분기는 `PlayerRig` 만 본다.
-그래서 기체와의 충돌은 순수 PhysX 에 맡겨지고, `FreezeRotation` 과 `DriveHover` 가
+`Meteor.OnCollisionEnter`는 그것을 아무것도 하지 않는다 — `TryGetSupportContact`가
+운반체를 명시적으로 건너뛰고(예전 결정), 그 뒤 `direct` 분기는 `PlayerRig`만 본다.
+그래서 기체와의 충돌은 순수 PhysX에 맡겨지고, `FreezeRotation`과 `DriveHover`가
 그것마저 지운다.
 
 **후속 이슈로 잇는다.**
 
-## 조종석이 시야를 따라가지 않는다는 보고 — 재현하지 못했다
+<a id="남은-것"></a>
 
-`SetFacingDirection` 을 굴림·복구 중에 막았으므로 그 상태가 갇히면 조종석이 굳는다고
-의심했다. **증명하지 못했다.**
-
-- 진단에서 굴림 전과 끝난 뒤 모두 정면 추종이 1.00 으로 정상이었다
-- 갇히는 경로를 만들려 했지만 `CompleteDismount` 는 굴림이 끝난 뒤에야 도달하고
-  `ForceReset` 은 상태를 지운다
-- 그 경로를 잡겠다고 쓴 검증은 **헛돌았다**(옛 `Tick` 으로 되돌려도 통과) — 지웠다
-
-`Tick` 은 굴림·복구가 점유와 무관하게 끝까지 진행하도록 고쳐 뒀다. 고친 버그가 아니라
-**상태가 남을 수 있는 구조를 없앤 것**이다. 조종석 문제의 조건은 별도로 확인이 필요하다.
-
-## 남은 것
+## 남은 작업
 
 - **운석이 기체에 직접 부딪히면 굴림이 시작돼야 한다.** 지금 방아쇠는 폭발 반경(2m)
   안뿐이라 호버 고도(5~8m)에서는 발동하지 않는다
 - **굴림이 착지까지 이어져야 한다.** 지금은 상한 2.2초가 지나면 공중에서 수평을
   회복하고 호버가 그 고도를 잡는다
-- **카메라가 기체와 함께 돌아야 한다.** `OrbitCamera` 가 `Quaternion.Euler(pitch, yaw, 0f)`
-  로 roll 을 0 에 고정하고 있다. 지금은 기체가 도는데 화면은 수평이라 **오히려 어지럽다**
+- **카메라가 기체와 함께 돌아야 한다.** `OrbitCamera`가 `Quaternion.Euler(pitch, yaw, 0f)`
+  로 roll을 0 에 고정하고 있다. 지금은 기체가 도는데 화면은 수평이라 **오히려 어지럽다**
 - **인게임 확인이 필수다.** 상수 셋(`CraftImpactSpeed` 7 · `CraftImpactSpin` 13 ·
   `CraftTumbleSeconds` 2.2)은 눈으로 조정할 값이다
 - **저중력장이 함께 밀리는지 확인하지 않았다**(§14.2). 기체의 자식이면 저절로 따라간다

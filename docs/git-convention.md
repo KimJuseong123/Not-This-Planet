@@ -1,7 +1,24 @@
 # Git 컨벤션
 
+브랜치 생성, 커밋, MR, 릴리스에 적용하는 규칙입니다. 일반 작업은 `develop`에서 시작하며, 다른 작업에 의존하는 스택 MR과 릴리스·핫픽스는 별도 절차를 따릅니다.
+
+[문서 안내](README.md) · 선행: [Jira 이슈 작성](jira-convention.md) · 다음: [MR 제출과 머지](mr-flow.md)
+
 > 관련 문서: [워크플로우 구현 계획](./workflow-plan.md) · [Jira 컨벤션](./jira-convention.md) · [파트 구분](./parts.md) · [Jira-GitLab 자동화](./jira-gitlab-automation.md)
 > 기준 버전: workflow-plan v1.0 (2026-08-26)
+
+**이 문서의 내용**
+
+- [1. 브랜치 전략](#section-1)
+- [2. 브랜치 생성 — Jira 이슈 화면에서](#section-2)
+- [3. 브랜치 네이밍](#section-3)
+- [4. 커밋 메시지](#section-4)
+- [5. MR(Merge Request) 규칙](#section-5)
+- [6. 규칙 검사와 권한 제한](#section-6)
+- [7. Unity 특화 규칙](#section-7)
+- [8. 릴리스 — `release/` 브랜치 → master (2026-09-07 결정, S15P21B202-325)](#section-8)
+
+<a id="section-1"></a>
 
 ## 1. 브랜치 전략
 
@@ -16,7 +33,7 @@ S15P21B202-12-…  ●──●  ●─●               ← Jira 이슈 단위 
 ```
 
 - 작업 브랜치는 항상 `develop`에서 분기하고 `develop`으로 MR을 올린다.
-- `master`에는 직접 커밋/MR하지 않는다. 릴리스는 **develop 에서 `release/<이슈키>-vX.Y.Z` 브랜치를 따서 master 로 MR**한다(§8). 머지되면 CI 가 태그 `vX.Y.Z` 와 GitLab Release(빌드 zip)를 만든다 — 사람이 태그를 달거나 빌드를 커밋하지 않는다.
+- `master`에는 직접 커밋/MR하지 않는다. 릴리스는 **develop에서 `release/<이슈키>-vX.Y.Z` 브랜치를 따서 master로 MR**한다(§8). 머지되면 CI가 태그 `vX.Y.Z`와 GitLab Release(빌드 zip)를 만든다 — 사람이 태그를 달거나 빌드를 커밋하지 않는다.
 - `master` 긴급 수정은 `hotfix/<이슈키>-…` 브랜치를 `master`에서 분기 → `master`와 `develop` 양쪽에 머지.
 - **문서(docs/), 설정 파일도 예외 없이** 작업 브랜치 → develop MR로 올린다.
 
@@ -34,10 +51,12 @@ S15P21B202-12-…  ●──●  ●─●               ← Jira 이슈 단위 
 ### 운영 규칙
 
 1. `develop`은 항상 **컴파일 에러 없이 에디터에서 실행 가능한 상태**를 유지한다.
-2. **브랜치는 Jira 이슈에서 만든다.** 이슈 1개당 브랜치 1개. 이슈 키 없는 이름은 로컬 훅이 push 를 막고, 올라가더라도 CI `mr-lint` 가 MR 을 빨간불로 만든다(§6).
+2. **브랜치는 Jira 이슈에서 만든다.** 이슈 1개당 브랜치 1개. 이슈 키 없는 이름은 로컬 훅이 push를 막고, 올라가더라도 CI `mr-lint`가 MR을 실패 표시로 만든다(§6).
 3. `develop` 머지는 **팀장(Maintainer)만** 할 수 있다 — 팀장의 머지가 승인이다(§5).
-4. **push 하면 훅이 알아서 `develop` 최신을 얹는다**(S15P21B202-137). `git push` 하면 pre-push 훅이 `origin/develop` 을 가져와 뒤처졌으면 **자동으로 리베이스한 뒤 그 push 를 중단**하고, 다시 push 할 명령을 그대로 알려 준다(이미 올라간 브랜치면 `git push --force-with-lease`). 리베이스가 충돌하면 **원래 상태로 되돌리고 경고만** 남기므로 작업이 사라지지 않는다 — 그때는 씬/프리팹 충돌을 한 번에 보는 `git merge origin/develop` 로 정리한다. 씬·프리팹을 많이 만지는 작업은 `METAGAME_AUTOREBASE_MODE=merge` 로 두면 처음부터 merge 로 얹는다(merge 는 커밋 해시가 그대로라 강제 push 도 필요 없다). 끄려면 `METAGAME_AUTOREBASE=0`.
+4. **push 하면 훅이 알아서 `develop` 최신을 얹는다**(S15P21B202-137). `git push` 하면 pre-push 훅이 `origin/develop`을 가져와 뒤처졌으면 **자동으로 리베이스한 뒤 그 push를 중단**하고, 다시 push 할 명령을 그대로 알려 준다(이미 올라간 브랜치면 `git push --force-with-lease`). 리베이스가 충돌하면 **원래 상태로 되돌리고 경고만** 남기므로 작업이 사라지지 않는다 — 그때는 씬/프리팹 충돌을 한 번에 보는 `git merge origin/develop`로 정리한다. 씬·프리팹을 많이 만지는 작업은 `METAGAME_AUTOREBASE_MODE=merge`로 두면 처음부터 merge로 얹는다(merge는 커밋 해시가 그대로라 강제 push도 필요 없다). 끄려면 `METAGAME_AUTOREBASE=0`.
 5. `master`, `develop`은 보호 브랜치 (직접 push 불가).
+
+<a id="section-2"></a>
 
 ## 2. 브랜치 생성 — Jira 이슈 화면에서
 
@@ -53,8 +72,10 @@ S15P21B202-12-…  ●──●  ●─●               ← Jira 이슈 단위 
 ```
 
 - 이것이 이슈를 **진행 중**으로 만드는 유일한 길이다. 보드에서 카드를 끌어도 브랜치가 없으면 되돌려진다.
-- 로컬에서 `git checkout -b S15P21B202-12-player-jump develop && git push -u origin …` 로 만들어도 동작은 같다(이름 규칙만 지키면 Jira가 감지한다).
+- 로컬에서 `git checkout -b S15P21B202-12-player-jump develop && git push -u origin …`로 만들어도 동작은 같다(이름 규칙만 지키면 Jira가 감지한다).
 - 브랜치가 필요 없는 작업은 없다. 문서·회의·리서치도 브랜치에 기록 1장을 남긴다([Jira 컨벤션 §6](./jira-convention.md)).
+
+<a id="section-3"></a>
 
 ## 3. 브랜치 네이밍
 
@@ -70,12 +91,14 @@ release/<JIRA키>-<번호>-vX.Y.Z           ← 릴리스 — develop 스냅샷�
 | `S15P21B202-45-lobby-bgm` | 에셋·문서 작업도 동일 |
 | `S15P21B202-31-network` | 한글 제목이라 설명부가 비었을 때 최소한 파트명 |
 | `hotfix/S15P21B202-40-crash-on-join` | master 긴급 수정 (Maintainer만 생성) |
-| `release/S15P21B202-318-v0.1.0` | 릴리스 브랜치 — develop 에서 딴 스냅샷, master 로만 MR. 버전이 이름에 있어야 CI 가 태그를 만든다 |
+| `release/S15P21B202-318-v0.1.0` | 릴리스 브랜치 — develop에서 딴 스냅샷, master 로만 MR. 버전이 이름에 있어야 CI가 태그를 만든다 |
 
-- `feature/`, `fix/` 같은 접두어는 **쓰지 않는다** — 훅과 `mr-lint` 가 위 세 형식만 받는다.
+- `feature/`, `fix/` 같은 접두어는 **쓰지 않는다** — 훅과 `mr-lint`가 위 세 형식만 받는다.
 - 설명부는 영문 kebab-case. 자동화·훅·서버 규칙은 **이슈 키만** 본다.
 
 > Jira 프로젝트 키는 실제 값으로 — 이 문서는 `S15P21B202`로 가정한다.
+
+<a id="section-4"></a>
 
 ## 4. 커밋 메시지
 
@@ -106,6 +129,8 @@ asset(lobby): 로비 배경 3D 모델 추가 (S15P21B202-45)
 docs: 로비 BGM 레퍼런스 조사 기록 (S15P21B202-27)
 ```
 
+<a id="section-5"></a>
+
 ## 5. MR(Merge Request) 규칙
 
 | 항목 | 규칙 |
@@ -115,25 +140,31 @@ docs: 로비 BGM 레퍼런스 조사 기록 (S15P21B202-27)
 | 대상 | 항상 `develop` (릴리즈 MR — `release/<키>-vX.Y.Z` 또는 `develop` — 만 `master`, §8) |
 | Draft | **만들지 않는다.** MR 생성 = 리뷰 요청. 진행 상황 공유는 Jira 코멘트로 |
 | 승인·머지 | **팀장(Maintainer)이 승인 버튼을 누르고 바로 머지**한다. GitLab Free에서는 "승인 필수"를 강제할 수 없으므로 develop **머지 권한을 Maintainer로 제한**한 것이 실제 관문이다 |
-| 머지 방식 | Merge commit + **squash** (이슈 1개 = develop 커밋 1개). 릴리즈 MR만 squash 해제 — CI(`mr-title`)가 자동으로 끄고 `mr-lint` 가 확인한다(§8) |
-| 머지 조건 | 모든 스레드 해결 · (러너 확보 후) 파이프라인 성공 |
+| 머지 방식 | Merge commit + **squash** (이슈 1개 = develop 커밋 1개). 릴리즈 MR만 squash 해제 — CI(`mr-title`)가 자동으로 끄고 `mr-lint`가 확인한다(§8) |
+| 머지 조건 | 모든 스레드 해결 · 파이프라인 성공. 초기 문서의 “러너 확보 후” 조건은 해소됨([CI/CD 설정](ci-cd-pipeline.md) §3) |
 | 대리 승인 | 팀장이 24시간 내 불가하면 해당 Epic 담당 파트원이 (필요 시 임시 Maintainer로) 머지 |
-| 머지 후 | **브랜치 이름의 Jira 이슈만** 자동 완료(R6). 본문에 다른 이슈 키를 적으면 Jira 개발 패널에는 연결되지만 상태는 바뀌지 않는다(2026-08-27 보강 — 그 전엔 언급된 Epic·Task 까지 완료되는 사고 있었음). 작업 브랜치는 머지와 함께 자동 삭제(2026-08-27~) |
+| 머지 후 | **브랜치 이름의 Jira 이슈만** 자동 완료(R6). 본문에 다른 이슈 키를 적으면 Jira 개발 패널에는 연결되지만 상태는 바뀌지 않는다(2026-08-27 보강 — 그 전엔 언급된 Epic·Task까지 완료되는 사고 있었음). 작업 브랜치는 머지와 함께 자동 삭제(2026-08-27~) |
 
 팀장의 체크리스트(범위 · 완료 조건 · 씬/프리팹 · 구조 · 기록)는 MR 템플릿 하단 "리뷰어 확인"에 있다.
 
-## 6. 규칙 강제 — 4겹
+<a id="6-규칙-강제--4겹"></a>
+
+<a id="section-6"></a>
+
+## 6. 규칙 검사와 권한 제한
 
 | 겹 | 장치 | 막는 것 | 비고 |
 | --- | --- | --- | --- |
 | **서버** | GitLab 보호 브랜치: `develop`·`master` = push No one / merge Maintainers, `hotfix/S15P21B202-*` = Maintainers. **작업 브랜치는 보호하지 않음**(2026-08-27 해제 — 그 전엔 `*` No one + `S15P21B202-*` 허용으로 이름을 서버에서 거부했으나, 머지 시 자동 삭제 불가·개발자 삭제 불가 부작용) | develop·master 직접 push, 팀장 외 머지 | 이름 규칙은 아래 3겹이 담당. 머지 시 **소스 브랜치 자동 삭제**(프로젝트 기본값 ON) |
-| **스택 MR** | 작업 브랜치 → 작업 브랜치 MR 은 **허용**(2026-08-28). 다만 머지해도 그 이슈는 자동 완료되지 않으니, 부모 브랜치가 develop 에 머지된 뒤 이슈를 손으로 완료한다(머지된 MR 이 있어 R9 가 허용). 대상이 develop 인 MR 이 최종 관문이다 | — |
+| **스택 MR** | 작업 브랜치 → 작업 브랜치 MR은 **허용**(2026-08-28). 초기에는 부모 작업 브랜치로 먼저 머지한 뒤 수동 완료하는 방식도 허용했다. 이후 `stack-order`가 부모부터 머지하도록 강제한다. 현재 절차는 부모가 develop에 머지된 뒤 자식 MR의 대상을 develop으로 전환하고 다시 검사·머지하는 것이다([MR 흐름](mr-flow.md) §3) | — |
 | **로컬** | `.githooks/pre-push` | 형식 안 맞는 push를 서버까지 가기 전에 차단 (친절한 안내 메시지) → **뒤처진 브랜치에 `develop` 최신을 자동으로 얹고 다시 push 하도록 안내**(-137) → 이어서 `git lfs pre-push` 실행(LFS 업로드 유지) | 클론 후 1회 `git config core.hooksPath .githooks` |
 | **Jira** | 자동화 되돌림 (R5·R9) | 브랜치 없이 진행 중, 머지 없이 완료 | 키가 실존하지 않는 브랜치는 Jira가 무시 → 보드에 아무 일이 안 생겨 드러남 |
 | **CI** (러너 후) | `mr-lint` — 제목·브랜치 형식, **Jira 키 실존 확인**, 템플릿 섹션·체크박스 | 규칙 위반 MR의 머지 | "Pipelines must succeed" |
 
 - "Jira 버튼으로만 브랜치 생성"을 문자 그대로 강제하는 것은 불가능하다(서버는 버튼 출처를 구분할 수 없다). 위 4겹이 실질적 동치다.
-- 서버 규칙(`*`)의 부작용이 크다고 판단되면 `*` 규칙 하나만 지우면 된다 — 나머지 3겹은 그대로다.
+- 초기에는 서버의 `*` 규칙만 제거하고 나머지 검사를 유지하는 대안을 두었다. 해당 보호 규칙은 2026-08-27에 해제했다.
+
+<a id="section-7"></a>
 
 ## 7. Unity 특화 규칙
 
@@ -151,13 +182,15 @@ docs: 로비 BGM 레퍼런스 조사 기록 (S15P21B202-27)
    *.asset  merge=unityyamlmerge eol=lf
    ```
 4. **Git LFS는 이미 적용되어 있다.** 루트 `.gitattributes`가 모델·텍스처·오디오·영상·네이티브 라이브러리·압축 파일을 LFS로 보낸다.
-   - 클론 **전에** `git lfs install --skip-repo` 1회 (README "빠른 시작"). `--skip-repo` 를 빼면 `core.hooksPath` 때문에 `Hook already exists: pre-push` 경고가 나며, 이때 `git lfs update --force` 를 실행하면 `.githooks/pre-push`(브랜치명 검사 + LFS 연계)가 덮어써지므로 금지.
+   - 클론 **전에** `git lfs install --skip-repo` 1회 (README "빠른 시작"). `--skip-repo`를 빼면 `core.hooksPath` 때문에 `Hook already exists: pre-push` 경고가 나며, 이때 `git lfs update --force`를 실행하면 `.githooks/pre-push`(브랜치명 검사 + LFS 연계)가 덮어써지므로 금지.
    - Unity YAML(씬/프리팹/meta)은 텍스트로 유지 — diff/머지 확인을 위해 LFS로 보내지 않는다.
    - 새 바이너리 확장자는 `.gitattributes`에 추가. lab.ssafy.com의 LFS 용량 제한은 아트 에셋 대량 커밋 전에 확인.
 
+<a id="section-8"></a>
+
 ## 8. 릴리스 — `release/` 브랜치 → master (2026-09-07 결정, S15P21B202-325)
 
-팀장이 하는 일은 둘이다. ① Jira 릴리스 이슈에서 **브랜치 만들기**, 이름 앞에 `release/` 를 붙인다 — `release/<이슈키>-vX.Y.Z` ② master 로 MR 을 올려 **머지**. 그 뒤는 CI 가 한다(-326): 태그 `vX.Y.Z` → Windows 빌드 → GitLab Release(zip 내려받기) → MM 🟢 카드 → Jira 릴리스에 fixVersion(-327).
+팀장이 하는 일은 둘이다. ① Jira 릴리스 이슈에서 **브랜치 만들기**, 이름 앞에 `release/`를 붙인다 — `release/<이슈키>-vX.Y.Z` ② master로 MR을 올려 **머지**. 그 뒤는 CI가 한다(-326): 태그 `vX.Y.Z` → Windows 빌드 → GitLab Release(zip 내려받기) → MM 🟢 카드 → Jira 릴리스에 fixVersion(-327).
 
 | 규칙 | 왜 |
 | --- | --- |

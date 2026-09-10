@@ -1,6 +1,14 @@
 # S15P21B202-268 낙하 예고를 줄어드는 원으로
 
-## 기획과 반대로 바꿨다
+[문서 안내](../README.md) → [작업 기록](README.md) → 운석·환경
+
+운석 예고 원을 채워지는 방식에서 줄어드는 방식으로 변경했습니다. 인게임 판단과 기획의 차이, 크기·점멸·색 처리 및 기획 확인이 필요한 사항을 기록합니다.
+
+본문의 “현재”, 검증 수치, 미완료 항목은 **기록 당시 기준**입니다. 후속 변경은 관련 이슈와 [주제별 색인](README.md)을 함께 확인합니다.
+
+<a id="기획과-반대로-바꿨다"></a>
+
+## 기획과 다른 예고 진행 방향
 
 §17.2 원문이다.
 
@@ -52,11 +60,13 @@ public static float CountdownScaleOf(in PendingMeteorDrop drop)
 "크기가 운석과 같다" 가 그 뜻이다.
 
 중형이든 소형이든 **안쪽 원의 마지막 크기는 같다.** 떨어지는 운석의 크기가 같기 때문이다.
-검증이 그것을 잠근다.
+검증이 그 동작을 검증한다.
 
-## 뷰를 거의 안 건드렸다
+<a id="뷰를-거의-안-건드렸다"></a>
 
-`MeteorWarningView.Apply` 가 이미 `diameter * fill` 로 곱하는 구조였다. 그래서 **비율만
+## 예고 표시의 변경 범위
+
+`MeteorWarningView.Apply`가 이미 `diameter * fill`로 곱하는 구조였다. 그래서 **비율만
 바뀌면 뷰는 그대로** 동작한다 — 이 이슈를 3점에서 2점으로 낮춘 이유다.
 
 이름은 정리했다. 더 이상 채우는 것이 아니다.
@@ -68,8 +78,8 @@ MeteorWarningView.Marker.Fill     → Inner
 FillMaterial · FillAlphaScale …   → Inner…
 ```
 
-`MeteorWarningStage.Filling` 은 "차오르는 중" 이라는 뜻이었다. 점멸하지 않는 단계를
-가리키는 이름이므로 `Approaching` 이 사실에 맞는다.
+`MeteorWarningStage.Filling`은 "차오르는 중" 이라는 뜻이었다. 점멸하지 않는 단계를
+가리키는 이름이므로 `Approaching`이 사실에 맞는다.
 
 ## 점멸과 색은 그대로 뒀다
 
@@ -89,7 +99,7 @@ FillMaterial · FillAlphaScale …   → Inner…
 | 뒤집은 것 | **안쪽이 줄어든다** (`TheInsideFillsUp` → `TheInsideShrinksTowardTheMeteor`) |
 | 새로 | **운석 크기에서 멈춘다** · 되돌아 커지지 않는다 · 중형도 같은 마지막 크기 · **테두리는 충격 범위 그대로** |
 
-전체 629개 중 616 통과. 실패 13개는 develop 에 이미 있던 것이다(S15P21B202-232 건).
+전체 629개 중 616 통과. 실패 13개는 develop에 이미 있던 것이다(S15P21B202-232 건).
 625 + 4 = 629 — **늘어난 실패가 없다.**
 
 ## 인게임 확인
@@ -98,4 +108,4 @@ FillMaterial · FillAlphaScale …   → Inner…
 S15P21B202-254 가 "예고 원이 지면 메시 아래에 그려진다" 를 고치는데 그것도 머지 전이다.
 
 그래서 이 결정은 **화면을 보고 다시 볼 가치가 있다.** §17.2 의 "채워진다" 가 실제로는
-나을 수도 있고, 그때는 `CountdownScaleOf` 의 보간 방향만 되돌리면 된다.
+나을 수도 있고, 그때는 `CountdownScaleOf`의 보간 방향만 되돌리면 된다.

@@ -1,5 +1,11 @@
 # S15P21B202-226 — 우주선 몸체에 용접 비드 생성과 성장
 
+[문서 안내](../README.md) → [작업 기록](README.md) → 조립·용접·발사
+
+우주선 몸체에 물리적 용접 비드를 생성하고 성장·절단하는 기능을 구현했습니다. 질량·크기 상한과 성장 판정, 접합으로 이어질 후속 단계와 당시 빌드 제한을 설명합니다.
+
+본문의 “현재”, 검증 수치, 미완료 항목은 **기록 당시 기준**입니다. 후속 변경은 관련 이슈와 [주제별 색인](README.md)을 함께 확인합니다.
+
 용접건을 우주선 몸체에 대면 금속 비드가 자란다. 상한 크기에 이르면 다음 덩어리가
 이어져 기둥이 뻗는다. 기획 §16.2 의 "용접한 구간에는 실제 금속 비드와 불탄 자국이
 남는다" 를 <b>물리 있는 물체</b>로 만든 것이다.
@@ -12,9 +18,11 @@
 이 이슈는 <b>쌓이는 것까지</b> 다. 비드가 다른 몸체에 닿아 하나로 합쳐지는 것은 다음
 이슈에서 한다.
 
-## 조인트 사슬로 만들지 않았다
+<a id="조인트-사슬로-만들지-않았다"></a>
 
-덩어리마다 Rigidbody 를 주고 조인트로 이으면 가늘고 긴 조인트 사슬이 된다. PhysX 에서
+## 파츠에 부착하는 비드 구조
+
+덩어리마다 Rigidbody를 주고 조인트로 이으면 가늘고 긴 조인트 사슬이 된다. PhysX에서
 그런 사슬은 위에 얹힌 406~745kg 짜리 파츠를 버티지 못하고 떨거나 터진다. S15P21B202-194
 에서 실측한 탑 붕괴는 조인트가 <b>하나</b>일 때의 값이었다.
 
@@ -27,15 +35,17 @@ Part_1 (Rigidbody 하나)
     └ Bead_0_0, Bead_0_1 ...  ← 자란 비드 (콜라이더 + 렌더러, 강체 없음)
 ```
 
-`Beads_AddNoRigidbodiesAndNoJoints` 가 이 결정을 잠근다 — 강체는 파츠 하나, 조인트는 0개다.
+`Beads_AddNoRigidbodiesAndNoJoints`가 이 결정을 잠근다 — 강체는 파츠 하나, 조인트는 0개다.
 
-## 무게중심 — 대입하지 않았고, 대입할 필요도 없었다
+<a id="무게중심--대입하지-않았고-대입할-필요도-없었다"></a>
+
+## 비드 추가 시 무게중심 처리
 
 "하나의 물체가 되었을 때 무게중심을 다시 설정해야 하는가" 가 이 작업의 출발 질문이었다.
 답은 <b>아니다</b> 다.
 
-이 프로젝트는 `Rigidbody.centerOfMass` 를 어디에서도 대입하지 않는다(전체 검색으로 확인).
-Unity 가 자식 콜라이더에서 자동 계산하고, S15P21B202-166 이 파츠별 컴파운드 콜라이더를
+이 프로젝트는 `Rigidbody.centerOfMass`를 어디에서도 대입하지 않는다(전체 검색으로 확인).
+Unity가 자식 콜라이더에서 자동 계산하고, S15P21B202-166 이 파츠별 컴파운드 콜라이더를
 실측해 넣은 것이 그 자동 계산을 쓰기 위해서다. 비드를 콜라이더로 붙이면 무게중심이
 저절로 따라온다. 한 번이라도 대입하면 자동 계산이 <b>영구히</b> 꺼지므로 앞으로도
 대입하지 않는다.
@@ -45,7 +55,7 @@ Unity 가 자식 콜라이더에서 자동 계산하고, S15P21B202-166 이 파�
 처음에는 "오른쪽에만 쌓으면 무게중심이 2.5cm 옮겨갈 것" 으로 보고 검증을 그 크기로
 썼다. <b>실측은 0.6mm 였다.</b>
 
-원인은 자동 무게중심이 우리가 정한 `Rigidbody.mass` 가 아니라 <b>콜라이더 부피</b>로
+원인은 자동 무게중심이 우리가 정한 `Rigidbody.mass`가 아니라 <b>콜라이더 부피</b>로
 계산되기 때문이다(밀도가 균일하다고 본다). 그래서
 
 | | 값 |
@@ -65,13 +75,13 @@ Unity 가 자식 콜라이더에서 자동 계산하고, S15P21B202-166 이 파�
 
 ## 질량은 파츠를 거쳐 간다
 
-`Rigidbody.mass` 를 밖에서 더할 수 없다. `SpaceshipPart.ApplyRepresentation` 이 상태 전환마다
+`Rigidbody.mass`를 밖에서 더할 수 없다. `SpaceshipPart.ApplyRepresentation`이 상태 전환마다
 질량을 <b>다시 쓰기</b> 때문에 밖에서 더해 두면 다음 전환에 조용히 사라진다. 그래서
-질량의 주인을 하나로 두고 덧붙는 몫만 `SetExtraMass` 로 넘긴다.
+질량의 주인을 하나로 두고 덧붙는 몫만 `SetExtraMass`로 넘긴다.
 
-`BeadMass_SurvivesAStateChange` 가 이 함정을 잠근다.
+`BeadMass_SurvivesAStateChange`가 이 함정을 잠근다.
 
-견인 중(`Carried`)에는 더하지 않는다. `CarriedPartMass` 는 크기와 무관하게 "플레이어를
+견인 중(`Carried`)에는 더하지 않는다. `CarriedPartMass`는 크기와 무관하게 "플레이어를
 압사시키지 않는 값" 이라 파츠 질량조차 무시하는 자리인데, 여기에 비드 무게를 더하면
 비드를 쌓은 파츠만 견인이 달라진다.
 
@@ -87,7 +97,9 @@ Unity 가 자식 콜라이더에서 자동 계산하고, S15P21B202-166 이 파�
 이미 쌓인 비드는 <b>씨앗으로 쓰지 않는다</b>. 비드 위에서 새 기둥이 시작되면 사슬
 길이 상한이 무의미해진다.
 
-## 상한 셋이 곧 게임 규칙이다
+<a id="상한-셋이-곧-게임-규칙이다"></a>
+
+## 비드 성장의 세 가지 상한
 
 | 상한 | 값 | 뜻 |
 | --- | --- | --- |
@@ -110,11 +122,11 @@ Unity 가 자식 콜라이더에서 자동 계산하고, S15P21B202-166 이 파�
 
 ## 겉모습 — 에셋이 필요하지 않다
 
-`Prim.Ball` 로 만든 구 하나에 금속색을 줬다. 이 프로젝트의 다른 외형도 모두 코드로
-만든 도형이고(`Prim.Box/Ball/Pipe`, `Puff`), `Prim.Dough` 가 색·광택별로 머티리얼을
+`Prim.Ball`로 만든 구 하나에 금속색을 줬다. 이 프로젝트의 다른 외형도 모두 코드로
+만든 도형이고(`Prim.Box/Ball/Pipe`, `Puff`), `Prim.Dough`가 색·광택별로 머티리얼을
 공유하므로 48개를 만들어도 머티리얼은 하나다.
 
-[Art] 가 실제 비드 메시(울퉁불퉁한 금속, 불탄 자국 텍스처)를 주면 `SpawnBlob` 의
+[Art] 가 실제 비드 메시(울퉁불퉁한 금속, 불탄 자국 텍스처)를 주면 `SpawnBlob`의
 `Prim.Ball` 자리만 바꾼다.
 
 ## 절단으로 되돌린다
@@ -129,31 +141,31 @@ Unity 가 자식 콜라이더에서 자동 계산하고, S15P21B202-166 이 파�
 
 `WeldBeadTests` <b>25개 전부 통과</b>. EditMode 전체 383개 중 378 통과.
 
-실패 5개는 <b>develop 에 이미 있던 것</b>이다. develop(f153ede)만 체크아웃해 같은 다섯
+실패 5개는 <b>develop에 이미 있던 것</b>이다. develop(f153ede)만 체크아웃해 같은 다섯
 개를 돌려 다섯 개가 그대로 실패하는 것을 확인했다.
 
 | 실패 | 원인 | 몫 |
 | --- | --- | --- |
-| `PartClampTests.Pull_TakesThePlannedTime` | `4abb9c9` 가 `ClampPullSeconds` 를 8초→2초로 바꿨다 ("디버깅을 위한") | [Character] |
+| `PartClampTests.Pull_TakesThePlannedTime` | `4abb9c9`가 `ClampPullSeconds`를 8초→2초로 바꿨다 ("디버깅을 위한") | [Character] |
 | `ClampPullTests.GrabbingAgain_ContinuesFromWhereItStopped` | 같은 원인 — 2초는 한 스텝에 끝나 중간 상태가 생기지 않는다 | [Character] |
 | `ClampPullTests.LastClamp_KnocksThePlayerBackAndItGetsUp` | 같은 원인 | [Character] |
 | `DownedRescueTests.PlayerKnockedBackByLastClamp_StillGetsUpByItself` | 같은 원인 | [Character] |
 | `TractorBeamControllerTests.VehicleDrive_...` | S15P21B202-218 부터 실패 중 | [Character] |
 
-`ClampPullSeconds` 의 XML 주석은 아직 "기획 §12.2 의 '일반 1명 약 8초'" 라고 적혀 있다.
+`ClampPullSeconds`의 XML 주석은 아직 "기획 §12.2 의 '일반 1명 약 8초'" 라고 적혀 있다.
 값과 주석과 기획이 서로 어긋난 상태이므로 따로 정리가 필요하다.
 
 ### 실제 파츠에서도 확인했다
 
 이 이슈가 손대는 것이 파츠의 콜라이더 구성이므로, 검증 리그의 상자 하나가 아니라
-`PartSpec` 의 실측 상자로 만든 컴파운드 콜라이더 파츠에서도 잠갔다
+`PartSpec`의 실측 상자로 만든 컴파운드 콜라이더 파츠에서도 잠갔다
 (`BeadsGrowOnARealPart_AndItsCenterOfMassStaysBelowCenter`). 실측 질량에 비드 무게가
 더해지고, S15P21B202-166 이 세운 "무게중심이 파츠 중심보다 아래" 가 위에 비드를 쌓은
 뒤에도 유지된다.
 
 ## 인게임 확인은 못 했다 — 빌드가 develop 에서 깨져 있다
 
-윈도우 빌드가 `UrpRenderValidation` 에서 멈춘다. 원인 두 개 모두 내가 건드리지 않은
+윈도우 빌드가 `UrpRenderValidation`에서 멈춘다. 원인 두 개 모두 내가 건드리지 않은
 자산이다.
 
 ### 1. 지형 자산이 체크아웃에서 깨진다
@@ -164,7 +176,7 @@ Unknown error occurred while loading
 Invalid serialized file header.
 ```
 
-`.gitattributes:4` 의 `*.asset text` 가 <b>바이너리</b> TerrainData 를 텍스트로 보고
+`.gitattributes:4`의 `*.asset text`가 <b>바이너리</b> TerrainData를 텍스트로 보고
 체크아웃할 때 개행을 변환한다. 실측:
 
 ```
@@ -182,7 +194,7 @@ git check-attr text → text: set
 METAGAME/Assets/_Project/Terrain/**/*.asset -text
 ```
 
-`.gitattributes` 는 [Infra] 소유이고 모든 팀원의 체크아웃에 영향을 주므로 <b>아직
+`.gitattributes`는 [Infra] 소유이고 모든 팀원의 체크아웃에 영향을 주므로 <b>아직
 적용하지 않았다</b>. 승인이 필요하다.
 
 ### 2. 로비 씬이 공용 URP Volume Profile 을 참조하지 않는다
@@ -195,12 +207,14 @@ METAGAME/Assets/_Project/Terrain/**/*.asset -text
 (`465493d`)과 로비 매치 진입(`!161`) 사이에 생긴 빈틈이고 [Art]·[Level]·[Network]
 몫이다.
 
-## 다음
+<a id="다음"></a>
+
+## 후속 작업
 
 | 항목 | 몫 |
 | --- | --- |
 | 비드가 다른 몸체에 닿으면 접합, 강도는 비드 양으로 | 이 스택의 2/4 |
 | 탑 판정을 소켓 사슬에서 조인트 그래프로 | 3/4 — 가장 위험 |
 | 원형 접합선 제거와 검증 이관 | 4/4 |
-| 불꽃과 용접음 | [Art] · [Sound] — `BeadProgressed` 에 붙인다 |
-| 실제 비드 메시 | [Art] — `SpawnBlob` 의 `Prim.Ball` 자리 |
+| 불꽃과 용접음 | [Art] · [Sound] — `BeadProgressed`에 붙인다 |
+| 실제 비드 메시 | [Art] — `SpawnBlob`의 `Prim.Ball` 자리 |

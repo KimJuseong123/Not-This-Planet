@@ -1,9 +1,15 @@
 # S15P21B202-162 — 게임 서버 운영 절차 (EC2)
 
-Mirror 게임 서버를 EC2 에서 돌리는 절차. 빌드 → 전송 → 실행 → 방화벽 → 로그까지 한 장.
+[문서 안내](../README.md) → [작업 기록](README.md) → 서버·배포
 
-`-145 §4` 의 결정을 그대로 따른다. **내 PC 는 서버가 아니다**(§4-6) — 이슈 제목의
-"내 PC 에서 운영" 은 EC2 를 받기 전에 쓴 것이고, 지금은 EC2 가 서버다.
+EC2의 Mirror 전용 게임 서버를 빌드·전송·실행하고 포트와 로그를 확인하는 운영 기록입니다. 이후 리슨 서버·릴레이로 매치 경로가 변경되었으므로 현재 구성은 -145·-299와 대조합니다.
+
+본문의 “현재”, 검증 수치, 미완료 항목은 **기록 당시 기준**입니다. 후속 변경은 관련 이슈와 [주제별 색인](README.md)을 함께 확인합니다.
+
+Mirror 게임 서버를 EC2에서 돌리는 절차. 빌드 → 전송 → 실행 → 방화벽 → 로그까지 한 장.
+
+`-145 §4`의 결정을 그대로 따른다. **내 PC는 서버가 아니다**(§4-6) — 이슈 제목의
+"내 PC에서 운영" 은 EC2를 받기 전에 쓴 것이고, 지금은 EC2가 서버다.
 
 ## 0. 한눈에
 
@@ -14,26 +20,26 @@ Mirror 게임 서버를 EC2 에서 돌리는 절차. 빌드 → 전송 → 실�
 | 게임 서버 실행 파일 | `/opt/metagame/MetaGameServer.x86_64` |
 | 로그 | `journalctl -u metagame -f` |
 
-게임 서버가 Spring 과 **같은 호스트**여야 한다. 로비가 "게임 시작" 을 누를 때
+게임 서버가 Spring과 **같은 호스트**여야 한다. 로비가 "게임 시작" 을 누를 때
 로비에 입력된 주소의 호스트를 그대로 게임 서버 주소로 쓰기 때문이다
 (`LobbyBootstrap.EnterMatch`).
 
 ## 1. 포트 — 17777/UDP
 
-`-145 §4-3` 이 정한 값. **세 곳이 같아야 한다.**
+`-145 §4-3`이 정한 값. **세 곳이 같아야 한다.**
 
 | # | 어디 | 값 |
 | --- | --- | --- |
 | ① | EC2 방화벽 | `sudo ufw allow 17777/udp` |
-| ② | `Lobby.unity` 의 `KcpTransport.port` | `17777` |
+| ② | `Lobby.unity`의 `KcpTransport.port` | `17777` |
 | ③ | 클라이언트 | ②와 같은 빌드를 쓰므로 자동 |
 
-②는 이 브랜치에서 `7777` → `17777` 로 바꿨다. 7777 은 Mirror 기본값이고
+②는 이 브랜치에서 `7777` → `17777`로 바꿨다. 7777 은 Mirror 기본값이고
 EC2 지급 안내가 기본 포트 변경을 요구한다. **하나만 바꾸면 조용히 접속에 실패한다.**
 
 ## 2. 서버 빌드 (내 PC, 수동)
 
-`-145 §4-4` 는 CI(GameCI)에서 만드는 것을 목표로 하지만 그것은 `-143` 이다.
+`-145 §4-4`는 CI(GameCI)에서 만드는 것을 목표로 하지만 그것은 `-143` 이다.
 지금은 수동이다.
 
 ### 2-1. 먼저 — Unity 모듈이 필요하다 (2026-09-01 확인)
@@ -45,12 +51,12 @@ EC2 지급 안내가 기본 포트 변경을 요구한다. **하나만 바꾸면
 [Postprocess built player] UnityException: Build target 'StandaloneLinux64' not supported
 ```
 
-`PlaybackEngines/LinuxStandaloneSupport/Variations` 를 보면 **서버 플레이어 파일은
+`PlaybackEngines/LinuxStandaloneSupport/Variations`를 보면 **서버 플레이어 파일은
 있는데**(`linux64_server_nondevelopment_mono` 70 MB 등) 일반 플레이어 쪽은 200 KB
 남짓한 껍데기다. 즉 설치가 반쯤 되어 있다.
 
 **해결** — Unity Hub → Installs → `6000.5.4f1` → ⚙ → Add modules →
-**Linux Build Support (Mono)** 만 설치한다. 설치 중에는 Unity 를 닫아야 할 수 있다.
+**Linux Build Support (Mono)**만 설치한다. 설치 중에는 Unity를 닫아야 할 수 있다.
 
 > **Dedicated Server 모듈은 쓰지 않는다.** Unity 6.5 이상에서는 Hub 가 설치를 막는다
 > (2026-09-01 확인). 필요도 없다 — Dedicated Server 는 그래픽 코드를 덜어내는
@@ -76,7 +82,7 @@ EC2 지급 안내가 기본 포트 변경을 요구한다. **하나만 바꾸면
 
 ## 3. 전송
 
-**내 PC 의 PowerShell** 에서 (EC2 안이 아니다 — 프롬프트가 `PS C:\...>` 인지 볼 것):
+**내 PC 의 PowerShell**에서 (EC2 안이 아니다 — 프롬프트가 `PS C:\...>` 인지 볼 것):
 
 ```powershell
 cd C:\Users\SSAFY\Desktop
@@ -96,7 +102,7 @@ rm ~/metagame-server.tar.gz
 
 ## 3-1. 함정 — `-nographics` 만으로는 리눅스에서 죽는다 (2026-09-01 실측)
 
-EC2 에서 서버가 **1초 만에 SIGSEGV 로 죽고** systemd 가 5초마다 되살리는 것을
+EC2에서 서버가 **1초 만에 SIGSEGV로 죽고** systemd가 5초마다 되살리는 것을
 50번 반복했다. 로그는 여기서 끊긴다:
 
 ```
@@ -110,16 +116,16 @@ Obtained 5 stack frames.
 
 매니지드 스택이 없다 — 네이티브에서 죽는 것이라 C# 의 try/catch 로는 잡히지 않는다.
 
-**원인**: Unity 리눅스 플레이어는 `-nographics` 를 줘도 창(SDL) 백엔드를 건드린다.
+**원인**: Unity 리눅스 플레이어는 `-nographics`를 줘도 창(SDL) 백엔드를 건드린다.
 화면이 없는 서버에서는 그 지점에서 넘어진다.
 
-**해결**: 가상 디스플레이(`xvfb`)를 물리고 **`-nographics` 를 뺀다.**
+**해결**: 가상 디스플레이(`xvfb`)를 물리고 **`-nographics`를 뺀다.**
 
 ```bash
 sudo apt-get install -y xvfb
 ```
 
-`ExecStart` 를 `xvfb-run -a` 로 감싼다(§4 참조).
+`ExecStart`를 `xvfb-run -a`로 감싼다(§4 참조).
 
 **먼저 지운 오답들** — 같은 증상에서 다시 의심하지 않도록 적어 둔다:
 
@@ -128,9 +134,9 @@ sudo apt-get install -y xvfb
 | 깨진 `TD_Stage1_Arena.asset` | ✗ Main 씬이 참조하지 않는다(참조 0) |
 | 코드 스트리핑(릴리스 빌드) | ✗ 개발 빌드도 똑같이 죽었다 |
 | 손으로 쓴 `PF_WorldSync.prefab` | ✗ 없애도 똑같이 죽었다 (그래도 스폰 핸들러 방식이 더 나아 그대로 둠) |
-| 빠진 공유 라이브러리 | ✗ `ldd` 에 `not found` 없음 |
-| 폰트 없음(IMGUI 의 `Font.CreateDynamicFontFromOSFont`) | ✗ `fontconfig`·`fonts-nanum` 을 깔아도 똑같이 죽었다 |
-| **창 백엔드 없음** | **✓ `xvfb-run` 으로 해결** |
+| 빠진 공유 라이브러리 | ✗ `ldd`에 `not found` 없음 |
+| 폰트 없음(IMGUI의 `Font.CreateDynamicFontFromOSFont`) | ✗ `fontconfig`·`fonts-nanum`을 깔아도 똑같이 죽었다 |
+| **창 백엔드 없음** | **✓ `xvfb-run`으로 해결** |
 
 **가려내는 법**: `-server` 없이 맨손으로 띄워 본다. 그래도 죽으면 씬·네트워크와
 무관하고 플레이어 자체가 못 뜨는 것이다.
@@ -140,7 +146,7 @@ cd /opt/metagame
 timeout 20 ./MetaGameServer.x86_64 -batchmode -logFile /tmp/mg.log ; echo "종료코드 $?"
 ```
 
-**124** = timeout 이 정상 종료시킴(= 살아 있었다). **139** = SIGSEGV.
+**124** = timeout이 정상 종료시킴(= 살아 있었다). **139** = SIGSEGV.
 
 ## 4. systemd 유닛
 
@@ -172,7 +178,7 @@ sudo systemctl enable --now metagame
 sudo systemctl status metagame --no-pager
 ```
 
-**`-roomId` 를 주지 않았다.** 주면 그 방 하나만 받는다. 지금은 서버가 하나뿐이라
+**`-roomId`를 주지 않았다.** 주면 그 방 하나만 받는다. 지금은 서버가 하나뿐이라
 어느 방이든 받게 열어 둔다 — 대신 **방이 둘 이상이면 모두 같은 세계로 들어간다.**
 시연이 한 팀이면 문제없고, 여러 팀을 동시에 받으려면 방마다 서버를 띄워야 한다.
 
@@ -183,7 +189,7 @@ sudo ufw allow 17777/udp
 sudo ufw status numbered
 ```
 
-`-145 §4-3`: **UFW 가 실제 게이트다.** enable 은 유지한다.
+`-145 §4-3`: **UFW가 실제 게이트다.** enable은 유지한다.
 
 ## 6. 확인
 
@@ -195,7 +201,7 @@ sudo ss -ulnp | grep 17777
 journalctl -u metagame -f
 ```
 
-내 PC 에서 밖에서 닿는지:
+내 PC에서 밖에서 닿는지:
 
 ```powershell
 Test-NetConnection j15b202.p.ssafy.io -Port 17777 -InformationLevel Detailed
@@ -214,13 +220,13 @@ Test-NetConnection j15b202.p.ssafy.io -Port 17777 -InformationLevel Detailed
 | --- | --- | --- |
 | 로비에서 "게임 시작" 이 반응 없음 | 게임 서버가 안 떠 있음 | `systemctl status metagame` |
 | 접속이 조용히 실패 | 포트 세 곳 중 하나가 다름 | §1 표를 다시 대조 |
-| 서버는 떴는데 아무도 못 붙음 | UFW | `sudo ufw status` 에 17777/udp 있는지 |
-| 붙자마자 끊김 | 토큰 확인 실패 | `journalctl` 에 `/auth/verify` 응답 확인 |
-| UDP 자체가 막힘 | 망 정책 | `-145 §4-3` 의 예비안 — `SimpleWebTransport` 로 wss(443) |
+| 서버는 떴는데 아무도 못 붙음 | UFW | `sudo ufw status`에 17777/udp 있는지 |
+| 붙자마자 끊김 | 토큰 확인 실패 | `journalctl`에 `/auth/verify` 응답 확인 |
+| UDP 자체가 막힘 | 망 정책 | `-145 §4-3`의 예비안 — `SimpleWebTransport`로 wss(443) |
 
 ## 9. 남은 것
 
 - **`-55`**: 지금은 맵에서 떨어지면 되돌아오지 않는다. 서버에 낙사 판정이 없다.
   이번 테스트는 "떨어지지 않기" 로 피한다.
-- **`-143`**: 이 절차의 빌드·전송을 CI 로 옮긴다.
+- **`-143`**: 이 절차의 빌드·전송을 CI로 옮긴다.
 - 스왑 0 이므로 4 인 접속 뒤 메모리를 보고 필요하면 2 GB 확보(`-145 §4-5`).

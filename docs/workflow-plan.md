@@ -1,13 +1,35 @@
-# METAGAME 워크플로우 구현 계획
+# 초기 워크플로우 설계와 도입 기록
+
+2026-08-26~27에 협업 절차를 설계하면서 검토한 대안, 권한 제약, 구현 단계와 검증 출처를 보관합니다. 아래의 Task 단일 유형·시간 환산 포인트·파트 9종·브랜치 보호 계획은 당시 기준이며 이후 변경되었습니다. 현재 작업에는 [Jira](jira-convention.md)·[Git](git-convention.md)·[파트](parts.md) 문서를 적용합니다.
+
+[문서 안내](README.md) · 현재 절차: [작업 흐름](workflow.md)
 
 > **상태: v1.1 — 확정·적용 완료 (2026-08-27).** 0단계(Jira 자동화 8개 · GitLab 보호 브랜치/머지 설정 · 템플릿 · 훅)를 적용하고 E2E로 검증했다(결과: [jira-gitlab-automation.md §8](./jira-gitlab-automation.md)). 남은 것은 팀장 머지(R6 검증)와 1·2단계(러너). 아래는 v1.0 확정 당시 내용으로, 각 구현 항목의 실현 가능성을
-> 공식 문서로 검증한 결과를 붙였다. 이 문서가 기준이며, 컨벤션 문서(`jira-convention.md`, `git-convention.md`,
-> `jira-gitlab-automation.md`)는 이 문서에 맞춰 갱신되어 있다.
+> 공식 문서로 검증한 결과를 붙였다. 확정 당시에는 이 문서가 기준이었으며, 컨벤션 문서(`jira-convention.md`, `git-convention.md`,
+> `jira-gitlab-automation.md`)는 이 문서에 맞춰 작성했다.
 >
 > ⚠️ **이 문서는 결정 근거의 기록**이다. 지금 지켜야 하는 규칙은 [conventions.md](./conventions.md) 와 각 컨벤션 문서를 본다. 특히 본문의 파트 태그 **9종**은 v1.0 당시 값이며 2026-08-27 에 **13종**으로 늘었다([parts.md](./parts.md)).
 
 > **검증 범례** — ✅ 공식 문서·실제 동작으로 확인됨 · ⚠ 조건부: 우리 환경(Jira 플랜·프로젝트 유형·GitLab 티어) 확인 후 확정 ·
 > ❌ 불가: 대안으로 대체함. 출처는 부록 D.
+
+**이 문서의 내용**
+
+- [0. 전체 흐름 한 장](#section-1)
+- [PART 1 · Jira 작성](#section-2)
+- [PART 2 · 브랜치 → 작업 → MR](#section-3)
+- [PART 3 · MR → develop 머지](#section-4)
+- [4. 검증 결과 총괄](#section-5)
+- [5. 구현 단계 — 확정](#section-6)
+- [6. 환경 확인 체크리스트 (0-0) — ✅ 확인 완료, 결과는 표의 굵은 글씨](#section-7)
+- [7. 갱신된 문서 (v1.0 당시)](#section-8)
+- [8. 권한 제약 하 운영 모드 (2026-08-26 결정)](#section-9)
+- [부록 A · Jira Automation 규칙 명세 (한도 절약형 — 트리거 1개에 액션 묶음)](#section-10)
+- [부록 B · GitLab 프로젝트 설정 (Free 티어 기준)](#section-11)
+- [부록 C · CI 잡 명세 (1·2단계)](#section-12)
+- [부록 D · 검증 출처](#section-13)
+
+<a id="section-1"></a>
 
 ## 0. 전체 흐름 한 장
 
@@ -37,6 +59,8 @@
 **원칙:** 기계가 검사할 수 있는 것은 전부 기계가 하고, 사람(팀장)은 *판단*이 필요한 것만 본다.
 
 ---
+
+<a id="section-2"></a>
 
 ## PART 1 · Jira 작성
 
@@ -95,11 +119,13 @@
 
 ---
 
+<a id="section-3"></a>
+
 ## PART 2 · 브랜치 → 작업 → MR
 
 ### 2.1 모든 이슈는 브랜치를 가진다 (비코드 포함) ✅ 팀 결정
 기획 문서·프로토타입·리서치·회의도 브랜치 → MR → 머지. 브랜치에는 최소 §2.6의 작업 기록 1장.
-**근거:** ① Jira는 프로젝트 후 접근이 끊기지만 리포는 남는다 ② 포트폴리오 증거 = MR 목록 ③ 단일 흐름이 자동화를 단순하게 한다.
+**근거:** ① Jira는 프로젝트 후 접근이 끊기지만 저장소는 남는다 ② 포트폴리오 증거 = MR 목록 ③ 단일 흐름이 자동화를 단순하게 한다.
 **비용:** 기록성 MR도 팀장 승인이 필요 → 항목 1개만 보는 빠른 승인 경로(§3.3).
 
 ### 2.2 상태 3개, 전환은 이벤트가 만든다 ✅ 팀 결정
@@ -120,7 +146,7 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 
 | 겹 | 방법 | 검증 | 조건 |
 | --- | --- | --- | --- |
-| **1. 되돌림 (R5)** | 트리거 `Issue transitioned → 진행 중`. 규칙 상세의 "다른 규칙의 액션이 이 규칙을 트리거하도록 허용"을 **끔** → R4(자동화)가 옮긴 전환에는 발동하지 않고 사람이 끈 경우에만 발동. 조건: **JQL `(development[commits].all > 0 OR development[pullrequests].all > 0)`** 로 연결된 브랜치 존재 여부 판별(If/Else). 없으면 → `해야 할 일`로 되돌리고 코멘트. 스프린트·스토리 포인트 비어 있어도 되돌림 | ❌ Jira Cloud JQL에는 `development[branches]` 속성이 **없다**(2026-08-26 실측: builds·commits·reviews·pullrequests만). v0.2의 `{{issue.development.branch.count}}` 스마트 값도 미문서 → 둘 다 폐기. ✅ 대신 **이슈 키가 든 커밋 또는 MR 존재**(`development[commits].all > 0 OR development[pullrequests].all > 0`)로 판별 — 정상 경로는 R4가 처리하므로 R5는 "제목 수정 후 커밋을 이미 올린" 예외 경로만 통과시키면 된다. `{{initiator}}`는 보조 조건으로 사용 가능 | 프로젝트 자동화 편집 권한(있음) |
+| **1. 되돌림 (R5)** | 트리거 `Issue transitioned → 진행 중`. 규칙 상세의 "다른 규칙의 액션이 이 규칙을 트리거하도록 허용"을 **끔** → R4(자동화)가 옮긴 전환에는 발동하지 않고 사람이 끈 경우에만 발동. 조건: **JQL `(development[commits].all > 0 OR development[pullrequests].all > 0)`**로 연결된 브랜치 존재 여부 판별(If/Else). 없으면 → `해야 할 일`로 되돌리고 코멘트. 스프린트·스토리 포인트 비어 있어도 되돌림 | ❌ Jira Cloud JQL에는 `development[branches]` 속성이 **없다**(2026-08-26 실측: builds·commits·reviews·pullrequests만). v0.2의 `{{issue.development.branch.count}}` 스마트 값도 미문서 → 둘 다 폐기. ✅ 대신 **이슈 키가 든 커밋 또는 MR 존재**(`development[commits].all > 0 OR development[pullrequests].all > 0`)로 판별 — 정상 경로는 R4가 처리하므로 R5는 "제목 수정 후 커밋을 이미 올린" 예외 경로만 통과시키면 된다. `{{initiator}}`는 보조 조건으로 사용 가능 | 프로젝트 자동화 편집 권한(있음) |
 | **2. 전환 제한** | **회사 관리형:** 전환 `해야 할 일 → 진행 중`에 조건 **"User is in project role: `atlassian-addons-project-access`"** — 기본 실행자 "Automation for Jira"가 이 역할에 속함. ❌ "Hide transition from user" 조건은 자동화도 막으므로 사용 금지. **팀 관리형:** 규칙 "이슈 이동 제한(Restrict who can move)"에 "Automation for Jira"를 선택할 수 없음(JRACLOUD 미해결) → **R4·R6의 실행자를 [Infra] 실계정으로 지정하고 그 계정만 허용** | ⚠ 프로젝트 유형·워크플로우 편집 권한 확인 후. 팀 관리형은 프로젝트 관리자로 가능, 회사 관리형은 Jira 관리자 필요 | 권한 확인 |
 | **완료도 동일 (R9)** | `Issue transitioned → 완료`, 트리거 허용 끔 → 사람이 끈 경우에만 → **무조건** `진행 중`으로 되돌림 + "완료는 MR 머지로만". 모든 이슈가 MR을 갖기로 했으므로 수동 완료의 정당한 경우가 없다 | ✅ dev-info 조건 불필요. (Cloud JQL은 `development[pullrequests].merged`를 지원하지 않아 머지 여부 판별은 불가 — 그래서 무조건 되돌림) | — |
 
@@ -146,8 +172,8 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 | `master` | No one | Maintainers | off | 릴리즈 MR만 |
 
 - **검증:** 여러 규칙이 겹치면 **가장 허용적인 규칙**이 적용됨(공식). 와일드카드 보호는 push뿐 아니라 **생성**도 제한하며, "push: No one"이어도 "merge" 권한이 있으면 생성 가능하므로 `*`는 **둘 다 No one**이어야 한다(공식). 보호 브랜치는 Free 티어.
-- **비용 (반드시 인지):** 작업 브랜치가 보호 대상이 되므로 머지 시 "소스 브랜치 삭제"가 비활성된다. → **실제로 이 비용이 커서 2026-08-27 `*`·`S15P21B202-*` 규칙을 삭제**했다(CI mr-lint 가 이름 규칙을 대신 검사). 이제 머지 시 자동 삭제 ON.
-- **되돌리기:** 이 비용이 크다고 판단되면 `*` 규칙 하나만 지우면 서버 강제만 사라지고 나머지(훅·CI·Jira)는 그대로다.
+- **비용 (반드시 인지):** 작업 브랜치가 보호 대상이 되므로 머지 시 "소스 브랜치 삭제"가 비활성된다. → **실제로 이 비용이 커서 2026-08-27 `*`·`S15P21B202-*` 규칙을 삭제**했다(CI mr-lint가 이름 규칙을 대신 검사). 이제 머지 시 자동 삭제 ON.
+- **되돌리기:**이 비용이 크다고 판단되면 `*` 규칙 하나만 지우면 서버 강제만 사라지고 나머지(훅·CI·Jira)는 그대로다.
 - Jira "브랜치 만들기"가 제안하는 이름 `KEY-번호-…`는 `S15P21B202-*`에 걸리므로 그대로 통과한다.
 
 ### 2.6 브랜치명 · 산출물 · MR — 확정
@@ -157,6 +183,8 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 - **MR:** `.gitlab/merge_request_templates/Default.md` 자동 적용(✅ Free, `Default.md` 파일명 자동 인식). 제목 `[파트] type: 요약 (KEY-번호)`. 대상 `develop`. **Draft MR 금지** — MR 생성 = 리뷰 요청.
 
 ---
+
+<a id="section-4"></a>
 
 ## PART 3 · MR → develop 머지
 
@@ -168,7 +196,7 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 | 방법 | 검증 | 결론 |
 | --- | --- | --- |
 | GitLab "필수 승인 수 = 1" | ❌ **Free에서는 승인이 선택 사항** — 승인 없이도 머지 가능. 필수 승인·승인 규칙·작성자 자기 승인 방지 등은 전부 Premium | 사용 불가 (lab.ssafy.com이 Premium이면 추가) |
-| **develop 보호 브랜치 "Allowed to merge = Maintainers"** | ✅ Free | **채택.** Maintainer = 팀장 + [Infra](설정용). 팀장의 머지 클릭 = 승인. [Infra]는 §3.5 대리 규칙 외에는 머지하지 않는다 |
+| **develop 보호 브랜치 "Allowed to merge = Maintainers"** | ✅ Free | **채택.** Maintainer = 팀장 + [Infra] (설정용). 팀장의 머지 클릭 = 승인. [Infra]는 §3.5 대리 규칙 외에는 머지하지 않는다 |
 | "All threads must be resolved" | ✅ Free (Settings → Merge requests → Merge checks) | 채택 |
 | "Pipelines must succeed" | ✅ Free. 파이프라인이 없으면 머지가 막히므로 **러너 확보 후(1-c)** 켠다. "Skipped pipelines are considered successful" 옵션 있음 | 1단계에서 채택 |
 | Squash 기본 체크 · 소스 브랜치 삭제 기본값 | ✅ Free | 채택 (삭제는 §2.5 비용 참고) |
@@ -191,7 +219,7 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 | 단계 | 검사 | 도구 | 차단 | 선행 조건 |
 | --- | --- | --- | --- | --- |
 | **0 (지금)** | Jira 규칙 R1~R9 · 보호 브랜치 · 머지 체크(스레드) · 훅 | Jira Automation · GitLab 설정 · `.githooks/pre-push` | 전환 되돌림 / 브랜치 생성 거부 / push 거부 | 없음 |
-| **1 (러너 후)** | MR 린트(제목·브랜치·Jira 키 **실존 확인**·템플릿 섹션·체크박스) · 리포 위생(`.meta` 짝, 금지 경로, LFS 포인터) | GitLab CI | 머지 차단 ("Pipelines must succeed") | GitLab Runner 1대(⚠ lab.ssafy.com 공유 러너 유무 확인), Jira API 토큰(읽기, CI 변수) |
+| **1 (러너 후)** | MR 린트(제목·브랜치·Jira 키 **실존 확인**·템플릿 섹션·체크박스) · 저장소 위생(`.meta` 짝, 금지 경로, LFS 포인터) | GitLab CI | 머지 차단 ("Pipelines must succeed") | GitLab Runner 1대(⚠ lab.ssafy.com 공유 러너 유무 확인), Jira API 토큰(읽기, CI 변수) |
 | **2** | Unity 컴파일 · EditMode 테스트 | Windows 러너 `Unity.exe -batchmode -runTests -testPlatform EditMode -testResults …` | 머너 차단 | Unity 설치된 러너 PC (✅ CLI 인자 공식 문서 확인) |
 | 2 | AI 리뷰 코멘트 | CI + Anthropic API | **비차단** | API 키(마스킹 변수) · 비용 |
 
@@ -199,6 +227,8 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 응답 SLA **업무 시간 24h** · 불가 시 **해당 Epic 담당 파트원**이 대리 머지(그 사람에게 임시 Maintainer 부여 → 필요 시에만) · MR 크기 1~3일/13pt · 측정: 열린 MR 경과 시간·주간 머지 수 · 재검토: 스프린트 3회 후 또는 대기 48h 초과 2주 연속.
 
 ---
+
+<a id="section-5"></a>
 
 ## 4. 검증 결과 총괄
 
@@ -209,7 +239,7 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 | 3 | 진행 중은 브랜치로만 — 전환 제한 | ⚠ 프로젝트 유형·권한 확인 | 회사형: 역할 조건 / 팀형: 실행자 = [Infra] 계정 |
 | 4 | 완료는 머지로만 | ✅ 무조건 되돌림 (+전환 제한) | R9 |
 | 5 | "브랜치는 Jira 버튼으로만" | ❌ 구분 불가 → **이름 강제**로 대체 | §2.4 |
-| 6 | 이슈 키 없는 브랜치 서버에서 거부 | ✅ 가능(와일드카드 보호) → **08-27 해제** | 자동 삭제 불가 비용 때문. CI mr-lint 가 대체 |
+| 6 | 이슈 키 없는 브랜치 서버에서 거부 | ✅ 가능(와일드카드 보호) → **08-27 해제** | 자동 삭제 불가 비용 때문. CI mr-lint가 대체 |
 | 7 | 이슈 키 실존 확인 | ❌ 서버 불가 → CI 린트 | 1단계 |
 | 8 | 팀장 승인 필수 | ❌ Free 승인 필수 불가 → **머지 권한 제한** | develop merge = Maintainers |
 | 9 | 스레드 해결 필수 · 파이프라인 성공 필수 · squash · 템플릿 자동 적용 | ✅ Free | 부록 B |
@@ -220,6 +250,8 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 | 14 | Automation 월 한도 | ⚠ **플랜 확인 필수.** Free면 자동화 불가 | §1.5 |
 | 15 | 러너 없이 CI | ❌ → 러너 1대 필요 | 1-a |
 | 16 | Unity 테스트 CLI | ✅ | 2-a |
+
+<a id="section-6"></a>
 
 ## 5. 구현 단계 — 확정
 
@@ -236,11 +268,13 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 | 0-f | 각자 `git config core.hooksPath .githooks`, `git lfs install` | 전원 | — | — |
 | 0-g | **이 문서·컨벤션 문서를 첫 이슈/브랜치/MR로 올려 전 흐름 시연** | [Infra] → 팀장 승인 | 0-a~0-e | develop에 머지, Jira 완료 |
 | **1-a** | GitLab Runner 등록 (Unity 설치된 팀원 PC 또는 VM) | [Infra] + 제공자 | 0-0 | 러너 online |
-| 1-b | `.gitlab-ci.yml` `mr-lint`(Jira API로 키 실존 확인 포함) · `repo-hygiene` | [Infra] | 1-a | 위반 MR 빨간불 |
+| 1-b | `.gitlab-ci.yml` `mr-lint`(Jira API로 키 실존 확인 포함) · `repo-hygiene` | [Infra] | 1-a | 위반 MR 실패 표시 |
 | 1-c | "Pipelines must succeed" 켬 | [Infra] | 1-b 안정화 1주 | — |
 | **2-a** | Unity 컴파일·EditMode 잡 | [Infra] | Unity 러너 | 컴파일 에러 MR 차단 |
 | 2-b | AI 리뷰 코멘트 잡 (비차단) | [Infra] | API 키·비용 합의 | MR 자동 코멘트 |
 | 2-c | 정책 재검토 (§3.5) | 전원 | 스프린트 3회 | 회고 기록 |
+
+<a id="section-7"></a>
 
 ## 6. 환경 확인 체크리스트 (0-0) — ✅ 확인 완료, 결과는 표의 굵은 글씨
 
@@ -258,6 +292,8 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 | 사이트 레이블 | REST `label` | 142개(타 팀 것 포함). 우리 9종 + `needs-fix`는 신규 생성, 대소문자 정확히 |
 | Jira ↔ GitLab 연동 앱 | 이슈 화면 개발 패널 "브랜치 만들기" | ✅ 확인됨 (2026-08-25) |
 
+<a id="section-8"></a>
+
 ## 7. 갱신된 문서 (v1.0 당시)
 
 > 지금의 문서 목록·색인은 [docs/README.md](./README.md) 를 본다. 아래는 이 계획을 확정할 때 무엇을 함께 고쳤는지의 기록이다.
@@ -267,12 +303,14 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 | `docs/jira-convention.md` | 단일 흐름, 필수 필드·레이블·SP 척도, 진행 중/완료 진입 규칙 |
 | `docs/git-convention.md` | 브랜치 생성 = Jira 버튼, 서버 이름 강제, 브랜치 정리 규칙, MR·승인 규칙 |
 | `docs/jira-gitlab-automation.md` | 규칙 R1~R9 명세 + 전환 제한 + GitLab 설정 |
-| `docs/convention-proposal.md` | v1.2 요약으로 갱신 (2026-08-28 에 `docs/conventions.md` 로 이름 변경) |
+| `docs/convention-proposal.md` | v1.2 요약으로 갱신 (2026-08-28 에 `docs/conventions.md`로 이름 변경) |
 | `.gitlab/merge_request_templates/Default.md` · `docs/templates/*` | 유지 |
+
+<a id="section-9"></a>
 
 ## 8. 권한 제약 하 운영 모드 (2026-08-26 결정)
 
-[Infra](금준영)는 **GitLab Developer · Jira 일반 사용자**로 유지된다(승급 없음). 따라서 권한이 필요한 설정은 팀장(김수호, GitLab Maintainer)이 클릭하고, [Infra]는 그 외 전부를 준비·실행한다.
+[Infra] (금준영)는 **GitLab Developer · Jira 일반 사용자**로 유지된다(승급 없음). 따라서 권한이 필요한 설정은 팀장(김수호, GitLab Maintainer)이 클릭하고, [Infra]는 그 외 전부를 준비·실행한다.
 
 | 구분 | [Infra]가 직접 (지금) | 팀장 클릭 필요 (당시 팀장 체크리스트로 관리 — 지금은 [ci-cd-pipeline.md](./ci-cd-pipeline.md) §8) |
 | --- | --- | --- |
@@ -284,6 +322,8 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 - 자동화가 켜지기 전까지의 과도기: 상태 전환은 담당자가 직접 옮긴다(되돌림 규칙도 없으므로 브랜치 먼저 → 카드 이동 순서를 스크럼에서 확인).
 
 ---
+
+<a id="section-10"></a>
 
 ## 부록 A · Jira Automation 규칙 명세 (한도 절약형 — 트리거 1개에 액션 묶음)
 
@@ -307,9 +347,11 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 - R5·R9의 "다른 규칙의 액션이 이 규칙을 트리거하도록 허용" 체크박스는 **반드시 꺼 둔다** — 켜면 R4의 전환에 R5가 반응해 되돌림 루프가 된다.
 - 상태명은 보드 실제 표기(`해야 할 일`/`진행 중`/`완료`)와 일치시킬 것.
 
+<a id="section-11"></a>
+
 ## 부록 B · GitLab 프로젝트 설정 (Free 티어 기준)
 
-- [x] Settings → Repository → **Protected branches** — 현재 `master`·`develop`(push No one/merge Maintainers), `hotfix/S15P21B202-*`(Maintainers). `*`·`S15P21B202-*` 는 08-27 해제. Settings → Merge requests → "Delete source branch" 기본값 ON, squash 기본 ON
+- [x] Settings → Repository → **Protected branches** — 현재 `master`·`develop`(push No one/merge Maintainers), `hotfix/S15P21B202-*`(Maintainers). `*`·`S15P21B202-*`는 08-27 해제. Settings → Merge requests → "Delete source branch" 기본값 ON, squash 기본 ON
 - [ ] Settings → Repository → Default branch: `develop`
 - [ ] Settings → Merge requests → Merge method: Merge commit · Squash commits: **Encourage** · "Enable Delete source branch by default" ✔ (보호된 작업 브랜치에는 적용되지 않음 — §2.5)
 - [ ] Settings → Merge requests → Merge checks: **All threads must be resolved** ✔ · Pipelines must succeed (1-c에서) ✔ · Skipped pipelines are considered successful ✔
@@ -317,6 +359,8 @@ MR이 머지 없이 닫히면 상태 유지 + 코멘트(R7).
 - [ ] `.gitlab/merge_request_templates/Default.md` 자동 적용 확인
 - [ ] (Premium일 때만) Merge request approvals: Approvals required 1
 - [x] ~~주 1회 머지된 브랜치 삭제~~ → 08-27 부터 머지 시 자동 삭제. 해제 전 남은 브랜치는 팀 결정으로 유지
+
+<a id="section-12"></a>
 
 ## 부록 C · CI 잡 명세 (1·2단계)
 
@@ -348,6 +392,8 @@ ai-review:          # 2단계 — 비차단
 
 검사 규칙(mr-lint): 제목 `^\[(Plan|Art|UI|Sound|Character|Puzzle|Network|QA|Infra)\] (feat|fix|asset|refactor|docs|test|perf|build|chore)(\(.+\))?: .+ \([A-Z][A-Z0-9]+-[0-9]+\)$` ·
 소스 브랜치 `^(hotfix/)?[A-Z][A-Z0-9]+-[0-9]+(-[a-z0-9._-]+)?$` · 본문에 `## Jira`, `## 무엇을 · 왜`, `## 확인 방법`, `## 작성자 체크리스트` 존재 · `- [ ]` 잔존 시 실패 · Jira 키 GET 404 시 실패.
+
+<a id="section-13"></a>
 
 ## 부록 D · 검증 출처
 

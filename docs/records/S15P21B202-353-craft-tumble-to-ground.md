@@ -1,8 +1,16 @@
-# S15P21B202-353 운석이 탑승체를 직접 맞히면 기울어진 채 바닥까지 떨어진다
+# 운석 직접 충돌 후 탑승체 낙하 (S15P21B202-353)
+
+[문서 안내](../README.md) → [작업 기록](README.md) → 운석·환경
+
+-349의 기체 충격 반응을 운석 직접 충돌에 연결하고 기울어진 채 지면까지 떨어지도록 수정했습니다. 호버 고도와 폭발 반경의 차이, 회귀 검증·AI 리뷰 대응을 설명합니다.
+
+본문의 “현재”, 검증 수치, 미완료 항목은 **기록 당시 기준**입니다. 후속 변경은 관련 이슈와 [주제별 색인](README.md)을 함께 확인합니다.
 
 S15P21B202-349 위에 쌓았다.
 
-## 349 가 만든 것이 도달 불가였다
+<a id="349-가-만든-것이-도달-불가였다"></a>
+
+## 기존 충격 경로의 도달 조건 문제
 
 ```
 [지면 착탄] 기체 높이=7.99  착탄점=(1.50, 0, 0)  거리=8.13   (폭발 반경 2)
@@ -10,24 +18,26 @@ S15P21B202-349 위에 쌓았다.
 [지면 착탄] 6.0초 높이=7.99 기울기=0도            ← 아무 일도 없다
 ```
 
-`MeteorSmallImpactRadius` 가 2m 인데 호버 고도는 5~8m 다. 349 는 방아쇠를
-`Meteor.ApplyKnockback` 의 `OverlapSphere` 안에 붙였고, **떠 있는 기체는 그 구체에 절대
+`MeteorSmallImpactRadius`가 2m 인데 호버 고도는 5~8m 다. 349 는 방아쇠를
+`Meteor.ApplyKnockback`의 `OverlapSphere` 안에 붙였고, **떠 있는 기체는 그 구체에 절대
 들어오지 않는다.**
 
-## 고친 것 셋
+<a id="고친-것-셋"></a>
+
+## 세 가지 변경
 
 ### 1. 직접 충돌이 방아쇠다
 
-`Meteor.OnCollisionEnter` 는 기체와 부딪혀도 아무것도 하지 않았다.
+`Meteor.OnCollisionEnter`는 기체와 부딪혀도 아무것도 하지 않았다.
 
-1. `TryGetSupportContact` 가 **운반체를 명시적으로 건너뛴다** — "운석이 허공에 박힌 채
+1. `TryGetSupportContact`가 **운반체를 명시적으로 건너뛴다** — "운석이 허공에 박힌 채
    차량을 따라가는 문제" 때문에 넣은 예전 결정이다
 2. 지지점을 못 찾아 `direct` 분기로 간다
-3. 그 분기는 `PlayerRig` 만 본다. 기체는 해당 없음
-4. 그대로 돌아가 **순수 PhysX 충돌에 맡긴다** — 그것마저 `FreezeRotation` 과
-   `DriveHover` 가 지운다
+3. 그 분기는 `PlayerRig`만 본다. 기체는 해당 없음
+4. 그대로 돌아가 **순수 PhysX 충돌에 맡긴다** — 그것마저 `FreezeRotation`과
+   `DriveHover`가 지운다
 
-`TakeDirectMeteorImpact(point, meteorVelocity)` 를 만들어 그 분기에서 부른다. 세기는
+`TakeDirectMeteorImpact(point, meteorVelocity)`를 만들어 그 분기에서 부른다. 세기는
 운석의 **진행 방향**에서 오고, 회전은 무게중심에서 벗어난 만큼 생긴다(`arm × force`).
 정중앙을 맞으면 회전축이 0 이므로 진행 방향과 수직인 수평축으로 대체한다.
 
@@ -50,12 +60,12 @@ S15P21B202-349 위에 쌓았다.
 
 **사용자가 겪은 상황이 정확히 이것이다** — "타자마자 운석에 맞았다".
 
-판정 규칙을 `Meteor.CraftHitBy(collider, direct)` 로 떼어 냈다. `OnCollisionEnter` 는
-EditMode 에서 돌지 않으므로 규칙만이라도 검증할 수 있어야 한다.
+판정 규칙을 `Meteor.CraftHitBy(collider, direct)`로 떼어 냈다. `OnCollisionEnter`는
+EditMode에서 돌지 않으므로 규칙만이라도 검증할 수 있어야 한다.
 
 ### 3. 굴림이 착지까지 이어진다
 
-기획 §14.1 은 수평 회복을 **"충돌 후"** 로 정했다. 349 는 상한 2.2초가 지나면
+기획 §14.1 은 수평 회복을 **"충돌 후"**로 정했다. 349 는 상한 2.2초가 지나면
 **공중에서** 자세를 되찾고 호버가 그 고도를 잡았다 — 그래서 "쿵" 이 아니라 통제된
 하강으로 보였다.
 
@@ -70,19 +80,19 @@ Hover → (직접 충돌) → Tumbling (접지까지) → Righting (땅에서) �
 
 ### 4. 카메라가 함께 돈다
 
-`OrbitCamera` 가 `Quaternion.Euler(pitch, yaw, 0f)` 로 **roll 을 0 에 고정**했다.
+`OrbitCamera`가 `Quaternion.Euler(pitch, yaw, 0f)`로 **roll을 0 에 고정**했다.
 기준 회전을 앞에 곱한다.
 
 ```csharp
 Quaternion rot = viewTilt * Quaternion.Euler(pitch, yaw, 0f);
 ```
 
-**`ViewRotation` 은 건드리지 않았다.** 이동·조준은 계속 수평 기준이어야 한다 — 굴는
+**`ViewRotation`은 건드리지 않았다.** 이동·조준은 계속 수평 기준이어야 한다 — 굴는
 동안 조작이 뒤집히면 복구가 불가능해진다(굴림 중에는 입력을 무시하지만, 복구 중에는
 다시 받는다).
 
-`PlayerRig.SyncCameraTilt` 가 `MountedVehicle.LevelOffset` 을 매 스텝 넣는다.
-`MountedVehicle` 과 `Cam` 을 둘 다 아는 곳이 여기뿐이다 — 조종 컨트롤러에 두면 원격
+`PlayerRig.SyncCameraTilt`가 `MountedVehicle.LevelOffset`을 매 스텝 넣는다.
+`MountedVehicle`과 `Cam`을 둘 다 아는 곳이 여기뿐이다 — 조종 컨트롤러에 두면 원격
 플레이어나 컨트롤러가 없는 경로에서 빠진다.
 
 ## 검증
@@ -98,12 +108,12 @@ develop                : 816개 중 784 통과 / 32 실패
 ```
 
 늘어난 하나는 `TowerCollapseTests.Collapse_IsDeterministic` 이고 척도 수정이
-S15P21B202-345(MR !260)에 있다. 그 파일만 얹으면 실패 집합이 develop 과 같아지는 것을
+S15P21B202-345(MR !260)에 있다. 그 파일만 얹으면 실패 집합이 develop과 같아지는 것을
 확인했다 — 349 에서와 같다.
 
 ### 대조로 확인했다 — 그리고 두 번 헛돌았다
 
-| 무엇을 빼면 | 빨간불 |
+| 무엇을 빼면 | 실패 표시 |
 |---|---|
 | 접지 종료 조건 | `TheTumbleEndsOnTheStepItLands` |
 | 상한 시계를 되돌리지 않는 것 | `RepeatedHitsDoNotExtendTheSafetyCap` |
@@ -114,8 +124,8 @@ S15P21B202-345(MR !260)에 있다. 그 파일만 얹으면 실패 집합이 deve
 
 - **접지 종료** — "착지 뒤에 복구한다" 만 보면 상한으로 끝나도 통과한다. 어차피 그때는
   이미 바닥이기 때문이다. **닿는 그 스텝에** 끝나는지로 바꿨다
-- **카메라** — `ViewTilt` 값만 확인했는데 그것은 저장한 값이라 `LateUpdate` 의 곱셈을
-  빼도 통과했다. **카메라 `transform.rotation` 이 실제로 도는지**로 바꿨다
+- **카메라** — `ViewTilt` 값만 확인했는데 그것은 저장한 값이라 `LateUpdate`의 곱셈을
+  빼도 통과했다. **카메라 `transform.rotation`이 실제로 도는지**로 바꿨다
 
 349 에서 세 번, 345 에서 다섯 번, 여기서 두 번이다. **초록불은 무언가를 재고 있다는
 뜻이 아니다.**
@@ -123,8 +133,8 @@ S15P21B202-345(MR !260)에 있다. 그 파일만 얹으면 실패 집합이 deve
 ### 통합 검증은 쓸 수 없었다
 
 떨어지는 운석이 기체를 때리는 것을 실제 충돌로 확인하려 했는데,
-**`OnCollisionEnter` 는 EditMode 에서 돌지 않는다.** 이 저장소의 다른 운석 검증도 모두
-`ApplyImpact` 를 직접 부르는 이유가 그것이다. 판정 규칙(`CraftHitBy`)만 떼어 검증했다.
+**`OnCollisionEnter` 는 EditMode 에서 돌지 않는다.**이 저장소의 다른 운석 검증도 모두
+`ApplyImpact`를 직접 부르는 이유가 그것이다. 판정 규칙(`CraftHitBy`)만 떼어 검증했다.
 
 **그래서 인게임 확인이 필수다.**
 
@@ -141,67 +151,71 @@ var landed = body.position.y <= GroundY + PhysicsScale.CraftTumbleLandingBand
 
 둘 다 부족했다.
 
-- **`ProbeGround`** 는 플랫폼 아래 **0.28m**(`ProbeLift` 0.18 + `ProbeReach` 0.10)만
+- **`ProbeGround`**는 플랫폼 아래 **0.28m**(`ProbeLift` 0.18 + `ProbeReach` 0.10)만
   본다. 호버 고도에서 걸릴 수 없어 안전하지만 **기울면 원점이 아래를 향하지 않아
   빗나간다**
 - **절대 높이**는 지형이 `GroundY` 보다 높은 곳에 떨어졌을 때 성립하지 않는다. 그러면
   8초 상한까지 계속 돈다
 
-`TouchedDown()` 으로 묶고, 몸체에서 아래로 **선 하나를** 더 쏜다. 루트는 접지 상태에서
-`GroundY` 에 있으므로 그 거리가 곧 지면까지의 높이다 — 기울기와 지형 고도에 모두
+`TouchedDown()`으로 묶고, 몸체에서 아래로 **선 하나를** 더 쏜다. 루트는 접지 상태에서
+`GroundY`에 있으므로 그 거리가 곧 지면까지의 높이다 — 기울기와 지형 고도에 모두
 무관하다.
 
-**구체로 재다 한 번 틀렸다.** `SphereCast` 는 반경만큼 일찍 걸려 기체가 **1m 쯤 위에서**
+**구체로 재다 한 번 틀렸다.** `SphereCast`는 반경만큼 일찍 걸려 기체가 **1m 쯤 위에서**
 굴림을 멈췄다 — 검증이 "바닥에 닿지 않았다" 로 잡았다. 반경 없는 레이로 바꿨다.
 
 ### 운석 재사용 대비 (고쳤다)
 
-`_craftHit` 을 비우는 곳이 없었다. 지금 스포너는 `Instantiate` 하고 `Despawn` 으로
+`_craftHit`을 비우는 곳이 없었다. 지금 스포너는 `Instantiate` 하고 `Despawn`으로
 없애므로 재사용 경로가 없지만, 풀링이 들어오면 두 번째 생애에서 같은 상대를 다시
-때리지 못한다. `Initialize()` 에서 `_directPlayersHit` 과 함께 비운다 — 그 필드도 같은
+때리지 못한다. `Initialize()`에서 `_directPlayersHit`과 함께 비운다 — 그 필드도 같은
 문제를 갖고 있었다.
 
 ### 연달아 맞으면 상한이 무한 갱신됐다 (고쳤다)
 
-`Tumble()` 이 충격마다 `tumbleElapsed = 0f` 로 되돌렸다. **운석 비에서 상한이 매번
+`Tumble()`이 충격마다 `tumbleElapsed = 0f`로 되돌렸다. **운석 비에서 상한이 매번
 갱신되어 탑승자가 영원히 조종할 수 없다** — 340 이 남긴 교훈이 정확히 되돌아온 것이다.
 
 이미 돌고 있으면 시계를 되돌리지 않는다. 다시 맞으면 충격은 더해지지만 안전선은
 그대로다.
 
-`RepeatedHitsDoNotExtendTheSafetyCap` 이 그 자리를 잠근다. **지면을 없애고 잰다** —
+`RepeatedHitsDoNotExtendTheSafetyCap`이 그 자리를 잠근다. **지면을 없애고 잰다** —
 접지가 정상 종료이므로 바닥이 있으면 상한이 시험되지 않는다. 되돌리기를 다시 넣으면
-그 하나가 정확히 빨간불이 된다.
+그 하나가 정확히 실패 표시이 된다.
 
 ### 카메라 변경은 범위 안이다 (설명)
 
-리뷰가 Jira 설명을 잘려서 봤다. 이 이슈의 계획에 **"3. 카메라가 함께 돈다"** 가 있고
-완료 조건에도 **"카메라가 기체와 함께 돈다"** 가 있다. 349 가 카메라를 명시적으로 뺐고
+리뷰가 Jira 설명을 잘려서 봤다. 이 이슈의 계획에 **"3. 카메라가 함께 돈다"**가 있고
+완료 조건에도 **"카메라가 기체와 함께 돈다"**가 있다. 349 가 카메라를 명시적으로 뺐고
 (**"카메라를 건드리지 않았다 — 다음 이슈다"**) 이 이슈가 그것을 받았다.
 
 ### 네트워크 권한은 이 이슈가 만든 것이 아니다 (설명)
 
-`OnCollisionEnter` 에서 곧바로 속도·각속도를 더하므로 각 클라이언트가 로컬 물리로
+`OnCollisionEnter`에서 곧바로 속도·각속도를 더하므로 각 클라이언트가 로컬 물리로
 서로 다른 결과를 만들 수 있다는 지적이다. **맞는 지적이지만 기존 구조다** —
-`ApplyKnockback` 과 `ApplyTier` 도 권한 판별 없이 같은 자리에서 돈다. 이 이슈가 그 성질을
+`ApplyKnockback`과 `ApplyTier`도 권한 판별 없이 같은 자리에서 돈다. 이 이슈가 그 성질을
 바꾸지 않았고, 운석 물리의 네트워크 권한은 [Network] 몫이다. 별건으로 남긴다.
 
-## 넘지 않은 선
+<a id="넘지-않은-선"></a>
 
-- **평상시 `FreezeRotation` 을 풀지 않았다.** §14.1 의 일반 충돌 기울기(우주선·파츠·
+## 구현 범위와 제약
+
+- **평상시 `FreezeRotation`을 풀지 않았다.** §14.1 의 일반 충돌 기울기(우주선·파츠·
   플레이어)는 여전히 별건이다 — S15P21B202-216 이 우려한 "탑승자 인형이 항상 흔들린다"
-- **운석을 기체에 박지 않는다.** `TryGetSupportContact` 의 운반체 건너뛰기는 그대로다
-- **`ViewRotation` 을 기울이지 않았다.** 이동·조준은 수평 기준이다
+- **운석을 기체에 박지 않는다.** `TryGetSupportContact`의 운반체 건너뛰기는 그대로다
+- **`ViewRotation`을 기울이지 않았다.** 이동·조준은 수평 기준이다
 - 기체를 파괴하지 않는다(§14.1)
 - 하차하며 내려앉는 중에는 충격을 받지 않는다(349 그대로)
 
-## 남은 것
+<a id="남은-것"></a>
 
-- **인게임 확인이 필수다.** `OnCollisionEnter` 를 EditMode 로 검증할 수 없다
+## 남은 작업
+
+- **인게임 확인이 필수다.** `OnCollisionEnter`를 EditMode로 검증할 수 없다
 - 상수 넷(`CraftImpactSpeed` 7 · `CraftImpactSpin` 13 · `CraftTumbleMaxSeconds` 8 ·
   `CraftRightingDegreesPerSecond` 220)은 눈으로 조정할 값이다
-- **운석이 인형에 튕겨 올라간다.** 진단에서 −14m/s 로 떨어지던 운석이 머리에 맞고
-  +2.2m/s 로 올라갔다. `useGravity` 를 끈 하니스 때문일 수 있으나 실제로도 튕기면
+- **운석이 인형에 튕겨 올라간다.** 진단에서 −14m/s로 떨어지던 운석이 머리에 맞고
+  +2.2m/s로 올라갔다. `useGravity`를 끈 하니스 때문일 수 있으나 실제로도 튕기면
   이상하다 — 별건으로 확인이 필요하다
 - **조종석이 시야를 따라가지 않는다는 보고**는 349 에서도 재현하지 못했다. 이 이슈가
   카메라를 건드렸으니 인게임에서 함께 봐야 한다

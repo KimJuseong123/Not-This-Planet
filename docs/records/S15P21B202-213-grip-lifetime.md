@@ -1,14 +1,22 @@
 # 손을 놓을 때 조인트가 실제로 사라지게 (S15P21B202-213)
 
-## 무엇이 문제였나
+[문서 안내](../README.md) → [작업 기록](README.md) → 도구·캐릭터
 
-`Hand.Release()` 가 손과 잡은 물체를 잇는 조인트를 `Destroy(Grip)` 로 지웠다.
-**`Destroy` 는 에디터에서 동작하지 않는다** — 에러 로그만 남고 조인트는 그대로
+EditMode에서 손을 놓아도 잡기 조인트가 남던 문제를 수정했습니다. 런타임과 에디터의 파괴 경로 차이, 관련 회귀 테스트와 기존 코드 점검을 기록합니다.
+
+본문의 “현재”, 검증 수치, 미완료 항목은 **기록 당시 기준**입니다. 후속 변경은 관련 이슈와 [주제별 색인](README.md)을 함께 확인합니다.
+
+<a id="무엇이-문제였나"></a>
+
+## 변경 전 문제
+
+`Hand.Release()`가 손과 잡은 물체를 잇는 조인트를 `Destroy(Grip)`로 지웠다.
+**`Destroy`는 에디터에서 동작하지 않는다** — 에러 로그만 남고 조인트는 그대로
 남는다. 그래서 EditMode 검증에서는 손을 놓아도 몸이 물체에 계속 묶여 있었다.
 
 이 저장소는 같은 함정을 이미 여러 곳에서 고쳤다 — `Prim.Decor`,
 `PartAssemblyLink.DestroyObject`, `PlayerRig.DisconnectTransportJoint`,
-`Meteor`, `PlasmaWeldingTool`, `Atmosphere*`. **`Hand.Release` 만 빠져 있었다.**
+`Meteor`, `PlasmaWeldingTool`, `Atmosphere*`. **`Hand.Release`만 빠져 있었다.**
 
 ## S15P21B202-211 에서는 되돌렸다
 
@@ -16,13 +24,15 @@
 `Exit_NeverPlacesRiderInsideCraftHull`, `ExitFoot_LandsOutsidePlatformFootprint`,
 `AssembledPair_HoldsTogetherUnderGravity`. 그때는 범위를 넘어 되돌렸다.
 
-**이번에는 그 셋이 그대로 통과했다.** develop 이 그 사이에 움직였고(195~209 머지)
+**이번에는 그 셋이 그대로 통과했다.** develop이 그 사이에 움직였고(195~209 머지)
 211 의 변경도 함께 들어와, 211 시점의 조합에서만 나던 문제였던 것이다.
 132 의 하차 회귀 검증이 조인트 잔존에 의존하고 있었을까 걱정했는데 **아니었다.**
 
-## 깨진 것은 하나였다 — 그리고 게임 문제가 아니었다
+<a id="깨진-것은-하나였다--그리고-게임-문제가-아니었다"></a>
 
-`Collapse_IsDeterministic` 이 "끊어진 접합 수가 1 과 2 로 다르다" 로 실패했다.
+## 기존 테스트 실패 원인
+
+`Collapse_IsDeterministic`이 "끊어진 접합 수가 1 과 2 로 다르다" 로 실패했다.
 
 판정 과정:
 
@@ -38,7 +48,7 @@
 0.35) 끊어지는 접합이 1개와 2개 사이 경계에 있다. 수정으로 앞선 픽스처들의 물리
 이력이 미세하게 달라지자 그 경계를 넘었다.
 
-이 저장소는 이미 원칙을 갖고 있다 — S15P21B202-194 가 "PhysX 는 비트 단위로
+이 저장소는 이미 원칙을 갖고 있다 — S15P21B202-194 가 "PhysX는 비트 단위로
 결정론적이지 않으므로 **결과 수준**에서 본다" 를 세웠다. 끊어진 접합 수가 정확히
 같기를 요구하는 것이 그 원칙과 어긋난다. 기획 §15.1 이 요구하는 것은 "잘못 올리면
 무너진다" 이고, 그것은 양쪽 회차가 모두 무너졌는지로 지켜진다.
@@ -49,7 +59,7 @@
 
 ## 손 놓기 경로에 검증을 남겼다
 
-이 경로를 직접 보는 검증이 **하나도 없었다.** 그래서 EditMode 에서 조인트가 남는
+이 경로를 직접 보는 검증이 **하나도 없었다.** 그래서 EditMode에서 조인트가 남는
 것을 아무도 몰랐다. 4개를 추가했다.
 
 - 놓으면 조인트가 실제로 사라진다
@@ -59,16 +69,18 @@
 
 **수정을 되돌리면 네 개 전부 실패한다**(확인함). 회귀 검증으로 성립한다.
 
-`PlayerRig` 를 세우지 않고 손 하나와 짚을 고정물만 만든다. 인형 전체를 만들면
-`Prim.Decor` 의 로그와 균형 물리가 섞여 무엇을 보는지 흐려진다.
+`PlayerRig`를 세우지 않고 손 하나와 짚을 고정물만 만든다. 인형 전체를 만들면
+`Prim.Decor`의 로그와 균형 물리가 섞여 무엇을 보는지 흐려진다.
 
-## 같은 함정이 남았는지 훑었다
+<a id="같은-함정이-남았는지-훑었다"></a>
 
-`Runtime` 전체에서 재생 여부로 가리지 않은 `Destroy` 를 찾았다.
+## 유사한 조인트 파괴 경로 점검
+
+`Runtime` 전체에서 재생 여부로 가리지 않은 `Destroy`를 찾았다.
 
 | 위치 | 판단 |
 | --- | --- |
-| `Gameplay/**` | **전부 가려져 있다** — `Hand.cs` 가 마지막이었다 |
+| `Gameplay/**` | **전부 가려져 있다** — `Hand.cs`가 마지막이었다 |
 | `Bootstrap/SpaceSelfTest.cs` (5곳) | 재생 전용 자기 점검 |
 | `Bootstrap/SpaceScreenshot.cs` (2곳) | 재생 전용 |
 | `Bootstrap/RemotePlayerSync.cs` | 재생 전용 |
@@ -76,11 +88,13 @@
 
 EditMode 검증이 닿는 곳은 이제 없다.
 
-## 확인
+<a id="확인"></a>
 
-EditMode 322개 중 320개 통과(손 놓기 4개 추가). 실패 2개는 `PlasmaTool` 로 develop
+## 검증 결과
+
+EditMode 322개 중 320개 통과(손 놓기 4개 추가). 실패 2개는 `PlasmaTool`로 develop
 단독에서도 같은 값으로 실패한다. 빌드 성공 232.2 MB, 실행 시 예외 없음.
 
-빌드 오류 5개는 전부 `TD_Stage1_Arena.asset` 하나다 — `.gitattributes` 의
-`*.asset text` 가 바이너리 TerrainData 를 깨뜨리는 별건이며, 오늘 확인한 "땅이
+빌드 오류 5개는 전부 `TD_Stage1_Arena.asset` 하나다 — `.gitattributes`의
+`*.asset text`가 바이너리 TerrainData를 깨뜨리는 별건이며, 오늘 확인한 "땅이
 좁아지고 텍스처가 사라진" 증상의 원인이기도 하다.
