@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using Metagame.Gameplay.Interaction;
+using Metagame.Gameplay.Parts;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace Metagame.Gameplay.Tests
 {
@@ -43,6 +45,96 @@ namespace Metagame.Gameplay.Tests
         {
             Assert.That(PhysicsScale.ClampMaxPullers, Is.EqualTo(2),
                 "기획 §12.2. 이 값이 커지면 누수의 파급이 달라지므로 함께 다시 본다");
+        }
+
+        /// <summary>
+        /// <b>정원이 실제로 막는다.</b> 위 경우가 상수만 봤으므로, 그 상수가 실제
+        /// 동작으로 이어지는지는 여기서 값으로 확인한다.
+        /// </summary>
+        [Test]
+        public void TheCapActuallyRefusesTheThirdPuller()
+        {
+            var clamp = NewClamp();
+
+            for (var i = 0; i < PhysicsScale.ClampMaxPullers; i++)
+                Assert.That(clamp.TryJoinPull(), Is.True, $"{i + 1}번째는 들어가야 한다");
+
+            Assert.That(clamp.Pullers, Is.EqualTo(PhysicsScale.ClampMaxPullers));
+            Assert.That(clamp.TryJoinPull(), Is.False, "정원을 넘겨 받으면 기획 §12.2 가 깨진다");
+        }
+
+        /// <summary>
+        /// <b>반납이 음수로 내려가지 않는다.</b> <c>!290</c> AI 리뷰가 "권한 판별 없이
+        /// <c>ResetClampGrab()</c> 을 부르면 <c>Pullers</c> 가 <b>이중 감소</b>할 수
+        /// 있다" 고 물었다. 실제로는 두 겹으로 막혀 있다 —
+        /// <c>ResetClampGrab()</c> 이 <c>clampGrabbed &amp;&amp; clampGrabTarget != null</c>
+        /// 일 때만 부르고(원격 몸은 로컬에서 잡은 적이 없어 false), <c>LeavePull()</c>
+        /// 자체가 0 에서 멈춘다. 뒤쪽을 값으로 지킨다.
+        /// </summary>
+        [Test]
+        public void LeavingNeverGoesBelowZero()
+        {
+            var clamp = NewClamp();
+
+            Assert.That(clamp.TryJoinPull(), Is.True);
+            clamp.LeavePull();
+            Assert.That(clamp.Pullers, Is.EqualTo(0));
+
+            // 두 번 더 부른다 — 이중 감소가 일어나도 자리가 "음수" 가 되어 정원이
+            // 늘어나 버리는 일은 없어야 한다.
+            clamp.LeavePull();
+            clamp.LeavePull();
+            Assert.That(clamp.Pullers, Is.EqualTo(0),
+                "음수로 내려가면 그 뒤에 정원보다 많은 사람이 붙을 수 있다");
+
+            for (var i = 0; i < PhysicsScale.ClampMaxPullers; i++)
+                Assert.That(clamp.TryJoinPull(), Is.True);
+            Assert.That(clamp.TryJoinPull(), Is.False, "반납을 여러 번 불러 정원이 늘어났다");
+        }
+
+        /// <summary>
+        /// <b>해제되면 자리가 비워진다.</b> 다 뽑힌 고정쇠에 자리가 남아 있으면,
+        /// 그 뒤에 무엇을 세든 정원 계산이 어긋난 상태로 시작한다.
+        /// </summary>
+        [Test]
+        public void ReleasingClearsTheSlots()
+        {
+            var clamp = NewClamp();
+            Assert.That(clamp.TryJoinPull(), Is.True);
+
+            clamp.Release();
+
+            Assert.That(clamp.Pullers, Is.EqualTo(0));
+            Assert.That(clamp.TryJoinPull(), Is.False, "이미 풀린 고정쇠는 잡히지 않는다");
+        }
+
+        // --- 헬퍼 ---
+
+        readonly List<GameObject> _spawned = new List<GameObject>();
+
+        [TearDown]
+        public void TearDown()
+        {
+            for (var i = 0; i < _spawned.Count; i++)
+                if (_spawned[i] != null) UnityEngine.Object.DestroyImmediate(_spawned[i]);
+            _spawned.Clear();
+        }
+
+        /// <summary>
+        /// 자리 계산만 보는 최소 고정쇠. <c>PartClampTests</c> 의 세우는 방식과 같지만
+        /// 부모 <c>SpaceshipPart</c> 는 두지 않는다 — 여기서는 정원만 본다.
+        /// </summary>
+        PartClamp NewClamp()
+        {
+            var go = new GameObject("Clamp") { layer = GameLayers.Interactable };
+            var sphere = go.AddComponent<SphereCollider>();
+            sphere.radius = 0.3f;
+            sphere.isTrigger = true;
+
+            var clamp = go.AddComponent<PartClamp>();
+            _spawned.Add(go);
+            clamp.Initialize();
+            return clamp;
         }
 
         /// <summary>
