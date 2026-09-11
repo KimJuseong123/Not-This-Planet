@@ -843,11 +843,82 @@ namespace Metagame.Gameplay.Parts
             if (worldDirection.sqrMagnitude < 0.0001f) return;
 
             facingDirection = worldDirection.normalized;
+
+            // <b>루트를 중심으로 돌린다</b> (S15P21B202-441).
+            //
+            // 예전에는 <c>visual.rotation</c> 만 바꿨다. 그러면 회전이 <b>Visual 자신의
+            // 피벗</b>을 중심으로 일어난다. 스킨은 경계 중심을 운반체 루트에 맞춰 붙이므로
+            // (S15P21B202-84) 피벗이 루트와 어긋나 있고, 그래서 시점을 돌릴 때마다
+            // <b>보이는 기체가 빔에서 벗어나 휘둘렸다.</b>
+            //
+            // 1인칭이던 동안에는 이것이 보이지 않았다 — 탑승하면 껍데기를 껐고 카메라가
+            // 기체 안에 있었다. 3인칭으로 물러나면서 드러난, 원래 있던 어긋남이다.
+            //
+            // <b>회전은 예전처럼 절대값으로 준다.</b> 처음 자세에서 델타만 얹으면 안 된다 —
+            // 이 기체의 Visual 은 처음 forward 가 아래를 향하고 있어(루트가
+            // <c>LookRotation(down, forward)</c>) 수평 델타를 곱해도 정면이 나오지 않는다.
+            // 검증(<c>CraftMeteorImpactTests</c>)이 "Visual 의 정면이 곧 보는 방향" 을
+            // 잠그고 있고, 그것이 맞다.
+            //
+            // 고칠 것은 <b>위치</b>다. 루트에서 피벗까지의 오프셋을 그 회전과 함께 돌려
+            // 주면 메시가 루트를 중심으로 돈다.
+            var look = Quaternion.LookRotation(facingDirection, Vector3.up);
             if (visual != null)
-                visual.rotation = Quaternion.LookRotation(facingDirection, Vector3.up);
+            {
+                // 처음 한 번만 기준을 잡는다. 돌린 뒤에 다시 잡으면 회전이 누적돼
+                // 기체가 조금씩 밀려난다.
+                if (!visualRestReady)
+                {
+                    CenterVisualOverRoot();
+
+                    visualRestOffset = Quaternion.Inverse(look)
+                                       * (visual.position - transform.position);
+                    visualRestReady = true;
+                }
+
+                // 첫 호출에서는 지금 자리를 그대로 다시 쓴다 —
+                // look * inverse(look) * offset == offset 이다.
+                visual.SetPositionAndRotation(transform.position + look * visualRestOffset, look);
+            }
+
+            // 조종석은 루트의 수직축 위에 있어 제자리에서 돌아도 어긋나지 않는다.
             if (cockpit != null)
                 cockpit.rotation = Quaternion.LookRotation(facingDirection, Vector3.up);
         }
+
+        /// <summary>
+        /// 보이는 기체를 루트의 수직축에 맞춘다 — 빔이 있는 자리다 (S15P21B202-441).
+        ///
+        /// <para><b>실측 보고에서 나온 두 번째 어긋남이다.</b> 회전 중심을 고친 뒤에도
+        /// "빔이 오른쪽으로 일관되게 어긋나 있다" 가 남았다. 돌아가는 문제가 아니라
+        /// <b>처음부터 한쪽으로 밀려 있는</b> 문제다.</para>
+        ///
+        /// <para>스킨은 경계 중심을 루트에 맞춰 붙인다(S15P21B202-84). 그런데 메시 피벗이
+        /// 경계 중심과 다르면 그 맞춤이 어긋난 채로 남는다 — 빔은 루트에 붙어 있으므로
+        /// 기체만 옆으로 비켜 보인다.</para>
+        ///
+        /// <para><b>높이는 건드리지 않는다.</b> 좌석 높이 계산이 경계의 위아래를 쓴다
+        /// (<see cref="ResolveSeatHeight"/>) — 수직으로 옮기면 탑승자가 기체를 뚫거나
+        /// 떠 있게 된다. 수평으로만 맞춘다.</para>
+        ///
+        /// <para>한 번만 부른다(<see cref="visualRestReady"/>). 매번 맞추면 회전한 메시의
+        /// 월드 AABB 가 방향마다 달라지므로 기체가 조금씩 떨린다.</para>
+        /// </summary>
+        void CenterVisualOverRoot()
+        {
+            if (visual == null || !TryVisualBounds(out var bounds)) return;
+
+            var drift = bounds.center - transform.position;
+            drift.y = 0f;
+            if (drift.sqrMagnitude < 1e-6f) return;
+
+            visual.position -= drift;
+        }
+
+        // 루트에서 Visual 피벗까지의 오프셋. 보는 방향 기준으로 적어 두고 회전과 함께
+        // 돌려 준다 (S15P21B202-441) — SetFacingDirection 의 주석 참고.
+        bool visualRestReady;
+        Vector3 visualRestOffset;
 
         /// <summary>
         /// 고도 입력. +1 이 상승, -1 이 하강, 0 이면 지금 고도를 유지한다.
