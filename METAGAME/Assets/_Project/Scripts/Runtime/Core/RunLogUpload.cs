@@ -62,6 +62,12 @@ namespace Metagame.Core
         static bool running;
 
         /// <summary>
+        /// 지금 나가 있는 요청. <b>끊을 수 있어야 한다</b> — 게임이 시작되면 남은 전송을
+        /// 그 자리에서 멈춘다(<see cref="StopNow"/>).
+        /// </summary>
+        static UnityWebRequest inFlight;
+
+        /// <summary>
         /// 지난 실행들의 로그를 보낸다. 로그인 직후 <b>한 번만</b> 부른다.
         ///
         /// <para>실패는 조용히 넘긴다 — 로그를 못 보내는 것이 게임을 막을 이유는 아니다.
@@ -98,10 +104,40 @@ namespace Metagame.Core
             Debug.Log($"[RUN] 지난 실행 로그 {targets.Count}개를 보낸다");
             foreach (var path in targets)
             {
+                // 사이사이에 확인한다 — 한 개를 보내는 동안 게임이 시작될 수 있다.
+                if (!running) yield break;
+
                 yield return Send(baseUrl, token, userId, path);
             }
 
             running = false;
+        }
+
+        /// <summary>
+        /// <b>지금 당장 멈춘다.</b>
+        ///
+        /// <para><b>왜 필요한가.</b> 최대 3개 × 최대 8 MB 를 요청당 15초 안에 보내므로,
+        /// 느린 회선에서는 전송이 <b>1분 가까이</b> 이어질 수 있다. 그 사이에 매칭이
+        /// 시작되면 이슈의 팀 결정 — <b>플레이 중에는 네트워킹을 쓰지 않는다</b> — 을
+        /// 실제로는 못 지킨다(4 vCPU EC2 가 릴레이·매칭·CI 를 겸한다).</para>
+        ///
+        /// <para>못 보낸 것은 표시가 없으므로 <b>다음 실행에서 다시 간다.</b> 그것이
+        /// 이 설계의 기본 동작이라 여기서 잃는 것이 없다.</para>
+        ///
+        /// <para>세션이 사라질 때도 부른다 — 코루틴이 중간에 끊기면
+        /// <see cref="running"/> 이 선 채로 남아 <b>그 프로세스가 끝날 때까지 다시는
+        /// 안 돈다.</b></para>
+        /// </summary>
+        public static void StopNow()
+        {
+            running = false;
+
+            var req = inFlight;
+            inFlight = null;
+            if (req == null) return;
+
+            try { req.Abort(); }
+            catch (Exception) { /* 이미 끝났을 수 있다 */ }
         }
 
         /// <summary>
@@ -172,7 +208,10 @@ namespace Metagame.Core
                 req.SetRequestHeader("X-Run-Backend", BackendEndpoints.IsDev ? "dev" : "prod");
                 req.SetRequestHeader("X-Run-User", userId.ToString());
 
+                // 끊을 수 있게 등록해 둔다. 게임이 시작되면 `StopNow` 가 이것을 끊는다.
+                inFlight = req;
                 yield return req.SendWebRequest();
+                if (inFlight == req) inFlight = null;
 
                 if (req.result == UnityWebRequest.Result.Success)
                 {
@@ -181,6 +220,8 @@ namespace Metagame.Core
                 else
                 {
                     // 다시 시도할 수 있게 표시를 남기지 않는다. 다음 실행에서 또 온다.
+                    // 끊긴 경우도 같다 — `Aborted` 는 실패로 떨어지고 표시가 없으니
+                    // 다음 실행에서 그대로 다시 간다.
                     Debug.LogWarning($"[RUN] {name} 전송 실패 · {req.responseCode} {req.result}");
                 }
             }

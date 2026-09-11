@@ -180,6 +180,27 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void PlayStopsTheUploadInsteadOfCompetingWithIt()
+        {
+            // 최대 3개 × 최대 8 MB 를 요청당 15초로 보내므로, 느린 회선에서는 로비에서
+            // 시작한 전송이 **1분 가까이** 이어질 수 있다. 그 사이 매칭이 시작되면
+            // "플레이 중에는 네트워킹을 쓰지 않는다" 를 실제로는 못 지킨다.
+            var upload = TestSource.Read("Runtime/Core/RunLogUpload.cs");
+            var session = TestSource.Read("Runtime/Network/NetworkSession.cs");
+
+            Assert.That(upload, Does.Contain("req.Abort()"),
+                "나가 있는 요청을 끊을 방법이 없다");
+            Assert.That(session, Does.Contain("RunLogUpload.StopNow()"),
+                "게임이 시작돼도 전송이 계속된다");
+
+            // 세션이 사라질 때도 멈춰야 한다 — 안 그러면 "돌고 있다" 표시가 선 채로
+            // 남아 **그 프로세스가 끝날 때까지 다시는 안 돈다**.
+            var afterDestroy = session.Substring(session.IndexOf("void OnDestroy"));
+            Assert.That(afterDestroy, Does.Contain("RunLogUpload.StopNow()"),
+                "세션이 사라질 때 정리하지 않는다 — 다음 로그인에서 재시도되지 않는다");
+        }
+
+        [Test]
         public void TheTokenGoesInAHeaderNotTheQuery()
         {
             // 쿼리에 실으면 nginx 접근 로그에 그대로 남는다. 그 토큰이면 그 사람

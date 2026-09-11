@@ -660,6 +660,13 @@ namespace Metagame.Network
                         ? string.Empty
                         : data.hostAddress.Trim();
                     MatchRelay = ReadRelay(data.relay);
+
+                    // **플레이가 시작되면 남은 로그 전송을 멈춘다** (S15P21B202-443).
+                    // 느린 회선에서는 로비에서 시작한 전송이 여기까지 이어질 수 있고,
+                    // 그러면 "플레이 중에는 네트워킹을 쓰지 않는다" 를 못 지킨다.
+                    // 못 보낸 것은 다음 실행에서 다시 간다.
+                    Metagame.Core.RunLogUpload.StopNow();
+
                     GameStarted?.Invoke();
                     break;
                 case "PLAYER_MOVED":
@@ -935,6 +942,11 @@ namespace Metagame.Network
 
         void OnDestroy()
         {
+            // 로그 전송 코루틴은 이 오브젝트가 돌린다. 여기서 정리하지 않으면 "돌고
+            // 있다" 는 표시가 선 채로 남아 **그 프로세스가 끝날 때까지 다시는 안 돈다**
+            // (S15P21B202-443).
+            Metagame.Core.RunLogUpload.StopNow();
+
             Shutdown();
             if (Instance == this) Instance = null;
         }
