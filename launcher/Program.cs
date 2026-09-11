@@ -39,7 +39,10 @@ public static class Program
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         var baseUrl = (Environment.GetEnvironmentVariable("NTP_BASE") ?? DefaultBase).TrimEnd('/');
         var root = AppContext.BaseDirectory;
-        var gameDir = Path.Combine(root, GameDirName);
+        bool dev = DevMode.IsOn(args);
+        // 개발 모드는 **게임 폴더를 따로 쓴다** — 배포용 설치를 덮어쓰지 않으므로
+        // 실수로 켜 봐도 원래 것이 남는다(-406, exe 를 하나로 둔 대가).
+        var gameDir = Path.Combine(root, dev ? DevMode.GameDirName : GameDirName);
         // 배포되는 그 exe 안에서 안전 판정을 검사한다 — 테스트 프로젝트를 따로
         // 두면 배포 산출물과 검사 대상이 갈린다.
         if (args.Contains("--selfcheck")) return SelfCheck.Run();
@@ -62,7 +65,7 @@ public static class Program
         // 강제해도 런처가 낡으면 그 강제가 동작하지 않는다.
         if (!checkOnly)
         {
-            switch (await SelfUpdate.EnsureLatest(Http, baseUrl))
+            switch (await SelfUpdate.EnsureLatest(Http, baseUrl, args))
             {
                 case SelfUpdate.Outcome.Handoff:
                     return 0;      // 새 런처가 이어받았다 — 조용히 끝낸다
@@ -74,7 +77,11 @@ public static class Program
         Manifest? manifest = null;
         try
         {
-            manifest = await FetchManifest(baseUrl);
+            // 개발 모드는 **목록에서 골라** 받는다(-405 §④ 팀 결정). 배포 모드는
+            // 늘 최신이다 — 고를 여지를 주면 그것이 곧 구버전 잔류 경로가 된다.
+            manifest = dev
+                ? await FetchChosenManifest(baseUrl, args)
+                : await FetchManifest(baseUrl);
         }
         catch (Exception e)
         {
@@ -95,15 +102,49 @@ public static class Program
             }
         }
 
+        if (manifest is null && dev)
+        {
+            // 개발 모드에서 버전을 못 정한 것은 **사용자가 잘못 골랐거나 서버가
+            // 비었다는 뜻**이다. 그때 배포 버전으로 조용히 넘어가면 안 된다 —
+            // 옛 버전으로 재현하려던 목적이 사라진다.
+            Console.WriteLine("개발 모드에서 받을 버전을 정하지 못했다 — 아무것도 하지 않는다.");
+            return 1;
+        }
+
         if (manifest is not null)
         {
+            if (dev) DevMode.Banner(manifest.Version);
             Console.WriteLine($"서버 버전: {manifest.Version} · 파일 {manifest.Files.Count}개");
             var ok = await Sync(manifest, gameDir, baseUrl, checkOnly);
             if (!ok) return 1;
         }
 
         if (noLaunch) return 0;
-        return Launch(gameDir, manifest?.Exe);
+        return Launch(gameDir, manifest?.Exe, dev);
+    }
+
+    /// <summary>개발 모드 — 목록을 받아 고르고, 그 버전의 매니페스트를 읽는다.</summary>
+    static async Task<Manifest?> FetchChosenManifest(string baseUrl, string[] args)
+    {
+        var list = await DevMode.Fetch(Http, baseUrl);
+        if (list is null)
+        {
+            Console.WriteLine("서버에 버전 목록이 없다 — 최신으로 간다.");
+            return await FetchManifest(baseUrl);
+        }
+        if (list.Schema > ManifestCheck.SupportedSchema)
+        {
+            Console.WriteLine($"버전 목록 형식이 {list.Schema} 다 — 런처를 새로 받아야 한다.");
+            return null;
+        }
+        var pick = DevMode.Choose(list, args);
+        if (pick is null) return null;
+
+        var m = await GetJson<Manifest>($"{baseUrl}/manifest/{pick}.json");
+        if (m is null) throw new InvalidDataException($"{pick} 매니페스트를 읽지 못했다");
+        if (m.Version != pick)
+            throw new InvalidDataException($"{pick} 을 달라 했는데 매니페스트는 {m.Version} 이다");
+        return m;
     }
 
     static async Task<Manifest> FetchManifest(string baseUrl)
@@ -295,7 +336,7 @@ public static class Program
         }
     }
 
-    static int Launch(string gameDir, string? exeFromManifest)
+    static int Launch(string gameDir, string? exeFromManifest, bool dev = false)
     {
         // **매니페스트가 이름을 준다.** 하드코딩하면 `-402` 의 실행 파일 이름 변경에서
         // 깨진다. 서버에 못 닿아 매니페스트가 없을 때만 폴더에서 찾는다.
@@ -320,11 +361,20 @@ public static class Program
             }
         }
 
-        Console.WriteLine($"실행: {Path.GetFileName(exe)}");
+        Console.WriteLine($"실행: {Path.GetFileName(exe)}"
+                          + (dev ? $"  ({DevMode.DevBackend})" : ""));
         try
         {
+            var psi = new ProcessStartInfo(exe) { WorkingDirectory = gameDir, UseShellExecute = true };
+            if (dev)
+            {
+                // **개발 백엔드를 인자로 넘긴다.** 실행 인자가 가장 센 우선순위라
+                // (-284) 빌드 스탬프가 prod 라고 적혀 있어도 개발 서버를 가리킨다.
+                // 그래야 개발 모드가 실유저 데이터를 건드리지 않는다.
+                psi.ArgumentList.Add("-backend=" + DevMode.DevBackend);
+            }
             // 게임을 띄우면 런처는 물러난다 — 기다리지 않는다.
-            Process.Start(new ProcessStartInfo(exe) { WorkingDirectory = gameDir, UseShellExecute = true });
+            Process.Start(psi);
             return 0;
         }
         catch (Exception e)

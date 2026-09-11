@@ -155,9 +155,50 @@ public static class SelfCheck
             fail++;
         }
 
+        // ── ⑥ 개발 모드 인자 판정 ────────────────────────────────────────
+        // `--dev` 를 못 알아보면 **개발 모드가 배포 폴더를 덮어쓰고 실유저 서버를
+        // 가리킨다** — exe 를 하나로 둔 대가가 여기 걸린다(-406).
+        if (!DevMode.IsOn(new[] { "--dev" })) { Console.WriteLine("  ❌ --dev 를 못 알아본다"); fail++; }
+        if (!DevMode.IsOn(new[] { "--no-launch", "--dev" })) { Console.WriteLine("  ❌ --dev 가 뒤에 오면 못 알아본다"); fail++; }
+        if (DevMode.IsOn(Array.Empty<string>())) { Console.WriteLine("  ❌ 인자가 없는데 개발 모드다"); fail++; }
+        if (DevMode.IsOn(new[] { "--devil" })) { Console.WriteLine("  ❌ --devil 을 --dev 로 봤다"); fail++; }
+
+        if (DevMode.RequestedVersion(new[] { "--dev", "--version", "v1.2.3" }) != "v1.2.3")
+        { Console.WriteLine("  ❌ --version 값을 못 읽는다"); fail++; }
+        if (DevMode.RequestedVersion(new[] { "--dev" }) is not null)
+        { Console.WriteLine("  ❌ --version 이 없는데 값을 읽었다"); fail++; }
+        // 값이 빠진 채 끝나면 **뒤 인덱스를 읽어 터지면 안 된다**
+        if (DevMode.RequestedVersion(new[] { "--version" }) is not null)
+        { Console.WriteLine("  ❌ --version 뒤가 비었는데 값을 읽었다"); fail++; }
+
+        // 두 폴더가 달라야 한다 — 같으면 개발 설치가 배포 설치를 덮는다.
+        if (DevMode.GameDirName == "game")
+        { Console.WriteLine("  ❌ 개발 모드가 배포용과 같은 폴더를 쓴다"); fail++; }
+        // 개발 백엔드가 `/dev` 를 가리켜야 한다 — 아니면 실유저 데이터를 건드린다.
+        if (!DevMode.DevBackend.EndsWith("/dev"))
+        { Console.WriteLine($"  ❌ 개발 백엔드가 /dev 가 아니다: {DevMode.DevBackend}"); fail++; }
+
+        // 목록에 없는 버전을 달라 하면 **멈춰야 한다.** 조용히 최신으로 바꿔 주면
+        // "옛 버전으로 재현해 본다" 는 목적이 사라진다.
+        var list = new VersionList
+        {
+            Schema = 1,
+            Versions = new()
+            {
+                new() { Version = "v1.0.2", Files = 3, TotalBytes = 3 },
+                new() { Version = "v1.0.1", Files = 3, TotalBytes = 3 },
+            },
+        };
+        if (DevMode.Choose(list, new[] { "--dev", "--version", "v9.9.9" }) is not null)
+        { Console.WriteLine("  ❌ 없는 버전을 달라 했는데 무언가를 골랐다"); fail++; }
+        if (DevMode.Choose(list, new[] { "--dev", "--version", "v1.0.1" }) != "v1.0.1")
+        { Console.WriteLine("  ❌ 있는 버전을 고르지 못했다"); fail++; }
+        if (DevMode.Choose(new VersionList { Schema = 1 }, new[] { "--dev" }) is not null)
+        { Console.WriteLine("  ❌ 빈 목록인데 무언가를 골랐다"); fail++; }
+
         Console.WriteLine($"  (이 런처: {SelfUpdate.MyVersion})");
         Console.WriteLine(fail == 0
-            ? "✅ 자체 검사 통과 — 경로·해시·매니페스트·버전 판정"
+            ? "✅ 자체 검사 통과 — 경로·해시·매니페스트·버전·개발 모드 판정"
             : $"❌ 자체 검사 실패 {fail}건");
         return fail == 0 ? 0 : 1;
     }

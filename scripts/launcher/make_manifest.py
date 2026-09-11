@@ -7,7 +7,8 @@
 
 만드는 것:
     <배포루트>/manifest/<버전>.json   경로 → 해시 목록
-    <배포루트>/latest.json            최신 버전을 가리키는 **하나뿐인 가변 파일**
+    <배포루트>/latest.json            배포 런처가 보는 **최신 버전**
+    <배포루트>/versions.json          개발 런처가 골라 되돌릴 **버전 목록**
     <배포루트>/files/<sha256>.gz      파일을 해시 이름으로, gzip 해서 저장
 
 **왜 통짜 zip 이 아닌가.** 2026-09-10 실측(`-406`): 서로 다른 두 빌드(각 339 파일 ·
@@ -21,6 +22,12 @@
 
 **`latest.json` 만 바뀐다.** 롤백은 그 한 줄을 옛 버전으로 되돌리는 것이다. 매니페스트와
 파일은 한 번 쓰면 고치지 않는다(해시가 이름이므로 고칠 수도 없다).
+
+**보관은 최근 `--keep` 개**(기본 10, `-405` §④ 의 2026-09-10 팀 결정). 그보다 옛
+버전은 매니페스트를 지우고, **어느 남은 매니페스트도 가리키지 않는 파일**을 회수한다.
+회수는 조심해서 한다 — 남은 버전이 쓰는 파일을 지우면 그 버전이 **설치 불가**가 되고,
+해시가 이름이라 되살릴 방법도 없다. 그래서 지울 후보를 정할 때 남은 매니페스트 전부와
+`launcher.json` 을 읽어 참조 집합을 만든다.
 """
 from __future__ import annotations
 
@@ -180,6 +187,106 @@ def write_json(path: str, data: dict, dry: bool) -> None:
     os.replace(tmp, path)
 
 
+def read_json(path: str) -> dict | None:
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def manifest_versions(out: str) -> list[str]:
+    """저장소에 있는 버전들. 새것이 앞에 온다."""
+    d = os.path.join(out, "manifest")
+    if not os.path.isdir(d):
+        return []
+    vs = []
+    for name in os.listdir(d):
+        if not name.endswith(".json"):
+            continue
+        v = name[:-5]
+        if parse_version(v) is not None:
+            vs.append(v)
+    return sorted(vs, key=lambda v: parse_version(v), reverse=True)  # type: ignore[arg-type]
+
+
+def parse_version(v: str) -> tuple[int, int, int] | None:
+    """`vX.Y.Z` → (X, Y, Z). 문자열로 정렬하면 v1.10.0 이 v1.9.0 앞에 온다."""
+    s = v[1:] if v.startswith("v") else v
+    parts = s.split(".")
+    if len(parts) != 3:
+        return None
+    try:
+        nums = tuple(int(p) for p in parts)
+    except ValueError:
+        return None
+    return nums if all(n >= 0 for n in nums) else None  # type: ignore[return-value]
+
+
+def write_versions(out: str, keep: int, dry: bool) -> list[str]:
+    """`versions.json` 을 다시 쓴다. 개발 런처가 이것을 보고 고른다."""
+    vs = manifest_versions(out)[:keep]
+    rows = []
+    for v in vs:
+        m = read_json(os.path.join(out, "manifest", f"{v}.json")) or {}
+        rows.append({
+            "version": v,
+            "createdAt": m.get("createdAt", ""),
+            "totalBytes": m.get("totalBytes", 0),
+            "files": len(m.get("files", [])),
+        })
+    write_json(os.path.join(out, "versions.json"),
+               {"schema": SCHEMA, "versions": rows}, dry)
+    return vs
+
+
+def collect_garbage(out: str, keep: int, dry: bool) -> tuple[int, int, int]:
+    """보관 개수를 넘긴 버전을 지우고, **아무도 가리키지 않는 파일**을 회수한다.
+
+    돌려주는 것: (지운 매니페스트 수, 지운 파일 수, 회수한 바이트).
+
+    순서가 중요하다 — **참조 집합을 먼저 다 모은 뒤에** 지운다. 매니페스트를 지우면서
+    동시에 파일을 지우면, 아직 안 읽은 매니페스트가 쓰는 파일을 지울 수 있다.
+    """
+    all_v = manifest_versions(out)
+    drop = all_v[keep:]
+    mdir = os.path.join(out, "manifest")
+
+    # ── 살아남는 쪽이 쓰는 해시를 전부 모은다 ────────────────────────────
+    keeping = set()
+    for v in all_v[:keep]:
+        m = read_json(os.path.join(mdir, f"{v}.json")) or {}
+        for e in m.get("files", []):
+            if isinstance(e, dict) and e.get("sha256"):
+                keeping.add(e["sha256"])
+    # 런처 exe 도 같은 저장소에 있다 — 이것을 빠뜨리면 런처를 못 받는다.
+    li = read_json(os.path.join(out, "launcher.json")) or {}
+    if li.get("sha256"):
+        keeping.add(li["sha256"])
+
+    # ── 지울 버전의 매니페스트를 치운다 ──────────────────────────────────
+    for v in drop:
+        if not dry:
+            os.remove(os.path.join(mdir, f"{v}.json"))
+
+    # ── 이제 아무도 가리키지 않는 파일을 회수한다 ────────────────────────
+    fdir = os.path.join(out, "files")
+    freed = gone = 0
+    if os.path.isdir(fdir):
+        for name in os.listdir(fdir):
+            if not name.endswith(".gz"):
+                continue
+            digest = name[:-3]
+            if digest in keeping:
+                continue
+            p = os.path.join(fdir, name)
+            freed += os.path.getsize(p)
+            gone += 1
+            if not dry:
+                os.remove(p)
+    return len(drop), gone, freed
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="빌드 폴더 → 매니페스트 + 내용 주소 저장소")
     ap.add_argument("build_dir")
@@ -188,6 +295,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--no-latest", action="store_true",
                     help="latest.json 을 건드리지 않는다 — 올려 두고 나중에 전환할 때")
+    ap.add_argument("--keep", type=int, default=10,
+                    help="보관할 버전 수 (기본 10, -405 §④ 팀 결정). 0 이면 회수하지 않는다")
     a = ap.parse_args(argv)
 
     if not os.path.isdir(a.build_dir):
@@ -241,6 +350,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{'(dry-run) ' if a.dry_run else ''}latest.json → {a.version}")
     else:
         print("latest.json 은 건드리지 않았다 — 전환은 따로 한다")
+
+    # ── 목록과 보관 ──────────────────────────────────────────────────────
+    if a.keep > 0:
+        dropped, gone, freed = collect_garbage(a.out, a.keep, a.dry_run)
+        if dropped or gone:
+            print(f"{'(dry-run) ' if a.dry_run else ''}보관 {a.keep}개 유지 — "
+                  f"매니페스트 {dropped}개 정리 · 파일 {gone}개 회수 "
+                  f"({freed / 1048576:.1f} MB)")
+    kept = write_versions(a.out, a.keep if a.keep > 0 else 10**6, a.dry_run)
+    print(f"{'(dry-run) ' if a.dry_run else ''}versions.json — {len(kept)}개: "
+          + " ".join(kept[:6]) + (" …" if len(kept) > 6 else ""))
     return 0
 
 

@@ -154,6 +154,77 @@ try:
     assert M.main([v1, "1.0.0", "--out", out]) == 1, "`v` 없는 버전을 받아들였다"
     print("  ⑨ 버전은 v 로 시작해야 한다 ✅")
 
+    # ── ⑩ 버전 목록 — 개발 런처가 이것을 보고 고른다 ───────────────────
+    # `/builds/` 의 디렉터리 목록을 닫았으므로(-454) **명시적 목록 파일이 없으면
+    # 개발 런처가 되돌릴 버전을 알 수 없다.**
+    vs = load(os.path.join(out, "versions.json"))
+    got = [r["version"] for r in vs["versions"]]
+    assert got == ["v1.0.1", "v1.0.0"], f"목록이 새것부터가 아니다: {got}"
+    assert all(r["files"] > 0 for r in vs["versions"]), "파일 수가 비어 있다"
+    print("  ⑩ versions.json: 새것부터 정렬 ✅")
+
+    # 문자열로 정렬하면 v1.10.0 이 v1.9.0 앞에 온다 — 그러면 개발 런처의 목록이
+    # 거짓이 되고, 보관 회수가 **틀린 버전을 지운다.**
+    assert M.parse_version("v1.10.0") > M.parse_version("v1.9.0")
+    assert M.parse_version("v1.9.0") < M.parse_version("v2.0.0")
+    for bad in ["", "v1", "v1.0", "v1.0.0.0", "vX.Y.Z", "v1.0.-1"]:
+        assert M.parse_version(bad) is None, f"버전 모양이 아닌데 읽었다: {bad}"
+    print("  ⑪ 버전 정렬이 숫자 기준이다(v1.10.0 > v1.9.0) ✅")
+
+    # ── ⑫ 보관 회수 — **되돌릴 수 없으므로** 크게 검사한다 ──────────────
+    gc_out = os.path.join(tmp, "gc")
+    builds = {}
+    for i in range(4):
+        b = os.path.join(tmp, f"g{i}")
+        # `shared.dat` 은 모든 버전이 같이 쓴다 — 회수가 이것을 지우면 전부 깨진다.
+        build(b, {"Game.exe": f"exe-{i}".encode(), "shared.dat": b"S" * 100,
+                  f"only{i}.dat": f"only-{i}".encode()})
+        builds[f"v1.0.{i}"] = b
+        rc = M.main([b, f"v1.0.{i}", "--out", gc_out, "--keep", "0"])
+        assert rc == 0, rc
+
+    def store_digests():
+        d = os.path.join(gc_out, "files")
+        return {n[:-3] for n in os.listdir(d) if n.endswith(".gz")}
+
+    before = store_digests()
+    # 런처도 같은 저장소에 있다고 가정한다 — 회수가 이것을 지우면 런처를 못 받는다.
+    launcher_digest = "f" * 64
+    io.open(os.path.join(gc_out, "files", launcher_digest + ".gz"), "wb").write(b"x")
+    io.open(os.path.join(gc_out, "launcher.json"), "w", encoding="utf-8").write(
+        '{"schema":1,"version":"v1.0.0","sha256":"' + launcher_digest + '"}')
+
+    dropped, gone, freed = M.collect_garbage(gc_out, keep=2, dry=False)
+    assert dropped == 2, f"지운 매니페스트 {dropped}개 (기대 2: v1.0.0 · v1.0.1)"
+    left = sorted(M.manifest_versions(gc_out))
+    assert left == ["v1.0.2", "v1.0.3"], f"남은 버전이 틀렸다: {left}"
+
+    after = store_digests()
+    # ① 남은 버전이 쓰는 파일은 **전부 살아 있어야 한다**
+    for v in left:
+        m = load(os.path.join(gc_out, "manifest", f"{v}.json"))
+        for e in m["files"]:
+            assert e["sha256"] in after, f"{v} 가 쓰는 파일을 지웠다: {e['path']}"
+    # ② 모든 버전이 공유하던 파일도 살아 있어야 한다
+    shared = next(e["sha256"] for e in
+                  load(os.path.join(gc_out, "manifest", "v1.0.3.json"))["files"]
+                  if e["path"] == "shared.dat")
+    assert shared in after, "공유 파일을 지웠다 — 전 버전이 깨진다"
+    # ③ 런처 파일도 살아 있어야 한다
+    assert launcher_digest in after, "런처 파일을 지웠다 — 런처를 못 받는다"
+    # ④ 그리고 실제로 **무언가는 지워야** 한다(회수가 동작하는지)
+    assert gone > 0 and freed > 0, f"회수가 아무것도 하지 않았다 ({gone}개 {freed}바이트)"
+    assert len(after) < len(before) + 1, "회수 뒤에 파일이 줄지 않았다"
+    print(f"  ⑫ 보관 회수: 남은 버전·공유 파일·런처를 지키고 {gone}개 회수 ✅")
+
+    # ── ⑬ dry-run 은 아무것도 지우지 않는다 ─────────────────────────────
+    snap = store_digests()
+    msnap = sorted(M.manifest_versions(gc_out))
+    M.collect_garbage(gc_out, keep=1, dry=True)
+    assert store_digests() == snap, "dry-run 이 파일을 지웠다"
+    assert sorted(M.manifest_versions(gc_out)) == msnap, "dry-run 이 매니페스트를 지웠다"
+    print("  ⑬ dry-run 은 지우지 않는다 ✅")
+
     print()
     print("TEST406 OK")
 finally:

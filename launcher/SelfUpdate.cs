@@ -99,7 +99,7 @@ public static class SelfUpdate
     /// <summary>
     /// 서버의 런처 버전을 보고 필요하면 갱신을 시작한다.
     /// </summary>
-    public static async Task<Outcome> EnsureLatest(HttpClient http, string baseUrl)
+    public static async Task<Outcome> EnsureLatest(HttpClient http, string baseUrl, string[] args)
     {
         LauncherInfo? info;
         try
@@ -141,7 +141,7 @@ public static class SelfUpdate
 
         try
         {
-            await Handoff(http, baseUrl, info);
+            await Handoff(http, baseUrl, info, args);
             return Outcome.Handoff;
         }
         catch (Exception e)
@@ -160,7 +160,7 @@ public static class SelfUpdate
         }
     }
 
-    static async Task Handoff(HttpClient http, string baseUrl, LauncherInfo info)
+    static async Task Handoff(HttpClient http, string baseUrl, LauncherInfo info, string[] args)
     {
         if (!ManifestCheck.IsSha256(info.Sha256))
             throw new InvalidDataException("서버가 준 런처 해시가 sha256 이 아니다");
@@ -188,12 +188,23 @@ public static class SelfUpdate
             throw new InvalidDataException($"받은 런처의 해시가 다르다 ({got[..12]}… ≠ {info.Sha256[..12]}…)");
         }
 
-        Process.Start(new ProcessStartInfo(next)
+        // **원래 인자를 함께 넘긴다.** 이것이 없으면 갱신 뒤 재실행이 인자를 잃어
+        // `--no-launch`·`--check` 로 돌린 것이 **게임을 띄운다.** 2026-09-11 실제로
+        // 그렇게 돼서 백신이 게임 exe 를 막는 것까지 겪었다.
+        var psi = new ProcessStartInfo(next)
         {
-            ArgumentList = { FinishFlag, me, Environment.ProcessId.ToString() },
             UseShellExecute = true,
             WorkingDirectory = Path.GetDirectoryName(me)!,
-        });
+        };
+        psi.ArgumentList.Add(FinishFlag);
+        psi.ArgumentList.Add(me);
+        psi.ArgumentList.Add(Environment.ProcessId.ToString());
+        foreach (var a in args)
+        {
+            if (a == FinishFlag) continue;          // 두 번 들어가면 파싱이 어긋난다
+            psi.ArgumentList.Add(a);
+        }
+        Process.Start(psi);
         Console.WriteLine("새 런처를 띄웠다 — 이 창은 닫힌다.");
     }
 
@@ -242,11 +253,15 @@ public static class SelfUpdate
             return 1;
         }
 
-        Process.Start(new ProcessStartInfo(target)
+        // 넘겨받은 나머지 인자를 **그대로 되돌려 준다** — 사용자가 `--check` 로
+        // 시작했으면 갱신 뒤에도 `--check` 여야 한다.
+        var psi = new ProcessStartInfo(target)
         {
             UseShellExecute = true,
             WorkingDirectory = Path.GetDirectoryName(target)!,
-        });
+        };
+        for (int k = i + 3; k < args.Length; k++) psi.ArgumentList.Add(args[k]);
+        Process.Start(psi);
         return 0;
     }
 

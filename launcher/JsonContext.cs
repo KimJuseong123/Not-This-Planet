@@ -19,6 +19,7 @@ namespace NotThisPlanet.Launcher;
 [JsonSerializable(typeof(Manifest))]
 [JsonSerializable(typeof(LatestPointer))]
 [JsonSerializable(typeof(LauncherInfo))]
+[JsonSerializable(typeof(VersionList))]
 public partial class LauncherJson : JsonSerializerContext
 {
 }
