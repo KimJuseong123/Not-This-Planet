@@ -69,9 +69,9 @@
 | 트리거 | 언제 | 생기는 잡 | 비고 |
 | --- | --- | --- | --- |
 | **A. MR** (`merge_request_event`) | MR이 열리거나 소스 브랜치에 push | §2-A 전부 (조건부: `ci-tests` `unity-compile` `build-backend` `ai-review`) | 새 push가 앞 파이프라인을 자동 취소한다(정상) |
-| **B. develop push** | 팀장이 MR을 머지한 직후 | `retarget-pipelines` · `unity-compile`(METAGAME 변경) · `build-backend` → `deploy-backend`(backend 변경, **수동**) | **자동 취소 없음**(`auto_cancel: none`, -309) — 연달아 머지돼도 배포 버튼이 사라지지 않는다 |
+| **B. develop push** | 팀장이 MR을 머지한 직후 | `retarget-pipelines` · `unity-compile`(METAGAME 변경) · `build-backend` → `deploy-dev`(backend 변경, **자동** — 개발 서버, -284) | **자동 취소 없음**(`auto_cancel: none`, -309) — 연달아 머지돼도 앞 파이프라인의 배포가 취소되지 않는다 |
 | **C. 스케줄** | **평일** 09:30 KST (id 28, `30 9 * * 1-5`, ref develop) — 실제 발송 09:33 | `ci-tests` · `retarget-pipelines` · `mm-digest` | 카드는 항목이 있을 때만 나간다 |
-| **D. master push** | 팀장이 `release/<키>-vX.Y.Z` 브랜치(또는 hotfix)를 master에 머지한 직후 | `release-windows` | **릴리스 = 자동**: 버전 → Windows 빌드 → 패키지 → GitLab Release(태그) → MM. 자동 취소 없음(-326) |
+| **D. master push** | 팀장이 `release/<키>-vX.Y.Z` 브랜치(또는 hotfix)를 master에 머지한 직후 | `release-windows` · `build-backend` → `deploy-prod`(**수동**, -284) | **릴리스 = 자동**: 버전 → Windows 빌드 → 패키지 → GitLab Release(태그) → MM. 자동 취소 없음(-326) |
 
 전부 `CI_ENABLE=true` 변수가 있어야 **파이프라인 자체가 생성**된다(없으면 조용히 0건 — §7).
 
@@ -110,9 +110,10 @@
 | `retarget-pipelines` | 항상 (+ 스케줄) | 부모 브랜치 삭제로 develop에 **자동 재대상된 자식 MR**을 찾아 파이프라인을 만든다 — GitLab이 그때 안 만들기 때문(-295). 그 파이프라인에서 `stack-order`가 통과하며 🔒 스레드를 해소한다 | 비차단 |
 | `unity-compile` | `METAGAME/**` 변경 | 개별 MR은 통과했는데 합쳐서 깨지는 경우를 2분 안에 잡는다(MR에서 합친 결과를 검사하게 된 `-342` 뒤에도 안전망으로 남긴다). 이 결과가 다음 MR 들의 **기준선**이 된다. **주의 — 여기서 실패해도 MM 알림이 없다**: `mm-ci-failed`가 `merge_request_event` 에서만 돈다(`-344`) | 경고(기준선용) |
 | `build-backend` | `backend/**` · `.gitlab-ci.yml` 변경 | 배포용 jar 아티팩트 | 실패 |
-| `deploy-backend` | 위와 같음 · `needs: build-backend` · **`when: manual`** · `tags: [deploy]` · `interruptible: false` · `environment: production` · **옛 파이프라인의 버튼을 누르면 경고**(-333) | jar을 `/spool`에 원자적으로 놓고 `RELEASE` 표시 → 호스트 `deploy.sh`가 교체·헬스체크(`POST /auth/guest` 200)·실패 시 **직전 jar로 롤백**(3개 보관) → 잡은 `STATUS`에 자기 sha가 찍힐 때까지 기다림(최대 420초) → MM 🟢 배포 완료 / 🔴 롤백 / 🔴 무응답 | 실패 → MM 🔴(Infra 멘션) |
+| `deploy-dev` | **develop push** + 위와 같음 · `needs: build-backend` · **자동** · `tags: [deploy]` · `interruptible: false` · `environment: development` · `DEPLOY_SPOOL: /spool-dev` | jar을 `/spool-dev`에 원자적으로 놓고 `RELEASE` 표시 → 호스트 `deploy.sh`가 교체·헬스체크(`POST /auth/guest` 200, **8081**)·실패 시 **직전 jar로 롤백**(3개 보관) → 잡은 `STATUS`에 자기 sha가 찍힐 때까지 기다림(최대 420초) → MM 🟢 배포 완료 / 🔴 롤백 / 🔴 무응답 | 실패 → MM 🔴(Infra 멘션) |
+| `deploy-prod` | **master push**(`changes` 조건 없음) · `needs: build-backend` · **`when: manual`** · `tags: [deploy]` · `interruptible: false` · `environment: production` · **옛 파이프라인의 버튼을 누르면 경고**(-333) | 위와 같고 스풀만 기본값 `/spool`, 헬스체크는 **8080** | 실패 → MM 🔴(Infra 멘션) |
 
-**왜 수동인가**: 서버 한 대가 테스트 서버이자 시연 서버라 재시작이 WebSocket 세션을 전부 끊는다. dev/prod가 갈리면(-284) dev만 자동으로 바꾼다.
+**왜 prod만 수동인가**: 재시작은 어느 쪽이든 WebSocket 세션을 전부 끊는다. dev/prod를 나눈 뒤(-284) **끊기는 사람이 갈렸다** — 개발 서버는 우리뿐이라 자동이고, 배포 서버는 실유저라 사람이 시점을 고른다.
 
 ### 2-C. 스케줄 파이프라인 (09:30)
 
@@ -164,8 +165,8 @@
 
 | 러너 | 태그 | 실행기 | 마운트(볼륨) | 몫 |
 | --- | --- | --- | --- | --- |
-| `METAGAME-ip-172-26-13-34` (공용) | `linux` | docker · `cpu_shares = 256`(경합 시 게임 서버에 양보) | `/cache` · Claude 바이너리 **ro** · `~/.claude` **ro** · Unity 라이선스 `.ulf` **ro** | `deploy-backend` 빼고 전부 (`default.tags: [linux]`) |
-| `METAGAME-deploy-ip-172-26-13-34` (배포 전용, id 2068) | `deploy` · **Protected(`ref_protected`)** · `run_untagged` 없음 — 2026-09-08 러너 API 실측 | docker | `/cache` · `/home/ubuntu/metagame/deploy` → **`/spool` rw** | `deploy-backend`만. 스풀은 여기에만 있고 **데이터만** 들어 있다 — 실행되는 코드는 `/opt/metagame-deploy/`(-324) |
+| `METAGAME-ip-172-26-13-34` (공용) | `linux` | docker · `cpu_shares = 256`(경합 시 게임 서버에 양보) | `/cache` · Claude 바이너리 **ro** · `~/.claude` **ro** · Unity 라이선스 `.ulf` **ro** | `deploy-dev`·`deploy-prod` 빼고 전부 (`default.tags: [linux]`) |
+| `METAGAME-deploy-ip-172-26-13-34` (배포 전용, id 2068) | `deploy` · **Protected(`ref_protected`)** · `run_untagged` 없음 — 2026-09-08 러너 API 실측 | docker | `/cache` · `/home/ubuntu/metagame/deploy` → **`/spool` rw** · `/home/ubuntu/metagame-dev/deploy` → **`/spool-dev` rw**(-284) | `deploy-dev`·`deploy-prod`만. 스풀은 여기에만 있고 **데이터만** 들어 있다 — 실행되는 코드는 `/opt/metagame-deploy/`(-324) |
 | 내 PC 윈도우 러너 | — | shell(pwsh) | — | **정지 · 예비.** 받을 잡이 없다 |
 
 잡 컨테이너는 root로 돈다. 공용 러너에 `:rw` 마운트를 두면 아무 MR 이나 자기 브랜치의 `.gitlab-ci.yml` 한 줄로 그것을 읽고 쓸 수 있다 — 그래서 자격증명은 `:ro`, 스풀은 배포 러너에만(-290 · -252). 그리고 **rw 마운트 안에는 실행되는 코드를 두지 않는다**(-324): 스풀에는 데이터(jar·RELEASE·STATUS·로그·previous)만, `deploy.sh`는 마운트 밖 root 소유.
@@ -291,6 +292,6 @@ git show --name-status --format="" HEAD
 | ~~Jira 릴리스 fixVersion(-327)~~ | **2026-09-07 규칙 R10 완성**(부록 A 방식). 남은 것은 CI 변수 `JIRA_RELEASE_WEBHOOK`과 첫 릴리스에서 Jira 릴리스 화면 확인 |
 | `build-backend`가 테스트를 안 돈다 | -302. 플래키 원인(-313)이 배포됐으니 `test bootJar` + junit으로 |
 | `metagame.service`(데디케이티드 서버) 가 아직 돈다 | 리슨 서버 + 릴레이 전환 뒤 사용 여부 확인 |
-| `deploy-backend`가 수동 · dev/prod 미분리 | -284. 보안그룹 답(dev 포트) 대기 |
+| ~~백엔드 배포가 수동 · dev/prod 미분리~~ | **2026-09-11 해결** — -284 로 `deploy-dev`(develop 머지 → 개발 서버, 자동)와 `deploy-prod`(master 머지 → 배포 서버, 수동)로 갈랐다. 새 포트는 우리가 정할 수 없어 보안그룹 답을 기다리는 대신 **경로 접두 `/dev`** 로 나눴다(nginx 가 8081로 넘긴다). prod 가 수동인 것은 이제 결함이 아니라 결정이다 |
 | Unity 라이선스 만료 10-09 · Claude 리프레시 토큰 만료 09-30 | 사람이 갱신·재로그인. 후자는 3일 전부터 알림 |
 | 봇 코멘트 최대 6종 | 합칠지 결정 남음 |
