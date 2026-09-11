@@ -15,6 +15,7 @@ DEV_SPOOL=$DEV_APP/deploy
 CODE=/opt/metagame-deploy
 RUNNER_CFG=/etc/gitlab-runner/config.toml
 BUILDS=/var/www/metagame-builds
+SITE=/var/www/metagame-site
 
 echo "[1/6] dev 스풀 생성 — $DEV_SPOOL"
 install -d -o ubuntu -g ubuntu "$DEV_SPOOL" "$DEV_SPOOL/previous"
@@ -40,9 +41,11 @@ systemctl daemon-reload
 systemctl enable --now metagame-deploy-dev.path
 systemctl status metagame-deploy-dev.path --no-pager | head -4
 
-echo "[4/6] 배포 산출물 폴더 — $BUILDS (S15P21B202-405)"
+echo "[4/6] 배포 페이지·산출물 폴더 (S15P21B202-405 · -452)"
 # nginx 가 정적으로 내보내는 자리. **데이터만** 둔다(-324) — 실행되는 것은 두지 않는다.
-install -d -o ubuntu -g www-data -m 2775 "$BUILDS"
+install -d -o ubuntu -g www-data -m 2775 "$BUILDS" "$SITE"
+echo "   산출물 $BUILDS"
+echo "   페이지 $SITE  (dist/ 의 내용을 이 자리에 올린다)"
 
 echo "[5/6] 배포 러너에 dev 스풀 마운트"
 # **러너를 이름으로 찾는다.** install.sh 는 첫 `volumes` 줄을 고치는데, config.toml 에는
