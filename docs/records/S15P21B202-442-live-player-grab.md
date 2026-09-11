@@ -230,18 +230,23 @@ if (!adoptedBody) body.SetInput(frame);          // 서버의 PlayerRig 가 실�
 
 ### 6-2. 대조 실험
 
+셋 다 실제로 돌려 확인했다.
+
 | 대조 | 결과 |
 | --- | --- |
-| `GrabbedByOthers` 를 이동 분기에서 뺀다(= 병합 전 상태) | `GrabbingAndWalkingAway_ActuallyDragsThem` 실패 (1.27m → 0.08m) |
-| 잡을 지점을 다시 `SetActive(Downed)` 로 | 지점·후보 검증 다수 실패 |
-| `Teleport` 의 `ReleaseCarriersOf` 삭제 | `TeleportingAway_MakesTheCarrierLetGo` 실패 |
+| `Hanging \|\| GrabbedByOthers` 를 `Hanging` 으로 되돌린다(= 병합 전 상태) | **2개 실패** — `GrabbingAndWalkingAway_ActuallyDragsThem` · `ResistingMakesYouHarderToDrag` |
+| 잡을 지점을 다시 `SetActive(Downed)` 로 | **7개 실패** — 지점·후보·잡힘 표시·끌기가 전부 |
+| `Teleport` 의 `ReleaseCarriersOf` 삭제 | **1개 실패** — `TeleportingAway_MakesTheCarrierLetGo` |
 
 ### 6-3. 기준선 대조
 
 | | 검증 수 | 실패 |
 | --- | --- | --- |
-| develop (`4d2bfbf`) | (본문 표 참조) | |
-| 이 브랜치 | | |
+| develop (`4d2bfbf`) | 1188 | 32 |
+| 이 브랜치 | **1203** (+15) | **32** |
+
+**새로 깨진 검증 없음. 실패 셋이 완전히 같다.** 남은 32개는 develop 에서 그대로
+들고 온 것이다.
 
 ---
 
