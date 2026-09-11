@@ -52,8 +52,8 @@ if [ ! -f "$RUNNER_CFG" ]; then
 else
   cp -a "$RUNNER_CFG" "$RUNNER_CFG.bak-$(date +%Y%m%d-%H%M%S)"
   if python3 - "$RUNNER_CFG" "$MOUNT" <<'PY'
+import os
 import re
-import shutil
 import sys
 import tempfile
 
@@ -102,10 +102,21 @@ except Exception as e:              # noqa: BLE001
     print(f"   ❌ 고친 설정이 TOML 로 읽히지 않는다 — 바꾸지 않는다: {e}")
     sys.exit(1)
 
-with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as f:
+# **권한과 소유자를 그대로 옮긴다.** 이 파일에는 **러너 등록 토큰**이 들어 있어
+# 보통 root 0600 이다. `/tmp` 에 만들어 옮기면 파일 시스템이 달라 복사로 떨어지고,
+# 그때 임시 파일의 느슨한 권한이 그대로 남아 토큰이 노출된다. 같은 디렉터리에
+# 만들고 원본의 stat 를 복사한 뒤 `os.replace` 로 원자적으로 바꾼다.
+st = os.stat(cfg)
+with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False,
+                                 dir=os.path.dirname(cfg)) as f:
     f.write(out)
     tmp = f.name
-shutil.move(tmp, cfg)
+os.chmod(tmp, st.st_mode & 0o7777)
+try:
+    os.chown(tmp, st.st_uid, st.st_gid)
+except PermissionError:
+    pass
+os.replace(tmp, cfg)
 print(f"   러너 {added}곳에 추가 (전체 {runners}개)")
 PY
   then

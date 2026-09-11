@@ -6,9 +6,14 @@
 그날 테스트가 통째로 막혔을 것이다.
 
 **어떻게 보나.** 잡은 도커 컨테이너 안이라 호스트를 직접 못 본다. 호스트의
-`ec2-status.sh` 가 5분마다 재서 JSON 한 장을 배포 스풀에 놓고, 배포 러너에서 도는
-잡이 그것을 읽는다. `deploy.sh` 의 `STATUS` 와 같은 방식이고 이유도 같다 —
-**도커 소켓도 SSH 키도 CI 에 주지 않는다**(-139 · -252 · -324).
+`ec2-status.sh` 가 5분마다 재서 JSON 한 장을 `/var/lib/metagame-status` 에 놓고,
+그 폴더가 **모든 러너에 읽기 전용으로 마운트**돼 있어 아침 카드 잡이 직접 읽는다.
+`deploy.sh` 의 `STATUS` 와 같은 방식이고 이유도 같다 — **도커 소켓도 SSH 키도 CI 에
+주지 않는다**(-139 · -252 · -324).
+
+중간 잡을 두어 아티팩트로 넘기는 구조를 한 번 썼다가 버렸다. **그 잡이 대기하는
+동안 아침 카드가 통째로 늦어진다** — `allow_failure` 는 실패에만, `timeout` 은
+실행이 시작된 뒤에만 듣는다.
 
 **조용하면 아무 말도 안 한다.** `mm-digest` 규칙 그대로다. 서버가 멀쩡하면 줄이
 없어야 하고, 그래야 줄이 있을 때 사람이 본다.
@@ -97,6 +102,19 @@ def problems(data: dict | None, now: datetime | None = None) -> list[str]:
         # 오래된 값으로 나머지를 판정하지 않는다. 그러면 이미 고쳐진 것을 계속 말한다.
         return out
 
+    # **없는 값을 0 으로 읽지 않는다.** `_num` 의 기본값이 0 이라, 호스트가 필드
+    # 이름을 바꾸면 디스크 0%·재시작 0회로 읽혀 **영원히 조용해진다** — 이 파일이
+    # 막으려던 바로 그 상태다. 검사는 필드 *이름*만 잠그므로 값이 비는 경우는
+    # 여기서 잡는다.
+    absent = [label for label, path in (
+        ("디스크 사용률", ("disk", "used_pct")),
+        ("디스크 여유", ("disk", "free_gb")),
+        ("메모리 여유", ("mem", "available_gb")),
+    ) if _reach(data, path) is None]
+    if absent:
+        out.append(f"🖥 **상태 파일에 {' · '.join(absent)} 이(가) 없다** — "
+                   "재는 쪽과 읽는 쪽이 어긋났다. `ec2-status.sh` 를 다시 설치하세요")
+
     disk = data.get("disk") or {}
     if _num(disk.get("used_pct")) >= DISK_PCT_WARN:
         out.append(f"💽 **디스크 {_num(disk.get('used_pct')):.0f}%** (여유 {_num(disk.get('free_gb')):.0f} GB) — "
@@ -146,6 +164,16 @@ def problems(data: dict | None, now: datetime | None = None) -> list[str]:
             out.append(f"🔐 **인증서가 {days:.0f}일 남았다** — certbot 자동 갱신을 확인하세요")
 
     return out
+
+
+def _reach(data: dict, path: tuple):
+    """중첩 키를 따라간다. 없거나 숫자가 아니면 None — **0 과 구별한다.**"""
+    cur = data
+    for k in path:
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(k)
+    return cur if isinstance(cur, (int, float)) and not isinstance(cur, bool) else None
 
 
 def _recently_up(c: dict) -> bool:

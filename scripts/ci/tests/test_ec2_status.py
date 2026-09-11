@@ -128,6 +128,17 @@ assert E.problems(healthy(containers=_c), NOW) == [],     "옛 재시작 기록�
 _c[2] = {"name": "metagame-dev-backend", "running": True, "restarts": 12, "uptime_secs": -1}
 assert E.problems(healthy(containers=_c), NOW) == []
 
+#     **값이 아예 없으면 0 이 아니라 "못 읽었다" 로 말한다.** `_num` 의 기본값이 0 이라
+#     호스트가 필드 이름을 바꾸면 디스크 0%·재시작 0회로 읽혀 **영원히 조용해진다** —
+#     이 파일이 막으려던 바로 그 상태다. 검사는 필드 *이름*만 잠그므로 값이 비는
+#     경우는 판정 쪽에서 잡아야 한다.
+_p = E.problems(healthy(disk={}), NOW)
+assert any("없다" in r for r in _p), f"디스크 값이 없는데 조용하다: {_p}"
+_p = E.problems(healthy(mem={"total_gb": 15}), NOW)
+assert any("메모리 여유" in r and "없다" in r for r in _p), f"메모리 값이 없는데 조용하다: {_p}"
+#     0 은 정상값이다 — 없는 것과 구별해야 한다.
+assert E.problems(healthy(disk={"used_pct": 0, "free_gb": 300}), NOW) == []
+
 #     호스트가 실제로 그 값을 보내는지 — 한쪽만 고치면 영원히 조용해진다.
 _sh_up = open(os.path.join(ROOT, "scripts/deploy/host/ec2-status.sh"), encoding="utf-8").read()
 assert '"uptime_secs"' in _sh_up, "호스트가 uptime_secs 를 안 보낸다"
