@@ -69,16 +69,37 @@ public class RunLogStore {
         }
     }
 
-    /** 빈도 상한. 넘으면 {@code false}. */
+    /**
+     * 빈도 상한. 넘으면 {@code false}.
+     *
+     * <p><b>판정을 {@code compute} 안에서 끝낸다.</b> 밖에서 세어 둔 배열을 다시 읽으면
+     * 그 사이 <b>다른 요청이 올린 값</b>을 보고 판정한다 — 같은 사람이 연달아 올릴 때
+     * 엉뚱하게 막히거나 통과한다. {@code compute} 는 키 단위로 직렬화되므로 그 안에서
+     * 낸 답이 곧 그 요청의 답이다.</p>
+     */
     public boolean allow(long userId) {
         long now = Instant.now().toEpochMilli();
         long windowMs = WINDOW.toMillis();
-        long[] slot = recent.compute(userId, (k, v) -> {
-            if (v == null || now - v[0] > windowMs) return new long[] {now, 1};
-            v[1]++;
-            return v;
+
+        boolean[] ok = new boolean[1];
+        recent.compute(userId, (k, v) -> {
+            long[] slot = (v == null || now - v[0] > windowMs) ? new long[] {now, 0} : v;
+            slot[1]++;
+            ok[0] = slot[1] <= MAX_PER_WINDOW;
+            return slot;
         });
-        return slot[1] <= MAX_PER_WINDOW;
+        return ok[0];
+    }
+
+    /**
+     * 지난 창의 빈도 기록을 버린다.
+     *
+     * <p>버리지 않으면 <b>접속한 사람 수만큼 계속 쌓인다.</b> 한 항목이 작아 당장
+     * 문제는 아니지만, 오래 뜬 서버에서 줄어들 길이 없는 자료 구조는 두지 않는다.</p>
+     */
+    private void forgetOldRates() {
+        long stale = Instant.now().toEpochMilli() - WINDOW.toMillis();
+        recent.entrySet().removeIf(e -> e.getValue()[0] < stale);
     }
 
     /**
@@ -137,6 +158,8 @@ public class RunLogStore {
      */
     @Scheduled(cron = "0 30 4 * * *")
     public void sweep() {
+        forgetOldRates();
+
         if (!Files.isDirectory(root)) return;
         String cutoff = LocalDateTime.now().minusDays(keepDays).format(DAY);
         try (Stream<Path> dirs = Files.list(root)) {

@@ -33,7 +33,12 @@ namespace Metagame.Core
     /// </summary>
     public static class RunLogUpload
     {
-        /// <summary>보낸 파일에 붙이는 표시. 이름을 바꿔 두면 두 번 보내지 않는다.</summary>
+        /// <summary>
+        /// 보낸 파일에 붙이는 꼬리표. <b>이름을 바꾸는 것 자체가 표시다</b> — 옆에 표시
+        /// 파일을 따로 두면 그 쓰기가 실패했을 때 같은 로그를 매번 다시 보내고(서버는
+        /// 받을 때마다 <b>새 이름</b>을 만들어 쌓으므로 덮어쓰이지도 않는다), 표시 파일
+        /// 자체가 정리 대상에서 빠져 쌓인다.
+        /// </summary>
         public const string SentSuffix = ".sent";
 
         /// <summary>한 번에 보내는 개수. 밀린 것이 많아도 시작을 붙잡지 않는다.</summary>
@@ -49,7 +54,12 @@ namespace Metagame.Core
         /// <summary>한 요청의 시간 상한. 서버가 죽어 있어도 시작이 느려지면 안 된다.</summary>
         public const int TimeoutSeconds = 15;
 
-        static bool ran;
+        /// <summary>
+        /// 지금 돌고 있는가. <b>"한 번 시작했으면 끝" 이 아니다</b> — 로그인 실패 뒤
+        /// 다시 로그인하는 경우가 있고, 그때 앞의 시도가 중간에 끊겼으면 보낼 것이
+        /// 그대로 남아 있다. 두 번 보내는 것은 이름 바꾸기가 막는다.
+        /// </summary>
+        static bool running;
 
         /// <summary>
         /// 지난 실행들의 로그를 보낸다. 로그인 직후 <b>한 번만</b> 부른다.
@@ -59,10 +69,14 @@ namespace Metagame.Core
         /// </summary>
         public static IEnumerator SweepOnce(string baseUrl, string token, long userId)
         {
-            if (ran) yield break;
-            ran = true;
+            if (running) yield break;
+            running = true;
 
-            if (string.IsNullOrEmpty(baseUrl) || string.IsNullOrEmpty(token)) yield break;
+            if (string.IsNullOrEmpty(baseUrl) || string.IsNullOrEmpty(token))
+            {
+                running = false;
+                yield break;
+            }
 
             List<string> targets;
             try
@@ -72,15 +86,22 @@ namespace Metagame.Core
             catch (Exception e)
             {
                 Debug.LogWarning($"[RUN] 보낼 로그를 찾지 못했다 · {e.GetType().Name}");
+                running = false;
                 yield break;
             }
-            if (targets.Count == 0) yield break;
+            if (targets.Count == 0)
+            {
+                running = false;
+                yield break;
+            }
 
             Debug.Log($"[RUN] 지난 실행 로그 {targets.Count}개를 보낸다");
             foreach (var path in targets)
             {
                 yield return Send(baseUrl, token, userId, path);
             }
+
+            running = false;
         }
 
         /// <summary>
@@ -103,7 +124,11 @@ namespace Metagame.Core
             foreach (var f in files)
             {
                 if (string.Equals(f, current, StringComparison.OrdinalIgnoreCase)) continue;
+
+                // 보낸 것은 이름이 `*.log.sent` 라 위의 `*.log` 목록에 아예 안 들어온다.
+                // 다만 이름을 못 바꾼 경우를 대비해 표시 파일도 본다(아래 Mark 참조).
                 if (File.Exists(f + SentSuffix)) continue;
+
                 result.Add(f);
                 if (result.Count >= MaxPerRun) break;
             }
@@ -161,11 +186,39 @@ namespace Metagame.Core
             }
         }
 
-        /// <summary>보냈다고 표시한다. 파일을 지우지 않는 이유: 사람이 직접 볼 때가 있다.</summary>
+        /// <summary>
+        /// 보냈다고 표시한다. 지우지 않는 이유: 사람이 직접 열어 볼 때가 있다.
+        ///
+        /// <para><b>이름을 바꾸는 것이 표시다.</b> 옆에 표시 파일을 두는 방식은 그 쓰기가
+        /// 실패했을 때 조용히 넘어가면 같은 로그가 실행마다 다시 올라간다 — 서버는 받을
+        /// 때마다 <b>받은 시각으로 새 이름</b>을 만들므로 덮어쓰이지 않고 쌓이고,
+        /// 사용자별 빈도 상한(10분에 6개)까지 그것으로 채워진다.</para>
+        ///
+        /// <para>이름 바꾸기가 실패하는 경우(파일이 열려 있다 등)에만 표시 파일로
+        /// 물러선다. <b>둘 다 실패하면 남긴다</b> — 조용히 넘기면 위의 중복이 그대로
+        /// 일어나는데 아무도 이유를 모른다.</para>
+        /// </summary>
         static void Mark(string path)
         {
-            try { File.WriteAllText(path + SentSuffix, string.Empty); }
-            catch (Exception) { /* 표시를 못 해도 서버가 같은 이름을 덮어쓴다 */ }
+            try
+            {
+                File.Move(path, path + SentSuffix);
+                return;
+            }
+            catch (Exception)
+            {
+                // 아래에서 다시 시도한다.
+            }
+
+            try
+            {
+                File.WriteAllText(path + SentSuffix, string.Empty);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[RUN] {Path.GetFileName(path)} 를 보냈다고 표시하지 못했다 "
+                                 + $"· {e.GetType().Name} — 다음 실행에서 다시 올라간다");
+            }
         }
 
         /// <summary>

@@ -28,6 +28,68 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void TheEditorStillWritesNothing()
+        {
+            // 라벨 검사가 **저장소 오염 방지도 겸하고 있었다.** 에디터의
+            // `Application.dataPath` 는 `METAGAME/Assets` 라, 그 부모에 로그 폴더를
+            // 만들면 리포에 `METAGAME/logs/` 가 생긴다. 라벨 검사를 없앤 커밋에서
+            // 실제로 `RunLogTests` 가 빨개졌고 CI 가 그것을 잡았다.
+            var src = TestSource.Read("Runtime/Core/RunLog.cs");
+
+            Assert.That(src, Does.Contain("Application.isEditor"),
+                "에디터를 막지 않는다 — 저장소 안에 로그 폴더가 생긴다");
+            Assert.That(RunLog.Path, Is.Empty,
+                "이 검사가 도는 에디터에서 이미 파일이 열렸다");
+        }
+
+        [Test]
+        public void TheCapIsMeasuredInBytesNotCharacters()
+        {
+            // **한글은 UTF-8 에서 글자당 3바이트다.** 글자 수로 세면 8 MB 상한이
+            // 실제로는 24 MB 가 되어 서버(8 MB)와 nginx(9 MB)가 거절한다 — 그러면
+            // 정작 가장 큰, 가장 알고 싶은 로그만 못 올라온다.
+            var src = TestSource.Read("Runtime/Core/RunLog.cs");
+
+            Assert.That(src, Does.Contain("BaseStream.Position"),
+                "실제 파일 크기가 아니라 다른 것으로 상한을 잰다");
+            Assert.That(src, Does.Not.Contain("message.Length + 5"),
+                "글자 수로 바이트 상한을 잰다 — 한글에서 세 배가 된다");
+        }
+
+        [Test]
+        public void ReachingTheCapKeepsTheEndOfTheRun()
+        {
+            // 사람이 신고하는 문제는 보통 **마지막에** 일어난다(튕김·멈춤·크래시).
+            // 상한에 닿았다고 거기서 멈추면 앞부분만 남아 정작 필요한 구간이 사라진다.
+            // 머리도 남긴다 — 빌드·역할·커밋이 거기 있어야 무엇의 로그인지 안다.
+            var src = TestSource.Read("Runtime/Core/RunLog.cs");
+
+            Assert.That(src, Does.Contain("Compact"),
+                "상한에 닿으면 그냥 멈춘다 — 마지막 구간이 사라진다");
+            Assert.That(src, Does.Contain("HeadBytes"),
+                "머리를 남기지 않는다 — 무엇의 로그인지 알 수 없다");
+            Assert.That(RunLog.HeadBytes, Is.LessThan(RunLog.MaxBytes / 2),
+                "머리가 너무 커서 꼬리가 밀린다");
+        }
+
+        [Test]
+        public void SendingIsMarkedByRenamingNotBySideCarFiles()
+        {
+            // 표시 파일을 따로 쓰는 방식은 그 쓰기가 실패했을 때 **같은 로그를 매번 다시
+            // 올린다.** 서버는 받을 때마다 새 이름을 만들어 쌓으므로 덮어쓰이지도 않고,
+            // 사용자별 빈도 상한까지 그것으로 채워진다.
+            var src = TestSource.Read("Runtime/Core/RunLogUpload.cs");
+
+            Assert.That(src, Does.Contain("File.Move(path, path + SentSuffix)"),
+                "이름을 바꿔 표시하지 않는다");
+
+            // 이름이 바뀐 것도 오래되면 정리돼야 한다 — `*.log` 만 세면 영원히 쌓인다.
+            var log = TestSource.Read("Runtime/Core/RunLog.cs");
+            Assert.That(log, Does.Contain("RunLogUpload.SentSuffix"),
+                "보낸 파일이 정리 대상에서 빠진다 — 계속 쌓인다");
+        }
+
+        [Test]
         public void TheTailIsKeptWhenTheFileIsTooBig()
         {
             // 상한을 넘는 파일은 **뒤쪽**이 남아야 한다. 문제는 보통 끝에 있다.

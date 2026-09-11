@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Text;
 using UnityEngine;
 
 namespace Metagame.Core
@@ -22,6 +23,10 @@ namespace Metagame.Core
     /// <para><b>모든 빌드에서 돈다</b> (S15P21B202-443). 전에는 실험 빌드에서만 켜졌는데,
     /// 그러면 <b>배포판에서 문제가 나도 로그가 아예 없다</b> — 실유저는 로그를 찾아
     /// 보내 주지 않고, 참가자 화면에서만 나는 문제는 그 사람의 로그가 있어야 판정된다.</para>
+    ///
+    /// <para><b>단, 에디터는 예외다.</b> 에디터의 <c>Application.dataPath</c> 는 저장소
+    /// 안이라 켜 두면 <b>리포에 로그 폴더가 생긴다.</b> 예전의 실험 라벨 검사가 이것을
+    /// 겸해서 막고 있었으므로, 라벨 검사를 없애는 대신 에디터를 명시적으로 막는다.</para>
     ///
     /// <para><b>대신 상한을 둔다.</b> 배포판은 몇 시간씩 켜 두는 사람이 있고, 로그가
     /// 무한히 커지면 디스크를 먹고 올릴 수도 없다. <see cref="MaxBytes"/> 를 넘으면
@@ -44,12 +49,18 @@ namespace Metagame.Core
         /// 없앤 경고다). 그래도 상한이 없으면 오래 켜 두는 사람의 파일이 계속 큰다 —
         /// 디스크도 문제지만 <b>서버로 올릴 수 없게 되는 것</b>이 더 문제다.</para>
         ///
-        /// <para>8 MB 는 보통 한 판의 수십 배다. 여기 닿는다는 것은 무언가 잘못됐다는
-        /// 뜻이므로, 그때는 <b>앞부분이 남는다</b> — 무엇이 폭주를 시작했는지가 앞에 있다.</para>
+        /// <para>8 MB 는 보통 한 판의 수십 배다. 여기 닿으면 <b>가운데를 버리고 머리와
+        /// 꼬리를 남긴다</b> — <see cref="Compact"/> 가 그 이유를 적고 있다.</para>
         /// </summary>
         public const long MaxBytes = 8L * 1024 * 1024;
 
-        static long written;
+        /// <summary>
+        /// 상한에 닿아도 남기는 <b>머리</b> 크기. 빌드·역할·커밋이 여기 있고, 그것이
+        /// 없으면 받은 쪽이 <b>무엇의 로그인지</b> 알 수 없다.
+        /// </summary>
+        public const long HeadBytes = 64L * 1024;
+
+        /// <summary>더 쓸 수 없게 된 상태. 압축에 실패했을 때만 선다.</summary>
         static bool capped;
 
         static readonly object Gate = new object();
@@ -76,6 +87,15 @@ namespace Metagame.Core
         /// </summary>
         internal static void Start()
         {
+            // **에디터에서는 돌지 않는다.** 에디터의 `Application.dataPath` 는 저장소
+            // 안(`METAGAME/Assets`)이라 그 부모에 쓰면 **리포에 `METAGAME/logs/` 가
+            // 생긴다.** 전에는 실험 라벨 검사가 이것까지 겸해서 막고 있었는데,
+            // `-443` 이 그 검사를 없애면서 막는 것이 사라졌다(CI 가 잡아냈다).
+            //
+            // 막아야 할 것은 **라벨이 아니라 에디터**다 — 배포 빌드에서 켜는 것이
+            // 이 변경의 목적이고, 배포·실험 빌드는 둘 다 에디터가 아니다.
+            if (Application.isEditor) return;
+
             lock (Gate)
             {
                 if (writer != null) return;
@@ -171,30 +191,23 @@ namespace Metagame.Core
 
                 try
                 {
-                    // **상한에 닿으면 멈춘다.** 그 사실을 한 줄 남기지 않으면 "로그가 왜
-                    // 여기서 끝났지" 를 아무도 모르고, 그 판을 다시 재현하려 든다.
-                    if (written >= MaxBytes)
-                    {
-                        capped = true;
-                        writer.WriteLine($"[W] 로그가 상한({MaxBytes / 1048576}MB)에 닿아 여기서 멈춘다 — 앞부분이 원인에 가깝다");
-                        writer.Flush();
-                        return;
-                    }
+                    // **상한 판정은 실제 파일 크기로 한다.** 글자 수로 세면 한글이
+                    // UTF-8 에서 글자당 3바이트라 파일이 상한의 세 배까지 큰다 —
+                    // 그러면 서버(8 MB)와 nginx(9 MB)가 거절한다.
+                    // `AutoFlush` 라 Position 이 곧 파일 크기다.
+                    if (writer.BaseStream.Position >= MaxBytes) Compact();
+                    if (writer == null || capped) return;
 
                     writer.Write(Tag(type));
                     writer.Write(' ');
                     writer.WriteLine(message);
-                    written += message.Length + 5;
 
                     // 스택은 예외에만 싣는다. 모든 줄에 싣던 Player.log 는 그 때문에
                     // 사람이 읽기 어렵고 용량도 몇십 배가 된다(2026-09-09 실측: 31MB).
                     if (type == LogType.Exception || type == LogType.Error)
                     {
                         if (!string.IsNullOrEmpty(stackTrace))
-                        {
                             writer.WriteLine(stackTrace.TrimEnd());
-                            written += stackTrace.Length;
-                        }
                     }
                 }
                 catch (Exception)
@@ -204,6 +217,103 @@ namespace Metagame.Core
                     writer = null;
                 }
             }
+        }
+
+        /// <summary>
+        /// 상한에 닿으면 <b>가운데를 버리고 머리와 꼬리를 남긴다</b> (S15P21B202-443).
+        ///
+        /// <para><b>왜 그냥 멈추지 않는가.</b> 멈추면 앞부분만 남는다. 그런데 사람이
+        /// 신고하는 문제는 보통 <b>마지막에</b> 일어난다 — 튕김·멈춤·크래시가 그렇다.
+        /// 상한에 닿을 만큼 커졌다는 것은 무언가 폭주했다는 뜻이고, 그때 정작 필요한
+        /// 마지막 구간이 통째로 사라진다.</para>
+        ///
+        /// <para><b>왜 꼬리만 남기지 않는가.</b> 파일 앞머리에 빌드·역할·커밋이 있다.
+        /// 그것이 없으면 받은 쪽이 무엇의 로그인지 알 수 없다.</para>
+        ///
+        /// <para>자르는 자리는 <b>줄바꿈에 맞춘다.</b> UTF-8 에서 <c>\n</c> 바이트는 여러
+        /// 바이트 문자의 가운데에 나타나지 않으므로, 줄 경계로 자르면 글자가 깨지지
+        /// 않는다. 바이트 수로 아무 데나 자르면 받은 로그의 그 줄이 깨져 나온다.</para>
+        ///
+        /// <para>압축 뒤 파일은 약 <see cref="HeadBytes"/> + <see cref="MaxBytes"/>/2 라,
+        /// 다음 압축까지 다시 4 MB 가 필요하다 — 줄마다 도는 일이 아니다.</para>
+        /// </summary>
+        static void Compact()
+        {
+            string path = Path;
+            try
+            {
+                writer.Flush();
+                writer.Dispose();
+                writer = null;
+
+                byte[] head, tail;
+                using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read))
+                {
+                    long len = fs.Length;
+
+                    int headLen = (int)Math.Min(HeadBytes, len);
+                    head = new byte[headLen];
+                    ReadExactly(fs, head);
+
+                    int tailLen = (int)Math.Min(MaxBytes / 2, len - headLen);
+                    tail = new byte[tailLen];
+                    fs.Seek(len - tailLen, SeekOrigin.Begin);
+                    ReadExactly(fs, tail);
+                }
+
+                int headEnd = LastNewline(head);     // 마지막 완전한 줄까지
+                int tailStart = FirstNewline(tail);  // 첫 줄바꿈 **다음**부터
+
+                using (var fs = new FileStream(path, FileMode.Create, FileAccess.Write))
+                {
+                    fs.Write(head, 0, headEnd);
+
+                    var mark = Encoding.UTF8.GetBytes(Environment.NewLine
+                        + $"[W] 로그가 상한({MaxBytes / 1048576}MB)에 닿아 가운데를 버렸다 — 머리와 꼬리만 남는다"
+                        + Environment.NewLine);
+                    fs.Write(mark, 0, mark.Length);
+
+                    fs.Write(tail, tailStart, tail.Length - tailStart);
+                }
+
+                writer = new StreamWriter(path, true) { AutoFlush = true };
+            }
+            catch (Exception)
+            {
+                // 압축에 실패하면 더 쓰지 않는다. 여기서 Debug 를 부르면 이 핸들러가
+                // 다시 불려 무한히 감긴다 — 그래서 조용히 닫는다.
+                try { if (writer != null) writer.Dispose(); }
+                catch (Exception) { /* 끝내는 중이다 */ }
+                writer = null;
+                capped = true;
+            }
+        }
+
+        static void ReadExactly(Stream s, byte[] buf)
+        {
+            int got = 0;
+            while (got < buf.Length)
+            {
+                int n = s.Read(buf, got, buf.Length - got);
+                if (n <= 0) break;
+                got += n;
+            }
+        }
+
+        /// <summary>마지막 줄바꿈까지의 길이. 없으면 전체(자를 곳이 없다).</summary>
+        static int LastNewline(byte[] buf)
+        {
+            for (int i = buf.Length - 1; i >= 0; i--)
+                if (buf[i] == (byte)'\n') return i + 1;
+            return buf.Length;
+        }
+
+        /// <summary>첫 줄바꿈 다음 위치. 없으면 0(자를 곳이 없다).</summary>
+        static int FirstNewline(byte[] buf)
+        {
+            for (int i = 0; i < buf.Length; i++)
+                if (buf[i] == (byte)'\n') return i + 1;
+            return 0;
         }
 
         static string Tag(LogType type)
@@ -249,7 +359,10 @@ namespace Metagame.Core
                 string folder = System.IO.Path.GetDirectoryName(Path);
                 if (string.IsNullOrEmpty(folder)) return;
 
+                // `*.log.sent` 도 센다 — 보낸 뒤 이름을 바꾸므로(`RunLogUpload`),
+                // `*.log` 만 세면 보낸 파일이 영원히 쌓인다.
                 var files = new List<string>(Directory.GetFiles(folder, "*.log"));
+                files.AddRange(Directory.GetFiles(folder, "*.log" + RunLogUpload.SentSuffix));
                 if (files.Count <= KeepFiles) return;
 
                 // 이름이 yyyyMMdd-HHmmss 라 문자열 정렬이 곧 시각 정렬이다.
