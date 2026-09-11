@@ -404,6 +404,7 @@ namespace Metagame.Gameplay.Tests
             var tool = MakeTool(NozzleAbove(part));
 
             tool.WeldTick(Step, PlasmaBeamMode.Weld);
+            UnityEngine.Physics.SyncTransforms();
             var shrunk = tool.CutTick(Step, PlasmaBeamMode.Cut);
 
             Assert.IsTrue(shrunk, "쌓을 수만 있고 되돌릴 수 없으면 안 된다.");
@@ -528,6 +529,7 @@ namespace Metagame.Gameplay.Tests
         {
             var go = new GameObject("PlasmaWeldingTool");
             go.transform.position = nozzle;
+            go.transform.rotation = Quaternion.LookRotation(Vector3.down);
             _spawned.Add(go);
 
             UnityEngine.Physics.SyncTransforms();
