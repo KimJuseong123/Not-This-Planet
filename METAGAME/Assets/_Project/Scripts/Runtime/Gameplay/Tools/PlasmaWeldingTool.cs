@@ -256,14 +256,15 @@ namespace Metagame.Gameplay
                 distance = contact.distance;
             }
 
-            BeamEnd = origin + direction * distance;
             Color color = CurrentBeamColor;
             beam.startColor = color;
             beam.endColor = color;
-            // 표시는 로컬 총구에서 시작하되 끝점/판정은 월드 도구 기준으로 유지한다.
+            // 맞힌 표면은 실제 판정을 유지한다. 허공은 화면 총구에서 직진시켜야 한다.
+            // 서로 다른 총구로 시작/끝을 계산하면 이동 중 물리 보간 차이가 빔 방향을 꺾는다.
             var view = FirstPersonModel;
             var viewOrigin = view != null && view.gameObject.activeInHierarchy && visibleBoundsReady
                 ? NozzleGeometry.TipAlong(view, visibleLocalBounds, direction) : origin;
+            BeamEnd = (BeamHasContact ? origin : viewOrigin) + direction * distance;
             beam.SetPosition(0, viewOrigin);
             beam.SetPosition(1, BeamEnd);
             beam.enabled = true;
