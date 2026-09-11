@@ -259,4 +259,26 @@ for _name, _blk in (("mm-ci-failed", _failed), ("mm-ci-resolved", _resolved)):
         f"{_name} 의 rules 에 web 이 없다 — 리허설 실패가 조용하다")
 print("  리허설(web) 실패도 카드로 나간다 ✅")
 
+
+# ── ⑩ 리허설이 **파이프라인 단계에서** 허용된다 (S15P21B202-407) ─────────
+#
+#     **이것이 없어서 리허설이 돌지 않았다.** `release-windows` 에 `web` 조건을 넣어
+#     두었는데도 Run pipeline 을 누르면 아무것도 만들어지지 않았다 — 최상위
+#     `workflow: rules:` 가 catch-all 없는 화이트리스트라 `web` 이 어느 항목에도
+#     걸리지 않았고, 파이프라인 자체가 생성되지 않으니 잡 규칙은 닿지도 않는 죽은
+#     코드였다(2026-09-11 확인).
+#
+#     그래서 잡 규칙만 보는 검사로는 이 실패를 못 잡는다. 두 층을 **함께** 본다.
+_wf = _ci.split("workflow:", 1)[1].split("stages:", 1)[0]
+assert 'CI_PIPELINE_SOURCE == "web"' in _wf, (
+    "workflow rules 에 web 이 없다 — Run pipeline 을 눌러도 파이프라인이 생성되지 않고, "
+    "release-windows 의 web 조건은 죽은 코드가 된다")
+
+#     리허설은 90분 빌드다. 중간에 죽으면 반쯤 만든 산출물이 남고 "경로가 끝까지
+#     가는지" 를 볼 수 없다 — master 와 같은 이유로 자동 취소를 끈다.
+_web_at = _wf.index('CI_PIPELINE_SOURCE == "web"')
+assert "on_new_commit: none" in _wf[_web_at:], (
+    "리허설에 auto_cancel 이 꺼져 있지 않다 — 뒤따르는 커밋이 90분 빌드를 죽인다")
+print("  리허설이 workflow 단계에서 허용되고 자동 취소가 꺼져 있다 ✅  (이것이 빠져 돌지 않았다)")
+
 print("== 통과 ==")
