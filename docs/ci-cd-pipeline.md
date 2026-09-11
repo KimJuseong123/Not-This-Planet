@@ -69,7 +69,7 @@
 | 트리거 | 언제 | 생기는 잡 | 비고 |
 | --- | --- | --- | --- |
 | **A. MR** (`merge_request_event`) | MR이 열리거나 소스 브랜치에 push | §2-A 전부 (조건부: `ci-tests` `unity-compile` `build-backend` `ai-review`) | 새 push가 앞 파이프라인을 자동 취소한다(정상) |
-| **B. develop push** | 팀장이 MR을 머지한 직후 | `retarget-pipelines` · `unity-compile`(METAGAME 변경) · `build-backend` → `deploy-dev`(backend 변경, **자동** — 개발 서버, -284) | **자동 취소 없음**(`auto_cancel: none`, -309) — 연달아 머지돼도 앞 파이프라인의 배포가 취소되지 않는다 |
+| **B. develop push** | 팀장이 MR을 머지한 직후 | `retarget-pipelines` · `unity-compile`(METAGAME 변경) · `build-backend` → `deploy-dev`(backend 변경, **버튼만** — 자동 배포는 새벽 스케줄, -455) | **자동 취소 없음**(`auto_cancel: none`, -309) — 연달아 머지돼도 앞 파이프라인의 배포가 취소되지 않는다 |
 | **C. 스케줄** | **평일** 09:30 KST (id 28, `30 9 * * 1-5`, ref develop) — 실제 발송 09:33 | `ci-tests` · `retarget-pipelines` · `mm-digest` | 카드는 항목이 있을 때만 나간다 |
 | **D. master push** | 팀장이 `release/<키>-vX.Y.Z` 브랜치(또는 hotfix)를 master에 머지한 직후 | `release-windows` · `build-backend` → `deploy-prod`(**수동**, -284) | **릴리스 = 자동**: 버전 → Windows 빌드 → 패키지 → GitLab Release(태그) → MM. 자동 취소 없음(-326) |
 
@@ -110,10 +110,10 @@
 | `retarget-pipelines` | 항상 (+ 스케줄) | 부모 브랜치 삭제로 develop에 **자동 재대상된 자식 MR**을 찾아 파이프라인을 만든다 — GitLab이 그때 안 만들기 때문(-295). 그 파이프라인에서 `stack-order`가 통과하며 🔒 스레드를 해소한다 | 비차단 |
 | `unity-compile` | `METAGAME/**` 변경 | 개별 MR은 통과했는데 합쳐서 깨지는 경우를 2분 안에 잡는다(MR에서 합친 결과를 검사하게 된 `-342` 뒤에도 안전망으로 남긴다). 이 결과가 다음 MR 들의 **기준선**이 된다. **주의 — 여기서 실패해도 MM 알림이 없다**: `mm-ci-failed`가 `merge_request_event` 에서만 돈다(`-344`) | 경고(기준선용) |
 | `build-backend` | `backend/**` · `.gitlab-ci.yml` 변경 | 배포용 jar 아티팩트 | 실패 |
-| `deploy-dev` | **develop push** + 위와 같음 · `needs: build-backend` · **자동** · `tags: [deploy]` · `interruptible: false` · `environment: development` · `DEPLOY_SPOOL: /spool-dev` | jar을 `/spool-dev`에 원자적으로 놓고 `RELEASE` 표시 → 호스트 `deploy.sh`가 교체·헬스체크(`POST /auth/guest` 200, **8081**)·실패 시 **직전 jar로 롤백**(3개 보관) → 잡은 `STATUS`에 자기 sha가 찍힐 때까지 기다림(최대 420초) → MM 🟢 배포 완료 / 🔴 롤백 / 🔴 무응답 | 실패 → MM 🔴(Infra 멘션) |
+| `deploy-dev` | **develop push** + 위와 같음 · `needs: build-backend` · **`when: manual`**(머지는 버튼만) + **새벽 스케줄 자동**(`$NIGHTLY_DEPLOY_DEV`, -455) · `tags: [deploy]` · `interruptible: false` · `environment: development` · `DEPLOY_SPOOL: /spool-dev` | jar을 `/spool-dev`에 원자적으로 놓고 `RELEASE` 표시 → 호스트 `deploy.sh`가 교체·헬스체크(`POST /auth/guest` 200, **8081**)·실패 시 **직전 jar로 롤백**(3개 보관) → 잡은 `STATUS`에 자기 sha가 찍힐 때까지 기다림(최대 420초) → MM 🟢 배포 완료 / 🔴 롤백 / 🔴 무응답 | 실패 → MM 🔴(Infra 멘션) |
 | `deploy-prod` | **master push**(`changes` 조건 없음) · `needs: build-backend` · **`when: manual`** · `tags: [deploy]` · `interruptible: false` · `environment: production` · **옛 파이프라인의 버튼을 누르면 경고**(-333) | 위와 같고 스풀만 기본값 `/spool`, 헬스체크는 **8080** | 실패 → MM 🔴(Infra 멘션) |
 
-**왜 prod만 수동인가**: 재시작은 어느 쪽이든 WebSocket 세션을 전부 끊는다. dev/prod를 나눈 뒤(-284) **끊기는 사람이 갈렸다** — 개발 서버는 우리뿐이라 자동이고, 배포 서버는 실유저라 사람이 시점을 고른다.
+**배포 시점** (-455). 재시작은 어느 쪽이든 WebSocket 세션을 전부 끊는다. 끊기는 사람이 다를 뿐이다 — dev 는 **테스트하는 팀원**, prod 는 **실유저**. 그래서 둘 다 머지가 자동으로 배포하지 않는다. dev 는 **새벽 스케줄**(끊길 세션이 없는 시간)이 자동으로 맞추고 낮에는 버튼이며, prod 는 릴리스 뒤 사람이 시점을 고른다. `-139` §4 가 처음부터 적어 둔 이유이고, 한때 "나눈 뒤 실유저는 prod 에 있으니 dev 는 자동" 이라고 바꿨던 것이 틀렸다.
 
 ### 2-C. 스케줄 파이프라인 (09:30)
 

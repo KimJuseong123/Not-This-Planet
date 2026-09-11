@@ -441,6 +441,9 @@ build-backend:            # 백엔드 **테스트 + jar** — MR 에서는 검�
     #
     # 비용은 릴리스마다 2분 30초 한 번이다. 버튼이 사라지는 것보다 싸다.
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
+    # 새벽 배포 스케줄에서도 돌아야 한다 — `deploy-dev` 가 이 잡의 jar 을 쓴다
+    # (`needs: [build-backend]`). 아침 점검 스케줄에는 이 변수가 없어 생기지 않는다.
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_DEPLOY_DEV == "true"
   variables:
     GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"   # 캐시가 잡 밖으로 남으려면 작업 디렉터리 안이어야 한다
   cache:
@@ -526,15 +529,26 @@ deploy-dev:               # develop 머지 뒤 **자동** 배포 — 개발 서�
     # 백엔드를 건드리지 않는다 — 나누는 목적이 그것이다.
     DEPLOY_SPOOL: /spool-dev
   rules:
-    # **자동이다** (2026-09-11 팀 결정). 수동이던 이유가 "팀원이 이 서버로 테스트 중이고
-    # 재시작은 WebSocket 세션을 전부 끊는다" 였는데, 나눈 뒤 실유저는 prod 에 있다.
-    # 헬스체크가 실패하면 `deploy.sh` 가 직전 jar 로 되돌리고 🔴 카드가 나간다.
+    # **머지는 버튼만 만든다** (S15P21B202-455).
+    #
+    # 한때 여기에 "나눈 뒤 실유저는 prod 에 있으니 자동으로 해도 된다" 고 적혀
+    # 있었다. **그 논리가 틀렸다.** `-139` §4 가 수동으로 둔 이유는 실유저가 아니라
+    # **이 서버로 테스트하는 팀원**이었다 — 재시작은 약 7초인데 그 사이 WebSocket
+    # 세션이 전부 끊긴다. dev 가 바로 그 팀원이 쓰는 서버다. 자동으로 두면 낮에
+    # 백엔드 MR 이 머지될 때마다 테스트하던 사람이 튕긴다.
+    #
+    # 급할 때는 사람이 "지금 끊어도 된다" 를 알고 누른다. 평소 최신 맞추기는
+    # 아래 새벽 스케줄이 한다.
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
       # `.gitlab-ci.yml` 을 넣는 이유 두 가지 (S15P21B202-309):
       #   ① 배포 정의가 바뀌었으면 그것을 실제로 배포해 볼 수 있어야 한다
       #   ② build-backend 가 이미 이 조건이라 **잡 두 개의 조건이 어긋나면** deploy 는
       #      needs: [build-backend] 이므로 build 만 생기는 조합이 만들어진다
       changes: ["backend/**/*", ".gitlab-ci.yml"]
+      when: manual
+    # **새벽 스케줄은 자동이다.** 아침에 오면 개발 서버가 최신이고, 그 시간에는
+    # 끊길 세션이 없다. `changes` 를 보지 않는다 — 어제 무엇이 머지됐든 맞춘다.
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_DEPLOY_DEV == "true"
   script:
     - python scripts/ci/deploy_backend.py
 
@@ -745,7 +759,9 @@ mm-digest:                # 스케줄 파이프라인(매일 09:30 · 실제 발
     - job: ci-tests       # 빨간 순간 이 잡이 건너뛰어져 아침 카드가 아예 안 나간다(-289).
       optional: true      # when: always 라 ci-tests 가 실패해도 카드는 나가고, 실패 사실을 카드가 싣는다.
   rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule" && $MM_WEBHOOK_URL
+    # **새벽 배포 스케줄에는 끼지 않는다** (S15P21B202-455). 스케줄 파이프라인은
+    # 소스가 다 `schedule` 이라, 변수로 가르지 않으면 아침 카드가 하루 두 번 나간다.
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $MM_WEBHOOK_URL && $NIGHTLY_DEPLOY_DEV != "true"
       when: always
   script:
     - python scripts/ci/mm_digest.py
