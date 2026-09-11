@@ -1,0 +1,12 @@
+[Unit]
+Description=METAGAME 개발 배포 스풀 감시 — RELEASE 표시 파일이 생기면 배포를 실행한다
+Documentation=https://lab.ssafy.com/s15-metaverse-game-sub1/S15P21B202/-/blob/develop/docs/records/S15P21B202-139-cd-strategy.md
+
+[Path]
+# prod 와 **다른 스풀**이다 (S15P21B202-284). 같은 스풀을 보면 develop 머지가
+# prod 를 배포한다 — 나누는 목적이 그것이다.
+PathExists=/home/ubuntu/metagame-dev/deploy/RELEASE
+Unit=metagame-deploy-dev.service
+
+[Install]
+WantedBy=multi-user.target

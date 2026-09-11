@@ -21,8 +21,16 @@
 # DRY_RUN=1 로 실행하면 컨테이너를 건드리지 않고 지금 도는 앱의 준비 상태만 확인한다(설치 검증용).
 set -uo pipefail
 
+# **환경마다 값이 다르다** (S15P21B202-284). prod 는 기본값이 곧 지금 쓰는 값이므로
+# 이 스크립트를 dev 에 그대로 쓰면서 환경변수만 갈아 끼운다 — 복사본을 두면 한쪽이
+# 조용히 낡는다(`-433` 에서 겪은 것과 같은 결).
+#
+#   prod  APP_DIR=/home/ubuntu/metagame       HEALTH_PORT=8080  (기본값)
+#   dev   APP_DIR=/home/ubuntu/metagame-dev   HEALTH_PORT=8081
 APP="${APP_DIR:-/home/ubuntu/metagame}"
 SPOOL="${SPOOL_DIR:-$APP/deploy}"
+HEALTH_PORT="${HEALTH_PORT:-8080}"
+ENV_NAME="${ENV_NAME:-prod}"
 JAR_DEST="$APP/build/libs/backend-0.0.1-SNAPSHOT.jar"
 KEEP="${KEEP:-3}"
 HEALTH_TRIES="${HEALTH_TRIES:-30}"        # 3초 간격 → 최대 90초
@@ -55,7 +63,7 @@ LAST_CODE=""
 # 그래서 실패하면 마지막 응답 코드와 백엔드 로그 꼬리를 남긴다.
 ready() {
   LAST_CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
-    -X POST http://127.0.0.1:8080/auth/guest \
+    -X POST "http://127.0.0.1:$HEALTH_PORT/auth/guest" \
     -H 'Content-Type: application/json' \
     -d '{"deviceId":"ci-deploy-health","nickname":"health"}' 2>/dev/null)
   [ "$LAST_CODE" = "200" ]
@@ -82,7 +90,7 @@ if ! flock -n 9; then
 fi
 
 echo ""
-echo "===== [$(now)] 배포 시작 ====="
+echo "===== [$(now)] 배포 시작 · 환경=$ENV_NAME · 앱=$APP · 포트=$HEALTH_PORT ====="
 
 [ -f "$SPOOL/RELEASE" ] || { echo "RELEASE 없음 → 할 일 없음"; exit 0; }
 RELEASE_RAW=$(head -c 2000 "$SPOOL/RELEASE")

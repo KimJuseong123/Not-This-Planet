@@ -177,8 +177,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if not os.path.isdir(spool):
         print(f"스풀 디렉터리가 없다: {spool}")
+        which = "install-dev.sh" if "dev" in spool else "install.sh"
         print("  러너 config.toml 의 volumes 에 호스트 스풀이 마운트돼 있어야 한다"
-              " — scripts/deploy/host/install.sh 가 해 준다")
+              f" — scripts/deploy/host/{which} 가 해 준다")
+        # 개발 스풀은 -284 로 새로 생긴 것이라, 머지는 됐는데 EC2 에 아직 설치하지
+        # 않은 창이 있다. 그때 develop 머지가 나면 여기서 멈추는 것이 맞다 —
+        # 사람이 무엇을 해야 하는지 알 수 있게 스크립트 이름을 정확히 말한다.
         return 1
 
     jar = find_jar(argv)

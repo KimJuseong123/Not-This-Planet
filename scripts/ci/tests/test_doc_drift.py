@@ -26,7 +26,7 @@ import repo_hygiene as R  # noqa: E402
 
 JOBS = R.ci_jobs()
 assert len(JOBS) >= 10, f"잡을 못 읽었다: {sorted(JOBS)}"
-assert "deploy-backend" in JOBS and "mr-lint" in JOBS, sorted(JOBS)
+assert {"deploy-dev", "deploy-prod", "mr-lint"} <= set(JOBS), sorted(JOBS)
 print(f"  잡 {len(JOBS)}개 읽음 ✅")
 
 TAGS = R.ci_tags()
@@ -51,8 +51,12 @@ ALL = docs_text()
 #    `unity-win` 은 `-271` 로 `unity-compile` 이 EC2 로 옮겨진 뒤 **태그 목록에서 빠졌다.** 그래서
 #    러너 태그 필터로는 더 안 걸러지고, 그 줄들은 문서를 고치거나 drift-ok 로 표시했다 — 태그 필터
 #    자체는 아래 임시 디렉터리 케이스에서 검사한다.
+#    `deploy-dev` 를 쓰던 자리를 `deploy-backend` 로 바꿨다 — -284 에서 그것이
+#    **실제 잡이 되어** 이 케이스가 무의미해졌다(테스트가 그 사실을 스스로 말했다).
+#    `deploy-backend` 는 반대 방향으로 같은 종류다: 기록 문서가 설명하는데
+#    **이제** 없는 잡이다.
 for token, why in [("unity-win", "문서 수정 또는 drift-ok 표시"),
-                   ("deploy-dev", "기록 문서가 설명하는 아직 없는 잡"),
+                   ("deploy-backend", "기록 문서가 설명하는 이제 없는 잡"),
                    ("jira-complete", "역사 서술(drift-ok 표시)")]:
     assert f"`{token}`" in ALL, f"{token} 이 문서에 없다 — 이 케이스가 무의미해졌다"
     assert token not in JOBS, f"{token} 이 실제 잡이 됐다 — 케이스를 갱신하라"
