@@ -650,6 +650,10 @@ mm-ci-failed:             # 🔴 CI 실패 알림 — 실패한 잡 이름·링�
     # release-windows 가 실패해도 카드가 나가지 않았다. 릴리스 브랜치를 머지하고 기다리다
     # 잊게 된다 — 실측 2026-09-10: master 파이프라인 이력 0건, 즉 한 번도 안 돈 경로다.
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master" && $MM_WEBHOOK_URL
+    # 리허설(Run pipeline)도 알린다 (`!336` AI 리뷰). 리허설은 90분짜리 릴리스 경로를
+    # 실제 릴리스 없이 지나가 보는 것인데, 그 실패가 조용하면 **이 이슈가 고치려던
+    # 그 문제**가 새 경로에 그대로 생긴다 — "알림 목록에서 빠진 잡은 조용히 실패한다".
+    - if: $CI_PIPELINE_SOURCE == "web" && $MM_WEBHOOK_URL
   script:
     - python scripts/ci/mm_notify.py ci-failed
   allow_failure: true
@@ -682,6 +686,10 @@ mm-ci-resolved:           # 검사 통과 시, 남아 있는 CI 실패 코멘트
     # mm-ci-failed 와 **같은 목록·같은 조건**이어야 한다(-289). 다르면 실패한 릴리스에
     # '해소됨' 이 찍힌다.
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master" && $MM_WEBHOOK_URL
+    # 리허설(Run pipeline)도 알린다 (`!336` AI 리뷰). 리허설은 90분짜리 릴리스 경로를
+    # 실제 릴리스 없이 지나가 보는 것인데, 그 실패가 조용하면 **이 이슈가 고치려던
+    # 그 문제**가 새 경로에 그대로 생긴다 — "알림 목록에서 빠진 잡은 조용히 실패한다".
+    - if: $CI_PIPELINE_SOURCE == "web" && $MM_WEBHOOK_URL
   script:
     - python scripts/ci/mm_notify.py ci-resolved
   allow_failure: true
