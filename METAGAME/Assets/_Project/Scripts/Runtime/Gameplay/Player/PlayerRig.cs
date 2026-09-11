@@ -415,6 +415,63 @@ namespace Metagame.Gameplay
         public PlayerRig RescueCandidate => RescueFocus != null ? RescueFocus.Target : null;
 
         /// <summary>
+        /// <b>남이 나를</b> 일으키고 있는 진행도 0~1 (S15P21B202-448).
+        ///
+        /// <para><see cref="RescueProgress01"/> 과 방향이 반대다 — 그쪽은 "내가 남을",
+        /// 이쪽은 "남이 나를" 이다. 쓰러진 사람 화면에 게이지를 그리려면 이 값이
+        /// 필요하고, <b>그 기계에는 그 값을 만들 방법이 없었다.</b> 진행분은 구조자의
+        /// 인터랙터가 대상의 <see cref="DownedRescue"/> 에 쌓는데 그 일은 서버에서만
+        /// 일어나고, 예전에는 그것을 실어 보내지 않았다.</para>
+        ///
+        /// <para>그래서 <b>서버가 계산하고 참가자는 받는다</b> — <see cref="Downed"/> 와
+        /// 같은 처리다(<c>NetPlayer.rescueProgress</c>).</para>
+        /// </summary>
+        public float BeingRescuedProgress01 { get; private set; }
+
+        /// <summary>
+        /// 서버가 보낸 "남이 나를 일으키는 진행도" 를 받는다.
+        ///
+        /// <b>권위가 있는 몸에서는 무시한다.</b> 호스트·혼자 실행에서는
+        /// <see cref="RefreshBeingRescued"/> 가 자기 <see cref="RescueTarget"/> 에서 직접
+        /// 읽으므로, 여기서 덮으면 값이 두 곳에서 오게 된다 — <c>-383</c> 의
+        /// "판정을 두 곳에 두면 반드시 갈라진다" 가 그대로 적용된다.
+        /// </summary>
+        public void SetRemoteBeingRescued(float progress01)
+        {
+            if (ServerAuthority) return;
+            BeingRescuedProgress01 = Mathf.Clamp01(progress01);
+        }
+
+        /// <summary>
+        /// 권위가 있는 몸에서 내 구조 진행도를 갱신한다.
+        ///
+        /// <b>지금 누가 붙들고 있을 때만 값을 낸다</b>(!356 AI 리뷰).
+        ///
+        /// <para><see cref="DownedRescue.Progress"/> 는 구조자가 손을 떼도 <b>남는다</b> —
+        /// 다른 사람이 이어받게 하려고 일부러 그렇게 되어 있다(<c>Release</c>). 그 값을
+        /// 그대로 내보내면 아무도 오지 않는 동안에도 쓰러진 사람 화면에
+        /// "일으켜지는 중…" 이 계속 떠서, <b>이 이슈가 피하려던 거짓 표시</b>가 된다.</para>
+        ///
+        /// <para>그래서 이 값의 뜻을 <b>"지금 일으켜지고 있는 진행도"</b> 하나로 좁혔다.
+        /// 남은 진행분은 <b>구조자 쪽</b>이 알아야 하는 정보고 그쪽 화면은 이미 그것을
+        /// "이어서 일으키기" 로 보여준다 — 쓰러진 사람이 그것으로 할 수 있는 일은 없다.</para>
+        /// </summary>
+        void RefreshBeingRescued()
+        {
+            if (!ServerAuthority) return;   // 참가자는 SetRemoteBeingRescued 로 받는다
+
+            BeingRescuedProgress01 = Downed && RescueTarget != null && SomeoneIsRescuingMe
+                ? RescueTarget.Progress
+                : 0f;
+        }
+
+        /// <summary>지금 누군가가 내 구조 지점을 붙들고 있는가.</summary>
+        bool SomeoneIsRescuingMe =>
+            RescueTarget != null
+            && RescueTarget.Occupant != null
+            && RescueTarget.Occupant.State == InteractorState.Holding;
+
+        /// <summary>
         /// 지금 겨냥한(또는 붙들고 있는) 구조 지점. 홀드 중에는 <c>Focus</c> 가 아니라
         /// <c>Held</c> 를 봐야 한다 — 인터랙터는 홀드 중에 포커스를 갱신하지 않는다.
         /// </summary>
@@ -658,6 +715,11 @@ namespace Metagame.Gameplay
             RescueInteractor.Configure(aim, PhysicsScale.DownedCarryReach,
                                        PhysicsScale.DownedCarryAngle);
             RescueInteractor.Accepts = OnlyDownedRescue;
+
+            // **물리 질의만으로는 참가자 화면에서 아무도 못 찾는다**(S15P21B202-448).
+            // 이유는 Interactor.ExtraCandidates 에 적었다. 잡기가 -249 이후로 목록을
+            // 훑는 것과 같은 처리다.
+            RescueInteractor.ExtraCandidates = CollectRescueCandidates;
         }
 
         /// <summary>운반 장치 후보를 단일 현장 포커스에 등록한다.</summary>
@@ -1230,6 +1292,37 @@ namespace Metagame.Gameplay
             }
         }
 
+        /// <summary>
+        /// 겨냥 안의 기절한 동료를 후보로 댄다(S15P21B202-448).
+        ///
+        /// <b>거리·각도는 여기서 보지 않는다.</b> <see cref="Interactor"/> 가 질의로 찾은
+        /// 후보와 같은 규칙으로 걸러야 "4인이 각자 화면에서 같은 판단을 한다" 가
+        /// 성립한다. 여기서 한 번 더 자르면 두 경로의 기준이 갈라진다.
+        ///
+        /// <para><see cref="FindTeammateGrabPoint"/> 와 같은 방식이다 — 물리 질의를
+        /// 쓰지 않고 <see cref="All"/> 을 훑는다. 그쪽이 참가자 화면에서 동작하는
+        /// 이유가 이것이고, 살리기만 질의를 쓰고 있어서 호스트에서만 됐다.</para>
+        /// </summary>
+        void CollectRescueCandidates(List<IInteractable> into)
+        {
+            // **내가 쓰러져 있으면 아무도 대지 않는다**(!356 AI 리뷰). 막는 곳이
+            // DownedRescue.GetAvailability 하나뿐이면, 그 한 줄이 사라져도 아무 검증이
+            // 빨간불이 되지 않는다. 후보 자체를 대지 않는 쪽이 뜻도 분명하다 —
+            // TickRescue 도 Downed 이면 인터랙터를 취소하고 돌아간다.
+            if (Downed) return;
+
+            for (var i = 0; i < All.Count; i++)
+            {
+                var other = All[i];
+                if (other == null || other == this || !other.Downed) continue;
+
+                var rescue = other.RescueTarget;
+                if (rescue == null || !rescue.isActiveAndEnabled) continue;
+
+                into.Add(rescue);
+            }
+        }
+
         void SetDollLayer(int layer)
         {
             if (Doll == null) return;
@@ -1772,6 +1865,10 @@ namespace Metagame.Gameplay
             // 곧 게이지 속도다 (!297 AI 리뷰가 첫 판의 자리를 짚었다 — 운반 장치
             // 목록 갱신 함수 안에 들어가 있었다).
             TickRescue();
+
+            // 쓰러진 사람 화면의 게이지가 읽을 값이다(S15P21B202-448). TickRescue 가
+            // 진행분을 쌓은 뒤에 읽어야 같은 틱의 값이 나온다.
+            RefreshBeingRescued();
 
             // 기절 5초 뒤 3인칭으로 물러나는 것처럼(S15P21B202-259) 카메라가 스스로 시점을
             // 바꾸는 경우가 있다. 기절 중에도 돌아야 하므로 아래 조기 반환보다 앞이다.

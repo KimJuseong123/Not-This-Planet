@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Metagame.Gameplay.Parts;
 using UnityEngine;
 
@@ -111,6 +112,9 @@ namespace Metagame.Gameplay.Interaction
 
         readonly Collider[] _candidates = new Collider[CandidateBufferSize];
 
+        /// <summary><see cref="ExtraCandidates"/> 가 채우는 버퍼. 매 틱 재사용한다.</summary>
+        readonly List<IInteractable> _extra = new List<IInteractable>(8);
+
         /// <summary>지금 바라보고 있는 대상. 없으면 null.</summary>
         public IInteractable Focus { get; private set; }
 
@@ -126,6 +130,26 @@ namespace Metagame.Gameplay.Interaction
         /// 막힌다.</para>
         /// </summary>
         public System.Predicate<IInteractable> Accepts;
+
+        /// <summary>
+        /// <b>물리 질의로 찾을 수 없는 후보를 대는 곳</b>(S15P21B202-448).
+        /// 넘겨준 목록에 담으면 질의로 찾은 것과 <b>같은 점수 규칙</b>으로 함께 겨룬다.
+        ///
+        /// <para><b>왜 필요한가.</b> 참가자 기계에서 남의 몸은 그림이라
+        /// <c>RemoteAvatar</c> 가 <c>detectCollisions</c> 를 끈다. 그러면 그 몸에 매달린
+        /// 트리거는 <b>존재하고 켜져 있고 레이어도 맞는데</b> 씬 질의에 걸리지 않는다 —
+        /// 자식 콜라이더는 자기 <c>Rigidbody</c> 가 없으면 부모 것에 붙고, 그 스위치는
+        /// 액터를 시뮬레이션에서만이 아니라 <b>질의에서도</b> 뺀다.</para>
+        ///
+        /// <para>실측(2026-09-11): 같은 장면에서 호스트는 질의에 1개가 걸리고 참가자는
+        /// <b>0개</b>다. <c>detectCollisions</c> 하나만 되돌리면 즉시 걸린다.</para>
+        ///
+        /// <para><b>마스크를 여는 것으로는 풀 수 없다</b> — 레이어는 이미 맞다. 그리고
+        /// 여는 것 자체가 <c>S15P21B202-249</c> 가 막아 둔 길이다(고정못이 파츠의 잡기
+        /// 지점으로 딸려 온다). <see cref="PlayerRig.FindTeammateGrabPoint"/> 가 같은
+        /// 이유로 목록을 훑고, <b>그래서 그쪽은 참가자에서도 동작한다.</b></para>
+        /// </summary>
+        public Action<List<IInteractable>> ExtraCandidates;
 
         /// <summary>홀드를 진행 중인 대상. 진행 중이 아니면 null.</summary>
         public IInteractable Held { get; private set; }
@@ -340,27 +364,63 @@ namespace Metagame.Gameplay.Interaction
                 var candidateCollider = _candidates[i];
                 if (candidateCollider == null) continue;
 
-                var candidate = candidateCollider.GetComponentInParent<IInteractable>();
-                if (!IsAlive(candidate)) continue;
-                if (Accepts != null && !Accepts(candidate)) continue;
+                Consider(candidateCollider.GetComponentInParent<IInteractable>(), origin, forward,
+                         ref best, ref bestAngle, ref bestSqrDistance, ref bestPosition);
+            }
 
-                var position = candidate.Transform.position;
-                var offset = position - origin;
-                var sqrDistance = offset.sqrMagnitude;
-                if (sqrDistance > _range * _range) continue;
+            // **물리 질의가 볼 수 없는 후보를 소유자가 댄다**(S15P21B202-448).
+            //
+            // 참가자 기계에서 남의 몸은 그림이라 RemoteAvatar 가 detectCollisions 를
+            // 끈다. 그러면 그 몸에 매달린 트리거는 <b>존재하고 켜져 있어도</b> 씬 질의에
+            // 걸리지 않는다 — 자식 콜라이더는 자기 Rigidbody 가 없으면 부모 것에 붙고,
+            // 그 스위치는 액터를 시뮬레이션에서만이 아니라 질의에서도 뺀다.
+            //
+            // 그래서 살리기 후보가 호스트에서만 잡혔다(실측: 호스트 1개 / 참가자 0개).
+            // 마스크를 열어서 풀 수 있는 문제가 아니다 — 레이어는 이미 맞다.
+            //
+            // 점수 계산은 위와 <b>같은 것을 쓴다.</b> 후보를 어디서 가져왔는지가
+            // 고르는 규칙을 바꾸면 "4인이 각자 화면에서 같은 판단을 한다" 가 깨진다.
+            if (ExtraCandidates != null)
+            {
+                _extra.Clear();
+                ExtraCandidates(_extra);
 
-                var angle = sqrDistance < 1e-6f ? 0f : Vector3.Angle(forward, offset);
-                if (angle > _halfAngleDegrees) continue;
-
-                if (!IsBetter(angle, sqrDistance, position, bestAngle, bestSqrDistance, bestPosition)) continue;
-
-                best = candidate;
-                bestAngle = angle;
-                bestSqrDistance = sqrDistance;
-                bestPosition = position;
+                for (var i = 0; i < _extra.Count; i++)
+                    Consider(_extra[i], origin, forward,
+                             ref best, ref bestAngle, ref bestSqrDistance, ref bestPosition);
             }
 
             return best;
+        }
+
+        /// <summary>
+        /// 후보 하나를 채점해 지금까지의 최선과 견준다.
+        ///
+        /// 질의로 찾은 것과 소유자가 댄 것이 <b>같은 길을 지나게</b> 하려고 뽑았다.
+        /// 같은 대상이 양쪽에서 두 번 들어와도 문제가 없다 — 두 번째는 각도·거리·좌표가
+        /// 모두 같아 <see cref="IsBetter"/> 가 거짓을 돌려준다.
+        /// </summary>
+        void Consider(IInteractable candidate, Vector3 origin, Vector3 forward,
+                      ref IInteractable best, ref float bestAngle,
+                      ref float bestSqrDistance, ref Vector3 bestPosition)
+        {
+            if (!IsAlive(candidate)) return;
+            if (Accepts != null && !Accepts(candidate)) return;
+
+            var position = candidate.Transform.position;
+            var offset = position - origin;
+            var sqrDistance = offset.sqrMagnitude;
+            if (sqrDistance > _range * _range) return;
+
+            var angle = sqrDistance < 1e-6f ? 0f : Vector3.Angle(forward, offset);
+            if (angle > _halfAngleDegrees) return;
+
+            if (!IsBetter(angle, sqrDistance, position, bestAngle, bestSqrDistance, bestPosition)) return;
+
+            best = candidate;
+            bestAngle = angle;
+            bestSqrDistance = sqrDistance;
+            bestPosition = position;
         }
 
         static bool IsBetter(
