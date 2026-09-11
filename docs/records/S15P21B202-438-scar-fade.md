@@ -255,8 +255,9 @@ diff 는 각 씬에서 **2줄 추가 · 1줄 삭제**다. 씬 전체가 재직�
 | `WithNoFadeTime_ItStaysOpaqueAndLetsTheLifetimeDoIt` | 페이드 값이 없으면 불투명 유지 — 툭 사라지지 않는다 |
 | **`TheLifetimeMatchesCoolPlusFade`** | **수명 = 식는 시간 + 옅어지는 시간** |
 | `TheLifetimeKeepsTheGroundClear` | 후반 파도에서 동시에 10개 안쪽 |
+| `TheScarOutlastsTheDeflectedProp` | 쳐낸 소품(12)이 흔적(13)보다 먼저 사라진다 |
 | `AFreshTuningTakesTheCodeDefaults` | 새 인스턴스가 코드 기본값을 받는다 |
-| `EvenWithoutAFadeTime_NoBlackDiscRemains` | 페이드 0 인 옛 조정값에서도 증상이 없다 |
+| `WithoutAFadeTime_ItFallsBackToTheOldBehaviour` | 페이드 값이 없는 옛 조정값에서도 알파가 굳지 않는다 |
 | **`TheViewKeepsRepainting_WhileTheScarIsFading`** | **옅어지는 동안 색을 계속 넣는다** |
 | `TheViewStopsRepainting_OnceInvisible` | 색이 다 변한 뒤에는 건너뛴다(성능) |
 | `TheViewColorFollowsTheFade` | 뷰가 넣는 색이 단계를 반영한다 |
