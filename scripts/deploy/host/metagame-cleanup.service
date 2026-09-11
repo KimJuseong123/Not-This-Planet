@@ -1,0 +1,10 @@
+[Unit]
+Description=METAGAME EC2 정리 — 되돌려도 싼 것만 치운다 (S15P21B202-457)
+Documentation=https://lab.ssafy.com/s15-metaverse-game-sub1/S15P21B202/-/blob/develop/docs/records/S15P21B202-457-ec2-retention.md
+
+[Service]
+Type=oneshot
+ExecStart=/opt/metagame-deploy/ec2-cleanup.sh
+# 실패해도 시스템을 막을 이유가 없다. 실패는 저널에 남고, 지켜야 할 이미지가
+# 사라졌으면 종료 코드 1 이라 `systemctl status` 로 보인다.
+TimeoutStartSec=600
