@@ -30,6 +30,7 @@ namespace Metagame.Core
             public int qualityLevel = -1;
             public bool vSync = true;
             public int frameRateLimit = 120;
+            [Range(0.8f, 1.5f)] public float uiTextScale = 1f;
         }
 
         [Serializable]
@@ -116,6 +117,9 @@ namespace Metagame.Core
             else
                 display.qualityLevel = -1;
             display.frameRateLimit = Mathf.Clamp(display.frameRateLimit, 0, 360);
+            display.uiTextScale = float.IsNaN(display.uiTextScale)
+                || float.IsInfinity(display.uiTextScale) || display.uiTextScale <= 0f
+                ? 1f : Mathf.Clamp(display.uiTextScale, 0.8f, 1.5f);
 
             audio.masterVolume = Mathf.Clamp01(audio.masterVolume);
             audio.sfxVolume = Mathf.Clamp01(audio.sfxVolume);
@@ -161,7 +165,8 @@ namespace Metagame.Core
                     fullscreenMode = display != null ? display.fullscreenMode : (int)FullScreenMode.FullScreenWindow,
                     qualityLevel = display != null ? display.qualityLevel : -1,
                     vSync = display != null && display.vSync,
-                    frameRateLimit = display != null ? display.frameRateLimit : 120
+                    frameRateLimit = display != null ? display.frameRateLimit : 120,
+                    uiTextScale = display != null ? display.uiTextScale : 1f
                 },
                 audio = new AudioSettings
                 {

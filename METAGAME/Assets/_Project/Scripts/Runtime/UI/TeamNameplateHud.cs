@@ -52,6 +52,11 @@ namespace Metagame.UI
 
         void OnGUI()
         {
+            using (new UiScale.Scope(UiScale.Value)) DrawScaledGui();
+        }
+
+        void DrawScaledGui()
+        {
             if (Event.current.type != EventType.Repaint) return;
             EnsureStyle();
 
@@ -83,11 +88,11 @@ namespace Metagame.UI
 
             // 카메라 뒤는 그리지 않는다. WorldToScreenPoint 는 뒤쪽도 좌표를 주므로
             // z 를 보지 않으면 등 뒤 사람의 이름이 화면에 뒤집혀 뜬다.
-            Vector3 screen = camera.WorldToScreenPoint(world);
+            Vector3 screen = UiScale.ScreenPoint(camera.WorldToScreenPoint(world));
             if (screen.z <= 0f) return;
 
-            if (screen.x < 0f || screen.x > Screen.width
-                || screen.y < 0f || screen.y > Screen.height) return;
+            if (screen.x < 0f || screen.x > UiScale.Width
+                || screen.y < 0f || screen.y > UiScale.Height) return;
 
             float distance = Vector3.Distance(camera.transform.position, world);
             if (distance > FadeEnd) return;
@@ -99,7 +104,7 @@ namespace Metagame.UI
             string label = string.IsNullOrEmpty(player.nickname) ? "비행사" : player.nickname;
 
             var rect = new Rect(screen.x - PlateWidth * 0.5f,
-                                Screen.height - screen.y - PlateHeight,
+                                UiScale.Height - screen.y - PlateHeight,
                                 PlateWidth, PlateHeight);
 
             // 글씨만 올리면 밝은 지형 위에서 읽히지 않는다. 한 픽셀 그림자를 먼저 깐다.

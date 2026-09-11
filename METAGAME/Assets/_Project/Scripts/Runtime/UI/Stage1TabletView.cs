@@ -40,6 +40,8 @@ namespace Metagame.UI
         Stage1Exploration exploration;
         Renderer[] renderers;
         float visibility;
+        Vector3 baseLocalScale;
+        bool scaleCaptured;
 
         public bool IsOpen => exploration != null && exploration.TabletOpen;
         public Vector2 ScreenSize => screenSize;
@@ -68,6 +70,11 @@ namespace Metagame.UI
 
         public void Initialize(Camera camera, Stage1Exploration state)
         {
+            if (!scaleCaptured)
+            {
+                baseLocalScale = transform.localScale;
+                scaleCaptured = true;
+            }
             viewCamera = camera;
             exploration = state;
             renderers = GetComponentsInChildren<Renderer>(true);
@@ -104,6 +111,8 @@ namespace Metagame.UI
 
         void ApplyPose(float amount)
         {
+            // 화면과 본체를 같이 확대하여 태블릿 내부 글자/카드의 겹침을 방지한다.
+            if (scaleCaptured) transform.localScale = baseLocalScale * UiScale.Value;
             transform.localPosition = Vector3.Lerp(closedLocalPosition, openLocalPosition, amount);
             transform.localRotation = Quaternion.Slerp(
                 Quaternion.Euler(closedLocalEuler), Quaternion.Euler(openLocalEuler), amount);

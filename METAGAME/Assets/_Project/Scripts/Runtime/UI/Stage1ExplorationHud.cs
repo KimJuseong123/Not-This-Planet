@@ -113,6 +113,11 @@ namespace Metagame.UI
 
         void OnGUI()
         {
+            using (new UiScale.Scope(UiScale.Value)) DrawScaledGui();
+        }
+
+        void DrawScaledGui()
+        {
             if (Event.current.type != EventType.Repaint && Event.current.type != EventType.Layout
                 && Event.current.type != EventType.MouseDown && Event.current.type != EventType.MouseUp)
                 return;
@@ -131,8 +136,8 @@ namespace Metagame.UI
             if (_tabletView != null)
                 return;
 
-            var width = Screen.width;
-            var height = Screen.height;
+            var width = UiScale.Width;
+            var height = UiScale.Height;
 
             Box(new Rect(0f, 0f, width, height), new Color(0.02f, 0.04f, 0.07f, 0.82f));
 

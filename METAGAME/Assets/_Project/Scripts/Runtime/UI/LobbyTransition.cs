@@ -322,6 +322,11 @@ namespace Metagame.UI
 
         private void OnGUI()
         {
+            using (new UiScale.Scope(UiScale.Value)) DrawScaledGui();
+        }
+
+        void DrawScaledGui()
+        {
             if (overlayAlpha <= 0.001f && !busy)
                 return;
 
@@ -340,13 +345,13 @@ namespace Metagame.UI
             Color previousColor = GUI.color;
             GUI.depth = -10000;
             GUI.color = new Color(0f, 0f, 0f, overlayAlpha);
-            GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(0f, 0f, UiScale.Width, UiScale.Height), Texture2D.whiteTexture);
 
             if (busy && overlayAlpha > 0.35f)
             {
                 int dotCount = Mathf.FloorToInt(Time.unscaledTime * 2f) % 4;
                 GUI.color = new Color(0.80f, 0.94f, 1f, Mathf.Clamp01(overlayAlpha + 0.15f));
-                GUI.Label(new Rect(0f, Screen.height * 0.56f, Screen.width, 52f),
+                GUI.Label(new Rect(0f, UiScale.Height * 0.56f, UiScale.Width, 52f),
                     "LOADING" + new string('.', dotCount), loadingStyle);
             }
 

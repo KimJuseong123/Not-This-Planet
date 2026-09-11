@@ -32,6 +32,11 @@ namespace Metagame.UI
 
         void OnGUI()
         {
+            using (new UiScale.Scope(UiScale.Value)) DrawScaledGui();
+        }
+
+        void DrawScaledGui()
+        {
             if (Event.current.type != EventType.Repaint) return;
 
             string notice = HostLinkWatch.Notice;
@@ -39,7 +44,7 @@ namespace Metagame.UI
 
             EnsureStyle();
 
-            var rect = new Rect(0f, Screen.height * 0.12f, Screen.width, 34f);
+            var rect = new Rect(0f, UiScale.Height * 0.12f, UiScale.Width, 34f);
             Color previous = GUI.color;
 
             // 밝은 지형 위에서도 읽히게 한 픽셀 그림자를 먼저 깐다.

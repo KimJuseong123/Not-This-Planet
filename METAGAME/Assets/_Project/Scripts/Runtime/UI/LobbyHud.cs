@@ -237,6 +237,11 @@ namespace Metagame.UI
 
         private void OnGUI()
         {
+            using (new UiScale.Scope(UiScale.Value)) DrawScaledGui();
+        }
+
+        void DrawScaledGui()
+        {
             if (network == null && !IsSettingsOnlyOpen)
                 return;
 
@@ -256,9 +261,9 @@ namespace Metagame.UI
             float buttonHeight = 60f * scale;
             float gap = 14f * scale;
             float totalHeight = buttonHeight * 4f + gap * 3f;
-            Rect safe = Screen.safeArea;
-            float x = Mathf.Clamp(Screen.width * 0.16f, safe.xMin + 20f, safe.xMax - buttonWidth - 20f);
-            float y = Mathf.Clamp(Screen.height * 0.54f, safe.yMin + 20f,
+            Rect safe = UiScale.SafeArea;
+            float x = Mathf.Clamp(UiScale.Width * 0.16f, safe.xMin + 20f, safe.xMax - buttonWidth - 20f);
+            float y = Mathf.Clamp(UiScale.Height * 0.54f, safe.yMin + 20f,
                 safe.yMax - totalHeight - 20f);
 
             var panel = new Rect(x - 22f * scale, y - 42f * scale,
@@ -314,10 +319,10 @@ namespace Metagame.UI
 
             CaptureBindingInput();
 
-            float width = Mathf.Min(1040f, Screen.width - 36f);
-            float height = Mathf.Min(840f, Screen.height - 36f);
-            float x = (Screen.width - width) * 0.5f;
-            float y = (Screen.height - height) * 0.5f;
+            float width = Mathf.Min(1040f, UiScale.Width - 36f);
+            float height = Mathf.Min(840f, UiScale.Height - 36f);
+            float x = (UiScale.Width - width) * 0.5f;
+            float y = (UiScale.Height - height) * 0.5f;
             DrawBox(new Rect(x, y, width, height), new Color(0.01f, 0.03f, 0.09f, 0.94f));
             DrawLabel(new Rect(x + 30f, y + 20f, width - 260f, 44f),
                 "설정", titleStyle, Color.white);
@@ -338,7 +343,7 @@ namespace Metagame.UI
             DrawSettingsTabs(new Rect(x + 32f, y + 92f, width - 64f, 38f));
 
             Rect viewport = new Rect(x + 24f, y + 142f, width - 48f, height - 212f);
-            Rect content = new Rect(0f, 0f, viewport.width - 24f,
+            Rect content = new Rect(0f, 0f, Mathf.Max(900f, viewport.width - 24f),
                 settingsTab == SettingsTab.Controls ? 980f : 420f);
             settingsScroll = GUI.BeginScrollView(viewport, settingsScroll, content);
 
@@ -405,6 +410,19 @@ namespace Metagame.UI
 
         private void DrawDisplaySettings(float x, ref float y, float width)
         {
+            DrawLabel(new Rect(x, y, 230f, 30f), "UI 텍스트 크기 조정", labelStyle, Color.white);
+            float textScale = GUI.HorizontalSlider(new Rect(x + 250f, y + 7f, 300f, 20f),
+                editingSettings.display.uiTextScale, 0.8f, 1.5f);
+            textScale = Mathf.Round(textScale * 20f) / 20f;
+            DrawLabel(new Rect(x + 570f, y, 90f, 30f),
+                Mathf.RoundToInt(textScale * 100f) + "%", smallStyle, Color.white);
+            if (!Mathf.Approximately(textScale, editingSettings.display.uiTextScale))
+            {
+                editingSettings.display.uiTextScale = textScale;
+                ApplySettingsPreview();
+            }
+            y += 38f;
+
             DrawLabel(new Rect(x, y, 190f, 30f), "해상도", labelStyle, Color.white);
             DrawLabel(new Rect(x + 210f, y, 210f, 30f),
                 editingSettings.display.width + " × " + editingSettings.display.height,
@@ -793,10 +811,10 @@ namespace Metagame.UI
 
         private void DrawMultiplayer()
         {
-            float width = Mathf.Min(780f, Screen.width - 40f);
-            float height = Mathf.Min(700f, Screen.height - 40f);
-            float x = (Screen.width - width) * 0.5f;
-            float y = (Screen.height - height) * 0.5f;
+            float width = Mathf.Min(780f, UiScale.Width - 40f);
+            float height = Mathf.Min(700f, UiScale.Height - 40f);
+            float x = (UiScale.Width - width) * 0.5f;
+            float y = (UiScale.Height - height) * 0.5f;
 
             DrawBox(new Rect(x, y, width, height), new Color(0.01f, 0.03f, 0.09f, 0.88f));
             DrawLabel(new Rect(x + 34f, y + 22f, width - 190f, 42f),

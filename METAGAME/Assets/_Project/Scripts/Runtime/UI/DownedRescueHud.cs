@@ -75,6 +75,11 @@ namespace Metagame.UI
 
         void OnGUI()
         {
+            using (new UiScale.Scope(UiScale.Value)) DrawScaledGui();
+        }
+
+        void DrawScaledGui()
+        {
             if (Event.current.type != EventType.Repaint) return;
             EnsureStyle();
 
@@ -89,7 +94,7 @@ namespace Metagame.UI
             if (target == null) return;
 
             float progress = me.RescueProgress01;
-            var center = new Vector2(Screen.width * 0.5f, Screen.height - BarBottomMargin);
+            var center = new Vector2(UiScale.Width * 0.5f, UiScale.Height - BarBottomMargin);
 
             // 진행분이 없으면 안내만 그린다.
             if (progress <= 0f)

@@ -149,6 +149,11 @@ namespace Metagame.UI
 
         private void OnGUI()
         {
+            using (new UiScale.Scope(UiScale.Value)) DrawScaledGui();
+        }
+
+        void DrawScaledGui()
+        {
             if (!isOpen || titleTransitionStarted || SettingsIsOpen)
                 return;
 
@@ -158,18 +163,18 @@ namespace Metagame.UI
                                       0.78f, 1.25f);
             float panelWidth = 430f * scale;
             float panelHeight = 330f * scale;
-            float x = (Screen.width - panelWidth) * 0.5f;
-            float y = (Screen.height - panelHeight) * 0.5f;
+            float x = (UiScale.Width - panelWidth) * 0.5f;
+            float y = (UiScale.Height - panelHeight) * 0.5f;
             float buttonWidth = 320f * scale;
             float buttonHeight = 52f * scale;
-            float buttonX = (Screen.width - buttonWidth) * 0.5f;
+            float buttonX = (UiScale.Width - buttonWidth) * 0.5f;
             float firstButtonY = y + 96f * scale;
             float gap = 12f * scale;
 
             int previousDepth = GUI.depth;
             GUI.depth = -100;
 
-            DrawBox(new Rect(0f, 0f, Screen.width, Screen.height),
+            DrawBox(new Rect(0f, 0f, UiScale.Width, UiScale.Height),
                     new Color(0f, 0.01f, 0.04f, 0.62f));
             DrawBox(new Rect(x, y, panelWidth, panelHeight),
                     new Color(0.01f, 0.04f, 0.11f, 0.96f));
