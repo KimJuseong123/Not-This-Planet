@@ -211,6 +211,7 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         public void Tick(float deltaTime)
         {
+            if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
             if (!Authoritative) return;
             if (mountedVehicle == null) return;
 

@@ -42,6 +42,7 @@ namespace Metagame.Gameplay
 
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
         {
+            if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
             if (passMaterial == null || pass == null) return;
             if (!enableOnMobile && Application.isMobilePlatform) return;
             bool hazeEnabled = Shader.GetGlobalFloat(AtmosphereController.HazeEnabledId) >= 0.5f;

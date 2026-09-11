@@ -77,7 +77,7 @@ namespace Metagame.Gameplay
         {
             get
             {
-                if (ResetPending || (session != null && session.Cleared)) return true;
+                if (ResetPending || (session != null && (session.Cleared || session.EndingActive))) return true;
                 for (int i = 0; i < launches.Length; i++)
                     if (launches[i] != null &&
                         (launches[i].State == LaunchState.Ascending || launches[i].State == LaunchState.Success))

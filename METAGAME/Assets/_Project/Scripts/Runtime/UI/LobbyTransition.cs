@@ -138,12 +138,15 @@ namespace Metagame.UI
             yield return FadeTo(1f, FadeOutSeconds);
             yield return HoldLoading();
 
+            var manager = Mirror.NetworkManager.singleton;
+            bool networkLoadsTitle = manager != null && !string.IsNullOrEmpty(manager.offlineScene)
+                && (Mirror.NetworkClient.active || Mirror.NetworkServer.active);
             StopNetworkForTitle();
 
             // Mirror의 offlineScene이 먼저 Lobby를 열 수 있으므로 잠시 기다린 뒤,
             // 실제로 열리지 않은 경우에만 직접 로드한다.
             float deadline = Time.unscaledTime + NetworkTimeoutSeconds;
-            while (!IsTitleSceneActive() && Time.unscaledTime < deadline)
+            while (networkLoadsTitle && !IsTitleSceneActive() && Time.unscaledTime < deadline)
                 yield return null;
 
             if (!IsTitleSceneActive())
