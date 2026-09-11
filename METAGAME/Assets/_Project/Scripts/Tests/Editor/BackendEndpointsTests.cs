@@ -102,6 +102,37 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void TheBuildRestoresTheEnvironmentVariable()
+        {
+            // 박아 놓기만 하면 그 값이 **에디터 프로세스에 남는다.** 같은 세션에서
+            // 이어서 Build Settings 버튼처럼 SpaceBuild 를 거치지 않는 빌드를 하면
+            // 그 값이 그대로 쓰여 배포용 빌드가 `백엔드=dev` 로 찍힌다(반대도 성립).
+            // 배치모드는 프로세스가 곧 끝나 뜻이 없지만 사람이 쓰는 세션은 하루를
+            // 넘긴다. `!358` AI 리뷰가 잡았다.
+            var build = TestSource.Read("Editor/SpaceBuild.cs");
+
+            Assert.That(build, Does.Contain("finally"),
+                "SpaceBuild 가 SPACE_DEV 를 되돌리지 않는다 — 에디터 세션에 값이 남는다");
+            Assert.That(build, Does.Contain("SetEnvironmentVariable(\"SPACE_DEV\", saved)"),
+                "되돌리는 줄이 없다 — 원래 값을 기억해 두고 finally 에서 돌려놔야 한다");
+        }
+
+        [Test]
+        public void AStampLessDevBuildFallsBackToDevelopment()
+        {
+            // 스탬프에 `백엔드=` 가 없을 때 **prod 로 폴백하면 이 파일이 막으려던
+            // 실패 방식이 그대로 재현된다** — 개발 빌드가 실유저 서버에 붙는 것.
+            // 그래서 빌드 종류로 가른다(`!358` AI 리뷰).
+            var code = TestSource.Read("Runtime/Core/BackendEndpoints.cs");
+
+            Assert.That(code, Does.Contain("Debug.isDebugBuild"),
+                "스탬프가 빈 경우를 빌드 종류로 가르지 않는다 — 개발 빌드가 "
+                + "실유저 서버로 폴백한다");
+            Assert.That(code, Does.Contain("devBuild ? DevBase : ProdBase"),
+                "폴백이 빌드 종류를 따르지 않는다");
+        }
+
+        [Test]
         public void TheOldHardcodedAddressesAreGone()
         {
             // 흩어진 기본값이 남아 있으면 한 군데를 고쳐도 다른 곳이 배포를 가리킨다.

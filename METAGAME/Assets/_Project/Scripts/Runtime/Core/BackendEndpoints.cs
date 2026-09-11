@@ -91,13 +91,24 @@ namespace Metagame.Core
             if (env == "dev") return DevBase;
             if (env == "prod") return ProdBase;
 
-            // ④ 스탬프에 값이 없다 — 이 표시가 없던 시절 빌드다. **배포로 본다.**
-            //    그 시절 빌드는 전부 prod 를 가리켰으므로 그것이 사실에 맞다. 다만 조용히
-            //    넘기지 않는다 — 개발 빌드인데 표시를 못 넣은 경우라면 실유저 서버를
-            //    가리키게 되므로, 로그에 남아야 나중에 가릴 수 있다.
-            Debug.LogWarning("[백엔드] 스탬프에 `백엔드=` 가 없다 — 배포 서버로 본다. "
-                             + "개발 빌드였다면 BuildStamp 가 값을 쓰지 못한 것이다");
-            return ProdBase;
+            // ④ 스탬프에 값이 없다 — 이 표시가 없던 시절 빌드다. 어느 쪽으로 볼지를
+            //    **빌드 종류로 가른다**(`!358` AI 리뷰).
+            //
+            //    개발 빌드(`BuildOptions.Development`)에서 이 자리에 오는 것은
+            //    `BuildStamp` 가 값을 쓰지 못한 경우뿐이고, 그때 prod 로 폴백하면
+            //    **이 파일이 막으려던 실패 방식이 그대로 재현된다** — 개발 빌드가
+            //    실유저 서버에 붙는 것. 그래서 개발 빌드는 개발로 본다.
+            //
+            //    배포 빌드는 prod 로 본다. 표시가 없던 시절 빌드는 전부 prod 를
+            //    가리켰으므로 그것이 사실에 맞다.
+            //
+            //    어느 쪽이든 **조용히 넘기지 않는다** — 스탬프가 비는 것 자체가 고칠
+            //    거리이고, 로그에 남아야 나중에 가릴 수 있다.
+            bool devBuild = Debug.isDebugBuild;
+            Debug.LogWarning("[백엔드] 스탬프에 `백엔드=` 가 없다 — "
+                             + (devBuild ? "개발 빌드라 개발 서버로 본다" : "배포 서버로 본다")
+                             + ". BuildStamp 가 값을 쓰지 못한 것이다");
+            return devBuild ? DevBase : ProdBase;
         }
 
         static string ReadArg()

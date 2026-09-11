@@ -38,6 +38,8 @@ echo "[3/6] dev systemd 유닛 등록"
 install -m 644 "$HERE/metagame-deploy-dev.service" /etc/systemd/system/
 install -m 644 "$HERE/metagame-deploy-dev.path" /etc/systemd/system/
 systemctl daemon-reload
+# 여기서 `--now` 가 안전한 이유: 이 시점의 스풀은 비어 있다(RELEASE 가 없다).
+# 파일을 실제로 쓰는 것은 [6/6] 이고, 그쪽이 감시를 껐다 켠다.
 systemctl enable --now metagame-deploy-dev.path
 systemctl status metagame-deploy-dev.path --no-pager | head -4
 
@@ -98,9 +100,22 @@ PY
 fi
 
 echo "[6/6] 설치 확인 (컨테이너를 건드리지 않는 dry-run)"
+
+# **감시를 잠시 끈다.** 아래에서 RELEASE 를 실제로 쓰는데, path 유닛이 살아 있으면
+# 그것을 물고 배포 서비스가 **같이** 돌아간다. 그쪽에는 DRY_RUN 이 걸리지 않는다 —
+# 위 환경변수는 이 줄의 `bash -c` 에만 걸리고 systemd 유닛에는 안 걸린다. 그러면
+# 설치 확인이 **실제 배포 시도**가 되고 STATUS 가 둘의 결과로 뒤섞인다.
+systemctl stop metagame-deploy-dev.path
+
 APP_DIR=$DEV_APP HEALTH_PORT=8081 ENV_NAME=dev DRY_RUN=1 \
   bash -c "printf '{\"sha\":\"install-dev\"}' > $DEV_SPOOL/RELEASE; $CODE/deploy.sh" || true
 echo "   결과: $(cat "$DEV_SPOOL/STATUS" 2>/dev/null || echo '없음')"
+
+# **되살리기 전에 RELEASE 를 지운다.** 유닛이 `PathChanged` 가 아니라 `PathExists`
+# 라서, 파일이 남아 있으면 start 하는 순간 곧바로 트리거된다.
+rm -f "$DEV_SPOOL/RELEASE"
+systemctl start metagame-deploy-dev.path
+echo "   감시 되살림: $(systemctl is-active metagame-deploy-dev.path)"
 echo
 echo "남은 것 — 사람이 확인한다"
 echo "  · $DEV_APP 에 docker-compose.yml(compose.dev.yml) · Dockerfile · .env 가 있는지"
