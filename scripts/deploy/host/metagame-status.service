@@ -1,5 +1,5 @@
 [Unit]
-Description=METAGAME EC2 상태 재기 — 결과를 배포 스풀에 JSON 한 장으로 놓는다 (S15P21B202-458)
+Description=METAGAME EC2 상태 재기 — /var/lib/metagame-status/EC2-STATUS 에 JSON 한 장 (S15P21B202-458)
 Documentation=https://lab.ssafy.com/s15-metaverse-game-sub1/S15P21B202/-/blob/develop/docs/records/S15P21B202-458-ec2-health.md
 
 [Service]

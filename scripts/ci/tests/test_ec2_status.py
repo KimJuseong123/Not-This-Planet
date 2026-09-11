@@ -262,7 +262,19 @@ assert "ec2_status.section" in _dig, "아침 카드가 서버 절을 안 붙인�
 #     러너에서 도는 아침 카드가 서버를 못 본다. 쓰기를 열면 잡이 상태를 위조한다.
 _inst = open(os.path.join(ROOT, "scripts/deploy/host/install-status.sh"), encoding="utf-8").read()
 assert ":/ec2-status:ro" in _inst, "읽기 전용이 아니다 — 잡이 가짜 상태를 써 넣을 수 있다"
-assert "added" in _inst, "러너 한 곳에만 물린다"
-print("  모든 러너에 읽기 전용으로 물린다 ✅")
+
+#     **빈 `volumes = []` 를 깨뜨리면 안 된다.** 예전 판은 `volumes = [, "…"]` 를
+#     만들었고, 그 상태로 곧바로 러너를 재시작해 **CI 가 통째로 멈출** 수 있었다.
+assert 'x.strip() for x in inner.split' in _inst, "빈 배열에서 쉼표가 앞에 붙는다"
+assert "tomllib" in _inst, "고친 설정을 파싱해 보지 않고 러너를 재시작한다"
+assert ".bak-" in _inst, "되돌릴 백업을 남기지 않는다"
+
+#     **러너 하나라도 빠지면 실패로 끝낸다.** `volumes` 가 여러 줄인 항목은 정규식에
+#     안 걸려 조용히 빠지고, 그 러너에서 도는 아침 카드는 매일 "못 읽었다" 만 붙인다.
+assert "added + have != runners" in _inst, "손댄 러너 수를 러너 수와 대조하지 않는다"
+
+#     재시작 뒤 러너가 살아났는지도 본다.
+assert "is-active --quiet gitlab-runner" in _inst, "재시작 뒤 러너가 살아났는지 안 본다"
+print("  모든 러너에 읽기 전용으로 물리고, 설정을 깨뜨리지 않는다 ✅")
 
 print("== 통과 ==")
