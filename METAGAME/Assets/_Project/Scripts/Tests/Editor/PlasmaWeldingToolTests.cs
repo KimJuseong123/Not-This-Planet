@@ -239,7 +239,28 @@ namespace Metagame.Gameplay.Tests
             Assert.IsFalse(tool.WeldTick(0.1f, PlasmaBeamMode.Weld));
             Physics.SyncTransforms();
             Assert.IsTrue(tool.CutTick(0.1f, PlasmaBeamMode.Cut));
-            Assert.AreEqual(0f, tool.RemainingFraction);
+            Assert.That(tool.RemainingFraction, Is.EqualTo(0.1f / 60f).Within(0.0001f));
+            Assert.That(other.RemainingFraction, Is.EqualTo(remaining).Within(0.0001f),
+                "절단한 용접건만 충전되어야 한다.");
+        }
+
+        [Test]
+        public void Cutting_RefillsGradually_ClampsAtFull_AndMissDoesNotRefill()
+        {
+            WeldingBody();
+            var tool = CreateTool(out _);
+            Physics.SyncTransforms();
+            Assert.IsTrue(tool.WeldTick(0.5f, PlasmaBeamMode.Weld));
+            Physics.SyncTransforms();
+            Assert.IsTrue(tool.CutTick(0.1f, PlasmaBeamMode.Cut));
+            Assert.That(tool.RemainingFraction, Is.EqualTo(1f - 0.4f / 60f).Within(0.0001f));
+            Physics.SyncTransforms();
+            Assert.IsFalse(tool.CutTick(0.1f, PlasmaBeamMode.Cut));
+            Assert.That(tool.RemainingFraction, Is.EqualTo(1f - 0.4f / 60f).Within(0.0001f));
+            Assert.IsTrue(tool.WeldTick(0.1f, PlasmaBeamMode.Weld));
+            Physics.SyncTransforms();
+            Assert.IsTrue(tool.CutTick(1f, PlasmaBeamMode.Cut));
+            Assert.AreEqual(1f, tool.RemainingFraction);
         }
 
         [Test]

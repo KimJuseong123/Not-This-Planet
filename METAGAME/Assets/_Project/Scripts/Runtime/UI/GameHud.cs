@@ -35,6 +35,7 @@ namespace Metagame.UI
         GUIStyle small, mid, center, big;
         Texture2D white;
         bool warmed;
+        WeldingGaugeTexture weldingGaugeTexture;
 
         void Awake()
         {
@@ -45,6 +46,16 @@ namespace Metagame.UI
 
         void OnEnable() { Font.textureRebuilt += OnFontRebuilt; }
         void OnDisable() { Font.textureRebuilt -= OnFontRebuilt; }
+
+        void OnDestroy()
+        {
+            weldingGaugeTexture?.Dispose();
+            if (white != null)
+            {
+                if (Application.isPlaying) Destroy(white);
+                else DestroyImmediate(white);
+            }
+        }
 
         void OnFontRebuilt(Font f)
         {
@@ -197,20 +208,23 @@ namespace Metagame.UI
             var origin = new Vector2(
                 Mathf.Clamp(screen.x / UiScale.Value, 12f, width - radius - 60f),
                 Mathf.Clamp((Screen.height - screen.y) / UiScale.Value, radius + 20f, height - 65f));
-            Color purple = new Color(0.76f, 0.32f, 1f, 0.95f);
+            Color yellow = new Color(1f, 0.85f, 0.08f, 0.95f);
+            if (weldingGaugeTexture == null) weldingGaugeTexture = new WeldingGaugeTexture();
+            weldingGaugeTexture.SetFraction(tool.RemainingFraction);
+            float extent = radius * WeldingGaugeTexture.OuterRadiusRatio;
+            var previousColor = GUI.color;
+            GUI.color = Color.white;
+            GUI.DrawTexture(new Rect(origin.x - extent, origin.y - extent, extent * 2f, extent * 2f),
+                weldingGaugeTexture.Texture, ScaleMode.StretchToFill, true);
+            GUI.color = previousColor;
             const int segments = 64;
             for (int i = 0; i < segments; i++)
             {
                 float a = i / (float)segments, b = (i + 1f) / segments;
-                GaugeLine(GaugePoint(origin, radius, a), GaugePoint(origin, radius, b), thickness,
-                    new Color(0.06f, 0.025f, 0.10f, 0.8f));
-                if (a < tool.RemainingFraction)
-                    GaugeLine(GaugePoint(origin, radius, a),
-                        GaugePoint(origin, radius, Mathf.Min(b, tool.RemainingFraction)), thickness - 3f, purple);
                 GaugeLine(GaugePoint(origin, radius - thickness * 0.5f, a),
-                    GaugePoint(origin, radius - thickness * 0.5f, b), 1.5f, purple);
+                    GaugePoint(origin, radius - thickness * 0.5f, b), 1.5f, yellow);
                 GaugeLine(GaugePoint(origin, radius + thickness * 0.5f, a),
-                    GaugePoint(origin, radius + thickness * 0.5f, b), 1.5f, purple);
+                    GaugePoint(origin, radius + thickness * 0.5f, b), 1.5f, yellow);
             }
             for (int i = 0; i < WeldingTicks.Length; i++)
             {
@@ -220,9 +234,6 @@ namespace Metagame.UI
                 var label = GaugePoint(origin, radius + thickness * 0.5f + 10f, fraction);
                 L(new Rect(label.x, label.y - 10f, 50f, 22f), WeldingTicks[i], small, Color.white);
             }
-            var value = GaugePoint(origin, radius, 0f);
-            L(new Rect(value.x - 15f, value.y + 15f, 80f, 24f),
-                Mathf.CeilToInt(tool.RemainingFraction * 100f) + "%", mid, purple);
         }
 
         static Vector2 GaugePoint(Vector2 origin, float radius, float fraction)

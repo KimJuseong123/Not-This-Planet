@@ -296,6 +296,8 @@ namespace Metagame.Gameplay
             {
                 CuttingProgressed = WeldBead.TryApplyAt(hit, deltaTime, true, out var bead);
                 ShrinkingBead = bead;
+                // 실제 절단이 진행된 시간만 이 용접건에 회수한다. 빈 공간에서는 충전하지 않는다.
+                if (CuttingProgressed) usedMaterialSeconds = Mathf.Max(0f, usedMaterialSeconds - deltaTime);
             }
 
             return CuttingProgressed;
