@@ -17,7 +17,7 @@ namespace Metagame.EditorTools
     ///
     /// <code>
     /// Unity.exe -batchmode -quit -projectPath METAGAME \
-    ///   -executeMethod Metagame.EditorTools.AppIconSetup.Apply
+    ///   -executeMethod Metagame.EditorTools.AppIconSetup.ApplyBatch
     /// </code>
     /// </summary>
     public static class AppIconSetup
@@ -25,15 +25,35 @@ namespace Metagame.EditorTools
         /// <summary>아이콘 원본. 정사각형 PNG 여야 한다 — 아니면 유니티가 늘린다.</summary>
         public const string IconPath = "Assets/_Project/UI/AppIcon.png";
 
+        /// <summary>
+        /// 배치 실행용. 실패하면 <b>종료 코드 1</b> 로 끝낸다 — 그래야 CI 나 스크립트가
+        /// 실패를 알아챈다.
+        ///
+        /// <b>메뉴에서 부르는 <see cref="Apply"/> 와 분리한 이유.</b> 예전에는 하나였고
+        /// 원본을 못 찾으면 <c>EditorApplication.Exit(1)</c> 을 불렀다. 그러면 메뉴에서
+        /// 누른 사람의 <b>에디터가 통째로 닫혀 저장하지 않은 작업이 날아간다</b>
+        /// (!339 AI 리뷰가 짚었다). 배치에서만 종료하고, 사람이 누를 때는 로그만 남긴다.
+        /// </summary>
+        public static void ApplyBatch()
+        {
+            if (!Apply())
+            {
+                EditorApplication.Exit(1);
+            }
+        }
+
+        /// <summary>
+        /// 아이콘을 지정한다. 성공하면 참.
+        /// <b>여기서는 에디터를 종료하지 않는다</b> — 위 <see cref="ApplyBatch"/> 참고.
+        /// </summary>
         [MenuItem("Tools/Space/앱 아이콘 지정")]
-        public static void Apply()
+        public static bool Apply()
         {
             var icon = AssetDatabase.LoadAssetAtPath<Texture2D>(IconPath);
             if (icon == null)
             {
                 Debug.LogError($"[AppIcon] 원본을 찾지 못했다: {IconPath}");
-                EditorApplication.Exit(1);
-                return;
+                return false;
             }
 
             if (icon.width != icon.height)
@@ -52,6 +72,7 @@ namespace Metagame.EditorTools
             AssetDatabase.Refresh();
 
             Report();
+            return true;
         }
 
         /// <summary>
