@@ -251,6 +251,60 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
+        /// 시점을 돌려도 <b>보이는 기체가 빔 위에 머문다</b> (S15P21B202-441).
+        ///
+        /// <para><b>실측으로 드러난 어긋남이다.</b> 3인칭으로 바꾼 뒤 "운반선과 견인빔이
+        /// 어긋난다 · 고개를 돌리면 기체가 같이 움직인다" 가 나왔다.</para>
+        ///
+        /// <para>원인은 <c>SetFacingDirection</c> 이 <c>visual.rotation</c> 만 바꾼 것이었다.
+        /// 회전이 Visual 자신의 피벗을 중심으로 일어나는데, 스킨은 경계 중심을 루트에
+        /// 맞춰 붙이므로(S15P21B202-84) 피벗이 루트와 어긋나 있다. 1인칭이던 동안에는
+        /// 껍데기를 껐고 카메라가 기체 안이라 보이지 않았다.</para>
+        /// </summary>
+        [Test]
+        public void TurningTheView_KeepsTheHullOverTheBeam()
+        {
+            var vehicle = MakeVehicle(new Vector3(0f, 5f, 0f), true);
+
+            // 피벗을 일부러 어긋나게 둔다 — 스킨이 경계 중심을 루트에 맞추면 이렇게 된다.
+            var visual = vehicle.transform.Find("Visual");
+            Assert.IsNotNull(visual, "이 검증은 Visual 이 있어야 의미가 있다.");
+            visual.position = vehicle.transform.position + new Vector3(0.8f, 0f, 0.4f);
+
+            var player = MakePlayer(new Vector3(0f, 5f, 1.5f));
+            var camera = OrbitCamera.Create(player.Hips.transform, Color.black, true);
+            player.Cam = camera;
+            spawned.Add(camera.gameObject);
+            Assert.IsTrue(vehicle.TryBoard(player));
+
+            // 처음 기준을 잡게 한 번 돌려 둔다.
+            vehicle.SetFacingDirection(Vector3.forward);
+            var first = HullCenterOffset(vehicle);
+
+            foreach (var dir in new[] { Vector3.right, Vector3.back, Vector3.left, Vector3.forward })
+            {
+                vehicle.SetFacingDirection(dir);
+                var now = HullCenterOffset(vehicle);
+
+                Assert.Less((now - first).magnitude, 0.05f,
+                    $"{dir} 을 볼 때 기체가 빔에서 {(now - first).magnitude:0.00}m 벗어났다");
+            }
+        }
+
+        /// <summary>
+        /// 빔(루트)에서 본 껍데기 중심까지의 수평 거리. 돌려도 이 값이 변하지 않아야 한다.
+        ///
+        /// <para>회전한 메시의 월드 AABB 는 모양 자체가 달라지므로 중심을 그대로 비교하면
+        /// 안 된다. <b>루트에서의 거리</b>로만 본다 — 리그하게 돌면 거리는 보존된다.</para>
+        /// </summary>
+        static Vector3 HullCenterOffset(TransportVehicle vehicle)
+        {
+            var visual = vehicle.transform.Find("Visual");
+            var offset = visual.position - vehicle.transform.position;
+            return new Vector3(offset.magnitude, 0f, 0f);
+        }
+
+        /// <summary>
         /// 하차하면 카메라가 기체 반대편의 빈 공간에 서야 한다.
         ///
         /// 예전에는 탑승자를 기체 바깥을 보게 돌렸다. 3인칭 카메라는 캐릭터 뒤에 서므로
