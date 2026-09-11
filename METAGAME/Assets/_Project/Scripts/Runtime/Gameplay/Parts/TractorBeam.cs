@@ -136,6 +136,9 @@ namespace Metagame.Gameplay.Parts
                 case PartState.Carried: return BeamGrabResult.AlreadyCarried;
             }
 
+            if (candidate.GetComponent<WeldBead>() is WeldBead bead && bead.IsWeldedToPad)
+                return BeamGrabResult.Welded;
+
             if (!candidate.TryTransitionTo(PartState.Carried)) return BeamGrabResult.NoTarget;
 
             Held = candidate;

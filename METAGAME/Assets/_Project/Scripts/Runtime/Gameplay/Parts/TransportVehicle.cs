@@ -707,6 +707,7 @@ namespace Metagame.Gameplay.Parts
         public bool TryBoard(PlayerRig player)
         {
             if (player == null || rider != null || returning) return false;
+            if (GetComponent<WeldBead>() is WeldBead bead && bead.IsWeldedToPad) return false;
 
             if (!CanBoardFrom(player)) return false;
 
