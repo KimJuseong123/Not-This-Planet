@@ -40,8 +40,12 @@ namespace Metagame.Gameplay.Tests
             _puffWasEnabled = Puff.Enabled;
 
             UnityEngine.Physics.simulationMode = SimulationMode.Script;
-            LogAssert.ignoreFailingMessages = true;
             Puff.Enabled = false;
+
+            // **전역으로 켜 두지 않는다**(!352 AI 리뷰). 전부 삼키면 조인트·물리
+            // 경로에서 NullReference 가 나도 검증이 초록불이다. 인형을 만드는 동안만
+            // 켜고(Prim 이 내는 로그가 이 검증과 무관하다) 바로 되돌린다 —
+            // MakePlayer 를 보라.
         }
 
         [TearDown]
@@ -133,6 +137,37 @@ namespace Metagame.Gameplay.Tests
 
             Assert.AreNotEqual(me.CarryTarget, me.CurrentInteractionTarget.Grabbable,
                 "혼자 있으면 자기 잡을 지점이 후보가 되면 안 된다.");
+        }
+
+        /// <summary>
+        /// <b>참가자 화면의 경로를 잠근다</b>(!352 AI 리뷰가 빠졌다고 짚었다).
+        ///
+        /// 참가자 기계에서는 <c>GoDown</c>·<c>Revive</c> 가 돌지 않는다 — 물리가 서버
+        /// 것이라서다. 그래서 원격 몸의 상태는 <c>SetRemoteDowned</c> 로만 들어오고,
+        /// 그 함수는 기절한 동료에 대해서만 잡을 지점을 만들어 주고 있었다
+        /// (S15P21B202-390). <b>살아있는 동료에게는 그 경로조차 없었다.</b>
+        ///
+        /// 이제는 <c>Create</c> 가 만들므로 그 경로를 타지 않아도 지점이 있다. 이
+        /// 검증이 없으면 "Create 에서 만든다" 가 주석의 주장으로만 남는다.
+        /// </summary>
+        [Test]
+        public void ARemoteTeammateWhoNeverWentDown_IsStillACandidate()
+        {
+            var me = MakePlayer(Vector3.zero);
+            var remote = MakePlayer(new Vector3(0f, 0f, 1.0f));
+
+            // 참가자 기계가 원격 몸에 하는 것: 상태만 들어온다.
+            remote.SetRemoteDowned(false);
+            UnityEngine.Physics.SyncTransforms();
+
+            Assert.IsFalse(remote.Downed);
+            Assert.IsTrue(remote.CarryTarget.gameObject.activeSelf,
+                "기절한 적이 없어도 지점이 있어야 한다.");
+
+            me.RefreshInteractionFocus();
+            Assert.AreEqual(PlayerInteractionKind.Grabbable,
+                me.CurrentInteractionTarget.Kind,
+                "참가자 화면에서도 살아있는 동료가 후보여야 한다.");
         }
 
         // ── 끌기 (§13 "밀거나 당긴다" 와 같은 뜻) ─────────────────
@@ -382,8 +417,20 @@ namespace Metagame.Gameplay.Tests
 
         PlayerRig MakePlayer(Vector3 foot)
         {
-            var player = PlayerRig.Create("검증", foot, Quaternion.identity,
+            // Prim.Decor 가 내는 로그만 넘긴다. 만들고 나면 바로 되돌려서, 이후의
+            // 물리·조인트 경로에서 나는 에러는 검증을 빨간불로 만든다.
+            LogAssert.ignoreFailingMessages = true;
+            PlayerRig player;
+            try
+            {
+                player = PlayerRig.Create("검증", foot, Quaternion.identity,
                                           Color.white, Color.gray, false);
+            }
+            finally
+            {
+                LogAssert.ignoreFailingMessages = false;
+            }
+
             _spawned.Add(player.gameObject);
             UnityEngine.Physics.SyncTransforms();
             return player;

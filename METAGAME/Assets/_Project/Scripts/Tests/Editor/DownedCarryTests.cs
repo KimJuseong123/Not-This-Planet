@@ -55,6 +55,12 @@ namespace Metagame.Gameplay.Tests
         /// 그 문장은 <b>기획에 근거가 없었다</b> — §20.4 의 제목이 "기절한 동료 운반"
         /// 인 것에서 유추한 판단이 검증으로 굳은 것이다. 세계의 다른 물건은 전부
         /// 잡아서 밀고 당길 수 있는데 사람만 안 되는 것은 규칙으로 설명되지 않는다.
+        ///
+        /// <para><b>[Plan] 확정은 아직이다.</b> 기획 §20 에 "살아있는 플레이어 잡기"
+        /// 절이 들어가야 하고, 뿌리치기 수단과 <c>PartPush</c> 겹침 우선순위가 미정이다.
+        /// 기획이 다르게 결정되면 이 검증 셋(<see cref="GettingUp_KeepsThePointButRenamesIt"/> ·
+        /// <see cref="BeingRescuedWhileCarried_KeepsTheGripButChangesWhatItIs"/> 포함)을
+        /// 되돌려야 한다 — 그때 찾기 쉽도록 여기에 적어 둔다(!352 AI 리뷰).</para>
         /// </summary>
         [Test]
         public void AStandingPlayer_AlsoHasAGrabPoint()

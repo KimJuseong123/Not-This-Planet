@@ -1154,9 +1154,17 @@ namespace Metagame.Gameplay
             }
         }
 
-        /// <summary>지금 동료를 잡고 끌고 있는가(기획 §20.4 · S15P21B202-442).</summary>
+        /// <summary>
+        /// 지금 동료를 잡고 끌고 있는가(기획 §20.4 · S15P21B202-442).
+        ///
+        /// <b>잡은 것이 사람인지까지 확인한다.</b> <see cref="Grabbable.PhysicsGrip"/>
+        /// 만 보면 사람이 아닌 물체에도 참이 되어 이동 감속이 엉뚱한 데 걸린다. 지금은
+        /// 그 깃발을 켜는 곳이 잡을 지점 하나뿐이라 증상이 없지만, <b>이름이
+        /// "Teammate" 인데 판정은 아무 물체나 받는 상태</b>를 그대로 둘 이유가 없다
+        /// (!352 AI 리뷰).
+        /// </summary>
         public bool CarryingTeammate =>
-            IsCarryPoint(LeftHand) || IsCarryPoint(RightHand);
+            OwnerOfHeldGrabPoint(LeftHand) != null || OwnerOfHeldGrabPoint(RightHand) != null;
 
         /// <summary>
         /// 그 동료가 <b>기절한</b> 사람인가(기획 §20.4).
