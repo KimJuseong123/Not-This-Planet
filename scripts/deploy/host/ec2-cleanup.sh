@@ -59,29 +59,38 @@ FAILED=0
 # 싸다 — 다음 주에 다시 돈다.
 #
 # zip 정리는 그대로 한다. CI 잡과 아무 상관이 없다.
-BUSY=$(docker ps --format '{{.Names}}' 2>/dev/null | grep -c '^runner-' || true)
-if [ "${BUSY:-0}" -gt 0 ]; then
-  say "⏸ CI 잡 ${BUSY}개가 돌고 있다 — 도커 정리는 건너뛴다(다음 주에 다시 돈다)"
-fi
+# **단계마다 다시 잰다.** 한 번만 재면 ①을 도는 사이에 잡이 새로 시작돼도 그대로
+# ②·③ 을 밀어붙인다.
+busy() { docker ps --format '{{.Names}}' 2>/dev/null | grep -c '^runner-' || true; }
+
+SKIPPED=0
+step() {                      # step "라벨" 명령…
+  local label="$1"; shift
+  say "$label"
+  if [ "$(busy)" -gt 0 ]; then
+    say "   건너뜀 (CI 잡이 돈다)"
+    SKIPPED=$((SKIPPED + 1))
+    return 0
+  fi
+  run "$@"
+}
+
+[ "$(busy)" -gt 0 ] && say "⏸ CI 잡이 돌고 있다 — 도커 정리는 건너뛴다(다음 주에 다시 돈다)"
 
 # ── ① 빌드 캐시 ─────────────────────────────────────────────────────────────
 # 2026-09-11 실측 1.94 GB. 다시 만들어지는 것이라 지워도 잃는 것이 없다.
-say "① 도커 빌드 캐시 (${BUILD_CACHE_HOURS}시간 넘은 것)"
-[ "${BUSY:-0}" -eq 0 ] && run docker builder prune -f --filter "until=${BUILD_CACHE_HOURS}h" \
-  || say "   건너뜀 (CI 잡이 돈다)"
+step "① 도커 빌드 캐시 (${BUILD_CACHE_HOURS}시간 넘은 것)" \
+  docker builder prune -f --filter "until=${BUILD_CACHE_HOURS}h"
 
 # ── ② 떠돌이 이미지 ─────────────────────────────────────────────────────────
 # **`-a` 를 쓰지 않는다.** 그것 없이는 태그가 없는 것만 지운다 — 백엔드를 새로
 # 빌드할 때마다 옛 `metagame-backend:latest` 가 태그를 잃고 남는, 바로 그것이다.
-say "② 태그 없는 떠돌이 이미지"
-[ "${BUSY:-0}" -eq 0 ] && run docker image prune -f \
-  || say "   건너뜀 (CI 잡이 돈다)"
+step "② 태그 없는 떠돌이 이미지" docker image prune -f
 
 # ── ③ 끝난 컨테이너 ─────────────────────────────────────────────────────────
 # 러너가 잡마다 만들고 버린다. 도는 것은 건드리지 않는다.
-say "③ ${CONTAINER_HOURS}시간 넘게 끝나 있는 컨테이너"
-[ "${BUSY:-0}" -eq 0 ] && run docker container prune -f --filter "until=${CONTAINER_HOURS}h" \
-  || say "   건너뜀 (CI 잡이 돈다)"
+step "③ ${CONTAINER_HOURS}시간 넘게 끝나 있는 컨테이너" \
+  docker container prune -f --filter "until=${CONTAINER_HOURS}h"
 
 # ── ④ 오래된 릴리스 zip ─────────────────────────────────────────────────────
 # 런처 저장소(`files/`·`manifest/`)는 `make_manifest.py --keep 10` 이 회수한다.
@@ -119,8 +128,27 @@ done
 VOLS=$(docker volume ls -q 2>/dev/null | grep -c -- '-cache-.*-protected')
 say "   보호 러너 캐시 볼륨 ${VOLS}개 (셰이더 캐시가 여기 있다 — 지우면 릴리스가 40분 길어진다)"
 
+# **계속 건너뛰기만 하면 그것도 문제다.** 러너가 늘 하나 떠 있는 구성이 되면 정리가
+# 영원히 안 도는데, 종료 코드가 0 이라 아무도 모른다. 연속 횟수를 세어 알린다.
+STATE="${CLEANUP_STATE:-/var/lib/metagame-cleanup}"
+STREAK_FILE="$STATE/skip-streak"
+mkdir -p "$STATE" 2>/dev/null || true
+STREAK=$(cat "$STREAK_FILE" 2>/dev/null || echo 0)
+case "$STREAK" in ''|*[!0-9]*) STREAK=0 ;; esac
+if [ "$SKIPPED" -gt 0 ]; then
+  STREAK=$((STREAK + 1))
+else
+  STREAK=0
+fi
+echo "$STREAK" > "$STREAK_FILE" 2>/dev/null || true
+if [ "$STREAK" -ge 3 ]; then
+  say "⚠ ${STREAK}주 연속으로 도커 정리를 건너뛰었다 — 러너가 늘 떠 있는지 보고,"
+  say "  필요하면 한가한 시간에 손으로 돌리세요: sudo systemctl start metagame-cleanup.service"
+  FAILED=1
+fi
+
 AFTER=$(df -BG --output=avail / | tail -1 | tr -d ' G')
-say "===== 끝. 여유 ${BEFORE}GB → ${AFTER}GB ====="
+say "===== 끝. 여유 ${BEFORE}GB → ${AFTER}GB (건너뛴 단계 ${SKIPPED}개, 연속 ${STREAK}주) ====="
 
 # 지켜야 할 것이 사라졌거나 한 단계라도 실패했으면 비0 으로 끝낸다 — `systemctl
 # status` 와 저널에 빨갛게 남아야 사람이 본다.

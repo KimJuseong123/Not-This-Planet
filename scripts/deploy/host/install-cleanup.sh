@@ -46,7 +46,12 @@ else
 fi
 
 echo "[4/4] 지우지 않고 한 번 돌려 본다 (DRY_RUN)"
-DRY_RUN=1 "$CODE/ec2-cleanup.sh" | sed 's/^/   /'
+# **종료 코드를 흡수한다.** 정리 스크립트는 지켜야 할 이미지가 없으면 1, 단계가
+# 실패하면 2 로 끝난다. `set -e` 아래에서 그대로 두면 **설치가 여기서 죽어**
+# 타이머는 이미 등록됐는데 마지막 안내가 안 나온다 — 절반만 끝난 것처럼 보인다.
+# 미리 보기가 설치를 실패시킬 이유는 없다.
+DRY_RUN=1 "$CODE/ec2-cleanup.sh" 2>&1 | sed 's/^/   /' \
+  || echo "   ⚠ DRY 확인에서 경고가 나왔습니다 — 위 출력을 보세요(설치는 끝났습니다)"
 
 echo ""
 echo "완료. 다음 실행: $(systemctl list-timers metagame-cleanup.timer --no-pager | sed -n 2p)"
