@@ -115,6 +115,12 @@ SENT.clear()
 assert P.phase_publish(1) == 1
 assert SENT and "🔴" in SENT[0] and "릴리스 실패 v0.1.0" in SENT[0] and "Unity 빌드" in SENT[0], SENT
 # 성공 경로 — zip·업로드·git 은 가짜로
+#
+# **트리거를 세운다** (S15P21B202-407). `dry_run()` 이 "실제 릴리스는 master push
+# 하나뿐" 으로 잠겨 있어(변수로 끌 수 없다), 트리거가 없으면 이 아래가 리허설로 돌아
+# 패키지·Release·카드가 전부 생략된다 — 그러면 이 절이 검사할 것이 없어진다.
+os.environ["CI_PIPELINE_SOURCE"] = "push"
+os.environ["CI_COMMIT_BRANCH"] = "master"
 os.makedirs(os.path.join(tmp, "release", "NotThisPlanet"), exist_ok=True)
 open(os.path.join(tmp, "release", "NotThisPlanet", "NotThisPlanet.exe"), "wb").write(b"x" * 10)
 os.environ["SPACE_BUILD_DIR"] = os.path.join(tmp, "release", "NotThisPlanet")

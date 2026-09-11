@@ -65,8 +65,20 @@ def dry_run() -> bool:
     미검증 상태로 처음 돌리게 되므로, 빌드·zip 까지는 진짜로 하고 밖으로 나가는 것
     (패키지 업로드 · Release · 🟢 카드 · Jira 웹훅)만 건너뛰는 길을 만든다.
 
-    `.gitlab-ci.yml` 이 `CI_PIPELINE_SOURCE == "web"` 일 때 이 변수를 1 로 준다.
+    **변수만 믿으면 안 된다** (`!336` AI 리뷰). `rules:` 의 `variables:` 는 Run pipeline
+    화면에서 사람이 넣은 같은 이름 변수보다 **우선순위가 낮다.** 그래서 리허설 화면에서
+    `RELEASE_DRY_RUN=0` 을 주면 `.gitlab-ci.yml` 이 준 1 이 덮이고, **아무 브랜치에서
+    진짜 패키지·Release·태그가 나간다.** 안전 장치로 만든 것이 반대로 새는 길이 된다.
+
+    그래서 여기서 **트리거로 잠근다**: 실제 릴리스는 `master` 로의 push 하나뿐이고,
+    그 밖의 모든 트리거는 변수와 무관하게 리허설이다. 변수는 *리허설을 켜는* 데만
+    쓸 수 있고 끄는 데는 쓸 수 없다 — 한 방향으로만 작동하는 스위치다.
+
+    이 규칙은 `git-convention.md` §8 의 "릴리스는 release/… 브랜치를 master 에 머지하는
+    것" 과 같은 말이다. 다른 경로로 릴리스가 나가면 그 절차가 뜻을 잃는다.
     """
+    if env("CI_PIPELINE_SOURCE", "") != "push" or env("CI_COMMIT_BRANCH", "") != "master":
+        return True
     return (env("RELEASE_DRY_RUN", "") or "").strip() not in ("", "0", "false", "no")
 
 
@@ -391,9 +403,13 @@ def phase_publish(unity_rc: int) -> int:
     links = " · ".join(f"[{n}]({u})" for n, u in (("파이프라인", env("CI_PIPELINE_URL")), ("잡 로그", env("CI_JOB_URL"))) if u)
     if unity_rc != 0:
         print(f"❌ Unity 빌드 실패(exit {unity_rc}) — Release 를 만들지 않는다")
-        if not dry_run():
-            notify(False, version, [("단계", f"Unity 빌드 (exit {unity_rc})"), ("커밋", f"`{sha[:8]}`"), ("볼 곳", "잡 아티팩트 `unity-build.log` 의 `error` 줄"),
-                                     ("링크", links)])
+        # **리허설 실패도 알린다** (`!336` AI 리뷰). 리허설의 목적이 "릴리스 전에
+        # 안다" 인데 그 결과가 조용하면 화면을 직접 봐야 한다. 다만 제목에 리허설임을
+        # 적어, 실제 릴리스가 깨진 것으로 읽히지 않게 한다.
+        rehearsal = " (리허설)" if dry_run() else ""
+        notify(False, version + rehearsal,
+               [("단계", f"Unity 빌드 (exit {unity_rc})"), ("커밋", f"`{sha[:8]}`"),
+                ("볼 곳", "잡 아티팩트 `unity-build.log` 의 `error` 줄"), ("링크", links)])
         return 1
 
     build_dir = env("SPACE_BUILD_DIR", "release/NotThisPlanet") or "release/NotThisPlanet"

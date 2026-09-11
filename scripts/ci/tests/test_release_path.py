@@ -107,7 +107,10 @@ FAIL_XML = ("<test-run total=\"2\" passed=\"1\" failed=\"1\" skipped=\"0\" durat
 
 
 def _gate(xml_text, trc=0, log_text=None):
+    """gate 한 번. **환경을 되돌린다** (`!336` AI 리뷰) — CI_PROJECT_DIR 을 전역에
+    남기면 뒤 절이 남의 임시 폴더를 보고 엉뚱한 것을 단정한다."""
     d = tempfile.mkdtemp()
+    _saved = os.environ.get("CI_PROJECT_DIR")
     os.environ["CI_PROJECT_DIR"] = d
     xml = ""
     if xml_text is not None:
@@ -119,7 +122,13 @@ def _gate(xml_text, trc=0, log_text=None):
     if log_text is not None:
         log = os.path.join(d, "u.log")
         open(log, "w", encoding="utf-8").write(log_text)
-    return R.phase_gate(trc, xml, log), d
+    try:
+        return R.phase_gate(trc, xml, log), d
+    finally:
+        if _saved is None:
+            os.environ.pop("CI_PROJECT_DIR", None)
+        else:
+            os.environ["CI_PROJECT_DIR"] = _saved
 
 
 _rc, _d = _gate(PASS_XML)
@@ -156,7 +165,8 @@ for _label, _args in (("테스트 실패", (FAIL_XML, 0, None)),
         _gate(*_args)
     _out = _buf.getvalue()
     assert "❌" in _out, f"{_label}: ❌ 줄이 없다 → 카드가 이유를 못 싣는다"
-    assert "빌드하지 않는다" in _out or "빌드하지 않는다" in _out, f"{_label}: {_out[:200]}"
+    # 같은 조건을 두 번 적어 두었던 자리다(`!336` AI 리뷰) — 무엇을 막는지 적는다.
+    assert "빌드하지 않는다" in _out, f"{_label}: 빌드를 세운다는 말이 없다 — {_out[:200]}"
 
 import mm_notify as M
 for _label, _args in (("테스트 실패", (FAIL_XML, 0, None)),):
@@ -174,12 +184,15 @@ print("  막을 때 ❌ 줄을 남기고, mm_notify 가 그것을 이유로 읽�
 assert "CI_PIPELINE_SOURCE == \"web\"" in _rel, "리허설 트리거가 없다"
 assert "RELEASE_DRY_RUN" in _rel, "리허설 변수가 잡에 없다"
 
+#     변수 읽기는 **master push 안에서만** 뜻이 있다(아래 ⑧ 이 그 잠금을 단정한다).
+os.environ["CI_PIPELINE_SOURCE"] = "push"
+os.environ["CI_COMMIT_BRANCH"] = "master"
 for _val, _want in (("", False), ("0", False), ("false", False), ("no", False),
                     ("1", True), ("true", True)):
     os.environ["RELEASE_DRY_RUN"] = _val
     assert R.dry_run() is _want, f"RELEASE_DRY_RUN={_val!r} → {R.dry_run()}"
 os.environ.pop("RELEASE_DRY_RUN", None)
-assert R.dry_run() is False, "변수가 없으면 실제 릴리스여야 한다"
+assert R.dry_run() is False, "master push 에 변수가 없으면 실제 릴리스여야 한다"
 
 #     리허설은 아무 브랜치에서나 돈다 — 릴리스 브랜치 머지 커밋이 없는 것이 정상이다.
 #     거기서 멈추면 정작 시험하려던 빌드·zip 경로를 한 번도 못 지나간다.
@@ -202,5 +215,48 @@ _body = _pub.split("def phase_publish(", 1)[1].split("\ndef ", 1)[0]
 assert _body.index("if dry_run():") < _body.index("upload_package("), (
     "리허설 검사가 패키지 업로드 **뒤**에 있다 — 진짜로 올라간다")
 print("  리허설이 빌드·zip 까지만 하고 밖으로 내보내지 않는다 ✅")
+
+
+# ── ⑧ 변수로 리허설을 **끌 수 없다** (`!336` AI 리뷰) ───────────────────
+#
+#     `rules:` 의 `variables:` 는 Run pipeline 화면에서 사람이 넣은 같은 이름 변수보다
+#     **우선순위가 낮다.** 그래서 리허설 화면에서 RELEASE_DRY_RUN=0 을 주면
+#     .gitlab-ci.yml 이 준 1 이 덮이고 **아무 브랜치에서 진짜 Release·태그가 나간다** —
+#     안전 장치로 만든 것이 반대로 새는 길이 된다.
+#
+#     그래서 트리거로 잠갔다: 실제 릴리스는 master 로의 push 하나뿐이다.
+def _trigger(source, branch, var=None):
+    os.environ["CI_PIPELINE_SOURCE"] = source
+    os.environ["CI_COMMIT_BRANCH"] = branch
+    if var is None:
+        os.environ.pop("RELEASE_DRY_RUN", None)
+    else:
+        os.environ["RELEASE_DRY_RUN"] = var
+    return R.dry_run()
+
+
+# 변수를 0 으로 줘도 master push 가 아니면 리허설이다.
+for _src, _br in (("web", "develop"), ("web", "master"), ("web", "feat/x"),
+                  ("push", "develop"), ("schedule", "master"),
+                  ("merge_request_event", "master")):
+    assert _trigger(_src, _br, "0") is True, (
+        f"{_src}/{_br} 에서 RELEASE_DRY_RUN=0 이 리허설을 껐다 — 진짜 릴리스가 나간다")
+
+# master push 는 실제 릴리스다. 그리고 그때만 변수로 리허설을 켤 수 있다.
+assert _trigger("push", "master") is False, "master push 가 리허설로 잡힌다 — 릴리스가 안 나간다"
+assert _trigger("push", "master", "0") is False, "master push + 0 은 실제 릴리스여야 한다"
+assert _trigger("push", "master", "1") is True, "master push 에서 리허설을 켤 수 없다"
+
+for _k in ("CI_PIPELINE_SOURCE", "CI_COMMIT_BRANCH", "RELEASE_DRY_RUN"):
+    os.environ.pop(_k, None)
+print("  변수로 리허설을 끌 수 없다 — 실제 릴리스는 master push 하나뿐 ✅")
+
+
+# ── ⑨ 리허설 실패도 알림 대상이다 ───────────────────────────────────────
+#     리허설의 목적이 "릴리스 전에 안다" 인데 그 결과가 조용하면 화면을 직접 봐야 한다.
+for _name, _blk in (("mm-ci-failed", _failed), ("mm-ci-resolved", _resolved)):
+    assert 'CI_PIPELINE_SOURCE == "web"' in _blk, (
+        f"{_name} 의 rules 에 web 이 없다 — 리허설 실패가 조용하다")
+print("  리허설(web) 실패도 카드로 나간다 ✅")
 
 print("== 통과 ==")
