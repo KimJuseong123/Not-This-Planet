@@ -240,6 +240,9 @@ namespace Metagame.Network
 
         public override void OnStartServer()
         {
+            // 번호로 탈것을 되찾을 수 있게 지금 살아 있는 것을 알린다 (S15P21B202-434).
+            Current = this;
+
             dustStormSeed = DustStormMatchSeed.EnsureServerMatch();
             Collect();
             ready = true;
@@ -257,6 +260,9 @@ namespace Metagame.Network
 
         public override void OnStartClient()
         {
+            // 호스트 모드면 OnStartServer 가 이미 세웠다. 같은 값이라 무해하다.
+            Current = this;
+
             if (dustStormSeed != 0)
                 DustStormMatchSeed.ApplyServerSeed(dustStormSeed);
 
@@ -338,6 +344,46 @@ namespace Metagame.Network
 
         /// <summary>지금 나르고 있는 물체 수. 양쪽이 다르면 그 순간 동기화가 멈춘다.</summary>
         public int TrackedCount => tracked.Count;
+
+        // ── 탈것을 번호로 가리키기 (S15P21B202-434) ─────────────────
+        //
+        // 탑승 상태는 bool 하나였다. 그래서 참가자는 "타고 있다" 는 알아도 <b>무엇을
+        // 타는지</b>를 몰랐고, 조종석 시점 앵커를 세울 수 없었다.
+        //
+        // <b>번호는 이미 있는 것을 쓴다.</b> 짝짓기 순서는 계층 경로와 형제 순번으로만
+        // 정해지므로(<see cref="Compare"/>) 양쪽이 같은 줄을 얻는다. 여기서 탈것만
+        // 따로 줄을 세우면 -315 가 기록한 사고(개수는 같은데 순서만 어긋남)를 새로
+        // 만든다. 그리고 탈것은 파츠 오브젝트에 붙으므로(<c>PartTractorActivator</c>)
+        // 그 몸이 이미 이 목록 안에 있다.
+
+        /// <summary>지금 살아 있는 것. 양쪽 모두 스폰된 뒤에 채워진다.</summary>
+        public static WorldSync Current { get; private set; }
+
+        /// <summary>이 몸의 짝짓기 번호. 목록에 없으면 -1.</summary>
+        public int IndexOfTracked(Rigidbody body)
+        {
+            if (body == null) return -1;
+
+            for (int i = 0; i < tracked.Count; i++)
+                if (ReferenceEquals(tracked[i], body)) return i;
+
+            return -1;
+        }
+
+        /// <summary>
+        /// 그 번호의 탈것. 번호가 범위를 벗어나거나 그 자리가 탈것이 아니면 null.
+        ///
+        /// <para>아직 <see cref="ready"/> 가 아니면 목록이 비어 있어 null 이 나온다.
+        /// 부르는 쪽은 될 때까지 다시 물어봐야 한다 — 스폰과 씬 준비 순서가 고정이
+        /// 아니다(<see cref="OnStartClient"/> 의 주석 참고).</para>
+        /// </summary>
+        public TransportVehicle VehicleAt(int index)
+        {
+            if (index < 0 || index >= tracked.Count) return null;
+
+            var body = tracked[index];
+            return body != null ? body.GetComponent<TransportVehicle>() : null;
+        }
 
         /// <summary>고정쇠 수. 개수 검사가 따로 걸리는 배열이다.</summary>
         public int ClampCount => clamps.Count;
@@ -647,6 +693,11 @@ namespace Metagame.Network
             if (!isServer) WorldEvents.RemoteDecides = false;
             if (!isServer) TransportVehicle.AnyActivated -= OnVehicleActivated;
 
+            // 사라진 것을 가리키고 있으면 다음 매치에서 옛 목록으로 번호를 푼다
+            // (S15P21B202-434). 내가 지금 것일 때만 지운다 — 이어받기로 새 것이 이미
+            // 들어와 있으면 그것을 지워서는 안 된다.
+            if (ReferenceEquals(Current, this)) Current = null;
+
             // 낙하 그림은 충돌러가 꺼져 있어 남으면 지면을 뚫고 영원히 떨어진다.
             if (!isServer && MeteorSpawner != null) MeteorSpawner.ClearNetworkMeteors();
 
@@ -661,6 +712,9 @@ namespace Metagame.Network
             WorldEvents.WeldGrown -= RpcWeldGrown;
             WorldEvents.WeldShrunk -= RpcWeldShrunk;
             TransportVehicle.AnyActivated -= OnVehicleActivated;
+
+            // OnStopClient 와 같은 이유로 내가 지금 것일 때만 지운다 (S15P21B202-434).
+            if (ReferenceEquals(Current, this)) Current = null;
         }
 
         /// <summary>
