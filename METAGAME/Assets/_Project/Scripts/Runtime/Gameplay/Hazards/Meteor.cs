@@ -771,9 +771,12 @@ namespace Metagame.Gameplay.Hazards
 
             if (_body != null)
             {
+                // 동적으로 **먼저** 돌린다 (S15P21B202-433). 들고 있던 돌은
+                // kinematic 이고(`BeginCarriedBody`), 그 상태로 속도를 쓰면 거부된다 —
+                // 그러면 착지 순간의 남은 운동량이 지워지지 않는다. 순서가 뜻을 바꾼다.
+                _body.isKinematic = false;
                 _body.linearVelocity = Vector3.zero;
                 _body.angularVelocity = Vector3.zero;
-                _body.isKinematic = false;
                 _body.useGravity = true;
             }
 
