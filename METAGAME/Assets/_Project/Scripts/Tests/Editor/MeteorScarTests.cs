@@ -193,13 +193,17 @@ namespace Metagame.Gameplay.Tests
         /// <summary>
         /// <b>흔적이 실제로 목록에서 빠진다.</b>
         ///
-        /// !347 AI 리뷰가 물은 것 — <c>Faded</c> 경계에서 <c>Age</c> 증가가 멈추는데
-        /// 소멸 판정이 그 값에 의존하면 부등호 하나로 영구히 남을 수 있다.
+        /// <b>이 검증을 쓰다가 결함을 찾았다.</b> 처음에는 소멸이
+        /// <c>Meteor.Tick</c> 의 <c>_sinceSettled</c> 로 흐른다고 보고 그것을 잠그려
+        /// 했는데, 실패했다. <c>MeteorSpawner.AdvanceLive</c> 가 정착한 운석을
+        /// <c>_live</c> 에서 빼면서 <b>더 틱하지 않기</b> 때문이다 — <c>Meteor</c> 에는
+        /// 자체 <c>FixedUpdate</c> 도 없다. 그래서 그 타이머가 멈춰 있었고
+        /// <c>Expire()</c> 가 영영 불리지 않아 <b>흔적이 영구히 남았다.</b>
+        /// <c>MeteorScarDespawnSeconds</c> 는 동작한 적이 없는 상수였다.
         ///
-        /// 실제로는 두 타이머가 <b>별개다.</b> <c>Scar.Age</c> 는
-        /// <c>MeteorSpawner.AdvanceScars</c> 가 세고 표시에만 쓰이며,
-        /// 소멸은 <c>Meteor.Tick</c> 의 <c>_sinceSettled</c> 가 따로 센다 —
-        /// 그쪽은 <c>Faded</c> 와 무관하게 계속 늘어난다. 이 검증이 그 사실을 잠근다.
+        /// 그래서 <b>나이를 세는 쪽이 수명도 재게 했다</b> — 수명은
+        /// <c>AdvanceScars</c> 가 <c>Scar.Age</c> 로 잰다. 타이머가 두 군데로
+        /// 갈라져 있던 것이 이 결함의 뿌리다(S15P21B202-438).
         /// </summary>
         [Test]
         public void TheScarLeavesTheListWhenItsLifetimeEnds()
