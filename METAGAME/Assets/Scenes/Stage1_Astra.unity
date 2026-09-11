@@ -87943,17 +87943,17 @@ MonoBehaviour:
   starfield: 0
   firstPerson: 1
   firstPersonHandSettings:
-    leftIdlePosition: {x: -0.18, y: -0.14, z: 0.37}
-    rightIdlePosition: {x: 0.18, y: -0.14, z: 0.37}
-    leftIdleEuler: {x: -78, y: -7, z: 45}
-    rightIdleEuler: {x: -78, y: 7, z: -45}
-    leftGrabOffset: {x: 0.025, y: 0.018, z: 0.028}
-    rightGrabOffset: {x: -0.025, y: 0.018, z: 0.028}
-    leftGrabEuler: {x: -40, y: -18, z: -22}
-    rightGrabEuler: {x: -40, y: 18, z: 22}
+    leftIdlePosition: {x: -0.34, y: -0.24, z: 0.42}
+    rightIdlePosition: {x: 0.34, y: -0.24, z: 0.42}
+    leftIdleEuler: {x: 168, y: 25, z: -12}
+    rightIdleEuler: {x: 168, y: -25, z: 12}
+    leftGrabOffset: {x: 0, y: 0, z: -0.06}
+    rightGrabOffset: {x: 0, y: 0, z: -0.06}
+    leftGrabEuler: {x: -6, y: 0, z: 0}
+    rightGrabEuler: {x: -6, y: 0, z: 0}
     leftGrabScale: {x: 1, y: 0.96, z: 1.03}
     rightGrabScale: {x: 1, y: 0.96, z: 1.03}
-    visualLength: 0.28
+    visualLength: 0.22
     mirrorLeftHand: 0
     mirrorRightHand: 1
     poseSmoothTime: 0.085

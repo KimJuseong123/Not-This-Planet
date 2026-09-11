@@ -78,6 +78,47 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void 수동프리셋없이생성즉시하단포즈를적용한다()
+        {
+            var (_, _, view) = MakeView();
+            var expected = FirstPersonHandView.Settings.Default;
+            Assert.AreEqual(new Vector3(-0.34f, -0.24f, 0.42f), expected.leftIdlePosition);
+            Assert.AreEqual(new Vector3(0.34f, -0.24f, 0.42f), expected.rightIdlePosition);
+            Assert.AreEqual(expected.leftIdlePosition, view.LeftHandRoot.localPosition);
+            Assert.AreEqual(expected.rightIdlePosition, view.RightHandRoot.localPosition);
+            Assert.Less(Quaternion.Angle(view.LeftHandRoot.localRotation,
+                Quaternion.Euler(expected.leftIdleEuler)), 0.01f);
+            Assert.Less(Quaternion.Angle(view.RightHandRoot.localRotation,
+                Quaternion.Euler(expected.rightIdleEuler)), 0.01f);
+        }
+
+        [TestCase("Assets/Scenes/Main.unity")]
+        [TestCase("Assets/Scenes/Stage1_Astra.unity")]
+        public void 빌드씬에하단손설정이저장되어있다(string path)
+        {
+            Assert.IsTrue(System.Array.Exists(UnityEditor.EditorBuildSettings.scenes,
+                scene => scene.enabled && scene.path == path));
+            var scene = UnityEditor.SceneManagement.EditorSceneManager.OpenPreviewScene(path);
+            try
+            {
+                Metagame.Bootstrap.SpaceBootstrap bootstrap = null;
+                foreach (var root in scene.GetRootGameObjects())
+                {
+                    bootstrap = root.GetComponentInChildren<Metagame.Bootstrap.SpaceBootstrap>(true);
+                    if (bootstrap != null) break;
+                }
+                Assert.IsNotNull(bootstrap, path + "에 SpaceBootstrap이 없다.");
+                Assert.AreEqual(JsonUtility.ToJson(FirstPersonHandView.Settings.Default),
+                    JsonUtility.ToJson(bootstrap.firstPersonHandSettings),
+                    path + "의 손 설정이 런타임 기본값과 다르다.");
+            }
+            finally
+            {
+                UnityEditor.SceneManagement.EditorSceneManager.ClosePreviewScene(scene);
+            }
+        }
+
+        [Test]
         public void 표시손은물리컴포넌트를추가하지않는다()
         {
             var (_, _, view) = MakeView();
