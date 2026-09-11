@@ -226,7 +226,11 @@ namespace Metagame.Gameplay.Tests
             Assert.AreSame(vehicle, controller.MountedVehicle);
             Assert.AreSame(vehicle, player.MountedVehicle);
             Assert.IsTrue(camera.VehicleView);
-            Assert.IsTrue(camera.FirstPerson, "탑승 시 조종석 1인칭으로 전환해야 한다 (S15P21B202-113).");
+
+            // S15P21B202-113 은 조종석 1인칭이었다. S15P21B202-441 에서 3인칭으로
+            // 바꿨다 — 다른 게임이 차·탈것에서 쓰는 방식이고, 뒤에서 따라가면 무엇을
+            // 타고 있는지가 화면에 남는다. 그 결정의 근거는 PhysicsScale 쪽 주석에 있다.
+            Assert.IsFalse(camera.FirstPerson, "탑승 시 3인칭으로 물러나야 한다 (S15P21B202-441).");
 
             controller.SetInput(new InputFrame { TransportAction = true });
 
