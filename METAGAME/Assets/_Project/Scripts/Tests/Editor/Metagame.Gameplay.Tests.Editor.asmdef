@@ -1,0 +1,31 @@
+{
+  "name": "Metagame.Gameplay.Tests.Editor",
+  "rootNamespace": "Metagame.Gameplay.Tests",
+  "references": [
+    "UnityEngine.TestRunner",
+    "UnityEditor.TestRunner",
+    "Metagame.Core",
+    "Metagame.Gameplay",
+    "Metagame.Bootstrap",
+    "Metagame.Network",
+    "Metagame.UI",
+    "UnityEngine.UI",
+    "Unity.RenderPipelines.Universal.Runtime",
+    "Metagame.Editor"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "nunit.framework.dll"
+  ],
+  "autoReferenced": false,
+  "defineConstraints": [
+    "UNITY_INCLUDE_TESTS"
+  ],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

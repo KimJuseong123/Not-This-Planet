@@ -1,0 +1,1245 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 35cb5fbb83cc44a5a0da55b42105d849, type: 3}
+  m_Name: Stage1AudioManager
+  m_EditorClassIdentifier:
+  soundBank: {fileID: 11400000, guid: d1c27bc8e51843968e346dea8a200cd6, type: 2}
+  globalStyle: 0
+  musicClip: {fileID: 8300000, guid: d595100fcc974ccfaa06ac610105ea4a, type: 3}
+  musicBaseVolume: 0.18
+  musicFadeInSeconds: 4
+  musicFadeOutSeconds: 6
+  musicRepeatDelaySeconds: 5
+  masterVolume: 1
+  muted: 0
+  outputMixerGroup: {fileID: 0}
+  spatialMinDistance: 1.2
+  defaultFadeInSeconds: 0.005
+  defaultFadeOutSeconds: 0.04
+  noiseMasterVolume: 1
+  noiseMasterPitch: 1
+  eventOverrides:
+  - eventId: 0
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 1
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 2
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 3
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 4
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 5
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 6
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 7
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 8
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 9
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 10
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 11
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 12
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 13
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 14
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 15
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 16
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 17
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 18
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 19
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 20
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 21
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 22
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 23
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 24
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 25
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 26
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 27
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 28
+    enabled: 1
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 20
+    noiseVolumeScale: 0
+    noisePitchScale: 0.1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 29
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 30
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 31
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 32
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 33
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 34
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 35
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 36
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 37
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 38
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 39
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 40
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 41
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 42
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 43
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 44
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 45
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 46
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 47
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 48
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 49
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 50
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 51
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 52
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 53
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 54
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 55
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 56
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 57
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 58
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 59
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 60
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 61
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 62
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 63
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 64
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 65
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 66
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 67
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 68
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 69
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 70
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 71
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 72
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 73
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 74
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 75
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 76
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 77
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 78
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 79
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0
+  - eventId: 80
+    enabled: 0
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 1
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0

@@ -1,0 +1,29 @@
+# 로컬 개발용 MySQL — 팀원 전원 동일 환경
+# 실행:   docker compose up -d
+# 중지:   docker compose down
+# 초기화: docker compose down -v && docker compose up -d
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: metagame-mysql
+    environment:
+      MYSQL_DATABASE: metagame
+      MYSQL_USER: metagame
+      MYSQL_PASSWORD: metagame1234
+      MYSQL_ROOT_PASSWORD: root1234
+      TZ: Asia/Seoul
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-pmetagame1234", "-umetagame"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  mysql-data:

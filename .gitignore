@@ -39,6 +39,11 @@
 .cache/
 
 # Build/export artifacts
+# Unity 플레이어 빌드 폴더 — 빌드는 git 이 아니라 GitLab Release 로 관리한다(git-convention §8, S15P21B202-325).
+# 2026-09-07 !240 에 218MB · 경로 232자의 빌드 폴더가 통째로 커밋돼 검사에 걸렸다.
+/METAGAME/Release/
+/METAGAME/Build/
+/METAGAME/Builds/
 *.apk
 *.aab
 *.unitypackage
@@ -72,5 +77,31 @@ Desktop.ini
 *.cer
 *.certSigningRequest
 *.ppk
+# 서버 접속 키. 2026-08-31 지급된 EC2 pem 이 작업 폴더에 들어와 있던 것을 발견 —
+# 한 번 커밋되면 이력에서 지울 수 없으므로 이름 규칙으로 막는다. 보관은 ~/.ssh 에.
+*.pem
+*.key
+*.pfx
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+id_*.pub
 
 # Keep .vscode/ available for shared Unity launch/debug recommendations.
+
+# Python (scripts/ci)
+__pycache__/
+*.pyc
+
+# 개인 작업 메모 — 팀에 파일로 전달하는 중간 산출물이라 리포에 들어가면 안 된다
+# (TEAM-SHARE.local.md · ARCHITECTURE-REVIEW.local.md 등). git add -A 한 번에 딸려
+# 들어갈 수 있어서 무시 + repo-hygiene 금지 목록 양쪽에 넣었다 (S15P21B202-309).
+*.local.md
+*.local.txt
+*.local.json
+*.local.yml
+
+# Jira 규칙 덤프 — R10 의 MM 웹훅 URL 이 그대로 들어 있다 (S15P21B202-336).
+# summarize_rules.py 의 기본 경로이므로 실수로 커밋되는 것을 막는다.
+scripts/rules/

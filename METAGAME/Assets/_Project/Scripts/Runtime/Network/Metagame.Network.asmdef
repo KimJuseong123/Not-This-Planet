@@ -1,0 +1,21 @@
+{
+  "name": "Metagame.Network",
+  "rootNamespace": "Metagame.Network",
+  "references": [
+    "Mirror",
+    "Mirror.Components",
+    "Mirror.Transports",
+    "Mirror.Authenticators",
+    "Metagame.Core",
+    "Metagame.Gameplay"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

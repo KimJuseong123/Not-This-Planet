@@ -1,0 +1,151 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d8b92664810b4ea6b63464b86f2d3f67, type: 3}
+  m_Name: Stage1AtmosphereProfile
+  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.AtmosphereProfile
+  sky:
+    zenithColor: {r: 0.008, g: 0.012, b: 0.035, a: 1}
+    horizonColor: {r: 0.34, g: 0.12, b: 0.1, a: 1}
+    nadirColor: {r: 0.012, g: 0.008, b: 0.02, a: 1}
+    horizonHeight: 0
+    horizonExponent: 1.6
+  stars:
+    starCount: 1500
+    bandCount: 900
+    radius: 300
+    seed: 20260825
+    minimumBrightness: 0.1
+    maximumBrightness: 1
+    minimumSize: 0.1
+    maximumSize: 0.55
+  celestialBodies:
+    planetEnabled: 1
+    planetColor: {r: 0.2, g: 0.4, b: 0.72, a: 1}
+    planetDirection: {x: -0.46, y: 0.6, z: 0.66}
+    planetDiameter: 78
+    moonEnabled: 1
+    moonColor: {r: 0.72, g: 0.75, b: 0.84, a: 1}
+    moonDirection: {x: 0.45, y: 0.25, z: 0.86}
+    moonDiameter: 24
+  lighting:
+    primaryLightEnabled: 1
+    primaryLightColor: {r: 1, g: 0.78, b: 0.64, a: 1}
+    primaryLightIntensity: 1.35
+    primaryLightAngles: {x: 34, y: -46, z: 0}
+    primaryShadowStrength: 0.88
+    fillLightEnabled: 1
+    fillLightColor: {r: 0.42, g: 0.56, b: 0.86, a: 1}
+    fillLightIntensity: 0.2
+    fillLightAngles: {x: -24, y: 128, z: 0}
+    ambientSky: {r: 0.04, g: 0.05, b: 0.1, a: 1}
+    ambientEquator: {r: 0.09, g: 0.09, b: 0.13, a: 1}
+    ambientGround: {r: 0.18, g: 0.16, b: 0.15, a: 1}
+    ambientIntensity: 0.9
+  fog:
+    enabled: 1
+    mode: 1
+    color: {r: 0.4433962, g: 0.4433962, b: 0.4433962, a: 1}
+    density: 0.04
+    startDistance: 10
+    endDistance: 60
+  haze:
+    enabled: 0
+    requiresDepth: 1
+    color: {r: 0.22, g: 0.15, b: 0.32, a: 1}
+    density: 0.1
+    startDistance: 15
+    endDistance: 180
+  groundFog:
+    enabled: 0
+    color: {r: 0.82, g: 0.63, b: 0.38, a: 1}
+    density: 0.4
+    baseHeight: 0
+    heightFalloff: 0.1
+    startDistance: 2
+    endDistance: 25
+    noiseScale: 0.05
+    noiseSpeed: {x: 0.006, y: -0.004}
+    noiseStrength: 0.7
+  postProcessing:
+    tonemapping: 2
+    bloomEnabled: 1
+    bloomIntensity: 0.15
+    bloomThreshold: 0.9
+    bloomTint: {r: 1, g: 0.55, b: 0.35, a: 1}
+    colorAdjustmentsEnabled: 1
+    postExposure: -0.1
+    contrast: 5
+    colorFilter: {r: 0.92, g: 0.88, b: 1, a: 1}
+    vignetteEnabled: 1
+    vignetteIntensity: 0.12
+    vignetteSmoothness: 0.3
+  meteorShower:
+    enabled: 1
+    maxParticles: 64
+    emissionRate: 4
+    alertEmissionMultiplier: 1.8
+    lifetime: 3
+    speed: 18
+    spread: 20
+    color: {r: 0.85, g: 0.7, b: 0.55, a: 0.85}
+    startSize: 0.1
+    endSize: 0.01
+  dustGust:
+    enabled: 1
+    direction: {x: 0.9841834, y: 0, z: 0.177153}
+    minimumInterval: 8
+    maximumInterval: 18
+    duration: 4
+    speed: 3.5
+    color: {r: 0.68, g: 0.5, b: 0.36, a: 0.22}
+    startSize: 0.22
+    endSize: 0.06
+    burstCount: 18
+    maxParticles: 72
+    spawnRadius: 10
+    verticalSpread: 3
+  dustStorm:
+    enabled: 1
+    minimumInterval: 8
+    maximumInterval: 14
+    speed: 6
+    halfExtents: {x: 12, y: 2.5, z: 5}
+    directionConeDegrees: 60
+    spawnMargin: 6
+    seed: 20260903
+    groundClearance: 0.08
+    showDebugBoundary: 0
+    debugBoundaryColor: {r: 1, g: 0, b: 0, a: 1}
+    debugBoundaryWidth: 0.04
+    debugSkyMarkerHeight: 80
+    windForce: 6
+    playerWindForceMultiplier: 0.45
+    objectWindForceMultiplier: 1.25
+    maximumAffectedMass: 40
+    maxPhysicalFragments: 3
+    fragmentDamage: 5
+    fragmentRepeatCooldown: 1
+    fragmentLifetime: 2.5
+    fragmentSpeed: 5
+    affectedLayers: -1
+    maxVisualFragments: 12
+    maxDustParticles: 128
+    dustEmissionRate: 56
+    dustLifetime: 2.4
+    dustStartSize: 0.28
+    dustEndSize: 0.1
+    dustColor: {r: 0.72, g: 0.52, b: 0.34, a: 0.46}
+    largeDebrisPrefab: {fileID: 100100000, guid: b0a8e971df7ec6444885c4615a728ec6, type: 3}
+    mediumDebrisPrefab: {fileID: 100100000, guid: 3d8ee2dcb0fa85d4ca8b6decd954b8e1, type: 3}
+    smallDebrisPrefab: {fileID: 100100000, guid: a0de2ff8a3e44cc4594133fb1ce9ab38, type: 3}
+  enableOnMobile: 0
+  mobileEffectScale: 0.5

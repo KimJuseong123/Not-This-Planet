@@ -1,0 +1,20 @@
+{
+  "name": "Metagame.Bootstrap",
+  "rootNamespace": "Metagame.Bootstrap",
+  "references": [
+    "Metagame.Core",
+    "Metagame.Gameplay",
+    "Metagame.UI",
+    "Metagame.Network",
+    "Mirror"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

@@ -1,0 +1,180 @@
+using System.Linq;
+using NUnit.Framework;
+using UnityEditor;
+using UnityEngine;
+using Metagame.Core;
+
+namespace Metagame.Gameplay.Tests
+{
+    public sealed class RabbitLocomotionTests
+    {
+        PlayerRig _player;
+        bool _puffEnabled;
+        SpaceSuit Suit => _player.Doll.Suit;
+
+        [SetUp]
+        public void SetUp()
+        {
+            _puffEnabled = Puff.Enabled;
+            Puff.Enabled = false;
+            _player = PlayerRig.Create("Animation test", Vector3.zero, Quaternion.identity, Color.white, Color.gray);
+            Assert.NotNull(Suit, "Existing rabbit prefab must still load.");
+            Suit.InitializeLocomotion();
+            Assert.NotNull(Suit.Locomotion, "Both baked resources must be included.");
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            // EditMode에서는 MonoBehaviour.OnDestroy가 보장되지 않으므로 테스트가 정리한다.
+            if (_player != null)
+            {
+                Suit?.Locomotion?.Dispose();
+                Object.DestroyImmediate(_player.gameObject);
+            }
+            Puff.Enabled = _puffEnabled;
+        }
+
+        static RabbitLocomotion.State Walking => new()
+        { Grounded = true, Speed = Tuning.WalkSpeed, Direction = Vector2.up };
+
+        void Advance(RabbitLocomotion.State state, int frames = 15)
+        {
+            for (int i = 0; i < frames; i++)
+            {
+                Suit.Sync();
+                Suit.Locomotion.Apply(state, 1f / 60f);
+            }
+        }
+
+        Transform Bone(string name) => Suit.Model.GetComponentsInChildren<Transform>(true).Single(t => t.name == name);
+
+        [TestCase(RabbitLocomotion.WalkResource, 1.166667f)]
+        [TestCase(RabbitLocomotion.RunResource, 0.7f)]
+        public void ClipsAreLoopingTransformOnlyMotions(string key, float seconds)
+        {
+            var clip = Resources.Load<AnimationClip>(key);
+            Assert.NotNull(clip);
+            Assert.That(clip.length, Is.EqualTo(seconds).Within(0.001f));
+            Assert.True(clip.isLooping);
+            Assert.False(clip.humanMotion, "Retargeted clips must not depend on a runtime avatar.");
+            var bindings = AnimationUtility.GetCurveBindings(clip);
+            Assert.That(bindings.Length, Is.EqualTo(14 * 4));
+            foreach (var binding in bindings)
+            {
+                Assert.That(binding.path, Is.Not.Empty);
+                Assert.That(binding.propertyName, Does.StartWith("m_LocalRotation."));
+                Assert.That(RabbitLocomotion.BoneNames, Does.Contain(binding.path.Split('/').Last()));
+                var curve = AnimationUtility.GetEditorCurve(clip, binding);
+                Assert.That(Mathf.Abs(Mathf.Abs(curve.Evaluate(0)) - Mathf.Abs(curve.Evaluate(clip.length))), Is.LessThan(0.001f));
+            }
+        }
+
+        [Test]
+        public void WalkingChangesTheExistingRabbitLeg()
+        {
+            Assert.That(Suit.Locomotion.BoneCount, Is.EqualTo(14));
+            Advance(Walking);
+            Quaternion first = Bone("L_Thigh").localRotation;
+            Advance(Walking);
+            Assert.Greater(Quaternion.Angle(first, Bone("L_Thigh").localRotation), 1f);
+            Assert.That(Suit.Locomotion.Weight, Is.EqualTo(1f));
+            Assert.That(Suit.Locomotion.RunBlend, Is.Zero);
+        }
+
+        [Test]
+        public void RunningSelectsRunningAndReturnsToWalk()
+        {
+            var state = Walking;
+            state.Running = true; state.Speed = Tuning.RunSpeed;
+            Advance(state);
+            Assert.That(Suit.Locomotion.RunBlend, Is.EqualTo(1f));
+            Advance(Walking);
+            Assert.That(Suit.Locomotion.RunBlend, Is.Zero);
+        }
+
+        [Test]
+        public void StoppingRestoresThePhysicsPose()
+        {
+            Advance(Walking);
+            var state = Walking; state.Speed = 0f;
+            Advance(state);
+            Assert.That(Suit.Locomotion.Weight, Is.Zero);
+            Assert.That(Suit.WorstDrift(), Is.LessThan(0.0001f));
+        }
+
+        [TestCase(false, false)]
+        [TestCase(true, true)]
+        public void AirborneOrBlockedImmediatelyReturnsToPhysics(bool grounded, bool blocked)
+        {
+            Advance(Walking);
+            var state = Walking; state.Grounded = grounded; state.Blocked = blocked;
+            Advance(state, 1);
+            Assert.That(Suit.Locomotion.Weight, Is.Zero);
+            Assert.That(Suit.WorstDrift(), Is.LessThan(0.0001f));
+        }
+
+        [Test]
+        public void SidewaysMovementKeepsExistingSideStep()
+        {
+            var state = Walking; state.Direction = Vector2.right;
+            Advance(state);
+            Assert.That(Suit.Locomotion.Weight, Is.Zero);
+        }
+
+        [Test]
+        public void BackwardPlaybackWrapsWithoutNegativePhase()
+        {
+            var state = Walking; state.Direction = Vector2.down;
+            Advance(state, 120);
+            Assert.That(Suit.Locomotion.Phase, Is.InRange(0f, 1f));
+        }
+
+        [TestCase(true, false, "L_Hand")]
+        [TestCase(false, true, "R_Hand")]
+        public void BusyHandRetainsItsExactPhysicsPose(bool leftBusy, bool rightBusy, string bone)
+        {
+            Suit.Sync();
+            var hand = Bone(bone);
+            Vector3 position = hand.position;
+            Quaternion rotation = hand.rotation;
+            var state = Walking; state.LeftArmBusy = leftBusy; state.RightArmBusy = rightBusy;
+            Advance(state);
+            Assert.That(Vector3.Distance(position, hand.position), Is.LessThan(0.0001f));
+            Assert.That(Quaternion.Angle(rotation, hand.rotation), Is.LessThan(0.01f));
+        }
+
+        [Test]
+        public void AnimationDoesNotMoveAnyRigidBodyOrChangeItsVelocity()
+        {
+            var bodies = _player.Doll.Bodies;
+            var positions = bodies.Select(b => b.position).ToArray();
+            var rotations = bodies.Select(b => b.rotation).ToArray();
+            var velocities = bodies.Select(b => b.linearVelocity).ToArray();
+            Advance(Walking, 90);
+            for (int i = 0; i < bodies.Count; i++)
+            {
+                Assert.That(bodies[i].position, Is.EqualTo(positions[i]));
+                Assert.That(bodies[i].rotation, Is.EqualTo(rotations[i]));
+                Assert.That(bodies[i].linearVelocity, Is.EqualTo(velocities[i]));
+            }
+        }
+
+        [Test]
+        public void DownedPlayerDisallowsLocomotion()
+        {
+            _player.GoDown("animation test");
+            Assert.True(RabbitLocomotion.ReadState(_player).Blocked);
+        }
+
+        [Test]
+        public void GrabInputReservesTheCorrespondingArm()
+        {
+            _player.SetInput(new InputFrame { GrabLeft = true, Run = true });
+            var state = RabbitLocomotion.ReadState(_player);
+            Assert.True(state.LeftArmBusy);
+            Assert.False(state.RightArmBusy);
+            Assert.True(state.Running);
+        }
+    }
+}

@@ -1,0 +1,16 @@
+[Unit]
+Description=METAGAME 백엔드 배포 (스풀의 jar 을 적용하고 헬스체크·롤백)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+# deploy.sh 가 스스로 RELEASE 를 지우므로 path 유닛이 다시 무장한다.
+# **스풀 밖의 root 소유 스크립트를 실행한다**(S15P21B202-324). 스풀(/home/ubuntu/metagame/deploy)은
+# 배포 러너 컨테이너에 rw 로 마운트되므로, 그 안의 스크립트를 실행하면 잡이 그것을 덮어써
+# 호스트의 docker 권한으로 임의 코드를 돌릴 수 있다. 컨테이너는 데이터(jar·RELEASE)만 쓴다.
+ExecStart=/opt/metagame-deploy/deploy.sh
+TimeoutStartSec=600
+# 배포 스크립트는 실패도 STATUS 로 보고하고 0 으로 끝난다 — 유닛 실패 상태를 남기지 않는다.
