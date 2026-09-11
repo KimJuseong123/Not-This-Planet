@@ -97,8 +97,10 @@ step "③ ${CONTAINER_HOURS}시간 넘게 끝나 있는 컨테이너" \
 # **zip 은 그 대상이 아니다** — 손으로 올리는 것이라 아무도 치우지 않았다.
 say "④ 릴리스 zip — 최신 ${KEEP_ZIPS}개만 남긴다"
 if [ -d "$BUILDS_DIR" ]; then
-  # 이름에 날짜·시각이 있어 문자열 정렬이 곧 시각 정렬이다(-269 규칙).
-  mapfile -t ZIPS < <(ls -1 "$BUILDS_DIR"/*.zip 2>/dev/null | sort -r)
+  # **수정 시각으로 고른다.** 이름에 날짜·시각이 있어 문자열 정렬도 보통 맞지만
+  # (-269 규칙), 규칙을 안 따르는 zip 이 하나라도 섞이면 **최신 릴리스가 지울
+  # 대상이 된다.** 이름은 사람이 붙이는 것이고 시각은 파일 시스템이 붙인다.
+  mapfile -t ZIPS < <(ls -1t "$BUILDS_DIR"/*.zip 2>/dev/null)
   if [ "${#ZIPS[@]}" -gt "$KEEP_ZIPS" ]; then
     for z in "${ZIPS[@]:$KEEP_ZIPS}"; do
       say "   지운다: $(basename "$z") ($(du -h "$z" | cut -f1))"
@@ -125,8 +127,15 @@ for img in "unityci/editor:ubuntu-6000.5.4f1-windows-mono-3.2.2" "unityci/editor
     MISSING=1
   fi
 done
+# **개수를 찍기만 하면 0 이어도 조용히 지나간다.** 셰이더 캐시가 사라진 것은
+# 이미지가 사라진 것과 같은 무게다(릴리스 +40분). 이미지와 똑같이 막는다.
 VOLS=$(docker volume ls -q 2>/dev/null | grep -c -- '-cache-.*-protected')
-say "   보호 러너 캐시 볼륨 ${VOLS}개 (셰이더 캐시가 여기 있다 — 지우면 릴리스가 40분 길어진다)"
+if [ "${VOLS:-0}" -eq 0 ]; then
+  say "   ❌ 보호 러너 캐시 볼륨이 하나도 없다 — 셰이더 캐시가 사라졌다(릴리스가 40분 길어진다)"
+  MISSING=1
+else
+  say "   ✅ 보호 러너 캐시 볼륨 ${VOLS}개 (셰이더 캐시가 여기 있다)"
+fi
 
 # **계속 건너뛰기만 하면 그것도 문제다.** 러너가 늘 하나 떠 있는 구성이 되면 정리가
 # 영원히 안 도는데, 종료 코드가 0 이라 아무도 모른다. 연속 횟수를 세어 알린다.
