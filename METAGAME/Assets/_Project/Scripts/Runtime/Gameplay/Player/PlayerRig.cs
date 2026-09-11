@@ -934,6 +934,7 @@ namespace Metagame.Gameplay
         /// <summary>외부 피해 오브젝트와 낙하 판정이 공통으로 사용하는 피해 진입점.</summary>
         public void ApplyDamage(float amount, string source = "피해")
         {
+            if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
             if (IsDead || float.IsNaN(amount) || float.IsInfinity(amount) || amount <= 0f) return;
 
             Health = Mathf.Clamp(Health - amount, 0f, MaxHealth);
@@ -1551,6 +1552,7 @@ namespace Metagame.Gameplay
         /// </summary>
         public void Tick()
         {
+            if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
             SyncCameraTilt();
 
             // 파츠 밀기 상태를 먼저 갱신한다 — 아래 Locomotion 이 이 값으로 이동

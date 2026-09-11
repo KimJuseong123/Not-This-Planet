@@ -76,6 +76,7 @@ namespace Metagame.Gameplay
 
         public void FixedTick(double simulationTime)
         {
+            if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
             if (!configured || !physicsAuthority || settings == null || schedule == null)
                 return;
 

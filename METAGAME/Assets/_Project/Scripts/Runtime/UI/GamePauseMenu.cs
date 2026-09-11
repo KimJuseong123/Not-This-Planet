@@ -69,6 +69,13 @@ namespace Metagame.UI
             if (session == null)
                 session = GameSession.Instance;
 
+            if (session != null && session.EndingActive)
+            {
+                isOpen = false;
+                if (settingsView != null) settingsView.enabled = false;
+                return;
+            }
+
             if (session == null || session.ScriptedInput || titleTransitionStarted)
                 return;
 

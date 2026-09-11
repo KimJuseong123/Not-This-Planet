@@ -876,6 +876,7 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         public void Tick(float deltaTime)
         {
+            if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
             var idle = rider == null && !Unmanned && !returning;
 
             // <b>굴림과 자세 복구는 탑승자가 없어도 끝까지 진행한다.</b>

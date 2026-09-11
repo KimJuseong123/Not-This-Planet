@@ -478,6 +478,7 @@ namespace Metagame.Network
         [ServerCallback]
         void FixedUpdate()
         {
+            if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
             // 게임 씬이 준비될 때까지 기다렸다 몸을 세운다.
             if (body == null)
             {
@@ -761,6 +762,7 @@ namespace Metagame.Network
         /// </summary>
         void Update()
         {
+            if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
             if (!isLocalPlayer) return;
 
             // 스폰 메시지가 게임 씬이 몸을 세우기 전에 도착할 수 있다. 준비될 때까지 기다린다.
