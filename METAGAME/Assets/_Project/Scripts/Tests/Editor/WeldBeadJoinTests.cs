@@ -49,6 +49,88 @@ namespace Metagame.Gameplay.Tests
 
         // --- 닿으면 접합 ---------------------------------------------------
 
+        (SpaceshipPart Part, Vector3 Nozzle) PadPart(string name, float x = 0f)
+        {
+            var ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            _spawned.Add(ground);
+            ground.transform.position = Vector3.down * 0.5f;
+            ground.transform.localScale = new Vector3(50f, 1f, 50f);
+            var pad = new GameObject("AssemblyPoint");
+            _spawned.Add(pad);
+            pad.AddComponent<ShipAssembly>().Configure(pad.transform);
+            var part = Body(name, new Vector3(x, PhysicsScale.PartHeight * 0.5f + 0.08f, 0f));
+            UnityEngine.Physics.SyncTransforms();
+            return (part, new Vector3(x, 0.04f, 0f));
+        }
+
+        [TestCase(0)]
+        [TestCase(1)]
+        [TestCase(2)]
+        [TestCase(3)]
+        public void CorePartWeldsToPadOnlyAfterWelding(int index)
+        {
+            var (part, nozzle) = PadPart(PartSpec.All[index].Name);
+            Assert.AreEqual(0, JointCount(part), "내려놓기만 해서는 고정하지 않는다.");
+            var position = part.transform.position;
+            var bead = GrowAt(nozzle, PhysicsScale.WeldBeadBlobSeconds * 2f);
+            Assert.IsTrue(bead.IsWeldedToPad);
+            Assert.Greater(bead.PadWeldRatio, 0f);
+            Assert.IsTrue(bead.IsChainContributing(0));
+            Assert.IsTrue(bead.HasLiveBridge);
+            Assert.AreEqual(1, JointCount(part));
+            Assert.IsNull(JointOf(part).connectedBody);
+            Assert.AreEqual(position, part.transform.position);
+            Assert.IsNull(PartAssemblyLink.SocketLinkOf(part));
+        }
+
+        [TestCase("Other", 0f)]
+        [TestCase("Part_1", 20f)]
+        public void NonCorePartsAndGroundOutsideThePadCannotBeWelded(string name, float x)
+        {
+            var (part, nozzle) = PadPart(name, x);
+            var bead = GrowAt(nozzle, PhysicsScale.WeldBeadBlobSeconds * 2f);
+            Assert.IsFalse(bead.IsWeldedToPad);
+            Assert.AreEqual(0, JointCount(part));
+        }
+
+        [Test]
+        public void CuttingAllPadBeadsReleasesThePart()
+        {
+            var (part, nozzle) = PadPart(PartSpec.All[0].Name);
+            var bead = GrowAt(nozzle, PhysicsScale.WeldBeadBlobSeconds * 2f);
+            Assert.IsTrue(bead.IsWeldedToPad);
+            for (var i = 0; i < 200 && bead.ChainCount > 0; i++)
+                WeldBead.TryShrinkNear(bead.TipPosition(0), Step, out _);
+            Assert.AreEqual(0, bead.BlobCount);
+            Assert.IsFalse(bead.IsWeldedToPad);
+            Assert.AreEqual(0, JointCount(part));
+        }
+
+        [Test]
+        public void RemoteSnapshotRestoresPadWeldAndDoesNotReviveABrokenWeld()
+        {
+            var (part, nozzle) = PadPart(PartSpec.All[0].Name);
+            var bead = GrowAt(nozzle, PhysicsScale.WeldBeadBlobSeconds * 2f);
+            var state = bead.ReadChain(0);
+            Assert.IsTrue(state.PadWeldIntact);
+            var previous = WorldEvents.RemoteDecides;
+            try
+            {
+                WorldEvents.RemoteDecides = true;
+                part.RefreshRepresentation();
+                bead.RestoreChains(new[] { state }, 0, 1);
+                Assert.IsTrue(bead.IsWeldedToPad);
+                Assert.IsTrue(part.GetComponent<Rigidbody>().isKinematic);
+                Object.DestroyImmediate(JointOf(part));
+                state = bead.ReadChain(0);
+                Assert.IsFalse(state.PadWeldIntact);
+                bead.RestoreChains(new[] { state }, 0, 1);
+                Assert.IsFalse(bead.IsWeldedToPad);
+                Assert.AreEqual(0, JointCount(part));
+            }
+            finally { WorldEvents.RemoteDecides = previous; }
+        }
+
         [Test]
         public void BridgingChainChangesColor_WithoutRecoloringUnusedBeads()
         {

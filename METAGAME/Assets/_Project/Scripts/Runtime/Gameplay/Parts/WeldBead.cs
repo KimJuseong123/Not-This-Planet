@@ -73,6 +73,7 @@ namespace Metagame.Gameplay.Parts
 
             /// <summary>이 사슬이 닿아 있는 다른 파츠. 없으면 null(S15P21B202-228).</summary>
             public SpaceshipPart Touched;
+            [NonSerialized] public ShipAssembly TouchedPad;
 
             /// <summary>
             /// 상대 몸체에 닿아 있는 덩어리를 <b>최대 크기 환산</b>으로 센 값.
@@ -95,6 +96,10 @@ namespace Metagame.Gameplay.Parts
         [SerializeField] Transform _container;
 
         bool _initialized;
+        FixedJoint _padJoint;
+        ShipAssembly _weldedPad;
+        public bool IsWeldedToPad => _weldedPad != null && _padJoint != null;
+        public float PadWeldRatio { get; private set; }
 
         /// <summary>비드가 붙어 있는 파츠.</summary>
         public SpaceshipPart Owner
@@ -156,6 +161,7 @@ namespace Metagame.Gameplay.Parts
             public Vector3 Direction;
             public float TipRadius;
             public int BlobCount;
+            public bool PadWeldIntact;
         }
 
         /// <summary>엔딩에서도 해당 사슬의 실제 접합 기여 색상을 보존한다.</summary>
@@ -166,7 +172,8 @@ namespace Metagame.Gameplay.Parts
             var chain = _chains[index];
             var link = chain.Touched != null && chain.ContactBlobs > 0f
                 ? PartAssemblyLink.FindBetween(_owner, chain.Touched) : null;
-            return link != null && link.IsIntact;
+            return (link != null && link.IsIntact)
+                || (chain.TouchedPad != null && chain.TouchedPad == _weldedPad && IsWeldedToPad);
         }
 
         /// <summary>사슬 하나의 상태를 읽는다. 서버가 스냅샷을 만들 때 쓴다.</summary>
@@ -181,6 +188,7 @@ namespace Metagame.Gameplay.Parts
                 Direction = chain.Direction,
                 TipRadius = chain.TipRadius,
                 BlobCount = chain.Blobs != null ? chain.Blobs.Count : 0,
+                PadWeldIntact = chain.TouchedPad != null && IsWeldedToPad,
             };
         }
 
@@ -196,6 +204,7 @@ namespace Metagame.Gameplay.Parts
 
             ClearChains();
             if (states == null) return;
+            var padWeldIntact = false;
 
             for (var i = 0; i < count; i++)
             {
@@ -204,6 +213,7 @@ namespace Metagame.Gameplay.Parts
 
                 var state = states[at];
                 if (state.BlobCount <= 0) continue;
+                padWeldIntact |= state.PadWeldIntact;
 
                 var chain = new Chain
                 {
@@ -218,11 +228,13 @@ namespace Metagame.Gameplay.Parts
             }
 
             ApplyMass();
+            if (!padWeldIntact) ReleasePadWeld();
         }
 
         /// <summary>덩어리와 사슬을 전부 치운다. 다시 세우기 전에 부른다.</summary>
         void ClearChains()
         {
+            ReleasePadWeld();
             for (var i = 0; i < _chains.Count; i++)
             {
                 var chain = _chains[i];
@@ -241,6 +253,7 @@ namespace Metagame.Gameplay.Parts
             get
             {
                 Initialize();
+                if (IsWeldedToPad) return true;
                 for (var i = 0; i < _chains.Count; i++)
                     if (_chains[i] != null && _chains[i].Touched != null
                         && _chains[i].Blobs != null && _chains[i].Blobs.Count > 0)
@@ -273,6 +286,7 @@ namespace Metagame.Gameplay.Parts
         void OnEnable() => Register();
 
         void OnDisable() => Unregister();
+        void OnDestroy() => ReleasePadWeld();
 
         void LateUpdate()
         {
@@ -580,7 +594,7 @@ namespace Metagame.Gameplay.Parts
                 //
                 // 자란 것이 없으므로 진행됐다고 보고하지 않는다 — 다리가 걸린 순간 불꽃이
                 // 멎는 것이 플레이어에게는 "이어졌다" 는 신호가 된다.
-                if (chain.Touched != null) return false;
+                if (chain.Touched != null || chain.TouchedPad != null) return false;
 
                 chain.TipRadius = PhysicsScale.WeldBeadMinRadius;
                 SpawnBlob(chain, chain.Blobs.Count);
@@ -631,6 +645,7 @@ namespace Metagame.Gameplay.Parts
             if (removed)
             {
                 if (bridged != null) ApplyStrengthTo(bridged);
+                ApplyPadStrength();
             }
             else
             {
@@ -732,6 +747,7 @@ namespace Metagame.Gameplay.Parts
             // 그러지 않으면 떠난 접합이 옛 강도를 그대로 들고 남는다.
             if (previous != null && previous != chain.Touched) ApplyStrengthTo(previous);
             if (chain.Touched != null) ApplyStrengthTo(chain.Touched);
+            ApplyPadStrength();
             RefreshAppearance(chain);
         }
 
@@ -741,7 +757,8 @@ namespace Metagame.Gameplay.Parts
 
             var link = chain.Touched != null && chain.ContactBlobs > 0f
                 ? PartAssemblyLink.FindBetween(_owner, chain.Touched) : null;
-            var helpful = link != null && link.IsIntact;
+            var helpful = (link != null && link.IsIntact)
+                || (chain.TouchedPad != null && chain.TouchedPad == _weldedPad && IsWeldedToPad);
             if (chain.AppliedHelpfulColor == helpful) return;
 
             // 다리 중간 덩어리도 연결을 유지하므로 사슬 전체를 같은 색으로 표시한다.
@@ -761,6 +778,7 @@ namespace Metagame.Gameplay.Parts
         void Measure(Chain chain)
         {
             chain.Touched = null;
+            chain.TouchedPad = null;
             chain.ContactBlobs = 0f;
 
             var tip = chain.Blobs.Count - 1;
@@ -772,13 +790,18 @@ namespace Metagame.Gameplay.Parts
 
                 var radius = b == tip ? chain.TipRadius : PhysicsScale.WeldBeadMaxRadius;
                 var found = PartTouching(blob.position, radius);
-                if (found == null) continue;
+                var pad = found == null ? PadTouching(blob.position, radius) : null;
+                if (found == null && pad == null) continue;
 
                 // 한 사슬이 두 파츠에 걸쳐 닿는 경우는 처음 만난 쪽으로 정한다.
                 // 여러 상대를 동시에 이으려면 링크가 파츠당 여럿이어야 하는데, 지금은
                 // 하나다(아래 EnsureLink 의 주석을 본다).
-                if (chain.Touched == null) chain.Touched = found;
-                if (chain.Touched != found) continue;
+                if (chain.Touched == null && chain.TouchedPad == null)
+                {
+                    chain.Touched = found;
+                    chain.TouchedPad = pad;
+                }
+                if (chain.Touched != found || chain.TouchedPad != pad) continue;
 
                 var ratio = radius / PhysicsScale.WeldBeadMaxRadius;
                 chain.ContactBlobs += ratio * ratio * ratio;
@@ -810,6 +833,63 @@ namespace Metagame.Gameplay.Parts
             }
 
             return null;
+        }
+
+        ShipAssembly PadTouching(Vector3 point, float radius)
+        {
+            var core = false;
+            foreach (var spec in PartSpec.All)
+                if (_owner != null && _owner.name == spec.Name) { core = true; break; }
+            if (!core) return null;
+            var count = Physics.OverlapSphereNonAlloc(point,
+                radius + PhysicsScale.WeldBeadContactSkin, Probe,
+                Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+            for (var i = 0; i < count; i++)
+            {
+                var collider = Probe[i];
+                var pad = ShipAssembly.WeldSurface(collider, collider.ClosestPoint(point));
+                if (pad != null) return pad;
+            }
+            return null;
+        }
+
+        void ApplyPadStrength()
+        {
+            ShipAssembly pad = null;
+            var blobs = 0f;
+            foreach (var chain in _chains)
+            {
+                if (chain.TouchedPad == null || chain.ContactBlobs <= 0f) continue;
+                if (pad == null) pad = chain.TouchedPad;
+                if (pad == chain.TouchedPad) blobs += chain.ContactBlobs;
+            }
+            if (pad == null) { ReleasePadWeld(); return; }
+            if (_weldedPad != pad) ReleasePadWeld();
+            if (_padJoint == null)
+            {
+                // 비드 복원에서도 같은 접합을 만든다. 원격 파츠는 기존 동기화 경로에서
+                // kinematic이므로 서버와 물리 시뮬레이션을 경쟁하지 않는다.
+                _padJoint = _owner.gameObject.AddComponent<FixedJoint>();
+                _padJoint.enablePreprocessing = false;
+                _weldedPad = pad;
+            }
+            PadWeldRatio = Mathf.Clamp01(blobs / PhysicsScale.WeldBeadFullStrengthBlobs);
+            _padJoint.breakForce = Mathf.Lerp(PhysicsScale.UnweldedBreakForce,
+                PhysicsScale.WeldedBreakForce, PadWeldRatio);
+            _padJoint.breakTorque = Mathf.Lerp(PhysicsScale.UnweldedBreakTorque,
+                PhysicsScale.WeldedBreakTorque, PadWeldRatio);
+        }
+
+        void ReleasePadWeld()
+        {
+            if (_padJoint != null)
+            {
+                if (Application.isPlaying) Destroy(_padJoint);
+                else DestroyImmediate(_padJoint);
+            }
+            _padJoint = null;
+            _weldedPad = null;
+            PadWeldRatio = 0f;
         }
 
         /// <summary>
@@ -947,6 +1027,7 @@ namespace Metagame.Gameplay.Parts
 
             _chains.Clear();
             ApplyMass();
+            ReleasePadWeld();
 
 
             for (var i = 0; i < bridged.Count; i++) ApplyStrengthTo(bridged[i]);
