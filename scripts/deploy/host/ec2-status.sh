@@ -78,12 +78,16 @@ done
 
 # ── TLS 인증서 ───────────────────────────────────────────────────────────────
 # certbot 자동 갱신이 멈춰도 지금은 만료 당일에야 안다.
-CERT_DAYS=-1
+# **못 읽은 것과 만료된 것을 구별한다.** 둘 다 음수로 보내면 읽는 쪽이 가장 심각한
+# 상태(이미 만료됨)를 가장 약한 문구("만료일을 읽지 못했다")로 말하게 된다.
+# 못 읽었으면 빈 값 → JSON 의 null, 만료됐으면 음수 일수.
+CERT_DAYS=""
 CERT_FILE="/etc/letsencrypt/live/$DOMAIN/cert.pem"
 if [ -r "$CERT_FILE" ]; then
   end=$(openssl x509 -enddate -noout -in "$CERT_FILE" 2>/dev/null | cut -d= -f2)
   if [ -n "$end" ]; then
     end_s=$(date -d "$end" +%s 2>/dev/null || echo 0)
+    # 만료됐으면 음수가 나온다. 그대로 싣는다 — 읽는 쪽이 그것을 가장 센 문구로 만든다.
     [ "$end_s" -gt 0 ] && CERT_DAYS=$(( (end_s - $(date +%s)) / 86400 ))
   fi
 fi
@@ -111,6 +115,17 @@ def num(name, default=0):
         return default
 
 
+def maybe_num(name):
+    """빈 값이면 None(→ JSON null). **못 읽은 것과 0/음수를 섞지 않는다.**"""
+    raw = (os.environ.get(name) or "").strip()
+    if not raw:
+        return None
+    try:
+        return int(float(raw))
+    except ValueError:
+        return None
+
+
 def rows(name):
     return [ln.split("\t") for ln in (os.environ.get(name) or "").splitlines() if ln.strip()]
 
@@ -128,7 +143,7 @@ print(json.dumps({
         {"name": r[0], "port": int(r[1]), "code": r[2]} for r in rows("BACKEND_LINES")
     ],
     "units": {r[0]: (r[1] if len(r) > 1 else "") for r in rows("UNIT_LINES")},
-    "cert_days_left": num("CERT_DAYS", -1),
+    "cert_days_left": maybe_num("CERT_DAYS"),
     "sizes": {
         "docker_gb": num("DOCKER_GB"), "builds_mb": num("BUILDS_MB"),
         "site_mb": num("SITE_MB"), "runlogs_mb": num("RUNLOG_MB"),

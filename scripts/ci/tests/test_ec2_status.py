@@ -146,6 +146,42 @@ assert len(_p) >= 1 and "잰 시각" in _p[0], _p
 print("  못 읽음·오래됨을 조용함과 구별한다 ✅")
 
 
+# ── ⑤b 만료된 인증서를 "못 읽음" 으로 말하지 않는다 ──────────────────────
+#
+#     둘을 묶으면 **가장 심각한 상태(이미 만료돼 접속이 전부 막힌 상태)가 가장 약한
+#     문구로** 나간다. 호스트는 못 읽으면 null, 만료됐으면 음수를 보낸다.
+_p = E.problems(healthy(cert_days_left=None), NOW)
+assert len(_p) == 1 and "읽지 못했다" in _p[0], _p
+
+_p = E.problems(healthy(cert_days_left=-3), NOW)
+assert len(_p) == 1 and "만료됐다" in _p[0] and "3" in _p[0], _p
+assert "읽지 못했다" not in _p[0], "만료된 것을 못 읽음으로 말한다"
+
+#     호스트가 실제로 그렇게 보내는지도 본다 — 한쪽만 고치면 어긋난다.
+_sh_cert = open(os.path.join(ROOT, "scripts/deploy/host/ec2-status.sh"), encoding="utf-8").read()
+assert "maybe_num" in _sh_cert, "호스트가 못 읽음을 null 로 보내지 않는다"
+print("  만료된 인증서와 못 읽은 인증서를 가른다 ✅")
+
+
+# ── ⑤c GitLab 이 보는 러너 상태 ──────────────────────────────────────────
+#
+#     호스트의 `systemctl is-active` 는 프로세스가 떴는지만 말한다. 토큰이 막히거나
+#     망이 끊기면 **프로세스는 멀쩡한 채 GitLab 쪽에서 offline** 이 되고, 그러면 잡이
+#     영원히 대기한다. 지금은 `-130` 이 몇 시간 뒤에야 간접적으로 잡는다.
+assert E.runner_problems(None) == [], "못 물어봤을 때는 조용해야 한다"
+assert E.runner_problems([{"id": 1, "active": True, "online": True}]) == []
+_p = E.runner_problems([{"id": 1, "description": "METAGAME-deploy", "active": True, "online": False}])
+assert len(_p) == 1 and "offline" in _p[0] and "METAGAME-deploy" in _p[0], _p
+
+#     꺼 둔(active=False) 러너는 offline 이어도 정상이다.
+assert E.runner_problems([{"id": 2, "active": False, "online": False}]) == []
+
+#     아침 카드가 실제로 물어보는지.
+_dig_runner = open(os.path.join(ROOT, "scripts/ci/mm_digest.py"), encoding="utf-8").read()
+assert "/runners" in _dig_runner, "아침 카드가 러너 상태를 묻지 않는다"
+print("  GitLab 이 offline 으로 보는 러너를 잡는다 ✅")
+
+
 # ── ⑥ 파일을 찾는 순서 ───────────────────────────────────────────────────
 #
 #     `mm-digest` 는 공용 러너라 `/spool` 이 안 보인다. `ec2-status` 잡이 아티팩트로

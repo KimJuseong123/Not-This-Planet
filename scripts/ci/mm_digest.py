@@ -459,7 +459,19 @@ def main() -> int:
     # 파일이 아예 없으면(잡이 안 돌았거나 배포 러너가 꺼져 있으면) `ec2_status` 가
     # 그것을 하나의 항목으로 만든다. **조용한 것과 못 읽은 것을 구별해야 한다.**
     try:
-        srv = ec2_status.section(ec2_status.load())
+        # 러너는 **GitLab 이 보는 상태**를 따로 묻는다. 호스트의 `systemctl is-active` 는
+        # 프로세스가 떴는지만 말하고, 토큰이 막히거나 망이 끊기면 프로세스는 멀쩡한 채
+        # GitLab 쪽에서 offline 이 된다 — 그러면 잡이 영원히 대기한다.
+        runners = None
+        if gl.token and gl.project:
+            try:
+                st, d = http("GET", f"{gl.api}/projects/{gl.project}/runners", gl.headers())
+                if st == 200 and isinstance(d, list):
+                    runners = d
+            except Exception:  # noqa: BLE001 — 못 물어봤으면 그냥 넘어간다
+                runners = None
+
+        srv = ec2_status.section(ec2_status.load(), runners=runners)
         if srv:
             blocks.append(srv)
     except Exception as e:  # noqa: BLE001 — 서버 판정 실패가 점검 전체를 막지 않는다

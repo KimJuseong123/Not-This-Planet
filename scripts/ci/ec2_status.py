@@ -124,11 +124,18 @@ def problems(data: dict | None, now: datetime | None = None) -> list[str]:
         elif state != "active":
             out.append(f"⚙ **{name} 가 {state or '알 수 없음'}** — active 여야 한다")
 
-    days = _num(data.get("cert_days_left"), default=-1)
-    if days < 0:
-        out.append("🔐 **인증서 만료일을 읽지 못했다**")
-    elif days <= CERT_DAYS_WARN:
-        out.append(f"🔐 **인증서가 {days:.0f}일 남았다** — certbot 자동 갱신을 확인하세요")
+    # **만료된 것과 못 읽은 것을 가른다.** 둘을 묶으면 가장 심각한 상태(이미 만료돼
+    # 접속이 전부 막힌 상태)가 가장 약한 문구로 나간다.
+    raw_days = data.get("cert_days_left")
+    if raw_days is None:
+        out.append("🔐 **인증서 만료일을 읽지 못했다** — `/etc/letsencrypt` 를 볼 수 있는지 확인하세요")
+    else:
+        days = _num(raw_days)
+        if days < 0:
+            out.append(f"🔐 **인증서가 {-days:.0f}일 전에 만료됐다** — "
+                       "지금 접속이 전부 막혀 있다. certbot 을 즉시 확인하세요")
+        elif days <= CERT_DAYS_WARN:
+            out.append(f"🔐 **인증서가 {days:.0f}일 남았다** — certbot 자동 갱신을 확인하세요")
 
     return out
 
@@ -140,9 +147,32 @@ def _num(v, default: float = 0.0) -> float:
         return default
 
 
-def section(data: dict | None, now: datetime | None = None) -> str:
+def runner_problems(runners: list[dict] | None) -> list[str]:
+    """GitLab 이 보는 러너 상태 (S15P21B202-458).
+
+    **호스트의 `systemctl is-active` 로는 부족하다.** 프로세스가 떠 있어도 GitLab 쪽에서
+    offline 인 경우가 있다 — 토큰이 막혔거나 네트워크가 끊겼을 때가 그렇다. 그러면 잡이
+    영원히 대기하는데, 지금은 `-130` 의 "검사가 돌지 않은 MR" 로 **몇 시간 뒤에야**
+    간접적으로 드러난다.
+
+    조회에 실패하면(None) 아무 말도 하지 않는다 — 토큰이 없는 실행에서 매일 울릴 이유가
+    없다. 서버가 나쁜 것과 우리가 못 본 것 중, 여기서는 **후자를 조용히 넘긴다**(호스트
+    쪽 상태 파일이 이미 못 읽음을 알려 주므로 둘 다 조용해지는 일은 없다).
+    """
+    if runners is None:
+        return []
+    offline = [r for r in runners if r.get("active") and not r.get("online")]
+    if not offline:
+        return []
+    names = ", ".join(f"`{r.get('description') or r.get('id')}`" for r in offline[:4])
+    return [f"🏃 **러너 {len(offline)}개가 GitLab 에서 offline 이다** — {names}. "
+            "잡이 대기만 하고 시작되지 않는다"]
+
+
+def section(data: dict | None, now: datetime | None = None,
+            runners: list[dict] | None = None) -> str:
     """카드에 붙일 절. 정상이면 **빈 문자열**이라 아무것도 안 붙는다."""
-    rows = problems(data, now)
+    rows = problems(data, now) + runner_problems(runners)
     if not rows:
         return ""
     head = f"**🖥 서버** ({len(rows)})"
