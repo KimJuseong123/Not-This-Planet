@@ -19,6 +19,18 @@ namespace Metagame.Gameplay
         /// <summary>씌운 블렌더 메시 (없으면 프리미티브 룩으로 돈 것이다).</summary>
         public SpaceSuit Suit;
 
+        // 모델로 대체된 물리 몸체는 시점이 바뀌어도 다시 표시하지 않는다.
+        readonly HashSet<Renderer> primitiveRenderers = new HashSet<Renderer>();
+
+        internal void HidePrimitiveRenderers()
+        {
+            foreach (var renderer in Root.GetComponentsInChildren<Renderer>(true))
+            {
+                primitiveRenderers.Add(renderer);
+                renderer.enabled = false;
+            }
+        }
+
         public readonly List<Rigidbody> Bodies = new List<Rigidbody>();
         public readonly List<Collider> Colliders = new List<Collider>();
 
@@ -92,6 +104,11 @@ namespace Metagame.Gameplay
             var renderers = Root.GetComponentsInChildren<Renderer>(true);
             for (var i = 0; i < renderers.Length; i++)
             {
+                if (primitiveRenderers.Contains(renderers[i]))
+                {
+                    renderers[i].enabled = false;
+                    continue;
+                }
                 renderers[i].enabled = visible || keepShadow;
                 renderers[i].shadowCastingMode = visible
                     ? UnityEngine.Rendering.ShadowCastingMode.On

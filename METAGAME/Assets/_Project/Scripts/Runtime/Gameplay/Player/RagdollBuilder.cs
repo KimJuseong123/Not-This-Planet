@@ -155,8 +155,7 @@ namespace Metagame.Gameplay
                 // 강체의 Renderer 만 끄면 안 된다. 팔 띠·무릎테 같은 장식은 강체가 아니라
                 // 그 자식이라 그대로 남아, 모델 위에 주황 고리가 둥둥 떠 있게 된다.
                 // (실제로 한 번 그렇게 나왔다.) 그래서 인형 아래 <b>모든</b> Renderer 를 끈다.
-                var mine = root.GetComponentsInChildren<Renderer>(true);
-                for (int i = 0; i < mine.Length; i++) mine[i].enabled = false;
+                doll.HidePrimitiveRenderers();
                 // 인형이 아직 원점의 기준 자세로 서 있는 지금이 오프셋을 재기 좋은 유일한 순간이다
                 doll.Suit = SpaceSuit.Attach(doll, root.transform);
             }
