@@ -71,6 +71,16 @@ namespace Metagame.EditorTools
                 line.Append('\n').Append(BuildInfo.ExperimentPrefix).Append(experiment);
             }
 
+            // **어느 백엔드를 가리키는지 박는다** (S15P21B202-284). 이 줄이 없으면
+            // `BackendEndpoints` 가 "옛 빌드" 로 보고 배포 서버를 가리킨다 — 개발 빌드가
+            // 실유저 서버에 붙는 것이 조용히 일어나는 길이다.
+            //
+            // 값은 `SpaceBuild` 가 확정해 둔 `SPACE_DEV` 를 본다(그쪽이 인자로 켠 dev 를
+            // 환경변수로 되돌려 박는다). 여기서 다시 판단하지 않는다 — 두 곳이 각각
+            // 판단하면 어긋난다.
+            bool dev = (Environment.GetEnvironmentVariable("SPACE_DEV") ?? string.Empty).Trim() == "1";
+            line.Append('\n').Append(BuildInfo.BackendPrefix).Append(dev ? "dev" : "prod");
+
             return line.ToString();
         }
 

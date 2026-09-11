@@ -22,8 +22,14 @@ namespace Metagame.Bootstrap
         [Header("Backend")]
         [Tooltip("로비 입력칸의 기본값. 저장된 주소가 있으면 그쪽이 우선한다. 형식은 호스트[:포트].")]
         [SerializeField] private string defaultServerAddress = NetworkSession.DefaultServerAddress;
-        [SerializeField] private string httpBaseUrl = "https://j15b202.p.ssafy.io:443";
-        [SerializeField] private string webSocketUrl = "wss://j15b202.p.ssafy.io:443/ws/game";
+        // **주소를 여기에 두지 않는다** (S15P21B202-284). 개발·배포 서버가 갈렸고,
+        // 갈려야 하는 주소가 셋인데 하나만 어긋나도 조용히 틀린다 —
+        // `MatchAuthenticator.VerifyUrl` 은 [SerializeField] 도 아니라 눈에 안 보였다.
+        // `BackendEndpoints` 가 빌드 스탬프(`백엔드=dev|prod`)를 보고 셋을 함께 정한다.
+        //
+        // 씬에 직렬화된 옛 값이 남아 있어도 읽지 않는다 — 필드를 없앴으므로 Unity 가
+        // 그 데이터를 버린다. 임시로 다른 서버를 가리키려면 실행 인자를 쓴다:
+        //   NotThisPlanet.exe -backend=https://…
 
         [Header("Guest")]
         [SerializeField] private string defaultNickname = "비행사";
@@ -68,7 +74,7 @@ namespace Metagame.Bootstrap
                 network = networkObject.AddComponent<NetworkSession>();
             }
 
-            network.Configure(httpBaseUrl, webSocketUrl);
+            network.Configure(BackendEndpoints.HttpBaseUrl, BackendEndpoints.WebSocketUrl);
             network.GameStarted += EnterMatch;
 
             transition = LobbyTransition.Ensure();

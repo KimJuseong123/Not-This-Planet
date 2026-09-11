@@ -41,6 +41,20 @@ namespace Metagame.Core
         public const string ExperimentPrefix = "실험=";
 
         /// <summary>
+        /// 백엔드 환경 줄의 머리표 — <c>백엔드=dev</c> 또는 <c>백엔드=prod</c>
+        /// (S15P21B202-284). <see cref="BackendEndpoints"/> 가 이 값으로 주소를 정한다.
+        /// </summary>
+        public const string BackendPrefix = "백엔드=";
+
+        /// <summary>
+        /// 이 빌드가 가리키는 백엔드 — <c>dev</c> · <c>prod</c> · 빈 문자열(옛 빌드).
+        ///
+        /// <para>빈 값을 어떻게 볼지는 <see cref="BackendEndpoints"/> 가 정한다 — 이 클래스는
+        /// 읽은 것을 그대로 전한다.</para>
+        /// </summary>
+        public static string BackendEnvironment { get; private set; } = string.Empty;
+
+        /// <summary>
         /// 씬이 뜨기 전에 찍는다. 뒤에서 어떤 오류가 나든 이 줄은 로그 앞쪽에 남는다 —
         /// 문제가 난 로그를 받았을 때 가장 먼저 확인해야 하는 값이다.
         /// </summary>
@@ -82,6 +96,8 @@ namespace Metagame.Core
                     string line = lines[i].Trim();
                     if (line.StartsWith(ExperimentPrefix))
                         Experiment = line.Substring(ExperimentPrefix.Length).Trim();
+                    else if (line.StartsWith(BackendPrefix))
+                        BackendEnvironment = line.Substring(BackendPrefix.Length).Trim();
                 }
 
                 return lines[0].Trim();

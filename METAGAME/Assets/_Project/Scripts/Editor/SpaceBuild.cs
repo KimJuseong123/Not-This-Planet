@@ -71,6 +71,14 @@ namespace Metagame.EditorTools
 
             bool dev = forceDev || System.Environment.GetEnvironmentVariable("SPACE_DEV") == "1";
 
+            // **결정을 환경변수로 되돌려 박는다** (S15P21B202-284).
+            //
+            // `BuildStamp` 는 BuildPlayerProcessor 라 이 메서드의 지역변수를 볼 수 없고
+            // 환경변수만 읽는다. `BuildWindowsDev()` 는 인자로 dev 를 켜므로 그 사실이
+            // 스탬프에 전달되지 않았다 — 그러면 개발 빌드가 `백엔드=prod` 로 찍혀
+            // **실유저 서버를 가리킨다.** 여기서 한 번 맞춰 두면 둘이 어긋나지 않는다.
+            System.Environment.SetEnvironmentVariable("SPACE_DEV", dev ? "1" : "0");
+
             if (Stage1AtmosphereSetup.PrepareProfileForBuild() == null)
             {
                 Debug.LogError("[NotThisPlanet] Stage1 분위기 프로필을 빌드용 에셋과 연결하지 못했습니다.");

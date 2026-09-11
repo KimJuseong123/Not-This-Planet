@@ -1,3 +1,4 @@
+using Metagame.Core;
 using System;
 using System.Collections;
 using System.Text;
@@ -16,8 +17,17 @@ namespace Metagame.Network
     /// </summary>
     public sealed class MatchAuthenticator : NetworkAuthenticator
     {
-        /// <summary>확인을 요청할 Spring 주소. 게임 서버에서만 쓴다.</summary>
-        public string VerifyUrl { get; set; } = "https://j15b202.p.ssafy.io:443/auth/verify";
+        /// <summary>
+        /// 확인을 요청할 Spring 주소. 게임 서버에서만 쓴다.
+        ///
+        /// <para><b>기본값을 손으로 적어 두면 안 된다</b> (S15P21B202-284). 예전에는 prod
+        /// 주소가 여기 박혀 있었고 <c>-verifyUrl=</c> 실행 인자로만 덮였다. 그 인자는 옛
+        /// 데디케이티드 서버가 쓰던 것이라 <b>리슨 서버 호스트에는 오지 않는다</b> — 즉
+        /// 개발 빌드로 호스트를 하면 참가자 인증을 <b>배포 백엔드에 물었다.</b> 로그인은
+        /// dev 로 하고 인증은 prod 로 가므로 토큰이 맞지 않아 아무도 못 들어오거나, 더 나쁘게
+        /// 개발 중인 판이 실유저 계정을 건드린다.</para>
+        /// </summary>
+        public string VerifyUrl { get; set; } = BackendEndpoints.VerifyUrl;
 
         /// <summary>이 게임 서버가 맡은 방. 이 방 사람만 받는다 (서버 하나 = 매치 하나).</summary>
         public string RoomId { get; set; } = string.Empty;
