@@ -99,20 +99,49 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void TheRescueInteractorTakesOnlyRescuePoints()
         {
-            var accepts = typeof(Interactor).GetField("Accepts",
-                BindingFlags.Instance | BindingFlags.Public);
-            Assert.That(accepts, Is.Not.Null, "Interactor.Accepts 필터가 없다");
+            // **소스 글자가 아니라 동작으로 잰다**(S15P21B202-448).
+            //
+            // 예전에는 FindBestCandidate 의 본문에 "Accepts" 라는 글자가 있는지 봤다.
+            // 그러면 필터를 <b>옮기기만 해도</b> 빨간불이 되고, 반대로 글자만 있고
+            // 동작하지 않아도 초록불이다. -448 이 후보 채점을 Consider 로 뽑으면서
+            // 실제로 그 일이 났다 — 필터는 그대로 걸려 있는데 검증이 깨졌다.
+            var owner = new GameObject("인터랙터");
+            var aim = new GameObject("조준").transform;
+            try
+            {
+                aim.SetParent(owner.transform, false);
+                aim.localPosition = Vector3.zero;
+                aim.localRotation = Quaternion.identity;
 
-            var find = TestSource.Method(
-                TestSource.Read("Runtime/Gameplay/Interaction/Interactor.cs"),
-                "IInteractable FindBestCandidate()");
-            Assert.That(find, Does.Contain("Accepts"),
-                "필터를 두고 후보 탐색에서 쓰지 않으면 아무 효과가 없다");
+                var interactor = owner.AddComponent<Interactor>();
+                interactor.Configure(aim, 5f, 90f);
+                interactor.Accepts = candidate => candidate is DownedRescue;
+
+                // 구조 지점이 아닌 대상 하나를 바로 앞에 댄다.
+                var other = new GameObject("구조 지점이 아닌 것");
+                other.transform.SetParent(owner.transform, false);
+                other.transform.localPosition = new Vector3(0f, 0f, 1f);
+                var stranger = other.AddComponent<NotARescuePoint>();
+
+                interactor.ExtraCandidates = into => into.Add(stranger);
+                interactor.Tick(0.02f);
+
+                Assert.IsNull(interactor.Focus,
+                    "필터가 받지 않는 대상을 포커스로 잡으면 고정쇠를 점유한다 — "
+                    + "PartClamp 는 HoldSeconds 가 0 이라 그 자리에서 완료로 처리된다.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(owner);
+            }
 
             var rig = TestSource.Read("Runtime/Gameplay/Player/PlayerRig.cs");
             Assert.That(TestSource.Blank(rig), Does.Contain("RescueInteractor.Accepts"),
                 "살리기 인터랙터에 필터를 걸지 않으면 고정쇠를 점유한다");
         }
+
+        /// <summary>필터가 받지 않아야 하는 대상. 이 검증 안에서만 쓴다.</summary>
+        sealed class NotARescuePoint : InteractableBase { }
 
         /// <summary>
         /// <b>홀드를 도는 곳이 있다.</b> 이것이 없어서 기능이 돌지 않았다 —
