@@ -202,6 +202,17 @@ namespace Metagame.Bootstrap
             if (!authoredLighting && !useAtmosphere && starfield && !Application.isBatchMode)
                 Space = Starfield.Create(transform, Sky.SunDirection);
 
+            var ending = sys.AddComponent<DemoEnding>();
+            bool endingNetworked = Mirror.NetworkServer.active || Mirror.NetworkClient.active;
+            ending.Configure(Session, FindObjectsByType<SpaceshipPart>(FindObjectsSortMode.None),
+                () => !endingNetworked || Mirror.NetworkServer.active,
+                () => endingNetworked ? Mirror.NetworkTime.time : Time.unscaledTimeAsDouble,
+                CaptureEndingPlayers);
+            foreach (var hatch in FindObjectsByType<ShipHatch>(FindObjectsSortMode.None)) hatch.enabled = false;
+            foreach (var launch in FindObjectsByType<LaunchTest>(FindObjectsSortMode.None)) launch.enabled = false;
+            if (!MatchRole.DedicatedServer)
+                sys.AddComponent<DemoEndingView>().Configure(ending, () => LobbyTransition.Ensure().BeginTitle());
+
             var beams = FindObjectsByType<TractorBeam>(FindObjectsSortMode.None);
 
             // 전용 서버에는 "내 캐릭터" 가 없다. 접속한 사람 수만큼 몸을 세우는 일은
@@ -305,6 +316,25 @@ namespace Metagame.Bootstrap
 
             if (selfTest) gameObject.AddComponent<SpaceSelfTest>();
             if (shot) gameObject.AddComponent<SpaceScreenshot>();
+        }
+
+        DemoEndingPlayer[] CaptureEndingPlayers()
+        {
+            var players = new System.Collections.Generic.List<DemoEndingPlayer>();
+            if (Mirror.NetworkServer.active)
+            {
+                foreach (var connection in Mirror.NetworkServer.connections.Values)
+                {
+                    if (connection == null || connection.identity == null) continue;
+                    var player = connection.identity.GetComponent<NetPlayer>();
+                    if (player == null) continue;
+                    players.Add(new DemoEndingPlayer
+                    { Name = player.nickname, Suit = player.TeamSuitColor, Accent = player.TeamAccentColor });
+                }
+            }
+            else if (Session.LocalPlayer != null)
+                players.Add(new DemoEndingPlayer { Name = nickname, Suit = suit, Accent = accent });
+            return players.ToArray();
         }
 
         SoundRuntime CreateSoundRuntime(GameObject systemRoot, bool authority, bool networked)

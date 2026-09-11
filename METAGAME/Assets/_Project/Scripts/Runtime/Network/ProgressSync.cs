@@ -1,4 +1,5 @@
 using Metagame.Gameplay;
+using Metagame.Gameplay.Parts;
 using Mirror;
 using UnityEngine;
 
@@ -36,6 +37,7 @@ namespace Metagame.Network
         [SyncVar] float clearTime;
         [SyncVar] float elapsed;
         [SyncVar] int falls;
+        [SyncVar] DemoEndingSnapshot endingSnapshot;
 
         /// <summary>백엔드에 <c>GAME_END</c> 를 이미 알렸는가. 한 판에 한 번만 보낸다.</summary>
         bool toldBackend;
@@ -70,7 +72,16 @@ namespace Metagame.Network
             // 갖고 있으므로 서버 쪽을 먼저 본다 — 순서를 바꾸면 호스트가 자기 값을
             // 자기에게 다시 덮어쓴다.
             if (isServer) PushFromHost(session);
-            else ApplyOnParticipant(session);
+            else
+            {
+                ApplyOnParticipant(session);
+                // 전용 서버에는 로비 웹소켓이 없다. 그 경우 방장 클라이언트가 종료를 알린다.
+                if (session.EndingActive && session.Ending.Finished && !toldBackend)
+                {
+                    toldBackend = true;
+                    TellBackendGameEnded();
+                }
+            }
         }
 
         /// <summary>호스트: <see cref="GameSession"/> 이 센 값을 SyncVar 에 올린다.</summary>
@@ -82,7 +93,7 @@ namespace Metagame.Network
             if (!primed)
             {
                 primed = true;
-                toldBackend = session.Cleared;
+                toldBackend = session.Cleared && (!session.EndingActive || session.Ending.Finished);
             }
 
             checkpointIndex = session.CheckpointIndex;
@@ -90,15 +101,20 @@ namespace Metagame.Network
             clearTime = session.ClearTime;
             elapsed = session.Elapsed;
             falls = session.Falls;
+            if (session.EndingActive && endingSnapshot == null)
+                endingSnapshot = session.Ending.Snapshot;
 
             // 판이 다시 시작되면(GameSession.Restart) 다음 클리어도 알려야 한다.
             if (!cleared) toldBackend = false;
-            else if (!toldBackend) { toldBackend = true; TellBackendGameEnded(); }
+            else if (!toldBackend && (!session.EndingActive || session.Ending.Finished))
+            { toldBackend = true; TellBackendGameEnded(); }
         }
 
         /// <summary>참가자: 받은 값을 <see cref="GameSession"/> 에 넣는다. 자기가 세지 않는다.</summary>
         void ApplyOnParticipant(GameSession session)
         {
+            if (session.Ending != null && !session.EndingActive && endingSnapshot != null)
+                session.Ending.ApplySnapshot(endingSnapshot);
             // 바뀐 것이 없으면 넣지 않는다. 매 프레임 무조건 덮어쓰면 StageHint 까지 계속
             // 다시 세우고, 참가자가 R(재시작)을 눌러도 다음 프레임에 되돌려져 입력이
             // 씹힌 것처럼 보인다. 값은 10Hz 로만 오므로 대개 그대로다.

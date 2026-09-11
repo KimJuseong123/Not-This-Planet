@@ -1,4 +1,5 @@
 using System.Collections;
+using Metagame.Gameplay;
 using Mirror;
 using UnityEngine;
 
@@ -114,6 +115,7 @@ namespace Metagame.Network
         /// </summary>
         void OnRoomState(RoomSnapshot room)
         {
+            if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
             if (room == null || session == null) return;
             if (!room.IsPlaying) return;
 
@@ -147,6 +149,7 @@ namespace Metagame.Network
         /// </summary>
         void Update()
         {
+            if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
             if (!Pending || migrating || session == null) return;
 
             waited += Time.deltaTime;
@@ -164,6 +167,7 @@ namespace Metagame.Network
         /// </summary>
         void OnGameStarted()
         {
+            if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
             if (migrating) return;
             migrating = true;
             StartCoroutine(Migrate());
