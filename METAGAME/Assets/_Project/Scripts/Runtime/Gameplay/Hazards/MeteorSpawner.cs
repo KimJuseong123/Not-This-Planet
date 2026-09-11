@@ -652,6 +652,48 @@ namespace Metagame.Gameplay.Hazards
 
         readonly Dictionary<int, Meteor> _scarGhosts = new();
 
+        /// <summary>
+        /// 그림이 마지막으로 받은 자세와 그 시각 (S15P21B202-434).
+        ///
+        /// <para><b>왜 필요한가.</b> 움직임 묶음은 전송 틱(30Hz, 33ms)마다 오는데
+        /// 화면은 그보다 자주 그려진다(실측 120fps). 자리만 찍고 속도를 0 으로 두면
+        /// 그림이 <b>33ms 동안 완전히 멈춰 있다가 순간이동</b>하므로, 굴러가는 돌이
+        /// 뚝뚝 끊겨 보인다 — 2026-09-11 QA 신고가 그것이다.</para>
+        ///
+        /// <para>두 자세의 차이를 시간으로 나누면 속도가 나온다. 강체에 속도를 주면
+        /// <c>RigidbodyInterpolation.Interpolate</c>(<see cref="CreateGhost"/> 가 켠다)가
+        /// 그 사이를 렌더 프레임마다 채운다. <b>대역폭은 늘지 않는다</b> — 보내는 쪽은
+        /// 그대로다.</para>
+        ///
+        /// <para>그림마다 따로 재는 이유: 묶음마다 실린 흔적이 다르다. 자고 있던 돌이
+        /// 깨어나 처음 실리면 그 자세는 최대 2초(<c>ScarKeepalive</c>) 낡은 것이라,
+        /// 묶음 하나의 간격으로 나누면 속도가 터진다.</para>
+        /// </summary>
+        readonly Dictionary<int, ScarMotion> _scarMotion = new();
+
+        struct ScarMotion
+        {
+            public Vector3 Position;
+            public Quaternion Rotation;
+            public float Time;
+        }
+
+        /// <summary>
+        /// 델타로 얻은 속도의 상한. 이보다 빠르면 <b>보간이 아니라 순간이동</b>이므로
+        /// 속도를 주지 않고 자리만 찍는다.
+        ///
+        /// <para>낡은 자세에서 갓 깨어난 돌, 묶음 유실, 서버 렉이 모두 여기로 온다.
+        /// 상한이 없으면 그림이 화면 밖으로 날아가고 다음 묶음까지 돌아오지 않는다.</para>
+        /// </summary>
+        const float ScarInterpolationSpeedLimit = 40f;
+
+        /// <summary>
+        /// 델타를 속도로 볼 수 있는 시간 창. 너무 짧으면 0 으로 나누고, 너무 길면
+        /// 그 사이에 무슨 일이 있었는지 알 수 없다(자고 깨어난 것과 구별되지 않는다).
+        /// </summary>
+        const float ScarInterpolationMinInterval = 0.005f;
+        const float ScarInterpolationMaxInterval = 0.5f;
+
         /// <summary>참가자 화면에 놓인 흔적 그림의 수. 권위 쪽에서는 항상 0 이다.</summary>
         public int ScarGhostCount => _scarGhosts.Count;
 
@@ -687,6 +729,7 @@ namespace Metagame.Gameplay.Hazards
                     var id = _staleScarIds[i];
                     if (_scarGhosts.TryGetValue(id, out var gone) && gone != null) gone.Despawn();
                     _scarGhosts.Remove(id);
+                    _scarMotion.Remove(id);   // 같이 지운다 — 안 지우면 id 가 재사용될 때 낡은 자세로 속도를 잰다
                 }
             }
 
@@ -721,14 +764,109 @@ namespace Metagame.Gameplay.Hazards
                     // **쉬는 돌은 떨어지지 않아야 한다.** 낙하 그림은 중력으로 궤적을
                     // 흉내내지만 흔적은 땅에 박혀 있다 — 충돌러가 꺼져 있으므로 중력을
                     // 그대로 두면 지면을 뚫고 영영 내려간다.
-                    body.linearVelocity = Vector3.zero;
-                    body.angularVelocity = Vector3.zero;
                     body.useGravity = false;
+
+                    // **움직임 묶음은 속도를 준다** (S15P21B202-434).
+                    //
+                    // 전체 목록은 권위이므로 그 자리에 세운다(속도 0). 움직임 묶음은
+                    // 30Hz 로 오는데 화면은 120fps 라, 속도를 0 으로 두면 33ms 동안
+                    // 멈춰 있다가 순간이동해 굴러가는 돌이 뚝뚝 끊긴다.
+                    if (full) SetScarAtRest(body, state);
+                    else DeadReckonScar(body, state);
                     continue;
                 }
 
                 ghost.transform.SetPositionAndRotation(state.Position, state.Rotation);
+                RememberScarMotion(state);
             }
+        }
+
+        /// <summary>전체 목록이 말하는 자리에 세운다. 그 목록이 권위다.</summary>
+        void SetScarAtRest(Rigidbody body, NetworkScarState state)
+        {
+            body.linearVelocity = Vector3.zero;
+            body.angularVelocity = Vector3.zero;
+            RememberScarMotion(state);
+        }
+
+        /// <summary>
+        /// 다음 묶음까지 이어서 움직이게 한다 (S15P21B202-434).
+        ///
+        /// <para>마지막으로 받은 자세와의 차이를 그 사이 시간으로 나눠 속도를 만든다.
+        /// 자리는 받은 값으로 찍고(권위), 속도는 <b>그다음 33ms 를 채우는 데</b> 쓴다 —
+        /// 다음 묶음이 오면 다시 찍히므로 오차가 누적되지 않는다.</para>
+        ///
+        /// <para><b>회전도 함께 준다.</b> 굴러가는 돌은 회전이 보이는 것의 절반이다.
+        /// 자리만 부드럽고 회전이 계단이면 여전히 끊겨 보인다.</para>
+        ///
+        /// <para><b>상한을 넘으면 속도를 주지 않는다.</b> 자고 있다 깨어난 돌은 최대
+        /// 2초 낡은 자세에서 출발하고, 묶음이 유실되면 간격이 벌어진다. 그때 계산된
+        /// 속도는 보간이 아니라 순간이동이므로 자리만 찍고 다음 묶음을 기다린다.</para>
+        /// </summary>
+        void DeadReckonScar(Rigidbody body, NetworkScarState state)
+        {
+            float now = Time.time;
+
+            if (!_scarMotion.TryGetValue(state.Id, out var last))
+            {
+                // 처음 받는 것 — 비빌 자세가 없다. 세워 두고 다음 묶음부터 잇는다.
+                body.linearVelocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+                RememberScarMotion(state);
+                return;
+            }
+
+            float dt = now - last.Time;
+            if (dt < ScarInterpolationMinInterval || dt > ScarInterpolationMaxInterval)
+            {
+                body.linearVelocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+                RememberScarMotion(state);
+                return;
+            }
+
+            Vector3 linear = (state.Position - last.Position) / dt;
+            if (linear.magnitude > ScarInterpolationSpeedLimit)
+            {
+                body.linearVelocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+                RememberScarMotion(state);
+                return;
+            }
+
+            body.linearVelocity = linear;
+            body.angularVelocity = AngularFrom(last.Rotation, state.Rotation, dt);
+            RememberScarMotion(state);
+        }
+
+        /// <summary>
+        /// 두 회전 사이의 각속도(라디안/초). 쿼터니언 차이를 축·각으로 풀어 쓴다.
+        ///
+        /// <para><c>ToAngleAxis</c> 는 0~360 도를 주므로 180 도를 넘으면 <b>반대로 돌린
+        /// 것</b>이다 — 그대로 쓰면 돌이 긴 쪽으로 휙 돈다. 그리고 축이 유효하지 않은
+        /// 경우(각이 0 이거나 수치 오차)에는 0 을 돌려준다. NaN 을 강체에 넣으면 그
+        /// 프레임부터 물리가 조용히 죽는다.</para>
+        /// </summary>
+        static Vector3 AngularFrom(Quaternion from, Quaternion to, float dt)
+        {
+            (to * Quaternion.Inverse(from)).ToAngleAxis(out float degrees, out Vector3 axis);
+
+            if (float.IsNaN(degrees) || float.IsInfinity(degrees)) return Vector3.zero;
+            if (axis.sqrMagnitude < 1e-6f) return Vector3.zero;
+
+            if (degrees > 180f) degrees -= 360f;
+            return axis.normalized * (degrees * Mathf.Deg2Rad / dt);
+        }
+
+        /// <summary>다음 묶음이 비빌 기준을 남긴다.</summary>
+        void RememberScarMotion(NetworkScarState state)
+        {
+            _scarMotion[state.Id] = new ScarMotion
+            {
+                Position = state.Position,
+                Rotation = state.Rotation,
+                Time = Time.time,
+            };
         }
 
         readonly HashSet<int> _seenScarIds = new();
@@ -744,6 +882,7 @@ namespace Metagame.Gameplay.Hazards
                 if (pair.Value != null) pair.Value.Despawn();
 
             _scarGhosts.Clear();
+            _scarMotion.Clear();
         }
 
         /// <summary>
