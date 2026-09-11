@@ -297,16 +297,55 @@ def notify(ok: bool, version: str, rows: list[tuple[str, str]]) -> None:
     mm_notify.send(mm_notify.card(title, rows))
 
 
-def jira_release_webhook(version: str, keys: list[str], release_url: str) -> None:
-    """(선택, S15P21B202-327) Jira 자동화 수신 웹훅 — Jira 가 버전을 만들고 fixVersion 을 단다. CI 는 Jira 를 직접 쓰지 않는다(-242)."""
+def webhook_shape_problem() -> str | None:
+    """설정된 웹훅 주소가 **보낼 수 있는 모양인지**만 본다. 값은 절대 찍지 않는다.
+
+    첫 실전 릴리스(2026-09-11, v1.0.0)에서 이것이 필요해졌다. 빌드·zip·패키지·
+    Release·MM 이 전부 끝난 **뒤** 마지막 한 줄에서 `urllib` 이
+    `ValueError: unknown url type` 으로 터졌다 — 변수에 스킴(`https://`)이 없었다.
+    58분을 쓴 잡이 빨간불이 됐고, 다시 돌리면 이미 낸 릴리스를 또 내려 한다.
+
+    그래서 **0분에** 본다. 잘못됐으면 그때 말해 주고 릴리스는 계속 진행한다 —
+    이것은 알림이고, 알림 설정이 틀린 것이 배포를 막을 이유가 못 된다.
+    """
     url = env("JIRA_RELEASE_WEBHOOK")
     if not url:
-        return
+        return None            # 설정하지 않은 것은 문제가 아니다(선택 기능이다)
+    if url != url.strip():
+        return "앞뒤에 공백이 붙어 있다"
+    if not url.startswith(("https://", "http://")):
+        return "http(s):// 로 시작하지 않는다"
+    return None
+
+
+def jira_release_webhook(version: str, keys: list[str], release_url: str) -> str | None:
+    """(선택, S15P21B202-327) Jira 자동화 수신 웹훅 — Jira 가 버전을 만들고 fixVersion 을 단다. CI 는 Jira 를 직접 쓰지 않는다(-242).
+
+    **절대 예외를 올려보내지 않는다.** 이 함수가 불릴 때 Release 는 이미 났다.
+    여기서 터지면 성공한 릴리스가 빨간불로 남고, 재실행이 재발행을 시도한다.
+    돌려주는 값은 MM 카드에 실을 한 줄이고, 문제가 없으면 `None` 이다.
+    """
+    url = env("JIRA_RELEASE_WEBHOOK")
+    if not url:
+        return None
+    bad = webhook_shape_problem()
+    if bad:
+        # **값을 찍지 않는다.** masked 변수는 잡 로그에서는 가려지지만 MM 카드는
+        # GitLab 이 가려 주지 않는다 — 예외 문구를 그대로 실으면 주소가 채널로 나간다.
+        print(f"   ⚠️ CI 변수 JIRA_RELEASE_WEBHOOK: {bad} — 보내지 않는다")
+        return f"⚠️ CI 변수 `JIRA_RELEASE_WEBHOOK` 이 {bad} (값은 여기 적지 않는다)"
     # Jira 수신 웹훅 형식: `issues` = 규칙이 다룰 이슈 키, `data` = 규칙 안에서 {{webhookData.version}} 처럼 읽는 값
     body = {"issues": sorted(set(keys)),
             "data": {"version": version, "releaseUrl": release_url, "date": datetime.now(KST).strftime("%Y-%m-%d")}}
-    st, _ = http("POST", url, {}, body)
-    print(f"   Jira 릴리스 웹훅 → {st}" + ("" if 200 <= (st or 0) < 300 else " (실패 — Release 는 이미 났다, 비차단)"))
+    try:
+        st, _ = http("POST", url, {}, body)
+    except Exception as e:  # noqa: BLE001
+        # **종류만** 싣는다(-335 와 같은 규칙). urllib 의 예외 문구에는 주소가 들어 있다.
+        print(f"   ⚠️ Jira 릴리스 웹훅 호출이 예외로 끝났다: {type(e).__name__} (Release 는 이미 났다, 비차단)")
+        return f"⚠️ Jira 연동 실패 ({type(e).__name__}) — Release 는 이미 났다"
+    ok = 200 <= (st or 0) < 300
+    print(f"   Jira 릴리스 웹훅 → {st}" + ("" if ok else " (실패 — Release 는 이미 났다, 비차단)"))
+    return None if ok else f"⚠️ Jira 연동 실패 (HTTP {st}) — Release 는 이미 났다"
 
 
 # ── 단계 ─────────────────────────────────────────────────────────────────────
@@ -324,6 +363,11 @@ def phase_version() -> int:
     with open(VERSION_FILE, "w", encoding="utf-8") as f:
         f.write(version)
     print(f"✅ 버전 {version} ({why}) → {VERSION_FILE}")
+
+    # **알림 설정을 지금 본다.** 58분 뒤에 알게 되면 고칠 기회가 그 릴리스에는 없다.
+    bad = webhook_shape_problem()
+    if bad:
+        print(f"⚠️ CI 변수 JIRA_RELEASE_WEBHOOK: {bad} — Jira 연동만 건너뛴다(릴리스는 계속한다)")
     return 0
 
 
@@ -500,12 +544,21 @@ def phase_publish(unity_rc: int) -> int:
         return 1
     print(f"✅ Release {action} {st} → {release_url}")
 
+    # **카드보다 먼저 부른다.** 완료 조건이 "실패하면 MM 카드에 한 줄" 이므로
+    # 카드를 먼저 보내면 그 한 줄을 실을 수가 없다(-327).
+    jira_line = jira_release_webhook(version, [e["key"] for e in entries if e.get("key")], release_url)
+
     who = env("GITLAB_USER_LOGIN", "") or ""
-    notify(True, version, [("Release", f"[{version}]({release_url})"),
-                           ("내려받기", f"[{name}]({pkg_url}) — {size / 1048576:.1f} MB, 압축을 풀고 `NotThisPlanet.exe`"),
-                           ("들어간 것", f"MR {len(entries)}건" + (f" (이전 {prev} 이후)" if prev else " (첫 릴리스)")),
-                           ("머지한 사람", who or "?"), ("링크", links)])
-    jira_release_webhook(version, [e["key"] for e in entries if e.get("key")], release_url)
+    rows = [("Release", f"[{version}]({release_url})"),
+            ("내려받기", f"[{name}]({pkg_url}) — {size / 1048576:.1f} MB, 압축을 풀고 `NotThisPlanet.exe`"),
+            ("들어간 것", f"MR {len(entries)}건" + (f" (이전 {prev} 이후)" if prev else " (첫 릴리스)")),
+            ("머지한 사람", who or "?")]
+    if jira_line:
+        rows.append(("Jira", jira_line))
+    rows.append(("링크", links))
+    notify(True, version, rows)
+    # 여기서 0 을 돌려준다. Jira 연동이 안 됐어도 **릴리스는 났다** — 빨간불로
+    # 남기면 사람이 재실행을 눌러 이미 낸 릴리스를 또 내려 한다.
     return 0
 
 

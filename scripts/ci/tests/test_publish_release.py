@@ -98,8 +98,51 @@ P.jira_release_webhook("v0.1.0", ["S15P21B202-2", "S15P21B202-1", "S15P21B202-2"
 hook = [c for c in CALLS if c[1] == "https://automation.example/hook"][0]
 assert hook[2]["issues"] == ["S15P21B202-1", "S15P21B202-2"] and hook[2]["data"]["version"] == "v0.1.0", hook
 assert "releaseUrl" in hook[2]["data"] and "date" in hook[2]["data"]
+assert P.jira_release_webhook("v0.1.0", [], "https://l/r") is None, (
+    "정상 응답인데 카드에 실을 줄을 돌려준다")
+
+# ── 4c) 웹훅은 **릴리스를 죽이지 못한다**, 그리고 주소를 밖으로 내지 않는다 (-327)
+#
+# 2026-09-11 첫 실전 릴리스(v1.0.0)에서 실제로 일어난 일: 빌드·zip·패키지·
+# Release·MM 이 전부 끝난 **뒤** 이 한 줄이 `ValueError: unknown url type` 으로
+# 터져 58분 걸린 잡이 빨간불이 됐다. 이 함수가 불릴 때 Release 는 이미 났으므로
+# 여기서 터지면 성공한 릴리스가 실패로 남고, 재실행이 재발행을 시도한다.
+SECRET = "https://automation.example/hook/s3cr3t-token-value"
+
+
+def boom(method, url, headers=None, body=None, timeout=30):
+    # urllib 이 실제로 그랬듯이 **예외 문구에 주소가 들어 있다**.
+    raise ValueError(f"unknown url type: {url!r}")
+
+
+saved_http = P.http
+P.http = boom
+os.environ["JIRA_RELEASE_WEBHOOK"] = SECRET
+line = P.jira_release_webhook("v0.1.0", ["S15P21B202-1"], "https://l/r")
+P.http = saved_http
+assert line and "Jira 연동 실패" in line, f"실패를 카드 한 줄로 알리지 않는다: {line!r}"
+assert "ValueError" in line, f"무엇이 터졌는지 종류를 적지 않는다: {line!r}"
+assert SECRET not in line and "s3cr3t" not in line, (
+    "웹훅 주소가 MM 카드로 나간다 — 잡 로그는 GitLab 이 가려 주지만 카드는 "
+    f"가려 주지 않는다(-335 와 같은 규칙): {line!r}")
+
+# 모양이 틀리면 **보내지도 않는다.** 스킴이 없던 것이 그 사고의 원인이었다.
+for bad_value, why in [("automation.example/hook", "스킴 없음"),
+                       ("  https://automation.example/hook  ", "공백")]:
+    os.environ["JIRA_RELEASE_WEBHOOK"] = bad_value
+    CALLS.clear()
+    line = P.jira_release_webhook("v0.1.0", ["S15P21B202-1"], "https://l/r")
+    assert not CALLS, f"{why} 인데 보냈다"
+    assert line and "JIRA_RELEASE_WEBHOOK" in line, f"{why} 를 카드가 말하지 않는다: {line!r}"
+    assert bad_value.strip() not in line, f"{why}: 값이 카드에 실렸다"
+    assert P.webhook_shape_problem(), f"{why} 를 모양 검사가 못 잡는다"
+
+# 설정하지 않은 것은 문제가 아니다 — 선택 기능이다.
 os.environ.pop("JIRA_RELEASE_WEBHOOK")
+assert P.webhook_shape_problem() is None
+assert P.jira_release_webhook("v0.1.0", ["S15P21B202-1"], "https://l/r") is None
 print("  4b) Jira 웹훅: issues 중복 제거·정렬 + data.version ✅")
+print("  4c) 웹훅 실패는 비차단 · 주소가 카드로 새지 않음 · 모양 미리 검사 ✅")
 
 # ── 5) 인증 헤더: 잡 토큰 우선 ──
 assert P.auth_headers() == {"JOB-TOKEN": "job-x"}
