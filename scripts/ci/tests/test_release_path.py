@@ -106,6 +106,18 @@ FAIL_XML = ("<test-run total=\"2\" passed=\"1\" failed=\"1\" skipped=\"0\" durat
             "</test-run>")
 
 
+_REAL_BASELINE = R.unity_report.baseline_failures
+
+
+def _baseline(names):
+    """기준선을 갈아 끼운다 (S15P21B202-440).
+
+    `publish_release` 는 **모듈**을 임포트하므로 여기서 함수를 바꿔 끼우면 그쪽이 본다.
+    `None` 은 "기준선을 못 읽었다" 이고 빈 집합과 뜻이 다르다 — 그 둘을 섞으면 없는
+    회귀를 만들어 낸다(`unity_report.baseline_failures` 독스트링과 같은 이유)."""
+    R.unity_report.baseline_failures = lambda *a, **k: names
+
+
 def _gate(xml_text, trc=0, log_text=None):
     """gate 한 번. **환경을 되돌린다** (`!336` AI 리뷰) — CI_PROJECT_DIR 을 전역에
     남기면 뒤 절이 남의 임시 폴더를 보고 엉뚱한 것을 단정한다."""
@@ -131,13 +143,46 @@ def _gate(xml_text, trc=0, log_text=None):
             os.environ["CI_PROJECT_DIR"] = _saved
 
 
+_baseline(set())
 _rc, _d = _gate(PASS_XML)
 assert _rc == 0, "전부 통과인데 빌드를 막았다"
 #     실패한 테스트를 파이프라인 화면에서 바로 보게 한다 — unity-compile 과 같은 결.
 assert os.path.exists(os.path.join(_d, "unity-junit.xml")), "JUnit 변환 산출물이 없다"
 
+# **기존 실패는 릴리스를 막지 않는다** (S15P21B202-440).
+#
+# 처음에는 실패가 하나라도 있으면 막았다. 그런데 develop 에는 기존 실패가 33건
+# 있어서(`-346` 27건 + `-343` 6건) 그 게이트는 무조건 걸렸고 **실제 릴리스가 나갈 수
+# 없었다.** `unity-compile` 이 이미 푼 문제를 릴리스 경로에서 되풀이한 것이다(`-309`).
+_baseline({"N.C.b"})                      # 그 실패가 기준선에 있다 = 기존 실패
 _rc, _ = _gate(FAIL_XML)
-assert _rc == 1, "테스트가 실패했는데 빌드로 넘어간다"
+assert _rc == 0, "기존 실패가 릴리스를 막는다 — 33건이 있으므로 아무것도 나갈 수 없다"
+
+_baseline(set())                          # 기준선에 없다 = 이 트리가 만든 실패
+_rc, _ = _gate(FAIL_XML)
+assert _rc == 1, "이 트리가 만든 실패인데 빌드로 넘어간다"
+
+# **종료 코드로 다시 막으면 안 된다** (`!350` AI 리뷰가 잡은 것).
+#
+# 기준선 비교를 통과해도 그 아래 `if test_rc != 0` 이 남아 있으면 릴리스는 여전히
+# 나가지 못한다. Unity 는 테스트가 하나라도 실패하면 0이 아닌 코드로 끝나므로,
+# 기존 실패 33건이 있는 한 그 분기가 늘 걸린다 — 이 MR 의 목적이 통째로 무너진다.
+#
+# 앞의 검사가 `trc=0` 으로만 불러 이 경로를 못 봤다. 그것이 이 절이 있는 이유다.
+_baseline({"N.C.b"})
+_rc, _ = _gate(FAIL_XML, trc=2)
+assert _rc == 0, ("기존 실패뿐인데 Unity 종료 코드로 막는다 — 기준선 비교가 뜻을 잃는다")
+
+# 반대로 테스트가 전부 통과인데 종료 코드가 0이 아니면 그것은 테스트 밖의 고장이다.
+_baseline(set())
+_rc, _ = _gate(PASS_XML, trc=2)
+assert _rc == 1, "테스트는 통과인데 종료 코드가 0이 아니다 — 이때는 막아야 한다"
+
+_baseline(None)                           # 기준선을 못 읽었다
+_rc, _ = _gate(FAIL_XML)
+assert _rc == 0, ("기준선을 못 읽었는데 막는다 — 릴리스 MR 과 develop 머지에서 이미 "
+                  "unity-compile 이 돌았고, 두 번째 그물이 API 딸꾹질로 릴리스를 "
+                  "막는 것은 그물이 없는 것보다 나쁘다")
 
 #     **결과 XML 이 없는 경우가 가장 중요하다.** 컴파일이 깨지면 Unity 는 테스트를
 #     돌리지 못하고 XML 을 남기지 않는다. 그것을 "0건 통과" 로 읽으면 없는 것을
@@ -157,6 +202,7 @@ print("  gate 가 실패·XML 없음·종료 코드를 모두 막는다 ✅")
 import io as _io
 import contextlib
 
+_baseline(set())     # 막는 경로를 보려면 기준선이 비어 있어야 한다
 for _label, _args in (("테스트 실패", (FAIL_XML, 0, None)),
                       ("XML 없음", (None, 1, "error CS0103: x")),
                       ("종료 코드", (PASS_XML, 2, None))):
@@ -169,13 +215,16 @@ for _label, _args in (("테스트 실패", (FAIL_XML, 0, None)),
     assert "빌드하지 않는다" in _out, f"{_label}: 빌드를 세운다는 말이 없다 — {_out[:200]}"
 
 import mm_notify as M
+_baseline(set())
 for _label, _args in (("테스트 실패", (FAIL_XML, 0, None)),):
     _buf = _io.StringIO()
     with contextlib.redirect_stdout(_buf):
         _gate(*_args)
     _reasons = M.reasons_from_trace(_buf.getvalue())
     assert _reasons, "mm_notify 가 gate 출력에서 이유를 뽑지 못한다"
-    assert "테스트" in _reasons[0], _reasons[0]
+    # 카드의 '이유' 칸에 실릴 문구다. 무엇이 막았는지가 그 한 줄에 있어야 한다.
+    assert "EditMode" in _reasons[0], _reasons[0]
+    assert "빌드하지 않는다" in _reasons[0], _reasons[0]
 print("  막을 때 ❌ 줄을 남기고, mm_notify 가 그것을 이유로 읽는다 ✅")
 
 
@@ -280,5 +329,10 @@ _web_at = _wf.index('CI_PIPELINE_SOURCE == "web"')
 assert "on_new_commit: none" in _wf[_web_at:], (
     "리허설에 auto_cancel 이 꺼져 있지 않다 — 뒤따르는 커밋이 90분 빌드를 죽인다")
 print("  리허설이 workflow 단계에서 허용되고 자동 취소가 꺼져 있다 ✅  (이것이 빠져 돌지 않았다)")
+
+# **갈아 끼운 것을 되돌린다** (`!350` AI 리뷰). 같은 프로세스에서 이어 도는 다른
+# 절·모듈이 가짜 기준선을 보고 조용히 통과하면 안 된다 — `_gate` 가 환경변수를
+# 되돌리는 것과 같은 이유다.
+R.unity_report.baseline_failures = _REAL_BASELINE
 
 print("== 통과 ==")

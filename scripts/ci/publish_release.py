@@ -33,7 +33,11 @@ import zipfile
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
-from ci_common import KEY_RE, PROJECT_KEY, banner, env, http, load_team, role_member
+from ci_common import GitLab, KEY_RE, PROJECT_KEY, banner, env, http, load_team, role_member
+
+# 릴리스 게이트가 `unity-compile` 의 기준선 비교를 그대로 쓴다 (S15P21B202-440) —
+# 기존 실패를 세는 규칙이 두 곳에서 갈리면 한쪽이 조용히 낡는다.
+import unity_report
 
 VERSION_FILE = "release-version.txt"
 NOTES_FILE = "release-notes.md"
@@ -346,7 +350,6 @@ def phase_gate(test_rc: int, xml_path: str, log_path: str = "") -> int:
         return 1
 
     try:
-        import unity_report
         data = unity_report.parse_nunit(open(xml_path, encoding="utf-8", errors="replace").read())
     except Exception as e:  # noqa: BLE001
         print(f"❌ 테스트 결과를 읽지 못했다: {type(e).__name__}: {e} — 빌드하지 않는다")
@@ -363,17 +366,64 @@ def phase_gate(test_rc: int, xml_path: str, log_path: str = "") -> int:
     except Exception as e:  # noqa: BLE001
         print(f"   JUnit 변환 실패(비차단): {type(e).__name__}: {e}")
 
-    failed = [c for c in data["cases"] if (c.get("result") or "").lower() == "failed"]
-    if failed:
-        print(f"❌ EditMode 테스트 {len(failed)}건 실패 — 이 트리로는 릴리스를 빌드하지 않는다")
-        for c in failed[:10]:
-            print(f"   {c['cls']}.{c['name']} — {c['msg'][:200]}")
-        if len(failed) > 10:
-            print(f"   … 외 {len(failed) - 10}건 (전체는 unity-results.xml)")
-        return 1
+    # **기존 실패로 릴리스를 막지 않는다** (S15P21B202-440).
+    #
+    # 처음에는 실패가 하나라도 있으면 막았다. 그런데 develop 에는 기존 실패가 **33건**
+    # 있다(`-346` 27건 + `-343` 6건, 2026-09-11 실측 1,130개 중). 그래서 그 게이트는
+    # 무조건 걸려 **빌드 자체를 하지 않았고, 실제 릴리스도 나갈 수 없었다.**
+    #
+    # `unity-compile` 은 이 문제를 이미 풀어 두었다 — 대상 브랜치 기준선과 비교해
+    # **이 변경이 만든 실패만** 막는다(`-309`: "기존 실패가 남의 MR 을 막으면 검사가
+    # 형식으로만 통과된다"). 그 규칙을 릴리스 경로에도 쓴다. 기준선은 develop 이다 —
+    # 릴리스 브랜치는 develop 의 스냅샷이므로 그 마지막 결과가 곧 기준선이고,
+    # master 에서는 이 잡이 돈 적이 없어 기준선이 없다(`baseline_ref` 가 그 판단을 한다).
+    now_failing = unity_report.failed_names(data)
 
-    if test_rc != 0:
-        # 결과는 전부 통과인데 종료 코드가 0이 아니다 — 테스트 밖에서 깨진 것이다.
+    # **읽다가 죽으면 안 된다** (`!350` AI 리뷰). `GitLab()` 생성이나 조회에서 예외가
+    # 나면 `phase_gate` 가 통째로 죽고 잡이 실패한다 — 아래에 적어 둔 "못 읽으면 막지
+    # 않는다" 와 **정반대로** 릴리스가 멈춘다. 토큰 미설정·네트워크 오류가 그 길이다.
+    try:
+        base = unity_report.baseline_failures(GitLab(), unity_report.baseline_ref("master"))
+    except Exception as e:  # noqa: BLE001
+        print(f"   기준선 조회가 예외로 끝났다: {type(e).__name__}: {e}")
+        base = None
+
+    if base is None:
+        # **기준선을 못 읽었으면 막지 않는다.**
+        #
+        # 릴리스는 이미 두 번 검사를 지났다 — 릴리스 MR 의 `unity-compile` 과 그 전
+        # develop 머지의 `unity-compile`. 이 게이트는 **머지 결과 트리**를 보는 두 번째
+        # 그물이고, 두 번째 그물이 API 딸꾹질로 릴리스를 막는 것은 그물이 없는 것보다
+        # 나쁘다. 대신 크게 적어 잡 로그에 남긴다.
+        print(f"🔴 기준선을 읽지 못했다 — 기존 실패와 새 실패를 가릴 수 없다"
+              f" (지금 실패 {len(now_failing)}건). 막지 않고 넘어간다")
+    else:
+        fresh = sorted(now_failing - base)
+        if fresh:
+            print(f"❌ 이 트리가 만든 EditMode 실패 {len(fresh)}건 — 릴리스를 빌드하지 않는다"
+                  f" (기존 실패 {len(base & now_failing)}건은 세지 않았다)")
+            by_name = {f"{c['cls']}.{c['name']}": c for c in data["cases"]}
+            for name in fresh[:10]:
+                hit = by_name.get(name)
+                print(f"   {name}" + (f" — {hit['msg'][:200]}" if hit and hit.get("msg") else ""))
+            if len(fresh) > 10:
+                print(f"   … 외 {len(fresh) - 10}건 (전체는 unity-results.xml)")
+            return 1
+
+        if now_failing:
+            print(f"✅ 기존 실패 {len(now_failing)}건뿐 — 이 트리가 만든 실패는 없다")
+
+    # **종료 코드만으로 막으면 이 함수의 목적이 무너진다** (`!350` AI 리뷰).
+    #
+    # 기준선 비교를 통과해도(기존 실패뿐) 그 아래에서 종료 코드로 다시 막으면
+    # 릴리스는 여전히 나가지 못한다. Unity 는 **테스트가 하나라도 실패하면** 0이 아닌
+    # 코드로 끝나므로, 기존 실패 33건이 있는 한 이 분기가 늘 걸린다. 즉 위에서
+    # 기존 실패를 세지 않기로 한 판단이 여기서 그대로 뒤집힌다.
+    #
+    # 그래서 **실패한 테스트가 있으면 종료 코드는 그것으로 설명된 것**으로 본다.
+    # 이 분기가 잡으려던 것은 "테스트는 전부 통과인데 그 밖에서 깨진 경우" 이고,
+    # 그 조건이 `not now_failing` 이다.
+    if test_rc != 0 and not now_failing:
         print(f"❌ 테스트는 전부 통과인데 Unity 종료 코드가 {test_rc} 다 — 빌드하지 않는다")
         for line in compile_error_lines(log_path):
             print(f"   {line}")
@@ -388,7 +438,6 @@ def compile_error_lines(log_path: str, cap: int = 10) -> list[str]:
     if not log_path or not os.path.exists(log_path):
         return ["(로그 파일 없음)"]
     try:
-        import unity_report
         errs = unity_report.compile_errors(
             open(log_path, encoding="utf-8", errors="replace").read(), cap=cap)
     except Exception:  # noqa: BLE001
