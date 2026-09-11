@@ -48,14 +48,23 @@ namespace Metagame.Gameplay.Tests
 
         // --- 운반 지점 --------------------------------------------------
 
+        /// <summary>
+        /// <b>규칙이 뒤집혔다</b>(S15P21B202-442). 예전에는 "멀쩡한 사람을 끌고 다닐
+        /// 수는 없다" 를 여기서 잠갔다.
+        ///
+        /// 그 문장은 <b>기획에 근거가 없었다</b> — §20.4 의 제목이 "기절한 동료 운반"
+        /// 인 것에서 유추한 판단이 검증으로 굳은 것이다. 세계의 다른 물건은 전부
+        /// 잡아서 밀고 당길 수 있는데 사람만 안 되는 것은 규칙으로 설명되지 않는다.
+        /// </summary>
         [Test]
-        public void AStandingPlayer_HasNoCarryPoint()
+        public void AStandingPlayer_AlsoHasAGrabPoint()
         {
             var player = MakePlayer(Vector3.zero);
 
-            Assert.IsTrue(player.CarryTarget == null
-                          || !player.CarryTarget.gameObject.activeSelf,
-                "멀쩡한 사람을 끌고 다닐 수는 없다.");
+            Assert.IsNotNull(player.CarryTarget, "태어날 때 만들어진다.");
+            Assert.IsTrue(player.CarryTarget.gameObject.activeSelf,
+                "살아있어도 잡을 수 있다 — 다른 물건과 같다.");
+            Assert.IsFalse(player.Downed, "기절시키지 않았다.");
         }
 
         [Test]
@@ -68,14 +77,22 @@ namespace Metagame.Gameplay.Tests
             Assert.IsTrue(player.CarryTarget.gameObject.activeSelf);
         }
 
+        /// <summary>
+        /// 일어나도 잡을 지점은 그대로 있다(S15P21B202-442). 바뀌는 것은 이름뿐이다 —
+        /// HUD 가 "기절한 동료" 와 "동료" 를 구분해 보여준다.
+        /// </summary>
         [Test]
-        public void GettingUp_TurnsItOff()
+        public void GettingUp_KeepsThePointButRenamesIt()
         {
             var player = MakePlayer(Vector3.zero);
             player.GoDown("검증");
+            Assert.AreEqual("기절한 동료", player.CarryTarget.Label);
+
             player.Revive(player.MaxHealth);
 
-            Assert.IsFalse(player.CarryTarget.gameObject.activeSelf);
+            Assert.IsTrue(player.CarryTarget.gameObject.activeSelf,
+                "일어났다고 잡을 수 없게 되지는 않는다.");
+            Assert.AreEqual("동료", player.CarryTarget.Label);
         }
 
         /// <summary>
@@ -189,11 +206,15 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
-        /// 컴포넌트를 끄는 것만으로는 이미 만들어진 <c>FixedJoint</c> 가 사라지지 않는다.
-        /// 안전한 곳으로 옮긴 뒤 {@code E} 로 구조하는 것이 §20.4 의 마지막 줄이다.
+        /// <b>규칙이 뒤집혔다</b>(S15P21B202-442). 예전에는 구조되는 순간 잡은 손을
+        /// 강제로 놓게 했다 — "멀쩡한 사람을 계속 들고 있을 수 없다" 가 이유였다.
+        ///
+        /// 이제 살아있는 사람도 잡을 수 있으므로 놓을 이유가 없다. 대신 무엇을
+        /// 들고 있는지에 대한 <b>보고가 바뀐다</b>: 여전히 잡고는 있지만
+        /// "기절한 동료를 끌고 있다" 는 거짓이 된다.
         /// </summary>
         [Test]
-        public void BeingRescuedWhileCarried_MakesTheCarrierLetGo()
+        public void BeingRescuedWhileCarried_KeepsTheGripButChangesWhatItIs()
         {
             var carrier = MakePlayer(Vector3.zero);
             var downed = MakePlayer(new Vector3(1f, 0f, 0f));
@@ -204,8 +225,10 @@ namespace Metagame.Gameplay.Tests
 
             downed.Revive(downed.MaxHealth);
 
-            Assert.IsFalse(carrier.CarryingDownedTeammate, "일어난 사람을 계속 들고 있을 수 없다.");
-            Assert.IsNull(carrier.LeftHand.Held);
+            Assert.IsNotNull(carrier.LeftHand.Held, "일어났다고 손이 풀리지는 않는다.");
+            Assert.IsTrue(carrier.CarryingTeammate, "여전히 사람을 잡고 있다.");
+            Assert.IsFalse(carrier.CarryingDownedTeammate,
+                "다만 '기절한 동료' 는 아니다 — 두 가지를 갈라 둔 이유다.");
         }
 
         // --- 운반 중 감속 (§20.4) -----------------------------------------

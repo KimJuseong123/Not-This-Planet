@@ -590,6 +590,11 @@ namespace Metagame.Gameplay
             if (!All.Contains(rig)) All.Add(rig);   // EditMode 에서는 OnEnable 이 돌지 않는다
             rig.Doll = RagdollBuilder.Build(nickname, footPos, facing, suit, accent, !model);
             rig.Doll.Root.SetParent(go.transform, true);
+
+            // 잡을 지점을 태어날 때 만든다(S15P21B202-442). 예전에는 GoDown·Revive·
+            // SetRemoteDowned 안에서만 만들어져서, 한 번도 기절한 적 없는 사람에게는
+            // 지점이 아예 없었다 — 참가자 화면의 남의 몸도 마찬가지다.
+            rig.RefreshCarryTarget();
             rig.ClampInteractor = go.AddComponent<Interactor>();
             rig.RescueInteractor = go.AddComponent<Interactor>();
 
@@ -725,7 +730,7 @@ namespace Metagame.Gameplay
             }
 
             FindCrosshairGrabbable(origin, forward, ref best);
-            FindDownedTeammate(origin, forward, ref best);
+            FindTeammateGrabPoint(origin, forward, ref best);
 
             // 카메라가 있을 때만 보던 자리다. 그러면 서버에 선 참가자의 몸은 카메라가 없어
             // 운반체를 영영 후보로 잡지 못하고, 참가자만 탑승이 되지 않는다(2026-09-03 실측).
@@ -1091,29 +1096,50 @@ namespace Metagame.Gameplay
         /// </summary>
         public Grabbable CarryTarget { get; private set; }
 
+        /// <summary>
+        /// 지금 누군가가 나를 잡고 있는가.
+        ///
+        /// <see cref="Grabbable.HandCount"/> 를 그대로 쓴다 — 내 잡을 지점을 잡을 수
+        /// 있는 것은 <b>남뿐이다</b>(<see cref="FindTeammateGrabPoint"/> 가
+        /// <c>other == this</c> 를 거른다). 따로 세어 둘 이유가 없다.
+        /// </summary>
+        public bool GrabbedByOthers =>
+            CarryTarget != null && CarryTarget.isActiveAndEnabled && CarryTarget.HandCount > 0;
+
         void RefreshCarryTarget()
         {
             if (Doll == null || Doll.Hips == null) return;
 
             if (CarryTarget == null)
             {
-                var go = new GameObject("운반 지점") { layer = GameLayers.Interactable };
+                var go = new GameObject("잡을 지점") { layer = GameLayers.Interactable };
                 go.transform.SetParent(Doll.Hips.transform, false);
 
                 CarryTarget = go.AddComponent<Grabbable>();
-                CarryTarget.Label = "기절한 동료";
                 CarryTarget.Role = GrabbableRole.Transport;
                 CarryTarget.PhysicsGrip = true;   // 도구처럼 몸 앞에 붙지 않게 (§20.4)
             }
 
-            // 일으키는 순간 잡고 있던 손을 놓게 한다. 컴포넌트를 끄는 것만으로는
-            // 이미 만들어진 FixedJoint 가 사라지지 않는다.
-            if (!Downed) ReleaseCarriersOf(CarryTarget);
+            // 이름만 상태를 따라간다. HUD 가 이 문구를 그대로 보여준다.
+            CarryTarget.Label = Downed ? "기절한 동료" : "동료";
 
-            CarryTarget.gameObject.SetActive(Downed);
+            // **항상 켜 둔다**(S15P21B202-442). 예전에는 Downed 일 때만 켰다 —
+            // §20.4 의 제목이 "기절한 동료 운반" 이라 그 범위로 읽었기 때문이다.
+            // 살아있는 사람도 잡을 수 있어야 한다: 세계의 다른 물건은 전부 잡아서
+            // 밀고 당길 수 있는데 사람만 안 되는 것은 규칙으로 설명되지 않는다.
+            //
+            // 일어나는 순간 손을 놓게 하던 것도 뺐다 — 잡은 채로 일어나는 것은 이제
+            // 정상이다. 그 정리가 있던 이유는 "멀쩡한 사람은 못 잡는다" 였다.
+            CarryTarget.gameObject.SetActive(true);
         }
 
-        /// <summary>이 대상을 잡고 있는 모든 손을 놓게 한다.</summary>
+        /// <summary>
+        /// 이 대상을 잡고 있는 모든 손을 놓게 한다.
+        ///
+        /// <b>컴포넌트를 끄는 것만으로는 이미 만들어진 <c>FixedJoint</c> 가 사라지지
+        /// 않는다.</b> 몸이 갑자기 다른 자리로 가는 경로(순간이동·탑승)에서 불러야
+        /// 한다 — 그러지 않으면 조인트가 남아 몸을 도로 끌어당긴다.
+        /// </summary>
         static void ReleaseCarriersOf(Grabbable target)
         {
             if (target == null || target.HandCount <= 0) return;
@@ -1128,27 +1154,56 @@ namespace Metagame.Gameplay
             }
         }
 
-        /// <summary>지금 기절한 동료를 끌고 있는가(기획 §20.4).</summary>
-        public bool CarryingDownedTeammate =>
+        /// <summary>지금 동료를 잡고 끌고 있는가(기획 §20.4 · S15P21B202-442).</summary>
+        public bool CarryingTeammate =>
             IsCarryPoint(LeftHand) || IsCarryPoint(RightHand);
+
+        /// <summary>
+        /// 그 동료가 <b>기절한</b> 사람인가(기획 §20.4).
+        ///
+        /// <see cref="CarryingTeammate"/> 와 갈라 둔다 — 살아있는 사람도 잡을 수 있게
+        /// 되면서 예전의 <c>CarryingDownedTeammate</c> 하나로는 두 경우를 구분할 수
+        /// 없어졌다. 이름이 거짓이 되는 것을 그냥 두지 않는다.
+        /// </summary>
+        public bool CarryingDownedTeammate =>
+            OwnerOfHeldGrabPoint(LeftHand)?.Downed == true
+            || OwnerOfHeldGrabPoint(RightHand)?.Downed == true;
 
         static bool IsCarryPoint(Hand hand) =>
             hand != null && hand.Held != null && hand.Held.PhysicsGrip;
 
+        /// <summary>이 손이 잡고 있는 것이 누구의 잡을 지점인가. 아니면 null.</summary>
+        static PlayerRig OwnerOfHeldGrabPoint(Hand hand)
+        {
+            if (!IsCarryPoint(hand)) return null;
+
+            for (var i = 0; i < All.Count; i++)
+                if (All[i] != null && All[i].CarryTarget == hand.Held) return All[i];
+
+            return null;
+        }
+
         /// <summary>
-        /// 조준 앞의 기절한 동료를 후보로 넣는다(기획 §20.4).
+        /// 조준 앞의 동료를 후보로 넣는다(기획 §20.4 · S15P21B202-442).
         ///
-        /// <b>물리 질의를 쓰지 않는다.</b> 이유는 <see cref="CarryTarget"/> 에 적었다.
-        /// <see cref="Hazards.MeteorBat"/> 가 때릴 동료를 <see cref="All"/> 로 찾는 것과
-        /// 같은 방식이다.
+        /// <b>물리 질의를 쓰지 않는다.</b> 이유는 <see cref="CarryTarget"/> 에 적었다 —
+        /// 조준 탐색 마스크가 Player 를 통째로 빼므로 몸에 <see cref="Grabbable"/> 을
+        /// 붙여도 영영 걸리지 않는다. <see cref="Hazards.MeteorBat"/> 가 때릴 동료를
+        /// <see cref="All"/> 로 찾는 것과 같은 방식이다.
+        ///
+        /// <para><b>예전 이름은 <c>FindDownedTeammate</c> 였다.</b> 기절한 사람만 걸렀기
+        /// 때문인데, 이제 살아있는 동료도 후보다 — 이름이 거짓이 되므로 바꿨다.
+        /// 무엇이 갈랐는지는 실측이 정확히 말해 준다: 같은 자리·같은 조준에서
+        /// <c>GoDown()</c> 만 부르면 후보가 <c>None → Grabbable</c> 로 바뀌었다.
+        /// 거리·각도는 이미 전부 맞아 있었고 <c>Downed</c> 조건 하나가 갈랐다.</para>
         /// </summary>
-        void FindDownedTeammate(Vector3 origin, Vector3 forward,
-                                ref PlayerInteractionTarget best)
+        void FindTeammateGrabPoint(Vector3 origin, Vector3 forward,
+                                   ref PlayerInteractionTarget best)
         {
             for (var i = 0; i < All.Count; i++)
             {
                 var other = All[i];
-                if (other == null || other == this || !other.Downed) continue;
+                if (other == null || other == this) continue;
 
                 var carry = other.CarryTarget;
                 if (carry == null || !carry.isActiveAndEnabled || !carry.CanGrab) continue;
@@ -1184,6 +1239,13 @@ namespace Metagame.Gameplay
 
             ReleaseHand(LeftHand);
             ReleaseHand(RightHand);
+
+            // **나를 잡고 있는 손도 놓게 한다**(S15P21B202-442). 내 손만 놓으면
+            // 남이 건 FixedJoint 가 그대로 남아, 순간이동한 몸을 맵 저쪽에서 도로
+            // 끌어당긴다. 잡을 지점이 기절 중에만 켜져 있던 동안에는 이 경로가
+            // 기절 해제와 겹쳐 가려져 있었다.
+            ReleaseCarriersOf(CarryTarget);
+
             Doll.Teleport(footPos + Vector3.up * RagdollBuilder.HipsY, facing);
             faceDir = facing * Vector3.forward;
             movementDirectionLocal = Vector2.zero;
@@ -1334,6 +1396,10 @@ namespace Metagame.Gameplay
         {
             ReleaseHand(LeftHand);
             ReleaseHand(RightHand);
+
+            // 탑승하는 사람을 붙들고 있을 수는 없다 — 몸이 좌석에 고정되므로
+            // 잡은 쪽이 탈것에 끌려다니게 된다(S15P21B202-442).
+            ReleaseCarriersOf(CarryTarget);
             ClampInteractor?.Cancel();
             ResetClampGrab();
             ResetToolState();
@@ -2109,23 +2175,59 @@ namespace Metagame.Gameplay
                 ? PhysicsScale.FieldFloatSpeed
                 : (input.Run ? Tuning.RunSpeed : Tuning.WalkSpeed);
 
-            // 기절한 동료를 끌고 가는 동안 느려진다(기획 §20.4). 34.9kg 을 저중력에서
-            // 끌고 가는 것이라 그냥 걷는 것과 같으면 안 된다.
-            if (CarryingDownedTeammate) top *= PhysicsScale.DownedCarrySpeedScale;
+            // 동료를 끌고 가는 동안 느려진다(기획 §20.4). 34.9kg 을 저중력에서 끌고
+            // 가는 것이라 그냥 걷는 것과 같으면 안 된다.
+            //
+            // 기절한 사람뿐 아니라 <b>살아있는 사람을 끌 때도</b> 적용한다
+            // (S15P21B202-442) — 무게는 같고, 이것이 없으면 잡은 쪽이 일방적으로
+            // 이겨서 잡힌 쪽이 빠져나갈 방법이 없다.
+            if (CarryingTeammate) top *= PhysicsScale.DownedCarrySpeedScale;
             Vector3 targetVel = wish * top;
             targetVel.x += GroundVelocity.x;
             targetVel.z += GroundVelocity.z;
 
-            if (Hanging)
+            // **남이 나를 잡고 있으면 매달린 것과 같다**(S15P21B202-442).
+            //
+            // DriveMovementVelocity 는 인형의 모든 몸에 `linearVelocity = ...` 를
+            // <b>직접 써 넣는다.</b> 그러면 조인트가 끌어온 속도가 매 스텝 지워진다 —
+            // 입력이 없으면 목표 속도가 0 이므로 <b>제자리에 못을 박는 것</b>과 같다.
+            //
+            // 실측(2초 동안 끌기): 이 분기가 없으면 잡힌 사람이 <b>0.0785m</b> 움직인다.
+            // 잡은 사람이 오히려 끌려간다. 기절한 동료가 끌려오는 이유는 래그돌이라
+            // 이 코드가 돌지 않아서였다 — 살아있는 몸에는 그대로 적용된다.
+            //
+            // 매달릴 때 이미 같은 문제를 풀어 두었다("손 조인트가 이동을 결정해야
+            // 하므로"). 같은 길을 쓴다.
+            if (Hanging || GrabbedByOthers)
             {
                 // 매달린 동안에는 손 조인트가 이동을 결정해야 하므로 기존 물리 제어를 유지한다.
-                Vector3 v = Doll.Hips.linearVelocity;
-                Vector3 dv = new Vector3(targetVel.x - v.x, 0f, targetVel.z - v.z);
-                Vector3 force = JointTools.Clamp(dv * Tuning.Accel * Tuning.AirControl, Tuning.AccelMax);
-                if (JointTools.IsFinite(force))
+                //
+                // 잡힌 쪽에는 공중 제어가 아니라 지상 제어를 준다. 땅에 발을 딛고
+                // 버티는 것이라 공중만큼 무력하면 줄다리기가 성립하지 않는다.
+                float control = Hanging || !Grounded
+                    ? Tuning.AirControl
+                    : PhysicsScale.GrabbedGroundControl;
+
+                // **잡힌 채 가만히 있으면 힘을 아예 넣지 않는다.**
+                //
+                // 목표 속도 0 을 향해 힘을 주는 것은 "가만히 있는 것" 이 아니라
+                // "버티는 것" 이다. 그러면 손을 놓고 서 있기만 해도 끌려오지 않는다 —
+                // 실측으로 2초에 0.2771m 밖에 안 움직였다. 버티기는 <b>실제로 반대
+                // 방향을 입력했을 때만</b> 해야 줄다리기가 의도대로 성립한다.
+                //
+                // 매달릴 때는 예전 그대로다. 그쪽은 손 조인트에 체중이 걸려 있어
+                // 감속까지 힘으로 잡아 주지 않으면 몸이 계속 흔들린다.
+                var resisting = Hanging || wish.sqrMagnitude > 0.01f;
+                if (resisting)
                 {
-                    Doll.Hips.AddForce(force * 0.6f, ForceMode.Force);
-                    Doll.Chest.AddForce(force * 0.4f, ForceMode.Force);
+                    Vector3 v = Doll.Hips.linearVelocity;
+                    Vector3 dv = new Vector3(targetVel.x - v.x, 0f, targetVel.z - v.z);
+                    Vector3 force = JointTools.Clamp(dv * Tuning.Accel * control, Tuning.AccelMax);
+                    if (JointTools.IsFinite(force))
+                    {
+                        Doll.Hips.AddForce(force * 0.6f, ForceMode.Force);
+                        Doll.Chest.AddForce(force * 0.4f, ForceMode.Force);
+                    }
                 }
             }
             else
