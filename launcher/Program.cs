@@ -44,11 +44,32 @@ public static class Program
         // 두면 배포 산출물과 검사 대상이 갈린다.
         if (args.Contains("--selfcheck")) return SelfCheck.Run();
 
+        // **교체하는 쪽**으로 불렸으면 그것만 하고 끝낸다(자기 자신을 덮을 수 없어
+        // 새 exe 가 옛 자리를 덮는다). 다른 일을 섞으면 잠금이 안 풀린다.
+        if (args.Contains(SelfUpdate.FinishFlag)) return SelfUpdate.Finish(args);
+
+        // 지난 갱신이 남긴 `.new.exe` 를 치운다.
+        SelfUpdate.CleanLeftovers();
+
         bool checkOnly = args.Contains("--check");
         bool noLaunch = args.Contains("--no-launch") || checkOnly;
 
         Console.WriteLine("=== NOT THIS PLANET 런처 ===");
         Console.WriteLine($"게임 폴더: {gameDir}");
+
+        // **런처 자신이 먼저 최신이어야 한다.** 규약(매니페스트 형식·주소·검증)이
+        // 바뀌면 옛 런처는 조용히 틀린 일을 하거나 아무것도 못 한다 — 게임 버전만
+        // 강제해도 런처가 낡으면 그 강제가 동작하지 않는다.
+        if (!checkOnly)
+        {
+            switch (await SelfUpdate.EnsureLatest(Http, baseUrl))
+            {
+                case SelfUpdate.Outcome.Handoff:
+                    return 0;      // 새 런처가 이어받았다 — 조용히 끝낸다
+                case SelfUpdate.Outcome.Blocked:
+                    return 1;      // 서버가 이 버전을 거부했고 고치지 못했다
+            }
+        }
 
         Manifest? manifest = null;
         try
@@ -110,7 +131,8 @@ public static class Program
         using var res = await Http.SendAsync(req);
         res.EnsureSuccessStatusCode();
         await using var s = await res.Content.ReadAsStreamAsync();
-        return await JsonSerializer.DeserializeAsync<T>(s, ManifestCheck.Json);
+        // 소스 생성기로 읽는다 — 리플렉션이 없어야 트리밍이 안전하다.
+        return (T?)await JsonSerializer.DeserializeAsync(s, typeof(T), LauncherJson.Default);
     }
 
     /// <summary>로컬을 매니페스트에 맞춘다. 받을 것만 받고, 남는 것은 지운다.</summary>

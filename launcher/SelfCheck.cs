@@ -118,8 +118,46 @@ public static class SelfCheck
             }
         }
 
+        // ── ⑤ 런처 버전 비교 ─────────────────────────────────────────────
+        // 이 판정이 틀리면 **자체 갱신이 무한히 돌거나 아예 안 돈다.** 같으면
+        // 0, 낮으면 음수, 높으면 양수여야 한다.
+        foreach (var (a, b, want) in new (string, string, int)[]
+                 {
+                     ("v1.0.0", "v1.0.0", 0),
+                     ("v1.0.0", "v1.0.1", -1),
+                     ("v1.0.1", "v1.0.0", 1),
+                     ("v1.0.0", "v1.1.0", -1),
+                     ("v1.0.0", "v2.0.0", -1),
+                     ("v1.9.0", "v1.10.0", -1),   // 문자열 비교면 틀리는 자리
+                     ("v0.9.9", "v1.0.0", -1),
+                     ("1.0.0", "v1.0.0", 0),      // `v` 가 없어도 같게 본다
+                 })
+        {
+            var got = SelfUpdate.Compare(a, b);
+            if (got is null || Math.Sign(got.Value) != want)
+            {
+                Console.WriteLine($"  ❌ 버전 비교가 틀렸다: {a} vs {b} → {got} (기대 부호 {want})");
+                fail++;
+            }
+        }
+        foreach (var bad in new[] { "", "v1", "v1.0", "v1.0.0.0", "vX.Y.Z", "v1.0.-1", "최신" })
+        {
+            if (SelfUpdate.Compare(bad, "v1.0.0") is not null)
+            {
+                Console.WriteLine($"  ❌ 버전 모양이 아닌데 견주었다: {bad}");
+                fail++;
+            }
+        }
+        // 내 버전이 견줄 수 있는 모양이어야 한다 — 아니면 자체 갱신이 늘 건너뛴다.
+        if (SelfUpdate.Compare(SelfUpdate.MyVersion, "v1.0.0") is null)
+        {
+            Console.WriteLine($"  ❌ 내 버전을 견줄 수 없다: {SelfUpdate.MyVersion}");
+            fail++;
+        }
+
+        Console.WriteLine($"  (이 런처: {SelfUpdate.MyVersion})");
         Console.WriteLine(fail == 0
-            ? "✅ 자체 검사 통과 — 경로·해시·매니페스트 판정"
+            ? "✅ 자체 검사 통과 — 경로·해시·매니페스트·버전 판정"
             : $"❌ 자체 검사 실패 {fail}건");
         return fail == 0 ? 0 : 1;
     }
