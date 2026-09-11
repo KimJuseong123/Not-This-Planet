@@ -906,9 +906,10 @@ namespace Metagame.Network
             for (int i = 0; i < tools.Count; i++)
             {
                 var tool = tools[i];
-                sendToolViews[i] = tool != null && tool.IsEquipped ? new ToolViewState
+                sendToolViews[i] = tool != null ? new ToolViewState
                 {
-                    Owner = NetPlayer.NetIdOfRig(tool.Owner), Action = tool.ViewAction,
+                    Owner = tool.IsEquipped ? NetPlayer.NetIdOfRig(tool.Owner) : 0,
+                    Action = tool.IsEquipped ? tool.ViewAction : (byte)0,
                     Progress = tool.ViewProgress, Direction = tool.Owner != null ? tool.Owner.AimForward : tool.transform.forward
                 } : default;
             }

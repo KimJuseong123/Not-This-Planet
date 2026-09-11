@@ -501,6 +501,48 @@ namespace Metagame.Gameplay.Parts
             return part != null;
         }
 
+        /// <summary>레이가 실제로 맞힌 몸체 또는 비드 사슬만 선택한다. 주변 사슬로 조준을 옮기지 않는다.</summary>
+        public static bool CanApplyAt(RaycastHit hit, bool cut)
+        {
+            if (hit.collider == null || hit.collider.isTrigger) return false;
+            if (TryHitChain(hit.collider, out var bead, out var index))
+            {
+                if (cut) return true;
+                var chain = bead._chains[index];
+                if (chain.TipRadius < PhysicsScale.WeldBeadMaxRadius - 1e-4f) return true;
+                return chain.Blobs.Count < PhysicsScale.WeldBeadBlobsPerChain &&
+                       bead.BlobCount < PhysicsScale.WeldBeadsPerPart &&
+                       chain.Touched == null && chain.TouchedPad == null;
+            }
+            if (cut || (GameLayers.PartMask & (1 << hit.collider.gameObject.layer)) == 0) return false;
+            var part = hit.collider.GetComponentInParent<SpaceshipPart>();
+            if (part == null) return false;
+            bead = part.GetComponent<WeldBead>();
+            return bead == null || bead.BlobCount < PhysicsScale.WeldBeadsPerPart;
+        }
+
+        public static bool TryApplyAt(RaycastHit hit, float deltaTime, bool cut, out WeldBead bead)
+        {
+            bead = null;
+            if (deltaTime <= 0f || !CanApplyAt(hit, cut)) return false;
+            if (TryHitChain(hit.collider, out bead, out var index))
+                return cut ? bead.ShrinkChain(index, deltaTime) : bead.GrowChain(index, deltaTime);
+            bead = Attach(hit.collider.GetComponentInParent<SpaceshipPart>());
+            return bead.StartChain(hit.point, hit.normal);
+        }
+
+        static bool TryHitChain(Collider collider, out WeldBead bead, out int index)
+        {
+            bead = collider.GetComponentInParent<WeldBead>();
+            index = -1;
+            if (bead == null) return false;
+            for (int c = 0; c < bead._chains.Count; c++)
+                foreach (var blob in bead._chains[c].Blobs)
+                    if (blob != null && (collider.transform == blob || collider.transform.IsChildOf(blob)))
+                    { index = c; return true; }
+            return false;
+        }
+
         static bool IsBeadCollider(Collider collider)
         {
             var bead = collider.GetComponentInParent<WeldBead>();

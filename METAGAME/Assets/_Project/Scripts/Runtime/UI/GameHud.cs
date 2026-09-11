@@ -180,6 +180,66 @@ namespace Metagame.UI
             using (new UiScale.Scope(UiScale.Value)) DrawScaledGui();
         }
 
+        static readonly string[] WeldingTicks = { "0%", "25%", "50%", "75%", "100%" };
+
+        void WeldingMaterialGauge(float width, float height)
+        {
+            var tool = Local != null ? Local.PresentationTool as PlasmaWeldingTool : null;
+            if (tool == null || !tool.IsHeldForView || Local.Downed || Local.IsRiding || Local.Cam == null) return;
+            var camera = Local.Cam.Cam;
+            if (camera == null) return;
+            var model = tool.FirstPersonModel;
+            var position = model != null && model.gameObject.activeInHierarchy ? model.position : tool.transform.position;
+            var screen = camera.WorldToScreenPoint(position);
+            if (screen.z <= camera.nearClipPlane) return;
+            float radius = Mathf.Min(125f, height * 0.23f);
+            float thickness = radius * 0.19f;
+            var origin = new Vector2(
+                Mathf.Clamp(screen.x / UiScale.Value, 12f, width - radius - 60f),
+                Mathf.Clamp((Screen.height - screen.y) / UiScale.Value, radius + 20f, height - 65f));
+            Color purple = new Color(0.76f, 0.32f, 1f, 0.95f);
+            const int segments = 64;
+            for (int i = 0; i < segments; i++)
+            {
+                float a = i / (float)segments, b = (i + 1f) / segments;
+                GaugeLine(GaugePoint(origin, radius, a), GaugePoint(origin, radius, b), thickness,
+                    new Color(0.06f, 0.025f, 0.10f, 0.8f));
+                if (a < tool.RemainingFraction)
+                    GaugeLine(GaugePoint(origin, radius, a),
+                        GaugePoint(origin, radius, Mathf.Min(b, tool.RemainingFraction)), thickness - 3f, purple);
+                GaugeLine(GaugePoint(origin, radius - thickness * 0.5f, a),
+                    GaugePoint(origin, radius - thickness * 0.5f, b), 1.5f, purple);
+                GaugeLine(GaugePoint(origin, radius + thickness * 0.5f, a),
+                    GaugePoint(origin, radius + thickness * 0.5f, b), 1.5f, purple);
+            }
+            for (int i = 0; i < WeldingTicks.Length; i++)
+            {
+                float fraction = i * 0.25f;
+                GaugeLine(GaugePoint(origin, radius - thickness * 0.5f, fraction),
+                    GaugePoint(origin, radius + thickness * 0.5f + 4f, fraction), 2f, Color.white);
+                var label = GaugePoint(origin, radius + thickness * 0.5f + 10f, fraction);
+                L(new Rect(label.x, label.y - 10f, 50f, 22f), WeldingTicks[i], small, Color.white);
+            }
+            var value = GaugePoint(origin, radius, 0f);
+            L(new Rect(value.x - 15f, value.y + 15f, 80f, 24f),
+                Mathf.CeilToInt(tool.RemainingFraction * 100f) + "%", mid, purple);
+        }
+
+        static Vector2 GaugePoint(Vector2 origin, float radius, float fraction)
+        {
+            float angle = Mathf.Lerp(18f, -48f, fraction) * Mathf.Deg2Rad;
+            return origin + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
+        }
+
+        void GaugeLine(Vector2 start, Vector2 end, float thickness, Color color)
+        {
+            var matrix = GUI.matrix;
+            var delta = end - start;
+            GUIUtility.RotateAroundPivot(Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg, start);
+            Box(new Rect(start.x, start.y - thickness * 0.5f, delta.magnitude + 0.5f, thickness), color);
+            GUI.matrix = matrix;
+        }
+
         void DrawScaledGui()
         {
             if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
@@ -190,6 +250,7 @@ namespace Metagame.UI
             float w = UiScale.Width, h = UiScale.Height;
 
             Reticle(w, h);
+            WeldingMaterialGauge(w, h);
 
             // 왼쪽 위 — 진행 상황
             Box(new Rect(14f, 12f, 268f, 142f), new Color(0f, 0f, 0f, 0.38f));

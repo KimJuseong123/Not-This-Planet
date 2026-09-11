@@ -37,6 +37,17 @@ namespace Metagame.Gameplay
         [SerializeField] float beamWidth = 0.035f;
         [SerializeField] int beamMask = ~0;
 
+        [Header("용접 재료 / 조준 가이드")]
+        [Min(0.01f)] [SerializeField] float materialCapacitySeconds = 60f;
+        [Min(0.005f)] [SerializeField] float guideRadius = 0.045f;
+        [SerializeField] Color guideColor = new Color(0.75f, 0.22f, 1f, 1f);
+        float usedMaterialSeconds;
+        Vector3 aimDirection;
+        WeldingSurfaceGuide surfaceGuide;
+        public float RemainingFraction => Mathf.Clamp01(1f - usedMaterialSeconds / Mathf.Max(0.01f, materialCapacitySeconds));
+        public override float ViewProgress => RemainingFraction;
+        public bool GuideVisible { get; private set; }
+
         [Header("월드 휴대 포즈")]
         [Tooltip("3인칭/원격 화면에서 장착 중 보이는 용접건 모델의 로컬 위치입니다.")]
         [SerializeField] Vector3 heldVisualLocalPosition = new Vector3(0.18f, -0.14f, 0.12f);
@@ -80,6 +91,7 @@ namespace Metagame.Gameplay
         {
             BeamMode = action <= (byte)PlasmaBeamMode.Cut ? (PlasmaBeamMode)action : PlasmaBeamMode.None;
             BeamActive = BeamMode != PlasmaBeamMode.None;
+            usedMaterialSeconds = (1f - Mathf.Clamp01(progress)) * Mathf.Max(0.01f, materialCapacitySeconds);
         }
 
         public PlasmaBeamMode BeamMode { get; private set; }
@@ -144,6 +156,7 @@ namespace Metagame.Gameplay
 
         protected override void OnUnequipped()
         {
+            HideGuide();
             RestoreDroppedVisualPose();
 
             BeamMode = PlasmaBeamMode.None;
@@ -159,6 +172,8 @@ namespace Metagame.Gameplay
 
         protected override void OnToolInput(ToolInputFrame input, ToolAimContext aim)
         {
+            aimDirection = aim.Direction;
+            ResolveNozzleTip(aim.Direction);
             // 용접과 절단은 하나의 노즐에서 나가는 상호 배타적 기능이다.
             // 두 버튼을 동시에 누르면 어느 기능인지 결정하지 않고 빔을 끈다.
             if (input.PrimaryHeld && !input.SecondaryHeld)
@@ -176,24 +191,14 @@ namespace Metagame.Gameplay
         }
 
         /// <summary>
-        /// 겨누고 있는 우주선 몸체에 비드를 쌓는다(기획 §16.2).
-        ///
-        /// 조준 방향이 아니라 <b>노즐 위치</b>로 대상을 찾는다. 기획의 "용접기 최대
-        /// 사거리는 약 0.8m" 가 뜻하는 것이 노즐과 몸체 사이의 거리이고, 그래서
-        /// 플레이어는 서서 돌아보는 것이 아니라 우주선을 <b>돌아야</b> 한다.
-        ///
-        /// 조준 방향까지 보게 하면 0.8m 앞을 겨누지 못하는 각도가 생겨 "닿았는데 안 되는"
-        /// 상태가 된다. 기둥이 뻗는 방향은 대신 표면의 바깥 방향으로 정한다.
-        ///
-        /// 모드를 인수로 받는다. <see cref="BeamMode"/> 를 읽으면 검증이 입력 프레임과
-        /// 장착 절차를 통째로 흉내내야 하고, 그러면 정작 보고 싶은 기하 판정이 묻힌다.
+        /// 총구에서 조준 방향으로 처음 맞힌 표면에 비드를 쌓는다.
+        /// 실제 진행한 시간만 이 용접건의 재료에서 소모한다.
         /// </summary>
-        /// <returns>실제로 용접이 진행됐는가.</returns>
         public bool WeldTick(float deltaTime, PlasmaBeamMode mode)
         {
             WeldingProgressed = false;
 
-            if (mode != PlasmaBeamMode.Weld || Muzzle == null)
+            if (mode != PlasmaBeamMode.Weld || Muzzle == null || deltaTime <= 0f || RemainingFraction <= 0f)
             {
                 GrowingBead = null;
                 return false;
@@ -203,13 +208,16 @@ namespace Metagame.Gameplay
             // 것과 겹쳐 비드가 두 배로 자란다 — 판정은 서버, 여기는 받아 그리기만 한다.
             if (WorldEvents.RemoteDecides) { GrowingBead = null; return false; }
 
-            WeldingProgressed = WeldBead.TryGrowNear(Muzzle.position, deltaTime, out var bead);
-            GrowingBead = bead;
-
-            // 다른 사람 화면에도 같은 비드가 자라야 한다. 비드는 덩어리 사슬이라 상태를
-            // 통째로 보내기 어렵지만, 부품이 이미 같은 자리에 맞춰져 있으므로 같은 자리에서
-            // 같은 양만큼 자라게 하면 같은 모양이 된다(-152).
-            if (WeldingProgressed) WorldEvents.WeldGrown?.Invoke(Muzzle.position, deltaTime);
+            GrowingBead = null;
+            float amount = Mathf.Min(deltaTime, Mathf.Max(0f, materialCapacitySeconds - usedMaterialSeconds));
+            if (TryGetBeamHit(aimDirection, out var hit))
+            {
+                WeldingProgressed = WeldBead.TryApplyAt(hit, amount, false, out var bead);
+                GrowingBead = bead;
+                if (WeldingProgressed) usedMaterialSeconds += amount;
+            }
+            // WorldSync의 비드 스냅샷으로 복제한다. 예전 근접 탐색 RPC를 함께 보내면
+            // 클라이언트에서 조준하지 않은 다른 사슬을 키울 수 있다.
 
             return WeldingProgressed;
         }
@@ -220,6 +228,8 @@ namespace Metagame.Gameplay
 
             // 조준 방향이 바뀌면 "그 방향에서 본 총의 끝" 도 바뀐다(S15P21B202-277).
             ResolveNozzleTip(aim.Direction);
+
+            UpdateGuide(input, aim.Direction);
 
             if (beam == null) EnsureBeam();
             ResolvePetalAnimator();
@@ -240,14 +250,10 @@ namespace Metagame.Gameplay
             float distance = beamRange;
             BeamHasContact = false;
 
-            int count = Physics.RaycastNonAlloc(origin, direction, hits, beamRange,
-                                                beamMask, QueryTriggerInteraction.Collide);
-            for (int i = 0; i < count; i++)
+            if (TryGetBeamHit(direction, out var contact))
             {
-                var hit = hits[i];
-                if (hit.collider == null || IsOwnedCollider(hit.collider)) continue;
                 BeamHasContact = true;
-                if (hit.distance < distance) distance = hit.distance;
+                distance = contact.distance;
             }
 
             BeamEnd = origin + direction * distance;
@@ -285,12 +291,63 @@ namespace Metagame.Gameplay
 
             if (WorldEvents.RemoteDecides) { ShrinkingBead = null; return false; }
 
-            CuttingProgressed = WeldBead.TryShrinkNear(Muzzle.position, deltaTime, out var bead);
-            ShrinkingBead = bead;
-
-            if (CuttingProgressed) WorldEvents.WeldShrunk?.Invoke(Muzzle.position, deltaTime);
+            ShrinkingBead = null;
+            if (TryGetBeamHit(aimDirection, out var hit))
+            {
+                CuttingProgressed = WeldBead.TryApplyAt(hit, deltaTime, true, out var bead);
+                ShrinkingBead = bead;
+            }
 
             return CuttingProgressed;
+        }
+
+        /// <summary>발사와 예고가 공유하는 첫 외부 표면. 벽 뒤의 유효 파츠를 고르지 않는다.</summary>
+        public bool TryGetBeamHit(Vector3 direction, out RaycastHit contact)
+        {
+            contact = default;
+            if (Muzzle == null) return false;
+            direction = direction.sqrMagnitude > 1e-4f ? direction.normalized : Muzzle.forward;
+            float range = Mathf.Min(beamRange, PhysicsScale.WeldRange);
+            int count = Physics.RaycastNonAlloc(Muzzle.position, direction, hits, range,
+                beamMask, QueryTriggerInteraction.Ignore);
+            // NonAlloc이 가득 찼을 때는 가장 가까운 충돌이 버퍼 밖일 수 있다.
+            var results = count == hits.Length
+                ? Physics.RaycastAll(Muzzle.position, direction, range, beamMask, QueryTriggerInteraction.Ignore)
+                : hits;
+            if (results != hits) count = results.Length;
+            float nearest = float.PositiveInfinity;
+            for (int i = 0; i < count; i++)
+                if (!IsOwnedCollider(results[i].collider) && results[i].distance < nearest)
+                { contact = results[i]; nearest = contact.distance; }
+            return contact.collider != null;
+        }
+
+        void UpdateGuide(ToolInputFrame input, Vector3 direction)
+        {
+            var owner = ViewOwner;
+            bool canShow = owner != null && owner.IsLocal && !owner.Downed && !owner.IsRiding &&
+                           !(input.PrimaryHeld && input.SecondaryHeld);
+            if (!canShow || !TryGetBeamHit(direction, out var hit) ||
+                !(BeamMode == PlasmaBeamMode.Cut ? WeldBead.CanApplyAt(hit, true) :
+                  BeamMode == PlasmaBeamMode.Weld ? RemainingFraction > 0f && WeldBead.CanApplyAt(hit, false) :
+                  (RemainingFraction > 0f && WeldBead.CanApplyAt(hit, false)) || WeldBead.CanApplyAt(hit, true)))
+            { HideGuide(); return; }
+            if (surfaceGuide == null) surfaceGuide = new WeldingSurfaceGuide(transform, guideColor);
+            surfaceGuide.Show(hit, guideRadius);
+            GuideVisible = true;
+        }
+
+        void HideGuide()
+        {
+            GuideVisible = false;
+            surfaceGuide?.Hide();
+        }
+
+        protected override void OnDisable()
+        {
+            HideGuide();
+            if (beam != null) beam.enabled = false;
+            base.OnDisable();
         }
 
         void EnsureBeam()
@@ -452,11 +509,12 @@ namespace Metagame.Gameplay
             if (heldVisual != null &&
                 (collider.transform == heldVisual || collider.transform.IsChildOf(heldVisual)))
                 return true;
-            return Owner != null && collider.GetComponentInParent<PlayerRig>() == Owner;
+            return ViewOwner != null && collider.GetComponentInParent<PlayerRig>() == ViewOwner;
         }
 
         protected override void OnDestroy()
         {
+            surfaceGuide?.Dispose();
             // 표시를 숨긴 뒤 base에서 카메라의 전용 복사본을 정리한다.
             RestoreVisualParent();
             base.OnDestroy();

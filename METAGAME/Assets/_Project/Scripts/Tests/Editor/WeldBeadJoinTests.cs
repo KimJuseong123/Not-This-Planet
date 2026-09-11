@@ -385,7 +385,10 @@ namespace Metagame.Gameplay.Tests
             // 도구를 놓았다고 보고, 새 용접기로 다른 자리를 잇는다.
             var tool = MakeTool(NozzleForBridge(lower) + LateralSpots[0]);
             for (var i = 0; i < Mathf.CeilToInt(FullChainSeconds / Step); i++)
+            {
+                UnityEngine.Physics.SyncTransforms();
                 tool.WeldTick(Step, PlasmaBeamMode.Weld);
+            }
 
             Assert.Greater(bead.StrengthTo(upper), first + 1e-3f,
                 "앞사람이 채운 만큼은 남고 그 위에 더해져야 한다.");
@@ -597,7 +600,8 @@ namespace Metagame.Gameplay.Tests
         PlasmaWeldingTool MakeTool(Vector3 nozzle)
         {
             var go = new GameObject("PlasmaWeldingTool");
-            go.transform.position = nozzle;
+            go.transform.position = nozzle + Vector3.forward * 0.3f;
+            go.transform.rotation = Quaternion.LookRotation(-Vector3.forward * 0.3f - Vector3.up * NozzleStandoff);
             _spawned.Add(go);
 
             UnityEngine.Physics.SyncTransforms();
