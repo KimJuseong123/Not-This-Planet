@@ -212,16 +212,19 @@ namespace Metagame.Gameplay.Tests
             spawner.Tick(Step);
             Assert.AreEqual(1, spawner.Scars.Count, "흔적이 생겼다.");
 
-            // 다 옅어진 뒤에도 나이 세기는 멈추지만 수명은 따로 흐른다.
+            // 다 옅어져 보이지 않게 된 시점. 아직 목록에는 있다.
             Advance(spawner, PhysicsScale.MeteorScarCoolSeconds
                              + PhysicsScale.MeteorScarFadeSeconds + 0.5f);
-            Assert.IsTrue(spawner.Scars.Count == 0 || spawner.Scars[0].Faded,
+            Assert.IsTrue(spawner.Scars.Count == 0 || spawner.Scars[0].ColorIsFinal,
                 "이 시점에는 보이지 않는다.");
 
             Advance(spawner, PhysicsScale.MeteorScarDespawnSeconds + 1f);
 
             Assert.AreEqual(0, spawner.Scars.Count,
-                "수명이 끝나면 목록에서 빠진다 — 나이가 멈춰도 소멸은 따로 흐른다.");
+                "수명이 끝나면 목록에서 빠진다. 이 수명은 AdvanceScars 가 Scar.Age 로 "
+                + "잰다 — 예전에는 Meteor._sinceSettled 가 셌는데 정착한 운석은 "
+                + "AdvanceLive 에서 빠져나가며 더 틱하지 않아 그 타이머가 멈춰 있었다. "
+                + "그래서 흔적이 영구히 남았다(S15P21B202-438).");
         }
 
         /// <summary>
@@ -230,8 +233,8 @@ namespace Metagame.Gameplay.Tests
         /// <b>예전에는 식으면 멈췄다</b> — 150~200개가 쌓여도 매 프레임 비용이 0 이
         /// 되어야 한다는 §19 의 성능 기준 때문이었다. 그런데 그러면 알파가 0.5 에서
         /// 굳어 <b>검은 원이 지면에 박혀 남는다.</b> 멈추는 지점을
-        /// <c>Cooled</c> 에서 <c>Faded</c> 로 옮겨, 화면에서 사라진 뒤부터 건너뛴다 —
-        /// 성능 기준은 그대로 지킨다.
+        /// <c>Cooled</c> 에서 <c>ColorIsFinal</c> 로 옮겨, 화면에서 사라진 뒤부터
+        /// 건너뛴다 — 성능 기준은 그대로 지킨다.
         /// </summary>
         [Test]
         public void ACoolingScarKeepsAgingWhileItFades()
@@ -247,7 +250,7 @@ namespace Metagame.Gameplay.Tests
             Advance(spawner, PhysicsScale.MeteorScarCoolSeconds + 1f);
             var cooledAge = spawner.Scars[0].Age;
             Assert.IsTrue(spawner.Scars[0].Cooled, "이미 식었다.");
-            Assert.IsFalse(spawner.Scars[0].Faded, "아직 옅어지는 중이다.");
+            Assert.IsFalse(spawner.Scars[0].ColorIsFinal, "아직 옅어지는 중이다.");
 
             Advance(spawner, 1f);
 

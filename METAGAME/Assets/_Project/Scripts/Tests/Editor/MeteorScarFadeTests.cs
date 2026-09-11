@@ -43,8 +43,8 @@ namespace Metagame.Gameplay.Tests
         public void PastTheFade_ItStaysInvisible()
         {
             Assert.AreEqual(0f, MeteorScarLook.Opacity01(Cool + Fade + 10f, Cool, Fade), 1e-4f);
-            Assert.IsTrue(MeteorScarLook.Faded(Cool + Fade, Cool, Fade));
-            Assert.IsFalse(MeteorScarLook.Faded(Cool + Fade - 0.1f, Cool, Fade));
+            Assert.IsTrue(MeteorScarLook.ColorIsFinal(Cool + Fade, Cool, Fade));
+            Assert.IsFalse(MeteorScarLook.ColorIsFinal(Cool + Fade - 0.1f, Cool, Fade));
         }
 
         /// <summary>
@@ -199,8 +199,9 @@ namespace Metagame.Gameplay.Tests
 
             Assert.AreEqual(MeteorScarLook.ColdColor.a, still.a, 1e-4f,
                 "옅어지지 않는다 — 수명이 끝날 때까지 남는다.");
-            Assert.IsFalse(MeteorScarLook.Faded(Cool + 100f, Cool, 0f),
-                "페이드가 없으면 '다 옅어졌다' 가 성립하지 않는다.");
+            Assert.IsTrue(MeteorScarLook.ColorIsFinal(Cool + 100f, Cool, 0f),
+                "페이드가 없어도 '색이 다 변했다' 는 식는 순간 성립해야 한다 — "
+                + "그러지 않으면 흔적 200개에 매 프레임 색을 넣는다(§19).");
         }
 
         // --- 표시가 옅어짐을 따라가는가 (배선) -------------------------------
@@ -218,7 +219,7 @@ namespace Metagame.Gameplay.Tests
             var scar = MakeScar(age: Cool + 1f);
 
             Assert.IsTrue(scar.Cooled, "이미 식었다 — 예전 기준이라면 여기서 갱신이 끊긴다.");
-            Assert.IsFalse(scar.Faded, "아직 옅어지는 중이다.");
+            Assert.IsFalse(scar.ColorIsFinal, "아직 옅어지는 중이다.");
             Assert.IsTrue(MeteorScarView.ShouldRepaint(scar),
                 "옅어지는 동안은 색을 계속 넣어야 한다.");
         }
@@ -228,7 +229,7 @@ namespace Metagame.Gameplay.Tests
         {
             var scar = MakeScar(age: Cool + Fade);
 
-            Assert.IsTrue(scar.Faded);
+            Assert.IsTrue(scar.ColorIsFinal);
             Assert.IsFalse(MeteorScarView.ShouldRepaint(scar),
                 "다 옅어지면 건드릴 이유가 없다 — 200개에서 비용이 0 이 되어야 한다.");
         }

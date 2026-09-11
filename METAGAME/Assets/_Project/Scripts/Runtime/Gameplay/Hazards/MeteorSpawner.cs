@@ -170,7 +170,13 @@ namespace Metagame.Gameplay.Hazards
             /// 이것은 투명해졌다는 뜻이다. 표시를 갱신할지 말지는 이쪽으로 판단해야
             /// 한다 — <c>Cooled</c> 로 끊으면 옅어지는 단계가 화면에 반영되지 않는다.
             /// </summary>
-            public bool Faded => Age >= CoolSeconds + FadeSeconds;
+            /// <summary>
+            /// 색이 더 이상 변하지 않는가. <b>계산은 한 곳에만 둔다</b> — 예전에는 여기와
+            /// <see cref="MeteorScarLook"/> 에 따로 있었고, 페이드가 0 일 때 둘이 서로
+            /// 다른 답을 냈다(!347 AI 리뷰가 그 차이에 걸렸다).
+            /// </summary>
+            public bool ColorIsFinal =>
+                MeteorScarLook.ColorIsFinal(Age, CoolSeconds, FadeSeconds);
         }
 
         readonly List<Scar> _scars = new();

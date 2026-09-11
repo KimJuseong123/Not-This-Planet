@@ -91,9 +91,19 @@ namespace Metagame.Gameplay.Hazards
             return Mathf.Clamp01(1f - (age - coolSeconds) / fadeSeconds);
         }
 
-        /// <summary>화면에서 아예 보이지 않게 된 뒤인가.</summary>
-        public static bool Faded(float age, float coolSeconds, float fadeSeconds) =>
-            Opacity01(age, coolSeconds, fadeSeconds) <= 0f;
+        /// <summary>
+        /// 색이 더 이상 변하지 않는 시점을 지났는가. 표시를 갱신할 이유가 없어지는 때다.
+        ///
+        /// <b>투명도로 판정하지 않는다.</b> 예전에는 <c>Opacity01(...) &lt;= 0</c> 이었는데,
+        /// 페이드 값이 없는 씬에서는 <see cref="Opacity01"/> 가 계속 1 을 돌려주므로
+        /// 이 값이 <b>영영 false</b> 가 된다. 그러면 흔적 200개에 매 프레임 색을 넣게
+        /// 되어 §19 의 성능 기준이 깨진다(!347 AI 리뷰).
+        ///
+        /// 시간으로 재면 그런 구멍이 없다 — 페이드가 0 이면 식는 순간이 곧 끝이다.
+        /// <see cref="MeteorSpawner.Scar.ColorIsFinal"/> 도 이 계산을 그대로 쓴다.
+        /// </summary>
+        public static bool ColorIsFinal(float age, float coolSeconds, float fadeSeconds) =>
+            age >= coolSeconds + Mathf.Max(fadeSeconds, 0f);
 
         /// <summary>식은 정도 0~1.</summary>
         public static float Progress01(float age) => Progress01(age, PhysicsScale.MeteorScarCoolSeconds);

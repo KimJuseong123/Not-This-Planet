@@ -114,7 +114,7 @@ namespace Metagame.Gameplay.Hazards
         /// <summary>
         /// 이 흔적의 색을 다시 넣어야 하는가.
         ///
-        /// <b>Cooled 가 아니라 Faded 로 끊는다.</b> 식은 뒤에도 옅어지는 동안은 알파가
+        /// <b>Cooled 가 아니라 ColorIsFinal 로 끊는다.</b> 식은 뒤에도 옅어지는 동안은 알파가
         /// 변하므로 계속 넣어야 한다 — <c>Cooled</c> 로 끊으면 알파가 0.5 에서 굳어
         /// <b>검은 원이 그대로 남는다</b>(S15P21B202-438 의 증상이 정확히 그것이다).
         ///
@@ -124,7 +124,7 @@ namespace Metagame.Gameplay.Hazards
         /// 밖에서 부를 수 있게 두면 그 대조가 걸린다.
         /// </summary>
         public static bool ShouldRepaint(MeteorSpawner.Scar scar) =>
-            scar != null && !scar.Faded;
+            scar != null && !scar.ColorIsFinal;
 
         /// <summary>이 흔적에 넣을 색. 식는 단계와 옅어지는 단계를 모두 반영한다.</summary>
         public static Color ColorFor(MeteorSpawner.Scar scar) =>
@@ -135,8 +135,14 @@ namespace Metagame.Gameplay.Hazards
         void Hide(int from)
         {
             for (var i = from; i < _pool.Count; i++)
-                if (_pool[i]?.Root != null)
-                    _pool[i].Root.gameObject.SetActive(false);
+            {
+                if (_pool[i] == null) continue;
+
+                // 소멸한 흔적을 풀이 계속 붙들고 있지 않게 한다(!347 AI 리뷰).
+                _pool[i].Bound = null;
+
+                if (_pool[i].Root != null) _pool[i].Root.gameObject.SetActive(false);
+            }
 
             if (from == 0) VisibleCount = 0;
         }
