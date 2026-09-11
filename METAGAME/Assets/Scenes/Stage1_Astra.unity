@@ -83885,10 +83885,10 @@ MonoBehaviour:
     _restSpeed: 0.35
     _restSeconds: 0.3
     _deflectedDespawnSeconds: 12
-    _scarDespawnSeconds: 10
+    _scarDespawnSeconds: 13
     _scarSinkRatio: 0.6
     _scarCoolSeconds: 5
-    _scarFadeSeconds: 5
+    _scarFadeSeconds: 8
     _scarLimit: 200
     _maxLifeSeconds: 20
     _warningImminentSeconds: 0.5

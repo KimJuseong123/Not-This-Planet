@@ -981,11 +981,11 @@ namespace Metagame.Gameplay
         /// 조립 구역에 남으면 방해가 된다. <c>MeteorAftermathTests</c> 가 그 관계를
         /// 잠근다.
         ///
-        /// <b>12초에서 줄였다.</b> S15P21B202-438 이 흔적 수명을 30 → 10 으로 줄이면서
-        /// 12 가 더 길어졌다 — 관계를 지키려면 이쪽도 줄여야 한다. 원래 의도
-        /// ("조립 구역에 오래 굴러다니면 방해") 에는 8 이 더 잘 맞는다.
+        /// S15P21B202-438 에서 흔적 수명을 줄일 때 이 값을 함께 줄일 뻔했다. 그러지
+        /// 않고 <b>흔적 쪽 페이드를 늘려</b> 관계를 맞췄다 — 이 값은 플레이 감각이고
+        /// 그 이슈의 범위가 아니다(!347 AI 리뷰가 짚었다).
         /// </summary>
-        public const float MeteorDeflectedDespawnSeconds = 8f;
+        public const float MeteorDeflectedDespawnSeconds = 12f;
 
         /// <summary>
         /// 흔적이 세계에서 없어지는 시간(초).
@@ -995,12 +995,17 @@ namespace Metagame.Gameplay
         /// 보이지 않는 원반이 계속 살아 있고(전송·상한 계산에 들어간다) 더 짧으면
         /// 옅어지는 중에 사라져 툭 끊긴다.
         ///
+        /// <b>쳐낸 소품 수명(<see cref="MeteorDeflectedDespawnSeconds"/> 12초)보다
+        /// 길어야 한다.</b> 플레이어가 처리한 것을 더 빨리 치운다는 규칙이 있어서다.
+        /// 페이드를 8 로 잡은 이유가 이것이다 — 5 로 두면 수명이 10 이 되어 그 관계가
+        /// 뒤집힌다.
+        ///
         /// <b>30초에서 줄였다.</b> 파도 표(§17.4)는 후반에 15초마다 5개를 떨어뜨리고
         /// 인원 보정(§17.6)이 더 늘린다. 30초면 동시에 수십 개가 깔리고, 실제 플레이
         /// 로그에 36개가 살아 있던 기록이 있다 — 그 개수는 신뢰 없는 묶음 하나에
         /// 들어가지 않아 35개만 전송됐다(S15P21B202-438).
         /// </summary>
-        public const float MeteorScarDespawnSeconds = 10f;
+        public const float MeteorScarDespawnSeconds = 13f;
 
         /// <summary>
         /// 다 식은 흔적이 <b>옅어져 사라지는</b> 데 걸리는 시간(초).
@@ -1014,7 +1019,7 @@ namespace Metagame.Gameplay
         /// 여기에 시간을 주면 "타다 남은 자리가 흩어진다" 로 읽힌다. <b>수명만 줄이면
         /// 더 눈에 띈다</b> — 짧아진 시간 끝에 검은 원이 툭 사라지기 때문이다.
         /// </summary>
-        public const float MeteorScarFadeSeconds = 5f;
+        public const float MeteorScarFadeSeconds = 8f;
 
         /// <summary>
         /// 착탄한 운석이 지면에 박히는 깊이의 비율(반지름 기준).

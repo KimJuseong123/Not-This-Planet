@@ -37,6 +37,20 @@ namespace Metagame.Gameplay.Hazards
         {
             public Transform Root;
             public Material Material;
+
+            /// <summary>
+            /// 지금 이 원판이 그리고 있는 흔적.
+            ///
+            /// <b>풀은 목록 번호로 배정된다.</b> 흔적 하나가 빠지면 뒤가 앞으로 당겨져
+            /// 같은 번호에 다른 흔적이 온다. 그런데 아래 <see cref="ShouldRepaint"/> 는
+            /// 다 옅어진 흔적의 색 넣기를 건너뛰므로, 새로 온 흔적이 이미 옅어져
+            /// 있으면 <b>앞 흔적의 색이 그대로 남는다.</b>
+            ///
+            /// 지금은 수명(= 식는 시간 + 옅어지는 시간)이 끝나는 순간 목록에서도
+            /// 빠지므로 다 옅어진 흔적이 목록에 남아 있지 않다 — 우연히 성립한다.
+            /// 씬에서 수명만 늘리면 곧바로 깨지므로 여기서 막는다.
+            /// </summary>
+            public MeteorSpawner.Scar Bound;
         }
 
         readonly List<Marker> _pool = new();
@@ -87,8 +101,10 @@ namespace Metagame.Gameplay.Hazards
                 marker.Root.localScale = new Vector3(diameter, DiscThickness, diameter);
                 marker.Root.gameObject.SetActive(true);
 
-                if (ShouldRepaint(scar))
+                if (ShouldRepaint(scar) || marker.Bound != scar)
                     marker.Material.SetColor("_Color", ColorFor(scar));
+
+                marker.Bound = scar;
             }
 
             Hide(scars.Count);

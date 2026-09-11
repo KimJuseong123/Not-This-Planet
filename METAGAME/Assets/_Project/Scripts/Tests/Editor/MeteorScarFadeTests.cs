@@ -17,7 +17,7 @@ namespace Metagame.Gameplay.Tests
     public sealed class MeteorScarFadeTests
     {
         const float Cool = 5f;
-        const float Fade = 5f;
+        const float Fade = 8f;
 
         // --- 옅어지는 곡선 ---------------------------------------------------
 
@@ -33,9 +33,9 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void AfterCooling_ItFadesLinearlyToNothing()
         {
-            Assert.AreEqual(0.8f, MeteorScarLook.Opacity01(Cool + 1f, Cool, Fade), 1e-3f);
-            Assert.AreEqual(0.5f, MeteorScarLook.Opacity01(Cool + 2.5f, Cool, Fade), 1e-3f);
-            Assert.AreEqual(0.2f, MeteorScarLook.Opacity01(Cool + 4f, Cool, Fade), 1e-3f);
+            Assert.AreEqual(0.875f, MeteorScarLook.Opacity01(Cool + 1f, Cool, Fade), 1e-3f);
+            Assert.AreEqual(0.5f, MeteorScarLook.Opacity01(Cool + Fade * 0.5f, Cool, Fade), 1e-3f);
+            Assert.AreEqual(0.25f, MeteorScarLook.Opacity01(Cool + Fade * 0.75f, Cool, Fade), 1e-3f);
             Assert.AreEqual(0f, MeteorScarLook.Opacity01(Cool + Fade, Cool, Fade), 1e-4f);
         }
 
@@ -78,12 +78,20 @@ namespace Metagame.Gameplay.Tests
             Assert.AreEqual(0.5f, half, 1e-3f, "절반 시점에 절반이다.");
         }
 
+        /// <summary>
+        /// 페이드 시간이 없으면 <b>불투명을 유지한다</b> — 소멸은 수명이 맡는다.
+        ///
+        /// 처음에는 여기서 알파 0 을 돌려 식는 순간 사라지게 했다. 그러면 페이드 값이
+        /// 저장되지 않은 씬·프리팹의 흔적이 5초에 <b>툭 사라진다</b> — 이 이슈가 없애려는
+        /// 것과 정반대다(!347 AI 리뷰).
+        /// </summary>
         [Test]
-        public void WithNoFadeTime_ItDisappearsTheMomentItCools()
+        public void WithNoFadeTime_ItStaysOpaqueAndLetsTheLifetimeDoIt()
         {
             Assert.AreEqual(1f, MeteorScarLook.Opacity01(Cool - 0.1f, Cool, 0f), 1e-4f);
-            Assert.AreEqual(0f, MeteorScarLook.Opacity01(Cool, Cool, 0f), 1e-4f,
-                "페이드 시간이 0 이면 식는 순간 사라진다 — 예전 동작이 아니라 즉시 소멸이다.");
+            Assert.AreEqual(1f, MeteorScarLook.Opacity01(Cool, Cool, 0f), 1e-4f);
+            Assert.AreEqual(1f, MeteorScarLook.Opacity01(Cool + 100f, Cool, 0f), 1e-4f,
+                "툭 사라지지 않는다 — 세계에서 없애는 것은 ScarDespawnSeconds 의 몫이다.");
         }
 
         /// <summary>색은 건드리지 않고 알파만 뺀다.</summary>
@@ -119,6 +127,10 @@ namespace Metagame.Gameplay.Tests
         ///
         /// 파도 표(§17.4)의 마지막 구간은 15초마다 5개다. 수명이 그보다 길면 쌓인다 —
         /// 30초였을 때 실제 플레이에서 36개가 살아 있었다.
+        ///
+        /// <b>인원 보정(§17.6)은 낮추기만 한다</b>(1인 0.45 ~ 4인 1.0). 그래서 4인일
+        /// 때가 최악이고 아래 계산이 곧 상한이다 — MR 본문에 "인원 보정 2배" 라고 쓴
+        /// 것은 틀렸다(!347 AI 리뷰가 이 계산을 물었다).
         /// </summary>
         [Test]
         public void TheLifetimeKeepsTheGroundClear()
@@ -127,11 +139,26 @@ namespace Metagame.Gameplay.Tests
             var perWave = last.MaxMeteors;
             var waveSeconds = last.WaveIntervalSeconds;
 
+            // 4인(보정 1.0)이 최악이다. 보정은 인원이 적을수록 낮아진다.
             var alive = PhysicsScale.MeteorScarDespawnSeconds / waveSeconds * perWave;
 
             Assert.Less(alive, 10f,
                 $"후반 파도({waveSeconds}초마다 {perWave}개)에서 동시에 {alive:F1}개가 된다 — "
                 + "10개 안쪽이어야 지면이 검게 덮이지 않는다.");
+        }
+
+        /// <summary>
+        /// 쳐낸 소품이 흔적보다 먼저 사라진다 — 플레이어가 처리한 것을 더 빨리 치운다.
+        ///
+        /// <b>이 관계가 페이드 시간을 정했다.</b> 페이드 5 로 두면 수명이 10 이 되어
+        /// 소품(12)보다 짧아진다. 그때 소품 쪽을 줄일 수도 있었지만 그것은 이 이슈
+        /// 범위 밖의 플레이 감각이라, 흔적 쪽 페이드를 8 로 늘려 맞췄다.
+        /// </summary>
+        [Test]
+        public void TheScarOutlastsTheDeflectedProp()
+        {
+            Assert.Less(PhysicsScale.MeteorDeflectedDespawnSeconds,
+                        PhysicsScale.MeteorScarDespawnSeconds);
         }
 
         // --- 씬에 저장된 값이 실제로 읽히는가 ---------------------------------
@@ -159,20 +186,21 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
-        /// 페이드 시간이 0 인 조정값(예전 씬을 그대로 읽은 경우)에서도 검은 원이
-        /// 남지 않는다 — 식는 순간 사라진다.
+        /// 페이드 값이 0 인 조정값(그 필드가 없는 씬·프리팹)에서는 <b>예전 동작으로
+        /// 돌아간다</b> — 옅어지지 않고 수명이 끝날 때 사라진다.
         ///
-        /// 씬에 <c>_scarFadeSeconds</c> 를 명시했지만, 다른 씬이나 프리팹이 그 필드
-        /// 없이 남아 있을 수 있다. 그때 0 으로 읽히면 <b>덜 부드럽지만 증상은 없다</b>
-        /// 는 것을 잠근다.
+        /// 그것이 안전한 폴백이다. 즉시 소멸로 두면 "툭 사라지지 않는다" 는 목적과
+        /// 반대가 된다. 씬 둘에는 값을 명시했으므로 이 경로는 대비책이다.
         /// </summary>
         [Test]
-        public void EvenWithoutAFadeTime_NoBlackDiscRemains()
+        public void WithoutAFadeTime_ItFallsBackToTheOldBehaviour()
         {
-            var gone = MeteorScarLook.ColorOf(Cool + 1f, Cool, 0f);
+            var still = MeteorScarLook.ColorOf(Cool + 1f, Cool, 0f);
 
-            Assert.AreEqual(0f, gone.a, 1e-4f);
-            Assert.IsTrue(MeteorScarLook.Faded(Cool, Cool, 0f));
+            Assert.AreEqual(MeteorScarLook.ColdColor.a, still.a, 1e-4f,
+                "옅어지지 않는다 — 수명이 끝날 때까지 남는다.");
+            Assert.IsFalse(MeteorScarLook.Faded(Cool + 100f, Cool, 0f),
+                "페이드가 없으면 '다 옅어졌다' 가 성립하지 않는다.");
         }
 
         // --- 표시가 옅어짐을 따라가는가 (배선) -------------------------------

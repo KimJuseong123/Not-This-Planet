@@ -81,7 +81,11 @@ namespace Metagame.Gameplay.Hazards
         /// </summary>
         public static float Opacity01(float age, float coolSeconds, float fadeSeconds)
         {
-            if (fadeSeconds <= 0f) return age >= coolSeconds ? 0f : 1f;
+            // **페이드 시간이 없으면 불투명을 유지한다.** 예전에는 여기서 0 을 돌려
+            // 식는 순간 사라지게 했는데, 그러면 페이드 값이 저장되지 않은 씬·프리팹의
+            // 흔적이 5초에 툭 사라진다 — "툭 사라지지 않는다" 는 이 이슈의 목적과
+            // 정반대다(!347 AI 리뷰). 소멸은 수명(ScarDespawnSeconds)이 맡는다.
+            if (fadeSeconds <= 0f) return 1f;
             if (age <= coolSeconds) return 1f;
 
             return Mathf.Clamp01(1f - (age - coolSeconds) / fadeSeconds);

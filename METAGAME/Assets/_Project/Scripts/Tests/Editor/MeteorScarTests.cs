@@ -191,6 +191,40 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
+        /// <b>흔적이 실제로 목록에서 빠진다.</b>
+        ///
+        /// !347 AI 리뷰가 물은 것 — <c>Faded</c> 경계에서 <c>Age</c> 증가가 멈추는데
+        /// 소멸 판정이 그 값에 의존하면 부등호 하나로 영구히 남을 수 있다.
+        ///
+        /// 실제로는 두 타이머가 <b>별개다.</b> <c>Scar.Age</c> 는
+        /// <c>MeteorSpawner.AdvanceScars</c> 가 세고 표시에만 쓰이며,
+        /// 소멸은 <c>Meteor.Tick</c> 의 <c>_sinceSettled</c> 가 따로 센다 —
+        /// 그쪽은 <c>Faded</c> 와 무관하게 계속 늘어난다. 이 검증이 그 사실을 잠근다.
+        /// </summary>
+        [Test]
+        public void TheScarLeavesTheListWhenItsLifetimeEnds()
+        {
+            var spawner = MakeSpawner();
+            var meteor = MakeMeteor(new Vector3(0f, 4f, 0f));
+            Attach(spawner, meteor);
+
+            meteor.ApplyImpact(Vector3.zero);
+            spawner.Tick(Step);
+            Assert.AreEqual(1, spawner.Scars.Count, "흔적이 생겼다.");
+
+            // 다 옅어진 뒤에도 나이 세기는 멈추지만 수명은 따로 흐른다.
+            Advance(spawner, PhysicsScale.MeteorScarCoolSeconds
+                             + PhysicsScale.MeteorScarFadeSeconds + 0.5f);
+            Assert.IsTrue(spawner.Scars.Count == 0 || spawner.Scars[0].Faded,
+                "이 시점에는 보이지 않는다.");
+
+            Advance(spawner, PhysicsScale.MeteorScarDespawnSeconds + 1f);
+
+            Assert.AreEqual(0, spawner.Scars.Count,
+                "수명이 끝나면 목록에서 빠진다 — 나이가 멈춰도 소멸은 따로 흐른다.");
+        }
+
+        /// <summary>
         /// 식은 뒤에도 <b>옅어지는 동안은</b> 나이를 센다(S15P21B202-438).
         ///
         /// <b>예전에는 식으면 멈췄다</b> — 150~200개가 쌓여도 매 프레임 비용이 0 이
@@ -316,7 +350,14 @@ namespace Metagame.Gameplay.Tests
             SettleOne(spawner, Vector3.zero);
 
             spawner.SetPaused(true);
-            Advance(spawner, 30f);
+
+            // **수명 안쪽으로 돌린다.** 예전에는 30초를 돌렸는데 그때는 흔적이
+            // 사라지는 경로가 아예 없었다(S15P21B202-438 에서 드러났다). 이제는
+            // 수명이 실제로 흐르므로 30초를 돌리면 수명 때문에 사라진다 — 그러면
+            // 이 검사는 일시정지가 아니라 수명을 재는 것이 된다.
+            //
+            // 수명이 지우는 것은 TheScarLeavesTheListWhenItsLifetimeEnds 가 맡는다.
+            Advance(spawner, PhysicsScale.MeteorScarDespawnSeconds - 1f);
 
             Assert.AreEqual(1, spawner.Scars.Count, "발사 실패 뒤에도 남는다.");
         }
