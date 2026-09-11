@@ -86,17 +86,18 @@ namespace Metagame.Gameplay
                 {
                     return new Settings
                     {
-                        leftIdlePosition = new Vector3(-0.18f, -0.14f, 0.37f),
-                        rightIdlePosition = new Vector3(0.18f, -0.14f, 0.37f),
-                        leftIdleEuler = new Vector3(-78f, -7f, -3f),
-                        rightIdleEuler = new Vector3(-78f, 7f, 3f),
-                        leftGrabOffset = new Vector3(0.018f, 0.008f, 0.020f),
-                        rightGrabOffset = new Vector3(-0.018f, 0.008f, 0.020f),
-                        leftGrabEuler = new Vector3(-12f, -4f, -5f),
-                        rightGrabEuler = new Vector3(-12f, 4f, 5f),
+                        leftIdlePosition = new Vector3(-0.34f, -0.24f, 0.42f),
+                        rightIdlePosition = new Vector3(0.34f, -0.24f, 0.42f),
+                        leftIdleEuler = new Vector3(168f, 25f, -12f),
+                        rightIdleEuler = new Vector3(168f, -25f, 12f),
+                        // The mesh points along local -Z; reach forward in wrist space.
+                        leftGrabOffset = new Vector3(0f, 0f, -0.06f),
+                        rightGrabOffset = new Vector3(0f, 0f, -0.06f),
+                        leftGrabEuler = new Vector3(-6f, 0f, 0f),
+                        rightGrabEuler = new Vector3(-6f, 0f, 0f),
                         leftGrabScale = new Vector3(1f, 0.96f, 1.03f),
                         rightGrabScale = new Vector3(1f, 0.96f, 1.03f),
-                        visualLength = 0.28f,
+                        visualLength = 0.22f,
                         mirrorLeftHand = false,
                         mirrorRightHand = true,
                         poseSmoothTime = 0.085f,
@@ -113,6 +114,18 @@ namespace Metagame.Gameplay
 
         [SerializeField]
         Settings settings = Settings.Default;
+
+#if UNITY_EDITOR
+        // Preview only: player builds use the serialized scene settings during Create.
+        [ContextMenu("Apply Lower Corner Hand Preset")]
+        public void ApplyLowerCornerHandPreset()
+        {
+            settings = Settings.Default;
+            if (player == null || orbitCamera == null) return;
+            ClearVisuals();
+            Bind(player, orbitCamera, settings);
+        }
+#endif
 
         PlayerRig player;
         OrbitCamera orbitCamera;
@@ -219,6 +232,10 @@ namespace Metagame.Gameplay
             ConfigureRenderers(model);
             visual = model.transform;
             visualBaseScale = visual.localScale;
+            // Set the initial pose after size normalization to keep scaling independent of pose.
+            hand.localPosition = side < 0f ? settings.leftIdlePosition : settings.rightIdlePosition;
+            hand.localRotation = Quaternion.Euler(side < 0f
+                ? settings.leftIdleEuler : settings.rightIdleEuler);
             return hand;
         }
 
