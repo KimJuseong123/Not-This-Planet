@@ -156,6 +156,12 @@ namespace Metagame.Gameplay.Tests
             var part = MakeClampedPart(new Vector3(0f, 1f, 0f));
             ReleaseClamp(part, 0);
 
+            // **전제를 먼저 확인한다.** 이 검사는 "고정못이 하나 풀린 상태" 를 전제로
+            // 하는데, 한때 헬퍼가 풀린 고정못을 지워 버려 그 전제가 조용히 무너졌고
+            // 그러면 아래 단정이 엉뚱한 이유로 실패했다 (S15P21B202-463).
+            Assert.IsTrue(part.HasReleasedClamp,
+                "풀린 고정못이 남아 있어야 한다 — 이 전제가 없으면 부분 부양 자체가 성립하지 않는다.");
+
             var field = MakeField(new Vector3(0f, 9f, 0f));
             field.Tick(Step);
 

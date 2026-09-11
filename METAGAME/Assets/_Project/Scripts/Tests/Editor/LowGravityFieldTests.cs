@@ -260,6 +260,11 @@ namespace Metagame.Gameplay.Tests
             // `MakeField` 헬퍼를 고치지 않은 이유: `Configure` 로 받은 강체는 장치를
             // **따라오는 힘**에도 쓰여서, 헬퍼를 바꾸면 그것을 쓰는 다른 검사들의
             // 측정값까지 같이 움직인다.
+            // 강체를 **장치와 같은 오브젝트**에 붙이는 것이 실제 배치다 — 운반선 본체가
+            // 강체이고 저중력장이 그 위에 얹힌다(형제 검사 `Field_AffectsSiblingPartUnderSameSceneRoot`
+            // 와 같은 모양). 그 아래에 강체를 가진 부품이 매달리는 **중첩 강체**도
+            // 실제 그대로다 — 이 검사가 보려는 것이 바로 "자기 밑에 달린 부품을 밀어
+            // 올리지 않는가" 이기 때문이다.
             var carrier = field.gameObject.AddComponent<Rigidbody>();
             carrier.useGravity = false;
             carrier.isKinematic = true;
