@@ -169,8 +169,14 @@ namespace Metagame.Gameplay.Parts
         const float RiderHeight = 1.15f;
 
         Rigidbody body;
+        internal const float HullMass = 80f;
         BoxCollider platform;
         BoxCollider[] hullColliders = Array.Empty<BoxCollider>();
+
+        // A converted engine remains a weldable ship part. Standalone vehicles stay props.
+        int HullLayer => GetComponent<SpaceshipPart>() != null ? GameLayers.Part : GameLayers.Prop;
+        public Vector3 AssemblyUp => visual != null ? visual.up : transform.up;
+        public bool CanReceiveAssembly => rider == null && !Unmanned && !tumbling && !righting;
 
         /// <summary>Preserve authored compound boxes in the visual frame before the beam root rotates.</summary>
         internal void ConfigureHull(System.Collections.Generic.IReadOnlyList<BoxCollider> sources)
@@ -186,7 +192,7 @@ namespace Metagame.Gameplay.Parts
             for (int i = 0; i < sources.Count; i++)
             {
                 var source = sources[i];
-                var go = new GameObject("VehicleHull_" + i) { layer = GameLayers.Prop };
+                var go = new GameObject("VehicleHull_" + i) { layer = HullLayer };
                 go.transform.SetPositionAndRotation(source.transform.position, source.transform.rotation);
                 go.transform.localScale = source.transform.lossyScale;
                 go.transform.SetParent(visual, true);
@@ -198,6 +204,10 @@ namespace Metagame.Gameplay.Parts
                 hullColliders[i] = box;
             }
             platform.enabled = false;
+
+            // Sockets must follow the same upright frame as the hull, not the downward beam root.
+            foreach (var socket in GetComponentsInChildren<PartSocket>(true))
+                socket.transform.SetParent(visual, true);
         }
         Transform platformAnchor;
         Transform seat;
@@ -245,8 +255,8 @@ namespace Metagame.Gameplay.Parts
 
         /// <summary>
         /// 바닥으로 인정할 레이어. 사람과 트리거, 운석, Ignore Raycast 는 뺀다.
-        /// 지면과 절벽 벽은 Default, 우주선 파츠는 Part 레이어다. 자기 자신은 Prop 이라
-        /// 레이어로 걸러지지 않으므로 <see cref="ProbeGround"/> 에서 계층으로 걸러낸다.
+        /// 지면과 절벽 벽은 Default, 우주선 파츠와 견인 엔진은 Part 레이어다.
+        /// 자기 몸체는 <see cref="ProbeGround"/> 에서 계층으로 걸러낸다.
         ///
         /// 화이트리스트가 아니라 제외 목록인 이유는 "무엇에든 닿으면 내린다"가 이 수정의
         /// 핵심이기 때문이다. 앞으로 추가되는 지형 레이어가 자동으로 바닥이 되는 편이
@@ -538,13 +548,15 @@ namespace Metagame.Gameplay.Parts
         void EnsurePhysics()
         {
             if (body == null) body = GetComponent<Rigidbody>();
-            body.mass = 80f;
+            var part = GetComponent<SpaceshipPart>();
+            body.mass = HullMass + (part != null ? part.ExtraMass : 0f);
+            body.isKinematic = WorldEvents.RemoteDecides;
             body.useGravity = true;
             body.interpolation = RigidbodyInterpolation.Interpolate;
             body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             body.constraints = RigidbodyConstraints.FreezeRotation;
 
-            gameObject.layer = GameLayers.Prop;
+            gameObject.layer = HullLayer;
 
             if (platformAnchor == null)
             {
@@ -562,7 +574,7 @@ namespace Metagame.Gameplay.Parts
             // compound collider remains a horizontal floor for the rider.
             platformAnchor.position = transform.position + Vector3.up * PlatformHeight;
             platformAnchor.rotation = Quaternion.identity;
-            platformAnchor.gameObject.layer = GameLayers.Prop;
+            platformAnchor.gameObject.layer = HullLayer;
 
             if (platform == null) platform = platformAnchor.GetComponent<BoxCollider>();
             if (platform == null) platform = platformAnchor.gameObject.AddComponent<BoxCollider>();

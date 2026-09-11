@@ -95,7 +95,7 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>탑을 쌓고 최하단을 돌려준다.</summary>
-        SpaceshipPart BuildTower(float lateralPerTier, bool welded)
+        SpaceshipPart BuildTower(float lateralPerTier, bool welded, bool tractor = false)
         {
             MakeGround();
 
@@ -110,8 +110,22 @@ namespace Metagame.Gameplay.Tests
                 y += spec.Height;
             }
 
-            parts[0].TryTransitionTo(PartState.Carried);
-            parts[0].TryTransitionTo(PartState.Placed);
+            if (tractor)
+            {
+                var activator = parts[0].gameObject.AddComponent<PartTractorActivator>();
+                activator.Initialize();
+                Assert.IsTrue(activator.IsActivated);
+                PartSocket top = null;
+                foreach (var socket in parts[0].Sockets)
+                    if (socket.Role == SocketRole.Top) top = socket;
+                var offset = Vector3.up * (top.transform.position.y - PartSpec.All[0].Height);
+                for (var i = 1; i < parts.Length; i++) parts[i].transform.position += offset;
+            }
+            else
+            {
+                parts[0].TryTransitionTo(PartState.Carried);
+                parts[0].TryTransitionTo(PartState.Placed);
+            }
             UnityEngine.Physics.SyncTransforms();
 
             for (var i = 1; i < parts.Length; i++)
@@ -175,6 +189,20 @@ namespace Metagame.Gameplay.Tests
         }
 
         // --- 성공 ----------------------------------------------------------
+
+        [Test]
+        public void ConvertedTractorEngine_WeldedTowerReachesSuccess()
+        {
+            var engine = BuildTower(0f, welded: true, tractor: true);
+            var test = RunLaunch(engine);
+            Assert.AreEqual(LaunchState.Ascending, test.State, test.FailureReason);
+            for (var i = 0; i < 1000 && test.State == LaunchState.Ascending; i++)
+            {
+                test.Tick(Step);
+                UnityEngine.Physics.Simulate(Step);
+            }
+            Assert.AreEqual(LaunchState.Success, test.State, test.FailureReason);
+        }
 
         /// <summary>
         /// 기획 §16.2 — "파츠를 전부 쌓기만 하면 발사를 시도할 수 있으며 발사 하중으로

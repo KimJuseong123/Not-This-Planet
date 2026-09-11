@@ -45,14 +45,14 @@ namespace Metagame.Gameplay.Parts
 
         /// <summary>
         /// 위에 파츠를 받을 수 있는 상태인지.
-        /// 아직 조립에 들어가지 않은 파츠의 위쪽 소켓에는 쌓을 수 없다.
+        /// 배치된 파츠와 탑승자가 없는 견인 엔진의 위쪽 소켓에 쌓을 수 있다.
         /// 이것이 "아래에서 위로" 순서를 강제하는 규칙이다.
         /// </summary>
         public bool CanReceive =>
             _role == SocketRole.Top
             && !IsOccupied
             && Owner != null
-            && Owner.State is PartState.Placed or PartState.Welded;
+            && Owner.CanReceiveAssembly;
 
         void OnEnable()
         {

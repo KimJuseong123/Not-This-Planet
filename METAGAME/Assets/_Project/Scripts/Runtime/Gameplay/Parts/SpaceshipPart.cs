@@ -40,6 +40,14 @@ namespace Metagame.Gameplay.Parts
 
         public PartState State => _state;
 
+        /// <summary>조립 자세는 견인 빔 축이 아닌 실제 몸체를 기준으로 판정한다.</summary>
+        public Vector3 AssemblyUp => GetComponent<TransportVehicle>() is TransportVehicle vehicle
+            ? vehicle.AssemblyUp : transform.up;
+
+        public bool CanReceiveAssembly => State is PartState.Placed or PartState.Welded
+            || (State == PartState.Free && GetComponent<TransportVehicle>() is TransportVehicle vehicle
+                && vehicle.CanReceiveAssembly);
+
         public IReadOnlyList<PartClamp> Clamps
         {
             get
@@ -339,6 +347,17 @@ namespace Metagame.Gameplay.Parts
 
         void ApplyRepresentation(PartState state)
         {
+            // Converted engines keep their vehicle physics, including during bead mass updates
+            // and host migration. Component.enabled does not prevent these direct calls.
+            if (GetComponent<PartTractorActivator>() is PartTractorActivator activator && activator.IsActivated)
+            {
+                if (_body == null) _body = GetComponent<Rigidbody>();
+                gameObject.layer = GameLayers.Part;
+                _body.isKinematic = WorldEvents.RemoteDecides;
+                _body.mass = TransportVehicle.HullMass + _extraMass;
+                return;
+            }
+
             var (layer, mass, isKinematic) = RepresentationOf(state, PlacedMass);
 
             // 레이어는 이 오브젝트에만 준다. 자식의 고정쇠는 Interactable 레이어에 있어야
@@ -361,8 +380,7 @@ namespace Metagame.Gameplay.Parts
             // 매 프레임 kinematic 을 세우지만 그것은 **자기 Update 차례**에서다. 이 줄은
             // 그 사이에 이 컴포넌트가 스스로 푸는 것을 막는다 — 풀린 한 물리 스텝에
             // 로컬 중력·충격이 들어가면 서버 자세와 다투어 처지고 떨린다.
-            // 반대로 탈것으로 바뀐 파츠는 enabled = false 라 이 줄을 안 타므로
-            // 그쪽은 WorldSync 의 방어선만이 막는다. 둘 다 필요하다.
+            // 견인 엔진도 위 전용 물리 분기에서 같은 권한 규칙을 적용한다.
             _body.isKinematic = WorldEvents.RemoteDecides || (isKinematic && !HasReleasedClamp);
 
             // 견인 중에는 덧붙은 질량을 더하지 않는다. CarriedPartMass 는 크기와 무관하게
