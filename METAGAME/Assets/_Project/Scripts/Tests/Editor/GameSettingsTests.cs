@@ -33,6 +33,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(settings.display.width, Is.GreaterThanOrEqualTo(320));
             Assert.That(settings.display.height, Is.GreaterThanOrEqualTo(240));
             Assert.That(settings.display.frameRateLimit, Is.EqualTo(120));
+            Assert.That(settings.display.uiTextScale, Is.EqualTo(1f));
             Assert.That(settings.audio.masterVolume, Is.EqualTo(1f));
             Assert.That(settings.audio.sfxVolume, Is.EqualTo(1f));
             Assert.That(settings.controls.lookSensitivity, Is.EqualTo(2.4f));
@@ -82,6 +83,7 @@ namespace Metagame.Gameplay.Tests
             original.display.width = 1280;
             original.display.height = 720;
             original.display.vSync = false;
+            original.display.uiTextScale = 1.35f;
             original.audio.masterVolume = 0.35f;
             original.audio.sfxVolume = 0.65f;
             original.controls.lookSensitivity = 1.7f;
@@ -99,6 +101,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(loaded.display.width, Is.EqualTo(1280));
             Assert.That(loaded.display.height, Is.EqualTo(720));
             Assert.That(loaded.display.vSync, Is.False);
+            Assert.That(loaded.display.uiTextScale, Is.EqualTo(1.35f).Within(0.0001f));
             Assert.That(loaded.audio.masterVolume, Is.EqualTo(0.35f).Within(0.0001f));
             Assert.That(loaded.audio.sfxVolume, Is.EqualTo(0.65f).Within(0.0001f));
             Assert.That(loaded.controls.lookSensitivity, Is.EqualTo(1.7f).Within(0.0001f));
@@ -109,7 +112,7 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void MissingFieldsKeepProjectDefaults()
         {
-            File.WriteAllText(filePath, "{\"audio\":{\"masterVolume\":0.25}}");
+            File.WriteAllText(filePath, "{\"display\":{\"width\":1280},\"audio\":{\"masterVolume\":0.25}}");
             var store = new GameSettingsStore(filePath);
 
             bool recovered;
@@ -120,6 +123,32 @@ namespace Metagame.Gameplay.Tests
             Assert.That(loaded.audio.sfxVolume, Is.EqualTo(1f));
             Assert.That(loaded.controls.jump, Is.EqualTo(KeyCode.Space));
             Assert.That(loaded.display.frameRateLimit, Is.EqualTo(120));
+            Assert.That(loaded.display.uiTextScale, Is.EqualTo(1f));
+        }
+
+        [TestCase(0f, 1f)]
+        [TestCase(-1f, 1f)]
+        [TestCase(0.5f, 0.8f)]
+        [TestCase(2f, 1.5f)]
+        [TestCase(float.NaN, 1f)]
+        [TestCase(float.PositiveInfinity, 1f)]
+        public void TextScaleNormalizesInvalidValues(float value, float expected)
+        {
+            var settings = new GameSettingsData();
+            settings.display.uiTextScale = value;
+            settings.Normalize();
+            Assert.That(settings.display.uiTextScale, Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void TextScalePreviewCopyDoesNotChangeSavedData()
+        {
+            var saved = new GameSettingsData();
+            saved.display.uiTextScale = 1.25f;
+            var preview = saved.Clone();
+            Assert.That(preview.display.uiTextScale, Is.EqualTo(1.25f));
+            preview.display.uiTextScale = 1.5f;
+            Assert.That(saved.display.uiTextScale, Is.EqualTo(1.25f));
         }
 
         [Test]

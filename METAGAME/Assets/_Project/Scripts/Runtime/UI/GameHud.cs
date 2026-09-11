@@ -177,11 +177,16 @@ namespace Metagame.UI
         // ── HUD ─────────────────────────────────────────────────
         void OnGUI()
         {
+            using (new UiScale.Scope(UiScale.Value)) DrawScaledGui();
+        }
+
+        void DrawScaledGui()
+        {
             if (Event.current.type != EventType.Repaint && Event.current.type != EventType.Layout) return;
             EnsureStyles();
 
             var s = GameSession.Instance;
-            float w = Screen.width, h = Screen.height;
+            float w = UiScale.Width, h = UiScale.Height;
 
             Reticle(w, h);
 

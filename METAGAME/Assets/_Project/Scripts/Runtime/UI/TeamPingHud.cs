@@ -83,6 +83,11 @@ namespace Metagame.UI
 
         void OnGUI()
         {
+            using (new UiScale.Scope(UiScale.Value)) DrawScaledGui();
+        }
+
+        void DrawScaledGui()
+        {
             if (Event.current.type != EventType.Repaint) return;
             EnsureStyle();
 
@@ -112,16 +117,16 @@ namespace Metagame.UI
 
         void DrawPing(Camera camera, Vector3 worldPosition, Color color)
         {
-            Vector3 screen = camera.WorldToScreenPoint(worldPosition);
+            Vector3 screen = UiScale.ScreenPoint(camera.WorldToScreenPoint(worldPosition));
             bool onScreen = screen.z > 0f
-                         && screen.x >= 0f && screen.x <= Screen.width
-                         && screen.y >= 0f && screen.y <= Screen.height;
+                         && screen.x >= 0f && screen.x <= UiScale.Width
+                         && screen.y >= 0f && screen.y <= UiScale.Height;
 
             Vector2 point;
             float rotation = 0f;
             if (onScreen)
             {
-                point = new Vector2(screen.x, Screen.height - screen.y);
+                point = new Vector2(screen.x, UiScale.Height - screen.y);
             }
             else
             {
@@ -139,15 +144,15 @@ namespace Metagame.UI
                     direction = behind ? Vector2.down : Vector2.up;
                 direction.Normalize();
 
-                float halfWidth = Mathf.Max(1f, Screen.width * 0.5f - EdgeMargin - IconSize * 0.5f);
-                float halfHeight = Mathf.Max(1f, Screen.height * 0.5f - EdgeMargin - IconSize * 0.5f);
+                float halfWidth = Mathf.Max(1f, UiScale.Width * 0.5f - EdgeMargin - IconSize * 0.5f);
+                float halfHeight = Mathf.Max(1f, UiScale.Height * 0.5f - EdgeMargin - IconSize * 0.5f);
                 float scale = float.MaxValue;
                 if (Mathf.Abs(direction.x) > 0.001f)
                     scale = Mathf.Min(scale, halfWidth / Mathf.Abs(direction.x));
                 if (Mathf.Abs(direction.y) > 0.001f)
                     scale = Mathf.Min(scale, halfHeight / Mathf.Abs(direction.y));
 
-                point = new Vector2(Screen.width * 0.5f, Screen.height * 0.5f)
+                point = new Vector2(UiScale.Width * 0.5f, UiScale.Height * 0.5f)
                       + direction * scale;
                 rotation = Mathf.Atan2(direction.x, -direction.y) * Mathf.Rad2Deg;
             }
@@ -178,11 +183,11 @@ namespace Metagame.UI
 
         void DrawDistance(Vector2 point, string text, Color color)
         {
-            bool putLeft = point.x > Screen.width * 0.70f;
+            bool putLeft = point.x > UiScale.Width * 0.70f;
             float x = putLeft ? point.x - IconSize * 0.5f - LabelWidth - 4f
                               : point.x + IconSize * 0.5f + 4f;
             float y = Mathf.Clamp(point.y - LabelHeight * 0.5f, 4f,
-                                  Mathf.Max(4f, Screen.height - LabelHeight - 4f));
+                                  Mathf.Max(4f, UiScale.Height - LabelHeight - 4f));
             var rect = new Rect(x, y, LabelWidth, LabelHeight);
 
             Color previousColor = GUI.color;

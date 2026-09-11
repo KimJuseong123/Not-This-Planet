@@ -82,6 +82,9 @@
 
 ## Testing And Validation
 
+- UI accessibility (2026-09-11): Settings > Graphics includes `UI 텍스트 크기 조정` (80–150%, 5% steps). `display.uiTextScale` uses the existing local preview/save/cancel/default flow. `UiScale.Scope` scales IMGUI text and controls together using virtual screen bounds; camera-projected nameplates and pings convert pixels into those coordinates. The first-person tablet scales its model and attached canvas together to preserve internal layout. No scene or prefab wiring is required.
+- UI scale validation: generated UI and EditMode-test projects compiled with zero errors; tests were compiled, not executed. Remaining Play Mode checks: lobby and Esc settings at 80/100/150%, slider and scroll input, save/restart, cancel/defaults, HUD screen anchors and ping/nameplate targets, tablet visibility at maximum size, and independent settings on two clients. Check both 1280×720 and 1920×1080.
+
 - EditMode tests: Unity Test Framework suites exist under `Assets/_Project/Scripts/Tests/Editor/`; `AtmosphereProfileTests.cs` covers profile validation/default opt-in behavior. Lobby-specific behavior is currently intended for Play Mode/manual integration checks because it depends on `VideoPlayer`, scene loading, IMGUI, Mirror, and the live Spring WebSocket contract.
 - PlayMode tests: none; `Assets/_Project/Scripts/Tests/Runtime/` is still empty.
 - Runtime self-test: `SpaceSelfTest` feeds input straight into `PlayerRig.SetInput()` and asserts roughly 112 invariants. The Stage1 exploration flow additionally needs a Play Mode smoke test for Tab, proximity discovery, and tablet input lock. The current Windows-player run reached 110/112 checks; its 2 failures are unrelated existing light-box/crater-geometry checks.
