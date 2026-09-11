@@ -399,14 +399,33 @@ def branch_failed(gl: GitLab) -> int:
     more = f" … 외 {len(reasons) - len(shown)}건" if len(reasons) > len(shown) else ""
     reason_cell = (numbered + more) if shown else "로그에서 이유를 찾지 못함 — 잡 링크에서 확인"
 
-    return send(card(f"🔴 **{branch} 가 빨갛다**", [
+    # **master 는 말이 다르다** (S15P21B202-407 ①).
+    #
+    # develop 이 빨간 것은 "모든 사람의 다음 브랜치가 빨간 기준선 위에서 시작한다" 다.
+    # master 는 아무도 그 위에서 브랜치를 따지 않는다 — 대신 **릴리스가 나가지 않았다.**
+    # 같은 문구를 쓰면 읽는 사람이 할 일을 잘못 고른다(develop 이면 고치는 MR, master 면
+    # 릴리스를 다시 내보내는 것).
+    if branch == "master":
+        head, tail = "🔴 **릴리스가 실패했다**", [
+            ("영향", "**이 릴리스는 나가지 않았다** — 패키지·Release·태그가 만들어지지 않았고 "
+                     "사용자가 받을 것이 없다. master 코드는 머지된 그대로 남아 있다"),
+            ("담당", mention),
+            ("조치", "잡 로그의 ❌ 줄을 보고 고친다. 버전을 못 정한 경우라면 머지 커밋에 "
+                     "`release/<키>-vX.Y.Z` 가 없는 것이다(git-convention §8). 고친 뒤 "
+                     "이 파이프라인을 재실행하면 릴리스가 다시 시도된다"),
+        ]
+    else:
+        head, tail = f"🔴 **{branch} 가 빨갛다**", [
+            ("영향", f"지금 `{branch}` 에서 딴 브랜치는 **빨간 기준선 위에서 시작한다** — 남의 실패를 물려받는다"),
+            ("담당", mention),
+            ("조치", "고치는 MR 을 올리거나 원인 MR 을 되돌린다. 고쳐지면 다음 초록 파이프라인이 ✅ 카드를 보낸다"),
+        ]
+
+    return send(card(head, [
         ("커밋", f"[`{sha}`]({env('CI_PROJECT_URL', '')}/-/commit/{env('CI_COMMIT_SHA', '')}) {title}".strip()),
         ("실패한 잡", parts),
         ("이유", reason_cell),
-        ("영향", f"지금 `{branch}` 에서 딴 브랜치는 **빨간 기준선 위에서 시작한다** — 남의 실패를 물려받는다"),
-        ("담당", mention),
-        ("조치", "고치는 MR 을 올리거나 원인 MR 을 되돌린다. 고쳐지면 다음 초록 파이프라인이 ✅ 카드를 보낸다"),
-    ]))
+    ] + tail))
 
 
 def branch_resolved(gl: GitLab) -> int:
@@ -421,6 +440,15 @@ def branch_resolved(gl: GitLab) -> int:
     pid = env("CI_PIPELINE_ID", "")
     if not (gl.token and branch != "?"):
         print("토큰·브랜치 없음 → 생략"); return 0
+
+    # **master 는 이 카드를 보내지 않는다** (S15P21B202-407 ①).
+    #
+    # 이 카드의 내용은 "이제 이 브랜치에서 브랜치를 따도 된다" 인데, master 에서는 아무도
+    # 브랜치를 따지 않는다. 그리고 master 가 초록이면 그것은 곧 릴리스가 성공한 것이고,
+    # `publish_release.py` 가 이미 내려받기 링크·들어간 MR 목록이 든 🟢 카드를 보낸다.
+    # 여기서 또 보내면 같은 사실이 두 장이 되고, 정보가 적은 쪽이 나중에 온다.
+    if branch == "master":
+        print("master 초록 — 🟢 릴리스 카드가 publish_release 에서 나간다 → 생략"); return 0
 
     st, pipes = http("GET", f"{gl.api}/projects/{gl.project}/pipelines"
                             f"?ref={branch}&per_page=10&order_by=id&sort=desc", gl.headers())
