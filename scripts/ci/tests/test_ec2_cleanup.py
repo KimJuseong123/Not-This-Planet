@@ -33,9 +33,14 @@ print("== EC2 정리 ==")
 
 
 # ── ① 절대 하면 안 되는 것 ───────────────────────────────────────────────
+#
+#     **묶음 플래그와 롱 옵션까지 본다.** 처음에는 `\s-a\b` 였는데, `-af` 는 `a` 뒤가
+#     `f` 라 `\b` 가 성립하지 않아 **그냥 통과했다.** `--all` 도 마찬가지였다.
+#     막으려던 바로 그 실수를 놓치는 검사는 없는 것보다 나쁘다 — 있다고 믿게 만든다.
 FORBIDDEN = [
-    (r"docker\s+image\s+prune[^\n]*\s-a\b",
-     "`docker image prune -a` — 태그 붙은 Unity 이미지(33 GB)까지 지운다. 다시 받는 데 7분"),
+    (r"docker\s+image\s+prune[^\n]*(?:\s-\w*a|--all\b)",
+     "`docker image prune -a`(`-af`·`--all` 포함) — 태그 붙은 Unity 이미지(33 GB)까지 "
+     "지운다. 다시 받는 데 7분"),
     (r"docker\s+system\s+prune",
      "`docker system prune` — 이미지·볼륨·캐시를 한꺼번에 지운다. 러너 Library 가 거기 있다"),
     (r"docker\s+volume\s+prune",
@@ -49,6 +54,35 @@ for pat, why in FORBIDDEN:
     m = re.search(pat, code)
     assert not m, f"정리가 위험한 명령을 쓴다: {m.group(0) if m else ''}\n    {why}"
 print("  Unity 이미지·러너 볼륨을 지우는 명령이 없다 ✅")
+
+
+# ── ①b 이 검사가 실제로 잡는지 — 가짜 스크립트로 확인한다 ────────────────
+#
+#     **"금지 패턴이 없다" 는 패턴이 틀렸을 때도 통과한다.** 그래서 잡아야 하는
+#     문장을 넣어 보고 실제로 걸리는지 본다. 이것이 없으면 이 파일은 안전하다는
+#     느낌만 주고 아무것도 막지 않는다.
+MUST_CATCH = [
+    "docker image prune -a",
+    "docker image prune -af",
+    "docker image prune --all --force",
+    "  docker system prune -af --volumes",
+    "docker volume prune -f",
+    "docker rmi unityci/editor:x",
+]
+for bad in MUST_CATCH:
+    assert any(re.search(pat, bad) for pat, _ in FORBIDDEN), \
+        f"검사가 이것을 못 잡는다: {bad!r} — 막으려던 실수가 그대로 통과한다"
+
+MUST_ALLOW = [
+    "docker image prune -f",
+    "docker builder prune -f --filter until=168h",
+    "docker container prune -f --filter until=24h",
+    "docker image inspect unityci/editor:x",
+]
+for good in MUST_ALLOW:
+    assert not any(re.search(pat, good) for pat, _ in FORBIDDEN), \
+        f"안전한 명령을 막는다: {good!r}"
+print("  검사가 -a·-af·--all 을 실제로 잡고, 안전한 것은 통과시킨다 ✅")
 
 
 # ── ② 하기로 한 것은 실제로 한다 ─────────────────────────────────────────
@@ -81,6 +115,25 @@ print("  끝나고 Unity 이미지가 남았는지 스스로 확인한다 ✅")
 #     처음 돌릴 때 무엇이 사라질지 모르면 아무도 못 돌린다.
 assert "DRY_RUN" in code, "DRY_RUN 이 없다 — 무엇을 지울지 미리 볼 수 없다"
 print("  DRY_RUN 으로 미리 볼 수 있다 ✅")
+
+
+# ── ④b 실패를 삼키지 않는다 ──────────────────────────────────────────────
+#
+#     타이머로 도는 것이라 아무도 화면을 안 보고 있다. 실패가 조용하면 몇 주 동안
+#     아무것도 안 치우면서 초록으로 남는다.
+assert "FAILED=1" in code, "단계가 실패해도 기록하지 않는다"
+assert "exit 2" in code, "실패했는데 성공으로 끝난다"
+print("  한 단계라도 실패하면 비0 으로 끝낸다 ✅")
+
+
+# ── ④c CI 잡과 겹치면 도커 정리를 건너뛴다 ───────────────────────────────
+#
+#     일요일 03:00 은 한가하지만 **비어 있는 것이 보장되지는 않는다** — 새벽 배포
+#     스케줄(-455)이나 누가 돌린 릴리스가 겹칠 수 있다. 캐시를 치우면 그 잡의
+#     빌드가 느려진다. 한 주 미루는 편이 싸다.
+assert "^runner-" in code, "도는 CI 잡을 보지 않는다"
+assert "건너뛴다" in code or "건너뜀" in code, "겹칠 때 건너뛰지 않는다"
+print("  CI 잡이 돌면 도커 정리를 건너뛴다 ✅")
 
 
 # ── ⑤ 보관 개수가 되돌릴 여지를 남긴다 ───────────────────────────────────

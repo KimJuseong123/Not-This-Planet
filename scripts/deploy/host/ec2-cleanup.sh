@@ -29,32 +29,59 @@ BUILD_CACHE_HOURS="${BUILD_CACHE_HOURS:-168}"   # 7일
 CONTAINER_HOURS="${CONTAINER_HOURS:-24}"
 
 say() { echo "[$(date -Is)] $*"; }
+# **실패를 삼키지 않는다.** 파이프(`| sed`)를 쓰면 셸은 `sed` 의 종료 코드를 보므로,
+# 앞의 명령이 깨져도 성공처럼 보인다. 타이머로 도는 것이라 아무도 화면을 안 보고
+# 있고, 그러면 몇 주 동안 아무것도 안 치우면서 초록으로 남는다.
 run() {
   if [ "$DRY" = "1" ]; then
     say "  (DRY) $*"
-  else
-    "$@" 2>&1 | sed 's/^/    /'
+    return 0
   fi
+  local out rc
+  out=$("$@" 2>&1); rc=$?
+  [ -n "$out" ] && printf '%s\n' "$out" | sed 's/^/    /'
+  if [ "$rc" -ne 0 ]; then
+    say "   ❌ 실패(종료 $rc): $*"
+    FAILED=1
+  fi
+  return 0
 }
 
 say "===== 정리 시작 (DRY_RUN=$DRY) ====="
 BEFORE=$(df -BG --output=avail / | tail -1 | tr -d ' G')
+FAILED=0
+
+# ── CI 잡이 돌고 있으면 도커 정리는 건너뛴다 ────────────────────────────────
+#
+# 일요일 03:00 은 한가하지만 **비어 있는 것이 보장되지는 않는다** — 새벽 배포
+# 스케줄(-455)이나 누가 돌린 릴리스가 겹칠 수 있다. 도커가 쓰는 중인 것을 지우지는
+# 않지만, 캐시를 치우는 것이 **그 잡의 빌드를 느리게 만든다.** 한 주 미루는 것이
+# 싸다 — 다음 주에 다시 돈다.
+#
+# zip 정리는 그대로 한다. CI 잡과 아무 상관이 없다.
+BUSY=$(docker ps --format '{{.Names}}' 2>/dev/null | grep -c '^runner-' || true)
+if [ "${BUSY:-0}" -gt 0 ]; then
+  say "⏸ CI 잡 ${BUSY}개가 돌고 있다 — 도커 정리는 건너뛴다(다음 주에 다시 돈다)"
+fi
 
 # ── ① 빌드 캐시 ─────────────────────────────────────────────────────────────
 # 2026-09-11 실측 1.94 GB. 다시 만들어지는 것이라 지워도 잃는 것이 없다.
 say "① 도커 빌드 캐시 (${BUILD_CACHE_HOURS}시간 넘은 것)"
-run docker builder prune -f --filter "until=${BUILD_CACHE_HOURS}h"
+[ "${BUSY:-0}" -eq 0 ] && run docker builder prune -f --filter "until=${BUILD_CACHE_HOURS}h" \
+  || say "   건너뜀 (CI 잡이 돈다)"
 
 # ── ② 떠돌이 이미지 ─────────────────────────────────────────────────────────
 # **`-a` 를 쓰지 않는다.** 그것 없이는 태그가 없는 것만 지운다 — 백엔드를 새로
 # 빌드할 때마다 옛 `metagame-backend:latest` 가 태그를 잃고 남는, 바로 그것이다.
 say "② 태그 없는 떠돌이 이미지"
-run docker image prune -f
+[ "${BUSY:-0}" -eq 0 ] && run docker image prune -f \
+  || say "   건너뜀 (CI 잡이 돈다)"
 
 # ── ③ 끝난 컨테이너 ─────────────────────────────────────────────────────────
 # 러너가 잡마다 만들고 버린다. 도는 것은 건드리지 않는다.
 say "③ ${CONTAINER_HOURS}시간 넘게 끝나 있는 컨테이너"
-run docker container prune -f --filter "until=${CONTAINER_HOURS}h"
+[ "${BUSY:-0}" -eq 0 ] && run docker container prune -f --filter "until=${CONTAINER_HOURS}h" \
+  || say "   건너뜀 (CI 잡이 돈다)"
 
 # ── ④ 오래된 릴리스 zip ─────────────────────────────────────────────────────
 # 런처 저장소(`files/`·`manifest/`)는 `make_manifest.py --keep 10` 이 회수한다.
@@ -94,5 +121,9 @@ say "   보호 러너 캐시 볼륨 ${VOLS}개 (셰이더 캐시가 여기 있�
 
 AFTER=$(df -BG --output=avail / | tail -1 | tr -d ' G')
 say "===== 끝. 여유 ${BEFORE}GB → ${AFTER}GB ====="
+
+# 지켜야 할 것이 사라졌거나 한 단계라도 실패했으면 비0 으로 끝낸다 — `systemctl
+# status` 와 저널에 빨갛게 남아야 사람이 본다.
 [ "$MISSING" = "1" ] && exit 1
+[ "$FAILED" = "1" ] && exit 2
 exit 0
