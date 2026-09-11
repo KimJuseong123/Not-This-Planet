@@ -48,6 +48,8 @@ namespace Metagame.Network
 
         void Update()
         {
+            if (Metagame.Gameplay.GameSession.Instance != null
+                && Metagame.Gameplay.GameSession.Instance.EndingActive) return;
             // 호스트(서버 겸 클라이언트)와 솔로는 볼 것이 없다.
             if (!NetworkClient.active || NetworkServer.active)
             {

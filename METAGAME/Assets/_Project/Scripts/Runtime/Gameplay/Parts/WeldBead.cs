@@ -158,6 +158,17 @@ namespace Metagame.Gameplay.Parts
             public int BlobCount;
         }
 
+        /// <summary>엔딩에서도 해당 사슬의 실제 접합 기여 색상을 보존한다.</summary>
+        public bool IsChainContributing(int index)
+        {
+            Initialize();
+            if (index < 0 || index >= _chains.Count) return false;
+            var chain = _chains[index];
+            var link = chain.Touched != null && chain.ContactBlobs > 0f
+                ? PartAssemblyLink.FindBetween(_owner, chain.Touched) : null;
+            return link != null && link.IsIntact;
+        }
+
         /// <summary>사슬 하나의 상태를 읽는다. 서버가 스냅샷을 만들 때 쓴다.</summary>
         public ChainState ReadChain(int index)
         {

@@ -95,6 +95,8 @@ namespace Metagame.Gameplay.Parts
 
         public override InteractionAvailability GetAvailability(Interactor actor)
         {
+            if (!enabled || (GameSession.Instance != null && GameSession.Instance.Ending != null))
+                return InteractionAvailability.Denied(InteractionFailure.NotReady);
             var occupancy = base.GetAvailability(actor);
             if (!occupancy.IsAllowed) return occupancy;
 
@@ -111,6 +113,7 @@ namespace Metagame.Gameplay.Parts
         /// <summary>E 를 눌렀다. 타지 않았으면 타고, 탔으면 내린다.</summary>
         public override void OnCompleted(Interactor actor)
         {
+            if (!enabled || (GameSession.Instance != null && GameSession.Instance.Ending != null)) return;
             if (State == BoardingState.Launching || State == BoardingState.Failing) return;
 
             if (State == BoardingState.CountingDown)

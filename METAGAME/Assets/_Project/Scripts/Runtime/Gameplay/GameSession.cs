@@ -20,6 +20,8 @@ namespace Metagame.Gameplay
         public Stage1Exploration Exploration;
         public TractorBeamController Transport;
         public MapRecovery Recovery;
+        public DemoEnding Ending { get; internal set; }
+        public bool EndingActive => Ending != null && Ending.Active;
         public bool RecoveryFromServer;
 
         /// <summary>
@@ -107,6 +109,8 @@ namespace Metagame.Gameplay
 
         void Update()
         {
+            if (EndingActive) return;
+            if (!Cleared && !ProgressFromHost && LocalPlayer == null) Elapsed += Time.deltaTime;
             if (LocalPlayer == null) return;
 
             localPing.Tick(Time.timeAsDouble);
@@ -297,7 +301,7 @@ namespace Metagame.Gameplay
         /// <summary>로컬 메뉴가 열릴 때 플레이어의 다음 입력을 소비하지 않게 한다.</summary>
         public void SetInputSuppressed(bool suppressed)
         {
-            InputSuppressed = suppressed;
+            InputSuppressed = suppressed || EndingActive;
             if (suppressed && LocalPlayer != null)
                 LocalPlayer.SetInput(new InputFrame());
         }
@@ -368,6 +372,7 @@ namespace Metagame.Gameplay
 
         public void Clear()
         {
+            if (Ending != null && !EndingActive) return;
             // 진행도를 호스트가 정할 때는 여기서 물러난다 (S15P21B202-54).
             // Goal 의 트리거는 참가자 화면에서도 돌기 때문에, 막지 않으면 참가자가
             // 자기 시계로 ClearTime 을 정해 버린다.

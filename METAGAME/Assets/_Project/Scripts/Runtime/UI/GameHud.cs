@@ -182,6 +182,7 @@ namespace Metagame.UI
 
         void DrawScaledGui()
         {
+            if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
             if (Event.current.type != EventType.Repaint && Event.current.type != EventType.Layout) return;
             EnsureStyles();
 
