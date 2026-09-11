@@ -1,0 +1,14 @@
+{
+  "id": "./index.html",
+  "name": "Su-Team",
+  "short_name": "Su-Team",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#171d25",
+  "theme_color": "#171d25",
+  "icons": [
+    {"src": "assets/su-team-icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "assets/su-team-icon-512.png", "sizes": "512x512", "type": "image/png"}
+  ]
+}
