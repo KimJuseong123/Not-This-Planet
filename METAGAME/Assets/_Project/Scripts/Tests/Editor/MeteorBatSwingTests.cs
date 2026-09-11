@@ -405,7 +405,7 @@ namespace Metagame.Gameplay.Tests
                 Is.EqualTo(new Vector3(0.18f, -0.12f, 0.12f)));
             Assert.That(Quaternion.Angle(
                 visual.localRotation,
-                Quaternion.Euler(0f, 0f, -35f)), Is.LessThan(0.01f));
+                Quaternion.Euler(0f, 0f, -35f) * Quaternion.FromToRotation(new Vector3(-0.62f, 0.60f, 0.70f).normalized, Vector3.up)), Is.LessThan(0.01f));
             Assert.That(visual.localScale, Is.EqualTo(Vector3.one * 0.64f));
 
             bat.Unequip();
@@ -434,22 +434,22 @@ namespace Metagame.Gameplay.Tests
 
             bat.Equip(player, body);
 
-            Assert.AreSame(camera.transform, visual.parent,
-                           "1인칭 방망이 모델이 카메라 아래로 분리되지 않았다.");
-            Assert.That(visual.localPosition,
+            Assert.AreSame(bat.transform, visual.parent, "월드 모델은 원래 계층을 유지한다.");
+            var view = bat.FirstPersonModel;
+            Assert.AreSame(camera.transform, view.parent);
+            Assert.That(view.localPosition,
                         Is.EqualTo(new Vector3(0.23f, -0.20f, 0.58f)));
 
             body.position = new Vector3(-12f, 4f, 8f);
             RunLateUpdate(bat);
-            Assert.AreSame(camera.transform, visual.parent,
+            Assert.AreSame(camera.transform, view.parent,
                            "물리 본체 이동 뒤 화면 모델이 카메라에서 떨어졌다.");
 
             camera.FirstPerson = false;
             RunLateUpdate(bat);
             Assert.AreSame(bat.transform, visual.parent,
                            "3인칭 전환 때 모델이 물리 도구 계층으로 돌아오지 않았다.");
-            Assert.That(visual.localPosition,
-                        Is.EqualTo(new Vector3(0.18f, -0.12f, 0.12f)));
+            Assert.IsFalse(view.gameObject.activeSelf);
         }
 
         [UnityEngine.TestTools.UnityTest]
@@ -473,7 +473,9 @@ namespace Metagame.Gameplay.Tests
             var visual = new GameObject("Visual_ZUpToYUp");
             visual.transform.SetParent(bat.transform, false);
             bat.Equip(player, body);
-            Assert.AreSame(camera.transform, visual.transform.parent);
+            Assert.AreSame(bat.transform, visual.transform.parent);
+            var view = bat.FirstPersonModel;
+            Assert.AreSame(camera.transform, view.parent);
 
             Object.Destroy(bat.gameObject);
             // The tool's OnDestroy schedules destruction of the camera-owned visual.
@@ -482,6 +484,7 @@ namespace Metagame.Gameplay.Tests
             yield return null;
 
             Assert.IsTrue(visual == null, "파괴된 방망이 외형이 카메라 아래에 남으면 안 된다.");
+            Assert.IsTrue(view == null, "도구 파괴 시 표시 복사본도 제거해야 한다.");
             Assert.IsTrue(camera != null, "외형 정리가 카메라를 파괴하면 안 된다.");
             UnityEngine.TestTools.LogAssert.NoUnexpectedReceived();
             yield return new UnityEngine.TestTools.ExitPlayMode();

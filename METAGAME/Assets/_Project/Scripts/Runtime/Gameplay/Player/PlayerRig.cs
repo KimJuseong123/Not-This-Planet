@@ -366,6 +366,8 @@ namespace Metagame.Gameplay
         /// </summary>
         public bool Floating { get; private set; }
         public Grabbable HeldTool { get { return toolHeld; } }
+        // 서버의 장착/입력 권한과 별개인 화면 표시 연결. 참가자에게도 설정된다.
+        public ToolBase PresentationTool { get; internal set; }
         /// <summary>현재 장착된 도구 동작 컴포넌트. 도구가 없거나 구형 Tool이면 null이다.</summary>
         public ToolBase ActiveTool { get { return activeTool; } }
         public float ToolCharge { get { return toolCharge; } }

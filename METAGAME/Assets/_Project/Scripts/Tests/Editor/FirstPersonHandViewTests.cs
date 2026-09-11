@@ -216,16 +216,16 @@ namespace Metagame.Gameplay.Tests
         public void 삼인칭에서는표시손을숨긴다()
         {
             var (_, camera, view) = MakeView();
-            Assert.IsTrue(view.LeftHandRoot.gameObject.activeSelf, "1인칭 손이 처음부터 보이지 않는다.");
+            Assert.IsTrue(view.LeftHandRoot.gameObject.activeInHierarchy, "1인칭 손이 처음부터 보이지 않는다.");
 
             camera.FirstPerson = false;
             Tick(view);
-            Assert.IsFalse(view.LeftHandRoot.gameObject.activeSelf, "삼인칭에서 왼손이 보인다.");
-            Assert.IsFalse(view.RightHandRoot.gameObject.activeSelf, "삼인칭에서 오른손이 보인다.");
+            Assert.IsFalse(view.LeftHandRoot.gameObject.activeInHierarchy, "삼인칭에서 왼손이 보인다.");
+            Assert.IsFalse(view.RightHandRoot.gameObject.activeInHierarchy, "삼인칭에서 오른손이 보인다.");
 
             camera.FirstPerson = true;
             Tick(view);
-            Assert.IsTrue(view.LeftHandRoot.gameObject.activeSelf, "1인칭 복귀 후 왼손이 나타나지 않는다.");
+            Assert.IsTrue(view.LeftHandRoot.gameObject.activeInHierarchy, "1인칭 복귀 후 왼손이 나타나지 않는다.");
         }
 
         [Test]
@@ -235,8 +235,8 @@ namespace Metagame.Gameplay.Tests
 
             player.IsLocal = false;
             Tick(view);
-            Assert.IsFalse(view.LeftHandRoot.gameObject.activeSelf, "원격 플레이어의 1인칭 손이 보인다.");
-            Assert.IsFalse(view.RightHandRoot.gameObject.activeSelf, "원격 플레이어의 1인칭 손이 보인다.");
+            Assert.IsFalse(view.LeftHandRoot.gameObject.activeInHierarchy, "원격 플레이어의 1인칭 손이 보인다.");
+            Assert.IsFalse(view.RightHandRoot.gameObject.activeInHierarchy, "원격 플레이어의 1인칭 손이 보인다.");
 
             player.IsLocal = true;
             var seat = new GameObject("탑승 테스트 좌석");
@@ -244,21 +244,51 @@ namespace Metagame.Gameplay.Tests
             var seatBody = seat.AddComponent<Rigidbody>();
             Assert.IsTrue(player.TryBoardShip(seatBody, player.Hips.position), "탑승 상태를 만들지 못했다.");
             Tick(view);
-            Assert.IsFalse(view.LeftHandRoot.gameObject.activeSelf, "탑승 중 1인칭 손이 보인다.");
+            Assert.IsFalse(view.LeftHandRoot.gameObject.activeInHierarchy, "탑승 중 1인칭 손이 보인다.");
 
             player.LeaveShip(Vector3.zero, Quaternion.identity);
             player.GoDown();
             camera.FirstPerson = true;
             Tick(view);
-            Assert.IsFalse(view.LeftHandRoot.gameObject.activeSelf, "기절 중 1인칭 손이 보인다.");
+            Assert.IsFalse(view.LeftHandRoot.gameObject.activeInHierarchy, "기절 중 1인칭 손이 보인다.");
+        }
+
+        [Test]
+        public void BatSwing_HandsShareSwingAndReturnToIdleWithoutChangingHandSettings()
+        {
+            var (player, camera, view) = MakeView();
+            var prop = new GameObject("손 스윙 테스트 배트");
+            spawned.Add(prop);
+            var body = prop.AddComponent<Rigidbody>();
+            var held = prop.AddComponent<Grabbable>();
+            var bat = prop.AddComponent<MeteorBat>();
+            bat.Equip(player, body);
+            typeof(PlayerRig).GetField("toolHeld", System.Reflection.BindingFlags.Instance
+                | System.Reflection.BindingFlags.NonPublic).SetValue(player, held);
+            // 실제 타격/운석 효과 없이 스윙 중간 상태를 재현한다.
+            typeof(MeteorBat).GetField("swingElapsed", System.Reflection.BindingFlags.Instance
+                | System.Reflection.BindingFlags.NonPublic).SetValue(bat, PhysicsScale.BatSwingSeconds * 0.2f);
+            typeof(MeteorBat).GetField("swingAim", System.Reflection.BindingFlags.Instance
+                | System.Reflection.BindingFlags.NonPublic).SetValue(bat, camera.transform.forward);
+            Tick(view);
+            var pivot = view.RightHandRoot.parent;
+            Assert.AreSame(pivot, view.LeftHandRoot.parent);
+            Assert.That(Quaternion.Angle(pivot.localRotation, bat.FirstPersonSwingRotation(camera.transform)), Is.LessThan(0.01f));
+            Assert.That(Quaternion.Angle(pivot.localRotation, Quaternion.identity), Is.GreaterThan(1f));
+            bat.Tick(PhysicsScale.BatSwingSeconds);
+            Tick(view);
+            Assert.That(Quaternion.Angle(pivot.localRotation, Quaternion.identity), Is.LessThan(0.01f));
         }
 
         static void Tick(FirstPersonHandView view, int count = 1)
         {
             // LateUpdate에서 카메라 뒤따르기와 입력 표시를 갱신한다. EditMode에서는
-            // Unity 프레임이 자동 진행되지 않으므로 메시지로 해당 생명주기를 한 번 실행한다.
+            // Unity 프레임이 자동 진행되지 않으므로 직접 호출한다.
+            // SendMessage는 비실행 EditMode 컴포넌트에서 ShouldRunBehaviour 검증에 걸린다.
+            var update = typeof(FirstPersonHandView).GetMethod("LateUpdate",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
             for (var i = 0; i < count; i++)
-                view.SendMessage("LateUpdate");
+                update.Invoke(view, null);
         }
     }
 }

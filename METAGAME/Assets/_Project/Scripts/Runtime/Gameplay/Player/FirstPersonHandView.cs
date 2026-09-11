@@ -307,7 +307,14 @@ namespace Metagame.Gameplay
             if (viewRoot == null || !viewRoot.gameObject.activeSelf) return;
 
             var input = player.CurrentInput;
-            bool toolHeld = player.HeldTool != null;
+            bool toolHeld = player.HeldTool != null || player.PresentationTool != null;
+            var bat = player.PresentationTool as MeteorBat;
+            if (bat == null && player.HeldTool != null) bat = player.HeldTool.GetComponentInChildren<MeteorBat>();
+            // 개별 손의 기본 배치는 유지하고 공통 부모에 스윙만 적용한다.
+            // 다음 프레임의 손 보간값에 스윙을 누적하지 않는다.
+            viewRoot.localRotation = bat != null
+                ? bat.FirstPersonSwingRotation(orbitCamera.transform)
+                : Quaternion.identity;
             LeftGrabPoseActive = input.GrabLeft || toolHeld || IsGripping(player.LeftHand);
             RightGrabPoseActive = input.GrabRight || toolHeld || IsGripping(player.RightHand);
 

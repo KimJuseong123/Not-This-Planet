@@ -43,6 +43,31 @@ namespace Metagame.Gameplay
 
         /// <summary>원격이 알려 준 휴대 상태. <see cref="ApplyRemoteHeld"/> 참고.</summary>
         bool remoteHeld;
+        PlayerRig remoteViewOwner;
+        ToolAimContext remoteViewAim;
+        protected FirstPersonToolVisual firstPersonVisual;
+        Transform viewHand;
+        Bounds viewHandBounds;
+
+        public PlayerRig ViewOwner => Owner != null ? Owner : remoteViewOwner;
+        public virtual byte ViewAction => 0;
+        public virtual float ViewProgress => 0f;
+        public Transform FirstPersonModel => firstPersonVisual?.Model;
+        public bool IsHeldForView => IsEquipped || remoteHeld;
+        public Vector3 ViewCarryDirection => CarryAim(IsEquipped ? currentAim.Direction : remoteViewAim.Direction);
+
+        public void ApplyRemotePresentation(PlayerRig owner, byte action, float progress, Vector3 aim)
+        {
+            if (IsEquipped) return;
+            if (remoteViewOwner != owner && remoteViewOwner != null && remoteViewOwner.PresentationTool == this)
+                remoteViewOwner.PresentationTool = null;
+            remoteViewOwner = owner;
+            if (owner != null) owner.PresentationTool = this;
+            remoteViewAim = new ToolAimContext(owner, owner != null ? owner.Cam : null, aim);
+            ApplyRemoteVisualState(action, progress, aim);
+        }
+
+        protected virtual void ApplyRemoteVisualState(byte action, float progress, Vector3 aim) { }
 
         public PlayerRig Owner { get; private set; }
         public Rigidbody Body { get; private set; }
@@ -74,7 +99,11 @@ namespace Metagame.Gameplay
                 RestoreCollisions();
             }
 
+            if (remoteViewOwner != null && remoteViewOwner.PresentationTool == this)
+                remoteViewOwner.PresentationTool = null;
+            remoteViewOwner = null;
             Owner = owner;
+            if (owner != null) owner.PresentationTool = this;
             Body = body;
             IsEquipped = true;
             remoteHeld = false;   // 내 손이 우선이다 — ApplyRemoteHeld 의 주석
@@ -95,6 +124,8 @@ namespace Metagame.Gameplay
             if (!IsEquipped) return;
 
             OnUnequipped();
+            if (Owner != null && Owner.PresentationTool == this) Owner.PresentationTool = null;
+            HideFirstPersonVisual();
             RestoreCollisions();
             IsEquipped = false;
             Owner = null;
@@ -149,6 +180,10 @@ namespace Metagame.Gameplay
 
             RestoreCollisions();
             OnUnequipped();
+            if (remoteViewOwner != null && remoteViewOwner.PresentationTool == this)
+                remoteViewOwner.PresentationTool = null;
+            remoteViewOwner = null;
+            HideFirstPersonVisual();
         }
 
         /// <summary>
@@ -272,9 +307,81 @@ namespace Metagame.Gameplay
         protected virtual void LateUpdate()
         {
             if (IsEquipped) OnToolVisualUpdate(currentInput, currentAim);
+            else if (remoteHeld) OnToolVisualUpdate(new ToolInputFrame(), remoteViewAim);
         }
 
-        protected virtual void OnDestroy() { }
+        protected virtual void OnDisable() { HideFirstPersonVisual(); }
+
+        protected virtual void OnDestroy()
+        {
+            if (ViewOwner != null && ViewOwner.PresentationTool == this) ViewOwner.PresentationTool = null;
+            firstPersonVisual?.Dispose();
+            firstPersonVisual = null;
+        }
+
+        protected void HideFirstPersonVisual() { firstPersonVisual?.SetVisible(false); }
+
+        protected void AlignWorldGrip(Transform model, Vector3 gripPoint)
+        {
+            var hand = ViewOwner != null && ViewOwner.Doll != null ? ViewOwner.RightHand : null;
+            if (hand == null || hand.Body == null) return;
+            model.position += hand.Body.position - model.TransformPoint(gripPoint);
+        }
+
+        protected void UpdateFirstPersonVisual(Transform worldModel, Vector3 position,
+            Quaternion rotation, Vector3 scale, Vector3 gripPoint)
+        {
+            var owner = ViewOwner;
+            var camera = owner != null && owner.IsLocal ? owner.Cam : null;
+            if (!IsHeldForView || camera == null || !camera.FirstPerson || owner.Downed || owner.IsRiding)
+            {
+                HideFirstPersonVisual();
+                return;
+            }
+            if (firstPersonVisual == null || firstPersonVisual.Model == null || firstPersonVisual.Model.parent != camera.transform)
+            {
+                firstPersonVisual?.Dispose();
+                firstPersonVisual = new FirstPersonToolVisual(worldModel, camera.transform);
+            }
+            var hands = camera.GetComponent<FirstPersonHandView>();
+            var hand = hands != null ? hands.RightHandVisual : null;
+            Vector3? target = null;
+            if (hand != null)
+            {
+                if (viewHand != hand)
+                {
+                    if (TryGripBounds(hand, out viewHandBounds)) viewHand = hand;
+                }
+                if (viewHand == hand) target = hand.TransformPoint(viewHandBounds.center);
+            }
+            firstPersonVisual.SyncAnimation();
+            firstPersonVisual.SetPose(position, rotation, scale, gripPoint, target);
+            firstPersonVisual.SetVisible(true);
+        }
+
+        // 휴대 모델의 손잡이 정렬용 경계. 월드 AABB를 역변환하지 않으므로
+        // 카메라 회전과 좌우 손 미러링에 관계없이 같은 로컬 기준점을 얻는다.
+        protected static bool TryGripBounds(Transform root, out Bounds bounds)
+        {
+            bounds = default;
+            bool found = false;
+            foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
+            {
+                if (!(renderer is MeshRenderer) && !(renderer is SkinnedMeshRenderer)) continue;
+                var local = renderer.localBounds;
+                for (int i = 0; i < 8; i++)
+                {
+                    var corner = local.center + Vector3.Scale(local.extents,
+                        new Vector3((i & 1) == 0 ? -1f : 1f,
+                                    (i & 2) == 0 ? -1f : 1f,
+                                    (i & 4) == 0 ? -1f : 1f));
+                    var point = root.InverseTransformPoint(renderer.transform.TransformPoint(corner));
+                    if (!found) { bounds = new Bounds(point, Vector3.zero); found = true; }
+                    else bounds.Encapsulate(point);
+                }
+            }
+            return found;
+        }
 
         void ResolveMuzzle()
         {

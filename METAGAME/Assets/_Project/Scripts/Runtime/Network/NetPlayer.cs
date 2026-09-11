@@ -184,6 +184,14 @@ namespace Metagame.Network
 
         /// <summary>몸이 서 있는가. 이름표는 몸이 있을 때만 그린다.</summary>
         public bool HasBody { get { return body != null; } }
+        public PlayerRig VisualRig => body;
+        public static uint NetIdOfRig(PlayerRig rig)
+        {
+            if (rig == null) return 0;
+            foreach (var player in ServerPlayers)
+                if (player != null && player.body == rig) return player.netId;
+            return 0;
+        }
 
         /// <summary>서버가 확정한 이 플레이어의 현재 팀 핑.</summary>
         [SyncVar]

@@ -153,9 +153,12 @@ namespace Metagame.Gameplay.Tests
             var tool = CreateTool(out _, player);
             var visual = tool.transform.Find(
                 "AttachPoints/ReplacementModel/SF_Stage1_PlasmaWeldingGun");
-            Assert.IsNull(visual, "1인칭 모델이 아직 물리 도구 아래에 남아 있다.");
-            visual = camera.transform.Find("SF_Stage1_PlasmaWeldingGun");
-            Assert.IsNotNull(visual, "1인칭 모델이 카메라 아래로 분리되지 않았다.");
+            Assert.IsNotNull(visual, "월드 모델은 도구 계층에 남아야 한다.");
+            var worldVisual = visual;
+            visual = tool.FirstPersonModel;
+            Assert.IsNotNull(visual, "1인칭 표시 복사본이 생성되지 않았다.");
+            Assert.AreNotSame(worldVisual, visual);
+            Assert.AreSame(camera.transform, visual.parent);
             Assert.That(visual.localPosition,
                         Is.EqualTo(new Vector3(0.20f, -0.17f, 0.52f)));
 
@@ -166,9 +169,10 @@ namespace Metagame.Gameplay.Tests
                         "물리 본체 이동이 화면 모델 위치를 늦게 끌고 갔다.");
 
             tool.Unequip();
-            Assert.AreSame(tool.transform.Find("AttachPoints/ReplacementModel"), visual.parent,
-                           "내려놓을 때 모델이 원래 물리 계층으로 돌아오지 않았다.");
+            Assert.AreSame(tool.transform.Find("AttachPoints/ReplacementModel"), worldVisual.parent);
+            Assert.IsFalse(visual.gameObject.activeSelf, "내려놓으면 화면 복사본을 숨겨야 한다.");
         }
+
 
         PlasmaWeldingTool CreateTool(out Transform muzzle, PlayerRig owner = null)
         {
