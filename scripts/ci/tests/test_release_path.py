@@ -106,6 +106,15 @@ FAIL_XML = ("<test-run total=\"2\" passed=\"1\" failed=\"1\" skipped=\"0\" durat
             "</test-run>")
 
 
+def _baseline(names):
+    """기준선을 갈아 끼운다 (S15P21B202-438).
+
+    `publish_release` 는 **모듈**을 임포트하므로 여기서 함수를 바꿔 끼우면 그쪽이 본다.
+    `None` 은 "기준선을 못 읽었다" 이고 빈 집합과 뜻이 다르다 — 그 둘을 섞으면 없는
+    회귀를 만들어 낸다(`unity_report.baseline_failures` 독스트링과 같은 이유)."""
+    R.unity_report.baseline_failures = lambda *a, **k: names
+
+
 def _gate(xml_text, trc=0, log_text=None):
     """gate 한 번. **환경을 되돌린다** (`!336` AI 리뷰) — CI_PROJECT_DIR 을 전역에
     남기면 뒤 절이 남의 임시 폴더를 보고 엉뚱한 것을 단정한다."""
@@ -131,13 +140,30 @@ def _gate(xml_text, trc=0, log_text=None):
             os.environ["CI_PROJECT_DIR"] = _saved
 
 
+_baseline(set())
 _rc, _d = _gate(PASS_XML)
 assert _rc == 0, "전부 통과인데 빌드를 막았다"
 #     실패한 테스트를 파이프라인 화면에서 바로 보게 한다 — unity-compile 과 같은 결.
 assert os.path.exists(os.path.join(_d, "unity-junit.xml")), "JUnit 변환 산출물이 없다"
 
+# **기존 실패는 릴리스를 막지 않는다** (S15P21B202-438).
+#
+# 처음에는 실패가 하나라도 있으면 막았다. 그런데 develop 에는 기존 실패가 33건
+# 있어서(`-346` 27건 + `-343` 6건) 그 게이트는 무조건 걸렸고 **실제 릴리스가 나갈 수
+# 없었다.** `unity-compile` 이 이미 푼 문제를 릴리스 경로에서 되풀이한 것이다(`-309`).
+_baseline({"N.C.b"})                      # 그 실패가 기준선에 있다 = 기존 실패
 _rc, _ = _gate(FAIL_XML)
-assert _rc == 1, "테스트가 실패했는데 빌드로 넘어간다"
+assert _rc == 0, "기존 실패가 릴리스를 막는다 — 33건이 있으므로 아무것도 나갈 수 없다"
+
+_baseline(set())                          # 기준선에 없다 = 이 트리가 만든 실패
+_rc, _ = _gate(FAIL_XML)
+assert _rc == 1, "이 트리가 만든 실패인데 빌드로 넘어간다"
+
+_baseline(None)                           # 기준선을 못 읽었다
+_rc, _ = _gate(FAIL_XML)
+assert _rc == 0, ("기준선을 못 읽었는데 막는다 — 릴리스 MR 과 develop 머지에서 이미 "
+                  "unity-compile 이 돌았고, 두 번째 그물이 API 딸꾹질로 릴리스를 "
+                  "막는 것은 그물이 없는 것보다 나쁘다")
 
 #     **결과 XML 이 없는 경우가 가장 중요하다.** 컴파일이 깨지면 Unity 는 테스트를
 #     돌리지 못하고 XML 을 남기지 않는다. 그것을 "0건 통과" 로 읽으면 없는 것을
@@ -157,6 +183,7 @@ print("  gate 가 실패·XML 없음·종료 코드를 모두 막는다 ✅")
 import io as _io
 import contextlib
 
+_baseline(set())     # 막는 경로를 보려면 기준선이 비어 있어야 한다
 for _label, _args in (("테스트 실패", (FAIL_XML, 0, None)),
                       ("XML 없음", (None, 1, "error CS0103: x")),
                       ("종료 코드", (PASS_XML, 2, None))):
@@ -169,13 +196,16 @@ for _label, _args in (("테스트 실패", (FAIL_XML, 0, None)),
     assert "빌드하지 않는다" in _out, f"{_label}: 빌드를 세운다는 말이 없다 — {_out[:200]}"
 
 import mm_notify as M
+_baseline(set())
 for _label, _args in (("테스트 실패", (FAIL_XML, 0, None)),):
     _buf = _io.StringIO()
     with contextlib.redirect_stdout(_buf):
         _gate(*_args)
     _reasons = M.reasons_from_trace(_buf.getvalue())
     assert _reasons, "mm_notify 가 gate 출력에서 이유를 뽑지 못한다"
-    assert "테스트" in _reasons[0], _reasons[0]
+    # 카드의 '이유' 칸에 실릴 문구다. 무엇이 막았는지가 그 한 줄에 있어야 한다.
+    assert "EditMode" in _reasons[0], _reasons[0]
+    assert "빌드하지 않는다" in _reasons[0], _reasons[0]
 print("  막을 때 ❌ 줄을 남기고, mm_notify 가 그것을 이유로 읽는다 ✅")
 
 
