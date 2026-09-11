@@ -53,6 +53,11 @@ RELEASE_RE = re.compile(rf"release/{PROJECT_KEY}-\d+-v(\d+\.\d+\.\d+)")
 #
 # **만들 때는 항상 `v` 를 붙인다**(`bump_patch`·`parse_version`). 두 형식이 섞여 있으면
 # 다음 사람이 또 헷갈리므로, 새로 나가는 것은 하나로 모은다.
+#
+# **고를 때는 `v` 가 이긴다** (S15P21B202-446). 읽기를 넓힌 탓에 시험용으로 만들어 둔
+# `1.0.1`(산출물 0개)이 `v1.0.0` 보다 최신으로 잡혀, 첫 핫픽스가 `v1.0.1` 을 건너뛰고
+# `v1.0.2` 가 되는 문제가 있었다. `latest_tag` 가 `v` 쪽을 먼저 보되, `v` 태그가
+# 하나도 없으면 넓게 읽는 폴백을 남긴다 — 그것이 `-407` 이 막은 길이다.
 TAG_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
 MERGE_RE = re.compile(r"^Merge branch '([^']+)' into '([^']+)'")
 MR_REF_RE = re.compile(r"See merge request [^!\s]*!(\d+)")
@@ -99,8 +104,41 @@ def parse_tag(tag: str) -> tuple[int, int, int] | None:
 
 
 def latest_tag(tags: list[str]) -> str | None:
-    parsed = sorted((parse_tag(t), t) for t in tags if parse_tag(t))
+    """가장 높은 버전 태그. **`v` 붙은 것이 있으면 그 안에서만 고른다** (S15P21B202-446).
+
+    `-407` 이 읽기를 넓힌 이유는 그대로 유효하다 — `v` 태그가 하나도 없는 상태에서
+    핫픽스를 먼저 하면 버전을 정할 수 없어 조용히 막힌다. **그래서 폴백은 남긴다.**
+
+    다만 **섞여 있을 때는 `v` 쪽이 이긴다.** 우리가 내보내는 태그에는 늘 `v` 가
+    붙으므로(`bump_patch`), `v` 없는 것은 사람이 손으로 만든 자리표시자다. 실제로
+    저장소의 `1.0.1` 은 2026-09-09 에 시험용으로 만든 것이고 담긴 산출물이 0개다.
+    그것이 최신으로 잡히면 `v1.0.0` 다음 핫픽스가 **`v1.0.1` 을 건너뛰고 `v1.0.2`**
+    가 된다 — 받는 사람은 없어진 버전을 찾게 된다.
+
+    이 규칙은 **옛 태그를 지우지 않아도** 성립한다. 지우는 것은 되돌릴 수 없고
+    Maintainer 권한이 필요하므로, 코드가 스스로를 지키게 둔다.
+    """
+    prefixed = [t for t in tags if t.strip().startswith("v") and parse_tag(t)]
+    pool = prefixed or [t for t in tags if parse_tag(t)]
+    parsed = sorted((parse_tag(t), t) for t in pool)
     return parsed[-1][1] if parsed else None
+
+
+def tag_exists(version: str, tags: list[str]) -> bool:
+    """**우리가 만들 이름**이 이미 있는가 (S15P21B202-446).
+
+    `v` 유무를 무시하지 **않는다.** 무시하면 손으로 만든 `1.0.1`(산출물 0개)이
+    `v1.0.1` 을 막아, 이 이슈가 고치려던 것보다 나쁜 상태가 된다 — 버전을 건너뛰는
+    대신 릴리스가 아예 멈춘다. 기술적으로도 `1.0.1` 과 `v1.0.1` 은 다른 이름이라
+    충돌하지 않는다.
+
+    막으려는 것은 **같은 이름을 두 번 만드는 것**뿐이다. 그때는 태그 생성이 실패하는데,
+    그 실패가 90분짜리 빌드가 다 끝난 뒤에 난다.
+    """
+    want = parse_tag(version)
+    if want is None:
+        return False
+    return f"v{want[0]}.{want[1]}.{want[2]}" in {(t or "").strip() for t in tags}
 
 
 def bump_patch(tag: str) -> str:
@@ -112,12 +150,23 @@ def decide_version(message: str, tags: list[str]) -> tuple[str | None, str]:
     """(버전, 이유). 릴리스 브랜치 머지 → 그 버전. hotfix 머지 → 마지막 태그 PATCH+1. 그 외 → None."""
     v = parse_version(message)
     if v:
+        # **이미 있는 버전을 다시 내보내지 않는다** (S15P21B202-446). 같은 릴리스
+        # 브랜치가 두 번 머지되면(되돌림·재머지) 여기까지 와서 태그를 만들다 실패하는데,
+        # 그 실패는 90분짜리 빌드가 **다 끝난 뒤**에 난다. 앞에서 분명하게 멈춘다.
+        if tag_exists(v, tags):
+            return None, (f"릴리스 브랜치가 {v} 를 가리키는데 그 버전의 태그가 이미 있다 — "
+                          "같은 버전을 두 번 내보낼 수 없다. 릴리스 브랜치 이름의 버전을 올리거나, "
+                          "잘못 만들어진 태그라면 그것부터 정리하세요")
         return v, "릴리스 브랜치 이름의 버전"
     if "hotfix/" in (message or ""):
         last = latest_tag(tags)
-        if last:
-            return bump_patch(last), f"hotfix 머지 — 마지막 태그 {last} 의 PATCH+1"
-        return None, "hotfix 머지인데 이전 태그가 없어 버전을 정할 수 없다"
+        if not last:
+            return None, "hotfix 머지인데 이전 태그가 없어 버전을 정할 수 없다"
+        nxt = bump_patch(last)
+        if tag_exists(nxt, tags):
+            return None, (f"hotfix 머지 — 마지막 태그가 {last} 라 다음은 {nxt} 인데 그 버전이 이미 있다. "
+                          "태그가 형식이 섞인 채 남아 있을 수 있으니 태그 목록부터 확인하세요")
+        return nxt, f"hotfix 머지 — 마지막 태그 {last} 의 PATCH+1"
     return None, ("머지 커밋에 release/…-vX.Y.Z 도 hotfix/ 도 없다 — master 에는 릴리스 브랜치(git-convention §8)나 "
                   "핫픽스만 들어와야 한다")
 
