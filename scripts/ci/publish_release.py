@@ -39,13 +39,35 @@ VERSION_FILE = "release-version.txt"
 NOTES_FILE = "release-notes.md"
 PACKAGE_NAME = "metagame"
 RELEASE_RE = re.compile(rf"release/{PROJECT_KEY}-\d+-v(\d+\.\d+\.\d+)")
-TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
+# 태그를 **읽을 때는** `v` 를 선택으로 본다 (S15P21B202-407 ②).
+#
+# 2026-09-10 실측: 저장소의 태그는 `1.0.1` 하나뿐이고 `v` 접두가 없다(GitLab UI 에서
+# 손으로 만든 것이다). 예전 정규식은 `^v…$` 라 그것을 못 봤고, `all_tags()` 도
+# `git tag --list v*` 로 걸렀다. 그래서 **핫픽스를 먼저 하면** `latest_tag()` 가 None 을
+# 돌려주고 → "이전 태그가 없어 버전을 정할 수 없다" → exit 1 → 그리고 그때는 알림도
+# 없었다(문제 ①). 읽기를 넓혀 그 길을 막는다.
+#
+# **만들 때는 항상 `v` 를 붙인다**(`bump_patch`·`parse_version`). 두 형식이 섞여 있으면
+# 다음 사람이 또 헷갈리므로, 새로 나가는 것은 하나로 모은다.
+TAG_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
 MERGE_RE = re.compile(r"^Merge branch '([^']+)' into '([^']+)'")
 MR_REF_RE = re.compile(r"See merge request [^!\s]*!(\d+)")
 KST = timezone(timedelta(hours=9))
 MAX_NOTE_LINES = 150          # 첫 릴리스는 develop 전체(수백 건)라 잘라야 읽힌다
 # 배포용 폴더에 넣으면 안 되는 것 — Unity 가 만드는 디버그 심볼·백업 폴더
 SHIP_EXCLUDE = ("_BurstDebugInformation_DoNotShip", "_BackUpThisFolder_ButDontShipItWithYourGame")
+
+
+def dry_run() -> bool:
+    """리허설인가 (S15P21B202-407 ④).
+
+    트리거가 `push && master` 하나뿐이라 **시험 실행이 곧 실제 릴리스**였다. 90분짜리 잡을
+    미검증 상태로 처음 돌리게 되므로, 빌드·zip 까지는 진짜로 하고 밖으로 나가는 것
+    (패키지 업로드 · Release · 🟢 카드 · Jira 웹훅)만 건너뛰는 길을 만든다.
+
+    `.gitlab-ci.yml` 이 `CI_PIPELINE_SOURCE == "web"` 일 때 이 변수를 1 로 준다.
+    """
+    return (env("RELEASE_DRY_RUN", "") or "").strip() not in ("", "0", "false", "no")
 
 
 # ── 버전 ─────────────────────────────────────────────────────────────────────
@@ -93,10 +115,21 @@ def git(*args: str) -> str:
 
 
 def all_tags() -> list[str]:
+    """버전으로 읽히는 태그 전부. `v` 없는 옛 태그(`1.0.1`)도 포함한다 — 위 TAG_RE 주석 참고.
+
+    **태그가 워크스페이스에 실제로 있는지 확인한다** (S15P21B202-407 ②). `GIT_DEPTH: "0"`
+    이라 전체 이력을 받지만, 태그가 함께 오는지는 첫 실행에서 확인해야 한다. 없으면
+    `latest_tag` 가 늘 None 이고 핫픽스 경로가 조용히 막힌다. 그래서 개수를 찍는다.
+    """
     try:
-        return [t for t in git("tag", "--list", "v*").split() if t]
+        raw = [t for t in git("tag", "--list").split() if t]
     except RuntimeError:
+        print("   git tag 실패 — 태그를 0개로 본다")
         return []
+    usable = [t for t in raw if parse_tag(t)]
+    print(f"   태그 {len(raw)}개 중 버전으로 읽히는 것 {len(usable)}개"
+          + (f": {' '.join(sorted(usable)[-5:])}" if usable else " (없음)"))
+    return usable
 
 
 def previous_tag(current: str) -> str | None:
@@ -265,6 +298,10 @@ def phase_version() -> int:
     message = env("CI_COMMIT_MESSAGE", "") or ""
     version, why = decide_version(message, all_tags())
     print(f"머지 커밋: {message.strip().splitlines()[0] if message.strip() else '(없음)'}")
+    if not version and dry_run():
+        # 리허설은 아무 브랜치에서나 돌린다 — 릴리스 브랜치 머지 커밋이 없는 것이 정상이다.
+        # 여기서 멈추면 정작 시험하려던 빌드·zip 경로를 한 번도 못 지나간다.
+        version, why = "v0.0.0-rehearsal", f"리허설(원래 사유: {why})"
     if not version:
         print(f"❌ 버전을 정할 수 없다 — {why}")
         return 1
@@ -274,6 +311,79 @@ def phase_version() -> int:
     return 0
 
 
+def phase_gate(test_rc: int, xml_path: str, log_path: str = "") -> int:
+    """EditMode 테스트 결과로 빌드 여부를 가른다 (S15P21B202-407 ③).
+
+    **왜 릴리스 잡 안인가.** master push 에서 생기는 잡은 `release-windows` 하나뿐이었다.
+    `unity-compile` 의 rules 는 `merge_request_event`·`develop` 이라 여기 없고, MR
+    파이프라인은 **소스 브랜치**를 검사하므로 머지 결과 트리는 어디서도 검사되지 않은
+    상태로 릴리스됐다. master 에 `unity-compile` 을 따로 붙이면 `resource_group: unity`
+    로 직렬화되어 총 시간이 두 배가 되므로, 같은 임포트를 재사용하는 이 자리에서 돈다.
+
+    **컴파일 오류도 여기서 드러난다.** 컴파일이 깨지면 Unity 는 테스트를 돌리지 못하고
+    종료 코드가 0이 아니며 결과 XML 이 없다. 그 경우를 "테스트 0건 통과" 로 읽으면
+    안 된다 — 없는 것을 통과로 읽는 것이 `-134` 에서 고친 실패 방식이다.
+
+    `❌` 줄을 남기는 것이 계약이다. `mm-ci-failed` 가 그 줄을 카드의 '이유' 로 싣는다
+    (`mm_notify.REASON_MARKERS`). 남기지 않으면 카드가 "로그에서 이유를 찾지 못함" 이 된다.
+    """
+    if not os.path.exists(xml_path):
+        print(f"❌ EditMode 테스트 결과가 없다 (종료 코드 {test_rc}) — 컴파일이 깨졌을 수 있다. 빌드하지 않는다")
+        for line in compile_error_lines(log_path):
+            print(f"   {line}")
+        return 1
+
+    try:
+        import unity_report
+        data = unity_report.parse_nunit(open(xml_path, encoding="utf-8", errors="replace").read())
+    except Exception as e:  # noqa: BLE001
+        print(f"❌ 테스트 결과를 읽지 못했다: {type(e).__name__}: {e} — 빌드하지 않는다")
+        return 1
+
+    print(f"EditMode 테스트 — 전체 {data['total']} · 통과 {data['passed']} · "
+          f"실패 {data['failed']} · 건너뜀 {data['skipped']} ({data['duration']:.0f}초)")
+
+    # 파이프라인 화면에서 실패한 테스트를 바로 보게 한다 (unity-compile 과 같은 결).
+    try:
+        with open(os.path.join(env("CI_PROJECT_DIR", ".") or ".", "unity-junit.xml"),
+                     "w", encoding="utf-8", newline="\n") as f:
+            f.write(unity_report.to_junit(data))
+    except Exception as e:  # noqa: BLE001
+        print(f"   JUnit 변환 실패(비차단): {type(e).__name__}: {e}")
+
+    failed = [c for c in data["cases"] if (c.get("result") or "").lower() == "failed"]
+    if failed:
+        print(f"❌ EditMode 테스트 {len(failed)}건 실패 — 이 트리로는 릴리스를 빌드하지 않는다")
+        for c in failed[:10]:
+            print(f"   {c['cls']}.{c['name']} — {c['msg'][:200]}")
+        if len(failed) > 10:
+            print(f"   … 외 {len(failed) - 10}건 (전체는 unity-results.xml)")
+        return 1
+
+    if test_rc != 0:
+        # 결과는 전부 통과인데 종료 코드가 0이 아니다 — 테스트 밖에서 깨진 것이다.
+        print(f"❌ 테스트는 전부 통과인데 Unity 종료 코드가 {test_rc} 다 — 빌드하지 않는다")
+        for line in compile_error_lines(log_path):
+            print(f"   {line}")
+        return 1
+
+    print(f"✅ EditMode 테스트 {data['passed']}건 통과 — 빌드로 넘어간다")
+    return 0
+
+
+def compile_error_lines(log_path: str, cap: int = 10) -> list[str]:
+    """로그에서 `error CS` 줄만. 로그는 수만 줄이라 사람이 못 읽는다."""
+    if not log_path or not os.path.exists(log_path):
+        return ["(로그 파일 없음)"]
+    try:
+        import unity_report
+        errs = unity_report.compile_errors(
+            open(log_path, encoding="utf-8", errors="replace").read(), cap=cap)
+    except Exception:  # noqa: BLE001
+        return ["(로그를 읽지 못했다)"]
+    return errs or ["(로그에 `error CS` 줄 없음 — 잡 로그를 직접 보세요)"]
+
+
 def phase_publish(unity_rc: int) -> int:
     version = open(VERSION_FILE, encoding="utf-8").read().strip() if os.path.exists(VERSION_FILE) else "?"
     sha = env("CI_COMMIT_SHA", "") or ""
@@ -281,8 +391,9 @@ def phase_publish(unity_rc: int) -> int:
     links = " · ".join(f"[{n}]({u})" for n, u in (("파이프라인", env("CI_PIPELINE_URL")), ("잡 로그", env("CI_JOB_URL"))) if u)
     if unity_rc != 0:
         print(f"❌ Unity 빌드 실패(exit {unity_rc}) — Release 를 만들지 않는다")
-        notify(False, version, [("단계", f"Unity 빌드 (exit {unity_rc})"), ("커밋", f"`{sha[:8]}`"), ("볼 곳", "잡 아티팩트 `unity-build.log` 의 `error` 줄"),
-                                 ("링크", links)])
+        if not dry_run():
+            notify(False, version, [("단계", f"Unity 빌드 (exit {unity_rc})"), ("커밋", f"`{sha[:8]}`"), ("볼 곳", "잡 아티팩트 `unity-build.log` 의 `error` 줄"),
+                                     ("링크", links)])
         return 1
 
     build_dir = env("SPACE_BUILD_DIR", "release/NotThisPlanet") or "release/NotThisPlanet"
@@ -291,6 +402,14 @@ def phase_publish(unity_rc: int) -> int:
     t0 = time.time()
     size = zip_dir(build_dir, zip_path)
     print(f"zip {name} — {size / 1048576:.1f} MB ({time.time() - t0:.0f}초)")
+
+    if dry_run():
+        # 여기까지가 리허설의 목적이다 — 라이선스·임포트·빌드·삭제 검사·zip 이 실제로
+        # 지나갔다. 밖으로 나가는 것(패키지·Release·카드·Jira)은 하지 않는다.
+        print(f"✅ 리허설 완료 — 빌드와 zip 까지 지나갔다 ({name} · {size / 1048576:.1f} MB)")
+        print("   건너뛴 것: 패키지 업로드 · GitLab Release · 🟢 MM 카드 · Jira 릴리스 웹훅")
+        print("   실제 릴리스는 release/<키>-vX.Y.Z 브랜치를 master 에 머지할 때 난다")
+        return 0
 
     t0 = time.time()
     st = upload_package(zip_path, version, name)
@@ -331,13 +450,20 @@ def main(argv: list[str] | None = None) -> int:
     phase = argv[0] if argv else "version"
     if phase == "version":
         return phase_version()
+    if phase == "gate":
+        try:
+            trc = int(argv[1]) if len(argv) > 1 and str(argv[1]).strip() else 0
+        except ValueError:
+            trc = 1
+        return phase_gate(trc, argv[2] if len(argv) > 2 else "",
+                          argv[3] if len(argv) > 3 else "")
     if phase == "publish":
         try:
             rc = int(argv[1]) if len(argv) > 1 and str(argv[1]).strip() else 0
         except ValueError:
             rc = 1
         return phase_publish(rc)
-    print(f"모르는 단계: {phase!r} (version | publish <unity-rc>)")
+    print(f"모르는 단계: {phase!r} (version | gate <test-rc> <xml> [log] | publish <unity-rc>)")
     return 2
 
 
