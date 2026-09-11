@@ -1,0 +1,4 @@
+.feedback-button{display:block;margin-top:20px;text-align:center}
+.download-action .feedback-hint{margin:8px 0 0;font-size:14px;color:var(--muted)}
+.guide-actions{display:flex;flex-wrap:wrap;gap:12px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
