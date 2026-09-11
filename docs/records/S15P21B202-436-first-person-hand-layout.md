@@ -34,6 +34,13 @@ SpaceBootstrap이 로컬 플레이어 생성 시 firstPersonHandSettings를 Firs
 4. 방망이·용접 도구 장착, 1/3인칭 전환, 탑승/기절 및 원격 아바타를 확인한다.
 5. 새 Windows 빌드에서도 동일 구도를 확인하고 스크린샷을 MR에 첨부한다.
 
-## 제외
+## 컴파일 참조 보완
+
+- 추가한 씬 회귀 테스트가 SpaceBootstrap을 직접 사용하지만 테스트 asmdef에 Metagame.Bootstrap 직접 참조가 누락되어 CS0234가 발생했다.
+- 테스트 asmdef에 Metagame.Bootstrap 참조를 추가했다. 기존 Metagame.Editor의 간접 참조에 의존하지 않는다.
+- Bootstrap은 테스트 어셈블리를 참조하지 않아 순환 참조를 만들지 않는다. 테스트는 Editor 전용이며 플레이어 빌드 로직은 변경하지 않는다.
+- 검증: Unity 6000.5.4f1에 포함된 Roslyn으로 기존 테스트 어셈블리 응답 파일에 Bootstrap 참조를 추가하여 전체 테스트 소스를 임시 폴더로 컴파일했다. 종료 코드 0, CS0234 포함 컴파일 오류 없음. 다른 기존 테스트의 obsolete API 경고만 출력됐다. 이는 컴파일 검증이며 테스트 실행/Windows 플레이어 빌드 검증은 아니다.
+
+## 제외 범위
 
 기존 로컬 렌더러·머티리얼·프로젝트 설정 변경은 포함하지 않는다. 본 작업에서 MR 승인·머지는 수행하지 않는다.

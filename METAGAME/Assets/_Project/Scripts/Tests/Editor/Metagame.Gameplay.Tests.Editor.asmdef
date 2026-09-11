@@ -6,6 +6,7 @@
     "UnityEditor.TestRunner",
     "Metagame.Core",
     "Metagame.Gameplay",
+    "Metagame.Bootstrap",
     "Metagame.Network",
     "Metagame.UI",
     "UnityEngine.UI",
