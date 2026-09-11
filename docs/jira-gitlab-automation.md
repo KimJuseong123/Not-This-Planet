@@ -285,7 +285,11 @@ GitLab Release가 발행되면 CI(`scripts/ci/publish_release.py`)가 이 규칙
 - **왜 편집을 `operations`가 아니라 `advancedFields`로 하나**: UI가 만든 `operations`는 `type: "SET"` + `value: [{"type":"REFERENCE","value":"LAST_RELEASED_VERSION"}]` 이었다 — **기존 `fixVersion`을 지우고 엉뚱한 버전을 넣는다.** 스마트값을 `operations`의 값 항목에 어떤 `type`으로 싣는지는 문서화돼 있지 않아, 부록 A에 실측으로 남은 `advancedFields`(Jira REST 편집 JSON 문자열, `add`로 기존 값 유지) 를 쓴다. UI 에서는 "고급" 칸에 JSON으로 보인다 — 정상이다
 - 적용: 부록 A 방식으로 `PUT`(dry-run으로 먼저 확인). 2026-09-07 `PUT 200` 후 재조회로 7항목 전부 확인(액션 순서·타입 · 세 스마트값 · advancedFields · `operations` 빈 것 · 트리거 기준)
 - 실패는 CI 쪽에서 **비차단**이다 — Release는 이미 났으므로 웹훅이 실패해도 MM 카드에 한 줄만 남는다. 같은 버전을 다시 보내면 1) 이 "이미 있음" 으로 실패할 수 있는데 그것도 무해하다
+- **웹훅 주소의 모양**: CI 변수 `JIRA_RELEASE_WEBHOOK` 은 `https://` 로 시작하고 앞뒤에 공백이 없어야 한다. CI 가 **버전 단계(0분)에서 모양을 미리 본다** — 틀리면 그때 경고하고 릴리스는 계속한다. 2026-09-11 v1.0.0 에서 이 값이 스킴 없이 들어가 있어 `urllib` 이 `ValueError: unknown url type` 으로 터졌고, **빌드·패키지·Release·MM 이 전부 끝난 뒤**였던 탓에 58분 걸린 잡이 빨간불로 남았다.
+- **실패해도 잡은 성공(exit 0)이다.** 이 호출이 일어나는 시점에 Release 는 이미 났다. 여기서 잡을 실패시키면 성공한 릴리스가 빨간불로 남고, 사람이 재실행을 눌러 **같은 릴리스를 또 내려 한다.**
+- **MM 카드에는 예외의 종류만 싣는다**(`ValueError` 같은 이름). `urllib` 의 예외 문구에는 URL 이 그대로 들어 있고, 잡 로그는 GitLab 이 masked 변수를 가려 주지만 **MM 카드는 가려 주지 않는다** — `str(e)` 를 실으면 웹훅 주소가 채널로 나간다. `-335` 에서 정한 것과 같은 규칙이다.
 - **첫 실전 확인**: 릴리스가 나면 Jira 릴리스 화면에 버전 `vX.Y.Z`와 그 안의 이슈 목록이 보이는지
+  - **v1.0.0(2026-09-11)은 미충족이다** — 위 오류로 웹훅이 가지 않아 Jira 쪽 fixVersion 이 비어 있다. 다음 릴리스에서 확인한다.
 
 ### 자동화가 이벤트를 놓쳤을 때 — `automation-missed` (S15P21B202-329)
 
