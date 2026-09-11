@@ -292,6 +292,60 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
+        /// 보이는 기체가 <b>빔 위에</b> 온다 — 한쪽으로 밀려 있지 않다 (S15P21B202-441).
+        ///
+        /// <para><b>실측에서 나온 두 번째 어긋남이다.</b> 회전 중심을 고친 뒤에도 "빔이
+        /// 오른쪽으로 일관되게 어긋나 있다" 가 남았다 — 돌아가는 문제가 아니라 처음부터
+        /// 밀려 있는 문제였다.</para>
+        ///
+        /// <para>빔은 루트에 붙어 있으므로(<c>beam.Configure(transform, ...)</c>) 루트의
+        /// 수직축이 곧 빔의 자리다. 경계 중심이 거기 와야 한다.</para>
+        /// </summary>
+        [Test]
+        public void Board_CentersTheHullOverTheBeam()
+        {
+            var vehicle = MakeVehicle(new Vector3(0f, 5f, 0f), true);
+
+            // 스킨이 어긋나게 붙인 상황을 만든다.
+            var visual = vehicle.transform.Find("Visual");
+            Assert.IsNotNull(visual, "이 검증은 Visual 이 있어야 의미가 있다.");
+            visual.position = vehicle.transform.position + new Vector3(1.3f, 0f, -0.7f);
+
+            var player = MakePlayer(new Vector3(0f, 5f, 1.5f));
+            var camera = OrbitCamera.Create(player.Hips.transform, Color.black, true);
+            player.Cam = camera;
+            spawned.Add(camera.gameObject);
+            Assert.IsTrue(vehicle.TryBoard(player));
+
+            foreach (var dir in new[] { Vector3.forward, Vector3.right, Vector3.back, Vector3.left })
+            {
+                vehicle.SetFacingDirection(dir);
+
+                var offset = HullBoundsCenter(vehicle) - vehicle.transform.position;
+                offset.y = 0f;   // 높이는 좌석 계산이 쓰므로 맞추지 않는다
+
+                Assert.Less(offset.magnitude, 0.15f,
+                    $"{dir} 을 볼 때 기체가 빔에서 {offset.magnitude:0.00}m 밀려 있다");
+            }
+        }
+
+        /// <summary>껍데기 렌더러들의 경계 중심(월드). 조종석은 제외한다.</summary>
+        static Vector3 HullBoundsCenter(TransportVehicle vehicle)
+        {
+            var visual = vehicle.transform.Find("Visual");
+            var renderers = visual.GetComponentsInChildren<Renderer>(true);
+            var bounds = new Bounds();
+            var first = true;
+            foreach (var r in renderers)
+            {
+                if (r is ParticleSystemRenderer) continue;
+                if (first) { bounds = r.bounds; first = false; }
+                else bounds.Encapsulate(r.bounds);
+            }
+            return bounds.center;
+        }
+
+        /// <summary>
         /// 빔(루트)에서 본 껍데기 중심까지의 수평 거리. 돌려도 이 값이 변하지 않아야 한다.
         ///
         /// <para>회전한 메시의 월드 AABB 는 모양 자체가 달라지므로 중심을 그대로 비교하면

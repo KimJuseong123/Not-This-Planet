@@ -869,6 +869,8 @@ namespace Metagame.Gameplay.Parts
                 // 기체가 조금씩 밀려난다.
                 if (!visualRestReady)
                 {
+                    CenterVisualOverRoot();
+
                     visualRestOffset = Quaternion.Inverse(look)
                                        * (visual.position - transform.position);
                     visualRestReady = true;
@@ -882,6 +884,35 @@ namespace Metagame.Gameplay.Parts
             // 조종석은 루트의 수직축 위에 있어 제자리에서 돌아도 어긋나지 않는다.
             if (cockpit != null)
                 cockpit.rotation = Quaternion.LookRotation(facingDirection, Vector3.up);
+        }
+
+        /// <summary>
+        /// 보이는 기체를 루트의 수직축에 맞춘다 — 빔이 있는 자리다 (S15P21B202-441).
+        ///
+        /// <para><b>실측 보고에서 나온 두 번째 어긋남이다.</b> 회전 중심을 고친 뒤에도
+        /// "빔이 오른쪽으로 일관되게 어긋나 있다" 가 남았다. 돌아가는 문제가 아니라
+        /// <b>처음부터 한쪽으로 밀려 있는</b> 문제다.</para>
+        ///
+        /// <para>스킨은 경계 중심을 루트에 맞춰 붙인다(S15P21B202-84). 그런데 메시 피벗이
+        /// 경계 중심과 다르면 그 맞춤이 어긋난 채로 남는다 — 빔은 루트에 붙어 있으므로
+        /// 기체만 옆으로 비켜 보인다.</para>
+        ///
+        /// <para><b>높이는 건드리지 않는다.</b> 좌석 높이 계산이 경계의 위아래를 쓴다
+        /// (<see cref="ResolveSeatHeight"/>) — 수직으로 옮기면 탑승자가 기체를 뚫거나
+        /// 떠 있게 된다. 수평으로만 맞춘다.</para>
+        ///
+        /// <para>한 번만 부른다(<see cref="visualRestReady"/>). 매번 맞추면 회전한 메시의
+        /// 월드 AABB 가 방향마다 달라지므로 기체가 조금씩 떨린다.</para>
+        /// </summary>
+        void CenterVisualOverRoot()
+        {
+            if (visual == null || !TryVisualBounds(out var bounds)) return;
+
+            var drift = bounds.center - transform.position;
+            drift.y = 0f;
+            if (drift.sqrMagnitude < 1e-6f) return;
+
+            visual.position -= drift;
         }
 
         // 루트에서 Visual 피벗까지의 오프셋. 보는 방향 기준으로 적어 두고 회전과 함께
