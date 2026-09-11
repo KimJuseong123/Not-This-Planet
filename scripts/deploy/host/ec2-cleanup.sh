@@ -61,7 +61,15 @@ FAILED=0
 # zip 정리는 그대로 한다. CI 잡과 아무 상관이 없다.
 # **단계마다 다시 잰다.** 한 번만 재면 ①을 도는 사이에 잡이 새로 시작돼도 그대로
 # ②·③ 을 밀어붙인다.
-busy() { docker ps --format '{{.Names}}' 2>/dev/null | grep -c '^runner-' || true; }
+# 도는 CI 잡 수. **이름 규칙과 러너 라벨을 둘 다 본다** — 이름(`runner-…`)은 도커
+# executor 의 관례일 뿐이라 executor 를 바꾸면 조용히 0 이 되고, 그러면 빌드 도중에
+# 캐시를 치운다.
+busy() {
+  {
+    docker ps --format '{{.Names}}' 2>/dev/null | grep '^runner-' || true
+    docker ps --filter 'label=com.gitlab.gitlab-runner.job.id' --format '{{.ID}}' 2>/dev/null || true
+  } | sort -u | grep -c . || true
+}
 
 SKIPPED=0
 step() {                      # step "라벨" 명령…
@@ -117,16 +125,19 @@ fi
 #
 # 위 넷은 안전한 명령만 쓰지만, **누가 나중에 `-a` 를 붙일 수 있다.** 그때 조용히
 # 사라지면 다음 릴리스에서야 안다 — 그 릴리스가 40분 넘게 길어진 뒤에.
+# **태그를 박아 두지 않는다.** 에디터 버전을 올리는 순간 정상인데도 매주 빨개지고,
+# 그러면 "늘 빨간 유닛" 이 되어 **진짜 소실을 못 알아본다.** 저장소(`unityci/editor`)에
+# 이미지가 **몇 개라도 있는지**를 본다 — 지키려는 것은 특정 태그가 아니라
+# "Unity 이미지를 다시 받지 않아도 되는 상태" 다.
 say "⑤ 지켜야 할 것 확인"
 MISSING=0
-for img in "unityci/editor:ubuntu-6000.5.4f1-windows-mono-3.2.2" "unityci/editor:ubuntu-6000.5.4f1-base-3.2.2"; do
-  if docker image inspect "$img" >/dev/null 2>&1; then
-    say "   ✅ $img"
-  else
-    say "   ❌ $img 가 없다 — 다음 릴리스가 이미지 내려받기로 7분 더 걸린다"
-    MISSING=1
-  fi
-done
+UNITY_IMAGES=$(docker image ls "${PROTECTED_IMAGE_REPO:-unityci/editor}" --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | wc -l)
+if [ "${UNITY_IMAGES:-0}" -eq 0 ]; then
+  say "   ❌ ${PROTECTED_IMAGE_REPO:-unityci/editor} 이미지가 하나도 없다 — 다음 릴리스가 내려받기로 7분 더 걸린다"
+  MISSING=1
+else
+  docker image ls "${PROTECTED_IMAGE_REPO:-unityci/editor}" --format '   ✅ {{.Repository}}:{{.Tag}} ({{.Size}})' 2>/dev/null | while read -r l; do say "$l"; done
+fi
 # **개수를 찍기만 하면 0 이어도 조용히 지나간다.** 셰이더 캐시가 사라진 것은
 # 이미지가 사라진 것과 같은 무게다(릴리스 +40분). 이미지와 똑같이 막는다.
 VOLS=$(docker volume ls -q 2>/dev/null | grep -c -- '-cache-.*-protected')
