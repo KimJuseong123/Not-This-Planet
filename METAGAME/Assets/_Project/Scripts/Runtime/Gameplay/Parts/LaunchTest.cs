@@ -159,7 +159,7 @@ namespace Metagame.Gameplay.Parts
             for (var i = 0; i < _tower.Count; i++)
             {
                 var part = _tower[i];
-                var tilt = Vector3.Angle(part.transform.up, Vector3.up);
+                var tilt = Vector3.Angle(part.AssemblyUp, Vector3.up);
 
                 if (tilt > PhysicsScale.LaunchMaxStandingTilt)
                 {

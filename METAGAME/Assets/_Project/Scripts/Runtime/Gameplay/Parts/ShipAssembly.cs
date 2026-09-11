@@ -166,7 +166,7 @@ namespace Metagame.Gameplay.Parts
 
             for (var i = 0; i < _tower.Count; i++)
             {
-                var tilt = Vector3.Angle(_tower[i].transform.up, Vector3.up);
+                var tilt = Vector3.Angle(_tower[i].AssemblyUp, Vector3.up);
                 if (tilt <= PhysicsScale.BoardingMaxTilt) continue;
 
                 Blocker = $"{_tower[i].name} 이 {tilt:0}도 기울어 있다";
@@ -201,7 +201,7 @@ namespace Metagame.Gameplay.Parts
                     continue;
                 }
 
-                var tilt = Vector3.Angle(part.transform.up, Vector3.up);
+                var tilt = Vector3.Angle(part.AssemblyUp, Vector3.up);
                 if (tilt > PhysicsScale.BoardingMaxTilt)
                 {
                     _floors[i] = FloorState.Tilted;
@@ -211,7 +211,7 @@ namespace Metagame.Gameplay.Parts
                 // 최하단은 아래에 접합할 상대가 없다. 위 <see cref="FloorState.Welded"/>
                 // 주석에 이유를 적었다.
                 var jointDone = part.State == PartState.Welded
-                                || (i == 0 && part.State == PartState.Placed);
+                                || (i == 0 && part.CanReceiveAssembly);
 
                 _floors[i] = jointDone ? FloorState.Welded : FloorState.Stacked;
             }

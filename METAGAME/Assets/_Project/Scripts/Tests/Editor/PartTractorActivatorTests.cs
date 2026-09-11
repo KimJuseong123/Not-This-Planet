@@ -22,6 +22,8 @@ namespace Metagame.Gameplay.Tests
             spawned.Clear();
             PartClamp.All.Clear();
             PartSocket.All.Clear();
+            WeldBead.All.Clear();
+            WorldEvents.RemoteDecides = false;
         }
 
         [Test]
@@ -56,12 +58,116 @@ namespace Metagame.Gameplay.Tests
             Assert.IsFalse(vehicle.transform.Find("VehiclePlatform").GetComponent<Collider>().enabled);
             Assert.IsTrue(vehicle.transform.Find("Visual/VehicleHull_0").GetComponent<Collider>().enabled);
             Assert.IsFalse(push.enabled, "전환 뒤 일반 파츠 밀기 입력은 남으면 안 된다.");
-            Assert.IsFalse(socket.enabled, "전환 뒤 조립용 소켓 판정은 남으면 안 된다.");
+            Assert.IsTrue(socket.enabled, "견인 기능을 겸해도 엔진 소켓은 조립에 필요하다.");
             Assert.IsFalse(part.GetComponent<Grabbable>().enabled,
                 "전환 뒤 Part_1 루트가 일반 손잡이 대상으로 남으면 안 된다.");
             Assert.IsNotNull(vehicle.transform.Find("VehiclePlatform"));
             Assert.IsNotNull(vehicle.transform.Find("VehicleSeat"));
-            Assert.AreEqual(GameLayers.Prop, vehicle.gameObject.layer);
+            Assert.AreEqual(GameLayers.Part, vehicle.gameObject.layer);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void ReleasedEngine_RemainsWeldableOnAuthorityAndReplica(bool remote)
+        {
+            WorldEvents.RemoteDecides = remote;
+            var part = CreatePart(out var activator, out _, out _, out var socket, out var clamps);
+            foreach (var clamp in clamps)
+            {
+                if (remote) clamp.ApplyNetworkState(1f, true);
+                else clamp.Release();
+            }
+            AssertWeldable(part, activator.Vehicle);
+            Assert.IsTrue(socket.enabled);
+            Assert.Contains(socket, PartSocket.All);
+            Assert.IsTrue(socket.CanReceive);
+            Assert.AreEqual(BeamGrabResult.NoTarget, activator.Vehicle.Beam.TryGrab(part),
+                "Keeping the Part layer must not let the tractor grab itself.");
+            var body = part.GetComponent<Rigidbody>();
+            part.SetExtraMass(2f);
+            part.RefreshRepresentation();
+            Assert.AreEqual(remote, body.isKinematic);
+            Assert.AreEqual(82f, body.mass, 0.001f);
+        }
+
+        [TestCase(0)]
+        [TestCase(1)]
+        [TestCase(2)]
+        public void Engine_RemainsWeldableAndLaunchableAfterRiderChanges(int rides)
+        {
+            var part = CreatePart(out var activator, out _, out _, out var top, out var clamps);
+            foreach (var clamp in clamps) clamp.Release();
+            var vehicle = activator.Vehicle;
+            for (var i = 0; i < rides; i++)
+            {
+                var player = PlayerRig.Create("Rider " + i,
+                    vehicle.transform.position + Vector3.forward * 1.5f,
+                    Quaternion.identity, Color.white, Color.gray, false);
+                spawned.Add(player.gameObject);
+                Assert.IsTrue(vehicle.TryBoard(player));
+                Assert.IsFalse(top.CanReceive);
+                vehicle.BeginDismount();
+                AssertWeldable(part, vehicle);
+                vehicle.ForceReset();
+            }
+            AssertWeldable(part, vehicle);
+            Assert.IsTrue(top.CanReceive);
+            Assert.Less(Vector3.Angle(top.transform.forward, Vector3.up), 0.01f);
+
+            var baseSocket = new GameObject("Socket_Base");
+            baseSocket.transform.SetParent(part.transform, false);
+            baseSocket.AddComponent<PartSocket>().SetRole(SocketRole.Base);
+            part.RefreshSockets();
+
+            // Assemble all remaining floors onto the converted engine through real socket matching.
+            var previousTop = top;
+            for (var i = 1; i < PartSpec.All.Length; i++)
+            {
+                var go = new GameObject(PartSpec.All[i].Name) { layer = GameLayers.Part };
+                spawned.Add(go);
+                go.transform.position = previousTop.transform.position + Vector3.up * 0.5f;
+                go.AddComponent<BoxCollider>();
+                var next = go.AddComponent<SpaceshipPart>();
+                foreach (var role in new[] { SocketRole.Base, SocketRole.Top })
+                {
+                    var child = new GameObject(role.ToString());
+                    child.transform.SetParent(go.transform, false);
+                    var direction = role == SocketRole.Top ? Vector3.up : Vector3.down;
+                    child.transform.localPosition = direction * 0.5f;
+                    child.transform.rotation = Quaternion.LookRotation(direction, Vector3.forward);
+                    var socket = child.AddComponent<PartSocket>();
+                    socket.SetRole(role);
+                    if (role == SocketRole.Top) previousTop = socket;
+                }
+                next.Initialize();
+                next.TryTransitionTo(PartState.Free);
+                next.TryTransitionTo(PartState.Carried);
+                var match = PartAssembler.FindMatch(next);
+                Assert.IsTrue(match.HasValue, "Missing socket match for floor " + i);
+                var link = PartAssembler.Assemble(match);
+                Assert.IsNotNull(link);
+                link.ForceWeldComplete();
+                link.Tick();
+            }
+            var pad = new GameObject("LaunchPad");
+            spawned.Add(pad);
+            pad.transform.position = part.transform.position;
+            var assembly = pad.AddComponent<ShipAssembly>();
+            assembly.Evaluate();
+            Assert.IsTrue(assembly.IsBoardable, assembly.Blocker);
+            var launch = pad.AddComponent<LaunchTest>();
+            launch.Begin(assembly.Engine);
+            Assert.AreEqual(LaunchState.Ramping, launch.State, launch.FailureReason);
+        }
+
+        static void AssertWeldable(SpaceshipPart part, TransportVehicle vehicle)
+        {
+            Physics.SyncTransforms();
+            var hull = vehicle.transform.Find("Visual/VehicleHull_0").GetComponent<BoxCollider>();
+            var nozzle = hull.bounds.center + Vector3.right * (hull.bounds.extents.x + 0.05f);
+            Assert.IsTrue(WeldBead.TryGrowNear(nozzle, 0.02f, out var bead),
+                "Converted engine hull must remain a weld target.");
+            Assert.AreSame(part, bead.Owner);
         }
 
         [Test]
@@ -156,6 +262,8 @@ namespace Metagame.Gameplay.Tests
 
             var socketObject = new GameObject("Socket_Top");
             socketObject.transform.SetParent(go.transform, false);
+            socketObject.transform.localPosition = Vector3.up * 0.5f;
+            socketObject.transform.localRotation = Quaternion.LookRotation(Vector3.up, Vector3.forward);
             socket = socketObject.AddComponent<PartSocket>();
             socket.SetRole(SocketRole.Top);
             spawned.Add(socketObject);

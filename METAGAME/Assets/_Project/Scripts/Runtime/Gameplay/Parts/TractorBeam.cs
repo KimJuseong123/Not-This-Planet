@@ -126,7 +126,8 @@ namespace Metagame.Gameplay.Parts
         public BeamGrabResult TryGrab(SpaceshipPart candidate)
         {
             if (IsHolding) return BeamGrabResult.BeamBusy;
-            if (candidate == null || !CanReach(candidate)) return BeamGrabResult.NoTarget;
+            if (candidate == null || candidate.GetComponent<Rigidbody>() == Origin.GetComponentInParent<Rigidbody>()
+                || !CanReach(candidate)) return BeamGrabResult.NoTarget;
 
             switch (candidate.State)
             {
@@ -365,7 +366,7 @@ namespace Metagame.Gameplay.Parts
                 if (hit.collider == null) continue;
 
                 var part = hit.collider.GetComponentInParent<SpaceshipPart>();
-                if (part == null) continue;
+                if (part == null || part.GetComponent<Rigidbody>() == origin.GetComponentInParent<Rigidbody>()) continue;
 
                 if (hit.distance >= bestDistance) continue;
 
