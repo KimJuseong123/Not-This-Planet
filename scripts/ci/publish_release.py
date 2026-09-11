@@ -152,10 +152,16 @@ def tag_taken(version: str, tags: list[str], points_here=None) -> bool:
 
 
 def tag_sha(tag: str) -> str:
-    """태그가 가리키는 커밋. 못 읽으면 빈 문자열 — 그때는 막는 쪽으로 기운다."""
+    """태그가 가리키는 커밋. 못 읽으면 빈 문자열 — 그때는 막는 쪽으로 기운다.
+
+    **왜 그것을 찍는가.** 못 읽으면 "다른 커밋" 과 구별되지 않아 재시도 경로가
+    조용히 닫힌다. 로그에 이유가 있어야 사람이 `git fetch --tags` 가 빠졌는지
+    태그가 정말 다른 곳에 있는지 가를 수 있다.
+    """
     try:
         return git("rev-list", "-n", "1", tag).strip()
-    except RuntimeError:
+    except RuntimeError as e:
+        print(f"   ⚠️ 태그 {tag} 의 커밋을 읽지 못했다 — 재시도로 보지 않는다: {e}")
         return ""
 
 
@@ -180,9 +186,10 @@ def decide_version(message: str, tags: list[str], points_here=None) -> tuple[str
         # 여기서 멈추는 것은 **이미 쓴 번호를 다른 커밋에 또 붙이려는 때**뿐이다.
         if tag_taken(v, tags, points_here):
             return None, (f"릴리스 브랜치가 {v} 를 가리키는데 그 버전의 태그가 **다른 커밋**에 "
-                          "이미 붙어 있다 — 같은 번호를 두 번 쓸 수 없다. 릴리스 브랜치 이름의 "
-                          "버전을 올리거나, 잘못 만들어진 태그라면 그것부터 정리하세요 "
-                          "(같은 커밋이면 재시도로 보고 그냥 진행한다)")
+                          "이미 붙어 있다(또는 그 태그의 커밋을 읽지 못했다 — 위 경고를 보세요). "
+                          "같은 번호를 두 번 쓸 수 없다. 릴리스 브랜치 이름의 버전을 올리거나, "
+                          "잘못 만들어진 태그라면 그것부터 정리하세요. "
+                          "같은 커밋이면 재시도로 보고 그냥 진행한다")
         return v, "릴리스 브랜치 이름의 버전"
     if "hotfix/" in (message or ""):
         last = latest_tag(tags)
