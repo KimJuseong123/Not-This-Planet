@@ -24,6 +24,15 @@ public static class Program
     /// <summary>게임을 두는 곳. 런처 옆의 폴더다 — 런처는 자기 자신을 못 지운다.</summary>
     const string GameDirName = "game";
 
+    /// <summary>
+    /// 배포용 게임 폴더 이름. <b>자체 검사가 쓴다.</b>
+    ///
+    /// <para>상수끼리 견주면 컴파일러가 결과를 미리 접어서 검사가 <b>죽은 코드</b>가
+    /// 된다(CS0162). 프로퍼티로 한 번 감싸면 실제로 돌아, 누군가 두 이름을 같게
+    /// 바꿨을 때 잡힌다 — 그러면 개발 설치가 배포 설치를 덮는다.</para>
+    /// </summary>
+    internal static string ProdGameDirName => GameDirName;
+
     static readonly HttpClient Http = new(new SocketsHttpHandler
     {
         // 서버가 죽어 있을 때 사용자를 오래 붙잡지 않는다. 받는 것은 아래에서
@@ -181,6 +190,12 @@ public static class Program
     {
         Directory.CreateDirectory(gameDir);
 
+        // 지난번에 끝내지 못했으면 그 사실을 말한다. 해시로 어차피 다시 맞추지만,
+        // **사용자가 "왜 또 받지" 를 알 수 있어야 한다.**
+        var leftover = Path.Combine(gameDir, ".syncing");
+        if (File.Exists(leftover))
+            Console.WriteLine("지난번 업데이트가 끝나지 않았다 — 이어서 맞춘다.");
+
         // ── 무엇을 받아야 하나 ──────────────────────────────────────────────
         // 크기가 같아도 내용이 다를 수 있으므로 **해시로 판단한다.** 대신 크기가
         // 다르면 해시를 잴 필요가 없다 — 355 MB 를 매번 해시하면 시작이 느려진다.
@@ -207,6 +222,8 @@ public static class Program
             ? Directory.EnumerateFiles(gameDir, "*", SearchOption.AllDirectories)
                 .Select(p => Path.GetRelativePath(gameDir, p))
                 .Where(rel => !wanted.Contains(rel))
+                // 우리가 만든 표시 파일과 받다 만 조각은 "옛 에셋" 이 아니다.
+                .Where(rel => rel != ".syncing" && !rel.EndsWith(".part", StringComparison.Ordinal))
                 .ToList()
             : new List<string>();
 
@@ -230,6 +247,13 @@ public static class Program
         }
 
         // ── 받는다 ─────────────────────────────────────────────────────────
+        //
+        // **먼저 "맞추는 중" 표시를 남긴다.** 중간에 실패하거나 사용자가 창을 닫으면
+        // 폴더가 섞인 상태로 남는데, 그 사실이 어디에도 없으면 다음에 켤 때 아무도
+        // 모른다. 다 끝나면 지운다.
+        var marker = Path.Combine(gameDir, ".syncing");
+        try { File.WriteAllText(marker, m.Version); } catch (IOException) { }
+
         long done = 0;
         int n = 0;
         foreach (var f in need)
@@ -244,7 +268,13 @@ public static class Program
             {
                 Console.WriteLine();
                 Console.WriteLine($"❌ {f.Path} 를 받지 못했다: {e.GetType().Name}: {e.Message}");
-                Console.WriteLine("   폴더는 그대로 두었다. 다시 실행하면 받은 것부터 이어서 한다.");
+                // **사실대로 말한다.** 앞서 받은 파일은 이미 제자리에 들어갔으므로
+                // 폴더는 새것과 옛것이 **섞인 상태**다. "그대로 두었다" 는 거짓이고,
+                // 그 말을 믿으면 사용자가 게임을 켜서 섞인 채로 논다(`!364` AI 리뷰).
+                Console.WriteLine($"   {n - 1}개는 이미 적용됐고 나머지는 옛 파일이다 — "
+                                  + "섞인 상태다.");
+                Console.WriteLine("   다시 실행하면 남은 것만 이어받는다. "
+                                  + "그때까지 게임을 켜지 마라.");
                 return false;
             }
             done += f.Gz > 0 ? f.Gz : f.Size;
@@ -262,6 +292,7 @@ public static class Program
         if (stale.Count > 0) Console.WriteLine($"지우기 완료 {stale.Count}개");
         RemoveEmptyDirs(gameDir);
 
+        try { File.Delete(marker); } catch (IOException) { }
         Console.WriteLine($"✅ {m.Version} 으로 맞췄다.");
         return true;
     }

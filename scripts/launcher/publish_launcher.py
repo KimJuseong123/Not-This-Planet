@@ -59,8 +59,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("exe", help="dotnet publish 로 만든 단일 exe")
     ap.add_argument("version", help=f"런처 버전 ({VERSION_RE_HINT})")
     ap.add_argument("--out", required=True, help="배포 루트(= nginx 가 /builds/ 로 내보내는 폴더)")
-    ap.add_argument("--min", dest="minimum", default="",
-                    help="이 버전 미만 런처는 게임을 못 켠다. 규약을 깰 때만 준다")
+    ap.add_argument("--min", dest="minimum", default=None,
+                    help="이 버전 미만 런처는 게임을 못 켠다. 규약을 깰 때만 준다. "
+                         "주지 않으면 **서버의 기존 값을 그대로 둔다**")
+    ap.add_argument("--min-clear", action="store_true",
+                    help="최소 버전 강제를 **푼다**. 내리는 것은 명시해야 한다")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args(argv)
 
@@ -69,6 +72,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if parse_version(a.version) is None:
         print(f"❌ 버전이 {VERSION_RE_HINT} 모양이 아니다: {a.version}")
+        return 1
+    if a.minimum is not None and a.min_clear:
+        print("❌ --min 과 --min-clear 를 함께 줄 수 없다")
         return 1
     if a.minimum:
         if parse_version(a.minimum) is None:
@@ -113,29 +119,50 @@ def main(argv: list[str] | None = None) -> int:
         print(f"저장소 → files/{digest[:12]}….gz ({gz_size / 1048576:.1f} MB, "
               f"{gz_size / size * 100:.0f}%)")
 
+    path = os.path.join(a.out, "launcher.json")
+
+    # ── 기존 `minLauncher` 를 이어받는다 ─────────────────────────────────
+    #
+    # **이것이 없으면 강제가 조용히 풀린다.** `--min v1.2.0` 으로 한 번 잠가 두고
+    # 다음에 그냥 `publish_launcher.py … v1.3.0` 을 돌리면, 예전 방식은
+    # `minLauncher: ""` 로 덮어써서 **옛 런처가 다시 통과한다.** 아무 오류도 안 난다.
+    # (`!364` AI 리뷰가 잡았다.)
+    #
+    # 그래서 주지 않으면 **그대로 두고**, 내리려면 `--min-clear` 로 명시하게 한다 —
+    # 강제를 거는 것보다 푸는 것이 더 위험하므로 푸는 쪽에 말을 요구한다.
+    previous = ""
+    if os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                old_info = json.load(f)
+            previous = old_info.get("minLauncher") or ""
+            print(f"지금 서버: {old_info.get('version')} · 최소 {previous or '(없음)'}")
+        except (OSError, ValueError):
+            print("지금 서버: launcher.json 을 읽지 못했다 — 최소 버전을 이어받지 못한다")
+
+    if a.min_clear:
+        minimum = ""
+        print("  ⚠ 최소 버전 강제를 **푼다** — 옛 런처가 다시 통과한다")
+    elif a.minimum is not None:
+        minimum = a.minimum
+    else:
+        minimum = previous
+        if previous:
+            print(f"  최소 버전 {previous} 를 그대로 이어받는다 (풀려면 --min-clear)")
+
     info = {
         "schema": SCHEMA,
         "version": a.version,
         "sha256": digest,
         "size": size,
         "gz": gz_size,
-        "minLauncher": a.minimum,
+        "minLauncher": minimum,
         "createdAt": datetime.now(KST).isoformat(timespec="seconds"),
     }
-    path = os.path.join(a.out, "launcher.json")
 
-    # 옛 값을 보여 준다 — `minLauncher` 를 실수로 올리는 것이 가장 아픈 실수다.
-    if os.path.exists(path):
-        try:
-            with io.open(path, encoding="utf-8") as f:
-                old = json.load(f)
-            print(f"지금 서버: {old.get('version')} · 최소 {old.get('minLauncher') or '(없음)'}")
-        except (OSError, ValueError):
-            print("지금 서버: launcher.json 을 읽지 못했다")
-
-    print(f"새로 쓸 것: {a.version} · 최소 {a.minimum or '(없음)'}")
-    if a.minimum:
-        print("  ⚠ 최소 버전을 주었다 — 그보다 낮은 런처는 **갱신에 실패하면 게임을 "
+    print(f"새로 쓸 것: {a.version} · 최소 {minimum or '(없음)'}")
+    if minimum and minimum != previous:
+        print("  ⚠ 최소 버전을 올렸다 — 그보다 낮은 런처는 **갱신에 실패하면 게임을 "
               "켜지 못한다.** 규약을 깨는 변경일 때만 맞다")
 
     if a.dry_run:

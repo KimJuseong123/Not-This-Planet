@@ -225,6 +225,42 @@ try:
     assert sorted(M.manifest_versions(gc_out)) == msnap, "dry-run 이 매니페스트를 지웠다"
     print("  ⑬ dry-run 은 지우지 않는다 ✅")
 
+    # ── ⑭ 런처 재배포가 최소 버전 강제를 조용히 풀면 안 된다 ────────────
+    #
+    # `--min v1.2.0` 으로 한 번 잠가 두고 다음에 그냥 올리면, 예전 방식은
+    # `minLauncher: ""` 로 덮어써서 **옛 런처가 다시 통과했다.** 아무 오류도 안 난다.
+    # (`!364` AI 리뷰가 잡았다.)
+    import publish_launcher as PL  # noqa: E402
+
+    pl_out = os.path.join(tmp, "pl")
+    fake = os.path.join(tmp, "fake-launcher.exe")
+    io.open(fake, "wb").write(b"L" * 500)
+
+    assert PL.main([fake, "v1.0.0", "--out", pl_out]) == 0
+    assert load(os.path.join(pl_out, "launcher.json"))["minLauncher"] == ""
+
+    # 잠근다
+    assert PL.main([fake, "v1.1.0", "--out", pl_out, "--min", "v1.1.0"]) == 0
+    assert load(os.path.join(pl_out, "launcher.json"))["minLauncher"] == "v1.1.0"
+
+    # **그냥 올리면 그대로 있어야 한다** — 여기가 조용히 풀리던 자리다
+    assert PL.main([fake, "v1.2.0", "--out", pl_out]) == 0
+    j = load(os.path.join(pl_out, "launcher.json"))
+    assert j["version"] == "v1.2.0", j["version"]
+    assert j["minLauncher"] == "v1.1.0", (
+        f"재배포가 최소 버전 강제를 풀었다: {j['minLauncher']!r} — 옛 런처가 다시 통과한다")
+
+    # 내리는 것은 **명시해야** 한다
+    assert PL.main([fake, "v1.3.0", "--out", pl_out, "--min-clear"]) == 0
+    assert load(os.path.join(pl_out, "launcher.json"))["minLauncher"] == ""
+
+    # 둘을 같이 주면 거절한다 — 무엇을 원하는지 알 수 없다
+    assert PL.main([fake, "v1.4.0", "--out", pl_out, "--min", "v1.4.0", "--min-clear"]) == 1
+
+    # 올리는 버전보다 높은 최소 버전은 **방금 올린 런처도 거부한다**
+    assert PL.main([fake, "v1.5.0", "--out", pl_out, "--min", "v9.9.9"]) == 1
+    print("  ⑭ 런처 재배포가 최소 버전 강제를 풀지 않는다 ✅")
+
     print()
     print("TEST406 OK")
 finally:

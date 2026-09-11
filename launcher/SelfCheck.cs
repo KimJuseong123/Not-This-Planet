@@ -172,7 +172,10 @@ public static class SelfCheck
         { Console.WriteLine("  ❌ --version 뒤가 비었는데 값을 읽었다"); fail++; }
 
         // 두 폴더가 달라야 한다 — 같으면 개발 설치가 배포 설치를 덮는다.
-        if (DevMode.GameDirName == "game")
+        // 상수끼리 견주면 컴파일러가 접어 버려 검사가 죽는다(CS0162). 그래서
+        // 배포 쪽 이름을 프로퍼티로 받아 **실제로** 견준다.
+        if (string.Equals(Program.ProdGameDirName, DevMode.GameDirName,
+                          StringComparison.OrdinalIgnoreCase))
         { Console.WriteLine("  ❌ 개발 모드가 배포용과 같은 폴더를 쓴다"); fail++; }
         // 개발 백엔드가 `/dev` 를 가리켜야 한다 — 아니면 실유저 데이터를 건드린다.
         if (!DevMode.DevBackend.EndsWith("/dev"))

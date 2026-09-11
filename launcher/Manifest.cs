@@ -89,6 +89,14 @@ public static class ManifestCheck
     /// </summary>
     public static string? Validate(Manifest m)
     {
+        // **먼저 null 을 막는다.** 서버가 `"files": null` 이나 `"exe": null` 을 주면
+        // 역직렬화가 프로퍼티를 null 로 두고, 아래에서 NullReferenceException 이
+        // 난다. 이 함수를 부르는 자리는 try 블록 밖이라 **런처가 그대로 죽는다** —
+        // "서버 값을 못 믿는다" 는 이 파일의 전제와 정면으로 어긋난다.
+        // (`!364` AI 리뷰가 잡았다.)
+        if (m.Files is null) return "파일 목록이 null 이다";
+        if (m.Exe is null) return "실행 파일 이름이 null 이다";
+        if (m.Version is null) return "버전이 null 이다";
         if (m.Schema > SupportedSchema)
             return $"서버 매니페스트 형식이 {m.Schema} 인데 이 런처는 {SupportedSchema} 까지 안다 — 런처를 새로 받아야 한다";
         if (m.Files.Count == 0) return "파일 목록이 비어 있다";
