@@ -38,17 +38,20 @@ STALE_MINUTES = 20        # 5분 주기가 네 번 빠지면 재는 쪽이 멈�
 MUST_BE_INACTIVE = ("metagame.service",)
 
 # 찾는 자리 — 앞에서부터 처음 읽히는 것을 쓴다.
-#   ① 환경 변수    검사·손으로 확인할 때
-#   ② 아티팩트     `mm-digest` 는 공용 러너라 `/spool` 이 안 보인다. `ec2-status`
-#                  잡(배포 러너)이 스풀에서 꺼내 아티팩트로 넘겨 준다
-#   ③ 스풀         `ec2-status` 잡 자신이 읽는 자리
-ARTIFACT_NAME = "ec2-status.json"
-SPOOL_PATH = "/spool/EC2-STATUS"
+#   ① 환경 변수  검사·손으로 확인할 때
+#   ② 마운트      호스트가 5분마다 쓰는 파일. **모든 러너에 읽기 전용으로 물려 있어**
+#                 아침 카드 잡이 그대로 읽는다
+#
+# 한때는 배포 스풀에 두고 `ec2-status` 잡이 아티팩트로 넘기게 했는데, 그러면
+# **아침 카드가 그 잡을 기다린다.** 배포 러너가 잡을 늦게 집으면 카드가 통째로
+# 늦어지고, `allow_failure` 도 `timeout` 도 **대기 중인 잡에는 듣지 않는다**.
+# 읽기 전용으로 물리면 잡도 의존도 필요 없다.
+MOUNT_PATH = "/ec2-status/EC2-STATUS"
 
 
 def candidates() -> list[str]:
     env_path = os.environ.get("EC2_STATUS_PATH")
-    return ([env_path] if env_path else []) + [ARTIFACT_NAME, SPOOL_PATH]
+    return ([env_path] if env_path else []) + [MOUNT_PATH]
 
 
 def load(path: str = None) -> dict | None:
@@ -80,8 +83,8 @@ def problems(data: dict | None, now: datetime | None = None) -> list[str]:
     now = now or datetime.now(KST)
 
     if data is None:
-        return ["🖥 **서버 상태를 읽지 못했다** — `/spool/EC2-STATUS` 가 없거나 깨졌다. "
-                "호스트의 `metagame-status.timer` 를 확인하세요"]
+        return [f"🖥 **서버 상태를 읽지 못했다** — `{MOUNT_PATH}` 가 없거나 깨졌다. "
+                "호스트의 `metagame-status.timer` 와 러너 마운트를 확인하세요"]
 
     out: list[str] = []
 
@@ -191,19 +194,11 @@ def section(data: dict | None, now: datetime | None = None,
     return head + chr(10) * 2 + chr(10).join(f"- {r}" for r in rows)
 
 
-if __name__ == "__main__":  # 잡에서 직접 볼 때 (사람이 읽는 출력)
+if __name__ == "__main__":  # 손으로 확인할 때
     d = load()
     print("===== ec2-status =====")
-    # **스풀에서 읽은 것을 아티팩트로 넘긴다.** `mm-digest` 는 공용 러너에서 돌아
-    # `/spool` 이 안 보인다 — 이 잡이 다리 역할을 한다.
-    if d is not None:
-        try:
-            with open(ARTIFACT_NAME, "w", encoding="utf-8") as f:
-                json.dump(d, f, ensure_ascii=False, indent=2)
-        except OSError as e:
-            print(f"  아티팩트를 쓰지 못했다: {e}")
     if d is None:
-        print("  상태 파일을 읽지 못했다:", SPOOL_PATH)
+        print("  상태 파일을 읽지 못했다:", MOUNT_PATH)
     else:
         print(f"  잰 시각 {d.get('at')} · 디스크 {(d.get('disk') or {}).get('used_pct')}% · "
               f"메모리 여유 {(d.get('mem') or {}).get('available_gb')} GB · "

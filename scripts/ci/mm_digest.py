@@ -465,7 +465,12 @@ def main() -> int:
         runners = None
         if gl.token and gl.project:
             try:
-                st, d = http("GET", f"{gl.api}/projects/{gl.project}/runners", gl.headers())
+                # **`type=project_type` 로 좁힌다.** 기본값은 이 프로젝트가 쓸 수 있는
+                # 러너 전부라 **인스턴스 공용 러너까지 들어온다.** 남의 러너가 offline
+                # 이면 매일 아침 오탐 줄이 붙고, "정상이면 조용" 이 깨진다.
+                st, d = http("GET",
+                             f"{gl.api}/projects/{gl.project}/runners?type=project_type",
+                             gl.headers())
                 if st == 200 and isinstance(d, list):
                     runners = d
             except Exception:  # noqa: BLE001 — 못 물어봤으면 그냥 넘어간다

@@ -208,8 +208,15 @@ print("  GitLab 이 offline 으로 보는 러너를 잡는다 ✅")
 #
 #     `mm-digest` 는 공용 러너라 `/spool` 이 안 보인다. `ec2-status` 잡이 아티팩트로
 #     넘겨 주고, 그 이름으로 먼저 찾아야 한다.
-assert E.candidates()[-1] == E.SPOOL_PATH
-assert E.ARTIFACT_NAME in E.candidates()
+#     **아침 카드가 잡을 기다리지 않아야 한다.** 한때 배포 스풀에 두고 중간 잡이
+#     아티팩트로 넘겼는데, 그러면 그 잡이 대기하는 동안 카드가 통째로 늦어진다 —
+#     `allow_failure` 도 `timeout` 도 **대기 중인 잡에는 듣지 않는다.**
+assert E.candidates()[-1] == E.MOUNT_PATH
+assert E.MOUNT_PATH.startswith("/ec2-status"), "모든 러너에 물리는 자리가 아니다"
+
+_ci_needs = open(os.path.join(ROOT, ".gitlab-ci.yml"), encoding="utf-8").read()
+_digest = _ci_needs.split("mm-digest:", 1)[1].split("script:", 1)[0]
+assert "ec2-status" not in _digest,     "아침 카드가 다른 잡을 기다린다 — 그 잡이 대기하면 카드가 통째로 늦는다"
 
 with tempfile.TemporaryDirectory() as td:
     _f = os.path.join(td, "s.json")
@@ -251,11 +258,11 @@ print("  재는 쪽과 읽는 쪽이 같은 필드를 본다 ✅")
 _dig = open(os.path.join(ROOT, "scripts/ci/mm_digest.py"), encoding="utf-8").read()
 assert "ec2_status.section" in _dig, "아침 카드가 서버 절을 안 붙인다"
 
-_ci = open(os.path.join(ROOT, ".gitlab-ci.yml"), encoding="utf-8").read()
-_job = _ci.split("ec2-status:", 1)[1].split("\nmm-digest:", 1)[0]
-assert "tags: [deploy]" in _job, "배포 러너가 아니면 /spool 이 안 보인다"
-assert "allow_failure: true" in _job, \
-    "서버를 못 본 것이 아침 카드 전체를 막는다 — 정작 나쁠 때 아무 소식이 없다"
-print("  아침 카드와 CI 잡이 이어져 있다 ✅")
+#     설치가 **모든 러너에** 읽기 전용으로 물리는지. 배포 러너에만 물리면 공용
+#     러너에서 도는 아침 카드가 서버를 못 본다. 쓰기를 열면 잡이 상태를 위조한다.
+_inst = open(os.path.join(ROOT, "scripts/deploy/host/install-status.sh"), encoding="utf-8").read()
+assert ":/ec2-status:ro" in _inst, "읽기 전용이 아니다 — 잡이 가짜 상태를 써 넣을 수 있다"
+assert "added" in _inst, "러너 한 곳에만 물린다"
+print("  모든 러너에 읽기 전용으로 물린다 ✅")
 
 print("== 통과 ==")
