@@ -1,0 +1,18 @@
+[Unit]
+Description=METAGAME 개발 백엔드 배포 (스풀의 jar 을 적용하고 헬스체크·롤백)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+# **같은 스크립트를 환경변수로 갈아 끼운다** (S15P21B202-284). 복사본을 두면 한쪽이
+# 조용히 낡는다 — prod 에 들어간 수정이 dev 에 안 오거나 그 반대가 된다.
+Environment=APP_DIR=/home/ubuntu/metagame-dev
+Environment=HEALTH_PORT=8081
+Environment=ENV_NAME=dev
+# 스풀 밖의 root 소유 스크립트를 실행한다(S15P21B202-324) — prod 와 같은 이유다.
+ExecStart=/opt/metagame-deploy/deploy.sh
+TimeoutStartSec=600
+# 배포 스크립트는 실패도 STATUS 로 보고하고 0 으로 끝난다 — 유닛 실패 상태를 남기지 않는다.

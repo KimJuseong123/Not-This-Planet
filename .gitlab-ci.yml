@@ -432,6 +432,15 @@ build-backend:            # 백엔드 **테스트 + jar** — MR 에서는 검�
       changes: ["backend/**/*", ".gitlab-ci.yml"]
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
       changes: ["backend/**/*", ".gitlab-ci.yml"]
+    # **master 에서는 changes 를 보지 않는다** (S15P21B202-284).
+    #
+    # 릴리스는 "이 트리의 백엔드" 를 올릴 수 있어야 한다. `changes` 를 걸면 backend/ 가
+    # 안 바뀐 릴리스에서 이 잡이 안 생기고, 그러면 `needs: [build-backend]` 인
+    # deploy-prod 도 생성되지 않아 **누를 버튼이 사라진다** — `-309` 가 겪은 그 실패
+    # 방식이다(잡 두 개의 조건이 어긋나 build 만 생기는 조합이 만들어졌다).
+    #
+    # 비용은 릴리스마다 2분 30초 한 번이다. 버튼이 사라지는 것보다 싸다.
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
   variables:
     GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"   # 캐시가 잡 밖으로 남으려면 작업 디렉터리 안이어야 한다
   cache:
@@ -496,34 +505,58 @@ ai-review-gate:           # ⛔ 보류 권고면 **막는다**. ⚠️·✅·❓
     - python scripts/ci/ai_review_gate.py
 
 # ── 배포 ─────────────────────────────────────────────────────────────────
-deploy-backend:           # develop 머지 뒤 **사람이 눌러서** 배포 (S15P21B202-141)
+# 배포 대상이 **둘**이다 (S15P21B202-284). 예전에는 `deploy-backend` 하나가 develop 을
+# 받아 실유저가 쓰는 백엔드에 올렸다 — 그래서 develop 머지마다 재시작이 WebSocket 세션을
+# 끊었고, 그것이 배포를 수동으로 둔 이유였다. 서버를 나눈 뒤에는 그 이유가 dev 에만
+# 해당하지 않게 된다: dev 는 자동, prod 는 수동이다.
+deploy-dev:               # develop 머지 뒤 **자동** 배포 — 개발 서버 (S15P21B202-284)
   stage: deploy           # 잡은 컨테이너 안이라 호스트 compose 를 못 부른다 → 스풀에 jar+RELEASE 를 놓고
   image: python:3.12      # 호스트의 systemd path 유닛이 deploy.sh 를 돌린다(도커 소켓 비노출, -139 결정)
-  tags: [deploy]          # 배포 전용 러너(태그 deploy · Protected). 스풀은 이제 여기에만 마운트된다.
+  tags: [deploy]          # 배포 전용 러너(태그 deploy · Protected · ref_protected).
                           # 공용 러너에 스풀이 있던 동안에는 아무 MR 이나 자기 브랜치의 .gitlab-ci.yml 에
                           # /spool 에 쓰는 잡을 한 줄 넣어 배포를 쏠 수 있었다(S15P21B202-252).
-                          # 나머지 잡은 default.tags: [linux] 라 이 러너로 오지 않는다.
   needs: [build-backend]
   interruptible: false    # 배포 도중 취소되면 반쯤 적용된 상태가 남는다.
-                          # 다만 이것만으로는 부족했다 — 아직 **시작도 안 한** 잡은 GitLab 이
-                          # 그냥 취소한다. 그래서 workflow 쪽에서 auto_cancel 을 껐다(-309).
-  # 배포 이력을 GitLab 이 들고 있게 한다 (S15P21B202-309). 아침 점검이 "지금 서버에 뭐가
-  # 올라가 있나" 를 잡 목록을 훑지 않고 이 기록으로 답할 수 있다.
+                          # 그것만으로는 부족해 workflow 쪽에서 auto_cancel 도 껐다(-309).
+  environment:
+    name: development
+    url: https://j15b202.p.ssafy.io/dev
+  variables:
+    # **dev 스풀이다.** prod 스풀(`/spool`)과 다른 자리를 봐야 develop 머지가 실유저
+    # 백엔드를 건드리지 않는다 — 나누는 목적이 그것이다.
+    DEPLOY_SPOOL: /spool-dev
+  rules:
+    # **자동이다** (2026-09-11 팀 결정). 수동이던 이유가 "팀원이 이 서버로 테스트 중이고
+    # 재시작은 WebSocket 세션을 전부 끊는다" 였는데, 나눈 뒤 실유저는 prod 에 있다.
+    # 헬스체크가 실패하면 `deploy.sh` 가 직전 jar 로 되돌리고 🔴 카드가 나간다.
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
+      # `.gitlab-ci.yml` 을 넣는 이유 두 가지 (S15P21B202-309):
+      #   ① 배포 정의가 바뀌었으면 그것을 실제로 배포해 볼 수 있어야 한다
+      #   ② build-backend 가 이미 이 조건이라 **잡 두 개의 조건이 어긋나면** deploy 는
+      #      needs: [build-backend] 이므로 build 만 생기는 조합이 만들어진다
+      changes: ["backend/**/*", ".gitlab-ci.yml"]
+  script:
+    - python scripts/ci/deploy_backend.py
+
+deploy-prod:              # 릴리스 뒤 **사람이 눌러서** 배포 — 배포 서버 (S15P21B202-284)
+  stage: deploy
+  image: python:3.12
+  tags: [deploy]
+  # 같은 파이프라인의 build-backend 가 만든 jar 을 받는다. master 에서는 그 잡이
+  # changes 를 보지 않으므로(위 주석) 릴리스마다 반드시 존재한다.
+  needs: [build-backend]
+  interruptible: false
   environment:
     name: production
     url: https://j15b202.p.ssafy.io
   rules:
-    # 왜 manual 인가: 팀원이 이 서버로 테스트 중이고 재시작은 WebSocket 세션을 전부 끊는다.
-    # 머지가 하루 28건인 날도 있어 자동 재시작이면 테스트가 불가능하다. 자동으로 바꾸려면 이 줄을 지운다.
-    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
-      # `.gitlab-ci.yml` 을 넣은 이유 두 가지 (S15P21B202-309):
-      #   ① 배포 정의가 바뀌었으면 그것을 실제로 배포해 볼 수 있어야 한다
-      #   ② build-backend 는 이미 이 조건이라 **잡 두 개의 조건이 어긋나 있었다** — deploy 는
-      #      needs: [build-backend] 이므로 build 만 생기는 조합이 계속 만들어졌다
-      # 수동 잡은 눌리기 전까지 러너를 쓰지 않으므로, 버튼이 더 자주 생기는 비용은 0 이다.
-      changes: ["backend/**/*", ".gitlab-ci.yml"]
+    # **수동을 유지한다.** prod 재시작은 진행 중인 세션을 끊는다 — EC2 가 릴레이·매칭을
+    # 맡는 구조라 게임 중인 사람이 튕긴다. 릴리스가 났다고 자동으로 끊으면 안 된다.
+    # 언제 끊을지는 사람이 정한다.
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
       when: manual
   script:
+    # 스풀은 기본값(`/spool`)이다 — dev 와 달리 DEPLOY_SPOOL 을 주지 않는다.
     - python scripts/ci/deploy_backend.py
 
 # ── 릴리스 ───────────────────────────────────────────────────────────────────
