@@ -19,10 +19,15 @@ namespace Metagame.Core
     /// 된다 — 파일 이름을 손으로 붙이는 단계가 없어야 한다. 역할·라벨·커밋은 파일
     /// 앞머리에 들어 있다.</para>
     ///
-    /// <para><b>실험 빌드에서만 돈다.</b> 라벨이 없으면(<see cref="BuildInfo.IsExperiment"/>)
-    /// 아무 파일도 만들지 않는다. 에디터에서도 돌지 않는다 — 라벨은 빌드 때만 박히므로
-    /// 그 조건이 자동으로 막아 준다. 에디터에서 돌면 <c>Application.dataPath</c> 의 부모가
-    /// <b>저장소 루트</b>라 리포에 로그를 쓰게 된다.</para>
+    /// <para><b>모든 빌드에서 돈다</b> (S15P21B202-443). 전에는 실험 빌드에서만 켜졌는데,
+    /// 그러면 <b>배포판에서 문제가 나도 로그가 아예 없다</b> — 실유저는 로그를 찾아
+    /// 보내 주지 않고, 참가자 화면에서만 나는 문제는 그 사람의 로그가 있어야 판정된다.</para>
+    ///
+    /// <para><b>대신 상한을 둔다.</b> 배포판은 몇 시간씩 켜 두는 사람이 있고, 로그가
+    /// 무한히 커지면 디스크를 먹고 올릴 수도 없다. <see cref="MaxBytes"/> 를 넘으면
+    /// <b>그 사실을 한 줄 남기고 쓰기를 멈춘다</b> — 조용히 끊기면 "로그가 왜 여기서
+    /// 끝났지" 를 아무도 모른다.</para>
+    ///
     /// </summary>
     public static class RunLog
     {
@@ -31,6 +36,21 @@ namespace Metagame.Core
 
         /// <summary>이 개수를 넘으면 오래된 것부터 지운다. 실험을 반복하면 쌓이기만 한다.</summary>
         public const int KeepFiles = 30;
+
+        /// <summary>
+        /// 한 판의 로그 상한 (S15P21B202-443).
+        ///
+        /// <para>2026-09-11 QA 에서 호스트 로그가 109,643줄이었다(그 97%는 `-433` 이
+        /// 없앤 경고다). 그래도 상한이 없으면 오래 켜 두는 사람의 파일이 계속 큰다 —
+        /// 디스크도 문제지만 <b>서버로 올릴 수 없게 되는 것</b>이 더 문제다.</para>
+        ///
+        /// <para>8 MB 는 보통 한 판의 수십 배다. 여기 닿는다는 것은 무언가 잘못됐다는
+        /// 뜻이므로, 그때는 <b>앞부분이 남는다</b> — 무엇이 폭주를 시작했는지가 앞에 있다.</para>
+        /// </summary>
+        public const long MaxBytes = 8L * 1024 * 1024;
+
+        static long written;
+        static bool capped;
 
         static readonly object Gate = new object();
         static StreamWriter writer;
@@ -56,8 +76,6 @@ namespace Metagame.Core
         /// </summary>
         internal static void Start()
         {
-            if (!BuildInfo.IsExperiment) return;
-
             lock (Gate)
             {
                 if (writer != null) return;
@@ -149,19 +167,34 @@ namespace Metagame.Core
         {
             lock (Gate)
             {
-                if (writer == null) return;
+                if (writer == null || capped) return;
 
                 try
                 {
+                    // **상한에 닿으면 멈춘다.** 그 사실을 한 줄 남기지 않으면 "로그가 왜
+                    // 여기서 끝났지" 를 아무도 모르고, 그 판을 다시 재현하려 든다.
+                    if (written >= MaxBytes)
+                    {
+                        capped = true;
+                        writer.WriteLine($"[W] 로그가 상한({MaxBytes / 1048576}MB)에 닿아 여기서 멈춘다 — 앞부분이 원인에 가깝다");
+                        writer.Flush();
+                        return;
+                    }
+
                     writer.Write(Tag(type));
                     writer.Write(' ');
                     writer.WriteLine(message);
+                    written += message.Length + 5;
 
                     // 스택은 예외에만 싣는다. 모든 줄에 싣던 Player.log 는 그 때문에
                     // 사람이 읽기 어렵고 용량도 몇십 배가 된다(2026-09-09 실측: 31MB).
                     if (type == LogType.Exception || type == LogType.Error)
                     {
-                        if (!string.IsNullOrEmpty(stackTrace)) writer.WriteLine(stackTrace.TrimEnd());
+                        if (!string.IsNullOrEmpty(stackTrace))
+                        {
+                            writer.WriteLine(stackTrace.TrimEnd());
+                            written += stackTrace.Length;
+                        }
                     }
                 }
                 catch (Exception)

@@ -204,6 +204,20 @@ namespace Metagame.Network
                 loginCoroutine = null;
             }
 
+            // **지난 실행의 로그를 여기서 보낸다** (S15P21B202-443).
+            //
+            // 로그인 직후인 이유: 서버가 게스트 토큰을 요구한다 — 아무나 우리 서버에
+            // 파일을 부어넣지 못하게 하는 것이 그 토큰의 역할이다.
+            //
+            // 플레이가 시작되기 **전**이라 이슈의 팀 결정("플레이 중에는 네트워킹을
+            // 쓰지 않는다")을 지킨다. 종료 훅에서 보내지 않는 이유는 `RunLogUpload`
+            // 주석에 있다 — 요약하면 종료가 지연되고, 크래시 판은 아예 못 받는다.
+            //
+            // 실패해도 `Connect()` 를 막지 않는다. 로그를 못 보내는 것이 게임을
+            // 막을 이유는 아니다.
+            StartCoroutine(Metagame.Core.RunLogUpload.SweepOnce(
+                Metagame.Core.BackendEndpoints.HttpBaseUrl, accessToken, UserId));
+
             Connect();
         }
 

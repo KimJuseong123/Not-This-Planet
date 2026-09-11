@@ -45,6 +45,8 @@ services:
       DB_USERNAME: metagame
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+      # 플레이 로그를 **컨테이너 밖**에 둔다 (S15P21B202-443). 안에 두면 배포할 때마다 사라진다.
+      RUNLOG_DIR: /var/log/metagame-runlogs
       # 릴레이는 **공유한다** — 하나뿐인 프로세스가 TCP 17779 를 잡고 있고, 두 번째를
       # 띄우려면 포트를 또 열어야 한다. dev 테스트가 릴레이 슬롯을 같이 쓰는 것은
       # 감안한다. 나누려면 별 이슈로 뺀다.
@@ -52,6 +54,11 @@ services:
       RELAY_CONTROL_URL: ${RELAY_CONTROL_URL:-http://host.docker.internal:17779}
       RELAY_PUBLIC_ADDRESS: ${RELAY_PUBLIC_ADDRESS:-}
       TZ: Asia/Seoul
+    volumes:
+      # **로그는 호스트에 남는다** (S15P21B202-443). 컨테이너 안에 두면 배포할 때마다
+      # 사라지고, 정작 버그를 쫓을 때 없다. dev·prod 를 나눠 둔다 — 섞이면
+      # 어느 서버의 로그인지 파일 안을 열어 봐야 안다.
+      - /var/log/metagame-dev-runlogs:/var/log/metagame-runlogs
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:

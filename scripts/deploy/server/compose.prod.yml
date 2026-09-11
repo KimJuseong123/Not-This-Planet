@@ -32,6 +32,8 @@ services:
       DB_USERNAME: metagame
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+      # 플레이 로그를 **컨테이너 밖**에 둔다 (S15P21B202-443). 안에 두면 배포할 때마다 사라진다.
+      RUNLOG_DIR: /var/log/metagame-runlogs
       # 예전 릴레이. relay.provider=edgegap 으로 되돌릴 때만 쓴다 (S15P21B202-299 에서 폐기)
       EDGEGAP_RELAY_TOKEN: ${EDGEGAP_RELAY_TOKEN:-}
       # 우리 릴레이 (S15P21B202-299 · -303)
@@ -43,6 +45,11 @@ services:
       #   클라이언트가 붙을 공개 주소. 비어 있으면 릴레이를 쓰지 않고 직접 접속으로 간다.
       RELAY_PUBLIC_ADDRESS: ${RELAY_PUBLIC_ADDRESS:-}
       TZ: Asia/Seoul
+    volumes:
+      # **로그는 호스트에 남는다** (S15P21B202-443). 컨테이너 안에 두면 배포할 때마다
+      # 사라지고, 정작 버그를 쫓을 때 없다. dev·prod 를 나눠 둔다 — 섞이면
+      # 어느 서버의 로그인지 파일 안을 열어 봐야 안다.
+      - /var/log/metagame-runlogs:/var/log/metagame-runlogs
     # host.docker.internal 은 리눅스 도커에서 기본 제공되지 않는다 — 이 줄이 있어야 생긴다.
     # 게이트웨이 IP(172.18.0.1 등)를 박지 않으려고 이렇게 쓴다. compose 망이 바뀌어도 따라간다.
     extra_hosts:
