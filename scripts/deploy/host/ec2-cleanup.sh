@@ -141,7 +141,6 @@ fi
 # 영원히 안 도는데, 종료 코드가 0 이라 아무도 모른다. 연속 횟수를 세어 알린다.
 STATE="${CLEANUP_STATE:-/var/lib/metagame-cleanup}"
 STREAK_FILE="$STATE/skip-streak"
-mkdir -p "$STATE" 2>/dev/null || true
 STREAK=$(cat "$STREAK_FILE" 2>/dev/null || echo 0)
 case "$STREAK" in ''|*[!0-9]*) STREAK=0 ;; esac
 if [ "$SKIPPED" -gt 0 ]; then
@@ -149,11 +148,18 @@ if [ "$SKIPPED" -gt 0 ]; then
 else
   STREAK=0
 fi
-echo "$STREAK" > "$STREAK_FILE" 2>/dev/null || true
-if [ "$STREAK" -ge 3 ]; then
-  say "⚠ ${STREAK}주 연속으로 도커 정리를 건너뛰었다 — 러너가 늘 떠 있는지 보고,"
-  say "  필요하면 한가한 시간에 손으로 돌리세요: sudo systemctl start metagame-cleanup.service"
-  FAILED=1
+
+# **미리 보기는 상태를 바꾸지 않는다.** 설치 스크립트가 DRY_RUN 을 한 번 돌리므로,
+# 여기서 파일을 쓰면 **설치할 때마다 연속 건너뛰기 셈이 지워진다** — 3주 연속으로
+# 못 치우고 있어도 경고가 안 뜬다. 미리 보기가 진짜 실행의 기억을 지우면 안 된다.
+if [ "$DRY" != "1" ]; then
+  mkdir -p "$STATE" 2>/dev/null || true
+  echo "$STREAK" > "$STREAK_FILE" 2>/dev/null || true
+  if [ "$STREAK" -ge 3 ]; then
+    say "⚠ ${STREAK}주 연속으로 도커 정리를 건너뛰었다 — 러너가 늘 떠 있는지 보고,"
+    say "  필요하면 한가한 시간에 손으로 돌리세요: sudo systemctl start metagame-cleanup.service"
+    FAILED=1
+  fi
 fi
 
 AFTER=$(df -BG --output=avail / | tail -1 | tr -d ' G')
