@@ -1169,6 +1169,19 @@ namespace Metagame.Gameplay
         /// <summary>기절한 동료를 조준으로 잡을 수 있는 각도(도).</summary>
         public const float DownedCarryAngle = 35f;
 
+        /// <summary>
+        /// 남에게 잡혀 있는 동안 자기 몸을 움직이는 힘의 비율(S15P21B202-442).
+        ///
+        /// 잡히면 이동이 속도 대입이 아니라 <b>힘</b>으로 바뀐다 — 그러지 않으면 매 스텝
+        /// 속도를 덮어써서 조인트가 끌어온 결과가 지워진다(실측: 2초에 0.0785m 만 끌려옴).
+        /// 그 힘에 곱하는 값이다.
+        ///
+        /// <b>매달릴 때의 <see cref="Metagame.Core.Tuning.AirControl"/> 보다 크다.</b>
+        /// 잡힌 쪽은 땅에 발을 딛고 버티는 것이라 공중만큼 무력하면 줄다리기가
+        /// 성립하지 않는다. 1 에 가까울수록 잡힌 쪽이 버티고, 0 에 가까울수록 끌려온다.
+        /// </summary>
+        public const float GrabbedGroundControl = 0.55f;
+
         // --- 기절 카메라 (기획 §10.3) ---
         /// <summary>
         /// 기절한 뒤 시야가 <b>몸과 함께 넘어가는</b> 시간(초). 그 뒤 3인칭으로 바뀐다.
