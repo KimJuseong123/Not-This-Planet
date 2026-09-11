@@ -124,11 +124,11 @@ namespace Metagame.Gameplay.Tests
             me.GoDown("검증");
             me.RescueInteractor.Tick(0.02f);
 
-            Assert.IsFalse(
-                me.RescueCandidate != null
-                && me.RescueTarget != null
-                && me.RescueTarget.GetAvailability(me.RescueInteractor).IsAllowed,
-                "쓰러진 사람이 남을 일으킬 수는 없다.");
+            // **후보 자체가 없어야 한다**(!356 AI 리뷰). 예전에는 "후보가 없거나
+            // 허용되지 않는다" 는 OR 로 단언해서, 막는 쪽이 사라져도 다른 절이 참이면
+            // 초록불이었다.
+            Assert.IsNull(me.RescueCandidate,
+                "쓰러진 사람에게는 후보를 대지 않는다.");
         }
 
         [Test]
@@ -244,6 +244,75 @@ namespace Metagame.Gameplay.Tests
 
             Assert.Zero(downed.BeingRescuedProgress01,
                 "일어난 사람에게 게이지가 남아 있으면 안 된다.");
+        }
+
+        /// <summary>
+        /// <b>구조자가 떠나면 게이지가 사라진다</b>(!356 AI 리뷰).
+        ///
+        /// <c>DownedRescue.Progress</c> 는 손을 떼도 남는다 — 다른 사람이 이어받게 하려고
+        /// 일부러 그렇다. 그 값을 그대로 내보내면 아무도 오지 않는 동안에도
+        /// "일으켜지는 중…" 이 계속 떠서 <b>이 이슈가 피하려던 거짓 표시</b>가 된다.
+        /// </summary>
+        [Test]
+        public void WhenTheRescuerLetsGo_TheGaugeStops()
+        {
+            var rescuer = MakePlayer(Vector3.zero);
+            var downed = MakePlayer(new Vector3(0f, 0f, 1f));
+            downed.GoDown("검증");
+            UnityEngine.Physics.SyncTransforms();
+
+            rescuer.RescueInteractor.Tick(0.02f);
+            rescuer.RescueInteractor.TryBeginFocused();
+            for (var i = 0; i < 25; i++) rescuer.RescueInteractor.Tick(0.02f);
+            downed.Tick();
+            Assert.Greater(downed.BeingRescuedProgress01, 0f, "누르는 동안은 보인다.");
+
+            rescuer.RescueInteractor.Cancel();
+            downed.Tick();
+
+            Assert.Zero(downed.BeingRescuedProgress01,
+                "손을 떼면 멈춘다. 남은 진행분은 구조자 쪽이 '이어서 일으키기' 로 본다.");
+            Assert.Greater(downed.RescueTarget.Progress, 0f,
+                "진행분 자체는 남아 있어야 한다 — 이어받기가 그것으로 성립한다.");
+        }
+
+        /// <summary>
+        /// 참가자는 <b>완료를 스스로 하지 않는다</b>(!356 AI 리뷰가 빠졌다고 짚었다).
+        /// 부활은 서버가 판정하고(-145 · -378), 클라이언트가 여기서 살리면 그 화면에서만
+        /// 일어나고 되돌아오지도 않는다(-383).
+        /// </summary>
+        [Test]
+        public void AParticipantDoesNotReviveOnItsOwn()
+        {
+            var rescuer = MakePlayer(Vector3.zero);
+            rescuer.ServerAuthority = false;      // 참가자의 내 몸
+            var downed = MakePlayer(new Vector3(0f, 0f, 1f));
+            downed.GoDown("검증");
+            UnityEngine.Physics.SyncTransforms();
+
+            rescuer.RescueInteractor.Tick(0.02f);
+            rescuer.RescueInteractor.TryBeginFocused();
+
+            // 홀드를 끝까지 몰아붙인다.
+            for (var i = 0; i < 400; i++) rescuer.RescueInteractor.Tick(0.02f);
+
+            Assert.IsTrue(downed.Downed,
+                "참가자 화면에서 일어나면 서버와 갈라진다 — downed 훅은 값이 바뀔 때만 온다.");
+        }
+
+        [Test]
+        public void TheHostDoesRevive()
+        {
+            var rescuer = MakePlayer(Vector3.zero);
+            var downed = MakePlayer(new Vector3(0f, 0f, 1f));
+            downed.GoDown("검증");
+            UnityEngine.Physics.SyncTransforms();
+
+            rescuer.RescueInteractor.Tick(0.02f);
+            rescuer.RescueInteractor.TryBeginFocused();
+            for (var i = 0; i < 400; i++) rescuer.RescueInteractor.Tick(0.02f);
+
+            Assert.IsFalse(downed.Downed, "호스트에서는 실제로 일어나야 한다.");
         }
 
         // ── 화면이 실제로 그리기로 하는가 ────────────────────────

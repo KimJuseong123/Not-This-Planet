@@ -440,15 +440,34 @@ namespace Metagame.Gameplay
             BeingRescuedProgress01 = Mathf.Clamp01(progress01);
         }
 
-        /// <summary>권위가 있는 몸에서 내 구조 진행도를 갱신한다.</summary>
+        /// <summary>
+        /// 권위가 있는 몸에서 내 구조 진행도를 갱신한다.
+        ///
+        /// <b>지금 누가 붙들고 있을 때만 값을 낸다</b>(!356 AI 리뷰).
+        ///
+        /// <para><see cref="DownedRescue.Progress"/> 는 구조자가 손을 떼도 <b>남는다</b> —
+        /// 다른 사람이 이어받게 하려고 일부러 그렇게 되어 있다(<c>Release</c>). 그 값을
+        /// 그대로 내보내면 아무도 오지 않는 동안에도 쓰러진 사람 화면에
+        /// "일으켜지는 중…" 이 계속 떠서, <b>이 이슈가 피하려던 거짓 표시</b>가 된다.</para>
+        ///
+        /// <para>그래서 이 값의 뜻을 <b>"지금 일으켜지고 있는 진행도"</b> 하나로 좁혔다.
+        /// 남은 진행분은 <b>구조자 쪽</b>이 알아야 하는 정보고 그쪽 화면은 이미 그것을
+        /// "이어서 일으키기" 로 보여준다 — 쓰러진 사람이 그것으로 할 수 있는 일은 없다.</para>
+        /// </summary>
         void RefreshBeingRescued()
         {
             if (!ServerAuthority) return;   // 참가자는 SetRemoteBeingRescued 로 받는다
 
-            BeingRescuedProgress01 = Downed && RescueTarget != null
+            BeingRescuedProgress01 = Downed && RescueTarget != null && SomeoneIsRescuingMe
                 ? RescueTarget.Progress
                 : 0f;
         }
+
+        /// <summary>지금 누군가가 내 구조 지점을 붙들고 있는가.</summary>
+        bool SomeoneIsRescuingMe =>
+            RescueTarget != null
+            && RescueTarget.Occupant != null
+            && RescueTarget.Occupant.State == InteractorState.Holding;
 
         /// <summary>
         /// 지금 겨냥한(또는 붙들고 있는) 구조 지점. 홀드 중에는 <c>Focus</c> 가 아니라
@@ -1284,6 +1303,12 @@ namespace Metagame.Gameplay
         /// </summary>
         void CollectRescueCandidates(List<IInteractable> into)
         {
+            // **내가 쓰러져 있으면 아무도 대지 않는다**(!356 AI 리뷰). 막는 곳이
+            // DownedRescue.GetAvailability 하나뿐이면, 그 한 줄이 사라져도 아무 검증이
+            // 빨간불이 되지 않는다. 후보 자체를 대지 않는 쪽이 뜻도 분명하다 —
+            // TickRescue 도 Downed 이면 인터랙터를 취소하고 돌아간다.
+            if (Downed) return;
+
             for (var i = 0; i < All.Count; i++)
             {
                 var other = All[i];

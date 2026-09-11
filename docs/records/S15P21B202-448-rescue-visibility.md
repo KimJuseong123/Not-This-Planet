@@ -214,7 +214,7 @@ Assert.That(find, Does.Contain("Accepts"), "필터를 두고 후보 탐색에서
 
 ## 7. 검증
 
-**`RescueVisibilityTests` 15개** 신설.
+**`RescueVisibilityTests` 18개** 신설.
 
 | 검증 | 무엇을 잠그나 |
 | --- | --- |
@@ -230,6 +230,9 @@ Assert.That(find, Does.Contain("Accepts"), "필터를 두고 후보 탐색에서
 | `AParticipantReceivesItInsteadOfComputingIt` | 참가자는 받는다 |
 | `AnAuthoritativeBodyIgnoresTheIncomingValue` | 권위 있는 몸은 받은 값을 무시한다(-383) |
 | `GettingUp_ClearsIt` | 일어나면 게이지가 사라진다 |
+| **`WhenTheRescuerLetsGo_TheGaugeStops`** | **손을 떼면 멈춘다 — 거짓 표시 방지**(§4-3) |
+| **`AParticipantDoesNotReviveOnItsOwn`** | 참가자는 완료를 스스로 하지 않는다(-145 · -378) |
+| `TheHostDoesRevive` | 호스트에서는 실제로 일어난다 |
 | **`TheDownedPlayersOwnScreenDrawsIt`** | **화면이 실제로 그리기로 한다** |
 | `NobodyComing_DrawsNothing` | 아무도 안 오면 빈 막대를 띄우지 않는다 |
 | `AStandingPlayerNeverDrawsIt` | 서 있는 사람은 구조자 쪽 표시를 쓴다 |
@@ -243,16 +246,54 @@ Assert.That(find, Does.Contain("Accepts"), "필터를 두고 후보 탐색에서
 | `RescueInteractor.ExtraCandidates` 대입 삭제(= 병합 전 상태) | **1개 실패** — `OnAParticipantMachine_…` |
 | `RefreshBeingRescued()` 호출 삭제 | **2개 실패** — `TheServerComputesHowFarAlongMyRescueIs` · `GettingUp_ClearsIt` |
 | `ShouldDrawBeingRescued` 를 `false` 로 | **1개 실패** — `TheDownedPlayersOwnScreenDrawsIt` |
+| 손을 떼도 진행분을 그대로 내보낸다(리뷰가 짚은 상태) | **1개 실패** — `WhenTheRescuerLetsGo_TheGaugeStops` |
+| 쓰러진 사람에게도 후보를 댄다 | **1개 실패** — `ADownedPlayerCannotRescueAnyone` |
 
 ### 7-2. 기준선 대조
 
 | | 검증 수 | 실패 |
 | --- | --- | --- |
 | develop (`04a740e`) | 1204 | 32 |
-| 이 브랜치 | **1219** (+15) | **32** |
+| 이 브랜치 | **1222** (+18) | **32** |
 
 **새로 깨진 검증 없음. 실패 셋이 완전히 같다.** 남은 32개는 develop 에서 그대로
 들고 온 것이다.
+
+### 4-3. 손을 떼면 멈춘다 — !356 AI 리뷰가 짚었다
+
+처음에는 `BeingRescuedProgress01` 을 `RescueTarget.Progress` 그대로 냈다. **그것이
+거짓 표시를 만든다.**
+
+`DownedRescue.Progress` 는 구조자가 손을 떼도 **남는다** — 다른 사람이 이어받게 하려고
+일부러 그렇게 되어 있다(`Release`). 그 값을 그대로 내보내면 아무도 오지 않는 동안에도
+쓰러진 사람 화면에 "일으켜지는 중…" 이 계속 뜬다. **§4-2 에서 피하려던 것 그대로다.**
+
+그래서 이 값의 뜻을 **"지금 일으켜지고 있는 진행도"** 하나로 좁혔다.
+
+```csharp
+BeingRescuedProgress01 = Downed && RescueTarget != null && SomeoneIsRescuingMe
+    ? RescueTarget.Progress : 0f;
+
+bool SomeoneIsRescuingMe =>
+    RescueTarget != null && RescueTarget.Occupant != null
+    && RescueTarget.Occupant.State == InteractorState.Holding;
+```
+
+남은 진행분은 **구조자 쪽**이 알아야 하는 정보고 그쪽 화면은 이미 "이어서 일으키기"
+로 보여준다 — 쓰러진 사람이 그것으로 할 수 있는 일은 없다.
+
+> **내가 왜 놓쳤나.** §4-2 에 "아무도 안 오면 아무것도 그리지 않는다" 고 **적어
+> 두고도** 그 조건을 `progress > 0` 으로 구현했다. 진행분이 남는다는 것은 같은 파일
+> 주석에 적혀 있었다. **의도를 문장으로 적는 것과 그 의도를 코드가 지키는 것은
+> 다르다** — 대조 실험을 그 문장에 대고 돌려야 했다.
+
+### 4-4. 쓰러진 사람에게는 후보를 대지 않는다
+
+막는 곳이 `DownedRescue.GetAvailability` 하나뿐이었다. 리뷰가 "그 한 줄이 사라져도
+검증이 못 잡는다" 고 짚었고, 실제로 내 검증이 OR 단언이라 그랬다.
+
+수집기에서 `if (Downed) return;` 으로 끊고 단언을 `IsNull` 로 조였다. `TickRescue` 도
+`Downed` 이면 인터랙터를 취소하고 돌아가므로 뜻이 일관된다.
 
 ---
 
