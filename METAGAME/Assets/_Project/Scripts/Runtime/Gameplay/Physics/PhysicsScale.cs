@@ -1238,6 +1238,43 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float PartPushCamYawRangeDegrees = 55f;
 
+        // --- 운반체 3인칭 추격 시점 (S15P21B202-441) ---
+        //
+        // 탑승하면 조종석 1인칭이 아니라 기체 뒤쪽 위에서 본다. 다른 게임이 차·탈것에서
+        // 쓰는 방식이다.
+        //
+        // <b>예전에도 3인칭이었고 걷어냈다.</b> <c>OrbitCamera.SetVehicleView</c> 의 주석이
+        // 이유를 적어 두었다 — "장치 위 10m 에서 내려다보는" 화면이라 무엇에 타고 있는지가
+        // 전달되지 않았다. 3인칭이 나빴던 것이 아니라 <b>탑다운이 나빴다.</b> 그래서 아래
+        // 각도를 얕게 두고 초점을 기체에 둔다.
+
+        /// <summary>
+        /// 탑승 중 카메라가 물러나는 거리(m).
+        ///
+        /// <para><b>기체 크기에서 나온 값이다.</b> <c>TransportVehicle.BoardRadius</c> 가
+        /// 4.2m 라 기체가 8m 를 넘는다. 걷기 거리(<see cref="Core.Tuning.CamDistance"/> 3.6)
+        /// 나 밀기 거리(<see cref="PartPushCamDistance"/> 5.6)로는 화면이 선체로 가득 차
+        /// 무엇을 타고 있는지가 다시 안 보인다 — 걷어낸 탑다운과 같은 실패다.</para>
+        /// </summary>
+        public const float VehicleCamDistance = 11.5f;
+
+        /// <summary>
+        /// 탑승 중 내려보는 각도(도).
+        ///
+        /// <para>밀기(<see cref="PartPushCamPitchDegrees"/> 14도)보다 조금 얕다. 기체는
+        /// 날아가므로 앞과 지평선을 담아야 하고, 각도를 키우면 걷어낸 그 탑다운으로
+        /// 되돌아간다. 마우스로 이 각도를 바꿀 수 있다 — 고정값이 아니라 시작값이다.</para>
+        /// </summary>
+        public const float VehicleCamPitchDegrees = 11f;
+
+        /// <summary>
+        /// 탑승 중 초점을 기체 위로 올리는 높이(m).
+        ///
+        /// <para>초점이 조종석 앵커라 기체 안이다. 그대로 두면 화면 절반이 선체 위쪽
+        /// 하늘이 되므로 살짝 올려 기체를 프레임 가운데에 둔다.</para>
+        /// </summary>
+        public const float VehicleCamTargetHeight = 1.2f;
+
         // --- 끼임 복구 (기획 §21) ---
         /// <summary>
         /// 끼임 탈출을 위해 <c>T</c> 를 유지해야 하는 시간(초). 기획 §21.

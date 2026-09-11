@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Metagame.Core;
 using Metagame.Gameplay.Parts;
 using NUnit.Framework;
 using UnityEngine;
@@ -7,10 +8,15 @@ using UnityEngine.TestTools;
 namespace Metagame.Gameplay.Tests
 {
     /// <summary>
-    /// 탑승 중 조종석 시야와 탑승자 숨김을 검증한다.
+    /// 탑승 중 시점과 탑승자 숨김을 검증한다.
     ///
-    /// 예전에는 탑승하면 장치 위 10m 에서 내려다보는 3인칭이었고 탑승자가 기체 꼭대기에
-    /// 걸터앉은 것처럼 보였다. 여기서 보는 것은 세 가지다 — 1인칭으로 바뀌는지,
+    /// 처음에는 장치 위 10m 에서 내려다보는 <b>탑다운</b>이었다 — 탑승자가 기체 꼭대기에
+    /// 걸터앉은 것처럼 보여 무엇에 타고 있는지가 전달되지 않았다. 그래서 조종석
+    /// 1인칭으로 바꿨고(S15P21B202-113), 다시 <b>뒤에서 따라가는 3인칭</b>으로 바꿨다
+    /// (S15P21B202-441) — 다른 게임이 차·탈것에서 쓰는 방식이다.
+    ///
+    /// <b>탑다운으로 되돌아가지 않는 것이 이 파일의 요지다.</b> 여기서 보는 것은 —
+    /// 3인칭으로 물러나는지, 초점이 기체에 머무는지, 껍데기가 계속 보이는지,
     /// 탑승자가 감춰지고 하차하면 다시 보이는지, 좌석이 기체 안에 들어가는지.
     /// </summary>
     public sealed class TransportCockpitTests
@@ -85,8 +91,16 @@ namespace Metagame.Gameplay.Tests
             return player;
         }
 
+        /// <summary>
+        /// 둘러봐도 <b>초점</b>이 조종석에 머무른다 (S15P21B202-441).
+        ///
+        /// <para>예전에는 카메라가 조종석 자리에 <b>붙어</b> 있었고(1인칭) 이 검증이 그것을
+        /// 잠갔다. 3인칭으로 바뀐 뒤에는 그 자리를 <b>중심으로 돈다</b> — 그래서 눈
+        /// 위치가 아니라 "무엇을 중심으로 도는가" 를 잠근다. 초점이 흔들리면 기체가
+        /// 화면에서 미끄러진다.</para>
+        /// </summary>
         [Test]
-        public void LookAround_KeepsEyeAtCockpitOrigin()
+        public void LookAround_KeepsFocusOnTheCockpit()
         {
             var vehicle = MakeVehicle(new Vector3(0f, 5f, 0f), true);
             var player = MakePlayer(new Vector3(0f, 5f, 1.5f));
@@ -100,14 +114,36 @@ namespace Metagame.Gameplay.Tests
                 camera.Yaw = yaw;
                 camera.Pitch = 35f;
                 vehicle.SetFacingDirection(camera.PlanarForward);
-                camera.Tick();
-                Assert.Less(Vector3.Distance(camera.transform.position, vehicle.CockpitEye.position), 0.001f);
-                Assert.Less(vehicle.CockpitEye.InverseTransformPoint(camera.transform.position).magnitude, 0.001f);
+
+                // 거리는 0 에서 서서히 벌어진다(탑승 순간 튀지 않게). 수렴할 틈을 준다.
+                for (var i = 0; i < 60; i++) camera.Tick();
+
+                // <b>사적 필드를 보지 않는다.</b> "초점을 중심으로 돈다" 는 두 가지로
+                // 드러난다 — 물러나 있고, 그 초점이 화면 정중앙에 있다.
+                var anchor = vehicle.CockpitEye.position
+                             + Vector3.up * PhysicsScale.VehicleCamTargetHeight;
+                var toAnchor = anchor - camera.transform.position;
+
+                Assert.Greater(toAnchor.magnitude, 0.5f,
+                    $"yaw {yaw}도에서 물러나지 않았다 — 3인칭이 아니다");
+                Assert.Greater(Vector3.Dot(toAnchor.normalized, camera.transform.forward), 0.99f,
+                    $"yaw {yaw}도에서 초점이 화면 중심을 벗어났다");
             }
         }
 
+        /// <summary>
+        /// 탑승하면 <b>3인칭</b>으로 물러나고, 하차하면 원래 설정으로 돌아온다
+        /// (S15P21B202-441).
+        ///
+        /// <para><b>S15P21B202-113 의 결정을 뒤집은 자리다.</b> 그때는 조종석 1인칭이었고
+        /// 이 검증이 그것을 잠갔다. 다른 게임이 차·탈것에서 쓰는 방식으로 바꾼다 —
+        /// 뒤에서 따라가면 무엇을 타고 있는지가 화면에 남는다.</para>
+        ///
+        /// <para>되돌리는 쪽은 그대로 잠근다. 탑승 전 시점 설정으로 정확히 돌아오지
+        /// 않으면 걷기 화면이 망가진다.</para>
+        /// </summary>
         [Test]
-        public void Board_SwitchesToFirstPerson_AndExitRestores()
+        public void Board_SwitchesToThirdPerson_AndExitRestores()
         {
             MakeSurface("Ground", new Vector3(0f, -0.5f, 0f), new Vector3(60f, 1f, 60f));
             var vehicle = MakeVehicle(new Vector3(0f, TransportVehicle.GroundY, 0f), true);
@@ -121,12 +157,16 @@ namespace Metagame.Gameplay.Tests
 
             Assert.IsTrue(vehicle.TryBoard(player));
             Assert.IsTrue(camera.VehicleView, "탑승 시 탑승 시점으로 들어가야 한다.");
-            Assert.IsTrue(camera.FirstPerson, "탑승 시 조종석 1인칭이어야 한다.");
+            Assert.IsFalse(camera.FirstPerson, "탑승 시 3인칭으로 물러나야 한다.");
+            Assert.AreEqual(PhysicsScale.VehicleCamDistance, camera.Distance, 0.01f,
+                "기체 크기에 맞춘 거리를 써야 한다.");
 
             vehicle.ForceReset();
 
             Assert.IsFalse(camera.VehicleView, "하차하면 탑승 시점에서 나와야 한다.");
             Assert.IsFalse(camera.FirstPerson, "하차하면 원래 시점 설정으로 돌아와야 한다.");
+            Assert.AreEqual(Tuning.CamDistance, camera.Distance, 0.01f,
+                "하차하면 걷기 거리로 돌아와야 한다.");
         }
 
         [Test]
@@ -139,7 +179,7 @@ namespace Metagame.Gameplay.Tests
             Assert.IsTrue(player.Doll.Visible, "시작할 때는 보여야 한다.");
 
             Assert.IsTrue(vehicle.TryBoard(player));
-            Assert.IsFalse(player.Doll.Visible, "탑승 중에는 감춰야 한다 — 1인칭 시야를 제 몸이 가린다.");
+            Assert.IsFalse(player.Doll.Visible, "탑승 중에는 감춰야 한다 — 기체 밖으로 튀어나온 몸이 보이면 안 된다.");
             Assert.IsFalse(AnyRendererEnabled(player), "렌더러가 실제로 꺼져 있어야 한다.");
 
             vehicle.ForceReset();
@@ -180,13 +220,18 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
-        /// 탑승하면 기체 껍데기를 감춘다.
+        /// 탑승해도 기체 껍데기는 <b>계속 보인다</b> (S15P21B202-441).
         ///
-        /// 카메라가 기체 메시 안에 있으면 접시형 기체의 테두리가 화면 위·아래에 얇은 곡선
-        /// 조각으로 남는다. 껍데기를 끄지 않으면 그 조각이 계속 보인다.
+        /// <para><b>이 검증도 뒤집혔다.</b> 조종석 1인칭이던 동안에는 껍데기를 껐다 —
+        /// 카메라가 메시 안에 있어 접시형 테두리가 화면 위·아래에 얇은 곡선 조각으로
+        /// 남았고, 그 자리를 채울 내부 벽이 임시 대체물에는 없었다.</para>
+        ///
+        /// <para>3인칭에서는 반대가 된다. 껍데기를 끄면 <b>기체가 안 보이고 조종대만
+        /// 떠 있는 화면</b>이 된다 — 무엇을 타고 있는지가 사라지므로, 걷어낸 탑다운과
+        /// 같은 실패다.</para>
         /// </summary>
         [Test]
-        public void Board_HidesCraftHull_AndExitShowsAgain()
+        public void Board_KeepsCraftHullVisible()
         {
             MakeSurface("Ground", new Vector3(0f, -0.5f, 0f), new Vector3(60f, 1f, 60f));
             var vehicle = MakeVehicle(new Vector3(0f, TransportVehicle.GroundY, 0f), true);
@@ -197,11 +242,12 @@ namespace Metagame.Gameplay.Tests
             Assert.IsTrue(hull.enabled, "시작할 때는 껍데기가 보여야 한다.");
 
             Assert.IsTrue(vehicle.TryBoard(player));
-            Assert.IsFalse(hull.enabled, "탑승 중에는 껍데기를 감춰야 한다.");
+            Assert.IsTrue(hull.enabled,
+                "탑승 중에도 껍데기가 보여야 한다 — 3인칭에서 끄면 기체가 사라진다.");
 
             vehicle.ForceReset();
 
-            Assert.IsTrue(hull.enabled, "하차하면 껍데기가 다시 보여야 한다.");
+            Assert.IsTrue(hull.enabled, "하차해도 껍데기는 그대로 보인다.");
         }
 
         /// <summary>

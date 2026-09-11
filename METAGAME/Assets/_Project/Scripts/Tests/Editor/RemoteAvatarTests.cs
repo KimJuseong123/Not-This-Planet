@@ -118,7 +118,8 @@ namespace Metagame.Gameplay.Tests
             avatar.ApplyRidingState();
             rig.Tick();
 
-            Assert.IsTrue(rig.Cam.FirstPerson);
+            // 탑승 시점은 3인칭이다 (S15P21B202-441). 예전에는 조종석 1인칭이었다.
+            Assert.IsFalse(rig.Cam.FirstPerson);
             Assert.IsTrue(rig.IsMounted);
             Assert.AreEqual(Vector2.up, rig.CurrentInput.Move);
             Assert.IsTrue(rig.CurrentInput.Jump, "서버로 보낼 상승 입력은 유지해야 한다.");

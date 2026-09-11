@@ -442,14 +442,27 @@ namespace Metagame.Gameplay
                 savedMaxPitch = MaxPitch;
                 savedAimPitch = aimPitch;   // 탑승 중 0 으로 눕히므로 원래 값을 들고 있어야 한다
 
+                // 기체 뒤쪽 위에서 본다 (S15P21B202-441). 예전 조종석 1인칭이 아니다.
+                //
+                // <b>탑다운으로 되돌아가지 않는다.</b> 이 자리에 원래 적혀 있던 실패가
+                // 그것이다 — "장치 위 10m 에서 내려다보는" 화면은 무엇에 타고 있는지를
+                // 전달하지 못했다. 그래서 각도를 얕게 두고(11도) 거리를 기체 크기에서
+                // 정한다(11.5m). 숫자의 근거는 PhysicsScale 쪽 주석에 있다.
                 vehicleView = true;
-                FirstPerson = true;
-                Distance = 0f;
-                TargetHeight = Tuning.CamHeight;   // 골반 기준 머리 높이 — 걸을 때와 같다
+                FirstPerson = false;
+                Distance = PhysicsScale.VehicleCamDistance;
+                TargetHeight = PhysicsScale.VehicleCamTargetHeight;
                 FreeLook = false;
                 yaw = aimYaw;
-                pitch = 0f;                        // 조종석에서 수평을 본다
-                aimPitch = 0f;
+
+                // 시작값이다. 마우스로 둘러볼 수 있어야 한다 — 고정하면 조종 중 앞을
+                // 확인할 방법이 없다.
+                pitch = Mathf.Clamp(PhysicsScale.VehicleCamPitchDegrees, MinPitch, MaxPitch);
+                aimPitch = pitch;
+
+                // 몸에서 서서히 물러난다. SetPushView 가 같은 이유로 같은 값을 쓴다 —
+                // 탑승 순간 카메라가 11.5m 뒤로 튀면 무슨 일이 났는지 읽을 수 없다.
+                currentDistance = 0f;
             }
             else
             {
@@ -530,17 +543,23 @@ namespace Metagame.Gameplay
         {
             if (Target == null) return;
 
-            // Use the same rigid frame as the cockpit, never the joint-driven pelvis
-            // or a forward offset that orbits when the mouse changes yaw.
-            if (vehicleView && vehicleEye != null)
-            {
-                transform.SetPositionAndRotation(vehicleEye.position,
-                    viewTilt * Quaternion.Euler(pitch, yaw, 0f));
-                currentDistance = 0f;
-                return;
-            }
-
             Vector3 raw = Target.position + Vector3.up * TargetHeight;
+
+            // 탑승 중에는 <b>기체</b>를 중심으로 돈다 (S15P21B202-441).
+            //
+            // <para>예전에는 이 자리에서 카메라를 조종석 앵커에 <b>붙여 버렸다</b>
+            // (1인칭). 이제 그 앵커를 <b>초점</b>으로만 쓰고 궤도 계산은 그대로 돌려
+            // 뒤로 물러난다 — 거리·차단 회피·기울기가 걷기와 같은 코드를 타야 한다.</para>
+            ///
+            /// <para><b>탑승자가 아니라 기체를 본다.</b> 탑승자에 초점을 두면 기체가
+            /// 화면 아래로 밀려 무엇을 타고 있는지가 약해진다. 앵커는 기체에 붙은
+            /// 자식이라 기체가 돌면 함께 돈다.</para>
+            ///
+            /// <para>앵커가 아직 없으면(참가자가 복제를 못 받은 첫 몇 프레임) 위에서
+            /// 계산한 탑승자 자리를 그대로 쓴다. S15P21B202-434 가 몸을 좌석에 붙여
+            /// 두므로 그 자리도 기체 안이다 — 몇 프레임 덜 예쁜 것으로 끝난다.</para>
+            if (vehicleView && vehicleEye != null)
+                raw = vehicleEye.position + Vector3.up * TargetHeight;
 
             // 밀기 중에는 초점을 파츠 접촉 지점 쪽으로 옮긴다(기획 §10.2 "카메라 중심은
             // 플레이어와 파츠 접촉 지점 사이"). 전부 옮기지 않는 이유는
@@ -594,6 +613,15 @@ namespace Metagame.Gameplay
                 var col = hits[i].collider;
                 if (col == null) continue;
                 if (col.GetComponentInParent<PlayerRig>() != null) continue;   // 자기 몸은 시야를 막지 않는다
+
+                // 타고 있는 기체도 막지 않는다 (S15P21B202-441).
+                //
+                // 초점이 조종석 앵커라 <b>기체 안</b>이다. 그러면 어느 방향으로 물러나도
+                // 선체가 먼저 걸려 카메라가 1m 까지 당겨 붙는다 — 3인칭이 아니라 선체
+                // 내부를 보는 화면이 된다. 자기 몸을 무시하는 것과 같은 이유다.
+                if (vehicleView
+                    && col.GetComponentInParent<Metagame.Gameplay.Parts.TransportVehicle>() != null)
+                    continue;
                 float d = hits[i].distance;
                 if (d <= 0.01f) continue;
                 want = Mathf.Min(want, Mathf.Max(1.0f, d - 0.12f));

@@ -254,7 +254,9 @@ namespace Metagame.Gameplay.Tests
 
             player.Cam.SetVehicleView(true);
             Assert.IsTrue(player.Cam.VehicleView);
-            Assert.IsTrue(player.Cam.FirstPerson);
+
+            // 탑승 시점은 3인칭이다 (S15P21B202-441). 예전에는 조종석 1인칭이었다.
+            Assert.IsFalse(player.Cam.FirstPerson);
 
             player.Cam.SetVehicleView(false);
             Assert.IsFalse(player.Cam.VehicleView);
