@@ -199,8 +199,27 @@ namespace Metagame.Gameplay
             // 후보가 없던 것인지 누르지 않은 것인지 구별할 근거가 없었다.
             //
             // 값이 **바뀔 때만** 오는 함수이므로 로그가 늘지 않는다.
+            // **구조 지점이 실제로 생겼는지 함께 남긴다** (S15P21B202-433).
+            //
+            // 2026-09-11 4인 QA 에서 참가자가 "살리기 G 표시가 안 뜬다 · 게이지가 안
+            // 보인다" 를 신고했다. 이 줄은 `원격 기절 O` 를 참가자에서 8~11번 찍었고
+            // 호스트에는 `[구조] 시작 → 완료` 가 있는데 참가자에는 `시작` 이 **한 번도
+            // 없다** — 거기까지는 보인다. 그런데 그것이
+            //   ① 구조 지점이 아예 없어서인지
+            //   ② 지점은 있는데 인터랙터가 후보로 잡지 못해서인지
+            //   ③ 표시가 없어 사람이 누르지 않아서인지
+            // **구별할 근거가 로그에 없었다.**
+            //
+            // `RefreshRescueTarget` 은 `Doll.Hips` 가 없으면 아무것도 만들지 않고
+            // 돌아간다. 그 경우 플래그만 남고 잡을 지점이 끝내 생기지 않으므로, 이
+            // 사실이 남아야 ①을 그 자리에서 가릴 수 있다. 값이 바뀔 때만 오는
+            // 함수이므로 줄이 늘지 않는다.
+            string point = RescueTarget == null
+                ? "구조지점없음(인형이 아직 없다)"
+                : RescueTarget.gameObject.activeSelf ? "구조지점켬" : "구조지점끔";
+
             Debug.Log($"[NotThisPlanet][구조] 원격 기절 {(nowDowned ? "O" : "X")}"
-                      + $" · 대상={Nickname}");
+                      + $" · 대상={Nickname} · {point}");
         }
 
         public bool Hanging { get { return LeftHand.Hanging || RightHand.Hanging; } }
@@ -2675,6 +2694,8 @@ namespace Metagame.Gameplay
         {
             if (RescueInteractor == null) return;
 
+            ReportRescueCandidate();
+
             // 기절한 사람은 남을 일으킬 수 없다. 홀드 중이었으면 놓는다 —
             // 진행분은 남으므로 다른 사람이 이어받는다(DownedRescue.Release).
             if (Downed)
@@ -2741,6 +2762,32 @@ namespace Metagame.Gameplay
                 waitingForServerRescue = false;
                 LogRescue("시작", "누르고 있는다");
             }
+        }
+
+        /// <summary>마지막으로 남긴 구조 후보. 바뀔 때만 찍으려고 들고 있는다.</summary>
+        string lastRescueCandidate;
+
+        /// <summary>
+        /// 구조 후보가 잡히는지 남긴다 (S15P21B202-433).
+        ///
+        /// <para><b>이것이 없어서 QA 신고를 가릴 수 없었다.</b> <c>DownedRescueHud</c> 는
+        /// <see cref="RescueCandidate"/> 가 있을 때만 그린다. 그래서 "G 표시가 안 뜬다"
+        /// 는 곧 "후보가 없다" 인데, 후보가 없었던 것인지 사람이 누르지 않은 것인지
+        /// 로그로 갈릴 수 없었다 — 참가자 로그에 <c>[구조] 시작</c> 이 없는 것만
+        /// 보였다.</para>
+        ///
+        /// <para><b>바뀔 때만 찍는다.</b> 매 틱 찍으면 2026-09-11 의 kinematic 경고처럼
+        /// 로그를 덮는다 — 그 QA 로그는 109,643줄 중 106,652줄이 한 줄이었다.</para>
+        /// </summary>
+        void ReportRescueCandidate()
+        {
+            var candidate = RescueCandidate;
+            string now = candidate != null ? candidate.Nickname : null;
+            if (now == lastRescueCandidate) return;
+
+            lastRescueCandidate = now;
+            Debug.Log("[NotThisPlanet][구조] 후보 "
+                      + (now != null ? $"O · 대상={now}" : "X · 겨냥 안에 기절한 동료가 없다"));
         }
 
         /// <summary>
@@ -3238,10 +3285,13 @@ namespace Metagame.Gameplay
                 });
             }
 
-            body.isKinematic = true;
-            body.useGravity = false;
+            // 속도를 **먼저** 비운다 (S15P21B202-433) — kinematic 으로 바꾼 뒤에 쓰면
+            // Unity 가 거부하고 경고만 남는다. 여기서 비우는 목적은 남은 운동량을
+            // 없애는 것이고, 그것은 동적인 동안에만 가능하다.
             body.linearVelocity = Vector3.zero;
             body.angularVelocity = Vector3.zero;
+            body.isKinematic = true;
+            body.useGravity = false;
             body.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
             body.interpolation = RigidbodyInterpolation.Interpolate;
         }
@@ -3256,10 +3306,26 @@ namespace Metagame.Gameplay
             // 다른 자리에 떠 있게 된다.
             Vector3 holdPoint = AimOrigin + direction * Tuning.ToolHoldDistance;
 
-            body.isKinematic = true;
+            // **이미 kinematic 이면 속도를 쓰지 않는다** (S15P21B202-433).
+            //
+            // 순서가 거꾸로였다. kinematic 강체에 속도를 대입하면 Unity 가 거부하면서
+            // 경고를 찍는데, 이 함수는 운반 중 **매 틱 · 운반물마다** 돈다. 2026-09-11
+            // QA 로그 109,643줄 중 **106,652줄(97%)** 이 그 경고 한 줄이었다(참가자도 96%).
+            //
+            // 프레임에는 영향이 없었다 — 5초 구간별 실측으로 경고 있는 구간 58.7fps ·
+            // 없는 구간 58.8fps 로 차이가 없다. 문제는 **로그가 묻힌 것**이다. `-390` 에서
+            // "계측이 0건이어서 QA 신고를 확인할 수 없었다" 를 고쳤는데, 이번에는 반대로
+            // 다른 진단이 이 한 줄에 파묻혀 QA 로그가 쓸모를 잃었다.
+            //
+            // kinematic 강체의 속도는 뜻이 없다(물리가 읽지 않는다). 그래서 동적인
+            // 동안에만 비우고, 그 뒤 kinematic 으로 바꾼다.
+            if (!body.isKinematic)
+            {
+                body.linearVelocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+                body.isKinematic = true;
+            }
             body.useGravity = false;
-            body.linearVelocity = Vector3.zero;
-            body.angularVelocity = Vector3.zero;
 
             CarriedBodyState state = carriedBodies[body];
             Vector3 desiredPosition = body.position + holdPoint - body.worldCenterOfMass;
