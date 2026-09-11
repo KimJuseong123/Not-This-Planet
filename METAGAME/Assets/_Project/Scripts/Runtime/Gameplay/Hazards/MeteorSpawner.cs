@@ -158,7 +158,25 @@ namespace Metagame.Gameplay.Hazards
             /// <summary>다 식었는가. 기획 §19 "약 5초 동안 … 약해진다".</summary>
             public float CoolSeconds;
 
+            /// <summary>식은 뒤 옅어져 사라지는 시간(초). S15P21B202-438.</summary>
+            public float FadeSeconds;
+
             public bool Cooled => Age >= CoolSeconds;
+
+            /// <summary>
+            /// 화면에서 아예 보이지 않게 됐는가.
+            ///
+            /// <b><see cref="Cooled"/> 와 다르다.</b> 식은 것은 색이 굳었다는 뜻이고
+            /// 이것은 투명해졌다는 뜻이다. 표시를 갱신할지 말지는 이쪽으로 판단해야
+            /// 한다 — <c>Cooled</c> 로 끊으면 옅어지는 단계가 화면에 반영되지 않는다.
+            /// </summary>
+            /// <summary>
+            /// 색이 더 이상 변하지 않는가. <b>계산은 한 곳에만 둔다</b> — 예전에는 여기와
+            /// <see cref="MeteorScarLook"/> 에 따로 있었고, 페이드가 0 일 때 둘이 서로
+            /// 다른 답을 냈다(!347 AI 리뷰가 그 차이에 걸렸다).
+            /// </summary>
+            public bool ColorIsFinal =>
+                MeteorScarLook.ColorIsFinal(Age, CoolSeconds, FadeSeconds);
         }
 
         readonly List<Scar> _scars = new();
@@ -838,6 +856,7 @@ namespace Metagame.Gameplay.Hazards
                 Radius = meteor.ImpactRadius,
                 Age = 0f,
                 CoolSeconds = _tuning.ScarCoolSeconds,
+                FadeSeconds = _tuning.ScarFadeSeconds,
             });
 
             Trim();
@@ -882,9 +901,33 @@ namespace Metagame.Gameplay.Hazards
                     continue;
                 }
 
-                if (scar.Cooled) continue;
-
+                // **나이는 언제나 센다.** 예전에는 다 식으면 건너뛰었는데(§19 의
+                // 성능 기준), 그러면 두 가지가 깨진다 — 옅어지는 단계가 화면에
+                // 반영되지 않고, 아래 수명 판정이 영영 오지 않는다.
+                //
+                // 여기서 아끼는 것은 float 덧셈 하나뿐이다. 무거운 것은 재질에 색을
+                // 넣는 쪽이고 그것은 MeteorScarView.ShouldRepaint 가 건너뛴다 —
+                // §19 의 기준은 거기서 지킨다(S15P21B202-438).
                 scar.Age += deltaTime;
+
+                // **흔적을 여기서 없앤다.**
+                //
+                // 예전에는 Meteor.Tick 의 _sinceSettled 가 수명을 셌다. 그런데
+                // AdvanceLive 는 정착한 운석을 _live 에서 빼면서 Remember 로 옮기고
+                // **더 틱하지 않는다** — Meteor 에는 자체 FixedUpdate 도 없다.
+                // 그래서 _sinceSettled 가 늘지 않아 Expire() 가 영영 불리지 않았고,
+                // **흔적이 영구히 남았다.** MeteorScarDespawnSeconds 는 죽은 상수였다
+                // (S15P21B202-438 에서 실측으로 드러났다 — 실제 플레이 로그에 흔적
+                // 36개가 살아 있던 기록이 있다).
+                //
+                // 나이를 세는 쪽이 수명도 재는 것이 맞다. 두 타이머가 갈라져 있던
+                // 것이 이 결함의 뿌리다.
+                if (scar.Age >= _tuning.ScarDespawnSeconds)
+                {
+                    scar.Meteor.Despawn();   // 위에서 null 을 이미 걸렀다
+                    _scars.RemoveAt(i);
+                    continue;
+                }
             }
         }
 

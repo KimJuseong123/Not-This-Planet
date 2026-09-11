@@ -37,6 +37,20 @@ namespace Metagame.Gameplay.Hazards
         {
             public Transform Root;
             public Material Material;
+
+            /// <summary>
+            /// 지금 이 원판이 그리고 있는 흔적.
+            ///
+            /// <b>풀은 목록 번호로 배정된다.</b> 흔적 하나가 빠지면 뒤가 앞으로 당겨져
+            /// 같은 번호에 다른 흔적이 온다. 그런데 아래 <see cref="ShouldRepaint"/> 는
+            /// 다 옅어진 흔적의 색 넣기를 건너뛰므로, 새로 온 흔적이 이미 옅어져
+            /// 있으면 <b>앞 흔적의 색이 그대로 남는다.</b>
+            ///
+            /// 지금은 수명(= 식는 시간 + 옅어지는 시간)이 끝나는 순간 목록에서도
+            /// 빠지므로 다 옅어진 흔적이 목록에 남아 있지 않다 — 우연히 성립한다.
+            /// 씬에서 수명만 늘리면 곧바로 깨지므로 여기서 막는다.
+            /// </summary>
+            public MeteorSpawner.Scar Bound;
         }
 
         readonly List<Marker> _pool = new();
@@ -57,8 +71,10 @@ namespace Metagame.Gameplay.Hazards
         /// <summary>
         /// 흔적 목록을 화면에 옮긴다.
         ///
-        /// 색을 매 프레임 다시 넣지 않는다 — 다 식은 흔적은 건드릴 이유가 없고,
-        /// 200개에 대해 재질을 만지면 §19 의 성능 기준을 스스로 깬다.
+        /// 색을 매 프레임 다시 넣지 않는다 — <b>다 옅어진</b> 흔적은 건드릴 이유가
+        /// 없고, 200개에 대해 재질을 만지면 §19 의 성능 기준을 스스로 깬다.
+        /// (예전에는 "다 식은" 이 기준이었는데, 그러면 옅어지는 단계가 화면에
+        /// 반영되지 않아 검은 원이 남았다 — S15P21B202-438.)
         /// </summary>
         public void Tick()
         {
@@ -85,19 +101,48 @@ namespace Metagame.Gameplay.Hazards
                 marker.Root.localScale = new Vector3(diameter, DiscThickness, diameter);
                 marker.Root.gameObject.SetActive(true);
 
-                if (!scar.Cooled)
-                    marker.Material.SetColor("_Color", MeteorScarLook.ColorOf(scar.Age, scar.CoolSeconds));
+                if (ShouldRepaint(scar) || marker.Bound != scar)
+                    marker.Material.SetColor("_Color", ColorFor(scar));
+
+                marker.Bound = scar;
             }
 
             Hide(scars.Count);
             VisibleCount = scars.Count;
         }
 
+        /// <summary>
+        /// 이 흔적의 색을 다시 넣어야 하는가.
+        ///
+        /// <b>Cooled 가 아니라 ColorIsFinal 로 끊는다.</b> 식은 뒤에도 옅어지는 동안은 알파가
+        /// 변하므로 계속 넣어야 한다 — <c>Cooled</c> 로 끊으면 알파가 0.5 에서 굳어
+        /// <b>검은 원이 그대로 남는다</b>(S15P21B202-438 의 증상이 정확히 그것이다).
+        ///
+        /// <b>왜 순수 메서드로 빼는가.</b> 이 판단이 <see cref="Tick"/> 안의 조건문으로
+        /// 있으면 검증이 닿지 못한다 — 실제로 기준을 <c>Cooled</c> 로 되돌리는 대조
+        /// 실험에서 검증 12개가 전부 통과했다. 증상을 되살려도 초록불이었다.
+        /// 밖에서 부를 수 있게 두면 그 대조가 걸린다.
+        /// </summary>
+        public static bool ShouldRepaint(MeteorSpawner.Scar scar) =>
+            scar != null && !scar.ColorIsFinal;
+
+        /// <summary>이 흔적에 넣을 색. 식는 단계와 옅어지는 단계를 모두 반영한다.</summary>
+        public static Color ColorFor(MeteorSpawner.Scar scar) =>
+            scar == null
+                ? MeteorScarLook.ColdColor
+                : MeteorScarLook.ColorOf(scar.Age, scar.CoolSeconds, scar.FadeSeconds);
+
         void Hide(int from)
         {
             for (var i = from; i < _pool.Count; i++)
-                if (_pool[i]?.Root != null)
-                    _pool[i].Root.gameObject.SetActive(false);
+            {
+                if (_pool[i] == null) continue;
+
+                // 소멸한 흔적을 풀이 계속 붙들고 있지 않게 한다(!347 AI 리뷰).
+                _pool[i].Bound = null;
+
+                if (_pool[i].Root != null) _pool[i].Root.gameObject.SetActive(false);
+            }
 
             if (from == 0) VisibleCount = 0;
         }
