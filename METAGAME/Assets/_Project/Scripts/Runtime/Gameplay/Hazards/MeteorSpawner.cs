@@ -158,7 +158,19 @@ namespace Metagame.Gameplay.Hazards
             /// <summary>다 식었는가. 기획 §19 "약 5초 동안 … 약해진다".</summary>
             public float CoolSeconds;
 
+            /// <summary>식은 뒤 옅어져 사라지는 시간(초). S15P21B202-438.</summary>
+            public float FadeSeconds;
+
             public bool Cooled => Age >= CoolSeconds;
+
+            /// <summary>
+            /// 화면에서 아예 보이지 않게 됐는가.
+            ///
+            /// <b><see cref="Cooled"/> 와 다르다.</b> 식은 것은 색이 굳었다는 뜻이고
+            /// 이것은 투명해졌다는 뜻이다. 표시를 갱신할지 말지는 이쪽으로 판단해야
+            /// 한다 — <c>Cooled</c> 로 끊으면 옅어지는 단계가 화면에 반영되지 않는다.
+            /// </summary>
+            public bool Faded => Age >= CoolSeconds + FadeSeconds;
         }
 
         readonly List<Scar> _scars = new();
@@ -838,6 +850,7 @@ namespace Metagame.Gameplay.Hazards
                 Radius = meteor.ImpactRadius,
                 Age = 0f,
                 CoolSeconds = _tuning.ScarCoolSeconds,
+                FadeSeconds = _tuning.ScarFadeSeconds,
             });
 
             Trim();
@@ -882,7 +895,10 @@ namespace Metagame.Gameplay.Hazards
                     continue;
                 }
 
-                if (scar.Cooled) continue;
+                // **Cooled 로 끊지 않는다.** 식은 뒤에도 옅어지는 동안은 나이가
+                // 늘어야 표시가 따라온다(S15P21B202-438). 다 옅어지면 그때부터
+                // 건너뛴다 — 200개가 쌓여도 비용이 0 이 되어야 하는 것은 같다.
+                if (scar.Faded) continue;
 
                 scar.Age += deltaTime;
             }
