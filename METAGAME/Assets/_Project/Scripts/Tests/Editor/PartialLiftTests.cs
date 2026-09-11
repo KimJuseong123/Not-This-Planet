@@ -97,16 +97,27 @@ namespace Metagame.Gameplay.Tests
         /// <summary>
         /// 고정쇠 하나를 푼다. 상호작용을 거치지 않고 결과 상태만 만든다.
         ///
-        /// 풀린 고정못은 그 자리에 물리 소품으로 남는데(PartClamp.Release), 파츠 밑면에
-        /// 붙어 있어 그대로 두면 부딪혀 파츠를 돌린다. 여기서 보려는 것은 부양과 세우기이므로
-        /// 치운다. 게임에서는 하나씩 뽑는 사이에 떨어져 나가므로 이런 일이 없다.
+        /// <para>풀린 고정못은 그 자리에 물리 소품으로 남는데(<c>PartClamp.Release</c>),
+        /// 파츠 밑면에 붙어 있어 그대로 두면 부딪혀 파츠를 돌린다. 여기서 보려는 것은
+        /// 부양과 세우기이므로 <b>물리에서 뺀다.</b> 게임에서는 하나씩 뽑는 사이에
+        /// 떨어져 나가므로 이런 일이 없다.</para>
+        ///
+        /// <para><b>지우면 안 된다</b> (S15P21B202-463). <c>ReleasedBody</c> 는
+        /// <b>고정못 자신의 <c>Rigidbody</c></b> 라(<c>PartClamp</c> 가 자기
+        /// <c>GameObject</c> 에 붙인다), 그 오브젝트를 지우면 <b>고정못이 사라진다.</b>
+        /// 런타임은 <c>SpaceshipPart.HasReleasedClamp</c> 에서 <b>남아 있는 고정못이
+        /// 풀렸는지</b>로 부분 부양을 판정하므로, 지운 순간 "풀린 것이 하나도 없다" 가
+        /// 되어 검증하려던 상태 자체가 성립하지 않는다.</para>
+        ///
+        /// <para>끄는 것으로 충분하다 — 비활성 오브젝트는 물리 질의에 걸리지 않고,
+        /// 참조는 살아 있다. 정리는 <c>TearDown</c> 이 파츠를 지울 때 함께 된다.</para>
         /// </summary>
         static void ReleaseClamp(SpaceshipPart part, int index)
         {
             var clamp = part.Clamps[index];
             clamp.Release();
 
-            if (clamp.ReleasedBody != null) Object.DestroyImmediate(clamp.ReleasedBody.gameObject);
+            if (clamp.ReleasedBody != null) clamp.ReleasedBody.gameObject.SetActive(false);
         }
 
         // --- 부분 부양 -------------------------------------------------------
