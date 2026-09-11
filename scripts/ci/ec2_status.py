@@ -28,6 +28,10 @@ DISK_PCT_WARN = 80        # 차면 빌드·배포가 동시에 죽는다
 MEM_FREE_GB_WARN = 2      # 15 GiB 중 백엔드 2벌 + MySQL 2벌
 CERT_DAYS_WARN = 30       # certbot 이 멈춰도 한 달 전에 안다
 RESTART_WARN = 3          # 재시작 루프. 떠 있어도 이 숫자가 오르면 죽고 있는 것이다
+# **누적 재시작만으로는 울리지 않는다.** `RestartCount` 는 컨테이너를 만든 뒤의
+# 누적값이라, 지난주에 다섯 번 죽었다 지금 멀쩡한 것도 그 숫자를 영원히 달고 있다.
+# "지금 죽고 있는 중" 은 **재시작이 많고 + 방금 떴다** 로 본다.
+FRESH_RESTART_SECS = 30 * 60
 STALE_MINUTES = 20        # 5분 주기가 네 번 빠지면 재는 쪽이 멈춘 것이다
 
 # 꺼져 있어야 하는 것. 살아나면 알린다 — 지금은 확인하는 장치가 없다.
@@ -104,9 +108,10 @@ def problems(data: dict | None, now: datetime | None = None) -> list[str]:
         name = c.get("name", "?")
         if not c.get("running"):
             out.append(f"📦 **{name} 가 떠 있지 않다**")
-        elif _num(c.get("restarts")) >= RESTART_WARN:
-            out.append(f"📦 **{name} 가 {_num(c.get('restarts')):.0f}번 재시작했다** — "
-                       "떠 있어도 죽고 있는 중일 수 있다")
+        elif _num(c.get("restarts")) >= RESTART_WARN and _recently_up(c):
+            out.append(f"📦 **{name} 가 {_num(c.get('restarts')):.0f}번 재시작했고 "
+                       f"{_num(c.get('uptime_secs')) / 60:.0f}분 전에 떴다** — "
+                       "떠 있어도 죽고 있는 중이다")
 
     for b in data.get("backends") or []:
         code = str(b.get("code") or "000")
@@ -138,6 +143,13 @@ def problems(data: dict | None, now: datetime | None = None) -> list[str]:
             out.append(f"🔐 **인증서가 {days:.0f}일 남았다** — certbot 자동 갱신을 확인하세요")
 
     return out
+
+
+def _recently_up(c: dict) -> bool:
+    """방금 뜬 컨테이너인가. 값이 없으면(`-1`) **울리지 않는다** — 옛 호스트
+    스크립트가 이 필드를 안 보내던 때가 있고, 그때 매일 울리게 하면 안 된다."""
+    secs = _num(c.get("uptime_secs"), default=-1)
+    return 0 <= secs <= FRESH_RESTART_SECS
 
 
 def _num(v, default: float = 0.0) -> float:

@@ -37,7 +37,8 @@ def healthy(**over) -> dict:
         "containers": [
             {"name": "metagame-backend", "running": True, "restarts": 0},
             {"name": "metagame-mysql", "running": True, "restarts": 0},
-            {"name": "metagame-dev-backend", "running": True, "restarts": 1},
+            {"name": "metagame-dev-backend", "running": True, "restarts": 1,
+             "uptime_secs": 7 * 3600},
             {"name": "metagame-dev-mysql", "running": True, "restarts": 0},
         ],
         "backends": [
@@ -102,14 +103,35 @@ print("  임계를 넘으면 숫자를 싣고, 바로 아래에서는 조용하�
 #     2026-09-11 dev 백엔드가 JWT_SECRET 때문에 재시작 루프였다. `docker ps` 만 보면
 #     "Up 3 seconds" 라 멀쩡해 보인다 — **재시작 횟수를 봐야 보인다.**
 _c = healthy()["containers"]
-_c[2] = {"name": "metagame-dev-backend", "running": True, "restarts": 12}
+_c[2] = {"name": "metagame-dev-backend", "running": True, "restarts": 12, "uptime_secs": 40}
 _p = E.problems(healthy(containers=_c), NOW)
 assert len(_p) == 1 and "재시작" in _p[0] and "12" in _p[0], _p
 
-_c[2] = {"name": "metagame-dev-backend", "running": False, "restarts": 0}
+_c[2] = {"name": "metagame-dev-backend", "running": False, "restarts": 0, "uptime_secs": -1}
 _p = E.problems(healthy(containers=_c), NOW)
 assert len(_p) == 1 and "떠 있지 않다" in _p[0], _p
 print("  재시작 루프와 죽은 컨테이너를 가른다 ✅")
+
+
+# ── ③b 누적 재시작만으로 매일 울리지 않는다 ──────────────────────────────
+#
+#     `RestartCount` 는 컨테이너를 만든 뒤의 **누적값**이다. 지난주에 열두 번
+#     죽었다가 지금 멀쩡한 것도 그 숫자를 영원히 달고 있다. 그것만 보고 울리면
+#     **매일 아침 같은 줄이 붙고**, 그러면 사람이 카드를 안 본다 — 이 MR 자신이
+#     내세운 전제와 정면으로 어긋난다.
+_c = healthy()["containers"]
+_c[2] = {"name": "metagame-dev-backend", "running": True, "restarts": 12,
+         "uptime_secs": 3 * 24 * 3600}          # 사흘째 안정
+assert E.problems(healthy(containers=_c), NOW) == [],     "옛 재시작 기록만으로 울린다 — 매일 아침 같은 줄이 붙는다"
+
+#     값이 없으면(-1, 옛 호스트 스크립트) 울리지 않는다.
+_c[2] = {"name": "metagame-dev-backend", "running": True, "restarts": 12, "uptime_secs": -1}
+assert E.problems(healthy(containers=_c), NOW) == []
+
+#     호스트가 실제로 그 값을 보내는지 — 한쪽만 고치면 영원히 조용해진다.
+_sh_up = open(os.path.join(ROOT, "scripts/deploy/host/ec2-status.sh"), encoding="utf-8").read()
+assert '"uptime_secs"' in _sh_up, "호스트가 uptime_secs 를 안 보낸다"
+print("  옛 재시작 기록만으로는 울리지 않는다 ✅")
 
 
 # ── ④ 꺼져 있어야 하는 것이 살아난 것도 잡는다 ───────────────────────────

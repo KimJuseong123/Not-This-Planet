@@ -53,7 +53,13 @@ CONTAINER_LINES=""
 for c in "${WANT_CONTAINERS[@]}"; do
   running=$(docker inspect -f '{{.State.Running}}' "$c" 2>/dev/null || echo false)
   restarts=$(docker inspect -f '{{.RestartCount}}' "$c" 2>/dev/null || echo -1)
-  CONTAINER_LINES+="$c	${running:-false}	${restarts:--1}"$'\n'
+  # **언제 떴는지도 싣는다.** `RestartCount` 는 컨테이너를 만든 뒤의 **누적값**이라,
+  # 지난주에 다섯 번 죽었다가 지금 멀쩡한 것도 영원히 그 숫자를 달고 있다. 그것만
+  # 보고 울리면 매일 아침 같은 줄이 붙고, 사람이 카드를 안 보게 된다.
+  up_secs=$(docker inspect -f '{{.State.StartedAt}}' "$c" 2>/dev/null | \
+            xargs -I{} date -d {} +%s 2>/dev/null || echo 0)
+  [ "${up_secs:-0}" -gt 0 ] && up_secs=$(( $(date +%s) - up_secs )) || up_secs=-1
+  CONTAINER_LINES+="$c	${running:-false}	${restarts:--1}	${up_secs:--1}"$'\n'
 done
 
 # ── 백엔드가 실제로 응답하는가 ───────────────────────────────────────────────
@@ -137,7 +143,8 @@ print(json.dumps({
     "disk": {"used_pct": num("DISK_PCT"), "free_gb": num("DISK_FREE_GB")},
     "mem": {"total_gb": num("MEM_TOTAL_GB"), "available_gb": num("MEM_AVAIL_GB")},
     "containers": [
-        {"name": r[0], "running": r[1] == "true", "restarts": int(r[2])} for r in rows("CONTAINER_LINES")
+        {"name": r[0], "running": r[1] == "true", "restarts": int(r[2]),
+         "uptime_secs": int(r[3]) if len(r) > 3 else -1} for r in rows("CONTAINER_LINES")
     ],
     "backends": [
         {"name": r[0], "port": int(r[1]), "code": r[2]} for r in rows("BACKEND_LINES")
