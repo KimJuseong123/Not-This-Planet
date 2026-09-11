@@ -35,18 +35,30 @@ namespace Metagame.Gameplay
         [Tooltip("카메라 기준 방망이 모델 위치입니다. Play 중 Inspector에서 바로 조절할 수 있습니다.")]
         [SerializeField] Vector3 firstPersonVisualLocalPosition = new Vector3(0.23f, -0.20f, 0.58f);
         [Tooltip("카메라 기준 방망이 모델 회전(Euler)입니다.")]
-        [SerializeField] Vector3 firstPersonVisualLocalEuler = new Vector3(0f, 0f, -35f);
+        [SerializeField] Vector3 firstPersonVisualLocalEuler = new Vector3(25f, 0f, 20f);
         [Tooltip("카메라 아래로 분리된 방망이 모델의 크기입니다.")]
-        [SerializeField] Vector3 firstPersonVisualLocalScale = Vector3.one * 0.64f;
+        [SerializeField] Vector3 firstPersonVisualLocalScale = Vector3.one * 0.30f;
 
         Transform heldVisual;
+
+        [Header("1인칭 손잡이 맞춤")]
+        [Tooltip("원본 FBX 로컬 좌표의 손잡이 지점. 원본의 길이 축은 Z입니다.")]
+        [SerializeField] Vector3 firstPersonGripLocalPoint = new Vector3(0.328f, -0.315f, 0.15f);
+        // 제작 메시의 손잡이→머리 방향. 단순 Z축이 아니라 대각선으로 제작됐다.
+        [SerializeField] Vector3 modelLongAxis = new Vector3(-0.62f, 0.60f, 0.70f);
         Vector3 droppedVisualLocalPosition;
         Quaternion droppedVisualLocalRotation;
         Vector3 droppedVisualLocalScale;
         Transform droppedVisualParent;
         int droppedVisualSiblingIndex;
         bool droppedVisualPoseCaptured;
-        bool firstPersonVisualAttached;
+        public override byte ViewAction => IsSwinging ? (byte)1 : (byte)0;
+        public override float ViewProgress => SwingProgress01;
+        protected override void ApplyRemoteVisualState(byte action, float progress, Vector3 aim)
+        {
+            swingElapsed = action == 1 ? Mathf.Clamp01(progress) * PhysicsScale.BatSwingSeconds : -1f;
+            swingAim = aim;
+        }
 
         /// <summary>
         /// 소품을 찾는 겹침 질의 버퍼. 매 스윙 새로 만들지 않는다
@@ -706,71 +718,33 @@ namespace Metagame.Gameplay
         void UpdateHeldVisualPose(Vector3 carryDirection)
         {
             if (heldVisual == null) return;
-
-            var camera = Owner != null && Owner.IsLocal ? Owner.Cam : null;
-            if (camera != null && camera.FirstPerson)
-            {
-                if (!firstPersonVisualAttached)
-                {
-                    heldVisual.SetParent(camera.transform, false);
-                    firstPersonVisualAttached = true;
-                }
-
-                ApplyFirstPersonPose(camera.transform, carryDirection);
-                return;
-            }
-
-            RestoreVisualParent();
-            heldVisual.SetLocalPositionAndRotation(
-                heldVisualLocalPosition, Quaternion.Euler(heldVisualLocalEuler));
+            // 실제 메시의 대각선 길이 축을 먼저 세우고 휴대 자세를 적용한다.
+            var axisCorrection = Quaternion.FromToRotation(modelLongAxis.normalized, Vector3.up);
+            heldVisual.SetLocalPositionAndRotation(heldVisualLocalPosition,
+                Quaternion.Euler(heldVisualLocalEuler) * axisCorrection);
             heldVisual.localScale = heldVisualLocalScale;
+            AlignWorldGrip(heldVisual, firstPersonGripLocalPoint);
+            var camera = ViewOwner != null ? ViewOwner.Cam : null;
+            var swing = FirstPersonSwingRotation(camera != null ? camera.transform : null);
+            UpdateFirstPersonVisual(heldVisual, swing * firstPersonVisualLocalPosition,
+                swing * Quaternion.Euler(firstPersonVisualLocalEuler) * axisCorrection,
+                firstPersonVisualLocalScale, firstPersonGripLocalPoint);
         }
 
-        void ApplyFirstPersonPose(Transform cameraTransform, Vector3 carryDirection)
+        public Quaternion FirstPersonSwingRotation(Transform cameraTransform)
         {
-            // 대기 중에는 카메라 로컬 포즈를 그대로 쓴다. FixedUpdate에서 전달된
-            // aim을 다시 적용하면 그 오래된 한 스텝 때문에 오히려 화면 지연이 생긴다.
-            Vector3 localDirection = IsSwinging
-                ? cameraTransform.InverseTransformDirection(carryDirection)
-                : Vector3.forward;
-            if (localDirection.sqrMagnitude < 1e-4f) localDirection = Vector3.forward;
-            localDirection.Normalize();
-
-            Vector3 up = Mathf.Abs(Vector3.Dot(localDirection, Vector3.up)) > 0.98f
-                ? Vector3.right
-                : Vector3.up;
-            Quaternion carryRotation = Quaternion.LookRotation(localDirection, up);
-
-            heldVisual.SetLocalPositionAndRotation(
-                carryRotation * firstPersonVisualLocalPosition,
-                carryRotation * Quaternion.Euler(firstPersonVisualLocalEuler));
-            heldVisual.localScale = firstPersonVisualLocalScale;
+            if (!IsSwinging || cameraTransform == null) return Quaternion.identity;
+            var direction = cameraTransform.InverseTransformDirection(CarryAim(cameraTransform.forward));
+            if (direction.sqrMagnitude < 1e-4f) return Quaternion.identity;
+            direction.Normalize();
+            var up = Mathf.Abs(Vector3.Dot(direction, Vector3.up)) > 0.98f ? Vector3.right : Vector3.up;
+            return Quaternion.LookRotation(direction, up);
         }
 
-        void RestoreVisualParent()
-        {
-            if (!firstPersonVisualAttached || heldVisual == null) return;
-
-            heldVisual.SetParent(droppedVisualParent, false);
-            if (droppedVisualParent != null)
-                heldVisual.SetSiblingIndex(Mathf.Clamp(
-                    droppedVisualSiblingIndex, 0, droppedVisualParent.childCount - 1));
-            firstPersonVisualAttached = false;
-        }
+        void RestoreVisualParent() { HideFirstPersonVisual(); }
 
         protected override void OnDestroy()
         {
-            // The bat's hierarchy may already be tearing down. A visual borrowed by
-            // the camera still belongs to this tool: dispose it instead of reparenting
-            // it to a Transform Unity is currently destroying.
-            if (firstPersonVisualAttached && heldVisual != null)
-            {
-                var visual = heldVisual.gameObject;
-                heldVisual = null;
-                firstPersonVisualAttached = false;
-                if (Application.isPlaying) Destroy(visual);
-                else DestroyImmediate(visual);
-            }
             base.OnDestroy();
         }
 

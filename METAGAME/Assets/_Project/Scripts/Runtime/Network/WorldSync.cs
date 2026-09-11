@@ -162,9 +162,16 @@ namespace Metagame.Network
         // 휴대 중 충돌을 끈다. 참가자 기계에서는 그 함수가 한 번도 불리지 않아
         // **뿌리는 제자리에 오는데 메시가 어긋나** 있었고 남의 도구가 몸을 막았다.
         readonly List<ToolBase> tools = new List<ToolBase>();
-        bool[] sendTools = Array.Empty<bool>();
-        bool[] lastSentTools = Array.Empty<bool>();
-        float toolKeepaliveTimer;
+        public struct ToolViewState
+        {
+            public uint Owner;
+            public byte Action;
+            public float Progress;
+            public Vector3 Direction;
+        }
+        ToolViewState[] sendToolViews = Array.Empty<ToolViewState>();
+        uint lastToolViewSeq;
+        bool everToolView;
 
         // ── 착지한 운석(흔적) (S15P21B202-355) ────────────────────────────
         ScarState[] sendScarSet = System.Array.Empty<ScarState>();
@@ -174,8 +181,6 @@ namespace Metagame.Network
         uint lastScarSeq;
         bool everScar;
         bool warnedScarCap;
-        uint lastToolSeq;
-        bool everTool;
         bool warnedToolMismatch;
 
         // 낙하 운석 그림 (S15P21B202-352). 자세와 같이 **매 틱** 보낸다 — 예고와 달리
@@ -795,7 +800,6 @@ namespace Metagame.Network
             linkKeepaliveTimer += Time.deltaTime;
             velocityTimer += Time.deltaTime;
             dropKeepaliveTimer += Time.deltaTime;
-            toolKeepaliveTimer += Time.deltaTime;
             scarKeepaliveTimer += Time.deltaTime;
             if (sendTimer < SendInterval) return;
             sendTimer = 0f;
@@ -897,22 +901,18 @@ namespace Metagame.Network
             SendDrops();
 
             // ── 도구 휴대 ────────────────────────────────────────
-            if (sendTools.Length != tools.Count) sendTools = new bool[tools.Count];
+            // 기존 월드 전송 주기에 묶는다. 손 좌표 대신 소유자/동작/진행도만 전달한다.
+            if (sendToolViews.Length != tools.Count) sendToolViews = new ToolViewState[tools.Count];
             for (int i = 0; i < tools.Count; i++)
-                sendTools[i] = tools[i] != null && tools[i].IsEquipped;
-
-            // 도구를 쥐고 놓는 것은 몇 초에 한 번이다 — 고정쇠와 같은 이유로 바뀔 때만
-            // 보내고, 신뢰 없는 채널이라 잃을 수 있으므로 조용해도 가끔 다시 보낸다.
-            if (!SameTools(sendTools, lastSentTools) || toolKeepaliveTimer >= ClampKeepalive)
             {
-                RpcApplyTools(sendSeq, sendTools);
-                toolKeepaliveTimer = 0f;
-
-                if (lastSentTools.Length != sendTools.Length)
-                    lastSentTools = new bool[sendTools.Length];
-                Array.Copy(sendTools, lastSentTools, sendTools.Length);
+                var tool = tools[i];
+                sendToolViews[i] = tool != null && tool.IsEquipped ? new ToolViewState
+                {
+                    Owner = NetPlayer.NetIdOfRig(tool.Owner), Action = tool.ViewAction,
+                    Progress = tool.ViewProgress, Direction = tool.Owner != null ? tool.Owner.AimForward : tool.transform.forward
+                } : default;
             }
-
+            RpcToolViews(sendSeq, sendToolViews);
             // ── 낙하 운석 그림 ──────────────────────────────────
             SendMeteors();
 
@@ -1596,46 +1596,32 @@ namespace Metagame.Network
             spawner.ApplyNetworkPending(recvDrops);
         }
 
-        static bool SameTools(bool[] a, bool[] b)
-        {
-            if (a.Length != b.Length) return false;
-            for (int i = 0; i < a.Length; i++)
-                if (a[i] != b[i]) return false;
-
-            return true;
-        }
-
-        /// <summary>
-        /// 어느 도구가 <b>지금 누군가의 손에 있는가</b>를 맞춘다 (S15P21B202-352).
-        ///
-        /// <para>판정은 서버가 하고 여기서는 그림만 따라간다 —
-        /// <see cref="ToolBase.ApplyRemoteHeld"/> 가 소유권을 옮기지 않는 이유를 적어 두었다.</para>
-        ///
-        /// <para>개수가 다르면 <b>손대지 않는다.</b> 고정쇠와 같다 — 억지로 맞추면 남의
-        /// 도구에 남의 상태가 들어간다.</para>
-        /// </summary>
         [ClientRpc(channel = Channels.Unreliable)]
-        void RpcApplyTools(uint seq, bool[] held)
+        void RpcToolViews(uint seq, ToolViewState[] states)
         {
-            if (isServer) return;               // 호스트는 자기 판정이 정답이다
-            if (held == null || !ready) return;
-            if (!IsNewer(seq, lastToolSeq, everTool)) return;
-            lastToolSeq = seq;
-            everTool = true;
-
-            if (held.Length != tools.Count)
+            if (isServer || !ready || states == null) return;
+            if (states.Length != tools.Count)
             {
                 if (!warnedToolMismatch)
-                {
-                    warnedToolMismatch = true;
-                    Debug.LogWarning($"[WorldSync] 도구 개수가 다르다 — 서버 {held.Length} · 여기 {tools.Count}");
-                }
+                    Debug.LogWarning($"[WorldSync] 도구 개수가 다르다 — 서버 {states.Length} · 여기 {tools.Count}");
+                warnedToolMismatch = true;
                 return;
             }
             warnedToolMismatch = false;
-
+            if (!IsNewer(seq, lastToolViewSeq, everToolView)) return;
+            lastToolViewSeq = seq;
+            everToolView = true;
             for (int i = 0; i < tools.Count; i++)
-                if (tools[i] != null) tools[i].ApplyRemoteHeld(held[i]);
+            {
+                var tool = tools[i];
+                if (tool == null) continue;
+                var state = states[i];
+                PlayerRig owner = null;
+                if (state.Owner != 0 && NetworkClient.spawned.TryGetValue(state.Owner, out var identity))
+                    owner = identity.GetComponent<NetPlayer>()?.VisualRig;
+                tool.ApplyRemoteHeld(state.Owner != 0);
+                tool.ApplyRemotePresentation(owner, state.Action, state.Progress, state.Direction);
+            }
         }
 
         /// <summary>낙하 자세 하나의 바이트 수 — 자세 28 + 속도 12.</summary>

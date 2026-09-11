@@ -98,8 +98,8 @@ MonoBehaviour:
   heldVisualLocalEuler: {x: 0, y: 0, z: -35}
   heldVisualLocalScale: {x: 0.64, y: 0.64, z: 0.64}
   firstPersonVisualLocalPosition: {x: 0.23, y: -0.2, z: 0.58}
-  firstPersonVisualLocalEuler: {x: 0, y: 0, z: -35}
-  firstPersonVisualLocalScale: {x: 0.64, y: 0.64, z: 0.64}
+  firstPersonVisualLocalEuler: {x: 25, y: 0, z: 20}
+  firstPersonVisualLocalScale: {x: 0.3, y: 0.3, z: 0.3}
 --- !u!65 &296463504008643616
 BoxCollider:
   m_ObjectHideFlags: 0

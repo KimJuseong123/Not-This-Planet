@@ -361,6 +361,7 @@ namespace Metagame.Network
         void ApplyArmPose(Arm arm, bool reaching)
         {
             if (arm == null || arm.Shoulder == null || arm.Elbow == null) return;
+            reaching |= rig != null && rig.PresentationTool != null;
 
             if (!reaching)
             {
@@ -376,6 +377,8 @@ namespace Metagame.Network
 
             Vector3 direction = source != null ? source.forward : Vector3.forward;
             direction.y = 0f;
+            if (rig != null && rig.PresentationTool != null)
+                direction = rig.PresentationTool.ViewCarryDirection;
             if (direction.sqrMagnitude < 0.0001f)
             {
                 direction = doll.Chest != null ? doll.Chest.transform.forward : Vector3.forward;

@@ -24,6 +24,7 @@ namespace Metagame.Gameplay
     /// 상호 배타적 기능이므로 한쪽이 도는 동안 다른 쪽은 진행되지 않는다.
     /// </summary>
     [DisallowMultipleComponent]
+    [DefaultExecutionOrder(110)] // FirstPersonHandView(100) 뒤에서 이번 프레임의 손 위치를 읽는다.
     public sealed class PlasmaWeldingTool : ToolBase
     {
         public static event Action<PlasmaWeldingTool> AnyWeldProgressed;
@@ -52,6 +53,10 @@ namespace Metagame.Gameplay
         [Tooltip("카메라 아래로 분리된 용접건 모델의 크기입니다.")]
         [SerializeField] Vector3 firstPersonVisualLocalScale = Vector3.one * 0.275f;
 
+        [Header("1인칭 손잡이 맞춤")]
+        [Tooltip("제작 모델 로컬 좌표의 손잡이 중심. 표시 모델에만 적용하며 실제 총구 판정은 바꾸지 않습니다.")]
+        [SerializeField] Vector3 firstPersonGripLocalPoint = new Vector3(-0.22f, 0.10f, 0.28f);
+
         const int RaycastBufferSize = 32;
         readonly RaycastHit[] hits = new RaycastHit[RaycastBufferSize];
         LineRenderer beam;
@@ -70,7 +75,12 @@ namespace Metagame.Gameplay
         Transform droppedVisualParent;
         int droppedVisualSiblingIndex;
         bool droppedVisualPoseCaptured;
-        bool firstPersonVisualAttached;
+        public override byte ViewAction => (byte)BeamMode;
+        protected override void ApplyRemoteVisualState(byte action, float progress, Vector3 aim)
+        {
+            BeamMode = action <= (byte)PlasmaBeamMode.Cut ? (PlasmaBeamMode)action : PlasmaBeamMode.None;
+            BeamActive = BeamMode != PlasmaBeamMode.None;
+        }
 
         public PlasmaBeamMode BeamMode { get; private set; }
         public bool BeamActive { get; private set; }
@@ -215,6 +225,7 @@ namespace Metagame.Gameplay
             ResolvePetalAnimator();
             var visualReady = petalAnimator == null ||
                               petalAnimator.TickAndIsReady(BeamMode, Time.deltaTime);
+            firstPersonVisual?.SyncAnimation();
             if (beam == null || !BeamActive || !visualReady || Muzzle == null)
             {
                 BeamHasContact = false;
@@ -243,7 +254,11 @@ namespace Metagame.Gameplay
             Color color = CurrentBeamColor;
             beam.startColor = color;
             beam.endColor = color;
-            beam.SetPosition(0, origin);
+            // 표시는 로컬 총구에서 시작하되 끝점/판정은 월드 도구 기준으로 유지한다.
+            var view = FirstPersonModel;
+            var viewOrigin = view != null && view.gameObject.activeInHierarchy && visibleBoundsReady
+                ? NozzleGeometry.TipAlong(view, visibleLocalBounds, direction) : origin;
+            beam.SetPosition(0, viewOrigin);
             beam.SetPosition(1, BeamEnd);
             beam.enabled = true;
         }
@@ -352,51 +367,20 @@ namespace Metagame.Gameplay
         }
 
         /// <summary>
-        /// 로컬 1인칭에서는 모델만 카메라 아래로 옮긴다. 물리 본체는 기존처럼
-        /// FixedUpdate에서 따라오므로 판정·네트워크·충돌 규칙을 건드리지 않지만,
-        /// 화면 모델은 카메라와 같은 렌더 프레임에 움직여 한 박자 늦지 않는다.
+        /// 실제 모델은 캐릭터 손에 맞추고, 로컬 카메라에는 표시 전용 복사본을 둔다.
+        /// 1인칭 위치/회전/크기를 바꿔도 물리 본체와 실제 총구에는 적용하지 않는다.
         /// </summary>
         void UpdateHeldVisualPose()
         {
             if (heldVisual == null) return;
-
-            var camera = Owner != null && Owner.IsLocal ? Owner.Cam : null;
-            if (camera != null && camera.FirstPerson)
-            {
-                if (!firstPersonVisualAttached)
-                {
-                    heldVisual.SetParent(camera.transform, false);
-                    firstPersonVisualAttached = true;
-                }
-
-                ApplyFirstPersonPose();
-                return;
-            }
-
-            RestoreVisualParent();
-            heldVisual.SetLocalPositionAndRotation(
-                heldVisualLocalPosition, Quaternion.Euler(heldVisualLocalEuler));
+            heldVisual.SetLocalPositionAndRotation(heldVisualLocalPosition, Quaternion.Euler(heldVisualLocalEuler));
             heldVisual.localScale = heldVisualLocalScale;
+            AlignWorldGrip(heldVisual, firstPersonGripLocalPoint);
+            UpdateFirstPersonVisual(heldVisual, firstPersonVisualLocalPosition,
+                Quaternion.Euler(firstPersonVisualLocalEuler), firstPersonVisualLocalScale, firstPersonGripLocalPoint);
         }
 
-        void ApplyFirstPersonPose()
-        {
-            heldVisual.SetLocalPositionAndRotation(
-                firstPersonVisualLocalPosition,
-                Quaternion.Euler(firstPersonVisualLocalEuler));
-            heldVisual.localScale = firstPersonVisualLocalScale;
-        }
-
-        void RestoreVisualParent()
-        {
-            if (!firstPersonVisualAttached || heldVisual == null) return;
-
-            heldVisual.SetParent(droppedVisualParent, false);
-            if (droppedVisualParent != null)
-                heldVisual.SetSiblingIndex(Mathf.Clamp(
-                    droppedVisualSiblingIndex, 0, droppedVisualParent.childCount - 1));
-            firstPersonVisualAttached = false;
-        }
+        void RestoreVisualParent() { HideFirstPersonVisual(); }
 
         /// <summary>
         /// 빔이 나갈 자리를 <b>보이는 모델의 끝</b>으로 옮긴다(S15P21B202-277).
@@ -473,7 +457,7 @@ namespace Metagame.Gameplay
 
         protected override void OnDestroy()
         {
-            // 카메라 밑으로 분리한 모델이 도구 파괴 뒤에 고아로 남지 않게 되돌린다.
+            // 표시를 숨긴 뒤 base에서 카메라의 전용 복사본을 정리한다.
             RestoreVisualParent();
             base.OnDestroy();
             if (runtimeMaterial != null)
