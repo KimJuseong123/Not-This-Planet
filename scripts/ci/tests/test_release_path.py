@@ -60,21 +60,32 @@ _v, _why = R.decide_version("Merge branch 'hotfix/S15P21B202-9-x' into 'master'"
                             ["1.0.1", "v1.0.0"])
 assert _v == "v1.0.1", f"v1.0.0 다음 핫픽스가 v1.0.1 이 아니다: {_v} ({_why})"
 
-#     같은 버전을 두 번 내보내지 않는다 — 90분짜리 빌드가 끝난 뒤 태그에서 실패하는
-#     대신 앞에서 멈춘다.
+#     이미 쓴 번호를 **다른 커밋**에 또 붙이지 않는다 — 90분짜리 빌드가 끝난 뒤
+#     태그에서 실패하는 대신 앞에서 멈춘다.
 _v, _why = R.decide_version("Merge branch 'release/S15P21B202-9-v1.0.0' into 'master'",
                             ["v1.0.0"])
-assert _v is None and "이미 있다" in _why, f"같은 버전을 다시 내보낸다: {_v} ({_why})"
+assert _v is None and "이미 붙어 있다" in _why, f"같은 번호를 다시 내보낸다: {_v} ({_why})"
 
 _v, _why = R.decide_version("Merge branch 'hotfix/S15P21B202-9-x' into 'master'",
                             ["v1.0.0", "v1.0.1"])
 assert _v == "v1.0.2", f"이미 v1.0.1 이 있으면 v1.0.2 여야 한다: {_v} ({_why})"
 
+#     **재시도는 막지 않는다.** 태그가 이 커밋을 가리키면 이번 릴리스를 다시 도는
+#     것이다 — 2026-09-11 v1.0.0 에서 Release·MM 까지 다 끝난 뒤 마지막 한 줄이 터져
+#     실제로 그 길로 되살렸다. 여기서 막으면 그 길이 닫힌다.
+_v, _why = R.decide_version("Merge branch 'release/S15P21B202-9-v1.0.0' into 'master'",
+                            ["v1.0.0"], points_here=lambda t: t == "v1.0.0")
+assert _v == "v1.0.0", f"같은 커밋의 재시도를 막는다: {_v} ({_why})"
+
 #     **옛 `1.0.1` 이 `v1.0.1` 을 막으면 안 된다.** `v` 를 무시하고 비교하면 이 이슈가
 #     고치려던 것보다 나빠진다 — 버전을 건너뛰는 대신 릴리스가 아예 멈춘다.
-assert not R.tag_exists("v1.0.1", ["1.0.1"]),     "손으로 만든 옛 태그가 같은 번호의 정식 태그를 막는다"
-assert R.tag_exists("1.0.1", ["v1.0.1"]), "같은 이름을 두 번 만드는 것은 막아야 한다"
-assert not R.tag_exists("v1.0.2", ["v1.0.1"])
+assert not R.tag_taken("v1.0.1", ["1.0.1"]),     "손으로 만든 옛 태그가 같은 번호의 정식 태그를 막는다"
+assert R.tag_taken("1.0.1", ["v1.0.1"]), "같은 번호를 다른 커밋에 또 붙이는 것은 막아야 한다"
+assert not R.tag_taken("v1.0.2", ["v1.0.1"])
+
+#     커밋을 못 읽으면(points_here 가 False) 막는 쪽으로 기운다 — 조용히 덮어쓰는
+#     것보다 멈추고 사람이 보는 편이 낫다.
+assert R.tag_taken("v1.0.0", ["v1.0.0"], points_here=lambda t: False)
 print("  형식이 섞이면 v 가 이기고, 폴백은 남아 있다 ✅")
 
 
