@@ -524,7 +524,15 @@ namespace Metagame.Gameplay
         Rigidbody pendingThrowBody;
         Vector3 pendingThrowVelocity;
         Rigidbody groundBody;
-        FixedJoint mountedJoint;
+        // ── 좌석 붙잡기 (S15P21B202-434) ───────────────────────────
+        //
+        // 탑승 중 몸은 물리에서 빠져 탈것에 대한 상대 자세로만 움직인다.
+        // 조인트를 걸지 않는 이유와 되돌리는 이유는 AttachTo·EndSeatHold 의 주석에 있다.
+        bool seatHeld;
+        Vector3[] seatLocalPositions;
+        Quaternion[] seatLocalRotations;
+        bool[] seatWasKinematic;
+        bool[] seatWasColliding;
         Rigidbody ignoredHeldBodyA;
         Rigidbody ignoredHeldBodyB;
         readonly Dictionary<Rigidbody, CarriedBodyState> carriedBodies = new Dictionary<Rigidbody, CarriedBodyState>(4);
@@ -1182,22 +1190,124 @@ namespace Metagame.Gameplay
         /// <summary>
         /// 몸을 강체에 붙인다. 붙이는 코드가 여기 한 군데다.
         ///
-        /// <b><see cref="FixedJoint.connectedBody"/> 를 반드시 채운다.</b> 비워 두면
-        /// <see cref="FixedJoint.connectedAnchor"/> 가 월드 좌표로 해석되어 몸이 원점으로
-        /// 빨려간다 — S15P21B202-132 에서 21.34m 끌려간 원인이 그것이었다.
+        /// <b>조인트를 만들지 않는다</b> (S15P21B202-434). 예전에는 골반에
+        /// <c>FixedJoint</c> 를 걸었는데, 그러면 탑승자 위치를 정하는 주체가 <b>셋</b>이
+        /// 되었다 — 이 조인트 · <c>TransportVehicle.RideAlong</c> 의 속도 주입 ·
+        /// 참가자 쪽의 좌석 추종(S15P21B202-423). 한 성질을 세 곳에서 판단하면 반드시
+        /// 어긋나고, 실제로 참가자 화면에서 몸이 기체를 벗어났다.
+        ///
+        /// 이제 <b>좌석 자세가 유일한 진실</b>이다. 몸을 물리에서 빼고(kinematic ·
+        /// 충돌 끔) 탈것에 대한 <b>상대 자세</b>를 적어 둔 뒤, 매 물리 스텝마다 그 자리로
+        /// 옮긴다(<see cref="HoldSeat"/>). <c>RideAlong</c> 은 kinematic 인 몸을 스스로
+        /// 건너뛰므로 속도 주입도 저절로 멈춘다.
+        ///
+        /// <b>몸을 지우지는 않는다.</b> 이름표(<c>NetPlayer.NameplateAnchor</c> 가
+        /// <c>Doll.Head</c> 를 본다) · 기절과 구조(기획 §20) · 하차 복원 ·
+        /// <c>NetPlayer</c> 의 위치 전송이 모두 몸에 붙어 있다.
+        ///
+        /// 탈것 조종감은 바뀌지 않는다 — <c>TransportVehicle</c> 의 질량은 고정 80kg 이라
+        /// 탑승자를 물리에서 빼도 계산에 들어가는 값이 없다.
         /// </summary>
         void AttachTo(Rigidbody body)
         {
-            mountedJoint = Doll.Hips.gameObject.AddComponent<FixedJoint>();
-            mountedJoint.connectedBody = body;
-            mountedJoint.autoConfigureConnectedAnchor = false;
-            mountedJoint.anchor = Vector3.zero;
-            mountedJoint.connectedAnchor = body.transform.InverseTransformPoint(Doll.Hips.position);
-            mountedJoint.enableCollision = false;
-            mountedJoint.enablePreprocessing = false;
-            mountedJoint.breakForce = float.PositiveInfinity;
-            mountedJoint.breakTorque = float.PositiveInfinity;
             RidingBody = body;
+            BeginSeatHold(body);
+        }
+
+        /// <summary>
+        /// 탑승 자세를 탈것 기준으로 적어 두고 몸을 물리에서 뺀다 (S15P21B202-434).
+        ///
+        /// <para><b>상대 자세로 적는 이유.</b> 탈것은 평소 <c>FreezeRotation</c> 이지만
+        /// 운석에 맞으면 돌며 떨어진다(S15P21B202-349·-353). 월드 자세를 적어 두면 그때
+        /// 몸이 제자리에 남아 기체만 굴러간다.</para>
+        /// </summary>
+        void BeginSeatHold(Rigidbody seat)
+        {
+            if (seat == null || Doll == null) return;
+
+            int count = Doll.Bodies.Count;
+            seatLocalPositions = new Vector3[count];
+            seatLocalRotations = new Quaternion[count];
+            seatWasKinematic = new bool[count];
+            seatWasColliding = new bool[count];
+
+            var t = seat.transform;
+            for (var i = 0; i < count; i++)
+            {
+                var part = Doll.Bodies[i];
+                if (part == null) continue;
+
+                seatLocalPositions[i] = t.InverseTransformPoint(part.position);
+                seatLocalRotations[i] = Quaternion.Inverse(t.rotation) * part.rotation;
+                seatWasKinematic[i] = part.isKinematic;
+                seatWasColliding[i] = part.detectCollisions;
+
+                part.detectCollisions = false;
+                part.isKinematic = true;
+            }
+
+            seatHeld = true;
+        }
+
+        /// <summary>
+        /// 적어 둔 상대 자세로 몸을 옮긴다. 매 물리 스텝에 한 번 (S15P21B202-434).
+        ///
+        /// <para><c>MovePosition</c>·<c>MoveRotation</c> 을 쓴다 — kinematic 인 몸을
+        /// 그렇게 옮기면 보간이 살아 있어 화면이 끊기지 않는다. <c>transform</c> 에 직접
+        /// 대입하면 그 보간이 꺼진다(<c>WorldSync.FollowOnClient</c> 의 주석과 같은 사정).</para>
+        /// </summary>
+        void HoldSeat()
+        {
+            if (!seatHeld || RidingBody == null || Doll == null) return;
+
+            var t = RidingBody.transform;
+            int count = Mathf.Min(Doll.Bodies.Count, seatLocalPositions.Length);
+            for (var i = 0; i < count; i++)
+            {
+                var part = Doll.Bodies[i];
+                if (part == null) continue;
+
+                part.MovePosition(t.TransformPoint(seatLocalPositions[i]));
+                part.MoveRotation(t.rotation * seatLocalRotations[i]);
+            }
+        }
+
+        /// <summary>
+        /// 몸을 물리로 돌려놓는다 (S15P21B202-434).
+        ///
+        /// <para><b>되돌리지 않으면 하차한 사람이 공중에 굳는다.</b> 그것이 원래 버그보다
+        /// 나쁘다 — 참가자 쪽에서 같은 실수를 막으려고 S15P21B202-423 도 저장·복원을
+        /// 짝으로 두었다.</para>
+        /// </summary>
+        void EndSeatHold()
+        {
+            if (!seatHeld)
+            {
+                seatLocalPositions = null;
+                seatLocalRotations = null;
+                seatWasKinematic = null;
+                seatWasColliding = null;
+                return;
+            }
+
+            if (Doll != null && seatWasKinematic != null)
+            {
+                int count = Mathf.Min(Doll.Bodies.Count, seatWasKinematic.Length);
+                for (var i = 0; i < count; i++)
+                {
+                    var part = Doll.Bodies[i];
+                    if (part == null) continue;
+
+                    part.isKinematic = seatWasKinematic[i];
+                    part.detectCollisions = seatWasColliding[i];
+                }
+            }
+
+            seatHeld = false;
+            seatLocalPositions = null;
+            seatLocalRotations = null;
+            seatWasKinematic = null;
+            seatWasColliding = null;
         }
 
         /// <summary>탑승 직전에 손·도구·보행 상태를 정리한다. 두 탑승 경로가 함께 쓴다.</summary>
@@ -1501,10 +1611,9 @@ namespace Metagame.Gameplay
         {
             RidingBody = null;
 
-            if (mountedJoint == null) return;
-
-            DestroyImmediate(mountedJoint);
-            mountedJoint = null;
+            // 조인트는 더 이상 만들지 않는다 (S15P21B202-434). 붙잡고 있던 좌석을 놓고
+            // 몸을 물리로 돌려놓는 것이 이제 "떼는 것" 이다.
+            EndSeatHold();
         }
 
         void FixedUpdate()
@@ -1580,10 +1689,14 @@ namespace Metagame.Gameplay
                 pendingThrowBody = null;
             }
 
-            // 몸이 조인트로 붙어 있으면 보행 물리를 돌리지 않는다. 돌리면 부양·이동력이
-            // 구속과 싸운다. 운반 장치는 제 속도를 알려 주고, 우주선은 강체에서 읽는다.
+            // 몸이 탈것에 붙어 있으면 보행 물리를 돌리지 않는다. 돌리면 부양·이동력이
+            // 좌석과 싸운다. 운반 장치는 제 속도를 알려 주고, 우주선은 강체에서 읽는다.
             if (IsRiding)
             {
+                // 적어 둔 상대 자세로 몸을 옮긴다 (S15P21B202-434). 보행 물리를 건너뛰는
+                // 이 분기 안에 둔다 — 걷기와 좌석이 같은 스텝에 몸을 두 번 옮기면 안 된다.
+                HoldSeat();
+
                 Grounded = true;
                 GroundDistance = Tuning.RideHeight;
 

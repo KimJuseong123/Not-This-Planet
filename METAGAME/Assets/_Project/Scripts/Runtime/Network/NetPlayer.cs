@@ -87,6 +87,22 @@ namespace Metagame.Network
         public bool riding;
 
         /// <summary>
+        /// 지금 타고 있는 탈것의 짝짓기 번호. 안 타고 있으면 <b>-1</b> (S15P21B202-434).
+        ///
+        /// <para><b><see cref="riding"/> 만으로는 부족했다.</b> 그 값은 bool 이라 "타고
+        /// 있다" 는 알려도 <b>무엇을 타는지</b>는 말해 주지 않는다. 그래서 참가자는
+        /// 조종석 시점 앵커(<c>OrbitCamera.SetVehicleEye</c>)를 세울 수 없었고,
+        /// <c>vehicleView</c> 만 켜진 채 앵커가 비어 있어 카메라가 <b>래그돌을 계속
+        /// 따라갔다</b> — 참가자만 시점이 어긋나던 자리다. 호스트는
+        /// <c>TryEnterTransportVehicle</c> 안에서 앵커를 받으므로 멀쩡했다.</para>
+        ///
+        /// <para>번호는 <see cref="WorldSync"/> 가 이미 쓰는 짝짓기 순서다. 여기서 탈것만
+        /// 따로 줄을 세우면 -315 가 기록한 사고를 새로 만든다.</para>
+        /// </summary>
+        [SyncVar(hook = nameof(OnRideVehicleChanged))]
+        public int ridingVehicle = -1;
+
+        /// <summary>
         /// 이 사람이 <b>기절해 쓰러져 있는가</b> (S15P21B202-378).
         ///
         /// <para>기절 판정은 서버가 한다. 이 값이 없던 동안 참가자 기계에서는 원격
@@ -599,6 +615,13 @@ namespace Metagame.Network
             haulDirection = body.HaulDirection;
             haulGrasp = body.HaulGrasp;
 
+            // 어느 탈것을 타는지도 같은 자리에서 실어 보낸다 (S15P21B202-434).
+            //
+            // 위 downed·hauling 과 같은 이유로 `if (transport != null)` 안에 두지 않는다.
+            // 그리고 <b>몸에게 묻는다</b> — transport.FocusedVehicle 은 "지금 보고 있는
+            // 것" 이라 타지 않은 탈것을 가리킬 수 있다. MountedVehicle 은 실제로 탄 것이다.
+            ridingVehicle = IndexOfVehicle(body.MountedVehicle);
+
             transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
         }
 
@@ -767,6 +790,10 @@ namespace Metagame.Network
 
             // 스폰 메시지가 게임 씬이 몸을 세우기 전에 도착할 수 있다. 준비될 때까지 기다린다.
             if (body == null && !AdoptLocalBody()) return;
+
+            // 조종석 앵커를 아직 못 물렸으면 계속 시도한다 (S15P21B202-434).
+            // WorldSync 가 준비되는 시점이 스폰보다 늦을 수 있다.
+            if (riding && !rideCameraBound) ApplyRideCamera();
 
             sendTimer += Time.deltaTime;
 
@@ -994,6 +1021,66 @@ namespace Metagame.Network
             }
             body.SetRemoteRiding(nowRiding);
             remoteAvatar?.ApplyRidingState();
+            ApplyRideCamera();
+        }
+
+        void OnRideVehicleChanged(int _, int __) => ApplyRideCamera();
+
+        /// <summary>
+        /// 내 카메라를 조종석에 물린다 (S15P21B202-434).
+        ///
+        /// <para><b>이것이 없으면 참가자만 시점이 어긋난다.</b> 조종석 앵커는
+        /// <c>PlayerRig.TryEnterTransportVehicle</c> 안에서만 세우는데 그 함수는 탑승을
+        /// 직접 수행한 기계에서만 돈다 — 참가자는 서버가 태우므로 타지 않는다.
+        /// <c>OrbitCamera</c> 는 <c>vehicleView</c> 와 앵커가 <b>둘 다</b> 있어야
+        /// 조종석으로 붙으므로, 앵커가 비면 그 분기를 건너뛰고 래그돌을 따라간다.</para>
+        ///
+        /// <para><b>될 때까지 다시 물어본다.</b> 스폰과 씬 준비 순서가 고정이 아니라
+        /// (<c>WorldSync.OnStartClient</c> 의 주석) 훅이 도는 시점에 목록이 비어 있을 수
+        /// 있다. 그때 한 번 실패하고 끝내면 그 판 내내 앵커가 없다 —
+        /// <see cref="Update"/> 가 탑승 중이고 아직 못 물렸으면 계속 시도한다.</para>
+        /// </summary>
+        void ApplyRideCamera()
+        {
+            if (isServer || !isLocalPlayer || body == null) return;
+
+            var cam = body.Cam;
+            if (cam == null) return;
+
+            if (!riding || ridingVehicle < 0)
+            {
+                // 하차했다. 앵커를 비워 두면 다음에 다른 탈것을 타도 옛 조종석을 본다.
+                cam.SetVehicleEye(null);
+                rideCameraBound = false;
+                return;
+            }
+
+            var sync = WorldSync.Current;
+            var vehicle = sync != null ? sync.VehicleAt(ridingVehicle) : null;
+            if (vehicle == null) return;             // 아직 준비되지 않았다 — 다시 물어본다
+
+            cam.SetVehicleEye(vehicle.CockpitEye);
+            rideCameraBound = true;
+        }
+
+        /// <summary>조종석 앵커를 물렸는가. 못 물렸으면 <see cref="Update"/> 가 다시 시도한다.</summary>
+        bool rideCameraBound;
+
+        /// <summary>
+        /// 이 탈것의 짝짓기 번호. 안 탔거나 목록에 없으면 -1 (S15P21B202-434).
+        ///
+        /// <para><see cref="WorldSync"/> 가 아직 없으면 -1 이다. 그러면 그 프레임은
+        /// "안 탄 것" 으로 나가는데, 다음 프레임에 준비되면 제 번호가 실린다 —
+        /// SyncVar 는 바뀔 때마다 가므로 늦게 채워져도 도착한다.</para>
+        /// </summary>
+        static int IndexOfVehicle(Metagame.Gameplay.Parts.TransportVehicle vehicle)
+        {
+            if (vehicle == null) return -1;
+
+            var sync = WorldSync.Current;
+            if (sync == null) return -1;
+
+            return sync.IndexOfTracked(vehicle.Body);
         }
 
         public override void OnStopClient()
