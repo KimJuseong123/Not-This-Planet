@@ -1,0 +1,203 @@
+"""서버 상태 판정 (S15P21B202-458).
+
+실행: python scripts/ci/tests/test_ec2_status.py
+네트워크·토큰·서버 없이 돈다.
+
+**왜 이 검사가 있나.** 이 판정은 서버가 나빠진 아침에만 돈다 — 우리가 평소에 볼 일이
+없다. 조용히 틀리면 **나쁜 날에 아무 말도 안 하고**, 그것이 바로 이 기능이 없던
+상태다. 그래서 세 경우를 전부 잠근다: 임계를 넘음 · 안 넘음 · 아예 못 읽음.
+"""
+import json
+import os
+import sys
+import tempfile
+from datetime import datetime, timedelta
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
+sys.path.insert(0, os.path.dirname(HERE))
+os.chdir(ROOT)
+
+import ec2_status as E  # noqa: E402
+
+print()
+print("== 서버 상태 ==")
+
+NOW = datetime(2026, 9, 12, 9, 30, tzinfo=E.KST)
+
+
+def healthy(**over) -> dict:
+    """2026-09-11 실측을 그대로 옮긴 정상값. 여기서 출발해 한 항목씩 망가뜨린다."""
+    d = {
+        "at": (NOW - timedelta(minutes=2)).isoformat(),
+        "host": "ip-172-26-13-34",
+        "uptime_days": 11,
+        "disk": {"used_pct": 20, "free_gb": 250},
+        "mem": {"total_gb": 15, "available_gb": 12},
+        "containers": [
+            {"name": "metagame-backend", "running": True, "restarts": 0},
+            {"name": "metagame-mysql", "running": True, "restarts": 0},
+            {"name": "metagame-dev-backend", "running": True, "restarts": 1},
+            {"name": "metagame-dev-mysql", "running": True, "restarts": 0},
+        ],
+        "backends": [
+            {"name": "prod", "port": 8080, "code": "403"},
+            {"name": "dev", "port": 8081, "code": "403"},
+        ],
+        "units": {
+            "gitlab-runner": "active", "metagame-relay": "active",
+            "metagame-deploy.path": "active", "metagame-deploy-dev.path": "active",
+            "metagame.service": "inactive",
+        },
+        "cert_days_left": 62,
+        "sizes": {"docker_gb": 33, "builds_mb": 157, "site_mb": 96, "runlogs_mb": 0},
+    }
+    d.update(over)
+    return d
+
+
+# ── ① 멀쩡하면 아무 말도 안 한다 ─────────────────────────────────────────
+#
+#     이 카드의 규칙이다. 정상일 때 한 줄이라도 붙으면 매일 울리고, 그러면 사람이
+#     카드를 안 본다 — 정작 나쁜 날에 못 읽는 것과 같아진다.
+assert E.problems(healthy(), NOW) == [], E.problems(healthy(), NOW)
+assert E.section(healthy(), NOW) == "", "정상인데 절이 붙는다"
+print("  멀쩡하면 조용하다 ✅")
+
+
+# ── ①b 403 을 죽은 것으로 보지 않는다 ────────────────────────────────────
+#
+#     `/actuator/health` 는 인증에 막혀 403 을 준다. 그것을 실패로 읽으면 **매일
+#     아침 두 줄이 뜬다.** 앱이 죽으면 curl 이 000(연결 거부)을 주고, 그것이
+#     우리가 잡으려는 값이다.
+_p = E.problems(healthy(backends=[{"name": "prod", "port": 8080, "code": "000"}]), NOW)
+assert len(_p) == 1 and "응답하지 않는다" in _p[0], _p
+assert E.problems(healthy(backends=[{"name": "prod", "port": 8080, "code": "503"}]), NOW), \
+    "5xx 는 잡아야 한다"
+assert E.problems(healthy(backends=[{"name": "prod", "port": 8080, "code": "200"}]), NOW) == []
+print("  403 은 살아 있는 것, 000·5xx 는 죽은 것 ✅")
+
+
+# ── ② 임계를 넘으면 숫자와 함께 말한다 ───────────────────────────────────
+#
+#     "디스크 부족" 은 사람을 서버에 들어가 다시 재게 만든다. 숫자가 있으면 그러지
+#     않아도 된다.
+_p = E.problems(healthy(disk={"used_pct": 84, "free_gb": 49}), NOW)
+assert len(_p) == 1 and "84" in _p[0] and "49" in _p[0], _p
+
+_p = E.problems(healthy(mem={"total_gb": 15, "available_gb": 1}), NOW)
+assert len(_p) == 1 and "메모리" in _p[0], _p
+
+_p = E.problems(healthy(cert_days_left=12), NOW)
+assert len(_p) == 1 and "12일" in _p[0], _p
+
+#     경계 바로 아래는 울리지 않는다 — 79% 로 매일 울리면 80% 라는 선이 뜻을 잃는다.
+assert E.problems(healthy(disk={"used_pct": 79, "free_gb": 60}), NOW) == []
+assert E.problems(healthy(disk={"used_pct": 80, "free_gb": 60}), NOW) != []
+print("  임계를 넘으면 숫자를 싣고, 바로 아래에서는 조용하다 ✅")
+
+
+# ── ③ 떠 있어도 죽고 있는 것을 잡는다 ────────────────────────────────────
+#
+#     2026-09-11 dev 백엔드가 JWT_SECRET 때문에 재시작 루프였다. `docker ps` 만 보면
+#     "Up 3 seconds" 라 멀쩡해 보인다 — **재시작 횟수를 봐야 보인다.**
+_c = healthy()["containers"]
+_c[2] = {"name": "metagame-dev-backend", "running": True, "restarts": 12}
+_p = E.problems(healthy(containers=_c), NOW)
+assert len(_p) == 1 and "재시작" in _p[0] and "12" in _p[0], _p
+
+_c[2] = {"name": "metagame-dev-backend", "running": False, "restarts": 0}
+_p = E.problems(healthy(containers=_c), NOW)
+assert len(_p) == 1 and "떠 있지 않다" in _p[0], _p
+print("  재시작 루프와 죽은 컨테이너를 가른다 ✅")
+
+
+# ── ④ 꺼져 있어야 하는 것이 살아난 것도 잡는다 ───────────────────────────
+#
+#     이슈가 콕 집어 요구한 항목이다. `metagame.service` 는 데디케이티드 서버 시절
+#     유닛이고, 살아나도 지금은 아무도 모른다.
+_u = dict(healthy()["units"], **{"metagame.service": "active"})
+_p = E.problems(healthy(units=_u), NOW)
+assert len(_p) == 1 and "살아났다" in _p[0], _p
+
+_u = dict(healthy()["units"], **{"gitlab-runner": "failed"})
+_p = E.problems(healthy(units=_u), NOW)
+assert len(_p) == 1 and "gitlab-runner" in _p[0], _p
+print("  살아나면 안 되는 것과 죽으면 안 되는 것을 둘 다 본다 ✅")
+
+
+# ── ⑤ 못 읽는 것도 알려야 할 상태다 ──────────────────────────────────────
+#
+#     **조용한 것과 못 읽은 것을 구별하지 않으면** 재는 쪽이 멈춰도 "서버가 멀쩡하다"
+#     로 읽힌다. 그것이 이 기능이 없던 상태와 같다.
+_p = E.problems(None, NOW)
+assert len(_p) == 1 and "읽지 못했다" in _p[0], _p
+assert E.section(None, NOW) != "", "못 읽었는데 절이 안 붙는다"
+
+#     오래된 값도 마찬가지다. 그리고 **오래된 값으로 나머지를 판정하지 않는다** —
+#     이미 고쳐진 것을 계속 말하게 된다.
+_stale = healthy(at=(NOW - timedelta(hours=3)).isoformat(),
+                 disk={"used_pct": 99, "free_gb": 1})
+_p = E.problems(_stale, NOW)
+assert len(_p) == 1 and "180분 전" in _p[0], _p
+
+_p = E.problems(healthy(at="어제쯤"), NOW)
+assert len(_p) >= 1 and "잰 시각" in _p[0], _p
+print("  못 읽음·오래됨을 조용함과 구별한다 ✅")
+
+
+# ── ⑥ 파일을 찾는 순서 ───────────────────────────────────────────────────
+#
+#     `mm-digest` 는 공용 러너라 `/spool` 이 안 보인다. `ec2-status` 잡이 아티팩트로
+#     넘겨 주고, 그 이름으로 먼저 찾아야 한다.
+assert E.candidates()[-1] == E.SPOOL_PATH
+assert E.ARTIFACT_NAME in E.candidates()
+
+with tempfile.TemporaryDirectory() as td:
+    _f = os.path.join(td, "s.json")
+    with open(_f, "w", encoding="utf-8") as fh:
+        json.dump(healthy(), fh)
+    assert E.load(_f) is not None
+    assert E.load(os.path.join(td, "없는파일.json")) is None
+
+    #     **깨진 파일을 정상으로 읽으면 안 된다.** 호스트가 쓰는 도중이면 반쪽이다.
+    with open(_f, "w", encoding="utf-8") as fh:
+        fh.write('{"at": "2026-09-12T09:2')
+    assert E.load(_f) is None, "반쪽짜리 JSON 을 읽었다"
+print("  아티팩트 → 스풀 순서로 찾고, 깨진 파일은 안 읽는다 ✅")
+
+
+# ── ⑦ 호스트 스크립트와 판정이 같은 것을 본다 ────────────────────────────
+#
+#     재는 쪽과 읽는 쪽이 어긋나면 **영원히 조용하다.** 필드 이름이 하나만 달라도
+#     `.get()` 이 None 을 돌려주고 아무 줄도 안 붙는다 — 그것을 사람이 알아챌 길이 없다.
+_sh = open(os.path.join(ROOT, "scripts/deploy/host/ec2-status.sh"), encoding="utf-8").read()
+for key in ("used_pct", "free_gb", "available_gb", "restarts", "cert_days_left",
+            "running", "code", "units", "at"):
+    assert f'"{key}"' in _sh, f"호스트가 {key} 를 안 쓴다 — 판정이 영원히 조용해진다"
+
+#     **`/auth/guest` 를 5분마다 부르면 게스트 사용자가 계속 쌓인다.** 주석에서 그
+#     이유를 설명하는 것은 괜찮으므로, 실제로 도는 줄만 본다.
+_code = chr(10).join(ln for ln in _sh.splitlines() if not ln.lstrip().startswith("#"))
+assert "/auth/guest" not in _code, "상태 재기가 게스트를 만든다 — 5분마다 사용자가 쌓인다"
+
+#     실행되는 코드는 스풀 밖에 있어야 한다(-324). 유닛이 스풀 경로를 부르면 안 된다.
+_unit = open(os.path.join(ROOT, "scripts/deploy/host/metagame-status.service"), encoding="utf-8").read()
+assert "/opt/metagame-deploy/" in _unit, "유닛이 스풀 밖 코드를 부르지 않는다"
+assert "/home/ubuntu/metagame/deploy/ec2-status.sh" not in _unit, \
+    "스풀 안의 스크립트를 root 로 실행한다 — 잡이 덮어쓸 수 있다(-324)"
+print("  재는 쪽과 읽는 쪽이 같은 필드를 본다 ✅")
+
+
+# ── ⑧ 아침 카드가 이 절을 실제로 붙인다 ──────────────────────────────────
+_dig = open(os.path.join(ROOT, "scripts/ci/mm_digest.py"), encoding="utf-8").read()
+assert "ec2_status.section" in _dig, "아침 카드가 서버 절을 안 붙인다"
+
+_ci = open(os.path.join(ROOT, ".gitlab-ci.yml"), encoding="utf-8").read()
+_job = _ci.split("ec2-status:", 1)[1].split("\nmm-digest:", 1)[0]
+assert "tags: [deploy]" in _job, "배포 러너가 아니면 /spool 이 안 보인다"
+assert "allow_failure: true" in _job, \
+    "서버를 못 본 것이 아침 카드 전체를 막는다 — 정작 나쁠 때 아무 소식이 없다"
+print("  아침 카드와 CI 잡이 이어져 있다 ✅")
+
+print("== 통과 ==")

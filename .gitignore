@@ -105,3 +105,6 @@ __pycache__/
 # Jira 규칙 덤프 — R10 의 MM 웹훅 URL 이 그대로 들어 있다 (S15P21B202-336).
 # summarize_rules.py 의 기본 경로이므로 실수로 커밋되는 것을 막는다.
 scripts/rules/
+
+# CI 잡이 만드는 산출물 (S15P21B202-458). 로컬에서 검사를 돌려도 같은 이름으로 생긴다.
+ec2-status.json

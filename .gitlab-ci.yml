@@ -753,11 +753,34 @@ mm-ci-resolved:           # 검사 통과 시, 남아 있는 CI 실패 코멘트
     - python scripts/ci/mm_notify.py ci-resolved
   allow_failure: true
 
+ec2-status:               # 아침 점검이 볼 서버 상태를 스풀에서 꺼내 온다 (S15P21B202-458)
+  stage: notify           # 호스트가 5분마다 재서 /spool/EC2-STATUS 에 JSON 한 장을 놓는다
+  image: python:3.12      # (metagame-status.timer). 잡은 컨테이너 안이라 호스트를 직접 못 본다 —
+  tags: [deploy]          # 그래서 **스풀에 마운트된 배포 러너에서만** 읽을 수 있다.
+                          # 도커 소켓도 SSH 키도 CI 에 주지 않는다(-139 · -252 · -324).
+  needs: []               # 아무것도 기다리지 않는다. 이 잡이 늦으면 아침 카드가 늦는다.
+  rules:
+    # 아침 점검과 같은 조건이다. **새벽 배포 스케줄에는 끼지 않는다** — 그쪽은
+    # 카드를 보내지 않으므로 읽어 둘 이유가 없다.
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $MM_WEBHOOK_URL && $NIGHTLY_DEPLOY_DEV != "true"
+      when: always
+  script:
+    - python scripts/ci/ec2_status.py
+  artifacts:
+    when: always          # 못 읽었어도 잡은 통과다 — 그 사실은 카드가 말한다
+    expire_in: 3 days
+    paths: [ec2-status.json]
+  allow_failure: true     # **이 잡이 빨개져도 아침 카드는 나가야 한다.** 서버를 못 본 것이
+                          # 점검 전체를 막으면, 정작 서버가 나쁠 때 아무 소식도 없다
+
 mm-digest:                # 스케줄 파이프라인(매일 09:30 · 실제 발송 09:33) — needs-fix·오래 열린 MR·정체 이슈 요약을 MM 채널로
   stage: notify
   needs:                  # ci-tests 를 **기다리되 결과에 매이지 않는다**. needs 가 없으면 lint 가
     - job: ci-tests       # 빨간 순간 이 잡이 건너뛰어져 아침 카드가 아예 안 나간다(-289).
       optional: true      # when: always 라 ci-tests 가 실패해도 카드는 나가고, 실패 사실을 카드가 싣는다.
+    - job: ec2-status     # 서버 상태 아티팩트 (S15P21B202-458). 같은 이유로 optional 이다 —
+      optional: true      # 배포 러너가 꺼져 있어 이 잡이 없어도 카드는 나가야 하고,
+      artifacts: true     # 그때 "서버 상태를 읽지 못했다" 가 카드에 한 줄로 남는다
   rules:
     # **새벽 배포 스케줄에는 끼지 않는다** (S15P21B202-455). 스케줄 파이프라인은
     # 소스가 다 `schedule` 이라, 변수로 가르지 않으면 아침 카드가 하루 두 번 나간다.

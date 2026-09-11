@@ -1,0 +1,11 @@
+[Unit]
+Description=METAGAME EC2 상태 재기 — 결과를 배포 스풀에 JSON 한 장으로 놓는다 (S15P21B202-458)
+Documentation=https://lab.ssafy.com/s15-metaverse-game-sub1/S15P21B202/-/blob/develop/docs/records/S15P21B202-458-ec2-health.md
+
+[Service]
+Type=oneshot
+# root 로 돈다 — 인증서(/etc/letsencrypt)가 root 만 읽을 수 있다.
+ExecStart=/opt/metagame-deploy/ec2-status.sh
+# 한 번 실패해도 다음 주기가 다시 쓴다. 여기서 시스템을 막을 이유가 없다.
+SuccessExitStatus=0 1
+TimeoutStartSec=60
