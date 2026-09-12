@@ -216,7 +216,7 @@ namespace Metagame.Gameplay.Tests
             var push = MakePart();
             var player = MakePlayer(new Vector3(-1f, 0f, 0f), Vector3.right);
 
-            Tick(push, 1f);
+            Tick(push, 1f, player);
             Assert.AreEqual(1, push.HaulerCount);
 
             SetWish(player, Vector3.zero);
@@ -234,12 +234,14 @@ namespace Metagame.Gameplay.Tests
             var push = MakePart();
             var player = MakePlayer(new Vector3(-1f, 0f, 0f), Vector3.right);
 
-            Tick(push, 1f);
+            Tick(push, 1f, player);
             Assert.AreEqual(1, push.HaulerCount);
 
             Teleport(player, new Vector3(-20f, 0f, 0f));
 
-            Tick(push, PhysicsScale.PartPushReleaseSeconds + 0.1f);
+            Tick(push, PhysicsScale.PartPushReleaseSeconds * 0.5f);
+            Assert.AreEqual(1, push.HaulerCount, "접촉이 끊겨도 유예 시간 안에는 유지된다.");
+            Tick(push, PhysicsScale.PartPushReleaseSeconds);
             Assert.AreEqual(0, push.HaulerCount);
         }
 
@@ -492,14 +494,17 @@ namespace Metagame.Gameplay.Tests
         public void TwoHaulers_MoveIt()
         {
             var push = MakePart();
-            MakePlayer(new Vector3(-1f, 0f, 0.4f), Vector3.right);
-            MakePlayer(new Vector3(-1f, 0f, -0.4f), Vector3.right);
+            var first = MakePlayer(new Vector3(-1f, 0f, 0.4f), Vector3.right);
+            var second = MakePlayer(new Vector3(-1f, 0f, -0.4f), Vector3.right);
 
-            Tick(push, 1f);
+            var start = push.transform.position;
+            Tick(push, 1f, first, second);
 
             Assert.AreEqual(2, push.HaulerCount);
             Assert.IsTrue(push.IsHauling, "밀려고 하고 있다.");
             Assert.IsTrue(push.IsMoving, "두 명도 이동한다.");
+            Assert.Greater(push.transform.position.x - start.x, 0.2f,
+                "접촉 유지뿐 아니라 파츠가 실제로 앞으로 이동해야 한다.");
         }
 
         [Test]
@@ -889,14 +894,20 @@ namespace Metagame.Gameplay.Tests
         /// <c>Physics.Simulate</c> 가 필요한 이유는 <c>Drive()</c> 가 <c>AddForce</c> 로
         /// 힘을 넣기 때문이다 — 힘은 다음 물리 스텝에야 속도가 된다.
         /// </summary>
-        static void Tick(PartPush push, float seconds)
+        static void Tick(PartPush push, float seconds, params PlayerRig[] followers)
         {
             var steps = Mathf.CeilToInt(seconds / Step);
             for (var i = 0; i < steps; i++)
             {
                 UnityEngine.Physics.SyncTransforms();
                 push.Tick(Step);
+                var before = push.transform.position;
                 UnityEngine.Physics.Simulate(Step);
+                // 보행 제어를 돌리지 않는 하네스에서 명시한 플레이어만 파츠를 따라간다.
+                // 입력 중단·접촉 이탈 단계에는 followers를 넘기지 않는다.
+                var displacement = push.transform.position - before;
+                foreach (var player in followers)
+                    Teleport(player, player.FootPosition + displacement);
             }
         }
 
@@ -1031,8 +1042,7 @@ namespace Metagame.Gameplay.Tests
                 // 실제 이동 입력처럼 파츠를 따라가며 접촉을 유지한다.
                 if (!grab)
                     for (var h = 0; h < haulers.Count; h++)
-                        Teleport(haulers[h], new Vector3(line, 0f, offsets[h % offsets.Length])
-                            + push.transform.position - start);
+                        PlaceBodyPusherAtSurface(push, haulers[h], offsets[h % offsets.Length]);
                 UnityEngine.Physics.SyncTransforms();
                 push.Tick(Step);
                 UnityEngine.Physics.Simulate(Step);
@@ -1044,6 +1054,36 @@ namespace Metagame.Gameplay.Tests
             var moved = push.transform.position - start;
             moved.y = 0f;
             return Vector3.Dot(moved, direction);
+        }
+
+        /// <summary>
+        /// 실제 몸통의 골반 높이 표면에서 일정 간격을 유지한다. 최대 Footprint와
+        /// 루트 이동량만 쓰면 Part_2처럼 좁은 받침 위의 몸통이 기울 때 접촉을 보장하지 못한다.
+        /// 파츠의 회전·이동은 물리에 맡기고, 플레이어의 지면 보행 위치만 갱신한다.
+        /// </summary>
+        static void PlaceBodyPusherAtSurface(PartPush push, PlayerRig player, float zOffset)
+        {
+            var colliders = push.GetComponentsInChildren<Collider>();
+            var bounds = colliders[0].bounds;
+            foreach (var collider in colliders) bounds.Encapsulate(collider.bounds);
+            var origin = new Vector3(bounds.min.x - 1f, RagdollBuilder.HipsY,
+                push.transform.position.z + zOffset);
+            var ray = new Ray(origin, Vector3.right);
+            var closest = float.PositiveInfinity;
+            var surface = Vector3.zero;
+            foreach (var collider in colliders)
+            {
+                if (!collider.enabled || collider.isTrigger) continue;
+                if (!collider.Raycast(ray, out var hit, bounds.size.x + 2f)) continue;
+                if (hit.distance >= closest) continue;
+                closest = hit.distance;
+                surface = hit.point;
+            }
+            Assert.IsFalse(float.IsPositiveInfinity(closest),
+                $"{push.name}: 골반 높이에 몸으로 밀 표면이 없다. position={push.transform.position}, rotation={push.transform.eulerAngles}");
+            var foot = surface - Vector3.right * (PhysicsScale.PartPushContactDistance * 0.5f);
+            foot.y = 0f;
+            Teleport(player, foot);
         }
 
         PartPush MakeGroundedBox()
