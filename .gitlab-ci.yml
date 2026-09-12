@@ -630,6 +630,7 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
       set -e
       date -u +"종료 %H:%M:%S UTC (exit $RC)"
       grep -n "error CS\|\[NotThisPlanet\] 빌드" "$CI_PROJECT_DIR/unity-build.log" | tail -5 || true
+      python3 scripts/ci/build_timing.py "$CI_PROJECT_DIR/unity-build.log" || true
     # 2-b) **빌드가 추적되는 에셋을 지웠는지 본다** (S15P21B202-351).
     #
     # 배치모드 빌드는 임포트 과정에서 에셋을 재직렬화하고, 에디터 스크립트가 에셋을
