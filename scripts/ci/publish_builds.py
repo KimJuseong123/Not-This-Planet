@@ -42,7 +42,11 @@ PACKAGE_FILE = "release-package.txt"
 PACKAGE_NAME = "metagame"
 
 # 배포 러너에 마운트되는 자리. `-324` 규칙대로 **데이터만** 들어간다.
-BUILDS = env("BUILDS_DIR", "/builds")
+# **`/builds` 를 기본값으로 두지 않는다** (S15P21B202-465). 그 자리는 GitLab Runner 가
+# 저장소를 클론하는 기본 작업 디렉터리라, 공개 폴더를 거기 물리면 **잡이 돌 때마다
+# 저장소가 공개 폴더에 떨어진다.** 실제로 2026-09-12 에 835 MB 가 무인증으로
+# 받아졌다. 마운트는 `/publish/builds` 에 건다.
+BUILDS = env("BUILDS_DIR", "/publish/builds")
 
 
 def run(*args: str) -> str:
@@ -91,7 +95,7 @@ def stage() -> int:
     if not os.path.isdir(BUILDS):
         print(f"❌ 배포 폴더가 없다: {BUILDS}")
         print("   배포 러너 config.toml 의 volumes 에 /var/www/metagame-builds 가 rw 로")
-        print("   마운트돼 있어야 한다 — scripts/deploy/host/install.sh 가 해 준다")
+        print("   마운트돼 있어야 한다 — scripts/deploy/host/mount-release-dirs.sh 가 해 준다")
         return 1
     for f in (VERSION_FILE, PACKAGE_FILE):
         if not os.path.exists(f):

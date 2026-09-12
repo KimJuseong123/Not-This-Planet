@@ -23,7 +23,9 @@ sys.path.insert(0, HERE)
 from ci_common import env  # noqa: E402
 
 SRC = "website"
-DST = env("SITE_DIR", "/site")
+# `/builds` 와 같은 이유로 `/publish/site` 에 건다 (S15P21B202-465) — 컨테이너가
+# 이미 쓰는 자리에 공개 폴더를 물리면 그 폴더가 잡의 작업 공간이 된다.
+DST = env("SITE_DIR", "/publish/site")
 
 # LFS 포인터 파일의 첫 줄. 이것으로 시작하면 실파일이 아니다.
 LFS_MARK = b"version https://git-lfs.github.com/spec/"
