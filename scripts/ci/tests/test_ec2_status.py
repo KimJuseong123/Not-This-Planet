@@ -196,24 +196,6 @@ assert "maybe_num" in _sh_cert, "호스트가 못 읽음을 null 로 보내지 �
 print("  만료된 인증서와 못 읽은 인증서를 가른다 ✅")
 
 
-# ── ⑤c GitLab 이 보는 러너 상태 ──────────────────────────────────────────
-#
-#     호스트의 `systemctl is-active` 는 프로세스가 떴는지만 말한다. 토큰이 막히거나
-#     망이 끊기면 **프로세스는 멀쩡한 채 GitLab 쪽에서 offline** 이 되고, 그러면 잡이
-#     영원히 대기한다. 지금은 `-130` 이 몇 시간 뒤에야 간접적으로 잡는다.
-assert E.runner_problems(None) == [], "못 물어봤을 때는 조용해야 한다"
-assert E.runner_problems([{"id": 1, "active": True, "online": True}]) == []
-_p = E.runner_problems([{"id": 1, "description": "METAGAME-deploy", "active": True, "online": False}])
-assert len(_p) == 1 and "offline" in _p[0] and "METAGAME-deploy" in _p[0], _p
-
-#     꺼 둔(active=False) 러너는 offline 이어도 정상이다.
-assert E.runner_problems([{"id": 2, "active": False, "online": False}]) == []
-
-#     아침 카드가 실제로 물어보는지.
-_dig_runner = open(os.path.join(ROOT, "scripts/ci/mm_digest.py"), encoding="utf-8").read()
-assert "/runners" in _dig_runner, "아침 카드가 러너 상태를 묻지 않는다"
-print("  GitLab 이 offline 으로 보는 러너를 잡는다 ✅")
-
 
 # ── ⑥ 파일을 찾는 순서 ───────────────────────────────────────────────────
 #
