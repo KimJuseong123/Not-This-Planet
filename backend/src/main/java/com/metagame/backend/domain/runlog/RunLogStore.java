@@ -226,22 +226,39 @@ public class RunLogStore {
         head.append("# received=").append(now).append('\n');
         head.append("# ---\n");
 
-        Files.write(tmp, head.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        Files.write(tmp, body, java.nio.file.StandardOpenOption.APPEND);
-        // 원자적으로 놓는다 — 반쯤 쓰인 파일을 사람이 열어 보면 안 된다.
-        // `REPLACE_EXISTING` 을 주지 않는다 — 그것이 **먼저 받은 로그를 지우던** 원인이다.
-        //
-        // 대신 **이름을 다시 골라 다시 시도한다** (`!378` 리뷰). `freeName` 과 이 줄
-        // 사이에 다른 요청이 그 이름을 채울 수 있는데, 그때 예외를 그냥 올리면
-        // 클라이언트가 500 을 받는다 — 덮어쓰기도 500 도 답이 아니다.
-        for (int attempt = 1; ; attempt++) {
-            try {
-                Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE);
-                break;
-            } catch (FileAlreadyExistsException e) {
-                if (attempt >= MOVE_TRIES) throw e;
-                name = freeName(dayDir, base);
-                target = dayDir.resolve(name);
+        // **끝까지 못 가면 임시 파일을 치운다** (`!378` 3차 리뷰). 이름이 요청마다 다르니
+        // 덮어쓰이지도, 다음 요청에 쓰이지도 않는다 — 그래서 실패하면 **그냥 남는다.**
+        // 회수는 날짜 폴더 단위(14일)라 그때까지 쌓인 채로 있고, 목록에 섞여 사람이
+        // "받다 만 로그" 를 열어 보게 된다.
+        boolean placed = false;
+        try {
+            Files.write(tmp, head.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            Files.write(tmp, body, java.nio.file.StandardOpenOption.APPEND);
+            // 원자적으로 놓는다 — 반쯤 쓰인 파일을 사람이 열어 보면 안 된다.
+            // `REPLACE_EXISTING` 을 주지 않는다 — 그것이 **먼저 받은 로그를 지우던** 원인이다.
+            //
+            // 대신 **이름을 다시 골라 다시 시도한다** (`!378` 리뷰). `freeName` 과 이 줄
+            // 사이에 다른 요청이 그 이름을 채울 수 있는데, 그때 예외를 그냥 올리면
+            // 클라이언트가 500 을 받는다 — 덮어쓰기도 500 도 답이 아니다.
+            for (int attempt = 1; ; attempt++) {
+                try {
+                    Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE);
+                    break;
+                } catch (FileAlreadyExistsException e) {
+                    if (attempt >= MOVE_TRIES) throw e;
+                    name = freeName(dayDir, base);
+                    target = dayDir.resolve(name);
+                }
+            }
+            placed = true;
+        } finally {
+            if (!placed) {
+                // 치우다 또 터지면 **원래 실패를 덮지 않는다.** 사람이 봐야 할 것은 그쪽이다.
+                try {
+                    Files.deleteIfExists(tmp);
+                } catch (IOException e) {
+                    log.warn("[runlog] 임시 파일을 치우지 못했다 {} : {}", tmp, e.toString());
+                }
             }
         }
         return name;
