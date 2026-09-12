@@ -17,6 +17,8 @@ def _read(rel):
     return open(p, encoding='utf-8').read()
 
 
+NL = chr(10)
+
 print()
 print("== 릴리스 경로 ==")
 
@@ -36,7 +38,7 @@ assert R.bump_patch("v1.0.1") == "v1.0.2"
 
 #     핫픽스가 조용히 멈추던 그 길이 실제로 막혔는지 본다 — **v 태그가 하나도 없을 때**
 #     가 그 상황이다. 폴백이 사라지면 여기가 다시 None 이 된다.
-_v, _why = R.decide_version("Merge branch 'hotfix/S15P21B202-9-x' into 'master'", ["1.0.1"])
+_v, _why, _rc = R.decide_version("Merge branch 'hotfix/S15P21B202-9-x' into 'master'", ["1.0.1"])
 assert _v == "v1.0.2", f"핫픽스가 옛 태그에서 버전을 못 정한다: {_v} ({_why})"
 print("  옛 태그 1.0.1 을 읽고, 새 태그는 v 를 붙인다 ✅")
 
@@ -56,24 +58,24 @@ assert R.latest_tag(["1.0.1", "0.9.0"]) == "1.0.1", \
 assert R.latest_tag([]) is None
 
 #     이것이 이 이슈의 완료 조건이다: v1.0.0 뒤의 핫픽스는 v1.0.1 이어야 한다.
-_v, _why = R.decide_version("Merge branch 'hotfix/S15P21B202-9-x' into 'master'",
+_v, _why, _rc = R.decide_version("Merge branch 'hotfix/S15P21B202-9-x' into 'master'",
                             ["1.0.1", "v1.0.0"])
 assert _v == "v1.0.1", f"v1.0.0 다음 핫픽스가 v1.0.1 이 아니다: {_v} ({_why})"
 
 #     이미 쓴 번호를 **다른 커밋**에 또 붙이지 않는다 — 90분짜리 빌드가 끝난 뒤
 #     태그에서 실패하는 대신 앞에서 멈춘다.
-_v, _why = R.decide_version("Merge branch 'release/S15P21B202-9-v1.0.0' into 'master'",
+_v, _why, _rc = R.decide_version("Merge branch 'release/S15P21B202-9-v1.0.0' into 'master'",
                             ["v1.0.0"])
 assert _v is None and "이미 붙어 있다" in _why, f"같은 번호를 다시 내보낸다: {_v} ({_why})"
 
-_v, _why = R.decide_version("Merge branch 'hotfix/S15P21B202-9-x' into 'master'",
+_v, _why, _rc = R.decide_version("Merge branch 'hotfix/S15P21B202-9-x' into 'master'",
                             ["v1.0.0", "v1.0.1"])
 assert _v == "v1.0.2", f"이미 v1.0.1 이 있으면 v1.0.2 여야 한다: {_v} ({_why})"
 
 #     **재시도는 막지 않는다.** 태그가 이 커밋을 가리키면 이번 릴리스를 다시 도는
 #     것이다 — 2026-09-11 v1.0.0 에서 Release·MM 까지 다 끝난 뒤 마지막 한 줄이 터져
 #     실제로 그 길로 되살렸다. 여기서 막으면 그 길이 닫힌다.
-_v, _why = R.decide_version("Merge branch 'release/S15P21B202-9-v1.0.0' into 'master'",
+_v, _why, _rc = R.decide_version("Merge branch 'release/S15P21B202-9-v1.0.0' into 'master'",
                             ["v1.0.0"], points_here=lambda t: t == "v1.0.0")
 assert _v == "v1.0.0", f"같은 커밋의 재시도를 막는다: {_v} ({_why})"
 
@@ -382,5 +384,35 @@ print("  리허설이 workflow 단계에서 허용되고 자동 취소가 꺼져
 # 절·모듈이 가짜 기준선을 보고 조용히 통과하면 안 된다 — `_gate` 가 환경변수를
 # 되돌리는 것과 같은 이유다.
 R.unity_report.baseline_failures = _REAL_BASELINE
+
+# ── ⑧ 되돌리기가 실제로 돌 수 있다 (S15P21B202-467) ─────────────────────
+#
+#     `promote-builds` 주석은 "PROMOTE_VERSION 을 주고 이 잡만 돌린다" 고 말해 왔지만
+#     그 길은 **파이프라인 생성 단계에서 거절**됐다. `needs` 에 적힌 `publish-builds`
+#     가 web 파이프라인에는 없는 잡이고, GitLab 은 없는 잡을 needs 로 걸면 파이프라인
+#     자체를 만들지 않는다. 되돌리기는 급할 때 쓰는 길이라 그때 알면 늦다.
+_promote = _ci.split("promote-builds:", 1)[1].split("\npublish-site:", 1)[0]
+#     주석에도 같은 말이 적혀 있으므로 **주석을 뺀 needs 블록만** 센다.
+_nb = _promote.split(chr(10) + "  needs:", 1)[1].split(chr(10) + "  interruptible:", 1)[0]
+_nb = [l for l in _nb.splitlines() if l.strip() and not l.strip().startswith("#")]
+_deps = [l for l in _nb if "- job:" in l]
+assert len(_deps) >= 2, _nb
+assert sum(1 for l in _nb if "optional: true" in l) == len(_deps), \
+    "promote-builds 의 needs 에 optional 이 빠졌다 — 되돌리기가 안 만들어진다: " + str(_nb)
+
+#     그리고 되돌리기에 **90분짜리 Unity 빌드가 딸려 오면 안 된다.** `release-windows`
+#     는 web 파이프라인에서 리허설로 도는데, 그 90분을 `promote-builds` 가 기다린다.
+#     여기도 **주석을 뺀 규칙 줄만** 본다 — 위 주석에 RELEASE_DRY_RUN 이 이미 적혀 있다.
+_relwin = _ci.split(NL + "release-windows:", 1)[1].split(NL + "variables:", 1)[0]
+_rules = [l.strip() for l in _relwin.split("  rules:", 1)[1].splitlines()
+          if l.strip() and not l.strip().startswith("#")]
+_rules = _rules[:next((i for i, l in enumerate(_rules) if l.startswith("script:")), len(_rules))]
+_never = next(i for i, l in enumerate(_rules) if l == "when: never")
+_dry = next(i for i, l in enumerate(_rules) if "RELEASE_DRY_RUN" in l)
+assert _never < _dry, \
+    "되돌리기 제외 규칙이 리허설 규칙보다 뒤에 있다 — 먼저 걸리는 쪽이 이긴다: " + str(_rules)
+assert any("$PROMOTE_VERSION" in l for l in _rules[:_never]), \
+    "release-windows 가 되돌리기 파이프라인에서도 돈다 — 되돌리는 데 90분이 걸린다: " + str(_rules)
+print("  되돌리기 파이프라인이 만들어지고, 90분 빌드를 안 끌고 온다 ✅")
 
 print("== 통과 ==")

@@ -71,8 +71,24 @@ public class RunLogController {
                     .body("로그가 너무 큽니다.");
         }
 
-        if (!store.allow(userId)) {
-            // **빈도 상한.** 한 사람이 계속 올려 디스크를 채우는 것을 막는다.
+        // **상한 셋을 한 자리에서 본다** (S15P21B202-467).
+        //
+        // 사용자별 상한만으로는 아무것도 막지 못한다 — `/auth/guest` 가 `permitAll` 이라
+        // **토큰을 새로 받을 때마다 새 userId** 이고, 그러면 선을 원하는 만큼 넘는다.
+        // 공개 서버에서 그것은 디스크를 채우는 길이다(리뷰가 잡았다).
+        RunLogStore.Admission admission = store.admit(userId, body.length);
+        if (admission != RunLogStore.Admission.OK) {
+            if (admission == RunLogStore.Admission.DISK_FULL) {
+                // **507 로 답한다.** 이것은 "잠시 후 다시" 가 아니라 사람이 고쳐야 하는
+                // 상태다. 클라이언트는 어차피 다음 실행에서 다시 보낸다.
+                log.warn("[runlog] 디스크 여유 부족으로 거절 user={}", userId);
+                return ResponseEntity.status(HttpStatus.INSUFFICIENT_STORAGE)
+                        .body("서버에 공간이 없습니다.");
+            }
+            if (admission == RunLogStore.Admission.GLOBAL_RATE) {
+                // 전역 상한에 닿았다는 것은 **평소와 다른 일이 일어나고 있다**는 뜻이다.
+                log.warn("[runlog] 전역 상한으로 거절 user={} bytes={}", userId, body.length);
+            }
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .body("잠시 후 다시 시도해 주세요.");
         }

@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -38,6 +39,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(HERE), "launcher"))
 from ci_common import env  # noqa: E402
 
 VERSION_FILE = "release-version.txt"
+
+# **버전은 이 형태만 받는다** (S15P21B202-467, `!368` 리뷰). `PROMOTE_VERSION` 은
+# 사람이 화면에 손으로 적는 값인데 그대로 `manifest/<값>.json` 경로가 되고 그대로
+# `latest.json` 에 실린다. `../` 가 섞이면 배포 폴더 **밖**을 읽고, 이상한 문자열이
+# 실리면 런처 쪽에서 무슨 일이 나는지 우리가 모른다.
+#
+# 리허설이 쓰는 `v0.0.0-rehearsal` 도 여기서 걸린다 — **그게 맞다.** 리허설 산출물은
+# 올라간 적이 없으므로 사용자를 그리로 보내면 안 된다.
+VERSION_RE = re.compile(r"v?\d+\.\d+\.\d+")
+
 PACKAGE_FILE = "release-package.txt"
 PACKAGE_NAME = "metagame"
 
@@ -161,6 +172,10 @@ def promote() -> int:
         read_line(VERSION_FILE) if os.path.exists(VERSION_FILE) else "")
     if not version:
         print("❌ 옮길 버전을 모른다 — PROMOTE_VERSION 을 주거나 release-version.txt 가 있어야 한다")
+        return 1
+    if not VERSION_RE.fullmatch(version):
+        # 경로가 되기 전에 막는다. 값은 찍되 **줄여서** 찍는다.
+        print(f"❌ 버전 형식이 아니다: {version[:40]!r} — vX.Y.Z 로 주세요")
         return 1
 
     mpath = os.path.join(BUILDS, "manifest", f"{version}.json")

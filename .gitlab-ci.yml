@@ -590,6 +590,12 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
     # 릴리스였다 — 90분 잡을 미검증 상태로 처음 돌리게 된다. GitLab 의 "파이프라인 실행"
     # (Pipelines → Run pipeline)으로 아무 브랜치에서나 돌리면 RELEASE_DRY_RUN=1 이 되어
     # 빌드·zip 까지 진짜로 하고 **패키지 업로드·Release 생성·🟢 카드만 건너뛴다.**
+    # **되돌리기 파이프라인에서는 돌지 않는다** (S15P21B202-467). `PROMOTE_VERSION` 은
+    # `promote-builds` 하나만 쓰는 변수다. 이것이 없으면 latest.json 한 줄 되돌리자고
+    # **90분짜리 Unity 빌드**가 딸려 돌고, `promote-builds` 는 그 90분을 기다린다 —
+    # 되돌리기는 급할 때 쓰는 길이라 그 시간이 곧 장애 시간이다.
+    - if: $CI_PIPELINE_SOURCE == "web" && $PROMOTE_VERSION
+      when: never
     - if: $CI_PIPELINE_SOURCE == "web"
       variables:
         RELEASE_DRY_RUN: "1"
@@ -696,10 +702,16 @@ promote-builds:           # latest.json 을 옮긴다 — **사람이 누른다*
   stage: deploy           # 이 한 줄이 옮겨지는 순간 **모든 사용자의 런처가 그 버전으로 간다**.
   image: python:3.12      # 시점은 사람이 고르는 것이 맞다(deploy-prod 와 같은 결).
   tags: [deploy]          # 되돌리기도 이 잡이다 — PROMOTE_VERSION 에 옛 버전을 준다.
+  # **`optional: true` 가 없으면 되돌리기 경로가 아예 안 만들어진다** (S15P21B202-467,
+  # `!368` 리뷰). 되돌리기는 web 파이프라인인데 `publish-builds` 는 master push 에서만
+  # 생긴다 — 없는 잡을 `needs` 로 걸면 GitLab 은 **파이프라인 생성 자체를 거절한다.**
+  # 그래서 "PROMOTE_VERSION 을 주고 이 잡만 돌린다" 는 위 주석은 지금까지 거짓이었다.
   needs:
     - job: publish-builds
+      optional: true
     - job: release-windows
       artifacts: true
+      optional: true
   interruptible: false
   environment:
     name: production

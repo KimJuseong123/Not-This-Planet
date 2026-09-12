@@ -170,7 +170,13 @@ def tag_sha(tag: str) -> str:
     try:
         return git("rev-list", "-n", "1", tag).strip()
     except RuntimeError as e:
+        # **무엇을 하면 되는지까지 적는다** (S15P21B202-467, `!373` 리뷰). 이 줄을 보는
+        # 사람은 90분짜리 잡이 "버전을 정할 수 없다" 로 끝난 뒤의 사람이고, 그때
+        # `git` 오류 문구만으로는 다음 손이 안 나간다.
         print(f"   ⚠️ 태그 {tag} 의 커밋을 읽지 못했다 — 재시도로 보지 않는다: {e}")
+        print("      → CI 가 얕은 클론(GIT_DEPTH)이라 태그가 안 왔을 수 있다. "
+              "로컬에서 `git fetch --tags` 뒤 `git rev-list -n 1 " + tag + "` 로 "
+              "그 태그가 어느 커밋에 있는지 먼저 보세요")
         return ""
 
 
@@ -179,8 +185,23 @@ def bump_patch(tag: str) -> str:
     return f"v{a}.{b}.{c + 1}"
 
 
-def decide_version(message: str, tags: list[str], points_here=None) -> tuple[str | None, str]:
-    """(버전, 이유). 릴리스 브랜치 머지 → 그 버전. hotfix 머지 → 마지막 태그 PATCH+1. 그 외 → None."""
+# **왜 못 정했는가를 값으로 돌려준다** (S15P21B202-467, `!373` 리뷰). 예전에는 부르는
+# 쪽이 이유 *문구* 에 `"이미 붙어 있다"` 가 들었는지를 봤다 — 문구는 사람이 읽으라고
+# 쓴 것이라 한 글자만 다듬어도 그 판정이 조용히 꺼진다. 꺼지면 리허설이 "진짜였으면
+# 여기서 멈췄다" 를 말하지 않고, 그것은 `-446` 이 막으려던 바로 그 상태다.
+R_OK = "ok"                      # 버전을 정했다
+R_TAG_TAKEN = "tag-taken"        # 그 번호가 다른 커밋에 이미 붙어 있다
+R_NO_TAG = "no-tag"              # hotfix 인데 기준이 될 태그가 없다
+R_NOT_RELEASE = "not-release"    # 릴리스도 핫픽스도 아닌 머지
+
+
+def decide_version(message: str, tags: list[str],
+                   points_here=None) -> tuple[str | None, str, str]:
+    """(버전, 이유, 사유 코드).
+
+    릴리스 브랜치 머지 → 그 버전. hotfix 머지 → 마지막 태그 PATCH+1. 그 외 → None.
+    셋째 값은 위 `R_*` 중 하나다 — **부르는 쪽은 문구가 아니라 이것을 본다.**
+    """
     v = parse_version(message)
     if v:
         # **이미 있는 버전을 다시 내보내지 않는다** (S15P21B202-446). 같은 릴리스
@@ -198,19 +219,19 @@ def decide_version(message: str, tags: list[str], points_here=None) -> tuple[str
                           "이미 붙어 있다(또는 그 태그의 커밋을 읽지 못했다 — 위 경고를 보세요). "
                           "같은 번호를 두 번 쓸 수 없다. 릴리스 브랜치 이름의 버전을 올리거나, "
                           "잘못 만들어진 태그라면 그것부터 정리하세요. "
-                          "같은 커밋이면 재시도로 보고 그냥 진행한다")
-        return v, "릴리스 브랜치 이름의 버전"
+                          "같은 커밋이면 재시도로 보고 그냥 진행한다"), R_TAG_TAKEN
+        return v, "릴리스 브랜치 이름의 버전", R_OK
     if "hotfix/" in (message or ""):
         last = latest_tag(tags)
         if not last:
-            return None, "hotfix 머지인데 이전 태그가 없어 버전을 정할 수 없다"
+            return None, "hotfix 머지인데 이전 태그가 없어 버전을 정할 수 없다", R_NO_TAG
         nxt = bump_patch(last)
         if tag_taken(nxt, tags, points_here):
             return None, (f"hotfix 머지 — 마지막 태그가 {last} 라 다음은 {nxt} 인데 그 버전이 이미 있다. "
-                          "태그가 형식이 섞인 채 남아 있을 수 있으니 태그 목록부터 확인하세요")
-        return nxt, f"hotfix 머지 — 마지막 태그 {last} 의 PATCH+1"
+                          "태그가 형식이 섞인 채 남아 있을 수 있으니 태그 목록부터 확인하세요"), R_TAG_TAKEN
+        return nxt, f"hotfix 머지 — 마지막 태그 {last} 의 PATCH+1", R_OK
     return None, ("머지 커밋에 release/…-vX.Y.Z 도 hotfix/ 도 없다 — master 에는 릴리스 브랜치(git-convention §8)나 "
-                  "핫픽스만 들어와야 한다")
+                  "핫픽스만 들어와야 한다"), R_NOT_RELEASE
 
 
 # ── git ──────────────────────────────────────────────────────────────────────
@@ -448,7 +469,7 @@ def phase_version() -> int:
     message = env("CI_COMMIT_MESSAGE", "") or ""
     # **태그가 이 커밋을 가리키는지**를 알려 준다 — 그래야 재시도와 재발행을 가른다.
     head = env("CI_COMMIT_SHA", "")
-    version, why = decide_version(
+    version, why, reason = decide_version(
         message, all_tags(),
         points_here=(lambda t: bool(head) and tag_sha(t) == head))
     print(f"머지 커밋: {message.strip().splitlines()[0] if message.strip() else '(없음)'}")
@@ -459,7 +480,7 @@ def phase_version() -> int:
         # **다만 "이미 쓴 번호" 는 정상이 아니다** (S15P21B202-446). 그것까지 조용히
         # 리허설로 넘기면, 진짜 릴리스에서 멈출 것을 리허설이 통과시켜 준 셈이 된다.
         # 리허설을 막지는 않되 눈에 띄게 말한다.
-        if "이미 붙어 있다" in why:
+        if reason == R_TAG_TAKEN:
             print(f"⚠️ 리허설이 아니었다면 여기서 멈췄다 — {why}")
         version, why = "v0.0.0-rehearsal", f"리허설(원래 사유: {why})"
     if not version:

@@ -42,6 +42,31 @@ public class RunLogStore {
     public static final int MAX_PER_WINDOW = 6;
     public static final Duration WINDOW = Duration.ofMinutes(10);
 
+    /**
+     * <b>전역 상한</b> (S15P21B202-467).
+     *
+     * <p><b>사용자별 상한만으로는 아무것도 막지 못한다.</b> {@code /auth/guest} 가
+     * {@code permitAll} 이라 <b>토큰을 새로 받을 때마다 새 userId</b> 가 되고, 그러면
+     * 10분에 6개라는 선을 원하는 만큼 넘을 수 있다. 공개 서버에서 이것은
+     * <b>디스크를 채우는 길</b>이다 — `-443` 이 그 말을 적어 놓고 정작 이 구멍을
+     * 남겼다(리뷰가 잡았다).</p>
+     *
+     * <p>값은 정상 사용의 몇 배로 잡았다. 팀원 6명이 하루에 여러 번 켠다고 해도
+     * 시간당 수십 개다. 200개·300 MB 에 닿는다면 그것은 사람이 봐야 할 상황이다.</p>
+     */
+    public static final int MAX_GLOBAL_PER_HOUR = 200;
+    public static final long MAX_GLOBAL_BYTES_PER_HOUR = 300L * 1024 * 1024;
+    public static final Duration GLOBAL_WINDOW = Duration.ofHours(1);
+
+    /**
+     * 이 아래로 내려가면 <b>받지 않는다</b>. 로그를 못 받는 것이 서버가 멈추는 것보다
+     * 낫다 — 디스크가 차면 백엔드·MySQL·CI 가 한꺼번에 죽는다.
+     */
+    public static final long MIN_FREE_BYTES = 5L * 1024 * 1024 * 1024;
+
+    /** 왜 받지 않았는지. 컨트롤러가 이것으로 상태 코드를 고른다. */
+    public enum Admission { OK, USER_RATE, GLOBAL_RATE, DISK_FULL }
+
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
 
@@ -50,6 +75,11 @@ public class RunLogStore {
 
     /** userId → (창 시작, 그 창에서 받은 개수). 메모리에만 둔다 — 재시작하면 풀린다. */
     private final Map<Long, long[]> recent = new ConcurrentHashMap<>();
+
+    /** 전역 창. 같은 이유로 메모리에만 둔다. */
+    private long globalWindowStart;
+    private long globalCount;
+    private long globalBytes;
 
     public RunLogStore(
             @Value("${metagame.runlog.dir:/var/log/metagame-runlogs}") String dir,
@@ -77,6 +107,50 @@ public class RunLogStore {
      * 엉뚱하게 막히거나 통과한다. {@code compute} 는 키 단위로 직렬화되므로 그 안에서
      * 낸 답이 곧 그 요청의 답이다.</p>
      */
+    /**
+     * 받을지 말지. {@link Admission#OK} 가 아니면 그 사유가 이유다.
+     *
+     * <p><b>순서가 뜻을 가진다.</b> 디스크를 먼저 본다 — 여유가 없으면 누가 보냈든
+     * 받으면 안 된다. 그다음 전역, 마지막이 사용자별이다.</p>
+     */
+    public Admission admit(long userId, int bytes) {
+        if (!hasDiskRoom()) return Admission.DISK_FULL;
+        if (!allowGlobal(bytes)) return Admission.GLOBAL_RATE;
+        if (!allow(userId)) return Admission.USER_RATE;
+        return Admission.OK;
+    }
+
+    /** 디스크 여유가 {@link #MIN_FREE_BYTES} 위인가. 못 재면 <b>받는 쪽</b>으로 둔다. */
+    boolean hasDiskRoom() {
+        try {
+            return Files.getFileStore(root).getUsableSpace() >= MIN_FREE_BYTES;
+        } catch (IOException e) {
+            // 못 재는 것이 로그를 버릴 이유는 아니다. 다만 우리가 알아야 한다.
+            log.warn("[runlog] 디스크 여유를 재지 못했다 : {}", e.toString());
+            return true;
+        }
+    }
+
+    /**
+     * 전역 창 안의 개수·바이트 상한. <b>누가 보냈는지 보지 않는다</b> — 그것이
+     * 게스트 토큰으로 우회되기 때문이다.
+     */
+    synchronized boolean allowGlobal(int bytes) {
+        long now = Instant.now().toEpochMilli();
+        if (now - globalWindowStart > GLOBAL_WINDOW.toMillis()) {
+            globalWindowStart = now;
+            globalCount = 0;
+            globalBytes = 0;
+        }
+        if (globalCount + 1 > MAX_GLOBAL_PER_HOUR
+                || globalBytes + bytes > MAX_GLOBAL_BYTES_PER_HOUR) {
+            return false;
+        }
+        globalCount++;
+        globalBytes += bytes;
+        return true;
+    }
+
     public boolean allow(long userId) {
         long now = Instant.now().toEpochMilli();
         long windowMs = WINDOW.toMillis();
@@ -116,9 +190,13 @@ public class RunLogStore {
         Files.createDirectories(dayDir);
 
         String env = "dev".equalsIgnoreCase(backend) ? "dev" : "prod";
-        String name = String.format("%s_u%d_%s_%s.log",
+        String base = String.format("%s_u%d_%s_%s",
                 now.format(STAMP), userId, env, token(clientName));
 
+        // **덮어쓰지 않는다** (S15P21B202-467). 이름이 **초 단위**라, 같은 사람이 같은
+        // 초에 두 건을 올리고 클라이언트 이름이 비면(`token()=="none"`) 이름이 겹친다.
+        // 예전에는 `REPLACE_EXISTING` 이라 **먼저 받은 로그가 조용히 사라졌다.**
+        String name = freeName(dayDir, base);
         Path target = dayDir.resolve(name);
         Path tmp = dayDir.resolve(name + ".part");
 
@@ -134,7 +212,24 @@ public class RunLogStore {
         Files.write(tmp, head.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
         Files.write(tmp, body, java.nio.file.StandardOpenOption.APPEND);
         // 원자적으로 놓는다 — 반쯤 쓰인 파일을 사람이 열어 보면 안 된다.
-        Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        // `REPLACE_EXISTING` 을 주지 않는다 — 위에서 빈 이름을 골랐고, 그 사이에 누가
+        // 채웠다면 덮어쓰는 것보다 실패하는 편이 낫다(클라이언트가 다음 실행에 다시 보낸다).
+        Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE);
+        return name;
+    }
+
+    /**
+     * 비어 있는 이름을 고른다 — {@code base.log}, 있으면 {@code base-2.log}, …
+     *
+     * <p>50까지만 본다. 같은 초에 같은 사람이 50개를 올리는 것은 빈도 상한이 이미
+     * 막았어야 하는 상황이라, 여기서 더 세는 것보다 {@code Files.move} 가
+     * 실패해서 눈에 띄는 편이 낫다.</p>
+     */
+    static String freeName(Path dayDir, String base) {
+        String name = base + ".log";
+        for (int i = 2; Files.exists(dayDir.resolve(name)) && i <= 50; i++) {
+            name = base + "-" + i + ".log";
+        }
         return name;
     }
 

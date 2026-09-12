@@ -270,4 +270,19 @@ assert "added + have != runners" in _inst, "손댄 러너 수를 러너 수와 �
 assert "is-active --quiet gitlab-runner" in _inst, "재시작 뒤 러너가 살아났는지 안 본다"
 print("  모든 러너에 읽기 전용으로 물리고, 설정을 깨뜨리지 않는다 ✅")
 
+# ── 없는 값을 두 번 말하지 않는다 (S15P21B202-467) ───────────────────────
+#     `_num` 의 기본값이 0 이라, `available_gb` 가 없으면 `0 < 3` 이 참이 되어
+#     **"메모리 여유 0 GB"** 라는 없는 장애가 "값이 없다" 줄 뒤에 한 번 더 붙었다.
+#     카드를 보는 사람은 두 줄을 서로 다른 문제로 읽는다.
+_d = healthy()
+_d["mem"].pop("available_gb")
+_d["disk"].pop("used_pct")
+_lines = E.problems(_d, NOW)
+assert any("없다" in l for l in _lines), "필드가 빠진 것을 말하지 않는다: " + str(_lines)
+assert not any("메모리 여유 0" in l for l in _lines), \
+    "없는 값을 0 으로 읽어 없는 장애를 만든다: " + str(_lines)
+assert not any("디스크 0%" in l for l in _lines), \
+    "없는 값을 0 으로 읽는다: " + str(_lines)
+print("  값이 비면 한 번만 말한다 ✅")
+
 print("== 통과 ==")

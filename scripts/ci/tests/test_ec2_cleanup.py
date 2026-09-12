@@ -206,4 +206,16 @@ assert "-458" in rec, "정리와 알림의 관계가 기록에 없다"
 assert "metagame.service" in rec, "정지된 게임 서버 유닛에 대한 결정이 기록에 없다"
 print("  기록이 알림(-458)과 정지된 유닛 결정을 담고 있다 ✅")
 
+# ── 떠돌이 이미지에도 시간 조건이 붙어 있다 (S15P21B202-467) ─────────────
+#     `busy()` 는 **도커 컨테이너**로만 잡을 센다. 그 사이 `docker build` 가 남기는
+#     태그 없는 중간 층을 지우면 빌드가 깨지고, 되돌리려고 남겨 둔 직전 백엔드
+#     이미지도 같이 사라진다 — 배포가 잘못됐다는 걸 아는 데는 시간이 걸린다.
+_cl = open("scripts/deploy/host/ec2-cleanup.sh", encoding="utf-8").read()
+_img = [ln for ln in _cl.splitlines() if "docker image prune" in ln and not ln.strip().startswith("#")]
+assert _img, "떠돌이 이미지 정리가 사라졌다"
+assert any("until=" in ln for ln in _img), \
+    "떠돌이 이미지를 시간 조건 없이 지운다 — 방금 만들어진 층까지 간다: " + str(_img)
+assert "DANGLING_HOURS" in _cl, "시간을 바꿀 자리가 없다"
+print("  떠돌이 이미지도 시간이 지난 것만 지운다 ✅")
+
 print("== 통과 ==")

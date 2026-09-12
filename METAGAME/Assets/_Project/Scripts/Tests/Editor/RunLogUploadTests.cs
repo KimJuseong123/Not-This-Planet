@@ -100,10 +100,60 @@ namespace Metagame.Gameplay.Tests
 
                 var got = Encoding.UTF8.GetString(RunLogUpload.Tail(path, 40));
 
-                Assert.AreEqual(40, Encoding.UTF8.GetBytes(got).Length,
-                    "상한만큼 가져오지 않았다");
+                // 상한 **이하**다. 정확히 40이 아니다 — 줄 경계까지 앞을 버리기
+                // 때문이다(아래 검사 참고). 40을 넘으면 서버·nginx 가 거절한다.
+                Assert.That(Encoding.UTF8.GetBytes(got).Length, Is.LessThanOrEqualTo(40),
+                    "상한을 넘겨 가져왔다 — 서버가 거절하는 크기가 된다");
                 Assert.That(got, Does.Contain("끝이 중요하다"),
                     "뒤쪽이 아니라 앞쪽을 가져왔다 — 문제는 보통 끝에 있다");
+            }
+            finally
+            {
+                if (File.Exists(path)) File.Delete(path);
+            }
+        }
+
+        [Test]
+        public void TheTailStartsAtALineBoundarySoCharactersAreNotCutInHalf()
+        {
+            // **한글은 UTF-8 에서 글자당 3바이트다.** 바이트 수로 아무 데나 자르면
+            // 첫 글자의 가운데가 잘려 받은 로그의 첫 줄이 깨진 채 서버에 남는다.
+            // 우리가 그 파일을 여는 때는 이미 문제가 난 뒤라 다시 받을 수도 없다.
+            var path = Path.Combine(Path.GetTempPath(), "ntp-runlog-boundary.log");
+            try
+            {
+                // 각 줄이 3바이트 글자 넷(12바이트) + 줄바꿈 = 13바이트.
+                File.WriteAllText(path, "가나다라\n마바사아\n자차카타\n");
+
+                // 18바이트를 달라고 하면 경계가 글자(사) 가운데에 떨어진다.
+                var raw = RunLogUpload.Tail(path, 18);
+                var got = Encoding.UTF8.GetString(raw);
+
+                Assert.That(got, Does.StartWith("자"),
+                    "줄 중간에서 시작했다 — 첫 글자가 깨진다");
+                Assert.That(got, Does.Not.Contain(BrokenChar),
+                    "글자 가운데가 잘렸다 (U+FFFD 가 나왔다)");
+            }
+            finally
+            {
+                if (File.Exists(path)) File.Delete(path);
+            }
+        }
+
+        /// <summary>디코더가 깨진 바이트 자리에 넣는 글자.</summary>
+        const string BrokenChar = "\uFFFD";
+
+        [Test]
+        public void ALineWithoutAnyNewlineIsNotThrownAway()
+        {
+            // 줄바꿈이 하나도 없으면 잘라 낼 자리가 없다. 그때 빈 것을 돌려주면
+            // **로그가 통째로 사라진다** — 깨진 글자 하나보다 그쪽이 훨씬 나쁘다.
+            var path = Path.Combine(Path.GetTempPath(), "ntp-runlog-noline.log");
+            try
+            {
+                File.WriteAllText(path, new string('x', 200));
+                var got = RunLogUpload.Tail(path, 40);
+                Assert.AreEqual(40, got.Length, "줄바꿈이 없다고 로그를 버렸다");
             }
             finally
             {

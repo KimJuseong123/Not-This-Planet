@@ -27,6 +27,7 @@ BUILDS_DIR="${BUILDS_DIR:-/var/www/metagame-builds}"
 KEEP_ZIPS="${KEEP_ZIPS:-3}"            # 릴리스 zip 은 164 MB 짜리다. 3개면 되돌릴 여지가 남는다
 BUILD_CACHE_HOURS="${BUILD_CACHE_HOURS:-168}"   # 7일
 CONTAINER_HOURS="${CONTAINER_HOURS:-24}"
+DANGLING_HOURS="${DANGLING_HOURS:-12}"  # 되돌릴 백엔드 이미지가 하루 일과 안에서는 살아 있게
 
 say() { echo "[$(date -Is)] $*"; }
 # **실패를 삼키지 않는다.** 파이프(`| sed`)를 쓰면 셸은 `sed` 의 종료 코드를 보므로,
@@ -93,7 +94,13 @@ step "① 도커 빌드 캐시 (${BUILD_CACHE_HOURS}시간 넘은 것)" \
 # ── ② 떠돌이 이미지 ─────────────────────────────────────────────────────────
 # **`-a` 를 쓰지 않는다.** 그것 없이는 태그가 없는 것만 지운다 — 백엔드를 새로
 # 빌드할 때마다 옛 `metagame-backend:latest` 가 태그를 잃고 남는, 바로 그것이다.
-step "② 태그 없는 떠돌이 이미지" docker image prune -f
+#
+# **시간 조건도 건다** (S15P21B202-467, `!375` 리뷰). `busy()` 는 도커 컨테이너로만
+# 잡을 세는데, 이미지를 만드는 쪽(`docker build`)은 그 사이에도 태그 없는 중간 층을
+# 남긴다. 그것을 지우면 빌드가 깨진다. 되돌리기 위해 남겨 둔 **직전 백엔드 이미지**도
+# 같은 이유로 몇 시간은 살아 있어야 한다 — 배포가 잘못됐다는 걸 아는 데 시간이 걸린다.
+step "② ${DANGLING_HOURS}시간 넘은 떠돌이 이미지" \
+  docker image prune -f --filter "until=${DANGLING_HOURS}h"
 
 # ── ③ 끝난 컨테이너 ─────────────────────────────────────────────────────────
 # 러너가 잡마다 만들고 버린다. 도는 것은 건드리지 않는다.
