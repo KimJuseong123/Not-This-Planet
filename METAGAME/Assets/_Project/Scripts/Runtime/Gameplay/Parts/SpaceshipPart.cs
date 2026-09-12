@@ -29,6 +29,15 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         [SerializeField] float _placedMass;
 
+        [Header("용접 비드 한도")]
+        [Tooltip("이 파츠에 생성할 수 있는 비드 덩어리 총 개수. 한도를 낮춰도 기존 비드는 제거하지 않습니다.")]
+        [Min(1)] [SerializeField] int weldBeadsPerPart = PhysicsScale.WeldBeadsPerPart;
+        [Tooltip("한 기둥에 이어 붙일 수 있는 비드 덩어리 개수. 기존 끝 덩어리는 최대 크기까지 자랄 수 있습니다.")]
+        [Min(1)] [SerializeField] int weldBeadBlobsPerChain = PhysicsScale.WeldBeadBlobsPerChain;
+
+        public int WeldBeadsPerPart => Mathf.Max(1, weldBeadsPerPart);
+        public int WeldBeadBlobsPerChain => Mathf.Max(1, weldBeadBlobsPerChain);
+
         readonly List<PartClamp> _clamps = new();
         readonly List<PartSocket> _sockets = new();
 

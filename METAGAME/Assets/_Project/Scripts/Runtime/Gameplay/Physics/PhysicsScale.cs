@@ -187,7 +187,7 @@ namespace Metagame.Gameplay
         public const float WeldBeadBlobSeconds = 1.6f;
 
         /// <summary>
-        /// 한 사슬에 이어 붙는 덩어리 수 = <b>최대 다리 길이</b>.
+        /// 한 사슬에 이어 붙는 덩어리 수의 기본값. 실제 한도는 SpaceshipPart의 직렬화 설정을 따른다.
         ///
         /// 6개 × <see cref="WeldBeadStep"/> 0.13m + 반지름 0.10m ≈ 0.75m 를 뻗는다.
         /// 용접기 사거리(<see cref="WeldRange"/> 0.80m)보다 짧게 둔 것이 의도다 —
@@ -209,12 +209,12 @@ namespace Metagame.Gameplay
         public const float WeldBeadChainReuseRadius = 0.35f;
 
         /// <summary>
-        /// 파츠 하나가 가질 수 있는 총 덩어리 수.
+        /// 파츠 하나가 가질 수 있는 총 덩어리 수의 기본값. 실제 한도는 SpaceshipPart의 직렬화 설정을 따른다.
         ///
         /// 성능 상한이다. 콜라이더가 무한히 늘면 파츠의 컴파운드 콜라이더가 그만큼
-        /// 무거워진다. 48개 = 사슬 8개 × 6개.
+        /// 무거워진다. 기본 한도는 파츠 전체 200개다.
         /// </summary>
-        public const int WeldBeadsPerPart = 48;
+        public const int WeldBeadsPerPart = 200;
 
         /// <summary>
         /// 최대 크기 덩어리 하나의 질량(kg). 작은 덩어리는 부피비(반지름의 세제곱)로 준다.
