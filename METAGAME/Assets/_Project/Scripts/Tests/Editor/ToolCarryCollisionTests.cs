@@ -36,7 +36,12 @@ namespace Metagame.Gameplay.Tests
             var target = tool.gameObject.AddComponent<Grabbable>();
             target.Role = GrabbableRole.Tool;
             tool.gameObject.AddComponent<BoxCollider>().size = Vector3.one * 0.12f;
-            body.position = player.AimOrigin + player.AimForward * 0.9f;
+            // **`Rigidbody.position` 이 아니라 Transform 을 옮긴다** (S15P21B202-463).
+            // `Rigidbody.position` 은 PhysX 쪽만 옮기고 Transform 은 다음 물리 스텝까지
+            // 그대로인데, 바로 뒤의 `SyncTransforms()` 는 **Transform → PhysX** 방향이다 —
+            // 즉 방금 옮긴 것을 원점으로 도로 밀어 넣는다. 그러면 도구가 플레이어에게서
+            // 140m 떨어진 곳에 있게 되어 조준에 아무것도 안 걸린다.
+            tool.transform.position = player.AimOrigin + player.AimForward * 0.9f;
             Physics.SyncTransforms();
 
             player.RefreshInteractionFocus();

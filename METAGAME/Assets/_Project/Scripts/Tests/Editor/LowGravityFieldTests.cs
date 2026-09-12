@@ -251,11 +251,31 @@ namespace Metagame.Gameplay.Tests
         {
             var field = MakeField(Vector3.zero);
 
+            // **실제 경로처럼 운반체를 알려 준다.** 자기 기체를 빼는 판정은
+            // `LowGravityField` 가 `Configure` 로 받은 운반체 강체를 기준으로 하므로,
+            // 그것 없이는 **뺄 대상이 무엇인지 알 방법이 없다** — 자기 부품을 밀어
+            // 올리는 것이 당연해진다 (S15P21B202-463). 실제 기체는
+            // `TransportVehicle` 이 `Configure(transform, body)` 로 세운다.
+            //
+            // `MakeField` 헬퍼를 고치지 않은 이유: `Configure` 로 받은 강체는 장치를
+            // **따라오는 힘**에도 쓰여서, 헬퍼를 바꾸면 그것을 쓰는 다른 검사들의
+            // 측정값까지 같이 움직인다.
+            // 강체를 **장치와 같은 오브젝트**에 붙이는 것이 실제 배치다 — 운반선 본체가
+            // 강체이고 저중력장이 그 위에 얹힌다(형제 검사 `Field_AffectsSiblingPartUnderSameSceneRoot`
+            // 와 같은 모양). 그 아래에 강체를 가진 부품이 매달리는 **중첩 강체**도
+            // 실제 그대로다 — 이 검사가 보려는 것이 바로 "자기 밑에 달린 부품을 밀어
+            // 올리지 않는가" 이기 때문이다.
+            var carrier = field.gameObject.AddComponent<Rigidbody>();
+            carrier.useGravity = false;
+            carrier.isKinematic = true;
+            field.Configure(field.transform, carrier);
+
             var platform = GameObject.CreatePrimitive(PrimitiveType.Cube);
             platform.layer = GameLayers.Prop;
             platform.transform.SetParent(field.transform, false);
             platform.transform.localPosition = Vector3.down * 3f;
             platform.AddComponent<Rigidbody>();
+            Physics.SyncTransforms();
 
             Run(field, 0.5f);
 

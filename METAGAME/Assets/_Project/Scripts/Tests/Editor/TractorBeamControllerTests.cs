@@ -7,7 +7,16 @@ using UnityEngine;
 
 namespace Metagame.Gameplay.Tests
 {
-    /// <summary>운반 장치의 탑승·하차 요청과 플레이어 탑승 상태 연결을 검증한다.</summary>
+    /// <summary>
+    /// 운반 장치의 탑승·하차 요청과 플레이어 탑승 상태 연결을 검증한다.
+    ///
+    /// <para><b>오브젝트를 만들거나 옮긴 뒤에는 <see cref="UnityEngine.Physics.SyncTransforms"/>
+    /// 를 부른다.</b> 이 프로젝트는 <c>autoSyncTransforms</c> 가 꺼져 있어, Transform 을
+    /// 바꿔도 <b>다음 물리 스텝 전까지 PhysX 는 옛 자리를 들고 있다.</b> EditMode 에는 그
+    /// 스텝이 없으므로 직접 부르지 않으면 질의가 원점의 유령을 본다 — 그러면 후보가
+    /// 0개가 되어 "상호작용 대상이 None" 같은, 원인과 전혀 닮지 않은 실패가 난다
+    /// (S15P21B202-463). 같은 함정과 처방이 <c>InteractorTests.cs:362-368</c> 에 있다.</para>
+    /// </summary>
     public sealed class TractorBeamControllerTests
     {
         readonly List<GameObject> spawned = new();
@@ -33,6 +42,7 @@ namespace Metagame.Gameplay.Tests
             camera.SnapToTarget();
             spawned.Add(player.gameObject);
             spawned.Add(camera.gameObject);
+            Physics.SyncTransforms();
             return player;
         }
 
@@ -47,6 +57,7 @@ namespace Metagame.Gameplay.Tests
             vehicle.Initialize(beam, TransportVehicle.BeamHoldDistance);
             vehicle.PlaceOnGround(position, 0f);
             spawned.Add(go);
+            Physics.SyncTransforms();
             return vehicle;
         }
 
@@ -59,6 +70,7 @@ namespace Metagame.Gameplay.Tests
             var grabbable = Grabbable.Mark(go, name);
             grabbable.CanGrab = true;
             spawned.Add(go);
+            Physics.SyncTransforms();
             return grabbable;
         }
 
@@ -295,11 +307,19 @@ namespace Metagame.Gameplay.Tests
             Assert.IsTrue(controller.IsControlling);
 
             controller.Tick(Time.fixedDeltaTime);
+            vehicle.Tick(Time.fixedDeltaTime);
             Vector3 initialFacing = vehicle.ExitForward;
 
             var sideInput = Vector2.left;
             controller.SetInput(new InputFrame { Move = sideInput });
             controller.Tick(Time.fixedDeltaTime);
+
+            // **컨트롤러는 기체에 입력만 넣는다**(SetDriveVector·SetFacingDirection).
+            // 기체를 실제로 움직이는 것은 `TransportVehicle.Tick` 이고, 게임에서는
+            // `FixedUpdate` 가 그것을 부른다 — EditMode 에는 `FixedUpdate` 가 없으므로
+            // 여기서 직접 부르지 않으면 속도가 영원히 0 이다 (S15P21B202-463).
+            vehicle.Tick(Time.fixedDeltaTime);
+
             Assert.Greater(Vector3.Dot(vehicle.HorizontalVelocity,
                                        player.Cam.CameraRelativeMove(sideInput)), 0.01f,
                            "A/D는 카메라 기준 선체 이동 벡터로 전달되어야 한다.");
@@ -309,6 +329,7 @@ namespace Metagame.Gameplay.Tests
             player.Cam.Steer(new Vector2(30f, 0f));
             controller.SetInput(new InputFrame());
             controller.Tick(Time.fixedDeltaTime);
+            vehicle.Tick(Time.fixedDeltaTime);
             Assert.Greater(Vector3.Dot(vehicle.ExitForward, player.Cam.PlanarForward), 0.99f,
                            "카메라 yaw가 바뀌면 정지 중에도 운반선 정면이 갱신되어야 한다.");
         }
