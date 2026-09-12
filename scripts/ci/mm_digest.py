@@ -460,25 +460,16 @@ def main() -> int:
     #
     # 파일이 아예 없으면(잡이 안 돌았거나 배포 러너가 꺼져 있으면) `ec2_status` 가
     # 그것을 하나의 항목으로 만든다. **조용한 것과 못 읽은 것을 구별해야 한다.**
+    # **러너는 GitLab 에 묻지 않는다** (S15P21B202-466). `-458` 에서 "프로세스는
+    # 살았는데 GitLab 이 offline 으로 본다" 를 잡으려고 넣었는데, 그 조회에는
+    # **Maintainer 권한이 필요하고 우리 `GITLAB_TOKEN` 은 Developer 라 403** 이다.
+    # 카드 한 줄을 위해 CI 토큰 권한을 넓히는 것은 값이 맞지 않는다.
+    #
+    # 대신 남는 것: 호스트의 `systemctl is-active gitlab-runner`(아래 상태 파일)와
+    # `-130` 의 "검사가 돌지 않은 MR". 빠지는 것은 좁은 한 경우뿐이고 그것도
+    # `-130` 이 몇 시간 뒤에 잡는다.
     try:
-        # 러너는 **GitLab 이 보는 상태**를 따로 묻는다. 호스트의 `systemctl is-active` 는
-        # 프로세스가 떴는지만 말하고, 토큰이 막히거나 망이 끊기면 프로세스는 멀쩡한 채
-        # GitLab 쪽에서 offline 이 된다 — 그러면 잡이 영원히 대기한다.
-        runners = None
-        if gl.token and gl.project:
-            try:
-                # **`type=project_type` 로 좁힌다.** 기본값은 이 프로젝트가 쓸 수 있는
-                # 러너 전부라 **인스턴스 공용 러너까지 들어온다.** 남의 러너가 offline
-                # 이면 매일 아침 오탐 줄이 붙고, "정상이면 조용" 이 깨진다.
-                st, d = http("GET",
-                             f"{gl.api}/projects/{gl.project}/runners?type=project_type",
-                             gl.headers())
-                if st == 200 and isinstance(d, list):
-                    runners = d
-            except Exception:  # noqa: BLE001 — 못 물어봤으면 그냥 넘어간다
-                runners = None
-
-        srv = ec2_status.section(ec2_status.load(), runners=runners)
+        srv = ec2_status.section(ec2_status.load())
         if srv:
             blocks.append(srv)
     except Exception as e:  # noqa: BLE001 — 서버 판정 실패가 점검 전체를 막지 않는다

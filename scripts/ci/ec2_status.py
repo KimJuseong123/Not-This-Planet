@@ -190,32 +190,9 @@ def _num(v, default: float = 0.0) -> float:
         return default
 
 
-def runner_problems(runners: list[dict] | None) -> list[str]:
-    """GitLab 이 보는 러너 상태 (S15P21B202-458).
-
-    **호스트의 `systemctl is-active` 로는 부족하다.** 프로세스가 떠 있어도 GitLab 쪽에서
-    offline 인 경우가 있다 — 토큰이 막혔거나 네트워크가 끊겼을 때가 그렇다. 그러면 잡이
-    영원히 대기하는데, 지금은 `-130` 의 "검사가 돌지 않은 MR" 로 **몇 시간 뒤에야**
-    간접적으로 드러난다.
-
-    조회에 실패하면(None) 아무 말도 하지 않는다 — 토큰이 없는 실행에서 매일 울릴 이유가
-    없다. 서버가 나쁜 것과 우리가 못 본 것 중, 여기서는 **후자를 조용히 넘긴다**(호스트
-    쪽 상태 파일이 이미 못 읽음을 알려 주므로 둘 다 조용해지는 일은 없다).
-    """
-    if runners is None:
-        return []
-    offline = [r for r in runners if r.get("active") and not r.get("online")]
-    if not offline:
-        return []
-    names = ", ".join(f"`{r.get('description') or r.get('id')}`" for r in offline[:4])
-    return [f"🏃 **러너 {len(offline)}개가 GitLab 에서 offline 이다** — {names}. "
-            "잡이 대기만 하고 시작되지 않는다"]
-
-
-def section(data: dict | None, now: datetime | None = None,
-            runners: list[dict] | None = None) -> str:
+def section(data: dict | None, now: datetime | None = None) -> str:
     """카드에 붙일 절. 정상이면 **빈 문자열**이라 아무것도 안 붙는다."""
-    rows = problems(data, now) + runner_problems(runners)
+    rows = problems(data, now)
     if not rows:
         return ""
     head = f"**🖥 서버** ({len(rows)})"
