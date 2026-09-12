@@ -127,7 +127,7 @@ print("  링크 선택적 ✅")
 
 # ── 아침 점검의 배포 상태 ──────────────────────────────────
 def job(jid, status, sha, finished="2026-09-01T12:10:33.000Z"):
-    return {"id": jid, "name": "deploy-backend", "status": status,
+    return {"id": jid, "name": D.DEV_JOB, "status": status,
             "finished_at": finished, "web_url": f"https://lab/jobs/{jid}",
             "commit": {"short_id": sha, "id": sha + "0" * 33}}
 
@@ -198,7 +198,9 @@ print("  시각 변환 ✅")
 #    ci-tests 잡에도 MM_WEBHOOK_URL 이 있어서, 이 조건이 없으면 테스트가 팀 채널로 진짜 카드를 보낸다.
 import deploy_backend as B  # noqa: E402
 
-for jobname, expect_send in (("", False), ("ci-tests", False), ("mm-digest", False), ("deploy-backend", True)):
+for jobname, expect_send in (("", False), ("ci-tests", False), ("mm-digest", False),
+                            ("deploy-backend", False),   # 옛 이름 — -284 뒤로 없는 잡이다
+                            ("deploy-dev", True), ("deploy-prod", True)):
     sent.clear()
     if jobname:                              # 위의 job() 헬퍼를 덮지 않게 이름을 달리 둔다
         os.environ["CI_JOB_NAME"] = jobname

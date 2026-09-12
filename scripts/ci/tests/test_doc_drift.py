@@ -88,6 +88,35 @@ with tempfile.TemporaryDirectory() as td:
         os.chdir(here)
 print("  러너 태그 필터 · 미표시 이름만 지적 (임시 디렉터리) ✅")
 
+
+# ── 스크립트가 **잡 이름으로 무언가를 가르는 자리**는 실제 잡과 같아야 한다 (S15P21B202-464)
+#
+#     위 검사는 `docs/**` 만 본다. 그래서 `-284` 가 `deploy-backend` 를 둘로 가를 때
+#     **스크립트 쪽 상수 두 개가 옛 이름으로 남은 것**을 아무도 못 잡았다:
+#       · `mm_digest.DEV_JOB` — 아침 카드의 배포 줄이 **늘 "이력 없음"** 이었다
+#       · `deploy_backend.NOTIFY_JOBS` — 배포 성공·실패 카드가 **한 장도 안 나갔다**
+#     둘 다 "조용해진다" 는 모양이라 증상이 정상과 구별되지 않았다. 이름은 한 글자만
+#     달라도 조용히 꺼지므로 사람 눈이 아니라 이것이 지켜야 한다.
+_jobs = R.ci_jobs()
+import deploy_backend as _DB  # noqa: E402
+import mm_digest as _MD  # noqa: E402
+
+_names: list[tuple[str, str]] = []
+for _mod in (_MD, _DB):
+    for _attr in dir(_mod):
+        if not (_attr.endswith("_JOB") or _attr.endswith("_JOBS")):
+            continue
+        _val = getattr(_mod, _attr)
+        for _n in ((_val,) if isinstance(_val, str) else tuple(_val)):
+            _names.append((f"{_mod.__name__}.{_attr}", _n))
+
+assert _names, "잡 이름 상수를 하나도 못 찾았다 — 이 검사가 무의미해졌다"
+for _where, _name in _names:
+    assert _name in _jobs, (
+        f"{_where} 가 `{_name}` 인데 .gitlab-ci.yml 에 그런 잡이 없다 — "
+        "이름이 어긋나면 그 기능이 조용히 꺼진다")
+print(f"  잡 이름 상수 {len(_names)}개가 실제 잡과 같다 ✅")
+
 # ── 잡이 사라지면 반드시 걸린다. 이게 이 검사의 존재 이유다.
 gone = R.doc_job_drift(JOBS - {"mr-lint"})
 assert gone, "mr-lint 가 없어졌는데도 아무 것도 지적하지 않는다 — 검사가 죽어 있다"

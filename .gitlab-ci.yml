@@ -441,6 +441,11 @@ build-backend:            # 백엔드 **테스트 + jar** — MR 에서는 검�
     #
     # 비용은 릴리스마다 2분 30초 한 번이다. 버튼이 사라지는 것보다 싸다.
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
+    # **서버만 고쳐야 할 때** (S15P21B202-464). Run pipeline 에서 ref 를 `master` 로
+    # 두고 `DEPLOY_PROD=1` 을 주면 이 잡이 jar 을 만들고 `deploy-prod` 버튼이 생긴다.
+    # 이것이 없으면 `deploy-prod` 의 `needs` 가 없는 잡을 가리켜 **파이프라인 생성이
+    # 거절된다** — `-467` 이 `promote-builds` 에서 겪은 것과 같은 자리다.
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == "master" && $DEPLOY_PROD
     # 새벽 배포 스케줄에서도 돌아야 한다 — `deploy-dev` 가 이 잡의 jar 을 쓴다
     # (`needs: [build-backend]`). 아침 점검 스케줄에는 이 변수가 없어 생기지 않는다.
     - if: $CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_DEPLOY_DEV == "true"
@@ -569,6 +574,23 @@ deploy-prod:              # 릴리스 뒤 **사람이 눌러서** 배포 — 배
     # 언제 끊을지는 사람이 정한다.
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
       when: manual
+    # **서버만 고치는 길** (S15P21B202-464).
+    #
+    # `master` 머지는 **빌드 릴리스**이지 서버 배포가 아니다 — 이 버튼을 눌러야 배포
+    # 백엔드가 바뀐다. 그런데 그 버튼은 **릴리스 파이프라인에만** 있었다. 그래서 서버
+    # 코드만 고쳐야 할 때(설정 한 줄·보안 수정) **90분짜리 Unity 빌드를 다시 태우는 것
+    # 말고는 길이 없었다.**
+    #
+    # 이 규칙은 그 길을 연다: Pipelines → Run pipeline → ref `master` · `DEPLOY_PROD=1`.
+    # 그 파이프라인에서는 `release-windows` 가 돌지 않는다(아래 참고).
+    #
+    # **여전히 수동이다.** prod 재시작은 진행 중인 세션을 끊는다 — 여는 것은 "릴리스를
+    # 안 거쳐도 된다" 이지 "아무 때나 끊어도 된다" 가 아니다.
+    #
+    # master 는 보호 브랜치라 이 파이프라인을 돌릴 수 있는 사람도 거기에 머지할 수
+    # 있는 사람뿐이다. 권한이 한 겹 더 필요하지 않다.
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == "master" && $DEPLOY_PROD
+      when: manual
   script:
     # 스풀은 기본값(`/spool`)이다 — dev 와 달리 DEPLOY_SPOOL 을 주지 않는다.
     - python scripts/ci/deploy_backend.py
@@ -585,6 +607,11 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
   timeout: 90m
   interruptible: false
   rules:
+    # **서버만 배포하는 파이프라인에서는 돌지 않는다** (S15P21B202-464). `DEPLOY_PROD`
+    # 는 `deploy-prod` 하나만 쓰는 변수다. 이것이 없으면 서버 설정 한 줄을 고치는 데
+    # **90분짜리 Unity 빌드**가 딸려 돌고, 그러면 이 길을 낸 이유가 사라진다.
+    - if: $CI_PIPELINE_SOURCE == "web" && $DEPLOY_PROD
+      when: never
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
     # **리허설** (S15P21B202-407 ④). 트리거가 master push 하나뿐이라 시험 실행이 곧 실제
     # 릴리스였다 — 90분 잡을 미검증 상태로 처음 돌리게 된다. GitLab 의 "파이프라인 실행"

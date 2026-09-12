@@ -63,13 +63,24 @@ def staleness(sha: str, ref: str = "develop") -> tuple[int | None, list[str] | N
         behind = gl.behind_count(sha, ref)
         paths = gl.compare_paths(sha, ref)
     except Exception as e:  # noqa: BLE001 — 경고가 배포 판정을 바꾸면 안 된다
-        print(f"[warn] develop 비교 실패({type(e).__name__}: {e}) — 최신 여부를 판단하지 않는다")
+        print(f"[warn] {ref} 비교 실패({type(e).__name__}: {e}) — 최신 여부를 판단하지 않는다")
         return None, None
     drift = None if paths is None else [x for x in paths if x.startswith(BACKEND_PREFIX)]
     return behind, drift
 
 
-def stale_verdict(behind: int | None, drift: list[str] | None) -> tuple[str, str]:
+def deploy_ref() -> str:
+    """무엇과 비교할 것인가 (S15P21B202-464).
+
+    **`develop` 을 못 박으면 안 된다.** `deploy-prod` 는 `master` 파이프라인에서 도는데,
+    그 커밋을 `develop` 과 비교하면 릴리스 직후에도 "develop 보다 N커밋 뒤" 가 되어
+    **정상 배포에 매번 경고가 붙는다.** 경고가 늘 붙으면 아무도 안 읽는다.
+    """
+    return env("CI_COMMIT_BRANCH", "") or env("CI_COMMIT_REF_NAME", "") or "develop"
+
+
+def stale_verdict(behind: int | None, drift: list[str] | None,
+                  ref: str = "develop") -> tuple[str, str]:
     """`(종류, 사람이 읽을 한 줄)`. 순수 함수 — 판정이 한 곳에만 있게 한다.
 
     종류
@@ -84,18 +95,23 @@ def stale_verdict(behind: int | None, drift: list[str] | None) -> tuple[str, str
     `-309` 의 교훈과 같은 자리다: "확인 못 했다" 를 "이상 없다" 로 접으면 조용한 미탐이 된다.
     """
     if behind is None or drift is None:
-        return "unknown", ("develop 과 비교하지 못했다 — 최신 여부를 판단하지 않는다"
+        return "unknown", (f"{ref} 과 비교하지 못했다 — 최신 여부를 판단하지 않는다"
                            " (GITLAB_TOKEN 이 없거나 조회 실패)")
     if behind == 0:
-        return "tip", "develop 의 끝을 배포한다"
+        return "tip", f"{ref} 의 끝을 배포한다"
     if not drift:
-        return "same", (f"develop 보다 {behind}커밋 뒤처졌지만 그 사이 backend/ 변경이 없다"
+        return "same", (f"{ref} 보다 {behind}커밋 뒤처졌지만 그 사이 backend/ 변경이 없다"
                         " — 배포되는 백엔드는 같다")
-    return "warn", (f"최신이 아닌 커밋을 배포한다 — develop 보다 {behind}커밋 뒤 · "
+    return "warn", (f"최신이 아닌 커밋을 배포한다 — {ref} 보다 {behind}커밋 뒤 · "
                     f"그 사이 backend/ 변경 {len(drift)}개")
 
 
-NOTIFY_JOB = "deploy-backend"        # 이 이름의 잡에서만 알린다
+# **이름이 어긋나면 알림이 통째로 꺼진다** (S15P21B202-464). `-284` 가
+# `deploy-backend` 를 둘로 가를 때 이 상수가 옛 이름으로 남았고, 그 뒤로 배포
+# 성공·실패 카드가 **한 장도 나가지 않았다** — 알림이 안 오는 것은 "배포가 없었다"
+# 와 구별되지 않아 아무도 못 알아챘다. 2026-09-11 `deploy-dev` 실패 두 건이 그렇게
+# 조용히 지나갔다. 이름은 `.gitlab-ci.yml` 의 잡과 같아야 하고, 검사가 그것을 잠근다.
+NOTIFY_JOBS = ("deploy-dev", "deploy-prod")   # 이 이름의 잡에서만 알린다
 
 
 def announce(result: str, detail: str = "") -> None:
@@ -109,7 +125,7 @@ def announce(result: str, detail: str = "") -> None:
     채널로 보냈다. 사람이 손으로 돌리는 경우(로컬 확인)에도 팀에 "서버가 재시작됐다" 고 알리면
     거짓이다. 조건을 잡 이름으로 두면 두 경우가 함께 막힌다."""
     job = env("CI_JOB_NAME", "")
-    if job != NOTIFY_JOB:
+    if job not in NOTIFY_JOBS:
         print(f"[알림 생략] 배포 잡이 아니다(CI_JOB_NAME={job or '없음'}) — 보냈을 결과: {result} {detail}")
         return
     try:
@@ -198,8 +214,9 @@ def main(argv: list[str] | None = None) -> int:
 
     # 최신 여부를 **배포 전에** 알린다 (S15P21B202-333). 막지는 않는다 — 옛 커밋 배포는
     # 롤백이라는 정당한 용도가 있다. 다만 모르고 뒤로 가는 일이 없게 한다.
-    behind, drift = staleness(sha)
-    kind, line = stale_verdict(behind, drift)
+    ref = deploy_ref()
+    behind, drift = staleness(sha, ref)
+    kind, line = stale_verdict(behind, drift, ref)
     # **카드에도 싣는 것은 warn 과 unknown 둘 다다** (S15P21B202-338). 처음에는 warn 만 실었는데,
     # 그러면 카드만 보는 사람이 "최신 확인됨" 과 "확인 못 함" 을 구분할 수 없다 — 토큰이 만료되면
     # 검사가 조용히 꺼진 것과 같아진다. `-333` 이 막으려던 미탐이 카드 경로에 남아 있었다(!252 AI 리뷰).
