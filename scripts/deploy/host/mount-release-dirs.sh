@@ -74,7 +74,11 @@ elif grep -q "$BUILDS:$BUILDS_AT" "$RUNNER_CFG" && grep -q "$SITE:$SITE_AT" "$RU
   # 둘 다 있는 상태는 앞선 실행이 중간에 끊겼을 때 생긴다.
   echo "   이미 마운트돼 있음"
 else
-  python3 - "$RUNNER_CFG" "$BUILDS:$BUILDS_AT" "$SITE:$SITE_AT" <<'PY'
+  # **`if` 로 감싼다** (`!368` AI 리뷰). `set -e` 아래에서 그냥 실행하면 python 이
+  # 0 이 아닌 값으로 끝나는 순간 **스크립트가 거기서 죽어** `[3/3] 확인` 이 안 돈다.
+  # 그리고 `if [ $? -eq 0 ]` 은 그 경우 도달조차 못 하므로 늘 참이었다 —
+  # **"이미 있음"(바꾼 것 없음)에도 러너를 재시작했다.** 재시작은 도는 잡을 죽인다.
+  if python3 - "$RUNNER_CFG" "$BUILDS:$BUILDS_AT" "$SITE:$SITE_AT" <<'PY'
 import re
 import sys
 
@@ -123,7 +127,7 @@ if stale:
     print("   옛 마운트 제거: " + " · ".join(stale))
 if not add and not stale:
     print("   이미 있음")
-    sys.exit(0)
+    sys.exit(2)          # 2 = 바꾼 것이 없다. 호출부가 이 값을 보고 재시작을 건너뛴다
 
 items = [x.strip() for x in inner.split(",") if x.strip()] + add
 new_line = f'{indent}volumes = [' + ", ".join(items) + ']'
@@ -131,10 +135,18 @@ text = text[:s] + block.replace(m.group(0), new_line, 1) + text[e:]
 open(cfg, "w").write(text)
 print("   배포 러너 volumes 에 " + " · ".join(add) + " 추가")
 PY
-  if [ $? -eq 0 ]; then
+  then
+    # 설정을 실제로 바꿨다 → 러너가 새 마운트를 보려면 재시작해야 한다.
     # **도는 잡이 없을 때 돌려라.** 재시작은 진행 중인 잡을 죽인다.
     systemctl restart gitlab-runner
     echo "   러너 재시작"
+    sleep 2
+    systemctl is-active --quiet gitlab-runner \
+      || { echo "   ❌ 러너가 살아나지 않았다 — config.toml 을 확인하세요"; exit 1; }
+  else
+    rc=$?
+    # 2 = 바꾼 것이 없다. 그 밖의 값은 진짜 실패다.
+    [ "$rc" = "2" ] || { echo "   설정을 바꾸지 못했다 (종료 $rc)"; exit "$rc"; }
   fi
 fi
 
