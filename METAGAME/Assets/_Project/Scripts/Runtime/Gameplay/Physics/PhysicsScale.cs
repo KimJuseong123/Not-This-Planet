@@ -34,7 +34,7 @@ namespace Metagame.Gameplay
         public const float PartMass = 500f;
 
         /// <summary>
-        /// 파츠 밀도(kg/m³). 파츠 질량을 결정하는 <b>유일한 손잡이</b>다.
+        /// 파츠 밀도(kg/m³). 조립 상태의 파츠 질량을 결정한다.
         ///
         /// 질량을 파츠마다 손으로 적지 않는 이유는 두 가지다. 모델이 바뀌면 네 값을 따로
         /// 고쳐야 하고, 고치는 사이 서로의 비율이 슬그머니 어긋난다. 부피에 밀도를 곱하면
@@ -44,6 +44,12 @@ namespace Metagame.Gameplay
         /// 오도록 잡은 값이다. 기획서 용어로 <b>초기 테스트값</b>이며 플레이 테스트로 조정한다.
         /// </summary>
         public const float PartDensity = 70f;
+
+        /// <summary>
+        /// 고정못이 풀린 자유 파츠의 취급 질량 비율. 자체 부양으로 솔로 운반을 돕는다.
+        /// 조립·용접 상태로 넘어가면 원래 질량을 사용한다.
+        /// </summary>
+        public const float FreePartMassScale = 0.2f;
 
         /// <summary>
         /// 견인 중인 파츠에 적용하는 취급 질량.

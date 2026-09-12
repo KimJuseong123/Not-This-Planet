@@ -77,14 +77,14 @@ namespace Metagame.Gameplay.Tests
         // --- 표 (§13.2) ---------------------------------------------------
 
         /// <summary>
-        /// 표가 <b>선형이 아니다</b> — 1·2·3명은 0.4씩 오르는데 4명은 0.3만 오른다.
+        /// 솔로 속도는 0.6m/s이며 협동 인원별 속도는 비선형 표로 유지한다.
         /// 식으로 바꾸면 기획이 정한 값이 아니라 내가 정한 값이 된다.
         /// </summary>
         [Test]
         public void TheSpeedTableMatchesTheDesign()
         {
             Assert.AreEqual(0f, PartPushTable.SpeedFor(0), 1e-3f);
-            Assert.AreEqual(0.4f, PartPushTable.SpeedFor(1), 1e-3f);
+            Assert.AreEqual(0.6f, PartPushTable.SpeedFor(1), 1e-3f);
             Assert.AreEqual(0.8f, PartPushTable.SpeedFor(2), 1e-3f);
             Assert.AreEqual(1.2f, PartPushTable.SpeedFor(3), 1e-3f);
             Assert.AreEqual(1.5f, PartPushTable.SpeedFor(4), 1e-3f);

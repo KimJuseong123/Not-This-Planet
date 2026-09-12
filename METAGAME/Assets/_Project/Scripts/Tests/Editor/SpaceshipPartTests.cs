@@ -203,7 +203,7 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
-        public void RepresentationOf_IsLightOnlyWhileCarried()
+        public void RepresentationOf_UsesHandlingMassWhileFreeOrCarried()
         {
             foreach (PartState state in System.Enum.GetValues(typeof(PartState)))
             {
@@ -217,12 +217,36 @@ namespace Metagame.Gameplay.Tests
                 else
                 {
                     Assert.AreEqual(GameLayers.Part, layer);
-                    Assert.AreEqual(PhysicsScale.PartMass, mass, 0.001f);
+                    var expected = state == PartState.Free
+                        ? PhysicsScale.PartMass * PhysicsScale.FreePartMassScale
+                        : PhysicsScale.PartMass;
+                    Assert.AreEqual(expected, mass, 0.001f);
                 }
 
                 Assert.AreEqual(state == PartState.Locked, kinematic,
                     "kinematic 인 상태는 Locked 하나뿐이어야 한다.");
             }
+        }
+
+        [TestCase(406f)]
+        [TestCase(745f)]
+        public void FreePartUsesOneFifthMassAndRestoresItAfterAssembly(float fullMass)
+        {
+            var part = CreatePart();
+            part.SetPlacedMass(fullMass);
+            Assert.IsTrue(part.TryTransitionTo(PartState.Free));
+            var body = part.GetComponent<Rigidbody>();
+            Assert.AreEqual(fullMass * 0.2f, body.mass, 0.001f);
+
+            part.SetExtraMass(2f);
+            Assert.AreEqual(fullMass * 0.2f + 2f, body.mass, 0.001f);
+            part.RefreshRepresentation();
+            Assert.AreEqual(fullMass * 0.2f + 2f, body.mass, 0.001f);
+
+            Assert.IsTrue(part.TryTransitionTo(PartState.Carried));
+            Assert.AreEqual(PhysicsScale.CarriedPartMass, body.mass, 0.001f);
+            Assert.IsTrue(part.TryTransitionTo(PartState.Placed));
+            Assert.AreEqual(fullMass + 2f, body.mass, 0.001f);
         }
 
         // --- 헬퍼 ---
