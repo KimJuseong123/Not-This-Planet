@@ -223,8 +223,7 @@ namespace Metagame.Gameplay.Tests
 
             Assert.AreEqual(PhysicsScale.UnweldedBreakForce,
                 unwelded.GetComponent<FixedJoint>().breakForce, 1f);
-            Assert.AreEqual(PhysicsScale.WeldedBreakForce,
-                welded.GetComponent<FixedJoint>().breakForce, 1f);
+            Assert.IsTrue(float.IsPositiveInfinity(welded.GetComponent<FixedJoint>().breakForce));
 
             DropMeteorOnto(unwelded);
             DropMeteorOnto(welded);

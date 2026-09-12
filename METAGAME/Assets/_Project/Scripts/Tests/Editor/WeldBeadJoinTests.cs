@@ -79,6 +79,8 @@ namespace Metagame.Gameplay.Tests
             Assert.IsTrue(bead.HasLiveBridge);
             Assert.AreEqual(1, JointCount(part));
             Assert.IsNull(JointOf(part).connectedBody);
+            Assert.IsTrue(float.IsPositiveInfinity(JointOf(part).breakForce));
+            Assert.IsTrue(float.IsPositiveInfinity(JointOf(part).breakTorque));
             Assert.AreEqual(position, part.transform.position);
             Assert.IsNull(PartAssemblyLink.SocketLinkOf(part));
         }
@@ -243,7 +245,7 @@ namespace Metagame.Gameplay.Tests
         // --- 강도는 접촉 부피 ------------------------------------------------
 
         [Test]
-        public void ContactStrength_RaisesTheJointBreakForce()
+        public void ContactStrength_PreventsForceAndTorqueBreakage()
         {
             var (lower, upper) = SeparatedPair();
 
@@ -253,8 +255,48 @@ namespace Metagame.Gameplay.Tests
             Assert.Greater(bead.StrengthTo(upper), 0f, "닿았으면 강도가 있어야 한다.");
             Assert.AreEqual(bead.StrengthTo(upper), link.BeadWeldRatio, 1e-3f,
                 "비드가 잰 강도가 그대로 접합에 들어가야 한다.");
-            Assert.Greater(JointOf(lower).breakForce, PhysicsScale.UnweldedBreakForce,
-                "이은 비드가 있으면 미접합보다 튼튼해야 한다.");
+            Assert.Less(link.BeadWeldRatio, 1f, "부분 용접도 검증한다.");
+            Assert.IsTrue(float.IsPositiveInfinity(JointOf(lower).breakForce));
+            Assert.IsTrue(float.IsPositiveInfinity(JointOf(lower).breakTorque));
+        }
+
+        [Test]
+        public void PartialBeadWeld_SurvivesLargeForceAndTorque()
+        {
+            var (lower, upper) = SeparatedPair();
+            BridgeUp(lower);
+            var link = PartAssemblyLink.FindBetween(lower, upper);
+            Assert.Less(link.BeadWeldRatio, 1f);
+            lower.GetComponent<Rigidbody>().isKinematic = true;
+            var body = upper.GetComponent<Rigidbody>();
+            body.isKinematic = false;
+            var savedMode = UnityEngine.Physics.simulationMode;
+            try
+            {
+                UnityEngine.Physics.simulationMode = SimulationMode.Script;
+                for (var i = 0; i < 50; i++)
+                {
+                    body.AddForce(Vector3.right * PhysicsScale.WeldedBreakForce * 100f);
+                    body.AddTorque(Vector3.forward * PhysicsScale.WeldedBreakTorque * 100f);
+                    UnityEngine.Physics.Simulate(0.02f);
+                    Assert.IsTrue(link.IsIntact, "완전 용접 한계의 100배 하중에도 연결을 유지한다.");
+                }
+            }
+            finally { UnityEngine.Physics.simulationMode = savedMode; }
+        }
+
+        [Test]
+        public void AnotherJointBreaking_DoesNotReleaseALiveBeadWeld()
+        {
+            var (lower, upper) = SeparatedPair();
+            BridgeUp(lower);
+            var link = PartAssemblyLink.FindBetween(lower, upper);
+            var onJointBreak = typeof(PartAssemblyLink).GetMethod("OnJointBreak",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(onJointBreak);
+            onJointBreak.Invoke(link, new object[] { 100f });
+            Assert.IsTrue(link.IsIntact);
+            Assert.AreSame(link, PartAssemblyLink.FindBetween(lower, upper));
         }
 
         /// <summary>
@@ -319,7 +361,8 @@ namespace Metagame.Gameplay.Tests
 
             Assert.AreEqual(1f, bead.StrengthTo(upper), 1e-3f, "충분히 이으면 완전 강도여야 한다.");
             Assert.IsTrue(link.IsFullyWelded);
-            Assert.AreEqual(PhysicsScale.WeldedBreakForce, JointOf(lower).breakForce, 1f);
+            Assert.IsTrue(float.IsPositiveInfinity(JointOf(lower).breakForce));
+            Assert.IsTrue(float.IsPositiveInfinity(JointOf(lower).breakTorque));
         }
 
         /// <summary>
@@ -406,7 +449,14 @@ namespace Metagame.Gameplay.Tests
 
             var nozzle = NozzleForBridge(lower);
             var steps = Mathf.CeilToInt(FullChainSeconds * 3f / Step);
-            for (var i = 0; i < steps; i++) WeldBead.TryShrinkNear(nozzle, Step, out _);
+            for (var i = 0; i < steps; i++)
+            {
+                WeldBead.TryShrinkNear(nozzle, Step, out _);
+                var remaining = PartAssemblyLink.FindBetween(lower, upper);
+                if (remaining == null) continue;
+                Assert.IsTrue(float.IsPositiveInfinity(JointOf(lower).breakForce));
+                Assert.IsTrue(float.IsPositiveInfinity(JointOf(lower).breakTorque));
+            }
 
             Assert.IsNull(PartAssemblyLink.FindBetween(lower, upper),
                 "잇는 비드가 사라지면 접합이 풀려야 한다(기획 §16.3).");
@@ -431,6 +481,8 @@ namespace Metagame.Gameplay.Tests
 
             Assert.IsTrue(link.IsIntact, "소켓 접합은 남아야 한다.");
             Assert.AreEqual(0f, link.BeadWeldRatio, 1e-3f, "보강분만 사라져야 한다.");
+            Assert.AreEqual(PhysicsScale.UnweldedBreakForce, JointOf(upper).breakForce);
+            Assert.AreEqual(PhysicsScale.UnweldedBreakTorque, JointOf(upper).breakTorque);
             Assert.AreSame(link, PartAssemblyLink.FindBetween(lower, upper));
         }
 

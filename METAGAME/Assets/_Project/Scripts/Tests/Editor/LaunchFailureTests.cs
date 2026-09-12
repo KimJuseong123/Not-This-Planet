@@ -10,45 +10,9 @@ using UnityEngine.TestTools;
 namespace Metagame.Gameplay.Tests
 {
     /// <summary>
-    /// <b>잘못된 조립이 발사 시험에서 실패하는지</b> 검증한다(기획 §22.3 · §22.4,
-    /// S15P21B202-331).
-    ///
-    /// 기획이 판정 방식을 지정했다.
-    ///
-    /// <code>
-    /// §22.3  각 접합부는 실제 용접 길이와 비뚤어진 배치에서 생기는 하중을 받는다.
-    ///        같은 배치와 용접 상태에서는 항상 같은 결과가 나와야 하며 무작위 실패를
-    ///        사용하지 않는다.
-    /// §3.4   자동 배치와 정렬 점수는 제공하지 않는다.
-    /// </code>
-    ///
-    /// 그래서 점수를 매기지 않는다. <see cref="LaunchTest"/> 가 최하단에 추력을 주고
-    /// 물리가 판정하며, 접합 강도는 용접률에서 나온다.
-    ///
-    /// <code>
-    /// breakForce  = Lerp(UnweldedBreakForce,  WeldedBreakForce,  용접률)
-    /// breakTorque = Lerp(UnweldedBreakTorque, WeldedBreakTorque, 용접률)
-    /// </code>
-    ///
-    /// <b>측정 결과 실패는 이미 의도대로 일어난다.</b> 착수 전 산술 개산은 "용접률
-    /// 15% 만 넘으면 §15.2 안의 어떤 탑도 안 부서진다" 였는데 <b>틀렸다</b> —
-    /// <see cref="MeasureTheFailureBoundary"/> 가 실제 경계를 잰다. 그래서 상수를 돌리지
-    /// 않고, 지금 동작을 <b>어느 장치가 무엇을 걸러내는지</b>까지 잠근다.
-    ///
-    /// <code>
-    ///            0.0   0.2   0.4   0.6   0.8   ← 층당 오프셋(m)
-    ///    0.00      J     J     J     N     T
-    ///    0.15      J     O     J     N     T
-    ///    0.30      O     O     J     N     T
-    ///    1.00      O     O     J     N     T
-    ///
-    /// O=통과  J=발사 중 접합부 파손  N=카운트다운 미완료  T=탑승 불가
-    /// </code>
-    ///
-    /// <b>걸러내는 장치가 셋이고 플레이어가 보는 장면이 다르다.</b> 조금 비뚤거나 용접이
-    /// 부족하면 <b>발사 중에 부서지고</b>(J), 많이 비뚤면 <b>발사 전에 막힌다</b>(N·T).
-    /// 뒤쪽은 §22.3 "우주선이 자기 무게로 서 있는지 먼저 확인한다" 와 §15.1 이 그렇게
-    /// 정한 것이다.
+    /// 발사 하중과 배치 조건을 검증한다. §16.2 변경으로 연결 비드가 있으면
+    /// 부분 용접이나 비뚤어진 배치도 힘·토크로 파손되지 않는다.
+    /// 비드 없는 소켓의 하중 한계와 발사 전 조건은 별도로 검증한다.
     /// </summary>
     public sealed class LaunchFailureTests
     {
@@ -107,18 +71,17 @@ namespace Metagame.Gameplay.Tests
                 $"똑바로 완전 용접한 탑은 통과해야 한다. 사유: {result.Reason}");
         }
 
-        // --- 대충 용접하면 실패한다 -------------------------------------------
+        // --- 연결 비드가 있으면 하중으로 끊어지지 않는다 -----------------------
 
         /// <summary>
-        /// §22.3 "각 접합부는 <b>실제 용접 길이</b>에서 생기는 하중을 받는다".
-        /// 용접이 부족하면 하중을 못 버텨야 한다.
+        /// §16.2: 부분 용접도 비드가 연결되어 있으면 발사 하중을 버틴다.
         /// </summary>
         [Test]
-        public void ASloppilyWeldedTower_BreaksDuringTheLoadTest()
+        public void APartiallyWeldedTower_SurvivesTheLoadTest()
         {
             var result = Launch(offsetPerFloor: 0f, weldRatio: 0.15f);
 
-            AssertBrokeUnderLoad(result, "용접률 15% 로는 발사 하중을 버티면 안 된다.");
+            Assert.AreEqual(LaunchState.Ascending, result.State, result.Reason);
         }
 
         [Test]
@@ -132,19 +95,14 @@ namespace Metagame.Gameplay.Tests
         // --- 비뚤게 쌓으면 실패한다 -------------------------------------------
 
         /// <summary>
-        /// §22.3 "<b>비뚤어진 배치</b>에서 생기는 하중".
-        ///
-        /// <b>완전히 용접해도 부서진다.</b> 용접은 접합을 강하게 하지만 무게중심을
-        /// 축으로 되돌려 주지는 않는다 — 비뚤게 쌓은 것은 용접으로 만회할 수 없다.
-        /// 이것이 "자유 적층" 이 의미를 갖는 지점이다.
+        /// §16.2: 비뚤어진 배치의 토크도 연결 비드를 파손시키지 않는다.
         /// </summary>
         [Test]
-        public void ASlightlyOffsetTower_BreaksEvenWhenFullyWelded()
+        public void ASlightlyOffsetWeldedTower_SurvivesTheLoadTest()
         {
             var result = Launch(offsetPerFloor: 0.4f, weldRatio: 1f);
 
-            AssertBrokeUnderLoad(result,
-                "층당 0.4m 씩 어긋난 탑이 그대로 날아가면 자유 적층이 무의미하다.");
+            Assert.AreEqual(LaunchState.Ascending, result.State, result.Reason);
         }
 
         /// <summary>

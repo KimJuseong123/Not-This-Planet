@@ -916,10 +916,9 @@ namespace Metagame.Gameplay.Parts
                 _weldedPad = pad;
             }
             PadWeldRatio = Mathf.Clamp01(blobs / PhysicsScale.WeldBeadFullStrengthBlobs);
-            _padJoint.breakForce = Mathf.Lerp(PhysicsScale.UnweldedBreakForce,
-                PhysicsScale.WeldedBreakForce, PadWeldRatio);
-            _padJoint.breakTorque = Mathf.Lerp(PhysicsScale.UnweldedBreakTorque,
-                PhysicsScale.WeldedBreakTorque, PadWeldRatio);
+            // 파츠 사이 비드와 동일하게 절단으로 연결이 사라질 때만 해제한다.
+            _padJoint.breakForce = float.PositiveInfinity;
+            _padJoint.breakTorque = float.PositiveInfinity;
         }
 
         void ReleasePadWeld()
