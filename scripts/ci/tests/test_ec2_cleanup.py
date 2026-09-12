@@ -91,7 +91,7 @@ print("  검사가 -a·-af·--all 을 실제로 잡고, 안전한 것은 통과�
 #     아니므로 네 가지가 다 들어 있는지 본다.
 REQUIRED = [
     ("docker builder prune", "빌드 캐시 (2026-09-11 실측 1.94 GB)"),
-    ("docker image prune -f", "떠돌이 이미지 — 백엔드를 새로 빌드할 때마다 남는다"),
+    ("dangling=true", "떠돌이 이미지 — 백엔드를 새로 빌드할 때마다 남는다"),
     ("docker container prune", "끝난 컨테이너 — 러너가 잡마다 만들고 버린다"),
     (".zip", "릴리스 zip — 런처 저장소와 달리 아무도 회수하지 않았다"),
 ]
@@ -210,12 +210,24 @@ print("  기록이 알림(-458)과 정지된 유닛 결정을 담고 있다 ✅"
 #     `busy()` 는 **도커 컨테이너**로만 잡을 센다. 그 사이 `docker build` 가 남기는
 #     태그 없는 중간 층을 지우면 빌드가 깨지고, 되돌리려고 남겨 둔 직전 백엔드
 #     이미지도 같이 사라진다 — 배포가 잘못됐다는 걸 아는 데는 시간이 걸린다.
+#     **`docker image prune` 자체를 쓰지 않는다** (`!378` 리뷰). `--filter until=` 은
+#     이미지를 **만든 시각**을 보지 **태그를 잃은 시각**을 보지 않는다 — 몇 주 전에
+#     받은 Unity 이미지는 방금 태그를 잃어도 그 조건을 그냥 지나가 삭제된다.
 _cl = open("scripts/deploy/host/ec2-cleanup.sh", encoding="utf-8").read()
-_img = [ln for ln in _cl.splitlines() if "docker image prune" in ln and not ln.strip().startswith("#")]
-assert _img, "떠돌이 이미지 정리가 사라졌다"
-assert any("until=" in ln for ln in _img), \
-    "떠돌이 이미지를 시간 조건 없이 지운다 — 방금 만들어진 층까지 간다: " + str(_img)
+_live = [ln for ln in _cl.splitlines() if not ln.strip().startswith("#")]
+_img = [ln for ln in _live if "docker image prune" in ln]
+assert not _img, \
+    "`docker image prune` 으로 지운다 — until 은 만든 시각이라 태그를 잃은 Unity 이미지를 못 지킨다: " + str(_img)
+
+#     받아 온 이미지(RepoDigests 가 있는 것)는 남겨야 한다 — Unity 가 그것이다.
+assert "RepoDigests" in _cl, \
+    "받아 온 이미지와 우리가 만든 이미지를 가르지 않는다 — 태그를 잃은 Unity 이미지가 지워진다"
+assert "dangling=true" in _cl, "떠돌이 이미지 정리가 사라졌다"
 assert "DANGLING_HOURS" in _cl, "시간을 바꿀 자리가 없다"
-print("  떠돌이 이미지도 시간이 지난 것만 지운다 ✅")
+
+#     시간 조건도 남아 있어야 한다 — 도는 `docker build` 의 중간 층을 지우면 빌드가 깨진다.
+assert "docker image inspect" in _cl and "{{.Created}}" in _cl, \
+    "만든 시각을 보지 않는다 — 도는 빌드의 중간 층까지 지운다"
+print("  받아 온 이미지와 방금 만든 층을 남기고, prune 을 쓰지 않는다 ✅")
 
 print("== 통과 ==")

@@ -87,21 +87,57 @@ class RunLogStoreTest {
     }
 
     @Test
-    void theOrderOfTheChecksIsDiskThenGlobalThenUser(@TempDir Path dir) {
+    void theOrderOfTheChecksIsDiskThenUserThenGlobal(@TempDir Path dir) {
         // 디스크가 없으면 누가 보냈든 받으면 안 된다. 그래서 디스크가 먼저다.
-        // (여기서는 잴 수 있는 폴더라 통과한다 — 순서 자체는 아래 전역 상한으로 본다.)
+        // (여기서는 잴 수 있는 폴더라 통과한다 — 순서 자체는 아래 두 가지로 본다.)
         RunLogStore s = store(dir);
 
         // 이 검사만 호스트의 실제 여유 공간을 본다. 정말로 5 GB 밑이면 판정할 것이
         // 없으므로 건너뛴다 — 그때는 이 검사가 아니라 서버가 할 말이 있다.
         assumeTrue(s.hasDiskRoom(), "이 기계의 디스크 여유가 5 GB 밑이다");
 
+        // 전역이 찬 상태에서는 **사용자별 상한이 남아 있어도** 전역 사유로 거절한다.
         for (int i = 0; i < RunLogStore.MAX_GLOBAL_PER_HOUR; i++) {
             s.allowGlobal(1);
         }
-        // 전역이 찬 상태에서는 **사용자별 상한이 남아 있어도** 전역 사유로 거절한다.
         assertThat(s.admit(1L, 1))
                 .as("전역이 찼는데 사용자별 사유로 답한다 — 고칠 곳을 잘못 짚게 된다")
                 .isEqualTo(RunLogStore.Admission.GLOBAL_RATE);
+    }
+
+    @Test
+    void aUserOverTheirOwnLimitDoesNotBurnTheGlobalBudget(@TempDir Path dir) {
+        // **사용자별을 전역보다 먼저 본다** (`!378` 리뷰). 전역을 먼저 보면
+        // `allowGlobal` 이 세면서 소비하기 때문에, **어차피 거절될 요청이** 시간당
+        // 예산을 먼저 태운다 — 한 사람이 계속 보내는 것만으로 자기는 429 를 받으면서
+        // 다른 사람 전부를 막을 수 있다. 전역 상한이 막으려던 것과 정반대다.
+        RunLogStore s = store(dir);
+        assumeTrue(s.hasDiskRoom(), "이 기계의 디스크 여유가 5 GB 밑이다");
+
+        for (int i = 0; i < RunLogStore.MAX_PER_WINDOW; i++) {
+            assertThat(s.admit(7L, 1)).isEqualTo(RunLogStore.Admission.OK);
+        }
+        // 이 사람은 이제 막힌다.
+        for (int i = 0; i < 50; i++) {
+            assertThat(s.admit(7L, 1)).isEqualTo(RunLogStore.Admission.USER_RATE);
+        }
+
+        // **다른 사람은 그대로 받아야 한다.** 전역 예산이 위 50번에 타지 않았다면
+        // 여기가 통과한다.
+        for (int i = 0; i < RunLogStore.MAX_PER_WINDOW; i++) {
+            assertThat(s.admit(8L, 1))
+                    .as("한 사람의 거절된 요청이 전역 예산을 태웠다 (%d번째)", i)
+                    .isEqualTo(RunLogStore.Admission.OK);
+        }
+    }
+
+    @Test
+    void aNameRaceIsRetriedInsteadOfBecomingAServerError(@TempDir Path dir) {
+        // `freeName` 과 `Files.move` 사이에 다른 요청이 그 이름을 채울 수 있다.
+        // 덮어쓰면 먼저 받은 로그가 사라지고, 예외를 그냥 올리면 500 이 된다 —
+        // 둘 다 답이 아니라 **이름을 다시 고른다**(`!378` 리뷰).
+        assertThat(RunLogStore.MOVE_TRIES)
+                .as("경합에서 다시 시도하지 않는다 — 이름 충돌이 그대로 500 이 된다")
+                .isGreaterThan(1);
     }
 }

@@ -28,6 +28,7 @@ KEEP_ZIPS="${KEEP_ZIPS:-3}"            # 릴리스 zip 은 164 MB 짜리다. 3�
 BUILD_CACHE_HOURS="${BUILD_CACHE_HOURS:-168}"   # 7일
 CONTAINER_HOURS="${CONTAINER_HOURS:-24}"
 DANGLING_HOURS="${DANGLING_HOURS:-12}"  # 되돌릴 백엔드 이미지가 하루 일과 안에서는 살아 있게
+PROTECT_PULLED="${PROTECT_PULLED:-1}"   # 레지스트리에서 받은 떠돌이 이미지는 지우지 않는다
 
 say() { echo "[$(date -Is)] $*"; }
 # **실패를 삼키지 않는다.** 파이프(`| sed`)를 쓰면 셸은 `sed` 의 종료 코드를 보므로,
@@ -92,15 +93,50 @@ step "① 도커 빌드 캐시 (${BUILD_CACHE_HOURS}시간 넘은 것)" \
   docker builder prune -f --filter "until=${BUILD_CACHE_HOURS}h"
 
 # ── ② 떠돌이 이미지 ─────────────────────────────────────────────────────────
-# **`-a` 를 쓰지 않는다.** 그것 없이는 태그가 없는 것만 지운다 — 백엔드를 새로
-# 빌드할 때마다 옛 `metagame-backend:latest` 가 태그를 잃고 남는, 바로 그것이다.
+# 태그 없는 이미지만 본다 — 백엔드를 새로 빌드할 때마다 옛 `metagame-backend:latest`
+# 가 태그를 잃고 남는, 바로 그것이 대상이다.
 #
-# **시간 조건도 건다** (S15P21B202-467, `!375` 리뷰). `busy()` 는 도커 컨테이너로만
-# 잡을 세는데, 이미지를 만드는 쪽(`docker build`)은 그 사이에도 태그 없는 중간 층을
-# 남긴다. 그것을 지우면 빌드가 깨진다. 되돌리기 위해 남겨 둔 **직전 백엔드 이미지**도
-# 같은 이유로 몇 시간은 살아 있어야 한다 — 배포가 잘못됐다는 걸 아는 데 시간이 걸린다.
-step "② ${DANGLING_HOURS}시간 넘은 떠돌이 이미지" \
-  docker image prune -f --filter "until=${DANGLING_HOURS}h"
+# **`docker image prune` 을 그대로 쓰지 않는다** (S15P21B202-467, `!378` 리뷰).
+# `-a` 가 위험한 것은 이미 알고 있었는데, `-a` 없이 `--filter until=` 만 걸어도
+# 목적을 못 이룬다 — `until` 이 보는 것은 이미지를 **만든 시각**이지 **태그를 잃은
+# 시각**이 아니다. Unity 이미지는 몇 주 전에 받은 것이라, 새 에디터 버전을 받아
+# 방금 태그를 잃어도 그 조건을 그냥 지나간다. **이 스크립트가 지키려는 17.9 GB 가
+# 바로 그렇게 사라진다.**
+#
+# 그래서 하나씩 보고 **둘 중 하나면 남긴다**:
+#   ① 레지스트리에서 받은 것(`RepoDigests` 가 있다) — 태그를 잃은 Unity 이미지가 이것
+#   ② 만든 지 `DANGLING_HOURS` 가 안 된 것 — 도는 `docker build` 의 중간 층일 수 있다
+#
+# 남는 대상은 우리가 호스트에서 만든 옛 `metagame-backend` 뿐이고, 그것이 원래
+# 치우려던 것이다. 받아 온 이미지는 지워도 다시 받으면 되지만 Unity 는 7분이고
+# 셰이더 캐시까지 얽히면 릴리스가 40분 길어진다(-406 실측) — 남기는 쪽이 싸다.
+prune_dangling() {
+  local cutoff id digests created gone=0 kept=0
+  # 못 재면 `0` 이라 아래 비교가 늘 "방금 만든 것" 이 된다 = **아무것도 안 지운다.**
+  # 기울 곳이 있다면 남기는 쪽이다.
+  cutoff=$(date -d "-${DANGLING_HOURS} hours" +%s 2>/dev/null) || cutoff=0
+  for id in $(docker image ls --filter dangling=true --format '{{.ID}}' 2>/dev/null); do
+    if [ "$PROTECT_PULLED" = "1" ]; then
+      digests=$(docker image inspect "$id" -f '{{len .RepoDigests}}' 2>/dev/null || echo 1)
+      if [ "$digests" != "0" ]; then
+        kept=$((kept + 1)); continue
+      fi
+    fi
+    created=$(docker image inspect "$id" -f '{{.Created}}' 2>/dev/null)
+    created=$(date -d "$created" +%s 2>/dev/null || echo 0)
+    if [ "$created" -gt "$cutoff" ]; then
+      kept=$((kept + 1)); continue
+    fi
+    if docker image rm "$id" >/dev/null 2>&1; then
+      gone=$((gone + 1))
+    else
+      kept=$((kept + 1))   # 쓰는 중이면 도커가 거절한다 — 그것도 남기는 것이다
+    fi
+  done
+  echo "떠돌이 이미지: 지움 ${gone}개 · 남김 ${kept}개"
+}
+
+step "② 떠돌이 이미지 (받아 온 것과 ${DANGLING_HOURS}시간 안의 것은 남긴다)" prune_dangling
 
 # ── ③ 끝난 컨테이너 ─────────────────────────────────────────────────────────
 # 러너가 잡마다 만들고 버린다. 도는 것은 건드리지 않는다.

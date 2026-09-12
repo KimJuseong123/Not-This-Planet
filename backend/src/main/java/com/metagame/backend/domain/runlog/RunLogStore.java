@@ -2,6 +2,7 @@ package com.metagame.backend.domain.runlog;
 
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -64,6 +65,9 @@ public class RunLogStore {
      */
     public static final long MIN_FREE_BYTES = 5L * 1024 * 1024 * 1024;
 
+    /** 이름 경합이 났을 때 다시 고를 횟수. 이 이상이면 사람이 볼 만한 일이 벌어진 것이다. */
+    static final int MOVE_TRIES = 3;
+
     /** 왜 받지 않았는지. 컨트롤러가 이것으로 상태 코드를 고른다. */
     public enum Admission { OK, USER_RATE, GLOBAL_RATE, DISK_FULL }
 
@@ -111,12 +115,18 @@ public class RunLogStore {
      * 받을지 말지. {@link Admission#OK} 가 아니면 그 사유가 이유다.
      *
      * <p><b>순서가 뜻을 가진다.</b> 디스크를 먼저 본다 — 여유가 없으면 누가 보냈든
-     * 받으면 안 된다. 그다음 전역, 마지막이 사용자별이다.</p>
+     * 받으면 안 된다. 그다음 <b>사용자별</b>, 마지막이 전역이다.</p>
+     *
+     * <p><b>전역을 먼저 보면 안 된다</b> (`!378` 리뷰). {@link #allowGlobal} 은 세면서
+     * 소비한다. 전역을 먼저 보면 <b>사용자별 상한에 걸려 어차피 거절될 요청이</b>
+     * 시간당 200개 예산을 먼저 태운다 — 한 사람이 계속 보내는 것만으로 자기는 429 를
+     * 받으면서 <b>다른 사람 전부를 막을 수 있다.</b> 그러면 전역 상한이 막으려던 것과
+     * 정반대가 된다.</p>
      */
     public Admission admit(long userId, int bytes) {
         if (!hasDiskRoom()) return Admission.DISK_FULL;
-        if (!allowGlobal(bytes)) return Admission.GLOBAL_RATE;
         if (!allow(userId)) return Admission.USER_RATE;
+        if (!allowGlobal(bytes)) return Admission.GLOBAL_RATE;
         return Admission.OK;
     }
 
@@ -197,7 +207,7 @@ public class RunLogStore {
         // 초에 두 건을 올리고 클라이언트 이름이 비면(`token()=="none"`) 이름이 겹친다.
         // 예전에는 `REPLACE_EXISTING` 이라 **먼저 받은 로그가 조용히 사라졌다.**
         String name = freeName(dayDir, base);
-        Path target = dayDir.resolve(name);
+        Path target = dayDir.resolve(name);   // 아래 경합 재시도에서 다시 고를 수 있다
         Path tmp = dayDir.resolve(name + ".part");
 
         // 머리에 무엇으로 만든 빌드인지 적는다. 파일 하나만 열어도 알 수 있어야 한다.
@@ -212,9 +222,21 @@ public class RunLogStore {
         Files.write(tmp, head.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
         Files.write(tmp, body, java.nio.file.StandardOpenOption.APPEND);
         // 원자적으로 놓는다 — 반쯤 쓰인 파일을 사람이 열어 보면 안 된다.
-        // `REPLACE_EXISTING` 을 주지 않는다 — 위에서 빈 이름을 골랐고, 그 사이에 누가
-        // 채웠다면 덮어쓰는 것보다 실패하는 편이 낫다(클라이언트가 다음 실행에 다시 보낸다).
-        Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE);
+        // `REPLACE_EXISTING` 을 주지 않는다 — 그것이 **먼저 받은 로그를 지우던** 원인이다.
+        //
+        // 대신 **이름을 다시 골라 다시 시도한다** (`!378` 리뷰). `freeName` 과 이 줄
+        // 사이에 다른 요청이 그 이름을 채울 수 있는데, 그때 예외를 그냥 올리면
+        // 클라이언트가 500 을 받는다 — 덮어쓰기도 500 도 답이 아니다.
+        for (int attempt = 1; ; attempt++) {
+            try {
+                Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE);
+                break;
+            } catch (FileAlreadyExistsException e) {
+                if (attempt >= MOVE_TRIES) throw e;
+                name = freeName(dayDir, base);
+                target = dayDir.resolve(name);
+            }
+        }
         return name;
     }
 
