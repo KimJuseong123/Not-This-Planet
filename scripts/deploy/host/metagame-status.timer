@@ -1,0 +1,13 @@
+[Unit]
+Description=METAGAME EC2 상태를 5분마다 잰다 (S15P21B202-458)
+
+[Timer]
+# 아침 점검(09:30)은 이 파일을 읽기만 한다. 5분이면 그 시점 값이 늘 최신이고,
+# 잡이 "언제 잰 것인지" 를 보고 오래됐으면 그 사실을 말한다.
+OnBootSec=3min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Unit=metagame-status.service
+
+[Install]
+WantedBy=timers.target

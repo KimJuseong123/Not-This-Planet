@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 
 from urllib.parse import quote
 
+import ec2_status
 from ci_common import (PROJECT_KEY, GitLab, Jira, banner, completes_on_merge, env, http,
                        key_from_branch, load_team, role_member)
 
@@ -450,6 +451,39 @@ def main() -> int:
                           f"| 시도 | [잡 #{att.get('id')}]({att.get('web_url', '')}) · {kst(att.get('finished_at'))} |\n"
                           f"| 지금 서버 | {now_on} |\n"
                           f"| 볼 곳 | 잡 로그 · 호스트 `~/metagame/deploy/deploy.log` |")
+    # ── 서버 (S15P21B202-458) ────────────────────────────────────────────────
+    #
+    # 호스트가 5분마다 재 둔 것을 여기서 **직접 읽는다** — 모든 러너에 `/ec2-status`
+    # 로 읽기 전용 마운트돼 있다. 중간 잡을 두면 그 잡이 대기하는 동안 카드가 통째로
+    # 늦어져서(`allow_failure` 도 `timeout` 도 대기에는 안 듣는다) 그 구조를 버렸다.
+    # **정상이면 아무 줄도 붙지 않는다** — 이 카드의 규칙 그대로다.
+    #
+    # 파일이 아예 없으면(잡이 안 돌았거나 배포 러너가 꺼져 있으면) `ec2_status` 가
+    # 그것을 하나의 항목으로 만든다. **조용한 것과 못 읽은 것을 구별해야 한다.**
+    try:
+        # 러너는 **GitLab 이 보는 상태**를 따로 묻는다. 호스트의 `systemctl is-active` 는
+        # 프로세스가 떴는지만 말하고, 토큰이 막히거나 망이 끊기면 프로세스는 멀쩡한 채
+        # GitLab 쪽에서 offline 이 된다 — 그러면 잡이 영원히 대기한다.
+        runners = None
+        if gl.token and gl.project:
+            try:
+                # **`type=project_type` 로 좁힌다.** 기본값은 이 프로젝트가 쓸 수 있는
+                # 러너 전부라 **인스턴스 공용 러너까지 들어온다.** 남의 러너가 offline
+                # 이면 매일 아침 오탐 줄이 붙고, "정상이면 조용" 이 깨진다.
+                st, d = http("GET",
+                             f"{gl.api}/projects/{gl.project}/runners?type=project_type",
+                             gl.headers())
+                if st == 200 and isinstance(d, list):
+                    runners = d
+            except Exception:  # noqa: BLE001 — 못 물어봤으면 그냥 넘어간다
+                runners = None
+
+        srv = ec2_status.section(ec2_status.load(), runners=runners)
+        if srv:
+            blocks.append(srv)
+    except Exception as e:  # noqa: BLE001 — 서버 판정 실패가 점검 전체를 막지 않는다
+        blocks.append(f"**🖥 서버** — 판정 실패 → @{INFRA_MM} 확인: {type(e).__name__}: {e}")
+
     if not blocks:
         print("보낼 항목 없음"); return 0
     tail = deploy_line(dep) if (gl.token and gl.project) else ""
