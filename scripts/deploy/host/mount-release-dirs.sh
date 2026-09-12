@@ -67,7 +67,11 @@ ls -ld "$BUILDS" "$SITE"
 echo "[2/3] 배포 러너 volumes 에 추가"
 if [ ! -f "$RUNNER_CFG" ]; then
   echo "   러너 설정이 없다 → 건너뜀"
-elif grep -q "$BUILDS:$BUILDS_AT" "$RUNNER_CFG" && grep -q "$SITE:$SITE_AT" "$RUNNER_CFG"; then
+elif grep -q "$BUILDS:$BUILDS_AT" "$RUNNER_CFG" && grep -q "$SITE:$SITE_AT" "$RUNNER_CFG" \
+     && ! grep -qE "$BUILDS:/builds:|$SITE:/site:" "$RUNNER_CFG"; then
+  # **옛 마운트가 같이 남아 있으면 "이미 있음" 이 아니다** (S15P21B202-465 AI 리뷰).
+  # 새 경로만 보고 여기서 빠져나가면 옛 `:/builds:rw` 가 그대로 남아 **계속 샌다.**
+  # 둘 다 있는 상태는 앞선 실행이 중간에 끊겼을 때 생긴다.
   echo "   이미 마운트돼 있음"
 else
   python3 - "$RUNNER_CFG" "$BUILDS:$BUILDS_AT" "$SITE:$SITE_AT" <<'PY'

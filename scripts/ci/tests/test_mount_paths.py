@@ -19,6 +19,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 os.chdir(ROOT)
 
+NL = chr(10)
 MOUNT_SH = "scripts/deploy/host/mount-release-dirs.sh"
 NGINX = "scripts/deploy/server/nginx/metagame.conf"
 
@@ -33,9 +34,15 @@ print("== 마운트 경로 ==")
 #
 #     `/builds` 는 러너의 기본 `builds_dir` 이다. 거기에 공개 폴더를 물리면 잡이
 #     돌 때마다 저장소가 공개된다 — **이 이슈가 실제로 겪은 일이다.**
-for bad in (':/builds:rw"', ':/site:rw"'):
-    assert bad not in code or "stale" in code, \
-        f"컨테이너 경로가 러너가 쓰는 자리다: {bad}"
+#     **항상 참이 되는 단정을 쓰지 않는다.** 첫 판은
+#     `bad not in code or "stale" in code` 였는데 `"stale"` 이 늘 들어 있어
+#     **무엇을 넣어도 통과**했다(리뷰가 잡았다). 검사할 것은 "옛 경로를
+#     **마운트 대상으로** 쓰지 않는다" 이므로, 그 문자열이 나오는 자리가
+#     옛 마운트를 걷어 내는 줄뿐인지를 본다.
+for bad in (':/builds:rw', ':/site:rw'):
+    uses = [ln for ln in code.splitlines()
+            if bad in ln and "stale" not in ln and "endswith" not in ln]
+    assert not uses, f"컨테이너 경로가 러너가 쓰는 자리다: {bad}" + NL + NL.join(uses)
 
 m = re.search(r'BUILDS_AT="\$\{BUILDS_AT:-([^}]+)\}"', code)
 assert m, "BUILDS_AT 를 정하지 않는다"
@@ -89,17 +96,27 @@ print("  잡의 기본 경로가 마운트 자리와 같다 ✅")
 conf = open(NGINX, encoding="utf-8").read()
 allow = re.search(r"location ~ \^/builds/\(\?<artifact>([^)]+)\)\$", conf)
 assert allow, "nginx 에 여는 목록이 없다 — 폴더 전체가 그대로 나간다"
-for must in ("latest", "launcher", "manifest/", "files/", "zip"):
+#     **런처가 받는 것이 전부 들어 있어야 한다.** 하나라도 빠지면 그 경로가 404 가
+#     되어 런처가 멈춘다. `versions.json` 은 첫 판에서 빠져 있었다 — 개발 런처가
+#     그것을 받는다(`DevMode.cs`).
+for must in ("latest", "versions", "launcher", "manifest/", "files/", "zip"):
     assert must in allow.group(1), f"런처가 받는 {must} 가 여는 목록에 없다"
-print("  nginx 가 산출물 다섯 가지만 내보낸다 ✅")
+
+#     **접두 블록이 404 여야 여는 목록이 뜻을 갖는다.** 거기 `alias` 가 남아 있으면
+#     정규식에 안 걸린 요청이 그대로 서빙된다 — 첫 판이 그랬고 리뷰가 잡았다.
+prefix = conf.split("location /builds/ {", 1)[1].split("}", 1)[0]
+assert "return 404" in prefix, \
+    "접두 /builds/ 블록이 파일을 서빙한다 — 여는 목록이 아무것도 막지 못한다"
+assert "alias" not in prefix, "접두 블록에 alias 가 남아 있다"
+print("  nginx 가 산출물만 내보내고 나머지는 404 다 ✅")
 
 
 # ── ⑥ 목록은 꺼져 있어야 한다 ────────────────────────────────────────────
 #
 #     `autoindex on` 이 이 사고의 증폭기였다 — 주소를 몰라도 목록에서 눌러
 #     들어갈 수 있었다(49분간).
-builds_block = conf.split("location /builds/ {", 1)[1].split("}", 1)[0]
-assert "autoindex off" in builds_block, "목록이 켜져 있다 — 주소를 몰라도 훑을 수 있다"
-print("  목록이 꺼져 있다 ✅")
+#     목록(`autoindex`)은 접두 블록이 404 가 되면서 같이 사라진다 — 404 가 더 강하다.
+assert "autoindex on" not in conf, "어딘가에서 목록을 켜고 있다"
+print("  목록을 낼 자리가 없다 ✅")
 
 print("== 통과 ==")
