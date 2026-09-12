@@ -174,4 +174,66 @@ assert set(D.CARD_KINDS) == {"warn", "unknown"}, D.CARD_KINDS
 assert D.CARD_ICON["warn"] != D.CARD_ICON["unknown"], "두 종류가 같은 아이콘이면 구분하려던 뜻이 사라진다"
 print(f"  카드에 싣는 종류 = warn·unknown, 아이콘 구분 {D.CARD_ICON['warn']}/{D.CARD_ICON['unknown']} ✅")
 
+# ── 서버만 고치는 길이 실제로 만들어진다 (S15P21B202-464) ────────────────
+#
+#     `master` 머지는 빌드 릴리스이지 서버 배포가 아니다. 그런데 `deploy-prod` 버튼은
+#     **릴리스 파이프라인에만** 있어서, 서버 코드 한 줄을 고치려면 90분짜리 Unity
+#     빌드를 다시 태우는 것 말고 길이 없었다.
+_ci = open(".gitlab-ci.yml", encoding="utf-8").read()
+
+
+def _rules(job: str) -> list[str]:
+    """그 잡의 `rules:` 에서 **주석을 뺀** 줄만. 주석에 같은 말이 적혀 있다."""
+    blk = _ci.split(chr(10) + job + ":", 1)[1]
+    blk = blk.split(chr(10) + "  script:", 1)[0].split("  rules:", 1)[1]
+    out = []
+    for ln in blk.splitlines():
+        s = ln.strip()
+        if not s or s.startswith("#"):
+            continue
+        if not ln.startswith("    "):      # 다음 키(예: variables:)로 넘어갔다
+            break
+        out.append(s)
+    return out
+
+
+_dp = _rules("deploy-prod")
+assert any("$DEPLOY_PROD" in r for r in _dp), \
+    "deploy-prod 에 서버 전용 경로가 없다 — 서버만 고치려면 90분 빌드를 다시 태워야 한다: " + str(_dp)
+assert all(("when: manual" in r) or ("if:" in r) for r in _dp), \
+    "deploy-prod 에 수동이 아닌 규칙이 생겼다 — prod 재시작은 진행 중인 세션을 끊는다: " + str(_dp)
+
+#     `needs: [build-backend]` 라 그 잡도 같은 조건에서 생겨야 한다. 아니면 GitLab 이
+#     **파이프라인 생성 자체를 거절한다**(`-467` 이 promote-builds 에서 겪은 자리).
+_bb = _rules("build-backend")
+assert any("$DEPLOY_PROD" in r for r in _bb), \
+    "build-backend 가 서버 전용 파이프라인에서 안 생긴다 — deploy-prod 의 needs 가 없는 잡을 가리킨다"
+
+#     그리고 그 파이프라인에 90분짜리 Unity 빌드가 딸려 오면 길을 낸 이유가 사라진다.
+_rw = _rules("release-windows")
+_never = next(i for i, r in enumerate(_rw) if r == "when: never")
+assert "$DEPLOY_PROD" in _rw[_never - 1], \
+    "release-windows 가 서버 전용 파이프라인에서도 돈다 — 서버 한 줄 고치는 데 90분이 걸린다: " + str(_rw)
+print("  서버만 고치는 길이 만들어지고, 90분 빌드를 안 끌고 온다 ✅")
+
+
+# ── 비교 기준은 그 파이프라인의 브랜치다 (S15P21B202-464) ─────────────────
+#
+#     `develop` 을 못 박으면 `deploy-prod`(master) 가 릴리스 직후에도 "develop 보다
+#     N커밋 뒤" 로 읽혀 **정상 배포에 매번 경고가 붙는다.** 늘 붙는 경고는 안 읽힌다.
+_old = os.environ.get("CI_COMMIT_BRANCH")
+try:
+    os.environ["CI_COMMIT_BRANCH"] = "master"
+    assert D.deploy_ref() == "master", D.deploy_ref()
+    assert "master 의 끝" in D.stale_verdict(0, [], D.deploy_ref())[1]
+    os.environ.pop("CI_COMMIT_BRANCH", None)
+    os.environ.pop("CI_COMMIT_REF_NAME", None)
+    assert D.deploy_ref() == "develop", D.deploy_ref()
+finally:
+    if _old is None:
+        os.environ.pop("CI_COMMIT_BRANCH", None)
+    else:
+        os.environ["CI_COMMIT_BRANCH"] = _old
+print("  최신 여부를 그 파이프라인의 브랜치와 비교한다 ✅")
+
 print("TEST141 OK")

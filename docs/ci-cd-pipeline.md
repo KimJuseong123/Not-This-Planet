@@ -44,7 +44,7 @@
     │
     ▼
  develop push ────────────────▶ ④ develop 파이프라인 (§2-B)
-    │                              retarget-pipelines · unity-compile · build-backend ─▶ deploy-backend(▶ 수동)
+    │                              retarget-pipelines · unity-compile · build-backend ─▶ deploy-dev(▶ 수동)
     │                                                                                       │
     │                                                                        /spool 에 jar + RELEASE
     │                                                                                       ▼
@@ -135,6 +135,24 @@
 | `release-windows` | master push · `resource_group: unity` · 90분 | ① 버전 확정(머지 커밋의 `release/…-vX.Y.Z`, 없으면 hotfix PATCH+1, 그것도 없으면 빌드 전에 실패) ② GameCI windows-mono 이미지에서 `SpaceBuild.BuildWindows` ③ zip(`metagame-vX.Y.Z-날짜-시각.zip`) ④ **패키지 레지스트리** 업로드(잡 토큰 — 100MB 첨부 상한을 피한다) ⑤ GitLab Release + 태그(변경 목록 = 이전 태그 이후 develop 머지 MR) ⑥ MM 🟢(팀장) ⑦ 변수 있으면 Jira 릴리스 웹훅(-327) | 어느 단계에서 왜 인지 MM 🔴(Infra). 같은 버전 재실행은 멱등 |
 
 팀장이 하는 일은 릴리스 브랜치를 머지하는 것까지다 — [git-convention §8](./git-convention.md) · [records/-326](./records/S15P21B202-326-release-pipeline.md).
+
+#### master 머지는 **빌드 릴리스**이지 서버 배포가 아니다 (S15P21B202-464)
+
+릴리스가 났다고 **배포 서버(8080)의 백엔드는 바뀌지 않는다.** `deploy-prod` 는 수동 버튼이고,
+누르지 않으면 이전 jar 그대로다. 릴리스 뒤에 서버 코드가 관련된 것을 확인할 때는 이 줄을 먼저 본다.
+
+| 하고 싶은 것 | 어떻게 |
+| --- | --- |
+| 릴리스한 서버 코드를 올린다 | 릴리스 파이프라인의 **`deploy-prod` 를 누른다** |
+| 사용자 런처를 새 버전으로 보낸다 | 같은 파이프라인의 **`promote-builds` 를 누른다** (별개 버튼이다) |
+| **서버만** 고친다(설정 한 줄·보안 수정) | Pipelines → **Run pipeline** → ref `master` · `DEPLOY_PROD=1` → `deploy-prod` 를 누른다. 그 파이프라인에서는 `release-windows` 가 **돌지 않는다** — 90분을 기다릴 이유가 없다 |
+| 지금 서버에 무엇이 올라가 있는지 본다 | **아침 점검 카드의 🚀 두 줄** (개발·배포 각각). `-464` 전에는 잡 이름이 어긋나 늘 "이력 없음" 이었다 |
+
+**서버만 고치는 경우에도 코드는 `master` 에 있어야 한다** — `hotfix/` 브랜치를 master 에 머지한
+뒤 위 Run pipeline 을 돌린다. 릴리스를 건너뛰는 것이지 브랜치 규칙을 건너뛰는 것이 아니다.
+
+**`deploy-prod` 를 누른 뒤 MM 에 🟢/🔴 카드가 온다.** 안 오면 그것 자체가 신호다 —
+`-464` 전에는 알림 잡 이름도 어긋나 있어 **카드가 한 장도 나가지 않았다.**
 
 ---
 
@@ -257,7 +275,7 @@ UFW: 22 · 80 · 443 · 17777/udp · 17778/udp · 17779/tcp(172.16.0.0/12 만). 
 | compose 프로젝트 | `metagame` | `metagame-dev` |
 | MySQL 볼륨 | `mysql-data` | `mysql-dev-data` |
 | 스풀 | `/spool` | `/spool-dev` |
-| 배포 잡 | `deploy-prod` (master, 수동) | `deploy-dev` (develop, 자동) |
+| 배포 잡 | `deploy-prod` (master, **수동**) | `deploy-dev` (develop, **수동** — 자동은 새벽 스케줄뿐, -455) |
 
 `proxy_pass http://127.0.0.1:8081/` 의 **끝 슬래시를 빼면** `/dev/auth/guest` 를 그대로 넘겨 404 가 되고, 원인이 눈에 보이지 않는다.
 

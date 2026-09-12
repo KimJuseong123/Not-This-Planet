@@ -213,9 +213,26 @@ def unchecked_mrs(gl: GitLab, now: datetime) -> list[str]:
     return rows
 
 
-# ── 배포 상태 (S15P21B202-144) ────────────────────────────────
-DEPLOY_JOB = "deploy-backend"
-DEPLOY_SCAN_PIPELINES = 20      # develop 파이프라인 몇 건까지 거슬러 볼지
+# ── 배포 상태 (S15P21B202-144 · -464) ────────────────────────────────
+#
+# **이름이 어긋나면 이 줄은 조용히 거짓말을 한다** (S15P21B202-464). `-284` 가
+# `deploy-backend` 를 `deploy-dev`·`deploy-prod` 로 가를 때 이 상수가 옛 이름으로
+# 남았다. 그 뒤로 아침 카드의 배포 줄은 **늘 "CI 로 올린 이력 없음"** 이었다 —
+# 2026-09-12 실측: develop 파이프라인 30건에 `deploy-backend` 는 하나도 없고
+# `deploy-dev` 만 5건 있다. 아무도 못 알아챈 이유는 그 문구가 **있을 수 있는 답**
+# 이기 때문이다. 그래서 이름·ref·라벨을 한 자리에 묶어 둔다.
+DEV_JOB = "deploy-dev"
+PROD_JOB = "deploy-prod"
+
+# (라벨, 잡 이름, ref, 이력이 없을 때 덧붙일 말)
+DEPLOY_ENVS = (
+    ("개발", DEV_JOB, "develop",
+     "머지는 버튼만 만듭니다 — 새벽 스케줄이나 사람이 눌러야 바뀝니다"),
+    ("배포", PROD_JOB, "master",
+     "**릴리스는 빌드까지입니다** — `master` 파이프라인의 `deploy-prod` 를 눌러야 서버가 바뀝니다"),
+)
+
+DEPLOY_SCAN_PIPELINES = 20      # 파이프라인 몇 건까지 거슬러 볼지
 
 
 KST = timezone(timedelta(hours=9))
@@ -272,8 +289,9 @@ def test_health(gl: GitLab) -> str | None:
             f"[{TEST_JOB} 로그]({where}) 를 보고 오늘 안에 고쳐 주세요.")
 
 
-def deploy_jobs(gl: GitLab, ref: str = "develop", max_pipelines: int = DEPLOY_SCAN_PIPELINES) -> tuple[list[dict], bool]:
-    """develop 파이프라인을 최신부터 훑어 배포 잡을 모은다(최신 우선). 반환 (잡 목록, 전량 확인 여부).
+def deploy_jobs(gl: GitLab, ref: str = "develop", job_name: str = DEV_JOB,
+                max_pipelines: int = DEPLOY_SCAN_PIPELINES) -> tuple[list[dict], bool]:
+    """그 ref 의 파이프라인을 최신부터 훑어 배포 잡을 모은다(최신 우선). 반환 (잡 목록, 전량 확인 여부).
 
     프로젝트 전체 잡 목록으로 찾지 않는 이유는 그 API 가 **이름으로 걸러 주지 않아서**다
     (ci_common.pipeline_jobs 주석 참고). 배포 잡은 `changes: backend/**` 일 때만 만들어지므로
@@ -281,19 +299,19 @@ def deploy_jobs(gl: GitLab, ref: str = "develop", max_pipelines: int = DEPLOY_SC
     pipes = gl.branch_pipelines(ref, per_page=max_pipelines)
     found: list[dict] = []
     for p in pipes:
-        same = [j for j in gl.pipeline_jobs(p.get("id")) if j.get("name") == DEPLOY_JOB]
+        same = [j for j in gl.pipeline_jobs(p.get("id")) if j.get("name") == job_name]
         if same:
             found.append(max(same, key=lambda j: j.get("id") or 0))   # 재시도가 있으면 마지막 것
     # 파이프라인이 상한보다 적게 왔으면 그것이 전부다 = 배포 이력을 다 봤다
     return found, len(pipes) < max_pipelines
 
 
-def deploy_state(gl: GitLab, ref: str = "develop") -> dict:
+def deploy_state(gl: GitLab, ref: str = "develop", job_name: str = DEV_JOB) -> dict:
     """{'live': 성공 잡|None, 'attempt': 마지막 시도 잡|None, 'pending': 눌리지 않은 배포 수, 'complete': bool}
 
     `live` 와 `attempt` 를 따로 두는 이유 — 마지막 시도가 실패했어도 **서버는 그 전 성공분으로 돌고 있다.**
     둘을 섞으면 실패한 커밋이 배포된 것처럼 읽힌다."""
-    jobs, complete = deploy_jobs(gl, ref)
+    jobs, complete = deploy_jobs(gl, ref, job_name)
     live = next((j for j in jobs if j.get("status") == "success"), None)
     # 시작조차 안 한 canceled 는 배포 시도가 아니다. GitLab 이 같은 ref 의 새 파이프라인을 만들 때
     # 이전 파이프라인의 대기 잡을 자동 취소하는데(09-03 09:52 실측: 177699 의 잡이 177702 생성
@@ -327,20 +345,26 @@ def backend_drift(gl: GitLab, live: dict | None, ref: str = "develop") -> list[s
     return [p for p in paths if p.startswith("backend/")]
 
 
-def deploy_line(st: dict) -> str:
-    """아침 점검 꼬리에 붙는 한 줄. 조치할 것이 없어도 나온다 — '지금 뭐가 올라가 있나' 는 항상 궁금하다."""
+def deploy_line(st: dict, label: str = "배포", hint: str = "") -> str:
+    """아침 점검 꼬리에 붙는 한 줄. 조치할 것이 없어도 나온다 — '지금 뭐가 올라가 있나' 는 항상 궁금하다.
+
+    **어느 서버인지 적는다** (S15P21B202-464). 개발(8081)과 배포(8080)는 서로 다른 jar
+    로 돌고, 릴리스가 났다고 배포 서버가 바뀌지 않는다 — 그 둘을 한 줄로 뭉쳐 두면
+    "릴리스했으니 서버도 새것" 으로 읽힌다."""
     live, pending = st["live"], st["pending"]
     if not live:
-        head = "🚀 배포: **CI 로 올린 이력 없음**" + ("" if st["complete"] else f" (최근 파이프라인 {DEPLOY_SCAN_PIPELINES}건 안에서)")
+        head = f"🚀 {label} 서버: **CI 로 올린 이력 없음**" + ("" if st["complete"] else f" (최근 파이프라인 {DEPLOY_SCAN_PIPELINES}건 안에서)")
+        if hint:
+            head += f" — {hint}"
     else:
         sha = (live.get("commit") or {}).get("short_id") or (live.get("commit") or {}).get("id", "")[:8] or "?"
-        head = f"🚀 배포: `{sha}` ({kst(live.get('finished_at'))})"
+        head = f"🚀 {label} 서버: `{sha}` ({kst(live.get('finished_at'))})"
     if pending:
         head += f" · 백엔드 변경 **{pending}건 배포 대기**(수동 잡을 눌러야 올라갑니다)"
     elif st.get("drift"):
         # 눌릴 잡이 없는데 코드가 다르다 = 배포 잡이 사라진 것이다. 이쪽이 훨씬 위험하다 —
         # 대기 잡은 보이지만 없는 잡은 안 보인다.
-        head += (f" · ⚠ **배포 대기 잡이 없는데 develop 의 backend 가 배포본과 다릅니다**"
+        head += (f" · ⚠ **배포 대기 잡이 없는데 소스의 backend 가 배포본과 다릅니다**"
                  f"(파일 {len(st['drift'])}개) — 배포 잡이 만들어지지 않은 것입니다"
                  f" → @{INFRA_MM} 확인")
     return head
@@ -435,22 +459,30 @@ def main() -> int:
                               f"대상이 develop 이 아니라 다른 이슈 브랜치여서 자동 완료(R6)가 걸리지 않습니다. "
                               f"**부모가 이미 develop 에 들어갔으니** 담당자가 완료로 옮기면 됩니다(`⁇` 는 확인 실패 — 눈으로 보세요)\n\n"
                               f"| 이슈 | 상태 | MR | 머지 대상 | 담당 |\n|---|---|---|---|---|\n" + "\n".join(stacks) + (note if not rows else ""))
-    dep = {"live": None, "attempt": None, "pending": 0, "complete": True}
+    # **개발과 배포를 따로 본다** (S15P21B202-464). 둘은 서로 다른 jar 로 돌고,
+    # 릴리스가 났다고 배포 서버가 바뀌지 않는다 — `deploy-prod` 는 사람이 누른다.
+    # 한 줄로 뭉쳐 두면 "릴리스했으니 서버도 새것" 으로 읽힌다.
+    tails: list[str] = []
     if gl.token and gl.project:
-        try:
-            dep = deploy_state(gl)
-        except Exception as e:  # noqa: BLE001 — 배포 조회 실패가 점검 전체를 막지 않는다
-            blocks.append(f"**🚀 배포 상태** — 조회 실패 → @{INFRA_MM} 확인: {type(e).__name__}: {e}")
-        att = dep["attempt"]
-        if att and att.get("status") in ("failed", "canceled"):
-            # 마지막 시도가 깨진 채로 남아 있다 = 아무도 뒤처리를 안 했다. 이건 조치 항목이다.
-            live = dep["live"]
-            now_on = f"`{(live.get('commit') or {}).get('short_id', '?')}` ({kst(live.get('finished_at'))})" if live else "**확인 필요**"
-            blocks.append(f"**🚀 마지막 배포 시도가 {'취소' if att.get('status') == 'canceled' else '실패'}로 남아 있습니다** → @{INFRA_MM}\n\n"
-                          f"| 항목 | 내용 |\n|---|---|\n"
-                          f"| 시도 | [잡 #{att.get('id')}]({att.get('web_url', '')}) · {kst(att.get('finished_at'))} |\n"
-                          f"| 지금 서버 | {now_on} |\n"
-                          f"| 볼 곳 | 잡 로그 · 호스트 `~/metagame/deploy/deploy.log` |")
+        for label, job_name, ref, hint in DEPLOY_ENVS:
+            dep = {"live": None, "attempt": None, "pending": 0, "complete": True, "drift": None}
+            try:
+                dep = deploy_state(gl, ref, job_name)
+            except Exception as e:  # noqa: BLE001 — 배포 조회 실패가 점검 전체를 막지 않는다
+                blocks.append(f"**🚀 {label} 배포 상태** — 조회 실패 → @{INFRA_MM} 확인: {type(e).__name__}: {e}")
+                continue
+            tails.append(deploy_line(dep, label, hint))
+            att = dep["attempt"]
+            if att and att.get("status") in ("failed", "canceled"):
+                # 마지막 시도가 깨진 채로 남아 있다 = 아무도 뒤처리를 안 했다. 이건 조치 항목이다.
+                live = dep["live"]
+                now_on = f"`{(live.get('commit') or {}).get('short_id', '?')}` ({kst(live.get('finished_at'))})" if live else "**확인 필요**"
+                spool = "~/metagame/deploy/deploy.log" if job_name == PROD_JOB else "~/metagame-dev/deploy/deploy.log"
+                blocks.append(f"**🚀 {label} 서버의 마지막 배포 시도가 {'취소' if att.get('status') == 'canceled' else '실패'}로 남아 있습니다** → @{INFRA_MM}\n\n"
+                              f"| 항목 | 내용 |\n|---|---|\n"
+                              f"| 시도 | [잡 #{att.get('id')}]({att.get('web_url', '')}) · {kst(att.get('finished_at'))} |\n"
+                              f"| 지금 서버 | {now_on} |\n"
+                              f"| 볼 곳 | 잡 로그 · 호스트 `{spool}` |")
     # ── 서버 (S15P21B202-458) ────────────────────────────────────────────────
     #
     # 호스트가 5분마다 재 둔 것을 여기서 **직접 읽는다** — 모든 러너에 `/ec2-status`
@@ -477,7 +509,7 @@ def main() -> int:
 
     if not blocks:
         print("보낼 항목 없음"); return 0
-    tail = deploy_line(dep) if (gl.token and gl.project) else ""
+    tail = "\n".join(t for t in tails if t)
     text = f"📋 **아침 점검 — 확인 필요** ({now_kst()})\n" + "\n\n".join(blocks) + \
            (f"\n\n{tail}" if tail else "") + \
            f"\n\n_각 항목의 @담당자가 처리 · 항목 설명: docs/ci-cd-pipeline.md §6 · 자동 생성(mm-digest)_"

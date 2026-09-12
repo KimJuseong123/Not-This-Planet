@@ -88,7 +88,7 @@ PIPES, JOBS = [], {}
 
 
 def job(jid, status, sha, started="2026-09-03T00:52:01.000Z", finished="2026-09-03T00:53:06.000Z"):
-    return {"id": jid, "name": "deploy-backend", "status": status, "started_at": started,
+    return {"id": jid, "name": D.DEV_JOB, "status": status, "started_at": started,
             "finished_at": finished, "web_url": f"https://lab/jobs/{jid}",
             "commit": {"short_id": sha, "id": sha + "0" * 33}}
 
