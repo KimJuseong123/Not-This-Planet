@@ -62,6 +62,11 @@ RELEASE_RE = re.compile(rf"release/{PROJECT_KEY}-\d+-v(\d+\.\d+\.\d+)")
 #
 # **만들 때는 항상 `v` 를 붙인다**(`bump_patch`·`parse_version`). 두 형식이 섞여 있으면
 # 다음 사람이 또 헷갈리므로, 새로 나가는 것은 하나로 모은다.
+#
+# **고를 때는 `v` 가 이긴다** (S15P21B202-446). 읽기를 넓힌 탓에 시험용으로 만들어 둔
+# `1.0.1`(산출물 0개)이 `v1.0.0` 보다 최신으로 잡혀, 첫 핫픽스가 `v1.0.1` 을 건너뛰고
+# `v1.0.2` 가 되는 문제가 있었다. `latest_tag` 가 `v` 쪽을 먼저 보되, `v` 태그가
+# 하나도 없으면 넓게 읽는 폴백을 남긴다 — 그것이 `-407` 이 막은 길이다.
 TAG_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
 MERGE_RE = re.compile(r"^Merge branch '([^']+)' into '([^']+)'")
 MR_REF_RE = re.compile(r"See merge request [^!\s]*!(\d+)")
@@ -108,8 +113,65 @@ def parse_tag(tag: str) -> tuple[int, int, int] | None:
 
 
 def latest_tag(tags: list[str]) -> str | None:
-    parsed = sorted((parse_tag(t), t) for t in tags if parse_tag(t))
+    """가장 높은 버전 태그. **`v` 붙은 것이 있으면 그 안에서만 고른다** (S15P21B202-446).
+
+    `-407` 이 읽기를 넓힌 이유는 그대로 유효하다 — `v` 태그가 하나도 없는 상태에서
+    핫픽스를 먼저 하면 버전을 정할 수 없어 조용히 막힌다. **그래서 폴백은 남긴다.**
+
+    다만 **섞여 있을 때는 `v` 쪽이 이긴다.** 우리가 내보내는 태그에는 늘 `v` 가
+    붙으므로(`bump_patch`), `v` 없는 것은 사람이 손으로 만든 자리표시자다. 실제로
+    저장소의 `1.0.1` 은 2026-09-09 에 시험용으로 만든 것이고 담긴 산출물이 0개다.
+    그것이 최신으로 잡히면 `v1.0.0` 다음 핫픽스가 **`v1.0.1` 을 건너뛰고 `v1.0.2`**
+    가 된다 — 받는 사람은 없어진 버전을 찾게 된다.
+
+    이 규칙은 **옛 태그를 지우지 않아도** 성립한다. 지우는 것은 되돌릴 수 없고
+    Maintainer 권한이 필요하므로, 코드가 스스로를 지키게 둔다.
+    """
+    prefixed = [t for t in tags if t.strip().startswith("v") and parse_tag(t)]
+    pool = prefixed or [t for t in tags if parse_tag(t)]
+    parsed = sorted((parse_tag(t), t) for t in pool)
     return parsed[-1][1] if parsed else None
+
+
+def tag_taken(version: str, tags: list[str], points_here=None) -> bool:
+    """그 이름이 이미 **다른 커밋**에 쓰였는가 (S15P21B202-446).
+
+    `v` 유무를 무시하지 **않는다.** 무시하면 손으로 만든 `1.0.1`(산출물 0개)이
+    `v1.0.1` 을 막아, 이 이슈가 고치려던 것보다 나쁜 상태가 된다 — 버전을 건너뛰는
+    대신 릴리스가 아예 멈춘다. 기술적으로도 `1.0.1` 과 `v1.0.1` 은 다른 이름이라
+    충돌하지 않는다.
+
+    <b>같은 커밋을 가리키면 막지 않는다.</b> 그것은 **이번 릴리스의 재시도**이고,
+    재시도는 원래 되어야 한다 — `ensure_release` 가 GET 먼저 하고 있으면 갱신하는
+    멱등 구조인 것이 그 때문이다. 실제로 2026-09-11 v1.0.0 에서 Release·MM 까지
+    다 끝난 뒤 마지막 한 줄이 터져 58분짜리 잡이 빨개졌고, 그때 다시 돌려야 했다.
+    여기서 막으면 **그 길이 닫힌다.**
+
+    막으려는 것은 **이미 쓴 버전 번호를 다른 커밋에 또 붙이는 것**뿐이다.
+    """
+    want = parse_tag(version)
+    if want is None:
+        return False
+    name = f"v{want[0]}.{want[1]}.{want[2]}"
+    if name not in {(t or "").strip() for t in tags}:
+        return False
+    if points_here is not None and points_here(name):
+        return False           # 같은 커밋 — 이번 릴리스의 재시도다
+    return True
+
+
+def tag_sha(tag: str) -> str:
+    """태그가 가리키는 커밋. 못 읽으면 빈 문자열 — 그때는 막는 쪽으로 기운다.
+
+    **왜 그것을 찍는가.** 못 읽으면 "다른 커밋" 과 구별되지 않아 재시도 경로가
+    조용히 닫힌다. 로그에 이유가 있어야 사람이 `git fetch --tags` 가 빠졌는지
+    태그가 정말 다른 곳에 있는지 가를 수 있다.
+    """
+    try:
+        return git("rev-list", "-n", "1", tag).strip()
+    except RuntimeError as e:
+        print(f"   ⚠️ 태그 {tag} 의 커밋을 읽지 못했다 — 재시도로 보지 않는다: {e}")
+        return ""
 
 
 def bump_patch(tag: str) -> str:
@@ -117,16 +179,36 @@ def bump_patch(tag: str) -> str:
     return f"v{a}.{b}.{c + 1}"
 
 
-def decide_version(message: str, tags: list[str]) -> tuple[str | None, str]:
+def decide_version(message: str, tags: list[str], points_here=None) -> tuple[str | None, str]:
     """(버전, 이유). 릴리스 브랜치 머지 → 그 버전. hotfix 머지 → 마지막 태그 PATCH+1. 그 외 → None."""
     v = parse_version(message)
     if v:
+        # **이미 있는 버전을 다시 내보내지 않는다** (S15P21B202-446). 같은 릴리스
+        # 브랜치가 두 번 머지되면(되돌림·재머지) 여기까지 와서 태그를 만들다 실패하는데,
+        # 그 실패는 90분짜리 빌드가 **다 끝난 뒤**에 난다. 앞에서 분명하게 멈춘다.
+        #
+        # **재시도는 어느 단계에서 깨졌든 그대로 된다.** 태그가 없으면(빌드가 깨진
+        # 경우) 여기를 그냥 지나가고, 태그가 있어도 **그것이 이 커밋을 가리키면**
+        # 재시도로 보고 통과시킨다. `ensure_release` 가 GET 먼저 하고 있으면 갱신하는
+        # 멱등 구조라 그 뒤도 안전하다 — 2026-09-11 에 실제로 그 길로 되살렸다.
+        #
+        # 여기서 멈추는 것은 **이미 쓴 번호를 다른 커밋에 또 붙이려는 때**뿐이다.
+        if tag_taken(v, tags, points_here):
+            return None, (f"릴리스 브랜치가 {v} 를 가리키는데 그 버전의 태그가 **다른 커밋**에 "
+                          "이미 붙어 있다(또는 그 태그의 커밋을 읽지 못했다 — 위 경고를 보세요). "
+                          "같은 번호를 두 번 쓸 수 없다. 릴리스 브랜치 이름의 버전을 올리거나, "
+                          "잘못 만들어진 태그라면 그것부터 정리하세요. "
+                          "같은 커밋이면 재시도로 보고 그냥 진행한다")
         return v, "릴리스 브랜치 이름의 버전"
     if "hotfix/" in (message or ""):
         last = latest_tag(tags)
-        if last:
-            return bump_patch(last), f"hotfix 머지 — 마지막 태그 {last} 의 PATCH+1"
-        return None, "hotfix 머지인데 이전 태그가 없어 버전을 정할 수 없다"
+        if not last:
+            return None, "hotfix 머지인데 이전 태그가 없어 버전을 정할 수 없다"
+        nxt = bump_patch(last)
+        if tag_taken(nxt, tags, points_here):
+            return None, (f"hotfix 머지 — 마지막 태그가 {last} 라 다음은 {nxt} 인데 그 버전이 이미 있다. "
+                          "태그가 형식이 섞인 채 남아 있을 수 있으니 태그 목록부터 확인하세요")
+        return nxt, f"hotfix 머지 — 마지막 태그 {last} 의 PATCH+1"
     return None, ("머지 커밋에 release/…-vX.Y.Z 도 hotfix/ 도 없다 — master 에는 릴리스 브랜치(git-convention §8)나 "
                   "핫픽스만 들어와야 한다")
 
@@ -364,11 +446,21 @@ def jira_release_webhook(version: str, keys: list[str], release_url: str) -> str
 # ── 단계 ─────────────────────────────────────────────────────────────────────
 def phase_version() -> int:
     message = env("CI_COMMIT_MESSAGE", "") or ""
-    version, why = decide_version(message, all_tags())
+    # **태그가 이 커밋을 가리키는지**를 알려 준다 — 그래야 재시도와 재발행을 가른다.
+    head = env("CI_COMMIT_SHA", "")
+    version, why = decide_version(
+        message, all_tags(),
+        points_here=(lambda t: bool(head) and tag_sha(t) == head))
     print(f"머지 커밋: {message.strip().splitlines()[0] if message.strip() else '(없음)'}")
     if not version and dry_run():
         # 리허설은 아무 브랜치에서나 돌린다 — 릴리스 브랜치 머지 커밋이 없는 것이 정상이다.
         # 여기서 멈추면 정작 시험하려던 빌드·zip 경로를 한 번도 못 지나간다.
+        #
+        # **다만 "이미 쓴 번호" 는 정상이 아니다** (S15P21B202-446). 그것까지 조용히
+        # 리허설로 넘기면, 진짜 릴리스에서 멈출 것을 리허설이 통과시켜 준 셈이 된다.
+        # 리허설을 막지는 않되 눈에 띄게 말한다.
+        if "이미 붙어 있다" in why:
+            print(f"⚠️ 리허설이 아니었다면 여기서 멈췄다 — {why}")
         version, why = "v0.0.0-rehearsal", f"리허설(원래 사유: {why})"
     if not version:
         print(f"❌ 버전을 정할 수 없다 — {why}")
