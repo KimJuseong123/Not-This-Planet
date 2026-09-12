@@ -204,6 +204,20 @@ namespace Metagame.Network
                 loginCoroutine = null;
             }
 
+            // **지난 실행의 로그를 여기서 보낸다** (S15P21B202-443).
+            //
+            // 로그인 직후인 이유: 서버가 게스트 토큰을 요구한다 — 아무나 우리 서버에
+            // 파일을 부어넣지 못하게 하는 것이 그 토큰의 역할이다.
+            //
+            // 플레이가 시작되기 **전**이라 이슈의 팀 결정("플레이 중에는 네트워킹을
+            // 쓰지 않는다")을 지킨다. 종료 훅에서 보내지 않는 이유는 `RunLogUpload`
+            // 주석에 있다 — 요약하면 종료가 지연되고, 크래시 판은 아예 못 받는다.
+            //
+            // 실패해도 `Connect()` 를 막지 않는다. 로그를 못 보내는 것이 게임을
+            // 막을 이유는 아니다.
+            StartCoroutine(Metagame.Core.RunLogUpload.SweepOnce(
+                Metagame.Core.BackendEndpoints.HttpBaseUrl, accessToken, UserId));
+
             Connect();
         }
 
@@ -646,6 +660,13 @@ namespace Metagame.Network
                         ? string.Empty
                         : data.hostAddress.Trim();
                     MatchRelay = ReadRelay(data.relay);
+
+                    // **플레이가 시작되면 남은 로그 전송을 멈춘다** (S15P21B202-443).
+                    // 느린 회선에서는 로비에서 시작한 전송이 여기까지 이어질 수 있고,
+                    // 그러면 "플레이 중에는 네트워킹을 쓰지 않는다" 를 못 지킨다.
+                    // 못 보낸 것은 다음 실행에서 다시 간다.
+                    Metagame.Core.RunLogUpload.StopNow();
+
                     GameStarted?.Invoke();
                     break;
                 case "PLAYER_MOVED":
@@ -921,6 +942,11 @@ namespace Metagame.Network
 
         void OnDestroy()
         {
+            // 로그 전송 코루틴은 이 오브젝트가 돌린다. 여기서 정리하지 않으면 "돌고
+            // 있다" 는 표시가 선 채로 남아 **그 프로세스가 끝날 때까지 다시는 안 돈다**
+            // (S15P21B202-443).
+            Metagame.Core.RunLogUpload.StopNow();
+
             Shutdown();
             if (Instance == this) Instance = null;
         }
