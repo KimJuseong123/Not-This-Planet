@@ -396,7 +396,7 @@ namespace Metagame.Gameplay.Parts
         }
 
         /// <summary>
-        /// 견인 중에만 가볍고, 나머지 상태에서는 무겁다.
+        /// 자유 상태에서는 취급 질량을 낮추고, 빔 견인 중에는 견인 질량을 쓴다.
         /// 고정된 동안에는 kinematic 이라 운석에 맞아도 밀리지 않는다.
         /// 값의 근거는 S15P21B202-62 기록 문서를 본다.
         /// </summary>
@@ -411,6 +411,7 @@ namespace Metagame.Gameplay.Parts
             PartState state, float placedMass) => state switch
         {
             PartState.Locked => (GameLayers.Part, placedMass, true),
+            PartState.Free => (GameLayers.Part, placedMass * PhysicsScale.FreePartMassScale, false),
             PartState.Carried => (GameLayers.PartCarried, PhysicsScale.CarriedPartMass, false),
             _ => (GameLayers.Part, placedMass, false),
         };

@@ -566,22 +566,20 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
-        public void MovingPartFor_IgnoresAPartThatIsOnlyBracedByTwo()
+        public void MovingPartFor_FindsAPartMovedByOne()
         {
             var push = MakePart();
             var first = MakePlayer(new Vector3(-1.2f, 0f, 0.4f), Vector3.right);
-            var second = MakePlayer(new Vector3(-1.2f, 0f, -0.4f), Vector3.right);
 
             // 손으로 잡는다. 몸밀기로 세우면 접촉 거리(0.6m) 안에 들어가야 하는데
             // 여기 위치는 잡기 기준이라 멀다 — 재려는 것은 인원 문턱이다.
             push.TryGrab(first, first.RightHand);
-            push.TryGrab(second, second.RightHand);
 
             for (var i = 0; i < 60; i++) push.Tick(0.01f);
 
-            Assert.AreEqual(2, push.HaulerCount);
-            Assert.IsFalse(push.IsMoving);
-            Assert.IsNull(PartPush.MovingPartFor(first), "둘이면 카메라도 바뀌지 않는다.");
+            Assert.AreEqual(1, push.HaulerCount);
+            Assert.IsTrue(push.IsMoving);
+            Assert.AreSame(push, PartPush.MovingPartFor(first), "혼자 밀 때도 밀기 카메라를 사용한다.");
         }
 
         // --- 리그 ------------------------------------------------------------
