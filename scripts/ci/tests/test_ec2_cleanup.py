@@ -228,6 +228,16 @@ assert "DANGLING_HOURS" in _cl, "시간을 바꿀 자리가 없다"
 #     시간 조건도 남아 있어야 한다 — 도는 `docker build` 의 중간 층을 지우면 빌드가 깨진다.
 assert "docker image inspect" in _cl and "{{.Created}}" in _cl, \
     "만든 시각을 보지 않는다 — 도는 빌드의 중간 층까지 지운다"
-print("  받아 온 이미지와 방금 만든 층을 남기고, prune 을 쓰지 않는다 ✅")
+#     **못 읽으면 남기는 쪽이다.** 만든 시각을 못 읽었을 때 `0` 으로 두고 비교하면
+#     `0 -gt cutoff` 가 거짓이라 **지우는 쪽**으로 떨어진다 — 주석과 정반대다.
+#     도커 출력 형식이 바뀌는 순간 지키려던 이미지가 그 길로 사라진다(`!378` 2차 리뷰).
+_pd = _cl.split("prune_dangling()", 1)[1].split(chr(10) + "}", 1)[0]
+assert '"$created" = "0"' in _pd, \
+    "만든 시각을 못 읽은 경우를 가르지 않는다 — 그러면 지우는 쪽으로 떨어진다"
+_zero = _pd.index('"$created" = "0"')
+_gt = _pd.index('-gt "$cutoff"')
+assert _zero < _gt, "못 읽은 경우를 시간 비교보다 뒤에서 본다 — 비교가 먼저 지운다"
+assert "kept" in _pd[_zero:_gt], "못 읽었는데 남기지 않는다"
+print("  받아 온 이미지·방금 만든 층·못 읽은 것을 남기고, prune 을 쓰지 않는다 ✅")
 
 print("== 통과 ==")

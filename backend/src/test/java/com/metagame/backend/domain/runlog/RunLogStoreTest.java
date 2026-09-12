@@ -132,6 +132,24 @@ class RunLogStoreTest {
     }
 
     @Test
+    void twoRequestsInTheSameSecondDoNotShareATempFile(@TempDir Path dir) {
+        // **덮어쓰기를 막았더니 문제가 임시 파일로 옮겨갔었다** (`!378` 2차 리뷰).
+        // 같은 초·같은 userId·빈 clientName 인 두 요청은 아직 정식 파일이 없어 **둘 다**
+        // 같은 이름을 고른다. 임시 파일까지 그 이름을 쓰면 같은 파일에 동시에 APPEND 해
+        // 로그가 뒤섞이고, 한쪽이 옮긴 뒤 다른 쪽은 `NoSuchFile` 로 터진다.
+        String base = "20260913-101500_u7_prod_none";
+
+        assertThat(RunLogStore.tempFor(dir, base))
+                .as("두 요청이 같은 임시 파일을 쓴다 — 로그가 뒤섞인다")
+                .isNotEqualTo(RunLogStore.tempFor(dir, base));
+
+        // 그래도 정식 이름과는 겹치지 않아야 한다 — `.log` 로 끝나면 정리·목록에 섞인다.
+        assertThat(RunLogStore.tempFor(dir, base).getFileName().toString())
+                .startsWith(base + ".")
+                .endsWith(".part");
+    }
+
+    @Test
     void aNameRaceIsRetriedInsteadOfBecomingAServerError(@TempDir Path dir) {
         // `freeName` 과 `Files.move` 사이에 다른 요청이 그 이름을 채울 수 있다.
         // 덮어쓰면 먼저 받은 로그가 사라지고, 예외를 그냥 올리면 500 이 된다 —

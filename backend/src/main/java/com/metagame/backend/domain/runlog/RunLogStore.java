@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
@@ -208,7 +209,13 @@ public class RunLogStore {
         // 예전에는 `REPLACE_EXISTING` 이라 **먼저 받은 로그가 조용히 사라졌다.**
         String name = freeName(dayDir, base);
         Path target = dayDir.resolve(name);   // 아래 경합 재시도에서 다시 고를 수 있다
-        Path tmp = dayDir.resolve(name + ".part");
+
+        // **임시 파일 이름은 요청마다 다르다** (`!378` 2차 리뷰). 예전에는 `name + ".part"`
+        // 였는데, 같은 초·같은 userId·빈 clientName 인 두 요청은 **아직 정식 파일이 없으므로
+        // 둘 다 같은 `base.log` 를 고르고**, 그러면 같은 `.part` 에 동시에 APPEND 한다 —
+        // 로그가 뒤섞이고, 한쪽이 옮긴 뒤 다른 쪽은 `NoSuchFile` 로 터져 500 이 된다.
+        // 덮어쓰기를 막으려던 수정이 문제를 임시 파일로 옮겼던 셈이다.
+        Path tmp = tempFor(dayDir, base);
 
         // 머리에 무엇으로 만든 빌드인지 적는다. 파일 하나만 열어도 알 수 있어야 한다.
         StringBuilder head = new StringBuilder();
@@ -238,6 +245,17 @@ public class RunLogStore {
             }
         }
         return name;
+    }
+
+    /**
+     * 반쯤 쓰인 파일이 놓일 자리. <b>요청마다 다르다.</b>
+     *
+     * <p>이름을 {@code base + ".part"} 로 하면, 같은 초·같은 userId·빈 clientName 인 두
+     * 요청이 <b>같은 파일에 동시에 APPEND</b> 한다 — 아직 정식 파일이 없어 둘 다 같은
+     * {@code base.log} 를 고르기 때문이다. 로그가 뒤섞이고 한쪽은 500 으로 끝난다.</p>
+     */
+    static Path tempFor(Path dayDir, String base) {
+        return dayDir.resolve(base + "." + UUID.randomUUID() + ".part");
     }
 
     /**
