@@ -109,8 +109,14 @@ assert "/spool" in job("repo-hygiene"), "repo-hygiene 에 스풀 격리 검사�
 # **배포 잡을 이름으로 세지 않는다.** -284 에서 하나가 둘로 갈렸는데, 이름을
 # 적어 두는 방식이면 셋째가 생길 때 이 검사가 조용히 그것을 놓친다. 배포 잡의
 # 정의는 "`deploy_backend.py` 를 돌리는 잡" 이므로 그것으로 찾는다.
-DEPLOYERS = sorted({n for n in re.findall(r"(?m)^([a-z][a-z0-9-]*):", CI)
-                    if "deploy_backend.py" in job(n)})
+# `^([a-z][a-z0-9-]*):` 는 `stages`·`variables`·`default`·`workflow` 같은 최상위
+# 키까지 잡는다. 그것을 그대로 job() 에 넘기면 이 검사가 YAML 모양 변화에 걸려
+# 넘어질 수 있다 — **잡의 표시는 `stage:` 를 가진 것**이므로 그것으로 먼저 거른다.
+TOP_KEYS = re.findall(r"(?m)^([a-z][a-z0-9-]*):", CI)
+ALL_JOBS = sorted({n for n in TOP_KEYS if re.search(r"(?m)^  stage:", job(n))})
+assert {"deploy-dev", "deploy-prod", "unity-compile"} <= set(ALL_JOBS), ALL_JOBS
+
+DEPLOYERS = sorted({n for n in ALL_JOBS if "deploy_backend.py" in job(n)})
 assert len(DEPLOYERS) >= 2, f"배포 잡을 못 찾았다: {DEPLOYERS}"
 for name in DEPLOYERS:
     body = job(name)
