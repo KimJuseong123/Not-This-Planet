@@ -32,6 +32,7 @@ docker compose up -d --build
 
 # 4. nginx + 인증서
 sudo cp <리포>/scripts/deploy/server/nginx/upgrade-map.conf /etc/nginx/conf.d/
+sudo cp <리포>/scripts/deploy/server/nginx/limits.conf      /etc/nginx/conf.d/   # 로그인 속도 제한(-461)
 sudo cp <리포>/scripts/deploy/server/nginx/metagame.conf /etc/nginx/sites-available/metagame
 sudo ln -sf /etc/nginx/sites-available/metagame /etc/nginx/sites-enabled/
 sudo certbot --nginx -d j15b202.p.ssafy.io      # 인증서 경로 줄을 certbot 이 채운다

@@ -42,6 +42,11 @@ import unity_report
 VERSION_FILE = "release-version.txt"
 NOTES_FILE = "release-notes.md"
 PACKAGE_NAME = "metagame"
+
+# **사용자가 받는 곳** (S15P21B202-405 · -461). 패키지 레지스트리 주소는 프로젝트가
+# private 이라 무인증 접근이 302(로그인)다 — 릴리스 노트에 그 주소만 있으면
+# **팀 밖에서는 받을 수 없다.** nginx 가 이 경로를 무인증으로 내보낸다.
+PUBLIC_BUILDS_URL = "https://j15b202.p.ssafy.io/builds"
 RELEASE_RE = re.compile(rf"release/{PROJECT_KEY}-\d+-v(\d+\.\d+\.\d+)")
 # 태그를 **읽을 때는** `v` 를 선택으로 본다 (S15P21B202-407 ②).
 #
@@ -189,8 +194,12 @@ def changelog(prev: str | None, head: str = "HEAD") -> tuple[list[dict], int]:
 
 def render_notes(version: str, entries: list[dict], others: int, prev: str | None, zip_name: str, zip_url: str,
                  size_bytes: int, project_url: str, jira_browse: str) -> str:
-    lines = [f"# METAGAME {version}", "",
-             f"**내려받기**: [{zip_name}]({zip_url}) ({size_bytes / 1048576:.1f} MB) — 압축을 풀고 `NotThisPlanet.exe` 실행",
+    # **받는 주소를 둘 적는다.** 위는 누구나 받을 수 있는 곳이고, 아래는 팀만 볼 수
+    # 있는 원본이다. 레지스트리 주소만 적으면 프로젝트 밖에서 302 라 받을 수 없다.
+    public = f"{PUBLIC_BUILDS_URL}/{quote(zip_name)}"
+    lines = [f"# Not This Planet {version}", "",
+             f"**내려받기**: [{zip_name}]({public}) ({size_bytes / 1048576:.1f} MB) — 압축을 풀고 `NotThisPlanet.exe` 실행",
+             f"· 사이트: <{PUBLIC_BUILDS_URL.rsplit('/', 1)[0]}/play/> · 저장소 원본(팀 전용): [패키지 레지스트리]({zip_url})",
              f"이전 릴리스: {prev or '없음(첫 릴리스)'} · 포함 MR {len(entries)}건" + (f" · 그 밖 머지 {others}건" if others else ""),
              "", "## 들어간 것", ""]
     shown = entries[:MAX_NOTE_LINES]
