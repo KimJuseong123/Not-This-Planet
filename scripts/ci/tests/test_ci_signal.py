@@ -138,6 +138,31 @@ assert "DEPLOY_SPOOL" not in prod, (
     "deploy-prod 가 스풀을 따로 지정한다 — 기본값(/spool)이어야 한다")
 print(f"  ④ 스풀 격리 검사 · 배포 잡 {len(DEPLOYERS)}개 태그·비취소·스풀 분리 ✅")
 
+# ── ④b 개발 배포는 **머지마다 자동이 아니다** (S15P21B202-455)
+#
+# 한때 그랬다. 근거는 "나눈 뒤 실유저는 prod 에 있다" 였는데 틀렸다 — `-139` §4 가
+# 수동으로 둔 이유는 실유저가 아니라 **이 서버로 테스트하는 팀원**이고, dev 가 바로
+# 그 사람들이 쓰는 서버다. 자동으로 두면 낮에 백엔드 MR 이 머지될 때마다 튕긴다.
+# 되돌아가기 쉬운 한 줄이라 검사로 묶는다.
+dev = job("deploy-dev")
+_push_rule = re.search(
+    r'(?ms)^    - if: \$CI_PIPELINE_SOURCE == "push" && \$CI_COMMIT_BRANCH == "develop".*?(?=^    - if:|^  \w)',
+    dev)
+assert _push_rule, "deploy-dev 에 develop push 규칙이 없다"
+assert "when: manual" in _push_rule.group(0), (
+    "deploy-dev 의 develop 머지 규칙에 when: manual 이 없다 — 머지마다 자동 배포가 되어 "
+    "이 서버로 테스트하는 팀원이 머지마다 튕긴다(-455)")
+
+# 그 대신 **새벽 스케줄이 자동으로** 맞춘다. 이것이 빠지면 개발 서버가 영영 낡는다.
+assert 'CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_DEPLOY_DEV == "true"' in dev,     "deploy-dev 에 새벽 스케줄 규칙이 없다 — 수동만 남으면 아무도 안 눌러 서버가 낡는다"
+# jar 을 만드는 쪽도 같은 스케줄에서 돌아야 한다(needs 로 묶여 있다).
+assert 'CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_DEPLOY_DEV == "true"' in job("build-backend"),     "build-backend 가 새벽 스케줄에서 안 돈다 — deploy-dev 가 기다리다 만다"
+
+# **아침 점검이 그 스케줄에 딸려 가면 안 된다.** 스케줄 파이프라인은 소스가 다
+# `schedule` 이라, 변수로 가르지 않으면 카드가 하루 두 번 나간다.
+assert '$NIGHTLY_DEPLOY_DEV != "true"' in job("mm-digest"),     "mm-digest 가 새벽 배포 스케줄에서도 돈다 — 아침 카드가 하루 두 번 나간다"
+print("  ④b 개발 배포: 머지는 수동 · 새벽 스케줄 자동 · 아침 카드 중복 없음 ✅")
+
 # ── ⑤ test_health — 통과·미완료는 조용하고, 실패만 말한다
 CASES: dict[str, list[dict]] = {}
 
