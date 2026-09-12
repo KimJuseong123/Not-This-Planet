@@ -44,14 +44,30 @@ mm_notify.send = lambda text: (SENT.append(text), 0)[1]
 # ── 1) 버전 결정 ──
 assert P.parse_version("Merge branch 'release/S15P21B202-318-v0.1.0' into 'master'\n\nSee merge request g/p!247") == "v0.1.0"
 assert P.parse_version("Merge branch 'S15P21B202-318-x' into 'develop'") is None
-assert P.decide_version("Merge branch 'release/S15P21B202-318-v0.1.0' into 'master'", []) == ("v0.1.0", "릴리스 브랜치 이름의 버전")
-v, why = P.decide_version("Merge branch 'hotfix/S15P21B202-40-crash' into 'master'", ["v0.1.0", "v0.2.3", "v0.2.10", "junk"])
+assert P.decide_version("Merge branch 'release/S15P21B202-318-v0.1.0' into 'master'", []) == ("v0.1.0", "릴리스 브랜치 이름의 버전", P.R_OK)
+v, why, rc = P.decide_version("Merge branch 'hotfix/S15P21B202-40-crash' into 'master'", ["v0.1.0", "v0.2.3", "v0.2.10", "junk"])
 assert v == "v0.2.11" and "PATCH+1" in why, (v, why)      # 문자열 정렬이 아니라 숫자 정렬(10 > 3)
-v, why = P.decide_version("Merge branch 'hotfix/S15P21B202-40-crash' into 'master'", [])
+v, why, rc = P.decide_version("Merge branch 'hotfix/S15P21B202-40-crash' into 'master'", [])
 assert v is None and "이전 태그" in why
-v, why = P.decide_version("fix: 직접 push", ["v0.1.0"])
+v, why, rc = P.decide_version("fix: 직접 push", ["v0.1.0"])
 assert v is None and "release/" in why
 assert P.latest_tag([]) is None and P.bump_patch("v1.2.3") == "v1.2.4"
+
+# **왜 못 정했는가를 문구가 아니라 값으로 돌려준다** (S15P21B202-467). 예전에는 부르는
+# 쪽이 `"이미 붙어 있다"` 가 문구에 들었는지를 봤다 — 문구를 한 글자 다듬으면 리허설의
+# "진짜였으면 여기서 멈췄다" 경고가 조용히 꺼진다. 그것이 `-446` 이 막으려던 상태다.
+_v, _why, _rc = P.decide_version("Merge branch 'release/S15P21B202-9-v1.0.0' into 'master'", ["v1.0.0"])
+assert _v is None and _rc == P.R_TAG_TAKEN, (_v, _rc)
+_v, _why, _rc = P.decide_version("Merge branch 'hotfix/S15P21B202-9-x' into 'master'", [])
+assert _rc == P.R_NO_TAG, _rc
+_v, _why, _rc = P.decide_version("fix: 직접 push", ["v0.1.0"])
+assert _rc == P.R_NOT_RELEASE, _rc
+
+# 리허설 경고가 **문구가 아니라 그 값**을 본다.
+_src = open("scripts/ci/publish_release.py", encoding="utf-8").read()
+_pv = _src.split("def phase_version(", 1)[1].split(chr(10) + "def ", 1)[0]
+assert "reason == R_TAG_TAKEN" in _pv, "리허설 경고가 아직 이유 문구를 본다"
+assert '"이미 붙어 있다" in why' not in _pv, "이유 문구로 가르는 코드가 남아 있다"
 print("  1) 버전: 릴리스 브랜치 → 이름의 버전 · hotfix → PATCH+1(숫자 정렬) · 그 외 → 실패 ✅")
 
 # ── 2) 변경 목록 파싱 — develop 머지만, MR 번호·이슈 키 ──

@@ -100,10 +100,89 @@ namespace Metagame.Gameplay.Tests
 
                 var got = Encoding.UTF8.GetString(RunLogUpload.Tail(path, 40));
 
-                Assert.AreEqual(40, Encoding.UTF8.GetBytes(got).Length,
-                    "상한만큼 가져오지 않았다");
+                // 상한 **이하**다. 정확히 40이 아니다 — 줄 경계까지 앞을 버리기
+                // 때문이다(아래 검사 참고). 40을 넘으면 서버·nginx 가 거절한다.
+                Assert.That(Encoding.UTF8.GetBytes(got).Length, Is.LessThanOrEqualTo(40),
+                    "상한을 넘겨 가져왔다 — 서버가 거절하는 크기가 된다");
                 Assert.That(got, Does.Contain("끝이 중요하다"),
                     "뒤쪽이 아니라 앞쪽을 가져왔다 — 문제는 보통 끝에 있다");
+            }
+            finally
+            {
+                if (File.Exists(path)) File.Delete(path);
+            }
+        }
+
+        [Test]
+        public void TheTailStartsAtALineBoundarySoCharactersAreNotCutInHalf()
+        {
+            // **한글은 UTF-8 에서 글자당 3바이트다.** 바이트 수로 아무 데나 자르면
+            // 첫 글자의 가운데가 잘려 받은 로그의 첫 줄이 깨진 채 서버에 남는다.
+            // 우리가 그 파일을 여는 때는 이미 문제가 난 뒤라 다시 받을 수도 없다.
+            var path = Path.Combine(Path.GetTempPath(), "ntp-runlog-boundary.log");
+            try
+            {
+                // 각 줄이 3바이트 글자 넷(12바이트) + 줄바꿈 = 13바이트.
+                File.WriteAllText(path, "가나다라\n마바사아\n자차카타\n");
+
+                // 18바이트를 달라고 하면 경계가 글자(사) 가운데에 떨어진다.
+                var raw = RunLogUpload.Tail(path, 18);
+
+                // **바이트로 본다.** 디코딩한 문자열에서 U+FFFD 를 찾는 방법은 쓰지
+                // 않는다 — `string.Contains` 가 문화권 비교라 U+FFFD 처럼 **정렬에서
+                // 무시되는 글자는 아무 문자열에서나 "찾았다"** 고 답한다(2026-09-12 CI
+                // 실측: `"자차카타\n"` 이 U+FFFD 를 담고 있다고 나왔다).
+                //
+                // UTF-8 의 이어 바이트는 `10xxxxxx`(0x80~0xBF) 다. 첫 바이트가 그것이면
+                // 글자 가운데에서 시작한 것이다.
+                Assert.That(raw[0] & 0xC0, Is.Not.EqualTo(0x80),
+                    "글자 가운데에서 시작했다 — 받은 첫 줄이 깨진 채 저장된다");
+                Assert.That(Encoding.UTF8.GetString(raw), Is.EqualTo("자차카타" + "\n"),
+                    "줄 경계가 아니라 다른 데서 잘랐다");
+            }
+            finally
+            {
+                if (File.Exists(path)) File.Delete(path);
+            }
+        }
+
+        [Test]
+        public void ALineWithoutAnyNewlineIsNotThrownAway()
+        {
+            // 줄바꿈이 하나도 없으면 잘라 낼 자리가 없다. 그때 빈 것을 돌려주면
+            // **로그가 통째로 사라진다** — 깨진 글자 하나보다 그쪽이 훨씬 나쁘다.
+            var path = Path.Combine(Path.GetTempPath(), "ntp-runlog-noline.log");
+            try
+            {
+                File.WriteAllText(path, new string('x', 200));
+                var got = RunLogUpload.Tail(path, 40);
+                Assert.AreEqual(40, got.Length, "줄바꿈이 없다고 로그를 버렸다");
+            }
+            finally
+            {
+                if (File.Exists(path)) File.Delete(path);
+            }
+        }
+
+        [Test]
+        public void WithoutALineBoundaryItStillStartsAtACharacterBoundary()
+        {
+            // 줄바꿈이 없어도(또는 맨 끝에만 있어도) **글자 가운데에서 시작하면 안 된다**
+            // (`!378` 리뷰). 예전에는 그 경우 버퍼를 그대로 돌려줘서, 줄 경계를 맞추려던
+            // 수정이 정작 줄바꿈 없는 로그에서는 아무 일도 하지 않았다.
+            var path = Path.Combine(Path.GetTempPath(), "ntp-runlog-nochar.log");
+            try
+            {
+                // 줄바꿈 없이 한글만. 어느 바이트에서 자르든 글자 경계가 아닐 수 있다.
+                File.WriteAllText(path, new string('가', 40));
+
+                var raw = RunLogUpload.Tail(path, 20);   // 120바이트 중 뒤 20 → 20 % 3 != 0
+
+                Assert.That(raw.Length, Is.GreaterThan(0), "로그를 통째로 버렸다");
+                Assert.That(raw[0] & 0xC0, Is.Not.EqualTo(0x80),
+                    "글자 가운데에서 시작했다 — 줄바꿈이 없는 로그에서 그대로다");
+                Assert.That(Encoding.UTF8.GetString(raw), Is.EqualTo(new string('가', 6)),
+                    "글자 경계로 맞춘 결과가 아니다");
             }
             finally
             {

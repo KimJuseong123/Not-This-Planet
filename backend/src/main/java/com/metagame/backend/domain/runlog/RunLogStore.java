@@ -2,6 +2,7 @@ package com.metagame.backend.domain.runlog;
 
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -11,6 +12,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
@@ -42,6 +44,34 @@ public class RunLogStore {
     public static final int MAX_PER_WINDOW = 6;
     public static final Duration WINDOW = Duration.ofMinutes(10);
 
+    /**
+     * <b>전역 상한</b> (S15P21B202-467).
+     *
+     * <p><b>사용자별 상한만으로는 아무것도 막지 못한다.</b> {@code /auth/guest} 가
+     * {@code permitAll} 이라 <b>토큰을 새로 받을 때마다 새 userId</b> 가 되고, 그러면
+     * 10분에 6개라는 선을 원하는 만큼 넘을 수 있다. 공개 서버에서 이것은
+     * <b>디스크를 채우는 길</b>이다 — `-443` 이 그 말을 적어 놓고 정작 이 구멍을
+     * 남겼다(리뷰가 잡았다).</p>
+     *
+     * <p>값은 정상 사용의 몇 배로 잡았다. 팀원 6명이 하루에 여러 번 켠다고 해도
+     * 시간당 수십 개다. 200개·300 MB 에 닿는다면 그것은 사람이 봐야 할 상황이다.</p>
+     */
+    public static final int MAX_GLOBAL_PER_HOUR = 200;
+    public static final long MAX_GLOBAL_BYTES_PER_HOUR = 300L * 1024 * 1024;
+    public static final Duration GLOBAL_WINDOW = Duration.ofHours(1);
+
+    /**
+     * 이 아래로 내려가면 <b>받지 않는다</b>. 로그를 못 받는 것이 서버가 멈추는 것보다
+     * 낫다 — 디스크가 차면 백엔드·MySQL·CI 가 한꺼번에 죽는다.
+     */
+    public static final long MIN_FREE_BYTES = 5L * 1024 * 1024 * 1024;
+
+    /** 이름 경합이 났을 때 다시 고를 횟수. 이 이상이면 사람이 볼 만한 일이 벌어진 것이다. */
+    static final int MOVE_TRIES = 3;
+
+    /** 왜 받지 않았는지. 컨트롤러가 이것으로 상태 코드를 고른다. */
+    public enum Admission { OK, USER_RATE, GLOBAL_RATE, DISK_FULL }
+
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
 
@@ -50,6 +80,11 @@ public class RunLogStore {
 
     /** userId → (창 시작, 그 창에서 받은 개수). 메모리에만 둔다 — 재시작하면 풀린다. */
     private final Map<Long, long[]> recent = new ConcurrentHashMap<>();
+
+    /** 전역 창. 같은 이유로 메모리에만 둔다. */
+    private long globalWindowStart;
+    private long globalCount;
+    private long globalBytes;
 
     public RunLogStore(
             @Value("${metagame.runlog.dir:/var/log/metagame-runlogs}") String dir,
@@ -77,6 +112,56 @@ public class RunLogStore {
      * 엉뚱하게 막히거나 통과한다. {@code compute} 는 키 단위로 직렬화되므로 그 안에서
      * 낸 답이 곧 그 요청의 답이다.</p>
      */
+    /**
+     * 받을지 말지. {@link Admission#OK} 가 아니면 그 사유가 이유다.
+     *
+     * <p><b>순서가 뜻을 가진다.</b> 디스크를 먼저 본다 — 여유가 없으면 누가 보냈든
+     * 받으면 안 된다. 그다음 <b>사용자별</b>, 마지막이 전역이다.</p>
+     *
+     * <p><b>전역을 먼저 보면 안 된다</b> (`!378` 리뷰). {@link #allowGlobal} 은 세면서
+     * 소비한다. 전역을 먼저 보면 <b>사용자별 상한에 걸려 어차피 거절될 요청이</b>
+     * 시간당 200개 예산을 먼저 태운다 — 한 사람이 계속 보내는 것만으로 자기는 429 를
+     * 받으면서 <b>다른 사람 전부를 막을 수 있다.</b> 그러면 전역 상한이 막으려던 것과
+     * 정반대가 된다.</p>
+     */
+    public Admission admit(long userId, int bytes) {
+        if (!hasDiskRoom()) return Admission.DISK_FULL;
+        if (!allow(userId)) return Admission.USER_RATE;
+        if (!allowGlobal(bytes)) return Admission.GLOBAL_RATE;
+        return Admission.OK;
+    }
+
+    /** 디스크 여유가 {@link #MIN_FREE_BYTES} 위인가. 못 재면 <b>받는 쪽</b>으로 둔다. */
+    boolean hasDiskRoom() {
+        try {
+            return Files.getFileStore(root).getUsableSpace() >= MIN_FREE_BYTES;
+        } catch (IOException e) {
+            // 못 재는 것이 로그를 버릴 이유는 아니다. 다만 우리가 알아야 한다.
+            log.warn("[runlog] 디스크 여유를 재지 못했다 : {}", e.toString());
+            return true;
+        }
+    }
+
+    /**
+     * 전역 창 안의 개수·바이트 상한. <b>누가 보냈는지 보지 않는다</b> — 그것이
+     * 게스트 토큰으로 우회되기 때문이다.
+     */
+    synchronized boolean allowGlobal(int bytes) {
+        long now = Instant.now().toEpochMilli();
+        if (now - globalWindowStart > GLOBAL_WINDOW.toMillis()) {
+            globalWindowStart = now;
+            globalCount = 0;
+            globalBytes = 0;
+        }
+        if (globalCount + 1 > MAX_GLOBAL_PER_HOUR
+                || globalBytes + bytes > MAX_GLOBAL_BYTES_PER_HOUR) {
+            return false;
+        }
+        globalCount++;
+        globalBytes += bytes;
+        return true;
+    }
+
     public boolean allow(long userId) {
         long now = Instant.now().toEpochMilli();
         long windowMs = WINDOW.toMillis();
@@ -116,11 +201,21 @@ public class RunLogStore {
         Files.createDirectories(dayDir);
 
         String env = "dev".equalsIgnoreCase(backend) ? "dev" : "prod";
-        String name = String.format("%s_u%d_%s_%s.log",
+        String base = String.format("%s_u%d_%s_%s",
                 now.format(STAMP), userId, env, token(clientName));
 
-        Path target = dayDir.resolve(name);
-        Path tmp = dayDir.resolve(name + ".part");
+        // **덮어쓰지 않는다** (S15P21B202-467). 이름이 **초 단위**라, 같은 사람이 같은
+        // 초에 두 건을 올리고 클라이언트 이름이 비면(`token()=="none"`) 이름이 겹친다.
+        // 예전에는 `REPLACE_EXISTING` 이라 **먼저 받은 로그가 조용히 사라졌다.**
+        String name = freeName(dayDir, base);
+        Path target = dayDir.resolve(name);   // 아래 경합 재시도에서 다시 고를 수 있다
+
+        // **임시 파일 이름은 요청마다 다르다** (`!378` 2차 리뷰). 예전에는 `name + ".part"`
+        // 였는데, 같은 초·같은 userId·빈 clientName 인 두 요청은 **아직 정식 파일이 없으므로
+        // 둘 다 같은 `base.log` 를 고르고**, 그러면 같은 `.part` 에 동시에 APPEND 한다 —
+        // 로그가 뒤섞이고, 한쪽이 옮긴 뒤 다른 쪽은 `NoSuchFile` 로 터져 500 이 된다.
+        // 덮어쓰기를 막으려던 수정이 문제를 임시 파일로 옮겼던 셈이다.
+        Path tmp = tempFor(dayDir, base);
 
         // 머리에 무엇으로 만든 빌드인지 적는다. 파일 하나만 열어도 알 수 있어야 한다.
         StringBuilder head = new StringBuilder();
@@ -131,10 +226,67 @@ public class RunLogStore {
         head.append("# received=").append(now).append('\n');
         head.append("# ---\n");
 
-        Files.write(tmp, head.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        Files.write(tmp, body, java.nio.file.StandardOpenOption.APPEND);
-        // 원자적으로 놓는다 — 반쯤 쓰인 파일을 사람이 열어 보면 안 된다.
-        Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        // **끝까지 못 가면 임시 파일을 치운다** (`!378` 3차 리뷰). 이름이 요청마다 다르니
+        // 덮어쓰이지도, 다음 요청에 쓰이지도 않는다 — 그래서 실패하면 **그냥 남는다.**
+        // 회수는 날짜 폴더 단위(14일)라 그때까지 쌓인 채로 있고, 목록에 섞여 사람이
+        // "받다 만 로그" 를 열어 보게 된다.
+        boolean placed = false;
+        try {
+            Files.write(tmp, head.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            Files.write(tmp, body, java.nio.file.StandardOpenOption.APPEND);
+            // 원자적으로 놓는다 — 반쯤 쓰인 파일을 사람이 열어 보면 안 된다.
+            // `REPLACE_EXISTING` 을 주지 않는다 — 그것이 **먼저 받은 로그를 지우던** 원인이다.
+            //
+            // 대신 **이름을 다시 골라 다시 시도한다** (`!378` 리뷰). `freeName` 과 이 줄
+            // 사이에 다른 요청이 그 이름을 채울 수 있는데, 그때 예외를 그냥 올리면
+            // 클라이언트가 500 을 받는다 — 덮어쓰기도 500 도 답이 아니다.
+            for (int attempt = 1; ; attempt++) {
+                try {
+                    Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE);
+                    break;
+                } catch (FileAlreadyExistsException e) {
+                    if (attempt >= MOVE_TRIES) throw e;
+                    name = freeName(dayDir, base);
+                    target = dayDir.resolve(name);
+                }
+            }
+            placed = true;
+        } finally {
+            if (!placed) {
+                // 치우다 또 터지면 **원래 실패를 덮지 않는다.** 사람이 봐야 할 것은 그쪽이다.
+                try {
+                    Files.deleteIfExists(tmp);
+                } catch (IOException e) {
+                    log.warn("[runlog] 임시 파일을 치우지 못했다 {} : {}", tmp, e.toString());
+                }
+            }
+        }
+        return name;
+    }
+
+    /**
+     * 반쯤 쓰인 파일이 놓일 자리. <b>요청마다 다르다.</b>
+     *
+     * <p>이름을 {@code base + ".part"} 로 하면, 같은 초·같은 userId·빈 clientName 인 두
+     * 요청이 <b>같은 파일에 동시에 APPEND</b> 한다 — 아직 정식 파일이 없어 둘 다 같은
+     * {@code base.log} 를 고르기 때문이다. 로그가 뒤섞이고 한쪽은 500 으로 끝난다.</p>
+     */
+    static Path tempFor(Path dayDir, String base) {
+        return dayDir.resolve(base + "." + UUID.randomUUID() + ".part");
+    }
+
+    /**
+     * 비어 있는 이름을 고른다 — {@code base.log}, 있으면 {@code base-2.log}, …
+     *
+     * <p>50까지만 본다. 같은 초에 같은 사람이 50개를 올리는 것은 빈도 상한이 이미
+     * 막았어야 하는 상황이라, 여기서 더 세는 것보다 {@code Files.move} 가
+     * 실패해서 눈에 띄는 편이 낫다.</p>
+     */
+    static String freeName(Path dayDir, String base) {
+        String name = base + ".log";
+        for (int i = 2; Files.exists(dayDir.resolve(name)) && i <= 50; i++) {
+            name = base + "-" + i + ".log";
+        }
         return name;
     }
 

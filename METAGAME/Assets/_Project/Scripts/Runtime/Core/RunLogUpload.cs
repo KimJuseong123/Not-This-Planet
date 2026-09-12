@@ -265,6 +265,10 @@ namespace Metagame.Core
         /// <summary>
         /// 파일의 <b>뒤쪽</b> 최대 <paramref name="cap"/> 바이트. 상한을 넘는 옛 파일은
         /// 끝이 더 쓸모 있다 — 문제는 보통 마지막에 있다.
+        ///
+        /// <para><b>자르는 자리는 줄 경계다</b> (S15P21B202-467). 바이트 수로 아무 데나
+        /// 자르면 UTF-8 글자 가운데가 깨진다. <see cref="RunLog"/> 의 압축도 같은
+        /// 방식이다 — 두 곳이 달라 한쪽만 깨지는 일이 없어야 한다.</para>
         /// </summary>
         public static byte[] Tail(string path, long cap)
         {
@@ -281,7 +285,37 @@ namespace Metagame.Core
                 fs.Seek(len - cap, SeekOrigin.Begin);
                 var buf = new byte[cap];
                 ReadExactly(fs, buf);
-                return buf;
+
+                // **줄 경계에서 시작한다** (S15P21B202-467). 바이트 수로 아무 데나 자르면
+                // UTF-8 여러 바이트 글자의 **가운데가 잘려** 받은 첫 줄이 깨진 채 서버에
+                // 저장된다. `RunLog.Compact` 는 같은 이유로 줄바꿈에 맞추는데 여기만
+                // 안 맞춰 두 곳이 어긋나 있었다(리뷰가 잡았다).
+                //
+                // `\n` 바이트는 여러 바이트 문자 안에 나타나지 않으므로 줄 경계로 자르면
+                // 글자가 깨지지 않는다.
+                int from = 0;
+                for (int i = 0; i < buf.Length; i++)
+                {
+                    if (buf[i] != (byte)'\n') continue;
+                    from = i + 1;
+                    break;
+                }
+                if (from == 0 || from >= buf.Length)
+                {
+                    // 쓸 만한 줄 경계가 없다(줄바꿈이 아예 없거나 마지막 바이트뿐).
+                    // **그래도 글자 가운데에서 시작하지는 않게** 이어 바이트만 버린다
+                    // (`!378` 리뷰). UTF-8 의 이어 바이트는 `10xxxxxx` 다.
+                    //
+                    // 비워서 돌려주지 않는다 — 깨진 글자 하나보다 **로그가 통째로
+                    // 사라지는 쪽**이 훨씬 나쁘다.
+                    from = 0;
+                    while (from < buf.Length && (buf[from] & 0xC0) == 0x80) from++;
+                    if (from == 0 || from >= buf.Length) return buf;
+                }
+
+                var trimmed = new byte[buf.Length - from];
+                Array.Copy(buf, from, trimmed, 0, trimmed.Length);
+                return trimmed;
             }
         }
 

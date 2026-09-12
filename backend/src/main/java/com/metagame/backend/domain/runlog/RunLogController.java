@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -31,8 +32,28 @@ public class RunLogController {
 
     private static final Logger log = LoggerFactory.getLogger(RunLogController.class);
 
+    /**
+     * 거절 경고를 묶는 간격 (`!378` 2차 리뷰).
+     *
+     * <p><b>거절마다 경고를 쓰면 막으려던 것이 자리만 옮긴다.</b> 게스트 토큰으로 초당
+     * 수천 요청이 오면 업로드는 막히지만 <b>애플리케이션 로그가 대신 디스크를 채운다.</b>
+     * 그래서 사유별로 이 간격에 한 번만 쓴다 — 우리가 알아야 할 것은 "지금 그 일이 일어나고
+     * 있다" 이지 몇 번째인지가 아니다.</p>
+     */
+    private static final long WARN_EVERY_MS = 60_000;
+
+    private final AtomicLong lastGlobalWarn = new AtomicLong();
+    private final AtomicLong lastDiskWarn = new AtomicLong();
+
     private final JwtProvider jwtProvider;
     private final RunLogStore store;
+
+    /** 이번에 쓸 차례인가. 동시에 여러 요청이 와도 <b>한 번만</b> 통과한다. */
+    private static boolean warnDue(AtomicLong at) {
+        long now = System.currentTimeMillis();
+        long prev = at.get();
+        return now - prev >= WARN_EVERY_MS && at.compareAndSet(prev, now);
+    }
 
     public RunLogController(JwtProvider jwtProvider, RunLogStore store) {
         this.jwtProvider = jwtProvider;
@@ -71,8 +92,30 @@ public class RunLogController {
                     .body("로그가 너무 큽니다.");
         }
 
-        if (!store.allow(userId)) {
-            // **빈도 상한.** 한 사람이 계속 올려 디스크를 채우는 것을 막는다.
+        // **상한 셋을 한 자리에서 본다** (S15P21B202-467).
+        //
+        // 사용자별 상한만으로는 아무것도 막지 못한다 — `/auth/guest` 가 `permitAll` 이라
+        // **토큰을 새로 받을 때마다 새 userId** 이고, 그러면 선을 원하는 만큼 넘는다.
+        // 공개 서버에서 그것은 디스크를 채우는 길이다(리뷰가 잡았다).
+        RunLogStore.Admission admission = store.admit(userId, body.length);
+        if (admission != RunLogStore.Admission.OK) {
+            if (admission == RunLogStore.Admission.DISK_FULL) {
+                // **507 로 답한다.** 이것은 "잠시 후 다시" 가 아니라 사람이 고쳐야 하는
+                // 상태다. 클라이언트는 어차피 다음 실행에서 다시 보낸다.
+                if (warnDue(lastDiskWarn)) {
+                    log.warn("[runlog] 디스크 여유 부족으로 거절 user={} (이후 {}초는 묶는다)",
+                            userId, WARN_EVERY_MS / 1000);
+                }
+                return ResponseEntity.status(HttpStatus.INSUFFICIENT_STORAGE)
+                        .body("서버에 공간이 없습니다.");
+            }
+            if (admission == RunLogStore.Admission.GLOBAL_RATE) {
+                // 전역 상한에 닿았다는 것은 **평소와 다른 일이 일어나고 있다**는 뜻이다.
+                if (warnDue(lastGlobalWarn)) {
+                    log.warn("[runlog] 전역 상한으로 거절 user={} bytes={} (이후 {}초는 묶는다)",
+                            userId, body.length, WARN_EVERY_MS / 1000);
+                }
+            }
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .body("잠시 후 다시 시도해 주세요.");
         }

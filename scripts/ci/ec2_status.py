@@ -115,15 +115,23 @@ def problems(data: dict | None, now: datetime | None = None) -> list[str]:
         out.append(f"🖥 **상태 파일에 {' · '.join(absent)} 이(가) 없다** — "
                    "재는 쪽과 읽는 쪽이 어긋났다. `ec2-status.sh` 를 다시 설치하세요")
 
-    disk = data.get("disk") or {}
-    if _num(disk.get("used_pct")) >= DISK_PCT_WARN:
-        out.append(f"💽 **디스크 {_num(disk.get('used_pct')):.0f}%** (여유 {_num(disk.get('free_gb')):.0f} GB) — "
+    # **없는 값은 여기서 다시 말하지 않는다** (S15P21B202-467, `!374` 리뷰). `_num` 의
+    # 기본값이 0 이라 `available_gb` 가 없으면 `0 < 3` 이 참이 되어 **"메모리 여유 0 GB"**
+    # 라는 없는 장애를 바로 위 "값이 없다" 줄 뒤에 한 번 더 붙였다. 카드를 보는 사람은
+    # 두 줄을 서로 다른 문제로 읽는다.
+    used_pct = _reach(data, ("disk", "used_pct"))
+    if used_pct is not None and used_pct >= DISK_PCT_WARN:
+        free_gb = _reach(data, ("disk", "free_gb"))
+        free = f"{free_gb:.0f} GB" if free_gb is not None else "?"
+        out.append(f"💽 **디스크 {used_pct:.0f}%** (여유 {free}) — "
                    f"{DISK_PCT_WARN}% 를 넘었다. 차면 빌드와 배포가 같이 죽는다")
 
-    mem = data.get("mem") or {}
-    if _num(mem.get("available_gb")) < MEM_FREE_GB_WARN:
-        out.append(f"🧠 **메모리 여유 {_num(mem.get('available_gb')):.0f} GB** "
-                   f"(전체 {_num(mem.get('total_gb')):.0f} GB) — {MEM_FREE_GB_WARN} GB 밑이다")
+    avail_gb = _reach(data, ("mem", "available_gb"))
+    if avail_gb is not None and avail_gb < MEM_FREE_GB_WARN:
+        total_gb = _reach(data, ("mem", "total_gb"))
+        total = f"{total_gb:.0f} GB" if total_gb is not None else "?"
+        out.append(f"🧠 **메모리 여유 {avail_gb:.0f} GB** "
+                   f"(전체 {total}) — {MEM_FREE_GB_WARN} GB 밑이다")
 
     for c in data.get("containers") or []:
         name = c.get("name", "?")

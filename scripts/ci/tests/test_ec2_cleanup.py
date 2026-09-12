@@ -91,7 +91,7 @@ print("  검사가 -a·-af·--all 을 실제로 잡고, 안전한 것은 통과�
 #     아니므로 네 가지가 다 들어 있는지 본다.
 REQUIRED = [
     ("docker builder prune", "빌드 캐시 (2026-09-11 실측 1.94 GB)"),
-    ("docker image prune -f", "떠돌이 이미지 — 백엔드를 새로 빌드할 때마다 남는다"),
+    ("dangling=true", "떠돌이 이미지 — 백엔드를 새로 빌드할 때마다 남는다"),
     ("docker container prune", "끝난 컨테이너 — 러너가 잡마다 만들고 버린다"),
     (".zip", "릴리스 zip — 런처 저장소와 달리 아무도 회수하지 않았다"),
 ]
@@ -205,5 +205,39 @@ rec = open("docs/records/S15P21B202-457-ec2-retention.md", encoding="utf-8").rea
 assert "-458" in rec, "정리와 알림의 관계가 기록에 없다"
 assert "metagame.service" in rec, "정지된 게임 서버 유닛에 대한 결정이 기록에 없다"
 print("  기록이 알림(-458)과 정지된 유닛 결정을 담고 있다 ✅")
+
+# ── 떠돌이 이미지에도 시간 조건이 붙어 있다 (S15P21B202-467) ─────────────
+#     `busy()` 는 **도커 컨테이너**로만 잡을 센다. 그 사이 `docker build` 가 남기는
+#     태그 없는 중간 층을 지우면 빌드가 깨지고, 되돌리려고 남겨 둔 직전 백엔드
+#     이미지도 같이 사라진다 — 배포가 잘못됐다는 걸 아는 데는 시간이 걸린다.
+#     **`docker image prune` 자체를 쓰지 않는다** (`!378` 리뷰). `--filter until=` 은
+#     이미지를 **만든 시각**을 보지 **태그를 잃은 시각**을 보지 않는다 — 몇 주 전에
+#     받은 Unity 이미지는 방금 태그를 잃어도 그 조건을 그냥 지나가 삭제된다.
+_cl = open("scripts/deploy/host/ec2-cleanup.sh", encoding="utf-8").read()
+_live = [ln for ln in _cl.splitlines() if not ln.strip().startswith("#")]
+_img = [ln for ln in _live if "docker image prune" in ln]
+assert not _img, \
+    "`docker image prune` 으로 지운다 — until 은 만든 시각이라 태그를 잃은 Unity 이미지를 못 지킨다: " + str(_img)
+
+#     받아 온 이미지(RepoDigests 가 있는 것)는 남겨야 한다 — Unity 가 그것이다.
+assert "RepoDigests" in _cl, \
+    "받아 온 이미지와 우리가 만든 이미지를 가르지 않는다 — 태그를 잃은 Unity 이미지가 지워진다"
+assert "dangling=true" in _cl, "떠돌이 이미지 정리가 사라졌다"
+assert "DANGLING_HOURS" in _cl, "시간을 바꿀 자리가 없다"
+
+#     시간 조건도 남아 있어야 한다 — 도는 `docker build` 의 중간 층을 지우면 빌드가 깨진다.
+assert "docker image inspect" in _cl and "{{.Created}}" in _cl, \
+    "만든 시각을 보지 않는다 — 도는 빌드의 중간 층까지 지운다"
+#     **못 읽으면 남기는 쪽이다.** 만든 시각을 못 읽었을 때 `0` 으로 두고 비교하면
+#     `0 -gt cutoff` 가 거짓이라 **지우는 쪽**으로 떨어진다 — 주석과 정반대다.
+#     도커 출력 형식이 바뀌는 순간 지키려던 이미지가 그 길로 사라진다(`!378` 2차 리뷰).
+_pd = _cl.split("prune_dangling()", 1)[1].split(chr(10) + "}", 1)[0]
+assert '"$created" = "0"' in _pd, \
+    "만든 시각을 못 읽은 경우를 가르지 않는다 — 그러면 지우는 쪽으로 떨어진다"
+_zero = _pd.index('"$created" = "0"')
+_gt = _pd.index('-gt "$cutoff"')
+assert _zero < _gt, "못 읽은 경우를 시간 비교보다 뒤에서 본다 — 비교가 먼저 지운다"
+assert "kept" in _pd[_zero:_gt], "못 읽었는데 남기지 않는다"
+print("  받아 온 이미지·방금 만든 층·못 읽은 것을 남기고, prune 을 쓰지 않는다 ✅")
 
 print("== 통과 ==")

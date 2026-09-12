@@ -27,6 +27,8 @@ BUILDS_DIR="${BUILDS_DIR:-/var/www/metagame-builds}"
 KEEP_ZIPS="${KEEP_ZIPS:-3}"            # 릴리스 zip 은 164 MB 짜리다. 3개면 되돌릴 여지가 남는다
 BUILD_CACHE_HOURS="${BUILD_CACHE_HOURS:-168}"   # 7일
 CONTAINER_HOURS="${CONTAINER_HOURS:-24}"
+DANGLING_HOURS="${DANGLING_HOURS:-12}"  # 되돌릴 백엔드 이미지가 하루 일과 안에서는 살아 있게
+PROTECT_PULLED="${PROTECT_PULLED:-1}"   # 레지스트리에서 받은 떠돌이 이미지는 지우지 않는다
 
 say() { echo "[$(date -Is)] $*"; }
 # **실패를 삼키지 않는다.** 파이프(`| sed`)를 쓰면 셸은 `sed` 의 종료 코드를 보므로,
@@ -91,9 +93,63 @@ step "① 도커 빌드 캐시 (${BUILD_CACHE_HOURS}시간 넘은 것)" \
   docker builder prune -f --filter "until=${BUILD_CACHE_HOURS}h"
 
 # ── ② 떠돌이 이미지 ─────────────────────────────────────────────────────────
-# **`-a` 를 쓰지 않는다.** 그것 없이는 태그가 없는 것만 지운다 — 백엔드를 새로
-# 빌드할 때마다 옛 `metagame-backend:latest` 가 태그를 잃고 남는, 바로 그것이다.
-step "② 태그 없는 떠돌이 이미지" docker image prune -f
+# 태그 없는 이미지만 본다 — 백엔드를 새로 빌드할 때마다 옛 `metagame-backend:latest`
+# 가 태그를 잃고 남는, 바로 그것이 대상이다.
+#
+# **`docker image prune` 을 그대로 쓰지 않는다** (S15P21B202-467, `!378` 리뷰).
+# `-a` 가 위험한 것은 이미 알고 있었는데, `-a` 없이 `--filter until=` 만 걸어도
+# 목적을 못 이룬다 — `until` 이 보는 것은 이미지를 **만든 시각**이지 **태그를 잃은
+# 시각**이 아니다. Unity 이미지는 몇 주 전에 받은 것이라, 새 에디터 버전을 받아
+# 방금 태그를 잃어도 그 조건을 그냥 지나간다. **이 스크립트가 지키려는 17.9 GB 가
+# 바로 그렇게 사라진다.**
+#
+# 그래서 하나씩 보고 **둘 중 하나면 남긴다**:
+#   ① 레지스트리에서 받은 것(`RepoDigests` 가 있다) — 태그를 잃은 Unity 이미지가 이것
+#   ② 만든 지 `DANGLING_HOURS` 가 안 된 것 — 도는 `docker build` 의 중간 층일 수 있다
+#
+# 남는 대상은 우리가 호스트에서 만든 옛 `metagame-backend` 뿐이고, 그것이 원래
+# 치우려던 것이다. 받아 온 이미지는 지워도 다시 받으면 되지만 Unity 는 7분이고
+# 셰이더 캐시까지 얽히면 릴리스가 40분 길어진다(-406 실측) — 남기는 쪽이 싸다.
+prune_dangling() {
+  local cutoff id digests created gone=0 kept=0 unknown=0
+  # **못 재면 아무것도 안 지운다.** `cutoff` 가 0 이면 아래의 "만든 지 얼마 안 됐나" 가
+  # 모든 이미지에 참이 된다 — 기울 곳이 있다면 남기는 쪽이다.
+  cutoff=$(date -d "-${DANGLING_HOURS} hours" +%s 2>/dev/null) || cutoff=0
+  for id in $(docker image ls --filter dangling=true --format '{{.ID}}' 2>/dev/null); do
+    if [ "$PROTECT_PULLED" = "1" ]; then
+      digests=$(docker image inspect "$id" -f '{{len .RepoDigests}}' 2>/dev/null || echo 1)
+      if [ "$digests" != "0" ]; then
+        kept=$((kept + 1)); continue
+      fi
+    fi
+    created=$(docker image inspect "$id" -f '{{.Created}}' 2>/dev/null)
+    created=$(date -d "$created" +%s 2>/dev/null || echo 0)
+    # **만든 시각을 못 읽었으면 남긴다** (`!378` 2차 리뷰). 예전에는 그때 `0` 이 되고
+    # `0 -gt cutoff` 가 거짓이라 **지우는 쪽**으로 떨어졌다 — 바로 위 주석이 말하는
+    # 것과 정반대였다. 도커 출력 형식이 바뀌거나 `date` 가 못 읽는 순간, 지키려던
+    # 이미지가 그 길로 사라진다.
+    if [ "$created" = "0" ]; then
+      unknown=$((unknown + 1)); kept=$((kept + 1)); continue
+    fi
+    if [ "$created" -gt "$cutoff" ]; then
+      kept=$((kept + 1)); continue
+    fi
+    if docker image rm "$id" >/dev/null 2>&1; then
+      gone=$((gone + 1))
+    else
+      kept=$((kept + 1))   # 쓰는 중이면 도커가 거절한다 — 그것도 남기는 것이다
+    fi
+  done
+  # 못 읽은 것이 있으면 **그것을 말한다.** 조용히 남기면 다음 주에도 같은 수가
+  # 쌓이는데 아무도 이유를 모른다.
+  if [ "$unknown" -gt 0 ]; then
+    echo "떠돌이 이미지: 지움 ${gone}개 · 남김 ${kept}개 (만든 시각을 못 읽어 남긴 것 ${unknown}개 — 도커 출력 형식을 확인하세요)"
+  else
+    echo "떠돌이 이미지: 지움 ${gone}개 · 남김 ${kept}개"
+  fi
+}
+
+step "② 떠돌이 이미지 (받아 온 것과 ${DANGLING_HOURS}시간 안의 것은 남긴다)" prune_dangling
 
 # ── ③ 끝난 컨테이너 ─────────────────────────────────────────────────────────
 # 러너가 잡마다 만들고 버린다. 도는 것은 건드리지 않는다.

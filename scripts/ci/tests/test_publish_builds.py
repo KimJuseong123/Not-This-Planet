@@ -116,6 +116,22 @@ try:
     assert url.endswith("/packages/generic/metagame/v1.0.0/a%20b.zip"), url
     print("  ⑧ 패키지 주소 인코딩 ✅")
 
+    # ── ⑩ PROMOTE_VERSION 은 사람이 손으로 적는 값이다 (S15P21B202-467) ──
+    #     그대로 `manifest/<값>.json` 경로가 되고 그대로 `latest.json` 에 실린다.
+    #     `../` 가 섞이면 배포 폴더 **밖**을 읽는다.
+    for bad in ("../../etc/passwd", "v1.0.0/../../x", "latest", "v1.0", "", "v1.0.0-rehearsal"):
+        assert not P.VERSION_RE.fullmatch(bad), f"형식 검사를 통과하면 안 되는 값: {bad!r}"
+    for good in ("v1.0.0", "1.0.0", "v12.3.45"):
+        assert P.VERSION_RE.fullmatch(good), f"정상 버전을 막는다: {good!r}"
+
+    #     검사가 **경로를 만들기 전에** 있어야 의미가 있다.
+    src = io.open(os.path.join(ROOT, "scripts", "ci", "publish_builds.py"),
+                  encoding="utf-8").read()
+    body = src.split("def promote(", 1)[1]
+    assert body.index("VERSION_RE.fullmatch") < body.index("manifest"), \
+        "형식 검사가 경로를 만든 뒤에 있다 — 그때는 이미 늦다"
+    print("  ⑨ PROMOTE_VERSION 형식 검사가 경로보다 앞에 있다 ✅")
+
     print()
     print("TEST405 OK")
 finally:
