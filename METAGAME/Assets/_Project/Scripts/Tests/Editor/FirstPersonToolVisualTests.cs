@@ -40,6 +40,9 @@ namespace Metagame.Gameplay.Tests
                     Assert.That(Vector3.Angle(line.GetPosition(1) - line.GetPosition(0), Vector3.forward),
                         Is.LessThan(0.01f), "화면 총구와 물리 총구 사이의 위치 차이가 허공 빔 방향을 바꾸면 안 된다.");
                 }
+                // 접촉 검증은 화면 중앙 레이가 작업 사거리 안의 벽을 보도록 배치한다.
+                camera.transform.SetPositionAndRotation(tool.Muzzle.position + Vector3.back * 0.3f,
+                    Quaternion.identity);
                 wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 wall.transform.position = tool.Muzzle.position + Vector3.forward * 0.4f;
                 wall.transform.localScale = new Vector3(2f, 2f, 0.05f);

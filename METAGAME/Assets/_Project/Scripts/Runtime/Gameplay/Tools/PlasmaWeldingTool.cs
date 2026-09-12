@@ -40,9 +40,12 @@ namespace Metagame.Gameplay
         [Header("용접 재료 / 조준 가이드")]
         [Min(0.01f)] [SerializeField] float materialCapacitySeconds = 60f;
         [Min(0.005f)] [SerializeField] float guideRadius = 0.045f;
+        [Tooltip("콜라이더 표면에서 법선 방향으로 가이드를 띄우는 거리(m).")]
+        [Min(0.002f)] [SerializeField] float guideSurfaceOffset = 0.02f;
         [SerializeField] Color guideColor = new Color(0.75f, 0.22f, 1f, 1f);
         float usedMaterialSeconds;
         Vector3 aimDirection;
+        ToolAimContext aimContext;
         WeldingSurfaceGuide surfaceGuide;
         public float RemainingFraction => Mathf.Clamp01(1f - usedMaterialSeconds / Mathf.Max(0.01f, materialCapacitySeconds));
         public override float ViewProgress => RemainingFraction;
@@ -141,6 +144,8 @@ namespace Metagame.Gameplay
 
         protected override void OnEquipped()
         {
+            aimContext = default;
+            aimDirection = Vector3.zero;
             ApplyHeldVisualPose();
 
             // 휴대 중 충돌 끄기는 ToolBase 가 한다(S15P21B202-237). 예전에는 여기서
@@ -172,6 +177,7 @@ namespace Metagame.Gameplay
 
         protected override void OnToolInput(ToolInputFrame input, ToolAimContext aim)
         {
+            aimContext = aim;
             aimDirection = aim.Direction;
             ResolveNozzleTip(aim.Direction);
             // 용접과 절단은 하나의 노즐에서 나가는 상호 배타적 기능이다.
@@ -191,7 +197,7 @@ namespace Metagame.Gameplay
         }
 
         /// <summary>
-        /// 총구에서 조준 방향으로 처음 맞힌 표면에 비드를 쌓는다.
+        /// 크로스헤어 레이가 처음 맞힌 표면에 비드를 쌓는다.
         /// 실제 진행한 시간만 이 용접건의 재료에서 소모한다.
         /// </summary>
         public bool WeldTick(float deltaTime, PlasmaBeamMode mode)
@@ -224,6 +230,7 @@ namespace Metagame.Gameplay
 
         protected override void OnToolVisualUpdate(ToolInputFrame input, ToolAimContext aim)
         {
+            aimContext = aim;
             UpdateHeldVisualPose();
 
             // 조준 방향이 바뀌면 "그 방향에서 본 총의 끝" 도 바뀐다(S15P21B202-277).
@@ -243,28 +250,26 @@ namespace Metagame.Gameplay
                 return;
             }
 
-            Vector3 direction = aim.Direction.sqrMagnitude > 1e-4f
+            Vector3 direction = aim.Camera != null ? aim.Camera.transform.forward : aim.Direction.sqrMagnitude > 1e-4f
                 ? aim.Direction.normalized
                 : Muzzle.forward;
             Vector3 origin = Muzzle.position;
-            float distance = beamRange;
             BeamHasContact = false;
 
             if (TryGetBeamHit(direction, out var contact))
             {
                 BeamHasContact = true;
-                distance = contact.distance;
             }
 
             Color color = CurrentBeamColor;
             beam.startColor = color;
             beam.endColor = color;
-            // 맞힌 표면은 실제 판정을 유지한다. 허공은 화면 총구에서 직진시켜야 한다.
-            // 서로 다른 총구로 시작/끝을 계산하면 이동 중 물리 보간 차이가 빔 방향을 꺾는다.
+            // 빔은 화면 총구에서 크로스헤어의 실제 접촉점으로 연결한다.
+            // 가이드에만 적용하는 표면 오프셋을 비드/빔 판정에는 섞지 않는다.
             var view = FirstPersonModel;
             var viewOrigin = view != null && view.gameObject.activeInHierarchy && visibleBoundsReady
                 ? NozzleGeometry.TipAlong(view, visibleLocalBounds, direction) : origin;
-            BeamEnd = (BeamHasContact ? origin : viewOrigin) + direction * distance;
+            BeamEnd = BeamHasContact ? contact.point : viewOrigin + direction * beamRange;
             beam.SetPosition(0, viewOrigin);
             beam.SetPosition(1, BeamEnd);
             beam.enabled = true;
@@ -309,20 +314,26 @@ namespace Metagame.Gameplay
         {
             contact = default;
             if (Muzzle == null) return false;
-            direction = direction.sqrMagnitude > 1e-4f ? direction.normalized : Muzzle.forward;
+            direction = aimContext.Camera != null ? aimContext.Camera.transform.forward :
+                direction.sqrMagnitude > 1e-4f ? direction.normalized : Muzzle.forward;
             float range = Mathf.Min(beamRange, PhysicsScale.WeldRange);
-            int count = Physics.RaycastNonAlloc(Muzzle.position, direction, hits, range,
+            var player = aimContext.Player != null ? aimContext.Player : ViewOwner;
+            Vector3 origin = aimContext.Camera != null ? aimContext.Camera.transform.position :
+                player != null ? player.AimOrigin : Muzzle.position;
+            // 카메라가 총구 뒤에 있어도 조준할 수 있지만 실제 작업 거리는 총구 기준으로 유지한다.
+            float rayRange = Vector3.Distance(origin, Muzzle.position) + range;
+            int count = Physics.RaycastNonAlloc(origin, direction, hits, rayRange,
                 beamMask, QueryTriggerInteraction.Ignore);
             // NonAlloc이 가득 찼을 때는 가장 가까운 충돌이 버퍼 밖일 수 있다.
             var results = count == hits.Length
-                ? Physics.RaycastAll(Muzzle.position, direction, range, beamMask, QueryTriggerInteraction.Ignore)
+                ? Physics.RaycastAll(origin, direction, rayRange, beamMask, QueryTriggerInteraction.Ignore)
                 : hits;
             if (results != hits) count = results.Length;
             float nearest = float.PositiveInfinity;
             for (int i = 0; i < count; i++)
                 if (!IsOwnedCollider(results[i].collider) && results[i].distance < nearest)
                 { contact = results[i]; nearest = contact.distance; }
-            return contact.collider != null;
+            return contact.collider != null && (contact.point - Muzzle.position).sqrMagnitude <= range * range;
         }
 
         void UpdateGuide(ToolInputFrame input, Vector3 direction)
@@ -336,7 +347,7 @@ namespace Metagame.Gameplay
                   (RemainingFraction > 0f && WeldBead.CanApplyAt(hit, false)) || WeldBead.CanApplyAt(hit, true)))
             { HideGuide(); return; }
             if (surfaceGuide == null) surfaceGuide = new WeldingSurfaceGuide(transform, guideColor);
-            surfaceGuide.Show(hit, guideRadius);
+            surfaceGuide.Show(hit, guideRadius, guideSurfaceOffset);
             GuideVisible = true;
         }
 
