@@ -41,6 +41,10 @@ import unity_report
 
 VERSION_FILE = "release-version.txt"
 NOTES_FILE = "release-notes.md"
+# **다음 잡에 zip 이름을 넘기는 자리** (S15P21B202-405). zip 자체는 아티팩트로 못
+# 넘긴다(160 MB · 상한 100 MB)라 패키지 레지스트리로 보내는데, 이름에 분 단위
+# 시각이 들어가 있어 **받는 쪽이 다시 계산할 수 없다.** 한 줄로 적어 둔다.
+PACKAGE_FILE = "release-package.txt"
 PACKAGE_NAME = "metagame"
 
 # **사용자가 받는 곳** (S15P21B202-405 · -461). 패키지 레지스트리 주소는 프로젝트가
@@ -530,6 +534,10 @@ def phase_publish(unity_rc: int) -> int:
         return 0
 
     t0 = time.time()
+    # 이름을 먼저 적는다 — 업로드가 실패해도 무엇을 올리려 했는지 남는다.
+    with open(PACKAGE_FILE, "w", encoding="utf-8", newline="\n") as f:
+        f.write(name + "\n")
+
     st = upload_package(zip_path, version, name)
     if st not in (200, 201):
         print(f"❌ 패키지 업로드 실패 {st}")

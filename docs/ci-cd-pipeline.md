@@ -71,7 +71,7 @@
 | **A. MR** (`merge_request_event`) | MR이 열리거나 소스 브랜치에 push | §2-A 전부 (조건부: `ci-tests` `unity-compile` `build-backend` `ai-review`) | 새 push가 앞 파이프라인을 자동 취소한다(정상) |
 | **B. develop push** | 팀장이 MR을 머지한 직후 | `retarget-pipelines` · `unity-compile`(METAGAME 변경) · `build-backend` → `deploy-dev`(backend 변경, **버튼만** — 자동 배포는 새벽 스케줄, -455) | **자동 취소 없음**(`auto_cancel: none`, -309) — 연달아 머지돼도 앞 파이프라인의 배포가 취소되지 않는다 |
 | **C. 스케줄** | **평일** 09:30 KST (id 28, `30 9 * * 1-5`, ref develop) — 실제 발송 09:33 | `ci-tests` · `retarget-pipelines` · `mm-digest` | 카드는 항목이 있을 때만 나간다 |
-| **D. master push** | 팀장이 `release/<키>-vX.Y.Z` 브랜치(또는 hotfix)를 master에 머지한 직후 | `release-windows` · `build-backend` → `deploy-prod`(**수동**, -284) | **릴리스 = 자동**: 버전 → Windows 빌드 → 패키지 → GitLab Release(태그) → MM. 자동 취소 없음(-326) |
+| **D. master push** | 팀장이 `release/<키>-vX.Y.Z` 브랜치(또는 hotfix)를 master에 머지한 직후 | `release-windows` → `publish-builds`(자동) → `promote-builds`(**수동**) · `build-backend` → `deploy-prod`(**수동**, -284) | **릴리스 = 자동, 공개는 버튼**: 버전 → Windows 빌드 → 패키지 → GitLab Release(태그) → MM. 자동 취소 없음(-326) |
 
 전부 `CI_ENABLE=true` 변수가 있어야 **파이프라인 자체가 생성**된다(없으면 조용히 0건 — §7).
 
@@ -112,6 +112,9 @@
 | `build-backend` | `backend/**` · `.gitlab-ci.yml` 변경 | 배포용 jar 아티팩트 | 실패 |
 | `deploy-dev` | **develop push** + 위와 같음 · `needs: build-backend` · **`when: manual`**(머지는 버튼만) + **새벽 스케줄 자동**(`$NIGHTLY_DEPLOY_DEV`, -455) · `tags: [deploy]` · `interruptible: false` · `environment: development` · `DEPLOY_SPOOL: /spool-dev` | jar을 `/spool-dev`에 원자적으로 놓고 `RELEASE` 표시 → 호스트 `deploy.sh`가 교체·헬스체크(`POST /auth/guest` 200, **8081**)·실패 시 **직전 jar로 롤백**(3개 보관) → 잡은 `STATUS`에 자기 sha가 찍힐 때까지 기다림(최대 420초) → MM 🟢 배포 완료 / 🔴 롤백 / 🔴 무응답 | 실패 → MM 🔴(Infra 멘션) |
 | `deploy-prod` | **master push**(`changes` 조건 없음) · `needs: build-backend` · **`when: manual`** · `tags: [deploy]` · `interruptible: false` · `environment: production` · **옛 파이프라인의 버튼을 누르면 경고**(-333) | 위와 같고 스풀만 기본값 `/spool`, 헬스체크는 **8080** | 실패 → MM 🔴(Infra 멘션) |
+| `publish-builds` | **master push** · `needs: release-windows` · `tags: [deploy]` · 자동 | 패키지 레지스트리에서 zip 을 받아 풀고 **매니페스트 + 내용 주소 저장소**를 `/builds` 에 만든다(`--no-latest`). zip 도 함께 둔다 — 런처를 안 쓰는 사람 길이 남아야 한다. **아직 아무도 이 버전을 받지 않는다** | 실패 → MM 🔴 |
+| `promote-builds` | **master push** · **`when: manual`** · `environment: production` | `latest.json` 을 이 버전으로 옮긴다 — **누르는 순간 모든 런처가 그 버전으로 간다.** 옮기기 전에 그 버전이 쓰는 파일이 저장소에 다 있는지 확인한다. 되돌리기도 이 잡이다(`PROMOTE_VERSION` 에 옛 버전) | 실패 → MM 🔴 |
+| `publish-site` | **develop push** + `website/**` 변경 · `tags: [deploy]` | `website/` 를 `/site` 로 옮긴다. **LFS 포인터가 섞여 있으면 멈춘다** — 올리면 영상·이미지가 전부 깨지는데 200 으로 내려가 화면만 보고는 못 찾는다 | 실패 → MM 🔴 |
 
 **배포 시점** (-455). 재시작은 어느 쪽이든 WebSocket 세션을 전부 끊는다. 끊기는 사람이 다를 뿐이다 — dev 는 **테스트하는 팀원**, prod 는 **실유저**. 그래서 둘 다 머지가 자동으로 배포하지 않는다. dev 는 **새벽 스케줄**(끊길 세션이 없는 시간)이 자동으로 맞추고 낮에는 버튼이며, prod 는 릴리스 뒤 사람이 시점을 고른다. `-139` §4 가 처음부터 적어 둔 이유이고, 한때 "나눈 뒤 실유저는 prod 에 있으니 dev 는 자동" 이라고 바꿨던 것이 틀렸다.
 
@@ -165,8 +168,8 @@
 
 | 러너 | 태그 | 실행기 | 마운트(볼륨) | 몫 |
 | --- | --- | --- | --- | --- |
-| `METAGAME-ip-172-26-13-34` (공용) | `linux` | docker · `cpu_shares = 256`(경합 시 게임 서버에 양보) | `/cache` · Claude 바이너리 **ro** · `~/.claude` **ro** · Unity 라이선스 `.ulf` **ro** | `deploy-dev`·`deploy-prod` 빼고 전부 (`default.tags: [linux]`) |
-| `METAGAME-deploy-ip-172-26-13-34` (배포 전용, id 2068) | `deploy` · **Protected(`ref_protected`)** · `run_untagged` 없음 — 2026-09-08 러너 API 실측 | docker | `/cache` · `/home/ubuntu/metagame/deploy` → **`/spool` rw** · `/home/ubuntu/metagame-dev/deploy` → **`/spool-dev` rw**(-284) | `deploy-dev`·`deploy-prod`만. 스풀은 여기에만 있고 **데이터만** 들어 있다 — 실행되는 코드는 `/opt/metagame-deploy/`(-324) |
+| `METAGAME-ip-172-26-13-34` (공용) | `linux` | docker · `cpu_shares = 256`(경합 시 게임 서버에 양보) | `/cache` · Claude 바이너리 **ro** · `~/.claude` **ro** · Unity 라이선스 `.ulf` **ro** | `deploy` 태그 잡 빼고 전부 (`default.tags: [linux]`) |
+| `METAGAME-deploy-ip-172-26-13-34` (배포 전용, id 2068) | `deploy` · **Protected(`ref_protected`)** · `run_untagged` 없음 — 2026-09-08 러너 API 실측 | docker | `/cache` · `/home/ubuntu/metagame/deploy` → **`/spool` rw** · `/home/ubuntu/metagame-dev/deploy` → **`/spool-dev` rw**(-284) · `/var/www/metagame-builds` → **`/builds` rw** · `/var/www/metagame-site` → **`/site` rw**(-405) | `deploy-dev`·`deploy-prod`·`publish-builds`·`promote-builds`·`publish-site`만. 스풀은 여기에만 있고 **데이터만** 들어 있다 — 실행되는 코드는 `/opt/metagame-deploy/`(-324) |
 | 내 PC 윈도우 러너 | — | shell(pwsh) | — | **정지 · 예비.** 받을 잡이 없다 |
 
 잡 컨테이너는 root로 돈다. 공용 러너에 `:rw` 마운트를 두면 아무 MR 이나 자기 브랜치의 `.gitlab-ci.yml` 한 줄로 그것을 읽고 쓸 수 있다 — 그래서 자격증명은 `:ro`, 스풀은 배포 러너에만(-290 · -252). 그리고 **rw 마운트 안에는 실행되는 코드를 두지 않는다**(-324): 스풀에는 데이터(jar·RELEASE·STATUS·로그·previous)만, `deploy.sh`는 마운트 밖 root 소유.
