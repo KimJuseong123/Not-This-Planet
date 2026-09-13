@@ -184,6 +184,18 @@ with tempfile.TemporaryDirectory() as tmp:
     assert cfg('// downloadUrl: "/builds/old.zip"') is None, \
         "주석뿐인데 키가 있다고 본다"
 
+    #     **블록 주석도 빼고 본다** (`!394` 2차 리뷰). 줄 앞만 보면 `/* … */` 안에서
+    #     `*` 정렬 없이 적힌 줄이 살아남고, 반대로 살아 있는 값 줄 앞에 `*` 가 붙어
+    #     있으면 키를 통째로 놓쳐 **검사가 꺼진다** — 막으려던 바로 그 모양이다.
+    NEW = 'downloadUrl: "/builds/new.exe"'
+    for name, text in (
+        ("정렬 없는 블록 주석", '/*\ndownloadUrl: "/builds/old.zip"\n*/\n' + NEW),
+        ("* 정렬 블록 주석", '/*\n * downloadUrl: "/builds/old.zip"\n */\n' + NEW),
+        ("한 줄 블록 주석", '/* downloadUrl: "/builds/old.zip" */\n' + NEW),
+        ("살아 있는 값 앞의 * 설명", ' * 설명\n' + NEW),
+    ):
+        assert cfg(text) == "new.exe", f"{name}: 살아 있는 값을 못 잡는다 ({cfg(text)!r})"
+
     #     파일이 아예 없으면 None
     os.remove(os.path.join(site, "release-config.js"))
     assert PS.download_target(site) is None

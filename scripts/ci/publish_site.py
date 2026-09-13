@@ -79,11 +79,16 @@ def download_target(site_dir: str) -> object:
     except OSError:
         return NOTHING_TO_CHECK          # 설정 파일 자체가 없다 — 쓰지 않는 사이트다
 
-    # **주석 줄은 빼고 본다** (`!394` 리뷰). 옛 값을 `// downloadUrl: "/builds/old.zip"`
+    # **주석은 빼고 본다** (`!394` 리뷰). 옛 값을 `// downloadUrl: "/builds/old.zip"`
     # 으로 남겨 두는 것은 흔한 일인데, 그것이 진짜 키보다 위에 있으면 **옛 값을 검사
     # 대상으로 잡는다.** 그러면 이미 지운 파일을 찾다가 배포가 서거나, 더 나쁘게는
     # 남아 있는 옛 파일을 보고 통과시킨다.
-    live = "\n".join(l for l in text.splitlines() if not l.lstrip().startswith(("//", "*", "/*")))
+    #
+    # **블록 주석을 먼저 지운다.** 줄 앞만 보면 `/* … */` 안에서 `*` 정렬 없이 적힌
+    # 줄이 살아남는다(리뷰가 짚었다). 반대로 살아 있는 값 줄 앞에 `*` 가 붙어 있으면
+    # 키를 통째로 놓쳐 **검사가 꺼진다** — 이 함수가 막으려던 바로 그 모양이다.
+    live = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    live = "\n".join(l for l in live.splitlines() if not l.lstrip().startswith("//"))
 
     m = URL_RE.search(live)
     if not m:
