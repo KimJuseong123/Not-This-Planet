@@ -293,15 +293,51 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void CrosshairContact_DrivesPreviewBeadAndBeam_WhenMuzzleIsOffset()
+        {
+            WeldingBody();
+            var tool = CreateTool(out var muzzle);
+            tool.transform.position = Vector3.right * 0.25f;
+            var cameraObject = new GameObject("Crosshair camera");
+            spawned.Add(cameraObject);
+            var camera = cameraObject.AddComponent<OrbitCamera>();
+            camera.transform.position = Vector3.back;
+            var aim = new ToolAimContext(null, camera, Vector3.forward);
+            tool.SetInput(new ToolInputFrame(), aim);
+            Physics.SyncTransforms();
+
+            Assert.IsTrue(tool.TryGetBeamHit(Vector3.forward, out var preview));
+            Assert.That(preview.point.x, Is.EqualTo(0f).Within(0.0001f));
+            Assert.IsTrue(tool.WeldTick(0.1f, PlasmaBeamMode.Weld));
+            Assert.That(Vector3.Distance(tool.GrowingBead.TipPosition(0), preview.point), Is.LessThan(0.001f));
+
+            tool.SetInput(new ToolInputFrame { PrimaryHeld = true }, aim);
+            InvokeLateUpdate(tool);
+            var line = tool.GetComponent<LineRenderer>();
+            Assert.IsTrue(line.enabled);
+            Assert.That(Vector3.Distance(line.GetPosition(0), muzzle.position), Is.LessThan(0.001f));
+            Assert.IsTrue(tool.TryGetBeamHit(Vector3.forward, out var beamContact));
+            Assert.That(Vector3.Distance(tool.BeamEnd, beamContact.point), Is.LessThan(0.001f));
+            Assert.That(tool.BeamEnd.x, Is.EqualTo(0f).Within(0.0001f));
+
+            tool.transform.position = Vector3.right * 2f;
+            Physics.SyncTransforms();
+            Assert.IsFalse(tool.TryGetBeamHit(Vector3.forward, out _), "카메라가 볼 수 있어도 총구 사거리 밖은 작업할 수 없다.");
+        }
+
+        [Test]
         public void IdleGuide_ProjectsOnSurface_AndHidesOnUnequip()
         {
             WeldingBody();
             var player = PlayerRig.Create("Guide owner", Vector3.left * 4f,
                 Quaternion.identity, Color.white, Color.gray, useModel: false);
             spawned.Add(player.gameObject);
+            var cameraObject = new GameObject("Guide camera");
+            spawned.Add(cameraObject);
+            var camera = cameraObject.AddComponent<OrbitCamera>();
             var tool = CreateTool(out _, player);
             Physics.SyncTransforms();
-            tool.SetInput(new ToolInputFrame(), new ToolAimContext(player, null, Vector3.forward));
+            tool.SetInput(new ToolInputFrame(), new ToolAimContext(player, camera, Vector3.forward));
             InvokeLateUpdate(tool);
             Assert.IsTrue(tool.GuideVisible);
             var guide = tool.transform.Find("Welding surface guide");
@@ -312,7 +348,7 @@ namespace Metagame.Gameplay.Tests
             foreach (var vertex in mesh.vertices)
             {
                 var point = guide.TransformPoint(vertex);
-                Assert.That(Vector3.Dot(point - hit.point, hit.normal), Is.EqualTo(0.002f).Within(0.0005f));
+                Assert.That(Vector3.Dot(point - hit.point, hit.normal), Is.EqualTo(0.02f).Within(0.0005f));
             }
             Assert.IsNull(hit.collider.GetComponentInParent<WeldBead>(), "예고만으로 비드를 만들지 않는다.");
             tool.Unequip();

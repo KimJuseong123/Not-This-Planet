@@ -458,7 +458,7 @@ namespace Metagame.Gameplay.Parts
         /// 붙는다. 지형·운석·소품·운반체는 둘 중 어느 조건도 통과하지 못한다.
         ///
         /// 이미 쌓인 비드는 씨앗으로 쓰지 않는다. 비드는 몸체가 아니고, 비드 위에서
-        /// 새 기둥이 시작되면 <see cref="PhysicsScale.WeldBeadBlobsPerChain"/> 로 정한
+        /// 새 기둥이 시작되면 <see cref="SpaceshipPart.WeldBeadBlobsPerChain"/> 로 정한
         /// 최대 다리 길이가 무의미해진다.
         /// </summary>
         static bool TryFindBodySurface(
@@ -510,15 +510,15 @@ namespace Metagame.Gameplay.Parts
                 if (cut) return true;
                 var chain = bead._chains[index];
                 if (chain.TipRadius < PhysicsScale.WeldBeadMaxRadius - 1e-4f) return true;
-                return chain.Blobs.Count < PhysicsScale.WeldBeadBlobsPerChain &&
-                       bead.BlobCount < PhysicsScale.WeldBeadsPerPart &&
+                return chain.Blobs.Count < bead.Owner.WeldBeadBlobsPerChain &&
+                       bead.BlobCount < bead.Owner.WeldBeadsPerPart &&
                        chain.Touched == null && chain.TouchedPad == null;
             }
             if (cut || (GameLayers.PartMask & (1 << hit.collider.gameObject.layer)) == 0) return false;
             var part = hit.collider.GetComponentInParent<SpaceshipPart>();
             if (part == null) return false;
             bead = part.GetComponent<WeldBead>();
-            return bead == null || bead.BlobCount < PhysicsScale.WeldBeadsPerPart;
+            return bead == null || bead.BlobCount < part.WeldBeadsPerPart;
         }
 
         public static bool TryApplyAt(RaycastHit hit, float deltaTime, bool cut, out WeldBead bead)
@@ -591,7 +591,7 @@ namespace Metagame.Gameplay.Parts
 
         bool StartChain(Vector3 worldPoint, Vector3 worldOutward)
         {
-            if (BlobCount >= PhysicsScale.WeldBeadsPerPart) return false;
+            if (BlobCount >= Owner.WeldBeadsPerPart) return false;
 
             var chain = new Chain
             {
@@ -616,7 +616,7 @@ namespace Metagame.Gameplay.Parts
             var chain = _chains[index];
             if (chain.Blobs.Count == 0) return false;
 
-            var full = chain.Blobs.Count >= PhysicsScale.WeldBeadBlobsPerChain;
+            var full = chain.Blobs.Count >= Owner.WeldBeadBlobsPerChain;
             var atMax = chain.TipRadius >= PhysicsScale.WeldBeadMaxRadius - 1e-4f;
 
             // 사슬이 상한 길이에 이르고 끝 덩어리도 다 컸으면 여기서는 더 할 일이 없다.
@@ -625,7 +625,7 @@ namespace Metagame.Gameplay.Parts
 
             if (atMax)
             {
-                if (BlobCount >= PhysicsScale.WeldBeadsPerPart) return false;
+                if (BlobCount >= Owner.WeldBeadsPerPart) return false;
 
                 // <b>닿았으면 더 뻗지 않는다.</b> 끝 덩어리는 계속 굵어지지만 다음 덩어리를
                 // 얹지는 않는다(S15P21B202-228).

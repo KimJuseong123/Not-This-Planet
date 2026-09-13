@@ -10843,6 +10843,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.Parts.SpaceshipPart
   _state: 0
   _placedMass: 744.6392
+  weldBeadsPerPart: 200
   _extraMass: 0
 --- !u!114 &608196417
 MonoBehaviour:
@@ -14131,6 +14132,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.Parts.SpaceshipPart
   _state: 0
   _placedMass: 459.79752
+  weldBeadsPerPart: 200
   _extraMass: 0
 --- !u!114 &824525072
 MonoBehaviour:
@@ -21386,6 +21388,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.Parts.SpaceshipPart
   _state: 0
   _placedMass: 405.5984
+  weldBeadsPerPart: 200
   _extraMass: 0
 --- !u!114 &1170010217
 MonoBehaviour:
@@ -39355,6 +39358,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.Parts.SpaceshipPart
   _state: 0
   _placedMass: 428.92136
+  weldBeadsPerPart: 200
   _extraMass: 0
 --- !u!114 &1980578357
 MonoBehaviour:

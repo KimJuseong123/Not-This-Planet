@@ -43,8 +43,9 @@ namespace Metagame.Gameplay
             renderer.receiveShadows = false;
         }
 
-        public void Show(RaycastHit hit, float radius)
+        public void Show(RaycastHit hit, float radius, float surfaceOffset)
         {
+            surfaceOffset = Mathf.Max(0.002f, surfaceOffset);
             radius = Mathf.Max(0.005f, radius);
             if (hit.collider is SphereCollider sphere)
             {
@@ -59,8 +60,8 @@ namespace Metagame.Gameplay
             {
                 float angle = i * (Mathf.PI * 2f / Segments);
                 var radial = tangent * Mathf.Cos(angle) + bitangent * Mathf.Sin(angle);
-                valid[i] = Project(hit, radial * (radius - 0.0015f), out inner[i]) &&
-                           Project(hit, radial * (radius + 0.0015f), out outer[i]);
+                valid[i] = Project(hit, radial * (radius - 0.0015f), surfaceOffset, out inner[i]) &&
+                           Project(hit, radial * (radius + 0.0015f), surfaceOffset, out outer[i]);
             }
             for (int i = 0; i < Segments; i++)
             {
@@ -80,12 +81,12 @@ namespace Metagame.Gameplay
             root.SetActive(true);
         }
 
-        static bool Project(RaycastHit center, Vector3 offset, out Vector3 point)
+        static bool Project(RaycastHit center, Vector3 offset, float surfaceOffset, out Vector3 point)
         {
             var ray = new Ray(center.point + offset + center.normal * 0.12f, -center.normal);
             if (center.collider.Raycast(ray, out var hit, 0.24f) && Vector3.Dot(hit.normal, center.normal) > 0.2f)
             {
-                point = hit.point + hit.normal * 0.002f;
+                point = hit.point + hit.normal * surfaceOffset;
                 return true;
             }
             point = default;
