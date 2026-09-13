@@ -309,14 +309,6 @@ namespace Metagame.Gameplay.Parts
             Register();
         }
 
-        /// <summary>기존 비드와 저장 좌표를 유지한 채 몸체 외형의 이동·회전을 따른다.</summary>
-        internal Transform FollowSurface(Transform surface)
-        {
-            Initialize();
-            _container.SetParent(surface, true);
-            return _container;
-        }
-
         public void Register()
         {
             if (!All.Contains(this)) All.Add(this);

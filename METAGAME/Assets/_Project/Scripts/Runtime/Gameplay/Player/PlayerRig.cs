@@ -1828,7 +1828,7 @@ namespace Metagame.Gameplay
             var craft = MountedVehicle;
             var tilting = craft != null && (craft.Tumbling || craft.Righting);
 
-            Cam.SetViewTilt(tilting ? craft.LevelOffset : Quaternion.identity);
+            Cam.SetViewTilt(tilting ? craft.CameraTilt : Quaternion.identity);
         }
 
         /// <summary>조준 기준점을 지금 보고 있는 곳에 맞춘다.</summary>
