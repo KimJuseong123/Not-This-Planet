@@ -59,6 +59,8 @@
 
 ## Scenes And Startup Flow
 
+- 2026-09-13 customization update: `Lobby` solo/together buttons now enter `Assets/Scenes/Customizer.unity`. Solo confirmation continues to `Stage1_Astra`; together confirmation opens the existing room UI inside Customizer through `LobbyBootstrap`, then keeps the Spring/Mirror start flow. `Stage1_Ending → Lobby` is unchanged. `Customizer` is enabled and required by `SpaceBuild`. `CustomizationData` saves cosmetic selections; `PlayerAppearance` applies tint and head/chest accessories, and `NetPlayer` replicates validated selections via Command/SyncVar. See repository-root `docs/records/2026-09-13-character-customizer.md`. Earlier Main-only scene descriptions below are historical.
+
 - Build scenes: `Assets/Scenes/Lobby.unity` and `Assets/Scenes/Main.unity` are enabled; `SpaceBuild` preserves existing entries and ensures both are present.
 - Startup scene: `Lobby` is first and `Main` is second in the build list. `Main` holds the static Stage1 puzzle/environment and scene-side ship parts; the player ragdoll, runtime level, HUD, and legacy vacuum/starfield are composed in code.
 - Scene loading flow: `LobbyBootstrap` creates the scene-independent `NetworkSession` and IMGUI `LobbyHud`, while `LobbyBackground` loops the MP4 over the PNG fallback. Solo play loads `Main` directly; multiplayer waits for the Spring WebSocket `GAME_STARTED`, fades out, starts Mirror host/client, and lets Mirror move the session to `Main`. `LobbyTransition` then fades in after `GameSession` is present. `Main` still assigns `Stage1AtmosphereProfile.asset` to `SpaceBootstrap`; `Lobby` remains on the neutral baseline Volume profile.
@@ -81,6 +83,8 @@
 - Comments/docs: Korean XML doc comments on most types, explaining the physics reasoning behind the numbers.
 
 ## Testing And Validation
+
+- 2026-09-13: Editor/Development builds support local F11 perspective toggling through `GameSession`/`OrbitCamera`; forced vehicle/downed/push cameras retain priority and restore the chosen base perspective. Ending greetings now run sequentially with a face close-up per participant, then everyone boards together. `DemoEnding` derives stage times from snapshot player count; ending snapshots also carry appearance selections. Headless Unity compilation and 52 related tests passed. See repository-root `docs/records/2026-09-13-debug-perspective-ending-greetings.md`.
 
 - Welding guide/material (2026-09-11): `PlasmaWeldingTool` now shares a first-hit ray query between tool actions and a purple collider-projected ring (0.8m maximum). Existing proximity APIs remain available, but the gun uses `WeldBead.CanApplyAt/TryApplyAt`. Each gun owns 60 seconds of successful welding material by default; equip/drop does not reset it. Successful cutting restores material to the cutting gun at the same time-based rate, capped at full. `WorldSync` transmits remaining fraction through `ViewProgress`, including dropped tools, and replicates ray-based bead changes through its existing bead snapshots. `GameHud` projects a yellow annular-sector fill beside the visible gun with fixed 0/25/50/75/100% ticks and no numeric current-remaining readout. No scene/prefab wiring is needed. See `docs/records/2026-09-11-welding-guide-material.md` at repository root for behavior and validation scope.
 

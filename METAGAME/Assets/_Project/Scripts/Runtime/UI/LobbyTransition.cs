@@ -90,7 +90,15 @@ namespace Metagame.UI
             return true;
         }
 
-        private IEnumerator LoadSoloRoutine()
+        public bool BeginCustomizer()
+        {
+            if (busy) return false;
+            busy = true;
+            transitionRoutine = StartCoroutine(LoadSoloRoutine(CustomizerFlow.SceneName, false));
+            return true;
+        }
+
+        private IEnumerator LoadSoloRoutine(string sceneName = GameSceneName, bool waitForGame = true)
         {
             yield return FadeTo(1f, FadeOutSeconds);
             yield return HoldLoading();
@@ -99,7 +107,7 @@ namespace Metagame.UI
             string loadError = null;
             try
             {
-                load = SceneManager.LoadSceneAsync(GameSceneName);
+                load = SceneManager.LoadSceneAsync(sceneName);
             }
             catch (Exception exception)
             {
@@ -121,8 +129,8 @@ namespace Metagame.UI
             while (!load.isDone)
                 yield return null;
 
-            bool ready = false;
-            yield return WaitForGameScene(result => ready = result);
+            bool ready = !waitForGame;
+            if (waitForGame) yield return WaitForGameScene(result => ready = result);
             if (!ready)
             {
                 yield return FailRoutine("게임 씬 준비 시간이 초과되었습니다.");

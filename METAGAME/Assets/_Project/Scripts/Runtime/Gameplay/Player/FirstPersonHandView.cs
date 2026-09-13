@@ -211,6 +211,8 @@ namespace Metagame.Gameplay
 
             leftHand = CreateHand(prefab, "왼손", -1f, out leftVisual, out leftVisualBaseScale);
             rightHand = CreateHand(prefab, "오른손", 1f, out rightVisual, out rightVisualBaseScale);
+            PlayerAppearance.Tint(viewRoot.GetComponentsInChildren<Renderer>(true),
+                CustomizationData.TintColor(CustomizationData.Load().Tint));
             UpdateVisibility();
         }
 

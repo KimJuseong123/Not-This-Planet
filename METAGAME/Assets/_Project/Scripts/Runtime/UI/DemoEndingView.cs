@@ -44,6 +44,8 @@ namespace Metagame.UI
             ShowBoarding(0f);
         }
 
+        public void Tick() => LateUpdate();
+
         void LateUpdate()
         {
             if (_ending == null || !_ending.Active) return;
@@ -57,7 +59,7 @@ namespace Metagame.UI
             }
             if (stage == DemoEndingStage.Boarding) ShowBoarding(_ending.Elapsed);
             else if (stage == DemoEndingStage.Launching)
-                ShowLaunch(_ending.Elapsed - DemoEnding.BoardingSeconds);
+                ShowLaunch(_ending.Elapsed - _ending.BoardingEndsAt);
             else if (_photo == null) TakePhotograph();
         }
 
@@ -183,6 +185,7 @@ namespace Metagame.UI
                 var doll = RagdollBuilder.Build(player.Name, StageOrigin, Quaternion.identity,
                     player.Suit, player.Accent, !SpaceSuit.Available);
                 doll.Root.SetParent(_stage, true);
+                PlayerAppearance.Apply(doll, player.Appearance);
                 foreach (var body in doll.Bodies) body.isKinematic = true;
                 foreach (var collider in doll.Root.GetComponentsInChildren<Collider>()) collider.enabled = false;
                 foreach (var script in doll.Root.GetComponentsInChildren<MonoBehaviour>()) script.enabled = false;
@@ -225,20 +228,60 @@ namespace Metagame.UI
         void ShowBoarding(float elapsed)
         {
             var entry = new Vector3(0f, 0.1f, _bounds.min.z + 0.3f);
-            var slot = (DemoEnding.BoardingSeconds - DemoEnding.GreetingSeconds) / Mathf.Max(1, _actors.Count);
+            int greeting = DemoEnding.GreetingActorAt(elapsed, _actors.Count);
+            float progress = DemoEnding.BoardingProgressAt(elapsed, _actors.Count);
             for (var i = 0; i < _actors.Count; i++)
             {
-                var startAt = DemoEnding.GreetingSeconds + i * slot;
-                var progress = Mathf.Clamp01((elapsed - startAt) / (slot * 0.9f));
-                var start = new Vector3((i - (_actors.Count - 1) * 0.5f) * 1.1f, 0f, _bounds.min.z - 4f);
+                var start = GreetingFoot(i);
                 var foot = Vector3.Lerp(start, entry, progress);
                 _actors[i].Root.gameObject.SetActive(progress < 1f);
-                var walking = elapsed >= startAt && progress < 1f;
+                var walking = progress > 0f && progress < 1f;
                 PoseActor(_actors[i], foot, walking ? Quaternion.LookRotation(entry - start)
                     : Quaternion.Euler(0f, 180f, 0f), walking,
-                    elapsed < DemoEnding.GreetingSeconds ? i : -1, elapsed);
+                    greeting == i ? i : -1, elapsed - i * DemoEnding.GreetingSeconds);
             }
-            FrameDeparture();
+            if (greeting >= 0)
+            {
+                float localTime = elapsed - greeting * DemoEnding.GreetingSeconds;
+                GreetingCamera(greeting, localTime, out var position, out var focus);
+                if (greeting > 0 && localTime < 0.3f)
+                {
+                    GreetingCamera(greeting - 1, DemoEnding.GreetingSeconds, out var previousPosition, out var previousFocus);
+                    float blend = Mathf.SmoothStep(0f, 1f, localTime / 0.3f);
+                    position = Vector3.Lerp(previousPosition, position, blend);
+                    focus = Vector3.Lerp(previousFocus, focus, blend);
+                }
+                _camera.transform.position = position;
+                _camera.transform.LookAt(focus);
+            }
+            else
+            {
+                FrameDeparture();
+                // 마지막 얼굴에서 전원 탑승을 볼 수 있는 와이드 화면으로 복귀한다.
+                if (_actors.Count > 0)
+                {
+                    GreetingCamera(_actors.Count - 1, DemoEnding.GreetingSeconds, out var position, out var focus);
+                    float blend = Mathf.SmoothStep(0f, 1f,
+                        (elapsed - _actors.Count * DemoEnding.GreetingSeconds) / 0.75f);
+                    _camera.transform.position = Vector3.Lerp(position, _camera.transform.position, blend);
+                    _camera.transform.LookAt(Vector3.Lerp(focus, StageOrigin + _bounds.center, blend));
+                }
+            }
+        }
+
+        Vector3 GreetingFoot(int index) => new Vector3(
+            (index - (_actors.Count - 1) * 0.5f) * 1.1f, 0f, _bounds.min.z - 4f);
+
+        void GreetingCamera(int index, float localTime, out Vector3 position, out Vector3 focus)
+        {
+            // 같은 서버 시각을 샘플링하면 프레임 속도·늦은 씬 진입과 무관하게 같은 컷이다.
+            float closeUp = Mathf.SmoothStep(0f, 1f, (localTime - 0.6f) / 0.65f);
+            var center = GreetingFoot(index) + Vector3.up * Mathf.Lerp(0.72f, RagdollBuilder.HeadY + 0.08f, closeUp);
+            float diameter = Mathf.Lerp(1.9f, 0.92f, closeUp);
+            float halfFov = _camera.fieldOfView * Mathf.Deg2Rad * 0.5f;
+            float distance = diameter * 0.6f / (Mathf.Sin(halfFov) * Mathf.Min(1f, _camera.aspect));
+            focus = StageOrigin + center;
+            position = focus + new Vector3(0f, 0.04f, -1f).normalized * distance;
         }
 
         void ShowLaunch(float elapsed)
@@ -379,7 +422,7 @@ namespace Metagame.UI
             var screen = new Rect(0f, 0f, Screen.width, Screen.height);
             if (_ending.Stage == DemoEndingStage.Photograph && _photo != null)
             {
-                var elapsed = _ending.Elapsed - DemoEnding.BoardingSeconds - DemoEnding.LaunchSeconds;
+                var elapsed = _ending.Elapsed - _ending.PhotographStartsAt;
                 var reveal = Mathf.SmoothStep(0f, 1f, elapsed / 0.65f);
                 var fade = Mathf.SmoothStep(0f, 1f,
                     (elapsed - (DemoEnding.PhotographSeconds - DemoEnding.FadeSeconds)) / DemoEnding.FadeSeconds);
@@ -417,7 +460,7 @@ namespace Metagame.UI
                 }
                 _title.fontSize = Mathf.Clamp(Mathf.RoundToInt(Screen.height * 0.085f), 24, 80);
                 _timeLabel.fontSize = Mathf.Max(16, _title.fontSize / 3);
-                GUI.color = new Color(1f, 1f, 1f, Mathf.Clamp01((_ending.Elapsed - DemoEnding.TitleStartsAt) / 0.6f));
+                GUI.color = new Color(1f, 1f, 1f, Mathf.Clamp01((_ending.Elapsed - _ending.EndTitleStartsAt) / 0.6f));
                 GUI.Label(new Rect(0f, Screen.height * 0.36f, Screen.width, Screen.height * 0.2f), "데모 끝", _title);
                 var duration = TimeSpan.FromSeconds(Math.Floor(_ending.Snapshot.PlayTimeSeconds));
                 GUI.Label(new Rect(0f, Screen.height * 0.57f, Screen.width, Screen.height * 0.08f),

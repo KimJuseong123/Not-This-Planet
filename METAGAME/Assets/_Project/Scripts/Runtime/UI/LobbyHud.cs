@@ -278,9 +278,7 @@ namespace Metagame.UI
             if (GUI.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 1, gap),
                     "함께 하기", buttonStyle))
             {
-                view = LobbyView.Multiplayer;
-                error = string.Empty;
-                notice = string.Empty;
+                CustomizerFlow.Begin(true);
             }
             if (GUI.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 2, gap),
                     "설정", buttonStyle))
@@ -806,8 +804,10 @@ namespace Metagame.UI
             error = string.Empty;
             notice = string.Empty;
             network.DisconnectLobby();
-            transition.BeginSolo();
+            CustomizerFlow.Begin(false);
         }
+
+        public void OpenMultiplayer() { view = LobbyView.Multiplayer; }
 
         private void DrawMultiplayer()
         {
@@ -826,6 +826,11 @@ namespace Metagame.UI
             if (GUI.Button(new Rect(x + width - 142f, y + 24f, 106f, 40f),
                     "메인으로", smallButtonStyle))
             {
+                if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == CustomizerFlow.SceneName)
+                {
+                    transition.BeginTitle();
+                    return;
+                }
                 view = LobbyView.Main;
                 error = string.Empty;
                 notice = string.Empty;

@@ -253,6 +253,7 @@ namespace Metagame.Bootstrap
             Quaternion facing = Quaternion.LookRotation(Vector3.right, Vector3.up);
 
             Player = PlayerRig.Create(nickname, spawn, facing, suit, accent, useModel);
+            PlayerAppearance.Apply(Player.Doll, CustomizationData.Load().Packed);
             Player.transform.SetParent(transform, true);
 
             Color cameraSkyColor = useAtmosphere ? atmosphereProfile.sky.horizonColor : Sky != null ? Sky.SkyColor : RenderSettings.ambientSkyColor;
@@ -334,11 +335,13 @@ namespace Metagame.Bootstrap
                     var player = connection.identity.GetComponent<NetPlayer>();
                     if (player == null) continue;
                     players.Add(new DemoEndingPlayer
-                    { Name = player.nickname, Suit = player.TeamSuitColor, Accent = player.TeamAccentColor });
+                    { Name = player.nickname, Suit = player.TeamSuitColor, Accent = player.TeamAccentColor,
+                        Appearance = player.Appearance });
                 }
             }
             else if (Session.LocalPlayer != null)
-                players.Add(new DemoEndingPlayer { Name = nickname, Suit = suit, Accent = accent });
+                players.Add(new DemoEndingPlayer { Name = nickname, Suit = suit, Accent = accent,
+                    Appearance = CustomizationData.Load().Packed });
             return players.ToArray();
         }
 
