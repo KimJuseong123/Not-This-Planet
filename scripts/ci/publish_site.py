@@ -72,9 +72,16 @@ def strip_line_comment(line: str) -> str:
     것(조용한 통과)이 아니라 엉뚱한 정지다. 그래서 따옴표 밖의 `//` 만 자른다.
     """
     quote = ""
+    skip = False
     for i, c in enumerate(line):
-        if quote:
-            if c == quote:
+        if skip:                       # 이스케이프된 글자는 그대로 지나간다
+            skip = False
+        elif quote:
+            # `"a\"//b"` 에서 가운데 따옴표를 닫는 것으로 보면, 뒤가 주석으로 잘려
+            # **오탐 정지**가 난다 (`!394` 4차 리뷰).
+            if c == "\\":
+                skip = True
+            elif c == quote:
                 quote = ""
         elif c in "\"'":
             quote = c
@@ -110,8 +117,11 @@ def download_target(site_dir: str) -> object:
     # **블록 주석을 먼저 지운다.** 줄 앞만 보면 `/* … */` 안에서 `*` 정렬 없이 적힌
     # 줄이 살아남는다(리뷰가 짚었다). 반대로 살아 있는 값 줄 앞에 `*` 가 붙어 있으면
     # 키를 통째로 놓쳐 **검사가 꺼진다** — 이 함수가 막으려던 바로 그 모양이다.
-    live = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
-    live = "\n".join(strip_line_comment(l) for l in live.splitlines())
+    # **줄 주석을 먼저 뗀다** (`!394` 4차 리뷰). 블록 주석을 먼저 지우면
+    # `// 옛 /* 값` 처럼 **줄 주석 안에 `/*` 가 있을 때** 그 뒤의 살아 있는 줄까지
+    # 통째로 삼켜 검사가 조용히 꺼진다.
+    live = "\n".join(strip_line_comment(l) for l in text.splitlines())
+    live = re.sub(r"/\*.*?\*/", "", live, flags=re.S)
 
     m = URL_RE.search(live)
     if not m:

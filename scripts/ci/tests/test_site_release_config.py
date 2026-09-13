@@ -188,6 +188,7 @@ with tempfile.TemporaryDirectory() as tmp:
     #     `*` 정렬 없이 적힌 줄이 살아남고, 반대로 살아 있는 값 줄 앞에 `*` 가 붙어
     #     있으면 키를 통째로 놓쳐 **검사가 꺼진다** — 막으려던 바로 그 모양이다.
     NEW = 'downloadUrl: "/builds/new.exe"'
+    NL, BS = chr(10), chr(92)
     for name, text in (
         ("정렬 없는 블록 주석", '/*\ndownloadUrl: "/builds/old.zip"\n*/\n' + NEW),
         ("* 정렬 블록 주석", '/*\n * downloadUrl: "/builds/old.zip"\n */\n' + NEW),
@@ -219,6 +220,16 @@ with tempfile.TemporaryDirectory() as tmp:
     assert cfg('downloadUrl: "https://example.com/x.exe"') is None, \
         "외부 https 주소를 못 읽음으로 본다 — 주석 제거가 문자열 안까지 자른다"
     assert PS.strip_line_comment('downloadUrl: "https://a/b"') == 'downloadUrl: "https://a/b"'
+
+    #     **줄 주석을 블록 주석보다 먼저 뗀다** (`!394` 4차 리뷰). 반대 순서면
+    #     `// 옛 /* 값` 처럼 줄 주석 안에 `/*` 가 있을 때 그 뒤의 살아 있는 줄까지
+    #     통째로 삼켜 **검사가 조용히 꺼진다.**
+    assert cfg('// 옛 /* 값' + NL + NEW) == "new.exe", \
+        "줄 주석 안의 /* 가 살아 있는 줄을 삼킨다"
+
+    #     이스케이프된 따옴표를 닫는 것으로 보면 뒤가 주석으로 잘려 **오탐 정지**가 난다.
+    assert cfg('note: "a' + BS + '"//b"' + NL + NEW) == "new.exe", \
+        "이스케이프 따옴표 뒤를 주석으로 자른다"
 
     #     파일이 아예 없으면 None
     os.remove(os.path.join(site, "release-config.js"))
