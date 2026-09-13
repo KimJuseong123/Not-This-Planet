@@ -57,6 +57,14 @@ def build_repo(root):
     branch("S15P21B202-7-s2", {"other.txt": "s2\n"}, base="S15P21B202-1-a")  # A 위에 얹혔지만 C 와 other.txt 충돌
     branch("S15P21B202-8-s3", {"s3.txt": "s3\n"}, base="S15P21B202-6-s")     # S(중간) 위에 다시 얹힘 — 가장 가까운 부모 검증용
 
+    # 릴리스 브랜치 — **develop 의 스냅샷**이라 커밋을 더하지 않는다 (S15P21B202-481).
+    # **여기서 만든다**: 지금의 develop 끝은 위 MR 들이 갈라져 나온 지점이라
+    # 그 브랜치들이 이 커밋을 포함한다 = `pick_parent` 가 전부 "얹힌" 것으로 본다.
+    # 실제 릴리스 브랜치가 정확히 이 모양이다(develop 을 그대로 떠서 master 로 보낸다).
+    g("switch", "-q", "-c", "release/S15P21B202-9-v1.1.0", "develop")
+    g("push", "-q", "-u", "origin", "release/S15P21B202-9-v1.1.0")
+    g("switch", "-q", "develop")
+
     # 오귀속 회귀용(-188): OLD 는 옛 develop 에서 갈라져 inherit.txt 를 고쳤고, 그 뒤 develop 이 같은
     # 파일을 다르게 고쳤다. 쌍별 공통 조상을 기준으로 재면 그 develop 변경이 나중 MR 의 변경으로 잡혀 오탐이 난다.
     def develop_commit(path, text, msg):
@@ -160,6 +168,28 @@ def _main(root: str) -> int:
         assert f.puts and f.puts[0].get("target_branch") == "S15P21B202-1-a", f.puts
         assert "위에 얹혀 있습니다" in f.notes[6][-1], f.notes[6][-1]
         print("  A 위에 얹힌 S → 대상 A 로 자동 전환")
+
+        # 5-b) **릴리스 MR 은 부모가 될 수 없다** (S15P21B202-481).
+        #
+        # 릴리스 브랜치는 develop 스냅샷이라 develop 에서 딴 모든 브랜치가 그 커밋을
+        # 포함한다 — 즉 `pick_parent` 가 **열린 MR 전부를 그 위에 얹힌 것으로 본다.**
+        # 그리고 그 MR 은 master 를 향하므로, 머지되며 브랜치가 지워지면 GitLab 이
+        # 자식을 **master 로 끌고 간다.**
+        #
+        # 2026-09-14 실측: `!405`(릴리스 v1.1.0) 때문에 `!406` 의 대상이 master 가 됐다.
+        REL = mr(9, "release/S15P21B202-9-v1.1.0", "2026-08-28T09:00:00Z", target="master")
+        rc, f = run(work, C, [REL], "S15P21B202-3-c")
+        assert rc == 0, rc
+        assert not f.puts, "릴리스 MR 위로 대상이 전환됐다: %s" % (f.puts,)
+        assert "얹혀" not in f.notes[3][-1], f.notes[3][-1]
+        print("  릴리스 MR 은 부모가 되지 않는다 — 대상이 master 로 끌려가지 않음")
+
+        # master 를 향하는 것은 릴리스 모양이 아니어도 부모가 아니다 — 연쇄는 대상을 따라간다
+        HOT = mr(10, "hotfix/S15P21B202-10-x", "2026-08-28T09:30:00Z", target="master")
+        rc, f = run(work, C, [HOT], "S15P21B202-3-c")
+        assert rc == 0, rc
+        assert not f.puts, "master 를 향하는 MR 위로 대상이 전환됐다: %s" % (f.puts,)
+        print("  master 를 향하는 MR 도 부모가 되지 않는다")
 
         # 6) 자동 전환 끄기
         os.environ["MR_OVERLAP_AUTORETARGET"] = "0"
