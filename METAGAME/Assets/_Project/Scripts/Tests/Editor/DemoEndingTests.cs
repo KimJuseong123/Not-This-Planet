@@ -138,6 +138,20 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void CompletionFreezesHostRoomTimeInsteadOfCutsceneTime()
+        {
+            Connect();
+            var ending = Ending(true, out var session);
+            double roomTime = 3723d;
+            ending.Configure(session, _parts, () => true, () => _clock,
+                () => new[] { new DemoEndingPlayer { Name = "A" } }, () => roomTime);
+            Assert.That(ending.TryComplete(), Is.True);
+            roomTime += 30d;
+            _clock += 10d;
+            Assert.That(ending.Snapshot.PlayTimeSeconds, Is.EqualTo(3723d));
+        }
+
+        [Test]
         public void ParticipantCannotDecideSuccessLocally()
         {
             Connect();
@@ -152,25 +166,28 @@ namespace Metagame.Gameplay.Tests
             var ending = Ending(false, out _);
             var snapshot = new DemoEndingSnapshot
             {
-                StartedAt = 93d, Parts = new DemoEndingPart[0],
+                StartedAt = 91d, PlayTimeSeconds = 3723d, Parts = new DemoEndingPart[0],
                 Players = new[] { new DemoEndingPlayer { Name = "재접속" } }
             };
             var wire = JsonUtility.ToJson(snapshot);
             ending.ApplySnapshot(JsonUtility.FromJson<DemoEndingSnapshot>(wire));
             Assert.That(ending.Stage, Is.EqualTo(DemoEndingStage.Launching));
             ending.ApplySnapshot(new DemoEndingSnapshot { StartedAt = 100d });
-            Assert.That(ending.Snapshot.StartedAt, Is.EqualTo(93d));
-            _clock = 93d + DemoEnding.TotalSeconds;
+            Assert.That(ending.Snapshot.StartedAt, Is.EqualTo(91d));
+            Assert.That(ending.Snapshot.PlayTimeSeconds, Is.EqualTo(3723d));
+            _clock = 91d + DemoEnding.TotalSeconds;
             Assert.That(ending.Finished, Is.True);
         }
 
         [TestCase(0f, DemoEndingStage.Boarding)]
-        [TestCase(4.999f, DemoEndingStage.Boarding)]
-        [TestCase(5f, DemoEndingStage.Launching)]
-        [TestCase(12f, DemoEndingStage.Photograph)]
-        [TestCase(16f, DemoEndingStage.EndTitle)]
-        [TestCase(18.999f, DemoEndingStage.EndTitle)]
-        [TestCase(19f, DemoEndingStage.Lobby)]
+        [TestCase(7.999f, DemoEndingStage.Boarding)]
+        [TestCase(8f, DemoEndingStage.Launching)]
+        [TestCase(12.999f, DemoEndingStage.Launching)]
+        [TestCase(13f, DemoEndingStage.Photograph)]
+        [TestCase(17.999f, DemoEndingStage.Photograph)]
+        [TestCase(18f, DemoEndingStage.EndTitle)]
+        [TestCase(20.999f, DemoEndingStage.EndTitle)]
+        [TestCase(21f, DemoEndingStage.Lobby)]
         public void AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(float elapsed, DemoEndingStage stage)
         {
             Assert.That(DemoEnding.StageAt(elapsed), Is.EqualTo(stage));

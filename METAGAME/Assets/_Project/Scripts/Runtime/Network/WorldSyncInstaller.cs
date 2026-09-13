@@ -159,6 +159,10 @@ namespace Metagame.Network
             if (clientActive && !clientWasActive) WorldSyncInstaller.RegisterHandler();
             clientWasActive = clientActive;
 
+            // 엔딩 씬에는 물리 월드가 없다. 네트워크 연결은 엔딩 시작 시각 공유용으로 유지한다.
+            if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().path
+                == Metagame.Gameplay.Parts.DemoEnding.ScenePath) return;
+
             if (spawned || !NetworkServer.active) return;
 
             // 게임 씬이 올라왔는지는 "옮길 것이 있는가" 로 판단한다. 씬 이름을 박아 두면

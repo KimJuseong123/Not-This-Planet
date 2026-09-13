@@ -11,6 +11,7 @@ namespace Metagame.Gameplay.Parts
     public sealed class DemoEndingSnapshot
     {
         public double StartedAt;
+        public double PlayTimeSeconds;
         public DemoEndingPart[] Parts;
         public DemoEndingPlayer[] Players;
     }
@@ -37,9 +38,12 @@ namespace Metagame.Gameplay.Parts
     /// <summary>비드 연결 성공과 되돌릴 수 없는 데모 엔딩. Mirror/UI 의존성은 없다.</summary>
     public sealed class DemoEnding : MonoBehaviour
     {
-        public const float BoardingSeconds = 5f;
-        public const float LaunchSeconds = 7f;
-        public const float PhotographSeconds = 4f;
+        public const string ScenePath = "Assets/Scenes/Stage1_Ending.unity";
+        public const float GreetingSeconds = 2f;
+        public const float BoardingSeconds = 8f;
+        public const float LaunchSeconds = 5f;
+        public const float PhotographSeconds = 5f;
+        public const float FadeSeconds = 1.5f;
         public const float EndTitleSeconds = 3f;
         public const float TitleStartsAt = BoardingSeconds + LaunchSeconds + PhotographSeconds;
         public const float TotalSeconds = TitleStartsAt + EndTitleSeconds;
@@ -49,6 +53,7 @@ namespace Metagame.Gameplay.Parts
         Func<double> _clock;
         Func<DemoEndingPlayer[]> _players;
         Func<bool> _authority;
+        Func<double> _playTime;
         readonly List<SpaceshipPart> _visited = new(4);
 
         public DemoEndingSnapshot Snapshot { get; private set; }
@@ -57,15 +62,26 @@ namespace Metagame.Gameplay.Parts
         public DemoEndingStage Stage => Active ? StageAt(Elapsed) : DemoEndingStage.Playing;
         public bool Finished => Stage == DemoEndingStage.Lobby;
         public IReadOnlyList<SpaceshipPart> Parts => _parts;
+        public bool PlaybackStarted => Active && _clock() >= Snapshot.StartedAt;
+
+        /// <summary>엔딩 전용 씬에서는 게임 세션이나 물리 파츠 없이 스냅샷만 재생한다.</summary>
+        public void ConfigurePlayback(DemoEndingSnapshot snapshot, Func<double> clock)
+        {
+            Snapshot = snapshot;
+            _clock = clock;
+            _parts = Array.Empty<SpaceshipPart>();
+            enabled = false;
+        }
 
         public void Configure(GameSession session, SpaceshipPart[] parts, Func<bool> authority,
-            Func<double> clock, Func<DemoEndingPlayer[]> players)
+            Func<double> clock, Func<DemoEndingPlayer[]> players, Func<double> playTime = null)
         {
             _session = session;
             _parts = parts;
             _authority = authority;
             _clock = clock;
             _players = players;
+            _playTime = playTime;
             session.Ending = this;
         }
 
@@ -114,7 +130,8 @@ namespace Metagame.Gameplay.Parts
             if (players == null || players.Length == 0) return false;
             var snapshot = new DemoEndingSnapshot
             {
-                StartedAt = _clock(), Players = players, Parts = new DemoEndingPart[_parts.Length]
+                StartedAt = _clock(), PlayTimeSeconds = Math.Max(0d, _playTime?.Invoke() ?? _session.Elapsed),
+                Players = players, Parts = new DemoEndingPart[_parts.Length]
             };
             for (var i = 0; i < _parts.Length; i++)
             {
