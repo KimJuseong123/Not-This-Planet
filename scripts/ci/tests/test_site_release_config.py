@@ -196,6 +196,18 @@ with tempfile.TemporaryDirectory() as tmp:
     ):
         assert cfg(text) == "new.exe", f"{name}: 살아 있는 값을 못 잡는다 ({cfg(text)!r})"
 
+    #     **배포 폴더 밖을 가리키면 확인한 것이 아니다** (`!394` 2차 리뷰).
+    #     `/builds/../../etc/passwd` 면 `os.path.join` 이 그대로 밖으로 나가고, 그 파일이
+    #     있다는 이유로 **통과시킨다** — 사용자는 404 를 받는다. 손으로 적는 값이라
+    #     실수로도 이렇게 된다. (`-467` 의 `PROMOTE_VERSION` 경로 탈출과 같은 종류다.)
+    for bad in ("/builds/../../etc/passwd", "/builds/a/../../x",
+                "/builds/..\\..\\x", "/builds/a//b"):
+        assert cfg('downloadUrl: "%s"' % bad) is PS.UNREADABLE, \
+            f"배포 폴더 밖을 가리키는데 통과한다: {bad}"
+
+    #     하위 폴더는 정당하다 — `manifest/` 아래를 가리킬 수 있어야 한다
+    assert cfg('downloadUrl: "/builds/manifest/v1.0.0.json"') == "manifest/v1.0.0.json"
+
     #     파일이 아예 없으면 None
     os.remove(os.path.join(site, "release-config.js"))
     assert PS.download_target(site) is None

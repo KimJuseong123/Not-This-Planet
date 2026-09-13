@@ -104,7 +104,18 @@ def download_target(site_dir: str) -> object:
     # `/builds/` 만 있으면 **가리키는 파일이 없다.** 예전에는 빈 문자열이 돌아가
     # 부르는 쪽의 `if want:` 에서 falsy 로 떨어져 **아무 검사도 없이 배포됐다**
     # (`!393` 리뷰) — 이번에 막으려던 바로 그 모양이다.
-    return rest if rest else UNREADABLE
+    if not rest:
+        return UNREADABLE
+
+    # **배포 폴더 밖을 가리키면 확인한 것이 아니다** (`!394` 2차 리뷰).
+    # `/builds/../../etc/passwd` 면 `os.path.join` 이 그대로 밖으로 나가고, 그 파일이
+    # 있다는 이유로 **통과시킨다** — 사용자는 404 를 받는다. 사람이 손으로 적는 값이라
+    # 실수로도 이렇게 될 수 있다. `..` 는 이 자리에서 정당한 쓰임이 없다.
+    # (`-467` 의 `PROMOTE_VERSION` 경로 탈출과 같은 종류다.)
+    parts = rest.replace("\\", "/").split("/")
+    if any(p in ("..", "") for p in parts) or rest.startswith("/"):
+        return UNREADABLE
+    return rest
 
 
 def is_pointer(path: str) -> bool:
