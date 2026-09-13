@@ -179,20 +179,9 @@ def main(argv: list[str] | None = None) -> int:
         print("  ⚠ 최소 버전을 올렸다 — 그보다 낮은 런처는 **갱신에 실패하면 게임을 "
               "켜지 못한다.** 규약을 깨는 변경일 때만 맞다")
 
-    # **사람이 받는 자리에도 놓는다** (S15P21B202-452). 해시 이름의 gzip 은 사이트
-    # 버튼에 걸 수 없다. 원자적으로 바꾼다 — 받는 중인 사람이 반쯤 쓰인 파일을
-    # 받으면 안 된다.
-    public = os.path.join(a.out, PUBLIC_NAME)
-    if a.dry_run:
-        print(f"(dry-run) {PUBLIC_NAME} 을 놓지 않았다")
-    else:
-        tmp_pub = public + ".part"
-        shutil.copyfile(a.exe, tmp_pub)
-        os.replace(tmp_pub, public)
-        print(f"사람이 받는 자리 → {public} ({size / 1048576:.1f} MB)")
-
     if a.dry_run:
         print("(dry-run) launcher.json 을 쓰지 않았다")
+        print(f"(dry-run) {PUBLIC_NAME} 을 놓지 않았다")
         return 0
 
     os.makedirs(a.out, exist_ok=True)
@@ -202,6 +191,19 @@ def main(argv: list[str] | None = None) -> int:
         f.write("\n")
     os.replace(tmp, path)
     print(f"launcher.json → {path}")
+
+    # **사람이 받는 자리에 놓는 것은 맨 마지막이다** (S15P21B202-452, `!390` 리뷰).
+    # 해시 이름의 gzip 은 사이트 버튼에 걸 수 없으므로 고정 이름으로도 놓는다.
+    #
+    # **순서에 뜻이 있다.** 여기가 실패하면 사람이 받는 것만 옛 런처로 남는데, 그 런처는
+    # 켜지자마자 `launcher.json` 을 보고 **스스로 새 버전으로 갱신한다** — 저절로 낫는다.
+    # 반대로 이것을 먼저 놓고 `launcher.json` 쓰기가 실패하면, 사람은 새 exe 를 받는데
+    # 자기 갱신 메타데이터는 옛 버전이라 **둘이 어긋난 채 남는다.**
+    public = os.path.join(a.out, PUBLIC_NAME)
+    tmp_pub = public + ".part"
+    shutil.copyfile(a.exe, tmp_pub)
+    os.replace(tmp_pub, public)
+    print(f"사람이 받는 자리 → {public} ({size / 1048576:.1f} MB)")
     return 0
 
 

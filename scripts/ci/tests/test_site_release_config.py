@@ -116,4 +116,55 @@ assert "ZIP" not in js.split("downloadStatus", 1)[1][:200], \
     "버튼 아래 문구가 아직 ZIP 을 말한다"
 print("  안내 문구가 런처를 말한다 ✅")
 
+
+# ── ⑥ 받을 수 없는 사이트는 올리지 않는다 (`!390` 리뷰) ─────────────────
+#
+#     `downloadUrl` 이 아직 없는 파일을 가리키면, 올리는 순간 **버튼이 켜진 채 404**
+#     가 된다. 꺼져 있으면 "아직 준비 중" 으로 읽히지만, **켜진 버튼이 실패하면 받는
+#     사람은 자기 쪽 문제로 여긴다.** 런처 exe 는 CI 가 아니라 사람이 놓으므로
+#     순서가 어긋날 여지가 실제로 있다.
+import shutil  # noqa: E402
+import tempfile  # noqa: E402
+
+sys.path.insert(0, os.path.join(ROOT, "scripts", "ci"))
+import publish_site as PS  # noqa: E402
+
+with tempfile.TemporaryDirectory() as tmp:
+    site, builds = os.path.join(tmp, "site"), os.path.join(tmp, "builds")
+    os.makedirs(site)
+    os.makedirs(builds)
+    shutil.copy("website/release-config.js", os.path.join(site, "release-config.js"))
+
+    assert PS.download_target(site) == PL.PUBLIC_NAME, PS.download_target(site)
+
+    #     `/builds/` 밖을 가리키면 볼 것이 없다 — 우리 폴더가 아니다
+    with open(os.path.join(site, "release-config.js"), "w", encoding="utf-8") as f:
+        f.write('window.ReleaseConfig = { downloadUrl: "https://example.com/x.exe" };')
+    assert PS.download_target(site) is None
+
+    #     파일이 아예 없으면 None
+    os.remove(os.path.join(site, "release-config.js"))
+    assert PS.download_target(site) is None
+
+src = read("scripts/ci/publish_site.py")
+body = src.split("def main(", 1)[1]
+assert "download_target" in body, "사이트 배치가 다운로드 주소를 확인하지 않는다"
+assert body.index("download_target") < body.index("shutil.copyfile"), \
+    "파일을 옮긴 뒤에 확인한다 — 그때는 이미 켜진 404 가 나가 있다"
+assert "return 1" in body.split("download_target", 1)[1][:1200], \
+    "없는 파일을 가리켜도 그냥 올린다"
+print("  다운로드 대상이 없으면 사이트를 올리지 않는다 ✅")
+
+
+# ── ⑦ 런처 발행 순서 — launcher.json 이 먼저다 ──────────────────────────
+#
+#     공개 exe 를 먼저 놓고 `launcher.json` 쓰기가 실패하면, 사람은 새 exe 를 받는데
+#     자기 갱신 메타데이터는 옛 버전이라 **어긋난 채 남는다.** 반대 순서면 사람이 받는
+#     것만 옛 런처이고, 그 런처가 켜지자마자 스스로 갱신한다 — 저절로 낫는다.
+pl = read("scripts/launcher/publish_launcher.py")
+tail = pl.split("def main(", 1)[1]
+assert tail.index("launcher.json → ") < tail.index("사람이 받는 자리 → "), \
+    "공개 exe 를 launcher.json 보다 먼저 놓는다 — 실패하면 둘이 어긋난 채 남는다"
+print("  launcher.json 을 쓴 뒤에 공개 exe 를 놓는다 ✅")
+
 print("== 통과 ==")
