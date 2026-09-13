@@ -33,6 +33,7 @@ namespace Metagame.Gameplay.Parts
         public string Name;
         public Color Suit;
         public Color Accent;
+        public int Appearance;
     }
 
     /// <summary>비드 연결 성공과 되돌릴 수 없는 데모 엔딩. Mirror/UI 의존성은 없다.</summary>
@@ -48,6 +49,26 @@ namespace Metagame.Gameplay.Parts
         public const float TitleStartsAt = BoardingSeconds + LaunchSeconds + PhotographSeconds;
         public const float TotalSeconds = TitleStartsAt + EndTitleSeconds;
 
+        public int ParticipantCount => Mathf.Clamp(Snapshot?.Players?.Length ?? 1, 1, 4);
+        public float BoardingEndsAt => BoardingDuration(ParticipantCount);
+        public float PhotographStartsAt => BoardingEndsAt + LaunchSeconds;
+        public float EndTitleStartsAt => PhotographStartsAt + PhotographSeconds;
+
+        // 기존 상수는 1인 기준이다. 인원이 늘어도 각자의 인사/클로즈업 시간을 보장한다.
+        public static float BoardingDuration(int players) => BoardingSeconds
+            + (Mathf.Clamp(players, 1, 4) - 1) * GreetingSeconds;
+
+        public static int GreetingActorAt(float elapsed, int players)
+        {
+            int count = Mathf.Clamp(players, 1, 4);
+            return elapsed >= 0f && elapsed < count * GreetingSeconds
+                ? Mathf.FloorToInt(elapsed / GreetingSeconds) : -1;
+        }
+
+        public static float BoardingProgressAt(float elapsed, int players) => Mathf.Clamp01(
+            (elapsed - Mathf.Clamp(players, 1, 4) * GreetingSeconds)
+            / (BoardingSeconds - GreetingSeconds));
+
         GameSession _session;
         SpaceshipPart[] _parts;
         Func<double> _clock;
@@ -59,7 +80,7 @@ namespace Metagame.Gameplay.Parts
         public DemoEndingSnapshot Snapshot { get; private set; }
         public bool Active => Snapshot != null;
         public float Elapsed => Active ? Mathf.Max(0f, (float)(_clock() - Snapshot.StartedAt)) : 0f;
-        public DemoEndingStage Stage => Active ? StageAt(Elapsed) : DemoEndingStage.Playing;
+        public DemoEndingStage Stage => Active ? StageAt(Elapsed, ParticipantCount) : DemoEndingStage.Playing;
         public bool Finished => Stage == DemoEndingStage.Lobby;
         public IReadOnlyList<SpaceshipPart> Parts => _parts;
         public bool PlaybackStarted => Active && _clock() >= Snapshot.StartedAt;
@@ -85,12 +106,14 @@ namespace Metagame.Gameplay.Parts
             session.Ending = this;
         }
 
-        public static DemoEndingStage StageAt(float elapsed)
+        public static DemoEndingStage StageAt(float elapsed, int players = 1)
         {
-            if (elapsed < BoardingSeconds) return DemoEndingStage.Boarding;
-            if (elapsed < BoardingSeconds + LaunchSeconds) return DemoEndingStage.Launching;
-            if (elapsed < TitleStartsAt) return DemoEndingStage.Photograph;
-            return elapsed < TotalSeconds ? DemoEndingStage.EndTitle : DemoEndingStage.Lobby;
+            float boardingEnd = BoardingDuration(players);
+            float titleStart = boardingEnd + LaunchSeconds + PhotographSeconds;
+            if (elapsed < boardingEnd) return DemoEndingStage.Boarding;
+            if (elapsed < boardingEnd + LaunchSeconds) return DemoEndingStage.Launching;
+            if (elapsed < titleStart) return DemoEndingStage.Photograph;
+            return elapsed < titleStart + EndTitleSeconds ? DemoEndingStage.EndTitle : DemoEndingStage.Lobby;
         }
 
         /// <summary>네 종류가 정확히 하나씩 있고 살아 있는 비드 접합만으로 연결되는가.</summary>

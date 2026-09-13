@@ -128,6 +128,23 @@ namespace Metagame.Gameplay
         /// </summary>
         public void Tick() => LateUpdate();
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        /// <summary>로컬 개발용 기본 시점 전환. 강제 연출 중에는 복귀할 시점만 바꾼다.</summary>
+        public void ToggleDebugPerspective()
+        {
+            if (vehicleView || downedView || pushView)
+            {
+                savedFirstPerson = !savedFirstPerson;
+                return;
+            }
+            FirstPerson = !FirstPerson;
+            if (Cam != null) Cam.nearClipPlane = FirstPerson ? 0.03f : 0.1f;
+            currentDistance = FirstPerson ? 0f : Distance;
+            focusReady = false;
+            Tick();
+        }
+#endif
+
         /// <summary>
         /// 아직 시야가 몸과 함께 넘어가는 중인가.
         ///
@@ -542,6 +559,11 @@ namespace Metagame.Gameplay
         void LateUpdate()
         {
             if (Target == null) return;
+            if (Cam != null)
+            {
+                float near = FirstPerson ? 0.03f : 0.1f;
+                if (!Mathf.Approximately(Cam.nearClipPlane, near)) Cam.nearClipPlane = near;
+            }
 
             Vector3 raw = Target.position + Vector3.up * TargetHeight;
 

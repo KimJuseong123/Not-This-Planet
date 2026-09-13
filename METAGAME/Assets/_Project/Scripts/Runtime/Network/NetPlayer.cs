@@ -77,6 +77,7 @@ namespace Metagame.Network
 
         [SyncVar(hook = nameof(OnAppearanceChanged))]
         int appearance;
+        public int Appearance => appearance;
 
         public override void OnStartLocalPlayer()
         {

@@ -335,11 +335,13 @@ namespace Metagame.Bootstrap
                     var player = connection.identity.GetComponent<NetPlayer>();
                     if (player == null) continue;
                     players.Add(new DemoEndingPlayer
-                    { Name = player.nickname, Suit = player.TeamSuitColor, Accent = player.TeamAccentColor });
+                    { Name = player.nickname, Suit = player.TeamSuitColor, Accent = player.TeamAccentColor,
+                        Appearance = player.Appearance });
                 }
             }
             else if (Session.LocalPlayer != null)
-                players.Add(new DemoEndingPlayer { Name = nickname, Suit = suit, Accent = accent });
+                players.Add(new DemoEndingPlayer { Name = nickname, Suit = suit, Accent = accent,
+                    Appearance = CustomizationData.Load().Packed });
             return players.ToArray();
         }
 
