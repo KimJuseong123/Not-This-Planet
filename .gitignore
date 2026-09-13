@@ -25,6 +25,12 @@
 *.userprefs
 *.pidb
 *.booproj
+
+# **런처 프로젝트는 Unity 가 만드는 것이 아니다** (S15P21B202-475).
+# 위 `*.csproj` 는 Unity 가 다시 만드는 파일을 거르려던 규칙인데, 그것이
+# `launcher/NotThisPlanetLauncher.csproj` 까지 삼켜 **한 번도 커밋되지 않았다** —
+# README 는 `dotnet publish` 를 하라는데 아무도 런처를 빌드할 수 없었다.
+!/launcher/*.csproj
 *.svd
 *.pdb
 *.mdb

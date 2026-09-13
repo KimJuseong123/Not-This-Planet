@@ -1,6 +1,7 @@
 """repo-hygiene — MR 변경 파일 위생 검사. 위반 시 exit 1.
 
 1. 금지 파일: Unity 생성물(Library/Temp/Logs/obj/Build*), IDE 파일(.csproj/.sln/.vs/.idea), OS 잡파일
+   — 단 ALLOWED 에 적은 것은 비켜 간다(손으로 쓴 `launcher/*.csproj`)
 2. .meta 짝: Assets/ 아래 추가 파일·폴더에는 .meta 가 함께 있어야 하고, .meta 만 남거나(고아) 파일만 지우면 실패
 3. 에셋 위치: Assets/ 바로 아래 새 최상위 폴더 금지(대상 브랜치에 이미 있는 폴더 또는 _Project/ 만)
 4. LFS: .gitattributes 로 LFS 추적되는 파일은 포인터여야 함(실 바이너리 커밋 = git lfs install 누락). 비-LFS 5MB 초과 실패
@@ -18,10 +19,14 @@ import sys
 
 from ci_common import GitLab, Report, banner, env, find_section, is_release_mr, sections
 
+# 예외(ALLOWED)가 이름으로 가리키는 사유는 상수로 둔다. 양쪽에 같은 문자열을 적어 두면
+# 한쪽 문구를 다듬는 순간 예외가 죽는다 — 테스트가 잡아 주지만, 애초에 어긋날 수 없게 한다.
+REASON_IDE = "IDE/빌드 산출물"
+
 FORBIDDEN = [
     # Release/ 는 2026-09-07 !240 — 팀장 빌드 폴더(218MB · 경로 232자)가 통째로 커밋됐다. 빌드는 GitLab Release 로(-325)
     (re.compile(r"^METAGAME/(Library|Temp|Logs|obj|UserSettings|Build|Builds|Release|\.vs|\.idea)/"), "Unity/IDE 생성물·빌드 폴더"),
-    (re.compile(r"\.(csproj|sln|suo|user|pidb|booproj|svd|pdb|mdb|opendb|VC\.db)$", re.I), "IDE/빌드 산출물"),
+    (re.compile(r"\.(csproj|sln|suo|user|pidb|booproj|svd|pdb|mdb|opendb|VC\.db)$", re.I), REASON_IDE),
     (re.compile(r"(^|/)(Thumbs\.db|\.DS_Store|desktop\.ini)$", re.I), "OS 잡파일"),
     (re.compile(r"^(\.vs|\.idea)/"), "IDE 설정"),
     (re.compile(r"\.(apk|aab|ipa|exe|msi|zip|7z|rar)$", re.I), "빌드/압축 산출물"),
@@ -33,6 +38,41 @@ FORBIDDEN = [
     # 스테이징됐다(S15P21B202-309).
     (re.compile(r"\.local\.(md|txt|json|ya?ml)$", re.I), "개인 작업 메모(.local.*)"),
 ]
+
+# 금지 규칙보다 먼저 본다. **좁게** 적는다 — 여기 들어온 것은 위 규칙이 통째로 비켜 가므로,
+# 폴더와 확장자를 모두 못 박고 하위 폴더까지 열지 않는다.
+ALLOWED = [
+    # 런처는 Unity 가 만드는 것이 아니다 (S15P21B202-475). 위 `.csproj` 규칙은 Unity 가
+    # 다시 만드는 프로젝트 파일을 거르려던 것인데, 그것이 `launcher/` 의 손으로 쓴
+    # 프로젝트 파일까지 막았다. 루트 `.gitignore` 도 같은 가정을 하고 있어서
+    # **한 번도 커밋되지 않았고**, README 는 `dotnet publish` 를 하라는데 저장소를 받은
+    # 사람은 런처를 빌드할 수 없었다. 두 곳 다 풀어야 한다.
+    (re.compile(r"^launcher/[^/]+\.csproj$"), REASON_IDE),
+]
+
+
+def forbidden_reasons(path: str) -> list[str]:
+    """이 경로를 막을 이유를 **모두**. 막지 않으면 빈 목록.
+
+    **판정은 여기 한 곳에만 둔다.** 검사와 테스트가 각자 ALLOWED/FORBIDDEN 을 조합하면,
+    한쪽 순서가 바뀌었을 때 **테스트는 초록인데 CI 만 막는다** — 알아보기 가장 어려운
+    모양이다. 부르는 쪽이 둘이므로 둘 다 이 함수를 지난다.
+
+    **첫 사유에서 멈추지 않는다.** 한 파일이 규칙 둘을 어기면 둘 다 알려 줘야 한다 —
+    하나만 고치고 다시 빨간 것을 보는 것은 고치는 사람 쪽의 낭비다.
+
+    **예외는 규칙 하나씩만 면제한다.** 예외에 걸렸다고 FORBIDDEN 을 통째로 비켜 가게
+    두면, 목록이 늘었을 때 인증키·개인 메모 규칙까지 같이 열린다 — 그것은 예외를
+    넣은 사람이 의도한 적 없는 구멍이고, 넓어지는 순간이 조용하다.
+    """
+    hits = []
+    for rx, why in FORBIDDEN:
+        if not rx.search(path):
+            continue
+        if any(why == exempt and a.search(path) for a, exempt in ALLOWED):
+            continue                      # 이 규칙만 면제됐다 — 다음 규칙은 계속 본다
+        hits.append(why)
+    return hits
 ASSETS = "METAGAME/Assets/"
 THIRDPARTY = ASSETS + "_Project/ThirdParty/"
 MAX_NON_LFS = 5 * 1024 * 1024
@@ -219,7 +259,8 @@ def main() -> int:
     print(f"변경 {len(changes)}개 (추가 {len(added)} · 수정 {len(modified)} · 삭제 {len(deleted)})")
 
     # 1) 금지 파일
-    bad = [(p, why) for s, p in changes if s != "D" for rx, why in FORBIDDEN if rx.search(p)]
+    bad = [(p, why) for s, p in changes if s != "D"
+           for why in forbidden_reasons(p)]
     for p, why in bad:
         rep.fail(f"금지 파일({why}): {p} — .gitignore 확인, 커밋에서 제외")
     if not bad:
