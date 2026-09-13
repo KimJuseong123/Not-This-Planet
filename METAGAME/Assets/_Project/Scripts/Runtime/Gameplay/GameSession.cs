@@ -126,11 +126,6 @@ namespace Metagame.Gameplay
 
             if (!ScriptedInput)
             {
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-                // 시점은 개인 화면의 상태다. InputFrame/Command에 넣지 않는다.
-                if (Input.GetKeyDown(KeyCode.F11) && LocalPlayer.Cam != null)
-                    LocalPlayer.Cam.ToggleDebugPerspective();
-#endif
                 var f = Controls.Read();
 
                 if (f.TabletToggle && Exploration != null)

@@ -10,10 +10,17 @@ using UnityEngine.SceneManagement;
 
 namespace Metagame.Bootstrap
 {
-    /// <summary>개발 빌드/에디터 전용. 서버 권한으로 실제 성공 판정을 거치는 F12 엔딩 테스트.</summary>
+    /// <summary>개발 빌드/에디터 전용 F11 시점 전환과 F12 엔딩 테스트 설정 및 입력.</summary>
     [DefaultExecutionOrder(-200)]
-    public sealed class EndingDebugShortcut : MonoBehaviour
+    [DisallowMultipleComponent]
+    public sealed class DevManager : MonoBehaviour
     {
+        [Header("개발자 테스트 (에디터 / Development Build 전용)")]
+        [Tooltip("F11로 로컬 플레이어의 1인칭 / 3인칭 시점을 전환합니다.")]
+        [SerializeField] bool enableF11Perspective = true;
+        [Tooltip("F12로 엔딩 테스트 확인창을 엽니다. 멀티플레이에서는 호스트만 실행할 수 있습니다.")]
+        [SerializeField] bool enableF12Ending = true;
+
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         GameSession session;
         DemoEnding ending;
@@ -23,7 +30,8 @@ namespace Metagame.Bootstrap
         GUIStyle titleStyle, buttonStyle, hintStyle;
         string error;
         public bool IsOpen { get; private set; }
-        public bool CanConfirm => session != null && ending != null && !ending.Active
+        public bool CanConfirm => isActiveAndEnabled && enableF12Ending
+            && session != null && ending != null && !ending.Active
             && !session.Cleared && (!networked || NetworkServer.active)
             && !HostMigration.Pending && !HostMigration.Taking && !HostMigration.Settling;
 
@@ -32,6 +40,18 @@ namespace Metagame.Bootstrap
 
         void Update()
         {
+            UpdateEndingShortcut();
+            // 시점은 개인 화면의 상태다. InputFrame/Command에 넣지 않는다.
+            if (enableF11Perspective && session != null && session.isActiveAndEnabled
+                && !session.EndingActive && !session.InputSuppressed && !session.ScriptedInput
+                && session.LocalPlayer != null && session.LocalPlayer.Cam != null
+                && Input.GetKeyDown(KeyCode.F11))
+                session.LocalPlayer.Cam.ToggleDebugPerspective();
+        }
+
+        void UpdateEndingShortcut()
+        {
+            if (!enableF12Ending) { if (IsOpen) Cancel(); return; }
             if (session == null || ending == null) return;
             if (ending.Active || (EndingSceneFlow.Instance != null && EndingSceneFlow.Instance.IsTransferring))
             { if (IsOpen) Cancel(); return; }
@@ -41,7 +61,8 @@ namespace Metagame.Bootstrap
 
         public bool OpenConfirmation()
         {
-            if (IsOpen || restorePending || session == null || ending == null || ending.Active
+            if (!isActiveAndEnabled || !enableF12Ending
+                || IsOpen || restorePending || session == null || ending == null || ending.Active
                 || SceneManager.GetActiveScene().name != "Stage1_Astra"
                 || session.InputSuppressed || (pause != null && pause.IsOpen)
                 || LobbyTransition.Instance != null && LobbyTransition.Instance.IsBusy) return false;
