@@ -22,7 +22,7 @@ import os
 import subprocess
 import sys
 
-from ci_common import GitLab, Report, banner, env, env_int, http, strip_draft
+from ci_common import GitLab, Report, banner, bot_line, env, env_int, http, strip_draft
 
 
 def is_release_mr(source: str, target: str) -> bool:
@@ -222,8 +222,14 @@ def fix_steps(parent_branch: str, files: list[str]) -> str:
             f"그 뒤 팀장이 그 MR 을 먼저 머지하면 GitLab 이 이 MR 의 대상을 develop 으로 되돌리고, 그때 이 MR 을 머지하면 됩니다.")
 
 
+# **이 잡은 막지 않는다.** 충돌을 미리 알려 순서를 잡게 하는 것이 목적이고, 막는 것은
+# 실제로 충돌이 났을 때 GitLab 이 한다 (S15P21B202-425).
+BLOCKS_MINE = "**머지를 막지 않습니다** — 순서와 충돌을 미리 알리는 것입니다"
+
+
 def render_mine(me: dict, results: list[dict], parent: dict | None) -> str:
-    out = [MARKER, "🔀 **다른 열린 MR 과의 관계** (mr-overlap)"]
+    out = [MARKER, "🔀 **다른 열린 MR 과의 관계** (mr-overlap)",
+           bot_line("mr-overlap", BLOCKS_MINE)]
     if parent:
         out.append(f"\n**이 MR 은 {link(parent)} 위에 얹혀 있습니다** → 대상 브랜치를 `{parent['source_branch']}` 로 바꿨습니다. "
                    f"머지 순서: !{parent['iid']} → !{me['iid']}. 부모가 머지되면 GitLab 이 대상을 develop 으로 되돌립니다(자동).")
@@ -257,7 +263,12 @@ def render_other(me: dict, other: dict, cmp: dict, ai: dict | None, i_am_newer: 
     first, second = (other, me) if i_am_newer else (me, other)
     files = cmp["conflicts"] or cmp["risky"] or cmp["overlap"]
     head = {"conflict": "⛔ 텍스트 충돌", "risky": "⚠ 같은 씬·프리팹·에셋", "overlap": "ℹ 같은 파일"}[cmp["kind"]]
+    # **이 코멘트는 남의 MR 에 붙는다.** 그래서 "어느 잡" 이 헷갈릴 수 있다 —
+    # 링크는 **이 MR 의 파이프라인**을 가리킨다. 그 사실을 문장으로 적는다
+    # (S15P21B202-425). 읽는 사람은 자기 파이프라인에서 이 잡을 찾다 못 찾는다.
     out = [PAIR_MARKER.format(iid=me["iid"]), f"🔀 **{head} — {link(me)}** 와 겹칩니다 (mr-overlap)",
+           bot_line("mr-overlap",
+                    f"**이 MR 의 머지를 막지 않습니다** — !{me['iid']} 의 파이프라인이 남긴 알림입니다"),
            "- 파일: " + " · ".join(f"`{f}`" for f in files[:12]),
            f"- 머지 순서(먼저 열린 순): **!{first['iid']} → !{second['iid']}**"]
     if cmp["kind"] == "conflict":

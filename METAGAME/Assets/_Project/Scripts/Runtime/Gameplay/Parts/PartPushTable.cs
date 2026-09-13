@@ -2,18 +2,11 @@ using UnityEngine;
 
 namespace Metagame.Gameplay.Parts
 {
-    /// <summary>
-    /// 미는 인원수에 따른 파츠 속도(기획 §13.2).
-    ///
-    /// <b>계산식을 만들지 않는다.</b> 표가 선형이 아니다 — 1·2·3명은 0.4씩 오르는데
-    /// 4명은 0.3만 오른다. 식으로 바꾸면 기획이 정한 값이 아니라 내가 정한 값이 된다.
-    /// <see cref="Hazards.MeteorWaveTable"/> 이 §17.4 를 표로 둔 것과 같은 방식이다
-    /// (S15P21B202-234).
-    /// </summary>
+    /// <summary>수동 운반 인원별 속도표(기획 §13.2). 솔로도 천천히 이동할 수 있게 조정한다.</summary>
     public static class PartPushTable
     {
         /// <summary>기획 §13.2 의 표. 첨자가 인원수다(0명은 0m/s).</summary>
-        public static readonly float[] Speeds = { 0f, 0.4f, 0.8f, 1.2f, 1.5f };
+        public static readonly float[] Speeds = { 0f, 0.6f, 0.8f, 1.2f, 1.5f };
 
         /// <summary>
         /// <paramref name="pushers"/> 명이 같은 방향으로 밀 때의 파츠 속도(m/s).
@@ -28,25 +21,8 @@ namespace Metagame.Gameplay.Parts
             return Speeds[Mathf.Min(pushers, Speeds.Length - 1)];
         }
 
-        /// <summary>
-        /// 협동 밀기가 발동하는 최소 인원. 둘까지는 붙잡고 버티기만 한다.
-        ///
-        /// <b>이 문턱을 물리에 맡길 수 없다.</b> 그러면 좋겠지만 — "둘은 무게를 못
-        /// 이기고 셋은 이긴다" 를 마찰이 저절로 갈라 주면 규칙이 필요 없다 — PhysX 의
-        /// 정지 마찰이 요구하는 힘이 <b>접촉 구성에 따라 이론값의 1.35 ~ 2.05배로
-        /// 흔들린다.</b> 접촉점이 많은 평평한 바닥일수록 크다. 실측하면 이렇다.
-        ///
-        /// <list type="bullet">
-        /// <item>Part_1 — 최하단이 0.94 x 0.94 뿐이라 접촉점이 적다. 이론값의 1.35배로 밀린다</item>
-        /// <item>평평한 2 x 2 바닥 — 이론값의 2배를 주어도 꿈쩍하지 않는다</item>
-        /// </list>
-        ///
-        /// 둘이 이론값의 2/3 를 낼 때 안 밀리고 셋이 1배를 낼 때 밀리게 하려면 여유가
-        /// 2.05배보다 크고 3.08배보다 작아야 하는데, 그 두 조건은 동시에 만족되지
-        /// 않는다. 그래서 인원 문턱은 <b>규칙으로</b> 두고, 셋 이상에게는 어떤 형태의
-        /// 파츠든 확실히 이길 힘을 준다(S15P21B202-394).
-        /// </summary>
-        public const int MinPeople = 3;
+        /// <summary>혼자서도 모든 자유 파츠를 밀거나 당길 수 있다(기획 §13).</summary>
+        public const int MinPeople = 1;
 
         /// <summary>파츠가 움직이기 시작하는 최소 인원.</summary>
         public static int MinPeopleToMove => MinPeople;
@@ -62,7 +38,7 @@ namespace Metagame.Gameplay.Parts
             Core.Prim.GroundPhysics.staticFriction * Mathf.Abs(Core.Tuning.Gravity);
 
         /// <summary>
-        /// 이론상 필요한 힘에 곱하는 여유. 위 <see cref="MinPeople"/> 주석의 실측
+        /// 이론상 필요한 힘에 곱하는 여유. 기존 접촉 구성 실측의
         /// 최악값(2.05배)보다 크게 잡는다. 남는 여유는 경사면과 용접 비드 몫이다 —
         /// 20도 경사에서 필요한 값은 <c>g(μ·cos20° + sin20°) / (μ·g) = 1.30배</c> 다.
         /// </summary>
@@ -83,7 +59,9 @@ namespace Metagame.Gameplay.Parts
             if (people < MinPeople || mass <= 0f) return 0f;
 
             var needed = mass * GroundFrictionAccel * FrictionMargin;
-            return needed * people / MinPeople;
+            // 한 명부터 정지 마찰을 이긴다. 기존 3·4인 힘은 유지하고
+            // 1·2인에게도 같은 출발 힘을 주되 속도는 인원별 표로 제한한다.
+            return needed * Mathf.Max(1f, people / 3f);
         }
     }
 }

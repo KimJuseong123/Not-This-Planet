@@ -38,6 +38,9 @@ def job(name: str) -> str:
     return m.group(0)
 
 
+NL_ = chr(10)
+
+
 def needs_of(name: str) -> set[str]:
     b = job(name)
     m = re.search(r"(?ms)^  needs:(.*?)(?=^  [a-z])", b)
@@ -103,8 +106,62 @@ print("  ③ 스케줄 테스트 + 실패해도 카드 발송 · 순서 강제�
 
 # ── ④ 스풀 격리 회귀 검사가 살아 있다 (-252)
 assert "/spool" in job("repo-hygiene"), "repo-hygiene 에 스풀 격리 검사가 없다"
-assert "tags: [deploy]" in job("deploy-backend"), "deploy-backend 가 배포 러너로 안 간다"
-print("  ④ 스풀 격리 검사 · 배포 태그 ✅")
+# **배포 잡을 이름으로 세지 않는다.** -284 에서 하나가 둘로 갈렸는데, 이름을
+# 적어 두는 방식이면 셋째가 생길 때 이 검사가 조용히 그것을 놓친다. 배포 잡의
+# 정의는 "`deploy_backend.py` 를 돌리는 잡" 이므로 그것으로 찾는다.
+# `^([a-z][a-z0-9-]*):` 는 `stages`·`variables`·`default`·`workflow` 같은 최상위
+# 키까지 잡는다. 그것을 그대로 job() 에 넘기면 이 검사가 YAML 모양 변화에 걸려
+# 넘어질 수 있다 — **잡의 표시는 `stage:` 를 가진 것**이므로 그것으로 먼저 거른다.
+TOP_KEYS = re.findall(r"(?m)^([a-z][a-z0-9-]*):", CI)
+ALL_JOBS = sorted({n for n in TOP_KEYS if re.search(r"(?m)^  stage:", job(n))})
+assert {"deploy-dev", "deploy-prod", "unity-compile"} <= set(ALL_JOBS), ALL_JOBS
+
+DEPLOYERS = sorted({n for n in ALL_JOBS if "deploy_backend.py" in job(n)})
+assert len(DEPLOYERS) >= 2, f"배포 잡을 못 찾았다: {DEPLOYERS}"
+for name in DEPLOYERS:
+    body = job(name)
+    assert "tags: [deploy]" in body, (
+        f"{name} 가 배포 러너로 안 간다 — 무태그가 되면 스풀이 없는 공용 러너로 "
+        f"흘러가거나, 반대로 다른 잡이 배포 러너로 들어온다(-252)")
+    assert "interruptible: false" in body, (
+        f"{name} 가 취소될 수 있다 — 배포 도중 취소되면 반쯤 적용된 상태가 남는다")
+
+# **개발 배포는 스풀이 달라야 한다.** 이 한 줄이 없으면 develop 머지가
+# 실유저 서버에 개발 jar 을 올린다 — 서버를 나눈 목적이 그것이다(-284).
+assert "DEPLOY_SPOOL: /spool-dev" in job("deploy-dev"), (
+    "deploy-dev 가 기본 스풀을 쓴다 — 개발 jar 이 배포 서버로 간다")
+# 주석을 걷어 내고 본다 — deploy-prod 의 주석이 "DEPLOY_SPOOL 을 주지 않는다" 고
+# 말하고 있어서, 글자만 찾으면 주석이 검사를 속인다.
+prod = NL_.join(l for l in job("deploy-prod").split(NL_)
+                if not l.strip().startswith("#"))
+assert "DEPLOY_SPOOL" not in prod, (
+    "deploy-prod 가 스풀을 따로 지정한다 — 기본값(/spool)이어야 한다")
+print(f"  ④ 스풀 격리 검사 · 배포 잡 {len(DEPLOYERS)}개 태그·비취소·스풀 분리 ✅")
+
+# ── ④b 개발 배포는 **머지마다 자동이 아니다** (S15P21B202-455)
+#
+# 한때 그랬다. 근거는 "나눈 뒤 실유저는 prod 에 있다" 였는데 틀렸다 — `-139` §4 가
+# 수동으로 둔 이유는 실유저가 아니라 **이 서버로 테스트하는 팀원**이고, dev 가 바로
+# 그 사람들이 쓰는 서버다. 자동으로 두면 낮에 백엔드 MR 이 머지될 때마다 튕긴다.
+# 되돌아가기 쉬운 한 줄이라 검사로 묶는다.
+dev = job("deploy-dev")
+_push_rule = re.search(
+    r'(?ms)^    - if: \$CI_PIPELINE_SOURCE == "push" && \$CI_COMMIT_BRANCH == "develop".*?(?=^    - if:|^  \w)',
+    dev)
+assert _push_rule, "deploy-dev 에 develop push 규칙이 없다"
+assert "when: manual" in _push_rule.group(0), (
+    "deploy-dev 의 develop 머지 규칙에 when: manual 이 없다 — 머지마다 자동 배포가 되어 "
+    "이 서버로 테스트하는 팀원이 머지마다 튕긴다(-455)")
+
+# 그 대신 **새벽 스케줄이 자동으로** 맞춘다. 이것이 빠지면 개발 서버가 영영 낡는다.
+assert 'CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_DEPLOY_DEV == "true"' in dev,     "deploy-dev 에 새벽 스케줄 규칙이 없다 — 수동만 남으면 아무도 안 눌러 서버가 낡는다"
+# jar 을 만드는 쪽도 같은 스케줄에서 돌아야 한다(needs 로 묶여 있다).
+assert 'CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_DEPLOY_DEV == "true"' in job("build-backend"),     "build-backend 가 새벽 스케줄에서 안 돈다 — deploy-dev 가 기다리다 만다"
+
+# **아침 점검이 그 스케줄에 딸려 가면 안 된다.** 스케줄 파이프라인은 소스가 다
+# `schedule` 이라, 변수로 가르지 않으면 카드가 하루 두 번 나간다.
+assert '$NIGHTLY_DEPLOY_DEV != "true"' in job("mm-digest"),     "mm-digest 가 새벽 배포 스케줄에서도 돈다 — 아침 카드가 하루 두 번 나간다"
+print("  ④b 개발 배포: 머지는 수동 · 새벽 스케줄 자동 · 아침 카드 중복 없음 ✅")
 
 # ── ⑤ test_health — 통과·미완료는 조용하고, 실패만 말한다
 CASES: dict[str, list[dict]] = {}

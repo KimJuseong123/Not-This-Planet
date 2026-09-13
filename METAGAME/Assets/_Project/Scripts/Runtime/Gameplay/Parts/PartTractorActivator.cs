@@ -7,7 +7,7 @@ namespace Metagame.Gameplay.Parts
     /// Part_1의 고정못이 모두 풀렸을 때만 파츠를 견인 조종 모듈로 전환한다.
     ///
     /// 전환 전에는 일반 SpaceshipPart로만 동작한다. 마지막 고정못 해제 이벤트 안에서
-    /// 기존 몸체 충돌과 밀기·손잡이를 교체하고, 같은 루트에 TractorBeam과 TransportVehicle을
+    /// 기존 몸체 충돌과 용접 비드를 보존하고 밀기·손잡이 입력을 넘겨 같은 루트에 TractorBeam과 TransportVehicle을
     /// 붙인다. 그래서 씬 시작부터 별도 견인 장치를 둘 필요가 없고, Part_1 하나가 해제
     /// 이후의 탑승·운전·견인을 모두 맡으며 엔진 조립 소켓과 용접 판정도 유지한다.
     /// </summary>
@@ -57,8 +57,6 @@ namespace Metagame.Gameplay.Parts
         {
             if (activated || part == null || part.State != PartState.Free) return;
 
-            var startPosition = transform.position;
-            var startYaw = transform.eulerAngles.y;
             var hull = new System.Collections.Generic.List<BoxCollider>();
             var partBody = part.GetComponent<Rigidbody>();
             foreach (var box in GetComponentsInChildren<BoxCollider>(true))
@@ -68,7 +66,7 @@ namespace Metagame.Gameplay.Parts
                     && box.GetComponentInParent<PartSocket>() == null)
                     hull.Add(box);
 
-            // 몸체 충돌만 운반체로 교체한다. 엔진의 조립·용접 자격은 유지한다.
+            // 몸체와 비드의 충돌은 유지하고 입력 담당만 운반체로 넘긴다.
             DisablePartRuntime();
             Physics.SyncTransforms();
 
@@ -80,7 +78,7 @@ namespace Metagame.Gameplay.Parts
             if (vehicle == null) vehicle = gameObject.AddComponent<TransportVehicle>();
             vehicle.Initialize(beam, TransportVehicle.BeamHoldDistance);
             vehicle.ConfigureHull(hull);
-            vehicle.PlaceOnGround(startPosition, startYaw);
+            vehicle.AdoptPartPose();
 
             activated = true;
             vehicle.NotifyActivated();
@@ -88,10 +86,6 @@ namespace Metagame.Gameplay.Parts
 
         void DisablePartRuntime()
         {
-            var colliders = GetComponentsInChildren<Collider>(true);
-            for (var i = 0; i < colliders.Length; i++)
-                if (colliders[i] != null) colliders[i].enabled = false;
-
             var push = GetComponent<PartPush>();
             if (push != null) push.enabled = false;
 

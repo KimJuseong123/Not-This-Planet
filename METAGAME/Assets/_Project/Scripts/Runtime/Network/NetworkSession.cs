@@ -33,6 +33,9 @@ namespace Metagame.Network
         public string Nickname { get; private set; } = string.Empty;
         public string CurrentRoomId { get; private set; } = string.Empty;
         public RoomSnapshot CurrentRoom { get; private set; }
+        double roomTimerStartedAt = -1d;
+        public double RoomPlayTimeSeconds => roomTimerStartedAt < 0d ? 0d
+            : Math.Max(0d, Time.realtimeSinceStartupAsDouble - roomTimerStartedAt);
         public bool IsLocalReady { get; private set; }
         public string ServerAddress { get; private set; } = DefaultServerAddress;
 
@@ -155,6 +158,45 @@ namespace Metagame.Network
             loginCoroutine = StartCoroutine(LoginGuestRoutine(nickname, deviceId));
         }
 
+        /// <summary>
+        /// 구버전이라 막혔을 때 서버가 주는 상태 코드 — <c>426 Upgrade Required</c>.
+        /// 401·403 과 뜻이 달라야 클라이언트가 **다시 로그인해 보는 헛수고**를 하지 않는다.
+        /// </summary>
+        public const long OutdatedStatus = 426;
+
+        /// <summary>
+        /// 426 본문을 사람이 읽을 한 줄로 바꾼다 (S15P21B202-404).
+        ///
+        /// <para><b>본문을 못 읽어도 쓸모 있는 말을 해야 한다.</b> 서버가 형식을 바꾸거나
+        /// 중간에서 무언가 끼어들면 본문이 비거나 깨지는데, 그때 빈 화면을 주면
+        /// 사용자는 게임이 고장 난 줄 안다.</para>
+        /// </summary>
+        public static string OutdatedMessage(string body)
+        {
+            const string fallback = "게임 버전이 낮아 접속할 수 없습니다. 최신 버전을 받아 주세요.";
+
+            ClientOutdatedResponse parsed = null;
+            if (!string.IsNullOrEmpty(body))
+            {
+                try { parsed = JsonUtility.FromJson<ClientOutdatedResponse>(body); }
+                catch (Exception)
+                {
+                    parsed = null;
+                    // 삼키지 않고 한 줄 남긴다. 폴백 문구는 정상 경로와 구분되지 않아서,
+                    // 서버가 본문 형식을 바꿔도 **아무도 모른 채** 기본 문장만 나간다.
+                    Debug.LogWarning("[로그인] 426 본문을 읽지 못했다: " + body);
+                }
+            }
+
+            string message = parsed != null && !string.IsNullOrEmpty(parsed.message)
+                             ? parsed.message.Trim()
+                             : fallback;
+
+            // 받을 곳이 있으면 붙인다. 없으면 문장만 — 빈 괄호를 남기지 않는다.
+            string url = parsed != null && parsed.downloadUrl != null ? parsed.downloadUrl.Trim() : string.Empty;
+            return string.IsNullOrEmpty(url) ? message : message + "\n받을 곳: " + url;
+        }
+
         private IEnumerator LoginGuestRoutine(string nickname, string deviceId)
         {
             SetState(NetworkConnectionState.LoggingIn);
@@ -162,7 +204,11 @@ namespace Metagame.Network
             var payload = JsonUtility.ToJson(new GuestLoginRequest
             {
                 nickname = nickname,
-                deviceId = deviceId
+                deviceId = deviceId,
+                // 서버가 이 값으로 구버전을 막는다 (S15P21B202-404). 릴리스 빌드가 아니면
+                // 빈 문자열이고, **빈 값을 어떻게 볼지는 서버가 정한다** — 여기서 "나는
+                // 최신" 이라고 판단하면 그 판단째로 우회된다.
+                clientVersion = Metagame.Core.BuildInfo.ReleaseVersion
             });
 
             using (var request = new UnityWebRequest(httpBaseUrl + "/auth/guest", UnityWebRequest.kHttpVerbPOST))
@@ -175,7 +221,12 @@ namespace Metagame.Network
                 if (request.result != UnityWebRequest.Result.Success)
                 {
                     loginCoroutine = null;
-                    Fail("로그인 실패: " + request.error);
+                    // **구버전이라 막힌 것은 "로그인 실패" 와 다르다** (S15P21B202-404).
+                    // 그냥 실패로 보여 주면 사용자가 다시 눌러 보고, 몇 번을 눌러도
+                    // 같은 화면이 나온다 — 무엇을 해야 하는지 알려 줘야 한다.
+                    Fail(request.responseCode == OutdatedStatus
+                         ? OutdatedMessage(request.downloadHandler != null ? request.downloadHandler.text : null)
+                         : "로그인 실패: " + request.error);
                     yield break;
                 }
 
@@ -203,6 +254,20 @@ namespace Metagame.Network
                 accessToken = response.accessToken;
                 loginCoroutine = null;
             }
+
+            // **지난 실행의 로그를 여기서 보낸다** (S15P21B202-443).
+            //
+            // 로그인 직후인 이유: 서버가 게스트 토큰을 요구한다 — 아무나 우리 서버에
+            // 파일을 부어넣지 못하게 하는 것이 그 토큰의 역할이다.
+            //
+            // 플레이가 시작되기 **전**이라 이슈의 팀 결정("플레이 중에는 네트워킹을
+            // 쓰지 않는다")을 지킨다. 종료 훅에서 보내지 않는 이유는 `RunLogUpload`
+            // 주석에 있다 — 요약하면 종료가 지연되고, 크래시 판은 아예 못 받는다.
+            //
+            // 실패해도 `Connect()` 를 막지 않는다. 로그를 못 보내는 것이 게임을
+            // 막을 이유는 아니다.
+            StartCoroutine(Metagame.Core.RunLogUpload.SweepOnce(
+                Metagame.Core.BackendEndpoints.HttpBaseUrl, accessToken, UserId));
 
             Connect();
         }
@@ -488,6 +553,7 @@ namespace Metagame.Network
 
         private void ClearRoomState()
         {
+            roomTimerStartedAt = -1d;
             CurrentRoomId = string.Empty;
             CurrentRoom = null;
             IsLocalReady = false;
@@ -631,9 +697,14 @@ namespace Metagame.Network
             switch (message.type)
             {
                 case "ROOM_CREATED":
+                    roomTimerStartedAt = Time.realtimeSinceStartupAsDouble;
                     CurrentRoomId = data.roomId ?? string.Empty;
                     break;
                 case "ROOM_STATE":
+                    // 같은 방의 상태 갱신/준비/재시작에는 유지하고 새 방 또는 방장 교체에만 리셋한다.
+                    if (roomTimerStartedAt < 0d || (CurrentRoom != null
+                        && (CurrentRoomId != data.roomId || CurrentRoom.HostUserId != data.hostUserId)))
+                        roomTimerStartedAt = Time.realtimeSinceStartupAsDouble;
                     CurrentRoomId = data.roomId ?? CurrentRoomId;
                     CurrentRoom = new RoomSnapshot(data);
                     PlayerSnapshot local;
@@ -646,6 +717,13 @@ namespace Metagame.Network
                         ? string.Empty
                         : data.hostAddress.Trim();
                     MatchRelay = ReadRelay(data.relay);
+
+                    // **플레이가 시작되면 남은 로그 전송을 멈춘다** (S15P21B202-443).
+                    // 느린 회선에서는 로비에서 시작한 전송이 여기까지 이어질 수 있고,
+                    // 그러면 "플레이 중에는 네트워킹을 쓰지 않는다" 를 못 지킨다.
+                    // 못 보낸 것은 다음 실행에서 다시 간다.
+                    Metagame.Core.RunLogUpload.StopNow();
+
                     GameStarted?.Invoke();
                     break;
                 case "PLAYER_MOVED":
@@ -921,6 +999,11 @@ namespace Metagame.Network
 
         void OnDestroy()
         {
+            // 로그 전송 코루틴은 이 오브젝트가 돌린다. 여기서 정리하지 않으면 "돌고
+            // 있다" 는 표시가 선 채로 남아 **그 프로세스가 끝날 때까지 다시는 안 돈다**
+            // (S15P21B202-443).
+            Metagame.Core.RunLogUpload.StopNow();
+
             Shutdown();
             if (Instance == this) Instance = null;
         }

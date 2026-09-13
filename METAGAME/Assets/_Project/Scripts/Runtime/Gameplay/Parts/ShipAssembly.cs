@@ -26,6 +26,27 @@ namespace Metagame.Gameplay.Parts
     public sealed class ShipAssembly : MonoBehaviour
     {
         readonly List<SpaceshipPart> _tower = new();
+        static readonly List<ShipAssembly> Pads = new();
+
+        void OnEnable() { if (!Pads.Contains(this)) Pads.Add(this); }
+        void OnDisable() => Pads.Remove(this);
+
+        /// <summary>조립 구역의 실제 고정 표면만 용접 상대로 인정한다.</summary>
+        public static ShipAssembly WeldSurface(Collider surface, Vector3 point)
+        {
+            if (surface == null || surface.isTrigger || surface.attachedRigidbody != null) return null;
+            if (surface.GetComponentInParent<SpaceshipPart>() != null) return null;
+            foreach (var pad in Pads)
+            {
+                if (pad == null || !pad.isActiveAndEnabled) continue;
+                var offset = point - pad.LaunchPad.position;
+                if (Mathf.Abs(offset.y) > 0.5f) continue;
+                offset.y = 0f;
+                if (offset.sqrMagnitude <= PhysicsScale.LaunchPadRadius * PhysicsScale.LaunchPadRadius)
+                    return pad;
+            }
+            return null;
+        }
 
         [SerializeField]
         [Tooltip("발사 구역의 중심. 비우면 이 오브젝트의 Transform 을 쓴다.")]
@@ -105,7 +126,11 @@ namespace Metagame.Gameplay.Parts
 
         public Transform LaunchPad => _launchPad != null ? _launchPad : transform;
 
-        public void Configure(Transform launchPad) => _launchPad = launchPad;
+        public void Configure(Transform launchPad)
+        {
+            _launchPad = launchPad;
+            if (!Pads.Contains(this)) Pads.Add(this);
+        }
 
         void FixedUpdate() => Evaluate();
 

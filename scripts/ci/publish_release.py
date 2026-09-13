@@ -41,7 +41,16 @@ import unity_report
 
 VERSION_FILE = "release-version.txt"
 NOTES_FILE = "release-notes.md"
+# **다음 잡에 zip 이름을 넘기는 자리** (S15P21B202-405). zip 자체는 아티팩트로 못
+# 넘긴다(160 MB · 상한 100 MB)라 패키지 레지스트리로 보내는데, 이름에 분 단위
+# 시각이 들어가 있어 **받는 쪽이 다시 계산할 수 없다.** 한 줄로 적어 둔다.
+PACKAGE_FILE = "release-package.txt"
 PACKAGE_NAME = "metagame"
+
+# **사용자가 받는 곳** (S15P21B202-405 · -461). 패키지 레지스트리 주소는 프로젝트가
+# private 이라 무인증 접근이 302(로그인)다 — 릴리스 노트에 그 주소만 있으면
+# **팀 밖에서는 받을 수 없다.** nginx 가 이 경로를 무인증으로 내보낸다.
+PUBLIC_BUILDS_URL = "https://j15b202.p.ssafy.io/builds"
 RELEASE_RE = re.compile(rf"release/{PROJECT_KEY}-\d+-v(\d+\.\d+\.\d+)")
 # 태그를 **읽을 때는** `v` 를 선택으로 본다 (S15P21B202-407 ②).
 #
@@ -53,6 +62,11 @@ RELEASE_RE = re.compile(rf"release/{PROJECT_KEY}-\d+-v(\d+\.\d+\.\d+)")
 #
 # **만들 때는 항상 `v` 를 붙인다**(`bump_patch`·`parse_version`). 두 형식이 섞여 있으면
 # 다음 사람이 또 헷갈리므로, 새로 나가는 것은 하나로 모은다.
+#
+# **고를 때는 `v` 가 이긴다** (S15P21B202-446). 읽기를 넓힌 탓에 시험용으로 만들어 둔
+# `1.0.1`(산출물 0개)이 `v1.0.0` 보다 최신으로 잡혀, 첫 핫픽스가 `v1.0.1` 을 건너뛰고
+# `v1.0.2` 가 되는 문제가 있었다. `latest_tag` 가 `v` 쪽을 먼저 보되, `v` 태그가
+# 하나도 없으면 넓게 읽는 폴백을 남긴다 — 그것이 `-407` 이 막은 길이다.
 TAG_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
 MERGE_RE = re.compile(r"^Merge branch '([^']+)' into '([^']+)'")
 MR_REF_RE = re.compile(r"See merge request [^!\s]*!(\d+)")
@@ -99,8 +113,71 @@ def parse_tag(tag: str) -> tuple[int, int, int] | None:
 
 
 def latest_tag(tags: list[str]) -> str | None:
-    parsed = sorted((parse_tag(t), t) for t in tags if parse_tag(t))
+    """가장 높은 버전 태그. **`v` 붙은 것이 있으면 그 안에서만 고른다** (S15P21B202-446).
+
+    `-407` 이 읽기를 넓힌 이유는 그대로 유효하다 — `v` 태그가 하나도 없는 상태에서
+    핫픽스를 먼저 하면 버전을 정할 수 없어 조용히 막힌다. **그래서 폴백은 남긴다.**
+
+    다만 **섞여 있을 때는 `v` 쪽이 이긴다.** 우리가 내보내는 태그에는 늘 `v` 가
+    붙으므로(`bump_patch`), `v` 없는 것은 사람이 손으로 만든 자리표시자다. 실제로
+    저장소의 `1.0.1` 은 2026-09-09 에 시험용으로 만든 것이고 담긴 산출물이 0개다.
+    그것이 최신으로 잡히면 `v1.0.0` 다음 핫픽스가 **`v1.0.1` 을 건너뛰고 `v1.0.2`**
+    가 된다 — 받는 사람은 없어진 버전을 찾게 된다.
+
+    이 규칙은 **옛 태그를 지우지 않아도** 성립한다. 지우는 것은 되돌릴 수 없고
+    Maintainer 권한이 필요하므로, 코드가 스스로를 지키게 둔다.
+    """
+    prefixed = [t for t in tags if t.strip().startswith("v") and parse_tag(t)]
+    pool = prefixed or [t for t in tags if parse_tag(t)]
+    parsed = sorted((parse_tag(t), t) for t in pool)
     return parsed[-1][1] if parsed else None
+
+
+def tag_taken(version: str, tags: list[str], points_here=None) -> bool:
+    """그 이름이 이미 **다른 커밋**에 쓰였는가 (S15P21B202-446).
+
+    `v` 유무를 무시하지 **않는다.** 무시하면 손으로 만든 `1.0.1`(산출물 0개)이
+    `v1.0.1` 을 막아, 이 이슈가 고치려던 것보다 나쁜 상태가 된다 — 버전을 건너뛰는
+    대신 릴리스가 아예 멈춘다. 기술적으로도 `1.0.1` 과 `v1.0.1` 은 다른 이름이라
+    충돌하지 않는다.
+
+    <b>같은 커밋을 가리키면 막지 않는다.</b> 그것은 **이번 릴리스의 재시도**이고,
+    재시도는 원래 되어야 한다 — `ensure_release` 가 GET 먼저 하고 있으면 갱신하는
+    멱등 구조인 것이 그 때문이다. 실제로 2026-09-11 v1.0.0 에서 Release·MM 까지
+    다 끝난 뒤 마지막 한 줄이 터져 58분짜리 잡이 빨개졌고, 그때 다시 돌려야 했다.
+    여기서 막으면 **그 길이 닫힌다.**
+
+    막으려는 것은 **이미 쓴 버전 번호를 다른 커밋에 또 붙이는 것**뿐이다.
+    """
+    want = parse_tag(version)
+    if want is None:
+        return False
+    name = f"v{want[0]}.{want[1]}.{want[2]}"
+    if name not in {(t or "").strip() for t in tags}:
+        return False
+    if points_here is not None and points_here(name):
+        return False           # 같은 커밋 — 이번 릴리스의 재시도다
+    return True
+
+
+def tag_sha(tag: str) -> str:
+    """태그가 가리키는 커밋. 못 읽으면 빈 문자열 — 그때는 막는 쪽으로 기운다.
+
+    **왜 그것을 찍는가.** 못 읽으면 "다른 커밋" 과 구별되지 않아 재시도 경로가
+    조용히 닫힌다. 로그에 이유가 있어야 사람이 `git fetch --tags` 가 빠졌는지
+    태그가 정말 다른 곳에 있는지 가를 수 있다.
+    """
+    try:
+        return git("rev-list", "-n", "1", tag).strip()
+    except RuntimeError as e:
+        # **무엇을 하면 되는지까지 적는다** (S15P21B202-467, `!373` 리뷰). 이 줄을 보는
+        # 사람은 90분짜리 잡이 "버전을 정할 수 없다" 로 끝난 뒤의 사람이고, 그때
+        # `git` 오류 문구만으로는 다음 손이 안 나간다.
+        print(f"   ⚠️ 태그 {tag} 의 커밋을 읽지 못했다 — 재시도로 보지 않는다: {e}")
+        print("      → CI 가 얕은 클론(GIT_DEPTH)이라 태그가 안 왔을 수 있다. "
+              "로컬에서 `git fetch --tags` 뒤 `git rev-list -n 1 " + tag + "` 로 "
+              "그 태그가 어느 커밋에 있는지 먼저 보세요")
+        return ""
 
 
 def bump_patch(tag: str) -> str:
@@ -108,18 +185,53 @@ def bump_patch(tag: str) -> str:
     return f"v{a}.{b}.{c + 1}"
 
 
-def decide_version(message: str, tags: list[str]) -> tuple[str | None, str]:
-    """(버전, 이유). 릴리스 브랜치 머지 → 그 버전. hotfix 머지 → 마지막 태그 PATCH+1. 그 외 → None."""
+# **왜 못 정했는가를 값으로 돌려준다** (S15P21B202-467, `!373` 리뷰). 예전에는 부르는
+# 쪽이 이유 *문구* 에 `"이미 붙어 있다"` 가 들었는지를 봤다 — 문구는 사람이 읽으라고
+# 쓴 것이라 한 글자만 다듬어도 그 판정이 조용히 꺼진다. 꺼지면 리허설이 "진짜였으면
+# 여기서 멈췄다" 를 말하지 않고, 그것은 `-446` 이 막으려던 바로 그 상태다.
+R_OK = "ok"                      # 버전을 정했다
+R_TAG_TAKEN = "tag-taken"        # 그 번호가 다른 커밋에 이미 붙어 있다
+R_NO_TAG = "no-tag"              # hotfix 인데 기준이 될 태그가 없다
+R_NOT_RELEASE = "not-release"    # 릴리스도 핫픽스도 아닌 머지
+
+
+def decide_version(message: str, tags: list[str],
+                   points_here=None) -> tuple[str | None, str, str]:
+    """(버전, 이유, 사유 코드).
+
+    릴리스 브랜치 머지 → 그 버전. hotfix 머지 → 마지막 태그 PATCH+1. 그 외 → None.
+    셋째 값은 위 `R_*` 중 하나다 — **부르는 쪽은 문구가 아니라 이것을 본다.**
+    """
     v = parse_version(message)
     if v:
-        return v, "릴리스 브랜치 이름의 버전"
+        # **이미 있는 버전을 다시 내보내지 않는다** (S15P21B202-446). 같은 릴리스
+        # 브랜치가 두 번 머지되면(되돌림·재머지) 여기까지 와서 태그를 만들다 실패하는데,
+        # 그 실패는 90분짜리 빌드가 **다 끝난 뒤**에 난다. 앞에서 분명하게 멈춘다.
+        #
+        # **재시도는 어느 단계에서 깨졌든 그대로 된다.** 태그가 없으면(빌드가 깨진
+        # 경우) 여기를 그냥 지나가고, 태그가 있어도 **그것이 이 커밋을 가리키면**
+        # 재시도로 보고 통과시킨다. `ensure_release` 가 GET 먼저 하고 있으면 갱신하는
+        # 멱등 구조라 그 뒤도 안전하다 — 2026-09-11 에 실제로 그 길로 되살렸다.
+        #
+        # 여기서 멈추는 것은 **이미 쓴 번호를 다른 커밋에 또 붙이려는 때**뿐이다.
+        if tag_taken(v, tags, points_here):
+            return None, (f"릴리스 브랜치가 {v} 를 가리키는데 그 버전의 태그가 **다른 커밋**에 "
+                          "이미 붙어 있다(또는 그 태그의 커밋을 읽지 못했다 — 위 경고를 보세요). "
+                          "같은 번호를 두 번 쓸 수 없다. 릴리스 브랜치 이름의 버전을 올리거나, "
+                          "잘못 만들어진 태그라면 그것부터 정리하세요. "
+                          "같은 커밋이면 재시도로 보고 그냥 진행한다"), R_TAG_TAKEN
+        return v, "릴리스 브랜치 이름의 버전", R_OK
     if "hotfix/" in (message or ""):
         last = latest_tag(tags)
-        if last:
-            return bump_patch(last), f"hotfix 머지 — 마지막 태그 {last} 의 PATCH+1"
-        return None, "hotfix 머지인데 이전 태그가 없어 버전을 정할 수 없다"
+        if not last:
+            return None, "hotfix 머지인데 이전 태그가 없어 버전을 정할 수 없다", R_NO_TAG
+        nxt = bump_patch(last)
+        if tag_taken(nxt, tags, points_here):
+            return None, (f"hotfix 머지 — 마지막 태그가 {last} 라 다음은 {nxt} 인데 그 버전이 이미 있다. "
+                          "태그가 형식이 섞인 채 남아 있을 수 있으니 태그 목록부터 확인하세요"), R_TAG_TAKEN
+        return nxt, f"hotfix 머지 — 마지막 태그 {last} 의 PATCH+1", R_OK
     return None, ("머지 커밋에 release/…-vX.Y.Z 도 hotfix/ 도 없다 — master 에는 릴리스 브랜치(git-convention §8)나 "
-                  "핫픽스만 들어와야 한다")
+                  "핫픽스만 들어와야 한다"), R_NOT_RELEASE
 
 
 # ── git ──────────────────────────────────────────────────────────────────────
@@ -189,8 +301,12 @@ def changelog(prev: str | None, head: str = "HEAD") -> tuple[list[dict], int]:
 
 def render_notes(version: str, entries: list[dict], others: int, prev: str | None, zip_name: str, zip_url: str,
                  size_bytes: int, project_url: str, jira_browse: str) -> str:
-    lines = [f"# METAGAME {version}", "",
-             f"**내려받기**: [{zip_name}]({zip_url}) ({size_bytes / 1048576:.1f} MB) — 압축을 풀고 `NotThisPlanet.exe` 실행",
+    # **받는 주소를 둘 적는다.** 위는 누구나 받을 수 있는 곳이고, 아래는 팀만 볼 수
+    # 있는 원본이다. 레지스트리 주소만 적으면 프로젝트 밖에서 302 라 받을 수 없다.
+    public = f"{PUBLIC_BUILDS_URL}/{quote(zip_name)}"
+    lines = [f"# Not This Planet {version}", "",
+             f"**내려받기**: [{zip_name}]({public}) ({size_bytes / 1048576:.1f} MB) — 압축을 풀고 `NotThisPlanet.exe` 실행",
+             f"· 사이트: <{PUBLIC_BUILDS_URL.rsplit('/', 1)[0]}/play/> · 저장소 원본(팀 전용): [패키지 레지스트리]({zip_url})",
              f"이전 릴리스: {prev or '없음(첫 릴리스)'} · 포함 MR {len(entries)}건" + (f" · 그 밖 머지 {others}건" if others else ""),
              "", "## 들어간 것", ""]
     shown = entries[:MAX_NOTE_LINES]
@@ -297,26 +413,75 @@ def notify(ok: bool, version: str, rows: list[tuple[str, str]]) -> None:
     mm_notify.send(mm_notify.card(title, rows))
 
 
-def jira_release_webhook(version: str, keys: list[str], release_url: str) -> None:
-    """(선택, S15P21B202-327) Jira 자동화 수신 웹훅 — Jira 가 버전을 만들고 fixVersion 을 단다. CI 는 Jira 를 직접 쓰지 않는다(-242)."""
+def webhook_shape_problem() -> str | None:
+    """설정된 웹훅 주소가 **보낼 수 있는 모양인지**만 본다. 값은 절대 찍지 않는다.
+
+    첫 실전 릴리스(2026-09-11, v1.0.0)에서 이것이 필요해졌다. 빌드·zip·패키지·
+    Release·MM 이 전부 끝난 **뒤** 마지막 한 줄에서 `urllib` 이
+    `ValueError: unknown url type` 으로 터졌다 — 변수에 스킴(`https://`)이 없었다.
+    58분을 쓴 잡이 빨간불이 됐고, 다시 돌리면 이미 낸 릴리스를 또 내려 한다.
+
+    그래서 **0분에** 본다. 잘못됐으면 그때 말해 주고 릴리스는 계속 진행한다 —
+    이것은 알림이고, 알림 설정이 틀린 것이 배포를 막을 이유가 못 된다.
+    """
     url = env("JIRA_RELEASE_WEBHOOK")
     if not url:
-        return
+        return None            # 설정하지 않은 것은 문제가 아니다(선택 기능이다)
+    if url != url.strip():
+        return "앞뒤에 공백이 붙어 있다"
+    if not url.startswith(("https://", "http://")):
+        return "http(s):// 로 시작하지 않는다"
+    return None
+
+
+def jira_release_webhook(version: str, keys: list[str], release_url: str) -> str | None:
+    """(선택, S15P21B202-327) Jira 자동화 수신 웹훅 — Jira 가 버전을 만들고 fixVersion 을 단다. CI 는 Jira 를 직접 쓰지 않는다(-242).
+
+    **절대 예외를 올려보내지 않는다.** 이 함수가 불릴 때 Release 는 이미 났다.
+    여기서 터지면 성공한 릴리스가 빨간불로 남고, 재실행이 재발행을 시도한다.
+    돌려주는 값은 MM 카드에 실을 한 줄이고, 문제가 없으면 `None` 이다.
+    """
+    url = env("JIRA_RELEASE_WEBHOOK")
+    if not url:
+        return None
+    bad = webhook_shape_problem()
+    if bad:
+        # **값을 찍지 않는다.** masked 변수는 잡 로그에서는 가려지지만 MM 카드는
+        # GitLab 이 가려 주지 않는다 — 예외 문구를 그대로 실으면 주소가 채널로 나간다.
+        print(f"   ⚠️ CI 변수 JIRA_RELEASE_WEBHOOK: {bad} — 보내지 않는다")
+        return f"⚠️ CI 변수 `JIRA_RELEASE_WEBHOOK` 이 {bad} (값은 여기 적지 않는다)"
     # Jira 수신 웹훅 형식: `issues` = 규칙이 다룰 이슈 키, `data` = 규칙 안에서 {{webhookData.version}} 처럼 읽는 값
     body = {"issues": sorted(set(keys)),
             "data": {"version": version, "releaseUrl": release_url, "date": datetime.now(KST).strftime("%Y-%m-%d")}}
-    st, _ = http("POST", url, {}, body)
-    print(f"   Jira 릴리스 웹훅 → {st}" + ("" if 200 <= (st or 0) < 300 else " (실패 — Release 는 이미 났다, 비차단)"))
+    try:
+        st, _ = http("POST", url, {}, body)
+    except Exception as e:  # noqa: BLE001
+        # **종류만** 싣는다(-335 와 같은 규칙). urllib 의 예외 문구에는 주소가 들어 있다.
+        print(f"   ⚠️ Jira 릴리스 웹훅 호출이 예외로 끝났다: {type(e).__name__} (Release 는 이미 났다, 비차단)")
+        return f"⚠️ Jira 연동 실패 ({type(e).__name__}) — Release 는 이미 났다"
+    ok = 200 <= (st or 0) < 300
+    print(f"   Jira 릴리스 웹훅 → {st}" + ("" if ok else " (실패 — Release 는 이미 났다, 비차단)"))
+    return None if ok else f"⚠️ Jira 연동 실패 (HTTP {st}) — Release 는 이미 났다"
 
 
 # ── 단계 ─────────────────────────────────────────────────────────────────────
 def phase_version() -> int:
     message = env("CI_COMMIT_MESSAGE", "") or ""
-    version, why = decide_version(message, all_tags())
+    # **태그가 이 커밋을 가리키는지**를 알려 준다 — 그래야 재시도와 재발행을 가른다.
+    head = env("CI_COMMIT_SHA", "")
+    version, why, reason = decide_version(
+        message, all_tags(),
+        points_here=(lambda t: bool(head) and tag_sha(t) == head))
     print(f"머지 커밋: {message.strip().splitlines()[0] if message.strip() else '(없음)'}")
     if not version and dry_run():
         # 리허설은 아무 브랜치에서나 돌린다 — 릴리스 브랜치 머지 커밋이 없는 것이 정상이다.
         # 여기서 멈추면 정작 시험하려던 빌드·zip 경로를 한 번도 못 지나간다.
+        #
+        # **다만 "이미 쓴 번호" 는 정상이 아니다** (S15P21B202-446). 그것까지 조용히
+        # 리허설로 넘기면, 진짜 릴리스에서 멈출 것을 리허설이 통과시켜 준 셈이 된다.
+        # 리허설을 막지는 않되 눈에 띄게 말한다.
+        if reason == R_TAG_TAKEN:
+            print(f"⚠️ 리허설이 아니었다면 여기서 멈췄다 — {why}")
         version, why = "v0.0.0-rehearsal", f"리허설(원래 사유: {why})"
     if not version:
         print(f"❌ 버전을 정할 수 없다 — {why}")
@@ -324,6 +489,11 @@ def phase_version() -> int:
     with open(VERSION_FILE, "w", encoding="utf-8") as f:
         f.write(version)
     print(f"✅ 버전 {version} ({why}) → {VERSION_FILE}")
+
+    # **알림 설정을 지금 본다.** 58분 뒤에 알게 되면 고칠 기회가 그 릴리스에는 없다.
+    bad = webhook_shape_problem()
+    if bad:
+        print(f"⚠️ CI 변수 JIRA_RELEASE_WEBHOOK: {bad} — Jira 연동만 건너뛴다(릴리스는 계속한다)")
     return 0
 
 
@@ -477,6 +647,10 @@ def phase_publish(unity_rc: int) -> int:
         return 0
 
     t0 = time.time()
+    # 이름을 먼저 적는다 — 업로드가 실패해도 무엇을 올리려 했는지 남는다.
+    with open(PACKAGE_FILE, "w", encoding="utf-8", newline="\n") as f:
+        f.write(name + "\n")
+
     st = upload_package(zip_path, version, name)
     if st not in (200, 201):
         print(f"❌ 패키지 업로드 실패 {st}")
@@ -500,12 +674,21 @@ def phase_publish(unity_rc: int) -> int:
         return 1
     print(f"✅ Release {action} {st} → {release_url}")
 
+    # **카드보다 먼저 부른다.** 완료 조건이 "실패하면 MM 카드에 한 줄" 이므로
+    # 카드를 먼저 보내면 그 한 줄을 실을 수가 없다(-327).
+    jira_line = jira_release_webhook(version, [e["key"] for e in entries if e.get("key")], release_url)
+
     who = env("GITLAB_USER_LOGIN", "") or ""
-    notify(True, version, [("Release", f"[{version}]({release_url})"),
-                           ("내려받기", f"[{name}]({pkg_url}) — {size / 1048576:.1f} MB, 압축을 풀고 `NotThisPlanet.exe`"),
-                           ("들어간 것", f"MR {len(entries)}건" + (f" (이전 {prev} 이후)" if prev else " (첫 릴리스)")),
-                           ("머지한 사람", who or "?"), ("링크", links)])
-    jira_release_webhook(version, [e["key"] for e in entries if e.get("key")], release_url)
+    rows = [("Release", f"[{version}]({release_url})"),
+            ("내려받기", f"[{name}]({pkg_url}) — {size / 1048576:.1f} MB, 압축을 풀고 `NotThisPlanet.exe`"),
+            ("들어간 것", f"MR {len(entries)}건" + (f" (이전 {prev} 이후)" if prev else " (첫 릴리스)")),
+            ("머지한 사람", who or "?")]
+    if jira_line:
+        rows.append(("Jira", jira_line))
+    rows.append(("링크", links))
+    notify(True, version, rows)
+    # 여기서 0 을 돌려준다. Jira 연동이 안 됐어도 **릴리스는 났다** — 빨간불로
+    # 남기면 사람이 재실행을 눌러 이미 낸 릴리스를 또 내려 한다.
     return 0
 
 

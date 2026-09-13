@@ -34,7 +34,7 @@ namespace Metagame.Gameplay
         public const float PartMass = 500f;
 
         /// <summary>
-        /// 파츠 밀도(kg/m³). 파츠 질량을 결정하는 <b>유일한 손잡이</b>다.
+        /// 파츠 밀도(kg/m³). 조립 상태의 파츠 질량을 결정한다.
         ///
         /// 질량을 파츠마다 손으로 적지 않는 이유는 두 가지다. 모델이 바뀌면 네 값을 따로
         /// 고쳐야 하고, 고치는 사이 서로의 비율이 슬그머니 어긋난다. 부피에 밀도를 곱하면
@@ -44,6 +44,12 @@ namespace Metagame.Gameplay
         /// 오도록 잡은 값이다. 기획서 용어로 <b>초기 테스트값</b>이며 플레이 테스트로 조정한다.
         /// </summary>
         public const float PartDensity = 70f;
+
+        /// <summary>
+        /// 고정못이 풀린 자유 파츠의 취급 질량 비율. 자체 부양으로 솔로 운반을 돕는다.
+        /// 조립·용접 상태로 넘어가면 원래 질량을 사용한다.
+        /// </summary>
+        public const float FreePartMassScale = 0.2f;
 
         /// <summary>
         /// 견인 중인 파츠에 적용하는 취급 질량.
@@ -187,7 +193,7 @@ namespace Metagame.Gameplay
         public const float WeldBeadBlobSeconds = 1.6f;
 
         /// <summary>
-        /// 한 사슬에 이어 붙는 덩어리 수 = <b>최대 다리 길이</b>.
+        /// 한 사슬에 이어 붙는 덩어리 수의 기본값. 실제 한도는 SpaceshipPart의 직렬화 설정을 따른다.
         ///
         /// 6개 × <see cref="WeldBeadStep"/> 0.13m + 반지름 0.10m ≈ 0.75m 를 뻗는다.
         /// 용접기 사거리(<see cref="WeldRange"/> 0.80m)보다 짧게 둔 것이 의도다 —
@@ -209,12 +215,12 @@ namespace Metagame.Gameplay
         public const float WeldBeadChainReuseRadius = 0.35f;
 
         /// <summary>
-        /// 파츠 하나가 가질 수 있는 총 덩어리 수.
+        /// 파츠 하나가 가질 수 있는 총 덩어리 수의 기본값. 실제 한도는 SpaceshipPart의 직렬화 설정을 따른다.
         ///
         /// 성능 상한이다. 콜라이더가 무한히 늘면 파츠의 컴파운드 콜라이더가 그만큼
-        /// 무거워진다. 48개 = 사슬 8개 × 6개.
+        /// 무거워진다. 기본 한도는 파츠 전체 200개다.
         /// </summary>
-        public const int WeldBeadsPerPart = 48;
+        public const int WeldBeadsPerPart = 200;
 
         /// <summary>
         /// 최대 크기 덩어리 하나의 질량(kg). 작은 덩어리는 부피비(반지름의 세제곱)로 준다.
@@ -326,15 +332,6 @@ namespace Metagame.Gameplay
         /// 파츠를 견인하는 동안 최고 속도에 곱하는 값. 기획 §14.1 "약 20% 감소".
         /// </summary>
         public const float CraftTowSpeedFactor = 0.8f;
-
-        /// <summary>
-        /// 무인 호버에서 고도를 다시 잡는 데 허용하는 어긋남(m).
-        ///
-        /// 기획 §14.2 "수평은 복구하지만 호버 위치를 자동으로 되찾지는 않는다".
-        /// 밀려난 만큼은 그대로 두고 <b>그 자리에서</b> 다시 뜬다 — 그래서 밀린 높이가
-        /// 이 값을 넘으면 목표 고도를 지금 높이로 옮긴다. 되돌리면 기획과 어긋난다.
-        /// </summary>
-        public const float CraftHoverDriftBand = 0.5f;
 
         /// <summary>
         /// 운석에 맞은 기체가 돌며 떨어지는 시간의 <b>절대 상한</b>(초).

@@ -432,6 +432,25 @@ build-backend:            # 백엔드 **테스트 + jar** — MR 에서는 검�
       changes: ["backend/**/*", ".gitlab-ci.yml"]
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
       changes: ["backend/**/*", ".gitlab-ci.yml"]
+    # **master 에서는 changes 를 보지 않는다** (S15P21B202-284).
+    #
+    # 릴리스는 "이 트리의 백엔드" 를 올릴 수 있어야 한다. `changes` 를 걸면 backend/ 가
+    # 안 바뀐 릴리스에서 이 잡이 안 생기고, 그러면 `needs: [build-backend]` 인
+    # deploy-prod 도 생성되지 않아 **누를 버튼이 사라진다** — `-309` 가 겪은 그 실패
+    # 방식이다(잡 두 개의 조건이 어긋나 build 만 생기는 조합이 만들어졌다).
+    #
+    # 비용은 릴리스마다 2분 30초 한 번이다. 버튼이 사라지는 것보다 싸다.
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
+    # **서버만 고쳐야 할 때** (S15P21B202-464). Run pipeline 에서 ref 를 `master` 로
+    # 두고 `DEPLOY_PROD=1` 을 주면 이 잡이 jar 을 만들고 `deploy-prod` 버튼이 생긴다.
+    # 이것이 없으면 `deploy-prod` 의 `needs` 가 없는 잡을 가리켜 **파이프라인 생성이
+    # 거절된다** — `-467` 이 `promote-builds` 에서 겪은 것과 같은 자리다.
+    # `$DEPLOY_PROD` 만 쓰면 **있기만 하면 참**이라 `DEPLOY_PROD=0` 에도 걸린다
+    # (`!379` 리뷰). 끄려고 0 을 넣은 사람이 켜는 결과를 얻는다.
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == "master" && $DEPLOY_PROD == "1"
+    # 새벽 배포 스케줄에서도 돌아야 한다 — `deploy-dev` 가 이 잡의 jar 을 쓴다
+    # (`needs: [build-backend]`). 아침 점검 스케줄에는 이 변수가 없어 생기지 않는다.
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_DEPLOY_DEV == "true"
   variables:
     GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"   # 캐시가 잡 밖으로 남으려면 작업 디렉터리 안이어야 한다
   cache:
@@ -496,34 +515,86 @@ ai-review-gate:           # ⛔ 보류 권고면 **막는다**. ⚠️·✅·❓
     - python scripts/ci/ai_review_gate.py
 
 # ── 배포 ─────────────────────────────────────────────────────────────────
-deploy-backend:           # develop 머지 뒤 **사람이 눌러서** 배포 (S15P21B202-141)
+# 배포 대상이 **둘**이다 (S15P21B202-284). 예전에는 `deploy-backend` 하나가 develop 을
+# 받아 실유저가 쓰는 백엔드에 올렸다 — 그래서 develop 머지마다 재시작이 WebSocket 세션을
+# 끊었고, 그것이 배포를 수동으로 둔 이유였다. 서버를 나눈 뒤에는 그 이유가 dev 에만
+# 해당하지 않게 된다: dev 는 자동, prod 는 수동이다.
+deploy-dev:               # develop 머지 뒤 **자동** 배포 — 개발 서버 (S15P21B202-284)
   stage: deploy           # 잡은 컨테이너 안이라 호스트 compose 를 못 부른다 → 스풀에 jar+RELEASE 를 놓고
   image: python:3.12      # 호스트의 systemd path 유닛이 deploy.sh 를 돌린다(도커 소켓 비노출, -139 결정)
-  tags: [deploy]          # 배포 전용 러너(태그 deploy · Protected). 스풀은 이제 여기에만 마운트된다.
+  tags: [deploy]          # 배포 전용 러너(태그 deploy · Protected · ref_protected).
                           # 공용 러너에 스풀이 있던 동안에는 아무 MR 이나 자기 브랜치의 .gitlab-ci.yml 에
                           # /spool 에 쓰는 잡을 한 줄 넣어 배포를 쏠 수 있었다(S15P21B202-252).
-                          # 나머지 잡은 default.tags: [linux] 라 이 러너로 오지 않는다.
   needs: [build-backend]
   interruptible: false    # 배포 도중 취소되면 반쯤 적용된 상태가 남는다.
-                          # 다만 이것만으로는 부족했다 — 아직 **시작도 안 한** 잡은 GitLab 이
-                          # 그냥 취소한다. 그래서 workflow 쪽에서 auto_cancel 을 껐다(-309).
-  # 배포 이력을 GitLab 이 들고 있게 한다 (S15P21B202-309). 아침 점검이 "지금 서버에 뭐가
-  # 올라가 있나" 를 잡 목록을 훑지 않고 이 기록으로 답할 수 있다.
+                          # 그것만으로는 부족해 workflow 쪽에서 auto_cancel 도 껐다(-309).
+  environment:
+    name: development
+    url: https://j15b202.p.ssafy.io/dev
+  variables:
+    # **dev 스풀이다.** prod 스풀(`/spool`)과 다른 자리를 봐야 develop 머지가 실유저
+    # 백엔드를 건드리지 않는다 — 나누는 목적이 그것이다.
+    DEPLOY_SPOOL: /spool-dev
+  rules:
+    # **머지는 버튼만 만든다** (S15P21B202-455).
+    #
+    # 한때 여기에 "나눈 뒤 실유저는 prod 에 있으니 자동으로 해도 된다" 고 적혀
+    # 있었다. **그 논리가 틀렸다.** `-139` §4 가 수동으로 둔 이유는 실유저가 아니라
+    # **이 서버로 테스트하는 팀원**이었다 — 재시작은 약 7초인데 그 사이 WebSocket
+    # 세션이 전부 끊긴다. dev 가 바로 그 팀원이 쓰는 서버다. 자동으로 두면 낮에
+    # 백엔드 MR 이 머지될 때마다 테스트하던 사람이 튕긴다.
+    #
+    # 급할 때는 사람이 "지금 끊어도 된다" 를 알고 누른다. 평소 최신 맞추기는
+    # 아래 새벽 스케줄이 한다.
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
+      # `.gitlab-ci.yml` 을 넣는 이유 두 가지 (S15P21B202-309):
+      #   ① 배포 정의가 바뀌었으면 그것을 실제로 배포해 볼 수 있어야 한다
+      #   ② build-backend 가 이미 이 조건이라 **잡 두 개의 조건이 어긋나면** deploy 는
+      #      needs: [build-backend] 이므로 build 만 생기는 조합이 만들어진다
+      changes: ["backend/**/*", ".gitlab-ci.yml"]
+      when: manual
+    # **새벽 스케줄은 자동이다.** 아침에 오면 개발 서버가 최신이고, 그 시간에는
+    # 끊길 세션이 없다. `changes` 를 보지 않는다 — 어제 무엇이 머지됐든 맞춘다.
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_DEPLOY_DEV == "true"
+  script:
+    - python scripts/ci/deploy_backend.py
+
+deploy-prod:              # 릴리스 뒤 **사람이 눌러서** 배포 — 배포 서버 (S15P21B202-284)
+  stage: deploy
+  image: python:3.12
+  tags: [deploy]
+  # 같은 파이프라인의 build-backend 가 만든 jar 을 받는다. master 에서는 그 잡이
+  # changes 를 보지 않으므로(위 주석) 릴리스마다 반드시 존재한다.
+  needs: [build-backend]
+  interruptible: false
   environment:
     name: production
     url: https://j15b202.p.ssafy.io
   rules:
-    # 왜 manual 인가: 팀원이 이 서버로 테스트 중이고 재시작은 WebSocket 세션을 전부 끊는다.
-    # 머지가 하루 28건인 날도 있어 자동 재시작이면 테스트가 불가능하다. 자동으로 바꾸려면 이 줄을 지운다.
-    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
-      # `.gitlab-ci.yml` 을 넣은 이유 두 가지 (S15P21B202-309):
-      #   ① 배포 정의가 바뀌었으면 그것을 실제로 배포해 볼 수 있어야 한다
-      #   ② build-backend 는 이미 이 조건이라 **잡 두 개의 조건이 어긋나 있었다** — deploy 는
-      #      needs: [build-backend] 이므로 build 만 생기는 조합이 계속 만들어졌다
-      # 수동 잡은 눌리기 전까지 러너를 쓰지 않으므로, 버튼이 더 자주 생기는 비용은 0 이다.
-      changes: ["backend/**/*", ".gitlab-ci.yml"]
+    # **수동을 유지한다.** prod 재시작은 진행 중인 세션을 끊는다 — EC2 가 릴레이·매칭을
+    # 맡는 구조라 게임 중인 사람이 튕긴다. 릴리스가 났다고 자동으로 끊으면 안 된다.
+    # 언제 끊을지는 사람이 정한다.
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
+      when: manual
+    # **서버만 고치는 길** (S15P21B202-464).
+    #
+    # `master` 머지는 **빌드 릴리스**이지 서버 배포가 아니다 — 이 버튼을 눌러야 배포
+    # 백엔드가 바뀐다. 그런데 그 버튼은 **릴리스 파이프라인에만** 있었다. 그래서 서버
+    # 코드만 고쳐야 할 때(설정 한 줄·보안 수정) **90분짜리 Unity 빌드를 다시 태우는 것
+    # 말고는 길이 없었다.**
+    #
+    # 이 규칙은 그 길을 연다: Pipelines → Run pipeline → ref `master` · `DEPLOY_PROD=1`.
+    # 그 파이프라인에서는 `release-windows` 가 돌지 않는다(아래 참고).
+    #
+    # **여전히 수동이다.** prod 재시작은 진행 중인 세션을 끊는다 — 여는 것은 "릴리스를
+    # 안 거쳐도 된다" 이지 "아무 때나 끊어도 된다" 가 아니다.
+    #
+    # master 는 보호 브랜치라 이 파이프라인을 돌릴 수 있는 사람도 거기에 머지할 수
+    # 있는 사람뿐이다. 권한이 한 겹 더 필요하지 않다.
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == "master" && $DEPLOY_PROD == "1"
       when: manual
   script:
+    # 스풀은 기본값(`/spool`)이다 — dev 와 달리 DEPLOY_SPOOL 을 주지 않는다.
     - python scripts/ci/deploy_backend.py
 
 # ── 릴리스 ───────────────────────────────────────────────────────────────────
@@ -538,11 +609,30 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
   timeout: 90m
   interruptible: false
   rules:
+    # **서버만 배포하는 파이프라인에서는 돌지 않는다** (S15P21B202-464). `DEPLOY_PROD`
+    # 는 `deploy-prod` 하나만 쓰는 변수다. 이것이 없으면 서버 설정 한 줄을 고치는 데
+    # **90분짜리 Unity 빌드**가 딸려 돌고, 그러면 이 길을 낸 이유가 사라진다.
+    #
+    # **브랜치와 값까지 본다** (`!379` 리뷰). 처음에는 `web && $DEPLOY_PROD` 뿐이었는데,
+    # 그러면 **아무 브랜치의 리허설**에서도 그 변수가 있으면 90분 빌드가 통째로 사라진다 —
+    # 리허설은 "릴리스 전에 안다" 가 목적이라 조용히 안 도는 것이 가장 나쁜 실패다.
+    # 아래 두 잡(build-backend·deploy-prod)이 master 를 못 박고 있으니 조건도 맞춘다.
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == "master" && $DEPLOY_PROD == "1"
+      when: never
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
     # **리허설** (S15P21B202-407 ④). 트리거가 master push 하나뿐이라 시험 실행이 곧 실제
     # 릴리스였다 — 90분 잡을 미검증 상태로 처음 돌리게 된다. GitLab 의 "파이프라인 실행"
     # (Pipelines → Run pipeline)으로 아무 브랜치에서나 돌리면 RELEASE_DRY_RUN=1 이 되어
     # 빌드·zip 까지 진짜로 하고 **패키지 업로드·Release 생성·🟢 카드만 건너뛴다.**
+    # **되돌리기 파이프라인에서는 돌지 않는다** (S15P21B202-467). `PROMOTE_VERSION` 은
+    # `promote-builds` 하나만 쓰는 변수다. 이것이 없으면 latest.json 한 줄 되돌리자고
+    # **90분짜리 Unity 빌드**가 딸려 돌고, `promote-builds` 는 그 90분을 기다린다 —
+    # 되돌리기는 급할 때 쓰는 길이라 그 시간이 곧 장애 시간이다.
+    # 브랜치까지 본다 — 같은 이유다(`!379` 리뷰). `-467` 이 이 규칙을 넣을 때는
+    # 조건이 `web && $PROMOTE_VERSION` 뿐이었고, 그러면 아무 브랜치의 리허설에서도
+    # 그 변수만 있으면 90분 빌드가 조용히 사라진다.
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == "master" && $PROMOTE_VERSION
+      when: never
     - if: $CI_PIPELINE_SOURCE == "web"
       variables:
         RELEASE_DRY_RUN: "1"
@@ -585,6 +675,11 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
     # 2) Windows 빌드. unity-editor 래퍼가 xvfb·-batchmode 를 붙인다. 실패해도 여기서 죽지 않고 3) 이 🔴 를 보낸다
     - echo "=== Windows 빌드 시작 ($(cat release-version.txt)) ==="
     - date -u +"시작 %H:%M:%S UTC"
+    # **빌드에 릴리스 버전을 넘긴다** (S15P21B202-404). `BuildStamp` 가 이 값을 `버전=` 줄로
+    # 박고 서버가 그것으로 구버전을 막는다. 위 `publish_release.py version` 이 이미 정해 둔
+    # 값을 그대로 쓴다 — 빌드 쪽에서 태그를 다시 읽으면 두 곳이 어긋나고, 어긋난 버전은
+    # **게이트를 조용히 무력화**한다.
+    - export SPACE_RELEASE_VERSION="$(cat release-version.txt)"
     - |
       set +e
       unity-editor \
@@ -597,6 +692,7 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
       set -e
       date -u +"종료 %H:%M:%S UTC (exit $RC)"
       grep -n "error CS\|\[NotThisPlanet\] 빌드" "$CI_PROJECT_DIR/unity-build.log" | tail -5 || true
+      python3 scripts/ci/build_timing.py "$CI_PROJECT_DIR/unity-build.log" || true
     # 2-b) **빌드가 추적되는 에셋을 지웠는지 본다** (S15P21B202-351).
     #
     # 배치모드 빌드는 임포트 과정에서 에셋을 재직렬화하고, 에디터 스크립트가 에셋을
@@ -624,11 +720,68 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
   artifacts:
     when: always
     expire_in: 14 days
-    paths: [unity-build.log, unity-tests.log, unity-results.xml, release-version.txt, release-notes.md]   # zip 은 아티팩트에 싣지 않는다 — 상한(100MB)에 걸린다. 패키지 레지스트리에 있다
+    paths: [unity-build.log, unity-tests.log, unity-results.xml, release-version.txt, release-notes.md, release-package.txt]   # zip 은 아티팩트에 싣지 않는다 — 상한(100MB)에 걸린다. 패키지 레지스트리에 있다
     reports:
       junit: unity-junit.xml    # 실패한 테스트를 파이프라인 화면에서 바로 본다(unity-compile 과 같은 결)
 
 # ── 알림 ─────────────────────────────────────────────────────────────────
+publish-builds:           # 릴리스 산출물을 사용자가 받는 자리로 (S15P21B202-405)
+  stage: deploy           # zip 은 아티팩트로 못 넘긴다(156 MB · 상한 100 MB) —
+  image: python:3.12      # 패키지 레지스트리를 운반 수단으로 쓰고 여기서 받는다.
+  tags: [deploy]          # **공용 러너에 /var/www 를 rw 로 주지 않는다** — 그러면 아무 MR
+                          # 잡이나 배포 폴더에 쓸 수 있다(-252 가 스풀을 뺀 이유와 같다).
+  needs:
+    - job: release-windows
+      artifacts: true     # release-version.txt · release-package.txt 만 넘어온다
+  interruptible: false    # 반쯤 올라간 저장소가 남으면 다음 사람이 원인을 못 찾는다
+  rules:
+    # 릴리스가 성공했을 때만. 리허설(web)은 zip 을 레지스트리에 올리지 않으므로 제외한다.
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
+  script:
+    - python scripts/ci/publish_builds.py stage
+
+promote-builds:           # latest.json 을 옮긴다 — **사람이 누른다** (S15P21B202-405)
+  stage: deploy           # 이 한 줄이 옮겨지는 순간 **모든 사용자의 런처가 그 버전으로 간다**.
+  image: python:3.12      # 시점은 사람이 고르는 것이 맞다(deploy-prod 와 같은 결).
+  tags: [deploy]          # 되돌리기도 이 잡이다 — PROMOTE_VERSION 에 옛 버전을 준다.
+  # **`optional: true` 가 없으면 되돌리기 경로가 아예 안 만들어진다** (S15P21B202-467,
+  # `!368` 리뷰). 되돌리기는 web 파이프라인인데 `publish-builds` 는 master push 에서만
+  # 생긴다 — 없는 잡을 `needs` 로 걸면 GitLab 은 **파이프라인 생성 자체를 거절한다.**
+  # 그래서 "PROMOTE_VERSION 을 주고 이 잡만 돌린다" 는 위 주석은 지금까지 거짓이었다.
+  needs:
+    - job: publish-builds
+      optional: true
+    - job: release-windows
+      artifacts: true
+      optional: true
+  interruptible: false
+  environment:
+    name: production
+    url: https://j15b202.p.ssafy.io/play/
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
+      when: manual
+    # 되돌리기: Run pipeline 에서 PROMOTE_VERSION 을 주고 이 잡만 돌린다.
+    - if: $CI_PIPELINE_SOURCE == "web" && $PROMOTE_VERSION
+      when: manual
+  script:
+    - python scripts/ci/publish_builds.py promote
+
+publish-site:             # 배포 사이트를 nginx 자리로 (S15P21B202-405 · -452)
+  stage: deploy           # 사이트는 릴리스와 다른 박자로 바뀐다(website/ 가 develop 에
+  image: python:3.12      # 머지될 때). 그래서 릴리스 잡에 묶지 않는다.
+  tags: [deploy]
+  needs: []
+  interruptible: false
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
+      changes: ["website/**/*"]
+  variables:
+    # LFS 실파일이 있어야 한다 — 포인터를 올리면 영상·이미지가 전부 깨진다.
+    GIT_LFS_SKIP_SMUDGE: "0"
+  script:
+    - python scripts/ci/publish_site.py
+
 mm-ci-failed:             # 🔴 CI 실패 알림 — 실패한 잡 이름·링크·이유 + 담당 @멘션
   stage: notify
   # **전부 optional 이어야 한다**(S15P21B202-344). develop push 파이프라인에는 mr-lint·
@@ -712,7 +865,9 @@ mm-digest:                # 스케줄 파이프라인(매일 09:30 · 실제 발
     - job: ci-tests       # 빨간 순간 이 잡이 건너뛰어져 아침 카드가 아예 안 나간다(-289).
       optional: true      # when: always 라 ci-tests 가 실패해도 카드는 나가고, 실패 사실을 카드가 싣는다.
   rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule" && $MM_WEBHOOK_URL
+    # **새벽 배포 스케줄에는 끼지 않는다** (S15P21B202-455). 스케줄 파이프라인은
+    # 소스가 다 `schedule` 이라, 변수로 가르지 않으면 아침 카드가 하루 두 번 나간다.
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $MM_WEBHOOK_URL && $NIGHTLY_DEPLOY_DEV != "true"
       when: always
   script:
     - python scripts/ci/mm_digest.py

@@ -1,5 +1,9 @@
 # Unity Project Context
 
+## 2026-09-13 UI cursor integration
+
+`Metagame.UI.LocalCursorFeedback` auto-installs a persistent local presentation component in interactive players. It reuses `Resources/PingMarker`, reads the owning `NetPlayer.PingColor` (solo fallback: `GameSession.LocalPlayer.TeamColor`), and leaves cursor visibility/locking to existing bootstrap/session code. `UiInteraction` wraps current IMGUI controls to emit bounded screen sparks and synthesized 2D click audio only on consumed pointer presses. Audio honors the existing listener master volume and settings SFX volume; no network events are emitted. See `docs/records/2026-09-13-cursor-feedback.md` at repository root for scope and validation (22 EditMode tests passed in Unity 6000.5.4f1).
+
 <!-- unity-onboarding:generated:start -->
 
 ## Project Summary
@@ -59,6 +63,8 @@
 
 ## Scenes And Startup Flow
 
+- 2026-09-13 customization update: `Lobby` solo/together buttons now enter `Assets/Scenes/Customizer.unity`. Solo confirmation continues to `Stage1_Astra`; together confirmation opens the existing room UI inside Customizer through `LobbyBootstrap`, then keeps the Spring/Mirror start flow. `Stage1_Ending → Lobby` is unchanged. `Customizer` is enabled and required by `SpaceBuild`. `CustomizationData` saves cosmetic selections; `PlayerAppearance` applies tint and head/chest accessories, and `NetPlayer` replicates validated selections via Command/SyncVar. See repository-root `docs/records/2026-09-13-character-customizer.md`. Earlier Main-only scene descriptions below are historical.
+
 - Build scenes: `Assets/Scenes/Lobby.unity` and `Assets/Scenes/Main.unity` are enabled; `SpaceBuild` preserves existing entries and ensures both are present.
 - Startup scene: `Lobby` is first and `Main` is second in the build list. `Main` holds the static Stage1 puzzle/environment and scene-side ship parts; the player ragdoll, runtime level, HUD, and legacy vacuum/starfield are composed in code.
 - Scene loading flow: `LobbyBootstrap` creates the scene-independent `NetworkSession` and IMGUI `LobbyHud`, while `LobbyBackground` loops the MP4 over the PNG fallback. Solo play loads `Main` directly; multiplayer waits for the Spring WebSocket `GAME_STARTED`, fades out, starts Mirror host/client, and lets Mirror move the session to `Main`. `LobbyTransition` then fades in after `GameSession` is present. `Main` still assigns `Stage1AtmosphereProfile.asset` to `SpaceBootstrap`; `Lobby` remains on the neutral baseline Volume profile.
@@ -82,6 +88,12 @@
 
 ## Testing And Validation
 
+- 2026-09-13: Editor/Development builds support local F11 perspective toggling through `GameSession`/`OrbitCamera`; forced vehicle/downed/push cameras retain priority and restore the chosen base perspective. Ending greetings now run sequentially with a face close-up per participant, then everyone boards together. `DemoEnding` derives stage times from snapshot player count; ending snapshots also carry appearance selections. Headless Unity compilation and 52 related tests passed. See repository-root `docs/records/2026-09-13-debug-perspective-ending-greetings.md`.
+
+- Welding guide/material (2026-09-11): `PlasmaWeldingTool` now shares a first-hit ray query between tool actions and a purple collider-projected ring (0.8m maximum). Existing proximity APIs remain available, but the gun uses `WeldBead.CanApplyAt/TryApplyAt`. Each gun owns 60 seconds of successful welding material by default; equip/drop does not reset it. Successful cutting restores material to the cutting gun at the same time-based rate, capped at full. `WorldSync` transmits remaining fraction through `ViewProgress`, including dropped tools, and replicates ray-based bead changes through its existing bead snapshots. `GameHud` projects a yellow annular-sector fill beside the visible gun with fixed 0/25/50/75/100% ticks and no numeric current-remaining readout. No scene/prefab wiring is needed. See `docs/records/2026-09-11-welding-guide-material.md` at repository root for behavior and validation scope.
+
+- Assembly-pad welding (2026-09-11): core parts can weld to static surfaces in the existing assembly region through `WeldBead` contact. Simply placing a part does not create a joint. Contacting bead volume controls joint strength and useful-bead color; cutting the bridge releases it. Tractor grabbing and engine boarding are blocked while the pad weld is intact, so moving the part requires cutting it first. Pad welds are separate from `PartAssemblyLink` and do not add a floor to the ship graph. No scene/prefab setup is required.
+- Multiplayer pad welds use existing grow/cut events and bead snapshots. `ChainState.PadWeldIntact` preserves broken/intact status, and `WorldSync.SameWeld` detects changes even when bead shape stays the same. Remote bodies remain kinematic. Unity EditMode validation: 85/85 passed (`WeldBeadJoinTests`, `WeldBeadRestoreTests`, `WeldBeadTests`, `TractorBeamTests`, `AssemblyFloorStateTests`), including core parts 1–4, cutting, excluding ordinary ground outside the pad, and remote intact/broken snapshot restoration. Report: `.local-validation/pad-weld.xml` at repository root. Live host/client play remains unverified: place a part without welding, weld the part/pad seam, observe both peers, cut it, then check late join and authority handover.
 - UI accessibility (2026-09-11): Settings > Graphics includes `UI 텍스트 크기 조정` (80–150%, 5% steps). `display.uiTextScale` uses the existing local preview/save/cancel/default flow. `UiScale.Scope` scales IMGUI text and controls together using virtual screen bounds; camera-projected nameplates and pings convert pixels into those coordinates. The first-person tablet scales its model and attached canvas together to preserve internal layout. No scene or prefab wiring is required.
 - UI scale validation: generated UI and EditMode-test projects compiled with zero errors; tests were compiled, not executed. Remaining Play Mode checks: lobby and Esc settings at 80/100/150%, slider and scroll input, save/restart, cancel/defaults, HUD screen anchors and ping/nameplate targets, tablet visibility at maximum size, and independent settings on two clients. Check both 1280×720 and 1920×1080.
 

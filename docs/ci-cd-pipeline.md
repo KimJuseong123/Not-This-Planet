@@ -44,7 +44,7 @@
     │
     ▼
  develop push ────────────────▶ ④ develop 파이프라인 (§2-B)
-    │                              retarget-pipelines · unity-compile · build-backend ─▶ deploy-backend(▶ 수동)
+    │                              retarget-pipelines · unity-compile · build-backend ─▶ deploy-dev(▶ 수동)
     │                                                                                       │
     │                                                                        /spool 에 jar + RELEASE
     │                                                                                       ▼
@@ -69,9 +69,9 @@
 | 트리거 | 언제 | 생기는 잡 | 비고 |
 | --- | --- | --- | --- |
 | **A. MR** (`merge_request_event`) | MR이 열리거나 소스 브랜치에 push | §2-A 전부 (조건부: `ci-tests` `unity-compile` `build-backend` `ai-review`) | 새 push가 앞 파이프라인을 자동 취소한다(정상) |
-| **B. develop push** | 팀장이 MR을 머지한 직후 | `retarget-pipelines` · `unity-compile`(METAGAME 변경) · `build-backend` → `deploy-backend`(backend 변경, **수동**) | **자동 취소 없음**(`auto_cancel: none`, -309) — 연달아 머지돼도 배포 버튼이 사라지지 않는다 |
+| **B. develop push** | 팀장이 MR을 머지한 직후 | `retarget-pipelines` · `unity-compile`(METAGAME 변경) · `build-backend` → `deploy-dev`(backend 변경, **버튼만** — 자동 배포는 새벽 스케줄, -455) | **자동 취소 없음**(`auto_cancel: none`, -309) — 연달아 머지돼도 앞 파이프라인의 배포가 취소되지 않는다 |
 | **C. 스케줄** | **평일** 09:30 KST (id 28, `30 9 * * 1-5`, ref develop) — 실제 발송 09:33 | `ci-tests` · `retarget-pipelines` · `mm-digest` | 카드는 항목이 있을 때만 나간다 |
-| **D. master push** | 팀장이 `release/<키>-vX.Y.Z` 브랜치(또는 hotfix)를 master에 머지한 직후 | `release-windows` | **릴리스 = 자동**: 버전 → Windows 빌드 → 패키지 → GitLab Release(태그) → MM. 자동 취소 없음(-326) |
+| **D. master push** | 팀장이 `release/<키>-vX.Y.Z` 브랜치(또는 hotfix)를 master에 머지한 직후 | `release-windows` → `publish-builds`(자동) → `promote-builds`(**수동**) · `build-backend` → `deploy-prod`(**수동**, -284) | **릴리스 = 자동, 공개는 버튼**: 버전 → Windows 빌드 → 패키지 → GitLab Release(태그) → MM. 자동 취소 없음(-326) |
 
 전부 `CI_ENABLE=true` 변수가 있어야 **파이프라인 자체가 생성**된다(없으면 조용히 0건 — §7).
 
@@ -110,9 +110,37 @@
 | `retarget-pipelines` | 항상 (+ 스케줄) | 부모 브랜치 삭제로 develop에 **자동 재대상된 자식 MR**을 찾아 파이프라인을 만든다 — GitLab이 그때 안 만들기 때문(-295). 그 파이프라인에서 `stack-order`가 통과하며 🔒 스레드를 해소한다 | 비차단 |
 | `unity-compile` | `METAGAME/**` 변경 | 개별 MR은 통과했는데 합쳐서 깨지는 경우를 2분 안에 잡는다(MR에서 합친 결과를 검사하게 된 `-342` 뒤에도 안전망으로 남긴다). 이 결과가 다음 MR 들의 **기준선**이 된다. **주의 — 여기서 실패해도 MM 알림이 없다**: `mm-ci-failed`가 `merge_request_event` 에서만 돈다(`-344`) | 경고(기준선용) |
 | `build-backend` | `backend/**` · `.gitlab-ci.yml` 변경 | 배포용 jar 아티팩트 | 실패 |
-| `deploy-backend` | 위와 같음 · `needs: build-backend` · **`when: manual`** · `tags: [deploy]` · `interruptible: false` · `environment: production` · **옛 파이프라인의 버튼을 누르면 경고**(-333) | jar을 `/spool`에 원자적으로 놓고 `RELEASE` 표시 → 호스트 `deploy.sh`가 교체·헬스체크(`POST /auth/guest` 200)·실패 시 **직전 jar로 롤백**(3개 보관) → 잡은 `STATUS`에 자기 sha가 찍힐 때까지 기다림(최대 420초) → MM 🟢 배포 완료 / 🔴 롤백 / 🔴 무응답 | 실패 → MM 🔴(Infra 멘션) |
+| `deploy-dev` | **develop push** + 위와 같음 · `needs: build-backend` · **`when: manual`**(머지는 버튼만) + **새벽 스케줄 자동**(`$NIGHTLY_DEPLOY_DEV`, -455) · `tags: [deploy]` · `interruptible: false` · `environment: development` · `DEPLOY_SPOOL: /spool-dev` | jar을 `/spool-dev`에 원자적으로 놓고 `RELEASE` 표시 → 호스트 `deploy.sh`가 교체·헬스체크(`POST /auth/guest` 200, **8081**)·실패 시 **직전 jar로 롤백**(3개 보관) → 잡은 `STATUS`에 자기 sha가 찍힐 때까지 기다림(최대 420초) → MM 🟢 배포 완료 / 🔴 롤백 / 🔴 무응답 | 실패 → MM 🔴(Infra 멘션) |
+| `deploy-prod` | **master push**(`changes` 조건 없음) · `needs: build-backend` · **`when: manual`** · `tags: [deploy]` · `interruptible: false` · `environment: production` · **옛 파이프라인의 버튼을 누르면 경고**(-333) | 위와 같고 스풀만 기본값 `/spool`, 헬스체크는 **8080** | 실패 → MM 🔴(Infra 멘션) |
+| `publish-builds` | **master push** · `needs: release-windows` · `tags: [deploy]` · 자동 | 패키지 레지스트리에서 zip 을 받아 풀고 **매니페스트 + 내용 주소 저장소**를 `/builds` 에 만든다(`--no-latest`). zip 도 함께 둔다 — 런처를 안 쓰는 사람 길이 남아야 한다. **아직 아무도 이 버전을 받지 않는다** | 실패 → MM 🔴 |
+| `promote-builds` | **master push** · **`when: manual`** · `environment: production` | `latest.json` 을 이 버전으로 옮긴다 — **누르는 순간 모든 런처가 그 버전으로 간다.** 옮기기 전에 그 버전이 쓰는 파일이 저장소에 다 있는지 확인한다. 되돌리기도 이 잡이다(`PROMOTE_VERSION` 에 옛 버전) | 실패 → MM 🔴 |
+| `publish-site` | **develop push** + `website/**` 변경 · `tags: [deploy]` | `website/` 를 `/site` 로 옮긴다. **LFS 포인터가 섞여 있으면 멈춘다** — 올리면 영상·이미지가 전부 깨지는데 200 으로 내려가 화면만 보고는 못 찾는다 | 실패 → MM 🔴 |
 
-**왜 수동인가**: 서버 한 대가 테스트 서버이자 시연 서버라 재시작이 WebSocket 세션을 전부 끊는다. dev/prod가 갈리면(-284) dev만 자동으로 바꾼다.
+**배포 시점** (-455). 재시작은 어느 쪽이든 WebSocket 세션을 전부 끊는다. 끊기는 사람이 다를 뿐이다 — dev 는 **테스트하는 팀원**, prod 는 **실유저**. 그래서 둘 다 머지가 자동으로 배포하지 않는다. dev 는 **새벽 스케줄**(끊길 세션이 없는 시간)이 자동으로 맞추고 낮에는 버튼이며, prod 는 릴리스 뒤 사람이 시점을 고른다. `-139` §4 가 처음부터 적어 둔 이유이고, 한때 "나눈 뒤 실유저는 prod 에 있으니 dev 는 자동" 이라고 바꿨던 것이 틀렸다.
+
+**구버전 차단** (-404). 서로 다른 버전이 같은 방에 들어오면 동기화가 깨진다. 런처로 막으면
+우회된다 — 압축 푼 폴더의 exe 를 직접 실행하는 것이 가장 흔하고 그게 정확히 막아야 하는
+경우다. 그래서 **로그인(`POST /auth/guest`)에서** 막는다.
+
+| | |
+| --- | --- |
+| 클라이언트가 보내는 것 | `BuildStamp` 의 `버전=` 줄(`release-windows` 가 `SPACE_RELEASE_VERSION` 으로 넘긴다) |
+| 서버가 보는 것 | `metagame.client.min-version` (`CLIENT_MIN_VERSION`) |
+| 막는 조건 | **`클라 < 최소` 일 때만.** 모르는 새 버전은 통과시킨다 |
+| 거절 | `426` + 사유 · **받을 곳 URL** · 최소 버전 |
+
+**허용 목록이 아니라 최소 버전인 이유**: 백엔드(`deploy-*`)와 클라이언트(`release-windows`)는
+트리거·브랜치·시점이 달라 **동시에 나가지 않는다.** 허용 목록이면 클라이언트가 먼저 나간
+순간 백엔드가 그 버전을 몰라 **전원 거절**한다.
+
+**기본값은 비어 있고, 비면 게이트가 꺼진다.** 이 코드가 배포되는 순간 이미 사람들 손에 있는
+빌드가 전부 막히면 안 된다. **최소 버전을 올리는 시점이 곧 구버전 차단 시점**이고 그 판단은
+사람이 한다 — 릴리스를 내보낸 뒤 `CLIENT_MIN_VERSION` 을 그 버전으로 올리고 백엔드 컨테이너만
+다시 띄운다(재배포가 아니다).
+
+**개발 서버(`/dev`)는 비워 둔다.** 에디터 실행과 dev·qa 빌드는 `vX.Y.Z` 모양이 아니라
+(= "버전을 못 읽음") 켜는 순간 팀이 전부 막힌다. 켜져 있을 때 버전을 못 읽는 빌드를
+거절하는 것은 의도한 것이다 — 스탬프가 없던 시절 빌드가 정확히 막아야 할 대상이다.
 
 ### 2-C. 스케줄 파이프라인 (09:30)
 
@@ -131,6 +159,24 @@
 | `release-windows` | master push · `resource_group: unity` · 90분 | ① 버전 확정(머지 커밋의 `release/…-vX.Y.Z`, 없으면 hotfix PATCH+1, 그것도 없으면 빌드 전에 실패) ② GameCI windows-mono 이미지에서 `SpaceBuild.BuildWindows` ③ zip(`metagame-vX.Y.Z-날짜-시각.zip`) ④ **패키지 레지스트리** 업로드(잡 토큰 — 100MB 첨부 상한을 피한다) ⑤ GitLab Release + 태그(변경 목록 = 이전 태그 이후 develop 머지 MR) ⑥ MM 🟢(팀장) ⑦ 변수 있으면 Jira 릴리스 웹훅(-327) | 어느 단계에서 왜 인지 MM 🔴(Infra). 같은 버전 재실행은 멱등 |
 
 팀장이 하는 일은 릴리스 브랜치를 머지하는 것까지다 — [git-convention §8](./git-convention.md) · [records/-326](./records/S15P21B202-326-release-pipeline.md).
+
+#### master 머지는 **빌드 릴리스**이지 서버 배포가 아니다 (S15P21B202-464)
+
+릴리스가 났다고 **배포 서버(8080)의 백엔드는 바뀌지 않는다.** `deploy-prod` 는 수동 버튼이고,
+누르지 않으면 이전 jar 그대로다. 릴리스 뒤에 서버 코드가 관련된 것을 확인할 때는 이 줄을 먼저 본다.
+
+| 하고 싶은 것 | 어떻게 |
+| --- | --- |
+| 릴리스한 서버 코드를 올린다 | 릴리스 파이프라인의 **`deploy-prod` 를 누른다** |
+| 사용자 런처를 새 버전으로 보낸다 | 같은 파이프라인의 **`promote-builds` 를 누른다** (별개 버튼이다) |
+| **서버만** 고친다(설정 한 줄·보안 수정) | Pipelines → **Run pipeline** → ref `master` · `DEPLOY_PROD=1` → `deploy-prod` 를 누른다. 그 파이프라인에서는 `release-windows` 가 **돌지 않는다** — 90분을 기다릴 이유가 없다 |
+| 지금 서버에 무엇이 올라가 있는지 본다 | **아침 점검 카드의 🚀 두 줄** (개발·배포 각각). `-464` 전에는 잡 이름이 어긋나 늘 "이력 없음" 이었다 |
+
+**서버만 고치는 경우에도 코드는 `master` 에 있어야 한다** — `hotfix/` 브랜치를 master 에 머지한
+뒤 위 Run pipeline 을 돌린다. 릴리스를 건너뛰는 것이지 브랜치 규칙을 건너뛰는 것이 아니다.
+
+**`deploy-prod` 를 누른 뒤 MM 에 🟢/🔴 카드가 온다.** 안 오면 그것 자체가 신호다 —
+`-464` 전에는 알림 잡 이름도 어긋나 있어 **카드가 한 장도 나가지 않았다.**
 
 ---
 
@@ -152,6 +198,21 @@
 막지 않는 잡: `mr-title` · `mm-*` · `ai-review` · `retarget-pipelines` · `unity-compile`(종료 2).
 `ai-review-gate` 는 **⛔ 일 때만** 막는다 — 판정을 못 읽으면 통과시키고 알린다(-341).
 
+**⛔ 가 나는 조건은 2026-09-13 에 넓어졌다** (`-477`). 리뷰어가 `verdict: block` 을 낼 때에
+더해, **높음 발견 사항이 하나라도 있으면** ⛔ 다. 리뷰어가 `severity: high` 를 적어 놓고
+`verdict` 는 `warn` 으로 두는 일이 있어서, 사람이 보기에 심각한 것이 그대로 통과했다.
+판정과 심각도가 어긋나면 **막는 쪽**으로 떨어진다. `중간`·`낮음` 은 그대로 통과한다 —
+전부 막으면 거의 모든 MR 이 서고, 그러면 ⛔ 가 "원래 뜨는 것" 이 된다.
+
+`block` 의 정의도 넓혔다: 데이터 손상·인증/권한 오류·범위 밖의 위험한 변경에 더해
+**조용히 틀리는 것**(검사가 통과하는데 실제로는 보지 않는다), **사용자에게 나가는 것을
+잘못 내보내는 것**(배포·릴리스·버전), **되돌릴 수 없는 것**, 그리고 **그 MR 이 새로 넣은
+코드의 명백한 오류**. 취향·문서 범위·후속 과제는 여전히 ⚠️ 다.
+
+**되돌리는 법**: CI 변수 `AI_REVIEW_BLOCK_SEVERITY` 를 비우면 심각도 차단이 꺼져 예전처럼
+판정만 본다. `high,medium` 으로 조일 수도 있다. **MR 없이 돌릴 수 있어야 한다** — 되돌릴
+길이 없는 규칙은 사람들이 우회하기 시작한다.
+
 ---
 
 <a id="section-5"></a>
@@ -164,8 +225,8 @@
 
 | 러너 | 태그 | 실행기 | 마운트(볼륨) | 몫 |
 | --- | --- | --- | --- | --- |
-| `METAGAME-ip-172-26-13-34` (공용) | `linux` | docker · `cpu_shares = 256`(경합 시 게임 서버에 양보) | `/cache` · Claude 바이너리 **ro** · `~/.claude` **ro** · Unity 라이선스 `.ulf` **ro** | `deploy-backend` 빼고 전부 (`default.tags: [linux]`) |
-| `METAGAME-deploy-ip-172-26-13-34` (배포 전용, id 2068) | `deploy` · **Protected(`ref_protected`)** · `run_untagged` 없음 — 2026-09-08 러너 API 실측 | docker | `/cache` · `/home/ubuntu/metagame/deploy` → **`/spool` rw** | `deploy-backend`만. 스풀은 여기에만 있고 **데이터만** 들어 있다 — 실행되는 코드는 `/opt/metagame-deploy/`(-324) |
+| `METAGAME-ip-172-26-13-34` (공용) | `linux` | docker · `cpu_shares = 256`(경합 시 게임 서버에 양보) | `/cache` · Claude 바이너리 **ro** · `~/.claude` **ro** · Unity 라이선스 `.ulf` **ro** | `deploy` 태그 잡 빼고 전부 (`default.tags: [linux]`) |
+| `METAGAME-deploy-ip-172-26-13-34` (배포 전용, id 2068) | `deploy` · **Protected(`ref_protected`)** · `run_untagged` 없음 — 2026-09-08 러너 API 실측 | docker | `/cache` · `/home/ubuntu/metagame/deploy` → **`/spool` rw** · `/home/ubuntu/metagame-dev/deploy` → **`/spool-dev` rw**(-284) · `/var/www/metagame-builds` → **`/builds` rw** · `/var/www/metagame-site` → **`/site` rw**(-405) | `deploy-dev`·`deploy-prod`·`publish-builds`·`promote-builds`·`publish-site`만. 스풀은 여기에만 있고 **데이터만** 들어 있다 — 실행되는 코드는 `/opt/metagame-deploy/`(-324) |
 | 내 PC 윈도우 러너 | — | shell(pwsh) | — | **정지 · 예비.** 받을 잡이 없다 |
 
 잡 컨테이너는 root로 돈다. 공용 러너에 `:rw` 마운트를 두면 아무 MR 이나 자기 브랜치의 `.gitlab-ci.yml` 한 줄로 그것을 읽고 쓸 수 있다 — 그래서 자격증명은 `:ro`, 스풀은 배포 러너에만(-290 · -252). 그리고 **rw 마운트 안에는 실행되는 코드를 두지 않는다**(-324): 스풀에는 데이터(jar·RELEASE·STATUS·로그·previous)만, `deploy.sh`는 마운트 밖 root 소유.
@@ -182,7 +243,101 @@
 | `nginx.service` | 상시 | 443 → 백엔드 8080 · `wss /ws/game` · certbot 갱신 | `scripts/deploy/server/nginx/` |
 | `docker` | 상시 | `metagame-backend`(127.0.0.1:8080 만) · `metagame-mysql`(호스트 게시 없음) | `scripts/deploy/server/compose.prod.yml` |
 
+### 밖에서 들어오는 요청은 어디로 가나 (-461, 2026-09-11 실측)
+
+```
+                        인터넷 (누구나)
+       ┌──────────────┬──────┴───────┬───────────────┐
+    :80 tcp        :443 tcp      :17778 udp      :17779 tcp
+       │              │              │         (172.16.0.0/12 만)
+     nginx          nginx         python3          python3
+  301 → https         │         (릴레이 중계)    (릴레이 제어 API)
+                      │
+                      ├─ /play/                  → /var/www/metagame-site/    정적
+                      ├─ = /play/site.webmanifest → 같은 폴더 + MIME 지정
+                      ├─ /builds/                → /var/www/metagame-builds/  정적 · 목록 403
+                      ├─ /dev/                   → 127.0.0.1:8081   개발 백엔드
+                      ├─ /auth/                  → 127.0.0.1:8080   **속도 제한**
+                      └─ /                       → 127.0.0.1:8080   배포 백엔드 · wss
+
+                   :22 tcp → sshd (pem 필요)
+                   :17777 udp → **아무도 안 듣는다** (정지한 데디케이티드 서버 자리)
+```
+
+**무엇으로 갈리나.** `server_name` 으로 호스트를 고르고, 그 안에서 `location` 이
+**URL 경로**만 본다 — 쿼리·헤더·메서드는 보지 않는다. nginx 는 **가장 긴 접두**가
+이기고(`/dev/` 가 `/` 를 이긴다) `=` 는 정확히 일치로 최우선이다.
+
+| 경로 | 처리 | 밖에서 |
+| --- | --- | --- |
+| `/play/` · `/builds/<파일>` | nginx 정적 | **공개** |
+| `/builds/` (목록) | — | **403** — 받는 것과 훑는 것은 다르다(-454) |
+| `/auth/guest` · `/auth/verify` | 배포 백엔드 | **공개 + 속도 제한** |
+| `/ws/game` | 배포 백엔드 | 공개(핸드셰이크에서 JWT 검증) |
+| `/dev/…` | 개발 백엔드 | **공개** — 범위는 `-459` 에서 정한다 |
+| 그 밖 백엔드 경로 | — | **401** (`anyRequest().authenticated()`) |
+| 8080 · 8081 · 3306 | — | **안 보인다**(127.0.0.1 바인딩 · 호스트 게시 없음) |
+| 22 | sshd | 열려 있지만 **pem 키가 있어야 한다** |
+
+**pem 은 "서버를 운영하는 권한" 이다.** 게임과 사이트는 pem 과 무관하게 누구나 쓴다.
+
+### 로그인 속도 제한 (-461)
+
+백엔드가 인증 없이 받는 것은 `/auth/guest` · `/auth/verify` · `/ws/game` 셋뿐이고
+**남의 데이터를 읽는 API 는 없다.** 그래도 게스트 로그인을 무한히 부를 수 있어
+계정 테이블이 부풀고 CPU 를 먹는다. 사이트를 공개하기 전까지 사실상의 방어는
+**"아무도 주소를 모른다"** 였는데 그 전제가 사라졌다.
+
+`limit_req_zone … rate=60r/m` + `burst=30 nodelay`(설정은 `conf.d/limits.conf`).
+**SSAFY 망이 NAT 뒤**라 IP 당 제한을 빡빡하게 잡으면 우리가 먼저 막힌다 — 방장이
+참가자마다 `/auth/verify` 를 부르므로 6인 방이 차면 몇 초 안에 6번이 몰린다.
+그래서 burst 를 넉넉히 준다. 응답은 503 이 아니라 **429** 다(503 은 "서버가 죽었다"
+로 읽혀 사용자가 기다려야 할지 다시 눌러야 할지 알 수 없다).
+
+2026-09-11 실측: 방 하나가 차는 **8회 연속 전부 200** · 40회 몰아치면 **27 통과 ·
+13 차단** · `/play/` 와 `/dev/` 는 영향 없음.
+
+**`/dev/` 에는 걸지 않았다.** 같은 NAT 뒤에서 팀이 동시에 시험하면 우리가 먼저
+막히고, 그러면 "왜 막혔는지" 를 찾는 데 시간이 든다. dev 를 누구에게 열지는
+`-459` 에서 정한다.
+
 UFW: 22 · 80 · 443 · 17777/udp · 17778/udp · 17779/tcp(172.16.0.0/12 만). 8080·3306 은 밖에서 안 보인다.
+
+### 개발·배포 환경 (-284)
+
+백엔드가 두 벌 뜬다. **새 포트를 열지 않고 경로로 나눈다** — 포트는 SSAFY 보안그룹이 열어 줘야 하고 우리가 정할 수 없다.
+
+| | 배포(prod) | 개발(dev) |
+| --- | --- | --- |
+| 사용자가 보는 주소 | `https://j15b202.p.ssafy.io` | `https://j15b202.p.ssafy.io/dev` |
+| nginx | `location /` → 8080 | `location /dev/` → 8081, **끝 슬래시가 접두를 뗀다** |
+| compose 프로젝트 | `metagame` | `metagame-dev` |
+| MySQL 볼륨 | `mysql-data` | `mysql-dev-data` |
+| 스풀 | `/spool` | `/spool-dev` |
+| 배포 잡 | `deploy-prod` (master, **수동**) | `deploy-dev` (develop, **수동** — 자동은 새벽 스케줄뿐, -455) |
+
+`proxy_pass http://127.0.0.1:8081/` 의 **끝 슬래시를 빼면** `/dev/auth/guest` 를 그대로 넘겨 404 가 되고, 원인이 눈에 보이지 않는다.
+
+**게임 서버는 나누지 않는다.** dev 전용 게임 서버를 띄우지 않고 **로컬 리슨 서버로 테스트한다.** 이유 셋:
+
+1. 리슨 서버로 전환한 뒤 `metagame.service`(데디케이티드)는 **정지·비활성** 상태다(2026-09-11 실측 `inactive · disabled · NRestarts=0`). 나누어야 할 상시 프로세스가 애초에 없다.
+2. 릴레이는 **공유한다.** `python3` 한 프로세스가 TCP 17779 를 잡고 있고 두 번째를 띄우려면 포트를 또 열어야 하는데, 그것이 우리가 정할 수 없는 것이다.
+3. 4 vCPU 한 대에서 CI 러너·백엔드 두 벌·MySQL 두 벌·릴레이가 이미 돈다. 게임 서버를 한 벌 더 띄우면 `unity-compile` 이 굶는다(공용 러너는 `cpu_shares = 256`, 곧 1/4 몫이다).
+
+그래서 UDP 17778 은 그대로 한 벌이고, 개발 테스트는 사람이 자기 PC 에서 호스트한다.
+
+### 클라이언트가 환경을 고르는 방법 (-284)
+
+주소는 `BackendEndpoints` 한곳에서 파생된다 — HTTP 로그인 · WebSocket 방 · 참가자 토큰 검증 셋이 같은 base 에서 나온다. 전에는 셋이 흩어져 있었고 그중 `MatchAuthenticator.VerifyUrl` 은 **코드 기본값이 배포 주소로 박혀** 있었다.
+
+| 무엇으로 | 결과 | 왜 그 순서인가 |
+| --- | --- | --- |
+| `-backend=<주소>` 실행 인자 | 그 주소 | 가장 세다. QA 가 빌드를 다시 만들지 않아도 되게 |
+| 에디터 | 항상 **개발** | 개발자가 로컬에서 돌리는 것이 실유저 데이터를 건드리면 안 된다 |
+| 빌드 | 스탬프의 `백엔드=dev\|prod` | `SpaceBuild` 가 정하고 `BuildStamp` 가 `build-stamp.txt` 2번째 줄부터에 적는다 |
+| 스탬프에 그 줄이 없음 | 개발 빌드면 개발, 배포 빌드면 배포 | 표시가 없던 시절 빌드는 전부 배포를 가리켰다. 개발 빌드가 그 자리에 오는 것은 스탬프를 못 쓴 경우뿐이라, 그때 배포로 가면 **이 구조가 막으려던 실패가 재현된다** |
+
+`SpaceBuild` 는 dev 결정을 `SPACE_DEV` 환경변수로 되돌려 박는다 — `BuildStamp` 는 `BuildPlayerProcessor` 라 지역변수를 볼 수 없다. 박은 뒤 `finally` 로 **원래 값으로 되돌린다**: 에디터 세션에 남으면 이어서 도는 다른 빌드가 그 값으로 찍힌다.
 
 ---
 
@@ -291,6 +446,6 @@ git show --name-status --format="" HEAD
 | ~~Jira 릴리스 fixVersion(-327)~~ | **2026-09-07 규칙 R10 완성**(부록 A 방식). 남은 것은 CI 변수 `JIRA_RELEASE_WEBHOOK`과 첫 릴리스에서 Jira 릴리스 화면 확인 |
 | `build-backend`가 테스트를 안 돈다 | -302. 플래키 원인(-313)이 배포됐으니 `test bootJar` + junit으로 |
 | `metagame.service`(데디케이티드 서버) 가 아직 돈다 | 리슨 서버 + 릴레이 전환 뒤 사용 여부 확인 |
-| `deploy-backend`가 수동 · dev/prod 미분리 | -284. 보안그룹 답(dev 포트) 대기 |
+| ~~백엔드 배포가 수동 · dev/prod 미분리~~ | **2026-09-11 해결** — -284 로 `deploy-dev`(develop 머지 → 개발 서버, 자동)와 `deploy-prod`(master 머지 → 배포 서버, 수동)로 갈랐다. 새 포트는 우리가 정할 수 없어 보안그룹 답을 기다리는 대신 **경로 접두 `/dev`** 로 나눴다(nginx 가 8081로 넘긴다). prod 가 수동인 것은 이제 결함이 아니라 결정이다 |
 | Unity 라이선스 만료 10-09 · Claude 리프레시 토큰 만료 09-30 | 사람이 갱신·재로그인. 후자는 3일 전부터 알림 |
 | 봇 코멘트 최대 6종 | 합칠지 결정 남음 |

@@ -13,6 +13,7 @@ namespace Metagame.Bootstrap
     /// 빈 씬에 이 컴포넌트 하나만 올려두고 Play 하면 게임이 돈다.
     /// 세계·우주비행사·HUD 는 전부 런타임 코드가 세운다 (프로토타입 단계에서 프리팹 관리 비용 0).
     /// </summary>
+    [RequireComponent(typeof(DevManager))]
     public class SpaceBootstrap : MonoBehaviour
     {
         [Header("세계")]
@@ -207,11 +208,16 @@ namespace Metagame.Bootstrap
             ending.Configure(Session, FindObjectsByType<SpaceshipPart>(FindObjectsSortMode.None),
                 () => !endingNetworked || Mirror.NetworkServer.active,
                 () => endingNetworked ? Mirror.NetworkTime.time : Time.unscaledTimeAsDouble,
-                CaptureEndingPlayers);
+                CaptureEndingPlayers,
+                () => NetworkSession.Instance != null && NetworkSession.Instance.CurrentRoom != null
+                    ? NetworkSession.Instance.RoomPlayTimeSeconds : Session.Elapsed);
             foreach (var hatch in FindObjectsByType<ShipHatch>(FindObjectsSortMode.None)) hatch.enabled = false;
             foreach (var launch in FindObjectsByType<LaunchTest>(FindObjectsSortMode.None)) launch.enabled = false;
+            EndingSceneFlow.Ensure().Watch(ending);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (!MatchRole.DedicatedServer)
-                sys.AddComponent<DemoEndingView>().Configure(ending, () => LobbyTransition.Ensure().BeginTitle());
+                GetComponent<DevManager>().Configure(Session, ending, PauseMenu, endingNetworked);
+#endif
 
             var beams = FindObjectsByType<TractorBeam>(FindObjectsSortMode.None);
 
@@ -248,6 +254,7 @@ namespace Metagame.Bootstrap
             Quaternion facing = Quaternion.LookRotation(Vector3.right, Vector3.up);
 
             Player = PlayerRig.Create(nickname, spawn, facing, suit, accent, useModel);
+            PlayerAppearance.Apply(Player.Doll, CustomizationData.Load().Packed);
             Player.transform.SetParent(transform, true);
 
             Color cameraSkyColor = useAtmosphere ? atmosphereProfile.sky.horizonColor : Sky != null ? Sky.SkyColor : RenderSettings.ambientSkyColor;
@@ -329,11 +336,13 @@ namespace Metagame.Bootstrap
                     var player = connection.identity.GetComponent<NetPlayer>();
                     if (player == null) continue;
                     players.Add(new DemoEndingPlayer
-                    { Name = player.nickname, Suit = player.TeamSuitColor, Accent = player.TeamAccentColor });
+                    { Name = player.nickname, Suit = player.TeamSuitColor, Accent = player.TeamAccentColor,
+                        Appearance = player.Appearance });
                 }
             }
             else if (Session.LocalPlayer != null)
-                players.Add(new DemoEndingPlayer { Name = nickname, Suit = suit, Accent = accent });
+                players.Add(new DemoEndingPlayer { Name = nickname, Suit = suit, Accent = accent,
+                    Appearance = CustomizationData.Load().Packed });
             return players.ToArray();
         }
 

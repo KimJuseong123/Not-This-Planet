@@ -169,12 +169,8 @@ namespace Metagame.Gameplay.Parts
         /// <summary>
         /// 용접 완료 비율 0~1. 아무것도 잇지 않았으면 0 이다.
         ///
-        /// 완료 여부가 아니라 비율을 쓴다. 절반만 용접했으면 절반만 튼튼해야 운석이
-        /// 떨어질 때 용접하지 않은 층이 무너지는 긴장이 생긴다.
-        ///
-        /// 기획 §16.2 "처음 조립하는 접합부의 강도는 실제로 용접한 길이에 비례한다" —
-        /// 비드 방식에서는 <b>닿아 있는 비드의 부피</b>가 그 길이를 대신한다
-        /// (S15P21B202-228).
+        /// 닿아 있는 비드의 부피를 기록한다. 물리 파손 강도와는 별개이며,
+        /// 조금이라도 연결되어 있으면 절단으로 연결을 없애기 전까지 버틴다.
         /// </summary>
         public float WeldRatio => Mathf.Clamp01(_beadRatio);
 
@@ -336,17 +332,17 @@ namespace Metagame.Gameplay.Parts
         }
 
         /// <summary>
-        /// 용접 완료 비율에 따라 조인트 강도를 올린다.
+        /// 연결 비드가 남아 있으면 힘과 토크에 의한 파손을 막는다.
         /// 전부 채워지면 파츠를 Welded 로 전환하고 다시 들 수 없게 한다.
         /// </summary>
         void ApplyJointStrength()
         {
             var ratio = WeldRatio;
 
-            _joint.breakForce = Mathf.Lerp(
-                PhysicsScale.UnweldedBreakForce, PhysicsScale.WeldedBreakForce, ratio);
-            _joint.breakTorque = Mathf.Lerp(
-                PhysicsScale.UnweldedBreakTorque, PhysicsScale.WeldedBreakTorque, ratio);
+            // 작은 접촉량도 조립 중 하중을 견뎌야 한다. 절단은 비드가 없어질 때
+            // Release를 호출하므로 물리 파손 한계와 독립적으로 동작한다.
+            _joint.breakForce = ratio > 0f ? float.PositiveInfinity : PhysicsScale.UnweldedBreakForce;
+            _joint.breakTorque = ratio > 0f ? float.PositiveInfinity : PhysicsScale.UnweldedBreakTorque;
 
             if (ratio < 1f) return;
 
@@ -378,7 +374,12 @@ namespace Metagame.Gameplay.Parts
             return part.TryTransitionTo(PartState.Welded);
         }
 
-        void OnJointBreak(float breakForce) => Release();
+        void OnJointBreak(float breakForce)
+        {
+            // 같은 파츠의 다른 조인트가 끊어져도 이 콜백을 받는다.
+            // 실제로 사라진 조인트의 접합만 해제한다 (Tick의 생존 확인과 동일).
+            if (_joint == null) Release();
+        }
 
         /// <summary>
         /// EditMode 에서는 Destroy 가 다음 프레임까지 지연되지 않으므로 즉시 파괴를 써야 한다.

@@ -46,17 +46,38 @@ MENTION = os.environ.get("ALERT_MENTION", "rmawnsdud")      # team.json 의 infr
 CALL_TIMEOUT = int(os.environ.get("CLAUDE_CHECK_TIMEOUT", "120"))
 ALERT_ENV = os.environ.get("CLAUDE_ALERT_ENV", "/etc/metagame/alert.env")   # 안내 문구용 경로
 
-# 몇 번 연속 실패해야 알리나. 저절로 낫는 것과 사람이 손대야 하는 것을 가른다.
-# 20분 주기이므로 2회 ≈ 40분, 3회 ≈ 1시간, 6회 ≈ 2시간.
-THRESHOLD = {
-    "authentication": 2,     # 저절로 낫지 않는다. 사람이 재로그인해야 한다
-    "invalid_request": 2,    # 옵션·모델명이 틀렸다. 역시 사람 일
-    "network": 3,            # 대개 저절로 낫는다
-    "server_error": 3,
-    "unknown": 3,
-    "rate_limit": 6,         # 구독 한도는 정상 동작의 일부다
+# **첫 실패로부터 얼마나 지나야 알리나** (S15P21B202-381). 저절로 낫는 것과 사람이
+# 손대야 하는 것을 가른다.
+#
+# 예전에는 **연속 실패 횟수**였다(2회·3회·6회). 그것은 틱 주기가 20분으로 고정일 때만
+# 뜻이 있었다 — 틱이 1분이 되면 `authentication` 2회가 **2분**이 되어 평범한 갱신
+# 구간마다 팀에 알림이 가고, 반대로 실제 호출 횟수를 세면 호출이 하루 15번이라 2회가
+# **3시간**이 되어 지금보다 느려진다. **원래 뜻은 "얼마나 오래 안 낫는가" 였다.**
+# 경과 시간으로 두면 틱 주기와 무관해진다.
+THRESHOLD_SECONDS = {
+    "authentication": 30 * 60,   # 저절로 낫지 않는다. 사람이 재로그인해야 한다
+    "invalid_request": 30 * 60,  # 옵션·모델명이 틀렸다. 역시 사람 일
+    "network": 60 * 60,          # 대개 저절로 낫는다
+    "server_error": 60 * 60,
+    "unknown": 60 * 60,
+    "rate_limit": 2 * 3600,      # 구독 한도는 정상 동작의 일부다
 }
-DEFAULT_THRESHOLD = 3
+DEFAULT_THRESHOLD_SECONDS = 60 * 60
+
+# **토큰이 아직 유효하면 부르지 않는다** (S15P21B202-381).
+#
+# 틱을 1분으로 줄이는 것은 401 무응답 구간을 줄이기 위해서다. 그런데 틱마다 `claude -p`
+# 를 부르면 그것은 CPU 가 아니라 **팀 구독 사용량**이다 — 하루 1440번. 6명이 쓰는 구독을
+# 점검이 그만큼 먹는 것은 답이 아니다.
+#
+# 그래서 **틱은 파일만 읽는다.** 만료 시각이 `.credentials.json` 에 적혀 있으므로
+# (`claudeAiOauth.expiresAt`), 아직 유효하면 아무것도 하지 않고 끝낸다. 실제 호출은
+# **만료된 뒤**와 **생존 확인** 때뿐이다 — 하루 15번 남짓으로 지금(72번)보다 적다.
+#
+# **만료 전에 미리 부르지 않는다.** CLI 는 만료된 뒤에만 갱신한다(2026-09-06 EC2 실측:
+# 만료까지 2.8시간 남은 상태에서 `claude -p` 를 돌려도 파일 mtime 이 바뀌지 않았다).
+LIVENESS_SECONDS = 2 * 3600          # 만료와 무관한 죽음을 잡으려면 가끔은 실제로 불러야 한다
+FALLBACK_INTERVAL = 20 * 60          # 만료 시각을 못 읽으면 예전 주기로 되돌아간다
 REALERT_SECONDS = 6 * 3600           # 계속 실패해도 6시간에 한 번만
 REFRESH_WARN_DAYS = 3                # 리프레시 토큰 만료 며칠 전부터 경고하나
 REFRESH_WARN_SECONDS = 24 * 3600     # 그 경고는 하루 한 번
@@ -204,6 +225,47 @@ def refresh_expires_at() -> float | None:
         return None
 
 
+def access_expires_at() -> float | None:
+    """액세스 토큰 만료(epoch 초). 못 읽으면 None. **토큰 값은 읽지 않는다.**"""
+    try:
+        with open(CREDS_PATH, encoding="utf-8") as f:
+            d = json.load(f)
+        ms = (d.get("claudeAiOauth") or {}).get("expiresAt")
+        return float(ms) / 1000.0 if isinstance(ms, (int, float)) and ms > 0 else None
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def should_call(state: dict, now: float, expires_at: float | None) -> tuple[bool, str]:
+    """이번 틱에 `claude -p` 를 부를까. (부른다, 사람이 읽을 이유).
+
+    **순수 함수다** — 파일도 시계도 보지 않는다. 정책 전체를 검사가 확인한다.
+
+    부르지 않기로 한 틱은 **진짜 no-op** 이어야 한다. 연속 실패 상태도, 복구 알림
+    판정도 건드리지 않는다 — 안 부른 것을 성공으로 세면 진짜 장애가 묻힌다.
+    """
+    last = float(state.get("last_call") or 0)
+    since = now - last
+
+    if expires_at is None:
+        # **파싱 실패가 1440번 호출로 바뀌면 안 된다.** 못 읽으면 예전 주기로 되돌아간다.
+        if since >= FALLBACK_INTERVAL:
+            return True, f"만료 시각을 읽지 못했다 — 예전처럼 {FALLBACK_INTERVAL // 60}분 간격으로 부른다"
+        return False, (f"만료 시각을 읽지 못했다 — 마지막 호출 {since / 60:.0f}분 전, "
+                       f"{FALLBACK_INTERVAL // 60}분까지 기다린다")
+
+    if now >= expires_at:
+        return True, f"액세스 토큰이 만료됐다({(now - expires_at) / 60:.0f}분 전) — 갱신한다"
+
+    if since >= LIVENESS_SECONDS:
+        # 만료와 무관한 죽음(`/logout` · 소유권이 root 로 넘어감 · 리프레시 토큰 폐기)은
+        # 만료 시각만 봐선 알 수 없다. 가끔은 실제로 불러 봐야 한다.
+        return True, f"생존 확인 — 마지막 호출 {since / 3600:.1f}시간 전"
+
+    return False, (f"토큰이 {(expires_at - now) / 60:.0f}분 더 유효하다 — 부르지 않는다 "
+                   f"(생존 확인까지 {(LIVENESS_SECONDS - since) / 60:.0f}분)")
+
+
 def check_refresh_expiry(state: dict, now: float, dry_run: bool) -> None:
     exp = refresh_expires_at()
     if exp is None:
@@ -246,12 +308,18 @@ def test_alert(dry_run: bool) -> int:
     if not can and not dry_run:
         print(f"[error] {why}")
         return 2
-    # 진짜 알림이 어떻게 생겼는지 그대로 만들어 보여 준다(상태는 저장하지 않는다)
-    _, sample = decide({"fails": 1, "category": "authentication"}, False, "authentication", time.time())
+    # 진짜 알림이 어떻게 생겼는지 그대로 만들어 보여 준다(상태는 저장하지 않는다).
+    # **첫 실패 시각을 문턱보다 앞으로 둔다** — 이제 문턱이 경과 시간이라(S15P21B202-381)
+    # 그러지 않으면 `decide` 가 "아직 일시적일 수 있다" 로 판정해 예시가 **빈 채로** 나간다.
+    now = time.time()
+    _, sample = decide({"fails": 3, "category": "authentication",
+                        "first_fail_at": now - THRESHOLD_SECONDS["authentication"] - 60},
+                       False, "authentication", now)
     quoted = "> " + (sample or "").replace("\n", "\n> ")
     text = (f"{TEST_MARK} Claude 자격 점검 — **알림 배송 시험**입니다. 실제 장애가 아닙니다.\n\n"
             f"이 메시지가 보이면 러너 호스트의 알림 경로가 정상입니다. "
-            f"20분마다 Claude 자격을 점검하고, 죽으면 여기로 알립니다(`S15P21B202-310`).\n\n"
+            f"1분마다 Claude 자격을 점검하고, 죽은 채로 오래가면 여기로 알립니다"
+            f"(`S15P21B202-310` · `-381`).\n\n"
             f"진짜 장애는 이런 모양으로 옵니다 — 앞에 {TEST_MARK} 가 **붙지 않습니다**:\n\n"
             f"{quoted}\n\n"
             f"_claude-auth-check --test-alert · 상태 파일은 건드리지 않았습니다_")
@@ -273,6 +341,7 @@ def decide(state: dict, ok: bool, category: str | None, now: float) -> tuple[dic
         fails = int(state.get("fails") or 0)
         new.update({"fails": 0, "category": None, "last_ok": now})
         new.pop("alerted_at", None)
+        new.pop("first_fail_at", None)
         if state.get("alerted_at"):
             # 알렸던 장애가 끝났다. "이제 괜찮다" 를 말해야 다음 실패가 신호가 된다.
             return new, (f"🟢 **Claude 자격 복구됨** — `ai-review` 가 다시 동작합니다\n"
@@ -281,12 +350,15 @@ def decide(state: dict, ok: bool, category: str | None, now: float) -> tuple[dic
         return new, None
 
     cat = category or "unknown"
-    # 원인이 바뀌면 연속 횟수를 다시 센다 — 다른 장애를 같은 것으로 묶으면 문턱이 무의미해진다
-    fails = int(state.get("fails") or 0) + 1 if state.get("category") == cat else 1
-    new.update({"fails": fails, "category": cat, "last_fail": now})
+    # 원인이 바뀌면 처음부터 다시 센다 — 다른 장애를 같은 것으로 묶으면 문턱이 무의미해진다
+    same = state.get("category") == cat
+    fails = int(state.get("fails") or 0) + 1 if same else 1
+    first = float(state.get("first_fail_at") or now) if same else now
+    new.update({"fails": fails, "category": cat, "last_fail": now, "first_fail_at": first})
 
-    need = THRESHOLD.get(cat, DEFAULT_THRESHOLD)
-    if fails < need:
+    # **얼마나 오래 안 낫는가**로 본다 — 몇 번 불렀는지가 아니다(S15P21B202-381).
+    need = THRESHOLD_SECONDS.get(cat, DEFAULT_THRESHOLD_SECONDS)
+    if now - first < need:
         return new, None                        # 아직 일시적일 수 있다
     last = float(state.get("alerted_at") or 0)
     if state.get("alerted_at") and now - last < REALERT_SECONDS:
@@ -294,7 +366,7 @@ def decide(state: dict, ok: bool, category: str | None, now: float) -> tuple[dic
     new["alerted_at"] = now
     again = " (계속 실패 중)" if state.get("alerted_at") else ""
     return new, (f"🔴 **Claude 가 응답하지 않습니다**{again} — 원인 `{cat}`\n\n"
-                 f"연속 실패 **{fails}회** (20분 주기). {HINT.get(cat, '')}\n"
+                 f"**{(now - first) / 60:.0f}분째** 낫지 않습니다 (호출 {fails}회). {HINT.get(cat, '')}\n"
                  f"이 동안 `ai-review` 는 **조용히 건너뜁니다** — 파이프라인은 초록이지만 "
                  f"MR 리뷰 코멘트가 달리지 않습니다. → @{MENTION}\n"
                  f"_S15P21B202-310 · claude-auth-check_")
@@ -314,13 +386,26 @@ def main(argv: list[str] | None = None) -> int:
     can_alert, why = alert_channel()
     print(why if can_alert else f"[warn] {why}")
 
+    state = load_state()
+
+    # **틱마다 부르지 않는다** (S15P21B202-381). 만료 시각이 파일에 있으므로 아직
+    # 유효하면 아무것도 하지 않고 끝낸다 — 그래야 1분 틱이 하루 1440번 호출이 되지 않는다.
+    go, why_call = should_call(state, now, access_expires_at())
+    print(why_call)
+    if not go:
+        # **진짜 no-op 이다.** 연속 실패 상태도 복구 알림 판정도 건드리지 않는다 —
+        # 안 부른 것을 성공으로 세면 진짜 장애가 묻힌다.
+        check_refresh_expiry(state, now, a.dry_run)   # 파일만 읽는다. 하루 한 번만 알린다
+        save_state(state)
+        return 0 if (can_alert or a.dry_run) else 2
+
     rc, out, err = call_claude()
     ok = rc == 0
     cat = None if ok else classify(out, err)[0]
     # 원문은 싣지 않는다 — 자격 관련 문자열이 섞일 여지를 주지 않는다
     print(f"claude 종료 {rc} · {'정상' if ok else f'실패({cat})'}")
 
-    state = load_state()
+    state["last_call"] = now
     state, message = decide(state, ok, cat, now)
     if message:
         notify(message, a.dry_run)

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using Metagame.Core;
 using Metagame.Gameplay;
+using Metagame.Gameplay.Parts;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -153,9 +154,12 @@ namespace Metagame.Gameplay.Tests
             var tool = CreateTool(out _, player);
             var visual = tool.transform.Find(
                 "AttachPoints/ReplacementModel/SF_Stage1_PlasmaWeldingGun");
-            Assert.IsNull(visual, "1인칭 모델이 아직 물리 도구 아래에 남아 있다.");
-            visual = camera.transform.Find("SF_Stage1_PlasmaWeldingGun");
-            Assert.IsNotNull(visual, "1인칭 모델이 카메라 아래로 분리되지 않았다.");
+            Assert.IsNotNull(visual, "월드 모델은 도구 계층에 남아야 한다.");
+            var worldVisual = visual;
+            visual = tool.FirstPersonModel;
+            Assert.IsNotNull(visual, "1인칭 표시 복사본이 생성되지 않았다.");
+            Assert.AreNotSame(worldVisual, visual);
+            Assert.AreSame(camera.transform, visual.parent);
             Assert.That(visual.localPosition,
                         Is.EqualTo(new Vector3(0.20f, -0.17f, 0.52f)));
 
@@ -166,8 +170,199 @@ namespace Metagame.Gameplay.Tests
                         "물리 본체 이동이 화면 모델 위치를 늦게 끌고 갔다.");
 
             tool.Unequip();
-            Assert.AreSame(tool.transform.Find("AttachPoints/ReplacementModel"), visual.parent,
-                           "내려놓을 때 모델이 원래 물리 계층으로 돌아오지 않았다.");
+            Assert.AreSame(tool.transform.Find("AttachPoints/ReplacementModel"), worldVisual.parent);
+            Assert.IsFalse(visual.gameObject.activeSelf, "내려놓으면 화면 복사본을 숨겨야 한다.");
+        }
+
+
+        [Test]
+        public void RayPreviewAndWeld_UseSameSurface_AndMissDoesNotConsume()
+        {
+            var part = WeldingBody();
+            var tool = CreateTool(out _);
+            Physics.SyncTransforms();
+            Assert.IsTrue(tool.TryGetBeamHit(Vector3.forward, out var hit));
+            Assert.AreSame(part, hit.collider.GetComponentInParent<SpaceshipPart>());
+            Assert.IsTrue(WeldBead.CanApplyAt(hit, false));
+            Assert.IsTrue(tool.WeldTick(0.5f, PlasmaBeamMode.Weld));
+            Assert.That(Vector3.Distance(tool.GrowingBead.TipPosition(0), hit.point), Is.LessThan(0.001f));
+            Assert.That(tool.RemainingFraction, Is.EqualTo(1f - 0.5f / 60f).Within(0.0001f));
+            tool.SetInput(new ToolInputFrame { PrimaryHeld = true }, new ToolAimContext(null, null, Vector3.left));
+            Assert.IsFalse(tool.WeldingProgressed);
+            Assert.That(tool.RemainingFraction, Is.EqualTo(1f - 0.5f / 60f).Within(0.0001f));
+        }
+
+        [Test]
+        public void FirstObstructionAndRange_BlockWelding()
+        {
+            WeldingBody();
+            var tool = CreateTool(out _);
+            var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            spawned.Add(wall);
+            wall.transform.position = new Vector3(0, 0, 0.3f);
+            wall.transform.localScale = new Vector3(1, 1, 0.05f);
+            Physics.SyncTransforms();
+            Assert.IsTrue(tool.TryGetBeamHit(Vector3.forward, out var hit));
+            Assert.AreSame(wall.GetComponent<Collider>(), hit.collider);
+            Assert.IsFalse(WeldBead.CanApplyAt(hit, false));
+            Assert.IsFalse(tool.WeldTick(0.1f, PlasmaBeamMode.Weld));
+            wall.GetComponent<Collider>().isTrigger = true;
+            Physics.SyncTransforms();
+            Assert.IsTrue(tool.TryGetBeamHit(Vector3.forward, out hit));
+            Assert.IsTrue(WeldBead.CanApplyAt(hit, false), "트리거는 가리지 않는다.");
+            tool.transform.position = Vector3.back * 2f;
+            Physics.SyncTransforms();
+            Assert.IsFalse(tool.TryGetBeamHit(Vector3.forward, out _));
+            Assert.AreEqual(1f, tool.RemainingFraction);
+        }
+
+        [Test]
+        public void Material_BelongsToGun_ReplicatesWhenDropped_AndEmptyStillCuts()
+        {
+            WeldingBody();
+            var tool = CreateTool(out _);
+            Physics.SyncTransforms();
+            Assert.IsTrue(tool.WeldTick(0.1f, PlasmaBeamMode.Weld));
+            float remaining = tool.RemainingFraction;
+            tool.Unequip();
+            Assert.AreEqual(remaining, tool.ViewProgress);
+            tool.Equip(null, tool.GetComponent<Rigidbody>());
+            Assert.AreEqual(remaining, tool.RemainingFraction);
+            var other = CreateTool(out _);
+            Assert.AreEqual(1f, other.RemainingFraction);
+            other.Unequip();
+            other.ApplyRemotePresentation(null, 0, tool.ViewProgress, Vector3.forward);
+            Assert.That(other.RemainingFraction, Is.EqualTo(remaining).Within(0.0001f));
+            tool.Unequip();
+            tool.ApplyRemotePresentation(null, 0, 0f, Vector3.forward);
+            tool.Equip(null, tool.GetComponent<Rigidbody>());
+            Assert.IsFalse(tool.WeldTick(0.1f, PlasmaBeamMode.Weld));
+            Physics.SyncTransforms();
+            Assert.IsTrue(tool.CutTick(0.1f, PlasmaBeamMode.Cut));
+            Assert.That(tool.RemainingFraction, Is.EqualTo(0.1f / 60f).Within(0.0001f));
+            Assert.That(other.RemainingFraction, Is.EqualTo(remaining).Within(0.0001f),
+                "절단한 용접건만 충전되어야 한다.");
+        }
+
+        [Test]
+        public void Cutting_RefillsGradually_ClampsAtFull_AndMissDoesNotRefill()
+        {
+            WeldingBody();
+            var tool = CreateTool(out _);
+            Physics.SyncTransforms();
+            Assert.IsTrue(tool.WeldTick(0.5f, PlasmaBeamMode.Weld));
+            Physics.SyncTransforms();
+            Assert.IsTrue(tool.CutTick(0.1f, PlasmaBeamMode.Cut));
+            Assert.That(tool.RemainingFraction, Is.EqualTo(1f - 0.4f / 60f).Within(0.0001f));
+            Physics.SyncTransforms();
+            Assert.IsFalse(tool.CutTick(0.1f, PlasmaBeamMode.Cut));
+            Assert.That(tool.RemainingFraction, Is.EqualTo(1f - 0.4f / 60f).Within(0.0001f));
+            Assert.IsTrue(tool.WeldTick(0.1f, PlasmaBeamMode.Weld));
+            Physics.SyncTransforms();
+            Assert.IsTrue(tool.CutTick(1f, PlasmaBeamMode.Cut));
+            Assert.AreEqual(1f, tool.RemainingFraction);
+        }
+
+        [Test]
+        public void RemoteClient_CannotSpendMaterialOrCreateBeads()
+        {
+            var part = WeldingBody();
+            var tool = CreateTool(out _);
+            Physics.SyncTransforms();
+            bool previous = WorldEvents.RemoteDecides;
+            try
+            {
+                WorldEvents.RemoteDecides = true;
+                Assert.IsFalse(tool.WeldTick(1f, PlasmaBeamMode.Weld));
+                Assert.AreEqual(1f, tool.RemainingFraction);
+                Assert.IsNull(part.GetComponent<WeldBead>());
+            }
+            finally { WorldEvents.RemoteDecides = previous; }
+        }
+
+        [Test]
+        public void Material_ClampsLastSpend_AndCannotWeldAfterExhaustion()
+        {
+            WeldingBody();
+            var tool = CreateTool(out _);
+            Physics.SyncTransforms();
+            Assert.IsTrue(tool.WeldTick(100f, PlasmaBeamMode.Weld));
+            Assert.AreEqual(0f, tool.RemainingFraction);
+            Assert.IsFalse(tool.WeldTick(1f, PlasmaBeamMode.Weld));
+            Assert.AreEqual(0f, tool.RemainingFraction);
+        }
+
+        [Test]
+        public void CrosshairContact_DrivesPreviewBeadAndBeam_WhenMuzzleIsOffset()
+        {
+            WeldingBody();
+            var tool = CreateTool(out var muzzle);
+            tool.transform.position = Vector3.right * 0.25f;
+            var cameraObject = new GameObject("Crosshair camera");
+            spawned.Add(cameraObject);
+            var camera = cameraObject.AddComponent<OrbitCamera>();
+            camera.transform.position = Vector3.back;
+            var aim = new ToolAimContext(null, camera, Vector3.forward);
+            tool.SetInput(new ToolInputFrame(), aim);
+            Physics.SyncTransforms();
+
+            Assert.IsTrue(tool.TryGetBeamHit(Vector3.forward, out var preview));
+            Assert.That(preview.point.x, Is.EqualTo(0f).Within(0.0001f));
+            Assert.IsTrue(tool.WeldTick(0.1f, PlasmaBeamMode.Weld));
+            Assert.That(Vector3.Distance(tool.GrowingBead.TipPosition(0), preview.point), Is.LessThan(0.001f));
+
+            tool.SetInput(new ToolInputFrame { PrimaryHeld = true }, aim);
+            InvokeLateUpdate(tool);
+            var line = tool.GetComponent<LineRenderer>();
+            Assert.IsTrue(line.enabled);
+            Assert.That(Vector3.Distance(line.GetPosition(0), muzzle.position), Is.LessThan(0.001f));
+            Assert.IsTrue(tool.TryGetBeamHit(Vector3.forward, out var beamContact));
+            Assert.That(Vector3.Distance(tool.BeamEnd, beamContact.point), Is.LessThan(0.001f));
+            Assert.That(tool.BeamEnd.x, Is.EqualTo(0f).Within(0.0001f));
+
+            tool.transform.position = Vector3.right * 2f;
+            Physics.SyncTransforms();
+            Assert.IsFalse(tool.TryGetBeamHit(Vector3.forward, out _), "카메라가 볼 수 있어도 총구 사거리 밖은 작업할 수 없다.");
+        }
+
+        [Test]
+        public void IdleGuide_ProjectsOnSurface_AndHidesOnUnequip()
+        {
+            WeldingBody();
+            var player = PlayerRig.Create("Guide owner", Vector3.left * 4f,
+                Quaternion.identity, Color.white, Color.gray, useModel: false);
+            spawned.Add(player.gameObject);
+            var cameraObject = new GameObject("Guide camera");
+            spawned.Add(cameraObject);
+            var camera = cameraObject.AddComponent<OrbitCamera>();
+            var tool = CreateTool(out _, player);
+            Physics.SyncTransforms();
+            tool.SetInput(new ToolInputFrame(), new ToolAimContext(player, camera, Vector3.forward));
+            InvokeLateUpdate(tool);
+            Assert.IsTrue(tool.GuideVisible);
+            var guide = tool.transform.Find("Welding surface guide");
+            Assert.IsNotNull(guide);
+            var mesh = guide.GetComponent<MeshFilter>().sharedMesh;
+            Assert.Greater(mesh.vertexCount, 0);
+            Assert.IsTrue(tool.TryGetBeamHit(Vector3.forward, out var hit));
+            foreach (var vertex in mesh.vertices)
+            {
+                var point = guide.TransformPoint(vertex);
+                Assert.That(Vector3.Dot(point - hit.point, hit.normal), Is.EqualTo(0.02f).Within(0.0005f));
+            }
+            Assert.IsNull(hit.collider.GetComponentInParent<WeldBead>(), "예고만으로 비드를 만들지 않는다.");
+            tool.Unequip();
+            Assert.IsFalse(tool.GuideVisible);
+            Assert.IsFalse(guide.gameObject.activeSelf);
+        }
+
+        SpaceshipPart WeldingBody()
+        {
+            var objects = new List<GameObject>();
+            var part = SocketTestRig.Placed(objects, new Vector3(0f, 0f, 0.6f));
+            foreach (var go in objects) spawned.Add(go);
+            part.transform.localScale = new Vector3(1f, 1f, 0.1f);
+            return part;
         }
 
         PlasmaWeldingTool CreateTool(out Transform muzzle, PlayerRig owner = null)

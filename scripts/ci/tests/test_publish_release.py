@@ -44,14 +44,30 @@ mm_notify.send = lambda text: (SENT.append(text), 0)[1]
 # ── 1) 버전 결정 ──
 assert P.parse_version("Merge branch 'release/S15P21B202-318-v0.1.0' into 'master'\n\nSee merge request g/p!247") == "v0.1.0"
 assert P.parse_version("Merge branch 'S15P21B202-318-x' into 'develop'") is None
-assert P.decide_version("Merge branch 'release/S15P21B202-318-v0.1.0' into 'master'", []) == ("v0.1.0", "릴리스 브랜치 이름의 버전")
-v, why = P.decide_version("Merge branch 'hotfix/S15P21B202-40-crash' into 'master'", ["v0.1.0", "v0.2.3", "v0.2.10", "junk"])
+assert P.decide_version("Merge branch 'release/S15P21B202-318-v0.1.0' into 'master'", []) == ("v0.1.0", "릴리스 브랜치 이름의 버전", P.R_OK)
+v, why, rc = P.decide_version("Merge branch 'hotfix/S15P21B202-40-crash' into 'master'", ["v0.1.0", "v0.2.3", "v0.2.10", "junk"])
 assert v == "v0.2.11" and "PATCH+1" in why, (v, why)      # 문자열 정렬이 아니라 숫자 정렬(10 > 3)
-v, why = P.decide_version("Merge branch 'hotfix/S15P21B202-40-crash' into 'master'", [])
+v, why, rc = P.decide_version("Merge branch 'hotfix/S15P21B202-40-crash' into 'master'", [])
 assert v is None and "이전 태그" in why
-v, why = P.decide_version("fix: 직접 push", ["v0.1.0"])
+v, why, rc = P.decide_version("fix: 직접 push", ["v0.1.0"])
 assert v is None and "release/" in why
 assert P.latest_tag([]) is None and P.bump_patch("v1.2.3") == "v1.2.4"
+
+# **왜 못 정했는가를 문구가 아니라 값으로 돌려준다** (S15P21B202-467). 예전에는 부르는
+# 쪽이 `"이미 붙어 있다"` 가 문구에 들었는지를 봤다 — 문구를 한 글자 다듬으면 리허설의
+# "진짜였으면 여기서 멈췄다" 경고가 조용히 꺼진다. 그것이 `-446` 이 막으려던 상태다.
+_v, _why, _rc = P.decide_version("Merge branch 'release/S15P21B202-9-v1.0.0' into 'master'", ["v1.0.0"])
+assert _v is None and _rc == P.R_TAG_TAKEN, (_v, _rc)
+_v, _why, _rc = P.decide_version("Merge branch 'hotfix/S15P21B202-9-x' into 'master'", [])
+assert _rc == P.R_NO_TAG, _rc
+_v, _why, _rc = P.decide_version("fix: 직접 push", ["v0.1.0"])
+assert _rc == P.R_NOT_RELEASE, _rc
+
+# 리허설 경고가 **문구가 아니라 그 값**을 본다.
+_src = open("scripts/ci/publish_release.py", encoding="utf-8").read()
+_pv = _src.split("def phase_version(", 1)[1].split(chr(10) + "def ", 1)[0]
+assert "reason == R_TAG_TAKEN" in _pv, "리허설 경고가 아직 이유 문구를 본다"
+assert '"이미 붙어 있다" in why' not in _pv, "이유 문구로 가르는 코드가 남아 있다"
 print("  1) 버전: 릴리스 브랜치 → 이름의 버전 · hotfix → PATCH+1(숫자 정렬) · 그 외 → 실패 ✅")
 
 # ── 2) 변경 목록 파싱 — develop 머지만, MR 번호·이슈 키 ──
@@ -98,8 +114,51 @@ P.jira_release_webhook("v0.1.0", ["S15P21B202-2", "S15P21B202-1", "S15P21B202-2"
 hook = [c for c in CALLS if c[1] == "https://automation.example/hook"][0]
 assert hook[2]["issues"] == ["S15P21B202-1", "S15P21B202-2"] and hook[2]["data"]["version"] == "v0.1.0", hook
 assert "releaseUrl" in hook[2]["data"] and "date" in hook[2]["data"]
+assert P.jira_release_webhook("v0.1.0", [], "https://l/r") is None, (
+    "정상 응답인데 카드에 실을 줄을 돌려준다")
+
+# ── 4c) 웹훅은 **릴리스를 죽이지 못한다**, 그리고 주소를 밖으로 내지 않는다 (-327)
+#
+# 2026-09-11 첫 실전 릴리스(v1.0.0)에서 실제로 일어난 일: 빌드·zip·패키지·
+# Release·MM 이 전부 끝난 **뒤** 이 한 줄이 `ValueError: unknown url type` 으로
+# 터져 58분 걸린 잡이 빨간불이 됐다. 이 함수가 불릴 때 Release 는 이미 났으므로
+# 여기서 터지면 성공한 릴리스가 실패로 남고, 재실행이 재발행을 시도한다.
+SECRET = "https://automation.example/hook/s3cr3t-token-value"
+
+
+def boom(method, url, headers=None, body=None, timeout=30):
+    # urllib 이 실제로 그랬듯이 **예외 문구에 주소가 들어 있다**.
+    raise ValueError(f"unknown url type: {url!r}")
+
+
+saved_http = P.http
+P.http = boom
+os.environ["JIRA_RELEASE_WEBHOOK"] = SECRET
+line = P.jira_release_webhook("v0.1.0", ["S15P21B202-1"], "https://l/r")
+P.http = saved_http
+assert line and "Jira 연동 실패" in line, f"실패를 카드 한 줄로 알리지 않는다: {line!r}"
+assert "ValueError" in line, f"무엇이 터졌는지 종류를 적지 않는다: {line!r}"
+assert SECRET not in line and "s3cr3t" not in line, (
+    "웹훅 주소가 MM 카드로 나간다 — 잡 로그는 GitLab 이 가려 주지만 카드는 "
+    f"가려 주지 않는다(-335 와 같은 규칙): {line!r}")
+
+# 모양이 틀리면 **보내지도 않는다.** 스킴이 없던 것이 그 사고의 원인이었다.
+for bad_value, why in [("automation.example/hook", "스킴 없음"),
+                       ("  https://automation.example/hook  ", "공백")]:
+    os.environ["JIRA_RELEASE_WEBHOOK"] = bad_value
+    CALLS.clear()
+    line = P.jira_release_webhook("v0.1.0", ["S15P21B202-1"], "https://l/r")
+    assert not CALLS, f"{why} 인데 보냈다"
+    assert line and "JIRA_RELEASE_WEBHOOK" in line, f"{why} 를 카드가 말하지 않는다: {line!r}"
+    assert bad_value.strip() not in line, f"{why}: 값이 카드에 실렸다"
+    assert P.webhook_shape_problem(), f"{why} 를 모양 검사가 못 잡는다"
+
+# 설정하지 않은 것은 문제가 아니다 — 선택 기능이다.
 os.environ.pop("JIRA_RELEASE_WEBHOOK")
+assert P.webhook_shape_problem() is None
+assert P.jira_release_webhook("v0.1.0", ["S15P21B202-1"], "https://l/r") is None
 print("  4b) Jira 웹훅: issues 중복 제거·정렬 + data.version ✅")
+print("  4c) 웹훅 실패는 비차단 · 주소가 카드로 새지 않음 · 모양 미리 검사 ✅")
 
 # ── 5) 인증 헤더: 잡 토큰 우선 ──
 assert P.auth_headers() == {"JOB-TOKEN": "job-x"}

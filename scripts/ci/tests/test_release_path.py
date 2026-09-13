@@ -17,6 +17,8 @@ def _read(rel):
     return open(p, encoding='utf-8').read()
 
 
+NL = chr(10)
+
 print()
 print("== 릴리스 경로 ==")
 
@@ -29,16 +31,64 @@ print("== 릴리스 경로 ==")
 assert R.parse_tag("1.0.1") == (1, 0, 1), "v 없는 옛 태그를 못 읽는다"
 assert R.parse_tag("v1.0.1") == (1, 0, 1)
 assert R.parse_tag("1.0") is None and R.parse_tag("abc") is None
-assert R.latest_tag(["1.0.1", "v0.9.0"]) == "1.0.1", "형식이 섞여도 최신을 골라야 한다"
 
 #     **만들 때는 항상 v 를 붙인다** — 두 형식이 섞여 있으면 다음 사람이 또 헷갈린다.
 assert R.bump_patch("1.0.1") == "v1.0.2", "새 태그에 v 가 없다"
 assert R.bump_patch("v1.0.1") == "v1.0.2"
 
-#     핫픽스가 조용히 멈추던 그 길이 실제로 막혔는지 본다.
-_v, _why = R.decide_version("Merge branch 'hotfix/S15P21B202-9-x' into 'master'", ["1.0.1"])
+#     핫픽스가 조용히 멈추던 그 길이 실제로 막혔는지 본다 — **v 태그가 하나도 없을 때**
+#     가 그 상황이다. 폴백이 사라지면 여기가 다시 None 이 된다.
+_v, _why, _rc = R.decide_version("Merge branch 'hotfix/S15P21B202-9-x' into 'master'", ["1.0.1"])
 assert _v == "v1.0.2", f"핫픽스가 옛 태그에서 버전을 못 정한다: {_v} ({_why})"
 print("  옛 태그 1.0.1 을 읽고, 새 태그는 v 를 붙인다 ✅")
+
+
+# ── ①b 형식이 섞이면 `v` 쪽이 이긴다 (S15P21B202-446) ───────────────────
+#
+#     읽기를 넓힌 대가로 생긴 문제다. 저장소에 시험용 `1.0.1`(산출물 0개)이 남아
+#     있어서, v1.0.0 을 낸 뒤 핫픽스를 하면 그것이 최신으로 잡혀 **v1.0.1 을
+#     건너뛰고 v1.0.2** 가 된다. 받는 사람은 없어진 버전을 찾게 된다.
+assert R.latest_tag(["1.0.1", "v0.9.0"]) == "v0.9.0", \
+    "형식이 섞이면 v 쪽에서 골라야 한다 — 손으로 만든 자리표시자가 이기면 안 된다"
+assert R.latest_tag(["1.0.1", "v1.0.0"]) == "v1.0.0"
+
+#     **폴백은 남아 있어야 한다** — v 태그가 하나도 없으면 넓게 읽는다(-407 이 막은 길).
+assert R.latest_tag(["1.0.1", "0.9.0"]) == "1.0.1", \
+    "v 태그가 없을 때의 폴백이 사라졌다 — 핫픽스가 다시 조용히 막힌다"
+assert R.latest_tag([]) is None
+
+#     이것이 이 이슈의 완료 조건이다: v1.0.0 뒤의 핫픽스는 v1.0.1 이어야 한다.
+_v, _why, _rc = R.decide_version("Merge branch 'hotfix/S15P21B202-9-x' into 'master'",
+                            ["1.0.1", "v1.0.0"])
+assert _v == "v1.0.1", f"v1.0.0 다음 핫픽스가 v1.0.1 이 아니다: {_v} ({_why})"
+
+#     이미 쓴 번호를 **다른 커밋**에 또 붙이지 않는다 — 90분짜리 빌드가 끝난 뒤
+#     태그에서 실패하는 대신 앞에서 멈춘다.
+_v, _why, _rc = R.decide_version("Merge branch 'release/S15P21B202-9-v1.0.0' into 'master'",
+                            ["v1.0.0"])
+assert _v is None and "이미 붙어 있다" in _why, f"같은 번호를 다시 내보낸다: {_v} ({_why})"
+
+_v, _why, _rc = R.decide_version("Merge branch 'hotfix/S15P21B202-9-x' into 'master'",
+                            ["v1.0.0", "v1.0.1"])
+assert _v == "v1.0.2", f"이미 v1.0.1 이 있으면 v1.0.2 여야 한다: {_v} ({_why})"
+
+#     **재시도는 막지 않는다.** 태그가 이 커밋을 가리키면 이번 릴리스를 다시 도는
+#     것이다 — 2026-09-11 v1.0.0 에서 Release·MM 까지 다 끝난 뒤 마지막 한 줄이 터져
+#     실제로 그 길로 되살렸다. 여기서 막으면 그 길이 닫힌다.
+_v, _why, _rc = R.decide_version("Merge branch 'release/S15P21B202-9-v1.0.0' into 'master'",
+                            ["v1.0.0"], points_here=lambda t: t == "v1.0.0")
+assert _v == "v1.0.0", f"같은 커밋의 재시도를 막는다: {_v} ({_why})"
+
+#     **옛 `1.0.1` 이 `v1.0.1` 을 막으면 안 된다.** `v` 를 무시하고 비교하면 이 이슈가
+#     고치려던 것보다 나빠진다 — 버전을 건너뛰는 대신 릴리스가 아예 멈춘다.
+assert not R.tag_taken("v1.0.1", ["1.0.1"]),     "손으로 만든 옛 태그가 같은 번호의 정식 태그를 막는다"
+assert R.tag_taken("1.0.1", ["v1.0.1"]), "같은 번호를 다른 커밋에 또 붙이는 것은 막아야 한다"
+assert not R.tag_taken("v1.0.2", ["v1.0.1"])
+
+#     커밋을 못 읽으면(points_here 가 False) 막는 쪽으로 기운다 — 조용히 덮어쓰는
+#     것보다 멈추고 사람이 보는 편이 낫다.
+assert R.tag_taken("v1.0.0", ["v1.0.0"], points_here=lambda t: False)
+print("  형식이 섞이면 v 가 이기고, 폴백은 남아 있다 ✅")
 
 
 # ── ② master 파이프라인 실패가 카드로 나간다 ────────────────────────────
@@ -334,5 +384,44 @@ print("  리허설이 workflow 단계에서 허용되고 자동 취소가 꺼져
 # 절·모듈이 가짜 기준선을 보고 조용히 통과하면 안 된다 — `_gate` 가 환경변수를
 # 되돌리는 것과 같은 이유다.
 R.unity_report.baseline_failures = _REAL_BASELINE
+
+# ── ⑧ 되돌리기가 실제로 돌 수 있다 (S15P21B202-467) ─────────────────────
+#
+#     `promote-builds` 주석은 "PROMOTE_VERSION 을 주고 이 잡만 돌린다" 고 말해 왔지만
+#     그 길은 **파이프라인 생성 단계에서 거절**됐다. `needs` 에 적힌 `publish-builds`
+#     가 web 파이프라인에는 없는 잡이고, GitLab 은 없는 잡을 needs 로 걸면 파이프라인
+#     자체를 만들지 않는다. 되돌리기는 급할 때 쓰는 길이라 그때 알면 늦다.
+_promote = _ci.split("promote-builds:", 1)[1].split("\npublish-site:", 1)[0]
+#     주석에도 같은 말이 적혀 있으므로 **주석을 뺀 needs 블록만** 센다.
+_nb = _promote.split(chr(10) + "  needs:", 1)[1].split(chr(10) + "  interruptible:", 1)[0]
+_nb = [l for l in _nb.splitlines() if l.strip() and not l.strip().startswith("#")]
+_deps = [l for l in _nb if "- job:" in l]
+assert len(_deps) >= 2, _nb
+assert sum(1 for l in _nb if "optional: true" in l) == len(_deps), \
+    "promote-builds 의 needs 에 optional 이 빠졌다 — 되돌리기가 안 만들어진다: " + str(_nb)
+
+#     그리고 되돌리기에 **90분짜리 Unity 빌드가 딸려 오면 안 된다.** `release-windows`
+#     는 web 파이프라인에서 리허설로 도는데, 그 90분을 `promote-builds` 가 기다린다.
+#     여기도 **주석을 뺀 규칙 줄만** 본다 — 위 주석에 RELEASE_DRY_RUN 이 이미 적혀 있다.
+_relwin = _ci.split(NL + "release-windows:", 1)[1].split(NL + "variables:", 1)[0]
+_rules = [l.strip() for l in _relwin.split("  rules:", 1)[1].splitlines()
+          if l.strip() and not l.strip().startswith("#")]
+_rules = _rules[:next((i for i, l in enumerate(_rules) if l.startswith("script:")), len(_rules))]
+#     `when: never` 는 **둘**이다 — 되돌리기(여기)와 서버 전용 배포(`-464`). 첫 번째를
+#     집으면 엉뚱한 규칙을 보게 되므로 `$PROMOTE_VERSION` 이 있는 줄을 찾아서 본다.
+_pv = next(i for i, l in enumerate(_rules) if "$PROMOTE_VERSION" in l)
+assert _rules[_pv + 1] == "when: never", \
+    "되돌리기 규칙이 release-windows 를 막지 않는다: " + str(_rules)
+
+#     **리허설 규칙보다 앞이어야 한다** — rules 는 먼저 걸리는 쪽이 이긴다.
+_dry = next(i for i, l in enumerate(_rules) if "RELEASE_DRY_RUN" in l)
+assert _pv < _dry, \
+    "되돌리기 제외 규칙이 리허설 규칙보다 뒤에 있다 — 먼저 걸리는 쪽이 이긴다: " + str(_rules)
+
+#     **조건이 너무 넓으면 안 된다** (`!379` 리뷰). 브랜치를 안 보면 아무 브랜치의
+#     리허설에서도 그 변수만 있으면 90분 빌드가 조용히 사라진다.
+assert '$CI_COMMIT_BRANCH == "master"' in _rules[_pv], \
+    "되돌리기 제외 규칙이 브랜치를 안 본다 — 다른 브랜치의 리허설까지 사라진다: " + _rules[_pv]
+print("  되돌리기 파이프라인이 만들어지고, 90분 빌드를 안 끌고 온다 ✅")
 
 print("== 통과 ==")

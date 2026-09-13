@@ -18,6 +18,28 @@ namespace Metagame.Network.Tests
             "\"disconnected\":[3]}}";
 
         [Test]
+        public void RoomTimerSurvivesStateRefreshAndResetsWhenHostChanges()
+        {
+            var go = new GameObject("Room timer test");
+            try
+            {
+                var session = go.AddComponent<NetworkSession>();
+                var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+                var handle = typeof(NetworkSession).GetMethod("HandleMessage", flags);
+                var timer = typeof(NetworkSession).GetField("roomTimerStartedAt", flags);
+                handle.Invoke(session, new object[] { "{\"type\":\"ROOM_CREATED\",\"data\":{\"roomId\":\"K7M2QX\"}}" });
+                handle.Invoke(session, new object[] { RoomStateJson });
+                timer.SetValue(session, 0d);
+                handle.Invoke(session, new object[] { RoomStateJson });
+                Assert.That(timer.GetValue(session), Is.EqualTo(0d));
+                Assert.That(session.RoomPlayTimeSeconds, Is.GreaterThan(0d));
+                handle.Invoke(session, new object[] { RoomStateJson.Replace("\"hostUserId\":1", "\"hostUserId\":2") });
+                Assert.That(session.RoomPlayTimeSeconds, Is.LessThan(1d));
+            }
+            finally { Object.DestroyImmediate(go); }
+        }
+
+        [Test]
         public void RoomStateParsesPlayerMap()
         {
             WebSocketEnvelope envelope = NetworkSession.ParseEnvelope(RoomStateJson);

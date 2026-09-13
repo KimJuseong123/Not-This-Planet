@@ -132,6 +132,67 @@ namespace Metagame.Gameplay.Tests
             Assert.AreEqual(2, bead.ChainCount, "떨어진 자리에서는 새 기둥이 시작돼야 한다.");
         }
 
+        [TestCase(1)]
+        [TestCase(2)]
+        public void SerializedChainLimit_StopsGrowth_AndRaisingItAllowsAnotherBlob(int limit)
+        {
+            var part = Body();
+            SetLimits(part, 48, limit);
+            var nozzle = NozzleAbove(part);
+            var bead = GrowFor(nozzle, PhysicsScale.WeldBeadBlobSeconds * (limit + 2));
+            Assert.AreEqual(limit, bead.BlobCount);
+            Assert.IsFalse(WeldBead.TryGrowNear(nozzle, Step, out _));
+
+            SetLimits(part, 48, limit + 1);
+            Assert.IsTrue(WeldBead.TryGrowNear(nozzle, Step, out _));
+            Assert.AreEqual(limit + 1, bead.BlobCount);
+        }
+
+        [Test]
+        public void SerializedPartLimit_BlocksPreviewAndNewChains_AndCuttingFreesCapacity()
+        {
+            var part = Body();
+            SetLimits(part, 1, 6);
+            var nozzle = NozzleAbove(part);
+            var bead = GrowFor(nozzle, PhysicsScale.WeldBeadBlobSeconds * 3);
+            Assert.AreEqual(1, bead.BlobCount);
+            Assert.That(bead.TipRadius(0), Is.EqualTo(PhysicsScale.WeldBeadMaxRadius).Within(0.001f));
+
+            var far = nozzle + Vector3.right * (PhysicsScale.WeldBeadChainReuseRadius * 2f);
+            Assert.IsTrue(UnityEngine.Physics.Raycast(far, Vector3.down, out var hit, PhysicsScale.WeldRange));
+            Assert.IsFalse(WeldBead.CanApplyAt(hit, false));
+            Assert.IsFalse(WeldBead.TryApplyAt(hit, Step, false, out _));
+            Assert.IsFalse(WeldBead.TryGrowNear(far, Step, out _));
+
+            Assert.IsTrue(WeldBead.TryShrinkNear(nozzle, PhysicsScale.WeldBeadBlobSeconds * 2, out _));
+            Assert.AreEqual(0, bead.BlobCount);
+            Assert.IsTrue(WeldBead.CanApplyAt(hit, false));
+            Assert.IsTrue(WeldBead.TryApplyAt(hit, Step, false, out _));
+            Assert.AreEqual(1, bead.BlobCount);
+        }
+
+        [Test]
+        public void LoweringSerializedLimits_PreservesExistingBeads_AndClampsInvalidValues()
+        {
+            var part = Body();
+            var bead = GrowFor(NozzleAbove(part), PhysicsScale.WeldBeadBlobSeconds * 2.2f);
+            var count = bead.BlobCount;
+            Assert.GreaterOrEqual(count, 2);
+            SetLimits(part, 0, -1);
+            Assert.AreEqual(1, part.WeldBeadsPerPart);
+            Assert.AreEqual(1, part.WeldBeadBlobsPerChain);
+            GrowFor(NozzleAbove(part), PhysicsScale.WeldBeadBlobSeconds * 2);
+            Assert.AreEqual(count, bead.BlobCount, "한도를 낮춰도 기존 비드는 제거하지 않는다.");
+        }
+
+        static void SetLimits(SpaceshipPart part, int perPart, int perChain)
+        {
+            var serialized = new UnityEditor.SerializedObject(part);
+            serialized.FindProperty("weldBeadsPerPart").intValue = perPart;
+            serialized.FindProperty("weldBeadBlobsPerChain").intValue = perChain;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
         // --- 우주선 몸체에만 -----------------------------------------------
 
         [Test]
@@ -404,6 +465,7 @@ namespace Metagame.Gameplay.Tests
             var tool = MakeTool(NozzleAbove(part));
 
             tool.WeldTick(Step, PlasmaBeamMode.Weld);
+            UnityEngine.Physics.SyncTransforms();
             var shrunk = tool.CutTick(Step, PlasmaBeamMode.Cut);
 
             Assert.IsTrue(shrunk, "쌓을 수만 있고 되돌릴 수 없으면 안 된다.");
@@ -528,6 +590,7 @@ namespace Metagame.Gameplay.Tests
         {
             var go = new GameObject("PlasmaWeldingTool");
             go.transform.position = nozzle;
+            go.transform.rotation = Quaternion.LookRotation(Vector3.down);
             _spawned.Add(go);
 
             UnityEngine.Physics.SyncTransforms();

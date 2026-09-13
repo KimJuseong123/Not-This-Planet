@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#171d25">
+  <meta name="description" content="NOT THIS PLANET — 함께 옮기고, 쌓고, 탈출하는 1–4인 협동 우주선 조립 게임. Windows 알파 테스트 안내.">
+  <title>NOT THIS PLANET — 알파 테스트</title>
+  <link rel="icon" type="image/png" href="assets/su-team-icon-192.png">
+  <link rel="manifest" href="site.webmanifest">
+  <link rel="stylesheet" href="release.css">
+  <link rel="stylesheet" href="gallery.css">
+  <link rel="stylesheet" href="feedback.css">
+  <script src="release-config.js" defer></script>
+  <script src="release.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">본문으로 건너뛰기</a>
+  <header>
+    <div class="header-inner">
+      <a class="brand" href="#top"><img src="assets/su-team-icon-192.png" alt="">Su-Team</a>
+      <nav aria-label="페이지 메뉴"><a href="#about">게임 소개</a><a href="#guide">실행 안내</a><a class="nav-download" href="#download">다운로드</a></nav>
+    </div>
+  </header>
+  <main id="main">
+    <section class="hero" id="top">
+      <div class="breadcrumb">Su-Team <span>/</span> NOT THIS PLANET</div>
+      <div class="title-row"><div><p class="eyebrow">1–4인 협동 · 물리 · 우주</p><h1>NOT THIS PLANET</h1></div><span class="alpha-badge">ALPHA TEST</span></div>
+      <div class="hero-grid">
+        <div class="media-column">
+          <div class="gallery-screen" id="galleryScreen" aria-label="선택한 게임 미디어">
+            <img id="galleryImage" src="assets/not-this-planet-cover.png" alt="NOT THIS PLANET 게임 대표 이미지">
+            <video id="galleryVideo" controls playsinline preload="none" poster="assets/not-this-planet-cover.png" aria-label="NOT THIS PLANET 콘셉트 트레일러" hidden><source src="assets/not-this-planet-trailer.mp4" type="video/mp4">이 브라우저에서는 영상을 재생할 수 없습니다.</video>
+          </div>
+          <div class="gallery-thumbs" role="group" aria-label="게임 미디어 선택">
+            <button class="gallery-thumb" type="button" data-gallery-src="assets/not-this-planet-cover.png" data-gallery-label="NOT THIS PLANET 게임 대표 이미지" aria-label="대표 이미지 보기" aria-pressed="true" aria-controls="galleryScreen"><img src="assets/not-this-planet-cover.png" alt=""><span>대표 이미지</span></button>
+            <button class="gallery-thumb" type="button" data-gallery-video data-gallery-label="콘셉트 트레일러 · 실제 알파 빌드와 차이가 있을 수 있습니다." aria-label="콘셉트 트레일러 보기" aria-pressed="false" aria-controls="galleryScreen"><img src="assets/not-this-planet-cover.png" alt=""><b class="play-mark" aria-hidden="true">▶</b><span>트레일러</span></button>
+            <button class="gallery-thumb" type="button" data-gallery-src="assets/loop-explore.gif" data-gallery-label="탐색 플레이 장면" aria-label="탐색 장면 보기" aria-pressed="false" aria-controls="galleryScreen"><img src="assets/loop-explore.gif" alt="" loading="lazy"><span>탐색</span></button>
+            <button class="gallery-thumb" type="button" data-gallery-src="assets/loop-carry.gif" data-gallery-label="운반 플레이 장면" aria-label="운반 장면 보기" aria-pressed="false" aria-controls="galleryScreen"><img src="assets/loop-carry.gif" alt="" loading="lazy"><span>운반</span></button>
+            <button class="gallery-thumb" type="button" data-gallery-src="assets/loop-stack.gif" data-gallery-label="쌓기 플레이 장면" aria-label="쌓기 장면 보기" aria-pressed="false" aria-controls="galleryScreen"><img src="assets/loop-stack.gif" alt="" loading="lazy"><span>쌓기</span></button>
+            <button class="gallery-thumb" type="button" data-gallery-src="assets/loop-join.gif" data-gallery-label="결합 플레이 장면" aria-label="결합 장면 보기" aria-pressed="false" aria-controls="galleryScreen"><img src="assets/loop-join.gif" alt="" loading="lazy"><span>결합</span></button>
+          </div>
+          <p class="gallery-caption" id="galleryCaption" aria-live="polite">NOT THIS PLANET 게임 대표 이미지</p>
+        </div>
+        <aside class="summary">
+          <p class="eyebrow">좌충우돌 우주 대소동</p>
+          <h2>함께 조립하고,<br>함께 탈출하세요.</h2>
+          <p>낯선 행성에 흩어진 파츠를 찾고, 함께 옮기고, 위태롭게 쌓아 올리세요. 운석을 막으며 완성한 우주선이 여러분의 탈출 수단입니다.</p>
+          <dl><div><dt>플레이</dt><dd>1–4인 협동</dd></div><div><dt>플랫폼</dt><dd>Windows PC</dd></div><div><dt>언어</dt><dd>한국어</dd></div><div><dt>개발</dt><dd>Su-Team</dd></div></dl>
+          <div class="tags"><span>협동</span><span>물리</span><span>우주선 조립</span><span>알파 테스트</span></div>
+          <a class="secondary-button" href="#download">알파 테스트 안내 보기 ↓</a>
+        </aside>
+      </div>
+      <section class="download-panel" id="download" aria-labelledby="download-heading">
+        <div><p class="eyebrow">WINDOWS · ALPHA TEST</p><h2 id="download-heading">첫 번째 탈출에 함께해 주세요.</h2><p>개발 중인 테스트 버전입니다. 미완성 콘텐츠와 버그가 있을 수 있습니다.</p><p class="build-meta" id="buildMeta"></p></div>
+        <div class="download-action"><a class="download-button" id="downloadLink" hidden>Windows 버전 다운로드 ↓</a><button class="download-button" id="downloadPending" disabled>다운로드 준비 중</button><p id="downloadStatus">다운로드가 열리면 이곳에서 받을 수 있습니다.</p><a class="guide-link" href="#guide">실행 방법 확인</a><a class="secondary-button feedback-button" data-feedback-link href="https://docs.google.com/forms/d/e/1FAIpQLSeUK83EHeX9n6cuMBYJWsuoGVNIfnNwRiW2XKEIjVoV950Z3w/viewform" target="_blank" rel="noopener noreferrer">플레이 후기 남기기 ↗<span class="sr-only"> (새 탭)</span></a><p class="feedback-hint">1분 설문 · 솔직한 후기를 들려주세요</p></div>
+      </section>
+    </section>
+    <section id="about" class="section">
+      <div class="section-heading"><p class="eyebrow">ABOUT THE GAME</p><h2>혹독한 환경의 외계 행성에서 탈출하라!</h2><p>혼자서는 버거운 일도, 함께라면 새로운 방법이 생깁니다.</p></div>
+      <h3 class="subheading">핵심 플레이 루프</h3>
+      <div class="loop-grid">
+        <article class="game-card"><button class="media-button" data-preview type="button" aria-label="탐색 플레이 장면 확대"><img src="assets/loop-explore.gif" alt="행성을 탐색하는 플레이어" loading="lazy" width="960" height="540"><span>확대 보기 ↗</span></button><div class="card-copy"><span class="number">01</span><h3>탐색</h3><p>행성 곳곳에서 필요한 파츠와 도구를 찾습니다.</p></div></article>
+        <article class="game-card"><button class="media-button" data-preview type="button" aria-label="운반 플레이 장면 확대"><img src="assets/loop-carry.gif" alt="견인 모듈로 파츠를 옮기는 장면" loading="lazy" width="960" height="540"><span>확대 보기 ↗</span></button><div class="card-copy"><span class="number">02</span><h3>운반</h3><p>견인 모듈로 무거운 파츠를 함께 옮깁니다.</p></div></article>
+        <article class="game-card"><button class="media-button" data-preview type="button" aria-label="쌓기 플레이 장면 확대"><img src="assets/loop-stack.gif" alt="우주선 파츠를 쌓는 장면" loading="lazy" width="960" height="540"><span>확대 보기 ↗</span></button><div class="card-copy"><span class="number">03</span><h3>쌓기</h3><p>흔들리는 파츠를 순서대로 쌓아 올립니다.</p></div></article>
+        <article class="game-card"><button class="media-button" data-preview type="button" aria-label="결합 플레이 장면 확대"><img src="assets/loop-join.gif" alt="우주선 파츠를 용접하는 장면" loading="lazy" width="960" height="540"><span>확대 보기 ↗</span></button><div class="card-copy"><span class="number">04</span><h3>결합</h3><p>용접으로 파츠를 연결해 우주선을 완성합니다.</p></div></article>
+      </div>
+    </section>
+    <section class="section">
+      <div class="section-heading"><p class="eyebrow">WATCH THE SKY</p><h2>탈출을 서두르세요.</h2><p>하늘에서 떨어지는 위협은 조립이 끝날 때까지 기다려주지 않습니다.</p></div>
+      <div class="loop-grid">
+        <article class="game-card"><button class="media-button" data-preview type="button" aria-label="위협 플레이 장면 확대"><img src="assets/hazard-threat.gif" alt="운석이 떨어지는 행성" loading="lazy" width="960" height="540"><span>확대 보기 ↗</span></button><div class="card-copy"><h3>위협</h3><p>운석은 플레이어와 조립 중인 우주선을 위협합니다.</p></div></article>
+        <article class="game-card"><button class="media-button" data-preview type="button" aria-label="방어 플레이 장면 확대"><img src="assets/hazard-defense.gif" alt="방망이로 운석을 쳐내는 플레이어" loading="lazy" width="960" height="540"><span>확대 보기 ↗</span></button><div class="card-copy"><h3>방어</h3><p>낙하지점을 피하고 운석을 쳐내 동료와 파츠를 지키세요.</p></div></article>
+      </div>
+      <figure class="escape"><img src="assets/escape-launch.gif" alt="완성된 우주선이 발사되는 장면" loading="lazy" width="960" height="540"><figcaption><p class="eyebrow">READY FOR LIFTOFF</p><h3>조립이 끝났다면, 탈출!</h3><p>팀원이 탑승하면 완성된 우주선으로 행성을 떠납니다.</p></figcaption></figure>
+      <p class="media-note">플레이 장면은 개발 중 촬영한 화면으로, 배포 버전과 차이가 있을 수 있습니다.</p>
+    </section>
+    <section class="section guide" id="guide">
+      <div class="section-heading"><p class="eyebrow">GETTING STARTED</p><h2>런처로 이렇게 시작하세요.</h2></div>
+      <ol class="steps"><li><b>빈 폴더에 두기</b><p>받은 <code>NotThisPlanetLauncher.exe</code>를 <b>새 폴더</b>에 옮겨 두세요. 런처가 그 옆에 게임을 받습니다. 다운로드 폴더에서 바로 실행하지 마세요.</p></li><li><b>런처 실행하기</b><p>런처를 실행하면 게임을 받아 켭니다. 다음부터는 <b>바뀐 파일만</b> 받으므로 훨씬 빠릅니다. 게임이 켜져 있으면 업데이트가 안 되니 먼저 종료해 주세요.</p></li><li><b>친구와 같은 방에 모이기</b><p>게스트 로그인 후 한 명이 방을 만들고, 친구는 방 코드로 참가하세요. 준비가 끝나면 방장이 게임을 시작합니다.</p></li></ol>
+      <div class="test-notice"><h3>플레이 전에 확인해 주세요</h3><p>멀티플레이에는 인터넷 연결이 필요합니다. 함께하는 플레이어 모두 같은 버전을 사용해 주세요. 알파 테스트에서는 진행이 막히거나 연결이 불안정할 수 있습니다.</p><p><b>플레이 기록을 모읍니다.</b> 게임을 끌 때 <b>플레이 로그</b>(게임이 남긴 실행 기록 — 오류·경고와 진행 상황)를 한 번 보냅니다. 알파 테스트에서 무엇이 깨지는지 보기 위한 것입니다. 화면·소리·마이크·입력은 녹화하지 않습니다. 계정은 게스트 로그인이라 <b>닉네임</b>과 기기를 구분하는 값만 쓰고, 이메일·전화번호 같은 연락처는 받지 않습니다. 모은 기록은 개발 중에만 쓰고 밖으로 내보내지 않습니다.</p></div>
+      <div class="guide-actions"><a class="secondary-button" href="#download">다운로드로 돌아가기 ↑</a><a class="secondary-button" data-feedback-link href="https://docs.google.com/forms/d/e/1FAIpQLSeUK83EHeX9n6cuMBYJWsuoGVNIfnNwRiW2XKEIjVoV950Z3w/viewform" target="_blank" rel="noopener noreferrer">플레이 후기 남기기 ↗<span class="sr-only"> (새 탭)</span></a></div>
+    </section>
+  </main>
+  <dialog id="mediaDialog" aria-labelledby="previewTitle"><button class="close-preview" type="button" aria-label="확대 화면 닫기">닫기 ×</button><img id="previewImage" alt=""><h2 id="previewTitle"></h2></dialog>
+  <footer><span>© 2026 Su-Team · NOT THIS PLANET</span><span>Steam 및 Valve와 관련 없는 독립 게임 페이지입니다.</span></footer>
+</body>
+</html>

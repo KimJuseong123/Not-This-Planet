@@ -77,14 +77,14 @@ namespace Metagame.Gameplay.Tests
         // --- 표 (§13.2) ---------------------------------------------------
 
         /// <summary>
-        /// 표가 <b>선형이 아니다</b> — 1·2·3명은 0.4씩 오르는데 4명은 0.3만 오른다.
+        /// 솔로 속도는 0.6m/s이며 협동 인원별 속도는 비선형 표로 유지한다.
         /// 식으로 바꾸면 기획이 정한 값이 아니라 내가 정한 값이 된다.
         /// </summary>
         [Test]
         public void TheSpeedTableMatchesTheDesign()
         {
             Assert.AreEqual(0f, PartPushTable.SpeedFor(0), 1e-3f);
-            Assert.AreEqual(0.4f, PartPushTable.SpeedFor(1), 1e-3f);
+            Assert.AreEqual(0.6f, PartPushTable.SpeedFor(1), 1e-3f);
             Assert.AreEqual(0.8f, PartPushTable.SpeedFor(2), 1e-3f);
             Assert.AreEqual(1.2f, PartPushTable.SpeedFor(3), 1e-3f);
             Assert.AreEqual(1.5f, PartPushTable.SpeedFor(4), 1e-3f);
@@ -97,18 +97,14 @@ namespace Metagame.Gameplay.Tests
                 "표에 없는 값을 만들어내지 않는다.");
         }
 
-        /// <summary>
-        /// 한두 명은 <b>힘이 0</b> 이다. 문턱 아래의 작은 힘을 주면 마찰이 지우는
-        /// 헛일이 되고, 파츠 형태에 따라 우연히 밀리기도 한다.
-        /// </summary>
         [Test]
-        public void OneOrTwoPeopleGetNoForce()
+        public void OnePersonAlreadyGetsEnoughForce()
         {
             const float mass = 500f;
 
             Assert.AreEqual(0f, PartPushTable.ForceFor(0, mass), 1e-3f);
-            Assert.AreEqual(0f, PartPushTable.ForceFor(1, mass), 1e-3f);
-            Assert.AreEqual(0f, PartPushTable.ForceFor(2, mass), 1e-3f);
+            Assert.Greater(PartPushTable.ForceFor(1, mass), mass * PartPushTable.GroundFrictionAccel);
+            Assert.Greater(PartPushTable.ForceFor(2, mass), mass * PartPushTable.GroundFrictionAccel);
             Assert.Greater(PartPushTable.ForceFor(3, mass), 0f);
             Assert.Greater(PartPushTable.ForceFor(4, mass),
                            PartPushTable.ForceFor(3, mass), "넷이면 셋보다 세다.");
@@ -125,10 +121,10 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
-        public void MinPeopleToMoveIsThree()
+        public void MinPeopleToMoveIsOne()
         {
-            Assert.AreEqual(3, PartPushTable.MinPeopleToMove);
-            Assert.AreEqual(3, PartPush.MinPeopleToMove, "HUD 가 보는 값과 같아야 한다.");
+            Assert.AreEqual(1, PartPushTable.MinPeopleToMove);
+            Assert.AreEqual(1, PartPush.MinPeopleToMove, "HUD 가 보는 값과 같아야 한다.");
         }
 
         /// <summary>
@@ -220,7 +216,7 @@ namespace Metagame.Gameplay.Tests
             var push = MakePart();
             var player = MakePlayer(new Vector3(-1f, 0f, 0f), Vector3.right);
 
-            Tick(push, 1f);
+            Tick(push, 1f, player);
             Assert.AreEqual(1, push.HaulerCount);
 
             SetWish(player, Vector3.zero);
@@ -238,12 +234,14 @@ namespace Metagame.Gameplay.Tests
             var push = MakePart();
             var player = MakePlayer(new Vector3(-1f, 0f, 0f), Vector3.right);
 
-            Tick(push, 1f);
+            Tick(push, 1f, player);
             Assert.AreEqual(1, push.HaulerCount);
 
             Teleport(player, new Vector3(-20f, 0f, 0f));
 
-            Tick(push, PhysicsScale.PartPushReleaseSeconds + 0.1f);
+            Tick(push, PhysicsScale.PartPushReleaseSeconds * 0.5f);
+            Assert.AreEqual(1, push.HaulerCount, "접촉이 끊겨도 유예 시간 안에는 유지된다.");
+            Tick(push, PhysicsScale.PartPushReleaseSeconds);
             Assert.AreEqual(0, push.HaulerCount);
         }
 
@@ -490,22 +488,23 @@ namespace Metagame.Gameplay.Tests
         // 두 값을 가르는 이유는 기획 §10.2 의 밀기 카메라다. 3인칭 전환은 파츠가
         // **실제로 밀릴 때**만 걸려야 하므로 IsHauling 이 아니라 IsMoving 을 봐야 한다.
         //
-        // 한두 명이 붙었을 때의 "버티는 중" 연출은 만들지 않기로 했다(2026-09-10
-        // 기획 판단). 그래서 그 상태를 위한 별도 값은 두지 않는다 — 필요하면
-        // IsHauling && !IsMoving 으로 언제든 물을 수 있다.
+        // 한 명부터 이동하며 합산 방향이 상쇄되면 밀기 카메라도 해제된다.
 
         [Test]
-        public void OneOrTwoHaulers_TryButDoNotMoveIt()
+        public void TwoHaulers_MoveIt()
         {
             var push = MakePart();
-            MakePlayer(new Vector3(-1f, 0f, 0.4f), Vector3.right);
-            MakePlayer(new Vector3(-1f, 0f, -0.4f), Vector3.right);
+            var first = MakePlayer(new Vector3(-1f, 0f, 0.4f), Vector3.right);
+            var second = MakePlayer(new Vector3(-1f, 0f, -0.4f), Vector3.right);
 
-            Tick(push, 1f);
+            var start = push.transform.position;
+            Tick(push, 1f, first, second);
 
             Assert.AreEqual(2, push.HaulerCount);
             Assert.IsTrue(push.IsHauling, "밀려고 하고 있다.");
-            Assert.IsFalse(push.IsMoving, "인원이 마찰을 못 이긴다.");
+            Assert.IsTrue(push.IsMoving, "두 명도 이동한다.");
+            Assert.Greater(push.transform.position.x - start.x, 0.2f,
+                "접촉 유지뿐 아니라 파츠가 실제로 앞으로 이동해야 한다.");
         }
 
         [Test]
@@ -539,15 +538,15 @@ namespace Metagame.Gameplay.Tests
         /// 단정한다 — 마찰이 속도를 지우면 거리는 0 이 된다.
         /// </summary>
         [Test]
-        public void OneHauler_DoesNotBudgeAHeavyPart()
+        public void OneHauler_MovesAHeavyPart()
         {
-            Assert.Less(HaulOnGround(1), 0.1f, "혼자서는 무게를 못 이긴다.");
+            Assert.Greater(HaulOnGround(1), 0.3f, "혼자서도 지면 마찰을 이겨야 한다.");
         }
 
         [Test]
-        public void TwoHaulers_StillDoNotBudgeIt()
+        public void TwoHaulers_MoveItOnGround()
         {
-            Assert.Less(HaulOnGround(2), 0.1f, "둘도 못 이긴다.");
+            Assert.Greater(HaulOnGround(2), 0.8f);
         }
 
         [Test]
@@ -585,27 +584,40 @@ namespace Metagame.Gameplay.Tests
                 $"{spec.DisplayName} {spec.Mass:F0}kg 을 셋이 밀 수 있어야 한다.");
         }
 
-        /// <summary>가장 무거운 파츠도 둘로는 안 된다 — 형태와 무관하게 문턱이 같다.</summary>
+        /// <summary>가장 무거운 파츠도 두 명이 이동할 수 있다.</summary>
         [Test]
-        public void TheHeaviestPart_DoesNotMoveWithTwo()
+        public void TheHeaviestPart_MovesWithTwo()
         {
-            Assert.Less(HaulOnGround(2, HeaviestSpec()), 0.1f);
+            Assert.Greater(HaulOnGround(2, HeaviestSpec()), 0.8f);
         }
 
-        /// <summary>
-        /// 접촉면이 가장 좁은 파츠도 둘로는 안 움직인다.
-        ///
-        /// Part_1 은 최하단 상자가 0.94 x 0.94 뿐이라 정지 마찰 문턱이 가장 낮다 —
-        /// 가속 2.4 만 주어도 1.16m 밀렸다. 1·2명 가속을 0 으로 둔 이유가 이것이다.
-        /// </summary>
         [Test]
-        public void TheNarrowestFootedPart_DoesNotMoveWithTwo()
+        public void TheNarrowestFootedPart_MovesWithTwo()
         {
             var spec = PartSpec.Find("Part_1");
             Assert.IsNotNull(spec);
 
-            Assert.Less(HaulOnGround(2, spec), 0.1f,
-                "이 파츠가 둘에 밀리면 1·2명 가속에 값을 준 것이다.");
+            Assert.Greater(HaulOnGround(2, spec), 0.8f);
+        }
+
+        [TestCase("Part_1", false, false)]
+        [TestCase("Part_2", false, false)]
+        [TestCase("Part_3", false, false)]
+        [TestCase("Part_4", false, false)]
+        [TestCase("Part_1", true, false)]
+        [TestCase("Part_2", true, false)]
+        [TestCase("Part_3", true, false)]
+        [TestCase("Part_4", true, false)]
+        [TestCase("Part_1", true, true)]
+        [TestCase("Part_2", true, true)]
+        [TestCase("Part_3", true, true)]
+        [TestCase("Part_4", true, true)]
+        public void EveryPartMovesSoloOnGround(string name, bool grab, bool pull)
+        {
+            var spec = PartSpec.Find(name);
+            Assert.IsNotNull(spec);
+            Assert.Greater(HaulOnGround(1, spec, grab, pull), 0.3f,
+                $"{name}: grab={grab}, pull={pull}도 혼자 이동해야 한다.");
         }
 
         // --- 실제 씬 구성 (콜라이더가 자식에 있다) ---------------------------
@@ -882,14 +894,20 @@ namespace Metagame.Gameplay.Tests
         /// <c>Physics.Simulate</c> 가 필요한 이유는 <c>Drive()</c> 가 <c>AddForce</c> 로
         /// 힘을 넣기 때문이다 — 힘은 다음 물리 스텝에야 속도가 된다.
         /// </summary>
-        static void Tick(PartPush push, float seconds)
+        static void Tick(PartPush push, float seconds, params PlayerRig[] followers)
         {
             var steps = Mathf.CeilToInt(seconds / Step);
             for (var i = 0; i < steps; i++)
             {
                 UnityEngine.Physics.SyncTransforms();
                 push.Tick(Step);
+                var before = push.transform.position;
                 UnityEngine.Physics.Simulate(Step);
+                // 보행 제어를 돌리지 않는 하네스에서 명시한 플레이어만 파츠를 따라간다.
+                // 입력 중단·접촉 이탈 단계에는 followers를 넘기지 않는다.
+                var displacement = push.transform.position - before;
+                foreach (var player in followers)
+                    Teleport(player, player.FootPosition + displacement);
             }
         }
 
@@ -944,9 +962,7 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
-        /// 파츠를 <b>손으로 잡고</b> +x 로 미는 세 사람. 힘이 붙는 최소 인원이 셋이므로,
-        /// 파츠가 움직이는 것을 전제하는 검증은 셋을 세워야 한다 — 예전에는 한 사람으로
-        /// 충분했다.
+        /// 파츠를 <b>손으로 잡고</b> +x 로 미는 세 사람. 기존 협동 속도를 검증한다.
         ///
         /// <b>몸밀기가 아니라 잡기로 만드는 이유.</b> 몸밀기는 매 틱 접촉을 다시 보므로
         /// 파츠가 밀려 나가면 사람이 뒤에 남아 판정이 끊긴다. 그러면 밀기가 아니라
@@ -984,15 +1000,14 @@ namespace Metagame.Gameplay.Tests
         /// 지면 위의 파츠를 <paramref name="people"/> 명이 3초 밀고 <b>이동 거리</b>를
         /// 돌려준다.
         ///
-        /// <b>사람은 손으로 잡는다.</b> 몸밀기로 세우면 파츠가 밀려 나가는 순간 사람이
-        /// 뒤에 남아 접촉 판정이 끊기고, 그러면 밀기가 아니라 "사람이 파츠를 따라
-        /// 걷는가" 를 재게 된다. 잡기는 접촉을 다시 보지 않으므로 3초 내내 유지된다.
+        /// 기본은 손으로 잡는다. 몸밀기 검증은 매 스텝 사람이 파츠를 따라가게 해
+        /// 접촉을 유지한다. 이 하네스는 보행 제어 대신 파츠의 실제 이동 거리를 검증한다.
         ///
         /// 인형은 <see cref="Freeze"/> 로 물리에서 떼어 낸다 — <c>PlayerRig.Tick</c> 을
         /// 부르지 않는 채로 물리에 맡기면 3초 동안 주저앉고, kinematic 인형의 팔이
         /// 파츠에 얹히면 그 접촉이 파츠를 눌러 지면 마찰이 아닌 것을 재게 된다.
         /// </summary>
-        float HaulOnGround(int people, PartSpec spec = null)
+        float HaulOnGround(int people, PartSpec spec = null, bool grab = true, bool pull = false)
         {
             var ground = new GameObject("지면");
             ground.transform.position = new Vector3(0f, -0.5f, 0f);
@@ -1009,11 +1024,14 @@ namespace Metagame.Gameplay.Tests
             var line = -(halfWidth + 0.4f);
             var offsets = new[] { 0f, 0.5f, -0.5f, 0.75f };
 
+            var haulers = new List<PlayerRig>();
+            var direction = pull ? Vector3.left : Vector3.right;
             for (var i = 0; i < people; i++)
             {
                 var player = MakePlayer(new Vector3(line, 0f, offsets[i % offsets.Length]),
-                                        Vector3.right);
-                Assert.IsTrue(push.TryGrab(player, player.RightHand),
+                                        direction);
+                haulers.Add(player);
+                if (grab) Assert.IsTrue(push.TryGrab(player, player.RightHand),
                     $"{i + 1}번째 사람이 파츠를 못 짚었다 — 하네스 문제다.");
             }
 
@@ -1021,6 +1039,11 @@ namespace Metagame.Gameplay.Tests
 
             for (var i = 0; i < 300; i++)
             {
+                // 실제 이동 입력처럼 파츠를 따라가며 접촉을 유지한다.
+                if (!grab)
+                    for (var h = 0; h < haulers.Count; h++)
+                        PlaceBodyPusherAtSurface(push, haulers[h], offsets[h % offsets.Length]);
+                UnityEngine.Physics.SyncTransforms();
                 push.Tick(Step);
                 UnityEngine.Physics.Simulate(Step);
             }
@@ -1030,7 +1053,37 @@ namespace Metagame.Gameplay.Tests
 
             var moved = push.transform.position - start;
             moved.y = 0f;
-            return moved.magnitude;
+            return Vector3.Dot(moved, direction);
+        }
+
+        /// <summary>
+        /// 실제 몸통의 골반 높이 표면에서 일정 간격을 유지한다. 최대 Footprint와
+        /// 루트 이동량만 쓰면 Part_2처럼 좁은 받침 위의 몸통이 기울 때 접촉을 보장하지 못한다.
+        /// 파츠의 회전·이동은 물리에 맡기고, 플레이어의 지면 보행 위치만 갱신한다.
+        /// </summary>
+        static void PlaceBodyPusherAtSurface(PartPush push, PlayerRig player, float zOffset)
+        {
+            var colliders = push.GetComponentsInChildren<Collider>();
+            var bounds = colliders[0].bounds;
+            foreach (var collider in colliders) bounds.Encapsulate(collider.bounds);
+            var origin = new Vector3(bounds.min.x - 1f, RagdollBuilder.HipsY,
+                push.transform.position.z + zOffset);
+            var ray = new Ray(origin, Vector3.right);
+            var closest = float.PositiveInfinity;
+            var surface = Vector3.zero;
+            foreach (var collider in colliders)
+            {
+                if (!collider.enabled || collider.isTrigger) continue;
+                if (!collider.Raycast(ray, out var hit, bounds.size.x + 2f)) continue;
+                if (hit.distance >= closest) continue;
+                closest = hit.distance;
+                surface = hit.point;
+            }
+            Assert.IsFalse(float.IsPositiveInfinity(closest),
+                $"{push.name}: 골반 높이에 몸으로 밀 표면이 없다. position={push.transform.position}, rotation={push.transform.eulerAngles}");
+            var foot = surface - Vector3.right * (PhysicsScale.PartPushContactDistance * 0.5f);
+            foot.y = 0f;
+            Teleport(player, foot);
         }
 
         PartPush MakeGroundedBox()
@@ -1065,7 +1118,9 @@ namespace Metagame.Gameplay.Tests
             for (var i = 0; i < spec.Boxes.Length; i++)
             {
                 var box = spec.Boxes[i];
-                var collider = go.AddComponent<BoxCollider>();
+                var child = new GameObject("Body_" + i) { layer = GameLayers.Part };
+                child.transform.SetParent(go.transform, false);
+                var collider = child.AddComponent<BoxCollider>();
                 collider.size = box.Size;
                 collider.center = box.CenterFromPartCenter(spec.Height);
             }

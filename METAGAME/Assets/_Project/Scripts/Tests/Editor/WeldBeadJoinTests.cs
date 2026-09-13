@@ -49,6 +49,90 @@ namespace Metagame.Gameplay.Tests
 
         // --- 닿으면 접합 ---------------------------------------------------
 
+        (SpaceshipPart Part, Vector3 Nozzle) PadPart(string name, float x = 0f)
+        {
+            var ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            _spawned.Add(ground);
+            ground.transform.position = Vector3.down * 0.5f;
+            ground.transform.localScale = new Vector3(50f, 1f, 50f);
+            var pad = new GameObject("AssemblyPoint");
+            _spawned.Add(pad);
+            pad.AddComponent<ShipAssembly>().Configure(pad.transform);
+            var part = Body(name, new Vector3(x, PhysicsScale.PartHeight * 0.5f + 0.08f, 0f));
+            UnityEngine.Physics.SyncTransforms();
+            return (part, new Vector3(x, 0.04f, 0f));
+        }
+
+        [TestCase(0)]
+        [TestCase(1)]
+        [TestCase(2)]
+        [TestCase(3)]
+        public void CorePartWeldsToPadOnlyAfterWelding(int index)
+        {
+            var (part, nozzle) = PadPart(PartSpec.All[index].Name);
+            Assert.AreEqual(0, JointCount(part), "내려놓기만 해서는 고정하지 않는다.");
+            var position = part.transform.position;
+            var bead = GrowAt(nozzle, PhysicsScale.WeldBeadBlobSeconds * 2f);
+            Assert.IsTrue(bead.IsWeldedToPad);
+            Assert.Greater(bead.PadWeldRatio, 0f);
+            Assert.IsTrue(bead.IsChainContributing(0));
+            Assert.IsTrue(bead.HasLiveBridge);
+            Assert.AreEqual(1, JointCount(part));
+            Assert.IsNull(JointOf(part).connectedBody);
+            Assert.IsTrue(float.IsPositiveInfinity(JointOf(part).breakForce));
+            Assert.IsTrue(float.IsPositiveInfinity(JointOf(part).breakTorque));
+            Assert.AreEqual(position, part.transform.position);
+            Assert.IsNull(PartAssemblyLink.SocketLinkOf(part));
+        }
+
+        [TestCase("Other", 0f)]
+        [TestCase("Part_1", 20f)]
+        public void NonCorePartsAndGroundOutsideThePadCannotBeWelded(string name, float x)
+        {
+            var (part, nozzle) = PadPart(name, x);
+            var bead = GrowAt(nozzle, PhysicsScale.WeldBeadBlobSeconds * 2f);
+            Assert.IsFalse(bead.IsWeldedToPad);
+            Assert.AreEqual(0, JointCount(part));
+        }
+
+        [Test]
+        public void CuttingAllPadBeadsReleasesThePart()
+        {
+            var (part, nozzle) = PadPart(PartSpec.All[0].Name);
+            var bead = GrowAt(nozzle, PhysicsScale.WeldBeadBlobSeconds * 2f);
+            Assert.IsTrue(bead.IsWeldedToPad);
+            for (var i = 0; i < 200 && bead.ChainCount > 0; i++)
+                WeldBead.TryShrinkNear(bead.TipPosition(0), Step, out _);
+            Assert.AreEqual(0, bead.BlobCount);
+            Assert.IsFalse(bead.IsWeldedToPad);
+            Assert.AreEqual(0, JointCount(part));
+        }
+
+        [Test]
+        public void RemoteSnapshotRestoresPadWeldAndDoesNotReviveABrokenWeld()
+        {
+            var (part, nozzle) = PadPart(PartSpec.All[0].Name);
+            var bead = GrowAt(nozzle, PhysicsScale.WeldBeadBlobSeconds * 2f);
+            var state = bead.ReadChain(0);
+            Assert.IsTrue(state.PadWeldIntact);
+            var previous = WorldEvents.RemoteDecides;
+            try
+            {
+                WorldEvents.RemoteDecides = true;
+                part.RefreshRepresentation();
+                bead.RestoreChains(new[] { state }, 0, 1);
+                Assert.IsTrue(bead.IsWeldedToPad);
+                Assert.IsTrue(part.GetComponent<Rigidbody>().isKinematic);
+                Object.DestroyImmediate(JointOf(part));
+                state = bead.ReadChain(0);
+                Assert.IsFalse(state.PadWeldIntact);
+                bead.RestoreChains(new[] { state }, 0, 1);
+                Assert.IsFalse(bead.IsWeldedToPad);
+                Assert.AreEqual(0, JointCount(part));
+            }
+            finally { WorldEvents.RemoteDecides = previous; }
+        }
+
         [Test]
         public void BridgingChainChangesColor_WithoutRecoloringUnusedBeads()
         {
@@ -161,7 +245,7 @@ namespace Metagame.Gameplay.Tests
         // --- 강도는 접촉 부피 ------------------------------------------------
 
         [Test]
-        public void ContactStrength_RaisesTheJointBreakForce()
+        public void ContactStrength_PreventsForceAndTorqueBreakage()
         {
             var (lower, upper) = SeparatedPair();
 
@@ -171,8 +255,48 @@ namespace Metagame.Gameplay.Tests
             Assert.Greater(bead.StrengthTo(upper), 0f, "닿았으면 강도가 있어야 한다.");
             Assert.AreEqual(bead.StrengthTo(upper), link.BeadWeldRatio, 1e-3f,
                 "비드가 잰 강도가 그대로 접합에 들어가야 한다.");
-            Assert.Greater(JointOf(lower).breakForce, PhysicsScale.UnweldedBreakForce,
-                "이은 비드가 있으면 미접합보다 튼튼해야 한다.");
+            Assert.Less(link.BeadWeldRatio, 1f, "부분 용접도 검증한다.");
+            Assert.IsTrue(float.IsPositiveInfinity(JointOf(lower).breakForce));
+            Assert.IsTrue(float.IsPositiveInfinity(JointOf(lower).breakTorque));
+        }
+
+        [Test]
+        public void PartialBeadWeld_SurvivesLargeForceAndTorque()
+        {
+            var (lower, upper) = SeparatedPair();
+            BridgeUp(lower);
+            var link = PartAssemblyLink.FindBetween(lower, upper);
+            Assert.Less(link.BeadWeldRatio, 1f);
+            lower.GetComponent<Rigidbody>().isKinematic = true;
+            var body = upper.GetComponent<Rigidbody>();
+            body.isKinematic = false;
+            var savedMode = UnityEngine.Physics.simulationMode;
+            try
+            {
+                UnityEngine.Physics.simulationMode = SimulationMode.Script;
+                for (var i = 0; i < 50; i++)
+                {
+                    body.AddForce(Vector3.right * PhysicsScale.WeldedBreakForce * 100f);
+                    body.AddTorque(Vector3.forward * PhysicsScale.WeldedBreakTorque * 100f);
+                    UnityEngine.Physics.Simulate(0.02f);
+                    Assert.IsTrue(link.IsIntact, "완전 용접 한계의 100배 하중에도 연결을 유지한다.");
+                }
+            }
+            finally { UnityEngine.Physics.simulationMode = savedMode; }
+        }
+
+        [Test]
+        public void AnotherJointBreaking_DoesNotReleaseALiveBeadWeld()
+        {
+            var (lower, upper) = SeparatedPair();
+            BridgeUp(lower);
+            var link = PartAssemblyLink.FindBetween(lower, upper);
+            var onJointBreak = typeof(PartAssemblyLink).GetMethod("OnJointBreak",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(onJointBreak);
+            onJointBreak.Invoke(link, new object[] { 100f });
+            Assert.IsTrue(link.IsIntact);
+            Assert.AreSame(link, PartAssemblyLink.FindBetween(lower, upper));
         }
 
         /// <summary>
@@ -237,7 +361,8 @@ namespace Metagame.Gameplay.Tests
 
             Assert.AreEqual(1f, bead.StrengthTo(upper), 1e-3f, "충분히 이으면 완전 강도여야 한다.");
             Assert.IsTrue(link.IsFullyWelded);
-            Assert.AreEqual(PhysicsScale.WeldedBreakForce, JointOf(lower).breakForce, 1f);
+            Assert.IsTrue(float.IsPositiveInfinity(JointOf(lower).breakForce));
+            Assert.IsTrue(float.IsPositiveInfinity(JointOf(lower).breakTorque));
         }
 
         /// <summary>
@@ -303,7 +428,10 @@ namespace Metagame.Gameplay.Tests
             // 도구를 놓았다고 보고, 새 용접기로 다른 자리를 잇는다.
             var tool = MakeTool(NozzleForBridge(lower) + LateralSpots[0]);
             for (var i = 0; i < Mathf.CeilToInt(FullChainSeconds / Step); i++)
+            {
+                UnityEngine.Physics.SyncTransforms();
                 tool.WeldTick(Step, PlasmaBeamMode.Weld);
+            }
 
             Assert.Greater(bead.StrengthTo(upper), first + 1e-3f,
                 "앞사람이 채운 만큼은 남고 그 위에 더해져야 한다.");
@@ -321,7 +449,14 @@ namespace Metagame.Gameplay.Tests
 
             var nozzle = NozzleForBridge(lower);
             var steps = Mathf.CeilToInt(FullChainSeconds * 3f / Step);
-            for (var i = 0; i < steps; i++) WeldBead.TryShrinkNear(nozzle, Step, out _);
+            for (var i = 0; i < steps; i++)
+            {
+                WeldBead.TryShrinkNear(nozzle, Step, out _);
+                var remaining = PartAssemblyLink.FindBetween(lower, upper);
+                if (remaining == null) continue;
+                Assert.IsTrue(float.IsPositiveInfinity(JointOf(lower).breakForce));
+                Assert.IsTrue(float.IsPositiveInfinity(JointOf(lower).breakTorque));
+            }
 
             Assert.IsNull(PartAssemblyLink.FindBetween(lower, upper),
                 "잇는 비드가 사라지면 접합이 풀려야 한다(기획 §16.3).");
@@ -346,6 +481,8 @@ namespace Metagame.Gameplay.Tests
 
             Assert.IsTrue(link.IsIntact, "소켓 접합은 남아야 한다.");
             Assert.AreEqual(0f, link.BeadWeldRatio, 1e-3f, "보강분만 사라져야 한다.");
+            Assert.AreEqual(PhysicsScale.UnweldedBreakForce, JointOf(upper).breakForce);
+            Assert.AreEqual(PhysicsScale.UnweldedBreakTorque, JointOf(upper).breakTorque);
             Assert.AreSame(link, PartAssemblyLink.FindBetween(lower, upper));
         }
 
@@ -515,7 +652,8 @@ namespace Metagame.Gameplay.Tests
         PlasmaWeldingTool MakeTool(Vector3 nozzle)
         {
             var go = new GameObject("PlasmaWeldingTool");
-            go.transform.position = nozzle;
+            go.transform.position = nozzle + Vector3.forward * 0.3f;
+            go.transform.rotation = Quaternion.LookRotation(-Vector3.forward * 0.3f - Vector3.up * NozzleStandoff);
             _spawned.Add(go);
 
             UnityEngine.Physics.SyncTransforms();

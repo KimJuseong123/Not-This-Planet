@@ -26,12 +26,13 @@ sudo ufw allow 22 && sudo ufw allow 80/tcp && sudo ufw allow 443/tcp && sudo ufw
 mkdir -p ~/metagame && cd ~/metagame
 cp <리포>/scripts/deploy/server/compose.prod.yml docker-compose.yml
 cp <리포>/backend/Dockerfile .
-printf 'DB_PASSWORD=...\nDB_ROOT_PASSWORD=...\nJWT_SECRET=...\n' > .env && chmod 600 .env   # 값은 새로 만든다
+printf 'DB_PASSWORD=...\nDB_ROOT_PASSWORD=...\nJWT_SECRET=...\n' > .env && chmod 600 .env   # 값은 새로 만든다 — JWT_SECRET 은 표준 base64 여야 한다(아래)
 mkdir -p build/libs && cp <새 jar> build/libs/          # 또는 CI 배포 잡이 놓는다
 docker compose up -d --build
 
 # 4. nginx + 인증서
 sudo cp <리포>/scripts/deploy/server/nginx/upgrade-map.conf /etc/nginx/conf.d/
+sudo cp <리포>/scripts/deploy/server/nginx/limits.conf      /etc/nginx/conf.d/   # 로그인 속도 제한(-461)
 sudo cp <리포>/scripts/deploy/server/nginx/metagame.conf /etc/nginx/sites-available/metagame
 sudo ln -sf /etc/nginx/sites-available/metagame /etc/nginx/sites-enabled/
 sudo certbot --nginx -d j15b202.p.ssafy.io      # 인증서 경로 줄을 certbot 이 채운다
@@ -40,6 +41,43 @@ sudo nginx -t && sudo systemctl reload nginx
 # 5. 확인 — 로그인만 보지 말고 wss 까지
 curl -s -o /dev/null -w '%{http_code}\n' -X POST https://j15b202.p.ssafy.io/auth/guest \
   -H 'Content-Type: application/json' -d '{"deviceId":"probe","nickname":"probe"}'   # 200
+```
+
+## 비밀 값의 요건 (S15P21B202-284)
+
+**`JWT_SECRET` 은 표준 base64 여야 한다.** `JwtProvider` 가 그 값을 base64 로 디코드한다.
+URL-safe 변형(`-`·`_`)을 넣으면 백엔드가 **기동에 실패한다**:
+
+```
+io.jsonwebtoken.io.DecodingException: Illegal base64 character: '-'
+  at com.metagame.backend.global.auth.JwtProvider.<init>(JwtProvider.java:21)
+```
+
+만드는 법: `python3 -c "import base64,os;print(base64.b64encode(os.urandom(48)).decode())"`.
+`secrets.token_urlsafe` 는 쓰지 않는다(2026-09-11 여기서 한 번 걸렸다).
+
+DB 비밀은 **MySQL 볼륨이 처음 뜰 때 박힌다.** 나중에 `.env` 만 바꾸면 백엔드가 접속하지
+못한다 — 바꾸려면 볼륨을 지우고 다시 초기화해야 한다.
+
+## 개발 서버의 비밀은 따로 만든다 (S15P21B202-284)
+
+`install-dev.sh` 는 prod 의 `.env` 를 복사하라고 안내하지만, **복사한 뒤 세 값을 새로
+만들어야 한다.**
+
+| 키 | dev | 왜 |
+| --- | --- | --- |
+| `JWT_SECRET` | **새로** | 공유하면 **dev 에서 만든 토큰이 prod 에서도 유효하다.** dev 는 아무 계정이나 만들며 시험하는 곳이고, 거기서 받은 JWT 를 prod `/auth/verify` 에 내면 통과한다 — 서버를 나눈 목적이 그것을 막는 것인데 비밀을 공유하면 구멍이 그대로 남는다 |
+| `DB_PASSWORD` · `DB_ROOT_PASSWORD` | **새로** | dev DB 가 털려도 prod DB 자격이 아니다. dev 볼륨은 새것이라 새 비밀로 초기화된다 |
+| `RELAY_*` · `EDGEGAP_RELAY_TOKEN` | 공유 | 릴레이는 **의도적으로 한 벌**이다 — TCP 17779 하나를 쓰고, 두 번째를 띄우려면 포트를 또 열어야 한다(우리가 정할 수 없다) |
+
+바꿨는지 확인은 **해시 앞 몇 자만** 견준다 — 값을 화면에 내지 않는다:
+
+```sh
+for k in JWT_SECRET DB_PASSWORD; do
+  a=$(sudo grep "^$k=" ~/metagame/.env     | sha256sum | cut -c1-8)
+  b=$(sudo grep "^$k=" ~/metagame-dev/.env | sha256sum | cut -c1-8)
+  [ "$a" = "$b" ] && echo "$k: 같음(고쳐야 한다)" || echo "$k: 다름"
+done
 ```
 
 ## 이 사본을 고칠 때

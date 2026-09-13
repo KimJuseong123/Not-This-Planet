@@ -29,6 +29,15 @@ namespace Metagame.Gameplay.Parts
         /// </summary>
         [SerializeField] float _placedMass;
 
+        [Header("용접 비드 한도")]
+        [Tooltip("이 파츠에 생성할 수 있는 비드 덩어리 총 개수. 한도를 낮춰도 기존 비드는 제거하지 않습니다.")]
+        [Min(1)] [SerializeField] int weldBeadsPerPart = PhysicsScale.WeldBeadsPerPart;
+        [Tooltip("한 기둥에 이어 붙일 수 있는 비드 덩어리 개수. 기존 끝 덩어리는 최대 크기까지 자랄 수 있습니다.")]
+        [Min(1)] [SerializeField] int weldBeadBlobsPerChain = PhysicsScale.WeldBeadBlobsPerChain;
+
+        public int WeldBeadsPerPart => Mathf.Max(1, weldBeadsPerPart);
+        public int WeldBeadBlobsPerChain => Mathf.Max(1, weldBeadBlobsPerChain);
+
         readonly List<PartClamp> _clamps = new();
         readonly List<PartSocket> _sockets = new();
 
@@ -396,7 +405,7 @@ namespace Metagame.Gameplay.Parts
         }
 
         /// <summary>
-        /// 견인 중에만 가볍고, 나머지 상태에서는 무겁다.
+        /// 자유 상태에서는 취급 질량을 낮추고, 빔 견인 중에는 견인 질량을 쓴다.
         /// 고정된 동안에는 kinematic 이라 운석에 맞아도 밀리지 않는다.
         /// 값의 근거는 S15P21B202-62 기록 문서를 본다.
         /// </summary>
@@ -411,6 +420,7 @@ namespace Metagame.Gameplay.Parts
             PartState state, float placedMass) => state switch
         {
             PartState.Locked => (GameLayers.Part, placedMass, true),
+            PartState.Free => (GameLayers.Part, placedMass * PhysicsScale.FreePartMassScale, false),
             PartState.Carried => (GameLayers.PartCarried, PhysicsScale.CarriedPartMass, false),
             _ => (GameLayers.Part, placedMass, false),
         };

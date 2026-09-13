@@ -58,7 +58,14 @@ diff 는 리포지토리 스냅샷이 아닙니다: 바뀌지 않은 파일·설
  "checks": {"<항목키>": {"status": "ok|warn|unknown", "why": "근거 한 줄"}},
  "findings": [{"severity": "high|medium|low", "file": "경로", "line": "줄 또는 범위 또는 빈 문자열", "issue": "문제와 이유 한두 문장", "fix": "수정 제안 한 줄(코드 가능)"}],
  "questions": ["팀장이 직접 재현·확인해야 할 것(있을 때만, 최대 2개)"]}
-verdict 기준: block = 머지하면 안 되는 결함(데이터 손상·네트워크 권한 오류·범위 밖의 위험한 변경) · warn = 확인 후 머지 · ok = 그대로 머지.
+verdict 기준 — block 은 "고치기 전에는 머지하면 안 되는 것" 입니다. 다음을 포함합니다:
+ · 데이터 손상 · 인증/권한 오류 · 범위 밖의 위험한 변경
+ · **조용히 틀리는 것**: 검사·가드·조건이 통과하는데 실제로는 보지 않는다, 실패해야 할 때 성공한다, 오류를 정상으로 센다
+ · **사용자에게 나가는 것을 잘못 내보내는 것**: 배포 경로·릴리스 산출물·버전 표기가 어긋난다
+ · **되돌릴 수 없는 것**: 삭제·덮어쓰기·복구 불가능한 상태 전이
+ · **이 MR 이 새로 넣은 코드의 명백한 오류** (기존 코드의 결함은 warn)
+warn = 고치면 좋지만 머지를 막을 정도는 아닌 것 — 취향·이름·문서 범위·성능 여유·후속 과제. ok = 그대로 머지.
+**애매하면 warn 입니다.** block 을 낼 때는 무엇을 고쳐야 통과하는지 findings 에 반드시 적습니다.
 findings 는 실제 문제만 최대 6개, 없으면 []. 칭찬·요약·일반론 금지."""
 
 ROLES = {
@@ -95,6 +102,23 @@ CHECK_LABELS = {"scope": "범위", "dod": "완료 조건", "scene": "씬/프리�
 CHECK_ORDER = ["scope", "dod", "scene", "structure", "record"]
 STATUS_ICON = {"ok": "✅", "warn": "⚠️", "unknown": "❓", "block": "⛔"}
 SEV_LABEL = {"high": "높음", "medium": "중간", "low": "낮음"}
+
+# 심각도로도 막는다 (S15P21B202-477).
+#
+# **왜.** 리뷰어가 `severity: high` 를 적어 놓고 `verdict` 는 `warn` 으로 두는 일이 있다.
+# 사람이 읽으면 모순인데 기계는 `verdict` 만 보므로 그대로 통과했다. 판정과 심각도가
+# 어긋날 때는 **막는 쪽**으로 떨어지게 한다.
+#
+# **중간·낮음은 넣지 않는다.** 전부 막으면 거의 모든 MR 이 서고, 그러면 사람들이
+# ⛔ 를 "원래 뜨는 것" 으로 배운다 — 지금 고치려는 것과 정확히 반대가 된다.
+#
+# CI 변수로 돌린다: `AI_REVIEW_BLOCK_SEVERITY=high,medium` 으로 조이고, **비우면**
+# 심각도 차단이 꺼져 예전처럼 `verdict` 만 본다. 너무 자주 막힐 때 MR 없이 되돌릴
+# 길을 남겨 둔다 — 되돌릴 수 없는 규칙은 사람들이 우회하기 시작한다.
+BLOCK_SEVERITIES = tuple(
+    s for s in (x.strip().lower() for x in env("AI_REVIEW_BLOCK_SEVERITY", "high").split(","))
+    if s in SEV_LABEL
+)
 
 SUMMARY_SYSTEM = """당신은 게임 개발 팀의 MR 리뷰 요약 담당입니다. 리뷰어들의 JSON 결과와 MR 정보를 받아 팀장이 30초 안에 결정할 수 있게 씁니다.
 한국어. 출력은 아래 JSON 하나만:
@@ -438,7 +462,7 @@ def merge(results: dict[str, dict | None], failed: list[str] | None = None) -> d
         questions += [q for q in (res.get("questions") or []) if isinstance(q, str) and q.strip()]
     sev_rank = {"high": 0, "medium": 1, "low": 2}
     findings.sort(key=lambda f: sev_rank[f["severity"]])
-    if "block" in verdicts:
+    if "block" in verdicts or any(f["severity"] in BLOCK_SEVERITIES for f in findings):
         verdict = "block"
     elif ("warn" in verdicts or any(f["severity"] in ("high", "medium") for f in findings)
           or any(c["status"] == "warn" for c in checks.values())):

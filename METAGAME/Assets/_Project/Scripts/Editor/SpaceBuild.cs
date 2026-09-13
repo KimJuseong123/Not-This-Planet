@@ -19,7 +19,7 @@ namespace Metagame.EditorTools
     /// </summary>
     public static class SpaceBuild
     {
-        static readonly string[] RequiredScenes = { "Assets/Scenes/Lobby.unity", "Assets/Scenes/Main.unity", "Assets/Scenes/Stage1_Astra.unity" };
+        static readonly string[] RequiredScenes = { "Assets/Scenes/Lobby.unity", "Assets/Scenes/Customizer.unity", "Assets/Scenes/Main.unity", "Assets/Scenes/Stage1_Astra.unity", "Assets/Scenes/Stage1_Ending.unity" };
 
         public static void BuildWindows() { Build(false); }
 
@@ -64,12 +64,46 @@ namespace Metagame.EditorTools
                 .ToArray();
         }
 
+        /// <summary>
+        /// dev 결정을 환경변수로 박아 두고 빌드한 뒤, **원래 값으로 되돌린다**
+        /// (S15P21B202-284).
+        ///
+        /// <para><b>왜 환경변수로 박는가.</b> <c>BuildStamp</c> 는
+        /// <c>BuildPlayerProcessor</c> 라 이 메서드의 지역변수를 볼 수 없고 환경변수만
+        /// 읽는다. <c>BuildWindowsDev()</c> 는 인자로 dev 를 켜므로 그 사실이 스탬프에
+        /// 전달되지 않았다 — 그러면 개발 빌드가 <c>백엔드=prod</c> 로 찍혀
+        /// <b>실유저 서버를 가리킨다.</b></para>
+        ///
+        /// <para><b>왜 되돌리는가.</b> 박아 놓기만 하면 그 값이 에디터 프로세스에
+        /// 남는다. 같은 세션에서 이어서 Build Settings 버튼처럼 <c>SpaceBuild</c> 를
+        /// 거치지 않는 빌드를 하면 그 값이 그대로 쓰여 <b>배포용 빌드가
+        /// <c>백엔드=dev</c> 로 찍힌다</b>(반대 방향도 성립한다). 배치모드는 프로세스가
+        /// 곧 끝나 뜻이 없지만 사람이 쓰는 에디터 세션은 하루를 넘긴다.
+        /// <c>!358</c> 의 AI 리뷰가 잡았다.</para>
+        ///
+        /// <para>본문을 <c>try</c> 로 감싸지 않고 메서드를 가른 이유: 본문에는 중간
+        /// <c>return</c> 과 <c>EditorApplication.Exit</c> 경로가 여럿이라, 감싸면 50줄을
+        /// 재들여쓰기하면서 그 경로들을 건드릴 위험이 생긴다.</para>
+        /// </summary>
         static void Build(bool forceDev)
+        {
+            bool dev = forceDev || System.Environment.GetEnvironmentVariable("SPACE_DEV") == "1";
+            string saved = System.Environment.GetEnvironmentVariable("SPACE_DEV");
+            System.Environment.SetEnvironmentVariable("SPACE_DEV", dev ? "1" : "0");
+            try
+            {
+                BuildWith(dev);
+            }
+            finally
+            {
+                System.Environment.SetEnvironmentVariable("SPACE_DEV", saved);
+            }
+        }
+
+        static void BuildWith(bool dev)
         {
             string outDir = System.Environment.GetEnvironmentVariable("SPACE_BUILD_DIR");
             if (string.IsNullOrEmpty(outDir)) outDir = "Build/Windows";
-
-            bool dev = forceDev || System.Environment.GetEnvironmentVariable("SPACE_DEV") == "1";
 
             if (Stage1AtmosphereSetup.PrepareProfileForBuild() == null)
             {

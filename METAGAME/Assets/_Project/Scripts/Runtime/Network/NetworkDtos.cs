@@ -8,6 +8,12 @@ namespace Metagame.Network
     {
         public string nickname;
         public string deviceId;
+
+        /// <summary>
+        /// 이 빌드의 릴리스 버전 — 서버가 구버전을 막는 데 쓴다 (S15P21B202-404).
+        /// 릴리스 빌드가 아니면 빈 문자열이고, 그것을 어떻게 볼지는 서버가 정한다.
+        /// </summary>
+        public string clientVersion;
     }
 
     [Serializable]
@@ -16,6 +22,18 @@ namespace Metagame.Network
         public long userId;
         public string nickname;
         public string accessToken;
+    }
+
+    /// <summary>
+    /// 버전이 낮아 거절당했을 때 서버가 주는 본문 (S15P21B202-404, HTTP 426).
+    /// <b>받을 곳까지 온다</b> — 사유만 보여 주면 사용자는 무엇을 해야 하는지 모른다.
+    /// </summary>
+    [Serializable]
+    public sealed class ClientOutdatedResponse
+    {
+        public string message;
+        public string downloadUrl;
+        public string minVersion;
     }
 
     [Serializable]

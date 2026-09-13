@@ -10,8 +10,8 @@ namespace Metagame.Gameplay.Parts
     /// 시작된다(§13.1). 손으로 당기는 동작은 기존 잡기 버튼을 사용한다.
     ///
     /// 몸으로 미는 동작은 별도 버튼 없이 유지하고, 손으로 잡는 협동 견인은 기존
-    /// Grabbable 입력을 사용한다. 견인 중인 플레이어가 세 명 미만이면 손을 짚고
-    /// 버티기만 하며, 세 명 이상일 때만 파츠 Rigidbody가 당기는 방향으로 움직인다.
+    /// Grabbable 입력을 사용한다. 한 명부터 이동하며, 인원이 늘면
+    /// 같은 속도표에 따라 더 빠르게 밀거나 당긴다.
     ///
     /// EditMode 에서 <c>Awake</c>·<c>FixedUpdate</c> 가 돌지 않으므로
     /// <see cref="Initialize"/> 와 <see cref="Tick"/> 을 공개한다 —
@@ -116,9 +116,8 @@ namespace Metagame.Gameplay.Parts
 
         /// <summary>
         /// 파츠를 손으로 짚는다. 기존 운석·동료 운반처럼 손 입력을 재사용하지만,
-        /// FixedJoint를 즉시 만들지 않는다. 그래야 한두 명이 잡은 상태에서는
-        /// 파츠가 물리적으로 먼저 끌려가지 않고, 세 명이 모였을 때만 협동 규칙이
-        /// Rigidbody 이동을 허용할 수 있다.
+        /// FixedJoint를 만들지 않는다. 손의 물리 힘 대신 공통 밀기 규칙으로
+        /// 이동 방향과 인원별 속도를 적용한다.
         /// </summary>
         public bool TryGrab(PlayerRig player, Hand hand)
         {
@@ -141,8 +140,7 @@ namespace Metagame.Gameplay.Parts
         ///
         /// 기획 §10.2 의 밀기 카메라가 "지금 무엇을 밀고 있는가" 를 물을 때 쓴다.
         /// <see cref="IsHauling"/> 이 아니라 <see cref="IsMoving"/> 을 보는 이유는
-        /// 한두 명이 붙어 꿈쩍하지 않을 때 시점이 바뀌면 "시점은 바뀌었는데 아무 일도
-        /// 안 일어나는" 화면이 되기 때문이다(S15P21B202-400).
+        /// 서로 반대 방향으로 힘이 상쇄될 때에는 밀기 시점으로 전환하지 않기 때문이다.
         /// </summary>
         public static PartPush MovingPartFor(PlayerRig player)
         {

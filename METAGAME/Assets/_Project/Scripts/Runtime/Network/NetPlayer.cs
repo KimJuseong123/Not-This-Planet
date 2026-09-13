@@ -75,6 +75,32 @@ namespace Metagame.Network
         [SyncVar]
         public long userId;
 
+        [SyncVar(hook = nameof(OnAppearanceChanged))]
+        int appearance;
+        public int Appearance => appearance;
+
+        public override void OnStartLocalPlayer()
+        {
+            CmdSetAppearance(CustomizationData.Load().Packed);
+        }
+
+        [Command]
+        void CmdSetAppearance(int value)
+        {
+            appearance = CustomizationData.Decode(value).Packed;
+            ApplyAppearance();
+        }
+
+        void OnAppearanceChanged(int previous, int current)
+        {
+            if (body != null) PlayerAppearance.Apply(body.Doll, current);
+        }
+
+        void ApplyAppearance()
+        {
+            if (body != null) PlayerAppearance.Apply(body.Doll, appearance);
+        }
+
         /// <summary>
         /// 지금 운반 장치를 타고 있는가. 서버가 정하고 모두에게 전달된다(-149).
         /// 클라이언트의 화면에는 조작 결과가 자세로만 오므로, "저 사람이 탔다" 는
@@ -141,6 +167,26 @@ namespace Metagame.Network
         public Vector3 haulGrasp;
 
         /// <summary>
+        /// <b>남이 이 사람을 일으키는 진행도 0~1</b> (S15P21B202-448).
+        ///
+        /// <para><b>왜 보내야 하나.</b> 진행분은 구조자의 인터랙터가 대상의
+        /// <c>DownedRescue</c> 에 쌓고, 그 일은 <b>서버에서만</b> 일어난다 — 입력이
+        /// <see cref="CmdSendInput"/> 으로 와서 서버의 <c>PlayerRig</c> 가 실행하기
+        /// 때문이다. 그래서 <b>쓰러진 당사자의 기계에는 그 값이 존재한 적이 없다</b>
+        /// (실측 2026-09-11: 대상 쪽 <c>DownedRescue.Progress</c> 가 0.000).
+        /// 화면만 열면 빈 막대가 그려진다.</para>
+        ///
+        /// <para><b>진행도만 보낸다.</b> 누가 일으키고 있는지는 보내지 않는다 — 쓰러진
+        /// 사람 화면에 필요한 것은 "얼마나 찼는가" 뿐이고, 사람을 실으면
+        /// <c>WorldSync</c> 의 번호 짝짓기를 건드리게 된다. <c>hauling</c> 세 값이 같은
+        /// 판단을 한 자리다.</para>
+        ///
+        /// <para>기본값 0 이 "아무도 일으키지 않는다" 와 같아서 초기 상태가 안전하다.</para>
+        /// </summary>
+        [SyncVar]
+        public float rescueProgress;
+
+        /// <summary>
         /// 방 안의 자리 번호(0~3). 색이 여기서 나온다 (S15P21B202-375).
         ///
         /// <para><b>서버가 <see cref="OnStartServer"/> 에서 정한다.</b> 그 시점에 넣으면
@@ -184,6 +230,14 @@ namespace Metagame.Network
 
         /// <summary>몸이 서 있는가. 이름표는 몸이 있을 때만 그린다.</summary>
         public bool HasBody { get { return body != null; } }
+        public PlayerRig VisualRig => body;
+        public static uint NetIdOfRig(PlayerRig rig)
+        {
+            if (rig == null) return 0;
+            foreach (var player in ServerPlayers)
+                if (player != null && player.body == rig) return player.netId;
+            return 0;
+        }
 
         /// <summary>서버가 확정한 이 플레이어의 현재 팀 핑.</summary>
         [SyncVar]
@@ -237,6 +291,13 @@ namespace Metagame.Network
             // 이 자리는 body 가 이미 있는지 확인한 뒤이며 한 프레임 늦어도 무해하다.
             if (!isServer && isLocalPlayer)
                 body.SetHaulState(hauling, haulDirection, haulGrasp);
+
+            // **내 몸에만 넣는다.** 이 값을 그리는 곳은 쓰러진 당사자의 화면뿐이고,
+            // 남의 몸(그림)에 넣어 봐야 읽는 데가 없다. 서버에서는 PlayerRig 가 자기
+            // RescueTarget 에서 직접 읽으므로 넣지 않는다 — SetRemoteBeingRescued 가
+            // 권위가 있는 몸에서 스스로 무시하지만, 부르지 않는 것이 뜻이 분명하다.
+            if (!isServer && isLocalPlayer)
+                body.SetRemoteBeingRescued(rescueProgress);
 
             if (isServer) _locomotionState = RabbitLocomotion.ReadState(body);
             if (body.Doll.Suit != null)
@@ -428,6 +489,7 @@ namespace Metagame.Network
                 if (session.LocalPlayer == null) return false;
 
                 body = session.LocalPlayer;
+                ApplyAppearance();
                 adoptedBody = true;
 
                 // 진행 판정(낙사·전원 기절)은 서버가 한다. 호스트에서는 내가 곧 서버라
@@ -464,6 +526,8 @@ namespace Metagame.Network
                 foot + Vector3.up * 0.10f, facing,
                 TeamSuitColor, TeamAccentColor,
                 useModel: !Application.isBatchMode);
+
+            ApplyAppearance();
 
             AttachTransport();
             transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
@@ -614,6 +678,10 @@ namespace Metagame.Network
             hauling = body.Hauling;
             haulDirection = body.HaulDirection;
             haulGrasp = body.HaulGrasp;
+
+            // 쓰러진 사람 화면의 게이지가 읽을 값이다 (S15P21B202-448). 위 downed 와
+            // 같은 자리에 둔다 — 같은 몸의 같은 상태이고, 탑승과 무관하다(-378).
+            rescueProgress = body.BeingRescuedProgress01;
 
             // 어느 탈것을 타는지도 같은 자리에서 실어 보낸다 (S15P21B202-434).
             //
@@ -772,6 +840,7 @@ namespace Metagame.Network
             body = session != null ? session.LocalPlayer : null;
             if (body == null) return false;
 
+            ApplyAppearance();
             remoteAvatar = RemoteAvatar.Attach(body, transform, mine: true);
             ApplyRiding(riding);
             ApplyDowned(downed);
@@ -939,6 +1008,8 @@ namespace Metagame.Network
                 transform.rotation,
                 TeamSuitColor,
                 TeamAccentColor);
+
+            ApplyAppearance();
 
             // 자식으로 붙이지 않는 이유는 RemoteAvatar 가 골반을 MovePosition 으로
             // 직접 옮기기 때문이다 — 부모를 따라 끌려가면 조인트가 그 이동을

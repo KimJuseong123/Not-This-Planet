@@ -26,7 +26,7 @@ import repo_hygiene as R  # noqa: E402
 
 JOBS = R.ci_jobs()
 assert len(JOBS) >= 10, f"잡을 못 읽었다: {sorted(JOBS)}"
-assert "deploy-backend" in JOBS and "mr-lint" in JOBS, sorted(JOBS)
+assert {"deploy-dev", "deploy-prod", "mr-lint"} <= set(JOBS), sorted(JOBS)
 print(f"  잡 {len(JOBS)}개 읽음 ✅")
 
 TAGS = R.ci_tags()
@@ -51,8 +51,12 @@ ALL = docs_text()
 #    `unity-win` 은 `-271` 로 `unity-compile` 이 EC2 로 옮겨진 뒤 **태그 목록에서 빠졌다.** 그래서
 #    러너 태그 필터로는 더 안 걸러지고, 그 줄들은 문서를 고치거나 drift-ok 로 표시했다 — 태그 필터
 #    자체는 아래 임시 디렉터리 케이스에서 검사한다.
+#    `deploy-dev` 를 쓰던 자리를 `deploy-backend` 로 바꿨다 — -284 에서 그것이
+#    **실제 잡이 되어** 이 케이스가 무의미해졌다(테스트가 그 사실을 스스로 말했다).
+#    `deploy-backend` 는 반대 방향으로 같은 종류다: 기록 문서가 설명하는데
+#    **이제** 없는 잡이다.
 for token, why in [("unity-win", "문서 수정 또는 drift-ok 표시"),
-                   ("deploy-dev", "기록 문서가 설명하는 아직 없는 잡"),
+                   ("deploy-backend", "기록 문서가 설명하는 이제 없는 잡"),
                    ("jira-complete", "역사 서술(drift-ok 표시)")]:
     assert f"`{token}`" in ALL, f"{token} 이 문서에 없다 — 이 케이스가 무의미해졌다"
     assert token not in JOBS, f"{token} 이 실제 잡이 됐다 — 케이스를 갱신하라"
@@ -83,6 +87,35 @@ with tempfile.TemporaryDirectory() as td:
     finally:
         os.chdir(here)
 print("  러너 태그 필터 · 미표시 이름만 지적 (임시 디렉터리) ✅")
+
+
+# ── 스크립트가 **잡 이름으로 무언가를 가르는 자리**는 실제 잡과 같아야 한다 (S15P21B202-464)
+#
+#     위 검사는 `docs/**` 만 본다. 그래서 `-284` 가 `deploy-backend` 를 둘로 가를 때
+#     **스크립트 쪽 상수 두 개가 옛 이름으로 남은 것**을 아무도 못 잡았다:
+#       · `mm_digest.DEV_JOB` — 아침 카드의 배포 줄이 **늘 "이력 없음"** 이었다
+#       · `deploy_backend.NOTIFY_JOBS` — 배포 성공·실패 카드가 **한 장도 안 나갔다**
+#     둘 다 "조용해진다" 는 모양이라 증상이 정상과 구별되지 않았다. 이름은 한 글자만
+#     달라도 조용히 꺼지므로 사람 눈이 아니라 이것이 지켜야 한다.
+_jobs = R.ci_jobs()
+import deploy_backend as _DB  # noqa: E402
+import mm_digest as _MD  # noqa: E402
+
+_names: list[tuple[str, str]] = []
+for _mod in (_MD, _DB):
+    for _attr in dir(_mod):
+        if not (_attr.endswith("_JOB") or _attr.endswith("_JOBS")):
+            continue
+        _val = getattr(_mod, _attr)
+        for _n in ((_val,) if isinstance(_val, str) else tuple(_val)):
+            _names.append((f"{_mod.__name__}.{_attr}", _n))
+
+assert _names, "잡 이름 상수를 하나도 못 찾았다 — 이 검사가 무의미해졌다"
+for _where, _name in _names:
+    assert _name in _jobs, (
+        f"{_where} 가 `{_name}` 인데 .gitlab-ci.yml 에 그런 잡이 없다 — "
+        "이름이 어긋나면 그 기능이 조용히 꺼진다")
+print(f"  잡 이름 상수 {len(_names)}개가 실제 잡과 같다 ✅")
 
 # ── 잡이 사라지면 반드시 걸린다. 이게 이 검사의 존재 이유다.
 gone = R.doc_job_drift(JOBS - {"mr-lint"})

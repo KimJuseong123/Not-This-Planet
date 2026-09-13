@@ -3,16 +3,17 @@ using System.Globalization;
 using System.Threading;
 using Metagame.Core;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace Metagame.Gameplay.Tests
 {
     /// <summary>
     /// 실행별 로그 파일의 <b>이름 규칙과 켜지는 조건</b>을 검증한다 (S15P21B202-380).
     ///
-    /// <para>파일을 실제로 쓰는 것은 여기서 돌리지 않는다 — 에디터에서는
-    /// <see cref="BuildInfo.IsExperiment"/> 가 false 라 <c>RunLog</c> 가 아무 일도 하지
-    /// 않고, 그것이 <b>의도된 동작</b>이다(에디터에서 돌면 <c>Application.dataPath</c> 의
-    /// 부모가 저장소 루트라 리포에 로그를 쓴다). 대신 이름 규칙과 그 안전 조건을 잡는다.</para>
+    /// <para>파일을 실제로 쓰는 것은 여기서 돌리지 않는다 — 에디터에서는 <c>RunLog</c>
+    /// 가 아무 일도 하지 않고, 그것이 <b>의도된 동작</b>이다(에디터에서 돌면
+    /// <c>Application.dataPath</c> 의 부모가 저장소 안이라 리포에 로그를 쓴다).
+    /// 대신 이름 규칙과 그 안전 조건을 잡는다.</para>
     /// </summary>
     public sealed class RunLogTests
     {
@@ -65,19 +66,25 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
-        /// <b>에디터·배포 빌드에서는 아무 파일도 만들지 않는다.</b>
+        /// <b>에디터에서는 아무 파일도 만들지 않는다.</b>
         ///
-        /// <para>라벨이 없으면 실험 빌드가 아니다. 이 테스트가 도는 에디터가 바로 그
-        /// 경우이므로, <c>Start()</c> 가 불려도 경로가 비어 있어야 한다 — 그러지 않으면
-        /// 저장소 루트에 <c>logs/</c> 가 생긴다.</para>
+        /// <para>에디터의 <c>Application.dataPath</c> 는 <c>METAGAME/Assets</c> 라, 그
+        /// 부모에 로그 폴더를 만들면 <b>저장소 안에 `METAGAME/logs/` 가 생긴다.</b>
+        /// 그래서 <c>Start()</c> 가 불려도 경로가 비어 있어야 한다.</para>
+        ///
+        /// <para><b>왜 라벨이 아니라 에디터를 보는가</b> (S15P21B202-443). 전에는
+        /// <c>RunLog</c> 가 실험 라벨이 있을 때만 켜졌고, 그 검사가 이 보호를 겸하고
+        /// 있었다. 배포판에서 문제가 나도 로그가 없다는 문제 때문에 라벨 검사를
+        /// 없앴으므로, 이 보호는 <b>따로 세워야 한다</b> — 실제로 라벨 검사를 없앤
+        /// 커밋에서 이 테스트가 빨개졌고 CI 가 그것을 잡았다.</para>
         /// </summary>
         [Test]
-        public void NothingIsWrittenWithoutAnExperimentLabel()
+        public void NothingIsWrittenInsideTheEditor()
         {
-            Assert.That(BuildInfo.IsExperiment, Is.False,
-                "에디터에서는 실험 라벨이 없어야 한다 — 이 전제가 깨지면 아래 단정의 뜻이 달라진다");
+            Assert.That(Application.isEditor, Is.True,
+                "이 테스트는 에디터에서 돈다 — 이 전제가 깨지면 아래 단정의 뜻이 달라진다");
             Assert.That(RunLog.Path, Is.Empty,
-                "라벨이 없으면 파일을 열지 않는다 (에디터에서 열면 저장소에 로그를 쓴다)");
+                "에디터에서는 파일을 열지 않는다 (열면 저장소에 로그를 쓴다)");
         }
 
         /// <summary>정리 상한이 있고, 한 번의 실험 세션을 담을 만큼은 된다.</summary>

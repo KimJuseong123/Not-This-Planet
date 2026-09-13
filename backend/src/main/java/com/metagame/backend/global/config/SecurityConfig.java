@@ -34,8 +34,24 @@ public class SecurityConfig {
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/auth/**").permitAll()
                         .requestMatchers("/ws/**").permitAll()   // WebSocket은 핸드셰이크 인터셉터에서 JWT 검증
+
+                        // 플레이 로그 (S15P21B202-443). **여기서 permitAll 이지만 열려
+                        // 있는 것이 아니다** — 컨트롤러가 Authorization 헤더의 게스트
+                        // 토큰을 직접 검증하고, 없거나 틀리면 401 을 돌려준다.
+                        //
+                        // 왜 필터가 아니라 이 방식인가: 이 프로젝트에는 아직 **JWT 인증
+                        // 필터가 없다**(아래 TODO). `authenticated()` 로 두면 SecurityContext
+                        // 를 채우는 것이 없어서 **토큰이 맞아도 403** 이 된다 — 조용히
+                        // 안 되는 종류의 고장이다. `/ws/**` 가 이미 같은 방식으로 돈다.
+                        //
+                        // 인증이 필요한 REST 엔드포인트가 하나 더 생기면 그때는 필터를
+                        // 만드는 편이 싸다. 지금 만들면 모든 경로의 거동이 바뀌는데
+                        // 그것을 확인할 통합 테스트가 없다.
+                        .requestMatchers("/logs").permitAll()
+
                         .anyRequest().authenticated());
-        // TODO: 인증 필요한 REST API 추가 시 JWT 인증 필터 등록
+        // TODO: 인증 필요한 REST API 가 둘 이상이 되면 JWT 인증 필터를 등록하고
+        //       위 /logs · /ws 의 자체 검증을 그쪽으로 옮긴다
         return http.build();
     }
 }

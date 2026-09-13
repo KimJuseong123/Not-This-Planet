@@ -233,6 +233,12 @@ namespace Metagame.Gameplay.Tests
             var meteor = MakeMeteor(new Vector3(1f, 4f, 0f));
             meteor.ApplyImpact(new Vector3(1f, 0f, 0f));
 
+            // **착탄이 운석을 4m 아래로 옮긴다.** `autoSyncTransforms` 가 꺼져 있어
+            // 동기화하지 않으면 방망이의 물리 질의는 아직 <b>옛 자리</b>의 운석을 본다 —
+            // 눈앞에 있는데 안 맞는다 (S15P21B202-463). 같은 좌표로 통과하는 대조군이
+            // `MeteorBatPropTests.cs:411-425` 다; 다른 것은 이 한 줄뿐이다.
+            Physics.SyncTransforms();
+
             var batObject = new GameObject("MeteorBat") { layer = GameLayers.Prop };
             _spawned.Add(batObject);
             var bat = batObject.AddComponent<MeteorBat>();
