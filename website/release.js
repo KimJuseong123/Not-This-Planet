@@ -45,7 +45,7 @@
     link.href = raw;
     link.hidden = false;
     document.getElementById('downloadPending').hidden = true;
-    document.getElementById('downloadStatus').textContent = '다운로드 후 ZIP 파일 전체를 압축 해제해 주세요.';
+    document.getElementById('downloadStatus').textContent = '받은 실행 파일을 빈 폴더에 두고 실행해 주세요.';
   }
   document.getElementById('buildMeta').textContent = [config.version, config.fileSize].filter(Boolean).join(' · ');
   const dialog = document.getElementById('mediaDialog');
