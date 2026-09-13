@@ -195,19 +195,78 @@ def read_json(path: str) -> dict | None:
         return None
 
 
-def manifest_versions(out: str) -> list[str]:
-    """저장소에 있는 버전들. 새것이 앞에 온다."""
+# ── 채널 (S15P21B202-460) ───────────────────────────────────────────────
+#
+# QA 는 두 번 일어난다: **머지 뒤**(합쳐진 상태가 되나 — `develop`)와 **머지 전**(이 MR 이
+# 그 버그를 고쳤나 — 그 브랜치). 릴리스 버전만으로는 둘 다 못 한다.
+#
+# **채널은 버전 이름에서 나온다.** 따로 적어 두지 않는 이유: 이름과 채널을 두 곳에 두면
+# 어긋나고, 어긋나면 **배포 런처가 dev 빌드를 집는다.**
+#
+#   release  v1.0.0                     master 머지 → 일반 사용자
+#   dev      dev-20260914-1a2b3c4       develop 새벽 빌드 → 통합 QA
+#   qa       qa-401-1a2b3c4             MR 의 버튼 → 머지 전 QA
+#
+# **저장소(`files/`)는 셋이 공유한다.** 채널이 달라도 대부분의 파일이 같다(2026-09-10
+# 실측: 서로 다른 두 빌드가 321/339 파일 바이트 동일). 나눈다고 디스크가 배로 늘지 않는다.
+RELEASE, DEV, QA = "release", "dev", "qa"
+
+# 목록 파일도 나눈다. **배포 런처는 `latest.json`·`versions.json` 만 본다** — 섞으면
+# 일반 사용자에게 dev·qa 빌드가 보이고, 그것을 받아 가면 우리가 모르는 조합이 생긴다.
+CHANNEL_FILES = {
+    RELEASE: ("latest.json", "versions.json"),
+    DEV: ("dev-latest.json", "dev-versions.json"),
+    QA: ("dev-latest.json", "dev-versions.json"),   # 개발 런처가 한 목록에서 고른다
+}
+
+DEV_PREFIX, QA_PREFIX = "dev-", "qa-"
+
+
+def channel_of(version: str) -> str | None:
+    """버전 이름 → 채널. 어느 모양도 아니면 None."""
+    if version.startswith(DEV_PREFIX):
+        return DEV
+    if version.startswith(QA_PREFIX):
+        return QA
+    # **`v` 를 요구한다.** 릴리스 태그와 같은 모양이어야 하고, `parse_version` 은
+    # 그것을 선택으로 본다 — 그대로 쓰면 `1.0.0` 이 통과해 태그와 어긋난 이름이 섞인다.
+    return RELEASE if version.startswith("v") and parse_version(version) is not None else None
+
+
+def manifest_names(out: str) -> list[str]:
+    """`manifest/` 에 있는 **모든** 버전 이름. 채널로 거르지 않는다.
+
+    **거르면 안 되는 자리다.** `collect_garbage` 의 참조 집합이 여기서 나오는데,
+    한 채널이라도 빠지면 그 채널이 쓰는 파일이 "아무도 안 쓴다" 로 보여 회수된다.
+    해시가 파일 이름이라 **되살릴 방법이 없다.**
+    """
     d = os.path.join(out, "manifest")
     if not os.path.isdir(d):
         return []
-    vs = []
-    for name in os.listdir(d):
-        if not name.endswith(".json"):
-            continue
-        v = name[:-5]
-        if parse_version(v) is not None:
-            vs.append(v)
-    return sorted(vs, key=lambda v: parse_version(v), reverse=True)  # type: ignore[arg-type]
+    return [n[:-5] for n in os.listdir(d) if n.endswith(".json")]
+
+
+def sort_key(out: str, version: str):
+    """새것이 앞에 오게 하는 정렬 키.
+
+    릴리스는 숫자로 센다(`v1.10.0` 이 `v1.9.0` 보다 새것이다). dev·qa 는 그 모양이
+    아니라 **만든 시각**으로 센다 — 이름에 날짜가 들어 있어도 그것을 파싱해 믿지 않는다.
+    """
+    nums = parse_version(version)
+    if nums is not None:
+        return (1, nums, "")
+    m = read_json(os.path.join(out, "manifest", f"{version}.json")) or {}
+    return (0, (0, 0, 0), str(m.get("createdAt", "")) + version)
+
+
+def manifest_versions(out: str, channel: str | None = RELEASE) -> list[str]:
+    """저장소에 있는 버전들. 새것이 앞에 온다.
+
+    `channel=None` 이면 채널을 가리지 않고 전부 — 회수 판정이 그 형태를 쓴다.
+    """
+    vs = [v for v in manifest_names(out)
+          if channel_of(v) is not None and (channel is None or channel_of(v) == channel)]
+    return sorted(vs, key=lambda v: sort_key(out, v), reverse=True)
 
 
 def parse_version(v: str) -> tuple[int, int, int] | None:
@@ -223,24 +282,37 @@ def parse_version(v: str) -> tuple[int, int, int] | None:
     return nums if all(n >= 0 for n in nums) else None  # type: ignore[return-value]
 
 
-def write_versions(out: str, keep: int, dry: bool) -> list[str]:
-    """`versions.json` 을 다시 쓴다. 개발 런처가 이것을 보고 고른다."""
-    vs = manifest_versions(out)[:keep]
+def write_versions(out: str, channel: str, keep: int, dry: bool) -> list[str]:
+    """그 채널의 목록 파일을 다시 쓴다. 런처가 이것을 보고 고른다.
+
+    dev·qa 는 **한 목록**에 함께 담는다 — 개발 런처가 한 화면에서 고르기 때문이다.
+    """
+    wanted = [DEV, QA] if channel in (DEV, QA) else [RELEASE]
+    vs = []
+    for c in wanted:
+        vs += manifest_versions(out, c)
+    vs = sorted(vs, key=lambda v: sort_key(out, v), reverse=True)[:keep]
+
     rows = []
     for v in vs:
         m = read_json(os.path.join(out, "manifest", f"{v}.json")) or {}
         rows.append({
             "version": v,
+            "channel": channel_of(v),
             "createdAt": m.get("createdAt", ""),
             "totalBytes": m.get("totalBytes", 0),
             "files": len(m.get("files", [])),
+            # **무엇으로 만든 빌드인지 말한다.** 버전 문자열만으로는 알 수 없어서
+            # "이거 언제 코드예요?" 를 매번 사람에게 물어야 했다.
+            "branch": m.get("branch", ""),
+            "commit": m.get("commit", ""),
         })
-    write_json(os.path.join(out, "versions.json"),
+    write_json(os.path.join(out, CHANNEL_FILES[channel][1]),
                {"schema": SCHEMA, "versions": rows}, dry)
     return vs
 
 
-def collect_garbage(out: str, keep: int, dry: bool) -> tuple[int, int, int]:
+def collect_garbage(out: str, channel: str, keep: int, dry: bool) -> tuple[int, int, int]:
     """보관 개수를 넘긴 버전을 지우고, **아무도 가리키지 않는 파일**을 회수한다.
 
     돌려주는 것: (지운 매니페스트 수, 지운 파일 수, 회수한 바이트).
@@ -248,13 +320,20 @@ def collect_garbage(out: str, keep: int, dry: bool) -> tuple[int, int, int]:
     순서가 중요하다 — **참조 집합을 먼저 다 모은 뒤에** 지운다. 매니페스트를 지우면서
     동시에 파일을 지우면, 아직 안 읽은 매니페스트가 쓰는 파일을 지울 수 있다.
     """
-    all_v = manifest_versions(out)
-    drop = all_v[keep:]
+    # **지우는 것은 이 채널 안에서만 센다** (S15P21B202-460). 채널을 섞어 세면 매일
+    # 쌓이는 dev 빌드가 릴리스 10개를 밀어낸다.
+    drop = manifest_versions(out, channel)[keep:]
     mdir = os.path.join(out, "manifest")
 
     # ── 살아남는 쪽이 쓰는 해시를 전부 모은다 ────────────────────────────
+    #
+    # **여기는 채널을 가리지 않는다.** 한 채널이라도 빼고 세면 그 채널이 쓰는 파일이
+    # "아무도 안 쓴다" 로 보여 회수되고, 해시가 파일 이름이라 되살릴 수 없다.
+    dropping = set(drop)
     keeping = set()
-    for v in all_v[:keep]:
+    for v in manifest_names(out):
+        if v in dropping:
+            continue
         m = read_json(os.path.join(mdir, f"{v}.json")) or {}
         for e in m.get("files", []):
             if isinstance(e, dict) and e.get("sha256"):
@@ -290,23 +369,34 @@ def collect_garbage(out: str, keep: int, dry: bool) -> tuple[int, int, int]:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="빌드 폴더 → 매니페스트 + 내용 주소 저장소")
     ap.add_argument("build_dir")
-    ap.add_argument("version", help="예: v1.0.0")
+    ap.add_argument("version",
+                    help="release 는 v1.0.0 · dev 는 dev-20260914-1a2b3c4 · qa 는 qa-401-1a2b3c4")
     ap.add_argument("--out", required=True, help="배포 루트(= nginx 가 /builds/ 로 내보내는 폴더)")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--no-latest", action="store_true",
                     help="latest.json 을 건드리지 않는다 — 올려 두고 나중에 전환할 때")
     ap.add_argument("--keep", type=int, default=10,
-                    help="보관할 버전 수 (기본 10, -405 §④ 팀 결정). 0 이면 회수하지 않는다")
+                    help="그 채널에서 보관할 버전 수 (기본 10, -405 §④ 팀 결정). 0 이면 회수하지 않는다")
+    # 무엇으로 만든 빌드인지 목록에 보이게 한다 (S15P21B202-460). 버전 문자열만으로는
+    # "이거 언제 코드예요?" 를 매번 사람에게 물어야 했다.
+    ap.add_argument("--branch", default="", help="이 빌드를 만든 브랜치 (목록에 보인다)")
+    ap.add_argument("--commit", default="", help="이 빌드를 만든 커밋 (목록에 보인다)")
     a = ap.parse_args(argv)
 
     if not os.path.isdir(a.build_dir):
         print(f"❌ 빌드 폴더가 없다: {a.build_dir}")
         return 1
-    if not a.version.startswith("v"):
-        print(f"❌ 버전은 `v` 로 시작해야 한다(릴리스 태그와 같은 모양): {a.version}")
+    # **채널은 이름에서 나온다.** 따로 받지 않는 이유: 이름과 채널을 두 곳에 두면
+    # 어긋나고, 어긋나면 배포 런처가 dev 빌드를 집는다.
+    channel = channel_of(a.version)
+    if channel is None:
+        print(f"❌ 버전 이름이 어느 채널도 아니다: {a.version}")
+        print("   release  v1.0.0            (릴리스 태그와 같은 모양)")
+        print("   dev      dev-<날짜>-<커밋>  예: dev-20260914-1a2b3c4")
+        print("   qa       qa-<MR번호>-<커밋> 예: qa-401-1a2b3c4")
         return 1
 
-    print(f"=== 매니페스트 {a.version} ===")
+    print(f"=== 매니페스트 {a.version} ({channel}) ===")
     print(f"빌드 폴더: {a.build_dir}")
     files = collect(a.build_dir)
     total = sum(e["size"] for e in files)
@@ -337,29 +427,36 @@ def main(argv: list[str] | None = None) -> int:
         "exe": exe,
         "createdAt": datetime.now(KST).isoformat(timespec="seconds"),
         "totalBytes": total,
+        "channel": channel,
+        "branch": a.branch,
+        "commit": a.commit,
         "files": files,
     }
     mpath = os.path.join(a.out, "manifest", f"{a.version}.json")
     write_json(mpath, manifest, a.dry_run)
     print(f"{'(dry-run) ' if a.dry_run else ''}매니페스트 → {mpath}")
 
+    latest_name, versions_name = CHANNEL_FILES[channel]
     if not a.no_latest:
-        write_json(os.path.join(a.out, "latest.json"),
+        # **채널마다 다른 파일이다.** 배포 런처는 `latest.json` 만 보므로, dev·qa 를
+        # 올려도 일반 사용자가 받는 것은 바뀌지 않는다.
+        write_json(os.path.join(a.out, latest_name),
                    {"schema": SCHEMA, "version": a.version,
+                    "channel": channel,
                     "manifest": f"manifest/{a.version}.json"}, a.dry_run)
-        print(f"{'(dry-run) ' if a.dry_run else ''}latest.json → {a.version}")
+        print(f"{'(dry-run) ' if a.dry_run else ''}{latest_name} → {a.version}")
     else:
-        print("latest.json 은 건드리지 않았다 — 전환은 따로 한다")
+        print(f"{latest_name} 은 건드리지 않았다 — 전환은 따로 한다")
 
     # ── 목록과 보관 ──────────────────────────────────────────────────────
     if a.keep > 0:
-        dropped, gone, freed = collect_garbage(a.out, a.keep, a.dry_run)
+        dropped, gone, freed = collect_garbage(a.out, channel, a.keep, a.dry_run)
         if dropped or gone:
-            print(f"{'(dry-run) ' if a.dry_run else ''}보관 {a.keep}개 유지 — "
+            print(f"{'(dry-run) ' if a.dry_run else ''}{channel} 보관 {a.keep}개 유지 — "
                   f"매니페스트 {dropped}개 정리 · 파일 {gone}개 회수 "
                   f"({freed / 1048576:.1f} MB)")
-    kept = write_versions(a.out, a.keep if a.keep > 0 else 10**6, a.dry_run)
-    print(f"{'(dry-run) ' if a.dry_run else ''}versions.json — {len(kept)}개: "
+    kept = write_versions(a.out, channel, a.keep if a.keep > 0 else 10**6, a.dry_run)
+    print(f"{'(dry-run) ' if a.dry_run else ''}{versions_name} — {len(kept)}개: "
           + " ".join(kept[:6]) + (" …" if len(kept) > 6 else ""))
     return 0
 

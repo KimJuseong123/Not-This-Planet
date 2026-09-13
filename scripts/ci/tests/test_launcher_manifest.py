@@ -194,7 +194,7 @@ try:
     io.open(os.path.join(gc_out, "launcher.json"), "w", encoding="utf-8").write(
         '{"schema":1,"version":"v1.0.0","sha256":"' + launcher_digest + '"}')
 
-    dropped, gone, freed = M.collect_garbage(gc_out, keep=2, dry=False)
+    dropped, gone, freed = M.collect_garbage(gc_out, M.RELEASE, keep=2, dry=False)
     assert dropped == 2, f"지운 매니페스트 {dropped}개 (기대 2: v1.0.0 · v1.0.1)"
     left = sorted(M.manifest_versions(gc_out))
     assert left == ["v1.0.2", "v1.0.3"], f"남은 버전이 틀렸다: {left}"
@@ -220,7 +220,7 @@ try:
     # ── ⑬ dry-run 은 아무것도 지우지 않는다 ─────────────────────────────
     snap = store_digests()
     msnap = sorted(M.manifest_versions(gc_out))
-    M.collect_garbage(gc_out, keep=1, dry=True)
+    M.collect_garbage(gc_out, M.RELEASE, keep=1, dry=True)
     assert store_digests() == snap, "dry-run 이 파일을 지웠다"
     assert sorted(M.manifest_versions(gc_out)) == msnap, "dry-run 이 매니페스트를 지웠다"
     print("  ⑬ dry-run 은 지우지 않는다 ✅")
@@ -260,6 +260,85 @@ try:
     # 올리는 버전보다 높은 최소 버전은 **방금 올린 런처도 거부한다**
     assert PL.main([fake, "v1.5.0", "--out", pl_out, "--min", "v9.9.9"]) == 1
     print("  ⑭ 런처 재배포가 최소 버전 강제를 풀지 않는다 ✅")
+
+    # ── ⑮ 채널 (S15P21B202-460) ──────────────────────────────────────────
+    #
+    # QA 는 두 번 일어난다: 머지 뒤(`develop`)와 머지 전(그 MR 브랜치). 그래서 채널을
+    # 셋으로 나눈다. **이름이 곧 채널이다** — 두 곳에 두면 어긋나고, 어긋나면 배포
+    # 런처가 dev 빌드를 집는다.
+    print()
+    print("== 채널 ==")
+
+    assert M.channel_of("v1.0.0") == M.RELEASE
+    assert M.channel_of("dev-20260914-1a2b3c4") == M.DEV
+    assert M.channel_of("qa-401-1a2b3c4") == M.QA
+    # `v` 를 빼면 릴리스가 아니다 — 태그와 같은 모양이어야 한다
+    assert M.channel_of("1.0.0") is None
+    for bad in ("dev20260914", "qa401", "latest", "", "v1.0"):
+        assert M.channel_of(bad) is None, bad
+    print("  ⑮-a 이름으로 채널을 가른다 (v 없는 릴리스·모양 틀린 것은 거부) ✅")
+
+    ch = os.path.join(tmp, "ch")
+    rel_dir = os.path.join(tmp, "ch-rel")
+    dev_dir = os.path.join(tmp, "ch-dev")
+    # 릴리스와 dev 가 **서로 다른 파일**을 하나씩 갖는다. 공유 파일도 하나 둔다 —
+    # 회수가 공유분을 지키는지도 같이 본다.
+    build(rel_dir, {"Game.exe": b"exe", "shared.dat": b"same", "only-rel.dat": b"R"})
+    build(dev_dir, {"Game.exe": b"exe", "shared.dat": b"same", "only-dev.dat": b"D"})
+
+    assert M.main([rel_dir, "v1.0.0", "--out", ch]) == 0
+    assert M.main([dev_dir, "dev-20260914-1a2b3c4", "--out", ch,
+                   "--branch", "develop", "--commit", "1a2b3c4"]) == 0
+
+    # **배포 런처가 보는 자리는 바뀌지 않는다.** dev 를 올려도 latest.json 은 릴리스다.
+    assert load(os.path.join(ch, "latest.json"))["version"] == "v1.0.0"
+    assert load(os.path.join(ch, "dev-latest.json"))["version"] == "dev-20260914-1a2b3c4"
+    rel_list = [r["version"] for r in load(os.path.join(ch, "versions.json"))["versions"]]
+    dev_list = [r["version"] for r in load(os.path.join(ch, "dev-versions.json"))["versions"]]
+    assert rel_list == ["v1.0.0"], rel_list
+    assert dev_list == ["dev-20260914-1a2b3c4"], dev_list
+    print("  ⑮-b 배포 목록과 개발 목록이 섞이지 않는다 ✅")
+
+    # 무엇으로 만든 빌드인지 목록이 말한다
+    row = load(os.path.join(ch, "dev-versions.json"))["versions"][0]
+    assert row["branch"] == "develop" and row["commit"] == "1a2b3c4", row
+    assert row["channel"] == M.DEV, row
+    print("  ⑮-c 목록이 브랜치·커밋을 말한다 ✅")
+
+    # **여기가 이 변경에서 가장 위험한 자리다.** 예전 `collect_garbage` 는 참조 집합을
+    # `manifest_versions()`(= semver 만)에서 모았다. 그대로 뒀다면 릴리스를 한 번만 더
+    # 올려도 **dev 전용 파일이 전부 회수된다** — 해시가 이름이라 되살릴 수 없다.
+    dev_only = M.sha256_of(os.path.join(dev_dir, "only-dev.dat"))[0]
+    rel2 = os.path.join(tmp, "ch-rel2")
+    build(rel2, {"Game.exe": b"exe2", "shared.dat": b"same", "only-rel.dat": b"R"})
+    assert M.main([rel2, "v1.0.1", "--out", ch, "--keep", "1"]) == 0
+    assert os.path.exists(os.path.join(ch, "files", dev_only + ".gz")), (
+        "릴리스를 올렸더니 dev 파일이 회수됐다 — 되살릴 수 없는 사고다")
+    assert os.path.exists(os.path.join(ch, "manifest", "dev-20260914-1a2b3c4.json")), (
+        "릴리스의 --keep 이 dev 매니페스트를 지웠다")
+    print("  ⑮-d 릴리스 회수가 dev 파일을 지우지 않는다 ✅")
+
+    # 반대 방향도 같다 — dev 를 매일 올려도 릴리스 보관이 밀려나지 않는다
+    dev2 = os.path.join(tmp, "ch-dev2")
+    build(dev2, {"Game.exe": b"exe3", "only-dev.dat": b"D"})
+    assert M.main([dev2, "dev-20260915-2b3c4d5", "--out", ch, "--keep", "1"]) == 0
+    assert os.path.exists(os.path.join(ch, "manifest", "v1.0.1.json")), (
+        "dev 의 --keep 이 릴리스 매니페스트를 지웠다")
+    dev_list = [r["version"] for r in load(os.path.join(ch, "dev-versions.json"))["versions"]]
+    assert dev_list[0] == "dev-20260915-2b3c4d5", dev_list
+    print("  ⑮-e dev 회수가 릴리스를 밀어내지 않고, 새것이 목록 앞에 온다 ✅")
+
+    # qa 는 dev 와 **같은 목록**에 담긴다 — 개발 런처가 한 화면에서 고른다
+    qa_dir = os.path.join(tmp, "ch-qa")
+    build(qa_dir, {"Game.exe": b"exe4", "only-qa.dat": b"Q"})
+    assert M.main([qa_dir, "qa-401-3c4d5e6", "--out", ch, "--keep", "5",
+                   "--branch", "S15P21B202-401-x", "--commit", "3c4d5e6"]) == 0
+    rows = load(os.path.join(ch, "dev-versions.json"))["versions"]
+    kinds = {r["version"]: r["channel"] for r in rows}
+    assert kinds.get("qa-401-3c4d5e6") == M.QA, kinds
+    assert any(v.startswith("dev-") for v in kinds), kinds
+    assert not any(v.startswith("v") for v in kinds), "개발 목록에 릴리스가 섞였다"
+    print("  ⑮-f dev 와 qa 가 한 목록, 릴리스는 섞이지 않는다 ✅")
 
     print()
     print("TEST406 OK")
