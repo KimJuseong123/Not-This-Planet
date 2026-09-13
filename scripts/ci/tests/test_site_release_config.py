@@ -157,6 +157,80 @@ with tempfile.TemporaryDirectory() as tmp:
     assert cfg("downloadUrl: `/builds/x.exe`") is PS.UNREADABLE, \
         "downloadUrl 이 있는데 못 읽었을 때 '볼 것 없음' 으로 떨어진다 — 검사가 조용히 꺼진다"
 
+    #     **`/builds/` 만 있으면 가리키는 파일이 없다** (`!393` 리뷰). 예전에는 빈
+    #     문자열이 돌아가 부르는 쪽의 `if want:` 에서 falsy 로 떨어져 **아무 검사도
+    #     없이 배포됐다** — 이 MR 이 막으려던 바로 그 모양이 안쪽에 하나 더 있었다.
+    assert cfg('downloadUrl: "/builds/"') is PS.UNREADABLE, \
+        "/builds/ 만 적혀 있는데 검사 없이 통과한다"
+
+    #     **센티널이 값 공간과 겹치면 안 된다** (`!393` 리뷰). 예전에는 `"?"` 였고,
+    #     `downloadUrl` 이 `/builds/?` 면 잘라 낸 결과가 같아져 **멀쩡한 경로가
+    #     '못 읽음' 으로 뒤집혔다.**
+    assert cfg('downloadUrl: "/builds/?"') == "?", \
+        "파일 이름이 센티널과 같다고 못 읽음으로 뒤집힌다"
+
+    #     **키로 쓰인 때만** 못 읽음으로 본다 (`!393` 리뷰). 주석이나 다른 키 하나로
+    #     배포가 멈추면, 막으려던 것(조용한 통과)이 아니라 엉뚱한 정지를 만든다.
+    assert cfg("// downloadUrl 은 여기에 적는다") is None, \
+        "주석에 이름만 있어도 배포를 멈춘다 — 오탐이다"
+    assert cfg('downloadUrlLabel: "받기"') is None, \
+        "다른 키 하나로 배포를 멈춘다 — 오탐이다"
+
+    #     **주석 줄은 빼고 본다** (`!394` 리뷰). 옛 값을 `//` 로 남겨 두는 것은 흔한
+    #     일인데, 그것이 진짜 키보다 위에 있으면 **옛 값을 검사 대상으로 잡는다** —
+    #     이미 지운 파일을 찾다 배포가 서거나, 남아 있는 옛 파일을 보고 통과시킨다.
+    assert cfg('// downloadUrl: "/builds/old.zip"\ndownloadUrl: "/builds/new.exe"') == "new.exe", \
+        "주석에 적힌 옛 값을 먼저 잡는다"
+    assert cfg('// downloadUrl: "/builds/old.zip"') is None, \
+        "주석뿐인데 키가 있다고 본다"
+
+    #     **블록 주석도 빼고 본다** (`!394` 2차 리뷰). 줄 앞만 보면 `/* … */` 안에서
+    #     `*` 정렬 없이 적힌 줄이 살아남고, 반대로 살아 있는 값 줄 앞에 `*` 가 붙어
+    #     있으면 키를 통째로 놓쳐 **검사가 꺼진다** — 막으려던 바로 그 모양이다.
+    NEW = 'downloadUrl: "/builds/new.exe"'
+    NL, BS = chr(10), chr(92)
+    for name, text in (
+        ("정렬 없는 블록 주석", '/*\ndownloadUrl: "/builds/old.zip"\n*/\n' + NEW),
+        ("* 정렬 블록 주석", '/*\n * downloadUrl: "/builds/old.zip"\n */\n' + NEW),
+        ("한 줄 블록 주석", '/* downloadUrl: "/builds/old.zip" */\n' + NEW),
+        ("살아 있는 값 앞의 * 설명", ' * 설명\n' + NEW),
+    ):
+        assert cfg(text) == "new.exe", f"{name}: 살아 있는 값을 못 잡는다 ({cfg(text)!r})"
+
+    #     **배포 폴더 밖을 가리키면 확인한 것이 아니다** (`!394` 2차 리뷰).
+    #     `/builds/../../etc/passwd` 면 `os.path.join` 이 그대로 밖으로 나가고, 그 파일이
+    #     있다는 이유로 **통과시킨다** — 사용자는 404 를 받는다. 손으로 적는 값이라
+    #     실수로도 이렇게 된다. (`-467` 의 `PROMOTE_VERSION` 경로 탈출과 같은 종류다.)
+    for bad in ("/builds/../../etc/passwd", "/builds/a/../../x",
+                "/builds/..\\..\\x", "/builds/a//b"):
+        assert cfg('downloadUrl: "%s"' % bad) is PS.UNREADABLE, \
+            f"배포 폴더 밖을 가리키는데 통과한다: {bad}"
+
+    #     하위 폴더는 정당하다 — `manifest/` 아래를 가리킬 수 있어야 한다
+    assert cfg('downloadUrl: "/builds/manifest/v1.0.0.json"') == "manifest/v1.0.0.json"
+
+    #     **줄 끝 주석도 뗀다** (`!394` 3차 리뷰). 줄 전체가 주석인 것만 걸러서는
+    #     `version: "1.0" // 옛 downloadUrl: "…"` 의 옛 값이 살아남는다.
+    assert cfg('version: "1.0" // downloadUrl: "/builds/old.zip"\n'
+               'downloadUrl: "/builds/new.exe"') == "new.exe", \
+        "코드 뒤에 붙은 주석의 옛 값을 잡는다"
+
+    #     **그렇다고 `//` 를 통째로 지우면 `https://` 가 잘린다.** 그러면 외부 주소가
+    #     깨진 값이 되어 **배포가 오탐으로 멈춘다** — 막으려던 것과 반대다.
+    assert cfg('downloadUrl: "https://example.com/x.exe"') is None, \
+        "외부 https 주소를 못 읽음으로 본다 — 주석 제거가 문자열 안까지 자른다"
+    assert PS.strip_line_comment('downloadUrl: "https://a/b"') == 'downloadUrl: "https://a/b"'
+
+    #     **줄 주석을 블록 주석보다 먼저 뗀다** (`!394` 4차 리뷰). 반대 순서면
+    #     `// 옛 /* 값` 처럼 줄 주석 안에 `/*` 가 있을 때 그 뒤의 살아 있는 줄까지
+    #     통째로 삼켜 **검사가 조용히 꺼진다.**
+    assert cfg('// 옛 /* 값' + NL + NEW) == "new.exe", \
+        "줄 주석 안의 /* 가 살아 있는 줄을 삼킨다"
+
+    #     이스케이프된 따옴표를 닫는 것으로 보면 뒤가 주석으로 잘려 **오탐 정지**가 난다.
+    assert cfg('note: "a' + BS + '"//b"' + NL + NEW) == "new.exe", \
+        "이스케이프 따옴표 뒤를 주석으로 자른다"
+
     #     파일이 아예 없으면 None
     os.remove(os.path.join(site, "release-config.js"))
     assert PS.download_target(site) is None
