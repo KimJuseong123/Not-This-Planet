@@ -111,6 +111,14 @@ APP_DIR=$DEV_APP HEALTH_PORT=8081 ENV_NAME=dev DRY_RUN=1 \
   bash -c "printf '{\"sha\":\"install-dev\"}' > $DEV_SPOOL/RELEASE; $CODE/deploy.sh" || true
 echo "   결과: $(cat "$DEV_SPOOL/STATUS" 2>/dev/null || echo '없음')"
 
+# **소유권을 되돌린다** (S15P21B202-483).
+#
+# 위 한 줄은 이 설치 스크립트와 같은 권한(root)으로 돈다. 그러면 `deploy.sh` 가
+# 만드는 `deploy.log` 와 `.lock` 이 **root 소유**로 남는데, 실제 서비스는
+# `User=ubuntu` 라 그 뒤로 두 파일에 영영 쓸 수 없다. 2026-09-12 에 그것으로
+# 개발 배포가 1일 15시간 멈췄다.
+chown -R ubuntu:ubuntu "$DEV_SPOOL"
+
 # **되살리기 전에 RELEASE 를 지운다.** 유닛이 `PathChanged` 가 아니라 `PathExists`
 # 라서, 파일이 남아 있으면 start 하는 순간 곧바로 트리거된다.
 rm -f "$DEV_SPOOL/RELEASE"

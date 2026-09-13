@@ -37,7 +37,6 @@ HEALTH_TRIES="${HEALTH_TRIES:-30}"        # 3초 간격 → 최대 90초
 MIN_JAR_BYTES="${MIN_JAR_BYTES:-10000000}"   # 10MB 미만이면 정상 jar 이 아니다
 
 mkdir -p "$SPOOL/previous"
-exec >>"$SPOOL/deploy.log" 2>&1
 
 now() { date -Is; }
 
@@ -53,6 +52,31 @@ finish() {         # result detail  — RELEASE 를 지워 path 유닛이 다시
   rm -f "$SPOOL/RELEASE"
   exit 0
 }
+
+abort() {          # detail  — **되풀이해도 소용없는 오류.** (S15P21B202-483)
+  #
+  # `finish` 와 둘을 가르는 것은 **종료 코드**다. 0 으로 끝내면 systemd 는 잘 됐다고
+  # 보고, CI 는 STATUS 만 보고, 사람은 아무 말도 못 듣는다. 1 로 끝내야 유닛이
+  # failed 로 남아 `systemctl status` 에 보인다.
+  #
+  # RELEASE 는 **지운다.** 남겨 두면 `PathExists` 가 곧바로 다시 트리거하고, 원인이
+  # 그대로인 이상 또 실패한다 — 그 되풀이가 2026-09-12 에 start-limit-hit 로
+  # 유닛을 죽였고 개발 배포가 1일 15시간 멈췄다.
+  write_status "error" "$1"
+  rm -f "$SPOOL/RELEASE"
+  exit 1
+}
+
+# **로그를 열 수 있는지 먼저 본다** (S15P21B202-483).
+#
+# 못 연 채로 진행하면 이후 출력이 전부 journald 로만 가고, 사람은 `deploy.log` 를
+# 열어 보며 "아무 일도 없었다" 고 읽는다. 2026-09-12 에 실제로 그랬다 — 설치
+# 스크립트가 root 로 한 번 돌면서 이 파일을 root 소유로 만들어 두었고, 그 뒤
+# User=ubuntu 로 도는 서비스는 영영 쓸 수 없었다.
+if ! : >>"$SPOOL/deploy.log" 2>/dev/null; then
+  abort "배포 로그에 쓸 수 없다: $SPOOL/deploy.log — 소유자·권한을 보라"
+fi
+exec >>"$SPOOL/deploy.log" 2>&1
 
 LAST_CODE=""
 # 준비 확인: 게스트 로그인이 200 인가. deviceId 가 고정이라 사용자 행은 최대 1개만 생긴다
@@ -83,7 +107,19 @@ wait_ready() {
 }
 
 # ── 동시 실행 방지 ────────────────────────────────────────────────────────
-exec 9>"$SPOOL/.lock"
+# **자물쇠를 못 여는 것과 남이 쥐고 있는 것은 다르다** (S15P21B202-483).
+#
+# 2026-09-12 실측: `.lock` 이 root 소유라 `exec 9>` 가 Permission denied 로 실패했는데,
+# 그러고도 스크립트가 계속 돌아 `flock -n 9` 가 `Bad file descriptor` 로 떨어졌다.
+# 그 실패를 아래 분기가 **"다른 배포가 진행 중"** 으로 읽고 exit 0 했다 —
+# 권한 오류가 정상적인 건너뜀으로 둔갑한 것이다.
+#
+# 그래서 **열 수 있는지 먼저 본다.** 여기서 갈라야 `flock` 의 실패가 오직 한 가지
+# 뜻(남이 쥐고 있다)만 갖는다.
+if ! : >>"$SPOOL/.lock" 2>/dev/null; then
+  abort "자물쇠 파일에 쓸 수 없다: $SPOOL/.lock — 소유자·권한을 보라"
+fi
+exec 9>>"$SPOOL/.lock"
 if ! flock -n 9; then
   echo "[$(now)] 다른 배포가 진행 중 → 이번 실행은 건너뜀"
   exit 0
