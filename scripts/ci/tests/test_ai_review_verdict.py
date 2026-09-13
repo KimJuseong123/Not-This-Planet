@@ -213,4 +213,44 @@ assert "access_raw_diffs=true" in _src, (
     "비어 오고, 리뷰가 그 파일을 못 본다(S15P21B202-354)")
 print("  changes() 가 access_raw_diffs 를 붙인다 ✅")
 
+# ⑥ **막는 기준** (S15P21B202-477). 지금까지 ⛔ 는 리뷰어가 `verdict: "block"` 을 적을
+#    때만 났다. 그런데 리뷰어가 `severity: high` 를 적어 놓고 `verdict` 는 `warn` 으로
+#    두는 일이 있어서, 사람이 보기에 심각한 것이 그대로 통과했다. 어긋나면 **막는 쪽**이다.
+def _one(sev, verdict="warn"):
+    return {"scope": {"verdict": verdict, "checks": {},
+                      "findings": [{"severity": sev, "issue": "x", "file": "f.py"}]}}
+
+
+assert A.BLOCK_SEVERITIES == ("high",), A.BLOCK_SEVERITIES
+assert A.merge(_one("high"))["verdict"] == "block", "높음인데 막지 않는다"
+assert A.merge(_one("medium"))["verdict"] == "warn", "중간까지 막으면 거의 모든 MR 이 선다"
+assert A.merge(_one("low"))["verdict"] == "warn", "낮음이 막는다"
+print("  높음은 막고 중간·낮음은 통과 ✅")
+
+# 리뷰어가 block 이라고 하면 발견 사항이 없어도 막는다 (예전 동작 유지)
+assert A.merge({"scope": {"verdict": "block", "checks": {}, "findings": []}})["verdict"] == "block"
+# 발견 사항이 전혀 없고 전부 ok 면 그대로 통과 — 기준을 올려도 조용한 MR 은 조용하다
+assert A.merge({"scope": {"verdict": "ok", "checks": {}, "findings": []}})["verdict"] == "ok"
+print("  판정만 있는 경우의 동작은 그대로 ✅")
+
+# **되돌릴 수 있어야 한다.** 너무 자주 막히면 CI 변수를 비워 즉시 예전 동작으로 돌린다.
+# 되돌릴 길이 없는 규칙은 사람들이 우회하기 시작한다.
+_saved = A.BLOCK_SEVERITIES
+try:
+    A.BLOCK_SEVERITIES = ()
+    assert A.merge(_one("high"))["verdict"] == "warn", "변수를 비웠는데도 심각도가 막는다"
+finally:
+    A.BLOCK_SEVERITIES = _saved
+print("  AI_REVIEW_BLOCK_SEVERITY 를 비우면 예전 동작 ✅")
+
+# 변수 파싱: 공백·대소문자·빈 항목·모르는 값을 걸러 낸다. 오타가 조용히 '차단 없음' 이
+# 되면 게이트가 꺼진 줄 모른 채 돈다.
+import importlib, os as _os
+_os.environ["AI_REVIEW_BLOCK_SEVERITY"] = " HIGH , medium ,, nope "
+_re = importlib.reload(A)
+assert _re.BLOCK_SEVERITIES == ("high", "medium"), _re.BLOCK_SEVERITIES
+_os.environ.pop("AI_REVIEW_BLOCK_SEVERITY", None)
+importlib.reload(A)
+print("  변수 파싱이 공백·대소문자·오타를 거른다 ✅")
+
 print("TEST335 OK")
