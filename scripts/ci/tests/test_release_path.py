@@ -407,12 +407,21 @@ _relwin = _ci.split(NL + "release-windows:", 1)[1].split(NL + "variables:", 1)[0
 _rules = [l.strip() for l in _relwin.split("  rules:", 1)[1].splitlines()
           if l.strip() and not l.strip().startswith("#")]
 _rules = _rules[:next((i for i, l in enumerate(_rules) if l.startswith("script:")), len(_rules))]
-_never = next(i for i, l in enumerate(_rules) if l == "when: never")
+#     `when: never` 는 **둘**이다 — 되돌리기(여기)와 서버 전용 배포(`-464`). 첫 번째를
+#     집으면 엉뚱한 규칙을 보게 되므로 `$PROMOTE_VERSION` 이 있는 줄을 찾아서 본다.
+_pv = next(i for i, l in enumerate(_rules) if "$PROMOTE_VERSION" in l)
+assert _rules[_pv + 1] == "when: never", \
+    "되돌리기 규칙이 release-windows 를 막지 않는다: " + str(_rules)
+
+#     **리허설 규칙보다 앞이어야 한다** — rules 는 먼저 걸리는 쪽이 이긴다.
 _dry = next(i for i, l in enumerate(_rules) if "RELEASE_DRY_RUN" in l)
-assert _never < _dry, \
+assert _pv < _dry, \
     "되돌리기 제외 규칙이 리허설 규칙보다 뒤에 있다 — 먼저 걸리는 쪽이 이긴다: " + str(_rules)
-assert any("$PROMOTE_VERSION" in l for l in _rules[:_never]), \
-    "release-windows 가 되돌리기 파이프라인에서도 돈다 — 되돌리는 데 90분이 걸린다: " + str(_rules)
+
+#     **조건이 너무 넓으면 안 된다** (`!379` 리뷰). 브랜치를 안 보면 아무 브랜치의
+#     리허설에서도 그 변수만 있으면 90분 빌드가 조용히 사라진다.
+assert '$CI_COMMIT_BRANCH == "master"' in _rules[_pv], \
+    "되돌리기 제외 규칙이 브랜치를 안 본다 — 다른 브랜치의 리허설까지 사라진다: " + _rules[_pv]
 print("  되돌리기 파이프라인이 만들어지고, 90분 빌드를 안 끌고 온다 ✅")
 
 print("== 통과 ==")

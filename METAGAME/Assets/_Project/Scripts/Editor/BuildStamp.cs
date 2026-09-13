@@ -46,19 +46,45 @@ namespace Metagame.EditorTools
         static string Compose()
         {
             string when = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
-            string commit = Git("rev-parse --short HEAD");
             string branch = Git("rev-parse --abbrev-ref HEAD");
 
+            // **빌드된 것이 무엇인지를 찍는다** (S15P21B202-398). 예전에는 `HEAD` 를 찍었다.
+            // 그런데 우리는 작업 트리에 팀원의 커밋 안 된 문서 작업이 있어 `git switch` 를
+            // 못 할 때 `git checkout <커밋> -- METAGAME/` 로 **게임 코드만 덮어** 빌드한다.
+            // 그때 HEAD 는 움직이지 않으므로 **빌드된 코드와 아무 상관 없는 해시**가 박혔다 —
+            // 2026-09-10 qa2 빌드가 그랬고, 팀이 곧바로 "옛날 걸로 빌드한 거 아니냐" 고 물었다.
+            //
+            // 해시는 그럴싸해서 사람이 믿는다. **재현할 수 없으면 찍지 않는 것**이 낫다.
+            //
+            // 범위는 `METAGAME/`(=`.`, 아래 `Git` 의 작업 폴더) 전체다. `Assets/` 만 보면
+            // `ProjectSettings/`·`Packages/` 변경을 놓치는데 그것도 빌드 결과를 바꾼다.
+            string worktree = Git("diff --name-only -- .");          // 작업 트리 ↔ 인덱스
+            string staged = Git("diff --cached --name-only -- .");   // 인덱스 ↔ HEAD
+            string untracked = Git("ls-files --others --exclude-standard -- .");
+            // 손으로 고친 것이 없고 인덱스만 HEAD 와 다르면 **어느 커밋을 덮었는지 찾는다.**
+            // 찾으면 그 빌드는 재현 가능하다 — `git checkout <그 커밋> -- METAGAME/` 이면 된다.
+            string from = (string.IsNullOrEmpty(worktree) && string.IsNullOrEmpty(untracked)
+                           && !string.IsNullOrEmpty(staged))
+                          ? OverwrittenFrom()
+                          : string.Empty;
+            string source = SourceLabel(Git("rev-parse --short HEAD"), worktree, staged, untracked, from);
+
             var line = new System.Text.StringBuilder(when);
-            line.Append(" · ").Append(string.IsNullOrEmpty(commit) ? "커밋 모름" : commit);
+            line.Append(" · ").Append(source);
 
             var key = IssueKey.Match(branch ?? string.Empty);
             if (key.Success) line.Append(" · ").Append(key.Value);
             else if (!string.IsNullOrEmpty(branch)) line.Append(" · ").Append(branch);
 
-            // 커밋하지 않은 변경이 섞였으면 해시만으로는 이 빌드를 재현할 수 없다.
-            // 그 사실을 숨기면 해시가 거짓말이 된다 — 실제로 커밋 전 코드를 빌드해 나눠 준 적이 있다.
-            if (!string.IsNullOrEmpty(Git("status --porcelain"))) line.Append(" · +커밋안한변경");
+            // **프로젝트 밖 변경은 빌드를 바꾸지 않는다.** 예전에는 저장소 전체를 보고
+            // `+커밋안한변경` 을 붙였는데, 커밋 안 된 `docs/` 96개 때문에 **재현 가능한
+            // 빌드에도 매번** 그 표시가 붙었다. 늘 붙는 표시는 아무도 안 읽는다.
+            // 그래도 저장소가 깨끗하지 않다는 것은 알려 준다 — 뜻이 다른 표시로.
+            bool projectClean = string.IsNullOrEmpty(worktree)
+                                && string.IsNullOrEmpty(staged)
+                                && string.IsNullOrEmpty(untracked);
+            if (projectClean && !string.IsNullOrEmpty(Git("status --porcelain")))
+                line.Append(" · +프로젝트밖수정");
 
             // 실험 라벨은 **둘째 줄**에 기계가 읽는 형식으로 박는다 (S15P21B202-376).
             // 첫 줄에 섞으면 사람이 읽는 표시를 파싱해야 하고, 그 형식이 바뀔 때마다
@@ -85,11 +111,114 @@ namespace Metagame.EditorTools
         }
 
         /// <summary>
+        /// 첫 줄에 쓸 <b>기준</b>. 재현할 수 있으면 해시, 없으면 <b>왜 없는지</b>다.
+        ///
+        /// <para><b>순수 함수다</b> — git 을 부르지 않는다. 세 경우를 검사로 잠그기 위해서고,
+        /// 검사가 git 인덱스를 실제로 흔들면 저장소를 더럽힌다.</para>
+        ///
+        /// <para><b>세 가지를 가른다</b> (S15P21B202-398). 예전에는 전부
+        /// <c>+커밋안한변경</c> 한 문구였는데 뜻이 아주 다르다:</para>
+        /// <list type="bullet">
+        /// <item><b>수정</b> — 손으로 고친 것이 섞였다. <b>어느 커밋으로도 재현되지 않는다.</b>
+        /// 가장 강한 이야기이므로 겹치면 이쪽을 말한다</item>
+        /// <item><b>덮어씀(커밋을 찾음)</b> — 인덱스가 어느 커밋의 <c>METAGAME/</c> 과 똑같다.
+        /// <c>git checkout &lt;그 커밋&gt; -- METAGAME/</c> 로 <b>재현할 수 있다</b> —
+        /// 그래서 그 해시를 찍는다. 라벨(<c>SPACE_EXPERIMENT</c>) 없이도 첫 줄만으로
+        /// 기준을 알 수 있어야 한다는 것이 이 이슈의 완료 조건이다</item>
+        /// <item><b>인덱스가 HEAD 와 다름(못 찾음)</b> — <c>git add</c> 만 해 둔 상태도
+        /// 여기 들어온다. <b>단정하지 않고 관찰한 사실만</b> 적는다(<c>!384</c> 리뷰가
+        /// 짚었다 — "덮어씀" 으로 단정하면 이 표시가 또 부정확해진다)</item>
+        /// </list>
+        /// </summary>
+        public static string SourceLabel(string headShort, string worktree, string staged,
+                                         string untracked, string overwrittenFrom)
+        {
+            int edited = CountLines(worktree) + CountLines(untracked);
+            int staged_ = CountLines(staged);
+
+            // 손으로 고친 것이 하나라도 있으면 그것이 더 강한 이야기다 — 어느 커밋에도 없다.
+            if (edited > 0) return "작업트리(재현불가·수정 " + edited + "개)";
+
+            if (staged_ > 0)
+            {
+                // 어느 커밋을 덮었는지 찾았다 = **재현할 수 있다.** 해시를 찍는 것이 맞다.
+                if (!string.IsNullOrEmpty(overwrittenFrom))
+                    return overwrittenFrom + "(덮어씀)";
+
+                return "작업트리(재현불가·인덱스가 HEAD 와 다름 " + staged_ + "개)";
+            }
+
+            return string.IsNullOrEmpty(headShort) ? "커밋 모름" : headShort;
+        }
+
+        /// <summary>몇 개의 커밋까지 거슬러 보며 찾을지. 2026-09-10 사례는 61커밋 뒤였다.</summary>
+        const int SearchDepth = 120;
+
+        /// <summary>
+        /// 인덱스의 <c>METAGAME/</c> 이 <b>어느 커밋</b>의 것과 같은가. 못 찾으면 빈 문자열.
+        ///
+        /// <para><c>git checkout &lt;커밋&gt; -- METAGAME/</c> 는 <b>인덱스까지</b> 그 커밋으로
+        /// 바꾼다. 그래서 최근 커밋을 훑으며 <c>git diff --cached &lt;커밋&gt; -- .</c> 가 비는
+        /// 곳을 찾으면 그것이 덮어쓴 커밋이다.</para>
+        ///
+        /// <para><b>비용은 커밋 하나에 git 한 번</b>이다. 빌드는 몇 분짜리이고 이것은 한 번만
+        /// 도므로 감당된다. 대신 <see cref="SearchDepth"/> 로 상한을 둔다 — 못 찾는 경우에
+        /// 저장소 역사 전체를 훑으면 안 된다.</para>
+        /// </summary>
+        static string OverwrittenFrom()
+        {
+            // **빈 출력을 "같다" 로 읽지 않는다** (`!384` 2차 리뷰). `Git()` 은 실패해도
+            // 빈 문자열을 준다 — 그래서 `--name-only` 의 빈 출력으로 판정하면, git 호출이
+            // 한 번만 삐끗해도 **아무 상관 없는 커밋을 "덮어씀" 으로 찍는다.** 그것이
+            // 바로 이 이슈가 고치려던 거짓 해시다. `--quiet` 의 **종료 코드**로 가른다:
+            //   0 = 같다 · 1 = 다르다 · 그 밖 = 물어보지 못했다
+            int rc;
+            string log = Run("log --format=%h -n " + SearchDepth, out rc);
+            if (rc != 0) return string.Empty;      // 역사를 못 읽었으면 찾지 않는다
+
+            foreach (var raw in log.Split('\n'))
+            {
+                string sha = raw.Trim();
+                if (sha.Length == 0) continue;
+
+                Run("diff --cached --quiet " + sha + " -- .", out rc);
+                if (rc == 0) return sha;           // 인덱스가 이 커밋의 METAGAME/ 과 같다
+                if (rc != 1) return string.Empty;  // 0 도 1 도 아니면 **판정한 것이 아니다**
+            }
+            return string.Empty;
+        }
+
+        /// <summary>빈 줄을 뺀 줄 수. git 의 `--name-only` 출력은 파일 하나에 한 줄이다.</summary>
+        public static int CountLines(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return 0;
+            int n = 0;
+            foreach (var raw in text.Split('\n'))
+                if (!string.IsNullOrEmpty(raw.Trim())) n++;
+            return n;
+        }
+
+        /// <summary>
         /// git 한 번 돌리고 표준출력을 돌려준다. git 이 없거나 저장소가 아니면 빈 문자열이다 —
         /// 그때는 시각만으로도 빌드를 구분할 수 있으니 빌드를 막지 않는다.
+        ///
+        /// <para><b>실패와 "출력이 없다" 를 구별해야 하면 <see cref="Run"/> 를 쓴다.</b>
+        /// 이쪽은 둘 다 빈 문자열이라, 빈 출력에 뜻을 싣는 자리에서 쓰면 거짓 판정이 된다
+        /// (<c>!384</c> 2차 리뷰).</para>
         /// </summary>
         static string Git(string arguments)
         {
+            int rc;
+            string outText = Run(arguments, out rc);
+            return rc == 0 ? outText : string.Empty;
+        }
+
+        /// <summary>
+        /// git 한 번. <paramref name="exit"/> 에 종료 코드를 담는다 — 돌리지 못했으면 <c>-1</c>.
+        /// </summary>
+        static string Run(string arguments, out int exit)
+        {
+            exit = -1;
             try
             {
                 var info = new System.Diagnostics.ProcessStartInfo("git", arguments)
@@ -111,9 +240,11 @@ namespace Metagame.EditorTools
                     git.StandardError.ReadToEnd();
 
                     // 저장소가 잠겨 있거나 하면 끝나지 않을 수 있다. 빌드를 붙잡아 두지 않는다.
+                    // **`exit` 는 -1 로 둔다** — 안 끝난 것은 판정이 아니다.
                     if (!git.WaitForExit(5000)) return string.Empty;
 
-                    return git.ExitCode == 0 ? output.Trim() : string.Empty;
+                    exit = git.ExitCode;
+                    return output.Trim();
                 }
             }
             catch (Exception)
