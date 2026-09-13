@@ -253,6 +253,7 @@ namespace Metagame.Bootstrap
             Quaternion facing = Quaternion.LookRotation(Vector3.right, Vector3.up);
 
             Player = PlayerRig.Create(nickname, spawn, facing, suit, accent, useModel);
+            PlayerAppearance.Apply(Player.Doll, CustomizationData.Load().Packed);
             Player.transform.SetParent(transform, true);
 
             Color cameraSkyColor = useAtmosphere ? atmosphereProfile.sky.horizonColor : Sky != null ? Sky.SkyColor : RenderSettings.ambientSkyColor;

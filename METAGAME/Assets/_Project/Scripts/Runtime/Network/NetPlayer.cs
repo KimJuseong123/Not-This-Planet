@@ -75,6 +75,31 @@ namespace Metagame.Network
         [SyncVar]
         public long userId;
 
+        [SyncVar(hook = nameof(OnAppearanceChanged))]
+        int appearance;
+
+        public override void OnStartLocalPlayer()
+        {
+            CmdSetAppearance(CustomizationData.Load().Packed);
+        }
+
+        [Command]
+        void CmdSetAppearance(int value)
+        {
+            appearance = CustomizationData.Decode(value).Packed;
+            ApplyAppearance();
+        }
+
+        void OnAppearanceChanged(int previous, int current)
+        {
+            if (body != null) PlayerAppearance.Apply(body.Doll, current);
+        }
+
+        void ApplyAppearance()
+        {
+            if (body != null) PlayerAppearance.Apply(body.Doll, appearance);
+        }
+
         /// <summary>
         /// 지금 운반 장치를 타고 있는가. 서버가 정하고 모두에게 전달된다(-149).
         /// 클라이언트의 화면에는 조작 결과가 자세로만 오므로, "저 사람이 탔다" 는
@@ -463,6 +488,7 @@ namespace Metagame.Network
                 if (session.LocalPlayer == null) return false;
 
                 body = session.LocalPlayer;
+                ApplyAppearance();
                 adoptedBody = true;
 
                 // 진행 판정(낙사·전원 기절)은 서버가 한다. 호스트에서는 내가 곧 서버라
@@ -499,6 +525,8 @@ namespace Metagame.Network
                 foot + Vector3.up * 0.10f, facing,
                 TeamSuitColor, TeamAccentColor,
                 useModel: !Application.isBatchMode);
+
+            ApplyAppearance();
 
             AttachTransport();
             transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
@@ -811,6 +839,7 @@ namespace Metagame.Network
             body = session != null ? session.LocalPlayer : null;
             if (body == null) return false;
 
+            ApplyAppearance();
             remoteAvatar = RemoteAvatar.Attach(body, transform, mine: true);
             ApplyRiding(riding);
             ApplyDowned(downed);
@@ -978,6 +1007,8 @@ namespace Metagame.Network
                 transform.rotation,
                 TeamSuitColor,
                 TeamAccentColor);
+
+            ApplyAppearance();
 
             // 자식으로 붙이지 않는 이유는 RemoteAvatar 가 골반을 MovePosition 으로
             // 직접 옮기기 때문이다 — 부모를 따라 끌려가면 조인트가 그 이동을
