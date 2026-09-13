@@ -30,9 +30,39 @@ def infer_type(paths: list[str]) -> str:
     return "chore"
 
 
+# 공백을 뺐을 때 이 길이 이하면 뜻이 없다고 본다 (S15P21B202-450).
+MEANINGLESS_MAX = 2
+
+
+def is_meaningless(body: str) -> bool:
+    """<b>비워두고 싶은데 비울 수 없어서 아무거나 찍은 것</b>인가 (S15P21B202-450).
+
+    GitLab 웹의 새 MR 폼은 제목을 **필수**로 받는다. 그래서 `.` · `-` · `x` 같은 값이
+    들어오고, 그대로 두면 `-322` 가 제목을 Jira 기준으로 맞추려던 목적이 그 자리에서
+    무너진다 — 2026-09-11 에 실제로 "그냥 `.` 하나 찍어 두면 알아서 되나" 라는 질문을
+    받았고, 답은 "안 된다" 였다.
+
+    **목록으로 잡지 않는다.** `wip` · `asdf` · `tmp` 를 목록에 넣기 시작하면 목록에 없는
+    것이 계속 생겨 늘 뒤쫓게 된다. 대신 두 가지 성질로 본다:
+
+      ① 글자도 숫자도 하나 없다 — `.` · `-` · `...` · `!!`
+      ② 공백을 뺀 길이가 `MEANINGLESS_MAX` 이하 — `x` · `ui` · `ㅇㅇ`
+
+    ②가 **진짜로 짧은 제목**(`UI`)까지 바꾼다. 그래도 그 편이 낫다 — 그런 제목은 어차피
+    받는 사람에게 아무것도 말해 주지 않고, 바꾼 내용은 잡 로그에 남으며, 사람이 다시
+    고치면 그 뒤로는 형식이 맞으므로 건드리지 않는다.
+    """
+    b = re.sub(r"\s+", "", body or "")
+    if not b:
+        return True
+    if not any(c.isalnum() for c in b):        # ① 기호뿐
+        return True
+    return len(b) <= MEANINGLESS_MAX           # ② 너무 짧다
+
+
 def is_default_body(body: str, branch: str) -> bool:
     b = (body or "").strip()
-    if not b:
+    if is_meaningless(b):
         return True
     humanized = branch.replace("-", " ").lower()
     return b.lower() in (humanized, branch.lower()) or re.fullmatch(rf"(?i){PROJECT_KEY}[ -]\d+.*", b) is not None
@@ -100,7 +130,13 @@ def main() -> int:
         typ = lm.group("type") if lm and lm.group("type") in TYPES else None
         body = lm.group("body") if lm else ""
         if is_default_body(body, branch):
-            body = summary_body(issue) or body
+            # **되돌릴 수 있게 남긴다** (S15P21B202-450). 제목이 바뀐 사람이 "내가 쓴 게
+            # 어디 갔나" 를 잡 로그에서 찾을 수 있어야 한다.
+            filled = summary_body(issue) or body
+            if filled != body:
+                print(f"제목 요약이 비어 있거나 뜻이 없어 Jira 요약으로 바꾼다: "
+                      f"{body!r} → {filled!r}")
+            body = filled
         if not typ:
             paths = [c.get("new_path") or c.get("old_path") for c in gl.changes()]
             typ = infer_type([p for p in paths if p])
