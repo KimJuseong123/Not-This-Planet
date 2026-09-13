@@ -6,8 +6,16 @@
     python scripts/launcher/publish_launcher.py <런처 exe> <버전> --out <배포루트> --min <버전>
 
 만드는 것:
-    <배포루트>/files/<sha256>.gz   게임 파일과 **같은 저장소**에 넣는다
-    <배포루트>/launcher.json       런처가 자기 버전과 견주는 파일
+    <배포루트>/files/<sha256>.gz              게임 파일과 **같은 저장소**에 넣는다
+    <배포루트>/NotThisPlanetLauncher.exe      **사람이 받는 자리** (S15P21B202-452)
+    <배포루트>/launcher.json                  런처가 자기 버전과 견주는 파일
+
+**왜 둘 다 두나.** 쓰임이 다르다.
+  · `files/<sha256>.gz` 는 **런처가 자기를 갱신할 때** 받는다. 받는 코드가 이미 있고
+    해시로 검증한다 — 그 경로를 바꿀 이유가 없다.
+  · 고정 이름 exe 는 **처음 받는 사람**을 위한 것이다. 해시 이름의 gzip 은 사이트
+    버튼에 걸 수 있는 주소가 아니다. 이름이 고정이라 사이트가 버전마다 고쳐지지 않는다.
+같은 원본에서 같이 나오므로 둘이 어긋날 수 없다.
 
 **왜 게임과 같은 저장소인가.** 받는 방식이 이미 있다(`files/<sha256>.gz`, 풀어서
 해시 확인). 런처 전용 경로를 따로 만들면 받는 코드가 두 벌이 되고, 그중 하나는
@@ -35,6 +43,12 @@ from datetime import datetime, timedelta, timezone
 
 KST = timezone(timedelta(hours=9))
 SCHEMA = 1
+
+# **사람이 받는 자리의 이름** (S15P21B202-452). 사이트의 다운로드 버튼과 nginx 허용
+# 목록이 이 이름을 그대로 쓴다 — **바꾸면 세 곳을 같이 고쳐야 한다**(검사가 잡는다).
+# 버전이 이름에 없는 것은 일부러다: 사이트가 릴리스마다 고쳐지지 않아야 하고,
+# 런처는 스스로 갱신하므로 사람은 늘 "지금 것" 하나만 받으면 된다.
+PUBLIC_NAME = "NotThisPlanetLauncher.exe"
 VERSION_RE_HINT = "vX.Y.Z"
 
 
@@ -164,6 +178,18 @@ def main(argv: list[str] | None = None) -> int:
     if minimum and minimum != previous:
         print("  ⚠ 최소 버전을 올렸다 — 그보다 낮은 런처는 **갱신에 실패하면 게임을 "
               "켜지 못한다.** 규약을 깨는 변경일 때만 맞다")
+
+    # **사람이 받는 자리에도 놓는다** (S15P21B202-452). 해시 이름의 gzip 은 사이트
+    # 버튼에 걸 수 없다. 원자적으로 바꾼다 — 받는 중인 사람이 반쯤 쓰인 파일을
+    # 받으면 안 된다.
+    public = os.path.join(a.out, PUBLIC_NAME)
+    if a.dry_run:
+        print(f"(dry-run) {PUBLIC_NAME} 을 놓지 않았다")
+    else:
+        tmp_pub = public + ".part"
+        shutil.copyfile(a.exe, tmp_pub)
+        os.replace(tmp_pub, public)
+        print(f"사람이 받는 자리 → {public} ({size / 1048576:.1f} MB)")
 
     if a.dry_run:
         print("(dry-run) launcher.json 을 쓰지 않았다")
