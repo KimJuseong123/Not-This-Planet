@@ -19,7 +19,7 @@ namespace Metagame.EditorTools
     /// </summary>
     public static class SpaceBuild
     {
-        static readonly string[] RequiredScenes = { "Assets/Scenes/Lobby.unity", "Assets/Scenes/Main.unity", "Assets/Scenes/Stage1_Astra.unity" };
+        static readonly string[] RequiredScenes = { "Assets/Scenes/Lobby.unity", "Assets/Scenes/Main.unity", "Assets/Scenes/Stage1_Astra.unity", "Assets/Scenes/Stage1_Ending.unity" };
 
         public static void BuildWindows() { Build(false); }
 

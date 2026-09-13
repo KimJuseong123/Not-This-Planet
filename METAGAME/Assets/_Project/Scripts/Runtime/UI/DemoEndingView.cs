@@ -14,6 +14,7 @@ namespace Metagame.UI
         const int StageLayer = 31;
         static readonly Vector3 StageOrigin = new(10000f, 10000f, 10000f);
         DemoEnding _ending;
+        GameObject[] _partVisuals;
         Func<bool> _returnToLobby;
         Transform _stage, _ship, _flames, _ground, _planet;
         Camera _camera;
@@ -25,20 +26,29 @@ namespace Metagame.UI
         readonly List<Material> _glowMaterials = new();
         Bounds _bounds;
         RenderTexture _photo;
-        GUIStyle _title;
+        GUIStyle _title, _timeLabel;
         Font _font;
         bool _returning, _savedFog;
 
-        public void Configure(DemoEnding ending, Func<bool> returnToLobby)
+        public void Configure(DemoEnding ending, Func<bool> returnToLobby, GameObject[] partVisuals = null)
         {
             _ending = ending;
             _returnToLobby = returnToLobby;
+            _partVisuals = partVisuals;
+        }
+
+        public void Prepare()
+        {
+            if (_stage != null) return;
+            BuildStage();
+            ShowBoarding(0f);
         }
 
         void LateUpdate()
         {
             if (_ending == null || !_ending.Active) return;
-            if (_stage == null) BuildStage();
+            if (_stage == null) Prepare();
+            if (!_ending.PlaybackStarted) return;
             var stage = _ending.Stage;
             if (stage == DemoEndingStage.Lobby)
             {
@@ -75,7 +85,7 @@ namespace Metagame.UI
             _camera.backgroundColor = new Color(0.009f, 0.015f, 0.045f);
             _camera.fieldOfView = 42f;
             _camera.nearClipPlane = 0.1f;
-            _camera.farClipPlane = 600f;
+            _camera.farClipPlane = 2000f;
             _camera.depth = 100;
 
             foreach (var light in FindObjectsByType<Light>())
@@ -92,15 +102,19 @@ namespace Metagame.UI
             var first = true;
             foreach (var pose in snapshot.Parts)
             {
-                SpaceshipPart source = null;
+                Transform source = null;
                 foreach (var part in _ending.Parts)
-                    if (part != null && part.name == pose.Name) { source = part; break; }
+                    if (part != null && part.name == pose.Name) { source = part.transform; break; }
+                if (source == null && _partVisuals != null)
+                    for (var p = 0; p < PartSpec.All.Length && p < _partVisuals.Length; p++)
+                        if (pose.Name == PartSpec.All[p].Name && _partVisuals[p] != null)
+                            source = _partVisuals[p].transform;
                 if (source == null) continue;
                 var root = NewRoot(pose.Name, _ship);
                 root.localPosition = pose.Position - origin;
                 root.localRotation = pose.Rotation;
                 root.localScale = pose.Scale;
-                CopyMeshes(source.transform, root);
+                CopyMeshes(source, root);
                 var beads = NewRoot("Weld Beads", root);
                 beads.localScale = new Vector3(1f / pose.Scale.x, 1f / pose.Scale.y, 1f / pose.Scale.z);
                 for (var c = 0; c < pose.Beads.Length; c++)
@@ -136,7 +150,7 @@ namespace Metagame.UI
                 new Color(0.13f, 0.19f, 0.26f));
             _planet = MakeShape(PrimitiveType.Sphere, _stage, new Vector3(0f, -45f, 40f),
                 Vector3.one * 75f, new Color(0.20f, 0.36f, 0.68f));
-            _planet.gameObject.SetActive(false);
+            _planet.gameObject.SetActive(true);
             var random = new System.Random(117);
             for (var i = 0; i < 110; i++)
                 MakeShape(PrimitiveType.Sphere, _stage,
@@ -146,13 +160,15 @@ namespace Metagame.UI
 
             var fireMaterial = GlowMaterial(new Color(1f, 0.28f, 0.025f));
             var coreMaterial = GlowMaterial(new Color(1f, 0.93f, 0.55f));
-            // 연결된 각 파츠 아래로 불꽃을 배치한다. 파츠의 회전은 그대로 유지한다.
+            // 추진 엔진에만 노즐을 붙인다. 조립 순서와 루트 배열 순서는 다를 수 있다.
             foreach (var pose in snapshot.Parts)
             {
+                if (pose.Name != PartSpec.All[0].Name) continue;
                 var spec = PartSpec.Find(pose.Name);
-                var nozzle = pose.Position - origin + pose.Rotation * Vector3.down * (spec != null ? spec.Height * 0.45f : 0.5f);
+                var nozzle = pose.Position - origin + pose.Rotation * Vector3.down * (spec.Height * pose.Scale.y * 0.5f);
                 var jet = NewRoot("Thruster", _flames);
                 jet.localPosition = nozzle;
+                jet.localRotation = pose.Rotation;
                 var fire = MakeShape(PrimitiveType.Sphere, jet, new Vector3(0f, -0.9f, 0f),
                     new Vector3(0.5f, 2.2f, 0.5f), new Color(1f, 0.30f, 0.035f));
                 var core = MakeShape(PrimitiveType.Sphere, jet, new Vector3(0f, -0.45f, -0.19f),
@@ -182,7 +198,8 @@ namespace Metagame.UI
                 if (renderer.GetComponentInParent<WeldBead>() != null
                     && IsBead(renderer.transform, source)) continue;
                 var filter = renderer.GetComponent<MeshFilter>();
-                if (filter == null || filter.sharedMesh == null || !renderer.gameObject.activeInHierarchy) continue;
+                if (filter == null || filter.sharedMesh == null
+                    || (source.gameObject.scene.IsValid() && !renderer.gameObject.activeInHierarchy)) continue;
                 // 고정못·소켓·상호작용 안내는 완성 우주선 메시에서 제외한다.
                 if (renderer.GetComponentInParent<PartClamp>() != null
                     || renderer.GetComponentInParent<PartSocket>() != null) continue;
@@ -208,31 +225,41 @@ namespace Metagame.UI
         void ShowBoarding(float elapsed)
         {
             var entry = new Vector3(0f, 0.1f, _bounds.min.z + 0.3f);
+            var slot = (DemoEnding.BoardingSeconds - DemoEnding.GreetingSeconds) / Mathf.Max(1, _actors.Count);
             for (var i = 0; i < _actors.Count; i++)
             {
-                var progress = Mathf.Clamp01((elapsed - i * 0.45f) / 3f);
+                var startAt = DemoEnding.GreetingSeconds + i * slot;
+                var progress = Mathf.Clamp01((elapsed - startAt) / (slot * 0.9f));
                 var start = new Vector3((i - (_actors.Count - 1) * 0.5f) * 1.1f, 0f, _bounds.min.z - 4f);
                 var foot = Vector3.Lerp(start, entry, progress);
                 _actors[i].Root.gameObject.SetActive(progress < 1f);
-                PoseActor(_actors[i], foot, Quaternion.LookRotation(entry - start), progress < 1f);
+                var walking = elapsed >= startAt && progress < 1f;
+                PoseActor(_actors[i], foot, walking ? Quaternion.LookRotation(entry - start)
+                    : Quaternion.Euler(0f, 180f, 0f), walking,
+                    elapsed < DemoEnding.GreetingSeconds ? i : -1, elapsed);
             }
-            Frame(_bounds.center, Mathf.Max(_bounds.size.magnitude, 10f), new Vector3(-0.6f, 0.3f, -1f));
+            FrameDeparture();
         }
 
         void ShowLaunch(float elapsed)
         {
             var t = Mathf.Clamp01(elapsed / DemoEnding.LaunchSeconds);
-            _ground.gameObject.SetActive(t < 0.25f);
-            _planet.gameObject.SetActive(t > 0.15f);
+            _ground.gameObject.SetActive(true);
+            _planet.gameObject.SetActive(true);
             _flames.gameObject.SetActive(true);
             foreach (var actor in _actors) actor.Root.gameObject.SetActive(false);
             // 원래 상대 배치를 유지한 채 전체 우주선만 위로 가속한다.
-            _ship.localPosition = _launchBase + Vector3.up * (t * t * 70f);
+            var rise = Vector3.up * (4f * t + 320f * t * t * t);
+            _ship.localPosition = _launchBase + rise;
             for (var i = 0; i < _jets.Count; i++)
                 _jets[i].localScale = new Vector3(1f, 1.1f + 0.25f * Mathf.Sin(elapsed * 32f + i), 1f);
-            Frame(_bounds.center + Vector3.up * (t * t * 70f),
-                Mathf.Max(_bounds.size.magnitude, 9f) * (1f + 0.4f * t), new Vector3(-0.55f, 0.15f, -1f));
+            // 출발 지점에 카메라를 고정한다. 회전만 추적하므로 멀어질수록 기체가 작아진다.
+            FrameDeparture();
+            _camera.transform.LookAt(StageOrigin + _bounds.center + rise);
         }
+
+        void FrameDeparture() => Frame(_bounds.center, Mathf.Max(_bounds.size.magnitude, 10f),
+            new Vector3(-0.6f, 0.3f, -1f));
 
         Vector3 _launchBase;
 
@@ -248,7 +275,7 @@ namespace Metagame.UI
             {
                 var foot = new Vector3((i - (_actors.Count - 1) * 0.5f) * 1.1f, 0f, _bounds.min.z - 1.5f);
                 _actors[i].Root.gameObject.SetActive(true);
-                PoseActor(_actors[i], foot, Quaternion.Euler(0f, 180f, 0f), false);
+                PoseActor(_actors[i], foot, Quaternion.Euler(0f, 180f + (i % 3 - 1) * 12f, 0f), false, i, 0f);
                 photoBounds.Encapsulate(new Bounds(foot + Vector3.up * 0.7f, new Vector3(1f, 1.4f, 1f)));
             }
             Frame(photoBounds.center, Mathf.Max(photoBounds.size.magnitude, 7f), new Vector3(0f, 0.14f, -1f));
@@ -260,18 +287,44 @@ namespace Metagame.UI
             _camera.targetTexture = _photo;
             _camera.Render();
             _camera.targetTexture = null;
-            _camera.enabled = false;
+            // 사진과 종료 문구는 OnGUI로 표시하지만 Game View에는 활성 카메라가 필요하다.
+            // 무대는 다시 그리지 않고 검은 배경만 출력해 사진을 그대로 유지한다.
+            _camera.cullingMask = 0;
+            _camera.backgroundColor = Color.black;
         }
 
-        void PoseActor(Doll doll, Vector3 foot, Quaternion facing, bool walking)
+        void PoseActor(Doll doll, Vector3 foot, Quaternion facing, bool walking, int gesture = -1, float elapsed = 0f)
         {
             doll.Teleport(StageOrigin + foot + Vector3.up * RagdollBuilder.HipsY, facing);
+            if (gesture >= 0)
+            {
+                // 키네마틱 표시 인형의 팔을 어깨 중심으로 돌린 후 스킨에 동기화한다.
+                var wave = Mathf.Sin(elapsed * 9f + gesture * 1.3f) * 15f;
+                if (gesture % 3 != 1) RaiseArm(doll.Right, facing, 135f + wave);
+                if (gesture % 3 != 0) RaiseArm(doll.Left, facing, -125f - wave);
+                doll.Head.transform.rotation *= Quaternion.Euler(0f, 0f, (gesture % 3 - 1) * 9f);
+            }
             if (doll.Suit == null) return;
             doll.Suit.Sync();
-            doll.Suit.Locomotion?.Apply(new RabbitLocomotion.State
+            if (gesture < 0) doll.Suit.Locomotion?.Apply(new RabbitLocomotion.State
             {
                 Speed = walking ? 2f : 0f, Grounded = true, Direction = Vector2.up
             }, Time.unscaledDeltaTime);
+        }
+
+        static void RaiseArm(Arm arm, Quaternion facing, float angle)
+        {
+            var shoulder = arm.Upper.transform.position + facing * Vector3.up
+                * ((RagdollBuilder.UpperArmTop - RagdollBuilder.UpperArmBot) * 0.5f);
+            var rotation = Quaternion.AngleAxis(angle, facing * Vector3.forward);
+            RotateLimb(arm.Upper.transform, shoulder, rotation);
+            RotateLimb(arm.Lower.transform, shoulder, rotation);
+            RotateLimb(arm.Hand.Body.transform, shoulder, rotation);
+        }
+
+        static void RotateLimb(Transform limb, Vector3 pivot, Quaternion rotation)
+        {
+            limb.SetPositionAndRotation(pivot + rotation * (limb.position - pivot), rotation * limb.rotation);
         }
 
         void Frame(Vector3 center, float diameter, Vector3 direction)
@@ -318,15 +371,37 @@ namespace Metagame.UI
 
         void OnGUI()
         {
-            if (_ending == null || !_ending.Active || _stage == null) return;
+            if (_ending == null || !_ending.Active || !_ending.PlaybackStarted || _stage == null) return;
+            var savedColor = GUI.color;
+            var savedMatrix = GUI.matrix;
+            var savedDepth = GUI.depth;
             GUI.depth = -900;
             var screen = new Rect(0f, 0f, Screen.width, Screen.height);
             if (_ending.Stage == DemoEndingStage.Photograph && _photo != null)
             {
-                GUI.color = new Color(0.94f, 0.93f, 0.89f);
+                var elapsed = _ending.Elapsed - DemoEnding.BoardingSeconds - DemoEnding.LaunchSeconds;
+                var reveal = Mathf.SmoothStep(0f, 1f, elapsed / 0.65f);
+                var fade = Mathf.SmoothStep(0f, 1f,
+                    (elapsed - (DemoEnding.PhotographSeconds - DemoEnding.FadeSeconds)) / DemoEnding.FadeSeconds);
+                GUI.color = new Color(0.025f, 0.035f, 0.055f);
                 GUI.DrawTexture(screen, Texture2D.whiteTexture);
+                var height = Screen.height * 0.78f * Mathf.Lerp(0.88f, 1f, reveal);
+                var width = Mathf.Min(Screen.width * 0.82f, height * _photo.width / _photo.height);
+                height = width * _photo.height / _photo.width;
+                var border = Mathf.Max(8f, Screen.height * 0.018f);
+                var card = new Rect((Screen.width - width) * 0.5f - border,
+                    (Screen.height - height) * 0.5f - border + (1f - reveal) * Screen.height * 0.12f,
+                    width + border * 2f, height + border * 3.5f);
+                GUIUtility.RotateAroundPivot(Mathf.Lerp(-6f, -2f, reveal), card.center);
+                GUI.color = new Color(0f, 0f, 0f, 0.5f);
+                GUI.DrawTexture(new Rect(card.x + border * 0.6f, card.y + border * 0.8f, card.width, card.height), Texture2D.whiteTexture);
+                GUI.color = new Color(0.96f, 0.95f, 0.91f);
+                GUI.DrawTexture(card, Texture2D.whiteTexture);
                 GUI.color = Color.white;
-                GUI.DrawTexture(new Rect(24f, 24f, Screen.width - 48f, Screen.height - 65f), _photo, ScaleMode.ScaleToFit);
+                GUI.DrawTexture(new Rect(card.x + border, card.y + border, width, height), _photo, ScaleMode.ScaleToFit);
+                GUI.matrix = savedMatrix;
+                GUI.color = new Color(0f, 0f, 0f, fade);
+                GUI.DrawTexture(screen, Texture2D.whiteTexture);
             }
             else if (_ending.Stage >= DemoEndingStage.EndTitle)
             {
@@ -338,9 +413,19 @@ namespace Metagame.UI
                     _font = Font.CreateDynamicFontFromOSFont(new[] { "Malgun Gothic", "Noto Sans CJK KR", "Apple SD Gothic Neo", "Arial" }, 64);
                     _title = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, font = _font, fontSize = 64 };
                     _title.normal.textColor = Color.white;
+                    _timeLabel = new GUIStyle(_title);
                 }
-                GUI.Label(screen, "데모 끝", _title);
+                _title.fontSize = Mathf.Clamp(Mathf.RoundToInt(Screen.height * 0.085f), 24, 80);
+                _timeLabel.fontSize = Mathf.Max(16, _title.fontSize / 3);
+                GUI.color = new Color(1f, 1f, 1f, Mathf.Clamp01((_ending.Elapsed - DemoEnding.TitleStartsAt) / 0.6f));
+                GUI.Label(new Rect(0f, Screen.height * 0.36f, Screen.width, Screen.height * 0.2f), "데모 끝", _title);
+                var duration = TimeSpan.FromSeconds(Math.Floor(_ending.Snapshot.PlayTimeSeconds));
+                GUI.Label(new Rect(0f, Screen.height * 0.57f, Screen.width, Screen.height * 0.08f),
+                    $"플레이 타임  {(long)duration.TotalHours:00}시간 {duration.Minutes:00}분 {duration.Seconds:00}초", _timeLabel);
             }
+            GUI.color = savedColor;
+            GUI.matrix = savedMatrix;
+            GUI.depth = savedDepth;
         }
 
         void OnDestroy()

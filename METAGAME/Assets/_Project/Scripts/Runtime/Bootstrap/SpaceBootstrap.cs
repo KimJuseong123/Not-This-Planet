@@ -207,11 +207,16 @@ namespace Metagame.Bootstrap
             ending.Configure(Session, FindObjectsByType<SpaceshipPart>(FindObjectsSortMode.None),
                 () => !endingNetworked || Mirror.NetworkServer.active,
                 () => endingNetworked ? Mirror.NetworkTime.time : Time.unscaledTimeAsDouble,
-                CaptureEndingPlayers);
+                CaptureEndingPlayers,
+                () => NetworkSession.Instance != null && NetworkSession.Instance.CurrentRoom != null
+                    ? NetworkSession.Instance.RoomPlayTimeSeconds : Session.Elapsed);
             foreach (var hatch in FindObjectsByType<ShipHatch>(FindObjectsSortMode.None)) hatch.enabled = false;
             foreach (var launch in FindObjectsByType<LaunchTest>(FindObjectsSortMode.None)) launch.enabled = false;
+            EndingSceneFlow.Ensure().Watch(ending);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (!MatchRole.DedicatedServer)
-                sys.AddComponent<DemoEndingView>().Configure(ending, () => LobbyTransition.Ensure().BeginTitle());
+                sys.AddComponent<EndingDebugShortcut>().Configure(Session, ending, PauseMenu, endingNetworked);
+#endif
 
             var beams = FindObjectsByType<TractorBeam>(FindObjectsSortMode.None);
 

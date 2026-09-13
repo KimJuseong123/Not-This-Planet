@@ -9,6 +9,7 @@
     "Metagame.Bootstrap",
     "Metagame.Network",
     "Metagame.UI",
+    "Mirror",
     "UnityEngine.UI",
     "Unity.RenderPipelines.Universal.Runtime",
     "Metagame.Editor"

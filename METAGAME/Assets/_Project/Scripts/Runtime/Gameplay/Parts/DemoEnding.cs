@@ -11,6 +11,7 @@ namespace Metagame.Gameplay.Parts
     public sealed class DemoEndingSnapshot
     {
         public double StartedAt;
+        public double PlayTimeSeconds;
         public DemoEndingPart[] Parts;
         public DemoEndingPlayer[] Players;
     }
@@ -37,9 +38,12 @@ namespace Metagame.Gameplay.Parts
     /// <summary>비드 연결 성공과 되돌릴 수 없는 데모 엔딩. Mirror/UI 의존성은 없다.</summary>
     public sealed class DemoEnding : MonoBehaviour
     {
-        public const float BoardingSeconds = 5f;
-        public const float LaunchSeconds = 7f;
-        public const float PhotographSeconds = 4f;
+        public const string ScenePath = "Assets/Scenes/Stage1_Ending.unity";
+        public const float GreetingSeconds = 2f;
+        public const float BoardingSeconds = 8f;
+        public const float LaunchSeconds = 5f;
+        public const float PhotographSeconds = 5f;
+        public const float FadeSeconds = 1.5f;
         public const float EndTitleSeconds = 3f;
         public const float TitleStartsAt = BoardingSeconds + LaunchSeconds + PhotographSeconds;
         public const float TotalSeconds = TitleStartsAt + EndTitleSeconds;
@@ -49,6 +53,7 @@ namespace Metagame.Gameplay.Parts
         Func<double> _clock;
         Func<DemoEndingPlayer[]> _players;
         Func<bool> _authority;
+        Func<double> _playTime;
         readonly List<SpaceshipPart> _visited = new(4);
 
         public DemoEndingSnapshot Snapshot { get; private set; }
@@ -57,15 +62,26 @@ namespace Metagame.Gameplay.Parts
         public DemoEndingStage Stage => Active ? StageAt(Elapsed) : DemoEndingStage.Playing;
         public bool Finished => Stage == DemoEndingStage.Lobby;
         public IReadOnlyList<SpaceshipPart> Parts => _parts;
+        public bool PlaybackStarted => Active && _clock() >= Snapshot.StartedAt;
+
+        /// <summary>엔딩 전용 씬에서는 게임 세션이나 물리 파츠 없이 스냅샷만 재생한다.</summary>
+        public void ConfigurePlayback(DemoEndingSnapshot snapshot, Func<double> clock)
+        {
+            Snapshot = snapshot;
+            _clock = clock;
+            _parts = Array.Empty<SpaceshipPart>();
+            enabled = false;
+        }
 
         public void Configure(GameSession session, SpaceshipPart[] parts, Func<bool> authority,
-            Func<double> clock, Func<DemoEndingPlayer[]> players)
+            Func<double> clock, Func<DemoEndingPlayer[]> players, Func<double> playTime = null)
         {
             _session = session;
             _parts = parts;
             _authority = authority;
             _clock = clock;
             _players = players;
+            _playTime = playTime;
             session.Ending = this;
         }
 
@@ -105,6 +121,58 @@ namespace Metagame.Gameplay.Parts
 
         void LateUpdate() => TryComplete();
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        /// <summary>개발자 확인 후 실제 파츠와 접합을 구성하고 정상 성공 판정으로 들어간다.</summary>
+        public bool DebugAssembleAndComplete()
+        {
+            if (_authority == null || !_authority() || Active || _session == null || _session.Cleared
+                || (_session.Recovery != null && _session.Recovery.ResetPending)
+                || _parts == null || _parts.Length != PartSpec.All.Length) return false;
+            var participants = _players?.Invoke();
+            if (participants == null || participants.Length == 0) return false;
+            var ordered = new SpaceshipPart[PartSpec.All.Length];
+            for (var i = 0; i < ordered.Length; i++)
+            {
+                foreach (var part in _parts)
+                    if (part != null && part.name == PartSpec.All[i].Name)
+                    {
+                        if (ordered[i] != null) return false;
+                        ordered[i] = part;
+                    }
+                if (ordered[i] == null) return false;
+            }
+            var origin = ordered[0].transform.position;
+            origin.y -= PartSpec.All[0].Height * Mathf.Abs(ordered[0].transform.lossyScale.y) * 0.5f;
+            var height = 0f;
+            for (var i = 0; i < ordered.Length; i++)
+            {
+                var body = ordered[i].GetComponent<Rigidbody>();
+                if (!body.isKinematic) { body.linearVelocity = Vector3.zero; body.angularVelocity = Vector3.zero; }
+                body.isKinematic = true;
+                var partHeight = PartSpec.All[i].Height * Mathf.Abs(ordered[i].transform.lossyScale.y);
+                var position = origin + Vector3.up * (height + partHeight * 0.5f);
+                ordered[i].transform.SetPositionAndRotation(position, Quaternion.identity);
+                body.position = position;
+                body.rotation = Quaternion.identity;
+                height += partHeight;
+            }
+            for (var i = 1; i < ordered.Length; i++)
+            {
+                var link = PartAssemblyLink.FindBetween(ordered[i - 1], ordered[i]);
+                if (link == null || !link.IsIntact)
+                {
+                    var joint = ordered[i].gameObject.AddComponent<FixedJoint>();
+                    joint.connectedBody = ordered[i - 1].GetComponent<Rigidbody>();
+                    link = ordered[i].gameObject.AddComponent<PartAssemblyLink>();
+                    link.BindBeadWeld(ordered[i], ordered[i - 1], joint);
+                }
+                link.SetBeadWeldRatio(1f);
+            }
+            Debug.Log("[DemoEnding] 개발자 F12 테스트: 파츠를 조립하고 정상 엔딩 경로를 실행합니다.");
+            return TryComplete();
+        }
+#endif
+
         public bool TryComplete()
         {
             if (!_authority() || Active || _session == null || _session.Cleared
@@ -114,7 +182,8 @@ namespace Metagame.Gameplay.Parts
             if (players == null || players.Length == 0) return false;
             var snapshot = new DemoEndingSnapshot
             {
-                StartedAt = _clock(), Players = players, Parts = new DemoEndingPart[_parts.Length]
+                StartedAt = _clock(), PlayTimeSeconds = Math.Max(0d, _playTime?.Invoke() ?? _session.Elapsed),
+                Players = players, Parts = new DemoEndingPart[_parts.Length]
             };
             for (var i = 0; i < _parts.Length; i++)
             {

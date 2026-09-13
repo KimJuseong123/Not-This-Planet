@@ -33,6 +33,9 @@ namespace Metagame.Network
         public string Nickname { get; private set; } = string.Empty;
         public string CurrentRoomId { get; private set; } = string.Empty;
         public RoomSnapshot CurrentRoom { get; private set; }
+        double roomTimerStartedAt = -1d;
+        public double RoomPlayTimeSeconds => roomTimerStartedAt < 0d ? 0d
+            : Math.Max(0d, Time.realtimeSinceStartupAsDouble - roomTimerStartedAt);
         public bool IsLocalReady { get; private set; }
         public string ServerAddress { get; private set; } = DefaultServerAddress;
 
@@ -502,6 +505,7 @@ namespace Metagame.Network
 
         private void ClearRoomState()
         {
+            roomTimerStartedAt = -1d;
             CurrentRoomId = string.Empty;
             CurrentRoom = null;
             IsLocalReady = false;
@@ -645,9 +649,14 @@ namespace Metagame.Network
             switch (message.type)
             {
                 case "ROOM_CREATED":
+                    roomTimerStartedAt = Time.realtimeSinceStartupAsDouble;
                     CurrentRoomId = data.roomId ?? string.Empty;
                     break;
                 case "ROOM_STATE":
+                    // 같은 방의 상태 갱신/준비/재시작에는 유지하고 새 방 또는 방장 교체에만 리셋한다.
+                    if (roomTimerStartedAt < 0d || (CurrentRoom != null
+                        && (CurrentRoomId != data.roomId || CurrentRoom.HostUserId != data.hostUserId)))
+                        roomTimerStartedAt = Time.realtimeSinceStartupAsDouble;
                     CurrentRoomId = data.roomId ?? CurrentRoomId;
                     CurrentRoom = new RoomSnapshot(data);
                     PlayerSnapshot local;
