@@ -199,9 +199,46 @@ public static class SelfCheck
         if (DevMode.Choose(new VersionList { Schema = 1 }, new[] { "--dev" }) is not null)
         { Console.WriteLine("  ❌ 빈 목록인데 무언가를 골랐다"); fail++; }
 
+        // ── ⑦ 채널 (S15P21B202-460) ──────────────────────────────────────
+        //
+        // 개발 목록(dev·qa)과 배포 목록을 합쳐 고른다. **개발 목록이 앞**이라야
+        // Enter(= 최신)가 "방금 develop" 을 고른다 — 개발 모드에서 가장 자주 쓰는 것이다.
+        var mixed = new VersionList
+        {
+            Schema = 1,
+            Versions = new()
+            {
+                new() { Version = "dev-20260915-2b3c4d5", Channel = "dev",
+                        Branch = "develop", Commit = "2b3c4d5", Files = 3, TotalBytes = 3 },
+                new() { Version = "qa-401-3c4d5e6", Channel = "qa",
+                        Branch = "S15P21B202-401-x", Commit = "3c4d5e6", Files = 3, TotalBytes = 3 },
+                new() { Version = "v1.0.0", Channel = "release", Files = 3, TotalBytes = 3 },
+            },
+        };
+        // 릴리스도 **같은 화면에서** 고를 수 있어야 한다 — "이 버그가 v1.0.0 에도 있었나".
+        if (DevMode.Choose(mixed, new[] { "--dev", "--version", "v1.0.0" }) != "v1.0.0")
+        { Console.WriteLine("  ❌ 섞인 목록에서 릴리스를 고르지 못했다"); fail++; }
+        if (DevMode.Choose(mixed, new[] { "--dev", "--version", "qa-401-3c4d5e6" }) != "qa-401-3c4d5e6")
+        { Console.WriteLine("  ❌ 섞인 목록에서 qa 빌드를 고르지 못했다"); fail++; }
+
+        // 목록에 **무엇으로 만든 빌드인지**가 보여야 한다. 이것이 비면 버전 문자열만
+        // 남아서 "이거 언제 코드예요?" 를 매번 사람에게 물어야 한다.
+        if (mixed.Versions[0].Origin != "develop @ 2b3c4d5")
+        { Console.WriteLine($"  ❌ dev 빌드의 출처 표시가 이상하다: {mixed.Versions[0].Origin}"); fail++; }
+        if (mixed.Versions[2].Origin != "릴리스")
+        { Console.WriteLine($"  ❌ 릴리스의 출처 표시가 이상하다: {mixed.Versions[2].Origin}"); fail++; }
+        // 옛 목록(채널·브랜치가 없던 것)도 그대로 읽혀야 한다 — 서버가 먼저 바뀌지 않는다.
+        if (new VersionList.Entry { Version = "v1.0.0" }.Origin != "릴리스")
+        { Console.WriteLine("  ❌ 옛 목록 항목의 출처 표시가 깨졌다"); fail++; }
+
+        // **배포 런처가 보는 파일과 개발 목록이 달라야 한다.** 같아지면 일반 사용자에게
+        // dev 빌드가 보이고, 그것을 받아 가면 우리가 모르는 조합이 생긴다.
+        if (DevMode.DevListName == DevMode.ReleaseListName)
+        { Console.WriteLine("  ❌ 개발 목록과 배포 목록이 같은 파일이다"); fail++; }
+
         Console.WriteLine($"  (이 런처: {SelfUpdate.MyVersion})");
         Console.WriteLine(fail == 0
-            ? "✅ 자체 검사 통과 — 경로·해시·매니페스트·버전·개발 모드 판정"
+            ? "✅ 자체 검사 통과 — 경로·해시·매니페스트·버전·개발 모드·채널 판정"
             : $"❌ 자체 검사 실패 {fail}건");
         return fail == 0 ? 0 : 1;
     }

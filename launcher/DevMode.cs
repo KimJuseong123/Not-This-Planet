@@ -15,6 +15,22 @@ public sealed class VersionList
         [JsonPropertyName("createdAt")] public string CreatedAt { get; set; } = "";
         [JsonPropertyName("totalBytes")] public long TotalBytes { get; set; }
         [JsonPropertyName("files")] public int Files { get; set; }
+
+        /// <summary><c>release</c> · <c>dev</c> · <c>qa</c> (S15P21B202-460). 옛 목록에는 없다.</summary>
+        [JsonPropertyName("channel")] public string Channel { get; set; } = "";
+
+        /// <summary>
+        /// 무엇으로 만든 빌드인지 (S15P21B202-460). 버전 문자열만으로는 알 수 없어서
+        /// "이거 언제 코드예요?" 를 매번 사람에게 물어야 했다.
+        /// </summary>
+        [JsonPropertyName("branch")] public string Branch { get; set; } = "";
+        [JsonPropertyName("commit")] public string Commit { get; set; } = "";
+
+        /// <summary>목록에 한 줄로 보일 설명. 릴리스는 그냥 "릴리스" 다.</summary>
+        public string Origin =>
+            Branch.Length == 0 && Commit.Length == 0
+                ? (Channel.Length == 0 || Channel == "release" ? "릴리스" : Channel)
+                : (Commit.Length == 0 ? Branch : $"{Branch} @ {Commit}");
     }
 }
 
@@ -60,11 +76,39 @@ public static class DevMode
         return args[i + 1];
     }
 
+    /// <summary>개발 목록 — develop 새벽 빌드와 MR 버튼 빌드가 여기 담긴다.</summary>
+    public const string DevListName = "dev-versions.json";
+
+    /// <summary>배포 목록 — <b>배포 런처가 보는 것은 이것뿐이다.</b></summary>
+    public const string ReleaseListName = "versions.json";
+
+    /// <summary>
+    /// 고를 수 있는 것을 전부 모은다 (S15P21B202-460).
+    ///
+    /// <para><b>두 파일을 읽는다.</b> 개발 목록(dev·qa)이 먼저고 그다음이 릴리스다 —
+    /// 개발 모드에서 가장 자주 고르는 것이 "방금 develop" 이기 때문이다. "이 버그가
+    /// v1.0.0 에도 있었나" 도 같은 화면에서 된다.</para>
+    ///
+    /// <para><b>개발 목록이 없어도 동작한다.</b> 그 파일이 생기기 전 서버에서는 404 가
+    /// 나는데, 그때는 릴리스만 보이면 된다 — 예전과 같은 화면이다.</para>
+    /// </summary>
     public static async Task<VersionList?> Fetch(HttpClient http, string baseUrl)
+    {
+        var dev = await FetchOne(http, $"{baseUrl}/{DevListName}");
+        var rel = await FetchOne(http, $"{baseUrl}/{ReleaseListName}");
+        if (dev is null && rel is null) return null;
+
+        var merged = new VersionList { Schema = rel?.Schema ?? dev?.Schema ?? 1 };
+        if (dev is not null) merged.Versions.AddRange(dev.Versions);
+        if (rel is not null) merged.Versions.AddRange(rel.Versions);
+        return merged;
+    }
+
+    static async Task<VersionList?> FetchOne(HttpClient http, string url)
     {
         try
         {
-            using var req = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/versions.json");
+            using var req = new HttpRequestMessage(HttpMethod.Get, url);
             req.Headers.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue { NoCache = true };
             using var res = await http.SendAsync(req);
             if (res.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
@@ -75,7 +119,7 @@ public static class DevMode
         }
         catch (Exception e)
         {
-            Console.WriteLine($"⚠ 버전 목록을 읽지 못했다: {e.GetType().Name}");
+            Console.WriteLine($"⚠ 버전 목록을 읽지 못했다({url.Split('/')[^1]}): {e.GetType().Name}");
             return null;
         }
     }
@@ -116,7 +160,9 @@ public static class DevMode
         {
             var v = list.Versions[i];
             var when = v.CreatedAt.Length >= 10 ? v.CreatedAt[..10] : v.CreatedAt;
-            Console.WriteLine($"  [{i + 1}] {v.Version,-10} {when,-12} "
+            // **무엇으로 만든 빌드인지 같이 보인다** (S15P21B202-460). 버전 문자열만
+            // 보이면 `dev-20260915-2b3c4d5` 가 어느 코드인지 사람에게 물어야 한다.
+            Console.WriteLine($"  [{i + 1}] {v.Version,-22} {when,-11} {v.Origin,-24} "
                               + $"{v.Files}개 · {v.TotalBytes / 1048576.0:0.0} MB"
                               + (i == 0 ? "   ← 최신" : ""));
         }
