@@ -23,29 +23,54 @@ namespace Metagame.Gameplay.Tests
         {
             // 회귀 검사. 고치려는 것은 더러운 경우이고, 깨끗한 경우는 지금 그대로여야 한다.
             Assert.AreEqual("20d8835",
-                BuildStamp.SourceLabel("20d8835", "", "", ""),
+                BuildStamp.SourceLabel("20d8835", "", "", "", ""),
                 "깨끗한 작업 트리에서 해시가 사라졌다");
         }
 
         [Test]
-        public void OverwritingWithAnotherCommitDoesNotStampHead()
+        public void OverwritingWithAnotherCommitStampsThatCommitNotHead()
         {
             // `git checkout <커밋> -- METAGAME/` 는 **인덱스까지** 그 커밋으로 바꾼다.
             // 그래서 "작업 트리 ↔ 인덱스" 는 같고 "인덱스 ↔ HEAD" 만 다르다.
             // 이 상태에서 HEAD 해시를 찍으면 그것이 바로 2026-09-10 의 거짓말이다.
+            //
+            // **찾았으면 그 커밋을 찍는다.** 그 빌드는 재현할 수 있다 —
+            // `git checkout 0fede8e -- METAGAME/` 이면 같은 것이 나온다. 완료 조건의
+            // "라벨 없이 첫 줄만으로 기준을 안다" 가 이것이다.
             var got = BuildStamp.SourceLabel(
                 "20d8835",
                 worktree: "",
                 staged: "Assets/_Project/Scripts/Runtime/A.cs\nAssets/_Project/Scripts/Runtime/B.cs",
-                untracked: "");
+                untracked: "",
+                overwrittenFrom: "0fede8e");
 
             Assert.That(got, Does.Not.Contain("20d8835"),
                 "빌드된 것이 HEAD 가 아닌데 HEAD 해시를 찍는다");
-            Assert.That(got, Does.Contain("재현불가"),
-                "재현할 수 없다는 사실을 적지 않는다");
-            Assert.That(got, Does.Contain("덮음"),
-                "'다른 커밋을 덮었다' 와 '손으로 고쳤다' 를 구별하지 않는다");
-            Assert.That(got, Does.Contain("2"), "몇 개가 다른지 적지 않는다");
+            Assert.That(got, Does.Contain("0fede8e"),
+                "덮어쓴 커밋을 찾았는데 찍지 않는다 — 라벨 없이는 기준을 알 수 없게 된다");
+            Assert.That(got, Does.Not.Contain("재현불가"),
+                "커밋으로 재현할 수 있는데 재현 불가라고 적는다");
+        }
+
+        [Test]
+        public void AStagedChangeThatMatchesNoCommitIsNotCalledAnOverwrite()
+        {
+            // 평소에 `git add` 만 해 둔 상태도 "인덱스 ↔ HEAD 다름" 이다. 그것을
+            // "다른 커밋을 덮었다" 로 단정하면 이 표시가 **또** 부정확해진다
+            // (`!384` 리뷰가 짚었다). 찾지 못했으면 **관찰한 사실만** 적는다.
+            var got = BuildStamp.SourceLabel(
+                "20d8835",
+                worktree: "",
+                staged: "Assets/_Project/Scripts/Runtime/A.cs",
+                untracked: "",
+                overwrittenFrom: "");
+
+            Assert.That(got, Does.Not.Contain("20d8835"),
+                "인덱스가 HEAD 와 다른데 HEAD 해시를 찍는다");
+            Assert.That(got, Does.Contain("재현불가"), got);
+            Assert.That(got, Does.Not.Contain("덮"),
+                "어느 커밋인지 모르면서 '덮었다' 고 단정한다");
+            Assert.That(got, Does.Contain("1"), "몇 개가 다른지 적지 않는다");
         }
 
         [Test]
@@ -53,13 +78,17 @@ namespace Metagame.Gameplay.Tests
         {
             // 손으로 고친 것은 **어느 커밋에도 없다.** 덮어쓴 것보다 강한 이야기이므로
             // 둘이 겹치면 이쪽을 말한다.
-            var edited = BuildStamp.SourceLabel("20d8835", "Assets/_Project/Scripts/Runtime/A.cs", "", "");
+            var edited = BuildStamp.SourceLabel("20d8835", "Assets/_Project/Scripts/Runtime/A.cs", "", "", "");
             Assert.That(edited, Does.Contain("수정"), edited);
-            Assert.That(edited, Does.Not.Contain("덮음"), edited);
+            Assert.That(edited, Does.Not.Contain("덮"), edited);
 
-            var both = BuildStamp.SourceLabel("20d8835", "Assets/A.cs", "Assets/B.cs", "");
+            // 겹치면 **손으로 고친 쪽**이 이긴다. 덮어쓴 커밋을 찾았더라도 그 위에 손을
+            // 댔으면 그 커밋으로 재현되지 않는다 — 해시를 찍으면 다시 거짓말이 된다.
+            var both = BuildStamp.SourceLabel("20d8835", "Assets/A.cs", "Assets/B.cs", "", "0fede8e");
             Assert.That(both, Does.Contain("수정"),
                 "덮어쓴 것과 손으로 고친 것이 겹칠 때 약한 쪽을 말한다");
+            Assert.That(both, Does.Not.Contain("0fede8e"),
+                "손댄 코드인데 덮어쓴 커밋의 해시를 찍는다 — 재현되지 않는다");
         }
 
         [Test]
@@ -67,7 +96,7 @@ namespace Metagame.Gameplay.Tests
         {
             // 추적되지 않는 파일도 **빌드에 들어간다.** `git diff` 에는 안 나오므로
             // 따로 세지 않으면 그 빌드가 재현 가능한 것처럼 보인다.
-            var got = BuildStamp.SourceLabel("20d8835", "", "", "Assets/_Project/Art/New.png");
+            var got = BuildStamp.SourceLabel("20d8835", "", "", "Assets/_Project/Art/New.png", "");
 
             Assert.That(got, Does.Not.Contain("20d8835"),
                 "추적되지 않는 파일이 섞였는데 해시를 찍는다");
@@ -79,7 +108,7 @@ namespace Metagame.Gameplay.Tests
         {
             // git 이 없거나 저장소가 아니면 `Git()` 이 빈 문자열을 준다. 그때 빈 해시를
             // 찍으면 첫 줄이 `2026-09-10 14:55 ·  · develop` 처럼 깨진다.
-            Assert.AreEqual("커밋 모름", BuildStamp.SourceLabel("", "", "", ""));
+            Assert.AreEqual("커밋 모름", BuildStamp.SourceLabel("", "", "", "", ""));
         }
 
         [Test]
@@ -115,6 +144,12 @@ namespace Metagame.Gameplay.Tests
             // 사라졌는지를 본다 — 그것이 이 검사가 지키려는 것이다.
             Assert.That(src, Does.Not.Contain("Append(\" · +커밋안한변경\")"),
                 "두 경우를 한 문구로 뭉쳐 붙이던 코드가 남아 있다");
+
+            // 덮어쓴 커밋을 찾는 일은 **손으로 고친 것이 없을 때만** 한다 — 손댄 코드는
+            // 어느 커밋으로도 재현되지 않으므로 찾아 봐야 의미가 없고, git 을 최대
+            // 120번 부르는 비용만 든다.
+            Assert.That(src, Does.Contain("SearchDepth"),
+                "덮어쓴 커밋을 찾는 범위에 상한이 없다 — 저장소 역사 전체를 훑게 된다");
         }
     }
 }

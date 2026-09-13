@@ -61,7 +61,13 @@ namespace Metagame.EditorTools
             string worktree = Git("diff --name-only -- .");          // 작업 트리 ↔ 인덱스
             string staged = Git("diff --cached --name-only -- .");   // 인덱스 ↔ HEAD
             string untracked = Git("ls-files --others --exclude-standard -- .");
-            string source = SourceLabel(Git("rev-parse --short HEAD"), worktree, staged, untracked);
+            // 손으로 고친 것이 없고 인덱스만 HEAD 와 다르면 **어느 커밋을 덮었는지 찾는다.**
+            // 찾으면 그 빌드는 재현 가능하다 — `git checkout <그 커밋> -- METAGAME/` 이면 된다.
+            string from = (string.IsNullOrEmpty(worktree) && string.IsNullOrEmpty(untracked)
+                           && !string.IsNullOrEmpty(staged))
+                          ? OverwrittenFrom()
+                          : string.Empty;
+            string source = SourceLabel(Git("rev-parse --short HEAD"), worktree, staged, untracked, from);
 
             var line = new System.Text.StringBuilder(when);
             line.Append(" · ").Append(source);
@@ -110,25 +116,71 @@ namespace Metagame.EditorTools
         /// <para><b>순수 함수다</b> — git 을 부르지 않는다. 세 경우를 검사로 잠그기 위해서고,
         /// 검사가 git 인덱스를 실제로 흔들면 저장소를 더럽힌다.</para>
         ///
-        /// <para><b>두 가지 더러움을 가른다</b> (S15P21B202-398). 예전에는 둘 다
+        /// <para><b>세 가지를 가른다</b> (S15P21B202-398). 예전에는 전부
         /// <c>+커밋안한변경</c> 한 문구였는데 뜻이 아주 다르다:</para>
         /// <list type="bullet">
-        /// <item><b>덮어씀</b> — 작업 트리는 인덱스와 같은데 인덱스가 HEAD 와 다르다.
-        /// <c>git checkout &lt;커밋&gt; -- METAGAME/</c> 를 한 모양이다. 빌드된 것은
-        /// <b>HEAD 가 아닌 다른 커밋</b>이다</item>
-        /// <item><b>수정</b> — 손으로 고친 것이 섞였다. 어느 커밋으로도 재현되지 않는다</item>
+        /// <item><b>수정</b> — 손으로 고친 것이 섞였다. <b>어느 커밋으로도 재현되지 않는다.</b>
+        /// 가장 강한 이야기이므로 겹치면 이쪽을 말한다</item>
+        /// <item><b>덮어씀(커밋을 찾음)</b> — 인덱스가 어느 커밋의 <c>METAGAME/</c> 과 똑같다.
+        /// <c>git checkout &lt;그 커밋&gt; -- METAGAME/</c> 로 <b>재현할 수 있다</b> —
+        /// 그래서 그 해시를 찍는다. 라벨(<c>SPACE_EXPERIMENT</c>) 없이도 첫 줄만으로
+        /// 기준을 알 수 있어야 한다는 것이 이 이슈의 완료 조건이다</item>
+        /// <item><b>인덱스가 HEAD 와 다름(못 찾음)</b> — <c>git add</c> 만 해 둔 상태도
+        /// 여기 들어온다. <b>단정하지 않고 관찰한 사실만</b> 적는다(<c>!384</c> 리뷰가
+        /// 짚었다 — "덮어씀" 으로 단정하면 이 표시가 또 부정확해진다)</item>
         /// </list>
         /// </summary>
-        public static string SourceLabel(string headShort, string worktree, string staged, string untracked)
+        public static string SourceLabel(string headShort, string worktree, string staged,
+                                         string untracked, string overwrittenFrom)
         {
             int edited = CountLines(worktree) + CountLines(untracked);
-            int overwritten = CountLines(staged);
+            int staged_ = CountLines(staged);
 
             // 손으로 고친 것이 하나라도 있으면 그것이 더 강한 이야기다 — 어느 커밋에도 없다.
             if (edited > 0) return "작업트리(재현불가·수정 " + edited + "개)";
-            if (overwritten > 0) return "작업트리(재현불가·다른 커밋을 덮음 " + overwritten + "개)";
+
+            if (staged_ > 0)
+            {
+                // 어느 커밋을 덮었는지 찾았다 = **재현할 수 있다.** 해시를 찍는 것이 맞다.
+                if (!string.IsNullOrEmpty(overwrittenFrom))
+                    return overwrittenFrom + "(덮어씀)";
+
+                return "작업트리(재현불가·인덱스가 HEAD 와 다름 " + staged_ + "개)";
+            }
 
             return string.IsNullOrEmpty(headShort) ? "커밋 모름" : headShort;
+        }
+
+        /// <summary>몇 개의 커밋까지 거슬러 보며 찾을지. 2026-09-10 사례는 61커밋 뒤였다.</summary>
+        const int SearchDepth = 120;
+
+        /// <summary>
+        /// 인덱스의 <c>METAGAME/</c> 이 <b>어느 커밋</b>의 것과 같은가. 못 찾으면 빈 문자열.
+        ///
+        /// <para><c>git checkout &lt;커밋&gt; -- METAGAME/</c> 는 <b>인덱스까지</b> 그 커밋으로
+        /// 바꾼다. 그래서 최근 커밋을 훑으며 <c>git diff --cached &lt;커밋&gt; -- .</c> 가 비는
+        /// 곳을 찾으면 그것이 덮어쓴 커밋이다.</para>
+        ///
+        /// <para><b>비용은 커밋 하나에 git 한 번</b>이다. 빌드는 몇 분짜리이고 이것은 한 번만
+        /// 도므로 감당된다. 대신 <see cref="SearchDepth"/> 로 상한을 둔다 — 못 찾는 경우에
+        /// 저장소 역사 전체를 훑으면 안 된다.</para>
+        /// </summary>
+        static string OverwrittenFrom()
+        {
+            string head = Git("rev-parse --short HEAD");
+            foreach (var raw in Git("log --format=%h -n " + SearchDepth).Split('\n'))
+            {
+                string sha = raw.Trim();
+                if (sha.Length == 0) continue;
+
+                // **HEAD 가 나오면 무언가 잘못된 것이다.** 여기 온 것은 인덱스가 HEAD 와
+                // 다르기 때문인데, 그렇다면 HEAD 와 같을 리가 없다. `Git()` 이 실패를
+                // 빈 문자열로 돌려주므로 그 경우를 "같다" 로 읽지 않게 막는다.
+                if (sha == head) continue;
+
+                if (string.IsNullOrEmpty(Git("diff --cached --name-only " + sha + " -- ."))) return sha;
+            }
+            return string.Empty;
         }
 
         /// <summary>빈 줄을 뺀 줄 수. git 의 `--name-only` 출력은 파일 하나에 한 줄이다.</summary>
