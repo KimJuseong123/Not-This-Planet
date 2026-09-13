@@ -208,6 +208,18 @@ with tempfile.TemporaryDirectory() as tmp:
     #     하위 폴더는 정당하다 — `manifest/` 아래를 가리킬 수 있어야 한다
     assert cfg('downloadUrl: "/builds/manifest/v1.0.0.json"') == "manifest/v1.0.0.json"
 
+    #     **줄 끝 주석도 뗀다** (`!394` 3차 리뷰). 줄 전체가 주석인 것만 걸러서는
+    #     `version: "1.0" // 옛 downloadUrl: "…"` 의 옛 값이 살아남는다.
+    assert cfg('version: "1.0" // downloadUrl: "/builds/old.zip"\n'
+               'downloadUrl: "/builds/new.exe"') == "new.exe", \
+        "코드 뒤에 붙은 주석의 옛 값을 잡는다"
+
+    #     **그렇다고 `//` 를 통째로 지우면 `https://` 가 잘린다.** 그러면 외부 주소가
+    #     깨진 값이 되어 **배포가 오탐으로 멈춘다** — 막으려던 것과 반대다.
+    assert cfg('downloadUrl: "https://example.com/x.exe"') is None, \
+        "외부 https 주소를 못 읽음으로 본다 — 주석 제거가 문자열 안까지 자른다"
+    assert PS.strip_line_comment('downloadUrl: "https://a/b"') == 'downloadUrl: "https://a/b"'
+
     #     파일이 아예 없으면 None
     os.remove(os.path.join(site, "release-config.js"))
     assert PS.download_target(site) is None

@@ -60,6 +60,29 @@ KEY_RE = re.compile(r"\bdownloadUrl\s*:")
 BUILDS_PREFIX = "/builds/"
 
 
+def strip_line_comment(line: str) -> str:
+    """줄 끝 `//` 주석을 뗀다. **문자열 안의 `//` 는 건드리지 않는다.**
+
+    줄 전체가 주석인 것만 걸러서는 부족하다 (`!394` 3차 리뷰) —
+    `version: "1.0"  // 옛 downloadUrl: "/builds/old.zip"` 처럼 **코드 뒤에 붙은**
+    주석의 옛 값이 살아남고, 그 줄이 진짜 키보다 위에 있으면 그것을 잡는다.
+
+    그렇다고 `//` 를 통째로 지우면 **`https://` 가 잘린다.** 그러면 외부 주소를 쓴
+    `downloadUrl`·`feedbackUrl` 이 깨진 값이 되어 **배포가 오탐으로 멈춘다** — 막으려던
+    것(조용한 통과)이 아니라 엉뚱한 정지다. 그래서 따옴표 밖의 `//` 만 자른다.
+    """
+    quote = ""
+    for i, c in enumerate(line):
+        if quote:
+            if c == quote:
+                quote = ""
+        elif c in "\"'":
+            quote = c
+        elif c == "/" and line[i + 1:i + 2] == "/":
+            return line[:i]
+    return line
+
+
 def download_target(site_dir: str) -> object:
     """`release-config.js` 의 `downloadUrl` 이 `/builds/` 아래 무엇을 가리키나.
 
@@ -88,7 +111,7 @@ def download_target(site_dir: str) -> object:
     # 줄이 살아남는다(리뷰가 짚었다). 반대로 살아 있는 값 줄 앞에 `*` 가 붙어 있으면
     # 키를 통째로 놓쳐 **검사가 꺼진다** — 이 함수가 막으려던 바로 그 모양이다.
     live = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
-    live = "\n".join(l for l in live.splitlines() if not l.lstrip().startswith("//"))
+    live = "\n".join(strip_line_comment(l) for l in live.splitlines())
 
     m = URL_RE.search(live)
     if not m:
