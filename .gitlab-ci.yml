@@ -675,6 +675,11 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
     # 2) Windows 빌드. unity-editor 래퍼가 xvfb·-batchmode 를 붙인다. 실패해도 여기서 죽지 않고 3) 이 🔴 를 보낸다
     - echo "=== Windows 빌드 시작 ($(cat release-version.txt)) ==="
     - date -u +"시작 %H:%M:%S UTC"
+    # **빌드에 릴리스 버전을 넘긴다** (S15P21B202-404). `BuildStamp` 가 이 값을 `버전=` 줄로
+    # 박고 서버가 그것으로 구버전을 막는다. 위 `publish_release.py version` 이 이미 정해 둔
+    # 값을 그대로 쓴다 — 빌드 쪽에서 태그를 다시 읽으면 두 곳이 어긋나고, 어긋난 버전은
+    # **게이트를 조용히 무력화**한다.
+    - export SPACE_RELEASE_VERSION="$(cat release-version.txt)"
     - |
       set +e
       unity-editor \
