@@ -157,6 +157,25 @@ with tempfile.TemporaryDirectory() as tmp:
     assert cfg("downloadUrl: `/builds/x.exe`") is PS.UNREADABLE, \
         "downloadUrl 이 있는데 못 읽었을 때 '볼 것 없음' 으로 떨어진다 — 검사가 조용히 꺼진다"
 
+    #     **`/builds/` 만 있으면 가리키는 파일이 없다** (`!393` 리뷰). 예전에는 빈
+    #     문자열이 돌아가 부르는 쪽의 `if want:` 에서 falsy 로 떨어져 **아무 검사도
+    #     없이 배포됐다** — 이 MR 이 막으려던 바로 그 모양이 안쪽에 하나 더 있었다.
+    assert cfg('downloadUrl: "/builds/"') is PS.UNREADABLE, \
+        "/builds/ 만 적혀 있는데 검사 없이 통과한다"
+
+    #     **센티널이 값 공간과 겹치면 안 된다** (`!393` 리뷰). 예전에는 `"?"` 였고,
+    #     `downloadUrl` 이 `/builds/?` 면 잘라 낸 결과가 같아져 **멀쩡한 경로가
+    #     '못 읽음' 으로 뒤집혔다.**
+    assert cfg('downloadUrl: "/builds/?"') == "?", \
+        "파일 이름이 센티널과 같다고 못 읽음으로 뒤집힌다"
+
+    #     **키로 쓰인 때만** 못 읽음으로 본다 (`!393` 리뷰). 주석이나 다른 키 하나로
+    #     배포가 멈추면, 막으려던 것(조용한 통과)이 아니라 엉뚱한 정지를 만든다.
+    assert cfg("// downloadUrl 은 여기에 적는다") is None, \
+        "주석에 이름만 있어도 배포를 멈춘다 — 오탐이다"
+    assert cfg('downloadUrlLabel: "받기"') is None, \
+        "다른 키 하나로 배포를 멈춘다 — 오탐이다"
+
     #     파일이 아예 없으면 None
     os.remove(os.path.join(site, "release-config.js"))
     assert PS.download_target(site) is None

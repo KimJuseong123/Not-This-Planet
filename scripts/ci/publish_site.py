@@ -42,20 +42,31 @@ CONFIG = "release-config.js"
 
 # 우리 폴더를 가리키지 않는다 — 볼 것이 없다(설정 없음·외부 주소·일부러 비움).
 NOTHING_TO_CHECK = None
-# **읽었는데 못 알아봤다.** 위와 반드시 구별한다 (`!392` 리뷰).
-UNREADABLE = "?"
+
+# **읽었는데 쓸 수 있는 값을 못 얻었다.** 위와 반드시 구별한다 (`!392` 리뷰).
+#
+# **값이 아니라 객체다** (`!393` 리뷰). 예전에는 `"?"` 였는데, `downloadUrl` 이
+# `/builds/?` 이면 잘라 낸 결과가 같은 문자열이 되어 **멀쩡한 경로가 '못 읽음' 으로
+# 뒤집힌다.** 센티널은 값 공간과 겹치면 안 된다.
+UNREADABLE = object()
 
 # 따옴표는 양쪽 다 받는다. 그래도 못 읽으면 **모른다고 말한다.**
-URL_RE = re.compile(r"""downloadUrl\s*:\s*(['"])(.*?)\1""")
+URL_RE = re.compile(r"""\bdownloadUrl\s*:\s*(['"])(.*?)\1""")
+# **키로 쓰인 때만** 못 읽음으로 본다 (`!393` 리뷰). 예전에는 글자만 있으면 됐는데,
+# 그러면 주석(`// downloadUrl 은 …`)이나 `downloadUrlLabel` 같은 다른 키 하나로
+# **배포가 멈춘다.** 막으려던 것은 조용한 통과이지 엉뚱한 정지가 아니다.
+KEY_RE = re.compile(r"\bdownloadUrl\s*:")
+
+BUILDS_PREFIX = "/builds/"
 
 
-def download_target(site_dir: str) -> str | None:
+def download_target(site_dir: str) -> object:
     """`release-config.js` 의 `downloadUrl` 이 `/builds/` 아래 무엇을 가리키나.
 
     셋 중 하나를 돌려준다.
-      · 경로                 — `/builds/` 아래다. 그 파일이 있는지 봐야 한다
+      · `str` 경로           — `/builds/` 아래다. 그 파일이 있는지 봐야 한다
       · ``NOTHING_TO_CHECK`` — 설정이 없거나, 비었거나, 우리 폴더 밖이다
-      · ``UNREADABLE``       — **`downloadUrl` 은 있는데 값을 못 알아봤다**
+      · ``UNREADABLE``       — **`downloadUrl` 은 있는데 쓸 수 있는 값이 아니다**
 
     **왜 셋인가** (`!392` 리뷰). 예전에는 못 알아본 것도 "볼 것 없음" 으로 떨어뜨렸다.
     그러면 `release-config.js` 의 표기가 바뀌는 순간(작은따옴표·템플릿 리터럴·줄바꿈)
@@ -70,12 +81,19 @@ def download_target(site_dir: str) -> str | None:
 
     m = URL_RE.search(text)
     if not m:
-        return UNREADABLE if "downloadUrl" in text else NOTHING_TO_CHECK
+        return UNREADABLE if KEY_RE.search(text) else NOTHING_TO_CHECK
 
     url = m.group(2).strip()
     if not url:
         return NOTHING_TO_CHECK          # 일부러 비웠다 = 버튼이 꺼진다. 그것은 정상이다
-    return url[len("/builds/"):] if url.startswith("/builds/") else NOTHING_TO_CHECK
+    if not url.startswith(BUILDS_PREFIX):
+        return NOTHING_TO_CHECK          # 우리 폴더 밖 — 우리가 확인할 수 있는 것이 아니다
+
+    rest = url[len(BUILDS_PREFIX):]
+    # `/builds/` 만 있으면 **가리키는 파일이 없다.** 예전에는 빈 문자열이 돌아가
+    # 부르는 쪽의 `if want:` 에서 falsy 로 떨어져 **아무 검사도 없이 배포됐다**
+    # (`!393` 리뷰) — 이번에 막으려던 바로 그 모양이다.
+    return rest if rest else UNREADABLE
 
 
 def is_pointer(path: str) -> bool:
@@ -127,9 +145,12 @@ def main() -> int:
     if want is UNREADABLE:
         # **모르면 올리지 않는다** (`!392` 리뷰). 여기서 넘어가면 표기가 바뀌는 순간
         # 검사가 조용히 꺼지고, 그 사실은 사용자가 404 를 받을 때에야 드러난다.
-        print(f"❌ {CONFIG} 에 downloadUrl 이 있는데 값을 읽지 못했다")
-        print( "   따옴표는 작은따옴표·큰따옴표 둘 다 받는다. 표기를 바꿨다면")
-        print( "   scripts/ci/publish_site.py 의 URL_RE 도 같이 고쳐야 한다")
+        print(f"❌ {CONFIG} 의 downloadUrl 에서 **가리키는 파일을 정할 수 없다**")
+        print( "   둘 중 하나다:")
+        print( "     · 표기가 바뀌었다 — 따옴표는 ' 와 \" 둘 다 받는다. 그 밖의 모양")
+        print( "       (템플릿 리터럴 등)으로 바꿨다면 publish_site.URL_RE 도 같이 고친다")
+        print(f"     · 값이 `{BUILDS_PREFIX}` 뿐이다 — 파일 이름이 빠졌다")
+        print( "   확인할 수 없는 채로 올리면 **버튼이 켜진 채 404** 가 될 수 있다")
         return 1
     if want:
         target = os.path.join(BUILDS, want.replace("/", os.sep))
