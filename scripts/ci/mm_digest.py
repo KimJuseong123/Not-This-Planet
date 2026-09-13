@@ -44,6 +44,11 @@ def fmt_issues(issues: list[dict]) -> str:
 
 KEYS_PER_QUERY = 50      # 이보다 많으면 키 조회를 포기하고 전량 조회로 간다
 
+# 스토리 포인트의 커스텀 필드 번호. 인스턴스마다 다르므로 바뀌면 여기만 고친다 —
+# `GET /rest/api/3/field` 에서 이름이 "Story Points" 인 것의 id 다(2026-09-14 확인: 10031).
+# 번호가 틀리면 Jira 가 JQL 을 거부하고 **그 항목만** "조회 실패" 로 나간다(아래 try/except).
+STORY_POINTS = "cf[10031]"
+
 
 def not_done_issues(jira: Jira, keys: list[str]) -> tuple[list[dict], bool]:
     """완료가 아닌 이슈를 모은다 — 먼저 **키로 직접** 묻고, 안 되면 전량 조회로 폴백한다.
@@ -385,6 +390,19 @@ def main() -> int:
             ("⏰ 기한 지남", f"{base} AND duedate < startOfDay() ORDER BY duedate ASC"),
             ("🐢 3일 이상 갱신 없는 진행 중", f"{base} AND status = \"In Progress\" AND updated <= -3d ORDER BY updated ASC"),
             ("👤 스프린트에 있는데 담당자 없음", f"{base} AND sprint in openSprints() AND assignee is EMPTY AND issuetype != Epic"),
+            # **포인트는 이슈를 만들 때 예측해 넣는 값인데 Jira 가 비어도 막지 않는다**
+            # (S15P21B202-482). 생성 화면 스키마에서 `customfield_10031` 은 `required: false` 다 —
+            # 이 프로젝트의 필수 필드는 project·issuetype·summary·reporter 넷뿐이라 조용히 빈 채로 들어간다.
+            #
+            # **필수로 바꾸지 않는다.** 만드는 순간에는 예측이 안 서는 이슈가 있고, 막으면
+            # 아무 숫자나 넣게 된다. **틀린 값은 빈 값과 달리 눈에 띄지 않는다.**
+            # 그래서 막는 대신 다음 날 아침에 목록으로 돌려준다.
+            #
+            # 범위를 **열린 스프린트의 미완료**로 좁힌다 — 백로그까지 보면 매일 수십 줄이 나오고,
+            # 그런 알림은 읽히지 않는다(바로 위 항목이 같은 이유로 같은 범위를 쓴다).
+            # 끝난 이슈는 뺀다: 지나간 일에 예측값을 소급해 넣는 것은 뜻이 없다.
+            ("🔢 스토리 포인트 없음 — 만들 때 넣지 못했으면 지금 넣는다",
+             f"{base} AND sprint in openSprints() AND {STORY_POINTS} is EMPTY AND issuetype != Epic"),
         ]
         for title, jql in q:
             try:
