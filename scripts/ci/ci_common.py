@@ -595,7 +595,10 @@ def bot_line(job: str, blocks: str, with_sha: bool = True) -> str:
     url = env("CI_JOB_URL", "")
     where = f"[`{job}`]({url}) 잡의 결과" if url else f"`{job}` 잡의 결과"
     sha = env("CI_COMMIT_SHORT_SHA", "") if with_sha else ""
-    parts = [where] + ([f"커밋 `{sha}`"] if sha else []) + [blocks]
+    # **`blocks` 가 비면 그 칸을 통째로 뺀다** (S15P21B202-425). 빈 문자열을 그대로
+    # 이으면 줄 끝이 ` · ` 로 끝나 사람이 잘린 줄로 읽는다. 그리고 **모르면서 아는 척
+    # 하지 않는 것**이 이 줄의 목적이다 — 판정을 모르는 호출부는 "어느 잡" 만 말한다.
+    parts = [where] + ([f"커밋 `{sha}`"] if sha else []) + ([blocks] if blocks else [])
     return "> " + " · ".join(parts)
 
 

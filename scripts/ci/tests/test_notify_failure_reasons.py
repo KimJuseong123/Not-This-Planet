@@ -54,6 +54,11 @@ assert "<br>" not in card and "1) " in card and "2) " in card, card
 assert "@suho6347" in card
 assert len(notes) == 1 and N.FAIL_MARKER in notes[0]
 assert "**mr-lint** — 작성자 체크리스트 미완료" in notes[0] and "대상 브랜치는 develop" in notes[0], notes[0]
+# **둘째 줄에 "어느 잡 · 막는지"** (S15P21B202-425). 카드 자체는 막지 않지만 실패한
+# 잡이 막고 있다 — 그 구별이 없으면 "알림이니 넘어가도 된다" 로 읽힌다.
+_second = notes[0].splitlines()[2]   # 0 마커 · 1 머리줄 · 2 이 줄
+assert "잡의 결과" in _second and "머지는 막혀 있습니다" in _second, _second
+assert notes[0].startswith("<!--"), "마커가 첫 줄에서 밀렸다 — 코멘트가 매번 새로 달린다"
 # allow_failure 잡(ai-review)은 실패로 세지 않는다
 assert "ai-review" not in card.split("| 실패한 잡 |")[1].split("|")[0]
 print("\nTEST102 OK")

@@ -40,12 +40,16 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from ci_common import GitLab, Report, banner, completes_on_merge, env  # noqa: E402
+from ci_common import GitLab, Report, banner, bot_line, completes_on_merge, env  # noqa: E402
 
 MARKER = "<!-- stack-order:metagame -->"
 
-BLOCKED = MARKER + """
-🔒 **부모가 먼저 머지돼야 합니다 — 그때까지 `stack-order` 검사가 실패합니다**
+# **머리줄과 본문을 나눈다** (S15P21B202-425). 둘째 줄(`bot_line`)은 `CI_JOB_URL` 을
+# 읽으므로 **임포트 시점이 아니라 부를 때** 만들어야 한다 — 모듈 상수로 두면 잡 링크가
+# 비어 버린다. 그래서 아래 `blocked()`·`cleared()` 가 그때 조립한다.
+BLOCKED_HEAD = "🔒 **부모가 먼저 머지돼야 합니다 — 그때까지 `stack-order` 검사가 실패합니다**"
+
+BLOCKED_BODY = """
 
 이 MR 의 대상은 `{target}` 로, 다른 이슈의 작업 브랜치입니다{parent}. 이대로 머지하면 develop 에는
 아무것도 도착하지 않고 그 브랜치 안으로만 들어갑니다. 그러면 **부모 MR 의 내용이 리뷰 후에 바뀝니다** —
@@ -63,11 +67,33 @@ BLOCKED = MARKER + """
 
 <sub>순서 규칙: `docs/mr-flow.md` §3 (머지는 아래부터) · 자동 생성(stack-order)</sub>"""
 
-CLEARED = MARKER + """
-🔓 **풀렸습니다** — 부모가 develop 에 머지되어 이 MR 의 대상이 `develop` 으로 돌아왔습니다.
+CLEARED_HEAD = "🔓 **풀렸습니다** — 부모가 develop 에 머지되어 이 MR 의 대상이 `develop` 으로 돌아왔습니다."
+
+CLEARED_BODY = """
 `stack-order` 검사가 통과했고 이 스레드도 해소됐습니다. 이제 리뷰·머지 대상입니다.
 
 <sub>자동 생성(stack-order)</sub>"""
+
+# **이 잡은 유일한 하드 블록 수단이다** — 미해소 스레드를 남겨 머지 버튼을 잠근다.
+# 파이프라인이 초록인데 머지가 안 되는 이유가 여기 있고, 2026-09-10 `!320` 에서
+# 그 이유를 아무도 못 찾았다. 그래서 코멘트가 직접 말한다.
+BLOCKS_BLOCKED = ("이 스레드가 **머지를 막습니다** — 손으로 해소하지 마세요, "
+                  "순서가 되면 자동으로 풀립니다")
+BLOCKS_CLEARED = "**머지를 막지 않습니다** — 이 스레드는 해소됐습니다"
+
+
+def blocked(target: str, parent: str) -> str:
+    """막는 쪽 코멘트. `CI_JOB_URL` 을 읽으므로 **부를 때** 조립한다."""
+    return (MARKER + chr(10) + BLOCKED_HEAD + chr(10)
+            + bot_line("stack-order", BLOCKS_BLOCKED)
+            + BLOCKED_BODY.format(target=target, parent=parent))
+
+
+def cleared() -> str:
+    """풀린 쪽 코멘트."""
+    return (MARKER + chr(10) + CLEARED_HEAD + chr(10)
+            + bot_line("stack-order", BLOCKS_CLEARED)
+            + CLEARED_BODY)
 
 
 def parent_note(gl: GitLab, target: str) -> str:
@@ -94,7 +120,7 @@ def main() -> int:
     if completes_on_merge(target):
         # 대상이 develop·master 다. 전에 막혔던 MR 이면 풀렸다고 알린다.
         if any(MARKER in (n.get("body") or "") for n in gl.notes()):
-            _st, what = gl.upsert_thread(MARKER, CLEARED, resolved=True)
+            _st, what = gl.upsert_thread(MARKER, cleared(), resolved=True)
             rep.ok(f"부모가 머지돼 대상이 `{target}` 으로 돌아왔다 — 순서 조건 충족 ({what})")
         else:
             rep.ok(f"대상이 `{target}` — 스택이 아니다")
@@ -114,7 +140,7 @@ def main() -> int:
                else f"부모 MR !{merged['iid']} 가 이미 머지됐다(브랜치만 남아 있다)")
         st, _ = gl.update_mr(target_branch="develop")
         if st == 200:
-            _st, what = gl.upsert_thread(MARKER, CLEARED, resolved=True)
+            _st, what = gl.upsert_thread(MARKER, cleared(), resolved=True)
             rep.ok(f"{why} → 대상을 `develop` 으로 되돌렸다. 다음 파이프라인에서 통과한다 ({what})")
             return rep.finish()
         rep.fail(f"{why} 그런데 대상 전환에 실패했다({st}) — "
@@ -124,7 +150,7 @@ def main() -> int:
     # ③ 부모가 아직 develop 에 없다 → 지금 머지하면 안 된다.
     #    검사 실패만으로는 낡은 초록을 못 막으므로 **미해소 스레드**로 머지 버튼까지 잠근다(-297).
     _st, what = gl.upsert_thread(
-        MARKER, BLOCKED.format(target=target, parent=" " + parent_note(gl, target)), resolved=False)
+        MARKER, blocked(target, " " + parent_note(gl, target)), resolved=False)
     print(f"  스레드: {what}")
     if gl.project_flag("only_allow_merge_if_all_discussions_are_resolved") is False:
         rep.warn("프로젝트 설정 'All threads must be resolved' 가 꺼져 있어 스레드가 머지를 막지 못한다 "
