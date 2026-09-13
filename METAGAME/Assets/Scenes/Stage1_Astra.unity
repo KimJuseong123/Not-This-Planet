@@ -87932,6 +87932,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1614633189}
   - component: {fileID: 1614633188}
+  - component: {fileID: 9000000000000011}
   m_Layer: 0
   m_Name: SpaceBootstrap - develop gameplay
   m_TagString: Untagged
@@ -118725,6 +118726,20 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2145923991}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!114 &9000000000000011
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1614633187}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cbef6a247c4ad2f45bb4f53a568ff1b0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Metagame.Bootstrap::Metagame.Bootstrap.DevManager
+  enableF11Perspective: 0
+  enableF12Ending: 0
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
