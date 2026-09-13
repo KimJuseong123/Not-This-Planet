@@ -260,7 +260,10 @@ namespace Metagame.UI
             _camera.targetTexture = _photo;
             _camera.Render();
             _camera.targetTexture = null;
-            _camera.enabled = false;
+            // 사진과 종료 문구는 OnGUI로 표시하지만 Game View에는 활성 카메라가 필요하다.
+            // 무대는 다시 그리지 않고 검은 배경만 출력해 사진을 그대로 유지한다.
+            _camera.cullingMask = 0;
+            _camera.backgroundColor = Color.black;
         }
 
         void PoseActor(Doll doll, Vector3 foot, Quaternion facing, bool walking)
