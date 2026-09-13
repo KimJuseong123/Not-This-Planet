@@ -30,9 +30,56 @@ def infer_type(paths: list[str]) -> str:
     return "chore"
 
 
+# 공백을 뺐을 때 이 길이 이하면 뜻이 없다고 본다 (S15P21B202-450).
+#
+# **글자에 따라 다르다** (`!387` 리뷰). 영문 2자(`ui` · `wp`)는 거의 언제나 뜻이 없지만
+# **한글 2자는 멀쩡한 낱말**이다 — `잡기` · `빌드` · `복구`. 같은 자로 세면 진짜 제목을
+# 지운다. 그래서 ASCII 만 2자까지 보고, 그 밖은 1자까지만 본다.
+MEANINGLESS_MAX = 2
+MEANINGLESS_MAX_WIDE = 1
+
+# 한글 **자모**(ㅇ · ㅋ · ㅎ)는 길이와 무관하게 낱말이 아니다 — `ㅇㅇ` · `ㅋㅋ` 가
+# 대표적인 자리표시자다. 목록이 아니라 **글자 종류**로 보므로 뒤쫓을 것이 없다.
+JAMO_FIRST, JAMO_LAST = "\u3130", "\u318f"
+
+
+def is_meaningless(body: str) -> bool:
+    """<b>비워두고 싶은데 비울 수 없어서 아무거나 찍은 것</b>인가 (S15P21B202-450).
+
+    GitLab 웹의 새 MR 폼은 제목을 **필수**로 받는다. 그래서 `.` · `-` · `x` 같은 값이
+    들어오고, 그대로 두면 `-322` 가 제목을 Jira 기준으로 맞추려던 목적이 그 자리에서
+    무너진다 — 2026-09-11 에 실제로 "그냥 `.` 하나 찍어 두면 알아서 되나" 라는 질문을
+    받았고, 답은 "안 된다" 였다.
+
+    **목록으로 잡지 않는다.** `wip` · `asdf` · `tmp` 를 목록에 넣기 시작하면 목록에 없는
+    것이 계속 생겨 늘 뒤쫓게 된다. 대신 두 가지 성질로 본다:
+
+      ① 글자도 숫자도 하나 없다 — `.` · `-` · `...` · `!!`
+      ② 한글 **자모**뿐이다 — `ㅇㅇ` · `ㅋㅋ` (자모는 길이와 무관하게 낱말이 아니다)
+      ③ 너무 짧다 — ASCII 는 2자까지, 그 밖은 1자까지 (`1` 같은 **한 자리 숫자도** 여기다)
+
+    ③의 자를 글자 종류로 가른다(`!387` 리뷰). 영문 2자(`ui`)는 거의 언제나 뜻이 없지만
+    **한글 2자는 멀쩡한 낱말**이다(`잡기` · `빌드` · `복구`). 같은 자로 세면 진짜 제목을
+    지운다.
+
+    그래도 `UI` 같은 진짜 짧은 영문 제목은 바뀐다. 그 편이 낫다고 본다 — 그런 제목은
+    받는 사람에게 아무것도 말해 주지 않고, 바꾼 내용은 잡 로그에 남으며, 사람이 다시
+    고치면 그 뒤로는 형식이 맞으므로 건드리지 않는다.
+    """
+    b = re.sub(r"\s+", "", body or "")
+    if not b:
+        return True
+    if not any(c.isalnum() for c in b):                         # ① 기호뿐
+        return True
+    if all(JAMO_FIRST <= c <= JAMO_LAST for c in b):            # ② 자모뿐
+        return True
+    return len(b) <= (MEANINGLESS_MAX if b.isascii()            # ③ 너무 짧다
+                      else MEANINGLESS_MAX_WIDE)
+
+
 def is_default_body(body: str, branch: str) -> bool:
     b = (body or "").strip()
-    if not b:
+    if is_meaningless(b):
         return True
     humanized = branch.replace("-", " ").lower()
     return b.lower() in (humanized, branch.lower()) or re.fullmatch(rf"(?i){PROJECT_KEY}[ -]\d+.*", b) is not None
@@ -100,7 +147,16 @@ def main() -> int:
         typ = lm.group("type") if lm and lm.group("type") in TYPES else None
         body = lm.group("body") if lm else ""
         if is_default_body(body, branch):
-            body = summary_body(issue) or body
+            # **되돌릴 수 있게 남긴다** (S15P21B202-450). 제목이 바뀐 사람이 "내가 쓴 게
+            # 어디 갔나" 를 잡 로그에서 찾을 수 있어야 한다.
+            filled = summary_body(issue) or body
+            if filled != body:
+                # **원본 제목도 같이 찍는다** (`!387` 리뷰). `body` 는 `LOOSE_RE` 가
+                # 뽑아 낸 요약이라, 형식이 깨진 제목(`[x] .`)에서는 사람이 실제로 쓴
+                # 문자열과 다르다. 찾는 사람은 자기가 쓴 것을 기억한다.
+                print(f"제목 요약이 비어 있거나 뜻이 없어 Jira 요약으로 바꾼다: "
+                      f"{raw_title!r}(요약 {body!r}) → {filled!r}")
+            body = filled
         if not typ:
             paths = [c.get("new_path") or c.get("old_path") for c in gl.changes()]
             typ = infer_type([p for p in paths if p])
