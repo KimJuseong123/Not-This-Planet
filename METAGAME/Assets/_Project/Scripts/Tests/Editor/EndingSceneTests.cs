@@ -25,6 +25,71 @@ namespace Metagame.Gameplay.Tests
         }
 
         [UnityTest]
+        public IEnumerator DebugConfirmationCancelsSafelyRejectsClientAndUsesRealSceneFlow()
+        {
+            yield return new EnterPlayMode();
+            SceneManager.SetActiveScene(SceneManager.CreateScene("Stage1_Astra"));
+            var root = new GameObject("Debug ending test");
+            var session = root.AddComponent<GameSession>();
+            session.Begin(null, null, Vector3.zero);
+            var parts = new SpaceshipPart[4];
+            for (int i = 0; i < parts.Length; i++)
+            {
+                parts[i] = new GameObject(PartSpec.All[i].Name).AddComponent<SpaceshipPart>();
+                parts[i].GetComponent<Rigidbody>().isKinematic = true;
+                parts[i].transform.position = new Vector3(i * 5f, 0f, 0f);
+            }
+            var ending = root.AddComponent<DemoEnding>();
+            ending.Configure(session, parts, () => true, () => Time.realtimeSinceStartupAsDouble,
+                () => new[] { new DemoEndingPlayer { Name = "Debug captain", Suit = Color.cyan } }, () => 3723d);
+            var pause = root.AddComponent<Metagame.UI.GamePauseMenu>();
+            pause.Initialize(session);
+            var shortcut = root.AddComponent<EndingDebugShortcut>();
+            shortcut.Configure(session, ending, pause, true);
+            Assert.That(shortcut.OpenConfirmation(), Is.True);
+            Assert.That(session.InputSuppressed, Is.True);
+            Assert.That(pause.enabled, Is.False);
+            Assert.That(shortcut.CanConfirm, Is.False, "A participant must not initiate server completion.");
+            Assert.That(shortcut.Confirm(), Is.False);
+            shortcut.Cancel();
+            yield return null;
+            Assert.That(session.InputSuppressed, Is.False);
+            Assert.That(pause.enabled, Is.True);
+            Assert.That(ending.Active, Is.False);
+            Assert.That(parts[1].transform.position.x, Is.EqualTo(5f));
+            shortcut.Configure(session, ending, pause, false);
+            EndingSceneFlow.Ensure().Watch(ending);
+            Assert.That(shortcut.OpenConfirmation(), Is.True);
+            Assert.That(shortcut.Confirm(), Is.True);
+            Assert.That(session.EndingActive, Is.True);
+            var deadline = Time.realtimeSinceStartupAsDouble + 15d;
+            while (SceneManager.GetActiveScene().path != EndingSceneFlow.ScenePath
+                && Time.realtimeSinceStartupAsDouble < deadline) yield return null;
+            yield return null;
+            Assert.That(SceneManager.GetActiveScene().path, Is.EqualTo(EndingSceneFlow.ScenePath));
+            Assert.That(root == null, Is.True);
+            var playback = Object.FindAnyObjectByType<DemoEnding>();
+            Assert.That(playback.Snapshot.Players[0].Name, Is.EqualTo("Debug captain"));
+            Assert.That(playback.Snapshot.PlayTimeSeconds, Is.EqualTo(3723d));
+            Assert.That(playback.PlaybackStarted, Is.True);
+            yield return new ExitPlayMode();
+        }
+
+        [UnityTest]
+        public IEnumerator UnpreparedParticipantHasBoundedWaitAndReportsFailure()
+        {
+            yield return new EnterPlayMode();
+            var flow = EndingSceneFlow.Ensure();
+            typeof(EndingSceneFlow).GetField("transferring", Private).SetValue(flow, true);
+            typeof(EndingSceneFlow).GetField("preparationBeganAt", Private).SetValue(flow,
+                Time.realtimeSinceStartupAsDouble - EndingSceneFlow.PreparationTimeoutSeconds - 1d);
+            LogAssert.Expect(LogType.Warning, "[EndingScene] 엔딩 준비 시간이 초과되었습니다. 연결 또는 씬 로딩을 확인해 주세요.");
+            yield return null;
+            Assert.That(flow.Failure, Does.Contain("초과"));
+            yield return new ExitPlayMode();
+        }
+
+        [UnityTest]
         public IEnumerator SoloTransferRebuildsSnapshotAfterOriginalSceneIsUnloaded()
         {
             yield return new EnterPlayMode();
@@ -76,6 +141,35 @@ namespace Metagame.Gameplay.Tests
                 Assert.That(allReady.Invoke(flow, null), Is.True, "Disconnected players cannot block the ending.");
             }
             finally { NetworkServer.connections = connections; }
+            yield return new ExitPlayMode();
+        }
+
+        [UnityTest]
+        public IEnumerator LargeSnapshotChunksPreserveUtf8AndRejectOutOfOrderData()
+        {
+            yield return new EnterPlayMode();
+            var flow = EndingSceneFlow.Ensure();
+            var json = JsonUtility.ToJson(new DemoEndingSnapshot
+            { Players = new[] { new DemoEndingPlayer { Name = new string('별', 30000) } } });
+            var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+            Assert.That(bytes.Length, Is.GreaterThan(65535));
+            var receive = typeof(EndingSceneFlow).GetMethod("ReceiveChunk", Private);
+            for (int offset = 0; offset < bytes.Length; offset += 8192)
+            {
+                var chunk = new byte[System.Math.Min(8192, bytes.Length - offset)];
+                System.Buffer.BlockCopy(bytes, offset, chunk, 0, chunk.Length);
+                var writer = new NetworkWriter();
+                writer.Write(new EndingSceneSnapshotChunk { Offset = offset, TotalBytes = bytes.Length, Data = chunk });
+                receive.Invoke(flow, new object[] { new NetworkReader(writer.ToArraySegment()).Read<EndingSceneSnapshotChunk>() });
+            }
+            Assert.That(typeof(EndingSceneFlow).GetField("snapshotJson", Private).GetValue(flow), Is.EqualTo(json));
+            Object.Destroy(flow.gameObject);
+            yield return null;
+            flow = EndingSceneFlow.Ensure();
+            LogAssert.Expect(LogType.Warning, "[EndingScene] 엔딩 정보의 전송 순서 또는 크기가 올바르지 않습니다.");
+            receive.Invoke(flow, new object[] { new EndingSceneSnapshotChunk { Offset = 1, TotalBytes = 10, Data = new byte[1] } });
+            Assert.That(flow.Failure, Is.Not.Empty);
+            Assert.That(typeof(EndingSceneFlow).GetField("incomingSnapshot", Private).GetValue(flow), Is.Null);
             yield return new ExitPlayMode();
         }
 

@@ -68,6 +68,38 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void DebugAssemblyUsesRealSuccessAndCannotRunTwice()
+        {
+            var ending = Ending(true, out var session);
+            Assert.That(ending.DebugAssembleAndComplete(), Is.True);
+            Assert.That(DemoEnding.AreConnected(_parts, _visited), Is.True);
+            Assert.That(session.Cleared && session.InputSuppressed, Is.True);
+            Assert.That(ending.Snapshot.Players[0].Name, Is.EqualTo("A"));
+            Assert.That(ending.Snapshot.Parts.Length, Is.EqualTo(4));
+            foreach (var part in _parts)
+            {
+                Assert.That(part.GetComponent<Rigidbody>().isKinematic, Is.True);
+                Assert.That(Quaternion.Angle(part.transform.rotation, Quaternion.identity), Is.LessThan(0.01f));
+            }
+            var links = PartAssemblyLink.All.Count;
+            Assert.That(ending.DebugAssembleAndComplete(), Is.False);
+            Assert.That(PartAssemblyLink.All.Count, Is.EqualTo(links));
+        }
+
+        [TestCase(false, false)]
+        [TestCase(true, true)]
+        public void RejectedDebugAssemblyDoesNotMoveOrJoinParts(bool authority, bool duplicateType)
+        {
+            var ending = Ending(authority, out var session);
+            if (duplicateType) _parts[3].name = _parts[2].name;
+            var positions = System.Array.ConvertAll(_parts, part => part.transform.position);
+            Assert.That(ending.DebugAssembleAndComplete(), Is.False);
+            Assert.That(session.Cleared, Is.False);
+            Assert.That(PartAssemblyLink.All, Is.Empty);
+            for (int i = 0; i < _parts.Length; i++) Assert.That(_parts[i].transform.position, Is.EqualTo(positions[i]));
+        }
+
+        [Test]
         public void WeakBeadChainCompletesOutsidePadWithoutOrderingOrStanding()
         {
             Connect();

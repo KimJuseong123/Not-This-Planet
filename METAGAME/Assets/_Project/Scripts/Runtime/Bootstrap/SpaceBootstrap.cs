@@ -213,6 +213,10 @@ namespace Metagame.Bootstrap
             foreach (var hatch in FindObjectsByType<ShipHatch>(FindObjectsSortMode.None)) hatch.enabled = false;
             foreach (var launch in FindObjectsByType<LaunchTest>(FindObjectsSortMode.None)) launch.enabled = false;
             EndingSceneFlow.Ensure().Watch(ending);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (!MatchRole.DedicatedServer)
+                sys.AddComponent<EndingDebugShortcut>().Configure(Session, ending, PauseMenu, endingNetworked);
+#endif
 
             var beams = FindObjectsByType<TractorBeam>(FindObjectsSortMode.None);
 
