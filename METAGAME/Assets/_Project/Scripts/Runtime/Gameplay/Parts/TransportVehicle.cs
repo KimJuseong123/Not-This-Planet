@@ -175,40 +175,125 @@ namespace Metagame.Gameplay.Parts
 
         // A converted engine remains a weldable ship part. Standalone vehicles stay props.
         int HullLayer => GetComponent<SpaceshipPart>() != null ? GameLayers.Part : GameLayers.Prop;
-        public Vector3 AssemblyUp => visual != null ? visual.up : transform.up;
-        public bool CanReceiveAssembly => rider == null && !Unmanned && !tumbling && !righting;
+        public Vector3 AssemblyUp => UsesPartBody ? transform.up : visual != null ? visual.up : transform.up;
+        public bool CanReceiveAssembly => rider == null && !tumbling && !righting;
 
-        /// <summary>Preserve authored compound boxes in the visual frame before the beam root rotates.</summary>
+        // Ship parts retain every authored collider, socket and bead in its original hierarchy.
         internal void ConfigureHull(System.Collections.Generic.IReadOnlyList<BoxCollider> sources)
         {
-            if (sources.Count == 0 || hullColliders.Length != 0) return;
-            if (visual == null)
-            {
-                visual = new GameObject("Visual").transform;
-                visual.SetParent(transform, false);
-            }
-
             hullColliders = new BoxCollider[sources.Count];
-            for (int i = 0; i < sources.Count; i++)
-            {
-                var source = sources[i];
-                var go = new GameObject("VehicleHull_" + i) { layer = HullLayer };
-                go.transform.SetPositionAndRotation(source.transform.position, source.transform.rotation);
-                go.transform.localScale = source.transform.lossyScale;
-                go.transform.SetParent(visual, true);
-                var box = go.AddComponent<BoxCollider>();
-                box.center = source.center;
-                box.size = source.size;
-                box.sharedMaterial = source.sharedMaterial;
-                box.contactOffset = source.contactOffset;
-                hullColliders[i] = box;
-            }
-            platform.enabled = false;
-
-            // Sockets must follow the same upright frame as the hull, not the downward beam root.
-            foreach (var socket in GetComponentsInChildren<PartSocket>(true))
-                socket.transform.SetParent(visual, true);
+            for (var i = 0; i < sources.Count; i++) hullColliders[i] = sources[i];
+            if (!UsesPartBody || sources.Count == 0) return;
+            var minY = float.PositiveInfinity;
+            var maxY = float.NegativeInfinity;
+            foreach (var box in hullColliders)
+                for (var corner = 0; corner < 8; corner++)
+                {
+                    var sign = new Vector3((corner & 1) == 0 ? -1f : 1f,
+                        (corner & 2) == 0 ? -1f : 1f, (corner & 4) == 0 ? -1f : 1f);
+                    var local = transform.InverseTransformPoint(box.transform.TransformPoint(
+                        box.center + Vector3.Scale(box.size * 0.5f, sign)));
+                    minY = Mathf.Min(minY, local.y);
+                    maxY = Mathf.Max(maxY, local.y);
+                }
+            // Measure in the body's frame so boarding upside down keeps the authored seat.
+            var wanted = Mathf.Lerp(minY, maxY, EyeHeightRatio) - RagdollBuilder.HeadY;
+            seat.localPosition = Vector3.up * Mathf.Clamp(wanted, minY,
+                Mathf.Max(minY, maxY - RagdollBuilder.TotalHeight));
         }
+
+        SpaceshipPart flightPart;
+        Transform partBeamOrigin;
+        public bool UsesPartBody => flightPart != null;
+        float liftBlend;
+        const float PartRecoveryDelay = 0.8f;
+        const float FlightBoundarySkin = 0.1f;
+
+        Vector3 LimitFlightVelocity(Vector3 velocity, float dt)
+        {
+            var bounds = authoredMap != null ? authoredMap.Bounds
+                : new Bounds(Vector3.zero, new Vector3(ArenaLimit * 2f, 0f, ArenaLimit * 2f));
+            var position = body.position;
+            velocity.x = LimitBoundaryAxis(velocity.x, position.x, bounds.min.x, bounds.max.x, dt);
+            velocity.z = LimitBoundaryAxis(velocity.z, position.z, bounds.min.z, bounds.max.z, dt);
+            return velocity;
+        }
+
+        static float LimitBoundaryAxis(float speed, float position, float min, float max, float dt)
+        {
+            var distance = speed >= 0f ? max - position : position - min;
+            distance = Mathf.Max(0f, distance - FlightBoundarySkin);
+            // Brake before reaching the boundary, with a per-step cap for sudden meteor impulses.
+            // Only outward speed is limited; vertical motion, rotation and escape inward remain free.
+            var limit = Mathf.Min(Mathf.Sqrt(2f * Braking * distance), distance / dt);
+            return Mathf.Sign(speed) * Mathf.Min(Mathf.Abs(speed), limit);
+        }
+
+        bool HasPartAttachment()
+        {
+            if (flightPart.State != PartState.Free) return true;
+            if (flightPart.TryGetComponent<WeldBead>(out var bead) && bead.IsWeldedToPad) return true;
+            foreach (var link in PartAssemblyLink.All)
+                if (link != null && link.IsIntact
+                    && (link.MovingPart == flightPart || link.TargetPart == flightPart)) return true;
+            return false;
+        }
+
+        void TickPartFlight(float dt)
+        {
+            if (dt <= 0f || body == null || body.isKinematic || WorldEvents.RemoteDecides) return;
+            if (rider == null)
+            {
+                // An unoccupied part is a normal free body, including after dismounting.
+                tumbling = righting = false;
+                returning = false;
+                grounded = ProbeGround(out _);
+                return;
+            }
+            if (HasPartAttachment()) return;
+
+            body.linearVelocity = LimitFlightVelocity(body.linearVelocity, dt);
+
+            body.useGravity = true;
+            body.constraints = RigidbodyConstraints.None;
+            if (tumbling)
+            {
+                tumbleElapsed += dt;
+                if (tumbleElapsed < PartRecoveryDelay) return;
+                tumbling = false;
+                righting = true;
+                // Recover here, rather than flying back to the altitude before the impact.
+                targetAltitude = Mathf.Clamp(body.position.y, GroundY, MaxAltitude);
+                liftBlend = 0.35f;
+            }
+
+            liftBlend = Mathf.MoveTowards(liftBlend, 1f, dt / 0.8f);
+            AdvanceTargetAltitude(dt);
+            var velocity = body.linearVelocity;
+            var vertical = Mathf.Clamp((targetAltitude - body.position.y) * 2f,
+                -MaxVerticalSpeed, MaxVerticalSpeed);
+            var desired = LimitFlightVelocity(driveVector * CurrentMaxSpeed, dt);
+            var acceleration = Vector3.ClampMagnitude(
+                new Vector3(desired.x - velocity.x, 0f, desired.z - velocity.z) * 2f, Acceleration);
+            acceleration.y = Mathf.Clamp((vertical - velocity.y) * 3f, -8f, 8f);
+            // Forces leave contact resolution in charge: neither walls nor ceilings are teleported through.
+            body.AddForce((acceleration - Physics.gravity) * liftBlend, ForceMode.Acceleration);
+
+            var target = Quaternion.LookRotation(facingDirection, Vector3.up);
+            var error = target * Quaternion.Inverse(body.rotation);
+            if (error.w < 0f) error = new Quaternion(-error.x, -error.y, -error.z, -error.w);
+            error.ToAngleAxis(out var angle, out var axis);
+            var torque = angle > 0.01f ? axis * (angle * Mathf.Deg2Rad * 18f) : Vector3.zero;
+            torque -= body.angularVelocity * 7f;
+            body.AddTorque(Vector3.ClampMagnitude(torque, 30f) * liftBlend, ForceMode.Acceleration);
+            righting = Vector3.Angle(transform.up, Vector3.up) > 3f || body.angularVelocity.sqrMagnitude > 0.04f;
+        }
+
+        public Quaternion CameraTilt => UsesPartBody
+            ? Quaternion.RotateTowards(Quaternion.identity,
+                Quaternion.FromToRotation(Vector3.up, transform.up), 12f)
+            : LevelOffset;
+
         Transform platformAnchor;
         Transform seat;
         Transform visual;
@@ -417,8 +502,8 @@ namespace Metagame.Gameplay.Parts
         {
             if (returning) return;
 
-            // 아무도 타지 않고 호버도 아니면 굴릴 이유가 없다 — 이미 바닥에 있다.
-            if (rider == null && !Unmanned) return;
+            // 탑승하지 않은 기체의 충돌은 일반 물리에 맡긴다.
+            if (rider == null) return;
 
             // <b>이미 돌고 있으면 시계를 되돌리지 않는다.</b> 운석 비처럼 연달아 맞으면
             // 상한이 매번 갱신되어 영원히 갇힌다 — 340 이 남긴 교훈이 그것이다.
@@ -465,19 +550,12 @@ namespace Metagame.Gameplay.Parts
         /// 고정 높이(5m)가 아니라 지금 목표로 하는 고도를 본다 — 그래야 낮은 곳이나
         /// 높은 곳에서도 견인이 된다.
         /// </summary>
-        /// <summary>
-        /// 조종사 없이 호버를 유지하는 중인가(기획 §14.2).
-        ///
-        /// 저중력장을 켠 채 하차하면 여기로 들어온다. 조종 입력은 받지 않고 고도만
-        /// 지킨다 — 그래야 아래에서 용접하는 동안 장이 유지된다(§14.5).
-        /// </summary>
-        public bool Unmanned { get; private set; }
-
-        public bool IsHovering => (rider != null || Unmanned) && !returning && body != null
+        public bool IsHovering => rider != null && !returning && body != null
                                   && Mathf.Abs(body.position.y - targetAltitude) < HoverSettleBand;
 
         /// <summary>지금 유지하려는 고도. 탑승하면 <see cref="HoverRootY"/> 에서 시작한다.</summary>
         public float TargetAltitude => targetAltitude;
+        public Quaternion SeatRotation => seat != null ? seat.rotation : Quaternion.identity;
         public Vector3 SeatFootPosition => seat != null ? seat.position : transform.position + Vector3.up * SeatHeight;
         /// <summary>
         /// 하차한 탑승자를 세울 발 위치.
@@ -519,11 +597,12 @@ namespace Metagame.Gameplay.Parts
 
         public void Initialize(TractorBeam source, float holdDistance = BeamHoldDistance)
         {
+            if (authoredMap == null) authoredMap = FindAnyObjectByType<AuthoredMapSettings>();
             beam = source != null ? source : GetComponent<TractorBeam>();
             EnsurePhysics();
 
             if (beam != null)
-                beam.Configure(transform, beam.Range, holdDistance);
+                beam.Configure(UsesPartBody ? partBeamOrigin : transform, beam.Range, holdDistance);
 
             if (visual == null)
             {
@@ -549,14 +628,32 @@ namespace Metagame.Gameplay.Parts
         {
             if (body == null) body = GetComponent<Rigidbody>();
             var part = GetComponent<SpaceshipPart>();
+            flightPart = part;
             body.mass = HullMass + (part != null ? part.ExtraMass : 0f);
             body.isKinematic = WorldEvents.RemoteDecides;
             body.useGravity = true;
             body.interpolation = RigidbodyInterpolation.Interpolate;
             body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-            body.constraints = RigidbodyConstraints.FreezeRotation;
+            body.constraints = UsesPartBody ? RigidbodyConstraints.None : RigidbodyConstraints.FreezeRotation;
 
             gameObject.layer = HullLayer;
+
+            if (UsesPartBody)
+            {
+                if (partBeamOrigin == null)
+                {
+                    partBeamOrigin = new GameObject("TractorBeamOrigin").transform;
+                    partBeamOrigin.SetParent(transform, false);
+                    partBeamOrigin.localRotation = LevelRotation;
+                }
+                if (seat == null)
+                {
+                    seat = new GameObject("VehicleSeat").transform;
+                    seat.SetParent(transform, false);
+                    seat.localPosition = Vector3.up * SeatHeight;
+                }
+                return;
+            }
 
             if (platformAnchor == null)
             {
@@ -602,9 +699,21 @@ namespace Metagame.Gameplay.Parts
             seat.gameObject.layer = GameLayers.Prop;
         }
 
+        /// <summary>고정못 해제 시 원래 파츠의 자세를 유지하며 비행 초기 상태만 준비한다.</summary>
+        internal void AdoptPartPose()
+        {
+            // Neither the body frame nor any child pose changes when the last pin releases.
+            facingDirection = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
+            if (facingDirection.sqrMagnitude < 0.0001f) facingDirection = Vector3.forward;
+            targetAltitude = body.position.y;
+            grounded = ProbeGround(out _);
+        }
+
         /// <summary>탑승하지 않은 장치를 맵의 바닥으로 되돌린다.</summary>
         public void PlaceOnGround(Vector3 position, float visualYaw)
         {
+            // Legacy standalone spawn placement must never reposition an existing ship part.
+            if (UsesPartBody) return;
             var rootRotation = Quaternion.LookRotation(Vector3.down, Vector3.forward);
             float floor = authoredMap != null ? authoredMap.GroundHeight(position, 0f) + GroundY : GroundY;
             var groundPosition = new Vector3(position.x, floor, position.z);
@@ -706,27 +815,14 @@ namespace Metagame.Gameplay.Parts
 
         public bool TryBoard(PlayerRig player)
         {
-            if (player == null || rider != null || returning) return false;
-            if (GetComponent<WeldBead>() is WeldBead bead && bead.IsWeldedToPad) return false;
-
-            if (!CanBoardFrom(player)) return false;
+            if (rider != null || returning || !CanBoardFrom(player)) return false;
 
             body.useGravity = false;
             grounded = false;
             verticalInput = 0f;
 
-            // 기획 §14.2 — "다른 플레이어가 … 탑승해 조종을 이어받을 수 있다".
-            // 이어받는 것이므로 지금 높이가 기준이다. HoverRootY 로 되돌리면 새로 탄
-            // 사람이 기체를 5m 로 끌어올리게 된다.
-            if (Unmanned)
-            {
-                Unmanned = false;
-            }
-            else
-            {
-                body.linearVelocity = Vector3.zero;
-                targetAltitude = HoverRootY;
-            }
+            if (!UsesPartBody) body.linearVelocity = Vector3.zero;
+            targetAltitude = HoverRootY;
 
             // 좌석은 기체 경계를 보고 정하므로 태우기 전에 갱신한다 —
             // PlayerRig 가 SeatFootPosition 을 읽어 인형을 옮긴다.
@@ -740,6 +836,15 @@ namespace Metagame.Gameplay.Parts
             }
 
             rider = player;
+            if (UsesPartBody)
+            {
+                body.useGravity = true;
+                body.constraints = RigidbodyConstraints.None;
+                liftBlend = 0f;
+                righting = true;
+                tumbling = false;
+                targetAltitude = Mathf.Min(MaxAltitude, body.position.y + HoverRootY);
+            }
 
             // 껍데기를 감추지 않는다 (S15P21B202-441).
             //
@@ -759,10 +864,21 @@ namespace Metagame.Gameplay.Parts
             return true;
         }
 
-        /// <summary>운반 장치에 탑승할 수 있는 수평 거리 안에 있는지 확인한다.</summary>
+        /// <summary>파츠는 실제 몸체 표면까지의 거리로 탑승 가능 여부를 확인한다.</summary>
         public bool CanBoardFrom(PlayerRig player)
         {
             if (player == null) return false;
+            if (UsesPartBody ? HasPartAttachment()
+                : TryGetComponent<WeldBead>(out var bead) && bead.IsWeldedToPad) return false;
+
+            if (UsesPartBody && hullColliders.Length > 0)
+            {
+                foreach (var box in hullColliders)
+                    if (box != null && box.enabled && box.gameObject.activeInHierarchy
+                        && (box.ClosestPoint(player.Position) - player.Position).sqrMagnitude
+                            <= BoardRadius * BoardRadius) return true;
+                return false;
+            }
 
             var offset = player.Position - transform.position;
             offset.y = 0f;
@@ -779,7 +895,6 @@ namespace Metagame.Gameplay.Parts
             // Current controls: exit immediately, switch off lift, and let the empty
             // craft settle against real collision surfaces under gravity.
             Field.SetActive(false);
-            Unmanned = false;
             CompleteDismount();
             returning = true;
             grounded = false;
@@ -838,6 +953,15 @@ namespace Metagame.Gameplay.Parts
         {
             // 도는 동안 외형을 수평으로 맞추면 <b>루트만 돌고 보이는 것은 가만히
             // 있는다</b>(S15P21B202-349). 자세 복구가 끝날 때까지 손대지 않는다.
+            if (UsesPartBody)
+            {
+                if (rider != null && !returning && worldDirection.sqrMagnitude > 0.0001f)
+                {
+                    var planar = Vector3.ProjectOnPlane(worldDirection, Vector3.up);
+                    if (planar.sqrMagnitude > 0.0001f) facingDirection = planar.normalized;
+                }
+                return;
+            }
             if (rider == null || returning || tumbling || righting) return;
 
             worldDirection.y = 0f;
@@ -952,7 +1076,14 @@ namespace Metagame.Gameplay.Parts
         public void ForceReset()
         {
             var currentPosition = transform.position;
-            PlaceOnGround(currentPosition, 0f);
+            if (UsesPartBody)
+            {
+                tumbling = righting = false;
+                body.useGravity = true;
+                body.constraints = RigidbodyConstraints.None;
+                if (field != null) field.SetActive(false);
+            }
+            else PlaceOnGround(currentPosition, 0f);
 
             SetCockpitVisible(false);
 
@@ -975,19 +1106,10 @@ namespace Metagame.Gameplay.Parts
         public void Tick(float deltaTime)
         {
             if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
-            var idle = rider == null && !Unmanned && !returning;
+            if (UsesPartBody) { TickPartFlight(deltaTime); return; }
+            var idle = rider == null && !returning;
 
-            // <b>굴림과 자세 복구는 탑승자가 없어도 끝까지 진행한다.</b>
-            //
-            // 이 함수는 예전에 <c>if (rider == null && !Unmanned) return;</c> 로 시작했다.
-            // 그러면 굴림 중에 탑승자가 사라지는 경로가 생길 때(저중력장이 꺼져 있으면
-            // Unmanned 도 false 다) <c>tumbling</c> 이 남고 회전 잠금이 풀린 채로
-            // 방치된다 — 그 상태에서는 <see cref="SetFacingDirection"/> 이 계속 막혀
-            // 조종석이 시야를 따라가지 못한다.
-            //
-            // <b>실제로 그 경로를 만들지는 못했다.</b> <c>CompleteDismount</c> 는 굴림이
-            // 끝난 뒤에야 도달하고 <c>ForceReset</c> 은 상태를 지운다. 그래도 상태가
-            // 남을 수 있는 구조 자체를 없애 두는 편이 맞다.
+            // 탑승자가 없어져도 기존 충돌 회복 상태는 마무리한다.
             if (tumbling)
             {
                 // 돌고 있는 동안은 물리에 맡긴다. 호버 루프를 돌리면 그것이 매 스텝
@@ -998,8 +1120,7 @@ namespace Metagame.Gameplay.Parts
 
             if (righting)
             {
-                // 호버는 탄 사람이 있을 때만 돌린다. 빈 기체를 여기서 띄우면 §14.2 의
-                // 무인 호버 조건(저중력장을 켠 채 하차)을 우회한다.
+                // 미탑승 기체에는 부양을 적용하지 않고 기존 하차·낙하를 유지한다.
                 if (!idle) StepDrive(deltaTime);
 
                 // 기획 §14.1 "충돌 후 기체는 자동으로 수평을 회복한다".
@@ -1096,9 +1217,7 @@ namespace Metagame.Gameplay.Parts
         /// 되찾지는 않는다"). 밀려 내려간 높이를 새 목표로 삼는다 — 그러지 않으면 맞고
         /// 떨어진 기체가 스스로 원래 높이로 올라간다.
         ///
-        /// <b>여기서 한 번만 옮긴다.</b> <see cref="DriveHover"/> 의 같은 규칙이
-        /// <see cref="Unmanned"/> 일 때만 도는 이유는 조종 중 상승 명령과 얽히기
-        /// 때문이다 — 매 스텝 옮기면 상승이 취소된다.
+        /// 회복 시작 시에만 고도를 갱신해 상승 입력과 충돌하지 않게 한다.
         /// </summary>
         void EndTumble()
         {
@@ -1160,19 +1279,6 @@ namespace Metagame.Gameplay.Parts
             body.position = position;
 
             AdvanceTargetAltitude(deltaTime);
-
-            // 기획 §14.2 — "호버 위치를 자동으로 되찾지는 않는다".
-            // 밀려나 높이가 크게 어긋났으면 되돌리는 대신 그 높이를 새 목표로 삼는다.
-            // 그러지 않으면 운석에 맞아 눌린 기체가 스스로 원래 높이로 올라간다.
-            //
-            // <b>무인 호버에만 적용한다.</b> 조종 중에는 스프링이 목표 고도를 따라가는
-            // 지연 자체가 이 조건에 걸린다 — 상승 명령을 준 직후에는 실제 높이가 목표보다
-            // 한참 아래이므로, 여기서 목표를 지금 높이로 끌어내리면 상승이 취소된다.
-            // (Ascend_RaisesTargetAltitude_AndHoldsAfterRelease 가 그것을 잡아 주었다.)
-            // §14.2 는 호버 유지 절이고, 조종 중 위치 복구는 조종사가 한다.
-            if (Unmanned
-                && Mathf.Abs(body.position.y - targetAltitude) > PhysicsScale.CraftHoverDriftBand)
-                targetAltitude = Mathf.Clamp(body.position.y, GroundY, MaxAltitude);
 
             var vertical = Mathf.Clamp((targetAltitude - body.position.y) * HoverSpring,
                                        -MaxVerticalSpeed, MaxVerticalSpeed);
@@ -1251,7 +1357,7 @@ namespace Metagame.Gameplay.Parts
         /// <summary>좌석을 기체 경계에 맞춰 다시 놓는다.</summary>
         void RefreshSeat()
         {
-            if (seat == null) return;
+            if (seat == null || UsesPartBody) return;
 
             seat.position = transform.position + Vector3.up * ResolveSeatHeight();
             seat.rotation = Quaternion.identity;
@@ -1355,7 +1461,8 @@ namespace Metagame.Gameplay.Parts
             cockpit = holder.transform;
             cockpit.SetParent(parent, false);
 
-            var eye = transform.position + Vector3.up * (ResolveSeatHeight() + RagdollBuilder.HeadY);
+            var eye = UsesPartBody ? seat.position + transform.up * RagdollBuilder.HeadY
+                : transform.position + Vector3.up * (ResolveSeatHeight() + RagdollBuilder.HeadY);
             var forward = ExitForward;
             var look = Quaternion.LookRotation(forward, Vector3.up);
             cockpit.SetPositionAndRotation(eye, look);
@@ -1420,7 +1527,7 @@ namespace Metagame.Gameplay.Parts
         bool TryGetVerticalClearance(float desiredAltitude, out float allowedAltitude)
         {
             allowedAltitude = desiredAltitude;
-            if (body == null || platform == null || platformAnchor == null) return false;
+            if (body == null || (hullColliders.Length == 0 && platform == null)) return false;
 
             var rise = desiredAltitude - body.position.y;
             if (rise <= 0f) return false;
@@ -1432,14 +1539,22 @@ namespace Metagame.Gameplay.Parts
                 var box = hullColliders.Length == 0 ? platform : hullColliders[b];
                 if (box == null || !box.enabled) continue;
                 GetProbeBox(box, out var center, out var half);
+                var probeRotation = box.transform.rotation;
+                if (UsesPartBody)
+                {
+                    // A rolled part's local top may point down. Probe its actual world top.
+                    center = box.bounds.center;
+                    half = box.bounds.extents;
+                    probeRotation = Quaternion.identity;
+                }
                 // Sweep only the leading top face. Sweeping the whole body from
                 // contact with the floor reports an initial overlap at distance 0
                 // and incorrectly blocks taking off again.
                 var capHeight = Mathf.Min(0.02f, half.y);
-                center += box.transform.up * (half.y - capHeight);
+                center += (UsesPartBody ? Vector3.up : box.transform.up) * (half.y - capHeight);
                 half.y = capHeight;
                 var count = Physics.BoxCastNonAlloc(center, half, Vector3.up,
-                    ProbeHits, box.transform.rotation, rise + VerticalClearance,
+                    ProbeHits, probeRotation, rise + VerticalClearance,
                     SurfaceMask, QueryTriggerInteraction.Ignore);
                 for (var i = 0; i < count; i++)
                 {
@@ -1477,7 +1592,7 @@ namespace Metagame.Gameplay.Parts
         bool ProbeGround(out RaycastHit ground)
         {
             ground = default;
-            if (platform == null || platformAnchor == null) return false;
+            if (hullColliders.Length == 0 && platform == null) return false;
 
             var found = false;
             int boxes = hullColliders.Length == 0 ? 1 : hullColliders.Length;
@@ -1526,10 +1641,10 @@ namespace Metagame.Gameplay.Parts
         bool TrySweepForExitFoot(bool requireClearance, out Vector3 foot)
         {
             foot = Vector3.zero;
-            if (platform == null || platformAnchor == null) return false;
+            if (hullColliders.Length == 0 && platform == null) return false;
 
             var forward = ExitForward;
-            var top = platformAnchor.position.y + platform.size.y * 0.5f;
+            var top = UsesPartBody ? body.worldCenterOfMass.y : platformAnchor.position.y + platform.size.y * 0.5f;
             var reach = ExitProbeUp + ExitProbeDown + (top - transform.position.y);
 
             // 껍데기 밖으로 확실히 나가는 거리. 모델이 커지면 같이 커진다 —

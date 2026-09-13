@@ -764,6 +764,24 @@ namespace Metagame.Gameplay
             // 그래야 직접 조준을 벗어난 다음 프레임에 이전 Clamp 포커스가 남지 않는다.
             ClampInteractor?.Tick(0f);
 
+            // 파츠 탑승은 실제 크로스헤드 명중을 먼저 확정한다. 멀리 있는 기체도
+            // 조준 대상은 유지하고 거리·연결 조건은 E 표시와 탑승 허용에만 사용한다.
+            // 가장 앞의 충돌만 보므로 벽 뒤 기체나 주변의 조준 보정 후보로 넘어가지 않는다.
+            if (Physics.Raycast(origin, forward, out var transportHit,
+                TransportVehicle.InteractionFocusRange, RagdollBuilder.WorldMask,
+                QueryTriggerInteraction.Ignore))
+            {
+                var vehicle = transportHit.collider.GetComponentInParent<TransportVehicle>();
+                if (vehicle != null && vehicle.UsesPartBody && vehicle.isActiveAndEnabled
+                    && !vehicle.IsReturning && System.Array.IndexOf(interactionVehicles, vehicle) >= 0)
+                {
+                    CurrentInteractionTarget = MakeTarget(PlayerInteractionKind.Transport,
+                        null, null, vehicle, transportHit.point, 0f, transportHit.distance,
+                        !vehicle.IsOccupied && vehicle.CanBoardFrom(this));
+                    return;
+                }
+            }
+
             // 크로스헤드가 Clamp Collider를 직접 맞히면, 팔 주변의 일반 Grabbable 보정이
             // 옆 본체를 대신 고르지 못하게 한다. 실제로 잡을 수 없는 거리여도 후보를
             // Clamp로 고정해 노란 조준점은 유지하고, 클릭 문구만 숨긴다.
@@ -803,7 +821,8 @@ namespace Metagame.Gameplay
                 for (var i = 0; i < interactionVehicles.Length; i++)
                 {
                     var vehicle = interactionVehicles[i];
-                    if (vehicle == null || !vehicle.isActiveAndEnabled || vehicle.IsReturning
+                    if (vehicle == null || vehicle.UsesPartBody
+                        || !vehicle.isActiveAndEnabled || vehicle.IsReturning
                         || !vehicle.CanBoardFrom(this)) continue;
 
                     var point = vehicle.transform.position
@@ -1526,8 +1545,9 @@ namespace Metagame.Gameplay
             ClearForRide();
 
             var foot = vehicle.SeatFootPosition;
-            Doll.Teleport(foot + Vector3.up * RagdollBuilder.HipsY, Quaternion.identity);
-            faceDir = Vector3.forward;
+            var seatRotation = vehicle.SeatRotation;
+            Doll.Teleport(foot + seatRotation * (Vector3.up * RagdollBuilder.HipsY), seatRotation);
+            faceDir = seatRotation * Vector3.forward;
 
             AttachTo(vehicle.Body);
             MountedVehicle = vehicle;
@@ -1828,7 +1848,7 @@ namespace Metagame.Gameplay
             var craft = MountedVehicle;
             var tilting = craft != null && (craft.Tumbling || craft.Righting);
 
-            Cam.SetViewTilt(tilting ? craft.LevelOffset : Quaternion.identity);
+            Cam.SetViewTilt(tilting ? craft.CameraTilt : Quaternion.identity);
         }
 
         /// <summary>조준 기준점을 지금 보고 있는 곳에 맞춘다.</summary>
