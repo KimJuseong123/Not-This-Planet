@@ -504,6 +504,67 @@ namespace Metagame.Gameplay.Tests
                 center.z - 3f), Vector3.forward), out _, 6f));
         }
 
+        [TestCase(0f)]
+        [TestCase(90f)]
+        [TestCase(180f)]
+        public void ActivatedPart1_FocusAndBoardingFollowOffsetHull(float roll)
+        {
+            var part = CreatePart(out var activator, out var hull, out _, out _, out var clamps,
+                new Vector3(0f, 2f, 0f));
+            hull.center = Vector3.right * 10f;
+            hull.size = new Vector3(4f, 2f, 2f);
+            part.transform.rotation = Quaternion.Euler(0f, 0f, roll);
+            var center = part.transform.TransformPoint(hull.center);
+            var player = PlayerRig.Create("Pilot", center - Vector3.forward * 3f,
+                Quaternion.identity, Color.white, Color.gray, false);
+            spawned.Add(player.gameObject);
+            var camera = OrbitCamera.Create(player.Hips.transform, Color.black, false);
+            spawned.Add(camera.gameObject);
+            player.Cam = camera;
+            camera.Yaw = 0f;
+            camera.Pitch = 0f;
+            camera.transform.position = center - Vector3.forward * 3f;
+            foreach (var clamp in clamps) clamp.Release();
+            Physics.SyncTransforms();
+
+            Assert.IsTrue(activator.Vehicle.CanBoardFrom(player),
+                "원점이 멀어도 몸체 표면 가까이에서는 탑승할 수 있어야 한다.");
+            player.ConfigureTransportInteractionTargets(new[] { activator.Vehicle });
+            Assert.AreEqual(PlayerInteractionKind.Transport, player.CurrentInteractionTarget.Kind);
+            Assert.Less(Vector3.Angle(player.AimForward,
+                player.CurrentInteractionTarget.Point - player.AimOrigin), 0.01f);
+
+            camera.Yaw = 47f;
+            Assert.IsFalse(hull.Raycast(new Ray(player.AimOrigin, player.AimForward), out _, 34f));
+            player.RefreshInteractionFocus();
+            Assert.AreNotEqual(PlayerInteractionKind.Transport, player.CurrentInteractionTarget.Kind,
+                "몸체를 빗나간 조준은 가까워도 탑승 대상으로 보정하지 않는다.");
+            camera.Yaw = 0f;
+
+            var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            spawned.Add(wall);
+            wall.transform.position = center - Vector3.forward * 2f;
+            wall.transform.localScale = new Vector3(5f, 5f, 0.2f);
+            Physics.SyncTransforms();
+            player.RefreshInteractionFocus();
+            Assert.AreNotEqual(PlayerInteractionKind.Transport, player.CurrentInteractionTarget.Kind,
+                "조준선 앞에 벽이 있으면 뒤의 기체를 선택하지 않는다.");
+            wall.SetActive(false);
+            Physics.SyncTransforms();
+
+            player.Doll.Teleport(center - Vector3.forward * 10f, Quaternion.identity);
+            camera.transform.position = center - Vector3.forward * 10f;
+            Physics.SyncTransforms();
+            player.RefreshInteractionFocus();
+            Assert.AreSame(activator.Vehicle, player.CurrentInteractionTarget.Transport,
+                "멀어도 실제로 조준한 기체는 유지하고 탑승 가능 여부만 거리로 제한한다.");
+            Assert.IsFalse(player.CurrentInteractionTarget.CanInteract);
+            Assert.IsFalse(activator.Vehicle.CanBoardFrom(player));
+            Assert.IsFalse(activator.Vehicle.TryBoard(player));
+            player.Doll.Teleport(center + Vector3.up * 10f, Quaternion.identity);
+            Assert.IsFalse(activator.Vehicle.CanBoardFrom(player), "높이 차이도 실제 거리로 제한한다.");
+        }
+
         [Test]
         public void ActivatedPart1_IsRegisteredAsTransportInteractionTarget()
         {

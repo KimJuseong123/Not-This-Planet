@@ -49117,6 +49117,7 @@ MonoBehaviour:
   _state: 0
   _placedMass: 459.79752
   weldBeadsPerPart: 200
+  weldBeadBlobsPerChain: 6
   _extraMass: 0
 --- !u!114 &870597932
 MonoBehaviour:
@@ -72848,7 +72849,7 @@ Transform:
   m_GameObject: {fileID: 1349744092}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.1300011, y: -1.3740001, z: -1.1049995}
+  m_LocalPosition: {x: -1.1300011, y: -1.261, z: -1.1049995}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -84267,7 +84268,7 @@ Transform:
   m_GameObject: {fileID: 1549314270}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 27, y: 8.5, z: -19}
+  m_LocalPosition: {x: 28.47, y: 8.5, z: -18.53}
   m_LocalScale: {x: 0.09, y: 13, z: 0.09}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -88145,6 +88146,7 @@ MonoBehaviour:
   _state: 0
   _placedMass: 744.6392
   weldBeadsPerPart: 200
+  weldBeadBlobsPerChain: 6
   _extraMass: 0
 --- !u!114 &1616394416
 MonoBehaviour:
@@ -93708,7 +93710,7 @@ Transform:
   m_GameObject: {fileID: 1699409761}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 19, y: 2.069, z: -19}
+  m_LocalPosition: {x: 22.83, y: 2.069, z: -19}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -93740,6 +93742,7 @@ MonoBehaviour:
   _state: 0
   _placedMass: 405.5984
   weldBeadsPerPart: 200
+  weldBeadBlobsPerChain: 6
   _extraMass: 0
 --- !u!114 &1699409764
 MonoBehaviour:
@@ -109177,6 +109180,7 @@ MonoBehaviour:
   _state: 0
   _placedMass: 428.92136
   weldBeadsPerPart: 200
+  weldBeadBlobsPerChain: 6
   _extraMass: 0
 --- !u!114 &1978039711
 MonoBehaviour:

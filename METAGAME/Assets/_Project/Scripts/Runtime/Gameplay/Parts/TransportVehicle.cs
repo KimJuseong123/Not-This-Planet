@@ -864,12 +864,21 @@ namespace Metagame.Gameplay.Parts
             return true;
         }
 
-        /// <summary>운반 장치에 탑승할 수 있는 수평 거리 안에 있는지 확인한다.</summary>
+        /// <summary>파츠는 실제 몸체 표면까지의 거리로 탑승 가능 여부를 확인한다.</summary>
         public bool CanBoardFrom(PlayerRig player)
         {
             if (player == null) return false;
             if (UsesPartBody ? HasPartAttachment()
                 : TryGetComponent<WeldBead>(out var bead) && bead.IsWeldedToPad) return false;
+
+            if (UsesPartBody && hullColliders.Length > 0)
+            {
+                foreach (var box in hullColliders)
+                    if (box != null && box.enabled && box.gameObject.activeInHierarchy
+                        && (box.ClosestPoint(player.Position) - player.Position).sqrMagnitude
+                            <= BoardRadius * BoardRadius) return true;
+                return false;
+            }
 
             var offset = player.Position - transform.position;
             offset.y = 0f;
