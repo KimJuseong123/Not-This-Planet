@@ -40,18 +40,42 @@ BUILDS = env("BUILDS_DIR", "/publish/builds")
 CONFIG = "release-config.js"
 
 
+# 우리 폴더를 가리키지 않는다 — 볼 것이 없다(설정 없음·외부 주소·일부러 비움).
+NOTHING_TO_CHECK = None
+# **읽었는데 못 알아봤다.** 위와 반드시 구별한다 (`!392` 리뷰).
+UNREADABLE = "?"
+
+# 따옴표는 양쪽 다 받는다. 그래도 못 읽으면 **모른다고 말한다.**
+URL_RE = re.compile(r"""downloadUrl\s*:\s*(['"])(.*?)\1""")
+
+
 def download_target(site_dir: str) -> str | None:
     """`release-config.js` 의 `downloadUrl` 이 `/builds/` 아래 무엇을 가리키나.
 
-    가리키는 것이 없거나 `/builds/` 밖이면 None — 그때는 검사할 것이 없다.
+    셋 중 하나를 돌려준다.
+      · 경로                 — `/builds/` 아래다. 그 파일이 있는지 봐야 한다
+      · ``NOTHING_TO_CHECK`` — 설정이 없거나, 비었거나, 우리 폴더 밖이다
+      · ``UNREADABLE``       — **`downloadUrl` 은 있는데 값을 못 알아봤다**
+
+    **왜 셋인가** (`!392` 리뷰). 예전에는 못 알아본 것도 "볼 것 없음" 으로 떨어뜨렸다.
+    그러면 `release-config.js` 의 표기가 바뀌는 순간(작은따옴표·템플릿 리터럴·줄바꿈)
+    **검사가 조용히 꺼지고 켜진 404 가 그대로 나간다.** 검사가 가장 필요한 때에
+    꺼지는 것 — 이 이슈에서 반복해 나온 실패 방식이다.
     """
     try:
         with open(os.path.join(site_dir, CONFIG), encoding="utf-8") as f:
-            m = re.search(r'downloadUrl' + chr(92) + r's*:' + chr(92) + r's*"([^"]*)"', f.read())
+            text = f.read()
     except OSError:
-        return None
-    url = (m.group(1).strip() if m else "")
-    return url[len("/builds/"):] if url.startswith("/builds/") else None
+        return NOTHING_TO_CHECK          # 설정 파일 자체가 없다 — 쓰지 않는 사이트다
+
+    m = URL_RE.search(text)
+    if not m:
+        return UNREADABLE if "downloadUrl" in text else NOTHING_TO_CHECK
+
+    url = m.group(2).strip()
+    if not url:
+        return NOTHING_TO_CHECK          # 일부러 비웠다 = 버튼이 꺼진다. 그것은 정상이다
+    return url[len("/builds/"):] if url.startswith("/builds/") else NOTHING_TO_CHECK
 
 
 def is_pointer(path: str) -> bool:
@@ -100,21 +124,35 @@ def main() -> int:
     # 런처 exe 는 `publish_launcher.py` 가 놓는데 그것은 **CI 가 부르지 않는 수동
     # 스크립트**다. 그래서 순서가 어긋날 여지가 실제로 있다. 여기서 막는다.
     want = download_target(SRC)
+    if want is UNREADABLE:
+        # **모르면 올리지 않는다** (`!392` 리뷰). 여기서 넘어가면 표기가 바뀌는 순간
+        # 검사가 조용히 꺼지고, 그 사실은 사용자가 404 를 받을 때에야 드러난다.
+        print(f"❌ {CONFIG} 에 downloadUrl 이 있는데 값을 읽지 못했다")
+        print( "   따옴표는 작은따옴표·큰따옴표 둘 다 받는다. 표기를 바꿨다면")
+        print( "   scripts/ci/publish_site.py 의 URL_RE 도 같이 고쳐야 한다")
+        return 1
     if want:
         target = os.path.join(BUILDS, want.replace("/", os.sep))
         if not os.path.isdir(BUILDS):
-            print(f"⚠ 배포 폴더가 없어 다운로드 주소를 확인하지 못했다: {BUILDS}")
-            print(f"   사이트는 올린다 — 다만 /builds/{want} 가 있는지 눈으로 보세요")
-        elif not os.path.isfile(target):
+            # **마운트가 빠진 때가 바로 켜진 404 가 나는 때다** (`!392` 리뷰).
+            # 그때만 검사가 꺼지면 이 방어는 있으나 마나다. 배포 러너에는
+            # `/publish/builds` 가 붙어 있고(2026-09-13 확인), 없다는 것은 설정이
+            # 어긋났다는 뜻이다 — 그 상태로 사이트를 올리면 안 된다.
+            print(f"❌ 배포 폴더가 없어 다운로드 주소를 확인할 수 없다: {BUILDS}")
+            print(f"   /builds/{want} 가 있는지 볼 방법이 없는데 올리면 **버튼이 켜진 채")
+            print( "   404** 가 될 수 있다. 러너 config.toml 의 volumes 에")
+            print( "   /var/www/metagame-builds 가 rw 로 마운트돼 있어야 한다")
+            print( "   — scripts/deploy/host/mount-release-dirs.sh")
+            return 1
+        if not os.path.isfile(target):
             print(f"❌ 다운로드 주소가 없는 파일을 가리킨다: /builds/{want}")
             print( "   이대로 올리면 **버튼이 켜진 채 404** 가 된다 — 꺼진 것보다 나쁘다.")
             print( "   먼저 그 파일을 놓으세요. 런처면:")
             print( "     python scripts/launcher/publish_launcher.py <런처exe> <버전> --out " + BUILDS)
             print(f"   있는 것: " + (" ".join(sorted(os.listdir(BUILDS))[:8]) or "(비어 있다)"))
             return 1
-        else:
-            print(f"다운로드 주소 확인: /builds/{want} "
-                  f"({os.path.getsize(target) / 1048576:.1f} MB) ✅")
+        print(f"다운로드 주소 확인: /builds/{want} "
+              f"({os.path.getsize(target) / 1048576:.1f} MB) ✅")
 
     total = sum(os.path.getsize(os.path.join(SRC, f.replace("/", os.sep))) for f in files)
     print(f"=== 사이트 배치 ===")

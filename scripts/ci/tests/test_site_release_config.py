@@ -137,10 +137,25 @@ with tempfile.TemporaryDirectory() as tmp:
 
     assert PS.download_target(site) == PL.PUBLIC_NAME, PS.download_target(site)
 
-    #     `/builds/` 밖을 가리키면 볼 것이 없다 — 우리 폴더가 아니다
-    with open(os.path.join(site, "release-config.js"), "w", encoding="utf-8") as f:
-        f.write('window.ReleaseConfig = { downloadUrl: "https://example.com/x.exe" };')
-    assert PS.download_target(site) is None
+    def cfg(text):
+        with open(os.path.join(site, "release-config.js"), "w", encoding="utf-8") as f:
+            f.write(text)
+        return PS.download_target(site)
+
+    #     **따옴표는 양쪽 다 받는다** (`!392` 리뷰). 표기 하나 때문에 검사가 꺼지면 안 된다.
+    assert cfg("downloadUrl: " + "'" + "/builds/x.exe" + "'") == "x.exe"
+    assert cfg("downloadUrl: " + '"' + "/builds/x.exe" + '"') == "x.exe"
+
+    #     `/builds/` 밖·빈 값·설정 없음 — 볼 것이 없다. 빈 값은 **버튼이 꺼지는 것**이고
+    #     그것은 정상이다(받을 수 없는데 받으라고 하지는 않는다).
+    assert cfg('window.ReleaseConfig = { downloadUrl: "https://example.com/x.exe" };') is None
+    assert cfg('window.ReleaseConfig = { downloadUrl: "" };') is None
+    assert cfg('window.ReleaseConfig = {};') is None
+
+    #     **못 읽은 것은 "볼 것 없음" 이 아니다** — 이것이 이 리뷰의 핵심이다.
+    #     표기가 바뀌었는데 조용히 넘어가면, 켜진 404 가 그대로 배포된다.
+    assert cfg("downloadUrl: `/builds/x.exe`") is PS.UNREADABLE, \
+        "downloadUrl 이 있는데 못 읽었을 때 '볼 것 없음' 으로 떨어진다 — 검사가 조용히 꺼진다"
 
     #     파일이 아예 없으면 None
     os.remove(os.path.join(site, "release-config.js"))
@@ -153,7 +168,15 @@ assert body.index("download_target") < body.index("shutil.copyfile"), \
     "파일을 옮긴 뒤에 확인한다 — 그때는 이미 켜진 404 가 나가 있다"
 assert "return 1" in body.split("download_target", 1)[1][:1200], \
     "없는 파일을 가리켜도 그냥 올린다"
-print("  다운로드 대상이 없으면 사이트를 올리지 않는다 ✅")
+
+#     **검사가 꺼질 수 있는 자리를 남기지 않는다** (`!392` 리뷰). 마운트가 빠진 때가
+#     바로 켜진 404 가 나는 때인데, 예전에는 그때만 경고로 넘어갔다.
+after = body.split("download_target", 1)[1]
+assert "UNREADABLE" in after, "못 읽은 경우를 가르지 않는다"
+mount = after.split("os.path.isdir(BUILDS)", 1)[1][:600]
+assert "return 1" in mount, \
+    "배포 폴더가 없을 때 경고만 하고 올린다 — 그때가 바로 검사가 필요한 때다"
+print("  다운로드 대상이 없거나 확인할 수 없으면 올리지 않는다 ✅")
 
 
 # ── ⑦ 런처 발행 순서 — launcher.json 이 먼저다 ──────────────────────────
