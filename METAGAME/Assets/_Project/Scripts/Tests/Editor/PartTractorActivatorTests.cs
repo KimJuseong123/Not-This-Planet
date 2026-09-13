@@ -12,6 +12,73 @@ namespace Metagame.Gameplay.Tests
     {
         readonly List<GameObject> spawned = new();
 
+        TransportVehicle CreateFlyingPart(Vector3 position, float roll = 0f)
+        {
+            var part = CreatePart(out var activator, out _, out _, out _, out var clamps, position);
+            part.transform.rotation = Quaternion.Euler(0f, 25f, roll);
+            for (var i = 0; i < clamps.Count; i++)
+            {
+                clamps[i].transform.position = new Vector3(50f + i * 2f, 0f, 0f);
+                clamps[i].Release();
+            }
+            var player = PlayerRig.Create("Pilot", position + Vector3.right * 2f,
+                Quaternion.identity, Color.white, Color.gray, false);
+            spawned.Add(player.gameObject);
+            Assert.IsTrue(activator.Vehicle.TryBoard(player));
+            return activator.Vehicle;
+        }
+
+        [TestCase(0f)]
+        [TestCase(75f)]
+        [TestCase(180f)]
+        public void Boarding_UsesSeatFrameForPilotPositionAndRotation(float roll)
+        {
+            var vehicle = CreateFlyingPart(Vector3.up * 3f, roll);
+            var expected = vehicle.SeatFootPosition
+                + vehicle.SeatRotation * (Vector3.up * RagdollBuilder.HipsY);
+            Assert.That(Vector3.Distance(expected, vehicle.Rider.Hips.position), Is.LessThan(0.001f));
+            Assert.That(Quaternion.Angle(vehicle.SeatRotation, vehicle.Rider.Hips.rotation), Is.LessThan(0.01f));
+        }
+
+        [TestCase(1f, 0f)]
+        [TestCase(-1f, 0f)]
+        [TestCase(0f, 1f)]
+        [TestCase(0f, -1f)]
+        public void FlightBoundary_ContainsMeteorMomentumAndAllowsReturn(float x, float z)
+        {
+            var outward = new Vector3(x, 0f, z);
+            var vehicle = CreateFlyingPart(outward * 20.75f + Vector3.up * 3f);
+            SimulatePart(vehicle, 4f);
+            vehicle.TakeDirectMeteorImpact(vehicle.Body.worldCenterOfMass + Vector3.up, outward * 15f);
+            for (var i = 0; i < 100; i++)
+            {
+                SimulatePart(vehicle, 0.02f);
+                Assert.LessOrEqual(Vector3.Dot(vehicle.Body.position, outward), 21.01f);
+            }
+            var edge = Vector3.Dot(vehicle.Body.position, outward);
+            vehicle.SetDriveVector(-outward);
+            SimulatePart(vehicle, 2f);
+            Assert.Less(Vector3.Dot(vehicle.Body.position, outward), edge - 1f);
+        }
+
+        [Test]
+        public void FlightBoundary_UsesAuthoredMapPositionAndSize()
+        {
+            var mapObject = new GameObject("Offset map");
+            spawned.Add(mapObject);
+            var map = mapObject.AddComponent<AuthoredMapSettings>();
+            mapObject.transform.position = new Vector3(30f, 0f, -20f);
+            map.flightHalfSize = new Vector2(6f, 9f);
+            var vehicle = CreateFlyingPart(new Vector3(35.75f, 3f, -20f));
+            SimulatePart(vehicle, 4f);
+            vehicle.TakeDirectMeteorImpact(vehicle.Body.worldCenterOfMass + Vector3.up, Vector3.right * 15f);
+            for (var i = 0; i < 100; i++)
+            {
+                SimulatePart(vehicle, 0.02f);
+                Assert.LessOrEqual(vehicle.Body.position.x, map.Bounds.max.x + 0.01f);
+            }
+        }
+
         [TestCase(0f)]
         [TestCase(75f)]
         [TestCase(180f)]
@@ -104,7 +171,6 @@ namespace Metagame.Gameplay.Tests
             Assert.Less(hull.bounds.max.y, roof.bounds.min.y + 0.05f);
             vehicle.Field.SetActive(true);
             vehicle.BeginDismount();
-            Assert.IsFalse(vehicle.Unmanned);
             Assert.IsFalse(vehicle.Field.IsActive);
             SimulatePart(vehicle, 3f);
             Assert.IsTrue(vehicle.Body.useGravity);

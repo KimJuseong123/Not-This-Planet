@@ -1526,8 +1526,9 @@ namespace Metagame.Gameplay
             ClearForRide();
 
             var foot = vehicle.SeatFootPosition;
-            Doll.Teleport(foot + Vector3.up * RagdollBuilder.HipsY, Quaternion.identity);
-            faceDir = Vector3.forward;
+            var seatRotation = vehicle.SeatRotation;
+            Doll.Teleport(foot + seatRotation * (Vector3.up * RagdollBuilder.HipsY), seatRotation);
+            faceDir = seatRotation * Vector3.forward;
 
             AttachTo(vehicle.Body);
             MountedVehicle = vehicle;

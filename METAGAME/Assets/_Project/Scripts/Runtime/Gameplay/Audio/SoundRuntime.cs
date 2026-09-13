@@ -532,7 +532,7 @@ namespace Metagame.Gameplay.Audio
             var desired = SoundEventId.Count;
             if (vehicle.IsReturning)
                 desired = SoundEventId.TractorDescendLoop;
-            else if ((vehicle.IsOccupied || vehicle.Unmanned) && vehicle.HorizontalSpeed > 0.12f)
+            else if (vehicle.IsOccupied && vehicle.HorizontalSpeed > 0.12f)
                 desired = vehicle.Beam != null && vehicle.Beam.IsHolding
                     ? SoundEventId.TractorTowLoop
                     : SoundEventId.TractorMoveLoop;

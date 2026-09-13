@@ -50,7 +50,6 @@ namespace Metagame.Gameplay.Tests
             rig.Vehicle.BeginDismount();
             Assert.IsFalse(rig.Vehicle.IsOccupied, "하차 요청 즉시 조종사를 놓아야 한다.");
             Run(rig.Vehicle, 6f);
-            Assert.IsFalse(rig.Vehicle.Unmanned);
             Assert.Less(rig.Vehicle.transform.position.y, 1.5f);
         }
 
@@ -66,7 +65,6 @@ namespace Metagame.Gameplay.Tests
             rig.Vehicle.BeginDismount();
             Run(rig.Vehicle, 6f);
 
-            Assert.IsFalse(rig.Vehicle.Unmanned, "장이 꺼져 있으면 무인 호버로 가지 않는다.");
             Assert.Less(rig.Vehicle.transform.position.y, 1.5f, "내려앉아야 한다.");
         }
 
@@ -83,7 +81,6 @@ namespace Metagame.Gameplay.Tests
             Run(rig.Vehicle, 6f);
             var second = MakePlayer(rig.Vehicle.transform.position);
             Assert.IsTrue(rig.Vehicle.TryBoard(second));
-            Assert.IsFalse(rig.Vehicle.Unmanned);
             Assert.IsFalse(rig.Vehicle.Field.IsActive);
             Run(rig.Vehicle, 2f);
             Assert.Greater(rig.Vehicle.transform.position.y, 1.5f);

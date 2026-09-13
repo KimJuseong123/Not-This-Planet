@@ -334,15 +334,6 @@ namespace Metagame.Gameplay
         public const float CraftTowSpeedFactor = 0.8f;
 
         /// <summary>
-        /// 무인 호버에서 고도를 다시 잡는 데 허용하는 어긋남(m).
-        ///
-        /// 기획 §14.2 "수평은 복구하지만 호버 위치를 자동으로 되찾지는 않는다".
-        /// 밀려난 만큼은 그대로 두고 <b>그 자리에서</b> 다시 뜬다 — 그래서 밀린 높이가
-        /// 이 값을 넘으면 목표 고도를 지금 높이로 옮긴다. 되돌리면 기획과 어긋난다.
-        /// </summary>
-        public const float CraftHoverDriftBand = 0.5f;
-
-        /// <summary>
         /// 운석에 맞은 기체가 돌며 떨어지는 시간의 <b>절대 상한</b>(초).
         ///
         /// <b>정상 종료는 접지다</b>(S15P21B202-353). 기획 §14.1 은 수평 회복을
