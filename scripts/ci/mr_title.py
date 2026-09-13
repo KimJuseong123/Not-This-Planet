@@ -31,7 +31,16 @@ def infer_type(paths: list[str]) -> str:
 
 
 # 공백을 뺐을 때 이 길이 이하면 뜻이 없다고 본다 (S15P21B202-450).
+#
+# **글자에 따라 다르다** (`!387` 리뷰). 영문 2자(`ui` · `wp`)는 거의 언제나 뜻이 없지만
+# **한글 2자는 멀쩡한 낱말**이다 — `잡기` · `빌드` · `복구`. 같은 자로 세면 진짜 제목을
+# 지운다. 그래서 ASCII 만 2자까지 보고, 그 밖은 1자까지만 본다.
 MEANINGLESS_MAX = 2
+MEANINGLESS_MAX_WIDE = 1
+
+# 한글 **자모**(ㅇ · ㅋ · ㅎ)는 길이와 무관하게 낱말이 아니다 — `ㅇㅇ` · `ㅋㅋ` 가
+# 대표적인 자리표시자다. 목록이 아니라 **글자 종류**로 보므로 뒤쫓을 것이 없다.
+JAMO_FIRST, JAMO_LAST = "\u3130", "\u318f"
 
 
 def is_meaningless(body: str) -> bool:
@@ -46,18 +55,26 @@ def is_meaningless(body: str) -> bool:
     것이 계속 생겨 늘 뒤쫓게 된다. 대신 두 가지 성질로 본다:
 
       ① 글자도 숫자도 하나 없다 — `.` · `-` · `...` · `!!`
-      ② 공백을 뺀 길이가 `MEANINGLESS_MAX` 이하 — `x` · `ui` · `ㅇㅇ`
+      ② 한글 **자모**뿐이다 — `ㅇㅇ` · `ㅋㅋ` (자모는 길이와 무관하게 낱말이 아니다)
+      ③ 너무 짧다 — ASCII 는 2자까지, 그 밖은 1자까지
 
-    ②가 **진짜로 짧은 제목**(`UI`)까지 바꾼다. 그래도 그 편이 낫다 — 그런 제목은 어차피
+    ③의 자를 글자 종류로 가른다(`!387` 리뷰). 영문 2자(`ui`)는 거의 언제나 뜻이 없지만
+    **한글 2자는 멀쩡한 낱말**이다(`잡기` · `빌드` · `복구`). 같은 자로 세면 진짜 제목을
+    지운다.
+
+    그래도 `UI` 같은 진짜 짧은 영문 제목은 바뀐다. 그 편이 낫다고 본다 — 그런 제목은
     받는 사람에게 아무것도 말해 주지 않고, 바꾼 내용은 잡 로그에 남으며, 사람이 다시
     고치면 그 뒤로는 형식이 맞으므로 건드리지 않는다.
     """
     b = re.sub(r"\s+", "", body or "")
     if not b:
         return True
-    if not any(c.isalnum() for c in b):        # ① 기호뿐
+    if not any(c.isalnum() for c in b):                         # ① 기호뿐
         return True
-    return len(b) <= MEANINGLESS_MAX           # ② 너무 짧다
+    if all(JAMO_FIRST <= c <= JAMO_LAST for c in b):            # ② 자모뿐
+        return True
+    return len(b) <= (MEANINGLESS_MAX if b.isascii()            # ③ 너무 짧다
+                      else MEANINGLESS_MAX_WIDE)
 
 
 def is_default_body(body: str, branch: str) -> bool:
