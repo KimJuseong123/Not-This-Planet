@@ -16,7 +16,7 @@ import json
 import os
 import sys
 
-from ci_common import GitLab, banner, env, http, load_team, role_member, strip_draft
+from ci_common import GitLab, banner, bot_line, env, http, load_team, role_member, strip_draft
 
 TEAM = load_team()
 BY_GITLAB = {m["gitlab"]: m for m in TEAM["members"]}
@@ -199,7 +199,8 @@ def ci_resolved(gl: GitLab) -> int:
     try:
         if not any(FAIL_MARKER in (n.get("body") or "") for n in gl.notes()):
             print("이전 실패 코멘트 없음 → 생략"); return 0
-        body = (f"{FAIL_MARKER}\n✅ **CI 실패가 해소되었습니다** — 커밋 `{env('CI_COMMIT_SHORT_SHA', '')}` 기준으로 검사를 통과했습니다.\n\n"
+        body = (f"{FAIL_MARKER}\n✅ **CI 실패가 해소되었습니다** — 커밋 `{env('CI_COMMIT_SHORT_SHA', '')}` 기준으로 검사를 통과했습니다.\n"
+                f"{bot_line(env('CI_JOB_NAME', 'mm-ci-resolved'), '**머지를 막지 않습니다** — 해소 알림입니다', with_sha=False)}\n\n"
                 f"<sub>자동 생성(mm-notify) · 이전 실패 내용은 이 코멘트가 대체합니다</sub>")
         st, _ = gl.upsert_note(FAIL_MARKER, body)
         print(f"해소 코멘트 {'갱신' if st in (200, 201) else '실패 ' + str(st)}")
@@ -262,7 +263,10 @@ def ci_failed(gl: GitLab) -> int:
             lines = lines[:MAX_COMMENT_CHARS] + "\n- … (너무 길어 잘랐습니다 — 잡 로그를 보세요)"
     else:
         lines = "- 로그에서 ❌ 줄을 찾지 못했습니다. 위 잡 링크에서 직접 확인해 주세요."
-    comment = (f"{FAIL_MARKER}\n🔴 **CI 실패 — 무엇이 왜 실패했는지**\n\n{lines}\n\n"
+    # **카드 자체는 막지 않는다 — 그러나 실패한 잡이 막고 있다.** 둘을 구별해 주지
+    # 않으면 "알림이니 넘어가도 된다" 로 읽힌다 (S15P21B202-425).
+    comment = (f"{FAIL_MARKER}\n🔴 **CI 실패 — 무엇이 왜 실패했는지**\n"
+               f"{bot_line(env('CI_JOB_NAME', 'mm-ci-failed'), '이 카드가 막는 것은 아니지만, **아래 표의 실패한 잡 때문에 머지는 막혀 있습니다**')}\n\n{lines}\n\n"
                f"고친 뒤 다시 push 하면 자동으로 재검사되고 이 코멘트도 갱신됩니다. "
                f"({parts})\n\n<sub>자동 생성(mm-notify) · 규칙 설명은 docs/git-convention.md · docs/ci-and-notifications.md</sub>")
     if draft:

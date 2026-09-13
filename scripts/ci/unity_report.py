@@ -33,7 +33,7 @@ from xml.sax.saxutils import escape, quoteattr
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from ci_common import GitLab, banner, env  # noqa: E402
+from ci_common import GitLab, banner, bot_line, env  # noqa: E402
 
 MARKER = "<!-- unity-compile:metagame -->"
 JOB_NAME = "unity-compile"
@@ -410,9 +410,28 @@ def merged_note() -> str:
     return ""
 
 
+# **판정이 곧 차단 여부다** (S15P21B202-425). 이 잡은 종료 코드로 막는다 —
+# `REGRESSION`(1) 만 파이프라인을 실패시키고, `UNKNOWN`(2) 은 `allow_failure` 로 통과한다.
+# 그래서 문구를 따로 판단하지 않고 `decide()` 가 정한 값을 그대로 받아 쓴다. 두 곳이
+# 각각 판단하면 어긋나고, 어긋난 표시는 `-354`·`-398` 에서 겪은 바로 그 거짓말이 된다.
+BLOCKS_LINE = {
+    REGRESSION: "이 판정이 **머지를 막습니다** — 위 '새로 생긴 것' 을 고쳐서 다시 push 하세요",
+    UNKNOWN: "**머지를 막지 않습니다** — 판정하지 못해 경고로 뒀습니다",
+    PASS: "**머지를 막지 않습니다**",
+}
+
+
 def body(data: dict, errs: list[str], base: set | None, ref: str,
-         stale_base: dict | None = None, flaky: set | None = None) -> str:
+         stale_base: dict | None = None, flaky: set | None = None,
+         verdict: int | None = None) -> str:
     now_fail = {f'{c["cls"]}.{c["name"]}': c for c in data["cases"] if c["result"] == "Failed"}
+
+    def comment(parts: list[str]) -> str:
+        """머리줄 **바로 다음**에 '어느 잡·막는지' 를 넣는다 (S15P21B202-425).
+
+        판정을 모르고 불렀으면(검사 등) 그 칸은 비워 둔다 — `bot_line` 이 뺀다."""
+        line = bot_line("unity-compile", BLOCKS_LINE.get(verdict, ""))
+        return MARKER + chr(10) + chr(10).join([parts[0], line] + parts[1:])
     if errs:
         head = "🔴 **Unity C# 컴파일 실패** — 테스트는 돌지 못했습니다"
         parts = [head, "", "```"] + errs + ["```", "",
@@ -430,7 +449,7 @@ def body(data: dict, errs: list[str], base: set | None, ref: str,
                   if os.environ.get("UNITY_MERGED_BASE") else
                   f"이 검사는 **브랜치 끝에서만** 돌았습니다(대상 브랜치를 합치지 못했습니다) — "
                   f"`{ref}` 를 합치면 결과가 달라질 수 있습니다.")]
-        return MARKER + "\n" + "\n".join(parts)
+        return comment(parts)
 
     total, passed, failed = data["total"], data["passed"], data["failed"]
     if base is None:
@@ -448,7 +467,7 @@ def body(data: dict, errs: list[str], base: set | None, ref: str,
         note = merged_note()
         if note:
             parts += ["", f"<sub>{note} · 자동 생성(unity-compile)</sub>"]
-        return MARKER + "\n" + "\n".join(parts)
+        return comment(parts)
 
     # 재실행에서 통과한 것은 "새 실패" 에서 뺀다 — 다만 **아래에 반드시 적는다**
     # (S15P21B202-347). 조용히 빼면 테스트 격리 결함을 아무도 고치지 않는다.
@@ -520,7 +539,7 @@ def body(data: dict, errs: list[str], base: set | None, ref: str,
     parts += ["", "<sub>기존 실패는 담당자가 정리 중일 수 있어 나열하지 않습니다. 전체 목록은 "
               "MR 의 테스트 리포트 탭 · 잡 아티팩트 `unity-results.xml`"
               + (f" · {note}" if note else "") + " · 자동 생성(unity-compile)</sub>"]
-    return MARKER + "\n" + "\n".join(parts)
+    return comment(parts)
 
 
 def metagame_changed(a: str, b: str) -> bool | None:
@@ -805,7 +824,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"판정 {code} ({label}): {why}")
     write_verdict(where, code)
 
-    text = body(data, errs, base, ref, stale_base=bmeta if stale else None, flaky=flaky)
+    text = body(data, errs, base, ref, stale_base=bmeta if stale else None, flaky=flaky,
+                verdict=code)
     if gl.can_write:
         st, _ = gl.upsert_note(MARKER, text)
         print(f"MR 코멘트 {'갱신' if st == 200 else '작성' if st == 201 else f'실패({st})'}")

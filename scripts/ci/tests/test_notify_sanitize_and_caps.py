@@ -75,6 +75,12 @@ print("  카드 우선 발송 ✅")
 s = harness("", notes=[{"id": 9, "body": N.FAIL_MARKER + "\n🔴 CI 실패"}])
 N.ci_resolved(ci_common.GitLab())
 assert len(s["notes"]) == 1 and "해소되었습니다" in s["notes"][0] and "abc1234" in s["notes"][0], s["notes"]
+# **해소 쪽에도 둘째 줄이 있어야 한다** (S15P21B202-425). 실패(🔴) 쪽만 검사하면 이
+# 경로는 문구가 어긋나도 CI 가 못 잡는다. 그리고 두 경로가 **같은 마커**를 쓰므로,
+# 마커가 첫 줄에서 밀리면 `upsert_note` 가 자기 코멘트를 못 찾아 매번 새로 단다.
+_r2 = s["notes"][0].splitlines()[2]   # 0 마커 · 1 머리줄 · 2 이 줄
+assert "잡의 결과" in _r2 and "막지 않습니다" in _r2, _r2
+assert s["notes"][0].startswith("<!--"), "마커가 첫 줄에서 밀렸다"
 
 # ── ⑤ 해소: 실패 코멘트가 없으면 아무 것도 하지 않는다
 s = harness("", notes=[{"id": 9, "body": "그냥 코멘트"}])

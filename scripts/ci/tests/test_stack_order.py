@@ -207,7 +207,7 @@ print("  ⑬ 스택 자식 → 미해소 스레드 생성(머지 잠김) ✅")
 
 # ── ⑭ 사람이 손으로 해소해 뒀는데 아직 스택이면 → **다시 미해소로 되돌린다**
 RESOLVED_THREAD = [{"id": "d9", "individual_note": False,
-                    "notes": [{"id": 5, "body": S.BLOCKED.format(target="x", parent=""),
+                    "notes": [{"id": 5, "body": S.blocked("x", ""),
                                "resolved": True, "resolvable": True}]}]
 rc, puts, note, out = run(**PARENT_ALIVE, threads=RESOLVED_THREAD)
 assert rc != 0
@@ -216,7 +216,7 @@ print("  ⑭ 사람이 해소해 둔 것을 되돌림 ✅")
 
 # ── ⑮ 부모가 머지돼 대상이 develop 로 돌아오면 → **스레드를 해소**한다
 BLOCKED_THREAD = [{"id": "d9", "individual_note": False,
-                   "notes": [{"id": 5, "body": S.BLOCKED.format(target="x", parent=""),
+                   "notes": [{"id": 5, "body": S.blocked("x", ""),
                               "resolved": False, "resolvable": True}]}]
 rc, puts, note, out = run("develop", branches=["develop"],
                           notes=[S.MARKER + " 이전 안내"], threads=BLOCKED_THREAD)
