@@ -36,6 +36,7 @@ import gzip
 import hashlib
 import json
 import os
+import re
 import shutil
 import sys
 from datetime import datetime, timedelta, timezone
@@ -219,15 +220,24 @@ CHANNEL_FILES = {
     QA: ("dev-latest.json", "dev-versions.json"),   # 개발 런처가 한 목록에서 고른다
 }
 
+# **이름 모양을 못 박는다.** 이 값이 그대로 `manifest/<값>.json` 경로가 되고
+# `dev-latest.json` 에 실린다. 접두만 보고 통과시키면 `dev-../../x` 가 배포 폴더
+# **밖**을 가리킨다 — 릴리스 쪽은 `parse_version` 이 이미 그것을 막고 있었다.
+#
+# 커밋 해시는 16진수만, MR 번호는 숫자만, 날짜는 8자리만. `publish_builds.VERSION_RE`
+# 와 같은 모양이고, 두 곳 다 막는다 — 한쪽만 믿으면 그 한쪽이 바뀔 때 조용히 열린다.
+DEV_RE = re.compile(r"^dev-\d{8}-[0-9a-f]{7,40}$")
+QA_RE = re.compile(r"^qa-\d+-[0-9a-f]{7,40}$")
+
 DEV_PREFIX, QA_PREFIX = "dev-", "qa-"
 
 
 def channel_of(version: str) -> str | None:
     """버전 이름 → 채널. 어느 모양도 아니면 None."""
     if version.startswith(DEV_PREFIX):
-        return DEV
+        return DEV if DEV_RE.match(version) else None
     if version.startswith(QA_PREFIX):
-        return QA
+        return QA if QA_RE.match(version) else None
     # **`v` 를 요구한다.** 릴리스 태그와 같은 모양이어야 하고, `parse_version` 은
     # 그것을 선택으로 본다 — 그대로 쓰면 `1.0.0` 이 통과해 태그와 어긋난 이름이 섞인다.
     return RELEASE if version.startswith("v") and parse_version(version) is not None else None
