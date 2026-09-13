@@ -272,20 +272,20 @@ namespace Metagame.UI
             DrawLabel(new Rect(x, y - 35f * scale, buttonWidth, 26f * scale),
                 "MENU", smallStyle, new Color(0.72f, 0.91f, 1f));
 
-            if (GUI.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 0, gap),
+            if (UiInteraction.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 0, gap),
                     "혼자 하기", buttonStyle))
                 BeginSolo();
-            if (GUI.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 1, gap),
+            if (UiInteraction.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 1, gap),
                     "함께 하기", buttonStyle))
             {
                 CustomizerFlow.Begin(true);
             }
-            if (GUI.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 2, gap),
+            if (UiInteraction.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 2, gap),
                     "설정", buttonStyle))
             {
                 OpenSettings();
             }
-            if (GUI.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 3, gap),
+            if (UiInteraction.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 3, gap),
                     "종료하기", buttonStyle))
                 Application.Quit();
 
@@ -328,10 +328,10 @@ namespace Metagame.UI
                 "변경값은 즉시 미리보기로 적용되며 저장 버튼을 눌러야 파일에 기록됩니다.",
                 smallStyle, new Color(0.72f, 0.86f, 0.98f));
 
-            if (GUI.Button(new Rect(x + width - 226f, y + 24f, 92f, 40f),
+            if (UiInteraction.Button(new Rect(x + width - 226f, y + 24f, 92f, 40f),
                     "기본값", smallButtonStyle))
                 ResetSettingsPreview();
-            if (GUI.Button(new Rect(x + width - 126f, y + 24f, 92f, 40f),
+            if (UiInteraction.Button(new Rect(x + width - 126f, y + 24f, 92f, 40f),
                     "취소", smallButtonStyle))
             {
                 CancelSettings();
@@ -370,7 +370,7 @@ namespace Metagame.UI
 
             GUI.EndScrollView();
 
-            if (GUI.Button(new Rect(x + width - 218f, y + height - 56f, 184f, 42f),
+            if (UiInteraction.Button(new Rect(x + width - 218f, y + height - 56f, 184f, 42f),
                     "저장", buttonStyle))
                 SaveSettings();
 
@@ -397,7 +397,7 @@ namespace Metagame.UI
             if (selected)
                 DrawBox(area, new Color(0.05f, 0.35f, 0.56f, 0.92f));
 
-            if (GUI.Button(area, label, selected ? buttonStyle : smallButtonStyle)
+            if (UiInteraction.Button(area, label, selected ? buttonStyle : smallButtonStyle)
                 && !selected)
             {
                 settingsTab = tab;
@@ -409,7 +409,7 @@ namespace Metagame.UI
         private void DrawDisplaySettings(float x, ref float y, float width)
         {
             DrawLabel(new Rect(x, y, 230f, 30f), "UI 텍스트 크기 조정", labelStyle, Color.white);
-            float textScale = GUI.HorizontalSlider(new Rect(x + 250f, y + 7f, 300f, 20f),
+            float textScale = UiInteraction.HorizontalSlider(new Rect(x + 250f, y + 7f, 300f, 20f),
                 editingSettings.display.uiTextScale, 0.8f, 1.5f);
             textScale = Mathf.Round(textScale * 20f) / 20f;
             DrawLabel(new Rect(x + 570f, y, 90f, 30f),
@@ -425,9 +425,9 @@ namespace Metagame.UI
             DrawLabel(new Rect(x + 210f, y, 210f, 30f),
                 editingSettings.display.width + " × " + editingSettings.display.height,
                 smallStyle, new Color(0.82f, 0.92f, 1f));
-            if (GUI.Button(new Rect(x + width - 174f, y, 76f, 30f), "이전", smallButtonStyle))
+            if (UiInteraction.Button(new Rect(x + width - 174f, y, 76f, 30f), "이전", smallButtonStyle))
                 CycleResolution(-1);
-            if (GUI.Button(new Rect(x + width - 86f, y, 76f, 30f), "다음", smallButtonStyle))
+            if (UiInteraction.Button(new Rect(x + width - 86f, y, 76f, 30f), "다음", smallButtonStyle))
                 CycleResolution(1);
             y += 38f;
 
@@ -435,7 +435,7 @@ namespace Metagame.UI
             DrawLabel(new Rect(x + 210f, y, 260f, 30f),
                 FullscreenModeLabel(editingSettings.display.fullscreenMode),
                 smallStyle, new Color(0.82f, 0.92f, 1f));
-            if (GUI.Button(new Rect(x + width - 86f, y, 76f, 30f), "변경", smallButtonStyle))
+            if (UiInteraction.Button(new Rect(x + width - 86f, y, 76f, 30f), "변경", smallButtonStyle))
                 CycleFullscreenMode(1);
             y += 38f;
 
@@ -445,11 +445,11 @@ namespace Metagame.UI
                 ? qualityOptions[editingSettings.display.qualityLevel] : "기본값";
             DrawLabel(new Rect(x + 210f, y, 260f, 30f), quality,
                 smallStyle, new Color(0.82f, 0.92f, 1f));
-            if (GUI.Button(new Rect(x + width - 86f, y, 76f, 30f), "변경", smallButtonStyle))
+            if (UiInteraction.Button(new Rect(x + width - 86f, y, 76f, 30f), "변경", smallButtonStyle))
                 CycleQuality(1);
             y += 38f;
 
-            bool vSync = GUI.Toggle(new Rect(x, y, width - 12f, 30f),
+            bool vSync = UiInteraction.Toggle(new Rect(x, y, width - 12f, 30f),
                 editingSettings.display.vSync, "수직 동기화", labelStyle);
             if (vSync != editingSettings.display.vSync)
             {
@@ -462,14 +462,14 @@ namespace Metagame.UI
             DrawLabel(new Rect(x + 210f, y, 260f, 30f),
                 FrameRateLabel(editingSettings.display.frameRateLimit),
                 smallStyle, new Color(0.82f, 0.92f, 1f));
-            if (GUI.Button(new Rect(x + width - 86f, y, 76f, 30f), "변경", smallButtonStyle))
+            if (UiInteraction.Button(new Rect(x + width - 86f, y, 76f, 30f), "변경", smallButtonStyle))
                 CycleFrameRate(1);
             y += 38f;
         }
 
         private void DrawAudioSettings(float x, ref float y, float width)
         {
-            float master = GUI.HorizontalSlider(new Rect(x + 210f, y + 7f, 300f, 20f),
+            float master = UiInteraction.HorizontalSlider(new Rect(x + 210f, y + 7f, 300f, 20f),
                 editingSettings.audio.masterVolume, 0f, 1f);
             DrawLabel(new Rect(x, y, 190f, 30f), "전체 음량", labelStyle, Color.white);
             DrawLabel(new Rect(x + 530f, y, 90f, 30f),
@@ -482,7 +482,7 @@ namespace Metagame.UI
             }
             y += 38f;
 
-            float sfx = GUI.HorizontalSlider(new Rect(x + 210f, y + 7f, 300f, 20f),
+            float sfx = UiInteraction.HorizontalSlider(new Rect(x + 210f, y + 7f, 300f, 20f),
                 editingSettings.audio.sfxVolume, 0f, 1f);
             DrawLabel(new Rect(x, y, 190f, 30f), "효과음", labelStyle, Color.white);
             DrawLabel(new Rect(x + 530f, y, 90f, 30f),
@@ -495,7 +495,7 @@ namespace Metagame.UI
             }
             y += 38f;
 
-            float music = GUI.HorizontalSlider(new Rect(x + 210f, y + 7f, 300f, 20f),
+            float music = UiInteraction.HorizontalSlider(new Rect(x + 210f, y + 7f, 300f, 20f),
                 editingSettings.audio.musicVolume, 0f, 1f);
             DrawLabel(new Rect(x, y, 190f, 30f), "음악", labelStyle, Color.white);
             DrawLabel(new Rect(x + 530f, y, 90f, 30f),
@@ -518,7 +518,7 @@ namespace Metagame.UI
                 new Color(0.50f, 0.56f, 0.64f));
             bool previous = GUI.enabled;
             GUI.enabled = false;
-            GUI.HorizontalSlider(new Rect(x + 210f, y + 7f, 300f, 20f), 1f, 0f, 1f);
+            UiInteraction.HorizontalSlider(new Rect(x + 210f, y + 7f, 300f, 20f), 1f, 0f, 1f);
             GUI.enabled = previous;
             DrawLabel(new Rect(x + 530f, y, width - 530f, 30f), reason,
                 smallStyle, new Color(0.50f, 0.56f, 0.64f));
@@ -527,7 +527,7 @@ namespace Metagame.UI
 
         private void DrawControlSettings(float x, ref float y, float width)
         {
-            float sensitivity = GUI.HorizontalSlider(new Rect(x + 210f, y + 7f, 300f, 20f),
+            float sensitivity = UiInteraction.HorizontalSlider(new Rect(x + 210f, y + 7f, 300f, 20f),
                 editingSettings.controls.lookSensitivity, 0.1f, 5f);
             DrawLabel(new Rect(x, y, 190f, 30f), "마우스 감도", labelStyle, Color.white);
             DrawLabel(new Rect(x + 530f, y, 90f, 30f), sensitivity.ToString("0.0"),
@@ -539,7 +539,7 @@ namespace Metagame.UI
             }
             y += 38f;
 
-            bool invert = GUI.Toggle(new Rect(x, y, width - 12f, 30f),
+            bool invert = UiInteraction.Toggle(new Rect(x, y, width - 12f, 30f),
                 editingSettings.controls.invertLookY, "Y축 반전", labelStyle);
             if (invert != editingSettings.controls.invertLookY)
             {
@@ -562,7 +562,7 @@ namespace Metagame.UI
             DrawLabel(new Rect(x, y, 250f, 30f), BindingLabel(action), smallStyle, Color.white);
             string value = rebindingAction.HasValue && rebindingAction.Value == action
                 ? "입력 대기 중 (Esc 취소)" : GetBinding(action).ToString();
-            if (GUI.Button(new Rect(x + 270f, y, Mathf.Min(300f, width - 270f), 30f),
+            if (UiInteraction.Button(new Rect(x + 270f, y, Mathf.Min(300f, width - 270f), 30f),
                     value, smallButtonStyle))
                 rebindingAction = action;
             y += 34f;
@@ -823,7 +823,7 @@ namespace Metagame.UI
                 "친구에게 방 코드를 공유해 함께 출발하세요", smallStyle,
                 new Color(0.72f, 0.86f, 0.98f));
 
-            if (GUI.Button(new Rect(x + width - 142f, y + 24f, 106f, 40f),
+            if (UiInteraction.Button(new Rect(x + width - 142f, y + 24f, 106f, 40f),
                     "메인으로", smallButtonStyle))
             {
                 if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == CustomizerFlow.SceneName)
@@ -852,7 +852,7 @@ namespace Metagame.UI
         {
             DrawLabel(new Rect(x + 54f, y + 156f, 170f, 30f), "닉네임", labelStyle, Color.white);
             GUI.SetNextControlName("LobbyNickname");
-            nickname = GUI.TextField(new Rect(x + 236f, y + 151f, width - 290f, 40f),
+            nickname = UiInteraction.TextField(new Rect(x + 236f, y + 151f, width - 290f, 40f),
                 nickname ?? string.Empty, 12);
             DrawLabel(new Rect(x + 54f, y + 208f, width - 108f, 24f),
                 "최대 12자 · 게스트로 바로 시작합니다", smallStyle,
@@ -861,7 +861,7 @@ namespace Metagame.UI
             bool canLogin = network.State != NetworkConnectionState.LoggingIn
                          && network.State != NetworkConnectionState.Connecting;
             GUI.enabled = canLogin;
-            if (GUI.Button(new Rect(x + 54f, y + 270f, width - 108f, 54f),
+            if (UiInteraction.Button(new Rect(x + 54f, y + 270f, width - 108f, 54f),
                     "게스트 로그인", buttonStyle))
             {
                 error = string.Empty;
@@ -888,7 +888,7 @@ namespace Metagame.UI
 
             bool canConnect = network.State != NetworkConnectionState.Connecting;
             GUI.enabled = canConnect;
-            if (GUI.Button(new Rect(x + 54f, y + 274f, width - 108f, 52f),
+            if (UiInteraction.Button(new Rect(x + 54f, y + 274f, width - 108f, 52f),
                     "다시 연결", buttonStyle))
             {
                 error = string.Empty;
@@ -896,7 +896,7 @@ namespace Metagame.UI
             }
             GUI.enabled = true;
 
-            if (GUI.Button(new Rect(x + 54f, y + 348f, width - 108f, 42f),
+            if (UiInteraction.Button(new Rect(x + 54f, y + 348f, width - 108f, 42f),
                     "게스트 로그아웃", smallButtonStyle))
                 LogoutGuest();
         }
@@ -907,7 +907,7 @@ namespace Metagame.UI
                 "로그인 완료: " + network.Nickname + "  (유저 " + network.UserId + ")",
                 labelStyle, Color.white);
 
-            if (GUI.Button(new Rect(x + 54f, y + 202f, width - 108f, 54f),
+            if (UiInteraction.Button(new Rect(x + 54f, y + 202f, width - 108f, 54f),
                     "새 방 만들기", buttonStyle))
             {
                 error = string.Empty;
@@ -917,16 +917,16 @@ namespace Metagame.UI
             DrawLabel(new Rect(x + 54f, y + 302f, 170f, 30f), "방 코드로 입장", labelStyle,
                 Color.white);
             GUI.SetNextControlName("LobbyRoomCode");
-            roomIdInput = GUI.TextField(new Rect(x + 236f, y + 297f, width - 290f, 40f),
+            roomIdInput = UiInteraction.TextField(new Rect(x + 236f, y + 297f, width - 290f, 40f),
                 roomIdInput ?? string.Empty, 6);
-            if (GUI.Button(new Rect(x + 54f, y + 365f, width - 108f, 54f),
+            if (UiInteraction.Button(new Rect(x + 54f, y + 365f, width - 108f, 54f),
                     "방 입장", buttonStyle))
             {
                 error = string.Empty;
                 network.JoinRoom((roomIdInput ?? string.Empty).Trim().ToUpperInvariant());
             }
 
-            if (GUI.Button(new Rect(x + 54f, y + 438f, width - 108f, 42f),
+            if (UiInteraction.Button(new Rect(x + 54f, y + 438f, width - 108f, 42f),
                     "게스트 로그아웃", smallButtonStyle))
                 LogoutGuest();
         }
@@ -939,7 +939,7 @@ namespace Metagame.UI
             DrawLabel(new Rect(x + width - 276f, y + 139f, 132f, 26f),
                 isHost ? "방장" : "참가자", smallStyle,
                 isHost ? new Color(1f, 0.84f, 0.45f) : new Color(0.72f, 0.84f, 0.95f));
-            if (GUI.Button(new Rect(x + width - 132f, y + 130f, 78f, 38f),
+            if (UiInteraction.Button(new Rect(x + width - 132f, y + 130f, 78f, 38f),
                     "복사", smallButtonStyle))
             {
                 GUIUtility.systemCopyBuffer = room.RoomId;
@@ -968,13 +968,13 @@ namespace Metagame.UI
             }
 
             float controlsY = rowY + Mathf.Max(1, room.Players.Count) * 34f + 24f;
-            if (GUI.Button(new Rect(x + 54f, controlsY, width * 0.40f, 48f),
+            if (UiInteraction.Button(new Rect(x + 54f, controlsY, width * 0.40f, 48f),
                     network.IsLocalReady ? "준비 취소" : "준비", buttonStyle))
                 network.SetReady(!network.IsLocalReady);
 
             bool canStart = isHost && room.IsWaiting && room.AllReady;
             GUI.enabled = canStart;
-            if (GUI.Button(new Rect(x + width * 0.52f, controlsY, width * 0.40f, 48f),
+            if (UiInteraction.Button(new Rect(x + width * 0.52f, controlsY, width * 0.40f, 48f),
                     "게임 시작", buttonStyle))
                 network.StartGame();
             GUI.enabled = true;
@@ -999,14 +999,14 @@ namespace Metagame.UI
                     smallStyle, new Color(1f, 0.86f, 0.5f));
             }
 
-            if (GUI.Button(new Rect(x + 54f, controlsY + 64f + waitNotice, width - 108f, 40f),
+            if (UiInteraction.Button(new Rect(x + 54f, controlsY + 64f + waitNotice, width - 108f, 40f),
                     "방 나가기", smallButtonStyle))
             {
                 error = string.Empty;
                 network.LeaveRoom();
             }
 
-            if (GUI.Button(new Rect(x + 54f, controlsY + 116f + waitNotice, width - 108f, 40f),
+            if (UiInteraction.Button(new Rect(x + 54f, controlsY + 116f + waitNotice, width - 108f, 40f),
                     "게스트 로그아웃", smallButtonStyle))
                 LogoutGuest();
         }

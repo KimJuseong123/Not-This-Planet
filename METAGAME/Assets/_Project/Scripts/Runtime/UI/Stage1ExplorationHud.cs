@@ -271,9 +271,9 @@ namespace Metagame.UI
 
             // The arrow image is also a transparent IMGUI button so mouse clicks
             // and keyboard navigation share the same page state and boundaries.
-            if (canPrevious && GUI.Button(left, GUIContent.none, GUIStyle.none))
+            if (canPrevious && UiInteraction.Button(left, GUIContent.none, GUIStyle.none))
                 exploration.PreviousTabletPage();
-            if (canNext && GUI.Button(right, GUIContent.none, GUIStyle.none))
+            if (canNext && UiInteraction.Button(right, GUIContent.none, GUIStyle.none))
                 exploration.NextTabletPage();
 
             var width = Stage1Exploration.TabletPageCount * 12f;

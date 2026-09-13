@@ -87,19 +87,19 @@ namespace Metagame.Bootstrap
             GUILayout.Label("외형만 변경됩니다. 이동·점프·장비 성능은 같습니다.", label);
             GUILayout.EndScrollView();
             GUILayout.Space(16);
-            if (GUILayout.Button("기본 외형으로", button, GUILayout.MinHeight(42)))
+            if (UiInteraction.LayoutButton("기본 외형으로", button, GUILayout.MinHeight(42)))
             {
                 draft = default;
                 PlayerAppearance.Apply(preview, draft.Packed);
             }
-            if (GUILayout.Button(CustomizerFlow.Multiplayer ? "저장하고 방 만들기 / 참가" : "저장하고 출발", button, GUILayout.MinHeight(54)))
+            if (UiInteraction.LayoutButton(CustomizerFlow.Multiplayer ? "저장하고 방 만들기 / 참가" : "저장하고 출발", button, GUILayout.MinHeight(54)))
                 Continue();
-            if (GUILayout.Button("취소 · 로비로", button, GUILayout.MinHeight(42)))
+            if (UiInteraction.LayoutButton("취소 · 로비로", button, GUILayout.MinHeight(42)))
                 LobbyTransition.Ensure().BeginTitle();
             if (!string.IsNullOrEmpty(error)) GUILayout.Label(error, label);
             GUILayout.EndArea();
-            if (GUI.Button(new Rect(26, UiScale.Height - 65, 85, 42), "◀ 회전", button)) yaw -= 30;
-            if (GUI.Button(new Rect(124, UiScale.Height - 65, 85, 42), "회전 ▶", button)) yaw += 30;
+            if (UiInteraction.Button(new Rect(26, UiScale.Height - 65, 85, 42), "◀ 회전", button)) yaw -= 30;
+            if (UiInteraction.Button(new Rect(124, UiScale.Height - 65, 85, 42), "회전 ▶", button)) yaw += 30;
             GUI.enabled = wasEnabled;
         }
 
@@ -107,7 +107,7 @@ namespace Metagame.Bootstrap
         {
             GUILayout.Label(heading, label);
             int columns = options.Length == 5 ? 2 : 1;
-            selected = GUILayout.SelectionGrid(selected, options, columns, button,
+            selected = UiInteraction.SelectionGrid(selected, options, columns, button,
                 GUILayout.MinHeight(Mathf.CeilToInt(options.Length / (float)columns) * 38));
             GUILayout.Space(14);
             return selected;
