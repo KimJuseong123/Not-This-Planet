@@ -167,18 +167,23 @@ namespace Metagame.EditorTools
         /// </summary>
         static string OverwrittenFrom()
         {
-            string head = Git("rev-parse --short HEAD");
-            foreach (var raw in Git("log --format=%h -n " + SearchDepth).Split('\n'))
+            // **빈 출력을 "같다" 로 읽지 않는다** (`!384` 2차 리뷰). `Git()` 은 실패해도
+            // 빈 문자열을 준다 — 그래서 `--name-only` 의 빈 출력으로 판정하면, git 호출이
+            // 한 번만 삐끗해도 **아무 상관 없는 커밋을 "덮어씀" 으로 찍는다.** 그것이
+            // 바로 이 이슈가 고치려던 거짓 해시다. `--quiet` 의 **종료 코드**로 가른다:
+            //   0 = 같다 · 1 = 다르다 · 그 밖 = 물어보지 못했다
+            int rc;
+            string log = Run("log --format=%h -n " + SearchDepth, out rc);
+            if (rc != 0) return string.Empty;      // 역사를 못 읽었으면 찾지 않는다
+
+            foreach (var raw in log.Split('\n'))
             {
                 string sha = raw.Trim();
                 if (sha.Length == 0) continue;
 
-                // **HEAD 가 나오면 무언가 잘못된 것이다.** 여기 온 것은 인덱스가 HEAD 와
-                // 다르기 때문인데, 그렇다면 HEAD 와 같을 리가 없다. `Git()` 이 실패를
-                // 빈 문자열로 돌려주므로 그 경우를 "같다" 로 읽지 않게 막는다.
-                if (sha == head) continue;
-
-                if (string.IsNullOrEmpty(Git("diff --cached --name-only " + sha + " -- ."))) return sha;
+                Run("diff --cached --quiet " + sha + " -- .", out rc);
+                if (rc == 0) return sha;           // 인덱스가 이 커밋의 METAGAME/ 과 같다
+                if (rc != 1) return string.Empty;  // 0 도 1 도 아니면 **판정한 것이 아니다**
             }
             return string.Empty;
         }
@@ -196,9 +201,24 @@ namespace Metagame.EditorTools
         /// <summary>
         /// git 한 번 돌리고 표준출력을 돌려준다. git 이 없거나 저장소가 아니면 빈 문자열이다 —
         /// 그때는 시각만으로도 빌드를 구분할 수 있으니 빌드를 막지 않는다.
+        ///
+        /// <para><b>실패와 "출력이 없다" 를 구별해야 하면 <see cref="Run"/> 를 쓴다.</b>
+        /// 이쪽은 둘 다 빈 문자열이라, 빈 출력에 뜻을 싣는 자리에서 쓰면 거짓 판정이 된다
+        /// (<c>!384</c> 2차 리뷰).</para>
         /// </summary>
         static string Git(string arguments)
         {
+            int rc;
+            string outText = Run(arguments, out rc);
+            return rc == 0 ? outText : string.Empty;
+        }
+
+        /// <summary>
+        /// git 한 번. <paramref name="exit"/> 에 종료 코드를 담는다 — 돌리지 못했으면 <c>-1</c>.
+        /// </summary>
+        static string Run(string arguments, out int exit)
+        {
+            exit = -1;
             try
             {
                 var info = new System.Diagnostics.ProcessStartInfo("git", arguments)
@@ -220,9 +240,11 @@ namespace Metagame.EditorTools
                     git.StandardError.ReadToEnd();
 
                     // 저장소가 잠겨 있거나 하면 끝나지 않을 수 있다. 빌드를 붙잡아 두지 않는다.
+                    // **`exit` 는 -1 로 둔다** — 안 끝난 것은 판정이 아니다.
                     if (!git.WaitForExit(5000)) return string.Empty;
 
-                    return git.ExitCode == 0 ? output.Trim() : string.Empty;
+                    exit = git.ExitCode;
+                    return output.Trim();
                 }
             }
             catch (Exception)

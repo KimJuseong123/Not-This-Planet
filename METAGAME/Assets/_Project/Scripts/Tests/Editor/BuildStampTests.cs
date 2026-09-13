@@ -151,5 +151,31 @@ namespace Metagame.Gameplay.Tests
             Assert.That(src, Does.Contain("SearchDepth"),
                 "덮어쓴 커밋을 찾는 범위에 상한이 없다 — 저장소 역사 전체를 훑게 된다");
         }
+
+        [Test]
+        public void AFailedGitCallIsNeverReadAsAMatch()
+        {
+            // **빈 출력을 "같다" 로 읽으면 안 된다** (`!384` 2차 리뷰). `Git()` 은 실패해도
+            // 빈 문자열을 주므로, `diff --cached --name-only` 의 빈 출력으로 판정하면
+            // git 호출이 한 번만 삐끗해도 **아무 상관 없는 커밋을 "덮어씀" 으로 찍는다** —
+            // 이 이슈가 고치려던 거짓 해시가 다른 모양으로 돌아온다.
+            //
+            // 그래서 `--quiet` 의 **종료 코드**로 가른다: 0 = 같다 · 1 = 다르다 ·
+            // 그 밖 = 물어보지 못했다(찾기를 포기한다).
+            var src = TestSource.Read("Editor/BuildStamp.cs");
+            var search = src.Substring(src.IndexOf("static string OverwrittenFrom"));
+
+            Assert.That(search, Does.Contain("diff --cached --quiet"),
+                "종료 코드가 아니라 출력으로 판정한다 — 실패가 '일치' 로 읽힌다");
+            Assert.That(search, Does.Not.Contain("diff --cached --name-only"),
+                "빈 출력으로 판정하던 코드가 남아 있다");
+            Assert.That(search, Does.Contain("rc != 1"),
+                "0 도 1 도 아닌 종료 코드(= 물어보지 못했다)를 가르지 않는다");
+
+            // `Git()` 이 실패를 삼키는 것 자체는 그대로 둔다 — 스탬프 하나 때문에 빌드를
+            // 막지 않는다는 원래 결정이다. 대신 **뜻을 싣는 자리는 `Run` 을 쓴다.**
+            Assert.That(src, Does.Contain("static string Run(string arguments, out int exit)"),
+                "종료 코드를 볼 수 있는 통로가 없다");
+        }
     }
 }
