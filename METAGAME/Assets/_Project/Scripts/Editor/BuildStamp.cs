@@ -107,6 +107,21 @@ namespace Metagame.EditorTools
             bool dev = (Environment.GetEnvironmentVariable("SPACE_DEV") ?? string.Empty).Trim() == "1";
             line.Append('\n').Append(BuildInfo.BackendPrefix).Append(dev ? "dev" : "prod");
 
+            // **릴리스 버전을 박는다** (S15P21B202-404). 서버가 이 값으로 구버전을 막는다.
+            //
+            // 값은 `release-windows` 가 빌드 **전에** `publish_release.py version` 으로
+            // 정해 둔 것을 환경변수로 받는다. 여기서 git 태그를 다시 읽지 않는다 —
+            // 두 곳이 각각 판단하면 어긋나고, 어긋난 버전은 **게이트를 조용히 무력화**한다.
+            //
+            // 릴리스가 아닌 빌드(로컬·개발·에디터)에는 이 줄이 없다. 그것을 어떻게 볼지는
+            // **서버가** 정한다 — 클라이언트가 스스로 판단하면 그 판단째로 우회된다.
+            string version = (Environment.GetEnvironmentVariable("SPACE_RELEASE_VERSION") ?? string.Empty).Trim();
+            if (!string.IsNullOrEmpty(version))
+            {
+                version = version.Replace("\r", " ").Replace("\n", " ");
+                line.Append('\n').Append(BuildInfo.VersionPrefix).Append(version);
+            }
+
             return line.ToString();
         }
 

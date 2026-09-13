@@ -47,6 +47,21 @@ namespace Metagame.Core
         public const string BackendPrefix = "백엔드=";
 
         /// <summary>
+        /// 릴리스 버전 줄의 머리표 — <c>버전=v1.0.0</c> (S15P21B202-404).
+        /// </summary>
+        public const string VersionPrefix = "버전=";
+
+        /// <summary>
+        /// 이 빌드의 릴리스 버전(<c>v1.0.0</c>). 릴리스 빌드가 아니면 빈 문자열이다 —
+        /// 에디터 실행·로컬 빌드·개발 빌드가 그렇다.
+        ///
+        /// <para>로그인 요청에 실어 보내고 서버가 구버전을 막는다. <b>빈 값을 어떻게 볼지는
+        /// 서버가 정한다</b> — 이 클래스는 읽은 것을 그대로 전한다. 클라이언트가 스스로
+        /// "나는 최신" 이라고 판단하면 그 판단째로 우회된다.</para>
+        /// </summary>
+        public static string ReleaseVersion { get; private set; } = string.Empty;
+
+        /// <summary>
         /// 이 빌드가 가리키는 백엔드 — <c>dev</c> · <c>prod</c> · 빈 문자열(옛 빌드).
         ///
         /// <para>빈 값을 어떻게 볼지는 <see cref="BackendEndpoints"/> 가 정한다 — 이 클래스는
@@ -98,6 +113,8 @@ namespace Metagame.Core
                         Experiment = line.Substring(ExperimentPrefix.Length).Trim();
                     else if (line.StartsWith(BackendPrefix))
                         BackendEnvironment = line.Substring(BackendPrefix.Length).Trim();
+                    else if (line.StartsWith(VersionPrefix))
+                        ReleaseVersion = line.Substring(VersionPrefix.Length).Trim();
                 }
 
                 return lines[0].Trim();
