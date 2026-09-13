@@ -66,6 +66,119 @@ namespace Metagame.Gameplay.Tests
             Assert.AreEqual(GameLayers.Part, vehicle.gameObject.layer);
         }
 
+        [TestCase(false, false)]
+        [TestCase(false, true)]
+        [TestCase(true, false)]
+        [TestCase(true, true)]
+        public void Conversion_KeepsAuthoredSurfaceAndBeadsEditable(bool remote, bool existingBead)
+        {
+            WorldEvents.RemoteDecides = remote;
+            var part = CreatePart(out var activator, out var legacy, out _, out _, out var clamps,
+                new Vector3(7f, 3f, -4f));
+            legacy.enabled = false;
+            var bodyObject = new GameObject("Body_0") { layer = GameLayers.Part };
+            bodyObject.transform.SetParent(part.transform, false);
+            var surface = bodyObject.AddComponent<BoxCollider>();
+            surface.size = Vector3.one * 2f;
+            Physics.SyncTransforms();
+            var ray = new Ray(part.transform.position + Vector3.up * 2f, Vector3.down);
+            Assert.IsTrue(surface.Raycast(ray, out var hit, 3f));
+            WeldBead bead = null;
+            Collider blob = null;
+            var blobPosition = Vector3.zero;
+            if (existingBead)
+            {
+                Assert.IsTrue(WeldBead.TryApplyAt(hit, 0.02f, false, out bead));
+                blob = part.GetComponentInChildren<SphereCollider>();
+                // Clamp triggers also use spheres; the bead has a solid sphere.
+                foreach (var sphere in part.GetComponentsInChildren<SphereCollider>())
+                    if (!sphere.isTrigger) blob = sphere;
+                blobPosition = blob.transform.position;
+            }
+            foreach (var clamp in clamps)
+            {
+                if (remote) clamp.ApplyNetworkState(1f, true);
+                else clamp.Release();
+            }
+            Physics.SyncTransforms();
+            Assert.IsTrue(surface.enabled, "원래 몸체 충돌체를 계속 사용해야 한다.");
+            Assert.AreSame(part.GetComponent<Rigidbody>(), surface.attachedRigidbody);
+            Assert.IsNull(part.transform.Find("Visual/VehicleHull_0"), "몸체 복제본을 만들면 안 된다.");
+            Assert.IsTrue(surface.Raycast(ray, out hit, 3f));
+            Assert.IsTrue(WeldBead.TryApplyAt(hit, 0.02f, false, out var after));
+            if (existingBead)
+            {
+                Assert.AreSame(bead, after);
+                Assert.IsTrue(blob.enabled);
+                Assert.That(Vector3.Distance(blobPosition, blob.transform.position), Is.LessThan(0.0001f));
+            }
+            else
+            {
+                bead = after;
+                foreach (var sphere in part.GetComponentsInChildren<SphereCollider>())
+                    if (!sphere.isTrigger) { blob = sphere; break; }
+            }
+
+            // Steering rotates the visual independently of the beam root; beads must follow it.
+            var visual = surface.transform.parent;
+            var localBlobPosition = visual.InverseTransformPoint(blob.transform.position);
+            visual.Rotate(Vector3.up, 65f, Space.World);
+            Physics.SyncTransforms();
+            Assert.That(Vector3.Distance(visual.TransformPoint(localBlobPosition), blob.transform.position),
+                Is.LessThan(0.0001f));
+            var cutRay = new Ray(blob.bounds.center + Vector3.up, Vector3.down);
+            Assert.IsTrue(blob.Raycast(cutRay, out var cutHit, 2f));
+            Assert.IsTrue(WeldBead.CanApplyAt(cutHit, true));
+            Assert.IsTrue(WeldBead.TryApplyAt(cutHit, 0.02f, true, out var cutBead));
+            Assert.AreSame(bead, cutBead);
+            Assert.IsTrue(activator.IsActivated);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void LastClampRelease_PreservesWorldPoseAndCollisionVolume(bool remote)
+        {
+            WorldEvents.RemoteDecides = remote;
+            var part = CreatePart(out var activator, out var source, out _, out var socket,
+                out var clamps, new Vector3(7f, 3f, -4f));
+            part.transform.rotation = Quaternion.Euler(12f, 37f, -8f);
+            var visual = new GameObject("Visual").transform;
+            visual.SetParent(part.transform, false);
+            visual.localPosition = new Vector3(0.3f, 0.6f, -0.2f);
+            source.center = new Vector3(0.1f, 0.2f, -0.1f);
+            source.size = new Vector3(2f, 1f, 1.5f);
+            for (var i = 0; i < 3; i++)
+            {
+                if (remote) clamps[i].ApplyNetworkState(1f, true);
+                else clamps[i].Release();
+            }
+            Physics.SyncTransforms();
+            var rootPosition = part.transform.position;
+            var visualPosition = visual.position;
+            var visualRotation = visual.rotation;
+            var socketPosition = socket.transform.position;
+            var socketRotation = socket.transform.rotation;
+            var center = source.transform.TransformPoint(source.center);
+            var rotation = source.transform.rotation;
+            var size = Vector3.Scale(source.size, source.transform.lossyScale);
+            if (remote) clamps[3].ApplyNetworkState(1f, true);
+            else clamps[3].Release();
+            Physics.SyncTransforms();
+
+            Assert.That(Vector3.Distance(rootPosition, part.transform.position), Is.LessThan(0.0001f));
+            Assert.That(Vector3.Distance(visualPosition, visual.position), Is.LessThan(0.0001f));
+            Assert.That(Quaternion.Angle(visualRotation, visual.rotation), Is.LessThan(0.01f));
+            Assert.That(Vector3.Distance(socketPosition, socket.transform.position), Is.LessThan(0.0001f));
+            Assert.That(Quaternion.Angle(socketRotation, socket.transform.rotation), Is.LessThan(0.01f));
+            var hull = visual.Find("VehicleHull_0").GetComponent<BoxCollider>();
+            Assert.That(Vector3.Distance(center, hull.transform.TransformPoint(hull.center)), Is.LessThan(0.0001f));
+            Assert.That(Quaternion.Angle(rotation, hull.transform.rotation), Is.LessThan(0.01f));
+            Assert.That(Vector3.Distance(size, Vector3.Scale(hull.size, hull.transform.lossyScale)), Is.LessThan(0.0001f));
+            Assert.That(Vector3.Angle(Vector3.down, part.transform.forward), Is.LessThan(0.01f));
+            Assert.AreEqual(remote, part.GetComponent<Rigidbody>().isKinematic);
+            Assert.IsTrue(activator.IsActivated);
+        }
+
         [TestCase(false)]
         [TestCase(true)]
         public void ReleasedEngine_RemainsWeldableOnAuthorityAndReplica(bool remote)

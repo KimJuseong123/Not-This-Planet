@@ -192,6 +192,17 @@ namespace Metagame.Gameplay.Parts
             for (int i = 0; i < sources.Count; i++)
             {
                 var source = sources[i];
+                // Authored Body_* objects keep their collider identity and surface references.
+                if (source.transform != transform)
+                {
+                    if (source.transform != visual && !source.transform.IsChildOf(visual))
+                        source.transform.SetParent(visual, true);
+                    hullColliders[i] = source;
+                    continue;
+                }
+
+                // Legacy root-only boxes cannot be reparented independently of the Rigidbody.
+                source.enabled = false;
                 var go = new GameObject("VehicleHull_" + i) { layer = HullLayer };
                 go.transform.SetPositionAndRotation(source.transform.position, source.transform.rotation);
                 go.transform.localScale = source.transform.lossyScale;
@@ -208,10 +219,16 @@ namespace Metagame.Gameplay.Parts
             // Sockets must follow the same upright frame as the hull, not the downward beam root.
             foreach (var socket in GetComponentsInChildren<PartSocket>(true))
                 socket.transform.SetParent(visual, true);
+
+            // Create the same bead frame even when no beads exist yet (including replicas).
+            // Existing chains, colliders and local snapshot coordinates remain unchanged.
+            var part = GetComponent<SpaceshipPart>();
+            if (part != null) weldBeadFrame = WeldBead.Attach(part).FollowSurface(visual);
         }
         Transform platformAnchor;
         Transform seat;
         Transform visual;
+        Transform weldBeadFrame;
         Transform cockpit;
         Material cockpitConsoleMaterial;
         Material cockpitScreenMaterial;
@@ -600,6 +617,30 @@ namespace Metagame.Gameplay.Parts
             seat.position = transform.position + Vector3.up * ResolveSeatHeight();
             seat.rotation = Quaternion.identity;
             seat.gameObject.layer = GameLayers.Prop;
+        }
+
+        /// <summary>고정못 해제 시 외형·몸체·소켓의 월드 자세를 유지하고 빔 축만 전환한다.</summary>
+        internal void AdoptPartPose()
+        {
+            // PlaceOnGround는 최초 배치/리셋용이다. 해제 중 호출하면 지면 높이와
+            // 외형 최저면을 다시 맞추면서 주변 물체 안으로 충돌체를 순간 이동시킨다.
+            var visualPosition = visual != null ? visual.position : Vector3.zero;
+            var visualRotation = visual != null ? visual.rotation : Quaternion.identity;
+            var rootRotation = Quaternion.LookRotation(Vector3.down, Vector3.forward);
+            body.rotation = rootRotation;
+            transform.rotation = rootRotation;
+            if (visual != null)
+                visual.SetPositionAndRotation(visualPosition, visualRotation);
+
+            // ConfigureHull에서 몸체·소켓·비드를 Visual 아래에 모았으므로 위 복원으로
+            // 충돌 형상도 그대로 유지된다. 선속도와 고도는 기존 파츠에서 이어받는다.
+            EnsurePhysics();
+            facingDirection = Vector3.ProjectOnPlane(visualRotation * Vector3.forward, Vector3.up).normalized;
+            if (facingDirection.sqrMagnitude < 0.0001f) facingDirection = Vector3.forward;
+            targetAltitude = body.position.y;
+            grounded = true;
+            Physics.SyncTransforms();
+            RefreshSeat();
         }
 
         /// <summary>탑승하지 않은 장치를 맵의 바닥으로 되돌린다.</summary>
@@ -1296,6 +1337,8 @@ namespace Metagame.Gameplay.Parts
             {
                 if (renderers[i] is ParticleSystemRenderer) continue;
                 if (cockpit != null && renderers[i].transform.IsChildOf(cockpit)) continue;
+                // Added weld material must not redefine the cockpit or steering pivot.
+                if (weldBeadFrame != null && renderers[i].transform.IsChildOf(weldBeadFrame)) continue;
                 if (first) { bounds = renderers[i].bounds; first = false; }
                 else bounds.Encapsulate(renderers[i].bounds);
             }
