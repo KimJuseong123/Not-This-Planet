@@ -34,6 +34,9 @@ namespace Metagame.Gameplay
         /// </summary>
         public float FocusSmoothing = 16f;
         public float FirstPersonForward = 0.20f;
+        [Header("1인칭 시야 충돌")]
+        [Min(0.01f)] public float FirstPersonCollisionRadius = 0.08f;
+        [Min(0f)] public float FirstPersonCollisionPadding = 0.015f;
         public float Sensitivity = 2.4f;
         public bool InvertLookY;
         public float MinPitch = -42f;
@@ -619,8 +622,11 @@ namespace Metagame.Gameplay
             {
                 // 물리 강체의 회전은 흔들릴 수 있으므로 위치는 골반의 월드 위치와
                 // 세계의 위쪽만 사용한다. 수평 시선 방향으로만 조금 내밀어 얼굴 메시가 막지 않게 한다.
+                // 다만 몸은 파츠 밖에서 멈춰도 이 전방 오프셋만 파츠 안으로 들어갈 수 있다.
+                // 작은 구를 먼저 보내 표면 직전에 멈추면 물리 반발력을 높이지 않고도 내부 노출을 막는다.
                 Vector3 flatForward = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
-                transform.position = raw + flatForward * FirstPersonForward;
+                float forward = ResolveFirstPersonForward(raw, flatForward);
+                transform.position = raw + flatForward * forward;
                 transform.rotation = rot;
                 currentDistance = 0f;
                 return;
@@ -653,6 +659,35 @@ namespace Metagame.Gameplay
 
             transform.position = smoothFocus + back * currentDistance;
             transform.rotation = rot;
+        }
+
+        /// <summary>
+        /// 얼굴 메시를 피하기 위한 1인칭 전방 오프셋을 월드 충돌 표면 앞에서 제한한다.
+        /// 플레이어 레이어는 <see cref="RagdollBuilder.WorldMask"/> 에서 빠져 있으므로
+        /// 자신의 머리·몸에는 걸리지 않고 파츠·지형·절벽만 시야를 막는다.
+        /// </summary>
+        float ResolveFirstPersonForward(Vector3 origin, Vector3 direction)
+        {
+            float wanted = Mathf.Max(0f, FirstPersonForward);
+            if (wanted <= Mathf.Epsilon) return 0f;
+
+            float radius = Mathf.Max(0.01f, FirstPersonCollisionRadius);
+            int count = Physics.SphereCastNonAlloc(
+                origin, radius, direction, hits, wanted,
+                RagdollBuilder.WorldMask, QueryTriggerInteraction.Ignore);
+
+            for (int i = 0; i < count; i++)
+            {
+                var col = hits[i].collider;
+                if (col == null) continue;
+
+                float distance = hits[i].distance;
+                wanted = Mathf.Min(
+                    wanted,
+                    Mathf.Max(0f, distance - Mathf.Max(0f, FirstPersonCollisionPadding)));
+            }
+
+            return wanted;
         }
 
         // 아래 방향은 모두 현재 카메라 시점에서 뽑는다. 수평 이동은 pitch를 버리고,
