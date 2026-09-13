@@ -79,9 +79,15 @@ def download_target(site_dir: str) -> object:
     except OSError:
         return NOTHING_TO_CHECK          # 설정 파일 자체가 없다 — 쓰지 않는 사이트다
 
-    m = URL_RE.search(text)
+    # **주석 줄은 빼고 본다** (`!394` 리뷰). 옛 값을 `// downloadUrl: "/builds/old.zip"`
+    # 으로 남겨 두는 것은 흔한 일인데, 그것이 진짜 키보다 위에 있으면 **옛 값을 검사
+    # 대상으로 잡는다.** 그러면 이미 지운 파일을 찾다가 배포가 서거나, 더 나쁘게는
+    # 남아 있는 옛 파일을 보고 통과시킨다.
+    live = "\n".join(l for l in text.splitlines() if not l.lstrip().startswith(("//", "*", "/*")))
+
+    m = URL_RE.search(live)
     if not m:
-        return UNREADABLE if KEY_RE.search(text) else NOTHING_TO_CHECK
+        return UNREADABLE if KEY_RE.search(live) else NOTHING_TO_CHECK
 
     url = m.group(2).strip()
     if not url:

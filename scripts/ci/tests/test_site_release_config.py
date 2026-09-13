@@ -176,6 +176,14 @@ with tempfile.TemporaryDirectory() as tmp:
     assert cfg('downloadUrlLabel: "받기"') is None, \
         "다른 키 하나로 배포를 멈춘다 — 오탐이다"
 
+    #     **주석 줄은 빼고 본다** (`!394` 리뷰). 옛 값을 `//` 로 남겨 두는 것은 흔한
+    #     일인데, 그것이 진짜 키보다 위에 있으면 **옛 값을 검사 대상으로 잡는다** —
+    #     이미 지운 파일을 찾다 배포가 서거나, 남아 있는 옛 파일을 보고 통과시킨다.
+    assert cfg('// downloadUrl: "/builds/old.zip"\ndownloadUrl: "/builds/new.exe"') == "new.exe", \
+        "주석에 적힌 옛 값을 먼저 잡는다"
+    assert cfg('// downloadUrl: "/builds/old.zip"') is None, \
+        "주석뿐인데 키가 있다고 본다"
+
     #     파일이 아예 없으면 None
     os.remove(os.path.join(site, "release-config.js"))
     assert PS.download_target(site) is None
