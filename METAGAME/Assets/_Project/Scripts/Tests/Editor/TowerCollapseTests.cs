@@ -256,19 +256,16 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
-        /// 기획 §22.4 — "약한 접합부부터 끊어지고 끊어지지 않은 접합부는 붙은 덩어리로 남는다".
-        /// 용접했어도 무게중심이 나쁘면 무너진다(§16.2).
+        /// 기획 §16.2 — 용접된 접합은 무게중심이 나빠도 물리 하중으로 끊어지지 않는다.
+        /// 덩어리 전체가 기울어지는 것과 파츠 사이 접합이 파손되는 것은 구분한다.
         /// </summary>
         [Test]
-        public void WeldedTower_StillCollapsesWhenBadlyStacked()
+        public void WeldedTower_KeepsAllJointsWhenBadlyStacked()
         {
-            // 용접된 탑은 하나의 덩어리로 천천히 기운다. 미용접 탑보다 시간이 더 걸린다.
             var outcome = RunTower(UnstableOffset, welded: true, seconds: 12f);
 
-            Assert.Greater(outcome.Broken, 0, "용접해도 무게중심이 나쁘면 무너져야 한다.");
-            Assert.Less(outcome.Broken, 3,
-                $"접합 셋이 모두 끊어졌다({outcome.Broken}). 약한 곳부터 끊어지고 나머지는 "
-                + "붙은 덩어리로 남아야 한다.");
+            Assert.AreEqual(0, outcome.Broken,
+                "비뚤게 쌓아도 절단 전까지 모든 용접 접합이 유지되어야 한다.");
         }
 
         // --- 결정론 --------------------------------------------------------

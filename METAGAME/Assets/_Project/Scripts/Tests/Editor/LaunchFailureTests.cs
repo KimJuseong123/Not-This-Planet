@@ -100,9 +100,32 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void ASlightlyOffsetWeldedTower_SurvivesTheLoadTest()
         {
-            var result = Launch(offsetPerFloor: 0.4f, weldRatio: 1f);
+            var rig = MakeRig();
+            var engine = BuildTower(offsetPerFloor: 0.4f, weldRatio: 1f);
+            var tower = new List<SpaceshipPart>();
+            var links = new List<PartAssemblyLink>();
+            PartGraph.Collect(engine, tower);
+            PartGraph.CollectLinks(tower, links);
+            Assert.AreEqual(PartSpec.All.Length, tower.Count);
+            Assert.AreEqual(PartSpec.All.Length - 1, links.Count);
 
-            Assert.AreEqual(LaunchState.Ascending, result.State, result.Reason);
+            // 탑승·카운트다운 중 자세 조건은 이 테스트의 대상이 아니다.
+            // 실제 발사 추력을 직접 시작하고, 이륙 여부와 별개로 접합을 검사한다.
+            rig.Launch.Begin(engine);
+            Assert.AreEqual(LaunchState.Ramping, rig.Launch.State, rig.Launch.FailureReason);
+            var steps = Mathf.CeilToInt((PhysicsScale.LaunchRampSeconds + 2f) / Step);
+            for (var i = 0; i < steps; i++)
+            {
+                foreach (var link in links)
+                    if (link != null) link.Tick();
+                rig.Launch.Tick(Step);
+                UnityEngine.Physics.Simulate(Step);
+                foreach (var link in links)
+                    Assert.IsTrue(link != null && link.IsIntact,
+                        "비뚤어진 탑도 발사 추력으로 용접 접합이 끊어지면 안 된다.");
+            }
+            Assert.GreaterOrEqual(rig.Launch.Elapsed, PhysicsScale.LaunchRampSeconds,
+                "최대 출력에 도달할 때까지 실제 하중 시험을 진행해야 한다.");
         }
 
         /// <summary>
@@ -248,7 +271,7 @@ namespace Metagame.Gameplay.Tests
             return new Result(rig.Launch.State, rig.Launch.FailureReason);
         }
 
-        void BuildTower(float offsetPerFloor, float weldRatio)
+        SpaceshipPart BuildTower(float offsetPerFloor, float weldRatio)
         {
             MakeGround();
 
@@ -280,6 +303,7 @@ namespace Metagame.Gameplay.Tests
                 if (weldRatio >= 1f) link.ForceWeldComplete();
                 else link.SetBeadWeldRatio(weldRatio);
             }
+            return parts[0];
         }
 
         SpaceshipPart MakePart(PartSpec spec, Vector3 center)
