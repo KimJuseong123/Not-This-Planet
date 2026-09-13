@@ -266,7 +266,7 @@ def ci_failed(gl: GitLab) -> int:
     # **카드 자체는 막지 않는다 — 그러나 실패한 잡이 막고 있다.** 둘을 구별해 주지
     # 않으면 "알림이니 넘어가도 된다" 로 읽힌다 (S15P21B202-425).
     comment = (f"{FAIL_MARKER}\n🔴 **CI 실패 — 무엇이 왜 실패했는지**\n"
-               f"{bot_line(env('CI_JOB_NAME', 'mm-ci-failed'), '이 카드가 막는 것은 아니지만, **실패한 잡 때문에 머지는 막혀 있습니다**')}\n\n{lines}\n\n"
+               f"{bot_line(env('CI_JOB_NAME', 'mm-ci-failed'), '이 카드가 막는 것은 아니지만, **아래 표의 실패한 잡 때문에 머지는 막혀 있습니다**')}\n\n{lines}\n\n"
                f"고친 뒤 다시 push 하면 자동으로 재검사되고 이 코멘트도 갱신됩니다. "
                f"({parts})\n\n<sub>자동 생성(mm-notify) · 규칙 설명은 docs/git-convention.md · docs/ci-and-notifications.md</sub>")
     if draft:
