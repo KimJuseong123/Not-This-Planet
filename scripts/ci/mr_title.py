@@ -56,7 +56,7 @@ def is_meaningless(body: str) -> bool:
 
       ① 글자도 숫자도 하나 없다 — `.` · `-` · `...` · `!!`
       ② 한글 **자모**뿐이다 — `ㅇㅇ` · `ㅋㅋ` (자모는 길이와 무관하게 낱말이 아니다)
-      ③ 너무 짧다 — ASCII 는 2자까지, 그 밖은 1자까지
+      ③ 너무 짧다 — ASCII 는 2자까지, 그 밖은 1자까지 (`1` 같은 **한 자리 숫자도** 여기다)
 
     ③의 자를 글자 종류로 가른다(`!387` 리뷰). 영문 2자(`ui`)는 거의 언제나 뜻이 없지만
     **한글 2자는 멀쩡한 낱말**이다(`잡기` · `빌드` · `복구`). 같은 자로 세면 진짜 제목을
@@ -151,8 +151,11 @@ def main() -> int:
             # 어디 갔나" 를 잡 로그에서 찾을 수 있어야 한다.
             filled = summary_body(issue) or body
             if filled != body:
+                # **원본 제목도 같이 찍는다** (`!387` 리뷰). `body` 는 `LOOSE_RE` 가
+                # 뽑아 낸 요약이라, 형식이 깨진 제목(`[x] .`)에서는 사람이 실제로 쓴
+                # 문자열과 다르다. 찾는 사람은 자기가 쓴 것을 기억한다.
                 print(f"제목 요약이 비어 있거나 뜻이 없어 Jira 요약으로 바꾼다: "
-                      f"{body!r} → {filled!r}")
+                      f"{raw_title!r}(요약 {body!r}) → {filled!r}")
             body = filled
         if not typ:
             paths = [c.get("new_path") or c.get("old_path") for c in gl.changes()]
