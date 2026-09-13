@@ -197,23 +197,64 @@ def _rules(job: str) -> list[str]:
     return out
 
 
-_dp = _rules("deploy-prod")
-assert any("$DEPLOY_PROD" in r for r in _dp), \
+def _rule_blocks(job: str) -> list[list[str]]:
+    """규칙을 **`- if:` 단위로 묶는다** (`!379` 리뷰).
+
+    줄 단위로 보면 `all(("when: manual" in r) or ("if:" in r))` 같은 검사가 **`if` 줄
+    하나만으로 늘 통과한다** — `when` 이 빠진 자동 실행 규칙을 못 잡는다. 이 검사가
+    지키려던 것이 바로 그것이라 무의미한 검사였다(내가 쓴 것이고, 리뷰가 잡았다).
+    """
+    blocks: list[list[str]] = []
+    for line in _rules(job):
+        if line.startswith("- "):
+            blocks.append([line])
+        elif blocks:
+            blocks[-1].append(line)
+    return blocks
+
+
+_dp = _rule_blocks("deploy-prod")
+assert any(any("$DEPLOY_PROD" in l for l in b) for b in _dp), \
     "deploy-prod 에 서버 전용 경로가 없다 — 서버만 고치려면 90분 빌드를 다시 태워야 한다: " + str(_dp)
-assert all(("when: manual" in r) or ("if:" in r) for r in _dp), \
-    "deploy-prod 에 수동이 아닌 규칙이 생겼다 — prod 재시작은 진행 중인 세션을 끊는다: " + str(_dp)
+
+#     **규칙 하나하나가 수동이어야 한다.** prod 재시작은 진행 중인 세션을 끊는다 —
+#     자동으로 도는 규칙이 하나라도 생기면 게임 중인 사람이 튕긴다.
+for _b in _dp:
+    assert any("when:" in l for l in _b), \
+        "deploy-prod 에 when 이 없는 규칙이 있다 — 자동으로 돌면 게임 중인 사람이 튕긴다: " + str(_b)
+    assert any(("when: manual" in l) or ("when: never" in l) for l in _b), \
+        "deploy-prod 규칙이 수동도 never 도 아니다: " + str(_b)
+
+#     **값까지 본다.** `$DEPLOY_PROD` 만 쓰면 있기만 하면 참이라 `DEPLOY_PROD=0` 에도 걸린다.
+for _b in _dp:
+    for _l in _b:
+        if "$DEPLOY_PROD" in _l:
+            assert '$DEPLOY_PROD == "1"' in _l, \
+                "DEPLOY_PROD 를 존재성으로만 본다 — 끄려고 0 을 넣은 사람이 켜는 결과를 얻는다: " + _l
 
 #     `needs: [build-backend]` 라 그 잡도 같은 조건에서 생겨야 한다. 아니면 GitLab 이
 #     **파이프라인 생성 자체를 거절한다**(`-467` 이 promote-builds 에서 겪은 자리).
 _bb = _rules("build-backend")
-assert any("$DEPLOY_PROD" in r for r in _bb), \
+assert any('$DEPLOY_PROD == "1"' in r for r in _bb), \
     "build-backend 가 서버 전용 파이프라인에서 안 생긴다 — deploy-prod 의 needs 가 없는 잡을 가리킨다"
 
 #     그리고 그 파이프라인에 90분짜리 Unity 빌드가 딸려 오면 길을 낸 이유가 사라진다.
-_rw = _rules("release-windows")
-_never = next(i for i, r in enumerate(_rw) if r == "when: never")
-assert "$DEPLOY_PROD" in _rw[_never - 1], \
-    "release-windows 가 서버 전용 파이프라인에서도 돈다 — 서버 한 줄 고치는 데 90분이 걸린다: " + str(_rw)
+#     **막는 조건이 너무 넓으면 리허설이 조용히 사라진다.** 브랜치와 값까지 봐야 한다 —
+#     리허설은 "릴리스 전에 안다" 가 목적이라 안 도는 것이 가장 나쁜 실패다.
+#     never 규칙은 둘이다 — 되돌리기(`-467`, `$PROMOTE_VERSION`)와 서버 전용 배포
+#     (`$DEPLOY_PROD`). **둘 다** 브랜치까지 좁혀져 있어야 한다.
+_rw = [b for b in _rule_blocks("release-windows") if any("when: never" in l for l in b)]
+assert len(_rw) >= 1, "release-windows 에 never 규칙이 없다"
+for _b in _rw:
+    _cond = _b[0]
+    for _need in ('$CI_PIPELINE_SOURCE == "web"', '$CI_COMMIT_BRANCH == "master"'):
+        assert _need in _cond, \
+            "release-windows 를 막는 조건이 너무 넓다 — 다른 브랜치의 리허설까지 사라진다: " + _cond
+
+assert any('$DEPLOY_PROD == "1"' in b[0] for b in _rw), \
+    "서버 전용 파이프라인에서 release-windows 가 여전히 돈다 — 서버 한 줄 고치는 데 90분이 걸린다"
+assert any("$PROMOTE_VERSION" in b[0] for b in _rw), \
+    "되돌리기 파이프라인에서 release-windows 가 여전히 돈다 (-467)"
 print("  서버만 고치는 길이 만들어지고, 90분 빌드를 안 끌고 온다 ✅")
 
 

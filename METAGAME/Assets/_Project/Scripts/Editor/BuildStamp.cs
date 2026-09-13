@@ -46,19 +46,39 @@ namespace Metagame.EditorTools
         static string Compose()
         {
             string when = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
-            string commit = Git("rev-parse --short HEAD");
             string branch = Git("rev-parse --abbrev-ref HEAD");
 
+            // **빌드된 것이 무엇인지를 찍는다** (S15P21B202-398). 예전에는 `HEAD` 를 찍었다.
+            // 그런데 우리는 작업 트리에 팀원의 커밋 안 된 문서 작업이 있어 `git switch` 를
+            // 못 할 때 `git checkout <커밋> -- METAGAME/` 로 **게임 코드만 덮어** 빌드한다.
+            // 그때 HEAD 는 움직이지 않으므로 **빌드된 코드와 아무 상관 없는 해시**가 박혔다 —
+            // 2026-09-10 qa2 빌드가 그랬고, 팀이 곧바로 "옛날 걸로 빌드한 거 아니냐" 고 물었다.
+            //
+            // 해시는 그럴싸해서 사람이 믿는다. **재현할 수 없으면 찍지 않는 것**이 낫다.
+            //
+            // 범위는 `METAGAME/`(=`.`, 아래 `Git` 의 작업 폴더) 전체다. `Assets/` 만 보면
+            // `ProjectSettings/`·`Packages/` 변경을 놓치는데 그것도 빌드 결과를 바꾼다.
+            string worktree = Git("diff --name-only -- .");          // 작업 트리 ↔ 인덱스
+            string staged = Git("diff --cached --name-only -- .");   // 인덱스 ↔ HEAD
+            string untracked = Git("ls-files --others --exclude-standard -- .");
+            string source = SourceLabel(Git("rev-parse --short HEAD"), worktree, staged, untracked);
+
             var line = new System.Text.StringBuilder(when);
-            line.Append(" · ").Append(string.IsNullOrEmpty(commit) ? "커밋 모름" : commit);
+            line.Append(" · ").Append(source);
 
             var key = IssueKey.Match(branch ?? string.Empty);
             if (key.Success) line.Append(" · ").Append(key.Value);
             else if (!string.IsNullOrEmpty(branch)) line.Append(" · ").Append(branch);
 
-            // 커밋하지 않은 변경이 섞였으면 해시만으로는 이 빌드를 재현할 수 없다.
-            // 그 사실을 숨기면 해시가 거짓말이 된다 — 실제로 커밋 전 코드를 빌드해 나눠 준 적이 있다.
-            if (!string.IsNullOrEmpty(Git("status --porcelain"))) line.Append(" · +커밋안한변경");
+            // **프로젝트 밖 변경은 빌드를 바꾸지 않는다.** 예전에는 저장소 전체를 보고
+            // `+커밋안한변경` 을 붙였는데, 커밋 안 된 `docs/` 96개 때문에 **재현 가능한
+            // 빌드에도 매번** 그 표시가 붙었다. 늘 붙는 표시는 아무도 안 읽는다.
+            // 그래도 저장소가 깨끗하지 않다는 것은 알려 준다 — 뜻이 다른 표시로.
+            bool projectClean = string.IsNullOrEmpty(worktree)
+                                && string.IsNullOrEmpty(staged)
+                                && string.IsNullOrEmpty(untracked);
+            if (projectClean && !string.IsNullOrEmpty(Git("status --porcelain")))
+                line.Append(" · +프로젝트밖수정");
 
             // 실험 라벨은 **둘째 줄**에 기계가 읽는 형식으로 박는다 (S15P21B202-376).
             // 첫 줄에 섞으면 사람이 읽는 표시를 파싱해야 하고, 그 형식이 바뀔 때마다
@@ -82,6 +102,43 @@ namespace Metagame.EditorTools
             line.Append('\n').Append(BuildInfo.BackendPrefix).Append(dev ? "dev" : "prod");
 
             return line.ToString();
+        }
+
+        /// <summary>
+        /// 첫 줄에 쓸 <b>기준</b>. 재현할 수 있으면 해시, 없으면 <b>왜 없는지</b>다.
+        ///
+        /// <para><b>순수 함수다</b> — git 을 부르지 않는다. 세 경우를 검사로 잠그기 위해서고,
+        /// 검사가 git 인덱스를 실제로 흔들면 저장소를 더럽힌다.</para>
+        ///
+        /// <para><b>두 가지 더러움을 가른다</b> (S15P21B202-398). 예전에는 둘 다
+        /// <c>+커밋안한변경</c> 한 문구였는데 뜻이 아주 다르다:</para>
+        /// <list type="bullet">
+        /// <item><b>덮어씀</b> — 작업 트리는 인덱스와 같은데 인덱스가 HEAD 와 다르다.
+        /// <c>git checkout &lt;커밋&gt; -- METAGAME/</c> 를 한 모양이다. 빌드된 것은
+        /// <b>HEAD 가 아닌 다른 커밋</b>이다</item>
+        /// <item><b>수정</b> — 손으로 고친 것이 섞였다. 어느 커밋으로도 재현되지 않는다</item>
+        /// </list>
+        /// </summary>
+        public static string SourceLabel(string headShort, string worktree, string staged, string untracked)
+        {
+            int edited = CountLines(worktree) + CountLines(untracked);
+            int overwritten = CountLines(staged);
+
+            // 손으로 고친 것이 하나라도 있으면 그것이 더 강한 이야기다 — 어느 커밋에도 없다.
+            if (edited > 0) return "작업트리(재현불가·수정 " + edited + "개)";
+            if (overwritten > 0) return "작업트리(재현불가·다른 커밋을 덮음 " + overwritten + "개)";
+
+            return string.IsNullOrEmpty(headShort) ? "커밋 모름" : headShort;
+        }
+
+        /// <summary>빈 줄을 뺀 줄 수. git 의 `--name-only` 출력은 파일 하나에 한 줄이다.</summary>
+        public static int CountLines(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return 0;
+            int n = 0;
+            foreach (var raw in text.Split('\n'))
+                if (!string.IsNullOrEmpty(raw.Trim())) n++;
+            return n;
         }
 
         /// <summary>
