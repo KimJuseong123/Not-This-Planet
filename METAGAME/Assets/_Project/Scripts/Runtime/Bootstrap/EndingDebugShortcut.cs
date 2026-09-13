@@ -129,9 +129,9 @@ namespace Metagame.Bootstrap
             GUI.Label(new Rect(18f, 86f, width - 36f, 70f), hint, hintStyle);
             var wasEnabled = GUI.enabled;
             GUI.enabled = wasEnabled && CanConfirm;
-            if (GUI.Button(new Rect(width * 0.5f - 154f, 177f, 140f, 48f), "예", buttonStyle)) Confirm();
+            if (UiInteraction.Button(new Rect(width * 0.5f - 154f, 177f, 140f, 48f), "예", buttonStyle)) Confirm();
             GUI.enabled = wasEnabled;
-            if (GUI.Button(new Rect(width * 0.5f + 14f, 177f, 140f, 48f), "아니오", buttonStyle)) Cancel();
+            if (UiInteraction.Button(new Rect(width * 0.5f + 14f, 177f, 140f, 48f), "아니오", buttonStyle)) Cancel();
         }
 
         void OnDestroy() { if (font != null) Destroy(font); }

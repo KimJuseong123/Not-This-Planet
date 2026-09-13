@@ -181,15 +181,15 @@ namespace Metagame.UI
             DrawLabel(new Rect(x, y + 26f * scale, panelWidth, 48f * scale),
                       "일시 메뉴", titleStyle, Color.white);
 
-            if (GUI.Button(new Rect(buttonX, firstButtonY, buttonWidth, buttonHeight),
+            if (UiInteraction.Button(new Rect(buttonX, firstButtonY, buttonWidth, buttonHeight),
                            "계속하기", buttonStyle))
                 CloseMenu();
 
-            if (GUI.Button(new Rect(buttonX, firstButtonY + (buttonHeight + gap),
+            if (UiInteraction.Button(new Rect(buttonX, firstButtonY + (buttonHeight + gap),
                                     buttonWidth, buttonHeight), "설정", buttonStyle))
                 OpenSettings();
 
-            if (GUI.Button(new Rect(buttonX, firstButtonY + (buttonHeight + gap) * 2f,
+            if (UiInteraction.Button(new Rect(buttonX, firstButtonY + (buttonHeight + gap) * 2f,
                                     buttonWidth, buttonHeight), "타이틀로 나가기", buttonStyle))
                 ReturnToTitle();
 

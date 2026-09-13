@@ -1,5 +1,9 @@
 # Unity Project Context
 
+## 2026-09-13 UI cursor integration
+
+`Metagame.UI.LocalCursorFeedback` auto-installs a persistent local presentation component in interactive players. It reuses `Resources/PingMarker`, reads the owning `NetPlayer.PingColor` (solo fallback: `GameSession.LocalPlayer.TeamColor`), and leaves cursor visibility/locking to existing bootstrap/session code. `UiInteraction` wraps current IMGUI controls to emit bounded screen sparks and synthesized 2D click audio only on consumed pointer presses. Audio honors the existing listener master volume and settings SFX volume; no network events are emitted. See `docs/records/2026-09-13-cursor-feedback.md` at repository root for scope and validation (22 EditMode tests passed in Unity 6000.5.4f1).
+
 <!-- unity-onboarding:generated:start -->
 
 ## Project Summary
