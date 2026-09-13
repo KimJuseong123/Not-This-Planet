@@ -717,10 +717,19 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
       fi
     # 3) zip → 패키지 레지스트리(잡 토큰) → Release(태그는 ref 로 생성) → MM 🟢. RC≠0 이면 🔴 만 보내고 실패
     - python3 scripts/ci/publish_release.py publish "$RC"
+    # 4) 사용자용 요약 **초안** (S15P21B202-462).
+    #
+    # **릴리스를 막지 않는다** (`|| true`). 이것은 사람이 고쳐서 쓰는 초안이고, 초안이
+    # 없다고 릴리스가 실패할 이유가 없다 — Jira 나 Claude CLI 가 잠깐 안 되는 것으로
+    # 배포를 세우면 그다음부터 사람이 이 단계를 지우고 싶어진다.
+    #
+    # **공개하지 않는다.** 아티팩트로만 남고, 사이트·Release·Jira 에 싣는 것은 사람이
+    # 보고 고친 뒤다 — `promote-builds`(공개 버튼)와 같은 결이다.
+    - python3 scripts/ci/release_summary.py "$(cat release-version.txt)" || true
   artifacts:
     when: always
     expire_in: 14 days
-    paths: [unity-build.log, unity-tests.log, unity-results.xml, release-version.txt, release-notes.md, release-package.txt]   # zip 은 아티팩트에 싣지 않는다 — 상한(100MB)에 걸린다. 패키지 레지스트리에 있다
+    paths: [unity-build.log, unity-tests.log, unity-results.xml, release-version.txt, release-notes.md, release-package.txt, release-summary.md]   # zip 은 아티팩트에 싣지 않는다 — 상한(100MB)에 걸린다. 패키지 레지스트리에 있다
     reports:
       junit: unity-junit.xml    # 실패한 테스트를 파이프라인 화면에서 바로 본다(unity-compile 과 같은 결)
 
