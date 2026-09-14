@@ -243,6 +243,44 @@ DEPLOY_SCAN_PIPELINES = 20      # 파이프라인 몇 건까지 거슬러 볼지
 KST = timezone(timedelta(hours=9))
 
 
+LAUNCHER_VERSION_FILE = "launcher/VERSION"
+LAUNCHER_JSON = "https://j15b202.p.ssafy.io/builds/launcher.json"
+
+
+def launcher_drift() -> str | None:
+    """저장소의 런처 버전과 **내보낸 것**이 다른가 (S15P21B202-508).
+
+    빌드는 자동이지만 **내보내기는 버튼**이다. 그래서 "고쳐서 머지했는데 아무도
+    안 누른" 상태가 남는다 — 2026-09-14 에 그 상태가 **세 번** 쌓여 있었고
+    (`-406` 개발 모드 · `-460` 채널 · `-507` 로그 보존) 아무것도 빨갛지 않았다.
+    `--dev` 가 안 먹어서야 드러났다.
+
+    **못 읽으면 조용히 넘어가지 않는다.** 판정을 못 한 것과 같은 것은 다르다 —
+    전자는 이 검사 자체가 죽은 것이다.
+    """
+    try:
+        with open(LAUNCHER_VERSION_FILE, encoding="utf-8") as f:
+            want = f.read().strip()
+    except OSError:
+        return (f"🚀 **런처 버전 파일을 읽지 못했다** — `{LAUNCHER_VERSION_FILE}` "
+                f"→ @{INFRA_MM} 확인")
+    if not want:
+        return f"🚀 **`{LAUNCHER_VERSION_FILE}` 이 비었다** → @{INFRA_MM} 확인"
+
+    try:
+        st, data = http("GET", LAUNCHER_JSON)
+    except Exception as e:  # noqa: BLE001 — 이 항목 실패가 카드를 막지 않는다
+        return f"🚀 **내보낸 런처 버전을 읽지 못했다** ({type(e).__name__}) → @{INFRA_MM} 확인"
+    if st != 200 or not isinstance(data, dict):
+        return f"🚀 **내보낸 런처 버전을 읽지 못했다** (HTTP {st}) → @{INFRA_MM} 확인"
+
+    live = str(data.get("version") or "").lstrip("v")
+    if live == want:
+        return None          # 같으면 조용하다 — 이 카드의 규칙
+    return (f"🚀 **내보내지 않은 런처가 있습니다** — 저장소 `v{want}` · 내보낸 것 "
+            f"`v{live or '?'}`. develop 파이프라인의 **`promote-launcher` 버튼**을 "
+            f"누르면 사용자에게 갑니다 → @{INFRA_MM}")
+
 def now_kst() -> str:
     """카드 헤더용 현재 시각(KST). naive datetime.now() 를 쓰면 EC2 컨테이너 TZ 가 UTC 라
     09:33 발송 카드에 '00:33' 이 찍힌다 — 09-01·02·03 사흘 연속 그렇게 나갔다(-282)."""
@@ -540,6 +578,15 @@ def main() -> int:
     # 대신 남는 것: 호스트의 `systemctl is-active gitlab-runner`(아래 상태 파일)와
     # `-130` 의 "검사가 돌지 않은 MR". 빠지는 것은 좁은 한 경우뿐이고 그것도
     # `-130` 이 몇 시간 뒤에 잡는다.
+    # **내보내지 않은 런처** (S15P21B202-508). 조치 항목이라 꼬리가 아니라 블록이다 —
+    # 버튼을 눌러야 사용자에게 간다.
+    try:
+        drift = launcher_drift()
+        if drift:
+            blocks.append(drift)
+    except Exception as e:  # noqa: BLE001 — 이 항목이 실패해도 나머지는 나간다
+        blocks.append(f"🚀 **런처 판정 실패** → @{INFRA_MM} 확인: {type(e).__name__}: {e}")
+
     try:
         srv_data = ec2_status.load()
         srv = ec2_status.section(srv_data)
