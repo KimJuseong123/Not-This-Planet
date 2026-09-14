@@ -187,6 +187,30 @@ namespace Metagame.Network
         public float rescueProgress;
 
         /// <summary>
+        /// 이 사람의 체력 (S15P21B202-513).
+        ///
+        /// <para><b>왜 보내야 하나.</b> 빨간 테두리(<c>GameHud.HealthFrame</c>)가
+        /// <c>Health01</c> 을 읽는데 참가자 기계에는 서버가 깎은 값이 오지 않았다 —
+        /// 실측으로 이 파일과 <c>WorldSync</c> 둘 다에서 <c>health</c> 가 <b>0회</b>였다.
+        /// 그래서 참가자에게 체력은 <b>"가득" 아니면 "기절" 둘뿐</b>이었다.</para>
+        ///
+        /// <para><b>비율이 아니라 절댓값을 보낸다.</b> <c>PlayerRig.IsDead</c> 가
+        /// <c>Health &lt;= 0</c> 이라, 비율만 보내면 그 값이 로컬로 남아 어긋난다 —
+        /// <c>DamageSource</c> 가 <c>IsDead</c> 로 피해를 거르므로 서버가 기절시킨
+        /// 사람을 계속 때리게 된다. <c>MaxHealth</c> 는 상수(<c>Tuning.MaxHealth</c>)라
+        /// 받는 쪽에서 비율을 다시 만들 수 있다.</para>
+        ///
+        /// <para><b>내 몸에만 넣는다.</b> 지금 테두리는 자기 것만 그린다 — 남의 체력을
+        /// 읽는 곳이 없다. 팀원 체력바가 생기면 그때 넓힌다(<c>rescueProgress</c> 가 같은
+        /// 판단을 한 자리다).</para>
+        ///
+        /// <para>기본값 0 이 아니라 <b>가득</b>이어야 안전하다 — 스폰 직후 값이 오기
+        /// 전에 0 이면 잠깐 죽은 것으로 보인다.</para>
+        /// </summary>
+        [SyncVar]
+        public float health = Core.Tuning.MaxHealth;
+
+        /// <summary>
         /// 방 안의 자리 번호(0~3). 색이 여기서 나온다 (S15P21B202-375).
         ///
         /// <para><b>서버가 <see cref="OnStartServer"/> 에서 정한다.</b> 그 시점에 넣으면
@@ -298,6 +322,13 @@ namespace Metagame.Network
             // 권위가 있는 몸에서 스스로 무시하지만, 부르지 않는 것이 뜻이 분명하다.
             if (!isServer && isLocalPlayer)
                 body.SetRemoteBeingRescued(rescueProgress);
+
+            // **내 몸에만.** 테두리를 그리는 곳이 자기 화면뿐이고, 남의 몸(그림)에
+            // 넣어 봐야 읽는 데가 없다. 서버에서는 자기 판정이 정답이므로 넣지 않는다 —
+            // SetRemoteHealth 가 권위가 있는 몸에서 스스로 무시하지만, 부르지 않는
+            // 것이 뜻이 분명하다.
+            if (!isServer && isLocalPlayer)
+                body.SetRemoteHealth(health);
 
             if (isServer) _locomotionState = RabbitLocomotion.ReadState(body);
             if (body.Doll.Suit != null)
@@ -682,6 +713,10 @@ namespace Metagame.Network
             // 쓰러진 사람 화면의 게이지가 읽을 값이다 (S15P21B202-448). 위 downed 와
             // 같은 자리에 둔다 — 같은 몸의 같은 상태이고, 탑승과 무관하다(-378).
             rescueProgress = body.BeingRescuedProgress01;
+
+            // 빨간 테두리가 읽을 값이다 (S15P21B202-513). 위 downed 와 같은 자리에
+            // 둔다 — 같은 몸의 같은 상태이고 탑승과 무관하다(-378).
+            health = body.Health;
 
             // 어느 탈것을 타는지도 같은 자리에서 실어 보낸다 (S15P21B202-434).
             //
