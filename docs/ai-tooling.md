@@ -4,7 +4,7 @@
 
 [문서 안내](README.md) · 선행: [Jira 작성 규칙](jira-convention.md)
 
-> 관련 문서: [Jira 컨벤션](./jira-convention.md) · [워크플로우 구현 계획](./workflow-plan.md)
+> 관련 문서: [Jira 컨벤션](./jira-convention.md) · [워크플로우 구현 계획](./records/2026-08-26-workflow-plan-v1.md)
 > Jira 작성을 AI에게 맡기는 것은 개인 선택이다([Jira 컨벤션 §0](./jira-convention.md)). 맡기는 사람만 이 문서를 따른다.
 
 **이 문서의 내용**

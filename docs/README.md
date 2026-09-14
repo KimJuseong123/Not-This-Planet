@@ -52,7 +52,7 @@
 
 ## 5. 결정 배경과 작업 이력
 
-[컨벤션의 결정 배경](conventions.md)에서 주요 이유를 확인하고, 대안 검토가 필요하면 [초기 워크플로우 계획](workflow-plan.md)을 읽습니다. 이 계획은 당시의 결정 기록이며 현재 규칙은 각 컨벤션 문서를 따릅니다.
+[컨벤션의 결정 배경](conventions.md)에서 주요 이유를 확인하고, 대안 검토가 필요하면 [초기 워크플로우 계획](records/2026-08-26-workflow-plan-v1.md)을 읽습니다. 이 계획은 당시의 결정 기록이며 현재 규칙은 각 컨벤션 문서를 따릅니다.
 
 [작업 기록 색인](records/README.md)은 기능·운영 주제별로 모든 기록을 연결합니다. 예를 들어 [develop 전체 AI 리뷰](records/S15P21B202-82-develop-ai-review.md)와 [머지된 MR 리뷰 대조](records/S15P21B202-134-merged-mr-ai-review.md)는 당시의 지적과 처리 결과를 확인할 때 읽습니다.
 

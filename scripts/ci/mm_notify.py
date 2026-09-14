@@ -9,7 +9,7 @@
 **모든 사람의 다음 브랜치가 빨간 기준선 위에서 시작하기** 때문이다. `branch_failed`·
 `branch_resolved` 가 그 경우를 맡는다.
 
-원칙(docs/ci-and-notifications.md §5): 태그할 사람이 없는 메시지는 보내지 않는다. 첫 줄 = 등급 이모지 + 굵은 제목 + 링크,
+원칙(docs/ci-and-notifications.md §4): 태그할 사람이 없는 메시지는 보내지 않는다. 첫 줄 = 등급 이모지 + 굵은 제목 + 링크,
 둘째 줄 = @멘션 + 조치. 사용자 매핑은 scripts/ci/team.json. 필요 변수: MM_WEBHOOK_URL, GITLAB_TOKEN(파이프라인·잡 조회).
 """
 import json

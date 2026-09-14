@@ -6,7 +6,7 @@ Jira와 GitLab 사이에서 이슈 상태·레이블·기한·알림을 처리�
 
 [문서 안내](README.md) · 사용 규칙: [Jira 컨벤션](jira-convention.md) · 검증: [E2E 점검표](e2e-checklist.md)
 
-> 관련 문서: [워크플로우 구현 계획](./workflow-plan.md) (검증 근거·출처) · [Jira 컨벤션](./jira-convention.md) · [Git 컨벤션](./git-convention.md)
+> 관련 문서: [워크플로우 구현 계획](./records/2026-08-26-workflow-plan-v1.md) (검증 근거·출처) · [Jira 컨벤션](./jira-convention.md) · [Git 컨벤션](./git-convention.md)
 > 기준 버전: workflow-plan v1.0 (2026-08-26)
 
 **이 문서의 내용**

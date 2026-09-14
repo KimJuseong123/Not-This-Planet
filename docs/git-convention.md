@@ -4,7 +4,7 @@
 
 [문서 안내](README.md) · 선행: [Jira 이슈 작성](jira-convention.md) · 다음: [MR 제출과 머지](mr-flow.md)
 
-> 관련 문서: [워크플로우 구현 계획](./workflow-plan.md) · [Jira 컨벤션](./jira-convention.md) · [파트 구분](./parts.md) · [Jira-GitLab 자동화](./jira-gitlab-automation.md)
+> 관련 문서: [워크플로우 구현 계획](./records/2026-08-26-workflow-plan-v1.md) · [Jira 컨벤션](./jira-convention.md) · [파트 구분](./parts.md) · [Jira-GitLab 자동화](./jira-gitlab-automation.md)
 > 기준 버전: workflow-plan v1.0 (2026-08-26)
 
 **이 문서의 내용**
