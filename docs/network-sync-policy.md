@@ -74,6 +74,7 @@ Mirror 가 `bufferTime = sendInterval × bufferTimeMultiplier` 만큼 뒤로 잡
 | **고정쇠 — 뽑혔다는 판정** | **P3** | ✅ | 같음 | 게임 진행을 바꾸므로 **서버가 확정한다** |
 | **용접 비드** — 늘어나는 표시 | **P1** | 🚧 `-363` | `WorldSync.RpcWeldGrown/Shrunk` | 쏘는 동안의 양은 내 입력만으로 정해진다. **아직 P2 다** |
 | **용접 — 접합 결과** | **P3** | ✅ | 같음 | 협동 핵심. **결과는 반드시 서버** |
+| **저중력장(UFO 빔) 켜짐/꺼짐** | **P3** | ✅ | `LowGravityField.ApplyNetworkActive` · `WorldSync.FieldState` | 켜는 것은 탑승자의 입력이지만 **그 결과를 안 탄 사람도 봐야 한다**. "절반 켜짐" 이 없으니 섞을 것도 없다. 물리는 서버만 돈다(`Tick` 이 `!_physicsAuthority` 에서 반환) — 참가자는 **그림만** 켠다 (`-505`) |
 | 운석 포즈 | **P2** | ✅ | `WorldSync.MeteorPose` | 서버 씨앗으로 정해진다. 내 입력과 무관 |
 | 운석 예고 원 | **P4** | ✅ | `Meteor.TryPredictImpact` | 위치·속도·중력으로 직접 푼다 → 같은 입력이면 같은 답. 보낼 필요가 없다 |
 | 탑승 여부 `riding` | **P3** | ✅ | `NetPlayer` SyncVar | 이산 |

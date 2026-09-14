@@ -77,6 +77,18 @@ namespace Metagame.Network
         /// <summary>고정쇠. 위치가 아니라 <b>진행도</b>가 사람마다 달라지는 것들이다.</summary>
         readonly List<PartClamp> clamps = new List<PartClamp>();
         ClampState[] clampTargets = Array.Empty<ClampState>();
+
+        /// <summary>
+        /// 저중력장을 가진 탈것의 <see cref="tracked"/> 색인 (S15P21B202-505).
+        /// <see cref="Collect"/> 가 줄 세우기를 끝낸 뒤 채운다.
+        /// </summary>
+        readonly List<int> vehicleSlots = new List<int>();
+
+        FieldState[] sendFields = Array.Empty<FieldState>();
+        FieldState[] lastSentFields = Array.Empty<FieldState>();
+        float fieldKeepaliveTimer;
+        uint lastFieldSeq;
+        bool everField;
         Pose[] targets = Array.Empty<Pose>();
         float sendTimer;
 
@@ -343,6 +355,23 @@ namespace Metagame.Network
             public bool Released;
         }
 
+        /// <summary>
+        /// 탈것의 저중력장이 켜져 있는가 (S15P21B202-505).
+        ///
+        /// <para><b>번호는 <see cref="tracked"/> 의 색인이다.</b> 새 줄을 세우지 않는다 —
+        /// S15P21B202-434 가 그 이유를 적어 두었다(-315 의 "개수는 같은데 순서만 어긋남").
+        /// 받는 쪽은 <see cref="VehicleAt"/> 로 되찾는다.</para>
+        ///
+        /// <para><b>켜짐/꺼짐만 보낸다.</b> 장의 모양(꼭짓점·반경)은 기체 위치에서 매번
+        /// 다시 잡으므로(<c>TransportVehicle.Field</c> 게터가 <c>Configure</c> 를 부른다)
+        /// 탈것 자세가 이미 동기화되는 것으로 따라온다.</para>
+        /// </summary>
+        public struct FieldState
+        {
+            public int Vehicle;         // tracked 색인
+            public bool Active;
+        }
+
         // ── 로그 진단용 (S15P21B202-352) ──────────────────────────────────
         //
         // 화면의 GUI 로 값을 읽어 손으로 적는 것은 느리고 놓치기 쉽다. 대신 양쪽 로그에
@@ -598,6 +627,24 @@ namespace Metagame.Network
             trackedParts.Clear();
             for (int i = 0; i < tracked.Count; i++)
                 trackedParts.Add(tracked[i] != null ? tracked[i].GetComponent<SpaceshipPart>() : null);
+
+            // 저중력장을 실어 보낼 자리 (S15P21B202-505).
+            //
+            // **새 줄을 세우지 않는다.** 여기 담는 것은 `tracked` 의 색인이고, 그
+            // 색인은 위에서 이미 확정됐다. S15P21B202-434 가 "탈것만 따로 줄을 세우면
+            // -315 가 기록한 사고(개수는 같은데 순서만 어긋남)를 새로 만든다" 고 적어
+            // 두었다 — 그래서 부분집합만 들고 있는다.
+            //
+            // 매 틱 GetComponent 를 돌지 않으려고 여기서 한 번만 모은다. trackedParts
+            // 가 같은 이유로 같은 자리에 있다.
+            vehicleSlots.Clear();
+            for (int i = 0; i < tracked.Count; i++)
+            {
+                if (tracked[i] == null) continue;
+
+                var vehicle = tracked[i].GetComponent<TransportVehicle>();
+                if (vehicle != null) vehicleSlots.Add(i);
+            }
         }
 
         /// <summary>
@@ -799,6 +846,7 @@ namespace Metagame.Network
         {
             sendTimer += Time.deltaTime;
             clampKeepaliveTimer += Time.deltaTime;
+            fieldKeepaliveTimer += Time.deltaTime;
             weldKeepaliveTimer += Time.deltaTime;
             linkKeepaliveTimer += Time.deltaTime;
             velocityTimer += Time.deltaTime;
@@ -846,6 +894,45 @@ namespace Metagame.Network
                 if (lastSentClamps.Length != sendClamps.Length)
                     lastSentClamps = new ClampState[sendClamps.Length];
                 Array.Copy(sendClamps, lastSentClamps, sendClamps.Length);
+            }
+
+            // ── 저중력장 (S15P21B202-505) ───────────────────────
+            //
+            // **빔은 켜짐/꺼짐이 전송되지 않아 호스트에게만 보였다.** 빔 그림은
+            // LowGravityField.SetActive 안에서 IsActive 가 참일 때만 붙는데, 그 값을
+            // 바꾸는 유일한 경로가 TractorBeamController 의 `if (!Authoritative) return;`
+            // 뒤에 있다. 실측으로 이 파일에 `Field` 라는 글자가 0회였다.
+            //
+            // 고정쇠와 같은 성질이라 같은 방식으로 보낸다 — 사람이 F 를 누르는 순간을
+            // 빼면 내내 그대로이므로 바뀔 때만, 그리고 신뢰 없는 채널이라 가끔 다시.
+            if (sendFields.Length != vehicleSlots.Count)
+                sendFields = new FieldState[vehicleSlots.Count];
+
+            for (int i = 0; i < vehicleSlots.Count; i++)
+            {
+                var vehicle = VehicleAt(vehicleSlots[i]);
+
+                // **게터를 한 번만 읽는다**(!417 AI 리뷰). `TransportVehicle.Field` 는
+                // 부를 때마다 `Configure` 와 `SetPhysicsAuthority` 를 다시 부른다 —
+                // 부작용이 있는 게터다. 처음에는 이 줄에서 두 번 읽었고, 그러면 보내는
+                // 틱마다 탈것 수의 두 배로 그 일이 돈다.
+                var field = vehicle != null ? vehicle.Field : null;
+
+                sendFields[i] = new FieldState
+                {
+                    Vehicle = vehicleSlots[i],
+                    Active = field != null && field.IsActive,
+                };
+            }
+
+            if (ShouldSendFields(sendFields, lastSentFields, fieldKeepaliveTimer, ClampKeepalive))
+            {
+                RpcApplyFields(sendSeq, sendFields);
+                fieldKeepaliveTimer = 0f;
+
+                if (lastSentFields.Length != sendFields.Length)
+                    lastSentFields = new FieldState[sendFields.Length];
+                Array.Copy(sendFields, lastSentFields, sendFields.Length);
             }
 
             // ── 용접 ────────────────────────────────────────────
@@ -1788,6 +1875,52 @@ namespace Metagame.Network
         /// <summary>
         /// 고정쇠의 진행도와 해제 여부를 맞춘다. 판정은 서버가 하고 여기서는 따라만 간다.
         /// </summary>
+        [ClientRpc(channel = Channels.Unreliable)]
+        void RpcApplyFields(uint seq, FieldState[] states)
+        {
+            if (isServer) return;               // 호스트는 자기 물리가 정답이다
+            if (states == null || !ready) return;
+            if (!IsNewer(seq, lastFieldSeq, everField)) return;
+            lastFieldSeq = seq;
+            everField = true;
+
+            // **개수가 달라도 버리지 않는다.** 고정쇠와 다른 점이다 — 저쪽은 색인이
+            // 곧 자리라서 개수가 어긋나면 남의 고정쇠에 값이 들어간다. 여기는 번호를
+            // 함께 실어 보내므로 짝이 틀릴 수 없고, 못 찾은 번호만 건너뛰면 된다.
+            for (int i = 0; i < states.Length; i++)
+            {
+                var vehicle = VehicleAt(states[i].Vehicle);
+                if (vehicle == null) continue;
+
+                var field = vehicle.Field;
+                if (field != null) field.ApplyNetworkActive(states[i].Active);
+            }
+        }
+
+        /// <summary>
+        /// 지금 저중력장 상태를 보낼 차례인가 (S15P21B202-505).
+        ///
+        /// <para><b>왜 순수 메서드로 빼는가.</b> 이 판단이 <see cref="SendFromServer"/> 안의
+        /// 조건문으로만 있으면 검증이 닿지 못한다 — <c>-400</c>·<c>-438</c>·<c>-448</c> 에서
+        /// 세 번 겪은 자리다. 밖에서 부를 수 있게 두면 대조가 실제 경로를 지난다.</para>
+        ///
+        /// <para>바뀌면 보내고, 조용해도 <paramref name="keepalive"/> 마다 다시 보낸다 —
+        /// 신뢰 없는 채널이라 한 번 잃으면 끝나기 때문이다(고정쇠와 같은 이유).</para>
+        /// </summary>
+        public static bool ShouldSendFields(FieldState[] now, FieldState[] lastSent,
+                                            float keepaliveTimer, float keepalive) =>
+            !SameFields(now, lastSent) || keepaliveTimer >= keepalive;
+
+        static bool SameFields(FieldState[] a, FieldState[] b)
+        {
+            if (a.Length != b.Length) return false;
+
+            for (int i = 0; i < a.Length; i++)
+                if (a[i].Vehicle != b[i].Vehicle || a[i].Active != b[i].Active) return false;
+
+            return true;
+        }
+
         [ClientRpc(channel = Channels.Unreliable)]
         void RpcApplyClamps(uint seq, ClampState[] states)
         {

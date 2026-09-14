@@ -116,6 +116,29 @@ namespace Metagame.Gameplay.Parts
         /// <summary>멀티플레이에서 서버만 물리 힘을 계산하도록 권한을 설정한다.</summary>
         public void SetPhysicsAuthority(bool authority) => _physicsAuthority = authority;
 
+        /// <summary>
+        /// 서버가 보낸 켜짐/꺼짐을 받는다 (S15P21B202-505).
+        ///
+        /// <para><b>왜 필요한가.</b> 빔 그림은 <see cref="SetActive"/> 안에서
+        /// <see cref="IsActive"/> 가 참일 때만 붙는다. 그런데 그 값을 바꾸는 유일한 경로가
+        /// <c>TractorBeamController.SetInput</c> 의 <c>if (!Authoritative) return;</c> 뒤에
+        /// 있어서, <b>참가자 기계에서는 영영 거짓</b>이었다 — 빔이 호스트에게만 보였다.
+        /// 그리고 그 상태를 알려 주는 것도 없었다(실측: <c>WorldSync</c> 에 <c>Field</c> 가
+        /// 0회).</para>
+        ///
+        /// <para><b>물리는 따라오지 않는다.</b> <see cref="Tick"/> 이
+        /// <c>!_physicsAuthority</c> 에서 반환하므로, 참가자가 이 값을 켜도 힘을 넣지
+        /// 않는다. 켜지는 것은 <b>그림과 그 그림이 읽는 상태뿐</b>이다 — 판정을 두 곳에
+        /// 두면 반드시 갈라진다(S15P21B202-383).</para>
+        ///
+        /// <para><see cref="PartClamp.ApplyNetworkState"/> 와 같은 자리·같은 이름 규칙이다.</para>
+        /// </summary>
+        public void ApplyNetworkActive(bool on)
+        {
+            if (IsActive == on) return;
+            SetActive(on);
+        }
+
         public void SetActive(bool on)
         {
             Register();
