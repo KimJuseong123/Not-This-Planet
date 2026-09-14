@@ -1,5 +1,9 @@
 # Unity Project Context
 
+## 2026-09-14 welding joint recommendations
+
+PlasmaWeldingTool now owns a local-only yellow collider-projected joint recommendation mesh, using the first bead contact query from WeldBead. The transparent WeldingGuide resource shader draws recommendations before the purple aim ring without writing depth. Default range is 4m and normal offset is 1.2cm. No scene/prefab setup is required. Unity 6000.5.4f1 isolated EditMode validation passed 99/99 tests; live visual/multi-peer validation remains pending. See repository-root docs/records/2026-09-14-welding-joint-guide.md.
+
 ## 2026-09-14 meteor rhythm HUD
 
 `GameHud.MeteorRhythm.cs` renders a held-bat-only landing-zone guide and observes confirmed `MeteorBat` rhythm results. `MeteorBat` grades timing and scales launch speed; `OrbitCamera` adds a short local rotational impact effect. `WorldSync` replicates result/cooldown and meteor prediction metadata for disabled client ghosts. `Meteor.TryPredictImpact` no longer initializes/registers the meteor or clears hit history on presentation queries. See repository-root `docs/records/2026-09-14-meteor-rhythm.md`. No scene/prefab setup is required.
