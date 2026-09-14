@@ -33,6 +33,20 @@ namespace Metagame.Gameplay
             [Min(0f)] public float maximumBrightness = 1f;
             [Min(0.001f)] public float minimumSize = 0.1f;
             [Min(0.001f)] public float maximumSize = 0.55f;
+
+            /// <summary>
+            /// 은하수 띠의 두께(대원에서 벗어나는 정도). 0 이면 실 한 줄, 1 이면 거의 온 하늘
+            /// (S15P21B202-530).
+            ///
+            /// <para>예전에는 <c>0.22</c> 가 메시를 짜는 루프 안에 박혀 있었다. 별에 관한
+            /// 다른 수는 전부 여기 있는데 이것만 코드에 있었다.</para>
+            ///
+            /// <para><b>기본값은 그대로 둔다.</b> 넓히면 별이 고르게 퍼질 것 같지만 실측은
+            /// 아니었다 — 0.22 → 0.45 로 넓혀도 방향별 편차가 1.790 → 1.768 로 1.2%만
+            /// 움직였다. 몰림은 띠 두께가 아니라 <b>띠가 없는 쪽이 비어 있어서</b>였다
+            /// (S15P21B202-530).</para>
+            /// </summary>
+            [Min(0f)] public float bandSpread = 0.22f;
         }
 
         [Serializable]
