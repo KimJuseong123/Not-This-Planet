@@ -89,22 +89,6 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
-        public void WeldedAssemblyIsAnchoredUntilTheLinkIsCut()
-        {
-            var bottom = Part("Part_1", Vector3.up);
-            bottom.ApplyDockedToPad(true);
-            var top = Part("Part_2", Vector3.up * 3f);
-            var joint = top.gameObject.AddComponent<FixedJoint>();
-            joint.connectedBody = bottom.GetComponent<Rigidbody>();
-            var link = top.gameObject.AddComponent<PartAssemblyLink>();
-            link.BindBeadWeld(top, bottom, joint);
-            link.SetBeadWeldRatio(1f);
-            Assert.That(AssemblyDock.IsAnchored(top), Is.True);
-            link.Release();
-            Assert.That(AssemblyDock.IsAnchored(top), Is.False);
-        }
-
-        [Test]
         public void LegacyTractorPartIsNotPermanentlyDockedEvenWhenUnoccupied()
         {
             var part = Part("Part_1", Vector3.up);
@@ -146,14 +130,22 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
-        public void RestingStackIsNotAnchoredWithoutWelding()
+        public void DockDoesNotChangeUpperPartStateOrMotion()
         {
             var bottom = Part("Part_1", Vector3.up);
             bottom.ApplyDockedToPad(true);
             var middle = Part("Part_2", Vector3.up * 3f);
             var top = Part("Part_3", Vector3.up * 5f);
-            Assert.That(AssemblyDock.IsAnchored(middle), Is.False);
-            Assert.That(AssemblyDock.IsAnchored(top), Is.False);
+            var dock = Pad();
+            dock.Tick(1f);
+            Assert.That(middle.IsDockedToPad, Is.False);
+            Assert.That(top.IsDockedToPad, Is.False);
+            Assert.That(middle.State, Is.EqualTo(PartState.Free));
+            Assert.That(top.State, Is.EqualTo(PartState.Free));
+            Assert.That(middle.GetComponent<Rigidbody>().isKinematic, Is.False);
+            Assert.That(top.GetComponent<Rigidbody>().isKinematic, Is.False);
+            Assert.That(middle.transform.position, Is.EqualTo(Vector3.up * 3f));
+            Assert.That(top.transform.position, Is.EqualTo(Vector3.up * 5f));
         }
 
         [Test]
@@ -166,14 +158,14 @@ namespace Metagame.Gameplay.Tests
             beam.transform.SetPositionAndRotation(Vector3.up * 8f, Quaternion.LookRotation(Vector3.down));
             beam.Configure(beam.transform, 12f, 3f);
             UnityEngine.Physics.SyncTransforms();
-            Assert.That(beam.TryGrab(bottom), Is.EqualTo(BeamGrabResult.Welded));
+            Assert.That(beam.TryGrab(bottom), Is.EqualTo(BeamGrabResult.NoTarget));
             Assert.That(beam.TryGrab(top), Is.EqualTo(BeamGrabResult.Grabbed));
             beam.Release();
-            Assert.That(AssemblyDock.IsAnchored(top), Is.False);
+            Assert.That(top.IsDockedToPad, Is.False);
         }
 
         [Test]
-        public void FieldExcludesUpperPartOnlyWhileWeldedToDockedBase()
+        public void DockDoesNotFilterWeldedUpperPartsOutOfExistingField()
         {
             var bottom = Part("Part_1", Vector3.up);
             bottom.ApplyDockedToPad(true);
@@ -195,14 +187,14 @@ namespace Metagame.Gameplay.Tests
             link.BindBeadWeld(top, bottom, joint);
             link.SetBeadWeldRatio(1f);
             field.Tick(0.02f);
-            Assert.That(field.AffectedCount, Is.EqualTo(1), "용접하면 상부는 제외하고 별도 화물만 들어야 한다.");
-            Assert.That(AssemblyDock.IsAnchored(top), Is.True);
+            Assert.That(field.AffectedCount, Is.EqualTo(2), "용접된 상부도 기존 저중력 계산을 그대로 받는다.");
+            Assert.That(top.IsDockedToPad, Is.False);
             Assert.That(top.GetComponent<Rigidbody>().isKinematic, Is.False,
                 "상부를 강제로 동결하지 않고 기존 용접 조인트가 잡아준다.");
 
             link.Release();
             field.Tick(0.02f);
-            Assert.That(field.AffectedCount, Is.EqualTo(2), "용접 연결을 끊으면 다시 저중력장 대상이다.");
+            Assert.That(field.AffectedCount, Is.EqualTo(2), "절단 전후 대상 판정에 새 예외 규칙이 없다.");
         }
     }
 }

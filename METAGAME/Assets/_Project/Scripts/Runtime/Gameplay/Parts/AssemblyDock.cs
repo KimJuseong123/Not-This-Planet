@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Metagame.Core;
 using Metagame.Gameplay.Audio;
 using UnityEngine;
@@ -27,7 +26,6 @@ namespace Metagame.Gameplay.Parts
         private Material _housing, _waiting, _locked;
         private SoundRuntime _sound;
         private float _nextEngineSearch;
-        private static readonly List<SpaceshipPart> Connected = new();
 
         public SpaceshipPart DockedPart => _engine != null && _engine.IsDockedToPad ? _engine : null;
         public bool IsSnapping => _snapping;
@@ -110,17 +108,6 @@ namespace Metagame.Gameplay.Parts
             return offset.sqrMagnitude <= _captureRadius * _captureRadius
                 && Mathf.Abs(bounds.min.y - _assembly.LaunchPad.position.y) <= _heightTolerance
                 && Vector3.Angle(part.AssemblyUp, Vector3.up) <= _maxTilt;
-        }
-
-        /// <summary>도킹한 바닥과 접합된 덩어리는 통째로 저중력/명시적 견인에서 제외한다.</summary>
-        public static bool IsAnchored(SpaceshipPart part)
-        {
-            if (part == null) return false;
-            if (part.IsDockedToPad) return true;
-            PartGraph.Collect(part, Connected);
-            foreach (var connected in Connected)
-                if (connected != null && connected.IsDockedToPad) return true;
-            return false;
         }
 
         private void LateUpdate()

@@ -8,8 +8,10 @@ namespace Metagame.Gameplay.Parts
     /// <summary>
     /// 운반 장치의 탑승·운전·견인 입력을 연결한다.
     ///
-    /// 활성화된 운반 장치에 탑승·운전·견인 입력을 연결한다. 탑승 중 좌·우클릭과 F는
-    /// 장치 아래 광역 저중력장을 켜고 끈다. Shift는 기존 가속 이동에만 사용한다.
+    /// 유일한 운반 장치인 해제된 Part_1에 탑승·운전·견인 입력을 연결한다. 탑승 중
+    /// 좌·우클릭과 F는 장치 아래의 광역 저중력장을 켜고 끈다. 단일 파츠를 정밀하게
+    /// 드는 TractorBeam API는 내부 동작과 테스트를 위해 남겨 두지만, 일반 탑승 입력은
+    /// 광역장만 사용한다.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class TractorBeamController : MonoBehaviour
