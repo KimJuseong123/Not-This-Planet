@@ -1,5 +1,6 @@
 package com.metagame.backend.websocket;
 
+import com.metagame.backend.domain.game.GameState;
 import com.metagame.backend.domain.room.Room;
 import com.metagame.backend.domain.room.RoomManager;
 import com.metagame.backend.domain.user.UserRepository;
@@ -114,7 +115,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             rememberLocalIp(session, msg.data());
 
             switch (type) {
-                case CREATE_ROOM -> createRoom(session, userId);
+                case CREATE_ROOM -> createRoom(session, userId, msg.data());
                 case JOIN_ROOM -> joinRoom(session, userId, msg.data().get("roomId").asString());
                 case LEAVE_ROOM -> leaveRoom(session, userId);
                 case READY -> ready(userId, msg.data().get("ready").asBoolean());
@@ -281,10 +282,21 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
-    private void createRoom(WebSocketSession session, Long userId) {
+    /**
+     * 방을 만든다. <b>맵을 함께 보내면 그 맵으로</b>, 안 보내면 기본 맵으로 선다.
+     *
+     * <p>보내지 않아도 되게 둔 이유는 {@code localAddress} 와 같다 — 옛 클라이언트도
+     * 그대로 방을 만들 수 있어야 한다. 맵 이름을 모르는 클라이언트는
+     * {@link Room#DEFAULT_STAGE_ID} 로 선다.
+     */
+    private void createRoom(WebSocketSession session, Long userId, JsonNode data) {
         Room room = roomManager.createRoom(userId, nickname(session));
+        if (data != null && data.has("stageId")) {
+            room.setStageId(data.get("stageId").asString());
+        }
         session.getAttributes().put(ROOM_ID_ATTR, room.getRoomId());
-        send(session, WsMessage.Type.ROOM_CREATED, Map.of("roomId", room.getRoomId()));
+        send(session, WsMessage.Type.ROOM_CREATED,
+                Map.of("roomId", room.getRoomId(), "stageId", stageIdOf(room)));
         broadcastRoomState(room);
     }
 
@@ -462,6 +474,10 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("roomId", room.getRoomId());
+
+        // 어느 맵을 열지는 서버가 말해 준다 (2맵 준비). 클라이언트가 씬 이름을 스스로
+        // 고르면 재입장한 사람이 다른 맵을 여는 날이 온다 — 같은 판에 두 개의 맵이 생긴다.
+        payload.put("stageId", stageIdOf(room));
 
         if (entry == null) {
             // 접속 정보가 없다 — 방장이 사라져 옛 정보를 버렸거나(-389), 서버가 재시작된
@@ -767,9 +783,26 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         data.put("roomId", room.getRoomId());
         data.put("hostUserId", room.getHostUserId());
         data.put("status", room.getStatus().name());
+        data.put("stageId", stageIdOf(room));
         data.put("players", room.getPlayers());
         data.put("disconnected", room.getDisconnected());
         broadcast(room, WsMessage.Type.ROOM_STATE, data);
+    }
+
+    /**
+     * 이 방이 지금 말해야 할 스테이지 (2맵 준비).
+     *
+     * <p><b>판이 돌고 있으면 그 판이 시작될 때 굳은 값이 사실이다.</b> 방 설정
+     * ({@code room.getStageId()})은 <i>다음</i> 판을 위한 값이므로, 진행 중에 그것을
+     * 바라보면 재입장한 사람에게 다른 맵을 알려 줄 수 있다 — 한 판에 두 개의 맵이
+     * 열린다. 두 값을 같은 이름으로 쓰지 않도록 읽는 자리를 여기 하나로 모은다.
+     */
+    private static String stageIdOf(Room room) {
+        GameState state = room.getGameState();
+        if (state != null && state.getStageId() != null) {
+            return state.getStageId();
+        }
+        return room.getStageId();
     }
 
     private void broadcast(Room room, WsMessage.Type type, Map<String, Object> data) {
