@@ -58,7 +58,14 @@ def main() -> int:
     # 짧은 값은 건드리지 않는다 — 두세 글자를 지우면 멀쩡한 문장이 걸레가 된다
     os.environ["JIRA_USER"] = "abc"
     assert redact("abc 는 그대로") == "abc 는 그대로"
-    print("  비밀 값은 이름으로 · 짧은 값은 그대로 둔다")
+    # **URL 인코딩해 되비추는 서버가 있다.** 글자 그대로만 찾으면 그때 새어 나간다.
+    from urllib.parse import quote
+    enc = quote("https://mm.example/hooks/abcdef1234567890", safe="")
+    assert enc != "https://mm.example/hooks/abcdef1234567890"       # 실제로 다른 꼴이다
+    got = redact("rejected: " + enc)
+    assert "abcdef1234567890" not in got, got
+    assert "<MM_WEBHOOK_URL>" in got, got
+    print("  비밀 값은 이름으로 · URL 인코딩 꼴도 · 짧은 값은 그대로 둔다")
 
     # ── ③ Jira 릴리스 웹훅 — 실패면 사유가 **잡 로그에** 남는다 ──────────
     import publish_release as P

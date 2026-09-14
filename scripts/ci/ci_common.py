@@ -187,13 +187,30 @@ SECRET_ENVS = ("JIRA_RELEASE_WEBHOOK", "MM_WEBHOOK_URL", "JIRA_API_TOKEN",
                "GITLAB_TOKEN", "ANTHROPIC_API_KEY", "JIRA_USER")
 
 
+def _forms(v: str) -> list[str]:
+    """같은 값이 본문에 나올 수 있는 **꼴들.**
+
+    글자 그대로만 찾으면 새어 나간다 — 서버가 주소를 **URL 인코딩해서** 되비추면
+    `https%3A%2F%2F…` 가 되어 원문과 한 글자도 안 맞는다(`!410` 리뷰).
+    긴 것부터 지운다: 짧은 꼴을 먼저 지우면 긴 꼴이 반쯤 남는다.
+    """
+    out = {v, quote(v, safe=""), quote(v)}
+    return sorted(out, key=len, reverse=True)
+
+
 def redact(s: str) -> str:
-    """알려진 비밀 환경변수 **값**을 이름으로 바꾼다. 짧은 값은 건너뛴다 —
-    두세 글자짜리를 지우면 멀쩡한 문장이 걸레가 되고, 그러면 사유를 못 읽는다."""
+    """알려진 비밀 환경변수 **값**을 이름으로 바꾼다.
+
+    8자 미만은 건너뛴다 — 두세 글자짜리를 지우면 멀쩡한 문장이 걸레가 되고,
+    그러면 정작 사유를 못 읽는다. **그래서 짧은 비밀은 이 목록에 넣어도 안 가려진다**
+    (docs/ci-cd-pipeline.md 에 적어 두었다).
+    """
     for name in SECRET_ENVS:
         v = env(name)
-        if v and len(v) >= 8:
-            s = s.replace(v, "<%s>" % name)
+        if not v or len(v) < 8:
+            continue
+        for form in _forms(v):
+            s = s.replace(form, "<%s>" % name)
     return s
 
 
