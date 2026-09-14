@@ -158,7 +158,33 @@ static ShadowCastingMode ShadowsOnlyFrom(ShadowCastingMode before) =>
 | `ARendererThatNeverCastShadows_StillDoesNot` | 없던 그림자를 만들지 않는다 |
 | `TheBodyKeepsItsOwnShadowInFirstPerson` | **몸 경로를 건드리지 않았다** |
 
-### 5-1. 내 검증 하나가 수단을 재고 있었다
+### 5-1. 기존 검증 하나도 수단을 재고 있었다
+
+`FirstPersonToolVisualTests.CopyHasOnlyPresentationAndRestoresOriginalVisibility` 가
+깨졌다. **이 이슈에서 새로 깨진 검증은 이것 하나다.**
+
+```csharp
+view.SetVisible(true);
+Assert.IsTrue(renderer.forceRenderingOff);   // 이전
+```
+
+**플래그를 직접 단언한다.** 그런데 그 플래그가 곧 이 이슈의 결함이다 — 그림자 패스까지
+끄므로 감추는 수단을 바꿔야 했고, 그러자 **동작은 옳은데 단언이 깨졌다.**
+
+검증의 이름이 말하는 것은 "사본은 표시뿐이고 **원본 표시는 되돌아온다**" 이지 "어떤
+플래그를 쓴다" 가 아니다. 결과로 재게 바꿨다.
+
+```csharp
+static bool DrawnInColorPass(Renderer renderer) =>
+    !renderer.forceRenderingOff
+    && renderer.enabled
+    && renderer.shadowCastingMode != ShadowCastingMode.ShadowsOnly;
+```
+
+그리고 놓았을 때 **다시 그려지는지**도 함께 잠갔다 — 예전에는 플래그만 봤고, 그러면
+"놓았는데 `ShadowsOnly` 로 남아 3인칭에서 도구가 안 보이는" 회귀를 못 잡는다.
+
+### 5-2. 내 검증 하나도 같은 함정에 빠졌다
 
 `TheRealMeshIsStillHiddenFromTheCamera` 를 처음에는 이렇게 적었다.
 
@@ -173,6 +199,9 @@ Assert.AreNotEqual(ShadowCastingMode.On, original.shadowCastingMode);
 `-448` 에서 같은 것에 걸렸다(소스 글자에 `Accepts` 가 있는지 보던 검증). 그때 얻은
 교훈을 이번에는 **내가 쓴 검증에** 적용해야 했다.
 
+**이 이슈에서만 두 번 나왔다** — §5-1 의 기존 검증과 여기. 같은 파일, 같은 플래그,
+같은 실수다.
+
 재야 하는 것은 **"카메라 패스에 안 들어간다"** 하나다.
 
 ```csharp
@@ -184,7 +213,7 @@ Assert.IsFalse(drawnInColorPass);
 
 고친 뒤 대조 A 는 **진짜 회귀 하나만** 잡는다.
 
-### 5-2. 대조 실험
+### 5-3. 대조 실험
 
 셋 다 실제로 돌려 확인했다.
 
@@ -194,12 +223,17 @@ Assert.IsFalse(drawnInColorPass);
 | 사본에도 그림자를 켠다 | **1개 실패** — `TheFirstPersonCopyNeverCastsOne` |
 | 원래 꺼져 있던 렌더러 보호를 없앤다 | **1개 실패** — `ARendererThatNeverCastShadows_StillDoesNot` |
 
-### 5-3. 기준선 대조
+### 5-4. 기준선 대조
 
 | | 검증 수 | 실패 |
 | --- | --- | --- |
-| develop (`7034840`) | | |
-| 이 브랜치 | | |
+| develop (`7034840`) | 1368 | 17 |
+| 이 브랜치 | **1375** (+7) | **17** |
+
+**새로 깨진 검증 없음. 실패 셋이 완전히 같다.**
+
+> 처음 측정에서는 `CopyHasOnlyPresentationAndRestoresOriginalVisibility` 하나가 새로
+> 깨져 있었다(18). §5-1 을 고친 뒤 17 로 같아졌다.
 
 ---
 
