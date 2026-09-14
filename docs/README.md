@@ -35,7 +35,7 @@
 | 이슈 작성 | [Jira 컨벤션](jira-convention.md): 유형, 필수 필드, 파트, 스토리 포인트 |
 | 브랜치 생성·커밋 | [Git 컨벤션](git-convention.md): 이름 규칙, push, 릴리스 |
 | MR 제출·충돌 해결·머지 | [MR 흐름](mr-flow.md): 검사, 스택 구성, 부모부터 머지하는 순서 |
-| 팀장 리뷰 | MR 템플릿 하단 “리뷰어 확인” 5항목 → [MR 흐름](mr-flow.md) §3 → [CI/CD 구조](ci-cd-pipeline.md) §8의 남은 설정 |
+| 팀장 리뷰 | AI 리뷰 코멘트의 5항목 판정표 — ⚠️·❓ 만 보면 된다 → [MR 흐름](mr-flow.md) §3 → [CI/CD 구조](ci-cd-pipeline.md) §8의 남은 설정 |
 | AI 도구 연결 | [AI 도구 연동](ai-tooling.md): 개인 계정, 로컬 MCP·CLI, 토큰 취급 |
 | 이슈 설명·작업 기록 작성 | [템플릿 안내](templates/README.md) |
 

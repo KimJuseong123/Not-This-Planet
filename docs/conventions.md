@@ -33,7 +33,7 @@ Task·Bug의 상태는 브랜치 생성과 MR 머지를 기준으로 자동 전�
 | 브랜치 생성 | **Jira 이슈 화면 "브랜치 만들기"** — 이것이 진행 중으로 가는 길이다. 로컬에서 만들어도 이름이 이슈 키로 시작하면 같다 | [git-convention](./git-convention.md) §2 |
 | 커밋 | `<type>(<scope>): <요약> (<이슈키>)` — Conventional Commits + 이슈 키 | [git-convention](./git-convention.md) §4 |
 | MR | 대상 `develop` · 제목 `[파트] type: 요약 (이슈키)`(CI가 자동 교정) · 템플릿 필수 · **Draft 금지** · squash 머지 | [git-convention](./git-convention.md) §5 |
-| 승인 | **팀장(Maintainer)만 develop에 머지**한다 — 팀장의 머지가 승인이다. 리뷰 기준 5항목은 MR 템플릿 하단 "리뷰어 확인". 머지 버튼을 잠그는 조건(파이프라인 성공·스레드 해소)은 GitLab 설정 | [mr-flow](./mr-flow.md) §3 · [ci-cd-pipeline](./ci-cd-pipeline.md) §3 |
+| 승인 | **팀장(Maintainer)만 develop에 머지**한다 — 팀장의 머지가 승인이다. 볼 것은 AI 리뷰가 채워 둔 판정표의 ⚠️·❓ 와 MR 본문 "머지 전에 팀장이 확인할 것" 이다 — 사람이 누르는 체크리스트는 없다(`-395`·`-415`). 머지 버튼을 잠그는 조건(파이프라인 성공·스레드 해소)은 GitLab 설정 | [mr-flow](./mr-flow.md) §3 · [ci-cd-pipeline](./ci-cd-pipeline.md) §3 |
 | 겹침 | 다른 열린 MR과 같은 파일을 고쳤으면 **나중에 올린 쪽이 그 위에 얹는다**(스택 MR). 머지는 develop에 가까운 쪽부터 | [mr-flow](./mr-flow.md) |
 | 릴리즈 | develop에서 딴 `release/<이슈키>-vX.Y.Z` 브랜치 → master MR(squash 해제는 CI 가). 머지되면 CI가 태그·GitLab Release(빌드 zip)를 만든다. 릴리스 브랜치에 커밋 없음 · master 직접 커밋·push 없음 · **빌드 산출물 커밋 금지** | [git-convention](./git-convention.md) §8 |
 | Unity | `.meta`는 에셋과 함께 · 씬·프리팹 동시 수정 금지(먼저 선언) · 새 에셋은 `Assets/_Project/` 아래 | [unity-convention](./unity-convention.md) |
@@ -64,9 +64,9 @@ Task·Bug의 상태는 브랜치 생성과 MR 머지를 기준으로 자동 전�
 | --- | --- | --- |
 | **GitLab 서버** | 보호 브랜치 | `develop`·`master` 직접 push, 팀장 외 머지 |
 | **로컬 훅** [`.githooks/pre-push`](../.githooks/pre-push) | push 직전 검사 | 이슈 키 없는 브랜치 이름. 덧붙여 뒤처진 브랜치에 `develop` 최신을 자동으로 얹어 준다 |
-| **CI** [`.gitlab-ci.yml`](../.gitlab-ci.yml) | MR 마다 도는 검사 | 제목·양식·이슈 키 실존·체크리스트 · 금지 파일과 `.meta` 짝 · 열린 MR 과의 겹침 · AI 리뷰(**⛔ 보류 권고만 막는다**, ⚠️·✅ 는 참고) |
+| **CI** [`.gitlab-ci.yml`](../.gitlab-ci.yml) | MR 마다 도는 검사 | 제목·양식·이슈 키 실존 · 금지 파일과 `.meta` 짝 · 열린 MR 과의 겹침 · AI 리뷰(**⛔ 보류 권고만 막는다**, ⚠️·✅ 는 참고) |
 | **Jira 자동화** | 규칙 8개 | 브랜치 없이 진행 중, 머지 없이 완료 → 되돌림 + 댓글 (`automation-missed` 레이블이면 통과) |
-| **사람** | 팀장 리뷰 | 범위·완료 조건·씬/프리팹·구조·기록 (MR 템플릿 "리뷰어 확인") |
+| **사람** | 팀장 리뷰 | 범위·완료 조건·씬/프리팹·구조·기록 — **AI 가 판정표로 미리 채우고**(`ai_review.py` 의 `CHECK_LABELS`) 팀장은 ⚠️·❓ 만 본다 |
 
 잡별로 무엇을 보는지는 [ci-and-notifications.md](./ci-and-notifications.md), 자동화 규칙 명세는 [jira-gitlab-automation.md](./jira-gitlab-automation.md).
 
