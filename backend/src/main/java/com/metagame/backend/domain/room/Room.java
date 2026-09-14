@@ -27,9 +27,21 @@ public class Room {
 
     public static final int MAX_PLAYERS = 4;   // TODO: 기획 확정 후 조정
 
+    /**
+     * 맵을 고르지 않은 방이 서는 자리 (2맵 준비).
+     *
+     * <p>맵이 하나뿐이던 동안에는 서버가 스테이지를 몰라도 됐다 — 클라이언트가 씬
+     * 이름을 상수로 들고 있었기 때문이다. 맵이 둘이 되면 <b>같은 방의 네 사람이 같은
+     * 맵을 열어야 한다</b>는 것을 보증할 수 있는 곳은 서버뿐이다.
+     */
+    public static final String DEFAULT_STAGE_ID = "stage1";
+
     private final String roomId;
     private volatile Long hostUserId;
     private volatile Status status = Status.WAITING;
+
+    // 이 방이 어느 맵으로 시작하는지. 시작하면 GameState 로 넘어가 그 판의 사실이 된다
+    private volatile String stageId = DEFAULT_STAGE_ID;
 
     // userId → 참가자(닉네임·준비 여부). 현재 방에 속한 사람만 담긴다
     private final Map<Long, RoomPlayer> players = new ConcurrentHashMap<>();
@@ -179,13 +191,31 @@ public class Room {
         return !players.isEmpty() && players.values().stream().allMatch(RoomPlayer::isReady);
     }
 
+    /**
+     * 시작 전에 맵을 고른다 (2맵 준비).
+     *
+     * <p><b>시작한 뒤에는 바꿀 수 없다.</b> 판이 도는 중에 방의 스테이지가 바뀌면,
+     * 그 뒤에 재입장한 사람만 다른 맵을 열게 된다 — 같은 방에 두 개의 맵이 생긴다.
+     * 판이 시작되는 순간 스테이지는 {@link GameState} 로 넘어가 그 판의 사실이 되고,
+     * 여기 값은 다음 판을 위한 설정으로만 남는다.
+     *
+     * @return 바꿨으면 {@code true}. 이미 시작했거나 값이 비었으면 {@code false}
+     */
+    public synchronized boolean setStageId(String stageId) {
+        if (status != Status.WAITING || stageId == null || stageId.isBlank()) {
+            return false;
+        }
+        this.stageId = stageId;
+        return true;
+    }
+
     public synchronized boolean start() {
         if (status != Status.WAITING || !allReady()) {
             return false;
         }
         status = Status.PLAYING;
         participants.addAll(players.keySet());
-        gameState = new GameState();
+        gameState = new GameState(stageId);
         players.keySet().forEach(gameState::addPlayer);
         return true;
     }
