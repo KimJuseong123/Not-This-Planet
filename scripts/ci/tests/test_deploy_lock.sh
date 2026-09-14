@@ -104,7 +104,13 @@ if command -v flock >/dev/null 2>&1; then
     *"다른 배포가 진행 중"*) die "경합: 건너뛰고 끝냈다 — RELEASE 가 남아 되풀이한다" ;;
   esac
   ok "자물쇠를 남이 쥐면 — 건너뛰지 않고 기다린다 (${ELAPSED}초)"
+elif [ "$(uname -s)" = "Linux" ]; then
+  # **리눅스에서는 건너뛰지 않는다.** `run_all.py` 는 통과한 테스트의 내부 출력을
+  # 감추므로, 건너뛴 것도 ✅ 로 보인다 — 검사가 조용히 빠지는 바로 그 모양이다
+  # (`-133` 에서 겪은 것). CI 러너는 리눅스이므로 여기서 멈추면 사람이 본다.
+  die "리눅스인데 flock 이 없다 — 경합 검사가 조용히 빠진다 (util-linux 확인)"
 else
-  echo "  ⏭ flock 이 없어 경합 검사는 건너뜀 (Git Bash). 리눅스 러너에서 돈다"
+  # 로컬 Git Bash 에는 flock 이 없다. 위 elif 덕분에 **CI 에서는 반드시 돈다.**
+  echo "  ⏭ flock 이 없어 경합 검사는 건너뜀 ($(uname -s)). 리눅스 러너에서 돈다"
 fi
 echo "TEST_DEPLOY_LOCK OK ($PASS)"
