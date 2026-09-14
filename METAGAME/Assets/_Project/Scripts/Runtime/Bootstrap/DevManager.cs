@@ -1,5 +1,6 @@
 using UnityEngine;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
+using Metagame.Core;
 using Metagame.Gameplay;
 using Metagame.Gameplay.Parts;
 using Metagame.Network;
@@ -63,7 +64,7 @@ namespace Metagame.Bootstrap
         {
             if (!isActiveAndEnabled || !enableF12Ending
                 || IsOpen || restorePending || session == null || ending == null || ending.Active
-                || SceneManager.GetActiveScene().name != "Stage1_Astra"
+                || !StageCatalog.IsStageScene(SceneManager.GetActiveScene().name)   // 맵이 둘이 되어도 맵 씬이면 연다(2맵 준비)
                 || session.InputSuppressed || (pause != null && pause.IsOpen)
                 || LobbyTransition.Instance != null && LobbyTransition.Instance.IsBusy) return false;
             savedInputSuppressed = session.InputSuppressed;

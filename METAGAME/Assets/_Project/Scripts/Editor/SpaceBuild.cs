@@ -2,7 +2,9 @@ using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
 using UnityEngine.Rendering;
+using System.Collections.Generic;
 using System.Linq;
+using Metagame.Core;
 
 namespace Metagame.EditorTools
 {
@@ -19,7 +21,36 @@ namespace Metagame.EditorTools
     /// </summary>
     public static class SpaceBuild
     {
-        static readonly string[] RequiredScenes = { "Assets/Scenes/Lobby.unity", "Assets/Scenes/Customizer.unity", "Assets/Scenes/Main.unity", "Assets/Scenes/Stage1_Astra.unity", "Assets/Scenes/Stage1_Ending.unity" };
+        static readonly string[] RequiredScenes = BuildRequiredScenes();
+
+        /// <summary>
+        /// 빌드에 반드시 들어가야 하는 씬.
+        ///
+        /// 로비·커스터마이저·메인은 맵과 상관없이 늘 필요하고, <b>맵 씬과 장 완료 연출 씬은
+        /// <see cref="StageCatalog"/> 에서 읽는다</b>(2맵 준비). 여기에 손으로 적어 두면 맵을
+        /// 더할 때 이 줄을 잊게 되는데, 빌드 목록에서 빠진 씬은 <b>에디터에서는 멀쩡하다가
+        /// 빌드에서만</b> 열리지 않는다 — 컴파일이 통과하므로 아무도 미리 알려주지 않는다.
+        ///
+        /// 순서가 빌드 설정의 씬 인덱스가 되므로 기존 순서를 그대로 지킨다.
+        /// </summary>
+        static string[] BuildRequiredScenes()
+        {
+            var scenes = new List<string>
+            {
+                "Assets/Scenes/Lobby.unity",
+                "Assets/Scenes/Customizer.unity",
+                "Assets/Scenes/Main.unity",
+            };
+
+            foreach (var stage in StageCatalog.All)
+            {
+                scenes.Add(stage.ScenePath);
+                if (!string.IsNullOrEmpty(stage.EndingScenePath))
+                    scenes.Add(stage.EndingScenePath);
+            }
+
+            return scenes.ToArray();
+        }
 
         public static void BuildWindows() { Build(false); }
 
