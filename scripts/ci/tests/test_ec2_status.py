@@ -26,10 +26,21 @@ print("== 서버 상태 ==")
 NOW = datetime(2026, 9, 12, 9, 30, tzinfo=E.KST)
 
 
+def _repo_deploy_sha() -> str:
+    """저장소의 `deploy.sh` 해시. **정상값에 이것이 들어가야 조용하다** —
+    호스트가 이 값을 보내고 CI 가 저장소본과 견준다(S15P21B202-485).
+    """
+    import hashlib
+    root = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
+    with open(os.path.join(root, "scripts/deploy/host/deploy.sh"), "rb") as f:
+        return hashlib.sha256(f.read().replace(b"\r", b"")).hexdigest()
+
+
 def healthy(**over) -> dict:
     """2026-09-11 실측을 그대로 옮긴 정상값. 여기서 출발해 한 항목씩 망가뜨린다."""
     d = {
         "at": (NOW - timedelta(minutes=2)).isoformat(),
+        "deploy_sh_sha256": _repo_deploy_sha(),
         "host": "ip-172-26-13-34",
         "uptime_days": 11,
         "disk": {"used_pct": 20, "free_gb": 250},

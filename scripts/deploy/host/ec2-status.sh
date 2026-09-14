@@ -111,8 +111,22 @@ BUILDS_MB=$(du -sm /var/www/metagame-builds 2>/dev/null | cut -f1)
 SITE_MB=$(du -sm /var/www/metagame-site 2>/dev/null | cut -f1)
 RUNLOG_MB=$(du -sm /var/log/metagame-runlogs /var/log/metagame-dev-runlogs 2>/dev/null | awk '{s+=$1} END {print s+0}')
 
+# **배포 스크립트가 저장소본과 같은가** (S15P21B202-485).
+#
+# 2026-09-14 발견: `/opt/metagame-deploy/deploy.sh` 가 **7일 동안 낡아 있었다.**
+# `-284` 가 넣은 dev 지원(HEALTH_PORT)이 호스트에 없어서, dev 배포가 prod 포트로
+# 헬스체크했다 — **dev 가 기동에 실패해도 '배포 완료' 로 끝나고 롤백도 안 한다.**
+# 같은 디렉터리의 다른 스크립트는 갱신돼 있었고 이것만 빠졌는데, **아무것도
+# 빨갛지 않았다.**
+#
+# 해시만 재서 넘긴다. 견주는 것은 CI 쪽이다 — 호스트는 저장소를 갖고 있지 않다.
+# `\r` 을 지우고 재는 이유: 저장소가 윈도우에서 체크아웃되면 CRLF 가 될 수 있는데,
+# 그것은 **내용이 다른 것이 아니다.**
+DEPLOY_SH=/opt/metagame-deploy/deploy.sh
+DEPLOY_SH_SHA=$(tr -d '\r' < "$DEPLOY_SH" 2>/dev/null | sha256sum 2>/dev/null | cut -d' ' -f1)
+
 export DISK_PCT DISK_FREE_GB MEM_TOTAL_GB MEM_AVAIL_GB UPTIME_DAYS \
-       CERT_DAYS DOCKER_GB BUILDS_MB SITE_MB RUNLOG_MB \
+       CERT_DAYS DOCKER_GB BUILDS_MB SITE_MB RUNLOG_MB DEPLOY_SH_SHA \
        CONTAINER_LINES BACKEND_LINES UNIT_LINES
 
 python3 > "$TMP" <<'PY'
@@ -156,6 +170,9 @@ print(json.dumps({
     ],
     "units": {r[0]: (r[1] if len(r) > 1 else "") for r in rows("UNIT_LINES")},
     "cert_days_left": maybe_num("CERT_DAYS"),
+    # 못 쟀으면 **빈 문자열이 아니라 없는 것으로** 둔다 — 읽는 쪽이 "같다" 로
+    # 오해하면 안 된다(S15P21B202-485).
+    "deploy_sh_sha256": (os.environ.get("DEPLOY_SH_SHA") or "").strip() or None,
     "sizes": {
         "docker_gb": num("DOCKER_GB"), "builds_mb": num("BUILDS_MB"),
         "site_mb": num("SITE_MB"), "runlogs_mb": num("RUNLOG_MB"),
