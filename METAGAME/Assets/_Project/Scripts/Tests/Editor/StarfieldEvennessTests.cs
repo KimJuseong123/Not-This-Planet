@@ -24,20 +24,40 @@ namespace Metagame.Gameplay.Tests
     /// </summary>
     public sealed class StarfieldEvennessTests
     {
-        const string ProfilePath = "Assets/_Project/Data/Atmosphere/Stage1AtmosphereProfile.asset";
-
-        static AtmosphereProfile Profile()
+        /// <summary>
+        /// <b>셈법을 재는 검증이 쓰는 값.</b> 에셋이 아니라 코드에서 만든다 (!444 AI 리뷰).
+        ///
+        /// <para>구면 표집·감김·픽셀 셈은 <b>코드가 맞는지</b>의 문제다. 아티스트가 별 수를
+        /// 조절할 때마다 그 검증이 흔들리면 안 된다.</para>
+        /// </summary>
+        static AtmosphereProfile.StarSettings TestSettings() => new AtmosphereProfile.StarSettings
         {
-            var profile = AssetDatabase.LoadAssetAtPath<AtmosphereProfile>(ProfilePath);
-            Assert.IsNotNull(profile, "Stage1 분위기 프로필이 없다: " + ProfilePath);
-            return profile;
+            starCount = 3500, bandCount = 900, radius = 300f, seed = 20260825,
+            minimumBrightness = 0.1f, maximumBrightness = 1f,
+            minimumSize = 0.18f, maximumSize = 0.55f, bandSpread = 0.22f,
+        };
+
+        /// <summary>
+        /// <b>실제로 게임에 나가는 하늘들.</b> 경로를 박지 않고 찾는다 — 에셋이 옮겨지거나
+        /// 스테이지가 늘어도 따라간다.
+        /// </summary>
+        static (string Path, AtmosphereProfile Profile)[] ShippedProfiles()
+        {
+            var found = AssetDatabase.FindAssets("t:AtmosphereProfile")
+                .Select(AssetDatabase.GUIDToAssetPath)
+                .Select(path => (Path: path, Profile: AssetDatabase.LoadAssetAtPath<AtmosphereProfile>(path)))
+                .Where(x => x.Profile != null)
+                .ToArray();
+
+            Assert.IsNotEmpty(found, "분위기 프로필을 하나도 찾지 못했다.");
+            return found;
         }
 
-        static AtmosphereBackdrop.StarPoint[] Stars()
-        {
-            var settings = Profile().stars;
-            return AtmosphereBackdrop.BuildStarPoints(settings, settings.starCount, settings.bandCount);
-        }
+        static (string Path, AtmosphereProfile.StarSettings Stars)[] ShippedSkies() =>
+            ShippedProfiles().Select(x => (x.Path, x.Profile.stars)).ToArray();
+
+        static AtmosphereBackdrop.StarPoint[] Stars(AtmosphereProfile.StarSettings settings) =>
+            AtmosphereBackdrop.BuildStarPoints(settings, settings.starCount, settings.bandCount);
 
         /// <summary>화면 하나(가로 90도·세로 50도, 20도 올려봄)에 들어오는 별 수.</summary>
         static int OnScreen(AtmosphereBackdrop.StarPoint[] stars, float yawDegrees)
@@ -68,13 +88,18 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void NoDirectionOfTheSkyIsTwiceAsEmptyAsAnother()
         {
-            var stars = Stars();
-            var perScreen = Enumerable.Range(0, 8).Select(i => OnScreen(stars, i * 45f)).ToArray();
+            foreach (var (path, settings) in ShippedSkies())
+            {
+                var perScreen = Enumerable.Range(0, 8)
+                    .Select(i => OnScreen(Stars(settings), i * 45f)).ToArray();
 
-            var ratio = (float)perScreen.Max() / perScreen.Min();
-            Assert.LessOrEqual(ratio, 2.0f,
-                $"방향에 따라 별 수가 {ratio:F2}배 차이 난다 — 한쪽이 비어 보인다. "
-                + "화면별: " + string.Join(" ", perScreen));
+                var ratio = (float)perScreen.Max() / perScreen.Min();
+                Assert.LessOrEqual(ratio, 2.0f,
+                    $"{path}: 방향에 따라 별 수가 {ratio:F2}배 차이 난다 — 한쪽이 비어 보인다. "
+                    + "화면별: " + string.Join(" ", perScreen)
+                    + $"별 수를 줄이려면 이 조건(2.0배)을 다시 판단해야 한다 — 신고된 증상이 "
+                    + "바로 이것이다(S15P21B202-530).");
+            }
         }
 
         /// <summary>
@@ -83,11 +108,14 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void EvenTheEmptiestScreenHasEnoughStars()
         {
-            var stars = Stars();
-            var emptiest = Enumerable.Range(0, 8).Select(i => OnScreen(stars, i * 45f)).Min();
+            foreach (var (path, settings) in ShippedSkies())
+            {
+                var emptiest = Enumerable.Range(0, 8).Select(i => OnScreen(Stars(settings), i * 45f)).Min();
 
-            Assert.GreaterOrEqual(emptiest, 250,
-                $"가장 빈 화면에 별이 {emptiest}개뿐이다 — 1080p 화면에서 검은 하늘로 보인다.");
+                Assert.GreaterOrEqual(emptiest, 250,
+                    $"{path}: 가장 빈 화면에 별이 {emptiest}개뿐이다 — 1080p 에서 검은 하늘로 보인다. "
+                    + "별 수를 줄이려면 이 조건도 함께 판단해야 한다(S15P21B202-530).");
+            }
         }
 
         /// <summary>
@@ -96,15 +124,18 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void TheMilkyWayIsStillThere()
         {
-            var stars = Stars();
-            var band = stars.Where(s => s.InBand).ToArray();
+            foreach (var (path, settings) in ShippedSkies())
+            {
+                var band = Stars(settings).Where(s => s.InBand).ToArray();
+                Assert.Greater(band.Length, 0, $"{path}: 띠가 사라지면 하늘이 밋밋해진다.");
 
-            Assert.Greater(band.Length, 0, "띠가 사라지면 하늘이 밋밋해진다.");
-
-            // 띠는 대원 근처에 몰려 있어야 한다 — 축과의 각이 90도 언저리다.
-            var offAxis = band.Select(s => Mathf.Abs(90f - Vector3.Angle(s.Direction, AtmosphereBackdrop.BandAxis)))
-                              .Average();
-            Assert.Less(offAxis, 20f, $"띠가 대원에서 평균 {offAxis:F1}도나 벗어났다 — 띠로 안 보인다.");
+                // 띠는 대원 근처에 몰려 있어야 한다 — 축과의 각이 90도 언저리다.
+                var offAxis = band
+                    .Select(s => Mathf.Abs(90f - Vector3.Angle(s.Direction, AtmosphereBackdrop.BandAxis)))
+                    .Average();
+                Assert.Less(offAxis, 20f,
+                    $"{path}: 띠가 대원에서 평균 {offAxis:F1}도 벗어났다 — 띠로 안 보인다.");
+            }
         }
 
         // ── 보이는가 ────────────────────────────────────────────
@@ -116,12 +147,15 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void TheFaintestStarIsStillBiggerThanAPixel()
         {
-            var settings = Profile().stars;
-            var smallest = Stars().Min(s => s.Size);
+            foreach (var (path, settings) in ShippedSkies())
+            {
+                var smallest = Stars(settings).Min(s => s.Size);
 
-            var pixels = AtmosphereBackdrop.StarPixelSize(smallest, settings.radius, 60f, 1080f);
-            Assert.GreaterOrEqual(pixels, 1.2f,
-                $"가장 어두운 별이 {pixels:F2}픽셀이다 — 1픽셀 언저리는 사실상 안 보인다.");
+                var pixels = AtmosphereBackdrop.StarPixelSize(smallest, settings.radius, 60f, 1080f);
+                Assert.GreaterOrEqual(pixels, 1.2f,
+                    $"{path}: 가장 어두운 별이 {pixels:F2}픽셀이다 — 1픽셀 언저리는 안 보인다. "
+                    + "minimumSize 를 낮추려면 이 조건도 함께 판단해야 한다(S15P21B202-530).");
+            }
         }
 
         [Test]
@@ -212,7 +246,7 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void TheSameSeedMakesTheSameSky()
         {
-            var settings = Profile().stars;
+            var settings = TestSettings();
             var first = AtmosphereBackdrop.BuildStarPoints(settings, 200, 100);
             var second = AtmosphereBackdrop.BuildStarPoints(settings, 200, 100);
 
@@ -235,7 +269,7 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void TheSkyIsTheSameEveryRun()
         {
-            var settings = Profile().stars;
+            var settings = TestSettings();
             var stars = AtmosphereBackdrop.BuildStarPoints(settings, 3, 0);
 
             Vector3[] expected =
@@ -248,19 +282,73 @@ namespace Metagame.Gameplay.Tests
             for (int i = 0; i < expected.Length; i++)
                 Assert.AreEqual(0f, Vector3.Distance(expected[i], stars[i].Direction), 1e-5f,
                     $"씨앗 {settings.seed} 의 {i}번째 별이 달라졌다 — 켤 때마다 하늘이 바뀐다.");
+
+            // **색도 같은 난수열에서 나온다** (!444 AI 리뷰). 한때 색만 다른 난수열에서
+            // 뽑아 별 색 배치가 통째로 달라졌다 — 방향은 그대로라 눈치채기 어렵다.
+            float[] tints = { 0.422240f, 0.332841f, 0.216072f };
+            for (int i = 0; i < tints.Length; i++)
+                Assert.AreEqual(tints[i], stars[i].TintRoll, 1e-5f,
+                    $"{i}번째 별의 색이 달라졌다 — 난수열이 갈라졌는지 본다.");
+        }
+
+        /// <summary>
+        /// 색 규칙 자체는 뽑은 수만 보고 정해진다 — 푸른 별·흰 별·붉은 별.
+        /// </summary>
+        [Test]
+        public void TheTintRuleIsBlueWhiteRed()
+        {
+            var blue = AtmosphereBackdrop.StarTint(0.1f);
+            var white = AtmosphereBackdrop.StarTint(0.5f);
+            var red = AtmosphereBackdrop.StarTint(0.95f);
+
+            Assert.Greater(blue.b, blue.r, "낮은 쪽은 푸른 별이다.");
+            Assert.Greater(red.r, red.b, "높은 쪽은 붉은 별이다.");
+            Assert.AreEqual(white.r, white.b, 0.06f, "가운데는 흰 별에 가깝다.");
+        }
+
+        /// <summary>
+        /// <b>모바일 축소 배율에서도 하늘이 고른가</b> (!444 AI 리뷰).
+        ///
+        /// <para><c>AtmosphereBackdrop.BuildStars</c> 는 별 수에 <c>mobileEffectScale</c> 을
+        /// 곱한다. 위의 검증들은 배율 1(PC)만 보므로 모바일에서는 보장이 없다.</para>
+        ///
+        /// <para><b>지금은 아무 프로필도 모바일을 켜지 않아 이 검증이 도는 것이 없다</b>
+        /// (<c>enableOnMobile: 0</c> · 빌드도 Windows 전용). 켜는 순간 그 배율에서 돌기
+        /// 시작한다 — 실측상 배율 <c>0.35</c> 에서는 2.18배로 고르지 않다.</para>
+        /// </summary>
+        [Test]
+        public void TheMobileSkyIsEvenToo()
+        {
+            foreach (var (path, profile) in ShippedProfiles())
+            {
+                if (!profile.enableOnMobile) continue;   // 배율이 0 이라 별이 아예 없다
+
+                var settings = profile.stars;
+                var scale = Mathf.Clamp(profile.mobileEffectScale, 0.1f, 1f);
+                var stars = AtmosphereBackdrop.BuildStarPoints(settings,
+                    Mathf.RoundToInt(settings.starCount * scale),
+                    Mathf.RoundToInt(settings.bandCount * scale));
+                var perScreen = Enumerable.Range(0, 8).Select(i => OnScreen(stars, i * 45f)).ToArray();
+
+                var ratio = (float)perScreen.Max() / perScreen.Min();
+                Assert.LessOrEqual(ratio, 2.0f,
+                    $"{path}: 모바일 배율 {scale:F2} 에서 별 수가 {ratio:F2}배 차이 난다. "
+                    + "화면별: " + string.Join(" ", perScreen)
+                    + " · 배율을 낮추면 별 수도 함께 봐야 한다 — 실측상 0.35 에서 2.18배가 된다.");
+            }
         }
 
         [Test]
         public void NoStarsMeansNoWork()
         {
-            Assert.IsEmpty(AtmosphereBackdrop.BuildStarPoints(Profile().stars, 0, 0));
+            Assert.IsEmpty(AtmosphereBackdrop.BuildStarPoints(TestSettings(), 0, 0));
         }
 
         /// <summary>일반별은 구면에 고르게 뿌려져야 한다 — 띠와 달리 몰리면 안 된다.</summary>
         [Test]
         public void TheOrdinaryStarsAreSpreadOverTheWholeSphere()
         {
-            var general = Stars().Where(s => !s.InBand).ToArray();
+            var general = Stars(TestSettings()).Where(s => !s.InBand).ToArray();
 
             var byOctant = new int[8];
             foreach (var star in general)

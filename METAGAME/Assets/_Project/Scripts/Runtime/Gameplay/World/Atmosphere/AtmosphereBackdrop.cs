@@ -118,12 +118,19 @@ namespace Metagame.Gameplay
             public readonly float Size;
             public readonly bool InBand;
 
-            public StarPoint(Vector3 direction, float brightness, float size, bool inBand)
+            /// <summary>
+            /// 색온도 뽑기(0~1). <b>값이 아니라 뽑은 수를 나른다</b> — 색을 정하는 규칙은
+            /// 그리는 쪽에 두고, 난수열은 하나로 유지한다 (!444 AI 리뷰).
+            /// </summary>
+            public readonly float TintRoll;
+
+            public StarPoint(Vector3 direction, float brightness, float size, bool inBand, float tintRoll)
             {
                 Direction = direction;
                 Brightness = brightness;
                 Size = size;
                 InBand = inBand;
+                TintRoll = tintRoll;
             }
         }
 
@@ -166,9 +173,9 @@ namespace Metagame.Gameplay
                 float brightness = Mathf.Pow((float)random.NextDouble(), inBand ? 3.2f : 2.4f);
                 brightness = Mathf.Lerp(settings.minimumBrightness, settings.maximumBrightness, brightness);
                 float size = Mathf.Lerp(settings.minimumSize, settings.maximumSize, brightness);
-                random.NextDouble();        // 색온도 — 자리를 지켜 씨앗이 같으면 같은 하늘이 나온다
+                float tintRoll = (float)random.NextDouble();
 
-                points[index] = new StarPoint(direction, brightness, size, inBand);
+                points[index] = new StarPoint(direction, brightness, size, inBand, tintRoll);
             }
             return points;
         }
@@ -236,6 +243,12 @@ namespace Metagame.Gameplay
             return degrees / (verticalFovDegrees / verticalPixels);
         }
 
+        /// <summary>별의 색온도 — 푸른 별, 흰 별, 붉은 별.</summary>
+        public static Color StarTint(float roll) =>
+            roll < 0.22f ? new Color(0.72f, 0.82f, 1f)
+          : roll > 0.86f ? new Color(1f, 0.80f, 0.66f)
+                         : new Color(0.96f, 0.97f, 1f);
+
         void BuildStars(AtmosphereProfile.StarSettings settings, float effectScale)
         {
             int starCount = Mathf.RoundToInt(settings.starCount * effectScale);
@@ -244,7 +257,6 @@ namespace Metagame.Gameplay
             int total = points.Length;
             if (total <= 0) return;
 
-            var random = new System.Random(settings.seed ^ 0x5bf03635);
             var vertices = new Vector3[total * 4];
             var colors = new Color[total * 4];
             var triangles = new int[total * 6];
@@ -252,11 +264,7 @@ namespace Metagame.Gameplay
             for (int index = 0; index < total; index++)
             {
                 var star = points[index];
-                float tintRoll = (float)random.NextDouble();
-                Color tint = tintRoll < 0.22f ? new Color(0.72f, 0.82f, 1f)
-                           : tintRoll > 0.86f ? new Color(1f, 0.80f, 0.66f)
-                                              : new Color(0.96f, 0.97f, 1f);
-                Color color = tint * star.Brightness;
+                Color color = StarTint(star.TintRoll) * star.Brightness;
                 color.a = 1f;
 
                 int vertex = index * 4;
