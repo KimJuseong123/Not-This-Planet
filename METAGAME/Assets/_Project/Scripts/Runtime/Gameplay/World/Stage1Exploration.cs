@@ -103,6 +103,7 @@ namespace Metagame.Gameplay
         public int DiscoveredCount { get; private set; }
         public bool IsComplete => DiscoveredCount >= RequiredPartCount;
         public bool TabletOpen { get; private set; }
+        public TabletGuideState Guide { get; } = new TabletGuideState();
         public int TabletPage { get; private set; }
         public float DiscoveryRadius => _discoveryRadius;
         public string DiscoveryNotice { get; private set; }
@@ -191,12 +192,24 @@ namespace Metagame.Gameplay
 
         public void PreviousTabletPage()
         {
+            if (TabletOpen && Guide.Visible) { Guide.Move(-1); return; }
             SetTabletPage(TabletPage - 1);
         }
 
         public void NextTabletPage()
         {
+            if (TabletOpen && Guide.Visible) { Guide.Move(1); return; }
             SetTabletPage(TabletPage + 1);
+        }
+
+        public void ActivateTabletGuide()
+        {
+            if (!TabletOpen || !Guide.Enabled) return;
+            if (Guide.Visible)
+            {
+                if (Guide.Confirm()) SetTabletPage(0);
+            }
+            else Guide.Open();
         }
 
         public void SetTabletOpen(bool open)
@@ -204,6 +217,7 @@ namespace Metagame.Gameplay
             if (TabletOpen == open) return;
 
             TabletOpen = open;
+            if (open) Guide.OnTabletOpened();
             TabletStateChanged?.Invoke(TabletOpen);
         }
 
@@ -213,6 +227,7 @@ namespace Metagame.Gameplay
             DiscoveredCount = 0;
             DiscoveryNotice = string.Empty;
             _noticeUntil = 0f;
+            Guide.ResetRun();
 
             SetTabletPage(0);
 

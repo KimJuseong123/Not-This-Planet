@@ -142,6 +142,8 @@ namespace Metagame.Gameplay
                 {
                     if (f.TabletPreviousPage) Exploration.PreviousTabletPage();
                     if (f.TabletNextPage) Exploration.NextTabletPage();
+                    // E는 태블릿 안에서만 안내 확인/다시 보기로 소비한다.
+                    if (f.TransportAction) Exploration.ActivateTabletGuide();
                 }
 
                 if (Input.GetKeyDown(Controls.FreeCursor)) SetCursor(false);
