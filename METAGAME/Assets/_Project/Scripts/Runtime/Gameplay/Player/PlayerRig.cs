@@ -178,6 +178,33 @@ namespace Metagame.Gameplay
         /// 둘 다 돌지 않으므로 <see cref="CarryTarget"/> 이 비어 있고, 그러면
         /// <b>플래그만 맞춰도 후보가 되지 않는다</b>(잡을 지점이 없다).</para>
         /// </summary>
+        /// <summary>
+        /// 서버가 보낸 체력을 받는다 (S15P21B202-513).
+        ///
+        /// <para><b>왜 필요한가.</b> 빨간 테두리(<c>GameHud.HealthFrame</c>)는
+        /// <see cref="Health01"/> 을 읽는데, 참가자 기계에는 서버가 깎은 값이 오지
+        /// 않았다 — 실측으로 <c>NetPlayer</c> 와 <c>WorldSync</c> 둘 다에서
+        /// <c>health</c> 가 <b>0회</b>였다. 그래서 참가자에게 체력은 사실상
+        /// <b>"가득" 아니면 "기절" 둘뿐</b>이었다(운석 직격은 <c>ApplyDamage</c> 를
+        /// 거치지 않고 곧바로 <see cref="GoDown"/> 이고 <c>downed</c> 는 전송된다).</para>
+        ///
+        /// <para><b>0~1 이 아니라 절댓값을 받는다.</b> <see cref="IsDead"/> 가
+        /// <c>Health &lt;= 0</c> 이라, 비율만 받으면 그 값이 여전히 로컬로 남아
+        /// 어긋난다 — <c>DamageSource</c> 와 <c>Stage1DustStormFragment</c> 가
+        /// <c>IsDead</c> 로 피해를 거르므로, 서버가 기절시킨 사람을 참가자 기계에서
+        /// 계속 때리게 된다.</para>
+        ///
+        /// <para><b>권위가 있는 몸은 무시한다.</b> 호스트·혼자 실행에서는 자기 판정이
+        /// 정답이고, 받은 값으로 덮으면 값이 두 곳에서 오게 된다
+        /// (<c>-383</c>). <see cref="SetRemoteBeingRescued"/> 와 같은 규칙이다.</para>
+        /// </summary>
+        public void SetRemoteHealth(float nowHealth)
+        {
+            if (ServerAuthority) return;
+
+            Health = Mathf.Clamp(nowHealth, 0f, MaxHealth);
+        }
+
         public void SetRemoteDowned(bool nowDowned)
         {
             // 인형이 아직 없을 때를 같은 값으로 걸러내면 안 된다 — 플래그만 남고
@@ -189,6 +216,18 @@ namespace Metagame.Gameplay
 
             RefreshRescueTarget();
             RefreshCarryTarget();
+
+            // **참가자 본인의 기절 카메라 전환**(S15P21B202-511). 예전에는 여기에
+            // 없어서 참가자는 죽어도 1인칭 그대로였다 — 실측으로 `Downed=True` 인데
+            // `DownedView=False` 였다. 값은 잘 내려오고 구조 지점·잡을 지점도 켜지는데
+            // 카메라만 안 바뀌었다.
+            //
+            // S15P21B202-378 이 "넉백·장비 해제·레이어·카메라는 여기서 하지 않는다 —
+            // 서버 권위다" 로 넷을 묶었는데, **셋은 맞고 하나는 틀리다.** 카메라는
+            // 각자 화면의 일이라 남이 볼 일도 서버가 알 일도 없다. 같은 문장에 들어
+            // 있어서 함께 빠졌고, 그 주석 스스로 "따로 봐야 한다" 고 적어 두었다.
+            RefreshDownedCamera();
+
             RefreshDollVisibility();
 
             // **이 기계가 남의 기절을 받았는지 남긴다** (S15P21B202-414).
@@ -1046,9 +1085,24 @@ namespace Metagame.Gameplay
             Health = MaxHealth;
         }
 
-        /// <summary>외부 피해 오브젝트와 낙하 판정이 공통으로 사용하는 피해 진입점.</summary>
+        /// <summary>
+        /// 외부 피해 오브젝트와 낙하 판정이 공통으로 사용하는 피해 진입점.
+        ///
+        /// <para><b>판정은 서버가 한다</b>(S15P21B202-513). 예전에는 권한 게이트가 없어서
+        /// 참가자 기계의 트리거(<c>DamageSource</c> · <c>Stage1DustStormFragment</c>)가
+        /// 자기 몸에 닿으면 <b>로컬에서만 체력이 깎였다</b> — 실측으로
+        /// <c>ServerAuthority=False</c> 인데 <c>Health01</c> 이 1.000 → 0.700 이 됐다.</para>
+        ///
+        /// <para>체력을 전송하기 시작하면 그 값과 <b>싸운다</b> — 서버 값이 내려오는데
+        /// 로컬에서도 깎으면 화면이 깜빡인다. <c>-383</c> 의 "판정을 두 곳에 두면 반드시
+        /// 갈라진다" 이고, <b>전송과 이 게이트는 짝이다.</b></para>
+        ///
+        /// <para>혼자 실행·호스트에서는 <see cref="ServerAuthority"/> 가 참이라 그대로
+        /// 돈다.</para>
+        /// </summary>
         public void ApplyDamage(float amount, string source = "피해")
         {
+            if (!ServerAuthority) return;
             if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
             if (IsDead || float.IsNaN(amount) || float.IsInfinity(amount) || amount <= 0f) return;
 
@@ -1084,8 +1138,8 @@ namespace Metagame.Gameplay
             RefreshCarryTarget();
 
             // 시야가 몸과 함께 넘어간 뒤 3인칭으로 물러난다(기획 §10.1 · §10.3,
-            // S15P21B202-259). 머리 본을 넘기는 이유는 OrbitCamera 쪽에 적었다.
-            if (Cam != null) Cam.SetDownedView(true, Doll?.Head?.transform);
+            // S15P21B202-259). 규칙은 RefreshDownedCamera 한 곳에 있다.
+            RefreshDownedCamera();
 
             // 시점이 바뀌었으니 몸을 그릴지 다시 정한다(S15P21B202-267).
             RefreshDollVisibility();
@@ -1129,7 +1183,7 @@ namespace Metagame.Gameplay
             RefreshCarryTarget();
 
             // 기획 §10.3 "구조되면 1인칭으로 돌아온다".
-            if (Cam != null) Cam.SetDownedView(false);
+            RefreshDownedCamera();
 
             RefreshDollVisibility();
         }
@@ -1686,6 +1740,34 @@ namespace Metagame.Gameplay
         ///
         /// <see cref="Cam"/> 이 null 인 원격 플레이어는 그대로 보인다.
         /// </summary>
+        /// <summary>
+        /// 기절 시점(1인칭 ↔ 3인칭)을 지금 상태에 맞춘다 (S15P21B202-511).
+        ///
+        /// <para><b>규칙을 한 곳에 둔다.</b> 예전에는 <see cref="GoDown"/> 과
+        /// <see cref="Revive"/> 안에 <c>Cam.SetDownedView(...)</c> 가 각각 인라인으로
+        /// 있었고, <see cref="SetRemoteDowned"/> 에는 아무것도 없었다. 그래서 참가자
+        /// 기계에서는 — <c>GoDown</c>·<c>Revive</c> 가 돌지 않으므로 — <b>죽어도
+        /// 1인칭 그대로였다.</b></para>
+        ///
+        /// <para><b>남의 몸은 저절로 걸러진다.</b> <see cref="Cam"/> 은
+        /// <c>SpaceBootstrap</c> 이 <b>로컬 플레이어 하나에만</b> 붙인다 — 원격 몸의
+        /// 카메라는 <c>null</c> 이다. 그래서 "내 것일 때만" 같은 조건을 따로 두지
+        /// 않는다.</para>
+        ///
+        /// <para><b>여러 번 불려도 안전하다.</b>
+        /// <see cref="OrbitCamera.SetDownedView"/> 의 첫 줄이
+        /// <c>if (on == downedView) return;</c> 이다.</para>
+        ///
+        /// <para>머리 본을 넘기는 이유는 <c>OrbitCamera</c> 쪽에 적었다 — 그 회전을
+        /// 따라가야 시야가 몸과 함께 넘어간다(S15P21B202-259).</para>
+        /// </summary>
+        void RefreshDownedCamera()
+        {
+            if (Cam == null) return;
+
+            Cam.SetDownedView(Downed, Downed ? Doll?.Head?.transform : null);
+        }
+
         void RefreshDollVisibility()
         {
             if (Doll == null) return;

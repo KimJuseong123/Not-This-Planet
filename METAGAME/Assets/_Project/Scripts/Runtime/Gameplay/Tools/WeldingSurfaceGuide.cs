@@ -37,7 +37,9 @@ namespace Metagame.Gameplay
             mesh.triangles = triangles;
             root.AddComponent<MeshFilter>().sharedMesh = mesh;
             var renderer = root.AddComponent<MeshRenderer>();
-            material = Prim.Flat(color);
+            material = new Material(Resources.Load<Shader>("WeldingGuide"));
+            material.SetColor("_Color", color);
+            material.renderQueue = 3100; // 몸체 → 추천 띠 → 조준 원. 추천 띠는 깊이를 기록하지 않는다.
             renderer.sharedMaterial = material;
             renderer.shadowCastingMode = ShadowCastingMode.Off;
             renderer.receiveShadows = false;

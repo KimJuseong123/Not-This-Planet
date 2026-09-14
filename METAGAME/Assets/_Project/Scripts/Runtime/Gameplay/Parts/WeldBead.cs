@@ -543,7 +543,7 @@ namespace Metagame.Gameplay.Parts
             return false;
         }
 
-        static bool IsBeadCollider(Collider collider)
+        internal static bool IsBeadCollider(Collider collider)
         {
             var bead = collider.GetComponentInParent<WeldBead>();
             return bead != null && collider.transform.IsChildOf(bead._container != null
@@ -858,6 +858,17 @@ namespace Metagame.Gameplay.Parts
         /// 막힐 이유가 없다.
         /// </summary>
         SpaceshipPart PartTouching(Vector3 point, float radius)
+            => PartTouching(_owner, point, radius);
+
+        /// <summary>첫 비드로 접합할 수 있는 표면. 표시만으로 비드나 조인트를 만들지 않는다.</summary>
+        public static bool CanStartJoiningAt(RaycastHit hit)
+        {
+            if (!CanApplyAt(hit, false) || IsBeadCollider(hit.collider)) return false;
+            var owner = hit.collider.GetComponentInParent<SpaceshipPart>();
+            return owner != null && PartTouching(owner, hit.point, PhysicsScale.WeldBeadMinRadius) != null;
+        }
+
+        static SpaceshipPart PartTouching(SpaceshipPart owner, Vector3 point, float radius)
         {
             var count = UnityEngine.Physics.OverlapSphereNonAlloc(
                 point, radius + PhysicsScale.WeldBeadContactSkin, Probe,
@@ -869,7 +880,7 @@ namespace Metagame.Gameplay.Parts
                 if (collider == null) continue;
 
                 var found = collider.GetComponentInParent<SpaceshipPart>();
-                if (found == null || found == _owner) continue;
+                if (found == null || found == owner) continue;
 
                 return found;
             }
