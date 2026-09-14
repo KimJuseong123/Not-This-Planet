@@ -18,6 +18,22 @@ namespace Metagame.Gameplay.Parts
     public sealed class SpaceshipPart : MonoBehaviour
     {
         [SerializeField] PartState _state = PartState.Locked;
+        [SerializeField] bool _isDockedToPad;
+        public bool IsDockedToPad => _isDockedToPad;
+
+        /// <summary>도킹 판정은 조립대/서버만 수행하고, 참가자는 받은 상태를 적용한다.</summary>
+        public void ApplyDockedToPad(bool docked)
+        {
+            Initialize();
+            if (_isDockedToPad == docked) return;
+            _isDockedToPad = docked;
+            if (docked && !_body.isKinematic)
+            {
+                _body.linearVelocity = Vector3.zero;
+                _body.angularVelocity = Vector3.zero;
+            }
+            ApplyRepresentation(_state);
+        }
 
         /// <summary>
         /// 이 파츠가 놓였을 때의 질량. 씬을 만드는 도구가 <see cref="PartSpec"/> 의 값을 넣는다.
@@ -43,6 +59,54 @@ namespace Metagame.Gameplay.Parts
 
         Rigidbody _body;
         bool _initialized;
+        Collider[] _hullColliders;
+
+        public bool TryGetHullBounds(out Bounds bounds)
+        {
+            Initialize();
+            if (_hullColliders == null) _hullColliders = GetComponentsInChildren<Collider>(true);
+            bounds = default;
+            var found = false;
+            foreach (var collider in _hullColliders)
+            {
+                if (collider == null || !collider.enabled || collider.isTrigger
+                    || collider.attachedRigidbody != _body || !collider.gameObject.activeInHierarchy
+                    || collider.GetComponentInParent<PartClamp>() != null) continue;
+                if (!found) { bounds = collider.bounds; found = true; }
+                else bounds.Encapsulate(collider.bounds);
+            }
+            return found;
+        }
+
+        /// <summary>위치를 옮기지 않고 목표 회전에서의 외곽을 계산한다. 실제 콜라이더 크기/피벗을 존중한다.</summary>
+        public bool TryGetHullBoundsAtRotation(Quaternion rotation, out Bounds bounds)
+        {
+            TryGetHullBounds(out bounds); // 콜라이더 캐시 초기화
+            var found = false;
+            var delta = rotation * Quaternion.Inverse(transform.rotation);
+            foreach (var collider in _hullColliders)
+            {
+                if (collider == null || !collider.enabled || collider.isTrigger
+                    || collider.attachedRigidbody != _body || !collider.gameObject.activeInHierarchy
+                    || collider.GetComponentInParent<PartClamp>() != null) continue;
+                var local = true;
+                Bounds source;
+                if (collider is BoxCollider box) source = new Bounds(box.center, box.size);
+                else if (collider is MeshCollider mesh && mesh.sharedMesh != null) source = mesh.sharedMesh.bounds;
+                else { source = collider.bounds; local = false; }
+                for (var corner = 0; corner < 8; corner++)
+                {
+                    var point = source.center + Vector3.Scale(source.extents, new Vector3(
+                        (corner & 1) == 0 ? -1f : 1f, (corner & 2) == 0 ? -1f : 1f,
+                        (corner & 4) == 0 ? -1f : 1f));
+                    if (local) point = collider.transform.TransformPoint(point);
+                    point = transform.position + delta * (point - transform.position);
+                    if (!found) { bounds = new Bounds(point, Vector3.zero); found = true; }
+                    else bounds.Encapsulate(point);
+                }
+            }
+            return found;
+        }
 
         /// <summary>남은 고정못을 지면에 묶어 두는 조인트들. 부분 부양이 이것으로 표현된다.</summary>
         readonly List<ConfigurableJoint> _clampJoints = new();
@@ -53,7 +117,7 @@ namespace Metagame.Gameplay.Parts
         public Vector3 AssemblyUp => GetComponent<TransportVehicle>() is TransportVehicle vehicle
             ? vehicle.AssemblyUp : transform.up;
 
-        public bool CanReceiveAssembly => State is PartState.Placed or PartState.Welded
+        public bool CanReceiveAssembly => IsDockedToPad || State is PartState.Placed or PartState.Welded
             || (State == PartState.Free && GetComponent<TransportVehicle>() is TransportVehicle vehicle
                 && vehicle.CanReceiveAssembly);
 
@@ -160,6 +224,7 @@ namespace Metagame.Gameplay.Parts
             Initialize();
 
             if (next == _state) return false;
+            if (_isDockedToPad && next == PartState.Carried) return false;
             if (!IsTransitionAllowed(_state, next)) return false;
             if (next == PartState.Free && RemainingRequiredClamps > 0) return false;
 
@@ -356,6 +421,14 @@ namespace Metagame.Gameplay.Parts
 
         void ApplyRepresentation(PartState state)
         {
+            if (_isDockedToPad)
+            {
+                if (_body == null) _body = GetComponent<Rigidbody>();
+                gameObject.layer = GameLayers.Part;
+                _body.isKinematic = true;
+                _body.mass = PlacedMass + _extraMass;
+                return;
+            }
             // Converted engines keep their vehicle physics, including during bead mass updates
             // and host migration. Component.enabled does not prevent these direct calls.
             if (GetComponent<PartTractorActivator>() is PartTractorActivator activator && activator.IsActivated)

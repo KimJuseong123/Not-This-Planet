@@ -40,8 +40,8 @@ namespace Metagame.Network
         static float SendInterval =>
             NetworkServer.sendInterval > 0f ? NetworkServer.sendInterval : 1f / 20f;
 
-        /// <summary>자세 하나의 바이트 수 — Vector3 12 + Quaternion 16. Mirror 는 둘 다 그대로 쓴다.</summary>
-        const int PoseBytes = 28;
+        /// <summary>자세와 도킹 상태: Vector3 12 + Quaternion 16 + bool 1.</summary>
+        const int PoseBytes = 29; // position + rotation + pad docking flag
 
         /// <summary>RPC 머리말·배치 여유. 정확히 셀 이유는 없고 넉넉히 잡는다.</summary>
         const int PacketHeadroom = 64;
@@ -69,6 +69,7 @@ namespace Metagame.Network
         {
             public Vector3 Position;
             public Quaternion Rotation;
+            public bool DockedToPad;
         }
 
         readonly List<Rigidbody> tracked = new List<Rigidbody>();
@@ -481,6 +482,7 @@ namespace Metagame.Network
                     h = FoldFloat(h, poses[i].Rotation.y);
                     h = FoldFloat(h, poses[i].Rotation.z);
                     h = FoldFloat(h, poses[i].Rotation.w);
+                    h = FoldInt(h, poses[i].DockedToPad ? 1 : 0);
                 }
 
                 return h;
@@ -685,7 +687,8 @@ namespace Metagame.Network
         {
             return body == null
                 ? default
-                : new Pose { Position = body.position, Rotation = body.rotation };
+                : new Pose { Position = body.position, Rotation = body.rotation,
+                    DockedToPad = body.TryGetComponent<SpaceshipPart>(out var part) && part.IsDockedToPad };
         }
 
         public override void OnStopClient()
@@ -1900,6 +1903,9 @@ namespace Metagame.Network
                 // `part.enabled = false` 라 SpaceshipPart 의 게이트를 타지 않으므로 그쪽은
                 // 이 한 줄만이 막는다. 풀린 채로 두면 로컬 물리가 서버 자세와 다툰다.
                 if (!body.isKinematic) body.isKinematic = true;
+
+                if (body.TryGetComponent<SpaceshipPart>(out var part))
+                    part.ApplyDockedToPad(targets[i].DockedToPad);
 
                 // `transform` 이 아니라 `body` 로 읽고 쓴다. 탈것은 보간
                 // (`RigidbodyInterpolation.Interpolate`)이 걸려 있어 `transform.position` 은

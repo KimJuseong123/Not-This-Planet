@@ -138,6 +138,7 @@ namespace Metagame.Gameplay.Parts
 
             if (candidate.GetComponent<WeldBead>() is WeldBead bead && bead.IsWeldedToPad)
                 return BeamGrabResult.Welded;
+            if (AssemblyDock.IsAnchored(candidate)) return BeamGrabResult.Welded;
 
             if (!candidate.TryTransitionTo(PartState.Carried)) return BeamGrabResult.NoTarget;
 
