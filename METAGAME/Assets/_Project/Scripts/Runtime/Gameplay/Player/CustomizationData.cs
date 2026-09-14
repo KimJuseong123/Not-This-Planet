@@ -7,25 +7,44 @@ namespace Metagame.Gameplay
     {
         const string SaveKey = "appearance.v1";
         public int Tint, Helmet, Badge;
-        public static readonly string[] TintNames = { "기본", "민트", "라벤더", "살구", "하늘" };
+        public static readonly string[] TintNames = { "Yellow", "Lavender", "Pink", "Sky" };
         public static readonly string[] HelmetNames = { "없음", "탐사 안테나", "통신 헤드셋" };
         public static readonly string[] BadgeNames = { "없음", "탐사 배지", "쌍별 배지" };
+
+        static readonly Color[] TintColors =
+        {
+            new Color32(0xF2, 0xFF, 0x9F, 0xFF),
+            new Color32(0xDE, 0xC6, 0xFF, 0xFF),
+            new Color32(0xFF, 0xAC, 0xCD, 0xFF),
+            new Color32(0xA1, 0xD9, 0xFF, 0xFF)
+        };
+
         public static Color TintColor(int index)
         {
-            switch (index)
+            return TintColors[Mathf.Clamp(index, 0, TintColors.Length - 1)];
+        }
+
+        /// <summary>Customizer Inspector에서 설정한 팔레트를 모든 캐릭터 표현에 공유한다.</summary>
+        public static void ConfigureTintColors(Color[] colors)
+        {
+            if (colors == null || colors.Length != TintColors.Length)
             {
-                case 1: return new Color(0.65f, 1f, 0.84f);
-                case 2: return new Color(0.84f, 0.72f, 1f);
-                case 3: return new Color(1f, 0.79f, 0.63f);
-                case 4: return new Color(0.65f, 0.86f, 1f);
-                default: return Color.white;
+                Debug.LogWarning($"[CustomizationData] 슈트 컬러는 {TintColors.Length}개가 필요합니다.");
+                return;
+            }
+
+            for (int i = 0; i < TintColors.Length; i++)
+            {
+                Color color = colors[i];
+                color.a = 1f;
+                TintColors[i] = color;
             }
         }
-        public int Packed => Mathf.Clamp(Tint, 0, 4) | (Mathf.Clamp(Helmet, 0, 2) << 3)
+        public int Packed => Mathf.Clamp(Tint, 0, TintNames.Length - 1) | (Mathf.Clamp(Helmet, 0, 2) << 3)
             | (Mathf.Clamp(Badge, 0, 2) << 5);
         public static CustomizationData Decode(int value) => new CustomizationData
         {
-            Tint = Mathf.Clamp(value & 7, 0, 4),
+            Tint = Mathf.Clamp(value & 7, 0, TintNames.Length - 1),
             Helmet = Mathf.Clamp((value >> 3) & 3, 0, 2),
             Badge = Mathf.Clamp((value >> 5) & 3, 0, 2)
         };

@@ -1,5 +1,6 @@
 using UnityEngine;
 using Metagame.Core;
+using System.Collections.Generic;
 
 namespace Metagame.Gameplay
 {
@@ -8,6 +9,7 @@ namespace Metagame.Gameplay
     {
         Doll doll;
         Renderer[] surfaces;
+        readonly List<Material> ownedMaterials = new List<Material>();
         Transform helmetRoot, badgeRoot;
         int applied = -1;
         public int Applied => applied;
@@ -23,6 +25,7 @@ namespace Metagame.Gameplay
                 appearance.surfaces = target.Suit != null
                     ? target.Suit.GetComponentsInChildren<Renderer>(true)
                     : target.Root.GetComponentsInChildren<Renderer>(true);
+                if (target.Suit != null) appearance.UseWhiteOnlyTintMaterials();
             }
             appearance.Set(CustomizationData.Decode(packed));
         }
@@ -39,11 +42,62 @@ namespace Metagame.Gameplay
                     if (material == null) continue;
                     block.Clear();
                     renderer.GetPropertyBlock(block, i);
-                    foreach (string property in new[] { "_BaseColor", "_Color" })
+                    if (material.HasProperty("_WhiteTint"))
+                    {
+                        block.SetColor("_WhiteTint", tint);
+                    }
+                    else foreach (string property in new[] { "_BaseColor", "_Color" })
                         if (material.HasProperty(property))
-                            block.SetColor(property, material.GetColor(property) * tint);
+                        {
+                            Color original = material.GetColor(property);
+                            float brightest = Mathf.Max(original.r, Mathf.Max(original.g, original.b));
+                            float darkest = Mathf.Min(original.r, Mathf.Min(original.g, original.b));
+                            bool brightNeutral = darkest >= 0.6f && brightest - darkest <= 0.18f;
+                            block.SetColor(property, brightNeutral ? original * tint : original);
+                        }
                     renderer.SetPropertyBlock(block, i);
                 }
+            }
+        }
+
+        void UseWhiteOnlyTintMaterials()
+        {
+            var shader = Resources.Load<Shader>("CharacterSuitTint");
+            if (shader == null)
+            {
+                Debug.LogWarning("[PlayerAppearance] CharacterSuitTint 셰이더가 없어 전체 재질 색상 방식으로 돌아갑니다.");
+                return;
+            }
+
+            foreach (var surface in surfaces)
+            {
+                var sourceMaterials = surface.sharedMaterials;
+                var replacements = new Material[sourceMaterials.Length];
+                for (int i = 0; i < sourceMaterials.Length; i++)
+                {
+                    var source = sourceMaterials[i];
+                    if (source == null) continue;
+
+                    var replacement = new Material(shader) { name = source.name + " (White Tint)" };
+                    Texture albedo = source.HasProperty("_BaseMap")
+                        ? source.GetTexture("_BaseMap")
+                        : source.mainTexture;
+                    replacement.SetTexture("_BaseMap", albedo);
+                    replacement.SetTextureScale("_BaseMap", source.mainTextureScale);
+                    replacement.SetTextureOffset("_BaseMap", source.mainTextureOffset);
+                    if (source.HasProperty("_BumpMap"))
+                        replacement.SetTexture("_BumpMap", source.GetTexture("_BumpMap"));
+                    if (source.HasProperty("_BumpScale"))
+                        replacement.SetFloat("_BumpScale", source.GetFloat("_BumpScale"));
+                    if (source.HasProperty("_Smoothness"))
+                        replacement.SetFloat("_Smoothness", source.GetFloat("_Smoothness"));
+                    else if (source.HasProperty("_Glossiness"))
+                        replacement.SetFloat("_Smoothness", source.GetFloat("_Glossiness"));
+
+                    replacements[i] = replacement;
+                    ownedMaterials.Add(replacement);
+                }
+                surface.sharedMaterials = replacements;
             }
         }
 
@@ -113,6 +167,14 @@ namespace Metagame.Gameplay
             root.gameObject.SetActive(false);
             if (Application.isPlaying) Destroy(root.gameObject); else DestroyImmediate(root.gameObject);
             root = null;
+        }
+
+        void OnDestroy()
+        {
+            foreach (var material in ownedMaterials)
+                if (material != null)
+                    if (Application.isPlaying) Destroy(material); else DestroyImmediate(material);
+            ownedMaterials.Clear();
         }
     }
 }

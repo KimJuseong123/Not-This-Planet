@@ -13,7 +13,7 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void EverySelectionSurvivesNetworkEncoding()
         {
-            for (int tint = 0; tint < 5; tint++)
+            for (int tint = 0; tint < CustomizationData.TintNames.Length; tint++)
             for (int helmet = 0; helmet < 3; helmet++)
             for (int badge = 0; badge < 3; badge++)
             {
@@ -31,9 +31,35 @@ namespace Metagame.Gameplay.Tests
         public void InvalidNetworkDataIsBounded(int packed)
         {
             var choice = CustomizationData.Decode(packed);
-            Assert.That(choice.Tint, Is.InRange(0, 4));
+            Assert.That(choice.Tint, Is.InRange(0, CustomizationData.TintNames.Length - 1));
             Assert.That(choice.Helmet, Is.InRange(0, 2));
             Assert.That(choice.Badge, Is.InRange(0, 2));
+        }
+
+        [Test]
+        public void SuitTintPaletteCanBeConfiguredAndRemainsOpaque()
+        {
+            var original = new Color[CustomizationData.TintNames.Length];
+            var configured = new Color[CustomizationData.TintNames.Length];
+            for (int i = 0; i < original.Length; i++)
+            {
+                original[i] = CustomizationData.TintColor(i);
+                configured[i] = new Color(i * 0.1f, i * 0.15f, i * 0.2f, 0.25f);
+            }
+
+            try
+            {
+                CustomizationData.ConfigureTintColors(configured);
+                for (int i = 0; i < configured.Length; i++)
+                {
+                    configured[i].a = 1f;
+                    Assert.That(CustomizationData.TintColor(i), Is.EqualTo(configured[i]));
+                }
+            }
+            finally
+            {
+                CustomizationData.ConfigureTintColors(original);
+            }
         }
 
         [Test]
@@ -84,6 +110,25 @@ namespace Metagame.Gameplay.Tests
                 PlayerAppearance.Tint(new[] { renderer }, Color.white);
                 renderer.GetPropertyBlock(block, 0);
                 Assert.That(block.GetColor("_Color"), Is.EqualTo(Color.white));
+            }
+            finally { Object.DestroyImmediate(go); Object.DestroyImmediate(material); }
+        }
+
+        [Test]
+        public void TintLeavesColoredAccentMaterialUnchanged()
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var material = new Material(Metagame.Core.Prim.DoughShader);
+            var accent = new Color(0.42f, 0.18f, 0.82f, 1f);
+            try
+            {
+                material.SetColor("_Color", accent);
+                var renderer = go.GetComponent<Renderer>();
+                renderer.sharedMaterial = material;
+                PlayerAppearance.Tint(new[] { renderer }, CustomizationData.TintColor(1));
+                var block = new MaterialPropertyBlock();
+                renderer.GetPropertyBlock(block, 0);
+                Assert.That(block.GetColor("_Color"), Is.EqualTo(accent));
             }
             finally { Object.DestroyImmediate(go); Object.DestroyImmediate(material); }
         }
