@@ -189,6 +189,18 @@ namespace Metagame.Gameplay
 
             RefreshRescueTarget();
             RefreshCarryTarget();
+
+            // **참가자 본인의 기절 카메라 전환**(S15P21B202-511). 예전에는 여기에
+            // 없어서 참가자는 죽어도 1인칭 그대로였다 — 실측으로 `Downed=True` 인데
+            // `DownedView=False` 였다. 값은 잘 내려오고 구조 지점·잡을 지점도 켜지는데
+            // 카메라만 안 바뀌었다.
+            //
+            // S15P21B202-378 이 "넉백·장비 해제·레이어·카메라는 여기서 하지 않는다 —
+            // 서버 권위다" 로 넷을 묶었는데, **셋은 맞고 하나는 틀리다.** 카메라는
+            // 각자 화면의 일이라 남이 볼 일도 서버가 알 일도 없다. 같은 문장에 들어
+            // 있어서 함께 빠졌고, 그 주석 스스로 "따로 봐야 한다" 고 적어 두었다.
+            RefreshDownedCamera();
+
             RefreshDollVisibility();
 
             // **이 기계가 남의 기절을 받았는지 남긴다** (S15P21B202-414).
@@ -1084,8 +1096,8 @@ namespace Metagame.Gameplay
             RefreshCarryTarget();
 
             // 시야가 몸과 함께 넘어간 뒤 3인칭으로 물러난다(기획 §10.1 · §10.3,
-            // S15P21B202-259). 머리 본을 넘기는 이유는 OrbitCamera 쪽에 적었다.
-            if (Cam != null) Cam.SetDownedView(true, Doll?.Head?.transform);
+            // S15P21B202-259). 규칙은 RefreshDownedCamera 한 곳에 있다.
+            RefreshDownedCamera();
 
             // 시점이 바뀌었으니 몸을 그릴지 다시 정한다(S15P21B202-267).
             RefreshDollVisibility();
@@ -1129,7 +1141,7 @@ namespace Metagame.Gameplay
             RefreshCarryTarget();
 
             // 기획 §10.3 "구조되면 1인칭으로 돌아온다".
-            if (Cam != null) Cam.SetDownedView(false);
+            RefreshDownedCamera();
 
             RefreshDollVisibility();
         }
@@ -1686,6 +1698,34 @@ namespace Metagame.Gameplay
         ///
         /// <see cref="Cam"/> 이 null 인 원격 플레이어는 그대로 보인다.
         /// </summary>
+        /// <summary>
+        /// 기절 시점(1인칭 ↔ 3인칭)을 지금 상태에 맞춘다 (S15P21B202-511).
+        ///
+        /// <para><b>규칙을 한 곳에 둔다.</b> 예전에는 <see cref="GoDown"/> 과
+        /// <see cref="Revive"/> 안에 <c>Cam.SetDownedView(...)</c> 가 각각 인라인으로
+        /// 있었고, <see cref="SetRemoteDowned"/> 에는 아무것도 없었다. 그래서 참가자
+        /// 기계에서는 — <c>GoDown</c>·<c>Revive</c> 가 돌지 않으므로 — <b>죽어도
+        /// 1인칭 그대로였다.</b></para>
+        ///
+        /// <para><b>남의 몸은 저절로 걸러진다.</b> <see cref="Cam"/> 은
+        /// <c>SpaceBootstrap</c> 이 <b>로컬 플레이어 하나에만</b> 붙인다 — 원격 몸의
+        /// 카메라는 <c>null</c> 이다. 그래서 "내 것일 때만" 같은 조건을 따로 두지
+        /// 않는다.</para>
+        ///
+        /// <para><b>여러 번 불려도 안전하다.</b>
+        /// <see cref="OrbitCamera.SetDownedView"/> 의 첫 줄이
+        /// <c>if (on == downedView) return;</c> 이다.</para>
+        ///
+        /// <para>머리 본을 넘기는 이유는 <c>OrbitCamera</c> 쪽에 적었다 — 그 회전을
+        /// 따라가야 시야가 몸과 함께 넘어간다(S15P21B202-259).</para>
+        /// </summary>
+        void RefreshDownedCamera()
+        {
+            if (Cam == null) return;
+
+            Cam.SetDownedView(Downed, Downed ? Doll?.Head?.transform : null);
+        }
+
         void RefreshDollVisibility()
         {
             if (Doll == null) return;
