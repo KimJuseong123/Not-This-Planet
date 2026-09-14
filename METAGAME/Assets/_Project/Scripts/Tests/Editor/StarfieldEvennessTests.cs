@@ -319,23 +319,31 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void TheMobileSkyIsEvenToo()
         {
+            // **아무것도 안 돌고 초록불이 되지 않게 한다** (!446 AI 리뷰). 지금은 어떤
+            // 프로필도 모바일을 켜지 않아 아래 루프가 한 번도 돌지 않는다 — 그러면
+            // "검사했다" 는 초록불이 거짓이 된다. 기본 배율은 언제나 검사한다.
+            const float defaultMobileScale = 0.5f;
+            AssertEvenAtScale("기본 모바일 배율", TestSettings(), defaultMobileScale);
+
             foreach (var (path, profile) in ShippedProfiles())
             {
                 if (!profile.enableOnMobile) continue;   // 배율이 0 이라 별이 아예 없다
-
-                var settings = profile.stars;
-                var scale = Mathf.Clamp(profile.mobileEffectScale, 0.1f, 1f);
-                var stars = AtmosphereBackdrop.BuildStarPoints(settings,
-                    Mathf.RoundToInt(settings.starCount * scale),
-                    Mathf.RoundToInt(settings.bandCount * scale));
-                var perScreen = Enumerable.Range(0, 8).Select(i => OnScreen(stars, i * 45f)).ToArray();
-
-                var ratio = (float)perScreen.Max() / perScreen.Min();
-                Assert.LessOrEqual(ratio, 2.0f,
-                    $"{path}: 모바일 배율 {scale:F2} 에서 별 수가 {ratio:F2}배 차이 난다. "
-                    + "화면별: " + string.Join(" ", perScreen)
-                    + " · 배율을 낮추면 별 수도 함께 봐야 한다 — 실측상 0.35 에서 2.18배가 된다.");
+                AssertEvenAtScale(path, profile.stars, Mathf.Clamp(profile.mobileEffectScale, 0.1f, 1f));
             }
+        }
+
+        static void AssertEvenAtScale(string label, AtmosphereProfile.StarSettings settings, float scale)
+        {
+            var stars = AtmosphereBackdrop.BuildStarPoints(settings,
+                Mathf.RoundToInt(settings.starCount * scale),
+                Mathf.RoundToInt(settings.bandCount * scale));
+            var perScreen = Enumerable.Range(0, 8).Select(i => OnScreen(stars, i * 45f)).ToArray();
+
+            var ratio = (float)perScreen.Max() / perScreen.Min();
+            Assert.LessOrEqual(ratio, 2.0f,
+                $"{label}: 배율 {scale:F2} 에서 별 수가 {ratio:F2}배 차이 난다. "
+                + "화면별: " + string.Join(" ", perScreen)
+                + " · 배율을 더 낮추려면 별 수도 함께 봐야 한다 — 실측상 0.35 에서 2.18배가 된다.");
         }
 
         [Test]
