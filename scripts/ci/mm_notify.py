@@ -16,7 +16,7 @@ import json
 import os
 import sys
 
-from ci_common import GitLab, banner, bot_line, env, http, load_team, role_member, strip_draft
+from ci_common import GitLab, banner, bot_line, env, http, load_team, role_member, strip_draft, why
 
 TEAM = load_team()
 BY_GITLAB = {m["gitlab"]: m for m in TEAM["members"]}
@@ -40,8 +40,12 @@ def send(text: str) -> int:
     url = env("MM_WEBHOOK_URL")
     if not url:
         print("MM_WEBHOOK_URL 없음 → 전송 생략(아래는 보냈을 문구)"); print(text); return 0
-    st, _ = http("POST", url, body={"text": text, "username": "METAGAME 봇"})
+    st, resp = http("POST", url, body={"text": text, "username": "METAGAME 봇"})
     print(text); print(f"MM 전송 → {st}")
+    if not 200 <= (st or 0) < 300:
+        # 2026-09-13: 배포 무응답 카드가 400 으로 떨어져 **아무도 못 봤다.**
+        # 숫자만으로는 다음에도 못 찾는다 (S15P21B202-484).
+        print(f"   ↳ 사유: {why(resp)}")
     return 0 if st == 200 else 1
 
 

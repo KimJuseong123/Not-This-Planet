@@ -181,6 +181,40 @@ def http(method: str, url: str, headers: dict | None = None, body: dict | str | 
         return status, raw
 
 
+# 본문에 섞여 나올 수 있는 비밀. **응답은 우리가 만든 것이 아니라 상대 서버가
+# 만든 것**이라 무엇이 들어 있을지 우리가 정하지 못한다(S15P21B202-484).
+SECRET_ENVS = ("JIRA_RELEASE_WEBHOOK", "MM_WEBHOOK_URL", "JIRA_API_TOKEN",
+               "GITLAB_TOKEN", "ANTHROPIC_API_KEY", "JIRA_USER")
+
+
+def redact(s: str) -> str:
+    """알려진 비밀 환경변수 **값**을 이름으로 바꾼다. 짧은 값은 건너뛴다 —
+    두세 글자짜리를 지우면 멀쩡한 문장이 걸레가 되고, 그러면 사유를 못 읽는다."""
+    for name in SECRET_ENVS:
+        v = env(name)
+        if v and len(v) >= 8:
+            s = s.replace(v, "<%s>" % name)
+    return s
+
+
+def why(body, limit: int = 300) -> str:
+    """실패 응답의 **이유 한 줄**. 잡 로그에만 쓴다.
+
+    `http()` 는 본문을 이미 파싱해 돌려주는데 호출부들이 `_` 로 버려 왔다. 그래서
+    2026-09-11·09-14 의 Jira 릴리스 웹훅 400 과 2026-09-13 의 MM 400 이 모두
+    **숫자만 남고 이유가 없었다** — 같은 실패를 세 번 겪고도 원인을 못 봤다
+    (S15P21B202-484).
+
+    **카드·코멘트로는 내보내지 않는다.** 잡 로그는 GitLab 이 masked 변수를 가려
+    주지만 MM 카드는 아무도 안 가려 준다(`-335` 에서 정한 규칙 그대로).
+    """
+    if body is None or body == "":
+        return "(본문 없음)"
+    s = body if isinstance(body, str) else json.dumps(body, ensure_ascii=False)
+    s = redact(" ".join(s.split()))          # 줄바꿈을 접어 로그 한 줄로
+    return s if len(s) <= limit else s[:limit] + "…"
+
+
 class GitLab:
     """GITLAB_TOKEN(프로젝트 액세스 토큰) 이 있으면 API, 없으면 CI 환경변수로 읽기만."""
 

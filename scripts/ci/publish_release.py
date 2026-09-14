@@ -33,7 +33,7 @@ import zipfile
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
-from ci_common import GitLab, KEY_RE, PROJECT_KEY, banner, env, http, load_team, role_member
+from ci_common import GitLab, KEY_RE, PROJECT_KEY, banner, env, http, load_team, role_member, why
 
 # 릴리스 게이트가 `unity-compile` 의 기준선 비교를 그대로 쓴다 (S15P21B202-440) —
 # 기존 실패를 세는 규칙이 두 곳에서 갈리면 한쪽이 조용히 낡는다.
@@ -454,13 +454,16 @@ def jira_release_webhook(version: str, keys: list[str], release_url: str) -> str
     body = {"issues": sorted(set(keys)),
             "data": {"version": version, "releaseUrl": release_url, "date": datetime.now(KST).strftime("%Y-%m-%d")}}
     try:
-        st, _ = http("POST", url, {}, body)
+        st, resp = http("POST", url, {}, body)
     except Exception as e:  # noqa: BLE001
         # **종류만** 싣는다(-335 와 같은 규칙). urllib 의 예외 문구에는 주소가 들어 있다.
         print(f"   ⚠️ Jira 릴리스 웹훅 호출이 예외로 끝났다: {type(e).__name__} (Release 는 이미 났다, 비차단)")
         return f"⚠️ Jira 연동 실패 ({type(e).__name__}) — Release 는 이미 났다"
     ok = 200 <= (st or 0) < 300
     print(f"   Jira 릴리스 웹훅 → {st}" + ("" if ok else " (실패 — Release 는 이미 났다, 비차단)"))
+    if not ok:
+        # **이유는 잡 로그에만.** 아래 돌려주는 문구는 MM 카드에 실리므로 숫자까지만 담는다.
+        print(f"   ↳ 사유: {why(resp)}")
     return None if ok else f"⚠️ Jira 연동 실패 (HTTP {st}) — Release 는 이미 났다"
 
 
