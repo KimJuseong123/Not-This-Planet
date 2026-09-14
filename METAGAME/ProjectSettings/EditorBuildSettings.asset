@@ -23,4 +23,10 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/PracticeLobby.unity
     guid: 05856f09c0fb07f45bb538075758dcd8
+  - enabled: 1
+    path: Assets/Scenes/AICompanionTest.unity
+    guid: 7f6aa6f0998b6504d81a4853e316bca6
+  - enabled: 1
+    path: Assets/Scenes/AIPracticeLobby.unity
+    guid: b3154fa16911d39469816cb1f1a2d1a0
   m_configObjects: {}

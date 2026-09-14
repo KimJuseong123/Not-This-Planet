@@ -1,0 +1,6 @@
+{
+  "name": "Metagame.AIExperiment.Editor",
+  "references": ["Metagame.AIExperiment", "Metagame.Bootstrap", "Metagame.Gameplay", "Mirror", "Mirror.Components", "Mirror.Transports"],
+  "includePlatforms": ["Editor"],
+  "autoReferenced": true
+}
