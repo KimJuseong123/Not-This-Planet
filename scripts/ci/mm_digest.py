@@ -362,10 +362,32 @@ def deploy_line(st: dict, label: str = "배포", hint: str = "") -> str:
         if hint:
             head += f" — {hint}"
     else:
-        sha = (live.get("commit") or {}).get("short_id") or (live.get("commit") or {}).get("id", "")[:8] or "?"
-        head = f"🚀 {label} 서버: `{sha}` ({kst(live.get('finished_at'))})"
+        c = live.get("commit") or {}
+        sha = c.get("short_id") or c.get("id", "")[:8] or "?"
+        # **해시를 누를 수 있게 한다.** 더 볼 것이 있으면 링크로 가면 되고,
+        # 주소가 없으면 코드 조각으로 물러선다(줄이 깨지지 않는 것이 먼저다).
+        url = c.get("web_url")
+        mark = f"[`{sha}`]({url})" if url else f"`{sha}`"
+        # **무엇을 배포했는지가 아니라 `백엔드` 라고 적는다** (S15P21B202-490).
+        #
+        # 한때 여기에 머지 커밋의 MR 제목을 붙이려 했다. 그런데 개발 서버는 새벽
+        # 스케줄이 develop 머리를 **`changes` 를 보지 않고** 배포하므로, 그때 머리가
+        # 씬·아트 MR 이면 `🚀 개발 서버: … [Plan] scene: v1.1.0` 이 된다 —
+        # **백엔드 줄에 백엔드와 무관한 문구**가 실린다. 해시는 "그 jar 을 어느
+        # 커밋에서 만들었나" 일 뿐이고, 사람이 알고 싶은 것은 그 다음 줄이다.
+        head = f"🚀 {label} 서버 백엔드: {mark} ({kst(live.get('finished_at'))})"
     if pending:
         head += f" · 백엔드 변경 **{pending}건 배포 대기**(수동 잡을 눌러야 올라갑니다)"
+    elif st.get("drift") == []:
+        # **같을 때도 말한다** (S15P21B202-490). 아무 말이 없으면 "최신이라 조용한
+        # 것" 과 "확인을 못 한 것" 이 구별되지 않는다 — `drift` 는 확인 실패 시
+        # `None` 이고 같을 때 `[]` 다. 그 둘을 여기서 가른다.
+        head += " · develop 과 같음"
+    elif live and st.get("drift") is None:
+        # **배포 이력이 아예 없을 때는 붙이지 않는다.** 올린 적이 없는데 "최신 여부를
+        # 확인 못 했다" 고 적으면, 이미 "CI 로 올린 이력 없음" 이라고 말한 줄에
+        # 쓸데없는 말이 하나 더 붙는다.
+        head += " · (최신 여부 확인 못 함)"
     elif st.get("drift"):
         # 눌릴 잡이 없는데 코드가 다르다 = 배포 잡이 사라진 것이다. 이쪽이 훨씬 위험하다 —
         # 대기 잡은 보이지만 없는 잡은 안 보인다.
