@@ -1,0 +1,23 @@
+PASS spawn moved to crew commons
+PASS tablet uses expedition facility clues
+PASS expanded western area does not trigger old map recovery
+PASS freight platform animates between relocated endpoints
+PASS relocated detector can be picked up normally; player=(45.00, 1.25, 20.69) detector=(45.00, 1.82, 20.95) aim=(45.00, 1.80, 20.89)
+PASS relocated detector scans and prevents movement
+PASS scan holds player still
+PASS detector finds mines at relocated survey site
+PASS airlock emergency circuit still solves
+PASS standing on relocated safety plate opens relocated airlock
+PASS airlock stays at new laboratory
+PASS Ferris wheel rotates at scenic promenade
+PASS player rides relocated cabin floor
+PASS seesaw stays attached to relocated pivot
+PASS punch bag stays attached to leisure gantry
+PASS TNT settles in relocated supply zone
+PASS relocated TNT clears its supply gallery
+PASS relocated field cannon accepts passenger
+PASS second player lights relocated three second fuse
+PASS cannon launches toward survey approach
+PASS launch heads northwest along intended shortcut
+PASS cannon trajectory remains within expanded map
+PASS all original core modules remain during play

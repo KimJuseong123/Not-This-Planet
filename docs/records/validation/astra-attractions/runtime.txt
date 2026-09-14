@@ -1,0 +1,22 @@
+PASS three attractions load without missing scripts
+PASS Ferris wheel rotates continuously
+PASS Ferris cabin stays upright
+PASS player rides moving cabin floor without interaction; movement=(0.00, 0.15, 1.89)
+PASS cabins have no closing doors
+PASS mouth grab boards cannon using normal input
+PASS occupied cannon rejects another boarding
+PASS second player's rear grab ignites fuse
+PASS passenger remains seated before three second fuse ends
+PASS fuse visibly shortens
+PASS cannon releases passenger after fuse
+PASS cannon rapidly launches player; displacement=(0.00, 8.25, 15.92)
+PASS launch restores ragdoll physics and collisions
+PASS rock initially blocks entrance
+PASS TNT exploded away from rocks does not open entrance
+PASS misplaced TNT replenishes for another attempt
+PASS TNT is physically carryable
+PASS remote switch grab detonates TNT placed at entrance; focus=Grabbable hands=0 tnt=(0.00, 0.00, 0.00) actor=(42.03, 4.47, 5.42) switch=(42.00, 5.69, 7.00) spent=True
+PASS blast removes rock renderer and blocking collider
+PASS rock fragments animate after blast
+PASS entrance remains open after temporary debris disappears
+PASS four original core parts remain

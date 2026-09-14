@@ -1,0 +1,4 @@
+PASS scene GUID references resolved across Assets and installed packages
+PASS new editor script meta copied
+PASS main scene matches isolated validated scene
+SHA256 EEF108B90E3A157A6040727F47F5FB7E98EB07DFB5946FCA87244C6A47DE432A

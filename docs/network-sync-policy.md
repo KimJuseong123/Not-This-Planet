@@ -224,3 +224,33 @@ instead of real physics. It's not 100% correct - but it sure is fast!
 
 되감기가 실제 물리 재시뮬레이션이 아니라 **벡터 근사**다. 내 캐릭터 이동에는 충분할
 가능성이 높지만, **공유 부품에 쓰면 조립 결과가 어긋날 수 있다** — 그래서 부품은 P2 다.
+
+## 2026-09-14 Astra 확장 적용
+
+| 요소 | 판정·전달 |
+|---|---|
+| 로켓 추진 | 서버 입력으로 점화, ToolView에 2초 잔여 시간·클릭 시 방향 전달. 소유 로컬 플레이어는 전달 상태로 추진하고 기존 플레이어 물리 동기화로 보정한다. |
+| 연료통·Part_4 탱크 | 서버만 주유·소비, 통 잔량은 ToolView, 탱크 잔량은 WorldSync의 10Hz 기구 스냅샷으로 전달한다. |
+| 먹물 | 서버가 명중점·법선·발사 순번을 판정, WorldSync로 전파. 투사체와 제한된 수명의 자국은 각 피어에서 표현한다. |
+| 시소·널판지 | 기존 AstraV2CargoTool 추적을 통한 공유 Rigidbody 동기화. |
+| 도랑 | 서버만 발 위치로 사망을 판정하고 기존 체력·복귀 경로를 사용한다. |
+
+관련 단위 테스트와 로컬 Play Mode는 통과했으나 실제 다중 클라이언트/지연/늦은 참가 검증은 미실시다. 검증 기록: `docs/records/2026-09-14-astra-expansion.md`.
+
+### Astra 대관람차·대포·폭파 통로 추가
+
+대관람차 위상은 기구 스냅샷으로 보내며 좌석의 위치와 수평 자세는 각 피어에서 해당 위상으로 계산한다. 대포의 점유·점화·남은 시간과 폭파 통로의 개방·TNT 소모·폭발 위치·경과 시간도 같은 10Hz 스냅샷에 포함한다. 대포는 기존 플레이어 탑승과 하차 복원을 재사용하고, 좌석과 TNT 몸체는 기존 물체 목록에 포함한다. 폭파가 끝난 뒤 참가하는 경우에도 바위가 사라진 상태를 받도록 개방 여부를 유지한다. 입력·발사·폭파 판정은 서버 권위이며 실제 다중 클라이언트의 지연·늦은 참가 검증은 별도 필요하다.
+
+### Astra physical toybox 추가
+
+- 그래플 연결 여부·월드 끝점은 기존 기구 스냅샷(10Hz)에 포함한다. 물리 힘은 서버만 적용하며 원격 케이블은 받은 상태를 표현한다.
+- 송풍기는 기존 ToolView의 사용 상태와 방향으로 표현하고, 범위·가림·대상별 힘은 서버에서 결정한다.
+- 트램펄린은 서버에서 접촉을 검사한다. 튀어 오른 플레이어와 물체는 기존 물리 동기화를 사용한다.
+- 새 동적 물품 48개는 씬 고정 목록과 AstraV2CargoTool 표식을 통해 추적한다. 런타임 스폰이나 별도 소유권 이전을 추가하지 않는다.
+- 관련 테스트·로컬 플레이는 통과했다. 실제 다중 피어와 지연 검증은 아직 수행하지 않았다.
+
+### Astra minefield (2026-09-14)
+`AstraMinefield` checks authoritative living players' feet on the server. Clients only apply the spent-bit mask and aged blast snapshot via the existing sorted-path Astra mechanism RPC (10Hz). Late snapshots preserve cleared mines without replaying old flashes. Detector scan action/proximity travel through ToolBase view state; owner input opts into stationary movement while scanning. No new input channel or client-authoritative damage. Separate peer/latency validation is pending.
+
+### Expedition settlement expansion (2026-09-14)
+Astra ver2 expands the AuthoredMapSettings bounds to ±90m X and ±75m Z. Existing WorldSync identities and deterministic collections still apply; no network message layout changed in this expansion. Scene authoring offsets serialized world-space mechanism destinations, mine locations, fuse endpoints, static joint anchors and world-space line positions along with each intact work site. All participants must use the updated scene. Separate multi-peer/latency validation remains outstanding.

@@ -1,0 +1,20 @@
+PASS 48 authored dynamic toys loaded
+PASS two trampolines loaded
+PASS normal input picks up grapple gun
+PASS grapple uses safe held-tool collision rules
+PASS held click attaches to real room wall
+PASS grapple pulls whole player toward static wall; displacement=(0.00, 1.73, 3.85)
+PASS release input detaches grapple
+PASS original pins released through existing clamp logic
+PASS grapple attaches to freed core part
+PASS grapple physically tows core part toward player; displacement=(0.03, -0.08, -3.72)
+PASS normal input picks up blower
+PASS blower pushes football using held click; distance=2.511873
+PASS bowling pin topples from physical impact; up=(-0.40, 0.79, -0.46)
+PASS domino topples from physical impact
+PASS hanging punch bag swings on its joint
+PASS trampoline launches player using contact detection
+PASS cargo sled can be grabbed physically
+PASS cargo sled moves under player's pull; distance=2.71662
+PASS lost football recovers to its authored home
+PASS all original parts and puzzle remain

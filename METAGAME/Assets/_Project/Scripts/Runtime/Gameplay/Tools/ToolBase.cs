@@ -50,8 +50,10 @@ namespace Metagame.Gameplay
         Bounds viewHandBounds;
 
         public PlayerRig ViewOwner => Owner != null ? Owner : remoteViewOwner;
+        public virtual bool RequiresStationaryPrimaryUse => false;
         public virtual byte ViewAction => 0;
         public virtual float ViewProgress => 0f;
+        public virtual Vector3 ViewEffectDirection => Owner != null ? Owner.AimForward : transform.forward;
         public Transform FirstPersonModel => firstPersonVisual?.Model;
         public bool IsHeldForView => IsEquipped || remoteHeld;
         public Vector3 ViewCarryDirection => CarryAim(IsEquipped ? currentAim.Direction : remoteViewAim.Direction);

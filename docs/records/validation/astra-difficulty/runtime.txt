@@ -1,0 +1,27 @@
+PASS 16 new physics objects exist during play
+PASS settled above terrain: Practice light sample crate
+PASS settled above terrain: Practice bridge plank
+PASS settled above terrain: Practice lifting bar
+PASS settled above terrain: Practice loose roller 0
+PASS settled above terrain: Practice loose roller 1
+PASS settled above terrain: Carryable survey route marker 0
+PASS settled above terrain: Carryable survey route marker 1
+PASS settled above terrain: Carryable survey route marker 2
+PASS settled above terrain: Carryable survey route marker 3
+PASS settled above terrain: Carryable survey route marker 4
+PASS settled above terrain: Carryable survey route marker 5
+PASS settled above terrain: Airlock maintenance stop 0
+PASS settled above terrain: Airlock maintenance stop 1
+PASS settled above terrain: Workshop interior turning lever
+PASS settled above terrain: Workshop interior roller 0
+PASS settled above terrain: Workshop interior roller 1
+PASS movable plank spans two practice docks stably
+PASS player can stand on the loose practice bridge
+PASS lower rest shelf supports a real player
+PASS upper rest shelf supports a real player
+PASS door stop cannot bypass an unsolved closed airlock
+PASS edge stop keeps an already opened airlock open through existing safety beam
+PASS airlock closes normally after stop removal
+PASS prop on pressure plate does not replace a living crew member
+PASS lost route marker recovers through existing cargo recovery
+PASS survey staging area is outside live mine triggers

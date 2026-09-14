@@ -136,6 +136,9 @@ namespace Metagame.UI
             sb.Append("팔을 위로 누르고 있으면 손이 잡는다 가벼운 도구는 크로스헤드에 고정된다 무거운 물체는 고정물처럼 짚는다");
             sb.Append("도구 양손 투척 충전 놓기 운석 타격 준비 지금 클릭 좌클릭 노란 구간에 맞춰 휘두르기 다시 준비 너무 일찍 실패 GOOD GREAT PERFECT MISS");
             sb.Append("운반 장치 탑승 하차 운전 견인 부유");
+            sb.Append("로켓 추진 중 냉각 클릭 바라보는 방향 연료 가까이 겨누고 주유 빈 연료통 먹물 발사 자국은 잠시 뒤 사라집니다 긴 시소 끝에 올라서거나 잡아 눌러 보세요 널판지 당기기 휴대 노란 도랑 추락");
+            sb.Append("그래플링 훅 건 송풍기 누르고 있기 당기기 놓기 연결 해제 클릭 유지 벽으로 이동 물건 바람으로 공과 밀기 축구공 비치볼 볼링공 핀 도미노 쌓기 상자 운반 썰매 경사판 짐 롤러 샌드백 트램펄린");
+            sb.Append("대포 입구 잡아서 탑승 중 뒤 점화 먼저 하세요 도화선 초 후 발사 원격 기폭 스위치 바위 앞에 내려놓기 통로 개방 완료 보충");
             sb.Append("1장 탐험 태블릿 파츠 발견 미발견 상태 씬 배치 확인 고정 해제 운반 중 배치됨 조립 완료");
             for (int i = 0; i < WorldLabel.All.Count; i++)
                 if (WorldLabel.All[i] != null) sb.Append(WorldLabel.All[i].Text);
@@ -273,6 +276,7 @@ namespace Metagame.UI
 
             Reticle(w, h);
             WeldingMaterialGauge(w, h);
+            AstraToolHint(w, h);
             DrawMeteorRhythm(w, h);
             DrawKeyGuides(w, h);
 

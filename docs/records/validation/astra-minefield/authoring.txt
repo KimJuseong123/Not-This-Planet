@@ -1,0 +1,1 @@
+PASS: 16 mines, 3 detectors, 3 icon-only signs; existing scene preserved.

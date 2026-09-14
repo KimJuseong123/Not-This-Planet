@@ -1,0 +1,5 @@
+PASS all inventory and serialized references
+PASS 718 cargo hull/support samples
+PASS 1152 walk loop capsule/support samples
+PASS two mine safe routes (0.95m minimum center clearance)
+PASS moved lift/door/joint world anchors

@@ -815,6 +815,7 @@ namespace Metagame.Gameplay.Parts
 
         public bool TryBoard(PlayerRig player)
         {
+            if (TryGetComponent<AstraFuelTank>(out var tank) && !tank.HasFuel) return false;
             if (rider != null || returning || !CanBoardFrom(player)) return false;
 
             body.useGravity = false;
@@ -1106,6 +1107,8 @@ namespace Metagame.Gameplay.Parts
         public void Tick(float deltaTime)
         {
             if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
+            if (!WorldEvents.RemoteDecides && rider != null && TryGetComponent<AstraFuelTank>(out var tank)
+                && !tank.Consume(deltaTime, Boosting)) BeginDismount();
             if (UsesPartBody) { TickPartFlight(deltaTime); return; }
             var idle = rider == null && !returning;
 

@@ -2231,10 +2231,10 @@ namespace Metagame.Gameplay
             fallPeakFootHeight = Doll.Hips.position.y - RagdollBuilder.HipsY;
 
             // Space 로 올라가고 Ctrl 로 내려간다. 탑승 중 고도 조작과 같은 두 키다.
-            float wish = (input.Jump ? 1f : 0f) - (input.ArmsUp ? 1f : 0f);
+            float wish = StationaryToolUse ? 0 : (input.Jump ? 1f : 0f) - (input.ArmsUp ? 1f : 0f);
             if (wish != 0f) floatingAutoLift = false;
             float target = wish * PhysicsScale.FieldFloatVerticalSpeed;
-            if (floatingAutoLift)
+            if (floatingAutoLift && !StationaryToolUse)
                 target = Mathf.Clamp((floatingLiftTarget - Doll.Hips.position.y) * 3f,
                     0f, PhysicsScale.FieldFloatVerticalSpeed);
             float rate = PhysicsScale.FieldFloatVerticalSpeed / PhysicsScale.FieldFloatStopSeconds;
@@ -2373,6 +2373,7 @@ namespace Metagame.Gameplay
                 Vector2 move = input.Move.sqrMagnitude > 1f ? input.Move.normalized : input.Move;
                 wish = right * move.x + fwd * move.y;
             }
+            if (StationaryToolUse) wish = Vector3.zero;
             if (wish.sqrMagnitude > 1f) wish.Normalize();
 
             // 파츠 밀기(기획 §13)가 이 값을 본다. MovementDirectionLocal 은 실제 속도를
@@ -2477,7 +2478,7 @@ namespace Metagame.Gameplay
                                         1f - Mathf.Exp(-7f * Time.fixedDeltaTime));
 
             // 점프 — 몸 전체에 같은 속도를 얹어야 인형이 통째로 뜬다
-            if (input.Jump && Grounded && !Ragdolled && jumpLock <= 0f)
+            if (!StationaryToolUse && input.Jump && Grounded && !Ragdolled && jumpLock <= 0f)
             {
                 for (int i = 0; i < Doll.Bodies.Count; i++)
                 {
@@ -2538,7 +2539,7 @@ namespace Metagame.Gameplay
                 Vector3 current = body.linearVelocity;
                 Vector3 planar = new Vector3(current.x, 0f, current.z);
                 float rate = target.sqrMagnitude < planar.sqrMagnitude ? deceleration : acceleration;
-                planar = Vector3.MoveTowards(planar, target, rate * Time.fixedDeltaTime);
+                planar = StationaryToolUse ? target : Vector3.MoveTowards(planar, target, rate * Time.fixedDeltaTime);
                 body.linearVelocity = new Vector3(planar.x, current.y, planar.z);
             }
         }
@@ -3326,6 +3327,10 @@ namespace Metagame.Gameplay
         {
             return new ToolAimContext(this, Cam, aim);
         }
+
+        public bool StationaryToolUse => !Downed && !Ragdolled && !IsRiding && !suppressToolPrimary
+            && (activeTool != null ? activeTool : PresentationTool) is ToolBase tool
+            && tool.RequiresStationaryPrimaryUse && GetToolPrimaryHeld() && !GetToolUtilityHeld();
 
         bool GetToolPrimaryHeld()
         {

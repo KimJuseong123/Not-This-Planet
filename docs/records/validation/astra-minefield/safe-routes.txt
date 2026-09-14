@@ -1,0 +1,2 @@
+PASS safe walking route, minimum mine clearance 1.505457m (trigger .65m), grounded and clear capsule
+PASS safe walking route, minimum mine clearance 1.100046m (trigger .65m), grounded and clear capsule

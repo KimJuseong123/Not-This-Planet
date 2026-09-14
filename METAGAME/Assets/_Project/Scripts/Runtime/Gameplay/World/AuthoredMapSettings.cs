@@ -10,6 +10,7 @@ namespace Metagame.Gameplay
         public float maximumAltitude = 20f;
         public bool preserveSceneLighting = true;
         public bool randomizeVehicles;
+        [TextArea(2, 5)] public string[] explorationClues = System.Array.Empty<string>();
 
         public void ConfigureCamera(Camera camera)
         {

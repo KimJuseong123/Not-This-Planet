@@ -1,0 +1,29 @@
+PASS real Unity Terrain loaded
+PASS three rifts have six fatal segments
+PASS twelve new tools loaded
+PASS Milky Way skybox retained in play mode
+PASS rocket picked up through normal player input; focus=None
+PASS held rocket uses safe tool carry physics
+PASS click ignites held rocket
+PASS rocket carries whole player upward and forward; displacement=(-0.03, 6.98, 9.64)
+PASS rocket keeps click-time direction after player looks sideways
+PASS rocket stops thrust after two seconds
+PASS rocket can be dropped
+PASS ink launcher picked up through normal player input
+PASS ink projectile hits aimed room wall
+PASS ink leaves visible pooled splatter
+PASS original Part_4 becomes a vehicle
+PASS empty Part_4 refuses boarding
+INFO fuel pickup: player=(-18.00, 1.25, -30.50) aim=(-18.00, 1.80, -30.30) direction=(0.00, 0.00, 1.00) focus=Grabbable can=(-18.00, 1.86, -29.00) downed=False held=none
+PASS yellow fuel can picked up through normal player input; focus=None held=Yellow fuel can 0 A
+PASS aim and click transfers can fuel into Part_4
+PASS fuelled Part_4 allows boarding
+PASS driving burns fuel
+PASS fuel exhaustion dismounts and switches off tractor field
+PASS player weight tips long seesaw; angle=9.147092
+PASS long plank is a physical draggable body
+PASS grabbing long plank uses a physical joint
+PASS player can pull long plank; displacement=2.452669
+PASS falling into trench removes all health
+PASS existing fall recovery respawns trench victim
+PASS original parts and puzzle remain

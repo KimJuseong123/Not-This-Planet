@@ -1,0 +1,17 @@
+PASS 16 mines and three detectors load
+PASS warning signs contain no text
+PASS normal grab equips detector
+PASS held left click scans and locks movement
+PASS walk input cannot move scanning player: (0.00, 0.00, 0.00)
+PASS jump input blocked while scanning
+PASS three concentric rings visible
+PASS release immediately restores movement and stops scan
+PASS player walks again after release
+PASS approaching mine speeds concentric pulses
+PASS red LED emits near mine
+PASS drop releases scan lock
+PASS stepping on buried mine detonates it
+PASS explosion deals 35 damage
+PASS explosion launches player away from mine
+PASS spent mine marked on ground
+PASS all four core parts preserved

@@ -1,0 +1,4 @@
+PASS static object; no scripts, triggers or Rigidbody
+PASS 5.12m clear rim diameter for 0.9m base meteor
+PASS 0.45m-radius sphere passes vertically through hoop
+PASS decorative net has no collision and open bottom

@@ -37,7 +37,8 @@ namespace Metagame.Gameplay
             public string AssetName { get; }
             public string PrefabName { get; }
             public string DisplayName { get; }
-            public string Clue { get; }
+            public string Clue { get; private set; }
+            internal void SetClue(string clue) => Clue = clue;
             public SpaceshipPart Part { get; private set; }
             public bool IsDiscovered { get; private set; }
 
@@ -126,9 +127,15 @@ namespace Metagame.Gameplay
             // The variant keeps the tablet, but its clues must describe the newly authored routes.
             if (sorted.Length > 0 && sorted[0] != null && sorted[0].GetComponent<AstraV2ManualPart>() != null)
                 definitions = CreateAstraV2Definitions();
+            AuthoredMapSettings authored = null;
+            if (sorted.Length > 0 && sorted[0] != null)
+                foreach (var root in sorted[0].gameObject.scene.GetRootGameObjects())
+                { authored = root.GetComponentInChildren<AuthoredMapSettings>(); if (authored != null) break; }
             for (var i = 0; i < definitions.Length; i++)
             {
                 var info = definitions[i];
+                if (authored != null && authored.explorationClues != null && i < authored.explorationClues.Length
+                    && !string.IsNullOrWhiteSpace(authored.explorationClues[i])) info.SetClue(authored.explorationClues[i]);
                 if (i < sorted.Length) info.Bind(sorted[i]);
                 _parts.Add(info);
             }

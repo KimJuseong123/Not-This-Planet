@@ -169,6 +169,27 @@ PlasmaWeldingTool now owns a local-only yellow collider-projected joint recommen
 
 <!-- unity-onboarding:generated:end -->
 
+## 2026-09-14 — Astra wheel, cannon and demolition vault
+
+- The ver2 scene adds one continuously rotating Ferris wheel (eight permanently open, upright moving cabins), one crew-operated player cannon (mouth grab to board, rear grab by another player to light a three-second fuse), and a carryable wired TNT / remote plunger / destructible supply-vault entrance.
+- Cannon uses existing PlayerRig seat/ejection APIs; initial launch motion stops on relocation, downing or another ride. An unlit seat evacuates after 30 seconds. TNT only clears its target entrance within 3.5m; a misplaced charge replenishes after four seconds. The vault holds two additional fuel cans.
+- Wheel phase, cannon fuse and persistent blast-gate state use existing WorldSync snapshots. Authority remains on the server. This has not been validated in separate network peers.
+- Authoring tool: `Stage1AstraAttractionsBuilder`. Record: repository-root `docs/records/2026-09-14-astra-attractions.md`.
+
+## 2026-09-14 — Astra physical toybox
+
+- The ver2 scene includes 14 new item categories / 52 objects (48 dynamic bodies): football goals/balls, beach balls, bowling balls/pins, dominoes, crates, a hanging bag, cargo sleds, ramps, rollers, bounce pads, grapple guns and air blowers.
+- `AstraGrappleTool` pulls the player toward static geometry or applies bounded force to a dynamic object; it respects locked/welded/docked parts, line of sight, release and death. `AstraAirBlower` applies occluded cone forces; `AstraBouncePad` launches touching bodies with per-body debounce. All authoritative effects follow `WorldEvents.RemoteDecides`.
+- WorldSync tracks authored bodies and periodically replicates grapple endpoints. Tools reuse ToolBase input/carry/presentation. Toy models/materials live in `Assets/_Project/Art/AstraToybox`; `Stage1AstraToyBuilder` authors the scene once.
+- Related tests 54/54; runtime checks 20; fixed route clearance/support samples 451. Actual multi-peer and latency testing remains outstanding. Record: repository-root `docs/records/2026-09-14-astra-toybox.md`.
+
+## 2026-09-14 — Astra terrain and tools expansion
+
+- `Assets/Scenes/Stage1_Astra_ver2.unity` now serializes real Terrain, three fatal trenches, a Milky Way skybox, one physical seesaw, four planks, three held rockets, three ink launchers and six yellow fuel cans. Four part return routes and guidance remain.
+- Held rocket carries its player for two seconds along the click-time aim. Optional `AstraFuelTank` on this scene's Part_4 gates boarding and consumes fuel while occupied; original vehicles without a tank keep their behavior.
+- WorldSync includes fuel/ink snapshots and tool direction. Shared toys use the existing cargo tracking marker. Real multi-peer validation remains outstanding.
+- Final related tests 41/41, runtime checks 28, actual hull route samples 451 passed in an isolated Unity project. Evidence and limitations: repository-root `docs/records/2026-09-14-astra-expansion.md`.
+
 ## 2026-09-14 — Stage1_Astra_ver2 authored variant
 
 - Added `Assets/Scenes/Stage1_Astra_ver2.unity`, copied from the original through Unity AssetDatabase. Original `Stage1_Astra.unity` and Lobby's default destination remain unchanged; ver2 is an additional enabled build scene.
@@ -176,3 +197,21 @@ PlasmaWeldingTool now owns a local-only yellow collider-projected joint recommen
 - Layout: open Part_1; jump-ledged Part_2 summit and braked freight descent; three-dial / living-player pressure-gate Part_3 room; low-ceiling L-corridor for sideways Part_4. Continuous routes and authored physical rollers/levers return to the flush central assembly apron.
 - New mechanism decisions follow server authority (`WorldEvents.RemoteDecides`); WorldSync sends puzzle/lift snapshots and tracks authored cargo tools. Multiplayer completion and network latency behavior still require a real multi-peer run.
 - `Stage1AstraVer2Builder` creates the variant without overwriting an existing scene and can render previews. Guidance inventory: `docs/planning/stage1-astra-ver2-guidance-audit.md`; validation details: `docs/records/2026-09-14-astra-ver2.md` (repository-root paths).
+## Astra minefield / 2026-09-14
+- Scene root `Astra minefield and detectors`: 16 buried mines on the Part 3 approach, 3 icon-only warning signs, 3 recoverable hand detectors.
+- `AstraMineDetector` uses ToolBase input/view state; `RequiresStationaryPrimaryUse` opt-in gates locomotion and jump in PlayerRig without disabling ragdoll physics or look input.
+- `AstraMinefield` is server authoritative; WorldSync sends persistent spent bits and current blast age/position. Detection ignores spent mines, other scenes and vertical separations over 3m.
+- Gameplay details, locations and validation: `docs/records/2026-09-14-astra-minefield.md`.
+
+## 2026-09-14 — Expedition settlement expansion
+- Astra ver2 is now a 180×150m expedition settlement (3× original area), with new TerrainData at `Assets/_Project/Art/AstraExpedition/Expedition Terrain.asset`.
+- Original four modules moved as intact mechanisms to logistics (-32,-27), high atmosphere survey (-48,46), specimen quarantine (48,42), excavation service (50,-38). Dock height for survey remains 7.4m; all other cargo paths use the 1m datum.
+- Crew habitation/food/solar equipment, sports courts, Ferris promenade, geological survey equipment and damaged workshop access show why the modules were deployed there. Existing 118 Grabbables, 104 Rigidbodies, 16 clamps and all tool/attraction types remain.
+- World-space freight/airlock destinations, mine positions, joint anchors, fuse endpoints and line geometry are relocated with objects. AuthoredMapSettings bounds/spawn now cover the larger site; optional per-scene explorationClues override tablet hints while other scenes keep their defaults.
+- Authoring/validation: `Stage1AstraExpeditionBuilder` partial files. Layout rationale: `docs/planning/stage1-astra-expedition-layout.md`. Evidence: `docs/records/validation/astra-expedition/`. Separate multiplayer peers/latency and human cooperative completion are not validated.
+
+## 2026-09-14 — Physical learning and difficulty layout
+- Added scene root `Expedition physical learning and recovery`: optional low loading-dock practice at (-22,-28), two observatory rest shelves, six portable survey flags outside the minefield, two airlock maintenance stops, and interior workshop turning tools. Sixteen additional physics objects use existing cargo tracking/recovery; no runtime protocol change.
+- Airlock stops use the existing obstruction sensor to keep an already opened gate open. They cannot open a closed gate or replace a living player on the plate; initial cooperative access remains required.
+- Incremental authoring/validation is in `Stage1AstraExpeditionBuilder.Difficulty.cs`, guarded against duplicate application. Do not rerun older full-scene builders over the current authored scene.
+- Design rationale and limits: `docs/planning/stage1-astra-difficulty-review.md`. Evidence: `docs/records/2026-09-14-astra-difficulty.md` and `docs/records/validation/astra-difficulty/`. Human difficulty/playtime and separate network peers remain unvalidated.

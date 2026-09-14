@@ -78,6 +78,20 @@ namespace Metagame.Network
         AstraV2Puzzle.State[] astraPuzzleStates = Array.Empty<AstraV2Puzzle.State>();
         AstraV2FreightLift.State[] astraLiftStates = Array.Empty<AstraV2FreightLift.State>();
         float astraSendTimer;
+        AstraFuelTank[] astraFuelTanks = Array.Empty<AstraFuelTank>();
+        AstraInkLauncher[] astraInkTools = Array.Empty<AstraInkLauncher>();
+        float[] astraFuelStates = Array.Empty<float>();
+        AstraInkLauncher.ShotState[] astraInkStates = Array.Empty<AstraInkLauncher.ShotState>();
+        AstraGrappleTool[] astraGrapples = Array.Empty<AstraGrappleTool>();
+        AstraGrappleTool.State[] astraGrappleStates = Array.Empty<AstraGrappleTool.State>();
+        AstraFerrisWheel[] astraWheels = Array.Empty<AstraFerrisWheel>();
+        AstraPlayerCannon[] astraCannons = Array.Empty<AstraPlayerCannon>();
+        AstraMinefield[] astraMines = Array.Empty<AstraMinefield>();
+        AstraMinefield.State[] astraMineStates = Array.Empty<AstraMinefield.State>();
+        AstraBlastGate[] astraBlasts = Array.Empty<AstraBlastGate>();
+        float[] astraWheelStates = Array.Empty<float>();
+        AstraPlayerCannon.State[] astraCannonStates = Array.Empty<AstraPlayerCannon.State>();
+        AstraBlastGate.State[] astraBlastStates = Array.Empty<AstraBlastGate.State>();
 
         /// <summary>고정쇠. 위치가 아니라 <b>진행도</b>가 사람마다 달라지는 것들이다.</summary>
         readonly List<PartClamp> clamps = new List<PartClamp>();
@@ -579,6 +593,27 @@ namespace Metagame.Network
             Array.Sort(astraLifts, (a, b) => string.CompareOrdinal(a.name, b.name));
             astraPuzzleStates = new AstraV2Puzzle.State[astraPuzzles.Length];
             astraLiftStates = new AstraV2FreightLift.State[astraLifts.Length];
+            astraFuelTanks = FindObjectsByType<AstraFuelTank>(FindObjectsSortMode.None);
+            astraInkTools = FindObjectsByType<AstraInkLauncher>(FindObjectsSortMode.None);
+            Array.Sort(astraFuelTanks, (a, b) => string.CompareOrdinal(PathOf(a.transform), PathOf(b.transform)));
+            Array.Sort(astraInkTools, (a, b) => string.CompareOrdinal(PathOf(a.transform), PathOf(b.transform)));
+            astraFuelStates = new float[astraFuelTanks.Length];
+            astraInkStates = new AstraInkLauncher.ShotState[astraInkTools.Length];
+            astraGrapples = FindObjectsByType<AstraGrappleTool>(FindObjectsSortMode.None);
+            Array.Sort(astraGrapples, (a, b) => string.CompareOrdinal(PathOf(a.transform), PathOf(b.transform)));
+            astraGrappleStates = new AstraGrappleTool.State[astraGrapples.Length];
+            astraWheels = FindObjectsByType<AstraFerrisWheel>(FindObjectsSortMode.None);
+            astraCannons = FindObjectsByType<AstraPlayerCannon>(FindObjectsSortMode.None);
+            astraBlasts = FindObjectsByType<AstraBlastGate>(FindObjectsSortMode.None);
+            astraMines = FindObjectsByType<AstraMinefield>(FindObjectsSortMode.None);
+            Array.Sort(astraMines,(a,b)=>string.CompareOrdinal(PathOf(a.transform),PathOf(b.transform)));
+            astraMineStates = new AstraMinefield.State[astraMines.Length];
+            Array.Sort(astraWheels,(a,b)=>string.CompareOrdinal(PathOf(a.transform),PathOf(b.transform)));
+            Array.Sort(astraCannons,(a,b)=>string.CompareOrdinal(PathOf(a.transform),PathOf(b.transform)));
+            Array.Sort(astraBlasts,(a,b)=>string.CompareOrdinal(PathOf(a.transform),PathOf(b.transform)));
+            astraWheelStates = new float[astraWheels.Length];
+            astraCannonStates = new AstraPlayerCannon.State[astraCannons.Length];
+            astraBlastStates = new AstraBlastGate.State[astraBlasts.Length];
             foreach (var tool in FindObjectsByType<AstraV2CargoTool>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 Add(tool.GetComponent<Rigidbody>());
 
@@ -859,12 +894,24 @@ namespace Metagame.Network
         }
 
         [ClientRpc]
-        void RpcAstraMechanisms(AstraV2Puzzle.State[] puzzles, AstraV2FreightLift.State[] lifts)
+        void RpcAstraMechanisms(AstraV2Puzzle.State[] puzzles, AstraV2FreightLift.State[] lifts,
+            float[] fuel, AstraInkLauncher.ShotState[] ink, AstraGrappleTool.State[] grapples,
+            float[] wheels, AstraPlayerCannon.State[] cannons, AstraBlastGate.State[] blasts, AstraMinefield.State[] mines)
         {
             if (isServer || !ready) return;
             if (puzzles.Length != astraPuzzles.Length || lifts.Length != astraLifts.Length) return;
             for (int i = 0; i < puzzles.Length; i++) astraPuzzles[i].ApplySnapshot(puzzles[i]);
             for (int i = 0; i < lifts.Length; i++) astraLifts[i].ApplySnapshot(lifts[i]);
+            if (fuel.Length == astraFuelTanks.Length)
+                for (int i = 0; i < fuel.Length; i++) astraFuelTanks[i].ApplySnapshot(fuel[i]);
+            if (ink.Length == astraInkTools.Length)
+                for (int i = 0; i < ink.Length; i++) astraInkTools[i].ApplySnapshot(ink[i]);
+            if (grapples.Length == astraGrapples.Length)
+                for (int i = 0; i < grapples.Length; i++) astraGrapples[i].ApplySnapshot(grapples[i]);
+            if(wheels.Length==astraWheels.Length)for(int i=0;i<wheels.Length;i++)astraWheels[i].ApplyPhase(wheels[i]);
+            if(cannons.Length==astraCannons.Length)for(int i=0;i<cannons.Length;i++)astraCannons[i].ApplySnapshot(cannons[i]);
+            if(mines.Length==astraMines.Length)for(int i=0;i<mines.Length;i++)astraMines[i].ApplySnapshot(mines[i]);
+            if(blasts.Length==astraBlasts.Length)for(int i=0;i<blasts.Length;i++)astraBlasts[i].ApplySnapshot(blasts[i]);
         }
 
         void SendFromServer()
@@ -884,12 +931,19 @@ namespace Metagame.Network
             sendSeq++;
 
             // Existing WorldSync authority and periodic snapshots cover observers and late joins.
-            if ((astraPuzzles.Length > 0 || astraLifts.Length > 0) && astraSendTimer >= .1f)
+            if ((astraPuzzles.Length + astraLifts.Length + astraFuelTanks.Length + astraInkTools.Length + astraGrapples.Length + astraWheels.Length + astraCannons.Length + astraBlasts.Length + astraMines.Length > 0) && astraSendTimer >= .1f)
             {
                 astraSendTimer = 0f;
                 for (int i = 0; i < astraPuzzles.Length; i++) astraPuzzleStates[i] = astraPuzzles[i].Snapshot;
                 for (int i = 0; i < astraLifts.Length; i++) astraLiftStates[i] = astraLifts[i].Snapshot;
-                RpcAstraMechanisms(astraPuzzleStates, astraLiftStates);
+                for (int i = 0; i < astraFuelTanks.Length; i++) astraFuelStates[i] = astraFuelTanks[i].Units;
+                for (int i = 0; i < astraInkTools.Length; i++) astraInkStates[i] = astraInkTools[i].Snapshot;
+                for (int i = 0; i < astraGrapples.Length; i++) astraGrappleStates[i] = astraGrapples[i].Snapshot;
+                for(int i=0;i<astraWheels.Length;i++)astraWheelStates[i]=astraWheels[i].Phase;
+                for(int i=0;i<astraCannons.Length;i++)astraCannonStates[i]=astraCannons[i].Snapshot;
+                for(int i=0;i<astraBlasts.Length;i++)astraBlastStates[i]=astraBlasts[i].Snapshot;
+                for(int i=0;i<astraMines.Length;i++)astraMineStates[i]=astraMines[i].Snapshot;
+                RpcAstraMechanisms(astraPuzzleStates, astraLiftStates, astraFuelStates, astraInkStates, astraGrappleStates, astraWheelStates, astraCannonStates, astraBlastStates, astraMineStates);
             }
 
             // ── 자세 ────────────────────────────────────────────
@@ -1038,7 +1092,7 @@ namespace Metagame.Network
                     RhythmGrade = tool is MeteorBat rhythmBat ? rhythmBat.RhythmGrade : (byte)0,
                     Owner = tool.IsEquipped ? NetPlayer.NetIdOfRig(tool.Owner) : 0,
                     Action = tool.IsEquipped ? tool.ViewAction : (byte)0,
-                    Progress = tool.ViewProgress, Direction = tool.Owner != null ? tool.Owner.AimForward : tool.transform.forward
+                    Progress = tool.ViewProgress, Direction = tool.ViewEffectDirection
                 } : default;
             }
             RpcToolViews(sendSeq, sendToolViews);
