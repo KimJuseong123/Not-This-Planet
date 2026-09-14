@@ -1,9 +1,10 @@
-# 조립대 첫 파츠 도킹과 적층 보호
+# 조립대 첫 파츠 장착과 용접 연결 고정
 
 ## 범위
 
 Jira: S15P21B202-500 — [Puzzle] 첫 파츠 조립대 자동 잠금 및 적층 파츠 재부양 방지.
-브랜치: S15P21B202-500-assembly-pad-docking. develop 기반이며 MR은 별도 요청 전까지 만들지 않는다.
+최초 구현은 MR !415로 develop에 머지됐다. 아래 규칙은 사용자 피드백에 따라 수정한 현재 작업 기준이다.
+후속 수정은 별도 작업 [S15P21B202-509](S15P21B202-509-simplify-tractor-controls.md)에서 관리한다. 기존 500번 이슈의 완료 상태는 유지한다.
 Unity MCP 설치에 따른 Packages 파일 변경은 개인 환경 설정이며 기능 커밋에서 제외한다.
 
 기존 조립대 용접 고정(S15P21B202-447)에 첫 파츠 한정 자동 받침을 더하는 기획 변경이다.
@@ -16,11 +17,11 @@ Unity MCP 설치에 따른 Packages 파일 변경은 개인 환경 설정이며 
 - 구형 Main처럼 Part_1 자체가 TransportVehicle인 경우에는 도킹하지 않는다. 운반 장치를 영구 고정하는 회귀를 방지한다.
 - 모든 고정못이 풀린 첫 파츠가 중앙 0.9m 이내, 받침 높이 오차 0.18m 이내, 기울기 18도 이내, 속도 1.8m/s 이하이면 0.35초간 정렬한다.
 - 도킹 후 첫 파츠는 kinematic이다. 용접 질량 갱신과 호스트 권한 복구에서도 고정을 유지한다.
-- 상부 파츠에는 도킹 위치/회전 스냅을 적용하지 않는다. 도킹 바닥과 접합된 파츠, 또는 그 위에 실제로 받쳐진 파츠는 광역 저중력장에서 제외한다.
-- 지지 판정은 파츠 하단의 다섯 점에서 짧게 탐사한다. 조립대 위 공중의 화물은 제외하지 않는다. 지지를 잃은 미용접 파츠는 물리적으로 떨어질 수 있다.
-- F / 좌우 클릭은 기존 광역장 토글이다. 탑승 중 Shift+F(또는 Shift+클릭)는 바로 아래 미용접 파츠의 명시적 견인/놓기다. 명시적 견인 중에는 광역장이 같은 몸체에 힘을 중복 적용하지 않는다.
-- 명시적으로 놓을 때 광역장도 끈다. 다시 켜기 전에 파츠가 아래에 착지할 시간을 주면 재부양되지 않는다.
-- 도킹 바닥과 접합된 덩어리는 명시적으로도 들어 올릴 수 없다. 상부를 재배치하려면 연결 비드를 먼저 절단한다. 첫 파츠 도킹에는 해제 조작을 추가하지 않았다.
+- 상부 파츠에는 도킹 위치/회전 스냅을 적용하지 않는다. 그냥 얹어두면 저중력장으로 다시 들어 올릴 수 있다.
+- 고정된 최하부 파츠까지 용접 접합으로 연결된 상부만 광역 저중력장에서 제외한다. 상부 Rigidbody를 강제로 동결하지 않고 기존 용접 조인트로 유지한다.
+- 연결을 절단해 고정된 최하부와 떨어지면 다시 저중력장 대상이 된다. 조립대와 연결되지 않은 별도 용접 덩어리를 도킹으로 취급하지 않는다.
+- F / 좌우 클릭은 기존 광역장 토글이다. Shift는 가속 이동이며, 함께 눌러도 회수/놓기 모드로 전환하지 않는다. 단일 파츠 견인 API는 기존 내부 용도로만 남긴다.
+- 첫 파츠 도킹에는 해제 조작을 추가하지 않았다. 저중력장 네트워크 상태 동기화는 최신 develop 구현을 보존한다.
 - 12cm 높이의 네 잠금 장식은 충돌체가 없다. 장착 후 조명이 빨강에서 청록으로 바뀌고 기존 금속 충돌 사운드 슬롯으로 잠금 소리를 재생한다.
 
 ## 동기화와 호환성
@@ -33,7 +34,19 @@ Unity MCP 설치에 따른 Packages 파일 변경은 개인 환경 설정이며 
 Play 중 조립 판정 오브젝트의 Assembly Dock 컴포넌트에서 Capture Radius, Height Tolerance, Max Tilt, Max Capture Speed, Snap Duration을 조절할 수 있다.
 영구 기본값은 AssemblyDock.cs의 직렬화 필드 초기값이다. Play 중 조절값은 종료하면 초기화된다.
 
-## 검증
+## 규칙 단순화 검증 (2026-09-14)
+
+- develop `7a4f54b`를 받아 수정했다. 기존 개인 MCP 패키지 설정은 보존하고 기능 변경에 포함하지 않았다.
+- Unity 에셋 새로고침/컴파일 후 삭제한 지지 판정 API가 실제 로드된 어셈블리에서도 사라진 것을 확인했다.
+- 선택 EditMode 테스트 88/88 통과: AssemblyDockTests, TractorBeamTests, AssemblyFloorStateTests, LowGravityFieldTests, TractorBeamControllerTests, PartAssemblyLinkStateTests, WorldSyncReadinessTests, FieldNetworkStateTests.
+- 얹기 → 용접 연결 → 절단에 따른 저중력장 대상 변화를 검증했다. 고정된 최하부는 kinematic, 용접된 상부는 기존 조인트로 유지한다.
+- Shift 유무 두 경우 모두 F/클릭이 저중력장 토글만 수행하고 단일 회수로 바뀌지 않는 것을 검증했다.
+- 새 컴파일 오류는 확인되지 않았다. 기존 파편 프리팹 참조 불일치 등 콘솔 경고는 이 수정 범위에서 해결하지 않았다.
+- 이번 수정은 EditMode 검증이며 2인 접속 및 실행 파일 빌드는 수행하지 않았다.
+
+## 최초 구현 검증 기록 (MR !415)
+
+아래는 수정 전 기록이다. 미용접 적층 보호 및 특수 회수 조작 관련 결과는 현재 규칙의 검증으로 사용하지 않는다.
 
 - 첫 검증: AssemblyDockTests, TractorBeamTests, AssemblyFloorStateTests 등 선택 테스트 51/51 통과.
 - 최종 선택 검증: AssemblyDockTests, TractorBeamTests, AssemblyFloorStateTests, LowGravityFieldTests, TractorBeamControllerTests, PartAssemblyLinkStateTests, WorldSyncReadinessTests 총 75/75 통과.

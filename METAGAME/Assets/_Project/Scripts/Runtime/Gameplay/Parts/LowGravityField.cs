@@ -230,9 +230,8 @@ namespace Metagame.Gameplay.Parts
                 // 저중력장 대상에서 제외하라는 뜻이 아니다. 완전히 고정된 파츠만 건너뛴다.
                 var part = body.GetComponentInParent<SpaceshipPart>();
                 if (part != null && part.State == PartState.Locked && !part.HasReleasedClamp) continue;
-                // 명시적 견인은 TractorBeam이 맡는다. 적층된 몸체는 다시 자동 이륙시키지 않는다.
-                if (part != null && (part.State == PartState.Carried
-                    || AssemblyDock.IsAnchored(part) || AssemblyDock.IsSupportedByAssembly(part))) continue;
+                // 조립대에 고정된 하부와 접합으로 연결된 파츠만 제외한다. 얹어둔 화물은 뜰 수 있다.
+                if (AssemblyDock.IsAnchored(part)) continue;
 
                 var collider = _hits[i];
                 var inside = Contains(body.worldCenterOfMass)

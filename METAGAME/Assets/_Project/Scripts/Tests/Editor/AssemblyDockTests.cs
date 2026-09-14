@@ -146,21 +146,18 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
-        public void RestingStackIsProtectedButAirborneCargoIsNot()
+        public void RestingStackIsNotAnchoredWithoutWelding()
         {
             var bottom = Part("Part_1", Vector3.up);
             bottom.ApplyDockedToPad(true);
             var middle = Part("Part_2", Vector3.up * 3f);
             var top = Part("Part_3", Vector3.up * 5f);
-            Assert.That(AssemblyDock.IsSupportedByAssembly(middle), Is.True);
-            Assert.That(AssemblyDock.IsSupportedByAssembly(top), Is.True);
-            top.transform.position += Vector3.up;
-            UnityEngine.Physics.SyncTransforms();
-            Assert.That(AssemblyDock.IsSupportedByAssembly(top), Is.False);
+            Assert.That(AssemblyDock.IsAnchored(middle), Is.False);
+            Assert.That(AssemblyDock.IsAnchored(top), Is.False);
         }
 
         [Test]
-        public void ExplicitBeamCanRecoverUnweldedStackButCannotGrabDockedBase()
+        public void BeamApiCannotGrabDockedBaseButLooseCargoRemainsGrabbable()
         {
             var bottom = Part("Part_1", Vector3.up);
             bottom.ApplyDockedToPad(true);
@@ -171,13 +168,12 @@ namespace Metagame.Gameplay.Tests
             UnityEngine.Physics.SyncTransforms();
             Assert.That(beam.TryGrab(bottom), Is.EqualTo(BeamGrabResult.Welded));
             Assert.That(beam.TryGrab(top), Is.EqualTo(BeamGrabResult.Grabbed));
-            Assert.That(AssemblyDock.IsSupportedByAssembly(top), Is.False);
             beam.Release();
-            Assert.That(AssemblyDock.IsSupportedByAssembly(top), Is.True);
+            Assert.That(AssemblyDock.IsAnchored(top), Is.False);
         }
 
         [Test]
-        public void FieldDoesNotLiftStackButStillLiftsLooseCargo()
+        public void FieldExcludesUpperPartOnlyWhileWeldedToDockedBase()
         {
             var bottom = Part("Part_1", Vector3.up);
             bottom.ApplyDockedToPad(true);
@@ -190,9 +186,23 @@ namespace Metagame.Gameplay.Tests
             field.SetActive(true);
             UnityEngine.Physics.SyncTransforms();
             field.Tick(0.02f);
-            Assert.That(field.AffectedCount, Is.EqualTo(1));
-            Assert.That(AssemblyDock.IsSupportedByAssembly(top), Is.True);
-            Assert.That(AssemblyDock.IsSupportedByAssembly(cargo), Is.False);
+            Assert.That(field.AffectedCount, Is.EqualTo(2), "얹어둔 상부와 별도 화물은 모두 저중력장 대상이다.");
+            Assert.That(bottom.GetComponent<Rigidbody>().isKinematic, Is.True);
+
+            var joint = top.gameObject.AddComponent<FixedJoint>();
+            joint.connectedBody = bottom.GetComponent<Rigidbody>();
+            var link = top.gameObject.AddComponent<PartAssemblyLink>();
+            link.BindBeadWeld(top, bottom, joint);
+            link.SetBeadWeldRatio(1f);
+            field.Tick(0.02f);
+            Assert.That(field.AffectedCount, Is.EqualTo(1), "용접하면 상부는 제외하고 별도 화물만 들어야 한다.");
+            Assert.That(AssemblyDock.IsAnchored(top), Is.True);
+            Assert.That(top.GetComponent<Rigidbody>().isKinematic, Is.False,
+                "상부를 강제로 동결하지 않고 기존 용접 조인트가 잡아준다.");
+
+            link.Release();
+            field.Tick(0.02f);
+            Assert.That(field.AffectedCount, Is.EqualTo(2), "용접 연결을 끊으면 다시 저중력장 대상이다.");
         }
     }
 }
