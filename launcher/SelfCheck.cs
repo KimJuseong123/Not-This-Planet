@@ -19,6 +19,8 @@ public static class SelfCheck
     {
         int fail = 0;
 
+        fail += CheckStale();
+
         // ── ① 통과해야 하는 것 ────────────────────────────────────────────
         foreach (var good in new[]
                  {
@@ -251,4 +253,54 @@ public static class SelfCheck
             Path = f.Path, Sha256 = f.Sha256, Size = f.Size, Gz = f.Gz,
         }).ToList(),
     };
+
+    /// <summary>
+    /// <b>런처는 자기가 깐 것만 지운다</b> (S15P21B202-507).
+    ///
+    /// <para>2026-09-14 실측: 런처가 켜지며 게임이 만든 <c>logs/</c> 의 플레이 로그
+    /// 3개를 지웠다. 업로드는 <b>다음 실행의 로그인 때</b> 일어나는데, 그 다음 실행을
+    /// 런처로 켜니 직전 로그가 이미 없었다 — 배포판 사용자는 전부 런처로 켠다.</para>
+    /// </summary>
+    static int CheckStale()
+    {
+        int fail = 0;
+        var wanted = new HashSet<string>(
+            new[] { "NotThisPlanet.exe", "NotThisPlanet_Data/app.dat" },
+            StringComparer.OrdinalIgnoreCase);
+
+        // ① 기록이 없으면 **아무것도 안 지운다**
+        if (Program.StaleFiles(null, wanted).Count != 0)
+        {
+            Console.WriteLine("  ❌ 설치 기록이 없는데 지우려 한다");
+            fail++;
+        }
+
+        // ② 옛 버전이 깐 것은 **여전히 지운다** — 이 기능을 죽이면 안 된다
+        var installed = new List<string>
+        {
+            "NotThisPlanet.exe",
+            "NotThisPlanet_Data/app.dat",
+            "NotThisPlanet_Data/옛것.dat",
+        };
+        var stale = Program.StaleFiles(installed, wanted);
+        if (stale.Count != 1 || stale[0] != "NotThisPlanet_Data/옛것.dat")
+        {
+            Console.WriteLine($"  ❌ 옛 파일을 못 지운다: [{string.Join(", ", stale)}]");
+            fail++;
+        }
+
+        // ③ **게임이 만든 것은 기록에 없으므로 어떤 경우에도 안 지워진다**
+        //    기록은 매니페스트 경로만 담는다 — 그것이 이 설계의 핵심이다.
+        foreach (var mine in new[] { "logs/20260914-093329.log", "logs/오늘.log" })
+        {
+            if (Program.StaleFiles(installed, wanted).Contains(mine))
+            {
+                Console.WriteLine($"  ❌ 게임이 만든 파일을 지우려 한다: {mine}");
+                fail++;
+            }
+        }
+
+        if (fail == 0) Console.WriteLine("  ✅ 지우기 — 우리가 깐 것만 (기록 없으면 안 지움)");
+        return fail;
+    }
 }

@@ -25,6 +25,20 @@ public static class Program
     const string GameDirName = "game";
 
     /// <summary>
+    /// <b>우리가 깐 파일 목록.</b> 게임 폴더 안에 한 줄에 하나씩 (S15P21B202-507).
+    ///
+    /// <para><b>왜 필요한가.</b> 전에는 매니페스트에 없는 파일을 <b>전부</b> 지웠다.
+    /// 그런데 게임이 자기 폴더에 <c>logs/</c> 를 만든다 — 2026-09-14 실측에서 런처가
+    /// 켜지며 <b>플레이 로그 3개를 지웠다.</b> 업로드는 다음 실행 로그인 때 일어나는데,
+    /// 그 "다음 실행" 을 런처로 켜니 직전 로그가 이미 없었다.</para>
+    ///
+    /// <para>매니페스트 밖 파일에는 두 종류가 있다 — <b>옛 버전이 깐 것</b>(지워야 한다)과
+    /// <b>게임·사용자가 만든 것</b>(지우면 안 된다). 구별하려면 <b>우리가 깐 것</b>을
+    /// 알아야 하고, 그것을 여기에 적어 둔다.</para>
+    /// </summary>
+    const string InstalledList = ".installed";
+
+    /// <summary>
     /// 배포용 게임 폴더 이름. <b>자체 검사가 쓴다.</b>
     ///
     /// <para>상수끼리 견주면 컴파일러가 결과를 미리 접어서 검사가 <b>죽은 코드</b>가
@@ -215,17 +229,18 @@ public static class Program
 
         // ── 무엇을 지워야 하나 ──────────────────────────────────────────────
         // 남겨 두면 옛 에셋이 섞여 돈다 — 그 상태의 버그는 재현이 안 된다.
+        //
+        // **우리가 깐 것만 지운다** (S15P21B202-507). 전에는 매니페스트에 없는 파일을
+        // 전부 지웠는데, 게임이 만드는 `logs/` 가 거기 걸려 **플레이 로그가 사라졌다.**
+        // 이제는 지난번에 우리가 깐 목록에 있으면서 새 매니페스트에 없는 것만 지운다.
         var wanted = new HashSet<string>(
             m.Files.Select(f => f.Path.Replace('/', Path.DirectorySeparatorChar)),
             StringComparer.OrdinalIgnoreCase);
-        var stale = Directory.Exists(gameDir)
-            ? Directory.EnumerateFiles(gameDir, "*", SearchOption.AllDirectories)
-                .Select(p => Path.GetRelativePath(gameDir, p))
-                .Where(rel => !wanted.Contains(rel))
-                // 우리가 만든 표시 파일과 받다 만 조각은 "옛 에셋" 이 아니다.
-                .Where(rel => rel != ".syncing" && !rel.EndsWith(".part", StringComparison.Ordinal))
-                .ToList()
-            : new List<string>();
+        var installed = ReadInstalled(gameDir);
+        var stale = StaleFiles(installed, wanted);
+
+        if (installed is null)
+            Console.WriteLine("설치 기록이 없다 — 이번에는 지우지 않고 기록만 남긴다");
 
         long dlBytes = need.Sum(f => f.Gz > 0 ? f.Gz : f.Size);
         Console.WriteLine($"맞출 것: 받기 {need.Count}개 ({Mb(dlBytes)}) · 지우기 {stale.Count}개 "
@@ -292,6 +307,9 @@ public static class Program
         if (stale.Count > 0) Console.WriteLine($"지우기 완료 {stale.Count}개");
         RemoveEmptyDirs(gameDir);
 
+        // **무엇을 깔았는지 남긴다.** 다음에 지울 것을 여기서만 고른다.
+        WriteInstalled(gameDir, wanted);
+
         try { File.Delete(marker); } catch (IOException) { }
         Console.WriteLine($"✅ {m.Version} 으로 맞췄다.");
         return true;
@@ -303,6 +321,60 @@ public static class Program
     /// <para>순서가 중요하다: <c>.part</c> 로 받아 → <b>푼 바이트의 해시를 확인</b>
     /// → 원자적으로 이름 바꾸기. 받는 중 끊겨도 게임 폴더에는 반쪽 파일이 남지 않는다.</para>
     /// </summary>
+    /// <summary>
+    /// 지난번에 우리가 깐 파일 목록. <b>없거나 못 읽으면 <c>null</c></b> — 그때는
+    /// 아무것도 지우지 않는다(<see cref="InstalledList"/>).
+    ///
+    /// <para><b>빈 목록과 없는 것을 구별한다.</b> 빈 파일은 "깐 것이 하나도 없다" 이고,
+    /// 없는 파일은 "모른다" 다. 둘을 섞으면 기록이 깨졌을 때 조용히 전부 지운다.</para>
+    /// </summary>
+    /// <summary>
+    /// 지울 것 = <b>지난번에 우리가 깐 것</b> 중 새 매니페스트에 없는 것 (S15P21B202-507).
+    ///
+    /// <para><b>기록이 없으면 아무것도 안 지운다.</b> 이 런처로 처음 맞추는 설치라
+    /// 무엇이 우리 것인지 모른다 — 옛 파일이 한 판 더 남는 쪽이, 사용자가 만든 것을
+    /// 지우는 쪽보다 낫다. 이번 실행이 기록을 남기므로 다음부터는 정상 동작한다.</para>
+    ///
+    /// <para><b>여기에 게임이 만든 파일은 절대 오지 않는다.</b> 기록에는 매니페스트
+    /// 경로만 적히기 때문이다 — <c>logs/</c> 가 지워지던 사고가 그래서 막힌다.</para>
+    /// </summary>
+    internal static List<string> StaleFiles(List<string>? installed, HashSet<string> wanted)
+        => installed is null
+            ? new List<string>()
+            : installed.Where(rel => !wanted.Contains(rel)).ToList();
+
+    static List<string>? ReadInstalled(string gameDir)
+    {
+        var p = Path.Combine(gameDir, InstalledList);
+        try
+        {
+            if (!File.Exists(p)) return null;
+            return File.ReadAllLines(p)
+                .Select(l => l.Trim())
+                .Where(l => l.Length > 0)
+                .Select(l => l.Replace('/', Path.DirectorySeparatorChar))
+                .ToList();
+        }
+        catch (IOException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
+    }
+
+    /// <summary>
+    /// 깐 파일 목록을 남긴다. <b>실패해도 동기화를 실패시키지 않는다</b> — 다음에
+    /// 기록이 없으면 그때 안 지울 뿐이다(안전한 쪽으로 기운다).
+    /// </summary>
+    static void WriteInstalled(string gameDir, IEnumerable<string> rels)
+    {
+        var p = Path.Combine(gameDir, InstalledList);
+        try
+        {
+            File.WriteAllLines(p, rels.Select(r => r.Replace(Path.DirectorySeparatorChar, '/'))
+                                      .OrderBy(r => r, StringComparer.Ordinal));
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
     static async Task Download(string baseUrl, Manifest.FileEntry f, string gameDir)
     {
         var local = Path.Combine(gameDir, f.Path.Replace('/', Path.DirectorySeparatorChar));
