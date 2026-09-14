@@ -931,13 +931,18 @@ namespace Metagame.Gameplay.Parts
             var mottle = Mathf.Lerp(0.16f, 0.025f, heat);
 
             // 다리 중간 덩어리도 연결을 유지하므로 사슬 전체를 같은 색으로 표시한다.
-            // 공유 재질 자체를 수정하면 무관한 비드까지 변하므로 PropertyBlock만 바꾼다.
-            var material = Prim.Dough(BeadColor, BeadSoftness, fogExempt: true);
+            // 공유 재질 자체는 수정하지 않고 상태별 캐시 재질과 열 표현 PropertyBlock을 나눈다.
+            var material = Prim.Dough(cold, BeadSoftness, fogExempt: true);
             if (appearanceBlock == null) appearanceBlock = new MaterialPropertyBlock();
             for (var b = 0; b < chain.Blobs.Count; b++)
             {
                 var blob = chain.Blobs[b];
                 if (blob == null) continue;
+
+                // 물리 구체는 화면에는 숨겨져 있어도 기존 접합 상태 판정과 테스트가 같은
+                // 상태별 재질 참조를 관찰할 수 있도록 표시 자식과 함께 갱신한다.
+                if (blob.TryGetComponent<Renderer>(out var physicsRenderer))
+                    physicsRenderer.sharedMaterial = material;
 
                 // 예전 저장 데이터에는 표시 자식이 없다. 보이는 순간 현재 외형으로 보강한다.
                 var radius = b == chain.Blobs.Count - 1
@@ -1206,7 +1211,7 @@ namespace Metagame.Gameplay.Parts
         static Color WarmBeadColor => new Color(0.72f, 0.055f, 0.018f, 1f);
 
         // 접합에 기여한다는 뜻이며, 완전 강도나 올바른 조립 순서의 표시는 아니다.
-        static Color HelpfulBeadColor => new Color(0.055f, 0.028f, 0.030f, 1f);
+        static Color HelpfulBeadColor => new Color(0.14f, 0.035f, 0.025f, 1f);
 
         const float BeadSoftness = 0.15f;
 

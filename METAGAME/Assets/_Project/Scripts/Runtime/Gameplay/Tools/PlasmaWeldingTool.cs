@@ -102,7 +102,7 @@ namespace Metagame.Gameplay
         float nextWeldSparkAt;
         float nextWeldSmokeAt;
         WeldBead brushStrokeBead;
-        Vector3 brushStrokePoint;
+        Vector3 brushStrokeLocalPoint;
         bool hasBrushStrokePoint;
         PlasmaGunPetalAnimator petalAnimator;
         Transform heldVisual;
@@ -253,18 +253,22 @@ namespace Metagame.Gameplay
             if (TryGetBeamHit(aimDirection, out var hit))
             {
                 var hitsBodySurface = !WeldBead.IsBeadCollider(hit.collider);
+                var previousBrushPoint = hasBrushStrokePoint && brushStrokeBead != null
+                    ? brushStrokeBead.transform.TransformPoint(brushStrokeLocalPoint)
+                    : Vector3.zero;
                 WeldingProgressed = WeldBead.TryApplyAt(
                     hit, amount, false, out var bead,
                     hitsBodySurface && hasBrushStrokePoint ? brushStrokeBead : null,
-                    brushStrokePoint);
+                    previousBrushPoint);
                 GrowingBead = bead;
                 if (WeldingProgressed)
                 {
                     usedMaterialSeconds += amount;
-                    if (hitsBodySurface)
+                    if (hitsBodySurface && bead != null)
                     {
                         brushStrokeBead = bead;
-                        brushStrokePoint = hit.point;
+                        // 파츠가 움직여도 이전 점이 표면과 함께 움직이도록 파츠 로컬 좌표로 보관한다.
+                        brushStrokeLocalPoint = bead.transform.InverseTransformPoint(hit.point);
                         hasBrushStrokePoint = true;
                     }
                 }
@@ -283,7 +287,7 @@ namespace Metagame.Gameplay
         void ResetBrushStroke()
         {
             brushStrokeBead = null;
-            brushStrokePoint = Vector3.zero;
+            brushStrokeLocalPoint = Vector3.zero;
             hasBrushStrokePoint = false;
         }
 
@@ -470,11 +474,13 @@ namespace Metagame.Gameplay
             if (weldSparks != null && Time.unscaledTime >= nextWeldSparkAt)
             {
                 nextWeldSparkAt = Time.unscaledTime + weldSparkInterval;
+                if (!weldSparks.isPlaying) weldSparks.Play();
                 weldSparks.Emit(weldSparksPerBurst);
             }
             if (weldSmoke != null && Time.unscaledTime >= nextWeldSmokeAt)
             {
                 nextWeldSmokeAt = Time.unscaledTime + weldSmokeInterval;
+                if (!weldSmoke.isPlaying) weldSmoke.Play();
                 weldSmoke.Emit(1);
             }
         }

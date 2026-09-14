@@ -39,7 +39,7 @@ namespace Metagame.UI
 
         [Header("용접 재료 게이지")]
         [Tooltip("용접건 기준 게이지 화면 위치입니다. 음수 X는 용접건의 왼쪽입니다.")]
-        [SerializeField] Vector2 weldingGaugeScreenOffset = new Vector2(-155f, -12f);
+        [SerializeField] Vector2 weldingGaugeScreenOffset = new Vector2(-280f, 55f);
         [Min(40f)] [SerializeField] float weldingGaugeMaxRadius = 82f;
 
         void Awake()
@@ -221,7 +221,7 @@ namespace Metagame.UI
             var screen = camera.WorldToScreenPoint(position);
             if (screen.z <= camera.nearClipPlane) return;
 
-            // 용접건을 따라가되 모델 중심에서 왼쪽으로 띄워 겹치지 않게 한다.
+            // 용접건을 따라가되 총구 왼쪽 아래의 빈 화면에 띄워 모델과 겹치지 않게 한다.
             float radius = Mathf.Min(weldingGaugeMaxRadius, height * 0.16f);
             float thickness = radius * 0.19f;
             var modelScreen = new Vector2(
