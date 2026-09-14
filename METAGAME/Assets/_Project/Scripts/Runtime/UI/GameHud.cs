@@ -42,6 +42,7 @@ namespace Metagame.UI
             white = new Texture2D(1, 1);
             white.SetPixel(0, 0, Color.white);
             white.Apply();
+            InitializeKeyGuides();
         }
 
         void OnEnable() { Font.textureRebuilt += OnFontRebuilt; }
@@ -64,11 +65,17 @@ namespace Metagame.UI
 
         void Update()
         {
+            if (_keyGuideRevision != KeyGuides.Revision)
+            {
+                _keyGuideRevision = KeyGuides.Revision;
+                warmed = false;
+            }
             if (!warmed) WarmFont();
             UpdateMeteorRhythm();
 
             if (Local == null && GameSession.Instance != null) Local = GameSession.Instance.LocalPlayer;
             if (Transport == null && GameSession.Instance != null) Transport = GameSession.Instance.Transport;
+            KeyGuides.Refresh();
         }
 
         // ── 폰트 ────────────────────────────────────────────────
@@ -115,6 +122,9 @@ namespace Metagame.UI
 
             var sb = new StringBuilder();
             sb.Append("0123456789.,:/%()[]·—+-!?초회중력 ");
+            sb.Append("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz 태블릿 던지기");
+            for (int i = 0; i < KeyGuides.Entries.Count; i++)
+                sb.Append(KeyGuides.Entries[i].Label);
             sb.Append("경과 시간 표지 추락 도착 기록 남은 구간 진행 상태 목표 지구의");
             sb.Append("서 있음 공중 매달림 자빠짐 걷는 중 달리는 중 미끄러짐 착지 분사 중 나르는 중");
             sb.Append("왼팔 오른팔 뻗음 잡음 비어 있음 놓침 잡은 것 없음 닿는 곳");
@@ -264,6 +274,7 @@ namespace Metagame.UI
             Reticle(w, h);
             WeldingMaterialGauge(w, h);
             DrawMeteorRhythm(w, h);
+            DrawKeyGuides(w, h);
 
             // 왼쪽 위 — 진행 상황
             Box(new Rect(14f, 12f, 268f, 142f), new Color(0f, 0f, 0f, 0.38f));
