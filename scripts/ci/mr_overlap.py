@@ -22,7 +22,7 @@ import os
 import subprocess
 import sys
 
-from ci_common import GitLab, Report, banner, bot_line, env, env_int, http, strip_draft
+from ci_common import GitLab, Report, banner, bot_line, env, env_int, http, is_release_mr, strip_draft
 
 
 def is_release_mr(source: str, target: str) -> bool:
@@ -332,7 +332,23 @@ def main() -> int:
     # 부모 후보: **대상과 무관하게 전부**. 스택 중간 MR 들은 대상이 작업 브랜치라 위 목록에서 빠지는데,
     # 그것들을 빼고 부모를 고르면 가장 가까운 부모가 아니라 스택 바닥이 잡힌다
     # (2026-08-28 MR !87·!88 실측: -138 위에 얹혔는데 -103 으로 재대상됐다).
-    parents_pool = [m for m in open_mrs if m.get("target_branch") in targets or m.get("target_branch") != "develop"]
+    # **master 를 향하는 MR 은 부모가 될 수 없다** (S15P21B202-481).
+    #
+    # 자동 전환이 성립하는 전제는 아래 주석의 "부모가 머지되면 GitLab 이 develop 으로
+    # 되돌림" 인데, 그것은 **부모가 develop 을 향할 때만** 참이다. GitLab 은 부모의
+    # 소스 브랜치가 지워질 때 자식을 **부모의 대상**으로 옮기므로, 부모가 master 를
+    # 향하면 자식이 **master 로 끌려간다.**
+    #
+    # 릴리스 MR 이 정확히 그 모양이다(`release/<키>-vX.Y.Z → master`). 그리고 그것은
+    # **develop 의 스냅샷**이라 develop 에서 딴 모든 브랜치가 그 커밋을 포함한다 —
+    # 즉 `pick_parent` 가 **열린 MR 전부를 그 위에 얹힌 것으로 본다.**
+    #
+    # 2026-09-14 실측: `!405`(릴리스 v1.1.0)가 열리자 `!406` 이 그 브랜치로 전환됐고,
+    # 팀장이 릴리스를 머지하며 브랜치를 지우자 `!406` 의 대상이 **master 가 됐다.**
+    parents_pool = [m for m in open_mrs
+                    if (m.get("target_branch") in targets or m.get("target_branch") != "develop")
+                    and m.get("target_branch") != "master"
+                    and not is_release_mr(m.get("source_branch") or "", m.get("target_branch") or "")]
     if not others and not parents_pool:
         rep.ok(f"같은 대상({target}) 또는 develop 을 향한 다른 열린 MR 없음")
         gl.upsert_note(MARKER, render_mine(me, [], None))
