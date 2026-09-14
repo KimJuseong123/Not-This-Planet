@@ -163,6 +163,84 @@ namespace Metagame.Gameplay.Tests
             });
         }
 
+        // ── 순서가 뒤섞여도 안전한가 (!413 AI 리뷰) ─────────────
+
+        /// <summary>
+        /// <b>든 적 없이 놓기부터 오면?</b> 탑승·기절에서 <c>HideFirstPersonVisual</c> 이
+        /// 그 경로다(<c>SetVisible(false)</c> 가 먼저 온다).
+        ///
+        /// <para>리뷰가 "저장 전에 복원하면 <c>shadowBefore</c> 의 배열 기본값
+        /// <c>Off</c> 가 렌더러에 써져 그림자가 조용히 사라진다" 고 지적했다. 읽어서
+        /// 반박하지 않고 그 시나리오를 그대로 잰다.</para>
+        /// </summary>
+        [Test]
+        public void HidingWithoutEverShowing_LeavesTheOriginalAlone()
+        {
+            var tool = MakeToolModel();
+            var original = tool.GetComponentInChildren<Renderer>();
+            var before = original.shadowCastingMode;
+
+            var visual = MakeVisual(tool);
+            try
+            {
+                visual.SetVisible(false);   // 든 적이 없다
+
+                Assert.AreEqual(before, original.shadowCastingMode,
+                    "저장한 적 없는 값으로 원본을 덮으면 안 된다.");
+                Assert.IsFalse(original.forceRenderingOff);
+            }
+            finally { visual.Dispose(); }
+        }
+
+        /// <summary>
+        /// <b>들기가 두 번 연속 오면?</b> 리뷰가 "두 번째에 <c>ShadowsOnly</c> 가
+        /// 저장되어 놓은 뒤에도 그대로 남는다 — 3인칭에서 도구가 안 보인다" 고 지적했다.
+        /// </summary>
+        [Test]
+        public void ShowingTwiceThenHiding_StillRestoresTheOriginal()
+        {
+            var tool = MakeToolModel();
+            var original = tool.GetComponentInChildren<Renderer>();
+            var before = original.shadowCastingMode;
+
+            var visual = MakeVisual(tool);
+            try
+            {
+                visual.SetVisible(true);
+                visual.SetVisible(true);    // 재장착·재입장 경합
+                visual.SetVisible(false);
+
+                Assert.AreEqual(before, original.shadowCastingMode,
+                    "놓으면 원래대로 — ShadowsOnly 가 남으면 3인칭에서 도구가 안 보인다.");
+            }
+            finally { visual.Dispose(); }
+        }
+
+        /// <summary>들고 놓기를 여러 번 되풀이해도 값이 흘러가지 않는다.</summary>
+        [Test]
+        public void ShowAndHideRepeatedly_DoesNotDrift()
+        {
+            var tool = MakeToolModel();
+            var original = tool.GetComponentInChildren<Renderer>();
+            var before = original.shadowCastingMode;
+
+            var visual = MakeVisual(tool);
+            try
+            {
+                for (var i = 0; i < 5; i++)
+                {
+                    visual.SetVisible(true);
+                    Assert.AreEqual(ShadowCastingMode.ShadowsOnly, original.shadowCastingMode,
+                        $"{i + 1}번째로 들었을 때");
+
+                    visual.SetVisible(false);
+                    Assert.AreEqual(before, original.shadowCastingMode,
+                        $"{i + 1}번째로 놓았을 때");
+                }
+            }
+            finally { visual.Dispose(); }
+        }
+
         // ── 몸 쪽은 건드리지 않았다 ─────────────────────────────
 
         /// <summary>

@@ -112,6 +112,20 @@ namespace Metagame.Gameplay
         public void SetVisible(bool visible)
         {
             if (Model != null) Model.gameObject.SetActive(visible);
+
+            // **이 가드가 이제 값을 지킨다**(S15P21B202-489 · !413 AI 리뷰).
+            //
+            // 저장(위)과 복원(아래)이 짝이 되려면 상태가 바뀔 때만 지나야 한다.
+            // 그러지 않으면 ① 든 적 없이 놓기부터 오는 경로(탑승·기절의
+            // HideFirstPersonVisual)에서 저장한 적 없는 shadowBefore 기본값이 원본에
+            // 써지고 ② 들기가 두 번 오면 두 번째가 ShadowsOnly 를 "원래 값" 으로
+            // 저장해 놓은 뒤에도 도구가 3인칭에서 안 보인다.
+            //
+            // 예전에는 복원값이 bool 이라 그런 일이 나도 무해했다 — forceRenderingOff
+            // 에 false 를 쓰는 것뿐이었다. 그림자 모드로 바꾸면서 **이 줄이 무해한
+            // 최적화에서 필요한 보호로 바뀌었다.** 그래서 검증으로 잠갔다
+            // (HidingWithoutEverShowing_LeavesTheOriginalAlone ·
+            //  ShowingTwiceThenHiding_StillRestoresTheOriginal).
             if (hidden == visible) return;
             hidden = visible;
             for (int i = 0; i < originals.Length; i++)
