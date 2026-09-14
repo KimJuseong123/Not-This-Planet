@@ -168,3 +168,11 @@ PlasmaWeldingTool now owns a local-only yellow collider-projected joint recommen
 - `METAGAME/.vscode/*`
 
 <!-- unity-onboarding:generated:end -->
+
+## 2026-09-14 — Stage1_Astra_ver2 authored variant
+
+- Added `Assets/Scenes/Stage1_Astra_ver2.unity`, copied from the original through Unity AssetDatabase. Original `Stage1_Astra.unity` and Lobby's default destination remain unchanged; ver2 is an additional enabled build scene.
+- Four existing parts, 16 clamps, eight sockets, assembly guidance, fluorescent tethers, atmosphere, exploration/HUD and recovery systems are retained. The actual source tractor activator is on Part_4; ver2-only `AstraV2ManualPart` keeps unoccupied activated Part_4 manually pushable.
+- Layout: open Part_1; jump-ledged Part_2 summit and braked freight descent; three-dial / living-player pressure-gate Part_3 room; low-ceiling L-corridor for sideways Part_4. Continuous routes and authored physical rollers/levers return to the flush central assembly apron.
+- New mechanism decisions follow server authority (`WorldEvents.RemoteDecides`); WorldSync sends puzzle/lift snapshots and tracks authored cargo tools. Multiplayer completion and network latency behavior still require a real multi-peer run.
+- `Stage1AstraVer2Builder` creates the variant without overwriting an existing scene and can render previews. Guidance inventory: `docs/planning/stage1-astra-ver2-guidance-audit.md`; validation details: `docs/records/2026-09-14-astra-ver2.md` (repository-root paths).

@@ -73,6 +73,11 @@ namespace Metagame.Network
         }
 
         readonly List<Rigidbody> tracked = new List<Rigidbody>();
+        AstraV2Puzzle[] astraPuzzles = Array.Empty<AstraV2Puzzle>();
+        AstraV2FreightLift[] astraLifts = Array.Empty<AstraV2FreightLift>();
+        AstraV2Puzzle.State[] astraPuzzleStates = Array.Empty<AstraV2Puzzle.State>();
+        AstraV2FreightLift.State[] astraLiftStates = Array.Empty<AstraV2FreightLift.State>();
+        float astraSendTimer;
 
         /// <summary>고정쇠. 위치가 아니라 <b>진행도</b>가 사람마다 달라지는 것들이다.</summary>
         readonly List<PartClamp> clamps = new List<PartClamp>();
@@ -568,6 +573,14 @@ namespace Metagame.Network
         void Collect()
         {
             tracked.Clear();
+            astraPuzzles = FindObjectsByType<AstraV2Puzzle>(FindObjectsSortMode.None);
+            astraLifts = FindObjectsByType<AstraV2FreightLift>(FindObjectsSortMode.None);
+            Array.Sort(astraPuzzles, (a, b) => string.CompareOrdinal(a.name, b.name));
+            Array.Sort(astraLifts, (a, b) => string.CompareOrdinal(a.name, b.name));
+            astraPuzzleStates = new AstraV2Puzzle.State[astraPuzzles.Length];
+            astraLiftStates = new AstraV2FreightLift.State[astraLifts.Length];
+            foreach (var tool in FindObjectsByType<AstraV2CargoTool>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                Add(tool.GetComponent<Rigidbody>());
 
             foreach (var part in FindObjectsByType<SpaceshipPart>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 Add(part != null ? part.GetComponent<Rigidbody>() : null);
@@ -845,8 +858,18 @@ namespace Metagame.Network
             ClearGhostsIfSilent();
         }
 
+        [ClientRpc]
+        void RpcAstraMechanisms(AstraV2Puzzle.State[] puzzles, AstraV2FreightLift.State[] lifts)
+        {
+            if (isServer || !ready) return;
+            if (puzzles.Length != astraPuzzles.Length || lifts.Length != astraLifts.Length) return;
+            for (int i = 0; i < puzzles.Length; i++) astraPuzzles[i].ApplySnapshot(puzzles[i]);
+            for (int i = 0; i < lifts.Length; i++) astraLifts[i].ApplySnapshot(lifts[i]);
+        }
+
         void SendFromServer()
         {
+            astraSendTimer += Time.deltaTime;
             sendTimer += Time.deltaTime;
             clampKeepaliveTimer += Time.deltaTime;
             fieldKeepaliveTimer += Time.deltaTime;
@@ -859,6 +882,15 @@ namespace Metagame.Network
             sendTimer = 0f;
 
             sendSeq++;
+
+            // Existing WorldSync authority and periodic snapshots cover observers and late joins.
+            if ((astraPuzzles.Length > 0 || astraLifts.Length > 0) && astraSendTimer >= .1f)
+            {
+                astraSendTimer = 0f;
+                for (int i = 0; i < astraPuzzles.Length; i++) astraPuzzleStates[i] = astraPuzzles[i].Snapshot;
+                for (int i = 0; i < astraLifts.Length; i++) astraLiftStates[i] = astraLifts[i].Snapshot;
+                RpcAstraMechanisms(astraPuzzleStates, astraLiftStates);
+            }
 
             // ── 자세 ────────────────────────────────────────────
             if (sendPoses.Length != tracked.Count) sendPoses = new Pose[tracked.Count];

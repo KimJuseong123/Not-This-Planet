@@ -1,0 +1,15 @@
+PASS four original parts in runtime
+PASS four manual push components
+PASS both mechanisms running
+PASS required pin tethers created
+PASS circuit solved, revealed plate does not open empty gate
+PASS living grounded player opens pressure gate; foot=(21.00, 1.18, 13.99)
+PASS gate closes after holder leaves
+PASS cliff part releases through original pin rules
+PASS top release unlocks after pins removed
+PASS held brake lowers freight platform
+PASS physical cargo descends on platform
+PASS releasing brake stops platform
+PASS original Part_4 activation retained
+PASS activated unoccupied Part_4 remains manually pushable
+PASS sideways module fits low roof after activation

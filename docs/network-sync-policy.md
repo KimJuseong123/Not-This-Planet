@@ -85,6 +85,8 @@ Mirror 가 `bufferTime = sendInterval × bufferTimeMultiplier` 만큼 뒤로 잡
 | 진행도(체크포인트·클리어·경과·낙하) | **P3** | ✅ | `ProgressSync` SyncVar | 이산. 서버가 정답 |
 | **파츠 밀기 상태** (밀고 있는가 · 방향 · 접촉 지점) | **P3** | 📐 | `NetPlayer` SyncVar `hauling`·`haulDirection`·`haulGrasp` | **파츠 물리는 서버에서만 돈다** — 참가자 화면의 파츠는 kinematic 이고 `PartPush.CanPush` 가 false 라 스스로 알 수 없다. 밀기 카메라 전환 조건이므로 정밀도보다 **켜짐/꺼짐이 갈리지 않는 것**이 중요하다. **`-400` 에서 적용** — 3인 실측은 아직 |
 | 카메라·HUD·태블릿 | **P4** | ✅ | `OrbitCamera` · `GameHud` | 남이 볼 필요가 없다. **밀기 3인칭 전환도 P4 다** — 전환 *조건*만 위 줄로 받고, 카메라 자체는 각자 화면에서 돈다 |
+| **Astra ver2 회로·발판 점유·문/화물대 진행도** | **P3** 이산 상태 + **P2** 이동 진행도 | 구현·단일 프로세스 검증, 다중 접속 미검증 | `AstraV2Puzzle` · `AstraV2FreightLift` · `WorldSync.RpcAstraMechanisms` | 동료의 잡기·발판 점유·화물 접촉에 달려 있으므로 서버만 판정. 최대 약 10Hz 전체 스냅샷으로 진행 중 합류에도 상태 전달. 원본 씬에는 대상이 없어 추가 송신하지 않음 |
+| **Astra ver2 롤러·지렛대 위치** | **P2** | 구현·다중 접속 미검증 | `AstraV2CargoTool` · 기존 `WorldSync.Pose` | 여러 사람이 만지는 공유 물리체. 씬에 미리 배치하고 기존 계층 경로 정렬·권위·포즈 동기화에 포함 |
 
 ### 알려진 구멍 — 정책이 정해졌는데 **아직 그 정책대로 동작하지 않는 것**
 

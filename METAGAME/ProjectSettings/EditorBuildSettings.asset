@@ -20,4 +20,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Customizer.unity
     guid: c79af3caf775445295bf24076df4db6e
+  - enabled: 1
+    path: Assets/Scenes/Stage1_Astra_ver2.unity
+    guid: c30d332e947e3ad438ea79859898aec8
   m_configObjects: {}

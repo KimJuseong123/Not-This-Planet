@@ -1,0 +1,6 @@
+PASS Part_2 hull fits route at floor 7.4
+PASS Part_1 hull fits route at floor 1
+PASS Part_2 hull fits route at floor 1
+PASS Part_3 hull fits route at floor 1
+PASS Part_4 hull fits route at floor 1
+PASS 451 samples: actual hull clearance and continuous ground support

@@ -123,6 +123,9 @@ namespace Metagame.Gameplay
             Array.Sort(sorted, CompareParts);
 
             var definitions = CreateDefinitions();
+            // The variant keeps the tablet, but its clues must describe the newly authored routes.
+            if (sorted.Length > 0 && sorted[0] != null && sorted[0].GetComponent<AstraV2ManualPart>() != null)
+                definitions = CreateAstraV2Definitions();
             for (var i = 0; i < definitions.Length; i++)
             {
                 var info = definitions[i];
@@ -252,6 +255,18 @@ namespace Metagame.Gameplay
             PartDiscovered?.Invoke(info);
             return true;
         }
+
+        static PartInfo[] CreateAstraV2Definitions() => new[]
+        {
+            new PartInfo(1, PartKind.Robot, "SF_Stage1_Spaceship_Robot", "PF_Stage1_Spaceship_Robot",
+                "주 추진 모듈", "주황빛 공터. 고정못을 풀고 롤러와 손으로 중앙 조립대까지 옮긴다"),
+            new PartInfo(2, PartKind.HoverPod, "SF_Stage1_Spaceship_HoverPod", "PF_Stage1_Spaceship_HoverPod",
+                "부양·안정화 모듈", "청록빛 절벽. 돌부리를 올라 고정못을 푼 뒤 화물대 손잡이를 잡아 내린다. 놓으면 멈춘다"),
+            new PartInfo(3, PartKind.Capsule, "SF_Stage1_Spaceship_Capsule", "PF_Stage1_Spaceship_Capsule",
+                "조종석 캡슐", "보랏빛 밀실. 바늘을 홈에 맞추면 발판이 나타난다. 동료가 밟는 동안 롤러로 꺼낸다"),
+            new PartInfo(4, PartKind.TractorCraft, "SF_Stage1_TractorCraft", "PF_Stage1_TractorCraft",
+                "상단 조립·견인 모듈", "연두빛 낮은 밀실. 눕힌 파츠를 함께 밀어 모퉁이를 돌린다. 밖까지 견인 없이 운반할 수 있다"),
+        };
 
         static PartInfo[] CreateDefinitions() => new[]
         {
