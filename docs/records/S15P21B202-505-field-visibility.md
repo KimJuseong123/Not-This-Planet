@@ -150,7 +150,7 @@ public static bool ShouldSendFields(FieldState[] now, FieldState[] lastSent,
 
 ## 6. 검증
 
-**`FieldNetworkStateTests` 11개** 신설.
+**`FieldNetworkStateTests` 12개** 신설.
 
 | 검증 | 무엇을 잠그나 |
 | --- | --- |
@@ -164,7 +164,8 @@ public static bool ShouldSendFields(FieldState[] now, FieldState[] lastSent,
 | `ButItResendsOnTheKeepalive` | 조용해도 가끔 다시 |
 | `ANewVehicleCountCountsAsAChange` | 탈것이 늘면 보낸다 |
 | `ADifferentVehicleNumberCountsAsAChange` | 번호가 달라지면 다른 이야기다 |
-| `TheVehicleNumberIsTheTrackedIndex` | 번호를 함께 실어 보낸다(`-434`) |
+| **`TheNumberRoundTripsToTheSameVehicle`** | **보내는 번호로 받는 쪽이 같은 탈것을 되찾는다**(`-434` · §7-1) |
+| `AnOutOfRangeNumberFindsNothing` | 못 찾은 번호는 건너뛴다 |
 
 ### 6-1. 내 검증 둘이 아무것도 못 잡았다
 
@@ -201,19 +202,61 @@ Assert.That(TestSource.Blank(sync), Does.Contain("RpcApplyFields"));   // 처음
 | 받은 값을 장에 안 넣는다 | **1개 실패** — `TheServerActuallySendsIt` |
 | 참가자도 물리를 돌게 한다 | **1개 실패** — `TurningItOnDoesNotGiveTheParticipantPhysics` |
 | 바뀌지 않아도 매 틱 보낸다 | **1개 실패** — `ItStaysQuietWhenNothingChanged` |
+| `VehicleAt` 이 한 칸 어긋나게 돌려준다 | **1개 실패** — `TheNumberRoundTripsToTheSameVehicle`(§7-1) |
 
 ### 6-3. 기준선 대조
 
 | | 검증 수 | 실패 |
 | --- | --- | --- |
 | develop (`7034840`) | 1368 | 17 |
-| 이 브랜치 | **1379** (+11) | **17** |
+| 이 브랜치 | **1380** (+12) | **17** |
 
 **새로 깨진 검증 없음. 실패 셋이 완전히 같다.**
 
 ---
 
-## 7. 남은 것
+## 7. !417 AI 리뷰에 대한 답
+
+⚠️(머지를 막지 않음) 판정이었고 **두 건을 받아들여 고쳤다.**
+
+### 7-1. 번호 왕복 검증이 아무것도 잠그지 못했다
+
+> 이 테스트는 `FieldState.Vehicle` 필드의 존재·타입·기본값 0만 확인한다. '보내는
+> 번호가 `VehicleAt` 이 되찾는 번호와 같다' 는 주장(-434 재발 방지)은 전혀 잠그지
+> 못하며, **잘못된 색인을 넣어도 통과한다.**
+
+**정확하다.** §4-1 에서 `-434` 를 근거로 들어 놓고, 정작 그 주장을 재는 검증이 없었다.
+
+공개 API 둘(`IndexOfTracked` · `VehicleAt`)로 **왕복**을 재도록 바꿨다. `Collect()` 가
+비공개라 리플렉션으로 부른다 — 짝짓기 목록을 채우는 유일한 경로다.
+
+대조로 확인했다: `VehicleAt` 이 한 칸 어긋나게 돌려주도록 고치면
+`TheNumberRoundTripsToTheSameVehicle` 이 실패한다. **이제 실제로 잠근다.**
+
+### 7-2. 부작용 있는 게터를 서버 루프에서 두 번 읽었다
+
+> 전송 틱마다 탈것 수만큼 `vehicle.Field` 를 두 번 읽는데, MR 본문 스스로 이 게터가
+> 매번 `Configure` 를 호출한다고 적고 있다.
+
+**정확하고, 내가 본문에 적어 놓고도 코드에서는 그렇게 했다.**
+
+```csharp
+Active = vehicle != null && vehicle.Field != null && vehicle.Field.IsActive,   // 이전
+```
+
+한 번만 읽도록 고쳤다. `TransportVehicle.Field` 게터는 부를 때마다 `Configure` 와
+`SetPhysicsAuthority` 를 다시 부른다.
+
+### 7-3. 받아들이되 이 MR 에서 하지 않는 것
+
+| 지적 | 판단 |
+| --- | --- |
+| `TheServerActuallySendsIt` 이 소스 글자라 실제 동작을 보증하지 못한다 | **맞다.** 이 저장소에는 **PlayMode 검증 어셈블리가 없다**(`Tests/Editor` 하나뿐). RPC 경로를 도는 검증은 어셈블리 신설이 필요하므로 **후속 이슈**다. 이 MR 에서는 한계를 검증 주석과 §6-1 에 적어 두었다 |
+| 지라 완료 조건이 템플릿 그대로다 | **담당자가 해야 한다** — 내가 지라를 고칠 수 없다. 아래 §8 의 6가지가 그대로 완료 조건이다 |
+
+---
+
+## 8. 남은 것
 
 - **2인 이상 실제 멀티 확인이 아직이다.** EditMode 는 Mirror 의 `[ClientRpc]` 를 부를
   자리가 없어 **받는 쪽 함수까지만** 잰다. 봐야 하는 것:

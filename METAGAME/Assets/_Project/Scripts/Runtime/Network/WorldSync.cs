@@ -908,10 +908,17 @@ namespace Metagame.Network
             for (int i = 0; i < vehicleSlots.Count; i++)
             {
                 var vehicle = VehicleAt(vehicleSlots[i]);
+
+                // **게터를 한 번만 읽는다**(!417 AI 리뷰). `TransportVehicle.Field` 는
+                // 부를 때마다 `Configure` 와 `SetPhysicsAuthority` 를 다시 부른다 —
+                // 부작용이 있는 게터다. 처음에는 이 줄에서 두 번 읽었고, 그러면 보내는
+                // 틱마다 탈것 수의 두 배로 그 일이 돈다.
+                var field = vehicle != null ? vehicle.Field : null;
+
                 sendFields[i] = new FieldState
                 {
                     Vehicle = vehicleSlots[i],
-                    Active = vehicle != null && vehicle.Field != null && vehicle.Field.IsActive,
+                    Active = field != null && field.IsActive,
                 };
             }
 

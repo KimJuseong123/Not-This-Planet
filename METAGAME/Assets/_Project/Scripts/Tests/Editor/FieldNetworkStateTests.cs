@@ -193,21 +193,82 @@ namespace Metagame.Gameplay.Tests
         /// <summary>
         /// <b>탈것 번호는 이미 있는 것을 쓴다.</b> S15P21B202-434 가 "탈것만 따로 줄을
         /// 세우면 -315 가 기록한 사고(개수는 같은데 순서만 어긋남)를 새로 만든다" 고
-        /// 적어 두었다. 보내는 번호가 <c>VehicleAt</c> 이 되찾는 번호와 같아야 한다.
+        /// 적어 두었다.
+        ///
+        /// <para><b>왕복을 잰다.</b> 처음에는 <c>FieldState.Vehicle</c> 의 존재·타입·
+        /// 기본값 0 만 확인했는데, 그것으로는 <b>잘못된 색인을 넣어도 통과한다</b>
+        /// (!417 AI 리뷰). 실제로 잠가야 하는 것은 "보내는 번호로 받는 쪽이 같은 탈것을
+        /// 되찾는다" 이고, 그것은 공개 API 둘(<c>IndexOfTracked</c> ·
+        /// <c>VehicleAt</c>)로 잴 수 있다.</para>
         /// </summary>
         [Test]
-        public void TheVehicleNumberIsTheTrackedIndex()
+        public void TheNumberRoundTripsToTheSameVehicle()
         {
-            var state = default(Network.WorldSync.FieldState);
-            var vehicleField = typeof(Network.WorldSync.FieldState).GetField(
-                "Vehicle", BindingFlags.Instance | BindingFlags.Public);
+            var sync = MakeSync();
+            var vehicles = new[] { MakeVehicle(Vector3.zero), MakeVehicle(new Vector3(8f, 0f, 0f)) };
+            Collect(sync);
 
-            Assert.IsNotNull(vehicleField, "번호를 함께 실어 보내야 짝이 틀리지 않는다.");
-            Assert.AreEqual(typeof(int), vehicleField.FieldType);
-            Assert.Zero(state.Vehicle, "기본값은 첫 자리다.");
+            foreach (var vehicle in vehicles)
+            {
+                var index = sync.IndexOfTracked(vehicle.GetComponent<Rigidbody>());
+
+                Assert.GreaterOrEqual(index, 0, "탈것은 짝짓기 목록에 들어가야 한다.");
+                Assert.AreSame(vehicle, sync.VehicleAt(index),
+                    "보내는 번호로 받는 쪽이 같은 탈것을 되찾아야 한다 — "
+                    + "어긋나면 남의 탈것 빔이 켜진다(-315).");
+            }
+        }
+
+        [Test]
+        public void AnOutOfRangeNumberFindsNothing()
+        {
+            var sync = MakeSync();
+            MakeVehicle(Vector3.zero);
+            Collect(sync);
+
+            Assert.IsNull(sync.VehicleAt(-1));
+            Assert.IsNull(sync.VehicleAt(9999), "못 찾은 번호는 건너뛴다 — 버리지 않는다.");
         }
 
         // ── 도구 ────────────────────────────────────────────────
+
+        /// <summary>
+        /// <c>Collect()</c> 는 비공개다. 짝짓기 목록을 채우는 유일한 경로이므로 여기서만
+        /// 리플렉션으로 부른다 — 목록이 비어 있으면 번호 왕복을 잴 수가 없다.
+        /// </summary>
+        static void Collect(Network.WorldSync sync)
+        {
+            var collect = typeof(Network.WorldSync).GetMethod(
+                "Collect", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.IsNotNull(collect, "Collect 가 사라졌다면 이 검증부터 다시 봐야 한다.");
+            collect.Invoke(sync, null);
+        }
+
+        Network.WorldSync MakeSync()
+        {
+            var go = new GameObject("WorldSync");
+            _spawned.Add(go);
+
+            // NetworkBehaviour 는 NetworkIdentity 를 요구한다. 없으면 컴포넌트를 붙이는
+            // 순간 에러 로그가 나고 검증이 빨간불이 된다 — 스폰까지 할 필요는 없다.
+            go.AddComponent<Mirror.NetworkIdentity>();
+
+            return go.AddComponent<Network.WorldSync>();
+        }
+
+        TransportVehicle MakeVehicle(Vector3 position)
+        {
+            var go = new GameObject("운반 장치");
+            go.transform.position = position;
+            _spawned.Add(go);
+
+            go.AddComponent<Rigidbody>().isKinematic = true;
+            var beam = go.AddComponent<TractorBeam>();
+            var vehicle = go.AddComponent<TransportVehicle>();
+            vehicle.Initialize(beam, TransportVehicle.BeamHoldDistance);
+            return vehicle;
+        }
 
         LowGravityField MakeField(bool physicsAuthority)
         {
