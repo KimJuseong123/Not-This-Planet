@@ -47,6 +47,12 @@ namespace Metagame.Gameplay
         Vector3 aimDirection;
         ToolAimContext aimContext;
         WeldingSurfaceGuide surfaceGuide;
+        [Header("접합 추천 가이드")]
+        [Min(0.1f)] [SerializeField] float jointGuideRange = 4f;
+        [Min(0.002f)] [SerializeField] float jointGuideSurfaceOffset = 0.012f;
+        [SerializeField] Color jointGuideColor = new Color(1f, 0.82f, 0.12f, 0.32f);
+        WeldingJointGuide jointGuide;
+        public bool JointGuideVisible => jointGuide != null && jointGuide.Visible;
         public float RemainingFraction => Mathf.Clamp01(1f - usedMaterialSeconds / Mathf.Max(0.01f, materialCapacitySeconds));
         public override float ViewProgress => RemainingFraction;
         public bool GuideVisible { get; private set; }
@@ -161,6 +167,7 @@ namespace Metagame.Gameplay
 
         protected override void OnUnequipped()
         {
+            jointGuide?.Hide();
             HideGuide();
             RestoreDroppedVisualPose();
 
@@ -237,6 +244,7 @@ namespace Metagame.Gameplay
             ResolveNozzleTip(aim.Direction);
 
             UpdateGuide(input, aim.Direction);
+            UpdateJointGuide();
 
             if (beam == null) EnsureBeam();
             ResolvePetalAnimator();
@@ -357,8 +365,19 @@ namespace Metagame.Gameplay
             surfaceGuide?.Hide();
         }
 
+        void UpdateJointGuide()
+        {
+            var owner = ViewOwner;
+            if (!IsHeldForView || owner == null || !owner.IsLocal || owner.Downed || owner.IsRiding ||
+                RemainingFraction <= 0f || Muzzle == null)
+            { jointGuide?.Hide(); return; }
+            if (jointGuide == null) jointGuide = new WeldingJointGuide(jointGuideColor);
+            jointGuide.Show(Muzzle.position, jointGuideRange, jointGuideSurfaceOffset);
+        }
+
         protected override void OnDisable()
         {
+            jointGuide?.Hide();
             HideGuide();
             if (beam != null) beam.enabled = false;
             base.OnDisable();
@@ -528,6 +547,7 @@ namespace Metagame.Gameplay
 
         protected override void OnDestroy()
         {
+            jointGuide?.Dispose();
             surfaceGuide?.Dispose();
             // 표시를 숨긴 뒤 base에서 카메라의 전용 복사본을 정리한다.
             RestoreVisualParent();
