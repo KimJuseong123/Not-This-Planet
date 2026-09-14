@@ -53,10 +53,27 @@ ok += 1
 #     소스를 통째로 grep 하면 **주석까지 걸린다** — 왜 이름이 바뀌었는지 적어 둔
 #     설명에 옛 이름이 나오기 때문이다. 검사 대상은 사람에게 인쇄되는 것, 곧
 #     **문자열 리터럴**뿐이므로 ast 로 그것만 꺼낸다.
+HAS_BODY = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+
+
 def literals(node) -> str:
-    """이 노드 아래의 문자열 리터럴 전부. f-string 조각도 `ast.walk` 가 집어 준다."""
+    """이 노드 아래에서 **사람에게 인쇄되는** 문자열. f-string 조각도 `ast.walk` 가
+    집어 준다.
+
+    **docstring 은 뺀다**(`!431` 리뷰 [낮음]). docstring 은 주석과 똑같이 인쇄되지
+    않는 설명인데 파서에게는 문자열이다. 빼지 않으면 "왜 이 이름이 바뀌었는지" 를
+    docstring 에 적는 순간 시험이 실패한다 — 주석을 피해 ast 를 쓴 이유와 정면으로
+    어긋난다.
+    """
+    skip = set()
+    for x in ast.walk(node):
+        body = getattr(x, "body", None) if isinstance(x, HAS_BODY) else None
+        if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) \
+                and isinstance(body[0].value.value, str):
+            skip.add(id(body[0].value))
     return " ".join(c.value for c in ast.walk(node)
-                    if isinstance(c, ast.Constant) and isinstance(c.value, str))
+                    if isinstance(c, ast.Constant) and isinstance(c.value, str)
+                    and id(c) not in skip)
 
 
 def func(mod, name: str):
@@ -108,8 +125,14 @@ ok += 1
 #
 #     여기에 옛 이름이 **있어야** 한다. 위 규칙을 저장소 전체로 넓히면 이 안내가
 #     같이 지워지고, 옛 양식으로 올린 사람은 무엇을 고쳐야 하는지 못 듣는다.
+#     여기서도 **인쇄되는 문자열만** 본다(`!431` 리뷰 [낮음]). 소스를 통째로 grep 하면
+#     `mr_lint` 위쪽 주석에 옛 이름이 있어서, 정작 사람에게 나가는 안내 문구를 지워도
+#     검사가 조용히 통과한다 — ⓐ 에서 피한 함정과 같은 것이다.
 import mr_lint  # noqa: E402
-assert DEAD in inspect.getsource(mr_lint), "옛 이름 안내가 사라졌다 — 예외인 이유를 읽어라"
+assert DEAD in literals(ast.parse(inspect.getsource(mr_lint))), (
+    f"`mr_lint` 가 옛 이름(`{DEAD}`)으로 안내하는 문구가 사라졌다. 옛 양식으로 올린 "
+    "사람은 무엇을 고쳐야 하는지 못 듣는다. **안내를 일부러 걷어낸 것이라면** — 옛 "
+    "양식의 MR 이 더는 없다고 판단했다면 — 이 단언도 같이 지워라")
 print("  `mr_lint` 의 옛 이름 안내는 그대로 (예외) ✅")
 ok += 1
 
