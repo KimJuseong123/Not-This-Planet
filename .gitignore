@@ -114,3 +114,12 @@ scripts/rules/
 
 # CI 잡이 만드는 산출물 (S15P21B202-458). 로컬에서 검사를 돌려도 같은 이름으로 생긴다.
 ec2-status.json
+
+# Local AI companion experiment build and validation artifacts.
+/AITrialBuild*/
+/ai-tests*.xml
+/tools/AICompanionService/.venv/
+/tools/AICompanionService/models/
+/tools/AICompanionService/logs/
+/tools/AICompanionService/results/
+/tools/AICompanionService/fixtures/
