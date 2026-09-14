@@ -123,7 +123,13 @@ RUNLOG_MB=$(du -sm /var/log/metagame-runlogs /var/log/metagame-dev-runlogs 2>/de
 # `\r` 을 지우고 재는 이유: 저장소가 윈도우에서 체크아웃되면 CRLF 가 될 수 있는데,
 # 그것은 **내용이 다른 것이 아니다.**
 DEPLOY_SH=/opt/metagame-deploy/deploy.sh
-DEPLOY_SH_SHA=$(tr -d '\r' < "$DEPLOY_SH" 2>/dev/null | sha256sum 2>/dev/null | cut -d' ' -f1)
+# **파일이 없으면 빈 값을 보낸다** (`!426` 리뷰). 그냥 파이프로 넘기면 `tr` 이 실패해도
+# `sha256sum` 이 **빈 입력의 해시**(e3b0c442…)를 내보내고, 읽는 쪽은 그것을
+# "못 쟀음" 이 아니라 **"다름"** 으로 읽는다 — 없는 드리프트를 매일 보고하게 된다.
+DEPLOY_SH_SHA=""
+if [ -r "$DEPLOY_SH" ]; then
+  DEPLOY_SH_SHA=$(tr -d '\r' < "$DEPLOY_SH" | sha256sum | cut -d' ' -f1)
+fi
 
 export DISK_PCT DISK_FREE_GB MEM_TOTAL_GB MEM_AVAIL_GB UPTIME_DAYS \
        CERT_DAYS DOCKER_GB BUILDS_MB SITE_MB RUNLOG_MB DEPLOY_SH_SHA \

@@ -179,7 +179,12 @@ def problems(data: dict | None, now: datetime | None = None) -> list[str]:
     return out
 
 
-REPO_DEPLOY_SH = "scripts/deploy/host/deploy.sh"
+# 저장소의 배포 스크립트. **`__file__` 기준 절대 경로다** (`!426` 리뷰).
+# 상대 경로로 열면 잡의 작업 디렉터리가 저장소 루트가 아닐 때 조용히 못 읽고,
+# 그러면 **드리프트가 있어도 아무 말을 안 한다** — 이 검사가 막으려던 바로 그 모양이다.
+REPO_DEPLOY_SH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "scripts", "deploy", "host", "deploy.sh")
 
 
 def deploy_sh_drift(data: dict) -> str | None:
@@ -202,8 +207,11 @@ def deploy_sh_drift(data: dict) -> str | None:
     try:
         with open(REPO_DEPLOY_SH, "rb") as f:
             want = hashlib.sha256(f.read().replace(b"\r", b"")).hexdigest()
-    except OSError:
-        return None          # 저장소 파일을 못 읽는 것은 여기서 말할 일이 아니다
+    except OSError as e:
+        # **조용히 넘어가지 않는다** (`!426` 리뷰). 못 읽은 것과 같은 것은 다르다 —
+        # 여기서 None 을 돌려주면 이 검사가 통째로 죽어도 화면이 똑같다.
+        return (f"🖥 **저장소의 배포 스크립트를 못 읽었다** — `{REPO_DEPLOY_SH}` "
+                f"({type(e).__name__}). 견줄 기준이 없어 드리프트를 판정하지 못했다")
     if live == want:
         return None
     return (f"🖥 **호스트의 배포 스크립트가 저장소본과 다르다** — 호스트 `{live[:8]}` · "

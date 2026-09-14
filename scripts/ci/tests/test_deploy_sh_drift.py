@@ -14,6 +14,7 @@
 영원히 안 보인다 — 이 이슈가 막으려는 바로 그 모양이다.
 """
 import hashlib
+import tempfile
 import io
 import os
 import sys
@@ -26,12 +27,16 @@ import ec2_status as E  # noqa: E402
 
 
 def repo_hash() -> str:
-    with open(os.path.join(ROOT, E.REPO_DEPLOY_SH), "rb") as f:
+    with open(E.REPO_DEPLOY_SH, "rb") as f:
         return hashlib.sha256(f.read().replace(b"\r", b"")).hexdigest()
 
 
 def main() -> int:
-    os.chdir(ROOT)          # 저장소 상대 경로로 읽는다
+    # **일부러 다른 디렉터리에서 돈다** (`!426` 리뷰). 전에는 여기서
+    # `os.chdir(ROOT)` 를 했는데, 그것이 **상대 경로 버그를 가리고 있었다** —
+    # 잡의 작업 디렉터리가 저장소 루트가 아니면 드리프트를 조용히 못 보던 것을
+    # 검사가 못 잡았다. 이 검사가 막으려던 바로 그 모양이었다.
+    os.chdir(tempfile.gettempdir())
     want = repo_hash()
 
     # ── ① 같으면 조용하다 ───────────────────────────────────────────────
@@ -57,6 +62,23 @@ def main() -> int:
         assert "상태 파일에 없다" in line and "ec2-status.sh" in line, (why, line)
     print("  못 쟀으면 — '옛 ec2-status.sh 다' 라고 말한다")
 
+    # ── ③-b **저장소본을 못 읽어도 조용하지 않다** (`!426` 리뷰) ────────
+    #    상대 경로 + 조용한 None 이면, 이 검사가 통째로 죽어도 화면이 같다.
+    keep = E.REPO_DEPLOY_SH
+    try:
+        E.REPO_DEPLOY_SH = os.path.join(tempfile.gettempdir(), "없는-deploy-485.sh")
+        line = E.deploy_sh_drift({"deploy_sh_sha256": "0" * 64})
+        assert line and "저장소의 배포 스크립트를 못 읽었다" in line, line
+    finally:
+        E.REPO_DEPLOY_SH = keep
+    print("  저장소본을 못 읽어도 — 조용하지 않다")
+
+    # ── ③-c **작업 디렉터리가 어디든 읽는다** ───────────────────────────
+    assert os.path.isabs(E.REPO_DEPLOY_SH), f"절대 경로가 아니다: {E.REPO_DEPLOY_SH}"
+    assert E.deploy_sh_drift({"deploy_sh_sha256": want}) is None, \
+        "다른 디렉터리에서 돌면 판정이 달라진다"
+    print(f"  작업 디렉터리와 무관하게 읽는다 (지금 cwd={os.getcwd()!r})")
+
     # ── ④ `problems()` 에 실제로 실린다 ─────────────────────────────────
     #    함수만 맞고 카드에 안 실리면 아무 소용이 없다(`-133` 에서 겪은 것).
     from datetime import datetime
@@ -81,7 +103,11 @@ def main() -> int:
     assert "DEPLOY_SH_SHA" in sh, "ec2-status.sh 가 해시를 재지 않는다"
     assert "deploy_sh_sha256" in sh, "ec2-status.sh 가 그 값을 JSON 에 안 넣는다"
     assert "DEPLOY_SH_SHA \\" in sh or "DEPLOY_SH_SHA " in sh, "export 목록에 없다"
-    print("  재는 쪽(ec2-status.sh)도 같이 고쳐져 있다")
+    # **빈 입력의 해시가 나가지 않아야 한다** (`!426` 리뷰). 그냥 파이프로 넘기면
+    # 파일이 없을 때 `sha256sum` 이 e3b0c442… 를 내보내고, 읽는 쪽은 그것을
+    # "못 쟀음" 이 아니라 **"다름"** 으로 읽어 없는 드리프트를 매일 보고한다.
+    assert '[ -r "$DEPLOY_SH" ]' in sh, "파일 존재를 안 본다 — 빈 해시가 나간다"
+    print("  재는 쪽(ec2-status.sh)도 같이 고쳐져 있다 — 빈 해시를 안 보낸다")
 
     print("TEST_DEPLOY_SH_DRIFT OK")
     return 0
