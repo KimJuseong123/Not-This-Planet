@@ -49,6 +49,7 @@ namespace Metagame.EditorTools
                     scenes.Add(stage.EndingScenePath);
             }
 
+            scenes.Add(Metagame.UI.LobbyTransition.PracticeScenePath);
             return scenes.ToArray();
         }
 

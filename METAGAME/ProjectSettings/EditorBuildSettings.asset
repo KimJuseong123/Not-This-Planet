@@ -20,4 +20,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Customizer.unity
     guid: c79af3caf775445295bf24076df4db6e
+  - enabled: 1
+    path: Assets/Scenes/PracticeLobby.unity
+    guid: 05856f09c0fb07f45bb538075758dcd8
   m_configObjects: {}

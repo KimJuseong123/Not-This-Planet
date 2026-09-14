@@ -47,6 +47,16 @@ namespace Metagame.UI
 
         public bool IsBusy => busy;
 
+        public const string PracticeScenePath = "Assets/Scenes/PracticeLobby.unity";
+
+        public bool BeginPractice()
+        {
+            if (busy || Mirror.NetworkClient.active || Mirror.NetworkServer.active) return false;
+            busy = true;
+            transitionRoutine = StartCoroutine(LoadSoloRoutine(PracticeScenePath, false));
+            return true;
+        }
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
