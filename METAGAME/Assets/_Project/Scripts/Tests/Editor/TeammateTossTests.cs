@@ -372,6 +372,27 @@ namespace Metagame.Gameplay.Tests
                 "한 바퀴 돌아도 새 던지기다.");
         }
 
+        /// <summary>
+        /// <b>그릴 곳이 아직 없으면 본 것으로 치지 않는다</b> (!436 AI 리뷰).
+        ///
+        /// <para>스폰 도중 옷(<c>Doll.Suit</c>)이 없는 틈에 던지기가 오면, 재생은
+        /// 건너뛰면서 수만 적어 두는 구현에서는 <b>그 동작이 영영 안 보인다.</b>
+        /// 돌아가야 다음 틱에 다시 판단한다.</para>
+        /// </summary>
+        [Test]
+        public void ATossThatArrivesBeforeTheModelIsNotSwallowed()
+        {
+            var net = TestSource.Blank(TestSource.Read("Runtime/Network/NetPlayer.cs"));
+            var method = TestSource.Method(net, "void PlayTossIfNew(uint now)");
+
+            var guardAt = method.IndexOf("return;", System.StringComparison.Ordinal);
+            var recordAt = method.IndexOf("_tossSeqKnown = true;", System.StringComparison.Ordinal);
+
+            Assert.Greater(guardAt, -1, "그릴 곳이 없을 때 돌아가는 자리가 있어야 한다.");
+            Assert.Greater(recordAt, guardAt,
+                "본 것으로 적는 것은 **돌아간 뒤**여야 한다 — 먼저 적으면 그 던지기를 삼킨다.");
+        }
+
         // ── 동작이 실제로 있는가 ────────────────────────────────
 
         /// <summary>

@@ -353,7 +353,16 @@ namespace Metagame.Network
 
         void PlayTossIfNew(uint now)
         {
-            if (ShouldPlayToss(_seenTossSeq, now, _tossSeqKnown)) body?.Doll?.Suit?.PlayToss();
+            // **그릴 곳이 아직 없으면 본 것으로 치지 않는다** (!436 AI 리뷰).
+            //
+            // 예전에는 `body?.Doll?.Suit?.PlayToss()` 로 두고 아래에서 무조건 수를
+            // 적었다. 스폰 도중 옷이 아직 없는 틈에 던지기가 오면 **재생은 건너뛰면서
+            // 본 것으로 적혀** 그 동작이 영영 안 보인다. 여기서 돌아가면 다음 틱에
+            // 다시 판단한다.
+            var suit = body != null && body.Doll != null ? body.Doll.Suit : null;
+            if (suit == null) return;
+
+            if (ShouldPlayToss(_seenTossSeq, now, _tossSeqKnown)) suit.PlayToss();
 
             _seenTossSeq = now;
             _tossSeqKnown = true;
