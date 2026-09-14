@@ -95,10 +95,14 @@ if (!link.PreserveAnchor)
 클립이 나간다. 그래서 굽는 쪽에 가드를 두었다.
 
 ```csharp
-if (moved.Count < BoneNames.Length / 2)
+var still = BoneNames.Where(n => !moved.Contains(n)).ToArray();
+if (still.Length > 0)
     throw new InvalidOperationException(
-        $"클립이 뼈에 붙지 않았다 — 움직인 뼈 {moved.Count}/{bones.Length}개. …");
+        $"클립이 움직이지 않는 뼈가 있다 ({still.Length}/{bones.Length}개): " + …);
 ```
+
+> 처음에는 "절반 미만" 이었다. !436 AI 리뷰가 **한두 뼈만 어긋나면 통과한다**고 짚어
+> 하나라도 빠지면 실패하도록 좁혔다(§9-1).
 
 읽는 쪽에도 검증을 두었다(`TheBakedClipDrivesEveryBoneTheCodeReads`) — **굽는 목록과 읽는
 목록이 어긋나도 조용히 이상해지기** 때문이다.
@@ -244,12 +248,12 @@ public bool BodyViewActive => Downed || Tossed;
 
 ## 7. 검증
 
-**`TeammateTossTests` 32개** 신설. 전체 **1477개 / 17 실패.**
+**`TeammateTossTests` 34개** 신설. 전체 **1479개 / 17 실패.**
 
 | | 검증 수 | 실패 |
 | --- | --- | --- |
 | develop (`origin/develop` 실측) | 1444 | 17 |
-| 이 브랜치 | **1477** (+33) | **17** |
+| 이 브랜치 | **1479** (+35) | **17** |
 
 **새로 깨진 검증 없음. 실패 셋이 완전히 같다.**
 
@@ -268,6 +272,7 @@ public bool BodyViewActive => Downed || Tossed;
 | HUD 가 안 그린다 | **1개** — 〃 |
 | 참가자가 자기 빈손으로 게이지를 지운다 | **1개** — `AParticipantsGaugeSurvivesItsOwnEmptyHands` |
 | 권위 있는 몸도 받은 충전을 쓴다 | **1개** — `AnAuthoritativeBodyIgnoresTheRemoteCharge` |
+| 굽는 목록에만 뼈를 하나 더한다 | **1개** — `TheBakeListAndTheRuntimeListAreTheSame`(§9-2) |
 
 ### 7-2. 기존 검증 하나를 고쳤다
 
@@ -315,10 +320,97 @@ SyncVar 경로를 실제로 돌 수 없으므로 아래 넷은 2인 프로세스
 
 ---
 
-## 9. 남은 것
+## 9. !436 AI 리뷰에 대한 답
+
+⚠️(머지를 막지 않음) 판정이었고 중간 4건이었다. **셋을 받아들였고 하나는 적용할 수 없었다.**
+
+### 9-1. 굽는 가드가 "절반 미만" 만 잡았다 — 받아들임
+
+> 한두 뼈만 어긋나면 가드를 통과한 채 읽는 쪽이 그 뼈를 조용히 건너뛴다.
+
+**정확하다.** 내가 "절반" 으로 느슨하게 잡은 이유가 없었다. **하나라도 안 움직이면
+실패**로 좁히고, 어느 뼈가 빠졌는지 메시지에 나열한다 — 그것이 없으면 실패해도 어디를
+봐야 할지 모른다.
+
+### 9-2. 뼈 목록이 두 곳에 하드코딩 — 받아들임
+
+에디터 어셈블리가 게임플레이 어셈블리를 참조하지 않아 목록이 둘이다
+(`RabbitLocomotionAssets` 가 먼저 그렇게 하고 있었다). 참조를 만들 수 없으니
+**소스 글자로 맞대어 보는 검증**을 넣었다(`TheBakeListAndTheRuntimeListAreTheSame`).
+대조로 확인했다 — 굽는 목록에만 뼈 하나를 더하면 실패한다.
+
+### 9-3. early return 이 도구 상태 초기화를 건너뛴다 — 받아들임
+
+> 도구 충전 중 상태가 남은 채 양손 잡기로 넘어가면 HUD 가 `ChargingTool` 분기를 먼저 타
+> 던지기 게이지가 가려질 수 있다.
+
+**읽어서 반박하지 않고 확인했다.** `ResetToolState` 가 `chargingTool` 을 지우고 있어
+실제 증상이 나려면 도구가 외부에서 파괴되는 좁은 경로여야 한다. **그래도 지적은 맞다** —
+early return 이 아래 초기화를 건너뛰는 구조 자체가 함정이다. 초기화 세 줄을 던지기 분기
+**위로** 옮겨 두 경로가 모두 지나가게 했다.
+
+### 9-4. `tossCharge` 를 `SyncMode.Owner` 로 — **적용할 수 없다**
+
+> `[SyncVar(hook=null)]` 대신 `syncMode = SyncMode.Owner` 지정
+
+**Mirror 에는 그 API 가 없다.** 실측으로 확인했다.
+
+```csharp
+// ThirdParty/Mirror/Core/Attributes.cs
+public class SyncVarAttribute : PropertyAttribute
+{
+    public string hook;      // ← 이것뿐이다
+}
+
+// ThirdParty/Mirror/Core/NetworkBehaviour.cs
+[HideInInspector] public SyncMode syncMode = SyncMode.Observers;   // ← 컴포넌트 단위
+```
+
+`syncMode` 는 **NetworkBehaviour 단위**라, `NetPlayer` 를 `Owner` 로 바꾸면
+`downed`·`tossSeq`·`riding`·외모까지 전부 소유자에게만 가서 **남의 화면에서 사라진다.**
+
+**대역폭 지적 자체는 맞다.** 제대로 고치려면 소유자만 읽는 값들(`health` ·
+`rescueProgress` · `tossCharge`)을 별도 NetworkBehaviour 로 떼어야 하고, 그것은 이 MR 의
+범위를 넘는다 — §10 에 후속으로 적었다.
+
+### 9-5. 리뷰가 짚지 않았지만 그 덕에 찾은 것 — **빌드에서 안 움직일 뻔했다**
+
+9-1 을 고치려고 다시 구웠더니 `.anim` 에서 **181줄이 사라졌다.**
+
+```yaml
+m_ClipBindingConstant:
+  genericBindings: []      # ← 18개였던 것이 비었다
+```
+
+이 표가 **커브를 실제 뼈에 붙이는 것**이다. 비면 **에디터에서는 커브가 멀쩡히 보이는데
+빌드에서는 아무 뼈도 안 움직인다.**
+
+원인은 덮어쓰기다. `EditorUtility.CopySerialized` 는 메모리의 클립을 그대로 복사하는데
+그 표는 **새 에셋을 직렬화할 때** 만들어진다. 첫 굽기는 `CreateAsset` 이라 채워졌고,
+두 번째부터 비었다. 재임포트(`ForceUpdate`)로는 되살아나지 않는 것도 실측으로 확인했다.
+
+**언제나 지우고 새로 만들도록** 바꿨다. GUID 가 바뀌지만 이 클립은 `Resources.Load` 로
+이름으로만 찾으므로 참조가 깨질 데가 없다(GUID 검색 0건).
+
+> **기존 검증이 이것을 못 잡는다.** `TheBakedClipDrivesEveryBoneTheCodeReads` 는
+> **에디터 커브**를 보므로 통과한다. 그래서 **파일 자체**를 보는 검증을 따로 넣었다
+> (`TheShippedClipCanActuallyBindAtRuntime`).
+
+> **걷기도 같은 함정을 안고 있다.** `RabbitLocomotionAssets` 가 같은 `CopySerialized`
+> 패턴이다. 지금 `Rabbit_Walk.anim` 은 표가 차 있지만(한 번만 구웠다), **다시 구우면
+> 비게 된다.** §10 에 적었다.
+
+---
+
+## 10. 남은 것
 
 - **2인 프로세스 확인** (§7-3). 이것이 끝나기 전에는 "멀티가 된다" 고 적지 않는다.
 - **PlayMode 검증 어셈블리 신설**은 여전히 후속 이슈다. `-448`·`-505` 에 이어 세 번째로
   같은 한계에 걸렸다.
+- **`RabbitLocomotionAssets` 도 같은 덮어쓰기 함정을 안고 있다**(§9-5). 걷기·달리기를
+  다시 구우면 바인딩 표가 비어 빌드에서 안 움직인다. 이번 MR 에서 고치지 않은 것은 지금
+  그 클립들이 멀쩡하고, 남의 기능을 같은 MR 에서 건드리지 않기 위해서다.
+- **소유자만 읽는 SyncVar 를 별도 NetworkBehaviour 로**(§9-4). `health` ·
+  `rescueProgress` · `tossCharge` 가 방 전원에게 브로드캐스트된다.
 - 기획 §20.4 에 던지기 항목이 없다. `[Plan]` 에 한 줄 필요하다 — 조작(양손 잡기 + Q
   충전)과 세기를 적어 두어야 다음 사람이 도구 투척과 헷갈리지 않는다.

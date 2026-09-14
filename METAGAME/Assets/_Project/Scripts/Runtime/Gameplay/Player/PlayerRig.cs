@@ -2970,6 +2970,13 @@ namespace Metagame.Gameplay
                 return;
             }
 
+            // 여기까지 왔으면 도구를 들고 있지 않다. 도구 충전 상태를 **던지기 분기보다
+            // 먼저** 내린다 — 뒤에 두면 던지기가 early return 하면서 이 초기화를 건너뛰고,
+            // HUD 가 ChargingTool 분기를 먼저 타 던지기 게이지를 가린다(!436 AI 리뷰).
+            chargingTool = false;
+            toolCharge = 0f;
+            toolActionHeld = false;
+
             // 양손으로 동료를 잡고 있으면 그쪽이 Q 를 가져간다(S15P21B202-519).
             // 도구 경로 바로 뒤가 자리다 — 규칙이 같고(양손·Q·충전), 아래의 일반 손
             // 탐색으로 내려가면 잡은 채로 다른 것을 다시 잡으려 든다.
@@ -2978,10 +2985,6 @@ namespace Metagame.Gameplay
                 SyncHeldObjectOwnerCollision();
                 return;
             }
-
-            chargingTool = false;
-            toolCharge = 0f;
-            toolActionHeld = false;
 
             // 고정쇠가 조준 중이면 일반 손잡이/도구 탐색보다 우선한다.
             // 단순히 클릭한 상태가 아니라 실제 한 손이 고정쇠에 결합되어야 시작한다.

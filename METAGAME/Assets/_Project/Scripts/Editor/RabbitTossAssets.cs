@@ -110,10 +110,18 @@ namespace Metagame.EditorTools
                 // **정말 움직였는지 센다.** 짝이 안 맞으면 커브가 하나도 안 옮겨지는데,
                 // 그래도 에러 없이 "비어 있지만 멀쩡한" 클립이 나온다 — 게임에서는
                 // "던지는데 아무 일도 안 일어난다" 가 되고 원인을 찾기 어렵다.
-                if (moved.Count < BoneNames.Length / 2)
+                //
+                // **하나라도 빠지면 실패다.** 처음에는 "절반 미만" 으로 두었는데, 그러면
+                // 한두 뼈만 어긋났을 때 가드를 통과한 채 그 뼈만 조용히 안 움직인다
+                // (!436 AI 리뷰). 어느 뼈가 빠졌는지도 메시지에 적는다 — 그것이 없으면
+                // 실패해도 어디를 봐야 할지 모른다.
+                var still = BoneNames.Where(n => !moved.Contains(n)).ToArray();
+                if (still.Length > 0)
                     throw new InvalidOperationException(
-                        $"클립이 뼈에 붙지 않았다 — 움직인 뼈 {moved.Count}/{bones.Length}개. "
-                        + "FBX 안의 뼈 이름이 프리팹과 다른지 확인할 것.");
+                        $"클립이 움직이지 않는 뼈가 있다 ({still.Length}/{bones.Length}개): "
+                        + string.Join(", ", still)
+                        + ". FBX 안의 뼈 이름이 프리팹과 다른지, 블렌더 액션에 그 뼈의 키가 "
+                        + "있는지 확인할 것.");
                 clip.EnsureQuaternionContinuity();
                 var settings = AnimationUtility.GetAnimationClipSettings(clip);
                 settings.loopTime = false;      // 한 번짜리 동작이다
@@ -121,10 +129,26 @@ namespace Metagame.EditorTools
 
                 EnsureFolder(Output);
                 string outputPath = Output + "/" + ClipName + ".anim";
-                var existing = AssetDatabase.LoadAssetAtPath<AnimationClip>(outputPath);
-                if (existing == null) AssetDatabase.CreateAsset(clip, outputPath);
-                else { EditorUtility.CopySerialized(clip, existing); UnityEngine.Object.DestroyImmediate(clip); clip = existing; }
+                // **언제나 새로 만든다. 덮어쓰지 않는다.**
+                //
+                // 걷기(RabbitLocomotionAssets)처럼 CopySerialized 로 덮으면
+                // `m_ClipBindingConstant.genericBindings` 가 **빈 채로** 저장된다 —
+                // 그 표는 새 에셋을 직렬화할 때 만들어지기 때문이다. 표가 비면
+                // 에디터에서는 커브가 보이는데 <b>빌드에서는 아무 뼈도 안 움직인다.</b>
+                // 재임포트(ForceUpdate)로는 되살아나지 않는 것을 실측으로 확인했다.
+                //
+                // 지우고 만들면 GUID 가 바뀌는데, 이 클립은 `Resources.Load` 로 이름으로만
+                // 찾으므로 참조가 깨질 데가 없다(GUID 검색 0건).
+                if (AssetDatabase.LoadAssetAtPath<AnimationClip>(outputPath) != null)
+                    AssetDatabase.DeleteAsset(outputPath);
+                AssetDatabase.CreateAsset(clip, outputPath);
                 AssetDatabase.SaveAssetIfDirty(clip);
+
+                var written = File.ReadAllText(outputPath);
+                if (written.Contains("genericBindings: []"))
+                    throw new InvalidOperationException(
+                        "구운 클립에 런타임 바인딩 표가 비어 있다 — 빌드에서 아무 뼈도 "
+                        + "안 움직인다: " + outputPath);
 
                 Debug.Log($"[RabbitToss] {ClipName}: {clip.length:F2}초 · 뼈 {bones.Length}개 "
                           + $"(움직인 뼈 {moved.Count}개) · 반복 없음");

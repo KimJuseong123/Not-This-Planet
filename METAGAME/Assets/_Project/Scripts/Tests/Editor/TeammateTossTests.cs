@@ -412,6 +412,66 @@ namespace Metagame.Gameplay.Tests
                 "걷기 목록에 넣으면 걷는 동안 허리가 기준 자세로 끌려가 뻣뻣해진다.");
         }
 
+        /// <summary>
+        /// <b>굽는 목록과 읽는 목록이 같아야 한다</b> (!436 AI 리뷰).
+        ///
+        /// <para>에디터 어셈블리는 게임플레이 어셈블리를 참조하지 않으므로 뼈 이름이
+        /// <b>두 곳에 따로</b> 적혀 있다(<c>RabbitLocomotionAssets</c> 가 먼저 그렇게
+        /// 하고 있었다). 한쪽만 고치면 <b>커브가 있어도 읽는 쪽이 건너뛰거나, 읽는데
+        /// 커브가 없다.</b> 둘 다 에러 없이 조용히 이상해진다.</para>
+        ///
+        /// <para>참조를 만들 수 없으니 <b>소스 글자로 맞대어 본다.</b> 굽는 쪽은 이미
+        /// "하나라도 안 움직이면 실패" 로 막지만, 그것은 <b>굽을 때</b>만 돈다 — 목록이
+        /// 어긋난 채 굽지 않고 머지되는 길을 여기서 막는다.</para>
+        /// </summary>
+        [Test]
+        public void TheBakeListAndTheRuntimeListAreTheSame()
+        {
+            var editor = TestSource.Read("Editor/RabbitTossAssets.cs");
+            var declared = System.Text.RegularExpressions.Regex.Match(
+                editor, @"static readonly string\[\] BoneNames\s*=\s*\{(.*?)\}",
+                System.Text.RegularExpressions.RegexOptions.Singleline);
+            Assert.IsTrue(declared.Success, "굽는 쪽에서 BoneNames 선언을 찾지 못했다.");
+
+            var baked = System.Text.RegularExpressions.Regex
+                .Matches(declared.Groups[1].Value, "\"([^\"]+)\"")
+                .Select(m => m.Groups[1].Value)
+                .ToArray();
+
+            CollectionAssert.AreEquivalent(RabbitLocomotion.TossBoneNames.ToArray(), baked,
+                "굽는 뼈 목록과 읽는 뼈 목록이 다르다 — 한쪽만 고치면 조용히 안 움직인다.");
+        }
+
+        /// <summary>
+        /// <b>구운 클립에 런타임 바인딩 표가 있는가.</b>
+        ///
+        /// <para><c>m_ClipBindingConstant.genericBindings</c> 가 커브를 실제 뼈에 붙이는
+        /// 표다. <b>이것이 비면 에디터에서는 커브가 멀쩡히 보이는데 빌드에서는 아무 뼈도
+        /// 안 움직인다.</b></para>
+        ///
+        /// <para>실제로 한 번 그렇게 됐다 — 덮어쓰기(<c>CopySerialized</c>)로 다시 구우면
+        /// 그 표가 <b>빈 채로</b> 저장된다(표는 새 에셋을 직렬화할 때 만들어진다).
+        /// 위의 <c>TheBakedClipDrivesEveryBoneTheCodeReads</c> 는 <b>에디터 커브</b>를
+        /// 보므로 이 결함을 통과시킨다 — 그래서 파일 자체를 본다.</para>
+        /// </summary>
+        [Test]
+        public void TheShippedClipCanActuallyBindAtRuntime()
+        {
+            var path = System.IO.Path.Combine(
+                Application.dataPath,
+                "_Project/Animations/Characters/Rabbit/Resources/RabbitLocomotion/Rabbit_TossUp.anim");
+            Assert.IsTrue(System.IO.File.Exists(path), "구운 클립 파일이 없다: " + path);
+
+            var text = System.IO.File.ReadAllText(path);
+
+            Assert.That(text, Does.Not.Contain("genericBindings: []"),
+                "바인딩 표가 비었다 — 빌드에서 아무 뼈도 안 움직인다.");
+
+            var bindings = System.Text.RegularExpressions.Regex.Matches(text, @"typeID: 4").Count;
+            Assert.GreaterOrEqual(bindings, RabbitLocomotion.TossBoneNames.Count,
+                "뼈 수보다 바인딩이 적다 — 일부 뼈는 빌드에서 안 움직인다.");
+        }
+
         [Test]
         public void TheClipIsShortAndDoesNotLoop()
         {
