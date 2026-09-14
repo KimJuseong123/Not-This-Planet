@@ -8,10 +8,9 @@ namespace Metagame.Gameplay.Parts
     /// <summary>
     /// 운반 장치의 탑승·운전·견인 입력을 연결한다.
     ///
-    /// 유일한 운반 장치인 해제된 Part_1에 탑승·운전·견인 입력을 연결한다. 탑승 중
-    /// 좌·우클릭과 F는 장치 아래의 광역 저중력장을 켜고 끈다. 단일 파츠를 정밀하게
-    /// 드는 TractorBeam API는 내부 동작과 테스트를 위해 남겨 두지만, 일반 탑승 입력은
-    /// 광역장만 사용한다.
+    /// 활성화된 운반 장치에 탑승·운전·견인 입력을 연결한다. 탑승 중 좌·우클릭과 F는
+    /// 장치 아래 광역 저중력장을 켜고 끈다. Shift를 함께 누르면 바로 아래의 미용접
+    /// 파츠를 명시적으로 회수하거나 놓는다.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class TractorBeamController : MonoBehaviour
@@ -236,8 +235,28 @@ namespace Metagame.Gameplay.Parts
             if (fieldToggleRequested)
             {
                 fieldToggleRequested = false;
-                mountedVehicle.Field.Toggle();
-                SetStatus(mountedVehicle.Field.IsActive ? "저중력장 켬" : "저중력장 끔");
+                if (input.Run && mountedVehicle.Beam != null)
+                {
+                    if (mountedVehicle.Beam.IsHolding)
+                    {
+                        mountedVehicle.Beam.Release();
+                        mountedVehicle.Field.SetActive(false);
+                        SetStatus("파츠 내려놓음 · 저중력장 끔");
+                    }
+                    else
+                    {
+                        var result = mountedVehicle.Beam.TryGrab();
+                        SetStatus(result == BeamGrabResult.Grabbed ? "파츠 회수 · Shift+F로 내려놓기"
+                            : "회수 불가 · 미용접 파츠 바로 위에서 Shift+F");
+                    }
+                }
+                else
+                {
+                    if (mountedVehicle.Beam != null && mountedVehicle.Beam.IsHolding)
+                        mountedVehicle.Beam.Release();
+                    mountedVehicle.Field.Toggle();
+                    SetStatus(mountedVehicle.Field.IsActive ? "저중력장 켬" : "저중력장 끔");
+                }
             }
 
             if (mountedVehicle.Beam != null)
@@ -265,7 +284,7 @@ namespace Metagame.Gameplay.Parts
 
             mountedVehicle = FocusedVehicle;
             mountedVehicle.SetFacingDirection(player.PlanarForward);
-            SetStatus("탑승 완료 · WASD로 운전 · 좌/우클릭 또는 F로 저중력장 · E 하차");
+            SetStatus("WASD 운전 · F 저중력장 · Shift+F 파츠 회수/놓기 · E 하차");
         }
 
         void RefreshFocus()

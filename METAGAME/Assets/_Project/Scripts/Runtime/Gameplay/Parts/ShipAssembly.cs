@@ -31,6 +31,13 @@ namespace Metagame.Gameplay.Parts
         void OnEnable() { if (!Pads.Contains(this)) Pads.Add(this); }
         void OnDisable() => Pads.Remove(this);
 
+        void Start()
+        {
+            var dock = GetComponent<AssemblyDock>();
+            if (dock == null) dock = gameObject.AddComponent<AssemblyDock>();
+            dock.Configure(this);
+        }
+
         /// <summary>조립 구역의 실제 고정 표면만 용접 상대로 인정한다.</summary>
         public static ShipAssembly WeldSurface(Collider surface, Vector3 point)
         {
