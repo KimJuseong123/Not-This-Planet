@@ -76,6 +76,9 @@ Mirror 가 `bufferTime = sendInterval × bufferTimeMultiplier` 만큼 뒤로 잡
 | **용접 — 접합 결과** | **P3** | ✅ | 같음 | 협동 핵심. **결과는 반드시 서버** |
 | **저중력장(UFO 빔) 켜짐/꺼짐** | **P3** | ✅ | `LowGravityField.ApplyNetworkActive` · `WorldSync.FieldState` | 켜는 것은 탑승자의 입력이지만 **그 결과를 안 탄 사람도 봐야 한다**. "절반 켜짐" 이 없으니 섞을 것도 없다. 물리는 서버만 돈다(`Tick` 이 `!_physicsAuthority` 에서 반환) — 참가자는 **그림만** 켠다 (`-505`) |
 | **체력** | **P3** | ✅ | `PlayerRig.SetRemoteHealth` · `NetPlayer.health` | 피해 판정은 서버가 한다(`ApplyDamage` 가 `!ServerAuthority` 에서 반환). 참가자는 받아서 **빨간 테두리와 `IsDead`** 에만 쓴다. 비율이 아니라 **절댓값**을 보내는 이유는 `IsDead` 가 `Health <= 0` 이라서다 — 비율만 보내면 그 값이 로컬로 남아 어긋난다. 지금은 **자기 것만** 보낸다(남의 체력을 읽는 곳이 없다) (`-513`) |
+| **던져져 날아가는 중** | **P3** | ✅ | `PlayerRig.SetRemoteTossed` · `NetPlayer.tossed` | 남이 나를 던진 결과라 예측할 수 없다. 받아서 쓰는 것은 **시야 하나**다 — 몸이 구르는 대로 화면이 넘어갔다가 3인칭으로 물러난다(기절과 같은 경로, `BodyViewActive`). 몸의 위치는 기존 자세 동기화가 이미 나른다. **자기 것만** 보낸다 — 카메라는 각자 화면의 일이다 (`-519`) |
+| **던지는 동작(횟수)** | **P3** | ✅ | `NetPlayer.tossSeq` · `SpaceSuit.PlayToss` | 한 순간의 사건이라 상태가 없다. `ClientRpc` 로 보내면 **패킷 하나를 잃을 때 그 동작이 영영 안 보이므로** 세어서 보내고 받는 쪽이 "마지막으로 본 수와 다르다" 로 판단한다. `uint` 가 한 바퀴 도는 것까지 `!=` 로 받는다. **위 둘과 달리 남의 몸에도 넣는다** — 던지는 그림은 남이 보는 것이다 (`-519`) |
+| **던지기 충전** | **P2** | ✅ | `PlayerRig.SetRemoteTossCharge` · `NetPlayer.tossCharge` | 게이지라 중간값이 뜻을 갖는다. 참가자가 스스로 세지 않는 이유는 **잡기 판정이 서버에 있어** 참가자 기계의 손에 조인트가 있다고 믿을 근거가 없어서다(`-448` 의 구조 게이지와 같은 판단). 받는 쪽이 자기 빈손으로 이 값을 지우지 않게 막아 두었다 (`-519`) |
 | 운석 포즈 | **P2** | ✅ | `WorldSync.MeteorPose` | 서버 씨앗으로 정해진다. 내 입력과 무관 |
 | 운석 예고 원 | **P4** | ✅ | `Meteor.TryPredictImpact` | 위치·속도·중력으로 직접 푼다 → 같은 입력이면 같은 답. 보낼 필요가 없다 |
 | 탑승 여부 `riding` | **P3** | ✅ | `NetPlayer` SyncVar | 이산 |
