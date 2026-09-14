@@ -209,7 +209,7 @@ namespace Metagame.Gameplay.Tests
 
             var velocity = meteor.GetComponent<Rigidbody>().linearVelocity;
 
-            Assert.AreEqual(PhysicsScale.BatDeflectSpeed, velocity.magnitude, 0.01f);
+            Assert.AreEqual(PhysicsScale.BatDeflectSpeed * 1.35f, velocity.magnitude, 0.01f);
             Assert.Greater(velocity.x, 0f, "조준한 쪽으로 가야 한다.");
             Assert.Greater(velocity.y, 0f, "약간 위로 들려야 한다(기획 §18.2).");
             Assert.AreEqual(0f, velocity.z, 0.01f);
@@ -237,7 +237,7 @@ namespace Metagame.Gameplay.Tests
         {
             var velocity = DeflectWith(Vector3.down);
 
-            Assert.AreEqual(PhysicsScale.BatDeflectSpeed, velocity.magnitude, 0.01f);
+            Assert.AreEqual(PhysicsScale.BatDeflectSpeed * 1.35f, velocity.magnitude, 0.01f);
             Assert.Greater(velocity.y, 0f, "수직으로 겨눠도 위로 들려 날아가야 한다.");
             Assert.IsFalse(float.IsNaN(velocity.x), "방향을 정하지 못해 NaN 이 되면 안 된다.");
         }
@@ -295,6 +295,63 @@ namespace Metagame.Gameplay.Tests
             Assert.AreSame(meteor, bat.LastDeflected);
             Assert.IsNull(bat.LastStruck);
             Assert.IsFalse(target.Ragdolled, "운석을 쳤으면 동료는 멀쩡해야 한다.");
+        }
+
+        [TestCase(0.60f, 3, 1.8f)]
+        [TestCase(0.45f, 2, 1.35f)]
+        [TestCase(0.90f, 1, 1f)]
+        public void TimingGradeChangesLaunchSpeed(float fraction, int grade, float multiplier)
+        {
+            float t = PhysicsScale.BatSwingWindowSeconds * fraction;
+            var meteor = MakeMeteor(Vector3.up * (-0.5f * UnityEngine.Physics.gravity.y * t * t), Vector3.zero);
+            var bat = MakeBat();
+            Assert.IsTrue(bat.Swing(Vector3.zero, Vector3.forward));
+            Assert.AreEqual(grade, bat.RhythmGrade);
+            Assert.AreEqual(PhysicsScale.BatDeflectSpeed * multiplier, meteor.Body.linearVelocity.magnitude, 0.01f);
+            Assert.AreEqual(1u, bat.RhythmSequence);
+            Assert.IsNull(MeteorBat.FindGuideTarget(Vector3.zero, Meteor.All));
+        }
+
+        [Test]
+        public void GuideAppearsBeforeSwingWindowButEarlySwingDoesNotDeflect()
+        {
+            float t = PhysicsScale.BatSwingWindowSeconds + 1f;
+            var meteor = MakeMeteor(Vector3.up * (-0.5f * UnityEngine.Physics.gravity.y * t * t), Vector3.zero);
+            var bat = MakeBat();
+            Assert.AreSame(meteor, MeteorBat.FindGuideTarget(Vector3.zero, Meteor.All));
+            Assert.IsFalse(bat.Swing(Vector3.zero, Vector3.forward));
+            Assert.IsFalse(meteor.Harmless);
+            Assert.AreEqual(0, bat.RhythmGrade);
+            Assert.Greater(bat.Cooldown, 0f);
+            bat.Swing(Vector3.zero, Vector3.forward);
+            Assert.AreEqual(1u, bat.RhythmSequence, "Cooldown input must not emit another result.");
+        }
+
+        [TestCase(-0.1f)]
+        [TestCase(0f)]
+        [TestCase(1.01f)]
+        [TestCase(float.NaN)]
+        public void InvalidOrMissedTimingIsFailure(float seconds)
+        {
+            Assert.AreEqual(0, MeteorBat.GradeFor(seconds, 1f));
+        }
+
+        [Test]
+        public void RemoteGuideUsesServerGroundAndExcludesDeflectedGhost()
+        {
+            var meteor = MakeMeteor(new Vector3(0f, 12f, 0f), Vector3.down);
+            meteor.enabled = false;
+            meteor.Unregister();
+            meteor.ApplyGuideSnapshot(10f, false, 0.8f, 2f);
+            var ghosts = new[] { meteor };
+            Assert.AreSame(meteor, MeteorBat.FindGuideTarget(Vector3.zero, ghosts));
+            Assert.IsNull(MeteorBat.FindGuideTarget(Vector3.right * 3f, ghosts));
+            Assert.AreEqual(0.8f, meteor.BatSwingWindowSeconds);
+            Assert.IsTrue(meteor.TryPredictImpact(out _, out var point));
+            Assert.AreEqual(10f, point.y);
+            Assert.IsFalse(Meteor.All.Contains(meteor), "HUD prediction must not register a network ghost.");
+            meteor.ApplyGuideSnapshot(10f, true, 0.8f, 2f);
+            Assert.IsNull(MeteorBat.FindGuideTarget(Vector3.zero, ghosts));
         }
 
         // --- 리그 ---------------------------------------------------------

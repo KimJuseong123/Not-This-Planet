@@ -16,9 +16,7 @@ namespace Metagame.Gameplay
     /// 닿지 않아도 넓은 에너지 궤적으로 판정을 납득시킨다" 고 정한다. 그래서 판정은
     /// 기하 두 가지다 — 낙하 지점까지의 거리와 착탄까지 남은 시간.
     ///
-    /// <b>완벽한 프레임·등급·치명타가 없다.</b> §18.1 이 그렇게 정하므로 맞으면 맞고
-    /// 아니면 헛스윙이다. 난이도는 "맞을 자리에 서 있어야 한다" 는 것 하나로 만든다 —
-    /// 타격 보조 반경(2.5m)이 운석 충격 반경(2m)보다 조금 넓을 뿐이다.
+    /// 타이밍 가이드와 동일한 창에서 GOOD/GREAT/PERFECT를 판정한다.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class MeteorBat : ToolBase
@@ -101,6 +99,29 @@ namespace Metagame.Gameplay
             IsSwinging ? Mathf.Clamp01(swingElapsed / PhysicsScale.BatSwingSeconds) : 0f;
 
         public bool CanSwing => cooldown <= 0f;
+
+        // Results persist until the next accepted swing and travel with tool snapshots.
+        public uint RhythmSequence { get; private set; }
+        public byte RhythmGrade { get; private set; } // 0 miss, 1 good, 2 great, 3 perfect
+        public const float GuideSeconds = 3f;
+        public const float PerfectAt = 0.60f;
+
+        public static byte GradeFor(float seconds, float window)
+        {
+            if (window <= 0f || float.IsNaN(seconds) || seconds <= 0f || seconds > window) return 0;
+            float error = Mathf.Abs(seconds / window - PerfectAt);
+            return error <= 0.08f ? (byte)3 : error <= 0.20f ? (byte)2 : (byte)1;
+        }
+
+        public static float SpeedFor(byte grade) => PhysicsScale.BatDeflectSpeed *
+            (grade == 3 ? 1.8f : grade == 2 ? 1.35f : 1f);
+
+        public void ApplyRhythmResult(uint sequence, byte grade, float remainingCooldown = 0f)
+        {
+            RhythmSequence = sequence;
+            RhythmGrade = grade;
+            cooldown = Mathf.Max(0f, remainingCooldown);
+        }
 
         /// <summary>가장 최근 스윙에서 쳐낸 운석. 헛스윙이면 null.</summary>
         public Meteor LastDeflected { get; private set; }
@@ -208,6 +229,7 @@ namespace Metagame.Gameplay
 
             if (!CanSwing) return false;
 
+            RhythmGrade = 0;
             var direction = LaunchDirection(facing);
 
             // <b>운석 → 동료 → 소품</b> 순서다. 운석이 방망이의 목적이고(§18.1), 동료
@@ -216,7 +238,9 @@ namespace Metagame.Gameplay
             var meteor = FindTarget(origin);
             if (meteor != null)
             {
-                meteor.Deflect(direction * PhysicsScale.BatDeflectSpeed);
+                meteor.TryPredictImpact(out var seconds, out _);
+                RhythmGrade = GradeFor(seconds, meteor.BatSwingWindowSeconds);
+                meteor.Deflect(direction * SpeedFor(RhythmGrade));
                 LastDeflected = meteor;
                 LastSwingConnected = true;
             }
@@ -246,13 +270,13 @@ namespace Metagame.Gameplay
             // 날아가 버리므로 연타할 것이 남지 않는다.
             if (!LastSwingConnected) cooldown = PhysicsScale.BatMissCooldownSeconds;
 
-            // 동작을 시작한다. <b>판정 뒤에 시작한다</b> — 동작이 판정을 좌우하면
-            // 기획 §18.1 의 "완벽한 프레임 판정은 없다" 가 깨진다.
+            // 입력 순간의 시간으로 판정하고 스윙 연출을 시작한다.
             swingElapsed = 0f;
             swingAim = facing;
 
             ShowSwing(direction);
 
+            RhythmSequence++;
             Swung?.Invoke(this, LastSwingConnected);
             return LastSwingConnected;
         }
@@ -503,20 +527,23 @@ namespace Metagame.Gameplay
         /// 운석이 여러 개면 가장 먼저 착탄할 운석을 선택한다"). 가장 가까운 것이 아니다 —
         /// 플레이어가 막아야 하는 것은 곧 떨어질 쪽이다.
         /// </summary>
-        public static Meteor FindTarget(Vector3 origin)
+        public static Meteor FindTarget(Vector3 origin) => FindGuideTarget(origin, Meteor.All, true);
+
+        public static Meteor FindGuideTarget(Vector3 origin,
+            System.Collections.Generic.IReadOnlyList<Meteor> meteors, bool strikeOnly = false)
         {
             Meteor best = null;
             var bestSeconds = float.MaxValue;
 
-            for (var i = 0; i < Meteor.All.Count; i++)
+            for (var i = 0; i < meteors.Count; i++)
             {
-                var meteor = Meteor.All[i];
-                if (meteor == null || meteor.HasImpacted) continue;
+                var meteor = meteors[i];
+                if (meteor == null || meteor.Harmless || meteor.GroundProp) continue;
                 if (!meteor.TryPredictImpact(out var seconds, out var point)) continue;
 
                 // 너무 이르면 헛스윙이다. 이 조건이 §18.1 의 "너무 일찍 휘두르면
                 // 헛스윙하지만 다시 시도할 수 있다" 를 만든다.
-                if (seconds > meteor.BatSwingWindowSeconds) continue;
+                if (strikeOnly && seconds > meteor.BatSwingWindowSeconds) continue;
 
                 // 낙하 지점까지의 거리는 <b>수평으로</b> 잰다. 운석은 아직 공중에 있고
                 // 플레이어는 지면에 있으므로, 3차원 거리로 재면 높이 차가 판정을 먹는다.

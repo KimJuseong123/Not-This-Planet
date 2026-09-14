@@ -16,7 +16,7 @@ namespace Metagame.UI
     /// 그리는 도중에 아틀라스가 다시 만들어지면 이미 찍은 글자의 UV 가 어긋나
     /// 엉뚱한 글자가 나온다. clipping = Overflow 도 필수(받침이 잘린다).
     /// </summary>
-    public class GameHud : MonoBehaviour
+    public partial class GameHud : MonoBehaviour
     {
         public PlayerRig Local;
         public TractorBeamController Transport;
@@ -65,6 +65,7 @@ namespace Metagame.UI
         void Update()
         {
             if (!warmed) WarmFont();
+            UpdateMeteorRhythm();
 
             if (Local == null && GameSession.Instance != null) Local = GameSession.Instance.LocalPlayer;
             if (Transport == null && GameSession.Instance != null) Transport = GameSession.Instance.Transport;
@@ -123,7 +124,7 @@ namespace Metagame.UI
             sb.Append("처음부터 다시 그 자리에서 서기 도움말 커서 풀기 이동 달리기 점프 시점 기어오르기");
             sb.Append("자유 이동 방향 카메라 기준 Alt 떼도 현재 시점 유지 토끼 귀");
             sb.Append("팔을 위로 누르고 있으면 손이 잡는다 가벼운 도구는 크로스헤드에 고정된다 무거운 물체는 고정물처럼 짚는다");
-            sb.Append("도구 양손 투척 충전 놓기");
+            sb.Append("도구 양손 투척 충전 놓기 운석 타격 준비 지금 클릭 좌클릭 노란 구간에 맞춰 휘두르기 다시 준비 너무 일찍 실패 GOOD GREAT PERFECT MISS");
             sb.Append("운반 장치 탑승 하차 운전 견인 부유");
             sb.Append("1장 탐험 태블릿 파츠 발견 미발견 상태 씬 배치 확인 고정 해제 운반 중 배치됨 조립 완료");
             for (int i = 0; i < WorldLabel.All.Count; i++)
@@ -262,6 +263,7 @@ namespace Metagame.UI
 
             Reticle(w, h);
             WeldingMaterialGauge(w, h);
+            DrawMeteorRhythm(w, h);
 
             // 왼쪽 위 — 진행 상황
             Box(new Rect(14f, 12f, 268f, 142f), new Color(0f, 0f, 0f, 0.38f));

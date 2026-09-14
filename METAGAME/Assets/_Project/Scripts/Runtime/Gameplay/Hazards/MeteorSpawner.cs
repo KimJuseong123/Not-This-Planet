@@ -578,6 +578,10 @@ namespace Metagame.Gameplay.Hazards
         /// </summary>
         public struct NetworkMeteorPose
         {
+            public float GroundHeight;
+            public bool Harmless;
+            public float BatWindow;
+            public float BatRadius;
             public Vector3 Position;
             public Quaternion Rotation;
             public Vector3 Velocity;
@@ -615,6 +619,7 @@ namespace Metagame.Gameplay.Hazards
                 var ghost = _ghosts[i];
                 if (ghost == null) continue;
 
+                ghost.ApplyGuideSnapshot(poses[i].GroundHeight, poses[i].Harmless, poses[i].BatWindow, poses[i].BatRadius);
                 var body = ghost.GetComponent<Rigidbody>();
                 if (body != null)
                 {
