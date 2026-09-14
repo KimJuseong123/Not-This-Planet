@@ -278,6 +278,18 @@ try:
         assert M.channel_of(bad) is None, bad
     print("  ⑮-a 이름으로 채널을 가른다 (v 없는 릴리스·모양 틀린 것은 거부) ✅")
 
+    # **접두만 보면 경로가 샌다.** 이 값이 그대로 `manifest/<값>.json` 이 되므로
+    # `dev-../../x` 는 배포 폴더 밖을 가리킨다. 릴리스는 parse_version 이 이미
+    # 막고 있었고, 채널을 더하면서 그 보호가 dev·qa 에는 없었다.
+    for escape in ("dev-../../x", "qa-../../../etc/passwd", "dev-a/b", "qa-1/../2",
+                   "dev-2026-09-14-abc", "qa-abc-1a2b3c4", "dev-20260914-ZZZZZZZ",
+                   "dev-", "qa-", "dev-20260914-", "qa-401-"):
+        assert M.channel_of(escape) is None, "경로가 새는 이름을 받았다: " + escape
+    esc_src = os.path.join(tmp, "esc-src")
+    build(esc_src, {"Game.exe": b"x"})
+    assert M.main([esc_src, "dev-../../x", "--out", os.path.join(tmp, "esc")]) == 1
+    print("  ⑮-a2 경로가 새는 버전 이름을 거부한다 ✅")
+
     ch = os.path.join(tmp, "ch")
     rel_dir = os.path.join(tmp, "ch-rel")
     dev_dir = os.path.join(tmp, "ch-dev")

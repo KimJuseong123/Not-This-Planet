@@ -724,6 +724,87 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
     reports:
       junit: unity-junit.xml    # 실패한 테스트를 파이프라인 화면에서 바로 본다(unity-compile 과 같은 결)
 
+build-devbuild:           # QA 가 쓸 개발·QA 빌드 (S15P21B202-460)
+  stage: deploy           # **손으로 빌드해 나눠 주는 일을 없앤다.** QA 는 두 번 일어나는데
+  image: unityci/editor:ubuntu-6000.5.4f1-windows-mono-3.2.2   # (머지 뒤 develop · 머지 전 그 MR)
+  tags: [linux]           # 런처는 릴리스된 버전만 볼 수 있어서 정작 그때 쓸모가 없었다.
+  needs: []
+  resource_group: unity   # unity-compile·release-windows 와 같은 그룹 — Unity 가 겹치면 서로 굶는다
+  timeout: 90m
+  interruptible: false
+  rules:
+    # **develop 은 새벽에만.** 머지마다 돌리면 웜이어도 10분대인 데다 `resource_group`
+    # 때문에 `unity-compile` 과 직렬이라 **아침에 MR 검사가 줄을 선다**(-460 의 비용 표).
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_DEPLOY_DEV == "true"
+    # **MR 은 버튼.** 리뷰를 기다리는 동안 그 브랜치 빌드로 QA 를 돌릴 수 있어야 한다.
+    # `allow_failure` 로 둬서 **누르지 않은 버튼이 파이프라인을 붙잡지 않는다.**
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+  variables:
+    SPACE_BUILD_DIR: "$CI_PROJECT_DIR/devbuild/NotThisPlanet"
+    SPACE_DEV: "1"        # 개발 백엔드(`/dev`)를 가리키는 빌드다 — 실유저 서버가 아니다
+  script:
+    - LIC=/root/.local/share/unity3d/Unity/Unity_lic.ulf
+    - |
+      if [ ! -s "$LIC" ]; then
+        echo "❌ Unity 라이선스가 마운트되지 않았다: $LIC (S15P21B202-271)"; exit 1
+      fi
+    - python3 scripts/ci/publish_devbuild.py version
+    - echo "=== 빌드 시작 ($(cat release-version.txt)) ==="
+    # **릴리스 버전을 박지 않는다.** dev·qa 빌드는 `vX.Y.Z` 가 아니므로 `-404` 의
+    # 게이트에서 "버전을 못 읽음" 이 된다 — 그래서 개발 서버는 게이트를 꺼 둔다.
+    - |
+      set +e
+      unity-editor \
+        -projectPath METAGAME \
+        -quit \
+        -buildTarget StandaloneWindows64 \
+        -executeMethod Metagame.EditorTools.SpaceBuild.BuildWindows \
+        -logFile "$CI_PROJECT_DIR/devbuild.log"
+      RC=$?
+      set -e
+      grep -n "error CS\|\[NotThisPlanet\] 빌드" "$CI_PROJECT_DIR/devbuild.log" | tail -5 || true
+    # **빌드가 추적되는 에셋을 지웠는지 본다** (S15P21B202-351) — 릴리스와 같은 위험이다.
+    - |
+      if ! git diff --quiet -- METAGAME/; then
+        echo "❌ 빌드가 추적되는 에셋을 바꿨다 — 그 상태로 올리지 않는다"
+        git diff --name-status -- METAGAME/ | head -20
+        exit 1
+      fi
+    - python3 scripts/ci/publish_devbuild.py publish "$RC"
+  artifacts:
+    when: always
+    expire_in: 3 days     # 로그만 남긴다. zip 은 레지스트리를 거쳐 바로 배치되고 지워진다
+    paths: [devbuild.log, release-version.txt, release-package.txt]
+
+publish-devbuild:         # 개발·QA 빌드를 배포 폴더로 (S15P21B202-460)
+  stage: deploy           # `publish-builds` 와 같은 이유로 배포 러너에서 돈다 —
+  image: python:3.12      # 공용 러너에 /var/www 를 rw 로 주지 않는다.
+  tags: [deploy]
+  needs:
+    # **`optional: true` 가 없으면 qa 배치 경로가 아예 안 만들어진다.** web 파이프라인
+    # (`STAGE_VERSION`)에서는 `build-devbuild` 가 rules 로 빠지는데, 없는 잡을 `needs` 로
+    # 걸면 GitLab 은 **파이프라인 생성 자체를 거절한다.** `promote-builds` 가 `-467` 에서
+    # 똑같이 당했다. `glab ci lint` 는 rules 를 평가하지 않아 통과한다 — 여기서만 걸린다.
+    - job: build-devbuild
+      artifacts: true
+      optional: true
+  interruptible: false
+  rules:
+    # 새벽 빌드는 바로 배치한다 — 스케줄의 ref 는 `develop`(보호 브랜치)이라 배포 러너가 집는다.
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_DEPLOY_DEV == "true"
+    # **MR 파이프라인에서는 이 잡을 만들지 않는다.** 배포 러너는 `ref_protected` 라
+    # MR ref 의 잡을 **아예 집지 않는다**(`-405` 실측). 만들어 두면 눌렀을 때 러너를
+    # 찾지 못해 **영원히 pending 으로 파이프라인을 붙잡는다.**
+    #
+    # qa 빌드는 대신 이 길로 배치한다: Run pipeline(develop) 에서 `STAGE_VERSION` 에
+    # `qa-<MR번호>-<커밋>` 을 주고 이 잡을 누른다. `promote-builds` 의 되돌리기와 같은 결이다.
+    - if: $CI_PIPELINE_SOURCE == "web" && $STAGE_VERSION
+      when: manual
+  script:
+    - python scripts/ci/publish_builds.py stage
+
 # ── 알림 ─────────────────────────────────────────────────────────────────
 publish-builds:           # 릴리스 산출물을 사용자가 받는 자리로 (S15P21B202-405)
   stage: deploy           # zip 은 아티팩트로 못 넘긴다(156 MB · 상한 100 MB) —
