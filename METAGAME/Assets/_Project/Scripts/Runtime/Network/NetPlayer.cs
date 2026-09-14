@@ -211,6 +211,56 @@ namespace Metagame.Network
         public float health = Core.Tuning.MaxHealth;
 
         /// <summary>
+        /// 지금 남에게 던져져 <b>날아가는 중</b>인가 (S15P21B202-519).
+        ///
+        /// <para><b>왜 보내야 하나.</b> 던져진 사람의 시야는 몸이 구르는 대로 넘어갔다가
+        /// 3인칭으로 물러나야 한다(<c>PlayerRig.BodyViewActive</c>). 그 판단은 서버에서
+        /// 나므로 값이 안 가면 <b>참가자는 던져져도 1인칭 그대로</b>다 —
+        /// <c>-511</c> 이 기절에서 겪은 것과 같은 모양이다.</para>
+        ///
+        /// <para><b>몸의 위치는 이미 간다.</b> 물리는 서버에서만 돌고(<c>-145</c>) 결과
+        /// 자세는 기존 동기화가 나른다. 여기서 보내는 것은 <b>시야를 바꾸라는 사실</b>
+        /// 하나다.</para>
+        ///
+        /// <para><b>내 몸에만 넣는다.</b> 카메라는 각자 화면의 일이라 남의 몸(그림)에
+        /// 넣어 봐야 읽는 데가 없다 — <c>health</c> · <c>rescueProgress</c> 와 같은
+        /// 판단이다.</para>
+        /// </summary>
+        [SyncVar]
+        public bool tossed;
+
+        /// <summary>
+        /// 이 사람이 동료를 던진 <b>횟수</b> (S15P21B202-519).
+        ///
+        /// <para><b>왜 상태가 아니라 수인가.</b> 던지는 동작은 한 순간의 사건이라 "지금
+        /// 던지는 중" 이라는 값이 없다. 그래서 <c>ClientRpc</c> 로 보내고 싶어지는데,
+        /// 그러면 <b>패킷 하나를 잃으면 그 동작은 영영 안 보인다</b>. 세어서 보내면 받는
+        /// 쪽이 "내가 마지막으로 본 수와 <b>다르다</b>" 로 판단하므로 한 번 늦게 와도
+        /// 복구되고, 늦게 들어온 사람도 어긋난 상태로 시작하지 않는다.
+        /// <b>"크다" 가 아니다</b> — <c>uint</c> 는 한 바퀴 돌면 작아지고, 그때
+        /// <c>&gt;</c> 는 영영 거짓이 되어 던지기가 멈춘다(!436 AI 리뷰가 주석과 코드가
+        /// 어긋난 것을 짚었다).</para>
+        ///
+        /// <para><b>이것은 남의 몸에도 넣는다.</b> 던지는 동작은 <b>남이 보는 그림</b>
+        /// 이다 — 위 셋(시야·테두리·게이지)과 정반대다.</para>
+        /// </summary>
+        [SyncVar]
+        public uint tossSeq;
+
+        /// <summary>
+        /// 동료를 던지려고 충전한 정도(0~1) (S15P21B202-519).
+        ///
+        /// <para><b>왜 보내야 하나.</b> 게이지는 던지는 <b>본인 화면</b>에 뜨는데 충전을
+        /// 세는 것은 서버다. 안 보내면 참가자는 얼마나 찼는지 모른 채 Q 를 놓게 된다 —
+        /// <c>-448</c> 의 구조 게이지와 같은 자리다.</para>
+        ///
+        /// <para><b>참가자가 스스로 세게 하지 않는 이유</b>는 잡기 판정이 서버에 있기
+        /// 때문이다. 참가자 기계의 내 손에 그 조인트가 있다고 믿을 근거가 없다.</para>
+        /// </summary>
+        [SyncVar]
+        public float tossCharge;
+
+        /// <summary>
         /// 방 안의 자리 번호(0~3). 색이 여기서 나온다 (S15P21B202-375).
         ///
         /// <para><b>서버가 <see cref="OnStartServer"/> 에서 정한다.</b> 그 시점에 넣으면
@@ -286,6 +336,29 @@ namespace Metagame.Network
         [SyncVar]
         RabbitLocomotion.State _locomotionState;
 
+        uint _seenTossSeq;
+        bool _tossSeqKnown;
+
+        /// <summary>
+        /// 이 값이 새 던지기인가 (S15P21B202-519).
+        ///
+        /// <para><b>처음 받은 값으로는 재생하지 않는다.</b> 늦게 들어온 사람에게는 이미
+        /// 쌓인 수가 한꺼번에 오는데, 그것을 새 던지기로 보면 <b>접속하자마자 모두가
+        /// 허공에 던지는 시늉을 한다.</b> 그래서 첫 값은 기준점으로만 적어 둔다.</para>
+        ///
+        /// <para><c>&gt;</c> 가 아니라 <c>!=</c> 로 본다 — <c>uint</c> 는 한 바퀴 돌면
+        /// 작아진다. 그때 <c>&gt;</c> 는 영영 거짓이 되어 던지기가 멈춘다.</para>
+        /// </summary>
+        public static bool ShouldPlayToss(uint seen, uint now, bool known) => known && now != seen;
+
+        void PlayTossIfNew(uint now)
+        {
+            if (ShouldPlayToss(_seenTossSeq, now, _tossSeqKnown)) body?.Doll?.Suit?.PlayToss();
+
+            _seenTossSeq = now;
+            _tossSeqKnown = true;
+        }
+
         /// <summary>서버에서 물리를 도는 진짜 몸. 클라이언트에서는 그림용 몸이다.</summary>
         PlayerRig body;
         RemoteAvatar remoteAvatar;
@@ -329,6 +402,18 @@ namespace Metagame.Network
             // 것이 뜻이 분명하다.
             if (!isServer && isLocalPlayer)
                 body.SetRemoteHealth(health);
+
+            // **내 몸에만.** 던져진 시야를 바꾸는 것은 당사자 화면의 일이다
+            // (S15P21B202-519). 위 셋과 같은 규칙이다.
+            if (!isServer && isLocalPlayer)
+            {
+                body.SetRemoteTossed(tossed);
+                body.SetRemoteTossCharge(tossCharge);
+            }
+
+            // **여기는 남의 몸에도 넣는다.** 던지는 동작은 남이 보는 그림이라 위 셋과
+            // 정반대다 — 이것을 자기 몸에만 넣으면 "호스트만 던지는 게 보인다" 가 된다.
+            if (!isServer) PlayTossIfNew(tossSeq);
 
             if (isServer) _locomotionState = RabbitLocomotion.ReadState(body);
             if (body.Doll.Suit != null)
@@ -717,6 +802,12 @@ namespace Metagame.Network
             // 빨간 테두리가 읽을 값이다 (S15P21B202-513). 위 downed 와 같은 자리에
             // 둔다 — 같은 몸의 같은 상태이고 탑승과 무관하다(-378).
             health = body.Health;
+
+            // 던져져 날아가는 중인지, 그리고 몇 번째 던지기인지 (S15P21B202-519).
+            // 위 downed 와 같은 자리다 — 같은 몸의 같은 상태다.
+            tossed = body.Tossed;
+            tossSeq = body.TossSeq;
+            tossCharge = body.TossCharge01;
 
             // 어느 탈것을 타는지도 같은 자리에서 실어 보낸다 (S15P21B202-434).
             //

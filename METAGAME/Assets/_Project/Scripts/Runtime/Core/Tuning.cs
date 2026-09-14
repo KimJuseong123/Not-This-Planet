@@ -106,6 +106,21 @@ namespace Metagame.Core
         /// <summary>이 질량 이상인 물체는 들어 올리지 않고 고정물을 짚듯 잡는다.</summary>
         public const float FixedGripMass = 40f;
 
+        // ── 동료 던지기 (기획 §20.4 · S15P21B202-519) ───────────
+        /// <summary>양손으로 잡은 동료를 위로 내던질 때의 위쪽 속도(m/s).</summary>
+        public const float TossUpSpeed = 8.5f;
+        /// <summary>같은 던지기의 앞쪽 속도. 위보다 작다 — "높으면서 살짝 앞으로".</summary>
+        public const float TossForwardSpeed = 3.2f;
+        /// <summary>이만큼 충전해야 던진다. 못 미치면 그냥 놓는다(도구와 같은 규칙).</summary>
+        public const float TossChargeThreshold = 0.10f;
+        /// <summary>
+        /// 던져진 사람이 최소한 이만큼은 날아가는 것으로 친다.
+        ///
+        /// 발이 땅에서 떨어지기 전에 <c>Grounded</c> 를 읽으면 던진 그 틱에 곧바로
+        /// 끝나 버린다 — 시야가 깜빡이고 아무 일도 없던 것처럼 보인다.
+        /// </summary>
+        public const float TossedMinSeconds = 0.45f;
+
         // ── 도구 투척 ──────────────────────────────────────────
         public const float ToolChargeDuration = 2.0f;
         public const float ToolThrowSpeed = 14f;

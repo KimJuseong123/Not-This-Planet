@@ -401,6 +401,10 @@ namespace Metagame.UI
                            releasingClamp);
             else if (Local != null && Local.ChargingTool)
                 ChargeGauge(cx, cy, Local.ToolCharge);
+            // 동료를 던지는 충전도 같은 게이지를 쓴다 (S15P21B202-519). 조작이 같으니
+            // (양손으로 잡고 Q 를 누르고 있다가 놓는다) 화면도 같은 것이 맞다.
+            else if (Local != null && Local.ChargingToss)
+                ChargeGauge(cx, cy, Local.TossCharge01);
         }
 
         void ClampGauge(float cx, float cy, float progress, bool releaseHolding)

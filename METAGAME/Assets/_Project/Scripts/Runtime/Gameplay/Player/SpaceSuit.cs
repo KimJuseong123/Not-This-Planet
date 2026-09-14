@@ -265,6 +265,20 @@ namespace Metagame.Gameplay
             else Locomotion.Apply(RabbitLocomotion.ReadState(_player), Time.deltaTime);
         }
 
+        /// <summary>
+        /// 동료를 던지는 동작을 한 번 재생한다 (S15P21B202-519).
+        ///
+        /// <para><b>네트워크로 걷기 상태를 받는 몸에도 그대로 먹는다.</b> 남의 몸도
+        /// <see cref="Locomotion"/> 을 갖고 <see cref="LateUpdate"/> 에서 같은
+        /// <c>Apply</c> 를 타므로, 부르기만 하면 참가자 화면에서도 보인다 — 그래서
+        /// 던지는 그림을 위해 새 경로를 만들지 않았다.</para>
+        /// </summary>
+        public void PlayToss()
+        {
+            InitializeLocomotion();
+            Locomotion?.PlayToss();
+        }
+
         void OnDestroy() { Locomotion?.Dispose(); }
 
         public void Sync()
