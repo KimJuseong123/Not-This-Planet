@@ -13,7 +13,10 @@ namespace Metagame.UI
         void InitializeKeyGuides()
         {
             KeyGuides.Register("tablet", "태블릿", () => Controls.Tablet, () =>
-                IsKeyGuideOwner && GameSession.Instance.CanToggleTablet);
+                IsKeyGuideOwner && GameSession.Instance.CanToggleTablet
+                && (GameSession.Instance.Exploration.Guide.Completed
+                    || !GameSession.Instance.Exploration.Guide.Enabled
+                    || GameSession.Instance.Exploration.TabletOpen));
             KeyGuides.Register("throw", "던지기", () => Controls.ToolAction, CanShowThrowGuide);
         }
 
