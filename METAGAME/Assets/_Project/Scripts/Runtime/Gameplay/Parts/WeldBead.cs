@@ -54,8 +54,16 @@ namespace Metagame.Gameplay.Parts
         /// <summary>비드를 모아 두는 자식의 이름. 씬에서 눈으로 찾을 때 쓴다.</summary>
         public const string ContainerName = "WeldBeads";
 
+        /// <summary>
+        /// 물리용 구체 아래에 붙는 표시 전용 외형의 이름.
+        /// 구체 콜라이더와 렌더러를 분리해 접합 물리는 유지하면서 모양만 바꾼다.
+        /// </summary>
+        public const string VisualName = "WeldVisual";
+
         const int ProbeSize = 32;
         static readonly Collider[] Probe = new Collider[ProbeSize];
+        static MaterialPropertyBlock appearanceBlock;
+        const float BeadCoolingSeconds = 1.25f;
 
         /// <summary>
         /// 한 자리에서 이어진 덩어리들. 방향은 <see cref="_container"/> 기준이다.
@@ -68,6 +76,8 @@ namespace Metagame.Gameplay.Parts
         {
             public Vector3 Origin;
             public Vector3 Direction;
+            public bool HasBrushFrom;
+            public Vector3 BrushFrom;
             public float TipRadius;
             public List<Transform> Blobs = new();
 
@@ -85,6 +95,8 @@ namespace Metagame.Gameplay.Parts
             public float ContactBlobs;
 
             [NonSerialized] public bool? AppliedHelpfulColor;
+            [NonSerialized] public float HeatedAt = -999f;
+            [NonSerialized] public float AppliedHeat = -1f;
         }
 
         [SerializeField] List<Chain> _chains = new();
@@ -159,6 +171,8 @@ namespace Metagame.Gameplay.Parts
         {
             public Vector3 Origin;
             public Vector3 Direction;
+            public bool HasBrushFrom;
+            public Vector3 BrushFrom;
             public float TipRadius;
             public int BlobCount;
             public bool PadWeldIntact;
@@ -186,6 +200,8 @@ namespace Metagame.Gameplay.Parts
             {
                 Origin = chain.Origin,
                 Direction = chain.Direction,
+                HasBrushFrom = chain.HasBrushFrom,
+                BrushFrom = chain.BrushFrom,
                 TipRadius = chain.TipRadius,
                 BlobCount = chain.Blobs != null ? chain.Blobs.Count : 0,
                 PadWeldIntact = chain.TouchedPad != null && IsWeldedToPad,
@@ -219,7 +235,10 @@ namespace Metagame.Gameplay.Parts
                 {
                     Origin = state.Origin,
                     Direction = state.Direction,
+                    HasBrushFrom = state.HasBrushFrom,
+                    BrushFrom = state.BrushFrom,
                     TipRadius = state.TipRadius,
+                    HeatedAt = -999f,
                 };
 
                 _chains.Add(chain);
@@ -521,14 +540,17 @@ namespace Metagame.Gameplay.Parts
             return bead == null || bead.BlobCount < part.WeldBeadsPerPart;
         }
 
-        public static bool TryApplyAt(RaycastHit hit, float deltaTime, bool cut, out WeldBead bead)
+        public static bool TryApplyAt(
+            RaycastHit hit, float deltaTime, bool cut, out WeldBead bead,
+            WeldBead brushFromBead = null, Vector3 brushFromWorld = default)
         {
             bead = null;
             if (deltaTime <= 0f || !CanApplyAt(hit, cut)) return false;
             if (TryHitChain(hit.collider, out bead, out var index))
                 return cut ? bead.ShrinkChain(index, deltaTime) : bead.GrowChain(index, deltaTime);
             bead = Attach(hit.collider.GetComponentInParent<SpaceshipPart>());
-            return bead.StartChain(hit.point, hit.normal);
+            return bead.StartChain(hit.point, hit.normal,
+                brushFromBead == bead, brushFromWorld);
         }
 
         static bool TryHitChain(Collider collider, out WeldBead bead, out int index)
@@ -589,7 +611,9 @@ namespace Metagame.Gameplay.Parts
             return _chains[index].Blobs.Count;
         }
 
-        bool StartChain(Vector3 worldPoint, Vector3 worldOutward)
+        bool StartChain(
+            Vector3 worldPoint, Vector3 worldOutward,
+            bool hasBrushFrom = false, Vector3 brushFromWorld = default)
         {
             if (BlobCount >= Owner.WeldBeadsPerPart) return false;
 
@@ -597,7 +621,12 @@ namespace Metagame.Gameplay.Parts
             {
                 Origin = _container.InverseTransformPoint(worldPoint),
                 Direction = _container.InverseTransformDirection(worldOutward).normalized,
+                HasBrushFrom = hasBrushFrom,
+                BrushFrom = hasBrushFrom
+                    ? _container.InverseTransformPoint(brushFromWorld)
+                    : _container.InverseTransformPoint(worldPoint),
                 TipRadius = PhysicsScale.WeldBeadMinRadius,
+                HeatedAt = Time.time,
             };
 
             _chains.Add(chain);
@@ -640,6 +669,7 @@ namespace Metagame.Gameplay.Parts
 
                 chain.TipRadius = PhysicsScale.WeldBeadMinRadius;
                 SpawnBlob(chain, chain.Blobs.Count);
+                chain.HeatedAt = Time.time;
                 ApplyMass();
                 RefreshContact(index);
                 return true;
@@ -648,7 +678,8 @@ namespace Metagame.Gameplay.Parts
             chain.TipRadius = Mathf.Min(
                 PhysicsScale.WeldBeadMaxRadius, chain.TipRadius + GrowthRate * deltaTime);
 
-            ApplyRadius(chain.Blobs[chain.Blobs.Count - 1], chain.TipRadius);
+            chain.HeatedAt = Time.time;
+            ApplyRadius(chain, chain.Blobs.Count - 1, chain.TipRadius);
             ApplyMass();
             RefreshContact(index);
             return true;
@@ -667,7 +698,7 @@ namespace Metagame.Gameplay.Parts
 
             if (chain.TipRadius > PhysicsScale.WeldBeadMinRadius)
             {
-                ApplyRadius(chain.Blobs[chain.Blobs.Count - 1], chain.TipRadius);
+                ApplyRadius(chain, chain.Blobs.Count - 1, chain.TipRadius);
                 ApplyMass();
                 RefreshContact(index);
                 return true;
@@ -717,14 +748,98 @@ namespace Metagame.Gameplay.Parts
             go.layer = gameObject.layer;
             go.transform.localPosition = local;
 
+            // 구는 접합·질량·레이 판정을 위한 내부 물리 형태다. 그대로 보이면 덩어리들이
+            // 따로 떨어진 알갱이처럼 보이므로 렌더러만 숨기고, 그 아래에 이어진 금속 비드를
+            // 표시 전용으로 만든다.
+            if (go.TryGetComponent<Renderer>(out var physicsRenderer)) physicsRenderer.enabled = false;
+
             chain.Blobs.Add(go.transform);
-            ApplyRadius(go.transform, chain.TipRadius);
+            EnsureVisual(chain, index);
+            ApplyRadius(chain, index, chain.TipRadius);
         }
 
-        static void ApplyRadius(Transform blob, float radius)
+        void ApplyRadius(Chain chain, int index, float radius)
         {
+            if (chain == null || index < 0 || index >= chain.Blobs.Count) return;
+            var blob = chain.Blobs[index];
             if (blob == null) return;
             blob.localScale = Vector3.one * (radius * 2f);
+            ApplyVisualShape(chain, index, radius);
+        }
+
+        /// <summary>
+        /// 내부 구체에는 콜라이더만 남기고, 플레이어에게 보일 용융 자국/이어진 비드를
+        /// 자식으로 만든다. 예전 세이브의 구체도 LateUpdate에서 이 경로로 자동 보강된다.
+        /// </summary>
+        Transform EnsureVisual(Chain chain, int index)
+        {
+            if (chain == null || index < 0 || index >= chain.Blobs.Count) return null;
+            var blob = chain.Blobs[index];
+            if (blob == null) return null;
+
+            if (blob.TryGetComponent<Renderer>(out var physicsRenderer)) physicsRenderer.enabled = false;
+            var existing = blob.Find(VisualName);
+            if (existing != null) return existing;
+
+            var go = Prim.Capsule(VisualName, Vector3.zero, 1f, 2f, BeadColor, BeadSoftness);
+            Prim.Decor(go);
+            go.layer = gameObject.layer;
+            go.transform.SetParent(blob, false);
+
+            var renderer = go.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                renderer.sharedMaterial = Prim.Dough(BeadColor, BeadSoftness, fogExempt: true);
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+                renderer.receiveShadows = true;
+            }
+
+            return go.transform;
+        }
+
+        void ApplyVisualShape(Chain chain, int index, float radius)
+        {
+            var blob = chain.Blobs[index];
+            var visual = EnsureVisual(chain, index);
+            if (blob == null || visual == null) return;
+
+            var diameter = Mathf.Max(radius * 2f, 0.001f);
+            var direction = chain.Direction.sqrMagnitude > 1e-6f ? chain.Direction.normalized : Vector3.up;
+
+            if (index == 0)
+            {
+                // 첫 점은 둥근 브러시 끝이고, 누른 채 조준을 옮기면 이전 표면점과 현재
+                // 표면점을 캡슐 선분으로 잇는다. 선분끼리 둥근 끝이 겹쳐 그림판 브러시처럼
+                // 끊김 없는 실제 조준 궤적이 된다.
+                const float width = 0.060f;
+                const float thickness = 0.010f;
+                var travel = chain.HasBrushFrom
+                    ? Vector3.ProjectOnPlane(chain.Origin - chain.BrushFrom, direction)
+                    : Vector3.zero;
+                var tangent = travel.sqrMagnitude > 1e-6f
+                    ? travel.normalized : SurfaceTangent(direction);
+                var length = Mathf.Max(width, travel.magnitude + width);
+                var centerFromOrigin = travel * -0.5f;
+                visual.gameObject.SetActive(true);
+                visual.localPosition = (centerFromOrigin + direction * 0.007f) / diameter;
+                visual.localRotation = Quaternion.LookRotation(direction, tangent);
+                visual.localScale = new Vector3(
+                    width / diameter,
+                    length * 0.5f / diameter,
+                    thickness / diameter);
+                return;
+            }
+
+            // 두 파츠를 실제로 잇는 나머지 구체는 표면 밖으로 자라는 물리 구조다.
+            // 보이면 다시 검은 알갱이 기둥이 되므로 외형만 숨긴다.
+            visual.gameObject.SetActive(false);
+        }
+
+        static Vector3 SurfaceTangent(Vector3 normal)
+        {
+            var reference = Mathf.Abs(Vector3.Dot(normal, Vector3.up)) > 0.86f
+                ? Vector3.right : Vector3.up;
+            return Vector3.Cross(reference, normal).normalized;
         }
 
         // --- 닿으면 접합 (S15P21B202-228) ---------------------------------
@@ -801,19 +916,53 @@ namespace Metagame.Gameplay.Parts
                 ? PartAssemblyLink.FindBetween(_owner, chain.Touched) : null;
             var helpful = (link != null && link.IsIntact)
                 || (chain.TouchedPad != null && chain.TouchedPad == _weldedPad && IsWeldedToPad);
-            if (chain.AppliedHelpfulColor == helpful) return;
+
+            var heat = Application.isPlaying
+                ? 1f - Mathf.Clamp01((Time.time - chain.HeatedAt) / BeadCoolingSeconds)
+                : 0f;
+            if (heat <= 0f && chain.AppliedHeat <= 0f && chain.AppliedHelpfulColor == helpful) return;
+
+            var cold = helpful ? HelpfulBeadColor : BeadColor;
+            var color = heat > 0.42f
+                ? Color.Lerp(WarmBeadColor, HotBeadColor, (heat - 0.42f) / 0.58f)
+                : Color.Lerp(cold, WarmBeadColor, heat / 0.42f);
+            var ambient = Mathf.Lerp(0.28f, 1.8f, heat);
+            var gloss = Mathf.Lerp(0.42f, 0.82f, heat);
+            var mottle = Mathf.Lerp(0.16f, 0.025f, heat);
 
             // 다리 중간 덩어리도 연결을 유지하므로 사슬 전체를 같은 색으로 표시한다.
-            // 공유 재질 자체를 수정하면 무관한 비드까지 변하므로 재질 참조만 바꾼다.
-            var material = Prim.Dough(helpful ? HelpfulBeadColor : BeadColor, BeadSoftness, fogExempt: true);
+            // 공유 재질 자체는 수정하지 않고 상태별 캐시 재질과 열 표현 PropertyBlock을 나눈다.
+            var material = Prim.Dough(cold, BeadSoftness, fogExempt: true);
+            if (appearanceBlock == null) appearanceBlock = new MaterialPropertyBlock();
             for (var b = 0; b < chain.Blobs.Count; b++)
             {
                 var blob = chain.Blobs[b];
-                if (blob != null && blob.TryGetComponent<Renderer>(out var renderer))
-                    renderer.sharedMaterial = material;
+                if (blob == null) continue;
+
+                // 물리 구체는 화면에는 숨겨져 있어도 기존 접합 상태 판정과 테스트가 같은
+                // 상태별 재질 참조를 관찰할 수 있도록 표시 자식과 함께 갱신한다.
+                if (blob.TryGetComponent<Renderer>(out var physicsRenderer))
+                    physicsRenderer.sharedMaterial = material;
+
+                // 예전 저장 데이터에는 표시 자식이 없다. 보이는 순간 현재 외형으로 보강한다.
+                var radius = b == chain.Blobs.Count - 1
+                    ? chain.TipRadius : PhysicsScale.WeldBeadMaxRadius;
+                ApplyVisualShape(chain, b, radius);
+                var visual = blob.Find(VisualName);
+                if (visual == null || !visual.TryGetComponent<Renderer>(out var renderer)) continue;
+
+                renderer.sharedMaterial = material;
+                renderer.GetPropertyBlock(appearanceBlock);
+                appearanceBlock.SetColor("_Color", color);
+                appearanceBlock.SetFloat("_Ambient", ambient);
+                appearanceBlock.SetFloat("_Gloss", gloss);
+                appearanceBlock.SetFloat("_Mottle", mottle);
+                renderer.SetPropertyBlock(appearanceBlock);
+                appearanceBlock.Clear();
             }
 
             chain.AppliedHelpfulColor = helpful;
+            chain.AppliedHeat = heat;
         }
 
         /// <summary>사슬이 어느 파츠에 얼마나 닿아 있는지 잰다.</summary>
@@ -1055,10 +1204,14 @@ namespace Metagame.Gameplay.Parts
         /// 코드 도형이다. [Art] 가 실제 비드 메시(울퉁불퉁한 금속, 불탄 자국)를 주면
         /// <see cref="SpawnBlob"/> 의 <c>Prim.Ball</c> 자리만 바꾼다.
         /// </summary>
-        static Color BeadColor => new Color(0.42f, 0.36f, 0.32f, 1f);
+        static Color BeadColor => new Color(0.025f, 0.020f, 0.022f, 1f);
+
+        // 용접 직후에는 붉게 달아올랐다가 어두운 그을음 자국으로 식는다.
+        static Color HotBeadColor => new Color(1f, 0.12f, 0.035f, 1f);
+        static Color WarmBeadColor => new Color(0.72f, 0.055f, 0.018f, 1f);
 
         // 접합에 기여한다는 뜻이며, 완전 강도나 올바른 조립 순서의 표시는 아니다.
-        static Color HelpfulBeadColor => new Color(0.12f, 0.78f, 0.72f, 1f);
+        static Color HelpfulBeadColor => new Color(0.14f, 0.035f, 0.025f, 1f);
 
         const float BeadSoftness = 0.15f;
 

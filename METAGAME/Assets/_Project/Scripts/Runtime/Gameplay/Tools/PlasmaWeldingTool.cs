@@ -31,7 +31,7 @@ namespace Metagame.Gameplay
         public static event Action<PlasmaWeldingTool> AnyCutProgressed;
 
         [Header("빔 표시")]
-        [SerializeField] Color weldColor = new Color(0.08f, 0.75f, 1f, 1f);
+        [SerializeField] Color weldColor = new Color(1f, 0.12f, 0.035f, 1f);
         [SerializeField] Color cutColor = new Color(1f, 0.28f, 0.05f, 1f);
         [SerializeField] float beamRange = Tuning.ToolBeamRange;
         [SerializeField] float beamWidth = 0.035f;
@@ -57,6 +57,16 @@ namespace Metagame.Gameplay
         public override float ViewProgress => RemainingFraction;
         public bool GuideVisible { get; private set; }
 
+        [Header("용접 접촉 효과")]
+        [SerializeField] Color weldHotColor = new Color(1f, 0.10f, 0.025f, 0.90f);
+        [SerializeField] Color weldSparkColor = new Color(1f, 0.28f, 0.035f, 0.62f);
+        [Min(0.01f)] [SerializeField] float weldGlowSize = 0.052f;
+        [Min(0.05f)] [SerializeField] float weldLightRange = 0.48f;
+        [Min(0f)] [SerializeField] float weldLightIntensity = 1.15f;
+        [Min(0.01f)] [SerializeField] float weldSparkInterval = 0.065f;
+        [Range(1, 12)] [SerializeField] int weldSparksPerBurst = 2;
+        [Min(0.04f)] [SerializeField] float weldSmokeInterval = 0.14f;
+
         [Header("월드 휴대 포즈")]
         [Tooltip("3인칭/원격 화면에서 장착 중 보이는 용접건 모델의 로컬 위치입니다.")]
         [SerializeField] Vector3 heldVisualLocalPosition = new Vector3(0.18f, -0.14f, 0.12f);
@@ -81,6 +91,17 @@ namespace Metagame.Gameplay
         readonly RaycastHit[] hits = new RaycastHit[RaycastBufferSize];
         LineRenderer beam;
         Material runtimeMaterial;
+        Transform weldContactFx;
+        Transform weldContactGlow;
+        ParticleSystem weldSparks;
+        ParticleSystem weldSmoke;
+        Light weldContactLight;
+        Material weldSparkMaterial;
+        float nextWeldSparkAt;
+        float nextWeldSmokeAt;
+        WeldBead brushStrokeBead;
+        Vector3 brushStrokeLocalPoint;
+        bool hasBrushStrokePoint;
         PlasmaGunPetalAnimator petalAnimator;
         Transform heldVisual;
 
@@ -163,6 +184,7 @@ namespace Metagame.Gameplay
             BeamHasContact = false;
             if (petalAnimator != null) petalAnimator.SnapToMode(PlasmaBeamMode.None);
             beam.enabled = false;
+            HideWeldContactFx(clearSparks: true);
         }
 
         protected override void OnUnequipped()
@@ -178,8 +200,10 @@ namespace Metagame.Gameplay
             CuttingProgressed = false;
             GrowingBead = null;
             ShrinkingBead = null;
+            ResetBrushStroke();
             if (petalAnimator != null) petalAnimator.SnapToMode(PlasmaBeamMode.None);
             if (beam != null) beam.enabled = false;
+            HideWeldContactFx(clearSparks: true);
         }
 
         protected override void OnToolInput(ToolInputFrame input, ToolAimContext aim)
@@ -214,25 +238,55 @@ namespace Metagame.Gameplay
             if (mode != PlasmaBeamMode.Weld || Muzzle == null || deltaTime <= 0f || RemainingFraction <= 0f)
             {
                 GrowingBead = null;
+                ResetBrushStroke();
                 return false;
             }
 
             // 참가자 화면에서는 세계를 스스로 바꾸지 않는다. 여기서도 용접하면 서버가 보낸
             // 것과 겹쳐 비드가 두 배로 자란다 — 판정은 서버, 여기는 받아 그리기만 한다.
-            if (WorldEvents.RemoteDecides) { GrowingBead = null; return false; }
+            if (WorldEvents.RemoteDecides) { GrowingBead = null; ResetBrushStroke(); return false; }
 
             GrowingBead = null;
             float amount = Mathf.Min(deltaTime, Mathf.Max(0f, materialCapacitySeconds - usedMaterialSeconds));
             if (TryGetBeamHit(aimDirection, out var hit))
             {
-                WeldingProgressed = WeldBead.TryApplyAt(hit, amount, false, out var bead);
+                var hitsBodySurface = !WeldBead.IsBeadCollider(hit.collider);
+                var previousBrushPoint = hasBrushStrokePoint && brushStrokeBead != null
+                    ? brushStrokeBead.transform.TransformPoint(brushStrokeLocalPoint)
+                    : Vector3.zero;
+                WeldingProgressed = WeldBead.TryApplyAt(
+                    hit, amount, false, out var bead,
+                    hitsBodySurface && hasBrushStrokePoint ? brushStrokeBead : null,
+                    previousBrushPoint);
                 GrowingBead = bead;
-                if (WeldingProgressed) usedMaterialSeconds += amount;
+                if (WeldingProgressed)
+                {
+                    usedMaterialSeconds += amount;
+                    if (hitsBodySurface && bead != null)
+                    {
+                        brushStrokeBead = bead;
+                        // 파츠가 움직여도 이전 점이 표면과 함께 움직이도록 파츠 로컬 좌표로 보관한다.
+                        brushStrokeLocalPoint = bead.transform.InverseTransformPoint(hit.point);
+                        hasBrushStrokePoint = true;
+                    }
+                }
+                else if (hitsBodySurface)
+                {
+                    ResetBrushStroke();
+                }
             }
+            else ResetBrushStroke();
             // WorldSync의 비드 스냅샷으로 복제한다. 예전 근접 탐색 RPC를 함께 보내면
             // 클라이언트에서 조준하지 않은 다른 사슬을 키울 수 있다.
 
             return WeldingProgressed;
+        }
+
+        void ResetBrushStroke()
+        {
+            brushStrokeBead = null;
+            brushStrokeLocalPoint = Vector3.zero;
+            hasBrushStrokePoint = false;
         }
 
         protected override void OnToolVisualUpdate(ToolInputFrame input, ToolAimContext aim)
@@ -255,6 +309,7 @@ namespace Metagame.Gameplay
             {
                 BeamHasContact = false;
                 if (beam != null) beam.enabled = false;
+                HideWeldContactFx(clearSparks: false);
                 return;
             }
 
@@ -281,6 +336,11 @@ namespace Metagame.Gameplay
             beam.SetPosition(0, viewOrigin);
             beam.SetPosition(1, BeamEnd);
             beam.enabled = true;
+
+            var showWeldContact = BeamMode == PlasmaBeamMode.Weld && BeamHasContact &&
+                                  RemainingFraction > 0f && WeldBead.CanApplyAt(contact, false);
+            if (showWeldContact) ShowWeldContactFx(contact);
+            else HideWeldContactFx(clearSparks: false);
         }
 
         /// <summary>
@@ -380,7 +440,193 @@ namespace Metagame.Gameplay
             jointGuide?.Hide();
             HideGuide();
             if (beam != null) beam.enabled = false;
+            HideWeldContactFx(clearSparks: true);
             base.OnDisable();
+        }
+
+        void ShowWeldContactFx(RaycastHit hit)
+        {
+            EnsureWeldContactFx();
+            if (weldContactFx == null) return;
+
+            var normal = hit.normal.sqrMagnitude > 1e-6f ? hit.normal.normalized : Vector3.up;
+            weldContactFx.SetPositionAndRotation(
+                hit.point + normal * Mathf.Max(0.004f, weldGlowSize * 0.08f),
+                Quaternion.LookRotation(normal));
+
+            var pulse = 0.88f + Mathf.Sin(Time.unscaledTime * 46f) * 0.12f;
+            if (weldContactGlow != null)
+            {
+                weldContactGlow.gameObject.SetActive(true);
+                weldContactGlow.localScale = Vector3.one * (weldGlowSize * pulse);
+            }
+
+            if (weldContactLight != null)
+            {
+                weldContactLight.enabled = true;
+                weldContactLight.color = Color.Lerp(weldSparkColor, weldHotColor, 0.82f);
+                weldContactLight.range = weldLightRange;
+                weldContactLight.intensity = weldLightIntensity * pulse;
+            }
+
+            if (weldSparks != null && Time.unscaledTime >= nextWeldSparkAt)
+            {
+                nextWeldSparkAt = Time.unscaledTime + weldSparkInterval;
+                if (!weldSparks.isPlaying) weldSparks.Play();
+                weldSparks.Emit(weldSparksPerBurst);
+            }
+            if (weldSmoke != null && Time.unscaledTime >= nextWeldSmokeAt)
+            {
+                nextWeldSmokeAt = Time.unscaledTime + weldSmokeInterval;
+                if (!weldSmoke.isPlaying) weldSmoke.Play();
+                weldSmoke.Emit(1);
+            }
+        }
+
+        void HideWeldContactFx(bool clearSparks)
+        {
+            if (weldContactGlow != null) weldContactGlow.gameObject.SetActive(false);
+            if (weldContactLight != null) weldContactLight.enabled = false;
+            if (clearSparks && weldSparks != null)
+                weldSparks.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            if (clearSparks && weldSmoke != null)
+                weldSmoke.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        }
+
+        void EnsureWeldContactFx()
+        {
+            if (weldContactFx != null) return;
+
+            var root = new GameObject("WeldContactFx");
+            weldContactFx = root.transform;
+            weldContactFx.SetParent(transform, false);
+
+            var glow = Prim.Decor(Prim.Ball("HotMetal", Vector3.zero, 1f, weldHotColor, 0.05f));
+            glow.transform.SetParent(weldContactFx, false);
+            weldContactGlow = glow.transform;
+            var glowRenderer = glow.GetComponent<Renderer>();
+            if (glowRenderer != null)
+            {
+                glowRenderer.sharedMaterial = Prim.Flat(weldHotColor);
+                glowRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                glowRenderer.receiveShadows = false;
+            }
+
+            weldContactLight = root.AddComponent<Light>();
+            weldContactLight.type = LightType.Point;
+            weldContactLight.shadows = LightShadows.None;
+            weldContactLight.renderMode = LightRenderMode.ForcePixel;
+
+            var sparksObject = new GameObject("Sparks");
+            sparksObject.transform.SetParent(weldContactFx, false);
+            weldSparks = sparksObject.AddComponent<ParticleSystem>();
+
+            var main = weldSparks.main;
+            main.loop = false;
+            main.playOnAwake = false;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.scalingMode = ParticleSystemScalingMode.Shape;
+            main.maxParticles = 64;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.08f, 0.18f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0.45f, 1.25f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.0035f, 0.010f);
+            main.startColor = new ParticleSystem.MinMaxGradient(weldHotColor, weldSparkColor);
+            main.gravityModifier = 0.35f;
+
+            var emission = weldSparks.emission;
+            emission.enabled = false;
+            var shape = weldSparks.shape;
+            shape.enabled = true;
+            shape.shapeType = ParticleSystemShapeType.Cone;
+            shape.angle = 58f;
+            shape.radius = 0.012f;
+            shape.length = 0.025f;
+
+            var colorOverLifetime = weldSparks.colorOverLifetime;
+            colorOverLifetime.enabled = true;
+            var fade = new Gradient();
+            fade.SetKeys(
+                new[]
+                {
+                    new GradientColorKey(weldHotColor, 0f),
+                    new GradientColorKey(weldSparkColor, 0.42f),
+                    new GradientColorKey(new Color(0.28f, 0.04f, 0.01f), 1f),
+                },
+                new[]
+                {
+                    new GradientAlphaKey(0.62f, 0f),
+                    new GradientAlphaKey(0.42f, 0.55f),
+                    new GradientAlphaKey(0f, 1f),
+                });
+            colorOverLifetime.color = new ParticleSystem.MinMaxGradient(fade);
+
+            var sparksRenderer = weldSparks.GetComponent<ParticleSystemRenderer>();
+            sparksRenderer.renderMode = ParticleSystemRenderMode.Stretch;
+            sparksRenderer.lengthScale = 1.15f;
+            sparksRenderer.velocityScale = 0.08f;
+            sparksRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            sparksRenderer.receiveShadows = false;
+            var sparkShader = Resources.Load<Shader>("WeldingParticle");
+            if (sparkShader == null) sparkShader = Shader.Find("NotThisPlanet/WeldingParticle");
+            weldSparkMaterial = new Material(sparkShader != null ? sparkShader : Prim.FlatShader);
+            weldSparkMaterial.name = "WeldingSpark";
+            if (weldSparkMaterial.HasProperty("_Color"))
+                weldSparkMaterial.SetColor("_Color", new Color(1f, 0.30f, 0.08f, 0.68f));
+            sparksRenderer.sharedMaterial = weldSparkMaterial;
+
+            var smokeObject = new GameObject("Smoke");
+            smokeObject.transform.SetParent(weldContactFx, false);
+            weldSmoke = smokeObject.AddComponent<ParticleSystem>();
+
+            var smokeMain = weldSmoke.main;
+            smokeMain.loop = false;
+            smokeMain.playOnAwake = false;
+            smokeMain.simulationSpace = ParticleSystemSimulationSpace.World;
+            smokeMain.scalingMode = ParticleSystemScalingMode.Shape;
+            smokeMain.maxParticles = 24;
+            smokeMain.startLifetime = new ParticleSystem.MinMaxCurve(0.42f, 0.78f);
+            smokeMain.startSpeed = new ParticleSystem.MinMaxCurve(0.06f, 0.18f);
+            smokeMain.startSize = new ParticleSystem.MinMaxCurve(0.025f, 0.055f);
+            smokeMain.startColor = new Color(0.32f, 0.35f, 0.40f, 0.24f);
+
+            var smokeEmission = weldSmoke.emission;
+            smokeEmission.enabled = false;
+            var smokeShape = weldSmoke.shape;
+            smokeShape.enabled = true;
+            smokeShape.shapeType = ParticleSystemShapeType.Cone;
+            smokeShape.angle = 20f;
+            smokeShape.radius = 0.01f;
+            smokeShape.length = 0.015f;
+
+            var smokeSize = weldSmoke.sizeOverLifetime;
+            smokeSize.enabled = true;
+            smokeSize.size = new ParticleSystem.MinMaxCurve(1f,
+                new AnimationCurve(new Keyframe(0f, 0.35f), new Keyframe(1f, 1.35f)));
+            var smokeColor = weldSmoke.colorOverLifetime;
+            smokeColor.enabled = true;
+            var smokeFade = new Gradient();
+            smokeFade.SetKeys(
+                new[]
+                {
+                    new GradientColorKey(new Color(0.48f, 0.52f, 0.58f), 0f),
+                    new GradientColorKey(new Color(0.18f, 0.20f, 0.24f), 1f),
+                },
+                new[]
+                {
+                    new GradientAlphaKey(0f, 0f),
+                    new GradientAlphaKey(0.24f, 0.18f),
+                    new GradientAlphaKey(0f, 1f),
+                });
+            smokeColor.color = new ParticleSystem.MinMaxGradient(smokeFade);
+
+            var smokeRenderer = weldSmoke.GetComponent<ParticleSystemRenderer>();
+            smokeRenderer.renderMode = ParticleSystemRenderMode.Billboard;
+            smokeRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            smokeRenderer.receiveShadows = false;
+            smokeRenderer.sharedMaterial = Prim.Ghost(new Color(0.34f, 0.37f, 0.42f, 0.22f),
+                rimBoost: 0.25f, pulse: 0f, fogExempt: true);
+
+            HideWeldContactFx(clearSparks: true);
         }
 
         void EnsureBeam()
@@ -556,6 +802,11 @@ namespace Metagame.Gameplay
             {
                 if (Application.isPlaying) Destroy(runtimeMaterial);
                 else DestroyImmediate(runtimeMaterial);
+            }
+            if (weldSparkMaterial != null)
+            {
+                if (Application.isPlaying) Destroy(weldSparkMaterial);
+                else DestroyImmediate(weldSparkMaterial);
             }
         }
     }
