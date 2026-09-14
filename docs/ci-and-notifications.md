@@ -7,7 +7,7 @@ CI와 알림을 수정하거나 장애 원인을 조사할 때 보는 참고 문
 [문서 안내](README.md) · 정의: [파이프라인](../.gitlab-ci.yml) · 코드: [CI 스크립트](../scripts/ci/)
 
 > [CI/CD 구조](./ci-cd-pipeline.md)에서 실행 조건·머지 조건·러너·EC2·알림을 확인하고, 이 문서에서 세부 동작과 결정 근거를 확인합니다.
-> 기준: [workflow-plan.md §5](./workflow-plan.md) 1-a~2-b. 0단계(Jira 자동화·GitLab 보호 브랜치·템플릿)는 [jira-gitlab-automation.md](./jira-gitlab-automation.md).
+> 기준: [workflow-plan.md §5](./records/2026-08-26-workflow-plan-v1.md) 1-a~2-b. 0단계(Jira 자동화·GitLab 보호 브랜치·템플릿)는 [jira-gitlab-automation.md](./jira-gitlab-automation.md).
 > 파일: [`.gitlab-ci.yml`](../.gitlab-ci.yml), [`scripts/ci/`](../scripts/ci/) — Python 표준 라이브러리만 사용(러너에 pip 불필요).
 
 <a id="1-4겹-중-34겹이-여기다"></a>
@@ -67,7 +67,7 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 
 <a id="section-3"></a>
 
-## 3. 필요한 변수 · 토큰 (Settings → CI/CD → Variables, 전부 **Masked**)
+## 2. 필요한 변수 · 토큰 (Settings → CI/CD → Variables, 전부 **Masked**)
 
 | 변수 | 무엇 | 누가 만드나 | 없으면 |
 | --- | --- | --- | --- |
@@ -101,7 +101,7 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 
 <a id="section-4"></a>
 
-## 4. 러너
+## 3. 러너
 
 - **공유 러너**: 설정은 켜져 있지만(`shared_runners_enabled=true`) **실제 러너가 없다** — MR !10 첫 파이프라인이 9분 넘게 `pending`(2026-08-27 실측). 따라서 **프로젝트 러너 등록이 필수**. `image:`는 Docker 러너용이며 shell 러너에서는 무시됨.
 - **현재 배치(2026-09-01)** — 모든 잡이 **EC2 러너로 고정**돼 있다(`.gitlab-ci.yml`의 `default.tags: [linux]`).
@@ -236,7 +236,7 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 
 <a id="section-5"></a>
 
-## 5. Mattermost 알림 설계 — 채널 1개, 원칙 3개 (2026-08-27 v2)
+## 4. Mattermost 알림 설계 — 채널 1개, 원칙 3개 (2026-08-27 v2)
 
 원칙: ① **모든 메시지는 조치할 사람을 @멘션** — 멘션 대상이 없는 메시지는 보내지 않는다(noise) ② 첫 줄에 **등급 이모지 + 굵은 제목 + 링크**, 둘째 줄에 **@멘션 + 조치** ③ 일상(🟢 요청·📋 요약)과 조치 필요(🔴 실패·🟠 규칙 위반)를 이모지로 구분. MM 서버가 웹훅 이름 재정의를 막아 발신자는 웹훅 생성자(금준영 BOT)로 보이므로 첫 줄이 곧 제목이다. 계정 매핑의 기준 문서는 [`scripts/ci/team.json`](../scripts/ci/team.json)(GitLab·MM·Jira accountId).
 
@@ -266,7 +266,7 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 **한계**: Jira 자동화 규칙 자체의 *실행 오류*(-46 의 "이슈가 존재하지 않음" 같은)는 MM으로 보낼 수 없다 — Jira는 규칙 소유자 이메일 알림만 지원. 감사 로그가 유일한 창이며 `mm-digest`의 needs-fix·정체 항목이 결과적으로 드러내 준다.
 <a id="section-6"></a>
 
-## 7. 지난 프로젝트(FlowerKnot, `s15-webmobile2-sub1/S15P11B210`) 교훈 반영 — 2026-08-27 조사
+## 5. 지난 프로젝트(FlowerKnot, `s15-webmobile2-sub1/S15P11B210`) 교훈 반영 — 2026-08-27 조사
 
 지난 프로젝트는 EC2 systemd Worker 가 open MR 을 폴링해 **Opus 5 / effort medium** Reviewer 2개(코드·테스트 품질)를 병렬 실행하고 Critical/High 0건이면 Project Bot 이 Squash Auto-Merge 까지 했다(`docs/ai-review-automation.md`, `infra/ai-review/worker.py`). 이번 프로젝트는 **팀장 머지 원칙**이라 Auto-Merge 는 채택하지 않았고, 처음에는 Gate 도 빼고 MR 파이프라인 안의 비차단 잡 1개로 단순화했다. **그 원칙이 실제로는 "아무도 안 읽음" 으로 귀결돼 2026-09-09 에 Gate 를 넣었다**(`-341`) — ⛔ 만 막고 ⚠️·✅·❓ 는 통과한다. Auto-Merge 는 여전히 없다. 계승한 것:
 

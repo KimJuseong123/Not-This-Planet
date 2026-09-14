@@ -4,7 +4,7 @@
 
 [문서 안내](README.md) · 태그 기준: [파트와 담당](parts.md) · 작성 양식: [Jira 설명 템플릿](templates/jira-issue-description.md)
 
-> 규칙 전체 요약은 [conventions.md](./conventions.md) · 관련 문서: [Git 컨벤션](./git-convention.md) · [파트 구분](./parts.md) · [Jira-GitLab 자동화](./jira-gitlab-automation.md) · [결정 근거](./workflow-plan.md)
+> 규칙 전체 요약은 [conventions.md](./conventions.md) · 관련 문서: [Git 컨벤션](./git-convention.md) · [파트 구분](./parts.md) · [Jira-GitLab 자동화](./jira-gitlab-automation.md) · [결정 근거](./records/2026-08-26-workflow-plan-v1.md)
 > 기준 버전: workflow-plan v1.0 (2026-08-26)
 
 **이 문서의 내용**
@@ -160,7 +160,7 @@ Epic  ── 큰 작업 카테고리. [파트] = 최종 검증 책임 파트
 ## 8. 스프린트 운영
 
 - 주기 **1주**. 스프린트 계획에서 각자 이번 주 Task를 배치하고 스토리 포인트 합계(§5)를 확인한다.
-- 회고에서 미완료 Task는 다음 스프린트로 이월하거나 쪼갠다. MR 대기 시간·주간 머지 수를 함께 본다([계획 §3.5](./workflow-plan.md)).
+- 회고에서 미완료 Task는 다음 스프린트로 이월하거나 쪼갠다. MR 대기 시간·주간 머지 수를 함께 본다([계획 §3.5](./records/2026-08-26-workflow-plan-v1.md)).
 
 <a id="section-10"></a>
 
