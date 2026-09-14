@@ -120,9 +120,22 @@ if ! : >>"$SPOOL/.lock" 2>/dev/null; then
   abort "자물쇠 파일에 쓸 수 없다: $SPOOL/.lock — 소유자·권한을 보라"
 fi
 exec 9>>"$SPOOL/.lock"
-if ! flock -n 9; then
-  echo "[$(now)] 다른 배포가 진행 중 → 이번 실행은 건너뜀"
-  exit 0
+
+# **남이 쥐고 있으면 건너뛰지 않고 기다린다** (S15P21B202-483, `!409` 리뷰).
+#
+# 건너뛰면 RELEASE 가 남은 채 곧바로 끝나고, `PathExists` 가 그것을 다시 물어
+# 재시작한다 — **권한 오류로 죽은 것과 똑같은 되풀이**다. 사람이 손으로
+# `deploy.sh` 를 돌리는 중에 RELEASE 가 들어오면 실제로 그 길로 간다
+# (`install-dev.sh` 가 스모크 테스트 전에 path 유닛을 멈추는 이유가 이것이다).
+#
+# 기다렸다 잡으면 그 사이 앞 배포가 `finish` 로 RELEASE 를 지웠을 것이고,
+# 그러면 아래에서 "RELEASE 없음 → 할 일 없음" 으로 조용히 끝난다. 조건이
+# 거짓이 됐으니 재트리거도 없다.
+LOCK_WAIT="${LOCK_WAIT:-300}"
+if ! flock -w "$LOCK_WAIT" 9; then
+  # 5분을 기다려도 못 잡는 것은 정상 경합이 아니다. CI 의 대기(420초)보다도
+  # 짧게 끊어, 사람이 시간 초과 대신 **사유**를 보게 한다.
+  abort "다른 배포가 ${LOCK_WAIT}초 넘게 자물쇠를 쥐고 있다 — 호스트를 보라"
 fi
 
 echo ""

@@ -83,4 +83,28 @@ CI_JOB_NAME=deploy-dev  python -c "import sys; sys.path.insert(0,'scripts/ci'); 
 CI_JOB_NAME=deploy-prod python -c "import sys; sys.path.insert(0,'scripts/ci'); import deploy_backend as d; assert d.host_unit()=='metagame-deploy.path', d.host_unit(); assert 'metagame-dev' not in d.host_log(), d.host_log()" || die "prod 안내가 dev 를 가리킨다"
 ok "무응답 안내가 잡 이름대로 dev/prod 를 가른다"
 
+# ── ④ 자물쇠를 남이 쥐고 있어도 **건너뛰고 끝내지 않는다** ──────────────
+#    건너뛰면 RELEASE 가 남은 채 즉시 끝나고 PathExists 가 다시 문다 —
+#    권한 오류로 죽은 것과 똑같은 되풀이다.
+if command -v flock >/dev/null 2>&1; then
+  T=$(mktemp -d); APP="$T/app"; SPOOL="$APP/deploy"
+  mkdir -p "$SPOOL"
+  printf '{"sha":"testsha"}' > "$SPOOL/RELEASE"
+  : > "$SPOOL/.lock"
+  # 다른 배포가 쥔 것처럼 자물쇠를 잡고 있는다
+  ( exec 9>>"$SPOOL/.lock"; flock 9; sleep 4 ) &
+  HOLDER=$!
+  sleep 1
+  START=$(date +%s)
+  out=$(APP_DIR="$APP" DRY_RUN=1 HEALTH_TRIES=1 LOCK_WAIT=10 bash "$SH" 2>&1)
+  ELAPSED=$(( $(date +%s) - START ))
+  wait "$HOLDER" 2>/dev/null
+  [ "$ELAPSED" -ge 2 ] || die "경합: 기다리지 않고 곧바로 끝났다 (${ELAPSED}초)"
+  case "$out$(cat "$SPOOL/deploy.log" 2>/dev/null)" in
+    *"다른 배포가 진행 중"*) die "경합: 건너뛰고 끝냈다 — RELEASE 가 남아 되풀이한다" ;;
+  esac
+  ok "자물쇠를 남이 쥐면 — 건너뛰지 않고 기다린다 (${ELAPSED}초)"
+else
+  echo "  ⏭ flock 이 없어 경합 검사는 건너뜀 (Git Bash). 리눅스 러너에서 돈다"
+fi
 echo "TEST_DEPLOY_LOCK OK ($PASS)"
