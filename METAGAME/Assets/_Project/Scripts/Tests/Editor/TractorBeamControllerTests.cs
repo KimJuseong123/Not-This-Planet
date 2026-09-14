@@ -251,8 +251,9 @@ namespace Metagame.Gameplay.Tests
             Assert.IsFalse(player.IsMounted);
         }
 
-        [Test]
-        public void MountedClickAndF_ToggleLowGravityOnlyOncePerFrame()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void MountedClickAndF_ToggleLowGravityOnlyOncePerFrame(bool boost)
         {
             var player = MakePlayerWithCamera();
             var vehicle = MakeVehicle(new Vector3(0f, TransportVehicle.GroundY, 3.2f));
@@ -270,14 +271,16 @@ namespace Metagame.Gameplay.Tests
             {
                 GrabLeft = true,
                 GrabRight = true,
-                FieldToggle = true
+                FieldToggle = true,
+                Run = boost
             });
             controller.Tick(Time.fixedDeltaTime);
             Assert.IsTrue(vehicle.Field.IsActive,
                 "탑승 중 클릭과 F는 저중력장 토글 경로를 사용해야 한다.");
+            Assert.IsFalse(vehicle.Beam.IsHolding, "Shift를 눌러도 단일 파츠 회수 모드로 바뀌지 않는다.");
 
             controller.SetInput(new InputFrame());
-            controller.SetInput(new InputFrame { FieldToggle = true });
+            controller.SetInput(new InputFrame { FieldToggle = true, Run = boost });
             controller.Tick(Time.fixedDeltaTime);
             Assert.IsFalse(vehicle.Field.IsActive,
                 "같은 프레임의 좌·우클릭·F가 토글을 여러 번 뒤집으면 안 된다.");

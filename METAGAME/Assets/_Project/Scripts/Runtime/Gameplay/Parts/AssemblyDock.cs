@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Metagame.Core;
 using Metagame.Gameplay.Audio;
 using UnityEngine;
@@ -27,8 +26,6 @@ namespace Metagame.Gameplay.Parts
         private Material _housing, _waiting, _locked;
         private SoundRuntime _sound;
         private float _nextEngineSearch;
-        private static readonly List<SpaceshipPart> Connected = new();
-        private static readonly RaycastHit[] SupportHits = new RaycastHit[32];
 
         public SpaceshipPart DockedPart => _engine != null && _engine.IsDockedToPad ? _engine : null;
         public bool IsSnapping => _snapping;
@@ -111,53 +108,6 @@ namespace Metagame.Gameplay.Parts
             return offset.sqrMagnitude <= _captureRadius * _captureRadius
                 && Mathf.Abs(bounds.min.y - _assembly.LaunchPad.position.y) <= _heightTolerance
                 && Vector3.Angle(part.AssemblyUp, Vector3.up) <= _maxTilt;
-        }
-
-        /// <summary>도킹한 바닥과 접합된 덩어리는 통째로 저중력/명시적 견인에서 제외한다.</summary>
-        public static bool IsAnchored(SpaceshipPart part)
-        {
-            if (part == null) return false;
-            if (part.IsDockedToPad) return true;
-            PartGraph.Collect(part, Connected);
-            foreach (var connected in Connected)
-                if (connected != null && connected.IsDockedToPad) return true;
-            return false;
-        }
-
-        public static bool IsSupportedByAssembly(SpaceshipPart part) => IsSupported(part, 0);
-
-        private static bool IsSupported(SpaceshipPart part, int depth)
-        {
-            if (part == null || depth >= PartSpec.All.Length || part.State == PartState.Carried) return false;
-            if (IsAnchored(part)) return true;
-            if (!part.TryGetHullBounds(out var bounds)) return false;
-            // 다섯 점의 짧은 접지 검사. 단순히 조립대 위 공중에 있다는 이유로 제외하지 않는다.
-            for (var sample = 0; sample < 5; sample++)
-            {
-                var origin = bounds.center;
-                if (sample > 0)
-                {
-                    origin.x += ((sample & 1) == 0 ? 1f : -1f) * bounds.extents.x * 0.65f;
-                    origin.z += (sample <= 2 ? 1f : -1f) * bounds.extents.z * 0.65f;
-                }
-                origin.y = bounds.min.y + 0.08f;
-                var count = Physics.RaycastNonAlloc(origin, Vector3.down, SupportHits, 0.22f,
-                    Physics.AllLayers, QueryTriggerInteraction.Ignore);
-                SpaceshipPart below = null;
-                var closest = float.PositiveInfinity;
-                for (var i = 0; i < count; i++)
-                {
-                    var hit = SupportHits[i];
-                    var other = hit.rigidbody != null ? hit.rigidbody.GetComponent<SpaceshipPart>() : null;
-                    if (other == part || hit.distance >= closest) continue;
-                    // 플레이어나 장식이 아니라 실제 파츠 받침으로 이어져야 한다.
-                    closest = hit.distance;
-                    below = other;
-                }
-                if (below != null && below.transform.position.y < part.transform.position.y
-                    && IsSupported(below, depth + 1)) return true;
-            }
-            return false;
         }
 
         private void LateUpdate()
