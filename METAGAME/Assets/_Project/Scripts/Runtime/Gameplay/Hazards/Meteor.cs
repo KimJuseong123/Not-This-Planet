@@ -172,7 +172,19 @@ namespace Metagame.Gameplay.Hazards
         /// 하나로만 막아서, 쳐낸 운석이 날아가다 사람을 스치면 기절시켰다
         /// (S15P21B202-273).
         /// </summary>
-        public bool Harmless => HasImpacted || Rolling;
+        public bool Harmless => HasImpacted || Rolling || guideHarmless;
+        bool guideHarmless;
+        float guideWindow;
+        float guideRadius;
+
+        // Disabled client ghosts expose prediction data only; no collision or damage is enabled.
+        public void ApplyGuideSnapshot(float groundHeight, bool harmless, float window, float radius)
+        {
+            GroundHeight = groundHeight;
+            guideHarmless = harmless;
+            guideWindow = window;
+            guideRadius = radius;
+        }
 
         /// <summary>
         /// 착탄한 지면 위치. 분화구와 충격 표시가 사용할 기준점이다.
@@ -204,10 +216,12 @@ namespace Metagame.Gameplay.Hazards
 
         /// <summary>스포너가 넘긴 장면별 방망이 판정 창.</summary>
         public float BatSwingWindowSeconds =>
+            guideWindow > 0f ? guideWindow :
             _tuning != null ? _tuning.BatSwingWindowSeconds : PhysicsScale.BatSwingWindowSeconds;
 
         /// <summary>스포너가 넘긴 장면별 방망이 보조 반경.</summary>
         public float BatAssistRadius =>
+            guideRadius > 0f ? guideRadius :
             _tuning != null ? _tuning.BatAssistRadius : PhysicsScale.BatAssistRadius;
 
         /// <summary>
@@ -393,8 +407,9 @@ namespace Metagame.Gameplay.Hazards
 
             if (HasImpacted) return false;
 
-            Initialize();
-            if (_body == null) return false;
+            // Prediction is read-only: do not re-register disabled network ghosts
+            // or clear direct-hit history when the HUD queries every frame.
+            if (Body == null) return false;
 
             var gravity = UnityEngine.Physics.gravity.y;
             if (Mathf.Approximately(gravity, 0f)) return false;

@@ -177,6 +177,9 @@ namespace Metagame.Network
         readonly List<ToolBase> tools = new List<ToolBase>();
         public struct ToolViewState
         {
+            public uint RhythmSequence;
+            public byte RhythmGrade;
+            public float RhythmCooldown;
             public uint Owner;
             public byte Action;
             public float Progress;
@@ -998,6 +1001,9 @@ namespace Metagame.Network
                 var tool = tools[i];
                 sendToolViews[i] = tool != null ? new ToolViewState
                 {
+                    RhythmCooldown = tool is MeteorBat cooldownBat ? cooldownBat.Cooldown : 0f,
+                    RhythmSequence = tool is MeteorBat bat ? bat.RhythmSequence : 0,
+                    RhythmGrade = tool is MeteorBat rhythmBat ? rhythmBat.RhythmGrade : (byte)0,
                     Owner = tool.IsEquipped ? NetPlayer.NetIdOfRig(tool.Owner) : 0,
                     Action = tool.IsEquipped ? tool.ViewAction : (byte)0,
                     Progress = tool.ViewProgress, Direction = tool.Owner != null ? tool.Owner.AimForward : tool.transform.forward
@@ -1711,13 +1717,14 @@ namespace Metagame.Network
                 PlayerRig owner = null;
                 if (state.Owner != 0 && NetworkClient.spawned.TryGetValue(state.Owner, out var identity))
                     owner = identity.GetComponent<NetPlayer>()?.VisualRig;
+                if (tool is MeteorBat bat) bat.ApplyRhythmResult(state.RhythmSequence, state.RhythmGrade, state.RhythmCooldown);
                 tool.ApplyRemoteHeld(state.Owner != 0);
                 tool.ApplyRemotePresentation(owner, state.Action, state.Progress, state.Direction);
             }
         }
 
-        /// <summary>낙하 자세 하나의 바이트 수 — 자세 28 + 속도 12.</summary>
-        const int MeteorPoseBytes = PoseBytes + 12;
+        /// <summary>낙하 자세 하나의 바이트 수 — 자세 28 + 속도 12 + 타격 가이드 13.</summary>
+        const int MeteorPoseBytes = PoseBytes + 25;
 
         /// <summary>
         /// 한 묶음에 실을 수 있는 낙하 자세 개수. 공세 최대가 표에서 8개이므로 닿을 일이
@@ -1799,12 +1806,20 @@ namespace Metagame.Network
                         Position = body.position,
                         Rotation = body.rotation,
                         Velocity = body.linearVelocity,
+                        GroundHeight = meteor.GroundHeight,
+                        Harmless = meteor.Harmless,
+                        BatWindow = meteor.BatSwingWindowSeconds,
+                        BatRadius = meteor.BatAssistRadius,
                     }
                     : new MeteorPose
                     {
                         Position = meteor.transform.position,
                         Rotation = meteor.transform.rotation,
                         Velocity = Vector3.zero,
+                        GroundHeight = meteor.GroundHeight,
+                        Harmless = meteor.Harmless,
+                        BatWindow = meteor.BatSwingWindowSeconds,
+                        BatRadius = meteor.BatAssistRadius,
                     };
             }
 

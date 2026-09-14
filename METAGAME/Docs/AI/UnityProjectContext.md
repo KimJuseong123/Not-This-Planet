@@ -1,5 +1,9 @@
 # Unity Project Context
 
+## 2026-09-14 meteor rhythm HUD
+
+`GameHud.MeteorRhythm.cs` renders a held-bat-only landing-zone guide and observes confirmed `MeteorBat` rhythm results. `MeteorBat` grades timing and scales launch speed; `OrbitCamera` adds a short local rotational impact effect. `WorldSync` replicates result/cooldown and meteor prediction metadata for disabled client ghosts. `Meteor.TryPredictImpact` no longer initializes/registers the meteor or clears hit history on presentation queries. See repository-root `docs/records/2026-09-14-meteor-rhythm.md`. No scene/prefab setup is required.
+
 ## 2026-09-13 UI cursor integration
 
 `Metagame.UI.LocalCursorFeedback` auto-installs a persistent local presentation component in interactive players. It reuses `Resources/PingMarker`, reads the owning `NetPlayer.PingColor` (solo fallback: `GameSession.LocalPlayer.TeamColor`), and leaves cursor visibility/locking to existing bootstrap/session code. `UiInteraction` wraps current IMGUI controls to emit bounded screen sparks and synthesized 2D click audio only on consumed pointer presses. Audio honors the existing listener master volume and settings SFX volume; no network events are emitted. See `docs/records/2026-09-13-cursor-feedback.md` at repository root for scope and validation (22 EditMode tests passed in Unity 6000.5.4f1).
