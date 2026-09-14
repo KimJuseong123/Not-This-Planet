@@ -168,7 +168,9 @@ assert AR.blocking_findings(_m) == [_high], "높음만 차단 사유로 세워�
 _out = AR.render(merged=_m, **_common)
 assert "막고 있는 것 1건" in _out, _out[:500]
 # 차단 목록이 판정 표보다 앞이어야 한다 — 뒤에 있으면 찾아야 한다.
-assert _out.index("막고 있는 것") < _out.index("확인 항목"), "차단 목록이 표 뒤에 있다"
+# 앵커는 **표 머리글 전체**다 — "확인 항목" 만 쓰면 앞쪽 다른 문구와 겹칠 때
+# index 가 표가 아닌 곳을 가리켜 검사가 조용히 무의미해진다(`!431` 리뷰).
+assert _out.index("막고 있는 것") < _out.index("| 확인 항목 | 판정 |"), "차단 목록이 표 뒤에 있다"
 assert "`a/b.cs:12`" in _out and "가드 추가" in _out, "위치와 제안이 목록에 없다"
 
 # 높음이 없으면 중간까지 올린다 — 리뷰어가 높음 없이 block 을 낸 경우다.

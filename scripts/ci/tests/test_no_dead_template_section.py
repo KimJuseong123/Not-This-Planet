@@ -32,7 +32,8 @@ import mm_notify  # noqa: E402
 print("― S15P21B202-517 없어진 템플릿 절을 가리키지 않는다 ―")
 
 TEMPLATE = os.path.join(ROOT, ".gitlab", "merge_request_templates", "Default.md")
-DEAD = "리뷰어 확인"          # `-415` 가 없앤 절
+DEAD = "리뷰어 확인"                     # `-415` 가 없앤 절
+POINTS_AT = "머지 전에 팀장이 확인할 것"   # 🟢 카드가 팀장에게 가리켜야 하는 절
 ok = 0
 
 
@@ -52,22 +53,36 @@ ok += 1
 #     소스를 통째로 grep 하면 **주석까지 걸린다** — 왜 이름이 바뀌었는지 적어 둔
 #     설명에 옛 이름이 나오기 때문이다. 검사 대상은 사람에게 인쇄되는 것, 곧
 #     **문자열 리터럴**뿐이므로 ast 로 그것만 꺼낸다.
-def printed_strings(mod, func_name: str) -> str:
-    fn = next(x for x in ast.walk(ast.parse(inspect.getsource(mod)))
-              if isinstance(x, ast.FunctionDef) and x.name == func_name)
-    return " ".join(c.value for c in ast.walk(fn)
+def literals(node) -> str:
+    """이 노드 아래의 문자열 리터럴 전부. f-string 조각도 `ast.walk` 가 집어 준다."""
+    return " ".join(c.value for c in ast.walk(node)
                     if isinstance(c, ast.Constant) and isinstance(c.value, str))
 
 
-src = printed_strings(mm_notify, "mr_opened")
-assert DEAD not in src, f"🟢 카드가 없어진 `{DEAD}` 절로 안내한다"
+def func(mod, name: str):
+    """이름으로 함수를 찾는다. **못 찾으면 조용히 빈손으로 통과하지 않고 실패한다** —
+    `next()` 의 StopIteration 은 무슨 일인지 말해 주지 않는다(`!431` 리뷰)."""
+    tree = ast.parse(inspect.getsource(mod))
+    for x in ast.walk(tree):
+        if isinstance(x, (ast.FunctionDef, ast.AsyncFunctionDef)) and x.name == name:
+            return x
+    raise AssertionError(f"`{mod.__name__}.{name}` 을 못 찾았다 — 이름이 바뀌었으면 "
+                         "이 시험도 따라가야 한다. 그냥 두면 아무것도 안 보게 된다")
 
-#     가리키는 절이 진짜 있는지까지 본다. 없는 절을 안 가리키는 것만으로는 모자라다 —
-#     아무 절도 안 가리키게 지워도 통과해 버리기 때문이다.
-pointed = [s for s in SECTIONS if s in src]
-assert pointed, ("🟢 카드가 템플릿의 어떤 절도 가리키지 않는다 — 팀장은 무엇을 보고 "
-                 "머지해야 하는지 알 수 없다")
-print(f"  🟢 리뷰 요청 카드 → `{'` · `'.join(pointed)}` (템플릿에 있다) ✅")
+
+#     ⓐ 모듈 전체 — 옛 이름이 **어디서든** 인쇄되면 걸린다. 함수 하나만 보면
+#        문구가 상수나 헬퍼로 옮겨질 때 검사가 조용해진다(`!431` 리뷰 [낮음]).
+whole = literals(ast.parse(inspect.getsource(mm_notify)))
+assert DEAD not in whole, f"`mm_notify` 어딘가가 없어진 `{DEAD}` 절을 인쇄한다"
+
+#     ⓑ 카드 함수 — **어떤 절이든 하나 걸리면 통과**로 두면 안 된다(`!431` 리뷰 [중간]).
+#        `Jira` 같은 짧은 절 이름이 다른 라벨에 우연히 걸려, 조치 줄을 통째로 지워도
+#        통과하는 길이 생긴다. 가리켜야 하는 절을 **이름으로 못 박는다.**
+card = literals(func(mm_notify, "mr_opened"))
+assert POINTS_AT in SECTIONS, f"카드가 가리키는 `{POINTS_AT}` 절이 템플릿에서 사라졌다"
+assert POINTS_AT in card, ("🟢 카드가 `" + POINTS_AT + "` 을 가리키지 않는다 — 팀장은 "
+                           "무엇을 보고 머지해야 하는지 알 수 없다")
+print(f"  🟢 리뷰 요청 카드 → `{POINTS_AT}` (템플릿에 있다) ✅")
 ok += 1
 
 
