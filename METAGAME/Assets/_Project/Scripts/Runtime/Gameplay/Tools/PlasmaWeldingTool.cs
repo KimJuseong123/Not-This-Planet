@@ -96,9 +96,7 @@ namespace Metagame.Gameplay
         ParticleSystem weldSparks;
         ParticleSystem weldSmoke;
         Light weldContactLight;
-        Material weldGlowMaterial;
         Material weldSparkMaterial;
-        Material weldSmokeMaterial;
         float nextWeldSparkAt;
         float nextWeldSmokeAt;
         WeldBead brushStrokeBead;
@@ -509,8 +507,7 @@ namespace Metagame.Gameplay
             var glowRenderer = glow.GetComponent<Renderer>();
             if (glowRenderer != null)
             {
-                weldGlowMaterial = Prim.Flat(weldHotColor);
-                glowRenderer.sharedMaterial = weldGlowMaterial;
+                glowRenderer.sharedMaterial = Prim.Flat(weldHotColor);
                 glowRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 glowRenderer.receiveShadows = false;
             }
@@ -626,9 +623,8 @@ namespace Metagame.Gameplay
             smokeRenderer.renderMode = ParticleSystemRenderMode.Billboard;
             smokeRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             smokeRenderer.receiveShadows = false;
-            weldSmokeMaterial = Prim.Ghost(new Color(0.34f, 0.37f, 0.42f, 0.22f),
+            smokeRenderer.sharedMaterial = Prim.Ghost(new Color(0.34f, 0.37f, 0.42f, 0.22f),
                 rimBoost: 0.25f, pulse: 0f, fogExempt: true);
-            smokeRenderer.sharedMaterial = weldSmokeMaterial;
 
             HideWeldContactFx(clearSparks: true);
         }
@@ -807,20 +803,10 @@ namespace Metagame.Gameplay
                 if (Application.isPlaying) Destroy(runtimeMaterial);
                 else DestroyImmediate(runtimeMaterial);
             }
-            if (weldGlowMaterial != null)
-            {
-                if (Application.isPlaying) Destroy(weldGlowMaterial);
-                else DestroyImmediate(weldGlowMaterial);
-            }
             if (weldSparkMaterial != null)
             {
                 if (Application.isPlaying) Destroy(weldSparkMaterial);
                 else DestroyImmediate(weldSparkMaterial);
-            }
-            if (weldSmokeMaterial != null)
-            {
-                if (Application.isPlaying) Destroy(weldSmokeMaterial);
-                else DestroyImmediate(weldSmokeMaterial);
             }
         }
     }
