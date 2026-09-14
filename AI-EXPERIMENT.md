@@ -81,7 +81,7 @@ Qwen3 1.7B의 따뜻한 상태 텍스트 처리 약 0.45~0.50초, 첫 적재 약
 
 ## 수정 위치
 
-- 실험 코드/프리팹: `METAGAME/Assets/AICompanionExperiment`
+- 실험 코드/프리팹: `METAGAME/Assets/_Project/AICompanionExperiment`
 - 이동 속도: `CompanionMotor`의 Walk Input(기존 걷기 입력 배율, 현재 0.7)
 - 멈추는 거리: Stop Distance(현재 1.8m)
 - 게임용 분류 서버 추가분: `tools/AICompanionService/companion_v2.py` (v1용 `companion.py`도 보존)

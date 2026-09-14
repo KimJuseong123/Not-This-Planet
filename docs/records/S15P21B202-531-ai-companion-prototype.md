@@ -44,7 +44,9 @@
 
 ## Git 구성 및 재현
 
-- Unity: `METAGAME/Assets/AICompanionExperiment`, `METAGAME/Assets/Scenes/AICompanionTest.unity`, `AIPracticeLobby.unity`.
+- Unity: `METAGAME/Assets/_Project/AICompanionExperiment`, `METAGAME/Assets/Scenes/AICompanionTest.unity`, `AIPracticeLobby.unity`.
+- 공유 전 repo-hygiene 검사가 새 최상위 Assets 폴더를 금지하여 `_Project` 아래로 이동했다. 모든 .meta GUID를 보존하고 에디터 빌더의 프리팹 경로만 수정했다.
+- 이동 후 Unity 6000.5.4f1에서 동일한 통합 테스트 13/13 재통과 (`ai-tests-share.xml`). 기존 에셋의 Convex Mesh 경고는 남아 있다. 이동 후 Windows 빌드는 다시 만들지 않았으며, 앞선 v2 빌드는 이동 전 검증 결과다.
 - Python 서비스 전체 소스/비교 UI/버전 고정 의존성/준비 스크립트: `tools/AICompanionService`.
 - 게임에서 열 씬과 빌더/검사: `AI-EXPERIMENT.md`.
 - Python 설치/모델 준비/실행: `tools/AICompanionService/README.md`.

@@ -13,7 +13,7 @@ namespace Metagame.AIExperiment.Editor
 {
     public static class AIExperimentBuilder
     {
-        const string PrefabPath = "Assets/AICompanionExperiment/AICompanion.prefab";
+        const string PrefabPath = "Assets/_Project/AICompanionExperiment/AICompanion.prefab";
 
         [MenuItem("Tools/Not This Planet/AI 실험/실험 씬 만들기")]
         public static void BuildScenes()
