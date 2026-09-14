@@ -18,6 +18,7 @@
 **조용하면 아무 말도 안 한다.** `mm-digest` 규칙 그대로다. 서버가 멀쩡하면 줄이
 없어야 하고, 그래야 줄이 있을 때 사람이 본다.
 """
+import hashlib
 import json
 import os
 from datetime import datetime, timedelta, timezone
@@ -160,6 +161,10 @@ def problems(data: dict | None, now: datetime | None = None) -> list[str]:
 
     # **만료된 것과 못 읽은 것을 가른다.** 둘을 묶으면 가장 심각한 상태(이미 만료돼
     # 접속이 전부 막힌 상태)가 가장 약한 문구로 나간다.
+    drift = deploy_sh_drift(data)
+    if drift:
+        out.append(drift)
+
     raw_days = data.get("cert_days_left")
     if raw_days is None:
         out.append("🔐 **인증서 만료일을 읽지 못했다** — `/etc/letsencrypt` 를 볼 수 있는지 확인하세요")
@@ -172,6 +177,46 @@ def problems(data: dict | None, now: datetime | None = None) -> list[str]:
             out.append(f"🔐 **인증서가 {days:.0f}일 남았다** — certbot 자동 갱신을 확인하세요")
 
     return out
+
+
+# 저장소의 배포 스크립트. **`__file__` 기준 절대 경로다** (`!426` 리뷰).
+# 상대 경로로 열면 잡의 작업 디렉터리가 저장소 루트가 아닐 때 조용히 못 읽고,
+# 그러면 **드리프트가 있어도 아무 말을 안 한다** — 이 검사가 막으려던 바로 그 모양이다.
+REPO_DEPLOY_SH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "scripts", "deploy", "host", "deploy.sh")
+
+
+def deploy_sh_drift(data: dict) -> str | None:
+    """호스트의 배포 스크립트가 **저장소본과 다른가** (S15P21B202-485).
+
+    2026-09-14 발견: `/opt/metagame-deploy/deploy.sh` 가 7일 동안 낡아 있었다.
+    `-284` 의 dev 지원이 호스트에 없어 **dev 배포가 prod 포트로 헬스체크**했고,
+    그러면 dev 가 기동에 실패해도 `배포 완료` 로 끝나고 롤백도 안 한다. 같은
+    디렉터리의 다른 스크립트는 갱신돼 있었는데 이것만 빠졌고, **아무것도
+    빨갛지 않았다.**
+
+    `-508`(런처)과 같은 방식이다 — 고쳐 주지는 않고 **하루 안에 보이게** 한다.
+    """
+    live = data.get("deploy_sh_sha256")
+    if not live:
+        # **재지 못한 것과 같은 것은 다르다.** 호스트 스크립트가 옛 판이면 이 값을
+        # 아예 안 보내므로, 조용히 넘기면 그 상태가 영원히 안 보인다.
+        return ("🖥 **배포 스크립트 해시가 상태 파일에 없다** — 호스트의 "
+                "`ec2-status.sh` 가 옛 판이다. 다시 설치하세요")
+    try:
+        with open(REPO_DEPLOY_SH, "rb") as f:
+            want = hashlib.sha256(f.read().replace(b"\r", b"")).hexdigest()
+    except OSError as e:
+        # **조용히 넘어가지 않는다** (`!426` 리뷰). 못 읽은 것과 같은 것은 다르다 —
+        # 여기서 None 을 돌려주면 이 검사가 통째로 죽어도 화면이 똑같다.
+        return (f"🖥 **저장소의 배포 스크립트를 못 읽었다** — `{REPO_DEPLOY_SH}` "
+                f"({type(e).__name__}). 견줄 기준이 없어 드리프트를 판정하지 못했다")
+    if live == want:
+        return None
+    return (f"🖥 **호스트의 배포 스크립트가 저장소본과 다르다** — 호스트 `{live[:8]}` · "
+            f"저장소 `{want[:8]}`. 낡은 채로 돌면 **배포가 성공한 척할 수 있다**"
+            f"(`-485`). `/opt/metagame-deploy/deploy.sh` 를 다시 올리세요")
 
 
 def _reach(data: dict, path: tuple):

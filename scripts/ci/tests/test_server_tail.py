@@ -25,9 +25,20 @@ import ec2_status as E  # noqa: E402
 NOW = datetime(2026, 9, 14, 9, 33, tzinfo=E.KST)
 
 
+def _repo_deploy_sha() -> str:
+    """저장소의 `deploy.sh` 해시. **정상값에 이것이 들어가야 조용하다** —
+    호스트가 이 값을 보내고 CI 가 저장소본과 견준다(S15P21B202-485).
+    """
+    import hashlib
+    root = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
+    with open(os.path.join(root, "scripts/deploy/host/deploy.sh"), "rb") as f:
+        return hashlib.sha256(f.read().replace(b"\r", b"")).hexdigest()
+
+
 def data(**over) -> dict:
     d = {
         "at": (NOW - timedelta(minutes=3)).isoformat(),
+        "deploy_sh_sha256": _repo_deploy_sha(),
         "disk": {"used_pct": 20, "free_gb": 249},
         "mem": {"total_gb": 15, "available_gb": 12},
         "sizes": {"docker_gb": 36, "builds_mb": 501},
