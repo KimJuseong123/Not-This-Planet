@@ -178,6 +178,33 @@ namespace Metagame.Gameplay
         /// 둘 다 돌지 않으므로 <see cref="CarryTarget"/> 이 비어 있고, 그러면
         /// <b>플래그만 맞춰도 후보가 되지 않는다</b>(잡을 지점이 없다).</para>
         /// </summary>
+        /// <summary>
+        /// 서버가 보낸 체력을 받는다 (S15P21B202-513).
+        ///
+        /// <para><b>왜 필요한가.</b> 빨간 테두리(<c>GameHud.HealthFrame</c>)는
+        /// <see cref="Health01"/> 을 읽는데, 참가자 기계에는 서버가 깎은 값이 오지
+        /// 않았다 — 실측으로 <c>NetPlayer</c> 와 <c>WorldSync</c> 둘 다에서
+        /// <c>health</c> 가 <b>0회</b>였다. 그래서 참가자에게 체력은 사실상
+        /// <b>"가득" 아니면 "기절" 둘뿐</b>이었다(운석 직격은 <c>ApplyDamage</c> 를
+        /// 거치지 않고 곧바로 <see cref="GoDown"/> 이고 <c>downed</c> 는 전송된다).</para>
+        ///
+        /// <para><b>0~1 이 아니라 절댓값을 받는다.</b> <see cref="IsDead"/> 가
+        /// <c>Health &lt;= 0</c> 이라, 비율만 받으면 그 값이 여전히 로컬로 남아
+        /// 어긋난다 — <c>DamageSource</c> 와 <c>Stage1DustStormFragment</c> 가
+        /// <c>IsDead</c> 로 피해를 거르므로, 서버가 기절시킨 사람을 참가자 기계에서
+        /// 계속 때리게 된다.</para>
+        ///
+        /// <para><b>권위가 있는 몸은 무시한다.</b> 호스트·혼자 실행에서는 자기 판정이
+        /// 정답이고, 받은 값으로 덮으면 값이 두 곳에서 오게 된다
+        /// (<c>-383</c>). <see cref="SetRemoteBeingRescued"/> 와 같은 규칙이다.</para>
+        /// </summary>
+        public void SetRemoteHealth(float nowHealth)
+        {
+            if (ServerAuthority) return;
+
+            Health = Mathf.Clamp(nowHealth, 0f, MaxHealth);
+        }
+
         public void SetRemoteDowned(bool nowDowned)
         {
             // 인형이 아직 없을 때를 같은 값으로 걸러내면 안 된다 — 플래그만 남고
@@ -1058,9 +1085,24 @@ namespace Metagame.Gameplay
             Health = MaxHealth;
         }
 
-        /// <summary>외부 피해 오브젝트와 낙하 판정이 공통으로 사용하는 피해 진입점.</summary>
+        /// <summary>
+        /// 외부 피해 오브젝트와 낙하 판정이 공통으로 사용하는 피해 진입점.
+        ///
+        /// <para><b>판정은 서버가 한다</b>(S15P21B202-513). 예전에는 권한 게이트가 없어서
+        /// 참가자 기계의 트리거(<c>DamageSource</c> · <c>Stage1DustStormFragment</c>)가
+        /// 자기 몸에 닿으면 <b>로컬에서만 체력이 깎였다</b> — 실측으로
+        /// <c>ServerAuthority=False</c> 인데 <c>Health01</c> 이 1.000 → 0.700 이 됐다.</para>
+        ///
+        /// <para>체력을 전송하기 시작하면 그 값과 <b>싸운다</b> — 서버 값이 내려오는데
+        /// 로컬에서도 깎으면 화면이 깜빡인다. <c>-383</c> 의 "판정을 두 곳에 두면 반드시
+        /// 갈라진다" 이고, <b>전송과 이 게이트는 짝이다.</b></para>
+        ///
+        /// <para>혼자 실행·호스트에서는 <see cref="ServerAuthority"/> 가 참이라 그대로
+        /// 돈다.</para>
+        /// </summary>
         public void ApplyDamage(float amount, string source = "피해")
         {
+            if (!ServerAuthority) return;
             if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
             if (IsDead || float.IsNaN(amount) || float.IsInfinity(amount) || amount <= 0f) return;
 

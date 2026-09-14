@@ -336,10 +336,23 @@ namespace Metagame.UI
                 HealthFrame(w, h);
         }
 
+        /// <summary>
+        /// 빨간 테두리의 진하기 0~1. 0 이면 그리지 않는다 (S15P21B202-513).
+        ///
+        /// <para><b>왜 순수 메서드로 빼는가.</b> 이 판단이 <see cref="OnGUI"/> 경로 안의
+        /// 조건문으로만 있으면 검증이 닿지 못한다 — <c>-438</c>·<c>-448</c>·<c>-489</c>
+        /// 에서 세 번 걸린 자리다. 밖에서 부를 수 있게 두면 대조가 실제 경로를 지난다.</para>
+        ///
+        /// <para>임계값이 있는 이유는 부동소수 찌꺼기다 — 체력이 가득인데 1e-7 만큼
+        /// 모자라 테두리가 깜빡이는 것을 막는다.</para>
+        /// </summary>
+        public static float HealthFrameStrength(float health01) =>
+            Mathf.Clamp01(1f - health01) <= 0.001f ? 0f : Mathf.Clamp01(1f - health01);
+
         void HealthFrame(float width, float height)
         {
-            float damage = Mathf.Clamp01(1f - Local.Health01);
-            if (damage <= 0.001f) return;
+            float damage = HealthFrameStrength(Local.Health01);
+            if (damage <= 0f) return;
 
             float thickness = Mathf.Lerp(0f, Mathf.Min(width, height) * 0.08f, damage);
             float alpha = Mathf.Lerp(0.10f, 0.78f, damage);
