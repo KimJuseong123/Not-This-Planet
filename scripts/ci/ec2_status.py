@@ -207,6 +207,58 @@ def section(data: dict | None, now: datetime | None = None) -> str:
     return head + chr(10) * 2 + chr(10).join(f"- {r}" for r in rows)
 
 
+def tail(data: dict | None, now: datetime | None = None) -> str:
+    """꼬리에 붙일 **한 줄** — 지금 자원이 얼마나 쓰이고 있는지 (S15P21B202-486).
+
+    `section()` 은 **문제가 있을 때만** 말한다. 그래서 화면이 조용할 때
+    "서버가 멀쩡하다" 와 "재는 쪽이 죽었는데 그것도 못 알아챘다" 가 구별되지 않는다.
+    2026-09-12 에 개발 배포가 1일 15시간 조용히 멈춰 있던 것(`-483`)이 그 모양이었다.
+    `-458` 이 EC2 를 카드에 넣은 이유가 "조용히 나빠져도 아무도 모른다" 였는데,
+    정작 **나빠지기 전에는 아무 숫자도 안 보였다.**
+
+    **블록이 아니라 꼬리다** — 조치 항목이 아니므로 이것만으로 카드를 보내지
+    않는다(`-144` 의 🚀 와 같은 결).
+
+    못 읽었으면 **빈 문자열**이다. 그 경우는 `section()` 이 블록으로 크게 말하고,
+    꼬리에까지 적으면 같은 말이 카드에 두 번 나온다.
+    """
+    if data is None:
+        return ""
+
+    parts: list[str] = []
+
+    # **없는 값은 그 조각만 뺀다.** 0 으로 읽으면 "디스크 0%" 같은 없는 사실이
+    # 실린다 — `-467` 에서 정한 규칙이다. `_reach` 가 None 과 0 을 구별한다.
+    used = _reach(data, ("disk", "used_pct"))
+    free = _reach(data, ("disk", "free_gb"))
+    if used is not None:
+        parts.append(f"디스크 {used:.0f}%" + (f" (여유 {free:.0f}GB)" if free is not None else ""))
+    elif free is not None:
+        parts.append(f"디스크 여유 {free:.0f}GB")
+
+    avail = _reach(data, ("mem", "available_gb"))
+    total = _reach(data, ("mem", "total_gb"))
+    if avail is not None:
+        parts.append(f"메모리 여유 {avail:.0f}" + (f"/{total:.0f}GB" if total is not None else "GB"))
+
+    docker = _reach(data, ("sizes", "docker_gb"))
+    if docker is not None:
+        parts.append(f"도커 {docker:.0f}GB")
+
+    cert = _reach(data, ("cert_days_left",))
+    if cert is not None:
+        parts.append(f"인증서 {cert:.0f}일")
+
+    if not parts:
+        return ""          # 숫자가 하나도 없으면 꼬리를 만들지 않는다
+
+    # **잰 시각을 함께 싣는다.** 숫자만 있으면 그것이 방금 잰 것인지 어제 것인지
+    # 알 수 없다. 20분을 넘기면 `problems()` 가 블록으로 따로 말한다.
+    age = _age_minutes(data.get("at", ""), now or datetime.now(KST))
+    when = f"{int(age)}분 전" if age is not None and age >= 0 else "잰 시각 불명"
+    return "🖥 서버: " + " · ".join(parts) + f" · {when}"
+
+
 if __name__ == "__main__":  # 손으로 확인할 때
     d = load()
     print("===== ec2-status =====")

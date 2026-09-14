@@ -519,9 +519,16 @@ def main() -> int:
     # `-130` 의 "검사가 돌지 않은 MR". 빠지는 것은 좁은 한 경우뿐이고 그것도
     # `-130` 이 몇 시간 뒤에 잡는다.
     try:
-        srv = ec2_status.section(ec2_status.load())
+        srv_data = ec2_status.load()
+        srv = ec2_status.section(srv_data)
         if srv:
             blocks.append(srv)
+        # **정상일 때도 숫자를 남긴다** (S15P21B202-486). 위 블록은 문제가 있을
+        # 때만 붙어서, 조용한 화면이 "멀쩡하다" 인지 "재는 쪽이 죽었다" 인지
+        # 구별되지 않았다. 꼬리는 🚀 와 같은 자리다 — 이것만으로 카드를 보내진 않는다.
+        srv_tail = ec2_status.tail(srv_data)
+        if srv_tail:
+            tails.append(srv_tail)
     except Exception as e:  # noqa: BLE001 — 서버 판정 실패가 점검 전체를 막지 않는다
         blocks.append(f"**🖥 서버** — 판정 실패 → @{INFRA_MM} 확인: {type(e).__name__}: {e}")
 
