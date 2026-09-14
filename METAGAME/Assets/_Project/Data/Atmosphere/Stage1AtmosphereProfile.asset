@@ -19,14 +19,15 @@ MonoBehaviour:
     horizonHeight: 0
     horizonExponent: 1.6
   stars:
-    starCount: 1500
+    starCount: 3500
     bandCount: 900
     radius: 300
     seed: 20260825
     minimumBrightness: 0.1
     maximumBrightness: 1
-    minimumSize: 0.1
+    minimumSize: 0.18
     maximumSize: 0.55
+    bandSpread: 0.22
   celestialBodies:
     planetEnabled: 1
     planetColor: {r: 0.2, g: 0.4, b: 0.72, a: 1}
