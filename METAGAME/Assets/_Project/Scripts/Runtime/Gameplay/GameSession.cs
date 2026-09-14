@@ -68,6 +68,10 @@ namespace Metagame.Gameplay
         /// </summary>
         public bool InputSuppressed { get; private set; }
 
+        /// <summary>로컬 태블릿 입력과 키 안내가 공유하는 사용 가능 조건.</summary>
+        public bool CanToggleTablet => LocalPlayer != null && Exploration != null
+            && !EndingActive && !InputSuppressed && !ScriptedInput;
+
         /// <summary>체크포인트 N 에 서 있을 때 화면에 뜨는 "지금 할 일".</summary>
         static readonly string[] Hints =
         {
@@ -128,7 +132,7 @@ namespace Metagame.Gameplay
             {
                 var f = Controls.Read();
 
-                if (f.TabletToggle && Exploration != null)
+                if (f.TabletToggle && CanToggleTablet)
                 {
                     Exploration.ToggleTablet();
                     SetCursor(!Exploration.TabletOpen);
