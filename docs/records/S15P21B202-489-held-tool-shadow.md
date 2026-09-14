@@ -146,7 +146,7 @@ static ShadowCastingMode ShadowsOnlyFrom(ShadowCastingMode before) =>
 
 ## 5. 검증
 
-**`ToolShadowTests` 7개** 신설.
+**`ToolShadowTests` 10개** 신설.
 
 | 검증 | 무엇을 잠그나 |
 | --- | --- |
@@ -157,6 +157,9 @@ static ShadowCastingMode ShadowsOnlyFrom(ShadowCastingMode before) =>
 | `ARendererThatWasAlreadyOff_StaysOff` | 숨겨 둔 부품이 나타나지 않는다 |
 | `ARendererThatNeverCastShadows_StillDoesNot` | 없던 그림자를 만들지 않는다 |
 | `TheBodyKeepsItsOwnShadowInFirstPerson` | **몸 경로를 건드리지 않았다** |
+| **`HidingWithoutEverShowing_LeavesTheOriginalAlone`** | **든 적 없이 놓기부터 와도 안전**(탑승·기절 경로 · §5-3) |
+| **`ShowingTwiceThenHiding_StillRestoresTheOriginal`** | **들기가 두 번 와도 복원된다**(재장착 경합 · §5-3) |
+| `ShowAndHideRepeatedly_DoesNotDrift` | 되풀이해도 값이 흘러가지 않는다 |
 
 ### 5-1. 기존 검증 하나도 수단을 재고 있었다
 
@@ -213,7 +216,36 @@ Assert.IsFalse(drawnInColorPass);
 
 고친 뒤 대조 A 는 **진짜 회귀 하나만** 잡는다.
 
-### 5-3. 대조 실험
+### 5-3. !413 AI 리뷰 — 지적은 옳았고, 막는 것이 이미 있었다
+
+리뷰가 **차단 1건**을 걸었다.
+
+> 저장 없이 `SetVisible(false)` 가 먼저 오면 `shadowBefore` 는 초기값 `Off` 이므로
+> 원본의 `shadowCastingMode` 를 `Off` 로 덮어쓴다 — 한 번도 든 적 없는 도구의 그림자가
+> 조용히 사라진다. **이 MR 이 새로 만든 경로다.**
+
+그리고 중간 1건 — 들기가 두 번 오면 두 번째가 `ShadowsOnly` 를 "원래 값" 으로 저장해
+놓은 뒤에도 3인칭에서 도구가 안 보인다.
+
+**읽어서 반박하지 않고 두 시나리오를 그대로 쟀다. 둘 다 통과한다.** `SetVisible` 셋째
+줄의 `if (hidden == visible) return;` 이 저장과 복원이 짝이 되게 막는다 — 그 줄은 이
+MR 이전부터 있었고 그대로 두었다.
+
+**그런데 리뷰가 말한 기전은 진짜다.** 가드를 없애는 대조를 돌렸다.
+
+| 대조 | 결과 |
+| --- | --- |
+| `if (hidden == visible) return;` 삭제 | **2개 실패** — 리뷰가 말한 바로 그 둘 |
+
+> **이 MR 이 그 줄의 무게를 바꿨다.** 예전에는 복원값이 `bool` 이라 짝이 어긋나도
+> 무해했다 — `forceRenderingOff` 에 `false` 를 쓰는 것뿐이었다. 그림자 모드로 바꾸면서
+> **무해한 최적화가 필요한 보호로 바뀌었다.**
+>
+> 리뷰가 "재입장 가드도 보이지 않아" 라고 적은 것은 사실과 다르다. 하지만 **틀린 쪽은
+> 그 한 줄이고, 위험을 지목한 쪽은 맞다.** 가드에 이유를 적고 검증 셋으로 잠갔다 —
+> 다음 사람이 "쓸데없는 최적화" 로 보고 지우는 것을 막는 자리다.
+
+### 5-4. 대조 실험
 
 셋 다 실제로 돌려 확인했다.
 
@@ -222,8 +254,9 @@ Assert.IsFalse(drawnInColorPass);
 | 병합 전 상태로(`forceRenderingOff` 로 감춤) | **1개 실패** — `WhileHeld_TheRealToolStillCastsAShadow` |
 | 사본에도 그림자를 켠다 | **1개 실패** — `TheFirstPersonCopyNeverCastsOne` |
 | 원래 꺼져 있던 렌더러 보호를 없앤다 | **1개 실패** — `ARendererThatNeverCastShadows_StillDoesNot` |
+| 재입장 가드를 없앤다 | **2개 실패** — 리뷰가 지목한 두 경로(§5-3) |
 
-### 5-4. 기준선 대조
+### 5-5. 기준선 대조
 
 | | 검증 수 | 실패 |
 | --- | --- | --- |
@@ -234,6 +267,30 @@ Assert.IsFalse(drawnInColorPass);
 
 > 처음 측정에서는 `CopyHasOnlyPresentationAndRestoresOriginalVisibility` 하나가 새로
 > 깨져 있었다(18). §5-1 을 고친 뒤 17 로 같아졌다.
+
+---
+
+### 5-6. 내가 기록을 한 번 날렸다
+
+§5-3 과 위 표 세 줄은 **한 번 썼다가 사라졌다.** Unity 가 배치 실행 중에 재직렬화한
+에셋을 되돌리는 루프를 쓰는데, 그 필터가 이랬다.
+
+```bash
+for f in $(git status --porcelain | awk '{print $2}' | grep -v "Scripts/Runtime\|Scripts/Tests"); do
+    git checkout -- "$f"
+done
+```
+
+`docs/records/...` 가 두 패턴 어디에도 안 걸려 **되돌릴 대상에 들어갔다.** 방금 쓴
+기록이 통째로 사라졌고, 이어서 돌린 `.replace()` 들은 `assert` 가 없어 **조용히
+아무것도 하지 않았다.** 커밋 메시지와 MR 본문에는 남아 있었으므로 문서만 뒤처졌다.
+
+!413 AI 리뷰가 "문서는 7개라는데 실제는 10개다" 로 잡아 주었다.
+
+> **교훈 둘.** ① 되돌리는 명령은 **지울 것을 열거**해야지 남길 것을 제외하는 식으로
+> 쓰면 새 파일이 조용히 휩쓸린다. ② 문자열 치환에 `assert` 를 빼면 실패가 소리 없이
+> 지나간다 — 이 프로젝트가 반복해서 겪은 "초록불인데 아무 일도 안 일어남" 과 같은
+> 모양이다.
 
 ---
 
