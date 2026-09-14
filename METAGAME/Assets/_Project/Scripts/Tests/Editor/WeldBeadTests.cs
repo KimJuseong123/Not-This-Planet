@@ -381,6 +381,77 @@ namespace Metagame.Gameplay.Tests
             }
         }
 
+        [Test]
+        public void Beads_HidePhysicsSpheresAndShowColliderFreeWeldMetal()
+        {
+            var part = Body();
+
+            GrowFor(NozzleAbove(part), PhysicsScale.WeldBeadBlobSeconds * 2f);
+            var container = part.transform.Find(WeldBead.ContainerName);
+
+            for (var i = 0; i < container.childCount; i++)
+            {
+                var blob = container.GetChild(i);
+                var physicsRenderer = blob.GetComponent<Renderer>();
+                var visual = blob.Find(WeldBead.VisualName);
+
+                Assert.IsNotNull(physicsRenderer);
+                Assert.IsFalse(physicsRenderer.enabled,
+                    "물리 구체가 그대로 보이면 용접 자국이 알갱이처럼 보인다.");
+                Assert.IsNotNull(visual, "각 물리 조각에는 이어진 용접 금속 외형이 있어야 한다.");
+                Assert.IsNotNull(visual.GetComponent<Renderer>());
+                Assert.IsNull(visual.GetComponent<Collider>(),
+                    "표시 외형이 콜라이더를 하나 더 만들면 접합 물리가 달라진다.");
+
+                if (i == 0)
+                {
+                    Assert.IsTrue(visual.gameObject.activeSelf,
+                        "레이가 맞은 표면에는 용접 자국이 보여야 한다.");
+                    Assert.That(visual.localScale.z, Is.LessThan(visual.localScale.x),
+                        "브러시 자국은 표면 위로 솟은 구체가 아니라 얇은 표면 표시여야 한다.");
+                }
+                else
+                {
+                    Assert.IsFalse(visual.gameObject.activeSelf,
+                        "표면 밖으로 자란 물리 구체가 검은 알갱이처럼 보이면 안 된다.");
+                }
+            }
+        }
+
+        [Test]
+        public void RestoredBrushStroke_ConnectsPreviousAndCurrentSurfacePoints()
+        {
+            var part = Body();
+            var bead = WeldBead.Attach(part);
+            var from = new Vector3(-0.08f, 0.5f, 0f);
+            var to = new Vector3(0.08f, 0.5f, 0f);
+            bead.RestoreChains(new[]
+            {
+                new WeldBead.ChainState
+                {
+                    Origin = from, Direction = Vector3.up,
+                    TipRadius = PhysicsScale.WeldBeadMinRadius, BlobCount = 1,
+                },
+                new WeldBead.ChainState
+                {
+                    Origin = to, Direction = Vector3.up,
+                    HasBrushFrom = true, BrushFrom = from,
+                    TipRadius = PhysicsScale.WeldBeadMinRadius, BlobCount = 1,
+                },
+            }, 0, 2);
+
+            var restored = bead.ReadChain(1);
+            var blob = part.transform.Find(WeldBead.ContainerName).GetChild(1);
+            var visual = blob.Find(WeldBead.VisualName);
+
+            Assert.IsTrue(restored.HasBrushFrom,
+                "연결 정보가 복원되어야 다른 플레이어에게도 같은 브러시 궤적이 보인다.");
+            Assert.That((restored.BrushFrom - from).sqrMagnitude, Is.LessThan(1e-8f));
+            Assert.IsTrue(visual.gameObject.activeSelf);
+            Assert.That(visual.localScale.y, Is.GreaterThan(visual.localScale.x),
+                "이동한 거리만큼 이전 점과 현재 점 사이가 이어져야 한다.");
+        }
+
         /// <summary>
         /// 파츠 루트의 스케일이 1 이 아니어도 비드는 구여야 한다.
         /// 검증 리그가 루트를 늘려 쓰므로 이 조건이 실제로 걸린다.

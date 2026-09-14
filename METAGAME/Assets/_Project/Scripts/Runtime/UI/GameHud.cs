@@ -37,6 +37,11 @@ namespace Metagame.UI
         bool warmed;
         WeldingGaugeTexture weldingGaugeTexture;
 
+        [Header("용접 재료 게이지")]
+        [Tooltip("용접건 기준 게이지 화면 위치입니다. 음수 X는 용접건의 왼쪽입니다.")]
+        [SerializeField] Vector2 weldingGaugeScreenOffset = new Vector2(-155f, -12f);
+        [Min(40f)] [SerializeField] float weldingGaugeMaxRadius = 82f;
+
         void Awake()
         {
             white = new Texture2D(1, 1);
@@ -211,14 +216,22 @@ namespace Metagame.UI
             var camera = Local.Cam.Cam;
             if (camera == null) return;
             var model = tool.FirstPersonModel;
-            var position = model != null && model.gameObject.activeInHierarchy ? model.position : tool.transform.position;
+            var position = model != null && model.gameObject.activeInHierarchy
+                ? model.position : tool.transform.position;
             var screen = camera.WorldToScreenPoint(position);
             if (screen.z <= camera.nearClipPlane) return;
-            float radius = Mathf.Min(125f, height * 0.23f);
+
+            // 용접건을 따라가되 모델 중심에서 왼쪽으로 띄워 겹치지 않게 한다.
+            float radius = Mathf.Min(weldingGaugeMaxRadius, height * 0.16f);
             float thickness = radius * 0.19f;
+            var modelScreen = new Vector2(
+                screen.x / UiScale.Value,
+                (Screen.height - screen.y) / UiScale.Value);
             var origin = new Vector2(
-                Mathf.Clamp(screen.x / UiScale.Value, 12f, width - radius - 60f),
-                Mathf.Clamp((Screen.height - screen.y) / UiScale.Value, radius + 20f, height - 65f));
+                Mathf.Clamp(modelScreen.x + weldingGaugeScreenOffset.x,
+                    radius + 20f, width - radius - 60f),
+                Mathf.Clamp(modelScreen.y + weldingGaugeScreenOffset.y,
+                    radius + 30f, height - radius - 30f));
             Color yellow = new Color(1f, 0.85f, 0.08f, 0.95f);
             if (weldingGaugeTexture == null) weldingGaugeTexture = new WeldingGaugeTexture();
             weldingGaugeTexture.SetFraction(tool.RemainingFraction);

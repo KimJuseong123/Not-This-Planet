@@ -1332,9 +1332,11 @@ namespace Metagame.Network
                 var b = lastSentWeld[i];
                 if (a.BlobCount != b.BlobCount) return false;
                 if (a.PadWeldIntact != b.PadWeldIntact) return false;
+                if (a.HasBrushFrom != b.HasBrushFrom) return false;
                 if (Mathf.Abs(a.TipRadius - b.TipRadius) > 1e-4f) return false;
                 if ((a.Origin - b.Origin).sqrMagnitude > 1e-8f) return false;
                 if ((a.Direction - b.Direction).sqrMagnitude > 1e-8f) return false;
+                if ((a.BrushFrom - b.BrushFrom).sqrMagnitude > 1e-8f) return false;
             }
 
             return true;
