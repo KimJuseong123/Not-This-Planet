@@ -73,13 +73,37 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void WalkingChangesTheExistingRabbitLeg()
         {
-            Assert.That(Suit.Locomotion.BoneCount, Is.EqualTo(14));
+            // 짝지은 뼈 전체가 아니라 **보행이 움직이는 뼈**를 센다 (S15P21B202-519).
+            // 던지기가 허리·척추까지 쓰게 되면서 짝 목록은 합집합이 되었다 — 전체 수를
+            // 재면 던지기가 뼈를 하나 더 쓸 때마다 멀쩡한 걷기 검증이 깨진다.
+            Assert.That(Suit.Locomotion.WalkBoneCount, Is.EqualTo(14));
             Advance(Walking);
             Quaternion first = Bone("L_Thigh").localRotation;
             Advance(Walking);
             Assert.Greater(Quaternion.Angle(first, Bone("L_Thigh").localRotation), 1f);
             Assert.That(Suit.Locomotion.Weight, Is.EqualTo(1f));
             Assert.That(Suit.Locomotion.RunBlend, Is.Zero);
+        }
+
+        /// <summary>
+        /// 걷기는 허리를 물리에 맡긴다 (S15P21B202-519).
+        ///
+        /// <para>던지기가 허리·척추까지 쓰게 되면서 짝 목록이 <b>합집합</b>이 되었다.
+        /// 쓸 때 거르지 않으면 걷는 동안 허리가 물리가 아니라 <b>기준 자세로</b> 끌려가
+        /// 멀쩡하던 걷기가 뻣뻣해진다 — 눈에 잘 안 띄는 회귀라 여기서 잠근다.</para>
+        /// </summary>
+        [Test]
+        public void WalkingLeavesTheWaistToPhysics()
+        {
+            var waist = Bone("Waist");
+            Advance(Walking);
+
+            Suit.Sync();                                   // 물리 자세로 되돌린다
+            var physics = waist.localRotation;
+            Suit.Locomotion.Apply(Walking, 1f / 60f);      // 걷기를 한 번 얹는다
+
+            Assert.That(Quaternion.Angle(physics, waist.localRotation), Is.LessThan(0.1f),
+                "걷기가 허리를 건드리면 안 된다.");
         }
 
         [Test]
