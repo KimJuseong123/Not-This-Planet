@@ -87,7 +87,23 @@ def main() -> int:
     assert line and "비었다" in line, line
     print("  버전 파일이 없거나 비면 — 그 사실을 말한다")
 
-    # ── ⑤ 저장소에 실제 파일이 있고 읽힌다 ──────────────────────────────
+    # ── ⑤ **기본 경로가 절대 경로이고 실제로 읽힌다** (`!423` 리뷰) ────────
+    #    위 검사들은 LAUNCHER_VERSION_FILE 을 임시 파일로 덮어써서, 상대 경로였을
+    #    때 잡의 작업 디렉터리에 따라 매일 "읽지 못했다" 가 뜨는 것을 **가렸다.**
+    #    `-485` 에서 같은 버그를 고쳤는데 이쪽으로 옮기지 못했었다.
+    import importlib
+    importlib.reload(D)
+    assert os.path.isabs(D.LAUNCHER_VERSION_FILE), D.LAUNCHER_VERSION_FILE
+    here = os.getcwd()
+    try:
+        os.chdir(tempfile.gettempdir())      # 일부러 딴 데서 돈다
+        serve(200, {"version": "v" + io.open(D.LAUNCHER_VERSION_FILE, encoding="utf-8").read().strip()})
+        assert D.launcher_drift() is None, D.launcher_drift()
+    finally:
+        os.chdir(here)
+    print("  기본 경로가 절대 경로 — 작업 디렉터리와 무관하게 읽는다")
+
+    # ── ⑥ 저장소에 실제 파일이 있고 꼴이 맞다 ──────────────────────────
     real = os.path.join(ROOT, "launcher", "VERSION")
     assert os.path.exists(real), f"launcher/VERSION 이 없다: {real}"
     ver = io.open(real, encoding="utf-8").read().strip()

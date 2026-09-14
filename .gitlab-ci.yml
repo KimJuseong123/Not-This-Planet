@@ -893,7 +893,12 @@ build-launcher:           # 런처 exe 를 만든다 — **자동** (S15P21B202-
   artifacts:
     name: launcher-$CI_COMMIT_SHORT_SHA
     paths: ["out/launcher/NotThisPlanetLauncher.exe"]
-    expire_in: 1 week
+    # **1주로는 모자란다** (`!423` 리뷰). 이 설계는 `promote-launcher` 를
+    # **의도적으로 미루는 것**을 전제한다 — 백신 평판(`-456`)이 리셋될 수 있어
+    # 언제 새 exe 를 내보낼지 사람이 정한다. 1주 넘게 미루면 아티팩트가 만료돼
+    # **버튼을 눌러도 exe 가 없고**, 그동안 아침 점검은 계속 "버튼을 누르면
+    # 사용자에게 갑니다" 라고 안내한다. 15MB 한 벌이라 한 달은 부담이 아니다.
+    expire_in: 1 month
 
 promote-launcher:         # 런처를 사용자에게 — **사람이 누른다** (S15P21B202-508)
   stage: deploy           # 누르는 순간 새 exe 가 사이트의 내려받기 자리에 놓인다.
@@ -915,8 +920,19 @@ promote-launcher:         # 런처를 사용자에게 — **사람이 누른다*
       changes: ["launcher/**/*", "scripts/launcher/**/*"]
       when: manual
   script:
+    # **아티팩트가 없으면 여기서 멈춘다** (`!423` 리뷰). `needs` 가 `optional: true`
+    # 라 `build-launcher` 가 없거나 아티팩트가 만료돼도 이 잡은 돈다 — 그러면
+    # `publish_launcher.py` 가 없는 파일을 받아 알아보기 어려운 오류로 죽는다.
+    - |
+      EXE=out/launcher/NotThisPlanetLauncher.exe
+      if [ ! -f "$EXE" ]; then
+        echo "❌ 런처 exe 가 없다: $EXE"
+        echo "   build-launcher 의 아티팩트가 만료됐거나 그 잡이 안 돌았습니다."
+        echo "   같은 파이프라인의 build-launcher 를 다시 실행한 뒤 이 버튼을 누르세요."
+        exit 1
+      fi
     - VER=$(tr -d ' \r\n' < launcher/VERSION)
-    - python scripts/launcher/publish_launcher.py out/launcher/NotThisPlanetLauncher.exe "v$VER" --out /publish/builds
+    - python scripts/launcher/publish_launcher.py "$EXE" "v$VER" --out /publish/builds
 
 publish-site:             # 배포 사이트를 nginx 자리로 (S15P21B202-405 · -452)
   stage: deploy           # 사이트는 릴리스와 다른 박자로 바뀐다(website/ 가 develop 에

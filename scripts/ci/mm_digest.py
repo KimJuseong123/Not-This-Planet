@@ -243,7 +243,12 @@ DEPLOY_SCAN_PIPELINES = 20      # 파이프라인 몇 건까지 거슬러 볼지
 KST = timezone(timedelta(hours=9))
 
 
-LAUNCHER_VERSION_FILE = "launcher/VERSION"
+# **`__file__` 기준 절대 경로다** (`!423` 리뷰). 상대 경로로 열면 잡의 작업
+# 디렉터리가 저장소 루트가 아닐 때 매일 "읽지 못했다" 가 뜨거나, 반대로 조용해진다.
+# `-485`(호스트 배포 스크립트)에서 똑같은 것을 고쳤는데 여기로 옮기지 못했다.
+LAUNCHER_VERSION_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "launcher", "VERSION")
 LAUNCHER_JSON = "https://j15b202.p.ssafy.io/builds/launcher.json"
 
 
