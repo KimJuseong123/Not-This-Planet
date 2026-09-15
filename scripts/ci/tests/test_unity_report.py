@@ -1033,6 +1033,7 @@ print("TEST271 OK")
 #
 # 2026-09-15 실측: 잡 540606(MR)에는 마커 줄이 0개, 538054(develop push)에는 있었다.
 import contextlib  # noqa: E402
+import json  # noqa: E402
 import io as _io  # noqa: E402
 
 NOTES = []
@@ -1089,3 +1090,35 @@ for name, var in (("MR 파이프라인", "77"), ("develop push", "")):
             print("  코멘트도 그대로 올라간다 ✅")
         else:
             assert not NOTES, name + ": MR iid 가 없는데 코멘트를 올렸다"
+
+
+# 컴파일 오류만이 아니라 **새 테스트 실패** 경로도 같아야 한다 (`!465` 리뷰).
+# 완료 조건이 둘 다인데 앞의 케이스는 컴파일 오류만 태웠다 — 그쪽이 회귀해도
+# 검사가 통과해 버린다.
+with tempfile.TemporaryDirectory() as d:
+    os.environ["GITLAB_TOKEN"] = "t"
+    os.environ["CI_PROJECT_ID"] = "1"
+    os.environ["CI_MERGE_REQUEST_IID"] = "77"
+
+    # 기준선을 빈 집합으로 주면 NUNIT 의 실패 2건이 전부 **새 실패**가 된다.
+    Path(str(Path(d) / "unity-baseline.json")).write_text(
+        json.dumps({"base": []}), encoding="utf-8")
+    nunit = str(Path(d) / "unity-results.xml")
+    Path(nunit).write_text(NUNIT, encoding="utf-8")
+    log = str(Path(d) / "unity.log")
+    Path(log).write_text("", encoding="utf-8")   # 컴파일 오류는 없다
+
+    ci_common.http = note_api
+    R.http = note_api
+    NOTES.clear()
+    buf = _io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code = R.main([nunit, log, "1", "--baseline-from", str(Path(d) / "unity-baseline.json")])
+    printed = buf.getvalue()
+
+    assert code == 0, code
+    marked = [x for x in printed.split(chr(10)) if "🔴" in x or "❌" in x]
+    assert marked, (
+        "새 테스트 실패에서도 잡 로그에 마커 줄이 있어야 한다" + chr(10) + printed[-500:])
+    assert NOTES, "코멘트도 올라가야 한다"
+    print(f"  새 테스트 실패 — 로그에 이유가 남는다 ({len(marked)}줄) ✅")
