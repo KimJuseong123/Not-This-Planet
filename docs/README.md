@@ -23,6 +23,8 @@
 | 에셋 선택·배치 | [에셋 카탈로그](asset-catalog.md): 프리뷰, 크기, Texture → Material → Prefab 연결. 에셋 추가 시 갱신 |
 | 백엔드 로컬 실행·개발 | [백엔드 지침](backend-guidelines.md): 기술 스택, 인증·상태 설계, 개발 환경 |
 | 네트워크에 닿는 동작을 만든다 | [네트워크 동기화 정책](network-sync-policy.md): 동기화 방식 P1~P4 와 각 동작이 어디에 속하는지. **동작을 추가하면 그 표에 한 줄 더한다** |
+| 방에 NPC 동료를 넣고 말로 지시한다 | [AI 동료 계획](ai-companion.md): 말 → 의도 → 행동의 세 층, 호스트 권위가 강제하는 것, 모델 전달 |
+| 플레이 데이터를 모아 분석한다 | [플레이 데이터 파이프라인 계획](data-pipeline.md): 이벤트 스키마, 보내는 시점, 저장과 질의 |
 | 멀티플레이 동기화 구현 | [설계 결정](records/S15P21B202-145-sync-design.md) → [상호작용 규칙](records/S15P21B202-149-interaction-sync.md) → [오브젝트 동기화](records/S15P21B202-352-object-sync.md) |
 | 두 PC에서 접속 확인 | [멀티플레이 테스트 안내](multiplayer-test-guide.md) → [지연·대역폭 측정 기록](records/S15P21B202-151-multiplay-measurement.md) |
 
