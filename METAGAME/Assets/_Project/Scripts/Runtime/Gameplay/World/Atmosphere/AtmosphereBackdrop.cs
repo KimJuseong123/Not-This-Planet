@@ -34,7 +34,25 @@ namespace Metagame.Gameplay
             if (camera != null) generatedRoot.position = camera.transform.position;
         }
 
-        public void Apply(AtmosphereProfile atmosphereProfile, Camera camera = null)
+        public void Apply(AtmosphereProfile atmosphereProfile, Camera camera = null) =>
+            Build(atmosphereProfile, camera, includeSky: true, includeCelestialBodies: true);
+
+        /// <summary>
+        /// <b>별만</b> 만든다 — 스카이박스도 조명도 건드리지 않는다 (S15P21B202-546).
+        ///
+        /// <para>수제 맵(<see cref="AuthoredMapSettings.preserveSceneLighting"/>)용이다.
+        /// 아트가 맞춘 하늘색·조명은 그대로 두고 별만 얹는다. <see cref="BuildSky"/> 를
+        /// 건너뛰므로 <c>RenderSettings.skybox</c> 를 덮지 않는다 — 그것이
+        /// <see cref="Apply"/> 를 그대로 쓸 수 없는 이유다.</para>
+        ///
+        /// <para>행성·달도 만들지 않는다. 수제 맵에는 이미 아트가 그린 천체가 있을 수
+        /// 있고, 겹치면 두 개로 보인다.</para>
+        /// </summary>
+        public void ApplyStarsOnly(AtmosphereProfile atmosphereProfile, Camera camera = null) =>
+            Build(atmosphereProfile, camera, includeSky: false, includeCelestialBodies: false);
+
+        void Build(AtmosphereProfile atmosphereProfile, Camera camera,
+                   bool includeSky, bool includeCelestialBodies)
         {
             if (atmosphereProfile == null)
             {
@@ -47,7 +65,9 @@ namespace Metagame.Gameplay
             profile.Validate();
             ClearGenerated();
 
-            if (!capturedSkybox)
+            // 하늘을 안 만들면 스카이박스를 건드리지 않으므로 되돌릴 것도 없다.
+            // 여기서 기억해 두면 Clear 가 남의 하늘을 자기 것으로 알고 되돌린다.
+            if (includeSky && !capturedSkybox)
             {
                 previousSkybox = RenderSettings.skybox;
                 capturedSkybox = true;
@@ -57,10 +77,11 @@ namespace Metagame.Gameplay
             generatedRoot.SetParent(transform, false);
             generatedRoot.position = followCamera != null ? followCamera.transform.position : transform.position;
 
-            BuildSky(profile.sky);
+            if (includeSky) BuildSky(profile.sky);
             float effectScale = GetEffectScale(profile);
             BuildStars(profile.stars, effectScale);
-            BuildCelestialBodies(profile.celestialBodies, profile.stars.radius, effectScale);
+            if (includeCelestialBodies)
+                BuildCelestialBodies(profile.celestialBodies, profile.stars.radius, effectScale);
         }
 
         public void Clear()
@@ -124,15 +145,39 @@ namespace Metagame.Gameplay
             /// </summary>
             public readonly float TintRoll;
 
-            public StarPoint(Vector3 direction, float brightness, float size, bool inBand, float tintRoll)
+            /// <summary>
+            /// 반짝임의 위상(0~1). 별마다 다르므로 하늘이 한꺼번에 밝아지지 않는다
+            /// (S15P21B202-546).
+            ///
+            /// <para><b>난수열에서 뽑지 않는다.</b> 여기서 한 번 더 뽑으면 그 뒤의 모든
+            /// 별이 밀려 별자리가 통째로 바뀐다 — !444 에서 색을 다른 흐름으로 옮겼다가
+            /// 별빛을 조용히 다시 굴린 적이 있다. 대신 번호에서 <b>결정적으로</b> 만든다.</para>
+            /// </summary>
+            public readonly float TwinklePhase;
+
+            public StarPoint(Vector3 direction, float brightness, float size, bool inBand,
+                             float tintRoll, float twinklePhase)
             {
                 Direction = direction;
                 Brightness = brightness;
                 Size = size;
                 InBand = inBand;
                 TintRoll = tintRoll;
+                TwinklePhase = twinklePhase;
             }
         }
+
+        /// <summary>
+        /// 번호 하나에서 0~1 의 위상을 만든다 (S15P21B202-546).
+        ///
+        /// <para>황금비의 소수부를 더해 나간다. 이웃한 번호가 이웃한 위상을 갖지 않으면서도
+        /// 난수를 쓰지 않으므로, <b>별의 자리·밝기·색을 한 톨도 건드리지 않는다.</b></para>
+        /// </summary>
+        public static float TwinklePhaseAt(int index) =>
+            index * 0.6180339887f - Mathf.Floor(index * 0.6180339887f);
+
+        static readonly int TwinkleAmountId = Shader.PropertyToID("_TwinkleAmount");
+        static readonly int TwinkleSpeedId = Shader.PropertyToID("_TwinkleSpeed");
 
         /// <summary>은하수 띠가 놓이는 대원의 축. 위(+Y)에서 30.8도 기울어 있다.</summary>
         public static readonly Vector3 BandAxis = new Vector3(0.32f, 0.86f, -0.40f).normalized;
@@ -175,7 +220,8 @@ namespace Metagame.Gameplay
                 float size = Mathf.Lerp(settings.minimumSize, settings.maximumSize, brightness);
                 float tintRoll = (float)random.NextDouble();
 
-                points[index] = new StarPoint(direction, brightness, size, inBand, tintRoll);
+                points[index] = new StarPoint(direction, brightness, size, inBand, tintRoll,
+                                              TwinklePhaseAt(index));
             }
             return points;
         }
@@ -265,7 +311,11 @@ namespace Metagame.Gameplay
             {
                 var star = points[index];
                 Color color = StarTint(star.TintRoll) * star.Brightness;
-                color.a = 1f;
+
+                // **알파에 반짝임의 위상을 싣는다**(S15P21B202-546). 이 셰이더는 불투명
+                // 패스라 출력 알파가 버려진다 — 그래서 여기는 지금까지 1 이 들어가던
+                // 빈자리였다. 이 채널을 쓰면 정점도 메모리도 늘지 않는다.
+                color.a = star.TwinklePhase;
 
                 int vertex = index * 4;
                 StarQuadVertices(star.Direction, settings.radius, star.Size, vertices, vertex);
@@ -285,6 +335,14 @@ namespace Metagame.Gameplay
             stars.AddComponent<MeshFilter>().sharedMesh = starMesh;
             var renderer = stars.AddComponent<MeshRenderer>();
             starMaterial = Prim.Flat(Color.white);
+
+            // 셰이더가 없는 환경(대체 셰이더로 떨어진 경우)에서도 조용히 넘어간다.
+            // 값을 넣지 않으면 기본값 0 이라 반짝이지 않을 뿐 그림은 그대로다.
+            if (starMaterial.HasProperty(TwinkleAmountId))
+                starMaterial.SetFloat(TwinkleAmountId, settings.twinkleAmount);
+            if (starMaterial.HasProperty(TwinkleSpeedId))
+                starMaterial.SetFloat(TwinkleSpeedId, settings.twinkleSpeed);
+
             renderer.sharedMaterial = starMaterial;
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             renderer.receiveShadows = false;

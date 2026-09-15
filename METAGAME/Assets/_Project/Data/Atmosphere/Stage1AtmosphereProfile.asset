@@ -28,6 +28,8 @@ MonoBehaviour:
     minimumSize: 0.18
     maximumSize: 0.55
     bandSpread: 0.22
+    twinkleAmount: 0.55
+    twinkleSpeed: 2.4
   celestialBodies:
     planetEnabled: 1
     planetColor: {r: 0.2, g: 0.4, b: 0.72, a: 1}

@@ -51,6 +51,9 @@ namespace Metagame.Bootstrap
         public Vacuum Sky { get; private set; }
         public Starfield Space { get; private set; }
         public AtmosphereController Atmosphere { get; private set; }
+
+        /// <summary>수제 맵에서 별만 뿌릴 때 쓰는 배경 (S15P21B202-546).</summary>
+        public AtmosphereBackdrop Backdrop { get; private set; }
         public GameHud Hud { get; private set; }
         public GamePauseMenu PauseMenu { get; private set; }
         public TeamPingHud PingHud { get; private set; }
@@ -101,6 +104,13 @@ namespace Metagame.Bootstrap
             sys.transform.SetParent(transform, false);
 
             bool useAtmosphere = !authoredLighting && atmosphereProfile != null && !Application.isBatchMode;
+
+            // 수제 맵이라도 **별은 코드가 뿌린다** (S15P21B202-546). 조명·안개·스카이박스는
+            // 아트 것을 그대로 둔다 — 갈라 놓지 않으면 문지기 하나가 넷을 한꺼번에 끈다.
+            bool authoredStarsOnly = authoredLighting
+                                     && authoredMap.useCodeStarfield
+                                     && atmosphereProfile != null
+                                     && !Application.isBatchMode;
             Stage1DustStormHazard dustStormHazard = null;
             AtmosphereDustStorm dustStormVisual = null;
             if (atmosphereProfile != null)
@@ -121,6 +131,13 @@ namespace Metagame.Bootstrap
                 sys.AddComponent<AtmosphereBackdrop>();
                 sys.AddComponent<AtmosphereMeteorShower>();
                 sys.AddComponent<AtmosphereDustGust>();
+            }
+            else if (authoredStarsOnly)
+            {
+                // 카메라는 아직 없다. `AtmosphereBackdrop.LateUpdate` 가 `Camera.main` 을
+                // 찾아 따라가므로 여기서는 넘기지 않는다.
+                Backdrop = sys.AddComponent<AtmosphereBackdrop>();
+                Backdrop.ApplyStarsOnly(atmosphereProfile);
             }
             else if (!authoredLighting)
             {
