@@ -1,0 +1,6 @@
+Part_1 support=0.5000 hullGap=0.0250 pins=4
+Part_2 support=8.0550 hullGap=0.0250 pins=4
+Part_3 support=5.6500 hullGap=0.0250 pins=4
+Part_4 support=0.8642 hullGap=0.0250 pins=4
+Assembly dock surface=0.9900 gameplayHeight=0.99
+Five FBX prefabs / URP materials / static mesh colliders / four parts / pins / docking height: PASS
