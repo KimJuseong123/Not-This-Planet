@@ -548,9 +548,11 @@ def branch_resolved(gl: GitLab) -> int:
     return send(card(f"✅ **{branch} 가 초록으로 돌아왔다**", [
         ("커밋", f"[`{sha}`]({env('CI_PROJECT_URL', '')}/-/commit/{env('CI_COMMIT_SHA', '')}) {title}".strip()),
         ("직전", f"[실패한 파이프라인]({previous.get('web_url', '')})"),
-        # 예약 실행은 브랜치를 따는 것과 상관이 없다 — 같은 문구를 쓰면 안 된다.
-        ("조치", f"그 시간의 일이 다시 된다 ({schedule_name()})" if is_scheduled()
-                  else f"이제 `{branch}` 에서 브랜치를 따도 된다"),
+        # **예약 실행은 여기 오지 않는다** (S15P21B202-533). 회복 카드를 예약에서
+        # 보내면 09:30 점검 성공이 04:00 새벽 실패를 해소한 것처럼 말하게 된다 —
+        # 둘 다 `source=schedule` 이라 갈라낼 수가 없다. `.gitlab-ci.yml` 의
+        # `mm-nightly-failed` 주석에 근거를 적어 뒀다.
+        ("조치", f"이제 `{branch}` 에서 브랜치를 따도 된다"),
     ]))
 
 

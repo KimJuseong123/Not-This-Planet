@@ -19,7 +19,9 @@
 #
 # **왜 배선을 글자로 검사하나.** 이 둘은 파이프라인이 실제로 도는 순간에만 드러나고,
 # 그 순간은 하루에 한 번(04:00)뿐이다. 되돌아와도 다음 날 새벽까지 아무도 모른다.
-set -uo pipefail
+# `-o pipefail` 은 쓰지 않는다 — dash 판에 따라 없고, 없으면 **첫 줄에서** 죽어
+# 이 검사가 CI 에서 한 번도 안 도는 상태가 된다(`!448` AI 리뷰).
+set -u
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../../.." && pwd)
@@ -47,7 +49,7 @@ manual_jobs=$(awk '
 ' "$CI" | sort -u)
 
 # ① 예약 실행 전용 잡이 있어야 한다 — 그리고 **needs 가 없어야** 한다.
-for job in mm-nightly-failed mm-nightly-resolved; do
+for job in mm-nightly-failed; do
   seg=$(section "$job")
   if [ -z "$seg" ]; then
     bad "$job 이 없다. 새벽 실패가 조용해진다"
@@ -66,6 +68,23 @@ for job in mm-nightly-failed mm-nightly-resolved; do
     ok "$job — needs 없음 (스테이지 순서로 새벽 잡을 기다린다)"
   fi
 done
+
+# ①b **예약에서는 회복 카드를 보내지 않는다.**
+#
+# 04:00 새벽 배포와 09:30 아침 점검이 둘 다 `source=schedule` 이라, 09:33 점검이
+# 성공하면 04:03 새벽 실패를 '해소' 로 보고 ✅ 를 보내게 된다 — 이 이슈가 없애려던
+# 거짓 회복과 같은 모양이다. 둘을 가를 신호가 없다(파이프라인 변수는 403, 생성 시각은
+# 손으로 돌리면 제각각). 그래서 **거짓말하느니 말하지 않는다.**
+if grep -qE "^mm-nightly-resolved:" "$CI"; then
+  bad "mm-nightly-resolved 가 있다 — 09:30 점검 성공이 04:00 실패를 해소한 것처럼 말한다"
+else
+  ok "예약에는 회복 카드가 없다 (두 예약을 갈라낼 수 없다)"
+fi
+if grep -q "ci-resolved" "$CI" && section mm-nightly-failed | grep -q "ci-resolved"; then
+  bad "mm-nightly-failed 가 ci-resolved 를 부른다"
+else
+  ok "mm-nightly-failed 는 ci-failed 만 부른다"
+fi
 
 # ② **mm-ci-* 의 needs 에는 버튼이 들어가면 안 된다.**
 #
@@ -139,6 +158,13 @@ if grep -q 'other and other != source' "$ROOT/scripts/ci/mm_notify.py"; then
   ok "mm_notify — 직전 파이프라인을 같은 source 로 고른다"
 else
   bad "mm_notify — 종류가 다른 파이프라인을 '직전' 으로 삼는다"
+fi
+
+# ②b 회복 문구에 예약 분기가 되살아나면 안 된다 — 위 ①b 와 같은 이유다.
+if grep -q "그 시간의 일이 다시 된다" "$ROOT/scripts/ci/mm_notify.py"; then
+  bad "branch_resolved 에 예약 전용 문구가 있다 — 예약은 회복 카드를 안 보낸다"
+else
+  ok "branch_resolved 에 예약 분기 없음"
 fi
 
 # ③ 예약 이름이 **KST 로** 찍히는가. UTC 를 그대로 자르면 04:00 예약이 "19:00" 이 된다.

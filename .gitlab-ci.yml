@@ -1062,6 +1062,16 @@ mm-ci-resolved:           # 검사 통과 시, 남아 있는 CI 실패 코멘트
 # `deploy` 다음이므로 그 셋이 끝난 뒤에 돈다. 예약 실행에는 버튼이 하나도 없어
 # 붙잡힐 일도 없다. `mm-ci-*` 가 `needs` 를 쓰는 까닭(빨리 알리기)은 하루 한 번
 # 도는 이 경로에서는 값이 없다.
+#
+# **회복 카드(`ci-resolved`)는 없다.** 보낼 수가 없다 — 04:00 새벽 배포와 09:30 아침
+# 점검이 **둘 다 `source=schedule`** 이라, 09:33 점검이 성공하면 04:03 새벽 실패를
+# "해소" 로 보고 ✅ 를 보내게 된다. 이 이슈가 없애려던 거짓 회복과 같은 모양이다
+# (`!448` AI 리뷰).
+#
+# 둘을 가를 신호가 없다: 파이프라인 변수는 Developer 에게 **403** 이고(실측),
+# 생성 시각도 못 쓴다 — 예약은 손으로도 돌릴 수 있어 시각이 제각각이다
+# (실측 `191907` 23:32 · `184417` 10:18). 그래서 **거짓말하느니 말하지 않는다.**
+# 🔴 카드가 이미 "고칠 때까지 매일 같은 시각에 다시 실패한다" 고 적는다.
 
 mm-nightly-failed:        # 🔴 예약 실행 실패 — 새벽 배포·아침 점검
   stage: notify
@@ -1072,14 +1082,6 @@ mm-nightly-failed:        # 🔴 예약 실행 실패 — 새벽 배포·아침 
     - python scripts/ci/mm_notify.py ci-failed
   allow_failure: true
 
-mm-nightly-resolved:      # ✅ 예약 실행이 다시 된다
-  stage: notify
-  when: on_success
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule" && $MM_WEBHOOK_URL
-  script:
-    - python scripts/ci/mm_notify.py ci-resolved
-  allow_failure: true
 
 mm-digest:                # 스케줄 파이프라인(매일 09:30 · 실제 발송 09:33) — needs-fix·오래 열린 MR·정체 이슈 요약을 MM 채널로
   stage: notify
