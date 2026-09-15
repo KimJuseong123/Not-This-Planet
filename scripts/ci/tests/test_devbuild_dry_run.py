@@ -7,12 +7,16 @@
 이 404 로 남았고 `--dev` 런처에 고를 것이 없었다. 여기서는 그 두 판정이 **갈라져 있는지**
 를 못박는다 — 한쪽을 되돌리면 이 파일이 깨진다.
 """
+import io
 import os
+import re
 import sys
 import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
+# 뒤에서 os.chdir 로 옮겨 가므로 **지금** 절대경로로 잡아 둔다.
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 
 os.environ.update({"CI_PROJECT_ID": "1", "CI_JOB_TOKEN": "job-x",
                    "CI_API_V4_URL": "https://lab.example/api/v4"})
@@ -90,9 +94,34 @@ at(CI_COMMIT_SHORT_SHA="1a2b3c4", **MR)
 assert D.dry_run() is False and D.channel() == D.QA
 assert D.decide_version() == "qa-461-1a2b3c4"
 
-# ── 6) 끝까지 — 진짜로 업로드를 부른다 ──
+# ── 6) `build-devbuild` 의 rules 와 **같은 집합**인가 ──
+#
+# `cmd_publish` 는 "잡이 돌았다면 여기도 통과한다" 를 전제로 어긋남을 실패로 낸다.
+# 그 전제가 깨지면 90분짜리 새벽 빌드가 **마지막 줄에서** 빨갛게 죽는다. 주석으로
+# 약속만 해 두면 rules 를 고치는 사람이 이 파일을 볼 까닭이 없으므로 여기서 못박는다.
+yml = io.open(os.path.join(ROOT, ".gitlab-ci.yml"), encoding="utf-8").read().split(chr(10))
+TOP = re.compile(r"^[A-Za-z_.][A-Za-z0-9_.-]*:")
+s = next(i for i, l in enumerate(yml) if l.startswith("build-devbuild:"))
+e = next(i for i in range(s + 1, len(yml)) if TOP.match(yml[i]))
+found = [l.strip() for l in yml[s:e] if l.strip().startswith("- if:")]
+assert found == [
+    '- if: $CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_DEPLOY_DEV == "true"',
+    '- if: $CI_PIPELINE_SOURCE == "merge_request_event"',
+], ("build-devbuild 의 rules 가 바뀌었다. trigger_allowed() 도 같이 고쳐야 한다 — "
+    "안 그러면 그 트리거로 돈 빌드가 마지막 줄에서 실패한다." + chr(10) + repr(found))
+
+# ── 7) 끝까지 — 진짜로 업로드를 부른다 ──
 UPLOADED: list = []
-D.R.zip_dir = lambda src, dst: (open(dst, "wb").write(b"zip"), 3)[1]
+
+
+def fake_zip(src, dst):
+    with open(dst, "wb") as f:      # 핸들을 열어 둔 채 두면 Windows 에서 지워지지 않는다
+        f.write(b"zip")
+    return 3
+
+
+ORIGINAL = (D.R.zip_dir, D.R.upload_package, D.R.package_url, os.getcwd())
+D.R.zip_dir = fake_zip
 D.R.upload_package = lambda path, version, name: (UPLOADED.append((version, name)), 201)[1]
 D.R.package_url = lambda version, name: f"https://lab.example/{version}/{name}"
 
@@ -108,7 +137,7 @@ assert UPLOADED == [("dev-20260915-1a2b3c4", "metagame-dev-20260915-1a2b3c4.zip"
 assert open(D.PACKAGE_FILE, encoding="utf-8").read().strip().endswith(".zip"), \
     "publish-devbuild 가 읽는 release-package.txt 가 있어야 배치된다"
 
-# ── 7) 파이프라인에서 리허설로 빠지면 **실패**한다 ──
+# ── 8) 파이프라인에서 리허설로 빠지면 **실패**한다 ──
 # 잡이 돌았다는 건 `build-devbuild` 의 rules 를 통과했다는 뜻이다. 그런데도 리허설이면
 # rules 와 trigger_allowed() 가 어긋난 것이고, 90분 빌드가 통째로 버려진다. `-537` 의
 # 증상이 **초록 잡**이었던 까닭이 `return 0` 이었으므로 여기서 갈라 둔다.
@@ -135,5 +164,9 @@ assert not os.path.exists(D.PACKAGE_FILE)
 at(CI_COMMIT_SHORT_SHA="1a2b3c4", **NIGHTLY)
 assert D.cmd_publish("1") == 1 and UPLOADED == []
 
+# 모듈 전역을 건드렸으므로 되돌린다 — run_all 은 프로세스를 나누지만 여기에 기대지 않는다.
+D.R.zip_dir, D.R.upload_package, D.R.package_url, _cwd = ORIGINAL
+os.chdir(_cwd)
+
 print("OK  publish_devbuild — 트리거 6경우 · 한 방향 스위치 · 릴리스 판정과 분리 ·"
-      " 업로드 왕복 · 어긋남은 실패")
+      " rules 대조 · 업로드 왕복 · 어긋남은 실패")
