@@ -77853,6 +77853,7 @@ MonoBehaviour:
   flightHalfSize: {x: 51, y: 47}
   maximumAltitude: 20
   preserveSceneLighting: 1
+  useCodeStarfield: 1
   randomizeVehicles: 0
 --- !u!4 &1476801188
 Transform:
@@ -112740,7 +112741,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 2147483647
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &2091970431
 Transform:
   m_ObjectHideFlags: 0

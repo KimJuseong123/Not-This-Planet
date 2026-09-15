@@ -47,6 +47,23 @@ namespace Metagame.Gameplay
             /// (S15P21B202-530).</para>
             /// </summary>
             [Min(0f)] public float bandSpread = 0.22f;
+
+            /// <summary>
+            /// 별이 반짝이는 깊이. 0 이면 안 반짝이고, 1 이면 완전히 꺼졌다 켜진다
+            /// (S15P21B202-546).
+            ///
+            /// <para>밝기를 <c>1-amount</c> 와 <c>1</c> 사이에서 흔든다. 별마다 위상이
+            /// 다르므로 하늘 전체가 한꺼번에 밝아졌다 어두워지지는 않는다.</para>
+            ///
+            /// <para><b>눈으로 맞춘 값이다.</b> 별은 화면에서 1~3픽셀이라(`-530` 실측)
+            /// 숫자로는 정할 수 없다. 너무 얕으면 안 보이고, 너무 깊으면 반짝임이 아니라
+            /// 지글거리는 잡티가 된다.</para>
+            /// </summary>
+            [Range(0f, 1f)] public float twinkleAmount = 0.55f;
+
+            /// <summary>반짝이는 빠르기(라디안/초). 별 하나가 한 번 밝아졌다 어두워지는 데
+            /// <c>2π/speed</c> 초 걸린다 — 2.4 면 약 2.6초다.</summary>
+            [Min(0f)] public float twinkleSpeed = 2.4f;
         }
 
         [Serializable]
