@@ -1,0 +1,56 @@
+{
+  "before_export": {
+    "meshes": 17,
+    "vertices": 80152,
+    "triangles": 156980,
+    "bounds_min": [
+      -10.120000839233398,
+      -12.199999809265137,
+      0.0
+    ],
+    "bounds_max": [
+      10.694999694824219,
+      9.4399995803833,
+      10.664999961853027
+    ],
+    "dimensions": [
+      20.815000534057617,
+      21.639999389648438,
+      10.664999961853027
+    ]
+  },
+  "after_reimport": {
+    "meshes": 17,
+    "vertices": 80152,
+    "triangles": 156980,
+    "bounds_min": [
+      -10.120000839233398,
+      -12.199999809265137,
+      -1.4662862213299377e-06
+    ],
+    "bounds_max": [
+      10.694999694824219,
+      9.440001487731934,
+      10.66500186920166
+    ],
+    "dimensions": [
+      20.815000534057617,
+      21.64000129699707,
+      10.665003335487881
+    ]
+  },
+  "texture_files": [
+    "C:\\workspace\\2-PJT\\S15P21B202\\artifacts\\stage1-hangar\\AstraHangar.fbm\\AstraHangar_BaseColor.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\artifacts\\stage1-hangar\\AstraHangar.fbm\\AstraHangar_Emission.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\artifacts\\stage1-hangar\\AstraHangar.fbm\\AstraHangar_Metallic.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\artifacts\\stage1-hangar\\AstraHangar.fbm\\AstraHangar_Normal.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\artifacts\\stage1-hangar\\AstraHangar.fbm\\AstraHangar_Roughness.png"
+  ],
+  "missing_textures": [],
+  "geometry_audit": [],
+  "source_components": 831,
+  "atlas_resolution": 2048,
+  "units": "metres",
+  "export_axes": "-Z forward, Y up",
+  "roundtrip": "PASS"
+}

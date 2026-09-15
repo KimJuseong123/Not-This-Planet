@@ -1,0 +1,56 @@
+{
+  "before_export": {
+    "meshes": 19,
+    "vertices": 108512,
+    "triangles": 213704,
+    "bounds_min": [
+      -7.295000076293945,
+      -8.622966766357422,
+      0.0
+    ],
+    "bounds_max": [
+      7.295000076293945,
+      6.329999923706055,
+      8.920000076293945
+    ],
+    "dimensions": [
+      14.59000015258789,
+      14.952966690063477,
+      8.920000076293945
+    ]
+  },
+  "after_reimport": {
+    "meshes": 19,
+    "vertices": 108512,
+    "triangles": 213704,
+    "bounds_min": [
+      -7.295000076293945,
+      -8.622966766357422,
+      -1.031287979458284e-06
+    ],
+    "bounds_max": [
+      7.295000076293945,
+      6.330000877380371,
+      8.919999122619629
+    ],
+    "dimensions": [
+      14.59000015258789,
+      14.952967643737793,
+      8.920000153907608
+    ]
+  },
+  "texture_files": [
+    "C:\\workspace\\2-PJT\\S15P21B202\\artifacts\\stage1-shelter\\AstraShelter.fbm\\AstraShelter_BaseColor.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\artifacts\\stage1-shelter\\AstraShelter.fbm\\AstraShelter_Emission.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\artifacts\\stage1-shelter\\AstraShelter.fbm\\AstraShelter_Metallic.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\artifacts\\stage1-shelter\\AstraShelter.fbm\\AstraShelter_Normal.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\artifacts\\stage1-shelter\\AstraShelter.fbm\\AstraShelter_Roughness.png"
+  ],
+  "missing_textures": [],
+  "geometry_audit": [],
+  "source_components": 864,
+  "atlas_resolution": 2048,
+  "units": "metres",
+  "export_axes": "-Z forward, Y up",
+  "roundtrip": "PASS"
+}

@@ -1,0 +1,1 @@
+Part3 beacon restored; count=1; material=M_Guidance_NoFog_Signal_orchid; bounds=Center: (-32.500, 19.622, 30.000), Extents: (0.038, 5.000, 0.038); roofLampTop=14.622; collider=none
