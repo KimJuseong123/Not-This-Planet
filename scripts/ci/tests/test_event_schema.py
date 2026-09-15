@@ -145,6 +145,22 @@ sample2 = chr(10).join(['void F() {  // }"{"', '  int a;', '}'])
 body = S.braced_body(sample2, 'void F()')
 check("int a;" in body, f"주석 안의 중괄호에 흔들린다: {body!r}")
 print("  문자열·주석 안의 기호에 안 흔들린다 ✅")
+# ── 5c) `All` 배열 밖의 선언에 안 속는가 ──
+# 파일 전체를 훑으면 시험용·안 쓰는 선언 하나에 목록과 순서가 바뀐다. 그 값이
+# `floors` 인덱스의 뜻을 정하므로 조용히 틀리면 데이터 전체가 틀린다.
+sample3 = chr(10).join([
+    'static readonly PartSpec[] Unused = { new("Part_9", "x", "y", null) };',
+    'public static readonly PartSpec[] All =',
+    '{',
+    '    new("Part_1", "a", "b", null),',
+    '    new("Part_2", "c", "d", null),',
+    '};',
+])
+got3 = [m.group(1) for m in __import__("re").finditer(
+    r'new\("(Part_\d+)",', S.braced_body(sample3, "PartSpec[] All ="))]
+check(got3 == ["Part_1", "Part_2"], f"All 밖의 선언에 속는다: {got3}")
+print("  All 배열 안에서만 찾는다 ✅")
+
 # ── 6) 계약이 사람이 읽을 수 있는가 ──
 check(bool(saved.get("note")), "계약에 note 가 없다 — 이 파일이 무엇인지 적혀 있어야 한다")
 print("  계약에 설명이 있다 ✅")

@@ -137,12 +137,18 @@ def floor_states():
     return out
 
 def parts():
-    """조립 순서. 인덱스가 곧 층이고, 길이가 곧 `floors` 배열의 길이다."""
-    out = [m.group(1) for m in re.finditer(r'new\("(Part_\d+)",', read(PARTSPEC))]
-    if not out:
-        raise RuntimeError("PartSpec 을 한 개도 못 읽었다 — 계약을 만들 수 없다")
-    return out
+    """조립 순서. 인덱스가 곧 층이고, 길이가 곧 `floors` 배열의 길이다.
 
+    **`All` 배열 안에서만 찾는다** (`!461` AI 리뷰). 파일 전체를 훑으면 그 배열 밖에
+    같은 모양의 선언(시험용·안 쓰는 상수·다른 배열)이 하나만 생겨도 실제 `All` 과
+    **다른 목록·순서**가 계약에 들어간다. 이 값이 `floors` 인덱스의 뜻을 정하므로
+    조용히 틀리면 데이터 전체가 틀린다.
+    """
+    body = braced_body(read(PARTSPEC), "PartSpec[] All =")
+    out = [m.group(1) for m in re.finditer(r'new\("(Part_\d+)",', body)]
+    if not out:
+        raise RuntimeError("PartSpec.All 을 한 개도 못 읽었다 — 계약을 만들 수 없다")
+    return out
 
 def blockers():
     """`Evaluate()` 가 막는 사유. 빈 문자열(막히지 않음)은 뺀다."""
