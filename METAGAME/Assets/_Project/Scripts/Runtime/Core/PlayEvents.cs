@@ -20,7 +20,8 @@ namespace Metagame.Core
     /// 네트워킹을 쓰지 않는다" 는 <see cref="RunLogUpload"/> 가 이미 정한 것이다.
     ///
     /// <para><b>에디터에서는 돌지 않는다.</b> 에디터의 <c>Application.dataPath</c> 는 저장소
-    /// 안이라 켜 두면 리포에 폴더가 생긴다 — <see cref="RunLog"/> 와 같은 이유다.
+    /// 안이라 켜 두면 리포에 폴더가 생긴다 — <see cref="RunLog"/> 와 같은 이유다. 그
+    /// 판단은 <see cref="DefaultFolder"/> 한 곳에 있고, 검사는 거기만 바꿔 끼운다.
     /// </summary>
     public static class PlayEvents
     {
@@ -54,8 +55,39 @@ namespace Metagame.Core
         /// <summary>이 사람의 이 판. 서버에서 (session, seq) 가 유일 열쇠가 된다.</summary>
         public static string Session { get; private set; } = string.Empty;
 
-        /// <summary>돌고 있는가. 에디터·열기 실패에서는 거짓이다.</summary>
+        /// <summary>더 쓸 것인가. 에디터·열기 실패·상한에서는 거짓이다.</summary>
         public static bool Active => writer != null && !capped;
+
+        /// <summary>
+        /// 파일이 열려 있는가. <b>상한에 닿아도 참이다.</b>
+        ///
+        /// <para><see cref="Active"/> 와 갈라 둔다. 상한에 닿은 판은 "더 쓰지 않는다" 이지
+        /// "닫혔다" 가 아니다 — <see cref="End"/> 는 그때도 마지막 한 줄을 남긴다. 닫는
+        /// 쪽이 <c>Active</c> 를 보고 일찍 돌아서면 <b>가장 알고 싶은 판에서 그 줄이
+        /// 사라진다</b>(<c>!471</c> AI 리뷰).
+        /// </summary>
+        public static bool Open => writer != null;
+
+        /// <summary>
+        /// 어디에 쓸 것인가. <b>검사에서만 바꾼다.</b>
+        ///
+        /// <para>여기를 갈라 두기 전에는 <see cref="Begin"/> 이 <c>Application.isEditor</c>
+        /// 로 즉시 돌아서서, 에디터 검사가 <b>파일에 관한 것은 아무것도 확인하지 못했다</b>
+        /// — 상한·종료 같은 정작 조용히 틀리는 자리가 통째로 검사 밖이었다
+        /// (<c>!471</c> AI 리뷰). 배포판 동작은 <see cref="DefaultFolder"/> 그대로다.
+        /// </summary>
+        public static Func<string> FolderResolver = DefaultFolder;
+
+        /// <summary>
+        /// 배포판이 쓰는 자리. <b>에디터에서는 빈 값</b>이라 아무것도 안 열린다.
+        ///
+        /// <para>에디터의 <c>Application.dataPath</c> 는 저장소 안이라, 켜 두면 리포에
+        /// <c>METAGAME/events/</c> 가 생긴다 — <see cref="RunLog"/> 와 같은 이유다.
+        /// </summary>
+        public static string DefaultFolder()
+        {
+            return Application.isEditor ? string.Empty : RunLog.FolderFor(FolderName, "EVT");
+        }
 
         /// <summary>파일 이름. 시각이 곧 정렬 순서다 — 평문 로그와 같은 규칙.</summary>
         public static string FileNameFor(DateTime when)
@@ -72,13 +104,12 @@ namespace Metagame.Core
         /// </summary>
         public static void Begin(IDictionary<string, object> header)
         {
-            if (Application.isEditor) return;
-
             lock (Gate)
             {
                 Stop();
+                Path = string.Empty;
 
-                string folder = RunLog.FolderFor(FolderName, "EVT");
+                string folder = FolderResolver == null ? string.Empty : FolderResolver();
                 if (string.IsNullOrEmpty(folder)) return;
 
                 try

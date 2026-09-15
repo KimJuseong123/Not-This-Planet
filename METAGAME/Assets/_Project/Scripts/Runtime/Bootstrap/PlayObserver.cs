@@ -107,16 +107,29 @@ namespace Metagame.Bootstrap
             }
         }
 
-        /// <summary>판을 닫는다. <b>마지막 층 상태를 함께 싣는다</b> — 그것이 곧 답이다.</summary>
+        /// <summary>
+        /// 판을 닫는다. <b>마지막 층 상태를 함께 싣는다</b> — 그것이 곧 답이다.
+        ///
+        /// <para><b><see cref="PlayEvents.Open"/> 을 본다.</b> <c>Active</c> 는 상한에 닿으면
+        /// 거짓이라, 그것을 보면 <see cref="PlayEvents.End"/> 가 "상한과 무관하게 마지막 한
+        /// 줄은 남긴다" 고 일부러 만들어 둔 것을 여기서 무력화한다 — <b>가장 알고 싶은
+        /// 판에서 그 줄이 사라진다</b>(<c>!471</c> AI 리뷰).
+        ///
+        /// <para>두 번 불려도 괜찮다. 파일이 닫히면 <c>Open</c> 이 거짓이 되고,
+        /// <see cref="PlayEvents.End"/> 자체도 두 번 호출을 견딘다.
+        /// </summary>
         public void End(string result)
         {
-            if (!PlayEvents.Active) return;
+            if (!PlayEvents.Open) return;
 
             var fields = new Dictionary<string, object> { ["result"] = result };
             if (session != null)
             {
                 fields["elapsed"] = session.Elapsed;
                 fields["falls"] = session.Falls;
+                // 마지막 줄 하나로 "이 판이 깨졌나" 가 답해져야 한다 — 따로 찾아
+                // 맞춰 봐야 하면 그 줄을 마지막에 두는 뜻이 없다.
+                fields["cleared"] = session.Cleared;
             }
             if (assembly == null) assembly = FindAnyObjectByType<ShipAssembly>();
             if (assembly != null)
@@ -129,6 +142,19 @@ namespace Metagame.Bootstrap
         }
 
         void OnApplicationQuit() => End("quit");
+
+        /// <summary>
+        /// 씬이 내려갈 때도 닫는다.
+        ///
+        /// <para><b>가장 흔한 끝이 여기다.</b> 클리어하고 로비로 돌아가는 길은 종료가
+        /// 아니라 씬 교체라 <see cref="OnApplicationQuit"/> 가 오지 않는다. 그대로 두면
+        /// 다음 판의 <see cref="PlayEvents.Begin"/> 이 파일을 그냥 닫아 버려, 결과도
+        /// 걸린 시간도 마지막 층 상태도 없이 끊긴다(<c>!471</c> AI 리뷰).
+        ///
+        /// <para>종료할 때는 둘 다 오는데(먼저 <c>OnApplicationQuit</c>), 뒤에 오는 쪽은
+        /// 파일이 이미 닫혀 아무 일도 하지 않는다 — 그래서 결과는 <c>quit</c> 로 남는다.
+        /// </summary>
+        void OnDestroy() => End("destroy");
 
         static int[] Snapshot(ShipAssembly a)
         {
@@ -151,8 +177,15 @@ namespace Metagame.Bootstrap
         ///
         /// <para><b>문구를 그대로 싣지 않는 이유.</b> 그 값은 사람이 읽으라고 만든 것이라
         /// 고쳐질 수 있는데, 그때마다 집계가 갈라지면 옛 데이터와 비교할 수 없게 된다.
-        /// 소스의 <c>// code:</c> 주석이 같은 이름을 들고 있고, CI 가 둘이 어긋나지
-        /// 않는지 본다(<c>scripts/ci/tests/test_event_schema.py</c>).
+        ///
+        /// <para><b>문구가 바뀌면 검사가 막는다</b> — <c>PlayEventsTests</c> 의
+        /// <c>EveryBlockerMessageHasExactlyOneName</c> 이 여기의 조각과
+        /// <see cref="ShipAssembly"/> 의 문구를 맞대 본다. 그것이 없으면 문구가 한 글자
+        /// 바뀌는 순간 <b>조용히 <c>other</c> 로 떨어진다</b>(<c>!471</c> AI 리뷰).
+        ///
+        /// <para>문자열 맞추기 자체를 없애는 것(<see cref="ShipAssembly"/> 가 이름을 직접
+        /// 내놓게 하는 것)이 더 낫고, <c>-552</c> 가 그 소스에 <c>// code:</c> 앵커를
+        /// 넣어 두었다. 그 MR 이 머지된 뒤에 잇는다.
         /// </summary>
         public static string BlockerCode(string reason)
         {

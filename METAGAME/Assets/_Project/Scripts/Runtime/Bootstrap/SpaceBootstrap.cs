@@ -317,7 +317,10 @@ namespace Metagame.Bootstrap
             // 없는 값과 0 은 다르고, 뒤에 붙일 `match` 로 호스트 기록과 묶으면 된다.
             if (host) head["humans"] = inMatch ? Mirror.NetworkServer.connections.Count : 1;
 
-            var observer = sys.AddComponent<PlayObserver>();
+            // **한 개만 붙인다.** 기록기는 정적 단일 상태라 관찰자가 둘이면 같은 변화가
+            // 두 줄씩 남고, 그러면 `seq` 로 유실을 세는 것 자체가 뜻을 잃는다.
+            var observer = sys.GetComponent<PlayObserver>();
+            if (observer == null) observer = sys.AddComponent<PlayObserver>();
             observer.Begin(Session, host, head);
             if (!lockCursor) Session.SetCursor(false);
 
