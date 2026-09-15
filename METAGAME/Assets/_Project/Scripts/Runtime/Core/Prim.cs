@@ -63,9 +63,9 @@ namespace Metagame.Core
             if (m.HasProperty("_Mottle")) m.SetFloat("_Mottle", Mathf.Lerp(0.10f, 0.20f, softness));
             // 진공에는 하늘빛이 없다 — 앰비언트를 낮게 두어야 그림자가 새까맣게 떨어진다
             if (m.HasProperty("_Ambient")) m.SetFloat("_Ambient", 0.22f);
-            if (m.HasProperty("_FogStrength")) m.SetFloat("_FogStrength", fogExempt ? 0f : 1f);
-            if (m.HasProperty("_AtmosphereFogExemptMask"))
-                m.SetFloat("_AtmosphereFogExemptMask", fogExempt ? AtmosphereFogExemptMask : 0f);
+            if (m.HasProperty(FogStrengthProperty)) m.SetFloat(FogStrengthProperty, fogExempt ? 0f : 1f);
+            if (m.HasProperty(FogExemptMaskProperty))
+                m.SetFloat(FogExemptMaskProperty, fogExempt ? FogExemptMaskValue : 0f);
             doughCache[key] = m;
             return m;
         }
@@ -85,14 +85,85 @@ namespace Metagame.Core
             if (m.HasProperty("_Color")) m.SetColor("_Color", c);
             if (m.HasProperty("_RimBoost")) m.SetFloat("_RimBoost", rimBoost);
             if (m.HasProperty("_Pulse")) m.SetFloat("_Pulse", pulse);
-            if (m.HasProperty("_FogStrength")) m.SetFloat("_FogStrength", fogExempt ? 0f : 1f);
-            if (m.HasProperty("_AtmosphereFogExemptMask"))
-                m.SetFloat("_AtmosphereFogExemptMask", fogExempt ? AtmosphereFogExemptMask : 0f);
+            if (m.HasProperty(FogStrengthProperty)) m.SetFloat(FogStrengthProperty, fogExempt ? 0f : 1f);
+            if (m.HasProperty(FogExemptMaskProperty))
+                m.SetFloat(FogExemptMaskProperty, fogExempt ? FogExemptMaskValue : 0f);
             return m;
         }
 
-        // Haze.shader reserves stencil bit 6 for pixels that must remain readable.
-        const float AtmosphereFogExemptMask = 64f;
+        /// <summary>
+        /// 안개 예외를 거는 두 손잡이의 이름과 값 (S15P21B202-540).
+        ///
+        /// <para>Haze.shader reserves stencil bit 6 for pixels that must remain readable.
+        /// Ordinary opaque surfaces clear it when they cover an exempt surface.</para>
+        ///
+        /// <para><b>왜 상수로 내놓는가.</b> <c>PlayerAppearance</c> 가 모델 재질을
+        /// 새로 만들면서 같은 값을 넣어야 하는데, 양쪽에 글자로 박아 두면 한쪽만
+        /// 고쳐지는 날 <b>모델을 쓰는 아바타만 조용히 회색으로 돌아간다.</b>
+        /// DoughSurface · GhostSurface · CharacterSuitTint 세 셰이더가 이 이름을
+        /// 공유한다.</para>
+        /// </summary>
+        public const string FogStrengthProperty = "_FogStrength";
+
+        public const string FogExemptMaskProperty = "_FogExemptMaskValue";
+
+        public const float FogExemptMaskValue = 64f;
+
+        static readonly Dictionary<Material, Material> fogExemptTwins = new Dictionary<Material, Material>();
+
+        /// <summary>
+        /// 이미 만들어진 물체를 통째로 안개에서 빼거나 되돌린다 (S15P21B202-540).
+        ///
+        /// <para><b>왜 생성 인자가 아니라 사후 처리인가.</b> 사람 몸 하나가
+        /// <see cref="Box"/> · <see cref="Ball"/> · <see cref="Capsule"/> ·
+        /// <see cref="FitPipe"/> · <see cref="Ghost"/> 를 스무 번 넘게 부른다
+        /// (<c>RagdollBuilder</c>). 호출마다 <c>fogExempt: true</c> 를 달면 나중에
+        /// 장식 한 줄이 늘 때 <b>그 한 줄만 회색으로 남는다</b> — 실제로 팔 띠와
+        /// 무릎테가 그렇게 추가된 자리다. 다 만든 뒤 한 번 훑는 쪽이 빠질 구석이 없다.</para>
+        ///
+        /// <para><b>쌍둥이를 캐시한다.</b> 재질마다 사본을 하나만 만들어 공유하므로
+        /// 드로우콜이 늘지 않는다. 되돌릴 때 원본을 찾을 수 있게 양방향으로 기억한다.</para>
+        ///
+        /// <para>안개를 끌 수 없는 셰이더(<c>_FogStrength</c> 가 없는 것)는 그냥 둔다 —
+        /// 잘못 건드리면 핑크가 된다.</para>
+        /// </summary>
+        public static void SetFogExempt(GameObject root, bool exempt)
+        {
+            if (root == null) return;
+
+            foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
+            {
+                var source = renderer.sharedMaterial;
+                if (source == null) continue;
+
+                var wanted = exempt ? FogExemptTwin(source) : FogNormalOrigin(source);
+                if (wanted != null && wanted != source) renderer.sharedMaterial = wanted;
+            }
+        }
+
+        static Material FogExemptTwin(Material source)
+        {
+            Material twin;
+            if (fogExemptTwins.TryGetValue(source, out twin) && twin != null) return twin;
+            if (!source.HasProperty(FogStrengthProperty)) return null;
+
+            twin = new Material(source) { name = source.name + "_NoFog" };
+            twin.SetFloat(FogStrengthProperty, 0f);
+            if (twin.HasProperty(FogExemptMaskProperty))
+                twin.SetFloat(FogExemptMaskProperty, FogExemptMaskValue);
+
+            fogExemptTwins[source] = twin;
+            return twin;
+        }
+
+        /// <summary>쌍둥이를 원본으로 되돌린다. 원본이면 그대로 둔다.</summary>
+        static Material FogNormalOrigin(Material twin)
+        {
+            foreach (var pair in fogExemptTwins)
+                if (pair.Value == twin) return pair.Key;
+
+            return null;
+        }
 
         public static Material Flat(Color c)
         {

@@ -8,6 +8,10 @@ Shader "NotThisPlanet/CharacterSuitTint"
         _WhiteTint ("White Area Tint", Color) = (1, 1, 1, 1)
         _PreviewBrightness ("Preview Brightness", Range(1, 2.5)) = 1
         _Smoothness ("Smoothness", Range(0, 1)) = 0.35
+        // 사람은 안개를 받지 않는다 (S15P21B202-540). DoughSurface 와 같은 두 손잡이다 —
+        // 이름과 뜻을 맞춰 두어야 Prim.SetFogExempt 가 두 재질을 같은 방법으로 다룬다.
+        _FogStrength ("Fog Strength", Range(0,1)) = 1.0
+        _AtmosphereFogExemptMask ("Atmosphere Fog Exempt Mask", Float) = 0.0
     }
 
     SubShader
@@ -19,6 +23,19 @@ Shader "NotThisPlanet/CharacterSuitTint"
         {
             Name "ForwardLit"
             Tags { "LightMode"="UniversalForward" }
+
+            // Bit 6 excludes the visible surface from fullscreen haze/ground fog.
+            // Ordinary opaque surfaces clear it when they cover an exempt surface.
+            // DoughSurface 와 같은 비트를 쓴다 — 사람 몸은 두 재질이 섞여 있어서
+            // (프리미티브는 Dough, 모델은 이것) 비트가 갈리면 한쪽만 빠진다.
+            Stencil
+            {
+                Ref [_AtmosphereFogExemptMask]
+                Comp Always
+                Pass Replace
+                ReadMask 64
+                WriteMask 64
+            }
 
             HLSLPROGRAM
             #pragma target 3.5
@@ -43,6 +60,7 @@ Shader "NotThisPlanet/CharacterSuitTint"
                 half _BumpScale;
                 half _PreviewBrightness;
                 half _Smoothness;
+                half _FogStrength;
             CBUFFER_END
 
             struct Attributes
@@ -118,7 +136,10 @@ Shader "NotThisPlanet/CharacterSuitTint"
                     color += Shade(albedo, normalWS, viewDirection, GetAdditionalLight(lightIndex, input.positionWS));
                 #endif
 
-                color = MixFog(color, ComputeFogFactor(input.positionCS.z));
+                // _FogStrength 0 이면 안개를 건너뛴다 (S15P21B202-540). DoughSurface 와
+                // 같은 줄이다 — lerp 로 두어야 커스터마이저처럼 안개가 꺼진 화면에서도
+                // 같은 코드가 돈다.
+                color = lerp(color, MixFog(color, ComputeFogFactor(input.positionCS.z)), _FogStrength);
                 return half4(color, sampled.a);
             }
             ENDHLSL

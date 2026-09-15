@@ -94,6 +94,21 @@ namespace Metagame.Gameplay
                     else if (source.HasProperty("_Glossiness"))
                         replacement.SetFloat("_Smoothness", source.GetFloat("_Glossiness"));
 
+                    // 사람은 안개를 받지 않는다 (S15P21B202-540).
+                    //
+                    // <b>여기서도 걸어야 한다.</b> RagdollBuilder 가 다 만든 몸을 한 번
+                    // 훑어 예외로 돌려놓는데, 이 함수는 그 뒤에 불리면서 재질을 통째로
+                    // 새로 만들어 덮는다(SpaceBootstrap · NetPlayer 가 Apply 를 나중에
+                    // 부른다). 그래서 여기가 빠지면 <b>모델을 쓰는 아바타만</b> 다시
+                    // 회색이 된다 — 정작 사람들이 보는 그 모습이다.
+                    //
+                    // 이 재질은 사람마다 새로 만든 것이고 ownedMaterials 가 수명을
+                    // 들고 있다. 그래서 쌍둥이를 만들지 않고 값만 직접 넣는다.
+                    if (replacement.HasProperty(Prim.FogStrengthProperty))
+                        replacement.SetFloat(Prim.FogStrengthProperty, 0f);
+                    if (replacement.HasProperty(Prim.FogExemptMaskProperty))
+                        replacement.SetFloat(Prim.FogExemptMaskProperty, Prim.FogExemptMaskValue);
+
                     replacements[i] = replacement;
                     ownedMaterials.Add(replacement);
                 }
@@ -157,7 +172,9 @@ namespace Metagame.Gameplay
             go.transform.SetParent(parent, false);
             go.transform.localPosition = position;
             go.transform.localScale = scale;
-            go.GetComponent<Renderer>().sharedMaterial = Prim.Dough(color, 0.2f);
+            // 커스터마이저 장식도 몸과 같이 안개에서 뺀다 (S15P21B202-540).
+            // 몸만 또렷하고 헬멧 뿔·배지만 회색이면 그것대로 눈에 띈다.
+            go.GetComponent<Renderer>().sharedMaterial = Prim.Dough(color, 0.2f, fogExempt: true);
             return go.transform;
         }
 
