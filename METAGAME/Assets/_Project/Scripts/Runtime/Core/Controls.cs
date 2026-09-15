@@ -125,6 +125,7 @@ namespace Metagame.Core
         public static KeyCode TabletPreviousPageAlternate = KeyCode.A;
         public static KeyCode TabletNextPageAlternate = KeyCode.D;
         public static KeyCode FreeCursor = KeyCode.Escape;
+        public static KeyCode EmoteWheel = KeyCode.F1;
 
         public static float LookSensitivity = 2.4f;
         public static bool InvertLookY;

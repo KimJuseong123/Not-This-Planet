@@ -332,6 +332,28 @@ namespace Metagame.Network
         public Vector3 PingPosition { get { return pingPosition; } }
         public Color PingColor { get { return TeamAccentColor; } }
 
+        [SyncVar] byte _emoteId;
+        [SyncVar] double _emoteExpiresAt;
+        readonly EmoteState _emoteState = new EmoteState();
+        public byte EmoteId => _emoteId;
+        public double EmoteExpiresAt => _emoteExpiresAt;
+
+        /// <summary>소유자만 요청하며 서버에서 종류와 반복 간격을 검사한다.</summary>
+        public void RequestEmote(byte id)
+        {
+            if (isLocalPlayer && EmoteState.IsValid(id)) CmdShowEmote(id);
+        }
+
+        [Command]
+        void CmdShowEmote(byte id)
+        {
+            if (body == null || body.Downed
+                || (GameSession.Instance != null && GameSession.Instance.EndingActive)
+                || !_emoteState.TryShow(id, NetworkTime.time)) return;
+            _emoteId = _emoteState.Id;
+            _emoteExpiresAt = _emoteState.ExpiresAt;
+        }
+
         // 이동 판정을 복제하지 않고, 표시용 걷기/달리기 상태만 함께 전달한다.
         [SyncVar]
         RabbitLocomotion.State _locomotionState;
