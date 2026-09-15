@@ -173,7 +173,7 @@
 | G1 ✅ | **머지하면 어떤 잡이 생기나** | develop 머지 | 파이프라인 확인 | `changes` 에 맞는 것만 생긴다 — `backend/**`→`build-backend`·`deploy-dev`(수동) · `launcher/**`·`scripts/launcher/**`→`build-launcher`·`promote-launcher`(수동) · `website/**`→`publish-site` · `METAGAME/**`→`unity-compile` | 파이프라인 목록 | ✅ 2026-09-14 `-508` 머지(`a65a4aff`) 파이프라인 **193177** 에 `build-backend`·`build-launcher` 성공 + `deploy-dev`·`promote-launcher` 수동 대기. 뒤이은 `-510`~`-513` 머지 4건에는 런처 잡이 **없다**(`changes` 불일치) — **버튼은 그 파이프라인 하나에만 남는다** |
 | G2 ✅ | 개발 서버 배포 버튼 | develop push + `backend/**` 변경 | 버튼 확인 | `deploy-dev` 가 `when: manual` 로 생성 · 누르기 전에는 개발 서버가 그대로 | 파이프라인 | ✅ 2026-09-14 `193177` 에 `manual` 로 생성됨 |
 | G3 ✅ | **새벽 자동 배포** | 스케줄 **id 32** (`0 4 * * *` · Asia/Seoul · develop · active) | 04:00 을 기다린다 | `deploy-dev` 가 **버튼 없이** 실행된다. **백엔드가 그대로면 컨테이너를 바꾸지 않는 것이 정상**(no-op) | 파이프라인 · `~/metagame/deploy/deploy.log` | ✅ 2026-09-14 04:03 **192109** — `retarget-pipelines`·`ci-tests`·`build-backend`·`deploy-dev` 4잡 전부 성공, `deploy-dev` 가 자동 실행. 직전 09-13 23:32 **191907** 은 `deploy-dev` **실패**였고 호스트를 고친 뒤 다음 새벽이 저절로 초록이 됐다. **주의: jar 해시가 같으면 "배포 완료" 인데 컨테이너는 안 바뀐다 — 이것이 정상이다**(한 번 결함으로 오해했다) |
-| G4 ⏳ | QA 개발 빌드 | 같은 새벽 스케줄 | — | `build-devbuild` → `publish-devbuild` 가 돈다(`SPACE_DEV=1`, 개발 백엔드를 가리키는 빌드). **MR 에서는 버튼**이고 `allow_failure` 라 안 눌러도 파이프라인을 붙잡지 않는다 | 파이프라인 · 배포 폴더 | ⏳ `-460` 이 2026-09-14 **09:38** 머지라 그날 04:03 새벽에는 아직 없었다. **첫 자동 실행은 그다음 04:00** |
+| G4 ⚠ | QA 개발 빌드 | 같은 새벽 스케줄 | — | `build-devbuild` → `publish-devbuild` 가 돈다(`SPACE_DEV=1`, 개발 백엔드를 가리키는 빌드). **MR 에서는 버튼**이고 `allow_failure` 라 안 눌러도 파이프라인을 붙잡지 않는다 | 파이프라인 · 배포 폴더 | ⚠ **첫 자동 실행이 실패했다.** 2026-09-15 04:03 파이프라인 `194353` — `deploy-dev` 까지는 초록인데 `build-devbuild` 가 **39.1분 뒤 실패**하고 `publish-devbuild` 는 건너뛰었다. 빌드 자체는 성공했다(444.5MB · 오류 0) — **가드가 막았다**: `❌ 빌드가 추적되는 에셋을 바꿨다`, 전부 재직렬화(`M`) 20건이고 삭제는 0건. `release-windows` 는 **삭제만** 보는데 이 잡은 `git diff --quiet` 로 **바뀌기만 하면** 실패한다 — 배치모드는 늘 재직렬화하므로 성공할 수가 없다(`-532`). 전날 17:33 MR 버튼으로도 같은 목록으로 실패했다(80.0분) |
 | G5 ✅ | 배포 서버(운영) 배포 | master push, 또는 web 실행 + `DEPLOY_PROD=1` | 버튼 | `deploy-prod` 가 **두 경로 모두 수동** | 파이프라인 | ✅ 2026-09-14 00:24 master push 파이프라인 `191985` 에서 `deploy-prod` **success**. 수동 잡이므로 성공 = 사람이 눌렀다는 뜻이다 |
 | G6 ✅ | 릴리스 빌드 | develop → master 머지 | — | `release-windows` 가 **자동**으로 돈다(master push). web 수동 실행에서는 `RELEASE_DRY_RUN=1` 로 시늉만 하고, `DEPLOY_PROD`·`PROMOTE_VERSION` 을 준 web 실행에서는 **아예 생기지 않는다** — 배포·승격 버튼을 누르려고 web 을 돌렸는데 빌드까지 다시 도는 것을 막는다 | 파이프라인 · 아티팩트 | ✅ 2026-09-14 `191985` 에서 `release-windows`·`publish-builds` 가 master push 로 **자동** 실행돼 성공. **직전 v1.0.0(`189659`, 09-11)은 `release-windows` 가 실패했다** — `ValueError: unknown url type: '[MASKED]'`, 빈 마스킹 변수를 URL 로 쓴 것이고 v1.1.0 에서는 통과했다 |
 | G7 ✅ | **게임 빌드 승격** | `publish-builds` 로 빌드가 올라간 뒤 | `promote-builds` 버튼 | `/builds/latest.json` 의 `version` 이 바뀐다. **누르기 전에는 플레이어에게 아무것도 가지 않는다** | `https://j15b202.p.ssafy.io/builds/latest.json` | ✅ 2026-09-14 `latest.json` = `v1.1.0` · `manifest/v1.1.0.json` |
@@ -239,7 +239,7 @@
 
 ## 마무리
 
-**집계 (2026-09-14 4차 마감, 95항목)** — ✅ 87 · ⚠ 1 · ⏳ 5 · ⏸ 2 · ◐ 0 · ⛔ 0 (표시 없는 항목 0)
+**집계 (2026-09-15 4차 마감, 95항목)** — ✅ 87 · ⚠ 2 · ⏳ 4 · ⏸ 2 · ◐ 0 · ⛔ 0 (표시 없는 항목 0)
 
 > **채우다가 찾은 것 — 스프린트 자동 편입은 브랜치가 아니라 *상태 전이*에 붙어 있다.**
 > `-518`(해야 할 일)에 브랜치를 만들자 `has-branch`·스프린트·진행 중·기한이 3초 안에 다 붙었다. 그런데 `-526`(이미 **진행 중**)에 브랜치를 만들었을 때는 `has-branch` 만 붙고 **스프린트에는 들어가지 않았다**(`Sprint = null`, 28초 뒤에도 그대로).
@@ -256,7 +256,7 @@
 | ⏸ | `F4` AI 리뷰 전부 실패 | **재현하지 않기로 함** — `AI_REVIEW_MODEL` 은 프로젝트 CI 변수(Developer 는 403)이고, 망가뜨린 사이 남의 MR 이 리뷰 없이 지나간다. 자연히 나면 그때 확인 |
 | ⚠ | `G12` 런처 자기 갱신 | 갱신은 됐으나 `--no-launch` 가 무시된다(`-523`) |
 | ⏳ | `G14` 플레이 로그 왕복 | `-501`(헤더 비ASCII) 배포 — 로컬 기록은 확인됐다 |
-| ⏳ | `G4` QA 개발 빌드 | 다음 04:00 새벽 스케줄(`-460` 이 그날 아침에 머지됐다) |
+| ⚠ | `G4` QA 개발 빌드 | 첫 실행이 실패했다 — 가드가 재직렬화를 삭제와 같이 본다(`-532`) |
 | ⏳ | `G11` 아티팩트 만료 뒤 버튼 | 2026-10-14 이후 — 일부러 기다리는 항목이다 |
 | ⏳ | `G16` 사이트 배포 · `C23` Unity 컴파일 | 다음 `website/**` · `METAGAME/**` 머지에서 저절로 채워진다 |
 
