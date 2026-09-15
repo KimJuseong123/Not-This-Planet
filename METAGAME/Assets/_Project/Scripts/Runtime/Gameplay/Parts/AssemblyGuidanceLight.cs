@@ -9,10 +9,22 @@ namespace Metagame.Gameplay.Parts
         [SerializeField] Renderer[] lamps;
         [SerializeField] Material[] floorMaterials;
         [SerializeField] Material completeMaterial;
+        [SerializeField] Renderer[] bollards;
+        [SerializeField] Material[] bollardFloorMaterials;
+        [SerializeField] Material bollardCompleteMaterial;
         int shown = -2;
 
         public void Configure(ShipAssembly target, Renderer[] renderers, Material[] colors, Material ready)
         { assembly = target; lamps = renderers; floorMaterials = colors; completeMaterial = ready; }
+
+        /// <summary>Textured bollards need masked materials rather than the solid floor materials.</summary>
+        public void ConfigureBollards(Renderer[] renderers, Material[] colors, Material ready)
+        {
+            bollards = renderers;
+            bollardFloorMaterials = colors;
+            bollardCompleteMaterial = ready;
+            shown = -2;
+        }
 
         void OnEnable() => shown = -2;
 
@@ -52,6 +64,10 @@ namespace Metagame.Gameplay.Parts
             var material = next < 0 ? completeMaterial : next < floorMaterials.Length ? floorMaterials[next] : null;
             if (material == null) return;
             foreach (var lamp in lamps) if (lamp != null) lamp.sharedMaterial = material;
+            var bollardMaterial = next < 0 ? bollardCompleteMaterial
+                : bollardFloorMaterials != null && next < bollardFloorMaterials.Length ? bollardFloorMaterials[next] : null;
+            if (bollardMaterial != null && bollards != null)
+                foreach (var bollard in bollards) if (bollard != null) bollard.sharedMaterial = bollardMaterial;
             shown = next;
         }
     }

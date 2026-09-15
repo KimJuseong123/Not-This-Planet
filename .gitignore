@@ -60,6 +60,7 @@
 *.dmp
 
 # Local tooling/dependency caches
+/tmp/
 node_modules/
 .npm/
 .yarn/cache/
