@@ -21,20 +21,16 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 ASSEMBLY = "METAGAME/Assets/_Project/Scripts/Runtime/Gameplay/Parts/ShipAssembly.cs"
 PARTSPEC = "METAGAME/Assets/_Project/Scripts/Runtime/Gameplay/Parts/PartSpec.cs"
 
-# `Blocker` 는 사람이 읽는 한글 문장이라 그대로 싣지 않는다 — 문구가 바뀌면 집계가
-# 갈라진다. 대신 `Evaluate()` 의 **순서**에 이 코드를 맞춘다. 조기 탈출이라 순서가
-# 곧 우선순위다(먼저 걸린 것이 그 순간의 발목).
-#
-# **손으로 유지한다.** `Evaluate()` 에 막는 자리가 늘면 여기도 늘려야 하고, 안 늘리면
-# 검사가 개수 불일치로 막는다 — 매핑이 한 칸 밀리면 `tilted` 로 센 것이 `off_pad` 가 된다.
-BLOCKER_CODES = ["no_engine", "incomplete", "wrong_order", "off_pad", "tilted"]
-
 # **지문에 들어가는 것 = 데이터의 뜻을 정하는 것** (`!461` AI 리뷰).
 #
-# `blocker_messages` 는 뺀다. 그것은 사람이 읽는 한글 문장이라 오타를 고치기만 해도
-# 값이 달라지는데, 뜻은 그대로다 — 그때마다 지문이 갈리면 **옛 데이터와 새 데이터가
-# 비교 불가능해진다.** 대신 계약 파일에는 실어 두고 검사가 따로 대조한다: 문구가
-# 바뀌면 사람이 확인하되, **데이터는 안 갈린다.**
+# `blocker_messages` 는 뺀다. 사람이 읽는 한글 문장이라 오타를 고치기만 해도 값이
+# 달라지는데 뜻은 그대로다 — 그때마다 지문이 갈리면 **옛 데이터와 새 데이터가 비교
+# 불가능해진다.** 계약 파일에는 실어 두고 검사가 따로 대조한다.
+#
+# **대신 `blocker_codes` 가 순서까지 담는다.** 전에는 그 목록을 손으로 적어 두고
+# `Evaluate()` 의 순서에 맞췄는데, 그러면 **막는 자리의 순서만 바뀌어도 뜻이 달라지는데
+# 지문은 그대로**였다 — `tilted` 로 센 것이 사실은 `off_pad` 가 된 채로 옛 데이터와
+# 섞인다. 지금은 코드 이름을 소스에서 뽑으므로 순서가 바뀌면 지문도 바뀐다.
 MEANING = ("floor_state", "parts", "blocker_codes")
 
 
@@ -151,27 +147,49 @@ def parts():
     return out
 
 def blockers():
-    """`Evaluate()` 가 막는 사유. 빈 문자열(막히지 않음)은 뺀다."""
+    """`Evaluate()` 가 막는 사유를 **(이름, 문구)** 쌍으로. 빈 문자열은 뺀다.
+
+    **이름으로 짝짓는다** (`!461` AI 리뷰). 전에는 문구를 순서대로 뽑아 손으로 적어 둔
+    이름 목록에 위치로 맞췄다. 그러면 막는 자리의 **순서만 바뀌어도** 집계의 뜻이
+    통째로 밀리는데(`tilted` 로 센 것이 `off_pad` 가 된다) 겉으로는 아무 일도 안
+    일어난 것처럼 보인다.
+
+    이제 각 대입 옆의 `// code: …` 주석이 짝을 정한다. 순서를 바꿔도 짝이 함께
+    움직이고, 이름이 빠지면 여기서 막는다.
+    """
     body = braced_body(read(ASSEMBLY), "public void Evaluate()")
+    raw = read(ASSEMBLY)
     out = []
-    for m in re.finditer(r'Blocker\s*=\s*[$]?"([^"]*)"', body):
-        s = " ".join(m.group(1).split())     # 공백 차이로는 안 깨지게
-        if s:
-            out.append(s)
+    for line in raw.split(chr(10)):
+        m = re.search(r'Blocker\s*=\s*[$]?"([^"]*)"', line)
+        if not m:
+            continue
+        msg = " ".join(m.group(1).split())
+        if not msg:
+            continue          # `Blocker = ""` — 막히지 않은 경우
+        if line[:_code_len(line)].find(m.group(0)) < 0:
+            continue          # 주석 처리된 줄
+        c = re.search(r"//\s*code:\s*(\w+)", line)
+        if not c:
+            raise RuntimeError(
+                "막는 사유에 `// code: 이름` 이 없다 — 집계가 이름으로 짝지어진다:"
+                + chr(10) + "    " + line.strip())
+        out.append((c.group(1), msg))
     if not out:
         raise RuntimeError("Evaluate() 에서 막는 사유를 못 읽었다 — 계약을 만들 수 없다")
+    if len(out) != len({k for k, _ in out}):
+        raise RuntimeError(f"막는 사유의 이름이 겹친다: {[k for k, _ in out]}")
     return out
-
 
 def snapshot():
     """계약에 실리는 값 전부. 지문에 드는 것은 `MEANING` 뿐이다."""
+    pairs = blockers()
     return {
         "floor_state": floor_states(),
         "parts": parts(),
-        "blocker_codes": list(BLOCKER_CODES),
-        "blocker_messages": blockers(),
+        "blocker_codes": [k for k, _ in pairs],
+        "blocker_messages": [v for _, v in pairs],
     }
-
 
 def fingerprint(snap):
     """데이터의 뜻을 정하는 값들의 지문. 키 순서·공백에 안 흔들린다."""

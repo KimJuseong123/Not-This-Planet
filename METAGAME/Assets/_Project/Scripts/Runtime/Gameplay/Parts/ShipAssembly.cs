@@ -149,6 +149,17 @@ namespace Metagame.Gameplay.Parts
         /// 누가 탑을 밀어 구역을 벗어나거나 기울면 탑승이 다시 막혀야 한다. 한 번 참이면
         /// 계속 참으로 두면, 무너진 탑에 탑승해 발사를 시도하는 상태가 생긴다.
         /// </summary>
+        /// <summary>
+        /// 탑승·발사가 가능한 상태인지 본다. 막히면 <see cref="Blocker"/> 에 이유를 남긴다.
+        ///
+        /// <para><b>각 <c>Blocker</c> 옆의 <c>// code:</c> 는 지워도 되는 주석이 아니다</b>
+        /// (S15P21B202-552). 플레이 데이터가 막힌 사유를 셀 때 그 이름으로 셉니다 —
+        /// 한글 문구는 사람이 읽는 것이라 고쳐도 되지만, 이름이 바뀌거나 사라지면
+        /// <b>지난 데이터와 뜻이 어긋납니다.</b></para>
+        ///
+        /// <para>이름으로 짝지으므로 <b>여기 순서를 바꿔도 집계가 안 밀립니다.</b>
+        /// 새 사유를 넣을 때는 이름도 같이 붙이면 되고, 안 붙이면 CI 가 막습니다.</para>
+        /// </summary>
         public void Evaluate()
         {
             _tower.Clear();
@@ -160,7 +171,7 @@ namespace Metagame.Gameplay.Parts
             var engine = FindEngine();
             if (engine == null)
             {
-                Blocker = "주 추진 엔진 모듈이 조립대에 없다";
+                Blocker = "주 추진 엔진 모듈이 조립대에 없다";   // code: no_engine
                 return;
             }
 
@@ -172,7 +183,7 @@ namespace Metagame.Gameplay.Parts
 
             if (_tower.Count < PartSpec.All.Length)
             {
-                Blocker = $"파츠가 {_tower.Count}/{PartSpec.All.Length} 층만 쌓였다";
+                Blocker = $"파츠가 {_tower.Count}/{PartSpec.All.Length} 층만 쌓였다";   // code: incomplete
                 return;
             }
 
@@ -186,13 +197,13 @@ namespace Metagame.Gameplay.Parts
             {
                 if (_tower[i].name == PartSpec.All[i].Name) continue;
 
-                Blocker = $"{i + 1}층이 {PartSpec.All[i].DisplayName} 이 아니다";
+                Blocker = $"{i + 1}층이 {PartSpec.All[i].DisplayName} 이 아니다";   // code: wrong_order
                 return;
             }
 
             if (!IsOnPad(engine))
             {
-                Blocker = "우주선이 발사 구역 밖에 있다";
+                Blocker = "우주선이 발사 구역 밖에 있다";   // code: off_pad
                 return;
             }
 
@@ -201,7 +212,7 @@ namespace Metagame.Gameplay.Parts
                 var tilt = Vector3.Angle(_tower[i].AssemblyUp, Vector3.up);
                 if (tilt <= PhysicsScale.BoardingMaxTilt) continue;
 
-                Blocker = $"{_tower[i].name} 이 {tilt:0}도 기울어 있다";
+                Blocker = $"{_tower[i].name} 이 {tilt:0}도 기울어 있다";   // code: tilted
                 return;
             }
 

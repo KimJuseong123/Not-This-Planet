@@ -66,12 +66,12 @@ for key in ("floor_state", "parts", "blocker_codes", "blocker_messages"):
     diff.append("")
 
 if diff:
-    split = ("**옛 데이터의 뜻이 달라진다.** 버리라는 말이 아니라 지문으로 나눠 보라는 말이다."
-             if saved.get("fingerprint") != now["fingerprint"] else
-             "지문은 그대로다 — 문구만 바뀌었으므로 **데이터는 안 갈린다.** 확인만 하면 된다.")
-    fail("\n".join(["이벤트가 기대는 게임 코드의 정의가 바뀌었다.", ""] + diff
-                   + [split, "", HOWTO, "새 계약:", json.dumps(now, ensure_ascii=False, indent=2)]))
-
+    same = saved.get("fingerprint") == now["fingerprint"]
+    split = ("지문은 그대로다 — **한글 문구만** 바뀌었으므로 데이터는 안 갈린다. 확인만 하면 된다."
+             if same else
+             "**옛 데이터의 뜻이 달라진다.** 버리라는 말이 아니라 지문으로 나눠 보라는 말이다.")
+    fail(chr(10).join(["이벤트가 기대는 게임 코드의 정의가 바뀌었다.", ""] + diff
+                      + [split, "", HOWTO, "새 계약:", json.dumps(now, ensure_ascii=False, indent=2)]))
 check(saved.get("fingerprint") == now["fingerprint"],
       f"값은 같은데 지문이 다르다 — 계약이 손으로 고쳐졌다.\n\n{HOWTO}")
 print(f"  지문 {now['fingerprint']} — 코드와 계약이 같다 ✅")
@@ -104,15 +104,23 @@ for key, want in EXPECTED.items():
           f"  뽑은 것: {now[key]}")
 print(f"  층 {len(now['floor_state'])}종 · 파츠 {len(now['parts'])}개 · "
       f"막힘 {len(now['blocker_messages'])}가지 ✅")
-# ── 4) 막힘 코드와 문구의 개수가 맞는가 ──
-# 코드는 손으로 적고 문구는 코드에서 뽑는다. 한쪽만 늘면 매핑이 밀린다 —
-# 그러면 `tilted` 로 집계한 것이 사실은 `off_pad` 다.
+# ── 4) 막힘을 **이름으로** 짝짓는가 ──
+#
+# 전에는 이름 목록을 손으로 적어 두고 `Evaluate()` 의 **순서**에 맞췄다. 그러면
+# 막는 자리의 순서만 바뀌어도 집계의 뜻이 통째로 밀리는데(`tilted` 로 센 것이
+# `off_pad` 가 된다) 지문은 그대로라 옛 데이터와 섞였다 (`!461` AI 리뷰).
+#
+# 이제 각 대입 옆의 `// code: …` 가 짝을 정한다 — 순서를 바꾸면 `blocker_codes` 의
+# 순서가 바뀌고, 그것이 지문에 들어 있으므로 **데이터가 갈린다.**
 check(len(now["blocker_codes"]) == len(now["blocker_messages"]),
-      "막힘 코드와 문구의 개수가 다르다 — 매핑이 밀린다\n"
-      f"  코드 {len(now['blocker_codes'])}개: {now['blocker_codes']}\n"
-      f"  문구 {len(now['blocker_messages'])}개: {now['blocker_messages']}\n"
-      "  `Evaluate()` 에 막는 자리가 늘었다면 schema_source.BLOCKER_CODES 에도 더한다.")
-print("  막힘 코드와 문구의 개수가 같다 ✅")
+      "이름과 문구의 개수가 다르다 — 짝짓기가 깨졌다")
+check(len(set(now["blocker_codes"])) == len(now["blocker_codes"]),
+      f"막는 사유의 이름이 겹친다: {now['blocker_codes']}")
+check("blocker_codes" in S.MEANING,
+      "이름이 지문에 없다 — 순서가 바뀌어도 데이터가 안 갈린다")
+check(not hasattr(S, "BLOCKER_CODES"),
+      "손으로 적는 이름 목록이 아직 있다 — 위치로 짝짓던 방식이 남아 있다")
+print("  막힘을 이름으로 짝짓는다 (순서가 바뀌면 지문도 바뀐다) ✅")
 
 # ── 5) 파서를 **직접 불러** 확인한다 ──
 #
