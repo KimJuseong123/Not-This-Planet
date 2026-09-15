@@ -131,6 +131,23 @@ namespace Metagame.Core
         /// </summary>
         public const float TossedMinSeconds = 0.45f;
 
+        /// <summary>
+        /// 던져진 몸이 넘어가는 빠르기(라디안/초). 꽉 채워 던졌을 때의 값이고,
+        /// 약하게 던지면 <see cref="Metagame.Gameplay.PlayerRig.TossStrength"/> 만큼 줄어든다
+        /// (S15P21B202-551).
+        ///
+        /// <para><b>실측으로 고른 값이다.</b> 균형 조인트의 감쇠를 걷은 뒤 각속도를 바꿔
+        /// 가며 1.2초 동안 골반이 얼마나 넘어가는지 쟀다.</para>
+        ///
+        /// <list type="table">
+        /// <item><description>4 rad/s → 62도 · 완전히 뒤집히지는 않는다</description></item>
+        /// <item><description>8 rad/s → 124도 · 한 번 뒤집힌다</description></item>
+        /// <item><description><b>12 rad/s → 180도</b></description></item>
+        /// <item><description>20 rad/s → 180도 · 더 올려도 늘지 않는다</description></item>
+        /// </list>
+        /// </summary>
+        public const float TossSpinSpeed = 12f;
+
         // ── 도구 투척 ──────────────────────────────────────────
         public const float ToolChargeDuration = 2.0f;
         public const float ToolThrowSpeed = 14f;
