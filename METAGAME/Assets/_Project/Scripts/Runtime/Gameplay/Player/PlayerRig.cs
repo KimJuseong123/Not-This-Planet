@@ -1536,6 +1536,133 @@ namespace Metagame.Gameplay
                    + forward * (Tuning.TossForwardSpeed * strength);
         }
 
+        // ── 동료를 시선으로 끌기 (S15P21B202-555) ──────────────────
+
+        /// <summary>
+        /// 지금 들고 있는가(끌기가 아니라). <b>히스테리시스가 있다</b> — 들어가는 문턱과
+        /// 나오는 문턱이 다르다.
+        ///
+        /// <para>문턱이 하나면 그 경계에서 고개가 조금만 흔들려도 몸이 떴다 내렸다 한다.
+        /// 저중력장이 <c>-538</c> 에서 겪은 떨림과 원인이 다르지만 보기에는 같다.</para>
+        /// </summary>
+        public static bool TeammateLifted(float aimUp, bool wasLifted) =>
+            wasLifted ? aimUp > PhysicsScale.TeammateLiftExit
+                      : aimUp > PhysicsScale.TeammateLiftEnter;
+
+        /// <summary>
+        /// 끌어올 높이(m, 잡은 사람의 발 기준). 고개를 내렸으면 땅에 끌리는 높이,
+        /// 올렸으면 <b>올려다볼수록 더 높이</b>.
+        /// </summary>
+        public static float TeammateHoldHeight(float aimUp, bool lifted)
+        {
+            if (!lifted) return PhysicsScale.TeammateDragHeight;
+
+            var t = Mathf.InverseLerp(PhysicsScale.TeammateLiftEnter, 1f, aimUp);
+            return Mathf.Lerp(PhysicsScale.TeammateLiftHeightLow,
+                              PhysicsScale.TeammateLiftHeightHigh, t);
+        }
+
+        /// <summary>
+        /// 끌어올 자리. 잡은 사람의 <b>발</b>에서 조준의 수평 방향으로 떨어진 곳이다.
+        ///
+        /// <para><b>발을 기준으로 잡는다.</b> 눈이나 골반에서 재면 잡은 사람이 점프하거나
+        /// 경사에 서는 것만으로 동료의 높이가 따라 흔들린다 — "고개 높이로 정한다" 는
+        /// 규칙이 무너진다.</para>
+        /// </summary>
+        public static Vector3 TeammateHoldPoint(Vector3 holderFoot, Vector3 aim, float height)
+        {
+            var forward = aim;
+            forward.y = 0f;
+            forward = forward.sqrMagnitude > 1e-4f ? forward.normalized : Vector3.forward;
+
+            return holderFoot + forward * PhysicsScale.TeammateHoldDistance
+                   + Vector3.up * height;
+        }
+
+        /// <summary>
+        /// 끌어오는 가속. 스프링-댐퍼이고 상한이 있다.
+        ///
+        /// <para><c>ForceMode.Acceleration</c> 으로 쓸 값이라 질량과 무관하다 — 저중력장이
+        /// 같은 이유로 그렇게 한다. 상한이 없으면 두 몸이 서로 밀며 튄다.</para>
+        /// </summary>
+        public static Vector3 TeammatePull(Vector3 from, Vector3 to, Vector3 velocity, float scale)
+        {
+            var accel = (to - from) * PhysicsScale.TeammatePullAccel
+                        - velocity * PhysicsScale.TeammatePullDamp;
+
+            return Vector3.ClampMagnitude(accel * scale, PhysicsScale.TeammatePullMaxAccel);
+        }
+
+        /// <summary>
+        /// 잡힌 쪽이 <b>반대로 버티고</b> 있는가. 옆으로 걷는 정도로는 저항이 아니다.
+        /// </summary>
+        public static bool TeammateResisting(Vector3 victimWish, Vector3 pullDirection)
+        {
+            if (victimWish.sqrMagnitude < 0.01f) return false;
+
+            var pull = pullDirection;
+            pull.y = 0f;
+            if (pull.sqrMagnitude < 1e-4f) return false;
+
+            var wish = victimWish;
+            wish.y = 0f;
+            if (wish.sqrMagnitude < 1e-4f) return false;
+
+            return Vector3.Dot(wish.normalized, pull.normalized) < PhysicsScale.TeammateResistDot;
+        }
+
+        /// <summary>들고 있는가. 표시와 검증이 읽는다.</summary>
+        public bool CarryLifted { get; private set; }
+
+        /// <summary>잡힌 동료가 버틴 시간(초). <see cref="PhysicsScale.TeammateResistSeconds"/> 에서 손이 풀린다.</summary>
+        public float CarryResistSeconds { get; private set; }
+
+        /// <summary>
+        /// 잡은 동료를 조준 방향으로 끌어온다 (S15P21B202-555).
+        ///
+        /// <para><b>서버만 한다.</b> 잡기 판정이 서버에 있으므로 참가자 기계의 내 손에 그
+        /// 조인트가 있다고 믿을 근거가 없다 — 충전 게이지가 <c>-519</c> 에서 같은 판단을
+        /// 했다. 조준은 <c>CmdSendInput</c> 으로 이미 올라오므로 <b>추가 전송이 없다</b>.</para>
+        /// </summary>
+        void PullTeammate(PlayerRig victim, Vector3 aim)
+        {
+            if (victim == null || victim.Doll == null || victim.Doll.Hips == null) return;
+
+            var aimUp = aim.sqrMagnitude > 1e-4f ? aim.normalized.y : 0f;
+            CarryLifted = TeammateLifted(aimUp, CarryLifted);
+
+            var target = TeammateHoldPoint(FootPosition, aim,
+                                           TeammateHoldHeight(aimUp, CarryLifted));
+
+            var hips = victim.Doll.Hips;
+            var pullDirection = target - hips.position;
+
+            if (TeammateResisting(victim.MoveWish, pullDirection))
+                CarryResistSeconds += Time.fixedDeltaTime;
+            else
+                CarryResistSeconds = 0f;
+
+            // 버티는 데 끝이 있어야 한다. 없으면 잡힌 쪽이 빠져나갈 방법이 사라진다.
+            if (CarryResistSeconds >= PhysicsScale.TeammateResistSeconds)
+            {
+                ReleaseHand(LeftHand, HandReleaseReason.Throw);
+                ReleaseHand(RightHand, HandReleaseReason.Throw);
+                CarryResistSeconds = 0f;
+                CarryLifted = false;
+                return;
+            }
+
+            var scale = CarryResistSeconds > 0f ? PhysicsScale.TeammateResistPullScale : 1f;
+            var pull = TeammatePull(hips.position, target, hips.linearVelocity, scale);
+            if (!JointTools.IsFinite(pull)) return;
+
+            // 골반과 가슴에 나눠 준다. 골반에만 주면 상체가 뒤로 끌리며 접힌다 —
+            // 잡힌 쪽 이동이 이미 같은 비율(0.6 / 0.4)을 쓴다.
+            hips.AddForce(pull * 0.6f, ForceMode.Acceleration);
+            if (victim.Doll.Chest != null)
+                victim.Doll.Chest.AddForce(pull * 0.4f, ForceMode.Acceleration);
+        }
+
         /// <summary>
         /// 양손으로 동료를 잡고 있는 동안의 Q 처리. 처리했으면 참을 돌려 팔 구동을 넘긴다.
         ///
@@ -1555,6 +1682,8 @@ namespace Metagame.Gameplay
                 {
                     tossCharge = 0f;
                     tossActionHeld = false;
+                    CarryResistSeconds = 0f;
+                    CarryLifted = false;
                 }
                 return false;
             }
@@ -1564,6 +1693,10 @@ namespace Metagame.Gameplay
             DriveArm(Doll.Right, true, aim);
 
             if (!ServerAuthority) return true;
+
+            // 잡고 있는 동안 계속 끌어온다(S15P21B202-555). 충전·던지기보다 앞에 둔다 —
+            // 던진 뒤에는 잡은 것이 없으므로 이 아래 분기들이 먼저 돌면 한 틱이 어긋난다.
+            PullTeammate(victim, aim);
 
             if (GetToolUtilityHeld())
             {
