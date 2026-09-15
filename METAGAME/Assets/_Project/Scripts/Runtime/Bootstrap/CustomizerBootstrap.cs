@@ -45,10 +45,10 @@ namespace Metagame.Bootstrap
         [Serializable]
         sealed class ScrollVisualSettings
         {
-            [InspectorName("트랙 색")] public Color trackColor = new Color(0.08f, 0.11f, 0.18f, 0.55f);
-            [InspectorName("손잡이 색")] public Color thumbColor = new Color(0.24f, 0.73f, 0.78f, 0.78f);
-            [InspectorName("마우스 오버 색")] public Color thumbHoverColor = new Color(0.38f, 0.91f, 0.94f, 0.95f);
-            [InspectorName("누를 때 색")] public Color thumbPressedColor = new Color(0.51f, 0.96f, 1f, 1f);
+            [InspectorName("트랙 색")] public Color trackColor = new Color32(0x16, 0x18, 0x2A, 0xE6);
+            [InspectorName("손잡이 색")] public Color thumbColor = new Color32(0x9B, 0x83, 0xE6, 0xFF);
+            [InspectorName("마우스 오버 색")] public Color thumbHoverColor = new Color32(0xB5, 0xA3, 0xF2, 0xFF);
+            [InspectorName("누를 때 색")] public Color thumbPressedColor = new Color32(0x80, 0x67, 0xC7, 0xFF);
             [InspectorName("너비"), Range(6, 18)] public int width = 9;
             [InspectorName("모서리 둥글기"), Range(0, 12)] public int cornerRadius = 5;
         }
@@ -56,6 +56,8 @@ namespace Metagame.Bootstrap
         [Serializable]
         sealed class SuitColorSettings
         {
+            [InspectorName("기본 (White)"), ColorUsage(false)]
+            public Color white = Color.white;
             [InspectorName("Yellow (#F2FF9F)"), ColorUsage(false)]
             public Color yellow = new Color32(0xF2, 0xFF, 0x9F, 0xFF);
             [InspectorName("Lavender (#DEC6FF)"), ColorUsage(false)]
@@ -67,61 +69,82 @@ namespace Metagame.Bootstrap
 
             public Color[] ToArray()
             {
-                return new[] { yellow, lavender, pink, sky };
+                return new[] { white, yellow, lavender, pink, sky };
             }
+        }
+
+        [Serializable]
+        sealed class TintSwatchVisualSettings
+        {
+            [InspectorName("원 크기"), Range(32f, 64f)] public float diameter = 42f;
+            [InspectorName("원 사이 간격"), Range(4f, 24f)] public float spacing = 12f;
+            [InspectorName("마우스 오버 확대"), Range(1f, 1.2f)] public float hoverScale = 1.08f;
+            [InspectorName("선택 테두리 색")] public Color selectedRingColor = new Color32(0xB5, 0xA3, 0xF2, 0xFF);
+            [InspectorName("흰색 원 테두리 색")] public Color whiteBorderColor = new Color32(0x78, 0x79, 0x8C, 0xFF);
         }
 
         [Header("미리보기")]
         [SerializeField, Range(0.05f, 2f)] float dragRotationSensitivity = 0.35f;
         [SerializeField, Range(1f, 2.5f)] float previewBrightness = 1.65f;
 
+        [Header("미리보기 배경")]
+        [SerializeField] Texture2D previewBackground;
+        [SerializeField] Color previewBackgroundTint = Color.white;
+        [SerializeField, Range(0f, 0.25f)] float previewBackgroundParallax = 0.08f;
+
+        [Header("오른쪽 패널")]
+        [SerializeField, InspectorName("배경 색")]
+        Color panelBackgroundColor = new Color(0.018f, 0.026f, 0.065f, 0.98f);
+
         [Header("슈트 컬러")]
         [SerializeField] SuitColorSettings suitColors = new SuitColorSettings();
+
+        [Header("슈트 컬러 버튼")]
+        [SerializeField] TintSwatchVisualSettings tintSwatches = new TintSwatchVisualSettings();
 
         [Header("스크롤")]
         [SerializeField] ScrollVisualSettings scrollStyle = new ScrollVisualSettings();
 
         [Header("선택 버튼")]
         [SerializeField] ButtonVisualSettings choiceButton = new ButtonVisualSettings(
-            new Color(0.075f, 0.095f, 0.16f, 0.92f), new Color(0.105f, 0.14f, 0.22f, 0.98f),
-            new Color(0.15f, 0.44f, 0.52f, 1f), new Color(0.12f, 0.34f, 0.42f, 1f),
-            new Color(0.15f, 0.44f, 0.52f, 1f), new Color(0.78f, 0.84f, 0.92f), 10, 15);
+            new Color32(0x17, 0x1A, 0x2D, 0xFF), new Color32(0x39, 0x34, 0x52, 0xFF),
+            new Color32(0x62, 0x57, 0x83, 0xFF), new Color32(0x80, 0x67, 0xC7, 0xFF),
+            new Color32(0xB5, 0xA3, 0xF2, 0xFF), new Color32(0xD8, 0xD3, 0xE8, 0xFF), 10, 15);
 
         [Header("시작 버튼")]
         [SerializeField] ButtonVisualSettings startButton = new ButtonVisualSettings(
-            new Color(0.16f, 0.68f, 0.76f, 1f), new Color(0.24f, 0.82f, 0.88f, 1f),
-            new Color(0.15f, 0.44f, 0.52f, 1f), new Color(0.16f, 0.68f, 0.76f, 1f),
-            new Color(0.24f, 0.82f, 0.88f, 1f), new Color(0.01f, 0.06f, 0.09f), 12, 18);
+            new Color32(0x9B, 0x83, 0xE6, 0xFF), new Color32(0xB5, 0xA3, 0xF2, 0xFF),
+            new Color32(0x80, 0x67, 0xC7, 0xFF), new Color32(0x9B, 0x83, 0xE6, 0xFF),
+            new Color32(0xB5, 0xA3, 0xF2, 0xFF), new Color32(0x17, 0x12, 0x21, 0xFF), 12, 18);
 
         [Header("기본 외형 버튼")]
         [SerializeField] ButtonVisualSettings resetButton = new ButtonVisualSettings(
-            new Color(0.075f, 0.095f, 0.16f, 0.92f), new Color(0.105f, 0.14f, 0.22f, 0.98f),
-            new Color(0.12f, 0.34f, 0.42f, 1f), new Color(0.075f, 0.095f, 0.16f, 0.92f),
-            new Color(0.105f, 0.14f, 0.22f, 0.98f), new Color(0.77f, 0.94f, 1f), 10, 15);
+            new Color32(0x17, 0x1A, 0x2D, 0xFF), new Color32(0x39, 0x34, 0x52, 0xFF),
+            new Color32(0x62, 0x57, 0x83, 0xFF), new Color32(0x17, 0x1A, 0x2D, 0xFF),
+            new Color32(0x39, 0x34, 0x52, 0xFF), new Color32(0xD8, 0xD3, 0xE8, 0xFF), 10, 15);
 
         [Header("로비 버튼")]
         [SerializeField] ButtonVisualSettings lobbyButton = new ButtonVisualSettings(
-            new Color(0.055f, 0.07f, 0.12f, 0.94f), new Color(0.10f, 0.13f, 0.20f, 1f),
-            new Color(0.075f, 0.095f, 0.16f, 0.92f), new Color(0.055f, 0.07f, 0.12f, 0.94f),
-            new Color(0.10f, 0.13f, 0.20f, 1f), new Color(0.70f, 0.77f, 0.86f), 10, 15);
+            new Color32(0x17, 0x1A, 0x2D, 0xFF), new Color32(0x39, 0x34, 0x52, 0xFF),
+            new Color32(0x62, 0x57, 0x83, 0xFF), new Color32(0x17, 0x1A, 0x2D, 0xFF),
+            new Color32(0x39, 0x34, 0x52, 0xFF), new Color32(0xD8, 0xD3, 0xE8, 0xFF), 10, 15);
 
         CustomizationData draft;
         Doll preview;
         Camera previewCamera;
+        GameObject previewBackgroundObject;
+        Material previewBackgroundMaterial;
         GameObject lightObject, fillLightObject;
-        GUIStyle title, sectionTitle, option;
+        GUIStyle title, sectionTitle, option, swatchCheck, swatchTooltip;
         GUIStyle primaryButton, secondaryButton, quietButton, errorText;
         GUIStyle scrollTrack, scrollThumb, scrollButton;
-        Texture2D panelTexture;
+        Texture2D panelTexture, swatchCircle;
         readonly List<Texture2D> generatedButtonTextures = new List<Texture2D>();
         Vector2 scroll;
         float yaw = 25f;
         string error;
         bool completed;
         bool stylesDirty = true;
-
-        static readonly Color Cyan = new Color(0.30f, 0.93f, 1f);
-        static readonly Color Lavender = new Color(0.68f, 0.48f, 1f);
 
         void Start()
         {
@@ -145,6 +168,7 @@ namespace Metagame.Bootstrap
             previewCamera.fieldOfView = 32f;
             previewCamera.nearClipPlane = 0.05f;
             previewCamera.depth = 1f;
+            CreatePreviewBackground();
             lightObject = new GameObject("Customizer Key Light");
             var light = lightObject.AddComponent<Light>();
             light.type = LightType.Directional;
@@ -168,6 +192,82 @@ namespace Metagame.Bootstrap
             float distance = Mathf.Max(2.55f, 1.48f / Mathf.Max(0.3f, previewCamera.aspect));
             previewCamera.transform.position = focus + Quaternion.Euler(0f, yaw, 0f) * new Vector3(0f, 0.15f, distance);
             previewCamera.transform.LookAt(focus);
+            UpdatePreviewBackground();
+        }
+
+        void CreatePreviewBackground()
+        {
+            if (previewBackground == null)
+                previewBackground = Resources.Load<Texture2D>("UI/Customizer/T_Customizer_Stage1Background");
+            if (previewBackground == null) return;
+
+            Shader shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Texture");
+            if (shader == null)
+            {
+                Debug.LogWarning("[Customizer] 미리보기 배경용 Unlit 셰이더를 찾을 수 없습니다.", this);
+                return;
+            }
+
+            previewBackgroundObject = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            previewBackgroundObject.name = "Customizer Space Background";
+            previewBackgroundObject.transform.SetParent(previewCamera.transform, false);
+
+            var collider = previewBackgroundObject.GetComponent<Collider>();
+            if (collider != null) Destroy(collider);
+
+            var renderer = previewBackgroundObject.GetComponent<MeshRenderer>();
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            previewBackgroundMaterial = new Material(shader)
+            {
+                name = "~Customizer Space Background",
+                hideFlags = HideFlags.HideAndDontSave,
+                mainTexture = previewBackground,
+                color = previewBackgroundTint
+            };
+            renderer.sharedMaterial = previewBackgroundMaterial;
+            UpdatePreviewBackground();
+        }
+
+        void UpdatePreviewBackground()
+        {
+            if (previewBackgroundObject == null || previewCamera == null) return;
+
+            const float distance = 10f;
+            const float overscan = 1.12f;
+            float height = 2f * distance * Mathf.Tan(previewCamera.fieldOfView * 0.5f * Mathf.Deg2Rad) * overscan;
+            float parallax = Mathf.Sin(yaw * Mathf.Deg2Rad) * previewBackgroundParallax;
+            previewBackgroundObject.transform.localPosition = new Vector3(parallax, 0f, distance);
+            previewBackgroundObject.transform.localRotation = Quaternion.identity;
+            previewBackgroundObject.transform.localScale = new Vector3(height * previewCamera.aspect, height, 1f);
+
+            if (previewBackgroundMaterial != null)
+            {
+                previewBackgroundMaterial.color = previewBackgroundTint;
+                ApplyBackgroundCrop(previewCamera.aspect);
+            }
+        }
+
+        void ApplyBackgroundCrop(float viewAspect)
+        {
+            if (previewBackgroundMaterial == null || previewBackground == null) return;
+
+            float textureAspect = previewBackground.width / (float)Mathf.Max(1, previewBackground.height);
+            Vector2 scale = Vector2.one;
+            Vector2 offset = Vector2.zero;
+            if (textureAspect > viewAspect)
+            {
+                scale.x = viewAspect / textureAspect;
+                offset.x = (1f - scale.x) * 0.5f;
+            }
+            else
+            {
+                scale.y = textureAspect / Mathf.Max(0.01f, viewAspect);
+                offset.y = (1f - scale.y) * 0.5f;
+            }
+
+            previewBackgroundMaterial.mainTextureScale = scale;
+            previewBackgroundMaterial.mainTextureOffset = offset;
         }
 
         void OnGUI()
@@ -204,7 +304,7 @@ namespace Metagame.Bootstrap
             scroll = GUILayout.BeginScrollView(scroll, false, false, GUIStyle.none, scrollTrack, GUIStyle.none);
 
             int old = draft.Packed;
-            draft.Tint = Choice("슈트 컬러", TintButtonLabels(), draft.Tint, 2);
+            draft.Tint = TintChoice(draft.Tint);
             draft.Helmet = Choice("헬멧 장식", CustomizationData.HelmetNames, draft.Helmet, 3);
             draft.Badge = Choice("가슴 장식", CustomizationData.BadgeNames, draft.Badge, 3);
             if (old != draft.Packed) PlayerAppearance.Apply(preview, draft.Packed);
@@ -247,15 +347,74 @@ namespace Metagame.Bootstrap
             return selected;
         }
 
-        string[] TintButtonLabels()
+        int TintChoice(int selected)
         {
-            var labels = new string[CustomizationData.TintNames.Length];
-            for (int i = 0; i < labels.Length; i++)
+            GUILayout.Label("슈트 컬러", sectionTitle);
+            GUILayout.Space(8f);
+
+            int count = CustomizationData.TintNames.Length;
+            float diameter = tintSwatches.diameter;
+            float spacing = tintSwatches.spacing;
+            float totalWidth = count * diameter + Mathf.Max(0, count - 1) * spacing;
+            Rect row = GUILayoutUtility.GetRect(0f, diameter + 30f, GUILayout.ExpandWidth(true));
+            float startX = row.x + Mathf.Max(0f, (row.width - totalWidth) * 0.5f);
+            float centerY = row.y + diameter * 0.5f + 5f;
+            string hoveredName = null;
+
+            for (int i = 0; i < count; i++)
             {
-                string hex = ColorUtility.ToHtmlStringRGB(CustomizationData.TintColor(i));
-                labels[i] = $"<color=#{hex}>{CustomizationData.TintNames[i]}</color>";
+                float centerX = startX + diameter * 0.5f + i * (diameter + spacing);
+                Rect hitRect = CenteredRect(centerX, centerY, diameter + 10f);
+                bool hovered = hitRect.Contains(Event.current.mousePosition);
+                float visibleDiameter = diameter * (hovered ? tintSwatches.hoverScale : 1f);
+
+                if (i == selected)
+                    DrawTintCircle(CenteredRect(centerX, centerY, visibleDiameter + 8f), tintSwatches.selectedRingColor);
+
+                if (i == 0)
+                {
+                    DrawTintCircle(CenteredRect(centerX, centerY, visibleDiameter), tintSwatches.whiteBorderColor);
+                    DrawTintCircle(CenteredRect(centerX, centerY, visibleDiameter - 4f), CustomizationData.TintColor(i));
+                }
+                else
+                {
+                    DrawTintCircle(CenteredRect(centerX, centerY, visibleDiameter), CustomizationData.TintColor(i));
+                }
+
+                if (i == selected)
+                {
+                    Color previous = GUI.contentColor;
+                    GUI.contentColor = CustomizationData.TintColor(i).grayscale > 0.72f
+                        ? new Color32(0x17, 0x12, 0x21, 0xFF)
+                        : Color.white;
+                    GUI.Label(CenteredRect(centerX, centerY, visibleDiameter), "✓", swatchCheck);
+                    GUI.contentColor = previous;
+                }
+
+                if (GUI.Button(hitRect, new GUIContent(string.Empty, CustomizationData.TintNames[i]), GUIStyle.none))
+                    selected = i;
+                if (hovered)
+                    hoveredName = CustomizationData.TintNames[i];
             }
-            return labels;
+
+            if (!string.IsNullOrEmpty(hoveredName))
+                GUI.Label(new Rect(startX, row.y + diameter + 9f, totalWidth, 18f), hoveredName, swatchTooltip);
+
+            GUILayout.Space(20f);
+            return selected;
+        }
+
+        static Rect CenteredRect(float centerX, float centerY, float size)
+        {
+            return new Rect(centerX - size * 0.5f, centerY - size * 0.5f, size, size);
+        }
+
+        void DrawTintCircle(Rect rect, Color color)
+        {
+            Color previous = GUI.color;
+            GUI.color = color;
+            GUI.DrawTexture(rect, swatchCircle, ScaleMode.StretchToFill, true);
+            GUI.color = previous;
         }
 
         void HandlePreviewRotation(Rect previewRect)
@@ -317,9 +476,6 @@ namespace Metagame.Bootstrap
         void DrawBackdrop(float width, float height, float panelX)
         {
             GUI.DrawTexture(new Rect(panelX, 0f, width - panelX, height), panelTexture);
-            DrawLine(new Rect(panelX, 0f, 1f, height), new Color(Cyan.r, Cyan.g, Cyan.b, 0.42f));
-            DrawLine(new Rect(panelX + 4f, 0f, 1f, height), new Color(Lavender.r, Lavender.g, Lavender.b, 0.16f));
-            DrawLine(new Rect(0f, 0f, panelX, 3f), new Color(Cyan.r, Cyan.g, Cyan.b, 0.34f));
         }
 
         void EnsureStyles()
@@ -331,7 +487,7 @@ namespace Metagame.Bootstrap
             var fallbackFont = Resources.Load<Font>("Fonts/NotoSansKR-Variable");
             var titleFont = Resources.Load<Font>("Fonts/SUIT-Bold") ?? fallbackFont;
             var uiFont = Resources.Load<Font>("Fonts/SUIT-Medium") ?? fallbackFont;
-            panelTexture = Solid(new Color(0.018f, 0.026f, 0.065f, 0.98f));
+            panelTexture = Solid(panelBackgroundColor);
 
             title = Label(titleFont, 34, FontStyle.Normal, Color.white);
             sectionTitle = Label(titleFont, 20, FontStyle.Normal, Color.white);
@@ -341,6 +497,12 @@ namespace Metagame.Bootstrap
             option.richText = true;
             option.padding = new RectOffset(10, 10, 10, 10);
             option.margin = new RectOffset(3, 3, 3, 3);
+
+            swatchCircle = Rounded(Color.white, 32);
+            swatchCheck = Label(uiFont, 18, FontStyle.Bold, Color.white);
+            swatchCheck.alignment = TextAnchor.MiddleCenter;
+            swatchTooltip = Label(uiFont, 13, FontStyle.Normal, Color.white);
+            swatchTooltip.alignment = TextAnchor.MiddleCenter;
 
             primaryButton = Button(uiFont, startButton, false);
             secondaryButton = Button(uiFont, resetButton, false);
@@ -507,6 +669,8 @@ namespace Metagame.Bootstrap
         {
             if (LobbyTransition.Instance != null) LobbyTransition.Instance.Failed -= OnFailure;
             if (preview != null && preview.Root != null) Destroy(preview.Root.gameObject);
+            if (previewBackgroundObject != null) Destroy(previewBackgroundObject);
+            if (previewBackgroundMaterial != null) Destroy(previewBackgroundMaterial);
             if (previewCamera != null) Destroy(previewCamera.gameObject);
             if (lightObject != null) Destroy(lightObject);
             if (fillLightObject != null) Destroy(fillLightObject);
@@ -519,6 +683,7 @@ namespace Metagame.Bootstrap
             panelTexture = null;
             foreach (var texture in generatedButtonTextures) DestroyTexture(texture);
             generatedButtonTextures.Clear();
+            swatchCircle = null;
         }
 
         static void DestroyTexture(Texture2D texture)

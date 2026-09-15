@@ -7,12 +7,13 @@ namespace Metagame.Gameplay
     {
         const string SaveKey = "appearance.v1";
         public int Tint, Helmet, Badge;
-        public static readonly string[] TintNames = { "Yellow", "Lavender", "Pink", "Sky" };
+        public static readonly string[] TintNames = { "기본", "노랑", "라벤더", "분홍", "하늘" };
         public static readonly string[] HelmetNames = { "없음", "탐사 안테나", "통신 헤드셋" };
         public static readonly string[] BadgeNames = { "없음", "탐사 배지", "쌍별 배지" };
 
         static readonly Color[] TintColors =
         {
+            Color.white,
             new Color32(0xF2, 0xFF, 0x9F, 0xFF),
             new Color32(0xDE, 0xC6, 0xFF, 0xFF),
             new Color32(0xFF, 0xAC, 0xCD, 0xFF),

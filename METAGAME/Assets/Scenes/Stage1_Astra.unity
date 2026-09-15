@@ -14251,8 +14251,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.PlasmaWeldingTool
   muzzle: {fileID: 323997722}
-  weldColor: {r: 0.08, g: 0.75, b: 1, a: 1}
-  cutColor: {r: 1, g: 0.28, b: 0.05, a: 1}
+  weldColor: {r: 1, g: 0.2784314, b: 0.050980393, a: 1}
+  cutColor: {r: 0.078431375, g: 0.7490196, b: 1, a: 1}
   beamRange: 0.8
   beamWidth: 0.035
   beamMask: -1
@@ -14260,6 +14260,17 @@ MonoBehaviour:
   guideRadius: 0.045
   guideSurfaceOffset: 0.05
   guideColor: {r: 0.75, g: 0.22, b: 1, a: 1}
+  jointGuideRange: 4
+  jointGuideSurfaceOffset: 0.012
+  jointGuideColor: {r: 1, g: 0.82, b: 0.12, a: 0.32}
+  weldHotColor: {r: 1, g: 0.1, b: 0.025, a: 0.9}
+  weldSparkColor: {r: 1, g: 0.28, b: 0.035, a: 0.62}
+  weldGlowSize: 0.052
+  weldLightRange: 0.48
+  weldLightIntensity: 1.15
+  weldSparkInterval: 0.065
+  weldSparksPerBurst: 2
+  weldSmokeInterval: 0.14
   heldVisualLocalPosition: {x: 0.18, y: -0.14, z: 0.12}
   heldVisualLocalEuler: {x: -90, y: -80, z: 10}
   heldVisualLocalScale: {x: 0.55, y: 0.55, z: 0.55}
