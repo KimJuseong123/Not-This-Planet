@@ -11,6 +11,46 @@ namespace Metagame.Gameplay.Tests
     public class CustomizationTests
     {
         [Test]
+        public void DefaultSuitTintRemainsWhite()
+        {
+            Assert.That(CustomizationData.TintNames,
+                Is.EqualTo(new[] { "기본", "노랑", "라벤더", "분홍", "하늘" }));
+            Assert.That(CustomizationData.TintColor(0), Is.EqualTo(Color.white));
+            Assert.That(CustomizationData.TintNames.Length, Is.EqualTo(5));
+        }
+
+        [Test]
+        public void LegacyAppearancePreservesTintWhenMigrated()
+        {
+            const string legacyKey = "appearance.v1";
+            const string currentKey = "appearance.v2";
+            int legacyPacked = 2 | (1 << 3) | (2 << 5);
+            PlayerPrefs.DeleteKey(currentKey);
+            PlayerPrefs.SetInt(legacyKey, legacyPacked);
+
+            try
+            {
+                CustomizationData migrated = CustomizationData.Load();
+                Assert.That(migrated.Tint, Is.EqualTo(3));
+                Assert.That(migrated.Helmet, Is.EqualTo(1));
+                Assert.That(migrated.Badge, Is.EqualTo(2));
+                Assert.That(PlayerPrefs.HasKey(currentKey), Is.True);
+            }
+            finally
+            {
+                PlayerPrefs.DeleteKey(legacyKey);
+                PlayerPrefs.DeleteKey(currentKey);
+            }
+        }
+
+        [Test]
+        public void CustomizerStage1BackgroundAssetExists()
+        {
+            const string path = "Assets/_Project/Resources/UI/Customizer/T_Customizer_Stage1Background.png";
+            Assert.That(AssetDatabase.LoadAssetAtPath<Texture2D>(path), Is.Not.Null);
+        }
+
+        [Test]
         public void EverySelectionSurvivesNetworkEncoding()
         {
             for (int tint = 0; tint < CustomizationData.TintNames.Length; tint++)

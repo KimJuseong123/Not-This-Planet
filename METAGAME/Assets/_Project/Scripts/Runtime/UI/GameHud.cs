@@ -32,14 +32,16 @@ namespace Metagame.UI
         static bool koFontSearched;
         static readonly Dictionary<int, Font> Fonts = new Dictionary<int, Font>();
 
-        GUIStyle small, mid, center, big;
+        GUIStyle small, mid, center, big, weldingTick;
         Texture2D white;
         bool warmed;
         WeldingGaugeTexture weldingGaugeTexture;
 
         [Header("용접 재료 게이지")]
-        [Tooltip("용접건 기준 게이지 화면 위치입니다. 음수 X는 용접건의 왼쪽입니다.")]
-        [SerializeField] Vector2 weldingGaugeScreenOffset = new Vector2(-280f, 55f);
+        [Tooltip("화면 크기 대비 게이지 중심 위치입니다. (0, 0)은 왼쪽 위, (1, 1)은 오른쪽 아래입니다.")]
+        [SerializeField] Vector2 weldingGaugeViewportAnchor = new Vector2(0.14f, 0.76f);
+        [Tooltip("화면 앵커에서 게이지 중심을 추가로 옮길 픽셀 값입니다.")]
+        [SerializeField] Vector2 weldingGaugeScreenOffset = Vector2.zero;
         [Min(40f)] [SerializeField] float weldingGaugeMaxRadius = 82f;
 
         void Awake()
@@ -179,6 +181,7 @@ namespace Metagame.UI
             center = MakeStyle(SizeCenter, TextAnchor.MiddleCenter);
             mid = MakeStyle(SizeMid, TextAnchor.UpperLeft);
             small = MakeStyle(SizeSmall, TextAnchor.UpperLeft);
+            weldingTick = MakeStyle(SizeSmall, TextAnchor.MiddleRight);
         }
 
         // ── 그리기 도구 ─────────────────────────────────────────
@@ -212,25 +215,15 @@ namespace Metagame.UI
         void WeldingMaterialGauge(float width, float height)
         {
             var tool = Local != null ? Local.PresentationTool as PlasmaWeldingTool : null;
-            if (tool == null || !tool.IsHeldForView || Local.Downed || Local.IsRiding || Local.Cam == null) return;
-            var camera = Local.Cam.Cam;
-            if (camera == null) return;
-            var model = tool.FirstPersonModel;
-            var position = model != null && model.gameObject.activeInHierarchy
-                ? model.position : tool.transform.position;
-            var screen = camera.WorldToScreenPoint(position);
-            if (screen.z <= camera.nearClipPlane) return;
+            if (tool == null || !tool.IsHeldForView || Local.Downed || Local.IsRiding) return;
 
-            // 용접건을 따라가되 총구 왼쪽 아래의 빈 화면에 띄워 모델과 겹치지 않게 한다.
+            // 무기 모델이 움직여도 읽기 쉽도록 화면 왼쪽의 고정 앵커에 배치한다.
             float radius = Mathf.Min(weldingGaugeMaxRadius, height * 0.16f);
             float thickness = radius * 0.19f;
-            var modelScreen = new Vector2(
-                screen.x / UiScale.Value,
-                (Screen.height - screen.y) / UiScale.Value);
             var origin = new Vector2(
-                Mathf.Clamp(modelScreen.x + weldingGaugeScreenOffset.x,
-                    radius + 20f, width - radius - 60f),
-                Mathf.Clamp(modelScreen.y + weldingGaugeScreenOffset.y,
+                Mathf.Clamp(width * weldingGaugeViewportAnchor.x + weldingGaugeScreenOffset.x,
+                    radius + 70f, width - radius - 60f),
+                Mathf.Clamp(height * weldingGaugeViewportAnchor.y + weldingGaugeScreenOffset.y,
                     radius + 30f, height - radius - 30f));
             Color yellow = new Color(1f, 0.85f, 0.08f, 0.95f);
             if (weldingGaugeTexture == null) weldingGaugeTexture = new WeldingGaugeTexture();
@@ -256,14 +249,15 @@ namespace Metagame.UI
                 GaugeLine(GaugePoint(origin, radius - thickness * 0.5f, fraction),
                     GaugePoint(origin, radius + thickness * 0.5f + 4f, fraction), 2f, Color.white);
                 var label = GaugePoint(origin, radius + thickness * 0.5f + 10f, fraction);
-                L(new Rect(label.x, label.y - 10f, 50f, 22f), WeldingTicks[i], small, Color.white);
+                L(new Rect(label.x - 58f, label.y - 11f, 52f, 22f),
+                    WeldingTicks[i], weldingTick, Color.white);
             }
         }
 
         static Vector2 GaugePoint(Vector2 origin, float radius, float fraction)
         {
             float angle = Mathf.Lerp(18f, -48f, fraction) * Mathf.Deg2Rad;
-            return origin + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
+            return origin + new Vector2(-Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
         }
 
         void GaugeLine(Vector2 start, Vector2 end, float thickness, Color color)
