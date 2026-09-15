@@ -227,6 +227,81 @@ namespace Metagame.Gameplay.Tests
                 $"휘청이던 몸이 {Tilt(rig):F1}도로 안 멈췄다");
         }
 
+        // ── 화면이 몸을 따라가는가 ────────────────────────────────
+
+        /// <summary>
+        /// <b>사용자가 원한 것은 이것이다</b> — "날아가거나 정신없이 뒤집힐 때 시점도 그
+        /// 캐릭터의 눈의 위치와 방향에 맞게 바뀌어야 한다".
+        ///
+        /// <para>카메라 쪽 배선은 원래 있었다. <c>OrbitCamera</c> 는 <c>DownedFalling</c>
+        /// 동안 <c>transform.rotation = downedEyes.rotation</c> 으로 <b>머리 본의 회전을
+        /// 그대로</b> 쓴다(<c>-259</c>). 따라갈 회전이 없었을 뿐이다 — 이 티켓 전에는
+        /// 머리가 2.8도밖에 안 기울었다.</para>
+        ///
+        /// <para>그래서 여기서 지키는 것은 <b>머리가 실제로 도는가</b> 이다. 카메라가
+        /// 읽는 값이 그것이므로, 이것이 곧 시야가 뒤집히는 정도다.</para>
+        /// </summary>
+        [Test]
+        public void TheHeadTurnsOverSoTheViewTurnsWithIt()
+        {
+            MakeGround();
+            var rig = MakePlayer(new Vector3(0f, 1f, 0f));
+            Fly(rig, 40);
+
+            rig.LaunchTossed(PlayerRig.TossVelocity(Vector3.forward, 1f), 1f);
+
+            var head = rig.Doll.Head.transform;
+            float worst = 0f;
+            int upsideDown = 0;
+            for (var i = 0; i < 400; i++)
+            {
+                rig.Tick();
+                UnityEngine.Physics.Simulate(Step);
+                float tilt = Vector3.Angle(head.up, Vector3.up);
+                worst = Mathf.Max(worst, tilt);
+                if (tilt > 90f) upsideDown++;
+            }
+
+            Assert.Greater(worst, 90f,
+                $"머리가 {worst:F1}도밖에 안 돌았다 — 화면은 머리를 그대로 쓰므로 "
+                + "머리가 안 돌면 시야도 안 뒤집힌다");
+            Assert.Greater(upsideDown, 30,
+                $"화면이 뒤집혀 있는 시간이 {upsideDown * Step:F2}초뿐이다");
+        }
+
+        /// <summary>
+        /// 던져진 것이 <b>1인칭 창 안에서</b> 끝나야 한다.
+        ///
+        /// <para><c>OrbitCamera</c> 는 <c>DownedFirstPersonSeconds</c>(5초)가 지나면
+        /// 3인칭으로 물러난다. 날아가는 시간이 그보다 길면 <b>날아가는 도중에 화면이
+        /// 3인칭으로 튄다</b> — 눈에 맞춘 시야가 중간에 끊긴다.</para>
+        ///
+        /// <para>측정으로는 3.37초에 끝났다. 여유가 1.6초뿐이므로 던지는 세기나 그 창을
+        /// 건드리면 여기서 걸린다.</para>
+        /// </summary>
+        [Test]
+        public void TheFlightEndsWhileTheViewIsStillOnTheHead()
+        {
+            MakeGround();
+            var rig = MakePlayer(new Vector3(0f, 1f, 0f));
+            Fly(rig, 40);
+
+            rig.LaunchTossed(PlayerRig.TossVelocity(Vector3.forward, 1f), 1f);
+
+            float endedAt = -1f;
+            for (var i = 0; i < 800 && endedAt < 0f; i++)
+            {
+                rig.Tick();
+                UnityEngine.Physics.Simulate(Step);
+                if (!rig.Tossed) endedAt = i * Step;
+            }
+
+            Assert.Greater(endedAt, 0f, "던져짐이 8초 안에 안 끝났다");
+            Assert.Less(endedAt, PhysicsScale.DownedFirstPersonSeconds,
+                $"날아가는 데 {endedAt:F2}초가 걸리는데 화면이 머리를 따라가는 창은 "
+                + $"{PhysicsScale.DownedFirstPersonSeconds}초다 — 날아가는 도중에 3인칭으로 튄다");
+        }
+
         // ── 넘어가고 나서도 끝나야 한다 (-550 이 지킨 것) ───────────
 
         [Test]
