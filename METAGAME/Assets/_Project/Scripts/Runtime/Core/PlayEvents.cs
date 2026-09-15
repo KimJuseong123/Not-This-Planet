@@ -96,6 +96,27 @@ namespace Metagame.Core
         }
 
         /// <summary>
+        /// 아직 없는 이름으로. <b>이름이 초 단위라 같은 초에 두 판이 열릴 수 있다.</b>
+        ///
+        /// <para>그대로 열면 <c>StreamWriter</c> 가 앞 파일을 통째로 비운다 — 방금 제대로
+        /// 닫아 둔 판이 사라진다. 꼬리는 <c>_2</c> 처럼 붙이는데, <c>_</c> 가 <c>.</c> 보다
+        /// 뒤라 <b>정렬 순서도 그대로</b> 유지된다(오래된 것부터 지우는 규칙이 여기 기댄다).
+        /// </summary>
+        static string Unused(string folder, string name)
+        {
+            string full = System.IO.Path.Combine(folder, name);
+            if (!File.Exists(full)) return full;
+
+            string stem = name.Substring(0, name.Length - ".ndjson".Length);
+            for (int i = 2; i < 100; i++)
+            {
+                full = System.IO.Path.Combine(folder, stem + "_" + i.ToString(CultureInfo.InvariantCulture) + ".ndjson");
+                if (!File.Exists(full)) return full;
+            }
+            return full;   // 같은 초에 백 판을 열었다면 덮는 것이 문제가 아니다
+        }
+
+        /// <summary>
         /// 한 판을 연다. <paramref name="header"/> 는 첫 줄에 그대로 실린다.
         ///
         /// <para><b>머리줄에 지문을 싣는다</b>(S15P21B202-552). 이벤트의 숫자가 무엇을
@@ -106,7 +127,13 @@ namespace Metagame.Core
         {
             lock (Gate)
             {
-                Stop();
+                // **앞 판이 열려 있으면 제대로 닫고 연다.** 그냥 덮으면 그 파일만
+                // `session_end` 없이 끊겨, 하필 그 판에서 "어디까지 갔나" 를 못 읽는다
+                // (`!471` AI 리뷰). 같은 실행에서 다시 시작하는 길이 실제로 있다 —
+                // `SpaceBootstrap` 이 관찰자를 재사용한다.
+                if (writer != null)
+                    End(new Dictionary<string, object> { ["result"] = "restart" });
+
                 Path = string.Empty;
 
                 string folder = FolderResolver == null ? string.Empty : FolderResolver();
@@ -115,7 +142,7 @@ namespace Metagame.Core
                 try
                 {
                     Directory.CreateDirectory(folder);
-                    Path = System.IO.Path.Combine(folder, FileNameFor(DateTime.Now));
+                    Path = Unused(folder, FileNameFor(DateTime.Now));
                     // 크래시로 죽은 판이 정작 가장 알고 싶은 판이다 — 꼬리가 남아야 한다.
                     writer = new StreamWriter(Path, false) { AutoFlush = true };
                 }
@@ -144,58 +171,71 @@ namespace Metagame.Core
             }
         }
 
-        /// <summary>한 줄 남긴다. 파일이 없으면 아무 일도 하지 않는다.</summary>
+        /// <summary>한 줄 남긴다. 파일이 없거나 상한에 닿았으면 아무 일도 하지 않는다.</summary>
         public static void Write(string type, IDictionary<string, object> fields = null)
         {
-            if (string.IsNullOrEmpty(type)) return;
-
             lock (Gate)
             {
-                if (writer == null || capped) return;
+                if (capped) return;
+                Emit(type, fields, false);
+            }
+        }
 
-                var sb = new StringBuilder(160);
-                sb.Append('{');
-                Pair(sb, "seq", ++Seq);
-                sb.Append(',');
-                Pair(sb, "t", Math.Round(Time.realtimeSinceStartup - startedAt, 1));
-                sb.Append(',');
-                Pair(sb, "type", type);
-                if (fields != null)
-                {
-                    foreach (var kv in fields)
-                    {
-                        if (kv.Key == "seq" || kv.Key == "t" || kv.Key == "type") continue;
-                        sb.Append(',');
-                        Pair(sb, kv.Key, kv.Value);
-                    }
-                }
-                sb.Append('}');
+        /// <summary>
+        /// 실제로 한 줄을 쓴다.
+        ///
+        /// <para><paramref name="last"/> 면 <b>상한을 무시하고 쓰며, 상한 표시도 더 붙이지
+        /// 않는다.</b> 전에는 <see cref="End"/> 가 <c>capped</c> 를 잠깐 내렸다 올리는
+        /// 식이었는데, 그러면 <c>session_end</c> 를 쓴 직후 이 함수가 상한을 <b>다시</b>
+        /// 판정해 <c>capped</c> 줄을 한 번 더 붙였다 — "마지막 줄이 <c>session_end</c>" 라는
+        /// 약속이 상한에 닿은 판에서 정확히 깨졌다(<c>!471</c> AI 리뷰).
+        /// </summary>
+        static void Emit(string type, IDictionary<string, object> fields, bool last)
+        {
+            if (writer == null || string.IsNullOrEmpty(type)) return;
 
-                string line = sb.ToString();
-                try
+            var sb = new StringBuilder(160);
+            sb.Append('{');
+            Pair(sb, "seq", ++Seq);
+            sb.Append(',');
+            Pair(sb, "t", Math.Round(Time.realtimeSinceStartup - startedAt, 1));
+            sb.Append(',');
+            Pair(sb, "type", type);
+            if (fields != null)
+            {
+                foreach (var kv in fields)
                 {
-                    writer.WriteLine(line);
+                    if (kv.Key == "seq" || kv.Key == "t" || kv.Key == "type") continue;
+                    sb.Append(',');
+                    Pair(sb, kv.Key, kv.Value);
                 }
-                catch (Exception)
-                {
-                    Stop();
-                    return;
-                }
+            }
+            sb.Append('}');
 
-                written += line.Length + 1;
-                if (written < MaxBytes) return;
+            string line = sb.ToString();
+            try
+            {
+                writer.WriteLine(line);
+            }
+            catch (Exception)
+            {
+                Stop();
+                return;
+            }
 
-                // 상한에 닿았다. **그 사실을 남기고 멈춘다** — 조용히 끊기면 안 된다.
-                capped = true;
-                try
-                {
-                    writer.WriteLine("{\"seq\":" + (++Seq).ToString(CultureInfo.InvariantCulture)
-                                     + ",\"type\":\"capped\"}");
-                }
-                catch (Exception)
-                {
-                    // 상한 표시조차 못 쓰면 더 할 수 있는 것이 없다.
-                }
+            written += line.Length + 1;
+            if (last || written < MaxBytes) return;
+
+            // 상한에 닿았다. **그 사실을 남기고 멈춘다** — 조용히 끊기면 안 된다.
+            capped = true;
+            try
+            {
+                writer.WriteLine("{\"seq\":" + (++Seq).ToString(CultureInfo.InvariantCulture)
+                                 + ",\"type\":\"capped\"}");
+            }
+            catch (Exception)
+            {
+                // 상한 표시조차 못 쓰면 더 할 수 있는 것이 없다.
             }
         }
 
@@ -207,10 +247,7 @@ namespace Metagame.Core
                 if (writer == null) return;
 
                 // 마지막 한 줄은 상한과 무관하게 남긴다 — 그 줄이 곧 "어디서 포기했나" 다.
-                bool wasCapped = capped;
-                capped = false;
-                Write("session_end", fields);
-                capped = wasCapped;
+                Emit("session_end", fields, true);
                 Stop();
             }
         }

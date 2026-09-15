@@ -53,8 +53,25 @@ namespace Metagame.Bootstrap
         /// </summary>
         public void Begin(GameSession gameSession, bool hostAuthority, IDictionary<string, object> header)
         {
+            // **앞 판이 열려 있으면 여기서 닫는다.** `PlayEvents.Begin` 도 안 닫힌 것을
+            // 닫아 주지만 그쪽은 층 상태도 걸린 시간도 모른다 — 마지막 줄이 비게 된다.
+            End("restart");
+
             session = gameSession;
             authority = hostAuthority;
+
+            // **직전에 본 값을 지운다.** 같은 관찰자로 두 번째 판을 열 수 있는데
+            // (`SpaceBootstrap` 이 재사용한다), 지우지 않으면 앞 판의 기억이 남아
+            // `cleared` 를 두 번째 판에서 안 내고 `fall` 을 엉뚱하게 센다
+            // (`!471` AI 리뷰).
+            floors = null;
+            blocker = "";
+            checkpoint = -1;
+            falls = -1;
+            cleared = false;
+            next = 0f;
+            assembly = null;
+
             PlayEvents.Begin(header);
         }
 
@@ -154,7 +171,10 @@ namespace Metagame.Bootstrap
         /// <para>종료할 때는 둘 다 오는데(먼저 <c>OnApplicationQuit</c>), 뒤에 오는 쪽은
         /// 파일이 이미 닫혀 아무 일도 하지 않는다 — 그래서 결과는 <c>quit</c> 로 남는다.
         /// </summary>
-        void OnDestroy() => End("destroy");
+        void OnDestroy()
+        {
+            End("destroy");
+        }
 
         static int[] Snapshot(ShipAssembly a)
         {

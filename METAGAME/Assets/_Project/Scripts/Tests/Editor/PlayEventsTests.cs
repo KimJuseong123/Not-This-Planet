@@ -111,20 +111,56 @@ namespace Metagame.Gameplay.Tests
             // **가장 흔한 끝은 종료가 아니라 씬 교체다** — 클리어하고 로비로 돌아가는
             // 길. 그때 안 닫으면 다음 판의 `Begin` 이 그냥 덮어, 결과도 걸린 시간도
             // 없이 끊긴 파일만 남는다(`!471` AI 리뷰).
+            // **배선은 소스로 본다.** 에디터에서는 `ExecuteAlways` 가 아닌
+            // MonoBehaviour 에 `OnDestroy` 가 오지 않아, 실제로 부숴 봐도 아무 일도
+            // 일어나지 않는다 — 처음에 그렇게 썼다가 이 검사가 헛돌았다.
+            string src = TestSource.Read("Runtime/Bootstrap/PlayObserver.cs");
+            Assert.That(TestSource.Method(src, "void OnDestroy()"), Does.Contain("End("),
+                "씬이 내려갈 때 판을 안 닫는다 — 클리어하고 로비로 돌아가는 길이 가장 흔한 끝이다");
+
+            // 그리고 그 호출이 실제로 마지막 줄을 남기는지는 값으로 본다.
             UseSandbox();
             PlayEvents.Begin(null);
             string path = PlayEvents.Path;
 
             var go = new GameObject("~검사");
-            go.AddComponent<PlayObserver>();
-            UnityEngine.Object.DestroyImmediate(go);   // 씬이 내려가는 것과 같은 자리
+            try
+            {
+                go.AddComponent<PlayObserver>().End("destroy");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+            }
 
-            Assert.That(PlayEvents.Open, Is.False, "씬이 내려갔는데 판이 안 닫혔다");
+            Assert.That(PlayEvents.Open, Is.False, "닫았는데 파일이 열려 있다");
 
             string[] lines = File.ReadAllLines(path);
             Assert.That(lines[lines.Length - 1], Does.Contain("\"type\":\"session_end\""),
                 "씬 교체로 끝난 판에 마지막 줄이 없다");
             Assert.That(lines[lines.Length - 1], Does.Contain("\"result\":\"destroy\""));
+        }
+
+        [Test]
+        public void RestartingClosesThePreviousRun()
+        {
+            // 같은 실행에서 판을 다시 열 수 있다 — `SpaceBootstrap` 이 관찰자를
+            // 재사용한다. 그때 앞 파일을 그냥 덮으면 **그 판만** 마지막 줄 없이 끊긴다.
+            UseSandbox();
+            PlayEvents.Begin(null);
+            string first = PlayEvents.Path;
+            PlayEvents.Write("a");
+
+            PlayEvents.Begin(null);
+            Assert.That(PlayEvents.Path, Is.Not.EqualTo(first),
+                "두 판이 같은 파일에 들어갔다 — 이름이 초 단위라 앞 파일을 통째로 덮는다");
+            Assert.That(string.CompareOrdinal(first, PlayEvents.Path), Is.LessThan(0),
+                "나중 판이 이름 정렬에서 앞선다 — 오래된 것부터 지우는 규칙이 뒤집힌다");
+
+            string[] lines = File.ReadAllLines(first);
+            Assert.That(lines[lines.Length - 1], Does.Contain("\"type\":\"session_end\""),
+                "다시 시작하면서 앞 판을 그냥 덮었다");
+            Assert.That(lines[lines.Length - 1], Does.Contain("\"result\":\"restart\""));
         }
 
         [Test]
