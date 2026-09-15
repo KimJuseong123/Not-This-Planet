@@ -350,21 +350,32 @@ namespace Metagame.UI
         }
 
         /// <summary>
-        /// 빨간 테두리의 진하기 0~1. 0 이면 그리지 않는다 (S15P21B202-513).
+        /// 빨간 테두리의 진하기 0~1. 0 이면 그리지 않는다 (S15P21B202-539).
+        ///
+        /// <para><b>무엇이 바뀌었나.</b> 예전에는 남은 체력에 정비례하는 <b>상시 표시</b>
+        /// 였다(<c>1 - health01</c>, <c>-513</c>). 그런데 구조는 체력을 절반만 돌려주고
+        /// (<c>PhysicsScale.RescueHealthRatio</c>) 게임 안에 체력을 되돌리는 수단이
+        /// 없다 — <b>한 번 구조되면 판이 끝날 때까지 테두리가 남았다.</b> 이제는
+        /// 피해를 받은 순간 번쩍였다가 식는 값(<c>PlayerRig.DamageFlash01</c>)을 읽는다.
+        /// 구조 직후에는 피해 이벤트가 없으므로 화면이 깨끗하다.</para>
+        ///
+        /// <para><b>값을 그대로 쓴다.</b> 예전의 <c>1 - x</c> 뒤집기가 없다 — 번쩍임은
+        /// 이미 "얼마나 세게 맞았나" 라서 크면 짙은 쪽이 맞다. 뒤집으면 다 식은 0 이
+        /// 가장 짙어진다.</para>
         ///
         /// <para><b>왜 순수 메서드로 빼는가.</b> 이 판단이 <see cref="OnGUI"/> 경로 안의
         /// 조건문으로만 있으면 검증이 닿지 못한다 — <c>-438</c>·<c>-448</c>·<c>-489</c>
         /// 에서 세 번 걸린 자리다. 밖에서 부를 수 있게 두면 대조가 실제 경로를 지난다.</para>
         ///
-        /// <para>임계값이 있는 이유는 부동소수 찌꺼기다 — 체력이 가득인데 1e-7 만큼
-        /// 모자라 테두리가 깜빡이는 것을 막는다.</para>
+        /// <para>임계값이 있는 이유는 부동소수 찌꺼기다 — 다 식었는데 1e-7 만큼 남아
+        /// 테두리가 깜빡이는 것을 막는다.</para>
         /// </summary>
-        public static float HealthFrameStrength(float health01) =>
-            Mathf.Clamp01(1f - health01) <= 0.001f ? 0f : Mathf.Clamp01(1f - health01);
+        public static float HealthFrameStrength(float damageFlash01) =>
+            Mathf.Clamp01(damageFlash01) <= 0.001f ? 0f : Mathf.Clamp01(damageFlash01);
 
         void HealthFrame(float width, float height)
         {
-            float damage = HealthFrameStrength(Local.Health01);
+            float damage = HealthFrameStrength(Local.DamageFlash01);
             if (damage <= 0f) return;
 
             float thickness = Mathf.Lerp(0f, Mathf.Min(width, height) * 0.08f, damage);
