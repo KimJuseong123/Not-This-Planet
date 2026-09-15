@@ -1179,6 +1179,72 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float GrabbedGroundControl = 0.55f;
 
+        // --- 동료를 시선으로 끌기 (기획 §20.4 · S15P21B202-555) ---
+
+        /// <summary>
+        /// 잡은 동료를 잡은 사람 <b>앞</b> 이만큼 떨어진 자리로 끌어온다(m).
+        ///
+        /// <para>팔 길이(<see cref="TeammateHoldDistance"/> 보다 짧으면 두 몸이 겹치고,
+        /// 길면 손 조인트가 늘어난 채로 버틴다. 어깨에서 손끝까지가 대략 0.6m 이고
+        /// 두 몸의 반지름을 합치면 이만큼이 된다.</para>
+        /// </summary>
+        public const float TeammateHoldDistance = 1.25f;
+
+        /// <summary>
+        /// 고개를 내렸을 때 끌리는 높이(m, 잡은 사람의 발 기준). 0 이면 땅에 박히고,
+        /// 너무 높으면 "끌린다" 로 안 보인다.
+        /// </summary>
+        public const float TeammateDragHeight = 0.45f;
+
+        /// <summary>고개를 막 올렸을 때 들리는 높이(m).</summary>
+        public const float TeammateLiftHeightLow = 1.0f;
+
+        /// <summary>똑바로 위를 봤을 때 들리는 높이(m).</summary>
+        public const float TeammateLiftHeightHigh = 1.8f;
+
+        /// <summary>
+        /// 끌기에서 들기로 넘어가는 조준 높이(<c>aim.normalized.y</c>). 약 15도.
+        ///
+        /// <para><b>나가는 문턱(<see cref="TeammateLiftExit"/>)과 다르다.</b> 하나면
+        /// 경계에서 고개가 조금만 흔들려도 몸이 떴다 내렸다 한다.</para>
+        /// </summary>
+        public const float TeammateLiftEnter = 0.26f;
+
+        /// <summary>들기에서 끌기로 돌아오는 조준 높이. 약 5도 — 들어온 문턱보다 낮다.</summary>
+        public const float TeammateLiftExit = 0.09f;
+
+        /// <summary>끌어오는 스프링의 세기(1/s²).</summary>
+        public const float TeammatePullAccel = 26f;
+
+        /// <summary>끌어오는 감쇠(1/s). 없으면 목표를 지나쳐 출렁인다.</summary>
+        public const float TeammatePullDamp = 7f;
+
+        /// <summary>끌어오는 가속의 상한(m/s²). 두 몸이 서로 밀며 튀지 않게 한다.</summary>
+        public const float TeammatePullMaxAccel = 34f;
+
+        /// <summary>
+        /// 잡힌 사람이 반대로 버티는 동안 끌리는 힘의 비율.
+        ///
+        /// <para><b>0 이 아니다.</b> 0 이면 버티는 순간 완전히 멈춰 "잡은 의미" 가 없고,
+        /// 1 이면 저항이 무의미해져 <b>잡히면 끝</b>이 된다. 줄다리기가 성립하려면
+        /// 버티는 쪽이 느리게라도 끌려오되 시간을 벌 수 있어야 한다.</para>
+        /// </summary>
+        public const float TeammateResistPullScale = 0.35f;
+
+        /// <summary>
+        /// 이만큼 계속 버티면 손이 풀린다(초).
+        ///
+        /// <para><b>이것이 없으면 이 기능은 트롤 도구가 된다.</b> 시선으로 끌어오면
+        /// 잡힌 쪽이 빠져나갈 방법이 사라지므로, 버티는 것에 끝이 있어야 한다.</para>
+        /// </summary>
+        public const float TeammateResistSeconds = 1.4f;
+
+        /// <summary>
+        /// 반대 방향으로 친다고 볼 각도. 끌리는 방향과 입력의 내적이 이보다 작으면 저항이다.
+        /// -0.4 는 약 114도 — 옆으로 걷는 정도로는 저항이 되지 않는다.
+        /// </summary>
+        public const float TeammateResistDot = -0.4f;
+
         // --- 기절 카메라 (기획 §10.3) ---
         /// <summary>
         /// 기절한 뒤 시야가 <b>몸과 함께 넘어가는</b> 시간(초). 그 뒤 3인칭으로 바뀐다.
