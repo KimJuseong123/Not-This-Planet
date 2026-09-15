@@ -359,8 +359,12 @@ namespace Metagame.Core
         /// 그러면 아래 폴백을 지워도 검사가 초록이라 회귀를 못 막는다 — 검사가 있는데
         /// 아무것도 안 지키는 상태가 된다. <c>-523</c> 에서 인자 계산을 순수 함수로
         /// 떼어 낸 것과 같은 이유다.</para>
+        ///
+        /// <para><b><c>internal</c> 이 아니라 <c>public</c> 이다.</b> 검사는 별도
+        /// 어셈블리(<c>Metagame.Gameplay.Tests.Editor</c>)에 있어 <c>internal</c> 을 볼 수
+        /// 없다 — 처음에 그렇게 뒀다가 <b>컴파일 오류 4건</b>으로 막혔다.</para>
         /// </summary>
-        internal static string BuildTag(string version, string stamp)
+        public static string BuildTag(string version, string stamp)
         {
             string tag = Sanitize(string.IsNullOrEmpty(version) ? stamp : version);
 
