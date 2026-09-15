@@ -1505,6 +1505,9 @@ namespace Metagame.Gameplay
         float tossCharge;
         bool tossActionHeld;
         PlayerRig pendingTossVictim;
+
+        /// <summary>넘어가는 빠르기를 정할 충전량 (S15P21B202-551).</summary>
+        float pendingTossCharge = 1f;
         Vector3 pendingTossVelocity;
 
         /// <summary>
@@ -1592,6 +1595,7 @@ namespace Metagame.Gameplay
             // 조인트는 다음 틱에 사라지므로, 지금 속도를 넣으면 구속이 먹어 버린다.
             pendingTossVictim = victim;
             pendingTossVelocity = TossVelocity(direction, charge);
+            pendingTossCharge = charge;
 
             TossSeq++;
 
@@ -1608,7 +1612,35 @@ namespace Metagame.Gameplay
         /// <para>속도는 <see cref="Doll.Bodies"/> 전부에 넣는다. 골반에만 넣으면 나머지
         /// 부위가 조인트에 끌려가며 몸이 늘어나 보인다.</para>
         /// </summary>
-        public void LaunchTossed(Vector3 velocity)
+        /// <summary>
+        /// 던져진 몸이 넘어갈 축과 빠르기 (S15P21B202-551).
+        ///
+        /// <para><b>앞구르기다.</b> 날아가는 방향을 축으로 삼으면 꼬치처럼 제자리에서 돌고,
+        /// 위를 축으로 삼으면 팽이가 된다. 넘어가 보이려면 <b>가는 방향과 위, 둘 다에
+        /// 수직인 축</b>이어야 한다.</para>
+        ///
+        /// <para>빠르기는 던진 세기를 따른다 — 살짝 던지면 조금 기울고 꽉 채우면 한 바퀴
+        /// 넘어간다. 위로만 던져 앞 성분이 없으면 <paramref name="fallbackRight"/> 로
+        /// 축을 잡는다(몸의 오른쪽). 그것마저 없으면 회전을 주지 않는다 — 아무 축이나
+        /// 고르면 던질 때마다 다르게 돈다.</para>
+        /// </summary>
+        public static Vector3 TossSpin(Vector3 velocity, float charge01, Vector3 fallbackRight)
+        {
+            var forward = velocity;
+            forward.y = 0f;
+
+            var axis = forward.sqrMagnitude > 1e-4f
+                ? Vector3.Cross(Vector3.up, forward.normalized)
+                : fallbackRight;
+
+            if (axis.sqrMagnitude < 1e-4f) return Vector3.zero;
+
+            return axis.normalized * (Tuning.TossSpinSpeed * TossStrength(charge01));
+        }
+
+        public void LaunchTossed(Vector3 velocity) => LaunchTossed(velocity, 1f);
+
+        public void LaunchTossed(Vector3 velocity, float charge01)
         {
             if (!ServerAuthority) return;
 
@@ -1628,6 +1660,20 @@ namespace Metagame.Gameplay
                     var horizontal = body.linearVelocity;
                     horizontal.y = 0f;
                     body.linearVelocity = horizontal + velocity;
+                }
+
+                // 넘어가게 한다(S15P21B202-551). 속도와 같은 이유로 **부위 전부**에 넣는다 —
+                // 골반에만 넣으면 나머지가 조인트에 끌려가며 몸이 늘어져 보인다.
+                var spin = TossSpin(velocity, charge01,
+                                    Doll.Hips != null ? Doll.Hips.transform.right : Vector3.right);
+                if (spin.sqrMagnitude > 1e-6f)
+                {
+                    for (var i = 0; i < Doll.Bodies.Count; i++)
+                    {
+                        var body = Doll.Bodies[i];
+                        if (body == null || body.isKinematic) continue;
+                        body.angularVelocity = spin;
+                    }
                 }
             }
 
@@ -2329,7 +2375,7 @@ namespace Metagame.Gameplay
             // 조인트가 사라지기 전에 속도를 넣으면 구속이 그것을 먹는다.
             if (pendingTossVictim != null)
             {
-                pendingTossVictim.LaunchTossed(pendingTossVelocity);
+                pendingTossVictim.LaunchTossed(pendingTossVelocity, pendingTossCharge);
                 pendingTossVictim = null;
             }
 
@@ -2903,6 +2949,26 @@ namespace Metagame.Gameplay
             }
         }
 
+        /// <summary>
+        /// 균형 조인트의 감쇠 계수. 스프링과 달리 <b>바닥이 있다</b> — 그리고 그 바닥을
+        /// 언제 걷느냐가 "구르는가" 를 가른다 (S15P21B202-551).
+        ///
+        /// <para><b>왜 바닥이 있었나.</b> 감쇠가 0 이면 한 번 흔들린 몸이 멈추지 않는다.
+        /// 휘청임(<see cref="Staggering"/>)과 평소 공중(<c>k = 0.26</c>)은 조종이 살아
+        /// 있는 상태라 그 바닥이 필요하다.</para>
+        ///
+        /// <para><b>왜 걷어야 하나.</b> 균형 조인트는 <c>connectedBody = null</c> 이라
+        /// <b>세계</b>를 기준으로 붙잡는다. 그래서 이 감쇠는 세계에 대한 회전을 통째로
+        /// 먹는다 — 스프링이 0 이라 "세우지는" 않으면서 "구르지도 못하게" 한다.
+        /// 실측(각속도 12 rad/s, 1.2초, 골반 기울기): 지금 그대로 8.5도 ·
+        /// 강체 각저항을 0 으로 해도 8.7도 · <b>이 감쇠를 걷으면 179.6도</b>.
+        /// 강체의 각저항(0.70)은 범인이 아니었다.</para>
+        ///
+        /// <para>그래서 <b>조종을 잃었을 때만</b> 걷는다. 기절과 던져짐이 함께 해당된다 —
+        /// 둘 다 "몸이 내 것이 아닌" 상태이고 <c>-550</c> 이 이미 한 조건으로 묶었다.</para>
+        /// </summary>
+        float DampFloor(float k) => BodyOutOfControl ? k : Mathf.Max(k, 0.25f);
+
         void Balance()
         {
             Quaternion desired = Quaternion.LookRotation(faceDir, Vector3.up);
@@ -2913,7 +2979,7 @@ namespace Metagame.Gameplay
 
             JointTools.SetDrive(Doll.Balance,
                                 Tuning.UprightSpring * k,
-                                Tuning.UprightDamp * Mathf.Max(k, 0.25f),
+                                Tuning.UprightDamp * DampFloor(k),
                                 Tuning.UprightMaxTorque);
             JointTools.SetTargetLocalRotation(Doll.Balance, desired, Quaternion.identity);
 
