@@ -160,6 +160,38 @@ public static class SelfUpdate
         }
     }
 
+    /// <summary>
+    /// 새 런처에게 넘길 인자. <c>--finish-update &lt;옛 경로&gt; &lt;옛 PID&gt; …원래 인자</c>.
+    ///
+    /// **프로세스를 띄우지 않고 검사할 수 있게 떼어 둔다** (S15P21B202-523). 인자가
+    /// 갱신을 건너 살아남지 못하면 <c>--no-launch</c>·<c>--check</c> 로 돌린 것이
+    /// **게임을 띄운다.** 2026-09-11 에 실제로 그렇게 됐고, 그때 고친 코드가 이미
+    /// 배포된 v1.0.0 에는 없어서 **그 판이 갱신될 때 한 번 더 일어났다.**
+    /// 지키는 검사가 없으면 이런 것은 조용히 되돌아온다.
+    /// </summary>
+    internal static List<string> HandoffArgs(string me, int pid, string[] args)
+    {
+        var a = new List<string> { FinishFlag, me, pid.ToString() };
+        foreach (var x in args)
+        {
+            if (x == FinishFlag) continue;          // 두 번 들어가면 파싱이 어긋난다
+            a.Add(x);
+        }
+        return a;
+    }
+
+    /// <summary>
+    /// 교체가 끝난 뒤 **되돌려 줄** 인자 — 넘겨받은 것에서 앞의 세 자리를 뺀 나머지.
+    /// 사용자가 <c>--check</c> 로 시작했으면 갱신 뒤에도 <c>--check</c> 여야 한다.
+    /// </summary>
+    internal static List<string> RelaunchArgs(string[] args)
+    {
+        int i = Array.IndexOf(args, FinishFlag);
+        var a = new List<string>();
+        if (i < 0) return a;
+        for (int k = i + 3; k < args.Length; k++) a.Add(args[k]);
+        return a;
+    }
     static async Task Handoff(HttpClient http, string baseUrl, LauncherInfo info, string[] args)
     {
         if (!ManifestCheck.IsSha256(info.Sha256))
@@ -196,14 +228,8 @@ public static class SelfUpdate
             UseShellExecute = true,
             WorkingDirectory = Path.GetDirectoryName(me)!,
         };
-        psi.ArgumentList.Add(FinishFlag);
-        psi.ArgumentList.Add(me);
-        psi.ArgumentList.Add(Environment.ProcessId.ToString());
-        foreach (var a in args)
-        {
-            if (a == FinishFlag) continue;          // 두 번 들어가면 파싱이 어긋난다
+        foreach (var a in HandoffArgs(me, Environment.ProcessId, args))
             psi.ArgumentList.Add(a);
-        }
         Process.Start(psi);
         Console.WriteLine("새 런처를 띄웠다 — 이 창은 닫힌다.");
     }
@@ -260,7 +286,7 @@ public static class SelfUpdate
             UseShellExecute = true,
             WorkingDirectory = Path.GetDirectoryName(target)!,
         };
-        for (int k = i + 3; k < args.Length; k++) psi.ArgumentList.Add(args[k]);
+        foreach (var a in RelaunchArgs(args)) psi.ArgumentList.Add(a);
         Process.Start(psi);
         return 0;
     }

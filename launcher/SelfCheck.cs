@@ -238,9 +238,54 @@ public static class SelfCheck
         if (DevMode.DevListName == DevMode.ReleaseListName)
         { Console.WriteLine("  ❌ 개발 목록과 배포 목록이 같은 파일이다"); fail++; }
 
+        int argsFail0 = fail;
+        // ── 인자가 자기 갱신을 건너 살아남는가 (S15P21B202-523) ──────────────
+        //
+        // **`--no-launch`·`--check` 는 확인용이다.** 그것이 갱신 중에 사라지면 확인이
+        // 곧 실행이 되고, 하필 새 exe 가 처음 도는 순간이라 **백신이 가장 예민할 때**
+        // 게임이 뜬다. 2026-09-11 에 그렇게 됐고, 그때 고친 코드가 **이미 배포된
+        // v1.0.0 에는 없어서** 그 판이 갱신될 때 한 번 더 일어났다(2026-09-14 실측).
+        //
+        // 프로세스를 띄우지 않고 **왕복**을 본다 — 넘길 때와 되돌려 줄 때가 같은
+        // 함수를 쓰므로 한쪽만 고쳐 갈라지는 일도 함께 막힌다.
+        foreach (var given in new[] {
+                     new[] { "--no-launch" },
+                     new[] { "--check" },
+                     new[] { "--dev", "--no-launch" },
+                     Array.Empty<string>(),
+                 })
+        {
+            var handed = SelfUpdate.HandoffArgs("C:/x/L.exe", 1234, given).ToArray();
+            var back = SelfUpdate.RelaunchArgs(handed);
+            if (!back.SequenceEqual(given))
+            {
+                var g = string.Join(" ", given);
+                var b = string.Join(" ", back);
+                Console.WriteLine($"  ❌ 갱신을 건너 인자가 달라졌다: [{g}] → [{b}]");
+                fail++;
+            }
+        }
+
+        // 앞의 세 자리가 제자리에 있어야 `Finish` 가 옛 경로와 PID 를 읽는다.
+        var handoff = SelfUpdate.HandoffArgs("C:/x/L.exe", 77, new[] { "--check" });
+        if (handoff.Count != 4 || handoff[1] != "C:/x/L.exe" || handoff[2] != "77")
+        {
+            var shown = string.Join(" ", handoff);
+            Console.WriteLine($"  ❌ 인계 인자의 자리가 틀렸다: [{shown}]");
+            fail++;
+        }
+
+        // 표시가 두 번 들어가면 `IndexOf` 가 첫 번째를 잡아 자리가 한 칸씩 밀린다.
+        if (SelfUpdate.HandoffArgs("x", 1, new[] { SelfUpdate.FinishFlag, "--check" })
+                .Count(a => a == SelfUpdate.FinishFlag) != 1)
+        { Console.WriteLine("  \u274c --finish-update 가 두 번 들어갔다"); fail++; }
+
+        bool argsOk = fail == argsFail0;
+        if (argsOk) Console.WriteLine("  ✅ 인자가 자기 갱신을 건너 그대로 살아남는다");
+
         Console.WriteLine($"  (이 런처: {SelfUpdate.MyVersion})");
         Console.WriteLine(fail == 0
-            ? "✅ 자체 검사 통과 — 경로·해시·매니페스트·버전·개발 모드·채널 판정"
+            ? "✅ 자체 검사 통과 — 경로·해시·매니페스트·버전·개발 모드·채널·인자 판정"
             : $"❌ 자체 검사 실패 {fail}건");
         return fail == 0 ? 0 : 1;
     }
