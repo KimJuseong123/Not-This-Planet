@@ -64,6 +64,37 @@ namespace Metagame.Network
         /// 받은 자세로 옮겨 가는 속도. 20Hz 로 받은 사이를 메운다.
         const float Smoothing = 20f;
 
+        /// <summary>
+        /// 한 걸음에 목표 쪽으로 얼마나 가는가 (S15P21B202-538).
+        ///
+        /// <para><b>왜 밖으로 뺐나.</b> 이 값이 <see cref="FollowOnClient"/> 안의 한 줄로만
+        /// 있으면 검증이 닿지 못한다. <c>ShouldSendFields</c> 와 같은 이유다.</para>
+        ///
+        /// <para>지수보간이라 <b>같은 시간을 몇 번에 나눠 밟든 결과가 거의 같다</b> —
+        /// 그래서 이 함수 자체는 문제가 아니었다. 문제는 <i>어떤 시계로</i> 밟느냐였다.</para>
+        /// </summary>
+        public static float FollowFactor(float deltaTime) =>
+            deltaTime <= 0f ? 0f : 1f - Mathf.Exp(-Smoothing * deltaTime);
+
+        /// <summary>
+        /// 한 번 보내고 난 뒤 남길 타이머 (S15P21B202-538).
+        ///
+        /// <para><b>0 으로 되돌리면 안 된다.</b> 남은 시간을 버리므로 실제 전송 주기가
+        /// 프레임 시간만큼 늘어나고(144fps 호스트면 33.3ms 가 아니라 34.7ms), 프레임 시간이
+        /// 흔들리는 만큼 주기도 흔들린다. 받는 쪽은 그 주기를 계단 삼아 따라가므로
+        /// 주기가 흔들리면 화면이 떨린다.</para>
+        ///
+        /// <para>길게 끊긴 프레임 뒤에 <b>밀린 만큼 몰아 보내지도 않는다</b>. 신뢰 없는
+        /// 채널이라 몰아 보내야 얻을 것이 없고, 한 묶음이 자세 전부를 담고 있어 마지막
+        /// 하나만 도착해도 결과가 같다.</para>
+        /// </summary>
+        public static float NextSendTimer(float timer, float interval)
+        {
+            if (interval <= 0f) return 0f;
+            var left = timer - interval;
+            return left < 0f ? 0f : (left > interval ? interval : left);
+        }
+
         [Serializable]
         public struct Pose
         {
@@ -328,10 +359,7 @@ namespace Metagame.Network
             if (tracked.Count == 0) return false;
 
             foreach (var body in tracked)
-            {
-                if (body == null) continue;
-                body.isKinematic = true;   // 서버가 보낸 자세만 따라간다
-            }
+                PrepareClientBody(body);
 
             targets = new Pose[tracked.Count];
             for (int i = 0; i < tracked.Count; i++)
@@ -801,7 +829,7 @@ namespace Metagame.Network
 
             // 클라이언트는 따라가기만 하므로 새로 들어온 것도 서버 자세를 받게 만든다.
             foreach (var body in tracked)
-                if (body != null) body.isKinematic = true;
+                PrepareClientBody(body);
 
             targets = new Pose[tracked.Count];
             for (int i = 0; i < tracked.Count; i++)
@@ -841,8 +869,51 @@ namespace Metagame.Network
                 return;
             }
 
-            FollowOnClient();
             ClearGhostsIfSilent();
+        }
+
+        /// <summary>
+        /// 참가자 화면의 물체 하나를 "받은 자세를 따라가기만 하는" 상태로 세운다.
+        ///
+        /// <para><b>보간을 켠다</b>(S15P21B202-538). 강체의 <c>transform</c> 은 물리 스텝에서만
+        /// 갱신되므로, 켜지 않으면 프레임레이트가 물리 주기(100Hz)보다 빠를 때 어떤 프레임은
+        /// 제자리이고 다음 프레임이 몰아서 간다. 보간은 마지막 두 물리 자세 사이를 프레임
+        /// 시각으로 메워 그 층계를 없앤다.</para>
+        ///
+        /// <para>씬의 <c>Part_1~4</c> 는 <c>m_Interpolate: 0</c> 이다(실측). 호스트에는 그래도
+        /// 괜찮다 — 호스트의 부품은 물리가 직접 적분하므로 매 스텝 제 속도로 간다. 문제는
+        /// <b>밖에서 자세를 받아 옮기는 쪽</b>에만 생긴다.</para>
+        ///
+        /// <para>이어받기(<c>-389</c>) 뒤에도 보간은 켜진 채로 남는다. 보간은 <b>보여 주는
+        /// 방식</b>일 뿐 물리 결과를 바꾸지 않으므로 되돌릴 이유가 없다.</para>
+        /// </summary>
+        static void PrepareClientBody(Rigidbody body)
+        {
+            if (body == null) return;
+            body.isKinematic = true;   // 서버가 보낸 자세만 따라간다
+            body.interpolation = RigidbodyInterpolation.Interpolate;
+        }
+
+        /// <summary>
+        /// 참가자의 부품을 <b>물리 스텝에서</b> 움직인다 (S15P21B202-538).
+        ///
+        /// <para><b>왜 Update 가 아닌가.</b> 예전에는 <see cref="Update"/> 에서 따라갔다.
+        /// 그러면 서로 맞지 않는 시계가 셋 겹친다 — 서버가 보내는 주기(30Hz), 참가자의
+        /// 프레임 주기, 강체의 <c>transform</c> 이 갱신되는 물리 주기(100Hz). 그래서 프레임마다
+        /// 전진하는 양이 들쭉날쭉해지고, 느리게 오래 움직이는 물체(저중력장에 뜬 부품)에서
+        /// 그것이 "덜덜 떨림" 으로 보인다.</para>
+        ///
+        /// <para>실측 — 이웃한 두 프레임의 이동량 비율(1.00배면 옆 프레임과 같은 속도).
+        /// 165fps 에서 호스트 1.21배 · 참가자 2.13배였다. 물리 스텝으로 옮기고 보간을 켜면
+        /// 1.24배로, 프레임레이트와 무관해진다.</para>
+        ///
+        /// <para>호스트는 이 문제가 없다. 호스트의 부품은 물리가 100Hz 로 적분한 결과이고
+        /// 저중력장의 유지 가속이 연속이라 속도가 매끄럽다.</para>
+        /// </summary>
+        void FixedUpdate()
+        {
+            if (!ready || isServer) return;
+            FollowOnClient();
         }
 
         void SendFromServer()
@@ -856,7 +927,7 @@ namespace Metagame.Network
             dropKeepaliveTimer += Time.deltaTime;
             scarKeepaliveTimer += Time.deltaTime;
             if (sendTimer < SendInterval) return;
-            sendTimer = 0f;
+            sendTimer = NextSendTimer(sendTimer, SendInterval);
 
             sendSeq++;
 
@@ -2041,7 +2112,11 @@ namespace Metagame.Network
 
         void FollowOnClient()
         {
-            float t = 1f - Mathf.Exp(-Smoothing * Time.deltaTime);
+            // **물리 스텝의 폭으로 밟는다**(S15P21B202-538). 예전에는 `Time.deltaTime`,
+            // 곧 프레임 폭이었다. 그러면 같은 33ms 계단을 프레임레이트마다 다른 횟수로
+            // 나눠 밟게 되어, 자세가 막 도착한 직후 프레임은 크게 가고 다음 프레임부터
+            // 작게 간다 — 그 톱니가 "덜덜 떨림" 이다.
+            float t = FollowFactor(Time.fixedDeltaTime);
 
             for (int i = 0; i < tracked.Count && i < targets.Length; i++)
             {
@@ -2052,17 +2127,25 @@ namespace Metagame.Network
                 // 게임플레이 코드가 나중에 다시 풀 수 있다. 탈것으로 바뀐 파츠는
                 // `part.enabled = false` 라 SpaceshipPart 의 게이트를 타지 않으므로 그쪽은
                 // 이 한 줄만이 막는다. 풀린 채로 두면 로컬 물리가 서버 자세와 다툰다.
-                if (!body.isKinematic) body.isKinematic = true;
+                //
+                // 보간도 같이 본다 — `-538` 이 켠 것을 게임플레이 코드가 되돌릴 수 있고,
+                // 꺼지면 떨림이 조용히 돌아온다.
+                if (!body.isKinematic || body.interpolation != RigidbodyInterpolation.Interpolate)
+                    PrepareClientBody(body);
 
                 if (body.TryGetComponent<SpaceshipPart>(out var part))
                     part.ApplyDockedToPad(targets[i].DockedToPad);
 
-                // `transform` 이 아니라 `body` 로 읽고 쓴다. 탈것은 보간
-                // (`RigidbodyInterpolation.Interpolate`)이 걸려 있어 `transform.position` 은
-                // **보간된 표시 위치**다 — 그 값을 Lerp 의 출발점으로 다시 읽으면 되먹임으로
-                // 계속 뒤로 끌린다. 보내는 쪽(`Read`)도 `body.position` 을 쓰므로 대칭이 맞는다.
-                body.position = Vector3.Lerp(body.position, targets[i].Position, t);
-                body.rotation = Quaternion.Slerp(body.rotation, targets[i].Rotation, t);
+                // `transform` 이 아니라 `body` 로 읽는다. 보간이 걸린 강체의
+                // `transform.position` 은 **보간된 표시 위치**다 — 그 값을 Lerp 의 출발점으로
+                // 다시 읽으면 되먹임으로 계속 뒤로 끌린다. 보내는 쪽(`Read`)도 `body.position`
+                // 을 쓰므로 대칭이 맞는다.
+                //
+                // 쓰는 것은 `MovePosition`/`MoveRotation` 이다. 키네마틱 강체에 위치를 직접
+                // 대입하면 **순간이동**으로 취급되어 그 스텝의 보간이 건너뛰어진다 — 보간을
+                // 켠 의미가 없어진다.
+                body.MovePosition(Vector3.Lerp(body.position, targets[i].Position, t));
+                body.MoveRotation(Quaternion.Slerp(body.rotation, targets[i].Rotation, t));
             }
         }
     }
