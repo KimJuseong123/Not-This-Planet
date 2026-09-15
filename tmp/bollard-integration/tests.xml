@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="6" result="Failed(Child)" total="6" passed="0" failed="6" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-15 04:37:37Z" end-time="2026-09-15 04:37:38Z" duration="0.1404259">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="1537" result="Failed" site="Child" start-time="2026-09-15 04:37:37Z" end-time="2026-09-15 04:37:38Z" duration="0.140426" total="6" passed="0" failed="6" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="2705" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202/METAGAME/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="1537" result="Failed" site="Child" start-time="2026-09-15 04:37:38Z" end-time="2026-09-15 04:37:38Z" duration="0.116179" total="6" passed="0" failed="6" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="6912" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="2706" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="1537" result="Failed" site="Child" start-time="2026-09-15 04:37:38Z" end-time="2026-09-15 04:37:38Z" duration="0.105822" total="6" passed="0" failed="6" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="2711" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="1513" result="Failed" site="Child" start-time="2026-09-15 04:37:38Z" end-time="2026-09-15 04:37:38Z" duration="0.096603" total="6" passed="0" failed="6" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="2712" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="1513" result="Failed" site="Child" start-time="2026-09-15 04:37:38Z" end-time="2026-09-15 04:37:38Z" duration="0.088004" total="6" passed="0" failed="6" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1054" name="AssemblyGuidanceBollardTests" fullname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests" classname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests" runstate="Runnable" testcasecount="6" result="Failed" site="Child" start-time="2026-09-15 04:37:38Z" end-time="2026-09-15 04:37:38Z" duration="0.085384" total="6" passed="0" failed="6" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-suite type="ParameterizedMethod" id="1060" name="AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor" fullname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests.AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor" classname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests" runstate="Runnable" testcasecount="5" result="Failed" site="Child" start-time="2026-09-15 04:37:38Z" end-time="2026-09-15 04:37:38Z" duration="0.068047" total="5" passed="0" failed="5" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <failure>
+                  <message><![CDATA[One or more child tests had errors]]></message>
+                </failure>
+                <test-case id="1055" name="AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor(0)" fullname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests.AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor(0)" methodname="AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor" classname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests" runstate="Runnable" seed="1998653632" result="Failed" start-time="2026-09-15 04:37:38Z" end-time="2026-09-15 04:37:38Z" duration="0.034056" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <failure>
+                    <message><![CDATA[Unhandled log message: '[Assert] Assertion failed on expression: 'ShouldRunBehaviour()''. Use UnityEngine.TestTools.LogAssert.Expect]]></message>
+                    <stack-trace><![CDATA[UnityEngine.Component:SendMessage (string)
+Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests:AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor (int) (at Assets/_Project/Scripts/Tests/Editor/AssemblyGuidanceBollardTests.cs:56)
+System.Reflection.MethodBase:Invoke (object,object[])
+NUnit.Framework.Internal.Reflect:InvokeMethod (System.Reflection.MethodInfo,object,object[])
+NUnit.Framework.Internal.MethodWrapper:Invoke (object,object[])
+NUnit.Framework.Internal.Commands.TestMethodCommand:RunNonAsyncTestMethod (NUnit.Framework.Internal.ITestExecutionContext)
+NUnit.Framework.Internal.Commands.TestMethodCommand:RunTestMethod (NUnit.Framework.Internal.ITestExecutionContext)
+NUnit.Framework.Internal.Commands.TestMethodCommand:Execute (NUnit.Framework.Internal.ITestExecutionContext)
+UnityEditor.EditorApplication:Internal_CallUpdateFunctions ()
+
+]]></stack-trace>
+                  </failure>
+                  <output><![CDATA[Assertion failed on expression: 'ShouldRunBehaviour()'
+Assertion failed on expression: 'ShouldRunBehaviour()'
+]]></output>
+                </test-case>
+                <test-case id="1056" name="AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor(1)" fullname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests.AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor(1)" methodname="AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor" classname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests" runstate="Runnable" seed="1289437725" result="Failed" start-time="2026-09-15 04:37:38Z" end-time="2026-09-15 04:37:38Z" duration="0.003202" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <failure>
+                    <message><![CDATA[Unhandled log message: '[Assert] Assertion failed on expression: 'ShouldRunBehaviour()''. Use UnityEngine.TestTools.LogAssert.Expect]]></message>
+                    <stack-trace><![CDATA[UnityEngine.Component:SendMessage (string)
+Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests:AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor (int) (at Assets/_Project/Scripts/Tests/Editor/AssemblyGuidanceBollardTests.cs:56)
+System.Reflection.MethodBase:Invoke (object,object[])
+NUnit.Framework.Internal.Reflect:InvokeMethod (System.Reflection.MethodInfo,object,object[])
+NUnit.Framework.Internal.MethodWrapper:Invoke (object,object[])
+NUnit.Framework.Internal.Commands.TestMethodCommand:RunNonAsyncTestMethod (NUnit.Framework.Internal.ITestExecutionContext)
+NUnit.Framework.Internal.Commands.TestMethodCommand:RunTestMethod (NUnit.Framework.Internal.ITestExecutionContext)
+NUnit.Framework.Internal.Commands.TestMethodCommand:Execute (NUnit.Framework.Internal.ITestExecutionContext)
+UnityEditor.EditorApplication:Internal_CallUpdateFunctions ()
+
+]]></stack-trace>
+                  </failure>
+                  <output><![CDATA[Assertion failed on expression: 'ShouldRunBehaviour()'
+Assertion failed on expression: 'ShouldRunBehaviour()'
+]]></output>
+                </test-case>
+                <test-case id="1057" name="AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor(2)" fullname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests.AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor(2)" methodname="AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor" classname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests" runstate="Runnable" seed="1772796111" result="Failed" start-time="2026-09-15 04:37:38Z" end-time="2026-09-15 04:37:38Z" duration="0.002920" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <failure>
+                    <message><![CDATA[Unhandled log message: '[Assert] Assertion failed on expression: 'ShouldRunBehaviour()''. Use UnityEngine.TestTools.LogAssert.Expect]]></message>
+                    <stack-trace><![CDATA[UnityEngine.Component:SendMessage (string)
+Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests:AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor (int) (at Assets/_Project/Scripts/Tests/Editor/AssemblyGuidanceBollardTests.cs:56)
+System.Reflection.MethodBase:Invoke (object,object[])
+NUnit.Framework.Internal.Reflect:InvokeMethod (System.Reflection.MethodInfo,object,object[])
+NUnit.Framework.Internal.MethodWrapper:Invoke (object,object[])
+NUnit.Framework.Internal.Commands.TestMethodCommand:RunNonAsyncTestMethod (NUnit.Framework.Internal.ITestExecutionContext)
+NUnit.Framework.Internal.Commands.TestMethodCommand:RunTestMethod (NUnit.Framework.Internal.ITestExecutionContext)
+NUnit.Framework.Internal.Commands.TestMethodCommand:Execute (NUnit.Framework.Internal.ITestExecutionContext)
+UnityEditor.EditorApplication:Internal_CallUpdateFunctions ()
+
+]]></stack-trace>
+                  </failure>
+                  <output><![CDATA[Assertion failed on expression: 'ShouldRunBehaviour()'
+Assertion failed on expression: 'ShouldRunBehaviour()'
+]]></output>
+                </test-case>
+                <test-case id="1058" name="AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor(3)" fullname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests.AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor(3)" methodname="AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor" classname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests" runstate="Runnable" seed="1028100611" result="Failed" start-time="2026-09-15 04:37:38Z" end-time="2026-09-15 04:37:38Z" duration="0.003203" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <failure>
+                    <message><![CDATA[Unhandled log message: '[Assert] Assertion failed on expression: 'ShouldRunBehaviour()''. Use UnityEngine.TestTools.LogAssert.Expect]]></message>
+                    <stack-trace><![CDATA[UnityEngine.Component:SendMessage (string)
+Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests:AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor (int) (at Assets/_Project/Scripts/Tests/Editor/AssemblyGuidanceBollardTests.cs:56)
+System.Reflection.MethodBase:Invoke (object,object[])
+NUnit.Framework.Internal.Reflect:InvokeMethod (System.Reflection.MethodInfo,object,object[])
+NUnit.Framework.Internal.MethodWrapper:Invoke (object,object[])
+NUnit.Framework.Internal.Commands.TestMethodCommand:RunNonAsyncTestMethod (NUnit.Framework.Internal.ITestExecutionContext)
+NUnit.Framework.Internal.Commands.TestMethodCommand:RunTestMethod (NUnit.Framework.Internal.ITestExecutionContext)
+NUnit.Framework.Internal.Commands.TestMethodCommand:Execute (NUnit.Framework.Internal.ITestExecutionContext)
+UnityEditor.EditorApplication:Internal_CallUpdateFunctions ()
+
+]]></stack-trace>
+                  </failure>
+                  <output><![CDATA[Assertion failed on expression: 'ShouldRunBehaviour()'
+Assertion failed on expression: 'ShouldRunBehaviour()'
+]]></output>
+                </test-case>
+                <test-case id="1059" name="AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor(-1)" fullname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests.AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor(-1)" methodname="AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor" classname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests" runstate="Runnable" seed="962564997" result="Failed" start-time="2026-09-15 04:37:38Z" end-time="2026-09-15 04:37:38Z" duration="0.002756" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <failure>
+                    <message><![CDATA[Unhandled log message: '[Assert] Assertion failed on expression: 'ShouldRunBehaviour()''. Use UnityEngine.TestTools.LogAssert.Expect]]></message>
+                    <stack-trace><![CDATA[UnityEngine.Component:SendMessage (string)
+Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests:AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor (int) (at Assets/_Project/Scripts/Tests/Editor/AssemblyGuidanceBollardTests.cs:56)
+System.Reflection.MethodBase:Invoke (object,object[])
+NUnit.Framework.Internal.Reflect:InvokeMethod (System.Reflection.MethodInfo,object,object[])
+NUnit.Framework.Internal.MethodWrapper:Invoke (object,object[])
+NUnit.Framework.Internal.Commands.TestMethodCommand:RunNonAsyncTestMethod (NUnit.Framework.Internal.ITestExecutionContext)
+NUnit.Framework.Internal.Commands.TestMethodCommand:RunTestMethod (NUnit.Framework.Internal.ITestExecutionContext)
+NUnit.Framework.Internal.Commands.TestMethodCommand:Execute (NUnit.Framework.Internal.ITestExecutionContext)
+UnityEditor.EditorApplication:Internal_CallUpdateFunctions ()
+
+]]></stack-trace>
+                  </failure>
+                  <output><![CDATA[Assertion failed on expression: 'ShouldRunBehaviour()'
+Assertion failed on expression: 'ShouldRunBehaviour()'
+]]></output>
+                </test-case>
+              </test-suite>
+              <test-case id="1061" name="ExistingScenesWithoutBollardsStillUpdateTheirFloorLights" fullname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests.ExistingScenesWithoutBollardsStillUpdateTheirFloorLights" methodname="ExistingScenesWithoutBollardsStillUpdateTheirFloorLights" classname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests" runstate="Runnable" seed="931889276" result="Failed" start-time="2026-09-15 04:37:38Z" end-time="2026-09-15 04:37:38Z" duration="0.003562" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[Unhandled log message: '[Assert] Assertion failed on expression: 'ShouldRunBehaviour()''. Use UnityEngine.TestTools.LogAssert.Expect]]></message>
+                  <stack-trace><![CDATA[UnityEngine.Component:SendMessage (string)
+Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests/<>c__DisplayClass6_0:<ExistingScenesWithoutBollardsStillUpdateTheirFloorLights>b__0 () (at Assets/_Project/Scripts/Tests/Editor/AssemblyGuidanceBollardTests.cs:74)
+NUnit.Framework.Constraints.ThrowsConstraint/VoidInvocationDescriptor:Invoke ()
+NUnit.Framework.Constraints.ThrowsConstraint/ExceptionInterceptor:Intercept (object)
+NUnit.Framework.Constraints.ThrowsNothingConstraint:ApplyTo (object)
+NUnit.Framework.Assert:That<object> (object,NUnit.Framework.Constraints.IResolveConstraint,string,object[])
+NUnit.Framework.Assert:That (NUnit.Framework.TestDelegate,NUnit.Framework.Constraints.IResolveConstraint,string,object[])
+NUnit.Framework.Assert:DoesNotThrow (NUnit.Framework.TestDelegate,string,object[])
+NUnit.Framework.Assert:DoesNotThrow (NUnit.Framework.TestDelegate)
+Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests:ExistingScenesWithoutBollardsStillUpdateTheirFloorLights () (at Assets/_Project/Scripts/Tests/Editor/AssemblyGuidanceBollardTests.cs:74)
+System.Reflection.MethodBase:Invoke (object,object[])
+NUnit.Framework.Internal.Reflect:InvokeMethod (System.Reflection.MethodInfo,object,object[])
+NUnit.Framework.Internal.MethodWrapper:Invoke (object,object[])
+NUnit.Framework.Internal.Commands.TestMethodCommand:RunNonAsyncTestMethod (NUnit.Framework.Internal.ITestExecutionContext)
+NUnit.Framework.Internal.Commands.TestMethodCommand:RunTestMethod (NUnit.Framework.Internal.ITestExecutionContext)
+NUnit.Framework.Internal.Commands.TestMethodCommand:Execute (NUnit.Framework.Internal.ITestExecutionContext)
+UnityEditor.EditorApplication:Internal_CallUpdateFunctions ()
+
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[Assertion failed on expression: 'ShouldRunBehaviour()'
+Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>
