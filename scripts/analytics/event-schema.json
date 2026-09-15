@@ -1,0 +1,31 @@
+{
+  "fingerprint": "edc88fb5d764",
+  "note": "이벤트가 기대는 게임 코드의 정의 (S15P21B202-552). 손으로 고치지 말 것 — `python scripts/analytics/schema_source.py` 가 찍어 준다.",
+  "floor_state": [
+    "Empty",
+    "Stacked",
+    "Welded",
+    "WrongPart",
+    "Tilted"
+  ],
+  "parts": [
+    "Part_1",
+    "Part_2",
+    "Part_3",
+    "Part_4"
+  ],
+  "blocker_codes": [
+    "no_engine",
+    "incomplete",
+    "wrong_order",
+    "off_pad",
+    "tilted"
+  ],
+  "blocker_messages": [
+    "주 추진 엔진 모듈이 조립대에 없다",
+    "파츠가 {_tower.Count}/{PartSpec.All.Length} 층만 쌓였다",
+    "{i + 1}층이 {PartSpec.All[i].DisplayName} 이 아니다",
+    "우주선이 발사 구역 밖에 있다",
+    "{_tower[i].name} 이 {tilt:0}도 기울어 있다"
+  ]
+}
