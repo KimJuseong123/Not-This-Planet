@@ -1,0 +1,42 @@
+Removed 41 object groups, 38 rigidbodies, 30 grabbables
+Seesaw fulcrum
+Long physical seesaw
+Meteor basketball hoop - static
+Mini football goal
+Mini football goal
+축구공 A
+축구공 B
+비치볼 A
+비치볼 B
+볼링공 A
+볼링공 B
+볼링 핀 0
+볼링 핀 1
+볼링 핀 2
+볼링 핀 3
+볼링 핀 4
+볼링 핀 5
+볼링 핀 6
+볼링 핀 7
+볼링 핀 8
+볼링 핀 9
+도미노 0
+도미노 1
+도미노 2
+도미노 3
+도미노 4
+도미노 5
+도미노 6
+도미노 7
+도미노 8
+도미노 9
+도미노 10
+도미노 11
+매달린 샌드백
+Punch bag frame
+트램펄린 -28
+트램펄린 33
+Always turning Ferris wheel
+Ferris walk-on boarding dock
+Off duty sports and low gravity play
+Scenic ride waiting plaza

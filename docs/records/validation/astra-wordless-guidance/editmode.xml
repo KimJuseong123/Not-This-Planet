@@ -1,0 +1,831 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="103" result="Passed" total="103" passed="103" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:44Z" duration="0.6772222">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="1496" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:44Z" duration="0.677222" total="103" passed="103" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="2663" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202/.local-validation/astra-ver2/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="1496" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:44Z" duration="0.661150" total="103" passed="103" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="31240" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="2664" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="1496" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:44Z" duration="0.651543" total="103" passed="103" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="2669" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="1472" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:44Z" duration="0.641161" total="103" passed="103" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="2670" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="1472" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:44Z" duration="0.631913" total="103" passed="103" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1055" name="AstraAffordanceTests" fullname="Metagame.Gameplay.Tests.AstraAffordanceTests" classname="Metagame.Gameplay.Tests.AstraAffordanceTests" runstate="Runnable" testcasecount="6" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.049079" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1061" name="AtlasCellsStayInRangeAndDoNotAlias" fullname="Metagame.Gameplay.Tests.AstraAffordanceTests.AtlasCellsStayInRangeAndDoNotAlias" methodname="AtlasCellsStayInRangeAndDoNotAlias" classname="Metagame.Gameplay.Tests.AstraAffordanceTests" runstate="Runnable" seed="532687513" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.020802" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1058" name="ClientCannonGaugeUsesReceivedState" fullname="Metagame.Gameplay.Tests.AstraAffordanceTests.ClientCannonGaugeUsesReceivedState" methodname="ClientCannonGaugeUsesReceivedState" classname="Metagame.Gameplay.Tests.AstraAffordanceTests" runstate="Runnable" seed="919335901" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.006537" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1060" name="DemolitionLampRequiresActualChargePlacement" fullname="Metagame.Gameplay.Tests.AstraAffordanceTests.DemolitionLampRequiresActualChargePlacement" methodname="DemolitionLampRequiresActualChargePlacement" classname="Metagame.Gameplay.Tests.AstraAffordanceTests" runstate="Runnable" seed="1732614151" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.002291" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1057" name="FuelGaugeReadsFuelWithoutConsumingIt" fullname="Metagame.Gameplay.Tests.AstraAffordanceTests.FuelGaugeReadsFuelWithoutConsumingIt" methodname="FuelGaugeReadsFuelWithoutConsumingIt" classname="Metagame.Gameplay.Tests.AstraAffordanceTests" runstate="Runnable" seed="1254726376" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.001701" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1059" name="LiftGaugeNeverUnlocksThePlatform" fullname="Metagame.Gameplay.Tests.AstraAffordanceTests.LiftGaugeNeverUnlocksThePlatform" methodname="LiftGaugeNeverUnlocksThePlatform" classname="Metagame.Gameplay.Tests.AstraAffordanceTests" runstate="Runnable" seed="1958195436" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.001067" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1056" name="PictogramRegistrationIsScopedToItsScene" fullname="Metagame.Gameplay.Tests.AstraAffordanceTests.PictogramRegistrationIsScopedToItsScene" methodname="PictogramRegistrationIsScopedToItsScene" classname="Metagame.Gameplay.Tests.AstraAffordanceTests" runstate="Runnable" seed="248119061" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.001588" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1062" name="AstraAttractionsTests" fullname="Metagame.Gameplay.Tests.AstraAttractionsTests" classname="Metagame.Gameplay.Tests.AstraAttractionsTests" runstate="Runnable" testcasecount="9" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.059664" total="9" passed="9" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1067" name="BlastOnlyClearsRockWhenTntIsNearEntrance" fullname="Metagame.Gameplay.Tests.AstraAttractionsTests.BlastOnlyClearsRockWhenTntIsNearEntrance" methodname="BlastOnlyClearsRockWhenTntIsNearEntrance" classname="Metagame.Gameplay.Tests.AstraAttractionsTests" runstate="Runnable" seed="946946159" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.039073" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1065" name="CannonCannotIgniteWithoutPassenger" fullname="Metagame.Gameplay.Tests.AstraAttractionsTests.CannonCannotIgniteWithoutPassenger" methodname="CannonCannotIgniteWithoutPassenger" classname="Metagame.Gameplay.Tests.AstraAttractionsTests" runstate="Runnable" seed="505838617" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000639" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1070" name="ClientCannotDetonateOrClearRocks" fullname="Metagame.Gameplay.Tests.AstraAttractionsTests.ClientCannotDetonateOrClearRocks" methodname="ClientCannotDetonateOrClearRocks" classname="Metagame.Gameplay.Tests.AstraAttractionsTests" runstate="Runnable" seed="1953741784" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.003474" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1071" name="LateSnapshotRetainsClearedEntrance" fullname="Metagame.Gameplay.Tests.AstraAttractionsTests.LateSnapshotRetainsClearedEntrance" methodname="LateSnapshotRetainsClearedEntrance" classname="Metagame.Gameplay.Tests.AstraAttractionsTests" runstate="Runnable" seed="2120212623" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.003435" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1066" name="RemoteClientCannotBoardOrIgnite" fullname="Metagame.Gameplay.Tests.AstraAttractionsTests.RemoteClientCannotBoardOrIgnite" methodname="RemoteClientCannotBoardOrIgnite" classname="Metagame.Gameplay.Tests.AstraAttractionsTests" runstate="Runnable" seed="611679347" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000770" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1069" name="SwitchRequiresAPlayerNearby" fullname="Metagame.Gameplay.Tests.AstraAttractionsTests.SwitchRequiresAPlayerNearby" methodname="SwitchRequiresAPlayerNearby" classname="Metagame.Gameplay.Tests.AstraAttractionsTests" runstate="Runnable" seed="97470023" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.003551" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1063" name="WheelCabinsFollowCircleWithAnOpenBoardingLowPoint" fullname="Metagame.Gameplay.Tests.AstraAttractionsTests.WheelCabinsFollowCircleWithAnOpenBoardingLowPoint" methodname="WheelCabinsFollowCircleWithAnOpenBoardingLowPoint" classname="Metagame.Gameplay.Tests.AstraAttractionsTests" runstate="Runnable" seed="534373201" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.002028" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1064" name="WheelPhaseWrapsWithoutAccumulatingTurns" fullname="Metagame.Gameplay.Tests.AstraAttractionsTests.WheelPhaseWrapsWithoutAccumulatingTurns" methodname="WheelPhaseWrapsWithoutAccumulatingTurns" classname="Metagame.Gameplay.Tests.AstraAttractionsTests" runstate="Runnable" seed="2066437948" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000540" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1068" name="WrongPlacementConsumesChargeButLeavesEntranceBlocked" fullname="Metagame.Gameplay.Tests.AstraAttractionsTests.WrongPlacementConsumesChargeButLeavesEntranceBlocked" methodname="WrongPlacementConsumesChargeButLeavesEntranceBlocked" classname="Metagame.Gameplay.Tests.AstraAttractionsTests" runstate="Runnable" seed="175422040" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.003281" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1072" name="AstraExpansionTests" fullname="Metagame.Gameplay.Tests.AstraExpansionTests" classname="Metagame.Gameplay.Tests.AstraExpansionTests" runstate="Runnable" testcasecount="10" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.015663" total="10" passed="10" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1080" name="DroppingRocketCancelsThrust" fullname="Metagame.Gameplay.Tests.AstraExpansionTests.DroppingRocketCancelsThrust" methodname="DroppingRocketCancelsThrust" classname="Metagame.Gameplay.Tests.AstraExpansionTests" runstate="Runnable" seed="516810013" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.002427" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1081" name="FatalTrenchTestsFeetAgainstRotatedVolume" fullname="Metagame.Gameplay.Tests.AstraExpansionTests.FatalTrenchTestsFeetAgainstRotatedVolume" methodname="FatalTrenchTestsFeetAgainstRotatedVolume" classname="Metagame.Gameplay.Tests.AstraExpansionTests" runstate="Runnable" seed="2122803409" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.001053" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1075" name="FuelConsumptionStopsAtZeroAndBoostCostsMore" fullname="Metagame.Gameplay.Tests.AstraExpansionTests.FuelConsumptionStopsAtZeroAndBoostCostsMore" methodname="FuelConsumptionStopsAtZeroAndBoostCostsMore" classname="Metagame.Gameplay.Tests.AstraExpansionTests" runstate="Runnable" seed="2082893996" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000479" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1078" name="FuelRequirementIsOptionalForOriginalVehicles" fullname="Metagame.Gameplay.Tests.AstraExpansionTests.FuelRequirementIsOptionalForOriginalVehicles" methodname="FuelRequirementIsOptionalForOriginalVehicles" classname="Metagame.Gameplay.Tests.AstraExpansionTests" runstate="Runnable" seed="1407251737" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000613" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1082" name="InkChoosesVisibleSurfaceAndEnforcesCooldown" fullname="Metagame.Gameplay.Tests.AstraExpansionTests.InkChoosesVisibleSurfaceAndEnforcesCooldown" methodname="InkChoosesVisibleSurfaceAndEnforcesCooldown" classname="Metagame.Gameplay.Tests.AstraExpansionTests" runstate="Runnable" seed="1800623696" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.003396" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1076" name="InvalidFuelInputDoesNotCorruptTank" fullname="Metagame.Gameplay.Tests.AstraExpansionTests.InvalidFuelInputDoesNotCorruptTank" methodname="InvalidFuelInputDoesNotCorruptTank" classname="Metagame.Gameplay.Tests.AstraExpansionTests" runstate="Runnable" seed="1293778101" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000678" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1074" name="RefuellingConservesFuelWhenTankIsNearlyFull" fullname="Metagame.Gameplay.Tests.AstraExpansionTests.RefuellingConservesFuelWhenTankIsNearlyFull" methodname="RefuellingConservesFuelWhenTankIsNearlyFull" classname="Metagame.Gameplay.Tests.AstraExpansionTests" runstate="Runnable" seed="162203274" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000686" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1077" name="RemoteClientCannotGenerateOrSpendFuel" fullname="Metagame.Gameplay.Tests.AstraExpansionTests.RemoteClientCannotGenerateOrSpendFuel" methodname="RemoteClientCannotGenerateOrSpendFuel" classname="Metagame.Gameplay.Tests.AstraExpansionTests" runstate="Runnable" seed="206049936" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000515" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1079" name="RocketBurnIsTwoSecondsAndCannotRetriggerDuringBurn" fullname="Metagame.Gameplay.Tests.AstraExpansionTests.RocketBurnIsTwoSecondsAndCannotRetriggerDuringBurn" methodname="RocketBurnIsTwoSecondsAndCannotRetriggerDuringBurn" classname="Metagame.Gameplay.Tests.AstraExpansionTests" runstate="Runnable" seed="82980711" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.002611" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1073" name="TankStartsEmptyAndNeverOverfills" fullname="Metagame.Gameplay.Tests.AstraExpansionTests.TankStartsEmptyAndNeverOverfills" methodname="TankStartsEmptyAndNeverOverfills" classname="Metagame.Gameplay.Tests.AstraExpansionTests" runstate="Runnable" seed="778032419" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000363" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1083" name="AstraExpeditionTests" fullname="Metagame.Gameplay.Tests.AstraExpeditionTests" classname="Metagame.Gameplay.Tests.AstraExpeditionTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.011575" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1086" name="AnotherScenesMapCannotOverrideClue" fullname="Metagame.Gameplay.Tests.AstraExpeditionTests.AnotherScenesMapCannotOverrideClue" methodname="AnotherScenesMapCannotOverrideClue" classname="Metagame.Gameplay.Tests.AstraExpeditionTests" runstate="Runnable" seed="663535627" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.006639" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1084" name="AuthoredClueDescribesThisSceneWithoutChangingModuleIdentity" fullname="Metagame.Gameplay.Tests.AstraExpeditionTests.AuthoredClueDescribesThisSceneWithoutChangingModuleIdentity" methodname="AuthoredClueDescribesThisSceneWithoutChangingModuleIdentity" classname="Metagame.Gameplay.Tests.AstraExpeditionTests" runstate="Runnable" seed="878293862" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.001077" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1085" name="EmptyClueKeepsDefaultHint" fullname="Metagame.Gameplay.Tests.AstraExpeditionTests.EmptyClueKeepsDefaultHint" methodname="EmptyClueKeepsDefaultHint" classname="Metagame.Gameplay.Tests.AstraExpeditionTests" runstate="Runnable" seed="846588459" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.002442" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1087" name="AstraMinefieldTests" fullname="Metagame.Gameplay.Tests.AstraMinefieldTests" classname="Metagame.Gameplay.Tests.AstraMinefieldTests" runstate="Runnable" testcasecount="8" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.026638" total="8" passed="8" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1092" name="AirbornePlayerDoesNotStepOnMine" fullname="Metagame.Gameplay.Tests.AstraMinefieldTests.AirbornePlayerDoesNotStepOnMine" methodname="AirbornePlayerDoesNotStepOnMine" classname="Metagame.Gameplay.Tests.AstraMinefieldTests" runstate="Runnable" seed="663107809" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.005257" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1093" name="ClientCannotDetonate" fullname="Metagame.Gameplay.Tests.AstraMinefieldTests.ClientCannotDetonate" methodname="ClientCannotDetonate" classname="Metagame.Gameplay.Tests.AstraMinefieldTests" runstate="Runnable" seed="692586454" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.004316" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1088" name="DetectorFindsNearestUnspentMine" fullname="Metagame.Gameplay.Tests.AstraMinefieldTests.DetectorFindsNearestUnspentMine" methodname="DetectorFindsNearestUnspentMine" classname="Metagame.Gameplay.Tests.AstraMinefieldTests" runstate="Runnable" seed="2001040413" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.001012" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1095" name="DetectorReleaseAndDropStopScanning" fullname="Metagame.Gameplay.Tests.AstraMinefieldTests.DetectorReleaseAndDropStopScanning" methodname="DetectorReleaseAndDropStopScanning" classname="Metagame.Gameplay.Tests.AstraMinefieldTests" runstate="Runnable" seed="1467833345" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.004522" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1089" name="ElevatedMineDoesNotReportThroughOtherFloor" fullname="Metagame.Gameplay.Tests.AstraMinefieldTests.ElevatedMineDoesNotReportThroughOtherFloor" methodname="ElevatedMineDoesNotReportThroughOtherFloor" classname="Metagame.Gameplay.Tests.AstraMinefieldTests" runstate="Runnable" seed="307577941" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000467" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1094" name="LateSnapshotKeepsSpentMines" fullname="Metagame.Gameplay.Tests.AstraMinefieldTests.LateSnapshotKeepsSpentMines" methodname="LateSnapshotKeepsSpentMines" classname="Metagame.Gameplay.Tests.AstraMinefieldTests" runstate="Runnable" seed="925322089" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000406" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1090" name="MineOnlyTriggersOnce" fullname="Metagame.Gameplay.Tests.AstraMinefieldTests.MineOnlyTriggersOnce" methodname="MineOnlyTriggersOnce" classname="Metagame.Gameplay.Tests.AstraMinefieldTests" runstate="Runnable" seed="659366569" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.004136" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1091" name="SafeGapDoesNotExplode" fullname="Metagame.Gameplay.Tests.AstraMinefieldTests.SafeGapDoesNotExplode" methodname="SafeGapDoesNotExplode" classname="Metagame.Gameplay.Tests.AstraMinefieldTests" runstate="Runnable" seed="526415290" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.003891" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1096" name="AstraToyboxTests" fullname="Metagame.Gameplay.Tests.AstraToyboxTests" classname="Metagame.Gameplay.Tests.AstraToyboxTests" runstate="Runnable" testcasecount="13" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.015382" total="13" passed="13" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1106" name="BlowerPushesVisibleObjectOnlyOnceDespiteCompoundColliders" fullname="Metagame.Gameplay.Tests.AstraToyboxTests.BlowerPushesVisibleObjectOnlyOnceDespiteCompoundColliders" methodname="BlowerPushesVisibleObjectOnlyOnceDespiteCompoundColliders" classname="Metagame.Gameplay.Tests.AstraToyboxTests" runstate="Runnable" seed="743703010" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.003592" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1107" name="BlowerRejectsObjectsOutsideCone" fullname="Metagame.Gameplay.Tests.AstraToyboxTests.BlowerRejectsObjectsOutsideCone" methodname="BlowerRejectsObjectsOutsideCone" classname="Metagame.Gameplay.Tests.AstraToyboxTests" runstate="Runnable" seed="192314513" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000697" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1109" name="BounceDoesNotMoveRemoteOrKinematicBody" fullname="Metagame.Gameplay.Tests.AstraToyboxTests.BounceDoesNotMoveRemoteOrKinematicBody" methodname="BounceDoesNotMoveRemoteOrKinematicBody" classname="Metagame.Gameplay.Tests.AstraToyboxTests" runstate="Runnable" seed="2012775471" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000725" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1108" name="BouncePreservesHorizontalVelocityAndDebounces" fullname="Metagame.Gameplay.Tests.AstraToyboxTests.BouncePreservesHorizontalVelocityAndDebounces" methodname="BouncePreservesHorizontalVelocityAndDebounces" classname="Metagame.Gameplay.Tests.AstraToyboxTests" runstate="Runnable" seed="952279535" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000532" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1105" name="ClientsCannotStartTools" fullname="Metagame.Gameplay.Tests.AstraToyboxTests.ClientsCannotStartTools" methodname="ClientsCannotStartTools" classname="Metagame.Gameplay.Tests.AstraToyboxTests" runstate="Runnable" seed="402831613" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000979" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1103" name="DestroyingTargetDetaches" fullname="Metagame.Gameplay.Tests.AstraToyboxTests.DestroyingTargetDetaches" methodname="DestroyingTargetDetaches" classname="Metagame.Gameplay.Tests.AstraToyboxTests" runstate="Runnable" seed="1376744202" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.001585" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1099" name="GrappleHooksNearestWall" fullname="Metagame.Gameplay.Tests.AstraToyboxTests.GrappleHooksNearestWall" methodname="GrappleHooksNearestWall" classname="Metagame.Gameplay.Tests.AstraToyboxTests" runstate="Runnable" seed="1622525044" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000547" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1097" name="GrappleRequiresAnActualSurface" fullname="Metagame.Gameplay.Tests.AstraToyboxTests.GrappleRequiresAnActualSurface" methodname="GrappleRequiresAnActualSurface" classname="Metagame.Gameplay.Tests.AstraToyboxTests" runstate="Runnable" seed="393311283" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000412" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1098" name="GrappleRespectsRange" fullname="Metagame.Gameplay.Tests.AstraToyboxTests.GrappleRespectsRange" methodname="GrappleRespectsRange" classname="Metagame.Gameplay.Tests.AstraToyboxTests" runstate="Runnable" seed="1976496700" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000439" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1104" name="GrappleTimesOutInsteadOfHoldingForever" fullname="Metagame.Gameplay.Tests.AstraToyboxTests.GrappleTimesOutInsteadOfHoldingForever" methodname="GrappleTimesOutInsteadOfHoldingForever" classname="Metagame.Gameplay.Tests.AstraToyboxTests" runstate="Runnable" seed="307992478" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000474" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1102" name="ObstructionBreaksCable" fullname="Metagame.Gameplay.Tests.AstraToyboxTests.ObstructionBreaksCable" methodname="ObstructionBreaksCable" classname="Metagame.Gameplay.Tests.AstraToyboxTests" runstate="Runnable" seed="468876920" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000495" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1100" name="ReleaseInputImmediatelyDetaches" fullname="Metagame.Gameplay.Tests.AstraToyboxTests.ReleaseInputImmediatelyDetaches" methodname="ReleaseInputImmediatelyDetaches" classname="Metagame.Gameplay.Tests.AstraToyboxTests" runstate="Runnable" seed="1650681867" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000596" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1101" name="UnequipCancelsCable" fullname="Metagame.Gameplay.Tests.AstraToyboxTests.UnequipCancelsCable" methodname="UnequipCancelsCable" classname="Metagame.Gameplay.Tests.AstraToyboxTests" runstate="Runnable" seed="1992779091" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000498" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1110" name="AstraV2MechanismTests" fullname="Metagame.Gameplay.Tests.AstraV2MechanismTests" classname="Metagame.Gameplay.Tests.AstraV2MechanismTests" runstate="Runnable" testcasecount="5" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.004584" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1111" name="CircuitRequiresAllThreeTargetsAndStaysSolved" fullname="Metagame.Gameplay.Tests.AstraV2MechanismTests.CircuitRequiresAllThreeTargetsAndStaysSolved" methodname="CircuitRequiresAllThreeTargetsAndStaysSolved" classname="Metagame.Gameplay.Tests.AstraV2MechanismTests" runstate="Runnable" seed="1774188439" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000831" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1112" name="ClientCannotSolveCircuitOrReleaseLift" fullname="Metagame.Gameplay.Tests.AstraV2MechanismTests.ClientCannotSolveCircuitOrReleaseLift" methodname="ClientCannotSolveCircuitOrReleaseLift" classname="Metagame.Gameplay.Tests.AstraV2MechanismTests" runstate="Runnable" seed="32605510" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000666" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1115" name="LateJoinRestoresSolvedGateAndLiftState" fullname="Metagame.Gameplay.Tests.AstraV2MechanismTests.LateJoinRestoresSolvedGateAndLiftState" methodname="LateJoinRestoresSolvedGateAndLiftState" classname="Metagame.Gameplay.Tests.AstraV2MechanismTests" runstate="Runnable" seed="300715701" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000616" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1114" name="LiftNeedsUnlockAndHeldBrakeAndStopsOnRelease" fullname="Metagame.Gameplay.Tests.AstraV2MechanismTests.LiftNeedsUnlockAndHeldBrakeAndStopsOnRelease" methodname="LiftNeedsUnlockAndHeldBrakeAndStopsOnRelease" classname="Metagame.Gameplay.Tests.AstraV2MechanismTests" runstate="Runnable" seed="1361813516" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000497" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1113" name="PlateRejectsPlayerBelowAboveAndOutside" fullname="Metagame.Gameplay.Tests.AstraV2MechanismTests.PlateRejectsPlayerBelowAboveAndOutside" methodname="PlateRejectsPlayerBelowAboveAndOutside" classname="Metagame.Gameplay.Tests.AstraV2MechanismTests" runstate="Runnable" seed="951127272" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000476" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1603" name="LivePlayerGrabTests" fullname="Metagame.Gameplay.Tests.LivePlayerGrabTests" classname="Metagame.Gameplay.Tests.LivePlayerGrabTests" runstate="Runnable" testcasecount="16" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:44Z" duration="0.306753" total="16" passed="16" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1604" name="ALivingPlayerHasAGrabPoint_FromBirth" fullname="Metagame.Gameplay.Tests.LivePlayerGrabTests.ALivingPlayerHasAGrabPoint_FromBirth" methodname="ALivingPlayerHasAGrabPoint_FromBirth" classname="Metagame.Gameplay.Tests.LivePlayerGrabTests" runstate="Runnable" seed="358335037" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.006575" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+]]></output>
+              </test-case>
+              <test-case id="1606" name="ALivingTeammateInFront_IsAnInteractionTarget" fullname="Metagame.Gameplay.Tests.LivePlayerGrabTests.ALivingTeammateInFront_IsAnInteractionTarget" methodname="ALivingTeammateInFront_IsAnInteractionTarget" classname="Metagame.Gameplay.Tests.LivePlayerGrabTests" runstate="Runnable" seed="745522105" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.016636" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+]]></output>
+              </test-case>
+              <test-case id="1609" name="ARemoteTeammateWhoNeverWentDown_IsStillACandidate" fullname="Metagame.Gameplay.Tests.LivePlayerGrabTests.ARemoteTeammateWhoNeverWentDown_IsStillACandidate" methodname="ARemoteTeammateWhoNeverWentDown_IsStillACandidate" classname="Metagame.Gameplay.Tests.LivePlayerGrabTests" runstate="Runnable" seed="1444941537" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.012025" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+]]></output>
+              </test-case>
+              <test-case id="1617" name="BeingGrabbed_IsVisibleOnTheOneWhoIsHeld" fullname="Metagame.Gameplay.Tests.LivePlayerGrabTests.BeingGrabbed_IsVisibleOnTheOneWhoIsHeld" methodname="BeingGrabbed_IsVisibleOnTheOneWhoIsHeld" classname="Metagame.Gameplay.Tests.LivePlayerGrabTests" runstate="Runnable" seed="2044329280" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.008241" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+]]></output>
+              </test-case>
+              <test-case id="1616" name="CarryingADownedTeammate_IsStillReportedAsDowned" fullname="Metagame.Gameplay.Tests.LivePlayerGrabTests.CarryingADownedTeammate_IsStillReportedAsDowned" methodname="CarryingADownedTeammate_IsStillReportedAsDowned" classname="Metagame.Gameplay.Tests.LivePlayerGrabTests" runstate="Runnable" seed="2026447561" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.010307" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+[NotThisPlanet] 검증 기절 (검증)
+]]></output>
+              </test-case>
+              <test-case id="1615" name="CarryingALivingTeammate_IsReportedButNotAsDowned" fullname="Metagame.Gameplay.Tests.LivePlayerGrabTests.CarryingALivingTeammate_IsReportedButNotAsDowned" methodname="CarryingALivingTeammate_IsReportedButNotAsDowned" classname="Metagame.Gameplay.Tests.LivePlayerGrabTests" runstate="Runnable" seed="522858999" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.008823" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+]]></output>
+              </test-case>
+              <test-case id="1610" name="GrabbingAndWalkingAway_ActuallyDragsThem" fullname="Metagame.Gameplay.Tests.LivePlayerGrabTests.GrabbingAndWalkingAway_ActuallyDragsThem" methodname="GrabbingAndWalkingAway_ActuallyDragsThem" classname="Metagame.Gameplay.Tests.LivePlayerGrabTests" runstate="Runnable" seed="645892497" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.043564" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+[NotThisPlanet][상호작용] 좌클릭 → 개별 물체 운반 | 대상=동료 | 질량=8.0kg
+]]></output>
+              </test-case>
+              <test-case id="1619" name="LettingGo_LeavesThemWhereTheyAre" fullname="Metagame.Gameplay.Tests.LivePlayerGrabTests.LettingGo_LeavesThemWhereTheyAre" methodname="LettingGo_LeavesThemWhereTheyAre" classname="Metagame.Gameplay.Tests.LivePlayerGrabTests" runstate="Runnable" seed="1742407127" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.007437" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+]]></output>
+              </test-case>
+              <test-case id="1612" name="ResistingMakesYouHarderToDrag" fullname="Metagame.Gameplay.Tests.LivePlayerGrabTests.ResistingMakesYouHarderToDrag" methodname="ResistingMakesYouHarderToDrag" classname="Metagame.Gameplay.Tests.LivePlayerGrabTests" runstate="Runnable" seed="1998423742" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.071789" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+[NotThisPlanet][상호작용] 좌클릭 → 개별 물체 운반 | 대상=동료 | 질량=8.0kg
+
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+[NotThisPlanet][상호작용] 좌클릭 → 개별 물체 운반 | 대상=동료 | 질량=8.0kg
+]]></output>
+              </test-case>
+              <test-case id="1618" name="TeleportingAway_MakesTheCarrierLetGo" fullname="Metagame.Gameplay.Tests.LivePlayerGrabTests.TeleportingAway_MakesTheCarrierLetGo" methodname="TeleportingAway_MakesTheCarrierLetGo" classname="Metagame.Gameplay.Tests.LivePlayerGrabTests" runstate="Runnable" seed="1899540490" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.009560" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+]]></output>
+              </test-case>
+              <test-case id="1607" name="TheAimingMaskStillExcludesPlayers" fullname="Metagame.Gameplay.Tests.LivePlayerGrabTests.TheAimingMaskStillExcludesPlayers" methodname="TheAimingMaskStillExcludesPlayers" classname="Metagame.Gameplay.Tests.LivePlayerGrabTests" runstate="Runnable" seed="652578298" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.000421" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1614" name="TheGrabbedPlayerStaysOnTheirFeet" fullname="Metagame.Gameplay.Tests.LivePlayerGrabTests.TheGrabbedPlayerStaysOnTheirFeet" methodname="TheGrabbedPlayerStaysOnTheirFeet" classname="Metagame.Gameplay.Tests.LivePlayerGrabTests" runstate="Runnable" seed="883203499" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.029977" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+[NotThisPlanet][상호작용] 좌클릭 → 개별 물체 운반 | 대상=동료 | 질량=8.0kg
+]]></output>
+              </test-case>
+              <test-case id="1605" name="ThePointIsMadeWithoutEverGoingDown" fullname="Metagame.Gameplay.Tests.LivePlayerGrabTests.ThePointIsMadeWithoutEverGoingDown" methodname="ThePointIsMadeWithoutEverGoingDown" classname="Metagame.Gameplay.Tests.LivePlayerGrabTests" runstate="Runnable" seed="2075131877" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.004083" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+]]></output>
+              </test-case>
+              <test-case id="1613" name="TugOfWar_DoesNotBreakTheGrip" fullname="Metagame.Gameplay.Tests.LivePlayerGrabTests.TugOfWar_DoesNotBreakTheGrip" methodname="TugOfWar_DoesNotBreakTheGrip" classname="Metagame.Gameplay.Tests.LivePlayerGrabTests" runstate="Runnable" seed="736754364" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:43Z" duration="0.032510" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+[NotThisPlanet][상호작용] 좌클릭 → 개별 물체 운반 | 대상=동료 | 질량=8.0kg
+]]></output>
+              </test-case>
+              <test-case id="1611" name="WithoutAGrip_WalkingAwayMovesNobody" fullname="Metagame.Gameplay.Tests.LivePlayerGrabTests.WithoutAGrip_WalkingAwayMovesNobody" methodname="WithoutAGrip_WalkingAwayMovesNobody" classname="Metagame.Gameplay.Tests.LivePlayerGrabTests" runstate="Runnable" seed="2042852049" result="Passed" start-time="2026-09-15 00:16:43Z" end-time="2026-09-15 00:16:44Z" duration="0.035634" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+[NotThisPlanet][상호작용] 좌클릭 → 대상 없음 | 대상=없음 | 질량=고정
+]]></output>
+              </test-case>
+              <test-case id="1608" name="YouCannotGrabYourself" fullname="Metagame.Gameplay.Tests.LivePlayerGrabTests.YouCannotGrabYourself" methodname="YouCannotGrabYourself" classname="Metagame.Gameplay.Tests.LivePlayerGrabTests" runstate="Runnable" seed="1032509469" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.004548" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+]]></output>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1640" name="MapRecoveryTests" fullname="Metagame.Gameplay.Tests.MapRecoveryTests" classname="Metagame.Gameplay.Tests.MapRecoveryTests" runstate="Runnable" testcasecount="13" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.011195" total="13" passed="13" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-suite type="ParameterizedMethod" id="1652" name="BoundaryUsesWorldCoordinatesAndHasNoCeiling" fullname="Metagame.Gameplay.Tests.MapRecoveryTests.BoundaryUsesWorldCoordinatesAndHasNoCeiling" classname="Metagame.Gameplay.Tests.MapRecoveryTests" runstate="Runnable" testcasecount="11" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.003896" total="11" passed="11" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="1641" name="BoundaryUsesWorldCoordinatesAndHasNoCeiling(-18.0f,0.0f,0.0f,False)" fullname="Metagame.Gameplay.Tests.MapRecoveryTests.BoundaryUsesWorldCoordinatesAndHasNoCeiling(-18.0f,0.0f,0.0f,False)" methodname="BoundaryUsesWorldCoordinatesAndHasNoCeiling" classname="Metagame.Gameplay.Tests.MapRecoveryTests" runstate="Runnable" seed="1080086915" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000890" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1642" name="BoundaryUsesWorldCoordinatesAndHasNoCeiling(-18.01f,0.0f,0.0f,True)" fullname="Metagame.Gameplay.Tests.MapRecoveryTests.BoundaryUsesWorldCoordinatesAndHasNoCeiling(-18.01f,0.0f,0.0f,True)" methodname="BoundaryUsesWorldCoordinatesAndHasNoCeiling" classname="Metagame.Gameplay.Tests.MapRecoveryTests" runstate="Runnable" seed="273753789" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000133" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1643" name="BoundaryUsesWorldCoordinatesAndHasNoCeiling(38.01f,0.0f,0.0f,True)" fullname="Metagame.Gameplay.Tests.MapRecoveryTests.BoundaryUsesWorldCoordinatesAndHasNoCeiling(38.01f,0.0f,0.0f,True)" methodname="BoundaryUsesWorldCoordinatesAndHasNoCeiling" classname="Metagame.Gameplay.Tests.MapRecoveryTests" runstate="Runnable" seed="894855919" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000104" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1644" name="BoundaryUsesWorldCoordinatesAndHasNoCeiling(10.0f,0.0f,-38.01f,True)" fullname="Metagame.Gameplay.Tests.MapRecoveryTests.BoundaryUsesWorldCoordinatesAndHasNoCeiling(10.0f,0.0f,-38.01f,True)" methodname="BoundaryUsesWorldCoordinatesAndHasNoCeiling" classname="Metagame.Gameplay.Tests.MapRecoveryTests" runstate="Runnable" seed="960865403" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000084" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1645" name="BoundaryUsesWorldCoordinatesAndHasNoCeiling(10.0f,0.0f,18.01f,True)" fullname="Metagame.Gameplay.Tests.MapRecoveryTests.BoundaryUsesWorldCoordinatesAndHasNoCeiling(10.0f,0.0f,18.01f,True)" methodname="BoundaryUsesWorldCoordinatesAndHasNoCeiling" classname="Metagame.Gameplay.Tests.MapRecoveryTests" runstate="Runnable" seed="1954877075" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000092" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1646" name="BoundaryUsesWorldCoordinatesAndHasNoCeiling(10.0f,-5.0f,0.0f,False)" fullname="Metagame.Gameplay.Tests.MapRecoveryTests.BoundaryUsesWorldCoordinatesAndHasNoCeiling(10.0f,-5.0f,0.0f,False)" methodname="BoundaryUsesWorldCoordinatesAndHasNoCeiling" classname="Metagame.Gameplay.Tests.MapRecoveryTests" runstate="Runnable" seed="759201269" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000079" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1647" name="BoundaryUsesWorldCoordinatesAndHasNoCeiling(10.0f,-5.01f,0.0f,True)" fullname="Metagame.Gameplay.Tests.MapRecoveryTests.BoundaryUsesWorldCoordinatesAndHasNoCeiling(10.0f,-5.01f,0.0f,True)" methodname="BoundaryUsesWorldCoordinatesAndHasNoCeiling" classname="Metagame.Gameplay.Tests.MapRecoveryTests" runstate="Runnable" seed="1848963900" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000100" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1648" name="BoundaryUsesWorldCoordinatesAndHasNoCeiling(10.0f,1000.0f,0.0f,False)" fullname="Metagame.Gameplay.Tests.MapRecoveryTests.BoundaryUsesWorldCoordinatesAndHasNoCeiling(10.0f,1000.0f,0.0f,False)" methodname="BoundaryUsesWorldCoordinatesAndHasNoCeiling" classname="Metagame.Gameplay.Tests.MapRecoveryTests" runstate="Runnable" seed="906266770" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000083" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1649" name="BoundaryUsesWorldCoordinatesAndHasNoCeiling(float.NaN,0.0f,0.0f,True)" fullname="Metagame.Gameplay.Tests.MapRecoveryTests.BoundaryUsesWorldCoordinatesAndHasNoCeiling(float.NaN,0.0f,0.0f,True)" methodname="BoundaryUsesWorldCoordinatesAndHasNoCeiling" classname="Metagame.Gameplay.Tests.MapRecoveryTests" runstate="Runnable" seed="1717030698" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000080" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1650" name="BoundaryUsesWorldCoordinatesAndHasNoCeiling(0.0f,float.NaN,0.0f,True)" fullname="Metagame.Gameplay.Tests.MapRecoveryTests.BoundaryUsesWorldCoordinatesAndHasNoCeiling(0.0f,float.NaN,0.0f,True)" methodname="BoundaryUsesWorldCoordinatesAndHasNoCeiling" classname="Metagame.Gameplay.Tests.MapRecoveryTests" runstate="Runnable" seed="754590080" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000101" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1651" name="BoundaryUsesWorldCoordinatesAndHasNoCeiling(0.0f,0.0f,float.PositiveInfinity,True)" fullname="Metagame.Gameplay.Tests.MapRecoveryTests.BoundaryUsesWorldCoordinatesAndHasNoCeiling(0.0f,0.0f,float.PositiveInfinity,True)" methodname="BoundaryUsesWorldCoordinatesAndHasNoCeiling" classname="Metagame.Gameplay.Tests.MapRecoveryTests" runstate="Runnable" seed="246562739" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000085" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+              </test-suite>
+              <test-case id="1654" name="LostCoreRequestsOneSceneResetBeforeRecoveringTools" fullname="Metagame.Gameplay.Tests.MapRecoveryTests.LostCoreRequestsOneSceneResetBeforeRecoveringTools" methodname="LostCoreRequestsOneSceneResetBeforeRecoveringTools" classname="Metagame.Gameplay.Tests.MapRecoveryTests" runstate="Runnable" seed="14108256" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.003115" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[MapRecovery] 핵심 파츠 이탈: core. 게임 씬을 초기화합니다.
+]]></output>
+              </test-case>
+              <test-case id="1653" name="ToolReturnsToOriginalPoseAndStopsWithoutCreatingDuplicate" fullname="Metagame.Gameplay.Tests.MapRecoveryTests.ToolReturnsToOriginalPoseAndStopsWithoutCreatingDuplicate" methodname="ToolReturnsToOriginalPoseAndStopsWithoutCreatingDuplicate" classname="Metagame.Gameplay.Tests.MapRecoveryTests" runstate="Runnable" seed="959691465" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.001655" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="2416" name="Stage1ExplorationTests" fullname="Metagame.Gameplay.Tests.Stage1ExplorationTests" classname="Metagame.Gameplay.Tests.Stage1ExplorationTests" runstate="Runnable" testcasecount="7" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.012567" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2417" name="Configure_OrdersScenePartsByPartNumber" fullname="Metagame.Gameplay.Tests.Stage1ExplorationTests.Configure_OrdersScenePartsByPartNumber" methodname="Configure_OrdersScenePartsByPartNumber" classname="Metagame.Gameplay.Tests.Stage1ExplorationTests" runstate="Runnable" seed="79394546" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.002038" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2418" name="DiscoverAt_FindsOnlyPartsInsideHorizontalRadius" fullname="Metagame.Gameplay.Tests.Stage1ExplorationTests.DiscoverAt_FindsOnlyPartsInsideHorizontalRadius" methodname="DiscoverAt_FindsOnlyPartsInsideHorizontalRadius" classname="Metagame.Gameplay.Tests.Stage1ExplorationTests" runstate="Runnable" seed="470417881" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.001167" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2419" name="DiscoveredPart_RemainsDiscoveredAfterItMoves" fullname="Metagame.Gameplay.Tests.Stage1ExplorationTests.DiscoveredPart_RemainsDiscoveredAfterItMoves" methodname="DiscoveredPart_RemainsDiscoveredAfterItMoves" classname="Metagame.Gameplay.Tests.Stage1ExplorationTests" runstate="Runnable" seed="907433195" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000795" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2423" name="PlayerHealth_RemainsNumericForGameplayWhileHealthRatioTracksDamage" fullname="Metagame.Gameplay.Tests.Stage1ExplorationTests.PlayerHealth_RemainsNumericForGameplayWhileHealthRatioTracksDamage" methodname="PlayerHealth_RemainsNumericForGameplayWhileHealthRatioTracksDamage" classname="Metagame.Gameplay.Tests.Stage1ExplorationTests" runstate="Runnable" seed="886758690" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.001191" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2420" name="ResetRun_ClearsDiscoveryAndTabletState" fullname="Metagame.Gameplay.Tests.Stage1ExplorationTests.ResetRun_ClearsDiscoveryAndTabletState" methodname="ResetRun_ClearsDiscoveryAndTabletState" classname="Metagame.Gameplay.Tests.Stage1ExplorationTests" runstate="Runnable" seed="5763273" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000626" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2422" name="TabletPageNavigation_ClampsAtBothEndsAndRaisesOnlyOnChange" fullname="Metagame.Gameplay.Tests.Stage1ExplorationTests.TabletPageNavigation_ClampsAtBothEndsAndRaisesOnlyOnChange" methodname="TabletPageNavigation_ClampsAtBothEndsAndRaisesOnlyOnChange" classname="Metagame.Gameplay.Tests.Stage1ExplorationTests" runstate="Runnable" seed="172429750" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000618" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2421" name="ToggleTablet_RaisesStateChangeOncePerTransition" fullname="Metagame.Gameplay.Tests.Stage1ExplorationTests.ToggleTablet_RaisesStateChangeOncePerTransition" methodname="ToggleTablet_RaisesStateChangeOncePerTransition" classname="Metagame.Gameplay.Tests.Stage1ExplorationTests" runstate="Runnable" seed="1545305550" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000498" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="2501" name="ToolCarryCollisionTests" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" testcasecount="13" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.056617" total="13" passed="13" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-suite type="ParameterizedMethod" id="2504" name="AimedEquipmentAtPickupRange_EquipsAndChargesUntilQIsReleased" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.AimedEquipmentAtPickupRange_EquipsAndChargesUntilQIsReleased" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.024343" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="2502" name="AimedEquipmentAtPickupRange_EquipsAndChargesUntilQIsReleased(False)" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.AimedEquipmentAtPickupRange_EquipsAndChargesUntilQIsReleased(False)" methodname="AimedEquipmentAtPickupRange_EquipsAndChargesUntilQIsReleased" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="832445347" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.013133" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[[NotThisPlanet][상호작용] 좌클릭 → 양손 도구 집기 | 대상=없음 | 질량=3.0kg
+]]></output>
+                </test-case>
+                <test-case id="2503" name="AimedEquipmentAtPickupRange_EquipsAndChargesUntilQIsReleased(True)" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.AimedEquipmentAtPickupRange_EquipsAndChargesUntilQIsReleased(True)" methodname="AimedEquipmentAtPickupRange_EquipsAndChargesUntilQIsReleased" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="283306721" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.008740" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[[NotThisPlanet][상호작용] 좌클릭 → 양손 도구 집기 | 대상=없음 | 질량=3.0kg
+]]></output>
+                </test-case>
+              </test-suite>
+              <test-case id="2513" name="AToolThatStartedWithCollisionsOff_StaysOff" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.AToolThatStartedWithCollisionsOff_StaysOff" methodname="AToolThatStartedWithCollisionsOff_StaysOff" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="226960626" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000759" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2515" name="DirectlyUnequippedBatRestoresGravityAndFreeRotation" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.DirectlyUnequippedBatRestoresGravityAndFreeRotation" methodname="DirectlyUnequippedBatRestoresGravityAndFreeRotation" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="1747392348" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000602" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2505" name="EquipmentCannotBypassEquippingThroughAnOrdinaryHandGrip" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.EquipmentCannotBypassEquippingThroughAnOrdinaryHandGrip" methodname="EquipmentCannotBypassEquippingThroughAnOrdinaryHandGrip" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="1242428131" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000804" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="2508" name="EquipmentOutsideReachOrCrosshairAssist_IsNotFocused" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.EquipmentOutsideReachOrCrosshairAssist_IsNotFocused" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.018174" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="2506" name="EquipmentOutsideReachOrCrosshairAssist_IsNotFocused(1.8f,0.0f)" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.EquipmentOutsideReachOrCrosshairAssist_IsNotFocused(1.8f,0.0f)" methodname="EquipmentOutsideReachOrCrosshairAssist_IsNotFocused" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="1147831397" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.005601" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="2507" name="EquipmentOutsideReachOrCrosshairAssist_IsNotFocused(0.9f,0.4f)" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.EquipmentOutsideReachOrCrosshairAssist_IsNotFocused(0.9f,0.4f)" methodname="EquipmentOutsideReachOrCrosshairAssist_IsNotFocused" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="795065891" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.006742" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+              </test-suite>
+              <test-case id="2509" name="EquippingABat_TurnsOffItsCollisions" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.EquippingABat_TurnsOffItsCollisions" methodname="EquippingABat_TurnsOffItsCollisions" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="1715635957" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000743" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2510" name="EquippingTheWeldingGun_TurnsOffItsCollisions" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.EquippingTheWeldingGun_TurnsOffItsCollisions" methodname="EquippingTheWeldingGun_TurnsOffItsCollisions" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="1273349659" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000486" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2516" name="EquippingTwice_KeepsTheOriginalValue" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.EquippingTwice_KeepsTheOriginalValue" methodname="EquippingTwice_KeepsTheOriginalValue" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="646500054" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000489" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2511" name="UnequippingABat_RestoresItsCollisions" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.UnequippingABat_RestoresItsCollisions" methodname="UnequippingABat_RestoresItsCollisions" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="1091775623" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000358" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2514" name="UnequippingSomethingNeverEquipped_ChangesNothing" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.UnequippingSomethingNeverEquipped_ChangesNothing" methodname="UnequippingSomethingNeverEquipped_ChangesNothing" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="273175317" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000464" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2512" name="UnequippingTheWeldingGun_RestoresItsCollisions" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.UnequippingTheWeldingGun_RestoresItsCollisions" methodname="UnequippingTheWeldingGun_RestoresItsCollisions" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="1496580005" result="Passed" start-time="2026-09-15 00:16:44Z" end-time="2026-09-15 00:16:44Z" duration="0.000478" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

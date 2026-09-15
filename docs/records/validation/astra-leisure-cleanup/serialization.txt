@@ -1,0 +1,5 @@
+PASS final scene matches isolated validated scene
+PASS no missing scripts or broken serialized object references
+PASS new editor script meta copied
+PASS 27 PlayMode checks
+SHA256 ABA66263B49ED544C93EA018E59CDFE055E2B74719637190CA6DB91CCE9A1209

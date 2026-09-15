@@ -1,0 +1,2 @@
+PASS 183 scene asset GUIDs resolve in delivered project
+PASS delivered sources match tested sources

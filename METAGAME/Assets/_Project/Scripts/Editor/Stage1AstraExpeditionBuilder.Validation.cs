@@ -19,8 +19,11 @@ namespace Metagame.EditorTools
    check(parts.Length==4,"four original modules");check(Object.FindObjectsByType<PartClamp>().Length==16,"16 original clamps and tethers");
    check(Object.FindObjectsByType<AstraMineDetector>().Length==3 && Object.FindAnyObjectByType<AstraMinefield>().MinePositions.Length==16,"all mine equipment retained");
    check(Object.FindObjectsByType<AstraRocketTool>().Length==3&&Object.FindObjectsByType<AstraInkLauncher>().Length==3&&Object.FindObjectsByType<AstraFuelCan>().Length==8,"rocket ink and yellow fuel inventory retained");
-   check(Object.FindObjectsByType<AstraGrappleTool>().Length==3&&Object.FindObjectsByType<AstraAirBlower>().Length==3&&Object.FindObjectsByType<AstraBouncePad>().Length==2,"grapples blowers and bounce pads retained");
-   check(Object.FindAnyObjectByType<AstraFerrisWheel>()!=null&&Object.FindAnyObjectByType<AstraPlayerCannon>()!=null&&Object.FindAnyObjectByType<AstraBlastGate>()!=null,"wheel cannon and TNT retained");
+   check(Object.FindObjectsByType<AstraGrappleTool>().Length==3&&Object.FindObjectsByType<AstraAirBlower>().Length==3,"grapples and blowers retained");
+   check(Object.FindObjectsByType<AstraBouncePad>().Length==(RecoveryFocused?0:2),"bounce pad inventory matches authored layout");
+   check((Object.FindAnyObjectByType<AstraFerrisWheel>()!=null)==!RecoveryFocused,"Ferris inventory matches authored layout");
+   check(Object.FindAnyObjectByType<AstraPlayerCannon>()!=null&&Object.FindAnyObjectByType<AstraBlastGate>()!=null,"survey cannon and TNT retained");
+   if(RecoveryFocused)check(!Object.FindObjectsByType<Transform>(FindObjectsInactive.Include).Any(t=>LeisureOnly(t.name)),"leisure-only objects removed");
    check(Object.FindAnyObjectByType<Terrain>().terrainData.size==new Vector3(180,30,150),"terrain area expanded 3x to 180 x 150m");
    foreach(var g in scene.GetRootGameObjects())foreach(var t in g.GetComponentsInChildren<Transform>(true))check(GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(t.gameObject)==0,"script reference "+t.name);
    // Keep the report compact after the complete reference scan.
@@ -45,8 +48,10 @@ namespace Metagame.EditorTools
    foreach(var path in safe)for(int i=1;i<path.Length;i++)for(int s=0;s<=100;s++){var p=Vector2.Lerp(path[i-1],path[i],s/100f);check(mines.All(m=>Vector2.Distance(p,P(m.x,m.z))>.95f),"mine safe route "+p);}
    var lift=new SerializedObject(Object.FindAnyObjectByType<AstraV2FreightLift>());check(Vector3.Distance(lift.FindProperty("_bottom").vector3Value,V(-38.2f,.8f,44))<.01f,"relocated freight destination");
    var puzzle=new SerializedObject(Object.FindAnyObjectByType<AstraV2Puzzle>());check(Vector3.Distance(puzzle.FindProperty("_doorClosed").vector3Value,V(48,2.7f,35))<.01f,"relocated airlock destination");
-   var seesaw=Find("Long physical seesaw").GetComponent<HingeJoint>();check(Vector3.Distance(seesaw.connectedAnchor,seesaw.transform.position)<.001f,"seesaw world anchor follows scene move");
-   var bag=Find("매달린 샌드백").GetComponent<ConfigurableJoint>();check(Vector3.Distance(bag.connectedAnchor,bag.transform.TransformPoint(bag.anchor))<.01f,"punch bag world anchor follows scene move");
+   if(!RecoveryFocused){
+    var seesaw=Find("Long physical seesaw").GetComponent<HingeJoint>();check(Vector3.Distance(seesaw.connectedAnchor,seesaw.transform.position)<.001f,"seesaw world anchor follows scene move");
+    var bag=Find("매달린 샌드백").GetComponent<ConfigurableJoint>();check(Vector3.Distance(bag.connectedAnchor,bag.transform.TransformPoint(bag.anchor))<.01f,"punch bag world anchor follows scene move");
+   }
    if(failures.Count>0){File.WriteAllLines("Validation/AstraExpedition/validation.txt",failures.Distinct().Select(s=>"FAIL "+s));throw new Exception(failures.Count+" clearance/reference failures; see validation.txt");}
    File.WriteAllText("Validation/AstraExpedition/validation.txt","PASS all inventory and serialized references\nPASS "+cargoCount+" cargo hull/support samples\nPASS "+walkCount+" walk loop capsule/support samples\nPASS two mine safe routes (0.95m minimum center clearance)\nPASS moved lift/door/joint world anchors\n");
    EditorSceneManager.OpenScene(ScenePath);var camera=Object.FindObjectsByType<Camera>().First();

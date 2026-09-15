@@ -1,0 +1,24 @@
+using System;
+using System.IO;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+public static class AstraAffordanceReferenceScan
+{
+ public static void Run()
+ {
+  var scene=EditorSceneManager.OpenScene("Assets/Scenes/Stage1_Astra_ver2.unity");
+  int count=0;
+  foreach(var root in scene.GetRootGameObjects())
+   foreach(var component in root.GetComponentsInChildren<Component>(true))
+   {
+    if(component==null)throw new Exception("Missing component");
+    var property=new SerializedObject(component).GetIterator();
+    while(property.Next(true))
+     if(property.propertyType==SerializedPropertyType.ObjectReference && property.objectReferenceValue==null && !property.objectReferenceEntityIdValue.Equals(EntityId.None))
+      throw new Exception("Missing reference: "+component.name+" / "+property.propertyPath);
+    count++;
+   }
+  File.WriteAllText("Validation/AstraAffordance/references.txt","PASS no missing scripts or broken serialized references; scanned "+count+" components\n");
+ }
+}

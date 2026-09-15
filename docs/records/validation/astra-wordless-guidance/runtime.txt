@@ -1,0 +1,19 @@
+PASS scene-specific pictogram HUD is registered
+PASS authored signs remain wordless after runtime starts
+PASS parts and clamps retained
+PASS fuel can with new visuals can be picked up normally
+PASS new tool visuals have a first-person copy
+PASS first-person visual adds no colliders
+PASS real fuel transfer remains unchanged
+PASS vehicle gauge shows actual half-full state
+PASS empty can window reflects fuel consumption
+PASS first-person gauge copies depleted fill
+PASS fuel text update does not re-enable prose
+PASS detonator lamp is not ready before placing TNT
+PASS TNT pictured placement lights ready indicator
+PASS remote switch still opens the rubble gate
+PASS pictogram cannon still accepts a passenger
+PASS rear indicator shows occupied cannon
+PASS second crew member still ignites fuse
+PASS fuse gauge counts down from actual cannon state
+PASS cannon launches and resets its ready indicator

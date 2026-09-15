@@ -16,6 +16,9 @@ namespace Metagame.Gameplay
         [Serializable]public struct State{public bool Cleared,Spent;public float Age;public Vector3 Explosion;}
         public State Snapshot=>new State{Cleared=cleared,Spent=spent,Age=age,Explosion=explosion};
         public bool Cleared=>cleared;
+        public bool ChargePlacedForClear=>!spent&&!cleared&&charge!=null&&rocks!=null
+            &&Vector3.Distance(charge.worldCenterOfMass,rocks.transform.position)<3.5f
+            &&(charge.GetComponent<Grabbable>()==null||charge.GetComponent<Grabbable>().HandCount==0);
         public void Configure(Rigidbody tnt,GameObject rubble,Grabbable button,LineRenderer wire,Transform flash,Transform[] chips)
         {charge=tnt;rocks=rubble;detonator=button;cable=wire;blast=flash;fragments=chips;}
         void Awake(){if(charge!=null){home=charge.position;rotation=charge.rotation;}}

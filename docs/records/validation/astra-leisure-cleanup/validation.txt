@@ -1,0 +1,4 @@
+PASS no leisure-only objects remain
+PASS retained cargo tools, learning bay, four parts and all guidance
+PASS full cargo/walking routes and difficulty-layout geometry
+PASS no missing scripts or broken serialized references

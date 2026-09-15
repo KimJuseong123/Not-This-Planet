@@ -1,0 +1,43 @@
+using System;
+using System.IO;
+using System.Linq;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using Metagame.Bootstrap;
+using Metagame.Core;
+using Metagame.Gameplay;
+using Metagame.Gameplay.Parts;
+using Object=UnityEngine.Object;
+public static class AstraAffordanceSmoke
+{
+ static double began;static float at;static AstraFuelCan can;static AstraFuelTank tank;static AstraPlayerCannon cannon;static AstraBlastGate blast;
+ static void Check(bool ok,string label){File.AppendAllText("Validation/AstraAffordance/runtime.txt",(ok?"PASS ":"FAIL ")+label+"\n");if(!ok)throw new Exception(label);}
+ public static void Run(){EditorSceneManager.OpenScene("Assets/Scenes/Stage1_Astra_ver2.unity");SessionState.SetBool("AffordanceSmoke",true);SessionState.SetInt("AffordanceStep",0);began=EditorApplication.timeSinceStartup;EditorApplication.update+=Start;}
+ static void Start(){if(EditorApplication.timeSinceStartup-began<3)return;EditorApplication.update-=Start;EditorApplication.EnterPlaymode();}
+ [InitializeOnLoadMethod]static void Resume(){if(SessionState.GetBool("AffordanceSmoke",false))EditorApplication.update+=Tick;}
+ static void Next(int i){at=Time.time;SessionState.SetInt("AffordanceStep",i);}
+ static void Place(PlayerRig p,Vector3 foot){p.SetInput(default);p.Teleport(foot,Quaternion.identity);p.Cam.Yaw=0;p.Cam.Pitch=0;p.Cam.SnapToTarget();}
+ static void Aim(PlayerRig p,Vector3 target,bool hold){var d=(target-p.AimOrigin).normalized;float yaw=Mathf.Atan2(d.x,d.z)*Mathf.Rad2Deg,pitch=-Mathf.Asin(d.y)*Mathf.Rad2Deg;p.Cam.Yaw=yaw;p.Cam.Pitch=pitch;p.Cam.SnapToTarget();p.SetInput(new InputFrame{AimYaw=yaw,AimPitch=pitch,GrabLeft=hold});}
+ static AstraAffordanceFeedback Feedback(string name)=>GameObject.Find(name).GetComponent<AstraAffordanceFeedback>();
+ static void Tick()
+ {
+  if(!EditorApplication.isPlaying)return;
+  try{
+   var boot=Object.FindAnyObjectByType<SpaceBootstrap>();if(boot==null||boot.Player==null)return;var p=boot.Player;int step=SessionState.GetInt("AffordanceStep",0);float age=Time.time-at;
+   if(step==0){Directory.CreateDirectory("Validation/AstraAffordance");File.WriteAllText("Validation/AstraAffordance/runtime.txt","");boot.Session.ScriptedInput=true;foreach(var m in Object.FindObjectsByType<Metagame.Gameplay.Hazards.MeteorSpawner>())m.enabled=false;Next(1);}
+   else if(step==1&&age>2){var guide=AstraPictogramGuide.ForScene(p.gameObject.scene);Check(guide!=null&&guide.Atlas!=null,"scene-specific pictogram HUD is registered");Check(Object.FindObjectsByType<TextMesh>(FindObjectsInactive.Include).Where(t=>t.name.StartsWith("Facility")||t.name.StartsWith("Diegetic")||t.name=="Fuel status"||t.name=="TNT label").All(t=>!t.GetComponent<Renderer>().enabled),"authored signs remain wordless after runtime starts");Check(Object.FindObjectsByType<SpaceshipPart>().Length==4&&Object.FindObjectsByType<PartClamp>().Length==16,"parts and clamps retained");
+    can=Object.FindObjectsByType<AstraFuelCan>().OrderBy(t=>t.transform.position.x).First();tank=Object.FindAnyObjectByType<AstraFuelTank>();Place(p,new Vector3(can.transform.position.x,1.05f,can.transform.position.z-1.4f));Next(2);}
+   else if(step==2&&age>.8f){Aim(p,can.transform.position,true);Next(3);}
+   else if(step==3&&age>.5f){Check(p.ActiveTool==can,"fuel can with new visuals can be picked up normally");p.SetInput(default);Next(4);}
+   else if(step==4&&age>.3f){Check(can.FirstPersonModel!=null,"new tool visuals have a first-person copy");Check(can.FirstPersonModel.GetComponentsInChildren<Collider>(true).Length==0,"first-person visual adds no colliders");Check(can.TransferTo(tank)==30,"real fuel transfer remains unchanged");Next(5);}
+   else if(step==5&&age>.3f){Check(Mathf.Abs(Feedback("Vehicle fuel ready gauge").Progress-.5f)<.01f,"vehicle gauge shows actual half-full state");var window=can.GetComponentsInChildren<AstraAffordanceFeedback>().Single();Check(window.Progress==0&&!window.Ready,"empty can window reflects fuel consumption");Check(can.FirstPersonModel.GetComponentsInChildren<Transform>(true).Any(t=>t.name=="Gauge fill"&&t.localScale.x<.02f),"first-person gauge copies depleted fill");Check(!GameObject.Find("Fuel status").GetComponent<Renderer>().enabled,"fuel text update does not re-enable prose");p.DropEquipment();blast=Object.FindAnyObjectByType<AstraBlastGate>();Next(6);}
+   else if(step==6&&age>.4f){Check(!Feedback("Charge in range indicator").Ready,"detonator lamp is not ready before placing TNT");var body=GameObject.Find("Carryable wired TNT").GetComponent<Rigidbody>();body.position=new Vector3(68,1.9f,35.8f);body.linearVelocity=Vector3.zero;var button=GameObject.Find("TNT switch handle").transform;Place(p,button.position+new Vector3(0,-1.35f,-1.5f));Next(7);}
+   else if(step==7&&age>.5f){Check(blast.ChargePlacedForClear&&Feedback("Charge in range indicator").Ready,"TNT pictured placement lights ready indicator");Check(blast.TryDetonate(p)&&blast.Cleared,"remote switch still opens the rubble gate");cannon=Object.FindAnyObjectByType<AstraPlayerCannon>();var mouth=GameObject.Find("Cannon mouth interact").transform;Place(p,mouth.position+new Vector3(0,-1.2f,1.2f));Next(8);}
+   else if(step==8&&age>.6f){Check(cannon.TryEnter(p),"pictogram cannon still accepts a passenger");Next(9);}
+   else if(step==9&&age>.3f){Check(Feedback("Cannon passenger and fuse gauge").Ready,"rear indicator shows occupied cannon");var rear=GameObject.Find("Cannon rear igniter").transform;var crew=PlayerRig.Create("fuse operator",rear.position+new Vector3(0,-1,-1),Quaternion.identity,Color.blue,Color.white,false);crew.IsLocal=false;Check(cannon.TryIgnite(crew),"second crew member still ignites fuse");Next(10);}
+   else if(step==10&&age>1){Check(Feedback("Cannon passenger and fuse gauge").Progress>0&&Feedback("Cannon passenger and fuse gauge").Progress<.8f,"fuse gauge counts down from actual cannon state");Next(11);}
+   else if(step==11&&age>2.4f){Check(!p.IsRiding&&!Feedback("Cannon passenger and fuse gauge").Ready,"cannon launches and resets its ready indicator");SessionState.SetBool("AffordanceSmoke",false);EditorApplication.update-=Tick;EditorApplication.Exit(0);}
+  }catch(Exception e){Debug.LogException(e);SessionState.SetBool("AffordanceSmoke",false);EditorApplication.Exit(2);}
+ }
+}

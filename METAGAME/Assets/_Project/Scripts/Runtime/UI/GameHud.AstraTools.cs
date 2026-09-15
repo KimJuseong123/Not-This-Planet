@@ -9,6 +9,8 @@ namespace Metagame.UI
         void AstraToolHint(float w, float h)
         {
             if (Local == null || Local.Downed) return;
+            var pictograms=AstraPictogramGuide.ForScene(Local.gameObject.scene);
+            if(pictograms!=null){pictograms.DrawHeldTool(Local,w,h);return;}
             string message = null;
             if (Local.PresentationTool is AstraHandTool tool && tool.IsHeldForView) message = tool.UseHint;
             if (Local.MountedVehicle != null && Local.MountedVehicle.TryGetComponent<AstraFuelTank>(out var tank))

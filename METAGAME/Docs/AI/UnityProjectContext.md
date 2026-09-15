@@ -215,3 +215,8 @@ PlasmaWeldingTool now owns a local-only yellow collider-projected joint recommen
 - Airlock stops use the existing obstruction sensor to keep an already opened gate open. They cannot open a closed gate or replace a living player on the plate; initial cooperative access remains required.
 - Incremental authoring/validation is in `Stage1AstraExpeditionBuilder.Difficulty.cs`, guarded against duplicate application. Do not rerun older full-scene builders over the current authored scene.
 - Design rationale and limits: `docs/planning/stage1-astra-difficulty-review.md`. Evidence: `docs/records/2026-09-14-astra-difficulty.md` and `docs/records/validation/astra-difficulty/`. Human difficulty/playtime and separate network peers remain unvalidated.
+
+## 2026-09-15 — Remove leisure-only facilities
+- User removed the "rest / optional experimentation" scope. Astra ver2 now omits football/beach balls, meteor basketball, bowling, dominoes, punch bag, seesaw, bounce pads and Ferris wheel, including their courts, frames, boarding dock and waiting plaza.
+- Cargo planks/rollers/levers/sleds/ramps/crates, the logistics learning bay, survey cannon, all handheld exploration tools, four part recovery mechanisms and existing guidance remain. Shared scripts/prefabs and other scenes are unchanged.
+- `Stage1AstraExpeditionBuilder.Cleanup.cs` performs incremental scene cleanup; the `Recovery focused layout - leisure removed` marker selects the appropriate inventory validation. Historical scene builders and old attraction-specific smoke fixtures describe the earlier layout.

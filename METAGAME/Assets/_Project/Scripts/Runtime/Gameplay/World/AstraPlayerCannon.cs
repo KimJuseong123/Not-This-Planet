@@ -21,6 +21,7 @@ namespace Metagame.Gameplay
         State remote;
         public State Snapshot=>new State{Occupied=rider!=null,Burning=burning,Remaining=remaining};
         public PlayerRig Rider=>rider;
+        public State PresentationState=>WorldEvents.RemoteDecides?remote:Snapshot;
         public bool Burning=>burning;
         public void Configure(Rigidbody body,Transform muzzle,Transform wayOut,Grabbable mouth,Grabbable rear,LineRenderer line,Transform ember)
         {seat=body;launch=muzzle;exit=wayOut;entry=mouth;igniter=rear;fuse=line;spark=ember;fuseStart=line.GetPosition(0);fuseEnd=line.GetPosition(1);}

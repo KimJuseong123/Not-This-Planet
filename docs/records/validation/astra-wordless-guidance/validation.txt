@@ -1,0 +1,4 @@
+PASS 27 authored world TextMeshes hidden; references preserved
+PASS scene-specific pictogram HUD and shared atlas
+PASS picture boards have no gameplay colliders
+PASS original part routes, learning tools, mine routes and mechanism inventory
