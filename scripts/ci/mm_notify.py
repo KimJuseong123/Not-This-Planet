@@ -528,7 +528,11 @@ def branch_resolved(gl: GitLab) -> int:
     for p in pipes:
         if str(p.get("id")) == str(pid):
             continue
-        if source and p.get("source") != source:   # 종류가 다르면 견줄 대상이 아니다
+        # **키가 있을 때만 견준다** (`!448` AI 리뷰). GitLab 은 늘 `source` 를 주지만
+        # (실측 2026-09-15: `195117`·`195114`·`195112` 모두 `push`), 혹시 없으면
+        # 모든 후보가 걸러져 **회복 카드가 조용히 사라진다** — 없는 쪽으로 틀리면 안 된다.
+        other = p.get("source")
+        if source and other and other != source:   # 종류가 다르면 견줄 대상이 아니다
             continue
         if p.get("status") in ("success", "failed"):   # running·canceled 는 판단 근거가 아니다
             previous = p

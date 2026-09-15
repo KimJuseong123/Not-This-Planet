@@ -76,8 +76,13 @@ done
 for job in mm-ci-failed mm-ci-resolved; do
   seg=$(section "$job")
   hit=0
+  # **꼬리 주석을 떼고 본다** (`!448` AI 리뷰). needs 줄에는 `- job: ai-review-gate # …`
+  # 처럼 주석이 붙는다 — 줄 끝 앵커만 쓰면 주석 달린 버튼 잡을 놓친다.
+  bare=$(printf '%s
+' "$seg" | sed 's/#.*//')
   for m in $manual_jobs; do
-    if printf '%s' "$seg" | grep -q -- "- job: $m\$"; then
+    if printf '%s
+' "$bare" | grep -qE "^[[:space:]]*- job: $m[[:space:]]*$"; then
       bad "$job — needs 에 버튼 잡 $m 이 있다. 안 누르면 카드가 통째로 사라진다"
       hit=1
     fi
@@ -104,7 +109,11 @@ done
 #    — 파일 주석이 그 사고(-289)를 적어 두고 있다.
 a=$(section mm-ci-failed   | grep -o -- "- job: [a-z-]*" | sort)
 b=$(section mm-ci-resolved | grep -o -- "- job: [a-z-]*" | sort)
-if [ "$a" = "$b" ]; then
+# **둘 다 비면 `=` 가 참이 된다** (`!448` AI 리뷰) — 잡 이름이 바뀌어 `section` 이
+# 아무것도 못 읽으면 검사가 통과하면서 실제로는 아무것도 안 본다.
+if [ -z "$a" ] || [ -z "$b" ]; then
+  bad "mm-ci-* 의 needs 를 읽지 못했다 — 잡 이름이 바뀌었나"
+elif [ "$a" = "$b" ]; then
   ok "두 잡의 needs 목록이 같다"
 else
   # **프로세스 치환(`<(...)`)을 쓰지 않는다.** CI 이미지의 `/bin/sh` 는 dash 이고
@@ -126,7 +135,7 @@ else
 fi
 
 # ⑤ 회복 판정이 **같은 종류끼리** 견줘야 한다. 예약과 푸시는 도는 잡이 달라 비교 대상이 아니다.
-if grep -q 'p.get("source") != source' "$ROOT/scripts/ci/mm_notify.py"; then
+if grep -q 'other and other != source' "$ROOT/scripts/ci/mm_notify.py"; then
   ok "mm_notify — 직전 파이프라인을 같은 source 로 고른다"
 else
   bad "mm_notify — 종류가 다른 파이프라인을 '직전' 으로 삼는다"
@@ -151,7 +160,7 @@ sys.path.insert(0, os.path.join(os.environ['ROOT'], 'scripts', 'ci'))
 os.environ['CI_PIPELINE_CREATED_AT'] = '2026-09-14T19:03:09.863Z'   # 04:03 KST
 import mm_notify as N
 print(N.schedule_name().split()[0])
-" | tr -d "")   # Windows 파이썬의 print 는 CR 을 붙인다 — 견주기 전에 뗀다
+" | tr -d "\r")   # Windows 파이썬의 print 는 CR 을 붙인다 — 견주기 전에 뗀다
   if [ "$out" = "04:03" ]; then
     ok "schedule_name — UTC 를 KST 로 바꾼다 ($out)"
   else
