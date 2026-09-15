@@ -296,6 +296,29 @@ namespace Metagame.Bootstrap
             Session.Transport = Transport;
             Exploration.Begin(Player);
             Session.Begin(Player, Level, Level.SpawnFoot, Exploration);
+
+            // **판이 시작하는 자리에서 이벤트를 연다** (S15P21B202-498). 여기가
+            // 세계와 플레이어가 둘 다 선 뒤 처음 오는 지점이다 — 더 이르면 인원수도
+            // 역할도 아직 모른다.
+            //
+            // 세계 상태는 **호스트만** 낸다(권위가 거기 있다). 혼자 하는 판은 자기가
+            // 곧 권위다. 참가자도 자기 판의 시작·끝·낙사는 남긴다.
+            bool host = !inMatch || Mirror.NetworkServer.active;
+            var head = new System.Collections.Generic.Dictionary<string, object>
+            {
+                ["build"] = Core.BuildInfo.ReleaseVersion,
+                ["backend"] = Core.BackendEndpoints.IsDev ? "dev" : "prod",
+                ["role"] = !inMatch ? "solo" : (Mirror.NetworkServer.active ? "host" : "client"),
+                ["scene"] = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name,
+            };
+
+            // **인원수는 호스트만 안다.** 참가자에게 `NetworkServer.connections` 는 비어
+            // 있어서, 그대로 쓰면 "0명이 플레이했다" 는 줄이 남는다. 모르면 안 적는다 —
+            // 없는 값과 0 은 다르고, 뒤에 붙일 `match` 로 호스트 기록과 묶으면 된다.
+            if (host) head["humans"] = inMatch ? Mirror.NetworkServer.connections.Count : 1;
+
+            var observer = sys.AddComponent<PlayObserver>();
+            observer.Begin(Session, host, head);
             if (!lockCursor) Session.SetCursor(false);
 
             // 다른 사람의 몸은 Mirror 가 세운다(NetPlayer). 예전에는 WebSocket 으로
