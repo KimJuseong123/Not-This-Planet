@@ -16,6 +16,19 @@ namespace Metagame.Gameplay.Parts
 
         void OnEnable() => shown = -2;
 
+        void Start()
+        {
+            // Enhance the authored location beacons, independently of movable parts.
+            foreach (var beacon in FindObjectsByType<MeshRenderer>())
+            {
+                if (beacon.gameObject.scene != gameObject.scene || beacon.sharedMaterial == null) continue;
+                if (beacon.name != "Module beacon \u00b7 visual guide" && beacon.name != "02 Tractor sky beacon") continue;
+                var marker = new GameObject("Plasma beacon - " + beacon.name);
+                marker.transform.SetParent(transform, false);
+                marker.AddComponent<PartGuidanceVfx>().Configure(beacon);
+            }
+        }
+
         /// <summary>파츠 주변 경로등과 고정못 연결선이 같은 색상 원본을 사용한다.</summary>
         public Material MaterialForPart(SpaceshipPart part)
         {

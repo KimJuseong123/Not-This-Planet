@@ -31,6 +31,7 @@ namespace Metagame.Gameplay.Parts
         const float ReleasedSurfaceGap = 0.12f;
         const float ReleasedPopVelocity = 2.4f;
         const float ReleasedPopAngularSpeed = 1.1f;
+        const float TetherWidth = 0.085f;
 
         [SerializeField]
         [Tooltip("비우면 부모에서 SpaceshipPart 를 찾는다.")]
@@ -153,8 +154,13 @@ namespace Metagame.Gameplay.Parts
             if (source == null)
             {
                 _tetherMaterial.SetColor("_BaseColor", new Color(0.05f, 1f, 0.85f));
-                _tetherMaterial.SetColor("_EmissionColor", new Color(0.05f, 1f, 0.85f));
             }
+            // Keep each part's route hue, but lift the route material's LDR cap like the beacon.
+            // Thin ropes need HDR radiance above Bloom's threshold, even when the source disables emission.
+            _tetherMaterial.SetColor("_EmissionColor", _tetherMaterial.GetColor("_BaseColor"));
+            _tetherMaterial.SetFloat("_EmissionEnabled", 1f);
+            _tetherMaterial.SetFloat("_EmissionIntensity", 4f);
+            _tetherMaterial.SetFloat("_MaxBrightness", 5f);
 
             // 본체의 가까운 표면과 못 머리를 연결한다. 장식/다른 못의 Collider는 제외한다.
             var pinPoint = transform.position + Vector3.up * 0.25f;
@@ -184,7 +190,7 @@ namespace Metagame.Gameplay.Parts
             _tether.sharedMaterial = _tetherMaterial;
             _tether.useWorldSpace = true;
             _tether.positionCount = _tetherPoints.Length;
-            _tether.widthMultiplier = 0.055f;
+            _tether.widthMultiplier = TetherWidth;
             _tether.numCapVertices = 4;
             _tether.numCornerVertices = 3;
             _tether.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -211,7 +217,7 @@ namespace Metagame.Gameplay.Parts
             }
             _tether.SetPositions(_tetherPoints);
             // 색은 유지하고 굵기만 떨려, 진행 중에도 연결이 완전히 끊겨 보이지 않는다.
-            _tether.widthMultiplier = 0.055f * (1f + Progress * 0.22f * Mathf.Sin(Time.time * 26f));
+            _tether.widthMultiplier = TetherWidth * (1f + Progress * 0.22f * Mathf.Sin(Time.time * 26f));
         }
 
         void OnDestroy()
