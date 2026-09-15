@@ -138,28 +138,37 @@ namespace Metagame.Core
         /// <para>Program Files 같은 곳에 설치하면 실행 파일 옆에 쓸 수 없다. 그때 조용히
         /// 실패하면 "로그가 안 남는다" 가 되므로 대체 위치를 쓰고 그 사실을 남긴다.</para>
         /// </summary>
-        static string Folder()
+        static string Folder() => FolderFor(FolderName, "RUN");
+
+        /// <summary>
+        /// 빌드 폴더 옆의 <paramref name="name"/> 폴더. 막히면 <c>persistentDataPath</c>.
+        ///
+        /// <para><b>플레이 이벤트도 같은 규칙을 쓴다</b>(S15P21B202-498). 규칙을 두 벌로
+        /// 두면 한쪽만 고쳐져 <b>로그는 남는데 이벤트는 안 남는</b> 상태가 생긴다 —
+        /// 그때 원인을 찾기가 가장 어렵다.</para>
+        /// </summary>
+        internal static string FolderFor(string name, string tag)
         {
             try
             {
                 var parent = Directory.GetParent(Application.dataPath);
                 if (parent != null)
                 {
-                    string beside = System.IO.Path.Combine(parent.FullName, FolderName);
+                    string beside = System.IO.Path.Combine(parent.FullName, name);
                     if (Writable(parent.FullName)) return beside;
 
-                    Debug.LogWarning($"[RUN] 빌드 폴더에 쓸 수 없다 ({parent.FullName}) "
+                    Debug.LogWarning($"[{tag}] 빌드 폴더에 쓸 수 없다 ({parent.FullName}) "
                                      + "— persistentDataPath 로 남긴다");
                 }
             }
             catch (Exception e)
             {
-                Debug.LogWarning($"[RUN] 빌드 폴더를 찾지 못했다 · {e.GetType().Name}");
+                Debug.LogWarning($"[{tag}] 빌드 폴더를 찾지 못했다 · {e.GetType().Name}");
             }
 
             try
             {
-                return System.IO.Path.Combine(Application.persistentDataPath, FolderName);
+                return System.IO.Path.Combine(Application.persistentDataPath, name);
             }
             catch (Exception)
             {
