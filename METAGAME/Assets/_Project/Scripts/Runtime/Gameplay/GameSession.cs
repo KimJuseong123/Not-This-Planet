@@ -51,6 +51,15 @@ namespace Metagame.Gameplay
         public bool ProgressFromHost { get; private set; }
 
         public bool CursorLocked { get; private set; }
+        public bool EmoteWheelOpen { get; private set; }
+
+        public void SetEmoteWheelOpen(bool open)
+        {
+            EmoteWheelOpen = open;
+            if (open) SetCursor(false);
+            else if (!InputSuppressed && !EndingActive
+                && (Exploration == null || !Exploration.TabletOpen)) SetCursor(true);
+        }
 
         readonly PingLifetimeState localPing = new PingLifetimeState();
 
@@ -130,7 +139,7 @@ namespace Metagame.Gameplay
 
             if (!ScriptedInput)
             {
-                var f = Controls.Read();
+                var f = EmoteWheelOpen ? new InputFrame() : Controls.Read();
 
                 if (f.TabletToggle && CanToggleTablet)
                 {
@@ -148,6 +157,7 @@ namespace Metagame.Gameplay
 
                 if (Input.GetKeyDown(Controls.FreeCursor)) SetCursor(false);
                 if (Input.GetMouseButtonDown(0) && !CursorLocked
+                    && !EmoteWheelOpen
                     && (Exploration == null || !Exploration.TabletOpen))
                     SetCursor(true);
                 if (!CursorLocked)
