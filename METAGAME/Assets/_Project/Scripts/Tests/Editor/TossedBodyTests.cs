@@ -22,6 +22,7 @@ namespace Metagame.Gameplay.Tests
 
         readonly List<GameObject> _spawned = new();
         SimulationMode _savedMode;
+        float _savedFixedDelta;
         bool _puffWasEnabled;
 
         [SetUp]
@@ -32,12 +33,21 @@ namespace Metagame.Gameplay.Tests
             Puff.Enabled = false;
             _savedMode = UnityEngine.Physics.simulationMode;
             UnityEngine.Physics.simulationMode = SimulationMode.Script;
+
+            // **물리 시간과 로직 시간을 맞춰 쥔다**(!460 AI 리뷰). `Tick` 안은
+            // `Time.fixedDeltaTime` 으로 세는데 여기서는 `Physics.Simulate(Step)` 으로
+            // 돌린다 — 둘이 어긋나면 "300스텝 = 3초" 가 거짓이 되고 `TossedMinSeconds`
+            // 검증이 다른 시간축을 재게 된다. 지금 프로젝트 값이 마침 0.01 이라 바뀌는
+            // 것은 없지만, 프로젝트 설정이 움직여도 이 검증이 옳게 남도록 여기서 쥔다.
+            _savedFixedDelta = Time.fixedDeltaTime;
+            Time.fixedDeltaTime = Step;
         }
 
         [TearDown]
         public void TearDown()
         {
             UnityEngine.Physics.simulationMode = _savedMode;
+            Time.fixedDeltaTime = _savedFixedDelta;
             Puff.Enabled = _puffWasEnabled;
             foreach (var go in _spawned) if (go != null) Object.DestroyImmediate(go);
             _spawned.Clear();
@@ -145,20 +155,32 @@ namespace Metagame.Gameplay.Tests
             Assert.IsTrue(tossed.Ragdolled, "던져진 몸이 늘어지지 않았다");
             Assert.IsFalse(airborne.Ragdolled, "그냥 뛰어오른 몸까지 늘어졌다");
 
-            // 허용치를 넉넉히 둔다. 관절 솔버는 접촉·반복 순서에 민감해서 0.3도처럼
-            // 좁게 잡으면 유니티 버전이 바뀔 때 흔들린다(!460 AI 리뷰). 여기서 지키려는
-            // 것은 "같은 상태로 군다" 이지 소수점이 아니다.
+            // **절대 허용치로 재지 않는다.** 처음에는 0.3도로 쟀다가 관절 솔버 흔들림이
+            // 걱정돼 2.0도로 넓혔는데, 그러자 실측값(던져짐 2.0~2.8 · 그냥 띄움 1.8~2.5)이
+            // 전부 그 안에 들어와 **회귀를 못 잡는 테스트**가 됐다 — 던져짐이 '아무 일
+            // 없는 몸' 으로 되돌아가도 통과한다(!460 AI 리뷰가 짚었다).
+            //
+            // 대신 **거리를 견준다**: 던져짐은 기절 쪽에 훨씬 가까워야 한다. 눈금이 아니라
+            // 비율이라 솔버가 조금 흔들려도 결론이 안 바뀐다.
+            float toDowned = 0f, toAirborne = 0f;
             for (var i = 0; i < tossedTilts.Count; i++)
-                Assert.AreEqual(downedTilts[i], tossedTilts[i], 2.0f,
-                    $"던져진 몸과 기절한 몸이 다르게 군다 — 던져짐 "
-                    + string.Join(" ", tossedTilts.ConvertAll(t => t.ToString("F1")))
-                    + " · 기절 "
-                    + string.Join(" ", downedTilts.ConvertAll(t => t.ToString("F1"))));
+            {
+                toDowned += Mathf.Abs(tossedTilts[i] - downedTilts[i]);
+                toAirborne += Mathf.Abs(tossedTilts[i] - airborneTilts[i]);
+            }
 
-            // 그리고 둘 다 "아무 일 없는 몸" 과는 달라야 한다. 예전에는 던져짐이
-            // 이쪽과 같았다 — 그것이 이 티켓의 증상이다.
-            Assert.Greater(tossedTilts[^1], airborneTilts[^1] + 0.3f,
-                $"던져진 몸 {tossedTilts[^1]:F2}도 · 아무 일 없는 몸 {airborneTilts[^1]:F2}도");
+            var seen = $"던져짐 {string.Join(" ", tossedTilts.ConvertAll(t => t.ToString("F1")))}"
+                       + $" · 기절 {string.Join(" ", downedTilts.ConvertAll(t => t.ToString("F1")))}"
+                       + $" · 그냥 {string.Join(" ", airborneTilts.ConvertAll(t => t.ToString("F1")))}";
+
+            // 셋이 전부 똑같으면 비교가 성립하지 않는다 — 통과해도 아무 뜻이 없다.
+            Assert.Greater(toAirborne, 1.0f,
+                "던져진 몸과 아무 일 없는 몸이 구분되지 않는다 — 대조가 성립하지 않는다. " + seen);
+
+            Assert.Less(toDowned, toAirborne * 0.4f,
+                $"던져진 몸이 기절한 몸(거리 {toDowned:F2})보다 아무 일 없는 몸"
+                + $"(거리 {toAirborne:F2})에 가깝다. " + seen);
+
             Assert.AreNotEqual(tossed.Ragdolled, airborne.Ragdolled,
                 "던져진 몸과 아무 일 없는 몸이 같은 상태다");
         }
