@@ -204,7 +204,7 @@ namespace Metagame.Core
                 // **무엇으로 만든 빌드의 누구인지**를 함께 싣는다. 이것이 없으면 모아
                 // 놓고도 어느 빌드의 어느 판인지 알 수 없다(-443 완료 조건).
                 req.SetRequestHeader("X-Run-File", name);
-                req.SetRequestHeader("X-Run-Build", Sanitize(BuildInfo.Stamp));
+                req.SetRequestHeader("X-Run-Build", BuildTag());
                 req.SetRequestHeader("X-Run-Backend", BackendEndpoints.IsDev ? "dev" : "prod");
                 req.SetRequestHeader("X-Run-User", userId.ToString());
 
@@ -330,15 +330,62 @@ namespace Metagame.Core
             }
         }
 
-        /// <summary>헤더에 넣을 수 있게 줄바꿈과 제어문자를 없앤다.</summary>
+        /// <summary>
+        /// 헤더에 실을 <b>빌드 식별자</b> (S15P21B202-501).
+        ///
+        /// <para><b>스탬프 전체를 싣지 않는다.</b> 그 값은 사람이 읽으라고 만든 것이라
+        /// 한글과 <c>·</c> 가 들어 있고, 헤더는 그것을 받지 못한다. 걸러 넣으면 읽을 수
+        /// 없는 토막만 남는다.</para>
+        ///
+        /// <para><b>대신 이미 갈라 둔 ASCII 값을 쓴다.</b> <see cref="BuildInfo"/> 가
+        /// 스탬프를 읽으면서 <c>버전=</c> 줄을 <see cref="BuildInfo.ReleaseVersion"/> 로
+        /// 따로 담아 둔다. 릴리스 빌드에서는 그것이 곧 <c>v1.1.0</c> 이다.</para>
+        ///
+        /// <para>그 값이 비는 빌드(에디터·실험)에서는 스탬프를 걸러 쓴다 — 읽기는 나빠도
+        /// <b>아무것도 없는 것보다 낫다.</b> 어느 쪽이든 사람이 읽는 원문은 로그 본문
+        /// 첫 줄(<c>[빌드] …</c>)에 그대로 있다.</para>
+        /// </summary>
+        public static string BuildTag()
+        {
+            string v = BuildInfo.ReleaseVersion;
+            return string.IsNullOrEmpty(v) ? Sanitize(BuildInfo.Stamp) : Sanitize(v);
+        }
+
+        /// <summary>
+        /// 헤더에 넣을 수 있게 만든다 — <b>ASCII 만 남긴다</b> (S15P21B202-501).
+        ///
+        /// <para><b>비 ASCII 를 걸러야 하는 이유.</b> HTTP 헤더는 ASCII 만 받는다. 한글도
+        /// <c>·</c>(U+00B7)도 못 들어간다. 전에는 제어문자만 걸러 한글이 그대로 지나갔고,
+        /// <c>SetRequestHeader</c> 가 <c>Header value contains invalid characters</c> 로
+        /// 던졌다. 그 예외가 <c>SendWebRequest</c> <b>전에</b> 나서 요청이 아예 안 나갔고,
+        /// <see cref="Mark"/> 에도 못 가서 <b>같은 파일이 실행마다 같은 자리에서 또
+        /// 던졌다.</b> 업로드 실패가 게임을 막지 않도록 돼 있어(옳다) 아무도 몰랐다 —
+        /// <c>-443</c> 이 만든 수집 경로는 <b>한 건도 배달한 적이 없다</b>(2026-09-15
+        /// 실측: 배포 서버의 런로그 폴더에 파일 0개).</para>
+        ///
+        /// <para><b>이 함수는 던지지 않는다.</b> 무엇이 들어와도 헤더에 넣을 수 있는 값이
+        /// 나온다 — 그것이 이 함수의 유일한 약속이다. 값을 만드는 쪽이 실수해도 수집이
+        /// 통째로 멈추지 않는다.</para>
+        ///
+        /// <para><b>버리는 대신 표시한다.</b> 그냥 지우면 <c>버전=v1.1.0</c> 이
+        /// <c>=v1.1.0</c> 이 되어 앞이 무엇이었는지 알 수 없다. 이어진 비 ASCII 한 덩어리를
+        /// <c>?</c> 하나로 바꿔 <b>자리가 있었다는 것</b>을 남긴다.</para>
+        /// </summary>
         public static string Sanitize(string s)
         {
             if (string.IsNullOrEmpty(s)) return string.Empty;
             var sb = new System.Text.StringBuilder(s.Length);
+            bool dropping = false;
             foreach (char c in s)
             {
-                if (c == '\n' || c == '\r') { sb.Append(' '); continue; }
+                if (c == '\n' || c == '\r') { dropping = false; sb.Append(' '); continue; }
                 if (c < 32 || c == 127) continue;
+                if (c > 126)                    // 헤더가 받지 못하는 자리
+                {
+                    if (!dropping) { sb.Append('?'); dropping = true; }
+                    continue;
+                }
+                dropping = false;
                 sb.Append(c);
             }
             return sb.ToString().Trim();

@@ -77,14 +77,20 @@ namespace Metagame.Core
         static void Announce()
         {
             Stamp = Read();
-            Debug.Log("[빌드] " + Stamp);
-
-            if (IsExperiment) Debug.Log("[빌드] 실험 " + Experiment);
 
             // 라벨을 읽은 **직후** 시작한다 (S15P21B202-380). 같은 초기화 단계의 순서는
             // 보장되지 않으므로 RunLog 가 스스로 훅을 달면 Experiment 가 아직 비어
             // 있을 수 있다. 읽은 쪽이 부르면 순서가 정해진다.
+            //
+            // **로그 파일을 먼저 연다** (S15P21B202-501). 전에는 아래 `[빌드]` 줄이 먼저
+            // 나가서 **화면에만 있고 파일에는 없었다** — 서버로 올라가는 것은 파일이므로,
+            // 받은 쪽은 어느 빌드의 로그인지 본문에서 알 수 없었다. 헤더에는 ASCII
+            // 식별자만 싣기로 했으니(`RunLogUpload.BuildTag`) 사람이 읽는 원문은
+            // 여기서 본문에 남겨야 한다.
             RunLog.Start();
+
+            Debug.Log("[빌드] " + Stamp);
+            if (IsExperiment) Debug.Log("[빌드] 실험 " + Experiment);
         }
 
         /// <summary>

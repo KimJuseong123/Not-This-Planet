@@ -291,5 +291,64 @@ namespace Metagame.Gameplay.Tests
             Assert.That(src, Does.Not.Contain("?token="),
                 "토큰이 쿼리에 실린다 — 접근 로그에 남는다");
         }
+
+        [Test]
+        public void AKoreanBuildStampDoesNotBreakTheUpload()
+        {
+            // **수집 경로가 한 건도 배달한 적이 없던 이유다** (S15P21B202-501).
+            //
+            // HTTP 헤더는 ASCII 만 받는데 빌드 스탬프는 사람이 읽으라고 만든 값이라
+            // 한글과 가운뎃점이 들어 있다. 전에는 제어문자만 걸러서 그대로 지나갔고,
+            // SetRequestHeader 가 던졌다. 그 예외가 요청을 보내기 **전**에 나서 서버에는
+            // 흔적조차 없었고, 표시(.sent)에도 못 가서 같은 파일이 실행마다 또 던졌다.
+            const string stamp = "2026-09-13 15:36 · 작업트리(재현불가·수정 28개) · HEAD";
+
+            string got = RunLogUpload.Sanitize(stamp);
+
+            foreach (char c in got)
+                Assert.That((int)c, Is.InRange(32, 126),
+                    "헤더에 못 넣는 문자가 남았다: " + ((int)c) + " in " + got);
+        }
+
+        [Test]
+        public void TheAsciiPartSurvivesAndTheRestLeavesAMark()
+        {
+            // 그냥 지우면 `버전=v1.1.0` 이 `=v1.1.0` 이 되어 앞이 무엇이었는지 알 수 없다.
+            // 이어진 비 ASCII 를 `?` 하나로 바꿔 자리가 있었다는 것을 남긴다.
+            Assert.That(RunLogUpload.Sanitize("버전=v1.1.0"), Is.EqualTo("?=v1.1.0"));
+            Assert.That(RunLogUpload.Sanitize("백엔드=prod"), Is.EqualTo("?=prod"));
+
+            // ASCII 만 있으면 그대로 둔다 — 멀쩡한 값을 건드리지 않는다.
+            Assert.That(RunLogUpload.Sanitize("v1.1.0"), Is.EqualTo("v1.1.0"));
+        }
+
+        [Test]
+        public void TheBuildHeaderIsAlwaysAscii()
+        {
+            // 헤더에 실리는 값은 BuildTag() 하나다. 그것이 무엇을 읽든 ASCII 여야 한다 —
+            // 에디터에서는 스탬프가 한글(`에디터에서 실행`)이다.
+            string tag = RunLogUpload.BuildTag();
+
+            foreach (char c in tag)
+                Assert.That((int)c, Is.InRange(32, 126),
+                    "BuildTag 가 헤더에 못 넣는 값을 냈다: " + tag);
+        }
+
+        [Test]
+        public void TheStampIsInTheLogBodyBecauseTheHeaderCannotHoldIt()
+        {
+            // 헤더는 ASCII 만 싣기로 했으므로 사람이 읽는 원문은 **본문**에 있어야 한다.
+            // 전에는 `[빌드]` 줄이 RunLog.Start() 보다 먼저 나가서 화면에만 있고 파일에는
+            // 없었다 — 서버로 올라가는 것은 파일이다.
+            var src = TestSource.Read("Runtime/Core/BuildInfo.cs");
+
+            int opened = src.IndexOf("RunLog.Start();");
+            int logged = src.IndexOf("[빌드] ");
+
+            Assert.That(opened, Is.GreaterThan(0), "RunLog.Start() 를 찾지 못했다");
+            Assert.That(logged, Is.GreaterThan(0), "[빌드] 줄을 찾지 못했다");
+            Assert.That(opened, Is.LessThan(logged),
+                "로그 파일을 열기 전에 [빌드] 를 찍는다 — 그 줄이 파일에 안 남는다");
+        }
     }
 }
