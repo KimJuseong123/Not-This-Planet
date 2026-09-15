@@ -67,7 +67,7 @@ public static Vector3 TossSpin(Vector3 velocity, float charge01, Vector3 fallbac
 
 ## 검증
 
-`TossedTumbleTests` 11개 + `-550` 의 `TossedBodyTests` 9개가 그대로 돈다.
+`TossedTumbleTests` 13개 + `-550` 의 `TossedBodyTests` 9개가 그대로 돈다.
 
 - 축이 옆으로 누웠는가(위 성분 0 · 날아가는 방향과 겹치지 않음)
 - 세게 던질수록 빨리 도는가 · 꽉 채우면 정해 둔 빠르기가 나오는가
@@ -76,6 +76,7 @@ public static Vector3 TossSpin(Vector3 velocity, float charge01, Vector3 fallbac
 - **기절한 몸도 이제 굴러다니는가** — 이 변경이 기절에도 간다는 사실을 못박는다
 - 그냥 뛴 몸은 여전히 똑바로 착지하는가 · 휘청임이 여전히 멈추는가
 - **넘어간 몸도 착지 판정을 받고 일어나는가** · 조종이 돌아오는가
+- **머리가 실제로 도는가**(카메라가 읽는 값이다) · **날아가는 시간이 1인칭 창 안인가**
 
 ### 대조 실험
 
@@ -118,7 +119,7 @@ public static Vector3 TossSpin(Vector3 velocity, float charge01, Vector3 fallbac
 | --- | --- | --- |
 | `develop` (f36205e3) | 1541 | 17 |
 | `-550` | 1550 | 17 |
-| 이 브랜치 | 1561 | 17 |
+| 이 브랜치 | 1563 | 17 |
 
 **실패 집합이 develop 과 완전히 같다.**
 
