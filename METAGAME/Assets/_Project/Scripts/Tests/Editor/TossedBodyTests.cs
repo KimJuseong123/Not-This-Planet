@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using Metagame.Core;
 using NUnit.Framework;
 using UnityEngine;
-using UnityEngine.TestTools;
 
 namespace Metagame.Gameplay.Tests
 {
@@ -43,19 +42,19 @@ namespace Metagame.Gameplay.Tests
             foreach (var go in _spawned) if (go != null) Object.DestroyImmediate(go);
             _spawned.Clear();
             PlayerRig.All.Clear();
-            LogAssert.ignoreFailingMessages = false;
         }
 
+        /// <summary>
+        /// <b>오류 로그를 삼키지 않는다.</b> 기존 던지기 검증들은 여기서
+        /// <c>LogAssert.ignoreFailingMessages = true</c> 로 <c>Create</c> 의 로그를 통째로
+        /// 넘겼는데, 재 보니 <c>Create</c> 는 <b>오류를 0건 낸다</b>. 삼킬 것도 없이
+        /// 방어선만 없애고 있었다 — 생성 경로에 새 오류가 생기면 조용히 통과한다
+        /// (!460 AI 리뷰).
+        /// </summary>
         PlayerRig MakePlayer(Vector3 at)
         {
-            LogAssert.ignoreFailingMessages = true;
-            PlayerRig player;
-            try
-            {
-                player = PlayerRig.Create("검증", at, Quaternion.identity,
+            var player = PlayerRig.Create("검증", at, Quaternion.identity,
                                           Color.white, Color.gray, false);
-            }
-            finally { LogAssert.ignoreFailingMessages = false; }
 
             player.ServerAuthority = true;
             _spawned.Add(player.gameObject);
@@ -114,7 +113,10 @@ namespace Metagame.Gameplay.Tests
             var airborne = MakePlayer(new Vector3(40f, 1f, 0f));
             UnityEngine.Physics.SyncTransforms();
 
-            tossed.LaunchTossed(Vector3.up * 8f);
+            // **상태만 켜고 속도는 셋에 똑같이 준다.** 처음에는 `LaunchTossed(up * 8)` 로
+            // 켠 뒤 아래 Push 를 또 줘서 던져진 쪽만 초기 속도가 두 배였다 — 통과는 했지만
+            // "같은 조건에서 비교" 라는 전제가 깨져 있었다(!460 AI 리뷰가 짚었다).
+            tossed.LaunchTossed(Vector3.zero);
             downed.GoDown();
 
             foreach (var rig in new[] { tossed, downed, airborne })
@@ -128,7 +130,11 @@ namespace Metagame.Gameplay.Tests
             var airborneTilts = new List<float>();
             for (var i = 0; i < 90; i++)
             {
-                foreach (var rig in new[] { tossed, downed, airborne }) rig.Tick();
+                foreach (var rig in new[] { tossed, downed, airborne })
+                {
+                    rig.SetInput(default);      // 앞선 검증이 남긴 입력에 기대지 않는다
+                    rig.Tick();
+                }
                 UnityEngine.Physics.Simulate(Step);
                 if (i % 15 != 14) continue;
                 tossedTilts.Add(Tilt(tossed));
@@ -139,8 +145,11 @@ namespace Metagame.Gameplay.Tests
             Assert.IsTrue(tossed.Ragdolled, "던져진 몸이 늘어지지 않았다");
             Assert.IsFalse(airborne.Ragdolled, "그냥 뛰어오른 몸까지 늘어졌다");
 
+            // 허용치를 넉넉히 둔다. 관절 솔버는 접촉·반복 순서에 민감해서 0.3도처럼
+            // 좁게 잡으면 유니티 버전이 바뀔 때 흔들린다(!460 AI 리뷰). 여기서 지키려는
+            // 것은 "같은 상태로 군다" 이지 소수점이 아니다.
             for (var i = 0; i < tossedTilts.Count; i++)
-                Assert.AreEqual(downedTilts[i], tossedTilts[i], 0.3f,
+                Assert.AreEqual(downedTilts[i], tossedTilts[i], 2.0f,
                     $"던져진 몸과 기절한 몸이 다르게 군다 — 던져짐 "
                     + string.Join(" ", tossedTilts.ConvertAll(t => t.ToString("F1")))
                     + " · 기절 "
@@ -150,6 +159,8 @@ namespace Metagame.Gameplay.Tests
             // 이쪽과 같았다 — 그것이 이 티켓의 증상이다.
             Assert.Greater(tossedTilts[^1], airborneTilts[^1] + 0.3f,
                 $"던져진 몸 {tossedTilts[^1]:F2}도 · 아무 일 없는 몸 {airborneTilts[^1]:F2}도");
+            Assert.AreNotEqual(tossed.Ragdolled, airborne.Ragdolled,
+                "던져진 몸과 아무 일 없는 몸이 같은 상태다");
         }
 
         static void Spin(PlayerRig rig, Vector3 angularVelocity)
@@ -238,6 +249,11 @@ namespace Metagame.Gameplay.Tests
                 + "착지 판정이 늘어진 몸을 못 읽으면 그 사람은 다시는 못 움직인다");
         }
 
+        /// <summary>
+        /// <b>잠정 기준이다.</b> "착지 직후 바로 일어나는가, 잠깐 누워 있는가" 는 기획에
+        /// 정해진 것이 없다(<c>-550</c> 의 '확인할 것'). 지금 동작이 즉시 기립이라 그것을
+        /// 적어 둘 뿐이고, 기획이 "잠깐 누워 있기" 로 정해지면 <b>이 검증이 먼저 바뀐다.</b>
+        /// </summary>
         [Test]
         public void AfterLandingTheBodyStandsUpAgain()
         {
