@@ -1,0 +1,84 @@
+{
+  "image_count": 13,
+  "readme_links_valid": true,
+  "images": [
+    {
+      "file": "01-south-approach-walkway.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 1595342
+    },
+    {
+      "file": "02-east-entrance-landing.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 1916904
+    },
+    {
+      "file": "03-pedestrian-access.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 1547516
+    },
+    {
+      "file": "04-foundation-approach-deck.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 1594166
+    },
+    {
+      "file": "05-broken-personnel-bridge-0.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 1622205
+    },
+    {
+      "file": "06-broken-personnel-bridge-1.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 1609244
+    },
+    {
+      "file": "07-broken-personnel-bridge-2.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 1652205
+    },
+    {
+      "file": "08-broken-personnel-bridge-5.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 1596851
+    },
+    {
+      "file": "09-broken-personnel-bridge-6.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 1632124
+    },
+    {
+      "file": "10-modular-edge-curb.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 1371067
+    },
+    {
+      "file": "11-cargo-apron-entry-stairs.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 1565231
+    },
+    {
+      "file": "12-adjustable-deck-support.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 1591852
+    },
+    {
+      "file": "13-route-wayfinding-beacon.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 1458457
+    }
+  ]
+}
