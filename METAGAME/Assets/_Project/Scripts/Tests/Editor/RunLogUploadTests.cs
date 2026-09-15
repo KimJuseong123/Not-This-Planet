@@ -350,5 +350,24 @@ namespace Metagame.Gameplay.Tests
             Assert.That(opened, Is.LessThan(logged),
                 "로그 파일을 열기 전에 [빌드] 를 찍는다 — 그 줄이 파일에 안 남는다");
         }
+
+        [Test]
+        public void TheBuildHeaderIsNeverEmpty()
+        {
+            // **빈 값도 헤더에 못 넣는다** (S15P21B202-501, `!459` 리뷰).
+            //
+            // `SetRequestHeader` 는 빈 문자열에도 던진다. 그러면 요청이 나가기 전에
+            // 죽고 `.sent` 표시에도 못 가서 같은 파일이 실행마다 또 던진다 — 이 이슈가
+            // 고친 바로 그 경로다.
+            //
+            // 빌 수 있는 길이 있다: `BuildInfo.Read()` 가 `lines[0].Trim()` 을 돌려주므로
+            // 빌드 스탬프 파일의 첫 줄이 비어 있으면 `Stamp` 가 빈 문자열이 된다.
+            Assert.That(RunLogUpload.BuildTag(), Is.Not.Empty,
+                "헤더에 빈 값이 나간다 — SetRequestHeader 가 던진다");
+
+            // Sanitize 가 전부 걸러 내는 입력에서도 빈 값이 나오면 안 된다.
+            Assert.That(RunLogUpload.Sanitize(""), Is.Empty,
+                "Sanitize 자체는 빈 입력에 빈 값을 낸다 — 막는 것은 BuildTag 다");
+        }
     }
 }

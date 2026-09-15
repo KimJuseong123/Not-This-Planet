@@ -348,7 +348,19 @@ namespace Metagame.Core
         public static string BuildTag()
         {
             string v = BuildInfo.ReleaseVersion;
-            return string.IsNullOrEmpty(v) ? Sanitize(BuildInfo.Stamp) : Sanitize(v);
+            string tag = Sanitize(string.IsNullOrEmpty(v) ? BuildInfo.Stamp : v);
+
+            // **빈 값도 헤더에 못 넣는다** (`!459` AI 리뷰). `SetRequestHeader` 는 빈
+            // 문자열에도 던지므로, 여기서 비워 보내면 이 이슈가 고친 실패 경로가
+            // 그대로 되살아난다 — 요청 전 예외 → `.sent` 미표시 → 매 실행 반복.
+            //
+            // 빌 수 있다. `BuildInfo.Read()` 의 마지막 경로가 `lines[0].Trim()` 이라
+            // 빌드 스탬프 파일의 **첫 줄이 비어 있으면** `Stamp` 가 빈 문자열이 되고,
+            // 릴리스 버전도 없으면 둘 다 빈 채로 여기 온다.
+            //
+            // 무엇인지 모르는 것과 값이 없는 것은 다르다 — 받는 쪽이 구분할 수 있게
+            // 이름을 준다.
+            return string.IsNullOrEmpty(tag) ? "unknown" : tag;
         }
 
         /// <summary>
