@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Reflection;
 using Metagame.Gameplay.Parts;
 using NUnit.Framework;
 using UnityEditor;
@@ -17,6 +18,16 @@ namespace Metagame.Gameplay.Tests
             var material = Own(new Material(shader));
             material.SetColor("_BaseColor", color);
             return material;
+        }
+
+        static void Tick(AssemblyGuidanceLight guide)
+        {
+            // EditMode does not run this MonoBehaviour. SendMessage enters Unity's
+            // ShouldRunBehaviour assertion; invoke the managed update as other EditMode tests do.
+            var update = typeof(AssemblyGuidanceLight).GetMethod("LateUpdate",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(update, Is.Not.Null, "Assembly guidance update method must exist.");
+            update.Invoke(guide, null);
         }
 
         [TearDown]
@@ -53,13 +64,13 @@ namespace Metagame.Gameplay.Tests
             var bollardReady = Material(signalShader, Color.white); bollardReady.SetTexture("_BaseMap", texture);
             guide.Configure(assembly, new[] {floor}, floorMaterials, floorReady);
             guide.ConfigureBollards(new[] {bollard}, bollardMaterials, bollardReady);
-            guide.SendMessage("LateUpdate");
+            Tick(guide);
             Assert.That(floor.sharedMaterial, Is.SameAs(required < 0 ? floorReady : floorMaterials[required]));
             Assert.That(bollard.sharedMaterial, Is.SameAs(required < 0 ? bollardReady : bollardMaterials[required]));
             Assert.That(bollard.sharedMaterial.GetTexture("_BaseMap"), Is.SameAs(texture));
             // A regression from any completed/current state must switch the signal back too.
             floors[0] = ShipAssembly.FloorState.WrongPart;
-            guide.SendMessage("LateUpdate");
+            Tick(guide);
             Assert.That(bollard.sharedMaterial, Is.SameAs(bollardMaterials[0]));
         }
 
@@ -71,7 +82,7 @@ namespace Metagame.Gameplay.Tests
             var lamp = Renderer("Original lamp");
             var material = Material(Shader.Find("Universal Render Pipeline/Lit"), Color.yellow);
             guide.Configure(assembly, new[] {lamp}, new[] {material}, material);
-            Assert.DoesNotThrow(() => guide.SendMessage("LateUpdate"));
+            Assert.DoesNotThrow(() => Tick(guide));
             Assert.That(lamp.sharedMaterial, Is.SameAs(material));
         }
     }
