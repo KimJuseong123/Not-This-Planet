@@ -1,0 +1,9 @@
+Spawn (-31.8000, 0.3460, -24.0000) support=(-31.8000, 0.2960, -24.0000)
+Astra Shelter Center: (-29.697, 3.152, -24.000), Extents: (5.234, 3.122, 5.107) colliders=12
+Astra Hangar Center: (-27.620, 9.139, 27.216), Extents: (10.820, 3.999, 7.806) colliders=13
+Parts=4; missing scripts=0; materials valid; old shells removed; shelter exit clear.
+Part_1 (-20.000, 1.525, -20.000)
+Part_2 (28.000, 8.080, 19.000)
+Part_3 (-29.000, 6.675, 25.000)
+Part_4 (22.830, 1.989, -19.000)
+Hangar approach: 122 floor and body-clearance samples passed.

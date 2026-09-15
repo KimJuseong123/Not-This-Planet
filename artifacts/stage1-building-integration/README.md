@@ -1,0 +1,42 @@
+# Stage1_Astra 건물 교체 — 2026-09-15
+
+## 적용
+
+- Assets/Scenes/Stage1_Astra.unity에 제작한 Shelter/Hangar 프리팹을 배치하고 저장했습니다.
+- 기존 Shelter와 외부 차양·기둥·겹치는 장식, Hangar 벽·천장·문틀·지붕·기존 화물 차단물을 제거했습니다.
+- 기존 핵심 파츠 4개, 조립대, 파츠 단상 및 게임플레이 연결은 유지했습니다.
+- 재질은 URP Lit: BaseColor, Normal, MetallicSmoothness, Emission 연결. 텍스처 importer와 메타 파일 포함.
+- 보행 바닥과 경사로는 별도 단순 충돌면, 건물 외벽·문틀·지붕은 정적 메시 충돌체를 사용합니다. 작은 볼트와 배수구에 플레이어가 걸리지 않게 했습니다.
+- Hangar 남쪽 접근로와 동쪽 적재장 연결, 구조 기초 확장, 조명·지붕 비콘 위치 보정.
+
+## 최종 위치 (Unity 단위 m)
+
+| 대상 | 위치 | 회전 Y | 로컬 크기 배율 |
+| --- | --- | --- | --- |
+| Astra Shelter | (-30.5, 0.03, -24) | 90° | (0.7, 0.7, 0.7) |
+| Astra Hangar | (-29, 5.14, 27) | 90° | (0.75, 0.75, 1) |
+| Player Spawn - inside Shelter | (-31.8, 0.346, -24) | 90° | (1, 1, 1) |
+
+Shelter 전체 외곽은 경사로·안테나 포함 약 10.47 × 6.24 × 10.21m(X/Y/Z). Hangar는 약 21.64 × 8.00 × 15.61m입니다. Hangar의 깊이를 늘려 기존 파츠 단상에 맞췄습니다.
+
+## 검증
+
+- 열린 Unity 6000.5.4f1에서 도구 컴파일, 에셋 가져오기, 씬 저장 완료.
+- 누락된 스크립트 0개, 새 건물 재질 검사 통과.
+- Shelter 스폰 바닥 높이 0.296m, 시작점은 그보다 0.05m 위.
+- 실제 Play Mode에서 캐릭터가 (-31.814, 0.294, -24.000)에 안정적으로 생성됨.
+- 스크립트 입력으로 출입구를 지나 (-21.912, 0.041, -23.993)까지 걸어 나감. 검사 후 Play Mode 종료.
+- Hangar 접근로 122개 지점의 지면 및 몸통 캡슐 여유 공간 검사 통과.
+- 건물 외관·실내·시작 시야 실제 Unity 렌더 확인.
+- 멀티플레이 동시 생성과 전체 게임 완주 검사는 수행하지 않았습니다.
+
+## 파일
+
+게임용 에셋은 METAGAME/Assets/_Project/Art/Buildings/{Shelter,Hangar}/ 에 있습니다. PF_AstraShelter.prefab, PF_AstraHangar.prefab에 모델/재질/기본 충돌면을 묶었습니다. 실제 씬에서 크기·배치·내부 조명을 조정했습니다.
+
+원복용 씬 사본은 tmp/building-integration/Stage1_Astra.before-buildings.unity에 보관했습니다. Unity가 열려 있을 때 이 파일을 원본에 직접 덮어쓰지 말고 별도 씬으로 확인하십시오.
+
+에디터 도구: METAGAME/Assets/_Project/Scripts/Editor/Stage1Buildings.cs. 고정된 검사/준비/교체 명령만 지원하는 임시 파일 요청은 tmp/building-integration/request.txt에서 처리합니다. 이미 설치된 씬에 Apply를 다시 실행하면 중복 배치를 차단합니다.
+
+## Part3 비콘 복구
+건물 교체 시 Module beacon을 구형 장식으로 잘못 삭제한 문제를 수정했습니다. 기존 M_Guidance_NoFog_Signal_orchid 재질과 10m 길이의 비콘을 새 Hangar 지붕 조명 위에 복구하고, 이후 교체 시 삭제되지 않도록 조건을 수정했습니다. 비콘은 1개이며 충돌체가 없습니다.
