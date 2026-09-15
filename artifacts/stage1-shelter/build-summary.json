@@ -1,0 +1,26 @@
+{
+  "scene": "Astra_Shelter_Production",
+  "source_components": 864,
+  "groups": [
+    "02_Floor",
+    "10_Emission",
+    "09_Grilles",
+    "01_Frame",
+    "04_Front",
+    "03_Windows",
+    "05_SideWalls",
+    "07_Service",
+    "08_Fasteners",
+    "06_Rear",
+    "11_Entry",
+    "12_DoorLeaves",
+    "13_Roof",
+    "14_Solar",
+    "15_HVAC",
+    "16_Antenna",
+    "17_Interior",
+    "18_Ceiling",
+    "99_Presentation_ONLY"
+  ],
+  "output": "C:\\workspace\\2-PJT\\S15P21B202\\artifacts\\stage1-shelter"
+}
