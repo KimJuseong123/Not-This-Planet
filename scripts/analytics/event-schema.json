@@ -1,6 +1,6 @@
 {
-  "fingerprint": "edc88fb5d764",
-  "note": "이벤트가 기대는 게임 코드의 정의 (S15P21B202-552). 손으로 고치지 말 것 — `python scripts/analytics/schema_source.py` 가 찍어 준다.",
+  "fingerprint": "d260689c19d8",
+  "note": "이벤트가 기대는 게임 코드의 정의 (S15P21B202-552). 손으로 고치지 말 것 — `python scripts/analytics/schema_source.py` 가 찍어 준다. `fingerprint` 는 데이터의 뜻을 정하는 값(floor_state·parts·blocker_codes)만 묶은 것이라, 한글 문구만 고치면 지문은 그대로다.",
   "floor_state": [
     "Empty",
     "Stacked",
