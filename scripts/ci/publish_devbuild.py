@@ -86,6 +86,51 @@ def decide_version(now: datetime | None = None) -> str | None:
     return f"qa-{iid}-{sha}"
 
 
+def dry_run() -> bool:
+    """리허설인가. **릴리스 판정을 쓰면 안 된다** (S15P21B202-537).
+
+    `publish_release.dry_run()` 은 *릴리스가 `master` push 로만 나가게* 하는 잠금이다
+    (`-407 ④`). 그 판정을 dev·qa 가 그대로 쓰면 **두 채널 모두 영원히 리허설**이 된다 —
+    dev 는 `schedule`, qa 는 `merge_request_event` 로 도니 `master` push 인 적이 없다.
+    그래서 zip 은 만들어지는데 레지스트리에 올라가는 일이 없었고, `dev-versions.json`
+    이 계속 404 였다. 잡은 `return 0` 이라 초록이었다 — 로그만 봐서는 안 드러난다.
+
+    여기서도 **트리거로 잠근다**(그쪽과 같은 결). 다만 통과시키는 트리거가 다르다 —
+    `channel()` 이 채널을 가르는 기준과 짝이 맞아야 한 쪽만 어긋나지 않는다.
+
+    한 방향 스위치도 그대로 둔다 — `DEVBUILD_DRY_RUN` 으로 *켤* 수는 있고 *끌* 수는 없다.
+    """
+    return rehearsal_requested() or not trigger_allowed()
+
+
+def rehearsal_requested() -> bool:
+    """사람이 일부러 리허설을 켰는가. **끄는 데는 못 쓴다.**"""
+    return env("DEVBUILD_DRY_RUN").lower() not in ("", "0", "false", "no")
+
+
+def mismatch() -> bool:
+    """파이프라인에서 돌면서 트리거가 어긋났는가.
+
+    이건 리허설이 아니라 **결함**이다 — `build-devbuild` 의 `rules:` 를 통과해 놓고
+    여기서 안 올라간다는 뜻이므로, 빌드가 통째로 버려진다.
+    """
+    return bool(env("CI_PIPELINE_SOURCE")) and not trigger_allowed() and not rehearsal_requested()
+
+
+def trigger_allowed() -> bool:
+    """이 트리거에서 올려도 되는가.
+
+    `build-devbuild` 의 `rules:` 와 **같은 집합**이어야 한다. 둘이 어긋나면 빌드는
+    도는데 산출물이 안 나가는, 알아채기 어려운 상태가 된다 — `cmd_publish` 가 그때
+    실패로 끝내는 이유다.
+    """
+    source = env("CI_PIPELINE_SOURCE")
+    if source == "schedule":
+        # 새벽 배포일 때만 — 아침 점검(09:30)도 `schedule` 이라 이것으로 갈라야 한다.
+        return env("NIGHTLY_DEPLOY_DEV").lower() == "true"
+    return source == "merge_request_event"
+
+
 def cmd_version() -> int:
     v = decide_version()
     if v is None:
@@ -112,13 +157,26 @@ def cmd_publish(rc: str) -> int:
         print(f"❌ 빌드 폴더가 없다: {build_dir!r}")
         return 1
 
+    # **zip 전에 잡는다** (S15P21B202-537, `!450` 리뷰). 어긋난 것이 확정인데 156 MB 를
+    # 묶고 나서 죽을 이유가 없다. 일부러 켠 리허설은 아래에서 zip 까지 진짜로 한다 —
+    # 그것이 리허설의 값어치다(`-407 ④` 와 같은 결).
+    if mismatch():
+        print("❌ 파이프라인에서 돌면서 리허설로 빠졌다 — 이 빌드는 아무 데도 안 간다")
+        print(f"   트리거: {env('CI_PIPELINE_SOURCE')!r}"
+              f" · NIGHTLY_DEPLOY_DEV={env('NIGHTLY_DEPLOY_DEV')!r}")
+        print("   build-devbuild 의 rules 와 publish_devbuild.trigger_allowed() 가 어긋났습니다.")
+        return 1
+
     name = f"metagame-{version}.zip"
     zip_path = os.path.join(os.getcwd(), name)
     size = R.zip_dir(build_dir, zip_path)
     print(f"zip: {name} · {size / 1048576:.1f} MB")
 
-    if R.dry_run():
-        print("(dry-run) 레지스트리에 올리지 않는다")
+    # **`R.dry_run()` 이 아니다** (S15P21B202-537) — 그쪽은 릴리스 전용 잠금이라
+    # dev·qa 를 늘 리허설로 만든다.
+    # 여기 오는 리허설은 **일부러 켠 것**이거나 로컬 수동 실행뿐이다 — 어긋남은 위에서 걸렀다.
+    if dry_run():
+        print("(dry-run) 레지스트리에 올리지 않는다 — 켜 둔 리허설이다")
         return 0
 
     code = R.upload_package(zip_path, version, name)

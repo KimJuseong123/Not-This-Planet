@@ -734,6 +734,10 @@ build-devbuild:           # QA 가 쓸 개발·QA 빌드 (S15P21B202-460)
   resource_group: unity   # unity-compile·release-windows 와 같은 그룹 — Unity 가 겹치면 서로 굶는다
   timeout: 90m
   interruptible: false
+  # **이 rules 를 고치면 `publish_devbuild.trigger_allowed()` 도 같이 고쳐야 한다**
+  # (S15P21B202-537). 그쪽은 "잡이 돌았다면 나도 통과한다" 를 전제로 어긋남을
+  # **실패**로 내므로, 여기만 고치면 그 트리거로 돈 빌드가 마지막 줄에서 죽는다.
+  # `test_devbuild_dry_run.py` 가 이 줄들을 읽어 대조하므로 잊으면 그 검사가 깨진다.
   rules:
     # **develop 은 새벽에만.** 머지마다 돌리면 웜이어도 10분대인 데다 `resource_group`
     # 때문에 `unity-compile` 과 직렬이라 **아침에 MR 검사가 줄을 선다**(-460 의 비용 표).
