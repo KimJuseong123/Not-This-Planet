@@ -704,17 +704,10 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
     # 삭제(D)만 막는다. 재직렬화(M)는 배치모드에서 정상적으로 자주 생기므로 세기만 한다.
     # **여기서 exit 하지 않는다** — 아래 3) 이 🔴 카드를 보내고 실패시키는 구조이므로
     # RC 만 올려 그쪽에 맡긴다. 앞에서 죽으면 릴리스 실패가 MM 에 안 알려진다.
-    - |
-      DELETED=$(git status --porcelain -- METAGAME/ | grep -E "^(.?D|D.?) " || true)
-      RESERIALIZED=$(git status --porcelain -- METAGAME/ | grep -Ec "^(.?M|M.?) " || true)
-      echo "빌드 뒤 METAGAME/ — 재직렬화 ${RESERIALIZED}건"
-      if [ -n "$DELETED" ]; then
-        echo "❌ 빌드가 추적되는 에셋을 삭제했다 — 이 릴리스는 그 에셋 없이 만들어졌다 (S15P21B202-351)"
-        echo "$DELETED"
-        RC=1
-      else
-        echo "✅ 삭제된 에셋 없음"
-      fi
+    #
+    # 판정은 개발 빌드와 **같은 파일**에 있다(S15P21B202-532) — 여기에 복사해 두었더니
+    # 개발 빌드 쪽이 더 무딘 검사를 쓰게 되어 그 잡이 매번 죽었다.
+    - sh scripts/ci/unity_dirty_guard.sh || RC=1
     # 3) zip → 패키지 레지스트리(잡 토큰) → Release(태그는 ref 로 생성) → MM 🟢. RC≠0 이면 🔴 만 보내고 실패
     - python3 scripts/ci/publish_release.py publish "$RC"
     # 4) 사용자용 요약 **초안** (S15P21B202-462).
@@ -774,13 +767,16 @@ build-devbuild:           # QA 가 쓸 개발·QA 빌드 (S15P21B202-460)
       RC=$?
       set -e
       grep -n "error CS\|\[NotThisPlanet\] 빌드" "$CI_PROJECT_DIR/devbuild.log" | tail -5 || true
-    # **빌드가 추적되는 에셋을 지웠는지 본다** (S15P21B202-351) — 릴리스와 같은 위험이다.
-    - |
-      if ! git diff --quiet -- METAGAME/; then
-        echo "❌ 빌드가 추적되는 에셋을 바꿨다 — 그 상태로 올리지 않는다"
-        git diff --name-status -- METAGAME/ | head -20
-        exit 1
-      fi
+    # **빌드가 추적되는 에셋을 지웠는지 본다** (S15P21B202-351) — 릴리스와 **같은 조각**을 쓴다.
+    #
+    # 전에는 여기서 `git diff --quiet` 로 **바뀌기만 하면** 실패했다. 배치모드는 차가운
+    # Library 에서 늘 재직렬화하므로 이 잡은 성공할 수가 없었고, 2026-09-15 첫 새벽
+    # 실행부터 죽었다(재직렬화 20건 · 삭제 0건 · 빌드는 444.5MB 로 성공). S15P21B202-532.
+    #
+    # **여기서 exit 하지 않는다.** 릴리스 쪽이 같은 이유로 그렇게 해 뒀다 — 앞에서 죽으면
+    # 아래 `publish_devbuild.py` 가 못 돌아 **실패가 아무에게도 안 알려진다.** 새벽 실패가
+    # 조용했던 이유의 절반이 이것이다(나머지 절반은 `mm-ci-failed` 가 schedule 에 없는 것).
+    - sh scripts/ci/unity_dirty_guard.sh || RC=1
     - python3 scripts/ci/publish_devbuild.py publish "$RC"
   artifacts:
     when: always
