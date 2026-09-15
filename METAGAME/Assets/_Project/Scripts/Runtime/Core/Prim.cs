@@ -105,11 +105,15 @@ namespace Metagame.Core
         /// </summary>
         public const string FogStrengthProperty = "_FogStrength";
 
-        public const string FogExemptMaskProperty = "_FogExemptMaskValue";
+        public const string FogExemptMaskProperty = "_AtmosphereFogExemptMask";
 
         public const float FogExemptMaskValue = 64f;
 
         static readonly Dictionary<Material, Material> fogExemptTwins = new Dictionary<Material, Material>();
+
+        // 되돌릴 때 쓰는 역방향. 없으면 FogNormalOrigin 이 렌더러마다 캐시 전체를
+        // 선형 탐색한다 — 재질 종류가 늘수록 비싸진다.
+        static readonly Dictionary<Material, Material> fogExemptOrigins = new Dictionary<Material, Material>();
 
         /// <summary>
         /// 이미 만들어진 물체를 통째로 안개에서 빼거나 되돌린다 (S15P21B202-540).
@@ -133,11 +137,27 @@ namespace Metagame.Core
 
             foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
             {
-                var source = renderer.sharedMaterial;
-                if (source == null) continue;
+                // **슬롯을 전부 돈다.** sharedMaterial 하나만 바꾸면 서브메시가 여러 개인
+                // 렌더러는 첫 슬롯만 빠지고 나머지가 회색으로 남는다 — 블렌더 모델과
+                // 파츠가 실제로 그렇다(PlayerAppearance 도 같은 이유로 배열을 돈다).
+                var slots = renderer.sharedMaterials;
+                bool changed = false;
 
-                var wanted = exempt ? FogExemptTwin(source) : FogNormalOrigin(source);
-                if (wanted != null && wanted != source) renderer.sharedMaterial = wanted;
+                for (int i = 0; i < slots.Length; i++)
+                {
+                    var source = slots[i];
+                    if (source == null) continue;
+
+                    var wanted = exempt ? FogExemptTwin(source) : FogNormalOrigin(source);
+                    if (wanted == null || wanted == source) continue;
+
+                    slots[i] = wanted;
+                    changed = true;
+                }
+
+                // 바뀐 것이 없으면 되쓰지 않는다 — 대입만으로도 렌더러가 재질 배열을
+                // 새로 잡는다.
+                if (changed) renderer.sharedMaterials = slots;
             }
         }
 
@@ -153,16 +173,15 @@ namespace Metagame.Core
                 twin.SetFloat(FogExemptMaskProperty, FogExemptMaskValue);
 
             fogExemptTwins[source] = twin;
+            fogExemptOrigins[twin] = source;
             return twin;
         }
 
         /// <summary>쌍둥이를 원본으로 되돌린다. 원본이면 그대로 둔다.</summary>
         static Material FogNormalOrigin(Material twin)
         {
-            foreach (var pair in fogExemptTwins)
-                if (pair.Value == twin) return pair.Key;
-
-            return null;
+            Material origin;
+            return fogExemptOrigins.TryGetValue(twin, out origin) ? origin : null;
         }
 
         public static Material Flat(Color c)

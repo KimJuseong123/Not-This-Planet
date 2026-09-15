@@ -108,6 +108,59 @@ namespace Metagame.Gameplay.Tests
             Assert.DoesNotThrow(() => Prim.SetFogExempt(null, true));
         }
 
+        /// <summary>
+        /// <b>스텐실 마스크도 실제로 걸리는가.</b>
+        ///
+        /// <para><c>_FogStrength</c> 만 보면 안 된다 — 그것은 셰이더 안의 <c>MixFog</c> 만
+        /// 끈다. Haze 와 지면 안개는 <b>전체화면 패스</b>라, 마스크가 안 걸리면 그쪽에서
+        /// 다시 덮인다.</para>
+        ///
+        /// <para><b>이 검증이 없어서 놓쳤다.</b> 속성 이름 상수를 정리하다 일괄 치환이
+        /// 문자열 리터럴 <c>"_AtmosphereFogExemptMask"</c> 까지 바꿔버렸는데,
+        /// <c>HasProperty</c> 가 조용히 거짓이 되어 <b>마스크가 아무 데도 안 걸린 채</b>
+        /// 나머지 검증은 전부 통과했다. CI 의 <c>MeteorWarningTests</c> 가 잡았다.</para>
+        /// </summary>
+        [Test]
+        public void TheStencilMaskIsActuallySet()
+        {
+            var exempt = Prim.Dough(Color.white, 0.4f, fogExempt: true);
+
+            Assert.IsTrue(exempt.HasProperty(Prim.FogExemptMaskProperty),
+                "속성 이름이 셰이더와 어긋나면 HasProperty 가 조용히 거짓이 된다 — "
+                + "그러면 마스크가 영영 안 걸리고 아무도 모른다.");
+            Assert.AreEqual(Prim.FogExemptMaskValue,
+                            exempt.GetFloat(Prim.FogExemptMaskProperty), 1e-4f,
+                "마스크가 0 이면 Haze 전체화면 패스가 다시 덮는다.");
+
+            var normal = Prim.Dough(Color.white, 0.4f);
+            Assert.Zero(normal.GetFloat(Prim.FogExemptMaskProperty),
+                "예외가 아닌 재질은 비트를 세우지 않는다 — 세우면 남의 예외까지 살려 준다.");
+        }
+
+        /// <summary>
+        /// 속성 이름 상수가 <b>세 셰이더 모두</b>와 맞는가. 상수만 고치고 셰이더를
+        /// 안 고치면(또는 그 반대면) 조용히 아무 일도 일어나지 않는다.
+        /// </summary>
+        [Test]
+        public void TheConstantsMatchEveryShader()
+        {
+            foreach (var name in new[] { "DoughSurface", "GhostSurface", "CharacterSuitTint" })
+            {
+                var shader = Resources.Load<Shader>(name);
+                Assert.IsNotNull(shader, name + " 셰이더가 Resources 에 있어야 한다.");
+
+                var material = new Material(shader);
+                try
+                {
+                    Assert.IsTrue(material.HasProperty(Prim.FogStrengthProperty),
+                        name + " 가 " + Prim.FogStrengthProperty + " 를 모른다.");
+                    Assert.IsTrue(material.HasProperty(Prim.FogExemptMaskProperty),
+                        name + " 가 " + Prim.FogExemptMaskProperty + " 를 모른다.");
+                }
+                finally { Object.DestroyImmediate(material); }
+            }
+        }
+
         // ── 실제 경로에 붙어 있는가 ────────────────────────────
 
         /// <summary>
@@ -186,13 +239,42 @@ namespace Metagame.Gameplay.Tests
             var material = new Material(shader);
             try
             {
-                Assert.IsTrue(material.HasProperty("_FogStrength"),
+                // 글자가 아니라 **상수로** 묻는다. 리터럴로 물으면 상수가 셰이더와
+                // 어긋나도 이 검증은 초록이다 — 실제로 그렇게 통과시킨 적이 있다.
+                Assert.IsTrue(material.HasProperty(Prim.FogStrengthProperty),
                     "손잡이가 없으면 모델을 쓰는 아바타는 회색으로 남는다.");
-                Assert.IsTrue(material.HasProperty("_AtmosphereFogExemptMask"),
+                Assert.IsTrue(material.HasProperty(Prim.FogExemptMaskProperty),
                     "Haze 전체화면 패스도 같은 스텐실 비트로 피해야 한다 — "
                     + "DoughSurface 와 비트가 갈리면 몸의 절반만 빠진다.");
             }
             finally { Object.DestroyImmediate(material); }
+        }
+
+        /// <summary>
+        /// 서브메시가 여러 개인 렌더러는 <b>슬롯을 전부</b> 빼야 한다.
+        ///
+        /// <para><c>sharedMaterial</c> 하나만 바꾸면 첫 슬롯만 빠지고 나머지가 회색으로
+        /// 남는다 — 블렌더 모델과 파츠가 실제로 여러 재질이다
+        /// (<c>PlayerAppearance</c> 도 같은 이유로 <c>sharedMaterials</c> 배열을 돈다).</para>
+        /// </summary>
+        [Test]
+        public void EverySubmeshSlotIsExempt()
+        {
+            var go = Track(Prim.Box("두 재질", Vector3.zero, Vector3.one, Color.white));
+            var renderer = go.GetComponent<Renderer>();
+            renderer.sharedMaterials = new[]
+            {
+                Prim.Dough(Color.red, 0.3f),
+                Prim.Dough(Color.blue, 0.7f),
+            };
+
+            Prim.SetFogExempt(go, true);
+
+            var slots = renderer.sharedMaterials;
+            Assert.AreEqual(2, slots.Length, "슬롯 수가 유지되어야 한다.");
+            for (int i = 0; i < slots.Length; i++)
+                Assert.Zero(slots[i].GetFloat(Prim.FogStrengthProperty),
+                    i + "번 슬롯이 남으면 몸의 일부만 회색으로 뜬다.");
         }
 
         /// <summary>

@@ -178,8 +178,10 @@ namespace Metagame.Gameplay.Parts
             RefreshClamps();
             RefreshSockets();
             EnsureGrabbable();
-            ExemptFromFog();
+            // 표현을 먼저 적용하고 그 뒤에 안개에서 뺀다 (S15P21B202-540). 순서가
+            // 반대면, 표현 전환이 나중에 재질을 갈아끼우는 날 예외가 조용히 날아간다.
             ApplyRepresentation(_state);
+            ExemptFromFog();
         }
 
         /// <summary>
