@@ -826,12 +826,28 @@ def main(argv: list[str] | None = None) -> int:
 
     text = body(data, errs, base, ref, stale_base=bmeta if stale else None, flaky=flaky,
                 verdict=code)
+    # **코멘트를 올리든 말든 로그에도 남긴다** (S15P21B202-556).
+    #
+    # 전에는 `can_write` 가 참이면 코멘트만 올리고 로그에는 "MR 코멘트 갱신" 한 줄만
+    # 남겼다. 그런데 🔴 카드는 **잡 로그**에서 `❌`·`🔴` 줄을 뽑는다
+    # (`mm_notify.REASON_MARKERS`) — 그래서 **MR 파이프라인에서만** 카드가
+    # "로그에서 이유를 찾지 못함" 이 됐다. `can_write` 는 MR iid 가 있어야 참이므로,
+    # develop push 는 else 로 가서 멀쩡했고 MR 만 눈이 멀었다. 정작 작성자에게
+    # 필요한 쪽이다.
+    #
+    # 2026-09-15 실측: 잡 `540606`(MR)에는 마커 줄이 **0개**, 같은 날 `538054`
+    # (develop push)에는 `🔴 **이 MR 에서 새로 실패하는 테스트 1개**` 가 있었다.
+    #
+    # 로그로 내보내는 것은 안전하다 — GitLab 이 masked 변수를 가려 준다(`-484`).
+    # 카드에는 마커가 붙은 **머리줄만** 실리므로 `-335`(카드로 원문을 안 내보낸다)도
+    # 그대로다.
+    print(text)
+
     if gl.can_write:
         st, _ = gl.upsert_note(MARKER, text)
         print(f"MR 코멘트 {'갱신' if st == 200 else '작성' if st == 201 else f'실패({st})'}")
     else:
-        print("GITLAB_TOKEN·MR iid 없음 → 코멘트 생략. 아래는 남겼을 내용:")
-        print(text)
+        print("GITLAB_TOKEN·MR iid 없음 → 코멘트는 생략했다(위 내용)")
     return 0
 
 
