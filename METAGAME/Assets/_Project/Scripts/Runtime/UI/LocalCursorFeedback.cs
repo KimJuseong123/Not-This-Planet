@@ -130,8 +130,18 @@ namespace Metagame.UI
             return new Vector2(Mathf.Sin(radians), Mathf.Cos(radians));
         }
 
-        /// <summary>핀 축에 수직인 방향. 폭이 이 축을 따라 퍼진다.</summary>
-        public static Vector2 PinCross(Vector2 axis) => new Vector2(-axis.y, axis.x);
+        /// <summary>
+        /// 핀 축에 수직인 방향. 폭이 이 축을 따라 퍼진다.
+        ///
+        /// <para><b>부호가 중요하다.</b> <c>(-axis.y, axis.x)</c> 로 두면 (cross, axis)
+        /// 기저의 행렬식이 <c>-1</c> 이라 <b>회전이 아니라 좌우 반전</b>이 된다 —
+        /// 0° 에서 <c>u</c> 가 예전 식과 부호가 반대가 되고, 좌우 비대칭인 그림이라면
+        /// 커서가 거울상으로 뒤집힌다 (!449 AI 리뷰).</para>
+        ///
+        /// <para>지금 <c>PingMarker</c> 는 좌우가 완벽 대칭이라(실측: 비대칭 픽셀 0/88763)
+        /// 보이는 결과는 같았다. <b>그래서 눈으로는 못 잡는 종류다.</b></para>
+        /// </summary>
+        public static Vector2 PinCross(Vector2 axis) => new Vector2(axis.y, -axis.x);
 
         /// <summary>
         /// 뾰족한 끝이 놓일 자리(텍스처 좌표). <b>그림이 칸 안에 딱 들어가게 민다.</b>
@@ -169,6 +179,14 @@ namespace Metagame.UI
 
         public static Texture2D CreateCursorTexture(Texture2D source, Color tint, bool pressed,
                                                     out Vector2 hotspot)
+            => CreateCursorTexture(source, tint, pressed, PinAngleDegrees, CursorSize, out hotspot);
+
+        /// <summary>
+        /// 각도와 칸 크기를 받는 형태. <b>검증이 0° 를 구워 예전 식과 맞대어 보려고</b>
+        /// 열어 두었다 — 상수로만 두면 "각도 0 이면 예전과 같다" 를 잴 수가 없다.
+        /// </summary>
+        public static Texture2D CreateCursorTexture(Texture2D source, Color tint, bool pressed,
+                                                    float degrees, int size, out Vector2 hotspot)
         {
             int minX = source.width, minY = source.height, maxX = 0, maxY = 0;
             var sourcePixels = source.GetPixels32();
@@ -179,18 +197,21 @@ namespace Metagame.UI
                 minX = Mathf.Min(minX, x); maxX = Mathf.Max(maxX, x);
                 minY = Mathf.Min(minY, y); maxY = Mathf.Max(maxY, y);
             }
-            var pixels = new Color[CursorSize * CursorSize];
+            var pixels = new Color[size * size];
             float height = pressed ? 28f : 35f;
             float width = height * (maxX - minX + 1f) / Mathf.Max(1f, maxY - minY + 1f);
 
-            // 끝을 기준으로 축·수직축에 투영한다. 각도 0 이면 예전 식과 같은 값이 나온다.
-            var axis = PinAxis(PinAngleDegrees);
+            // 끝을 기준으로 축·수직축에 투영한다. 각도 0 이면 예전 식과 **실루엣이 정확히
+            // 같다** — 다만 예전은 중심을 `size * 0.5` 로 잡아 반 픽셀 어긋나 있었고,
+            // 여기서는 픽셀 중심에 맞춘다(실측: 보정 전 73픽셀 차이, 보정 후 0픽셀).
+            // 말로 두지 않고 ZeroDegreesMatchesTheOldMappingPixelForPixel 이 잰다.
+            var axis = PinAxis(degrees);
             var cross = PinCross(axis);
-            var tip = PinTip(PinAngleDegrees, height, width, CursorSize);
-            hotspot = Hotspot(tip, CursorSize);
+            var tip = PinTip(degrees, height, width, size);
+            hotspot = Hotspot(tip, size);
 
-            for (int y = 0; y < CursorSize; y++)
-            for (int x = 0; x < CursorSize; x++)
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
             {
                 float dx = x - tip.x, dy = y - tip.y;
                 float v = (dx * axis.x + dy * axis.y) / height;
@@ -200,19 +221,19 @@ namespace Metagame.UI
                     (minY + v * (maxY - minY)) / source.height).a;
                 Color color = pressed ? Color.Lerp(tint, Color.white, 0.45f) : tint;
                 color.a = alpha;
-                pixels[y * CursorSize + x] = color;
+                pixels[y * size + x] = color;
             }
             var outlined = (Color[])pixels.Clone();
-            for (int y = 1; y < CursorSize - 1; y++)
-            for (int x = 1; x < CursorSize - 1; x++)
+            for (int y = 1; y < size - 1; y++)
+            for (int x = 1; x < size - 1; x++)
             {
-                int i = y * CursorSize + x;
+                int i = y * size + x;
                 float edge = Mathf.Max(pixels[i - 1].a, pixels[i + 1].a,
-                    pixels[i - CursorSize].a, pixels[i + CursorSize].a);
+                    pixels[i - size].a, pixels[i + size].a);
                 if (pixels[i].a < 0.1f && edge > 0.3f)
                     outlined[i] = new Color(0.025f, 0.035f, 0.06f, edge * 0.85f);
             }
-            var texture = new Texture2D(CursorSize, CursorSize, TextureFormat.RGBA32, false);
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
             texture.name = pressed ? "PingCursor_Pressed" : "PingCursor_Normal";
             texture.SetPixels(outlined);
             texture.Apply(false, false); // Hardware cursor textures must remain CPU readable.

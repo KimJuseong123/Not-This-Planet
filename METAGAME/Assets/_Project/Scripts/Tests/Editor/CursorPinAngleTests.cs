@@ -67,6 +67,101 @@ namespace Metagame.Gameplay.Tests
             Assert.AreEqual(1f, axis.y, 1e-4f, "0° 면 끝에서 위로 — 예전과 같다.");
         }
 
+        /// <summary>
+        /// <b>축·수직축이 회전이어야 한다. 좌우 반전이면 안 된다</b> (!449 AI 리뷰).
+        ///
+        /// <para>수직축을 <c>(-axis.y, axis.x)</c> 로 두면 행렬식이 <c>-1</c> 이라
+        /// <b>회전이 아니라 거울</b>이 된다. 지금 <c>PingMarker</c> 는 좌우가 완벽
+        /// 대칭이라(실측: 비대칭 픽셀 0/88763) <b>눈으로는 절대 못 잡는다.</b></para>
+        /// </summary>
+        [Test]
+        public void TheTransformIsARotationNotAMirror()
+        {
+            foreach (var degrees in new[] { 0f, 45f, 135f, 200f })
+            {
+                var axis = LocalCursorFeedback.PinAxis(degrees);
+                var cross = LocalCursorFeedback.PinCross(axis);
+
+                float determinant = cross.x * axis.y - cross.y * axis.x;
+                Assert.AreEqual(1f, determinant, 1e-4f,
+                    $"{degrees}° 에서 행렬식이 {determinant:F2} 다 — -1 이면 좌우가 뒤집힌다.");
+            }
+        }
+
+        /// <summary>
+        /// <b>말로 두지 않고 픽셀로 잰다.</b> "각도 0 이면 예전 식과 같다" 는 주석을
+        /// 달아 놓고 실제로는 좌우가 뒤집혀 있었다 — 벡터만 재는 검증은 그것을
+        /// 통과시켰다 (!449 AI 리뷰).
+        ///
+        /// <para>예전 식을 여기서 그대로 다시 계산해 0° 결과와 <b>한 픽셀씩</b> 견준다.</para>
+        /// </summary>
+        [Test]
+        public void ZeroDegreesMatchesTheOldMappingPixelForPixel()
+        {
+            const int oldSize = 40;
+            var source = Marker();
+            var texture = LocalCursorFeedback.CreateCursorTexture(source, Color.white, false,
+                                                                  0f, oldSize, out var hotspot);
+            try
+            {
+                Assert.AreEqual(oldSize / 2f, hotspot.x, 0.51f, "예전 hotspot 은 가로 절반이었다.");
+                Assert.AreEqual(oldSize - 2f, hotspot.y, 1.01f, "예전 hotspot 은 세로 맨 아래였다.");
+
+                int raw = Diff(texture, OldMapping(source, oldSize, oldSize * 0.5f), oldSize);
+                int centered = Diff(texture, OldMapping(source, oldSize, (oldSize - 1) * 0.5f), oldSize);
+                Debug.Log($"[프로브] 예전 식 그대로 {raw} 픽셀 · 반 픽셀 보정 {centered} 픽셀");
+
+                Assert.LessOrEqual(centered, oldSize * oldSize / 100,
+                    $"0° 결과가 예전 식과 {centered} 픽셀 다르다 — 좌우가 뒤집혔는지 본다.");
+            }
+            finally { Object.DestroyImmediate(texture); }
+        }
+
+        /// <summary>이 이슈 이전의 UV 계산. 견주기 위해서만 둔다.</summary>
+        /// <summary>
+        /// 실루엣만 견준다. 테두리 픽셀(어두운 색)은 <b>예전 식 재현본에 없는 과정</b>이라
+        /// 빼야 뜻이 있다 — 흰색으로 구우므로 <c>r</c> 로 가른다.
+        /// </summary>
+        static int Diff(Texture2D texture, float[] expected, int size)
+        {
+            int n = 0;
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                var pixel = texture.GetPixel(x, y);
+                bool drawn = pixel.r > 0.5f && pixel.a > 0.5f;   // 테두리가 아니라 그림
+                if (drawn != expected[y * size + x] > 0.5f) n++;
+            }
+            return n;
+        }
+
+        static float[] OldMapping(Texture2D source, int size, float centerX)
+        {
+            int minX = source.width, minY = source.height, maxX = 0, maxY = 0;
+            var pixels = source.GetPixels32();
+            for (int y = 0; y < source.height; y++)
+            for (int x = 0; x < source.width; x++)
+            {
+                if (pixels[y * source.width + x].a < 128) continue;
+                minX = Mathf.Min(minX, x); maxX = Mathf.Max(maxX, x);
+                minY = Mathf.Min(minY, y); maxY = Mathf.Max(maxY, y);
+            }
+            var alpha = new float[size * size];
+            float height = 35f;
+            float width = height * (maxX - minX + 1f) / Mathf.Max(1f, maxY - minY + 1f);
+            for (int y = 2; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = (x - centerX) / width + 0.5f;
+                float v = (y - 2f) / height;
+                if (u < 0f || u > 1f || v > 1f) continue;
+                alpha[y * size + x] = source.GetPixelBilinear(
+                    (minX + u * (maxX - minX)) / source.width,
+                    (minY + v * (maxY - minY)) / source.height).a;
+            }
+            return alpha;
+        }
+
         [Test]
         public void TheCrossAxisIsPerpendicularAndUnitLength()
         {

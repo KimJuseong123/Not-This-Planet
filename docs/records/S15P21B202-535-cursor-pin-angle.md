@@ -57,7 +57,9 @@ float v = (dx * axis.x + dy * axis.y) / height;
 float u = (dx * cross.x + dy * cross.y) / width + 0.5f;
 ```
 
-각도 0 이면 예전 식과 같은 값이 나온다 — `ZeroDegreesIsTheOldUprightPin` 이 그것을 잠근다.
+각도 0 이면 예전 식과 **실루엣이 정확히 같다**(예전의 반 픽셀 중심 오차를 뺀 뒤) —
+`ZeroDegreesMatchesTheOldMappingPixelForPixel` 이 픽셀로 잰다. 처음에는 축 벡터만 재다가
+**좌우가 뒤집힌 것을 놓쳤다**(§8).
 
 ---
 
@@ -152,19 +154,20 @@ static void Install()
 
 ## 7. 검증
 
-**`CursorPinAngleTests` 13개** 신설.
+**`CursorPinAngleTests` 15개** 신설.
 
 | | 검증 수 | 실패 |
 | --- | --- | --- |
 | develop (`origin/develop` 실측) | 1512 | 17 |
-| 이 브랜치 | **1526** (+14) | **17** |
+| 이 브랜치 | **1528** (+16) | **17** |
 
 **새로 깨진 검증 없음. 실패 셋이 완전히 같다.**
 
-### 7-1. 대조 실험 5개가 전부 잡는다
+### 7-1. 대조 실험 6개가 전부 잡는다
 
 | 대조 | 결과 |
 | --- | --- |
+| 수직축을 거울로 되돌린다 | **1개** — `TheTransformIsARotationNotAMirror`(§8) |
 | 각도를 0 으로 되돌린다 | **3개** — `ThePinLeansSoItsTipPointsUpAndLeft` · `TheDrawingIsDiagonalNotUpright` · `TheClickPointSitsAtTheTopLeftOfTheDrawing` |
 | 칸을 40 으로 되돌린다 | **2개** — `TheDrawingDoesNotTouchTheEdge` · `AnyAngleStillFitsInsideTheCursor` |
 | hotspot 의 y 뒤집기를 뺀다 | **3개** — `TheHotspotFlipsFromTextureToScreenCoordinates` · `TheClickedPixelIsActuallyDrawn` · `TheClickPointSitsAtTheTopLeftOfTheDrawing` |
@@ -187,7 +190,70 @@ Assert.That(texture.width, Is.EqualTo(40));   // 이전
 
 ---
 
-## 8. 남은 것
+## 8. !449 AI 리뷰에 대한 답 — ⛔ 차단 1건
+
+**차단 판정을 받았고, 지적이 맞았다.**
+
+> `PinCross` 가 `(-axis.y, axis.x)` 라 `(cross, axis)` 기저의 행렬식이 `-1` 이다 —
+> 회전이 아니라 좌우 반전이 섞인 변환이다.
+
+**읽고 반박하지 않고 쟀다.**
+
+```
+0도 axis=(0.00, 1.00) cross=(-1.00, 0.00) 행렬식=-1.000
+dx=+5 일 때 u  새=0.2619  예전=0.7381  같은가=False
+원본 좌우 비대칭 픽셀 0 / 88763 = 0.00%
+```
+
+**세 줄 다 리뷰가 옳다는 쪽이다.** 행렬식이 −1 이고, 0° 에서 `u` 가 예전과 **부호가
+반대**이며, 내가 코드와 문서에 적은 "각도 0 이면 예전 식과 같은 값이 나온다" 는
+**거짓이었다.**
+
+`cross` 를 `(axis.y, -axis.x)` 로 바꿔 행렬식을 `+1` 로 만들었다.
+
+### 8-1. 왜 못 봤나 — 그림이 완벽 대칭이라 눈에 안 띈다
+
+`PingMarker` 는 좌우 비대칭 픽셀이 **0/88763** 이다. 거울이어도 **보이는 결과가 같다.**
+고친 뒤 다시 구워 이전 것과 견주었다.
+
+```
+눈에 띄게 다른 픽셀(>32): 0개 = 0.00%
+최대 차이: 32/255   ← 가장자리 안티에일리어싱뿐
+```
+
+**그래서 눈으로는 절대 못 잡는 종류다.** 좌우 비대칭인 그림으로 바꾸는 날 조용히
+뒤집힌 커서가 나갔을 것이다.
+
+### 8-2. 내 검증이 왜 통과시켰나 — 벡터만 쟀다
+
+`ZeroDegreesIsTheOldUprightPin` 이 **축 벡터만** 확인했다. 축은 거울이어도 `(0,1)` 로
+같으므로 통과한다. **결과가 아니라 중간값을 재는 검증**이었다 — 이 세션에서 반복해 겪은
+모양이고(`-505`·`-530`), 이번에는 AI 리뷰가 먼저 짚었다.
+
+**픽셀로 재는 검증을 넣었다.** 예전 식을 검증 안에서 그대로 다시 계산해 0° 결과와
+한 픽셀씩 견준다.
+
+```
+예전 식 그대로 73 픽셀 · 반 픽셀 보정 0 픽셀
+```
+
+> **73픽셀은 또 다른 발견이다.** 예전 식은 중심을 `size * 0.5` 로 잡았는데 픽셀 중심은
+> `(size - 1) * 0.5` 다 — **반 픽셀 어긋나 있었다.** 새 코드는 픽셀 중심에 맞춘다.
+> 그것까지 보정하면 **0픽셀**, 즉 실루엣이 정확히 같다.
+
+그리고 **행렬식 자체를 재는 검증**(`TheTransformIsARotationNotAMirror`)을 따로 두었다 —
+대조로 확인했다: `cross` 를 거울로 되돌리면 실패한다.
+
+### 8-3. 받아들이되 이 MR 에서 하지 않는 것
+
+| 지적 | 판단 |
+| --- | --- |
+| 검증 네임스페이스가 `Metagame.Gameplay.Tests` 인데 대상은 UI 다 | **맞다.** 다만 같은 폴더의 기존 검증(`LocalCursorFeedbackTests` 포함)이 전부 그 이름을 쓴다. 이 MR 에서 하나만 바꾸면 오히려 어긋나므로 **후속으로 일괄 정리**가 맞다 |
+| `TheClickedPixelIsActuallyDrawn` 이 ±2px 이웃 최대값이라 느슨하다 | **맞다.** 다만 끝은 안티에일리어싱으로 반투명해지는 자리라 정확히 한 픽셀만 보면 잘 깨진다. 느슨함을 알고 남긴다 |
+
+---
+
+## 9. 남은 것
 
 - **인게임 확인.** 텍스처는 실제로 구워 눈으로 봤지만, 실제 마우스로 눌러 본 적은 없다.
   특히 **클릭이 끝 픽셀에서 먹는지**는 사람만 확인할 수 있다.
