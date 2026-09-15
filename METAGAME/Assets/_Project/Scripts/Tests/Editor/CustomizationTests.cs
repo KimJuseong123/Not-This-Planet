@@ -20,6 +20,30 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void LegacyAppearancePreservesTintWhenMigrated()
+        {
+            const string legacyKey = "appearance.v1";
+            const string currentKey = "appearance.v2";
+            int legacyPacked = 2 | (1 << 3) | (2 << 5);
+            PlayerPrefs.DeleteKey(currentKey);
+            PlayerPrefs.SetInt(legacyKey, legacyPacked);
+
+            try
+            {
+                CustomizationData migrated = CustomizationData.Load();
+                Assert.That(migrated.Tint, Is.EqualTo(3));
+                Assert.That(migrated.Helmet, Is.EqualTo(1));
+                Assert.That(migrated.Badge, Is.EqualTo(2));
+                Assert.That(PlayerPrefs.HasKey(currentKey), Is.True);
+            }
+            finally
+            {
+                PlayerPrefs.DeleteKey(legacyKey);
+                PlayerPrefs.DeleteKey(currentKey);
+            }
+        }
+
+        [Test]
         public void CustomizerStage1BackgroundAssetExists()
         {
             const string path = "Assets/_Project/Resources/UI/Customizer/T_Customizer_Stage1Background.png";

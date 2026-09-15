@@ -499,6 +499,7 @@ namespace Metagame.Bootstrap
             option.margin = new RectOffset(3, 3, 3, 3);
 
             swatchCircle = Rounded(Color.white, 32);
+            generatedButtonTextures.Add(swatchCircle);
             swatchCheck = Label(uiFont, 18, FontStyle.Bold, Color.white);
             swatchCheck.alignment = TextAnchor.MiddleCenter;
             swatchTooltip = Label(uiFont, 13, FontStyle.Normal, Color.white);

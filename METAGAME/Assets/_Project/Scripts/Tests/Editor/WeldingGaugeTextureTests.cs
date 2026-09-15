@@ -29,8 +29,9 @@ namespace Metagame.Gameplay.Tests
             using (var gauge = new WeldingGaugeTexture())
             {
                 gauge.SetFraction(0.5f);
-                Assert.IsTrue(IsYellow(AtAngle(gauge.Texture, -10f)));
-                Assert.IsFalse(IsYellow(AtAngle(gauge.Texture, 40f)));
+                // 게이지를 왼쪽으로 볼록하게 뒤집었으므로 화면상의 표본도 왼쪽 호에서 확인한다.
+                Assert.IsTrue(IsYellow(AtAngle(gauge.Texture, 190f)));
+                Assert.IsFalse(IsYellow(AtAngle(gauge.Texture, 140f)));
                 Assert.AreEqual(0f, gauge.Texture.GetPixel(128, 128).a);
             }
         }

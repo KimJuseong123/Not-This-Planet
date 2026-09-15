@@ -39,7 +39,7 @@ namespace Metagame.UI
 
         [Header("용접 재료 게이지")]
         [Tooltip("화면 크기 대비 게이지 중심 위치입니다. (0, 0)은 왼쪽 위, (1, 1)은 오른쪽 아래입니다.")]
-        [SerializeField] Vector2 weldingGaugeViewportAnchor = new Vector2(-0.19f, 0.76f);
+        [SerializeField] Vector2 weldingGaugeViewportAnchor = new Vector2(0.14f, 0.76f);
         [Tooltip("화면 앵커에서 게이지 중심을 추가로 옮길 픽셀 값입니다.")]
         [SerializeField] Vector2 weldingGaugeScreenOffset = Vector2.zero;
         [Min(40f)] [SerializeField] float weldingGaugeMaxRadius = 82f;
@@ -222,7 +222,7 @@ namespace Metagame.UI
             float thickness = radius * 0.19f;
             var origin = new Vector2(
                 Mathf.Clamp(width * weldingGaugeViewportAnchor.x + weldingGaugeScreenOffset.x,
-                    radius + 120f, width - radius - 60f),
+                    radius + 70f, width - radius - 60f),
                 Mathf.Clamp(height * weldingGaugeViewportAnchor.y + weldingGaugeScreenOffset.y,
                     radius + 30f, height - radius - 30f));
             Color yellow = new Color(1f, 0.85f, 0.08f, 0.95f);
