@@ -968,27 +968,24 @@ mm-ci-failed:             # 🔴 CI 실패 알림 — 실패한 잡 이름·링�
       optional: true      # changes: 게이트라 없는 파이프라인이 있다
     - job: ai-review-gate # ⛔ 로 막힌 것도 카드로 알린다. 이유(❌ 줄)는 잡 로그에서 뽑힌다(-341)
       optional: true
-    # **예약 실행이 돌리는 잡들** (S15P21B202-533). 이것이 빠져 있어 2026-09-15 04:03
-    # `build-devbuild` 실패가 아무 카드도 못 내보냈다 — `-344` 에서 `unity-compile` 이
-    # 빠져 있던 것과 **같은 모양**이다. rules 만 고치면 겉만 고치는 것이 된다.
+    # **여기에 수동 잡을 넣으면 안 된다** (S15P21B202-533, `!448` AI 리뷰).
+    # `needs` 에 든 잡이 버튼인 채로 남아 있으면 GitLab 이 이 잡을 **skipped** 로 만든다 —
+    # 카드가 통째로 사라진다. 실제로 그렇게 됐다: `build-devbuild`(MR 에서는 버튼)를
+    # 넣자 `!448` 의 파이프라인 `194534`·`195115` 에서 `ci-tests`·`ai-review-gate` 가
+    # 실패했는데도 이 잡이 `skipped` 였다. 같은 시각 `!443`(옛 목록)은 `success` 였다.
+    #
+    # 그래서 **버튼이 될 수 있는 잡은 전부 뺀다**: `deploy-dev`(develop push) ·
+    # `build-devbuild`(MR) · `publish-devbuild`(web) · `deploy-prod` · `promote-*`.
+    # 예약 실행은 그 잡들이 전부 **자동**이므로 아래 `mm-nightly-*` 가 따로 맡는다.
     - job: build-backend
-      optional: true      # develop push 와 예약 실행에 있다
-    - job: deploy-dev
-      optional: true      # 예약 실행에서는 버튼이 아니라 **자동**이다
-    - job: build-devbuild
-      optional: true
-    - job: publish-devbuild
-      optional: true
+      optional: true      # 버튼인 적이 없다 — MR · develop push · 예약 모두 자동이다
     - job: release-windows
       optional: true      # master push 파이프라인에만 있다. **잡이 아예 못 뜬 경우**(이미지
                           # pull 실패·러너 정지·90분 타임아웃·취소)까지 이 needs 가 덮는다 —
                           # 스크립트 안에 notify 를 흩뿌려서는 그 경우를 알릴 수 없다(-407 ①)
   when: on_failure
   rules:
-    # **예약 실행도 알린다** (S15P21B202-533). 없으면 새벽 배포·아침 점검이 죽어도
-    # 아무 카드가 안 가고, 그다음 머지 푸시가 "초록으로 돌아왔다" 를 보낸다 —
-    # 알린 적 없는 실패가 해소됐다고 알려진다.
-    - if: $CI_PIPELINE_SOURCE == "schedule" && $MM_WEBHOOK_URL
+    # 예약 실행은 `mm-nightly-*` 가 맡는다 — needs 를 둘 수 없기 때문이다(위 주석).
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $MM_WEBHOOK_URL
     # develop 이 빨간 것은 MR 실패와 성격이 다르다 — 그 순간 모든 사람의 다음 브랜치가
     # 빨간 기준선 위에서 시작한다. 2026-09-08 에 두 커밋 연속 실패하고 카드가 0건이었다.
@@ -1020,27 +1017,24 @@ mm-ci-resolved:           # 검사 통과 시, 남아 있는 CI 실패 코멘트
       optional: true
     - job: ai-review-gate # mm-ci-failed 와 같은 목록이어야 한다 — 다르면 ⛔ 로 막힌 MR 에
       optional: true      # '해소됨' 이 찍힌다(-289 와 같은 사고)
-    # **예약 실행이 돌리는 잡들** (S15P21B202-533). 이것이 빠져 있어 2026-09-15 04:03
-    # `build-devbuild` 실패가 아무 카드도 못 내보냈다 — `-344` 에서 `unity-compile` 이
-    # 빠져 있던 것과 **같은 모양**이다. rules 만 고치면 겉만 고치는 것이 된다.
+    # **여기에 수동 잡을 넣으면 안 된다** (S15P21B202-533, `!448` AI 리뷰).
+    # `needs` 에 든 잡이 버튼인 채로 남아 있으면 GitLab 이 이 잡을 **skipped** 로 만든다 —
+    # 카드가 통째로 사라진다. 실제로 그렇게 됐다: `build-devbuild`(MR 에서는 버튼)를
+    # 넣자 `!448` 의 파이프라인 `194534`·`195115` 에서 `ci-tests`·`ai-review-gate` 가
+    # 실패했는데도 이 잡이 `skipped` 였다. 같은 시각 `!443`(옛 목록)은 `success` 였다.
+    #
+    # 그래서 **버튼이 될 수 있는 잡은 전부 뺀다**: `deploy-dev`(develop push) ·
+    # `build-devbuild`(MR) · `publish-devbuild`(web) · `deploy-prod` · `promote-*`.
+    # 예약 실행은 그 잡들이 전부 **자동**이므로 아래 `mm-nightly-*` 가 따로 맡는다.
     - job: build-backend
-      optional: true      # develop push 와 예약 실행에 있다
-    - job: deploy-dev
-      optional: true      # 예약 실행에서는 버튼이 아니라 **자동**이다
-    - job: build-devbuild
-      optional: true
-    - job: publish-devbuild
-      optional: true
+      optional: true      # 버튼인 적이 없다 — MR · develop push · 예약 모두 자동이다
     - job: release-windows
       optional: true      # master push 파이프라인에만 있다. **잡이 아예 못 뜬 경우**(이미지
                           # pull 실패·러너 정지·90분 타임아웃·취소)까지 이 needs 가 덮는다 —
                           # 스크립트 안에 notify 를 흩뿌려서는 그 경우를 알릴 수 없다(-407 ①)
   when: on_success
   rules:
-    # **예약 실행도 알린다** (S15P21B202-533). 없으면 새벽 배포·아침 점검이 죽어도
-    # 아무 카드가 안 가고, 그다음 머지 푸시가 "초록으로 돌아왔다" 를 보낸다 —
-    # 알린 적 없는 실패가 해소됐다고 알려진다.
-    - if: $CI_PIPELINE_SOURCE == "schedule" && $MM_WEBHOOK_URL
+    # 예약 실행은 `mm-nightly-*` 가 맡는다 — needs 를 둘 수 없기 때문이다(위 주석).
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     # develop 이 초록으로 돌아온 것도 알린다 — 🔴 카드가 "빨간 기준선 위에서 시작한다" 고
     # 경고했으니 풀렸다는 말도 같은 채널에 있어야 한다. 직전 파이프라인이 실패였을 때만 보낸다.
@@ -1052,6 +1046,37 @@ mm-ci-resolved:           # 검사 통과 시, 남아 있는 CI 실패 코멘트
     # 실제 릴리스 없이 지나가 보는 것인데, 그 실패가 조용하면 **이 이슈가 고치려던
     # 그 문제**가 새 경로에 그대로 생긴다 — "알림 목록에서 빠진 잡은 조용히 실패한다".
     - if: $CI_PIPELINE_SOURCE == "web" && $MM_WEBHOOK_URL
+  script:
+    - python scripts/ci/mm_notify.py ci-resolved
+  allow_failure: true
+
+# ── 예약 실행 전용 알림 (S15P21B202-533) ────────────────────────────────────
+#
+# **`needs` 가 없다.** 이것이 이 잡들이 따로 있는 이유다.
+#
+# 예약 실행에서 실패하는 것은 `deploy-dev`·`build-devbuild`·`publish-devbuild` 인데,
+# 그 셋은 **다른 파이프라인에서는 버튼**이라 `mm-ci-*` 의 `needs` 에 넣을 수 없다 —
+# 넣으면 버튼을 안 누른 MR·develop push 에서 알림 잡이 통째로 `skipped` 된다.
+#
+# `needs` 를 아예 두지 않으면 GitLab 이 **스테이지 순서**로 미룬다: `notify` 는
+# `deploy` 다음이므로 그 셋이 끝난 뒤에 돈다. 예약 실행에는 버튼이 하나도 없어
+# 붙잡힐 일도 없다. `mm-ci-*` 가 `needs` 를 쓰는 까닭(빨리 알리기)은 하루 한 번
+# 도는 이 경로에서는 값이 없다.
+
+mm-nightly-failed:        # 🔴 예약 실행 실패 — 새벽 배포·아침 점검
+  stage: notify
+  when: on_failure
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $MM_WEBHOOK_URL
+  script:
+    - python scripts/ci/mm_notify.py ci-failed
+  allow_failure: true
+
+mm-nightly-resolved:      # ✅ 예약 실행이 다시 된다
+  stage: notify
+  when: on_success
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $MM_WEBHOOK_URL
   script:
     - python scripts/ci/mm_notify.py ci-resolved
   allow_failure: true

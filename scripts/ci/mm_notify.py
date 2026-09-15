@@ -15,8 +15,11 @@
 import json
 import os
 import sys
+from datetime import datetime, timedelta, timezone
 
 from ci_common import GitLab, banner, bot_line, env, http, load_team, role_member, strip_draft, why
+
+KST = timezone(timedelta(hours=9))
 
 TEAM = load_team()
 BY_GITLAB = {m["gitlab"]: m for m in TEAM["members"]}
@@ -398,8 +401,22 @@ def is_scheduled() -> bool:
 
 
 def schedule_name() -> str:
-    """어느 예약인지 사람 말로. 시각을 쓰는 이유는 스케줄 이름을 잡이 모르기 때문이다."""
-    return env("CI_PIPELINE_CREATED_AT", "")[11:16] + " 예약" if env("CI_PIPELINE_CREATED_AT", "") else "예약"
+    """어느 예약인지 사람 말로. 시각을 쓰는 이유는 스케줄 이름을 잡이 모르기 때문이다.
+
+    **KST 로 바꿔야 한다** (`!448` AI 리뷰). `CI_PIPELINE_CREATED_AT` 은 UTC 라
+    글자를 그대로 잘라 쓰면 04:00 예약이 카드에 **"19:00 예약"** 으로 찍힌다 —
+    스케줄이 04:00·09:30 둘뿐인데 둘 다 못 알아보는 이름이 된다.
+    """
+    raw = env("CI_PIPELINE_CREATED_AT", "")
+    if not raw:
+        return "예약"
+    try:
+        ts = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return "예약"
+    if ts.tzinfo is None:          # 오프셋이 없으면 UTC 로 본다 — GitLab 이 주는 모양이다
+        ts = ts.replace(tzinfo=timezone.utc)
+    return ts.astimezone(KST).strftime("%H:%M") + " 예약"
 
 
 def branch_failed(gl: GitLab) -> int:
