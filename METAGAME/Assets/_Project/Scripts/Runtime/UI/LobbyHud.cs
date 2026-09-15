@@ -260,7 +260,7 @@ namespace Metagame.UI
             float buttonWidth = 330f * scale;
             float buttonHeight = 60f * scale;
             float gap = 14f * scale;
-            float totalHeight = buttonHeight * 4f + gap * 3f;
+            float totalHeight = buttonHeight * 5f + gap * 4f;
             Rect safe = UiScale.SafeArea;
             float x = Mathf.Clamp(UiScale.Width * 0.16f, safe.xMin + 20f, safe.xMax - buttonWidth - 20f);
             float y = Mathf.Clamp(UiScale.Height * 0.54f, safe.yMin + 20f,
@@ -286,6 +286,9 @@ namespace Metagame.UI
                 OpenSettings();
             }
             if (UiInteraction.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 3, gap),
+                    "우주선 연습실", buttonStyle))
+                LobbyTransition.Ensure().BeginPractice();
+            if (UiInteraction.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 4, gap),
                     "종료하기", buttonStyle))
                 Application.Quit();
 
