@@ -114,16 +114,37 @@ check(len(now["blocker_codes"]) == len(now["blocker_messages"]),
       "  `Evaluate()` 에 막는 자리가 늘었다면 schema_source.BLOCKER_CODES 에도 더한다.")
 print("  막힘 코드와 문구의 개수가 같다 ✅")
 
-# ── 5) 쉼표 없는 마지막 값도 잡는가 ──
-# 실제로 뚫려 있던 자리다(`!461` AI 리뷰). C# 관행대로 맨 끝에 쉼표 없이 값을 더하면
-# 전에는 그 값이 통째로 빠졌고, 지문이 그대로라 검사가 통과했다.
-sample = "\n".join(["    A = 0,", "    B,", "    /// <summary>주석</summary>", "    C", "}"])
-got = [m for m in (__import__("re").match(r"\s*(\w+)", c) for c in
-                   S.strip_comments(sample[:sample.index("}")]).split(",")) if m]
-check([m.group(1) for m in got] == ["A", "B", "C"],
-      f"쉼표 없는 마지막 값을 놓친다: {[m.group(1) for m in got]}")
-print("  쉼표 없는 마지막 값도 잡는다 ✅")
+# ── 5) 파서를 **직접 불러** 확인한다 ──
+#
+# 전에는 이 검사가 split 로직을 안에 베껴 두고 흉내만 냈다 — 진짜 파서가 줄 단위
+# 방식으로 되돌아가도 계속 통과했다(`!461` AI 리뷰). 검사가 있는데 아무것도 안
+# 지키는 상태였다. 이제 `S.enum_members` 를 그대로 부른다.
 
+# 맨 끝에 쉼표가 없는 값 — 실제로 뚫려 있던 자리다.
+check(S.enum_members("A = 0, B, C") == ["A", "B", "C"],
+      f"쉼표 없는 마지막 값을 놓친다: {S.enum_members('A = 0, B, C')}")
+
+# 주석이 섞여도 이름만 남아야 한다.
+sample = chr(10).join([
+    "    A = 0,",
+    "    /// <summary>주석</summary>",
+    "    B,          // 꼬리 주석",
+    "    C",
+])
+check(S.enum_members(S.strip_comments(sample)) == ["A", "B", "C"],
+      f"주석이 섞이면 놓친다: {S.enum_members(S.strip_comments(sample))}")
+print("  파서를 직접 불러 확인했다 — 쉼표 없는 끝값 · 주석 ✅")
+
+# ── 5b) 문자열 안의 `//` 를 주석으로 보지 않는가 ──
+# `"https://…"` 한 줄만 들어와도 계약이 조용히 틀리게 만들어진다.
+kept = S.strip_comments('x = "a//b";  // 진짜 주석')
+check("a//b" in kept and "진짜 주석" not in kept, f"문자열 안의 // 를 잘랐다: {kept}")
+
+# 주석 안의 중괄호가 깊이를 흔들면 엉뚱한 자리에서 잘린다.
+sample2 = chr(10).join(['void F() {  // }"{"', '  int a;', '}'])
+body = S.braced_body(sample2, 'void F()')
+check("int a;" in body, f"주석 안의 중괄호에 흔들린다: {body!r}")
+print("  문자열·주석 안의 기호에 안 흔들린다 ✅")
 # ── 6) 계약이 사람이 읽을 수 있는가 ──
 check(bool(saved.get("note")), "계약에 note 가 없다 — 이 파일이 무엇인지 적혀 있어야 한다")
 print("  계약에 설명이 있다 ✅")
