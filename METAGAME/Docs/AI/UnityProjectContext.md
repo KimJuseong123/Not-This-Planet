@@ -1,5 +1,9 @@
 # Unity Project Context
 
+## 2026-09-15 core part optical guidance
+
+`AssemblyGuidanceLight` attaches scene-local `PartGuidanceVfx` optics to the four existing part-location beacons (three `Module beacon · visual guide`, one `02 Tractor sky beacon`). They reuse the welder's WeldingParticle shader, with private HDR beacon/halo materials, a pulse ring and bounded motes. The existing beacon bounds determine the full beam extent. Effects never follow or read movable parts and remain visible after part movement/docking/destruction. Disabling/destroying the effect restores the original beacon material. No scene wiring is required in Stage1_Astra. Isolated EditMode regression tests cover 116 cases. Multi-peer/player build validation was not run. See `docs/records/2026-09-15-part-guidance-vfx.md` at repository root for current evidence and limitations.
+
 ## 2026-09-14 welding joint recommendations
 
 PlasmaWeldingTool now owns a local-only yellow collider-projected joint recommendation mesh, using the first bead contact query from WeldBead. The transparent WeldingGuide resource shader draws recommendations before the purple aim ring without writing depth. Default range is 4m and normal offset is 1.2cm. No scene/prefab setup is required. Unity 6000.5.4f1 isolated EditMode validation passed 99/99 tests; live visual/multi-peer validation remains pending. See repository-root docs/records/2026-09-14-welding-joint-guide.md.
