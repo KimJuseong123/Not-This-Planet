@@ -60,7 +60,14 @@ b=$(section mm-ci-resolved | grep -o -- "- job: [a-z-]*" | sort)
 if [ "$a" = "$b" ]; then
   ok "두 잡의 needs 목록이 같다"
 else
-  bad "needs 목록이 다르다"; diff <(printf '%s' "$a") <(printf '%s' "$b") | sed 's/^/       /'
+  # **프로세스 치환(`<(...)`)을 쓰지 않는다.** CI 이미지의 `/bin/sh` 는 dash 이고
+  # dash 에는 그 문법이 없다 — 파일을 **읽는 시점**에 구문 오류로 죽으므로, 이 가지를
+  # 타지 않아도 스크립트 전체가 안 돈다. 로컬 Git Bash 에서는 통과해서 안 보인다.
+  bad "needs 목록이 다르다"
+  printf '%s
+' "$a" | sed 's/^/       failed:   /'
+  printf '%s
+' "$b" | sed 's/^/       resolved: /'
 fi
 
 # ④ 예약 실행 전용 문구가 있어야 한다. "브랜치가 빨갛다" 는 예약 실패에 맞지 않는다 —

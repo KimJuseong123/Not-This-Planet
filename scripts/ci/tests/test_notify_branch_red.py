@@ -29,6 +29,10 @@ os.environ.update({
     "CI_COMMIT_TITLE": "Merge branch 'x' into 'develop'",
     "GITLAB_USER_LOGIN": "rmawnsdud",
     "MM_WEBHOOK_URL": "https://mm.example/h",
+    # **직접 정해야 한다** (S15P21B202-533). 안 정하면 `ci-tests` 잡 자신의
+    # `CI_PIPELINE_SOURCE=merge_request_event` 가 새어 들어온다 — 로컬에서는 그 변수가
+    # 없어 통과하고 CI 에서만 깨진다. 실제로 그렇게 깨졌다.
+    "CI_PIPELINE_SOURCE": "push",
 })
 os.environ.pop("CI_MERGE_REQUEST_IID", None)
 
@@ -91,8 +95,8 @@ assert len(sent2) == 1, "iid 가 없어도 브랜치 경로를 타야 한다"
 print("  main 라우팅 (iid 없음 → 브랜치 경로) ✅")
 
 # ── ⑤ 초록으로 돌아오면 알린다 — **직전이 실패였을 때만**
-sent3, http3 = fake([{"id": 500, "status": "success", "web_url": "https://lab/p/500"},
-                     {"id": 499, "status": "failed", "web_url": "https://lab/p/499"}])
+sent3, http3 = fake([{"id": 500, "status": "success", "source": "push", "web_url": "https://lab/p/500"},
+                     {"id": 499, "status": "failed", "source": "push", "web_url": "https://lab/p/499"}])
 ci_common.http = http3
 N.http = http3
 rc = N.branch_resolved(ci_common.GitLab())
@@ -104,8 +108,8 @@ assert "https://lab/p/499" in sent3[0], "직전 실패 파이프라인을 링크
 print("  초록 복귀 → 카드 (직전이 실패였음) ✅")
 
 # ── ⑥ 직전이 이미 초록이면 **보내지 않는다** — 매 커밋마다 카드가 나가면 채널이 시끄럽다
-sent4, http4 = fake([{"id": 500, "status": "success", "web_url": "https://lab/p/500"},
-                     {"id": 499, "status": "success", "web_url": "https://lab/p/499"}])
+sent4, http4 = fake([{"id": 500, "status": "success", "source": "push", "web_url": "https://lab/p/500"},
+                     {"id": 499, "status": "success", "source": "push", "web_url": "https://lab/p/499"}])
 ci_common.http = http4
 N.http = http4
 rc = N.branch_resolved(ci_common.GitLab())
@@ -114,9 +118,9 @@ assert len(sent4) == 0, "직전이 초록이면 알릴 것이 없다: " + str(se
 print("  직전이 초록 → 보내지 않는다 ✅")
 
 # ── ⑦ running·canceled 는 판단 근거가 아니다 — 그 뒤의 결론난 파이프라인을 본다
-sent5, http5 = fake([{"id": 500, "status": "success", "web_url": "https://lab/p/500"},
-                     {"id": 499, "status": "running", "web_url": "https://lab/p/499"},
-                     {"id": 498, "status": "failed", "web_url": "https://lab/p/498"}])
+sent5, http5 = fake([{"id": 500, "status": "success", "source": "push", "web_url": "https://lab/p/500"},
+                     {"id": 499, "status": "running", "source": "push", "web_url": "https://lab/p/499"},
+                     {"id": 498, "status": "failed", "source": "push", "web_url": "https://lab/p/498"}])
 ci_common.http = http5
 N.http = http5
 rc = N.branch_resolved(ci_common.GitLab())
@@ -125,11 +129,24 @@ assert "https://lab/p/498" in sent5[0], sent5[0]
 print("  running 은 건너뛰고 결론난 것을 본다 ✅")
 
 # ── ⑧ 직전을 못 찾으면 조용히 넘어간다 (거짓 ✅ 를 만들지 않는다)
-sent6, http6 = fake([{"id": 500, "status": "success", "web_url": "https://lab/p/500"}])
+sent6, http6 = fake([{"id": 500, "status": "success", "source": "push", "web_url": "https://lab/p/500"}])
 ci_common.http = http6
 N.http = http6
 rc = N.branch_resolved(ci_common.GitLab())
 assert rc == 0 and len(sent6) == 0, sent6
 print("  직전 없음 → 조용히 넘어간다 ✅")
+
+# ── ⑨ **종류가 다른 파이프라인은 견줄 대상이 아니다** (S15P21B202-533)
+# 2026-09-15 에 실제로 이렇게 됐다: 04:03 새벽 배포 실패를 직전으로 보고, 08:31 머지
+# 푸시가 ✅ 회복 카드를 보냈다. 그 푸시는 `scripts/ci/**` 만 바꿔 실질 잡이 하나뿐이라
+# **아무것도 검사하지 않고** "이제 브랜치를 따도 된다" 고 말한 것이다.
+sent7, http7 = fake([{"id": 500, "status": "success", "source": "push", "web_url": "https://lab/p/500"},
+                     {"id": 499, "status": "failed", "source": "schedule", "web_url": "https://lab/p/499"}])
+ci_common.http = http7
+N.http = http7
+rc = N.branch_resolved(ci_common.GitLab())
+assert rc == 0 and len(sent7) == 0, ("예약 실행의 실패를 머지 푸시가 해소했다고 말하면 안 된다: "
+                                     + str(sent7))
+print("  종류가 다르면 견주지 않는다 ✅")
 
 print("TEST344 OK")
