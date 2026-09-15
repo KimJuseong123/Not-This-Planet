@@ -178,7 +178,10 @@ namespace Metagame.Gameplay.Parts
             RefreshClamps();
             RefreshSockets();
             EnsureGrabbable();
+            // 표현을 먼저 적용하고 그 뒤에 안개에서 뺀다 (S15P21B202-540). 순서가
+            // 반대면, 표현 전환이 나중에 재질을 갈아끼우는 날 예외가 조용히 날아간다.
             ApplyRepresentation(_state);
+            ExemptFromFog();
         }
 
         /// <summary>
@@ -193,6 +196,22 @@ namespace Metagame.Gameplay.Parts
         /// 파츠를 옮기는 수단은 견인 도구 하나로 유지된다.
         /// </summary>
         void EnsureGrabbable() => Grabbable.Mark(gameObject, name, climbable: true);
+
+        /// <summary>
+        /// 파츠는 안개를 받지 않는다 (S15P21B202-540).
+        ///
+        /// <para><b>왜 사람과 같이 빼는가.</b> 사람만 또렷하고 그가 나르는 파츠만
+        /// 회색이면 어색하다. 그리고 파츠는 이 게임의 목표물이다 — 어디에 있는지
+        /// 읽히는 편이 맞다. 리포에 이미 같은 판단이 있다: 유도등과 유도광선이
+        /// <c>GuidanceNoFog</c> 로 안개를 피한다.</para>
+        ///
+        /// <para><b>잡는 동안만 빼지 않는 이유.</b> 잡기는 입력으로 서버에 가고
+        /// (<c>InputFrame.GrabLeft</c>), 참가자 기계에는 결과 위치만 내려온다 —
+        /// <c>Grabbable.NotifyGrabbed</c> 가 거기서는 돌지 않는다. 잡는 동안만
+        /// 빼면 <b>내가 든 것만 또렷하고 팀원이 든 것은 그대로 회색</b>이라
+        /// 고치려던 문제가 남는다.</para>
+        /// </summary>
+        void ExemptFromFog() => Core.Prim.SetFogExempt(gameObject, true);
 
         /// <summary>
         /// 자식의 고정쇠 목록을 다시 모은다.

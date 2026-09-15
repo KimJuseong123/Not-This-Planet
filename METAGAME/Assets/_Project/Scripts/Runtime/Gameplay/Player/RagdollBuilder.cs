@@ -160,6 +160,21 @@ namespace Metagame.Gameplay
                 doll.Suit = SpaceSuit.Attach(doll, root.transform);
             }
 
+            // 사람은 안개를 받지 않는다 (S15P21B202-540).
+            //
+            // Stage1 의 안개는 10m 에서 시작해 60m 에서 꽉 찬다. 색이 중간 회색이라
+            // 35m 만 떨어져도 팀원이 절반은 회색이 되어, 고정 4색으로 서로를 구분하게
+            // 해 둔 것(-375)이 무의미해졌다. 환경 안개 자체는 그대로 둔다 — 지형과
+            // 하늘의 분위기는 유지하고 사람만 뺀다.
+            //
+            // <b>여기서 한 번에 훑는 이유.</b> 몸은 프리미티브 스무 개 남짓에 장식과
+            // 헬멧 유리(Ghost)까지 섞여 있고, primitiveLook 이 거짓이면 그 위에
+            // 블렌더 메시가 더 붙는다. 생성 호출마다 인자를 다는 대신 다 만든 뒤
+            // 훑으면 나중에 장식이 늘어도 빠지지 않는다.
+            //
+            // 로컬과 원격이 같은 경로다 — RemoteAvatar 는 PlayerRig.Doll 을 그대로 쓴다.
+            Prim.SetFogExempt(root, true);
+
             doll.Teleport(footPos + Vector3.up * HipsY, facing);
 
             return doll;
