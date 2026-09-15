@@ -12,6 +12,8 @@ namespace Metagame.Gameplay.Tests
     ///
     /// <para><b>무엇이 문제였나.</b> 빨간 테두리(<c>GameHud.HealthFrame</c>)는
     /// <see cref="PlayerRig.Health01"/> 을 읽는데 <b>체력이 전송되지 않았다</b> —
+    /// (테두리는 <c>-539</c> 에서 <see cref="PlayerRig.DamageFlash01"/> 을 읽도록
+    /// 바뀌었다. 체력을 보내야 하는 이유는 그대로다 — 번쩍임이 그 값에서 나온다.)
     /// 실측으로 <c>NetPlayer</c> 와 <c>WorldSync</c> 둘 다에서 <c>health</c> 가
     /// <b>0회</b>였다. 운석 직격은 <c>ApplyDamage</c> 를 거치지 않고 곧바로
     /// <c>GoDown</c> 이고 <c>downed</c> 는 전송되므로, 참가자에게 체력은 사실상
@@ -58,7 +60,7 @@ namespace Metagame.Gameplay.Tests
             rig.SetRemoteHealth(rig.MaxHealth * 0.4f);
 
             Assert.AreEqual(0.4f, rig.Health01, 1e-4f,
-                "서버가 깎은 만큼 테두리가 짙어져야 한다.");
+                "서버가 깎은 값이 그대로 들어와야 한다.");
         }
 
         /// <summary>
@@ -86,7 +88,7 @@ namespace Metagame.Gameplay.Tests
 
             rig.SetRemoteHealth(rig.MaxHealth);
 
-            Assert.AreEqual(1f, rig.Health01, 1e-4f, "가득 차면 테두리가 사라져야 한다.");
+            Assert.AreEqual(1f, rig.Health01, 1e-4f, "차오르는 것도 내려온다.");
         }
 
         /// <summary>
@@ -180,27 +182,91 @@ namespace Metagame.Gameplay.Tests
         // ── 테두리가 그리기로 하는가 ────────────────────────────
 
         [Test]
-        public void AFullBarDrawsNothing()
+        public void ACooledFlashDrawsNothing()
         {
-            Assert.Zero(UI.GameHud.HealthFrameStrength(1f),
-                "가득 차면 테두리가 없어야 한다.");
+            Assert.Zero(UI.GameHud.HealthFrameStrength(0f),
+                "다 식으면 테두리가 없어야 한다.");
         }
 
         [Test]
-        public void DamageMakesItStronger()
+        public void AHarderHitIsStronger()
         {
-            var light = UI.GameHud.HealthFrameStrength(0.9f);
-            var heavy = UI.GameHud.HealthFrameStrength(0.2f);
+            var light = UI.GameHud.HealthFrameStrength(0.2f);
+            var heavy = UI.GameHud.HealthFrameStrength(0.9f);
 
-            Assert.Greater(light, 0f, "조금만 닳아도 보여야 한다.");
-            Assert.Greater(heavy, light, "많이 닳을수록 짙어진다.");
+            Assert.Greater(light, 0f, "조금만 맞아도 보여야 한다.");
+            Assert.Greater(heavy, light, "세게 맞을수록 짙어진다.");
         }
 
         [Test]
-        public void ANearlyFullBarStillDrawsNothing()
+        public void ANearlyCooledFlashStillDrawsNothing()
         {
-            Assert.Zero(UI.GameHud.HealthFrameStrength(1f - 1e-7f),
+            Assert.Zero(UI.GameHud.HealthFrameStrength(1e-7f),
                 "부동소수 찌꺼기로 테두리가 깜빡이면 안 된다.");
+        }
+
+        // ── 구조된 뒤에 테두리가 남지 않는가 (S15P21B202-539) ──
+
+        /// <summary>
+        /// <b>이 검증이 원래 문제다.</b> 구조는 체력을 절반만 돌려주는데
+        /// (<c>PhysicsScale.RescueHealthRatio</c>) 예전 테두리는 남은 체력을 읽어서
+        /// 판이 끝날 때까지 빨간 테두리가 남았다.
+        /// </summary>
+        [Test]
+        public void RescueLeavesNoFrame()
+        {
+            var rig = MakePlayer();
+            rig.ResetHealth();
+
+            rig.GoDown("검증");
+            Assert.Greater(rig.DamageFlash01, 0f, "쓰러질 때는 번쩍인다.");
+
+            rig.Revive(rig.MaxHealth * PhysicsScale.RescueHealthRatio);
+
+            // 번쩍임이 식을 만큼 시간을 보낸다.
+            int ticks = Mathf.CeilToInt(Tuning.DamageFlashSeconds / Time.fixedDeltaTime) + 2;
+            for (int i = 0; i < ticks; i++) rig.Tick();
+
+            Assert.AreEqual(0.5f, rig.Health01, 1e-4f,
+                "밸런스는 그대로다 — 구조는 절반만 돌려준다.");
+            Assert.Zero(UI.GameHud.HealthFrameStrength(rig.DamageFlash01),
+                "체력이 절반이어도 구조된 뒤에는 테두리가 없어야 한다.");
+        }
+
+        /// <summary>
+        /// 체력이 늘어나는 것은 번쩍이지 않는다 — 구조와 판 초기화가 그 경로다.
+        /// </summary>
+        [Test]
+        public void HealingDoesNotFlash()
+        {
+            var rig = MakePlayer();          // 권위가 있어야 ApplyDamage 가 돈다
+            rig.ApplyDamage(rig.MaxHealth * 0.3f, "검증");
+            Assert.Greater(rig.DamageFlash01, 0f, "맞으면 번쩍인다.");
+
+            int ticks = Mathf.CeilToInt(Tuning.DamageFlashSeconds / Time.fixedDeltaTime) + 2;
+            for (int i = 0; i < ticks; i++) rig.Tick();
+            Assert.Zero(rig.DamageFlash01, "식을 시간을 줬다.");
+
+            rig.ResetHealth();
+
+            Assert.Zero(rig.DamageFlash01, "체력이 차오르는 것은 피해가 아니다.");
+        }
+
+        /// <summary>
+        /// 참가자 기계도 번쩍인다. 거기서는 <c>ApplyDamage</c> 가 막혀 있고
+        /// (<see cref="AParticipantCannotDamageItself"/>) 서버가 보낸 값만 들어오므로,
+        /// 세터에 번쩍임을 두지 않으면 <b>참가자에게만 테두리가 안 뜬다</b> —
+        /// <c>-513</c> 이 겪은 것과 같은 모양의 구멍이다.
+        /// </summary>
+        [Test]
+        public void AParticipantFlashesFromTheServerValue()
+        {
+            var rig = MakeParticipant();
+
+            rig.SetRemoteHealth(rig.MaxHealth * 0.6f);
+
+            Assert.Greater(rig.DamageFlash01, 0f,
+                "서버가 깎은 것도 피해다.");
         }
 
         // ── 도구 ────────────────────────────────────────────────

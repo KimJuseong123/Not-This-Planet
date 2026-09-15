@@ -95,9 +95,55 @@ namespace Metagame.Gameplay
         public Vector3 GroundVelocity { get; private set; }
         public float Speed { get; private set; }
         public float MaxHealth { get { return Tuning.MaxHealth; } }
-        public float Health { get; private set; }
+
+        float health;
+
+        /// <summary>
+        /// 지금 체력.
+        ///
+        /// <para><b>왜 대입을 세터로 모았나</b>(S15P21B202-539). 빨간 테두리가
+        /// <see cref="DamageFlash01"/> 를 읽게 바뀌면서 "이번에 얼마나 깎였나" 를
+        /// 알아야 하는데, 깎는 자리가 <see cref="ApplyDamage"/> · <see cref="GoDown"/> ·
+        /// <see cref="SetRemoteHealth"/> 로 흩어져 있다. 세 곳에 같은 줄을 넣으면
+        /// <b>한 곳이 빠진다</b> — <c>-513</c> 이 참가자 기계에서 정확히 그렇게 빠졌다.
+        /// 세터에 두면 어느 경로로 깎여도 번쩍인다.</para>
+        ///
+        /// <para>늘어나는 것은 번쩍이지 않는다 — 구조(<see cref="Revive"/>)와 판 초기화
+        /// (<see cref="ResetHealth"/>)가 그 경로다.</para>
+        /// </summary>
+        public float Health
+        {
+            get { return health; }
+            private set
+            {
+                float lost = health - value;
+                health = value;
+
+                if (lost <= 0f || MaxHealth <= 0f) return;
+
+                // 겹쳐 맞으면 더 센 쪽이 남는다. 합치면 연달아 맞을 때 1 에 붙어
+                // 버려서 "얼마나 세게 맞았나" 가 사라진다.
+                DamageFlash01 = Mathf.Max(DamageFlash01,
+                                          Mathf.Clamp01(lost / MaxHealth * Tuning.DamageFlashGain));
+            }
+        }
+
         public float Health01 { get { return MaxHealth <= 0f ? 0f : Mathf.Clamp01(Health / MaxHealth); } }
         public bool IsDead { get { return Health <= 0f; } }
+
+        /// <summary>
+        /// 피해를 받은 직후의 번쩍임 0~1. <c>GameHud</c> 의 빨간 테두리가 이것을 읽는다
+        /// (S15P21B202-539).
+        ///
+        /// <para><b>왜 체력이 아니라 이것인가.</b> 예전 테두리는 <see cref="Health01"/> 에
+        /// 정비례하는 상시 표시였다. 그런데 구조는 체력을 절반만 돌려주고
+        /// (<c>PhysicsScale.RescueHealthRatio</c>) 게임 안에 체력을 되돌리는 수단이
+        /// 없다 — <b>한 번 구조되면 판이 끝날 때까지 테두리가 남았다.</b></para>
+        ///
+        /// <para>밸런스가 아니라 표시 방식을 고친다. <c>RescueHealthRatio</c> 0.5 는
+        /// 의도된 값이다(<c>PhysicsScale</c> 의 주석).</para>
+        /// </summary>
+        public float DamageFlash01 { get; private set; }
 
         /// <summary>
         /// 기절해 쓰러져 있는가(기획 §26-13). 동료가 일으켜야 다시 움직인다.
@@ -1138,6 +1184,24 @@ namespace Metagame.Gameplay
         public void ResetHealth()
         {
             Health = MaxHealth;
+        }
+
+        /// <summary>
+        /// 피해 번쩍임을 식힌다 (S15P21B202-539).
+        ///
+        /// <para>매 고정틱 <c>Time.fixedDeltaTime</c> 을 적산한다 — <see cref="TickRescue"/> ·
+        /// <see cref="TickTossed"/> 와 같은 규칙이다. 시간을 인수로 받지 않는 이유도 같다.</para>
+        ///
+        /// <para>0 에 닿으면 <c>GameHud.HealthFrameStrength</c> 가 테두리를 그리지 않는다.
+        /// <see cref="Mathf.MoveTowards"/> 라 0 을 지나치지 않는다 — 음수가 되면
+        /// 테두리 두께 보간이 뒤집힌다.</para>
+        /// </summary>
+        void TickDamageFlash()
+        {
+            if (DamageFlash01 <= 0f) return;
+
+            DamageFlash01 = Mathf.MoveTowards(DamageFlash01, 0f,
+                                              Time.fixedDeltaTime / Tuning.DamageFlashSeconds);
         }
 
         /// <summary>
@@ -2209,6 +2273,12 @@ namespace Metagame.Gameplay
         public void Tick()
         {
             if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
+
+            // 피해 번쩍임을 식힌다 (S15P21B202-539). 아래 게이지들보다 앞에 두는 이유는
+            // 뒤쪽 이른 반환(Doll 이 아직 없거나 Hips 좌표가 망가진 틱) 때문이다 —
+            // 그 뒤에 두면 그런 틱에 번쩍임이 식지 않고 화면에 얼어붙는다.
+            TickDamageFlash();
+
             SyncCameraTilt();
 
             // 파츠 밀기 상태를 먼저 갱신한다 — 아래 Locomotion 이 이 값으로 이동

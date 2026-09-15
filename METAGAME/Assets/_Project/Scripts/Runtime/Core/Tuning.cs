@@ -48,6 +48,16 @@ namespace Metagame.Core
         // ── 체력 · 피해 ────────────────────────────────────────
         // 일반 점프는 안전하게 유지하고, 높은 곳에서 빠르게 착지했을 때만 낙하 피해를 준다.
         public const float MaxHealth = 100f;
+
+        // 빨간 테두리는 피해를 받은 순간 번쩍였다가 식는다 (S15P21B202-539).
+        // 예전처럼 남은 체력에 정비례하면, 구조가 체력을 절반만 돌려주는데
+        // (PhysicsScale.RescueHealthRatio) 되돌릴 수단이 없어 테두리가 판 끝까지 남는다.
+        //
+        // 0.45초는 "맞았다" 가 읽히면서 조작을 가리지 않는 길이다. 운석 직격(25)이
+        // 게인 2.2 로 0.55 가 되어 화면 짧은 변의 4.4% 두께로 뜬다 — 눈에 걸리되
+        // 시야를 막지는 않는다.
+        public const float DamageFlashSeconds = 0.45f;
+        public const float DamageFlashGain = 2.2f;
         // 낙하 피해 상수를 걷어냈다(S15P21B202-334). 기획 §20.2 는 낙하를 피해가 아니라
         // 자세로 처리한다 — 단계와 경계는 PhysicsScale.FallStagger/Knock/StunHeight 에 있다.
 
