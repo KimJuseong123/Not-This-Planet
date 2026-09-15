@@ -1,5 +1,9 @@
 # Unity Project Context
 
+## 2026-09-15 — P01 Blender roller visuals
+
+`Stage1_Astra_ver2` now uses four Blender-authored roller FBX/prefab variants in `Assets/_Project/Art/AstraP01` across all 19 P01 instances. Existing cylinder renderers are disabled; `P01 Blender Visual` children compensate the original primitive scale. All pre-existing physics, scripts, hierarchy paths and transforms are preserved. `AstraP01RollerArt` applies the incremental change and renders previews; do not rerun older scene builders over the authored scene. Meter/axis/bounds/serialization/reload and Unity render checks passed in the isolated project. Existing heavy/interior roller placement overlaps remain; player interaction and multi-peer validation were not run. See repository-root `docs/art-production/astra-ver2/P01/README.md`.
+
 ## 2026-09-14 welding joint recommendations
 
 PlasmaWeldingTool now owns a local-only yellow collider-projected joint recommendation mesh, using the first bead contact query from WeldBead. The transparent WeldingGuide resource shader draws recommendations before the purple aim ring without writing depth. Default range is 4m and normal offset is 1.2cm. No scene/prefab setup is required. Unity 6000.5.4f1 isolated EditMode validation passed 99/99 tests; live visual/multi-peer validation remains pending. See repository-root docs/records/2026-09-14-welding-joint-guide.md.
@@ -220,3 +224,8 @@ PlasmaWeldingTool now owns a local-only yellow collider-projected joint recommen
 - User removed the "rest / optional experimentation" scope. Astra ver2 now omits football/beach balls, meteor basketball, bowling, dominoes, punch bag, seesaw, bounce pads and Ferris wheel, including their courts, frames, boarding dock and waiting plaza.
 - Cargo planks/rollers/levers/sleds/ramps/crates, the logistics learning bay, survey cannon, all handheld exploration tools, four part recovery mechanisms and existing guidance remain. Shared scripts/prefabs and other scenes are unchanged.
 - `Stage1AstraExpeditionBuilder.Cleanup.cs` performs incremental scene cleanup; the `Recovery focused layout - leisure removed` marker selects the appropriate inventory validation. Historical scene builders and old attraction-specific smoke fixtures describe the earlier layout.
+
+## 2026-09-15 — Astra Blender equipment integration
+- T01–T08, P02–P10, M01–M18 and E01–E09 reviewed; 90 authored FBX modules in Assets/_Project/Art/AstraFullArt, replacing 327 scene targets plus 11 non-colliding trench warnings. Existing T07/T08, core ship parts, anchors, natural assets and sky/effects are reused. P01 retains 19 visuals.
+- AstraFullArt partial Editor importer preserves existing physical objects, scripts and interaction references. Only the existing cannon entry pictogram is repositioned; added visuals carry no colliders. Do not rerun Apply over its integration marker.
+- Source Blender library, coverage and validation evidence: docs/art-production/astra-ver2/full-art/README.md. First-person mesh/LED behavior is exercised in Editor; human comprehension and separate-player networking remain unvalidated.

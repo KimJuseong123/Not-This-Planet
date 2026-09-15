@@ -1,0 +1,18 @@
+{
+  "pass": true,
+  "original_records": 12553,
+  "deleted_original_records": 0,
+  "added_records": 138,
+  "changed_by_class": {
+    "23": 676,
+    "33": 293,
+    "4": 35,
+    "1660057539": 1
+  },
+  "intentional_sign_transform": [
+    "1080456488"
+  ],
+  "new_scene_asset_guids_resolved": 108,
+  "missing_art_meta": 0,
+  "preserved": "All original records except MeshFilter mesh, MeshRenderer visibility/materials, Transform child lists and Enter cannon presentation transform."
+}

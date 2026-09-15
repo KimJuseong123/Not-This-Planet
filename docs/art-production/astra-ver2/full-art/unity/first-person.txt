@@ -1,0 +1,1 @@
+PASS: 23 tools clone the new meshes/materials; disabled legacy renderers stay disabled; three detector LEDs copy live property blocks; hide/show restores original visibility and shadows. Editor exercise, not player/multi-peer gameplay.

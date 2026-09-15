@@ -1,0 +1,1365 @@
+{
+  "models": [
+    {
+      "key": "AST_T01_Rocket",
+      "category": "T",
+      "triangles": 1560
+    },
+    {
+      "key": "AST_T02_Ink",
+      "category": "T",
+      "triangles": 1732
+    },
+    {
+      "key": "AST_T03_FuelCan",
+      "category": "T",
+      "triangles": 1184
+    },
+    {
+      "key": "AST_T04_Grapple",
+      "category": "T",
+      "triangles": 3788
+    },
+    {
+      "key": "AST_T05_Blower",
+      "category": "T",
+      "triangles": 1496
+    },
+    {
+      "key": "AST_T06_Detector",
+      "category": "T",
+      "triangles": 888
+    },
+    {
+      "key": "AST_P02_LeverX",
+      "category": "P",
+      "triangles": 1080
+    },
+    {
+      "key": "AST_P02_LeverZ",
+      "category": "P",
+      "triangles": 1080
+    },
+    {
+      "key": "AST_P03_RoundFulcrum",
+      "category": "P",
+      "triangles": 256
+    },
+    {
+      "key": "AST_P03_BlockFulcrum",
+      "category": "P",
+      "triangles": 216
+    },
+    {
+      "key": "AST_P04_PlankX",
+      "category": "P",
+      "triangles": 348
+    },
+    {
+      "key": "AST_P04_PlankZ",
+      "category": "P",
+      "triangles": 348
+    },
+    {
+      "key": "AST_P05_Crate",
+      "category": "P",
+      "triangles": 972
+    },
+    {
+      "key": "AST_P06_SledDeck",
+      "category": "P",
+      "triangles": 312
+    },
+    {
+      "key": "AST_P06_Runner",
+      "category": "P",
+      "triangles": 324
+    },
+    {
+      "key": "AST_P06_PullGrip",
+      "category": "P",
+      "triangles": 324
+    },
+    {
+      "key": "AST_P06_SideRail",
+      "category": "P",
+      "triangles": 324
+    },
+    {
+      "key": "AST_P07_Ramp",
+      "category": "P",
+      "triangles": 128
+    },
+    {
+      "key": "AST_P08_RouteMarker",
+      "category": "P",
+      "triangles": 408
+    },
+    {
+      "key": "AST_P09_DoorStop",
+      "category": "P",
+      "triangles": 564
+    },
+    {
+      "key": "AST_P10_Charge",
+      "category": "P",
+      "triangles": 1240
+    },
+    {
+      "key": "AST_M01_AssemblyApron",
+      "category": "M",
+      "triangles": 2208
+    },
+    {
+      "key": "AST_M06_CatchShelf",
+      "category": "M",
+      "triangles": 312
+    },
+    {
+      "key": "AST_M07_FreightDeck",
+      "category": "M",
+      "triangles": 312
+    },
+    {
+      "key": "AST_M07_BrakeControl",
+      "category": "M",
+      "triangles": 876
+    },
+    {
+      "key": "AST_M07_ReleaseControl",
+      "category": "M",
+      "triangles": 896
+    },
+    {
+      "key": "AST_M07_ReturnControl",
+      "category": "M",
+      "triangles": 896
+    },
+    {
+      "key": "AST_M07_GuideRail",
+      "category": "M",
+      "triangles": 324
+    },
+    {
+      "key": "AST_M07_SafetyRail",
+      "category": "M",
+      "triangles": 324
+    },
+    {
+      "key": "AST_M08_Pedestal",
+      "category": "M",
+      "triangles": 648
+    },
+    {
+      "key": "AST_M08_Dial",
+      "category": "M",
+      "triangles": 624
+    },
+    {
+      "key": "AST_M08_Needle",
+      "category": "M",
+      "triangles": 128
+    },
+    {
+      "key": "AST_M09_Gate",
+      "category": "M",
+      "triangles": 1728
+    },
+    {
+      "key": "AST_M09_PressurePlate",
+      "category": "M",
+      "triangles": 384
+    },
+    {
+      "key": "AST_M09_Footprint",
+      "category": "M",
+      "triangles": 636
+    },
+    {
+      "key": "AST_M12_FuelPort",
+      "category": "M",
+      "triangles": 492
+    },
+    {
+      "key": "AST_M13_PracticeDock",
+      "category": "M",
+      "triangles": 312
+    },
+    {
+      "key": "AST_M14_HollowBarrel",
+      "category": "M",
+      "triangles": 2560
+    },
+    {
+      "key": "AST_M14_Breech",
+      "category": "M",
+      "triangles": 576
+    },
+    {
+      "key": "AST_M14_Wheel",
+      "category": "M",
+      "triangles": 992
+    },
+    {
+      "key": "AST_M14_EntryGrip",
+      "category": "M",
+      "triangles": 240
+    },
+    {
+      "key": "AST_M14_Igniter",
+      "category": "M",
+      "triangles": 456
+    },
+    {
+      "key": "AST_M14_Chassis",
+      "category": "M",
+      "triangles": 312
+    },
+    {
+      "key": "AST_M15_Detonator",
+      "category": "M",
+      "triangles": 688
+    },
+    {
+      "key": "AST_M15_PlungerGrip",
+      "category": "M",
+      "triangles": 324
+    },
+    {
+      "key": "AST_M15_PlungerStem",
+      "category": "M",
+      "triangles": 128
+    },
+    {
+      "key": "AST_M16_FracturedRubble",
+      "category": "M",
+      "triangles": 126
+    },
+    {
+      "key": "AST_M17_MineWarning",
+      "category": "M",
+      "triangles": 1234
+    },
+    {
+      "key": "AST_M18_FallWarning",
+      "category": "M",
+      "triangles": 1794
+    },
+    {
+      "key": "AST_M18_WarningPost",
+      "category": "M",
+      "triangles": 324
+    },
+    {
+      "key": "AST_E01_Container",
+      "category": "E",
+      "triangles": 3348
+    },
+    {
+      "key": "AST_E01_ChargingTerminal",
+      "category": "E",
+      "triangles": 992
+    },
+    {
+      "key": "AST_E01_SortingTray",
+      "category": "E",
+      "triangles": 540
+    },
+    {
+      "key": "AST_E01_GantryX",
+      "category": "E",
+      "triangles": 324
+    },
+    {
+      "key": "AST_E01_GantryY",
+      "category": "E",
+      "triangles": 324
+    },
+    {
+      "key": "AST_E02_RadarDish",
+      "category": "E",
+      "triangles": 3328
+    },
+    {
+      "key": "AST_E02_ObservationConsole",
+      "category": "E",
+      "triangles": 992
+    },
+    {
+      "key": "AST_E02_SampleRack",
+      "category": "E",
+      "triangles": 1208
+    },
+    {
+      "key": "AST_E02_Antenna",
+      "category": "E",
+      "triangles": 324
+    },
+    {
+      "key": "AST_E02_BrokenWalkway",
+      "category": "E",
+      "triangles": 312
+    },
+    {
+      "key": "AST_E02_StairRemnant",
+      "category": "E",
+      "triangles": 312
+    },
+    {
+      "key": "AST_E03_SampleCabinet",
+      "category": "E",
+      "triangles": 992
+    },
+    {
+      "key": "AST_E03_SpecimenVial",
+      "category": "E",
+      "triangles": 384
+    },
+    {
+      "key": "AST_E03_ObservationWindow",
+      "category": "E",
+      "triangles": 240
+    },
+    {
+      "key": "AST_E03_Filter",
+      "category": "E",
+      "triangles": 768
+    },
+    {
+      "key": "AST_E03_BatteryCabinet",
+      "category": "E",
+      "triangles": 992
+    },
+    {
+      "key": "AST_E03_DeconUpright",
+      "category": "E",
+      "triangles": 324
+    },
+    {
+      "key": "AST_E03_DeconHeader",
+      "category": "E",
+      "triangles": 324
+    },
+    {
+      "key": "AST_E04_Workbench",
+      "category": "E",
+      "triangles": 992
+    },
+    {
+      "key": "AST_E04_RepairTool",
+      "category": "E",
+      "triangles": 252
+    },
+    {
+      "key": "AST_E04_ServiceCradle",
+      "category": "E",
+      "triangles": 324
+    },
+    {
+      "key": "AST_E04_HoistChain",
+      "category": "E",
+      "triangles": 3840
+    },
+    {
+      "key": "AST_E05_Bunk",
+      "category": "E",
+      "triangles": 432
+    },
+    {
+      "key": "AST_E05_Mattress",
+      "category": "E",
+      "triangles": 324
+    },
+    {
+      "key": "AST_E05_Bedding",
+      "category": "E",
+      "triangles": 132
+    },
+    {
+      "key": "AST_E05_Table",
+      "category": "E",
+      "triangles": 312
+    },
+    {
+      "key": "AST_E05_Cup",
+      "category": "E",
+      "triangles": 624
+    },
+    {
+      "key": "AST_E05_BenchSeat",
+      "category": "E",
+      "triangles": 144
+    },
+    {
+      "key": "AST_E05_BenchBack",
+      "category": "E",
+      "triangles": 144
+    },
+    {
+      "key": "AST_E05_SolarPanel",
+      "category": "E",
+      "triangles": 5292
+    },
+    {
+      "key": "AST_E05_AirRecycler",
+      "category": "E",
+      "triangles": 992
+    },
+    {
+      "key": "AST_E05_HabitatWall",
+      "category": "E",
+      "triangles": 144
+    },
+    {
+      "key": "AST_E06_Recorder",
+      "category": "E",
+      "triangles": 992
+    },
+    {
+      "key": "AST_E06_Geophone",
+      "category": "E",
+      "triangles": 256
+    },
+    {
+      "key": "AST_E06_Beacon",
+      "category": "E",
+      "triangles": 236
+    },
+    {
+      "key": "AST_E08_Panel",
+      "category": "E",
+      "triangles": 236
+    },
+    {
+      "key": "AST_M10_BulkheadZ",
+      "category": "M",
+      "triangles": 204
+    },
+    {
+      "key": "AST_M10_BulkheadX",
+      "category": "M",
+      "triangles": 204
+    },
+    {
+      "key": "AST_M11_RoofPanel",
+      "category": "M",
+      "triangles": 312
+    },
+    {
+      "key": "AST_E06_ToolShelf",
+      "category": "E",
+      "triangles": 324
+    }
+  ],
+  "rules": [
+    {
+      "key": "AST_T01_Rocket",
+      "target": "AstraRocketTool",
+      "under": "",
+      "kind": "tool",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_T02_Ink",
+      "target": "AstraInkLauncher",
+      "under": "",
+      "kind": "tool",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_T03_FuelCan",
+      "target": "AstraFuelCan",
+      "under": "",
+      "kind": "tool",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_T04_Grapple",
+      "target": "AstraGrappleTool",
+      "under": "",
+      "kind": "tool",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_T05_Blower",
+      "target": "AstraAirBlower",
+      "under": "",
+      "kind": "tool",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_T06_Detector",
+      "target": "AstraMineDetector",
+      "under": "",
+      "kind": "tool",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_P02_LeverX",
+      "target": "Manual lever bar",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_P02_LeverZ",
+      "target": "Grippable body",
+      "under": "lifting bar",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_P02_LeverZ",
+      "target": "Grippable body",
+      "under": "turning lever",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_P03_RoundFulcrum",
+      "target": "Lever fulcrum",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_P03_BlockFulcrum",
+      "target": "Practice lever fulcrum",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_P03_BlockFulcrum",
+      "target": "Workshop interior lever rest",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_P04_PlankX",
+      "target": "^Loose long plank ",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_P04_PlankZ",
+      "target": "Grippable body",
+      "under": "Practice bridge plank",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_P05_Crate",
+      "target": "Stacking crate",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_P05_Crate",
+      "target": "Grippable body",
+      "under": "Practice light sample crate",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_P06_SledDeck",
+      "target": "Low cargo deck",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_P06_Runner",
+      "target": "Low friction skid",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_P06_PullGrip",
+      "target": "Pull handle",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_P06_SideRail",
+      "target": "Cargo side rail",
+      "under": "Astra physical toybox",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_P07_Ramp",
+      "target": "^경사판 ",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_P08_RouteMarker",
+      "target": "^Carryable survey route marker ",
+      "under": "",
+      "kind": "assembly",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_P09_DoorStop",
+      "target": "^Airlock maintenance stop ",
+      "under": "",
+      "kind": "assembly",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_P10_Charge",
+      "target": "Carryable wired TNT",
+      "under": "",
+      "kind": "assembly",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M01_AssemblyApron",
+      "target": "Flush assembly apron",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M06_CatchShelf",
+      "target": "Lower climb catch shelf",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M06_CatchShelf",
+      "target": "Upper climb catch shelf",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M07_FreightDeck",
+      "target": "Gravity cargo deck",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M07_BrakeControl",
+      "target": "HOLD - lower / RELEASE - brake",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M07_ReleaseControl",
+      "target": "Release after all pins removed",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M07_ReturnControl",
+      "target": "Return empty platform",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M07_GuideRail",
+      "target": "Guide rack",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M07_SafetyRail",
+      "target": "Cargo side rail",
+      "under": "four recovery routes",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M08_Pedestal",
+      "target": "Circuit pedestal",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M08_Dial",
+      "target": "^Circuit dial ",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M08_Needle",
+      "target": "Needle",
+      "under": "Rotating circuit needle",
+      "kind": "leaf",
+      "keepMaterial": true
+    },
+    {
+      "key": "AST_M09_Gate",
+      "target": "Pressure gate - flush threshold",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M09_PressurePlate",
+      "target": "Revealed pressure plate",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M09_Footprint",
+      "target": "Footprint - a player must stand here",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M12_FuelPort",
+      "target": "Yellow fuel port and gauge",
+      "under": "",
+      "kind": "port",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M13_PracticeDock",
+      "target": "Practice loading dock",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M13_PracticeDock",
+      "target": "Practice receiving dock",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M14_HollowBarrel",
+      "target": "Hollow cannon barrel",
+      "under": "",
+      "kind": "barrel",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M14_Breech",
+      "target": "Barrel rear",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M14_Wheel",
+      "target": "Cannon wheel",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M14_EntryGrip",
+      "target": "Cannon mouth interact",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M14_Igniter",
+      "target": "Cannon rear igniter",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M14_Chassis",
+      "target": "Cannon plinth",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M15_Detonator",
+      "target": "Detonator box",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M15_PlungerGrip",
+      "target": "TNT switch handle",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M15_PlungerStem",
+      "target": "Plunger stem",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M16_FracturedRubble",
+      "target": "^Fractured boulder ",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M16_FracturedRubble",
+      "target": "^Flying rock fragment ",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M17_MineWarning",
+      "target": "Yellow warning triangle",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M18_WarningPost",
+      "target": "Warning post",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E01_Container",
+      "target": "Ribbed expedition container",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E01_ChargingTerminal",
+      "target": "Robot charging terminal",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E01_SortingTray",
+      "target": "Sample sorting tray",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E01_GantryX",
+      "target": "Cargo loading gantry crossbeam",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E01_GantryX",
+      "target": "Repair gantry beam",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E01_GantryY",
+      "target": "Cargo loading gantry leg",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E01_GantryY",
+      "target": "Repair gantry mast",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E01_GantryY",
+      "target": "Survey instrument pier",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E02_RadarDish",
+      "target": "Atmospheric radar dish",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E02_ObservationConsole",
+      "target": "Observation console",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E02_SampleRack",
+      "target": "Air sample rack",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E02_Antenna",
+      "target": "Sampling antenna",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E02_BrokenWalkway",
+      "target": "Broken elevated walkway",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E02_StairRemnant",
+      "target": "Sheared service stair remnant",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E03_SampleCabinet",
+      "target": "Hermetic sample cabinet",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E03_SpecimenVial",
+      "target": "Sealed specimen vial",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E03_ObservationWindow",
+      "target": "Observation porthole",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E03_Filter",
+      "target": "Filtered exhaust",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E03_BatteryCabinet",
+      "target": "Emergency battery cabinet",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E03_DeconUpright",
+      "target": "Decontamination spray upright",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E03_DeconHeader",
+      "target": "Decontamination spray header",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E04_Workbench",
+      "target": "Workshop tool bench",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E04_RepairTool",
+      "target": "Abandoned repair tool",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E04_ServiceCradle",
+      "target": "Sideways service cradle",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E04_HoistChain",
+      "target": "Maintenance hoist chain",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E05_Bunk",
+      "target": "Sleeping bunk",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E05_Mattress",
+      "target": "Sleeping mat",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E05_Bedding",
+      "target": "Folded bedding",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E05_Table",
+      "target": "Mess table",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E05_Cup",
+      "target": "Interrupted meal cup",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E05_BenchSeat",
+      "target": "Bench seat",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E05_BenchBack",
+      "target": "Bench back",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E05_SolarPanel",
+      "target": "Camp solar panel",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E05_AirRecycler",
+      "target": "Air recycling tank",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E05_HabitatWall",
+      "target": "Habitat rear bulkhead",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E06_Recorder",
+      "target": "Disconnected survey recorder",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E06_Geophone",
+      "target": "Geophone sample probe",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E06_Beacon",
+      "target": "Evacuation beacon",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": true
+    },
+    {
+      "key": "AST_E08_Panel",
+      "target": "Pictogram backing - no collider",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M10_BulkheadZ",
+      "target": "Back retaining wall",
+      "under": "C - align circuit",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M10_BulkheadZ",
+      "target": "Front left",
+      "under": "C - align circuit",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M10_BulkheadZ",
+      "target": "Front right",
+      "under": "C - align circuit",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M10_BulkheadZ",
+      "target": "Back wall",
+      "under": "D - low clearance",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M10_BulkheadZ",
+      "target": "North wall",
+      "under": "D - low clearance",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M10_BulkheadZ",
+      "target": "Corridor north",
+      "under": "D - low clearance",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M10_BulkheadZ",
+      "target": "Corridor south",
+      "under": "D - low clearance",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M10_BulkheadZ",
+      "target": "Open habitat doorway jamb",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M10_BulkheadX",
+      "target": "West retaining wall",
+      "under": "C - align circuit",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M10_BulkheadX",
+      "target": "East retaining wall",
+      "under": "C - align circuit",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M10_BulkheadX",
+      "target": "East wall",
+      "under": "D - low clearance",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M10_BulkheadX",
+      "target": "Blind west wall",
+      "under": "D - low clearance",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M10_BulkheadX",
+      "target": "Habitat side",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M11_RoofPanel",
+      "target": "Low roof - upright part cannot pass",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M11_RoofPanel",
+      "target": "Corridor low roof",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_M11_RoofPanel",
+      "target": "Sealed moss roof",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    },
+    {
+      "key": "AST_E06_ToolShelf",
+      "target": "Tool shelf",
+      "under": "",
+      "kind": "leaf",
+      "keepMaterial": false
+    }
+  ],
+  "materials": [
+    {
+      "name": "AST_Ceramic",
+      "color": [
+        0.7,
+        0.77,
+        0.76
+      ],
+      "metallic": 0.25,
+      "smoothness": 0.62
+    },
+    {
+      "name": "AST_Graphite",
+      "color": [
+        0.055,
+        0.085,
+        0.11
+      ],
+      "metallic": 0.4,
+      "smoothness": 0.6
+    },
+    {
+      "name": "AST_Steel",
+      "color": [
+        0.29,
+        0.38,
+        0.42
+      ],
+      "metallic": 0.75,
+      "smoothness": 0.72
+    },
+    {
+      "name": "AST_Grip",
+      "color": [
+        0.95,
+        0.24,
+        0.035
+      ],
+      "metallic": 0.12,
+      "smoothness": 0.56
+    },
+    {
+      "name": "AST_Fuel",
+      "color": [
+        0.95,
+        0.65,
+        0.025
+      ],
+      "metallic": 0.16,
+      "smoothness": 0.64
+    },
+    {
+      "name": "AST_Blue",
+      "color": [
+        0.035,
+        0.37,
+        0.58
+      ],
+      "metallic": 0.25,
+      "smoothness": 0.65
+    },
+    {
+      "name": "AST_Purple",
+      "color": [
+        0.35,
+        0.075,
+        0.5
+      ],
+      "metallic": 0.2,
+      "smoothness": 0.72
+    },
+    {
+      "name": "AST_Teal",
+      "color": [
+        0.025,
+        0.65,
+        0.48
+      ],
+      "metallic": 0.18,
+      "smoothness": 0.6
+    },
+    {
+      "name": "AST_Red",
+      "color": [
+        0.62,
+        0.025,
+        0.035
+      ],
+      "metallic": 0.18,
+      "smoothness": 0.6
+    },
+    {
+      "name": "AST_Lens",
+      "color": [
+        0.035,
+        0.32,
+        0.4
+      ],
+      "metallic": 0.4,
+      "smoothness": 0.8200000000000001
+    },
+    {
+      "name": "AST_Wood",
+      "color": [
+        0.27,
+        0.18,
+        0.11
+      ],
+      "metallic": 0,
+      "smoothness": 0.31999999999999995
+    },
+    {
+      "name": "AST_Fabric",
+      "color": [
+        0.22,
+        0.32,
+        0.36
+      ],
+      "metallic": 0,
+      "smoothness": 0.09999999999999998
+    },
+    {
+      "name": "AST_Rock",
+      "color": [
+        0.26,
+        0.2,
+        0.32
+      ],
+      "metallic": 0,
+      "smoothness": 0.050000000000000044
+    }
+  ]
+}

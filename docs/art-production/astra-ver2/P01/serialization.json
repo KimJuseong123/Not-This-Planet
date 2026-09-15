@@ -1,0 +1,11 @@
+{
+  "original_records": 12515,
+  "new_records": 38,
+  "deleted_records": 0,
+  "modified_original_records": 38,
+  "changed_types": {
+    "4": 19,
+    "23": 19
+  },
+  "unexpected_changes": []
+}

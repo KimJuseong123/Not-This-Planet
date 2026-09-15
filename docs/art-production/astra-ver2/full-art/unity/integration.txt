@@ -1,0 +1,114 @@
+AST_T01_Rocket | AstraRocketTool | 3
+AST_T02_Ink | AstraInkLauncher | 3
+AST_T03_FuelCan | AstraFuelCan | 8
+AST_T04_Grapple | AstraGrappleTool | 3
+AST_T05_Blower | AstraAirBlower | 3
+AST_T06_Detector | AstraMineDetector | 3
+AST_P02_LeverX | Manual lever bar | 4
+AST_P02_LeverZ | Grippable body | 1
+AST_P02_LeverZ | Grippable body | 1
+AST_P03_RoundFulcrum | Lever fulcrum | 4
+AST_P03_BlockFulcrum | Practice lever fulcrum | 1
+AST_P03_BlockFulcrum | Workshop interior lever rest | 1
+AST_P04_PlankX | ^Loose long plank  | 4
+AST_P04_PlankZ | Grippable body | 1
+AST_P05_Crate | Stacking crate | 6
+AST_P05_Crate | Grippable body | 1
+AST_P06_SledDeck | Low cargo deck | 2
+AST_P06_Runner | Low friction skid | 4
+AST_P06_PullGrip | Pull handle | 2
+AST_P06_SideRail | Cargo side rail | 4
+AST_P07_Ramp | ^경사판  | 2
+AST_P08_RouteMarker | ^Carryable survey route marker  | 6
+AST_P09_DoorStop | ^Airlock maintenance stop  | 2
+AST_P10_Charge | Carryable wired TNT | 1
+AST_M01_AssemblyApron | Flush assembly apron | 1
+AST_M06_CatchShelf | Lower climb catch shelf | 1
+AST_M06_CatchShelf | Upper climb catch shelf | 1
+AST_M07_FreightDeck | Gravity cargo deck | 1
+AST_M07_BrakeControl | HOLD - lower / RELEASE - brake | 1
+AST_M07_ReleaseControl | Release after all pins removed | 1
+AST_M07_ReturnControl | Return empty platform | 1
+AST_M07_GuideRail | Guide rack | 2
+AST_M07_SafetyRail | Cargo side rail | 2
+AST_M08_Pedestal | Circuit pedestal | 3
+AST_M08_Dial | ^Circuit dial  | 3
+AST_M08_Needle | Needle | 3
+AST_M09_Gate | Pressure gate - flush threshold | 1
+AST_M09_PressurePlate | Revealed pressure plate | 1
+AST_M09_Footprint | Footprint - a player must stand here | 2
+AST_M12_FuelPort | Yellow fuel port and gauge | 1
+AST_M13_PracticeDock | Practice loading dock | 1
+AST_M13_PracticeDock | Practice receiving dock | 1
+AST_M14_HollowBarrel | Hollow cannon barrel | 1
+AST_M14_Breech | Barrel rear | 1
+AST_M14_Wheel | Cannon wheel | 2
+AST_M14_EntryGrip | Cannon mouth interact | 1
+AST_M14_Igniter | Cannon rear igniter | 1
+AST_M14_Chassis | Cannon plinth | 1
+AST_M15_Detonator | Detonator box | 1
+AST_M15_PlungerGrip | TNT switch handle | 1
+AST_M15_PlungerStem | Plunger stem | 1
+AST_M16_FracturedRubble | ^Fractured boulder  | 7
+AST_M16_FracturedRubble | ^Flying rock fragment  | 10
+AST_M17_MineWarning | Yellow warning triangle | 3
+AST_M18_WarningPost | Warning post | 3
+AST_E01_Container | Ribbed expedition container | 3
+AST_E01_ChargingTerminal | Robot charging terminal | 1
+AST_E01_SortingTray | Sample sorting tray | 3
+AST_E01_GantryX | Cargo loading gantry crossbeam | 1
+AST_E01_GantryX | Repair gantry beam | 1
+AST_E01_GantryY | Cargo loading gantry leg | 2
+AST_E01_GantryY | Repair gantry mast | 2
+AST_E01_GantryY | Survey instrument pier | 1
+AST_E02_RadarDish | Atmospheric radar dish | 1
+AST_E02_ObservationConsole | Observation console | 1
+AST_E02_SampleRack | Air sample rack | 1
+AST_E02_Antenna | Sampling antenna | 1
+AST_E02_BrokenWalkway | Broken elevated walkway | 1
+AST_E02_StairRemnant | Sheared service stair remnant | 4
+AST_E03_SampleCabinet | Hermetic sample cabinet | 3
+AST_E03_SpecimenVial | Sealed specimen vial | 3
+AST_E03_ObservationWindow | Observation porthole | 2
+AST_E03_Filter | Filtered exhaust | 2
+AST_E03_BatteryCabinet | Emergency battery cabinet | 3
+AST_E03_DeconUpright | Decontamination spray upright | 2
+AST_E03_DeconHeader | Decontamination spray header | 1
+AST_E04_Workbench | Workshop tool bench | 1
+AST_E04_RepairTool | Abandoned repair tool | 4
+AST_E04_ServiceCradle | Sideways service cradle | 2
+AST_E04_HoistChain | Maintenance hoist chain | 1
+AST_E05_Bunk | Sleeping bunk | 6
+AST_E05_Mattress | Sleeping mat | 6
+AST_E05_Bedding | Folded bedding | 6
+AST_E05_Table | Mess table | 1
+AST_E05_Cup | Interrupted meal cup | 3
+AST_E05_BenchSeat | Bench seat | 7
+AST_E05_BenchBack | Bench back | 7
+AST_E05_SolarPanel | Camp solar panel | 3
+AST_E05_AirRecycler | Air recycling tank | 1
+AST_E05_HabitatWall | Habitat rear bulkhead | 3
+AST_E06_Recorder | Disconnected survey recorder | 1
+AST_E06_Geophone | Geophone sample probe | 4
+AST_E06_Beacon | Evacuation beacon | 4
+AST_E08_Panel | Pictogram backing - no collider | 66
+AST_M10_BulkheadZ | Back retaining wall | 1
+AST_M10_BulkheadZ | Front left | 1
+AST_M10_BulkheadZ | Front right | 1
+AST_M10_BulkheadZ | Back wall | 1
+AST_M10_BulkheadZ | North wall | 1
+AST_M10_BulkheadZ | Corridor north | 1
+AST_M10_BulkheadZ | Corridor south | 1
+AST_M10_BulkheadZ | Open habitat doorway jamb | 6
+AST_M10_BulkheadX | West retaining wall | 1
+AST_M10_BulkheadX | East retaining wall | 1
+AST_M10_BulkheadX | East wall | 1
+AST_M10_BulkheadX | Blind west wall | 1
+AST_M10_BulkheadX | Habitat side | 6
+AST_M11_RoofPanel | Low roof - upright part cannot pass | 1
+AST_M11_RoofPanel | Corridor low roof | 1
+AST_M11_RoofPanel | Sealed moss roof | 1
+AST_E06_ToolShelf | Tool shelf | 6
+M14: existing entry pictogram moved beside the mouth; entry/seat/fuse anchors preserved.
+
+PASS: 90 FBX models; 327 matched replacements; 11 warning signs; 4230 preserved original records; 19 P01 retained.
