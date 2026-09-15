@@ -16,31 +16,12 @@ namespace Metagame.EditorTools
         const string ScenePath = "Assets/Scenes/Stage1_Astra.unity";
         const string Art = "Assets/_Project/Art/Buildings";
         static readonly string Output = Path.GetFullPath("../tmp/building-integration");
-        [InitializeOnLoadMethod]
-        static void Connect() { EditorApplication.update -= Poll; EditorApplication.update += Poll; EditorApplication.update -= PollPlay; EditorApplication.update += PollPlay; }
-        static double nextPoll;
-        static void Poll()
+        // Manual editor commands only. Importing this file must not register callbacks or execute a migration.
+        static void RequireAstraEditMode()
         {
-            if (EditorApplication.timeSinceStartup < nextPoll || EditorApplication.isCompiling || EditorApplication.isUpdating) return;
-            nextPoll = EditorApplication.timeSinceStartup + 1;
-            string request = Output + "/request.txt";
-            if (!File.Exists(request)) return;
-            string command = File.ReadAllText(request).Trim(); File.Delete(request);
-            try
-            {
-                if (command == "inspect") Inspect();
-                else if (command == "prepare") Prepare();
-                else if (command == "apply") Apply();
-                else if (command == "validate") Validate();
-                else if (command == "capture") Capture();
-                else if (command == "polish") Polish();
-                else if (command == "playcheck") PlayCheck();
-                else if (command == "restorebeacon") RestorePart3Beacon();
-                else if (command == "refresh") AssetDatabase.Refresh();
-                else throw new InvalidOperationException("Unknown building command: " + command);
-                File.WriteAllText(Output+"/result.txt", command+" PASS");
-            }
-            catch (Exception e) { File.WriteAllText(Output+"/result.txt", e.ToString()); Debug.LogException(e); }
+            if (EditorApplication.isPlayingOrWillChangePlaymode || SceneManager.GetActiveScene().path != ScenePath)
+                throw new InvalidOperationException("Open Stage1_Astra in edit mode before running this command.");
+            Directory.CreateDirectory(Output);
         }
         static string Hierarchy(Transform t) => t.parent == null ? t.name : Hierarchy(t.parent) + "/" + t.name;
         static Bounds Bounds(GameObject g)
@@ -50,13 +31,8 @@ namespace Metagame.EditorTools
             foreach (var r in renderers.Skip(1)) b.Encapsulate(r.bounds);
             return b;
         }
-        static void Folder(string path)
-        {
-            if (AssetDatabase.IsValidFolder(path)) return;
-            string parent = path.Substring(0, path.LastIndexOf('/'));
-            Folder(parent); AssetDatabase.CreateFolder(parent, Path.GetFileName(path));
-        }
         static string PrefabPath(string name) => Art + "/" + name + "/PF_Astra" + name + ".prefab";
+        [MenuItem("Tools/Not This Planet/Buildings/Prepare Building Assets")]
         public static void Prepare()
         {
             if (EditorApplication.isPlayingOrWillChangePlaymode) throw new InvalidOperationException("Exit play mode first.");
@@ -139,15 +115,11 @@ namespace Metagame.EditorTools
             }
             AssetDatabase.SaveAssets();
         }
+        [MenuItem("Tools/Not This Planet/Buildings/Inspect Astra Buildings")]
         public static void Inspect()
         {
-            SessionState.SetBool("Metagame.URPSetupApplied", true);
-            Directory.CreateDirectory(Output);
+            RequireAstraEditMode();
             var scene = SceneManager.GetActiveScene();
-            if (scene.path != ScenePath) {
-                if (!Application.isBatchMode) throw new InvalidOperationException("Open Stage1_Astra first.");
-                scene = EditorSceneManager.OpenScene(ScenePath);
-            }
             var all = scene.GetRootGameObjects().SelectMany(g => g.GetComponentsInChildren<Transform>(true)).ToArray();
             var report = new StringBuilder();
             foreach (var t in all.Where(t => t.name.IndexOf("shelter", StringComparison.OrdinalIgnoreCase) >= 0 || t.name.IndexOf("hangar", StringComparison.OrdinalIgnoreCase) >= 0 || t.name.Contains("Spawn") || (t.parent == null) || t.name.StartsWith("Part")))
@@ -256,7 +228,7 @@ namespace Metagame.EditorTools
         [MenuItem("Tools/Not This Planet/Buildings/Validate Astra Buildings")]
         public static void Validate()
         {
-            if(SceneManager.GetActiveScene().path!=ScenePath)throw new InvalidOperationException("Wrong scene.");
+            RequireAstraEditMode();
             var all=All(); var report=new StringBuilder(); Physics.SyncTransforms();
             if(all.Any(t=>GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(t.gameObject)>0))throw new InvalidOperationException("Missing script in scene.");
             var owner=all.Single(t=>t.name=="Buildings - Authored FBX");
@@ -294,8 +266,10 @@ namespace Metagame.EditorTools
             report.AppendLine("Hangar approach: "+routeSamples+" floor and body-clearance samples passed.");
             File.WriteAllText(Output+"/validation.txt",report.ToString());
         }
+        [MenuItem("Tools/Not This Planet/Buildings/Capture Astra Buildings")]
         public static void Capture()
         {
+            RequireAstraEditMode();
             var go=new GameObject("Building inspection camera");
             var cam=go.AddComponent<Camera>();cam.fieldOfView=55;cam.nearClipPlane=.05f;cam.farClipPlane=500;
             var rt=new RenderTexture(1600,1000,24); var previous=RenderTexture.active;
@@ -316,8 +290,10 @@ namespace Metagame.EditorTools
             }
             finally {RenderTexture.active=previous;cam.targetTexture=null;Object.DestroyImmediate(rt);Object.DestroyImmediate(go);}
         }
+        [MenuItem("Tools/Not This Planet/Buildings/Refit Astra Buildings and Guides")]
         public static void Polish()
         {
+            RequireAstraEditMode();
             var all=All();var hangar=all.Single(t=>t.name=="Astra Hangar");
             Undo.RecordObject(hangar,"Fit hangar around loading deck");
             hangar.position=new Vector3(-29,5.14f,27);hangar.localScale=new Vector3(.75f,.75f,1);
@@ -353,8 +329,10 @@ namespace Metagame.EditorTools
             RestorePart3Beacon();
             Validate();EditorSceneManager.SaveScene(SceneManager.GetActiveScene());
         }
+        [MenuItem("Tools/Not This Planet/Buildings/Restore Part3 Beacon")]
         public static void RestorePart3Beacon()
         {
+            RequireAstraEditMode();
             var scene=SceneManager.GetActiveScene();
             if(scene.path!=ScenePath || EditorApplication.isPlayingOrWillChangePlaymode)throw new InvalidOperationException("Open Astra in edit mode.");
             var all=All();
@@ -385,53 +363,6 @@ namespace Metagame.EditorTools
             if(Mathf.Abs(b.size.y-10)>.01f || b.min.y<lampBounds.max.y-.01f || beam.GetComponent<Collider>())throw new InvalidOperationException("Invalid Part3 beacon geometry.");
             EditorSceneManager.MarkSceneDirty(scene);EditorSceneManager.SaveScene(scene);
             File.WriteAllText(Output+"/beacon-validation.txt","Part3 beacon restored; count=1; material="+material.name+"; bounds="+b.ToString("F3")+"; roofLampTop="+lampBounds.max.y.ToString("F3")+"; collider=none\n");
-        }
-        public static void PlayCheck()
-        {
-            if(EditorApplication.isPlayingOrWillChangePlaymode)throw new InvalidOperationException("Already playing.");
-            Validate();EditorSceneManager.SaveScene(SceneManager.GetActiveScene());
-            SessionState.SetBool("AstraBuildings.PlayCheck",true);
-            SessionState.SetBool("AstraBuildings.SpawnCaptured",false);
-            File.WriteAllText(Output+"/playcheck.txt","Starting solo spawn and exit check\n");
-            EditorApplication.EnterPlaymode();
-        }
-        static void PollPlay()
-        {
-            if(!SessionState.GetBool("AstraBuildings.PlayCheck",false)||!EditorApplication.isPlaying)return;
-            try
-            {
-                var boot=Object.FindFirstObjectByType<Metagame.Bootstrap.SpaceBootstrap>();
-                if(!boot || !boot.Player) {if(Time.timeSinceLevelLoad>25)throw new InvalidOperationException("Player was not created.");return;}
-                var player=boot.Player;var session=Object.FindFirstObjectByType<GameSession>();
-                session.ScriptedInput=true;player.Cam.Yaw=90;
-                float t=Time.timeSinceLevelLoad;
-                if(t<4) {player.SetInput(new Metagame.Core.InputFrame());return;}
-                if(!SessionState.GetBool("AstraBuildings.SpawnCaptured",false))
-                {
-                    File.AppendAllText(Output+"/playcheck.txt","Settled spawn foot="+player.FootPosition.ToString("F3")+" camera="+player.Cam.transform.position.ToString("F3")+"\n");
-                    if(Vector3.Distance(player.FootPosition,new Vector3(-31.8f,.296f,-24))>1.5f)throw new InvalidOperationException("Spawn did not settle inside shelter.");
-                    SaveCamera(player.Cam.Cam,"play-spawn");
-                    SessionState.SetBool("AstraBuildings.SpawnCaptured",true);
-                }
-                player.SetInput(new Metagame.Core.InputFrame {Move=t<7.5f?new Vector2(0,1):Vector2.zero});
-                if(t<9)return;
-                File.AppendAllText(Output+"/playcheck.txt","Exit foot="+player.FootPosition.ToString("F3")+"\n");
-                SaveCamera(player.Cam.Cam,"play-exit");
-                if(player.FootPosition.x < -24.1f || player.FootPosition.y < -1 || Mathf.Abs(player.FootPosition.z+24)>2)throw new InvalidOperationException("Player could not walk out of Shelter.");
-                File.AppendAllText(Output+"/playcheck.txt","PASS: actual player spawned, settled, and walked through shelter exit.\n");
-                player.SetInput(new Metagame.Core.InputFrame());session.ScriptedInput=false;
-                SessionState.SetBool("AstraBuildings.PlayCheck",false);EditorApplication.ExitPlaymode();
-            }
-            catch(Exception e)
-            {
-                File.AppendAllText(Output+"/playcheck.txt","FAIL "+e+"\n");SessionState.SetBool("AstraBuildings.PlayCheck",false);EditorApplication.ExitPlaymode();
-            }
-        }
-        static void SaveCamera(Camera camera,string name)
-        {
-            var old=camera.targetTexture;var active=RenderTexture.active;var rt=new RenderTexture(1600,1000,24);
-            try {camera.targetTexture=rt;camera.Render();RenderTexture.active=rt;var tex=new Texture2D(1600,1000,TextureFormat.RGB24,false);tex.ReadPixels(new Rect(0,0,1600,1000),0,0);tex.Apply();File.WriteAllBytes(Output+"/"+name+".png",tex.EncodeToPNG());Object.DestroyImmediate(tex);}
-            finally {camera.targetTexture=old;RenderTexture.active=active;Object.DestroyImmediate(rt);}
         }
     }
 }

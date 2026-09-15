@@ -36,7 +36,19 @@ Shelter 전체 외곽은 경사로·안테나 포함 약 10.47 × 6.24 × 10.21m
 
 원복용 씬 사본은 tmp/building-integration/Stage1_Astra.before-buildings.unity에 보관했습니다. Unity가 열려 있을 때 이 파일을 원본에 직접 덮어쓰지 말고 별도 씬으로 확인하십시오.
 
-에디터 도구: METAGAME/Assets/_Project/Scripts/Editor/Stage1Buildings.cs. 고정된 검사/준비/교체 명령만 지원하는 임시 파일 요청은 tmp/building-integration/request.txt에서 처리합니다. 이미 설치된 씬에 Apply를 다시 실행하면 중복 배치를 차단합니다.
+에디터 도구: METAGAME/Assets/_Project/Scripts/Editor/Stage1Buildings.cs. Tools > Not This Planet > Buildings 메뉴에서 수동 실행합니다. 자동 초기화, update 콜백, 외부 요청 파일 처리, 자동 플레이 입력 코드는 제거했습니다. tmp/building-integration은 수동 실행 시 보고서·이미지·백업을 저장하는 출력 폴더입니다. 이미 설치된 씬에 Apply를 다시 실행하면 중복 배치를 차단합니다.
 
 ## Part3 비콘 복구
 건물 교체 시 Module beacon을 구형 장식으로 잘못 삭제한 문제를 수정했습니다. 기존 M_Guidance_NoFog_Signal_orchid 재질과 10m 길이의 비콘을 새 Hangar 지붕 조명 위에 복구하고, 이후 교체 시 삭제되지 않도록 조건을 수정했습니다. 비콘은 1개이며 충돌체가 없습니다.
+
+## 변경 범위 및 요청 근거
+
+- 스폰 이동: 사용자가 건물 교체와 함께 “플레이어 시작점을 Shelter 안으로” 요청했습니다. AuthoredMapSettings.playerSpawn을 (-22, 0.4, -29)에서 (-31.8, 0.346, -24)로 이동하고, 출구인 +X 방향(Y=90°)에 맞췄습니다. 씬의 별도 미리보기 스폰 표시도 같은 위치로 맞췄습니다. 런타임 생성 코드는 변경하지 않았습니다.
+- 볼라드 26/27: 새 Shelter 외벽과 겹치던 캠프 안내등입니다. 각각 (-29, 0, -29), (-26.8, 0, -29)에서 출입구 양옆 (-24.2, 0, -26), (-24.2, 0, -22)로 이동했습니다. 이는 건물 교체에 따른 동선·겹침 보정입니다.
+- 볼라드 37: 기존 Part3 지붕 안내등의 x/z=(-32.5, 30)을 유지하고 새 지붕 표면에 맞춰 y=11.7에서 약 12.034로 보정했습니다.
+- Part3 비콘: 교체 도중 잘못 삭제한 안내 요소를 사용자 지적 후 복구했습니다. 기존 보라색 재질·10m 길이·x/z 위치를 유지하고, 빔 중심 높이를 19.2에서 약 19.622로 옮겨 새 안내등 상단에 연결했습니다.
+- Hangar 접근로와 기초: 동쪽을 향한 새 출입구에 맞춰 남쪽 보행로·동쪽 연결 구간과 기초를 조정했습니다. 핵심 파츠 자체의 위치·상태와 기존 단상은 유지했습니다.
+
+## 리뷰 후 도구 정리
+
+InitializeOnLoadMethod, Connect, Poll, PollPlay, 외부 request.txt 명령 처리 및 PlayCheck/SaveCamera 임시 자동 조작 코드를 제거했습니다. 에셋 import 또는 도메인 reload 시 동작하는 이 도구의 콜백은 없습니다. 수동 씬 명령은 Stage1_Astra 편집 모드에서만 실행됩니다. 위 Play Mode 결과는 통합 당시 수행한 검사 기록이며 제거된 자동 검사 도구가 현재도 존재한다는 뜻은 아닙니다.
