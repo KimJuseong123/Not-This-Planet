@@ -32,7 +32,9 @@ Unity 메뉴: `Tools > Not This Planet > Safety Bollards`.
 3. Validate: 개수·바운드·색상·충돌체·중앙 색상 연결 검사.
 4. Align Feet to Current Surfaces: 수평 위치와 크기를 유지하며 현재 지지면에 맞춰 외형과 기존 충돌체를 함께 높이 조정.
 
-씬 수정은 Undo 그룹으로 묶는다. 최초 교체 전 사본과 검사 결과는 `tmp/bollard-integration/`에 보관한다.
+씬 수정은 Undo 그룹으로 묶는다. 최초 교체 전 사본과 검사 결과는 Git에서 제외한 로컬 `tmp/bollard-integration/`에 보관한다.
+
+일회성 `BollardSession` 자동 폴링 브리지와 `BollardTestRun` 실행 하니스는 제거했다. 에셋 준비·씬 변경은 위 Unity 메뉴를 통해 명시적으로 실행한다. 회귀 테스트 `AssemblyGuidanceBollardTests`는 유지하며 Unity Test Runner에서 실행한다.
 
 ## 검증
 

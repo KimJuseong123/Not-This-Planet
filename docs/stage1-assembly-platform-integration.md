@@ -43,4 +43,4 @@ Replaced blockout decks, rims and decorative rings are inactive. Their serialize
 
 Preview images: [overview](assets/previews/stage1-assembly-platforms/Astra-platforms-overview.png), [central](assets/previews/stage1-assembly-platforms/CentralAssemblyDock-scene.png), [engine](assets/previews/stage1-assembly-platforms/EngineCamp-scene.png), [hover](assets/previews/stage1-assembly-platforms/HoverObservatory-scene.png), [hangar](assets/previews/stage1-assembly-platforms/CapsuleHangar-scene.png), [tractor](assets/previews/stage1-assembly-platforms/TractorDock-scene.png).
 
-Detailed placement measurements and the pre-change scene backup are in `tmp/assembly-platform-integration/`. The temporary editor polling bridge is removed after validation.
+Detailed placement measurements and the pre-change scene backup are local artifacts in the Git-ignored `tmp/assembly-platform-integration/` directory; they are not distributed with the repository. The temporary editor polling bridge has been removed.

@@ -1,6 +1,0 @@
-Runtime parts=4
-Part_4 hull=True bounds=Center: (22.83, 2.11, -19.00), Extents: (0.95, 1.22, 0.92) position=(22.83, 1.99, -19.00)
-Part_2 hull=True bounds=Center: (28.00, 8.75, 19.00), Extents: (1.15, 0.66, 1.14) position=(28.00, 8.08, 19.00)
-Part_1 hull=True bounds=Center: (-20.00, 1.60, -20.00), Extents: (1.15, 1.08, 0.83) position=(-20.00, 1.53, -20.00)
-Part_3 hull=True bounds=Center: (-29.00, 6.78, 25.00), Extents: (1.08, 1.11, 1.27) position=(-29.00, 6.68, 25.00)
-Runtime platforms=5 colliders=5

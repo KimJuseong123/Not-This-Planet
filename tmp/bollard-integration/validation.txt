@@ -1,5 +1,0 @@
-state 0: Route amber -> M_Bollard_Route_amber
-state 1: Route cyan -> M_Bollard_Route_cyan
-state 2: Route orchid -> M_Bollard_Route_orchid
-state 3: Route lime -> M_Bollard_Route_lime
-PASS: 42 FBX instances, matched bounds/colors, preserved 168 original colliders, 4 dynamic lights, shader compile.
