@@ -38,72 +38,110 @@ def read(rel):
     return io.open(os.path.join(ROOT, rel), encoding="utf-8").read()
 
 
-def strip_comments(s):
-    """주석을 지운다 — **문자열 안의 `//` 는 건드리지 않는다**(`!461` AI 리뷰).
+def code_mask(text):
+    """글자마다 무엇인지 표시한다 — **0 주석 · 1 코드 · 2 문자열 안**.
 
-    단순히 `//.*` 를 지우면 `\"https://…\"` 같은 문자열이 잘린다. 지금 코드에는 없지만
-    한 줄만 들어와도 계약이 조용히 틀리게 만들어지므로 처음부터 막아 둔다.
+    찾는 일을 전부 이 표 위에서 하려고 만들었다. 전에는 `braced_body` 가 주석을
+    **걷어 낸 사본**에서 찾아 같은 효과를 봤는데, 그러면 `// code: …` 앵커까지
+    사라져 `blockers()` 가 그 결과를 못 썼다 (`!461` AI 리뷰). 표만 따로 두면
+    원문을 그대로 돌려주면서도 주석 속 기호에 속지 않는다.
+
+    문자열을 코드와 **가르는** 이유는 둘이 서로 다른 것을 원해서다. 중괄호를 셀 때는
+    문자열 안의 `}` 를 세면 안 되고, 주석을 지울 때는 문자열 안의 `//` 를 남겨야
+    한다. 표 한 장으로 둘 다 답한다.
     """
-    s = re.sub(r"/\*.*?\*/", "", s, flags=re.S)
-    out = []
-    for line in s.split(chr(10)):
-        out.append(line[:_code_len(line)])
-    return chr(10).join(out)
-
-
-def _code_len(line):
-    """그 줄에서 주석이 시작되기 전까지의 길이. 문자열 안은 세지 않는다."""
-    in_str = False
-    i = 0
-    while i < len(line):
-        c = line[i]
-        if in_str:
-            if c == chr(92):      # 이스케이프 — 다음 글자는 통째로 건너뛴다
-                i += 2
-                continue
-            if c == chr(34):
-                in_str = False
-        elif c == chr(34):
-            in_str = True
-        elif c == "/" and i + 1 < len(line) and line[i + 1] == "/":
-            return i
-        i += 1
-    return len(line)
-
-
-def braced_body(text, start_marker):
-    """`start_marker` 뒤 첫 `{` 부터 짝이 맞는 `}` 까지.
-
-    **주석 위치에 기대지 않는다**. 전에는 `Evaluate()` 뒤에 XML 주석이 나온다는 가정으로
-    잘랐는데, 그 주석이 없어지거나 자리가 바뀌면 죽거나 목록이 잘린 채 계약이
-    만들어졌다 — 계약이 조용히 틀리는 것이 이 파일에서 가장 나쁜 고장이다.
-
-    **주석을 먼저 걷어 낸다** (`!461` AI 리뷰). 주석 안의 중괄호가 깊이를 흔들면
-    엉뚱한 자리에서 잘리고, 주석 처리된 `Blocker = \"…\"` 줄이 남으면 사유 목록에
-    섞여 코드 매핑이 한 칸 밀린다.
-    """
-    text = strip_comments(text)
-    i = text.index(start_marker)
-    j = text.index("{", i)
-    depth = 0
-    in_str = False
-    k = j
+    m = bytearray(len(text))
+    in_str = in_line = in_block = False
+    k = 0
     while k < len(text):
         c = text[k]
-        if in_str:
+        nxt = text[k + 1] if k + 1 < len(text) else ""
+        if in_line:
+            if c == chr(10):
+                in_line = False
+                m[k] = 1
+        elif in_block:
+            if c == "*" and nxt == "/":
+                in_block = False
+                k += 2
+                continue
+        elif in_str:
+            m[k] = 2
             if c == chr(92):
+                if k + 1 < len(text):
+                    m[k + 1] = 2
                 k += 2
                 continue
             if c == chr(34):
                 in_str = False
         elif c == chr(34):
             in_str = True
-        elif c == "{":
-            depth += 1
-        elif c == "}":
-            depth -= 1
-            if depth == 0:
-                return text[j + 1:k]
+            m[k] = 2
+        elif c == "/" and nxt == "/":
+            in_line = True
+            k += 2
+            continue
+        elif c == "/" and nxt == "*":
+            in_block = True
+            k += 2
+            continue
+        else:
+            m[k] = 1
+        k += 1
+    return m
+
+
+def strip_comments(s):
+    """주석을 지운다 — **문자열 안의 `//` 는 건드리지 않는다**(`!461` AI 리뷰).
+
+    단순히 `//.*` 를 지우면 `\"https://…\"` 같은 문자열이 잘린다. 지금 코드에는 없지만
+    한 줄만 들어와도 계약이 조용히 틀리게 만들어지므로 처음부터 막아 둔다.
+
+    **판정은 `code_mask` 한 곳에서만 한다.** 전에는 여기에 같은 상태 기계가 한 벌 더
+    있었는데, 두 벌이 어긋나는 순간 계약이 조용히 틀린다.
+    """
+    m = code_mask(s)
+    return "".join(c for i, c in enumerate(s) if m[i] or c == chr(10))
+
+
+def braced_body(text, start_marker):
+    """`start_marker` 뒤 첫 `{` 부터 짝이 맞는 `}` 까지 — **원문 그대로** 돌려준다.
+
+    **주석 위치에 기대지 않는다.** 전에는 `Evaluate()` 뒤에 XML 주석이 나온다는
+    가정으로 잘랐는데, 그 주석이 없어지거나 자리가 바뀌면 죽거나 목록이 잘린 채
+    계약이 만들어졌다 — 계약이 조용히 틀리는 것이 이 파일에서 가장 나쁜 고장이다.
+
+    **주석을 지우지 않는다** (`!461` AI 리뷰). 전에는 사본에서 걷어 내고 잘랐는데,
+    그러면 `// code: …` 앵커까지 사라져 `blockers()` 가 쓸 수 없었다. 그래서 그
+    함수가 잘라 놓은 구간을 버리고 **파일 전체를 훑고** 있었다 — 독스트링이 말하는
+    것과 실제 동작이 달랐고, `Evaluate()` 밖의 대입이 생기면 조용히 섞였을 자리다.
+
+    대신 `code_mask` 로 **주석·문자열 밖에서만** 이름과 중괄호를 찾는다. 걷어 내는
+    일은 필요한 쪽(`floor_states`)이 직접 한다.
+    """
+    mask = code_mask(text)
+    i = -1
+    while True:
+        i = text.find(start_marker, i + 1)
+        if i < 0:
+            raise RuntimeError(f"{start_marker} 를 코드에서 찾지 못했다 — 계약을 만들 수 없다")
+        if mask[i] == 1:
+            break
+    j = i + len(start_marker)
+    while j < len(text) and not (mask[j] == 1 and text[j] == "{"):
+        j += 1
+    if j >= len(text):
+        raise RuntimeError(f"{start_marker} 뒤에 여는 괄호가 없다 — 계약을 만들 수 없다")
+    depth = 0
+    k = j
+    while k < len(text):
+        if mask[k] == 1:
+            if text[k] == "{":
+                depth += 1
+            elif text[k] == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[j + 1:k]
         k += 1
     raise RuntimeError(f"{start_marker} 의 끝을 찾지 못했다 — 계약을 만들 수 없다")
 
@@ -127,7 +165,7 @@ def enum_members(body):
 
 def floor_states():
     """조립 층의 상태 목록. **순서가 곧 이벤트의 숫자**다."""
-    out = enum_members(braced_body(read(ASSEMBLY), "enum FloorState"))
+    out = enum_members(strip_comments(braced_body(read(ASSEMBLY), "enum FloorState")))
     if not out:
         raise RuntimeError("FloorState 를 한 개도 못 읽었다 — 계약을 만들 수 없다")
     return out
@@ -158,17 +196,20 @@ def blockers():
     움직이고, 이름이 빠지면 여기서 막는다.
     """
     body = braced_body(read(ASSEMBLY), "public void Evaluate()")
-    raw = read(ASSEMBLY)
+    mask = code_mask(body)
     out = []
-    for line in raw.split(chr(10)):
+    at = 0
+    for line in body.split(chr(10)):
+        head = at
+        at += len(line) + 1
         m = re.search(r'Blocker\s*=\s*[$]?"([^"]*)"', line)
         if not m:
             continue
+        if mask[head + m.start()] != 1:
+            continue          # 주석 처리된 줄
         msg = " ".join(m.group(1).split())
         if not msg:
             continue          # `Blocker = ""` — 막히지 않은 경우
-        if line[:_code_len(line)].find(m.group(0)) < 0:
-            continue          # 주석 처리된 줄
         c = re.search(r"//\s*code:\s*(\w+)", line)
         if not c:
             raise RuntimeError(

@@ -48,7 +48,7 @@ HOWTO = ("고치는 법 — 아래를 그대로 저장하면 된다:\n\n"
 # ── 1) 계약의 모든 값이 같은가 ──
 # 지문만 보면 안 된다: 지문은 **데이터의 뜻**만 묶으므로 한글 문구가 바뀌어도 그대로다.
 # 문구가 바뀐 것은 데이터를 가르지는 않지만 사람이 확인해야 한다 — 순서가 뒤바뀐
-# 것이라면 `BLOCKER_CODES` 매핑이 통째로 밀린다.
+# 것이라면 집계의 뜻이 통째로 밀린다.
 diff = []
 for key in ("floor_state", "parts", "blocker_codes", "blocker_messages"):
     a, b = saved.get(key, []), now[key]
@@ -90,7 +90,7 @@ print("  지문은 뜻만 묶는다 (문구는 뺀다) ✅")
 # 시키는 대로 계약만 다시 만듦)에는 계약 쪽도 이미 갱신돼 있어 애초에 못 잡는다.
 #
 # 그래서 **여기에 못 박는다.** 값을 바꾸려면 이 줄을 손으로 고쳐야 하고, 그 순간
-# 사람이 "정말 층이 늘었나" 를 한 번 본다. `BLOCKER_CODES` 를 손으로 두는 것과 같은 결.
+# 사람이 "정말 층이 늘었나" 를 한 번 본다.
 EXPECTED = {
     "floor_state": 5,      # Empty · Stacked · Welded · WrongPart · Tilted
     "parts": 4,            # Part_1 ~ Part_4 (조립 층 수 = floors 배열 길이)
@@ -168,6 +168,34 @@ got3 = [m.group(1) for m in __import__("re").finditer(
     r'new\("(Part_\d+)",', S.braced_body(sample3, "PartSpec[] All ="))]
 check(got3 == ["Part_1", "Part_2"], f"All 밖의 선언에 속는다: {got3}")
 print("  All 배열 안에서만 찾는다 ✅")
+
+# ── 5d) `Evaluate()` **밖의** 대입에 안 속는가 ──
+#
+# `blockers()` 는 `Evaluate()` 범위로 자른다고 적혀 있었는데 실제로는 파일 전체를
+# 훑고 있었다 (`!461` AI 리뷰). 주석과 코드가 어긋나면 사람은 주석을 믿으므로,
+# 다른 메서드에 `Blocker = "…"` 가 하나만 생겨도 아무도 모르게 집계가 밀린다.
+#
+# **진짜 함수를 부른다.** 여기서 로직을 베끼면 파서가 되돌아가도 검사가 통과한다.
+def _blockers_with(text):
+    real = S.read
+    S.read = lambda rel: text if rel == S.ASSEMBLY else real(rel)
+    try:
+        return S.blockers()
+    finally:
+        S.read = real
+
+
+asm = S.read(S.ASSEMBLY)
+spot = asm.index("public void Evaluate()")
+intruder = ("    void Preview() { Blocker = " + chr(34) + "미리보기" + chr(34)
+            + "; }  // code: preview" + NL2 + NL2)
+codes = [k for k, _ in _blockers_with(asm[:spot] + intruder + asm[spot:])]
+check("preview" not in codes,
+      "Evaluate() 밖의 Blocker 대입이 집계에 섞인다: " + str(codes) + NL2 +
+      "  blockers() 가 braced_body 로 자른 구간이 아니라 파일 전체를 보고 있다.")
+check([k for k, _ in _blockers_with(asm)] == now["blocker_codes"],
+      "검사가 진짜 blockers() 를 부르고 있지 않다")
+print("  Evaluate() 안에서만 막는 사유를 읽는다 ✅")
 
 # ── 6) 계약이 사람이 읽을 수 있는가 ──
 check(bool(saved.get("note")), "계약에 note 가 없다 — 이 파일이 무엇인지 적혀 있어야 한다")
