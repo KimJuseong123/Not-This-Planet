@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using Metagame.Core;
 using NUnit.Framework;
 using UnityEngine;
-using UnityEngine.TestTools;
 
 namespace Metagame.Gameplay.Tests
 {
@@ -41,19 +40,16 @@ namespace Metagame.Gameplay.Tests
             foreach (var go in _spawned) if (go != null) Object.DestroyImmediate(go);
             _spawned.Clear();
             PlayerRig.All.Clear();
-            LogAssert.ignoreFailingMessages = false;
         }
 
+        /// <summary>
+        /// 오류 로그를 삼키지 않는다 — <c>-550</c> 과 같은 이유다. <c>Create</c> 는 실제로
+        /// 오류를 0건 내므로, 억제는 삼킬 것도 없이 방어선만 없앤다(!460 AI 리뷰).
+        /// </summary>
         PlayerRig MakePlayer(Vector3 at)
         {
-            LogAssert.ignoreFailingMessages = true;
-            PlayerRig player;
-            try
-            {
-                player = PlayerRig.Create("검증", at, Quaternion.identity,
+            var player = PlayerRig.Create("검증", at, Quaternion.identity,
                                           Color.white, Color.gray, false);
-            }
-            finally { LogAssert.ignoreFailingMessages = false; }
 
             player.ServerAuthority = true;
             _spawned.Add(player.gameObject);
