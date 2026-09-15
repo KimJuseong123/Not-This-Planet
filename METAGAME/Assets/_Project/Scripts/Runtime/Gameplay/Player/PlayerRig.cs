@@ -182,7 +182,18 @@ namespace Metagame.Gameplay
         /// <summary>
         /// 시야가 몸을 따라가야 하는가. 기절이든 던져졌든 같은 화면이 필요하다.
         /// </summary>
-        public bool BodyViewActive => Downed || Tossed;
+        public bool BodyViewActive => BodyOutOfControl;
+
+        /// <summary>
+        /// 몸이 내 조종을 벗어난 상태 — 기절했거나(<c>-259</c>) 던져져 날아가는
+        /// 중이다(<c>-519</c> · <c>-550</c>).
+        ///
+        /// <para><b>왜 하나로 묶나.</b> 둘은 같은 것을 뜻한다 — 넉백은 받되 입력은 없고,
+        /// 몸을 세우지 않으며, 시야는 몸을 따라 넘어갔다가 3인칭으로 물러난다.
+        /// <c>Tick</c> 의 조기 반환과 <see cref="BodyViewActive"/> 가 같은 조건을 따로
+        /// 적고 있으면 한쪽만 고치는 날이 온다.</para>
+        /// </summary>
+        public bool BodyOutOfControl => Downed || Tossed;
 
         public TransportVehicle MountedVehicle { get; private set; }
         public bool IsMounted { get { return MountedVehicle != null || RemoteRiding; } }
@@ -2359,9 +2370,19 @@ namespace Metagame.Gameplay
 
             ProbeGround();
 
-            // 기절 중에는 조작이 없다. 넉백은 그대로 받는다 — 운석에 굴러다녀야 한다
-            // (기획 §26-13 의 긴장이 거기서 나온다).
-            if (Downed)
+            // 기절·던져짐 중에는 조작이 없다. 넉백은 그대로 받는다 — 운석에 굴러다녀야
+            // 한다(기획 §26-13 의 긴장이 거기서 나온다).
+            //
+            // **던져져 날아가는 동안도 같다**(S15P21B202-550). 예전에는 `Tossed` 가
+            // 카메라 플래그 하나였고 몸에는 아무 일도 하지 않았다 — 실측으로 던져진 몸과
+            // 그냥 같은 속도로 띄운 몸의 기울기 계열이 완전히 같았고(0.7 1.3 1.5 1.6 1.6
+            // 1.5), 공중 가로 이동도 1.804m 로 같았다. 즉 던져진 사람이 선 자세로 날아가며
+            // 평소처럼 조종했다.
+            //
+            // **여기서 고쳐야 한다.** `LaunchTossed` 에서 `Ragdolled = true` 를 한 번 써
+            // 봐야 소용없다 — `UpdateSpeed` 가 매 틱 "머리가 골반보다 낮은가" 로 다시
+            // 계산해서 지운다. 매 틱 유지되는 자리는 여기뿐이다.
+            if (BodyOutOfControl)
             {
                 UpdateFloating();
                 Speed = 0f;
