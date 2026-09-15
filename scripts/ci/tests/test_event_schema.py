@@ -27,6 +27,9 @@ import schema_source as S  # noqa: E402
 CONTRACT = os.path.join(ROOT, "scripts", "analytics", "event-schema.json")
 
 
+NL2 = chr(10)
+
+
 def fail(msg):
     raise AssertionError(msg)
 
@@ -81,15 +84,26 @@ check(set(S.MEANING) == {"floor_state", "parts", "blocker_codes"}, f"MEANING 이
 print("  지문은 뜻만 묶는다 (문구는 뺀다) ✅")
 
 # ── 3) 뽑기가 조용히 실패하지 않았는가 ──
-# 정규식이 표기 변화로 절반만 잡아도 지문이 바뀌어 1) 이 잡는다. 다만 사람이 시키는
-# 대로 계약만 다시 만들면 그때는 아무도 안 본다 — 그래서 개수를 계약과 맞춰 본다.
-for key in ("floor_state", "parts", "blocker_messages"):
-    check(len(now[key]) == len(saved.get(key, [])),
-          f"{key} 의 개수가 계약과 다르다 ({len(saved.get(key, []))} → {len(now[key])}) — "
-          "뽑기가 깨졌는지 먼저 확인한다")
+#
+# **계약과 견주면 안 된다** (`!461` AI 리뷰). 1) 이 이미 값 전체를 견주므로 여기까지
+# 왔다면 개수는 무조건 같다 — 늘 참인 죽은 검사였다. 그리고 잡으려던 경우(사람이
+# 시키는 대로 계약만 다시 만듦)에는 계약 쪽도 이미 갱신돼 있어 애초에 못 잡는다.
+#
+# 그래서 **여기에 못 박는다.** 값을 바꾸려면 이 줄을 손으로 고쳐야 하고, 그 순간
+# 사람이 "정말 층이 늘었나" 를 한 번 본다. `BLOCKER_CODES` 를 손으로 두는 것과 같은 결.
+EXPECTED = {
+    "floor_state": 5,      # Empty · Stacked · Welded · WrongPart · Tilted
+    "parts": 4,            # Part_1 ~ Part_4 (조립 층 수 = floors 배열 길이)
+    "blocker_messages": 5,  # Evaluate() 의 조기 탈출 다섯 자리
+}
+for key, want in EXPECTED.items():
+    check(len(now[key]) == want,
+          f"{key} 가 {want}개가 아니라 {len(now[key])}개다." + NL2 +
+          "  뽑기가 깨졌는지 **먼저** 확인한다 — 정규식이 표기 변화로 절반만 잡으면" + NL2 +
+          "  여기 걸린다. 정말로 늘거나 줄었으면 이 파일의 EXPECTED 를 고친다." + NL2 +
+          f"  뽑은 것: {now[key]}")
 print(f"  층 {len(now['floor_state'])}종 · 파츠 {len(now['parts'])}개 · "
       f"막힘 {len(now['blocker_messages'])}가지 ✅")
-
 # ── 4) 막힘 코드와 문구의 개수가 맞는가 ──
 # 코드는 손으로 적고 문구는 코드에서 뽑는다. 한쪽만 늘면 매핑이 밀린다 —
 # 그러면 `tilted` 로 집계한 것이 사실은 `off_pad` 다.
