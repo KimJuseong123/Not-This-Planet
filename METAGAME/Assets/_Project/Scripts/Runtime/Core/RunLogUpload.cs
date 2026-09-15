@@ -347,8 +347,39 @@ namespace Metagame.Core
         /// </summary>
         public static string BuildTag()
         {
-            string v = BuildInfo.ReleaseVersion;
-            return string.IsNullOrEmpty(v) ? Sanitize(BuildInfo.Stamp) : Sanitize(v);
+            return BuildTag(BuildInfo.ReleaseVersion, BuildInfo.Stamp);
+        }
+
+        /// <summary>
+        /// 값을 받아서 고르는 쪽 — <b>검사가 부를 수 있게 갈라 둔다</b>
+        /// (S15P21B202-501, <c>!463</c> 리뷰).
+        ///
+        /// <para><b>왜 갈랐나.</b> 위 함수는 <see cref="BuildInfo"/> 의 실제 값을 읽으므로,
+        /// 에디터에서는 스탬프가 늘 차 있어 <b>빈 값 경로를 한 번도 지나지 않는다.</b>
+        /// 그러면 아래 폴백을 지워도 검사가 초록이라 회귀를 못 막는다 — 검사가 있는데
+        /// 아무것도 안 지키는 상태가 된다. <c>-523</c> 에서 인자 계산을 순수 함수로
+        /// 떼어 낸 것과 같은 이유다.</para>
+        ///
+        /// <para><b><c>internal</c> 이 아니라 <c>public</c> 이다.</b> 검사는 별도
+        /// 어셈블리(<c>Metagame.Gameplay.Tests.Editor</c>)에 있어 <c>internal</c> 을 볼 수
+        /// 없다 — 처음에 그렇게 뒀다가 <b>컴파일 오류 4건</b>으로 막혔다.</para>
+        /// </summary>
+        public static string BuildTag(string version, string stamp)
+        {
+            string tag = Sanitize(string.IsNullOrEmpty(version) ? stamp : version);
+
+            // **빈 값도 헤더에 못 넣는다** (`!459` AI 리뷰). `SetRequestHeader` 는 빈
+            // 문자열에도 던지므로, 여기서 비워 보내면 이 이슈가 고친 실패 경로가
+            // 그대로 되살아난다 — 요청 전 예외 → `.sent` 미표시 → 매 실행 반복.
+            //
+            // 빌 수 있다. `BuildInfo.Read()` 의 마지막 경로가 `lines[0].Trim()` 이라
+            // 빌드 스탬프 파일의 **첫 줄이 비어 있으면** `Stamp` 가 빈 문자열이 되고,
+            // 릴리스 버전도 없으면 둘 다 빈 채로 여기 온다. 스탬프가 제어문자뿐이어도
+            // `Sanitize` 가 전부 걸러 같은 자리에 닿는다.
+            //
+            // 무엇인지 모르는 것과 값이 없는 것은 다르다 — 받는 쪽이 구분할 수 있게
+            // 이름을 준다.
+            return string.IsNullOrEmpty(tag) ? "unknown" : tag;
         }
 
         /// <summary>

@@ -350,5 +350,34 @@ namespace Metagame.Gameplay.Tests
             Assert.That(opened, Is.LessThan(logged),
                 "로그 파일을 열기 전에 [빌드] 를 찍는다 — 그 줄이 파일에 안 남는다");
         }
+
+        [Test]
+        public void TheBuildHeaderIsNeverEmpty()
+        {
+            // **빈 값도 헤더에 못 넣는다** (S15P21B202-501, `!459` 리뷰).
+            //
+            // `SetRequestHeader` 는 빈 문자열에도 던진다. 그러면 요청이 나가기 전에
+            // 죽고 `.sent` 표시에도 못 가서 같은 파일이 실행마다 또 던진다 — 이 이슈가
+            // 고친 바로 그 경로다.
+            //
+            // **값을 넣어서 부른다** (`!463` 리뷰). 인자 없는 쪽은 에디터에서 스탬프가
+            // 늘 차 있어 빈 값 경로를 한 번도 지나지 않는다 — 그러면 폴백을 지워도
+            // 이 검사가 초록이라 아무것도 안 지킨다.
+
+            // 둘 다 빈 경우 — 빌드 스탬프 파일의 첫 줄이 비면 실제로 이렇게 된다.
+            Assert.That(RunLogUpload.BuildTag("", ""), Is.EqualTo("unknown"));
+
+            // Sanitize 가 전부 걸러 내는 스탬프 — 제어문자와 공백뿐이면 같은 자리에 닿는다.
+            Assert.That(RunLogUpload.BuildTag("", "  \n \t "), Is.EqualTo("unknown"));
+
+            // 릴리스 버전이 있으면 그것을 쓴다.
+            Assert.That(RunLogUpload.BuildTag("v1.1.0", "아무거나"), Is.EqualTo("v1.1.0"));
+
+            // 버전이 없으면 스탬프를 걸러 쓴다 — 한글은 `?` 로 줄고, 비지 않는다.
+            Assert.That(RunLogUpload.BuildTag("", "에디터에서 실행"), Is.Not.Empty);
+
+            // 실제 환경에서도 비지 않는다.
+            Assert.That(RunLogUpload.BuildTag(), Is.Not.Empty);
+        }
     }
 }
