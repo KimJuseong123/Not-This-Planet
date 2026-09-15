@@ -100,15 +100,26 @@ def dry_run() -> bool:
 
     한 방향 스위치도 그대로 둔다 — `DEVBUILD_DRY_RUN` 으로 *켤* 수는 있고 *끌* 수는 없다.
     """
+    return rehearsal_requested() or not trigger_allowed()
+
+
+def rehearsal_requested() -> bool:
+    """사람이 일부러 리허설을 켰는가. **끄는 데는 못 쓴다.**"""
+    return env("DEVBUILD_DRY_RUN").lower() not in ("", "0", "false", "no")
+
+
+def trigger_allowed() -> bool:
+    """이 트리거에서 올려도 되는가.
+
+    `build-devbuild` 의 `rules:` 와 **같은 집합**이어야 한다. 둘이 어긋나면 빌드는
+    도는데 산출물이 안 나가는, 알아채기 어려운 상태가 된다 — `cmd_publish` 가 그때
+    실패로 끝내는 이유다.
+    """
     source = env("CI_PIPELINE_SOURCE")
     if source == "schedule":
         # 새벽 배포일 때만 — 아침 점검(09:30)도 `schedule` 이라 이것으로 갈라야 한다.
-        allowed = env("NIGHTLY_DEPLOY_DEV").lower() == "true"
-    else:
-        allowed = source == "merge_request_event"
-    if not allowed:
-        return True
-    return (env("DEVBUILD_DRY_RUN") or "").lower() not in ("", "0", "false", "no")
+        return env("NIGHTLY_DEPLOY_DEV").lower() == "true"
+    return source == "merge_request_event"
 
 
 def cmd_version() -> int:
@@ -142,11 +153,23 @@ def cmd_publish(rc: str) -> int:
     size = R.zip_dir(build_dir, zip_path)
     print(f"zip: {name} · {size / 1048576:.1f} MB")
 
+    # **`R.dry_run()` 이 아니다** (S15P21B202-537) — 그쪽은 릴리스 전용 잠금이라
+    # dev·qa 를 늘 리허설로 만든다.
     if dry_run():
-        # **`R.dry_run()` 이 아니다** (S15P21B202-537) — 그쪽은 릴리스 전용 잠금이라
-        # dev·qa 를 늘 리허설로 만든다.
-        print(f"(dry-run) 레지스트리에 올리지 않는다 — 트리거: {env('CI_PIPELINE_SOURCE') or '(없음)'}")
-        return 0
+        if rehearsal_requested() or not env("CI_PIPELINE_SOURCE"):
+            print("(dry-run) 레지스트리에 올리지 않는다 — 켜 둔 리허설이다")
+            return 0
+        # **조용히 초록으로 끝내지 않는다.** 파이프라인에서 돌았다는 것은
+        # `build-devbuild` 의 `rules:` 를 통과했다는 뜻이고, 그 rules 는
+        # `trigger_allowed()` 와 같은 집합이다. 그런데 여기서 리허설로 빠졌다면
+        # **둘이 어긋난 것**이다 — 90분짜리 빌드가 통째로 버려지고
+        # `dev-versions.json` 은 404 로 남는다. 그것이 `-537` 의 증상이었고,
+        # `return 0` 이라 잡이 초록이어서 **로그를 읽어야만** 알 수 있었다.
+        print("❌ 파이프라인에서 돌면서 리허설로 빠졌다 — 이 빌드는 아무 데도 안 간다")
+        print(f"   트리거: {env('CI_PIPELINE_SOURCE')!r}"
+              f" · NIGHTLY_DEPLOY_DEV={env('NIGHTLY_DEPLOY_DEV')!r}")
+        print("   build-devbuild 의 rules 와 publish_devbuild.trigger_allowed() 가 어긋났습니다.")
+        return 1
 
     code = R.upload_package(zip_path, version, name)
     if code >= 300:

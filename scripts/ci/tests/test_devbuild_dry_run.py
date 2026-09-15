@@ -64,6 +64,12 @@ assert D.dry_run() is True, "변수로 리허설을 끌 수 있으면 아무 브
 at(DEVBUILD_DRY_RUN="no", **NIGHTLY)
 assert D.dry_run() is False, "0·false·no·빈값은 끈 것이 아니라 '안 켠 것'이다"
 
+# rehearsal_requested() 는 '켰는가' 만 본다 — 트리거와 섞이면 안 된다
+at(DEVBUILD_DRY_RUN="yes")
+assert D.rehearsal_requested() is True and D.trigger_allowed() is False
+at(**MR)
+assert D.rehearsal_requested() is False and D.trigger_allowed() is True
+
 # ── 4) 릴리스 판정과 **갈라져 있다** — 이 파일의 핵심 ──
 at(**NIGHTLY)
 assert R.dry_run() is True and D.dry_run() is False, \
@@ -102,10 +108,26 @@ assert UPLOADED == [("dev-20260915-1a2b3c4", "metagame-dev-20260915-1a2b3c4.zip"
 assert open(D.PACKAGE_FILE, encoding="utf-8").read().strip().endswith(".zip"), \
     "publish-devbuild 가 읽는 release-package.txt 가 있어야 배치된다"
 
-# 리허설이면 그 파일을 안 남긴다 — 다음 잡이 옛 값을 집으면 안 된다
+# ── 7) 파이프라인에서 리허설로 빠지면 **실패**한다 ──
+# 잡이 돌았다는 건 `build-devbuild` 의 rules 를 통과했다는 뜻이다. 그런데도 리허설이면
+# rules 와 trigger_allowed() 가 어긋난 것이고, 90분 빌드가 통째로 버려진다. `-537` 의
+# 증상이 **초록 잡**이었던 까닭이 `return 0` 이었으므로 여기서 갈라 둔다.
 UPLOADED.clear()
 os.remove(D.PACKAGE_FILE)
 at(CI_COMMIT_SHORT_SHA="1a2b3c4", CI_PIPELINE_SOURCE="push", CI_COMMIT_BRANCH="develop")
+assert D.cmd_publish("0") == 1, "조용히 초록으로 끝나면 -537 이 그대로 재발한다"
+assert UPLOADED == [] and not os.path.exists(D.PACKAGE_FILE)
+
+# 새벽 스케줄인데 NIGHTLY_DEPLOY_DEV 가 빠진 경우 — 가장 있을 법한 재발 경로
+at(CI_COMMIT_SHORT_SHA="1a2b3c4", CI_PIPELINE_SOURCE="schedule", CI_COMMIT_BRANCH="develop")
+assert D.cmd_publish("0") == 1
+
+# 반대로 **일부러 켠** 리허설은 조용히 통과한다 — 그러라고 만든 스위치다
+at(CI_COMMIT_SHORT_SHA="1a2b3c4", DEVBUILD_DRY_RUN="1", **NIGHTLY)
+assert D.cmd_publish("0") == 0 and UPLOADED == []
+
+# 로컬에서 손으로 돌릴 때도 실패가 아니다 (CI_PIPELINE_SOURCE 가 없다)
+at(CI_COMMIT_SHORT_SHA="1a2b3c4")
 assert D.cmd_publish("0") == 0 and UPLOADED == []
 assert not os.path.exists(D.PACKAGE_FILE)
 
@@ -113,4 +135,5 @@ assert not os.path.exists(D.PACKAGE_FILE)
 at(CI_COMMIT_SHORT_SHA="1a2b3c4", **NIGHTLY)
 assert D.cmd_publish("1") == 1 and UPLOADED == []
 
-print("OK  publish_devbuild — 트리거 6경우 · 한 방향 스위치 · 릴리스 판정과 분리 · 업로드 왕복")
+print("OK  publish_devbuild — 트리거 6경우 · 한 방향 스위치 · 릴리스 판정과 분리 ·"
+      " 업로드 왕복 · 어긋남은 실패")
