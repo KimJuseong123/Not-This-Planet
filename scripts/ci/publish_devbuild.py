@@ -108,6 +108,15 @@ def rehearsal_requested() -> bool:
     return env("DEVBUILD_DRY_RUN").lower() not in ("", "0", "false", "no")
 
 
+def mismatch() -> bool:
+    """파이프라인에서 돌면서 트리거가 어긋났는가.
+
+    이건 리허설이 아니라 **결함**이다 — `build-devbuild` 의 `rules:` 를 통과해 놓고
+    여기서 안 올라간다는 뜻이므로, 빌드가 통째로 버려진다.
+    """
+    return bool(env("CI_PIPELINE_SOURCE")) and not trigger_allowed() and not rehearsal_requested()
+
+
 def trigger_allowed() -> bool:
     """이 트리거에서 올려도 되는가.
 
@@ -148,6 +157,16 @@ def cmd_publish(rc: str) -> int:
         print(f"❌ 빌드 폴더가 없다: {build_dir!r}")
         return 1
 
+    # **zip 전에 잡는다** (S15P21B202-537, `!450` 리뷰). 어긋난 것이 확정인데 156 MB 를
+    # 묶고 나서 죽을 이유가 없다. 일부러 켠 리허설은 아래에서 zip 까지 진짜로 한다 —
+    # 그것이 리허설의 값어치다(`-407 ④` 와 같은 결).
+    if mismatch():
+        print("❌ 파이프라인에서 돌면서 리허설로 빠졌다 — 이 빌드는 아무 데도 안 간다")
+        print(f"   트리거: {env('CI_PIPELINE_SOURCE')!r}"
+              f" · NIGHTLY_DEPLOY_DEV={env('NIGHTLY_DEPLOY_DEV')!r}")
+        print("   build-devbuild 의 rules 와 publish_devbuild.trigger_allowed() 가 어긋났습니다.")
+        return 1
+
     name = f"metagame-{version}.zip"
     zip_path = os.path.join(os.getcwd(), name)
     size = R.zip_dir(build_dir, zip_path)
@@ -155,21 +174,10 @@ def cmd_publish(rc: str) -> int:
 
     # **`R.dry_run()` 이 아니다** (S15P21B202-537) — 그쪽은 릴리스 전용 잠금이라
     # dev·qa 를 늘 리허설로 만든다.
+    # 여기 오는 리허설은 **일부러 켠 것**이거나 로컬 수동 실행뿐이다 — 어긋남은 위에서 걸렀다.
     if dry_run():
-        if rehearsal_requested() or not env("CI_PIPELINE_SOURCE"):
-            print("(dry-run) 레지스트리에 올리지 않는다 — 켜 둔 리허설이다")
-            return 0
-        # **조용히 초록으로 끝내지 않는다.** 파이프라인에서 돌았다는 것은
-        # `build-devbuild` 의 `rules:` 를 통과했다는 뜻이고, 그 rules 는
-        # `trigger_allowed()` 와 같은 집합이다. 그런데 여기서 리허설로 빠졌다면
-        # **둘이 어긋난 것**이다 — 90분짜리 빌드가 통째로 버려지고
-        # `dev-versions.json` 은 404 로 남는다. 그것이 `-537` 의 증상이었고,
-        # `return 0` 이라 잡이 초록이어서 **로그를 읽어야만** 알 수 있었다.
-        print("❌ 파이프라인에서 돌면서 리허설로 빠졌다 — 이 빌드는 아무 데도 안 간다")
-        print(f"   트리거: {env('CI_PIPELINE_SOURCE')!r}"
-              f" · NIGHTLY_DEPLOY_DEV={env('NIGHTLY_DEPLOY_DEV')!r}")
-        print("   build-devbuild 의 rules 와 publish_devbuild.trigger_allowed() 가 어긋났습니다.")
-        return 1
+        print("(dry-run) 레지스트리에 올리지 않는다 — 켜 둔 리허설이다")
+        return 0
 
     code = R.upload_package(zip_path, version, name)
     if code >= 300:

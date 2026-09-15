@@ -102,8 +102,10 @@ assert D.decide_version() == "qa-461-1a2b3c4"
 yml = io.open(os.path.join(ROOT, ".gitlab-ci.yml"), encoding="utf-8").read().split(chr(10))
 TOP = re.compile(r"^[A-Za-z_.][A-Za-z0-9_.-]*:")
 s = next(i for i, l in enumerate(yml) if l.startswith("build-devbuild:"))
-e = next(i for i in range(s + 1, len(yml)) if TOP.match(yml[i]))
-found = [l.strip() for l in yml[s:e] if l.strip().startswith("- if:")]
+# 마지막 잡이면 다음 최상위 키가 없다 — 그때는 파일 끝까지가 그 잡이다.
+e = next((i for i in range(s + 1, len(yml)) if TOP.match(yml[i])), len(yml))
+# 공백 차이로는 깨지지 않게 한다 — 들여쓰기·줄맞춤을 고쳤다고 새벽 빌드가 빨개지면 안 된다.
+found = [" ".join(l.split()) for l in yml[s:e] if l.strip().startswith("- if:")]
 assert found == [
     '- if: $CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_DEPLOY_DEV == "true"',
     '- if: $CI_PIPELINE_SOURCE == "merge_request_event"',
@@ -137,7 +139,10 @@ assert UPLOADED == [("dev-20260915-1a2b3c4", "metagame-dev-20260915-1a2b3c4.zip"
 assert open(D.PACKAGE_FILE, encoding="utf-8").read().strip().endswith(".zip"), \
     "publish-devbuild 가 읽는 release-package.txt 가 있어야 배치된다"
 
-# ── 8) 파이프라인에서 리허설로 빠지면 **실패**한다 ──
+# ── 8) 파이프라인에서 리허설로 빠지면 **실패**한다 · 그것도 zip 전에 ──
+ZIPPED: list = []
+_zip = D.R.zip_dir
+D.R.zip_dir = lambda src, dst: (ZIPPED.append(dst), _zip(src, dst))[1]
 # 잡이 돌았다는 건 `build-devbuild` 의 rules 를 통과했다는 뜻이다. 그런데도 리허설이면
 # rules 와 trigger_allowed() 가 어긋난 것이고, 90분 빌드가 통째로 버려진다. `-537` 의
 # 증상이 **초록 잡**이었던 까닭이 `return 0` 이었으므로 여기서 갈라 둔다.
@@ -146,14 +151,17 @@ os.remove(D.PACKAGE_FILE)
 at(CI_COMMIT_SHORT_SHA="1a2b3c4", CI_PIPELINE_SOURCE="push", CI_COMMIT_BRANCH="develop")
 assert D.cmd_publish("0") == 1, "조용히 초록으로 끝나면 -537 이 그대로 재발한다"
 assert UPLOADED == [] and not os.path.exists(D.PACKAGE_FILE)
+assert ZIPPED == [], "어긋남이 확정인데 156MB 를 묶고 나서 죽을 이유가 없다"
+assert D.mismatch() is True
 
 # 새벽 스케줄인데 NIGHTLY_DEPLOY_DEV 가 빠진 경우 — 가장 있을 법한 재발 경로
 at(CI_COMMIT_SHORT_SHA="1a2b3c4", CI_PIPELINE_SOURCE="schedule", CI_COMMIT_BRANCH="develop")
 assert D.cmd_publish("0") == 1
 
-# 반대로 **일부러 켠** 리허설은 조용히 통과한다 — 그러라고 만든 스위치다
+# 반대로 **일부러 켠** 리허설은 조용히 통과하고, zip 까지 진짜로 한다 — 그것이 리허설의 값어치다
 at(CI_COMMIT_SHORT_SHA="1a2b3c4", DEVBUILD_DRY_RUN="1", **NIGHTLY)
 assert D.cmd_publish("0") == 0 and UPLOADED == []
+assert ZIPPED and D.mismatch() is False
 
 # 로컬에서 손으로 돌릴 때도 실패가 아니다 (CI_PIPELINE_SOURCE 가 없다)
 at(CI_COMMIT_SHORT_SHA="1a2b3c4")
