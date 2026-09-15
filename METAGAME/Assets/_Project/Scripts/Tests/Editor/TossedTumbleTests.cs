@@ -20,6 +20,7 @@ namespace Metagame.Gameplay.Tests
 
         readonly List<GameObject> _spawned = new();
         SimulationMode _savedMode;
+        float _savedFixedDelta;
         bool _puffWasEnabled;
 
         [SetUp]
@@ -30,12 +31,18 @@ namespace Metagame.Gameplay.Tests
             Puff.Enabled = false;
             _savedMode = UnityEngine.Physics.simulationMode;
             UnityEngine.Physics.simulationMode = SimulationMode.Script;
+
+            // 물리 시간과 로직 시간을 맞춰 쥔다 — `-550` 과 같은 이유다(!460 AI 리뷰).
+            // 여기는 "3.37초에 끝난다 · 1인칭 창이 5초" 를 재므로 시간축이 특히 중요하다.
+            _savedFixedDelta = Time.fixedDeltaTime;
+            Time.fixedDeltaTime = Step;
         }
 
         [TearDown]
         public void TearDown()
         {
             UnityEngine.Physics.simulationMode = _savedMode;
+            Time.fixedDeltaTime = _savedFixedDelta;
             Puff.Enabled = _puffWasEnabled;
             foreach (var go in _spawned) if (go != null) Object.DestroyImmediate(go);
             _spawned.Clear();
