@@ -392,6 +392,16 @@ def branch_pipeline_jobs(gl: GitLab) -> list[dict]:
     return failed_jobs(gl)[0]
 
 
+def is_scheduled() -> bool:
+    """예약 실행인가. 새벽 배포·아침 점검이 여기 든다."""
+    return env("CI_PIPELINE_SOURCE", "") == "schedule"
+
+
+def schedule_name() -> str:
+    """어느 예약인지 사람 말로. 시각을 쓰는 이유는 스케줄 이름을 잡이 모르기 때문이다."""
+    return env("CI_PIPELINE_CREATED_AT", "")[11:16] + " 예약" if env("CI_PIPELINE_CREATED_AT", "") else "예약"
+
+
 def branch_failed(gl: GitLab) -> int:
     branch = env("CI_COMMIT_BRANCH", "") or "?"
     sha = env("CI_COMMIT_SHORT_SHA", "") or "?"
@@ -430,6 +440,23 @@ def branch_failed(gl: GitLab) -> int:
             ("조치", "잡 로그의 ❌ 줄을 보고 고친다. 버전을 못 정한 경우라면 머지 커밋에 "
                      "`release/<키>-vX.Y.Z` 가 없는 것이다(git-convention §8). 고친 뒤 "
                      "이 파이프라인을 재실행하면 릴리스가 다시 시도된다"),
+        ]
+    elif is_scheduled():
+        # **예약 실행은 말이 또 다르다** (S15P21B202-533).
+        #
+        # 새벽 배포·아침 점검이 실패한 것은 `develop` 의 코드가 빨간 것이 아니다 —
+        # 그 커밋은 이미 MR 파이프라인을 통과해 머지된 것이다. 여기에 대고
+        # "빨간 기준선 위에서 시작한다" 고 하면 **읽는 사람이 할 일을 잘못 고른다**
+        # (있지도 않은 원인 MR 을 되돌리려 든다).
+        #
+        # 2026-09-15 04:03 에 `build-devbuild` 가 죽었는데 이 잡이 `schedule` 에서
+        # 아예 돌지 않아 **아무도 못 들었다.** 그래 놓고 08:31 푸시가 ✅ 회복 카드를
+        # 보냈다 — 알린 적 없는 실패가 해소됐다고 알려진 것이다.
+        head, tail = f"🔴 **예약 실행이 실패했다** ({schedule_name()})", [
+            ("영향", "`" + branch + "` 의 코드가 빨간 것이 아니다 — 그 커밋은 이미 검사를 통과했다. "
+                     "**그 시간에 하기로 한 일이 안 됐다**(개발 서버 갱신 · QA 빌드 등)"),
+            ("담당", mention),
+            ("조치", "잡 로그의 ❌ 줄을 보고 고친다. 고칠 때까지 **매일 같은 시각에 다시 실패한다**"),
         ]
     else:
         head, tail = f"🔴 **{branch} 가 빨갛다**", [
@@ -472,9 +499,19 @@ def branch_resolved(gl: GitLab) -> int:
     if st != 200 or not isinstance(pipes, list):
         print(f"파이프라인 목록 조회 실패 {st} → 생략"); return 0
 
+    # **같은 종류끼리만 견준다** (S15P21B202-533).
+    #
+    # 예약 실행과 머지 푸시는 **도는 잡이 다르다** — `changes:` 로 걸러지기 때문이다.
+    # 2026-09-15 에 실제로 이렇게 됐다: 04:03 새벽(`build-devbuild` 실패)을 직전으로
+    # 보고, 08:31 머지 푸시가 ✅ 회복 카드를 보냈다. 그런데 그 푸시는 `scripts/ci/**`
+    # 만 바꿔 **실질 잡이 `retarget-pipelines` 하나**였다 — 아무것도 검사하지 않고
+    # "이제 브랜치를 따도 된다" 고 말한 것이다.
+    source = env("CI_PIPELINE_SOURCE", "")
     previous = None
     for p in pipes:
         if str(p.get("id")) == str(pid):
+            continue
+        if source and p.get("source") != source:   # 종류가 다르면 견줄 대상이 아니다
             continue
         if p.get("status") in ("success", "failed"):   # running·canceled 는 판단 근거가 아니다
             previous = p
@@ -490,7 +527,9 @@ def branch_resolved(gl: GitLab) -> int:
     return send(card(f"✅ **{branch} 가 초록으로 돌아왔다**", [
         ("커밋", f"[`{sha}`]({env('CI_PROJECT_URL', '')}/-/commit/{env('CI_COMMIT_SHA', '')}) {title}".strip()),
         ("직전", f"[실패한 파이프라인]({previous.get('web_url', '')})"),
-        ("조치", f"이제 `{branch}` 에서 브랜치를 따도 된다"),
+        # 예약 실행은 브랜치를 따는 것과 상관이 없다 — 같은 문구를 쓰면 안 된다.
+        ("조치", f"그 시간의 일이 다시 된다 ({schedule_name()})" if is_scheduled()
+                  else f"이제 `{branch}` 에서 브랜치를 따도 된다"),
     ]))
 
 

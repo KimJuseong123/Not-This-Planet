@@ -968,12 +968,27 @@ mm-ci-failed:             # 🔴 CI 실패 알림 — 실패한 잡 이름·링�
       optional: true      # changes: 게이트라 없는 파이프라인이 있다
     - job: ai-review-gate # ⛔ 로 막힌 것도 카드로 알린다. 이유(❌ 줄)는 잡 로그에서 뽑힌다(-341)
       optional: true
+    # **예약 실행이 돌리는 잡들** (S15P21B202-533). 이것이 빠져 있어 2026-09-15 04:03
+    # `build-devbuild` 실패가 아무 카드도 못 내보냈다 — `-344` 에서 `unity-compile` 이
+    # 빠져 있던 것과 **같은 모양**이다. rules 만 고치면 겉만 고치는 것이 된다.
+    - job: build-backend
+      optional: true      # develop push 와 예약 실행에 있다
+    - job: deploy-dev
+      optional: true      # 예약 실행에서는 버튼이 아니라 **자동**이다
+    - job: build-devbuild
+      optional: true
+    - job: publish-devbuild
+      optional: true
     - job: release-windows
       optional: true      # master push 파이프라인에만 있다. **잡이 아예 못 뜬 경우**(이미지
                           # pull 실패·러너 정지·90분 타임아웃·취소)까지 이 needs 가 덮는다 —
                           # 스크립트 안에 notify 를 흩뿌려서는 그 경우를 알릴 수 없다(-407 ①)
   when: on_failure
   rules:
+    # **예약 실행도 알린다** (S15P21B202-533). 없으면 새벽 배포·아침 점검이 죽어도
+    # 아무 카드가 안 가고, 그다음 머지 푸시가 "초록으로 돌아왔다" 를 보낸다 —
+    # 알린 적 없는 실패가 해소됐다고 알려진다.
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $MM_WEBHOOK_URL
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $MM_WEBHOOK_URL
     # develop 이 빨간 것은 MR 실패와 성격이 다르다 — 그 순간 모든 사람의 다음 브랜치가
     # 빨간 기준선 위에서 시작한다. 2026-09-08 에 두 커밋 연속 실패하고 카드가 0건이었다.
@@ -1005,12 +1020,27 @@ mm-ci-resolved:           # 검사 통과 시, 남아 있는 CI 실패 코멘트
       optional: true
     - job: ai-review-gate # mm-ci-failed 와 같은 목록이어야 한다 — 다르면 ⛔ 로 막힌 MR 에
       optional: true      # '해소됨' 이 찍힌다(-289 와 같은 사고)
+    # **예약 실행이 돌리는 잡들** (S15P21B202-533). 이것이 빠져 있어 2026-09-15 04:03
+    # `build-devbuild` 실패가 아무 카드도 못 내보냈다 — `-344` 에서 `unity-compile` 이
+    # 빠져 있던 것과 **같은 모양**이다. rules 만 고치면 겉만 고치는 것이 된다.
+    - job: build-backend
+      optional: true      # develop push 와 예약 실행에 있다
+    - job: deploy-dev
+      optional: true      # 예약 실행에서는 버튼이 아니라 **자동**이다
+    - job: build-devbuild
+      optional: true
+    - job: publish-devbuild
+      optional: true
     - job: release-windows
       optional: true      # master push 파이프라인에만 있다. **잡이 아예 못 뜬 경우**(이미지
                           # pull 실패·러너 정지·90분 타임아웃·취소)까지 이 needs 가 덮는다 —
                           # 스크립트 안에 notify 를 흩뿌려서는 그 경우를 알릴 수 없다(-407 ①)
   when: on_success
   rules:
+    # **예약 실행도 알린다** (S15P21B202-533). 없으면 새벽 배포·아침 점검이 죽어도
+    # 아무 카드가 안 가고, 그다음 머지 푸시가 "초록으로 돌아왔다" 를 보낸다 —
+    # 알린 적 없는 실패가 해소됐다고 알려진다.
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $MM_WEBHOOK_URL
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     # develop 이 초록으로 돌아온 것도 알린다 — 🔴 카드가 "빨간 기준선 위에서 시작한다" 고
     # 경고했으니 풀렸다는 말도 같은 채널에 있어야 한다. 직전 파이프라인이 실패였을 때만 보낸다.
