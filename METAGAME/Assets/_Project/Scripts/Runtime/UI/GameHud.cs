@@ -283,52 +283,6 @@ namespace Metagame.UI
             DrawMeteorRhythm(w, h);
             DrawKeyGuides(w, h);
 
-            // 왼쪽 위 — 진행 상황
-            Box(new Rect(14f, 12f, 268f, 142f), new Color(0f, 0f, 0f, 0.38f));
-            if (s != null)
-            {
-                L(new Rect(26f, 20f, 260f, 24f),
-                  "경과 " + s.Elapsed.ToString("0.0") + "초", mid, Color.white);
-                L(new Rect(26f, 44f, 260f, 24f),
-                  "표지 " + s.CheckpointIndex + " / 6", mid, new Color(0.72f, 0.90f, 1f));
-                L(new Rect(26f, 68f, 120f, 24f),
-                  "추락 " + s.Falls + "회", small, new Color(1f, 0.78f, 0.70f));
-                bool powered = PowerSocket.Instance != null && PowerSocket.Instance.Powered;
-                L(new Rect(26f, 90f, 120f, 24f),
-                  "전원 " + (powered ? "들어옴" : "없음"), small,
-                  powered ? new Color(0.55f, 1f, 0.6f) : new Color(0.9f, 0.7f, 0.6f));
-                L(new Rect(150f, 90f, 130f, 24f),
-                  "해치 " + (SlidingDoor.Instance != null && SlidingDoor.Instance.IsOpen ? "열림" : "닫힘"),
-                  small, new Color(0.85f, 0.85f, 0.85f));
-                L(new Rect(26f, 114f, 250f, 24f),
-                  "중력 " + Mathf.Abs(Physics.gravity.y).ToString("0.0") + " m/s² · 지구의 "
-                  + (Mathf.Abs(Physics.gravity.y) / 9.81f * 100f).ToString("0") + "%",
-                  small, new Color(0.72f, 0.82f, 1f));
-            }
-
-            // 오른쪽 위 — 몸 상태
-            if (Local != null)
-            {
-                Box(new Rect(w - 266f, 12f, 252f, 142f), new Color(0f, 0f, 0f, 0.38f));
-                bool free = Local.Cam != null && Local.Cam.FreeLook;
-                string state = Local.IsMounted ? "운반 장치 탑승 중"
-                             : free ? "시점 자유"
-                             : Local.Ragdolled ? "자빠짐"
-                             : Local.Hanging ? "매달림"
-                             : Local.Grounded ? (Local.Speed > 0.5f ? "걷는 중" : "서 있음")
-                             : (Local.Thrusting ? "분사 중" : "공중");
-                L(new Rect(w - 254f, 20f, 240f, 24f), state, mid, new Color(0.95f, 0.95f, 0.80f));
-                L(new Rect(w - 254f, 44f, 240f, 24f), HandLine("왼팔", Local.LeftHand), small,
-                  Local.LeftHand.Gripping ? new Color(0.55f, 1f, 0.6f) : new Color(0.8f, 0.8f, 0.8f));
-                L(new Rect(w - 254f, 66f, 240f, 24f), HandLine("오른팔", Local.RightHand), small,
-                  Local.RightHand.Gripping ? new Color(0.55f, 1f, 0.6f) : new Color(0.8f, 0.8f, 0.8f));
-                L(new Rect(w - 254f, 88f, 240f, 24f),
-                  "속도 " + Local.Speed.ToString("0.0") + " m/s", small, new Color(0.75f, 0.8f, 0.9f));
-                L(new Rect(w - 140f, 88f, 240f, 24f),
-                  Local.Grounded ? "" : "체공 " + Local.AirTime.ToString("0.0") + "초", small,
-                  new Color(0.80f, 0.90f, 1f));
-            }
-
             // 도착
             if (s != null && s.Cleared)
             {
@@ -451,12 +405,5 @@ namespace Metagame.UI
             Box(new Rect(x, y, width * ratio, height), fill);
         }
 
-        static string HandLine(string name, Hand hand)
-        {
-            if (hand == null) return name + " —";
-            if (hand.Gripping)
-                return name + " 잡음";
-            return name + " 비어 있음";
-        }
     }
 }
