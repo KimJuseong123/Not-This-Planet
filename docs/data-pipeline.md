@@ -63,29 +63,68 @@
 
 평문 로그는 **그대로 둡니다.** 목적이 다르므로 합치지 않습니다.
 
-```
-{"seq":42,"t":915.3,"type":"weld_complete","joint":7,"ms":4120}
+### 대부분은 이미 호스트가 알고 있습니다
+
+물리와 진행도가 서버에서만 돌기 때문에, 알고 싶은 것의 상당수가 **이미 값으로 존재합니다.**
+코드 여기저기에 호출을 심는 대신 **그 값이 바뀌는 순간을 보는 관찰자 하나**를 두면 됩니다.
+
+특히 `ShipAssembly.Floors` 하나가 §3 의 첫 두 질문을 거의 다 답합니다.
+
+```csharp
+public enum FloorState { Empty, Stacked, Welded, WrongPart, Tilted }
+readonly FloorState[] _floors = new FloorState[PartSpec.All.Length];   // 4층
 ```
 
-- `seq` — 그 세션 안에서 1씩 는다. **빠진 번호가 곧 유실 신호**이고, 중복을 걸러내는 열쇠이기도 하다(§5)
-- `t` — 세션 시작 이후 초. 벽시계는 세션 머리에 한 번만 둔다(기기 시계는 믿을 수 없다)
+층은 `Part_1`(주 추진 엔진) · `Part_2`(부양·안정화) · `Part_3`(승무원 거주) · `Part_4`(상단 조립) 순서입니다.
+
+- **어디서 포기했나** — 판이 끝난 순간의 `Floors` 가 곧 답입니다. `[Welded, Stacked, Empty, Empty]` 면 2층까지 올리고 멈춘 것입니다
+- **어디서 막혔나** — `WrongPart`·`Tilted` 가 몇 층에서 얼마나 오래 유지됐나
+
+### 관찰로 되는 것 (게임플레이 코드를 안 건드립니다)
+
+| 이벤트 | 무엇을 본다 | 어디 |
+| --- | --- | --- |
+| `assembly` | `Floors` 배열이 바뀔 때 | `ShipAssembly.Floors` · `Evaluate()` |
+| `blocked` | `IsBoardable` 이 false 이고 `Blocker` 가 바뀔 때 | `ShipAssembly.Blocker` |
+| `checkpoint` | `CheckpointIndex` 가 바뀔 때 | `GameSession.ReachCheckpoint` |
+| `fall` | `Falls` 가 늘 때 | `GameSession.RecoverFallenPlayer` |
+| `cleared` | `Cleared` 가 켜질 때 | `GameSession.Clear()` |
+| `weld` | `WeldBead.All` 의 상태가 바뀔 때 | `WeldBead.All` · `IsWeldedToPad` |
+| `dock` | `DockedPart` 가 바뀔 때 | `AssemblyDock.DockedPart` |
+
+### 심어야 하는 것 (관찰로는 안 됩니다)
+
+| 이벤트 | 왜 |
+| --- | --- |
+| `session_start` · `session_end` | 각자 자기 판의 시작·끝을 안다. 특히 **튕김**은 호스트가 "떠났다" 까지만 알고 왜인지는 모른다 |
+| `weld_fail` 의 사유 | 실패는 상태가 아니라 **사건**이라 다음 관찰 때는 이미 사라져 있다 |
+| `launch_attempt` 의 실패 사유 | 위와 같다 |
+
+### 누가 보내나
+
+| 보내는 쪽 | 무엇 |
+| --- | --- |
+| **호스트** | 세계 상태 — `assembly` · `blocked` · `weld` · `dock` · `checkpoint` · `cleared` |
+| **각자** | 자기 것 — `session_start` · `session_end` · `fall` · 튕김 |
+
+둘 다 같은 `match` 를 달아 나중에 한 판으로 합칩니다(§5).
+
+### 이벤트 모양
+
+```
+{"seq":42,"t":915.3,"type":"assembly","floors":[2,1,0,0]}
+{"seq":43,"t":920.1,"type":"blocked","code":"tilted","floor":1}
+{"seq":44,"t":931.7,"type":"weld","joint":7,"state":"done","ms":4120}
+```
+
+- `seq` — 세션 안에서 1씩 는다. **빠진 번호가 곧 유실 신호**이고, 중복을 걸러내는 열쇠이기도 하다(§5)
+- `t` — 세션 시작 이후 초. 기기 시계는 믿지 않는다
 - `type` — 정해진 목록 중 하나. **자유롭게 늘리지 않는다**
 
-**1차 이벤트 목록 (초안)**
+**자유 문자열은 넣지 않습니다.** 닉네임·채팅·음성은 담지 않고, `Blocker` 같은 한글 값도
+**코드로 바꿔** 싣습니다 — 문구가 바뀌면 집계가 갈라집니다.
 
-| 종류 | 언제 | 칸 | 무엇에 답하나 |
-| --- | --- | --- | --- |
-| `session_start` | 판 시작 | `build` · `role` · `players` · `scene` | 인원·길이 |
-| `session_end` | 판 끝 | `result`(cleared/abandoned/disconnected) · `elapsed` | **포기** |
-| `part_pickup` · `part_drop` · `part_dock` | 파트를 집고·놓고·붙일 때 | `part` | **어디까지 갔나** |
-| `weld_start` · `weld_complete` · `weld_fail` | 용접 | `joint` · `ms` · `reason` | **어디서 막히나** |
-| `stun` · `revive` | 기절·기상 | `cause` | **왜 죽나** |
-| `launch_attempt` | 발사 시도 | `ok` · `missing` | 마무리 |
-
-> **이 표는 아직 초안입니다.** 실제 게임플레이 코드에서 *"어느 함수가 불릴 때가 이 이벤트인가"* 까지 붙이는 것이 `-498` 의 일입니다.
-
-**자유 문자열은 넣지 않습니다.** 닉네임·채팅·음성은 이벤트에 담지 않습니다(§7).
-
+> 자세한 자리와 주의는 `-498` 에 있습니다.
 ## 5. 어떻게 보내나
 
 **플레이 중에는 안 보냅니다.** `RunLogUpload` 가 이미 정한 *"플레이 중에 네트워킹을 쓰지 않는다"* 를 그대로 따릅니다 — 4 vCPU EC2 가 릴레이·매칭·CI 를 겸합니다.
