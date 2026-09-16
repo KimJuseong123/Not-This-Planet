@@ -113,8 +113,15 @@ namespace Metagame.Gameplay.Tests
             var tool = CreateTool(out _);
             var aim = new ToolAimContext(null, null, Vector3.forward);
             Physics.SyncTransforms();
-            Assert.IsTrue(tool.WeldTick(0.1f, PlasmaBeamMode.Weld));
+            // 최소 용접량(0.1초)은 자국 콜라이더가 표면 안쪽에 남아
+            // 다음 레이가 다시 파츠 표면을 먼저 맞힐 수 있다. 이 테스트는
+            // 발광 효과를 검증하므로 실제로 절단 가능한 크기까지 자국을 만든다.
+            Assert.IsTrue(tool.WeldTick(0.5f, PlasmaBeamMode.Weld));
             Physics.SyncTransforms();
+
+            Assert.IsTrue(tool.TryGetBeamHit(Vector3.forward, out var cutContact));
+            Assert.IsTrue(WeldBead.CanApplyAt(cutContact, true),
+                "테스트 자국이 실제 절단 판정을 통과해야 한다.");
 
             tool.SetInput(new ToolInputFrame { SecondaryHeld = true }, aim);
             InvokeLateUpdate(tool);
