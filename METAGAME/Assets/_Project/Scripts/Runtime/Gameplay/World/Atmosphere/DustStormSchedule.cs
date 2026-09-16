@@ -5,7 +5,7 @@ namespace Metagame.Gameplay
 {
     /// <summary>
     /// A deterministic snapshot of the moving storm volume.
-    /// Local X is the travel axis, Y is vertical, and Z is lateral.
+    /// Local X is the broad sweep width, Y is vertical, and Z is the travel axis.
     /// </summary>
     public readonly struct StormPose
     {
@@ -29,7 +29,7 @@ namespace Metagame.Gameplay
         {
             get { return Direction.sqrMagnitude < 0.0001f
                 ? Quaternion.identity
-                : Quaternion.LookRotation(Direction, Vector3.up) * Quaternion.Euler(0f, 90f, 0f); }
+                : Quaternion.LookRotation(Direction, Vector3.up); }
         }
 
         public bool Contains(Vector3 point)
@@ -78,7 +78,7 @@ namespace Metagame.Gameplay
 
             float gap = Mathf.Max(0.1f, (settings.minimumInterval + settings.maximumInterval) * 0.5f);
             float travelDistance = Mathf.Sqrt(size.x * size.x + size.z * size.z)
-                                 + 2f * (halfExtents.x + settings.spawnMargin);
+                                 + 2f * (halfExtents.z + settings.spawnMargin);
             float travelDuration = travelDistance / Mathf.Max(0.01f, settings.speed);
             double cycleDuration = travelDuration + gap;
             int cycle = (int)Math.Floor(simulationTime / cycleDuration);
@@ -102,10 +102,11 @@ namespace Metagame.Gameplay
             direction.y = 0f;
             direction.Normalize();
 
-            Vector3 start = perimeter - direction * (halfExtents.x + settings.spawnMargin);
+            Vector3 start = perimeter - direction * (halfExtents.z + settings.spawnMargin);
             Vector3 center = start + direction * (float)elapsed * settings.speed;
-            center.y = DustStormBounds.SampleGroundHeight(center, mapBounds)
-                       + halfExtents.y + settings.groundClearance;
+            // A shared map datum fixes height for the entire pass, including late joiners.
+            // Terrain, props and collisions must never steer the storm.
+            center.y = mapBounds.min.y + halfExtents.y + settings.groundClearance;
             return new StormPose(true, center, direction, halfExtents, cycle);
         }
 

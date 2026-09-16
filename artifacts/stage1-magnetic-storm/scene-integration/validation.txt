@@ -1,0 +1,4 @@
+PASS: actual Stage1_Astra Play Mode; one scene-wired volume; no legacy particles; stationary shared systems; shared seeded physics path; 9m horizontal travel in 1.5s; hidden between passes; instance reused; animated pass rendered.
+Bounds: Center: (0.00, 10.00, 0.00), Extents: (51.00, 10.00, 47.00)
+Seed: 1013264391
+Travel distance including height: 9.079444

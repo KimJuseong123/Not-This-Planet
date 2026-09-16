@@ -1,0 +1,14 @@
+{
+  "width": 960,
+  "height": 400,
+  "frames": 120,
+  "loop": 0,
+  "durationMs": 6000,
+  "frameDelayMs": 50,
+  "endpointMaxChannelError": 0,
+  "seamMeanAbsoluteError": 0.7046328125,
+  "averageAdjacentMeanAbsoluteError": 0.6957356661414565,
+  "seamToAverageRatio": 1.0127881130600749,
+  "sizeBytes": 12770453,
+  "method": "Periodic image-space billow deformation, travelling cyan emission and closed-path motes. Fixed camera. Not a 3D fluid simulation."
+}

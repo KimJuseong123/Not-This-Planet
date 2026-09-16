@@ -72474,6 +72474,7 @@ MonoBehaviour:
   suit: {r: 0.93, g: 0.94, b: 0.96, a: 1}
   accent: {r: 0.96, g: 0.5, b: 0.16, a: 1}
   atmosphereProfile: {fileID: 11400000, guid: d271b19624ff44b1a8d05e2342e6691a, type: 2}
+  stormPresentation: {fileID: 868578172}
   audioManager: {fileID: 11400000, guid: 30172e6644094138ac8b5ca0d778cf70, type: 2}
 --- !u!4 &1614633189
 Transform:
@@ -102004,6 +102005,128 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 4121680353556964967, guid: d06292bfb6bc9f44199884258ea93c02, type: 3}
+--- !u!1 &868578171
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 868578173}
+  - component: {fileID: 868578172}
+  m_Layer: 0
+  m_Name: Stage1 Magnetic Storm
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &868578172
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 868578171}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 436094df4e164ad0a40a8ee4462bfc02, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.AtmosphereDustStorm
+  profile: {fileID: 0}
+  dustParticles: {fileID: 0}
+  boundary: {fileID: 0}
+  magneticVisual: {fileID: 1993888947}
+--- !u!4 &868578173
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 868578171}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 2.58, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1993888948}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &1993888946
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 868578173}
+    m_Modifications:
+    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3888947284752906420, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+      propertyPath: m_Name
+      value: Stage1MagneticStorm
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+--- !u!114 &1993888947 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 927629189053722594, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+  m_PrefabInstance: {fileID: 1993888946}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 48ad5abfa92d07e459fe30b0f9cde932, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.MagneticStormVisual
+--- !u!4 &1993888948 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+  m_PrefabInstance: {fileID: 1993888946}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -102021,3 +102144,4 @@ SceneRoots:
   - {fileID: 1896952433}
   - {fileID: 1086657125}
   - {fileID: 1362316341}
+  - {fileID: 868578173}

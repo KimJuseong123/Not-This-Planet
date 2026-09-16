@@ -1,0 +1,18 @@
+{
+  "model": "AstraMagneticStorm.fbx",
+  "boundsUnity": [
+    24,
+    5,
+    10
+  ],
+  "densityResolution": 128,
+  "densityAtlasColumns": 16,
+  "noiseResolution": 64,
+  "noiseAtlasColumns": 8,
+  "fluxMeshes": 7,
+  "debrisMeshes": 9,
+  "vertices": 6836,
+  "triangles": 13632,
+  "densityLobes": 70,
+  "blenderVersion": "5.2.2 LTS"
+}

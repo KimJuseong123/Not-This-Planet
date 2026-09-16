@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="17" result="Failed(Child)" total="17" passed="16" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-16 04:55:00Z" end-time="2026-09-16 04:55:01Z" duration="0.8603769">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="1692" result="Failed" site="Child" start-time="2026-09-16 04:55:00Z" end-time="2026-09-16 04:55:01Z" duration="0.860377" total="17" passed="16" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="2880" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202-564-art/METAGAME/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="1692" result="Failed" site="Child" start-time="2026-09-16 04:55:00Z" end-time="2026-09-16 04:55:01Z" duration="0.799908" total="17" passed="16" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="14704" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="2881" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="1692" result="Failed" site="Child" start-time="2026-09-16 04:55:00Z" end-time="2026-09-16 04:55:01Z" duration="0.796444" total="17" passed="16" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="2886" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="1649" result="Failed" site="Child" start-time="2026-09-16 04:55:00Z" end-time="2026-09-16 04:55:01Z" duration="0.792325" total="17" passed="16" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="2887" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="1649" result="Failed" site="Child" start-time="2026-09-16 04:55:00Z" end-time="2026-09-16 04:55:01Z" duration="0.787920" total="17" passed="16" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1380" name="DustStormScheduleTests" fullname="Metagame.Gameplay.Tests.DustStormScheduleTests" classname="Metagame.Gameplay.Tests.DustStormScheduleTests" runstate="Runnable" testcasecount="11" result="Failed" site="Child" start-time="2026-09-16 04:54:56Z" end-time="2026-09-16 04:54:56Z" duration="0.091128" total="11" passed="10" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1384" name="ActiveStormUsesGroundBaseInsteadOfBoundsCenterHeight" fullname="Metagame.Gameplay.Tests.DustStormScheduleTests.ActiveStormUsesGroundBaseInsteadOfBoundsCenterHeight" methodname="ActiveStormUsesGroundBaseInsteadOfBoundsCenterHeight" classname="Metagame.Gameplay.Tests.DustStormScheduleTests" runstate="Runnable" seed="1105832442" result="Passed" start-time="2026-09-16 04:54:56Z" end-time="2026-09-16 04:54:56Z" duration="0.016686" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1387" name="BoundaryReacquiresRequiredRendererBeforeApplyingStyle" fullname="Metagame.Gameplay.Tests.DustStormScheduleTests.BoundaryReacquiresRequiredRendererBeforeApplyingStyle" methodname="BoundaryReacquiresRequiredRendererBeforeApplyingStyle" classname="Metagame.Gameplay.Tests.DustStormScheduleTests" runstate="Runnable" seed="89345035" result="Passed" start-time="2026-09-16 04:54:56Z" end-time="2026-09-16 04:54:56Z" duration="0.021352" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1390" name="BuiltInDebrisMaterial_FallsBackToProjectSurface" fullname="Metagame.Gameplay.Tests.DustStormScheduleTests.BuiltInDebrisMaterial_FallsBackToProjectSurface" methodname="BuiltInDebrisMaterial_FallsBackToProjectSurface" classname="Metagame.Gameplay.Tests.DustStormScheduleTests" runstate="Runnable" seed="1326536130" result="Passed" start-time="2026-09-16 04:54:56Z" end-time="2026-09-16 04:54:56Z" duration="0.021506" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1389" name="DebrisSource_IsResolvedFromATemporaryInstance" fullname="Metagame.Gameplay.Tests.DustStormScheduleTests.DebrisSource_IsResolvedFromATemporaryInstance" methodname="DebrisSource_IsResolvedFromATemporaryInstance" classname="Metagame.Gameplay.Tests.DustStormScheduleTests" runstate="Runnable" seed="146224574" result="Failed" start-time="2026-09-16 04:54:56Z" end-time="2026-09-16 04:54:56Z" duration="0.006272" asserts="0">
+                <properties />
+                <failure>
+                  <message><![CDATA[  유효한 debris 원본은 임시 인스턴스에서 Mesh를 추출해야 한다.
+  Expected: not null
+  But was:  null
+]]></message>
+                  <stack-trace><![CDATA[at Metagame.Gameplay.Tests.DustStormScheduleTests.DebrisSource_IsResolvedFromATemporaryInstance () [0x0005f] in C:\workspace\2-PJT\S15P21B202-564-art\METAGAME\Assets\_Project\Scripts\Tests\Editor\DustStormScheduleTests.cs:180
+]]></stack-trace>
+                </failure>
+              </test-case>
+              <test-case id="1388" name="DestroyedDebrisReference_DoesNotAbortVisualSetup" fullname="Metagame.Gameplay.Tests.DustStormScheduleTests.DestroyedDebrisReference_DoesNotAbortVisualSetup" methodname="DestroyedDebrisReference_DoesNotAbortVisualSetup" classname="Metagame.Gameplay.Tests.DustStormScheduleTests" runstate="Runnable" seed="1852688948" result="Passed" start-time="2026-09-16 04:54:56Z" end-time="2026-09-16 04:54:56Z" duration="0.001899" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1386" name="InactiveStormDoesNotContainAnyPoint" fullname="Metagame.Gameplay.Tests.DustStormScheduleTests.InactiveStormDoesNotContainAnyPoint" methodname="InactiveStormDoesNotContainAnyPoint" classname="Metagame.Gameplay.Tests.DustStormScheduleTests" runstate="Runnable" seed="514500548" result="Passed" start-time="2026-09-16 04:54:56Z" end-time="2026-09-16 04:54:56Z" duration="0.000685" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1382" name="MatchSeedOverrideChangesOnlyTheRuntimeDustStormCopy" fullname="Metagame.Gameplay.Tests.DustStormScheduleTests.MatchSeedOverrideChangesOnlyTheRuntimeDustStormCopy" methodname="MatchSeedOverrideChangesOnlyTheRuntimeDustStormCopy" classname="Metagame.Gameplay.Tests.DustStormScheduleTests" runstate="Runnable" seed="1399940295" result="Passed" start-time="2026-09-16 04:54:56Z" end-time="2026-09-16 04:54:56Z" duration="0.000383" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1391" name="RuntimeAtmosphereParticleSystem_UsesItsExistingRenderer" fullname="Metagame.Gameplay.Tests.DustStormScheduleTests.RuntimeAtmosphereParticleSystem_UsesItsExistingRenderer" methodname="RuntimeAtmosphereParticleSystem_UsesItsExistingRenderer" classname="Metagame.Gameplay.Tests.DustStormScheduleTests" runstate="Runnable" seed="985666532" result="Passed" start-time="2026-09-16 04:54:56Z" end-time="2026-09-16 04:54:56Z" duration="0.005020" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1381" name="SameServerTimeAndSeedProduceTheSameStormPose" fullname="Metagame.Gameplay.Tests.DustStormScheduleTests.SameServerTimeAndSeedProduceTheSameStormPose" methodname="SameServerTimeAndSeedProduceTheSameStormPose" classname="Metagame.Gameplay.Tests.DustStormScheduleTests" runstate="Runnable" seed="657348431" result="Passed" start-time="2026-09-16 04:54:56Z" end-time="2026-09-16 04:54:56Z" duration="0.001818" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1383" name="ScheduleKeepsOneStormInactiveDuringTheConfiguredGap" fullname="Metagame.Gameplay.Tests.DustStormScheduleTests.ScheduleKeepsOneStormInactiveDuringTheConfiguredGap" methodname="ScheduleKeepsOneStormInactiveDuringTheConfiguredGap" classname="Metagame.Gameplay.Tests.DustStormScheduleTests" runstate="Runnable" seed="1242621737" result="Passed" start-time="2026-09-16 04:54:56Z" end-time="2026-09-16 04:54:56Z" duration="0.000333" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1385" name="ValidateCapsStormBudgetsAndNormalizesVolumeSize" fullname="Metagame.Gameplay.Tests.DustStormScheduleTests.ValidateCapsStormBudgetsAndNormalizesVolumeSize" methodname="ValidateCapsStormBudgetsAndNormalizesVolumeSize" classname="Metagame.Gameplay.Tests.DustStormScheduleTests" runstate="Runnable" seed="950521908" result="Passed" start-time="2026-09-16 04:54:56Z" end-time="2026-09-16 04:54:56Z" duration="0.000768" asserts="0">
+                <properties />
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1663" name="MagneticStormVisualTests" fullname="Metagame.Gameplay.Tests.MagneticStormVisualTests" classname="Metagame.Gameplay.Tests.MagneticStormVisualTests" runstate="Runnable" testcasecount="6" result="Passed" start-time="2026-09-16 04:55:00Z" end-time="2026-09-16 04:55:01Z" duration="0.751290" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1670" name="ExistingStormPresenterControlsVisibilitySeedReuseAndCleanup" fullname="Metagame.Gameplay.Tests.MagneticStormVisualTests.ExistingStormPresenterControlsVisibilitySeedReuseAndCleanup" methodname="ExistingStormPresenterControlsVisibilitySeedReuseAndCleanup" classname="Metagame.Gameplay.Tests.MagneticStormVisualTests" runstate="Runnable" seed="16255851" result="Passed" start-time="2026-09-16 04:54:56Z" end-time="2026-09-16 04:55:01Z" duration="4.879517" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="1669" name="PresentationClockWrapsWithoutDrift" fullname="Metagame.Gameplay.Tests.MagneticStormVisualTests.PresentationClockWrapsWithoutDrift" classname="Metagame.Gameplay.Tests.MagneticStormVisualTests" runstate="Runnable" testcasecount="5" result="Passed" start-time="2026-09-16 04:55:01Z" end-time="2026-09-16 04:55:01Z" duration="0.003531" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="1664" name="PresentationClockWrapsWithoutDrift(0.0d,0.0f)" fullname="Metagame.Gameplay.Tests.MagneticStormVisualTests.PresentationClockWrapsWithoutDrift(0.0d,0.0f)" methodname="PresentationClockWrapsWithoutDrift" classname="Metagame.Gameplay.Tests.MagneticStormVisualTests" runstate="Runnable" seed="635386687" result="Passed" start-time="2026-09-16 04:55:01Z" end-time="2026-09-16 04:55:01Z" duration="0.001045" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1665" name="PresentationClockWrapsWithoutDrift(1.5d,0.25f)" fullname="Metagame.Gameplay.Tests.MagneticStormVisualTests.PresentationClockWrapsWithoutDrift(1.5d,0.25f)" methodname="PresentationClockWrapsWithoutDrift" classname="Metagame.Gameplay.Tests.MagneticStormVisualTests" runstate="Runnable" seed="1151170744" result="Passed" start-time="2026-09-16 04:55:01Z" end-time="2026-09-16 04:55:01Z" duration="0.000093" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1666" name="PresentationClockWrapsWithoutDrift(6.0d,0.0f)" fullname="Metagame.Gameplay.Tests.MagneticStormVisualTests.PresentationClockWrapsWithoutDrift(6.0d,0.0f)" methodname="PresentationClockWrapsWithoutDrift" classname="Metagame.Gameplay.Tests.MagneticStormVisualTests" runstate="Runnable" seed="2025334899" result="Passed" start-time="2026-09-16 04:55:01Z" end-time="2026-09-16 04:55:01Z" duration="0.000055" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1667" name="PresentationClockWrapsWithoutDrift(123456.75d,0.125f)" fullname="Metagame.Gameplay.Tests.MagneticStormVisualTests.PresentationClockWrapsWithoutDrift(123456.75d,0.125f)" methodname="PresentationClockWrapsWithoutDrift" classname="Metagame.Gameplay.Tests.MagneticStormVisualTests" runstate="Runnable" seed="875177321" result="Passed" start-time="2026-09-16 04:55:01Z" end-time="2026-09-16 04:55:01Z" duration="0.000049" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1668" name="PresentationClockWrapsWithoutDrift(-1.5d,0.75f)" fullname="Metagame.Gameplay.Tests.MagneticStormVisualTests.PresentationClockWrapsWithoutDrift(-1.5d,0.75f)" methodname="PresentationClockWrapsWithoutDrift" classname="Metagame.Gameplay.Tests.MagneticStormVisualTests" runstate="Runnable" seed="1255086096" result="Passed" start-time="2026-09-16 04:55:01Z" end-time="2026-09-16 04:55:01Z" duration="0.000044" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+                </test-case>
+              </test-suite>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

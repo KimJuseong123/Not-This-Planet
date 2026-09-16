@@ -102,7 +102,7 @@ namespace Metagame.EditorTools
                 profile.dustStorm.minimumInterval = 8f;
                 profile.dustStorm.maximumInterval = 14f;
                 profile.dustStorm.speed = 6f;
-                profile.dustStorm.halfExtents = new Vector3(12f, 2.5f, 5f);
+                profile.dustStorm.halfExtents = new Vector3(12f, 2.5f, 2.5f);
                 profile.dustStorm.directionConeDegrees = 60f;
                 profile.dustStorm.spawnMargin = 6f;
                 profile.dustStorm.seed = 20260903;

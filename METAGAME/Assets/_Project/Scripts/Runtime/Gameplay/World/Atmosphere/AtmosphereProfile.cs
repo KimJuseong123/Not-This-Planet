@@ -191,13 +191,13 @@ namespace Metagame.Gameplay
             [Min(0.1f)] public float minimumInterval = 8f;
             [Min(0.1f)] public float maximumInterval = 14f;
             [Min(0.01f)] public float speed = 6f;
-            // Local X is the travel axis, Y is vertical, and Z is the lateral axis.
-            public Vector3 halfExtents = new Vector3(12f, 2.5f, 5f);
+            [Tooltip("반크기: X=쓸어가는 너비, Y=높이, Z=진행 방향 두께")]
+            public Vector3 halfExtents = new Vector3(12f, 2.5f, 2.5f);
             [Range(0f, 180f)] public float directionConeDegrees = 60f;
             [Min(0f)] public float spawnMargin = 6f;
             public int seed = 20260903;
 
-            [Header("Grounding")]
+            [Header("Fixed height above map base")]
             [Min(0f)] public float groundClearance = 0.08f;
 
             [Header("Test visualization")]
@@ -207,20 +207,29 @@ namespace Metagame.Gameplay
             [Min(10f)] public float debugSkyMarkerHeight = 80f;
 
             [Header("Gameplay")]
-            [Tooltip("폭풍이 적용하는 기준 힘의 크기입니다. 단위는 Newton이며 FixedUpdate마다 지속 적용됩니다.")]
-            [Min(0f)] public float windForce = 6f;
-            [Tooltip("플레이어 골반에 적용할 기준 힘의 배율입니다. 낮출수록 플레이어는 덜 밀립니다.")]
-            [Min(0f)] public float playerWindForceMultiplier = 0.45f;
-            [Tooltip("일반 Rigidbody에 적용할 기준 힘의 배율입니다. 플레이어보다 크게 설정하면 가벼운 물체가 더 잘 밀립니다.")]
-            [Min(0f)] public float objectWindForceMultiplier = 1.25f;
-            [Tooltip("이 질량을 초과하는 플레이어 또는 일반 Rigidbody에는 폭풍 힘을 적용하지 않습니다.")]
-            [Min(0f)] public float maximumAffectedMass = 40f;
-            [Min(0)] public int maxPhysicalFragments = 3;
-            [Min(0f)] public float fragmentDamage = 5f;
-            [Min(0.01f)] public float fragmentRepeatCooldown = 1f;
-            [Min(0.1f)] public float fragmentLifetime = 2.5f;
-            [Min(0.01f)] public float fragmentSpeed = 5f;
+            [Tooltip("같은 대상에 다시 충격을 주기까지의 시간(초). 진입 시 즉시 1회 적용합니다.")]
+            [Min(0.05f)] public float impulseInterval = 1f;
+            [Tooltip("진행 방향 순간 속도 증가량(m/s). 질량과 무관하게 플레이어도 강하게 밀립니다.")]
+            [Min(0f)] public float impulseSpeed = 18f;
+            [Tooltip("타격 시 위쪽 속도 증가량(m/s). 0이면 수평 방향으로만 밀립니다.")]
+            [Min(0f)] public float impulseLift = 4f;
+            [Min(0f)] public float playerImpulseMultiplier = 1f;
+            [Min(0f)] public float objectImpulseMultiplier = 1f;
+            [Tooltip("타격 대상을 찾을 레이어 마스크입니다.")]
             public int affectedLayers = ~0;
+            [Tooltip("폭풍이 적용하는 기준 힘의 크기입니다. 단위는 Newton이며 FixedUpdate마다 지속 적용됩니다.")]
+            [HideInInspector, Min(0f)] public float windForce = 6f;
+            [Tooltip("플레이어 골반에 적용할 기준 힘의 배율입니다. 낮출수록 플레이어는 덜 밀립니다.")]
+            [HideInInspector, Min(0f)] public float playerWindForceMultiplier = 0.45f;
+            [Tooltip("일반 Rigidbody에 적용할 기준 힘의 배율입니다. 플레이어보다 크게 설정하면 가벼운 물체가 더 잘 밀립니다.")]
+            [HideInInspector, Min(0f)] public float objectWindForceMultiplier = 1.25f;
+            [Tooltip("이 질량을 초과하는 플레이어 또는 일반 Rigidbody에는 폭풍 힘을 적용하지 않습니다.")]
+            [HideInInspector, Min(0f)] public float maximumAffectedMass = 40f;
+            [HideInInspector, Min(0)] public int maxPhysicalFragments = 3;
+            [HideInInspector, Min(0f)] public float fragmentDamage = 5f;
+            [HideInInspector, Min(0.01f)] public float fragmentRepeatCooldown = 1f;
+            [HideInInspector, Min(0.1f)] public float fragmentLifetime = 2.5f;
+            [HideInInspector, Min(0.01f)] public float fragmentSpeed = 5f;
 
             [Header("Visual debris")]
             [Min(0)] public int maxVisualFragments = 6;
@@ -332,6 +341,11 @@ namespace Metagame.Gameplay
             dustStorm.debugBoundaryWidth = Mathf.Max(0.001f, dustStorm.debugBoundaryWidth);
             dustStorm.debugSkyMarkerHeight = Mathf.Max(10f, dustStorm.debugSkyMarkerHeight);
             dustStorm.windForce = Mathf.Max(0f, dustStorm.windForce);
+            dustStorm.impulseInterval = Mathf.Max(.05f, dustStorm.impulseInterval);
+            dustStorm.impulseSpeed = Mathf.Max(0f, dustStorm.impulseSpeed);
+            dustStorm.impulseLift = Mathf.Max(0f, dustStorm.impulseLift);
+            dustStorm.playerImpulseMultiplier = Mathf.Max(0f, dustStorm.playerImpulseMultiplier);
+            dustStorm.objectImpulseMultiplier = Mathf.Max(0f, dustStorm.objectImpulseMultiplier);
             dustStorm.playerWindForceMultiplier = Mathf.Max(0f, dustStorm.playerWindForceMultiplier);
             dustStorm.objectWindForceMultiplier = Mathf.Max(0f, dustStorm.objectWindForceMultiplier);
             dustStorm.maximumAffectedMass = Mathf.Max(0f, dustStorm.maximumAffectedMass);
