@@ -14,8 +14,8 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 import ec2_status
-from ci_common import (PROJECT_KEY, GitLab, Jira, banner, completes_on_merge, env, http,
-                       key_from_branch, load_team, role_member)
+from ci_common import (PROJECT_KEY, STORY_POINTS_JQL, GitLab, Jira, banner, completes_on_merge,
+                       env, http, key_from_branch, load_team, role_member)
 
 JIRA_BROWSE = (env("JIRA_URL", "https://ssafy.atlassian.net") or "").rstrip("/") + "/browse/"
 TEAM = load_team()
@@ -44,10 +44,9 @@ def fmt_issues(issues: list[dict]) -> str:
 
 KEYS_PER_QUERY = 50      # 이보다 많으면 키 조회를 포기하고 전량 조회로 간다
 
-# 스토리 포인트의 커스텀 필드 번호. 인스턴스마다 다르므로 바뀌면 여기만 고친다 —
-# `GET /rest/api/3/field` 에서 이름이 "Story Points" 인 것의 id 다(2026-09-14 확인: 10031).
+# 번호는 `ci_common.STORY_POINTS_ID` 한 곳에 있다 — `mr-lint` 도 같은 필드를 본다.
 # 번호가 틀리면 Jira 가 JQL 을 거부하고 **그 항목만** "조회 실패" 로 나간다(아래 try/except).
-STORY_POINTS = "cf[10031]"
+STORY_POINTS = STORY_POINTS_JQL
 
 
 def not_done_issues(jira: Jira, keys: list[str]) -> tuple[list[dict], bool]:
