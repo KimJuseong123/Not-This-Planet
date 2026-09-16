@@ -59,7 +59,7 @@ namespace Metagame.Gameplay.Tests
             var groups = new Dictionary<SpaceshipPart, int>();
 
             var count = PartOutlineGroups.Assign(new[] { a, b },
-                new[] { Link(a, b, intact: true, welded: true) }, groups);
+                new[] { Link(a, b, intact: true, weldRatio: 1f) }, groups);
 
             Assert.AreEqual(1, count, "용접으로 묶였으면 한 덩어리다.");
             Assert.AreEqual(groups[a], groups[b],
@@ -67,20 +67,41 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
-        /// 얹어만 둔 것은 아직 따로 보여야 한다. 기획 §16 의 용접이 끝나야 하나가 된다 —
-        /// <c>Placed</c> 는 "충격에 흔들리거나 무너질 수 있다" 인 상태다.
+        /// <b>조금만 용접해도 합쳐진다.</b>
+        ///
+        /// <para>처음에는 <c>IsFullyWelded</c>(비율 1)를 요구했는데, 그 1 은 비드 세 덩이를
+        /// 다 채워야 나오는 값이라 <b>사람이 두 파츠를 이어 붙인 정도로는 한참 모자랐다</b> —
+        /// 용접을 해도 테두리가 안 합쳐졌다(실측). 비율은 강도이지 "이어졌나" 가 아니다.</para>
         /// </summary>
         [Test]
-        public void APartiallyWeldedLinkDoesNotMerge()
+        public void EvenATackWeldMerges()
         {
             var a = Part("Part_1");
             var b = Part("Part_2");
             var groups = new Dictionary<SpaceshipPart, int>();
 
             PartOutlineGroups.Assign(new[] { a, b },
-                new[] { Link(a, b, intact: true, welded: false) }, groups);
+                new[] { Link(a, b, intact: true, weldRatio: 0.15f) }, groups);
 
-            Assert.AreNotEqual(groups[a], groups[b], "용접이 덜 됐으면 아직 둘이다.");
+            Assert.AreEqual(groups[a], groups[b], "조금이라도 용접으로 이어졌으면 한 덩어리다.");
+        }
+
+        /// <summary>
+        /// <b>얹어만 둔 것은 아직 따로다.</b> 소켓에 맞물리면 접합 자체는 생기지만
+        /// (<c>PartAssembler</c>), 요구는 "용접건으로 결합했으면" 이다. 그래서
+        /// <c>IsIntact</c> 만으로 가르지 않고 비드가 닿았는지를 본다.
+        /// </summary>
+        [Test]
+        public void APlacedButUnweldedLinkDoesNotMerge()
+        {
+            var a = Part("Part_1");
+            var b = Part("Part_2");
+            var groups = new Dictionary<SpaceshipPart, int>();
+
+            PartOutlineGroups.Assign(new[] { a, b },
+                new[] { Link(a, b, intact: true, weldRatio: 0f) }, groups);
+
+            Assert.AreNotEqual(groups[a], groups[b], "용접하지 않았으면 아직 둘이다.");
         }
 
         /// <summary>절단해 링크가 끊기면 다시 갈라져야 한다.</summary>
@@ -92,7 +113,7 @@ namespace Metagame.Gameplay.Tests
             var groups = new Dictionary<SpaceshipPart, int>();
 
             PartOutlineGroups.Assign(new[] { a, b },
-                new[] { Link(a, b, intact: false, welded: true) }, groups);
+                new[] { Link(a, b, intact: false, weldRatio: 1f) }, groups);
 
             Assert.AreNotEqual(groups[a], groups[b], "끊긴 링크는 묶지 않는다.");
         }
@@ -107,7 +128,7 @@ namespace Metagame.Gameplay.Tests
             var groups = new Dictionary<SpaceshipPart, int>();
 
             var count = PartOutlineGroups.Assign(new[] { a, b, c },
-                new[] { Link(a, b, true, true), Link(b, c, true, true) }, groups);
+                new[] { Link(a, b, true, 1f), Link(b, c, true, 1f) }, groups);
 
             Assert.AreEqual(1, count);
             Assert.AreEqual(groups[a], groups[c], "a-b, b-c 가 붙었으면 a 와 c 도 한 덩어리다.");
@@ -124,7 +145,7 @@ namespace Metagame.Gameplay.Tests
             var b = Part("Part_2");
             var c = Part("Part_3");
             var parts = new[] { a, b, c };
-            var links = new[] { Link(a, c, true, true) };
+            var links = new[] { Link(a, c, true, 1f) };
 
             var first = new Dictionary<SpaceshipPart, int>();
             var second = new Dictionary<SpaceshipPart, int>();
@@ -182,7 +203,7 @@ namespace Metagame.Gameplay.Tests
             var lone = Part("Part_3");
             var groups = new Dictionary<SpaceshipPart, int>();
             PartOutlineGroups.Assign(new[] { a, b, lone },
-                new[] { Link(a, b, true, true) }, groups);
+                new[] { Link(a, b, true, 1f) }, groups);
 
             var kept = PartOutlineGroups.KeepMergedOnly(groups);
 
@@ -204,7 +225,7 @@ namespace Metagame.Gameplay.Tests
             var c = Part("Part_3");
             var groups = new Dictionary<SpaceshipPart, int>();
             PartOutlineGroups.Assign(new[] { a, lone, c },
-                new[] { Link(a, c, true, true) }, groups);
+                new[] { Link(a, c, true, 1f) }, groups);
             var before = groups[a];
 
             PartOutlineGroups.KeepMergedOnly(groups);
@@ -234,14 +255,15 @@ namespace Metagame.Gameplay.Tests
         /// 실물 링크를 만든다. <c>DemoEndingTests.Join</c> 과 같은 방법이다 — 검증용
         /// 샛길을 프로덕션에 뚫지 않는다.
         /// </summary>
-        PartAssemblyLink Link(SpaceshipPart moving, SpaceshipPart target, bool intact, bool welded)
+        PartAssemblyLink Link(SpaceshipPart moving, SpaceshipPart target,
+                              bool intact, float weldRatio)
         {
             var joint = moving.gameObject.AddComponent<FixedJoint>();
             joint.connectedBody = target.GetComponent<Rigidbody>();
 
             var link = moving.gameObject.AddComponent<PartAssemblyLink>();
             link.BindBeadWeld(moving, target, joint);
-            link.SetBeadWeldRatio(welded ? 1f : 0.4f);
+            link.SetBeadWeldRatio(weldRatio);
             if (!intact) link.Release();
             return link;
         }

@@ -65,11 +65,13 @@ namespace Metagame.Gameplay.Parts
             }
             if (PartBuffer.Count == 0) return false;
 
-            PartOutlineGroups.Assign(PartBuffer, PartAssemblyLink.All, GroupBuffer);
+            var found = PartOutlineGroups.Assign(PartBuffer, PartAssemblyLink.All, GroupBuffer);
 
             // 혼자인 파츠에는 테두리를 두르지 않는다 (S15P21B202-562). 테두리는
             // "붙었다" 를 보여 주는 표시라, 아직 혼자인 것까지 두르면 뜻이 흐려진다.
-            if (PartOutlineGroups.KeepMergedOnly(GroupBuffer) == 0) return false;
+            var merged = PartOutlineGroups.KeepMergedOnly(GroupBuffer);
+            Report(found, merged);
+            if (merged == 0) return false;
 
             block ??= new MaterialPropertyBlock();
 
@@ -97,6 +99,34 @@ namespace Metagame.Gameplay.Parts
             }
 
             return TargetBuffer.Count > 0;
+        }
+
+        static int reportedParts = -1;
+        static int reportedMerged = -1;
+
+        /// <summary>
+        /// 무엇을 찾았고 무엇을 그리기로 했는지 <b>값이 바뀔 때만</b> 한 줄 남긴다
+        /// (S15P21B202-562).
+        ///
+        /// <para><b>왜 로그가 필요한가.</b> 테두리가 안 보일 때 원인이 세 갈래다 —
+        /// 파츠를 못 찾았나, 용접 판정이 안 섰나, 그리기가 안 됐나. 화면만 보고는
+        /// 가릴 수 없고 빌드 한 번이 길다. 이 한 줄이면 앞의 둘은 바로 갈린다.</para>
+        ///
+        /// <para>매 프레임 도는 경로라 값이 바뀔 때만 찍는다.</para>
+        /// </summary>
+        static void Report(int foundGroups, int mergedGroups)
+        {
+            if (PartBuffer.Count == reportedParts && mergedGroups == reportedMerged) return;
+
+            reportedParts = PartBuffer.Count;
+            reportedMerged = mergedGroups;
+
+            var welded = 0;
+            for (var i = 0; i < PartAssemblyLink.All.Count; i++)
+                if (PartOutlineGroups.IsWeldJoined(PartAssemblyLink.All[i])) welded++;
+
+            Debug.Log($"[PartOutline] 핵심 파츠 {PartBuffer.Count}개 · 접합 {PartAssemblyLink.All.Count}개"
+                      + $"(용접으로 이어진 것 {welded}개) · 덩어리 {foundGroups}개 → 테두리 {mergedGroups}개");
         }
 
         /// <summary>

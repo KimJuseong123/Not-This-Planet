@@ -61,7 +61,7 @@ namespace Metagame.Gameplay.Parts
                 for (var i = 0; i < links.Count; i++)
                 {
                     var link = links[i];
-                    if (link == null || !link.IsIntact || !link.IsFullyWelded) continue;
+                    if (link == null || !IsWeldJoined(link)) continue;
 
                     var moving = link.MovingPart;
                     var target = link.TargetPart;
@@ -119,6 +119,25 @@ namespace Metagame.Gameplay.Parts
 
             return kept;
         }
+
+        /// <summary>
+        /// 이 접합이 <b>용접으로 이어진 것</b>인가 (S15P21B202-562).
+        ///
+        /// <para><b>비율 1 을 요구하지 않는다.</b> 처음에는
+        /// <see cref="PartAssemblyLink.IsFullyWelded"/>(<c>WeldRatio &gt;= 1</c>)로 두었는데,
+        /// 그 1 은 비드 <see cref="PhysicsScale.WeldBeadFullStrengthBlobs"/>(3)덩이를 다
+        /// 채워야 나오는 값이다. 사람이 두 파츠를 이어 붙인 정도로는 한참 못 미쳐
+        /// <b>용접을 해도 테두리가 안 합쳐졌다</b>(실측). 비율은 강도이지 "이어졌나" 가
+        /// 아니다.</para>
+        ///
+        /// <para><b>그렇다고 <c>IsIntact</c> 만으로도 안 된다.</b> 소켓에 얹기만 해도
+        /// 접합은 생긴다(<c>PartAssembler</c>). 그때는 아직 따로 보이는 것이 맞다 —
+        /// 요구가 "용접건으로 결합했으면" 이다. 그래서 <b>비드가 조금이라도 닿았는지</b>
+        /// (<c>WeldRatio &gt; 0</c>)로 가른다. 0 이 되면 <c>WeldBead</c> 가 소켓 없는
+        /// 접합을 풀어 버리므로, 이 값은 곧 "용접이 잡고 있다" 와 같다.</para>
+        /// </summary>
+        public static bool IsWeldJoined(PartAssemblyLink link) =>
+            link != null && link.IsIntact && link.WeldRatio > 0f;
 
         static int Find(int[] parent, int i)
         {
