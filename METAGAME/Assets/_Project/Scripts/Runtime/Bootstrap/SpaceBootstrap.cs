@@ -40,6 +40,8 @@ namespace Metagame.Bootstrap
         [Header("분위기")]
         [Tooltip("지정하면 이 Stage는 Vacuum·레거시 Starfield 대신 공용 URP 분위기 프레임워크를 사용한다.")]
         [SerializeField] AtmosphereProfile atmosphereProfile;
+        [Tooltip("씬에 배치한 자기장 폭풍. 비어 있으면 전용 이동 오브젝트를 생성한다.")]
+        [SerializeField] AtmosphereDustStorm stormPresentation;
 
         [Header("오디오")]
         [Tooltip("비워 두면 Resources/Audio/Stage1AudioManager를 사용한다.")]
@@ -122,7 +124,15 @@ namespace Metagame.Bootstrap
                 dustStormHazard = sys.AddComponent<Stage1DustStormHazard>();
                 // 수제 맵의 조명을 보존해도 플레이어에게 영향을 주는 폭풍은 보여야 한다.
                 if (!Application.isBatchMode && !Metagame.Network.MatchRole.DedicatedServer)
-                    dustStormVisual = sys.AddComponent<AtmosphereDustStorm>();
+                {
+                    dustStormVisual = stormPresentation;
+                    if (dustStormVisual == null)
+                    {
+                        var stormRoot = new GameObject("Stage1 Magnetic Storm");
+                        stormRoot.transform.SetParent(transform, false);
+                        dustStormVisual = stormRoot.AddComponent<AtmosphereDustStorm>();
+                    }
+                }
             }
 
             if (useAtmosphere)
@@ -189,9 +199,8 @@ namespace Metagame.Bootstrap
                 if (dustStormVisual != null)
                 {
                     dustStormVisual.BindMapBounds(mapBounds);
-                    // 일반 맵은 아래 Atmosphere.Apply가 초기화한다. 수제 맵은 직접 연결한다.
-                    if (!useAtmosphere)
-                        dustStormVisual.Apply(atmosphereProfile);
+                    // The moving presenter is independent of the stationary shared systems.
+                    dustStormVisual.Apply(atmosphereProfile);
                 }
 
                 var clockBridge = sys.AddComponent<DustStormClockBridge>();

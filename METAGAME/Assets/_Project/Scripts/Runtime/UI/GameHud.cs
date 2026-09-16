@@ -367,7 +367,9 @@ namespace Metagame.UI
             float cx = w * 0.5f, cy = h * 0.5f;
             bool interactionPressed = Local != null
                 && (Local.CurrentInput.GrabLeft || Local.CurrentInput.GrabRight);
-            var reticleState = ResolveInteractionReticleState(hasTarget, interactionPressed);
+            bool toolEquipped = Local != null && Local.ActiveTool != null;
+            var reticleState = ResolveInteractionReticleState(
+                hasTarget, interactionPressed, toolEquipped, clampGrabbed);
             Color c = releasingClamp ? new Color(0.45f, 1f, 0.60f, 0.95f)
                     : focus.Kind == PlayerInteractionKind.Clamp ? new Color(1f, 0.78f, 0.28f, 0.95f)
                     : hasTarget || mountedVehicle ? new Color(0.45f, 0.90f, 1f, 0.95f)
@@ -399,9 +401,19 @@ namespace Metagame.UI
         /// 상호작용 조준점 상태를 입력과 분리해 EditMode에서도 전이를 검증할 수 있게 한다.
         /// 클릭을 누르고 있는 동안만 손을 오므리고, 버튼을 놓으면 다시 펼친 손으로 돌아간다.
         /// </summary>
-        public static InteractionReticleState ResolveInteractionReticleState(bool canInteract, bool interactionPressed)
+        public static InteractionReticleState ResolveInteractionReticleState(
+            bool canInteract, bool interactionPressed, bool toolEquipped = false,
+            bool pullingClamp = false)
         {
-            if (!canInteract) return InteractionReticleState.Dot;
+            // 용접건과 방망이는 모두 ToolBase로 장착된다. 도구를 든 동안에는 월드
+            // 상호작용보다 도구 조준이 우선이므로 대상과 클릭 상태에 관계없이 작은
+            // 점만 유지한다. 대상이 보여도 거리·점유 제한으로 실제 상호작용이
+            // 불가능하면(canInteract=false) 손 아이콘을 노출하지 않는다.
+            // 고정못을 손으로 잡고 뽑는 동안에는 이미 상호작용이
+            // 진행 중이므로 손 표시 대신 점을 유지한다. 완전히 뽑힌 뒤
+            // ClampGrabbed가 풀리면 새로 집을 수 있는 대상에 다시 손을 표시한다.
+            if (toolEquipped || pullingClamp || !canInteract)
+                return InteractionReticleState.Dot;
             return interactionPressed
                 ? InteractionReticleState.GrippingRabbitHand
                 : InteractionReticleState.OpenRabbitHand;
