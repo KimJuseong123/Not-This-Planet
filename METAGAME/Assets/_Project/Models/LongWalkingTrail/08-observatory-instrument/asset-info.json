@@ -1,0 +1,68 @@
+{
+  "id": "L08",
+  "folder": "08-observatory-instrument",
+  "fbx": "SM_Astra_ObservatoryInstrument.fbx",
+  "material": "M_SM_Astra_ObservatoryInstrument",
+  "source_components": 31,
+  "geometry": {
+    "vertices": 5112,
+    "triangles": 10116,
+    "bounds_min": [
+      -0.40199998021125793,
+      -0.414000004529953,
+      0.0
+    ],
+    "bounds_max": [
+      0.40849998593330383,
+      0.4020000100135803,
+      0.8544999957084656
+    ],
+    "dimensions_blender_xyz": [
+      0.8104999661445618,
+      0.8160000145435333,
+      0.8544999957084656
+    ]
+  },
+  "roundtrip": {
+    "vertices": 5112,
+    "triangles": 10116,
+    "bounds_min": [
+      -0.40199998021125793,
+      -0.414000004529953,
+      -6.549412034928537e-08
+    ],
+    "bounds_max": [
+      0.40849998593330383,
+      0.40200015902519226,
+      0.8545000553131104
+    ],
+    "dimensions_blender_xyz": [
+      0.8104999661445618,
+      0.8160001635551453,
+      0.8545001208072307
+    ]
+  },
+  "roundtrip_status": "PASS",
+  "visual_mesh_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "collision_mesh_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "collision_triangles": 92,
+  "texture_links": [
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\08-observatory-instrument\\SM_Astra_ObservatoryInstrument.fbm\\SM_Astra_ObservatoryInstrument_BaseColor.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\08-observatory-instrument\\SM_Astra_ObservatoryInstrument.fbm\\SM_Astra_ObservatoryInstrument_Emission.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\08-observatory-instrument\\SM_Astra_ObservatoryInstrument.fbm\\SM_Astra_ObservatoryInstrument_Metallic.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\08-observatory-instrument\\SM_Astra_ObservatoryInstrument.fbm\\SM_Astra_ObservatoryInstrument_Normal.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\08-observatory-instrument\\SM_Astra_ObservatoryInstrument.fbm\\SM_Astra_ObservatoryInstrument_Roughness.png"
+  ],
+  "missing_textures": [],
+  "uv0": "4x4 PBR trim atlas",
+  "unity_lightmap_uv": "generate in ModelImporter",
+  "units": "metres",
+  "pivot": "scene-compatible centered deck for L01-L06/L09; ground-center for L07/L08/L10; spiral center at ground level for L11",
+  "preview": "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\Previews~\\08-observatory-instrument-concept.png"
+}

@@ -1,0 +1,13 @@
+{
+  "removedObjects": 6,
+  "removedSerializedBlocks": 30,
+  "newSerializedBlocks": 30,
+  "modifiedParentChildLists": [
+    883643003,
+    1265883843
+  ],
+  "unrelatedOriginalBlocksPreserved": 4306,
+  "localReferences": "PASS",
+  "sourceConcurrentChangeCheck": "PASS",
+  "sceneSHA256": "becb65cafc889f3c3e7d205867eab840e6ea615327c1903c7f8ed3e091814876"
+}

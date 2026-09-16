@@ -1,0 +1,316 @@
+{
+  "scene": "METAGAME/Assets/Scenes/Stage1_Astra.unity",
+  "sha256": "3bbc989dbb074eaff5cc173113dc7cfb028250a28b16da6d8191b6878071f499",
+  "inspectedAt": "2026-09-16T10:24:38.138051",
+  "note": "Serialized local transforms; not collider-fit or play-mode verification.",
+  "objects": [
+    {
+      "name": "Long walking trail 3",
+      "gameObjectID": "301738989",
+      "transformID": "301738990",
+      "position": {
+        "x": 38.0,
+        "y": 5.95,
+        "z": 26.5
+      },
+      "scale": {
+        "x": 4.4,
+        "y": 0.6,
+        "z": 11.277806
+      },
+      "rotation": {
+        "x": -0.06468032,
+        "y": -0.5949875,
+        "z": -0.048124142,
+        "w": 0.7996814
+      },
+      "parentTransformID": "1265883843"
+    },
+    {
+      "name": "Long walking trail 0",
+      "gameObjectID": "644956333",
+      "transformID": "644956334",
+      "position": {
+        "x": 34.0,
+        "y": 0.55,
+        "z": -4.5
+      },
+      "scale": {
+        "x": 4.4,
+        "y": 0.6,
+        "z": 13.810682
+      },
+      "rotation": {
+        "x": -0.05405822,
+        "y": 0.55352825,
+        "z": 0.036038816,
+        "w": 0.83029234
+      },
+      "parentTransformID": "1265883843"
+    },
+    {
+      "name": "Hill observatory · entry stair 0",
+      "gameObjectID": "677516104",
+      "transformID": "677516105",
+      "position": {
+        "x": 28.0,
+        "y": 7.3199997,
+        "z": 11.5
+      },
+      "scale": {
+        "x": 3.355,
+        "y": 0.24,
+        "z": 0.6
+      },
+      "rotation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "parentTransformID": "1496453649"
+    },
+    {
+      "name": "Wayfinding hill deck transition",
+      "gameObjectID": "905151517",
+      "transformID": "905151518",
+      "position": {
+        "x": 30.2,
+        "y": 7.4200006,
+        "z": 24.9
+      },
+      "scale": {
+        "x": 3.8,
+        "y": 0.36,
+        "z": 2.7832742
+      },
+      "rotation": {
+        "x": 0.06224853,
+        "y": 0.93474954,
+        "z": 0.20559302,
+        "w": -0.28301927
+      },
+      "parentTransformID": "883643003"
+    },
+    {
+      "name": "Observatory instrument",
+      "gameObjectID": "1027775340",
+      "transformID": "1027775341",
+      "position": {
+        "x": 30.539999,
+        "y": 8.5,
+        "z": 15.926602
+      },
+      "scale": {
+        "x": 0.8,
+        "y": 0.45,
+        "z": 0.8
+      },
+      "rotation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "parentTransformID": "1496453649"
+    },
+    {
+      "name": "Long walking trail 2",
+      "gameObjectID": "1234577953",
+      "transformID": "1234577954",
+      "position": {
+        "x": 44.0,
+        "y": 4.1499996,
+        "z": 17.5
+      },
+      "scale": {
+        "x": 4.4,
+        "y": 0.6,
+        "z": 15.951557
+      },
+      "rotation": {
+        "x": -0.06227337,
+        "y": -0.066098146,
+        "z": -0.0041332687,
+        "w": 0.99585944
+      },
+      "parentTransformID": "1265883843"
+    },
+    {
+      "name": "Hill observatory · entry stair 2",
+      "gameObjectID": "1498458565",
+      "transformID": "1498458566",
+      "position": {
+        "x": 28.0,
+        "y": 7.7,
+        "z": 12.46
+      },
+      "scale": {
+        "x": 3.355,
+        "y": 0.24,
+        "z": 0.6
+      },
+      "rotation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "parentTransformID": "1496453649"
+    },
+    {
+      "name": "Hill observatory · entry stair 3",
+      "gameObjectID": "1597273053",
+      "transformID": "1597273054",
+      "position": {
+        "x": 28.0,
+        "y": 7.89,
+        "z": 12.940001
+      },
+      "scale": {
+        "x": 3.355,
+        "y": 0.24,
+        "z": 0.6
+      },
+      "rotation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "parentTransformID": "1496453649"
+    },
+    {
+      "name": "Long walking trail 1",
+      "gameObjectID": "1698342635",
+      "transformID": "1698342636",
+      "position": {
+        "x": 42.5,
+        "y": 2.3,
+        "z": 4.0
+      },
+      "scale": {
+        "x": 4.4,
+        "y": 0.6,
+        "z": 13.824023
+      },
+      "rotation": {
+        "x": -0.067404255,
+        "y": 0.19565228,
+        "z": 0.0134808505,
+        "w": 0.9782613
+      },
+      "parentTransformID": "1265883843"
+    },
+    {
+      "name": "Observatory instrument",
+      "gameObjectID": "1734679259",
+      "transformID": "1734679260",
+      "position": {
+        "x": 23.4,
+        "y": 8.5,
+        "z": 19.0
+      },
+      "scale": {
+        "x": 0.8,
+        "y": 0.45,
+        "z": 0.8
+      },
+      "rotation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "parentTransformID": "1496453649"
+    },
+    {
+      "name": "Observatory instrument",
+      "gameObjectID": "1937523569",
+      "transformID": "1937523570",
+      "position": {
+        "x": 30.3,
+        "y": 8.5,
+        "z": 22.16
+      },
+      "scale": {
+        "x": 0.8,
+        "y": 0.45,
+        "z": 0.8
+      },
+      "rotation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "parentTransformID": "1496453649"
+    },
+    {
+      "name": "Part_2",
+      "gameObjectID": "1978039708",
+      "transformID": "1978039709",
+      "position": {
+        "x": 28.0,
+        "y": 8.08,
+        "z": 19.0
+      },
+      "scale": {
+        "x": 1.0,
+        "y": 1.0,
+        "z": 1.0
+      },
+      "rotation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "parentTransformID": "280416543"
+    },
+    {
+      "name": "Long walking trail 4",
+      "gameObjectID": "2058274546",
+      "transformID": "2058274547",
+      "position": {
+        "x": 30.5,
+        "y": 6.7999997,
+        "z": 25.0
+      },
+      "scale": {
+        "x": 4.4,
+        "y": 0.6,
+        "z": 8.51025
+      },
+      "rotation": {
+        "x": -0.0,
+        "y": 0.9402716,
+        "z": -0.0,
+        "w": -0.3404253
+      },
+      "parentTransformID": "1265883843"
+    },
+    {
+      "name": "Hill observatory · entry stair 1",
+      "gameObjectID": "2078760036",
+      "transformID": "2078760037",
+      "position": {
+        "x": 28.0,
+        "y": 7.5099998,
+        "z": 11.98
+      },
+      "scale": {
+        "x": 3.355,
+        "y": 0.24,
+        "z": 0.6
+      },
+      "rotation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "parentTransformID": "1496453649"
+    }
+  ]
+}

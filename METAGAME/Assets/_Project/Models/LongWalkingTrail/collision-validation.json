@@ -1,0 +1,126 @@
+[
+  {
+    "id": "L01",
+    "collision_roundtrip": "PASS",
+    "triangles": 12,
+    "audit": [
+      {
+        "non_manifold_edges": 0,
+        "degenerate_faces": 0
+      }
+    ]
+  },
+  {
+    "id": "L02",
+    "collision_roundtrip": "PASS",
+    "triangles": 12,
+    "audit": [
+      {
+        "non_manifold_edges": 0,
+        "degenerate_faces": 0
+      }
+    ]
+  },
+  {
+    "id": "L03",
+    "collision_roundtrip": "PASS",
+    "triangles": 12,
+    "audit": [
+      {
+        "non_manifold_edges": 0,
+        "degenerate_faces": 0
+      }
+    ]
+  },
+  {
+    "id": "L04",
+    "collision_roundtrip": "PASS",
+    "triangles": 12,
+    "audit": [
+      {
+        "non_manifold_edges": 0,
+        "degenerate_faces": 0
+      }
+    ]
+  },
+  {
+    "id": "L05",
+    "collision_roundtrip": "PASS",
+    "triangles": 12,
+    "audit": [
+      {
+        "non_manifold_edges": 0,
+        "degenerate_faces": 0
+      }
+    ]
+  },
+  {
+    "id": "L06",
+    "collision_roundtrip": "PASS",
+    "triangles": 12,
+    "audit": [
+      {
+        "non_manifold_edges": 0,
+        "degenerate_faces": 0
+      }
+    ]
+  },
+  {
+    "id": "L07",
+    "collision_roundtrip": "PASS",
+    "triangles": 48,
+    "audit": [
+      {
+        "non_manifold_edges": 0,
+        "degenerate_faces": 0
+      }
+    ]
+  },
+  {
+    "id": "L08",
+    "collision_roundtrip": "PASS",
+    "triangles": 92,
+    "audit": [
+      {
+        "non_manifold_edges": 0,
+        "degenerate_faces": 0
+      }
+    ]
+  },
+  {
+    "id": "L09",
+    "collision_roundtrip": "PASS",
+    "triangles": 28,
+    "audit": [
+      {
+        "non_manifold_edges": 0,
+        "degenerate_faces": 0
+      }
+    ]
+  },
+  {
+    "id": "L10",
+    "collision_roundtrip": "PASS",
+    "triangles": 12,
+    "audit": [
+      {
+        "non_manifold_edges": 0,
+        "degenerate_faces": 0
+      }
+    ]
+  },
+  {
+    "id": "L11",
+    "collision_roundtrip": "PASS",
+    "triangles": 1156,
+    "audit": [
+      {
+        "non_manifold_edges": 0,
+        "degenerate_faces": 0
+      }
+    ],
+    "spiral_surface_samples": 429,
+    "max_height_deviation_m": 3.979153103461641e-06,
+    "slope_degrees": 6.056610594230224
+  }
+]

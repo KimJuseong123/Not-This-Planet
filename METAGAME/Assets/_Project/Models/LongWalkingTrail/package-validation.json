@@ -1,0 +1,13 @@
+{
+  "status": "PASS",
+  "model_count": 11,
+  "visual_fbx_count": 11,
+  "collision_fbx_count": 11,
+  "texture_count": 66,
+  "urp_materials": 11,
+  "six_view_sheets": 11,
+  "zip_count": 0,
+  "total_visual_triangles": 135660,
+  "blender_roundtrips": "22 passed",
+  "unity_validation": "Static file and material-reference validation only; no Play Mode test"
+}
