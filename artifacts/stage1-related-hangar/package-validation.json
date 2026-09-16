@@ -7,6 +7,7 @@
   "zip_files": 0,
   "texture_size": 2048,
   "unique_guids": 159,
+  "max_path_length": 180,
   "checks": [
     {
       "asset": "SM_Astra_SouthApproachWalkway",

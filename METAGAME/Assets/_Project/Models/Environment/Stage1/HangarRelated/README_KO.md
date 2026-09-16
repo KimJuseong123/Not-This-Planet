@@ -42,6 +42,7 @@ FBM은 파일 확장자가 아니라 **FBX에 딸린 텍스처 폴더**다. FBX�
 - UV1은 별도로 펼치고 패킹한 라이트맵 좌표다. Unity의 자동 Secondary UV 생성은 꺼두었다.
 - BaseColor/Emission은 sRGB, Metallic/Roughness/MetallicSmoothness는 선형, Normal은 노멀맵 유형이다.
 - Unity용 MetallicSmoothness는 R=Metallic / A=Smoothness. Roughness는 Blender 및 다른 도구용으로 함께 제공한다.
+- Unity용 합성 텍스처 파일명은 Windows 경로 제한을 위해 `SM_Astra_*_MS.png`로 줄였다. `.meta` GUID는 유지하므로 기존 머티리얼 참조가 이어진다. `MS`는 위 MetallicSmoothness 채널이며 별도의 Metallic·Roughness 파일도 유지한다.
 
 ## 배치할 때
 

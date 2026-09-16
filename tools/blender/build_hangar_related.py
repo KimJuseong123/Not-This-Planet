@@ -45,7 +45,9 @@ class Builder:
   bs=next(n for n in nodes if n.type=='BSDF_PRINCIPLED')
   self.images={}
   for k in ['BaseColor','Metallic','Roughness','Normal','Emission','MetallicSmoothness']:
-   dest=self.tex/(self.name+'_'+k+'.png')
+   # The packed URP map is not connected to Blender nodes; keep its path short
+   # enough for Windows checkout, including the generated .meta suffix.
+   dest=self.tex/(self.name+'_'+('MS' if k=='MetallicSmoothness' else k)+'.png')
    shutil.copyfile(TEX_SOURCE/('AstraHangar_'+k+'.png'),dest)
    im=bpy.data.images.load(str(dest),check_existing=False)
    im.colorspace_settings.name='sRGB' if k in ['BaseColor','Emission'] else 'Non-Color'
