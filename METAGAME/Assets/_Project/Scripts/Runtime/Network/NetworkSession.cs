@@ -62,6 +62,9 @@ namespace Metagame.Network
         private const int DefaultServerPort = 8080;
         private const int SecurePort = 443;
 
+        /// <summary>로비 WebSocket 의 경로. 주소에 이것이 이미 붙어 와도 두 번 붙이지 않는다.</summary>
+        private const string SocketPath = "/ws/game";
+
         public event Action<NetworkConnectionState> ConnectionStateChanged;
         public event Action<RoomSnapshot> RoomStateChanged;
         public event Action GameStarted;
@@ -810,9 +813,24 @@ namespace Metagame.Network
                 trimmed = trimmed.Substring(schemeEnd + 3);
             }
 
+            // **경로를 지킨다** (S15P21B202-573). 예전에는 여기서 버렸는데, 그러면
+            // `https://…/dev` 로 띄워도 로비와 WebSocket 만 **배포 서버로 간다.**
+            // 그 상태에서는 방이 배포 쪽 메모리에 생기고 입장 검증은 개발 쪽으로 가서,
+            // 개발 서버가 "그런 방 없다" 로 401 을 낸다 — **로비까지는 멀쩡히 되고
+            // 입장에서만 막혀** 원인이 눈에 안 보였다(2026-09-16 실측).
+            string path = string.Empty;
             int pathStart = trimmed.IndexOf('/');
             if (pathStart >= 0)
+            {
+                path = trimmed.Substring(pathStart).TrimEnd('/');
                 trimmed = trimmed.Substring(0, pathStart);
+            }
+
+            // **끝의 `/ws/game` 은 접두가 아니다.** 사람이 WebSocket 주소를 통째로 붙여
+            // 넣는 경우가 있어서, 그대로 두면 `/ws/game/ws/game` 이 된다. 떼어 내면
+            // `wss://host/ws/game` 과 `https://host/dev/ws/game` 이 둘 다 옳게 풀린다.
+            if (path.EndsWith(SocketPath, StringComparison.OrdinalIgnoreCase))
+                path = path.Substring(0, path.Length - SocketPath.Length);
 
             string host = trimmed;
             bool portGiven = false;
@@ -842,8 +860,8 @@ namespace Metagame.Network
             if (!portGiven)
                 port = secure ? SecurePort : DefaultServerPort;
 
-            httpUrl = (secure ? "https://" : "http://") + host + ":" + port;
-            webSocketUrl = (secure ? "wss://" : "ws://") + host + ":" + port + "/ws/game";
+            httpUrl = (secure ? "https://" : "http://") + host + ":" + port + path;
+            webSocketUrl = (secure ? "wss://" : "ws://") + host + ":" + port + path + SocketPath;
             return true;
         }
 
@@ -892,7 +910,16 @@ namespace Metagame.Network
                 if (value.Length > 0) return value;
             }
 
-            return string.IsNullOrWhiteSpace(fallback) ? DefaultServerAddress : fallback.Trim();
+            if (!string.IsNullOrWhiteSpace(fallback)) return fallback.Trim();
+
+            // **백엔드가 정한 주소를 따른다** (S15P21B202-573). 전에는 상수로 떨어져
+            // `-backend=…/dev` 로 띄워도 **로비만 배포 서버로 갔다.** 그러면 방은 배포
+            // 쪽에 생기고 입장 검증은 개발 쪽으로 가서 401 이 난다.
+            //
+            // `BackendEndpoints.Base` 는 실행 인자(`-backend=`)와 빌드 채널을 이미
+            // 반영한 값이라, 여기서 그것을 쓰면 **한 실행이 한 환경만 본다.**
+            string backend = Metagame.Core.BackendEndpoints.Base;
+            return string.IsNullOrWhiteSpace(backend) ? DefaultServerAddress : backend.Trim();
         }
 
         public static string ResolveDeviceId(string overrideValue = null)
