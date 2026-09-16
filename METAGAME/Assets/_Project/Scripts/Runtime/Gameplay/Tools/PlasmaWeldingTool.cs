@@ -337,8 +337,13 @@ namespace Metagame.Gameplay
             beam.SetPosition(1, BeamEnd);
             beam.enabled = true;
 
-            var showWeldContact = BeamMode == PlasmaBeamMode.Weld && BeamHasContact &&
-                                  RemainingFraction > 0f && WeldBead.CanApplyAt(contact, false);
+            // 좌클릭 용접뿐 아니라 우클릭 절단도 실제 작업 가능한 표면에 닿으면
+            // 같은 접촉 발광을 보여 준다. 빔 선의 밝기가 아니라 이 지점광·불꽃이
+            // 플레이어에게 "지금 작업 중"임을 알려 주는 피드백이다.
+            var showWeldContact = BeamHasContact &&
+                                  (BeamMode == PlasmaBeamMode.Weld
+                                      ? RemainingFraction > 0f && WeldBead.CanApplyAt(contact, false)
+                                      : BeamMode == PlasmaBeamMode.Cut && WeldBead.CanApplyAt(contact, true));
             if (showWeldContact) ShowWeldContactFx(contact);
             else HideWeldContactFx(clearSparks: false);
         }

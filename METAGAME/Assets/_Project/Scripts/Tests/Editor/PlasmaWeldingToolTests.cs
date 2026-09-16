@@ -107,6 +107,25 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void PlasmaTool_CutBeamShowsContactGlowOnWeldBead()
+        {
+            WeldingBody();
+            var tool = CreateTool(out _);
+            var aim = new ToolAimContext(null, null, Vector3.forward);
+            Physics.SyncTransforms();
+            Assert.IsTrue(tool.WeldTick(0.1f, PlasmaBeamMode.Weld));
+            Physics.SyncTransforms();
+
+            tool.SetInput(new ToolInputFrame { SecondaryHeld = true }, aim);
+            InvokeLateUpdate(tool);
+
+            var contactFx = tool.transform.Find("WeldContactFx");
+            Assert.IsNotNull(contactFx);
+            Assert.IsTrue(contactFx.GetComponent<Light>().enabled);
+            Assert.IsTrue(contactFx.Find("HotMetal").gameObject.activeSelf);
+        }
+
+        [Test]
         public void PlasmaTool_DisablesBodyCollisionsOnlyWhileEquipped()
         {
             var tool = CreateTool(out _);
