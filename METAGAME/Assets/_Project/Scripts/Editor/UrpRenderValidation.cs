@@ -10,6 +10,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using Metagame.Gameplay;
+using Metagame.Gameplay.Parts;
 
 namespace Metagame.EditorTools
 {
@@ -352,6 +353,34 @@ namespace Metagame.EditorTools
                 errors.Add((mobile ? "Mobile" : "PC") + " Renderer의 Haze Feature 활성 상태가 잘못되었습니다: " + path);
             if (mobile && feature.EnableOnMobile)
                 errors.Add("Mobile Renderer의 Haze Feature가 모바일 플랫폼에서 허용되어 있습니다: " + path);
+
+            ValidatePartOutline(renderer, path, errors, mobile, expectedActive);
+        }
+
+        /// <summary>
+        /// 핵심 파츠 테두리 피처 (S15P21B202-562).
+        ///
+        /// <para><b>재질이 비면 조용히 아무것도 안 그린다.</b> 피처가
+        /// <c>AddRenderPasses</c> 에서 재질이 null 이면 그냥 빠져나가므로, 등록만 되고
+        /// 재질이 빈 채로 빌드되면 <b>에러 하나 없이 기능이 사라진다.</b> 여기서 막는다.</para>
+        /// </summary>
+        static void ValidatePartOutline(ScriptableRendererData renderer, string path,
+                                        List<string> errors, bool mobile, bool expectedActive)
+        {
+            if (!renderer.TryGetRendererFeature<PartOutlineRendererFeature>(out var outline))
+            {
+                errors.Add("PartOutlineRendererFeature가 등록되지 않았습니다: " + path
+                           + " (Metagame/Rendering/Apply URP Setup 을 실행하세요)");
+                return;
+            }
+
+            if (outline.MaskMaterial == null || outline.MaskMaterial.shader == null)
+                errors.Add("Part Outline Feature의 Mask Material이 비어 있습니다: " + path);
+            if (outline.OutlineMaterial == null || outline.OutlineMaterial.shader == null)
+                errors.Add("Part Outline Feature의 Outline Material이 비어 있습니다: " + path);
+            if (outline.isActive != expectedActive)
+                errors.Add((mobile ? "Mobile" : "PC")
+                           + " Renderer의 Part Outline Feature 활성 상태가 잘못되었습니다: " + path);
         }
     }
 
