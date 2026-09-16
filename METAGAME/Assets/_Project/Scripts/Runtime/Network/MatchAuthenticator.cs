@@ -116,7 +116,15 @@ namespace Metagame.Network
                 {
                     // 확인할 수 없으면 들여보내지 않는다. 로비 서버가 죽었을 때
                     // 아무나 들어오는 것보다 아무도 못 들어오는 편이 낫다.
-                    Deny(conn, "로그인 서버에 확인할 수 없습니다.");
+                    //
+                    // **거절과 장애를 가른다** (S15P21B202-573). 401 은 서버가 멀쩡히
+                    // 답한 것이고 "확인할 수 없다" 가 아니다. 둘을 한 문구로 뭉개면
+                    // 사람이 서버 장애를 찾는다 — 실제로 그렇게 시간을 썼다.
+                    Deny(conn, web.responseCode == 401
+                        ? "로그인 서버가 이 접속을 거절했습니다. 방과 로그인이 같은 서버인지 확인하세요."
+                        : "로그인 서버에 확인할 수 없습니다.");
+                    Debug.LogWarning($"[MatchAuthenticator] 확인 실패 · {VerifyUrl} · "
+                                     + $"HTTP {web.responseCode} · {web.result}");
                     yield break;
                 }
 
