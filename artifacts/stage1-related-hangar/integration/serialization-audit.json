@@ -1,0 +1,34 @@
+{
+  "removed_gameobjects": [
+    "\"Cargo pickup apron \\xB7 entry stair 0\"",
+    "\"Cargo pickup apron \\xB7 entry stair 1\"",
+    "\"Cargo pickup apron \\xB7 entry stair 2\"",
+    "\"Cargo pickup apron \\xB7 entry stair 3\"",
+    "Broken personnel bridge 0",
+    "Broken personnel bridge 1",
+    "Broken personnel bridge 2",
+    "Broken personnel bridge 5",
+    "Broken personnel bridge 6",
+    "Hangar east entrance landing",
+    "Hangar foundation and approach deck",
+    "Hangar pedestrian access",
+    "Hangar south approach walkway",
+    "Walkway east curb",
+    "Walkway south curb"
+  ],
+  "removed_blocks": 75,
+  "added_blocks": 186,
+  "changed_existing_blocks": 4,
+  "changed_existing_types": [
+    "4",
+    "1660057539",
+    "4",
+    "4"
+  ],
+  "stale_references": [],
+  "unexpected_changes": [],
+  "missing_new_guids": [],
+  "original_sha256": "3bbc989dbb074eaff5cc173113dc7cfb028250a28b16da6d8191b6878071f499",
+  "integrated_sha256": "6bd63061a2a035437a2456195c52aec05e12db8a55d96ad917ad1c17189303ff",
+  "pass": true
+}

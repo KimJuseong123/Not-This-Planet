@@ -1,0 +1,64 @@
+{
+  "asset": "SM_Astra_BrokenPersonnelBridge6",
+  "concept": "C:\\workspace\\2-PJT\\S15P21B202\\docs\\assets\\concepts\\stage1-related-hangar\\09-broken-personnel-bridge-6.png",
+  "components": 38,
+  "before_export": {
+    "meshes": 1,
+    "vertices": 2924,
+    "triangles": 5696,
+    "bounds_min": [
+      -1.2999999523162842,
+      -0.574999988079071,
+      0.03750000149011612
+    ],
+    "bounds_max": [
+      1.2999999523162842,
+      0.574999988079071,
+      0.45500001311302185
+    ],
+    "dimensions": [
+      2.5999999046325684,
+      1.149999976158142,
+      0.41750001162290573
+    ]
+  },
+  "after_reimport": {
+    "meshes": 1,
+    "vertices": 2924,
+    "triangles": 5696,
+    "bounds_min": [
+      -1.2999999523162842,
+      -0.574999988079071,
+      0.03749990835785866
+    ],
+    "bounds_max": [
+      1.2999999523162842,
+      0.5750000476837158,
+      0.455000102519989
+    ],
+    "dimensions": [
+      2.5999999046325684,
+      1.1500000357627869,
+      0.41750019416213036
+    ]
+  },
+  "geometry_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "missing_textures": [],
+  "texture_links": [
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\09-broken-personnel-bridge-6\\SM_Astra_BrokenPersonnelBridge6.fbm\\SM_Astra_BrokenPersonnelBridge6_BaseColor.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\09-broken-personnel-bridge-6\\SM_Astra_BrokenPersonnelBridge6.fbm\\SM_Astra_BrokenPersonnelBridge6_Emission.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\09-broken-personnel-bridge-6\\SM_Astra_BrokenPersonnelBridge6.fbm\\SM_Astra_BrokenPersonnelBridge6_Metallic.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\09-broken-personnel-bridge-6\\SM_Astra_BrokenPersonnelBridge6.fbm\\SM_Astra_BrokenPersonnelBridge6_Normal.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\09-broken-personnel-bridge-6\\SM_Astra_BrokenPersonnelBridge6.fbm\\SM_Astra_BrokenPersonnelBridge6_Roughness.png"
+  ],
+  "roundtrip": "PASS",
+  "units": "metres",
+  "front_blender": "-Y",
+  "export_axes": "-Z forward / Y up",
+  "pivot": "base center; ramp low-end elevation",
+  "fbx": "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\09-broken-personnel-bridge-6\\SM_Astra_BrokenPersonnelBridge6.fbx",
+  "material": "M_Astra_BrokenPersonnelBridge6"
+}

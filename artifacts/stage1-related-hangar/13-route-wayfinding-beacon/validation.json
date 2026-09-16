@@ -1,0 +1,64 @@
+{
+  "asset": "SM_Astra_RouteWayfindingBeacon",
+  "concept": "C:\\workspace\\2-PJT\\S15P21B202\\docs\\assets\\concepts\\stage1-related-hangar\\13-route-wayfinding-beacon.png",
+  "components": 37,
+  "before_export": {
+    "meshes": 1,
+    "vertices": 2472,
+    "triangles": 4796,
+    "bounds_min": [
+      -0.22499999403953552,
+      -0.20000000298023224,
+      0.0
+    ],
+    "bounds_max": [
+      0.22499999403953552,
+      0.20000000298023224,
+      1.600000023841858
+    ],
+    "dimensions": [
+      0.44999998807907104,
+      0.4000000059604645,
+      1.600000023841858
+    ]
+  },
+  "after_reimport": {
+    "meshes": 1,
+    "vertices": 2472,
+    "triangles": 4796,
+    "bounds_min": [
+      -0.22499999403953552,
+      -0.20000000298023224,
+      -3.258413627804657e-08
+    ],
+    "bounds_max": [
+      0.22499999403953552,
+      0.20000025629997253,
+      1.600000023841858
+    ],
+    "dimensions": [
+      0.44999998807907104,
+      0.4000002592802048,
+      1.6000000564259942
+    ]
+  },
+  "geometry_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "missing_textures": [],
+  "texture_links": [
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\13-route-wayfinding-beacon\\SM_Astra_RouteWayfindingBeacon.fbm\\SM_Astra_RouteWayfindingBeacon_BaseColor.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\13-route-wayfinding-beacon\\SM_Astra_RouteWayfindingBeacon.fbm\\SM_Astra_RouteWayfindingBeacon_Emission.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\13-route-wayfinding-beacon\\SM_Astra_RouteWayfindingBeacon.fbm\\SM_Astra_RouteWayfindingBeacon_Metallic.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\13-route-wayfinding-beacon\\SM_Astra_RouteWayfindingBeacon.fbm\\SM_Astra_RouteWayfindingBeacon_Normal.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\13-route-wayfinding-beacon\\SM_Astra_RouteWayfindingBeacon.fbm\\SM_Astra_RouteWayfindingBeacon_Roughness.png"
+  ],
+  "roundtrip": "PASS",
+  "units": "metres",
+  "front_blender": "-Y",
+  "export_axes": "-Z forward / Y up",
+  "pivot": "base center; ramp low-end elevation",
+  "fbx": "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\13-route-wayfinding-beacon\\SM_Astra_RouteWayfindingBeacon.fbx",
+  "material": "M_Astra_RouteWayfindingBeacon"
+}
