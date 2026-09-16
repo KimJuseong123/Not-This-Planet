@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="19" result="Failed(Child)" total="19" passed="18" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.3508954">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="1706" result="Failed" site="Child" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.350895" total="19" passed="18" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="2899" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202/METAGAME/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="1706" result="Failed" site="Child" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.331688" total="19" passed="18" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="37784" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="2900" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="1706" result="Failed" site="Child" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.322942" total="19" passed="18" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="2905" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="1663" result="Failed" site="Child" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.315830" total="19" passed="18" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="2906" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="1663" result="Failed" site="Child" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.308743" total="19" passed="18" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1055" name="AssemblyDockTests" fullname="Metagame.Gameplay.Tests.AssemblyDockTests" classname="Metagame.Gameplay.Tests.AssemblyDockTests" runstate="Runnable" testcasecount="8" result="Passed" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.059252" total="8" passed="8" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1062" name="BeamApiCannotGrabDockedBaseButLooseCargoRemainsGrabbable" fullname="Metagame.Gameplay.Tests.AssemblyDockTests.BeamApiCannotGrabDockedBaseButLooseCargoRemainsGrabbable" methodname="BeamApiCannotGrabDockedBaseButLooseCargoRemainsGrabbable" classname="Metagame.Gameplay.Tests.AssemblyDockTests" runstate="Runnable" seed="646579722" result="Passed" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.020898" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1060" name="ClientNeverCapturesAndRestoredDockSurvivesAuthorityHandover" fullname="Metagame.Gameplay.Tests.AssemblyDockTests.ClientNeverCapturesAndRestoredDockSurvivesAuthorityHandover" methodname="ClientNeverCapturesAndRestoredDockSurvivesAuthorityHandover" classname="Metagame.Gameplay.Tests.AssemblyDockTests" runstate="Runnable" seed="1372886716" result="Passed" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.002772" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1061" name="DockDoesNotChangeUpperPartStateOrMotion" fullname="Metagame.Gameplay.Tests.AssemblyDockTests.DockDoesNotChangeUpperPartStateOrMotion" methodname="DockDoesNotChangeUpperPartStateOrMotion" classname="Metagame.Gameplay.Tests.AssemblyDockTests" runstate="Runnable" seed="1491035213" result="Passed" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.002190" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1063" name="DockDoesNotFilterWeldedUpperPartsOutOfExistingField" fullname="Metagame.Gameplay.Tests.AssemblyDockTests.DockDoesNotFilterWeldedUpperPartsOutOfExistingField" methodname="DockDoesNotFilterWeldedUpperPartsOutOfExistingField" classname="Metagame.Gameplay.Tests.AssemblyDockTests" runstate="Runnable" seed="1195093803" result="Passed" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.008168" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1059" name="DockRejectsWrongPartAirborneTiltedAndExplicitlyCarriedParts" fullname="Metagame.Gameplay.Tests.AssemblyDockTests.DockRejectsWrongPartAirborneTiltedAndExplicitlyCarriedParts" methodname="DockRejectsWrongPartAirborneTiltedAndExplicitlyCarriedParts" classname="Metagame.Gameplay.Tests.AssemblyDockTests" runstate="Runnable" seed="1587753631" result="Passed" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.001987" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1056" name="FirstPartSnapsAndRemainsKinematicAfterMassAndAuthorityRefresh" fullname="Metagame.Gameplay.Tests.AssemblyDockTests.FirstPartSnapsAndRemainsKinematicAfterMassAndAuthorityRefresh" methodname="FirstPartSnapsAndRemainsKinematicAfterMassAndAuthorityRefresh" classname="Metagame.Gameplay.Tests.AssemblyDockTests" runstate="Runnable" seed="447859339" result="Passed" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.007625" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1058" name="LegacyTractorPartIsNotPermanentlyDockedEvenWhenUnoccupied" fullname="Metagame.Gameplay.Tests.AssemblyDockTests.LegacyTractorPartIsNotPermanentlyDockedEvenWhenUnoccupied" methodname="LegacyTractorPartIsNotPermanentlyDockedEvenWhenUnoccupied" classname="Metagame.Gameplay.Tests.AssemblyDockTests" runstate="Runnable" seed="749222295" result="Passed" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.000781" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1057" name="SnapUsesActualHullHeightAndPivotInsteadOfNominalPartSpec" fullname="Metagame.Gameplay.Tests.AssemblyDockTests.SnapUsesActualHullHeightAndPivotInsteadOfNominalPartSpec" methodname="SnapUsesActualHullHeightAndPivotInsteadOfNominalPartSpec" classname="Metagame.Gameplay.Tests.AssemblyDockTests" runstate="Runnable" seed="164489804" result="Passed" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.000760" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1064" name="AssemblyDockVisualTests" fullname="Metagame.Gameplay.Tests.AssemblyDockVisualTests" classname="Metagame.Gameplay.Tests.AssemblyDockVisualTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.045683" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1065" name="AuthoredJawsMoveAndStatusChangesWithoutReplacingHullMaterial" fullname="Metagame.Gameplay.Tests.AssemblyDockVisualTests.AuthoredJawsMoveAndStatusChangesWithoutReplacingHullMaterial" methodname="AuthoredJawsMoveAndStatusChangesWithoutReplacingHullMaterial" classname="Metagame.Gameplay.Tests.AssemblyDockVisualTests" runstate="Runnable" seed="946507181" result="Passed" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.034477" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1066" name="PrefabProvidesFlatEngineSupportAndClearRocketColumn" fullname="Metagame.Gameplay.Tests.AssemblyDockVisualTests.PrefabProvidesFlatEngineSupportAndClearRocketColumn" methodname="PrefabProvidesFlatEngineSupportAndClearRocketColumn" classname="Metagame.Gameplay.Tests.AssemblyDockVisualTests" runstate="Runnable" seed="1828693373" result="Passed" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.002596" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1630" name="LaunchTestTests" fullname="Metagame.Gameplay.Tests.LaunchTestTests" classname="Metagame.Gameplay.Tests.LaunchTestTests" runstate="Runnable" testcasecount="9" result="Failed" site="Child" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.201334" total="9" passed="8" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1637" name="Begin_CollectsTheWholeTower" fullname="Metagame.Gameplay.Tests.LaunchTestTests.Begin_CollectsTheWholeTower" methodname="Begin_CollectsTheWholeTower" classname="Metagame.Gameplay.Tests.LaunchTestTests" runstate="Runnable" seed="329531315" result="Passed" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.013324" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1631" name="ConvertedTractorEngine_WeldedTowerReachesSuccess" fullname="Metagame.Gameplay.Tests.LaunchTestTests.ConvertedTractorEngine_WeldedTowerReachesSuccess" methodname="ConvertedTractorEngine_WeldedTowerReachesSuccess" classname="Metagame.Gameplay.Tests.LaunchTestTests" runstate="Runnable" seed="884562068" result="Passed" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.057016" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1635" name="FailedLaunch_LeavesSomeJointsIntact" fullname="Metagame.Gameplay.Tests.LaunchTestTests.FailedLaunch_LeavesSomeJointsIntact" methodname="FailedLaunch_LeavesSomeJointsIntact" classname="Metagame.Gameplay.Tests.LaunchTestTests" runstate="Runnable" seed="86786306" result="Failed" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.020886" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  접합이 전부 끊어졌다. 약한 곳부터 끊어지고 나머지는 붙은 덩어리로 남아야 한다.
+  Expected: greater than 0
+  But was:  0
+]]></message>
+                  <stack-trace><![CDATA[at Metagame.Gameplay.Tests.LaunchTestTests.FailedLaunch_LeavesSomeJointsIntact () [0x00083] in C:\workspace\2-PJT\S15P21B202\METAGAME\Assets\_Project\Scripts\Tests\Editor\LaunchTestTests.cs:281
+]]></stack-trace>
+                </failure>
+              </test-case>
+              <test-case id="1639" name="Output_RampsOverFiveSeconds" fullname="Metagame.Gameplay.Tests.LaunchTestTests.Output_RampsOverFiveSeconds" methodname="Output_RampsOverFiveSeconds" classname="Metagame.Gameplay.Tests.LaunchTestTests" runstate="Runnable" seed="1148038557" result="Passed" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.012089" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1638" name="Result_IsDeterministic" fullname="Metagame.Gameplay.Tests.LaunchTestTests.Result_IsDeterministic" methodname="Result_IsDeterministic" classname="Metagame.Gameplay.Tests.LaunchTestTests" runstate="Runnable" seed="1634469999" result="Passed" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.034438" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1633" name="SuccessfulLaunch_SealsJointsAgainstFurtherBreaking" fullname="Metagame.Gameplay.Tests.LaunchTestTests.SuccessfulLaunch_SealsJointsAgainstFurtherBreaking" methodname="SuccessfulLaunch_SealsJointsAgainstFurtherBreaking" classname="Metagame.Gameplay.Tests.LaunchTestTests" runstate="Runnable" seed="33758274" result="Passed" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.019584" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1636" name="TiltedShip_FailsBeforeThrustBegins" fullname="Metagame.Gameplay.Tests.LaunchTestTests.TiltedShip_FailsBeforeThrustBegins" methodname="TiltedShip_FailsBeforeThrustBegins" classname="Metagame.Gameplay.Tests.LaunchTestTests" runstate="Runnable" seed="1081668482" result="Passed" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.003495" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1634" name="UnweldedTower_FailsTheLoadTest" fullname="Metagame.Gameplay.Tests.LaunchTestTests.UnweldedTower_FailsTheLoadTest" methodname="UnweldedTower_FailsTheLoadTest" classname="Metagame.Gameplay.Tests.LaunchTestTests" runstate="Runnable" seed="193759732" result="Passed" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.015283" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1632" name="WeldedTower_PassesTheLoadTest" fullname="Metagame.Gameplay.Tests.LaunchTestTests.WeldedTower_PassesTheLoadTest" methodname="WeldedTower_PassesTheLoadTest" classname="Metagame.Gameplay.Tests.LaunchTestTests" runstate="Runnable" seed="1702125967" result="Passed" start-time="2026-09-16 23:29:48Z" end-time="2026-09-16 23:29:48Z" duration="0.016258" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

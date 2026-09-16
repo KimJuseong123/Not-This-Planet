@@ -13,6 +13,7 @@ namespace Metagame.Gameplay.Parts
         [SerializeField, Range(0f, 45f)] private float _maxTilt = 18f;
         [SerializeField, Min(0.1f)] private float _maxCaptureSpeed = 1.8f;
         [SerializeField, Min(0.05f)] private float _snapDuration = 0.35f;
+        [SerializeField] private AssemblyDockVisual _authoredVisual;
         private ShipAssembly _assembly;
         private SpaceshipPart _engine;
         private Rigidbody _body;
@@ -33,6 +34,7 @@ namespace Metagame.Gameplay.Parts
         public void Configure(ShipAssembly assembly)
         {
             _assembly = assembly;
+            if (_authoredVisual == null) _authoredVisual = GetComponentInChildren<AssemblyDockVisual>(true);
             _nextEngineSearch = 0f;
             ResolveEngine();
         }
@@ -114,6 +116,11 @@ namespace Metagame.Gameplay.Parts
         {
             if (_assembly == null) return;
             ResolveEngine();
+            if (_authoredVisual != null)
+            {
+                _authoredVisual.ShowDocked(DockedPart != null, Time.deltaTime);
+                return;
+            }
             if (_visualRoot == null) BuildVisual();
             var docked = DockedPart != null;
             var radius = docked ? 0.6f : 0.85f;

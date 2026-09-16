@@ -17,8 +17,10 @@ Blender MCP로 기존 컨셉아트를 참고하여 직접 모델링한 시각 �
 너비 약 7.73m, 깊이 8.29m, 높이 3.33m입니다.
 원점은 중앙 평면의 조립 기준점이며, 받침은 원점 아래 약 0.53m까지 내려갑니다. Blender 앞쪽은 -Y입니다.
 현재 22m Central Assembly Dock 위에 얹는 안쪽 조립 장치이며, 바깥 도크는 모델에 포함하지 않았습니다.
-씬 배치·충돌체·조립 판정·고정턱 애니메이션은 아직 연결하지 않았습니다. 기존 런타임 장식과 교체할 때 현재 도킹 높이, 운반 경로와 파츠 크기를 확인해야 합니다.
-FBX 재임포트에서 크기, 삼각형 수, 두 UV 채널 및 텍스처 연결을 확인했습니다. Unity Editor에서의 임포트·플레이 검증은 하지 않았습니다.
+Stage1_Astra의 AssemblyPoint 아래 `PF_Stage1_MainAssemblyLaunchpad` 프리팹으로 배치했습니다. 조립 기준점은 (0, 1.44, 0), 회전은 Y 45°이며 진입 경사로가 남서쪽 엔진 운반 경로를 향합니다. 하부 받침은 기존 도크에 약 8cm 묻히고 경사로 아래 끝은 기존 바닥에 닿습니다.
+기존 ShipAssembly·LaunchTest·ShipHatch 참조와 AssemblyDock의 포획/권한 판정은 유지합니다. AssemblyDockVisual은 네 고정턱의 0.25m 이동과 대기 적색/고정 청록 상태등만 담당합니다. 모델이 없는 다른 씬에는 기존 절차 생성 장식을 유지합니다.
+충돌체는 World 레이어의 고정 충돌체 8개입니다: 중앙 받침 MeshCollider, 경사로 MeshCollider, 기둥 받침/기둥 BoxCollider 4개, 후방 정비 장치 및 조작판 BoxCollider 2개. 고정턱과 발광 장식은 충돌체가 없으며 중앙 로켓 적층 공간은 비워 둡니다.
+`Integration/`에는 저밀도 받침 충돌 메시, 상태등 면을 분리한 고정턱 메시 4개, 상태 재질 2개를 보관합니다. 원본 FBX/FBM은 유지합니다. 에디터 메뉴 `Metagame > Stage1 > Apply Main Launchpad`로 저장된 Stage1 씬에서 재생성할 수 있습니다.
 
 ## 원본과 미리보기
 편집 가능한 Blender 파일, 실제 모델 렌더 6장, 검증 보고서는 저장소의 artifacts/stage1-main-assembly-launchpad/에 있습니다.
