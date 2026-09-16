@@ -12,14 +12,14 @@ public static class Stage1Part2Details
 {
     const string ScenePath="Assets/Scenes/Stage1_Astra.unity", Prefix="Astra Part2 Detail - ";
     const string Base="Assets/_Project/Models/LongWalkingTrail/";
-    static readonly string[] Folders={"07-observatory-entry-stairs","08-observatory-instrument","09-adjustable-trail-junction","10-cliff-edge-guardrail"};
-    static readonly string[] Names={"ObservatoryEntryStairs","ObservatoryInstrument","TrailJunction","CliffEdgeGuardrail"};
+    static readonly string[] Folders={"07-observatory-entry-stairs","08-observatory-instrument","09-adjustable-trail-junction","10-cliff-edge-guardrail","11-spiral-hill-ascent","06-hill-deck-transition"};
+    static readonly string[] Names={"ObservatoryEntryStairs","ObservatoryInstrument","TrailJunction","CliffEdgeGuardrail","SpiralHillAscent","HillDeckTransition"};
     [Serializable] class Item { public string name; public Vector3 position, scale; public Quaternion rotation; }
     [Serializable] class Report { public string status; public int stairs,instruments,junctions,guardrails,missingScripts, floorRays, railRays, seamSamples; public float maximumJunctionRise; public List<Item> items=new List<Item>(); }
     static void Check(bool condition,string message) {if(!condition)throw new InvalidOperationException(message);}
     static Transform[] All()=>UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects().SelectMany(g=>g.GetComponentsInChildren<Transform>(true)).ToArray();
     static void Open(){Check(Application.isBatchMode&&File.Exists("../ISOLATED_PART2_TRAIL"),"Isolated batch required");EditorSceneManager.OpenScene(ScenePath);}
-    static GameObject Create(int kind,string suffix,Transform parent,Vector3 p,Quaternion q,Vector3 scale)
+    public static GameObject Create(int kind,string suffix,Transform parent,Vector3 p,Quaternion q,Vector3 scale)
     {
         var root=new GameObject(Prefix+Names[kind]+suffix);
         var path=Base+Folders[kind]+"/";
