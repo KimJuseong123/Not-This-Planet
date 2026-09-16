@@ -470,6 +470,12 @@ def main() -> int:
             # 진행 중인 이슈가 실제로 있고(`-528` 이 그 자체를 따로 알린다), 그것들이
             # 여기서 빠지면 **지금 하고 있는 일의 크기를 아무도 모르는 채로 지나간다.**
             # 2026-09-16 실측: 스프린트만 보면 2건, 진행 중을 더하면 4건이었다.
+            #
+            # **상태명은 영문 `In Progress` 다** — 화면은 `진행 중` 으로 보이지만 JQL 이 받는
+            # 것은 영문이다(`docs/jira-gitlab-automation.md` §설정값). 틀리면 Jira 가 질의를
+            # 거부하고 아래 try/except 가 삼켜 **이 항목만 조용히 사라진다** — 위 `🐢` 항목이
+            # 같은 표기를 쓰고 매일 결과를 내고 있는 것이 그 증거다. 2026-09-16 에 이 질의를
+            # 그대로 Jira 에 돌려 4건을 받은 것도 확인했다.
             ("🔢 스토리 포인트 없음 — 진행 중이면 반드시 채운다",
              f"{base} AND (sprint in openSprints() OR status = \"In Progress\")"
              f" AND {STORY_POINTS} is EMPTY AND issuetype != Epic"),
