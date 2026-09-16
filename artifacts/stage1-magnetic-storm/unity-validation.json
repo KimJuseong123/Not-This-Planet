@@ -1,0 +1,16 @@
+{
+  "unity": "6000.5.4f1",
+  "prefab": "Assets/_Project/Models/Stage1MagneticStorm/Resources/Stage1MagneticStorm/Stage1MagneticStorm.prefab",
+  "renderers": 17,
+  "volumeCount": 1,
+  "fluxCount": 7,
+  "debrisCount": 9,
+  "loopSeconds": 6.0,
+  "density": "128^3 R8",
+  "noise": "64^3 R8",
+  "shaderErrors": 0,
+  "loopAndReactivation": "passed",
+  "playerBuild": "not run",
+  "multiplayer": "not run",
+  "devicePerformance": "not measured"
+}

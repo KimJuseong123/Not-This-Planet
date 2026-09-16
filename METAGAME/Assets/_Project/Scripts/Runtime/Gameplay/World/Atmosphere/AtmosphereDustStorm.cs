@@ -23,6 +23,7 @@ namespace Metagame.Gameplay
         int activeCycle = -1;
         int? matchSeedOverride;
         Material dustMaterial;
+        MagneticStormVisual magneticVisual;
 
         public void BindMapBounds(Bounds bounds)
         {
@@ -48,6 +49,7 @@ namespace Metagame.Gameplay
 
             EnsureDustParticles();
             EnsureBoundary();
+            EnsureMagneticVisual();
             ConfigureDustParticles();
             ConfigureDebrisParticles();
             boundary.SetStyle(settings.debugBoundaryColor,
@@ -94,6 +96,11 @@ namespace Metagame.Gameplay
             }
 
             UpdatePose(pose);
+            if (magneticVisual != null)
+            {
+                if (!magneticVisual.gameObject.activeSelf) magneticVisual.gameObject.SetActive(true);
+                magneticVisual.Evaluate(simulationTime, GetEffectScale());
+            }
             if (activeCycle == pose.CycleIndex) return;
 
             activeCycle = pose.CycleIndex;
@@ -103,7 +110,7 @@ namespace Metagame.Gameplay
             dustParticles.useAutoRandomSeed = false;
             dustParticles.randomSeed = unchecked((uint)(settings.seed + pose.CycleIndex * 7919 + 1));
             dustParticles.Clear(true);
-            dustParticles.Play(true);
+            if (magneticVisual == null) dustParticles.Play(true);
             EmitDebris(pose.CycleIndex);
         }
 
@@ -156,6 +163,26 @@ namespace Metagame.Gameplay
             renderer.sharedMaterial = dustMaterial;
         }
 
+        void EnsureMagneticVisual()
+        {
+            if (!settings.enabled || GetEffectScale() <= 0f || !SystemInfo.supports3DTextures) return;
+            if (magneticVisual == null)
+            {
+                var prefab = Resources.Load<GameObject>(MagneticStormVisual.ResourcePath);
+                if (prefab == null) return; // Older content packs retain the original dust presentation.
+                var instance = Instantiate(prefab, transform, false);
+                magneticVisual = instance.GetComponent<MagneticStormVisual>();
+                if (magneticVisual == null)
+                {
+                    Destroy(instance);
+                    return;
+                }
+                magneticVisual.SetExternallyDriven();
+                instance.SetActive(false);
+            }
+            magneticVisual.SetExtents(settings.halfExtents);
+        }
+
         void EnsureBoundary()
         {
             if (boundary != null)
@@ -196,7 +223,7 @@ namespace Metagame.Gameplay
             }
 
             var emission = dustParticles.emission;
-            emission.enabled = settings.enabled && GetEffectScale() > 0f;
+            emission.enabled = magneticVisual == null && settings.enabled && GetEffectScale() > 0f;
             emission.rateOverTime = settings.dustEmissionRate * GetEffectScale();
 
             var shape = dustParticles.shape;
@@ -363,6 +390,8 @@ namespace Metagame.Gameplay
         void StopVisuals()
         {
             activeCycle = -1;
+            if (magneticVisual != null && magneticVisual.gameObject.activeSelf)
+                magneticVisual.gameObject.SetActive(false);
             if (dustParticles != null)
                 dustParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             for (int i = 0; i < debrisParticles.Length; i++)
