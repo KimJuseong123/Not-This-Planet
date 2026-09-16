@@ -18,6 +18,13 @@ namespace Metagame.UI
     /// </summary>
     public partial class GameHud : MonoBehaviour
     {
+        public enum InteractionReticleState
+        {
+            Dot,
+            OpenRabbitHand,
+            GrippingRabbitHand
+        }
+
         public PlayerRig Local;
         public TractorBeamController Transport;
         public Stage1Exploration Exploration;
@@ -34,6 +41,7 @@ namespace Metagame.UI
 
         GUIStyle small, mid, center, big, weldingTick;
         Texture2D white;
+        Texture2D rabbitHandCrosshairSheet;
         bool warmed;
         WeldingGaugeTexture weldingGaugeTexture;
 
@@ -44,11 +52,16 @@ namespace Metagame.UI
         [SerializeField] Vector2 weldingGaugeScreenOffset = Vector2.zero;
         [Min(40f)] [SerializeField] float weldingGaugeMaxRadius = 82f;
 
+        [Header("상호작용 크로스헤드")]
+        [Tooltip("상호작용 가능한 물체를 바라볼 때 표시할 토끼손 아이콘 크기입니다.")]
+        [Range(32f, 96f)] [SerializeField] float rabbitHandReticleSize = 58f;
+
         void Awake()
         {
             white = new Texture2D(1, 1);
             white.SetPixel(0, 0, Color.white);
             white.Apply();
+            rabbitHandCrosshairSheet = Resources.Load<Texture2D>("UI/Crosshair/T_RabbitHandCrosshairSheet");
             InitializeKeyGuides();
         }
 
@@ -352,20 +365,23 @@ namespace Metagame.UI
             bool mountedVehicle = Local != null && Local.IsMounted;
 
             float cx = w * 0.5f, cy = h * 0.5f;
+            bool interactionPressed = Local != null
+                && (Local.CurrentInput.GrabLeft || Local.CurrentInput.GrabRight);
+            var reticleState = ResolveInteractionReticleState(hasTarget, interactionPressed);
             Color c = releasingClamp ? new Color(0.45f, 1f, 0.60f, 0.95f)
                     : focus.Kind == PlayerInteractionKind.Clamp ? new Color(1f, 0.78f, 0.28f, 0.95f)
                     : hasTarget || mountedVehicle ? new Color(0.45f, 0.90f, 1f, 0.95f)
                     : new Color(1f, 1f, 1f, 0.55f);
 
-            float gap = hasTarget || clampGrabbed || mountedVehicle ? 7f : 3f;
-            float len = hasTarget || clampGrabbed || mountedVehicle ? 7f : 3f;
-            Box(new Rect(cx - gap - len, cy - 1f, len, 2f), c);
-            Box(new Rect(cx + gap, cy - 1f, len, 2f), c);
-            Box(new Rect(cx - 1f, cy - gap - len, 2f, len), c);
-            Box(new Rect(cx - 1f, cy + gap, 2f, len), c);
-
-            if (hasTarget)
-                L(new Rect(cx - 90f, cy + 26f, 180f, 24f), focus.Keyword, center, c);
+            if (reticleState == InteractionReticleState.Dot || rabbitHandCrosshairSheet == null)
+            {
+                // 아무것도 가리키지 않을 때에는 시야를 가리지 않는 작은 점만 남긴다.
+                Box(new Rect(cx - 2f, cy - 2f, 4f, 4f), c);
+            }
+            else
+            {
+                DrawRabbitHandReticle(cx, cy, reticleState);
+            }
 
             if (Local != null && clampGrabbed)
                 ClampGauge(cx, cy,
@@ -377,6 +393,29 @@ namespace Metagame.UI
             // (양손으로 잡고 Q 를 누르고 있다가 놓는다) 화면도 같은 것이 맞다.
             else if (Local != null && Local.ChargingToss)
                 ChargeGauge(cx, cy, Local.TossCharge01);
+        }
+
+        /// <summary>
+        /// 상호작용 조준점 상태를 입력과 분리해 EditMode에서도 전이를 검증할 수 있게 한다.
+        /// 클릭을 누르고 있는 동안만 손을 오므리고, 버튼을 놓으면 다시 펼친 손으로 돌아간다.
+        /// </summary>
+        public static InteractionReticleState ResolveInteractionReticleState(bool canInteract, bool interactionPressed)
+        {
+            if (!canInteract) return InteractionReticleState.Dot;
+            return interactionPressed
+                ? InteractionReticleState.GrippingRabbitHand
+                : InteractionReticleState.OpenRabbitHand;
+        }
+
+        void DrawRabbitHandReticle(float cx, float cy, InteractionReticleState state)
+        {
+            // 한 장에 나란히 만든 두 아이콘을 UV로 잘라 사용한다. 원본은 투명 PNG다.
+            Rect uv = state == InteractionReticleState.GrippingRabbitHand
+                ? new Rect(0.50f, 0.22f, 0.46f, 0.46f)
+                : new Rect(0.03f, 0.21f, 0.55f, 0.55f);
+            float size = rabbitHandReticleSize;
+            var rect = new Rect(cx - size * 0.5f, cy - size * 0.5f, size, size);
+            GUI.DrawTextureWithTexCoords(rect, rabbitHandCrosshairSheet, uv, true);
         }
 
         void ClampGauge(float cx, float cy, float progress, bool releaseHolding)
