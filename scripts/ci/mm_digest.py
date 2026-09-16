@@ -448,6 +448,8 @@ def main() -> int:
     blocks = []
     if jira.available:
         base = f"project = {PROJECT_KEY} AND statusCategory != Done"
+        # 완료까지 봐야 하는 항목이 있다 — 포인트는 끝난 뒤에야 안 채운 것이 드러난다.
+        allstates = f"project = {PROJECT_KEY}"
         fields = ["summary", "assignee", "status"]
         q = [
             ("🏷 `needs-fix` — 제목 형식/상위 Epic 확인", f"{base} AND labels = needs-fix ORDER BY updated DESC"),
@@ -462,23 +464,26 @@ def main() -> int:
             # 아무 숫자나 넣게 된다. **틀린 값은 빈 값과 달리 눈에 띄지 않는다.**
             # 그래서 막는 대신 다음 날 아침에 목록으로 돌려준다.
             #
-            # 범위를 **열린 스프린트의 미완료**로 좁힌다 — 백로그까지 보면 매일 수십 줄이 나오고,
-            # 그런 알림은 읽히지 않는다(바로 위 항목이 같은 이유로 같은 범위를 쓴다).
-            # 끝난 이슈는 뺀다: 지나간 일에 예측값을 소급해 넣는 것은 뜻이 없다.
+            # **두 항목으로 나눈다** (S15P21B202-568). 읽는 사람이 할 일이 다르다 —
+            # 하나는 지금 채우면 되는 것이고, 다른 하나는 **이미 끝났는데 안 채운 것**이라
+            # 스프린트 속도 계산이 그만큼 틀어져 있다는 뜻이다.
             #
-            # **진행 중은 스프린트와 무관하게 본다** (S15P21B202-568). 스프린트에 없는 채로
-            # 진행 중인 이슈가 실제로 있고(`-528` 이 그 자체를 따로 알린다), 그것들이
-            # 여기서 빠지면 **지금 하고 있는 일의 크기를 아무도 모르는 채로 지나간다.**
-            # 2026-09-16 실측: 스프린트만 보면 2건, 진행 중을 더하면 4건이었다.
+            # **끝난 것도 본다.** 전에는 모든 항목이 `statusCategory != Done` 으로 시작해
+            # 만든 날 완료된 이슈는 **어느 아침에도 목록에 오른 적이 없었다** — `-544`·`-545`
+            # 가 그렇게 포인트 없이 끝났고 아무도 몰랐다(2026-09-16 확인).
             #
             # **상태명은 영문 `In Progress` 다** — 화면은 `진행 중` 으로 보이지만 JQL 이 받는
-            # 것은 영문이다(`docs/jira-gitlab-automation.md` §설정값). 틀리면 Jira 가 질의를
-            # 거부하고 아래 try/except 가 삼켜 **이 항목만 조용히 사라진다** — 위 `🐢` 항목이
-            # 같은 표기를 쓰고 매일 결과를 내고 있는 것이 그 증거다. 2026-09-16 에 이 질의를
-            # 그대로 Jira 에 돌려 4건을 받은 것도 확인했다.
-            ("🔢 스토리 포인트 없음 — 진행 중이면 반드시 채운다",
-             f"{base} AND (sprint in openSprints() OR status = \"In Progress\")"
-             f" AND {STORY_POINTS} is EMPTY AND issuetype != Epic"),
+            # 것은 영문이다. 틀리면 Jira 가 질의를 거부하고 아래 try/except 가 삼켜 **그 항목만**
+            # **조용히 사라진다** — 위 `🐢` 가 같은 표기로 매일 결과를 내는 것이 그 증거다.
+            #
+            # 스프린트 밖에서 진행 중인 것도 넣는다. 그런 이슈가 실제로 있고(바로 아래 항목이
+            # 그 자체를 알린다), 스프린트만 보면 통째로 빠진다.
+            ("🔢 스토리 포인트 없음 — 지금 채운다",
+             f"{base} AND {STORY_POINTS} is EMPTY AND issuetype != Epic"
+             f" AND (sprint in openSprints() OR status = \"In Progress\")"),
+            ("🔢 스토리 포인트 없이 **완료됨** — 이번 스프린트 속도가 그만큼 틀렸다",
+             f"{allstates} AND {STORY_POINTS} is EMPTY AND issuetype != Epic"
+             f" AND statusCategory = Done AND sprint in openSprints()"),
             # **진행 중인데 스프린트에 없는 이슈는 위 질의들에 아예 안 잡힌다**
             # (S15P21B202-528). 바로 위 둘을 포함해 대부분이 `sprint in openSprints()` 로
             # 거르기 때문이다 — 담당자 없음도, 포인트 없음도, 기한 지남도(기한 자체가
