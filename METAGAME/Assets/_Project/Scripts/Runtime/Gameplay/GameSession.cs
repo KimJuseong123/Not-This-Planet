@@ -53,11 +53,34 @@ namespace Metagame.Gameplay
         public bool CursorLocked { get; private set; }
         public bool EmoteWheelOpen { get; private set; }
 
+        /// <summary>춤 고르는 바퀴가 열려 있는가 (S15P21B202-563).</summary>
+        public bool DanceWheelOpen { get; private set; }
+
+        /// <summary>
+        /// 고르는 바퀴가 <b>하나라도</b> 열려 있는가. 열려 있으면 게임 입력을 막는다.
+        ///
+        /// <para>깃발을 하나로 합치지 않았다 — 합치면 한쪽 HUD 가 닫히면서 다른 쪽이
+        /// 열어 둔 깃발을 내린다(<c>EmoteHud.Close</c> 는 깃발만 보고 내린다).</para>
+        /// </summary>
+        public bool WheelOpen => EmoteWheelOpen || DanceWheelOpen;
+
         public void SetEmoteWheelOpen(bool open)
         {
             EmoteWheelOpen = open;
+            RefreshWheelCursor(open);
+        }
+
+        public void SetDanceWheelOpen(bool open)
+        {
+            DanceWheelOpen = open;
+            RefreshWheelCursor(open);
+        }
+
+        void RefreshWheelCursor(bool open)
+        {
             if (open) SetCursor(false);
-            else if (!InputSuppressed && !EndingActive
+            // 다른 바퀴가 아직 열려 있으면 커서를 되돌리지 않는다.
+            else if (!WheelOpen && !InputSuppressed && !EndingActive
                 && (Exploration == null || !Exploration.TabletOpen)) SetCursor(true);
         }
 
@@ -139,7 +162,7 @@ namespace Metagame.Gameplay
 
             if (!ScriptedInput)
             {
-                var f = EmoteWheelOpen ? new InputFrame() : Controls.Read();
+                var f = WheelOpen ? new InputFrame() : Controls.Read();
 
                 if (f.TabletToggle && CanToggleTablet)
                 {
@@ -157,7 +180,7 @@ namespace Metagame.Gameplay
 
                 if (Input.GetKeyDown(Controls.FreeCursor)) SetCursor(false);
                 if (Input.GetMouseButtonDown(0) && !CursorLocked
-                    && !EmoteWheelOpen
+                    && !WheelOpen
                     && (Exploration == null || !Exploration.TabletOpen))
                     SetCursor(true);
                 if (!CursorLocked)

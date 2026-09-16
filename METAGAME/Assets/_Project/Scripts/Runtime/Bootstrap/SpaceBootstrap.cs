@@ -162,6 +162,7 @@ namespace Metagame.Bootstrap
             PingHud = sys.AddComponent<TeamPingHud>();
             PingHud.Initialize(Session);
             sys.AddComponent<EmoteHud>().Initialize(Session);
+            sys.AddComponent<DanceHud>().Initialize(Session);
             // 팀원 머리 위 이름표 (S15P21B202-375). 핑과 같은 방식이라 옆에 둔다.
             NameplateHud = sys.AddComponent<TeamNameplateHud>();
             NameplateHud.Initialize(Session);

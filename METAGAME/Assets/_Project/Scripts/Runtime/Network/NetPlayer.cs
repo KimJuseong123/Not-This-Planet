@@ -354,6 +354,75 @@ namespace Metagame.Network
             _emoteExpiresAt = _emoteState.ExpiresAt;
         }
 
+        // ── 춤 감정표현 (S15P21B202-563) ──────────────────────────────
+        //
+        // **이모티콘과 다른 방식으로 나른다.** 위 이모티콘은 종류와 만료 시각을 보낸다 —
+        // 화면에 몇 초 떠 있는 그림이라 언제 사라지는지를 모두가 같이 알아야 한다.
+        // 춤은 몸이 재생하는 클립이라 시작 신호만 가면 각자 제 시계로 끝까지 돈다.
+        // 그래서 던지기(S15P21B202-519)와 같은 **순번** 을 쓴다.
+
+        /// <summary>춤을 시작한 횟수. 값이 바뀌면 새 춤이다.</summary>
+        [SyncVar] public uint danceSeq;
+
+        /// <summary>어떤 춤인가 (1부터. 0 은 없음).</summary>
+        [SyncVar] public byte danceId;
+
+        uint _seenDanceSeq;
+        bool _danceSeqKnown;
+        double _nextDanceAllowed;
+
+        /// <summary>
+        /// 이 값이 새 춤인가 (S15P21B202-563).
+        ///
+        /// <para>던지기의 <see cref="ShouldPlayToss"/> 와 같은 규칙이고, 같은 이유로
+        /// 그렇다. <b>처음 받은 값으로는 재생하지 않는다</b> — 늦게 들어온 사람에게는
+        /// 이미 쌓인 수가 한꺼번에 오는데, 그것을 새 춤으로 보면 접속하자마자 모두가
+        /// 춤을 춘다. <c>&gt;</c> 가 아니라 <c>!=</c> 로 보는 것은 <c>uint</c> 가 한 바퀴
+        /// 돌면 작아지기 때문이다.</para>
+        /// </summary>
+        public static bool ShouldPlayDance(uint seen, uint now, bool known) => known && now != seen;
+
+        /// <summary>소유자만 요청하며 서버에서 종류와 반복 간격을 검사한다.</summary>
+        public void RequestDance(byte id)
+        {
+            if (isLocalPlayer && DanceCatalog.IsValid(id)) CmdPlayDance(id);
+        }
+
+        [Command]
+        void CmdPlayDance(byte id)
+        {
+            if (!DanceCatalog.IsValid(id)) return;
+            if (body == null || body.Downed
+                || (GameSession.Instance != null && GameSession.Instance.EndingActive)) return;
+
+            var now = NetworkTime.time;
+            if (double.IsNaN(now) || double.IsInfinity(now) || now < _nextDanceAllowed) return;
+            _nextDanceAllowed = now + DanceCatalog.Cooldown;
+
+            danceId = id;
+            danceSeq++;
+
+            // 서버 화면의 춤. 참가자 화면은 아래 PlayDanceIfNew 가 danceSeq 로 켠다.
+            // 남이 보내온 요청도 여기서 도는 서버 쪽 몸에 그대로 먹으므로,
+            // **호스트는 참가자의 춤을 이 줄에서 본다.**
+            body.Doll?.Suit?.PlayDance();
+        }
+
+        void PlayDanceIfNew(uint now, byte id)
+        {
+            // **그릴 곳이 아직 없으면 본 것으로 치지 않는다** — 던지기와 같은 이유다.
+            // 스폰 도중 옷이 아직 없는 틈에 신호가 오면 재생은 건너뛰면서 본 것으로
+            // 적혀 그 춤이 영영 안 보인다.
+            var suit = body != null && body.Doll != null ? body.Doll.Suit : null;
+            if (suit == null) return;
+
+            if (ShouldPlayDance(_seenDanceSeq, now, _danceSeqKnown) && DanceCatalog.IsValid(id))
+                suit.PlayDance();
+
+            _seenDanceSeq = now;
+            _danceSeqKnown = true;
+        }
+
         // 이동 판정을 복제하지 않고, 표시용 걷기/달리기 상태만 함께 전달한다.
         [SyncVar]
         RabbitLocomotion.State _locomotionState;
@@ -445,6 +514,8 @@ namespace Metagame.Network
             // **여기는 남의 몸에도 넣는다.** 던지는 동작은 남이 보는 그림이라 위 셋과
             // 정반대다 — 이것을 자기 몸에만 넣으면 "호스트만 던지는 게 보인다" 가 된다.
             if (!isServer) PlayTossIfNew(tossSeq);
+            // 춤도 같은 자리에서 켠다. 서버는 CmdPlayDance 에서 이미 켰다.
+            if (!isServer) PlayDanceIfNew(danceSeq, danceId);
 
             if (isServer) _locomotionState = RabbitLocomotion.ReadState(body);
             if (body.Doll.Suit != null)
