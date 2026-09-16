@@ -7,10 +7,11 @@ namespace Metagame.Gameplay.Parts
     /// 이번 프레임에 테두리를 그릴 파츠와 그 <b>덩어리 번호</b>를 모은다
     /// (S15P21B202-562).
     ///
-    /// <para>렌더러 피처가 매 프레임 <see cref="Collect"/> 를 부르고, 마스크 패스가
-    /// <see cref="Targets"/> 를 돈다. 번호는 <see cref="MaterialPropertyBlock"/> 으로
-    /// 각 렌더러에 실어 둔다 — 재질 하나를 공유하면서 파츠마다 다른 값을 주는 유일한
-    /// 방법이다.</para>
+    /// <para>렌더러 피처가 <see cref="Collect"/> 를 부르고, 마스크 패스가
+    /// <see cref="Targets"/> 를 돈다. 번호는 <see cref="Target.Group"/> 에 실어 두고
+    /// 그리기 직전에 전역으로 넣는다 — <see cref="MaterialPropertyBlock"/> 을 렌더러에
+    /// 붙이면 그 렌더러가 SRP Batcher 대상에서 빠져 <b>파츠의 본 렌더링 배칭이
+    /// 깨진다.</b></para>
     ///
     /// <para><b>버퍼를 재사용한다.</b> 매 프레임 도는 경로라 여기서 새로 할당하면 그대로
     /// GC 압력이 된다.</para>
@@ -28,10 +29,14 @@ namespace Metagame.Gameplay.Parts
             public readonly Renderer Renderer;
             public readonly int SubMeshCount;
 
-            public Target(Renderer renderer, int subMeshCount)
+            /// <summary>마스크에 적을 번호 0~1. 그리기 직전에 전역으로 넣는다.</summary>
+            public readonly float Group;
+
+            public Target(Renderer renderer, int subMeshCount, float group)
             {
                 Renderer = renderer;
                 SubMeshCount = subMeshCount;
+                Group = group;
             }
         }
 
@@ -39,17 +44,28 @@ namespace Metagame.Gameplay.Parts
         static readonly List<SpaceshipPart> PartBuffer = new();
         static readonly Dictionary<SpaceshipPart, int> GroupBuffer = new();
         static readonly List<Renderer> RendererBuffer = new();
-        static MaterialPropertyBlock block;
 
         public static IReadOnlyList<Target> Targets => TargetBuffer;
+
+        static int collectedFrame = -1;
+        static bool collectedResult;
 
         /// <summary>
         /// 그릴 것을 모은다. 하나도 없으면 거짓을 돌려주고, 피처는 패스를 걸지 않는다.
         ///
-        /// <para><b>핵심 파츠만 본다.</b> <see cref="PartSpec.All"/> 에 이름이 있는 것만
-        /// 고른다 — 돌덩이·화물까지 테두리를 두르면 "핵심을 구분한다" 가 무너진다.</para>
+        /// <para><b>프레임당 한 번만 센다.</b> 부르는 곳이 <c>AddRenderPasses</c> 라
+        /// <b>카메라마다</b> 불린다(게임 뷰 · 씬 뷰 · 반사 …). 그때마다 씬을 훑으면
+        /// 파츠가 네 개여도 비용은 씬 크기와 카메라 수에 비례해 붙는다.</para>
         /// </summary>
         public static bool Collect()
+        {
+            if (collectedFrame == Time.frameCount) return collectedResult;
+            collectedFrame = Time.frameCount;
+            collectedResult = CollectNow();
+            return collectedResult;
+        }
+
+        static bool CollectNow()
         {
             TargetBuffer.Clear();
             PartBuffer.Clear();
@@ -73,8 +89,6 @@ namespace Metagame.Gameplay.Parts
             Report(found, merged);
             if (merged == 0) return false;
 
-            block ??= new MaterialPropertyBlock();
-
             for (var i = 0; i < PartBuffer.Count; i++)
             {
                 var part = PartBuffer[i];
@@ -88,13 +102,8 @@ namespace Metagame.Gameplay.Parts
                     var renderer = RendererBuffer[r];
                     if (renderer == null || !renderer.enabled) continue;
 
-                    // 이미 붙어 있는 값을 지우지 않는다 — 다른 기능이 같은 렌더러에
-                    // 프로퍼티 블록을 쓰고 있을 수 있다.
-                    renderer.GetPropertyBlock(block);
-                    block.SetFloat(OutlineGroupId, group / GroupScale);
-                    renderer.SetPropertyBlock(block);
-
-                    TargetBuffer.Add(new Target(renderer, SubMeshCountOf(renderer)));
+                    TargetBuffer.Add(new Target(renderer, SubMeshCountOf(renderer),
+                                                group / GroupScale));
                 }
             }
 

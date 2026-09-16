@@ -11,7 +11,6 @@ Shader "Hidden/Metagame/Rendering/PartOutline"
     // 쓰지 않는다.
     Properties
     {
-        _BlitTexture ("Source", 2D) = "white" {}
         _OutlineColor ("Outline Color", Color) = (0.42, 0.92, 1, 1)
         _OutlineThickness ("Thickness (px)", Range(1, 10)) = 4
     }

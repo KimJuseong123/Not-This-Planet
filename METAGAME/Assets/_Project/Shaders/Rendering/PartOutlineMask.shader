@@ -35,9 +35,15 @@ Shader "Hidden/Metagame/Rendering/PartOutlineMask"
             #pragma fragment Frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
-            CBUFFER_START(UnityPerMaterial)
-                half _OutlineGroup;
-            CBUFFER_END
+            // **CBUFFER 밖에 둔다.** 그려지는 파츠마다 값이 달라야 하는데, 재질 하나를
+            // 공유하므로 남는 길은 둘뿐이다 — 렌더러마다 MaterialPropertyBlock 을
+            // 붙이거나, 그리기 직전에 전역으로 넣거나.
+            //
+            // MPB 는 쓰지 않는다. 한 번 붙이면 그 렌더러가 SRP Batcher 대상에서 빠져
+            // **파츠의 본 렌더링 배칭이 깨진다** — 테두리 하나 그리자고 파츠 전체를
+            // 느리게 만드는 셈이다. 이 패스는 파츠를 순서대로 그리므로 그리기 직전에
+            // SetGlobalFloat 로 넣으면 충분하다.
+            half _OutlineGroup;
 
             struct Attributes { float4 positionOS : POSITION; };
             struct Varyings   { float4 positionCS : SV_POSITION; };

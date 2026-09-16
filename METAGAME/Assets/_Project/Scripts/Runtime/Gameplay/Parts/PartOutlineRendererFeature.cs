@@ -152,8 +152,12 @@ namespace Metagame.Gameplay.Parts
             /// 것보다, <b>네 개짜리 목록</b>을 직접 도는 편이 값도 싸고 무엇이 그려지는지도
             /// 분명하다.</para>
             ///
-            /// <para>번호는 <see cref="MaterialPropertyBlock"/> 으로 넣는다 — 재질 하나를
-            /// 공유하면서 파츠마다 다른 값을 줄 수 있는 유일한 방법이다.</para>
+            /// <para><b>번호는 그리기 직전에 전역으로 넣는다.</b> 재질 하나를 공유하면서
+            /// 파츠마다 다른 값을 주는 다른 길은 렌더러마다
+            /// <see cref="MaterialPropertyBlock"/> 을 붙이는 것인데, 그러면 그 렌더러가
+            /// SRP Batcher 대상에서 빠져 <b>파츠의 본 렌더링 배칭까지 깨진다</b> —
+            /// 테두리 하나 그리자고 파츠 전체를 느리게 만드는 셈이다. 여기는 순서대로
+            /// 그리므로 전역 하나로 충분하다.</para>
             /// </summary>
             static void DrawMask(RasterCommandBuffer cmd, Material material)
             {
@@ -163,6 +167,7 @@ namespace Metagame.Gameplay.Parts
                     var target = targets[i];
                     if (target.Renderer == null) continue;
 
+                    cmd.SetGlobalFloat(PartOutlineTargets.OutlineGroupId, target.Group);
                     for (var sub = 0; sub < target.SubMeshCount; sub++)
                         cmd.DrawRenderer(target.Renderer, material, sub, 0);
                 }
