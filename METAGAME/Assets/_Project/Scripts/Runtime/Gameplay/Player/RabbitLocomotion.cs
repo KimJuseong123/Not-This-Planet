@@ -20,8 +20,11 @@ namespace Metagame.Gameplay
         /// <summary>동료를 양손으로 들어 위로 내던지는 한 번짜리 동작 (S15P21B202-519).</summary>
         public const string TossResource = "RabbitLocomotion/Rabbit_TossUp";
 
-        /// <summary>F2 로 고르는 춤 감정표현 (S15P21B202-563). 14.2초짜리 한 번짜리 동작.</summary>
+        /// <summary>F2 춤 1번 '뮤직챌린지' (S15P21B202-563). 14.2초짜리 한 번짜리 동작.</summary>
         public const string DanceResource = "RabbitLocomotion/Rabbit_Dance";
+
+        /// <summary>F2 춤 2번 'REDRED' (S15P21B202-576). 16.3초.</summary>
+        public const string RedRedResource = "RabbitLocomotion/Rabbit_RedRed";
 
         /// <summary>
         /// 춤이 저절로 끊기는 이동 속도(m/s).
@@ -92,8 +95,15 @@ namespace Metagame.Gameplay
         readonly GameObject _poseRoot;
         readonly OneShot _tossShot = new() { Slot = 2, CancelOnMove = false };
         readonly OneShot _danceShot = new() { Slot = 3, CancelOnMove = true };
-        OneShot[] OneShots => _oneShots ??= new[] { _tossShot, _danceShot };
+        readonly OneShot _redredShot = new() { Slot = 4, CancelOnMove = true };
+        OneShot[] OneShots => _oneShots ??= new[] { _tossShot, _danceShot, _redredShot };
         OneShot[] _oneShots;
+
+        /// <summary>
+        /// 번호로 고르는 춤들. <c>DanceCatalog.Names</c> 와 <b>순서도 개수도</b> 같아야 한다.
+        /// </summary>
+        OneShot[] DanceShots => _danceShots ??= new[] { _danceShot, _redredShot };
+        OneShot[] _danceShots;
         PlayableGraph _graph;
         AnimationClipPlayable _walkNode, _runNode;
         AnimationMixerPlayable _mixer;
@@ -140,17 +150,36 @@ namespace Metagame.Gameplay
         /// <summary>던지기 클립이 실제로 있는가. 없으면 <see cref="PlayToss"/> 가 조용히 아무것도 안 한다.</summary>
         public bool HasToss => _tossShot.Ready;
 
-        /// <summary>춤이 재생 중인가. 재생 중에는 보행이 물러난다.</summary>
-        public bool DanceActive => _danceShot.Active;
+        /// <summary>춤이 하나라도 재생 중인가. 재생 중에는 보행이 물러난다.</summary>
+        public bool DanceActive
+        {
+            get
+            {
+                foreach (var shot in DanceShots) if (shot.Active) return true;
+                return false;
+            }
+        }
 
-        /// <summary>춤의 현재 세기(0~1).</summary>
-        public float DanceWeightNow => _danceShot.Weight;
+        /// <summary>지금 도는 춤의 세기(0~1). 도는 것이 없으면 0.</summary>
+        public float DanceWeightNow
+        {
+            get
+            {
+                foreach (var shot in DanceShots) if (shot.Active) return shot.Weight;
+                return 0f;
+            }
+        }
 
-        /// <summary>춤 클립이 실제로 있는가. 없으면 <see cref="PlayDance"/> 가 조용히 아무것도 안 한다.</summary>
-        public bool HasDance => _danceShot.Ready;
+        /// <summary>목록에 있는 춤 수만큼 슬롯이 있는가. 검증이 읽는다.</summary>
+        public int DanceSlotCount => DanceShots.Length;
 
-        /// <summary>춤 길이(초). 클립이 없으면 0.</summary>
-        public float DanceLength => _danceShot.Ready ? _danceShot.Clip.length : 0f;
+        /// <summary>그 번호의 춤 클립이 있는가. 없으면 <see cref="PlayDance"/> 가 조용히 아무것도 안 한다.</summary>
+        public bool HasDance(byte id) =>
+            DanceCatalog.IsValid(id) && id <= DanceShots.Length && DanceShots[id - 1].Ready;
+
+        /// <summary>그 번호의 춤 길이(초). 클립이 없으면 0.</summary>
+        public float DanceLength(byte id) =>
+            HasDance(id) ? DanceShots[id - 1].Clip.length : 0f;
 
         public static RabbitLocomotion Create(Transform model, GameObject reference)
         {
@@ -162,16 +191,19 @@ namespace Metagame.Gameplay
             // 그대로 돌아야 한다 — 여기서 null 을 돌려주면 캐릭터가 통째로 뻣뻣해진다.
             var toss = Resources.Load<AnimationClip>(TossResource);
             var dance = Resources.Load<AnimationClip>(DanceResource);
-            return new RabbitLocomotion(model, reference, walk, run, toss, dance);
+            var redred = Resources.Load<AnimationClip>(RedRedResource);
+            return new RabbitLocomotion(model, reference, walk, run, toss, dance, redred);
         }
 
-        RabbitLocomotion(Transform model, GameObject reference,
-                         AnimationClip walk, AnimationClip run, AnimationClip toss, AnimationClip dance)
+        RabbitLocomotion(Transform model, GameObject reference, AnimationClip walk,
+                         AnimationClip run, AnimationClip toss, AnimationClip dance,
+                         AnimationClip redred)
         {
             _walk = walk;
             _run = run;
             _tossShot.Clip = toss;
             _danceShot.Clip = dance;
+            _redredShot.Clip = redred;
             // 메시/콜라이더/스크립트 없이 Transform만 복제한다. 원본 프리팹을 수정하지 않는다.
             _poseRoot = CloneSkeleton(reference.transform, null).gameObject;
             _poseRoot.name = "~Rabbit locomotion pose (runtime only)";
@@ -200,8 +232,10 @@ namespace Metagame.Gameplay
             _runNode = AnimationClipPlayable.Create(_graph, run);
             _walkNode.SetSpeed(0); _runNode.SetSpeed(0);
             _walkNode.SetApplyFootIK(false); _runNode.SetApplyFootIK(false);
-            // 0 걷기 · 1 달리기 · 2 던지기 · 3 춤. 한 번짜리가 늘면 여기와 OneShot.Slot 만 는다.
-            _mixer = AnimationMixerPlayable.Create(_graph, 4);
+            // 0 걷기 · 1 달리기 · 2 던지기 · 3 뮤직챌린지 · 4 REDRED.
+            // **한 번짜리가 늘면 이 수도 같이 늘려야 한다** — 안 늘리면 새 클립이
+            // 믹서에 못 붙어 조용히 아무 일도 안 일어난다. 검증이 이 수를 센다.
+            _mixer = AnimationMixerPlayable.Create(_graph, 2 + OneShots.Length);
             _graph.Connect(_walkNode, 0, _mixer, 0);
             _graph.Connect(_runNode, 0, _mixer, 1);
             foreach (var shot in OneShots)
@@ -366,10 +400,17 @@ namespace Metagame.Gameplay
         ///
         /// <para>던지기와 마찬가지로 이미 재생 중이어도 <b>처음으로 되돌린다.</b></para>
         /// </summary>
-        public void PlayDance() => Play(_danceShot);
+        public void PlayDance(byte id)
+        {
+            if (!DanceCatalog.IsValid(id) || id > DanceShots.Length) return;
+            Play(DanceShots[id - 1]);
+        }
 
-        /// <summary>춤을 즉시 끝낸다. 걷기 시작하면 <see cref="Apply"/> 가 알아서 부른다.</summary>
-        public void CancelDance() => Cancel(_danceShot);
+        /// <summary>도는 춤을 즉시 끝낸다. 걷기 시작하면 <see cref="Apply"/> 가 알아서 부른다.</summary>
+        public void CancelDance()
+        {
+            foreach (var shot in DanceShots) Cancel(shot);
+        }
 
         void Play(OneShot shot)
         {

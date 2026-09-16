@@ -1,22 +1,33 @@
-"""Author the dance action on the existing rabbit rig from captured motion.
+"""Author a dance action on the existing rabbit rig from captured motion.
 
 Run from the repository root with Blender 5.x:
 
     blender.exe --background METAGAME/BlenderSource/SpaceFlop/SF_Rabbit_Base.blend \
-        --python METAGAME/Tools/Blender/generate_rabbit_dance.py -- --preview <dir>
+        --python METAGAME/Tools/Blender/generate_rabbit_dance.py -- [options]
 
-Output: Assets/_Project/Animations/Characters/Rabbit/Source/Rabbit_Dance.fbx
-        (+ preview frames when --preview is given)
+    --data <name>     data/<name>.json        (default: rabbit_dance_bichon)
+    --action <name>   action and FBX name     (default: Rabbit_Dance)
+    --preview <dir>   also render preview frames
 
-Unity turns the FBX into Resources/RabbitLocomotion/Rabbit_Dance.anim via
-Metagame.EditorTools.RabbitDanceAssets - same route as the toss
+Output: Assets/_Project/Animations/Characters/Rabbit/Source/<action>.fbx
+
+    뮤직챌린지  --data rabbit_dance_bichon --action Rabbit_Dance
+    REDRED      --data rabbit_dance_redred --action Rabbit_RedRed
+
+**One tool serves every dance.** The poser is identical for all of them - only
+the captured directions differ - so a second copy would be 290 lines drifting
+apart from this one.
+
+Unity turns each FBX into Resources/RabbitLocomotion/<action>.anim via
+Metagame.EditorTools.RabbitDanceAssets / RabbitRedRedAssets, both of which just
+name what to bake and hand it to RabbitClipBaker - same route as the toss
 (generate_rabbit_toss.py -> RabbitTossAssets).
 
-**Where the motion comes from.** data/rabbit_dance_bichon.json holds one bone
-direction per frame, lifted off a reference video. The extraction is not run
-here: it needed a pose model and the source clip, and neither belongs in the
-repo. What is committed is its result, so this file is reproducible offline.
-The extraction is written up in docs/records/S15P21B202-563-dance-emote.md.
+**Where the motion comes from.** data/<name>.json holds one bone direction per
+frame, lifted off a reference video. The extraction is not run here: it needed a
+pose model and the source clip, and neither belongs in the repo. What is
+committed is its result, so this file is reproducible offline. The extractions
+are written up in docs/records/S15P21B202-563-dance-emote.md and -576-redred.md.
 
 Directions live in armature space, measured from this rig, not guessed:
     +X = the character's left (L_Thigh x=+0.104, R_Thigh x=-0.105)
@@ -46,11 +57,12 @@ from mathutils import Quaternion, Vector
 
 SCRIPT = Path(__file__).resolve()
 REPO_ROOT = SCRIPT.parents[3]
-DATA = SCRIPT.parent / "data" / "rabbit_dance_bichon.json"
-FBX_OUT = (REPO_ROOT / "METAGAME" / "Assets" / "_Project" / "Animations"
-           / "Characters" / "Rabbit" / "Source" / "Rabbit_Dance.fbx")
+DATA_DIR = SCRIPT.parent / "data"
+SOURCE_DIR = (REPO_ROOT / "METAGAME" / "Assets" / "_Project" / "Animations"
+              / "Characters" / "Rabbit" / "Source")
 
-ACTION = "Rabbit_Dance"
+DEFAULT_DATA = "rabbit_dance_bichon"
+DEFAULT_ACTION = "Rabbit_Dance"
 
 FORWARD = Vector((0.0, -1.0, 0.0))
 
@@ -76,8 +88,8 @@ WRIST_LAG = 2               # 손목이 팔뚝보다 늦는 프레임 수
 FOOT_LEVEL = 0.62           # 발이 정강이를 안 따라가고 앞을 보게 하는 정도
 
 
-def load():
-    with DATA.open(encoding="utf-8") as f:
+def load(path):
+    with path.open(encoding="utf-8") as f:
         data = json.load(f)
     need = {"Spine", "R_Upperarm", "L_Upperarm", "R_Forearm", "L_Forearm",
             "R_Thigh", "L_Thigh", "R_Calf", "L_Calf"}
@@ -188,7 +200,7 @@ def pose_frame(poser, data, i):
         poser.aim(foot, blend(calf_dir, FORWARD, FOOT_LEVEL))
 
 
-def build(arm, data):
+def build(arm, data, action):
     poser = Poser(arm)
     frames = data["n"]
     drift = 0.0
@@ -200,11 +212,11 @@ def build(arm, data):
     if drift > 1e-4:
         raise SystemExit("뼈가 제자리에 안 있다 - 남은 이동 %.5f m" % drift)
 
-    action = arm.animation_data.action
-    action.name = ACTION
-    action.use_fake_user = True
+    made = arm.animation_data.action
+    made.name = action
+    made.use_fake_user = True
 
-    curves = sum(len(c.keyframe_points) for c in all_fcurves(action))
+    curves = sum(len(c.keyframe_points) for c in all_fcurves(made))
     if curves == 0:
         raise SystemExit("커브를 하나도 못 찾았다 - 슬롯 액션 순회가 틀렸다")
 
@@ -212,7 +224,7 @@ def build(arm, data):
     scene.render.fps = int(round(data["fps"]))
     scene.frame_start, scene.frame_end = 1, frames
     print("[dance] %s: 뼈 %d개 · 키 %d개 · %d프레임 %.2f초"
-          % (ACTION, len(BONES), curves, frames, frames / data["fps"]))
+          % (action, len(BONES), curves, frames, frames / data["fps"]))
 
 
 def all_fcurves(action):
@@ -224,13 +236,13 @@ def all_fcurves(action):
                     yield curve
 
 
-def export(arm):
-    FBX_OUT.parent.mkdir(parents=True, exist_ok=True)
+def export(arm, fbx_out):
+    fbx_out.parent.mkdir(parents=True, exist_ok=True)
     bpy.ops.object.select_all(action='DESELECT')
     arm.select_set(True)
     bpy.context.view_layer.objects.active = arm
     bpy.ops.export_scene.fbx(
-        filepath=str(FBX_OUT),
+        filepath=str(fbx_out),
         use_selection=True,
         object_types={'ARMATURE'},
         add_leaf_bones=False,          # leaf bones would add _end bones and break paths
@@ -241,7 +253,7 @@ def export(arm):
         apply_unit_scale=True,
         bake_space_transform=False,
     )
-    print("[dance] FBX: %s" % FBX_OUT)
+    print("[dance] FBX: %s" % fbx_out)
 
 
 def preview(out_dir, data):
@@ -279,12 +291,19 @@ def preview(out_dir, data):
     print("[dance] 미리보기: %s" % out_dir)
 
 
+def arg(argv, name, fallback):
+    return argv[argv.index(name) + 1] if name in argv else fallback
+
+
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    data = load()
+    name = arg(argv, "--data", DEFAULT_DATA)
+    action = arg(argv, "--action", DEFAULT_ACTION)
+
+    data = load(DATA_DIR / (name + ".json"))
     arm = next(o for o in bpy.data.objects if o.type == 'ARMATURE')
-    build(arm, data)
-    export(arm)
+    build(arm, data, action)
+    export(arm, SOURCE_DIR / (action + ".fbx"))
     if "--preview" in argv:
         preview(argv[argv.index("--preview") + 1], data)
 
