@@ -6,6 +6,7 @@ import com.metagame.backend.domain.room.RoomManager;
 import com.metagame.backend.domain.user.UserRepository;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -613,33 +614,66 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     /**
      * 다 같은 망에 있는가 — 그렇다면 릴레이 없이 서로 바로 닿는다.
      *
-     * <p>둘 중 하나만 맞으면 같은 망으로 본다.
-     * <ul>
-     *   <li>공인 IP 가 전부 같다 — 한 공유기 뒤에 있다는 뜻</li>
-     *   <li>각자 알려 준 <b>랜 주소가 같은 대역</b>이다 — 공인 IP 를 여러 개 돌려쓰는
-     *       망에서도 이건 맞는다. 이것이 없어서 같은 WiFi 인데 릴레이를 탔다(2026-09-02)</li>
-     * </ul>
+     * <p>방에서 값만 모아 {@link #sameNetwork(java.util.Collection, java.util.Collection)}
+     * 에 넘긴다. 판정 자체는 순수 함수라 값으로 검사한다 — 전에는 검사가 하나도 없었고,
+     * 그래서 아래 결함이 2주 동안 남아 있었다(S15P21B202-570).
      */
     private boolean sameNetwork(Room room, LinkedHashMap<Long, String> publicIps) {
+        List<String> localIps = new ArrayList<>();
+        for (Long playerId : room.playerIds()) {
+            WebSocketSession session = sessions.get(playerId);
+            localIps.add(session == null
+                    ? null
+                    : (String) session.getAttributes().get(LOCAL_IP_ATTR));
+        }
+        return sameNetwork(publicIps.values(), localIps);
+    }
+
+    /**
+     * 다 같은 망에 있는가 — 공인 IP 목록과 각자 알려 준 사설 주소만 보고 정한다.
+     *
+     * <p><b>틀렸을 때의 대가가 한쪽으로 기울어 있다.</b> 릴레이는 느릴 뿐 <b>항상 되고</b>,
+     * 직접 접속은 빠르지만 안 될 때 <b>아예 못 들어간다.</b> 그래서 애매하면 릴레이로 간다.
+     *
+     * <p>같은 망으로 보는 경우:
+     * <ul>
+     *   <li>공인 IP 가 전부 같다 — 한 공유기 뒤에 있다는 뜻</li>
+     *   <li>공인 IP 가 <b>같은 {@code /24} 안</b>이고 각자 알려 준 랜 주소도 같은 대역이다 —
+     *       공인 IP 를 여러 개 돌려쓰는 교육장 망이 이 경우다(2026-09-02)</li>
+     * </ul>
+     *
+     * <p><b>사설 대역만으로는 같은 망임을 보일 수 없다</b>(S15P21B202-570). {@code 192.168.31.x}
+     * 는 어떤 공유기의 기본값이고 {@code 192.168.0.x}·{@code 172.20.10.x}(아이폰 핫스팟)도
+     * 마찬가지라, <b>서로 다른 집에서 같은 대역을 받는 일이 흔하다.</b> 그것만 보고 직접 접속을
+     * 시키면 닿지 않아 입장이 통째로 막힌다 — 2026-09-16 에 실제로 그랬다
+     * ({@code distinctIps=2} 인데 {@code decision=direct(same network)}).
+     */
+    static boolean sameNetwork(Collection<String> publicIps, Collection<String> localIps) {
         if (publicIps.size() < 2) {
             return true;
         }
-        if (publicIps.values().stream().distinct().count() == 1) {
+        if (publicIps.stream().distinct().count() == 1) {
             return true;
         }
-        return sameLocalSubnet(room);
-    }
 
-    /** 방 전원이 같은 사설 대역(앞 세 자리)에 있는가. 한 명이라도 안 알려 줬으면 거짓. */
-    private boolean sameLocalSubnet(Room room) {
-        String shared = null;
-        for (Long playerId : room.playerIds()) {
-            WebSocketSession session = sessions.get(playerId);
-            if (session == null) {
+        // 공인 IP 가 다른 대역이면 다른 망이다 — 사설 대역이 같아도 그렇다.
+        String block = null;
+        for (String ip : publicIps) {
+            String prefix = prefix24(ip);
+            if (prefix == null) {
+                return false;                       // IPv4 가 아니거나 형식이 아니다
+            }
+            if (block == null) {
+                block = prefix;
+            } else if (!block.equals(prefix)) {
                 return false;
             }
-            String local = (String) session.getAttributes().get(LOCAL_IP_ATTR);
-            String subnet = subnetOf(local);
+        }
+
+        // 여기까지 왔으면 공인 IP 가 한 /24 안이다. 랜 주소까지 같은 대역이어야 한다.
+        String shared = null;
+        for (String ip : localIps) {
+            String subnet = subnetOf(ip);
             if (subnet == null) {
                 return false;                       // 안 알려 줬거나 사설 주소가 아니다
             }
@@ -650,6 +684,23 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             }
         }
         return shared != null;
+    }
+
+    /** IPv4 의 앞 세 자리(1.2.3). 형식이 아니면 null — 사설·공인을 가리지 않는다. */
+    private static String prefix24(String ip) {
+        if (ip == null || ip.isBlank()) {
+            return null;
+        }
+        String[] parts = ip.split("\\.");
+        if (parts.length != 4) {
+            return null;
+        }
+        for (String part : parts) {
+            if (part.isEmpty() || !part.chars().allMatch(Character::isDigit)) {
+                return null;
+            }
+        }
+        return parts[0] + "." + parts[1] + "." + parts[2];
     }
 
     /** 사설 주소의 앞 세 자리(192.168.31). 사설이 아니거나 형식이 아니면 null. */
