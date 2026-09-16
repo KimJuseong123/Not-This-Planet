@@ -96,11 +96,50 @@ print("  잡의 기본 경로가 마운트 자리와 같다 ✅")
 conf = open(NGINX, encoding="utf-8").read()
 allow = re.search(r"location ~ \^/builds/\(\?<artifact>([^)]+)\)\$", conf)
 assert allow, "nginx 에 여는 목록이 없다 — 폴더 전체가 그대로 나간다"
-#     **런처가 받는 것이 전부 들어 있어야 한다.** 하나라도 빠지면 그 경로가 404 가
-#     되어 런처가 멈춘다. `versions.json` 은 첫 판에서 빠져 있었다 — 개발 런처가
-#     그것을 받는다(`DevMode.cs`).
-for must in ("latest", "versions", "launcher", "manifest/", "files/", "zip"):
-    assert must in allow.group(1), f"런처가 받는 {must} 가 여는 목록에 없다"
+
+#     **정규식을 실제로 적용해 본다** (S15P21B202-567). 전에는 `"latest" in 목록` 처럼
+#     부분 문자열로 봤는데, 그러면 `latest.json` 하나 때문에 `dev-latest.json` 이
+#     빠져 있어도 통과한다 — **실제로 그렇게 새벽 빌드가 런처에서 안 보였다.**
+#     `(?<name>)` 은 파이썬 문법이 아니므로 갈래만 떼어 다시 짠다.
+#
+#     **갈래를 통째로 떼었는지 먼저 본다** (`!479` AI 리뷰). 위 `[^)]+` 는 첫 `)` 에서
+#     멈추므로, 나중에 갈래 안에 괄호가 하나라도 들어오면(`(a|b)\.json`) **중간에서
+#     잘린 패턴**을 검사하게 된다 — 그러면 이 검사가 조용히 엉뚱한 것을 지킨다.
+assert allow.group(1).count("(") == allow.group(1).count(")") == 0, (
+    "여는 목록 갈래에 괄호가 생겼다 — 위 `[^)]+` 가 중간에서 자른다." + NL
+    + "  뽑아 온 것: " + allow.group(1))
+serves = re.compile("^(?:" + allow.group(1) + ")$").match
+
+#     **런처가 받는 이름은 코드에서 가져온다.** 여기 손으로 적으면 채널이 늘 때
+#     같은 일이 또 난다 — 목록 파일 이름을 정하는 곳은 `make_manifest.CHANNEL_FILES` 다.
+#     그 파일의 실행부는 `if __name__ == "__main__":` 아래라 import 해도 아무 일도
+#     일어나지 않는다(`!479` AI 리뷰의 확인 질문).
+sys.path.insert(0, os.path.join(ROOT, "scripts", "launcher"))
+import make_manifest  # noqa: E402
+
+#     이름이 바뀌면 `AttributeError` 로 죽지 말고 **왜 필요한지와 함께** 멈춘다.
+assert hasattr(make_manifest, "CHANNEL_FILES"), (
+    "make_manifest 에 CHANNEL_FILES 가 없다 — 채널별 목록 파일 이름의 출처다." + NL
+    + "  이름을 바꿨다면 여기도 같이 바꾼다. 지우면 nginx 여는 목록을 지킬 근거가 없어진다.")
+
+for channel, names in make_manifest.CHANNEL_FILES.items():
+    for name in names:
+        assert serves(name), (
+            f"{channel} 채널의 목록 파일 {name} 이 여는 목록에 없다 — nginx 가 404 를 준다."
+            + NL + "  런처는 그 404 를 경고 한 줄로 삼키고 릴리스 목록으로 넘어가므로,"
+            + NL + "  **그 채널 빌드가 통째로 안 보이는데 아무 데서도 실패하지 않는다.**")
+
+#     나머지는 모양으로 본다 — 이름이 그때그때 다르다.
+for must in ("launcher.json", "NotThisPlanetLauncher.exe",
+             "manifest/dev-20260916-ec7f09ed.json", "files/0123abcd.gz",
+             "metagame-v1.1.0-20260914-0117.zip"):
+    assert serves(must), f"런처가 받는 {must} 가 여는 목록에 없다"
+
+#     **여는 목록이 여전히 좁은지** 도 본다. 넓히다 보면 사고가 되돌아온다 —
+#     아래는 실제로 새어 나갔던 모양이다(2026-09-12, 835 MB).
+for leak in ("nQ2_xyz/0/s15-metaverse-game-sub1/S15P21B202/README.md",
+             "manifest/sub/dir.json", "files/a/b.gz", "secrets.env", "backend/app.jar"):
+    assert not serves(leak), f"여는 목록이 너무 넓다 — 이것까지 나간다: {leak}"
 
 #     **접두 블록이 404 여야 여는 목록이 뜻을 갖는다.** 거기 `alias` 가 남아 있으면
 #     정규식에 안 걸린 요청이 그대로 서빙된다 — 첫 판이 그랬고 리뷰가 잡았다.
