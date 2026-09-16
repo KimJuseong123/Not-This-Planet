@@ -13,6 +13,7 @@ Shader "Metagame/Atmosphere/MagneticStormVolume"
         _Erosion ("Breaking wisps", Range(0,0.4)) = 0.22
         _StormPhase ("Loop phase", Float) = 0
         _StormOpacity ("Visibility", Range(0,1)) = 1
+        _SmokeOpacity ("Smoke opacity", Range(0,1)) = 0.38
     }
     SubShader
     {
@@ -38,6 +39,7 @@ Shader "Metagame/Atmosphere/MagneticStormVolume"
                 float4 _ShadowColor, _LightColor, _IonColor;
                 float _Density, _Steps, _StormPhase, _StormOpacity;
                 float _BillowStrength, _Erosion;
+                float _SmokeOpacity;
             CBUFFER_END
             struct Attributes { float4 positionOS:POSITION; UNITY_VERTEX_INPUT_INSTANCE_ID };
             struct Varyings {
@@ -143,7 +145,8 @@ Shader "Metagame/Atmosphere/MagneticStormVolume"
                     }
                     distanceAlong+=stepLength;
                 }
-                return half4(radiance,1-transmittance);
+                // Scale premultiplied color and alpha together; thick smoke still stays see-through.
+                return half4(radiance,1-transmittance)*saturate(_SmokeOpacity);
             }
             ENDHLSL
         }

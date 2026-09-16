@@ -13,6 +13,9 @@ namespace Metagame.Gameplay
         [SerializeField] Renderer[] animatedRenderers;
         [SerializeField] Transform[] debris;
         [SerializeField] bool previewAutonomously = true;
+        [Tooltip("연기 불투명도. 0이면 투명, 1이면 원래 연기입니다. 자기장 선은 유지됩니다.")]
+        [SerializeField, Range(0f, 1f)] float smokeOpacity = .38f;
+        static readonly int SmokeOpacityId = Shader.PropertyToID("_SmokeOpacity");
         static readonly int PhaseId = Shader.PropertyToID("_StormPhase");
         static readonly int OpacityId = Shader.PropertyToID("_StormOpacity");
         MaterialPropertyBlock properties;
@@ -85,6 +88,7 @@ namespace Metagame.Gameplay
             float phase = PhaseAt(time);
             properties.SetFloat(PhaseId, phase);
             properties.SetFloat(OpacityId, Mathf.Clamp01(opacity));
+            properties.SetFloat(SmokeOpacityId, Mathf.Clamp01(smokeOpacity));
             for (int i = 0; i < animatedRenderers.Length; i++)
                 if (animatedRenderers[i] != null) animatedRenderers[i].SetPropertyBlock(properties);
             for (int i = 0; i < debris.Length; i++)

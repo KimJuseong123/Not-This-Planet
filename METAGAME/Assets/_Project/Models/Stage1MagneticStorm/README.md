@@ -4,7 +4,7 @@
 
 ## 바로 사용하기
 
-- **기존 Stage1_Astra**: 564 worktree의 Unity 프로젝트를 열고 실행하면 기존 폭풍 스케줄에 새 효과가 자동 연결된다. 기존 프로필, 발생 시점, 진행 방향, 서버 시드, 물리 힘과 피해 판정은 유지한다. 동일한 효과를 씬에 또 배치할 필요는 없다.
+- **기존 Stage1_Astra**: 564 worktree의 Unity 프로젝트를 열고 실행하면 기존 폭풍 스케줄에 새 효과가 자동 연결된다. 공유 서버 시드를 사용하며, 넓은 수평 스윕과 주기적 단발 충격 설정을 적용한다. 동일한 효과를 씬에 또 배치할 필요는 없다.
 - **다른 씬에 직접 배치**: Resources/Stage1MagneticStorm/Stage1MagneticStorm.prefab을 Hierarchy로 드래그하고 Play한다. 이 경우 연기·빛·파편의 6초 루프만 자율 재생하며, 씬 전체를 가로지르는 이동이나 피해 판정은 추가하지 않는다.
 - **단독 확인**: Preview/MagneticStormPreview.unity를 연 뒤 Play. 메뉴 **Metagame > Art > Open Magnetic Storm Preview**로도 열 수 있다.
 - FBX만 직접 배치하면 볼륨이 완성되지 않으므로, 실제 씬에는 제공된 **프리팹**을 사용한다.
@@ -38,7 +38,7 @@ FBX에는 Blender의 볼륨 셰이더나 유체 시뮬레이션을 직접 저장
 - 파편: 닫힌 경로의 부유·회전.
 - 단독 프리팹은 게임 시간을, 기존 폭풍에 연결된 인스턴스는 기존 공유 폭풍 시뮬레이션 시간을 사용한다.
 - 모델 pivot은 볼륨 중심이며 기본 범위는 로컬 X 24m × Y 5m × Z 10m이다.
-- 기존 StormPose.Rotation에 따르면 진행은 **로컬 -X** 방향이다. 이전 컨셉 문서의 +Z 약속 대신, 실제 게임 판정 축에 맞췄다. 바람 힘과 박스 크기는 수정하지 않았다.
+- StormPose.Rotation의 진행 방향은 **로컬 +Z**이며 긴 X축을 진행 방향에 수직으로 배치한다. Stage1은 깊이를 절반으로 줄여 너비 24m × 높이 5m × 두께 5m로 사용한다.
 - 시각 프리팹에는 새 Collider나 Rigidbody가 없으며, 기존 hazard가 물리 효과를 계속 담당한다.
 - 씬의 깊이 텍스처로 불투명 지형과의 교차를 처리하고, 카메라가 볼륨 안에 들어가도 연기를 그린다. 활성화 중 필요한 카메라 깊이 요청은 종료 시 원래 상태로 되돌린다.
 - 다른 투명 효과와의 정렬은 일반적인 투명 렌더링 제약을 갖는다.
@@ -74,7 +74,7 @@ PC 에디터 기준이다. Windows 플레이어 빌드, 다중 접속, GPU 프�
 
 ## Stage1_Astra 씬 적용 (2026-09-16)
 
-씬의 `Stage1 Magnetic Storm`에 프리팹을 배치하고 SpaceBootstrap의 Storm Presentation에 연결했다. Play하면 기존 공유 시드/시간에 따라 맵 외곽에서 진입하며, 24×5×10m 범위가 초당 6m로 이동한다. 내부 연기·자기장·파편은 6초 루프를 사용한다. 바람 물리와 표시 효과는 같은 이동 스케줄을 따른다.
+씬의 `Stage1 Magnetic Storm`에 프리팹을 배치하고 SpaceBootstrap의 Storm Presentation에 연결했다. Play하면 기존 공유 시드/시간에 따라 맵 외곽에서 진입하며, 24×5×5m 범위가 초당 6m로 이동한다. 내부 연기·자기장·파편은 6초 루프를 사용한다. 바람 물리와 표시 효과는 같은 이동 스케줄을 따른다.
 
 자기장 사용 시 기존 모래/장식 파편 ParticleSystem은 생성하지 않는다. Resources 프리팹이 없는 이전 콘텐츠의 모래 폴백은 유지한다. 이동 오브젝트를 공용 시스템과 분리해 카메라·HUD·물리 파편의 부모가 함께 움직이지 않도록 했다.
 
@@ -89,3 +89,17 @@ PC 에디터 기준이다. Windows 플레이어 빌드, 다중 접속, GPU 프�
 Smoke 재질의 **Rolling cloud strength**(기본 1)로 덩어리 변형, **Breaking wisps**(기본 0.22)로 가장자리 분해 정도를 조절할 수 있다. 레이마칭 단계와 3D 텍스처 샘플 수는 유지했지만 삼각함수 연산이 늘었으므로 GPU 성능 개선을 의미하지 않는다.
 
 Unity URP로 49개 프레임을 렌더링했으며 볼륨/자기장 셰이더 오류가 없었다. 0초와 6초 프레임의 픽셀 차이는 0이다. `artifacts/stage1-magnetic-storm/billowing/magnetic-storm-billowing.gif`에서 내부 움직임을 확인할 수 있다. 미리보기에서는 형태 변화를 보기 쉽게 폭풍 위치를 고정했다. 재생성 메뉴는 **Metagame > Art > Render Magnetic Storm Billow Loop**이다.
+
+## 넓은 수평 스윕과 단발 충격
+
+현재 게임 설정은 너비 24m(X), 높이 5m(Y), 진행 방향 두께 5m(Z)다. 긴 X축을 진행 방향에 수직으로 놓고 +Z 방향으로 이동한다. 중심 높이는 맵의 바닥 기준 + 반높이 + Ground Clearance로 고정되며, 지형·벽·물체를 만나도 이동 방향이나 높이를 바꾸지 않는다. 과거의 지형 따라가기와 지속 바람 힘은 사용하지 않는다.
+
+- 씬의 **Stage1 Magnetic Storm > Stage1MagneticStorm > Magnetic Storm Visual > Smoke Opacity**: 기본 0.38. 0은 연기 투명, 1은 원래 불투명도. 자기장 선은 유지된다. 프리팹에서도 같은 필드를 조절할 수 있다.
+- **Assets/_Project/Data/Atmosphere/Stage1AtmosphereProfile.asset > Dust Storm > Gameplay**에서 타격을 설정한다. Impulse Interval은 기본 1초, Impulse Speed는 전진 순간 속도 증가량 18m/s, Impulse Lift는 위쪽 증가량 4m/s다. Lift를 0으로 하면 수평 충격만 준다. Player/Object Impulse Multiplier는 각각 기본 1이다. 프로필 설정은 Play 전에 조절한다.
+- 같은 대상은 진입 시 한 번 맞고, 계속 범위 안에 있으면 간격마다 다시 맞는다. 이탈·재진입해도 간격이 지나기 전에는 중복 타격하지 않는다. 여러 콜라이더가 있는 물체와 플레이어 팔다리는 중복 타격을 막는다.
+- 폭풍 자체는 중력 없는 kinematic Rigidbody + Trigger BoxCollider이며 충돌로 물체를 막거나 방향을 바꾸지 않는다. 상호작용 레이를 가리지 않는 Ignore Raycast 레이어를 사용한다. 기존의 보이지 않는 충돌 파편도 생성하지 않는다.
+- 힘은 권한을 가진 서버/로컬 시뮬레이션에서만 적용한다. 동적인 Grabbable/InteractableBase 물체와 플레이어가 대상이며, 고정·kinematic 물체와 장식용 Rigidbody는 제외한다. 질량에 따른 약화를 없앤 속도 충격으로 무거운 운반 부품도 밀 수 있다. 플레이어는 기존 KnockDown을 사용해 걷기 제어가 충격을 지우지 않게 한다.
+
+기존 windForce·fragment 계열 프로필 값은 이전 에셋 호환을 위해 남아 있지만 자기장 타격에는 사용하지 않는다. 이동·타격 변경 검증 결과는 `artifacts/stage1-magnetic-storm/sweep/tests.xml`에 기록한다. 실제 다중 접속 검증은 별도다.
+
+검증 완료: 기존 스케줄/표시 17개 + 신규 스윕/투명도/실제 물리 타격 3개, 총 20개 모두 통과. 500kg 상호작용 물체, 플레이어 팔다리 동일 충격 및 넘어짐, 1초 재타격과 0.5초 중복 방지, 비상호작용/kinematic/비권한 제외, Trigger 상태를 확인했다. 수정된 투명도에서도 0초와 6초 렌더 픽셀 차이는 0이다.

@@ -112,7 +112,7 @@ namespace Metagame.EditorTools
                 var clock = Object.FindAnyObjectByType<DustStormClockBridge>();
                 clock.enabled = false;
                 double gap = (profile.dustStorm.minimumInterval + profile.dustStorm.maximumInterval) * .5;
-                double middle = gap + (bounds.size.magnitude * .5 + profile.dustStorm.halfExtents.x + profile.dustStorm.spawnMargin) / profile.dustStorm.speed;
+                double middle = gap + (bounds.size.magnitude * .5 + profile.dustStorm.halfExtents.z + profile.dustStorm.spawnMargin) / profile.dustStorm.speed;
                 Vector3 first = default;
                 for (int i = 0; i < 2; i++)
                 {

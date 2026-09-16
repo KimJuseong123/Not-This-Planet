@@ -74,6 +74,7 @@ MonoBehaviour:
   - {fileID: 3590860217362924520}
   - {fileID: 3302095639840035824}
   previewAutonomously: 1
+  smokeOpacity: 0.38
 --- !u!1001 &8638508450910833058
 PrefabInstance:
   m_ObjectHideFlags: 0

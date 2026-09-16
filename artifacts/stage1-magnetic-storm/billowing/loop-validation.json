@@ -1,10 +1,11 @@
 {
   "loop_endpoint_max_difference": 0,
   "mean_motion_delta_at_1_5_seconds": [
-    4.130017361111111,
-    3.304409722222222,
-    4.762452256944444
+    1.5722352430555555,
+    1.6834114583333333,
+    2.378728298611111
   ],
   "frames": 48,
-  "duration_seconds": 6
+  "duration_seconds": 6,
+  "smoke_opacity": 0.38
 }

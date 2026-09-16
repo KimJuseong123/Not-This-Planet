@@ -121,7 +121,7 @@ MonoBehaviour:
     minimumInterval: 8
     maximumInterval: 14
     speed: 6
-    halfExtents: {x: 12, y: 2.5, z: 5}
+    halfExtents: {x: 12, y: 2.5, z: 2.5}
     directionConeDegrees: 60
     spawnMargin: 6
     seed: 20260903
@@ -131,6 +131,11 @@ MonoBehaviour:
     debugBoundaryWidth: 0.04
     debugSkyMarkerHeight: 80
     windForce: 6
+    impulseInterval: 1
+    impulseSpeed: 18
+    impulseLift: 4
+    playerImpulseMultiplier: 1
+    objectImpulseMultiplier: 1
     playerWindForceMultiplier: 0.45
     objectWindForceMultiplier: 1.25
     maximumAffectedMass: 40
