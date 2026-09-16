@@ -1,0 +1,21 @@
+{
+  "asset": "SM_Astra_BrokenPersonnelBridge5",
+  "concept": "docs\\assets\\concepts\\stage1-related-hangar\\08-broken-personnel-bridge-5.png",
+  "fbx": "SM_Astra_BrokenPersonnelBridge5.fbx",
+  "textures": "SM_Astra_BrokenPersonnelBridge5.fbm",
+  "unity_material": "M_Astra_BrokenPersonnelBridge5.mat",
+  "metres": true,
+  "blender_dimensions_XYZ": [
+    2.5999999046325684,
+    1.1899999976158142,
+    0.36650001257658005
+  ],
+  "triangles": 6144,
+  "editable_components": 38,
+  "source_blend": "artifacts\\stage1-related-hangar\\08-broken-personnel-bridge-5\\SM_Astra_BrokenPersonnelBridge5.blend",
+  "validation_report": "artifacts\\stage1-related-hangar\\08-broken-personnel-bridge-5\\validation.json",
+  "fbx_roundtrip": "PASS",
+  "sha256": "52800597038c2801588ce2ab6dab8ac9c1646ce74e650e50ee3ee2ee9ecde586",
+  "scene_placement": "not placed; imported asset only",
+  "pivot": "base center; ramp low-end elevation"
+}

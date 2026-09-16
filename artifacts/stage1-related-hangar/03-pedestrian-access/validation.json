@@ -1,0 +1,64 @@
+{
+  "asset": "SM_Astra_PedestrianAccess",
+  "concept": "C:\\workspace\\2-PJT\\S15P21B202\\docs\\assets\\concepts\\stage1-related-hangar\\03-pedestrian-access.png",
+  "components": 294,
+  "before_export": {
+    "meshes": 1,
+    "vertices": 23264,
+    "triangles": 45352,
+    "bounds_min": [
+      -1.6029999256134033,
+      -8.264325141906738,
+      0.01772141456604004
+    ],
+    "bounds_max": [
+      1.6029999256134033,
+      8.100930213928223,
+      5.695041656494141
+    ],
+    "dimensions": [
+      3.2059998512268066,
+      16.36525535583496,
+      5.677320241928101
+    ]
+  },
+  "after_reimport": {
+    "meshes": 1,
+    "vertices": 23264,
+    "triangles": 45352,
+    "bounds_min": [
+      -1.6029999256134033,
+      -8.264325141906738,
+      0.017720093950629234
+    ],
+    "bounds_max": [
+      1.6029999256134033,
+      8.100931167602539,
+      5.695043087005615
+    ],
+    "dimensions": [
+      3.2059998512268066,
+      16.365256309509277,
+      5.677322993054986
+    ]
+  },
+  "geometry_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "missing_textures": [],
+  "texture_links": [
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\03-pedestrian-access\\SM_Astra_PedestrianAccess.fbm\\SM_Astra_PedestrianAccess_BaseColor.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\03-pedestrian-access\\SM_Astra_PedestrianAccess.fbm\\SM_Astra_PedestrianAccess_Emission.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\03-pedestrian-access\\SM_Astra_PedestrianAccess.fbm\\SM_Astra_PedestrianAccess_Metallic.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\03-pedestrian-access\\SM_Astra_PedestrianAccess.fbm\\SM_Astra_PedestrianAccess_Normal.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\03-pedestrian-access\\SM_Astra_PedestrianAccess.fbm\\SM_Astra_PedestrianAccess_Roughness.png"
+  ],
+  "roundtrip": "PASS",
+  "units": "metres",
+  "front_blender": "-Y",
+  "export_axes": "-Z forward / Y up",
+  "pivot": "base center; ramp low-end elevation",
+  "fbx": "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\03-pedestrian-access\\SM_Astra_PedestrianAccess.fbx",
+  "material": "M_Astra_PedestrianAccess"
+}

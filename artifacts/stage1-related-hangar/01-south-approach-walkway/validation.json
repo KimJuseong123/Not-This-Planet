@@ -1,0 +1,64 @@
+{
+  "asset": "SM_Astra_SouthApproachWalkway",
+  "concept": "C:\\workspace\\2-PJT\\S15P21B202\\docs\\assets\\concepts\\stage1-related-hangar\\01-south-approach-walkway.png",
+  "components": 203,
+  "before_export": {
+    "meshes": 1,
+    "vertices": 16976,
+    "triangles": 33140,
+    "bounds_min": [
+      -1.402999997138977,
+      -7.050000190734863,
+      0.0
+    ],
+    "bounds_max": [
+      1.402999997138977,
+      7.050000190734863,
+      0.31299999356269836
+    ],
+    "dimensions": [
+      2.805999994277954,
+      14.100000381469727,
+      0.31299999356269836
+    ]
+  },
+  "after_reimport": {
+    "meshes": 1,
+    "vertices": 16976,
+    "triangles": 33140,
+    "bounds_min": [
+      -1.402999997138977,
+      -7.050000190734863,
+      -1.1485908544273116e-06
+    ],
+    "bounds_max": [
+      1.402999997138977,
+      7.050000190734863,
+      0.3130011558532715
+    ],
+    "dimensions": [
+      2.805999994277954,
+      14.100000381469727,
+      0.3130023044441259
+    ]
+  },
+  "geometry_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "missing_textures": [],
+  "texture_links": [
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\01-south-approach-walkway\\SM_Astra_SouthApproachWalkway.fbm\\SM_Astra_SouthApproachWalkway_BaseColor.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\01-south-approach-walkway\\SM_Astra_SouthApproachWalkway.fbm\\SM_Astra_SouthApproachWalkway_Emission.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\01-south-approach-walkway\\SM_Astra_SouthApproachWalkway.fbm\\SM_Astra_SouthApproachWalkway_Metallic.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\01-south-approach-walkway\\SM_Astra_SouthApproachWalkway.fbm\\SM_Astra_SouthApproachWalkway_Normal.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\01-south-approach-walkway\\SM_Astra_SouthApproachWalkway.fbm\\SM_Astra_SouthApproachWalkway_Roughness.png"
+  ],
+  "roundtrip": "PASS",
+  "units": "metres",
+  "front_blender": "-Y",
+  "export_axes": "-Z forward / Y up",
+  "pivot": "base center; ramp low-end elevation",
+  "fbx": "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\01-south-approach-walkway\\SM_Astra_SouthApproachWalkway.fbx",
+  "material": "M_Astra_SouthApproachWalkway.002"
+}

@@ -1,0 +1,21 @@
+{
+  "asset": "SM_Astra_EastEntranceLanding",
+  "concept": "docs\\assets\\concepts\\stage1-related-hangar\\02-east-entrance-landing.png",
+  "fbx": "SM_Astra_EastEntranceLanding.fbx",
+  "textures": "SM_Astra_EastEntranceLanding.fbm",
+  "unity_material": "M_Astra_EastEntranceLanding.mat",
+  "metres": true,
+  "blender_dimensions_XYZ": [
+    3.505999803543091,
+    9.5,
+    0.31299999356269836
+  ],
+  "triangles": 22604,
+  "editable_components": 137,
+  "source_blend": "artifacts\\stage1-related-hangar\\02-east-entrance-landing\\SM_Astra_EastEntranceLanding.blend",
+  "validation_report": "artifacts\\stage1-related-hangar\\02-east-entrance-landing\\validation.json",
+  "fbx_roundtrip": "PASS",
+  "sha256": "e2b785d8907eda45c3c74eedf57b84c15738cb35b0bb2d980d4ee11bec57f9f2",
+  "scene_placement": "not placed; imported asset only",
+  "pivot": "base center; ramp low-end elevation"
+}

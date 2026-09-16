@@ -1,0 +1,64 @@
+{
+  "asset": "SM_Astra_FoundationApproachDeck",
+  "concept": "C:\\workspace\\2-PJT\\S15P21B202\\docs\\assets\\concepts\\stage1-related-hangar\\04-foundation-approach-deck.png",
+  "components": 769,
+  "before_export": {
+    "meshes": 1,
+    "vertices": 59408,
+    "triangles": 115740,
+    "bounds_min": [
+      -11.552999496459961,
+      -7.75,
+      0.0
+    ],
+    "bounds_max": [
+      11.552999496459961,
+      7.75,
+      0.5130000114440918
+    ],
+    "dimensions": [
+      23.105998992919922,
+      15.5,
+      0.5130000114440918
+    ]
+  },
+  "after_reimport": {
+    "meshes": 1,
+    "vertices": 59408,
+    "triangles": 115740,
+    "bounds_min": [
+      -11.552999496459961,
+      -7.75,
+      -1.2626353509403998e-06
+    ],
+    "bounds_max": [
+      11.552999496459961,
+      7.75,
+      0.5130012631416321
+    ],
+    "dimensions": [
+      23.105998992919922,
+      15.5,
+      0.513002525776983
+    ]
+  },
+  "geometry_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "missing_textures": [],
+  "texture_links": [
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\04-foundation-approach-deck\\SM_Astra_FoundationApproachDeck.fbm\\SM_Astra_FoundationApproachDeck_BaseColor.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\04-foundation-approach-deck\\SM_Astra_FoundationApproachDeck.fbm\\SM_Astra_FoundationApproachDeck_Emission.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\04-foundation-approach-deck\\SM_Astra_FoundationApproachDeck.fbm\\SM_Astra_FoundationApproachDeck_Metallic.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\04-foundation-approach-deck\\SM_Astra_FoundationApproachDeck.fbm\\SM_Astra_FoundationApproachDeck_Normal.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\04-foundation-approach-deck\\SM_Astra_FoundationApproachDeck.fbm\\SM_Astra_FoundationApproachDeck_Roughness.png"
+  ],
+  "roundtrip": "PASS",
+  "units": "metres",
+  "front_blender": "-Y",
+  "export_axes": "-Z forward / Y up",
+  "pivot": "base center; ramp low-end elevation",
+  "fbx": "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\04-foundation-approach-deck\\SM_Astra_FoundationApproachDeck.fbx",
+  "material": "M_Astra_FoundationApproachDeck"
+}
