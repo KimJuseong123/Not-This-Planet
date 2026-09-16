@@ -226,6 +226,11 @@ def existence_problem(key: str | None, issue: dict | None, lookup_failed: bool) 
     return None
 
 
+# 스토리 포인트를 매기지 않는 유형. **R11(진행 중 게이트)의 제외 조건과 같아야 한다** —
+# 그 둘이 어긋나면 같은 이슈가 한 자리에서는 막히고 다른 자리에서는 통과한다.
+POINTLESS_TYPES = ("에픽", "Epic", "스토리", "Story")
+
+
 def check_story_points(rep: Report, key: str, fields: dict) -> None:
     """스토리 포인트가 비어 있으면 막는다 (S15P21B202-568).
 
@@ -525,7 +530,10 @@ def main() -> int:
                     rep.warn(mismatch)
             if itype not in ("에픽", "Epic") and not f.get("parent"):
                 rep.fail("Jira 이슈에 상위 Epic 없음 — 상위 항목 필수")
-            if itype not in ("에픽", "Epic"):
+            # **R11 과 같은 기준으로 뺀다** (S15P21B202-568). 스토리·에픽은 자기 브랜치를
+            # 갖지 않고 사람이 손으로 옮기는 유형이라 진행 중 게이트(R11)도 빼 두었다.
+            # 두 겹의 대상이 다르면 어느 쪽이 맞는지 아무도 모르게 된다.
+            if itype not in POINTLESS_TYPES:
                 check_story_points(rep, key, f)
             jpart = part_of_issue(issue)
             if part and jpart and part != jpart:

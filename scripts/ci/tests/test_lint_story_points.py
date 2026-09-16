@@ -85,4 +85,16 @@ assert "STORY_POINTS_FIELD" in got, \
     "get_issue 가 스토리 포인트를 요청하지 않는다 — 검사가 늘 '필드 미수신' 으로 샌다"
 print("  get_issue 가 그 필드를 요청한다 ✅")
 
+# ── ⑦ 스토리·에픽은 이 검사의 대상이 아니다 ─────────────────────────────
+#
+#     **R11(진행 중 게이트)의 제외 조건과 같아야 한다.** 두 겹의 대상이 다르면 같은
+#     이슈가 한 자리에서는 막히고 다른 자리에서는 통과해, 어느 쪽이 맞는지 아무도
+#     모르게 된다. 스토리·에픽은 자기 브랜치를 갖지 않고 사람이 손으로 옮기는
+#     유형이라 R5·R11 이 같은 이유로 빼 두었다.
+for gone in ("에픽", "Epic", "스토리", "Story"):
+    assert gone in L.POINTLESS_TYPES, f"{gone} 가 제외 목록에 없다: {L.POINTLESS_TYPES}"
+for kept in ("작업", "Task", "버그", "Bug"):
+    assert kept not in L.POINTLESS_TYPES, f"{kept} 까지 빼면 검사가 거의 안 걸린다"
+print("  스토리·에픽은 대상이 아니다 (R11 과 같은 기준) ✅")
+
 print("TEST568 OK")
