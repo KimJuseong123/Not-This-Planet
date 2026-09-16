@@ -38,7 +38,10 @@ namespace Metagame.Gameplay.Tests
             profile.dustStorm.maximumInterval = 14;
             profile.dustStorm.speed = 6;
             profile.Validate();
+            var stationarySystems = new GameObject("Stationary stage systems");
+            stationarySystems.transform.position = new Vector3(4, 0, 8);
             var host = new GameObject("Storm integration test");
+            host.transform.SetParent(stationarySystems.transform, false);
             var presenter = host.AddComponent<AtmosphereDustStorm>();
             presenter.BindMapBounds(new Bounds(Vector3.zero,new Vector3(80,10,80)));
             presenter.Apply(profile);
@@ -48,6 +51,11 @@ namespace Metagame.Gameplay.Tests
             presenter.Tick(12d);
             Assert.That(visual.gameObject.activeSelf, Is.True);
             Assert.That(host.GetComponentsInChildren<MagneticStormVisual>(true).Length, Is.EqualTo(1));
+            Vector3 before = host.transform.position;
+            presenter.Tick(13.5d);
+            Assert.That(Vector2.Distance(new Vector2(before.x, before.z),
+                new Vector2(host.transform.position.x, host.transform.position.z)), Is.EqualTo(9f).Within(.001f));
+            Assert.That(stationarySystems.transform.position, Is.EqualTo(new Vector3(4, 0, 8)));
             var cameraObject = new GameObject("Storm depth test camera");
             var camera = cameraObject.AddComponent<Camera>();
             var data = camera.GetUniversalAdditionalCameraData();
@@ -68,8 +76,8 @@ namespace Metagame.Gameplay.Tests
             var block=new MaterialPropertyBlock();
             renderers[0].GetPropertyBlock(block);
             Assert.That(block.GetFloat("_StormPhase"), Is.EqualTo(.25f).Within(.00001f));
-            var dust=host.GetComponentsInChildren<ParticleSystem>(true).Single(p=>p.name=="Atmosphere Dust Storm");
-            Assert.That(dust.isPlaying, Is.False, "Old sand particles must not cover the volume effect.");
+            Assert.That(host.GetComponentsInChildren<ParticleSystem>(true), Is.Empty,
+                "The magnetic presentation replaces the old sand and decorative debris emitters.");
             presenter.enabled=false;
             Assert.That(visual.gameObject.activeSelf, Is.False);
             presenter.enabled=true;
@@ -78,6 +86,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(visual.gameObject.activeSelf, Is.True);
             Assert.That(host.GetComponentsInChildren<MagneticStormVisual>(true).Length, Is.EqualTo(1));
             Object.Destroy(host);
+            Object.Destroy(stationarySystems);
             Object.Destroy(profile);
             yield return null;
             Assert.That(Object.FindObjectsByType<MagneticStormVisual>().Length, Is.Zero);

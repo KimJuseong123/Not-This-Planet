@@ -43,6 +43,8 @@ namespace Metagame.EditorTools
             smoke.SetTexture("_NoiseTex", noise);
             smoke.SetFloat("_Steps", 64);
             smoke.SetFloat("_Density", 2.4f);
+            smoke.SetFloat("_BillowStrength", 1f);
+            smoke.SetFloat("_Erosion", .22f);
             smoke.SetColor("_ShadowColor", new Color(.28f,.12f,.48f));
             smoke.SetColor("_LightColor", new Color(.90f,.63f,1f));
             smoke.SetFloat("_StormOpacity", 1f);

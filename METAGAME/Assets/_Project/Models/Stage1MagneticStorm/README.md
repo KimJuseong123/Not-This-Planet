@@ -71,3 +71,21 @@ Unity 6000.5.4f1 / URP 17.5.0에서 임포트·C# 컴파일·셰이더 컴파일
 
 PC 에디터 기준이다. Windows 플레이어 빌드, 다중 접속, GPU 프레임 비용과 모바일 기기 테스트는 수행하지 않았다. 기존 모바일 비활성화 설정을 유지했다. 밀도·노이즈 원본 GPU 데이터는 약 2.25 MiB이며, 화면을 크게 덮는 레이마칭 비용은 실제 목표 장치에서 별도 측정해야 한다.
 
+
+## Stage1_Astra 씬 적용 (2026-09-16)
+
+씬의 `Stage1 Magnetic Storm`에 프리팹을 배치하고 SpaceBootstrap의 Storm Presentation에 연결했다. Play하면 기존 공유 시드/시간에 따라 맵 외곽에서 진입하며, 24×5×10m 범위가 초당 6m로 이동한다. 내부 연기·자기장·파편은 6초 루프를 사용한다. 바람 물리와 표시 효과는 같은 이동 스케줄을 따른다.
+
+자기장 사용 시 기존 모래/장식 파편 ParticleSystem은 생성하지 않는다. Resources 프리팹이 없는 이전 콘텐츠의 모래 폴백은 유지한다. 이동 오브젝트를 공용 시스템과 분리해 카메라·HUD·물리 파편의 부모가 함께 움직이지 않도록 했다.
+
+씬 재연결 메뉴: **Metagame > Art > Apply Magnetic Storm to Stage1 Astra**. 플레이 검증 메뉴: **Metagame > Art > Validate Stage1 Magnetic Storm in Play Mode** (저장된 Stage1_Astra에서 실행하며 검사 후 Play Mode를 종료한다).
+
+실제 Stage1 플레이에서 단일 인스턴스, 모래 제거, 공용 시스템 위치 유지, 물리 스케줄과 위치 일치, 1.5초 동안 수평 9m 이동, 휴지기 숨김 및 재사용을 확인했다. 이번 추가 회귀 테스트는 Unity 창 제어 제한으로 실행하지 못했다. 증거: `artifacts/stage1-magnetic-storm/scene-integration/`.
+
+## 뭉게구름 움직임 강화
+
+연기의 밀도 좌표에 이동하는 회전 흐름과 국소 팽창을 적용했다. 덩어리마다 서로 다른 위상으로 부풀고 말려 올라가며, 반복 노이즈가 두 차례 흐르고 위로 상승하면서 가장자리를 흩뜨린다. 자기장 선과 파편의 흔들림도 확대했다. 폭풍의 이동 경로·물리 범위와 6초 주기는 유지한다.
+
+Smoke 재질의 **Rolling cloud strength**(기본 1)로 덩어리 변형, **Breaking wisps**(기본 0.22)로 가장자리 분해 정도를 조절할 수 있다. 레이마칭 단계와 3D 텍스처 샘플 수는 유지했지만 삼각함수 연산이 늘었으므로 GPU 성능 개선을 의미하지 않는다.
+
+Unity URP로 49개 프레임을 렌더링했으며 볼륨/자기장 셰이더 오류가 없었다. 0초와 6초 프레임의 픽셀 차이는 0이다. `artifacts/stage1-magnetic-storm/billowing/magnetic-storm-billowing.gif`에서 내부 움직임을 확인할 수 있다. 미리보기에서는 형태 변화를 보기 쉽게 폭풍 위치를 고정했다. 재생성 메뉴는 **Metagame > Art > Render Magnetic Storm Billow Loop**이다.

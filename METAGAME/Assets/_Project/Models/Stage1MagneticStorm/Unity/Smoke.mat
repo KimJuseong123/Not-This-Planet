@@ -33,7 +33,9 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _BillowStrength: 1
     - _Density: 2.4
+    - _Erosion: 0.22
     - _Steps: 64
     - _StormOpacity: 1
     - _StormPhase: 0

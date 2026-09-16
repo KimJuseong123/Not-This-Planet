@@ -6,7 +6,7 @@ namespace Metagame.Gameplay
 {
     /// <summary>
     /// World-space presentation of the deterministic Stage1 dust storm.
-    /// It owns only particles, art debris, and the optional test boundary.
+    /// It owns the magnetic volume (or legacy particle fallback) and optional test boundary.
     /// </summary>
     public sealed class AtmosphereDustStorm : MonoBehaviour
     {
@@ -23,7 +23,14 @@ namespace Metagame.Gameplay
         int activeCycle = -1;
         int? matchSeedOverride;
         Material dustMaterial;
-        MagneticStormVisual magneticVisual;
+        [SerializeField] MagneticStormVisual magneticVisual;
+
+        void Awake()
+        {
+            if (magneticVisual == null) magneticVisual = GetComponentInChildren<MagneticStormVisual>(true);
+            if (magneticVisual != null) magneticVisual.SetExternallyDriven();
+            StopVisuals();
+        }
 
         public void BindMapBounds(Bounds bounds)
         {
@@ -47,11 +54,15 @@ namespace Metagame.Gameplay
             schedule = new DustStormSchedule(settings);
             if (!hasMapBounds) BindMapBounds(DustStormBounds.FindOrFallback());
 
-            EnsureDustParticles();
             EnsureBoundary();
             EnsureMagneticVisual();
-            ConfigureDustParticles();
-            ConfigureDebrisParticles();
+            if (magneticVisual == null)
+            {
+                EnsureDustParticles();
+                ConfigureDustParticles();
+                ConfigureDebrisParticles();
+            }
+            StopVisuals();
             boundary.SetStyle(settings.debugBoundaryColor,
                               settings.debugBoundaryWidth,
                               settings.debugSkyMarkerHeight);
@@ -104,6 +115,7 @@ namespace Metagame.Gameplay
             if (activeCycle == pose.CycleIndex) return;
 
             activeCycle = pose.CycleIndex;
+            if (magneticVisual != null) return;
             ConfigureDustDirection(pose.Direction);
             ConfigureDebrisDirection(pose.Direction);
             dustParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
@@ -177,9 +189,9 @@ namespace Metagame.Gameplay
                     Destroy(instance);
                     return;
                 }
-                magneticVisual.SetExternallyDriven();
-                instance.SetActive(false);
             }
+            magneticVisual.SetExternallyDriven();
+            magneticVisual.gameObject.SetActive(false);
             magneticVisual.SetExtents(settings.halfExtents);
         }
 
@@ -375,7 +387,8 @@ namespace Metagame.Gameplay
         {
             var rotation = pose.Rotation;
             transform.SetPositionAndRotation(pose.Center, rotation);
-            dustParticles.transform.SetPositionAndRotation(pose.Center, rotation);
+            if (dustParticles != null)
+                dustParticles.transform.SetPositionAndRotation(pose.Center, rotation);
             for (int i = 0; i < debrisParticles.Length; i++)
                 if (debrisParticles[i] != null)
                     debrisParticles[i].transform.SetPositionAndRotation(pose.Center, rotation);

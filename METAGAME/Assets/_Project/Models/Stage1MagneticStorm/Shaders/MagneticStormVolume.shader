@@ -9,6 +9,8 @@ Shader "Metagame/Atmosphere/MagneticStormVolume"
         [HDR] _IonColor ("Ion scattering", Color) = (0.02,0.4,0.65,1)
         _Density ("Extinction", Range(0.1,4)) = 2.4
         _Steps ("Ray steps", Range(24,96)) = 64
+        _BillowStrength ("Rolling cloud strength", Range(0,1.5)) = 1
+        _Erosion ("Breaking wisps", Range(0,0.4)) = 0.22
         _StormPhase ("Loop phase", Float) = 0
         _StormOpacity ("Visibility", Range(0,1)) = 1
     }
@@ -35,6 +37,7 @@ Shader "Metagame/Atmosphere/MagneticStormVolume"
             CBUFFER_START(UnityPerMaterial)
                 float4 _ShadowColor, _LightColor, _IonColor;
                 float _Density, _Steps, _StormPhase, _StormOpacity;
+                float _BillowStrength, _Erosion;
             CBUFFER_END
             struct Attributes { float4 positionOS:POSITION; UNITY_VERTEX_INPUT_INSTANCE_ID };
             struct Varyings {
@@ -56,13 +59,27 @@ Shader "Metagame/Atmosphere/MagneticStormVolume"
             float DensityAt(float3 uv, float phase)
             {
                 float a=phase*6.2831853;
-                float3 scroll=float3(phase,0,0);
-                float3 warp=float3(sin(a+uv.z*9),cos(a+uv.x*11),sin(a+uv.y*8))*.017;
-                float3 q=uv+warp;
-                float edge=saturate(min(min(min(q.x,1-q.x),min(q.y,1-q.y)),min(q.z,1-q.z))*22);
+                // Travelling rollers deform the density itself, not just its surface tint.
+                // Integer temporal harmonics and repeat-noise offsets close the six-second loop.
+                float roller=uv.x*18+uv.z*4-a;
+                float crossRoll=uv.z*13-uv.x*5+a*2;
+                float lift=sin(roller);
+                float3 warp=float3(
+                    .032*cos(roller+uv.y*5),
+                    .085*lift+.025*sin(crossRoll),
+                    .060*cos(roller)+.022*sin(crossRoll+uv.y*6));
+                float3 q=uv+warp*_BillowStrength;
+                float swell=1+_BillowStrength*.16*sin(uv.x*14+uv.z*8-a*2);
+                q.yz=(q.yz-.5)/swell+.5;
+                // Taper the original box boundary so animated lobes cannot expose a cut plane.
+                float3 border=min(uv,1-uv);
+                float edge=smoothstep(0,.065,min(min(border.x,border.y),border.z));
+                float3 warpedBorder=min(q,1-q);
+                edge*=saturate(min(min(warpedBorder.x,warpedBorder.y),warpedBorder.z)*24);
                 float shape=SAMPLE_TEXTURE3D_LOD(_DensityTex,sampler_DensityTex,saturate(q),0).r;
-                float noise=SAMPLE_TEXTURE3D_LOD(_NoiseTex,sampler_NoiseTex,uv*float3(4,1.6,2.5)+scroll,0).r;
-                return saturate(shape*(.65+noise*.7)-(1-noise)*.11)*edge;
+                float3 flow=q*float3(5,2.6,3.5)+float3(phase*2,-phase,phase);
+                float noise=SAMPLE_TEXTURE3D_LOD(_NoiseTex,sampler_NoiseTex,flow,0).r;
+                return saturate(shape*(.52+noise*.96)-(1-noise)*_Erosion)*edge;
             }
             half4 Frag(Varyings i):SV_Target
             {

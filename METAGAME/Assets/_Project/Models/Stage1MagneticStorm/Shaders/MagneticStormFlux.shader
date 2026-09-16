@@ -33,7 +33,8 @@ Shader "Metagame/Atmosphere/MagneticStormFlux"
                 UNITY_SETUP_INSTANCE_ID(v);UNITY_TRANSFER_INSTANCE_ID(v,o);UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
                 float3 p=v.positionOS.xyz;
                 float a=6.2831853*(_StormPhase+v.uv.x);
-                p.y+=.07*sin(a*2);p.z+=.09*cos(a);
+                p.y+=.20*sin(a*2)+.07*sin(a*3);
+                p.z+=.24*cos(a)+.08*sin(a*2);
                 o.positionCS=TransformObjectToHClip(p);o.uv=v.uv;return o;
             }
             half4 Frag(Varyings i):SV_Target

@@ -13,6 +13,63 @@ namespace Metagame.EditorTools
 {
     public static class MagneticStormPreview
     {
+        [MenuItem("Metagame/Art/Render Magnetic Storm Billow Loop")]
+        public static void RenderBillowLoop()
+        {
+            // An isolated preview scene leaves the user's stage and Play Mode state untouched.
+            var scene = EditorSceneManager.NewPreviewScene();
+            bool previousAsync = ShaderUtil.allowAsyncCompilation;
+            var previousTarget = RenderTexture.active;
+            var rt = new RenderTexture(640,360,24);
+            Texture2D image = null;
+            string output = Path.Combine(MagneticStormAssetBuilder.Artifacts,"billowing");
+            Directory.CreateDirectory(output);
+            try
+            {
+                ShaderUtil.allowAsyncCompilation = false;
+                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(MagneticStormAssetBuilder.PrefabPath);
+                var root = (GameObject)PrefabUtility.InstantiatePrefab(prefab,scene);
+                var visual = root.GetComponent<MagneticStormVisual>();
+                visual.SetExternallyDriven();
+                var camera = MakeCamera();
+                UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(camera.gameObject,scene);
+                camera.scene = scene;
+                camera.GetUniversalAdditionalCameraData().renderPostProcessing = false;
+                SetCamera(camera,new Vector3(10,5,-25),Vector3.zero);
+                rt.Create();
+                image = new Texture2D(640,360,TextureFormat.RGB24,false);
+                var request = new RenderPipeline.StandardRequest { destination = rt };
+                for(int frame=0;frame<=48;frame++)
+                {
+                    visual.Evaluate(frame/8d);
+                    RenderPipeline.SubmitRenderRequest(camera,request);
+                    RenderTexture.active=rt;
+                    image.ReadPixels(new Rect(0,0,640,360),0,0); image.Apply();
+                    File.WriteAllBytes(Path.Combine(output,"frame-"+frame.ToString("D2")+".png"),image.EncodeToPNG());
+                }
+                foreach(var name in new[]{"MagneticStormVolume","MagneticStormFlux"})
+                {
+                    var shader=Shader.Find("Metagame/Atmosphere/"+name);
+                    if(shader==null || ShaderUtil.ShaderHasError(shader))
+                        throw new InvalidOperationException("Storm shader failed: "+name);
+                }
+                File.WriteAllText(Path.Combine(output,"validation.txt"),"PASS: 49 Unity URP frames rendered at 8 fps over 6 seconds; smoke and flux shaders report no errors.");
+            }
+            catch(Exception e)
+            {
+                File.WriteAllText(Path.Combine(output,"validation.txt"),"FAIL: "+e);
+                throw;
+            }
+            finally
+            {
+                RenderTexture.active=previousTarget;
+                ShaderUtil.allowAsyncCompilation=previousAsync;
+                rt.Release(); Object.DestroyImmediate(rt);
+                if(image!=null) Object.DestroyImmediate(image);
+                EditorSceneManager.ClosePreviewScene(scene);
+            }
+        }
+
         public static void BuildAndRender()
         {
             MagneticStormAssetBuilder.Build();

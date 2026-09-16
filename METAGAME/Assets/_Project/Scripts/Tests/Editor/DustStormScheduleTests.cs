@@ -167,7 +167,8 @@ namespace Metagame.Gameplay.Tests
         {
             var root = new GameObject("Dust Storm Debris Source Test");
             var debris = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            profile.dustStorm.enabled = true;
+            // Skip the magnetic volume to exercise the legacy fallback setup.
+            profile.dustStorm.enabled = false;
             profile.dustStorm.largeDebrisPrefab = debris;
 
             try
@@ -177,7 +178,8 @@ namespace Metagame.Gameplay.Tests
 
                 var renderers = root.GetComponentsInChildren<ParticleSystemRenderer>(true);
                 Assert.That(renderers.Length, Is.GreaterThan(0));
-                Assert.IsNotNull(renderers[0].mesh,
+                Assert.IsTrue(System.Array.Exists(renderers, renderer =>
+                    renderer.renderMode == ParticleSystemRenderMode.Mesh && renderer.mesh != null),
                     "유효한 debris 원본은 임시 인스턴스에서 Mesh를 추출해야 한다.");
             }
             finally
@@ -191,6 +193,7 @@ namespace Metagame.Gameplay.Tests
         public void BuiltInDebrisMaterial_FallsBackToProjectSurface()
         {
             var root = new GameObject("Dust Storm Built-in Material Test");
+            profile.dustStorm.enabled = false; // Exercise the legacy fallback material setup.
             var debris = GameObject.CreatePrimitive(PrimitiveType.Cube);
             var builtInShader = Shader.Find("Standard");
             Assume.That(builtInShader, Is.Not.Null,

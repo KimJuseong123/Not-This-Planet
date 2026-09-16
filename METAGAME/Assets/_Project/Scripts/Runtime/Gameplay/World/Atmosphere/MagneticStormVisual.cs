@@ -92,7 +92,7 @@ namespace Metagame.Gameplay
                 if (debris[i] == null) continue;
                 float angle = (phase + i * .173f) * Mathf.PI * 2f;
                 debris[i].localPosition = debrisPositions[i] + new Vector3(
-                    .18f * Mathf.Cos(angle), .20f * Mathf.Sin(angle), .13f * Mathf.Sin(angle * 2f));
+                    .36f * Mathf.Cos(angle), .42f * Mathf.Sin(angle), .25f * Mathf.Sin(angle * 2f));
                 debris[i].localRotation = debrisRotations[i] * Quaternion.Euler(phase * 360f, phase * 720f, 0f);
             }
         }
