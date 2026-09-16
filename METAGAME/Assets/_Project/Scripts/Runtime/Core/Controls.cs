@@ -127,6 +127,12 @@ namespace Metagame.Core
         public static KeyCode FreeCursor = KeyCode.Escape;
         public static KeyCode EmoteWheel = KeyCode.F1;
 
+        /// <summary>
+        /// 춤 감정표현 고르기 (S15P21B202-563). <see cref="EmoteWheel"/> 바로 옆에 둔다 —
+        /// 조작이 같고(누른 채 방향, 떼면 결정) 고르는 것만 다르다.
+        /// </summary>
+        public static KeyCode DanceWheel = KeyCode.F2;
+
         public static float LookSensitivity = 2.4f;
         public static bool InvertLookY;
 

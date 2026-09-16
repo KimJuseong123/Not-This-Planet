@@ -20,6 +20,19 @@ namespace Metagame.Gameplay
         /// <summary>동료를 양손으로 들어 위로 내던지는 한 번짜리 동작 (S15P21B202-519).</summary>
         public const string TossResource = "RabbitLocomotion/Rabbit_TossUp";
 
+        /// <summary>F2 로 고르는 춤 감정표현 (S15P21B202-563). 14.2초짜리 한 번짜리 동작.</summary>
+        public const string DanceResource = "RabbitLocomotion/Rabbit_Dance";
+
+        /// <summary>
+        /// 춤이 저절로 끊기는 이동 속도(m/s).
+        ///
+        /// <para>던지기는 0.3초라 끝날 때까지 두면 그만이지만 <b>춤은 14.2초다</b> —
+        /// 그 사이 걸어다니면 다리는 춤을 추면서 몸은 미끄러진다. 걷기가 켜지는 문턱
+        /// (<see cref="CanAnimate"/> 의 0.15)과 같은 값을 써서, "걷기가 시작될 만큼
+        /// 움직였으면 춤은 끝" 이 되게 한다.</para>
+        /// </summary>
+        public const float DanceCancelSpeed = 0.15f;
+
         public static readonly IReadOnlyList<string> BoneNames = Array.AsReadOnly(new[]
         {
             "L_Upperarm", "L_Forearm", "L_Hand", "R_Upperarm", "R_Forearm", "R_Hand",
@@ -55,15 +68,36 @@ namespace Metagame.Gameplay
             public bool InWalk, InToss;
         }
 
+        /// <summary>
+        /// 한 번짜리 동작 하나. 던지기와 춤이 같은 틀을 쓴다 (S15P21B202-563).
+        ///
+        /// <para>춤을 넣으면서 던지기 전용이던 필드를 이 형태로 묶었다. 둘은
+        /// <b>클립·믹서 자리·끊기는 조건</b>만 다르고 재생·섞기·끝내기는 완전히 같다 —
+        /// 따로 두면 던지기에서 고친 것(<see cref="TossWeight"/> 봉투, 기절 시 끊기)이
+        /// 춤에는 빠지게 된다.</para>
+        /// </summary>
+        sealed class OneShot
+        {
+            public AnimationClip Clip;
+            public AnimationClipPlayable Node;
+            public int Slot;                // 믹서 입력 번호
+            public bool CancelOnMove;       // 걸으면 끊는가
+            public float Time, Weight;
+            public bool Active;
+            public bool Ready => Clip != null;
+        }
+
         readonly List<BoneLink> _bones = new();
-        readonly AnimationClip _walk, _run, _toss;
+        readonly AnimationClip _walk, _run;
         readonly GameObject _poseRoot;
+        readonly OneShot _tossShot = new() { Slot = 2, CancelOnMove = false };
+        readonly OneShot _danceShot = new() { Slot = 3, CancelOnMove = true };
+        OneShot[] OneShots => _oneShots ??= new[] { _tossShot, _danceShot };
+        OneShot[] _oneShots;
         PlayableGraph _graph;
-        AnimationClipPlayable _walkNode, _runNode, _tossNode;
+        AnimationClipPlayable _walkNode, _runNode;
         AnimationMixerPlayable _mixer;
         float _phase, _weight, _runBlend;
-        float _tossTime, _tossWeight;
-        bool _tossActive;
         public float Weight => _weight;
         public float RunBlend => _runBlend;
         public float Phase => _phase;
@@ -98,13 +132,25 @@ namespace Metagame.Gameplay
         }
 
         /// <summary>던지기 동작이 재생 중인가. 재생 중에는 보행이 물러난다.</summary>
-        public bool TossActive => _tossActive;
+        public bool TossActive => _tossShot.Active;
 
         /// <summary>던지기 동작의 현재 세기(0~1). 검증과 표시가 읽는다.</summary>
-        public float TossWeightNow => _tossWeight;
+        public float TossWeightNow => _tossShot.Weight;
 
         /// <summary>던지기 클립이 실제로 있는가. 없으면 <see cref="PlayToss"/> 가 조용히 아무것도 안 한다.</summary>
-        public bool HasToss => _toss != null;
+        public bool HasToss => _tossShot.Ready;
+
+        /// <summary>춤이 재생 중인가. 재생 중에는 보행이 물러난다.</summary>
+        public bool DanceActive => _danceShot.Active;
+
+        /// <summary>춤의 현재 세기(0~1).</summary>
+        public float DanceWeightNow => _danceShot.Weight;
+
+        /// <summary>춤 클립이 실제로 있는가. 없으면 <see cref="PlayDance"/> 가 조용히 아무것도 안 한다.</summary>
+        public bool HasDance => _danceShot.Ready;
+
+        /// <summary>춤 길이(초). 클립이 없으면 0.</summary>
+        public float DanceLength => _danceShot.Ready ? _danceShot.Clip.length : 0f;
 
         public static RabbitLocomotion Create(Transform model, GameObject reference)
         {
@@ -112,18 +158,20 @@ namespace Metagame.Gameplay
             var run = Resources.Load<AnimationClip>(RunResource);
             if (walk == null || run == null || model == null || reference == null) return null;
 
-            // 던지기 클립은 **없어도 된다.** 아직 굽지 않은 저장소에서도 걷기·달리기는
+            // 한 번짜리 클립들은 **없어도 된다.** 아직 굽지 않은 저장소에서도 걷기·달리기는
             // 그대로 돌아야 한다 — 여기서 null 을 돌려주면 캐릭터가 통째로 뻣뻣해진다.
             var toss = Resources.Load<AnimationClip>(TossResource);
-            return new RabbitLocomotion(model, reference, walk, run, toss);
+            var dance = Resources.Load<AnimationClip>(DanceResource);
+            return new RabbitLocomotion(model, reference, walk, run, toss, dance);
         }
 
         RabbitLocomotion(Transform model, GameObject reference,
-                         AnimationClip walk, AnimationClip run, AnimationClip toss)
+                         AnimationClip walk, AnimationClip run, AnimationClip toss, AnimationClip dance)
         {
             _walk = walk;
             _run = run;
-            _toss = toss;
+            _tossShot.Clip = toss;
+            _danceShot.Clip = dance;
             // 메시/콜라이더/스크립트 없이 Transform만 복제한다. 원본 프리팹을 수정하지 않는다.
             _poseRoot = CloneSkeleton(reference.transform, null).gameObject;
             _poseRoot.name = "~Rabbit locomotion pose (runtime only)";
@@ -152,15 +200,17 @@ namespace Metagame.Gameplay
             _runNode = AnimationClipPlayable.Create(_graph, run);
             _walkNode.SetSpeed(0); _runNode.SetSpeed(0);
             _walkNode.SetApplyFootIK(false); _runNode.SetApplyFootIK(false);
-            _mixer = AnimationMixerPlayable.Create(_graph, 3);
+            // 0 걷기 · 1 달리기 · 2 던지기 · 3 춤. 한 번짜리가 늘면 여기와 OneShot.Slot 만 는다.
+            _mixer = AnimationMixerPlayable.Create(_graph, 4);
             _graph.Connect(_walkNode, 0, _mixer, 0);
             _graph.Connect(_runNode, 0, _mixer, 1);
-            if (_toss != null)
+            foreach (var shot in OneShots)
             {
-                _tossNode = AnimationClipPlayable.Create(_graph, _toss);
-                _tossNode.SetSpeed(0);
-                _tossNode.SetApplyFootIK(false);
-                _graph.Connect(_tossNode, 0, _mixer, 2);
+                if (!shot.Ready) continue;
+                shot.Node = AnimationClipPlayable.Create(_graph, shot.Clip);
+                shot.Node.SetSpeed(0);
+                shot.Node.SetApplyFootIK(false);
+                _graph.Connect(shot.Node, 0, _mixer, shot.Slot);
             }
             AnimationPlayableOutput.Create(_graph, "Pose only", animator).SetSourcePlayable(_mixer);
             _mixer.SetInputWeight(0, 1f);
@@ -224,30 +274,35 @@ namespace Metagame.Gameplay
             // 한 번짜리 동작이라 걷기와 섞지 않는다. 섞으면 던지는 동안 다리가 걸음을
             // 걷는다. 기절·탑승 같은 것이 끼어들면 그냥 끊는다 — 그쪽이 몸을 통째로
             // 가져가므로 이어 봐야 어긋난 그림만 남는다.
-            if (_tossActive)
+            foreach (var shot in OneShots)
             {
-                if (state.Blocked) { CancelToss(); }
-                else
-                {
-                    _tossTime += deltaTime;
-                    _tossWeight = TossWeight(_tossTime, _toss.length);
-                    if (_tossTime >= _toss.length) { CancelToss(); }
-                    else
-                    {
-                        _tossNode.SetTime(_tossTime);
-                        _mixer.SetInputWeight(0, 0f);
-                        _mixer.SetInputWeight(1, 0f);
-                        _mixer.SetInputWeight(2, 1f);
-                        _graph.Evaluate(0f);
+                if (!shot.Active) continue;
 
-                        // **팔이 바쁜지 보지 않는다.** 던지는 사람은 반드시 남을 들고
-                        // 있으므로 그 검사를 그대로 두면 정작 던지는 두 팔이 빠진다.
-                        _weight = 0f;
-                        _phase = 0f;
-                        WriteBones(link => link.InToss, _tossWeight, state, respectArmBusy: false);
-                        return;
-                    }
+                // 춤은 14.2초라 그 사이 걸어다니면 다리는 춤추고 몸은 미끄러진다.
+                // 던지기(0.3초)는 이 검사를 받지 않는다 — 던지면서 걷는 것이 정상이다.
+                if (state.Blocked || (shot.CancelOnMove && state.Speed > DanceCancelSpeed))
+                {
+                    Cancel(shot);
+                    continue;
                 }
+
+                shot.Time += deltaTime;
+                shot.Weight = TossWeight(shot.Time, shot.Clip.length);
+                if (shot.Time >= shot.Clip.length) { Cancel(shot); continue; }
+
+                shot.Node.SetTime(shot.Time);
+                _mixer.SetInputWeight(0, 0f);
+                _mixer.SetInputWeight(1, 0f);
+                foreach (var other in OneShots)
+                    if (other.Ready) _mixer.SetInputWeight(other.Slot, other == shot ? 1f : 0f);
+                _graph.Evaluate(0f);
+
+                // **팔이 바쁜지 보지 않는다.** 던지는 사람은 반드시 남을 들고
+                // 있으므로 그 검사를 그대로 두면 정작 던지는 두 팔이 빠진다.
+                _weight = 0f;
+                _phase = 0f;
+                WriteBones(link => link.InToss, shot.Weight, state, respectArmBusy: false);
+                return;
             }
 
             // 공중/기절/탑승은 즉시 물리로 돌아가고 일반 정지만 짧게 전환한다.
@@ -264,7 +319,7 @@ namespace Metagame.Gameplay
             _runNode.SetTime(_phase * _run.length);
             _mixer.SetInputWeight(0, 1f - _runBlend);
             _mixer.SetInputWeight(1, _runBlend);
-            _mixer.SetInputWeight(2, 0f);
+            foreach (var shot in OneShots) if (shot.Ready) _mixer.SetInputWeight(shot.Slot, 0f);
             _graph.Evaluate(0f);
 
             WriteBones(link => link.InWalk, _weight, state, respectArmBusy: true);
@@ -304,21 +359,36 @@ namespace Metagame.Gameplay
         /// <para>이미 재생 중이어도 <b>처음으로 되돌린다</b> — 연달아 두 번 던지면 두 번째
         /// 동작이 보여야 한다.</para>
         /// </summary>
-        public void PlayToss()
-        {
-            if (_toss == null || !_graph.IsValid()) return;
+        public void PlayToss() => Play(_tossShot);
 
-            _tossActive = true;
-            _tossTime = 0f;
-            _tossWeight = 0f;
+        /// <summary>
+        /// 춤을 처음부터 재생한다. 클립이 없으면 아무 일도 하지 않는다 (S15P21B202-563).
+        ///
+        /// <para>던지기와 마찬가지로 이미 재생 중이어도 <b>처음으로 되돌린다.</b></para>
+        /// </summary>
+        public void PlayDance() => Play(_danceShot);
+
+        /// <summary>춤을 즉시 끝낸다. 걷기 시작하면 <see cref="Apply"/> 가 알아서 부른다.</summary>
+        public void CancelDance() => Cancel(_danceShot);
+
+        void Play(OneShot shot)
+        {
+            if (!shot.Ready || !_graph.IsValid()) return;
+
+            // 한 번에 하나만 돈다. 둘을 겹치면 두 클립이 같은 뼈를 두고 다툰다.
+            foreach (var other in OneShots) if (other != shot) Cancel(other);
+
+            shot.Active = true;
+            shot.Time = 0f;
+            shot.Weight = 0f;
         }
 
-        void CancelToss()
+        void Cancel(OneShot shot)
         {
-            _tossActive = false;
-            _tossTime = 0f;
-            _tossWeight = 0f;
-            if (_mixer.IsValid()) _mixer.SetInputWeight(2, 0f);
+            shot.Active = false;
+            shot.Time = 0f;
+            shot.Weight = 0f;
+            if (_mixer.IsValid() && shot.Ready) _mixer.SetInputWeight(shot.Slot, 0f);
         }
 
         /// <summary>
