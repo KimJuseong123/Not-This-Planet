@@ -1,0 +1,14 @@
+{
+    "status": "PASS",
+    "replaced": 138,
+    "dynamicFixtures": 8,
+    "remainingOldObjects": 0,
+    "missingScripts": 0,
+    "changedIds": [
+        "870497299",
+        "883643004",
+        "698323700",
+        "698323702"
+    ],
+    "replacements": []
+}

@@ -12,6 +12,9 @@ namespace Metagame.Gameplay.Parts
         [SerializeField] Renderer[] bollards;
         [SerializeField] Material[] bollardFloorMaterials;
         [SerializeField] Material bollardCompleteMaterial;
+        [SerializeField] private Renderer[] _floorFixtures;
+        [SerializeField] private Material[] _floorFixtureMaterials;
+        [SerializeField] private Material _floorFixtureCompleteMaterial;
         int shown = -2;
 
         public void Configure(ShipAssembly target, Renderer[] renderers, Material[] colors, Material ready)
@@ -27,6 +30,15 @@ namespace Metagame.Gameplay.Parts
         }
 
         void OnEnable() => shown = -2;
+
+        /// <summary>Imported floor fixtures keep their chassis in slot 0 and change only the lens in slot 1.</summary>
+        public void ConfigureFloorFixtures(Renderer[] renderers, Material[] colors, Material ready)
+        {
+            _floorFixtures = renderers;
+            _floorFixtureMaterials = colors;
+            _floorFixtureCompleteMaterial = ready;
+            shown = -2;
+        }
 
         void Start()
         {
@@ -68,6 +80,17 @@ namespace Metagame.Gameplay.Parts
                 : bollardFloorMaterials != null && next < bollardFloorMaterials.Length ? bollardFloorMaterials[next] : null;
             if (bollardMaterial != null && bollards != null)
                 foreach (var bollard in bollards) if (bollard != null) bollard.sharedMaterial = bollardMaterial;
+            var lens = next < 0 ? _floorFixtureCompleteMaterial
+                : _floorFixtureMaterials != null && next < _floorFixtureMaterials.Length ? _floorFixtureMaterials[next] : null;
+            if (lens != null && _floorFixtures != null)
+                foreach (var fixture in _floorFixtures)
+                {
+                    if (fixture == null) continue;
+                    var materials = fixture.sharedMaterials;
+                    if (materials.Length < 2) continue;
+                    materials[1] = lens;
+                    fixture.sharedMaterials = materials;
+                }
             shown = next;
         }
     }
