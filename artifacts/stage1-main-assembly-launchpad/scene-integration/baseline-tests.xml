@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="9" result="Failed(Child)" total="9" passed="8" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-16 23:31:35Z" end-time="2026-09-16 23:31:36Z" duration="0.8091313">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="1706" result="Failed" site="Child" start-time="2026-09-16 23:31:35Z" end-time="2026-09-16 23:31:36Z" duration="0.809131" total="9" passed="8" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="2899" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202/METAGAME/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="1706" result="Failed" site="Child" start-time="2026-09-16 23:31:35Z" end-time="2026-09-16 23:31:36Z" duration="0.709271" total="9" passed="8" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="37784" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="2900" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="1706" result="Failed" site="Child" start-time="2026-09-16 23:31:35Z" end-time="2026-09-16 23:31:36Z" duration="0.613282" total="9" passed="8" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="2905" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="1663" result="Failed" site="Child" start-time="2026-09-16 23:31:35Z" end-time="2026-09-16 23:31:36Z" duration="0.514157" total="9" passed="8" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="2906" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="1663" result="Failed" site="Child" start-time="2026-09-16 23:31:35Z" end-time="2026-09-16 23:31:36Z" duration="0.414368" total="9" passed="8" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1630" name="LaunchTestTests" fullname="Metagame.Gameplay.Tests.LaunchTestTests" classname="Metagame.Gameplay.Tests.LaunchTestTests" runstate="Runnable" testcasecount="9" result="Failed" site="Child" start-time="2026-09-16 23:31:35Z" end-time="2026-09-16 23:31:36Z" duration="0.319677" total="9" passed="8" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1637" name="Begin_CollectsTheWholeTower" fullname="Metagame.Gameplay.Tests.LaunchTestTests.Begin_CollectsTheWholeTower" methodname="Begin_CollectsTheWholeTower" classname="Metagame.Gameplay.Tests.LaunchTestTests" runstate="Runnable" seed="152439069" result="Passed" start-time="2026-09-16 23:31:35Z" end-time="2026-09-16 23:31:35Z" duration="0.028376" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1631" name="ConvertedTractorEngine_WeldedTowerReachesSuccess" fullname="Metagame.Gameplay.Tests.LaunchTestTests.ConvertedTractorEngine_WeldedTowerReachesSuccess" methodname="ConvertedTractorEngine_WeldedTowerReachesSuccess" classname="Metagame.Gameplay.Tests.LaunchTestTests" runstate="Runnable" seed="1260707620" result="Passed" start-time="2026-09-16 23:31:35Z" end-time="2026-09-16 23:31:35Z" duration="0.049772" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1635" name="FailedLaunch_LeavesSomeJointsIntact" fullname="Metagame.Gameplay.Tests.LaunchTestTests.FailedLaunch_LeavesSomeJointsIntact" methodname="FailedLaunch_LeavesSomeJointsIntact" classname="Metagame.Gameplay.Tests.LaunchTestTests" runstate="Runnable" seed="954618873" result="Failed" start-time="2026-09-16 23:31:35Z" end-time="2026-09-16 23:31:36Z" duration="0.025423" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  접합이 전부 끊어졌다. 약한 곳부터 끊어지고 나머지는 붙은 덩어리로 남아야 한다.
+  Expected: greater than 0
+  But was:  0
+]]></message>
+                  <stack-trace><![CDATA[at Metagame.Gameplay.Tests.LaunchTestTests.FailedLaunch_LeavesSomeJointsIntact () [0x00083] in C:\workspace\2-PJT\S15P21B202\METAGAME\Assets\_Project\Scripts\Tests\Editor\LaunchTestTests.cs:281
+]]></stack-trace>
+                </failure>
+              </test-case>
+              <test-case id="1639" name="Output_RampsOverFiveSeconds" fullname="Metagame.Gameplay.Tests.LaunchTestTests.Output_RampsOverFiveSeconds" methodname="Output_RampsOverFiveSeconds" classname="Metagame.Gameplay.Tests.LaunchTestTests" runstate="Runnable" seed="287899498" result="Passed" start-time="2026-09-16 23:31:36Z" end-time="2026-09-16 23:31:36Z" duration="0.012375" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1638" name="Result_IsDeterministic" fullname="Metagame.Gameplay.Tests.LaunchTestTests.Result_IsDeterministic" methodname="Result_IsDeterministic" classname="Metagame.Gameplay.Tests.LaunchTestTests" runstate="Runnable" seed="1159720783" result="Passed" start-time="2026-09-16 23:31:36Z" end-time="2026-09-16 23:31:36Z" duration="0.038427" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1633" name="SuccessfulLaunch_SealsJointsAgainstFurtherBreaking" fullname="Metagame.Gameplay.Tests.LaunchTestTests.SuccessfulLaunch_SealsJointsAgainstFurtherBreaking" methodname="SuccessfulLaunch_SealsJointsAgainstFurtherBreaking" classname="Metagame.Gameplay.Tests.LaunchTestTests" runstate="Runnable" seed="441107771" result="Passed" start-time="2026-09-16 23:31:36Z" end-time="2026-09-16 23:31:36Z" duration="0.019338" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1636" name="TiltedShip_FailsBeforeThrustBegins" fullname="Metagame.Gameplay.Tests.LaunchTestTests.TiltedShip_FailsBeforeThrustBegins" methodname="TiltedShip_FailsBeforeThrustBegins" classname="Metagame.Gameplay.Tests.LaunchTestTests" runstate="Runnable" seed="1270649252" result="Passed" start-time="2026-09-16 23:31:36Z" end-time="2026-09-16 23:31:36Z" duration="0.003443" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1634" name="UnweldedTower_FailsTheLoadTest" fullname="Metagame.Gameplay.Tests.LaunchTestTests.UnweldedTower_FailsTheLoadTest" methodname="UnweldedTower_FailsTheLoadTest" classname="Metagame.Gameplay.Tests.LaunchTestTests" runstate="Runnable" seed="1147122116" result="Passed" start-time="2026-09-16 23:31:36Z" end-time="2026-09-16 23:31:36Z" duration="0.016802" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1632" name="WeldedTower_PassesTheLoadTest" fullname="Metagame.Gameplay.Tests.LaunchTestTests.WeldedTower_PassesTheLoadTest" methodname="WeldedTower_PassesTheLoadTest" classname="Metagame.Gameplay.Tests.LaunchTestTests" runstate="Runnable" seed="522515807" result="Passed" start-time="2026-09-16 23:31:36Z" end-time="2026-09-16 23:31:36Z" duration="0.018203" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

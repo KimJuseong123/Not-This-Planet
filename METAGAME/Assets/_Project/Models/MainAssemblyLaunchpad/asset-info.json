@@ -1,0 +1,21 @@
+{
+  "asset": "SM_Astra_MainAssemblyLaunchpad",
+  "fbx": "SM_Astra_MainAssemblyLaunchpad.fbx",
+  "fbm": "SM_Astra_MainAssemblyLaunchpad.fbm",
+  "material": "M_Astra_MainAssemblyLaunchpad.mat",
+  "dimensions_m_width_depth_height": [
+    7.732973575592041,
+    8.286486864089966,
+    3.3315749764442444
+  ],
+  "triangles": 47488,
+  "meshes": 14,
+  "source_components": 414,
+  "textures": "Six 2048 x 2048 PNG maps, existing Astra hangar palette",
+  "source_blend": "artifacts/stage1-main-assembly-launchpad/SM_Astra_MainAssemblyLaunchpad.blend",
+  "pivot": "Center of flat docking surface; housing extends 0.53 m below it.",
+  "front": "Blender -Y. FBX exported -Z forward, Y up.",
+  "scene_integration": "Not placed. No gameplay/collider/animation integration.",
+  "fbx_roundtrip": "PASS",
+  "sha256": "b15b4708bb448927daa733d8217911b7efd4e207941dc23af10ca5db02bd5085"
+}

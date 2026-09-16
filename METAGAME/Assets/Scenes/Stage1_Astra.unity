@@ -11462,6 +11462,7 @@ GameObject:
   - component: {fileID: 281745918}
   - component: {fileID: 281745920}
   - component: {fileID: 281745919}
+  - component: {fileID: 281745921}
   m_Layer: 0
   m_Name: AssemblyPoint
   m_TagString: Untagged
@@ -11478,11 +11479,12 @@ Transform:
   m_GameObject: {fileID: 281745917}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.99, z: 0}
+  m_LocalPosition: {x: 0, y: 1.44, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 313579319}
+  - {fileID: 1486835830}
   m_Father: {fileID: 280416543}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &281745919
@@ -11510,6 +11512,24 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.Parts.ShipAssembly
   _launchPad: {fileID: 281745918}
+--- !u!114 &281745921
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 281745917}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5501a17718e3cd74a997453b277dc631, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.Parts.AssemblyDock
+  _captureRadius: 0.9
+  _heightTolerance: 0.18
+  _maxTilt: 18
+  _maxCaptureSpeed: 1.8
+  _snapDuration: 0.35
+  _authoredVisual: {fileID: 1486835831}
 --- !u!1 &285195083
 GameObject:
   m_ObjectHideFlags: 0
@@ -40290,6 +40310,55 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 4996943236317911061, guid: c35b67f186cee4546bffde37df87e49e, type: 3}
   m_PrefabInstance: {fileID: 866953564}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &868578171
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 868578173}
+  - component: {fileID: 868578172}
+  m_Layer: 0
+  m_Name: Stage1 Magnetic Storm
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &868578172
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 868578171}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 436094df4e164ad0a40a8ee4462bfc02, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.AtmosphereDustStorm
+  profile: {fileID: 0}
+  dustParticles: {fileID: 0}
+  boundary: {fileID: 0}
+  magneticVisual: {fileID: 1993888947}
+--- !u!4 &868578173
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 868578171}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 2.58, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1993888948}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &870497297
 GameObject:
   m_ObjectHideFlags: 0
@@ -66117,6 +66186,79 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 1cd9db64708c93644ac06f60fa561026, type: 3}
   m_PrefabInstance: {fileID: 1483713750}
   m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1486835829
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 281745918}
+    m_Modifications:
+    - target: {fileID: 1914898388846200659, guid: 669bd52ba6135a4438d7baf136805a7d, type: 3}
+      propertyPath: m_Name
+      value: MainAssemblyLaunchpad
+      objectReference: {fileID: 0}
+    - target: {fileID: 7236075820123344070, guid: 669bd52ba6135a4438d7baf136805a7d, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7236075820123344070, guid: 669bd52ba6135a4438d7baf136805a7d, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7236075820123344070, guid: 669bd52ba6135a4438d7baf136805a7d, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7236075820123344070, guid: 669bd52ba6135a4438d7baf136805a7d, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.9238795
+      objectReference: {fileID: 0}
+    - target: {fileID: 7236075820123344070, guid: 669bd52ba6135a4438d7baf136805a7d, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7236075820123344070, guid: 669bd52ba6135a4438d7baf136805a7d, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.38268346
+      objectReference: {fileID: 0}
+    - target: {fileID: 7236075820123344070, guid: 669bd52ba6135a4438d7baf136805a7d, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7236075820123344070, guid: 669bd52ba6135a4438d7baf136805a7d, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7236075820123344070, guid: 669bd52ba6135a4438d7baf136805a7d, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7236075820123344070, guid: 669bd52ba6135a4438d7baf136805a7d, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 669bd52ba6135a4438d7baf136805a7d, type: 3}
+--- !u!4 &1486835830 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 7236075820123344070, guid: 669bd52ba6135a4438d7baf136805a7d, type: 3}
+  m_PrefabInstance: {fileID: 1486835829}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1486835831 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 4071380388782388600, guid: 669bd52ba6135a4438d7baf136805a7d, type: 3}
+  m_PrefabInstance: {fileID: 1486835829}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7e1f4afa6f47075498b84e4884211f97, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.Parts.AssemblyDockVisual
 --- !u!1 &1489115640
 GameObject:
   m_ObjectHideFlags: 0
@@ -89586,6 +89728,79 @@ MonoBehaviour:
   _gripTarget: {fileID: 0}
   _releasedVisual: {fileID: 203173076}
   _pulledSeconds: 0
+--- !u!1001 &1993888946
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 868578173}
+    m_Modifications:
+    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3888947284752906420, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+      propertyPath: m_Name
+      value: Stage1MagneticStorm
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+--- !u!114 &1993888947 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 927629189053722594, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+  m_PrefabInstance: {fileID: 1993888946}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 48ad5abfa92d07e459fe30b0f9cde932, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.MagneticStormVisual
+--- !u!4 &1993888948 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
+  m_PrefabInstance: {fileID: 1993888946}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1994700374
 GameObject:
   m_ObjectHideFlags: 0
@@ -102005,128 +102220,6 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 4121680353556964967, guid: d06292bfb6bc9f44199884258ea93c02, type: 3}
---- !u!1 &868578171
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 868578173}
-  - component: {fileID: 868578172}
-  m_Layer: 0
-  m_Name: Stage1 Magnetic Storm
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &868578172
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 868578171}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 436094df4e164ad0a40a8ee4462bfc02, type: 3}
-  m_Name:
-  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.AtmosphereDustStorm
-  profile: {fileID: 0}
-  dustParticles: {fileID: 0}
-  boundary: {fileID: 0}
-  magneticVisual: {fileID: 1993888947}
---- !u!4 &868578173
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 868578171}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 2.58, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 1993888948}
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1001 &1993888946
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 868578173}
-    m_Modifications:
-    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 3888947284752906420, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
-      propertyPath: m_Name
-      value: Stage1MagneticStorm
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
---- !u!114 &1993888947 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 927629189053722594, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
-  m_PrefabInstance: {fileID: 1993888946}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 48ad5abfa92d07e459fe30b0f9cde932, type: 3}
-  m_Name:
-  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.MagneticStormVisual
---- !u!4 &1993888948 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 1786413901350904212, guid: b6fdc1d8f6563064f9a15b6236f0c561, type: 3}
-  m_PrefabInstance: {fileID: 1993888946}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

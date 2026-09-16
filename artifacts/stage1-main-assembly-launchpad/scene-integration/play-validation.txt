@@ -1,0 +1,1 @@
+PASS: actual Stage1_Astra engine released, captured, centered, grounded at datum and kinematic; four jaws closed, four cyan status lamps; no procedural dock duplication.

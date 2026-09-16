@@ -1,0 +1,3 @@
+PASS: 9 engine support rays; rocket column clear; 8 static World-layer colliders; original ShipAssembly/LaunchTest/ShipHatch retained.
+Assembly datum=(0.0000, 1.4400, 0.0000); launchpad yaw=45
+Renderers=14; colliders=8

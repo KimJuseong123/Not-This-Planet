@@ -287,7 +287,9 @@ namespace Metagame.EditorTools
                     +" pins="+part.GetComponentsInChildren<PartClamp>(true).Length);
             }
             var assembly=all.Select(t=>t.GetComponent<ShipAssembly>()).Single(a=>a!=null);
-            float center=Surface(group.transform.Find(Names[0]).gameObject,assembly.LaunchPad.position.x,assembly.LaunchPad.position.z);
+            var mainLaunchpad=assembly.GetComponentInChildren<AssemblyDockVisual>();
+            var supportObject=mainLaunchpad ? mainLaunchpad.gameObject : group.transform.Find(Names[0]).gameObject;
+            float center=Surface(supportObject,assembly.LaunchPad.position.x,assembly.LaunchPad.position.z);
             if(Mathf.Abs(center-assembly.LaunchPad.position.y)>.02f) throw new InvalidOperationException("Dock height mismatch");
             report.AppendLine("Assembly dock surface="+center.ToString("F4")+" gameplayHeight="+assembly.LaunchPad.position.y);
             report.AppendLine("Five FBX prefabs / URP materials / static mesh colliders / four parts / pins / docking height: PASS");
