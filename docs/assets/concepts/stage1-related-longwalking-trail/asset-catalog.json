@@ -98,5 +98,15 @@
     "revisionPrompt": null,
     "generator": "built-in image_gen",
     "sourcePath": "C:\\Users\\SSAFY\\.codex\\generated_images\\01a0a7c4-7db7-7d21-8629-4da3bc947353\\exec-a54be05e-072c-478d-94e1-e982215e32ea.png"
+  },
+  {
+    "id": "L11",
+    "file": "11-spiral-hill-ascent.png",
+    "category": "whole-route-alternative",
+    "title": "L11 | SPIRAL HILL ASCENT",
+    "prompt": "Use case: stylized-concept. Create ONE polished landscape 1536x1024 game environment concept art sheet titled \"L11 | SPIRAL HILL ASCENT\". EXACTLY six panels in a 3 column by 2 row grid labeled in reading order \"CONCEPT\", \"FRONT\", \"RIGHT\", \"LEFT\", \"TOP\", \"BACK\". Show the SAME complete gently ascending curved ramp assembly in all six panels. CONCEPT is a beautiful three-quarter elevated perspective; FRONT, RIGHT, LEFT, BACK are clear orthographic elevations; TOP is true overhead. Same topology, rise, entry and exit in all views.\nSUBJECT: a wide continuous walkable uphill path that wraps three quarters of a circle around an OPEN CENTER, about 270 degrees total turn, NOT a tight corkscrew and NOT a staircase. ONE gradual rising C-shaped ribbon, no stacked repeated coils, no full closed ring. Broad 4.4m usable walking width, approximately 0.6m deck thickness, centerline radius around 14m, total rise about 7m over approximately 66m curved path. Lowest entry at front/south, route follows around the east then north towards a higher west exit; uphill path is a continuous 270-degree curve, ends are distinct and unconnected, with short open straight approach lips. Deck floor gently rises all along the arc, NEVER any steps or stairs. There is NO central tower, NO elevator, NO observatory building, NO decorative circular platform filling the center.\nStage1_Astra visual language: pearl white rounded chamfered outer frames, broad matte muted lavender trapezoid floor panels following the curve, narrow cyan edge guide strips, dark titanium underside with restrained structural ribs. Sparse slim adjustable support feet under high sections make structure legible without filling the open center. Low white edge curbs, no full-height guardrails. Friendly clean space-exploration facility, slightly softened edges, no rusty military grunge.\nAll objects fit fully in their panels. Every orthographic elevation clearly distinguishes lower entry from high exit. TOP shows the open C-shaped continuous route and two separate ends, not concentric disconnected circles. Neutral uniform OPAQUE pale gray-white background, soft studio shadows, crisp DARK readable labels, subtle panel dividers. No dark gradients, no terrain, no people, no annotations or dimension text, no logo, no watermark. This is a whole-route curved design proposal related to five existing straight walkway modules.",
+    "revisionPrompt": null,
+    "generator": "built-in image_gen",
+    "sourcePath": "C:\\Users\\SSAFY\\.codex\\generated_images\\01a0a7c4-7db7-7d21-8629-4da3bc947353\\exec-7779cdcf-0e4b-4383-b65e-8a35f661f8df.png"
   }
 ]

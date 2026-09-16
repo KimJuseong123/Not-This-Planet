@@ -1,8 +1,14 @@
 # Stage1_Astra · 핵심 파츠 2 주변 컨셉아트
 
-2026-09-16 · **10종, 오브젝트별 단일 PNG 1장, 각 1536 × 1024px / 6뷰**
+2026-09-16 · **11종, 오브젝트별 단일 PNG 1장, 각 1536 × 1024px / 6뷰**
 
 [전체 갤러리](index.html) · [생성 프롬프트](prompts.md) · [씬 배치 근거](scene-evidence.json) · [파일 목록](asset-catalog.json)
+
+## 추가 컨셉 · 나선형 오르막길
+
+[L11 · 6뷰 이미지](11-spiral-hill-ascent.png) · [설명·제작 기준](11-spiral-hill-ascent.md)
+
+기존 직선 보행로들을 언덕을 감아 오르는 하나의 곡선형 길로 재해석한 **전체 노선 대안 1종**을 추가했다. 아래 최초 10종과 별도로 검토하며 기존 길에 중복 설치하는 의미는 아니다.
 
 ## 범위와 판단
 
@@ -43,6 +49,7 @@
 | L08 | 관측 센서 | 기존 요소 재해석 | [6뷰 시트](08-observatory-instrument.png) |
 | L09 | 방향 전환 이음판 | 추가 제안 | [6뷰 시트](09-adjustable-trail-junction.png) |
 | L10 | 절벽 측 개방형 난간 | 추가 제안 | [6뷰 시트](10-cliff-edge-guardrail.png) |
+| L11 | 나선형 오르막길 전체 | 전체 노선 대안 | [6뷰 시트](11-spiral-hill-ascent.png) |
 
 ## 뷰·치수 읽는 법
 

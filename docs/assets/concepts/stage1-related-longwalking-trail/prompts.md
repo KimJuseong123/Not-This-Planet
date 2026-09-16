@@ -142,3 +142,7 @@ Subject: NEW optional single modular open guardrail for cliff-facing OUTER edge 
 Opaque solid white background (#F4F4F4) every pixel outside object and its subtle contact shadow, black readable labels. NO transparency or black gradients.
 ```
 
+
+## L11 · 나선형 오르막길
+
+프롬프트와 상세 설명: [11-spiral-hill-ascent.md](11-spiral-hill-ascent.md). 내장 이미지 생성 도구 사용.
