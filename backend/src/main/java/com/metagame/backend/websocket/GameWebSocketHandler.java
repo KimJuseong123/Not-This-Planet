@@ -439,10 +439,14 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 localCount,
                 same ? "direct(same network)" : (relay != null ? "relay" : "direct(relay failed)"));
 
-        // 같은 망 판별이 왜 그렇게 나왔는지 남긴다. 같은 WiFi 인데 릴레이를 타면
-        // 여기서 갈린 것이다 — 공인 IP 는 다른데 랜 주소를 아무도 안 알려 준 경우다.
-        log.info("same network 판별: 공인IP종류={} · 같은랜대역={}",
-                publicIps.values().stream().distinct().count(), sameLocalSubnet(room));
+        // 같은 망 판별이 왜 그렇게 나왔는지 남긴다 — **세 값이 곧 판정 근거다.**
+        // IP 는 개인정보라 종류 수만 센다. 공인 대역이 둘 이상이면 서로 다른 망이라
+        // 보고 릴레이로 간다(S15P21B202-570): 랜 대역은 망이 달라도 겹치기 때문이다.
+        List<String> localIps = localIpsOf(room);
+        log.info("same network 판별: 공인IP종류={} · 공인대역종류={} · 랜대역종류={}",
+                publicIps.values().stream().distinct().count(),
+                publicIps.values().stream().map(GameWebSocketHandler::prefix24).distinct().count(),
+                localIps.stream().map(GameWebSocketHandler::subnetOf).distinct().count());
 
         if (localCount > 0) {
             log.warn("공인 IP 를 못 읽었다 — nginx 가 X-Forwarded-For 를 넘기는지 확인할 것. "
@@ -619,6 +623,11 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
      * 그래서 아래 결함이 2주 동안 남아 있었다(S15P21B202-570).
      */
     private boolean sameNetwork(Room room, LinkedHashMap<Long, String> publicIps) {
+        return sameNetwork(publicIps.values(), localIpsOf(room));
+    }
+
+    /** 방 사람들이 알려 준 랜 주소. 안 알려 줬거나 세션이 없으면 그 자리는 null 이다. */
+    private List<String> localIpsOf(Room room) {
         List<String> localIps = new ArrayList<>();
         for (Long playerId : room.playerIds()) {
             WebSocketSession session = sessions.get(playerId);
@@ -626,7 +635,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                     ? null
                     : (String) session.getAttributes().get(LOCAL_IP_ATTR));
         }
-        return sameNetwork(publicIps.values(), localIps);
+        return localIps;
     }
 
     /**
