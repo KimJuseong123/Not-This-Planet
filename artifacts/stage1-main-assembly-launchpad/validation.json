@@ -1,0 +1,62 @@
+{
+  "asset": "SM_Astra_MainAssemblyLaunchpad",
+  "material": "M_Astra_MainAssemblyLaunchpad",
+  "components": 414,
+  "before_export": {
+    "meshes": 14,
+    "vertices": 24572,
+    "triangles": 47488,
+    "min": [
+      -3.8664867877960205,
+      -4.420000076293945,
+      -0.5300000309944153
+    ],
+    "max": [
+      3.8664867877960205,
+      3.8664867877960205,
+      2.801574945449829
+    ],
+    "dimensions": [
+      7.732973575592041,
+      8.286486864089966,
+      3.3315749764442444
+    ]
+  },
+  "after_reimport": {
+    "meshes": 14,
+    "vertices": 24572,
+    "triangles": 47488,
+    "min": [
+      -3.8664867877960205,
+      -4.420000076293945,
+      -0.530000627040863
+    ],
+    "max": [
+      3.8664867877960205,
+      3.8664867877960205,
+      2.80157470703125
+    ],
+    "dimensions": [
+      7.732973575592041,
+      8.286486864089966,
+      3.331575334072113
+    ]
+  },
+  "texture_references": [
+    "C:\\workspace\\2-PJT\\S15P21B202-571-art\\METAGAME\\Assets\\_Project\\Models\\MainAssemblyLaunchpad\\SM_Astra_MainAssemblyLaunchpad.fbm\\SM_Astra_MainAssemblyLaunchpad_BaseColor.png",
+    "C:\\workspace\\2-PJT\\S15P21B202-571-art\\METAGAME\\Assets\\_Project\\Models\\MainAssemblyLaunchpad\\SM_Astra_MainAssemblyLaunchpad.fbm\\SM_Astra_MainAssemblyLaunchpad_Emission.png",
+    "C:\\workspace\\2-PJT\\S15P21B202-571-art\\METAGAME\\Assets\\_Project\\Models\\MainAssemblyLaunchpad\\SM_Astra_MainAssemblyLaunchpad.fbm\\SM_Astra_MainAssemblyLaunchpad_Metallic.png",
+    "C:\\workspace\\2-PJT\\S15P21B202-571-art\\METAGAME\\Assets\\_Project\\Models\\MainAssemblyLaunchpad\\SM_Astra_MainAssemblyLaunchpad.fbm\\SM_Astra_MainAssemblyLaunchpad_Normal.png",
+    "C:\\workspace\\2-PJT\\S15P21B202-571-art\\METAGAME\\Assets\\_Project\\Models\\MainAssemblyLaunchpad\\SM_Astra_MainAssemblyLaunchpad.fbm\\SM_Astra_MainAssemblyLaunchpad_Roughness.png"
+  ],
+  "missing_textures": [],
+  "geometry_audit": [],
+  "uv_layers": [
+    "UVMap (shared palette atlas)",
+    "LightmapUV (non-overlapping per mesh)"
+  ],
+  "roundtrip": "PASS",
+  "pivot": "Docking plane center z=0 in Blender",
+  "front": "Blender -Y",
+  "gameplay_integration": "Not performed; no collider or animation authored. Four separate movable jaw meshes."
+}
