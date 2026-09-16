@@ -128,6 +128,8 @@ namespace Metagame.Gameplay
         public bool BeamActive { get; private set; }
         public bool BeamHasContact { get; private set; }
         public Vector3 BeamEnd { get; private set; }
+        RaycastHit lastCutContact;
+        bool hasLastCutContact;
 
         /// <summary>
         /// 지금 비드를 쌓고 있는 파츠. 없으면 null.
@@ -337,9 +339,20 @@ namespace Metagame.Gameplay
             beam.SetPosition(1, BeamEnd);
             beam.enabled = true;
 
-            var showWeldContact = BeamMode == PlasmaBeamMode.Weld && BeamHasContact &&
-                                  RemainingFraction > 0f && WeldBead.CanApplyAt(contact, false);
-            if (showWeldContact) ShowWeldContactFx(contact);
+            // 좌클릭 용접뿐 아니라 우클릭 절단도 실제 작업 가능한 표면에 닿으면
+            // 같은 접촉 발광을 보여 준다. 빔 선의 밝기가 아니라 이 지점광·불꽃이
+            // 플레이어에게 "지금 작업 중"임을 알려 주는 피드백이다.
+            var effectContact = contact;
+            var showWeldContact = BeamHasContact &&
+                                  (BeamMode == PlasmaBeamMode.Weld
+                                      ? RemainingFraction > 0f && WeldBead.CanApplyAt(contact, false)
+                                      : BeamMode == PlasmaBeamMode.Cut &&
+                                        (CuttingProgressed || WeldBead.CanApplyAt(contact, true)));
+            // 절단 물리 틱이 비드를 먼저 줄이면 같은 프레임의 재레이캐스트는
+            // 아래 파츠 표면을 맞힐 수 있다. 실제로 절단한 원래 접촉점에 효과를 남긴다.
+            if (BeamMode == PlasmaBeamMode.Cut && CuttingProgressed && hasLastCutContact)
+                effectContact = lastCutContact;
+            if (showWeldContact) ShowWeldContactFx(effectContact);
             else HideWeldContactFx(clearSparks: false);
         }
 
@@ -356,6 +369,7 @@ namespace Metagame.Gameplay
         public bool CutTick(float deltaTime, PlasmaBeamMode mode)
         {
             CuttingProgressed = false;
+            hasLastCutContact = false;
 
             if (mode != PlasmaBeamMode.Cut || Muzzle == null)
             {
@@ -370,6 +384,11 @@ namespace Metagame.Gameplay
             {
                 CuttingProgressed = WeldBead.TryApplyAt(hit, deltaTime, true, out var bead);
                 ShrinkingBead = bead;
+                if (CuttingProgressed)
+                {
+                    lastCutContact = hit;
+                    hasLastCutContact = true;
+                }
                 // 실제 절단이 진행된 시간만 이 용접건에 회수한다. 빈 공간에서는 충전하지 않는다.
                 if (CuttingProgressed) usedMaterialSeconds = Mathf.Max(0f, usedMaterialSeconds - deltaTime);
             }
