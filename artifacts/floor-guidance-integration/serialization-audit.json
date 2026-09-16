@@ -1,0 +1,12 @@
+{
+  "status": "PASS",
+  "replacedFixtures": 138,
+  "removedLegacyObjects": 232,
+  "removedBlocks": 960,
+  "addedBlocks": 284,
+  "changedBlocks": 13,
+  "unrelatedBlocksPreserved": 3962,
+  "localReferences": "PASS",
+  "sourceSceneSHA256": "735801ef8843f5e39a0b84d0405b229cfcb5cea5bfdc86fa79f9e437aba2df8b",
+  "sceneSHA256": "2fc94c7bebac834dcec486f512fa6dc8d1b87cb96e67c96b7eb1c489fa86f721"
+}

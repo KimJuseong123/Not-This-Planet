@@ -1,0 +1,1 @@
+PASS: Stage1_Astra entered Play Mode; player spawned; actual player camera HDR/post-processing enabled; all 138 fixture chassis/lens materials survived runtime initialization.

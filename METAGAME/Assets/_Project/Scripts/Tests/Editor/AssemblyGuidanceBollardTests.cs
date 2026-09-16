@@ -75,6 +75,42 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void FloorFixtureKeepsChassisAndEmissionMaskAcrossAllAssemblyStates()
+        {
+            var assembly = Own(new GameObject("Assembly")).AddComponent<ShipAssembly>();
+            var guide = Own(new GameObject("Guide")).AddComponent<AssemblyGuidanceLight>();
+            var fixture = Renderer("Two-slot floor fixture");
+            var shader = Shader.Find("Universal Render Pipeline/Lit");
+            var body = Material(shader, Color.gray);
+            var mask = Own(new Texture2D(2, 2));
+            var colors = new[] { Color.yellow, Color.cyan, Color.magenta, Color.green, Color.white };
+            var lenses = new Material[5];
+            for (int i = 0; i < lenses.Length; i++)
+            {
+                lenses[i] = Material(shader, colors[i]);
+                lenses[i].SetTexture("_EmissionMap", mask);
+                lenses[i].SetColor("_EmissionColor", colors[i] * 4.5f);
+                lenses[i].EnableKeyword("_EMISSION");
+            }
+            fixture.sharedMaterials = new[] { body, lenses[0] };
+            guide.Configure(assembly, new Renderer[0], lenses, lenses[4]);
+            guide.ConfigureFloorFixtures(new[] { fixture, null }, lenses, lenses[4]);
+            var floors = (ShipAssembly.FloorState[])assembly.Floors;
+            // Includes completion and regression to a wrong first part.
+            foreach (int state in new[] { 0, 1, 2, 3, -1, 0 })
+            {
+                for (int i = 0; i < floors.Length; i++) floors[i] = ShipAssembly.FloorState.Welded;
+                if (state >= 0) floors[state] = ShipAssembly.FloorState.WrongPart;
+                Tick(guide);
+                var actual = fixture.sharedMaterials;
+                Assert.That(actual[0], Is.SameAs(body), "The chassis must never receive the lens color.");
+                Assert.That(actual[1], Is.SameAs(lenses[state < 0 ? 4 : state]));
+                Assert.That(actual[1].GetTexture("_EmissionMap"), Is.SameAs(mask));
+                Assert.That(actual[1].IsKeywordEnabled("_EMISSION"), Is.True);
+            }
+        }
+
+        [Test]
         public void ExistingScenesWithoutBollardsStillUpdateTheirFloorLights()
         {
             var assembly = Own(new GameObject("Assembly")).AddComponent<ShipAssembly>();
