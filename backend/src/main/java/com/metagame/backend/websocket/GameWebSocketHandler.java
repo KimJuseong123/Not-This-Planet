@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -46,6 +47,19 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
     private final RelayProvider relayService;
+
+    /**
+     * 같은 망이어도 <b>무조건 릴레이를 태운다</b> (S15P21B202-570).
+     *
+     * <p><b>같은 공유기 뒤라고 서로 닿는 것은 아니다.</b> 공유기가 기기끼리의 통신을 막아
+     * 두면(AP isolation) 사설 주소로 못 붙는다 — 교육장 WiFi 가 그럴 수 있고, 그때는
+     * 판정이 아무리 맞아도 입장이 안 된다({@code -145 §4-3} 이 핫스팟 우회를 적어 둔 이유).
+     *
+     * <p>그 자리에서는 이 스위치를 켠다. 지연이 늘고 릴레이 동시접속을 쓰지만 <b>되는 것이
+     * 빠른 것보다 먼저다.</b> 기본은 꺼짐이라 배포 서버의 동작은 그대로다.
+     */
+    @Value("${relay.always:false}")
+    private boolean alwaysRelay;
 
     // userId → 세션. 브로드캐스트 대상 조회용.
     // **여기 담기는 것은 동시 쓰기를 직렬화하도록 감싼 세션이다**(S15P21B202-313 ③).
@@ -422,7 +436,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         // 세션을 열려면 참가자 전원의 공인 IP 가 필요한데 그 목록은 서버만 갖고 있다.
         // 실패하면 null 이고, 그때는 위의 직접 접속 주소로 간다.
         LinkedHashMap<Long, String> publicIps = publicIpsOf(room);
-        boolean same = sameNetwork(room, publicIps);
+        boolean same = !alwaysRelay && sameNetwork(room, publicIps);
         RelaySession relay = same ? null : relayService.open(publicIps, room.getHostUserId());
 
         // 재입장한 사람에게 다시 보낼 수 있게 방마다 기억한다 (S15P21B202-150).
@@ -548,7 +562,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 : "";
 
         LinkedHashMap<Long, String> publicIps = publicIpsOf(room);
-        boolean same = sameNetwork(room, publicIps);
+        boolean same = !alwaysRelay && sameNetwork(room, publicIps);
         RelaySession relay = same ? null : relayService.open(publicIps, room.getHostUserId());
 
         MatchEntry previous = matches.put(room.getRoomId(), new MatchEntry(hostAddress, relay));
