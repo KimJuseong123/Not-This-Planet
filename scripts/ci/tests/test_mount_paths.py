@@ -101,12 +101,26 @@ assert allow, "nginx 에 여는 목록이 없다 — 폴더 전체가 그대로 
 #     부분 문자열로 봤는데, 그러면 `latest.json` 하나 때문에 `dev-latest.json` 이
 #     빠져 있어도 통과한다 — **실제로 그렇게 새벽 빌드가 런처에서 안 보였다.**
 #     `(?<name>)` 은 파이썬 문법이 아니므로 갈래만 떼어 다시 짠다.
+#
+#     **갈래를 통째로 떼었는지 먼저 본다** (`!479` AI 리뷰). 위 `[^)]+` 는 첫 `)` 에서
+#     멈추므로, 나중에 갈래 안에 괄호가 하나라도 들어오면(`(a|b)\.json`) **중간에서
+#     잘린 패턴**을 검사하게 된다 — 그러면 이 검사가 조용히 엉뚱한 것을 지킨다.
+assert allow.group(1).count("(") == allow.group(1).count(")") == 0, (
+    "여는 목록 갈래에 괄호가 생겼다 — 위 `[^)]+` 가 중간에서 자른다." + NL
+    + "  뽑아 온 것: " + allow.group(1))
 serves = re.compile("^(?:" + allow.group(1) + ")$").match
 
 #     **런처가 받는 이름은 코드에서 가져온다.** 여기 손으로 적으면 채널이 늘 때
 #     같은 일이 또 난다 — 목록 파일 이름을 정하는 곳은 `make_manifest.CHANNEL_FILES` 다.
+#     그 파일의 실행부는 `if __name__ == "__main__":` 아래라 import 해도 아무 일도
+#     일어나지 않는다(`!479` AI 리뷰의 확인 질문).
 sys.path.insert(0, os.path.join(ROOT, "scripts", "launcher"))
 import make_manifest  # noqa: E402
+
+#     이름이 바뀌면 `AttributeError` 로 죽지 말고 **왜 필요한지와 함께** 멈춘다.
+assert hasattr(make_manifest, "CHANNEL_FILES"), (
+    "make_manifest 에 CHANNEL_FILES 가 없다 — 채널별 목록 파일 이름의 출처다." + NL
+    + "  이름을 바꿨다면 여기도 같이 바꾼다. 지우면 nginx 여는 목록을 지킬 근거가 없어진다.")
 
 for channel, names in make_manifest.CHANNEL_FILES.items():
     for name in names:
