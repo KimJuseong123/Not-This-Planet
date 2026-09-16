@@ -1,0 +1,46 @@
+[
+  {
+    "name": "Walkway south curb",
+    "transform": "  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}\n  m_LocalPosition: {x: -23.5, y: 5.5, z: 16.94}\n  m_LocalScale: {x: 13.5, y: 0.2, z: 0.16}\n  m_Father: {fileID: 1086657125}"
+  },
+  {
+    "name": "Broken personnel bridge 1",
+    "transform": "  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}\n  m_LocalPosition: {x: -29, y: 5, z: 13.35}\n  m_LocalScale: {x: 2.6, y: 0.4, z: 1.15}\n  m_Father: {fileID: 1190914694}"
+  },
+  {
+    "name": "Hangar east entrance landing",
+    "transform": "  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}\n  m_LocalPosition: {x: -17, y: 5.25, z: 21.9}\n  m_LocalScale: {x: 3.5, y: 0.3, z: 9.5}\n  m_Father: {fileID: 1086657125}"
+  },
+  {
+    "name": "Hangar pedestrian access",
+    "transform": "  m_LocalRotation: {x: -0.1546168, y: 0.18509221, z: 0.029502463, w: 0.97003305}\n  m_LocalPosition: {x: -32, y: 2.7150002, z: 10.575}\n  m_LocalScale: {x: 3.2, y: 0.4, z: 17.144428}\n  m_Father: {fileID: 1185624633}"
+  },
+  {
+    "name": "Broken personnel bridge 0",
+    "transform": "  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}\n  m_LocalPosition: {x: -29, y: 5, z: 12}\n  m_LocalScale: {x: 2.6, y: 0.4, z: 1.15}\n  m_Father: {fileID: 1190914694}"
+  },
+  {
+    "name": "Broken personnel bridge 2",
+    "transform": "  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}\n  m_LocalPosition: {x: -29, y: 5, z: 14.7}\n  m_LocalScale: {x: 2.6, y: 0.4, z: 1.15}\n  m_Father: {fileID: 1190914694}"
+  },
+  {
+    "name": "Hangar foundation and approach deck",
+    "transform": "  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}\n  m_LocalPosition: {x: -27.05, y: 5.15, z: 27}\n  m_LocalScale: {x: 23.1, y: 0.5, z: 15.5}\n  m_Father: {fileID: 1190914694}"
+  },
+  {
+    "name": "Walkway east curb",
+    "transform": "  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}\n  m_LocalPosition: {x: -15.32, y: 5.5, z: 20.25}\n  m_LocalScale: {x: 0.16, y: 0.2, z: 6.8}\n  m_Father: {fileID: 1086657125}"
+  },
+  {
+    "name": "Broken personnel bridge 6",
+    "transform": "  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}\n  m_LocalPosition: {x: -29, y: 5, z: 20.1}\n  m_LocalScale: {x: 2.6, y: 0.4, z: 1.15}\n  m_Father: {fileID: 1190914694}"
+  },
+  {
+    "name": "Broken personnel bridge 5",
+    "transform": "  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}\n  m_LocalPosition: {x: -29, y: 5, z: 18.75}\n  m_LocalScale: {x: 2.6, y: 0.4, z: 1.15}\n  m_Father: {fileID: 1190914694}"
+  },
+  {
+    "name": "Hangar south approach walkway",
+    "transform": "  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}\n  m_LocalPosition: {x: -23.25, y: 5.25, z: 18.25}\n  m_LocalScale: {x: 14.1, y: 0.3, z: 2.8}\n  m_Father: {fileID: 1086657125}"
+  }
+]

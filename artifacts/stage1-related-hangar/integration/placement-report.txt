@@ -1,0 +1,48 @@
+REMOVED Hangar foundation and approach deck at (-27.05, 5.15, 27.00)
+REMOVED Cargo pickup apron · entry stair 0 at (-9.50, 5.12, 21.60)
+REMOVED Cargo pickup apron · entry stair 1 at (-9.50, 5.31, 22.08)
+REMOVED Cargo pickup apron · entry stair 2 at (-9.50, 5.50, 22.56)
+REMOVED Cargo pickup apron · entry stair 3 at (-9.50, 5.69, 23.04)
+REMOVED Broken personnel bridge 0 at (-29.00, 5.00, 12.00)
+REMOVED Broken personnel bridge 1 at (-29.00, 5.00, 13.35)
+REMOVED Broken personnel bridge 2 at (-29.00, 5.00, 14.70)
+REMOVED Broken personnel bridge 5 at (-29.00, 5.00, 18.75)
+REMOVED Broken personnel bridge 6 at (-29.00, 5.00, 20.10)
+REMOVED Hangar pedestrian access at (-32.00, 2.72, 10.58)
+REMOVED Hangar south approach walkway at (-23.25, 5.25, 18.25)
+REMOVED Hangar east entrance landing at (-17.00, 5.25, 21.90)
+REMOVED Walkway south curb at (-23.50, 5.50, 16.94)
+REMOVED Walkway east curb at (-15.32, 5.50, 20.25)
+PLACED South approach - panel walkway model=SouthApproachWalkway position=(-23.250, 5.100, 18.250) yaw=90 scale=(1.00, 1.00, 1.00)
+PLACED East entrance - landing model=EastEntranceLanding position=(-17.000, 5.100, 21.900) yaw=0 scale=(1.00, 1.00, 1.00)
+PLACED Hangar foundation - panel deck model=FoundationApproachDeck position=(-27.050, 4.900, 27.000) yaw=0 scale=(1.00, 1.00, 1.00)
+PLACED Pedestrian access - inclined panels model=PedestrianAccess position=(-32.208, -0.330, 10.081) yaw=21.51759 scale=(1.00, 1.00, 0.92)
+PLACED Personnel bridge - fragment 0 model=BrokenPersonnelBridge0 position=(-27.000, 4.800, 12.000) yaw=0 scale=(1.00, 1.00, 1.00)
+PLACED Personnel bridge - fragment 1 model=BrokenPersonnelBridge1 position=(-27.000, 4.800, 13.350) yaw=0 scale=(1.00, 1.00, 1.00)
+PLACED Personnel bridge - fragment 2 model=BrokenPersonnelBridge2 position=(-27.000, 4.800, 14.700) yaw=0 scale=(1.00, 1.00, 1.00)
+PLACED Personnel bridge - fragment 5 model=BrokenPersonnelBridge5 position=(-27.000, 4.800, 18.750) yaw=0 scale=(1.00, 1.00, 1.00)
+PLACED Personnel bridge - fragment 6 model=BrokenPersonnelBridge6 position=(-27.000, 4.800, 20.100) yaw=0 scale=(1.00, 1.00, 1.00)
+PLACED South edge curb 1 model=ModularEdgeCurb position=(-26.550, 5.400, 16.940) yaw=0 scale=(1.00, 1.00, 1.00)
+PLACED South edge curb 2 model=ModularEdgeCurb position=(-24.550, 5.400, 16.940) yaw=0 scale=(1.00, 1.00, 1.00)
+PLACED South edge curb 3 model=ModularEdgeCurb position=(-22.550, 5.400, 16.940) yaw=0 scale=(1.00, 1.00, 1.00)
+PLACED South edge curb 4 model=ModularEdgeCurb position=(-20.550, 5.400, 16.940) yaw=0 scale=(1.00, 1.00, 1.00)
+PLACED South edge curb 5 model=ModularEdgeCurb position=(-18.550, 5.400, 16.940) yaw=0 scale=(1.00, 1.00, 1.00)
+PLACED South edge curb 6 model=ModularEdgeCurb position=(-17.150, 5.400, 16.940) yaw=0 scale=(0.40, 1.00, 1.00)
+PLACED East edge curb 1 model=ModularEdgeCurb position=(-15.320, 5.400, 17.850) yaw=-90 scale=(1.00, 1.00, 1.00)
+PLACED East edge curb 2 model=ModularEdgeCurb position=(-15.320, 5.400, 19.850) yaw=-90 scale=(1.00, 1.00, 1.00)
+PLACED East edge curb 3 model=ModularEdgeCurb position=(-15.320, 5.400, 21.850) yaw=-90 scale=(1.00, 1.00, 1.00)
+PLACED East edge curb 4 model=ModularEdgeCurb position=(-15.320, 5.400, 23.250) yaw=-90 scale=(0.40, 1.00, 1.00)
+PLACED Cargo apron - four step entry model=CargoApronEntryStairs position=(-9.500, 4.936, 18.940) yaw=0 scale=(1.00, 0.56, 1.00)
+Stair fit: apron edge=19.78009 surface=5.392653 terrain=4.936485
+SKIPPED support: no terrain Foundation support southwest
+PLACED Foundation support northwest model=AdjustableDeckSupport position=(-36.000, -0.099, 33.000) yaw=0 scale=(1.00, 1.04, 1.00)
+SKIPPED support: no terrain Foundation support northeast
+SKIPPED support: no terrain Foundation support southeast
+SKIPPED support: no terrain South walkway support
+PLACED Abandoned bridge abutment model=AdjustableDeckSupport position=(-27.000, 0.097, 12.000) yaw=0 scale=(1.00, 0.98, 1.00)
+PLACED Route beacon 22 model=RouteWayfindingBeacon position=(-34.900, 0.000, 2.500) yaw=0 scale=(1.00, 1.00, 1.00)
+PLACED Route beacon 23 model=RouteWayfindingBeacon position=(-30.400, 5.400, 18.100) yaw=0 scale=(1.00, 1.00, 1.00)
+PLACED Route beacon 24 model=RouteWayfindingBeacon position=(-16.250, 5.400, 23.800) yaw=0 scale=(1.00, 1.00, 1.00)
+PASS supported route and capsule clearance: 188 samples; radius .33m, body top 1.93m
+PASS all imported renderers, shaders, materials; missing scripts=0
+PASS saved scene; models=25; removed=15

@@ -1,0 +1,22 @@
+{
+  "asset": "SM_Astra_SouthApproachWalkway",
+  "concept": "docs\\assets\\concepts\\stage1-related-hangar\\01-south-approach-walkway.png",
+  "fbx": "SM_Astra_SouthApproachWalkway.fbx",
+  "textures": "SM_Astra_SouthApproachWalkway.fbm",
+  "unity_material": "M_Astra_SouthApproachWalkway.mat",
+  "metres": true,
+  "blender_dimensions_XYZ": [
+    2.805999994277954,
+    14.100000381469727,
+    0.31299999356269836
+  ],
+  "triangles": 33140,
+  "editable_components": 203,
+  "source_blend": "artifacts\\stage1-related-hangar\\01-south-approach-walkway\\SM_Astra_SouthApproachWalkway.blend",
+  "validation_report": "artifacts\\stage1-related-hangar\\01-south-approach-walkway\\validation.json",
+  "fbx_roundtrip": "PASS",
+  "sha256": "ced24c3b7276712fad47933081d9045f35922220847d90677f14d161a38d54bc",
+  "scene_placement": "Assets/Scenes/Stage1_Astra.unity / Hangar Related - Concept Models",
+  "pivot": "base center; ramp low-end elevation",
+  "scene_instances": 1
+}

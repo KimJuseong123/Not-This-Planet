@@ -1,0 +1,22 @@
+{
+  "asset": "SM_Astra_AdjustableDeckSupport",
+  "concept": "docs\\assets\\concepts\\stage1-related-hangar\\12-adjustable-deck-support.png",
+  "fbx": "SM_Astra_AdjustableDeckSupport.fbx",
+  "textures": "SM_Astra_AdjustableDeckSupport.fbm",
+  "unity_material": "M_Astra_AdjustableDeckSupport.mat",
+  "metres": true,
+  "blender_dimensions_XYZ": [
+    2.5199999809265137,
+    1.399999976158142,
+    4.799999713897705
+  ],
+  "triangles": 7532,
+  "editable_components": 53,
+  "source_blend": "artifacts\\stage1-related-hangar\\12-adjustable-deck-support\\SM_Astra_AdjustableDeckSupport.blend",
+  "validation_report": "artifacts\\stage1-related-hangar\\12-adjustable-deck-support\\validation.json",
+  "fbx_roundtrip": "PASS",
+  "sha256": "de09bb3f90c7e67754bb6b131da63030a00c321924185c09949048ea9aa6e40d",
+  "scene_placement": "Assets/Scenes/Stage1_Astra.unity / Hangar Related - Concept Models",
+  "pivot": "base center; ramp low-end elevation",
+  "scene_instances": 2
+}

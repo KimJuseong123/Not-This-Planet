@@ -1,0 +1,84 @@
+{
+  "renamed": 13,
+  "max_asset_path": 180,
+  "identity_checks": [
+    {
+      "old": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/01-south-approach-walkway/SM_Astra_SouthApproachWalkway.fbm/SM_Astra_SouthApproachWalkway_MetallicSmoothness.png",
+      "new": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/01-south-approach-walkway/SM_Astra_SouthApproachWalkway.fbm/SM_Astra_SouthApproachWalkway_MS.png",
+      "png_unchanged": true,
+      "meta_unchanged": true
+    },
+    {
+      "old": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/02-east-entrance-landing/SM_Astra_EastEntranceLanding.fbm/SM_Astra_EastEntranceLanding_MetallicSmoothness.png",
+      "new": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/02-east-entrance-landing/SM_Astra_EastEntranceLanding.fbm/SM_Astra_EastEntranceLanding_MS.png",
+      "png_unchanged": true,
+      "meta_unchanged": true
+    },
+    {
+      "old": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/03-pedestrian-access/SM_Astra_PedestrianAccess.fbm/SM_Astra_PedestrianAccess_MetallicSmoothness.png",
+      "new": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/03-pedestrian-access/SM_Astra_PedestrianAccess.fbm/SM_Astra_PedestrianAccess_MS.png",
+      "png_unchanged": true,
+      "meta_unchanged": true
+    },
+    {
+      "old": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/04-foundation-approach-deck/SM_Astra_FoundationApproachDeck.fbm/SM_Astra_FoundationApproachDeck_MetallicSmoothness.png",
+      "new": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/04-foundation-approach-deck/SM_Astra_FoundationApproachDeck.fbm/SM_Astra_FoundationApproachDeck_MS.png",
+      "png_unchanged": true,
+      "meta_unchanged": true
+    },
+    {
+      "old": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/05-broken-personnel-bridge-0/SM_Astra_BrokenPersonnelBridge0.fbm/SM_Astra_BrokenPersonnelBridge0_MetallicSmoothness.png",
+      "new": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/05-broken-personnel-bridge-0/SM_Astra_BrokenPersonnelBridge0.fbm/SM_Astra_BrokenPersonnelBridge0_MS.png",
+      "png_unchanged": true,
+      "meta_unchanged": true
+    },
+    {
+      "old": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/06-broken-personnel-bridge-1/SM_Astra_BrokenPersonnelBridge1.fbm/SM_Astra_BrokenPersonnelBridge1_MetallicSmoothness.png",
+      "new": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/06-broken-personnel-bridge-1/SM_Astra_BrokenPersonnelBridge1.fbm/SM_Astra_BrokenPersonnelBridge1_MS.png",
+      "png_unchanged": true,
+      "meta_unchanged": true
+    },
+    {
+      "old": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/07-broken-personnel-bridge-2/SM_Astra_BrokenPersonnelBridge2.fbm/SM_Astra_BrokenPersonnelBridge2_MetallicSmoothness.png",
+      "new": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/07-broken-personnel-bridge-2/SM_Astra_BrokenPersonnelBridge2.fbm/SM_Astra_BrokenPersonnelBridge2_MS.png",
+      "png_unchanged": true,
+      "meta_unchanged": true
+    },
+    {
+      "old": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/08-broken-personnel-bridge-5/SM_Astra_BrokenPersonnelBridge5.fbm/SM_Astra_BrokenPersonnelBridge5_MetallicSmoothness.png",
+      "new": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/08-broken-personnel-bridge-5/SM_Astra_BrokenPersonnelBridge5.fbm/SM_Astra_BrokenPersonnelBridge5_MS.png",
+      "png_unchanged": true,
+      "meta_unchanged": true
+    },
+    {
+      "old": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/09-broken-personnel-bridge-6/SM_Astra_BrokenPersonnelBridge6.fbm/SM_Astra_BrokenPersonnelBridge6_MetallicSmoothness.png",
+      "new": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/09-broken-personnel-bridge-6/SM_Astra_BrokenPersonnelBridge6.fbm/SM_Astra_BrokenPersonnelBridge6_MS.png",
+      "png_unchanged": true,
+      "meta_unchanged": true
+    },
+    {
+      "old": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/10-modular-edge-curb/SM_Astra_ModularEdgeCurb.fbm/SM_Astra_ModularEdgeCurb_MetallicSmoothness.png",
+      "new": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/10-modular-edge-curb/SM_Astra_ModularEdgeCurb.fbm/SM_Astra_ModularEdgeCurb_MS.png",
+      "png_unchanged": true,
+      "meta_unchanged": true
+    },
+    {
+      "old": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/11-cargo-apron-entry-stairs/SM_Astra_CargoApronEntryStairs.fbm/SM_Astra_CargoApronEntryStairs_MetallicSmoothness.png",
+      "new": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/11-cargo-apron-entry-stairs/SM_Astra_CargoApronEntryStairs.fbm/SM_Astra_CargoApronEntryStairs_MS.png",
+      "png_unchanged": true,
+      "meta_unchanged": true
+    },
+    {
+      "old": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/12-adjustable-deck-support/SM_Astra_AdjustableDeckSupport.fbm/SM_Astra_AdjustableDeckSupport_MetallicSmoothness.png",
+      "new": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/12-adjustable-deck-support/SM_Astra_AdjustableDeckSupport.fbm/SM_Astra_AdjustableDeckSupport_MS.png",
+      "png_unchanged": true,
+      "meta_unchanged": true
+    },
+    {
+      "old": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/13-route-wayfinding-beacon/SM_Astra_RouteWayfindingBeacon.fbm/SM_Astra_RouteWayfindingBeacon_MetallicSmoothness.png",
+      "new": "METAGAME/Assets/_Project/Models/Environment/Stage1/HangarRelated/13-route-wayfinding-beacon/SM_Astra_RouteWayfindingBeacon.fbm/SM_Astra_RouteWayfindingBeacon_MS.png",
+      "png_unchanged": true,
+      "meta_unchanged": true
+    }
+  ]
+}

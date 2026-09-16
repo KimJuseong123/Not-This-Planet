@@ -1,0 +1,8 @@
+PASS supported route and capsule clearance: 188 samples; radius .33m, body top 1.93m
+PASS all imported renderers, shaders, materials; missing scripts=0
+PASS ramp plane: 39 samples, max height error=1.2815E-06
+PASS stair 1 surface=5.071646
+PASS stair 2 surface=5.178648
+PASS stair 3 surface=5.28565
+PASS stair 4 surface=5.392653
+PASS saved/reopened scene; renderers=25; box colliders=28; texture references complete
