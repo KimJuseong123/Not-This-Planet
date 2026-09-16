@@ -1,0 +1,64 @@
+{
+  "asset": "SM_Astra_StairEdgeLight",
+  "before_export": {
+    "dimensions": [
+      0.4000000059604645,
+      0.08089999854564667,
+      0.060100000351667404
+    ],
+    "min": [
+      -0.20000000298023224,
+      -0.04089999943971634,
+      0.0
+    ],
+    "max": [
+      0.20000000298023224,
+      0.03999999910593033,
+      0.060100000351667404
+    ],
+    "vertices": 1944,
+    "triangles": 3780,
+    "uv_layers": 2,
+    "materials": 2
+  },
+  "reimport": {
+    "dimensions": [
+      0.4000000059604645,
+      0.08090000972151756,
+      0.06010001431907508
+    ],
+    "min": [
+      -0.20000000298023224,
+      -0.04089999943971634,
+      -6.51682707797363e-09
+    ],
+    "max": [
+      0.20000000298023224,
+      0.040000010281801224,
+      0.060100007802248
+    ],
+    "vertices": 1944,
+    "triangles": 3780,
+    "uv_layers": 2,
+    "materials": 2
+  },
+  "geometry_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "missing_textures": [],
+  "texture_links": [
+    "C:\\workspace\\2-PJT\\S15P21B202-560-art\\METAGAME\\Assets\\_Project\\Models\\FloorGuidance\\03-stair-edge\\SM_Astra_StairEdgeLight.fbm\\SM_Astra_StairEdgeLight_BaseColor.png",
+    "C:\\workspace\\2-PJT\\S15P21B202-560-art\\METAGAME\\Assets\\_Project\\Models\\FloorGuidance\\03-stair-edge\\SM_Astra_StairEdgeLight.fbm\\SM_Astra_StairEdgeLight_Metallic.png",
+    "C:\\workspace\\2-PJT\\S15P21B202-560-art\\METAGAME\\Assets\\_Project\\Models\\FloorGuidance\\03-stair-edge\\SM_Astra_StairEdgeLight.fbm\\SM_Astra_StairEdgeLight_Roughness.png"
+  ],
+  "roundtrip": "PASS",
+  "materials": [
+    "M_Astra_StairEdgeLight_Body",
+    "M_Astra_StairEdgeLight_Lens"
+  ],
+  "fbx": "METAGAME\\Assets\\_Project\\Models\\FloorGuidance\\03-stair-edge\\SM_Astra_StairEdgeLight.fbx",
+  "parts": 27,
+  "units": "metres",
+  "pivot": "bottom center"
+}

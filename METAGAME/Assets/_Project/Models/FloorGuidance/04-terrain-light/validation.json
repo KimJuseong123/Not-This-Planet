@@ -1,0 +1,64 @@
+{
+  "asset": "SM_Astra_TerrainLight",
+  "before_export": {
+    "dimensions": [
+      0.3799999952316284,
+      0.14000000059604645,
+      0.14010000228881836
+    ],
+    "min": [
+      -0.1899999976158142,
+      -0.07000000029802322,
+      0.0
+    ],
+    "max": [
+      0.1899999976158142,
+      0.07000000029802322,
+      0.14010000228881836
+    ],
+    "vertices": 3016,
+    "triangles": 5916,
+    "uv_layers": 2,
+    "materials": 2
+  },
+  "reimport": {
+    "dimensions": [
+      0.3799999952316284,
+      0.14000002294778824,
+      0.1401000285944276
+    ],
+    "min": [
+      -0.1899999976158142,
+      -0.07000000029802322,
+      -1.1404448052587668e-08
+    ],
+    "max": [
+      0.1899999976158142,
+      0.07000002264976501,
+      0.14010001718997955
+    ],
+    "vertices": 3016,
+    "triangles": 5916,
+    "uv_layers": 2,
+    "materials": 2
+  },
+  "geometry_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "missing_textures": [],
+  "texture_links": [
+    "C:\\workspace\\2-PJT\\S15P21B202-560-art\\METAGAME\\Assets\\_Project\\Models\\FloorGuidance\\04-terrain-light\\SM_Astra_TerrainLight.fbm\\SM_Astra_TerrainLight_BaseColor.png",
+    "C:\\workspace\\2-PJT\\S15P21B202-560-art\\METAGAME\\Assets\\_Project\\Models\\FloorGuidance\\04-terrain-light\\SM_Astra_TerrainLight.fbm\\SM_Astra_TerrainLight_Metallic.png",
+    "C:\\workspace\\2-PJT\\S15P21B202-560-art\\METAGAME\\Assets\\_Project\\Models\\FloorGuidance\\04-terrain-light\\SM_Astra_TerrainLight.fbm\\SM_Astra_TerrainLight_Roughness.png"
+  ],
+  "roundtrip": "PASS",
+  "materials": [
+    "M_Astra_TerrainLight_Body",
+    "M_Astra_TerrainLight_Lens"
+  ],
+  "fbx": "METAGAME\\Assets\\_Project\\Models\\FloorGuidance\\04-terrain-light\\SM_Astra_TerrainLight.fbx",
+  "parts": 30,
+  "units": "metres",
+  "pivot": "bottom center"
+}
