@@ -1,0 +1,64 @@
+{
+  "asset": "SM_Astra_FloorLight",
+  "before_export": {
+    "dimensions": [
+      0.35199999809265137,
+      0.12265000119805336,
+      0.035100001841783524
+    ],
+    "min": [
+      -0.17599999904632568,
+      -0.06175000220537186,
+      0.0
+    ],
+    "max": [
+      0.17599999904632568,
+      0.0608999989926815,
+      0.035100001841783524
+    ],
+    "vertices": 2168,
+    "triangles": 4252,
+    "uv_layers": 2,
+    "materials": 2
+  },
+  "reimport": {
+    "dimensions": [
+      0.35199999809265137,
+      0.12265000864863396,
+      0.03510002293952397
+    ],
+    "min": [
+      -0.17599999904632568,
+      -0.06175000220537186,
+      -9.92186954817953e-09
+    ],
+    "max": [
+      0.17599999904632568,
+      0.0609000064432621,
+      0.03510001301765442
+    ],
+    "vertices": 2168,
+    "triangles": 4252,
+    "uv_layers": 2,
+    "materials": 2
+  },
+  "geometry_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "missing_textures": [],
+  "texture_links": [
+    "C:\\workspace\\2-PJT\\S15P21B202-560-art\\METAGAME\\Assets\\_Project\\Models\\FloorGuidance\\01-floor-light\\SM_Astra_FloorLight.fbm\\SM_Astra_FloorLight_BaseColor.png",
+    "C:\\workspace\\2-PJT\\S15P21B202-560-art\\METAGAME\\Assets\\_Project\\Models\\FloorGuidance\\01-floor-light\\SM_Astra_FloorLight.fbm\\SM_Astra_FloorLight_Metallic.png",
+    "C:\\workspace\\2-PJT\\S15P21B202-560-art\\METAGAME\\Assets\\_Project\\Models\\FloorGuidance\\01-floor-light\\SM_Astra_FloorLight.fbm\\SM_Astra_FloorLight_Roughness.png"
+  ],
+  "roundtrip": "PASS",
+  "materials": [
+    "M_Astra_FloorLight_Body",
+    "M_Astra_FloorLight_Lens"
+  ],
+  "fbx": "METAGAME\\Assets\\_Project\\Models\\FloorGuidance\\01-floor-light\\SM_Astra_FloorLight.fbx",
+  "parts": 22,
+  "units": "metres",
+  "pivot": "bottom center"
+}

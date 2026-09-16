@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="7" result="Passed" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-16 04:30:08Z" end-time="2026-09-16 04:30:09Z" duration="0.1633515">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="1687" result="Passed" start-time="2026-09-16 04:30:08Z" end-time="2026-09-16 04:30:09Z" duration="0.163352" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="2873" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202/tmp/part2-trail-integration/project/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="1687" result="Passed" start-time="2026-09-16 04:30:08Z" end-time="2026-09-16 04:30:09Z" duration="0.145127" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="15332" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="2874" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="1687" result="Passed" start-time="2026-09-16 04:30:09Z" end-time="2026-09-16 04:30:09Z" duration="0.134707" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="2879" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="1644" result="Passed" start-time="2026-09-16 04:30:09Z" end-time="2026-09-16 04:30:09Z" duration="0.123132" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="2880" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="1644" result="Passed" start-time="2026-09-16 04:30:09Z" end-time="2026-09-16 04:30:09Z" duration="0.113157" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1076" name="AssemblyGuidanceBollardTests" fullname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests" classname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests" runstate="Runnable" testcasecount="7" result="Passed" start-time="2026-09-16 04:30:09Z" end-time="2026-09-16 04:30:09Z" duration="0.078061" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-suite type="ParameterizedMethod" id="1082" name="AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor" fullname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests.AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor" classname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests" runstate="Runnable" testcasecount="5" result="Passed" start-time="2026-09-16 04:30:09Z" end-time="2026-09-16 04:30:09Z" duration="0.052404" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="1077" name="AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor(0)" fullname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests.AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor(0)" methodname="AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor" classname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests" runstate="Runnable" seed="531571310" result="Passed" start-time="2026-09-16 04:30:09Z" end-time="2026-09-16 04:30:09Z" duration="0.027037" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1078" name="AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor(1)" fullname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests.AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor(1)" methodname="AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor" classname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests" runstate="Runnable" seed="883923648" result="Passed" start-time="2026-09-16 04:30:09Z" end-time="2026-09-16 04:30:09Z" duration="0.003540" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1079" name="AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor(2)" fullname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests.AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor(2)" methodname="AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor" classname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests" runstate="Runnable" seed="1501243997" result="Passed" start-time="2026-09-16 04:30:09Z" end-time="2026-09-16 04:30:09Z" duration="0.002986" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1080" name="AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor(3)" fullname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests.AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor(3)" methodname="AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor" classname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests" runstate="Runnable" seed="371494608" result="Passed" start-time="2026-09-16 04:30:09Z" end-time="2026-09-16 04:30:09Z" duration="0.003011" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1081" name="AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor(-1)" fullname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests.AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor(-1)" methodname="AssemblyStateChangesKeepBollardTextureAndUseMatchingSignalColor" classname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests" runstate="Runnable" seed="1294823053" result="Passed" start-time="2026-09-16 04:30:09Z" end-time="2026-09-16 04:30:09Z" duration="0.002424" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+              </test-suite>
+              <test-case id="1084" name="ExistingScenesWithoutBollardsStillUpdateTheirFloorLights" fullname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests.ExistingScenesWithoutBollardsStillUpdateTheirFloorLights" methodname="ExistingScenesWithoutBollardsStillUpdateTheirFloorLights" classname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests" runstate="Runnable" seed="2143454767" result="Passed" start-time="2026-09-16 04:30:09Z" end-time="2026-09-16 04:30:09Z" duration="0.002340" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1083" name="FloorFixtureKeepsChassisAndEmissionMaskAcrossAllAssemblyStates" fullname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests.FloorFixtureKeepsChassisAndEmissionMaskAcrossAllAssemblyStates" methodname="FloorFixtureKeepsChassisAndEmissionMaskAcrossAllAssemblyStates" classname="Metagame.Gameplay.Tests.AssemblyGuidanceBollardTests" runstate="Runnable" seed="541840788" result="Passed" start-time="2026-09-16 04:30:09Z" end-time="2026-09-16 04:30:09Z" duration="0.010625" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

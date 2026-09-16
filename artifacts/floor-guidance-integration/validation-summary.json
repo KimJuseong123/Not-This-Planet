@@ -1,0 +1,28 @@
+{
+  "status": "PASS with editor indexing limitation",
+  "scene": "METAGAME/Assets/Scenes/Stage1_Astra.unity",
+  "replacementFixtures": 138,
+  "removedLegacyObjects": 232,
+  "assemblyFixtures": 8,
+  "editModeTests": {
+    "suite": "AssemblyGuidanceBollardTests",
+    "passed": 7,
+    "failed": 0
+  },
+  "playMode": "Player spawn, actual player camera HDR/post processing, 138 chassis/lens materials: PASS",
+  "sourcePalettePreserved": true,
+  "bloom": {
+    "intensity": 0.8,
+    "threshold": 0.9,
+    "scatter": 0.85,
+    "highQualityFiltering": true
+  },
+  "emissionPeak": 2.4,
+  "sourceAssetReferences": "PASS",
+  "unrelatedSceneBlocksPreserved": 3962,
+  "limitations": [
+    "Unity Editor SearchDatabase.EnumerateAll throws ArgumentOutOfRangeException during batch Play Mode indexing; scene and gameplay checks pass.",
+    "No player build or multiplayer session was run."
+  ],
+  "sceneSHA256": "2fc94c7bebac834dcec486f512fa6dc8d1b87cb96e67c96b7eb1c489fa86f721"
+}
