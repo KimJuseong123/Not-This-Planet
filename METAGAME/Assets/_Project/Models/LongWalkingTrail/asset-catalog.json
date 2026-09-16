@@ -1,0 +1,189 @@
+[
+  {
+    "id": "L01",
+    "folder": "01-long-walking-trail-0",
+    "fbx": "01-long-walking-trail-0/SM_Astra_Trail0.fbx",
+    "collider": "01-long-walking-trail-0/Colliders/UCX_SM_Astra_Trail0.fbx",
+    "material": "01-long-walking-trail-0/M_Astra_Trail0.mat",
+    "texture_count": 6,
+    "triangles": 14716,
+    "collision_triangles": 12,
+    "dimensions_width_height_length_m": [
+      4.4019999504089355,
+      0.6030000150203705,
+      13.814682006835938
+    ],
+    "preview": "Previews~/01-long-walking-trail-0-concept.png",
+    "sha256": "3c30b4cc6269307d0063a133f90f9bf8327d963aabed81c4a28f18b618e2504a"
+  },
+  {
+    "id": "L02",
+    "folder": "02-long-walking-trail-1",
+    "fbx": "02-long-walking-trail-1/SM_Astra_Trail1.fbx",
+    "collider": "02-long-walking-trail-1/Colliders/UCX_SM_Astra_Trail1.fbx",
+    "material": "02-long-walking-trail-1/M_Astra_Trail1.mat",
+    "texture_count": 6,
+    "triangles": 14552,
+    "collision_triangles": 12,
+    "dimensions_width_height_length_m": [
+      4.4019999504089355,
+      0.6030000150203705,
+      13.828022956848145
+    ],
+    "preview": "Previews~/02-long-walking-trail-1-concept.png",
+    "sha256": "c1dc7b788de066e84a2f7fb10dee29126295ef7ce158af7ab075013b256dad88"
+  },
+  {
+    "id": "L03",
+    "folder": "03-long-walking-trail-2",
+    "fbx": "03-long-walking-trail-2/SM_Astra_Trail2.fbx",
+    "collider": "03-long-walking-trail-2/Colliders/UCX_SM_Astra_Trail2.fbx",
+    "material": "03-long-walking-trail-2/M_Astra_Trail2.mat",
+    "texture_count": 6,
+    "triangles": 17052,
+    "collision_triangles": 12,
+    "dimensions_width_height_length_m": [
+      4.4019999504089355,
+      0.6030000150203705,
+      15.955556869506836
+    ],
+    "preview": "Previews~/03-long-walking-trail-2-concept.png",
+    "sha256": "b806fbd3100f99b424c188f28a56a82f7de0fd253265fdacd7f6c5c0bd41ffd1"
+  },
+  {
+    "id": "L04",
+    "folder": "04-long-walking-trail-3",
+    "fbx": "04-long-walking-trail-3/SM_Astra_Trail3.fbx",
+    "collider": "04-long-walking-trail-3/Colliders/UCX_SM_Astra_Trail3.fbx",
+    "material": "04-long-walking-trail-3/M_Astra_Trail3.mat",
+    "texture_count": 6,
+    "triangles": 12216,
+    "collision_triangles": 12,
+    "dimensions_width_height_length_m": [
+      4.4019999504089355,
+      0.6030000150203705,
+      11.281805992126465
+    ],
+    "preview": "Previews~/04-long-walking-trail-3-concept.png",
+    "sha256": "3ba922b6396606b703ca0ab1fe2f805cb4d2d297f098984d7f5daef859e5871a"
+  },
+  {
+    "id": "L05",
+    "folder": "05-long-walking-trail-4",
+    "fbx": "05-long-walking-trail-4/SM_Astra_Trail4.fbx",
+    "collider": "05-long-walking-trail-4/Colliders/UCX_SM_Astra_Trail4.fbx",
+    "material": "05-long-walking-trail-4/M_Astra_Trail4.mat",
+    "texture_count": 6,
+    "triangles": 11212,
+    "collision_triangles": 12,
+    "dimensions_width_height_length_m": [
+      4.4019999504089355,
+      0.6030000150203705,
+      8.514249801635742
+    ],
+    "preview": "Previews~/05-long-walking-trail-4-concept.png",
+    "sha256": "28d4ef4b79eef8219dcb8b5011990a54fda8c886d402df2da3ffa9d31dcc0a0f"
+  },
+  {
+    "id": "L06",
+    "folder": "06-hill-deck-transition",
+    "fbx": "06-hill-deck-transition/SM_Astra_HillDeckTransition.fbx",
+    "collider": "06-hill-deck-transition/Colliders/UCX_SM_Astra_HillDeckTransition.fbx",
+    "material": "06-hill-deck-transition/M_Astra_HillDeckTransition.mat",
+    "texture_count": 6,
+    "triangles": 7052,
+    "collision_triangles": 12,
+    "dimensions_width_height_length_m": [
+      3.801999807357788,
+      0.3630000054836273,
+      2.7872743606567383
+    ],
+    "preview": "Previews~/06-hill-deck-transition-concept.png",
+    "sha256": "6949b070c11de7b33bfc9564cbad1d23d1c3823c13ff726c22f65ce889bfb032"
+  },
+  {
+    "id": "L07",
+    "folder": "07-observatory-entry-stairs",
+    "fbx": "07-observatory-entry-stairs/SM_Astra_ObservatoryEntryStairs.fbx",
+    "collider": "07-observatory-entry-stairs/Colliders/UCX_SM_Astra_ObservatoryEntryStairs.fbx",
+    "material": "07-observatory-entry-stairs/M_Astra_ObservatoryEntryStairs.mat",
+    "texture_count": 6,
+    "triangles": 4012,
+    "collision_triangles": 48,
+    "dimensions_width_height_length_m": [
+      3.3550000190734863,
+      0.8190000057220459,
+      2.086000084877014
+    ],
+    "preview": "Previews~/07-observatory-entry-stairs-concept.png",
+    "sha256": "ddd588873fd5d4ab8975b73758c72e2d339e817dabfce766f8cb046a4a026f2d"
+  },
+  {
+    "id": "L08",
+    "folder": "08-observatory-instrument",
+    "fbx": "08-observatory-instrument/SM_Astra_ObservatoryInstrument.fbx",
+    "collider": "08-observatory-instrument/Colliders/UCX_SM_Astra_ObservatoryInstrument.fbx",
+    "material": "08-observatory-instrument/M_Astra_ObservatoryInstrument.mat",
+    "texture_count": 6,
+    "triangles": 10116,
+    "collision_triangles": 92,
+    "dimensions_width_height_length_m": [
+      0.8104999661445618,
+      0.8544999957084656,
+      0.8160000145435333
+    ],
+    "preview": "Previews~/08-observatory-instrument-concept.png",
+    "sha256": "210063244ce814479100f97f9fecca62a831cadeba92d7cbc1e9c0f31ee61028"
+  },
+  {
+    "id": "L09",
+    "folder": "09-adjustable-trail-junction",
+    "fbx": "09-adjustable-trail-junction/SM_Astra_TrailJunction.fbx",
+    "collider": "09-adjustable-trail-junction/Colliders/UCX_SM_Astra_TrailJunction.fbx",
+    "material": "09-adjustable-trail-junction/M_Astra_TrailJunction.mat",
+    "texture_count": 6,
+    "triangles": 2236,
+    "collision_triangles": 28,
+    "dimensions_width_height_length_m": [
+      4.400000095367432,
+      0.2110000029206276,
+      2.4000000953674316
+    ],
+    "preview": "Previews~/09-adjustable-trail-junction-concept.png",
+    "sha256": "f3876f3f77ceea2012ccfb6e9b1dd125ba2ec831e207375812dc11848c51fddb"
+  },
+  {
+    "id": "L10",
+    "folder": "10-cliff-edge-guardrail",
+    "fbx": "10-cliff-edge-guardrail/SM_Astra_CliffEdgeGuardrail.fbx",
+    "collider": "10-cliff-edge-guardrail/Colliders/UCX_SM_Astra_CliffEdgeGuardrail.fbx",
+    "material": "10-cliff-edge-guardrail/M_Astra_CliffEdgeGuardrail.mat",
+    "texture_count": 6,
+    "triangles": 2500,
+    "collision_triangles": 12,
+    "dimensions_width_height_length_m": [
+      2.0,
+      1.0,
+      0.18000000715255737
+    ],
+    "preview": "Previews~/10-cliff-edge-guardrail-concept.png",
+    "sha256": "2f9401cc07d946e1d830f52de2a720fca1a7a4ef452c9ea452c2bf92f88d9b42"
+  },
+  {
+    "id": "L11",
+    "folder": "11-spiral-hill-ascent",
+    "fbx": "11-spiral-hill-ascent/SM_Astra_SpiralHillAscent.fbx",
+    "collider": "11-spiral-hill-ascent/Colliders/UCX_SM_Astra_SpiralHillAscent.fbx",
+    "material": "11-spiral-hill-ascent/M_Astra_SpiralHillAscent.mat",
+    "texture_count": 6,
+    "triangles": 39996,
+    "collision_triangles": 1156,
+    "dimensions_width_height_length_m": [
+      32.400001525878906,
+      7.622000217437744,
+      32.400001525878906
+    ],
+    "preview": "Previews~/11-spiral-hill-ascent-concept.png",
+    "sha256": "0d736427603f893691f3c23a1d4f3bc9ef8ddbd64888da618a7984d13472d4a1"
+  }
+]

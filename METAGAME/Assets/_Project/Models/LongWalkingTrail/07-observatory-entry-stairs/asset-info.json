@@ -1,0 +1,68 @@
+{
+  "id": "L07",
+  "folder": "07-observatory-entry-stairs",
+  "fbx": "SM_Astra_ObservatoryEntryStairs.fbx",
+  "material": "M_SM_Astra_ObservatoryEntryStairs.004",
+  "source_components": 33,
+  "geometry": {
+    "vertices": 2072,
+    "triangles": 4012,
+    "bounds_min": [
+      -1.6775000095367432,
+      -1.0470000505447388,
+      0.0
+    ],
+    "bounds_max": [
+      1.6775000095367432,
+      1.0390000343322754,
+      0.8190000057220459
+    ],
+    "dimensions_blender_xyz": [
+      3.3550000190734863,
+      2.086000084877014,
+      0.8190000057220459
+    ]
+  },
+  "roundtrip": {
+    "vertices": 2072,
+    "triangles": 4012,
+    "bounds_min": [
+      -1.6775000095367432,
+      -1.0470000505447388,
+      -1.692745996706435e-07
+    ],
+    "bounds_max": [
+      1.6775000095367432,
+      1.039000153541565,
+      0.8190001845359802
+    ],
+    "dimensions_blender_xyz": [
+      3.3550000190734863,
+      2.0860002040863037,
+      0.8190003538105799
+    ]
+  },
+  "roundtrip_status": "PASS",
+  "visual_mesh_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "collision_mesh_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "collision_triangles": 48,
+  "texture_links": [
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\07-observatory-entry-stairs\\SM_Astra_ObservatoryEntryStairs.fbm\\SM_Astra_ObservatoryEntryStairs_BaseColor.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\07-observatory-entry-stairs\\SM_Astra_ObservatoryEntryStairs.fbm\\SM_Astra_ObservatoryEntryStairs_Emission.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\07-observatory-entry-stairs\\SM_Astra_ObservatoryEntryStairs.fbm\\SM_Astra_ObservatoryEntryStairs_Metallic.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\07-observatory-entry-stairs\\SM_Astra_ObservatoryEntryStairs.fbm\\SM_Astra_ObservatoryEntryStairs_Normal.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\07-observatory-entry-stairs\\SM_Astra_ObservatoryEntryStairs.fbm\\SM_Astra_ObservatoryEntryStairs_Roughness.png"
+  ],
+  "missing_textures": [],
+  "uv0": "4x4 PBR trim atlas",
+  "unity_lightmap_uv": "generate in ModelImporter",
+  "units": "metres",
+  "pivot": "scene-compatible centered deck for L01-L06/L09; ground-center for L07/L08/L10; spiral center at ground level for L11",
+  "preview": "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\Previews~\\07-observatory-entry-stairs-concept.png"
+}

@@ -1,0 +1,68 @@
+{
+  "id": "L10",
+  "folder": "10-cliff-edge-guardrail",
+  "fbx": "SM_Astra_CliffEdgeGuardrail.fbx",
+  "material": "M_SM_Astra_CliffEdgeGuardrail",
+  "source_components": 19,
+  "geometry": {
+    "vertices": 1288,
+    "triangles": 2500,
+    "bounds_min": [
+      -1.0,
+      -0.09000000357627869,
+      0.0
+    ],
+    "bounds_max": [
+      1.0,
+      0.09000000357627869,
+      1.0
+    ],
+    "dimensions_blender_xyz": [
+      2.0,
+      0.18000000715255737,
+      1.0
+    ]
+  },
+  "roundtrip": {
+    "vertices": 1288,
+    "triangles": 2500,
+    "bounds_min": [
+      -1.0,
+      -0.09000000357627869,
+      -1.4662862035663693e-08
+    ],
+    "bounds_max": [
+      1.0,
+      0.09000016748905182,
+      1.0
+    ],
+    "dimensions_blender_xyz": [
+      2.0,
+      0.1800001710653305,
+      1.000000014662862
+    ]
+  },
+  "roundtrip_status": "PASS",
+  "visual_mesh_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "collision_mesh_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "collision_triangles": 12,
+  "texture_links": [
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\10-cliff-edge-guardrail\\SM_Astra_CliffEdgeGuardrail.fbm\\SM_Astra_CliffEdgeGuardrail_BaseColor.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\10-cliff-edge-guardrail\\SM_Astra_CliffEdgeGuardrail.fbm\\SM_Astra_CliffEdgeGuardrail_Emission.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\10-cliff-edge-guardrail\\SM_Astra_CliffEdgeGuardrail.fbm\\SM_Astra_CliffEdgeGuardrail_Metallic.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\10-cliff-edge-guardrail\\SM_Astra_CliffEdgeGuardrail.fbm\\SM_Astra_CliffEdgeGuardrail_Normal.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\10-cliff-edge-guardrail\\SM_Astra_CliffEdgeGuardrail.fbm\\SM_Astra_CliffEdgeGuardrail_Roughness.png"
+  ],
+  "missing_textures": [],
+  "uv0": "4x4 PBR trim atlas",
+  "unity_lightmap_uv": "generate in ModelImporter",
+  "units": "metres",
+  "pivot": "scene-compatible centered deck for L01-L06/L09; ground-center for L07/L08/L10; spiral center at ground level for L11",
+  "preview": "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\Previews~\\10-cliff-edge-guardrail-concept.png"
+}

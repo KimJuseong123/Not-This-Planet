@@ -1,0 +1,68 @@
+{
+  "id": "L09",
+  "folder": "09-adjustable-trail-junction",
+  "fbx": "SM_Astra_TrailJunction.fbx",
+  "material": "M_SM_Astra_TrailJunction.003",
+  "source_components": 15,
+  "geometry": {
+    "vertices": 1148,
+    "triangles": 2236,
+    "bounds_min": [
+      -2.200000047683716,
+      -1.2000000476837158,
+      -0.10000000149011612
+    ],
+    "bounds_max": [
+      2.200000047683716,
+      1.2000000476837158,
+      0.11100000143051147
+    ],
+    "dimensions_blender_xyz": [
+      4.400000095367432,
+      2.4000000953674316,
+      0.2110000029206276
+    ]
+  },
+  "roundtrip": {
+    "vertices": 1148,
+    "triangles": 2236,
+    "bounds_min": [
+      -2.200000047683716,
+      -1.2000000476837158,
+      -0.10000019520521164
+    ],
+    "bounds_max": [
+      2.200000047683716,
+      1.2000000476837158,
+      0.111000195145607
+    ],
+    "dimensions_blender_xyz": [
+      4.400000095367432,
+      2.4000000953674316,
+      0.21100039035081863
+    ]
+  },
+  "roundtrip_status": "PASS",
+  "visual_mesh_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "collision_mesh_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "collision_triangles": 28,
+  "texture_links": [
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\09-adjustable-trail-junction\\SM_Astra_TrailJunction.fbm\\SM_Astra_TrailJunction_BaseColor.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\09-adjustable-trail-junction\\SM_Astra_TrailJunction.fbm\\SM_Astra_TrailJunction_Emission.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\09-adjustable-trail-junction\\SM_Astra_TrailJunction.fbm\\SM_Astra_TrailJunction_Metallic.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\09-adjustable-trail-junction\\SM_Astra_TrailJunction.fbm\\SM_Astra_TrailJunction_Normal.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\09-adjustable-trail-junction\\SM_Astra_TrailJunction.fbm\\SM_Astra_TrailJunction_Roughness.png"
+  ],
+  "missing_textures": [],
+  "uv0": "4x4 PBR trim atlas",
+  "unity_lightmap_uv": "generate in ModelImporter",
+  "units": "metres",
+  "pivot": "scene-compatible centered deck for L01-L06/L09; ground-center for L07/L08/L10; spiral center at ground level for L11",
+  "preview": "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\Previews~\\09-adjustable-trail-junction-concept.png"
+}
