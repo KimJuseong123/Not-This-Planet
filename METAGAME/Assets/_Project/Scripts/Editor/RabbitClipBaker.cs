@@ -31,7 +31,8 @@ namespace Metagame.EditorTools
         /// <paramref name="sourceFbx"/> 안의 클립을 <paramref name="clipName"/> 으로 굽는다.
         /// <paramref name="boneNames"/> 중 하나라도 움직이지 않으면 실패한다.
         /// </summary>
-        public static void Bake(string sourceFbx, string clipName, string[] boneNames, bool loop)
+        public static void Bake(string sourceFbx, string clipName, string[] boneNames, bool loop,
+                                float keyTolerance = 0f)
         {
             if (EditorApplication.isPlayingOrWillChangePlaymode)
                 throw new InvalidOperationException("Stop Play mode before baking animations.");
@@ -109,6 +110,8 @@ namespace Metagame.EditorTools
                         + ". FBX 안의 뼈 이름이 프리팹과 다른지, 블렌더 액션에 그 뼈의 키가 "
                         + "있는지 확인할 것.");
 
+                if (keyTolerance > 0f) Reduce(clip, boneNames, target.transform, byName, keyTolerance);
+
                 clip.EnsureQuaternionContinuity();
                 var settings = AnimationUtility.GetAnimationClipSettings(clip);
                 settings.loopTime = loop;
@@ -145,6 +148,148 @@ namespace Metagame.EditorTools
                 if (target != null) UnityEngine.Object.DestroyImmediate(target);
                 EditorSceneManager.ClosePreviewScene(scene);
             }
+        }
+
+
+        /// <summary>
+        /// 값이 거의 안 변하는 키를 걷어낸다. 걷어낸 뒤 <b>실제 회전이 얼마나 달라졌는지
+        /// 재고</b>, 눈에 띌 만큼 달라졌으면 실패시킨다.
+        ///
+        /// <para>왜 필요한가: 30fps · 14.2초 · 18뼈 · 쿼터니언 4성분이면 키가 3만 개가 넘고,
+        /// 텍스트 에셋으로 16MB 다. 저장소 위생 검사(비-LFS 한도)에 걸린다.</para>
+        ///
+        /// <para><b>성분별로 줄이고 각도로 확인한다.</b> 쿼터니언 네 성분을 따로 줄이면
+        /// 성분마다의 오차는 작아도 합쳐진 회전은 그보다 크게 틀어질 수 있다 — 그래서
+        /// 줄이기 전후의 회전을 60Hz 로 훑어 <b>각도 차이의 최대값</b>을 잰다.</para>
+        /// </summary>
+        static void Reduce(AnimationClip clip, string[] boneNames, Transform root,
+                           Dictionary<string, Transform> byName, float tolerance)
+        {
+            const float MaxDegrees = 1.5f;   // 이보다 틀어지면 동작이 바뀐 것으로 본다
+
+            var before = new Dictionary<string, AnimationCurve[]>();
+            var after = new Dictionary<string, AnimationCurve[]>();
+            var order = new[] { "x", "y", "z", "w" };
+            int kept = 0, dropped = 0;
+
+            foreach (var name in boneNames)
+            {
+                var path = AnimationUtility.CalculateTransformPath(byName[name], root);
+                var old = new AnimationCurve[4];
+                var neu = new AnimationCurve[4];
+                for (int i = 0; i < 4; i++)
+                {
+                    var binding = EditorCurveBinding.FloatCurve(path, typeof(Transform),
+                        "m_LocalRotation." + order[i]);
+                    var curve = AnimationUtility.GetEditorCurve(clip, binding);
+                    if (curve == null || curve.length == 0) { old[i] = neu[i] = curve; continue; }
+                    old[i] = curve;
+                    neu[i] = Thin(curve, tolerance, ref kept, ref dropped);
+                }
+                before[name] = old;
+                after[name] = neu;
+            }
+
+            // **먼저 재고 나서 쓴다.** 써 놓고 재면 실패해도 이미 망가진 클립이 남는다.
+            float worst = 0f;
+            string worstBone = string.Empty;
+            var all = new List<float>();
+            for (float t = 0f; t <= clip.length; t += 1f / 60f)
+            {
+                foreach (var name in boneNames)
+                {
+                    var a = Sample(before[name], t);
+                    var b = Sample(after[name], t);
+                    if (!a.HasValue || !b.HasValue) continue;
+                    var angle = Quaternion.Angle(a.Value, b.Value);
+                    all.Add(angle);
+                    if (angle > worst) { worst = angle; worstBone = name; }
+                }
+            }
+            all.Sort();
+            float Pick(float q) => all.Count == 0 ? 0f
+                : all[Mathf.Clamp(Mathf.FloorToInt(q * (all.Count - 1)), 0, all.Count - 1)];
+            Debug.Log($"[RabbitClip] 틀어짐 분포: 중앙 {Pick(0.5f):F3}도 · 상위10% {Pick(0.9f):F3}도 "
+                      + $"· 상위1% {Pick(0.99f):F3}도 · 최대 {worst:F3}도 · 표본 {all.Count}");
+            Debug.Log($"[RabbitClip] 키 줄이기(tolerance {tolerance}): {kept + dropped} → {kept}개 "
+                      + $"(뺀 것 {dropped}) · 최대 틀어짐 {worst:F3}도 ({worstBone})");
+            if (worst > MaxDegrees)
+                throw new InvalidOperationException(
+                    $"키를 줄였더니 동작이 바뀐다 — {worstBone} 이 최대 {worst:F2}도 틀어졌다 "
+                    + $"(허용 {MaxDegrees}도). tolerance 를 낮출 것.");
+
+            foreach (var name in boneNames)
+            {
+                var path = AnimationUtility.CalculateTransformPath(byName[name], root);
+                for (int i = 0; i < 4; i++)
+                {
+                    if (after[name][i] == null) continue;
+                    AnimationUtility.SetEditorCurve(clip,
+                        EditorCurveBinding.FloatCurve(path, typeof(Transform),
+                            "m_LocalRotation." + order[i]),
+                        after[name][i]);
+                }
+            }
+
+        }
+
+        /// <summary>
+        /// 키를 솎는다. <b>탄젠트는 건드리지 않는다.</b>
+        ///
+        /// <para>처음에는 "이웃 둘의 직선값과 가까우면 뺀다" 로 하고 남은 키의 탄젠트를
+        /// 다시 매끄럽게 했는데, 그것이 곡선 모양을 통째로 바꿔 <b>R_Calf 가 120.73도
+        /// 틀어졌다</b>(각도 확인이 잡았다). 애니메이션 커브는 직선이 아니라 탄젠트가
+        /// 정하는 곡선이라, 직선으로 재고 탄젠트를 새로 만들면 둘 다 틀린다.</para>
+        ///
+        /// <para>그래서 <b>남긴 키로 실제로 그려 본 곡선</b>과 원본 값을 견주고, 제일 많이
+        /// 어긋나는 자리를 하나씩 도로 넣는다(Douglas-Peucker). 탄젠트는 원본 것을 그대로
+        /// 들고 간다.</para>
+        /// </summary>
+        static AnimationCurve Thin(AnimationCurve curve, float tolerance, ref int kept, ref int dropped)
+        {
+            int count = curve.length;
+            if (count <= 2) { kept += count; return curve; }
+
+            var keep = new bool[count];
+            keep[0] = keep[count - 1] = true;
+            Split(curve, 0, count - 1, tolerance, keep);
+
+            var keys = new List<Keyframe>();
+            for (int i = 0; i < count; i++)
+            {
+                if (keep[i]) keys.Add(curve[i]);
+                else dropped++;
+            }
+            kept += keys.Count;
+            return new AnimationCurve(keys.ToArray());
+        }
+
+        /// <summary>a..b 를 두 키만으로 그렸을 때 가장 많이 어긋나는 자리를 도로 넣는다.</summary>
+        static void Split(AnimationCurve curve, int a, int b, float tolerance, bool[] keep)
+        {
+            if (b - a < 2) return;
+
+            var probe = new AnimationCurve(new[] { curve[a], curve[b] });
+            float worst = 0f;
+            int at = -1;
+            for (int i = a + 1; i < b; i++)
+            {
+                float error = Mathf.Abs(probe.Evaluate(curve[i].time) - curve[i].value);
+                if (error > worst) { worst = error; at = i; }
+            }
+            if (at < 0 || worst <= tolerance) return;
+
+            keep[at] = true;
+            Split(curve, a, at, tolerance, keep);
+            Split(curve, at, b, tolerance, keep);
+        }
+
+        static Quaternion? Sample(AnimationCurve[] curves, float time)
+        {
+            if (curves[0] == null || curves[1] == null || curves[2] == null || curves[3] == null)
+                return null;
+            return new Quaternion(curves[0].Evaluate(time), curves[1].Evaluate(time),
+                                  curves[2].Evaluate(time), curves[3].Evaluate(time)).normalized;
         }
 
         static void ImportSource(string sourceFbx, string clipName, bool loop)

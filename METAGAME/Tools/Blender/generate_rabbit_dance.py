@@ -67,6 +67,10 @@ LIMBS = [("R_Upperarm", "R_Forearm", "R_Clavicle", "R_Hand"),
          ("L_Upperarm", "L_Forearm", "L_Clavicle", "L_Hand")]
 LEGS = [("R_Thigh", "R_Calf", "R_Foot"), ("L_Thigh", "L_Calf", "L_Foot")]
 
+# **프레임마다 키를 찍는다.** 키를 띄워 찍어 파일을 줄이는 것도 해봤는데(10fps),
+# 그러면 이 춤의 핵심인 '고개를 휙 떨구는' 동작이 뭉개진다 — 한 프레임에 14도까지
+# 꺾이는 자리가 9군데 있고, 0.1초 간격 키로는 그것이 완만한 경사가 된다.
+# 용량은 LFS 로 푼다(.gitattributes). 동작을 깎아서 풀 문제가 아니다.
 CLAVICLE_FOLLOW = 0.22      # 어깨가 팔을 따라가는 정도
 WRIST_LAG = 2               # 손목이 팔뚝보다 늦는 프레임 수
 FOOT_LEVEL = 0.62           # 발이 정강이를 안 따라가고 앞을 보게 하는 정도

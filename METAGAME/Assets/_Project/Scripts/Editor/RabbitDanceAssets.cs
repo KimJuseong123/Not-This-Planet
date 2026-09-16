@@ -39,6 +39,11 @@ namespace Metagame.EditorTools
         public static void BakeBatch() => Bake();
 
         // 한 번짜리 감정표현이다. 끝나면 서 있는 자세로 돌아간다.
-        public static void Bake() => RabbitClipBaker.Bake(SourceFbx, ClipName, BoneNames, loop: false);
+        // 키를 줄인다. 30fps · 14.2초 · 18뼈면 키가 3만 개가 넘어 텍스트로 16MB 가 되고,
+        // 저장소 위생 검사(비-LFS 한도)에 걸린다. 줄인 뒤 회전이 0.5도 넘게 틀어지면
+        // 굽기가 실패한다 — 용량을 줄이려다 동작을 바꾸면 안 된다.
+        // 던지기(26프레임)는 작아서 줄이지 않는다.
+        public static void Bake() =>
+            RabbitClipBaker.Bake(SourceFbx, ClipName, BoneNames, loop: false, keyTolerance: 0.0008f);
     }
 }
