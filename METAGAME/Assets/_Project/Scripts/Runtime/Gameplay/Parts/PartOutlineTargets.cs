@@ -66,6 +66,11 @@ namespace Metagame.Gameplay.Parts
             if (PartBuffer.Count == 0) return false;
 
             PartOutlineGroups.Assign(PartBuffer, PartAssemblyLink.All, GroupBuffer);
+
+            // 혼자인 파츠에는 테두리를 두르지 않는다 (S15P21B202-562). 테두리는
+            // "붙었다" 를 보여 주는 표시라, 아직 혼자인 것까지 두르면 뜻이 흐려진다.
+            if (PartOutlineGroups.KeepMergedOnly(GroupBuffer) == 0) return false;
+
             block ??= new MaterialPropertyBlock();
 
             for (var i = 0; i < PartBuffer.Count; i++)

@@ -13,7 +13,7 @@ Shader "Hidden/Metagame/Rendering/PartOutline"
     {
         _BlitTexture ("Source", 2D) = "white" {}
         _OutlineColor ("Outline Color", Color) = (0.42, 0.92, 1, 1)
-        _OutlineThickness ("Thickness (px)", Range(1, 6)) = 2
+        _OutlineThickness ("Thickness (px)", Range(1, 10)) = 4
     }
 
     SubShader
@@ -36,7 +36,6 @@ Shader "Hidden/Metagame/Rendering/PartOutline"
 
             TEXTURE2D_X(_MetagamePartOutlineMask);
             SAMPLER(sampler_MetagamePartOutlineMask);
-            float4 _MetagamePartOutlineMask_TexelSize;
 
             half4 _OutlineColor;
             half _OutlineThickness;
@@ -71,7 +70,13 @@ Shader "Hidden/Metagame/Rendering/PartOutline"
                 float2 uv = input.uv;
                 half here = Group(uv);
 
-                float2 step = _MetagamePartOutlineMask_TexelSize.xy * _OutlineThickness;
+                // **화면 픽셀로 잰다** (S15P21B202-562).
+                //
+                // 예전에는 마스크 텍스처의 _TexelSize 를 썼다. 그런데 그 값은 렌더그래프가
+                // 잡아 준 텍스처에는 제대로 채워지지 않아서, 거리에 따라 두께가 들쭉날쭉해
+                // 보였다 — 가까이 갈수록 얇아졌다. _ScreenParams 는 언제나 카메라의 실제
+                // 해상도라 흔들리지 않는다(zw 가 1 + 1/너비, 1 + 1/높이 다).
+                float2 step = (_ScreenParams.zw - 1.0) * _OutlineThickness;
 
                 // 네 방향만 본다. 대각선까지 보면 모서리가 두꺼워져 파츠가 부어 보인다.
                 half up    = Group(uv + float2(0.0,     step.y));

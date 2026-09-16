@@ -84,6 +84,42 @@ namespace Metagame.Gameplay.Parts
             return groups;
         }
 
+        /// <summary>
+        /// <b>혼자인 덩어리를 걷어낸다</b> (S15P21B202-562).
+        ///
+        /// <para>테두리는 "붙었다" 를 보여 주는 표시다. 아직 혼자 굴러다니는 파츠에까지
+        /// 두르면 그 뜻이 흐려진다 — 온 화면이 테두리면 무엇이 결합된 것인지 오히려
+        /// 안 보인다. 그래서 <b>둘 이상이 용접으로 묶인 덩어리만</b> 남긴다.</para>
+        ///
+        /// <para>번호를 다시 매기지 않는다. 마스크는 번호가 <b>다른지만</b> 보므로 빈
+        /// 번호가 생겨도 상관없고, 다시 매기면 그때마다 값이 흔들려 테두리가 깜빡인다.</para>
+        /// </summary>
+        /// <param name="groups">
+        /// <see cref="Assign"/> 이 채운 사전. 혼자인 파츠는 여기서 <b>빠진다</b>.
+        /// </param>
+        /// <returns>남은 덩어리 수.</returns>
+        public static int KeepMergedOnly(Dictionary<SpaceshipPart, int> groups)
+        {
+            if (groups == null || groups.Count == 0) return 0;
+
+            var members = new Dictionary<int, int>();
+            foreach (var pair in groups)
+                members[pair.Value] = members.TryGetValue(pair.Value, out var n) ? n + 1 : 1;
+
+            // 사전을 돌면서 지울 수 없다 — 지울 것을 먼저 모은다.
+            var lonely = new List<SpaceshipPart>();
+            foreach (var pair in groups)
+                if (members[pair.Value] < 2) lonely.Add(pair.Key);
+
+            for (var i = 0; i < lonely.Count; i++) groups.Remove(lonely[i]);
+
+            var kept = 0;
+            foreach (var pair in members)
+                if (pair.Value >= 2) kept++;
+
+            return kept;
+        }
+
         static int Find(int[] parent, int i)
         {
             while (parent[i] != i)

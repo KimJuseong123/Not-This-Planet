@@ -154,6 +154,72 @@ namespace Metagame.Gameplay.Tests
             Assert.AreEqual(0, PartOutlineGroups.Assign(new SpaceshipPart[0], null, groups));
         }
 
+        // ── 혼자인 파츠는 테두리가 없다 (S15P21B202-562) ──────
+
+        /// <summary>
+        /// <b>테두리는 "붙었다" 를 보여 주는 표시다.</b> 아직 혼자 굴러다니는 파츠에까지
+        /// 두르면 온 화면이 테두리가 되어, 무엇이 결합된 것인지 오히려 안 보인다.
+        /// </summary>
+        [Test]
+        public void ALonePartGetsNoOutline()
+        {
+            var a = Part("Part_1");
+            var b = Part("Part_2");
+            var groups = new Dictionary<SpaceshipPart, int>();
+            PartOutlineGroups.Assign(new[] { a, b }, null, groups);
+
+            var kept = PartOutlineGroups.KeepMergedOnly(groups);
+
+            Assert.AreEqual(0, kept, "붙은 것이 없으면 그릴 덩어리도 없다.");
+            Assert.IsEmpty(groups, "혼자인 파츠는 목록에서 빠져야 한다.");
+        }
+
+        [Test]
+        public void AWeldedPairSurvivesAndTheLonePartDoesNot()
+        {
+            var a = Part("Part_1");
+            var b = Part("Part_2");
+            var lone = Part("Part_3");
+            var groups = new Dictionary<SpaceshipPart, int>();
+            PartOutlineGroups.Assign(new[] { a, b, lone },
+                new[] { Link(a, b, true, true) }, groups);
+
+            var kept = PartOutlineGroups.KeepMergedOnly(groups);
+
+            Assert.AreEqual(1, kept, "묶인 덩어리 하나만 남는다.");
+            Assert.IsTrue(groups.ContainsKey(a), "용접된 쪽은 남아야 한다.");
+            Assert.IsTrue(groups.ContainsKey(b));
+            Assert.IsFalse(groups.ContainsKey(lone), "혼자인 파츠는 빠져야 한다.");
+        }
+
+        /// <summary>
+        /// 남은 번호를 다시 매기지 않는다. 마스크는 번호가 <b>다른지만</b> 보므로 빈 번호가
+        /// 생겨도 되고, 다시 매기면 그때마다 값이 흔들려 테두리가 깜빡인다.
+        /// </summary>
+        [Test]
+        public void TheSurvivingNumbersDoNotShift()
+        {
+            var a = Part("Part_1");
+            var lone = Part("Part_2");
+            var c = Part("Part_3");
+            var groups = new Dictionary<SpaceshipPart, int>();
+            PartOutlineGroups.Assign(new[] { a, lone, c },
+                new[] { Link(a, c, true, true) }, groups);
+            var before = groups[a];
+
+            PartOutlineGroups.KeepMergedOnly(groups);
+
+            Assert.AreEqual(before, groups[a], "살아남은 번호가 바뀌면 테두리가 깜빡인다.");
+            Assert.AreEqual(groups[a], groups[c]);
+        }
+
+        [Test]
+        public void KeepMergedOnlyHandlesEmptyInput()
+        {
+            Assert.AreEqual(0, PartOutlineGroups.KeepMergedOnly(null));
+            Assert.AreEqual(0, PartOutlineGroups.KeepMergedOnly(new Dictionary<SpaceshipPart, int>()));
+        }
+
         // ── 도구 ────────────────────────────────────────────────
 
         SpaceshipPart Part(string name)
