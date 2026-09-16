@@ -16,6 +16,7 @@
   "validation_report": "artifacts\\stage1-related-hangar\\10-modular-edge-curb\\validation.json",
   "fbx_roundtrip": "PASS",
   "sha256": "56e59c2f9ca6277f81ea1b33f6b194ec44e887a4e4b8d1ba8f201bccef98a88d",
-  "scene_placement": "not placed; imported asset only",
-  "pivot": "base center; ramp low-end elevation"
+  "scene_placement": "Assets/Scenes/Stage1_Astra.unity / Hangar Related - Concept Models",
+  "pivot": "base center; ramp low-end elevation",
+  "scene_instances": 10
 }

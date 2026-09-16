@@ -16,6 +16,7 @@
   "validation_report": "artifacts\\stage1-related-hangar\\06-broken-personnel-bridge-1\\validation.json",
   "fbx_roundtrip": "PASS",
   "sha256": "9c88fbe9e23c3a6934119046e22f366e041bb9fa49152234549b6e1b3a9ed979",
-  "scene_placement": "not placed; imported asset only",
-  "pivot": "base center; ramp low-end elevation"
+  "scene_placement": "Assets/Scenes/Stage1_Astra.unity / Hangar Related - Concept Models",
+  "pivot": "base center; ramp low-end elevation",
+  "scene_instances": 1
 }

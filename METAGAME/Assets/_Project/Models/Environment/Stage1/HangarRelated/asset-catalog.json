@@ -17,8 +17,9 @@
     "validation_report": "artifacts\\stage1-related-hangar\\01-south-approach-walkway\\validation.json",
     "fbx_roundtrip": "PASS",
     "sha256": "ced24c3b7276712fad47933081d9045f35922220847d90677f14d161a38d54bc",
-    "scene_placement": "not placed; imported asset only",
-    "pivot": "base center; ramp low-end elevation"
+    "scene_placement": "Assets/Scenes/Stage1_Astra.unity / Hangar Related - Concept Models",
+    "pivot": "base center; ramp low-end elevation",
+    "scene_instances": 1
   },
   {
     "asset": "SM_Astra_EastEntranceLanding",
@@ -38,8 +39,9 @@
     "validation_report": "artifacts\\stage1-related-hangar\\02-east-entrance-landing\\validation.json",
     "fbx_roundtrip": "PASS",
     "sha256": "e2b785d8907eda45c3c74eedf57b84c15738cb35b0bb2d980d4ee11bec57f9f2",
-    "scene_placement": "not placed; imported asset only",
-    "pivot": "base center; ramp low-end elevation"
+    "scene_placement": "Assets/Scenes/Stage1_Astra.unity / Hangar Related - Concept Models",
+    "pivot": "base center; ramp low-end elevation",
+    "scene_instances": 1
   },
   {
     "asset": "SM_Astra_PedestrianAccess",
@@ -59,8 +61,9 @@
     "validation_report": "artifacts\\stage1-related-hangar\\03-pedestrian-access\\validation.json",
     "fbx_roundtrip": "PASS",
     "sha256": "dc66ffd1c178c75a21805a4e440c5fe5853977b9a323023f85be122f1099fcc5",
-    "scene_placement": "not placed; imported asset only",
-    "pivot": "base center; ramp low-end elevation"
+    "scene_placement": "Assets/Scenes/Stage1_Astra.unity / Hangar Related - Concept Models",
+    "pivot": "base center; ramp low-end elevation",
+    "scene_instances": 1
   },
   {
     "asset": "SM_Astra_FoundationApproachDeck",
@@ -80,8 +83,9 @@
     "validation_report": "artifacts\\stage1-related-hangar\\04-foundation-approach-deck\\validation.json",
     "fbx_roundtrip": "PASS",
     "sha256": "6e5c9a997726d8ace4660fbbe4dc12073e9bf546e32a2f22e8b4ee608c4195f9",
-    "scene_placement": "not placed; imported asset only",
-    "pivot": "base center; ramp low-end elevation"
+    "scene_placement": "Assets/Scenes/Stage1_Astra.unity / Hangar Related - Concept Models",
+    "pivot": "base center; ramp low-end elevation",
+    "scene_instances": 1
   },
   {
     "asset": "SM_Astra_BrokenPersonnelBridge0",
@@ -101,8 +105,9 @@
     "validation_report": "artifacts\\stage1-related-hangar\\05-broken-personnel-bridge-0\\validation.json",
     "fbx_roundtrip": "PASS",
     "sha256": "8e8f483e44955e04a9d173c61311b7a538f18b9e8eaa8b2845dd47c88d6a83c7",
-    "scene_placement": "not placed; imported asset only",
-    "pivot": "base center; ramp low-end elevation"
+    "scene_placement": "Assets/Scenes/Stage1_Astra.unity / Hangar Related - Concept Models",
+    "pivot": "base center; ramp low-end elevation",
+    "scene_instances": 1
   },
   {
     "asset": "SM_Astra_BrokenPersonnelBridge1",
@@ -122,8 +127,9 @@
     "validation_report": "artifacts\\stage1-related-hangar\\06-broken-personnel-bridge-1\\validation.json",
     "fbx_roundtrip": "PASS",
     "sha256": "9c88fbe9e23c3a6934119046e22f366e041bb9fa49152234549b6e1b3a9ed979",
-    "scene_placement": "not placed; imported asset only",
-    "pivot": "base center; ramp low-end elevation"
+    "scene_placement": "Assets/Scenes/Stage1_Astra.unity / Hangar Related - Concept Models",
+    "pivot": "base center; ramp low-end elevation",
+    "scene_instances": 1
   },
   {
     "asset": "SM_Astra_BrokenPersonnelBridge2",
@@ -143,8 +149,9 @@
     "validation_report": "artifacts\\stage1-related-hangar\\07-broken-personnel-bridge-2\\validation.json",
     "fbx_roundtrip": "PASS",
     "sha256": "dca472c5dac1a0b32c73da9ee4b8a64b165234b751e8d6bf4a44446fd65cf789",
-    "scene_placement": "not placed; imported asset only",
-    "pivot": "base center; ramp low-end elevation"
+    "scene_placement": "Assets/Scenes/Stage1_Astra.unity / Hangar Related - Concept Models",
+    "pivot": "base center; ramp low-end elevation",
+    "scene_instances": 1
   },
   {
     "asset": "SM_Astra_BrokenPersonnelBridge5",
@@ -164,8 +171,9 @@
     "validation_report": "artifacts\\stage1-related-hangar\\08-broken-personnel-bridge-5\\validation.json",
     "fbx_roundtrip": "PASS",
     "sha256": "52800597038c2801588ce2ab6dab8ac9c1646ce74e650e50ee3ee2ee9ecde586",
-    "scene_placement": "not placed; imported asset only",
-    "pivot": "base center; ramp low-end elevation"
+    "scene_placement": "Assets/Scenes/Stage1_Astra.unity / Hangar Related - Concept Models",
+    "pivot": "base center; ramp low-end elevation",
+    "scene_instances": 1
   },
   {
     "asset": "SM_Astra_BrokenPersonnelBridge6",
@@ -185,8 +193,9 @@
     "validation_report": "artifacts\\stage1-related-hangar\\09-broken-personnel-bridge-6\\validation.json",
     "fbx_roundtrip": "PASS",
     "sha256": "7bb73fe16bbb5609556070a3473a5884e5d6c73f57ab899f244544820f05c8c4",
-    "scene_placement": "not placed; imported asset only",
-    "pivot": "base center; ramp low-end elevation"
+    "scene_placement": "Assets/Scenes/Stage1_Astra.unity / Hangar Related - Concept Models",
+    "pivot": "base center; ramp low-end elevation",
+    "scene_instances": 1
   },
   {
     "asset": "SM_Astra_ModularEdgeCurb",
@@ -206,8 +215,9 @@
     "validation_report": "artifacts\\stage1-related-hangar\\10-modular-edge-curb\\validation.json",
     "fbx_roundtrip": "PASS",
     "sha256": "56e59c2f9ca6277f81ea1b33f6b194ec44e887a4e4b8d1ba8f201bccef98a88d",
-    "scene_placement": "not placed; imported asset only",
-    "pivot": "base center; ramp low-end elevation"
+    "scene_placement": "Assets/Scenes/Stage1_Astra.unity / Hangar Related - Concept Models",
+    "pivot": "base center; ramp low-end elevation",
+    "scene_instances": 10
   },
   {
     "asset": "SM_Astra_CargoApronEntryStairs",
@@ -227,8 +237,9 @@
     "validation_report": "artifacts\\stage1-related-hangar\\11-cargo-apron-entry-stairs\\validation.json",
     "fbx_roundtrip": "PASS",
     "sha256": "29d0960bab411c482cecd422b4f8602fd715bde32a9dfc9249e3a6392b32770f",
-    "scene_placement": "not placed; imported asset only",
-    "pivot": "base center; ramp low-end elevation"
+    "scene_placement": "Assets/Scenes/Stage1_Astra.unity / Hangar Related - Concept Models",
+    "pivot": "base center; ramp low-end elevation",
+    "scene_instances": 1
   },
   {
     "asset": "SM_Astra_AdjustableDeckSupport",
@@ -248,8 +259,9 @@
     "validation_report": "artifacts\\stage1-related-hangar\\12-adjustable-deck-support\\validation.json",
     "fbx_roundtrip": "PASS",
     "sha256": "de09bb3f90c7e67754bb6b131da63030a00c321924185c09949048ea9aa6e40d",
-    "scene_placement": "not placed; imported asset only",
-    "pivot": "base center; ramp low-end elevation"
+    "scene_placement": "Assets/Scenes/Stage1_Astra.unity / Hangar Related - Concept Models",
+    "pivot": "base center; ramp low-end elevation",
+    "scene_instances": 2
   },
   {
     "asset": "SM_Astra_RouteWayfindingBeacon",
@@ -269,7 +281,8 @@
     "validation_report": "artifacts\\stage1-related-hangar\\13-route-wayfinding-beacon\\validation.json",
     "fbx_roundtrip": "PASS",
     "sha256": "f3daf222873de88ea7acc483f71c45a90b0b232cc2165ca9c84a1dd832e34f36",
-    "scene_placement": "not placed; imported asset only",
-    "pivot": "base center; ramp low-end elevation"
+    "scene_placement": "Assets/Scenes/Stage1_Astra.unity / Hangar Related - Concept Models",
+    "pivot": "base center; ramp low-end elevation",
+    "scene_instances": 3
   }
 ]

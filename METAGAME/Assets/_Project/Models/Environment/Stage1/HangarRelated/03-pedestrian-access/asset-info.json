@@ -16,6 +16,7 @@
   "validation_report": "artifacts\\stage1-related-hangar\\03-pedestrian-access\\validation.json",
   "fbx_roundtrip": "PASS",
   "sha256": "dc66ffd1c178c75a21805a4e440c5fe5853977b9a323023f85be122f1099fcc5",
-  "scene_placement": "not placed; imported asset only",
-  "pivot": "base center; ramp low-end elevation"
+  "scene_placement": "Assets/Scenes/Stage1_Astra.unity / Hangar Related - Concept Models",
+  "pivot": "base center; ramp low-end elevation",
+  "scene_instances": 1
 }
