@@ -296,6 +296,10 @@ namespace Metagame.Bootstrap
             Player.ConfigureClampInteraction(Player.Cam.transform);
             Transport.Configure(Player, beams, randomizeVehicles: !inMatch && (authoredMap == null || authoredMap.randomizeVehicles));
 
+            // 시험 진입이면 조립 구역 앞으로 배치를 모은다 (S15P21B202-572).
+            // 요청이 없으면 아무 일도 하지 않으므로 혼자 하기 경로는 그대로다.
+            TestArena.ArrangeIfRequested(Player);
+
             // 매치 중에는 조준·안내만 하고 실행은 서버에 맡긴다(-149).
             Transport.Authoritative = !inMatch;
             Transport.PhysicsAuthority = !inMatch;

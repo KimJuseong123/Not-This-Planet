@@ -260,7 +260,7 @@ namespace Metagame.UI
             float buttonWidth = 330f * scale;
             float buttonHeight = 60f * scale;
             float gap = 14f * scale;
-            float totalHeight = buttonHeight * 5f + gap * 4f;
+            float totalHeight = buttonHeight * 6f + gap * 5f;   // 테스트 버튼이 늘어 6칸 (S15P21B202-572)
             Rect safe = UiScale.SafeArea;
             float x = Mathf.Clamp(UiScale.Width * 0.16f, safe.xMin + 20f, safe.xMax - buttonWidth - 20f);
             float y = Mathf.Clamp(UiScale.Height * 0.54f, safe.yMin + 20f,
@@ -275,20 +275,29 @@ namespace Metagame.UI
             if (UiInteraction.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 0, gap),
                     "혼자 하기", buttonStyle))
                 BeginSolo();
+            // 조립을 손으로 하지 않고 바로 시험한다 (S15P21B202-572). 혼자 하기와 같은
+            // 경로로 들어가되, 배치만 스폰 앞으로 모은다. 감추지 않는 이유는 팀 내부
+            // 도구이기 때문이다 — 감추면 정작 필요할 때 못 쓴다.
             if (UiInteraction.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 1, gap),
+                    "테스트 (조립 준비됨)", buttonStyle))
+            {
+                Metagame.Gameplay.TestArena.Requested = true;
+                BeginSolo();
+            }
+            if (UiInteraction.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 2, gap),
                     "함께 하기", buttonStyle))
             {
                 CustomizerFlow.Begin(true);
             }
-            if (UiInteraction.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 2, gap),
+            if (UiInteraction.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 3, gap),
                     "설정", buttonStyle))
             {
                 OpenSettings();
             }
-            if (UiInteraction.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 3, gap),
+            if (UiInteraction.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 4, gap),
                     "우주선 연습실", buttonStyle))
                 LobbyTransition.Ensure().BeginPractice();
-            if (UiInteraction.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 4, gap),
+            if (UiInteraction.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 5, gap),
                     "종료하기", buttonStyle))
                 Application.Quit();
 
