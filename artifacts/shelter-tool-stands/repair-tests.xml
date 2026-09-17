@@ -1,0 +1,372 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="61" result="Failed(Child)" total="61" passed="60" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-17 09:38:34Z" end-time="2026-09-17 09:38:35Z" duration="0.6115844">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="1831" result="Failed" site="Child" start-time="2026-09-17 09:38:34Z" end-time="2026-09-17 09:38:35Z" duration="0.611584" total="61" passed="60" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="3042" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202/.local-worktrees/594/METAGAME/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="1831" result="Failed" site="Child" start-time="2026-09-17 09:38:34Z" end-time="2026-09-17 09:38:35Z" duration="0.535889" total="61" passed="60" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="45848" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="3043" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="1831" result="Failed" site="Child" start-time="2026-09-17 09:38:35Z" end-time="2026-09-17 09:38:35Z" duration="0.530010" total="61" passed="60" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="3048" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="1782" result="Failed" site="Child" start-time="2026-09-17 09:38:35Z" end-time="2026-09-17 09:38:35Z" duration="0.521614" total="61" passed="60" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="3049" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="1782" result="Failed" site="Child" start-time="2026-09-17 09:38:35Z" end-time="2026-09-17 09:38:35Z" duration="0.516457" total="61" passed="60" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1513" name="FirstPersonHandViewTests" fullname="Metagame.Gameplay.Tests.FirstPersonHandViewTests" classname="Metagame.Gameplay.Tests.FirstPersonHandViewTests" runstate="Runnable" testcasecount="12" result="Passed" start-time="2026-09-17 09:36:54Z" end-time="2026-09-17 09:36:56Z" duration="2.313588" total="12" passed="12" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1526" name="BatSwing_HandsShareSwingAndReturnToIdleWithoutChangingHandSettings" fullname="Metagame.Gameplay.Tests.FirstPersonHandViewTests.BatSwing_HandsShareSwingAndReturnToIdleWithoutChangingHandSettings" methodname="BatSwing_HandsShareSwingAndReturnToIdleWithoutChangingHandSettings" classname="Metagame.Gameplay.Tests.FirstPersonHandViewTests" runstate="Runnable" seed="798783071" result="Passed" start-time="2026-09-17 09:36:54Z" end-time="2026-09-17 09:36:54Z" duration="0.098244" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1514" name="CharacterHand_리소스에서양손을만든다" fullname="Metagame.Gameplay.Tests.FirstPersonHandViewTests.CharacterHand_리소스에서양손을만든다" methodname="CharacterHand_리소스에서양손을만든다" classname="Metagame.Gameplay.Tests.FirstPersonHandViewTests" runstate="Runnable" seed="698108060" result="Passed" start-time="2026-09-17 09:36:54Z" end-time="2026-09-17 09:36:54Z" duration="0.010130" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1525" name="로컬이아닌플레이어와탑승기절상태에서는표시손을숨긴다" fullname="Metagame.Gameplay.Tests.FirstPersonHandViewTests.로컬이아닌플레이어와탑승기절상태에서는표시손을숨긴다" methodname="로컬이아닌플레이어와탑승기절상태에서는표시손을숨긴다" classname="Metagame.Gameplay.Tests.FirstPersonHandViewTests" runstate="Runnable" seed="1087500954" result="Passed" start-time="2026-09-17 09:36:54Z" end-time="2026-09-17 09:36:54Z" duration="0.015976" asserts="0">
+                <properties />
+                <output><![CDATA[[NotThisPlanet] 손 표시 테스트 기절 (기절)
+]]></output>
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="1518" name="빌드씬에하단손설정이저장되어있다" fullname="Metagame.Gameplay.Tests.FirstPersonHandViewTests.빌드씬에하단손설정이저장되어있다" classname="Metagame.Gameplay.Tests.FirstPersonHandViewTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-17 09:36:54Z" end-time="2026-09-17 09:36:56Z" duration="2.136519" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="1516" name="빌드씬에하단손설정이저장되어있다(&quot;Assets/Scenes/Main.unity&quot;)" fullname="Metagame.Gameplay.Tests.FirstPersonHandViewTests.빌드씬에하단손설정이저장되어있다(&quot;Assets/Scenes/Main.unity&quot;)" methodname="빌드씬에하단손설정이저장되어있다" classname="Metagame.Gameplay.Tests.FirstPersonHandViewTests" runstate="Runnable" seed="668933316" result="Passed" start-time="2026-09-17 09:36:54Z" end-time="2026-09-17 09:36:55Z" duration="0.424044" asserts="0">
+                  <properties />
+                  <output><![CDATA[Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_be89ef69
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_e0b152e9
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_0ecb763e
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_415f0994
+]]></output>
+                </test-case>
+                <test-case id="1517" name="빌드씬에하단손설정이저장되어있다(&quot;Assets/Scenes/Stage1_Astra.unity&quot;)" fullname="Metagame.Gameplay.Tests.FirstPersonHandViewTests.빌드씬에하단손설정이저장되어있다(&quot;Assets/Scenes/Stage1_Astra.unity&quot;)" methodname="빌드씬에하단손설정이저장되어있다" classname="Metagame.Gameplay.Tests.FirstPersonHandViewTests" runstate="Runnable" seed="779310784" result="Passed" start-time="2026-09-17 09:36:55Z" end-time="2026-09-17 09:36:56Z" duration="1.709146" asserts="0">
+                  <properties />
+                </test-case>
+              </test-suite>
+              <test-case id="1524" name="삼인칭에서는표시손을숨긴다" fullname="Metagame.Gameplay.Tests.FirstPersonHandViewTests.삼인칭에서는표시손을숨긴다" methodname="삼인칭에서는표시손을숨긴다" classname="Metagame.Gameplay.Tests.FirstPersonHandViewTests" runstate="Runnable" seed="1234185425" result="Passed" start-time="2026-09-17 09:36:56Z" end-time="2026-09-17 09:36:56Z" duration="0.004621" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1521" name="설정값으로손위치와각도를조정한다" fullname="Metagame.Gameplay.Tests.FirstPersonHandViewTests.설정값으로손위치와각도를조정한다" methodname="설정값으로손위치와각도를조정한다" classname="Metagame.Gameplay.Tests.FirstPersonHandViewTests" runstate="Runnable" seed="1428810347" result="Passed" start-time="2026-09-17 09:36:56Z" end-time="2026-09-17 09:36:56Z" duration="0.006203" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1515" name="수동프리셋없이생성즉시하단포즈를적용한다" fullname="Metagame.Gameplay.Tests.FirstPersonHandViewTests.수동프리셋없이생성즉시하단포즈를적용한다" methodname="수동프리셋없이생성즉시하단포즈를적용한다" classname="Metagame.Gameplay.Tests.FirstPersonHandViewTests" runstate="Runnable" seed="1004509753" result="Passed" start-time="2026-09-17 09:36:56Z" end-time="2026-09-17 09:36:56Z" duration="0.005536" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1523" name="원본왼손메시와반전한오른손메시를사용한다" fullname="Metagame.Gameplay.Tests.FirstPersonHandViewTests.원본왼손메시와반전한오른손메시를사용한다" methodname="원본왼손메시와반전한오른손메시를사용한다" classname="Metagame.Gameplay.Tests.FirstPersonHandViewTests" runstate="Runnable" seed="1447821644" result="Passed" start-time="2026-09-17 09:36:56Z" end-time="2026-09-17 09:36:56Z" duration="0.004729" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1522" name="잡기중손목은유지되고손메시만움직인다" fullname="Metagame.Gameplay.Tests.FirstPersonHandViewTests.잡기중손목은유지되고손메시만움직인다" methodname="잡기중손목은유지되고손메시만움직인다" classname="Metagame.Gameplay.Tests.FirstPersonHandViewTests" runstate="Runnable" seed="306158465" result="Passed" start-time="2026-09-17 09:36:56Z" end-time="2026-09-17 09:36:56Z" duration="0.006243" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1520" name="클릭중인손만잡기포즈가된다" fullname="Metagame.Gameplay.Tests.FirstPersonHandViewTests.클릭중인손만잡기포즈가된다" methodname="클릭중인손만잡기포즈가된다" classname="Metagame.Gameplay.Tests.FirstPersonHandViewTests" runstate="Runnable" seed="2028576087" result="Passed" start-time="2026-09-17 09:36:56Z" end-time="2026-09-17 09:36:56Z" duration="0.004103" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1519" name="표시손은물리컴포넌트를추가하지않는다" fullname="Metagame.Gameplay.Tests.FirstPersonHandViewTests.표시손은물리컴포넌트를추가하지않는다" methodname="표시손은물리컴포넌트를추가하지않는다" classname="Metagame.Gameplay.Tests.FirstPersonHandViewTests" runstate="Runnable" seed="1051659572" result="Passed" start-time="2026-09-17 09:36:56Z" end-time="2026-09-17 09:36:56Z" duration="0.004298" asserts="0">
+                <properties />
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1730" name="MagneticStormImpulseTests" fullname="Metagame.Gameplay.Tests.MagneticStormImpulseTests" classname="Metagame.Gameplay.Tests.MagneticStormImpulseTests" runstate="Runnable" testcasecount="9" result="Failed" site="Child" start-time="2026-09-17 09:37:06Z" end-time="2026-09-17 09:37:06Z" duration="0.382553" total="9" passed="8" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1740" name="ResidualImpulseIsWeakerAndStillRequiresAuthorityAndCooldown" fullname="Metagame.Gameplay.Tests.MagneticStormImpulseTests.ResidualImpulseIsWeakerAndStillRequiresAuthorityAndCooldown" methodname="ResidualImpulseIsWeakerAndStillRequiresAuthorityAndCooldown" classname="Metagame.Gameplay.Tests.MagneticStormImpulseTests" runstate="Runnable" seed="1828650279" result="Passed" start-time="2026-09-17 09:36:56Z" end-time="2026-09-17 09:37:02Z" duration="5.788381" asserts="0">
+                <properties>
+                  <property name="Category" value="Heavy" />
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="1732" name="SmokeOpacityIsSerializedAndPassedToTheShader" fullname="Metagame.Gameplay.Tests.MagneticStormImpulseTests.SmokeOpacityIsSerializedAndPassedToTheShader" methodname="SmokeOpacityIsSerializedAndPassedToTheShader" classname="Metagame.Gameplay.Tests.MagneticStormImpulseTests" runstate="Runnable" seed="83989351" result="Passed" start-time="2026-09-17 09:37:02Z" end-time="2026-09-17 09:37:02Z" duration="0.100923" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1731" name="SweepIsBroadsideAndKeepsItsHeightAcrossTheEntirePass" fullname="Metagame.Gameplay.Tests.MagneticStormImpulseTests.SweepIsBroadsideAndKeepsItsHeightAcrossTheEntirePass" methodname="SweepIsBroadsideAndKeepsItsHeightAcrossTheEntirePass" classname="Metagame.Gameplay.Tests.MagneticStormImpulseTests" runstate="Runnable" seed="405358227" result="Passed" start-time="2026-09-17 09:37:02Z" end-time="2026-09-17 09:37:02Z" duration="0.001252" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1733" name="TriggerKicksInteractiveBodiesAndWholePlayerOncePerSecondOnlyWithAuthority" fullname="Metagame.Gameplay.Tests.MagneticStormImpulseTests.TriggerKicksInteractiveBodiesAndWholePlayerOncePerSecondOnlyWithAuthority" methodname="TriggerKicksInteractiveBodiesAndWholePlayerOncePerSecondOnlyWithAuthority" classname="Metagame.Gameplay.Tests.MagneticStormImpulseTests" runstate="Runnable" seed="1466699529" result="Failed" start-time="2026-09-17 09:37:02Z" end-time="2026-09-17 09:37:06Z" duration="4.187417" asserts="0">
+                <properties>
+                  <property name="Category" value="Heavy" />
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  Expected: less than 0.02d
+  But was:  18.4390907f
+]]></message>
+                  <stack-trace><![CDATA[at Metagame.Gameplay.Tests.MagneticStormImpulseTests+<TriggerKicksInteractiveBodiesAndWholePlayerOncePerSecondOnlyWithAuthority>d__3.MoveNext () [0x005c0] in C:\workspace\2-PJT\S15P21B202\.local-worktrees\594\METAGAME\Assets\_Project\Scripts\Tests\Editor\MagneticStormImpulseTests.cs:96
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in .\Library\PackageCache\com.unity.test-framework@1405238725ab\UnityEngine.TestRunner\NUnitExtensions\Attributes\TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="1738" name="WakeExtendsOppositeActualMotionNeverAcrossIt" fullname="Metagame.Gameplay.Tests.MagneticStormImpulseTests.WakeExtendsOppositeActualMotionNeverAcrossIt" classname="Metagame.Gameplay.Tests.MagneticStormImpulseTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-09-17 09:37:06Z" end-time="2026-09-17 09:37:06Z" duration="0.006451" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="1735" name="WakeExtendsOppositeActualMotionNeverAcrossIt(20260903)" fullname="Metagame.Gameplay.Tests.MagneticStormImpulseTests.WakeExtendsOppositeActualMotionNeverAcrossIt(20260903)" methodname="WakeExtendsOppositeActualMotionNeverAcrossIt" classname="Metagame.Gameplay.Tests.MagneticStormImpulseTests" runstate="Runnable" seed="1458831430" result="Passed" start-time="2026-09-17 09:37:06Z" end-time="2026-09-17 09:37:06Z" duration="0.003037" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="1736" name="WakeExtendsOppositeActualMotionNeverAcrossIt(87654)" fullname="Metagame.Gameplay.Tests.MagneticStormImpulseTests.WakeExtendsOppositeActualMotionNeverAcrossIt(87654)" methodname="WakeExtendsOppositeActualMotionNeverAcrossIt" classname="Metagame.Gameplay.Tests.MagneticStormImpulseTests" runstate="Runnable" seed="1269257713" result="Passed" start-time="2026-09-17 09:37:06Z" end-time="2026-09-17 09:37:06Z" duration="0.000174" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="1737" name="WakeExtendsOppositeActualMotionNeverAcrossIt(7)" fullname="Metagame.Gameplay.Tests.MagneticStormImpulseTests.WakeExtendsOppositeActualMotionNeverAcrossIt(7)" methodname="WakeExtendsOppositeActualMotionNeverAcrossIt" classname="Metagame.Gameplay.Tests.MagneticStormImpulseTests" runstate="Runnable" seed="222362320" result="Passed" start-time="2026-09-17 09:37:06Z" end-time="2026-09-17 09:37:06Z" duration="0.000089" asserts="0">
+                  <properties />
+                </test-case>
+              </test-suite>
+              <test-case id="1734" name="WakeStaysOnPassedGroundAndFadesWithoutFrameHistory" fullname="Metagame.Gameplay.Tests.MagneticStormImpulseTests.WakeStaysOnPassedGroundAndFadesWithoutFrameHistory" methodname="WakeStaysOnPassedGroundAndFadesWithoutFrameHistory" classname="Metagame.Gameplay.Tests.MagneticStormImpulseTests" runstate="Runnable" seed="1936901495" result="Passed" start-time="2026-09-17 09:37:06Z" end-time="2026-09-17 09:37:06Z" duration="0.004163" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1739" name="WakeSurvivesEndOfSweepThenExpiresAndRespectsSeed" fullname="Metagame.Gameplay.Tests.MagneticStormImpulseTests.WakeSurvivesEndOfSweepThenExpiresAndRespectsSeed" methodname="WakeSurvivesEndOfSweepThenExpiresAndRespectsSeed" classname="Metagame.Gameplay.Tests.MagneticStormImpulseTests" runstate="Runnable" seed="614987267" result="Passed" start-time="2026-09-17 09:37:06Z" end-time="2026-09-17 09:37:06Z" duration="0.000698" asserts="0">
+                <properties />
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="2070" name="OccludedInteractionTests" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" testcasecount="12" result="Passed" start-time="2026-09-17 09:37:06Z" end-time="2026-09-17 09:37:09Z" duration="2.243143" total="12" passed="12" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2078" name="AuthoredStageToolsPartsAndClampsHaveOutlineTargets" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.AuthoredStageToolsPartsAndClampsHaveOutlineTargets" methodname="AuthoredStageToolsPartsAndClampsHaveOutlineTargets" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="122246223" result="Passed" start-time="2026-09-17 09:37:06Z" end-time="2026-09-17 09:37:08Z" duration="2.033529" asserts="0">
+                <properties>
+                  <property name="Category" value="Heavy" />
+                </properties>
+                <output><![CDATA[Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_be89ef69
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_0ecb763e
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_415f0994
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_e0b152e9
+Unloading the last loaded scene Assets/Scenes/Stage1_Astra.unity(build index: 2), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+              </test-case>
+              <test-case id="2075" name="CameraLayerMaskAndHiddenRendererAreRespected" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.CameraLayerMaskAndHiddenRendererAreRespected" methodname="CameraLayerMaskAndHiddenRendererAreRespected" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="1319597447" result="Passed" start-time="2026-09-17 09:37:08Z" end-time="2026-09-17 09:37:08Z" duration="0.036840" asserts="0">
+                <properties />
+                <output><![CDATA[Unloading the last loaded scene (build index: -1), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="2074" name="CollectRespectsCameraFrustum" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.CollectRespectsCameraFrustum" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-09-17 09:37:08Z" end-time="2026-09-17 09:37:09Z" duration="0.048651" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="2071" name="CollectRespectsCameraFrustum(0,0,5,True)" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.CollectRespectsCameraFrustum(0,0,5,True)" methodname="CollectRespectsCameraFrustum" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="1620304307" result="Passed" start-time="2026-09-17 09:37:08Z" end-time="2026-09-17 09:37:09Z" duration="0.014597" asserts="0">
+                  <properties />
+                  <output><![CDATA[Unloading the last loaded scene (build index: -1), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+                </test-case>
+                <test-case id="2072" name="CollectRespectsCameraFrustum(100,0,5,False)" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.CollectRespectsCameraFrustum(100,0,5,False)" methodname="CollectRespectsCameraFrustum" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="727066679" result="Passed" start-time="2026-09-17 09:37:09Z" end-time="2026-09-17 09:37:09Z" duration="0.012146" asserts="0">
+                  <properties />
+                  <output><![CDATA[Unloading the last loaded scene (build index: -1), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+                </test-case>
+                <test-case id="2073" name="CollectRespectsCameraFrustum(0,0,-5,False)" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.CollectRespectsCameraFrustum(0,0,-5,False)" methodname="CollectRespectsCameraFrustum" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="381401963" result="Passed" start-time="2026-09-17 09:37:09Z" end-time="2026-09-17 09:37:09Z" duration="0.012924" asserts="0">
+                  <properties />
+                  <output><![CDATA[Unloading the last loaded scene (build index: -1), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+                </test-case>
+              </test-suite>
+              <test-case id="2076" name="DisabledRemoteToolIsVisibleButHeldToolIsExcluded" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.DisabledRemoteToolIsVisibleButHeldToolIsExcluded" methodname="DisabledRemoteToolIsVisibleButHeldToolIsExcluded" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="1052441660" result="Passed" start-time="2026-09-17 09:37:09Z" end-time="2026-09-17 09:37:09Z" duration="0.014169" asserts="0">
+                <properties />
+                <output><![CDATA[Unloading the last loaded scene (build index: -1), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+              </test-case>
+              <test-case id="2077" name="DuplicateInteractionComponentsDrawMeshOnlyOnce" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.DuplicateInteractionComponentsDrawMeshOnlyOnce" methodname="DuplicateInteractionComponentsDrawMeshOnlyOnce" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="475323073" result="Passed" start-time="2026-09-17 09:37:09Z" end-time="2026-09-17 09:37:09Z" duration="0.012803" asserts="0">
+                <properties />
+                <output><![CDATA[Unloading the last loaded scene (build index: -1), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="2085" name="OutlineAppearsOnlyBehindSceneDepth" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.OutlineAppearsOnlyBehindSceneDepth" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-09-17 09:37:09Z" end-time="2026-09-17 09:37:09Z" duration="0.064077" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="2082" name="OutlineAppearsOnlyBehindSceneDepth(10.0f,True)" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.OutlineAppearsOnlyBehindSceneDepth(10.0f,True)" methodname="OutlineAppearsOnlyBehindSceneDepth" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="1199927170" result="Passed" start-time="2026-09-17 09:37:09Z" end-time="2026-09-17 09:37:09Z" duration="0.025333" asserts="0">
+                  <properties />
+                  <output><![CDATA[Unloading the last loaded scene (build index: -1), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+                </test-case>
+                <test-case id="2083" name="OutlineAppearsOnlyBehindSceneDepth(5.0f,False)" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.OutlineAppearsOnlyBehindSceneDepth(5.0f,False)" methodname="OutlineAppearsOnlyBehindSceneDepth" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="1958344202" result="Passed" start-time="2026-09-17 09:37:09Z" end-time="2026-09-17 09:37:09Z" duration="0.014134" asserts="0">
+                  <properties />
+                  <output><![CDATA[Unloading the last loaded scene (build index: -1), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+                </test-case>
+                <test-case id="2084" name="OutlineAppearsOnlyBehindSceneDepth(4.0f,False)" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.OutlineAppearsOnlyBehindSceneDepth(4.0f,False)" methodname="OutlineAppearsOnlyBehindSceneDepth" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="1231883491" result="Passed" start-time="2026-09-17 09:37:09Z" end-time="2026-09-17 09:37:09Z" duration="0.023169" asserts="0">
+                  <properties />
+                  <output><![CDATA[Unloading the last loaded scene (build index: -1), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+                </test-case>
+              </test-suite>
+              <test-suite type="ParameterizedMethod" id="2081" name="ShadersAreIncludedAndCompile" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.ShadersAreIncludedAndCompile" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-17 09:37:09Z" end-time="2026-09-17 09:37:09Z" duration="0.030676" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="2079" name="ShadersAreIncludedAndCompile(&quot;OccludedInteractionMask&quot;)" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.ShadersAreIncludedAndCompile(&quot;OccludedInteractionMask&quot;)" methodname="ShadersAreIncludedAndCompile" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="1692541959" result="Passed" start-time="2026-09-17 09:37:09Z" end-time="2026-09-17 09:37:09Z" duration="0.014075" asserts="0">
+                  <properties />
+                  <output><![CDATA[Unloading the last loaded scene (build index: -1), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+                </test-case>
+                <test-case id="2080" name="ShadersAreIncludedAndCompile(&quot;OccludedInteractionOutline&quot;)" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.ShadersAreIncludedAndCompile(&quot;OccludedInteractionOutline&quot;)" methodname="ShadersAreIncludedAndCompile" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="1196531495" result="Passed" start-time="2026-09-17 09:37:09Z" end-time="2026-09-17 09:37:09Z" duration="0.012525" asserts="0">
+                  <properties />
+                  <output><![CDATA[Unloading the last loaded scene (build index: -1), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+                </test-case>
+              </test-suite>
+            </test-suite>
+            <test-suite type="TestFixture" id="2422" name="PracticeLobbyTests" fullname="Metagame.Gameplay.Tests.PracticeLobbyTests" classname="Metagame.Gameplay.Tests.PracticeLobbyTests" runstate="Runnable" testcasecount="7" result="Passed" start-time="2026-09-17 09:37:40Z" end-time="2026-09-17 09:37:48Z" duration="7.440626" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2428" name="AuthoredRoomSpawnsProductionRigAndExercisesRealPracticeObjects" fullname="Metagame.Gameplay.Tests.PracticeLobbyTests.AuthoredRoomSpawnsProductionRigAndExercisesRealPracticeObjects" methodname="AuthoredRoomSpawnsProductionRigAndExercisesRealPracticeObjects" classname="Metagame.Gameplay.Tests.PracticeLobbyTests" runstate="Runnable" seed="1165349513" result="Passed" start-time="2026-09-17 09:37:09Z" end-time="2026-09-17 09:37:22Z" duration="13.743266" asserts="0">
+                <properties>
+                  <property name="Category" value="Heavy" />
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="2423" name="HandToolAndClampSettingsMatchAuthoredStage1" fullname="Metagame.Gameplay.Tests.PracticeLobbyTests.HandToolAndClampSettingsMatchAuthoredStage1" methodname="HandToolAndClampSettingsMatchAuthoredStage1" classname="Metagame.Gameplay.Tests.PracticeLobbyTests" runstate="Runnable" seed="1859317241" result="Passed" start-time="2026-09-17 09:37:22Z" end-time="2026-09-17 09:37:25Z" duration="2.219606" asserts="0">
+                <properties />
+                <output><![CDATA[Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_be89ef69
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_0ecb763e
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_415f0994
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_e0b152e9
+]]></output>
+              </test-case>
+              <test-case id="2426" name="InvalidTimeDoesNotCompleteDeparture" fullname="Metagame.Gameplay.Tests.PracticeLobbyTests.InvalidTimeDoesNotCompleteDeparture" methodname="InvalidTimeDoesNotCompleteDeparture" classname="Metagame.Gameplay.Tests.PracticeLobbyTests" runstate="Runnable" seed="1980535084" result="Passed" start-time="2026-09-17 09:37:25Z" end-time="2026-09-17 09:37:25Z" duration="0.012067" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2425" name="LeavingOrOpeningMenuRestartsDeparture" fullname="Metagame.Gameplay.Tests.PracticeLobbyTests.LeavingOrOpeningMenuRestartsDeparture" methodname="LeavingOrOpeningMenuRestartsDeparture" classname="Metagame.Gameplay.Tests.PracticeLobbyTests" runstate="Runnable" seed="819212430" result="Passed" start-time="2026-09-17 09:37:25Z" end-time="2026-09-17 09:37:25Z" duration="0.016365" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2427" name="PracticeSceneIsIncludedInBuild" fullname="Metagame.Gameplay.Tests.PracticeLobbyTests.PracticeSceneIsIncludedInBuild" methodname="PracticeSceneIsIncludedInBuild" classname="Metagame.Gameplay.Tests.PracticeLobbyTests" runstate="Runnable" seed="1932333478" result="Passed" start-time="2026-09-17 09:37:25Z" end-time="2026-09-17 09:37:25Z" duration="0.016517" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2424" name="RealPlayerInputPicksUpBothToolsAndPullsTheAuthoredClamp" fullname="Metagame.Gameplay.Tests.PracticeLobbyTests.RealPlayerInputPicksUpBothToolsAndPullsTheAuthoredClamp" methodname="RealPlayerInputPicksUpBothToolsAndPullsTheAuthoredClamp" classname="Metagame.Gameplay.Tests.PracticeLobbyTests" runstate="Runnable" seed="1566529594" result="Passed" start-time="2026-09-17 09:37:25Z" end-time="2026-09-17 09:37:36Z" duration="11.252823" asserts="0">
+                <properties>
+                  <property name="Category" value="Heavy" />
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <output><![CDATA[[NotThisPlanet][상호작용] 좌클릭 → 양손 도구 집기 | 대상=운석 방망이 | 질량=3.0kg
+[NotThisPlanet][상호작용] 좌클릭 → 양손 도구 집기 | 대상=플라즈마 용접기 | 질량=4.0kg
+]]></output>
+              </test-case>
+              <test-case id="2429" name="ResetReloadsPracticeThenDepartureLoadsTheExistingStage" fullname="Metagame.Gameplay.Tests.PracticeLobbyTests.ResetReloadsPracticeThenDepartureLoadsTheExistingStage" methodname="ResetReloadsPracticeThenDepartureLoadsTheExistingStage" classname="Metagame.Gameplay.Tests.PracticeLobbyTests" runstate="Runnable" seed="1801960470" result="Passed" start-time="2026-09-17 09:37:36Z" end-time="2026-09-17 09:37:48Z" duration="11.980918" asserts="0">
+                <properties>
+                  <property name="Category" value="Heavy" />
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <output><![CDATA[Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_be89ef69
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_0ecb763e
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_415f0994
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_e0b152e9
+[MeteorClockBridge] 권위가 있다 — 운석 공세를 여기서 돌린다
+[Stage1Cutscene] Entry · live world bound
+]]></output>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="2631" name="Stage1CutsceneTests" fullname="Metagame.Gameplay.Tests.Stage1CutsceneTests" classname="Metagame.Gameplay.Tests.Stage1CutsceneTests" runstate="Runnable" testcasecount="11" result="Passed" start-time="2026-09-17 09:37:52Z" end-time="2026-09-17 09:38:23Z" duration="30.790440" total="11" passed="11" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2643" name="ActualWorldSurvivesBothCutscenesAndRestoresCamera" fullname="Metagame.Gameplay.Tests.Stage1CutsceneTests.ActualWorldSurvivesBothCutscenesAndRestoresCamera" methodname="ActualWorldSurvivesBothCutscenesAndRestoresCamera" classname="Metagame.Gameplay.Tests.Stage1CutsceneTests" runstate="Runnable" seed="529478990" result="Passed" start-time="2026-09-17 09:37:48Z" end-time="2026-09-17 09:38:23Z" duration="34.564731" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <output><![CDATA[Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_be89ef69
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_0ecb763e
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_415f0994
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_e0b152e9
+[백엔드] https://j15b202.p.ssafy.io:443/dev  (개발)
+[MeteorClockBridge] 권위가 있다 — 운석 공세를 여기서 돌린다
+[Stage1Cutscene] Entry · live world bound
+[Stage1Cutscene] Assault · live world bound
+[Stage1Cutscene] Entry · live world bound
+]]></output>
+              </test-case>
+              <test-case id="2636" name="AssaultWarnsThenRaisesFrequencyWithoutResettingElapsed" fullname="Metagame.Gameplay.Tests.Stage1CutsceneTests.AssaultWarnsThenRaisesFrequencyWithoutResettingElapsed" methodname="AssaultWarnsThenRaisesFrequencyWithoutResettingElapsed" classname="Metagame.Gameplay.Tests.Stage1CutsceneTests" runstate="Runnable" seed="2139844213" result="Passed" start-time="2026-09-17 09:38:23Z" end-time="2026-09-17 09:38:23Z" duration="0.003193" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2642" name="BothAuthoredScenesAreEnabledInBuild" fullname="Metagame.Gameplay.Tests.Stage1CutsceneTests.BothAuthoredScenesAreEnabledInBuild" methodname="BothAuthoredScenesAreEnabledInBuild" classname="Metagame.Gameplay.Tests.Stage1CutsceneTests" runstate="Runnable" seed="187258259" result="Passed" start-time="2026-09-17 09:38:23Z" end-time="2026-09-17 09:38:23Z" duration="0.004622" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2637" name="ClientCannotInitiateAndLateJoinUsesServerTimeline" fullname="Metagame.Gameplay.Tests.Stage1CutsceneTests.ClientCannotInitiateAndLateJoinUsesServerTimeline" methodname="ClientCannotInitiateAndLateJoinUsesServerTimeline" classname="Metagame.Gameplay.Tests.Stage1CutsceneTests" runstate="Runnable" seed="643789901" result="Passed" start-time="2026-09-17 09:38:23Z" end-time="2026-09-17 09:38:23Z" duration="0.000902" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2632" name="EntryBlocksInputThenExplorationWaitsForTrigger" fullname="Metagame.Gameplay.Tests.Stage1CutsceneTests.EntryBlocksInputThenExplorationWaitsForTrigger" methodname="EntryBlocksInputThenExplorationWaitsForTrigger" classname="Metagame.Gameplay.Tests.Stage1CutsceneTests" runstate="Runnable" seed="417888136" result="Passed" start-time="2026-09-17 09:38:23Z" end-time="2026-09-17 09:38:23Z" duration="0.000866" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2635" name="EscapeMenuWorksWhileWaitingAndAcrossTimeout" fullname="Metagame.Gameplay.Tests.Stage1CutsceneTests.EscapeMenuWorksWhileWaitingAndAcrossTimeout" methodname="EscapeMenuWorksWhileWaitingAndAcrossTimeout" classname="Metagame.Gameplay.Tests.Stage1CutsceneTests" runstate="Runnable" seed="454200104" result="Passed" start-time="2026-09-17 09:38:23Z" end-time="2026-09-17 09:38:23Z" duration="0.005811" asserts="0">
+                <properties />
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="2641" name="SerializedAssaultMultiplierControlsInterval" fullname="Metagame.Gameplay.Tests.Stage1CutsceneTests.SerializedAssaultMultiplierControlsInterval" classname="Metagame.Gameplay.Tests.Stage1CutsceneTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-09-17 09:38:23Z" end-time="2026-09-17 09:38:23Z" duration="0.006858" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="2638" name="SerializedAssaultMultiplierControlsInterval(0.6f,18.0f)" fullname="Metagame.Gameplay.Tests.Stage1CutsceneTests.SerializedAssaultMultiplierControlsInterval(0.6f,18.0f)" methodname="SerializedAssaultMultiplierControlsInterval" classname="Metagame.Gameplay.Tests.Stage1CutsceneTests" runstate="Runnable" seed="1652849865" result="Passed" start-time="2026-09-17 09:38:23Z" end-time="2026-09-17 09:38:23Z" duration="0.002603" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="2639" name="SerializedAssaultMultiplierControlsInterval(1.0f,30.0f)" fullname="Metagame.Gameplay.Tests.Stage1CutsceneTests.SerializedAssaultMultiplierControlsInterval(1.0f,30.0f)" methodname="SerializedAssaultMultiplierControlsInterval" classname="Metagame.Gameplay.Tests.Stage1CutsceneTests" runstate="Runnable" seed="2103918411" result="Passed" start-time="2026-09-17 09:38:23Z" end-time="2026-09-17 09:38:23Z" duration="0.000520" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="2640" name="SerializedAssaultMultiplierControlsInterval(0.0f,1.5f)" fullname="Metagame.Gameplay.Tests.Stage1CutsceneTests.SerializedAssaultMultiplierControlsInterval(0.0f,1.5f)" methodname="SerializedAssaultMultiplierControlsInterval" classname="Metagame.Gameplay.Tests.Stage1CutsceneTests" runstate="Runnable" seed="1980899182" result="Passed" start-time="2026-09-17 09:38:23Z" end-time="2026-09-17 09:38:23Z" duration="0.000412" asserts="0">
+                  <properties />
+                </test-case>
+              </test-suite>
+              <test-case id="2633" name="UnreadyParticipantsCannotHoldAuthorityPastTenSeconds" fullname="Metagame.Gameplay.Tests.Stage1CutsceneTests.UnreadyParticipantsCannotHoldAuthorityPastTenSeconds" methodname="UnreadyParticipantsCannotHoldAuthorityPastTenSeconds" classname="Metagame.Gameplay.Tests.Stage1CutsceneTests" runstate="Runnable" seed="246482602" result="Passed" start-time="2026-09-17 09:38:23Z" end-time="2026-09-17 09:38:23Z" duration="0.000704" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2634" name="WaitingClientDoesNotStartItsOwnTimelineOnTimeout" fullname="Metagame.Gameplay.Tests.Stage1CutsceneTests.WaitingClientDoesNotStartItsOwnTimelineOnTimeout" methodname="WaitingClientDoesNotStartItsOwnTimelineOnTimeout" classname="Metagame.Gameplay.Tests.Stage1CutsceneTests" runstate="Runnable" seed="697091111" result="Passed" start-time="2026-09-17 09:38:23Z" end-time="2026-09-17 09:38:23Z" duration="0.000535" asserts="0">
+                <properties />
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="2652" name="Stage1SkyCoverageTests" fullname="Metagame.Gameplay.Tests.Stage1SkyCoverageTests" classname="Metagame.Gameplay.Tests.Stage1SkyCoverageTests" runstate="Runnable" testcasecount="8" result="Passed" start-time="2026-09-17 09:38:23Z" end-time="2026-09-17 09:38:24Z" duration="1.855903" total="8" passed="8" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2659" name="EveryCompassDirectionGetsAFairShare" fullname="Metagame.Gameplay.Tests.Stage1SkyCoverageTests.EveryCompassDirectionGetsAFairShare" methodname="EveryCompassDirectionGetsAFairShare" classname="Metagame.Gameplay.Tests.Stage1SkyCoverageTests" runstate="Runnable" seed="667092436" result="Passed" start-time="2026-09-17 09:38:23Z" end-time="2026-09-17 09:38:23Z" duration="0.006669" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2660" name="TheBakedArtMeshCouldNeverHaveCoveredTheSky" fullname="Metagame.Gameplay.Tests.Stage1SkyCoverageTests.TheBakedArtMeshCouldNeverHaveCoveredTheSky" methodname="TheBakedArtMeshCouldNeverHaveCoveredTheSky" classname="Metagame.Gameplay.Tests.Stage1SkyCoverageTests" runstate="Runnable" seed="566447972" result="Passed" start-time="2026-09-17 09:38:23Z" end-time="2026-09-17 09:38:23Z" duration="0.003798" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2656" name="TheBakedArtStarMeshIsOff_SoTheSkyIsNotDrawnTwice" fullname="Metagame.Gameplay.Tests.Stage1SkyCoverageTests.TheBakedArtStarMeshIsOff_SoTheSkyIsNotDrawnTwice" methodname="TheBakedArtStarMeshIsOff_SoTheSkyIsNotDrawnTwice" classname="Metagame.Gameplay.Tests.Stage1SkyCoverageTests" runstate="Runnable" seed="38575701" result="Passed" start-time="2026-09-17 09:38:23Z" end-time="2026-09-17 09:38:24Z" duration="1.802464" asserts="0">
+                <properties />
+                <output><![CDATA[Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_be89ef69
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_0ecb763e
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_415f0994
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_e0b152e9
+]]></output>
+              </test-case>
+              <test-case id="2658" name="TheShippedSkyCoversStraightUpAndBelowTheHorizon" fullname="Metagame.Gameplay.Tests.Stage1SkyCoverageTests.TheShippedSkyCoversStraightUpAndBelowTheHorizon" methodname="TheShippedSkyCoversStraightUpAndBelowTheHorizon" classname="Metagame.Gameplay.Tests.Stage1SkyCoverageTests" runstate="Runnable" seed="438672983" result="Passed" start-time="2026-09-17 09:38:24Z" end-time="2026-09-17 09:38:24Z" duration="0.002968" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2657" name="TheShippedSkyLeavesNoPartOfTheSkyEmpty" fullname="Metagame.Gameplay.Tests.Stage1SkyCoverageTests.TheShippedSkyLeavesNoPartOfTheSkyEmpty" methodname="TheShippedSkyLeavesNoPartOfTheSkyEmpty" classname="Metagame.Gameplay.Tests.Stage1SkyCoverageTests" runstate="Runnable" seed="912648147" result="Passed" start-time="2026-09-17 09:38:24Z" end-time="2026-09-17 09:38:24Z" duration="0.001708" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2654" name="TheStageAsksForTheCodeStarfield" fullname="Metagame.Gameplay.Tests.Stage1SkyCoverageTests.TheStageAsksForTheCodeStarfield" methodname="TheStageAsksForTheCodeStarfield" classname="Metagame.Gameplay.Tests.Stage1SkyCoverageTests" runstate="Runnable" seed="1627847093" result="Passed" start-time="2026-09-17 09:38:24Z" end-time="2026-09-17 09:38:24Z" duration="0.000796" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2655" name="TheStageHasAnAtmosphereProfile_OrThereIsNothingToBuildStarsFrom" fullname="Metagame.Gameplay.Tests.Stage1SkyCoverageTests.TheStageHasAnAtmosphereProfile_OrThereIsNothingToBuildStarsFrom" methodname="TheStageHasAnAtmosphereProfile_OrThereIsNothingToBuildStarsFrom" classname="Metagame.Gameplay.Tests.Stage1SkyCoverageTests" runstate="Runnable" seed="1745319160" result="Passed" start-time="2026-09-17 09:38:24Z" end-time="2026-09-17 09:38:24Z" duration="0.000467" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2653" name="TheStageKeepsItsAuthoredLighting_WhichIsWhyTheGateHadToBeSplit" fullname="Metagame.Gameplay.Tests.Stage1SkyCoverageTests.TheStageKeepsItsAuthoredLighting_WhichIsWhyTheGateHadToBeSplit" methodname="TheStageKeepsItsAuthoredLighting_WhichIsWhyTheGateHadToBeSplit" classname="Metagame.Gameplay.Tests.Stage1SkyCoverageTests" runstate="Runnable" seed="2113557520" result="Passed" start-time="2026-09-17 09:38:24Z" end-time="2026-09-17 09:38:24Z" duration="0.000279" asserts="0">
+                <properties />
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="2856" name="ToolDisplayMountTests" fullname="Metagame.Gameplay.Tests.ToolDisplayMountTests" classname="Metagame.Gameplay.Tests.ToolDisplayMountTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-17 09:38:35Z" end-time="2026-09-17 09:38:35Z" duration="0.364554" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2857" name="AuthoredToolsStaySeatedAndCanBePickedUpAndDropped" fullname="Metagame.Gameplay.Tests.ToolDisplayMountTests.AuthoredToolsStaySeatedAndCanBePickedUpAndDropped" methodname="AuthoredToolsStaySeatedAndCanBePickedUpAndDropped" classname="Metagame.Gameplay.Tests.ToolDisplayMountTests" runstate="Runnable" seed="320423239" result="Passed" start-time="2026-09-17 09:38:24Z" end-time="2026-09-17 09:38:31Z" duration="6.319245" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <output><![CDATA[Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_be89ef69
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_0ecb763e
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_415f0994
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_e0b152e9
+[NotThisPlanet][상호작용] 좌클릭 → 양손 도구 집기 | 대상=운석 방망이 | 질량=3.0kg
+[NotThisPlanet][상호작용] 좌클릭 → 양손 도구 집기 | 대상=플라즈마 용접기 | 질량=4.0kg
+]]></output>
+              </test-case>
+              <test-case id="2858" name="RemotePickupLateJoinAndDisableReleaseMounts" fullname="Metagame.Gameplay.Tests.ToolDisplayMountTests.RemotePickupLateJoinAndDisableReleaseMounts" methodname="RemotePickupLateJoinAndDisableReleaseMounts" classname="Metagame.Gameplay.Tests.ToolDisplayMountTests" runstate="Runnable" seed="461043551" result="Passed" start-time="2026-09-17 09:38:31Z" end-time="2026-09-17 09:38:35Z" duration="4.277633" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>
