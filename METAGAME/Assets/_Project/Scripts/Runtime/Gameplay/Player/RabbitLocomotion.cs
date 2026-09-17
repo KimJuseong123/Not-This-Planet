@@ -26,10 +26,13 @@ namespace Metagame.Gameplay
         /// <summary>F2 춤 2번 'REDRED' (S15P21B202-576). 16.3초.</summary>
         public const string RedRedResource = "RabbitLocomotion/Rabbit_RedRed";
 
+        /// <summary>F2 춤 3번 'BAD' (S15P21B202-593). 24.4초 — 셋 중 가장 길다.</summary>
+        public const string BadResource = "RabbitLocomotion/Rabbit_Bad";
+
         /// <summary>
         /// 춤이 저절로 끊기는 이동 속도(m/s).
         ///
-        /// <para>던지기는 0.3초라 끝날 때까지 두면 그만이지만 <b>춤은 14.2초다</b> —
+        /// <para>던지기는 0.3초라 끝날 때까지 두면 그만이지만 <b>춤은 14~24초다</b> —
         /// 그 사이 걸어다니면 다리는 춤을 추면서 몸은 미끄러진다. 걷기가 켜지는 문턱
         /// (<see cref="CanAnimate"/> 의 0.15)과 같은 값을 써서, "걷기가 시작될 만큼
         /// 움직였으면 춤은 끝" 이 되게 한다.</para>
@@ -96,13 +99,14 @@ namespace Metagame.Gameplay
         readonly OneShot _tossShot = new() { Slot = 2, CancelOnMove = false };
         readonly OneShot _danceShot = new() { Slot = 3, CancelOnMove = true };
         readonly OneShot _redredShot = new() { Slot = 4, CancelOnMove = true };
-        OneShot[] OneShots => _oneShots ??= new[] { _tossShot, _danceShot, _redredShot };
+        readonly OneShot _badShot = new() { Slot = 5, CancelOnMove = true };
+        OneShot[] OneShots => _oneShots ??= new[] { _tossShot, _danceShot, _redredShot, _badShot };
         OneShot[] _oneShots;
 
         /// <summary>
         /// 번호로 고르는 춤들. <c>DanceCatalog.Names</c> 와 <b>순서도 개수도</b> 같아야 한다.
         /// </summary>
-        OneShot[] DanceShots => _danceShots ??= new[] { _danceShot, _redredShot };
+        OneShot[] DanceShots => _danceShots ??= new[] { _danceShot, _redredShot, _badShot };
         OneShot[] _danceShots;
         PlayableGraph _graph;
         AnimationClipPlayable _walkNode, _runNode;
@@ -192,18 +196,20 @@ namespace Metagame.Gameplay
             var toss = Resources.Load<AnimationClip>(TossResource);
             var dance = Resources.Load<AnimationClip>(DanceResource);
             var redred = Resources.Load<AnimationClip>(RedRedResource);
-            return new RabbitLocomotion(model, reference, walk, run, toss, dance, redred);
+            var bad = Resources.Load<AnimationClip>(BadResource);
+            return new RabbitLocomotion(model, reference, walk, run, toss, dance, redred, bad);
         }
 
         RabbitLocomotion(Transform model, GameObject reference, AnimationClip walk,
                          AnimationClip run, AnimationClip toss, AnimationClip dance,
-                         AnimationClip redred)
+                         AnimationClip redred, AnimationClip bad)
         {
             _walk = walk;
             _run = run;
             _tossShot.Clip = toss;
             _danceShot.Clip = dance;
             _redredShot.Clip = redred;
+            _badShot.Clip = bad;
             // 메시/콜라이더/스크립트 없이 Transform만 복제한다. 원본 프리팹을 수정하지 않는다.
             _poseRoot = CloneSkeleton(reference.transform, null).gameObject;
             _poseRoot.name = "~Rabbit locomotion pose (runtime only)";
@@ -232,7 +238,7 @@ namespace Metagame.Gameplay
             _runNode = AnimationClipPlayable.Create(_graph, run);
             _walkNode.SetSpeed(0); _runNode.SetSpeed(0);
             _walkNode.SetApplyFootIK(false); _runNode.SetApplyFootIK(false);
-            // 0 걷기 · 1 달리기 · 2 던지기 · 3 뮤직챌린지 · 4 REDRED.
+            // 0 걷기 · 1 달리기 · 2 던지기 · 3 뮤직챌린지 · 4 REDRED · 5 BAD.
             // **한 번짜리가 늘면 이 수도 같이 늘려야 한다** — 안 늘리면 새 클립이
             // 믹서에 못 붙어 조용히 아무 일도 안 일어난다. 검증이 이 수를 센다.
             _mixer = AnimationMixerPlayable.Create(_graph, 2 + OneShots.Length);
