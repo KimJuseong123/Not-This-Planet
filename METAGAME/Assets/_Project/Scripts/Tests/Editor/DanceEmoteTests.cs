@@ -306,7 +306,7 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void TheDanceListIsWhatWeShip()
         {
-            CollectionAssert.AreEqual(new[] { "뮤직챌린지", "REDRED" }, DanceCatalog.Names,
+            CollectionAssert.AreEqual(new[] { "뮤직챌린지", "REDRED", "BAD" }, DanceCatalog.Names,
                 "목록과 이름이 바뀌었다 — 순서가 곧 번호라 바뀌면 남의 화면에서 다른 춤이 돈다.");
         }
 
@@ -411,10 +411,119 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void TheWheelSplitsIntoTwoWhenThereAreTwoDances()
         {
-            Assert.AreEqual(2, DanceCatalog.Count, "춤이 둘이 아니면 아래 검증이 뜻을 잃는다.");
             Assert.AreEqual(0, DanceHud.Selection(new Vector2(0f, 200f), 2), "위는 1번");
             Assert.AreEqual(1, DanceHud.Selection(new Vector2(0f, -200f), 2), "아래는 2번");
         }
+
+        /// <summary>
+        /// 셋일 때도 갈린다.
+        ///
+        /// <para><b>예전 검증은 <c>DanceCatalog.Count == 2</c> 를 박아 두고 있었다.</b>
+        /// 춤을 하나 더 넣으면 동작은 멀쩡한데 이 줄이 먼저 터진다 — 576 에서 네 번 겪은
+        /// 유형 R(고친 것을 재는 검증이 같이 안 낡는다)이라 개수를 박지 않고 고친다.</para>
+        /// </summary>
+        [Test]
+        public void TheWheelSplitsIntoThreeWhenThereAreThreeDances()
+        {
+            Assert.AreEqual(0, DanceHud.Selection(new Vector2(0f, 200f), 3), "위는 1번");
+            Assert.AreEqual(1, DanceHud.Selection(new Vector2(173f, -100f), 3), "오른아래는 2번");
+            Assert.AreEqual(2, DanceHud.Selection(new Vector2(-173f, -100f), 3), "왼아래는 3번");
+        }
+
+        /// <summary>바퀴가 목록만큼 갈리는가. 개수가 몇이든 성립해야 한다.</summary>
+        [Test]
+        public void TheWheelHasExactlyOneSliceForEveryDance()
+        {
+            var seen = new System.Collections.Generic.HashSet<int>();
+            var count = DanceCatalog.Count;
+            for (var i = 0; i < count; i++)
+            {
+                var angle = i * Mathf.PI * 2f / count;
+                var picked = DanceHud.Selection(
+                    new Vector2(Mathf.Sin(angle), Mathf.Cos(angle)) * 200f, count);
+                Assert.AreEqual(i, picked, $"{i}번 칸의 한가운데를 가리켰는데 {picked} 이 골라졌다.");
+                seen.Add(picked);
+            }
+            Assert.AreEqual(count, seen.Count, "두 칸이 같은 춤을 가리킨다.");
+        }
+        // ── 세 번째 춤 BAD (S15P21B202-593) ────────────────────────────
+
+        [Test]
+        public void TheBadClipShipsAndIsAsLongAsTheSource()
+        {
+            var clip = Resources.Load<AnimationClip>(RabbitLocomotion.BadResource);
+            Assert.NotNull(clip, "BAD 클립이 Resources 에 없다.");
+
+            // 원본 영상이 732프레임 · 30fps 라 클립은 731/30 = 24.37초다.
+            Assert.That(clip.length, Is.EqualTo(24.37f).Within(0.1f),
+                "BAD 길이가 원본(24.37초)과 다르다 — 배속했거나 프레임을 건너뛰었다.");
+            Assert.False(clip.isLooping, "한 번짜리 감정표현이다.");
+            Assert.False(clip.humanMotion, "리타기팅 없이 이 뼈대 위에서 만든 클립이다.");
+        }
+
+        [Test]
+        public void TheShippedBadCanActuallyBindAtRuntime()
+        {
+            var path = System.IO.Path.Combine(Application.dataPath,
+                "_Project/Animations/Characters/Rabbit/Resources/RabbitLocomotion/Rabbit_Bad.anim");
+            Assert.IsTrue(System.IO.File.Exists(path), "구운 클립 파일이 없다: " + path);
+
+            var text = System.IO.File.ReadAllText(path);
+            Assert.That(text, Does.Not.Contain("genericBindings: []"),
+                "바인딩 표가 비었다 — 빌드에서 아무 뼈도 안 움직인다.");
+            Assert.GreaterOrEqual(Regex.Matches(text, @"typeID: 4").Count,
+                RabbitLocomotion.TossBoneNames.Count,
+                "뼈 수보다 바인딩이 적다 — 일부 뼈는 빌드에서 안 움직인다.");
+        }
+
+        [Test]
+        public void TheBadBakeListAndTheRuntimeListAreTheSame()
+        {
+            var editor = TestSource.Read("Editor/RabbitBadAssets.cs");
+            var declared = Regex.Match(editor, @"static readonly string\[\] BoneNames\s*=\s*\{(.*?)\}",
+                RegexOptions.Singleline);
+            Assert.IsTrue(declared.Success, "굽는 쪽에서 BoneNames 선언을 찾지 못했다.");
+
+            var baked = Regex.Matches(declared.Groups[1].Value, "\"([^\"]+)\"")
+                .Select(m => m.Groups[1].Value).ToArray();
+
+            CollectionAssert.AreEquivalent(RabbitLocomotion.TossBoneNames.ToArray(), baked,
+                "굽는 뼈 목록과 읽는 뼈 목록이 다르다 — 한쪽만 고치면 조용히 안 움직인다.");
+        }
+
+        /// <summary>
+        /// <b>3번 춤도 실제로 뼈를 움직이는가.</b> 576 과 같은 이유로 세기가 아니라
+        /// 뼈를 본다 — 믹서 입력이 모자라면 에러 없이 '재생 중' 으로만 보인다.
+        /// </summary>
+        [Test]
+        public void TheThirdDanceActuallyMovesBones()
+        {
+            Advance(Standing);
+            Suit.Sync();
+            var physics = Bone("Waist").localRotation;
+
+            Suit.PlayDance(3);
+            Assert.IsTrue(Suit.Locomotion.DanceActive, "3번 춤이 안 켜졌다.");
+            Advance(Standing, 20);
+
+            Assert.Greater(Quaternion.Angle(physics, Bone("Waist").localRotation), 1f,
+                "3번 춤이 뼈를 안 움직인다 — 믹서 입력이 모자라 그래프에 못 붙었을 수 있다.");
+        }
+
+        /// <summary>
+        /// 셋이 서로를 밀어낸다. 둘일 때만 보던 것을 목록 전체로 넓힌다.
+        /// </summary>
+        [Test]
+        public void OnlyTheLastPickedDanceIsLeftRunning()
+        {
+            for (byte id = 1; id <= DanceCatalog.Count; id++) Suit.PlayDance(id);
+            Advance(Standing, 2);
+
+            Assert.IsTrue(Suit.Locomotion.DanceActive, "마지막으로 고른 춤이 안 돈다.");
+            Assert.Greater(Suit.Locomotion.DanceWeightNow, 0f,
+                "춤들이 서로를 끄기만 하고 아무것도 안 남았다.");
+        }
+
         [Test]
         public void F2IsBoundAndDoesNotCollideWithF1()
         {
