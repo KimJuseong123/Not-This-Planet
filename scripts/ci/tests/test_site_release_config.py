@@ -59,6 +59,42 @@ for bad in ("?token=", "private_token", "sig=", "Expires=", "X-Amz-"):
     assert bad not in url, f"다운로드 주소에 인증·만료 흔적이 있다: {bad}"
 print("  다운로드 주소가 채워져 있고 상대 주소다 ✅")
 
+print()
+print("== 버전과 바뀐 것 (S15P21B202-595) ==")
+
+# ── ② 버전을 손으로 적지 않는다 ─────────────────────────────────────────
+#
+#     전에는 `version` 이 이 파일에 있었고 릴리스마다 사람이 올려야 했다. 그 일이
+#     어디에도 적혀 있지 않아 **v1.1.0 이 나간 지 사흘이 지나도록 사이트는
+#     v1.0.0 이라고 말하고 있었다.** 이제 `release.js` 가 `/builds/latest.json` 을
+#     읽는다 — `release-prod` 가 옮기는 바로 그 파일이다.
+assert not re.search(r'^\s*version\s*:', CONFIG, re.M), (
+    "release-config.js 에 version 이 되살아났다 — 손으로 적으면 릴리스와 어긋난다. "
+    "release.js 가 /builds/latest.json 을 읽는다")
+
+JS = read("website/release.js")
+assert "/builds/latest.json" in JS, "release.js 가 latest.json 을 읽지 않는다 — 버전을 알 길이 없다"
+#     못 읽어도 받는 길은 살아 있어야 한다. 서버가 잠깐 안 되는 것으로 버튼이 꺼지면 안 된다.
+assert ".catch(" in JS, "latest.json 읽기 실패를 삼키지 않는다 — 버전 한 줄 때문에 화면이 깨진다"
+print("  버전은 latest.json 에서 온다 ✅")
+
+# ── ③ 사용자용 문구에 이슈·MR 번호가 없다 ───────────────────────────────
+#
+#     플레이어에게 `S15P21B202-440` 은 뜻이 없다. 릴리스 초안을 사람이 옮겨 넣는
+#     자리라 그대로 붙여 넣기 쉽다 — `release_summary.leaks` 와 같은 규칙으로 막는다.
+KEY_IN_TEXT = re.compile(r"\bS15P21B202[- ]?\d+\b|\B!\d{2,}\b")
+notes_block = re.search(r"notes\s*:\s*\[(.*?)\]", CONFIG, re.S)
+assert notes_block, "release-config.js 에 notes 가 없다 — 바뀐 것을 실을 자리가 사라졌다"
+leaked = [line.strip() for line in notes_block.group(1).split(chr(10))
+          if KEY_IN_TEXT.search(line)]
+assert not leaked, "notes 에 이슈·MR 번호가 남아 있다: " + " / ".join(leaked[:3])
+
+#     비어 있어도 된다 — 그때는 그 절이 화면에 안 나온다. 릴리스 사이에는 비는 것이 정상이다.
+IDX = read("website/index.html")
+assert 'id="notes"' in IDX and "hidden" in IDX.split('id="notes"')[1][:200], (
+    "바뀐 것 절이 기본으로 숨겨져 있지 않다 — 비면 빈 제목만 남아 고장으로 보인다")
+print("  바뀐 것 절이 있고, 번호가 새지 않는다 ✅")
+
 
 # ── ② 세 곳이 같은 이름을 본다 ──────────────────────────────────────────
 #
