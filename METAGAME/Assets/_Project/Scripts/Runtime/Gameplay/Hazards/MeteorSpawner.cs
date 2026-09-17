@@ -235,9 +235,167 @@ namespace Metagame.Gameplay.Hazards
         /// 접속 인원을 넣는다. <c>GameSession</c> 이 판정을 한 곳에 모아 두었으므로
         /// 거기서 부른다.
         /// </summary>
-        public void SetCrew(int crew) => _crew = Mathf.Clamp(crew, 1, 4);
+        public void SetCrew(int crew) =>
+            _crew = _crewOverride > 0 ? _crewOverride : Mathf.Clamp(crew, 1, 4);
 
         public void SetLaunchPad(Transform launchPad) => _launchPad = launchPad;
+
+        // ── 시험용 조작 (CheatArena) ─────────────────────────────────────────
+        //
+        // 아래 것들은 치트 시험장(<c>CheatArenaConsole</c>)이 쓴다. 공세를 기다리지 않고
+        // 원하는 지점에 바로 떨어뜨리거나, 난이도 표의 뒷 시간대로 건너뛰기 위한 것이다.
+        // 스케줄·난수·네트워크 경로는 손대지 않는다 — 여기서 만든 운석도 <see cref="Live"/>·
+        // <see cref="Pending"/> 에 똑같이 들어가므로 예고 표시·방망이·흔적이 그대로 동작한다.
+
+        /// <summary>
+        /// 원하는 지점에 운석 하나를 <b>지금</b> 떨어뜨린다. 예고도 함께 만든다.
+        /// 공세 스케줄과 난수 스트림은 건드리지 않는다(진입 방향만 난수를 쓴다).
+        /// </summary>
+        public void LaunchAt(Vector3 impactPoint, MeteorSize size)
+        {
+            if (_random == null) ResetRun();
+            Launch(impactPoint, size);
+        }
+
+        /// <summary>
+        /// 다음 <see cref="Tick"/> 에서 공세가 바로 시작되게 한다. 5초 전 신호도 같은
+        /// 틱에 먼저 나간다.
+        /// </summary>
+        public void TriggerWave()
+        {
+            if (_waveRemaining > 0) return;
+            _leadSent = false;
+            _sinceLastWave = Mathf.Max(_sinceLastWave, CurrentInterval);
+        }
+
+        /// <summary>경과 시간을 옮긴다. 기획 §17.4 표의 뒷 시간대를 바로 시험할 때 쓴다.</summary>
+        public void SkipTo(float elapsedSeconds) => _elapsed = Mathf.Max(0f, elapsedSeconds);
+
+        /// <summary>다음 공세까지 남은 초. 공세 중이면 0.</summary>
+        public float SecondsUntilWave =>
+            _waveRemaining > 0 ? 0f : Mathf.Max(0f, CurrentInterval - _sinceLastWave);
+
+        /// <summary>
+        /// 인원수 보정(§17.6)을 강제한다. 0 이면 해제하고 <see cref="SetCrew"/> 가 넣는 값을
+        /// 다시 따른다. 혼자 시험하면서 4인 공세 규모를 보고 싶을 때 쓴다.
+        /// </summary>
+        public void OverrideCrew(int crew)
+        {
+            _crewOverride = Mathf.Clamp(crew, 0, 4);
+            if (_crewOverride > 0) _crew = _crewOverride;
+        }
+
+        /// <summary>강제된 인원수. 0 이면 강제하지 않는다.</summary>
+        public int CrewOverride => _crewOverride;
+
+        int _crewOverride;
+
+        /// <summary>
+        /// 프리셋이 고정한 시간대. 있으면 <see cref="WaveBandAt"/> 가 경과 시간을 보지 않는다.
+        /// </summary>
+        MeteorWaveBand _pinnedBand;
+
+        /// <summary>목표 비율 중 플레이어 주변을 강제한 값. 음수면 강제하지 않는다.</summary>
+        float _nearPlayerWeightOverride = -1f;
+
+        /// <summary>지금 걸려 있는 공세 강도. 없으면 <c>null</c> 이고 시간대 표를 따른다.</summary>
+        public MeteorWavePreset ActivePreset { get; private set; }
+
+        /// <summary>
+        /// 지금 시간대의 충격파 반경 배율. 크기별 반경(§17.7)에 곱해 쓴다.
+        ///
+        /// <b>예고 원·운석·흔적이 모두 이 값을 거쳐야 한다.</b> 한 곳이라도 빠지면 §17.2 의
+        /// "실제 충격 범위와 같은 크기" 가 깨져, 원 밖인데 맞거나 원 안인데 멀쩡해진다.
+        /// </summary>
+        public float ImpactRadiusScale => WaveBandAt(_elapsed).ImpactRadiusScale;
+
+        /// <summary>크기별 충격파 반경(m)에 배율까지 적용한 값.</summary>
+        public float ScaledImpactRadiusFor(MeteorSize size)
+        {
+            EnsureConfiguration();
+            return _tuning.ImpactRadiusFor(size) * ImpactRadiusScale;
+        }
+
+        /// <summary>
+        /// 공세 강도를 고정한다(<see cref="MeteorWavePreset"/>).
+        ///
+        /// <para>경과 시간을 보지 않게 되므로 같은 강도를 몇 번이고 반복해 잴 수 있다.
+        /// <b>인원 보정을 4인으로 고정한다</b> — 그러지 않으면 혼자 고른 "후반" 이 개수 보정
+        /// (§17.6 혼자 45%)에 눌려 이름과 다른 것이 나온다.</para>
+        ///
+        /// <para>진행 중이던 공세와 예고는 비운다. 강도를 바꾸는 순간 이전 강도로 예고된
+        /// 운석이 남아 있으면 무엇을 재고 있는지 알 수 없다.</para>
+        /// </summary>
+        public void ApplyPreset(MeteorWavePreset preset)
+        {
+            if (preset == null) { ClearPreset(); return; }
+
+            EnsureConfiguration();
+
+            ActivePreset = preset;
+            _pinnedBand = preset.ToBand();
+            _nearPlayerWeightOverride = Mathf.Clamp01(preset.NearPlayerWeight);
+            OverrideCrew(4);
+
+            // 시계를 되감아 첫 공세가 이 강도의 간격대로 오게 한다.
+            _elapsed = 0f;
+            _sinceLastWave = 0f;
+            _leadSent = false;
+            _waveRemaining = 0;
+            _sinceLastInWave = 0f;
+            _nextInWaveDelay = 0f;
+            _plannedWaveSize = 0;
+            _hasLastTarget = false;
+            _lastTargetPlayer = null;
+            _pending.Clear();
+            DestroyAll(_live);
+            IsPaused = false;
+        }
+
+        /// <summary>강도 고정을 풀고 시간대 표로 돌아간다. 인원 보정 강제도 함께 푼다.</summary>
+        public void ClearPreset()
+        {
+            ActivePreset = null;
+            _pinnedBand = null;
+            _nearPlayerWeightOverride = -1f;
+            OverrideCrew(0);
+        }
+
+        /// <summary>
+        /// 목표 비율 중 플레이어 주변을 강제한다. 음수면 푼다.
+        ///
+        /// 나머지 셋(환경·작업 구역·발사 구역)은 원래 비율대로 남은 몫을 나눠 가진다.
+        /// </summary>
+        public void OverrideNearPlayerWeight(float weight) =>
+            _nearPlayerWeightOverride = weight < 0f ? -1f : Mathf.Clamp01(weight);
+
+        /// <summary>
+        /// <b>시험용 목표 선택이 켜져 있는가.</b> 프리셋이나 근처 비율 강제가 켜면 참이 된다.
+        ///
+        /// <para><b>이 문지기가 스테이지를 지킨다.</b> 아래 두 가지는 플레이어 주변에 운석을
+        /// 모으기 위한 것이라 §17.5 가 정한 분포를 바꾼다. 켜지지 않은 판
+        /// (<c>Stage1_Astra</c> 를 포함한 모든 실제 판)에서는 예전 코드와 <b>한 줄도 다르지
+        /// 않게</b> 돈다 — 난수를 뽑는 횟수와 순서까지 같다.</para>
+        ///
+        /// <list type="number">
+        /// <item><see cref="PickPlayer"/> 가 후보가 바닥나면 연속 금지를 푼다.</item>
+        /// <item><see cref="NextImpactPoint"/> 가 거리 검사에 걸려도 종류를 유지한다.</item>
+        /// </list>
+        /// </summary>
+        bool TestTargeting => _nearPlayerWeightOverride >= 0f;
+
+        /// <summary>지금 쓰이는 플레이어 주변 비율 0~1.</summary>
+        public float NearPlayerWeight
+        {
+            get
+            {
+                if (_nearPlayerWeightOverride >= 0f) return _nearPlayerWeightOverride;
+
+                var total = Mathf.Max(0f, _environmentWeight) + Mathf.Max(0f, _nearPlayerWeight)
+                            + Mathf.Max(0f, _workAreaWeight) + Mathf.Max(0f, _launchPadWeight);
+                return total > 0f ? Mathf.Max(0f, _nearPlayerWeight) / total : 0f;
+            }
+        }
 
         public event Action<PendingMeteorDrop> DropScheduled;
 
@@ -374,6 +532,9 @@ namespace Metagame.Gameplay.Hazards
         {
             EnsureConfiguration();
 
+            // 강도를 고정했으면 경과 시간을 보지 않는다(<see cref="ApplyPreset"/>).
+            if (_pinnedBand != null) return _pinnedBand;
+
             var minutes = Mathf.Max(0f, elapsedSeconds) / 60f;
             var selected = DefaultWaveBand;
 
@@ -403,6 +564,29 @@ namespace Metagame.Gameplay.Hazards
             var nearPlayerWeight = Mathf.Max(0f, _nearPlayerWeight);
             var workAreaWeight = Mathf.Max(0f, _workAreaWeight);
             var launchPadWeight = Mathf.Max(0f, _launchPadWeight);
+
+            // 플레이어 주변을 강제했으면 그 몫을 먼저 떼고, 남은 몫을 나머지 셋이 원래
+            // 비율대로 나눠 가진다. 나머지가 전부 0 이면(비율을 다 비워 둔 씬) 환경이 받는다.
+            if (_nearPlayerWeightOverride >= 0f)
+            {
+                nearPlayerWeight = _nearPlayerWeightOverride;
+
+                var rest = environmentWeight + workAreaWeight + launchPadWeight;
+                var share = 1f - nearPlayerWeight;
+
+                if (rest > 0f)
+                {
+                    var k = share / rest;
+                    environmentWeight *= k;
+                    workAreaWeight *= k;
+                    launchPadWeight *= k;
+                }
+                else
+                {
+                    environmentWeight = share;
+                }
+            }
+
             var total = environmentWeight + nearPlayerWeight + workAreaWeight + launchPadWeight;
             if (total <= 0f) return MeteorTargetKind.Environment;
 
@@ -509,10 +693,16 @@ namespace Metagame.Gameplay.Hazards
                 ? MeteorSize.Medium
                 : MeteorSize.Small;
 
+            Launch(point, size);
+        }
+
+        /// <summary>지점과 크기가 정해진 운석 하나를 예고와 함께 낸다.</summary>
+        void Launch(Vector3 point, MeteorSize size)
+        {
             var meteor = Spawn(point, size);
 
             var drop = new PendingMeteorDrop(point, _warningSeconds, _warningSeconds,
-                                             _tuning.ImpactRadiusFor(size),
+                                             ScaledImpactRadiusFor(size),
                                              _tuning.BatSwingWindowSeconds,
                                              _tuning.WarningImminentSeconds,
                                              _tuning.WarningStrikableBlinkHz,
@@ -1106,21 +1296,42 @@ namespace Metagame.Gameplay.Hazards
         /// </summary>
         Vector3 NextImpactPoint()
         {
+            // <b>시험용일 때만 종류를 유지한다</b>(<see cref="TestTargeting"/>).
+            //
+            // 거리 검사는 <b>가까운 목표만 골라 탈락시킨다</b> — 멀리 있는 환경 목표는 직전
+            // 자리와 늘 멀어 언제나 통과하고, 사람 주변 1~3m 에서 뽑은 자리는 서로 가까워
+            // 자주 걸린다. 걸릴 때마다 종류까지 다시 뽑으면 목표가 환경 쪽으로 밀려,
+            // 비율을 90% 로 올려도 실제로는 68% 만 근처에 떨어졌다(2026-09-17 실측, 60발).
+            //
+            // 그래서 시험용에서는 종류를 유지한 채 자리만 다시 뽑고, 네 번 다 걸리면 그중
+            // 가장 먼 자리를 쓴다. 사람 둘레 1~3m 고리에서는 두 자리를 아무리 벌려도 최대
+            // 6m, 둘 다 안쪽이면 2m 라 이 거리를 못 지킬 때가 있기 때문이다.
+            //
+            // <b>실제 판은 예전 그대로다.</b> 종류를 매번 다시 뽑고, 네 번 다 걸리면 환경으로
+            // 돌아간다 — 난수를 뽑는 횟수와 순서까지 같다.
+            var keepKind = TestTargeting;
+            var kind = TargetKindFor(_random.NextDouble());
+            var best = Vector3.zero;
+            var bestGap = -1f;
+
             for (var attempt = 0; attempt < 4; attempt++)
             {
-                var kind = TargetKindFor(_random.NextDouble());
+                if (attempt > 0 && !keepKind) kind = TargetKindFor(_random.NextDouble());
+
                 var point = PointFor(kind);
+                var gap = _hasLastTarget ? Vector3.Distance(point, _lastTarget) : float.MaxValue;
 
                 // 같은 자리를 연속으로 고르지 않는다(§17.5).
-                if (_hasLastTarget &&
-                    Vector3.Distance(point, _lastTarget) < _targetRepeatDistance)
-                    continue;
+                if (gap >= _targetRepeatDistance)
+                {
+                    Remember(point);
+                    return point;
+                }
 
-                Remember(point);
-                return point;
+                if (gap > bestGap) { bestGap = gap; best = point; }
             }
 
-            var fallback = OnGround(EnvironmentPoint());
+            var fallback = keepKind ? best : OnGround(EnvironmentPoint());
             Remember(fallback);
             return fallback;
         }
@@ -1263,11 +1474,34 @@ namespace Metagame.Gameplay.Hazards
         /// 뺀 뒤 아무도 남지 않으면 null 이다 — 혼자 하는 동안 연속 금지를 지키면
         /// 노릴 사람이 없어지므로, 그때는 환경으로 돌아간다.
         /// </summary>
+        /// <summary>
+        /// 노릴 사람 하나(§17.5).
+        ///
+        /// <para><b>후보가 직전에 노린 그 사람뿐이면 연속 금지를 푼다.</b> §17.5 의 "동일한
+        /// 플레이어를 연속 선택하지 않는다" 는 여럿일 때 <b>번갈아 노리라</b>는 뜻이다.
+        /// 혼자 하는 판에서 그대로 적용하면 후보가 0 이 되어 환경으로 밀려나고, 비율을
+        /// 아무리 올려도 <b>두 번째부터는 근처에 떨어지지 않는다</b> — 한 번 걸러 한 번만
+        /// 근처가 되므로 30% 를 80% 로 올려도 실제로는 절반에서 멈춘다.</para>
+        ///
+        /// <para><b>시험용일 때만 푼다</b>(<see cref="TestTargeting"/>). 실제 판에서는 예전
+        /// 그대로 후보가 없으면 <c>null</c> 을 돌려 환경 목표로 간다.</para>
+        ///
+        /// <para>첫 시도에서 후보를 세기만 하고 난수를 쓰지 않으므로, 다시 고르는 경우에도
+        /// 난수는 정확히 한 번만 소비된다 — 시드 재현성이 깨지지 않는다.</para>
+        /// </summary>
         PlayerRig PickPlayer()
+        {
+            var target = PickPlayer(false);
+            if (target != null || !TestTargeting) return target;
+
+            return PickPlayer(true);
+        }
+
+        PlayerRig PickPlayer(bool allowRepeat)
         {
             var candidates = 0;
             for (var i = 0; i < PlayerRig.All.Count; i++)
-                if (IsTargetable(PlayerRig.All[i])) candidates++;
+                if (IsTargetable(PlayerRig.All[i], allowRepeat)) candidates++;
 
             if (candidates == 0) return null;
 
@@ -1276,15 +1510,16 @@ namespace Metagame.Gameplay.Hazards
 
             for (var i = 0; i < PlayerRig.All.Count; i++)
             {
-                if (!IsTargetable(PlayerRig.All[i])) continue;
+                if (!IsTargetable(PlayerRig.All[i], allowRepeat)) continue;
                 if (index-- == 0) return PlayerRig.All[i];
             }
 
             return null;
         }
 
-        bool IsTargetable(PlayerRig player) =>
-            player != null && !player.Downed && player != _lastTargetPlayer;
+        bool IsTargetable(PlayerRig player, bool allowRepeat) =>
+            player != null && !player.Downed
+            && (allowRepeat || player != _lastTargetPlayer);
 
         /// <summary>
         /// 작업 중인 곳 주변(§17.5 25%).
@@ -1371,7 +1606,7 @@ namespace Metagame.Gameplay.Hazards
         Meteor Spawn(Vector3 impactPoint, MeteorSize size)
         {
             var fallSpeed = CurrentDropSpeed;
-            var entry = EntryOffsetFor(impactPoint, _tuning.ImpactRadiusFor(size));
+            var entry = EntryOffsetFor(impactPoint, ScaledImpactRadiusFor(size));
 
             var position = impactPoint + entry + Vector3.up * _dropHeight;
             var meteor = _meteorPrefab != null
@@ -1381,6 +1616,9 @@ namespace Metagame.Gameplay.Hazards
             meteor.ApplyTuning(_tuning);
             meteor.Initialize();
             meteor.SetSize(size);
+
+            // 시간대·프리셋의 반경 배율. 예고 원과 같은 값이어야 한다(§17.2).
+            meteor.SetImpactScale(ImpactRadiusScale);
 
             // 낙하 예측의 기준면을 넘긴다(S15P21B202-233). 방망이가 "착탄 몇 초 전" 을
             // 이 값으로 푼다.

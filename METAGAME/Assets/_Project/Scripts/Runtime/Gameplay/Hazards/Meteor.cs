@@ -219,10 +219,49 @@ namespace Metagame.Gameplay.Hazards
             guideWindow > 0f ? guideWindow :
             _tuning != null ? _tuning.BatSwingWindowSeconds : PhysicsScale.BatSwingWindowSeconds;
 
-        /// <summary>스포너가 넘긴 장면별 방망이 보조 반경.</summary>
+        /// <summary>
+        /// 스포너가 넘긴 장면별 방망이 보조 반경.
+        ///
+        /// <para><b>충격파 반경과 같은 배율로 커진다</b>(<see cref="ImpactScale"/>). 기획
+        /// §18.1 은 "낙하 지점 반경 약 2.5m 안에 있어야 한다" 로 소형 충격파 2m 보다 조금
+        /// 넓게 잡았다. 그 관계를 유지하지 않으면, 후반에 충격파만 넓어졌을 때 <b>예고 원
+        /// 안에 서 있는데 칠 수 없는 고리</b>가 생긴다 — 피할 수도 막을 수도 없는 자리라
+        /// 방망이 인원이 중요해지기는커녕 쓸모가 없어진다.</para>
+        /// </summary>
         public float BatAssistRadius =>
             guideRadius > 0f ? guideRadius :
-            _tuning != null ? _tuning.BatAssistRadius : PhysicsScale.BatAssistRadius;
+            (_tuning != null ? _tuning.BatAssistRadius : PhysicsScale.BatAssistRadius) * _impactScale;
+
+        /// <summary>
+        /// 충격파 반경·폭발력에 곱하는 배율. 스포너의 시간대나 공세 프리셋이 정한다.
+        ///
+        /// 1 이면 기획 §17.7 의 크기별 값 그대로다.
+        /// </summary>
+        public float ImpactScale => _impactScale;
+
+        float _impactScale = 1f;
+
+        /// <summary>
+        /// 배율을 바꾸고 반경·폭발력을 다시 계산한다.
+        ///
+        /// <b>크기를 정한 뒤에 부른다.</b> 반경의 기준이 <see cref="Size"/> 라
+        /// <see cref="SetSize"/> 보다 먼저 부르면 소형 기준으로 계산된 값이 남는다.
+        /// </summary>
+        public void SetImpactScale(float scale)
+        {
+            _impactScale = Mathf.Max(0.01f, scale);
+            RefreshImpact();
+        }
+
+        /// <summary>크기와 배율로 충격 반경·폭발력을 다시 정한다.</summary>
+        void RefreshImpact()
+        {
+            var radius = _tuning != null ? _tuning.ImpactRadiusFor(Size) : RadiusFor(Size);
+            var force = _tuning != null ? _tuning.ImpactForceFor(Size) : MeteorImpact.ForceFor(Size);
+
+            _impactRadius = radius * _impactScale;
+            _impactForce = force * _impactScale;
+        }
 
         /// <summary>
         /// 스포너의 장면별 조정값을 적용한다. Instantiate 직후에도 호출할 수 있도록
@@ -234,8 +273,7 @@ namespace Metagame.Gameplay.Hazards
 
             if (tuning == null) return;
 
-            _impactRadius = tuning.ImpactRadiusFor(Size);
-            _impactForce = tuning.ImpactForceFor(Size);
+            RefreshImpact();
             _maxLifeSeconds = tuning.MaxLifeSeconds;
 
             if (!_tuningScaleApplied && PhysicsScale.MeteorRadius > 0f && tuning.Radius > 0f)
@@ -251,10 +289,7 @@ namespace Metagame.Gameplay.Hazards
         public void SetSize(MeteorSize size)
         {
             Size = size;
-            _impactRadius = _tuning != null ? _tuning.ImpactRadiusFor(size) : RadiusFor(size);
-            _impactForce = _tuning != null
-                ? _tuning.ImpactForceFor(size)
-                : MeteorImpact.ForceFor(size);
+            RefreshImpact();
         }
 
         /// <summary>
