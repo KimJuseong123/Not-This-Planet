@@ -147,14 +147,35 @@
 
 | 잡 | 언제 | 러너 | 하는 일 |
 | --- | --- | --- | --- |
-| `build-devbuild` | **새벽 스케줄**(`NIGHTLY_DEPLOY_DEV`) 또는 **MR 의 버튼** | `linux` | Unity 빌드 → zip → 패키지 레지스트리 |
-| `publish-devbuild` | 새벽은 자동 · qa 는 **web 파이프라인의 버튼** | `deploy` | 받아서 `make_manifest --channel` 로 배치하고 **전송용 패키지를 지운다** |
+| `build-devbuild` | **새벽 스케줄**(`NIGHTLY_DEPLOY_DEV`) 또는 **MR 의 버튼** | `linux` | Unity 빌드 → zip → 패키지 레지스트리 → (qa 면) 배치 트리거 |
+| `publish-devbuild` | 새벽은 같은 파이프라인 · qa 는 **트리거로 자동** | `deploy` | 받아서 `make_manifest --channel` 로 배치하고 **전송용 패키지를 지운다** |
 
-**qa 빌드는 배치가 한 단계 더 있다.** 배포 러너는 `ref_protected` 라 **MR ref 의 잡을 아예
-집지 않는다**(`-405` 실측). MR 파이프라인 안에 배치 잡을 두면 눌렀을 때 러너를 찾지 못해
-**영원히 pending 으로 파이프라인을 붙잡는다.** 그래서 MR 에서는 **빌드까지만** 하고,
-배치는 Run pipeline(`develop`)에서 `STAGE_VERSION` 에 `qa-<MR번호>-<커밋>` 을 주고 누른다 —
-`promote-builds` 의 되돌리기와 같은 결이다.
+**qa 빌드는 파이프라인을 하나 더 거친다.** 배포 러너는 `ref_protected` 라 **MR ref 의 잡을
+아예 집지 않는다**(`-405` 실측). MR 파이프라인 안에 배치 잡을 두면 눌렀을 때 러너를 찾지 못해
+**영원히 pending 으로 파이프라인을 붙잡는다.**
+
+그래서 `build-devbuild` 가 끝나면서 `trigger_stage.py` 로 **`develop` 대상 파이프라인을
+만든다**(`-582`). 그쪽 ref 는 보호 브랜치라 배포 러너가 집는다. 넘어가는 것은 레지스트리의
+zip 하나와 변수 셋(`STAGE_VERSION`·`STAGE_BRANCH`·`STAGE_MR`)뿐이고, 배치 잡은 **develop 의**
+`.gitlab-ci.yml` 과 스크립트로 돈다 — 그래서 "아무 MR 이나 자기 `.gitlab-ci.yml` 한 줄로
+`/var/www` rw 를 만진다" 가 생기지 않는다.
+
+**누르는 사람과 배치하는 사람이 같아야 한다.** 전에는 배치가 Run pipeline(`develop`)의
+버튼이었는데, develop 은 보호 브랜치라 **Maintainer 만** 누를 수 있었다 — 그러면 `-460` 이
+없애려던 "손으로 빌드해 나눠 주는 일" 이 "손으로 등록해 달라고 부탁하는 일" 로 모양만
+바뀐다. **개발 빌드에 무엇을 추가하는 일은 Developer 가 스스로 할 수 있어야 한다**(팀 결정
+2026-09-17). 트리거 토큰(`DEVBUILD_TRIGGER_TOKEN`)은 한 번 만들면 그 뒤로 손이 가지 않는다.
+
+그 토큰은 **Protected 로 둘 수 없다** — MR 파이프라인은 보호 ref 가 아니라서 Protected
+변수가 전달되지 않는다. 대신 `workflow.rules` 가 트리거를 `develop` + `STAGE_VERSION` 일
+때만 받으므로, 그 토큰으로 다른 ref·다른 잡을 돌릴 수 없다.
+
+손으로 배치하는 길(`web` 파이프라인 + `STAGE_VERSION`)은 **되돌아갈 자리로 남겨 뒀다.**
+다만 그 길은 `release-windows` 의 리허설(90분, `resource_group: unity`)이 딸려 온다.
+
+**qa 는 `dev-latest.json` 을 가져가지 않는다**(`-582`). dev·qa 는 목록 파일을 함께 쓰는데
+(개발 런처가 한 화면에서 고른다), qa 가 최신까지 가져가면 **누가 MR 버튼을 누를 때마다 팀
+전체 개발 런처의 기본값이 그 미머지 브랜치가 된다.** 목록에는 올라가므로 골라서 쓴다.
 
 **그때 출처는 `CI_COMMIT_REF_NAME` 이 아니다.** 그 잡은 `develop` 에서 도므로 그대로 쓰면
 목록에 `develop @ …` 이 찍힌다 — **출처를 말한다는 것이 곧 틀린 것을 말하는 것**이 된다.
