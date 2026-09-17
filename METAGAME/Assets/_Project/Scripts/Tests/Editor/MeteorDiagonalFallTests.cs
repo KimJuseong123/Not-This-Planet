@@ -281,8 +281,8 @@ namespace Metagame.Gameplay.Tests
             while (spawner.Pending.Count == 0 && guard++ < 200000)
                 spawner.Tick(Tuning.FixedStep);
 
-            Assert.AreEqual(1, spawner.Pending.Count, "예고가 떠야 한다.");
-            Assert.AreEqual(1, spawner.Live.Count, "운석이 떨어지고 있어야 한다.");
+            Assert.GreaterOrEqual(spawner.Pending.Count, 1, "예고가 떠야 한다.");
+            Assert.AreEqual(spawner.Pending.Count, spawner.Live.Count, "모든 예고에 운석이 있어야 한다.");
 
             return (spawner, spawner.Live[0], spawner.Pending[0].ImpactPoint);
         }

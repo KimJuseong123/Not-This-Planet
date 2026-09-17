@@ -47,8 +47,8 @@ namespace Metagame.Gameplay.Tests
 
             AdvanceUntilPending(spawner);
 
-            Assert.AreEqual(1, spawner.Pending.Count, "예고가 떠야 한다.");
-            Assert.AreEqual(1, spawner.Live.Count,
+            Assert.GreaterOrEqual(spawner.Pending.Count, 1, "예고가 떠야 한다.");
+            Assert.AreEqual(spawner.Pending.Count, spawner.Live.Count,
                 "예고가 켜져 있는 동안 운석이 실제로 떨어지고 있어야 한다.");
         }
 
@@ -128,102 +128,143 @@ namespace Metagame.Gameplay.Tests
 
         // --- 공세 구조 (기획 §17.4) ------------------------------------------
 
-        [Test]
-        public void WaveInterval_FollowsTheDesignTable()
+        [TestCase(false, 2f, 4f)]
+        [TestCase(true, 0.5f, 1.5f)]
+        public void BatchIntervals_StayWithinOffsetAndVary(bool assault, float min, float max)
         {
             var spawner = CreateSpawner();
-
-            Assert.AreEqual(30f, spawner.IntervalAt(0f), 0.01f, "0~5분은 30초");
-            Assert.AreEqual(25f, spawner.IntervalAt(6f * 60f), 0.01f, "5~10분은 25초");
-            Assert.AreEqual(20f, spawner.IntervalAt(11f * 60f), 0.01f, "10~15분은 20초");
-            Assert.AreEqual(15f, spawner.IntervalAt(16f * 60f), 0.01f, "15~20분은 15초");
-            Assert.AreEqual(15f, spawner.IntervalAt(40f * 60f), 0.01f, "20분 이후도 15초");
+            if (assault) spawner.BeginAssault();
+            var starts = new List<float>();
+            spawner.DropScheduled += _ =>
+            {
+                if (starts.Count == 0 || starts[starts.Count - 1] != spawner.Elapsed)
+                    starts.Add(spawner.Elapsed);
+            };
+            Advance(spawner, 45f);
+            Assert.Greater(starts.Count, 8);
+            var intervals = new HashSet<int>();
+            for (var i = 1; i < starts.Count; i++)
+            {
+                var gap = starts[i] - starts[i - 1];
+                Assert.That(gap, Is.InRange(min - 0.001f, max + Tuning.FixedStep + 0.001f));
+                intervals.Add(Mathf.RoundToInt(gap * 100f));
+            }
+            Assert.Greater(intervals.Count, 3, "매 묶음마다 간격을 다시 뽑아야 한다.");
         }
 
-        /// <summary>
-        /// 공세가 알린 개수만큼 <b>1~2초 간격으로</b> 떨어진다(기획 §17.4).
-        ///
-        /// 개수를 상수로 쓰지 않는다. 0~5분 구간은 1~2개이고 난수가 정하므로, 신호가
-        /// 말한 수를 받아 그만큼 오는지를 본다.
-        /// </summary>
         [Test]
-        public void AWave_DropsWhatItAnnounced_SpacedApart()
+        public void AWave_DropsExactlyWhatItAnnouncedTogether()
         {
             var spawner = CreateSpawner();
-
             var planned = 0;
             var dropped = 0;
-            void OnIncoming(int size) => planned = size;
-            void OnDropped(PendingMeteorDrop _) => dropped++;
-
-            spawner.WaveIncoming += OnIncoming;
-            spawner.DropScheduled += OnDropped;
-
+            spawner.WaveIncoming += count => planned = count;
+            spawner.DropScheduled += _ => dropped++;
             AdvanceUntilPending(spawner);
-            Assert.Greater(planned, 0, "신호가 먼저 와야 한다.");
-
-            // 공세가 다 나올 만큼 전진한다. 하나당 최대 2초다.
-            Advance(spawner, PhysicsScale.MeteorWithinWaveMaxSeconds * (planned + 1));
-
-            spawner.WaveIncoming -= OnIncoming;
-            spawner.DropScheduled -= OnDropped;
-
-            // <b>떨어진 수를 센다.</b> Live 는 착탄 6초 뒤 사라지므로 시간이 지난 뒤
-            // 세면 0 이 된다 — 처음에 그렇게 썼다가 알았다.
-            Assert.AreEqual(planned, dropped, $"알린 {planned}개가 모두 떨어져야 한다.");
-            Assert.IsFalse(spawner.WaveActive, "공세가 끝나야 한다.");
-        }
-
-        /// <summary>공세가 끝나면 다음 공세까지 <b>간격만큼</b> 쉰다.</summary>
-        [Test]
-        public void BetweenWaves_NothingFalls()
-        {
-            var spawner = CreateSpawner();
-
-            var planned = 0;
-            var dropped = 0;
-            void OnIncoming(int size) => planned = size;
-            void OnDropped(PendingMeteorDrop _) => dropped++;
-
-            spawner.WaveIncoming += OnIncoming;
-            spawner.DropScheduled += OnDropped;
-
-            AdvanceUntilPending(spawner);
-            Advance(spawner, PhysicsScale.MeteorWithinWaveMaxSeconds * (planned + 1));
-
-            var afterWave = dropped;
+            Assert.Greater(planned, 0);
+            Assert.AreEqual(planned, dropped);
             Assert.IsFalse(spawner.WaveActive);
-
-            // 다음 신호가 오기 전까지는 아무것도 늘지 않는다.
-            Advance(spawner, spawner.IntervalAt(spawner.Elapsed)
-                             - PhysicsScale.MeteorWaveLeadSeconds - 1f);
-            spawner.WaveIncoming -= OnIncoming;
-            spawner.DropScheduled -= OnDropped;
-
-            Assert.AreEqual(afterWave, dropped, "공세 사이에는 떨어지지 않는다.");
         }
 
-        /// <summary>기획 §17.3 — 공세 약 5초 전에 신호가 나간다.</summary>
         [Test]
-        public void AWaveIsAnnouncedInAdvance()
+        public void BetweenBatches_NothingFalls()
         {
             var spawner = CreateSpawner();
-
-            var announced = 0;
-            var sizeAtSignal = 0;
-            void OnIncoming(int size) { announced++; sizeAtSignal = size; }
-
-            spawner.WaveIncoming += OnIncoming;
-            Advance(spawner, spawner.IntervalAt(0f) - PhysicsScale.MeteorWaveLeadSeconds + 0.05f);
-
-            Assert.AreEqual(1, announced, "공세 5초 전에 한 번만 알려야 한다.");
-            Assert.AreEqual(0, spawner.Live.Count, "신호 시점에는 아직 떨어지지 않는다.");
-
+            var dropped = 0;
+            spawner.DropScheduled += _ => dropped++;
             AdvanceUntilPending(spawner);
-            spawner.WaveIncoming -= OnIncoming;
+            var afterBatch = dropped;
+            Advance(spawner, spawner.CurrentInterval - 2f * Tuning.FixedStep);
+            Assert.AreEqual(afterBatch, dropped);
+        }
 
-            Assert.AreEqual(sizeAtSignal, spawner.WaveRemaining + 1,
-                "신호가 말한 개수와 실제 공세 개수가 같아야 한다.");
+        [Test]
+        public void AssaultImmediatelyDropsMultiple_AndDoesNotRestartOnRepeatedCalls()
+        {
+            var spawner = CreateSpawner();
+            spawner.SetCrew(1);
+            spawner.Tick(0.2f);
+            spawner.BeginAssault();
+            spawner.Tick(Tuning.FixedStep);
+            Assert.GreaterOrEqual(spawner.Pending.Count, 3);
+            var count = spawner.Live.Count;
+            var elapsed = spawner.Elapsed;
+            spawner.BeginAssault();
+            spawner.Tick(Tuning.FixedStep);
+            Assert.AreEqual(count, spawner.Live.Count);
+            Assert.Greater(spawner.Elapsed, elapsed);
+        }
+
+        [Test]
+        public void SoloExplorationCanDropTwoTogether()
+        {
+            var spawner = CreateSpawner();
+            spawner.SetCrew(1);
+            var maxBatch = 0;
+            var batch = 0;
+            var at = -1f;
+            spawner.DropScheduled += _ =>
+            {
+                if (at != spawner.Elapsed) { at = spawner.Elapsed; batch = 0; }
+                maxBatch = Mathf.Max(maxBatch, ++batch);
+            };
+            Advance(spawner, 45f);
+            Assert.AreEqual(2, maxBatch);
+        }
+
+        [Test]
+        public void DefaultRandomAreaIgnoresWeightedLaunchPadOutsideArea()
+        {
+            var spawner = CreateSpawner();
+            var pad = new GameObject("outside launch pad");
+            _spawned.Add(pad);
+            pad.transform.position = new Vector3(1000f, 0f, 1000f);
+            spawner.SetLaunchPad(pad.transform);
+            var settings = new UnityEditor.SerializedObject(spawner);
+            settings.FindProperty("_environmentWeight").floatValue = 0f;
+            settings.FindProperty("_nearPlayerWeight").floatValue = 0f;
+            settings.FindProperty("_workAreaWeight").floatValue = 0f;
+            settings.FindProperty("_launchPadWeight").floatValue = 1f;
+            settings.ApplyModifiedPropertiesWithoutUndo();
+            foreach (var point in PointsFrom(spawner, 20))
+            {
+                Assert.That(point.x, Is.InRange(-20f, 20f));
+                Assert.That(point.z, Is.InRange(-20f, 20f));
+            }
+        }
+
+        [Test]
+        public void AssaultOpeningWaitsForPauseAndSequenceHold()
+        {
+            var spawner = CreateSpawner();
+            spawner.SetPaused(true);
+            spawner.SetSequenceHold(true);
+            spawner.BeginAssault();
+            spawner.Tick(10f);
+            Assert.IsEmpty(spawner.Live);
+            spawner.SetPaused(false);
+            spawner.Tick(10f);
+            Assert.IsEmpty(spawner.Live);
+            spawner.SetSequenceHold(false);
+            spawner.Tick(Tuning.FixedStep);
+            Assert.GreaterOrEqual(spawner.Live.Count, 3);
+        }
+
+        [Test]
+        public void AssaultProducesMoreMeteorsInTheSameTime()
+        {
+            var normal = CreateSpawner();
+            normal.SetCrew(1);
+            var assault = CreateSpawner();
+            assault.SetCrew(1);
+            assault.BeginAssault();
+            var normalCount = 0;
+            var assaultCount = 0;
+            normal.Spawned += _ => normalCount++;
+            assault.Spawned += _ => assaultCount++;
+            Advance(normal, 30f);
+            Advance(assault, 30f);
+            Assert.Greater(assaultCount, normalCount * 2);
         }
 
         // --- 인원수 보정 (기획 §17.6) ----------------------------------------
@@ -312,16 +353,14 @@ namespace Metagame.Gameplay.Tests
         /// S15P21B202-234 에서 기획 §17.4 의 표(30 → 25 → 20 → 15)로 바꿨다.
         /// </summary>
         [Test]
-        public void Interval_ShrinksInSteps()
+        public void BaseIntervalDependsOnAssaultRatherThanElapsedTime()
         {
             var spawner = CreateSpawner();
-
-            var early = spawner.IntervalAt(0f);
-            var mid = spawner.IntervalAt(11f * 60f);
-            var late = spawner.IntervalAt(21f * 60f);
-
-            Assert.Greater(early, mid, "시간이 지나면 짧아져야 한다.");
-            Assert.Greater(mid, late);
+            Assert.AreEqual(3f, spawner.IntervalAt(0f));
+            Assert.AreEqual(3f, spawner.IntervalAt(21f * 60f));
+            spawner.BeginAssault();
+            Assert.AreEqual(1f, spawner.IntervalAt(0f));
+            Assert.AreEqual(1f, spawner.IntervalAt(21f * 60f));
         }
 
         [Test]
@@ -341,7 +380,7 @@ namespace Metagame.Gameplay.Tests
             var spawner = CreateSpawner();
 
             var early = CountScheduled(spawner, 0f, 40f);
-            var late = CountScheduled(spawner, PhysicsScale.MeteorRampSeconds, 40f);
+            var late = CountScheduled(spawner, 21f * 60f, 40f);
 
             Assert.Greater(late, early,
                 $"후반이 더 자주 떨어져야 한다. 초반 {early}회 / 후반 {late}회");
@@ -438,7 +477,8 @@ namespace Metagame.Gameplay.Tests
         static int CountScheduled(MeteorSpawner spawner, float startAt, float window)
         {
             spawner.ResetRun();
-            Advance(spawner, startAt);
+            typeof(MeteorSpawner).GetField("_elapsed", System.Reflection.BindingFlags.Instance
+                | System.Reflection.BindingFlags.NonPublic).SetValue(spawner, startAt);
 
             var count = 0;
             void OnScheduled(PendingMeteorDrop _) => count++;

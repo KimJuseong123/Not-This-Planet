@@ -81,6 +81,67 @@ namespace Metagame.Gameplay.Tests
             Assert.AreEqual(MeteorTargetKind.LaunchPad, MeteorWaveTable.TargetKindFor(1.0));
         }
 
+        [TestCase(false, 1f, 3f)]
+        [TestCase(true, 4f, 6f)]
+        public void MixedRandomDropsIncludeAreaAndConfiguredPlayerRadius(bool assault, float min, float max)
+        {
+            var player = MakePlayer(Outside);
+            var spawner = MakeSpawner(mixed: true);
+            var settings = new UnityEditor.SerializedObject(spawner);
+            settings.FindProperty("_playerTargetMinRadius").floatValue = min;
+            settings.FindProperty("_playerTargetMaxRadius").floatValue = max;
+            settings.ApplyModifiedPropertiesWithoutUndo();
+            if (assault) spawner.BeginAssault();
+            var near = 0;
+            var environment = 0;
+            foreach (var point in Collect(spawner, 200))
+            {
+                var offset = point - player.Position;
+                offset.y = 0f;
+                if (offset.magnitude <= max + 0.01f)
+                {
+                    Assert.GreaterOrEqual(offset.magnitude, min - 0.01f);
+                    near++;
+                }
+                else
+                {
+                    Assert.That(point.x, Is.InRange(-AreaSize / 2f, AreaSize / 2f));
+                    Assert.That(point.z, Is.InRange(-AreaSize / 2f, AreaSize / 2f));
+                    environment++;
+                }
+            }
+            Assert.Greater(near, 20);
+            Assert.Greater(environment, 80);
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void MixedRandomDropsFallBackToAreaWithoutEligiblePlayer(bool downed)
+        {
+            if (downed) MakePlayer(Outside).GoDown("검증");
+            var spawner = MakeSpawner(mixed: true);
+            foreach (var point in Collect(spawner, 50))
+            {
+                Assert.That(point.x, Is.InRange(-AreaSize / 2f, AreaSize / 2f));
+                Assert.That(point.z, Is.InRange(-AreaSize / 2f, AreaSize / 2f));
+            }
+        }
+
+        [Test]
+        public void ZeroPlayerChanceKeepsAllDropsInsideArea()
+        {
+            MakePlayer(Outside);
+            var spawner = MakeSpawner(mixed: true);
+            var settings = new UnityEditor.SerializedObject(spawner);
+            settings.FindProperty("_randomAreaNearPlayerChance").floatValue = 0f;
+            settings.ApplyModifiedPropertiesWithoutUndo();
+            foreach (var point in Collect(spawner, 50))
+            {
+                Assert.That(point.x, Is.InRange(-AreaSize / 2f, AreaSize / 2f));
+                Assert.That(point.z, Is.InRange(-AreaSize / 2f, AreaSize / 2f));
+            }
+        }
+
         // --- 플레이어를 노린다 ----------------------------------------------
 
         /// <summary>
@@ -250,13 +311,16 @@ namespace Metagame.Gameplay.Tests
         /// </summary>
         static Vector3 Outside => new(AreaSize, 0f, AreaSize);
 
-        MeteorSpawner MakeSpawner(int seed = 20260901)
+        MeteorSpawner MakeSpawner(int seed = 20260901, bool mixed = false)
         {
             var go = new GameObject("MeteorSpawner");
             go.transform.position = Vector3.zero;
             _spawned.Add(go);
 
             var spawner = go.AddComponent<MeteorSpawner>();
+            var settings = new UnityEditor.SerializedObject(spawner);
+            settings.FindProperty("_randomAreaTargets").boolValue = mixed;
+            settings.ApplyModifiedPropertiesWithoutUndo();
             spawner.Configure(seed);
             spawner.SetArea(go.transform, new Vector2(AreaSize, AreaSize));
             spawner.SetCrew(4);
@@ -276,8 +340,8 @@ namespace Metagame.Gameplay.Tests
 
             spawner.DropScheduled -= OnScheduled;
 
-            Assert.AreEqual(count, points.Count, "표본을 다 모으지 못했다.");
-            return points;
+            Assert.GreaterOrEqual(points.Count, count, "표본을 다 모으지 못했다.");
+            return points.GetRange(0, count);
         }
 
         PlayerRig MakePlayer(Vector3 foot)

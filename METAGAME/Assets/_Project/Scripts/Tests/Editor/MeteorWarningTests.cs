@@ -265,7 +265,7 @@ namespace Metagame.Gameplay.Tests
             view.Tick(0f);
 
             Assert.AreEqual(spawner.Pending.Count, view.VisibleCount);
-            Assert.AreEqual(1, view.VisibleCount);
+            Assert.GreaterOrEqual(view.VisibleCount, 1);
         }
 
         /// <summary>
@@ -276,6 +276,9 @@ namespace Metagame.Gameplay.Tests
         public void MarkersAreReused_NotRecreated()
         {
             var spawner = MakeSpawner();
+            typeof(MeteorSpawner).GetField("_waveBands", System.Reflection.BindingFlags.Instance
+                | System.Reflection.BindingFlags.NonPublic).SetValue(spawner,
+                    new[] { new MeteorWaveBand(0f, 3f, 1, 1, 0f) });
             var view = MakeView(spawner);
 
             AdvanceUntilPending(spawner);
@@ -283,12 +286,14 @@ namespace Metagame.Gameplay.Tests
             var pooledAfterFirst = view.PooledCount;
             Assert.GreaterOrEqual(pooledAfterFirst, 1);
 
-            // 예고가 끝나 0 이 되었다가 다시 뜨는 것을 흉내낸다.
+            // 생성만 멈춰 현재 경고가 사라진 뒤 풀을 재사용한다.
+            spawner.SetPaused(true);
             Advance(spawner, PhysicsScale.MeteorWarningSeconds + 0.1f);
             view.Tick(0f);
             Assert.AreEqual(0, view.VisibleCount, "예고가 끝나면 숨겨야 한다.");
             Assert.AreEqual(pooledAfterFirst, view.PooledCount, "지우지 않고 남겨야 한다.");
 
+            spawner.SetPaused(false);
             AdvanceUntilPending(spawner);
             view.Tick(0f);
             Assert.AreEqual(pooledAfterFirst, view.PooledCount,

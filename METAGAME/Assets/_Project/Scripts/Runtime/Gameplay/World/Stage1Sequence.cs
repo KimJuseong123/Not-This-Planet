@@ -61,6 +61,8 @@ namespace Metagame.Gameplay
         {
             if (!Authoritative || (BlocksInput && !(replay && Phase == Stage1SequencePhase.Waiting)) || _session == null || _session.EndingActive
                 || (AssaultEnabled && !replay)) return false;
+            AssaultEnabled = true;
+            _spawner?.BeginAssault();
             Change(Stage1SequencePhase.Assault);
             return true;
         }
@@ -108,7 +110,7 @@ namespace Metagame.Gameplay
         void ApplyGate()
         {
             if (_spawner != null)
-                _spawner.SetSequenceHold(!AssaultEnabled || Phase == Stage1SequencePhase.Waiting
+                _spawner.SetSequenceHold(Phase == Stage1SequencePhase.Waiting
                     || Phase == Stage1SequencePhase.Entry);
             if (BlocksInput && _session != null && _session.LocalPlayer != null)
                 _session.LocalPlayer.SetInput(new Metagame.Core.InputFrame());

@@ -235,7 +235,6 @@ namespace Metagame.Network
         MeteorPose[] sendMeteors = Array.Empty<MeteorPose>();
         uint lastMeteorSeq;
         bool everMeteor;
-        bool warnedMeteorCap;
 
         /// <summary>
         /// "운석 0개" 를 몇 번 더 보낼지. 신뢰 없는 채널에서 그림을 지우는 신호가 한 번에
@@ -1688,14 +1687,13 @@ namespace Metagame.Network
             // 달라질 때만** 보낸다 — 고정쇠와 같은 이유다. 신뢰 없는 채널이라 잃을 수
             // 있으므로 조용해도 가끔 다시 보낸다.
             //
-            // 한 묶음 한도를 따로 검사하지 않는 이유: 예고 하나가 24바이트이고 동시
-            // 개수는 **한 공세의 상한**을 넘지 않는다(표의 최대가 5 — MeteorWaveTable.Rows).
-            // 신뢰 없는 채널의 여유가 47개쯤이라 자리 수가 다르다. 낙하 자세(40바이트)는
-            // 여유가 절반이라 그쪽에만 상한 검사를 두었다.
+            // 짧은 생성 간격에서는 여러 묶음이 겹친다. MTU를 넘으면 분할 가능한
+            // 신뢰 채널로 전체 상태를 보내며, 두 채널은 같은 순번 검사를 사용한다.
             bool changed = !SameDrops(sendDrops, lastSentDrops);
             if (!changed && dropKeepaliveTimer < ClampKeepalive) return;
 
-            RpcApplyDrops(sendSeq, sendDrops);
+            if (FitsUnreliableMeteorState(n, 24)) RpcApplyDrops(sendSeq, sendDrops);
+            else RpcApplyDropsReliable(sendSeq, sendDrops);
             dropKeepaliveTimer = 0f;
 
             if (lastSentDrops.Length != sendDrops.Length)
@@ -1733,7 +1731,12 @@ namespace Metagame.Network
         /// 잃은 것은 keepalive 가 메우고 순서는 <paramref name="seq"/> 로 가른다.</para>
         /// </summary>
         [ClientRpc(channel = Channels.Unreliable)]
-        void RpcApplyDrops(uint seq, DropState[] drops)
+        void RpcApplyDrops(uint seq, DropState[] drops) => ApplyDrops(seq, drops);
+
+        [ClientRpc(channel = Channels.Reliable)]
+        void RpcApplyDropsReliable(uint seq, DropState[] drops) => ApplyDrops(seq, drops);
+
+        void ApplyDrops(uint seq, DropState[] drops)
         {
             if (isServer) return;               // 호스트는 자기 스케줄이 정답이다
             if (!ready) return;
@@ -1799,19 +1802,12 @@ namespace Metagame.Network
         /// <summary>낙하 자세 하나의 바이트 수 — 자세 28 + 속도 12 + 타격 가이드 13.</summary>
         const int MeteorPoseBytes = PoseBytes + 25;
 
-        /// <summary>
-        /// 한 묶음에 실을 수 있는 낙하 자세 개수. 공세 최대가 표에서 8개이므로 닿을 일이
-        /// 없지만, 넘겼을 때 <b>전송 계층이 예외를 던지는 대신</b> 앞쪽만 보내고 알린다.
-        /// </summary>
-        static int UnreliableMeteorCapacity
+        static bool FitsUnreliableMeteorState(int count, int bytesPerItem)
         {
-            get
-            {
-                int max = Transport.active != null
-                    ? Transport.active.GetMaxPacketSize(Channels.Unreliable)
-                    : 1194;
-                return Mathf.Max(0, (max - PacketHeadroom) / MeteorPoseBytes);
-            }
+            int max = Transport.active != null
+                ? Transport.active.GetMaxPacketSize(Channels.Unreliable)
+                : 1194;
+            return count <= Mathf.Max(0, (max - PacketHeadroom) / bytesPerItem);
         }
 
         /// <summary>
@@ -1826,7 +1822,6 @@ namespace Metagame.Network
             if (spawner == null) return;
 
             var live = spawner.Live;
-            int cap = UnreliableMeteorCapacity;
 
             // **없어진 운석 자리에 원점의 돌을 실어 보내지 않는다**(AI 리뷰 지적,
             // 2026-09-08). 예전에는 `live[i]` 가 null 이면 `default` 를 넣었는데, 그러면
@@ -1835,17 +1830,11 @@ namespace Metagame.Network
             int n = 0;
             if (live != null)
             {
-                for (int i = 0; i < live.Count && n < cap; i++)
+                for (int i = 0; i < live.Count; i++)
                     if (live[i] != null) n++;
             }
 
             int liveCount = live != null ? live.Count : 0;
-            if (liveCount > cap && !warnedMeteorCap)
-            {
-                warnedMeteorCap = true;
-                Debug.LogWarning($"[WorldSync] 운석이 한 묶음에 안 들어간다 — {liveCount}개 중 {cap}개만 보낸다");
-            }
-
             // **0개일 때 빈 묶음을 계속 보내지 않는다** (AI 리뷰 지적, 2026-09-08).
             // 운석은 대부분의 시간에 0개다. 그런데도 매 송신 틱마다 RPC 를 내면 사람 수만큼
             // 빈 패킷이 상시 나간다 — 이 MR 이 문제로 든 그 업링크 비용이다.
@@ -1896,7 +1885,8 @@ namespace Metagame.Network
                     };
             }
 
-            RpcApplyMeteors(sendSeq, sendMeteors);
+            if (FitsUnreliableMeteorState(n, MeteorPoseBytes)) RpcApplyMeteors(sendSeq, sendMeteors);
+            else RpcApplyMeteorsReliable(sendSeq, sendMeteors);
         }
 
         /// <summary>
@@ -1926,7 +1916,12 @@ namespace Metagame.Network
         }
 
         [ClientRpc(channel = Channels.Unreliable)]
-        void RpcApplyMeteors(uint seq, MeteorPose[] poses)
+        void RpcApplyMeteors(uint seq, MeteorPose[] poses) => ApplyMeteors(seq, poses);
+
+        [ClientRpc(channel = Channels.Reliable)]
+        void RpcApplyMeteorsReliable(uint seq, MeteorPose[] poses) => ApplyMeteors(seq, poses);
+
+        void ApplyMeteors(uint seq, MeteorPose[] poses)
         {
             if (isServer) return;               // 호스트에는 진짜 운석이 있다
             if (!ready) return;

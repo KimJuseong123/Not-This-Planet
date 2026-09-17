@@ -25,14 +25,19 @@ namespace Metagame.Gameplay.Tests
             _session = _root.AddComponent<GameSession>();
             _session.Begin(null, null, Vector3.zero);
             _spawner = _root.AddComponent<MeteorSpawner>();
+            _spawner.Configure(12345);
             _sequence = _root.AddComponent<Stage1Sequence>();
             _authority = true; _now = 0;
             _sequence.Configure(_session, _spawner, () => _authority, () => _now);
         }
 
-        [TearDown] public void TearDown() { Object.DestroyImmediate(_root); }
+        [TearDown] public void TearDown()
+        {
+            if (_spawner != null) _spawner.ResetRun();
+            Object.DestroyImmediate(_root);
+        }
 
-        [Test] public void EntryBlocksInputThenExplorationWaitsForTrigger()
+        [Test] public void EntryBlocksMeteorsThenExplorationAllowsSlowDrops()
         {
             Assert.That(_session.CinematicInputBlocked, Is.True);
             Assert.That(_sequence.TryBeginEntry(), Is.True);
@@ -42,9 +47,9 @@ namespace Metagame.Gameplay.Tests
             _now = 18; _sequence.Tick();
             Assert.That(_sequence.Phase, Is.EqualTo(Stage1SequencePhase.Exploration));
             Assert.That(_session.CinematicInputBlocked, Is.False);
-            _now = 300; _sequence.Tick(); _spawner.Tick(300);
-            Assert.That(_spawner.SequenceHold, Is.True);
-            Assert.That(_spawner.Live.Count, Is.Zero, "The explicit trigger, not a timer, starts attacks.");
+            Assert.That(_spawner.SequenceHold, Is.False);
+            Assert.That(_spawner.AssaultEnabled, Is.False);
+            Assert.That(_spawner.CurrentInterval, Is.InRange(2f, 4f));
         }
 
         [Test] public void UnreadyParticipantsCannotHoldAuthorityPastTenSeconds()
@@ -84,18 +89,16 @@ namespace Metagame.Gameplay.Tests
             Assert.That(_session.CinematicInputBlocked, Is.True, "Closing the menu must not unlock movement during entry.");
         }
 
-        [Test] public void AssaultWarnsThenRaisesFrequencyWithoutResettingElapsed()
+        [Test] public void AssaultImmediatelyRaisesFrequencyWithoutResettingElapsed()
         {
             _sequence.TryBeginEntry(); _now = 18; _sequence.Tick();
             _spawner.Tick(12f);
-            float elapsed = _spawner.Elapsed, oldInterval = _spawner.CurrentInterval;
+            float elapsed = _spawner.Elapsed;
             Assert.That(_sequence.TryBeginAssault(), Is.True);
-            _now = 22.99; _sequence.Tick();
-            Assert.That(_spawner.AssaultEnabled, Is.False);
-            _now = 23; _sequence.Tick();
+            Assert.That(_sequence.AssaultEnabled, Is.True);
             Assert.That(_spawner.SequenceHold, Is.False);
             Assert.That(_spawner.AssaultEnabled, Is.True);
-            Assert.That(_spawner.CurrentInterval, Is.EqualTo(oldInterval * 0.35f).Within(0.001f));
+            Assert.That(_spawner.CurrentInterval, Is.InRange(0.5f, 1.5f));
             Assert.That(_spawner.Elapsed, Is.EqualTo(elapsed));
             _now = 26; _sequence.Tick();
             Assert.That(_sequence.Phase, Is.EqualTo(Stage1SequencePhase.Combat));
@@ -119,15 +122,15 @@ namespace Metagame.Gameplay.Tests
             Assert.That(_sequence.Phase, Is.EqualTo(Stage1SequencePhase.Combat));
         }
 
-        [TestCase(0.6f, 18f)]
-        [TestCase(1f, 30f)]
-        [TestCase(0f, 1.5f)]
-        public void SerializedAssaultMultiplierControlsInterval(float multiplier, float expected)
+        [TestCase(0.6f, 0.6f)]
+        [TestCase(1f, 1f)]
+        [TestCase(0f, 0.05f)]
+        public void SerializedAssaultBaseControlsInterval(float multiplier, float expected)
         {
             var settings = new SerializedObject(_spawner);
-            settings.FindProperty("_assaultWaveIntervalMultiplier").floatValue = multiplier;
+            settings.FindProperty("_assaultSpawnIntervalSeconds").floatValue = multiplier;
             settings.ApplyModifiedPropertiesWithoutUndo();
-            Assert.That(_spawner.IntervalAt(0), Is.EqualTo(30f));
+            Assert.That(_spawner.IntervalAt(0), Is.EqualTo(3f));
             _spawner.BeginAssault();
             Assert.That(_spawner.IntervalAt(0), Is.EqualTo(expected).Within(0.001f));
         }

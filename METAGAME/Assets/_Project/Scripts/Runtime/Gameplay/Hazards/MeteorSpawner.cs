@@ -8,9 +8,8 @@ namespace Metagame.Gameplay.Hazards
     /// 운석을 <b>공세 단위</b>로 예고하고 떨어뜨린다(기획 §17.3~17.7).
     ///
     /// 흐름은 이렇다.
-    ///  1) 공세 간격이 되기 5초 전에 <see cref="WaveIncoming"/> 을 보낸다(§17.3).
-    ///  2) 간격이 되면 이번 공세의 운석 수를 정하고(§17.4 · §17.6) 1~2초 간격으로
-    ///     하나씩 떨어뜨린다.
+    ///  1) 다음 묶음을 미리 알린다. 짧은 간격에서는 대기 시작 시 신호를 보낸다.
+    ///  2) 무작위 간격마다 한 개 또는 여러 개를 함께 떨어뜨린다.
     ///  3) 운석 하나를 낼 때 <b>예고와 운석을 함께</b> 만든다. 예고가 켜져 있는 동안
     ///     운석이 실제로 떨어지고 있어야 한다(§17.2 "착탄 3초 전").
     ///
@@ -55,17 +54,23 @@ namespace Metagame.Gameplay.Hazards
         [Header("공세")]
         [SerializeField] MeteorWaveBand[] _waveBands = MeteorWaveBand.CreateDefaults();
         [SerializeField, Min(0f)] float _waveLeadSeconds = PhysicsScale.MeteorWaveLeadSeconds;
-        [SerializeField, Min(0f)] float _withinWaveMinSeconds = PhysicsScale.MeteorWithinWaveMinSeconds;
-        [SerializeField, Min(0f)] float _withinWaveMaxSeconds = PhysicsScale.MeteorWithinWaveMaxSeconds;
-        [Header("Stage1 트리거 공세 · 기획 §17.8")]
-        [SerializeField, Range(0.05f, 1f)] float _assaultWaveIntervalMultiplier = 0.35f;
-        [SerializeField, Range(0.05f, 1f)] float _assaultWithinWaveIntervalMultiplier = 0.5f;
+        [SerializeField, Min(0.05f), Tooltip("공세 전 생성 기준 간격(초)")] float _spawnIntervalSeconds = 3f;
+        [SerializeField, Min(0f), Tooltip("공세 전 기준 간격에 더할 무작위 ±값(초)")] float _spawnIntervalOffset = 1f;
+        [Header("Stage1 트리거 공세")]
+        [SerializeField, Min(0.05f)] float _assaultSpawnIntervalSeconds = 1f;
+        [SerializeField, Min(0f)] float _assaultSpawnIntervalOffset = 0.5f;
+        [SerializeField, Min(1f)] float _assaultCountMultiplier = 2f;
+        [SerializeField, Range(2, 8)] int _assaultMinMeteors = 3;
         [SerializeField, Range(0f, 1f)] float _soloCrewScale = 0.45f;
         [SerializeField, Range(0f, 1f)] float _twoCrewScale = 0.65f;
         [SerializeField, Range(0f, 1f)] float _threeCrewScale = 0.80f;
         [SerializeField, Range(0f, 1f)] float _fourCrewScale = 1f;
 
         [Header("목표 위치")]
+        [SerializeField, Tooltip("전체 영역 무작위 낙하에 플레이어 주변 낙하를 섞는다. 끄면 기존 가중치 목표를 사용한다.")]
+        bool _randomAreaTargets = true;
+        [SerializeField, Range(0f, 1f), Tooltip("무작위 낙하 중 플레이어 주변을 선택할 확률. 0이면 전체 영역 낙하만 사용한다.")]
+        float _randomAreaNearPlayerChance = 0.3f;
         [SerializeField, Range(0f, 1f)] float _environmentWeight = 0.35f;
         [SerializeField, Range(0f, 1f)] float _nearPlayerWeight = 0.30f;
         [SerializeField, Range(0f, 1f)] float _workAreaWeight = 0.25f;
@@ -104,15 +109,15 @@ namespace Metagame.Gameplay.Hazards
 
         // 공세 상태. 공세 사이에는 _waveRemaining 이 0 이다.
         float _sinceLastWave;
+        float _nextWaveInterval;
+        bool _assaultOpeningPending;
         int _waveRemaining;
-        float _sinceLastInWave;
-        float _nextInWaveDelay;
         bool _leadSent;
 
         /// <summary>
-        /// 5초 전 신호에서 정한 이번 공세의 운석 수.
+        /// 사전 신호에서 정한 이번 묶음의 운석 수.
         ///
-        /// <b>신호 때 정해 기억한다.</b> 신호와 공세 시작 사이에 5초가 흐르므로, 두 곳에서
+        /// <b>신호 때 정해 기억한다.</b> 신호와 생성 사이에 시간이 흐르므로, 두 곳에서
         /// 각각 계산하면 경과 시간이 달라 값이 갈린다 — 검증에서 신호는 1개라 하고 실제로
         /// 2개가 떨어지는 것을 보고 알았다. 신호가 말한 수가 곧 오는 수여야 한다.
         /// </summary>
@@ -207,19 +212,21 @@ namespace Metagame.Gameplay.Hazards
         /// <summary>현재 설정으로 계산한 운석의 초기 수직 하강 속도(m/s).</summary>
         public float CurrentDropSpeed => _overrideDropSpeed ? _dropSpeed : DropSpeedFor(_dropHeight);
 
-        /// <summary>지금 적용되는 공세 간격(초). 기획 §17.4 의 표가 정한다.</summary>
-        public float CurrentInterval => IntervalAt(_elapsed);
+        /// <summary>다음 묶음까지의 무작위 생성 간격(초).</summary>
+        public float CurrentInterval => _nextWaveInterval;
 
         public bool AssaultEnabled { get; private set; }
         public bool SequenceHold { get; private set; }
         public void SetSequenceHold(bool hold) => SequenceHold = hold;
 
-        /// <summary>기존 운석·파츠·난수 스트림을 유지한 채 공세 주기만 올린다.</summary>
+        /// <summary>기존 운석을 유지하고, 다음 허용된 틱에서 강화된 첫 묶음을 내린다.</summary>
         public void BeginAssault()
         {
             if (AssaultEnabled) return;
+            if (_random == null) ResetRun();
             AssaultEnabled = true;
-            _sinceLastWave = CurrentInterval;
+            _assaultOpeningPending = true;
+            RollWaveInterval();
         }
 
         /// <summary>이번 공세에 남은 운석 수. 공세 사이에는 0 이다.</summary>
@@ -244,7 +251,7 @@ namespace Metagame.Gameplay.Hazards
         public event Action<Meteor> Spawned;
 
         /// <summary>
-        /// 공세가 약 5초 뒤 시작된다(기획 §17.3). 인수는 이번 공세의 운석 수다.
+        /// 다음 묶음의 운석 수. 간격이 짧으면 기존 5초 예고보다 가까운 시점에 알린다.
         ///
         /// <b>신호만 보낸다.</b> 유성우가 많아지고 진동음이 울리고 조명이 깜빡이는 것은
         /// [Art]·[Sound] 가 만들고, §17.3 이 "문구나 카운트다운 숫자는 표시하지 않는다"
@@ -257,6 +264,8 @@ namespace Metagame.Gameplay.Hazards
         void Awake()
         {
             EnsureConfiguration();
+            // 실제 매치는 매번 달라지고, Configure(seed)는 테스트/재현용 시드를 보장한다.
+            if (Application.isPlaying) _seed = Guid.NewGuid().GetHashCode();
             ResetRun();
         }
 
@@ -276,10 +285,10 @@ namespace Metagame.Gameplay.Hazards
             _random = new System.Random(_seed);
             _elapsed = 0f;
             AssaultEnabled = false;
+            _assaultOpeningPending = false;
+            RollWaveInterval();
             _sinceLastWave = 0f;
             _waveRemaining = 0;
-            _sinceLastInWave = 0f;
-            _nextInWaveDelay = 0f;
             _leadSent = false;
             _plannedWaveSize = 0;
             _hasLastTarget = false;
@@ -336,14 +345,7 @@ namespace Metagame.Gameplay.Hazards
 
         public void SetPaused(bool paused) => IsPaused = paused;
 
-        /// <summary>
-        /// 시드만 다시 심는다.
-        ///
-        /// <b>간격 인수를 받지 않는다.</b> 예전에는 시작·최소 간격과 상승 시간을 받아
-        /// 선형으로 줄였는데, 기획 §17.4 는 시간대별 <b>표</b>다(30 → 25 → 20 → 15초).
-        /// 곡선을 인수로 흉내내면 표와 어긋나므로 <see cref="MeteorWaveTable"/> 하나만
-        /// 본다. 시간대를 바꾸려면 그 표를 고친다.
-        /// </summary>
+        /// <summary>테스트/재현용 시드를 적용하고 실행 상태를 초기화한다.</summary>
         public void Configure(int seed)
         {
             _seed = seed;
@@ -356,16 +358,10 @@ namespace Metagame.Gameplay.Hazards
             _areaSize = size;
         }
 
-        /// <summary>
-        /// 그 시각의 공세 간격(초). 기획 §17.4 의 표가 정한다.
-        ///
-        /// <b>선형이 아니라 계단이다.</b> 예전에는 8초에서 2초까지 180초에 걸쳐 매끄럽게
-        /// 줄었는데, 그러면 §17.3 의 "공세 약 5초 전 신호" 가 붙을 자리가 없다 — 운석이
-        /// 끊임없이 하나씩 오는 것과 <b>묶음으로</b> 오는 것은 다른 리듬이고, 기획이
-        /// 요구하는 것은 후자다.
-        /// </summary>
-        public float IntervalAt(float elapsedSeconds) => WaveBandAt(elapsedSeconds).WaveIntervalSeconds
-            * (AssaultEnabled ? Mathf.Clamp(_assaultWaveIntervalMultiplier, 0.05f, 1f) : 1f);
+        /// <summary>공세 전후의 기준 간격. 경과 시간은 수량과 크기에만 영향을 준다.</summary>
+        public float IntervalAt(float elapsedSeconds) => AssaultEnabled
+            ? Mathf.Max(0.05f, _assaultSpawnIntervalSeconds)
+            : Mathf.Max(0.05f, _spawnIntervalSeconds);
 
         /// <summary>그 시각의 중형 확률 0~1. 10분 전에는 0 이다(§17.7).</summary>
         public float MediumChanceAt(float elapsedSeconds) => WaveBandAt(elapsedSeconds).MediumChance;
@@ -418,7 +414,7 @@ namespace Metagame.Gameplay.Hazards
 
         /// <summary>
         /// 소유자가 매 물리 스텝 호출한다.
-        /// 예고를 만들고, 예고 시간이 지난 것을 떨어뜨리고, 살아 있는 운석을 갱신한다.
+        /// 예고와 운석을 함께 생성하고 살아 있는 운석과 흔적을 갱신한다.
         /// </summary>
         public void Tick(float deltaTime)
         {
@@ -433,15 +429,23 @@ namespace Metagame.Gameplay.Hazards
         }
 
         /// <summary>
-        /// 공세를 시작하고 공세 안에서 하나씩 떨어뜨린다(기획 §17.4).
+        /// 기준 간격 ± 오프셋마다 무작위 수량을 동시에 떨어뜨린다.
         /// </summary>
         void AdvanceSchedule(float deltaTime)
         {
             if (IsPaused || SequenceHold) return;
 
-            if (_waveRemaining > 0)
+            if (_assaultOpeningPending)
             {
-                AdvanceWithinWave(deltaTime);
+                _assaultOpeningPending = false;
+                // 전환 직전 예고도 수량을 보존하고 첫 강화 묶음에 포함한다.
+                var announced = _leadSent ? _plannedWaveSize : 0;
+                var openingSize = RollWaveSize();
+                WaveIncoming?.Invoke(openingSize);
+                _leadSent = false;
+                _sinceLastWave = 0f;
+                LaunchBatch(announced + openingSize);
+                RollWaveInterval();
                 return;
             }
 
@@ -449,8 +453,7 @@ namespace Metagame.Gameplay.Hazards
 
             var interval = CurrentInterval;
 
-            // 5초 전 신호. 간격이 5초보다 짧을 일은 없지만(표의 최소가 15초다) 그래도
-            // 0 아래로 내려가지 않게 잡는다.
+            // 짧은 무작위 간격에서는 기다리기 시작할 때 바로 알린다.
             var leadAt = Mathf.Max(0f, interval - _waveLeadSeconds);
             if (!_leadSent && _sinceLastWave >= leadAt)
             {
@@ -466,9 +469,8 @@ namespace Metagame.Gameplay.Hazards
 
             _sinceLastWave = 0f;
             _leadSent = false;
-            _waveRemaining = _plannedWaveSize;
-            _sinceLastInWave = 0f;
-            _nextInWaveDelay = 0f;   // 공세의 첫 운석은 바로 떨어진다
+            LaunchBatch(_plannedWaveSize);
+            RollWaveInterval();
         }
 
         /// <summary>
@@ -483,22 +485,30 @@ namespace Metagame.Gameplay.Hazards
                       + (int)(Mathf.Clamp01((float)_random.NextDouble()) * (span + 1));
             raw = Mathf.Clamp(raw, band.MinMeteors, band.MaxMeteors);
 
-            return Mathf.Max(1, Mathf.RoundToInt(raw * CrewScaleFor(_crew)));
+            // 솔로에서도 초반 1~2개 묶음이 가능하다. 후반 수량은 인원 보정을 유지한다.
+            var count = Mathf.Max(Mathf.Clamp(raw, 1, 2), Mathf.RoundToInt(raw * CrewScaleFor(_crew)));
+            return AssaultEnabled
+                ? Mathf.Max(Mathf.Clamp(_assaultMinMeteors, 2, 8),
+                            Mathf.RoundToInt(count * Mathf.Max(1f, _assaultCountMultiplier)))
+                : count;
         }
 
-        void AdvanceWithinWave(float deltaTime)
+        void RollWaveInterval()
         {
-            _sinceLastInWave += deltaTime;
-            if (_sinceLastInWave < _nextInWaveDelay) return;
+            var center = IntervalAt(_elapsed);
+            var offset = Mathf.Max(0f, AssaultEnabled ? _assaultSpawnIntervalOffset : _spawnIntervalOffset);
+            _nextWaveInterval = Mathf.Max(0.05f,
+                center + ((float)_random.NextDouble() * 2f - 1f) * offset);
+        }
 
-            _sinceLastInWave = 0f;
-            _nextInWaveDelay = Mathf.Lerp(
-                _withinWaveMinSeconds,
-                _withinWaveMaxSeconds,
-                (float)_random.NextDouble()) * (AssaultEnabled ? Mathf.Clamp(_assaultWithinWaveIntervalMultiplier, 0.05f, 1f) : 1f);
-
-            _waveRemaining--;
-            Launch();
+        void LaunchBatch(int count)
+        {
+            _waveRemaining = count;
+            while (_waveRemaining > 0)
+            {
+                _waveRemaining--;
+                Launch();
+            }
         }
 
         /// <summary>예고와 운석을 <b>함께</b> 만든다.</summary>
@@ -1093,22 +1103,18 @@ namespace Metagame.Gameplay.Hazards
         }
 
         /// <summary>
-        /// 다음 착탄 지점. 기획 §17.5 의 비율로 후보를 고른다.
-        ///
-        /// <b>균등 무작위가 아니다.</b> 예전에는 사각 영역 안에서 아무 데나 골랐는데,
-        /// 그러면 §17.5 의 "무작위 플레이어 주변 30%" 와 "작업 지역 25%" 가 성립하지
-        /// 않아 운석이 <b>방해가 되지 않는다</b> — 넓은 맵에서 아무 데나 떨어지면
-        /// 플레이어 근처에 올 일이 거의 없다.
-        ///
-        /// 고른 후보에 대상이 없으면(플레이어가 다 기절했거나 작업 중인 곳이 없거나
-        /// 발사대가 비어 있으면) <b>환경으로 돌린다.</b> 비율을 억지로 맞추려고 없는
-        /// 대상을 만들 이유가 없다.
+        /// 영역 전체 무작위와 플레이어 주변 낙하를 섞는다. 대상이 없을 때는
+        /// 환경 위치로 돌아간다. 바로 직전 착탄 지점은 가능한 한 피한다.
         /// </summary>
         Vector3 NextImpactPoint()
         {
             for (var attempt = 0; attempt < 4; attempt++)
             {
-                var kind = TargetKindFor(_random.NextDouble());
+                var roll = _random.NextDouble();
+                var kind = _randomAreaTargets
+                    ? (roll < Mathf.Clamp01(_randomAreaNearPlayerChance)
+                        ? MeteorTargetKind.NearPlayer : MeteorTargetKind.Environment)
+                    : TargetKindFor(roll);
                 var point = PointFor(kind);
 
                 // 같은 자리를 연속으로 고르지 않는다(§17.5).
