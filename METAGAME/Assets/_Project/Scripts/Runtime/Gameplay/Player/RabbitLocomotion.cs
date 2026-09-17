@@ -30,14 +30,19 @@ namespace Metagame.Gameplay
         public const string BadResource = "RabbitLocomotion/Rabbit_Bad";
 
         /// <summary>
-        /// 춤이 저절로 끊기는 이동 속도(m/s).
+        /// 춤을 끊는 <b>밀림</b> 속도(m/s) (S15P21B202-596).
         ///
-        /// <para>던지기는 0.3초라 끝날 때까지 두면 그만이지만 <b>춤은 14~24초다</b> —
-        /// 그 사이 걸어다니면 다리는 춤을 추면서 몸은 미끄러진다. 걷기가 켜지는 문턱
-        /// (<see cref="CanAnimate"/> 의 0.15)과 같은 값을 써서, "걷기가 시작될 만큼
-        /// 움직였으면 춤은 끝" 이 되게 한다.</para>
+        /// <para><b>제 발로 걷는 것은 이 값이 잡지 않는다</b> — 방향키를 누르면
+        /// <see cref="State.MoveInput"/> 이 즉시 끊는다. 이 문턱이 남아 있는 이유는
+        /// 남이 밀거나 경사에서 미끄러지는 것처럼 <b>내 의지와 무관하게</b> 몸이
+        /// 움직이는 경우다. 그때까지 춤을 이어 두면 다리는 춤추고 몸은 미끄러진다.</para>
+        ///
+        /// <para>예전에는 이 값이 0.15(걷기가 켜지는 문턱)였다. 그 값은 <b>방향키를
+        /// 누르지 않았는데도</b> 제자리 흔들림이나 작은 접촉으로 넘어간다 — 춤이
+        /// 이유 없이 끊기는 것이 그래서였다. 걷기 속도의 절반으로 올려, 밀려서
+        /// 걷는 만큼 움직일 때만 끊는다.</para>
         /// </summary>
-        public const float DanceCancelSpeed = 0.15f;
+        public const float DanceShoveSpeed = Tuning.WalkSpeed * 0.5f;
 
         public static readonly IReadOnlyList<string> BoneNames = Array.AsReadOnly(new[]
         {
@@ -281,6 +286,15 @@ namespace Metagame.Gameplay
             public float Speed;
             public bool Grounded, Running, Blocked, LeftArmBusy, RightArmBusy;
             public Vector2 Direction;
+
+            /// <summary>
+            /// 방향키(또는 점프)를 누르고 있는가 (S15P21B202-596).
+            ///
+            /// <para><b>속도가 아니라 이것이 춤을 끝낸다.</b> 속도는 결과라서 늦고,
+            /// 밀려서 생긴 속도와 제 발로 낸 속도를 구별하지 못한다. 사용자가 원한
+            /// 것은 "방향키를 누르기 전까지는 고정된 춤" 이다.</para>
+            /// </summary>
+            public bool MoveInput;
         }
 
         public static State ReadState(PlayerRig rig)
@@ -295,6 +309,7 @@ namespace Metagame.Gameplay
                 Running = input.Run,
                 Blocked = rig.Downed || rig.Ragdolled || rig.Floating || rig.IsRiding || rig.Hanging,
                 Direction = rig.MovementDirectionLocal,
+                MoveInput = input.Move.sqrMagnitude > 1e-4f || input.Jump,
                 LeftArmBusy = input.GrabLeft || input.ArmsUp || rig.LeftHand.Gripping || rig.LeftHand.Carrying || rig.HeldTool != null,
                 RightArmBusy = input.GrabRight || input.ArmsUp || rig.RightHand.Gripping || rig.RightHand.Carrying || rig.HeldTool != null
             };
@@ -318,9 +333,11 @@ namespace Metagame.Gameplay
             {
                 if (!shot.Active) continue;
 
-                // 춤은 14.2초라 그 사이 걸어다니면 다리는 춤추고 몸은 미끄러진다.
+                // 춤은 14~24초라 그 사이 걸어다니면 다리는 춤추고 몸은 미끄러진다.
+                // **방향키가 먼저다**(S15P21B202-596) — 속도는 밀림만 잡는 뒷문이다.
                 // 던지기(0.3초)는 이 검사를 받지 않는다 — 던지면서 걷는 것이 정상이다.
-                if (state.Blocked || (shot.CancelOnMove && state.Speed > DanceCancelSpeed))
+                if (state.Blocked
+                    || (shot.CancelOnMove && (state.MoveInput || state.Speed > DanceShoveSpeed)))
                 {
                     Cancel(shot);
                     continue;

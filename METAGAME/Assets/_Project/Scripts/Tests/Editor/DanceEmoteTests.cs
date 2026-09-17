@@ -45,7 +45,21 @@ namespace Metagame.Gameplay.Tests
         static RabbitLocomotion.State Standing => new() { Grounded = true, Speed = 0f };
 
         static RabbitLocomotion.State Walking => new()
-        { Grounded = true, Speed = Tuning.WalkSpeed, Direction = Vector2.up };
+        { Grounded = true, Speed = Tuning.WalkSpeed, Direction = Vector2.up, MoveInput = true };
+
+        /// <summary>밀려서 움직이는 몸. 방향키는 안 눌렀는데 속도만 있다.</summary>
+        static RabbitLocomotion.State Shoved => new()
+        { Grounded = true, Speed = RabbitLocomotion.DanceShoveSpeed + 0.5f };
+
+        /// <summary>제자리에서 살짝 밀린 몸. 예전 문턱(0.15)은 여기서 춤을 죽였다.</summary>
+        static RabbitLocomotion.State Nudged => new()
+        { Grounded = true, Speed = 0.4f };
+
+        void Look(float yaw, int frames = 60)
+        {
+            _player.SetInput(new InputFrame { AimYaw = yaw });
+            for (var i = 0; i < frames; i++) _player.Tick();
+        }
 
         void Advance(RabbitLocomotion.State state, int frames = 6)
         {
@@ -168,18 +182,55 @@ namespace Metagame.Gameplay.Tests
             Assert.IsFalse(Suit.Locomotion.DanceActive, "걷는데 춤이 안 끊긴다 — 다리는 춤추고 몸은 미끄러진다.");
         }
 
+        /// <summary>
+        /// <b>춤을 끝내는 것은 속도가 아니라 방향키다</b> (S15P21B202-596).
+        ///
+        /// <para>예전 검증은 "문턱 = 걷기 시작 속도(0.15)" 를 잠그고 있었다. 596 이
+        /// 그 전제를 바꿨다 — 속도는 결과라서 늦고, <b>밀려서 난 속도와 제 발로 낸
+        /// 속도를 구별하지 못한다.</b> 전제를 바꿨으면 그것을 재는 검증도 같이
+        /// 바꿔야 한다(576 의 유형 R).</para>
+        /// </summary>
         [Test]
-        public void TheCancelThresholdIsTheSameOneThatStartsWalking()
+        public void ItIsTheMoveKeyThatEndsTheDanceNotTheSpeed()
         {
-            // 문턱이 걷기 시작 속도(0.15)와 같아야 "걷기 시작하면 춤 끝" 이 성립한다.
-            // 다르면 두 문턱 사이에서 걷는 동시에 춤추는 구간이 생긴다.
-            Assert.That(RabbitLocomotion.DanceCancelSpeed, Is.EqualTo(0.15f).Within(0.0001f));
-
-            var creeping = Standing;
-            creeping.Speed = RabbitLocomotion.DanceCancelSpeed * 0.5f;
             Suit.PlayDance(1);
-            Advance(creeping, 10);
-            Assert.IsTrue(Suit.Locomotion.DanceActive, "문턱 아래에서도 끊긴다 — 제자리에서 밀려도 춤이 죽는다.");
+            Advance(Nudged, 10);
+            Assert.IsTrue(Suit.Locomotion.DanceActive,
+                "방향키를 안 눌렀는데 살짝 밀렸다고 춤이 죽는다 — 예전 문턱(0.15)의 증상이다.");
+
+            var still = Standing;
+            still.MoveInput = true;
+            Advance(still, 2);
+            Assert.IsFalse(Suit.Locomotion.DanceActive,
+                "방향키를 눌렀는데 춤이 안 끊긴다 — 속도가 아직 안 붙었을 뿐이다.");
+        }
+
+        [Test]
+        public void BeingShovedStillEndsTheDance()
+        {
+            Suit.PlayDance(1);
+            Advance(Shoved, 2);
+            Assert.IsFalse(Suit.Locomotion.DanceActive,
+                "밀려서 걷는 만큼 움직이는데 춤이 남아 있다 — 다리는 춤추고 몸은 미끄러진다.");
+        }
+
+        /// <summary>끊는 조건은 <b>목록의 모든 춤</b>에 걸린다.</summary>
+        [Test]
+        public void EveryDanceEndsOnTheMoveKey()
+        {
+            for (byte id = 1; id <= DanceCatalog.Count; id++)
+            {
+                Suit.PlayDance(id);
+                Advance(Standing, 4);
+                Assert.IsTrue(Suit.Locomotion.DanceActive,
+                    $"{id}번 '{DanceCatalog.NameOf(id)}' 이 가만히 있는데 끊겼다.");
+
+                var moving = Standing;
+                moving.MoveInput = true;
+                Advance(moving, 2);
+                Assert.IsFalse(Suit.Locomotion.DanceActive,
+                    $"{id}번 '{DanceCatalog.NameOf(id)}' 이 방향키에 안 끊긴다.");
+            }
         }
 
         [Test]
@@ -522,6 +573,95 @@ namespace Metagame.Gameplay.Tests
             Assert.IsTrue(Suit.Locomotion.DanceActive, "마지막으로 고른 춤이 안 돈다.");
             Assert.Greater(Suit.Locomotion.DanceWeightNow, 0f,
                 "춤들이 서로를 끄기만 하고 아무것도 안 남았다.");
+        }
+
+        // ── 춤 중에는 시점으로 몸이 돌지 않는다 (S15P21B202-596) ───────
+
+        /// <summary>
+        /// <b>이 스위트의 무게는 여기 있다.</b> 춤 클립은 뿌리를 안 돌리므로
+        /// (<c>applyRootMotion = false</c>) 세계 방향은 전부 <c>PlayerRig.faceDir</c>
+        /// 인데, 그것이 춤 중에도 카메라를 쫓으면 비틀린 상체 위에 골반까지 돌아
+        /// 미리보기와 다른 그림이 된다.
+        /// </summary>
+        [Test]
+        public void TurningTheViewWhileDancingDoesNotTurnTheBody()
+        {
+            Look(0f, 10);
+            var before = _player.FacingDirection;
+
+            Suit.PlayDance(1);
+            Assert.IsTrue(_player.DanceHolding, "춤 중인데 몸이 잠기지 않았다.");
+            Look(120f);
+
+            Assert.Less(Vector3.Angle(before, _player.FacingDirection), 1f,
+                "춤 중에 시점을 120도 돌렸더니 몸이 따라 돌았다.");
+        }
+
+        /// <summary>
+        /// 그리고 <b>춤이 아닐 때는 예전처럼 따라 돈다.</b> 이걸 같이 재지 않으면
+        /// "몸이 아예 안 돈다" 는 더 큰 결함을 잠그게 된다.
+        /// </summary>
+        [Test]
+        public void TurningTheViewOutsideADanceStillTurnsTheBody()
+        {
+            Look(0f, 10);
+            var before = _player.FacingDirection;
+
+            Assert.IsFalse(_player.DanceHolding);
+            Look(120f);
+
+            Assert.Greater(Vector3.Angle(before, _player.FacingDirection), 90f,
+                "춤이 아닌데 몸이 시점을 안 따라간다 — 조작이 죽었다.");
+        }
+
+        /// <summary>춤이 끝나면 잠금도 같이 풀린다. 안 풀리면 영영 못 돈다.</summary>
+        [Test]
+        public void TheBodyTurnsAgainOnceTheDanceIsCancelled()
+        {
+            Suit.PlayDance(1);
+            Look(0f, 10);
+            var before = _player.FacingDirection;
+
+            Suit.CancelDance();
+            Assert.IsFalse(_player.DanceHolding, "끝냈는데 잠금이 남아 있다.");
+            Look(120f);
+
+            Assert.Greater(Vector3.Angle(before, _player.FacingDirection), 90f,
+                "춤이 끝났는데도 몸이 안 돈다.");
+        }
+
+        /// <summary>목록의 춤 전부가 몸을 잠근다 — 한 곡만 고치면 나머지는 그대로 돈다.</summary>
+        [Test]
+        public void EveryDanceLocksTheBody()
+        {
+            for (byte id = 1; id <= DanceCatalog.Count; id++)
+            {
+                Look(0f, 10);
+                var before = _player.FacingDirection;
+
+                Suit.PlayDance(id);
+                Look(120f);
+                Assert.Less(Vector3.Angle(before, _player.FacingDirection), 1f,
+                    $"{id}번 '{DanceCatalog.NameOf(id)}' 중에 몸이 시점을 따라 돌았다.");
+
+                Suit.CancelDance();
+            }
+        }
+
+        /// <summary>
+        /// <b>카메라는 막지 않는다.</b> 막는 것은 몸이지 둘러보는 것이 아니다 —
+        /// 1인칭으로 제 춤을 보려면 시점은 돌아야 한다.
+        /// </summary>
+        [Test]
+        public void TheViewItselfIsNotBlockedWhileDancing()
+        {
+            Suit.PlayDance(1);
+            Look(90f);
+
+            Assert.That(_player.CurrentInput.AimYaw, Is.EqualTo(90f).Within(0.001f),
+                "춤이 시점 입력까지 막았다.");
+            Assert.Greater(Vector3.Angle(_player.FacingDirection, _player.PlanarForward), 45f,
+                "몸과 시점이 같이 돌았다 — 둘 중 하나만 돌아야 한다.");
         }
 
         [Test]
