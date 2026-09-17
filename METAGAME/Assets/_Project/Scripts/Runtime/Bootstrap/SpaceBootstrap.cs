@@ -40,6 +40,7 @@ namespace Metagame.Bootstrap
         [Header("분위기")]
         [Tooltip("지정하면 이 Stage는 Vacuum·레거시 Starfield 대신 공용 URP 분위기 프레임워크를 사용한다.")]
         [SerializeField] AtmosphereProfile atmosphereProfile;
+        public AtmosphereProfile AtmosphereProfile => atmosphereProfile;
         [Tooltip("씬에 배치한 자기장 폭풍. 비어 있으면 전용 이동 오브젝트를 생성한다.")]
         [SerializeField] AtmosphereDustStorm stormPresentation;
 
@@ -148,9 +149,6 @@ namespace Metagame.Bootstrap
                 // 찾아 따라가므로 여기서는 넘기지 않는다.
                 Backdrop = sys.AddComponent<AtmosphereBackdrop>();
                 Backdrop.ApplyStarsOnly(atmosphereProfile);
-                var shower = sys.AddComponent<AtmosphereMeteorShower>();
-                shower.Apply(atmosphereProfile);
-                shower.SetIntensity(0.4f);
             }
             else if (!authoredLighting)
             {

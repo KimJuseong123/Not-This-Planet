@@ -57,6 +57,9 @@ namespace Metagame.Gameplay.Hazards
         [SerializeField, Min(0f)] float _waveLeadSeconds = PhysicsScale.MeteorWaveLeadSeconds;
         [SerializeField, Min(0f)] float _withinWaveMinSeconds = PhysicsScale.MeteorWithinWaveMinSeconds;
         [SerializeField, Min(0f)] float _withinWaveMaxSeconds = PhysicsScale.MeteorWithinWaveMaxSeconds;
+        [Header("Stage1 트리거 공세 · 기획 §17.8")]
+        [SerializeField, Range(0.05f, 1f)] float _assaultWaveIntervalMultiplier = 0.35f;
+        [SerializeField, Range(0.05f, 1f)] float _assaultWithinWaveIntervalMultiplier = 0.5f;
         [SerializeField, Range(0f, 1f)] float _soloCrewScale = 0.45f;
         [SerializeField, Range(0f, 1f)] float _twoCrewScale = 0.65f;
         [SerializeField, Range(0f, 1f)] float _threeCrewScale = 0.80f;
@@ -362,7 +365,7 @@ namespace Metagame.Gameplay.Hazards
         /// 요구하는 것은 후자다.
         /// </summary>
         public float IntervalAt(float elapsedSeconds) => WaveBandAt(elapsedSeconds).WaveIntervalSeconds
-            * (AssaultEnabled ? 0.35f : 1f);
+            * (AssaultEnabled ? Mathf.Clamp(_assaultWaveIntervalMultiplier, 0.05f, 1f) : 1f);
 
         /// <summary>그 시각의 중형 확률 0~1. 10분 전에는 0 이다(§17.7).</summary>
         public float MediumChanceAt(float elapsedSeconds) => WaveBandAt(elapsedSeconds).MediumChance;
@@ -492,7 +495,7 @@ namespace Metagame.Gameplay.Hazards
             _nextInWaveDelay = Mathf.Lerp(
                 _withinWaveMinSeconds,
                 _withinWaveMaxSeconds,
-                (float)_random.NextDouble()) * (AssaultEnabled ? 0.5f : 1f);
+                (float)_random.NextDouble()) * (AssaultEnabled ? Mathf.Clamp(_assaultWithinWaveIntervalMultiplier, 0.05f, 1f) : 1f);
 
             _waveRemaining--;
             Launch();

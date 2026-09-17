@@ -82,6 +82,19 @@ namespace Metagame.Gameplay.Tests
             Assert.That(_sequence.Phase, Is.EqualTo(Stage1SequencePhase.Combat));
         }
 
+        [TestCase(0.6f, 18f)]
+        [TestCase(1f, 30f)]
+        [TestCase(0f, 1.5f)]
+        public void SerializedAssaultMultiplierControlsInterval(float multiplier, float expected)
+        {
+            var settings = new SerializedObject(_spawner);
+            settings.FindProperty("_assaultWaveIntervalMultiplier").floatValue = multiplier;
+            settings.ApplyModifiedPropertiesWithoutUndo();
+            Assert.That(_spawner.IntervalAt(0), Is.EqualTo(30f));
+            _spawner.BeginAssault();
+            Assert.That(_spawner.IntervalAt(0), Is.EqualTo(expected).Within(0.001f));
+        }
+
         [Test] public void BothAuthoredScenesAreEnabledInBuild()
         {
             foreach (var path in new[] { Stage1CutsceneFlow.EntryPath, Stage1CutsceneFlow.AssaultPath })
@@ -111,6 +124,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(player.Cam.enabled, Is.True);
             Assert.That(player.Cam.FirstPerson, Is.EqualTo(perspective));
             Assert.That(boot.Exploration.TabletOpen, Is.False);
+            Assert.That(GameObject.Find("Cutscene meteor shower"), Is.Null, "Cutscene effects must not persist into exploration.");
             var trigger = Object.FindAnyObjectByType<Stage1AssaultTrigger>();
             Assert.That(trigger, Is.Not.Null);
             player.Teleport(trigger.transform.position - Vector3.up, Quaternion.identity);
@@ -123,6 +137,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(SceneManager.GetActiveScene().path, Is.EqualTo(Stage1CutsceneFlow.StagePath));
             Assert.That(player.Cam.enabled, Is.True);
             Assert.That(boot.Session.CinematicInputBlocked, Is.False);
+            Assert.That(GameObject.Find("Cutscene meteor shower"), Is.Null, "Cutscene effects must not persist into combat.");
             Assert.That(boot.GetComponent<Stage1CutsceneFlow>().PlayEntry(), Is.True, "F10 replay route");
             yield return new ExitPlayMode();
         }

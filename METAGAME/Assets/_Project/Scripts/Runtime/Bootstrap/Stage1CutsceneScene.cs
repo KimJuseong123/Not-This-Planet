@@ -46,7 +46,7 @@ namespace Metagame.Bootstrap
         readonly List<Light> _lights = new();
         readonly List<float> _intensities = new();
         readonly List<Light> _guides = new();
-        AtmosphereMeteorShower[] _showers;
+        AtmosphereMeteorShower _cutsceneShower;
         GameObject _meteor;
         Light _flash;
         Material _trailMaterial;
@@ -100,9 +100,15 @@ namespace Metagame.Bootstrap
                 if (light.type == LightType.Directional || !light.enabled) continue;
                 _lights.Add(light); _intensities.Add(light.intensity);
             }
-            _showers = FindObjectsByType<AtmosphereMeteorShower>(FindObjectsSortMode.None);
+            // 컷씬 전용 유성우만 소유한다. 기존 월드의 효과/강도는 변경하지 않는다.
+            var showerRoot = new GameObject("Cutscene meteor shower");
+            showerRoot.transform.SetParent(transform, false);
+            _cutsceneShower = showerRoot.AddComponent<AtmosphereMeteorShower>();
+            _cutsceneShower.Apply(bootstrap.AtmosphereProfile);
+            _cutsceneShower.BindCamera(_orbit.Cam);
+            _cutsceneShower.SetIntensity(1f);
+            _cutsceneShower.SetAlertIntensity(1f);
             _spawner = FindAnyObjectByType<Metagame.Gameplay.Hazards.MeteorSpawner>();
-            foreach (var shower in _showers) { shower.SetIntensity(1f); shower.SetAlertIntensity(1f); }
             if (!_assault) BuildEntryEffects();
             Debug.Log("[Stage1Cutscene] " + (_assault ? "Assault" : "Entry") + " · live world bound");
         }
@@ -286,8 +292,12 @@ namespace Metagame.Bootstrap
             SetLights(1f);
             foreach (var component in _hidden) if (component != null) component.enabled = true;
             _hidden.Clear();
-            if (_showers != null)
-                foreach (var shower in _showers) if (shower != null) { shower.SetIntensity(0.4f); shower.SetAlertIntensity(0f); }
+            if (_cutsceneShower != null)
+            {
+                _cutsceneShower.Clear();
+                Destroy(_cutsceneShower.gameObject);
+                _cutsceneShower = null;
+            }
             if (_orbit != null)
             {
                 _orbit.FirstPerson = _savedFirstPerson;
