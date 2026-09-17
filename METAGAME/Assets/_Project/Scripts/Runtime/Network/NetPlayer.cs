@@ -405,7 +405,7 @@ namespace Metagame.Network
             // 서버 화면의 춤. 참가자 화면은 아래 PlayDanceIfNew 가 danceSeq 로 켠다.
             // 남이 보내온 요청도 여기서 도는 서버 쪽 몸에 그대로 먹으므로,
             // **호스트는 참가자의 춤을 이 줄에서 본다.**
-            body.Doll?.Suit?.PlayDance();
+            body.Doll?.Suit?.PlayDance(id);
         }
 
         void PlayDanceIfNew(uint now, byte id)
@@ -417,7 +417,7 @@ namespace Metagame.Network
             if (suit == null) return;
 
             if (ShouldPlayDance(_seenDanceSeq, now, _danceSeqKnown) && DanceCatalog.IsValid(id))
-                suit.PlayDance();
+                suit.PlayDance(id);
 
             _seenDanceSeq = now;
             _danceSeqKnown = true;

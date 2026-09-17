@@ -286,10 +286,10 @@ namespace Metagame.Gameplay
         /// 남의 몸도 <see cref="Locomotion"/> 을 갖고 같은 <c>Apply</c> 를 탄다.
         /// <b>감정표현은 남이 보라고 있는 것</b>이라 이 성질이 이 기능의 전부다.</para>
         /// </summary>
-        public void PlayDance()
+        public void PlayDance(byte id)
         {
             InitializeLocomotion();
-            Locomotion?.PlayDance();
+            Locomotion?.PlayDance(id);
         }
 
         /// <summary>춤을 즉시 끝낸다.</summary>

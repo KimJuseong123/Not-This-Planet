@@ -130,7 +130,7 @@ namespace Metagame.Gameplay.Tests
             Suit.Sync();
             var physics = Bone("Waist").localRotation;
 
-            Suit.PlayDance();
+            Suit.PlayDance(1);
             Assert.IsTrue(Suit.Locomotion.DanceActive, "PlayDance 가 아무것도 안 켰다.");
             Advance(Standing, 20);
 
@@ -142,8 +142,8 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void TheDanceStopsOnItsOwnWhenTheClipEnds()
         {
-            Suit.PlayDance();
-            var length = Suit.Locomotion.DanceLength;
+            Suit.PlayDance(1);
+            var length = Suit.Locomotion.DanceLength(1);
             Assert.Greater(length, 1f);
 
             // 클립 길이를 넘겨 돌린다. 끝나고도 안 꺼지면 영영 보행으로 못 돌아간다.
@@ -160,7 +160,7 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void WalkingCancelsTheDanceButStandingStillDoesNot()
         {
-            Suit.PlayDance();
+            Suit.PlayDance(1);
             Advance(Standing, 10);
             Assert.IsTrue(Suit.Locomotion.DanceActive, "가만히 있는데 춤이 끊겼다.");
 
@@ -177,7 +177,7 @@ namespace Metagame.Gameplay.Tests
 
             var creeping = Standing;
             creeping.Speed = RabbitLocomotion.DanceCancelSpeed * 0.5f;
-            Suit.PlayDance();
+            Suit.PlayDance(1);
             Advance(creeping, 10);
             Assert.IsTrue(Suit.Locomotion.DanceActive, "문턱 아래에서도 끊긴다 — 제자리에서 밀려도 춤이 죽는다.");
         }
@@ -185,7 +185,7 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void BeingDownedCancelsTheDance()
         {
-            Suit.PlayDance();
+            Suit.PlayDance(1);
             var blocked = Standing;
             blocked.Blocked = true;
             Advance(blocked, 2);
@@ -196,7 +196,7 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void TheTossAndTheDanceDoNotPlayAtOnce()
         {
-            Suit.PlayDance();
+            Suit.PlayDance(1);
             Assert.IsTrue(Suit.Locomotion.DanceActive);
 
             Suit.PlayToss();
@@ -238,7 +238,7 @@ namespace Metagame.Gameplay.Tests
                 "참가자 쪽에서 춤을 켜는 호출이 없다 — 규칙만 맞고 화면엔 아무것도 안 나온다.");
             Assert.That(net, Does.Contain("[SyncVar] public uint danceSeq"),
                 "순번이 동기화되지 않으면 남에게 갈 길이 없다.");
-            Assert.That(net, Does.Contain("body.Doll?.Suit?.PlayDance()"),
+            Assert.That(net, Does.Contain("body.Doll?.Suit?.PlayDance(id)"),
                 "서버 쪽에서 켜는 자리가 없다 — 호스트 화면에서 참가자의 춤이 안 보인다.");
         }
 
@@ -301,6 +301,120 @@ namespace Metagame.Gameplay.Tests
                 "춤 바퀴가 제 깃발을 갖고 있지 않다.");
         }
 
+        // ── 두 번째 춤 REDRED (S15P21B202-576) ─────────────────────────
+
+        [Test]
+        public void TheDanceListIsWhatWeShip()
+        {
+            CollectionAssert.AreEqual(new[] { "뮤직챌린지", "REDRED" }, DanceCatalog.Names,
+                "목록과 이름이 바뀌었다 — 순서가 곧 번호라 바뀌면 남의 화면에서 다른 춤이 돈다.");
+        }
+
+        /// <summary>
+        /// <b>목록에 있는 춤은 전부 실제로 돌 수 있어야 한다.</b>
+        ///
+        /// <para>이름은 <c>DanceCatalog</c> 에, 클립과 슬롯은 <c>RabbitLocomotion</c> 에
+        /// 따로 적힌다. 한쪽만 늘리면 <b>고를 수는 있는데 아무 일도 안 일어난다</b> —
+        /// 에러도 없다. 563 에서 뼈 목록이 두 곳에 갈려 있어 같은 종류의 사고를 겪었다.</para>
+        /// </summary>
+        [Test]
+        public void EveryDanceInTheListHasASlotAndAClip()
+        {
+            Assert.AreEqual(DanceCatalog.Count, Suit.Locomotion.DanceSlotCount,
+                "목록의 춤 수와 재생 슬롯 수가 다르다 — 고를 수는 있는데 안 도는 춤이 생긴다.");
+
+            for (byte id = 1; id <= DanceCatalog.Count; id++)
+            {
+                Assert.IsTrue(Suit.Locomotion.HasDance(id),
+                    $"{id}번 '{DanceCatalog.NameOf(id)}' 의 클립이 없다.");
+                Assert.Greater(Suit.Locomotion.DanceLength(id), 1f,
+                    $"{id}번 '{DanceCatalog.NameOf(id)}' 클립이 비었다.");
+            }
+        }
+
+        [Test]
+        public void TheRedRedClipShipsAndIsAsLongAsTheSource()
+        {
+            var clip = Resources.Load<AnimationClip>(RabbitLocomotion.RedRedResource);
+            Assert.NotNull(clip, "REDRED 클립이 Resources 에 없다.");
+
+            // 원본 영상이 16.27초다. 줄면 프레임을 버린 것이다.
+            Assert.That(clip.length, Is.EqualTo(16.27f).Within(0.1f),
+                "REDRED 길이가 원본(16.27초)과 다르다 — 배속했거나 프레임을 건너뛰었다.");
+            Assert.False(clip.isLooping, "한 번짜리 감정표현이다.");
+            Assert.False(clip.humanMotion, "리타기팅 없이 이 뼈대 위에서 만든 클립이다.");
+        }
+
+        [Test]
+        public void TheShippedRedRedCanActuallyBindAtRuntime()
+        {
+            var path = System.IO.Path.Combine(Application.dataPath,
+                "_Project/Animations/Characters/Rabbit/Resources/RabbitLocomotion/Rabbit_RedRed.anim");
+            Assert.IsTrue(System.IO.File.Exists(path), "구운 클립 파일이 없다: " + path);
+
+            var text = System.IO.File.ReadAllText(path);
+            Assert.That(text, Does.Not.Contain("genericBindings: []"),
+                "바인딩 표가 비었다 — 빌드에서 아무 뼈도 안 움직인다.");
+            Assert.GreaterOrEqual(Regex.Matches(text, @"typeID: 4").Count,
+                RabbitLocomotion.TossBoneNames.Count,
+                "뼈 수보다 바인딩이 적다 — 일부 뼈는 빌드에서 안 움직인다.");
+        }
+
+        [Test]
+        public void TheRedRedBakeListAndTheRuntimeListAreTheSame()
+        {
+            var editor = TestSource.Read("Editor/RabbitRedRedAssets.cs");
+            var declared = Regex.Match(editor, @"static readonly string\[\] BoneNames\s*=\s*\{(.*?)\}",
+                RegexOptions.Singleline);
+            Assert.IsTrue(declared.Success, "굽는 쪽에서 BoneNames 선언을 찾지 못했다.");
+
+            var baked = Regex.Matches(declared.Groups[1].Value, "\"([^\"]+)\"")
+                .Select(m => m.Groups[1].Value).ToArray();
+
+            CollectionAssert.AreEquivalent(RabbitLocomotion.TossBoneNames.ToArray(), baked,
+                "굽는 뼈 목록과 읽는 뼈 목록이 다르다 — 한쪽만 고치면 조용히 안 움직인다.");
+        }
+
+        /// <summary>
+        /// <b>2번 춤도 실제로 뼈를 움직이는가.</b>
+        ///
+        /// <para>믹서 입력 수가 모자라면 새 클립이 그래프에 못 붙고, 그래도 에러 없이
+        /// '재생 중' 으로만 보인다. 그래서 세기가 아니라 <b>뼈가 움직였는지</b>를 본다.</para>
+        /// </summary>
+        [Test]
+        public void TheSecondDanceActuallyMovesBones()
+        {
+            Advance(Standing);
+            Suit.Sync();
+            var physics = Bone("Waist").localRotation;
+
+            Suit.PlayDance(2);
+            Assert.IsTrue(Suit.Locomotion.DanceActive, "2번 춤이 안 켜졌다.");
+            Advance(Standing, 20);
+
+            Assert.Greater(Quaternion.Angle(physics, Bone("Waist").localRotation), 1f,
+                "2번 춤이 뼈를 안 움직인다 — 믹서 입력이 모자라 그래프에 못 붙었을 수 있다.");
+        }
+
+        [Test]
+        public void TwoDancesDoNotPlayAtOnce()
+        {
+            Suit.PlayDance(1);
+            Assert.IsTrue(Suit.Locomotion.DanceActive);
+            Suit.PlayDance(2);
+            Advance(Standing, 2);
+            Assert.IsTrue(Suit.Locomotion.DanceActive, "2번을 켰는데 아무것도 안 돈다.");
+            Assert.Greater(Suit.Locomotion.DanceWeightNow, 0f,
+                "두 춤이 서로를 끄기만 하고 아무것도 안 남았다.");
+        }
+
+        [Test]
+        public void TheWheelSplitsIntoTwoWhenThereAreTwoDances()
+        {
+            Assert.AreEqual(2, DanceCatalog.Count, "춤이 둘이 아니면 아래 검증이 뜻을 잃는다.");
+            Assert.AreEqual(0, DanceHud.Selection(new Vector2(0f, 200f), 2), "위는 1번");
+            Assert.AreEqual(1, DanceHud.Selection(new Vector2(0f, -200f), 2), "아래는 2번");
+        }
         [Test]
         public void F2IsBoundAndDoesNotCollideWithF1()
         {
