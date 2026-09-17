@@ -1,0 +1,3 @@
+Unoccluded storm pixels=5519
+lit colliderless wall leaked pixels=0
+flat colliderless wall leaked pixels=5456

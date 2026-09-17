@@ -1,0 +1,12 @@
+{
+  "status": "PASS",
+  "existingBlocksPreserved": 4007,
+  "existingTransformsAndComponentsChanged": 0,
+  "addedBlocks": 1670,
+  "addedSceneRoots": 1,
+  "localReferences": "PASS",
+  "originalSHA256": "16dc083c2addd848c18a8e10cee36502c32e95a1d389ed409b42cd3916afa4a1",
+  "sceneSHA256": "1f0c1c0e323b4e8155193b621055718e949d44c2e79d0e00c109a9a38db102f4",
+  "publishedUnityReload": "PASS",
+  "focusedTests": "20/20 PASS"
+}

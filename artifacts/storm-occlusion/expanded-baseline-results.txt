@@ -1,0 +1,8 @@
+Unoccluded storm pixels=5519
+Lit colliderless wall leaked pixels=0
+Flat colliderless wall leaked pixels=5456
+Dough colliderless wall leaked pixels=5496
+CharacterSuitTint colliderless wall leaked pixels=5356
+PlanetNoFog colliderless wall leaked pixels=5484
+NoFog colliderless wall leaked pixels=5456
+CockpitNoFog colliderless wall leaked pixels=5460

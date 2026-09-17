@@ -56,6 +56,33 @@ Unity/Flux.mat:
 
 MagneticStormVisual은 한 번 캐시한 렌더러와 MaterialPropertyBlock을 사용한다. 기존 AtmosphereDustStorm이 프리팹을 한 번 생성하고 이후 활성 상태를 재사용한다. 별도의 Animator나 네트워크 메시지는 추가하지 않았다.
 
+## 전면/후면 뭉게짐과 잔운 (2026-09-17)
+
+씬의 `Stage1 Magnetic Storm` 아래 시각 프리팹의 `MagneticStormVisual`에서
+`Travel Direction Billow`(기본 1.4)와 `Opposite Direction Billow`(기본 1.8)를 각각 조절한다.
+실제 이동 벡터 방향과 그 반대 방향을 기준으로 하며, 모델의 가로축이나 카메라 정면을 기준으로 하지 않는다.
+0은 해당 쪽 변형 없음이며 중앙에서 부드럽게 섞인다.
+기존 Smoke 재질의 Rolling cloud strength에 곱해진다.
+변형은 이동 방향/위쪽 평면에서 일어나며 가로로 흔드는 성분을 제거했다.
+렌더러의 변환 행렬을 사용해 월드 거리 단위로 변형하므로 넓은 모델 폭이 옆 방향 움직임을 증폭하지 않는다.
+Inspector 표시는 바뀌었지만 직렬화 이름은 유지해 기존 설정값을 보존한다.
+
+`Assets/_Project/Data/Atmosphere/Stage1AtmosphereProfile.asset`의
+`Dust Storm > Magnetic storm wake`에서 다음 직렬화 필드를 조절한다.
+
+- `Wake Duration`: 후면 통과 후 유지 시간. 기본 4초, 0이면 잔운과 영향 모두 끔.
+  0~30초 범위이며 실제 유지 시간은 최대 한 폭풍 주기로 제한한다.
+- `Wake Opacity`: 잔운 불투명도 배율. 기본 0.35, 0이면 표시만 끔.
+- `Wake Influence`: 기존 충격에 곱하는 잔운 힘 배율. 기본 0.18,
+  0이면 물리 영향 없이 시각 효과만 남음. 플레이어에는 기존 넉다운/밀침 경로를 사용한다.
+
+잔운은 실제 이동 벡터 반대쪽의 이미 지나간 경로에만 생기며 지점별 경과 시간에 따라 밀도와 힘이
+남은 수명 비율의 제곱으로 줄어든다. 본체가 사라지는 휴지기에도 잔운은 수명까지 유지된다.
+본체와 잔운은 대상별 충격 쿨다운을 공유하며 물리는 기존 서버 권한에서만 적용한다.
+공유 시드/시간으로 현재·직전 주기의 경로를 복원하므로 프레임 이력이나 새 네트워크 메시지가 필요 없다.
+잔운 렌더러는 최대 2개를 재사용하며 자기력선/파편을 복제하지 않는다.
+볼륨 렌더링이 추가되므로 실제 타깃 장치의 GPU 비용은 별도 측정이 필요하다.
+
 ## 재생성
 
 1. Blender에서 Source~/AstraMagneticStorm.blend를 열어 확인한다.

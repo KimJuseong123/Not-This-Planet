@@ -100,6 +100,108 @@ namespace Metagame.Gameplay.Tests
             yield return new ExitPlayMode();
         }
 
+        [Test]
+        public void WakeStaysOnPassedGroundAndFadesWithoutFrameHistory()
+        {
+            var settings = new AtmosphereProfile.DustStormSettings { enabled = true, wakeDuration = 4 };
+            var bounds = new Bounds(Vector3.zero, new Vector3(80, 10, 80));
+            var schedule = new DustStormSchedule(settings);
+            var past = schedule.Evaluate(14, bounds);
+            var ground = past.Center - past.Direction * past.HalfExtents.z;
+            var a = schedule.EvaluateWake(15, bounds);
+            var b = new DustStormSchedule(settings.WithSeed(settings.seed)).EvaluateWake(16, bounds);
+            Assert.That(a.StrengthAt(ground), Is.EqualTo(.5625f).Within(.0001));
+            Assert.That(b.StrengthAt(ground), Is.EqualTo(.25f).Within(.0001));
+            Assert.That(schedule.Evaluate(16, bounds).Contains(ground), Is.False);
+            Assert.That(schedule.EvaluateWake(18.01, bounds).StrengthAt(ground), Is.Zero);
+            Assert.That(a.StrengthAt(past.Center + Vector3.up * 100), Is.Zero);
+            settings.wakeDuration = 0;
+            Assert.That(schedule.EvaluateWake(16, bounds).Pose.IsActive, Is.False);
+            Assert.That(schedule.EvaluateWake(double.NaN, bounds).Pose.IsActive, Is.False);
+        }
+
+        [TestCase(20260903)]
+        [TestCase(87654)]
+        [TestCase(7)]
+        public void WakeExtendsOppositeActualMotionNeverAcrossIt(int seed)
+        {
+            var settings = new AtmosphereProfile.DustStormSettings { enabled = true, seed = seed };
+            var bounds = new Bounds(Vector3.zero, new Vector3(80, 10, 80));
+            var schedule = new DustStormSchedule(settings);
+            var pose = schedule.Evaluate(16, bounds);
+            var next = schedule.Evaluate(16.1, bounds);
+            var motion = (next.Center - pose.Center).normalized;
+            var wake = schedule.EvaluateWake(16, bounds);
+            var offset = wake.Pose.Center - pose.Center;
+            Assert.That(Vector3.Dot(offset, motion), Is.LessThan(0));
+            Assert.That(Mathf.Abs(Vector3.Dot(offset, Vector3.Cross(Vector3.up, motion))), Is.LessThan(.001));
+            var newest = wake.Pose.Center + wake.Pose.Direction * wake.Pose.HalfExtents.z;
+            Assert.That(Vector3.Distance(newest, pose.Center - motion * pose.HalfExtents.z), Is.LessThan(.001));
+            Assert.That(wake.StrengthAt(newest - motion * .1f), Is.GreaterThan(wake.StrengthAt(wake.Pose.Center)));
+        }
+
+        [Test]
+        public void WakeSurvivesEndOfSweepThenExpiresAndRespectsSeed()
+        {
+            var settings = new AtmosphereProfile.DustStormSettings { enabled = true, wakeDuration = 4 };
+            var bounds = new Bounds(Vector3.zero, new Vector3(80, 10, 80));
+            var schedule = new DustStormSchedule(settings);
+            double end = 11d + (new Vector2(80, 80).magnitude + 17f) / 6f;
+            Assert.That(schedule.Evaluate(end + 1, bounds).IsActive, Is.False);
+            var wake = schedule.EvaluateWake(end + 1, bounds, 1);
+            Assert.That(wake.Pose.IsActive, Is.True);
+            Assert.That(wake.HeadAge, Is.EqualTo(1).Within(.0001));
+            Assert.That(wake.TailAge, Is.EqualTo(4).Within(.0001));
+            Assert.That(schedule.EvaluateWake(end + 4.01, bounds, 1).Pose.IsActive, Is.False);
+            var other = new DustStormSchedule(settings.WithSeed(87654)).EvaluateWake(end + 1, bounds, 1);
+            Assert.That(Vector3.Distance(wake.Pose.Center, other.Pose.Center), Is.GreaterThan(1));
+        }
+
+        [UnityTest]
+        public IEnumerator ResidualImpulseIsWeakerAndStillRequiresAuthorityAndCooldown()
+        {
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            yield return new EnterPlayMode();
+            var profile = ScriptableObject.CreateInstance<AtmosphereProfile>();
+            profile.dustStorm.enabled = true;
+            profile.dustStorm.wakeDuration = 4;
+            profile.dustStorm.wakeInfluence = .2f;
+            var bounds = new Bounds(Vector3.zero, new Vector3(80, 10, 80));
+            var schedule = new DustStormSchedule(profile.dustStorm);
+            var wake = schedule.EvaluateWake(16, bounds);
+            var root = new GameObject("Residual impulse test");
+            var hazard = root.AddComponent<Stage1DustStormHazard>();
+            hazard.Configure(profile, bounds);
+            var body = Body("Wake prop", root.transform);
+            body.gameObject.AddComponent<Grabbable>();
+            body.gameObject.AddComponent<SphereCollider>().radius = .2f;
+            var position = wake.Pose.Center;
+            body.position = position;
+            Physics.SyncTransforms();
+            hazard.FixedTick(16);
+            yield return new WaitForFixedUpdate();
+            Assert.That(body.linearVelocity.magnitude, Is.LessThan(.001));
+            hazard.SetPhysicsAuthority(true);
+            hazard.FixedTick(16);
+            yield return new WaitForFixedUpdate();
+            var expected = (wake.Pose.Direction * 18f + Vector3.up * 4f)
+                * .2f * wake.StrengthAt(position);
+            Assert.That(Vector3.Distance(body.linearVelocity, expected), Is.LessThan(.01));
+            body.position = position;
+            body.linearVelocity = Vector3.zero;
+            Physics.SyncTransforms();
+            hazard.FixedTick(16.2);
+            yield return new WaitForFixedUpdate();
+            Assert.That(body.linearVelocity.magnitude, Is.LessThan(.001));
+            profile.dustStorm.wakeInfluence = 0;
+            hazard.FixedTick(17.2);
+            yield return new WaitForFixedUpdate();
+            Assert.That(body.linearVelocity.magnitude, Is.LessThan(.001));
+            Object.Destroy(root); Object.Destroy(profile);
+            yield return null;
+            yield return new ExitPlayMode();
+        }
+
         static Rigidbody Body(string name,Transform parent)
         {
             var go=new GameObject(name); go.transform.SetParent(parent);

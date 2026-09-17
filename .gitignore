@@ -115,3 +115,7 @@ scripts/rules/
 
 # CI 잡이 만드는 산출물 (S15P21B202-458). 로컬에서 검사를 돌려도 같은 이름으로 생긴다.
 ec2-status.json
+
+# Local Stage1 concept archive and pre-conversion scene backup.
+/docs/assets/concepts/stage1-grass-flora/astra-flora-9-species-4-views.zip
+/artifacts/stage1-terrain/Stage1_Astra.before.unity

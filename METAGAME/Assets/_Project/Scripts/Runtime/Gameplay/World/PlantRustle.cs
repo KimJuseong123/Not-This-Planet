@@ -13,7 +13,11 @@ namespace Metagame.Gameplay
         [SerializeField] Transform visual;
         [SerializeField, Min(0f)] float swayDegrees = 13f;
         [SerializeField, Min(0.01f)] float damping = 5.5f;
+        [SerializeField, Range(0.5f, 5f)] float _swayFrequency = 2.2f;
         [SerializeField, Min(0f)] float playerCooldown = 0.08f;
+        [SerializeField, Range(0.1f, 1f)]
+        [Tooltip("이 수풀 안에서의 이동속도 배율. 1은 감속 없음. 새 키 큰 수풀의 초기값은 0.45입니다.")]
+        float _movementSpeedMultiplier = 1f;
 
         readonly Dictionary<PlayerRig, float> playerCooldowns = new();
         Quaternion baseLocalRotation;
@@ -22,6 +26,34 @@ namespace Metagame.Gameplay
 
         public Transform Visual => visual;
         public Vector3 CurrentSway => sway;
+        public float MovementSpeedMultiplier => Mathf.Clamp(_movementSpeedMultiplier, 0.1f, 1f);
+
+        /// <summary>
+        /// Sample current physics geometry, rather than retaining trigger membership:
+        /// teleport, disabled colliders and respawn cannot leave a stale slowdown.
+        /// Each authoritative/predicted rig owns its query buffer. Overlapping plants
+        /// use the strongest slowdown, never a compounded near-zero speed.
+        /// </summary>
+        public static float SampleMovementMultiplier(Vector3 position, Collider[] buffer)
+        {
+            int count = Physics.OverlapSphereNonAlloc(position, 0.2f, buffer,
+                GameLayers.PropMask, QueryTriggerInteraction.Collide);
+            var hits = buffer;
+            if (count == buffer.Length)
+            {
+                hits = Physics.OverlapSphere(position, 0.2f,
+                    GameLayers.PropMask, QueryTriggerInteraction.Collide);
+                count = hits.Length;
+            }
+            float multiplier = 1f;
+            for (int i = 0; i < count; i++)
+            {
+                if (hits[i] != null && hits[i].isTrigger &&
+                    hits[i].TryGetComponent<PlantRustle>(out var plant) && plant.isActiveAndEnabled)
+                    multiplier = Mathf.Min(multiplier, plant.MovementSpeedMultiplier);
+            }
+            return multiplier;
+        }
 
         void Awake()
         {
@@ -32,10 +64,23 @@ namespace Metagame.Gameplay
         void Update()
         {
             if (visual == null) return;
+            if (sway == Vector3.zero && swayVelocity == Vector3.zero && playerCooldowns.Count == 0) return;
 
             var deltaTime = Time.deltaTime;
-            swayVelocity = Vector3.MoveTowards(swayVelocity, Vector3.zero, damping * deltaTime);
-            sway = Vector3.MoveTowards(sway, Vector3.zero, damping * deltaTime);
+            // A damped spring gives a clearly visible bend and return oscillation.
+            // Bound the step after a hitch to keep the spring stable.
+            float remainingTime = Mathf.Min(deltaTime, 0.1f);
+            float frequency = Mathf.PI * 2f * _swayFrequency;
+            while (remainingTime > 0f)
+            {
+                float step = Mathf.Min(remainingTime, 1f / 120f);
+                swayVelocity += (-frequency * frequency * sway - 2f * damping * swayVelocity) * step;
+                sway += swayVelocity * step;
+                remainingTime -= step;
+            }
+            sway = Vector3.ClampMagnitude(sway, swayDegrees);
+            if (sway.sqrMagnitude < 0.0001f && swayVelocity.sqrMagnitude < 0.0001f)
+                sway = swayVelocity = Vector3.zero;
             visual.localRotation = Quaternion.Euler(sway) * baseLocalRotation;
 
             if (playerCooldowns.Count == 0) return;
@@ -57,9 +102,17 @@ namespace Metagame.Gameplay
             ListPool<PlayerRig>.Release(active);
         }
 
+        void OnDisable()
+        {
+            if (visual != null && baseLocalRotation != default) visual.localRotation = baseLocalRotation;
+            sway = Vector3.zero;
+            swayVelocity = Vector3.zero;
+            playerCooldowns.Clear();
+        }
+
         void OnTriggerEnter(Collider other)
         {
-            if (other == null) return;
+            if (!isActiveAndEnabled || other == null) return;
 
             var player = other.GetComponentInParent<PlayerRig>();
             if (player == null || playerCooldowns.ContainsKey(player)) return;
@@ -90,9 +143,10 @@ namespace Metagame.Gameplay
                 ? visual.parent.InverseTransformDirection(collisionDirection.normalized)
                 : collisionDirection.normalized;
             var strength = Mathf.Clamp01(relativeSpeed / 4f);
-            swayVelocity += new Vector3(-localDirection.z, 0f, localDirection.x)
-                            * (swayDegrees * Mathf.Lerp(0.35f, 1f, strength));
-            sway += swayVelocity * 0.08f;
+            var impulse = new Vector3(-localDirection.z, 0f, localDirection.x)
+                          * (swayDegrees * Mathf.Lerp(0.65f, 1f, strength));
+            swayVelocity += impulse * (Mathf.PI * 2f * _swayFrequency);
+            sway += impulse * 0.4f;
             sway = Vector3.ClampMagnitude(sway, swayDegrees);
         }
 

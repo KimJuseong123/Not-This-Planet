@@ -11,6 +11,7 @@ namespace Metagame.Gameplay
         readonly HashSet<Rigidbody> affectedBodies = new HashSet<Rigidbody>();
         readonly HashSet<PlayerRig> affectedPlayers = new HashSet<PlayerRig>();
         readonly Dictionary<Rigidbody, double> nextHits = new Dictionary<Rigidbody, double>();
+        readonly List<Rigidbody> expiredHits = new List<Rigidbody>();
         AtmosphereProfile profile;
         AtmosphereProfile.DustStormSettings settings;
         DustStormSchedule schedule;
@@ -76,26 +77,46 @@ namespace Metagame.Gameplay
                 return;
             }
             var pose = schedule.Evaluate(simulationTime, mapBounds);
-            if (!pose.IsActive)
+            var wake = schedule.EvaluateWake(simulationTime, mapBounds);
+            var previousWake = schedule.EvaluateWake(simulationTime, mapBounds, 1);
+            bool hasWake = settings.wakeInfluence > 0f && (wake.Pose.IsActive || previousWake.Pose.IsActive);
+            if (!pose.IsActive && !hasWake)
             {
                 ResetHits();
                 if (stormVolume != null) stormVolume.enabled = false;
                 return;
             }
-            if (activeCycle != pose.CycleIndex || simulationTime < lastTime) ResetHits();
+            if (simulationTime < lastTime) ResetHits();
+            if (activeCycle != pose.CycleIndex)
+            {
+                expiredHits.Clear();
+                foreach (var hit in nextHits)
+                    if (hit.Key == null || hit.Value <= simulationTime) expiredHits.Add(hit.Key);
+                for (int i = 0; i < expiredHits.Count; i++) nextHits.Remove(expiredHits[i]);
+                expiredHits.Clear();
+            }
             activeCycle = pose.CycleIndex;
             lastTime = simulationTime;
             EnsureVolume();
-            stormVolume.transform.SetPositionAndRotation(pose.Center, pose.Rotation);
-            stormVolume.size = pose.HalfExtents * 2f;
-            stormVolume.enabled = true;
-            ApplyImpulses(pose, simulationTime);
-        }
-
-        void ApplyImpulses(StormPose pose, double time)
-        {
+            stormVolume.enabled = pose.IsActive;
+            if (pose.IsActive)
+            {
+                stormVolume.transform.SetPositionAndRotation(pose.Center, pose.Rotation);
+                stormVolume.size = pose.HalfExtents * 2f;
+            }
             affectedBodies.Clear();
             affectedPlayers.Clear();
+            // Strong main-body hits take precedence; a compound actor is hit at most once.
+            if (pose.IsActive) ApplyImpulses(pose, simulationTime);
+            if (hasWake)
+            {
+                if (wake.Pose.IsActive) ApplyImpulses(wake.Pose, simulationTime, wake, true);
+                if (previousWake.Pose.IsActive) ApplyImpulses(previousWake.Pose, simulationTime, previousWake, true);
+            }
+        }
+
+        void ApplyImpulses(StormPose pose, double time, StormWake wake = default, bool residual = false)
+        {
             int count;
             // Grow only on saturation so a dense group cannot silently lose eligible targets.
             while (true)
@@ -115,21 +136,25 @@ namespace Metagame.Gameplay
                 var player = body.GetComponentInParent<PlayerRig>();
                 if (player != null)
                 {
+                    float strength = residual && player.Doll != null && player.Doll.Hips != null
+                        ? wake.StrengthAt(player.Doll.Hips.worldCenterOfMass) * settings.wakeInfluence : 1f;
+                    if (strength <= .0001f) continue;
                     if (!affectedPlayers.Add(player) || player.Doll == null || player.Doll.Hips == null
                         || player.Doll.Hips.isKinematic || settings.playerImpulseMultiplier <= 0f
                         || !CanHit(player.Doll.Hips, time)) continue;
                     // The existing knockdown path preserves momentum against the walking controller.
-                    var playerKick = kick * settings.playerImpulseMultiplier;
+                    var playerKick = kick * settings.playerImpulseMultiplier * strength;
                     if (player.Downed) player.RideAlong(playerKick, Vector3.zero, player.Doll.Hips.position);
                     else player.KnockDown(playerKick, playerKick.magnitude);
                     continue;
                 }
-                if (!affectedBodies.Add(body) || settings.objectImpulseMultiplier <= 0f) continue;
+                float influence = residual ? wake.StrengthAt(body.worldCenterOfMass) * settings.wakeInfluence : 1f;
+                if (influence <= .0001f || !affectedBodies.Add(body) || settings.objectImpulseMultiplier <= 0f) continue;
                 var grabbable = collider.GetComponentInParent<Grabbable>();
                 bool interactive = grabbable != null && grabbable.CanGrab;
                 interactive |= collider.GetComponentInParent<InteractableBase>() != null;
                 if (!interactive || !CanHit(body, time)) continue;
-                body.AddForce(kick * settings.objectImpulseMultiplier, ForceMode.VelocityChange);
+                body.AddForce(kick * settings.objectImpulseMultiplier * influence, ForceMode.VelocityChange);
             }
         }
 

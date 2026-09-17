@@ -1,0 +1,7 @@
+PASS
+plants=721
+slowPlants=207
+treeMeshColliders=18
+missingScripts=0
+grounded=721
+routeClearanceSamples=34

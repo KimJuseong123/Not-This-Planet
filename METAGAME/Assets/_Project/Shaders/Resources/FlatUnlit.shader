@@ -70,6 +70,54 @@ Shader "NotThisPlanet/Flat"
             }
             ENDHLSL
         }
+
+        // SSAO requests a depth-normal prepass. Opaque surfaces must participate
+        // so depth-sampled volumes (including the magnetic storm) stop here.
+        Pass
+        {
+            Name "DepthNormals"
+            Tags { "LightMode"="DepthNormalsOnly" }
+            ZWrite On
+            Cull Off
+
+            HLSLPROGRAM
+            #pragma target 3.0
+            #pragma vertex DepthNormalsVertex
+            #pragma fragment DepthNormalsFragment
+            #pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT
+            #pragma multi_compile_instancing
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            CBUFFER_START(UnityPerMaterial)
+                half4 _Color;
+                half _TwinkleAmount;
+                half _TwinkleSpeed;
+            CBUFFER_END
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitDepthNormalsPass.hlsl"
+            ENDHLSL
+        }
+        Pass
+        {
+            Name "DepthOnly"
+            Tags { "LightMode"="DepthOnly" }
+            ZWrite On
+            Cull Off
+            ColorMask 0
+            HLSLPROGRAM
+            #pragma vertex VertDepth
+            #pragma fragment FragDepth
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            CBUFFER_START(UnityPerMaterial)
+                half4 _Color;
+                half _TwinkleAmount;
+                half _TwinkleSpeed;
+            CBUFFER_END
+            float4 VertDepth(float4 positionOS : POSITION) : SV_POSITION
+            {
+                return TransformObjectToHClip(positionOS.xyz);
+            }
+            half4 FragDepth() : SV_Target { return 0; }
+            ENDHLSL
+        }
     }
 
     FallBack Off

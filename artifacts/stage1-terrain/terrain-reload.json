@@ -1,0 +1,26 @@
+{
+  "status": "PASS",
+  "heightResolution": 2049,
+  "surfaceSamples": 24803,
+  "vegetationSamples": 721,
+  "routeSamples": 34,
+  "paintLayers": 3,
+  "physicsDropSamples": 5,
+  "maximumHeightError": 0.04581642150878906,
+  "meanHeightError": 0.00041954327025450766,
+  "maximumVegetationError": 0.004438925534486771,
+  "terrainPosition": {
+    "x": -56.0,
+    "y": -2.0,
+    "z": -56.0
+  },
+  "terrainSize": {
+    "x": 112.0,
+    "y": 16.0,
+    "z": 112.0
+  },
+  "legacyRendererDisabled": true,
+  "legacyColliderDisabled": true,
+  "heightBrushRoundtrip": false,
+  "textureBrushRoundtrip": false
+}
