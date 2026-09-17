@@ -131,8 +131,19 @@ namespace Metagame.UI
         }
 
         void DrawAboveHead(Camera camera, NetPlayer player, float remaining)
+            => DrawAboveHead(camera, player.NameplateAnchor + Vector3.up * .55f, player.EmoteId, remaining);
+
+        /// <summary>NetPlayer 가 아닌 액터(서버가 모는 AI 동료)의 이모티콘을 같은 규칙으로 그린다.</summary>
+        public void DrawWorldEmote(Camera camera, Vector3 anchor, byte id, double expiresAt, double now)
         {
-            Vector3 anchor = player.NameplateAnchor + Vector3.up * .55f;
+            if (Event.current.type != EventType.Repaint || camera == null
+                || !EmoteState.IsActive(id, expiresAt, now)) return;
+            using (new UiScale.Scope(UiScale.Value))
+                DrawAboveHead(camera, anchor, id, (float)(expiresAt - now));
+        }
+
+        void DrawAboveHead(Camera camera, Vector3 anchor, byte id, float remaining)
+        {
             Vector3 point = UiScale.ScreenPoint(camera.WorldToScreenPoint(anchor));
             if (point.z <= 0 || point.x < 0 || point.x > UiScale.Width || point.y < 0 || point.y > UiScale.Height) return;
             float distance = Vector3.Distance(camera.transform.position, anchor);
@@ -142,7 +153,7 @@ namespace Metagame.UI
             if (Physics.Linecast(camera.transform.position, anchor, wallMask,
                 QueryTriggerInteraction.Ignore)) return;
             float size = Mathf.Clamp(260f / Mathf.Max(distance, 1f), 32f, 88f);
-            DrawIcon(player.EmoteId, new Vector2(point.x, UiScale.Height - point.y), size, remaining);
+            DrawIcon(id, new Vector2(point.x, UiScale.Height - point.y), size, remaining);
         }
 
         void DrawIcon(byte id, Vector2 center, float size, float remaining)
