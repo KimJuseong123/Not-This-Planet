@@ -738,21 +738,40 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
     - sh scripts/ci/unity_dirty_guard.sh || RC=1
     # 3) zip → 패키지 레지스트리(잡 토큰) → Release(태그는 ref 로 생성) → MM 🟢. RC≠0 이면 🔴 만 보내고 실패
     - python3 scripts/ci/publish_release.py publish "$RC"
-    # 4) 사용자용 요약 **초안** (S15P21B202-462).
-    #
-    # **릴리스를 막지 않는다** (`|| true`). 이것은 사람이 고쳐서 쓰는 초안이고, 초안이
-    # 없다고 릴리스가 실패할 이유가 없다 — Jira 나 Claude CLI 가 잠깐 안 되는 것으로
-    # 배포를 세우면 그다음부터 사람이 이 단계를 지우고 싶어진다.
-    #
-    # **공개하지 않는다.** 아티팩트로만 남고, 사이트·Release·Jira 에 싣는 것은 사람이
-    # 보고 고친 뒤다 — `promote-builds`(공개 버튼)와 같은 결이다.
-    - python3 scripts/ci/release_summary.py "$(cat release-version.txt)" || true
+    # 요약 **초안**은 여기 있지 않다 — 아래 `release-summary` 잡이다 (S15P21B202-579).
   artifacts:
     when: always
     expire_in: 14 days
-    paths: [unity-build.log, unity-tests.log, unity-results.xml, release-version.txt, release-notes.md, release-package.txt, release-summary.md]   # zip 은 아티팩트에 싣지 않는다 — 상한(100MB)에 걸린다. 패키지 레지스트리에 있다
+    paths: [unity-build.log, unity-tests.log, unity-results.xml, release-version.txt, release-notes.md, release-package.txt]   # zip 은 아티팩트에 싣지 않는다 — 상한(100MB)에 걸린다. 패키지 레지스트리에 있다
     reports:
       junit: unity-junit.xml    # 실패한 테스트를 파이프라인 화면에서 바로 본다(unity-compile 과 같은 결)
+
+release-summary:          # 사용자용 요약 **초안** (S15P21B202-462 · 잡 분리는 -579)
+  stage: notify           # 릴리스가 끝난 뒤다. 초안은 릴리스의 산출물이 아니라 그 다음 일이다.
+  # **이미지를 덮어쓰지 않는다.** 기본 이미지(python:3.12)에만 `claude` CLI 가 있다 —
+  # `ai-review` 가 그 위에서 돈다(`백엔드=cli claude=/usr/local/bin/claude`).
+  # 처음에는 이 단계가 `release-windows` 안에 있었는데 그 잡은 Unity 이미지라
+  # `find_claude()` 가 None 이었고, `|| true` 에 묻혀 **초안이 한 번도 안 나왔다.**
+  # `test_release_summary.py` 가 이 잡에 `image:` 가 없는지 검사한다.
+  needs:
+    - job: release-windows
+      artifacts: true     # `release-version.txt` 를 받는다. 버전을 여기서 다시 정하면
+                          # 두 곳이 어긋나고, 어긋난 버전으로 쓴 요약은 아무도 못 알아본다
+  interruptible: false
+  # **릴리스를 막지 않는다.** 사람이 고쳐서 쓰는 초안이고, Jira 나 Claude 가 잠깐 안 되는
+  # 것으로 배포를 세우면 그다음부터 사람이 이 잡을 지우고 싶어진다. 다만 `|| true` 로
+  # 성공인 척하지는 않는다 — 실패는 파이프라인에 ⚠ 로 남아야 다음에 누가 본다.
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
+  script:
+    # **공개하지 않는다.** 아티팩트로만 남고, 사이트·Release·Jira 에 싣는 것은 사람이
+    # 보고 고친 뒤다 — `promote-builds`(공개 버튼)와 같은 결이다.
+    - python scripts/ci/release_summary.py "$(cat release-version.txt)"
+  artifacts:
+    when: always
+    expire_in: 30 days    # 릴리스 로그(14일)보다 길게 — 사람이 고쳐 올리는 데 그만큼 걸린다
+    paths: [release-summary.md]
 
 build-devbuild:           # QA 가 쓸 개발·QA 빌드 (S15P21B202-460)
   stage: deploy           # **손으로 빌드해 나눠 주는 일을 없앤다.** QA 는 두 번 일어나는데
