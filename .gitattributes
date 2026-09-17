@@ -67,8 +67,7 @@ METAGAME/Assets/_Project/Terrain/Stage1/TerrainData/TD_Stage1_AstraBasin.asset f
 
 # Scripts: shell/python always LF (Linux runner), PowerShell CRLF
 # 확장자가 없는 훅 파일은 *.sh 에 걸리지 않는다 — 윈도우에서 core.autocrlf=true 로 CRLF 가 되고,
-# 리눅스에서 실행하면 셰방이 '/bin/sh
-' 이 되어 'No such file or directory' 로 죽는다(2026-09-01 실측).
+# 리눅스에서 실행하면 셰방이 '/bin/sh' 이 되어 'No such file or directory' 로 죽는다(2026-09-01 실측).
 /.githooks/** text eol=lf
 *.sh text eol=lf
 *.py text eol=lf
