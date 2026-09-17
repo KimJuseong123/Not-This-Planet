@@ -1,5 +1,13 @@
 # Stage2 모델 라이브러리
 
+## 2026-09-18 추가 — 압력 역류 펌프
+
+기존 47종에 `S2_SurgePump`를 추가하여 FBX/FBM/Blender 원본은 각각 48개다. 펌프 전용 BaseColor 7장과 URP 재질은 `Art/Stage2Earth/PressureSurge`에서 사용한다. 2.40m × 2.26m × 1.48m, 13,632 삼각형, 메시 5개이며 손잡이·압력계 바늘·배출 덮개·경고등 피벗을 보존했다.
+
+[현장 및 방향별 컨셉](../../../../../docs/assets/concepts/stage2/pressure-surge/README.md), [제작·게임 연결 기록](../../../../../docs/records/2026-09-18-stage2-pressure-surge.md), [FBM 검사](../../../../../artifacts/stage2-models/SurgePump-fbm.json)를 참고한다. 아래 2026-09-17 기록의 47종/188장은 기존 묶음의 수치다.
+
+## 기존 묶음
+
 2026-09-17 · 603 워크트리 · Blender MCP / Blender 5.2.2 LTS
 
 [2장 기획](../../../../../docs/planning/chapter-2-plan.md)과 [씬 기반 컨셉](../../../../../docs/assets/concepts/stage2/v3-scene-draft/README.md)에 맞춘 **47종 로우폴리 모델 초안**입니다. 에셋별 정면·왼쪽·오른쪽·후면 PNG를 먼저 생성하고 해당 형상을 참고해 Blender MCP에서 모델링했습니다.

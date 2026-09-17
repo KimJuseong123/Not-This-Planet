@@ -270,3 +270,9 @@ instead of real physics. It's not 100% correct - but it sure is fast!
 
 되감기가 실제 물리 재시뮬레이션이 아니라 **벡터 근사**다. 내 캐릭터 이동에는 충분할
 가능성이 높지만, **공유 부품에 쓰면 조립 결과가 어긋날 수 있다** — 그래서 부품은 P2 다.
+# Stage2 압력 역류 (2026-09-18)
+
+- Stage2Yard의 기존 서버/솔로 권한으로만 `PressureClock`, `PressureRelief[3]`, 물리 밀침을 갱신한다.
+- Stage2Bridge 기존 전체 JSON 스냅샷에 시간과 감압 상태가 포함된다. 새 RPC나 클라이언트가 지정하는 피격 대상은 없다.
+- E 조작은 기존 인증된 YardCommand, 거리/차폐/기절 검사를 재사용한다. 기존 YardTargetKind 순서는 유지하고 PressureRelief를 끝에 추가했다.
+- 클라이언트 Stage2PressurePump는 받은 상태로 파티클/경고등/계기/손잡이만 표시한다. 밀침 결과는 기존 플레이어 물리 스냅샷 경로를 이용한다.

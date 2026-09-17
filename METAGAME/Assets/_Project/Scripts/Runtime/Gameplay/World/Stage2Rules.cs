@@ -3,7 +3,7 @@ using UnityEngine;
 namespace Metagame.Gameplay.Stage2
 {
     public enum YardAction { None, Interact, Recover, Unfasten }
-    public enum YardTargetKind { Container, Ring, Bolt, Crane, Lift, Ladder, LadderClimb, Wrench, Sprayer, Shower, Recovery, Launch }
+    public enum YardTargetKind { Container, Ring, Bolt, Crane, Lift, Ladder, LadderClimb, Wrench, Sprayer, Shower, Recovery, Launch, PressureRelief }
     public enum YardTool { None, Wrench, Sprayer }
 
     /// <summary>Chapter 2 §§7–12. Values are prototype hypotheses, not approved balance.</summary>

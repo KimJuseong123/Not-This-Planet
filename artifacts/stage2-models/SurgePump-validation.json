@@ -1,0 +1,13 @@
+{
+  "asset": "SurgePump",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 5,
+  "dimensions_m": [
+    2.4000000953674316,
+    1.47700035572052,
+    2.260000228881836
+  ],
+  "pivots_count": 6,
+  "passed": true
+}

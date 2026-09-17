@@ -108,6 +108,7 @@ namespace Metagame.Gameplay.Stage2
             if (_state.Climber == id) _state.Climber = 0;
             if (_workers.TryGetValue(id, out var worker) && worker.Rig != null) worker.Rig.WorkstationMovementLocked = false;
             _workers.Remove(id);
+            _pressureHits.Remove(id);
         }
 
         public YardPlayerState PlayerState(uint id)
@@ -205,6 +206,10 @@ namespace Metagame.Gameplay.Stage2
                     break;
                 case YardTargetKind.Recovery:
                     RecoverParts();
+                    break;
+                case YardTargetKind.PressureRelief:
+                    if (action == YardAction.Interact && index >= 0 && index < _surgePumps.Length)
+                        _state.PressureRelief[index] = 45f;
                     break;
                 case YardTargetKind.Launch:
                     if (ReadyToLaunch()) { _state.Launched = true; Completed?.Invoke(); }

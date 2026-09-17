@@ -1,11 +1,12 @@
 # Stage2 모델 검수 렌더
 
-Blender Workbench에서 실제 메시를 렌더했습니다. 컨셉아트가 아니라 납품 FBX와 동일한 형상의 확인 이미지입니다. 에셋당 정면·왼쪽·오른쪽·후면과 사선 미리보기 5장, 총 235장.
+Blender Workbench에서 실제 메시를 렌더했습니다. 컨셉아트가 아니라 납품 FBX와 동일한 형상의 확인 이미지입니다. 에셋당 정면·왼쪽·오른쪽·후면과 사선 미리보기 5장, 총 240장. SurgePump는 2026-09-18 압력 역류 기믹용 추가 에셋이며 기존 일괄 임포트 검증 이후 별도 제작·검증했습니다.
 
 [모델 사용 안내](../../METAGAME/Assets/_Project/Models/Stage2/README_KO.md) · [Unity 임포트 결과](unity-import-validation.json)
 
 | 에셋 | 미리보기 | 정면 | 왼쪽 | 오른쪽 | 후면 | Blender 재임포트 |
 | --- | --- | --- | --- | --- | --- | --- |
+| SurgePump | [보기](SurgePump/preview.png) | [보기](SurgePump/front.png) | [보기](SurgePump/left.png) | [보기](SurgePump/right.png) | [보기](SurgePump/back.png) | [결과](SurgePump-validation.json) |
 | Crane | [보기](Crane/preview.png) | [보기](Crane/front.png) | [보기](Crane/left.png) | [보기](Crane/right.png) | [보기](Crane/back.png) | [결과](Crane-validation.json) |
 | Elevator | [보기](Elevator/preview.png) | [보기](Elevator/front.png) | [보기](Elevator/left.png) | [보기](Elevator/right.png) | [보기](Elevator/back.png) | [결과](Elevator-validation.json) |
 | Console | [보기](Console/preview.png) | [보기](Console/front.png) | [보기](Console/left.png) | [보기](Console/right.png) | [보기](Console/back.png) | [결과](Console-validation.json) |

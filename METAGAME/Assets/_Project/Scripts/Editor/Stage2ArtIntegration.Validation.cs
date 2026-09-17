@@ -46,10 +46,11 @@ namespace Metagame.EditorTools
         {
             var scene=SceneManager.GetSceneByPath(ScenePath);if(!scene.IsValid())scene=EditorSceneManager.OpenScene(ScenePath,OpenSceneMode.Additive);
             var roots=scene.GetRootGameObjects();var yard=roots.Select(g=>g.GetComponent<Stage2Yard>()).First(y=>y!=null);
-            var targets=yard.GetComponentsInChildren<Stage2Target>(true);var errors=new System.Collections.Generic.List<string>();
+            var targets=roots.SelectMany(r=>r.GetComponentsInChildren<Stage2Target>(true)).ToArray();var errors=new System.Collections.Generic.List<string>();
             int missing=roots.SelectMany(r=>r.GetComponentsInChildren<Transform>(true)).Sum(t=>GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(t.gameObject));
             if(missing>0)errors.Add("Missing scripts");
-            if(targets.Length!=26||targets.Select(t=>t.Id).Distinct().Count()!=26)errors.Add("Interaction IDs changed");
+            int expected=26+targets.Count(t=>t.Kind==YardTargetKind.PressureRelief);
+            if(targets.Length!=expected||targets.Select(t=>t.Id).Distinct().Count()!=expected)errors.Add("Interaction IDs changed");
             if(targets.Count(t=>t.Kind==YardTargetKind.Bolt)!=9)errors.Add("Bolt interaction count");
             var serialized=new SerializedObject(yard);
             foreach(string name in new[]{"_cranePivot","_arm","_hook","_seat","_lift","_ladder","_launch","_shower"})
@@ -74,7 +75,7 @@ namespace Metagame.EditorTools
                 missingScripts=missing,visibleMeshes=renderers.Length,vegetationMeshes=plants!=null?plants.GetComponentsInChildren<MeshRenderer>().Length:0,errors=errors.ToArray(),unityVersion=Application.unityVersion};
             Directory.CreateDirectory(Output);File.WriteAllText(Output+"/scene-validation.json",JsonUtility.ToJson(report,true));
             if(!report.passed)throw new InvalidOperationException(string.Join("; ",errors));
-            Debug.Log("[Stage2Art] Scene validation passed: 26 interactions, 9 bolts, 3 independent rocket modules.");
+            Debug.Log($"[Stage2Art] Scene validation passed: {targets.Length} interactions, 9 bolts, 3 independent rocket modules.");
         }
         public static void Render()
         {

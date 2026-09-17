@@ -32,6 +32,8 @@ namespace Metagame.Gameplay.Stage2
     [Serializable] public sealed class Stage2State
     {
         public double Time;
+        public float PressureClock;
+        public float[] PressureRelief = new float[3];
         public float Elapsed, ClearTime;
         public int Falls;
         public float Yaw, Radius = 17f, Height = 5f, LiftHeight, LiftGoal, GasClock, LadderHeight = 1f;

@@ -37,10 +37,49 @@ namespace Metagame.Network
             GameSession.Instance.LocalPlayer.SetInput(default);
             var yard = Object.FindAnyObjectByType<Stage2Yard>();
             var bridge = Object.FindAnyObjectByType<Stage2Bridge>();
-            if (_host) yield return Host(yard, bridge);
+            if(args.Contains("-stage2-pressure-smoke"))
+            { if(_host)yield return PressureHost(yard);else yield return PressureClient(yard,bridge); }
+            else if (_host) yield return Host(yard, bridge);
             else yield return Client(yard, bridge);
         }
 
+        IEnumerator PressureHost(Stage2Yard yard)
+        {
+            while(NetworkServer.connections.Count<2 || NetworkServer.connections.Values.Any(c=>c.identity==null || c.identity.GetComponent<NetPlayer>().VisualRig==null))yield return null;
+            var remote=NetworkServer.connections.Values.First(c=>c!=NetworkServer.localConnection);
+            var rig=remote.identity.GetComponent<NetPlayer>().VisualRig;
+            var pump=yard.PressurePumps[0];
+            rig.Teleport(pump.Nozzle.position+pump.Direction*2-Vector3.up*.7f,Quaternion.identity);
+            yard.State.GasEnabled=true;yard.State.PressureClock=12;
+            Debug.Log("[PressureSmoke] HOST warning started");
+            yield return new WaitForSeconds(6.7f);
+            var target=yard.Targets.First(t=>t.Kind==YardTargetKind.PressureRelief && t.Index==0);
+            rig.Teleport(target.transform.position+pump.Direction*1.3f-Vector3.up*.7f,Quaternion.identity);
+            Physics.SyncTransforms();
+            while(yard.State.PressureRelief[0]<=0)yield return null;
+            Debug.Log("[PressureSmoke] HOST authenticated remote relief PASS; late observer may join");
+            while(NetworkServer.connections.ContainsKey(remote.connectionId))yield return null;
+            Debug.Log("[PressureSmoke] HOST remote disconnect PASS");
+            yield return new WaitForSeconds(15);Application.Quit(0);
+        }
+        IEnumerator PressureClient(Stage2Yard yard,Stage2Bridge bridge)
+        {
+            if(_observer)
+            {
+                while(yard.State.PressureRelief[0]<=0)yield return null;
+                if(yard.PressurePhase(0)!=0){Debug.LogError("[PressureSmoke] FAIL late observer still spraying");Application.Quit(2);yield break;}
+                Debug.Log("[PressureSmoke] LATE OBSERVER relief and cycle snapshot PASS");Application.Quit(0);yield break;
+            }
+            while(yard.PressurePhase(0)!=1)yield return null;
+            Debug.Log("[PressureSmoke] CLIENT warning replication PASS");
+            while(yard.PressurePhase(0)!=2)yield return null;
+            Debug.Log("[PressureSmoke] CLIENT burst replication PASS");
+            var target=yard.Targets.First(t=>t.Kind==YardTargetKind.PressureRelief && t.Index==0);
+            while(yard.State.PressureRelief[0]<=0)
+            {bridge.Send(new YardCommand{Action=YardAction.Interact,Target=target.Id});yield return new WaitForSeconds(.3f);}
+            if(yard.Authority || yard.PressurePhase(0)!=0){Debug.LogError("[PressureSmoke] FAIL client authority or suppression");Application.Quit(2);yield break;}
+            Debug.Log("[PressureSmoke] CLIENT remote relief result PASS");yield return new WaitForSeconds(6);Application.Quit(0);
+        }
         IEnumerator Host(Stage2Yard yard, Stage2Bridge bridge)
         {
             while (NetworkServer.connections.Count < 2 || NetworkServer.connections.Values.Any(c=>c.identity == null || c.identity.GetComponent<NetPlayer>().VisualRig == null)) yield return null;

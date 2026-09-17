@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Passed" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-17 16:34:28Z" end-time="2026-09-17 16:34:30Z" duration="2.8172975">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="1904" result="Passed" start-time="2026-09-17 16:34:28Z" end-time="2026-09-17 16:34:30Z" duration="2.817298" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="3132" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202/METAGAME/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="1868" result="Passed" start-time="2026-09-17 16:34:28Z" end-time="2026-09-17 16:34:30Z" duration="2.705442" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="35540" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="3133" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="1868" result="Passed" start-time="2026-09-17 16:34:28Z" end-time="2026-09-17 16:34:30Z" duration="2.685796" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="3138" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="1819" result="Passed" start-time="2026-09-17 16:34:28Z" end-time="2026-09-17 16:34:30Z" duration="2.668327" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="3139" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="1819" result="Passed" start-time="2026-09-17 16:34:28Z" end-time="2026-09-17 16:34:30Z" duration="2.649744" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="2733" name="Stage2PressureTests" fullname="Metagame.Gameplay.Tests.Stage2PressureTests" classname="Metagame.Gameplay.Tests.Stage2PressureTests" runstate="Runnable" testcasecount="6" result="Passed" start-time="2026-09-17 16:34:28Z" end-time="2026-09-17 16:34:30Z" duration="2.621054" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2739" name="RuntimeJetTravelsAndStopsAfterBurst" fullname="Metagame.Gameplay.Tests.Stage2PressureTests.RuntimeJetTravelsAndStopsAfterBurst" methodname="RuntimeJetTravelsAndStopsAfterBurst" classname="Metagame.Gameplay.Tests.Stage2PressureTests" runstate="Runnable" seed="14806319" result="Passed" start-time="2026-09-17 16:34:20Z" end-time="2026-09-17 16:34:30Z" duration="10.763602" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

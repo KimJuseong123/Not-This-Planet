@@ -44,6 +44,7 @@ namespace Metagame.Gameplay.Stage2
                 UpdateContamination(w, dt);
             }
             foreach (var w in _workers.Values) Spray(w, dt);
+            TickPressureSurge(dt);
             for (int i = 0; i < _parts.Length; i++)
                 if (!_state.Parts[i].Secured && (_parts[i].position.y < -5f || Vector3.Distance(_parts[i].position, _cranePivot.position) > 36f))
                 { if (_state.Attached == i) _state.Attached = -1; RecoverParts(); break; }

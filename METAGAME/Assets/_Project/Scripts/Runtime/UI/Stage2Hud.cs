@@ -95,6 +95,10 @@ namespace Metagame.UI
             string warning = _yard.GasActive ? "유독 가스 누출 중 — 초록 구역 이탈 / 동료에게 제독 요청"
                 : _yard.GasWarning ? "6초 예고 — 배관 경고 구역에서 누출 예정" : _yard.State.GasEnabled ? "누출 휴지기 — 남은 오염은 동료에게 제독 요청" : "첫 조립 학습 구간 / 준비 구역은 안전";
             GUI.Label(new Rect(580, 28, 980, 55), warning, _text);
+            int pressure=_yard.PressurePhase(_yard.ActivePressurePump);
+            if(pressure>0)GUI.Label(new Rect(580,145,980,55),pressure==1
+                ? "배수 압력 상승 — 주황 분출선에서 대피 / 펌프 손잡이 E로 감압"
+                : "고압 역류 분출 — 물줄기를 피하거나 감압 밸브를 여세요",_text);
             var swimmer = _session.LocalPlayer;
             if (swimmer != null && swimmer.InWater)
                 GUI.Label(new Rect(580, 85, 980, 55), swimmer.Swimming
@@ -145,7 +149,7 @@ namespace Metagame.UI
                 GUI.Label(new Rect(990, rect.y + (2-i)*90, 90, 80), $"{i+1}단\n{p.A:P0}\n{p.B:P0} / {p.C:P0}", _small);
             }
             GUI.color = old;
-            GUI.Label(new Rect(965, 560, 325, 100), "고정 하단 → 연료부 → 거주부 → 노즈\n황색: 작업 / 청색: 지원 / 녹색: 위험\nTab 닫기", _small);
+            GUI.Label(new Rect(965, 550, 325, 170), "고정 하단 → 연료부 → 거주부 → 노즈\n황색: 작업 / 청색: 지원 / 녹색: 위험\n\n배수 압력 경고 시 주황 분출선 대피\n펌프 손잡이 E: 45초 감압\nTab 닫기", _small);
         }
     }
 }
