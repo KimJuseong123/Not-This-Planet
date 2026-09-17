@@ -80,7 +80,6 @@ METAGAME/Assets/_Project/Terrain/Stage1/TerrainData/TD_Stage1_AstraBasin.asset f
 # 둘 다 읽을 수 있는 텍스트다. 이 클립은 427프레임 x 18뼈라 11MB 이고 비-LFS 한도는 5MB 다.
 METAGAME/Assets/_Project/Animations/Characters/Rabbit/Resources/RabbitLocomotion/Rabbit_Dance.anim filter=lfs diff=lfs merge=lfs -text
 METAGAME/Assets/_Project/Animations/Characters/Rabbit/Resources/RabbitLocomotion/Rabbit_RedRed.anim filter=lfs diff=lfs merge=lfs -text
-=======
 
 # Stage1 scene exceeds the repository's 5 MiB non-LFS limit.
 METAGAME/Assets/Scenes/Stage1_Astra.unity filter=lfs diff=lfs merge=lfs -text
