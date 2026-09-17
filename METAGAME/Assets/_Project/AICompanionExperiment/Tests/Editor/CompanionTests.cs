@@ -14,6 +14,27 @@ namespace Metagame.AIExperiment.Tests
 {
     public sealed class CompanionTests
     {
+        /// <summary>
+        /// <b>연 씬을 반드시 닫는다</b> (S15P21B202-604). 이 검증들은
+        /// <c>AIPracticeLobby.unity</c> 를 열고 돌아가는데, 열어 둔 채 끝나면
+        /// <b>뒤이어 도는 다른 검증들이 그 방의 콜라이더를 만난다.</b>
+        ///
+        /// <para>실제로 그렇게 됐다: 2026-09-17 이 모듈이 머지된 직후 develop 의
+        /// <c>unity-compile</c> 이 <b>새 실패 10건</b>으로 빨개졌고, 그중 9건이
+        /// <c>CraftMeteorImpactTests</c> 였다 — 기체가 바닥까지 떨어지지 않고
+        /// <b>4m 언저리에 걸렸다</b>(이 방의 바닥이다). 운석에 맞아도 밀리지도 돌지도
+        /// 않았다.</para>
+        ///
+        /// <para><see cref="UnityEditor.SceneManagement.EditorSceneManager"/> 로 씬을
+        /// 여는 검증은 <b>전부</b> 이 정리를 달아야 한다. <c>Stage1SkyCoverageTests</c> 가
+        /// 같은 이유로 같은 것을 달고 있다 — 그때도 운반체 검증 10개가 무너졌다.</para>
+        /// </summary>
+        [OneTimeTearDown]
+        public void CloseTheRoom()
+        {
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        }
+
         [TestCase("follow", CompanionOrder.Follow)]
         [TestCase("wait", CompanionOrder.Wait)]
         [TestCase("cancel", CompanionOrder.Cancel)]
