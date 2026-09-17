@@ -192,5 +192,36 @@ namespace Metagame.Network.Tests
             Assert.That(http, Does.StartWith("https://"));
             Assert.That(socket, Does.StartWith("wss://"));
         }
+
+        /// <summary>
+        /// 어느 서버를 볼지는 <see cref="Metagame.Core.BackendEndpoints"/> 가 정한다 —
+        /// 씬이 아니다 (S15P21B202-584).
+        ///
+        /// <para>씬에 <c>defaultServerAddress: j15b202.p.ssafy.io</c> 가 저장돼 있었고,
+        /// 그 값이 빌드 채널보다 **먼저** 읽혀서 개발 빌드인데 로비만 배포 서버로 갔다.
+        /// 방은 배포 쪽에 생기고 입장 검증은 개발 쪽으로 가 401 이 난다.</para>
+        /// </summary>
+        [Test]
+        public void ServerAddressFollowsTheBuildChannel()
+        {
+            Assert.That(NetworkSession.ResolveServerAddress(),
+                Is.EqualTo(Metagame.Core.BackendEndpoints.Base),
+                "실행 인자가 없으면 빌드 채널이 정한 주소여야 한다");
+        }
+
+        /// <summary>
+        /// <b>돌려받을 자리를 아예 없앤다.</b> 예전에는 <c>ResolveServerAddress(fallback)</c>
+        /// 이었고 그 인자가 채널을 이겼다. 인자가 다시 생기면 같은 사고가 다시 난다 —
+        /// 그때 이 검사가 먼저 깨진다.
+        /// </summary>
+        [Test]
+        public void ServerAddressTakesNoFallbackArgument()
+        {
+            var method = typeof(NetworkSession).GetMethod("ResolveServerAddress");
+
+            Assert.That(method, Is.Not.Null);
+            Assert.That(method.GetParameters(), Is.Empty,
+                "씬·호출부가 주소를 끼워 넣을 자리가 있으면 안 된다 — BackendEndpoints 한 곳이다");
+        }
     }
 }
