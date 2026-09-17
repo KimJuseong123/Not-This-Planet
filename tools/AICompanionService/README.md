@@ -1,46 +1,101 @@
-# AI 동료 실험 서버 — S15P21B202-531
+# AI 동료 로컬 서버
 
-Unity 게임과 같은 PC에서 실행하는 로컬 실험 서버입니다. 공개 인터넷용 서비스가 아닙니다.
-기존 독립 lab의 소스·비교 테스트 UI를 포함했으므로 저장소 밖의 개인 폴더가 필요하지 않습니다.
-모델, Python 환경, 녹음/발화 로그, 결과 파일은 Git에 포함하지 않습니다.
+Unity 게임과 **같은 PC**에서 도는 로컬 서버입니다. 음성과 인식 결과가 이 PC를 떠나지 않습니다.
+공개 서비스가 아니며 127.0.0.1 로만 바인딩합니다.
 
-## 현재 PC: 단일 폴더로 통합됨 (2026-09-16)
+```
+V 음성 / F7 문장  →  Whisper(STT)  →  Qwen3:1.7b(행동 분류)  →  허용 행동 하나  →  게임
+```
 
-- 이 폴더가 실제 실행 서버이자 수정/공유할 소스입니다. 다른 서버 사본과 동기화할 필요가 없습니다.
-- 저장소 루트 `START_AI.bat` 또는 이 폴더의 `START.bat`를 실행하세요.
-- 기존 모델을 로컬 복사했고 `.venv`는 Python 3.10 및 캐시된 고정 의존성으로 새 위치에 구성했습니다. 이 PC에서는 setup/모델 다운로드를 다시 하지 않습니다.
-- 이전 `Desktop/astra/ai-intent-lab-20260914` 폴더는 보존된 백업입니다. 그곳의 START.bat를 실행하면 안 됩니다.
-- models/.venv/results/logs/fixtures는 Git 제외 상태를 유지합니다. 아래 준비 절차는 새 PC에서 필요할 때 사용합니다.
+모델은 저장소에 없습니다. 아래 절차로 각자 PC에 받습니다 — 게임 업데이트마다 수 GB를
+다시 받지 않기 위해서입니다(계획: `docs/ai-companion.md` §10).
 
-## 준비 (Windows)
+## 처음 받은 사람 — 설치
 
-최신 v4 게임 코드는 Unity 프로젝트 `METAGAME`의 `Assets/Scenes/AICompanionTest.unity`에서 실행합니다.
-`AITrialBuild-tools-v4/AICompanion.exe`는 빌드 출력 예정 위치이며, 현재 빌드 대기 문제로 새 실행 파일이 없습니다.
-v4는 v3 이동/못 작업에 **도구 줍기·내려놓기·공 타격·근거리 운석 방어**를 추가합니다.
-못을 조준하지 않아도 화자와 가까운 못부터 선택합니다(12m 이내).
-v1/v2/v3 경로는 이전 빌드 호환용으로 유지합니다.
+**미리 필요한 것**
 
-필요 도구: Ollama, uv, Unity 프로젝트를 실행할 경우 Unity 6000.5.4f1 및 Git LFS.
-이 폴더에서 PowerShell을 엽니다.
+| 도구 | 확인 |
+|---|---|
+| [Ollama](https://ollama.com/download) | `ollama --version` |
+| [uv](https://docs.astral.sh/uv/getting-started/installation/) | `uv --version` |
+| Unity 6000.5.4f1 (게임까지 볼 경우) | Unity Hub |
 
-1. `./setup.ps1`: Python 3.10 환경 및 requirements.lock 라이브러리 설치. 모델 다운로드/서버 실행은 하지 않습니다.
-2. `./start.ps1`: 같은 PC에 Python 서비스 8765와 전용 Ollama 11439를 실행합니다.
-3. `& .venv/Scripts/python.exe prepare_models.py`: 모델을 처음 준비할 때 직접 실행합니다. Whisper base, Qwen3 0.6B/1.7B 비교 모델을 내려받습니다.
-4. Unity에서 `Assets/Scenes/AICompanionTest.unity`를 실행합니다. 새 v4 실행 파일은 빌드 검증 완료 후 사용합니다.
-5. V로 음성, F7로 텍스트, F8로 즉시 중단. 못 가까이에서 “이거 못 뽑아줘”를 요청합니다.
+**받는 용량과 시간**: 모델 약 **2.9GB** (Qwen3 1.7B·0.6B, Whisper 한국어·기본).
+네트워크에 따라 **20~60분**. 디스크는 여유 5GB를 봅니다.
 
-실험 전체 준비는 비교 모델까지 받습니다. Unity v2 동작 자체에 필요한 것은 Whisper base + Qwen3 1.7B뿐이며,
-최종 배포팩에 비교 모델을 포함하자는 뜻이 아닙니다.
-Whisper small 비교는 선택: `& .venv/Scripts/python.exe prepare_small.py`.
-음성 비교 페이지는 small과 합성 준비 음성이 필요합니다:
-`./make_synthetic_audio.ps1`은 Windows 한국어 TTS가 설치되어 있어야 합니다. 실제 녹음 데이터는 제공하지 않습니다.
+**순서** (이 폴더에서 PowerShell)
 
-이미 8765/11439를 쓰는 서버가 있으면 기존 앱을 임의 종료하지 말고 소유 폴더를 확인하세요.
-특히 기존 Desktop/astra/ai-intent-lab-20260914가 실행 중이면 새 사본을 중복 실행하지 마세요.
-이전 로컬 서버 폴더는 백업으로 보존했습니다. 이제 이 폴더의 서버만 실행합니다.
-게임을 종료한 뒤 본인이 실행한 AI 서버를 종료하려면:
-`Invoke-RestMethod http://127.0.0.1:8765/api/shutdown -Method Post`
-처리 중이면 409로 거절합니다. 종료 시 그 앱이 띄운 전용 Ollama만 정리합니다.
+```powershell
+# 1. 파이썬 3.10 환경과 고정 의존성
+./setup.ps1
+
+# 2. 서버 실행 (8765) + 전용 Ollama (11439)
+./START.bat
+
+# 3. 모델 내려받기 — 서버가 떠 있어야 합니다
+& .venv/Scripts/python.exe prepare_models.py
+
+# 4. 확인
+Invoke-RestMethod http://127.0.0.1:8765/api/health | Select-Object protocol, busy
+Invoke-RestMethod http://127.0.0.1:8765/api/status | Select-Object asr_model
+```
+
+`protocol: companion-v4` 와 `asr_model: whisper-small-ko-zeroth` 가 나오면 준비된 것입니다.
+
+**동작 확인** — 게임 없이 한 줄로 시험할 수 있습니다.
+
+```powershell
+$body = [Text.Encoding]::UTF8.GetBytes('{"text":"몽둥이 주워줘"}')
+Invoke-RestMethod http://127.0.0.1:8765/api/companion-v4/text -Method Post `
+  -ContentType 'application/json; charset=utf-8' -Body $body | Select-Object action
+```
+
+`action: pickup_bat` 이 나오면 분류까지 정상입니다.
+
+> 한글을 보낼 때는 반드시 UTF-8 바이트로 넘깁니다. PowerShell 5.1 은 문자열 본문을
+> 기본 코드페이지로 보내서 한글이 깨지고, 그러면 `clarify` 가 나옵니다.
+
+## Unity 쪽
+
+1. `Tools > Not This Planet > AI 실험 > 실험 씬을 이 PC 빌드 목록에 등록` 을 **한 번** 누릅니다.
+   실험 씬은 공유 빌드 목록에 넣지 않습니다(출시 빌드에 딸려 들어가는 것을 막기 위해).
+   누르지 않으면 진입 화면이 버튼 대신 이 안내를 띄웁니다.
+2. `Assets/Scenes/AICompanionTest.unity` 를 열고 Play → **혼자 테스트**
+3. **F7** 문장 입력 · **V** 누르는 동안 음성 · **F8** 즉시 중단
+
+못 가까이에서 "이거 못 뽑아줘" 처럼 말합니다. 화자 12m 안의 가까운 못을 고릅니다.
+
+**또렷하게 말하는 것이 인식률에 가장 크게 작용합니다** — 측정에서 CER 0.60 → 0.29.
+마이크에 가까이, 조금 느리게 말해 보세요. 연속 2회 못 알아들으면 화면이 안내합니다.
+
+## 잘 안 될 때
+
+| 증상 | 원인과 조치 |
+|---|---|
+| `AI 서버 연결 실패/시간 초과` | 서버가 꺼져 있습니다. `START.bat` 실행 |
+| `음성 모델이 없습니다: ...` | 3단계를 건너뛰었습니다. `prepare_models.py` 실행 |
+| `Ollama 설치가 필요합니다` | Ollama 미설치. 설치 후 새 터미널에서 재시도 |
+| `Port 8765 is occupied (PID ...)` | 이미 다른 서버가 떠 있습니다. **PID를 죽이지 말고** 소유 폴더와 health 를 확인 |
+| 진입 화면이 검은색 | Unity 쪽 1번(씬 등록)을 안 눌렀습니다 |
+| 첫 요청이 느림 | 모델 로딩입니다. 이후 요청은 STT 약 1.6초 + 분류 약 0.8초 |
+
+서버를 끄려면:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8765/api/shutdown -Method Post
+```
+
+처리 중이면 409 로 거절합니다. 그 앱이 띄운 전용 Ollama만 함께 정리합니다.
+
+## 모델을 바꾸려면
+
+기본값은 한국어 파인튜닝 `whisper-small-ko-zeroth` 입니다. 측정에서 `whisper-base` 대비
+CER 0.86 → 0.61 이었고 속도는 비슷했습니다. 다른 모델로 시험하려면:
+
+```powershell
+$env:COMPANION_ASR_MODEL = 'whisper-base'   # models/ 아래 폴더 이름
+./START.bat
+```
 
 ## 구조
 
