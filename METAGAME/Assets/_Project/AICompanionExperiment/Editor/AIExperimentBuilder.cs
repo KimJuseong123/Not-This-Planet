@@ -16,6 +16,31 @@ namespace Metagame.AIExperiment.Editor
     {
         const string PrefabPath = "Assets/_Project/AICompanionExperiment/AICompanion.prefab";
 
+        /// <summary>이미 있는 실험 씬을 이 PC 의 빌드 목록에만 등록한다.
+        ///
+        /// 씬 파일은 저장소에 있지만 EditorBuildSettings 는 공유하지 않는다. 공유하면
+        /// 출시 빌드에도 실험 씬이 따라 들어가기 때문이다. 시험해 볼 사람이 한 번 누른다.
+        /// 여러 번 눌러도 중복으로 쌓이지 않는다.</summary>
+        [MenuItem("Tools/Not This Planet/AI 실험/실험 씬을 이 PC 빌드 목록에 등록")]
+        public static void RegisterScenes()
+        {
+            var scenes = EditorBuildSettings.scenes.ToList();
+            int added = 0;
+            foreach (var path in new[] { AIExperimentManager.EntryScene, AIExperimentManager.RoomScene })
+            {
+                if (!File.Exists(path))
+                    throw new InvalidOperationException("실험 씬이 없습니다: " + path);
+                if (scenes.Any(s => s.path == path)) continue;
+                scenes.Add(new EditorBuildSettingsScene(path, true));
+                ++added;
+            }
+            EditorBuildSettings.scenes = scenes.ToArray();
+            Debug.Log(added == 0
+                ? "[AIExperiment] 실험 씬이 이미 빌드 목록에 있습니다."
+                : "[AIExperiment] 실험 씬 " + added + "개를 이 PC 빌드 목록에 등록했습니다."
+                  + " 공유 설정은 바뀌지 않습니다.");
+        }
+
         [MenuItem("Tools/Not This Planet/AI 실험/실험 씬 만들기")]
         public static void BuildScenes()
         {

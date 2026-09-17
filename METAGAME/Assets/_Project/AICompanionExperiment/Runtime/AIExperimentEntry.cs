@@ -8,6 +8,7 @@ namespace Metagame.AIExperiment
     {
         [SerializeField] AIExperimentManager _manager;
         public void Configure(AIExperimentManager manager) => _manager = manager;
+        static bool RoomSceneReady => Application.CanStreamedLevelBeLoaded(AIExperimentManager.RoomScene);
 
         void Start()
         {
@@ -28,7 +29,14 @@ namespace Metagame.AIExperiment
             GUILayout.Label("AI 동료 · 로비 실험");
             GUILayout.Label("v4 · 이동/못 작업 + 도구 줍기·내려놓기·공 타격·운석 방어");
             GUILayout.Space(18);
-            if (!NetworkServer.active && !NetworkClient.active)
+            if (!RoomSceneReady)
+            {
+                // 실험 씬은 각자 PC 에서만 빌드 목록에 등록한다(출시 빌드 오염 방지).
+                // 등록 전에는 로드가 조용히 실패해 검은 화면이 되므로 여기서 먼저 막는다.
+                GUILayout.Label("실험 씬이 이 PC 의 빌드 목록에 없습니다.");
+                GUILayout.Label("메뉴: Tools > Not This Planet > AI 실험 >\n실험 씬을 이 PC 빌드 목록에 등록");
+            }
+            else if (!NetworkServer.active && !NetworkClient.active)
             {
                 if (GUILayout.Button("혼자 테스트", GUILayout.Height(50))) SceneManager.LoadScene(AIExperimentManager.RoomScene);
                 if (GUILayout.Button("A 창: 로컬 방장 시작", GUILayout.Height(50))) _manager.StartHost();
