@@ -2931,6 +2931,9 @@ namespace Metagame.Gameplay
             // (S15P21B202-442) — 무게는 같고, 이것이 없으면 잡은 쪽이 일방적으로
             // 이겨서 잡힌 쪽이 빠져나갈 방법이 없다.
             if (CarryingTeammate) top *= PhysicsScale.DownedCarrySpeedScale;
+            // S15P21B202-577: tall flora uses 0.45 of target speed (55% reduction),
+            // including floating/carrying; overlapping plants do not stack.
+            // Acceptance procedure: docs/records/2026-09-17-577-review-resolution.md.
             top *= PlantRustle.SampleMovementMultiplier(Doll.Hips.position, _vegetationHits);
             Vector3 targetVel = wish * top;
             targetVel.x += GroundVelocity.x;
