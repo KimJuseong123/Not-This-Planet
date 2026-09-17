@@ -337,19 +337,13 @@ namespace Metagame.Gameplay.Hazards
             _nearPlayerWeightOverride = Mathf.Clamp01(preset.NearPlayerWeight);
             OverrideCrew(4);
 
-            // 시계를 되감아 첫 공세가 이 강도의 간격대로 오게 한다.
-            _elapsed = 0f;
-            _sinceLastWave = 0f;
-            _leadSent = false;
-            _waveRemaining = 0;
-            _sinceLastInWave = 0f;
-            _nextInWaveDelay = 0f;
-            _plannedWaveSize = 0;
-            _hasLastTarget = false;
-            _lastTargetPlayer = null;
-            _pending.Clear();
-            DestroyAll(_live);
+            // <b><see cref="ResetRun"/> 을 그대로 쓴다.</b> 시계·예고·운석·흔적을 비우고
+            // 시드를 다시 심어 같은 강도를 몇 번이고 같은 순서로 잴 수 있게 한다.
+            // <see cref="BeginAssault"/> 로 켜진 §17.8 트리거 공세도 여기서 꺼진다 —
+            // 켜진 채로 두면 간격이 한 번 더 곱해져 프리셋에 적힌 초와 달라진다.
+            ResetRun();
             IsPaused = false;
+            SetSequenceHold(false);
         }
 
         /// <summary>강도 고정을 풀고 시간대 표로 돌아간다. 인원 보정 강제도 함께 푼다.</summary>

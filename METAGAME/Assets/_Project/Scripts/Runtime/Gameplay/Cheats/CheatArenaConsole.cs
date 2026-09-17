@@ -32,7 +32,17 @@ namespace Metagame.Gameplay.Cheats
         public const KeyCode QuickResetKey = KeyCode.F5;
         public const KeyCode DropMeteorKey = KeyCode.F6;
         public const KeyCode WaveKey = KeyCode.F7;
-        public const KeyCode ReloadKey = KeyCode.F9;
+
+        /// <summary>
+        /// 씬 다시 불러오기는 <b>Shift 를 누른 빠른 리셋</b>이다.
+        ///
+        /// <para>예전에는 F9 였는데 <c>DevManager</c> 가 그 키로 공세 컷씬을 연다
+        /// (S15P21B202-587). 시험장에도 <c>DevManager</c> 가 있으므로 한 번 누르면 둘이
+        /// 같이 돌아간다. 남은 기능 키가 없어 — F1·F2 감정·춤, F3·F4 강도, F5~F8 여기,
+        /// F9·F10 컷씬, F11·F12 <c>DevManager</c> — 같은 성격의 F5 에 묶었다.
+        /// 빠른 리셋과 씬 재시작은 "얼마나 되돌리느냐" 만 다르다.</para>
+        /// </summary>
+        public const KeyCode ReloadModifier = KeyCode.LeftShift;
 
         /// <summary>공세 강도 내리기·올리기. 패널을 열지 않고 뛰면서 바꾼다.</summary>
         public const KeyCode PresetDownKey = KeyCode.F3;
@@ -135,10 +145,13 @@ namespace Metagame.Gameplay.Cheats
                 Close();
             }
 
-            if (Input.GetKeyDown(QuickResetKey)) QuickReset();
+            if (Input.GetKeyDown(QuickResetKey))
+            {
+                if (Input.GetKey(ReloadModifier) || Input.GetKey(KeyCode.RightShift)) ReloadScene();
+                else QuickReset();
+            }
             if (Input.GetKeyDown(DropMeteorKey)) DropMeteorAtAim(MeteorSize.Small);
             if (Input.GetKeyDown(WaveKey)) TriggerWave();
-            if (Input.GetKeyDown(ReloadKey)) ReloadScene();
             if (Input.GetKeyDown(PresetDownKey)) StepPreset(-1);
             if (Input.GetKeyDown(PresetUpKey)) StepPreset(1);
 
@@ -537,7 +550,7 @@ namespace Metagame.Gameplay.Cheats
         void DrawHint()
         {
             var text = $"[{ToggleKey}] 치트 패널   [{QuickResetKey}] 빠른 리셋   [{DropMeteorKey}] 조준점 운석   "
-                       + $"[{WaveKey}] 공세 시작   [{PresetDownKey}]/[{PresetUpKey}] 공세 강도   [{ReloadKey}] 씬 다시";
+                       + $"[{WaveKey}] 공세 시작   [{PresetDownKey}]/[{PresetUpKey}] 공세 강도   [Shift+{QuickResetKey}] 씬 다시";
 
             // 달리면서 볼 상태 한 줄. 이것이 없으면 공세 강도를 바꾼 뒤 무엇을 재고 있는지
             // 확인하려고 매번 패널을 열어야 한다.
@@ -812,7 +825,7 @@ namespace Metagame.Gameplay.Cheats
             GUILayout.Label("리셋", sectionStyle);
             GUILayout.BeginHorizontal();
             if (GUILayout.Button($"빠른 리셋 [{QuickResetKey}]")) QuickReset();
-            if (GUILayout.Button($"씬 다시 불러오기 [{ReloadKey}]")) ReloadScene();
+            if (GUILayout.Button($"씬 다시 불러오기 [Shift+{QuickResetKey}]")) ReloadScene();
             GUILayout.EndHorizontal();
             GUILayout.Label("빠른 리셋: 플레이어·운석·중력·시간.  씬 다시: 파츠·고정못·용접까지 전부.", infoStyle);
         }
