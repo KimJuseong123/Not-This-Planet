@@ -227,6 +227,11 @@ namespace Metagame.Gameplay.Hazards
         /// 넓게 잡았다. 그 관계를 유지하지 않으면, 후반에 충격파만 넓어졌을 때 <b>예고 원
         /// 안에 서 있는데 칠 수 없는 고리</b>가 생긴다 — 피할 수도 막을 수도 없는 자리라
         /// 방망이 인원이 중요해지기는커녕 쓸모가 없어진다.</para>
+        ///
+        /// <para><b><see cref="guideRadius"/> 에는 곱하지 않는다.</b> 그 값은 호스트가 보낸
+        /// 것이고(<c>WorldSync</c> 가 <c>BatRadius = meteor.BatAssistRadius</c> 로 싣는다),
+        /// 호스트에서 이미 배율이 적용된 뒤다. 여기서 또 곱하면 참가자 화면에서만 사거리가
+        /// 배율의 제곱으로 벌어진다.</para>
         /// </summary>
         public float BatAssistRadius =>
             guideRadius > 0f ? guideRadius :

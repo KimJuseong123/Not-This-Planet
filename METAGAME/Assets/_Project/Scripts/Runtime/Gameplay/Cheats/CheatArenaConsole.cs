@@ -253,9 +253,14 @@ namespace Metagame.Gameplay.Cheats
             if (target == null || preset == null) return;
 
             target.ApplyPreset(preset);
-            var radii = preset.ImpactRadii;
+
+            // 반경은 스포너에서 읽는다. 프리셋의 배율에 <b>이 씬의</b> 크기별 반경을 곱한
+            // 값이라야 화면에 뜨는 숫자와 실제 원이 같다 — 상수에서 만들면 씬이 기본값과
+            // 다른 반경을 쓰는 순간 어긋난다.
+            var small = target.ScaledImpactRadiusFor(MeteorSize.Small);
+            var medium = target.ScaledImpactRadiusFor(MeteorSize.Medium);
             Note($"공세 [{preset.Name}] · {preset.WaveIntervalSeconds:0}초마다 "
-                 + $"{preset.MinMeteors}~{preset.MaxMeteors}개 · 충격파 {radii.x:0.#}/{radii.y:0.#}m "
+                 + $"{preset.MinMeteors}~{preset.MaxMeteors}개 · 충격파 {small:0.#}/{medium:0.#}m "
                  + $"· 내 근처 {preset.NearPlayerWeight * 100f:0}%");
         }
 

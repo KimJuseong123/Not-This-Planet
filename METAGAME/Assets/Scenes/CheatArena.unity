@@ -10651,7 +10651,7 @@ GameObject:
   - component: {fileID: 1175983546}
   m_Layer: 0
   m_Name: "\uCE58\uD2B8 \uC2DC\uD5D8\uC7A5  \xB7  F8 \uD328\uB110  F5 \uB9AC\uC14B 
-    F6 \uC6B4\uC11D  F7 \uACF5\uC138  F9 \uC52C \uB2E4\uC2DC"
+    F6 \uC6B4\uC11D  F7 \uACF5\uC138  Shift+F5 \uC52C \uB2E4\uC2DC"
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -10681,7 +10681,7 @@ TextMesh:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1175983544}
   m_Text: "\uCE58\uD2B8 \uC2DC\uD5D8\uC7A5  \xB7  F8 \uD328\uB110  F5 \uB9AC\uC14B 
-    F6 \uC6B4\uC11D  F7 \uACF5\uC138  F9 \uC52C \uB2E4\uC2DC"
+    F6 \uC6B4\uC11D  F7 \uACF5\uC138  Shift+F5 \uC52C \uB2E4\uC2DC"
   m_OffsetZ: 0
   m_CharacterSize: 0.126
   m_LineSpacing: 1

@@ -53,6 +53,20 @@ namespace Metagame.EditorTools
         /// <summary>플레이어 출발 자리. 조립대(원점)를 +X 방향으로 바라본다.</summary>
         static readonly Vector3 PlayerSpawn = new(-12f, 0.05f, 0f);
 
+        /// <summary>
+        /// 바닥에 세우는 안내 표지판 문구.
+        ///
+        /// <para><b>키를 글자로 적지 않는다.</b> <see cref="CheatArenaConsole"/> 의 상수에서
+        /// 만든다 — 손으로 적으면 키를 옮겼을 때 씬에 구워진 안내만 옛 키로 남는다. 실제로
+        /// 씬 재시작을 F9 에서 Shift+F5 로 옮겼을 때 그렇게 됐다(S15P21B202-601 AI 리뷰).
+        /// <c>CheatArenaTests</c> 가 씬의 표지판이 이 문구와 같은지 본다 — 생성기만 고치고
+        /// 씬을 다시 만들지 않으면 거기서 걸린다.</para>
+        /// </summary>
+        public static string HintSign =>
+            $"치트 시험장  ·  {CheatArenaConsole.ToggleKey} 패널  {CheatArenaConsole.QuickResetKey} 리셋  "
+            + $"{CheatArenaConsole.DropMeteorKey} 운석  {CheatArenaConsole.WaveKey} 공세  "
+            + $"Shift+{CheatArenaConsole.QuickResetKey} 씬 다시";
+
         static readonly Color GroundA = new(0.42f, 0.41f, 0.40f);
         static readonly Color GroundB = new(0.48f, 0.47f, 0.45f);
         static readonly Color LineColor = new(0.95f, 0.55f, 0.16f);
@@ -114,7 +128,7 @@ namespace Metagame.EditorTools
             EditorSceneManager.SaveScene(scene, ScenePath);
             AssetDatabase.SaveAssets();
             Debug.Log($"[CheatArena] 치트 시험장 생성 완료 → {ScenePath}  "
-                      + "(빌드 목록에는 넣지 않았다. F8 치트 패널 · F5 리셋 · F6 운석 · F7 공세 · F9 씬 다시)");
+                      + $"(빌드 목록에는 넣지 않았다. {HintSign})");
         }
 
         // ── Stage1 게임플레이 복제 ───────────────────────────────────────────
@@ -334,8 +348,7 @@ namespace Metagame.EditorTools
                 Sign($"z {p:+0;-0}", new Vector3(2.5f, 1.1f, p), 0.32f, labels);
             }
 
-            Sign("치트 시험장  ·  F8 패널  F5 리셋  F6 운석  F7 공세  F9 씬 다시",
-                 new Vector3(-20f, 3.2f, 0f), 0.45f, labels);
+            Sign(HintSign, new Vector3(-20f, 3.2f, 0f), 0.45f, labels);
         }
 
         static void Line(string name, Vector3 position, Vector3 size, Material material, Transform parent)

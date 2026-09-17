@@ -353,6 +353,11 @@ namespace Metagame.Gameplay.Hazards
             _pinnedBand = null;
             _nearPlayerWeightOverride = -1f;
             OverrideCrew(0);
+
+            // <b>강제를 푸는 것만으로는 4 가 남는다.</b> 실행 중에는 MeteorClockBridge 가 매
+            // 고정틱 SetCrew 를 불러 곧 덮이지만, 그 어댑터가 없는 자리(검증·모래상자)에서는
+            // 해제한 뒤에도 4인 규모가 그대로 나온다. 같은 출처로 즉시 되돌린다.
+            SetCrew(Mathf.Max(1, PlayerRig.All.Count));
         }
 
         /// <summary>

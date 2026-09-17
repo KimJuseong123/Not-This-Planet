@@ -152,6 +152,13 @@ namespace Metagame.Gameplay.Tests
                 var buildScenes = UnityEditor.EditorBuildSettings.scenes;
                 Assert.IsFalse(System.Array.Exists(buildScenes, s => s.path == CheatArenaSceneBuilder.ScenePath),
                     "치트 시험장은 빌드 목록에 들어가면 안 된다.");
+
+                // 씬에 구워진 안내가 실제 키와 같아야 한다. 생성기만 고치고 씬을 다시 만들지
+                // 않으면 여기서 걸린다 — 키를 옮겼을 때 실제로 옛 키가 씬에 남았다.
+                var signs = FindAll<TextMesh>(roots);
+                Assert.IsTrue(signs.Exists(t => t.text == CheatArenaSceneBuilder.HintSign),
+                    $"씬의 안내 표지판이 현재 키와 다르다. 기대: \"{CheatArenaSceneBuilder.HintSign}\". "
+                    + "Tools/Not This Planet/치트 시험장 씬 만들기 를 다시 돌린다.");
             }
             finally
             {

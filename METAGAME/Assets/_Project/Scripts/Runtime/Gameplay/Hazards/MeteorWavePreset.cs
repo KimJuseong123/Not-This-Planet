@@ -1,5 +1,3 @@
-using UnityEngine;
-
 namespace Metagame.Gameplay.Hazards
 {
     /// <summary>
@@ -97,9 +95,9 @@ namespace Metagame.Gameplay.Hazards
             return null;
         }
 
-        /// <summary>소형·중형 충격파 반경(m)을 이 강도에서 실제로 얼마인지 돌려준다.</summary>
-        public Vector2 ImpactRadii =>
-            new(PhysicsScale.MeteorSmallImpactRadius * ImpactRadiusScale,
-                PhysicsScale.MeteorMediumImpactRadius * ImpactRadiusScale);
+        // 반경을 여기서 계산해 주지 않는다. 크기별 반경은 씬의 <see cref="MeteorTuning"/> 이
+        // 갖고 있고 프리셋은 배율만 안다 — 여기서 PhysicsScale 상수로 만들면 씬이 기본값과
+        // 다른 반경을 쓰는 순간 화면의 숫자와 실제 원이 갈린다.
+        // 실제 값은 <c>MeteorSpawner.ScaledImpactRadiusFor</c> 가 돌려준다.
     }
 }
