@@ -1,0 +1,40 @@
+{
+  "asset": "Wrench",
+  "fbx": "S2_Wrench.fbx",
+  "blend": "Source~/S2_Wrench.blend",
+  "mesh_objects": 2,
+  "triangles": 1808,
+  "dimensions_m": [
+    0.20859229564666748,
+    0.08449999988079071,
+    0.5473203063011169
+  ],
+  "bounds_min": [
+    -0.10940297693014145,
+    -0.05700000002980232,
+    0.0
+  ],
+  "bounds_max": [
+    0.09918932616710663,
+    0.027499999850988388,
+    0.5473203063011169
+  ],
+  "materials": [
+    "S2_Dark",
+    "S2_Orange",
+    "S2_Steel",
+    "S2_Teal"
+  ],
+  "pivots": [
+    "S2_Wrench_Root",
+    "AdjustableJaw"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

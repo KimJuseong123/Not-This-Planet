@@ -1,0 +1,41 @@
+{
+  "asset": "GasTank",
+  "fbx": "S2_GasTank.fbx",
+  "blend": "Source~/S2_GasTank.blend",
+  "mesh_objects": 1,
+  "triangles": 2592,
+  "dimensions_m": [
+    3.5999999046325684,
+    2.202000141143799,
+    2.93314790725708
+  ],
+  "bounds_min": [
+    -1.7999999523162842,
+    -1.1319999694824219,
+    0.0
+  ],
+  "bounds_max": [
+    1.7999999523162842,
+    1.0700000524520874,
+    2.93314790725708
+  ],
+  "materials": [
+    "S2_Dark",
+    "S2_Lamp",
+    "S2_Olive",
+    "S2_Orange",
+    "S2_Rust",
+    "S2_Steel"
+  ],
+  "pivots": [
+    "S2_GasTank_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

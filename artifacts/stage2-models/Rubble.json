@@ -1,0 +1,37 @@
+{
+  "asset": "Rubble",
+  "fbx": "S2_Rubble.fbx",
+  "blend": "Source~/S2_Rubble.blend",
+  "mesh_objects": 1,
+  "triangles": 500,
+  "dimensions_m": [
+    2.0793323516845703,
+    1.4282200336456299,
+    0.611339807510376
+  ],
+  "bounds_min": [
+    -1.0497417449951172,
+    -0.7372234463691711,
+    -0.18400484323501587
+  ],
+  "bounds_max": [
+    1.0295906066894531,
+    0.6909966468811035,
+    0.4273349344730377
+  ],
+  "materials": [
+    "S2_Concrete",
+    "S2_Rust"
+  ],
+  "pivots": [
+    "S2_Rubble_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

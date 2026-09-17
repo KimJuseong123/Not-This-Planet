@@ -1,0 +1,1564 @@
+[
+  {
+    "asset": "Crane",
+    "fbx": "S2_Crane.fbx",
+    "blend": "Source~/S2_Crane.blend",
+    "mesh_objects": 4,
+    "triangles": 9372,
+    "dimensions_m": [
+      30.130001068115234,
+      4.545000076293945,
+      22.05198097229004
+    ],
+    "bounds_min": [
+      -5.065000057220459,
+      -2.5450000762939453,
+      0.0
+    ],
+    "bounds_max": [
+      25.065000534057617,
+      2.0,
+      22.05198097229004
+    ],
+    "materials": [
+      "S2_Concrete",
+      "S2_Dark",
+      "S2_Orange",
+      "S2_Steel",
+      "S2_Teal"
+    ],
+    "pivots": [
+      "S2_Crane_Root",
+      "SlewPivot",
+      "Trolley",
+      "HookHeight"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Elevator",
+    "fbx": "S2_Elevator.fbx",
+    "blend": "Source~/S2_Elevator.blend",
+    "mesh_objects": 3,
+    "triangles": 4192,
+    "dimensions_m": [
+      4.449999809265137,
+      3.995000123977661,
+      11.0
+    ],
+    "bounds_min": [
+      -2.2249999046325684,
+      -1.75,
+      0.0
+    ],
+    "bounds_max": [
+      2.2249999046325684,
+      2.245000123977661,
+      11.0
+    ],
+    "materials": [
+      "S2_Concrete",
+      "S2_Orange",
+      "S2_Steel",
+      "S2_Teal"
+    ],
+    "pivots": [
+      "S2_Elevator_Root",
+      "LiftCabin",
+      "CabinGate"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Console",
+    "fbx": "S2_Console.fbx",
+    "blend": "Source~/S2_Console.blend",
+    "mesh_objects": 4,
+    "triangles": 1192,
+    "dimensions_m": [
+      1.5,
+      0.800000011920929,
+      1.5807431936264038
+    ],
+    "bounds_min": [
+      -0.75,
+      -0.4000000059604645,
+      0.0
+    ],
+    "bounds_max": [
+      0.75,
+      0.4000000059604645,
+      1.5807431936264038
+    ],
+    "materials": [
+      "S2_Dark",
+      "S2_Orange",
+      "S2_Steel",
+      "S2_Teal"
+    ],
+    "pivots": [
+      "S2_Console_Root",
+      "Lever_0",
+      "Lever_1",
+      "Lever_2"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Launchpad",
+    "fbx": "S2_Launchpad.fbx",
+    "blend": "Source~/S2_Launchpad.blend",
+    "mesh_objects": 1,
+    "triangles": 7688,
+    "dimensions_m": [
+      6.0,
+      6.0,
+      0.5713292360305786
+    ],
+    "bounds_min": [
+      -3.0,
+      -3.0,
+      0.0
+    ],
+    "bounds_max": [
+      3.0,
+      3.0,
+      0.5713292360305786
+    ],
+    "materials": [
+      "S2_Concrete",
+      "S2_Orange",
+      "S2_Steel",
+      "S2_Teal"
+    ],
+    "pivots": [
+      "S2_Launchpad_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "RocketBase",
+    "fbx": "S2_RocketBase.fbx",
+    "blend": "Source~/S2_RocketBase.blend",
+    "mesh_objects": 1,
+    "triangles": 3520,
+    "dimensions_m": [
+      2.809999942779541,
+      2.8350000381469727,
+      2.1570000648498535
+    ],
+    "bounds_min": [
+      -1.4049999713897705,
+      -1.4299999475479126,
+      0.0
+    ],
+    "bounds_max": [
+      1.4049999713897705,
+      1.4049999713897705,
+      2.1570000648498535
+    ],
+    "materials": [
+      "S2_Dark",
+      "S2_Ivory",
+      "S2_Orange",
+      "S2_Steel",
+      "S2_Teal"
+    ],
+    "pivots": [
+      "S2_RocketBase_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "RocketTank",
+    "fbx": "S2_RocketTank.fbx",
+    "blend": "Source~/S2_RocketTank.blend",
+    "mesh_objects": 4,
+    "triangles": 2712,
+    "dimensions_m": [
+      2.9000000953674316,
+      3.0460000038146973,
+      3.4049999713897705
+    ],
+    "bounds_min": [
+      -1.4500000476837158,
+      -1.5959999561309814,
+      0.009999999776482582
+    ],
+    "bounds_max": [
+      1.4500000476837158,
+      1.4500000476837158,
+      3.4149999618530273
+    ],
+    "materials": [
+      "S2_Ivory",
+      "S2_Orange",
+      "S2_Steel"
+    ],
+    "pivots": [
+      "S2_RocketTank_Root",
+      "Bolt_1",
+      "Bolt_2",
+      "Bolt_3"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "RocketService",
+    "fbx": "S2_RocketService.fbx",
+    "blend": "Source~/S2_RocketService.blend",
+    "mesh_objects": 4,
+    "triangles": 3144,
+    "dimensions_m": [
+      2.9000000953674316,
+      3.0460000038146973,
+      3.4049999713897705
+    ],
+    "bounds_min": [
+      -1.4500000476837158,
+      -1.5959999561309814,
+      0.009999999776482582
+    ],
+    "bounds_max": [
+      1.4500000476837158,
+      1.4500000476837158,
+      3.4149999618530273
+    ],
+    "materials": [
+      "S2_Dark",
+      "S2_Ivory",
+      "S2_Orange",
+      "S2_Steel",
+      "S2_Teal"
+    ],
+    "pivots": [
+      "S2_RocketService_Root",
+      "Bolt_1.001",
+      "Bolt_2.001",
+      "Bolt_3.001"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "RocketCapsule",
+    "fbx": "S2_RocketCapsule.fbx",
+    "blend": "Source~/S2_RocketCapsule.blend",
+    "mesh_objects": 4,
+    "triangles": 2708,
+    "dimensions_m": [
+      2.9000000953674316,
+      3.0460000038146973,
+      3.4049999713897705
+    ],
+    "bounds_min": [
+      -1.4500000476837158,
+      -1.5959999561309814,
+      0.009999999776482582
+    ],
+    "bounds_max": [
+      1.4500000476837158,
+      1.4500000476837158,
+      3.4149999618530273
+    ],
+    "materials": [
+      "S2_Glass",
+      "S2_Ivory",
+      "S2_Orange",
+      "S2_Steel"
+    ],
+    "pivots": [
+      "S2_RocketCapsule_Root",
+      "Bolt_1.002",
+      "Bolt_2.002",
+      "Bolt_3.002"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Container",
+    "fbx": "S2_Container.fbx",
+    "blend": "Source~/S2_Container.blend",
+    "mesh_objects": 2,
+    "triangles": 3088,
+    "dimensions_m": [
+      5.102499961853027,
+      5.244999885559082,
+      4.195000171661377
+    ],
+    "bounds_min": [
+      -2.5512499809265137,
+      -2.615000009536743,
+      0.0
+    ],
+    "bounds_max": [
+      2.5512499809265137,
+      2.630000114440918,
+      4.195000171661377
+    ],
+    "materials": [
+      "S2_Dark",
+      "S2_Ivory",
+      "S2_Orange",
+      "S2_Steel",
+      "S2_Teal"
+    ],
+    "pivots": [
+      "S2_Container_Root",
+      "RoofHinge"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Ladder",
+    "fbx": "S2_Ladder.fbx",
+    "blend": "Source~/S2_Ladder.blend",
+    "mesh_objects": 4,
+    "triangles": 4260,
+    "dimensions_m": [
+      1.9500000476837158,
+      3.25,
+      5.139999866485596
+    ],
+    "bounds_min": [
+      -0.9750000238418579,
+      -1.625,
+      0.0
+    ],
+    "bounds_max": [
+      0.9750000238418579,
+      1.625,
+      5.139999866485596
+    ],
+    "materials": [
+      "S2_Dark",
+      "S2_Orange",
+      "S2_Steel",
+      "S2_Teal"
+    ],
+    "pivots": [
+      "S2_Ladder_Root",
+      "UpperPlatform",
+      "FrontFrame",
+      "RearFrame"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Wrench",
+    "fbx": "S2_Wrench.fbx",
+    "blend": "Source~/S2_Wrench.blend",
+    "mesh_objects": 2,
+    "triangles": 1808,
+    "dimensions_m": [
+      0.20859229564666748,
+      0.08449999988079071,
+      0.5473203063011169
+    ],
+    "bounds_min": [
+      -0.10940297693014145,
+      -0.05700000002980232,
+      0.0
+    ],
+    "bounds_max": [
+      0.09918932616710663,
+      0.027499999850988388,
+      0.5473203063011169
+    ],
+    "materials": [
+      "S2_Dark",
+      "S2_Orange",
+      "S2_Steel",
+      "S2_Teal"
+    ],
+    "pivots": [
+      "S2_Wrench_Root",
+      "AdjustableJaw"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "ToolRack",
+    "fbx": "S2_ToolRack.fbx",
+    "blend": "Source~/S2_ToolRack.blend",
+    "mesh_objects": 1,
+    "triangles": 972,
+    "dimensions_m": [
+      1.2000000476837158,
+      0.6700000166893005,
+      1.399999976158142
+    ],
+    "bounds_min": [
+      -0.6000000238418579,
+      -0.39500001072883606,
+      0.0
+    ],
+    "bounds_max": [
+      0.6000000238418579,
+      0.2750000059604645,
+      1.399999976158142
+    ],
+    "materials": [
+      "S2_Orange",
+      "S2_Steel",
+      "S2_Teal"
+    ],
+    "pivots": [
+      "S2_ToolRack_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Sprayer",
+    "fbx": "S2_Sprayer.fbx",
+    "blend": "Source~/S2_Sprayer.blend",
+    "mesh_objects": 1,
+    "triangles": 944,
+    "dimensions_m": [
+      0.25999999046325684,
+      0.5839999914169312,
+      0.3668587803840637
+    ],
+    "bounds_min": [
+      -0.12999999523162842,
+      -0.30399999022483826,
+      0.013141220435500145
+    ],
+    "bounds_max": [
+      0.12999999523162842,
+      0.2800000011920929,
+      0.3799999952316284
+    ],
+    "materials": [
+      "S2_Dark",
+      "S2_Orange",
+      "S2_Steel",
+      "S2_Teal"
+    ],
+    "pivots": [
+      "S2_Sprayer_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Shower",
+    "fbx": "S2_Shower.fbx",
+    "blend": "Source~/S2_Shower.blend",
+    "mesh_objects": 1,
+    "triangles": 1256,
+    "dimensions_m": [
+      2.119999885559082,
+      2.0,
+      2.559999942779541
+    ],
+    "bounds_min": [
+      -1.059999942779541,
+      -1.0,
+      0.0
+    ],
+    "bounds_max": [
+      1.059999942779541,
+      1.0,
+      2.559999942779541
+    ],
+    "materials": [
+      "S2_Ivory",
+      "S2_Orange",
+      "S2_Steel",
+      "S2_Teal"
+    ],
+    "pivots": [
+      "S2_Shower_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "GasTank",
+    "fbx": "S2_GasTank.fbx",
+    "blend": "Source~/S2_GasTank.blend",
+    "mesh_objects": 1,
+    "triangles": 2592,
+    "dimensions_m": [
+      3.5999999046325684,
+      2.202000141143799,
+      2.93314790725708
+    ],
+    "bounds_min": [
+      -1.7999999523162842,
+      -1.1319999694824219,
+      0.0
+    ],
+    "bounds_max": [
+      1.7999999523162842,
+      1.0700000524520874,
+      2.93314790725708
+    ],
+    "materials": [
+      "S2_Dark",
+      "S2_Lamp",
+      "S2_Olive",
+      "S2_Orange",
+      "S2_Rust",
+      "S2_Steel"
+    ],
+    "pivots": [
+      "S2_GasTank_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "CrashedCraft",
+    "fbx": "S2_CrashedCraft.fbx",
+    "blend": "Source~/S2_CrashedCraft.blend",
+    "mesh_objects": 1,
+    "triangles": 2868,
+    "dimensions_m": [
+      4.0960001945495605,
+      5.460000038146973,
+      3.200000047683716
+    ],
+    "bounds_min": [
+      -2.0480000972747803,
+      -2.7149999141693115,
+      -2.3841858265427618E-08
+    ],
+    "bounds_max": [
+      2.0480000972747803,
+      2.744999885559082,
+      3.200000047683716
+    ],
+    "materials": [
+      "S2_Dark",
+      "S2_Glass",
+      "S2_Ivory",
+      "S2_Rust",
+      "S2_Steel",
+      "S2_Teal"
+    ],
+    "pivots": [
+      "S2_CrashedCraft_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Wall",
+    "fbx": "S2_Wall.fbx",
+    "blend": "Source~/S2_Wall.blend",
+    "mesh_objects": 1,
+    "triangles": 412,
+    "dimensions_m": [
+      4.0,
+      0.41100001335144043,
+      2.8522214889526367
+    ],
+    "bounds_min": [
+      -2.0,
+      -0.210999995470047,
+      0.0
+    ],
+    "bounds_max": [
+      2.0,
+      0.20000000298023224,
+      2.8522214889526367
+    ],
+    "materials": [
+      "S2_Concrete",
+      "S2_Orange",
+      "S2_Rust"
+    ],
+    "pivots": [
+      "S2_Wall_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Drain",
+    "fbx": "S2_Drain.fbx",
+    "blend": "Source~/S2_Drain.blend",
+    "mesh_objects": 1,
+    "triangles": 2160,
+    "dimensions_m": [
+      1.0,
+      2.0,
+      0.2800000011920929
+    ],
+    "bounds_min": [
+      -0.5,
+      -1.0,
+      0.0
+    ],
+    "bounds_max": [
+      0.5,
+      1.0,
+      0.2800000011920929
+    ],
+    "materials": [
+      "S2_Concrete",
+      "S2_Steel"
+    ],
+    "pivots": [
+      "S2_Drain_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Slab",
+    "fbx": "S2_Slab.fbx",
+    "blend": "Source~/S2_Slab.blend",
+    "mesh_objects": 1,
+    "triangles": 576,
+    "dimensions_m": [
+      2.0,
+      2.0,
+      0.1315000057220459
+    ],
+    "bounds_min": [
+      -1.0,
+      -1.0,
+      0.0
+    ],
+    "bounds_max": [
+      1.0,
+      1.0,
+      0.1315000057220459
+    ],
+    "materials": [
+      "S2_Concrete",
+      "S2_Dark",
+      "S2_Steel"
+    ],
+    "pivots": [
+      "S2_Slab_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Rail",
+    "fbx": "S2_Rail.fbx",
+    "blend": "Source~/S2_Rail.blend",
+    "mesh_objects": 1,
+    "triangles": 688,
+    "dimensions_m": [
+      2.1500000953674316,
+      0.3499999940395355,
+      1.100000023841858
+    ],
+    "bounds_min": [
+      -1.0750000476837158,
+      -0.17499999701976776,
+      0.0
+    ],
+    "bounds_max": [
+      1.0750000476837158,
+      0.17499999701976776,
+      1.100000023841858
+    ],
+    "materials": [
+      "S2_Concrete",
+      "S2_Orange",
+      "S2_Steel",
+      "S2_Teal"
+    ],
+    "pivots": [
+      "S2_Rail_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Bollard",
+    "fbx": "S2_Bollard.fbx",
+    "blend": "Source~/S2_Bollard.blend",
+    "mesh_objects": 1,
+    "triangles": 500,
+    "dimensions_m": [
+      0.4399999976158142,
+      0.4399999976158142,
+      0.8500000238418579
+    ],
+    "bounds_min": [
+      -0.2199999988079071,
+      -0.2199999988079071,
+      0.0
+    ],
+    "bounds_max": [
+      0.2199999988079071,
+      0.2199999988079071,
+      0.8500000238418579
+    ],
+    "materials": [
+      "S2_Dark",
+      "S2_Orange",
+      "S2_Steel"
+    ],
+    "pivots": [
+      "S2_Bollard_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Facade",
+    "fbx": "S2_Facade.fbx",
+    "blend": "Source~/S2_Facade.blend",
+    "mesh_objects": 1,
+    "triangles": 1444,
+    "dimensions_m": [
+      4.0,
+      0.5,
+      5.003559112548828
+    ],
+    "bounds_min": [
+      -2.0,
+      -0.25,
+      0.0
+    ],
+    "bounds_max": [
+      2.0,
+      0.25,
+      5.003559112548828
+    ],
+    "materials": [
+      "S2_Concrete",
+      "S2_Rust"
+    ],
+    "pivots": [
+      "S2_Facade_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "CoolingTower",
+    "fbx": "S2_CoolingTower.fbx",
+    "blend": "Source~/S2_CoolingTower.blend",
+    "mesh_objects": 1,
+    "triangles": 2380,
+    "dimensions_m": [
+      9.600000381469727,
+      9.600000381469727,
+      17.95476722717285
+    ],
+    "bounds_min": [
+      -4.800000190734863,
+      -4.800000190734863,
+      0.09023361653089523
+    ],
+    "bounds_max": [
+      4.800000190734863,
+      4.800000190734863,
+      18.045000076293945
+    ],
+    "materials": [
+      "S2_Concrete",
+      "S2_Orange",
+      "S2_Rust"
+    ],
+    "pivots": [
+      "S2_CoolingTower_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Chimney",
+    "fbx": "S2_Chimney.fbx",
+    "blend": "Source~/S2_Chimney.blend",
+    "mesh_objects": 1,
+    "triangles": 1932,
+    "dimensions_m": [
+      2.5,
+      2.5,
+      12.0
+    ],
+    "bounds_min": [
+      -1.25,
+      -1.25,
+      0.0
+    ],
+    "bounds_max": [
+      1.25,
+      1.25,
+      12.0
+    ],
+    "materials": [
+      "S2_Concrete",
+      "S2_Orange",
+      "S2_Steel"
+    ],
+    "pivots": [
+      "S2_Chimney_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Rubble",
+    "fbx": "S2_Rubble.fbx",
+    "blend": "Source~/S2_Rubble.blend",
+    "mesh_objects": 1,
+    "triangles": 500,
+    "dimensions_m": [
+      2.0793323516845703,
+      1.4282200336456299,
+      0.611339807510376
+    ],
+    "bounds_min": [
+      -1.0497417449951172,
+      -0.7372234463691711,
+      -0.18400484323501587
+    ],
+    "bounds_max": [
+      1.0295906066894531,
+      0.6909966468811035,
+      0.4273349344730377
+    ],
+    "materials": [
+      "S2_Concrete",
+      "S2_Rust"
+    ],
+    "pivots": [
+      "S2_Rubble_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Floodlight",
+    "fbx": "S2_Floodlight.fbx",
+    "blend": "Source~/S2_Floodlight.blend",
+    "mesh_objects": 3,
+    "triangles": 1180,
+    "dimensions_m": [
+      1.3899999856948853,
+      1.3392305374145508,
+      2.569999933242798
+    ],
+    "bounds_min": [
+      -0.6399999856948853,
+      -0.6696152687072754,
+      0.0
+    ],
+    "bounds_max": [
+      0.75,
+      0.6696152687072754,
+      2.569999933242798
+    ],
+    "materials": [
+      "S2_Dark",
+      "S2_Lamp",
+      "S2_Orange",
+      "S2_Steel",
+      "S2_Teal"
+    ],
+    "pivots": [
+      "S2_Floodlight_Root",
+      "LampTilt",
+      "LampTilt.001"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "RouteBlue",
+    "fbx": "S2_RouteBlue.fbx",
+    "blend": "Source~/S2_RouteBlue.blend",
+    "mesh_objects": 1,
+    "triangles": 588,
+    "dimensions_m": [
+      2.0,
+      2.0,
+      0.1315000057220459
+    ],
+    "bounds_min": [
+      -1.0,
+      -1.0,
+      0.0
+    ],
+    "bounds_max": [
+      1.0,
+      1.0,
+      0.1315000057220459
+    ],
+    "materials": [
+      "S2_Concrete",
+      "S2_Dark",
+      "S2_Steel",
+      "S2_Teal"
+    ],
+    "pivots": [
+      "S2_RouteBlue_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "RouteAmber",
+    "fbx": "S2_RouteAmber.fbx",
+    "blend": "Source~/S2_RouteAmber.blend",
+    "mesh_objects": 1,
+    "triangles": 588,
+    "dimensions_m": [
+      2.0,
+      2.0,
+      0.1315000057220459
+    ],
+    "bounds_min": [
+      -1.0,
+      -1.0,
+      0.0
+    ],
+    "bounds_max": [
+      1.0,
+      1.0,
+      0.1315000057220459
+    ],
+    "materials": [
+      "S2_Concrete",
+      "S2_Dark",
+      "S2_Orange",
+      "S2_Steel"
+    ],
+    "pivots": [
+      "S2_RouteAmber_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "GrassDry",
+    "fbx": "S2_GrassDry.fbx",
+    "blend": "Source~/S2_GrassDry.blend",
+    "mesh_objects": 1,
+    "triangles": 320,
+    "dimensions_m": [
+      0.365095853805542,
+      0.3694778084754944,
+      0.2993044853210449
+    ],
+    "bounds_min": [
+      -0.18010328710079193,
+      -0.183502659201622,
+      0.014999999664723873
+    ],
+    "bounds_max": [
+      0.18499258160591125,
+      0.18597516417503357,
+      0.3143044710159302
+    ],
+    "materials": [
+      "S2_Dry"
+    ],
+    "pivots": [
+      "S2_GrassDry_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "GrassSeed",
+    "fbx": "S2_GrassSeed.fbx",
+    "blend": "Source~/S2_GrassSeed.blend",
+    "mesh_objects": 1,
+    "triangles": 772,
+    "dimensions_m": [
+      0.42904967069625854,
+      0.44486165046691895,
+      0.7779003381729126
+    ],
+    "bounds_min": [
+      -0.22174489498138428,
+      -0.2160561978816986,
+      0.014999999664723873
+    ],
+    "bounds_max": [
+      0.20730479061603546,
+      0.22880545258522034,
+      0.7929003238677979
+    ],
+    "materials": [
+      "S2_Dry"
+    ],
+    "pivots": [
+      "S2_GrassSeed_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "WeedRosette",
+    "fbx": "S2_WeedRosette.fbx",
+    "blend": "Source~/S2_WeedRosette.blend",
+    "mesh_objects": 1,
+    "triangles": 172,
+    "dimensions_m": [
+      0.5557125806808472,
+      0.5493102669715881,
+      0.22999998927116394
+    ],
+    "bounds_min": [
+      -0.27571260929107666,
+      -0.2789261043071747,
+      0.009999999776482582
+    ],
+    "bounds_max": [
+      0.2800000011920929,
+      0.27038416266441345,
+      0.23999999463558197
+    ],
+    "materials": [
+      "S2_LeafLight",
+      "S2_Olive"
+    ],
+    "pivots": [
+      "S2_WeedRosette_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Wildflowers",
+    "fbx": "S2_Wildflowers.fbx",
+    "blend": "Source~/S2_Wildflowers.blend",
+    "mesh_objects": 1,
+    "triangles": 760,
+    "dimensions_m": [
+      0.4345729351043701,
+      0.40886449813842773,
+      0.4205344319343567
+    ],
+    "bounds_min": [
+      -0.21257293224334717,
+      -0.2196194976568222,
+      -0.0019016346195712686
+    ],
+    "bounds_max": [
+      0.22200000286102295,
+      0.18924498558044434,
+      0.4186328053474426
+    ],
+    "materials": [
+      "S2_Flower",
+      "S2_Olive",
+      "S2_Orange"
+    ],
+    "pivots": [
+      "S2_Wildflowers_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "ScrubDry",
+    "fbx": "S2_ScrubDry.fbx",
+    "blend": "Source~/S2_ScrubDry.blend",
+    "mesh_objects": 1,
+    "triangles": 1208,
+    "dimensions_m": [
+      0.8490425944328308,
+      0.7186123728752136,
+      0.7375568747520447
+    ],
+    "bounds_min": [
+      -0.39973267912864685,
+      -0.3480129837989807,
+      -0.00296060461550951
+    ],
+    "bounds_max": [
+      0.44930991530418396,
+      0.3705993890762329,
+      0.7345962524414062
+    ],
+    "materials": [
+      "S2_Bark",
+      "S2_LeafLight",
+      "S2_Olive"
+    ],
+    "pivots": [
+      "S2_ScrubDry_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Shrub",
+    "fbx": "S2_Shrub.fbx",
+    "blend": "Source~/S2_Shrub.blend",
+    "mesh_objects": 1,
+    "triangles": 2072,
+    "dimensions_m": [
+      0.8737720251083374,
+      0.8050493001937866,
+      0.8259835839271545
+    ],
+    "bounds_min": [
+      -0.42446208000183105,
+      -0.4226294457912445,
+      -0.0025918441824615
+    ],
+    "bounds_max": [
+      0.44930991530418396,
+      0.3824198842048645,
+      0.8233917355537415
+    ],
+    "materials": [
+      "S2_Bark",
+      "S2_LeafLight",
+      "S2_Olive"
+    ],
+    "pivots": [
+      "S2_Shrub_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "IvyLow",
+    "fbx": "S2_IvyLow.fbx",
+    "blend": "Source~/S2_IvyLow.blend",
+    "mesh_objects": 1,
+    "triangles": 1256,
+    "dimensions_m": [
+      1.3199999332427979,
+      0.30052170157432556,
+      0.24166667461395264
+    ],
+    "bounds_min": [
+      -0.6399999856948853,
+      -0.18052171170711517,
+      0.004999999888241291
+    ],
+    "bounds_max": [
+      0.6800000071525574,
+      0.11999999731779099,
+      0.24666666984558105
+    ],
+    "materials": [
+      "S2_Bark",
+      "S2_Concrete",
+      "S2_LeafLight",
+      "S2_Olive"
+    ],
+    "pivots": [
+      "S2_IvyLow_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "IvyHanging",
+    "fbx": "S2_IvyHanging.fbx",
+    "blend": "Source~/S2_IvyHanging.blend",
+    "mesh_objects": 1,
+    "triangles": 1256,
+    "dimensions_m": [
+      1.3199999332427979,
+      0.30052170157432556,
+      1.3184086084365845
+    ],
+    "bounds_min": [
+      -0.6399999856948853,
+      -0.18052171170711517,
+      0.18159139156341553
+    ],
+    "bounds_max": [
+      0.6800000071525574,
+      0.11999999731779099,
+      1.5
+    ],
+    "materials": [
+      "S2_Bark",
+      "S2_Concrete",
+      "S2_LeafLight",
+      "S2_Olive"
+    ],
+    "pivots": [
+      "S2_IvyHanging_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Moss",
+    "fbx": "S2_Moss.fbx",
+    "blend": "Source~/S2_Moss.blend",
+    "mesh_objects": 1,
+    "triangles": 820,
+    "dimensions_m": [
+      0.6199482679367065,
+      0.403324156999588,
+      0.059522539377212524
+    ],
+    "bounds_min": [
+      -0.2969355583190918,
+      -0.19732843339443207,
+      0.0030367914587259293
+    ],
+    "bounds_max": [
+      0.32301270961761475,
+      0.20599572360515594,
+      0.0625593289732933
+    ],
+    "materials": [
+      "S2_Concrete",
+      "S2_Moss"
+    ],
+    "pivots": [
+      "S2_Moss_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Lichen",
+    "fbx": "S2_Lichen.fbx",
+    "blend": "Source~/S2_Lichen.blend",
+    "mesh_objects": 1,
+    "triangles": 820,
+    "dimensions_m": [
+      0.6211097240447998,
+      0.4169699251651764,
+      0.045842885971069336
+    ],
+    "bounds_min": [
+      -0.29809701442718506,
+      -0.21149183809757233,
+      0.0030367914587259293
+    ],
+    "bounds_max": [
+      0.32301270961761475,
+      0.20547808706760406,
+      0.048879675567150116
+    ],
+    "materials": [
+      "S2_LeafLight",
+      "S2_Rust"
+    ],
+    "pivots": [
+      "S2_Lichen_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Reeds",
+    "fbx": "S2_Reeds.fbx",
+    "blend": "Source~/S2_Reeds.blend",
+    "mesh_objects": 1,
+    "triangles": 432,
+    "dimensions_m": [
+      0.41931790113449097,
+      0.46503913402557373,
+      0.8823015093803406
+    ],
+    "bounds_min": [
+      -0.20709317922592163,
+      -0.2199927121400833,
+      0.014999999664723873
+    ],
+    "bounds_max": [
+      0.21222472190856934,
+      0.24504640698432922,
+      0.8973014950752258
+    ],
+    "materials": [
+      "S2_Bark",
+      "S2_Dry",
+      "S2_Olive"
+    ],
+    "pivots": [
+      "S2_Reeds_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "DeadSapling",
+    "fbx": "S2_DeadSapling.fbx",
+    "blend": "Source~/S2_DeadSapling.blend",
+    "mesh_objects": 1,
+    "triangles": 512,
+    "dimensions_m": [
+      0.7767393589019775,
+      0.6456090807914734,
+      1.0760080814361572
+    ],
+    "bounds_min": [
+      -0.32742947340011597,
+      -0.3480129837989807,
+      -0.0035632988438010216
+    ],
+    "bounds_max": [
+      0.44930991530418396,
+      0.2975960969924927,
+      1.0724447965621948
+    ],
+    "materials": [
+      "S2_Bark",
+      "S2_Dry"
+    ],
+    "pivots": [
+      "S2_DeadSapling_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  }
+]

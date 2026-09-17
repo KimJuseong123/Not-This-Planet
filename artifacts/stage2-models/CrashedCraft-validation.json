@@ -1,0 +1,13 @@
+{
+  "asset": "CrashedCraft",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 1,
+  "dimensions_m": [
+    4.0960001945495605,
+    5.460000038146973,
+    3.2000010013580322
+  ],
+  "pivots_count": 1,
+  "passed": true
+}

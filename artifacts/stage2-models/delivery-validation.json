@@ -1,0 +1,282 @@
+[
+  {
+    "asset": "Crane",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "Elevator",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "Console",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "Launchpad",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "RocketBase",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "RocketTank",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "RocketService",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "RocketCapsule",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "Container",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "Ladder",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "Wrench",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "ToolRack",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "Sprayer",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "Shower",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "GasTank",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "CrashedCraft",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "Wall",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "Drain",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "Slab",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "Rail",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "Bollard",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "Facade",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "CoolingTower",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "Chimney",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "Rubble",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "Floodlight",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "RouteBlue",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "RouteAmber",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "GrassDry",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "GrassSeed",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "WeedRosette",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "Wildflowers",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "ScrubDry",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "Shrub",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "IvyLow",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "IvyHanging",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "Moss",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "Lichen",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "Reeds",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  },
+  {
+    "asset": "DeadSapling",
+    "scaleMatches": true,
+    "trianglesMatch": true,
+    "meshCountMatches": true,
+    "fourArtViews": true
+  }
+]

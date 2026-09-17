@@ -1,0 +1,38 @@
+{
+  "asset": "Shrub",
+  "fbx": "S2_Shrub.fbx",
+  "blend": "Source~/S2_Shrub.blend",
+  "mesh_objects": 1,
+  "triangles": 2072,
+  "dimensions_m": [
+    0.8737720251083374,
+    0.8050493001937866,
+    0.8259835839271545
+  ],
+  "bounds_min": [
+    -0.42446208000183105,
+    -0.4226294457912445,
+    -0.0025918441824615
+  ],
+  "bounds_max": [
+    0.44930991530418396,
+    0.3824198842048645,
+    0.8233917355537415
+  ],
+  "materials": [
+    "S2_Bark",
+    "S2_LeafLight",
+    "S2_Olive"
+  ],
+  "pivots": [
+    "S2_Shrub_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

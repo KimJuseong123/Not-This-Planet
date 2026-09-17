@@ -1,0 +1,13 @@
+{
+  "asset": "Shrub",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 1,
+  "dimensions_m": [
+    0.8737720251083374,
+    0.805049479007721,
+    0.8259837031364441
+  ],
+  "pivots_count": 1,
+  "passed": true
+}

@@ -1,0 +1,93 @@
+{
+  "running": false,
+  "pending": [],
+  "done": [
+    {
+      "asset": "Wrench",
+      "triangles": 1808,
+      "passed": true
+    },
+    {
+      "asset": "Sprayer",
+      "triangles": 944,
+      "passed": true
+    },
+    {
+      "asset": "GasTank",
+      "triangles": 2592,
+      "passed": true
+    },
+    {
+      "asset": "CrashedCraft",
+      "triangles": 1384,
+      "passed": true
+    },
+    {
+      "asset": "Drain",
+      "triangles": 2160,
+      "passed": true
+    },
+    {
+      "asset": "GrassDry",
+      "triangles": 320,
+      "passed": true
+    },
+    {
+      "asset": "GrassSeed",
+      "triangles": 772,
+      "passed": true
+    },
+    {
+      "asset": "WeedRosette",
+      "triangles": 172,
+      "passed": true
+    },
+    {
+      "asset": "Wildflowers",
+      "triangles": 760,
+      "passed": true
+    },
+    {
+      "asset": "ScrubDry",
+      "triangles": 1208,
+      "passed": true
+    },
+    {
+      "asset": "Shrub",
+      "triangles": 2072,
+      "passed": true
+    },
+    {
+      "asset": "IvyLow",
+      "triangles": 1256,
+      "passed": true
+    },
+    {
+      "asset": "IvyHanging",
+      "triangles": 1256,
+      "passed": true
+    },
+    {
+      "asset": "Moss",
+      "triangles": 820,
+      "passed": true
+    },
+    {
+      "asset": "Lichen",
+      "triangles": 820,
+      "passed": true
+    },
+    {
+      "asset": "Reeds",
+      "triangles": 432,
+      "passed": true
+    },
+    {
+      "asset": "DeadSapling",
+      "triangles": 512,
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "current": "DeadSapling"
+}

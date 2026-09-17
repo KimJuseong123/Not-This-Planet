@@ -1,0 +1,39 @@
+{
+  "asset": "Sprayer",
+  "fbx": "S2_Sprayer.fbx",
+  "blend": "Source~/S2_Sprayer.blend",
+  "mesh_objects": 1,
+  "triangles": 944,
+  "dimensions_m": [
+    0.25999999046325684,
+    0.5839999914169312,
+    0.3668587803840637
+  ],
+  "bounds_min": [
+    -0.12999999523162842,
+    -0.30399999022483826,
+    0.013141220435500145
+  ],
+  "bounds_max": [
+    0.12999999523162842,
+    0.2800000011920929,
+    0.3799999952316284
+  ],
+  "materials": [
+    "S2_Dark",
+    "S2_Orange",
+    "S2_Steel",
+    "S2_Teal"
+  ],
+  "pivots": [
+    "S2_Sprayer_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

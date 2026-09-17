@@ -25,6 +25,8 @@ stage2/
 
 ## 최신 씬 기반 컨셉 — v3
 
+[에셋별 방향 아트 160장](model-references/README.md) · [Blender MCP 모델 40종](../../../../METAGAME/Assets/_Project/Models/Stage2/README_KO.md)
+
 [컨셉아트 8장 갤러리·기획 대조·검수 기록](v3-scene-draft/README.md) · [생성 프롬프트](v3-scene-draft/PROMPTS.md)
 
 ![Stage2 씬 기반 발사장 전경](v3-scene-draft/01-launch-yard-panorama-r2.png)

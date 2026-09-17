@@ -1,0 +1,38 @@
+{
+  "asset": "Bollard",
+  "fbx": "S2_Bollard.fbx",
+  "blend": "Source~/S2_Bollard.blend",
+  "mesh_objects": 1,
+  "triangles": 500,
+  "dimensions_m": [
+    0.4399999976158142,
+    0.4399999976158142,
+    0.8500000238418579
+  ],
+  "bounds_min": [
+    -0.2199999988079071,
+    -0.2199999988079071,
+    0.0
+  ],
+  "bounds_max": [
+    0.2199999988079071,
+    0.2199999988079071,
+    0.8500000238418579
+  ],
+  "materials": [
+    "S2_Dark",
+    "S2_Orange",
+    "S2_Steel"
+  ],
+  "pivots": [
+    "S2_Bollard_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

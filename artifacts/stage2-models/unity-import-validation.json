@@ -1,0 +1,527 @@
+{
+    "unityVersion": "6000.5.4f1",
+    "modelCount": 40,
+    "passed": true,
+    "models": [
+        {
+            "asset": "S2_Bollard.fbx",
+            "meshes": 1,
+            "triangles": 500,
+            "dimensions": {
+                "x": 0.4399999976158142,
+                "y": 0.8500000238418579,
+                "z": 0.440000057220459
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_Chimney.fbx",
+            "meshes": 1,
+            "triangles": 1932,
+            "dimensions": {
+                "x": 2.5,
+                "y": 11.999999046325684,
+                "z": 2.5000011920928957
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_Console.fbx",
+            "meshes": 4,
+            "triangles": 1192,
+            "dimensions": {
+                "x": 1.5,
+                "y": 1.5807430744171143,
+                "z": 0.8000001311302185
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_Container.fbx",
+            "meshes": 2,
+            "triangles": 3088,
+            "dimensions": {
+                "x": 5.102499961853027,
+                "y": 4.195000648498535,
+                "z": 5.244999885559082
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_CoolingTower.fbx",
+            "meshes": 1,
+            "triangles": 2380,
+            "dimensions": {
+                "x": 9.600000381469727,
+                "y": 17.95476531982422,
+                "z": 9.600001335144043
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_Crane.fbx",
+            "meshes": 4,
+            "triangles": 9372,
+            "dimensions": {
+                "x": 30.130001068115236,
+                "y": 22.051979064941408,
+                "z": 4.545001983642578
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_CrashedCraft.fbx",
+            "meshes": 1,
+            "triangles": 2868,
+            "dimensions": {
+                "x": 4.0960001945495609,
+                "y": 3.200000762939453,
+                "z": 5.460000038146973
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_DeadSapling.fbx",
+            "meshes": 1,
+            "triangles": 512,
+            "dimensions": {
+                "x": 0.7767393589019775,
+                "y": 1.0760080814361573,
+                "z": 0.6456091403961182
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_Drain.fbx",
+            "meshes": 1,
+            "triangles": 2160,
+            "dimensions": {
+                "x": 1.0,
+                "y": 0.2800002098083496,
+                "z": 1.9999998807907105
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_Elevator.fbx",
+            "meshes": 3,
+            "triangles": 4192,
+            "dimensions": {
+                "x": 4.449999809265137,
+                "y": 10.999999046325684,
+                "z": 3.9950013160705568
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_Facade.fbx",
+            "meshes": 1,
+            "triangles": 1444,
+            "dimensions": {
+                "x": 4.0,
+                "y": 5.00355863571167,
+                "z": 0.5000005960464478
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_Floodlight.fbx",
+            "meshes": 3,
+            "triangles": 1180,
+            "dimensions": {
+                "x": 1.3899999856948853,
+                "y": 2.5699996948242189,
+                "z": 1.3392306566238404
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_GasTank.fbx",
+            "meshes": 1,
+            "triangles": 2592,
+            "dimensions": {
+                "x": 3.5999999046325685,
+                "y": 2.93314790725708,
+                "z": 2.202000141143799
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_GrassDry.fbx",
+            "meshes": 1,
+            "triangles": 320,
+            "dimensions": {
+                "x": 0.365095853805542,
+                "y": 0.2993044853210449,
+                "z": 0.3694778084754944
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_GrassSeed.fbx",
+            "meshes": 1,
+            "triangles": 772,
+            "dimensions": {
+                "x": 0.42904967069625857,
+                "y": 0.7779003381729126,
+                "z": 0.4448617100715637
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_IvyHanging.fbx",
+            "meshes": 1,
+            "triangles": 1256,
+            "dimensions": {
+                "x": 1.3199999332427979,
+                "y": 1.318408489227295,
+                "z": 0.3005218207836151
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_IvyLow.fbx",
+            "meshes": 1,
+            "triangles": 1256,
+            "dimensions": {
+                "x": 1.3199999332427979,
+                "y": 0.24166670441627503,
+                "z": 0.30052170157432558
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_Ladder.fbx",
+            "meshes": 4,
+            "triangles": 4260,
+            "dimensions": {
+                "x": 1.9500000476837159,
+                "y": 5.1399993896484379,
+                "z": 3.25
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_Launchpad.fbx",
+            "meshes": 1,
+            "triangles": 7688,
+            "dimensions": {
+                "x": 6.0,
+                "y": 0.5713298916816711,
+                "z": 5.999999523162842
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_Lichen.fbx",
+            "meshes": 1,
+            "triangles": 820,
+            "dimensions": {
+                "x": 0.6211097240447998,
+                "y": 0.04584293067455292,
+                "z": 0.416969895362854
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_Moss.fbx",
+            "meshes": 1,
+            "triangles": 820,
+            "dimensions": {
+                "x": 0.6199482679367065,
+                "y": 0.059522584080696109,
+                "z": 0.4033241271972656
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_Rail.fbx",
+            "meshes": 1,
+            "triangles": 688,
+            "dimensions": {
+                "x": 2.1500000953674318,
+                "y": 1.0999999046325684,
+                "z": 0.3500000834465027
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_Reeds.fbx",
+            "meshes": 1,
+            "triangles": 432,
+            "dimensions": {
+                "x": 0.41931790113449099,
+                "y": 0.8823014497756958,
+                "z": 0.4650392234325409
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_RocketBase.fbx",
+            "meshes": 1,
+            "triangles": 3520,
+            "dimensions": {
+                "x": 2.809999942779541,
+                "y": 2.1570000648498537,
+                "z": 2.8350000381469728
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_RocketCapsule.fbx",
+            "meshes": 4,
+            "triangles": 2708,
+            "dimensions": {
+                "x": 2.9000000953674318,
+                "y": 3.4050002098083498,
+                "z": 3.0460002422332765
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_RocketService.fbx",
+            "meshes": 4,
+            "triangles": 3144,
+            "dimensions": {
+                "x": 2.9000000953674318,
+                "y": 3.4050002098083498,
+                "z": 3.0460002422332765
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_RocketTank.fbx",
+            "meshes": 4,
+            "triangles": 2712,
+            "dimensions": {
+                "x": 2.9000000953674318,
+                "y": 3.4050002098083498,
+                "z": 3.0460002422332765
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_RouteAmber.fbx",
+            "meshes": 1,
+            "triangles": 588,
+            "dimensions": {
+                "x": 2.0,
+                "y": 0.1315002292394638,
+                "z": 1.9999998807907105
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_RouteBlue.fbx",
+            "meshes": 1,
+            "triangles": 588,
+            "dimensions": {
+                "x": 2.0,
+                "y": 0.1315002292394638,
+                "z": 1.9999998807907105
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_Rubble.fbx",
+            "meshes": 1,
+            "triangles": 500,
+            "dimensions": {
+                "x": 2.0793323516845705,
+                "y": 0.6113399267196655,
+                "z": 1.4282201528549195
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_ScrubDry.fbx",
+            "meshes": 1,
+            "triangles": 1208,
+            "dimensions": {
+                "x": 0.8490425944328308,
+                "y": 0.7375569343566895,
+                "z": 0.7186123728752136
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_Shower.fbx",
+            "meshes": 1,
+            "triangles": 1256,
+            "dimensions": {
+                "x": 2.119999885559082,
+                "y": 2.559999942779541,
+                "z": 2.000000238418579
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_Shrub.fbx",
+            "meshes": 1,
+            "triangles": 2072,
+            "dimensions": {
+                "x": 0.8737720251083374,
+                "y": 0.8259836435317993,
+                "z": 0.8050493597984314
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_Slab.fbx",
+            "meshes": 1,
+            "triangles": 576,
+            "dimensions": {
+                "x": 2.0,
+                "y": 0.1315002292394638,
+                "z": 1.9999998807907105
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_Sprayer.fbx",
+            "meshes": 1,
+            "triangles": 944,
+            "dimensions": {
+                "x": 0.25999999046325686,
+                "y": 0.3668588101863861,
+                "z": 0.5839999914169312
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_ToolRack.fbx",
+            "meshes": 1,
+            "triangles": 972,
+            "dimensions": {
+                "x": 1.2000000476837159,
+                "y": 1.3999998569488526,
+                "z": 0.6700001358985901
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_Wall.fbx",
+            "meshes": 1,
+            "triangles": 412,
+            "dimensions": {
+                "x": 4.0,
+                "y": 2.8522212505340578,
+                "z": 0.4110003113746643
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_WeedRosette.fbx",
+            "meshes": 1,
+            "triangles": 172,
+            "dimensions": {
+                "x": 0.5557125806808472,
+                "y": 0.23000003397464753,
+                "z": 0.5493102073669434
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_Wildflowers.fbx",
+            "meshes": 1,
+            "triangles": 760,
+            "dimensions": {
+                "x": 0.4345729351043701,
+                "y": 0.4205344617366791,
+                "z": 0.4088645279407501
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        },
+        {
+            "asset": "S2_Wrench.fbx",
+            "meshes": 2,
+            "triangles": 1808,
+            "dimensions": {
+                "x": 0.20859229564666749,
+                "y": 0.5473202466964722,
+                "z": 0.08450005948543549
+            },
+            "materialsValid": true,
+            "uvValid": true,
+            "finite": true
+        }
+    ]
+}

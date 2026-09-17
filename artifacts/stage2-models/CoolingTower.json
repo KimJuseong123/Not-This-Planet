@@ -1,0 +1,38 @@
+{
+  "asset": "CoolingTower",
+  "fbx": "S2_CoolingTower.fbx",
+  "blend": "Source~/S2_CoolingTower.blend",
+  "mesh_objects": 1,
+  "triangles": 2380,
+  "dimensions_m": [
+    9.600000381469727,
+    9.600000381469727,
+    17.95476722717285
+  ],
+  "bounds_min": [
+    -4.800000190734863,
+    -4.800000190734863,
+    0.09023361653089523
+  ],
+  "bounds_max": [
+    4.800000190734863,
+    4.800000190734863,
+    18.045000076293945
+  ],
+  "materials": [
+    "S2_Concrete",
+    "S2_Orange",
+    "S2_Rust"
+  ],
+  "pivots": [
+    "S2_CoolingTower_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

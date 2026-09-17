@@ -1,0 +1,38 @@
+{
+  "asset": "Slab",
+  "fbx": "S2_Slab.fbx",
+  "blend": "Source~/S2_Slab.blend",
+  "mesh_objects": 1,
+  "triangles": 576,
+  "dimensions_m": [
+    2.0,
+    2.0,
+    0.1315000057220459
+  ],
+  "bounds_min": [
+    -1.0,
+    -1.0,
+    0.0
+  ],
+  "bounds_max": [
+    1.0,
+    1.0,
+    0.1315000057220459
+  ],
+  "materials": [
+    "S2_Concrete",
+    "S2_Dark",
+    "S2_Steel"
+  ],
+  "pivots": [
+    "S2_Slab_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

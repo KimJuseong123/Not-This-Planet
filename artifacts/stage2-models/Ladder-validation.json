@@ -1,0 +1,13 @@
+{
+  "asset": "Ladder",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 4,
+  "dimensions_m": [
+    1.9500000476837158,
+    3.2500007152557373,
+    5.139999866485596
+  ],
+  "pivots_count": 4,
+  "passed": true
+}

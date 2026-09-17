@@ -1,0 +1,39 @@
+{
+  "asset": "IvyLow",
+  "fbx": "S2_IvyLow.fbx",
+  "blend": "Source~/S2_IvyLow.blend",
+  "mesh_objects": 1,
+  "triangles": 1256,
+  "dimensions_m": [
+    1.3199999332427979,
+    0.30052170157432556,
+    0.24166667461395264
+  ],
+  "bounds_min": [
+    -0.6399999856948853,
+    -0.18052171170711517,
+    0.004999999888241291
+  ],
+  "bounds_max": [
+    0.6800000071525574,
+    0.11999999731779099,
+    0.24666666984558105
+  ],
+  "materials": [
+    "S2_Bark",
+    "S2_Concrete",
+    "S2_LeafLight",
+    "S2_Olive"
+  ],
+  "pivots": [
+    "S2_IvyLow_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

@@ -1,0 +1,13 @@
+{
+  "asset": "Rail",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 1,
+  "dimensions_m": [
+    2.1500000953674316,
+    0.35000017285346985,
+    1.100000023841858
+  ],
+  "pivots_count": 1,
+  "passed": true
+}

@@ -1,0 +1,13 @@
+{
+  "asset": "DeadSapling",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 1,
+  "dimensions_m": [
+    0.7767393589019775,
+    0.6456092596054077,
+    1.0760082006454468
+  ],
+  "pivots_count": 1,
+  "passed": true
+}

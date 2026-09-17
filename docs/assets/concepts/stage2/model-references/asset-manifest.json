@@ -1,0 +1,446 @@
+{
+  "units": "meter",
+  "front": "Blender -Y -> Unity +Z",
+  "assets": [
+    {
+      "id": "Crane",
+      "category": "장비",
+      "label": "Fixed slewing crane",
+      "design": "20m mast, 25m straight radial horizontal jib, sliding hoist trolley, fixed mid-mast operator balcony at 8m, teal steel orange guards, concrete base, hanging open safety hook. NO elevator in this asset; elevator separate.",
+      "size": [
+        28,
+        4,
+        21
+      ]
+    },
+    {
+      "id": "Elevator",
+      "category": "장비",
+      "label": "Crane cage elevator",
+      "design": "8m dual vertical rails, 3.5m square blue platform cage, orange entry gate, ground and upper landing gate, clear cage travel. Separate cabin from rails.",
+      "size": [
+        4,
+        4,
+        11
+      ]
+    },
+    {
+      "id": "Console",
+      "category": "장비",
+      "label": "Crane control console",
+      "design": "waist-height teal pedestal console, three chunky lever axes, broad orange-edged lower sight shield, no words, meter panels.",
+      "size": [
+        1.5,
+        0.8,
+        1.3
+      ]
+    },
+    {
+      "id": "Launchpad",
+      "category": "장비",
+      "label": "Low rocket launch pad",
+      "design": "6m circular low concrete-and-steel base, radial grille sectors, central 2.8m mounting circle, low orange rim, no tower or rocket.",
+      "size": [
+        6,
+        6,
+        0.45
+      ]
+    },
+    {
+      "id": "RocketBase",
+      "category": "로켓",
+      "label": "Fixed rocket bottom stage",
+      "design": "2.8m diameter 2.1m tall squat ivory rocket base, orange belt, three dark engine bells below, stabilizer feet, flat upper ring connection.",
+      "size": [
+        3.4,
+        3.4,
+        2.1
+      ]
+    },
+    {
+      "id": "RocketTank",
+      "category": "로켓",
+      "label": "Rocket tank segment",
+      "design": "2.8m diameter 3m high cylindrical ivory tank module, orange upper belt, flat top and bottom mating rings, three big hex bolt bosses across FRONT LOWER circumference at one height, accessible orange lifting eye on top. No engines.",
+      "size": [
+        2.8,
+        2.8,
+        3
+      ]
+    },
+    {
+      "id": "RocketService",
+      "category": "로켓",
+      "label": "Rocket service segment",
+      "design": "2.8m diameter 3m high ivory cylindrical service module, teal upper band, rectangular access panel, flat top and bottom rings, three prominent front lower seam hex bolt bosses at same height, orange top lifting eye. No engines.",
+      "size": [
+        2.8,
+        2.8,
+        3
+      ]
+    },
+    {
+      "id": "RocketCapsule",
+      "category": "로켓",
+      "label": "Rocket crew nose capsule",
+      "design": "2.8m diameter 3m high ivory rounded conical upper capsule, orange lower belt, blue oval porthole at front, circular lower mating flange with three accessible front lower bolts, orange top lifting eye. No engines.",
+      "size": [
+        2.8,
+        2.8,
+        3
+      ]
+    },
+    {
+      "id": "Container",
+      "category": "장비",
+      "label": "Top-opening rocket storage container",
+      "design": "5m square 4m high teal-and-ivory industrial coffer, CLOSED horizontal roof lid with rear hinge and orange side latch, wide front access opening, internal cradle sized for upright rocket module. No contents.",
+      "size": [
+        5,
+        5,
+        4
+      ]
+    },
+    {
+      "id": "Ladder",
+      "category": "장비",
+      "label": "Portable telescoping work ladder",
+      "design": "teal-and-orange free-standing A-frame ladder deployed to 4m work-platform height, wide stabilizer feet, locked small wheels, guardrail top platform, front entry opening, chunky rungs. No people or rocket.",
+      "size": [
+        2.6,
+        3,
+        5
+      ]
+    },
+    {
+      "id": "Wrench",
+      "category": "장비",
+      "label": "Manual adjustable monkey wrench",
+      "design": "0.55m long thick steel open adjustable jaw and worm screw, teal rubber straight grip, orange butt ring. No power motor.",
+      "size": [
+        0.2,
+        0.07,
+        0.55
+      ]
+    },
+    {
+      "id": "ToolRack",
+      "category": "장비",
+      "label": "Tool storage rack",
+      "design": "1.2m wide teal pedestal rack with backing plate, orange retaining pegs, empty wrench cradle and nozzle bracket, no tools stored.",
+      "size": [
+        1.2,
+        0.55,
+        1.4
+      ]
+    },
+    {
+      "id": "Sprayer",
+      "category": "장비",
+      "label": "Decontamination handheld nozzle",
+      "design": "teal firefighter water nozzle, thick rounded muzzle, pistol grip and orange trigger guard, short rear hose coupling only, no long trailing hose, not a weapon.",
+      "size": [
+        0.25,
+        0.55,
+        0.35
+      ]
+    },
+    {
+      "id": "Shower",
+      "category": "장비",
+      "label": "Fixed decontamination shower",
+      "design": "walk-through teal and ivory 2.4m tall emergency wash frame, overhead rinse shower, blue grated floor drain, accessible side orange control, no person or water VFX.",
+      "size": [
+        2,
+        2,
+        2.5
+      ]
+    },
+    {
+      "id": "GasTank",
+      "category": "장비",
+      "label": "Broken contamination tank",
+      "design": "rusty olive horizontal cylindrical industrial tank on two feet, broken side pipe nozzle and valve wheel, orange beacon, no smoke or gas rendered.",
+      "size": [
+        4,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "CrashedCraft",
+      "category": "우주선",
+      "label": "Damaged alien capsule craft",
+      "design": "5m long small ivory and purple rounded capsule spacecraft lying on side, dark blue oval cockpit, missing wing exposing simple inner frame, bent short landing struts, no crash rubble pile.",
+      "size": [
+        4,
+        5,
+        3
+      ]
+    },
+    {
+      "id": "Wall",
+      "category": "환경",
+      "label": "Broken concrete perimeter wall",
+      "design": "4m wide by 2.5m tall low ruined concrete wall module, irregular broken top, two short rebar rods, ochre horizontal paint stripe, sparse ivy at one corner.",
+      "size": [
+        4,
+        0.4,
+        2.5
+      ]
+    },
+    {
+      "id": "Drain",
+      "category": "환경",
+      "label": "Shallow drainage channel",
+      "design": "2m long shallow concrete channel with removable dark steel grate, open muddy slot and sparse reeds at one corner.",
+      "size": [
+        1,
+        2,
+        0.25
+      ]
+    },
+    {
+      "id": "Slab",
+      "category": "환경",
+      "label": "Cracked apron slab",
+      "design": "2m square broad flat concrete floor tile, shallow cracks and sparse moss in seams, beveled sides, walkable clear top.",
+      "size": [
+        2,
+        2,
+        0.15
+      ]
+    },
+    {
+      "id": "Rail",
+      "category": "환경",
+      "label": "Industrial safety railing",
+      "design": "2m wide rusted teal/orange guardrail with two horizontal rails and weighted concrete end feet, slightly bent one end, 1.1m high.",
+      "size": [
+        2,
+        0.35,
+        1.1
+      ]
+    },
+    {
+      "id": "Bollard",
+      "category": "환경",
+      "label": "Safety bollard",
+      "design": "single stout rounded orange-and-charcoal safety post 0.85m tall, low flange base with four bolts, restrained chipped paint.",
+      "size": [
+        0.35,
+        0.35,
+        0.85
+      ]
+    },
+    {
+      "id": "Facade",
+      "category": "환경",
+      "label": "Ruined factory facade module",
+      "design": "4m wide 5m high thick concrete wall frame, large rectangular window grid with missing glass, irregular broken top and restrained rusty beams. No surrounding landscape.",
+      "size": [
+        4,
+        0.55,
+        5
+      ]
+    },
+    {
+      "id": "CoolingTower",
+      "category": "환경",
+      "label": "Ruined cooling tower",
+      "design": "standalone 18m tall concrete hourglass cooling tower, open top rim with one damaged missing wedge and support columns beneath, simple industrial silhouette.",
+      "size": [
+        10,
+        10,
+        18
+      ]
+    },
+    {
+      "id": "Chimney",
+      "category": "환경",
+      "label": "Ruined industrial chimney",
+      "design": "single 12m tall tapering rusty brick-gray smokestack on square footing, faded orange band, chipped rim, no smoke.",
+      "size": [
+        2.5,
+        2.5,
+        12
+      ]
+    },
+    {
+      "id": "Rubble",
+      "category": "환경",
+      "label": "Low rubble cluster",
+      "design": "2m wide low pile of chunky broken concrete masonry, three rust beam fragments, no hazardous sharp spikes, no plants, silhouette under 0.7m.",
+      "size": [
+        2,
+        1.5,
+        0.7
+      ]
+    },
+    {
+      "id": "Floodlight",
+      "category": "환경",
+      "label": "Portable work floodlight",
+      "design": "2.6m high teal tripod on broad weighted feet, two orange square warm lamp heads, cable spool on base, no trailing cable.",
+      "size": [
+        1.2,
+        1.2,
+        2.6
+      ]
+    },
+    {
+      "id": "RouteBlue",
+      "category": "환경",
+      "label": "Blue floor route tile",
+      "design": "2m square flat grey concrete slab, single broad worn blue route stripe runs front to back, shallow chipped corners, no arrows or letters.",
+      "size": [
+        2,
+        2,
+        0.12
+      ]
+    },
+    {
+      "id": "RouteAmber",
+      "category": "환경",
+      "label": "Amber floor route tile",
+      "design": "2m square flat grey concrete slab, single broad worn safety amber route stripe runs front to back, shallow chipped corners, no arrows or letters.",
+      "size": [
+        2,
+        2,
+        0.12
+      ]
+    },
+    {
+      "id": "GrassDry",
+      "category": "식생",
+      "label": "Dry grass clump",
+      "design": "small 0.35m high dense ochre dry grass tuft, broad stylized ribbon blades, sparse tiny stones at roots, earth plant non glowing.",
+      "size": [
+        0.5,
+        0.5,
+        0.35
+      ]
+    },
+    {
+      "id": "GrassSeed",
+      "category": "식생",
+      "label": "Seedhead grass clump",
+      "design": "0.8m bent ochre grass seedhead cluster with slender stems and big simplified drooping seed grains, compact base.",
+      "size": [
+        0.65,
+        0.65,
+        0.8
+      ]
+    },
+    {
+      "id": "WeedRosette",
+      "category": "식생",
+      "label": "Broadleaf weed rosette",
+      "design": "0.25m tall low dusty olive broadleaf weed rosette, thick serrated leaves radiating around central bud, stylized large leaves.",
+      "size": [
+        0.6,
+        0.6,
+        0.25
+      ]
+    },
+    {
+      "id": "Wildflowers",
+      "category": "식생",
+      "label": "Roadside wildflower clump",
+      "design": "0.45m sparse roadside cluster five small white daisy-like flowers with ochre centers and dusty olive leaves, rooted together.",
+      "size": [
+        0.45,
+        0.45,
+        0.45
+      ]
+    },
+    {
+      "id": "ScrubDry",
+      "category": "식생",
+      "label": "Dry wiry scrub",
+      "design": "0.7m tall compact tangled brown shrub with sparse tiny dusty olive leaves and many bare thick simplified twig branches.",
+      "size": [
+        0.7,
+        0.6,
+        0.7
+      ]
+    },
+    {
+      "id": "Shrub",
+      "category": "식생",
+      "label": "Hardy low shrub",
+      "design": "0.8m tall compact stunted olive bush with chunky broad leaves, thick branching stems, asymmetric dome silhouette.",
+      "size": [
+        0.9,
+        0.8,
+        0.8
+      ]
+    },
+    {
+      "id": "IvyLow",
+      "category": "식생",
+      "label": "Low creeping ivy strip",
+      "design": "1.2m wide creeping ivy strip growing horizontally low across a tiny broken concrete base, clustered matte olive heart-shaped leaves, 0.25m high.",
+      "size": [
+        1.2,
+        0.35,
+        0.25
+      ]
+    },
+    {
+      "id": "IvyHanging",
+      "category": "식생",
+      "label": "Hanging ivy curtain",
+      "design": "1m wide by 1.5m tall hanging olive ivy vines draped vertically from a small narrow wall-cap fragment, leafy top tapering to trailing tendrils.",
+      "size": [
+        1,
+        0.3,
+        1.5
+      ]
+    },
+    {
+      "id": "Moss",
+      "category": "식생",
+      "label": "Moss-covered concrete patch",
+      "design": "0.65m low irregular cracked concrete chip with dark olive moss cushions on surface, simple dense rounded clumps, only 0.08m tall.",
+      "size": [
+        0.65,
+        0.5,
+        0.08
+      ]
+    },
+    {
+      "id": "Lichen",
+      "category": "식생",
+      "label": "Lichen rust slab patch",
+      "design": "0.6m low rusted metal fragment with pale gray-green clustered lichen disks and ochre mottles, stylized non glowing, 0.07m tall.",
+      "size": [
+        0.6,
+        0.45,
+        0.07
+      ]
+    },
+    {
+      "id": "Reeds",
+      "category": "식생",
+      "label": "Drainage reed clump",
+      "design": "0.9m tall small green-brown reed clump with 4 dark brown cattail seedheads and broad upright ribbon leaves, no water plane.",
+      "size": [
+        0.55,
+        0.55,
+        0.9
+      ]
+    },
+    {
+      "id": "DeadSapling",
+      "category": "식생",
+      "label": "Dead forked sapling",
+      "design": "1.1m tall small dead forked tree stump with thick angular bark branches and only three remaining ochre leaves, compact roots.",
+      "size": [
+        0.7,
+        0.55,
+        1.1
+      ]
+    }
+  ]
+}
