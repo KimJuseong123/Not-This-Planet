@@ -380,6 +380,26 @@ namespace Metagame.Gameplay
         public float StepPhase { get; private set; }
         /// <summary>현재 캐릭터가 유지하는 수평 정면. 이동 방향과 독립적으로 카메라를 따른다.</summary>
         public Vector3 FacingDirection { get { return faceDir; } }
+
+        /// <summary>
+        /// 춤 때문에 몸이 시점을 안 따라가는 상태인가 (S15P21B202-596).
+        ///
+        /// <para><b>춤 클립은 뿌리를 돌리지 않는다</b>(<c>applyRootMotion = false</c>).
+        /// 허리·척추를 최대 ±76도 비틀 뿐이고, 캐릭터의 세계 방향은 전부
+        /// <see cref="faceDir"/> 다. 그 <see cref="faceDir"/> 이 춤 중에도 시정수
+        /// 1/7초로 카메라를 쫓으면 비틀린 상체 위에 골반까지 돌아 <b>미리보기와 다른
+        /// 그림</b>이 된다 — 실제로 그 지적을 받았다.</para>
+        ///
+        /// <para><b>물리는 서버가 돈다</b>(S15P21B202-145, <c>RemoteAvatar</c>).
+        /// 남의 화면에 보이는 골반 회전은 서버가 보낸 것이므로, 이 판단이 서버에서도
+        /// 같아야 한다. 그래서 카메라가 아니라 <b>몸이 실제로 춤 클립을 돌리고
+        /// 있는가</b>를 본다 — 서버도 <c>CmdPlayDance</c> 에서 같은 <c>Suit</c> 로
+        /// 춤을 켜므로 양쪽이 같은 답을 낸다.</para>
+        /// </summary>
+        public bool DanceHolding
+        {
+            get { return Doll != null && Doll.Suit != null && Doll.Suit.DanceActive; }
+        }
         /// <summary>현재 실제 수평 이동을 캐릭터 정면 기준 좌우·전후로 나타낸 값.</summary>
         public Vector2 MovementDirectionLocal { get { return movementDirectionLocal; } }
 
@@ -3015,6 +3035,14 @@ namespace Metagame.Gameplay
             Vector3 cameraFacing = fwd;
             if (facingClamp.sqrMagnitude > 0.02f)
                 cameraFacing = facingClamp.normalized;
+
+            // 춤 중에는 시점을 따라 돌지 않는다 (S15P21B202-596). 카메라는 그대로 돈다 —
+            // 막는 것은 **몸**이지 둘러보는 것이 아니다.
+            //
+            // 고정못을 잡고 있으면 그쪽이 먼저다(위 §12.1). 그건 조작이 아니라 기획이
+            // 요구하는 자세라서, 춤보다 앞선다.
+            else if (DanceHolding)
+                cameraFacing = Vector3.zero;
 
             if (cameraFacing.sqrMagnitude > 0.02f)
                 faceDir = Vector3.Slerp(faceDir, cameraFacing,
