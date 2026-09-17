@@ -1,0 +1,9 @@
+{
+  "name": "Metagame.AIExperiment.Tests",
+  "references": ["UnityEngine.TestRunner", "UnityEditor.TestRunner", "Metagame.AIExperiment", "Metagame.Gameplay", "Metagame.Bootstrap", "Metagame.Core", "Mirror"],
+  "includePlatforms": ["Editor"],
+  "overrideReferences": true,
+  "precompiledReferences": ["nunit.framework.dll"],
+  "autoReferenced": false,
+  "defineConstraints": ["UNITY_INCLUDE_TESTS"]
+}
