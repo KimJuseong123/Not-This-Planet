@@ -92,10 +92,10 @@ namespace Metagame.UI
         private GUIStyle smallStyle;
         private GUIStyle buttonStyle;
         private GUIStyle smallButtonStyle;
+        private GUIStyle primaryButtonStyle;
+        private GUIStyle quietButtonStyle;
+        private GUIStyle textFieldStyle;
         private Texture2D whiteTexture;
-        private Texture2D buttonNormalTexture;
-        private Texture2D buttonHoverTexture;
-        private Texture2D buttonActiveTexture;
 
         private static string koreanFontName;
         private static bool koreanFontSearched;
@@ -268,12 +268,12 @@ namespace Metagame.UI
 
             var panel = new Rect(x - 22f * scale, y - 42f * scale,
                 buttonWidth + 44f * scale, totalHeight + 66f * scale);
-            DrawBox(panel, new Color(0.01f, 0.03f, 0.10f, 0.48f));
+            UiTheme.DrawPanel(panel, true, true);
             DrawLabel(new Rect(x, y - 35f * scale, buttonWidth, 26f * scale),
-                "MENU", smallStyle, new Color(0.72f, 0.91f, 1f));
+                "EXPLORATION COMMAND", smallStyle, UiTheme.Cyan);
 
             if (UiInteraction.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 0, gap),
-                    "혼자 하기", buttonStyle))
+                    "혼자 하기", primaryButtonStyle))
                 BeginSolo();
             // 조립을 손으로 하지 않고 바로 시험한다 (S15P21B202-572). 혼자 하기와 같은
             // 경로로 들어가되, 배치만 스폰 앞으로 모은다. 감추지 않는 이유는 팀 내부
@@ -298,7 +298,7 @@ namespace Metagame.UI
                     "우주선 연습실", buttonStyle))
                 LobbyTransition.Ensure().BeginPractice();
             if (UiInteraction.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 5, gap),
-                    "종료하기", buttonStyle))
+                    "종료하기", quietButtonStyle))
                 Application.Quit();
 
             DrawMessage(new Rect(x, y + totalHeight + 10f * scale, buttonWidth, 42f * scale));
@@ -333,18 +333,19 @@ namespace Metagame.UI
             float height = Mathf.Min(840f, UiScale.Height - 36f);
             float x = (UiScale.Width - width) * 0.5f;
             float y = (UiScale.Height - height) * 0.5f;
-            DrawBox(new Rect(x, y, width, height), new Color(0.01f, 0.03f, 0.09f, 0.94f));
+            UiTheme.DrawDimmer(new Rect(0f, 0f, UiScale.Width, UiScale.Height));
+            UiTheme.DrawPanel(new Rect(x, y, width, height));
             DrawLabel(new Rect(x + 30f, y + 20f, width - 260f, 44f),
-                "설정", titleStyle, Color.white);
+                "설정", titleStyle, UiTheme.Text);
             DrawLabel(new Rect(x + 32f, y + 63f, width - 64f, 24f),
                 "변경값은 즉시 미리보기로 적용되며 저장 버튼을 눌러야 파일에 기록됩니다.",
-                smallStyle, new Color(0.72f, 0.86f, 0.98f));
+                smallStyle, UiTheme.MutedText);
 
             if (UiInteraction.Button(new Rect(x + width - 226f, y + 24f, 92f, 40f),
-                    "기본값", smallButtonStyle))
+                    "기본값", quietButtonStyle))
                 ResetSettingsPreview();
             if (UiInteraction.Button(new Rect(x + width - 126f, y + 24f, 92f, 40f),
-                    "취소", smallButtonStyle))
+                    "취소", quietButtonStyle))
             {
                 CancelSettings();
                 return;
@@ -383,7 +384,7 @@ namespace Metagame.UI
             GUI.EndScrollView();
 
             if (UiInteraction.Button(new Rect(x + width - 218f, y + height - 56f, 184f, 42f),
-                    "저장", buttonStyle))
+                    "저장", primaryButtonStyle))
                 SaveSettings();
 
             if (!string.IsNullOrEmpty(error))
@@ -407,7 +408,7 @@ namespace Metagame.UI
         {
             bool selected = settingsTab == tab;
             if (selected)
-                DrawBox(area, new Color(0.05f, 0.35f, 0.56f, 0.92f));
+                UiTheme.DrawSection(area);
 
             if (UiInteraction.Button(area, label, selected ? buttonStyle : smallButtonStyle)
                 && !selected)
@@ -718,8 +719,8 @@ namespace Metagame.UI
 
         private void DrawSettingsSection(Rect area, string title)
         {
-            DrawBox(area, new Color(0.05f, 0.25f, 0.42f, 0.76f));
-            DrawLabel(area, title, labelStyle, new Color(0.72f, 0.94f, 1f));
+            UiTheme.DrawSection(area);
+            DrawLabel(area, title, labelStyle, UiTheme.CyanSoft);
         }
 
         private static string FullscreenModeLabel(int value)
@@ -828,12 +829,12 @@ namespace Metagame.UI
             float x = (UiScale.Width - width) * 0.5f;
             float y = (UiScale.Height - height) * 0.5f;
 
-            DrawBox(new Rect(x, y, width, height), new Color(0.01f, 0.03f, 0.09f, 0.88f));
+            UiTheme.DrawPanel(new Rect(x, y, width, height));
             DrawLabel(new Rect(x + 34f, y + 22f, width - 190f, 42f),
-                "함께 하기", titleStyle, Color.white);
+                "함께 하기", titleStyle, UiTheme.Text);
             DrawLabel(new Rect(x + 36f, y + 68f, width - 72f, 26f),
                 "친구에게 방 코드를 공유해 함께 출발하세요", smallStyle,
-                new Color(0.72f, 0.86f, 0.98f));
+                UiTheme.MutedText);
 
             if (UiInteraction.Button(new Rect(x + width - 142f, y + 24f, 106f, 40f),
                     "메인으로", smallButtonStyle))
@@ -865,7 +866,7 @@ namespace Metagame.UI
             DrawLabel(new Rect(x + 54f, y + 156f, 170f, 30f), "닉네임", labelStyle, Color.white);
             GUI.SetNextControlName("LobbyNickname");
             nickname = UiInteraction.TextField(new Rect(x + 236f, y + 151f, width - 290f, 40f),
-                nickname ?? string.Empty, 12);
+                nickname ?? string.Empty, 12, textFieldStyle);
             DrawLabel(new Rect(x + 54f, y + 208f, width - 108f, 24f),
                 "최대 12자 · 게스트로 바로 시작합니다", smallStyle,
                 new Color(0.62f, 0.74f, 0.86f));
@@ -874,7 +875,7 @@ namespace Metagame.UI
                          && network.State != NetworkConnectionState.Connecting;
             GUI.enabled = canLogin;
             if (UiInteraction.Button(new Rect(x + 54f, y + 270f, width - 108f, 54f),
-                    "게스트 로그인", buttonStyle))
+                    "게스트 로그인", primaryButtonStyle))
             {
                 error = string.Empty;
                 network.LoginGuest(nickname, NetworkSession.ResolveDeviceId(deviceIdOverride));
@@ -920,7 +921,7 @@ namespace Metagame.UI
                 labelStyle, Color.white);
 
             if (UiInteraction.Button(new Rect(x + 54f, y + 202f, width - 108f, 54f),
-                    "새 방 만들기", buttonStyle))
+                    "새 방 만들기", primaryButtonStyle))
             {
                 error = string.Empty;
                 network.CreateRoom();
@@ -930,9 +931,9 @@ namespace Metagame.UI
                 Color.white);
             GUI.SetNextControlName("LobbyRoomCode");
             roomIdInput = UiInteraction.TextField(new Rect(x + 236f, y + 297f, width - 290f, 40f),
-                roomIdInput ?? string.Empty, 6);
+                roomIdInput ?? string.Empty, 6, textFieldStyle);
             if (UiInteraction.Button(new Rect(x + 54f, y + 365f, width - 108f, 54f),
-                    "방 입장", buttonStyle))
+                    "방 입장", primaryButtonStyle))
             {
                 error = string.Empty;
                 network.JoinRoom((roomIdInput ?? string.Empty).Trim().ToUpperInvariant());
@@ -987,7 +988,7 @@ namespace Metagame.UI
             bool canStart = isHost && room.IsWaiting && room.AllReady;
             GUI.enabled = canStart;
             if (UiInteraction.Button(new Rect(x + width * 0.52f, controlsY, width * 0.40f, 48f),
-                    "게임 시작", buttonStyle))
+                    "게임 시작", primaryButtonStyle))
                 network.StartGame();
             GUI.enabled = true;
 
@@ -1067,15 +1068,16 @@ namespace Metagame.UI
                 return;
 
             whiteTexture = MakeTexture(Color.white);
-            buttonNormalTexture = MakeTexture(new Color(0.02f, 0.10f, 0.22f, 0.78f));
-            buttonHoverTexture = MakeTexture(new Color(0.08f, 0.52f, 0.84f, 0.92f));
-            buttonActiveTexture = MakeTexture(new Color(0.04f, 0.28f, 0.62f, 0.98f));
+            UiTheme.Ensure();
 
             titleStyle = MakeLabelStyle(29, TextAnchor.MiddleLeft, FontStyle.Bold);
             labelStyle = MakeLabelStyle(19, TextAnchor.MiddleLeft, FontStyle.Normal);
             smallStyle = MakeLabelStyle(15, TextAnchor.MiddleLeft, FontStyle.Normal);
-            buttonStyle = MakeButtonStyle(20);
-            smallButtonStyle = MakeButtonStyle(16);
+            buttonStyle = UiTheme.ButtonStyle(FontAt(20), 20);
+            smallButtonStyle = UiTheme.ButtonStyle(FontAt(16), 16);
+            primaryButtonStyle = UiTheme.ButtonStyle(FontAt(20), 20, true);
+            quietButtonStyle = UiTheme.ButtonStyle(FontAt(16), 16, false, true);
+            textFieldStyle = UiTheme.TextFieldStyle(FontAt(16), 16);
         }
 
         private GUIStyle MakeLabelStyle(int size, TextAnchor anchor, FontStyle style)
@@ -1103,34 +1105,7 @@ namespace Metagame.UI
 
         private GUIStyle MakeButtonStyle(int size)
         {
-            var result = new GUIStyle(GUI.skin.button)
-            {
-                alignment = TextAnchor.MiddleCenter,
-                fontStyle = FontStyle.Bold,
-                wordWrap = false,
-                padding = new RectOffset(12, 12, 5, 5),
-                border = new RectOffset(2, 2, 2, 2)
-            };
-            result.normal.background = buttonNormalTexture;
-            result.hover.background = buttonHoverTexture;
-            result.focused.background = buttonHoverTexture;
-            result.active.background = buttonActiveTexture;
-            result.normal.textColor = Color.white;
-            result.hover.textColor = Color.white;
-            result.focused.textColor = Color.white;
-            result.active.textColor = Color.white;
-
-            Font font = FontAt(size);
-            if (font != null)
-            {
-                result.font = font;
-                result.fontSize = 0;
-            }
-            else
-            {
-                result.fontSize = size;
-            }
-            return result;
+            return UiTheme.ButtonStyle(FontAt(size), size);
         }
 
         private void DrawBox(Rect area, Color color)
@@ -1252,9 +1227,6 @@ namespace Metagame.UI
         {
             Unsubscribe();
             DestroyTexture(whiteTexture);
-            DestroyTexture(buttonNormalTexture);
-            DestroyTexture(buttonHoverTexture);
-            DestroyTexture(buttonActiveTexture);
         }
 
         private static void DestroyTexture(Texture2D texture)

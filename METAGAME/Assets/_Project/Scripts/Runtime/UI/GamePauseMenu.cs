@@ -30,11 +30,10 @@ namespace Metagame.UI
 
         private GUIStyle titleStyle;
         private GUIStyle buttonStyle;
+        private GUIStyle primaryButtonStyle;
+        private GUIStyle quietButtonStyle;
+        private GUIStyle kickerStyle;
         private GUIStyle hintStyle;
-        private Texture2D whiteTexture;
-        private Texture2D buttonNormalTexture;
-        private Texture2D buttonHoverTexture;
-        private Texture2D buttonActiveTexture;
 
         public bool IsOpen { get { return isOpen; } }
 
@@ -162,27 +161,27 @@ namespace Metagame.UI
             float scale = Mathf.Clamp(Mathf.Min(Screen.width / 1600f, Screen.height / 900f),
                                       0.78f, 1.25f);
             float panelWidth = 430f * scale;
-            float panelHeight = 330f * scale;
+            float panelHeight = 366f * scale;
             float x = (UiScale.Width - panelWidth) * 0.5f;
             float y = (UiScale.Height - panelHeight) * 0.5f;
             float buttonWidth = 320f * scale;
             float buttonHeight = 52f * scale;
             float buttonX = (UiScale.Width - buttonWidth) * 0.5f;
-            float firstButtonY = y + 96f * scale;
+            float firstButtonY = y + 116f * scale;
             float gap = 12f * scale;
 
             int previousDepth = GUI.depth;
             GUI.depth = -100;
 
-            DrawBox(new Rect(0f, 0f, UiScale.Width, UiScale.Height),
-                    new Color(0f, 0.01f, 0.04f, 0.62f));
-            DrawBox(new Rect(x, y, panelWidth, panelHeight),
-                    new Color(0.01f, 0.04f, 0.11f, 0.96f));
-            DrawLabel(new Rect(x, y + 26f * scale, panelWidth, 48f * scale),
-                      "일시 메뉴", titleStyle, Color.white);
+            UiTheme.DrawDimmer(new Rect(0f, 0f, UiScale.Width, UiScale.Height));
+            UiTheme.DrawPanel(new Rect(x, y, panelWidth, panelHeight));
+            DrawLabel(new Rect(x, y + 25f * scale, panelWidth, 24f * scale),
+                      "MISSION PAUSED", kickerStyle, UiTheme.Cyan);
+            DrawLabel(new Rect(x, y + 49f * scale, panelWidth, 48f * scale),
+                      "일시 메뉴", titleStyle, UiTheme.Text);
 
             if (UiInteraction.Button(new Rect(buttonX, firstButtonY, buttonWidth, buttonHeight),
-                           "계속하기", buttonStyle))
+                           "계속하기", primaryButtonStyle))
                 CloseMenu();
 
             if (UiInteraction.Button(new Rect(buttonX, firstButtonY + (buttonHeight + gap),
@@ -190,54 +189,29 @@ namespace Metagame.UI
                 OpenSettings();
 
             if (UiInteraction.Button(new Rect(buttonX, firstButtonY + (buttonHeight + gap) * 2f,
-                                    buttonWidth, buttonHeight), "타이틀로 나가기", buttonStyle))
+                                    buttonWidth, buttonHeight), "타이틀로 나가기", quietButtonStyle))
                 ReturnToTitle();
 
             DrawLabel(new Rect(x, y + panelHeight - 28f * scale, panelWidth, 22f * scale),
-                      "Esc 닫기", hintStyle, new Color(0.70f, 0.84f, 0.94f));
+                      "Esc 닫기", hintStyle, UiTheme.MutedText);
 
             GUI.depth = previousDepth;
         }
 
         private void EnsureStyles()
         {
-            if (whiteTexture != null)
+            if (titleStyle != null)
                 return;
 
-            whiteTexture = MakeTexture(Color.white);
-            buttonNormalTexture = MakeTexture(new Color(0.02f, 0.10f, 0.22f, 0.88f));
-            buttonHoverTexture = MakeTexture(new Color(0.08f, 0.52f, 0.84f, 0.94f));
-            buttonActiveTexture = MakeTexture(new Color(0.04f, 0.28f, 0.62f, 0.98f));
+            UiTheme.Ensure();
 
             titleStyle = MakeLabelStyle(TitleSize, TextAnchor.MiddleCenter, FontStyle.Bold);
+            kickerStyle = MakeLabelStyle(HintSize, TextAnchor.MiddleCenter, FontStyle.Bold);
             hintStyle = MakeLabelStyle(HintSize, TextAnchor.MiddleCenter, FontStyle.Normal);
-            buttonStyle = new GUIStyle(GUI.skin.button)
-            {
-                alignment = TextAnchor.MiddleCenter,
-                fontStyle = FontStyle.Bold,
-                wordWrap = false,
-                padding = new RectOffset(12, 12, 5, 5),
-                border = new RectOffset(2, 2, 2, 2)
-            };
-            buttonStyle.normal.background = buttonNormalTexture;
-            buttonStyle.hover.background = buttonHoverTexture;
-            buttonStyle.focused.background = buttonHoverTexture;
-            buttonStyle.active.background = buttonActiveTexture;
-            buttonStyle.normal.textColor = Color.white;
-            buttonStyle.hover.textColor = Color.white;
-            buttonStyle.focused.textColor = Color.white;
-            buttonStyle.active.textColor = Color.white;
-
             Font font = FontAt(ButtonSize);
-            if (font != null)
-            {
-                buttonStyle.font = font;
-                buttonStyle.fontSize = 0;
-            }
-            else
-            {
-                buttonStyle.fontSize = ButtonSize;
-            }
+            buttonStyle = UiTheme.ButtonStyle(font, ButtonSize);
+            primaryButtonStyle = UiTheme.ButtonStyle(font, ButtonSize, true);
+            quietButtonStyle = UiTheme.ButtonStyle(font, ButtonSize, false, true);
         }
 
         private void WarmFont()
@@ -293,31 +267,12 @@ namespace Metagame.UI
             return result;
         }
 
-        private void DrawBox(Rect area, Color color)
-        {
-            Color previous = GUI.color;
-            GUI.color = color;
-            GUI.DrawTexture(area, whiteTexture);
-            GUI.color = previous;
-        }
-
         private static void DrawLabel(Rect area, string text, GUIStyle style, Color color)
         {
             Color previous = GUI.color;
             GUI.color = color;
             GUI.Label(area, text, style);
             GUI.color = previous;
-        }
-
-        private static Texture2D MakeTexture(Color color)
-        {
-            var texture = new Texture2D(1, 1, TextureFormat.RGBA32, false)
-            {
-                name = "~게임 메뉴 UI 색상"
-            };
-            texture.SetPixel(0, 0, color);
-            texture.Apply();
-            return texture;
         }
 
         private static string KoreanFontName
@@ -367,16 +322,6 @@ namespace Metagame.UI
             if (transition != null)
                 transition.Failed -= OnTitleTransitionFailed;
 
-            DestroyTexture(whiteTexture);
-            DestroyTexture(buttonNormalTexture);
-            DestroyTexture(buttonHoverTexture);
-            DestroyTexture(buttonActiveTexture);
-        }
-
-        private static void DestroyTexture(Texture2D texture)
-        {
-            if (texture != null)
-                Destroy(texture);
         }
     }
 }

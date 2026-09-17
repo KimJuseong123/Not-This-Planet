@@ -476,6 +476,7 @@ namespace Metagame.Bootstrap
         void DrawBackdrop(float width, float height, float panelX)
         {
             GUI.DrawTexture(new Rect(panelX, 0f, width - panelX, height), panelTexture);
+            UiTheme.DrawPanel(new Rect(panelX + 12f, 12f, width - panelX - 24f, height - 24f));
         }
 
         void EnsureStyles()
@@ -489,11 +490,12 @@ namespace Metagame.Bootstrap
             var uiFont = Resources.Load<Font>("Fonts/SUIT-Medium") ?? fallbackFont;
             panelTexture = Solid(panelBackgroundColor);
 
-            title = Label(titleFont, 34, FontStyle.Normal, Color.white);
-            sectionTitle = Label(titleFont, 20, FontStyle.Normal, Color.white);
+            UiTheme.Ensure();
+            title = Label(titleFont, 34, FontStyle.Normal, UiTheme.Text);
+            sectionTitle = Label(titleFont, 20, FontStyle.Normal, UiTheme.CyanSoft);
             errorText = Label(uiFont, 14, FontStyle.Normal, new Color(1f, 0.48f, 0.52f));
 
-            option = Button(uiFont, choiceButton, true);
+            option = UiTheme.ButtonStyle(uiFont, 15);
             option.richText = true;
             option.padding = new RectOffset(10, 10, 10, 10);
             option.margin = new RectOffset(3, 3, 3, 3);
@@ -505,9 +507,9 @@ namespace Metagame.Bootstrap
             swatchTooltip = Label(uiFont, 13, FontStyle.Normal, Color.white);
             swatchTooltip.alignment = TextAnchor.MiddleCenter;
 
-            primaryButton = Button(uiFont, startButton, false);
-            secondaryButton = Button(uiFont, resetButton, false);
-            quietButton = Button(uiFont, lobbyButton, false);
+            primaryButton = UiTheme.ButtonStyle(uiFont, 18, true);
+            secondaryButton = UiTheme.ButtonStyle(uiFont, 15);
+            quietButton = UiTheme.ButtonStyle(uiFont, 15, false, true);
 
             scrollTrack = new GUIStyle(GUI.skin.verticalScrollbar)
             {

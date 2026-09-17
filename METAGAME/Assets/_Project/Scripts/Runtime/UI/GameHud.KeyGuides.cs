@@ -57,10 +57,10 @@ namespace Metagame.UI
                     x = margin;
                     y -= rowHeight + gap;
                 }
-                Box(new Rect(x, y, itemWidth, rowHeight), new Color(0.03f, 0.06f, 0.09f, 0.78f));
-                Box(new Rect(x + 5f, y + 5f, keyWidth, rowHeight - 10f), new Color(0.22f, 0.30f, 0.36f, 0.95f));
-                L(new Rect(x + 5f, y + 5f, keyWidth, rowHeight - 10f), entry.KeyText, center, Color.white);
-                L(new Rect(x + keyWidth + 14f, y + 13f, labelWidth, 24f), entry.Label, small, Color.white);
+                UiTheme.DrawPanel(new Rect(x, y, itemWidth, rowHeight), true, false);
+                UiTheme.DrawKeyCap(new Rect(x + 5f, y + 5f, keyWidth, rowHeight - 10f));
+                L(new Rect(x + 5f, y + 5f, keyWidth, rowHeight - 10f), entry.KeyText, center, UiTheme.CyanSoft);
+                L(new Rect(x + keyWidth + 14f, y + 13f, labelWidth, 24f), entry.Label, small, UiTheme.Text);
                 x += itemWidth + gap;
             }
             GUI.depth = previousDepth;
