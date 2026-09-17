@@ -2,8 +2,8 @@
 
 ## 실행
 
-- `METAGAME/Assets/Scene/Stage1_EntryCutscene.unity`: 입장, 18초.
-- `METAGAME/Assets/Scene/Stage1_AssaultCutscene.unity`: 공세 경고와 전환, 8초.
+- `METAGAME/Assets/Scenes/Stage1_EntryCutscene.unity`: 입장, 18초.
+- `METAGAME/Assets/Scenes/Stage1_AssaultCutscene.unity`: 공세 경고와 전환, 8초.
 - 두 씬을 각각 열고 Play하면 실제 `Stage1_Astra`를 가산 로드하여 실행한다.
 - Stage1의 `SpaceBootstrap - develop gameplay` / `DevManager`: **F10 입장 재생**, **F9 공세 전환**. Editor / Development Build 전용이며 멀티에서는 호스트가 실행한다. 재생 중 중복 요청은 무시한다.
 - 정상 Lobby/Customizer → Stage1 진입에서는 월드와 플레이어를 준비한 뒤 입장 컷씬을 먼저 보여주고 조작을 연다.

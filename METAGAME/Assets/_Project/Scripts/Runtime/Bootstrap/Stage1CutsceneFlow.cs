@@ -12,8 +12,8 @@ namespace Metagame.Bootstrap
     public sealed class Stage1CutsceneFlow : MonoBehaviour
     {
         public const string StagePath = "Assets/Scenes/Stage1_Astra.unity";
-        public const string EntryPath = "Assets/Scene/Stage1_EntryCutscene.unity";
-        public const string AssaultPath = "Assets/Scene/Stage1_AssaultCutscene.unity";
+        public const string EntryPath = "Assets/Scenes/Stage1_EntryCutscene.unity";
+        public const string AssaultPath = "Assets/Scenes/Stage1_AssaultCutscene.unity";
         public Stage1Sequence Sequence { get; private set; }
         SpaceBootstrap _bootstrap;
         Stage1CutsceneScene _view;

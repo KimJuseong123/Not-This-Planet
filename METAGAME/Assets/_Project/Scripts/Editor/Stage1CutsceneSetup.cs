@@ -18,7 +18,7 @@ namespace Metagame.EditorTools
             if (Application.isBatchMode) EditorSceneManager.OpenScene("Assets/Scenes/Lobby.unity");
             else if (string.IsNullOrEmpty(SceneManager.GetActiveScene().path)
                 && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
-            if (!AssetDatabase.IsValidFolder("Assets/Scene")) AssetDatabase.CreateFolder("Assets", "Scene");
+            if (!AssetDatabase.IsValidFolder("Assets/Scenes")) AssetDatabase.CreateFolder("Assets", "Scenes");
             var previous = SceneManager.GetActiveScene();
             var visual = AssetDatabase.LoadAssetAtPath<GameObject>(
                 "Assets/_Project/Prefabs/Environment/Stage1/Meteors/PF_Stage1_MeteorMain.prefab");

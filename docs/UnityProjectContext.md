@@ -20,7 +20,7 @@
 
 ## 규칙과 검증
 
-- 2026-09-17: `Stage1_Astra`는 `Stage1CutsceneFlow`로 실제 월드 위에 `Assets/Scene/Stage1_EntryCutscene.unity` / `Stage1_AssaultCutscene.unity`를 가산 로드한다. 입장 후 주차대의 `Stage1AssaultTrigger`가 공세를 시작한다. `Stage1Sequence` 상태는 기존 WorldSync에 추가한 `Stage1SequenceSync`로 복제한다. DevManager F10/F9는 호스트/솔로 테스트 경로다. 상세와 검증은 `docs/records/2026-09-17-stage1-entry-assault-cutscenes.md`.
+- 2026-09-17: `Stage1_Astra`는 `Stage1CutsceneFlow`로 실제 월드 위에 `Assets/Scenes/Stage1_EntryCutscene.unity` / `Stage1_AssaultCutscene.unity`를 가산 로드한다. 입장 후 주차대의 `Stage1AssaultTrigger`가 공세를 시작한다. `Stage1Sequence` 상태는 기존 WorldSync에 추가한 `Stage1SequenceSync`로 복제한다. DevManager F10/F9는 호스트/솔로 테스트 경로다. 상세와 검증은 `docs/records/2026-09-17-stage1-entry-assault-cutscenes.md`.
 
 - docs/unity-convention.md, jira-convention.md, git-convention.md를 따른다. Jira Task당 브랜치/MR 하나. 새 씬은 합의한 Assets/Scenes에 추가한다.
 - 기존 씬·프리팹을 덮어쓰지 않는다. .meta 포함, 바이너리는 LFS, Editor 코드는 Editor 어셈블리.
