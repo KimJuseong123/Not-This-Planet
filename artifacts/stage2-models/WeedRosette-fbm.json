@@ -1,0 +1,15 @@
+{
+  "asset": "WeedRosette",
+  "fbx": "S2_WeedRosette.fbx",
+  "fbm": "S2_WeedRosette.fbm",
+  "textures": [
+    "S2_LeafLight_BaseColor.png",
+    "S2_Olive_BaseColor.png"
+  ],
+  "relative_texture_paths": [
+    "S2_WeedRosette.fbm/S2_LeafLight_BaseColor.png",
+    "S2_WeedRosette.fbm/S2_Olive_BaseColor.png"
+  ],
+  "relative_paths_valid": true,
+  "passed": true
+}

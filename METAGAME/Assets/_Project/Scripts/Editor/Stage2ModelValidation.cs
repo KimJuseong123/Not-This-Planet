@@ -23,7 +23,7 @@ namespace Metagame.EditorTools
             {"Moss",new Color(.11f,.17f,.035f)}
         };
         [Serializable] sealed class Entry
-        { public string asset; public int meshes, triangles; public Vector3 dimensions; public bool materialsValid, uvValid, finite; }
+        { public string asset; public int meshes, triangles, textureCount; public Vector3 dimensions; public bool materialsValid, texturesValid, uvValid, finite; }
         [Serializable] sealed class Report
         { public string unityVersion; public int modelCount; public bool passed; public List<Entry> models = new(); }
 
@@ -39,7 +39,10 @@ namespace Metagame.EditorTools
                 string name="S2_"+item.Key, path=Folder+"/Materials/M_"+name+".mat";
                 var mat=AssetDatabase.LoadAssetAtPath<Material>(path);
                 if (mat == null) { mat=new Material(shader); AssetDatabase.CreateAsset(mat,path); }
-                mat.shader=shader; mat.SetColor("_BaseColor",item.Value);
+                string texturePath=Folder+"/Textures/"+name+"_BaseColor.png";
+                var texture=AssetDatabase.LoadAssetAtPath<Texture2D>(texturePath);
+                if(texture==null)throw new InvalidOperationException("Missing baked texture: "+texturePath);
+                mat.shader=shader; mat.SetColor("_BaseColor",Color.white);mat.SetTexture("_BaseMap",texture);
                 mat.SetFloat("_Smoothness",item.Key=="Glass"?.8f:.36f);
                 mat.SetFloat("_Metallic",new[]{"Steel","Teal","Orange","Rust"}.Contains(item.Key)?.45f:.02f);
                 if(item.Key=="Lamp") { mat.EnableKeyword("_EMISSION");mat.SetColor("_EmissionColor",item.Value*2); }
@@ -63,9 +66,13 @@ namespace Metagame.EditorTools
                     var meshes=instance.GetComponentsInChildren<MeshFilter>().Select(m=>m.sharedMesh).Where(m=>m!=null).ToArray();
                     var renderers=instance.GetComponentsInChildren<MeshRenderer>();
                     var bounds=renderers[0].bounds;foreach(var renderer in renderers)bounds.Encapsulate(renderer.bounds);
+                    string fbmPath=Path.ChangeExtension(assetPath,".fbm");
+                    var usedMaterials=renderers.SelectMany(r=>r.sharedMaterials).Distinct().ToArray();
                     var entry=new Entry{asset=Path.GetFileName(path),meshes=meshes.Length,
                         triangles=meshes.Sum(m=>(int)m.GetIndexCount(0)/3),dimensions=bounds.size,
                         materialsValid=renderers.All(r=>r.sharedMaterials.All(m=>m!=null&&m.shader==shader)),
+                        textureCount=Directory.Exists(fbmPath)?Directory.GetFiles(fbmPath,"*.png").Length:0,
+                        texturesValid=usedMaterials.All(m=>m!=null&&m.GetTexture("_BaseMap")!=null&&File.Exists(fbmPath+"/"+m.GetTexture("_BaseMap").name+".png")),
                         uvValid=meshes.All(m=>m.HasVertexAttribute(UnityEngine.Rendering.VertexAttribute.TexCoord0)),
                         finite=meshes.All(m=>!float.IsNaN(m.bounds.size.sqrMagnitude)&&!float.IsInfinity(m.bounds.size.sqrMagnitude))};
                     entry.triangles=meshes.Sum(m=>Enumerable.Range(0,m.subMeshCount).Sum(s=>(int)m.GetIndexCount(s)/3));
@@ -74,11 +81,11 @@ namespace Metagame.EditorTools
                 finally {UnityEngine.Object.DestroyImmediate(instance);}
             }
             report.modelCount=report.models.Count;
-            report.passed=report.modelCount==40&&report.models.All(e=>e.meshes>0&&e.materialsValid&&e.uvValid&&e.finite);
+            report.passed=report.modelCount==47&&report.models.All(e=>e.meshes>0&&e.materialsValid&&e.texturesValid&&e.textureCount>0&&e.uvValid&&e.finite);
             Directory.CreateDirectory("../artifacts/stage2-models");
             File.WriteAllText("../artifacts/stage2-models/unity-import-validation.json",JsonUtility.ToJson(report,true));
             if(!report.passed)throw new InvalidOperationException("Stage2 model import validation failed; see report.");
-            Debug.Log("[Stage2Models] 40 FBX models imported; URP materials, UVs and finite bounds verified.");
+            Debug.Log("[Stage2Models] 47 FBX models imported; FBM textures, URP materials, UVs and finite bounds verified.");
         }
     }
 }

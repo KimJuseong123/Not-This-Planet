@@ -1,0 +1,39 @@
+{
+  "asset": "BoltTight",
+  "fbx": "S2_BoltTight.fbx",
+  "blend": "Source~/S2_BoltTight.blend",
+  "mesh_objects": 2,
+  "triangles": 380,
+  "dimensions_m": [
+    0.30000001192092896,
+    0.30000001192092896,
+    0.164000004529953
+  ],
+  "bounds_min": [
+    -0.15000000596046448,
+    -0.15000000596046448,
+    0.0
+  ],
+  "bounds_max": [
+    0.15000000596046448,
+    0.15000000596046448,
+    0.164000004529953
+  ],
+  "materials": [
+    "S2_Orange",
+    "S2_Steel",
+    "S2_Teal"
+  ],
+  "pivots": [
+    "S2_BoltTight_Root",
+    "BoltRotation.001"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

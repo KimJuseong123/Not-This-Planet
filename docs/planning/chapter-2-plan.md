@@ -456,7 +456,7 @@
 
 ### 아트
 
-- [Stage2 컨셉아트·Tripo 입력 시안 묶음](../assets/concepts/stage2/README.md): v2는 최신 공간 방향, v1은 이전 개별 시안과 프롬프트. 3D 생성·가동부 분리·게임 적용은 아직 수행하지 않았다.
+- [Stage2 컨셉 자료](../assets/concepts/stage2/README.md): v3 씬 기반 시안 및 방향별 에셋 아트를 제공한다. [Blender 모델 라이브러리](../../METAGAME/Assets/_Project/Models/Stage2/README_KO.md)에 형상·가동부 피벗·FBX/FBM을 제작했으며, 씬 교체와 게임 동작 연결은 별도 통합 단계다. 아래 목록의 후보·미정 구분은 유지한다.
 - 분리형 인류 로켓과 완성 형태
 - 고정식 크레인: 회전부, 팔, 인양 장치, 훅, 와이어, 조종석
 - 발사대, 크레인 승강기·승강장, 이동식 사다리와 작업 발판

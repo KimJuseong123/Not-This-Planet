@@ -1560,5 +1560,278 @@
       "back"
     ],
     "source_created_after_references": true
+  },
+  {
+    "asset": "RocketAssembled",
+    "fbx": "S2_RocketAssembled.fbx",
+    "blend": "Source~/S2_RocketAssembled.blend",
+    "mesh_objects": 1,
+    "triangles": 12084,
+    "dimensions_m": [
+      2.9000000953674316,
+      3.0460000038146973,
+      11.515000343322754
+    ],
+    "bounds_min": [
+      -1.4500000476837158,
+      -1.5959999561309814,
+      0.0
+    ],
+    "bounds_max": [
+      1.4500000476837158,
+      1.4500000476837158,
+      11.515000343322754
+    ],
+    "materials": [
+      "S2_Dark",
+      "S2_Glass",
+      "S2_Ivory",
+      "S2_Orange",
+      "S2_Steel",
+      "S2_Teal"
+    ],
+    "pivots": [
+      "S2_RocketAssembled_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "BoltLoose",
+    "fbx": "S2_BoltLoose.fbx",
+    "blend": "Source~/S2_BoltLoose.blend",
+    "mesh_objects": 2,
+    "triangles": 2912,
+    "dimensions_m": [
+      0.30000001192092896,
+      0.30000001192092896,
+      0.4790000021457672
+    ],
+    "bounds_min": [
+      -0.15000000596046448,
+      -0.15000000596046448,
+      0.009999999776482582
+    ],
+    "bounds_max": [
+      0.15000000596046448,
+      0.15000000596046448,
+      0.48899999260902405
+    ],
+    "materials": [
+      "S2_Orange",
+      "S2_Steel"
+    ],
+    "pivots": [
+      "S2_BoltLoose_Root",
+      "BoltRotation"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "BoltTight",
+    "fbx": "S2_BoltTight.fbx",
+    "blend": "Source~/S2_BoltTight.blend",
+    "mesh_objects": 2,
+    "triangles": 380,
+    "dimensions_m": [
+      0.30000001192092896,
+      0.30000001192092896,
+      0.164000004529953
+    ],
+    "bounds_min": [
+      -0.15000000596046448,
+      -0.15000000596046448,
+      0.0
+    ],
+    "bounds_max": [
+      0.15000000596046448,
+      0.15000000596046448,
+      0.164000004529953
+    ],
+    "materials": [
+      "S2_Orange",
+      "S2_Steel",
+      "S2_Teal"
+    ],
+    "pivots": [
+      "S2_BoltTight_Root",
+      "BoltRotation.001"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Nut",
+    "fbx": "S2_Nut.fbx",
+    "blend": "Source~/S2_Nut.blend",
+    "mesh_objects": 1,
+    "triangles": 3264,
+    "dimensions_m": [
+      0.23999999463558197,
+      0.11999999731779099,
+      0.27556297183036804
+    ],
+    "bounds_min": [
+      -0.11999999731779099,
+      -0.11999999731779099,
+      0.0007824967615306377
+    ],
+    "bounds_max": [
+      0.11999999731779099,
+      0.0,
+      0.27634546160697937
+    ],
+    "materials": [
+      "S2_Dark",
+      "S2_Steel"
+    ],
+    "pivots": [
+      "S2_Nut_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "Bracket",
+    "fbx": "S2_Bracket.fbx",
+    "blend": "Source~/S2_Bracket.blend",
+    "mesh_objects": 1,
+    "triangles": 550,
+    "dimensions_m": [
+      0.550000011920929,
+      0.3799999952316284,
+      0.5099999904632568
+    ],
+    "bounds_min": [
+      -0.2750000059604645,
+      -0.1899999976158142,
+      0.0
+    ],
+    "bounds_max": [
+      0.2750000059604645,
+      0.1899999976158142,
+      0.5099999904632568
+    ],
+    "materials": [
+      "S2_Orange",
+      "S2_Steel",
+      "S2_Teal"
+    ],
+    "pivots": [
+      "S2_Bracket_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "HelmetFilter",
+    "fbx": "S2_HelmetFilter.fbx",
+    "blend": "Source~/S2_HelmetFilter.blend",
+    "mesh_objects": 1,
+    "triangles": 1800,
+    "dimensions_m": [
+      0.31200000643730164,
+      0.20800000429153442,
+      0.1525000035762787
+    ],
+    "bounds_min": [
+      -0.15600000321865082,
+      -0.10300000011920929,
+      0.01900000125169754
+    ],
+    "bounds_max": [
+      0.15600000321865082,
+      0.10499999672174454,
+      0.17149999737739563
+    ],
+    "materials": [
+      "S2_Dark",
+      "S2_Ivory",
+      "S2_Olive",
+      "S2_Orange",
+      "S2_Steel",
+      "S2_Teal"
+    ],
+    "pivots": [
+      "S2_HelmetFilter_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
+  },
+  {
+    "asset": "FilterRack",
+    "fbx": "S2_FilterRack.fbx",
+    "blend": "Source~/S2_FilterRack.blend",
+    "mesh_objects": 1,
+    "triangles": 3168,
+    "dimensions_m": [
+      1.100000023841858,
+      0.5,
+      1.2999999523162842
+    ],
+    "bounds_min": [
+      -0.550000011920929,
+      -0.25,
+      0.0
+    ],
+    "bounds_max": [
+      0.550000011920929,
+      0.25,
+      1.2999999523162842
+    ],
+    "materials": [
+      "S2_Ivory",
+      "S2_Orange",
+      "S2_Steel",
+      "S2_Teal"
+    ],
+    "pivots": [
+      "S2_FilterRack_Root"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true
   }
 ]

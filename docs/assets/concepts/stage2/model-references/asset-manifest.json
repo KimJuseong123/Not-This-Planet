@@ -441,6 +441,83 @@
         0.55,
         1.1
       ]
+    },
+    {
+      "id": "RocketAssembled",
+      "category": "로켓",
+      "label": "Assembled human escape rocket",
+      "design": "Completed upright human rocket 11 meters tall: squat ivory engine base with 3 bells and stabilizer feet, orange-belt tank cylinder, teal-belt service cylinder, conical ivory nose with one oval blue front window. Three big front seam bolts at each joint. Same chunky teal ivory amber industrial family. No launchpad.",
+      "size": [
+        3.4,
+        3.4,
+        11
+      ]
+    },
+    {
+      "id": "BoltLoose",
+      "category": "체결",
+      "label": "Loose captive bolt",
+      "design": "One large captive industrial hex bolt in loose state, steel hex head, orange washer, visible long threaded steel shaft. Upright shaft vertical, hex head at top. About 0.4m tall. One object only, neutral background.",
+      "size": [
+        0.3,
+        0.3,
+        0.4
+      ]
+    },
+    {
+      "id": "BoltTight",
+      "category": "체결",
+      "label": "Tightened captive bolt",
+      "design": "One large industrial hex bolt in tightened state, steel hex head seated flush on orange washer and a small teal mounting plate, only tiny shaft below plate. Same hex head as loose bolt. Top head with single orange alignment stripe. 0.3m wide.",
+      "size": [
+        0.3,
+        0.3,
+        0.16
+      ]
+    },
+    {
+      "id": "Nut",
+      "category": "체결",
+      "label": "Large fastening nut",
+      "design": "One large steel hex nut with round OPEN central threaded hole, worn dark steel with subtle orange rim marking, hex axis vertical and broad flat faces. 0.24m across. No bolt or extra object.",
+      "size": [
+        0.24,
+        0.24,
+        0.12
+      ]
+    },
+    {
+      "id": "Bracket",
+      "category": "체결",
+      "label": "Rocket joint fastening bracket",
+      "design": "Single teal thick industrial L-shaped corner fastening bracket, two oval mounting holes in vertical back plate and two round holes in horizontal foot, orange edges, thick triangular side gussets. 0.55m width, 0.5m height. No bolts.",
+      "size": [
+        0.55,
+        0.4,
+        0.5
+      ]
+    },
+    {
+      "id": "HelmetFilter",
+      "category": "장비 후보",
+      "label": "Helmet attachment filter module",
+      "design": "Single removable twin circular filter module for a cute alien astronaut helmet, two olive cylindrical pleated filter cartridges on teal curved mount, orange locking tabs, dark rear connection socket. A small attachment only: NO helmet NO face NO person NO straps. 0.3m wide.",
+      "size": [
+        0.3,
+        0.16,
+        0.18
+      ]
+    },
+    {
+      "id": "FilterRack",
+      "category": "장비 후보",
+      "label": "Helmet filter storage stand",
+      "design": "Waist-high teal industrial filter storage rack on broad weighted feet. Three empty paired circular cradle sockets with orange retaining tabs at chest height, sloped ivory back panel, small lower shelf. Empty, no masks or filters, no writing. 1.1m wide 1.3m high.",
+      "size": [
+        1.1,
+        0.5,
+        1.3
+      ]
     }
   ]
 }

@@ -2,7 +2,7 @@
 Meters, Blender -Y front. Never clears the user's scene or overwrites existing models.
 """
 import bpy, math, random, json, os
-from mathutils import Vector
+from mathutils import Vector, Matrix
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -538,6 +538,88 @@ def plants(kind):
             rock('Moss cushion' if kind=='Moss' else 'Lichen disk',(x,y,.04),(.04,.035,.02 if kind=='Moss' else .006),'Moss' if kind=='Moss' else 'LeafLight',i)
 
 for k in ['GrassDry','GrassSeed','WeedRosette','Wildflowers','ScrubDry','Shrub','IvyLow','IvyHanging','Moss','Lichen','Reeds','DeadSapling']:BUILDERS[k]=lambda k=k:plants(k)
+
+def fastener(tight=False):
+    height=.075 if tight else .4
+    if tight:box('Mounting plate',(0,0,.025),(.3,.3,.05),'Teal',.012)
+    lathe('Orange captive washer',[(.15,height-.025),(.15,height)],'Orange',32)
+    pivot=empty('BoltRotation',(0,0,height),P)
+    tube('Bolt shaft',(0,0,.01),(0,0,height),.065,'Steel',24,pivot)
+    lathe('Hex head',[(.125,height),(.14,height+.015),(.14,height+.075),(.12,height+.085)],'Steel',6,parent=pivot)
+    box('Head alignment stripe',(0,0,height+.087),(.18,.023,.004),'Orange',0,pivot)
+    if not tight:
+        points=[(.068*math.cos(i*math.tau/12),.068*math.sin(i*math.tau/12),.08+i*.0022) for i in range(133)]
+        for a,b in zip(points,points[1:]):tube('Helical thread ridge',a,b,.006,'Steel',6,pivot)
+
+def nut():
+    n=36;verts=[]
+    for inner,z in [(False,0),(False,.12),(True,.12),(True,0)]:
+        for i in range(n):
+            a=i*math.tau/n
+            r=.067 if inner else .12/math.cos((a+math.pi/6)%(math.pi/3)-math.pi/6)
+            verts.append((r*math.cos(a),r*math.sin(a),z))
+    faces=[]
+    for ring in range(4):
+        for i in range(n):j=(i+1)%n;faces.append((ring*n+i,ring*n+j,((ring+1)%4)*n+j,((ring+1)%4)*n+i))
+    mesh('Open hex nut',verts,faces,'Steel',.003)
+    for z in (.025,.05,.075,.1):arc('Internal thread',(0,0,z),.066,.004,'Dark',n=36)
+    # Reference front looks into the hole; stand the nut on a flat hex edge.
+    for obj in C.objects:
+        if obj.type=='MESH':
+            for vertex in obj.data.vertices:
+                x,y,z=vertex.co;vertex.co=(x,-z,y+.138564)
+
+def bracket():
+    back=box('Vertical bracket plate',(0,.16,.26),(.55,.06,.5),'Teal',0)
+    foot=box('Horizontal bracket foot',(0,0,.03),(.55,.38,.06),'Teal',0)
+    for obj,axis,centers in [(back,'Y',[(-.15,.16,.31),(.15,.16,.31)]),(foot,'Z',[(-.15,-.065,.03),(.15,-.065,.03)])]:
+        for center in centers:
+            bpy.ops.mesh.primitive_cylinder_add(vertices=24,radius=.045,depth=.16,location=center)
+            cutter=bpy.context.object
+            if axis=='Y':
+                cutter.rotation_euler.x=math.pi/2;cutter.scale.y=1.8
+            bpy.context.view_layer.objects.active=obj
+            mod=obj.modifiers.new('Mounting hole','BOOLEAN');mod.operation='DIFFERENCE';mod.object=cutter
+            bpy.ops.object.modifier_apply(modifier=mod.name);bpy.data.objects.remove(cutter,do_unlink=True)
+    for x in (-.245,.245):
+        mesh('Side triangular gusset',[(x-.015,.13,.06),(x-.015,-.15,.06),(x-.015,.13,.4),(x+.015,.13,.06),(x+.015,-.15,.06),(x+.015,.13,.4)],[(0,2,1),(3,4,5),(0,1,4,3),(1,2,5,4),(2,0,3,5)],'Steel')
+    box('Upper safety edge',(0,.122,.49),(.55,.014,.035),'Orange',.004)
+
+def helmet_filter():
+    box('Helmet attachment bridge',(0,.035,.095),(.28,.055,.1),'Teal',.018)
+    for x in (-.085,.085):
+        tube('Cartridge housing',(x,-.07,.09),(x,.025,.09),.071,'Olive',24)
+        tube('Filter inlet',(x,-.076,.09),(x,-.09,.09),.06,'Dark',24)
+        arc('Protective inlet rim',(x,-.095,.09),.061,.008,'Steel',axis='Y',n=24)
+        for i in range(-3,4):
+            xx=x+i*.014;half=math.sqrt(max(0,.053**2-(i*.014)**2))
+            tube('Filter grille',(xx,-.1,.09-half),(xx,-.1,.09+half),.003,'Ivory',6)
+        box('Orange twist lock',(x,.037,.16),(.035,.035,.023),'Orange',.004)
+    tube('Rear helmet coupling',(0,.06,.095),(0,.105,.095),.04,'Dark',16)
+
+def filter_rack():
+    box('Weighted foot',(0,0,.06),(1.1,.5,.12),'Steel')
+    for x in (-.44,.44):box('Rack upright',(x,.12,.65),(.065,.075,1.3),'Teal')
+    box('Ivory mounting panel',(0,.12,1.05),(1.05,.055,.5),'Ivory')
+    box('Lower shelf',(0,-.04,.38),(1.05,.4,.07),'Teal')
+    for x in (-.34,0,.34):
+        for dx in (-.065,.065):
+            arc('Empty cartridge cradle',(x+dx,.025,1.06),.067,.012,'Teal',axis='Y',n=24)
+        box('Retaining tab',(x,-.005,.94),(.1,.075,.035),'Orange',.006)
+
+def assembled_rocket():
+    for asset,z in [('RocketBase',0),('RocketTank',2.1),('RocketService',5.1),('RocketCapsule',8.1)]:
+        original=bpy.data.collections.get('S2_'+asset)
+        if original is None:raise RuntimeError('Build rocket segments before assembly')
+        for source in original.objects:
+            if source.type!='MESH':continue
+            o=source.copy();o.data=source.data.copy();o.name='Assembled_'+asset+'_'+source.name
+            # Bake the source's evaluated world coordinates and stacking offset into geometry.
+            # Reading matrix_world immediately after a location edit can return stale data.
+            for vertex in o.data.vertices:vertex.co=source.matrix_world@vertex.co+Vector((0,0,z))
+            o.parent=None;o.matrix_world=Matrix.Identity(4);C.objects.link(o);o.parent=P;o.matrix_parent_inverse=Matrix.Identity(4)
+
+BUILDERS.update(RocketAssembled=assembled_rocket,BoltLoose=lambda:fastener(False),BoltTight=lambda:fastener(True),Nut=nut,Bracket=bracket,HelmetFilter=helmet_filter,FilterRack=filter_rack)
 
 def bounds(objects):
     pts=[o.matrix_world@Vector(corner) for o in objects if o.type=='MESH' for corner in o.bound_box]

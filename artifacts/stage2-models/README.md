@@ -1,6 +1,6 @@
 # Stage2 모델 검수 렌더
 
-Blender Workbench에서 실제 메시를 렌더했습니다. 컨셉아트가 아니라 납품 FBX와 동일한 형상의 확인 이미지입니다. 에셋당 정면·왼쪽·오른쪽·후면과 사선 미리보기 5장, 총 200장.
+Blender Workbench에서 실제 메시를 렌더했습니다. 컨셉아트가 아니라 납품 FBX와 동일한 형상의 확인 이미지입니다. 에셋당 정면·왼쪽·오른쪽·후면과 사선 미리보기 5장, 총 235장.
 
 [모델 사용 안내](../../METAGAME/Assets/_Project/Models/Stage2/README_KO.md) · [Unity 임포트 결과](unity-import-validation.json)
 
@@ -46,4 +46,10 @@ Blender Workbench에서 실제 메시를 렌더했습니다. 컨셉아트가 아
 | Lichen | [보기](Lichen/preview.png) | [보기](Lichen/front.png) | [보기](Lichen/left.png) | [보기](Lichen/right.png) | [보기](Lichen/back.png) | [결과](Lichen-validation.json) |
 | Reeds | [보기](Reeds/preview.png) | [보기](Reeds/front.png) | [보기](Reeds/left.png) | [보기](Reeds/right.png) | [보기](Reeds/back.png) | [결과](Reeds-validation.json) |
 | DeadSapling | [보기](DeadSapling/preview.png) | [보기](DeadSapling/front.png) | [보기](DeadSapling/left.png) | [보기](DeadSapling/right.png) | [보기](DeadSapling/back.png) | [결과](DeadSapling-validation.json) |
-
+| RocketAssembled | [보기](RocketAssembled/preview.png) | [보기](RocketAssembled/front.png) | [보기](RocketAssembled/left.png) | [보기](RocketAssembled/right.png) | [보기](RocketAssembled/back.png) | [결과](RocketAssembled-validation.json) |
+| BoltLoose | [보기](BoltLoose/preview.png) | [보기](BoltLoose/front.png) | [보기](BoltLoose/left.png) | [보기](BoltLoose/right.png) | [보기](BoltLoose/back.png) | [결과](BoltLoose-validation.json) |
+| BoltTight | [보기](BoltTight/preview.png) | [보기](BoltTight/front.png) | [보기](BoltTight/left.png) | [보기](BoltTight/right.png) | [보기](BoltTight/back.png) | [결과](BoltTight-validation.json) |
+| Nut | [보기](Nut/preview.png) | [보기](Nut/front.png) | [보기](Nut/left.png) | [보기](Nut/right.png) | [보기](Nut/back.png) | [결과](Nut-validation.json) |
+| Bracket | [보기](Bracket/preview.png) | [보기](Bracket/front.png) | [보기](Bracket/left.png) | [보기](Bracket/right.png) | [보기](Bracket/back.png) | [결과](Bracket-validation.json) |
+| HelmetFilter | [보기](HelmetFilter/preview.png) | [보기](HelmetFilter/front.png) | [보기](HelmetFilter/left.png) | [보기](HelmetFilter/right.png) | [보기](HelmetFilter/back.png) | [결과](HelmetFilter-validation.json) |
+| FilterRack | [보기](FilterRack/preview.png) | [보기](FilterRack/front.png) | [보기](FilterRack/left.png) | [보기](FilterRack/right.png) | [보기](FilterRack/back.png) | [결과](FilterRack-validation.json) |

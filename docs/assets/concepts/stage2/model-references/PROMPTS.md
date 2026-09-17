@@ -1,5 +1,15 @@
 # 방향별 아트 재생성용 프롬프트
 
+## 추가 7종 — 2026-09-17
+
+후면 보정: RocketAssembled는 정면 창문과 점검문을 숨긴 아이보리 후면, Bracket은 삼각 보강대와 발판을 가리는 바깥쪽 뒷판, HelmetFilter는 흡입 그릴 대신 뒤쪽 장착 브리지와 연결구가 보이도록 정면 참조를 180도 회전해 다시 생성했다.
+
+[추가 디자인 입력](additional-assets.json): RocketAssembled, BoltLoose, BoltTight, Nut, Bracket, HelmetFilter, FilterRack. 각 에셋 정면을 먼저 생성한 뒤 그 PNG를 참조하여 왼쪽·오른쪽·후면을 각각 별도 생성했다.
+
+정면 지침: Single FRONT orthographic modeling reference. Same stylized abandoned Earth launchyard game art: ivory, teal metal, amber safety accents, restrained wear, neutral gray background. One object fully visible, exact head-on front view, no perspective, no text or labels, no multiview sheet. 여기에 JSON의 label 및 design을 붙였다.
+
+다른 방향 지침: Create a single requested orthographic view of this exact asset. Preserve identical structure and materials. Side views rotate exactly 90 degrees; back rotates 180 degrees and hides front details. Nut side shows the thick edge, back shows the hole. Bracket sides show the L profile. Filter back shows the connection and sides show cartridge thickness. One object, neutral gray background, no text, no layout sheet. 정면 PNG를 참조 이미지로 첨부했다.
+
 내장 ImageGen으로 생성. 외부 이미지·3D 서비스는 사용하지 않았습니다. 아래는 재현을 위한 공통 지침과 에셋별 디자인 명세이며 호출별 전문 로그가 아닙니다.
 
 ## 공통 지침
@@ -263,4 +273,3 @@ small 0.35m high dense ochre dry grass tuft, broad stylized ribbon blades, spars
 
 - Crane 좌우: 긴 붐의 측면을 반복하지 말고 붐 끝에서 마스트를 바라보는 끝면을 생성.
 - Wrench/right 최종: 왼쪽의 얇은 옆면 이미지를 참조하여 길이 방향으로 180도 돌린 반대 옆면. 손잡이는 가로 유지, 왼쪽 턱·오른쪽 주황 손잡이 끝, 넓은 평면 노출 금지.
-

@@ -1,6 +1,6 @@
 # Stage2 에셋 방향별 아트
 
-40종 × 정면·왼쪽·오른쪽·후면 = **별도 PNG 160장**입니다. 네 방향을 합친 시트가 아닙니다. 각 에셋의 네 이미지를 생성한 후 Blender MCP 모델링에 사용했습니다.
+47종 × 정면·왼쪽·오른쪽·후면 = **별도 PNG 188장**입니다. 네 방향을 합친 시트가 아닙니다. 각 에셋의 네 이미지를 생성한 후 Blender MCP 모델링에 사용했습니다.
 
 [모델 라이브러리](../../../../../METAGAME/Assets/_Project/Models/Stage2/README_KO.md) · [실제 모델 렌더](../../../../../artifacts/stage2-models/README.md) · [디자인 명세](asset-manifest.json) · [재생성용 프롬프트](PROMPTS.md)
 
@@ -48,4 +48,10 @@ AI 컨셉아트에는 방향 간 질감·세부 형상 차이가 남아 있습�
 | Lichen (식생) | [PNG](Lichen/front.png) | [PNG](Lichen/left.png) | [PNG](Lichen/right.png) | [PNG](Lichen/back.png) |
 | Reeds (식생) | [PNG](Reeds/front.png) | [PNG](Reeds/left.png) | [PNG](Reeds/right.png) | [PNG](Reeds/back.png) |
 | DeadSapling (식생) | [PNG](DeadSapling/front.png) | [PNG](DeadSapling/left.png) | [PNG](DeadSapling/right.png) | [PNG](DeadSapling/back.png) |
-
+| RocketAssembled (로켓) | [PNG](RocketAssembled/front.png) | [PNG](RocketAssembled/left.png) | [PNG](RocketAssembled/right.png) | [PNG](RocketAssembled/back.png) |
+| BoltLoose (체결) | [PNG](BoltLoose/front.png) | [PNG](BoltLoose/left.png) | [PNG](BoltLoose/right.png) | [PNG](BoltLoose/back.png) |
+| BoltTight (체결) | [PNG](BoltTight/front.png) | [PNG](BoltTight/left.png) | [PNG](BoltTight/right.png) | [PNG](BoltTight/back.png) |
+| Nut (체결) | [PNG](Nut/front.png) | [PNG](Nut/left.png) | [PNG](Nut/right.png) | [PNG](Nut/back.png) |
+| Bracket (체결) | [PNG](Bracket/front.png) | [PNG](Bracket/left.png) | [PNG](Bracket/right.png) | [PNG](Bracket/back.png) |
+| HelmetFilter (장비 후보) | [PNG](HelmetFilter/front.png) | [PNG](HelmetFilter/left.png) | [PNG](HelmetFilter/right.png) | [PNG](HelmetFilter/back.png) |
+| FilterRack (장비 후보) | [PNG](FilterRack/front.png) | [PNG](FilterRack/left.png) | [PNG](FilterRack/right.png) | [PNG](FilterRack/back.png) |

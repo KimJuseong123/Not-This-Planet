@@ -1,0 +1,17 @@
+{
+  "asset": "Chimney",
+  "fbx": "S2_Chimney.fbx",
+  "fbm": "S2_Chimney.fbm",
+  "textures": [
+    "S2_Concrete_BaseColor.png",
+    "S2_Orange_BaseColor.png",
+    "S2_Steel_BaseColor.png"
+  ],
+  "relative_texture_paths": [
+    "S2_Chimney.fbm/S2_Concrete_BaseColor.png",
+    "S2_Chimney.fbm/S2_Orange_BaseColor.png",
+    "S2_Chimney.fbm/S2_Steel_BaseColor.png"
+  ],
+  "relative_paths_valid": true,
+  "passed": true
+}

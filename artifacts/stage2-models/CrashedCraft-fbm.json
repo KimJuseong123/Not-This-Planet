@@ -1,0 +1,23 @@
+{
+  "asset": "CrashedCraft",
+  "fbx": "S2_CrashedCraft.fbx",
+  "fbm": "S2_CrashedCraft.fbm",
+  "textures": [
+    "S2_Dark_BaseColor.png",
+    "S2_Glass_BaseColor.png",
+    "S2_Ivory_BaseColor.png",
+    "S2_Rust_BaseColor.png",
+    "S2_Steel_BaseColor.png",
+    "S2_Teal_BaseColor.png"
+  ],
+  "relative_texture_paths": [
+    "S2_CrashedCraft.fbm/S2_Dark_BaseColor.png",
+    "S2_CrashedCraft.fbm/S2_Glass_BaseColor.png",
+    "S2_CrashedCraft.fbm/S2_Ivory_BaseColor.png",
+    "S2_CrashedCraft.fbm/S2_Rust_BaseColor.png",
+    "S2_CrashedCraft.fbm/S2_Steel_BaseColor.png",
+    "S2_CrashedCraft.fbm/S2_Teal_BaseColor.png"
+  ],
+  "relative_paths_valid": true,
+  "passed": true
+}

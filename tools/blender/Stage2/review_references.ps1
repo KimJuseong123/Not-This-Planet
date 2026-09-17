@@ -3,12 +3,13 @@ Add-Type -AssemblyName System.Drawing
 $assets = (Get-Content (Join-Path $Root 'docs/assets/concepts/stage2/model-references/asset-manifest.json') -Raw | ConvertFrom-Json).assets
 $out = Join-Path $Root 'artifacts/stage2-models'
 New-Item -ItemType Directory -Force $out | Out-Null
-for ($page=0; $page -lt 5; $page++) {
+for ($page=0; $page -lt [math]::Ceiling($assets.Count/8); $page++) {
     $canvas = New-Object System.Drawing.Bitmap(1200,1920)
     $g=[System.Drawing.Graphics]::FromImage($canvas)
     $g.Clear([System.Drawing.Color]::White)
     $font=New-Object System.Drawing.Font('Arial',11)
     for ($row=0; $row -lt 8; $row++) {
+        if ($page*8+$row -ge $assets.Count) { break }
         $asset=$assets[$page*8+$row]
         $views=@('front','left','right','back')
         for ($col=0; $col -lt 4; $col++) {
