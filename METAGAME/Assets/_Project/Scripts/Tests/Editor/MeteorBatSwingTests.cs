@@ -452,6 +452,7 @@ namespace Metagame.Gameplay.Tests
             Assert.IsFalse(view.gameObject.activeSelf);
         }
 
+        [Category("Heavy")]
         [UnityEngine.TestTools.UnityTest]
         public System.Collections.IEnumerator Bat_DestroyWhileHeldRemovesCameraVisual()
         {

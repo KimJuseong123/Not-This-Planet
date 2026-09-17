@@ -81,6 +81,7 @@ namespace Metagame.Gameplay.Tests
         }
 
 
+        [Category("Heavy")]
         [Test]
         public void AuthoredStageToolsPartsAndClampsHaveOutlineTargets()
         {

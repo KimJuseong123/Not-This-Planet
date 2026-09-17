@@ -18,6 +18,7 @@ namespace Metagame.Gameplay.Tests
             if (Application.isPlaying) yield return new ExitPlayMode();
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator LocalCameraRendersOnlyOccludedOutlinesIncludingOverlappingTargets()
         {

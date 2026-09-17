@@ -99,6 +99,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(plant.GetComponent<Collider>().bounds, Is.EqualTo(before));
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator PlayerContactActuallyTriggersVisibleSwayAndSettles()
         {

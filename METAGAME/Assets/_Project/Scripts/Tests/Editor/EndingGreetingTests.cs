@@ -30,6 +30,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(DemoEnding.StageAt(launch + 13f, count), Is.EqualTo(DemoEndingStage.Lobby));
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator CameraMovesToEachFaceThenEveryoneBoardsTogether()
         {
