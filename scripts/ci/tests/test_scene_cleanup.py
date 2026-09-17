@@ -45,8 +45,11 @@ TEARDOWNS = ("[TearDown]", "[OneTimeTearDown]", "[UnityTearDown]")
 #: (`CheatArenaTests`·`CustomizationTests` 가 `finally` 에서 그렇게 한다).
 ADDITIVE = "OpenSceneMode.Additive"
 CLOSES = "EditorSceneManager.CloseScene"
-#: 근거를 적고 빠져나가는 길. 이유 없이 붙이면 리뷰에서 걸린다.
+#: 근거를 적고 빠져나가는 길. **주석 줄에, 이슈 키와 함께** 적어야 한다
+#: (`!511` AI 리뷰). 파일 어디에 있든 면제하면 테스트 데이터 문자열 하나로 검사가
+#: 꺼진다 — 빠져나가는 길은 있되 **왜 빠져나가는지가 남아야** 한다.
 ESCAPE = "scene-cleanup-ok"
+ESCAPE_RE = re.compile(r"^\s*//.*" + re.escape(ESCAPE) + r".*S15P21B202-\d+", re.M)
 
 fails = []
 
@@ -78,14 +81,31 @@ for path in test_files():
     opened += 1
     rel = os.path.relpath(path, ROOT).replace("\\", "/")
 
-    if ESCAPE in text:
+    if ESCAPE_RE.search(text):
         excused += 1
-        print(f"  ⏭ 예외 표시됨 — {os.path.basename(path)}")
+        print(f"  ⏭ 예외 표시됨(근거 있음) — {os.path.basename(path)}")
+        continue
+    if ESCAPE in text:
+        check(False,
+              f"{rel} — `{ESCAPE}` 가 있지만 **주석 줄에 이슈 키와 함께**가 아니다.\n"
+              f"      예) `// {ESCAPE}: 이 씬은 다음 검증이 이어 쓴다 (S15P21B202-000)`")
         continue
 
     # 여는 방식을 가른다 — `OpenScene(path)` 는 기본이 Single(현재 씬을 갈아치운다),
     # `OpenScene(path, OpenSceneMode.Additive)` 는 덧씌운다.
     calls = re.findall(re.escape(OPENS) + r"\s*\(([^;]*?)\)\s*;", text, re.S)
+
+    # **해석하지 못한 것을 '전부 Additive' 로 읽지 않는다** (`!511` AI 리뷰).
+    # 호출은 있는데(`OPENS in text`) 정규식이 하나도 못 잡으면 `single` 이 비어
+    # 아래 Additive 분기로 떨어진다 — 그러면 `CloseScene` 글자만 있어도 **정리 없이
+    # 통과한다.** 조용히 통과하는 검사는 없는 검사와 같다.
+    if not calls:
+        check(False,
+              f"{rel} — `{OPENS}` 가 있는데 호출 형태를 해석하지 못했다.\n"
+              f"      이 검사가 그 파일을 못 보고 지나간다 — 정규식을 넓히거나 호출을 "
+              f"한 줄로 쓴다")
+        continue
+
     single = [c for c in calls if ADDITIVE not in c]
 
     if not single:
