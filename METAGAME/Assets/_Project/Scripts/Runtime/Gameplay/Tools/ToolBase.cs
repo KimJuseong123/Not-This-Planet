@@ -94,6 +94,7 @@ namespace Metagame.Gameplay
         public void Equip(PlayerRig owner, Rigidbody body)
         {
             if (IsEquipped) Unequip();
+            GetComponent<ToolDisplayMount>()?.Release();
 
             // **원격으로 껐던 것을 먼저 되돌린다**(AI 리뷰 지적, 2026-09-08).
             // 그 상태에서는 collisionsSuspended 가 이미 참이라 아래 SuspendCollisions 가
@@ -179,6 +180,7 @@ namespace Metagame.Gameplay
 
             if (held)
             {
+                GetComponent<ToolDisplayMount>()?.Release();
                 SuspendCollisions();
                 OnEquipped();
                 return;
