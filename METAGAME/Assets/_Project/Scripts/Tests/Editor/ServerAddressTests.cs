@@ -204,9 +204,13 @@ namespace Metagame.Network.Tests
         [Test]
         public void ServerAddressFollowsTheBuildChannel()
         {
+            // **기대값을 계산하지 않고 글자로 박는다** (`!494` 리뷰). `BackendEndpoints.Base`
+            // 로 비교하면 양쪽이 **같은 길로** 계산돼, 그 길이 통째로 틀려도 통과한다 —
+            // 이번 사고가 바로 "옳게 계산됐는데 다른 데서 덮였다" 였으므로 그 비교는
+            // 무엇도 지키지 못한다. 에디터는 개발 서버를 본다(`BackendEndpoints.Resolve`).
             Assert.That(NetworkSession.ResolveServerAddress(),
-                Is.EqualTo(Metagame.Core.BackendEndpoints.Base),
-                "실행 인자가 없으면 빌드 채널이 정한 주소여야 한다");
+                Is.EqualTo("https://j15b202.p.ssafy.io:443/dev"),
+                "에디터·개발 빌드는 개발 서버여야 한다 — 배포 주소가 나오면 로비만 배포로 간다");
         }
 
         /// <summary>
