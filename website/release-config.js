@@ -15,8 +15,9 @@
 // `/builds/latest.json` 을 읽습니다 — `release-prod` 가 옮기는 바로 그 파일이라
 // 릴리스하면 저절로 맞습니다.
 //
-// `fileSize` 는 **지금 받는 파일(런처)** 의 크기입니다. 게임 156 MB 는 런처가 그다음에
-// 받으므로 매니페스트의 `totalBytes` 로 대신할 수 없어, 이 값만 손으로 둡니다.
+// `fileSize` 는 **지금 받는 파일(런처)** 의 크기입니다. 런처가 그다음에 받는 게임은
+// zip 156 MB · 풀면 372 MB 라 매니페스트의 `totalBytes` 로 대신할 수 없어, 이 값만
+// 손으로 둡니다.
 window.ReleaseConfig = {
   downloadUrl: "/builds/NotThisPlanetLauncher.exe",
   fileSize: "15 MB",

@@ -47,8 +47,9 @@
     document.getElementById('downloadPending').hidden = true;
     document.getElementById('downloadStatus').textContent = '받은 실행 파일을 빈 폴더에 두고 실행해 주세요.';
   }
-  // 크기는 **런처**의 것이다(15 MB). 게임 156 MB 는 런처가 그다음에 받으므로
-  // 매니페스트의 totalBytes 로 대신할 수 없다 — 그래서 이 값만 손으로 적는다.
+  // 크기는 **런처**의 것이다(15 MB). 런처가 그다음에 받는 게임은 zip 156 MB ·
+  // 풀면 372 MB(매니페스트 `totalBytes`)라 그 값으로 대신할 수 없다 —
+  // 사람이 받는 파일은 런처이므로 이 값만 손으로 적는다.
   const buildMeta = document.getElementById('buildMeta');
   buildMeta.textContent = String(config.fileSize || '').trim();
 

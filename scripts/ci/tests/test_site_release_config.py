@@ -68,14 +68,18 @@ print("== 버전과 바뀐 것 (S15P21B202-595) ==")
 #     어디에도 적혀 있지 않아 **v1.1.0 이 나간 지 사흘이 지나도록 사이트는
 #     v1.0.0 이라고 말하고 있었다.** 이제 `release.js` 가 `/builds/latest.json` 을
 #     읽는다 — `release-prod` 가 옮기는 바로 그 파일이다.
-assert not re.search(r'^\s*version\s*:', CONFIG, re.M), (
+assert not re.search(r'(?:^|[{,])\s*version\s*:', CONFIG, re.M), (
     "release-config.js 에 version 이 되살아났다 — 손으로 적으면 릴리스와 어긋난다. "
     "release.js 가 /builds/latest.json 을 읽는다")
 
 JS = read("website/release.js")
 assert "/builds/latest.json" in JS, "release.js 가 latest.json 을 읽지 않는다 — 버전을 알 길이 없다"
 #     못 읽어도 받는 길은 살아 있어야 한다. 서버가 잠깐 안 되는 것으로 버튼이 꺼지면 안 된다.
-assert ".catch(" in JS, "latest.json 읽기 실패를 삼키지 않는다 — 버전 한 줄 때문에 화면이 깨진다"
+#     **그 fetch 블록 안에서** 본다. 파일 어디든 `.catch(` 가 하나 있으면
+#     통과하게 두면, 나중에 이 체인의 catch 만 지워도 검사가 조용히 넘어간다.
+_after = JS.split("'/builds/latest.json'", 1)[1][:900]
+assert ".catch(" in _after, (
+    "latest.json fetch 체인이 실패를 삼키지 않는다 — 버전 한 줄 때문에 화면이 깨진다")
 print("  버전은 latest.json 에서 온다 ✅")
 
 # ── ③ 사용자용 문구에 이슈·MR 번호가 없다 ───────────────────────────────
@@ -83,10 +87,41 @@ print("  버전은 latest.json 에서 온다 ✅")
 #     플레이어에게 `S15P21B202-440` 은 뜻이 없다. 릴리스 초안을 사람이 옮겨 넣는
 #     자리라 그대로 붙여 넣기 쉽다 — `release_summary.leaks` 와 같은 규칙으로 막는다.
 KEY_IN_TEXT = re.compile(r"\bS15P21B202[- ]?\d+\b|\B!\d{2,}\b")
-notes_block = re.search(r"notes\s*:\s*\[(.*?)\]", CONFIG, re.S)
-assert notes_block, "release-config.js 에 notes 가 없다 — 바뀐 것을 실을 자리가 사라졌다"
-leaked = [line.strip() for line in notes_block.group(1).split(chr(10))
-          if KEY_IN_TEXT.search(line)]
+#     **항목별로 본다.** 정규식으로 배열을 잘라 내면 항목 문자열 안의 `]` 에서 끊겨
+#     그 뒤 줄의 유출을 놓친다(`!503` 리뷰). 따옴표 안팎을 세며 배열 끝을 찾는다.
+def notes_items(config):
+    """`notes: [...]` 안의 문자열 항목들. 배열을 못 찾으면 None."""
+    at = config.find("notes")
+    if at < 0:
+        return None
+    open_at = config.find("[", at)
+    if open_at < 0:
+        return None
+    depth, quote, items, buf = 0, "", [], None
+    for ch in config[open_at:]:
+        if quote:
+            if ch == quote:
+                quote = ""
+                items.append(buf)
+                buf = None
+            else:
+                buf += ch
+            continue
+        if ch in "\"'":
+            quote, buf = ch, ""
+            continue
+        if ch == "[":
+            depth += 1
+        elif ch == "]":
+            depth -= 1
+            if depth == 0:
+                return items
+    return None
+
+
+items = notes_items(CONFIG)
+assert items is not None, "release-config.js 의 notes 배열을 읽지 못했다 — 실을 자리가 사라졌다"
+leaked = [t for t in items if KEY_IN_TEXT.search(t)]
 assert not leaked, "notes 에 이슈·MR 번호가 남아 있다: " + " / ".join(leaked[:3])
 
 #     비어 있어도 된다 — 그때는 그 절이 화면에 안 나온다. 릴리스 사이에는 비는 것이 정상이다.
