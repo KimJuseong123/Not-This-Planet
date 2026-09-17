@@ -83,7 +83,7 @@ namespace Metagame.Gameplay.Tests
 
         [TestCase(false, 1f, 3f)]
         [TestCase(true, 4f, 6f)]
-        public void MixedRandomDropsIncludeAreaAndConfiguredPlayerRadius(bool assault, float min, float max)
+        public void SeparateDropsIncludeAreaAndConfiguredPlayerRadius(bool assault, float min, float max)
         {
             var player = MakePlayer(Outside);
             var spawner = MakeSpawner(mixed: true);
@@ -116,7 +116,7 @@ namespace Metagame.Gameplay.Tests
 
         [TestCase(true)]
         [TestCase(false)]
-        public void MixedRandomDropsFallBackToAreaWithoutEligiblePlayer(bool downed)
+        public void SeparateDropsSkipPlayerSpawnWithoutEligiblePlayer(bool downed)
         {
             if (downed) MakePlayer(Outside).GoDown("검증");
             var spawner = MakeSpawner(mixed: true);
@@ -128,18 +128,86 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
-        public void ZeroPlayerChanceKeepsAllDropsInsideArea()
+        public void DisabledPlayerSpawnKeepsAllDropsInsideArea()
         {
             MakePlayer(Outside);
             var spawner = MakeSpawner(mixed: true);
             var settings = new UnityEditor.SerializedObject(spawner);
-            settings.FindProperty("_randomAreaNearPlayerChance").floatValue = 0f;
+            settings.FindProperty("_spawnNearPlayer").boolValue = false;
             settings.ApplyModifiedPropertiesWithoutUndo();
             foreach (var point in Collect(spawner, 50))
             {
                 Assert.That(point.x, Is.InRange(-AreaSize / 2f, AreaSize / 2f));
                 Assert.That(point.z, Is.InRange(-AreaSize / 2f, AreaSize / 2f));
             }
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void EveryBatchAddsExactlyOneNearSoloPlayer(bool assault)
+        {
+            var player = MakePlayer(Outside);
+            var spawner = MakeSpawner(mixed: true);
+            if (assault) spawner.BeginAssault();
+            var batches = new Dictionary<float, Vector2Int>();
+            spawner.DropScheduled += drop =>
+            {
+                batches.TryGetValue(spawner.Elapsed, out var counts);
+                var offset = drop.ImpactPoint - player.Position;
+                offset.y = 0f;
+                if (offset.magnitude <= 3.01f) counts.y++;
+                else counts.x++;
+                batches[spawner.Elapsed] = counts;
+            };
+            for (var i = 0; i < Mathf.CeilToInt(30f / Tuning.FixedStep); i++) spawner.Tick(Tuning.FixedStep);
+            Assert.Greater(batches.Count, 5);
+            foreach (var counts in batches.Values)
+            {
+                Assert.GreaterOrEqual(counts.x, 1, "기존 영역 무작위 낙하도 유지한다.");
+                Assert.AreEqual(1, counts.y, "플레이어 주변 낙하는 확률과 무관하게 매번 추가한다.");
+            }
+        }
+
+        [Test]
+        public void SeparateSpawnsUseEveryPlayersPositionAtSpawnTime()
+        {
+            var first = MakePlayer(Outside);
+            var second = MakePlayer(Outside + Vector3.right * 30f);
+            var downed = MakePlayer(Outside + Vector3.right * 60f);
+            downed.GoDown("검증");
+            var spawner = MakeSpawner(mixed: true);
+            spawner.Tick(Tuning.FixedStep); // 다음 묶음이 예고된 뒤 이동한다.
+            first.transform.position += Vector3.forward * 20f;
+            second.transform.position += Vector3.forward * 40f;
+            UnityEngine.Physics.SyncTransforms();
+            var firstPosition = first.Position;
+            var secondPosition = second.Position;
+            var points = new List<Vector3>();
+            spawner.DropScheduled += drop => points.Add(drop.ImpactPoint);
+            var guard = 0;
+            while (points.Count == 0 && guard++ < 1000) spawner.Tick(Tuning.FixedStep);
+            var firstCount = 0;
+            var secondCount = 0;
+            foreach (var point in points)
+            {
+                var a = point - firstPosition; a.y = 0f;
+                var b = point - secondPosition; b.y = 0f;
+                if (a.magnitude <= 3.01f) firstCount++;
+                else if (b.magnitude <= 3.01f) secondCount++;
+                else
+                {
+                    Assert.That(point.x, Is.InRange(-AreaSize / 2f, AreaSize / 2f));
+                    Assert.That(point.z, Is.InRange(-AreaSize / 2f, AreaSize / 2f));
+                }
+            }
+            Assert.AreEqual(1, firstCount);
+            Assert.AreEqual(1, secondCount);
+            Assert.Greater(points.Count, 2);
+            var fixedPoint = spawner.Pending[spawner.Pending.Count - 1].ImpactPoint;
+            second.transform.position += Vector3.right * 20f;
+            spawner.SetPaused(true);
+            spawner.Tick(Tuning.FixedStep);
+            Assert.AreEqual(fixedPoint, spawner.Pending[spawner.Pending.Count - 1].ImpactPoint);
         }
 
         // --- 플레이어를 노린다 ----------------------------------------------
@@ -320,6 +388,7 @@ namespace Metagame.Gameplay.Tests
             var spawner = go.AddComponent<MeteorSpawner>();
             var settings = new UnityEditor.SerializedObject(spawner);
             settings.FindProperty("_randomAreaTargets").boolValue = mixed;
+            settings.FindProperty("_spawnNearPlayer").boolValue = mixed;
             settings.ApplyModifiedPropertiesWithoutUndo();
             spawner.Configure(seed);
             spawner.SetArea(go.transform, new Vector2(AreaSize, AreaSize));

@@ -21,11 +21,12 @@ Inspector에서 `Spawn Interval Seconds`, `Spawn Interval Offset`,
 이미 알린 공세 전 묶음이 있으면 그 수량도 첫 묶음에 포함한다.
 반복 공세 요청은 첫 묶음을 중복 생성하지 않는다.
 
-기본 목표는 지정 영역 무작위 지면과 플레이어 주변 낙하의 혼합이다.
-`Random Area Near Player Chance` 기본값 0.3으로 플레이어 주변 후보를 선택한다.
-`Player Target Min Radius`/`Player Target Max Radius` 기본값은 1m/3m이며 Inspector에서 조절한다.
-확률을 0으로 두면 기존 전체 영역 무작위 낙하만 사용한다.
-기절한 플레이어와 직전 대상으로 선택한 플레이어는 제외하며, 대상이 없으면 영역 무작위로 돌아간다.
+전체 영역 무작위 낙하와 플레이어 주변 낙하는 별도 경로다.
+매 생성 주기마다 `Spawn Near Player`가 켜져 있으면 현재 `PlayerRig.All`을 순회하고,
+기절하지 않은 플레이어 각각의 **그 순간 위치** 주변에 운석을 1개씩 추가한다.
+선택 확률은 사용하지 않으며 전체 영역 운석 수량을 대체하지 않는다.
+`Player Target Min Radius`/`Player Target Max Radius` 기본값은 1m/3m이다.
+Inspector에서 반경을 조절하거나 `Spawn Near Player`로 추가 생성을 끌 수 있다.
 착탄 지점은 생성 시 확정하므로 경고가 표시된 뒤 플레이어를 따라 움직이지 않는다.
 `Random Area Targets`를 끄면 기존 가중치 목표 선택을 사용할 수 있다.
 실제 실행의 최초 시드는 매번 다르며, `Configure(seed)`와 `ResetRun()`은 재현 가능하다.
@@ -58,3 +59,11 @@ Inspector에서 `Spawn Interval Seconds`, `Spawn Interval Offset`,
 Unity 6000.5.4f1 관련 테스트 54/54 통과 (`METAGAME/Logs/meteor-near-player.xml`).
 공세 전후 영역/플레이어 주변 혼합, 기본 1~3m 및 조정한 4~6m 반경,
 기절/부재 대상의 영역 낙하 대체, 확률 0 설정, 기존 타이밍·낙하 회귀를 확인했다.
+
+## 최종: 플레이어별 보장 스폰
+
+확률 혼합을 제거하고 스폰 시점마다 각 플레이어의 현재 위치를 읽는 별도 경로로 변경했다.
+기절한 플레이어는 제외하며, 살아 있는 각 플레이어 주변에 1개씩 추가한다.
+전체 영역 무작위 스폰 및 공세 전후 주기는 유지한다.
+Unity 6000.5.4f1 관련 테스트 57/57 통과 (`METAGAME/Logs/meteor-each-player.xml`).
+매 주기 솔로 보장 생성, 다인 위치 이동 후 생성, 기절 대상 제외, 착탄 지점 고정을 포함한다.

@@ -67,10 +67,10 @@ namespace Metagame.Gameplay.Hazards
         [SerializeField, Range(0f, 1f)] float _fourCrewScale = 1f;
 
         [Header("목표 위치")]
-        [SerializeField, Tooltip("전체 영역 무작위 낙하에 플레이어 주변 낙하를 섞는다. 끄면 기존 가중치 목표를 사용한다.")]
+        [SerializeField, Tooltip("전체 영역에서 무작위로 고른다. 끄면 기존 가중치 목표를 사용한다.")]
         bool _randomAreaTargets = true;
-        [SerializeField, Range(0f, 1f), Tooltip("무작위 낙하 중 플레이어 주변을 선택할 확률. 0이면 전체 영역 낙하만 사용한다.")]
-        float _randomAreaNearPlayerChance = 0.3f;
+        [SerializeField, Tooltip("매 생성 주기마다 각 플레이어의 현재 위치를 읽고 주변에 운석 1개씩 별도로 추가한다.")]
+        bool _spawnNearPlayer = true;
         [SerializeField, Range(0f, 1f)] float _environmentWeight = 0.35f;
         [SerializeField, Range(0f, 1f)] float _nearPlayerWeight = 0.30f;
         [SerializeField, Range(0f, 1f)] float _workAreaWeight = 0.25f;
@@ -509,12 +509,26 @@ namespace Metagame.Gameplay.Hazards
                 _waveRemaining--;
                 Launch();
             }
+
+            SpawnNearPlayer();
+        }
+
+        // 전체 영역 낙하와 독립적이다. 예약 시점이 아니라 생성 시점의 위치를 사용한다.
+        void SpawnNearPlayer()
+        {
+            if (!_spawnNearPlayer) return;
+            for (var i = 0; i < PlayerRig.All.Count; i++)
+            {
+                var player = PlayerRig.All[i];
+                if (player == null || player.Downed) continue;
+                Launch(OnGround(NearPlayerPoint(player)));
+            }
         }
 
         /// <summary>예고와 운석을 <b>함께</b> 만든다.</summary>
-        void Launch()
+        void Launch(Vector3? impactPoint = null)
         {
-            var point = NextImpactPoint();
+            var point = impactPoint ?? NextImpactPoint();
             var size = _random.NextDouble() < MediumChanceAt(_elapsed)
                 ? MeteorSize.Medium
                 : MeteorSize.Small;
@@ -1103,18 +1117,15 @@ namespace Metagame.Gameplay.Hazards
         }
 
         /// <summary>
-        /// 영역 전체 무작위와 플레이어 주변 낙하를 섞는다. 대상이 없을 때는
+        /// 전체 영역 무작위 또는 기존 가중치 목표를 고른다. 대상이 없을 때는
         /// 환경 위치로 돌아간다. 바로 직전 착탄 지점은 가능한 한 피한다.
         /// </summary>
         Vector3 NextImpactPoint()
         {
             for (var attempt = 0; attempt < 4; attempt++)
             {
-                var roll = _random.NextDouble();
                 var kind = _randomAreaTargets
-                    ? (roll < Mathf.Clamp01(_randomAreaNearPlayerChance)
-                        ? MeteorTargetKind.NearPlayer : MeteorTargetKind.Environment)
-                    : TargetKindFor(roll);
+                    ? MeteorTargetKind.Environment : TargetKindFor(_random.NextDouble());
                 var point = PointFor(kind);
 
                 // 같은 자리를 연속으로 고르지 않는다(§17.5).
@@ -1249,7 +1260,11 @@ namespace Metagame.Gameplay.Hazards
             if (target == null) return EnvironmentPoint();
 
             _lastTargetPlayer = target;
+            return NearPlayerPoint(target);
+        }
 
+        Vector3 NearPlayerPoint(PlayerRig target)
+        {
             var angle = (float)_random.NextDouble() * Mathf.PI * 2f;
             var radius = Mathf.Lerp(
                 _playerTargetMinRadius,
