@@ -20,6 +20,7 @@ METAGAME/Assets/Scenes/Stage2_Earth.unity filter=lfs diff=lfs merge=lfs -text
 METAGAME/Assets/_Project/Terrain/Stage1/TerrainData/*.asset -text
 METAGAME/Assets/_Project/Terrain/Stage1/TerrainData/TD_Stage1_AstraBasin.asset filter=lfs diff=lfs merge=lfs -text
 METAGAME/Assets/_Project/Terrain/Stage2/TD_Stage2_Earth.asset filter=lfs diff=lfs merge=lfs -text
+METAGAME/Assets/_Project/Art/Stage2Earth/DrainageReflection.asset filter=lfs diff=lfs merge=lfs -text
 
 # Large binary assets use Git LFS.
 *.fbx filter=lfs diff=lfs merge=lfs -text

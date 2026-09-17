@@ -95,6 +95,11 @@ namespace Metagame.UI
             string warning = _yard.GasActive ? "유독 가스 누출 중 — 초록 구역 이탈 / 동료에게 제독 요청"
                 : _yard.GasWarning ? "6초 예고 — 배관 경고 구역에서 누출 예정" : _yard.State.GasEnabled ? "누출 휴지기 — 남은 오염은 동료에게 제독 요청" : "첫 조립 학습 구간 / 준비 구역은 안전";
             GUI.Label(new Rect(580, 28, 980, 55), warning, _text);
+            var swimmer = _session.LocalPlayer;
+            if (swimmer != null && swimmer.InWater)
+                GUI.Label(new Rect(580, 85, 980, 55), swimmer.Swimming
+                    ? "깊은 배수로 — WASD 이동 · Space 상승 · Ctrl 하강 · 완만한 둑으로 나가기"
+                    : "얕은 배수로 — 물의 저항으로 이동이 느려집니다", _text);
             int row=0;
             foreach(var member in _yard.State.Players)
             {
