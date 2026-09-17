@@ -113,6 +113,171 @@ check("선별" in S.SYSTEM and "빼세요" in S.SYSTEM, "내부 작업을 빼라
 check("이슈 번호" in S.SYSTEM, "사이트 문구에 번호를 쓰지 말라고 지시한다")
 
 print()
+print("== Jira 를 부르는 자리 (S15P21B202-579) ==")
+
+
+class StubJira:
+    """`ci_common.Jira` 대역. **`available` 은 속성이다** — 진짜와 같은 모양이어야
+
+    이 검사가 뜻을 갖는다. 예전 코드는 `jira.available()` 이라 여기서 바로 죽었는데,
+    그 자리를 아무도 부르지 않아 26개가 통과하는 채로 릴리스까지 갔다."""
+
+    def __init__(self, ok=True, table=None):
+        self._ok, self._table = ok, table or {}
+
+    @property
+    def available(self):
+        return self._ok
+
+    def search_all(self, jql, fields, page_size=50, max_pages=3):
+        import re as _re
+        hit = [k for k in _re.findall(r"S15P21B202-\d+", jql) if k in self._table]
+        return [{"key": k, "fields": {"summary": self._table[k]}} for k in hit], None
+
+
+def with_stub(jira, fn):
+    real = S.C.Jira
+    S.C.Jira = lambda: jira
+    try:
+        return fn()
+    finally:
+        S.C.Jira = real
+
+
+# ① 이것이 이번 결함 전부다. `()` 가 다시 붙으면 여기서 TypeError 가 난다.
+try:
+    got = with_stub(StubJira(ok=False), lambda: S.summaries(["S15P21B202-1"]))
+    check(got == ([], ["S15P21B202-1"]),
+          "Jira 를 못 쓰면 '읽은 것 없음 · 전부 못 읽음' 으로 돌려준다")
+except TypeError as e:
+    check(False, f"available 을 함수로 불렀다 — {e}")
+
+got = with_stub(StubJira(table={"S15P21B202-1": "[Puzzle] 운석 흔적이 오래 남는다"}),
+                lambda: S.summaries(["S15P21B202-1", "S15P21B202-2"]))
+check(got == (["[Puzzle] 운석 흔적이 오래 남는다"], ["S15P21B202-2"]),
+      "읽은 것과 못 읽은 것을 나눠 돌려준다")
+
+# **저장소 어디에도 `.available()` 이 없어야 한다.** 다섯 곳은 속성으로 읽고 한 곳만
+# 함수로 불렀다 — 그 한 줄을 사람이 다시 쓰지 못하게 막는다.
+import glob  # noqa: E402
+import re as _re  # noqa: E402
+
+def code_only(line: str) -> str:
+    """주석과 백틱 안을 걷어낸 나머지. **이 파일 자신이 첫 오탐이었다** — 설명 문구에
+
+    적은 `jira.available()` 세 곳이 걸렸다. 파이썬 코드에는 백틱이 없으므로 백틱 안은
+    전부 글이다. 완벽한 파서는 아니지만 이 검사가 잡으려는 것은 실제 호출 한 줄이다."""
+    return _re.sub(r"`[^`]*`", "", line.split("#", 1)[0])
+
+
+bad = []
+for path in sorted(glob.glob(os.path.join(ROOT, "scripts", "ci", "**", "*.py"), recursive=True)):
+    with open(path, encoding="utf-8") as f:
+        for n, line in enumerate(f, 1):
+            if _re.search(r"\.available\s*\(", code_only(line)) and "def available" not in line:
+                bad.append(f"{os.path.relpath(path, ROOT)}:{n}")
+check(not bad, "`.available()` 로 부르는 곳이 없다 (속성이다)" + (f" — {', '.join(bad)}" if bad else ""))
+
+print()
+print("== 요약 잡이 claude 가 있는 이미지에서 돈다 (S15P21B202-579) ==")
+
+with open(os.path.join(ROOT, ".gitlab-ci.yml"), encoding="utf-8") as f:
+    CI = f.read().split("\n")
+
+# 잡 블록: 0열에서 시작하는 `이름:` 줄부터 다음 0열 줄 전까지.
+HEAD = _re.compile(r"^([A-Za-z_][A-Za-z0-9_.-]*):")
+_starts = [(i, HEAD.match(l).group(1)) for i, l in enumerate(CI) if HEAD.match(l)]
+BLOCKS = {}
+for (i, name), nxt in zip(_starts, [s[0] for s in _starts[1:]] + [len(CI)]):
+    BLOCKS[name] = CI[i:nxt]
+
+
+def runs(block, script):
+    return any(script in l and l.lstrip().startswith("-") for l in block)
+
+
+owners = [n for n, b in BLOCKS.items() if runs(b, "release_summary.py")]
+check(owners == ["release-summary"],
+      f"release_summary.py 를 부르는 잡은 release-summary 하나다 (찾은 것: {owners})")
+
+if owners == ["release-summary"]:
+    block = BLOCKS["release-summary"]
+    # **이미지를 덮어쓰면 안 된다.** claude CLI 는 기본 이미지에만 있다. `release-windows`
+    # (Unity 이미지) 안에 있던 동안 `find_claude()` 가 None 이라 초안이 한 번도 안 나왔다.
+    over = [l for l in block if _re.match(r"^  image:", l)]
+    check(not over, "요약 잡이 image 를 덮어쓰지 않는다 — 기본 이미지에만 claude 가 있다")
+    check(not any(_re.match(r"^  tags:", l) for l in block),
+          "요약 잡이 tags 를 덮어쓰지 않는다 — ai-review 와 같은 러너여야 한다")
+    # 같은 근거로 `ai-review` 도 기본 이미지다. 둘이 갈리면 한쪽만 조용히 안 돈다.
+    check(not any(_re.match(r"^  image:", l) for l in BLOCKS.get("ai-review", [])),
+          "ai-review 도 기본 이미지다 — 두 잡의 전제가 같다")
+    check(any("allow_failure: true" in l for l in block), "릴리스를 막지 않는다(allow_failure)")
+    # `|| true` 는 실패를 **성공으로** 만든다 — 그래서 아무도 못 봤다. allow_failure 로 바꿨다.
+    check(not any("release_summary.py" in l and "|| true" in l for l in block),
+          "`|| true` 로 실패를 감추지 않는다")
+    check(any("release-summary.md" in l for l in block), "초안을 아티팩트로 남긴다")
+    check(any("release-windows" in l for l in block), "release-windows 뒤에 돈다(버전을 물려받는다)")
+
+print()
+print("== 초안 만들기 끝까지 (S15P21B202-579) ==")
+
+import tempfile  # noqa: E402
+
+CALLS = []
+
+
+def run_main(argv, backend="cli", answer=GOOD, boom=None, jira=None):
+    """`main()` 을 Jira·모델 없이 끝까지 돌린다. 돌려주는 것: (종료코드, 파일 내용)."""
+    real = (S.R.previous_tag, S.R.changelog, S.AI.pick_backend, S.AI.call, S.C.Jira)
+
+    def fake_call(be, model, system, user):
+        CALLS.append((be, model, user))
+        if boom:
+            raise RuntimeError(boom)
+        return answer
+
+    S.R.previous_tag = lambda v: "v1.1.0"
+    S.R.changelog = lambda prev, head="HEAD": ([{"key": "S15P21B202-1"}], 0)
+    S.AI.pick_backend = lambda: backend
+    S.AI.call = fake_call
+    S.C.Jira = lambda: (jira or StubJira(table={"S15P21B202-1": "[Puzzle] 운석 흔적이 오래 남는다"}))
+    try:
+        rc = S.main(argv)
+    finally:
+        (S.R.previous_tag, S.R.changelog, S.AI.pick_backend, S.AI.call, S.C.Jira) = real
+    try:
+        with open(argv[-1], encoding="utf-8") as f:
+            return rc, f.read()
+    except OSError:
+        return rc, None
+
+
+tmp = os.path.join(tempfile.mkdtemp(), "release-summary.md")
+
+rc, text = run_main(["v1.2.0", "--out", tmp])
+check(rc == 0 and text is not None, f"평범한 경우 초안 파일이 나온다 (종료 {rc})")
+check(text is not None and "운석을 방망이로 쳐낼 수 있습니다." in text, "모델이 쓴 줄이 파일에 들어간다")
+check(CALLS and CALLS[-1][0] == "cli", "고른 백엔드로 부른다 — call_cli 를 직접 부르지 않는다")
+check(CALLS and "[Puzzle] 운석 흔적이 오래 남는다" in CALLS[-1][2], "Jira 요약이 프롬프트에 실린다")
+
+# 백엔드가 없으면 **그렇다고 말하고 끝낸다.** 빈 파일을 남기면 "요약이 없구나" 로 읽힌다.
+os.remove(tmp)
+rc, text = run_main(["v1.2.0", "--out", tmp], backend="")
+check(rc == 1 and text is None, "AI 백엔드가 없으면 파일을 만들지 않고 실패한다")
+
+# 모델 호출이 터져도 스택이 아니라 종료 코드로 끝난다 — 잡이 죽는 모양이 달라지면 안 된다.
+rc, text = run_main(["v1.2.0", "--out", tmp], boom="claude -p 종료 코드 1 category=authentication")
+check(rc == 1 and text is None, "모델 호출이 실패하면 파일을 만들지 않고 실패한다")
+
+rc, text = run_main(["v1.2.0", "--out", tmp], answer="그냥 말")
+check(rc == 1 and text is None, "모델 출력을 못 읽으면 파일을 만들지 않고 실패한다")
+
+# 재료가 하나도 없으면 모델을 부르지도 않는다
+before = len(CALLS)
+rc, text = run_main(["v1.2.0", "--out", tmp], jira=StubJira(ok=False))
+check(rc == 1 and len(CALLS) == before, "Jira 를 못 읽으면 모델을 부르지 않고 실패한다")
+
+print()
 print(f"== 릴리스 요약: 통과 {passes} · 실패 {len(fails)} ==")
 if fails:
     print("   ❌ " + " / ".join(fails))
