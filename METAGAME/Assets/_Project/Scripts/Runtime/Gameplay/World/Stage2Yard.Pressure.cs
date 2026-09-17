@@ -33,7 +33,9 @@ namespace Metagame.Gameplay.Stage2
                 if(_pressureHits.TryGetValue(item.Key,out float next) && _state.PressureClock<next)continue;
                 if(!pump.ClearTo(rig))continue;
                 // A bounded pulse affects all ragdoll bodies equally; no client simulation or teleport.
-                rig.KnockDown(pump.Direction+Vector3.up*.08f,2.4f);
+                // Ground braking is 30 m/s²: 2.4 m/s vanished after ~7 cm in a real
+                // host process. Keep the kick local to this hazard and readable under braking.
+                rig.KnockDown(pump.Direction+Vector3.up*.08f,4.5f);
                 rig.Stagger(.65f);
                 _pressureHits[item.Key]=_state.PressureClock+.65f;
             }

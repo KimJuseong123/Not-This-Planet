@@ -52,7 +52,15 @@ namespace Metagame.Network
             rig.Teleport(pump.Nozzle.position+pump.Direction*2-Vector3.up*.7f,Quaternion.identity);
             yard.State.GasEnabled=true;yard.State.PressureClock=12;
             Debug.Log("[PressureSmoke] HOST warning started");
-            yield return new WaitForSeconds(6.7f);
+            Vector3 before=rig.Position;
+            while(yard.PressurePhase(0)==1){before=rig.Position;yield return null;}
+            yield return new WaitForSeconds(.6f);
+            if(rig==null || rig.Hips==null){Debug.LogError("[PressureSmoke] FAIL remote left before measurement");Application.Quit(2);yield break;}
+            float pushed=Vector3.Dot(rig.Position-before,pump.Direction);
+            Debug.Log($"[PressureSmoke] HOST measurement {pushed:F3}m phase={yard.PressurePhase(0)} inJet={pump.Contains(rig.Position)} clear={pump.ClearTo(rig)} locked={rig.WorkstationMovementLocked}");
+            if(pushed<.12f){Debug.LogError($"[PressureSmoke] FAIL server remote displacement {pushed:F3}m");Application.Quit(2);yield break;}
+            Debug.Log($"[PressureSmoke] HOST remote physical push PASS {pushed:F3}m");
+            yield return new WaitForSeconds(.8f);
             var target=yard.Targets.First(t=>t.Kind==YardTargetKind.PressureRelief && t.Index==0);
             rig.Teleport(target.transform.position+pump.Direction*1.3f-Vector3.up*.7f,Quaternion.identity);
             Physics.SyncTransforms();
@@ -72,8 +80,13 @@ namespace Metagame.Network
             }
             while(yard.PressurePhase(0)!=1)yield return null;
             Debug.Log("[PressureSmoke] CLIENT warning replication PASS");
-            while(yard.PressurePhase(0)!=2)yield return null;
+            Vector3 before=GameSession.Instance.LocalPlayer.Position;
+            while(yard.PressurePhase(0)!=2){before=GameSession.Instance.LocalPlayer.Position;yield return null;}
             Debug.Log("[PressureSmoke] CLIENT burst replication PASS");
+            yield return new WaitForSeconds(1f);
+            float pushed=Vector3.Dot(GameSession.Instance.LocalPlayer.Position-before,yard.PressurePumps[0].Direction);
+            if(pushed<.06f){Debug.LogError($"[PressureSmoke] FAIL client remote displacement {pushed:F3}m");Application.Quit(2);yield break;}
+            Debug.Log($"[PressureSmoke] CLIENT physical push replication PASS {pushed:F3}m");
             var target=yard.Targets.First(t=>t.Kind==YardTargetKind.PressureRelief && t.Index==0);
             while(yard.State.PressureRelief[0]<=0)
             {bridge.Send(new YardCommand{Action=YardAction.Interact,Target=target.Id});yield return new WaitForSeconds(.3f);}
