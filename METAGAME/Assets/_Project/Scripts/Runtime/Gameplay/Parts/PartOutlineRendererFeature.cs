@@ -121,6 +121,9 @@ namespace Metagame.Gameplay.Parts
                     data.material = mask;
                     builder.SetRenderAttachment(maskTexture, 0, AccessFlags.Write);
                     builder.SetRenderAttachmentDepth(resources.activeDepthTexture, AccessFlags.Read);
+                    // DrawMask changes the global group for each part. RenderGraph rejects
+                    // SetGlobalFloat every frame unless this pass declares that side effect.
+                    builder.AllowGlobalStateModification(true);
                     builder.AllowPassCulling(false);
                     builder.SetRenderFunc((MaskPassData passData, RasterGraphContext context) =>
                         DrawMask(context.cmd, passData.material));

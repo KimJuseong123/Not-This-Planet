@@ -19,7 +19,7 @@ namespace Metagame.Gameplay.Parts
     public static class PartOutlineTargets
     {
         /// <summary>마스크 셰이더가 읽는 번호.</summary>
-        public static readonly int OutlineGroupId = Shader.PropertyToID("_OutlineGroup");
+        public static readonly int OutlineGroupId = Shader.PropertyToID("_MetagamePartOutlineGroup");
 
         /// <summary>번호를 0~1 로 정규화할 때 나누는 값. R8 한 칸이 1/255 다.</summary>
         public const float GroupScale = 255f;
