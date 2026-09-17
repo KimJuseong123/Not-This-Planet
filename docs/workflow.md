@@ -113,7 +113,7 @@
 | **⑦ 머지** | 머지 버튼을 누른다 | — | 작업 브랜치 자동 삭제 · develop 재검사 | **develop 머지는 팀장만** · squash(이슈 하나 = 커밋 하나) · 스택은 **아래부터**([§3](#sec-3)) |
 | **⑧ 완료** | — | — | 이슈가 **완료**로 · 🟢 머지 완료 카드 | **완료는 머지로만.** 손으로 옮기면 되돌아온다 |
 | **배포** | **팀장이 버튼을 누른다** | — | jar 빌드 · 헬스체크 실패면 직전 버전으로 자동 롤백 · 🟢/🔴 | **개발·배포 서버가 따로 있다**(`-284`). 둘 다 재시작하면 쓰던 사람이 끊겨 **버튼**이고, 개발 서버만 **새벽 04:00 에 자동**이다 — 그 시간에는 끊길 사람이 없다. 자세히는 [§4](#sec-4) |
-| **릴리스** | 팀장이 `release/<키>-vX.Y.Z` 를 master 에 머지 | — | Windows 빌드 → 패키지 → GitLab Release(태그) → 🟢 → /builds/ 업로드. **여기까지는 올려만 둔 것** — 👤 promote-builds 를 눌러야 런처가 본다 | 릴리스 브랜치는 `release/` 로 시작 · 버전 태그 `vX.Y.Z` · 릴리스 브랜치에는 자기 커밋을 얹지 않는다(develop 스냅샷). 전체 흐름과 그 이유는 [§4](#sec-4) |
+| **릴리스** | 팀장이 `release/<키>-vX.Y.Z` 를 master 에 머지 | — | Windows 빌드 → 패키지 → GitLab Release(태그) → 🟢 → /builds/ 업로드. **여기까지는 올려만 둔 것** — 👤 release-prod 를 눌러야 런처가 본다 | 릴리스 브랜치는 `release/` 로 시작 · 버전 태그 `vX.Y.Z` · 릴리스 브랜치에는 자기 커밋을 얹지 않는다(develop 스냅샷). 전체 흐름과 그 이유는 [§4](#sec-4) |
 
 각 주체의 역할은 다음과 같습니다. 기계는 **형식과 사실**을 확인합니다(형식이 맞나, 키가 있나,
 컴파일되나). AI는 **의견**을 줍니다(범위를 벗어났나, 이 코드에 문제가 있나) — 막지
@@ -232,7 +232,7 @@ develop 에 머지되면 코드는 **저장소 안에** 있습니다. 거기서 
    ⏰ 새벽 04:00 자동      (master 머지로도            🤖 zip → 패키지 레지스트리
                            자동으로 안 바뀐다)        🤖 GitLab Release + 🏷 태그
    → j15b202…/dev/        → j15b202…/               🤖 publish-builds → /builds/
-                                                     👤 **promote-builds 버튼**
+                                                     👤 **release-prod 버튼**
                                                         ↳ latest.json 이 옮겨진다
                                                      🚀 런처가 바뀐 파일만 받는다
 ```
@@ -243,7 +243,7 @@ develop 에 머지되면 코드는 **저장소 안에** 있습니다. 거기서 
 | --- | --- |
 | 개발 서버 배포 | 재시작에 약 7초가 걸리고 그 사이 **dev 로 테스트하던 팀원의 접속이 끊깁니다.** 그래서 낮에는 버튼이고, 아무도 없는 **새벽 04:00 에만 자동**입니다 |
 | 배포 서버 배포 | 같은 이유인데 대상이 **실유저**입니다. EC2 가 릴레이·매칭까지 맡아 재시작하면 게임 중인 사람이 튕깁니다 |
-| `promote-builds` | 이 한 줄이 옮겨지는 순간 **모든 사용자의 런처가 그 버전으로 갑니다.** 되돌리기도 같은 잡입니다(`PROMOTE_VERSION` 에 옛 버전) |
+| `release-prod` | 이 한 줄이 옮겨지는 순간 **모든 사용자의 런처가 그 버전으로 갑니다.** 되돌리기도 같은 잡입니다(`PROMOTE_VERSION` 에 옛 버전) |
 
 ### 4-1. 개발 서버 — 팀이 쓰는 곳
 
@@ -297,7 +297,7 @@ master  ──────────────●──  🏷 v1.1.0
                        ├─ 🤖 publish-builds   /builds/files/ · manifest/vX.Y.Z.json
                        │        여기까지는 **올려만 둔 것**이다
                        │
-                       └─ 👤 promote-builds   ← **사람이 누른다**
+                       └─ 👤 release-prod   ← **사람이 누른다**
                                 latest.json 이 이 버전을 가리킨다
                                      │
                                      ▼
@@ -305,7 +305,7 @@ master  ──────────────●──  🏷 v1.1.0
                                **바뀐 파일만** 받는다
 ```
 
-**`promote-builds` 를 누르기 전까지 플레이어에게는 아무 일도 일어나지 않습니다.**
+**`release-prod` 를 누르기 전까지 플레이어에게는 아무 일도 일어나지 않습니다.**
 Release 가 발행돼도, `/builds/` 에 파일이 올라가도, 런처는 `latest.json` 만 봅니다.
 그래서 "빌드는 됐는데 아직 안 내보낸" 상태를 만들 수 있고, 문제가 생기면 같은 잡에
 옛 버전을 주어 **되돌립니다**.
@@ -334,7 +334,7 @@ Release 가 발행돼도, `/builds/` 에 파일이 올라가도, 런처는 `late
 | 버전 | 날짜 | 빌드 | 남은 것 |
 | --- | --- | --- | --- |
 | v1.0.0 | 2026-09-11 | 46.6분 | 잡은 마지막 줄에서 실패했다 — Jira 웹훅 주소에 `https://` 가 없어 `urllib` 이 터졌다. **Release 는 이미 나 있었다** |
-| v1.1.0 | 2026-09-14 | 44.7분 | 빌드·Release·`/builds/` 까지 초록. `promote-builds` 를 누르자 런처가 v1.1.0 을 받았다. **Jira 릴리스 버전은 아직 안 생긴다**(웹훅 400) |
+| v1.1.0 | 2026-09-14 | 44.7분 | 빌드·Release·`/builds/` 까지 초록. `release-prod` 를 누르자 런처가 v1.1.0 을 받았다. **Jira 릴리스 버전은 아직 안 생긴다**(웹훅 400) |
 
 **릴리스 MR 예외 처리도 실측됐습니다**(`B12c`). v1.1.0 의 릴리스 MR 에서
 `repo-hygiene` 이 `릴리즈 MR (release/… → master) — 위생 검사 건너뜀` 으로 통과했고,
@@ -523,11 +523,11 @@ GitLab이 이름 속 키로 이슈에 연결합니다.
 | --- | --- |
 | **MR 마다** | `mr-title` · `mr-lint` · `repo-hygiene` · `mr-overlap` · `stack-order` · `unity-compile` · `ci-tests` · `build-backend` · `ai-review` · `ai-review-gate` · `mm-mr-opened` · `retarget-pipelines` |
 | **develop 머지 뒤** | `unity-compile` · `build-backend` · `deploy-dev`(👤 버튼) · `publish-site` |
-| **master 머지 = 릴리스** | `release-windows` → `publish-builds` → `promote-builds`(👤 버튼) · `deploy-prod`(👤 버튼) |
+| **master 머지 = 릴리스** | `release-windows` → `publish-builds` → `release-prod`(👤 버튼) · `deploy-prod`(👤 버튼) |
 | **스케줄** | 04:00 `deploy-dev`(⏰ 자동) · 04:00 `build-devbuild`→`publish-devbuild` · 09:30 평일 `mm-digest` |
 | **결과 알림** | `mm-ci-failed` · `mm-ci-resolved` |
 
-**사람이 누르는 잡은 셋뿐입니다** — `deploy-dev` · `deploy-prod` · `promote-builds`.
+**사람이 누르는 잡은 셋뿐입니다** — `deploy-dev` · `deploy-prod` · `release-prod`.
 나머지는 전부 자동이고, 그 셋이 버튼인 이유는 §4 의 표에 있습니다.
 
 사고 이력과 각 결정의 근거는 [ci-and-notifications.md](./ci-and-notifications.md).

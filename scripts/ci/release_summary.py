@@ -17,7 +17,7 @@
 
 **공개하지 않는다.** 이 스크립트는 **초안 파일 하나**를 만들 뿐이다. AI 가 쓴 문장이
 그대로 사용자에게 나가면 이상한 한 줄이 게임의 첫인상이 된다. 사람이 보고 고친 뒤에
-사이트·Release·Jira 에 싣는다 — `promote-builds`(공개 버튼)와 같은 결이다.
+사이트·Release·Jira 에 싣는다 — `release-prod`(공개 버튼)와 같은 결이다.
 """
 import argparse
 import json

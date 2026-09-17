@@ -461,7 +461,7 @@ build-backend:            # 백엔드 **테스트 + jar** — MR 에서는 검�
     # **서버만 고쳐야 할 때** (S15P21B202-464). Run pipeline 에서 ref 를 `master` 로
     # 두고 `DEPLOY_PROD=1` 을 주면 이 잡이 jar 을 만들고 `deploy-prod` 버튼이 생긴다.
     # 이것이 없으면 `deploy-prod` 의 `needs` 가 없는 잡을 가리켜 **파이프라인 생성이
-    # 거절된다** — `-467` 이 `promote-builds` 에서 겪은 것과 같은 자리다.
+    # 거절된다** — `-467` 이 `release-prod` 에서 겪은 것과 같은 자리다.
     # `$DEPLOY_PROD` 만 쓰면 **있기만 하면 참**이라 `DEPLOY_PROD=0` 에도 걸린다
     # (`!379` 리뷰). 끄려고 0 을 넣은 사람이 켜는 결과를 얻는다.
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == "master" && $DEPLOY_PROD == "1"
@@ -616,11 +616,11 @@ deploy-prod:              # 릴리스 뒤 **사람이 눌러서** 배포 — 배
     name: production
     url: https://j15b202.p.ssafy.io
   rules:
-    # **수동을 유지한다.** prod 재시작은 진행 중인 세션을 끊는다 — EC2 가 릴레이·매칭을
-    # 맡는 구조라 게임 중인 사람이 튕긴다. 릴리스가 났다고 자동으로 끊으면 안 된다.
-    # 언제 끊을지는 사람이 정한다.
-    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
-      when: manual
+    # **릴리스 파이프라인에는 이 버튼을 두지 않는다** (S15P21B202-592). 거기서는
+    # `release-prod` 가 백엔드 배포까지 맡는다. 버튼이 나란히 둘이면 "둘 다 눌러야 하나"
+    # 가 되고, 실제로 v1.1.0 에서 한쪽만 눌려 **배포 백엔드가 나흘째 뒤처져 있었다.**
+    #
+    # 아래 `web` 길만 남긴다 — 설정 한 줄 고치자고 릴리스를 새로 낼 수는 없다.
     # **서버만 고치는 길** (S15P21B202-464).
     #
     # `master` 머지는 **빌드 릴리스**이지 서버 배포가 아니다 — 이 버튼을 눌러야 배포
@@ -670,8 +670,8 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
     # (Pipelines → Run pipeline)으로 아무 브랜치에서나 돌리면 RELEASE_DRY_RUN=1 이 되어
     # 빌드·zip 까지 진짜로 하고 **패키지 업로드·Release 생성·🟢 카드만 건너뛴다.**
     # **되돌리기 파이프라인에서는 돌지 않는다** (S15P21B202-467). `PROMOTE_VERSION` 은
-    # `promote-builds` 하나만 쓰는 변수다. 이것이 없으면 latest.json 한 줄 되돌리자고
-    # **90분짜리 Unity 빌드**가 딸려 돌고, `promote-builds` 는 그 90분을 기다린다 —
+    # `release-prod` 하나만 쓰는 변수다. 이것이 없으면 latest.json 한 줄 되돌리자고
+    # **90분짜리 Unity 빌드**가 딸려 돌고, `release-prod` 는 그 90분을 기다린다 —
     # 되돌리기는 급할 때 쓰는 길이라 그 시간이 곧 장애 시간이다.
     # 브랜치까지 본다 — 같은 이유다(`!379` 리뷰). `-467` 이 이 규칙을 넣을 때는
     # 조건이 `web && $PROMOTE_VERSION` 뿐이었고, 그러면 아무 브랜치의 리허설에서도
@@ -783,7 +783,7 @@ release-summary:          # 사용자용 요약 **초안** (S15P21B202-462 · �
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
   script:
     # **공개하지 않는다.** 아티팩트로만 남고, 사이트·Release·Jira 에 싣는 것은 사람이
-    # 보고 고친 뒤다 — `promote-builds`(공개 버튼)와 같은 결이다.
+    # 보고 고친 뒤다 — `release-prod`(공개 버튼)와 같은 결이다.
     - python scripts/ci/release_summary.py "$(cat release-version.txt)"
   artifacts:
     when: always
@@ -863,7 +863,7 @@ publish-devbuild:         # 개발·QA 빌드를 배포 폴더로 (S15P21B202-46
   needs:
     # **`optional: true` 가 없으면 qa 배치 경로가 아예 안 만들어진다.** web 파이프라인
     # (`STAGE_VERSION`)에서는 `build-devbuild` 가 rules 로 빠지는데, 없는 잡을 `needs` 로
-    # 걸면 GitLab 은 **파이프라인 생성 자체를 거절한다.** `promote-builds` 가 `-467` 에서
+    # 걸면 GitLab 은 **파이프라인 생성 자체를 거절한다.** `release-prod` 가 `-467` 에서
     # 똑같이 당했다. `glab ci lint` 는 rules 를 평가하지 않아 통과한다 — 여기서만 걸린다.
     - job: build-devbuild
       artifacts: true
@@ -884,7 +884,7 @@ publish-devbuild:         # 개발·QA 빌드를 배포 폴더로 (S15P21B202-46
     # develop 은 보호 브랜치다 — 고치려던 것이 그대로 남는다.
     - if: $CI_PIPELINE_SOURCE == "trigger" && $STAGE_VERSION
     # 손으로 배치하는 길은 **남겨 둔다.** 트리거가 안 될 때(토큰 만료·API 장애)
-    # 되돌아갈 자리가 있어야 한다 — `promote-builds` 의 되돌리기와 같은 결이다.
+    # 되돌아갈 자리가 있어야 한다 — `release-prod` 의 되돌리기와 같은 결이다.
     # 다만 이 길은 web 파이프라인이라 `release-windows` 리허설(90분)이 딸려 온다.
     - if: $CI_PIPELINE_SOURCE == "web" && $STAGE_VERSION
       when: manual
@@ -907,18 +907,28 @@ publish-builds:           # 릴리스 산출물을 사용자가 받는 자리로
   script:
     - python scripts/ci/publish_builds.py stage
 
-promote-builds:           # latest.json 을 옮긴다 — **사람이 누른다** (S15P21B202-405)
-  stage: deploy           # 이 한 줄이 옮겨지는 순간 **모든 사용자의 런처가 그 버전으로 간다**.
-  image: python:3.12      # 시점은 사람이 고르는 것이 맞다(deploy-prod 와 같은 결).
-  tags: [deploy]          # 되돌리기도 이 잡이다 — PROMOTE_VERSION 에 옛 버전을 준다.
+release-prod:             # 릴리스를 사용자에게 내보낸다 — **누르는 버튼은 이것 하나** (S15P21B202-592)
+  stage: deploy           # ① 배포 백엔드에 jar 적용 → ② latest.json 이동.
+  image: python:3.12      # 이 버튼을 누르는 순간 **게임 중인 사람이 튕기고**(백엔드 재시작 약 7초)
+  tags: [deploy]          # **모든 사용자의 런처가 새 버전으로 간다.** 그래서 시점은 사람이 고른다.
+  #
+  # **전에는 버튼이 둘이었다** — `deploy-prod` 와 `promote-builds`. 둘이 서로를 몰라서
+  # 순서도 눌렀는지도 알 수 없었고, 실제로 어긋났다: v1.1.0 에서 promote 만 눌려
+  # 배포 백엔드가 **나흘째 옛 jar** 이었다(`-570` 이 prod 에 없었다). 한쪽만 눌러도
+  # 파이프라인이 초록이라 아무도 몰랐다. 순서와 누락을 **스크립트가** 맡는다.
+  #
   # **`optional: true` 가 없으면 되돌리기 경로가 아예 안 만들어진다** (S15P21B202-467,
   # `!368` 리뷰). 되돌리기는 web 파이프라인인데 `publish-builds` 는 master push 에서만
   # 생긴다 — 없는 잡을 `needs` 로 걸면 GitLab 은 **파이프라인 생성 자체를 거절한다.**
-  # 그래서 "PROMOTE_VERSION 을 주고 이 잡만 돌린다" 는 위 주석은 지금까지 거짓이었다.
   needs:
     - job: publish-builds
       optional: true
     - job: release-windows
+      artifacts: true
+      optional: true
+    # jar 을 받는다. **백엔드가 안 바뀐 릴리스에는 이 잡이 없다** — 그때는 배포를
+    # 건너뛴다(`release_prod.py` 가 jar 이 없는 것으로 판단한다).
+    - job: build-backend
       artifacts: true
       optional: true
   interruptible: false
@@ -929,10 +939,12 @@ promote-builds:           # latest.json 을 옮긴다 — **사람이 누른다*
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
       when: manual
     # 되돌리기: Run pipeline 에서 PROMOTE_VERSION 을 주고 이 잡만 돌린다.
+    # **되돌리기는 백엔드를 건드리지 않는다** — 급할 때 쓰는 길이라 서버까지 되돌리면
+    # 그 시간이 곧 장애 시간이다. 그 판단도 스크립트 안에 있다.
     - if: $CI_PIPELINE_SOURCE == "web" && $PROMOTE_VERSION
       when: manual
   script:
-    - python scripts/ci/publish_builds.py promote
+    - python scripts/ci/release_prod.py
 
 # ── 런처 ─────────────────────────────────────────────────────────────────────
 #
@@ -941,7 +953,7 @@ promote-builds:           # latest.json 을 옮긴다 — **사람이 누른다*
 # 없었다. 그래서 저장소본이 **세 번** 앞서 있었다 — `-406`(개발 모드) · `-460`(채널) ·
 # `-507`(로그 보존). 2026-09-14 에 `--dev` 가 안 먹어서 드러났다.
 #
-# **빌드는 자동, 내보내기는 버튼**으로 나눈다(`promote-builds` 와 같은 결):
+# **빌드는 자동, 내보내기는 버튼**으로 나눈다(`release-prod` 와 같은 결):
 #   · 빌드가 자동이어야 **손으로 돌리는 것을 잊지 않는다**
 #   · 내보내기가 버튼이어야 **언제 새 exe 가 나가는지 사람이 정한다** — 백신 평판
 #     (`-456`)이 리셋될 수 있어 아무 때나 바꾸면 안 된다
