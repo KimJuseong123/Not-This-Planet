@@ -9,9 +9,18 @@ public static class PreviewVegetation
 {
     public static void Run()
     {
+        RenderScene("stage1-vegetation");
+    }
+    public static void RunTerrain()
+    {
+        Metagame.EditorTools.Stage1AstraTerrainConversion.ValidateSaved();
+        RenderScene("stage1-terrain");
+    }
+    static void RenderScene(string outputFolder)
+    {
         var scene = EditorSceneManager.OpenScene("Assets/Scenes/Stage1_Astra.unity");
         Metagame.EditorTools.Stage1VegetationBuilder.Validate();
-        var output = Path.GetFullPath("../../../artifacts/stage1-vegetation");
+        var output = Path.GetFullPath("../../../artifacts/"+outputFolder);
         Directory.CreateDirectory(output);
         var go = new GameObject("Temporary offscreen vegetation QA");
         var camera = go.AddComponent<Camera>();

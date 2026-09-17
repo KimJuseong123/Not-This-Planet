@@ -1,5 +1,16 @@
 # Unity Project Context
 
+## 2026-09-17 editable Astra Terrain
+
+Stage1_Astra's sculpted basin is now "Basin - Editable Terrain": a 112x112m Unity
+Terrain with 2049 height samples per axis and three paintable layers. The source
+mesh renderer/collider are disabled, retained for comparison. Existing facilities,
+vegetation, cameras and lighting retain their serialized data and transforms.
+TerrainData is a dedicated LFS binary asset. The isolated conversion refuses to
+overwrite existing TerrainData, preserving future manual sculpting/painting.
+See repository-root docs/records/2026-09-17-stage1-terrain.md for authoring controls,
+height approximation tolerances, physics/render validation and asset paths.
+
 ## 2026-09-17 numbered Stage1 vegetation
 
 Stage1_Astra has an additive "Stage1 Vegetation - Numbered Flora" group: 721 textured

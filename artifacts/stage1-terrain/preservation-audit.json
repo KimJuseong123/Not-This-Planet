@@ -1,0 +1,16 @@
+{
+  "status": "PASS",
+  "existingBlocksPreserved": 5675,
+  "existingObjectTransformsChanged": 0,
+  "modifiedBlocks": [
+    515537856,
+    515537855,
+    1265883843
+  ],
+  "changes": "Disable old ground renderer/collider; append Terrain to landscape child list",
+  "addedBlocks": 4,
+  "sourceSHA256": "1f0c1c0e323b4e8155193b621055718e949d44c2e79d0e00c109a9a38db102f4",
+  "sceneSHA256": "1cd8acc0a848efb82cba36f228a5e4e689e56b8a1dfc564d4d503edf8d8e5d5e",
+  "localReferences": "PASS",
+  "publishedUnityReload": "PASS"
+}
