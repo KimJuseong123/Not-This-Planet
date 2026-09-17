@@ -111,7 +111,7 @@ namespace Metagame.UI
         /// 기존 호출부와 테스트가 사용할 수 있도록 영상 참조는 선택 인자로 둔다.
         /// </summary>
         public void Initialize(NetworkSession session, string defaultNickname, string deviceOverride,
-            string defaultServerAddress = null, Texture2D backgroundImage = null,
+            Texture2D backgroundImage = null,
             VideoClip backgroundVideo = null, GameSettingsRuntime settingsRuntime = null)
         {
             Unsubscribe();
@@ -128,7 +128,11 @@ namespace Metagame.UI
 
             if (network != null)
             {
-                string address = NetworkSession.ResolveServerAddress(defaultServerAddress);
+                // **씬이 준 주소를 넘기지 않는다** (S15P21B202-584). 여기서 넘기던
+                // `defaultServerAddress` 가 빌드 채널을 이겨서, 개발 빌드인데 로비만
+                // 배포 서버로 갔다. 이제 `ResolveServerAddress` 가 실행 인자와
+                // `BackendEndpoints` 만 본다.
+                string address = NetworkSession.ResolveServerAddress();
                 string addressError;
                 if (!network.ApplyServerAddress(address, out addressError))
                     error = addressError;

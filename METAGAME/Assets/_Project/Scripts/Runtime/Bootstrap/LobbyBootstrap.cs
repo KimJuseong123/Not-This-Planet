@@ -19,9 +19,6 @@ namespace Metagame.Bootstrap
     /// </summary>
     public sealed class LobbyBootstrap : MonoBehaviour
     {
-        [Header("Backend")]
-        [Tooltip("로비 입력칸의 기본값. 저장된 주소가 있으면 그쪽이 우선한다. 형식은 호스트[:포트].")]
-        [SerializeField] private string defaultServerAddress = NetworkSession.DefaultServerAddress;
         // **주소를 여기에 두지 않는다** (S15P21B202-284). 개발·배포 서버가 갈렸고,
         // 갈려야 하는 주소가 셋인데 하나만 어긋나도 조용히 틀린다 —
         // `MatchAuthenticator.VerifyUrl` 은 [SerializeField] 도 아니라 눈에 안 보였다.
@@ -30,6 +27,13 @@ namespace Metagame.Bootstrap
         // 씬에 직렬화된 옛 값이 남아 있어도 읽지 않는다 — 필드를 없앴으므로 Unity 가
         // 그 데이터를 버린다. 임시로 다른 서버를 가리키려면 실행 인자를 쓴다:
         //   NotThisPlanet.exe -backend=https://…
+        //
+        // **`defaultServerAddress` 도 같은 이유로 없앴다** (S15P21B202-584). 위 주석은
+        // `httpBaseUrl`·`webSocketUrl` 을 뺀 뒤에 쓴 것인데, 같은 일을 하는 필드가 하나
+        // 남아 있었다. 씬에 `j15b202.p.ssafy.io`(배포)가 저장돼 있었고 그 값이
+        // `ResolveServerAddress` 에서 **빌드 채널보다 먼저** 읽혀서, 개발 빌드인데
+        // 로비만 배포 서버로 갔다 — 방은 배포 쪽에 생기고 입장 검증은 개발 쪽으로 가
+        // 401 이 난다(2026-09-17 nginx 로그 실측). 셋을 다 없애야 끝난다.
 
         [Header("Guest")]
         [SerializeField] private string defaultNickname = "비행사";
@@ -84,7 +88,7 @@ namespace Metagame.Bootstrap
             // ?? 는 UnityEngine.Object 의 == 오버로드를 우회하므로 쓰지 않고 == null 로 검사한다.
             var hud = GetComponent<LobbyHud>();
             if (hud == null) hud = gameObject.AddComponent<LobbyHud>();
-            hud.Initialize(network, defaultNickname, deviceIdOverride, defaultServerAddress,
+            hud.Initialize(network, defaultNickname, deviceIdOverride,
                 lobbyBackgroundImage, lobbyBackgroundVideo, settings);
         }
 

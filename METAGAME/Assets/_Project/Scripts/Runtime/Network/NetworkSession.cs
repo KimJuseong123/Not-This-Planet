@@ -886,19 +886,29 @@ namespace Metagame.Network
             return trimmed.Trim();
         }
 
-        /// <summary>마지막으로 입력한 서버 주소. 없으면 <paramref name="fallback"/>, 그것도 없으면 기본값.</summary>
         /// <summary>
-        /// 어느 서버를 볼지 정한다. 평소에는 배포 서버 한 곳이다.
+        /// 어느 서버를 볼지 정한다. 우선순위는 <b>실행 인자 → 빌드 채널</b> 둘뿐이다.
         ///
-        /// 예전에는 로비 화면에서 주소를 고쳐 PlayerPrefs 에 저장했는데, 화면에서 입력칸을
-        /// 없애면서(-162) 저장값도 읽지 않는다. 한 번 잘못 저장되면 게임 안에서 고칠
-        /// 방법이 없어 로그인이 조용히 멈추기 때문이다 — 실제로 예전 LAN 테스트 값
-        /// (192.168.x.x:8081)이 남아 접속이 막힌 적이 있다.
+        /// <para>예전에는 로비 화면에서 주소를 고쳐 PlayerPrefs 에 저장했는데, 화면에서
+        /// 입력칸을 없애면서(-162) 저장값도 읽지 않는다. 한 번 잘못 저장되면 게임 안에서
+        /// 고칠 방법이 없어 로그인이 조용히 멈추기 때문이다 — 실제로 예전 LAN 테스트 값
+        /// (192.168.x.x:8081)이 남아 접속이 막힌 적이 있다.</para>
         ///
-        /// 개발자가 다른 서버를 봐야 할 때는 실행 인자로 준다:
-        /// <c>MetaGame.exe -metagame-server=127.0.0.1:8080</c>
+        /// <para><b>씬이 준 값을 더 이상 받지 않는다</b> (S15P21B202-584). 예전에는
+        /// <c>fallback</c> 인자가 있었고 그것을 <b>빌드 채널보다 먼저</b> 봤다. 그 값은
+        /// <c>LobbyBootstrap.defaultServerAddress</c> 였는데 씬에 <c>j15b202.p.ssafy.io</c>
+        /// (배포 주소)가 저장돼 있어서, <b>개발 빌드인데 로비만 배포 서버로 갔다.</b>
+        /// 방은 배포 쪽 메모리에 생기고 입장 검증은 개발 쪽으로 가 401 이 난다 —
+        /// <c>-563</c> 이 보고한 그 증상이고, <c>-573</c> 이 상수를 없앴지만 <b>씬에
+        /// 저장된 같은 값</b>이 그 일을 계속 했다(2026-09-17 nginx 로그 실측).</para>
+        ///
+        /// <para>그래서 <b>한 곳만 남긴다.</b> <see cref="Metagame.Core.BackendEndpoints.Base"/>
+        /// 는 실행 인자(<c>-backend=</c>)와 빌드 채널을 이미 반영한 값이다 — 여기서
+        /// 그것만 쓰면 <b>한 실행이 한 환경만 본다.</b> 다른 서버를 봐야 하면 인자로 준다:
+        /// <c>NotThisPlanet.exe -metagame-server=127.0.0.1:8080</c> 또는
+        /// <c>-backend=https://…/dev</c>.</para>
         /// </summary>
-        public static string ResolveServerAddress(string fallback = null)
+        public static string ResolveServerAddress()
         {
             const string argumentPrefix = "-metagame-server=";
             string[] args = Environment.GetCommandLineArgs();
@@ -910,14 +920,6 @@ namespace Metagame.Network
                 if (value.Length > 0) return value;
             }
 
-            if (!string.IsNullOrWhiteSpace(fallback)) return fallback.Trim();
-
-            // **백엔드가 정한 주소를 따른다** (S15P21B202-573). 전에는 상수로 떨어져
-            // `-backend=…/dev` 로 띄워도 **로비만 배포 서버로 갔다.** 그러면 방은 배포
-            // 쪽에 생기고 입장 검증은 개발 쪽으로 가서 401 이 난다.
-            //
-            // `BackendEndpoints.Base` 는 실행 인자(`-backend=`)와 빌드 채널을 이미
-            // 반영한 값이라, 여기서 그것을 쓰면 **한 실행이 한 환경만 본다.**
             string backend = Metagame.Core.BackendEndpoints.Base;
             return string.IsNullOrWhiteSpace(backend) ? DefaultServerAddress : backend.Trim();
         }
