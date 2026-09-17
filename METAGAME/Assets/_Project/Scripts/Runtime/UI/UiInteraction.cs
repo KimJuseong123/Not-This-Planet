@@ -52,6 +52,14 @@ namespace Metagame.UI
             return result;
         }
 
+        public static string TextField(Rect rect, string text, int maxLength, GUIStyle style)
+        {
+            bool pressed = IsPress(rect);
+            var result = GUI.TextField(rect, text, maxLength, style ?? GUI.skin.textField);
+            if (pressed && Event.current.type == EventType.Used) LocalCursorFeedback.NotifyPress();
+            return result;
+        }
+
         public static bool LayoutButton(string text, GUIStyle style, params GUILayoutOption[] options)
         {
             var rect = GUILayoutUtility.GetRect(new GUIContent(text), style, options);
