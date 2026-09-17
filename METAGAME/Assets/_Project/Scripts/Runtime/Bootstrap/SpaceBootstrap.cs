@@ -324,7 +324,10 @@ namespace Metagame.Bootstrap
             bool host = !inMatch || Mirror.NetworkServer.active;
             var head = new System.Collections.Generic.Dictionary<string, object>
             {
-                ["build"] = Core.BuildInfo.ReleaseVersion,
+                // **`ReleaseVersion` 이 아니라 `BuildId` 다** (S15P21B202-597). 그 값은
+                // 서버 게이트용이라 릴리스 빌드에만 있어서, QA 를 개발 빌드로 하는 동안
+                // 쌓인 이벤트는 전부 `build: ""` 였다 — 어느 빌드의 판인지 되짚을 수 없다.
+                ["build"] = Core.BuildInfo.BuildId,
                 ["backend"] = Core.BackendEndpoints.IsDev ? "dev" : "prod",
                 ["role"] = !inMatch ? "solo" : (Mirror.NetworkServer.active ? "host" : "client"),
                 ["scene"] = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name,

@@ -347,7 +347,13 @@ namespace Metagame.Core
         /// </summary>
         public static string BuildTag()
         {
-            return BuildTag(BuildInfo.ReleaseVersion, BuildInfo.Stamp);
+            // **신원 줄을 먼저 본다** (S15P21B202-597). `버전=` 은 릴리스 빌드에만 있어서,
+            // 개발·QA 빌드의 로그는 아래 폴백으로 내려가 한글 스탬프가 걸러진 토막이나
+            // <c>unknown</c> 으로 올라갔다 — **QA 로그가 정작 어느 빌드인지 못 말했다.**
+            // 릴리스에서는 두 값이 같으므로(`BuildStamp` 가 버전을 신원으로도 쓴다)
+            // 헤더는 그대로다.
+            string id = string.IsNullOrEmpty(BuildInfo.BuildId) ? BuildInfo.ReleaseVersion : BuildInfo.BuildId;
+            return BuildTag(id, BuildInfo.Stamp);
         }
 
         /// <summary>
