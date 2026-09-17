@@ -156,6 +156,11 @@ namespace Metagame.Bootstrap
                 if (code.Length > 0) fields["blocked"] = code;
             }
             PlayEvents.End(fields);
+
+            // **판이 끝났으니 보낸다** (S15P21B202-607). 파일을 막 닫은 직후가 보낼 수
+            // 있는 가장 이른 자리이고, 플레이 중이 아니다. 듣는 쪽이 없으면(로그인 전·
+            // 세션 객체가 내려가는 중) 아무 일도 안 일어나고 다음 로그인이 잡는다.
+            RunLogUpload.Request();
         }
 
         void OnApplicationQuit() => End("quit");

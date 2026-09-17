@@ -272,6 +272,11 @@ namespace Metagame.Network
             StartCoroutine(Metagame.Core.RunLogUpload.SweepOnce(
                 Metagame.Core.BackendEndpoints.HttpBaseUrl, accessToken, UserId));
 
+            // **판이 끝나면 한 번 더 보낸다** (S15P21B202-607). 로그인 때만 보내면
+            // "한 번 켜서 한 판 하고 끄는 사람" 의 기록은 영영 오지 않는다 — 데모에서는
+            // 그쪽이 다수다. 요청은 `PlayObserver` 가 판을 닫으면서 보낸다.
+            Metagame.Core.RunLogUpload.SweepRequested = SweepNow;
+
             Connect();
         }
 
@@ -1026,12 +1031,30 @@ namespace Metagame.Network
 
         void OnApplicationQuit() => Shutdown();
 
+        /// <summary>
+        /// 판이 끝났다는 요청을 받아 한 번 더 쓸어 담는다 (S15P21B202-607).
+        ///
+        /// <para><b>플레이 중에는 오지 않는다</b> — 부르는 쪽(<c>PlayObserver</c>)이 판을
+        /// 닫으면서 부르고, 그 시점은 이미 판이 끝난 뒤다. 로그인 전이거나 이 오브젝트가
+        /// 내려가는 중이면 아무 일도 하지 않는다 — 못 보낸 것은 다음 로그인이 잡는다.</para>
+        /// </summary>
+        void SweepNow()
+        {
+            if (!IsLoggedIn || !isActiveAndEnabled) return;
+            StartCoroutine(Metagame.Core.RunLogUpload.SweepOnce(
+                Metagame.Core.BackendEndpoints.HttpBaseUrl, accessToken, UserId));
+        }
+
         void OnDestroy()
         {
             // 로그 전송 코루틴은 이 오브젝트가 돌린다. 여기서 정리하지 않으면 "돌고
             // 있다" 는 표시가 선 채로 남아 **그 프로세스가 끝날 때까지 다시는 안 돈다**
             // (S15P21B202-443).
             Metagame.Core.RunLogUpload.StopNow();
+
+            // 이 오브젝트가 없으면 요청을 받아도 코루틴을 못 돌린다. 매달린 대리자를
+            // 남기면 죽은 오브젝트를 붙잡는다 (S15P21B202-607).
+            Metagame.Core.RunLogUpload.SweepRequested = null;
 
             Shutdown();
             if (Instance == this) Instance = null;
