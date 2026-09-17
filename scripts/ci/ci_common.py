@@ -184,7 +184,11 @@ def http(method: str, url: str, headers: dict | None = None, body: dict | str | 
 # 본문에 섞여 나올 수 있는 비밀. **응답은 우리가 만든 것이 아니라 상대 서버가
 # 만든 것**이라 무엇이 들어 있을지 우리가 정하지 못한다(S15P21B202-484).
 SECRET_ENVS = ("JIRA_RELEASE_WEBHOOK", "MM_WEBHOOK_URL", "JIRA_API_TOKEN",
-               "GITLAB_TOKEN", "ANTHROPIC_API_KEY", "JIRA_USER")
+               "GITLAB_TOKEN", "ANTHROPIC_API_KEY", "JIRA_USER",
+               # 배치 트리거 토큰 (S15P21B202-582). **Masked 이지만 여기에도 둔다** —
+               # Masked 는 러너가 로그를 가려 주는 것이고, 이 목록은 우리가 본문을
+               # 찍기 전에 가리는 것이다. 트리거 실패 응답에 요청이 되비칠 수 있다.
+               "DEVBUILD_TRIGGER_TOKEN")
 
 
 def _forms(v: str) -> list[str]:

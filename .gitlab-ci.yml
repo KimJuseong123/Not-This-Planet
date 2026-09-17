@@ -13,6 +13,11 @@
 #   AI_REVIEW_MODEL / AI_REVIEW_EFFORT : (선택) 기본 claude-opus-5 / medium (팀 결정 2026-08-27)
 #   MM_WEBHOOK_URL              : Mattermost 수신 웹훅 — mm-digest 용 — masked
 #   JIRA_RELEASE_WEBHOOK        : (선택, S15P21B202-327) Jira 자동화 수신 웹훅 — 릴리스 뒤 버전·이슈 목록을 보낸다 — masked·protected
+#   DEVBUILD_TRIGGER_TOKEN      : 파이프라인 트리거 토큰 — MR 의 qa 빌드를 develop 파이프라인으로 넘겨 배치시킨다 (S15P21B202-582).
+#                                 **masked · Protected 는 끈다.** MR 파이프라인은 보호 ref 가 아니라서 Protected 변수가
+#                                 전달되지 않는다 — 걸어 두면 토큰이 빈 문자열로 들어와 배치가 조용히 안 된다.
+#                                 대신 workflow.rules 가 트리거를 `develop` + `$STAGE_VERSION` 일 때만 받아 범위를 좁힌다.
+#                                 Maintainer 가 Settings → CI/CD → Pipeline trigger tokens 에서 한 번 만든다.
 #   CI_ENABLE=true              : 러너 등록 후 켬 — 없으면 파이프라인 자체가 생성되지 않음
 
 workflow:
@@ -48,6 +53,18 @@ workflow:
     # 자동 취소를 끄는 이유는 master 와 같다 — 90분짜리 빌드가 중간에 죽으면 반쯤 만든
     # 산출물이 남고, 리허설의 목적(경로가 끝까지 가는지 본다)이 성립하지 않는다.
     - if: $CI_PIPELINE_SOURCE == "web"
+      auto_cancel:
+        on_new_commit: none
+    # **qa 빌드 배치 하나만을 위한 길** (S15P21B202-582). MR 의 `build-devbuild` 가
+    # 끝나면서 `trigger_stage.py` 로 이 파이프라인을 만든다 — 배포 러너가 `ref_protected`
+    # 라 MR ref 의 잡을 집지 않기 때문이다(`-405` 실측).
+    #
+    # **세 조건을 다 본다.** 토큰은 MR 파이프라인에서 읽혀야 하므로 Protected 를 걸 수
+    # 없고, 그러면 아무 브랜치의 잡이 그 값을 쓸 수 있다. 그래서 그 토큰으로 할 수 있는
+    # 일을 여기서 좁힌다 — `develop` 이 아니거나 `STAGE_VERSION` 이 없으면 **파이프라인
+    # 자체가 만들어지지 않는다.** 만들어져도 `publish-devbuild` 말고는 걸리는 rules 가
+    # 없다(다른 잡은 전부 merge_request_event·push·schedule·web 을 못 박는다).
+    - if: $CI_PIPELINE_SOURCE == "trigger" && $CI_COMMIT_BRANCH == "develop" && $STAGE_VERSION
       auto_cancel:
         on_new_commit: none
 
@@ -829,6 +846,11 @@ build-devbuild:           # QA 가 쓸 개발·QA 빌드 (S15P21B202-460)
     # 조용했던 이유의 절반이 이것이다(나머지 절반은 `mm-ci-failed` 가 schedule 에 없는 것).
     - sh scripts/ci/unity_dirty_guard.sh || RC=1
     - python3 scripts/ci/publish_devbuild.py publish "$RC"
+    # **배치까지 잇는다** (S15P21B202-582). MR 것만 넘긴다 — 새벽 빌드는 같은
+    # 파이프라인에 `publish-devbuild` 가 이미 있어서, 여기서 또 부르면 두 번 배치된다.
+    # 그 판정은 `trigger_stage.needs_stage()` 안에 있다(여기서 `if` 로 가르면 두 곳이
+    # 어긋난다). 넘길 것이 없으면 그렇다고 찍고 0 으로 끝낸다.
+    - python3 scripts/ci/trigger_stage.py
   artifacts:
     when: always
     expire_in: 3 days     # 로그만 남긴다. zip 은 레지스트리를 거쳐 바로 배치되고 지워진다
@@ -854,8 +876,16 @@ publish-devbuild:         # 개발·QA 빌드를 배포 폴더로 (S15P21B202-46
     # MR ref 의 잡을 **아예 집지 않는다**(`-405` 실측). 만들어 두면 눌렀을 때 러너를
     # 찾지 못해 **영원히 pending 으로 파이프라인을 붙잡는다.**
     #
-    # qa 빌드는 대신 이 길로 배치한다: Run pipeline(develop) 에서 `STAGE_VERSION` 에
-    # `qa-<MR번호>-<커밋>` 을 주고 이 잡을 누른다. `promote-builds` 의 되돌리기와 같은 결이다.
+    # **qa 빌드는 트리거로 온다** (S15P21B202-582). MR 의 `build-devbuild` 가 끝나면서
+    # `trigger_stage.py` 로 `develop` 대상 파이프라인을 만들고 `STAGE_VERSION` 을 넘긴다.
+    # 그쪽 ref 는 보호 브랜치라 배포 러너가 집는다.
+    #
+    # **자동이다.** 여기서 또 누르게 하면 그 버튼도 Maintainer 만 누를 수 있어 —
+    # develop 은 보호 브랜치다 — 고치려던 것이 그대로 남는다.
+    - if: $CI_PIPELINE_SOURCE == "trigger" && $STAGE_VERSION
+    # 손으로 배치하는 길은 **남겨 둔다.** 트리거가 안 될 때(토큰 만료·API 장애)
+    # 되돌아갈 자리가 있어야 한다 — `promote-builds` 의 되돌리기와 같은 결이다.
+    # 다만 이 길은 web 파이프라인이라 `release-windows` 리허설(90분)이 딸려 온다.
     - if: $CI_PIPELINE_SOURCE == "web" && $STAGE_VERSION
       when: manual
   script:
