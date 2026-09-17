@@ -233,7 +233,7 @@ for _b in _dp:
                 "DEPLOY_PROD 를 존재성으로만 본다 — 끄려고 0 을 넣은 사람이 켜는 결과를 얻는다: " + _l
 
 #     `needs: [build-backend]` 라 그 잡도 같은 조건에서 생겨야 한다. 아니면 GitLab 이
-#     **파이프라인 생성 자체를 거절한다**(`-467` 이 promote-builds 에서 겪은 자리).
+#     **파이프라인 생성 자체를 거절한다**(`-467` 이 release-prod 에서 겪은 자리).
 _bb = _rules("build-backend")
 assert any('$DEPLOY_PROD == "1"' in r for r in _bb), \
     "build-backend 가 서버 전용 파이프라인에서 안 생긴다 — deploy-prod 의 needs 가 없는 잡을 가리킨다"
