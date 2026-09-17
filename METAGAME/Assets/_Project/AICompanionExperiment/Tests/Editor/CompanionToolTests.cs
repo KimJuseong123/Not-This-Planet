@@ -11,6 +11,17 @@ namespace Metagame.AIExperiment.Tests
 {
     public sealed class CompanionToolTests
     {
+        /// <summary>
+        /// <b>연 씬을 반드시 닫는다</b> (S15P21B202-604). 이유는
+        /// <see cref="CompanionTests.CloseTheRoom"/> 에 적어 뒀다 — 열어 둔 채 끝나면
+        /// 뒤이어 도는 검증들이 이 방의 콜라이더를 만나 무너진다.
+        /// </summary>
+        [OneTimeTearDown]
+        public void CloseTheRoom()
+        {
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        }
+
         [UnityTest]
         public IEnumerator RealToolsPickUpSwapAndDropWithoutFiring()
         {

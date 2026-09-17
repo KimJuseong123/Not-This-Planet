@@ -285,7 +285,7 @@ MonoBehaviour:
   unreliableBaselineRate: 1
   unreliableRedundancy: 0
   transport: {fileID: 1692094455}
-  networkAddress: 127.0.0.1
+  networkAddress: localhost
   maxConnections: 3
   disconnectInactiveConnections: 0
   disconnectInactiveTimeout: 60
