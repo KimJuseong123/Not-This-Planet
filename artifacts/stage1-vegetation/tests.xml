@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="20" result="Passed" total="20" passed="20" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-17 02:34:46Z" end-time="2026-09-17 02:34:49Z" duration="3.2028513">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="1744" result="Passed" start-time="2026-09-17 02:34:46Z" end-time="2026-09-17 02:34:49Z" duration="3.202851" total="20" passed="20" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="2941" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202/tmp/part2-trail-integration/project/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="1744" result="Passed" start-time="2026-09-17 02:34:46Z" end-time="2026-09-17 02:34:49Z" duration="3.102852" total="20" passed="20" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="14980" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="2942" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="1744" result="Passed" start-time="2026-09-17 02:34:46Z" end-time="2026-09-17 02:34:49Z" duration="3.088083" total="20" passed="20" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="2947" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="1697" result="Passed" start-time="2026-09-17 02:34:46Z" end-time="2026-09-17 02:34:49Z" duration="3.070046" total="20" passed="20" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="2948" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="1697" result="Passed" start-time="2026-09-17 02:34:46Z" end-time="2026-09-17 02:34:49Z" duration="3.052908" total="20" passed="20" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1092" name="AtmosphereProfileTests" fullname="Metagame.Gameplay.Tests.AtmosphereProfileTests" classname="Metagame.Gameplay.Tests.AtmosphereProfileTests" runstate="Runnable" testcasecount="7" result="Passed" start-time="2026-09-17 02:34:39Z" end-time="2026-09-17 02:34:39Z" duration="0.048758" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1098" name="PlantRustle_PulsesVisualWithoutAddingPhysicsBody" fullname="Metagame.Gameplay.Tests.AtmosphereProfileTests.PlantRustle_PulsesVisualWithoutAddingPhysicsBody" methodname="PlantRustle_PulsesVisualWithoutAddingPhysicsBody" classname="Metagame.Gameplay.Tests.AtmosphereProfileTests" runstate="Runnable" seed="148840267" result="Passed" start-time="2026-09-17 02:34:39Z" end-time="2026-09-17 02:34:39Z" duration="0.027134" asserts="0">
+                <properties />
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1153" name="CharacterIntegrationTests" fullname="Metagame.Gameplay.Tests.CharacterIntegrationTests" classname="Metagame.Gameplay.Tests.CharacterIntegrationTests" runstate="Runnable" testcasecount="11" result="Passed" start-time="2026-09-17 02:34:39Z" end-time="2026-09-17 02:34:39Z" duration="0.030477" total="11" passed="11" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1158" name="CarriedPart_IsBelowHandLiftThreshold_SoClimbableGuardIsRequired" fullname="Metagame.Gameplay.Tests.CharacterIntegrationTests.CarriedPart_IsBelowHandLiftThreshold_SoClimbableGuardIsRequired" methodname="CarriedPart_IsBelowHandLiftThreshold_SoClimbableGuardIsRequired" classname="Metagame.Gameplay.Tests.CharacterIntegrationTests" runstate="Runnable" seed="1373042446" result="Passed" start-time="2026-09-17 02:34:39Z" end-time="2026-09-17 02:34:39Z" duration="0.000743" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1162" name="GrabbableRole_DefaultsToTransport" fullname="Metagame.Gameplay.Tests.CharacterIntegrationTests.GrabbableRole_DefaultsToTransport" methodname="GrabbableRole_DefaultsToTransport" classname="Metagame.Gameplay.Tests.CharacterIntegrationTests" runstate="Runnable" seed="1920027604" result="Passed" start-time="2026-09-17 02:34:39Z" end-time="2026-09-17 02:34:39Z" duration="0.005761" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1163" name="GrabbableRole_ToolUsesExplicitToolClassification" fullname="Metagame.Gameplay.Tests.CharacterIntegrationTests.GrabbableRole_ToolUsesExplicitToolClassification" methodname="GrabbableRole_ToolUsesExplicitToolClassification" classname="Metagame.Gameplay.Tests.CharacterIntegrationTests" runstate="Runnable" seed="1724206946" result="Passed" start-time="2026-09-17 02:34:39Z" end-time="2026-09-17 02:34:39Z" duration="0.000763" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1161" name="LockedPart_IsKinematic_SoHandsSkipItRegardlessOfMass" fullname="Metagame.Gameplay.Tests.CharacterIntegrationTests.LockedPart_IsKinematic_SoHandsSkipItRegardlessOfMass" methodname="LockedPart_IsKinematic_SoHandsSkipItRegardlessOfMass" classname="Metagame.Gameplay.Tests.CharacterIntegrationTests" runstate="Runnable" seed="1963407776" result="Passed" start-time="2026-09-17 02:34:39Z" end-time="2026-09-17 02:34:39Z" duration="0.005922" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1159" name="Part_IsMarkedClimbable_SoHandsCannotHijackIt" fullname="Metagame.Gameplay.Tests.CharacterIntegrationTests.Part_IsMarkedClimbable_SoHandsCannotHijackIt" methodname="Part_IsMarkedClimbable_SoHandsCannotHijackIt" classname="Metagame.Gameplay.Tests.CharacterIntegrationTests" runstate="Runnable" seed="1549162537" result="Passed" start-time="2026-09-17 02:34:39Z" end-time="2026-09-17 02:34:39Z" duration="0.003927" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1160" name="Part_KeepsClimbableFlag_AcrossStateTransitions" fullname="Metagame.Gameplay.Tests.CharacterIntegrationTests.Part_KeepsClimbableFlag_AcrossStateTransitions" methodname="Part_KeepsClimbableFlag_AcrossStateTransitions" classname="Metagame.Gameplay.Tests.CharacterIntegrationTests" runstate="Runnable" seed="2083277323" result="Passed" start-time="2026-09-17 02:34:39Z" end-time="2026-09-17 02:34:39Z" duration="0.001690" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1154" name="RagdollPlayerLayer_MatchesSharedLayerScheme" fullname="Metagame.Gameplay.Tests.CharacterIntegrationTests.RagdollPlayerLayer_MatchesSharedLayerScheme" methodname="RagdollPlayerLayer_MatchesSharedLayerScheme" classname="Metagame.Gameplay.Tests.CharacterIntegrationTests" runstate="Runnable" seed="1038021137" result="Passed" start-time="2026-09-17 02:34:39Z" end-time="2026-09-17 02:34:39Z" duration="0.001724" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1164" name="ToolBrace_UsesFixedGripInsteadOfTransportState" fullname="Metagame.Gameplay.Tests.CharacterIntegrationTests.ToolBrace_UsesFixedGripInsteadOfTransportState" methodname="ToolBrace_UsesFixedGripInsteadOfTransportState" classname="Metagame.Gameplay.Tests.CharacterIntegrationTests" runstate="Runnable" seed="1389404209" result="Passed" start-time="2026-09-17 02:34:39Z" end-time="2026-09-17 02:34:39Z" duration="0.002706" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1155" name="WorldMask_ExcludesPlayerLayers" fullname="Metagame.Gameplay.Tests.CharacterIntegrationTests.WorldMask_ExcludesPlayerLayers" methodname="WorldMask_ExcludesPlayerLayers" classname="Metagame.Gameplay.Tests.CharacterIntegrationTests" runstate="Runnable" seed="1972088442" result="Passed" start-time="2026-09-17 02:34:39Z" end-time="2026-09-17 02:34:39Z" duration="0.000719" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1156" name="WorldMask_ExcludesQueryOnlyLayers" fullname="Metagame.Gameplay.Tests.CharacterIntegrationTests.WorldMask_ExcludesQueryOnlyLayers" methodname="WorldMask_ExcludesQueryOnlyLayers" classname="Metagame.Gameplay.Tests.CharacterIntegrationTests" runstate="Runnable" seed="989141735" result="Passed" start-time="2026-09-17 02:34:39Z" end-time="2026-09-17 02:34:39Z" duration="0.000305" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1157" name="WorldMask_KeepsGroundAndParts" fullname="Metagame.Gameplay.Tests.CharacterIntegrationTests.WorldMask_KeepsGroundAndParts" methodname="WorldMask_KeepsGroundAndParts" classname="Metagame.Gameplay.Tests.CharacterIntegrationTests" runstate="Runnable" seed="832175517" result="Passed" start-time="2026-09-17 02:34:39Z" end-time="2026-09-17 02:34:39Z" duration="0.000381" asserts="0">
+                <properties />
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="2860" name="VegetationInteractionTests" fullname="Metagame.Gameplay.Tests.VegetationInteractionTests" classname="Metagame.Gameplay.Tests.VegetationInteractionTests" runstate="Runnable" testcasecount="8" result="Passed" start-time="2026-09-17 02:34:46Z" end-time="2026-09-17 02:34:49Z" duration="2.967291" total="8" passed="8" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2866" name="DestroyAndTeleportLeaveNoSlowdownState" fullname="Metagame.Gameplay.Tests.VegetationInteractionTests.DestroyAndTeleportLeaveNoSlowdownState" methodname="DestroyAndTeleportLeaveNoSlowdownState" classname="Metagame.Gameplay.Tests.VegetationInteractionTests" runstate="Runnable" seed="1420961657" result="Passed" start-time="2026-09-17 02:34:39Z" end-time="2026-09-17 02:34:39Z" duration="0.004918" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2865" name="DisabledComponentAndColliderReleaseSlowdownImmediately" fullname="Metagame.Gameplay.Tests.VegetationInteractionTests.DisabledComponentAndColliderReleaseSlowdownImmediately" methodname="DisabledComponentAndColliderReleaseSlowdownImmediately" classname="Metagame.Gameplay.Tests.VegetationInteractionTests" runstate="Runnable" seed="1044549227" result="Passed" start-time="2026-09-17 02:34:39Z" end-time="2026-09-17 02:34:39Z" duration="0.001071" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2863" name="OverlappingPlantsUseStrongestRatherThanMultiplying" fullname="Metagame.Gameplay.Tests.VegetationInteractionTests.OverlappingPlantsUseStrongestRatherThanMultiplying" methodname="OverlappingPlantsUseStrongestRatherThanMultiplying" classname="Metagame.Gameplay.Tests.VegetationInteractionTests" runstate="Runnable" seed="1916039162" result="Passed" start-time="2026-09-17 02:34:39Z" end-time="2026-09-17 02:34:39Z" duration="0.001508" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2868" name="PlayerContactActuallyTriggersVisibleSwayAndSettles" fullname="Metagame.Gameplay.Tests.VegetationInteractionTests.PlayerContactActuallyTriggersVisibleSwayAndSettles" methodname="PlayerContactActuallyTriggersVisibleSwayAndSettles" classname="Metagame.Gameplay.Tests.VegetationInteractionTests" runstate="Runnable" seed="642591057" result="Passed" start-time="2026-09-17 02:34:39Z" end-time="2026-09-17 02:34:49Z" duration="9.627185" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2867" name="PulseChangesSwayWithoutMovingRootOrCollider" fullname="Metagame.Gameplay.Tests.VegetationInteractionTests.PulseChangesSwayWithoutMovingRootOrCollider" methodname="PulseChangesSwayWithoutMovingRootOrCollider" classname="Metagame.Gameplay.Tests.VegetationInteractionTests" runstate="Runnable" seed="1521837131" result="Passed" start-time="2026-09-17 02:34:49Z" end-time="2026-09-17 02:34:49Z" duration="0.004283" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2864" name="SaturatedBufferStillFindsStrongestSlowdown" fullname="Metagame.Gameplay.Tests.VegetationInteractionTests.SaturatedBufferStillFindsStrongestSlowdown" methodname="SaturatedBufferStillFindsStrongestSlowdown" classname="Metagame.Gameplay.Tests.VegetationInteractionTests" runstate="Runnable" seed="1274841825" result="Passed" start-time="2026-09-17 02:34:49Z" end-time="2026-09-17 02:34:49Z" duration="0.001762" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2861" name="ShortGrassDoesNotSlowOrBlock" fullname="Metagame.Gameplay.Tests.VegetationInteractionTests.ShortGrassDoesNotSlowOrBlock" methodname="ShortGrassDoesNotSlowOrBlock" classname="Metagame.Gameplay.Tests.VegetationInteractionTests" runstate="Runnable" seed="1102160477" result="Passed" start-time="2026-09-17 02:34:49Z" end-time="2026-09-17 02:34:49Z" duration="0.001250" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2862" name="TallGrassSlowsOnlyInsideItsVolume" fullname="Metagame.Gameplay.Tests.VegetationInteractionTests.TallGrassSlowsOnlyInsideItsVolume" methodname="TallGrassSlowsOnlyInsideItsVolume" classname="Metagame.Gameplay.Tests.VegetationInteractionTests" runstate="Runnable" seed="61125498" result="Passed" start-time="2026-09-17 02:34:49Z" end-time="2026-09-17 02:34:49Z" duration="0.000640" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

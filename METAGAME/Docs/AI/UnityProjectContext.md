@@ -1,5 +1,18 @@
 # Unity Project Context
 
+## 2026-09-17 numbered Stage1 vegetation
+
+Stage1_Astra has an additive "Stage1 Vegetation - Numbered Flora" group: 721 textured
+plants from the seven numbered Stage1 model folders and 18 mesh-colliding mushroom
+trees. PlantRustle now has a damped visual spring and serialized movement multiplier;
+PlayerRig samples current Prop-layer trigger geometry (minimum multiplier, no stacking
+or stale membership). New tall plants use 0.45 speed; all new plants use 25-degree sway.
+Original scene objects, ground, lighting and cameras are preserved. The vegetation
+editor resnap command accepts the current sculpted ground and future TerrainCollider.
+Unity 6000.5.4f1 isolated validation passed 20 focused tests, including real Play Mode
+contact and settling. See docs/records/2026-09-17-stage1-vegetation.md at repository root
+for tuning, serialization preservation, rendering evidence and validation limits.
+
 ## 2026-09-17 magnetic storm wake
 
 `MagneticStormVisual` now exposes independent travel/opposite-direction billow multipliers
