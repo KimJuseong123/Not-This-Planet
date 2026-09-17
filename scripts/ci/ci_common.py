@@ -14,7 +14,11 @@ from urllib.parse import quote
 import urllib.parse
 import urllib.request
 
-PARTS = ["Plan", "Art", "Sound", "UI", "Character", "Physics", "Puzzle", "Level",
+# **네 곳이 같아야 한다** (docs/parts.md §태그를 늘리거나 이름을 바꿀 때). 이 목록 ·
+# `docs/parts.md` 의 표 · `team.json` 의 `members[].parts` · Jira 자동화 R2 의 정규식.
+# 앞의 셋은 `test_parts_agree.py` 가 대조한다. **R2 는 기계가 못 읽으므로 사람이 맞춘다** —
+# 빠뜨리면 이슈는 Jira 가 `needs-fix` 로 막고 MR 은 여기서 막힌다(S15P21B202-586).
+PARTS = ["Plan", "Art", "Sound", "UI", "Character", "AI", "Physics", "Puzzle", "Level",
          "Network", "Backend", "Infra", "Data", "QA"]
 TYPES = ["feat", "fix", "asset", "scene", "refactor", "docs", "test", "perf", "build", "chore"]
 PROJECT_KEY = os.environ.get("JIRA_PROJECT_KEY", "S15P21B202")
