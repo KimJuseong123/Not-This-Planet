@@ -29,6 +29,7 @@
 | 플레이 데이터를 모아 분석한다 | [플레이 데이터 파이프라인 계획](data-pipeline.md): 이벤트 스키마, 보내는 시점, 저장과 질의 |
 | 멀티플레이 동기화 구현 | [설계 결정](records/S15P21B202-145-sync-design.md) → [상호작용 규칙](records/S15P21B202-149-interaction-sync.md) → [오브젝트 동기화](records/S15P21B202-352-object-sync.md) |
 | 두 PC에서 접속 확인 | [멀티플레이 테스트 안내](multiplayer-test-guide.md) → [지연·대역폭 측정 기록](records/S15P21B202-151-multiplay-measurement.md) |
+| 기획 수치를 바꾸고 기다리지 않고 확인 | [치트 시험장](cheat-arena.md): 넓은 바닥 위 Stage1 조립·운석 복제, F8 치트 패널(운석 즉시 낙하·공세 시작·시간대 이동·무적·순간이동), F5/F9 리셋 |
 
 ## 3. 이슈부터 MR 완료까지
 
