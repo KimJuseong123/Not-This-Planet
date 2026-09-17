@@ -212,6 +212,13 @@ namespace Metagame.Gameplay.Tests
             while(Time.realtimeSinceStartupAsDouble<deadline && Object.FindAnyObjectByType<Parts.DemoEnding>()==null) yield return null;
             var playback=Object.FindAnyObjectByType<Parts.DemoEnding>();
             Assert.That(playback,Is.Not.Null);
+            playback.Snapshot.StartedAt=Time.realtimeSinceStartupAsDouble-playback.ArrivalStartsAt-1;
+            yield return null;yield return null;
+            Assert.That(UnityEngine.SceneManagement.SceneManager.GetActiveScene().name,Is.EqualTo(StageCatalog.Stage1EndingSceneName),"Arrival cinematic must finish before gameplay scene loads");
+            Assert.That(playback.Stage,Is.EqualTo(Parts.DemoEndingStage.SpaceDrift));
+            playback.Snapshot.StartedAt=Time.realtimeSinceStartupAsDouble-playback.ArrivalStartsAt-8.5;
+            yield return null;yield return null;
+            Assert.That(playback.Stage,Is.EqualTo(Parts.DemoEndingStage.MeteorImpact));
             playback.Snapshot.StartedAt=-10000;
             deadline=Time.realtimeSinceStartupAsDouble+30;
             while(Time.realtimeSinceStartupAsDouble<deadline && UnityEngine.SceneManagement.SceneManager.GetActiveScene().name!=StageCatalog.Stage2SceneName) yield return null;

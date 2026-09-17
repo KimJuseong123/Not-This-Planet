@@ -301,6 +301,7 @@ namespace Metagame.Bootstrap
         bool ContinueToStage2()
         {
             if (returning) return true;
+            if (playback == null || !playback.PlaybackStarted || !playback.Finished) return false;
             if (networked && !NetworkServer.active) return false;
             string path = Metagame.Core.StageCatalog.SceneFolder + Metagame.Core.StageCatalog.Stage2SceneName + ".unity";
             if (SceneUtility.GetBuildIndexByScenePath(path) < 0)
