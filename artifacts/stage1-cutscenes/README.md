@@ -21,6 +21,10 @@ GIF는 카메라의 연속 프레임을 원래 시각 간격으로 인코딩했�
 
 ## 자동 테스트 재현
 
+입장 대기 잠금 수정 및 develop `d8c573d1` 병합 후 [추가 검증](waiting-tests.xml): **47 passed / 0 failed**. 아래 필터에 `Metagame.Gameplay.Tests.EndingSceneTests`를 추가했다. 서버 10초 타임아웃, 클라이언트의 자체 전환 금지, Waiting/Entry 사이 Esc 메뉴 유지, 닫은 뒤 이동 차단 유지, 실제 씬 프레젠터의 메뉴 활성 상태 및 기존 엔딩 회귀를 확인한다.
+
+준비되지 않은 참가자는 `ReadyForEntry`가 성공하지 않는 상태를 권위 시계 테스트로 재현했다. 실제 여러 클라이언트의 네트워크 지연 주입 테스트는 수행하지 않았다. 수동 재현 시 참가자 하나의 body 생성을 지연시키고 호스트가 10초 후 입장 컷씬을 진행하는지, 대기 중 Esc → 타이틀 복귀가 가능한지 확인한다.
+
 ```powershell
 & '<Unity 6000.5.4f1>/Editor/Unity.exe' -batchmode -nographics -projectPath '<격리 복사본>/METAGAME' -runTests -testPlatform EditMode -testFilter 'Metagame.Gameplay.Tests.Stage1CutsceneTests;Metagame.Gameplay.Tests.MeteorSpawnerTests;Metagame.Gameplay.Tests.VegetationInteractionTests' -testResults '<출력>/review-tests.xml' -logFile '<출력>/review-tests.log'
 ```
@@ -41,6 +45,6 @@ python tools/unity/encode_cutscene_review.py '<격리 프로젝트>/Validation/R
 ## 범위와 남은 확인
 
 - 562 아웃라인은 [별도 MR !476](https://lab.ssafy.com/s15-metaverse-game-sub1/S15P21B202/-/merge_requests/476)으로 이미 병합됨. 이번 변경에서 렌더러·아웃라인 셰이더·머티리얼 생성 코드는 수정하지 않았다.
-- 577 식생·지형은 기존 보존 요청에 따라 유지했다. develop 대비 변경에 포함되므로 577 선행 머지 또는 스택 검토가 필요하다. [변경 범위 기록](../../docs/records/2026-09-17-stage1-entry-assault-cutscenes.md)을 참고한다.
+- 577은 develop에 병합됐으며 최신 develop(`d8c573d1`)을 반영했다. 공유 Stage1 씬은 최신 배치를 유지하고 컷씬 트리거와 F9/F10 연결만 추가한다. [변경 범위 기록](../../docs/records/2026-09-17-stage1-entry-assault-cutscenes.md)을 참고한다.
 - 실제 2인 이상 접속, 지연/재접속, 최종 배포 빌드, 공세 수치의 플레이테스트는 이번 검증 범위 밖이다. 테스트 통과를 최종 밸런스 승인으로 간주하지 않는다.
 - 그래픽 캡처 시작 시 기존 `UrpProjectSetupAutoRunner`가 Play Mode에서 씬 저장을 요청하는 예외가 재현됐다. 최초 구현 때도 관찰된 에디터 설정 문제이며, 이번 작업에서 해당 파일은 변경하지 않았다. 캡처와 런타임 복구 검사는 끝까지 완료됐다.

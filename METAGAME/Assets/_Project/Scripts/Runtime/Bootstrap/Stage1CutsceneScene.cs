@@ -91,7 +91,7 @@ namespace Metagame.Bootstrap
             if (Physics.Raycast(_impact + Vector3.up * 80f, Vector3.down, out var hit, 160f,
                 ~0, QueryTriggerInteraction.Ignore)) _impact = hit.point;
 
-            Hide(bootstrap.Hud); Hide(bootstrap.PauseMenu); Hide(bootstrap.PingHud);
+            Hide(bootstrap.Hud); Hide(bootstrap.PingHud);
             Hide(bootstrap.NameplateHud); Hide(bootstrap.RescueHud);
             foreach (var hud in bootstrap.Session.GetComponents<EmoteHud>()) Hide(hud);
             foreach (var hud in bootstrap.Session.GetComponents<DanceHud>()) Hide(hud);

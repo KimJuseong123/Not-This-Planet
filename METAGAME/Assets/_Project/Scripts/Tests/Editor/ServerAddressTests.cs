@@ -192,5 +192,40 @@ namespace Metagame.Network.Tests
             Assert.That(http, Does.StartWith("https://"));
             Assert.That(socket, Does.StartWith("wss://"));
         }
+
+        /// <summary>
+        /// 어느 서버를 볼지는 <see cref="Metagame.Core.BackendEndpoints"/> 가 정한다 —
+        /// 씬이 아니다 (S15P21B202-584).
+        ///
+        /// <para>씬에 <c>defaultServerAddress: j15b202.p.ssafy.io</c> 가 저장돼 있었고,
+        /// 그 값이 빌드 채널보다 **먼저** 읽혀서 개발 빌드인데 로비만 배포 서버로 갔다.
+        /// 방은 배포 쪽에 생기고 입장 검증은 개발 쪽으로 가 401 이 난다.</para>
+        /// </summary>
+        [Test]
+        public void ServerAddressFollowsTheBuildChannel()
+        {
+            // **기대값을 계산하지 않고 글자로 박는다** (`!494` 리뷰). `BackendEndpoints.Base`
+            // 로 비교하면 양쪽이 **같은 길로** 계산돼, 그 길이 통째로 틀려도 통과한다 —
+            // 이번 사고가 바로 "옳게 계산됐는데 다른 데서 덮였다" 였으므로 그 비교는
+            // 무엇도 지키지 못한다. 에디터는 개발 서버를 본다(`BackendEndpoints.Resolve`).
+            Assert.That(NetworkSession.ResolveServerAddress(),
+                Is.EqualTo("https://j15b202.p.ssafy.io:443/dev"),
+                "에디터·개발 빌드는 개발 서버여야 한다 — 배포 주소가 나오면 로비만 배포로 간다");
+        }
+
+        /// <summary>
+        /// <b>돌려받을 자리를 아예 없앤다.</b> 예전에는 <c>ResolveServerAddress(fallback)</c>
+        /// 이었고 그 인자가 채널을 이겼다. 인자가 다시 생기면 같은 사고가 다시 난다 —
+        /// 그때 이 검사가 먼저 깨진다.
+        /// </summary>
+        [Test]
+        public void ServerAddressTakesNoFallbackArgument()
+        {
+            var method = typeof(NetworkSession).GetMethod("ResolveServerAddress");
+
+            Assert.That(method, Is.Not.Null);
+            Assert.That(method.GetParameters(), Is.Empty,
+                "씬·호출부가 주소를 끼워 넣을 자리가 있으면 안 된다 — BackendEndpoints 한 곳이다");
+        }
     }
 }

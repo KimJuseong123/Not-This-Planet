@@ -33,3 +33,8 @@
 ProjectVersion.txt, Packages/manifest.json, EditorBuildSettings.asset, 어셈블리 정의, SpaceBootstrap.cs, LobbyBootstrap.cs, LobbyTransition.cs, GameSession.cs, Controls.cs, MeteorBat.cs, PlasmaWeldingTool.cs, SpaceshipPart.cs, PartClamp.cs, SpaceBuild.cs.
 
 <!-- unity-onboarding:generated:end -->
+
+
+## 2026-09-17 Stage1 가림 테두리
+
+Stage1_Astra 상호작용 물체의 가려진 윤곽을 로컬 카메라에만 표시한다. OccludedInteractionRendererFeature는 PC/Mobile 렌더러에 등록되어 있고, 전용 Resources 셰이더와 0.5초 갱신 대상 캐시를 사용한다. 도구/파츠/고정못/잡을 수 있는 물체를 포함하며 플레이어와 휴대 중인 도구는 제외한다. 씬/프리팹 수정은 없다. 구현 및 검증 범위는 docs/records/2026-09-17-occluded-interaction-outline.md 참고.

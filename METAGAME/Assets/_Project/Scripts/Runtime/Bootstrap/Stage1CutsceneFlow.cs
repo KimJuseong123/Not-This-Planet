@@ -36,7 +36,9 @@ namespace Metagame.Bootstrap
             if (Sequence == null) yield break;
             // 모든 서버 리그와 커마 Command가 구성될 시간을 확보한다.
             yield return null;
-            while (!ReadyForEntry()) yield return null;
+            if (!Sequence.Authoritative) yield break; // 클라이언트는 서버 단계 복제를 기다린다.
+            while (Sequence.Phase == Stage1SequencePhase.Waiting && !ReadyForEntry()) yield return null;
+            if (Sequence.Phase != Stage1SequencePhase.Waiting) yield break; // 10초 제한으로 이미 진행됨.
             if (_networked) yield return new WaitForSecondsRealtime(1f);
             if (Sequence.Phase != Stage1SequencePhase.Waiting || !Sequence.Authoritative) yield break;
             var preview = FindAnyObjectByType<Stage1CutsceneScene>();
@@ -77,6 +79,9 @@ namespace Metagame.Bootstrap
                 if (_view != null) StartCoroutine(CloseView());
                 return;
             }
+            // 시간 제한 이후 몸이 늦게 생성된 로컬 플레이어도 현재 샷에 합류한다.
+            var player = _bootstrap.Session.LocalPlayer;
+            if (player == null || player.Cam == null) return;
             if (_presentedRevision != Sequence.Revision) StartCoroutine(OpenView());
         }
 

@@ -387,21 +387,21 @@ R.unity_report.baseline_failures = _REAL_BASELINE
 
 # ── ⑧ 되돌리기가 실제로 돌 수 있다 (S15P21B202-467) ─────────────────────
 #
-#     `promote-builds` 주석은 "PROMOTE_VERSION 을 주고 이 잡만 돌린다" 고 말해 왔지만
+#     `release-prod` 주석은 "PROMOTE_VERSION 을 주고 이 잡만 돌린다" 고 말해 왔지만
 #     그 길은 **파이프라인 생성 단계에서 거절**됐다. `needs` 에 적힌 `publish-builds`
 #     가 web 파이프라인에는 없는 잡이고, GitLab 은 없는 잡을 needs 로 걸면 파이프라인
 #     자체를 만들지 않는다. 되돌리기는 급할 때 쓰는 길이라 그때 알면 늦다.
-_promote = _ci.split("promote-builds:", 1)[1].split("\npublish-site:", 1)[0]
+_promote = _ci.split("release-prod:", 1)[1].split("\npublish-site:", 1)[0]
 #     주석에도 같은 말이 적혀 있으므로 **주석을 뺀 needs 블록만** 센다.
 _nb = _promote.split(chr(10) + "  needs:", 1)[1].split(chr(10) + "  interruptible:", 1)[0]
 _nb = [l for l in _nb.splitlines() if l.strip() and not l.strip().startswith("#")]
 _deps = [l for l in _nb if "- job:" in l]
 assert len(_deps) >= 2, _nb
 assert sum(1 for l in _nb if "optional: true" in l) == len(_deps), \
-    "promote-builds 의 needs 에 optional 이 빠졌다 — 되돌리기가 안 만들어진다: " + str(_nb)
+    "release-prod 의 needs 에 optional 이 빠졌다 — 되돌리기가 안 만들어진다: " + str(_nb)
 
 #     그리고 되돌리기에 **90분짜리 Unity 빌드가 딸려 오면 안 된다.** `release-windows`
-#     는 web 파이프라인에서 리허설로 도는데, 그 90분을 `promote-builds` 가 기다린다.
+#     는 web 파이프라인에서 리허설로 도는데, 그 90분을 `release-prod` 가 기다린다.
 #     여기도 **주석을 뺀 규칙 줄만** 본다 — 위 주석에 RELEASE_DRY_RUN 이 이미 적혀 있다.
 _relwin = _ci.split(NL + "release-windows:", 1)[1].split(NL + "variables:", 1)[0]
 _rules = [l.strip() for l in _relwin.split("  rules:", 1)[1].splitlines()

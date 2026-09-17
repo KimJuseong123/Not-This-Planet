@@ -47,6 +47,43 @@ namespace Metagame.Gameplay.Tests
             Assert.That(_spawner.Live.Count, Is.Zero, "The explicit trigger, not a timer, starts attacks.");
         }
 
+        [Test] public void UnreadyParticipantsCannotHoldAuthorityPastTenSeconds()
+        {
+            // ReadyForEntry가 한 번도 성공하지 않는 상태에서 권위 시계만 진행한다.
+            _now = 9.99; _sequence.Tick();
+            Assert.That(_sequence.Phase, Is.EqualTo(Stage1SequencePhase.Waiting));
+            _now = 10; _sequence.Tick();
+            Assert.That(_sequence.Phase, Is.EqualTo(Stage1SequencePhase.Entry));
+            _now = 28; _sequence.Tick();
+            Assert.That(_sequence.Phase, Is.EqualTo(Stage1SequencePhase.Exploration));
+            Assert.That(_session.CinematicInputBlocked, Is.False);
+        }
+
+        [Test] public void WaitingClientDoesNotStartItsOwnTimelineOnTimeout()
+        {
+            _authority = false;
+            _now = 100; _sequence.Tick();
+            Assert.That(_sequence.Phase, Is.EqualTo(Stage1SequencePhase.Waiting));
+            _sequence.ApplyReplica(Stage1SequencePhase.Entry, 98, 1, false);
+            Assert.That(_sequence.Age, Is.EqualTo(2));
+        }
+
+        [Test] public void EscapeMenuWorksWhileWaitingAndAcrossTimeout()
+        {
+            var pause = _root.AddComponent<Metagame.UI.GamePauseMenu>();
+            pause.Initialize(_session);
+            Assert.That(_session.CinematicInputBlocked, Is.True);
+            Assert.That(pause.TryToggle(), Is.True);
+            Assert.That(pause.IsOpen, Is.True);
+            Assert.That(_session.InputSuppressed, Is.True);
+            _now = 10; _sequence.Tick();
+            Assert.That(_sequence.Phase, Is.EqualTo(Stage1SequencePhase.Entry));
+            Assert.That(pause.TryToggle(), Is.True, "Esc must still close a menu opened before entry.");
+            Assert.That(pause.IsOpen, Is.False);
+            Assert.That(_session.InputSuppressed, Is.False);
+            Assert.That(_session.CinematicInputBlocked, Is.True, "Closing the menu must not unlock movement during entry.");
+        }
+
         [Test] public void AssaultWarnsThenRaisesFrequencyWithoutResettingElapsed()
         {
             _sequence.TryBeginEntry(); _now = 18; _sequence.Tick();
@@ -112,6 +149,8 @@ namespace Metagame.Gameplay.Tests
             var boot = Object.FindAnyObjectByType<SpaceBootstrap>();
             Assert.That(boot, Is.Not.Null);
             var state = boot.Session.Sequence;
+            yield return null;
+            Assert.That(boot.PauseMenu.enabled, Is.True, "The cinematic presenter must leave Esc active.");
             var player = boot.Session.LocalPlayer;
             var part = Object.FindAnyObjectByType<SpaceshipPart>();
             var partId = part.GetEntityId();

@@ -12,6 +12,7 @@ namespace Metagame.Gameplay
         public const float EntrySeconds = 18f;
         public const float AssaultSeconds = 8f;
         public const float WarningSeconds = 5f;
+        public const float EntryWaitTimeoutSeconds = 10f;
         public Stage1SequencePhase Phase { get; private set; }
         public double StartedAt { get; private set; }
         public int Revision { get; private set; }
@@ -36,6 +37,7 @@ namespace Metagame.Gameplay
         MeteorSpawner _spawner;
         Func<bool> _authority;
         Func<double> _clock;
+        double _waitingSince;
 
         public void Configure(GameSession session, MeteorSpawner spawner, Func<bool> authority, Func<double> clock)
         {
@@ -43,6 +45,7 @@ namespace Metagame.Gameplay
             _spawner = spawner;
             _authority = authority;
             _clock = clock;
+            _waitingSince = clock();
             session.Sequence = this;
             if (spawner != null) spawner.SetSequenceHold(true);
         }
@@ -73,6 +76,10 @@ namespace Metagame.Gameplay
         public void Tick()
         {
             if (!Authoritative || _session == null || _session.EndingActive) return;
+            // 준비되지 않은 연결 하나가 전체 세션을 영구 잠그지 못하게 한다.
+            // 네트워크/일시정지와 무관한 시계를 쓰고, 서버만 전환을 결정한다.
+            if (Phase == Stage1SequencePhase.Waiting && _clock() - _waitingSince >= EntryWaitTimeoutSeconds)
+                TryBeginEntry();
             if (AssaultEnabled && _spawner != null && !_spawner.AssaultEnabled) _spawner.BeginAssault();
             if (Phase == Stage1SequencePhase.Entry && Age >= EntrySeconds)
                 Change(AssaultEnabled ? Stage1SequencePhase.Combat : Stage1SequencePhase.Exploration);
