@@ -243,7 +243,7 @@ develop 에 머지되면 코드는 **저장소 안에** 있습니다. 거기서 
 | --- | --- |
 | 개발 서버 배포 | 재시작에 약 7초가 걸리고 그 사이 **dev 로 테스트하던 팀원의 접속이 끊깁니다.** 그래서 낮에는 버튼이고, 아무도 없는 **새벽 04:00 에만 자동**입니다 |
 | 배포 서버 배포 | 같은 이유인데 대상이 **실유저**입니다. EC2 가 릴레이·매칭까지 맡아 재시작하면 게임 중인 사람이 튕깁니다 |
-| `release-prod` | 이 한 줄이 옮겨지는 순간 **모든 사용자의 런처가 그 버전으로 갑니다.** 되돌리기도 같은 잡입니다(`PROMOTE_VERSION` 에 옛 버전) |
+| `release-prod` | **① 배포 백엔드에 jar 적용 → ② `latest.json` 이동**(-592). 누르는 순간 **게임 중인 사람이 튕기고**(백엔드 재시작 약 7초) **모든 사용자의 런처가 그 버전으로 갑니다.** 되돌리기도 같은 잡이며 그때는 **백엔드를 건드리지 않습니다**(`PROMOTE_VERSION` 에 옛 버전) |
 
 ### 4-1. 개발 서버 — 팀이 쓰는 곳
 
@@ -270,7 +270,7 @@ develop 에 backend/ 변경이 머지됨
 
 | 언제 | 어떻게 |
 | --- | --- |
-| 릴리스 뒤 | master 파이프라인의 `deploy-prod` **버튼** |
+| 릴리스 뒤 | master 파이프라인의 `release-prod` **버튼** — 백엔드와 `latest.json` 이 같이 갑니다(-592) |
 | 서버만 고칠 때 | Pipelines → Run pipeline · ref `master` · `DEPLOY_PROD=1` → 같은 **버튼**. **90분짜리 Unity 빌드가 딸려 돌지 않습니다** |
 
 두 번째 길이 없던 동안에는 설정 한 줄을 고치려고 릴리스를 통째로 다시 돌려야 했습니다.
@@ -404,7 +404,7 @@ master 가 develop 과 정렬되면서 해소 중입니다 — `B12` 의 재측�
 | AI 리뷰 (`ai-review`) | CI 잡, Claude 실행 | 역할별 리뷰어가 따로 보고(범위·완료 조건 / C#·네트워크 코드 / 에셋·씬·구조) 요약이 **팀장용 한 장**으로 합칩니다: 결론 → 팀장이 확인할 것 3개 이내 → 발견 사항 표, 상세는 접힘. 문서만 바뀐 MR 은 생략. 리뷰 입력에서 빠진 파일이 있으면 **이름과 사유**를 각주에 적습니다. **⛔ 보류 권고는 `ai-review-gate` 가 막습니다** — 그 하나만 막고 ⚠️·✅·❓ 는 통과합니다. **심각도 `high` 발견이 하나라도 있으면 판정이 ⛔ 가 됩니다**(`-477`) — 리뷰어가 `high` 를 적어 놓고 판정은 ⚠️ 로 두는 일이 있었고, 사람이 읽으면 모순인데 기계는 판정만 보고 통과시켰습니다. CI 변수 `AI_REVIEW_BLOCK_SEVERITY` 로 조이거나 (비우면) 끌 수 있습니다 |
 | 머지 순서 (`stack-order`) | CI 잡 | 스택 자식 MR 은 **부모가 develop 에 들어간 뒤에만** 머지되게 막습니다. 순서를 지키면 자식도 develop 을 대상으로 머지되므로 Jira 자동화가 각 이슈를 완료시킵니다 — **CI 는 Jira 상태를 건드리지 않습니다** |
 | Unity 검사 (`unity-compile`) | METAGAME 이 바뀐 MR 과 develop 머지 직후 | C# 컴파일 + EditMode 테스트(캐시가 있고 재실행할 것이 없으면 70초). **이 MR 이 새로 만든** 실패만 막고 이미 있던 실패는 통과시킵니다 — 그래야 검사가 형식으로 통과되지 않습니다. 새 실패가 있으면 그 테스트만 골라 다시 돌려 **무작위로 흔들리는 것**을 걸러냅니다 |
-| 백엔드 (`build-backend`·`deploy-dev`·`deploy-prod`) | CI 잡 | backend 가 바뀐 MR 은 jar 빌드로 컴파일 검사. develop 머지 뒤에는 **개발 서버로 자동 배포**되고, 릴리스(master 머지) 뒤에 **배포 서버 버튼**이 생겨 팀장이 눌러 배포합니다 — 배포 서버는 재시작이 실유저 접속을 끊으므로 시점을 사람이 고릅니다(-284). 헬스체크 실패면 직전 버전으로 자동 롤백, 결과는 🟢/🔴 카드 |
+| 백엔드 (`build-backend`·`deploy-dev`·`deploy-prod`) | CI 잡 | backend 가 바뀐 MR 은 jar 빌드로 컴파일 검사. develop 머지 뒤에는 **개발 서버로 자동 배포**되고, 릴리스(master 머지) 뒤에는 **`release-prod` 버튼 하나**가 백엔드와 클라이언트를 같이 내보냅니다(-592) — 배포 서버는 재시작이 실유저 접속을 끊으므로 시점을 사람이 고릅니다(-284). 헬스체크 실패면 직전 버전으로 자동 롤백, 결과는 🟢/🔴 카드 |
 | 릴리스 (`release-windows`) | master 머지 직후 | 버전 → Windows 빌드 → 패키지 레지스트리 → GitLab Release(태그) → 🟢. 빌드가 프로젝트 에셋을 지우면 **릴리스를 실패시킵니다** |
 | 아침 점검 (`mm-digest`) | 매일 09:30(평일) 스케줄 CI 잡 — 스크립트, **AI 아님** | Jira·GitLab을 조회해 방치된 것을 담당자별로 정리: `needs-fix` · 기한 초과 · 정체 · 담당자 없음 · 오래 열린 MR · 머지됐는데 완료 안 된 이슈 · 스택 자식 MR · 검사가 돌지 않은 MR · 서로 충돌하는 MR |
 | 러너 | CI 잡을 실제로 실행하는 컴퓨터 | **EC2 리눅스 도커 러너 2대(24시간)** — 공용 러너가 검사·AI 리뷰·Unity 검사를, 배포 전용 러너가 배포만 맡습니다. 팀 PC 러너는 예비로만 남아 있습니다 |
@@ -523,11 +523,11 @@ GitLab이 이름 속 키로 이슈에 연결합니다.
 | --- | --- |
 | **MR 마다** | `mr-title` · `mr-lint` · `repo-hygiene` · `mr-overlap` · `stack-order` · `unity-compile` · `ci-tests` · `build-backend` · `ai-review` · `ai-review-gate` · `mm-mr-opened` · `retarget-pipelines` |
 | **develop 머지 뒤** | `unity-compile` · `build-backend` · `deploy-dev`(👤 버튼) · `publish-site` |
-| **master 머지 = 릴리스** | `release-windows` → `publish-builds` → `release-prod`(👤 버튼) · `deploy-prod`(👤 버튼) |
+| **master 머지 = 릴리스** | `release-windows` → `publish-builds` → **`release-prod`(👤 버튼 하나)** — 백엔드 배포 + `latest.json` (-592) |
 | **스케줄** | 04:00 `deploy-dev`(⏰ 자동) · 04:00 `build-devbuild`→`publish-devbuild` · 09:30 평일 `mm-digest` |
 | **결과 알림** | `mm-ci-failed` · `mm-ci-resolved` |
 
-**사람이 누르는 잡은 셋뿐입니다** — `deploy-dev` · `deploy-prod` · `release-prod`.
+**사람이 누르는 잡은 셋뿐입니다** — `deploy-dev`(개발 서버) · `release-prod`(릴리스, 백엔드+클라이언트) · `deploy-prod`(**서버만** 고칠 때 · web + `DEPLOY_PROD=1`). 릴리스 경로에서 누를 것은 `release-prod` **하나**입니다(-592).
 나머지는 전부 자동이고, 그 셋이 버튼인 이유는 §4 의 표에 있습니다.
 
 사고 이력과 각 결정의 근거는 [ci-and-notifications.md](./ci-and-notifications.md).

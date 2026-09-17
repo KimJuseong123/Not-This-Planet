@@ -41,10 +41,15 @@ def check(ok, msg):
 
 
 def run(promote_version=None, jar="backend/build/libs/app.jar",
-        deploy_rc=0, promote_rc=0):
-    """`main()` 을 대역으로 돌린다. 돌려주는 것: (종료코드, 부른 순서)."""
+        deploy_rc=0, promote_rc=0, changed=False):
+    """`main()` 을 대역으로 돌린다. 돌려주는 것: (종료코드, 부른 순서).
+
+    `changed` 는 "이번 릴리스가 backend/ 를 건드렸나" 다 — jar 이 없을 때
+    **왜 없는지**를 가르는 값이고, `None` 이면 알 수 없다는 뜻이다.
+    """
     calls = []
-    real = (R.D.find_jar, R.D.main, R.P.promote)
+    real = (R.D.find_jar, R.D.main, R.P.promote, R.backend_changed)
+    R.backend_changed = lambda: changed
 
     def fake_find(argv):
         calls.append("find_jar")
@@ -65,7 +70,7 @@ def run(promote_version=None, jar="backend/build/libs/app.jar",
     try:
         rc = R.main([])
     finally:
-        R.D.find_jar, R.D.main, R.P.promote = real
+        R.D.find_jar, R.D.main, R.P.promote, R.backend_changed = real
         os.environ.pop("PROMOTE_VERSION", None)
     return rc, calls
 
@@ -101,6 +106,20 @@ print("== 백엔드가 안 바뀐 릴리스 ==")
 rc, calls = run(jar=None)
 check(rc == 0, f"성공으로 끝난다 (종료 {rc})")
 check(calls == ["find_jar", "promote"], f"배포를 건너뛰고 latest 는 옮긴다 (실제 {calls})")
+
+print()
+print("== jar 이 없는 이유를 가른다 (!499 리뷰) ==")
+
+# **아티팩트 만료(3일)된 옛 파이프라인의 버튼.** 그냥 건너뛰면 백엔드를 조용히
+# 지나치고 latest 만 옮긴다 — 이 스크립트가 막으려던 상태 그대로다.
+rc, calls = run(jar=None, changed=True)
+check(rc == 1, f"backend/ 를 바꾼 릴리스인데 jar 이 없으면 멈춘다 (종료 {rc})")
+check("promote" not in calls, f"latest 를 옮기지 않는다 (실제 {calls})")
+
+# 알 수 없으면 **멈춘다** — 모르는 채로 지나가는 것이 이 이슈가 막으려던 것이다.
+rc, calls = run(jar=None, changed=None)
+check(rc == 1, f"바뀌었는지 알 수 없으면 멈춘다 (종료 {rc})")
+check("promote" not in calls, f"latest 를 옮기지 않는다 (실제 {calls})")
 
 print()
 print("== 릴리스 파이프라인에 버튼이 하나인가 ==")

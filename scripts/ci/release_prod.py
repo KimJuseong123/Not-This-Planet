@@ -35,13 +35,44 @@ sys.stdout.reconfigure(encoding="utf-8")
 import ci_common as C          # noqa: E402
 import deploy_backend as D     # noqa: E402
 import publish_builds as P     # noqa: E402
+import publish_release as R    # noqa: E402
 
 NL = chr(10)
+
+# `build-backend` 가 도는 조건 (`.gitlab-ci.yml`). 이 릴리스가 여기를 건드렸으면
+# **jar 이 있어야 한다** — 없으면 만료·유실이지 "안 바뀐 릴리스" 가 아니다.
+BACKEND_PATHS = ("backend/", ".gitlab-ci.yml")
 
 
 def rollback_version() -> str:
     """되돌리기로 준 버전. 없으면 빈 문자열(= 평범한 릴리스)."""
     return C.env("PROMOTE_VERSION", "").strip()
+
+
+def backend_changed() -> bool | None:
+    """이 릴리스가 백엔드를 건드렸나. 못 알아내면 None.
+
+    **jar 이 없는 이유를 가른다** (`!499` AI 리뷰). 그냥 없으면 건너뛰게 두면,
+    `build-backend` 아티팩트가 만료된(3일) **옛 파이프라인의 버튼**을 눌렀을 때
+    백엔드를 조용히 건너뛰고 `latest.json` 만 옮긴다 — 이 스크립트가 막으려던
+    상태가 그대로 재현된다.
+    """
+    version = P.read_line(P.VERSION_FILE) if os.path.exists(P.VERSION_FILE) else ""
+    if not version:
+        return None
+    try:
+        prev = R.previous_tag(version)
+    except Exception:
+        return None
+    rng = f"{prev}..HEAD" if prev else "HEAD"
+    try:
+        out = R.git("diff", "--name-only", rng)
+    except Exception:
+        return None
+    if out is None:
+        return None
+    return any(line.strip().startswith(BACKEND_PATHS)
+               for line in out.split(chr(10)) if line.strip())
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -56,8 +87,19 @@ def main(argv: list[str] | None = None) -> int:
 
     jar = D.find_jar(argv)
     if not jar:
-        # `build-backend` 가 아예 없었다는 뜻이다(`backend/**` 가 안 바뀐 릴리스).
-        # 그 잡이 있었는데 실패했다면 이 잡은 여기까지 오지도 않는다.
+        # **왜 없는지를 가른다.** 그냥 건너뛰면 아티팩트가 만료된(3일) 옛 파이프라인의
+        # 버튼을 눌렀을 때 백엔드를 조용히 지나치고 `latest.json` 만 옮긴다.
+        changed = backend_changed()
+        if changed:
+            print("❌ 백엔드 jar 이 없는데 이번 릴리스는 backend/ 를 바꿨다")
+            print("   build-backend 아티팩트가 만료됐을 수 있다(3일). 파이프라인을 다시 돌리거나,")
+            print("   서버만 고치는 길로 가세요: Run pipeline · ref master · DEPLOY_PROD=1")
+            return 1
+        if changed is None:
+            # 못 알아내면 **멈춘다.** 모르는 채로 지나가는 것이 이 이슈가 막으려던 것이다.
+            print("❌ 백엔드 jar 이 없고, 이번 릴리스가 backend/ 를 바꿨는지 알 수 없다")
+            print("   (태그·git 이력을 못 읽었다 — 얕은 클론인지 확인할 것)")
+            return 1
         print("백엔드 jar 이 없다 — 이번 릴리스는 backend/ 를 바꾸지 않았다. 배포를 건너뛴다")
     else:
         print(NL + "① 배포 백엔드를 먼저 바꾼다 (세션이 끊긴다)")
