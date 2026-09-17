@@ -50,6 +50,8 @@ namespace Metagame.EditorTools
             }
 
             scenes.Add(Metagame.UI.LobbyTransition.PracticeScenePath);
+            scenes.Add(Metagame.Bootstrap.Stage1CutsceneFlow.EntryPath);
+            scenes.Add(Metagame.Bootstrap.Stage1CutsceneFlow.AssaultPath);
             return scenes.ToArray();
         }
 
