@@ -19,6 +19,7 @@ namespace Metagame.Gameplay.Tests
         {
             var scene=EditorSceneManager.OpenScene(Stage2SceneBuilder.ScenePath);
             Stage2ArtIntegration.Validate();
+            Stage2ArtIntegration.ValidateTerrain();
             var yard=scene.GetRootGameObjects().Single(g=>g.GetComponent<Stage2Yard>());
             var so=new SerializedObject(yard.GetComponent<Stage2Yard>());
             Assert.That(so.FindProperty("_parts").arraySize,Is.EqualTo(3));

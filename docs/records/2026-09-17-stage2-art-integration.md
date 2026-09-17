@@ -35,6 +35,14 @@
 
 ## 편집 유지보수
 
+### Terrain 후속 반영
+
+사용자 요청에 따라 주변 메시 지형을 **Unity Terrain**으로 교체했다. `Assets/_Project/Terrain/Stage2/TD_Stage2_Earth.asset`는 320×320m, 높이맵 513×513이며 흙·마른 풀·자갈·습한 배수로의 네 TerrainLayer를 사용한다. 높이와 표면은 Terrain 브러시로 편집 가능하다.
+
+작업 구역은 평탄하게 유지하고 외곽은 둔덕과 폐공장 기초에 맞춰 성형했다. 전체를 덮던 바닥 타일은 중앙 작업장과 준비 구역에만 남기고, 주변 건물·식생을 Terrain 표면에 재배치했다. 외곽 둔덕에는 추가 식생을 배치했다. 기존 Foundation의 렌더러와 평면 충돌체를 끄고 실제 TerrainCollider를 사용하므로 지형을 수정해도 숨은 바닥이 남지 않는다. 바닥 타일은 Terrain과 겹치지 않도록 표면 높이를 맞췄다.
+
+`ConvertToTerrain`은 미전환 씬에 한 번 적용하는 도구이며 Terrain이 이미 존재하면 중단한다. `RefineTerrain`은 초기 전환용 높이 생성 절차이므로 이후 수작업으로 성형한 Terrain에 다시 실행하지 않는다. 검사 결과는 [Terrain 검증](../../artifacts/stage2-art/terrain-validation.json)을 참고한다. 이번 변경에도 별도 네트워크 오브젝트나 런타임 지형 생성은 추가하지 않았다.
+
 `Stage2 Earth Art - Reclaimed Launch Yard` 아래에 환경을 분류했다. 가동 장비 외형은 기존 Stage2 장비 앵커 아래에 있다. `Stage2ArtIntegration.Apply`는 미통합 초안에 한 번 적용하는 편집 도구이며 이미 통합한 씬을 덮어쓰지 않는다. `Validate`와 `Render`는 통합 씬의 검사·검수 이미지 갱신에 사용한다.
 
 ![전체 배치](../../artifacts/stage2-art/overview.png)

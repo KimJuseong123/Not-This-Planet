@@ -5,6 +5,7 @@ Unity 6000.5.4f1, 603 브랜치. [작업 기록](../../docs/records/2026-09-17-s
 - [전체 배치](overview.png), [도착 지점](arrival.png), [조립 구역](assembly.png), [폐허·식생](ruins-and-vegetation.png), [크레인·보관 구역](crane-and-containers.png)
 - [모델 배치 수](placement-counts.json): 46종 1,289개. 식생 메시 888개.
 - [씬 검사](scene-validation.json): 상호작용 26개, 볼트 9개, 로켓 모듈 3개, 누락 스크립트 0개.
+- [Terrain 검사](terrain-validation.json): 320m 지형, 513 높이맵, 4개 표면 레이어, TerrainCollider 및 평탄한 핵심 작업 구역. 이미지는 Terrain 전환 후 갱신했다. 기존 배치 수 JSON은 첫 모델 통합 당시 기준이며 이후 외곽 식생이 추가됐다.
 - [Unity 자동 테스트](test-results.xml): `Stage2Tests;StageCatalogTests;Stage2ArtTests`, 18개 통과, 실패 0개.
 - [실행 중 전체 화면](../stage2-draft/overview-play.png): 기존 Stage2 회귀 테스트에서 갱신.
 
