@@ -49,8 +49,23 @@ def job(name):
     return m.group(0)
 
 
-DEV = job("build-devbuild")
-REL = job("release-windows")
+def without_comments(text):
+    """**주석을 떼고 본다** (`!505` AI 리뷰).
+
+    두 방향으로 거짓말을 막는다. ① 주석이 실행 줄 흉내를 낸다 — 아래 순서 검사가
+    `publish_devbuild.py version` 을 주석에서 찾아, 명령을 지워도 조용히 통과했다.
+    ② 주석이 오탐을 낸다 — "릴리스 버전은 넘기지 않는다" 를 설명하려고
+    `SPACE_RELEASE_VERSION` 을 적기만 해도 배선과 무관하게 빨개진다.
+
+    실행 줄만 보는 정규식(`^\\s*-\\s`)으로는 ②만 풀린다 — `- |` 블록 **안**의 줄은
+    `-` 로 시작하지 않아서, 거기 숨긴 `export` 를 놓친다. 그래서 줄 모양이 아니라
+    주석 여부로 가른다.
+    """
+    return "\n".join(l for l in text.splitlines() if not l.lstrip().startswith("#"))
+
+
+DEV = without_comments(job("build-devbuild"))
+REL = without_comments(job("release-windows"))
 
 print()
 print("== 빌드 신원 ==")
@@ -67,18 +82,10 @@ check(re.search(r'export SPACE_BUILD_ID="\$\(cat release-version\.txt\)"', DEV) 
 #     **순서가 있다.** 이름을 쓰는 `publish_devbuild.py version` 이 먼저 돌아야
 #     `cat` 이 읽을 것이 있다. 뒤로 가면 빈 값이 조용히 박힌다(빈 값은 줄 자체가 없다).
 #
-#     **주석이 아니라 실행 줄만 본다** (`!505` AI 리뷰). 바로 위 주석에도
-#     `publish_devbuild.py version` 이라는 글자가 있어서, 그냥 찾으면 **명령을
-#     지우거나 아래로 옮겨도 주석이 그 자리를 대신해** 이 검사가 조용히 통과한다.
-def script_line(pattern):
-    m = re.search(r"(?m)^\s*-\s.*" + pattern, DEV)
-    return m.start() if m else -1
-
-
-i_version = script_line(r"publish_devbuild\.py version")
-i_export = script_line(r"export SPACE_BUILD_ID")
-#     빌드는 `- |` 블록 안이라 실행 줄 모양이 아니다. 그 이름을 말하는 주석도 이 잡에
-#     없으므로 그냥 찾아도 된다.
+#     `DEV` 는 주석을 뗀 것이다(`without_comments`) — 그러지 않으면 바로 위 주석의
+#     같은 글자가 명령의 자리를 대신해 이 검사가 조용히 통과한다.
+i_version = DEV.find("publish_devbuild.py version")
+i_export = DEV.find("export SPACE_BUILD_ID")
 i_unity = DEV.find("unity-editor")
 check(-1 < i_version < i_export < i_unity,
       "SPACE_BUILD_ID 를 정하는 순서가 어긋났다 — 이름을 만들기 전이나 빌드 뒤에 넘긴다 "

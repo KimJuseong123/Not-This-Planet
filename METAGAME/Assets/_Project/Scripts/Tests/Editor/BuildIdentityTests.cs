@@ -123,17 +123,31 @@ namespace Metagame.Gameplay.Tests
 
         /// <summary>
         /// 이벤트가 <b>신원</b>을 싣는지. 여기가 이 이슈의 완료 조건이다.
+        ///
+        /// <para><b>이름을 모르면 그 칸을 안 적는다</b>(<c>!505</c> AI 리뷰). 빈 값으로
+        /// 보내면 <b>이름이 없는 빌드</b>와 <b>이 줄이 생기기 전 빌드</b>가 데이터에서
+        /// 구분되지 않는다 — 바로 이 이슈가 고치려던 상태가 한 칸 옮겨 남는 것이다.
+        /// 같은 블록의 <c>humans</c> 가 이미 같은 규칙을 쓴다.</para>
         /// </summary>
         [Test]
         public void EventsCarryTheIdentityNotTheGateVersion()
         {
             var src = TestSource.Read("Runtime/Bootstrap/SpaceBootstrap.cs");
-            var head = TestSource.Method(src, "var head = new System.Collections.Generic.Dictionary<string, object>");
+            var awake = TestSource.Method(src, "void Awake()");
 
-            Assert.That(head, Does.Contain("BuildInfo.BuildId"),
+            Assert.That(awake, Does.Contain("BuildInfo.BuildId"),
                         "이벤트가 빌드 신원을 싣지 않는다");
-            Assert.That(head, Does.Not.Contain("BuildInfo.ReleaseVersion"),
+            Assert.That(awake, Does.Not.Contain("BuildInfo.ReleaseVersion"),
                         "이벤트가 다시 게이트용 버전을 싣는다 — 개발 빌드에서는 빈칸이다");
+
+            // 이름이 없을 때 칸을 **안 적는** 배선. 이것이 없으면 `build: ""` 가 나간다.
+            Assert.That(awake, Does.Contain("IsNullOrEmpty(Core.BuildInfo.BuildId)"),
+                        "이름이 없는 빌드도 build 칸을 적는다 — 빈 값과 '모른다' 가 섞인다");
+
+            // 그 칸이 **딕셔너리 초기화 안에** 있으면 조건 없이 늘 적힌다.
+            var head = TestSource.Method(awake, "var head = new System.Collections.Generic.Dictionary<string, object>");
+            Assert.That(head, Does.Not.Contain("BuildInfo.BuildId"),
+                        "build 칸이 조건 밖으로 나왔다 — 이름이 없어도 빈 값이 나간다");
         }
 
         /// <summary>
