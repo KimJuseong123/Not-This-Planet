@@ -51,6 +51,8 @@ namespace Metagame.EditorTools
             ConfigureRenderer(MobileRendererPath, hazeMaterial, true);
             ConfigurePartOutline(PcRendererPath, outlineMaskMaterial, outlineMaterial, false);
             ConfigurePartOutline(MobileRendererPath, outlineMaskMaterial, outlineMaterial, true);
+            ConfigureOccludedInteractions(PcRendererPath);
+            ConfigureOccludedInteractions(MobileRendererPath);
             MigrateProjectMaterials();
             CreateMirrorMaterialCopies();
             UpdateSceneVolumes(baselineVolume);
@@ -155,6 +157,25 @@ namespace Metagame.EditorTools
                 EditorUtility.SetDirty(material);
             }
             return material;
+        }
+
+        static void ConfigureOccludedInteractions(string path)
+        {
+            var renderer = AssetDatabase.LoadAssetAtPath<ScriptableRendererData>(path);
+            var feature = renderer.rendererFeatures
+                .OfType<Metagame.Gameplay.Interaction.OccludedInteractionRendererFeature>().FirstOrDefault();
+            if (feature == null)
+            {
+                feature = ScriptableObject.CreateInstance<Metagame.Gameplay.Interaction.OccludedInteractionRendererFeature>();
+                feature.name = "Occluded Interaction Outline";
+                feature.hideFlags = HideFlags.HideInInspector;
+                AssetDatabase.AddObjectToAsset(feature, renderer);
+                renderer.rendererFeatures.Add(feature);
+            }
+            feature.SetActive(true);
+            renderer.SetDirty();
+            EditorUtility.SetDirty(feature);
+            EditorUtility.SetDirty(renderer);
         }
 
         /// <summary>

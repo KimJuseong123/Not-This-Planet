@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="26" result="Passed" total="26" passed="26" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-17 05:48:00Z" end-time="2026-09-17 05:48:03Z" duration="3.0914308">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="1754" result="Passed" start-time="2026-09-17 05:48:00Z" end-time="2026-09-17 05:48:03Z" duration="3.091431" total="26" passed="26" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="2954" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202-591-ui/METAGAME/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="1754" result="Passed" start-time="2026-09-17 05:48:00Z" end-time="2026-09-17 05:48:03Z" duration="3.013843" total="26" passed="26" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="27756" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="2955" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="1754" result="Passed" start-time="2026-09-17 05:48:00Z" end-time="2026-09-17 05:48:03Z" duration="3.003507" total="26" passed="26" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="2960" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="1705" result="Passed" start-time="2026-09-17 05:48:00Z" end-time="2026-09-17 05:48:03Z" duration="2.992067" total="26" passed="26" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="2961" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="1705" result="Passed" start-time="2026-09-17 05:48:00Z" end-time="2026-09-17 05:48:03Z" duration="2.981855" total="26" passed="26" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="2013" name="OccludedInteractionRenderTests" fullname="Metagame.Gameplay.Tests.OccludedInteractionRenderTests" classname="Metagame.Gameplay.Tests.OccludedInteractionRenderTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-09-17 05:48:00Z" end-time="2026-09-17 05:48:01Z" duration="1.330948" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2014" name="LocalCameraRendersOnlyOccludedOutlinesIncludingOverlappingTargets" fullname="Metagame.Gameplay.Tests.OccludedInteractionRenderTests.LocalCameraRendersOnlyOccludedOutlinesIncludingOverlappingTargets" methodname="LocalCameraRendersOnlyOccludedOutlinesIncludingOverlappingTargets" classname="Metagame.Gameplay.Tests.OccludedInteractionRenderTests" runstate="Runnable" seed="547279037" result="Passed" start-time="2026-09-17 05:47:55Z" end-time="2026-09-17 05:48:01Z" duration="6.669387" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="2015" name="OccludedInteractionTests" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" testcasecount="12" result="Passed" start-time="2026-09-17 05:48:01Z" end-time="2026-09-17 05:48:03Z" duration="1.587438" total="12" passed="12" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2023" name="AuthoredStageToolsPartsAndClampsHaveOutlineTargets" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.AuthoredStageToolsPartsAndClampsHaveOutlineTargets" methodname="AuthoredStageToolsPartsAndClampsHaveOutlineTargets" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="1292225686" result="Passed" start-time="2026-09-17 05:48:01Z" end-time="2026-09-17 05:48:03Z" duration="1.412876" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_be89ef69
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_0ecb763e
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_415f0994
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_e0b152e9
+Unloading the last loaded scene Assets/Scenes/Stage1_Astra.unity(build index: 2), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+              </test-case>
+              <test-case id="2020" name="CameraLayerMaskAndHiddenRendererAreRespected" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.CameraLayerMaskAndHiddenRendererAreRespected" methodname="CameraLayerMaskAndHiddenRendererAreRespected" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="987691368" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.025665" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Unloading the last loaded scene (build index: -1), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="2019" name="CollectRespectsCameraFrustum" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.CollectRespectsCameraFrustum" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.045184" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="2016" name="CollectRespectsCameraFrustum(0,0,5,True)" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.CollectRespectsCameraFrustum(0,0,5,True)" methodname="CollectRespectsCameraFrustum" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="182829975" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.012944" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[Unloading the last loaded scene (build index: -1), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+                </test-case>
+                <test-case id="2017" name="CollectRespectsCameraFrustum(100,0,5,False)" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.CollectRespectsCameraFrustum(100,0,5,False)" methodname="CollectRespectsCameraFrustum" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="1580853642" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.011585" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[Unloading the last loaded scene (build index: -1), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+                </test-case>
+                <test-case id="2018" name="CollectRespectsCameraFrustum(0,0,-5,False)" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.CollectRespectsCameraFrustum(0,0,-5,False)" methodname="CollectRespectsCameraFrustum" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="1162319605" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.011884" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[Unloading the last loaded scene (build index: -1), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+                </test-case>
+              </test-suite>
+              <test-case id="2021" name="DisabledRemoteToolIsVisibleButHeldToolIsExcluded" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.DisabledRemoteToolIsVisibleButHeldToolIsExcluded" methodname="DisabledRemoteToolIsVisibleButHeldToolIsExcluded" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="1411171415" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.013759" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Unloading the last loaded scene (build index: -1), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+              </test-case>
+              <test-case id="2022" name="DuplicateInteractionComponentsDrawMeshOnlyOnce" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.DuplicateInteractionComponentsDrawMeshOnlyOnce" methodname="DuplicateInteractionComponentsDrawMeshOnlyOnce" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="374045354" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.012680" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Unloading the last loaded scene (build index: -1), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="2030" name="OutlineAppearsOnlyBehindSceneDepth" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.OutlineAppearsOnlyBehindSceneDepth" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.047143" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="2027" name="OutlineAppearsOnlyBehindSceneDepth(10.0f,True)" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.OutlineAppearsOnlyBehindSceneDepth(10.0f,True)" methodname="OutlineAppearsOnlyBehindSceneDepth" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="353599995" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.017972" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[Unloading the last loaded scene (build index: -1), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+                </test-case>
+                <test-case id="2028" name="OutlineAppearsOnlyBehindSceneDepth(5.0f,False)" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.OutlineAppearsOnlyBehindSceneDepth(5.0f,False)" methodname="OutlineAppearsOnlyBehindSceneDepth" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="517385941" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.012875" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[Unloading the last loaded scene (build index: -1), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+                </test-case>
+                <test-case id="2029" name="OutlineAppearsOnlyBehindSceneDepth(4.0f,False)" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.OutlineAppearsOnlyBehindSceneDepth(4.0f,False)" methodname="OutlineAppearsOnlyBehindSceneDepth" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="1289564774" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.014763" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[Unloading the last loaded scene (build index: -1), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+                </test-case>
+              </test-suite>
+              <test-suite type="ParameterizedMethod" id="2026" name="ShadersAreIncludedAndCompile" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.ShadersAreIncludedAndCompile" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.027491" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="2024" name="ShadersAreIncludedAndCompile(&quot;OccludedInteractionMask&quot;)" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.ShadersAreIncludedAndCompile(&quot;OccludedInteractionMask&quot;)" methodname="ShadersAreIncludedAndCompile" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="1490628725" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.014263" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[Unloading the last loaded scene (build index: -1), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+                </test-case>
+                <test-case id="2025" name="ShadersAreIncludedAndCompile(&quot;OccludedInteractionOutline&quot;)" fullname="Metagame.Gameplay.Tests.OccludedInteractionTests.ShadersAreIncludedAndCompile(&quot;OccludedInteractionOutline&quot;)" methodname="ShadersAreIncludedAndCompile" classname="Metagame.Gameplay.Tests.OccludedInteractionTests" runstate="Runnable" seed="908932009" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.012082" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[Unloading the last loaded scene (build index: -1), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+                </test-case>
+              </test-suite>
+            </test-suite>
+            <test-suite type="TestFixture" id="2104" name="PartOutlineGroupTests" fullname="Metagame.Gameplay.Tests.PartOutlineGroupTests" classname="Metagame.Gameplay.Tests.PartOutlineGroupTests" runstate="Runnable" testcasecount="13" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.019915" total="13" passed="13" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2110" name="AChainOfWeldsBecomesOneGroup" fullname="Metagame.Gameplay.Tests.PartOutlineGroupTests.AChainOfWeldsBecomesOneGroup" methodname="AChainOfWeldsBecomesOneGroup" classname="Metagame.Gameplay.Tests.PartOutlineGroupTests" runstate="Runnable" seed="1861655996" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.004584" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2109" name="ACutLinkSplitsThemAgain" fullname="Metagame.Gameplay.Tests.PartOutlineGroupTests.ACutLinkSplitsThemAgain" methodname="ACutLinkSplitsThemAgain" classname="Metagame.Gameplay.Tests.PartOutlineGroupTests" runstate="Runnable" seed="1020137956" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.001145" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2114" name="ALonePartGetsNoOutline" fullname="Metagame.Gameplay.Tests.PartOutlineGroupTests.ALonePartGetsNoOutline" methodname="ALonePartGetsNoOutline" classname="Metagame.Gameplay.Tests.PartOutlineGroupTests" runstate="Runnable" seed="1970269366" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.003019" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2108" name="APlacedButUnweldedLinkDoesNotMerge" fullname="Metagame.Gameplay.Tests.PartOutlineGroupTests.APlacedButUnweldedLinkDoesNotMerge" methodname="APlacedButUnweldedLinkDoesNotMerge" classname="Metagame.Gameplay.Tests.PartOutlineGroupTests" runstate="Runnable" seed="743386381" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.000555" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2115" name="AWeldedPairSurvivesAndTheLonePartDoesNot" fullname="Metagame.Gameplay.Tests.PartOutlineGroupTests.AWeldedPairSurvivesAndTheLonePartDoesNot" methodname="AWeldedPairSurvivesAndTheLonePartDoesNot" classname="Metagame.Gameplay.Tests.PartOutlineGroupTests" runstate="Runnable" seed="1142848741" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.000819" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2107" name="EvenATackWeldMerges" fullname="Metagame.Gameplay.Tests.PartOutlineGroupTests.EvenATackWeldMerges" methodname="EvenATackWeldMerges" classname="Metagame.Gameplay.Tests.PartOutlineGroupTests" runstate="Runnable" seed="588815657" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.000536" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2106" name="FullyWeldedPartsShareOneGroup" fullname="Metagame.Gameplay.Tests.PartOutlineGroupTests.FullyWeldedPartsShareOneGroup" methodname="FullyWeldedPartsShareOneGroup" classname="Metagame.Gameplay.Tests.PartOutlineGroupTests" runstate="Runnable" seed="250017816" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.000526" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2117" name="KeepMergedOnlyHandlesEmptyInput" fullname="Metagame.Gameplay.Tests.PartOutlineGroupTests.KeepMergedOnlyHandlesEmptyInput" methodname="KeepMergedOnlyHandlesEmptyInput" classname="Metagame.Gameplay.Tests.PartOutlineGroupTests" runstate="Runnable" seed="326702951" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.000310" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2113" name="NoPartsMeansNoGroups" fullname="Metagame.Gameplay.Tests.PartOutlineGroupTests.NoPartsMeansNoGroups" methodname="NoPartsMeansNoGroups" classname="Metagame.Gameplay.Tests.PartOutlineGroupTests" runstate="Runnable" seed="1926361604" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.000317" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2112" name="NullsAndDuplicatesDoNotBreakIt" fullname="Metagame.Gameplay.Tests.PartOutlineGroupTests.NullsAndDuplicatesDoNotBreakIt" methodname="NullsAndDuplicatesDoNotBreakIt" classname="Metagame.Gameplay.Tests.PartOutlineGroupTests" runstate="Runnable" seed="1318023289" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.001707" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2105" name="SeparatePartsGetSeparateGroups" fullname="Metagame.Gameplay.Tests.PartOutlineGroupTests.SeparatePartsGetSeparateGroups" methodname="SeparatePartsGetSeparateGroups" classname="Metagame.Gameplay.Tests.PartOutlineGroupTests" runstate="Runnable" seed="1753256286" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.000630" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2111" name="TheSameLayoutGivesTheSameNumbers" fullname="Metagame.Gameplay.Tests.PartOutlineGroupTests.TheSameLayoutGivesTheSameNumbers" methodname="TheSameLayoutGivesTheSameNumbers" classname="Metagame.Gameplay.Tests.PartOutlineGroupTests" runstate="Runnable" seed="959204009" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.000666" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2116" name="TheSurvivingNumbersDoNotShift" fullname="Metagame.Gameplay.Tests.PartOutlineGroupTests.TheSurvivingNumbersDoNotShift" methodname="TheSurvivingNumbersDoNotShift" classname="Metagame.Gameplay.Tests.PartOutlineGroupTests" runstate="Runnable" seed="34992148" result="Passed" start-time="2026-09-17 05:48:03Z" end-time="2026-09-17 05:48:03Z" duration="0.000597" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>
