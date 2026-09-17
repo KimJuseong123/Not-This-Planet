@@ -24,6 +24,7 @@ namespace Metagame.Gameplay
         const float ClampInteractionRange = 3f;
         const float ClampCrosshairAssistRadius = 0.14f;
         const int ClampHitBufferSize = 32;
+        readonly Collider[] _vegetationHits = new Collider[32];
 
         [SerializeField, Min(0f)]
         [Tooltip("직접 조준한 고정못의 실제 Collider 표면까지 플레이어 골반에서 클릭할 수 있는 최대 거리(m). 고정못은 특수 보정으로 처리됨")]
@@ -2930,6 +2931,7 @@ namespace Metagame.Gameplay
             // (S15P21B202-442) — 무게는 같고, 이것이 없으면 잡은 쪽이 일방적으로
             // 이겨서 잡힌 쪽이 빠져나갈 방법이 없다.
             if (CarryingTeammate) top *= PhysicsScale.DownedCarrySpeedScale;
+            top *= PlantRustle.SampleMovementMultiplier(Doll.Hips.position, _vegetationHits);
             Vector3 targetVel = wish * top;
             targetVel.x += GroundVelocity.x;
             targetVel.z += GroundVelocity.z;

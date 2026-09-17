@@ -1,5 +1,41 @@
 # Unity Project Context
 
+## 2026-09-17 editable Astra Terrain
+
+Stage1_Astra's sculpted basin is now "Basin - Editable Terrain": a 112x112m Unity
+Terrain with 2049 height samples per axis and three paintable layers. The source
+mesh renderer/collider are disabled, retained for comparison. Existing facilities,
+vegetation, cameras and lighting retain their serialized data and transforms.
+TerrainData is a dedicated LFS binary asset. The isolated conversion refuses to
+overwrite existing TerrainData, preserving future manual sculpting/painting.
+See repository-root docs/records/2026-09-17-stage1-terrain.md for authoring controls,
+height approximation tolerances, physics/render validation and asset paths.
+
+## 2026-09-17 numbered Stage1 vegetation
+
+Stage1_Astra has an additive "Stage1 Vegetation - Numbered Flora" group: 721 textured
+plants from the seven numbered Stage1 model folders and 18 mesh-colliding mushroom
+trees. PlantRustle now has a damped visual spring and serialized movement multiplier;
+PlayerRig samples current Prop-layer trigger geometry (minimum multiplier, no stacking
+or stale membership). New tall plants use 0.45 speed; all new plants use 25-degree sway.
+Original scene objects, ground, lighting and cameras are preserved. The vegetation
+editor resnap command accepts the current sculpted ground and future TerrainCollider.
+Unity 6000.5.4f1 isolated validation passed 20 focused tests, including real Play Mode
+contact and settling. See docs/records/2026-09-17-stage1-vegetation.md at repository root
+for tuning, serialization preservation, rendering evidence and validation limits.
+
+## 2026-09-17 magnetic storm wake
+
+`MagneticStormVisual` now exposes independent travel/opposite-direction billow multipliers
+(1.4/1.8). The shader uses per-renderer world-travel projection and metre-based offsets
+in the travel/up plane, eliminating the former width-dominant lateral wobble.
+`Stage1AtmosphereProfile.dustStorm` supplies wake duration/opacity/impulse influence
+(4 seconds/0.35/0.18). `DustStormSchedule.EvaluateWake` reconstructs the deposited
+rear path from shared time/seed; presentation uses up to two reusable smoke volumes
+and `Stage1DustStormHazard` applies fading impulses only with physics authority.
+Main and wake hits share cooldowns. See `docs/records/2026-09-17-magnetic-storm-wake.md`
+for 18/19 focused tests, the reproduced pre-existing failure and URP render evidence.
+
 ## 2026-09-15 clamp rope glow
 
 `PartClamp` now explicitly sets the private tether material emission to the part route hue, enables emission at intensity 4, and raises the GuidanceNoFog brightness cap to 5 so the existing Bloom can respond. Rope width is 0.085m, including its pull-progress oscillation. No particles or scene setup are added. Isolated Stage1_Astra Play Mode validation covered 16 ropes across four parts, visibility lifecycle and release; all four rendered color variants were visually inspected. See repository-root `docs/records/2026-09-15-clamp-rope-glow.md`.

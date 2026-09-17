@@ -125,6 +125,9 @@ MonoBehaviour:
     directionConeDegrees: 60
     spawnMargin: 6
     seed: 20260903
+    wakeDuration: 4
+    wakeOpacity: 0.35
+    wakeInfluence: 0.18
     groundClearance: 0.08
     showDebugBoundary: 0
     debugBoundaryColor: {r: 1, g: 0, b: 0, a: 1}

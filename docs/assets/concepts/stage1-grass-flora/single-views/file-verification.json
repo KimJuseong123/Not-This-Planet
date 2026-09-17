@@ -1,0 +1,290 @@
+[
+  {
+    "Plant": "01-ribbon-grass",
+    "View": "back",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 1989337,
+    "SHA256": "CAAD09C7A8040CAB9820B1EFF5AD4EE75091154C588A9D7AE0AA327C5531BBE9"
+  },
+  {
+    "Plant": "01-ribbon-grass",
+    "View": "front",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 1915738,
+    "SHA256": "4F54D7C9235DBF5605495696A62B04AAF1C35759B2B44620A6AB888BA452C0D9"
+  },
+  {
+    "Plant": "01-ribbon-grass",
+    "View": "left",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 1947490,
+    "SHA256": "9298E8FE7B687F22D3BE26F6B67CA8A410E5F1A2CAD8634A1ED5D4112475EFDD"
+  },
+  {
+    "Plant": "01-ribbon-grass",
+    "View": "right",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 1935241,
+    "SHA256": "2C8BD3644CED9FCC2A44A7D626F25459FC77C045004F3C8BE8E3531FEA86716E"
+  },
+  {
+    "Plant": "02-starflower-moss",
+    "View": "back",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 2011991,
+    "SHA256": "F502A8609FE9F97A2EDE56D4E789A2D5FBC04C89F81CD706A62CE3E1B98B2778"
+  },
+  {
+    "Plant": "02-starflower-moss",
+    "View": "front",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 1893264,
+    "SHA256": "9F9C9312D232588448BED1BBDE08FC2404FB09BF282A2E8FA64CD2D443A5FA77"
+  },
+  {
+    "Plant": "02-starflower-moss",
+    "View": "left",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 1986523,
+    "SHA256": "FB48465774D531FB383647EDE277588418E31C9D6A80201A6788E1A2155B6F4F"
+  },
+  {
+    "Plant": "02-starflower-moss",
+    "View": "right",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 2000317,
+    "SHA256": "BAA16AEEEC348585EEFDA32ED2EA22985DB311EF2AB89249F9E2852504A0B9EB"
+  },
+  {
+    "Plant": "03-curled-rosette",
+    "View": "back",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 1881898,
+    "SHA256": "7ED1922A52E9B1442E718564D1BAA9A530DD80C89431AE16E1E1CDF11094FB5D"
+  },
+  {
+    "Plant": "03-curled-rosette",
+    "View": "front",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 1798770,
+    "SHA256": "AF255D1E5915AC2E3A9B0225A47073279F3A799F990CA7DF4F2B2EE66DA71A93"
+  },
+  {
+    "Plant": "03-curled-rosette",
+    "View": "left",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 1817921,
+    "SHA256": "83A6289F66315CB614C4856F157BEB8DB24B942FC9B083BA4BDA8336C15E50F4"
+  },
+  {
+    "Plant": "03-curled-rosette",
+    "View": "right",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 1767382,
+    "SHA256": "F8F02CC0F956EEF851AFDF33BCAEDD952670EA0554AC4084A04A8C53B64A2B21"
+  },
+  {
+    "Plant": "04-mushroom-cluster",
+    "View": "back",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 2206634,
+    "SHA256": "DDDB7AD16379B0183D96292A3D5175BED9EA0B88A080DEE5E9EABC6E46753324"
+  },
+  {
+    "Plant": "04-mushroom-cluster",
+    "View": "front",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 2108914,
+    "SHA256": "2786EA889A7FF13C2C4AB865A1440F345C42D24514A9C74554DFFBC2C2AED3E6"
+  },
+  {
+    "Plant": "04-mushroom-cluster",
+    "View": "left",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 1999765,
+    "SHA256": "1C85AB88F90A2C9717DE48E78D1B1FBFEF53C83D19A421A4C45BF047856F3068"
+  },
+  {
+    "Plant": "04-mushroom-cluster",
+    "View": "right",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 2023420,
+    "SHA256": "944740B5ED91BC0BB541EA560B1411228D6DC6C454C9AEF4ACCED60FD73A808A"
+  },
+  {
+    "Plant": "05-fan-fern",
+    "View": "back",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 2074108,
+    "SHA256": "89F254A2BB1D938B9D10BF433F5D8CB9AFD2F2E224D4419C3046CC6759750614"
+  },
+  {
+    "Plant": "05-fan-fern",
+    "View": "front",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 1971890,
+    "SHA256": "90D51C47DA4B029B16C031A59AAACBF1D69E20EFBF851F54CAB51F0584AAFE3F"
+  },
+  {
+    "Plant": "05-fan-fern",
+    "View": "left",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 1838972,
+    "SHA256": "0EEDB45875D7C4D8A20F21713B6A2CAD869940FCEB60FD9143F186A68580C370"
+  },
+  {
+    "Plant": "05-fan-fern",
+    "View": "right",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 1747443,
+    "SHA256": "AA14AFEAAF32A4C5B577245C593FF3B5266B44B270922DF0CEFC4A346C90F697"
+  },
+  {
+    "Plant": "06-curled-bellflower",
+    "View": "back",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 2011759,
+    "SHA256": "9C8FBC8670AE9F08928763C8D77643ABE3D504B1012D483CD94406DF68414D98"
+  },
+  {
+    "Plant": "06-curled-bellflower",
+    "View": "front",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 1882263,
+    "SHA256": "2D92A1FB21F8C82CB33299AFE55AC8E5D72035F9A1E9D35F45B1646DE6114B10"
+  },
+  {
+    "Plant": "06-curled-bellflower",
+    "View": "left",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 1916696,
+    "SHA256": "737C09259010B0868D93342B178F5CAA4AF4624FF8D9A04D53C4C27AFBEFFA98"
+  },
+  {
+    "Plant": "06-curled-bellflower",
+    "View": "right",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 1860300,
+    "SHA256": "2BFAE5D0980AC263E44C08DC50DBDD7763BA5DFE2B42BCA4E7049DEDED8B4428"
+  },
+  {
+    "Plant": "07-parasol-sapling",
+    "View": "back",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 2107605,
+    "SHA256": "3D409F00775FEFCE212D7FE1495DAB7849F526F5D3B91FD69EEC4190052415D2"
+  },
+  {
+    "Plant": "07-parasol-sapling",
+    "View": "front",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 1940253,
+    "SHA256": "60E4C99A88FFC7EB2BE0F2C9306CF0A43ECFF348A598B21131B39E763D8C58F5"
+  },
+  {
+    "Plant": "07-parasol-sapling",
+    "View": "left",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 2000711,
+    "SHA256": "CE44038E4795792DE374A3E0D44AA931DE0CF9C5A75306CF6C14D2C7215B67C2"
+  },
+  {
+    "Plant": "07-parasol-sapling",
+    "View": "right",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 2004339,
+    "SHA256": "342B4D3C865037C7A6D579EAB84CE1B5EF0C4A1AC7ABC4687D9603DA24F8A3D2"
+  },
+  {
+    "Plant": "08-flowering-shrub",
+    "View": "back",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 2129494,
+    "SHA256": "4DBEF4C228FE60A2B50884472EF8082FA817206AFF82E9AC920D5F2A4897F7BA"
+  },
+  {
+    "Plant": "08-flowering-shrub",
+    "View": "front",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 2029154,
+    "SHA256": "6B0F744B444DA0BF7BCC78B3DCE909FFD00CCC0F0317B679CD1A73A9FD254099"
+  },
+  {
+    "Plant": "08-flowering-shrub",
+    "View": "left",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 2030204,
+    "SHA256": "EC556AA10CB53279C206C0B7E90DCD9F4085E7AE318A5618DA850F4FD351F3BF"
+  },
+  {
+    "Plant": "08-flowering-shrub",
+    "View": "right",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 2049519,
+    "SHA256": "71D92E9B49E701B86E27A9F48FF263BECD9D247BD569C8AE002357E90EA248FA"
+  },
+  {
+    "Plant": "09-lantern-pods",
+    "View": "back",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 1946070,
+    "SHA256": "E6742658182161297FC665BC8BA7180A220937204E4288A103C8AF700C614037"
+  },
+  {
+    "Plant": "09-lantern-pods",
+    "View": "front",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 1847833,
+    "SHA256": "AFEBC571C01D4C684CF521C6D37EECEF88FB4A87AC54CF00509AA3F0C414434F"
+  },
+  {
+    "Plant": "09-lantern-pods",
+    "View": "left",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 1857583,
+    "SHA256": "046B95655C29BF7B4887C38E097EA26F9D551D5F792CEA7CD99A5137130B305A"
+  },
+  {
+    "Plant": "09-lantern-pods",
+    "View": "right",
+    "Width": 1254,
+    "Height": 1254,
+    "Bytes": 1903696,
+    "SHA256": "BE4251F9136ACAF21655FF1741C49BD869E203497AAADB16EA5A1F680B559443"
+  }
+]

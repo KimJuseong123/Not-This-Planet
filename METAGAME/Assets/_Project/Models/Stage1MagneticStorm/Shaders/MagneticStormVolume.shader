@@ -10,6 +10,12 @@ Shader "Metagame/Atmosphere/MagneticStormVolume"
         _Density ("Extinction", Range(0.1,4)) = 2.4
         _Steps ("Ray steps", Range(24,96)) = 64
         _BillowStrength ("Rolling cloud strength", Range(0,1.5)) = 1
+        _FrontBillowStrength ("Travel direction billow", Range(0,3)) = 1.4
+        _RearBillowStrength ("Opposite direction billow", Range(0,3)) = 1.8
+        [HideInInspector] _TravelAxisUV ("Travel projection", Vector) = (0,0,1,0)
+        [HideInInspector] _TravelOffsetUV ("Travel UV per metre", Vector) = (0,0,0.1,0)
+        [HideInInspector] _UpOffsetUV ("Up UV per metre", Vector) = (0,0.2,0,0)
+        [HideInInspector] _WakeAges ("Head age, tail age, lifetime, enabled", Vector) = (0,0,1,0)
         _Erosion ("Breaking wisps", Range(0,0.4)) = 0.22
         _StormPhase ("Loop phase", Float) = 0
         _StormOpacity ("Visibility", Range(0,1)) = 1
@@ -40,6 +46,9 @@ Shader "Metagame/Atmosphere/MagneticStormVolume"
                 float _Density, _Steps, _StormPhase, _StormOpacity;
                 float _BillowStrength, _Erosion;
                 float _SmokeOpacity;
+                float _FrontBillowStrength, _RearBillowStrength;
+                float4 _WakeAges;
+                float4 _TravelAxisUV, _TravelOffsetUV, _UpOffsetUV;
             CBUFFER_END
             struct Attributes { float4 positionOS:POSITION; UNITY_VERTEX_INPUT_INSTANCE_ID };
             struct Varyings {
@@ -63,25 +72,36 @@ Shader "Metagame/Atmosphere/MagneticStormVolume"
                 float a=phase*6.2831853;
                 // Travelling rollers deform the density itself, not just its surface tint.
                 // Integer temporal harmonics and repeat-noise offsets close the six-second loop.
-                float roller=uv.x*18+uv.z*4-a;
-                float crossRoll=uv.z*13-uv.x*5+a*2;
+                float along=dot((uv-.5)*2,_TravelAxisUV.xyz);
+                float front=saturate(along*.5+.5);
+                float3 travel=normalize(_TravelOffsetUV.xyz);
+                float3 up=normalize(_UpOffsetUV.xyz);
+                float3 across=normalize(cross(up,travel));
+                float lateral=dot(uv-.5,across);
+                float vertical=dot(uv-.5,up);
+                // Static lateral phase variation keeps separate lobes instead of flat
+                // wave sheets, without transporting the cloud sideways.
+                float roller=along*6+sin(lateral*17)*2+vertical*4-a;
+                float crossRoll=along*8+cos(lateral*23)*1.5+a*2;
                 float lift=sin(roller);
-                float3 warp=float3(
-                    .032*cos(roller+uv.y*5),
-                    .085*lift+.025*sin(crossRoll),
-                    .060*cos(roller)+.022*sin(crossRoll+uv.y*6));
-                float3 q=uv+warp*_BillowStrength;
-                float swell=1+_BillowStrength*.16*sin(uv.x*14+uv.z*8-a*2);
-                q.yz=(q.yz-.5)/swell+.5;
+                // Roll in the travel/up plane, not across the broad sweep width.
+                float3 warp=_TravelOffsetUV.xyz*(.65*cos(roller)+.20*sin(crossRoll+vertical*6))
+                    +_UpOffsetUV.xyz*(.35*lift+.10*sin(crossRoll));
+                float billow=_BillowStrength*lerp(_RearBillowStrength,_FrontBillowStrength,smoothstep(.25,.75,front));
+                float3 q=uv-warp*billow;
                 // Taper the original box boundary so animated lobes cannot expose a cut plane.
                 float3 border=min(uv,1-uv);
                 float edge=smoothstep(0,.065,min(min(border.x,border.y),border.z));
                 float3 warpedBorder=min(q,1-q);
                 edge*=saturate(min(min(warpedBorder.x,warpedBorder.y),warpedBorder.z)*24);
                 float shape=SAMPLE_TEXTURE3D_LOD(_DensityTex,sampler_DensityTex,saturate(q),0).r;
-                float3 flow=q*float3(5,2.6,3.5)+float3(phase*2,-phase,phase);
+                // Advect the noise along travel as well; lateral phase stays fixed.
+                float3 flow=float3(dot(q,across)*5,dot(q,up)*2.6,dot(q,travel)*3.5)
+                    +float3(0,-phase,-phase*2);
                 float noise=SAMPLE_TEXTURE3D_LOD(_NoiseTex,sampler_NoiseTex,flow,0).r;
-                return saturate(shape*(.52+noise*.96)-(1-noise)*_Erosion)*edge;
+                float remaining=saturate(1-lerp(_WakeAges.y,_WakeAges.x,front)/max(.001,_WakeAges.z));
+                float wakeFade=lerp(1,remaining*remaining,_WakeAges.w);
+                return saturate(shape*(.52+noise*.96)-(1-noise)*_Erosion)*edge*wakeFade;
             }
             half4 Frag(Varyings i):SV_Target
             {

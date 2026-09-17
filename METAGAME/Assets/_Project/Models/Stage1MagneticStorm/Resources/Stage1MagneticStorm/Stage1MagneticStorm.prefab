@@ -75,6 +75,8 @@ MonoBehaviour:
   - {fileID: 3302095639840035824}
   previewAutonomously: 1
   smokeOpacity: 0.38
+  frontBillowStrength: 1.4
+  rearBillowStrength: 1.8
 --- !u!1001 &8638508450910833058
 PrefabInstance:
   m_ObjectHideFlags: 0
