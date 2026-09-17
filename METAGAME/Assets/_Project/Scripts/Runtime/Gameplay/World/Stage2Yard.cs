@@ -75,8 +75,11 @@ namespace Metagame.Gameplay.Stage2
             _boltRenderers = new Renderer[_parts.Length * 3];
             foreach (var target in _targets)
                 if (target.Kind == YardTargetKind.Bolt) _boltRenderers[target.Index] = target.GetComponent<Renderer>();
+            // Resolve the hook mesh before adding the line, otherwise Renderer lookup can select
+            // the newly created LineRenderer and retain its unsupported default material in URP.
+            var hookMaterial = _hook.GetComponentInChildren<MeshRenderer>(true).sharedMaterial;
             _wire = _hook.gameObject.AddComponent<LineRenderer>();
-            _wire.sharedMaterial = _hook.GetComponentInChildren<Renderer>().sharedMaterial;
+            _wire.sharedMaterial = hookMaterial;
             _wire.positionCount = 2; _wire.startWidth = _wire.endWidth = .06f;
         }
 

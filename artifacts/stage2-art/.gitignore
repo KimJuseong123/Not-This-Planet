@@ -1,0 +1,4 @@
+*.log
+*.before.unity
+job-*.json
+session.json

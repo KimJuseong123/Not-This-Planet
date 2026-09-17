@@ -207,12 +207,14 @@ namespace Metagame.Gameplay.Tests
             var factory=new GameObject("Ending snapshot fixture").AddComponent<Stage1EndingBootstrap>();
             var snapshot=factory.CreatePreview(); Object.DestroyImmediate(factory.gameObject);
             EndingSceneFlow.Ensure().Begin(snapshot);
-            for(int frame=0;frame<600 && UnityEngine.SceneManagement.SceneManager.GetActiveScene().name!=StageCatalog.Stage1EndingSceneName;frame++) yield return null;
-            yield return null; yield return null;
+            // Scene loading and playback creation are asynchronous; batch frame rates are unbounded.
+            double deadline=Time.realtimeSinceStartupAsDouble+30;
+            while(Time.realtimeSinceStartupAsDouble<deadline && Object.FindAnyObjectByType<Parts.DemoEnding>()==null) yield return null;
             var playback=Object.FindAnyObjectByType<Parts.DemoEnding>();
             Assert.That(playback,Is.Not.Null);
             playback.Snapshot.StartedAt=-10000;
-            for(int frame=0;frame<600 && UnityEngine.SceneManagement.SceneManager.GetActiveScene().name!=StageCatalog.Stage2SceneName;frame++) yield return null;
+            deadline=Time.realtimeSinceStartupAsDouble+30;
+            while(Time.realtimeSinceStartupAsDouble<deadline && UnityEngine.SceneManagement.SceneManager.GetActiveScene().name!=StageCatalog.Stage2SceneName) yield return null;
             Assert.That(UnityEngine.SceneManagement.SceneManager.GetActiveScene().name,Is.EqualTo(StageCatalog.Stage2SceneName));
             yield return null;
             Assert.That(GameSession.Instance.LocalPlayer,Is.Not.Null);
