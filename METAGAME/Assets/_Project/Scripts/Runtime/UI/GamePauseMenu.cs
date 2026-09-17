@@ -75,6 +75,7 @@ namespace Metagame.UI
                 return;
             }
 
+            // 대기/컷씬의 이동 차단은 Esc와 로비 나가기까지 차단하지 않는다.
             if (session == null || session.ScriptedInput || titleTransitionStarted)
                 return;
 
@@ -84,15 +85,18 @@ namespace Metagame.UI
                 return;
 
             if (Input.GetKeyDown(Controls.FreeCursor))
-                Toggle();
+                TryToggle();
         }
 
-        private void Toggle()
+        public bool TryToggle()
         {
+            if (session == null || session.ScriptedInput || session.EndingActive || titleTransitionStarted || SettingsIsOpen)
+                return false;
             if (isOpen)
                 CloseMenu();
             else
                 OpenMenu();
+            return true;
         }
 
         private void OpenMenu()

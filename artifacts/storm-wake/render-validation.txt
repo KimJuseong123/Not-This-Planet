@@ -1,0 +1,1 @@
+PASS: URP render; shader error check; main+wake, zero billow and residual-only captures.

@@ -138,6 +138,32 @@ Shader "NotThisPlanet/PlanetNoFog"
             }
             ENDHLSL
         }
+
+        // SSAO requests a depth-normal prepass. Opaque surfaces must participate
+        // so depth-sampled volumes (including the magnetic storm) stop here.
+        Pass
+        {
+            Name "DepthNormals"
+            Tags { "LightMode"="DepthNormalsOnly" }
+            ZWrite On
+            Cull [_Cull]
+
+            HLSLPROGRAM
+            #pragma target 3.0
+            #pragma vertex DepthNormalsVertex
+            #pragma fragment DepthNormalsFragment
+            #pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT
+            #pragma multi_compile_instancing
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            CBUFFER_START(UnityPerMaterial)
+                float4 _BaseMap_ST;
+                half4 _BaseColor;
+                half _Ambient;
+                half _LightStrength;
+            CBUFFER_END
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitDepthNormalsPass.hlsl"
+            ENDHLSL
+        }
     }
 
     FallBack Off

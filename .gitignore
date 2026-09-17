@@ -126,3 +126,7 @@ ec2-status.json
 /tools/AICompanionService/results/
 /tools/AICompanionService/fixtures/
 /tools/AICompanionService/__pycache__/
+
+# Local Stage1 concept archive and pre-conversion scene backup.
+/docs/assets/concepts/stage1-grass-flora/astra-flora-9-species-4-views.zip
+/artifacts/stage1-terrain/Stage1_Astra.before.unity

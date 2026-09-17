@@ -205,7 +205,9 @@ def stairs(b):
     for i in range(4):
         front=-depth/2+i*.48;height=.24+i*.19
         segment_depth=.60 if i==3 else .48
-        b.box('Step_structural_'+str(i),(0,front+segment_depth/2,height/2),(width-.18,segment_depth,height),8,.025)
+        # Recess the chassis 1 cm beneath the tread to prevent coplanar faces.
+        chassis_height=height-.01
+        b.box('Step_structural_'+str(i),(0,front+segment_depth/2,chassis_height/2),(width-.18,segment_depth,chassis_height),8,.025)
         b.box('Step_lavender_tread',(0,front+.235,height-.022),(width-.22,.45,.044),1,.012)
         b.box('Riser_light_gasket',(0,front-.006,height-.09),(width-.36,.025,.065),3,.01)
         b.box('Cyan_riser_marker',(0,front-.021,height-.09),(width-.55,.012,.025),5,.003)
