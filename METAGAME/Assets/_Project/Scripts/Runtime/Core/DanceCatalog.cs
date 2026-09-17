@@ -13,8 +13,14 @@ namespace Metagame.Core
     /// </summary>
     public static class DanceCatalog
     {
-        /// <summary>고를 수 있는 춤의 이름. 순서가 곧 번호다(1부터).</summary>
-        public static readonly string[] Names = { "비숑 댄스" };
+        /// <summary>
+        /// 고를 수 있는 춤의 이름. 순서가 곧 번호다(1부터).
+        ///
+        /// <para>여기 한 줄을 더할 때 <c>RabbitLocomotion</c> 의 클립 상수와 한 번짜리
+        /// 슬롯도 같이 늘려야 한다. 어긋나면 고를 수는 있는데 아무 일도 안 일어난다 —
+        /// 그래서 검증이 개수를 맞대어 본다.</para>
+        /// </summary>
+        public static readonly string[] Names = { "뮤직챌린지", "REDRED" };
 
         public static byte Count => (byte)Names.Length;
 

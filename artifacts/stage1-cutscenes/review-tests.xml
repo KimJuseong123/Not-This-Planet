@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="37" result="Passed" total="37" passed="37" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-17 06:05:30Z" end-time="2026-09-17 06:05:33Z" duration="3.0834459">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="1765" result="Passed" start-time="2026-09-17 06:05:30Z" end-time="2026-09-17 06:05:33Z" duration="3.083446" total="37" passed="37" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="2965" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202/.local-validation/astra-ver2/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="1765" result="Passed" start-time="2026-09-17 06:05:30Z" end-time="2026-09-17 06:05:33Z" duration="3.002782" total="37" passed="37" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="50948" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="2966" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="1765" result="Passed" start-time="2026-09-17 06:05:30Z" end-time="2026-09-17 06:05:33Z" duration="2.985052" total="37" passed="37" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="2971" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="1718" result="Passed" start-time="2026-09-17 06:05:30Z" end-time="2026-09-17 06:05:33Z" duration="2.967740" total="37" passed="37" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="2972" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="1718" result="Passed" start-time="2026-09-17 06:05:30Z" end-time="2026-09-17 06:05:33Z" duration="2.954539" total="37" passed="37" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1920" name="MeteorSpawnerTests" fullname="Metagame.Gameplay.Tests.MeteorSpawnerTests" classname="Metagame.Gameplay.Tests.MeteorSpawnerTests" runstate="Runnable" testcasecount="21" result="Passed" start-time="2026-09-17 06:04:48Z" end-time="2026-09-17 06:04:48Z" duration="0.135432" total="21" passed="21" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1927" name="AWave_DropsWhatItAnnounced_SpacedApart" fullname="Metagame.Gameplay.Tests.MeteorSpawnerTests.AWave_DropsWhatItAnnounced_SpacedApart" methodname="AWave_DropsWhatItAnnounced_SpacedApart" classname="Metagame.Gameplay.Tests.MeteorSpawnerTests" runstate="Runnable" seed="1617797976" result="Passed" start-time="2026-09-17 06:04:48Z" end-time="2026-09-17 06:04:48Z" duration="0.047718" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1929" name="AWaveIsAnnouncedInAdvance" fullname="Metagame.Gameplay.Tests.MeteorSpawnerTests.AWaveIsAnnouncedInAdvance" methodname="AWaveIsAnnouncedInAdvance" classname="Metagame.Gameplay.Tests.MeteorSpawnerTests" runstate="Runnable" seed="451509387" result="Passed" start-time="2026-09-17 06:04:48Z" end-time="2026-09-17 06:04:48Z" duration="0.001339" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1928" name="BetweenWaves_NothingFalls" fullname="Metagame.Gameplay.Tests.MeteorSpawnerTests.BetweenWaves_NothingFalls" methodname="BetweenWaves_NothingFalls" classname="Metagame.Gameplay.Tests.MeteorSpawnerTests" runstate="Runnable" seed="267505809" result="Passed" start-time="2026-09-17 06:04:48Z" end-time="2026-09-17 06:04:48Z" duration="0.002059" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1939" name="DifferentSeed_ProducesDifferentImpactPoints" fullname="Metagame.Gameplay.Tests.MeteorSpawnerTests.DifferentSeed_ProducesDifferentImpactPoints" methodname="DifferentSeed_ProducesDifferentImpactPoints" classname="Metagame.Gameplay.Tests.MeteorSpawnerTests" runstate="Runnable" seed="1102351620" result="Passed" start-time="2026-09-17 06:04:48Z" end-time="2026-09-17 06:04:48Z" duration="0.010232" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1930" name="FewerPlayers_MeanFewerMeteors_ButTheSameInterval" fullname="Metagame.Gameplay.Tests.MeteorSpawnerTests.FewerPlayers_MeanFewerMeteors_ButTheSameInterval" methodname="FewerPlayers_MeanFewerMeteors_ButTheSameInterval" classname="Metagame.Gameplay.Tests.MeteorSpawnerTests" runstate="Runnable" seed="1128848931" result="Passed" start-time="2026-09-17 06:04:48Z" end-time="2026-09-17 06:04:48Z" duration="0.002561" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1941" name="ImpactPoints_StayInsideArea" fullname="Metagame.Gameplay.Tests.MeteorSpawnerTests.ImpactPoints_StayInsideArea" methodname="ImpactPoints_StayInsideArea" classname="Metagame.Gameplay.Tests.MeteorSpawnerTests" runstate="Runnable" seed="78389163" result="Passed" start-time="2026-09-17 06:04:48Z" end-time="2026-09-17 06:04:48Z" duration="0.013061" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1935" name="Interval_ShrinksInSteps" fullname="Metagame.Gameplay.Tests.MeteorSpawnerTests.Interval_ShrinksInSteps" methodname="Interval_ShrinksInSteps" classname="Metagame.Gameplay.Tests.MeteorSpawnerTests" runstate="Runnable" seed="863340222" result="Passed" start-time="2026-09-17 06:04:48Z" end-time="2026-09-17 06:04:48Z" duration="0.000717" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1936" name="Interval_StopsShrinkingAtTheLastRow" fullname="Metagame.Gameplay.Tests.MeteorSpawnerTests.Interval_StopsShrinkingAtTheLastRow" methodname="Interval_StopsShrinkingAtTheLastRow" classname="Metagame.Gameplay.Tests.MeteorSpawnerTests" runstate="Runnable" seed="415175434" result="Passed" start-time="2026-09-17 06:04:48Z" end-time="2026-09-17 06:04:48Z" duration="0.000647" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1937" name="LateGame_DropsMoreOftenThanEarlyGame" fullname="Metagame.Gameplay.Tests.MeteorSpawnerTests.LateGame_DropsMoreOftenThanEarlyGame" methodname="LateGame_DropsMoreOftenThanEarlyGame" classname="Metagame.Gameplay.Tests.MeteorSpawnerTests" runstate="Runnable" seed="72369012" result="Passed" start-time="2026-09-17 06:04:48Z" end-time="2026-09-17 06:04:48Z" duration="0.009720" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1932" name="MediumChance_RisesWithTime" fullname="Metagame.Gameplay.Tests.MeteorSpawnerTests.MediumChance_RisesWithTime" methodname="MediumChance_RisesWithTime" classname="Metagame.Gameplay.Tests.MeteorSpawnerTests" runstate="Runnable" seed="1868831289" result="Passed" start-time="2026-09-17 06:04:48Z" end-time="2026-09-17 06:04:48Z" duration="0.000747" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1931" name="MediumMeteors_DoNotAppearBeforeTenMinutes" fullname="Metagame.Gameplay.Tests.MeteorSpawnerTests.MediumMeteors_DoNotAppearBeforeTenMinutes" methodname="MediumMeteors_DoNotAppearBeforeTenMinutes" classname="Metagame.Gameplay.Tests.MeteorSpawnerTests" runstate="Runnable" seed="1361113329" result="Passed" start-time="2026-09-17 06:04:48Z" end-time="2026-09-17 06:04:48Z" duration="0.000561" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1940" name="ResetRun_RewindsToTheSameSequence" fullname="Metagame.Gameplay.Tests.MeteorSpawnerTests.ResetRun_RewindsToTheSameSequence" methodname="ResetRun_RewindsToTheSameSequence" classname="Metagame.Gameplay.Tests.MeteorSpawnerTests" runstate="Runnable" seed="1576812367" result="Passed" start-time="2026-09-17 06:04:48Z" end-time="2026-09-17 06:04:48Z" duration="0.004335" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1938" name="SameSeed_ProducesSameImpactPoints" fullname="Metagame.Gameplay.Tests.MeteorSpawnerTests.SameSeed_ProducesSameImpactPoints" methodname="SameSeed_ProducesSameImpactPoints" classname="Metagame.Gameplay.Tests.MeteorSpawnerTests" runstate="Runnable" seed="1833689023" result="Passed" start-time="2026-09-17 06:04:48Z" end-time="2026-09-17 06:04:48Z" duration="0.006082" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1933" name="SizeDecidesTheKnockbackRadius" fullname="Metagame.Gameplay.Tests.MeteorSpawnerTests.SizeDecidesTheKnockbackRadius" methodname="SizeDecidesTheKnockbackRadius" classname="Metagame.Gameplay.Tests.MeteorSpawnerTests" runstate="Runnable" seed="1382775932" result="Passed" start-time="2026-09-17 06:04:48Z" end-time="2026-09-17 06:04:48Z" duration="0.001082" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1925" name="SpawnedMeteor_DoesNotCarryDamageSource" fullname="Metagame.Gameplay.Tests.MeteorSpawnerTests.SpawnedMeteor_DoesNotCarryDamageSource" methodname="SpawnedMeteor_DoesNotCarryDamageSource" classname="Metagame.Gameplay.Tests.MeteorSpawnerTests" runstate="Runnable" seed="1378001386" result="Passed" start-time="2026-09-17 06:04:48Z" end-time="2026-09-17 06:04:48Z" duration="0.001084" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1924" name="SpawnedMeteor_UsesMeteorLayerAndMass" fullname="Metagame.Gameplay.Tests.MeteorSpawnerTests.SpawnedMeteor_UsesMeteorLayerAndMass" methodname="SpawnedMeteor_UsesMeteorLayerAndMass" classname="Metagame.Gameplay.Tests.MeteorSpawnerTests" runstate="Runnable" seed="171614505" result="Passed" start-time="2026-09-17 06:04:48Z" end-time="2026-09-17 06:04:48Z" duration="0.001007" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1923" name="TheMeteorFallsFromAboveWithAnInitialPush" fullname="Metagame.Gameplay.Tests.MeteorSpawnerTests.TheMeteorFallsFromAboveWithAnInitialPush" methodname="TheMeteorFallsFromAboveWithAnInitialPush" classname="Metagame.Gameplay.Tests.MeteorSpawnerTests" runstate="Runnable" seed="519668603" result="Passed" start-time="2026-09-17 06:04:48Z" end-time="2026-09-17 06:04:48Z" duration="0.000997" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1922" name="TheWarningEndsWhenTheMeteorLands" fullname="Metagame.Gameplay.Tests.MeteorSpawnerTests.TheWarningEndsWhenTheMeteorLands" methodname="TheWarningEndsWhenTheMeteorLands" classname="Metagame.Gameplay.Tests.MeteorSpawnerTests" runstate="Runnable" seed="1946539168" result="Passed" start-time="2026-09-17 06:04:48Z" end-time="2026-09-17 06:04:48Z" duration="0.003629" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1921" name="Warning_AndMeteor_AppearTogether" fullname="Metagame.Gameplay.Tests.MeteorSpawnerTests.Warning_AndMeteor_AppearTogether" methodname="Warning_AndMeteor_AppearTogether" classname="Metagame.Gameplay.Tests.MeteorSpawnerTests" runstate="Runnable" seed="1780036564" result="Passed" start-time="2026-09-17 06:04:48Z" end-time="2026-09-17 06:04:48Z" duration="0.000949" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1934" name="Warning_ExposesImpactPointAndProgress" fullname="Metagame.Gameplay.Tests.MeteorSpawnerTests.Warning_ExposesImpactPointAndProgress" methodname="Warning_ExposesImpactPointAndProgress" classname="Metagame.Gameplay.Tests.MeteorSpawnerTests" runstate="Runnable" seed="2138828596" result="Passed" start-time="2026-09-17 06:04:48Z" end-time="2026-09-17 06:04:48Z" duration="0.001042" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1926" name="WaveInterval_FollowsTheDesignTable" fullname="Metagame.Gameplay.Tests.MeteorSpawnerTests.WaveInterval_FollowsTheDesignTable" methodname="WaveInterval_FollowsTheDesignTable" classname="Metagame.Gameplay.Tests.MeteorSpawnerTests" runstate="Runnable" seed="1948209976" result="Passed" start-time="2026-09-17 06:04:48Z" end-time="2026-09-17 06:04:48Z" duration="0.000375" asserts="0">
+                <properties />
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="2560" name="Stage1CutsceneTests" fullname="Metagame.Gameplay.Tests.Stage1CutsceneTests" classname="Metagame.Gameplay.Tests.Stage1CutsceneTests" runstate="Runnable" testcasecount="8" result="Passed" start-time="2026-09-17 06:04:54Z" end-time="2026-09-17 06:05:26Z" duration="32.214633" total="8" passed="8" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2569" name="ActualWorldSurvivesBothCutscenesAndRestoresCamera" fullname="Metagame.Gameplay.Tests.Stage1CutsceneTests.ActualWorldSurvivesBothCutscenesAndRestoresCamera" methodname="ActualWorldSurvivesBothCutscenesAndRestoresCamera" classname="Metagame.Gameplay.Tests.Stage1CutsceneTests" runstate="Runnable" seed="1147524637" result="Passed" start-time="2026-09-17 06:04:48Z" end-time="2026-09-17 06:05:26Z" duration="38.074237" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <output><![CDATA[Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_be89ef69
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_0ecb763e
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_415f0994
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_e0b152e9
+[백엔드] https://j15b202.p.ssafy.io:443/dev  (개발)
+[MeteorClockBridge] 권위가 있다 — 운석 공세를 여기서 돌린다
+[Stage1Cutscene] Entry · live world bound
+[Stage1Cutscene] Assault · live world bound
+[Stage1Cutscene] Entry · live world bound
+]]></output>
+              </test-case>
+              <test-case id="2562" name="AssaultWarnsThenRaisesFrequencyWithoutResettingElapsed" fullname="Metagame.Gameplay.Tests.Stage1CutsceneTests.AssaultWarnsThenRaisesFrequencyWithoutResettingElapsed" methodname="AssaultWarnsThenRaisesFrequencyWithoutResettingElapsed" classname="Metagame.Gameplay.Tests.Stage1CutsceneTests" runstate="Runnable" seed="1191838169" result="Passed" start-time="2026-09-17 06:05:26Z" end-time="2026-09-17 06:05:26Z" duration="0.002912" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2568" name="BothAuthoredScenesAreEnabledInBuild" fullname="Metagame.Gameplay.Tests.Stage1CutsceneTests.BothAuthoredScenesAreEnabledInBuild" methodname="BothAuthoredScenesAreEnabledInBuild" classname="Metagame.Gameplay.Tests.Stage1CutsceneTests" runstate="Runnable" seed="813400317" result="Passed" start-time="2026-09-17 06:05:26Z" end-time="2026-09-17 06:05:26Z" duration="0.003926" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2563" name="ClientCannotInitiateAndLateJoinUsesServerTimeline" fullname="Metagame.Gameplay.Tests.Stage1CutsceneTests.ClientCannotInitiateAndLateJoinUsesServerTimeline" methodname="ClientCannotInitiateAndLateJoinUsesServerTimeline" classname="Metagame.Gameplay.Tests.Stage1CutsceneTests" runstate="Runnable" seed="1341729968" result="Passed" start-time="2026-09-17 06:05:26Z" end-time="2026-09-17 06:05:26Z" duration="0.000751" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2561" name="EntryBlocksInputThenExplorationWaitsForTrigger" fullname="Metagame.Gameplay.Tests.Stage1CutsceneTests.EntryBlocksInputThenExplorationWaitsForTrigger" methodname="EntryBlocksInputThenExplorationWaitsForTrigger" classname="Metagame.Gameplay.Tests.Stage1CutsceneTests" runstate="Runnable" seed="1325334094" result="Passed" start-time="2026-09-17 06:05:26Z" end-time="2026-09-17 06:05:26Z" duration="0.000750" asserts="0">
+                <properties />
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="2567" name="SerializedAssaultMultiplierControlsInterval" fullname="Metagame.Gameplay.Tests.Stage1CutsceneTests.SerializedAssaultMultiplierControlsInterval" classname="Metagame.Gameplay.Tests.Stage1CutsceneTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-09-17 06:05:26Z" end-time="2026-09-17 06:05:26Z" duration="0.004778" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="2564" name="SerializedAssaultMultiplierControlsInterval(0.6f,18.0f)" fullname="Metagame.Gameplay.Tests.Stage1CutsceneTests.SerializedAssaultMultiplierControlsInterval(0.6f,18.0f)" methodname="SerializedAssaultMultiplierControlsInterval" classname="Metagame.Gameplay.Tests.Stage1CutsceneTests" runstate="Runnable" seed="250006788" result="Passed" start-time="2026-09-17 06:05:26Z" end-time="2026-09-17 06:05:26Z" duration="0.002016" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="2565" name="SerializedAssaultMultiplierControlsInterval(1.0f,30.0f)" fullname="Metagame.Gameplay.Tests.Stage1CutsceneTests.SerializedAssaultMultiplierControlsInterval(1.0f,30.0f)" methodname="SerializedAssaultMultiplierControlsInterval" classname="Metagame.Gameplay.Tests.Stage1CutsceneTests" runstate="Runnable" seed="1793771035" result="Passed" start-time="2026-09-17 06:05:26Z" end-time="2026-09-17 06:05:26Z" duration="0.000327" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="2566" name="SerializedAssaultMultiplierControlsInterval(0.0f,1.5f)" fullname="Metagame.Gameplay.Tests.Stage1CutsceneTests.SerializedAssaultMultiplierControlsInterval(0.0f,1.5f)" methodname="SerializedAssaultMultiplierControlsInterval" classname="Metagame.Gameplay.Tests.Stage1CutsceneTests" runstate="Runnable" seed="1472260086" result="Passed" start-time="2026-09-17 06:05:26Z" end-time="2026-09-17 06:05:26Z" duration="0.000324" asserts="0">
+                  <properties />
+                </test-case>
+              </test-suite>
+            </test-suite>
+            <test-suite type="TestFixture" id="2884" name="VegetationInteractionTests" fullname="Metagame.Gameplay.Tests.VegetationInteractionTests" classname="Metagame.Gameplay.Tests.VegetationInteractionTests" runstate="Runnable" testcasecount="8" result="Passed" start-time="2026-09-17 06:05:30Z" end-time="2026-09-17 06:05:33Z" duration="2.866637" total="8" passed="8" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2890" name="DestroyAndTeleportLeaveNoSlowdownState" fullname="Metagame.Gameplay.Tests.VegetationInteractionTests.DestroyAndTeleportLeaveNoSlowdownState" methodname="DestroyAndTeleportLeaveNoSlowdownState" classname="Metagame.Gameplay.Tests.VegetationInteractionTests" runstate="Runnable" seed="2045533411" result="Passed" start-time="2026-09-17 06:05:26Z" end-time="2026-09-17 06:05:26Z" duration="0.002009" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2889" name="DisabledComponentAndColliderReleaseSlowdownImmediately" fullname="Metagame.Gameplay.Tests.VegetationInteractionTests.DisabledComponentAndColliderReleaseSlowdownImmediately" methodname="DisabledComponentAndColliderReleaseSlowdownImmediately" classname="Metagame.Gameplay.Tests.VegetationInteractionTests" runstate="Runnable" seed="417142441" result="Passed" start-time="2026-09-17 06:05:26Z" end-time="2026-09-17 06:05:26Z" duration="0.000474" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2887" name="OverlappingPlantsUseStrongestRatherThanMultiplying" fullname="Metagame.Gameplay.Tests.VegetationInteractionTests.OverlappingPlantsUseStrongestRatherThanMultiplying" methodname="OverlappingPlantsUseStrongestRatherThanMultiplying" classname="Metagame.Gameplay.Tests.VegetationInteractionTests" runstate="Runnable" seed="522881902" result="Passed" start-time="2026-09-17 06:05:26Z" end-time="2026-09-17 06:05:26Z" duration="0.000570" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2892" name="PlayerContactActuallyTriggersVisibleSwayAndSettles" fullname="Metagame.Gameplay.Tests.VegetationInteractionTests.PlayerContactActuallyTriggersVisibleSwayAndSettles" methodname="PlayerContactActuallyTriggersVisibleSwayAndSettles" classname="Metagame.Gameplay.Tests.VegetationInteractionTests" runstate="Runnable" seed="1309091696" result="Passed" start-time="2026-09-17 06:05:26Z" end-time="2026-09-17 06:05:33Z" duration="6.376739" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2891" name="PulseChangesSwayWithoutMovingRootOrCollider" fullname="Metagame.Gameplay.Tests.VegetationInteractionTests.PulseChangesSwayWithoutMovingRootOrCollider" methodname="PulseChangesSwayWithoutMovingRootOrCollider" classname="Metagame.Gameplay.Tests.VegetationInteractionTests" runstate="Runnable" seed="475343042" result="Passed" start-time="2026-09-17 06:05:33Z" end-time="2026-09-17 06:05:33Z" duration="0.003684" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2888" name="SaturatedBufferStillFindsStrongestSlowdown" fullname="Metagame.Gameplay.Tests.VegetationInteractionTests.SaturatedBufferStillFindsStrongestSlowdown" methodname="SaturatedBufferStillFindsStrongestSlowdown" classname="Metagame.Gameplay.Tests.VegetationInteractionTests" runstate="Runnable" seed="1036778156" result="Passed" start-time="2026-09-17 06:05:33Z" end-time="2026-09-17 06:05:33Z" duration="0.001283" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2885" name="ShortGrassDoesNotSlowOrBlock" fullname="Metagame.Gameplay.Tests.VegetationInteractionTests.ShortGrassDoesNotSlowOrBlock" methodname="ShortGrassDoesNotSlowOrBlock" classname="Metagame.Gameplay.Tests.VegetationInteractionTests" runstate="Runnable" seed="497731568" result="Passed" start-time="2026-09-17 06:05:33Z" end-time="2026-09-17 06:05:33Z" duration="0.000923" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2886" name="TallGrassSlowsOnlyInsideItsVolume" fullname="Metagame.Gameplay.Tests.VegetationInteractionTests.TallGrassSlowsOnlyInsideItsVolume" methodname="TallGrassSlowsOnlyInsideItsVolume" classname="Metagame.Gameplay.Tests.VegetationInteractionTests" runstate="Runnable" seed="1307922522" result="Passed" start-time="2026-09-17 06:05:33Z" end-time="2026-09-17 06:05:33Z" duration="0.000529" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>
