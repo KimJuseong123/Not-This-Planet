@@ -324,11 +324,20 @@ namespace Metagame.Bootstrap
             bool host = !inMatch || Mirror.NetworkServer.active;
             var head = new System.Collections.Generic.Dictionary<string, object>
             {
-                ["build"] = Core.BuildInfo.ReleaseVersion,
                 ["backend"] = Core.BackendEndpoints.IsDev ? "dev" : "prod",
                 ["role"] = !inMatch ? "solo" : (Mirror.NetworkServer.active ? "host" : "client"),
                 ["scene"] = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name,
             };
+
+            // **어느 빌드의 판인지 싣는다** (S15P21B202-597). 전에는 `ReleaseVersion` 을
+            // 실었는데 그 값은 **서버 게이트용**이라 릴리스 빌드에만 있다 — QA 를 개발
+            // 빌드로 하는 동안 쌓인 이벤트는 전부 `build: ""` 였다.
+            //
+            // **이름을 모르면 그 칸을 안 적는다.** 아래 `humans` 와 같은 규칙이다 —
+            // 빈 값으로 보내면 **이름이 없는 빌드**와 **이 줄이 생기기 전 빌드**가
+            // 데이터에서 구분되지 않는다(`!505` AI 리뷰). 손으로 만든 로컬 빌드만 이
+            // 자리에 온다 — CI 가 만든 것은 dev·qa·릴리스 전부 이름이 있다.
+            if (!string.IsNullOrEmpty(Core.BuildInfo.BuildId)) head["build"] = Core.BuildInfo.BuildId;
 
             // **인원수는 호스트만 안다.** 참가자에게 `NetworkServer.connections` 는 비어
             // 있어서, 그대로 쓰면 "0명이 플레이했다" 는 줄이 남는다. 모르면 안 적는다 —

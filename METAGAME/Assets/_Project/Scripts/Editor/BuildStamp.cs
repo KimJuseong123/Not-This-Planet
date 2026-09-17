@@ -122,7 +122,51 @@ namespace Metagame.EditorTools
                 line.Append('\n').Append(BuildInfo.VersionPrefix).Append(version);
             }
 
+            // **신원은 따로 적는다** (S15P21B202-597). 위 `버전=` 은 서버 게이트가 읽는
+            // 값이라 `vX.Y.Z` 여야 하고, 그래서 개발·QA 빌드에는 **일부러 없다**(-404).
+            // 그런데 "이 판이 어느 빌드였나" 는 모든 빌드가 말할 수 있어야 한다 —
+            // 한 줄이 두 일을 겸하려 해서 개발 빌드 이벤트의 `build` 가 내내 빈칸이었다.
+            //
+            // **이 append 는 위 `if` 밖에 있어야 한다.** 안으로 들어가면 릴리스 빌드에만
+            // 붙어 고치려던 상태로 그대로 돌아간다.
+            string buildId = IdentityOf(Environment.GetEnvironmentVariable("SPACE_BUILD_ID"), version);
+            if (!string.IsNullOrEmpty(buildId))
+                line.Append('\n').Append(BuildInfo.BuildIdPrefix).Append(buildId);
+
             return line.ToString();
+        }
+
+        /// <summary>
+        /// 스탬프에 적을 <b>신원</b> — <c>빌드=</c> 줄의 값 (S15P21B202-597).
+        ///
+        /// <para><b>릴리스 버전을 폴백으로 쓴다.</b> 릴리스 빌드에서는 파이프라인이
+        /// <c>SPACE_BUILD_ID</c> 를 따로 주지 않아도 두 줄이 같은 값을 가리켜야 한다 —
+        /// 같은 빌드를 두 이름으로 부르는 것이 가장 헷갈리는 결과다.</para>
+        ///
+        /// <para><b>순수 함수로 갈라 둔다</b>(<c>-501</c> 의 <c>BuildTag</c> 와 같은 이유).
+        /// 에디터에서 도는 검사는 환경변수를 흔들 수 없다 — 흔들면 같은 프로세스의 다른
+        /// 검사로 새어 나간다. 그래서 <b>무엇이 들어오면 무엇을 적는지</b>를 여기서 잠근다.</para>
+        ///
+        /// <para>둘 다 비면 빈 문자열이고, 그러면 <c>빌드=</c> 줄이 아예 없다 — 손으로 만든
+        /// 로컬 빌드가 그렇다. <b>빈 값을 그럴듯한 것으로 메우지 않는다</b>: 읽는 쪽이
+        /// "모른다" 를 알아야 한다.</para>
+        /// </summary>
+        public static string IdentityOf(string buildId, string version)
+        {
+            string id = (buildId ?? string.Empty).Trim();
+            if (id.Length == 0) id = (version ?? string.Empty).Trim();
+
+            // 줄바꿈이 섞이면 둘째 줄부터의 `머리표=값` 규칙이 깨진다 — 뒤쪽 줄이
+            // 통째로 다른 값으로 읽힌다.
+            //
+            // **바꾼 뒤에 다시 다듬는다** (`!505` AI 리뷰). 앞의 `Trim()` 은 치환
+            // 전이라 `"qa-1\n"` 이 `"qa-1 "` 로 남았다 — 읽는 쪽이 또 `Trim()` 해서
+            // 살아나긴 하지만, 스탬프 파일에 꼬리 공백을 쓸 이유는 없다.
+            //
+            // 값이 이상하다고 **버리지는 않는다.** 중간에 공백이 섞인 이름은 이상한
+            // 이름이지 없는 이름이 아니다 — 빈 값으로 떨어뜨리면 그 판이 어느 빌드였는지
+            // 아예 사라진다. 이상한 값은 눈에 보이고, 없는 값은 안 보인다.
+            return id.Replace("\r", " ").Replace("\n", " ").Trim();
         }
 
         /// <summary>
