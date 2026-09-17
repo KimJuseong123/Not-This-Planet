@@ -6,6 +6,7 @@ namespace Metagame.Gameplay.Tests
 {
     public sealed class LocalCursorFeedbackTests
     {
+        [Category("Heavy")]
         [Test]
         public void PingCursor_UsesReadableAlphaAndPlayerTint_WithoutChangingSource()
         {

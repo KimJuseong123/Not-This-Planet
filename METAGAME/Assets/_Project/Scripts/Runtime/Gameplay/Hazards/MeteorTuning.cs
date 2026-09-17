@@ -67,6 +67,21 @@ namespace Metagame.Gameplay.Hazards
         public float BatSwingWindowSeconds => _batSwingWindowSeconds;
         public float BatAssistRadius => _batAssistRadius;
 
+        // ── 시험용 즉시 조정 (CheatArenaConsole) ─────────────────────────────
+        //
+        // 이 객체는 스포너가 만들어 <b>모든 운석이 같은 것을 참조</b>하므로, 여기서 값을
+        // 바꾸면 이미 떨어지고 있는 운석에도 그 자리에서 적용된다. 치트 패널이 충격파의
+        // 세기를 손으로 맞춰 보기 위한 것이고, 판을 다시 시작하면 씬에 직렬화된 값으로
+        // 돌아간다.
+
+        /// <summary>강한 충격이 되는 안쪽 비율 0~1(§20.1). 기본 0.5.</summary>
+        public void SetHeavyImpactFraction(float value) =>
+            _heavyImpactFraction = Mathf.Clamp01(value);
+
+        /// <summary>강한 충격·직접 충돌로 날아가는 속도(m/s). 기본 8.</summary>
+        public void SetHeavyKnockSpeed(float value) =>
+            _heavyKnockSpeed = Mathf.Max(0f, value);
+
         public float ImpactRadiusFor(MeteorSize size) =>
             size == MeteorSize.Medium ? _mediumImpactRadius : _smallImpactRadius;
 

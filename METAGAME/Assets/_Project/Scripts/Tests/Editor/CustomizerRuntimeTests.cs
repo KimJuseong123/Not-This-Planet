@@ -11,6 +11,7 @@ namespace Metagame.Gameplay.Tests
 {
     public class CustomizerRuntimeTests
     {
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator PreviewLoadsWithoutGameplayAndCancelReturnsToLobby()
         {

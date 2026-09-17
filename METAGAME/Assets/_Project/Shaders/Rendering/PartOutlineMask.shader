@@ -8,10 +8,8 @@ Shader "Hidden/Metagame/Rendering/PartOutlineMask"
     //
     // 번호는 0~1 로 정규화해 넣는다. R8 한 장이면 255 덩어리까지 구분되는데, 핵심
     // 파츠는 네 개라 남는다.
-    Properties
-    {
-        _OutlineGroup ("Group (0~1)", Float) = 0
-    }
+    // Pass-owned global: a material property would override SetGlobalFloat.
+    // A new name also avoids the old _OutlineGroup saved in existing materials.
 
     SubShader
     {
@@ -43,7 +41,7 @@ Shader "Hidden/Metagame/Rendering/PartOutlineMask"
             // **파츠의 본 렌더링 배칭이 깨진다** — 테두리 하나 그리자고 파츠 전체를
             // 느리게 만드는 셈이다. 이 패스는 파츠를 순서대로 그리므로 그리기 직전에
             // SetGlobalFloat 로 넣으면 충분하다.
-            half _OutlineGroup;
+            half _MetagamePartOutlineGroup;
 
             struct Attributes { float4 positionOS : POSITION; };
             struct Varyings   { float4 positionCS : SV_POSITION; };
@@ -57,7 +55,7 @@ Shader "Hidden/Metagame/Rendering/PartOutlineMask"
 
             half4 Frag(Varyings input) : SV_Target
             {
-                return half4(_OutlineGroup, 0, 0, 1);
+                return half4(_MetagamePartOutlineGroup, 0, 0, 1);
             }
             ENDHLSL
         }
