@@ -98,6 +98,7 @@ namespace Metagame.Gameplay.Tests
             finally { Object.DestroyImmediate(root); }
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator ExistingStormPresenterControlsVisibilitySeedReuseAndCleanup()
         {

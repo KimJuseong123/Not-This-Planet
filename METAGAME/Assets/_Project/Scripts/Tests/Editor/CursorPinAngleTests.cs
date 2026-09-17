@@ -376,6 +376,7 @@ namespace Metagame.Gameplay.Tests
                 "커서를 세우는 자리에도 서버 조건이 없어야 한다.");
         }
 
+        [Category("Heavy")]
         [Test]
         public void MakingTheCursorNeverChangesTheSource()
         {

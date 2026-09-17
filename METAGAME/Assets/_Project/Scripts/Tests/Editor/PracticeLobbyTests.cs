@@ -84,6 +84,7 @@ namespace Metagame.Gameplay.Tests
             for(int i=0;i<source.childCount;i++) AssertHierarchy(source.GetChild(i),target.GetChild(i));
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator RealPlayerInputPicksUpBothToolsAndPullsTheAuthoredClamp()
         {
@@ -208,6 +209,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(SceneUtility.GetBuildIndexByScenePath(LobbyTransition.PracticeScenePath), Is.GreaterThanOrEqualTo(0));
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator AuthoredRoomSpawnsProductionRigAndExercisesRealPracticeObjects()
         {
@@ -285,6 +287,7 @@ namespace Metagame.Gameplay.Tests
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator ResetReloadsPracticeThenDepartureLoadsTheExistingStage()
         {
