@@ -88,6 +88,15 @@ namespace Metagame.Gameplay.Tests
         {
             Assert.That(BuildStamp.IdentityOf("qa-1\n백엔드=prod", ""), Does.Not.Contain("\n"));
             Assert.That(BuildStamp.IdentityOf("qa-1\r\nqa-2", ""), Does.Not.Contain("\r"));
+
+            // 치환이 남긴 꼬리 공백까지 다듬는다 — 스탬프 파일에 쓸 이유가 없다.
+            Assert.That(BuildStamp.IdentityOf("qa-1\n", ""), Is.EqualTo("qa-1"));
+            Assert.That(BuildStamp.IdentityOf("\nqa-1", ""), Is.EqualTo("qa-1"));
+
+            // **이상한 값을 버리지는 않는다.** 중간에 공백이 섞인 이름은 이상한 이름이지
+            // 없는 이름이 아니다 — 빈 값으로 떨어뜨리면 그 판이 어느 빌드였는지 아예
+            // 사라진다. 이상한 값은 눈에 보이고, 없는 값은 안 보인다.
+            Assert.That(BuildStamp.IdentityOf("qa 1", ""), Is.EqualTo("qa 1"));
         }
 
         /// <summary>

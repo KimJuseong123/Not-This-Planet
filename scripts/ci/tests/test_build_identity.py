@@ -66,12 +66,23 @@ check(re.search(r'export SPACE_BUILD_ID="\$\(cat release-version\.txt\)"', DEV) 
 
 #     **순서가 있다.** 이름을 쓰는 `publish_devbuild.py version` 이 먼저 돌아야
 #     `cat` 이 읽을 것이 있다. 뒤로 가면 빈 값이 조용히 박힌다(빈 값은 줄 자체가 없다).
-i_version = DEV.find("publish_devbuild.py version")
-i_export = DEV.find("export SPACE_BUILD_ID")
+#
+#     **주석이 아니라 실행 줄만 본다** (`!505` AI 리뷰). 바로 위 주석에도
+#     `publish_devbuild.py version` 이라는 글자가 있어서, 그냥 찾으면 **명령을
+#     지우거나 아래로 옮겨도 주석이 그 자리를 대신해** 이 검사가 조용히 통과한다.
+def script_line(pattern):
+    m = re.search(r"(?m)^\s*-\s.*" + pattern, DEV)
+    return m.start() if m else -1
+
+
+i_version = script_line(r"publish_devbuild\.py version")
+i_export = script_line(r"export SPACE_BUILD_ID")
+#     빌드는 `- |` 블록 안이라 실행 줄 모양이 아니다. 그 이름을 말하는 주석도 이 잡에
+#     없으므로 그냥 찾아도 된다.
 i_unity = DEV.find("unity-editor")
 check(-1 < i_version < i_export < i_unity,
       "SPACE_BUILD_ID 를 정하는 순서가 어긋났다 — 이름을 만들기 전이나 빌드 뒤에 넘긴다 "
-      f"(version {i_version} · export {i_export} · unity {i_unity})")
+      f"(version {i_version} · export {i_export} · 빌드 {i_unity})")
 
 
 # ── ② 개발·QA 빌드는 게이트용 버전을 **받지 않는다** (-404) ─────────────
