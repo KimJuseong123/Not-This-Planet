@@ -536,6 +536,15 @@ class GitLab:
                      self._h())
         return d if st == 200 and isinstance(d, list) else []
 
+# 스토리 포인트의 커스텀 필드 번호. **인스턴스마다 다르므로 여기 한 곳에만 적는다** —
+# `GET /rest/api/3/field` 에서 이름이 "Story Points" 인 것의 id 다(2026-09-14·09-16 확인: 10031).
+#
+# 전에는 `mm_digest` 가 JQL 모양(`cf[10031]`)으로 따로 들고 있었다. 두 곳에 적힌 번호는
+# 한쪽만 고쳐지고, 그러면 **아침 점검과 mr-lint 가 서로 다른 필드를 본다.**
+STORY_POINTS_ID = 10031
+STORY_POINTS_FIELD = f"customfield_{STORY_POINTS_ID}"   # REST 의 `fields=` · 응답 키
+STORY_POINTS_JQL = f"cf[{STORY_POINTS_ID}]"             # JQL 안에서 쓰는 모양
+
 
 class Jira:
     # **읽기 전용이다.** 이슈 상태를 바꾸는 것은 Jira 자동화 규칙(R5·R6·R9)만 한다 — CI 는 검사·알림만
@@ -562,7 +571,8 @@ class Jira:
     def get_issue(self, key: str) -> dict | None:
         """이슈 dict, 없으면 None. 그 외 오류는 예외."""
         st, d = http("GET", f"{self.api}/rest/api/3/issue/{key}"
-                            "?fields=summary,status,labels,issuetype,assignee,parent,duedate,description",
+                            "?fields=summary,status,labels,issuetype,assignee,parent,duedate,description"
+                            f",{STORY_POINTS_FIELD}",
                      self._h())
         if st == 404:
             return None
