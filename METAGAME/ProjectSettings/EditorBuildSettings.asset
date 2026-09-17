@@ -29,4 +29,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Stage1_AssaultCutscene.unity
     guid: 95260c34a7736d640831cdc3123ca393
+  - enabled: 1
+    path: Assets/Scenes/Stage2_Earth.unity
+    guid: 24b05e839e99cc843959fc7852a41d09
   m_configObjects: {}

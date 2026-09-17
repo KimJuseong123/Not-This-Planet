@@ -86,6 +86,7 @@ namespace Metagame.Gameplay
         /// 넘겨받은 자기 몸에도 참이라서, 서버와 클라이언트를 가르지 못한다.</para>
         /// </summary>
         public bool ServerAuthority = true;
+        public bool WorkstationMovementLocked { get; set; }
 
         /// <summary>조준 기준점. 카메라가 없는 서버에서도 겨냥이 가능하게 한다.</summary>
         Transform aimPivot;
@@ -2484,6 +2485,12 @@ namespace Metagame.Gameplay
         public void Tick()
         {
             if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
+            if (WorkstationMovementLocked)
+            {
+                input.Move = Vector2.zero;
+                input.Jump = input.GrabLeft = input.GrabRight = false;
+                input.ToolPrimary = input.ToolSecondary = false;
+            }
 
             // 피해 번쩍임을 식힌다 (S15P21B202-539). 아래 게이지들보다 앞에 두는 이유는
             // 뒤쪽 이른 반환(Doll 이 아직 없거나 Hips 좌표가 망가진 틱) 때문이다 —

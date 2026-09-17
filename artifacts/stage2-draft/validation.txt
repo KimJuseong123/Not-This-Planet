@@ -1,0 +1,10 @@
+Stage2 final validation — 2026-09-17
+Unity 6000.5.4f1, Windows Development player
+EditMode with EnterPlayMode: 16 passed, 0 failed (test-results.xml)
+BuildNetworkSmoke: succeeded
+HOST containers from both authenticated peers PASS
+HOST remote pilot motion PASS
+HOST disconnect cleanup PASS
+CLIENT input and replicated crane PASS
+LATE OBSERVER full state PASS
+Local Telepathy, three processes; no backend integration or human 4-player completion claimed.

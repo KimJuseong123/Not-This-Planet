@@ -13,6 +13,7 @@ namespace Metagame.Gameplay
         public static GameSession Instance;
 
         public PlayerRig LocalPlayer;
+        public System.Func<InputFrame, InputFrame> StageInputFilter { get; set; }
 
         /// <summary>전원이 기절한 채 흐른 시간. 출구 판정에만 쓴다.</summary>
         float allDownedSeconds;
@@ -223,6 +224,8 @@ namespace Metagame.Gameplay
                     f.FreeLook = false;
                     f.PingPressed = false;
                 }
+
+                if (StageInputFilter != null) f = StageInputFilter(f);
 
                 // 끼임 탈출은 3초 유지다(기획 §21). 예전에는 GetKeyDown 으로 즉시
                 // 스폰 지점으로 보내면서 Revive 까지 불러 §20 의 기절·구조를 우회했다

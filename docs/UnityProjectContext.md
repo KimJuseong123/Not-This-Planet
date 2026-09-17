@@ -38,3 +38,13 @@ ProjectVersion.txt, Packages/manifest.json, EditorBuildSettings.asset, 어셈블
 ## 2026-09-17 Stage1 가림 테두리
 
 Stage1_Astra 상호작용 물체의 가려진 윤곽을 로컬 카메라에만 표시한다. OccludedInteractionRendererFeature는 PC/Mobile 렌더러에 등록되어 있고, 전용 Resources 셰이더와 0.5초 갱신 대상 캐시를 사용한다. 도구/파츠/고정못/잡을 수 있는 물체를 포함하며 플레이어와 휴대 중인 도구는 제외한다. 씬/프리팹 수정은 없다. 구현 및 검증 범위는 docs/records/2026-09-17-occluded-interaction-outline.md 참고.
+
+## 2026-09-17 Stage2_Earth 초안 (`603`, 기준 10bdab36)
+
+- `Stage2_Earth`는 같은 SpaceBootstrap/PlayerRig/GameSession을 사용한다. Stage1 전용 용접·운석·태블릿·DemoEnding은 Stage2 목표에 사용하지 않는다.
+- `Stage2Yard`가 크레인·로켓·사다리·승강기·오염의 권한 있는 상태를 소유하고, Network 어셈블리의 `Stage2Bridge`가 인증 연결 입력과 전체 스냅샷을 전달한다. Gameplay에서 Mirror를 참조하지 않는다.
+- Stage1 WorldSync는 SpaceshipPart 전용이므로 Stage2에서는 설치 대기를 생략한다. 참가자 몸은 기존 NetPlayer, Stage2 장비는 별도 Stage2 스냅샷으로 동기화한다.
+- `GameSession.StageInputFilter`로 Stage2 입력을 기존 조작 읽기 경로에서 소비한다. 원형 체결 동안 시점 회전을 막는다.
+- Stage1 엔딩 종료 시 호스트가 같은 연결로 Stage2를 연다. StageCatalog와 EditorBuildSettings에 `stage2`가 등록된다.
+- 도구는 초안용 장비대 장착 방식이며 기존 ToolBase의 운반·투척에 아직 통합하지 않았다. 수치·미정 채택·검증 근거는 [작업 기록](records/2026-09-17-stage2-earth-draft.md)에 남긴다.
+- 현재 제공된 Unity MCP 호출은 없다. 지정 버전 Unity 배치모드로 씬 생성·컴파일·테스트·로컬 검증 빌드를 실행한다.
