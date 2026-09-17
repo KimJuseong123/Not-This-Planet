@@ -8,6 +8,7 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 using Metagame.Gameplay;
+using Metagame.Gameplay.Parts;
 
 namespace Metagame.EditorTools
 {
@@ -23,6 +24,9 @@ namespace Metagame.EditorTools
         const string MobileRendererPath = "Assets/Settings/Mobile_Renderer.asset";
         const string BaselineVolumePath = "Assets/_Project/Data/Atmosphere/URPBaselineVolumeProfile.asset";
         const string HazeMaterialPath = "Assets/_Project/Materials/Rendering/M_Atmosphere_Haze.mat";
+        // 핵심 파츠 테두리 (S15P21B202-562). 마스크와 선 그리기가 각각 재질 하나를 쓴다.
+        const string PartOutlineMaskMaterialPath = "Assets/_Project/Materials/Rendering/M_PartOutlineMask.mat";
+        const string PartOutlineMaterialPath = "Assets/_Project/Materials/Rendering/M_PartOutline.mat";
         const string MirrorMaterialDirectory = "Assets/_Project/Materials/Rendering/Mirror";
 
         [MenuItem("Metagame/Rendering/Apply URP Setup")]
@@ -37,10 +41,16 @@ namespace Metagame.EditorTools
 
             var baselineVolume = EnsureBaselineVolumeProfile();
             var hazeMaterial = EnsureHazeMaterial();
+            var outlineMaskMaterial = EnsureMaterial(
+                PartOutlineMaskMaterialPath, "Hidden/Metagame/Rendering/PartOutlineMask", "M_PartOutlineMask");
+            var outlineMaterial = EnsureMaterial(
+                PartOutlineMaterialPath, "Hidden/Metagame/Rendering/PartOutline", "M_PartOutline");
             ConfigurePipelineAssets(pc, mobile, baselineVolume);
             ConfigureQualityLevels(pc, mobile);
             ConfigureRenderer(PcRendererPath, hazeMaterial, false);
             ConfigureRenderer(MobileRendererPath, hazeMaterial, true);
+            ConfigurePartOutline(PcRendererPath, outlineMaskMaterial, outlineMaterial, false);
+            ConfigurePartOutline(MobileRendererPath, outlineMaskMaterial, outlineMaterial, true);
             MigrateProjectMaterials();
             CreateMirrorMaterialCopies();
             UpdateSceneVolumes(baselineVolume);
@@ -52,6 +62,8 @@ namespace Metagame.EditorTools
                 "Metagame/Guidance/NoFog",
                 "Metagame/Atmosphere/SkyGradient",
                 "Hidden/Metagame/Atmosphere/Haze",
+                "Hidden/Metagame/Rendering/PartOutlineMask",
+                "Hidden/Metagame/Rendering/PartOutline",
                 "Metagame/Atmosphere/Meteor",
                 "Metagame/Atmosphere/Dust",
                 "Metagame/Atmosphere/DustStormBoundary");
@@ -122,6 +134,58 @@ namespace Metagame.EditorTools
                 EditorUtility.SetDirty(material);
             }
             return material;
+        }
+
+        /// <summary>경로에 재질이 없으면 만들고, 셰이더가 다르면 맞춘다. 여러 번 불러도 같다.</summary>
+        static Material EnsureMaterial(string path, string shaderName, string materialName)
+        {
+            var shader = Shader.Find(shaderName);
+            if (shader == null)
+                throw new InvalidOperationException(shaderName + " 셰이더를 찾지 못했습니다.");
+
+            var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material == null)
+            {
+                material = new Material(shader) { name = materialName };
+                AssetDatabase.CreateAsset(material, path);
+            }
+            else if (material.shader != shader)
+            {
+                material.shader = shader;
+                EditorUtility.SetDirty(material);
+            }
+            return material;
+        }
+
+        /// <summary>
+        /// 핵심 파츠 테두리 피처를 등록한다 (S15P21B202-562).
+        ///
+        /// <para>Haze 와 같은 규칙이다 — 모바일 렌더러에도 <b>등록은 하되 꺼 둔다.</b>
+        /// 나중에 켤 수 있게 자리는 남기고, Mobile/Low/Medium 이 전체화면 패스 값을
+        /// 치르지 않게 한다.</para>
+        /// </summary>
+        static void ConfigurePartOutline(string path, Material maskMaterial,
+                                         Material outlineMaterial, bool mobileRenderer)
+        {
+            var renderer = AssetDatabase.LoadAssetAtPath<ScriptableRendererData>(path);
+            if (renderer == null) throw new InvalidOperationException("Renderer Data를 찾지 못했습니다: " + path);
+
+            var feature = renderer.rendererFeatures.OfType<PartOutlineRendererFeature>().FirstOrDefault();
+            if (feature == null)
+            {
+                feature = ScriptableObject.CreateInstance<PartOutlineRendererFeature>();
+                feature.name = "Part Outline";
+                feature.hideFlags = HideFlags.HideInInspector;
+                AssetDatabase.AddObjectToAsset(feature, renderer);
+                renderer.rendererFeatures.Add(feature);
+            }
+
+            feature.MaskMaterial = maskMaterial;
+            feature.OutlineMaterial = outlineMaterial;
+            feature.SetActive(!mobileRenderer);
+            renderer.SetDirty();
+            EditorUtility.SetDirty(feature);
+            EditorUtility.SetDirty(renderer);
         }
 
         static void ConfigurePipelineAssets(

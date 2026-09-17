@@ -26,6 +26,7 @@ MonoBehaviour:
     probeVolumeBlendStatesCS: {fileID: 0}
   m_RendererFeatures:
   - {fileID: 7291459384721093882}
+  - {fileID: 6399194064710557590}
   m_RendererFeatureMap: fa347db8ad773065
   xrSystemData: {fileID: 0}
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
@@ -55,6 +56,22 @@ MonoBehaviour:
   m_AccurateGbufferNormals: 0
   m_IntermediateTextureMode: 0
   m_TileOnlyMode: 0
+--- !u!114 &6399194064710557590
+MonoBehaviour:
+  m_ObjectHideFlags: 3
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: feba9e2d7a24d094d9004371b7dd0a34, type: 3}
+  m_Name: Part Outline
+  m_EditorClassIdentifier: Metagame.Gameplay::Metagame.Gameplay.Parts.PartOutlineRendererFeature
+  m_Active: 0
+  maskMaterial: {fileID: 2100000, guid: 8c6d6235c82156b4db4dcd5164c70776, type: 2}
+  outlineMaterial: {fileID: 2100000, guid: 783b03ee86c588149b387afa9162b151, type: 2}
+  injectionPoint: 550
 --- !u!114 &7291459384721093882
 MonoBehaviour:
   m_ObjectHideFlags: 1
