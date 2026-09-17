@@ -1,5 +1,17 @@
 # Unity Project Context
 
+## 2026-09-17 magnetic storm wake
+
+`MagneticStormVisual` now exposes independent travel/opposite-direction billow multipliers
+(1.4/1.8). The shader uses per-renderer world-travel projection and metre-based offsets
+in the travel/up plane, eliminating the former width-dominant lateral wobble.
+`Stage1AtmosphereProfile.dustStorm` supplies wake duration/opacity/impulse influence
+(4 seconds/0.35/0.18). `DustStormSchedule.EvaluateWake` reconstructs the deposited
+rear path from shared time/seed; presentation uses up to two reusable smoke volumes
+and `Stage1DustStormHazard` applies fading impulses only with physics authority.
+Main and wake hits share cooldowns. See `docs/records/2026-09-17-magnetic-storm-wake.md`
+for 18/19 focused tests, the reproduced pre-existing failure and URP render evidence.
+
 ## 2026-09-15 clamp rope glow
 
 `PartClamp` now explicitly sets the private tether material emission to the part route hue, enables emission at intensity 4, and raises the GuidanceNoFog brightness cap to 5 so the existing Bloom can respond. Rope width is 0.085m, including its pull-progress oscillation. No particles or scene setup are added. Isolated Stage1_Astra Play Mode validation covered 16 ropes across four parts, visibility lifecycle and release; all four rendered color variants were visually inspected. See repository-root `docs/records/2026-09-15-clamp-rope-glow.md`.

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Failed(Child)" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-17 00:49:19Z" end-time="2026-09-17 00:49:19Z" duration="0.4213204">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="1730" result="Failed" site="Child" start-time="2026-09-17 00:49:19Z" end-time="2026-09-17 00:49:19Z" duration="0.421320" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="2924" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202/outputs/tractor-tests/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="1730" result="Failed" site="Child" start-time="2026-09-17 00:49:19Z" end-time="2026-09-17 00:49:19Z" duration="0.358503" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="46308" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="2925" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="1730" result="Failed" site="Child" start-time="2026-09-17 00:49:19Z" end-time="2026-09-17 00:49:19Z" duration="0.353500" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="2930" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="1683" result="Failed" site="Child" start-time="2026-09-17 00:49:19Z" end-time="2026-09-17 00:49:19Z" duration="0.348508" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="2931" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="1683" result="Failed" site="Child" start-time="2026-09-17 00:49:19Z" end-time="2026-09-17 00:49:19Z" duration="0.343697" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1698" name="MagneticStormImpulseTests" fullname="Metagame.Gameplay.Tests.MagneticStormImpulseTests" classname="Metagame.Gameplay.Tests.MagneticStormImpulseTests" runstate="Runnable" testcasecount="6" result="Failed" site="Child" start-time="2026-09-17 00:49:19Z" end-time="2026-09-17 00:49:19Z" duration="0.326445" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1701" name="TriggerKicksInteractiveBodiesAndWholePlayerOncePerSecondOnlyWithAuthority" fullname="Metagame.Gameplay.Tests.MagneticStormImpulseTests.TriggerKicksInteractiveBodiesAndWholePlayerOncePerSecondOnlyWithAuthority" methodname="TriggerKicksInteractiveBodiesAndWholePlayerOncePerSecondOnlyWithAuthority" classname="Metagame.Gameplay.Tests.MagneticStormImpulseTests" runstate="Runnable" seed="1790047016" result="Failed" start-time="2026-09-17 00:49:14Z" end-time="2026-09-17 00:49:19Z" duration="5.221942" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  Expected: less than 0.02d
+  But was:  18.4390907f
+]]></message>
+                  <stack-trace><![CDATA[at Metagame.Gameplay.Tests.MagneticStormImpulseTests+<TriggerKicksInteractiveBodiesAndWholePlayerOncePerSecondOnlyWithAuthority>d__3.MoveNext () [0x005c0] in C:\workspace\2-PJT\S15P21B202\outputs\tractor-tests\Assets\_Project\Scripts\Tests\Editor\MagneticStormImpulseTests.cs:95
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in .\Library\PackageCache\com.unity.test-framework@1405238725ab\UnityEngine.TestRunner\NUnitExtensions\Attributes\TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

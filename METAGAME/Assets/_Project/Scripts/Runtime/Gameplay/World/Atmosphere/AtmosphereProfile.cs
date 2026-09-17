@@ -197,6 +197,14 @@ namespace Metagame.Gameplay
             [Min(0f)] public float spawnMargin = 6f;
             public int seed = 20260903;
 
+            [Header("Magnetic storm wake")]
+            [Tooltip("후면이 지나간 자리에 잔운이 남는 시간(초). 0이면 끕니다. 최대 한 폭풍 주기까지 유지됩니다.")]
+            [Range(0f, 30f)] public float wakeDuration = 4f;
+            [Tooltip("잔운의 연기 불투명도 배율. 0이면 보이지 않지만 영향 배율이 있으면 힘은 적용됩니다.")]
+            [Range(0f, 1f)] public float wakeOpacity = .35f;
+            [Tooltip("잔운이 주는 충격의 배율. 본체의 힘에 곱하며 시간이 지날수록 0으로 감소합니다. 0이면 시각 효과만 남습니다.")]
+            [Range(0f, 1f)] public float wakeInfluence = .18f;
+
             [Header("Fixed height above map base")]
             [Min(0f)] public float groundClearance = 0.08f;
 
@@ -331,6 +339,9 @@ namespace Metagame.Gameplay
             dustStorm.minimumInterval = Mathf.Max(0.1f, dustStorm.minimumInterval);
             dustStorm.maximumInterval = Mathf.Max(dustStorm.minimumInterval, dustStorm.maximumInterval);
             dustStorm.speed = Mathf.Max(0.01f, dustStorm.speed);
+            dustStorm.wakeDuration = Mathf.Clamp(dustStorm.wakeDuration, 0f, 30f);
+            dustStorm.wakeOpacity = Mathf.Clamp01(dustStorm.wakeOpacity);
+            dustStorm.wakeInfluence = Mathf.Clamp01(dustStorm.wakeInfluence);
             dustStorm.halfExtents = new Vector3(
                 Mathf.Max(0.1f, Mathf.Abs(dustStorm.halfExtents.x)),
                 Mathf.Max(0.1f, Mathf.Abs(dustStorm.halfExtents.y)),
