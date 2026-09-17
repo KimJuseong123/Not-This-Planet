@@ -13,6 +13,7 @@ namespace Metagame.Gameplay
         public static GameSession Instance;
 
         public PlayerRig LocalPlayer;
+        public event System.Action<PlayerRig> PlayerRespawned;
         public System.Func<InputFrame, InputFrame> StageInputFilter { get; set; }
 
         /// <summary>전원이 기절한 채 흐른 시간. 출구 판정에만 쓴다.</summary>
@@ -406,6 +407,7 @@ namespace Metagame.Gameplay
             rig.Revive(rig.MaxHealth);
             rig.ResetHealth();
             rig.Teleport(SpawnFoot + Vector3.up * 0.15f, Quaternion.LookRotation(Vector3.right, Vector3.up));
+            PlayerRespawned?.Invoke(rig);
         }
 
         /// <summary>낙사인가. 서버가 접속자마다 같은 기준으로 본다(-55).</summary>

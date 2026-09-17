@@ -121,9 +121,15 @@ namespace Metagame.Gameplay.Stage2
             if (Vector3.Distance(w.Rig.FootPosition, _shower.position) < 2f)
                 w.State.Contamination = Mathf.Max(0, w.State.Contamination - dt * .22f);
             if (w.State.Contamination >= 1 && !w.Rig.Downed) w.Rig.GoDown("유독물질 오염 — 동료 제독 후 G 구조");
-            // Respawn at the safe preparation point clears accumulated contamination.
-            if (GameSession.Instance != null && Vector3.Distance(w.Rig.FootPosition, GameSession.Instance.SpawnFoot) < 3f)
-                w.State.Contamination = 0;
+        }
+
+        public void ClearContaminationAfterRespawn(PlayerRig rig)
+        {
+            // Walking into the preparation area is not a decontamination action.
+            // GameSession emits this only after actual recovery, on the authoritative instance.
+            if (!_authority || rig == null) return;
+            foreach (var worker in _workers.Values)
+                if (worker.Rig == rig) { worker.State.Contamination = 0; worker.State.Spraying = false; }
         }
 
         void Spray(Worker w, float dt)

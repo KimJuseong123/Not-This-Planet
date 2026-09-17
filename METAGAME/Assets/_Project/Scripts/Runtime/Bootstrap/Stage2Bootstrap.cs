@@ -34,6 +34,7 @@ namespace Metagame.Bootstrap
             _space.Session.Exploration = null;
             _space.Session.StageInputFilter = Filter;
             _yard.Completed += _space.Session.Clear;
+            _space.Session.PlayerRespawned += _yard.ClearContaminationAfterRespawn;
             _hud = gameObject.AddComponent<Stage2Hud>();
             _hud.Configure(_yard, _space.Session, () => _bridge.LocalId);
         }
@@ -102,7 +103,14 @@ namespace Metagame.Bootstrap
         void OnDestroy()
         {
             if (_space != null && _space.Session != null)
-            { _space.Session.StageInputFilter = null; if (_yard != null) _yard.Completed -= _space.Session.Clear; }
+            {
+                _space.Session.StageInputFilter = null;
+                if (_yard != null)
+                {
+                    _yard.Completed -= _space.Session.Clear;
+                    _space.Session.PlayerRespawned -= _yard.ClearContaminationAfterRespawn;
+                }
+            }
         }
     }
 }
