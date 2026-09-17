@@ -71,7 +71,7 @@
 | **A. MR** (`merge_request_event`) | MR이 열리거나 소스 브랜치에 push | §2-A 전부 (조건부: `ci-tests` `unity-compile` `build-backend` `ai-review`) | 새 push가 앞 파이프라인을 자동 취소한다(정상) |
 | **B. develop push** | 팀장이 MR을 머지한 직후 | `retarget-pipelines` · `unity-compile`(METAGAME 변경) · `build-backend` → `deploy-dev`(backend 변경, **버튼만** — 자동 배포는 새벽 스케줄, -455) | **자동 취소 없음**(`auto_cancel: none`, -309) — 연달아 머지돼도 앞 파이프라인의 배포가 취소되지 않는다 |
 | **C. 스케줄** | **평일** 09:30 KST (id 28, `30 9 * * 1-5`, ref develop) — 실제 발송 09:33 | `ci-tests` · `retarget-pipelines` · `mm-digest` | 카드는 항목이 있을 때만 나간다 |
-| **D. master push** | 팀장이 `release/<키>-vX.Y.Z` 브랜치(또는 hotfix)를 master에 머지한 직후 | `release-windows` → `publish-builds`(자동) → `promote-builds`(**수동**) · `build-backend` → `deploy-prod`(**수동**, -284) | **릴리스 = 자동, 공개는 버튼**: 버전 → Windows 빌드 → 패키지 → GitLab Release(태그) → MM. 자동 취소 없음(-326) |
+| **D. master push** | 팀장이 `release/<키>-vX.Y.Z` 브랜치(또는 hotfix)를 master에 머지한 직후 | `release-windows` → `publish-builds`(자동) · `build-backend`(자동) → **`release-prod`(수동, 버튼 하나)** — 백엔드 배포 + `latest.json` (-592) | **릴리스 = 자동, 공개는 버튼**: 버전 → Windows 빌드 → 패키지 → GitLab Release(태그) → MM. 자동 취소 없음(-326) |
 
 전부 `CI_ENABLE=true` 변수가 있어야 **파이프라인 자체가 생성**된다(없으면 조용히 0건 — §7).
 
@@ -111,9 +111,9 @@
 | `unity-compile` | `METAGAME/**` 변경 | 개별 MR은 통과했는데 합쳐서 깨지는 경우를 2분 안에 잡는다(MR에서 합친 결과를 검사하게 된 `-342` 뒤에도 안전망으로 남긴다). 이 결과가 다음 MR 들의 **기준선**이 된다. **주의 — 여기서 실패해도 MM 알림이 없다**: `mm-ci-failed`가 `merge_request_event` 에서만 돈다(`-344`) | 경고(기준선용) |
 | `build-backend` | `backend/**` · `.gitlab-ci.yml` 변경 | 배포용 jar 아티팩트 | 실패 |
 | `deploy-dev` | **develop push** + 위와 같음 · `needs: build-backend` · **`when: manual`**(머지는 버튼만) + **새벽 스케줄 자동**(`$NIGHTLY_DEPLOY_DEV`, -455) · `tags: [deploy]` · `interruptible: false` · `environment: development` · `DEPLOY_SPOOL: /spool-dev` | jar을 `/spool-dev`에 원자적으로 놓고 `RELEASE` 표시 → 호스트 `deploy.sh`가 교체·헬스체크(`POST /auth/guest` 200, **8081**)·실패 시 **직전 jar로 롤백**(3개 보관) → 잡은 `STATUS`에 자기 sha가 찍힐 때까지 기다림(최대 420초) → MM 🟢 배포 완료 / 🔴 롤백 / 🔴 무응답 | 실패 → MM 🔴(Infra 멘션) |
-| `deploy-prod` | **master push**(`changes` 조건 없음) · `needs: build-backend` · **`when: manual`** · `tags: [deploy]` · `interruptible: false` · `environment: production` · **옛 파이프라인의 버튼을 누르면 경고**(-333) | 위와 같고 스풀만 기본값 `/spool`, 헬스체크는 **8080** | 실패 → MM 🔴(Infra 멘션) |
+| `deploy-prod` | **web 파이프라인만**(`DEPLOY_PROD=1`, -464) — 릴리스 경로에서는 빠졌다(-592) · `needs: build-backend` · **`when: manual`** · `tags: [deploy]` · `interruptible: false` · `environment: production` · **옛 파이프라인의 버튼을 누르면 경고**(-333) | 위와 같고 스풀만 기본값 `/spool`, 헬스체크는 **8080** | 실패 → MM 🔴(Infra 멘션) |
 | `publish-builds` | **master push** · `needs: release-windows` · `tags: [deploy]` · 자동 | 패키지 레지스트리에서 zip 을 받아 풀고 **매니페스트 + 내용 주소 저장소**를 `/builds` 에 만든다(`--no-latest`). zip 도 함께 둔다 — 런처를 안 쓰는 사람 길이 남아야 한다. **아직 아무도 이 버전을 받지 않는다** | 실패 → MM 🔴 |
-| `promote-builds` | **master push** · **`when: manual`** · `environment: production` | `latest.json` 을 이 버전으로 옮긴다 — **누르는 순간 모든 런처가 그 버전으로 간다.** 옮기기 전에 그 버전이 쓰는 파일이 저장소에 다 있는지 확인한다. 되돌리기도 이 잡이다(`PROMOTE_VERSION` 에 옛 버전) | 실패 → MM 🔴 |
+| `release-prod` | **master push** · **`when: manual`** · `environment: production` · `needs: build-backend`(optional, jar) | **① 배포 백엔드에 jar 적용 → ② `latest.json` 이동** (-592). 백엔드가 실패하면 거기서 멈춘다 — `latest.json` 은 안 움직인다. 백엔드가 안 바뀐 릴리스는 ①을 건너뛴다. `latest.json` 을 이 버전으로 옮긴다 — **누르는 순간 모든 런처가 그 버전으로 간다.** 옮기기 전에 그 버전이 쓰는 파일이 저장소에 다 있는지 확인한다. 되돌리기도 이 잡이다(`PROMOTE_VERSION` 에 옛 버전) | 실패 → MM 🔴 |
 | `publish-site` | **develop push** + `website/**` 변경 · `tags: [deploy]` | `website/` 를 `/site` 로 옮긴다. **LFS 포인터가 섞여 있으면 멈춘다** — 올리면 영상·이미지가 전부 깨지는데 200 으로 내려가 화면만 보고는 못 찾는다 | 실패 → MM 🔴 |
 
 **배포 시점** (-455). 재시작은 어느 쪽이든 WebSocket 세션을 전부 끊는다. 끊기는 사람이 다를 뿐이다 — dev 는 **테스트하는 팀원**, prod 는 **실유저**. 그래서 둘 다 머지가 자동으로 배포하지 않는다. dev 는 **새벽 스케줄**(끊길 세션이 없는 시간)이 자동으로 맞추고 낮에는 버튼이며, prod 는 릴리스 뒤 사람이 시점을 고른다. `-139` §4 가 처음부터 적어 둔 이유이고, 한때 "나눈 뒤 실유저는 prod 에 있으니 dev 는 자동" 이라고 바꿨던 것이 틀렸다.
@@ -208,7 +208,7 @@ MR 은 사람이 누른다(`allow_failure` 라 누르지 않은 버튼이 파이
 여기서 다시 정하면 두 곳이 어긋난다.
 
 **공개하지 않는다.** AI 가 쓴 문장이 그대로 나가면 이상한 한 줄이 게임의 첫인상이 된다.
-사람이 보고 고친 뒤에 싣는다 — `promote-builds`(공개 버튼)와 같은 결이다.
+사람이 보고 고친 뒤에 싣는다 — `release-prod`(공개 버튼)와 같은 결이다.
 
 **별도 잡인 이유**(-579). 처음에는 `release-windows` 마지막 줄이었다. 그 잡은 Unity
 이미지라 **`claude` CLI 가 없고**, `|| true` 가 그 실패를 성공으로 만들었다 — 초안은
@@ -241,15 +241,26 @@ Jira 요약을 못 읽은 이슈가 있으면 몇 건이 빠졌는지 본문에 
 
 #### master 머지는 **빌드 릴리스**이지 서버 배포가 아니다 (S15P21B202-464)
 
-릴리스가 났다고 **배포 서버(8080)의 백엔드는 바뀌지 않는다.** `deploy-prod` 는 수동 버튼이고,
-누르지 않으면 이전 jar 그대로다. 릴리스 뒤에 서버 코드가 관련된 것을 확인할 때는 이 줄을 먼저 본다.
+릴리스가 났다고 **배포 서버(8080)의 백엔드는 바뀌지 않는다.** master 머지 뒤에 자동으로 도는
+것은 빌드·패키지·Release·배치까지이고, 그 전부가 **실제 플레이에 영향을 주지 않는다** —
+런처는 `latest.json` 만 보는데 그것을 아직 안 옮기기 때문이다. 올려 두는 것과 가리키는 것은
+다르다(`-405`).
+
+**사용자에게 내보내는 것은 버튼 하나다** — `release-prod`. 그것이 ① 배포 백엔드에 jar 을
+적용하고 ② `latest.json` 을 옮긴다. **이때 세션이 끊긴다**(백엔드 재시작 약 7초).
 
 | 하고 싶은 것 | 어떻게 |
 | --- | --- |
-| 릴리스한 서버 코드를 올린다 | 릴리스 파이프라인의 **`deploy-prod` 를 누른다** |
-| 사용자 런처를 새 버전으로 보낸다 | 같은 파이프라인의 **`promote-builds` 를 누른다** (별개 버튼이다) |
+| 릴리스를 사용자에게 내보낸다 | 릴리스 파이프라인의 **`release-prod` 를 누른다** — 백엔드와 클라이언트가 같이 간다 |
 | **서버만** 고친다(설정 한 줄·보안 수정) | Pipelines → **Run pipeline** → ref `master` · `DEPLOY_PROD=1` → `deploy-prod` 를 누른다. 그 파이프라인에서는 `release-windows` 가 **돌지 않는다** — 90분을 기다릴 이유가 없다 |
+| 되돌린다 | **Run pipeline** → ref `master` · `PROMOTE_VERSION=<옛 버전>` → `release-prod`. **백엔드는 건드리지 않는다** — 급할 때 쓰는 길이라 서버까지 되돌리면 그 시간이 곧 장애 시간이다 |
+| 사이트에 **이번에 바뀐 것**을 싣는다 | `release-windows` 의 아티팩트 `release-summary.md`(AI 초안, `-462`·`-579`)를 열어 **사이트용 3~6줄을 사람이 고쳐** `website/release-config.js` 의 `notes` 에 넣고 develop 에 머지한다. `publish-site` 가 올린다. **비워 두면 그 절이 화면에 안 나온다** — 안 싣는 것도 선택이다(`-595`) |
 | 지금 서버에 무엇이 올라가 있는지 본다 | **아침 점검 카드의 🚀 두 줄** (개발·배포 각각). `-464` 전에는 잡 이름이 어긋나 늘 "이력 없음" 이었다 |
+
+**전에는 버튼이 둘이었다**(`deploy-prod` · `promote-builds`)**.** 둘이 서로를 몰라 순서도
+눌렀는지도 알 수 없었고, 실제로 어긋났다 — v1.1.0 에서 promote 만 눌려 배포 백엔드가
+**나흘째 옛 jar** 이었다(`-570` 이 prod 에 없었다). 한쪽만 눌러도 파이프라인이 초록이라
+아무도 몰랐다(`-592`).
 
 **서버만 고치는 경우에도 코드는 `master` 에 있어야 한다** — `hotfix/` 브랜치를 master 에 머지한
 뒤 위 Run pipeline 을 돌린다. 릴리스를 건너뛰는 것이지 브랜치 규칙을 건너뛰는 것이 아니다.
@@ -305,7 +316,7 @@ Jira 요약을 못 읽은 이슈가 있으면 몇 건이 빠졌는지 본문에 
 | 러너 | 태그 | 실행기 | 마운트(볼륨) | 몫 |
 | --- | --- | --- | --- | --- |
 | `METAGAME-ip-172-26-13-34` (공용) | `linux` | docker · `cpu_shares = 256`(경합 시 게임 서버에 양보) | `/cache` · Claude 바이너리 **ro** · `~/.claude` **ro** · Unity 라이선스 `.ulf` **ro** | `deploy` 태그 잡 빼고 전부 (`default.tags: [linux]`) |
-| `METAGAME-deploy-ip-172-26-13-34` (배포 전용, id 2068) | `deploy` · **Protected(`ref_protected`)** · `run_untagged` 없음 — 2026-09-08 러너 API 실측 | docker | `/cache` · `/home/ubuntu/metagame/deploy` → **`/spool` rw** · `/home/ubuntu/metagame-dev/deploy` → **`/spool-dev` rw**(-284) · `/var/www/metagame-builds` → **`/builds` rw** · `/var/www/metagame-site` → **`/site` rw**(-405) | `deploy-dev`·`deploy-prod`·`publish-builds`·`promote-builds`·`publish-site`만. 스풀은 여기에만 있고 **데이터만** 들어 있다 — 실행되는 코드는 `/opt/metagame-deploy/`(-324) |
+| `METAGAME-deploy-ip-172-26-13-34` (배포 전용, id 2068) | `deploy` · **Protected(`ref_protected`)** · `run_untagged` 없음 — 2026-09-08 러너 API 실측 | docker | `/cache` · `/home/ubuntu/metagame/deploy` → **`/spool` rw** · `/home/ubuntu/metagame-dev/deploy` → **`/spool-dev` rw**(-284) · `/var/www/metagame-builds` → **`/builds` rw** · `/var/www/metagame-site` → **`/site` rw**(-405) | `deploy-dev`·`deploy-prod`·`publish-builds`·`release-prod`·`publish-site`만. 스풀은 여기에만 있고 **데이터만** 들어 있다 — 실행되는 코드는 `/opt/metagame-deploy/`(-324) |
 | 내 PC 윈도우 러너 | — | shell(pwsh) | — | **정지 · 예비.** 받을 잡이 없다 |
 
 잡 컨테이너는 root로 돈다. 공용 러너에 `:rw` 마운트를 두면 아무 MR 이나 자기 브랜치의 `.gitlab-ci.yml` 한 줄로 그것을 읽고 쓸 수 있다 — 그래서 자격증명은 `:ro`, 스풀은 배포 러너에만(-290 · -252). 그리고 **rw 마운트 안에는 실행되는 코드를 두지 않는다**(-324): 스풀에는 데이터(jar·RELEASE·STATUS·로그·previous)만, `deploy.sh`는 마운트 밖 root 소유.
@@ -393,7 +404,7 @@ UFW: 22 · 80 · 443 · 17777/udp · 17778/udp · 17779/tcp(172.16.0.0/12 만). 
 | compose 프로젝트 | `metagame` | `metagame-dev` |
 | MySQL 볼륨 | `mysql-data` | `mysql-dev-data` |
 | 스풀 | `/spool` | `/spool-dev` |
-| 배포 잡 | `deploy-prod` (master, **수동**) | `deploy-dev` (develop, **수동** — 자동은 새벽 스케줄뿐, -455) |
+| 배포 잡 | `release-prod` (master, **수동** — 백엔드+클라이언트) · `deploy-prod` 는 web 전용 | `deploy-dev` (develop, **수동** — 자동은 새벽 스케줄뿐, -455) |
 
 `proxy_pass http://127.0.0.1:8081/` 의 **끝 슬래시를 빼면** `/dev/auth/guest` 를 그대로 넘겨 404 가 되고, 원인이 눈에 보이지 않는다.
 

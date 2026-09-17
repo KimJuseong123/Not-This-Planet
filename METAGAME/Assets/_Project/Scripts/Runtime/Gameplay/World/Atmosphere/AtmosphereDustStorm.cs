@@ -100,18 +100,26 @@ namespace Metagame.Gameplay
             }
 
             var pose = schedule.Evaluate(simulationTime, mapBounds);
-            if (!pose.IsActive)
+            var wake = schedule.EvaluateWake(simulationTime, mapBounds);
+            var previousWake = schedule.EvaluateWake(simulationTime, mapBounds, 1);
+            bool hasWake = settings.wakeOpacity > 0f && (wake.Pose.IsActive || previousWake.Pose.IsActive);
+            if (!pose.IsActive && (!hasWake || magneticVisual == null))
             {
                 StopVisuals();
                 return;
             }
 
-            UpdatePose(pose);
+            if (pose.IsActive) UpdatePose(pose);
+            else if (boundary != null) boundary.SetVisible(false);
             if (magneticVisual != null)
             {
                 if (!magneticVisual.gameObject.activeSelf) magneticVisual.gameObject.SetActive(true);
-                magneticVisual.Evaluate(simulationTime, GetEffectScale());
+                magneticVisual.SetBodyVisible(pose.IsActive);
+                magneticVisual.Evaluate(simulationTime, GetEffectScale(), pose.Direction);
+                magneticVisual.EvaluateWake(0, wake, simulationTime, settings.wakeOpacity * GetEffectScale());
+                magneticVisual.EvaluateWake(1, previousWake, simulationTime, settings.wakeOpacity * GetEffectScale());
             }
+            if (!pose.IsActive) { activeCycle = -1; return; }
             if (activeCycle == pose.CycleIndex) return;
 
             activeCycle = pose.CycleIndex;
@@ -403,6 +411,7 @@ namespace Metagame.Gameplay
         void StopVisuals()
         {
             activeCycle = -1;
+            if (magneticVisual != null) magneticVisual.HideWakes();
             if (magneticVisual != null && magneticVisual.gameObject.activeSelf)
                 magneticVisual.gameObject.SetActive(false);
             if (dustParticles != null)

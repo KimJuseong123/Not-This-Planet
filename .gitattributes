@@ -3,6 +3,7 @@
 *.prefab text
 *.asset text
 *.mat text
+*.terrainlayer text
 *.anim text
 *.controller text
 *.overrideController text
@@ -11,8 +12,12 @@
 *.asmdef text
 *.json text
 
+# Stage1 Astra exceeds the 5 MB non-LFS limit.
+METAGAME/Assets/Scenes/Stage1_Astra.unity filter=lfs diff=lfs merge=lfs -text
+
 # Unity TerrainData is binary even though it uses the .asset extension.
 METAGAME/Assets/_Project/Terrain/Stage1/TerrainData/*.asset -text
+METAGAME/Assets/_Project/Terrain/Stage1/TerrainData/TD_Stage1_AstraBasin.asset filter=lfs diff=lfs merge=lfs -text
 
 # Large binary assets use Git LFS.
 *.fbx filter=lfs diff=lfs merge=lfs -text
@@ -62,7 +67,8 @@ METAGAME/Assets/_Project/Terrain/Stage1/TerrainData/*.asset -text
 
 # Scripts: shell/python always LF (Linux runner), PowerShell CRLF
 # 확장자가 없는 훅 파일은 *.sh 에 걸리지 않는다 — 윈도우에서 core.autocrlf=true 로 CRLF 가 되고,
-# 리눅스에서 실행하면 셰방이 '/bin/sh' 이 되어 'No such file or directory' 로 죽는다(2026-09-01 실측).
+# 리눅스에서 실행하면 셰방이 '/bin/sh
+' 이 되어 'No such file or directory' 로 죽는다(2026-09-01 실측).
 /.githooks/** text eol=lf
 *.sh text eol=lf
 *.py text eol=lf
@@ -74,3 +80,7 @@ METAGAME/Assets/_Project/Terrain/Stage1/TerrainData/*.asset -text
 # 둘 다 읽을 수 있는 텍스트다. 이 클립은 427프레임 x 18뼈라 11MB 이고 비-LFS 한도는 5MB 다.
 METAGAME/Assets/_Project/Animations/Characters/Rabbit/Resources/RabbitLocomotion/Rabbit_Dance.anim filter=lfs diff=lfs merge=lfs -text
 METAGAME/Assets/_Project/Animations/Characters/Rabbit/Resources/RabbitLocomotion/Rabbit_RedRed.anim filter=lfs diff=lfs merge=lfs -text
+=======
+
+# Stage1 scene exceeds the repository's 5 MiB non-LFS limit.
+METAGAME/Assets/Scenes/Stage1_Astra.unity filter=lfs diff=lfs merge=lfs -text

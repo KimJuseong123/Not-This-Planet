@@ -21,6 +21,10 @@ namespace Metagame.Bootstrap
         [SerializeField] bool enableF11Perspective = true;
         [Tooltip("F12로 엔딩 테스트 확인창을 엽니다. 멀티플레이에서는 호스트만 실행할 수 있습니다.")]
         [SerializeField] bool enableF12Ending = true;
+        [Tooltip("F10: 현재 커마와 월드를 사용하는 입장 컷씬. 멀티에서는 호스트만 실행합니다.")]
+        [SerializeField] bool enableF10Entry = true;
+        [Tooltip("F9: 공세 컷씬과 운석 난이도 상승. 멀티에서는 호스트만 실행합니다.")]
+        [SerializeField] bool enableF9Assault = true;
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         GameSession session;
@@ -41,10 +45,16 @@ namespace Metagame.Bootstrap
 
         void Update()
         {
+            if (!IsOpen && session != null && !session.CinematicInputBlocked)
+            {
+                var flow = GetComponent<Stage1CutsceneFlow>();
+                if (flow != null && enableF10Entry && Input.GetKeyDown(KeyCode.F10)) flow.PlayEntry();
+                else if (flow != null && enableF9Assault && Input.GetKeyDown(KeyCode.F9)) flow.PlayAssault();
+            }
             UpdateEndingShortcut();
             // 시점은 개인 화면의 상태다. InputFrame/Command에 넣지 않는다.
             if (enableF11Perspective && session != null && session.isActiveAndEnabled
-                && !session.EndingActive && !session.InputSuppressed && !session.ScriptedInput
+                && !session.EndingActive && !session.InputSuppressed && !session.ScriptedInput && !session.CinematicInputBlocked
                 && session.LocalPlayer != null && session.LocalPlayer.Cam != null
                 && Input.GetKeyDown(KeyCode.F11))
                 session.LocalPlayer.Cam.ToggleDebugPerspective();
@@ -65,7 +75,7 @@ namespace Metagame.Bootstrap
             if (!isActiveAndEnabled || !enableF12Ending
                 || IsOpen || restorePending || session == null || ending == null || ending.Active
                 || !StageCatalog.IsStageScene(SceneManager.GetActiveScene().name)   // 맵이 둘이 되어도 맵 씬이면 연다(2맵 준비)
-                || session.InputSuppressed || (pause != null && pause.IsOpen)
+                || session.InputSuppressed || session.CinematicInputBlocked || (pause != null && pause.IsOpen)
                 || LobbyTransition.Instance != null && LobbyTransition.Instance.IsBusy) return false;
             savedInputSuppressed = session.InputSuppressed;
             savedCursorLocked = session.CursorLocked;

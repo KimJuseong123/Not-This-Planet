@@ -40,6 +40,7 @@ namespace Metagame.Bootstrap
         [Header("분위기")]
         [Tooltip("지정하면 이 Stage는 Vacuum·레거시 Starfield 대신 공용 URP 분위기 프레임워크를 사용한다.")]
         [SerializeField] AtmosphereProfile atmosphereProfile;
+        public AtmosphereProfile AtmosphereProfile => atmosphereProfile;
         [Tooltip("씬에 배치한 자기장 폭풍. 비어 있으면 전용 이동 오브젝트를 생성한다.")]
         [SerializeField] AtmosphereDustStorm stormPresentation;
 
@@ -214,6 +215,8 @@ namespace Metagame.Bootstrap
             // 전용 서버 조기 반환(아래)보다 **먼저** 설치해야 한다: 세계는 서버에서도
             // 돌아야 하고, 운석을 정하는 것이 바로 그 서버다.
             var meteorSpawnerForClock = FindAnyObjectByType<Metagame.Gameplay.Hazards.MeteorSpawner>();
+            if (gameObject.scene.path == Stage1CutsceneFlow.StagePath)
+                gameObject.AddComponent<Stage1CutsceneFlow>().Configure(this, meteorSpawnerForClock);
             if (meteorSpawnerForClock != null)
             {
                 var meteorBridge = sys.AddComponent<Metagame.Network.MeteorClockBridge>();

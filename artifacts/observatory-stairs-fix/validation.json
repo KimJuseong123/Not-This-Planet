@@ -1,0 +1,18 @@
+{
+  "status": "PASS",
+  "modified_vertices": 112,
+  "chassis_recess_m": 0.01,
+  "steps": 4,
+  "vertices": 2072,
+  "triangles": 4012,
+  "uv_unchanged": true,
+  "non_chassis_vertices_unchanged": true,
+  "closed_mesh": true,
+  "fbx_roundtrip": "PASS",
+  "protected_files_unchanged": true,
+  "original_source_preserved": true,
+  "fixed_source": "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\Source~\\ObservatoryEntryStairs_Fixed.blend",
+  "runtime_visual_check": "not performed",
+  "original_fbx_structure_preserved": true,
+  "changed_fbx_vertex_coordinates": 112
+}

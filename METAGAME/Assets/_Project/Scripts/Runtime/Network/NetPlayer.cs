@@ -815,6 +815,8 @@ namespace Metagame.Network
             // 영원히 갱신되지 않는다. 그래서 방장만 움직이지 못했다(2026-09-02 실측).
             // FixedUpdate 는 Update 보다 먼저 도니까 순서로도 막을 수 없다.
             InputFrame frame = adoptedBody ? body.CurrentInput : pending;
+            if (GameSession.Instance != null && GameSession.Instance.CinematicInputBlocked)
+                frame = new InputFrame();
 
             if (transport != null)
             {
@@ -1032,7 +1034,7 @@ namespace Metagame.Network
         void CmdRequestRespawn()
         {
             var session = GameSession.Instance;
-            if (body == null || session == null || session.Cleared
+            if (body == null || session == null || session.Cleared || session.CinematicInputBlocked
                 || NetworkTime.time < nextManualRespawnTime
                 || (session.Recovery != null && session.Recovery.RecoverySuspended)) return;
             nextManualRespawnTime = NetworkTime.time + 1.0;

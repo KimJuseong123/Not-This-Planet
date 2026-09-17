@@ -2,6 +2,7 @@ using System.Collections;
 using System.Linq;
 using NUnit.Framework;
 using UnityEditor.SceneManagement;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.Rendering;
@@ -25,6 +26,76 @@ namespace Metagame.Gameplay.Tests
         public void PresentationClockWrapsWithoutDrift(double time, float expected)
         {
             Assert.That(MagneticStormVisual.PhaseAt(time), Is.EqualTo(expected).Within(.00001f));
+        }
+
+        [Test]
+        public void DirectionalBillowingAndWakeVisibilityUseIndependentShaderValues()
+        {
+            var parent = new GameObject("Storm visual test owner");
+            var root = Object.Instantiate(Resources.Load<GameObject>(MagneticStormVisual.ResourcePath), parent.transform);
+            try
+            {
+                var visual = root.GetComponent<MagneticStormVisual>();
+                visual.SetExternallyDriven();
+                visual.SetExtents(new Vector3(12, 2.5f, 2.5f));
+                var so = new SerializedObject(visual);
+                so.FindProperty("frontBillowStrength").floatValue = .4f;
+                so.FindProperty("rearBillowStrength").floatValue = 2.2f;
+                so.ApplyModifiedPropertiesWithoutUndo();
+                visual.Evaluate(16);
+                var block = new MaterialPropertyBlock();
+                root.GetComponentInChildren<Renderer>().GetPropertyBlock(block);
+                Assert.That(block.GetFloat("_FrontBillowStrength"), Is.EqualTo(.4f).Within(.0001));
+                Assert.That(block.GetFloat("_RearBillowStrength"), Is.EqualTo(2.2f).Within(.0001));
+                var settings = new AtmosphereProfile.DustStormSettings { enabled = true };
+                var wake = new DustStormSchedule(settings).EvaluateWake(16,
+                    new Bounds(Vector3.zero, new Vector3(80, 10, 80)));
+                visual.EvaluateWake(0, wake, 16, .3f);
+                var renderer = parent.GetComponentsInChildren<MeshRenderer>().Single(r => r.name == "Magnetic Storm Wake 0");
+                Assert.That(Vector3.Distance(renderer.bounds.center, wake.Pose.Center), Is.LessThan(.001));
+                renderer.GetPropertyBlock(block);
+                Assert.That(block.GetFloat("_StormOpacity"), Is.EqualTo(.3f).Within(.0001));
+                Assert.That(block.GetVector("_WakeAges").w, Is.EqualTo(1));
+                visual.SetBodyVisible(false);
+                Assert.That(root.GetComponentsInChildren<Renderer>().All(r => !r.enabled), Is.True);
+                Assert.That(renderer.enabled, Is.True, "Wake persists independently of the hidden main body.");
+                visual.EvaluateWake(0, default, 20, .3f);
+                Assert.That(renderer.enabled, Is.False);
+                visual.EvaluateWake(0, wake, 16, .3f);
+                Assert.That(parent.GetComponentsInChildren<MeshRenderer>().Count(r => r.name == "Magnetic Storm Wake 0"), Is.EqualTo(1));
+                visual.HideWakes();
+                Assert.That(renderer.enabled, Is.False);
+            }
+            finally { Object.DestroyImmediate(parent); }
+        }
+
+        [TestCase(0f)]
+        [TestCase(90f)]
+        [TestCase(173f)]
+        public void BillowDisplacementFollowsWorldTravelDespiteImportedMeshRotation(float meshYaw)
+        {
+            var root = Object.Instantiate(Resources.Load<GameObject>(MagneticStormVisual.ResourcePath));
+            try
+            {
+                var visual = root.GetComponent<MagneticStormVisual>();
+                root.transform.rotation = Quaternion.Euler(0, 37, 0);
+                visual.SetExtents(new Vector3(12, 2.5f, 2.5f));
+                var smoke = root.GetComponentsInChildren<MeshRenderer>()
+                    .Single(r => r.sharedMaterial.HasProperty("_WakeAges"));
+                smoke.transform.localRotation = Quaternion.Euler(0, meshYaw, 0) * smoke.transform.localRotation;
+                var direction = new Vector3(-.8f, 0, .6f);
+                visual.Evaluate(1.5, 1, direction);
+                var block = new MaterialPropertyBlock();
+                smoke.GetPropertyBlock(block);
+                Vector3 offset = block.GetVector("_TravelOffsetUV");
+                Vector3 worldDisplacement = smoke.transform.TransformVector(
+                    Vector3.Scale(offset, new Vector3(24, 5, 10)));
+                Assert.That(Vector3.Distance(worldDisplacement, direction), Is.LessThan(.0001));
+                Assert.That(Mathf.Abs(Vector3.Dot(worldDisplacement, Vector3.Cross(Vector3.up, direction))), Is.LessThan(.0001));
+                Vector3 axis = block.GetVector("_TravelAxisUV");
+                Assert.That(Vector3.Dot(axis, offset), Is.GreaterThan(0), "Front mask must increase along actual travel.");
+            }
+            finally { Object.DestroyImmediate(root); }
         }
 
         [UnityTest]
@@ -80,6 +151,8 @@ namespace Metagame.Gameplay.Tests
                 "The magnetic presentation replaces the old sand and decorative debris emitters.");
             presenter.enabled=false;
             Assert.That(visual.gameObject.activeSelf, Is.False);
+            Assert.That(host.GetComponentsInChildren<MeshRenderer>(true)
+                .Where(r => r.name.StartsWith("Magnetic Storm Wake")).All(r => !r.enabled), Is.True);
             presenter.enabled=true;
             presenter.Apply(profile);
             presenter.Tick(12d);

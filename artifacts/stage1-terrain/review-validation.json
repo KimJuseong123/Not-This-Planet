@@ -1,0 +1,13 @@
+{
+  "status": "PASS",
+  "checks": [
+    "real scene result and preserved blocks",
+    "reject active old floor",
+    "reject duplicate removal",
+    "reject external reference",
+    "reject child on floor"
+  ],
+  "compiler": "Unity 6000.5.4f1 Roslyn against Unity references and cached project assemblies",
+  "compilerExitCode": 0,
+  "unityEditorRun": false
+}

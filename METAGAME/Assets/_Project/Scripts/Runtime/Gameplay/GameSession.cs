@@ -99,10 +99,12 @@ namespace Metagame.Gameplay
         /// 세계 시간과 물리·운석 진행은 계속 흘러야 하므로 Time.timeScale을 바꾸지 않는다.
         /// </summary>
         public bool InputSuppressed { get; private set; }
+        public Stage1Sequence Sequence { get; set; }
+        public bool CinematicInputBlocked => Sequence != null && Sequence.BlocksInput;
 
         /// <summary>로컬 태블릿 입력과 키 안내가 공유하는 사용 가능 조건.</summary>
         public bool CanToggleTablet => LocalPlayer != null && Exploration != null
-            && !EndingActive && !InputSuppressed && !ScriptedInput;
+            && !EndingActive && !InputSuppressed && !ScriptedInput && !CinematicInputBlocked;
 
         /// <summary>체크포인트 N 에 서 있을 때 화면에 뜨는 "지금 할 일".</summary>
         static readonly string[] Hints =
@@ -146,6 +148,12 @@ namespace Metagame.Gameplay
         void Update()
         {
             if (EndingActive) return;
+            if (CinematicInputBlocked)
+            {
+                LocalPlayer?.SetInput(new InputFrame());
+                Transport?.SetInput(new InputFrame());
+                return;
+            }
             if (!Cleared && !ProgressFromHost && LocalPlayer == null) Elapsed += Time.deltaTime;
             if (LocalPlayer == null) return;
 

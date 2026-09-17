@@ -120,7 +120,7 @@ rel = P.manifest_args("/g", "v1.2.0", M.RELEASE, "")
 dev = P.manifest_args("/g", DEV_V, M.DEV, "")
 qa = P.manifest_args("/g", QA_V, M.QA, QA_V)
 
-check("--no-latest" in rel, "릴리스는 latest 를 안 가져간다 — promote-builds 가 옮긴다")
+check("--no-latest" in rel, "릴리스는 latest 를 안 가져간다 — release-prod 가 옮긴다")
 check("--no-latest" not in dev, "새벽 dev 는 latest 를 가져간다 — 기본값이 되는 것이 맞다")
 check("--no-latest" in qa,
       "qa 는 latest 를 **안** 가져간다 — 미머지 브랜치가 팀 기본값이 되면 안 된다")
