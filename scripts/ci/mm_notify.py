@@ -211,17 +211,34 @@ def upsert_mr_comment(gl: GitLab, body: str) -> None:
 RESOLVED_HEAD = "✅ **CI 실패가 해소되었습니다**"
 #: 접어 둔 실패 기록의 시작. 이 문자열로 찾아 지우고 다시 만든다.
 HISTORY_OPEN = "<details><summary>고치기 전 실패 내용</summary>"
-HISTORY_CLOSE = "</details>"
+#: 접힌 기록의 **끝을 여는 고유 표시** (`!513` AI 리뷰). `</details>` 로 끝을 찾으면
+#: 실패 본문 자체가 `<details>` 를 품고 있을 때(잡 로그 접기 등) **안쪽 닫는 태그에서
+#: 잘려** 뒷조각이 본문에 남고 태그 짝이 어긋난다. 우리가 심은 표시로만 자른다.
+HISTORY_END = "<!-- history-end -->"
+HISTORY_CLOSE = f"</details>\n{HISTORY_END}"
+
+
+def find_history(body: str) -> tuple:
+    """접힌 기록의 `(시작, 끝)` 자리. 없으면 `(-1, -1)`.
+
+    끝은 **우리가 심은 `HISTORY_END`** 로만 찾는다 — 안쪽에 남의 `</details>` 가
+    있어도 흔들리지 않는다.
+    """
+    i = body.find(HISTORY_OPEN)
+    if i < 0:
+        return -1, -1
+    j = body.find(HISTORY_END, i)
+    if j < 0:
+        return -1, -1        # 짝이 없으면 손대지 않는다 — 반쯤 자르는 것이 더 나쁘다
+    return i, j + len(HISTORY_END)
 
 
 def strip_history(body: str) -> str:
     """접어 둔 기록을 떼어 낸다. **기록이 기록을 품지 않게** 하려고 쓴다."""
-    i = body.find(HISTORY_OPEN)
+    i, j = find_history(body)
     if i < 0:
         return body.strip()
-    j = body.find(HISTORY_CLOSE, i)
-    tail = body[j + len(HISTORY_CLOSE):] if j >= 0 else ""
-    return (body[:i] + tail).strip()
+    return (body[:i] + body[j:]).strip()
 
 
 def history_block(old: str) -> str:
@@ -242,16 +259,15 @@ def history_block(old: str) -> str:
 
     if RESOLVED_HEAD in body:
         # 이미 해소 코멘트다 — 새로 접을 실패가 없다. 안에 든 기록만 옮긴다.
-        i = body.find(HISTORY_OPEN)
-        if i < 0:
-            return ""
-        j = body.find(HISTORY_CLOSE, i)
-        return body[i:j + len(HISTORY_CLOSE)] if j >= 0 else ""
+        i, j = find_history(body)
+        block = body[i:j] if i >= 0 else ""
+    else:
+        inner = strip_history(body)
+        block = f"{HISTORY_OPEN}\n\n{inner}\n\n{HISTORY_CLOSE}" if inner else ""
 
-    inner = strip_history(body)
-    if not inner:
-        return ""
-    return f"\n{HISTORY_OPEN}\n\n{inner}\n\n{HISTORY_CLOSE}\n"
+    # **모양을 한곳에서 맞춘다** (`!513` AI 리뷰). 두 경로가 앞뒤 개행을 다르게
+    # 돌려주면 두 번째 해소 코멘트의 렌더가 첫 번째와 달라진다.
+    return f"\n{block}\n" if block else ""
 
 
 def ci_resolved(gl: GitLab) -> int:
@@ -270,8 +286,11 @@ def ci_resolved(gl: GitLab) -> int:
                 f"{kept}\n"
                 f"<sub>자동 생성(mm-notify)</sub>")
         st, _ = gl.upsert_note(FAIL_MARKER, body)
-        print("이전 실패 내용을 접어서 남긴다" if kept else "접어서 남길 실패 내용이 없다")
-        print(f"해소 코멘트 {'갱신' if st in (200, 201) else '실패 ' + str(st)}")
+        # **결과를 먼저 말한다** (`!513` AI 리뷰). 갱신이 실패했는데 "접어서 남긴다" 가
+        # 먼저 찍히면 로그가 실제와 어긋난다.
+        ok = st in (200, 201)
+        print(f"해소 코멘트 {'갱신' if ok else '실패 ' + str(st)}"
+              + (" · 이전 실패 내용을 접어서 남겼다" if ok and kept else ""))
     except Exception as e:  # noqa: BLE001
         print(f"해소 코멘트 갱신 실패(무시): {type(e).__name__}: {e}")
     return 0

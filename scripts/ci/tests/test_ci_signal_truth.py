@@ -79,6 +79,14 @@ check(prev is not None and prev["status"] == "success", "직전을 못 골랐다
 prev, skip = M.pick_previous([pipe(200), pipe(150, "failed", "schedule")], 200, "push")
 check(prev is None, "예약 실행의 실패를 머지 푸시가 해소했다고 말한다")
 
+#     **"나보다 새 것" 도 같은 종류만 본다** (`!513` AI 리뷰가 범위를 물었다).
+#     예약 실행과 머지 푸시는 도는 잡이 다르므로 서로의 상태를 말할 자격이 없다 —
+#     새벽 예약이 실패 중이어도 머지 푸시의 회복 카드는 나가는 것이 맞다.
+prev, skip = M.pick_previous([pipe(300, "failed", "schedule"), pipe(200),
+                              pipe(150, "failed")], 200, "push")
+check(prev is not None and prev["id"] == 150,
+      "다른 종류(예약)의 새 파이프라인 때문에 머지 푸시의 회복 카드가 막힌다")
+
 #     `source` 가 비면 거르지 않는다 — 없는 쪽으로 틀리면 카드가 조용히 사라진다.
 prev, _ = M.pick_previous([pipe(200), {"id": 150, "status": "failed"}], 200, "push")
 check(prev is not None, "source 가 없는 파이프라인을 걸러 버렸다 — 회복 카드가 사라진다")
@@ -114,6 +122,43 @@ check(M.RESOLVED_HEAD not in again, "해소 문구까지 접어 넣었다")
 #     접을 것이 없으면 빈 문자열 — 없는 기록을 꾸며 내지 않는다.
 check(M.history_block(f"{M.FAIL_MARKER}\n") == "", "빈 코멘트에서 없는 기록을 만들어 낸다")
 check(M.history_block("") == "", "빈 입력에서 무언가를 만들어 낸다")
+
+#     **실패 본문이 `<details>` 를 품고 있어도 잘리지 않는다** (`!513` AI 리뷰).
+#     `</details>` 로 끝을 찾으면 안쪽 닫는 태그에서 잘려 뒷조각이 본문에 남는다.
+NESTED = (f"{M.FAIL_MARKER}\n🔴 **CI 실패**\n\n"
+          f"<details><summary>잡 로그</summary>\n\n로그 줄\n\n</details>\n\n꼬리표 줄\n")
+folded = M.history_block(NESTED)
+check("꼬리표 줄" in folded and "로그 줄" in folded,
+      "안쪽 </details> 에서 잘려 뒷부분이 기록에서 빠졌다")
+
+#     **떼어 내면 정확히 나머지만 남아야 한다.** 조각이 남는지를 "무엇이 없다" 로
+#     보면 우연히 통과한다 — 남는 것을 통째로 견준다.
+SECOND = f"{M.FAIL_MARKER}\n🔴 두 번째 실패{folded}"
+check(M.strip_history(SECOND) == f"{M.FAIL_MARKER}\n🔴 두 번째 실패".strip(),
+      f"기록을 떼어 낸 자리에 조각이 남았다:\n      {M.strip_history(SECOND)[:160]!r}")
+
+carried = M.history_block(SECOND)
+check(carried.count(M.HISTORY_OPEN) == 1, "중첩 details 때문에 기록이 겹쳤다")
+check(carried.count(M.HISTORY_END) == 1, "끝 표시가 여러 개 남았다 — 태그 짝이 어긋난다")
+check("두 번째 실패" in carried and "꼬리표 줄" not in carried,
+      "옛 기록을 못 떼어 냈다 — 안쪽 태그에서 잘렸다는 뜻이다")
+
+#     두 경로(새 기록 · 물려받은 기록)의 **모양이 같아야** 렌더가 흔들리지 않는다.
+check(folded.startswith("\n") and folded.endswith("\n"), f"새 기록의 앞뒤 개행이 없다: {folded[:12]!r}")
+check(again.startswith("\n") and again.endswith("\n"), f"물려받은 기록의 모양이 다르다: {again[:12]!r}")
+
+
+# ── ⑤ 호출부가 최신 것들을 가져와야 가드가 뜻을 가진다 ───────────────────
+#
+#     `pick_previous` 는 받은 목록 안에서만 판단한다. 호출부가 오래된 것부터
+#     가져오면 **나보다 새 파이프라인이 목록에 없어** 가드가 통과해 버린다.
+import io  # noqa: E402
+import os.path as _p  # noqa: E402
+
+SRC = io.open(_p.join(_p.dirname(HERE), "mm_notify.py"), encoding="utf-8").read()
+call = SRC[SRC.index("def branch_resolved"):]
+check("order_by=id" in call and "sort=desc" in call,
+      "회복 판정이 파이프라인을 최신순으로 가져오지 않는다 — '나보다 새 것' 을 못 본다")
 
 
 if fails:
