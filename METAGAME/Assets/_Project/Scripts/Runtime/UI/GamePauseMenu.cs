@@ -76,7 +76,7 @@ namespace Metagame.UI
                 return;
             }
 
-            if (session == null || session.ScriptedInput || titleTransitionStarted)
+            if (session == null || session.ScriptedInput || session.CinematicInputBlocked || titleTransitionStarted)
                 return;
 
             // 설정 화면은 기존 LobbyHud가 Esc를 키 재지정 취소 입력으로 사용할 수 있다.

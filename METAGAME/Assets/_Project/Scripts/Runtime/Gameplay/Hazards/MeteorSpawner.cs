@@ -207,6 +207,18 @@ namespace Metagame.Gameplay.Hazards
         /// <summary>지금 적용되는 공세 간격(초). 기획 §17.4 의 표가 정한다.</summary>
         public float CurrentInterval => IntervalAt(_elapsed);
 
+        public bool AssaultEnabled { get; private set; }
+        public bool SequenceHold { get; private set; }
+        public void SetSequenceHold(bool hold) => SequenceHold = hold;
+
+        /// <summary>기존 운석·파츠·난수 스트림을 유지한 채 공세 주기만 올린다.</summary>
+        public void BeginAssault()
+        {
+            if (AssaultEnabled) return;
+            AssaultEnabled = true;
+            _sinceLastWave = CurrentInterval;
+        }
+
         /// <summary>이번 공세에 남은 운석 수. 공세 사이에는 0 이다.</summary>
         public int WaveRemaining => _waveRemaining;
 
@@ -260,6 +272,7 @@ namespace Metagame.Gameplay.Hazards
             EnsureConfiguration();
             _random = new System.Random(_seed);
             _elapsed = 0f;
+            AssaultEnabled = false;
             _sinceLastWave = 0f;
             _waveRemaining = 0;
             _sinceLastInWave = 0f;
@@ -348,7 +361,8 @@ namespace Metagame.Gameplay.Hazards
         /// 끊임없이 하나씩 오는 것과 <b>묶음으로</b> 오는 것은 다른 리듬이고, 기획이
         /// 요구하는 것은 후자다.
         /// </summary>
-        public float IntervalAt(float elapsedSeconds) => WaveBandAt(elapsedSeconds).WaveIntervalSeconds;
+        public float IntervalAt(float elapsedSeconds) => WaveBandAt(elapsedSeconds).WaveIntervalSeconds
+            * (AssaultEnabled ? 0.35f : 1f);
 
         /// <summary>그 시각의 중형 확률 0~1. 10분 전에는 0 이다(§17.7).</summary>
         public float MediumChanceAt(float elapsedSeconds) => WaveBandAt(elapsedSeconds).MediumChance;
@@ -420,7 +434,7 @@ namespace Metagame.Gameplay.Hazards
         /// </summary>
         void AdvanceSchedule(float deltaTime)
         {
-            if (IsPaused) return;
+            if (IsPaused || SequenceHold) return;
 
             if (_waveRemaining > 0)
             {
@@ -478,7 +492,7 @@ namespace Metagame.Gameplay.Hazards
             _nextInWaveDelay = Mathf.Lerp(
                 _withinWaveMinSeconds,
                 _withinWaveMaxSeconds,
-                (float)_random.NextDouble());
+                (float)_random.NextDouble()) * (AssaultEnabled ? 0.5f : 1f);
 
             _waveRemaining--;
             Launch();

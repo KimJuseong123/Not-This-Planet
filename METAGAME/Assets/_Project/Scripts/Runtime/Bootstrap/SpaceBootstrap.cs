@@ -148,6 +148,9 @@ namespace Metagame.Bootstrap
                 // 찾아 따라가므로 여기서는 넘기지 않는다.
                 Backdrop = sys.AddComponent<AtmosphereBackdrop>();
                 Backdrop.ApplyStarsOnly(atmosphereProfile);
+                var shower = sys.AddComponent<AtmosphereMeteorShower>();
+                shower.Apply(atmosphereProfile);
+                shower.SetIntensity(0.4f);
             }
             else if (!authoredLighting)
             {
@@ -214,6 +217,8 @@ namespace Metagame.Bootstrap
             // 전용 서버 조기 반환(아래)보다 **먼저** 설치해야 한다: 세계는 서버에서도
             // 돌아야 하고, 운석을 정하는 것이 바로 그 서버다.
             var meteorSpawnerForClock = FindAnyObjectByType<Metagame.Gameplay.Hazards.MeteorSpawner>();
+            if (gameObject.scene.path == Stage1CutsceneFlow.StagePath)
+                gameObject.AddComponent<Stage1CutsceneFlow>().Configure(this, meteorSpawnerForClock);
             if (meteorSpawnerForClock != null)
             {
                 var meteorBridge = sys.AddComponent<Metagame.Network.MeteorClockBridge>();

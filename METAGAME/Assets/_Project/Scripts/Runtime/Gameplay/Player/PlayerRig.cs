@@ -3124,6 +3124,8 @@ namespace Metagame.Gameplay
 
             // 고개는 카메라 피치를 조금 따라간다 (서버에서는 클라이언트가 보낸 피치)
             float pitch = Mathf.Clamp(Cam != null ? Cam.Pitch : input.AimPitch, -26f, 26f);
+            var sequence = GameSession.Instance != null ? GameSession.Instance.Sequence : null;
+            if (sequence != null) pitch = Mathf.Lerp(pitch, -45f, sequence.LookUpWeight);
             JointTools.SetTargetLocalRotation(Doll.HeadJoint,
                                               Quaternion.AngleAxis(pitch * 0.5f, Vector3.right),
                                               Quaternion.identity);
