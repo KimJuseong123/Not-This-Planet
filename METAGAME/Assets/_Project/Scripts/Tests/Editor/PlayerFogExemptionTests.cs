@@ -301,16 +301,44 @@ namespace Metagame.Gameplay.Tests
                 "새로 만든 재질이 기본값 1 로 남으면 모델 아바타만 다시 회색이 된다.");
         }
 
-        /// <summary>커스터마이저 장식(헬멧 뿔·배지)도 몸과 같이 빠져야 한다.</summary>
+        /// <summary>실제 장착된 모든 헬멧·배지의 재질이 두 안개 경로에서 제외되어야 한다.</summary>
         [Test]
         public void TheCustomizerTrinketsAreExemptToo()
         {
-            var source = TestSource.Read("Runtime/Gameplay/Player/PlayerAppearance.cs");
-            var piece = TestSource.Blank(TestSource.Method(source,
-                "static Transform Piece(Transform parent, PrimitiveType type, Vector3 position, Vector3 scale, Color color)"));
-
-            Assert.That(piece, Does.Contain("fogExempt"),
-                "몸만 또렷하고 헬멧 뿔·배지만 회색이면 그것대로 눈에 띈다.");
+            var doll = RagdollBuilder.Build("장식 안개 검증", Vector3.zero,
+                Quaternion.identity, Color.white, Color.cyan, primitiveLook: false);
+            Track(doll.Root.gameObject);
+            var bodyRenderers = new HashSet<Renderer>(doll.Root.GetComponentsInChildren<Renderer>(true));
+            int count = Mathf.Max(CustomizationData.HelmetNames.Length, CustomizationData.BadgeNames.Length);
+            for (int index = 1; index < count; index++)
+            {
+                var selection = new CustomizationData
+                {
+                    Helmet = index < CustomizationData.HelmetNames.Length ? index : 0,
+                    Badge = index < CustomizationData.BadgeNames.Length ? index : 0
+                };
+                PlayerAppearance.Apply(doll, selection.Packed);
+                int trinkets = 0;
+                foreach (var renderer in doll.Root.GetComponentsInChildren<Renderer>(true))
+                {
+                    if (bodyRenderers.Contains(renderer)) continue;
+                    trinkets++;
+                    Assert.That(renderer.sharedMaterials, Is.Not.Empty, renderer.name);
+                    foreach (var material in renderer.sharedMaterials)
+                    {
+                        Assert.That(material, Is.Not.Null, renderer.name);
+                        Assert.That(material.HasProperty(Prim.FogStrengthProperty), Is.True, material.name);
+                        Assert.That(material.GetFloat(Prim.FogStrengthProperty), Is.Zero,
+                            material.name + " 장식이 거리 안개를 받으면 안 된다.");
+                        Assert.That(material.HasProperty(Prim.FogExemptMaskProperty), Is.True, material.name);
+                        Assert.That(material.GetFloat(Prim.FogExemptMaskProperty), Is.EqualTo(Prim.FogExemptMaskValue),
+                            material.name + " 장식이 전체화면 Haze에서도 제외되어야 한다.");
+                    }
+                }
+                Assert.That(trinkets, Is.GreaterThanOrEqualTo(
+                    (selection.Helmet != 0 ? 1 : 0) + (selection.Badge != 0 ? 1 : 0)),
+                    "장식이 생성되지 않은 상태를 통과시키지 않는다.");
+            }
         }
 
         GameObject Track(GameObject go)
