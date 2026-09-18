@@ -1,5 +1,6 @@
 using Mirror;
 using UnityEngine;
+using Metagame.AICompanion;
 using Metagame.Gameplay;
 
 namespace Metagame.Network
@@ -198,7 +199,33 @@ namespace Metagame.Network
             seat.FreeSince = -1f;
             if (seat.AiPending == driver) seat.AiPending = null;
             if (human) humanSeated = true;
+
+            // 두뇌는 몸에 붙는다. 사람이 몰 때는 반드시 떼어야 한다 — 남겨 두면 모터가
+            // 매 물리 스텝 SetInput 을 덮어써 사람 입력과 싸운다.
+            SetBrain(seat.Body, attach: !human);
             return seat.Body;
+        }
+
+        /// <summary>그 몸에 AI 두뇌를 붙이거나 뗀다. 한 몸에 하나만 둔다.</summary>
+        static void SetBrain(PlayerRig body, bool attach)
+        {
+            if (body == null) return;
+
+            var brain = body.GetComponent<CompanionMotor>();
+            if (attach)
+            {
+                if (brain != null) return;
+                brain = body.gameObject.AddComponent<CompanionMotor>();
+                brain.Initialize(body);
+                return;
+            }
+
+            if (brain == null) return;
+
+            // 떼기 전에 입력을 비운다. 마지막으로 넣은 이동값이 남으면 사람이 넘겨받은
+            // 순간 캐릭터가 혼자 걸어간다.
+            body.SetInput(default);
+            Destroy(brain);
         }
 
         /// <summary>빈 자리를 살펴 때가 된 것부터 AI 로 채운다. 서버에서만 돈다.</summary>
@@ -211,6 +238,53 @@ namespace Metagame.Network
             {
                 if (NeedsAi(slot)) SpawnAi(slot);
             }
+
+            RefreshStandbyAnchors();
+        }
+
+        /// <summary>
+        /// AI 마다 <b>가장 가까운 사람</b>을 곁에 머물 기준으로 준다.
+        ///
+        /// <para>두뇌가 있는 <c>Metagame.AICompanion</c> 은 누가 사람인지 모른다 — 그쪽은
+        /// 자리도 연결도 보지 않는다. 그래서 여기서 정해 준다.</para>
+        ///
+        /// <para>사람이 하나도 없으면 기준을 비운다. 그러면 AI 는 제자리에 선다 — 서로를
+        /// 기준 삼아 몰려다니지 않게 하려는 것이다.</para>
+        /// </summary>
+        void RefreshStandbyAnchors()
+        {
+            for (int slot = 0; slot < seats.Length; slot++)
+            {
+                Seat seat = seats[slot];
+                if (seat.Body == null || seat.Driver == null || !seat.Driver.IsAiDriver) continue;
+
+                var brain = seat.Body.GetComponent<CompanionMotor>();
+                if (brain == null) continue;
+
+                brain.StandbyAnchor = NearestHumanTo(seat.Body);
+            }
+        }
+
+        /// <summary>이 몸에서 가장 가까운 사람의 몸. 사람이 없으면 null.</summary>
+        Transform NearestHumanTo(PlayerRig from)
+        {
+            Transform best = null;
+            float bestDistance = float.MaxValue;
+
+            for (int slot = 0; slot < seats.Length; slot++)
+            {
+                Seat other = seats[slot];
+                if (other.Body == null || other.Body == from) continue;
+                if (other.Driver == null || other.Driver.IsAiDriver) continue;
+
+                float distance = (other.Body.Hips.position - from.Hips.position).sqrMagnitude;
+                if (distance >= bestDistance) continue;
+
+                bestDistance = distance;
+                best = other.Body.Hips.transform;
+            }
+
+            return best;
         }
 
         /// <summary>같은 오류를 매 프레임 쏟지 않도록 한 번 알리고 잠시 쉰다.</summary>

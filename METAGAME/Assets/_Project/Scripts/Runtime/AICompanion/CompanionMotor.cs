@@ -38,6 +38,33 @@ namespace Metagame.AICompanion
         public PlayerRig Rig => _rig;
         public PartClamp TargetPin => _pin;
 
+        /// <summary>
+        /// 할 일이 없을 때 곁에 머무를 기준. <c>null</c> 이면 그냥 서 있는다.
+        ///
+        /// <para>빈 자리를 맡은 AI 가 가만히 서 있으면 길을 막는다. 그렇다고 졸졸 따라다니면
+        /// 넷 중 셋이 AI 인 판에서 거슬린다. 그래서 <b>멀면 다가오고 너무 가까우면 비켜서는</b>
+        /// 정도만 한다.</para>
+        ///
+        /// <para>값은 밖에서(자리 관리자) 가장 가까운 사람으로 갱신해 준다 — 이 어셈블리는
+        /// 누가 사람인지 모른다.</para>
+        /// </summary>
+        public Transform StandbyAnchor { get; set; }
+
+        /// <summary>이보다 멀어지면 다가간다(m).</summary>
+        const float StandbyFar = 8f;
+
+        /// <summary>이보다 가까우면 비켜선다(m). 길을 막지 않으려는 것이다.</summary>
+        const float StandbyNear = 2.2f;
+
+        /// <summary>
+        /// 사람이 <b>직접</b> "여기서 기다려" 라고 했나. 그때는 곁에 머무르지 않고 선 자리를
+        /// 지킨다 — 명령이 느슨한 대기보다 우선이다.
+        ///
+        /// <para>명령인지 아닌지는 <see cref="SetOrder"/> 의 speaker 로 가른다. 작업이 끝나
+        /// 내부적으로 Wait 로 돌아올 때는 speaker 가 없다.</para>
+        /// </summary>
+        bool _holdStill;
+
         public void Initialize(PlayerRig rig)
         {
             _rig = rig;
@@ -66,6 +93,11 @@ namespace Metagame.AICompanion
             _completedPins = 0;
             _pin = null;
             _target = order == CompanionOrder.Follow ? speaker : null;
+
+            // 사람이 직접 "여기서 기다려" 라고 한 경우에만 선 자리를 지킨다. 작업이 끝나
+            // 내부적으로 Wait 로 돌아온 것(speaker 없음)은 느슨한 대기로 이어진다.
+            _holdStill = order == CompanionOrder.Wait && speaker != null;
+
             _corners = System.Array.Empty<Vector3>();
             _nextPath = 0;
             Status = order == CompanionOrder.Follow ? "따라오는 중" : order == CompanionOrder.Cancel ? "작업 중단" : "여기서 대기";
@@ -158,11 +190,46 @@ namespace Metagame.AICompanion
             if (Order != CompanionOrder.Follow || _target == null)
             {
                 if (Order == CompanionOrder.Follow) SetOrder(CompanionOrder.Cancel, null);
+                TickStandby(ref input);
                 _rig.SetInput(input); return;
             }
             if (Navigate(_target.position, _stopDistance, ref input)) Status = "도착 · 거리를 유지해요";
             else Status = input.Move.sqrMagnitude > 0 ? "따라오는 중" : "이동 가능한 길을 찾는 중";
             _rig.SetInput(input);
+        }
+
+        /// <summary>
+        /// 할 일이 없을 때의 느슨한 대기. <b>멀면 다가가고, 너무 가까우면 비켜선다.</b>
+        ///
+        /// <para>그 사이 거리에서는 아무것도 하지 않는다 — 계속 자리를 고쳐 잡으면 옆에서
+        /// 꼼지락대는 것처럼 보인다.</para>
+        /// </summary>
+        void TickStandby(ref InputFrame input)
+        {
+            if (_holdStill || StandbyAnchor == null) return;
+
+            Vector3 delta = StandbyAnchor.position - _rig.Hips.position;
+            delta.y = 0;
+            float distance = delta.magnitude;
+
+            if (distance > StandbyFar)
+            {
+                // 뒤처졌다. 너무 바짝 붙지 않게 여유를 두고 다가간다.
+                Navigate(StandbyAnchor.position, StandbyFar * 0.6f, ref input);
+                Status = "곁으로 가는 중";
+                return;
+            }
+
+            if (distance < StandbyNear && distance > 0.05f)
+            {
+                // 길을 막고 있다. 경로를 찾을 것도 없이 사람 반대쪽으로 한 걸음 물러난다.
+                input.AimYaw = Mathf.Atan2(-delta.x, -delta.z) * Mathf.Rad2Deg;
+                input.Move = new Vector2(0, _walkInput * 0.5f);
+                Status = "비켜서는 중";
+                return;
+            }
+
+            Status = "대기 중";
         }
 
         bool Navigate(Vector3 destination, float stopDistance, ref InputFrame input)
