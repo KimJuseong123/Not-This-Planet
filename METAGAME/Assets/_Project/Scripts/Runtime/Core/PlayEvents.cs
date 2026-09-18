@@ -76,6 +76,35 @@ namespace Metagame.Core
         public static bool Open => writer != null;
 
         /// <summary>
+        /// <b>사람이 이 판을 중간에 떠났는가</b> (S15P21B202-625).
+        ///
+        /// <para><b>왜 필요한가.</b> 씬 교체로 끝나는 길이 하나뿐이라, 깨고 로비로 돌아간
+        /// 판과 일시정지 메뉴에서 타이틀로 나간 판이 <c>OnDestroy</c> 에서 <b>똑같이
+        /// 보인다.</b> 둘 다 <c>result: "destroy"</c> 였다. 그러면 <i>"사람들이 어디서
+        /// 포기했나"</i> 를 셀 수 없다 — 이 게임 단계에서 가장 알고 싶은 것이 그것이다.</para>
+        ///
+        /// <para><b>왜 <c>Metagame.Core</c> 에 있나.</b> 표시를 켜는 곳은 일시정지
+        /// 메뉴(<c>Metagame.UI</c>)이고 읽는 곳은 관찰자(<c>Metagame.Bootstrap</c>)다.
+        /// <c>Metagame.UI</c> 는 <c>Metagame.Bootstrap</c> 을 참조하지 않으므로
+        /// <b>둘 다 볼 수 있는 자리는 여기뿐이다.</b></para>
+        ///
+        /// <para><b>판이 시작될 때 지운다</b>(<see cref="Begin"/>). 지우지 않으면 한 번
+        /// 나간 뒤의 모든 판이 떠난 판으로 셈된다.</para>
+        /// </summary>
+        public static bool LeftForTitle { get; private set; }
+
+        /// <summary>
+        /// 떠남 표시를 세우거나 되돌린다. <b>씬을 내리기 전에</b> 세운다 — 씬이 내려간
+        /// 뒤에는 이 사실을 알 길이 없다.
+        ///
+        /// <para><b>되돌리는 자리가 있다.</b> 타이틀 전환은 실패할 수 있고(그때
+        /// <c>GamePauseMenu.OnTitleTransitionFailed</c> 가 사람을 판에 남긴다), 세운 채로
+        /// 두면 <b>그 뒤에 실제로 끝난 판이 떠난 판으로 셈된다.</b> 그래서 기본값을 두지
+        /// 않는다 — 부르는 쪽이 어느 쪽인지 적게 한다.</para>
+        /// </summary>
+        public static void NoteLeftForTitle(bool left) => LeftForTitle = left;
+
+        /// <summary>
         /// 어디에 쓸 것인가. <b>검사에서만 바꾼다.</b>
         ///
         /// <para>여기를 갈라 두기 전에는 <see cref="Begin"/> 이 <c>Application.isEditor</c>
@@ -142,6 +171,12 @@ namespace Metagame.Core
                     End(new Dictionary<string, object> { ["result"] = "restart" });
 
                 Path = string.Empty;
+
+                // **새 판은 아직 아무도 떠나지 않았다** (S15P21B202-625). 지우지 않으면
+                // 한 번 타이틀로 나간 뒤의 모든 판이 떠난 판으로 셈된다. 파일을 못 열고
+                // 돌아서는 경로보다 **앞**에 둔다 — 그쪽으로 빠지면 이 판은 기록되지
+                // 않으므로 표시가 남아 다음 판에 얹혀서는 안 된다.
+                LeftForTitle = false;
 
                 string folder = FolderResolver == null ? string.Empty : FolderResolver();
                 if (string.IsNullOrEmpty(folder)) return;
