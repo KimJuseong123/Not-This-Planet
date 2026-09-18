@@ -27,7 +27,8 @@ namespace Metagame.Gameplay.Tests
             Assert.That(DemoEnding.StageAt(launch - 0.01f, count), Is.EqualTo(DemoEndingStage.Boarding));
             Assert.That(DemoEnding.StageAt(launch, count), Is.EqualTo(DemoEndingStage.Launching));
             Assert.That(DemoEnding.StageAt(launch + 10f, count), Is.EqualTo(DemoEndingStage.EndTitle));
-            Assert.That(DemoEnding.StageAt(launch + 13f, count), Is.EqualTo(DemoEndingStage.Lobby));
+            Assert.That(DemoEnding.StageAt(launch + 13f, count), Is.EqualTo(DemoEndingStage.SpaceDrift));
+            Assert.That(DemoEnding.StageAt(launch + 13f + DemoEnding.ArrivalSeconds, count), Is.EqualTo(DemoEndingStage.Lobby));
         }
 
         [Category("Heavy")]

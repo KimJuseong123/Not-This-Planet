@@ -1,0 +1,36 @@
+{
+  "asset": "GrassSeed",
+  "fbx": "S2_GrassSeed.fbx",
+  "blend": "Source~/S2_GrassSeed.blend",
+  "mesh_objects": 1,
+  "triangles": 772,
+  "dimensions_m": [
+    0.42904967069625854,
+    0.44486165046691895,
+    0.7779003381729126
+  ],
+  "bounds_min": [
+    -0.22174489498138428,
+    -0.2160561978816986,
+    0.014999999664723873
+  ],
+  "bounds_max": [
+    0.20730479061603546,
+    0.22880545258522034,
+    0.7929003238677979
+  ],
+  "materials": [
+    "S2_Dry"
+  ],
+  "pivots": [
+    "S2_GrassSeed_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

@@ -1,0 +1,18 @@
+{
+  "running": false,
+  "pending": [],
+  "done": [
+    {
+      "asset": "BoltTight",
+      "triangles": 380,
+      "passed": true
+    },
+    {
+      "asset": "HelmetFilter",
+      "triangles": 1800,
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "current": "HelmetFilter"
+}

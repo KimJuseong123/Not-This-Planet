@@ -1,0 +1,19 @@
+{
+  "asset": "FilterRack",
+  "fbx": "S2_FilterRack.fbx",
+  "fbm": "S2_FilterRack.fbm",
+  "textures": [
+    "S2_Ivory_BaseColor.png",
+    "S2_Orange_BaseColor.png",
+    "S2_Steel_BaseColor.png",
+    "S2_Teal_BaseColor.png"
+  ],
+  "relative_texture_paths": [
+    "S2_FilterRack.fbm/S2_Ivory_BaseColor.png",
+    "S2_FilterRack.fbm/S2_Orange_BaseColor.png",
+    "S2_FilterRack.fbm/S2_Steel_BaseColor.png",
+    "S2_FilterRack.fbm/S2_Teal_BaseColor.png"
+  ],
+  "relative_paths_valid": true,
+  "passed": true
+}

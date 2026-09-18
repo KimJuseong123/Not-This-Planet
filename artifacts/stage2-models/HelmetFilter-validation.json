@@ -1,0 +1,13 @@
+{
+  "asset": "HelmetFilter",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 1,
+  "dimensions_m": [
+    0.31200000643730164,
+    0.2080000340938568,
+    0.15250003337860107
+  ],
+  "pivots_count": 1,
+  "passed": true
+}

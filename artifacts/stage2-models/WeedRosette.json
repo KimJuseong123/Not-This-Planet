@@ -1,0 +1,37 @@
+{
+  "asset": "WeedRosette",
+  "fbx": "S2_WeedRosette.fbx",
+  "blend": "Source~/S2_WeedRosette.blend",
+  "mesh_objects": 1,
+  "triangles": 172,
+  "dimensions_m": [
+    0.5557125806808472,
+    0.5493102669715881,
+    0.22999998927116394
+  ],
+  "bounds_min": [
+    -0.27571260929107666,
+    -0.2789261043071747,
+    0.009999999776482582
+  ],
+  "bounds_max": [
+    0.2800000011920929,
+    0.27038416266441345,
+    0.23999999463558197
+  ],
+  "materials": [
+    "S2_LeafLight",
+    "S2_Olive"
+  ],
+  "pivots": [
+    "S2_WeedRosette_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

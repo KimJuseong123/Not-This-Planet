@@ -1,0 +1,13 @@
+{
+  "asset": "Bollard",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 1,
+  "dimensions_m": [
+    0.4399999976158142,
+    0.44000011682510376,
+    0.8500001430511475
+  ],
+  "pivots_count": 1,
+  "passed": true
+}

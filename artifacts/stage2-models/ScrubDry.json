@@ -1,0 +1,38 @@
+{
+  "asset": "ScrubDry",
+  "fbx": "S2_ScrubDry.fbx",
+  "blend": "Source~/S2_ScrubDry.blend",
+  "mesh_objects": 1,
+  "triangles": 1208,
+  "dimensions_m": [
+    0.8490425944328308,
+    0.7186123728752136,
+    0.7375568747520447
+  ],
+  "bounds_min": [
+    -0.39973267912864685,
+    -0.3480129837989807,
+    -0.00296060461550951
+  ],
+  "bounds_max": [
+    0.44930991530418396,
+    0.3705993890762329,
+    0.7345962524414062
+  ],
+  "materials": [
+    "S2_Bark",
+    "S2_LeafLight",
+    "S2_Olive"
+  ],
+  "pivots": [
+    "S2_ScrubDry_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

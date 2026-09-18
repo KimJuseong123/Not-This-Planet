@@ -1,0 +1,13 @@
+{
+  "asset": "GasTank",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 1,
+  "dimensions_m": [
+    3.5999999046325684,
+    2.202000617980957,
+    2.9331483840942383
+  ],
+  "pivots_count": 1,
+  "passed": true
+}

@@ -1,0 +1,37 @@
+{
+  "asset": "Moss",
+  "fbx": "S2_Moss.fbx",
+  "blend": "Source~/S2_Moss.blend",
+  "mesh_objects": 1,
+  "triangles": 820,
+  "dimensions_m": [
+    0.6199482679367065,
+    0.403324156999588,
+    0.059522539377212524
+  ],
+  "bounds_min": [
+    -0.2969355583190918,
+    -0.19732843339443207,
+    0.0030367914587259293
+  ],
+  "bounds_max": [
+    0.32301270961761475,
+    0.20599572360515594,
+    0.0625593289732933
+  ],
+  "materials": [
+    "S2_Concrete",
+    "S2_Moss"
+  ],
+  "pivots": [
+    "S2_Moss_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

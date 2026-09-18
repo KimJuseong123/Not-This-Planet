@@ -8,7 +8,7 @@ using UnityEngine;
 namespace Metagame.UI
 {
     /// <summary>실제 파츠 메시와 서버 스냅샷을 이용한 표시 전용 엔딩 무대.</summary>
-    public sealed class DemoEndingView : MonoBehaviour
+    public sealed partial class DemoEndingView : MonoBehaviour
     {
         // 씬의 물리/네트워크 오브젝트를 복제하지 않고 메시만 복사한다.
         const int StageLayer = 31;
@@ -57,6 +57,8 @@ namespace Metagame.UI
                 if (!_returning) _returning = _returnToLobby();
                 return;
             }
+            if (_ending.Elapsed >= _ending.ArrivalStartsAt)
+            { ShowArrival(_ending.Elapsed - _ending.ArrivalStartsAt); return; }
             if (stage == DemoEndingStage.Boarding) ShowBoarding(_ending.Elapsed);
             else if (stage == DemoEndingStage.Launching)
                 ShowLaunch(_ending.Elapsed - _ending.BoardingEndsAt);
@@ -415,6 +417,8 @@ namespace Metagame.UI
         void OnGUI()
         {
             if (_ending == null || !_ending.Active || !_ending.PlaybackStarted || _stage == null) return;
+            if (_ending.Elapsed >= _ending.ArrivalStartsAt)
+            { DrawArrivalOverlay(_ending.Elapsed - _ending.ArrivalStartsAt); return; }
             var savedColor = GUI.color;
             var savedMatrix = GUI.matrix;
             var savedDepth = GUI.depth;
@@ -461,7 +465,7 @@ namespace Metagame.UI
                 _title.fontSize = Mathf.Clamp(Mathf.RoundToInt(Screen.height * 0.085f), 24, 80);
                 _timeLabel.fontSize = Mathf.Max(16, _title.fontSize / 3);
                 GUI.color = new Color(1f, 1f, 1f, Mathf.Clamp01((_ending.Elapsed - _ending.EndTitleStartsAt) / 0.6f));
-                GUI.Label(new Rect(0f, Screen.height * 0.36f, Screen.width, Screen.height * 0.2f), "데모 끝", _title);
+                GUI.Label(new Rect(0f, Screen.height * 0.36f, Screen.width, Screen.height * 0.2f), "1장 완료", _title);
                 var duration = TimeSpan.FromSeconds(Math.Floor(_ending.Snapshot.PlayTimeSeconds));
                 GUI.Label(new Rect(0f, Screen.height * 0.57f, Screen.width, Screen.height * 0.08f),
                     $"플레이 타임  {(long)duration.TotalHours:00}시간 {duration.Minutes:00}분 {duration.Seconds:00}초", _timeLabel);
@@ -473,6 +477,7 @@ namespace Metagame.UI
 
         void OnDestroy()
         {
+            DisposeArrival();
             if (_stage == null) return;
             RenderSettings.fog = _savedFog;
             foreach (var camera in _previousCameras) if (camera != null) camera.enabled = true;

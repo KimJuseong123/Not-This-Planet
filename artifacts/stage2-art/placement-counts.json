@@ -1,0 +1,190 @@
+{
+    "total": 1289,
+    "types": 46,
+    "models": [
+        {
+            "asset": "CrashedCraft",
+            "count": 1
+        },
+        {
+            "asset": "Rubble",
+            "count": 5
+        },
+        {
+            "asset": "ToolRack",
+            "count": 2
+        },
+        {
+            "asset": "Wrench",
+            "count": 1
+        },
+        {
+            "asset": "Sprayer",
+            "count": 1
+        },
+        {
+            "asset": "FilterRack",
+            "count": 1
+        },
+        {
+            "asset": "HelmetFilter",
+            "count": 1
+        },
+        {
+            "asset": "BoltLoose",
+            "count": 1
+        },
+        {
+            "asset": "BoltTight",
+            "count": 1
+        },
+        {
+            "asset": "Nut",
+            "count": 1
+        },
+        {
+            "asset": "Bracket",
+            "count": 1
+        },
+        {
+            "asset": "Shower",
+            "count": 1
+        },
+        {
+            "asset": "Launchpad",
+            "count": 1
+        },
+        {
+            "asset": "RocketBase",
+            "count": 1
+        },
+        {
+            "asset": "Crane",
+            "count": 1
+        },
+        {
+            "asset": "Console",
+            "count": 1
+        },
+        {
+            "asset": "Rail",
+            "count": 2
+        },
+        {
+            "asset": "Elevator",
+            "count": 1
+        },
+        {
+            "asset": "Container",
+            "count": 3
+        },
+        {
+            "asset": "RocketTank",
+            "count": 1
+        },
+        {
+            "asset": "RocketService",
+            "count": 1
+        },
+        {
+            "asset": "RocketCapsule",
+            "count": 1
+        },
+        {
+            "asset": "Ladder",
+            "count": 1
+        },
+        {
+            "asset": "GasTank",
+            "count": 2
+        },
+        {
+            "asset": "Floodlight",
+            "count": 4
+        },
+        {
+            "asset": "Slab",
+            "count": 143
+        },
+        {
+            "asset": "RouteBlue",
+            "count": 21
+        },
+        {
+            "asset": "RouteAmber",
+            "count": 11
+        },
+        {
+            "asset": "Bollard",
+            "count": 20
+        },
+        {
+            "asset": "Wall",
+            "count": 68
+        },
+        {
+            "asset": "Drain",
+            "count": 29
+        },
+        {
+            "asset": "Reeds",
+            "count": 9
+        },
+        {
+            "asset": "Facade",
+            "count": 41
+        },
+        {
+            "asset": "IvyHanging",
+            "count": 12
+        },
+        {
+            "asset": "CoolingTower",
+            "count": 3
+        },
+        {
+            "asset": "Chimney",
+            "count": 7
+        },
+        {
+            "asset": "GrassSeed",
+            "count": 108
+        },
+        {
+            "asset": "Lichen",
+            "count": 100
+        },
+        {
+            "asset": "GrassDry",
+            "count": 189
+        },
+        {
+            "asset": "Moss",
+            "count": 98
+        },
+        {
+            "asset": "ScrubDry",
+            "count": 99
+        },
+        {
+            "asset": "WeedRosette",
+            "count": 88
+        },
+        {
+            "asset": "DeadSapling",
+            "count": 11
+        },
+        {
+            "asset": "IvyLow",
+            "count": 13
+        },
+        {
+            "asset": "Wildflowers",
+            "count": 97
+        },
+        {
+            "asset": "Shrub",
+            "count": 85
+        }
+    ]
+}

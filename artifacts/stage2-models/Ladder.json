@@ -1,0 +1,42 @@
+{
+  "asset": "Ladder",
+  "fbx": "S2_Ladder.fbx",
+  "blend": "Source~/S2_Ladder.blend",
+  "mesh_objects": 4,
+  "triangles": 4260,
+  "dimensions_m": [
+    1.9500000476837158,
+    3.25,
+    5.139999866485596
+  ],
+  "bounds_min": [
+    -0.9750000238418579,
+    -1.625,
+    0.0
+  ],
+  "bounds_max": [
+    0.9750000238418579,
+    1.625,
+    5.139999866485596
+  ],
+  "materials": [
+    "S2_Dark",
+    "S2_Orange",
+    "S2_Steel",
+    "S2_Teal"
+  ],
+  "pivots": [
+    "S2_Ladder_Root",
+    "UpperPlatform",
+    "FrontFrame",
+    "RearFrame"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

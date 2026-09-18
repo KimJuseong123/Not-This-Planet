@@ -234,9 +234,10 @@ namespace Metagame.Bootstrap
             if (!authoredLighting && !useAtmosphere && starfield && !Application.isBatchMode)
                 Space = Starfield.Create(transform, Sky.SunDirection);
 
-            var ending = sys.AddComponent<DemoEnding>();
+            bool chapterTwo = gameObject.scene.name == StageCatalog.Stage2SceneName;
+            DemoEnding ending = chapterTwo ? null : sys.AddComponent<DemoEnding>();
             bool endingNetworked = Mirror.NetworkServer.active || Mirror.NetworkClient.active;
-            ending.Configure(Session, FindObjectsByType<SpaceshipPart>(FindObjectsSortMode.None),
+            if (ending != null) ending.Configure(Session, FindObjectsByType<SpaceshipPart>(FindObjectsSortMode.None),
                 () => !endingNetworked || Mirror.NetworkServer.active,
                 () => endingNetworked ? Mirror.NetworkTime.time : Time.unscaledTimeAsDouble,
                 CaptureEndingPlayers,
@@ -244,9 +245,9 @@ namespace Metagame.Bootstrap
                     ? NetworkSession.Instance.RoomPlayTimeSeconds : Session.Elapsed);
             foreach (var hatch in FindObjectsByType<ShipHatch>(FindObjectsSortMode.None)) hatch.enabled = false;
             foreach (var launch in FindObjectsByType<LaunchTest>(FindObjectsSortMode.None)) launch.enabled = false;
-            EndingSceneFlow.Ensure().Watch(ending);
+            if (ending != null) EndingSceneFlow.Ensure().Watch(ending);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-            if (!MatchRole.DedicatedServer)
+            if (!MatchRole.DedicatedServer && ending != null)
                 GetComponent<DevManager>().Configure(Session, ending, PauseMenu, endingNetworked);
 #endif
 

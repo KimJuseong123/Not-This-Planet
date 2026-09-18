@@ -1,0 +1,15 @@
+{
+  "transport": "Mirror Telepathy loopback",
+  "peers": 3,
+  "utc": "2026-09-17T16:31:19.9159269Z",
+  "passed": true,
+  "assertions": [
+    "[PressureSmoke] HOST warning started",
+    "[PressureSmoke] HOST authenticated remote relief PASS; late observer may join",
+    "[PressureSmoke] HOST remote disconnect PASS",
+    "[PressureSmoke] CLIENT warning replication PASS",
+    "[PressureSmoke] CLIENT burst replication PASS",
+    "[PressureSmoke] CLIENT remote relief result PASS",
+    "[PressureSmoke] LATE OBSERVER relief and cycle snapshot PASS"
+  ]
+}

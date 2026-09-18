@@ -1,0 +1,854 @@
+{
+  "running": false,
+  "pending": [],
+  "done": [
+    {
+      "asset": "Crane",
+      "fbx": "S2_Crane.fbx",
+      "fbm": "S2_Crane.fbm",
+      "textures": [
+        "S2_Concrete_BaseColor.png",
+        "S2_Dark_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png",
+        "S2_Teal_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Crane.fbm/S2_Concrete_BaseColor.png",
+        "S2_Crane.fbm/S2_Dark_BaseColor.png",
+        "S2_Crane.fbm/S2_Orange_BaseColor.png",
+        "S2_Crane.fbm/S2_Steel_BaseColor.png",
+        "S2_Crane.fbm/S2_Teal_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Elevator",
+      "fbx": "S2_Elevator.fbx",
+      "fbm": "S2_Elevator.fbm",
+      "textures": [
+        "S2_Concrete_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png",
+        "S2_Teal_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Elevator.fbm/S2_Concrete_BaseColor.png",
+        "S2_Elevator.fbm/S2_Orange_BaseColor.png",
+        "S2_Elevator.fbm/S2_Steel_BaseColor.png",
+        "S2_Elevator.fbm/S2_Teal_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Console",
+      "fbx": "S2_Console.fbx",
+      "fbm": "S2_Console.fbm",
+      "textures": [
+        "S2_Dark_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png",
+        "S2_Teal_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Console.fbm/S2_Dark_BaseColor.png",
+        "S2_Console.fbm/S2_Orange_BaseColor.png",
+        "S2_Console.fbm/S2_Steel_BaseColor.png",
+        "S2_Console.fbm/S2_Teal_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Launchpad",
+      "fbx": "S2_Launchpad.fbx",
+      "fbm": "S2_Launchpad.fbm",
+      "textures": [
+        "S2_Concrete_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png",
+        "S2_Teal_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Launchpad.fbm/S2_Concrete_BaseColor.png",
+        "S2_Launchpad.fbm/S2_Orange_BaseColor.png",
+        "S2_Launchpad.fbm/S2_Steel_BaseColor.png",
+        "S2_Launchpad.fbm/S2_Teal_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "RocketBase",
+      "fbx": "S2_RocketBase.fbx",
+      "fbm": "S2_RocketBase.fbm",
+      "textures": [
+        "S2_Dark_BaseColor.png",
+        "S2_Ivory_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png",
+        "S2_Teal_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_RocketBase.fbm/S2_Dark_BaseColor.png",
+        "S2_RocketBase.fbm/S2_Ivory_BaseColor.png",
+        "S2_RocketBase.fbm/S2_Orange_BaseColor.png",
+        "S2_RocketBase.fbm/S2_Steel_BaseColor.png",
+        "S2_RocketBase.fbm/S2_Teal_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "RocketTank",
+      "fbx": "S2_RocketTank.fbx",
+      "fbm": "S2_RocketTank.fbm",
+      "textures": [
+        "S2_Ivory_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_RocketTank.fbm/S2_Ivory_BaseColor.png",
+        "S2_RocketTank.fbm/S2_Orange_BaseColor.png",
+        "S2_RocketTank.fbm/S2_Steel_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "RocketService",
+      "fbx": "S2_RocketService.fbx",
+      "fbm": "S2_RocketService.fbm",
+      "textures": [
+        "S2_Dark_BaseColor.png",
+        "S2_Ivory_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png",
+        "S2_Teal_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_RocketService.fbm/S2_Dark_BaseColor.png",
+        "S2_RocketService.fbm/S2_Ivory_BaseColor.png",
+        "S2_RocketService.fbm/S2_Orange_BaseColor.png",
+        "S2_RocketService.fbm/S2_Steel_BaseColor.png",
+        "S2_RocketService.fbm/S2_Teal_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "RocketCapsule",
+      "fbx": "S2_RocketCapsule.fbx",
+      "fbm": "S2_RocketCapsule.fbm",
+      "textures": [
+        "S2_Glass_BaseColor.png",
+        "S2_Ivory_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_RocketCapsule.fbm/S2_Glass_BaseColor.png",
+        "S2_RocketCapsule.fbm/S2_Ivory_BaseColor.png",
+        "S2_RocketCapsule.fbm/S2_Orange_BaseColor.png",
+        "S2_RocketCapsule.fbm/S2_Steel_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Container",
+      "fbx": "S2_Container.fbx",
+      "fbm": "S2_Container.fbm",
+      "textures": [
+        "S2_Dark_BaseColor.png",
+        "S2_Ivory_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png",
+        "S2_Teal_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Container.fbm/S2_Dark_BaseColor.png",
+        "S2_Container.fbm/S2_Ivory_BaseColor.png",
+        "S2_Container.fbm/S2_Orange_BaseColor.png",
+        "S2_Container.fbm/S2_Steel_BaseColor.png",
+        "S2_Container.fbm/S2_Teal_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Ladder",
+      "fbx": "S2_Ladder.fbx",
+      "fbm": "S2_Ladder.fbm",
+      "textures": [
+        "S2_Dark_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png",
+        "S2_Teal_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Ladder.fbm/S2_Dark_BaseColor.png",
+        "S2_Ladder.fbm/S2_Orange_BaseColor.png",
+        "S2_Ladder.fbm/S2_Steel_BaseColor.png",
+        "S2_Ladder.fbm/S2_Teal_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Wrench",
+      "fbx": "S2_Wrench.fbx",
+      "fbm": "S2_Wrench.fbm",
+      "textures": [
+        "S2_Dark_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png",
+        "S2_Teal_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Wrench.fbm/S2_Dark_BaseColor.png",
+        "S2_Wrench.fbm/S2_Orange_BaseColor.png",
+        "S2_Wrench.fbm/S2_Steel_BaseColor.png",
+        "S2_Wrench.fbm/S2_Teal_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "ToolRack",
+      "fbx": "S2_ToolRack.fbx",
+      "fbm": "S2_ToolRack.fbm",
+      "textures": [
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png",
+        "S2_Teal_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_ToolRack.fbm/S2_Orange_BaseColor.png",
+        "S2_ToolRack.fbm/S2_Steel_BaseColor.png",
+        "S2_ToolRack.fbm/S2_Teal_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Sprayer",
+      "fbx": "S2_Sprayer.fbx",
+      "fbm": "S2_Sprayer.fbm",
+      "textures": [
+        "S2_Dark_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png",
+        "S2_Teal_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Sprayer.fbm/S2_Dark_BaseColor.png",
+        "S2_Sprayer.fbm/S2_Orange_BaseColor.png",
+        "S2_Sprayer.fbm/S2_Steel_BaseColor.png",
+        "S2_Sprayer.fbm/S2_Teal_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Shower",
+      "fbx": "S2_Shower.fbx",
+      "fbm": "S2_Shower.fbm",
+      "textures": [
+        "S2_Ivory_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png",
+        "S2_Teal_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Shower.fbm/S2_Ivory_BaseColor.png",
+        "S2_Shower.fbm/S2_Orange_BaseColor.png",
+        "S2_Shower.fbm/S2_Steel_BaseColor.png",
+        "S2_Shower.fbm/S2_Teal_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "GasTank",
+      "fbx": "S2_GasTank.fbx",
+      "fbm": "S2_GasTank.fbm",
+      "textures": [
+        "S2_Dark_BaseColor.png",
+        "S2_Lamp_BaseColor.png",
+        "S2_Olive_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Rust_BaseColor.png",
+        "S2_Steel_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_GasTank.fbm/S2_Dark_BaseColor.png",
+        "S2_GasTank.fbm/S2_Lamp_BaseColor.png",
+        "S2_GasTank.fbm/S2_Olive_BaseColor.png",
+        "S2_GasTank.fbm/S2_Orange_BaseColor.png",
+        "S2_GasTank.fbm/S2_Rust_BaseColor.png",
+        "S2_GasTank.fbm/S2_Steel_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "CrashedCraft",
+      "fbx": "S2_CrashedCraft.fbx",
+      "fbm": "S2_CrashedCraft.fbm",
+      "textures": [
+        "S2_Dark_BaseColor.png",
+        "S2_Glass_BaseColor.png",
+        "S2_Ivory_BaseColor.png",
+        "S2_Rust_BaseColor.png",
+        "S2_Steel_BaseColor.png",
+        "S2_Teal_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_CrashedCraft.fbm/S2_Dark_BaseColor.png",
+        "S2_CrashedCraft.fbm/S2_Glass_BaseColor.png",
+        "S2_CrashedCraft.fbm/S2_Ivory_BaseColor.png",
+        "S2_CrashedCraft.fbm/S2_Rust_BaseColor.png",
+        "S2_CrashedCraft.fbm/S2_Steel_BaseColor.png",
+        "S2_CrashedCraft.fbm/S2_Teal_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Wall",
+      "fbx": "S2_Wall.fbx",
+      "fbm": "S2_Wall.fbm",
+      "textures": [
+        "S2_Concrete_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Rust_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Wall.fbm/S2_Concrete_BaseColor.png",
+        "S2_Wall.fbm/S2_Orange_BaseColor.png",
+        "S2_Wall.fbm/S2_Rust_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Drain",
+      "fbx": "S2_Drain.fbx",
+      "fbm": "S2_Drain.fbm",
+      "textures": [
+        "S2_Concrete_BaseColor.png",
+        "S2_Steel_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Drain.fbm/S2_Concrete_BaseColor.png",
+        "S2_Drain.fbm/S2_Steel_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Slab",
+      "fbx": "S2_Slab.fbx",
+      "fbm": "S2_Slab.fbm",
+      "textures": [
+        "S2_Concrete_BaseColor.png",
+        "S2_Dark_BaseColor.png",
+        "S2_Steel_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Slab.fbm/S2_Concrete_BaseColor.png",
+        "S2_Slab.fbm/S2_Dark_BaseColor.png",
+        "S2_Slab.fbm/S2_Steel_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Rail",
+      "fbx": "S2_Rail.fbx",
+      "fbm": "S2_Rail.fbm",
+      "textures": [
+        "S2_Concrete_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png",
+        "S2_Teal_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Rail.fbm/S2_Concrete_BaseColor.png",
+        "S2_Rail.fbm/S2_Orange_BaseColor.png",
+        "S2_Rail.fbm/S2_Steel_BaseColor.png",
+        "S2_Rail.fbm/S2_Teal_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Bollard",
+      "fbx": "S2_Bollard.fbx",
+      "fbm": "S2_Bollard.fbm",
+      "textures": [
+        "S2_Dark_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Bollard.fbm/S2_Dark_BaseColor.png",
+        "S2_Bollard.fbm/S2_Orange_BaseColor.png",
+        "S2_Bollard.fbm/S2_Steel_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Facade",
+      "fbx": "S2_Facade.fbx",
+      "fbm": "S2_Facade.fbm",
+      "textures": [
+        "S2_Concrete_BaseColor.png",
+        "S2_Rust_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Facade.fbm/S2_Concrete_BaseColor.png",
+        "S2_Facade.fbm/S2_Rust_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "CoolingTower",
+      "fbx": "S2_CoolingTower.fbx",
+      "fbm": "S2_CoolingTower.fbm",
+      "textures": [
+        "S2_Concrete_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Rust_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_CoolingTower.fbm/S2_Concrete_BaseColor.png",
+        "S2_CoolingTower.fbm/S2_Orange_BaseColor.png",
+        "S2_CoolingTower.fbm/S2_Rust_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Chimney",
+      "fbx": "S2_Chimney.fbx",
+      "fbm": "S2_Chimney.fbm",
+      "textures": [
+        "S2_Concrete_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Chimney.fbm/S2_Concrete_BaseColor.png",
+        "S2_Chimney.fbm/S2_Orange_BaseColor.png",
+        "S2_Chimney.fbm/S2_Steel_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Rubble",
+      "fbx": "S2_Rubble.fbx",
+      "fbm": "S2_Rubble.fbm",
+      "textures": [
+        "S2_Concrete_BaseColor.png",
+        "S2_Rust_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Rubble.fbm/S2_Concrete_BaseColor.png",
+        "S2_Rubble.fbm/S2_Rust_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Floodlight",
+      "fbx": "S2_Floodlight.fbx",
+      "fbm": "S2_Floodlight.fbm",
+      "textures": [
+        "S2_Dark_BaseColor.png",
+        "S2_Lamp_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png",
+        "S2_Teal_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Floodlight.fbm/S2_Dark_BaseColor.png",
+        "S2_Floodlight.fbm/S2_Lamp_BaseColor.png",
+        "S2_Floodlight.fbm/S2_Orange_BaseColor.png",
+        "S2_Floodlight.fbm/S2_Steel_BaseColor.png",
+        "S2_Floodlight.fbm/S2_Teal_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "RouteBlue",
+      "fbx": "S2_RouteBlue.fbx",
+      "fbm": "S2_RouteBlue.fbm",
+      "textures": [
+        "S2_Concrete_BaseColor.png",
+        "S2_Dark_BaseColor.png",
+        "S2_Steel_BaseColor.png",
+        "S2_Teal_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_RouteBlue.fbm/S2_Concrete_BaseColor.png",
+        "S2_RouteBlue.fbm/S2_Dark_BaseColor.png",
+        "S2_RouteBlue.fbm/S2_Steel_BaseColor.png",
+        "S2_RouteBlue.fbm/S2_Teal_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "RouteAmber",
+      "fbx": "S2_RouteAmber.fbx",
+      "fbm": "S2_RouteAmber.fbm",
+      "textures": [
+        "S2_Concrete_BaseColor.png",
+        "S2_Dark_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_RouteAmber.fbm/S2_Concrete_BaseColor.png",
+        "S2_RouteAmber.fbm/S2_Dark_BaseColor.png",
+        "S2_RouteAmber.fbm/S2_Orange_BaseColor.png",
+        "S2_RouteAmber.fbm/S2_Steel_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "GrassDry",
+      "fbx": "S2_GrassDry.fbx",
+      "fbm": "S2_GrassDry.fbm",
+      "textures": [
+        "S2_Dry_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_GrassDry.fbm/S2_Dry_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "GrassSeed",
+      "fbx": "S2_GrassSeed.fbx",
+      "fbm": "S2_GrassSeed.fbm",
+      "textures": [
+        "S2_Dry_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_GrassSeed.fbm/S2_Dry_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "WeedRosette",
+      "fbx": "S2_WeedRosette.fbx",
+      "fbm": "S2_WeedRosette.fbm",
+      "textures": [
+        "S2_LeafLight_BaseColor.png",
+        "S2_Olive_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_WeedRosette.fbm/S2_LeafLight_BaseColor.png",
+        "S2_WeedRosette.fbm/S2_Olive_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Wildflowers",
+      "fbx": "S2_Wildflowers.fbx",
+      "fbm": "S2_Wildflowers.fbm",
+      "textures": [
+        "S2_Flower_BaseColor.png",
+        "S2_Olive_BaseColor.png",
+        "S2_Orange_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Wildflowers.fbm/S2_Flower_BaseColor.png",
+        "S2_Wildflowers.fbm/S2_Olive_BaseColor.png",
+        "S2_Wildflowers.fbm/S2_Orange_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "ScrubDry",
+      "fbx": "S2_ScrubDry.fbx",
+      "fbm": "S2_ScrubDry.fbm",
+      "textures": [
+        "S2_Bark_BaseColor.png",
+        "S2_LeafLight_BaseColor.png",
+        "S2_Olive_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_ScrubDry.fbm/S2_Bark_BaseColor.png",
+        "S2_ScrubDry.fbm/S2_LeafLight_BaseColor.png",
+        "S2_ScrubDry.fbm/S2_Olive_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Shrub",
+      "fbx": "S2_Shrub.fbx",
+      "fbm": "S2_Shrub.fbm",
+      "textures": [
+        "S2_Bark_BaseColor.png",
+        "S2_LeafLight_BaseColor.png",
+        "S2_Olive_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Shrub.fbm/S2_Bark_BaseColor.png",
+        "S2_Shrub.fbm/S2_LeafLight_BaseColor.png",
+        "S2_Shrub.fbm/S2_Olive_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "IvyLow",
+      "fbx": "S2_IvyLow.fbx",
+      "fbm": "S2_IvyLow.fbm",
+      "textures": [
+        "S2_Bark_BaseColor.png",
+        "S2_Concrete_BaseColor.png",
+        "S2_LeafLight_BaseColor.png",
+        "S2_Olive_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_IvyLow.fbm/S2_Bark_BaseColor.png",
+        "S2_IvyLow.fbm/S2_Concrete_BaseColor.png",
+        "S2_IvyLow.fbm/S2_LeafLight_BaseColor.png",
+        "S2_IvyLow.fbm/S2_Olive_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "IvyHanging",
+      "fbx": "S2_IvyHanging.fbx",
+      "fbm": "S2_IvyHanging.fbm",
+      "textures": [
+        "S2_Bark_BaseColor.png",
+        "S2_Concrete_BaseColor.png",
+        "S2_LeafLight_BaseColor.png",
+        "S2_Olive_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_IvyHanging.fbm/S2_Bark_BaseColor.png",
+        "S2_IvyHanging.fbm/S2_Concrete_BaseColor.png",
+        "S2_IvyHanging.fbm/S2_LeafLight_BaseColor.png",
+        "S2_IvyHanging.fbm/S2_Olive_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Moss",
+      "fbx": "S2_Moss.fbx",
+      "fbm": "S2_Moss.fbm",
+      "textures": [
+        "S2_Concrete_BaseColor.png",
+        "S2_Moss_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Moss.fbm/S2_Concrete_BaseColor.png",
+        "S2_Moss.fbm/S2_Moss_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Lichen",
+      "fbx": "S2_Lichen.fbx",
+      "fbm": "S2_Lichen.fbm",
+      "textures": [
+        "S2_LeafLight_BaseColor.png",
+        "S2_Rust_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Lichen.fbm/S2_LeafLight_BaseColor.png",
+        "S2_Lichen.fbm/S2_Rust_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Reeds",
+      "fbx": "S2_Reeds.fbx",
+      "fbm": "S2_Reeds.fbm",
+      "textures": [
+        "S2_Bark_BaseColor.png",
+        "S2_Dry_BaseColor.png",
+        "S2_Olive_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Reeds.fbm/S2_Bark_BaseColor.png",
+        "S2_Reeds.fbm/S2_Dry_BaseColor.png",
+        "S2_Reeds.fbm/S2_Olive_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "DeadSapling",
+      "fbx": "S2_DeadSapling.fbx",
+      "fbm": "S2_DeadSapling.fbm",
+      "textures": [
+        "S2_Bark_BaseColor.png",
+        "S2_Dry_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_DeadSapling.fbm/S2_Bark_BaseColor.png",
+        "S2_DeadSapling.fbm/S2_Dry_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "RocketAssembled",
+      "fbx": "S2_RocketAssembled.fbx",
+      "fbm": "S2_RocketAssembled.fbm",
+      "textures": [
+        "S2_Dark_BaseColor.png",
+        "S2_Glass_BaseColor.png",
+        "S2_Ivory_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png",
+        "S2_Teal_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_RocketAssembled.fbm/S2_Dark_BaseColor.png",
+        "S2_RocketAssembled.fbm/S2_Glass_BaseColor.png",
+        "S2_RocketAssembled.fbm/S2_Ivory_BaseColor.png",
+        "S2_RocketAssembled.fbm/S2_Orange_BaseColor.png",
+        "S2_RocketAssembled.fbm/S2_Steel_BaseColor.png",
+        "S2_RocketAssembled.fbm/S2_Teal_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "BoltLoose",
+      "fbx": "S2_BoltLoose.fbx",
+      "fbm": "S2_BoltLoose.fbm",
+      "textures": [
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_BoltLoose.fbm/S2_Orange_BaseColor.png",
+        "S2_BoltLoose.fbm/S2_Steel_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "BoltTight",
+      "fbx": "S2_BoltTight.fbx",
+      "fbm": "S2_BoltTight.fbm",
+      "textures": [
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png",
+        "S2_Teal_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_BoltTight.fbm/S2_Orange_BaseColor.png",
+        "S2_BoltTight.fbm/S2_Steel_BaseColor.png",
+        "S2_BoltTight.fbm/S2_Teal_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Nut",
+      "fbx": "S2_Nut.fbx",
+      "fbm": "S2_Nut.fbm",
+      "textures": [
+        "S2_Dark_BaseColor.png",
+        "S2_Steel_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Nut.fbm/S2_Dark_BaseColor.png",
+        "S2_Nut.fbm/S2_Steel_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "Bracket",
+      "fbx": "S2_Bracket.fbx",
+      "fbm": "S2_Bracket.fbm",
+      "textures": [
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png",
+        "S2_Teal_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_Bracket.fbm/S2_Orange_BaseColor.png",
+        "S2_Bracket.fbm/S2_Steel_BaseColor.png",
+        "S2_Bracket.fbm/S2_Teal_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "HelmetFilter",
+      "fbx": "S2_HelmetFilter.fbx",
+      "fbm": "S2_HelmetFilter.fbm",
+      "textures": [
+        "S2_Dark_BaseColor.png",
+        "S2_Ivory_BaseColor.png",
+        "S2_Olive_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png",
+        "S2_Teal_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_HelmetFilter.fbm/S2_Dark_BaseColor.png",
+        "S2_HelmetFilter.fbm/S2_Ivory_BaseColor.png",
+        "S2_HelmetFilter.fbm/S2_Olive_BaseColor.png",
+        "S2_HelmetFilter.fbm/S2_Orange_BaseColor.png",
+        "S2_HelmetFilter.fbm/S2_Steel_BaseColor.png",
+        "S2_HelmetFilter.fbm/S2_Teal_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    },
+    {
+      "asset": "FilterRack",
+      "fbx": "S2_FilterRack.fbx",
+      "fbm": "S2_FilterRack.fbm",
+      "textures": [
+        "S2_Ivory_BaseColor.png",
+        "S2_Orange_BaseColor.png",
+        "S2_Steel_BaseColor.png",
+        "S2_Teal_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_FilterRack.fbm/S2_Ivory_BaseColor.png",
+        "S2_FilterRack.fbm/S2_Orange_BaseColor.png",
+        "S2_FilterRack.fbm/S2_Steel_BaseColor.png",
+        "S2_FilterRack.fbm/S2_Teal_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "bakePending": false,
+  "current": "FilterRack"
+}

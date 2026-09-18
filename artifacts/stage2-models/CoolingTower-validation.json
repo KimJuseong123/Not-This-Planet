@@ -1,0 +1,13 @@
+{
+  "asset": "CoolingTower",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 1,
+  "dimensions_m": [
+    9.600000381469727,
+    9.600003242492676,
+    17.95476722717285
+  ],
+  "pivots_count": 1,
+  "passed": true
+}

@@ -1,0 +1,19 @@
+{
+  "peers": 3,
+  "utc": "2026-09-17T16:50:17.1023663Z",
+  "assertions": [
+    "[PressureSmoke] HOST warning started",
+    "[PressureSmoke] HOST measurement 0.283m phase=2 inJet=True clear=True locked=False",
+    "[PressureSmoke] HOST remote physical push PASS 0.283m",
+    "[PressureSmoke] HOST authenticated remote relief PASS; late observer may join",
+    "[PressureSmoke] HOST remote disconnect PASS",
+    "[PressureSmoke] CLIENT warning replication PASS",
+    "[PressureSmoke] CLIENT burst replication PASS",
+    "[PressureSmoke] CLIENT physical push replication PASS 0.365m",
+    "[PressureSmoke] CLIENT remote relief result PASS",
+    "[PressureSmoke] LATE OBSERVER relief and cycle snapshot PASS"
+  ],
+  "passed": true,
+  "mode": "pressure",
+  "transport": "Mirror Telepathy loopback"
+}

@@ -1,0 +1,36 @@
+{
+  "asset": "GrassDry",
+  "fbx": "S2_GrassDry.fbx",
+  "blend": "Source~/S2_GrassDry.blend",
+  "mesh_objects": 1,
+  "triangles": 320,
+  "dimensions_m": [
+    0.365095853805542,
+    0.3694778084754944,
+    0.2993044853210449
+  ],
+  "bounds_min": [
+    -0.18010328710079193,
+    -0.183502659201622,
+    0.014999999664723873
+  ],
+  "bounds_max": [
+    0.18499258160591125,
+    0.18597516417503357,
+    0.3143044710159302
+  ],
+  "materials": [
+    "S2_Dry"
+  ],
+  "pivots": [
+    "S2_GrassDry_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

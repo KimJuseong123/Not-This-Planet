@@ -1,0 +1,13 @@
+{
+  "asset": "Moss",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 1,
+  "dimensions_m": [
+    0.6199482679367065,
+    0.4033241868019104,
+    0.0595226064324379
+  ],
+  "pivots_count": 1,
+  "passed": true
+}

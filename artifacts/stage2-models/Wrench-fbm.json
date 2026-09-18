@@ -1,0 +1,19 @@
+{
+  "asset": "Wrench",
+  "fbx": "S2_Wrench.fbx",
+  "fbm": "S2_Wrench.fbm",
+  "textures": [
+    "S2_Dark_BaseColor.png",
+    "S2_Orange_BaseColor.png",
+    "S2_Steel_BaseColor.png",
+    "S2_Teal_BaseColor.png"
+  ],
+  "relative_texture_paths": [
+    "S2_Wrench.fbm/S2_Dark_BaseColor.png",
+    "S2_Wrench.fbm/S2_Orange_BaseColor.png",
+    "S2_Wrench.fbm/S2_Steel_BaseColor.png",
+    "S2_Wrench.fbm/S2_Teal_BaseColor.png"
+  ],
+  "relative_paths_valid": true,
+  "passed": true
+}

@@ -165,6 +165,8 @@ namespace Metagame.Network
                 == Metagame.Gameplay.Parts.DemoEnding.ScenePath) return;
 
             if (spawned || !NetworkServer.active) return;
+            // Chapter 2 owns its different machinery snapshot through Stage2Bridge.
+            if (FindAnyObjectByType<Metagame.Gameplay.Stage2.Stage2Yard>() != null) return;
 
             // 게임 씬이 올라왔는지는 "옮길 것이 있는가" 로 판단한다. 씬 이름을 박아 두면
             // 스테이지가 늘 때마다 여기를 고쳐야 한다.

@@ -86,6 +86,7 @@ namespace Metagame.Gameplay
         /// 넘겨받은 자기 몸에도 참이라서, 서버와 클라이언트를 가르지 못한다.</para>
         /// </summary>
         public bool ServerAuthority = true;
+        public bool WorkstationMovementLocked { get; set; }
 
         /// <summary>조준 기준점. 카메라가 없는 서버에서도 겨냥이 가능하게 한다.</summary>
         Transform aimPivot;
@@ -537,6 +538,9 @@ namespace Metagame.Gameplay
         /// 이미 수평을 그렇게 다루고 있어 세로도 같은 방식으로 맞췄다.
         /// </summary>
         public bool Floating { get; private set; }
+        public bool Swimming { get; private set; }
+        public bool InWater => water != null;
+        DrainageWater water;
         public Grabbable HeldTool { get { return toolHeld; } }
         // 서버의 장착/입력 권한과 별개인 화면 표시 연결. 참가자에게도 설정된다.
         public ToolBase PresentationTool { get; internal set; }
@@ -1950,6 +1954,9 @@ namespace Metagame.Gameplay
             ReleaseCarriersOf(CarryTarget);
 
             Doll.Teleport(footPos + Vector3.up * RagdollBuilder.HipsY, facing);
+            water = null;
+            Swimming = false;
+            UpdateFloating();
             faceDir = facing * Vector3.forward;
             movementDirectionLocal = Vector2.zero;
             uprightBlend = 1f;
@@ -2484,6 +2491,12 @@ namespace Metagame.Gameplay
         public void Tick()
         {
             if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
+            if (WorkstationMovementLocked)
+            {
+                input.Move = Vector2.zero;
+                input.Jump = input.GrabLeft = input.GrabRight = false;
+                input.ToolPrimary = input.ToolSecondary = false;
+            }
 
             // 피해 번쩍임을 식힌다 (S15P21B202-539). 아래 게이지들보다 앞에 두는 이유는
             // 뒤쪽 이른 반환(Doll 이 아직 없거나 Hips 좌표가 망가진 틱) 때문이다 —
@@ -2537,6 +2550,7 @@ namespace Metagame.Gameplay
             // 좌석과 싸운다. 운반 장치는 제 속도를 알려 주고, 우주선은 강체에서 읽는다.
             if (IsRiding)
             {
+                UpdateFloating();
                 // 적어 둔 상대 자세로 몸을 옮긴다 (S15P21B202-434). 보행 물리를 건너뛰는
                 // 이 분기 안에 둔다 — 걷기와 좌석이 같은 스텝에 몸을 두 번 옮기면 안 된다.
                 HoldSeat();
@@ -2568,6 +2582,10 @@ namespace Metagame.Gameplay
                 return;
             }
 
+            water = DrainageWater.Sample(Doll.Hips.position);
+            Swimming = water != null && !Hanging && !WorkstationMovementLocked
+                && water.CanSwim(Doll.Hips.position, Swimming);
+            if (Swimming) fallPeakFootHeight = FootPosition.y;
             ProbeGround();
 
             // 기절·던져짐 중에는 조작이 없다. 넉백은 그대로 받는다 — 운석에 굴러다녀야
@@ -2764,14 +2782,15 @@ namespace Metagame.Gameplay
         void UpdateFloating()
         {
             var field = Parts.LowGravityField.FindContaining(Doll.Hips.position);
-            var wants = field != null && !Hanging && !IsRiding;
+            if (IsRiding) { water = null; Swimming = false; }
+            var wants = (field != null || Swimming) && !Hanging && !IsRiding;
 
             // 들고 날 때 인형의 중력을 끄고 켠다. 상태가 바뀔 때만 건드려 매 스텝 강체를
             // 훑지 않는다.
             if (wants != floatingGravityOff)
             {
-                floatingAutoLift = wants;
-                if (wants)
+                floatingAutoLift = wants && !Swimming;
+                if (wants && field != null)
                     floatingLiftTarget = Mathf.Min(Doll.Hips.position.y + 1.5f,
                         field.Origin.position.y - 1.2f);
                 for (int i = 0; i < Doll.Bodies.Count; i++)
@@ -2791,20 +2810,27 @@ namespace Metagame.Gameplay
             fallPeakFootHeight = Doll.Hips.position.y - RagdollBuilder.HipsY;
 
             // Space 로 올라가고 Ctrl 로 내려간다. 탑승 중 고도 조작과 같은 두 키다.
-            float wish = (input.Jump ? 1f : 0f) - (input.ArmsUp ? 1f : 0f);
+            float wish = BodyOutOfControl ? 0 : (input.Jump ? 1f : 0f) - (input.ArmsUp ? 1f : 0f);
             if (wish != 0f) floatingAutoLift = false;
             float target = wish * PhysicsScale.FieldFloatVerticalSpeed;
             if (floatingAutoLift)
                 target = Mathf.Clamp((floatingLiftTarget - Doll.Hips.position.y) * 3f,
                     0f, PhysicsScale.FieldFloatVerticalSpeed);
             float rate = PhysicsScale.FieldFloatVerticalSpeed / PhysicsScale.FieldFloatStopSeconds;
+            if (Swimming)
+            {
+                floatingAutoLift = false;
+                target = water.VerticalTarget(Doll.Hips.position.y, wish);
+                rate = 4f;
+            }
 
             for (int i = 0; i < Doll.Bodies.Count; i++)
             {
                 var body = Doll.Bodies[i];
-                if (body == null) continue;
+                if (body == null || body.isKinematic) continue;
 
                 Vector3 v = body.linearVelocity;
+                if (Swimming) v.y = Mathf.Clamp(v.y, -2f, 2f);
                 v.y = Mathf.MoveTowards(v.y, target, rate * Time.fixedDeltaTime);
                 body.linearVelocity = v;
             }
@@ -2955,7 +2981,10 @@ namespace Metagame.Gameplay
             // including floating/carrying; overlapping plants do not stack.
             // Acceptance procedure: docs/records/2026-09-17-577-review-resolution.md.
             top *= PlantRustle.SampleMovementMultiplier(Doll.Hips.position, _vegetationHits);
+            if (Swimming) top = Mathf.Min(top, DrainageWater.SwimSpeed);
+            else if (water != null) top *= water.MovementScale(Doll.Hips.position);
             Vector3 targetVel = wish * top;
+            if (water != null) targetVel += water.Current * (Swimming ? 1 : .35f);
             targetVel.x += GroundVelocity.x;
             targetVel.z += GroundVelocity.z;
 
@@ -3011,7 +3040,7 @@ namespace Metagame.Gameplay
             UpdateMovementDirection(wish, right, fwd);
 
             // 등짐의 자세제어 분사기가 공중에서 방향을 잡아준다는 설정
-            Thrusting = !Grounded && !Hanging && wish.sqrMagnitude > 0.04f;
+            Thrusting = !InWater && !Grounded && !Hanging && wish.sqrMagnitude > 0.04f;
             if (Thrusting)
             {
                 thrustPuff -= Time.fixedDeltaTime;

@@ -35,6 +35,7 @@ namespace Metagame.Core
 
         public const string Stage1SceneName = "Stage1_Astra";
         public const string Stage1EndingSceneName = "Stage1_Ending";
+        public const string Stage2SceneName = "Stage2_Earth";
 
         /// <summary>씬 파일이 사는 폴더. 빌드 목록은 이 경로로 씬을 찾는다.</summary>
         public const string SceneFolder = "Assets/Scenes/";
@@ -68,6 +69,7 @@ namespace Metagame.Core
         static readonly Stage[] Stages =
         {
             new Stage(DefaultStageId, Stage1SceneName, Stage1EndingSceneName),
+            new Stage("stage2", Stage2SceneName, null),
         };
 
         public static IReadOnlyList<Stage> All => Stages;

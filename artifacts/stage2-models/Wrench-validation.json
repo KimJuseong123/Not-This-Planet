@@ -1,0 +1,13 @@
+{
+  "asset": "Wrench",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 2,
+  "dimensions_m": [
+    0.20859229564666748,
+    0.08450008183717728,
+    0.5473203063011169
+  ],
+  "pivots_count": 2,
+  "passed": true
+}

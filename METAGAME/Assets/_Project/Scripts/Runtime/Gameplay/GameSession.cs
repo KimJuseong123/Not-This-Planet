@@ -13,6 +13,8 @@ namespace Metagame.Gameplay
         public static GameSession Instance;
 
         public PlayerRig LocalPlayer;
+        public event System.Action<PlayerRig> PlayerRespawned;
+        public System.Func<InputFrame, InputFrame> StageInputFilter { get; set; }
 
         /// <summary>전원이 기절한 채 흐른 시간. 출구 판정에만 쓴다.</summary>
         float allDownedSeconds;
@@ -224,6 +226,8 @@ namespace Metagame.Gameplay
                     f.PingPressed = false;
                 }
 
+                if (StageInputFilter != null) f = StageInputFilter(f);
+
                 // 끼임 탈출은 3초 유지다(기획 §21). 예전에는 GetKeyDown 으로 즉시
                 // 스폰 지점으로 보내면서 Revive 까지 불러 §20 의 기절·구조를 우회했다
                 // (S15P21B202-248).
@@ -403,6 +407,7 @@ namespace Metagame.Gameplay
             rig.Revive(rig.MaxHealth);
             rig.ResetHealth();
             rig.Teleport(SpawnFoot + Vector3.up * 0.15f, Quaternion.LookRotation(Vector3.right, Vector3.up));
+            PlayerRespawned?.Invoke(rig);
         }
 
         /// <summary>낙사인가. 서버가 접속자마다 같은 기준으로 본다(-55).</summary>
