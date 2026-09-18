@@ -1,0 +1,29 @@
+PASS
+Grabbable surfaces: 265
+Added mesh colliders: 31
+Surface queries: 265
+World-fixed grab and release: 265
+PhysX hold against gravity (20 steps): 265
+PhysX fall after release (10 steps): 265
+Focused EditMode tests: 26 passed
+Hill cliff 쨌 exposed lift face: 6
+Hangar cliff face: 8
+Perimeter outcrop #: 64
+Canopy silhouette #: 26
+Perimeter outcrop # (#): 36
+Interior mineral island #: 10
+Mushroom grove #: 8
+Ion crystals #: 13
+Ion crystals # (#): 12
+Interior mineral island # (#): 2
+Bollard # - Ion cyan: 21
+Bollard # - Route amber: 5
+Bollard # - Habitat amber: 10
+Bollard # - Route lime: 5
+Bollard # - Signal orchid: 1
+PF_Canopy_MushroomTree: 33
+tripo_convert_ea#d#-#-#f#-#a#-#c#aa#e#: 1
+tripo_convert_dfc#a#d-#c#c-#a#-#ca#-#eb#ea#b#a: 1
+tripo_convert_#-d#dc-#e#-bee#-#dba#b: 1
+tripo_convert_#b#-ca#-#-ae#-#a#da#: 1
+tripo_convert_#ceecb#-#-#c#-b#fb-#c#d#fadf: 1

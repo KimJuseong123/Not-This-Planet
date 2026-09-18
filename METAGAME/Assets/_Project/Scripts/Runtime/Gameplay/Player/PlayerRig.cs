@@ -1076,7 +1076,8 @@ namespace Metagame.Gameplay
                                             0f, Tuning.ArmReach + Tuning.GrabAssistRange);
                     probePoint = origin + forward * depth;
                 }
-                var point = collider.ClosestPoint(probePoint);
+                var pointReach = isSpecial ? Tuning.SpecialGrabAssistRadius : Tuning.GrabAssistRange;
+                if (!Hand.TryGetGripPoint(collider, probePoint, pointReach, out var point)) continue;
                 var centerDistance = Vector3.Distance(center, point);
                 var distance = Vector3.Distance(origin, point);
                 var angle = AngleFrom(origin, forward, point);
