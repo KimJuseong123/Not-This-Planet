@@ -127,15 +127,40 @@ namespace Metagame.Gameplay.Tests
             Assert.That(Suit.WorstDrift(), Is.LessThan(0.0001f));
         }
 
-        [TestCase(false, false)]
-        [TestCase(true, true)]
-        public void AirborneOrBlockedImmediatelyReturnsToPhysics(bool grounded, bool blocked)
+        /// <summary>
+        /// 기절·탑승처럼 <b>몸을 빼앗긴</b> 상태는 즉시 물리로 돌아간다.
+        ///
+        /// <para><b>공중은 이제 여기서 빠진다</b>(S15P21B202-628). 예전에는 공중도
+        /// 물리로 돌려보냈는데 — 그래서 체공 1.36초 동안 아무 자세도 없었다 —
+        /// 지금은 세로 속도로 고른 공중 자세를 쓴다. 전제를 바꿨으면 그 전제를
+        /// 재는 검증도 같이 바꿔야 한다(576 의 유형 R).</para>
+        /// </summary>
+        [Test]
+        public void BeingBlockedImmediatelyReturnsToPhysics()
         {
             Advance(Walking);
-            var state = Walking; state.Grounded = grounded; state.Blocked = blocked;
+            var state = Walking; state.Blocked = true;
             Advance(state, 1);
             Assert.That(Suit.Locomotion.Weight, Is.Zero);
             Assert.That(Suit.WorstDrift(), Is.LessThan(0.0001f));
+        }
+
+        /// <summary>
+        /// 공중에서는 <b>걷기는 꺼지되 자세는 남는다</b> (S15P21B202-628).
+        ///
+        /// <para>둘을 같이 재는 이유: 걷기가 안 꺼지면 공중에서 다리가 걸음을 걷고,
+        /// 자세가 안 써지면 1.36초 동안 허우적임만 보인다.</para>
+        /// </summary>
+        [Test]
+        public void GoingAirborneStopsWalkingButKeepsAPose()
+        {
+            Advance(Walking);
+            var state = Walking; state.Grounded = false; state.VerticalSpeed = -2f;
+            Advance(state, 12);
+
+            Assert.That(Suit.Locomotion.Weight, Is.Zero, "공중에서 걷기가 안 꺼졌다.");
+            Assert.That(Suit.WorstDrift(), Is.GreaterThan(0.0001f),
+                "공중인데 물리 자세 그대로다 — 공중 자세가 안 써지고 있다.");
         }
 
         [Test]

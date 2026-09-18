@@ -568,6 +568,25 @@ namespace Metagame.Gameplay
         public float AirTime { get; private set; }
 
         /// <summary>
+        /// 골반이 실제로 오르내리는 속도(m/s). 위가 양수 (S15P21B202-628).
+        ///
+        /// <para><b>리지드바디 속도를 쓰지 않는다.</b> 남의 몸은
+        /// <c>RemoteAvatar</c> 가 <c>MovePosition</c> 으로 옮기므로 그 값이 물리
+        /// 결과가 아니다 — 원격에서는 엉뚱한 수가 나온다. 골반이 <b>실제로 움직인
+        /// 거리</b>를 재면 내 몸이든 남의 몸이든 같은 방법으로 같은 답이 나오고,
+        /// 새로 동기화할 것도 권위 문제도 없다.</para>
+        ///
+        /// <para>공중 자세가 이 값 하나로 정해진다 — 그래서 난간에서 떨어질 때도
+        /// 점프할 때와 같은 자세가 그대로 쓰인다.</para>
+        /// </summary>
+        public float VerticalSpeed { get; private set; }
+        float lastHipsY;
+        bool hipsYKnown;
+
+        /// <summary>제 발로 뛴 점프인가 (S15P21B202-628). 떨어진 것과 구별한다 — 최고점 표현이 다르다.</summary>
+        public bool JumpedUp { get; private set; }
+
+        /// <summary>
         /// 광역 저중력장 안에서 떠 있는가.
         ///
         /// 파츠는 저중력장이 힘으로 끌어당기지만 플레이어는 그러지 않는다. 기획
@@ -1983,6 +2002,9 @@ namespace Metagame.Gameplay
         // ── 부활 / 순간이동 ─────────────────────────────────────
         public void Teleport(Vector3 footPos, Quaternion facing)
         {
+            // 옮긴 거리를 속도로 읽으면 안 된다 (S15P21B202-628).
+            hipsYKnown = false;
+            JumpedUp = false;
             if (MountedVehicle != null) ForceExitTransportVehicle(MountedVehicle);
             else DisconnectTransportJoint();   // 우주선에 붙어 있었다면 여기서 떨어진다
 
@@ -2630,6 +2652,7 @@ namespace Metagame.Gameplay
                 && water.CanSwim(Doll.Hips.position, Swimming);
             if (Swimming) fallPeakFootHeight = FootPosition.y;
             ProbeGround();
+            UpdateVerticalSpeed();
 
             // 기절·던져짐 중에는 조작이 없다. 넉백은 그대로 받는다 — 운석에 굴러다녀야
             // 한다(기획 §26-13 의 긴장이 거기서 나온다).
@@ -2697,6 +2720,22 @@ namespace Metagame.Gameplay
         }
 
         // ── 바닥 ────────────────────────────────────────────────
+        /// <summary>
+        /// 골반의 세로 이동을 속도로 바꾼다. <see cref="VerticalSpeed"/> 참조.
+        ///
+        /// <para>첫 틱에는 이전 값이 없으므로 0 으로 둔다 — 안 그러면 태어나는
+        /// 순간 엄청난 속도가 한 번 튀고, 그 프레임의 공중 자세가 튄다.</para>
+        /// </summary>
+        void UpdateVerticalSpeed()
+        {
+            float y = Doll.Hips.position.y;
+            float dt = Time.fixedDeltaTime;
+            VerticalSpeed = hipsYKnown && dt > 0f ? (y - lastHipsY) / dt : 0f;
+            lastHipsY = y;
+            hipsYKnown = true;
+            if (Grounded) JumpedUp = false;
+        }
+
         void ProbeGround()
         {
             bool wasGrounded = Grounded;
@@ -3174,6 +3213,7 @@ namespace Metagame.Gameplay
                 }
                 jumpLock = 0.30f;
                 Grounded = false;
+                JumpedUp = true;
                 Puff.Regolith(FootPosition, 0.45f);
             }
         }
