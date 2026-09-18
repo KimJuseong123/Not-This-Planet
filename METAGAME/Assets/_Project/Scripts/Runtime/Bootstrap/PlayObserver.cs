@@ -193,7 +193,27 @@ namespace Metagame.Bootstrap
         /// </summary>
         void OnDestroy()
         {
-            End("destroy");
+            End(ResultOf(PlayEvents.LeftForTitle, session != null && session.Cleared));
+        }
+
+        /// <summary>
+        /// 씬 교체로 끝날 때의 결과 (S15P21B202-625). <b>순수 함수라 검사가 네 조합을
+        /// 다 지난다</b> — 실제 경로로만 두면 에디터에서 한 갈래만 밟힌다(<c>-501</c>·
+        /// <c>-523</c> 에서 인자 계산을 떼어 낸 것과 같은 이유다).
+        ///
+        /// <para><b>깬 것이 먼저다.</b> 깨고 나서 로비로 갔든 타이틀로 갔든 그 판은 깬
+        /// 판이다 — 나간 방식은 판의 결과가 아니다. 그래서 <paramref name="cleared"/> 를
+        /// 먼저 본다.</para>
+        ///
+        /// <para><b>모르는 것은 <c>destroy</c> 로 둔다.</b> 안 깼고 타이틀로 나간 것도
+        /// 아니면 튕김·오류·알 수 없는 씬 교체다. 여기서 <c>failed</c> 라고 적으면
+        /// <b>접속이 끊긴 판을 실패한 판으로 세게 된다</b> — 이름만으로는 가를 수 없는
+        /// 것에 이름을 주지 않는다. 옛 데이터와 값이 이어지는 이점도 있다.</para>
+        /// </summary>
+        public static string ResultOf(bool leftForTitle, bool cleared)
+        {
+            if (cleared) return "cleared";
+            return leftForTitle ? "abandoned" : "destroy";
         }
 
         static int[] Snapshot(ShipAssembly a)

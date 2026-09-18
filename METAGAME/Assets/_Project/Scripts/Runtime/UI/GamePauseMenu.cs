@@ -136,6 +136,11 @@ namespace Metagame.UI
             if (!titleTransitionStarted)
                 return;
 
+            // **사람이 판을 떠났다** (S15P21B202-625). 씬이 내려가면 이 사실을 알 길이
+            // 없고, 그러면 깨고 로비로 간 판과 구분되지 않는다. 전환이 **시작된 뒤**에
+            // 표시한다 — 위에서 돌아섰으면 판은 계속되는 중이다.
+            PlayEvents.NoteLeftForTitle(true);
+
             session.SetInputSuppressed(true);
             session.SetCursor(false);
         }
@@ -143,6 +148,11 @@ namespace Metagame.UI
         private void OnTitleTransitionFailed(string message)
         {
             titleTransitionStarted = false;
+
+            // **못 떠났으면 표시도 되돌린다** (S15P21B202-625). 사람은 판에 남았으므로,
+            // 세운 채로 두면 그 뒤에 실제로 끝난 판이 떠난 판으로 셈된다.
+            PlayEvents.NoteLeftForTitle(false);
+
             if (session == null)
                 return;
 
