@@ -66,6 +66,7 @@ namespace Metagame.Gameplay.Tests
             finally { EditorSceneManager.CloseScene(scene,true); }
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator SceneRunsAndHostEnforcesRangeOccupancyAssemblyAndRecovery()
         {
@@ -166,6 +167,7 @@ namespace Metagame.Gameplay.Tests
             yield return new ExitPlayMode();
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator SprayCleansTeammateButCannotCrossWallOrCleanSelf()
         {
@@ -199,6 +201,7 @@ namespace Metagame.Gameplay.Tests
             yield return new ExitPlayMode();
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator Stage1EndingContinuesIntoStage2WithFreshGameplay()
         {

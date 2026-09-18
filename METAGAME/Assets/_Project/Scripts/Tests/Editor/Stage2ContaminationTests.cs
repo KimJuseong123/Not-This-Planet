@@ -26,7 +26,11 @@ namespace Metagame.Gameplay.Tests
             teammate=PlayerRig.Create("Hazard test teammate",new Vector3(-5,.1f,-5),Quaternion.identity,Color.white,Color.blue,false);
             teammate.IsLocal=false;teammate.SetInput(default);yard.Register(2,teammate);
         }
-        [UnityTearDown] public IEnumerator Cleanup(){if(Application.isPlaying)yield return new ExitPlayMode();}
+        // **연 씬을 반드시 닫는다** (S15P21B202-611). 플레이 모드만 빠져나오면 이 씬이
+        // 열린 채로 남아, 뒤이어 도는 검증들이 그 콜라이더를 만난다 — `-604` 에서
+        // 그렇게 운반체 검증 9건이 한꺼번에 무너졌다.
+        [UnityTearDown] public IEnumerator Cleanup(){if(Application.isPlaying)yield return new ExitPlayMode();
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);}
         void Tick(uint id,float dt,string method="UpdateContamination")
         {
             var workers=(IDictionary)typeof(Stage2Yard).GetField("_workers",Private).GetValue(yard);
@@ -40,7 +44,7 @@ namespace Metagame.Gameplay.Tests
             state.Contamination=contamination;state.Tool=tool;field.SetValue(worker,state);
         }
 
-        [UnityTest] public IEnumerator CycleHasSafeIntroductionWarningLeakAndRest()
+        [Category("Heavy")] [UnityTest] public IEnumerator CycleHasSafeIntroductionWarningLeakAndRest()
         {
             Assert.That(yard.State.GasEnabled,Is.False);
             yard.State.GasClock=10;Assert.That(yard.GasActive,Is.False);
@@ -50,7 +54,7 @@ namespace Metagame.Gameplay.Tests
             foreach(float t in new[]{23f,39.99f}){yard.State.GasClock=t;Assert.That(yard.GasActive||yard.GasWarning,Is.False);}
             yield break;
         }
-        [UnityTest] public IEnumerator ExposureUsesHeightBoundsAndDoesNotStackOverlappingVolumes()
+        [Category("Heavy")] [UnityTest] public IEnumerator ExposureUsesHeightBoundsAndDoesNotStackOverlappingVolumes()
         {
             yard.State.GasEnabled=true;yard.State.GasClock=7;
             Move(rig,new Vector3(12,5,10));Tick(1,11);Assert.That(yard.PlayerState(1).Contamination,Is.EqualTo(.2f).Within(.001f));
@@ -60,21 +64,21 @@ namespace Metagame.Gameplay.Tests
             yard.Remove(2);SetState(1,0);Move(rig,new Vector3(16,1,10));Tick(1,9);Assert.That(yard.PlayerState(1).Contamination,Is.EqualTo(.1f).Within(.001f),"Solo grace period is 90 exposure seconds");
             yield break;
         }
-        [UnityTest] public IEnumerator WalkingBackToSpawnDoesNotReplaceShowerButRespawnCleans()
+        [Category("Heavy")] [UnityTest] public IEnumerator WalkingBackToSpawnDoesNotReplaceShowerButRespawnCleans()
         {
             Move(rig,GameSession.Instance.SpawnFoot);SetState(1,.6f);Tick(1,.1f);
             Assert.That(yard.PlayerState(1).Contamination,Is.EqualTo(.6f).Within(.001f),"Walking into preparation must not instantly decontaminate");
             GameSession.Instance.RespawnPlayer(rig);Tick(1,.1f);
             Assert.That(yard.PlayerState(1).Contamination,Is.Zero,"Actual personal recovery clears contamination");yield break;
         }
-        [UnityTest] public IEnumerator ShowerCleansAndFullExposureDownsWithoutHealingBySpray()
+        [Category("Heavy")] [UnityTest] public IEnumerator ShowerCleansAndFullExposureDownsWithoutHealingBySpray()
         {
             yard.State.GasEnabled=true;yard.State.GasClock=7;Move(rig,new Vector3(16,1,10));Tick(1,55);
             Assert.That(rig.Downed,Is.True);Assert.That(yard.PlayerState(1).Contamination,Is.EqualTo(1));
             Move(rig,new Vector3(-17,0,-12));Tick(1,3);Assert.That(yard.PlayerState(1).Contamination,Is.EqualTo(.34f).Within(.001f));
             Assert.That(rig.Downed,Is.True,"Decontamination does not replace rescue or heal physical injury");yield break;
         }
-        [UnityTest] public IEnumerator SprayReachesUpperFloorButRejectsRangeAndAngleAndReplicaCannotSimulate()
+        [Category("Heavy")] [UnityTest] public IEnumerator SprayReachesUpperFloorButRejectsRangeAndAngleAndReplicaCannotSimulate()
         {
             Move(rig,new Vector3(-5,.1f,-5));Move(teammate,new Vector3(-5,5,-1));
             SetState(1,.6f,YardTool.Sprayer);SetState(2,.8f);

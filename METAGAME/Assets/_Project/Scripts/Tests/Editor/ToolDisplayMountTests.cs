@@ -26,6 +26,7 @@ namespace Metagame.Gameplay.Tests
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator AuthoredToolsStaySeatedAndCanBePickedUpAndDropped()
         {
@@ -131,6 +132,7 @@ namespace Metagame.Gameplay.Tests
             yield return new ExitPlayMode();
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator RemotePickupLateJoinAndDisableReleaseMounts()
         {

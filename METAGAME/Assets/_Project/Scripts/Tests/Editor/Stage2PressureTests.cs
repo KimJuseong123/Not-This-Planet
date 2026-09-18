@@ -22,14 +22,18 @@ namespace Metagame.Gameplay.Tests
             yard=Object.FindFirstObjectByType<Stage2Yard>();yard.enabled=false;yard.SetAuthority(true);
             rig=GameSession.Instance.LocalPlayer;rig.SetInput(default);yard.Register(1,rig);
         }
-        [UnityTearDown] public IEnumerator Cleanup(){if(Application.isPlaying)yield return new ExitPlayMode();}
+        // **연 씬을 반드시 닫는다** (S15P21B202-611). 플레이 모드만 빠져나오면 이 씬이
+        // 열린 채로 남아, 뒤이어 도는 검증들이 그 콜라이더를 만난다 — `-604` 에서
+        // 그렇게 운반체 검증 9건이 한꺼번에 무너졌다.
+        [UnityTearDown] public IEnumerator Cleanup(){if(Application.isPlaying)yield return new ExitPlayMode();
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);}
         void Tick(float dt=.02f)=>typeof(Stage2Yard).GetMethod("TickPressureSurge",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(yard,new object[]{dt});
         void PlaceAt(Vector3 hips)
         {
             rig.Teleport(hips-(rig.Position-rig.FootPosition),Quaternion.identity);Physics.SyncTransforms();
             foreach(var body in rig.Doll.Bodies)if(!body.isKinematic){body.linearVelocity=Vector3.zero;body.angularVelocity=Vector3.zero;}
         }
-        [UnityTest] public IEnumerator SafeIntroductionWarningBurstRestAndRoundRobin()
+        [Category("Heavy")] [UnityTest] public IEnumerator SafeIntroductionWarningBurstRestAndRoundRobin()
         {
             yard.State.PressureClock=18;Assert.That(yard.PressurePhase(0),Is.Zero);Tick();Assert.That(yard.State.PressureClock,Is.EqualTo(18));
             yard.State.GasEnabled=true;
@@ -39,7 +43,7 @@ namespace Metagame.Gameplay.Tests
             yard.State.PressureClock=60;Assert.That(yard.PressurePhase(1),Is.EqualTo(2));Assert.That(yard.PressurePhase(0),Is.Zero);
             yard.State.Launched=true;Assert.That(yard.PressurePhase(1),Is.Zero);yield break;
         }
-        [UnityTest] public IEnumerator BurstPhysicallyPushesOncePerCooldownAndWallBlocksIt()
+        [Category("Heavy")] [UnityTest] public IEnumerator BurstPhysicallyPushesOncePerCooldownAndWallBlocksIt()
         {
             var pump=yard.PressurePumps[0];var p=pump.Nozzle.position+pump.Direction*2;
             PlaceAt(p);Assert.That(pump.Contains(rig.Position),Is.True);Assert.That(pump.ClearTo(rig),Is.True);
@@ -51,7 +55,7 @@ namespace Metagame.Gameplay.Tests
             yard.State.PressureClock=19;Tick();Assert.That(pump.ClearTo(rig),Is.False);Assert.That(rig.Hips.linearVelocity.magnitude,Is.LessThan(.001f));
             Object.Destroy(wall);yield break;
         }
-        [UnityTest] public IEnumerator ValveRequiresReachAndSuppressesOnlyItsPump()
+        [Category("Heavy")] [UnityTest] public IEnumerator ValveRequiresReachAndSuppressesOnlyItsPump()
         {
             var target=yard.Targets.First(t=>t.Kind==YardTargetKind.PressureRelief && t.Index==0);
             yard.State.GasEnabled=true;yard.State.PressureClock=18;
@@ -63,7 +67,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(yard.State.PressureRelief[0],Is.EqualTo(45));Assert.That(yard.PressurePhase(0),Is.Zero);Assert.That(yard.State.PressureRelief[1],Is.Zero);
             Tick(1);Assert.That(yard.State.PressureRelief[0],Is.EqualTo(44));yield break;
         }
-        [UnityTest] public IEnumerator ReplicaCannotPushOrRelieveAndLateJoinRetainsPhase()
+        [Category("Heavy")] [UnityTest] public IEnumerator ReplicaCannotPushOrRelieveAndLateJoinRetainsPhase()
         {
             yard.State.GasEnabled=true;yard.State.PressureClock=18;yard.State.PressureRelief[2]=30;
             var snapshot=JsonUtility.FromJson<Stage2State>(JsonUtility.ToJson(yard.Capture()));
@@ -71,7 +75,7 @@ namespace Metagame.Gameplay.Tests
             Tick();Assert.That(rig.Hips.linearVelocity.magnitude,Is.LessThan(.001f));Assert.That(yard.PressurePhase(0),Is.EqualTo(2));Assert.That(yard.State.PressureRelief[2],Is.EqualTo(30));
             var target=yard.Targets.First(t=>t.Kind==YardTargetKind.PressureRelief);yard.Submit(1,new YardCommand{Action=YardAction.Interact,Target=target.Id});Assert.That(yard.State.PressureRelief[0],Is.Zero);yield break;
         }
-        [UnityTest] public IEnumerator SceneHasThreeTexturedPumpsAndClearUsableJets()
+        [Category("Heavy")] [UnityTest] public IEnumerator SceneHasThreeTexturedPumpsAndClearUsableJets()
         {
             Assert.That(yard.PressurePumps.Length,Is.EqualTo(3));Assert.That(yard.Targets.Length,Is.EqualTo(29));Assert.That(yard.Targets.Select(t=>t.Id).Distinct().Count(),Is.EqualTo(29));
             foreach(var pump in yard.PressurePumps)
@@ -86,7 +90,7 @@ namespace Metagame.Gameplay.Tests
             }
             yield break;
         }
-        [UnityTest] public IEnumerator RuntimeJetTravelsAndStopsAfterBurst()
+        [Category("Heavy")] [UnityTest] public IEnumerator RuntimeJetTravelsAndStopsAfterBurst()
         {
             yard.State.GasEnabled=true;yard.State.PressureClock=18.3f;
             var pump=yard.PressurePumps[0];

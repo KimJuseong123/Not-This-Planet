@@ -66,6 +66,7 @@ namespace Metagame.Gameplay.Tests
             Assert.Throws<InvalidOperationException>(()=>Stage2ArtIntegration.Validate());
             Assert.That(File.ReadAllText("../artifacts/stage2-art/scene-validation.json"),Does.Contain("Registered interaction targets differ from scene"));
         }
+        [Category("Heavy")]
         [Test]
         public void FailedRefinementRollsBackAndRemovesOnlyItsGeneratedAssets()
         {
@@ -84,6 +85,7 @@ namespace Metagame.Gameplay.Tests
             CollectionAssert.AreEquivalent(originalFolders,AssetDatabase.GetSubFolders(TerrainFolder));
             CollectionAssert.AreEqual(bytes,File.ReadAllBytes(temporaryScene));
         }
+        [Category("Heavy")]
         [Test]
         public void RefinementPreservesSavedDataDrainageAndSupportsUndoRedo()
         {
@@ -112,6 +114,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(terrain.terrainData,Is.SameAs(preview));
             Assert.That(terrain.GetComponent<TerrainCollider>().terrainData,Is.SameAs(preview));
         }
+        [Category("Heavy")]
         [Test]
         public void ConversionPreservesLegacyGroundAndDoesNotSaveScene()
         {
