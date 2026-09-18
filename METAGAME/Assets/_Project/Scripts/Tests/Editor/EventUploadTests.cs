@@ -128,9 +128,14 @@ namespace Metagame.Gameplay.Tests
         public void TheEndOfAMatchAsksForOneMoreSweep()
         {
             var observer = TestSource.Read("Runtime/Bootstrap/PlayObserver.cs");
-            var end = TestSource.Method(observer, "void End(string result)");
+            var end = TestSource.Method(observer, "public void End(string result, bool sweep");
             Assert.That(end, Does.Contain("RunLogUpload.Request"),
                         "판을 닫으면서 보내지 않는다 — 한 번 켜고 끄는 사람의 기록이 안 온다");
+
+            // **앱 종료 경로는 빼 둔다** (`!514` AI 리뷰). 거기서 시작한 전송은 끝나지
+            // 못한다 — 그 결정을 `if` 로 지킨다. 자세한 단정은 `RunLogUploadTests` 에 있다.
+            Assert.That(end, Does.Contain("if (sweep)"),
+                        "종료 경로를 가릴 스위치가 없다 — 종료 훅에서도 보내게 된다");
 
             var session = TestSource.Read("Runtime/Network/NetworkSession.cs");
             Assert.That(session, Does.Contain("RunLogUpload.SweepRequested = SweepNow"),

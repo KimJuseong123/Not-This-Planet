@@ -135,7 +135,15 @@ namespace Metagame.Bootstrap
         /// <para>두 번 불려도 괜찮다. 파일이 닫히면 <c>Open</c> 이 거짓이 되고,
         /// <see cref="PlayEvents.End"/> 자체도 두 번 호출을 견딘다.
         /// </summary>
-        public void End(string result)
+        /// <param name="sweep">
+        /// 파일을 닫은 뒤 <b>보내기를 요청할지</b> (S15P21B202-607).
+        ///
+        /// <para><b>앱 종료 경로에서는 거짓이다</b>(<c>!514</c> AI 리뷰). 종료 훅에서
+        /// 시작한 전송은 끝나지 못하는데, 이 인자가 없던 동안
+        /// <see cref="OnApplicationQuit"/> → <c>End</c> → 요청 경로로 <b>그 일이 실제로
+        /// 일어났다</b> — 문서와 코드가 어긋난 상태였다.</para>
+        /// </param>
+        public void End(string result, bool sweep = true)
         {
             if (!PlayEvents.Open) return;
 
@@ -160,10 +168,17 @@ namespace Metagame.Bootstrap
             // **판이 끝났으니 보낸다** (S15P21B202-607). 파일을 막 닫은 직후가 보낼 수
             // 있는 가장 이른 자리이고, 플레이 중이 아니다. 듣는 쪽이 없으면(로그인 전·
             // 세션 객체가 내려가는 중) 아무 일도 안 일어나고 다음 로그인이 잡는다.
-            RunLogUpload.Request();
+            //
+            // **앱 종료 경로에서는 부르지 않는다.** 거기서 시작한 전송은 끝나지 못한다 —
+            // 그 결정은 `RunLogUpload` 주석에 있고, 이 `if` 가 그것을 코드로 지킨다.
+            if (sweep) RunLogUpload.Request();
         }
 
-        void OnApplicationQuit() => End("quit");
+        /// <summary>
+        /// 앱이 꺼질 때 닫는다. <b>보내지는 않는다</b> — 종료 훅에서 시작한 전송은
+        /// 끝나지 못한다(<see cref="RunLogUpload"/>). 못 보낸 것은 다음 실행이 잡는다.
+        /// </summary>
+        void OnApplicationQuit() => End("quit", sweep: false);
 
         /// <summary>
         /// 씬이 내려갈 때도 닫는다.

@@ -260,6 +260,18 @@ namespace Metagame.Gameplay.Tests
                 "종료 훅에서 보낸다 — 종료가 지연되고 크래시 판을 못 받는다");
             Assert.That(upload, Does.Not.Contain("Application.quitting"),
                 "종료 훅에서 보낸다 — 종료가 지연되고 크래시 판을 못 받는다");
+
+            // **이 파일만 봐서는 부족하다** (`!514` AI 리뷰). 종료 경로가 다른 파일에
+            // 생길 수 있고 실제로 생겼다 — `PlayObserver.OnApplicationQuit` → `End` →
+            // `RunLogUpload.Request` 로 이어져, 위 단정은 통과하는데 **종료 훅에서
+            // 전송이 시작됐다.** 부르는 쪽까지 본다.
+            var observer = TestSource.Blank(TestSource.Read("Runtime/Bootstrap/PlayObserver.cs"));
+            Assert.That(observer, Does.Contain("OnApplicationQuit() => End("),
+                "종료 훅이 사라졌다 — 판을 닫는 자리가 하나 없어졌다");
+            Assert.That(observer, Does.Contain("sweep: false"),
+                "종료 훅이 보내기를 끄지 않는다 — 끝나지 못하는 전송이 시작된다");
+            Assert.That(observer, Does.Contain("if (sweep)"),
+                "보내기 요청이 그 스위치를 보지 않는다 — 끈 것이 지켜지지 않는다");
         }
 
         [Test]
