@@ -13,6 +13,8 @@ namespace Metagame.Gameplay
         public static GameSession Instance;
 
         public PlayerRig LocalPlayer;
+        public event System.Action<PlayerRig> PlayerRespawned;
+        public System.Func<InputFrame, InputFrame> StageInputFilter { get; set; }
 
         /// <summary>전원이 기절한 채 흐른 시간. 출구 판정에만 쓴다.</summary>
         float allDownedSeconds;
@@ -99,10 +101,12 @@ namespace Metagame.Gameplay
         /// 세계 시간과 물리·운석 진행은 계속 흘러야 하므로 Time.timeScale을 바꾸지 않는다.
         /// </summary>
         public bool InputSuppressed { get; private set; }
+        public Stage1Sequence Sequence { get; set; }
+        public bool CinematicInputBlocked => Sequence != null && Sequence.BlocksInput;
 
         /// <summary>로컬 태블릿 입력과 키 안내가 공유하는 사용 가능 조건.</summary>
         public bool CanToggleTablet => LocalPlayer != null && Exploration != null
-            && !EndingActive && !InputSuppressed && !ScriptedInput;
+            && !EndingActive && !InputSuppressed && !ScriptedInput && !CinematicInputBlocked;
 
         /// <summary>체크포인트 N 에 서 있을 때 화면에 뜨는 "지금 할 일".</summary>
         static readonly string[] Hints =
@@ -146,6 +150,12 @@ namespace Metagame.Gameplay
         void Update()
         {
             if (EndingActive) return;
+            if (CinematicInputBlocked)
+            {
+                LocalPlayer?.SetInput(new InputFrame());
+                Transport?.SetInput(new InputFrame());
+                return;
+            }
             if (!Cleared && !ProgressFromHost && LocalPlayer == null) Elapsed += Time.deltaTime;
             if (LocalPlayer == null) return;
 
@@ -212,9 +222,12 @@ namespace Metagame.Gameplay
                     f.ToolUtility = false;
                     f.TransportAction = false;
                     f.ArmsUp = false;
+                    f.ProneHeld = false;
                     f.FreeLook = false;
                     f.PingPressed = false;
                 }
+
+                if (StageInputFilter != null) f = StageInputFilter(f);
 
                 // 끼임 탈출은 3초 유지다(기획 §21). 예전에는 GetKeyDown 으로 즉시
                 // 스폰 지점으로 보내면서 Revive 까지 불러 §20 의 기절·구조를 우회했다
@@ -274,6 +287,7 @@ namespace Metagame.Gameplay
                         f.ToolSecondary = false;
                         f.ToolUtility = false;
                         f.ArmsUp = false;
+                        f.ProneHeld = false;
                     }
                 }
                 LocalPlayer.SetInput(f);
@@ -395,6 +409,7 @@ namespace Metagame.Gameplay
             rig.Revive(rig.MaxHealth);
             rig.ResetHealth();
             rig.Teleport(SpawnFoot + Vector3.up * 0.15f, Quaternion.LookRotation(Vector3.right, Vector3.up));
+            PlayerRespawned?.Invoke(rig);
         }
 
         /// <summary>낙사인가. 서버가 접속자마다 같은 기준으로 본다(-55).</summary>

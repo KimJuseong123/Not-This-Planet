@@ -1,0 +1,13 @@
+{
+  "asset": "Crane",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 4,
+  "dimensions_m": [
+    30.130001068115234,
+    4.5450029373168945,
+    22.05198097229004
+  ],
+  "pivots_count": 4,
+  "passed": true
+}

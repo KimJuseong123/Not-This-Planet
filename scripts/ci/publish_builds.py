@@ -163,22 +163,7 @@ def stage() -> int:
             print(f"❌ 버전 이름이 어느 채널도 아니다: {version!r}")
             return 1
 
-        args = [game, version, "--out", BUILDS]
-        if channel == make_manifest.RELEASE:
-            # 릴리스는 **`latest.json` 을 건드리지 않는다** — 사람이 `promote-builds`
-            # 버튼으로 옮긴다. 다 올라가기 전에 최신이 바뀌면 그 사이에 켠 사람이
-            # 없는 파일을 받으려 한다.
-            args.append("--no-latest")
-        else:
-            # dev·qa 는 올리는 것이 곧 최신이다 — 새벽에 자동으로 도는 것을 사람이
-            # 아침마다 눌러 주게 만들면 그 버튼은 눌리지 않는다.
-            #
-            # **무엇으로 만든 빌드인지 싣는다.** 버전 문자열만으로는 목록에서
-            # "이거 언제 코드예요?" 를 매번 사람에게 물어야 한다.
-            args += ["--branch", stage_branch(staged),
-                     "--commit", stage_commit(staged, version)]
-
-        rc = make_manifest.main(args)
+        rc = make_manifest.main(manifest_args(game, version, channel, staged))
         if rc != 0:
             print(f"❌ 매니페스트 생성 실패({rc})")
             return rc
@@ -211,8 +196,34 @@ def stage() -> int:
 
     print()
     print(f"✅ {version} 을 올려 뒀다 — 아직 **아무도 이 버전을 받지 않는다.**")
-    print("   `promote-builds` 버튼을 눌러야 latest.json 이 옮겨진다.")
+    print("   `release-prod` 버튼을 눌러야 latest.json 이 옮겨진다.")
     return 0
+
+
+def manifest_args(game: str, version: str, channel: str, staged: str) -> list[str]:
+    """`make_manifest` 에 넘길 인자. **채널마다 "최신" 을 가져가는지가 다르다.**
+
+    이것이 `stage()` 밖에 있는 이유는 검사하기 위해서다 — `stage()` 는 레지스트리에서
+    156 MB 를 받아 푸는 일까지 하므로 오프라인 검사에서 부를 수가 없고, 그러면 이
+    판정이 통째로 검사 밖에 남는다.
+
+    |채널|`latest` 를 가져가나|왜|
+    |---|---|---|
+    |release|**아니오**|다 올라가기 전에 최신이 바뀌면 그 사이에 켠 사람이 없는 파일을 받는다. 사람이 `release-prod` 로 옮긴다|
+    |dev|예|develop 빌드라 기본값이 되는 것이 맞다. 아침마다 사람이 눌러 주게 만들면 그 버튼은 안 눌린다|
+    |qa|**아니오** (S15P21B202-582)|dev 와 `dev-latest.json` 을 함께 쓴다 — qa 가 그것을 가져가면 **누가 MR 버튼을 누를 때마다 팀 전체 개발 런처의 기본값이 그 미머지 브랜치가 된다.** 한 사람이 그 MR 을 QA 하려고 누른 것 때문에 나머지가 모르는 코드를 켜게 된다. 목록에는 올라가므로 **골라서** 쓴다|
+    """
+    import make_manifest
+
+    args = [game, version, "--out", BUILDS]
+    if channel == make_manifest.RELEASE:
+        return args + ["--no-latest"]
+    # **무엇으로 만든 빌드인지 싣는다.** 버전 문자열만으로는 목록에서
+    # "이거 언제 코드예요?" 를 매번 사람에게 물어야 한다.
+    args += ["--branch", stage_branch(staged), "--commit", stage_commit(staged, version)]
+    if channel == make_manifest.QA:
+        args.append("--no-latest")
+    return args
 
 
 def stage_branch(staged: str) -> str:

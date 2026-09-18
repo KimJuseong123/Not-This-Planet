@@ -1,0 +1,38 @@
+{
+  "asset": "Chimney",
+  "fbx": "S2_Chimney.fbx",
+  "blend": "Source~/S2_Chimney.blend",
+  "mesh_objects": 1,
+  "triangles": 1932,
+  "dimensions_m": [
+    2.5,
+    2.5,
+    12.0
+  ],
+  "bounds_min": [
+    -1.25,
+    -1.25,
+    0.0
+  ],
+  "bounds_max": [
+    1.25,
+    1.25,
+    12.0
+  ],
+  "materials": [
+    "S2_Concrete",
+    "S2_Orange",
+    "S2_Steel"
+  ],
+  "pivots": [
+    "S2_Chimney_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

@@ -1,0 +1,5 @@
+10 seconds at Earth gravity; original scene tool models and colliders.
+MeteorBat_Stage1: displacement=0, rotation=0
+WeldingPlasmaGun_Stage1: displacement=0, rotation=0
+MeteorBat_Stage1: focus, pickup, detach, Q drop, gravity/throw PASS
+WeldingPlasmaGun_Stage1: focus, pickup, detach, Q drop, gravity/throw PASS

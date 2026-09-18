@@ -1,0 +1,17 @@
+{
+  "asset": "Bracket",
+  "fbx": "S2_Bracket.fbx",
+  "fbm": "S2_Bracket.fbm",
+  "textures": [
+    "S2_Orange_BaseColor.png",
+    "S2_Steel_BaseColor.png",
+    "S2_Teal_BaseColor.png"
+  ],
+  "relative_texture_paths": [
+    "S2_Bracket.fbm/S2_Orange_BaseColor.png",
+    "S2_Bracket.fbm/S2_Steel_BaseColor.png",
+    "S2_Bracket.fbm/S2_Teal_BaseColor.png"
+  ],
+  "relative_paths_valid": true,
+  "passed": true
+}

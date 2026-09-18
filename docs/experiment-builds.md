@@ -21,6 +21,7 @@ Unity 플레이어는 늘 같은 경로에 쓰고 **다시 실행하면 덮어�
 |---|---|---|
 | **빌드 폴더** | `METAGAME/Build/<이슈번호>-<슬러그>` | `Build/374-rate0` |
 | **라벨** (`SPACE_EXPERIMENT`) | `<이슈번호>-<슬러그> \| source=<커밋7자> \| <바꾼 것>=<값>` | `374-rate0 \| source=72f0510 \| PredictionCorrection.Rate=0` |
+| **신원** (`SPACE_BUILD_ID`) | 라벨과 같은 `<이슈번호>-<슬러그>` 로 둡니다 — 이벤트·런로그가 이 값으로 빌드를 가립니다(`-597`) | `374-rate0` |
 | **로그 파일** | 자동 생성 — `<빌드 폴더>/logs/<yyyyMMdd-HHmmss>.log`. **손으로 이름 붙이지 않습니다** | `logs/20260910-114233.log` |
 | **브랜치** | `S15P21B202-<번호>-<슬러그>-experiment` — **머지하지 않습니다** | `S15P21B202-374-rate0-experiment` |
 | **넘겨줄 때** | 빌드 폴더의 `logs/` 를 압축합니다 | `logs.zip` |
@@ -48,6 +49,7 @@ Unity 플레이어는 늘 같은 경로에 쓰고 **다시 실행하면 덮어�
 $root = "…\S15P21B202\METAGAME"
 $env:SPACE_BUILD_DIR  = "$root\Build\374-rate0"
 $env:SPACE_EXPERIMENT = "374-rate0 | source=72f0510 | PredictionCorrection.Rate=0"
+$env:SPACE_BUILD_ID   = "374-rate0"   # 이벤트·런로그가 이 이름으로 빌드를 가립니다
 
 & "…\Unity.exe" -batchmode -quit -nographics -projectPath $root `
     -executeMethod Metagame.EditorTools.SpaceBuild.BuildWindows -logFile <빌드로그>

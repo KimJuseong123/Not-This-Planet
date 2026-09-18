@@ -1,0 +1,15 @@
+{
+  "asset": "Moss",
+  "fbx": "S2_Moss.fbx",
+  "fbm": "S2_Moss.fbm",
+  "textures": [
+    "S2_Concrete_BaseColor.png",
+    "S2_Moss_BaseColor.png"
+  ],
+  "relative_texture_paths": [
+    "S2_Moss.fbm/S2_Concrete_BaseColor.png",
+    "S2_Moss.fbm/S2_Moss_BaseColor.png"
+  ],
+  "relative_paths_valid": true,
+  "passed": true
+}

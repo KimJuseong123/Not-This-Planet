@@ -20,18 +20,39 @@ namespace Metagame.Gameplay
         /// <summary>동료를 양손으로 들어 위로 내던지는 한 번짜리 동작 (S15P21B202-519).</summary>
         public const string TossResource = "RabbitLocomotion/Rabbit_TossUp";
 
-        /// <summary>F2 로 고르는 춤 감정표현 (S15P21B202-563). 14.2초짜리 한 번짜리 동작.</summary>
+        /// <summary>F2 춤 1번 '뮤직챌린지' (S15P21B202-563). 14.2초짜리 한 번짜리 동작.</summary>
         public const string DanceResource = "RabbitLocomotion/Rabbit_Dance";
 
+        /// <summary>F2 춤 2번 'REDRED' (S15P21B202-576). 16.3초.</summary>
+        public const string RedRedResource = "RabbitLocomotion/Rabbit_RedRed";
+
+        /// <summary>F2 춤 3번 'BAD' (S15P21B202-593). 24.4초 — 셋 중 가장 길다.</summary>
+        public const string BadResource = "RabbitLocomotion/Rabbit_Bad";
+
+        // ── 엎드리기 (S15P21B202-616) ────────────────────────────────
+        //
+        // **몸이 눕는 것은 이 클립들에 없다.** 그건 물리가 한다(PlayerRig.Balance 의
+        // 목표 회전). 클립은 그 위에 얹히는 팔다리 모양만 맡는다 — 둘 다 눕히면
+        // 두 번 눕는다.
+        public const string ProneIdleResource = "RabbitLocomotion/Rabbit_ProneIdle";
+        public const string CrawlResource = "RabbitLocomotion/Rabbit_Crawl";
+        public const string LieDownResource = "RabbitLocomotion/Rabbit_LieDown";
+        public const string StandUpResource = "RabbitLocomotion/Rabbit_StandUp";
+
         /// <summary>
-        /// 춤이 저절로 끊기는 이동 속도(m/s).
+        /// 춤을 끊는 <b>밀림</b> 속도(m/s) (S15P21B202-596).
         ///
-        /// <para>던지기는 0.3초라 끝날 때까지 두면 그만이지만 <b>춤은 14.2초다</b> —
-        /// 그 사이 걸어다니면 다리는 춤을 추면서 몸은 미끄러진다. 걷기가 켜지는 문턱
-        /// (<see cref="CanAnimate"/> 의 0.15)과 같은 값을 써서, "걷기가 시작될 만큼
-        /// 움직였으면 춤은 끝" 이 되게 한다.</para>
+        /// <para><b>제 발로 걷는 것은 이 값이 잡지 않는다</b> — 방향키를 누르면
+        /// <see cref="State.MoveInput"/> 이 즉시 끊는다. 이 문턱이 남아 있는 이유는
+        /// 남이 밀거나 경사에서 미끄러지는 것처럼 <b>내 의지와 무관하게</b> 몸이
+        /// 움직이는 경우다. 그때까지 춤을 이어 두면 다리는 춤추고 몸은 미끄러진다.</para>
+        ///
+        /// <para>예전에는 이 값이 0.15(걷기가 켜지는 문턱)였다. 그 값은 <b>방향키를
+        /// 누르지 않았는데도</b> 제자리 흔들림이나 작은 접촉으로 넘어간다 — 춤이
+        /// 이유 없이 끊기는 것이 그래서였다. 걷기 속도의 절반으로 올려, 밀려서
+        /// 걷는 만큼 움직일 때만 끊는다.</para>
         /// </summary>
-        public const float DanceCancelSpeed = 0.15f;
+        public const float DanceShoveSpeed = Tuning.WalkSpeed * 0.5f;
 
         public static readonly IReadOnlyList<string> BoneNames = Array.AsReadOnly(new[]
         {
@@ -92,10 +113,28 @@ namespace Metagame.Gameplay
         readonly GameObject _poseRoot;
         readonly OneShot _tossShot = new() { Slot = 2, CancelOnMove = false };
         readonly OneShot _danceShot = new() { Slot = 3, CancelOnMove = true };
-        OneShot[] OneShots => _oneShots ??= new[] { _tossShot, _danceShot };
+        readonly OneShot _redredShot = new() { Slot = 4, CancelOnMove = true };
+        readonly OneShot _badShot = new() { Slot = 5, CancelOnMove = true };
+        // 자세 전환은 **걸어도 안 끊긴다** — 끊기면 눕다 만 자세로 굳는다.
+        readonly OneShot _lieDownShot = new() { Slot = 6, CancelOnMove = false };
+        readonly OneShot _standUpShot = new() { Slot = 7, CancelOnMove = false };
+        OneShot[] OneShots => _oneShots ??= new[]
+            { _tossShot, _danceShot, _redredShot, _badShot, _lieDownShot, _standUpShot };
         OneShot[] _oneShots;
+
+        /// <summary>
+        /// 번호로 고르는 춤들. <c>DanceCatalog.Names</c> 와 <b>순서도 개수도</b> 같아야 한다.
+        /// </summary>
+        OneShot[] DanceShots => _danceShots ??= new[] { _danceShot, _redredShot, _badShot };
+        OneShot[] _danceShots;
         PlayableGraph _graph;
         AnimationClipPlayable _walkNode, _runNode;
+        AnimationClip _proneIdle, _crawl;
+        AnimationClipPlayable _proneIdleNode, _crawlNode;
+        int ProneIdleSlot => 2 + OneShots.Length;
+        int CrawlSlot => ProneIdleSlot + 1;
+        float _proneWeight, _crawlBlend, _proneIdleTime;
+        bool _proneLast;
         AnimationMixerPlayable _mixer;
         float _phase, _weight, _runBlend;
         public float Weight => _weight;
@@ -140,17 +179,36 @@ namespace Metagame.Gameplay
         /// <summary>던지기 클립이 실제로 있는가. 없으면 <see cref="PlayToss"/> 가 조용히 아무것도 안 한다.</summary>
         public bool HasToss => _tossShot.Ready;
 
-        /// <summary>춤이 재생 중인가. 재생 중에는 보행이 물러난다.</summary>
-        public bool DanceActive => _danceShot.Active;
+        /// <summary>춤이 하나라도 재생 중인가. 재생 중에는 보행이 물러난다.</summary>
+        public bool DanceActive
+        {
+            get
+            {
+                foreach (var shot in DanceShots) if (shot.Active) return true;
+                return false;
+            }
+        }
 
-        /// <summary>춤의 현재 세기(0~1).</summary>
-        public float DanceWeightNow => _danceShot.Weight;
+        /// <summary>지금 도는 춤의 세기(0~1). 도는 것이 없으면 0.</summary>
+        public float DanceWeightNow
+        {
+            get
+            {
+                foreach (var shot in DanceShots) if (shot.Active) return shot.Weight;
+                return 0f;
+            }
+        }
 
-        /// <summary>춤 클립이 실제로 있는가. 없으면 <see cref="PlayDance"/> 가 조용히 아무것도 안 한다.</summary>
-        public bool HasDance => _danceShot.Ready;
+        /// <summary>목록에 있는 춤 수만큼 슬롯이 있는가. 검증이 읽는다.</summary>
+        public int DanceSlotCount => DanceShots.Length;
 
-        /// <summary>춤 길이(초). 클립이 없으면 0.</summary>
-        public float DanceLength => _danceShot.Ready ? _danceShot.Clip.length : 0f;
+        /// <summary>그 번호의 춤 클립이 있는가. 없으면 <see cref="PlayDance"/> 가 조용히 아무것도 안 한다.</summary>
+        public bool HasDance(byte id) =>
+            DanceCatalog.IsValid(id) && id <= DanceShots.Length && DanceShots[id - 1].Ready;
+
+        /// <summary>그 번호의 춤 길이(초). 클립이 없으면 0.</summary>
+        public float DanceLength(byte id) =>
+            HasDance(id) ? DanceShots[id - 1].Clip.length : 0f;
 
         public static RabbitLocomotion Create(Transform model, GameObject reference)
         {
@@ -162,16 +220,32 @@ namespace Metagame.Gameplay
             // 그대로 돌아야 한다 — 여기서 null 을 돌려주면 캐릭터가 통째로 뻣뻣해진다.
             var toss = Resources.Load<AnimationClip>(TossResource);
             var dance = Resources.Load<AnimationClip>(DanceResource);
-            return new RabbitLocomotion(model, reference, walk, run, toss, dance);
+            var redred = Resources.Load<AnimationClip>(RedRedResource);
+            var bad = Resources.Load<AnimationClip>(BadResource);
+            var proneIdle = Resources.Load<AnimationClip>(ProneIdleResource);
+            var crawl = Resources.Load<AnimationClip>(CrawlResource);
+            var lieDown = Resources.Load<AnimationClip>(LieDownResource);
+            var standUp = Resources.Load<AnimationClip>(StandUpResource);
+            return new RabbitLocomotion(model, reference, walk, run, toss, dance, redred, bad,
+                                        proneIdle, crawl, lieDown, standUp);
         }
 
-        RabbitLocomotion(Transform model, GameObject reference,
-                         AnimationClip walk, AnimationClip run, AnimationClip toss, AnimationClip dance)
+        RabbitLocomotion(Transform model, GameObject reference, AnimationClip walk,
+                         AnimationClip run, AnimationClip toss, AnimationClip dance,
+                         AnimationClip redred, AnimationClip bad,
+                         AnimationClip proneIdle, AnimationClip crawl,
+                         AnimationClip lieDown, AnimationClip standUp)
         {
             _walk = walk;
             _run = run;
             _tossShot.Clip = toss;
             _danceShot.Clip = dance;
+            _redredShot.Clip = redred;
+            _badShot.Clip = bad;
+            _lieDownShot.Clip = lieDown;
+            _standUpShot.Clip = standUp;
+            _proneIdle = proneIdle;
+            _crawl = crawl;
             // 메시/콜라이더/스크립트 없이 Transform만 복제한다. 원본 프리팹을 수정하지 않는다.
             _poseRoot = CloneSkeleton(reference.transform, null).gameObject;
             _poseRoot.name = "~Rabbit locomotion pose (runtime only)";
@@ -200,8 +274,11 @@ namespace Metagame.Gameplay
             _runNode = AnimationClipPlayable.Create(_graph, run);
             _walkNode.SetSpeed(0); _runNode.SetSpeed(0);
             _walkNode.SetApplyFootIK(false); _runNode.SetApplyFootIK(false);
-            // 0 걷기 · 1 달리기 · 2 던지기 · 3 춤. 한 번짜리가 늘면 여기와 OneShot.Slot 만 는다.
-            _mixer = AnimationMixerPlayable.Create(_graph, 4);
+            // 0 걷기 · 1 달리기 · 2 던지기 · 3~5 춤 · 6 엎드리기 · 7 일어서기
+            // · 8 엎드린 대기 · 9 기어가기.
+            // **한 번짜리가 늘면 이 수도 같이 늘려야 한다** — 안 늘리면 새 클립이
+            // 믹서에 못 붙어 조용히 아무 일도 안 일어난다. 검증이 이 수를 센다.
+            _mixer = AnimationMixerPlayable.Create(_graph, 2 + OneShots.Length + 2);
             _graph.Connect(_walkNode, 0, _mixer, 0);
             _graph.Connect(_runNode, 0, _mixer, 1);
             foreach (var shot in OneShots)
@@ -211,6 +288,18 @@ namespace Metagame.Gameplay
                 shot.Node.SetSpeed(0);
                 shot.Node.SetApplyFootIK(false);
                 _graph.Connect(shot.Node, 0, _mixer, shot.Slot);
+            }
+            if (_proneIdle != null)
+            {
+                _proneIdleNode = AnimationClipPlayable.Create(_graph, _proneIdle);
+                _proneIdleNode.SetSpeed(0); _proneIdleNode.SetApplyFootIK(false);
+                _graph.Connect(_proneIdleNode, 0, _mixer, ProneIdleSlot);
+            }
+            if (_crawl != null)
+            {
+                _crawlNode = AnimationClipPlayable.Create(_graph, _crawl);
+                _crawlNode.SetSpeed(0); _crawlNode.SetApplyFootIK(false);
+                _graph.Connect(_crawlNode, 0, _mixer, CrawlSlot);
             }
             AnimationPlayableOutput.Create(_graph, "Pose only", animator).SetSourcePlayable(_mixer);
             _mixer.SetInputWeight(0, 1f);
@@ -241,6 +330,18 @@ namespace Metagame.Gameplay
             public float Speed;
             public bool Grounded, Running, Blocked, LeftArmBusy, RightArmBusy;
             public Vector2 Direction;
+
+            /// <summary>
+            /// 방향키(또는 점프)를 누르고 있는가 (S15P21B202-596).
+            ///
+            /// <para><b>속도가 아니라 이것이 춤을 끝낸다.</b> 속도는 결과라서 늦고,
+            /// 밀려서 생긴 속도와 제 발로 낸 속도를 구별하지 못한다. 사용자가 원한
+            /// 것은 "방향키를 누르기 전까지는 고정된 춤" 이다.</para>
+            /// </summary>
+            public bool MoveInput;
+
+            /// <summary>제 발로 엎드려 있는가 (S15P21B202-616).</summary>
+            public bool Prone;
         }
 
         public static State ReadState(PlayerRig rig)
@@ -255,10 +356,16 @@ namespace Metagame.Gameplay
                 Running = input.Run,
                 Blocked = rig.Downed || rig.Ragdolled || rig.Floating || rig.IsRiding || rig.Hanging,
                 Direction = rig.MovementDirectionLocal,
+                MoveInput = input.Move.sqrMagnitude > 1e-4f || input.Jump,
+                Prone = rig.Prone,
                 LeftArmBusy = input.GrabLeft || input.ArmsUp || rig.LeftHand.Gripping || rig.LeftHand.Carrying || rig.HeldTool != null,
                 RightArmBusy = input.GrabRight || input.ArmsUp || rig.RightHand.Gripping || rig.RightHand.Carrying || rig.HeldTool != null
             };
         }
+
+        /// <summary>엎드린 자세를 그릴 수 있는가. 아직 안 구운 저장소에서도 게임은 돌아야 한다.</summary>
+        bool ProneReady => _proneIdle != null && _crawl != null
+            && _proneIdleNode.IsValid() && _crawlNode.IsValid();
 
         public static bool CanAnimate(State state) => state.Grounded && !state.Blocked &&
             state.Speed > 0.15f && Mathf.Abs(state.Direction.x) <= Mathf.Abs(state.Direction.y) + 0.1f;
@@ -269,6 +376,14 @@ namespace Metagame.Gameplay
             if (!_graph.IsValid()) return;
             deltaTime = Mathf.Clamp(deltaTime, 0f, 0.1f);
 
+            // 엎드리기/일어서기 전환을 **여기서** 켠다 (S15P21B202-616). 자세가 바뀐
+            // 것은 State 로 이미 들어오므로 밖에서 부르는 배관을 따로 늘리지 않는다.
+            if (state.Prone != _proneLast)
+            {
+                Play(state.Prone ? _lieDownShot : _standUpShot);
+                _proneLast = state.Prone;
+            }
+
             // ── 던지기가 보행보다 앞선다 (S15P21B202-519) ──────────────────
             //
             // 한 번짜리 동작이라 걷기와 섞지 않는다. 섞으면 던지는 동안 다리가 걸음을
@@ -278,9 +393,11 @@ namespace Metagame.Gameplay
             {
                 if (!shot.Active) continue;
 
-                // 춤은 14.2초라 그 사이 걸어다니면 다리는 춤추고 몸은 미끄러진다.
+                // 춤은 14~24초라 그 사이 걸어다니면 다리는 춤추고 몸은 미끄러진다.
+                // **방향키가 먼저다**(S15P21B202-596) — 속도는 밀림만 잡는 뒷문이다.
                 // 던지기(0.3초)는 이 검사를 받지 않는다 — 던지면서 걷는 것이 정상이다.
-                if (state.Blocked || (shot.CancelOnMove && state.Speed > DanceCancelSpeed))
+                if (state.Blocked
+                    || (shot.CancelOnMove && (state.MoveInput || state.Speed > DanceShoveSpeed)))
                 {
                     Cancel(shot);
                     continue;
@@ -304,6 +421,40 @@ namespace Metagame.Gameplay
                 WriteBones(link => link.InToss, shot.Weight, state, respectArmBusy: false);
                 return;
             }
+
+            // ── 엎드린 자세 (S15P21B202-616) ────────────────────────────
+            //
+            // 걷기/달리기와 **같은 층**이다 — 뗄 때까지 유지되는 자세라
+            // 한 번짜리(OneShot)로는 표현할 수 없다. 멈춰 있으면 대기,
+            // 움직이면 기어가기로 섞는다.
+            if (state.Prone && ProneReady)
+            {
+                _weight = 0f;
+                _proneWeight = Mathf.MoveTowards(_proneWeight, 1f, deltaTime / 0.12f);
+                _crawlBlend = Mathf.MoveTowards(_crawlBlend,
+                    state.Speed > 0.12f ? 1f : 0f, deltaTime / 0.15f);
+
+                _proneIdleTime = Mathf.Repeat(_proneIdleTime + deltaTime, _proneIdle.length);
+                // 기어가는 주기를 **실제 속도에 맞춘다.** 고정 속도로 돌리면 제자리에서
+                // 팔다리만 젓거나, 미끄러지듯 밀려간다.
+                float crawlRate = Mathf.Clamp(state.Speed / PlayerRig.CrawlSpeed, 0f, 1.6f);
+                _phase = Mathf.Repeat(_phase + deltaTime * crawlRate / Mathf.Max(_crawl.length, 0.01f), 1f);
+
+                _proneIdleNode.SetTime(_proneIdleTime);
+                _crawlNode.SetTime(_phase * _crawl.length);
+                _mixer.SetInputWeight(0, 0f);
+                _mixer.SetInputWeight(1, 0f);
+                foreach (var shot in OneShots) if (shot.Ready) _mixer.SetInputWeight(shot.Slot, 0f);
+                _mixer.SetInputWeight(ProneIdleSlot, 1f - _crawlBlend);
+                _mixer.SetInputWeight(CrawlSlot, _crawlBlend);
+                _graph.Evaluate(0f);
+
+                // 엎드리면 팔도 자세의 일부다 — 던지기와 같은 이유로 바쁜 팔을 빼지 않는다.
+                WriteBones(link => link.InToss, _proneWeight, state, respectArmBusy: false);
+                return;
+            }
+            _proneWeight = 0f;
+            _crawlBlend = 0f;
 
             // 공중/기절/탑승은 즉시 물리로 돌아가고 일반 정지만 짧게 전환한다.
             if (state.Blocked || !state.Grounded) { _weight = 0f; return; }
@@ -366,10 +517,17 @@ namespace Metagame.Gameplay
         ///
         /// <para>던지기와 마찬가지로 이미 재생 중이어도 <b>처음으로 되돌린다.</b></para>
         /// </summary>
-        public void PlayDance() => Play(_danceShot);
+        public void PlayDance(byte id)
+        {
+            if (!DanceCatalog.IsValid(id) || id > DanceShots.Length) return;
+            Play(DanceShots[id - 1]);
+        }
 
-        /// <summary>춤을 즉시 끝낸다. 걷기 시작하면 <see cref="Apply"/> 가 알아서 부른다.</summary>
-        public void CancelDance() => Cancel(_danceShot);
+        /// <summary>도는 춤을 즉시 끝낸다. 걷기 시작하면 <see cref="Apply"/> 가 알아서 부른다.</summary>
+        public void CancelDance()
+        {
+            foreach (var shot in DanceShots) Cancel(shot);
+        }
 
         void Play(OneShot shot)
         {

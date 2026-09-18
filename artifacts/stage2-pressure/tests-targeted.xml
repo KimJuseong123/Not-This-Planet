@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="8" result="Passed" total="8" passed="8" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-17 16:32:09Z" end-time="2026-09-17 16:32:10Z" duration="0.7882219">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="1904" result="Passed" start-time="2026-09-17 16:32:09Z" end-time="2026-09-17 16:32:10Z" duration="0.788222" total="8" passed="8" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="3132" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202/METAGAME/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="1868" result="Passed" start-time="2026-09-17 16:32:09Z" end-time="2026-09-17 16:32:10Z" duration="0.703276" total="8" passed="8" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="52768" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="3133" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="1868" result="Passed" start-time="2026-09-17 16:32:09Z" end-time="2026-09-17 16:32:10Z" duration="0.690154" total="8" passed="8" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="3138" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="1819" result="Passed" start-time="2026-09-17 16:32:09Z" end-time="2026-09-17 16:32:10Z" duration="0.676783" total="8" passed="8" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="3139" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="1819" result="Passed" start-time="2026-09-17 16:32:09Z" end-time="2026-09-17 16:32:10Z" duration="0.663594" total="8" passed="8" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="2724" name="Stage2ArtTests" fullname="Metagame.Gameplay.Tests.Stage2ArtTests" classname="Metagame.Gameplay.Tests.Stage2ArtTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-17 16:31:30Z" end-time="2026-09-17 16:31:30Z" duration="0.660432" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2725" name="AuthoredModelsKeepThreeBodiesAndOpenWalkingRoutes" fullname="Metagame.Gameplay.Tests.Stage2ArtTests.AuthoredModelsKeepThreeBodiesAndOpenWalkingRoutes" methodname="AuthoredModelsKeepThreeBodiesAndOpenWalkingRoutes" classname="Metagame.Gameplay.Tests.Stage2ArtTests" runstate="Runnable" seed="27244856" result="Passed" start-time="2026-09-17 16:31:21Z" end-time="2026-09-17 16:31:22Z" duration="0.769753" asserts="0">
+                <properties />
+                <output><![CDATA[[Stage2Art] Scene validation passed: 29 interactions, 9 bolts, 3 independent rocket modules.
+[Stage2 Terrain] Heightmap, four paint layers, collider and level work areas verified.
+]]></output>
+              </test-case>
+              <test-case id="2726" name="ReplicaMovesCraneLidLiftAndLadderArtWithoutNewNetworkObjects" fullname="Metagame.Gameplay.Tests.Stage2ArtTests.ReplicaMovesCraneLidLiftAndLadderArtWithoutNewNetworkObjects" methodname="ReplicaMovesCraneLidLiftAndLadderArtWithoutNewNetworkObjects" classname="Metagame.Gameplay.Tests.Stage2ArtTests" runstate="Runnable" seed="1541820437" result="Passed" start-time="2026-09-17 16:31:22Z" end-time="2026-09-17 16:31:30Z" duration="8.658193" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="2733" name="Stage2PressureTests" fullname="Metagame.Gameplay.Tests.Stage2PressureTests" classname="Metagame.Gameplay.Tests.Stage2PressureTests" runstate="Runnable" testcasecount="6" result="Passed" start-time="2026-09-17 16:32:09Z" end-time="2026-09-17 16:32:10Z" duration="0.612785" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2735" name="BurstPhysicallyPushesOncePerCooldownAndWallBlocksIt" fullname="Metagame.Gameplay.Tests.Stage2PressureTests.BurstPhysicallyPushesOncePerCooldownAndWallBlocksIt" methodname="BurstPhysicallyPushesOncePerCooldownAndWallBlocksIt" classname="Metagame.Gameplay.Tests.Stage2PressureTests" runstate="Runnable" seed="1854413019" result="Passed" start-time="2026-09-17 16:31:30Z" end-time="2026-09-17 16:31:37Z" duration="6.551103" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="2737" name="ReplicaCannotPushOrRelieveAndLateJoinRetainsPhase" fullname="Metagame.Gameplay.Tests.Stage2PressureTests.ReplicaCannotPushOrRelieveAndLateJoinRetainsPhase" methodname="ReplicaCannotPushOrRelieveAndLateJoinRetainsPhase" classname="Metagame.Gameplay.Tests.Stage2PressureTests" runstate="Runnable" seed="404792561" result="Passed" start-time="2026-09-17 16:31:37Z" end-time="2026-09-17 16:31:43Z" duration="6.457703" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="2739" name="RuntimeJetTravelsAndStopsAfterBurst" fullname="Metagame.Gameplay.Tests.Stage2PressureTests.RuntimeJetTravelsAndStopsAfterBurst" methodname="RuntimeJetTravelsAndStopsAfterBurst" classname="Metagame.Gameplay.Tests.Stage2PressureTests" runstate="Runnable" seed="442772725" result="Passed" start-time="2026-09-17 16:31:43Z" end-time="2026-09-17 16:31:51Z" duration="7.663364" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="2734" name="SafeIntroductionWarningBurstRestAndRoundRobin" fullname="Metagame.Gameplay.Tests.Stage2PressureTests.SafeIntroductionWarningBurstRestAndRoundRobin" methodname="SafeIntroductionWarningBurstRestAndRoundRobin" classname="Metagame.Gameplay.Tests.Stage2PressureTests" runstate="Runnable" seed="505251128" result="Passed" start-time="2026-09-17 16:31:51Z" end-time="2026-09-17 16:31:58Z" duration="6.494364" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="2738" name="SceneHasThreeTexturedPumpsAndClearUsableJets" fullname="Metagame.Gameplay.Tests.Stage2PressureTests.SceneHasThreeTexturedPumpsAndClearUsableJets" methodname="SceneHasThreeTexturedPumpsAndClearUsableJets" classname="Metagame.Gameplay.Tests.Stage2PressureTests" runstate="Runnable" seed="1307239598" result="Passed" start-time="2026-09-17 16:31:58Z" end-time="2026-09-17 16:32:04Z" duration="6.128401" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="2736" name="ValveRequiresReachAndSuppressesOnlyItsPump" fullname="Metagame.Gameplay.Tests.Stage2PressureTests.ValveRequiresReachAndSuppressesOnlyItsPump" methodname="ValveRequiresReachAndSuppressesOnlyItsPump" classname="Metagame.Gameplay.Tests.Stage2PressureTests" runstate="Runnable" seed="1745324195" result="Passed" start-time="2026-09-17 16:32:04Z" end-time="2026-09-17 16:32:10Z" duration="6.111859" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

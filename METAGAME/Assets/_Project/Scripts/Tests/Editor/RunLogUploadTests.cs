@@ -251,11 +251,27 @@ namespace Metagame.Gameplay.Tests
             Assert.That(session, Does.Contain("RunLogUpload.SweepOnce"),
                 "로그인 뒤에 로그를 보내지 않는다");
 
-            var upload = TestSource.Read("Runtime/Core/RunLogUpload.cs");
+            // **주석이 아니라 코드를 본다** (S15P21B202-607). 이 단정이 원문을 보던 동안,
+            // *"왜 종료 훅을 쓰지 않는가"* 를 설명하는 주석 한 줄이 그대로 걸렸다 —
+            // 지키려는 것은 훅을 **거는 코드**이지 그 이름을 입에 올리는 것이 아니다.
+            // 이유를 적을 수 없는 가드는 다음 사람이 이유를 모른 채 지우게 만든다.
+            var upload = TestSource.Blank(TestSource.Read("Runtime/Core/RunLogUpload.cs"));
             Assert.That(upload, Does.Not.Contain("OnApplicationQuit"),
                 "종료 훅에서 보낸다 — 종료가 지연되고 크래시 판을 못 받는다");
             Assert.That(upload, Does.Not.Contain("Application.quitting"),
                 "종료 훅에서 보낸다 — 종료가 지연되고 크래시 판을 못 받는다");
+
+            // **이 파일만 봐서는 부족하다** (`!514` AI 리뷰). 종료 경로가 다른 파일에
+            // 생길 수 있고 실제로 생겼다 — `PlayObserver.OnApplicationQuit` → `End` →
+            // `RunLogUpload.Request` 로 이어져, 위 단정은 통과하는데 **종료 훅에서
+            // 전송이 시작됐다.** 부르는 쪽까지 본다.
+            var observer = TestSource.Blank(TestSource.Read("Runtime/Bootstrap/PlayObserver.cs"));
+            Assert.That(observer, Does.Contain("OnApplicationQuit() => End("),
+                "종료 훅이 사라졌다 — 판을 닫는 자리가 하나 없어졌다");
+            Assert.That(observer, Does.Contain("sweep: false"),
+                "종료 훅이 보내기를 끄지 않는다 — 끝나지 못하는 전송이 시작된다");
+            Assert.That(observer, Does.Contain("if (sweep)"),
+                "보내기 요청이 그 스위치를 보지 않는다 — 끈 것이 지켜지지 않는다");
         }
 
         [Test]

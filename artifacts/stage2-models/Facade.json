@@ -1,0 +1,37 @@
+{
+  "asset": "Facade",
+  "fbx": "S2_Facade.fbx",
+  "blend": "Source~/S2_Facade.blend",
+  "mesh_objects": 1,
+  "triangles": 1444,
+  "dimensions_m": [
+    4.0,
+    0.5,
+    5.003559112548828
+  ],
+  "bounds_min": [
+    -2.0,
+    -0.25,
+    0.0
+  ],
+  "bounds_max": [
+    2.0,
+    0.25,
+    5.003559112548828
+  ],
+  "materials": [
+    "S2_Concrete",
+    "S2_Rust"
+  ],
+  "pivots": [
+    "S2_Facade_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

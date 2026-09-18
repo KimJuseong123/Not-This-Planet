@@ -1,0 +1,13 @@
+{
+  "asset": "Shower",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 1,
+  "dimensions_m": [
+    2.119999885559082,
+    2.000000476837158,
+    2.560000419616699
+  ],
+  "pivots_count": 1,
+  "passed": true
+}

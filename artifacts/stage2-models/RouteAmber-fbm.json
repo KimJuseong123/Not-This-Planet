@@ -1,0 +1,19 @@
+{
+  "asset": "RouteAmber",
+  "fbx": "S2_RouteAmber.fbx",
+  "fbm": "S2_RouteAmber.fbm",
+  "textures": [
+    "S2_Concrete_BaseColor.png",
+    "S2_Dark_BaseColor.png",
+    "S2_Orange_BaseColor.png",
+    "S2_Steel_BaseColor.png"
+  ],
+  "relative_texture_paths": [
+    "S2_RouteAmber.fbm/S2_Concrete_BaseColor.png",
+    "S2_RouteAmber.fbm/S2_Dark_BaseColor.png",
+    "S2_RouteAmber.fbm/S2_Orange_BaseColor.png",
+    "S2_RouteAmber.fbm/S2_Steel_BaseColor.png"
+  ],
+  "relative_paths_valid": true,
+  "passed": true
+}

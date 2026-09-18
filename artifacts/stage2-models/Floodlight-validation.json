@@ -1,0 +1,13 @@
+{
+  "asset": "Floodlight",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 3,
+  "dimensions_m": [
+    1.3899999856948853,
+    1.3392308950424194,
+    2.569999933242798
+  ],
+  "pivots_count": 2,
+  "passed": true
+}

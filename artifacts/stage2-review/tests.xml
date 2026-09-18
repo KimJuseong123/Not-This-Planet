@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="12" result="Passed" total="12" passed="12" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-18 00:07:22Z" end-time="2026-09-18 00:07:58Z" duration="35.6164398">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="1914" result="Passed" start-time="2026-09-18 00:07:22Z" end-time="2026-09-18 00:07:58Z" duration="35.616440" total="12" passed="12" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="3144" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202/tmp/stage2-review/METAGAME/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="1878" result="Passed" start-time="2026-09-18 00:07:22Z" end-time="2026-09-18 00:07:58Z" duration="35.531567" total="12" passed="12" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="31928" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="3145" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="1878" result="Passed" start-time="2026-09-18 00:07:22Z" end-time="2026-09-18 00:07:58Z" duration="35.518654" total="12" passed="12" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="3150" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="1829" result="Passed" start-time="2026-09-18 00:07:22Z" end-time="2026-09-18 00:07:58Z" duration="35.505163" total="12" passed="12" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="3151" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="1829" result="Passed" start-time="2026-09-18 00:07:22Z" end-time="2026-09-18 00:07:58Z" duration="35.492984" total="12" passed="12" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="2724" name="Stage2ArtTests" fullname="Metagame.Gameplay.Tests.Stage2ArtTests" classname="Metagame.Gameplay.Tests.Stage2ArtTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-18 00:07:22Z" end-time="2026-09-18 00:07:23Z" duration="0.584992" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2725" name="AuthoredModelsKeepThreeBodiesAndOpenWalkingRoutes" fullname="Metagame.Gameplay.Tests.Stage2ArtTests.AuthoredModelsKeepThreeBodiesAndOpenWalkingRoutes" methodname="AuthoredModelsKeepThreeBodiesAndOpenWalkingRoutes" classname="Metagame.Gameplay.Tests.Stage2ArtTests" runstate="Runnable" seed="2022853840" result="Passed" start-time="2026-09-18 00:07:14Z" end-time="2026-09-18 00:07:15Z" duration="0.728585" asserts="0">
+                <properties />
+                <output><![CDATA[[Stage2Art] Scene validation passed: 29 interactions, 9 bolts, 3 independent rocket modules.
+[Stage2 Terrain] Heightmap, four paint layers, collider and level work areas verified.
+]]></output>
+              </test-case>
+              <test-case id="2726" name="ReplicaMovesCraneLidLiftAndLadderArtWithoutNewNetworkObjects" fullname="Metagame.Gameplay.Tests.Stage2ArtTests.ReplicaMovesCraneLidLiftAndLadderArtWithoutNewNetworkObjects" methodname="ReplicaMovesCraneLidLiftAndLadderArtWithoutNewNetworkObjects" classname="Metagame.Gameplay.Tests.Stage2ArtTests" runstate="Runnable" seed="264659141" result="Passed" start-time="2026-09-18 00:07:15Z" end-time="2026-09-18 00:07:23Z" duration="7.913856" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="2740" name="Stage2ReviewTests" fullname="Metagame.Gameplay.Tests.Stage2ReviewTests" classname="Metagame.Gameplay.Tests.Stage2ReviewTests" runstate="Runnable" testcasecount="10" result="Passed" start-time="2026-09-18 00:07:23Z" end-time="2026-09-18 00:07:58Z" duration="34.866804" total="10" passed="10" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2749" name="ConversionPreservesLegacyGroundAndDoesNotSaveScene" fullname="Metagame.Gameplay.Tests.Stage2ReviewTests.ConversionPreservesLegacyGroundAndDoesNotSaveScene" methodname="ConversionPreservesLegacyGroundAndDoesNotSaveScene" classname="Metagame.Gameplay.Tests.Stage2ReviewTests" runstate="Runnable" seed="66490281" result="Passed" start-time="2026-09-18 00:07:23Z" end-time="2026-09-18 00:07:37Z" duration="14.186618" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[Stage2 Terrain] Unsaved preview ready. Inspect, then save explicitly, or Undo. Generated assets: Assets/_Project/Terrain/Stage2/Preview-aa6f5abf75334c9e86acf4a8de1a8175
+]]></output>
+              </test-case>
+              <test-case id="2750" name="DirtySceneIsRejectedWithoutChangingTerrain" fullname="Metagame.Gameplay.Tests.Stage2ReviewTests.DirtySceneIsRejectedWithoutChangingTerrain" methodname="DirtySceneIsRejectedWithoutChangingTerrain" classname="Metagame.Gameplay.Tests.Stage2ReviewTests" runstate="Runnable" seed="740469558" result="Passed" start-time="2026-09-18 00:07:37Z" end-time="2026-09-18 00:07:38Z" duration="0.612416" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2747" name="FailedRefinementRollsBackAndRemovesOnlyItsGeneratedAssets" fullname="Metagame.Gameplay.Tests.Stage2ReviewTests.FailedRefinementRollsBackAndRemovesOnlyItsGeneratedAssets" methodname="FailedRefinementRollsBackAndRemovesOnlyItsGeneratedAssets" classname="Metagame.Gameplay.Tests.Stage2ReviewTests" runstate="Runnable" seed="109121465" result="Passed" start-time="2026-09-18 00:07:38Z" end-time="2026-09-18 00:07:43Z" duration="5.599473" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2751" name="InactiveTerrainStillBlocksConversion" fullname="Metagame.Gameplay.Tests.Stage2ReviewTests.InactiveTerrainStillBlocksConversion" methodname="InactiveTerrainStillBlocksConversion" classname="Metagame.Gameplay.Tests.Stage2ReviewTests" runstate="Runnable" seed="1377804671" result="Passed" start-time="2026-09-18 00:07:43Z" end-time="2026-09-18 00:07:45Z" duration="1.417001" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2748" name="RefinementPreservesSavedDataDrainageAndSupportsUndoRedo" fullname="Metagame.Gameplay.Tests.Stage2ReviewTests.RefinementPreservesSavedDataDrainageAndSupportsUndoRedo" methodname="RefinementPreservesSavedDataDrainageAndSupportsUndoRedo" classname="Metagame.Gameplay.Tests.Stage2ReviewTests" runstate="Runnable" seed="1901471144" result="Passed" start-time="2026-09-18 00:07:45Z" end-time="2026-09-18 00:07:55Z" duration="10.101771" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[Stage2 Terrain] Unsaved preview ready. Inspect, then save explicitly, or Undo. Generated assets: Assets/_Project/Terrain/Stage2/Preview-b831933f9a8a400499c8f016f4a1a775
+]]></output>
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="2744" name="RejectsMissingOrExtraPressureTargets" fullname="Metagame.Gameplay.Tests.Stage2ReviewTests.RejectsMissingOrExtraPressureTargets" classname="Metagame.Gameplay.Tests.Stage2ReviewTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-09-18 00:07:55Z" end-time="2026-09-18 00:07:57Z" duration="1.799585" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="2741" name="RejectsMissingOrExtraPressureTargets(0)" fullname="Metagame.Gameplay.Tests.Stage2ReviewTests.RejectsMissingOrExtraPressureTargets(0)" methodname="RejectsMissingOrExtraPressureTargets" classname="Metagame.Gameplay.Tests.Stage2ReviewTests" runstate="Runnable" seed="1264621013" result="Passed" start-time="2026-09-18 00:07:55Z" end-time="2026-09-18 00:07:55Z" duration="0.604093" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="2742" name="RejectsMissingOrExtraPressureTargets(2)" fullname="Metagame.Gameplay.Tests.Stage2ReviewTests.RejectsMissingOrExtraPressureTargets(2)" methodname="RejectsMissingOrExtraPressureTargets" classname="Metagame.Gameplay.Tests.Stage2ReviewTests" runstate="Runnable" seed="941027833" result="Passed" start-time="2026-09-18 00:07:55Z" end-time="2026-09-18 00:07:56Z" duration="0.584603" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="2743" name="RejectsMissingOrExtraPressureTargets(4)" fullname="Metagame.Gameplay.Tests.Stage2ReviewTests.RejectsMissingOrExtraPressureTargets(4)" methodname="RejectsMissingOrExtraPressureTargets" classname="Metagame.Gameplay.Tests.Stage2ReviewTests" runstate="Runnable" seed="554755156" result="Passed" start-time="2026-09-18 00:07:56Z" end-time="2026-09-18 00:07:57Z" duration="0.597981" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+              </test-suite>
+              <test-case id="2745" name="RejectsUniqueButChangedInteractionId" fullname="Metagame.Gameplay.Tests.Stage2ReviewTests.RejectsUniqueButChangedInteractionId" methodname="RejectsUniqueButChangedInteractionId" classname="Metagame.Gameplay.Tests.Stage2ReviewTests" runstate="Runnable" seed="428268038" result="Passed" start-time="2026-09-18 00:07:57Z" end-time="2026-09-18 00:07:57Z" duration="0.568741" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="2746" name="RejectsUnregisteredSceneTarget" fullname="Metagame.Gameplay.Tests.Stage2ReviewTests.RejectsUnregisteredSceneTarget" methodname="RejectsUnregisteredSceneTarget" classname="Metagame.Gameplay.Tests.Stage2ReviewTests" runstate="Runnable" seed="81838080" result="Passed" start-time="2026-09-18 00:07:57Z" end-time="2026-09-18 00:07:58Z" duration="0.577827" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

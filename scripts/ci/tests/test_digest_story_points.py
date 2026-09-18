@@ -10,6 +10,11 @@
 
 **여기서 조용히 틀릴 수 있는 것이 범위다.** 백로그까지 대상으로 잡으면 매일 수십 줄이
 나오고, 그러면 사람이 카드 전체를 안 읽게 된다. 그래서 JQL 을 글자로 못 박는다.
+
+**항목이 둘이다**(S15P21B202-568). 읽는 사람이 할 일이 다르다 — 하나는 지금 채우면 되는
+것이고, 다른 하나는 **이미 끝났는데 안 채운 것**이라 스프린트 속도가 그만큼 틀려 있다.
+끝난 것을 보는 항목이 없어서 `-544`·`-545` 가 포인트 없이 완료됐는데 **어느 아침에도
+목록에 오른 적이 없었다**(2026-09-16 확인).
 """
 import os
 import sys
@@ -61,16 +66,30 @@ def main() -> int:
     assert "S15P21B202-480" in text and "빌드 배포 v1.1.0" in text, text[:400]
     print("  포인트 없는 이슈 → 표에 오름")
 
-    # 2) **범위가 좁혀져 있다.** 백로그 전체를 보면 매일 수십 줄이 나와 카드가 안 읽힌다.
+    # 2) **두 항목이 있고 범위가 갈려 있다.**
     sp = [q for q in jqls if D.STORY_POINTS in q]
-    assert len(sp) == 1, sp
-    q = sp[0]
-    for must in ("statusCategory != Done",        # 끝난 일에 예측값을 소급하지 않는다
-                 "sprint in openSprints()",       # 백로그는 아직 매길 때가 아니다
+    assert len(sp) == 2, f"포인트 질의가 2개여야 한다(지금 채운다 · 이미 완료됨): {sp}"
+
+    todo = [q for q in sp if "statusCategory != Done" in q]
+    done = [q for q in sp if "statusCategory = Done" in q]
+    assert len(todo) == 1 and len(done) == 1, sp
+
+    # ② 지금 채울 수 있는 것 — 백로그 전체를 보면 매일 수십 줄이 나와 카드가 안 읽힌다.
+    for must in ("sprint in openSprints()",       # 백로그는 아직 매길 때가 아니다
+                 'status = "In Progress"',        # 스프린트 밖에서 진행 중인 것도 본다
                  "issuetype != Epic",             # 에픽에는 포인트를 매기지 않는다
                  "cf[10031] is EMPTY"):
-        assert must in q, f"{must!r} 이 빠졌다: {q}"
-    print("  JQL 범위 — 열린 스프린트의 미완료 · 에픽 제외")
+        assert must in todo[0], f"{must!r} 이 빠졌다: {todo[0]}"
+
+    # ③ 이미 끝났는데 안 채운 것 — **이 항목은 완료를 봐야 뜻이 있다.**
+    #    `statusCategory != Done` 이 붙어 있으면 늘 0건이라 있으나 마나다.
+    assert "statusCategory != Done" not in done[0], \
+        "완료를 보는 항목인데 미완료로 좁혀져 있다 — 늘 0건이 된다: " + done[0]
+    for must in ("sprint in openSprints()",       # 지난 스프린트까지 소급하지 않는다
+                 "issuetype != Epic",
+                 "cf[10031] is EMPTY"):
+        assert must in done[0], f"{must!r} 이 빠졌다: {done[0]}"
+    print("  JQL 범위 — 지금 채울 것 · 이미 완료된 것, 둘 다 에픽 제외")
 
     # 3) 해당 이슈가 없으면 이 항목은 아예 안 나온다 ("없으면 보내지 않는다" 규칙)
     text, _ = run([])

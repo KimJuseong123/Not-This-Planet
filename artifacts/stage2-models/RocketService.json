@@ -1,0 +1,43 @@
+{
+  "asset": "RocketService",
+  "fbx": "S2_RocketService.fbx",
+  "blend": "Source~/S2_RocketService.blend",
+  "mesh_objects": 4,
+  "triangles": 3144,
+  "dimensions_m": [
+    2.9000000953674316,
+    3.0460000038146973,
+    3.4049999713897705
+  ],
+  "bounds_min": [
+    -1.4500000476837158,
+    -1.5959999561309814,
+    0.009999999776482582
+  ],
+  "bounds_max": [
+    1.4500000476837158,
+    1.4500000476837158,
+    3.4149999618530273
+  ],
+  "materials": [
+    "S2_Dark",
+    "S2_Ivory",
+    "S2_Orange",
+    "S2_Steel",
+    "S2_Teal"
+  ],
+  "pivots": [
+    "S2_RocketService_Root",
+    "Bolt_1.001",
+    "Bolt_2.001",
+    "Bolt_3.001"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

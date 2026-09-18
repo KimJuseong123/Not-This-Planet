@@ -92,6 +92,7 @@ namespace Metagame.Gameplay.Tests
             }
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator CursorLifecycle_PreservesLockAndUsesOnlyLocalAudio()
         {

@@ -24,6 +24,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(AssetDatabase.LoadAssetAtPath<SceneAsset>(EndingSceneFlow.ScenePath), Is.Not.Null);
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator DebugConfirmationCancelsSafelyRejectsClientAndUsesRealSceneFlow()
         {
@@ -92,6 +93,7 @@ namespace Metagame.Gameplay.Tests
             yield return new ExitPlayMode();
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator UnpreparedParticipantHasBoundedWaitAndReportsFailure()
         {
@@ -106,6 +108,7 @@ namespace Metagame.Gameplay.Tests
             yield return new ExitPlayMode();
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator SoloTransferRebuildsSnapshotAfterOriginalSceneIsUnloaded()
         {
@@ -161,6 +164,7 @@ namespace Metagame.Gameplay.Tests
             yield return new ExitPlayMode();
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator LargeSnapshotChunksPreserveUtf8AndRejectOutOfOrderData()
         {
@@ -190,6 +194,7 @@ namespace Metagame.Gameplay.Tests
             yield return new ExitPlayMode();
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator DisconnectKeepsEndingClockInsteadOfSwitchingToLocalUptime()
         {
@@ -201,6 +206,7 @@ namespace Metagame.Gameplay.Tests
             yield return new ExitPlayMode();
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator MirrorEndingMessagePreservesSnapshotAndSharedStartTime()
         {

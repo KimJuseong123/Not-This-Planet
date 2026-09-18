@@ -11,6 +11,19 @@ namespace Metagame.Gameplay.Tests
 {
     public class CustomizerRuntimeTests
     {
+        /// <summary>
+        /// <b>연 씬을 반드시 닫는다</b> (S15P21B202-604). 열어 둔 채 끝나면 뒤이어 도는
+        /// 검증들이 이 씬의 콜라이더를 만나 무너진다 — 2026-09-17 에 그렇게
+        /// <c>CraftMeteorImpactTests</c> 9건이 한꺼번에 깨졌다(기체가 남의 씬 바닥
+        /// 4m 에 걸렸다). <c>test_scene_cleanup.py</c> 가 이 정리를 강제한다.
+        /// </summary>
+        [OneTimeTearDown]
+        public void CloseAnyOpenScene()
+        {
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        }
+
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator PreviewLoadsWithoutGameplayAndCancelReturnsToLobby()
         {

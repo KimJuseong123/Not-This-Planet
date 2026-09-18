@@ -340,6 +340,13 @@ namespace Metagame.Network
             dustStormSeed = seed;
         }
 
+        /// <summary>도구 소유자는 사람일 수도, 서버가 모는 AI 동료일 수도 있다.</summary>
+        static uint ToolOwnerId(PlayerRig rig)
+        {
+            var player = NetPlayer.NetIdOfRig(rig);
+            return player != 0 ? player : NetworkRigOwner.NetIdOf(rig);
+        }
+
         void OnDustStormSeedChanged(int oldSeed, int newSeed)
         {
             DustStormMatchSeed.ApplyServerSeed(newSeed);
@@ -1075,7 +1082,7 @@ namespace Metagame.Network
                     RhythmCooldown = tool is MeteorBat cooldownBat ? cooldownBat.Cooldown : 0f,
                     RhythmSequence = tool is MeteorBat bat ? bat.RhythmSequence : 0,
                     RhythmGrade = tool is MeteorBat rhythmBat ? rhythmBat.RhythmGrade : (byte)0,
-                    Owner = tool.IsEquipped ? NetPlayer.NetIdOfRig(tool.Owner) : 0,
+                    Owner = tool.IsEquipped ? ToolOwnerId(tool.Owner) : 0,
                     Action = tool.IsEquipped ? tool.ViewAction : (byte)0,
                     Progress = tool.ViewProgress, Direction = tool.Owner != null ? tool.Owner.AimForward : tool.transform.forward
                 } : default;
@@ -1789,7 +1796,8 @@ namespace Metagame.Network
                 var state = states[i];
                 PlayerRig owner = null;
                 if (state.Owner != 0 && NetworkClient.spawned.TryGetValue(state.Owner, out var identity))
-                    owner = identity.GetComponent<NetPlayer>()?.VisualRig;
+                    owner = identity.GetComponent<NetPlayer>()?.VisualRig
+                            ?? identity.GetComponent<NetworkRigOwner>()?.Rig;
                 if (tool is MeteorBat bat) bat.ApplyRhythmResult(state.RhythmSequence, state.RhythmGrade, state.RhythmCooldown);
                 tool.ApplyRemoteHeld(state.Owner != 0);
                 tool.ApplyRemotePresentation(owner, state.Action, state.Progress, state.Direction);

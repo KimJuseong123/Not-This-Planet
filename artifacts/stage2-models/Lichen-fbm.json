@@ -1,0 +1,15 @@
+{
+  "asset": "Lichen",
+  "fbx": "S2_Lichen.fbx",
+  "fbm": "S2_Lichen.fbm",
+  "textures": [
+    "S2_LeafLight_BaseColor.png",
+    "S2_Rust_BaseColor.png"
+  ],
+  "relative_texture_paths": [
+    "S2_Lichen.fbm/S2_LeafLight_BaseColor.png",
+    "S2_Lichen.fbm/S2_Rust_BaseColor.png"
+  ],
+  "relative_paths_valid": true,
+  "passed": true
+}

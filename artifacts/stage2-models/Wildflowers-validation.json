@@ -1,0 +1,13 @@
+{
+  "asset": "Wildflowers",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 1,
+  "dimensions_m": [
+    0.4345729351043701,
+    0.4088645577430725,
+    0.42053449153900146
+  ],
+  "pivots_count": 1,
+  "passed": true
+}

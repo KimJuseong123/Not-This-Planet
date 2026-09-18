@@ -87,6 +87,7 @@ namespace Metagame.Network
             go.SetActive(false);
             go.AddComponent<NetworkIdentity>();
             var sync = go.AddComponent<WorldSync>();
+            go.AddComponent<Stage1SequenceSync>();
 
             // 진행도 동기화도 같은 오브젝트에 얹는다 (S15P21B202-54). 여기 붙이면
             // 위 주석의 함정들(프리팹 SIGSEGV·핸들러 재등록·Awake 순서)을 그대로 피한다.
@@ -164,6 +165,8 @@ namespace Metagame.Network
                 == Metagame.Gameplay.Parts.DemoEnding.ScenePath) return;
 
             if (spawned || !NetworkServer.active) return;
+            // Chapter 2 owns its different machinery snapshot through Stage2Bridge.
+            if (FindAnyObjectByType<Metagame.Gameplay.Stage2.Stage2Yard>() != null) return;
 
             // 게임 씬이 올라왔는지는 "옮길 것이 있는가" 로 판단한다. 씬 이름을 박아 두면
             // 스테이지가 늘 때마다 여기를 고쳐야 한다.

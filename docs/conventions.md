@@ -28,7 +28,7 @@ Task·Bug의 상태는 브랜치 생성과 MR 머지를 기준으로 자동 전�
 | 필수 필드 | 담당자 · 상위 Epic · 기한(비면 스프린트 종료일 자동) · 스프린트·스토리 포인트(진행 중 진입 시) | [jira-convention](./jira-convention.md) §4 |
 | 스토리 포인트 | **크기·복잡도의 상대값(시간 아님).** 값 **1/2/3/5 뿐** · 이슈 ≤ 5(넘으면 쪼갠다) · Story·Task에 각각 · 주간 합계는 회고에서 보정 | [jira-convention](./jira-convention.md) §5 |
 | 상태 | **해야 할 일 → 진행 중 → 완료** 3개뿐. 진행 중 = 브랜치 생성, 완료 = MR 머지 | [jira-convention](./jira-convention.md) §7 |
-| 파트 태그 | 13종. Task의 파트는 **수행** 파트, Epic의 파트는 **완료 판정** 파트 | [parts.md](./parts.md) |
+| 파트 태그 | 14종. Task의 파트는 **수행** 파트, Epic의 파트는 **완료 판정** 파트 | [parts.md](./parts.md) |
 | 브랜치 | `master` – `develop` – 작업 브랜치 3단. 작업 브랜치 이름은 `<이슈키>-<번호>-<영문설명>`(긴급 수정만 `hotfix/` 접두어) | [git-convention](./git-convention.md) §1·§3 |
 | 브랜치 생성 | **Jira 이슈 화면 "브랜치 만들기"** — 이것이 진행 중으로 가는 길이다. 로컬에서 만들어도 이름이 이슈 키로 시작하면 같다 | [git-convention](./git-convention.md) §2 |
 | 커밋 | `<type>(<scope>): <요약> (<이슈키>)` — Conventional Commits + 이슈 키 | [git-convention](./git-convention.md) §4 |

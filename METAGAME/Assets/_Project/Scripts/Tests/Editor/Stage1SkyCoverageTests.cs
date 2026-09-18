@@ -36,16 +36,36 @@ namespace Metagame.Gameplay.Tests
         /// <b>연 씬을 반드시 닫는다.</b> 열어 둔 채 끝나면 뒤이어 도는 검증들이 스테이지의
         /// 콜라이더를 만난다 — 처음에 이것을 빠뜨려 빔·운반체 검증 10개가 줄줄이 무너졌다.
         /// 실패 집합을 develop 과 대조하지 않았으면 못 봤을 자리다.
+        ///
+        /// <para><b>테스트마다가 아니라 한 번만 닫는다</b> (S15P21B202-602). 지키려는 것은
+        /// <i>"이 클래스가 끝난 뒤 스테이지가 열려 있지 않다"</i> 이고, 그건 마지막에 한 번
+        /// 닫아도 똑같이 지켜진다. 매번 닫으면 다음 테스트가 <see cref="OpenStage"/> 에서
+        /// 씬을 다시 열어 — 실측 4.5초짜리가 4번 돌았다.</para>
         /// </summary>
-        [TearDown]
+        [OneTimeTearDown]
         public void CloseTheStage()
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         }
 
+        /// <summary>
+        /// 스테이지를 <b>한 번만</b> 연다 (S15P21B202-602). 이미 열려 있으면 그대로 쓴다.
+        ///
+        /// <para><b>공유해도 되는 이유:</b> 이 클래스의 검증은 전부 <b>읽기만</b> 한다 —
+        /// 조명·별하늘 설정과 메시 분포를 재고 단정할 뿐, 씬의 무엇도 바꾸지 않는다.
+        /// 여기에 씬을 고치는 검증을 새로 넣으려면 그 검증은 <b>자기 씬을 따로 열어야
+        /// 한다</b> — 그러지 않으면 같은 클래스의 다른 검증이 그 변경 위에서 돈다.</para>
+        /// </summary>
+        static UnityEngine.SceneManagement.Scene OpenStage()
+        {
+            var active = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (active.IsValid() && active.path == ScenePath) return active;
+            return EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+        }
+
         static T FindInScene<T>() where T : Component
         {
-            var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            var scene = OpenStage();
             foreach (var root in scene.GetRootGameObjects())
             {
                 var found = root.GetComponentInChildren<T>(true);
@@ -98,7 +118,7 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void TheBakedArtStarMeshIsOff_SoTheSkyIsNotDrawnTwice()
         {
-            var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            var scene = OpenStage();
             var art = scene.GetRootGameObjects()
                 .SelectMany(root => root.GetComponentsInChildren<Transform>(true))
                 .FirstOrDefault(t => t.name == "Distant star field");

@@ -1,0 +1,13 @@
+{
+  "asset": "Elevator",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 3,
+  "dimensions_m": [
+    4.449999809265137,
+    3.995002031326294,
+    11.0
+  ],
+  "pivots_count": 3,
+  "passed": true
+}

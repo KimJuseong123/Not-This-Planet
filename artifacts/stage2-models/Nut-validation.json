@@ -1,0 +1,13 @@
+{
+  "asset": "Nut",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 1,
+  "dimensions_m": [
+    0.23999999463558197,
+    0.12000004202127457,
+    0.27556300163269043
+  ],
+  "pivots_count": 1,
+  "passed": true
+}

@@ -28,6 +28,13 @@ namespace Metagame.Core
         /// <summary>빌드 폴더 옆의 폴더 이름. 평문 로그의 logs 와 나란히 둔다.</summary>
         public const string FolderName = "events";
 
+        /// <summary>
+        /// 이벤트 파일의 확장자. <b>보내는 쪽(<see cref="RunLogUpload"/>)이 이 값으로
+        /// 찾는다</b> (S15P21B202-607) — 양쪽에 글자를 따로 적어 두면 한쪽만 바뀌는 날
+        /// 수집이 조용히 멈춘다.
+        /// </summary>
+        public const string Extension = ".ndjson";
+
         /// <summary>이 개수를 넘으면 오래된 것부터 지운다.</summary>
         public const int KeepFiles = 30;
 
@@ -92,7 +99,7 @@ namespace Metagame.Core
         /// <summary>파일 이름. 시각이 곧 정렬 순서다 — 평문 로그와 같은 규칙.</summary>
         public static string FileNameFor(DateTime when)
         {
-            return when.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + ".ndjson";
+            return when.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + Extension;
         }
 
         /// <summary>
@@ -107,10 +114,10 @@ namespace Metagame.Core
             string full = System.IO.Path.Combine(folder, name);
             if (!File.Exists(full)) return full;
 
-            string stem = name.Substring(0, name.Length - ".ndjson".Length);
+            string stem = name.Substring(0, name.Length - Extension.Length);
             for (int i = 2; i < 100; i++)
             {
-                full = System.IO.Path.Combine(folder, stem + "_" + i.ToString(CultureInfo.InvariantCulture) + ".ndjson");
+                full = System.IO.Path.Combine(folder, stem + "_" + i.ToString(CultureInfo.InvariantCulture) + Extension);
                 if (!File.Exists(full)) return full;
             }
             return full;   // 같은 초에 백 판을 열었다면 덮는 것이 문제가 아니다
@@ -272,7 +279,7 @@ namespace Metagame.Core
         {
             try
             {
-                var files = new List<string>(Directory.GetFiles(folder, "*.ndjson"));
+                var files = new List<string>(Directory.GetFiles(folder, "*" + Extension));
                 if (files.Count <= KeepFiles) return;
                 files.Sort(StringComparer.Ordinal);
                 for (int i = 0; i < files.Count - KeepFiles; i++)

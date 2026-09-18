@@ -1,0 +1,40 @@
+{
+  "asset": "RocketBase",
+  "fbx": "S2_RocketBase.fbx",
+  "blend": "Source~/S2_RocketBase.blend",
+  "mesh_objects": 1,
+  "triangles": 3520,
+  "dimensions_m": [
+    2.809999942779541,
+    2.8350000381469727,
+    2.1570000648498535
+  ],
+  "bounds_min": [
+    -1.4049999713897705,
+    -1.4299999475479126,
+    0.0
+  ],
+  "bounds_max": [
+    1.4049999713897705,
+    1.4049999713897705,
+    2.1570000648498535
+  ],
+  "materials": [
+    "S2_Dark",
+    "S2_Ivory",
+    "S2_Orange",
+    "S2_Steel",
+    "S2_Teal"
+  ],
+  "pivots": [
+    "S2_RocketBase_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

@@ -9,9 +9,11 @@
 | 문서 | 확인할 내용 |
 | --- | --- |
 | [프로젝트 개요](overview.md) | 게임 목표, 플레이 흐름, Unity·백엔드·릴레이의 역할 |
-| [1장 기획 안내](planning/README.md) | 기본 기획에서 상세 조작·판정으로 이어지는 읽기 순서 |
+| [장별 기획 안내](planning/README.md) | 각 장의 기본 기획·상세 설계·컨셉 자료를 읽는 순서 |
 | [1장 기본 기획](planning/chapter-1-plan.md) | 배경, 핵심 경험, 콘텐츠와 필요한 산출물 |
 | [1장 상세 기획](planning/chapter-1-detailed-design.md) | 조작, 장비, 협동, 조립, 용접, 운석, 실패·복구 규칙과 테스트값 |
+| [2장 기본 기획](planning/chapter-2-plan.md) | 폐허 지구의 컨테이너·크레인·이동식 사다리·수동 체결·제독 협동 초안 |
+| [2장 컨셉 자료](assets/concepts/stage2/README.md) | 최신 v2 맵 방향과 이전 v1 개별 에셋 시안·프롬프트 |
 | [파트와 담당](parts.md) | 작업 영역별 태그, 담당 팀원과 Epic 책임. 담당 변경 시 갱신 |
 
 ## 2. 실행과 기능 개발
@@ -27,6 +29,7 @@
 | 플레이 데이터를 모아 분석한다 | [플레이 데이터 파이프라인 계획](data-pipeline.md): 이벤트 스키마, 보내는 시점, 저장과 질의 |
 | 멀티플레이 동기화 구현 | [설계 결정](records/S15P21B202-145-sync-design.md) → [상호작용 규칙](records/S15P21B202-149-interaction-sync.md) → [오브젝트 동기화](records/S15P21B202-352-object-sync.md) |
 | 두 PC에서 접속 확인 | [멀티플레이 테스트 안내](multiplayer-test-guide.md) → [지연·대역폭 측정 기록](records/S15P21B202-151-multiplay-measurement.md) |
+| 기획 수치를 바꾸고 기다리지 않고 확인 | [치트 시험장](cheat-arena.md): 넓은 바닥 위 Stage1 조립·운석 복제, F8 치트 패널(운석 즉시 낙하·공세 시작·시간대 이동·무적·순간이동), F5/F9 리셋 |
 
 ## 3. 이슈부터 MR 완료까지
 
@@ -65,6 +68,7 @@
 | `docs/records/` | 이슈별 결정·구현·측정·사고 대응 이력. 이름은 `<이슈키>-<slug>.md` |
 | `docs/templates/` | Jira 설명과 작업 기록 작성 양식 |
 | `docs/assets/previews/` | 문서에서 사용하는 에셋 프리뷰 이미지 |
+| `docs/assets/concepts/` | 게임 적용 전의 컨셉 아트와 버전별 제작 참고 자료 |
 
 ## 문서가 아닌 곳에 있는 것들
 

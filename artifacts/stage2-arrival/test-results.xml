@@ -1,0 +1,305 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="53" result="Passed" total="53" passed="53" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-17 15:19:25Z" end-time="2026-09-17 15:19:27Z" duration="2.1209166">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="1892" result="Passed" start-time="2026-09-17 15:19:25Z" end-time="2026-09-17 15:19:27Z" duration="2.120917" total="53" passed="53" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="3118" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202/METAGAME/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="1856" result="Passed" start-time="2026-09-17 15:19:25Z" end-time="2026-09-17 15:19:27Z" duration="2.041589" total="53" passed="53" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="42532" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="3119" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="1856" result="Passed" start-time="2026-09-17 15:19:25Z" end-time="2026-09-17 15:19:27Z" duration="2.029014" total="53" passed="53" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="3124" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="1807" result="Passed" start-time="2026-09-17 15:19:25Z" end-time="2026-09-17 15:19:27Z" duration="2.014719" total="53" passed="53" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="3125" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="1807" result="Passed" start-time="2026-09-17 15:19:25Z" end-time="2026-09-17 15:19:27Z" duration="2.002465" total="53" passed="53" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1370" name="DemoEndingTests" fullname="Metagame.Gameplay.Tests.DemoEndingTests" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" testcasecount="28" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.106789" total="28" passed="28" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-suite type="ParameterizedMethod" id="1400" name="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle" fullname="Metagame.Gameplay.Tests.DemoEndingTests.AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" testcasecount="14" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.042226" total="14" passed="14" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="1386" name="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(0.0f,Boarding)" fullname="Metagame.Gameplay.Tests.DemoEndingTests.AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(0.0f,Boarding)" methodname="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="964198134" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.022891" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="1387" name="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(7.999f,Boarding)" fullname="Metagame.Gameplay.Tests.DemoEndingTests.AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(7.999f,Boarding)" methodname="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="883720483" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.000763" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="1388" name="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(8.0f,Launching)" fullname="Metagame.Gameplay.Tests.DemoEndingTests.AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(8.0f,Launching)" methodname="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="2011789650" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.000653" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="1389" name="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(12.999f,Launching)" fullname="Metagame.Gameplay.Tests.DemoEndingTests.AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(12.999f,Launching)" methodname="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="1314818506" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.000472" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="1390" name="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(13.0f,Photograph)" fullname="Metagame.Gameplay.Tests.DemoEndingTests.AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(13.0f,Photograph)" methodname="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="1636147587" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.000445" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="1391" name="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(17.999f,Photograph)" fullname="Metagame.Gameplay.Tests.DemoEndingTests.AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(17.999f,Photograph)" methodname="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="678029113" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.000432" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="1392" name="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(18.0f,EndTitle)" fullname="Metagame.Gameplay.Tests.DemoEndingTests.AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(18.0f,EndTitle)" methodname="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="1764409865" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.000408" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="1393" name="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(20.999f,EndTitle)" fullname="Metagame.Gameplay.Tests.DemoEndingTests.AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(20.999f,EndTitle)" methodname="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="385907337" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.000405" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="1394" name="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(21.0f,SpaceDrift)" fullname="Metagame.Gameplay.Tests.DemoEndingTests.AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(21.0f,SpaceDrift)" methodname="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="696904252" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.000418" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="1395" name="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(28.999f,SpaceDrift)" fullname="Metagame.Gameplay.Tests.DemoEndingTests.AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(28.999f,SpaceDrift)" methodname="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="1236557648" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.000429" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="1396" name="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(29.0f,MeteorImpact)" fullname="Metagame.Gameplay.Tests.DemoEndingTests.AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(29.0f,MeteorImpact)" methodname="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="2098978706" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.000417" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="1397" name="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(35.0f,EmergencyDescent)" fullname="Metagame.Gameplay.Tests.DemoEndingTests.AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(35.0f,EmergencyDescent)" methodname="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="393135528" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.000527" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="1398" name="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(43.999f,EmergencyDescent)" fullname="Metagame.Gameplay.Tests.DemoEndingTests.AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(43.999f,EmergencyDescent)" methodname="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="1393953315" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.000443" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="1399" name="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(44.0f,Lobby)" fullname="Metagame.Gameplay.Tests.DemoEndingTests.AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(44.0f,Lobby)" methodname="AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="1612072576" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.000550" asserts="0">
+                  <properties />
+                </test-case>
+              </test-suite>
+              <test-case id="1382" name="AuthorityStartsImmediatelyOnceAndPreservesCompletionPose" fullname="Metagame.Gameplay.Tests.DemoEndingTests.AuthorityStartsImmediatelyOnceAndPreservesCompletionPose" methodname="AuthorityStartsImmediatelyOnceAndPreservesCompletionPose" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="1057996805" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.014814" asserts="0">
+                <properties />
+                <output><![CDATA[[NotThisPlanet] 도착 — 0.0초, 추락 0회
+[DemoEnding] 네 핵심 파츠 비드 연결 확정. 전원 엔딩 시작.
+]]></output>
+              </test-case>
+              <test-case id="1383" name="CompletionFreezesHostRoomTimeInsteadOfCutsceneTime" fullname="Metagame.Gameplay.Tests.DemoEndingTests.CompletionFreezesHostRoomTimeInsteadOfCutsceneTime" methodname="CompletionFreezesHostRoomTimeInsteadOfCutsceneTime" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="1846128837" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.003961" asserts="0">
+                <properties />
+                <output><![CDATA[[NotThisPlanet] 도착 — 0.0초, 추락 0회
+[DemoEnding] 네 핵심 파츠 비드 연결 확정. 전원 엔딩 시작.
+]]></output>
+              </test-case>
+              <test-case id="1378" name="ContactAndZeroBeadStrengthDoNotComplete" fullname="Metagame.Gameplay.Tests.DemoEndingTests.ContactAndZeroBeadStrengthDoNotComplete" methodname="ContactAndZeroBeadStrengthDoNotComplete" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="2011797780" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.001021" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1371" name="DebugAssemblyUsesRealSuccessAndCannotRunTwice" fullname="Metagame.Gameplay.Tests.DemoEndingTests.DebugAssemblyUsesRealSuccessAndCannotRunTwice" methodname="DebugAssemblyUsesRealSuccessAndCannotRunTwice" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="1153297382" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.009291" asserts="0">
+                <properties />
+                <output><![CDATA[[DemoEnding] 개발자 F12 테스트: 파츠를 조립하고 정상 엔딩 경로를 실행합니다.
+[NotThisPlanet] 도착 — 0.0초, 추락 0회
+[DemoEnding] 네 핵심 파츠 비드 연결 확정. 전원 엔딩 시작.
+]]></output>
+              </test-case>
+              <test-case id="1379" name="DestroyedPhysicalJointDoesNotComplete" fullname="Metagame.Gameplay.Tests.DemoEndingTests.DestroyedPhysicalJointDoesNotComplete" methodname="DestroyedPhysicalJointDoesNotComplete" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="1888050705" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.001098" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1380" name="DuplicateCoreTypeDoesNotReplaceMissingCoreType" fullname="Metagame.Gameplay.Tests.DemoEndingTests.DuplicateCoreTypeDoesNotReplaceMissingCoreType" methodname="DuplicateCoreTypeDoesNotReplaceMissingCoreType" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="559862589" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.000799" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1384" name="ParticipantCannotDecideSuccessLocally" fullname="Metagame.Gameplay.Tests.DemoEndingTests.ParticipantCannotDecideSuccessLocally" methodname="ParticipantCannotDecideSuccessLocally" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="440944432" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.000772" asserts="0">
+                <properties />
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="1374" name="RejectedDebugAssemblyDoesNotMoveOrJoinParts" fullname="Metagame.Gameplay.Tests.DemoEndingTests.RejectedDebugAssemblyDoesNotMoveOrJoinParts" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.007874" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="1372" name="RejectedDebugAssemblyDoesNotMoveOrJoinParts(False,False)" fullname="Metagame.Gameplay.Tests.DemoEndingTests.RejectedDebugAssemblyDoesNotMoveOrJoinParts(False,False)" methodname="RejectedDebugAssemblyDoesNotMoveOrJoinParts" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="1311437305" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.002549" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="1373" name="RejectedDebugAssemblyDoesNotMoveOrJoinParts(True,True)" fullname="Metagame.Gameplay.Tests.DemoEndingTests.RejectedDebugAssemblyDoesNotMoveOrJoinParts(True,True)" methodname="RejectedDebugAssemblyDoesNotMoveOrJoinParts" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="1408418208" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.000647" asserts="0">
+                  <properties />
+                </test-case>
+              </test-suite>
+              <test-case id="1385" name="ReplicatedSnapshotRejoinsCurrentStageAndCannotRestartEnding" fullname="Metagame.Gameplay.Tests.DemoEndingTests.ReplicatedSnapshotRejoinsCurrentStageAndCannotRestartEnding" methodname="ReplicatedSnapshotRejoinsCurrentStageAndCannotRestartEnding" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="1472163299" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.001231" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1376" name="StarGraphAndRedundantCycleBothComplete" fullname="Metagame.Gameplay.Tests.DemoEndingTests.StarGraphAndRedundantCycleBothComplete" methodname="StarGraphAndRedundantCycleBothComplete" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="1355929696" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.000753" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1381" name="ThreePartsNeverComplete" fullname="Metagame.Gameplay.Tests.DemoEndingTests.ThreePartsNeverComplete" methodname="ThreePartsNeverComplete" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="780894474" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.001254" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1377" name="TwoSeparateWeldedPairsDoNotComplete" fullname="Metagame.Gameplay.Tests.DemoEndingTests.TwoSeparateWeldedPairsDoNotComplete" methodname="TwoSeparateWeldedPairsDoNotComplete" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="233314434" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.000899" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1375" name="WeakBeadChainCompletesOutsidePadWithoutOrderingOrStanding" fullname="Metagame.Gameplay.Tests.DemoEndingTests.WeakBeadChainCompletesOutsidePadWithoutOrderingOrStanding" methodname="WeakBeadChainCompletesOutsidePadWithoutOrderingOrStanding" classname="Metagame.Gameplay.Tests.DemoEndingTests" runstate="Runnable" seed="1598167424" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:14Z" duration="0.001331" asserts="0">
+                <properties />
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1521" name="EndingGreetingTests" fullname="Metagame.Gameplay.Tests.EndingGreetingTests" classname="Metagame.Gameplay.Tests.EndingGreetingTests" runstate="Runnable" testcasecount="5" result="Passed" start-time="2026-09-17 15:18:20Z" end-time="2026-09-17 15:18:21Z" duration="0.928662" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1527" name="CameraMovesToEachFaceThenEveryoneBoardsTogether" fullname="Metagame.Gameplay.Tests.EndingGreetingTests.CameraMovesToEachFaceThenEveryoneBoardsTogether" methodname="CameraMovesToEachFaceThenEveryoneBoardsTogether" classname="Metagame.Gameplay.Tests.EndingGreetingTests" runstate="Runnable" seed="686242998" result="Passed" start-time="2026-09-17 15:18:14Z" end-time="2026-09-17 15:18:21Z" duration="6.711265" asserts="0">
+                <properties>
+                  <property name="Category" value="Heavy" />
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="1526" name="EachParticipantGetsATurnBeforeSharedBoarding" fullname="Metagame.Gameplay.Tests.EndingGreetingTests.EachParticipantGetsATurnBeforeSharedBoarding" classname="Metagame.Gameplay.Tests.EndingGreetingTests" runstate="Runnable" testcasecount="4" result="Passed" start-time="2026-09-17 15:18:21Z" end-time="2026-09-17 15:18:21Z" duration="0.005231" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="1522" name="EachParticipantGetsATurnBeforeSharedBoarding(1)" fullname="Metagame.Gameplay.Tests.EndingGreetingTests.EachParticipantGetsATurnBeforeSharedBoarding(1)" methodname="EachParticipantGetsATurnBeforeSharedBoarding" classname="Metagame.Gameplay.Tests.EndingGreetingTests" runstate="Runnable" seed="1987212224" result="Passed" start-time="2026-09-17 15:18:21Z" end-time="2026-09-17 15:18:21Z" duration="0.001977" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="1523" name="EachParticipantGetsATurnBeforeSharedBoarding(2)" fullname="Metagame.Gameplay.Tests.EndingGreetingTests.EachParticipantGetsATurnBeforeSharedBoarding(2)" methodname="EachParticipantGetsATurnBeforeSharedBoarding" classname="Metagame.Gameplay.Tests.EndingGreetingTests" runstate="Runnable" seed="211280707" result="Passed" start-time="2026-09-17 15:18:21Z" end-time="2026-09-17 15:18:21Z" duration="0.000147" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="1524" name="EachParticipantGetsATurnBeforeSharedBoarding(3)" fullname="Metagame.Gameplay.Tests.EndingGreetingTests.EachParticipantGetsATurnBeforeSharedBoarding(3)" methodname="EachParticipantGetsATurnBeforeSharedBoarding" classname="Metagame.Gameplay.Tests.EndingGreetingTests" runstate="Runnable" seed="583196993" result="Passed" start-time="2026-09-17 15:18:21Z" end-time="2026-09-17 15:18:21Z" duration="0.000126" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="1525" name="EachParticipantGetsATurnBeforeSharedBoarding(4)" fullname="Metagame.Gameplay.Tests.EndingGreetingTests.EachParticipantGetsATurnBeforeSharedBoarding(4)" methodname="EachParticipantGetsATurnBeforeSharedBoarding" classname="Metagame.Gameplay.Tests.EndingGreetingTests" runstate="Runnable" seed="671919939" result="Passed" start-time="2026-09-17 15:18:21Z" end-time="2026-09-17 15:18:21Z" duration="0.000097" asserts="0">
+                  <properties />
+                </test-case>
+              </test-suite>
+            </test-suite>
+            <test-suite type="TestFixture" id="1528" name="EndingSceneTests" fullname="Metagame.Gameplay.Tests.EndingSceneTests" classname="Metagame.Gameplay.Tests.EndingSceneTests" runstate="Runnable" testcasecount="7" result="Passed" start-time="2026-09-17 15:18:50Z" end-time="2026-09-17 15:18:50Z" duration="0.361529" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1530" name="DebugConfirmationCancelsSafelyRejectsClientAndUsesRealSceneFlow" fullname="Metagame.Gameplay.Tests.EndingSceneTests.DebugConfirmationCancelsSafelyRejectsClientAndUsesRealSceneFlow" methodname="DebugConfirmationCancelsSafelyRejectsClientAndUsesRealSceneFlow" classname="Metagame.Gameplay.Tests.EndingSceneTests" runstate="Runnable" seed="1226836628" result="Passed" start-time="2026-09-17 15:18:21Z" end-time="2026-09-17 15:18:27Z" duration="5.410474" asserts="0">
+                <properties>
+                  <property name="Category" value="Heavy" />
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <output><![CDATA[[DemoEnding] 개발자 F12 테스트: 파츠를 조립하고 정상 엔딩 경로를 실행합니다.
+[NotThisPlanet] 도착 — 0.1초, 추락 0회
+[DemoEnding] 네 핵심 파츠 비드 연결 확정. 전원 엔딩 시작.
+]]></output>
+              </test-case>
+              <test-case id="1534" name="DisconnectKeepsEndingClockInsteadOfSwitchingToLocalUptime" fullname="Metagame.Gameplay.Tests.EndingSceneTests.DisconnectKeepsEndingClockInsteadOfSwitchingToLocalUptime" methodname="DisconnectKeepsEndingClockInsteadOfSwitchingToLocalUptime" classname="Metagame.Gameplay.Tests.EndingSceneTests" runstate="Runnable" seed="1678808890" result="Passed" start-time="2026-09-17 15:18:27Z" end-time="2026-09-17 15:18:31Z" duration="4.425331" asserts="0">
+                <properties>
+                  <property name="Category" value="Heavy" />
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="1529" name="EndingSceneIsIncludedAndReferencesFourVisualPrefabs" fullname="Metagame.Gameplay.Tests.EndingSceneTests.EndingSceneIsIncludedAndReferencesFourVisualPrefabs" methodname="EndingSceneIsIncludedAndReferencesFourVisualPrefabs" classname="Metagame.Gameplay.Tests.EndingSceneTests" runstate="Runnable" seed="750711824" result="Passed" start-time="2026-09-17 15:18:31Z" end-time="2026-09-17 15:18:31Z" duration="0.007840" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1533" name="LargeSnapshotChunksPreserveUtf8AndRejectOutOfOrderData" fullname="Metagame.Gameplay.Tests.EndingSceneTests.LargeSnapshotChunksPreserveUtf8AndRejectOutOfOrderData" methodname="LargeSnapshotChunksPreserveUtf8AndRejectOutOfOrderData" classname="Metagame.Gameplay.Tests.EndingSceneTests" runstate="Runnable" seed="1850261113" result="Passed" start-time="2026-09-17 15:18:31Z" end-time="2026-09-17 15:18:35Z" duration="4.437397" asserts="0">
+                <properties>
+                  <property name="Category" value="Heavy" />
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <output><![CDATA[[EndingScene] 엔딩 정보의 전송 순서 또는 크기가 올바르지 않습니다.
+]]></output>
+              </test-case>
+              <test-case id="1535" name="MirrorEndingMessagePreservesSnapshotAndSharedStartTime" fullname="Metagame.Gameplay.Tests.EndingSceneTests.MirrorEndingMessagePreservesSnapshotAndSharedStartTime" methodname="MirrorEndingMessagePreservesSnapshotAndSharedStartTime" classname="Metagame.Gameplay.Tests.EndingSceneTests" runstate="Runnable" seed="771775121" result="Passed" start-time="2026-09-17 15:18:35Z" end-time="2026-09-17 15:18:40Z" duration="4.557826" asserts="0">
+                <properties>
+                  <property name="Category" value="Heavy" />
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="1532" name="SoloTransferRebuildsSnapshotAfterOriginalSceneIsUnloaded" fullname="Metagame.Gameplay.Tests.EndingSceneTests.SoloTransferRebuildsSnapshotAfterOriginalSceneIsUnloaded" methodname="SoloTransferRebuildsSnapshotAfterOriginalSceneIsUnloaded" classname="Metagame.Gameplay.Tests.EndingSceneTests" runstate="Runnable" seed="2108644704" result="Passed" start-time="2026-09-17 15:18:40Z" end-time="2026-09-17 15:18:46Z" duration="5.527803" asserts="0">
+                <properties>
+                  <property name="Category" value="Heavy" />
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="1531" name="UnpreparedParticipantHasBoundedWaitAndReportsFailure" fullname="Metagame.Gameplay.Tests.EndingSceneTests.UnpreparedParticipantHasBoundedWaitAndReportsFailure" methodname="UnpreparedParticipantHasBoundedWaitAndReportsFailure" classname="Metagame.Gameplay.Tests.EndingSceneTests" runstate="Runnable" seed="1924013998" result="Passed" start-time="2026-09-17 15:18:46Z" end-time="2026-09-17 15:18:50Z" duration="4.370500" asserts="0">
+                <properties>
+                  <property name="Category" value="Heavy" />
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <output><![CDATA[[EndingScene] 엔딩 준비 시간이 초과되었습니다. 연결 또는 씬 로딩을 확인해 주세요.
+]]></output>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="2719" name="Stage2ArrivalTests" fullname="Metagame.Gameplay.Tests.Stage2ArrivalTests" classname="Metagame.Gameplay.Tests.Stage2ArrivalTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-09-17 15:19:05Z" end-time="2026-09-17 15:19:05Z" duration="0.351273" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2723" name="AssembledSnapshotBreaksApartAndLateJoinSeeksDeterministically" fullname="Metagame.Gameplay.Tests.Stage2ArrivalTests.AssembledSnapshotBreaksApartAndLateJoinSeeksDeterministically" methodname="AssembledSnapshotBreaksApartAndLateJoinSeeksDeterministically" classname="Metagame.Gameplay.Tests.Stage2ArrivalTests" runstate="Runnable" seed="34303215" result="Passed" start-time="2026-09-17 15:18:50Z" end-time="2026-09-17 15:18:56Z" duration="6.011829" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <output><![CDATA[There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+There are no audio listeners in the scene. Please ensure there is always one audio listener in the scene
+]]></output>
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="2722" name="CommonClockIncludesCrashBeforeStage2" fullname="Metagame.Gameplay.Tests.Stage2ArrivalTests.CommonClockIncludesCrashBeforeStage2" classname="Metagame.Gameplay.Tests.Stage2ArrivalTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-17 15:19:05Z" end-time="2026-09-17 15:19:05Z" duration="0.348323" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="2720" name="CommonClockIncludesCrashBeforeStage2(1)" fullname="Metagame.Gameplay.Tests.Stage2ArrivalTests.CommonClockIncludesCrashBeforeStage2(1)" methodname="CommonClockIncludesCrashBeforeStage2" classname="Metagame.Gameplay.Tests.Stage2ArrivalTests" runstate="Runnable" seed="1114942007" result="Passed" start-time="2026-09-17 15:18:56Z" end-time="2026-09-17 15:19:01Z" duration="4.681799" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="2721" name="CommonClockIncludesCrashBeforeStage2(4)" fullname="Metagame.Gameplay.Tests.Stage2ArrivalTests.CommonClockIncludesCrashBeforeStage2(4)" methodname="CommonClockIncludesCrashBeforeStage2" classname="Metagame.Gameplay.Tests.Stage2ArrivalTests" runstate="Runnable" seed="1244643049" result="Passed" start-time="2026-09-17 15:19:01Z" end-time="2026-09-17 15:19:05Z" duration="4.473247" asserts="0">
+                  <properties />
+                </test-case>
+              </test-suite>
+            </test-suite>
+            <test-suite type="TestFixture" id="2733" name="Stage2Tests" fullname="Metagame.Gameplay.Tests.Stage2Tests" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" testcasecount="10" result="Passed" start-time="2026-09-17 15:19:25Z" end-time="2026-09-17 15:19:27Z" duration="1.890212" total="10" passed="10" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2734" name="CranePolarCoordinatesReachAllStoresAndSockets" fullname="Metagame.Gameplay.Tests.Stage2Tests.CranePolarCoordinatesReachAllStoresAndSockets" methodname="CranePolarCoordinatesReachAllStoresAndSockets" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" seed="262306429" result="Passed" start-time="2026-09-17 15:19:05Z" end-time="2026-09-17 15:19:05Z" duration="0.004898" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2739" name="MouseCircleCountsTurnsButStraightAndZigzagDoNot" fullname="Metagame.Gameplay.Tests.Stage2Tests.MouseCircleCountsTurnsButStraightAndZigzagDoNot" methodname="MouseCircleCountsTurnsButStraightAndZigzagDoNot" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" seed="1629272134" result="Passed" start-time="2026-09-17 15:19:05Z" end-time="2026-09-17 15:19:05Z" duration="0.002295" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2740" name="PartialBoltsCannotCarryTheRocket" fullname="Metagame.Gameplay.Tests.Stage2Tests.PartialBoltsCannotCarryTheRocket" methodname="PartialBoltsCannotCarryTheRocket" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" seed="778719076" result="Passed" start-time="2026-09-17 15:19:05Z" end-time="2026-09-17 15:19:05Z" duration="0.000720" asserts="0">
+                <properties />
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="2738" name="PlacementRejectsDistanceAndTilt" fullname="Metagame.Gameplay.Tests.Stage2Tests.PlacementRejectsDistanceAndTilt" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-09-17 15:19:05Z" end-time="2026-09-17 15:19:05Z" duration="0.002958" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="2735" name="PlacementRejectsDistanceAndTilt(0.64f,11.0f,True)" fullname="Metagame.Gameplay.Tests.Stage2Tests.PlacementRejectsDistanceAndTilt(0.64f,11.0f,True)" methodname="PlacementRejectsDistanceAndTilt" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" seed="343803845" result="Passed" start-time="2026-09-17 15:19:05Z" end-time="2026-09-17 15:19:05Z" duration="0.001232" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="2736" name="PlacementRejectsDistanceAndTilt(0.7f,0.0f,False)" fullname="Metagame.Gameplay.Tests.Stage2Tests.PlacementRejectsDistanceAndTilt(0.7f,0.0f,False)" methodname="PlacementRejectsDistanceAndTilt" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" seed="539236948" result="Passed" start-time="2026-09-17 15:19:05Z" end-time="2026-09-17 15:19:05Z" duration="0.000150" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="2737" name="PlacementRejectsDistanceAndTilt(0.0f,13.0f,False)" fullname="Metagame.Gameplay.Tests.Stage2Tests.PlacementRejectsDistanceAndTilt(0.0f,13.0f,False)" methodname="PlacementRejectsDistanceAndTilt" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" seed="478784671" result="Passed" start-time="2026-09-17 15:19:05Z" end-time="2026-09-17 15:19:05Z" duration="0.000074" asserts="0">
+                  <properties />
+                </test-case>
+              </test-suite>
+              <test-case id="2741" name="SceneHasUniqueInteractionsAndNoStage1Tools" fullname="Metagame.Gameplay.Tests.Stage2Tests.SceneHasUniqueInteractionsAndNoStage1Tools" methodname="SceneHasUniqueInteractionsAndNoStage1Tools" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" seed="1712027600" result="Passed" start-time="2026-09-17 15:19:05Z" end-time="2026-09-17 15:19:06Z" duration="0.294923" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2742" name="SceneRunsAndHostEnforcesRangeOccupancyAssemblyAndRecovery" fullname="Metagame.Gameplay.Tests.Stage2Tests.SceneRunsAndHostEnforcesRangeOccupancyAssemblyAndRecovery" methodname="SceneRunsAndHostEnforcesRangeOccupancyAssemblyAndRecovery" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" seed="649406671" result="Passed" start-time="2026-09-17 15:19:06Z" end-time="2026-09-17 15:19:13Z" duration="7.329327" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <output><![CDATA[[Stage2Visual] M_Stage2_Steel RGBA(0.080, 0.130, 0.160, 1.000) Universal Render Pipeline/Lit
+[NotThisPlanet] 도착 — 1.1초, 추락 0회
+]]></output>
+              </test-case>
+              <test-case id="2743" name="SprayCleansTeammateButCannotCrossWallOrCleanSelf" fullname="Metagame.Gameplay.Tests.Stage2Tests.SprayCleansTeammateButCannotCrossWallOrCleanSelf" methodname="SprayCleansTeammateButCannotCrossWallOrCleanSelf" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" seed="1291363814" result="Passed" start-time="2026-09-17 15:19:13Z" end-time="2026-09-17 15:19:21Z" duration="7.955465" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="2744" name="Stage1EndingContinuesIntoStage2WithFreshGameplay" fullname="Metagame.Gameplay.Tests.Stage2Tests.Stage1EndingContinuesIntoStage2WithFreshGameplay" methodname="Stage1EndingContinuesIntoStage2WithFreshGameplay" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" seed="255541082" result="Passed" start-time="2026-09-17 15:19:21Z" end-time="2026-09-17 15:19:27Z" duration="6.128185" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[백엔드] https://j15b202.p.ssafy.io:443/dev  (개발)
+Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

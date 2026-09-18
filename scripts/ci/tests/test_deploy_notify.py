@@ -251,4 +251,23 @@ assert "배포 대기 잡이 없는데" not in D.deploy_line(st)
 COMPARE_FAILS.clear()
 print("  비교 실패는 경고하지 않음 ✅")
 
+
+# ── 새벽(예약) 배포 카드는 **아무도 부르지 않는다** (S15P21B202-608)
+#
+#     04:00 에 나가는 카드는 아무도 못 본다 — 그 시각의 멘션은 알림만 시끄럽게 하고,
+#     아침에 읽을 때는 이미 멘션이 필요 없다(카드가 그대로 남아 있다).
+rc, t = notify("fail", "준비 확인 실패", CI_PIPELINE_SOURCE="schedule",
+               CI_COMMIT_SHA="abc1234def567", CI_COMMIT_TITLE="[Backend] fix: y")
+assert rc == 0, rc
+assert t.startswith("🔴 **배포 실패**"), t
+assert "@" not in t, "새벽 카드가 사람을 부른다 — 그 시각엔 아무도 못 본다: " + t
+assert "볼 곳" in t, "부르지 않더라도 무엇을 볼지는 남아야 한다: " + t
+print("  새벽 배포 카드는 아무도 부르지 않는다 ✅")
+
+#     낮에 사람이 눌러 도는 배포는 **그대로 부른다** — 거기서는 기다리는 사람이 있다.
+rc, t = notify("fail", "준비 확인 실패", CI_PIPELINE_SOURCE="push",
+               CI_COMMIT_SHA="abc1234def567")
+assert f"@{INFRA_MM}" in t, "사람이 기다리는 배포인데 아무도 안 부른다: " + t
+print("  사람이 돌린 배포는 그대로 부른다 ✅")
+
 print("TEST144 OK")
