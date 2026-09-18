@@ -129,58 +129,69 @@ namespace Metagame.Gameplay.Tests
         // --- 공세 구조 (기획 §17.4) ------------------------------------------
 
         /// <summary>
-        /// 시간대 표(§17.4)가 바탕이고, 거기에 경과 시간이 곱해진다(2026-09-18).
-        ///
-        /// <b>바탕값은 그대로 잠근다.</b> 0분에서는 조임이 ×1 이므로 표의 30초가 그대로
-        /// 나와야 한다 — 여기가 어긋나면 표를 잘못 읽고 있는 것이다.
+        /// 컷신 전에는 가랑비다(2026-09-18). 경과 시간을 아무리 옮겨도 그대로다 —
+        /// 강도를 정하는 것은 시계가 아니라 공세 컷신이다
+        /// (<see cref="MeteorIntensity"/>).
         /// </summary>
         [Test]
-        public void WaveInterval_StartsFromTheDesignTable()
+        public void BeforeTheCutscene_TheIntervalIsTheDrizzle()
         {
             var spawner = CreateSpawner();
 
-            Assert.AreEqual(30f, spawner.IntervalAt(0f), 0.01f, "0분에는 조임이 없다 — 표 그대로.");
-
-            // 이후는 표 ÷ 조임배율. 15분 램프이므로 6분이면 ×1.4 다.
-            Assert.AreEqual(25f / MeteorEscalation.FactorAt(6f * 60f),
-                            spawner.IntervalAt(6f * 60f), 0.01f);
-            Assert.AreEqual(20f / MeteorEscalation.FactorAt(11f * 60f),
-                            spawner.IntervalAt(11f * 60f), 0.01f);
+            Assert.AreEqual(PhysicsScale.MeteorDrizzleIntervalSeconds,
+                            spawner.IntervalAt(0f), 0.01f);
+            Assert.AreEqual(PhysicsScale.MeteorDrizzleIntervalSeconds,
+                            spawner.IntervalAt(30f * 60f), 0.01f,
+                            "30분이 지나도 컷신 전이면 그대로다.");
         }
 
         /// <summary>
-        /// <b>20분에서 멈추지 않는다</b>(2026-09-18).
-        ///
-        /// 예전에는 §17.4 의 마지막 칸("20분~ · 15초")이 영원히 이어져,
-        /// <c>Interval_StopsShrinkingAtTheLastRow</c> 가 바로 그것을 잠그고 있었다.
-        /// 플레이 확인에서 "진행될수록 점점 더 강하게" 가 나온 자리다 — 끝이 평평하면
-        /// 오래 끌어도 불리하지 않아 발사를 서두를 이유가 없다.
+        /// 컷신을 지나면 바로 최대다. <b>서서히 오르지 않는다</b> —
+        /// 예전 시간 램프를 대체한 자리다.
         /// </summary>
         [Test]
-        public void WaveInterval_KeepsTighteningPastTheLastRow()
+        public void AfterTheCutscene_TheIntervalJumpsToFullBlast()
         {
             var spawner = CreateSpawner();
+            spawner.SetAssault(true);
 
-            var twenty = spawner.IntervalAt(20f * 60f);
-            var forty = spawner.IntervalAt(40f * 60f);
-
-            Assert.Less(forty, twenty, "마지막 시간대 뒤로도 계속 조여야 한다.");
+            Assert.AreEqual(PhysicsScale.MeteorFullBlastIntervalSeconds,
+                            spawner.IntervalAt(0f), 0.01f,
+                            "컷신 직후부터 최대여야 한다.");
+            Assert.AreEqual(PhysicsScale.MeteorFullBlastIntervalSeconds,
+                            spawner.IntervalAt(30f * 60f), 0.01f,
+                            "그 뒤로 더 조여지지도 않는다.");
         }
 
         /// <summary>
-        /// 아무리 조여도 §17.3 의 신호 시간보다 짧아지지는 않는다.
-        ///
-        /// 더 짧으면 5초 전 신호가 <b>이전 공세 안에서</b> 울려 무엇을 예고하는지 알 수
-        /// 없다 — 신호를 못 믿게 되면 예고 자체가 무의미해진다.
+        /// <b>공세 배율을 두 번 곱하지 않는다.</b> 예전에는 <c>AssaultEnabled</c> 가
+        /// 간격에 0.35 를 또 곱해서, 컷신 뒤 5초가 1.75초가 됐을 것이다 — §17.3 의
+        /// 5초 전 신호가 이전 공세 안에서 울린다.
         /// </summary>
         [Test]
-        public void WaveInterval_NeverGoesBelowTheWarningLead()
+        public void TheFullBlastIsNotMultipliedTwice()
+        {
+            var spawner = CreateSpawner();
+            spawner.SetAssault(true);
+
+            Assert.GreaterOrEqual(spawner.IntervalAt(0f),
+                                  PhysicsScale.MeteorWaveLeadSeconds - 0.01f,
+                                  "신호가 붙을 자리가 남아야 한다.");
+        }
+
+        /// <summary>컷신 전으로 되돌리면 가랑비로 돌아간다 — 시험장이 두 단계를 오간다.</summary>
+        [Test]
+        public void TheCutsceneStateCanBeToggledBack()
         {
             var spawner = CreateSpawner();
 
-            Assert.GreaterOrEqual(spawner.IntervalAt(600f * 60f),
-                                  PhysicsScale.MeteorEscalationIntervalFloor - 0.01f,
-                                  "열 시간이 지나도 바닥은 지켜야 한다.");
+            spawner.SetAssault(true);
+            Assert.IsTrue(spawner.AssaultEnabled);
+
+            spawner.SetAssault(false);
+            Assert.IsFalse(spawner.AssaultEnabled);
+            Assert.AreEqual(PhysicsScale.MeteorDrizzleIntervalSeconds,
+                            spawner.IntervalAt(0f), 0.01f);
         }
 
         /// <summary>
@@ -294,46 +305,31 @@ namespace Metagame.Gameplay.Tests
 
         // --- 소형과 중형 (기획 §17.7) ----------------------------------------
 
+        /// <summary>
+        /// 컷신 전에는 중형이 없다. §17.7 은 "중형 · 등장 10분 이후" 로 정했는데,
+        /// 그 시계를 컷신이 대신한다(2026-09-18) — 비행선 구역에 들어서기 전에
+        /// 중형을 맞으면 배우기도 전에 기절한다.
+        /// </summary>
         [Test]
-        public void MediumMeteors_DoNotAppearBeforeTenMinutes()
+        public void MediumMeteors_DoNotAppearBeforeTheCutscene()
         {
             var spawner = CreateSpawner();
 
             Assert.AreEqual(0f, spawner.MediumChanceAt(0f), 0.001f);
-            Assert.AreEqual(0f, spawner.MediumChanceAt(9f * 60f), 0.001f);
-            Assert.Greater(spawner.MediumChanceAt(11f * 60f), 0f, "10분 이후에는 나온다.");
+            Assert.AreEqual(0f, spawner.MediumChanceAt(30f * 60f), 0.001f,
+                            "시간이 아무리 흘러도 컷신 전이면 0 이다.");
         }
 
         [Test]
-        public void MediumChance_RisesWithTime()
+        public void MediumMeteors_ArriveWithTheCutscene()
         {
             var spawner = CreateSpawner();
+            spawner.SetAssault(true);
 
-            var ten = spawner.MediumChanceAt(11f * 60f);
-            var fifteen = spawner.MediumChanceAt(16f * 60f);
-            var twenty = spawner.MediumChanceAt(25f * 60f);
-            var late = spawner.MediumChanceAt(45f * 60f);
-
-            Assert.Greater(fifteen, ten);
-            Assert.Greater(twenty, fifteen);
-            Assert.Greater(late, twenty, "20분 뒤로도 계속 올라야 한다(2026-09-18).");
-            Assert.LessOrEqual(late, PhysicsScale.MeteorEscalationMediumCap + 0.001f,
-                "상한은 있다 — 소형이 다수로 남아야 방망이가 쓸모 있다.");
-        }
-
-        /// <summary>
-        /// <b>표가 0 인 동안은 조임도 0 이다</b>(2026-09-18).
-        ///
-        /// 경과 시간만 보고 확률을 더하면 §17.7 의 "중형 · 등장 10분 이후" 가 깨져
-        /// <b>1분에도 중형이 나온다.</b> 등장 시점을 정하는 것은 여전히 표다.
-        /// </summary>
-        [Test]
-        public void Escalation_DoesNotOpenTheMediumDoorEarly()
-        {
-            var spawner = CreateSpawner();
-
-            Assert.AreEqual(0f, spawner.MediumChanceAt(1f * 60f), 0.001f);
-            Assert.AreEqual(0f, spawner.MediumChanceAt(9.9f * 60f), 0.001f);
+            Assert.AreEqual(PhysicsScale.MeteorFullBlastMediumChance,
+                            spawner.MediumChanceAt(0f), 0.001f);
+            Assert.Less(spawner.MediumChanceAt(0f), 0.8f,
+                        "소형이 다수로 남아야 방망이가 쓸모 있다(§18).");
         }
 
         [Test]
@@ -346,10 +342,11 @@ namespace Metagame.Gameplay.Tests
 
             Assert.AreEqual(MeteorSize.Small, meteor.Size, "초반에는 소형만 나온다.");
 
-            // <b>스포너의 배율을 거쳐 본다</b>(2026-09-18). 경과 시간이 반경을 조이므로
-            // (<see cref="MeteorEscalation.RadiusScaleFor"/>) §17.7 의 생값 2m·3.5m 을
-            // 그대로 기대하면 몇 초만 지나도 어긋난다. 여기서 재려는 것은 "크기가 반경을
-            // 정한다" 이지 "반경이 정확히 2m 다" 가 아니다 — 후자는 MeteorImpactTierTests 몫이다.
+            // <b>스포너의 배율을 거쳐 본다</b>(2026-09-18). 컷신 단계가 반경에 배율을
+            // 곱하므로(<see cref="MeteorIntensity.ImpactRadiusScale"/>) §17.7 의 생값
+            // 2m·3.5m 을 그대로 기대하면 단계가 바뀌는 순간 어긋난다. 여기서 재려는 것은
+            // "크기가 반경을 정한다" 이지 "반경이 정확히 2m 다" 가 아니다 —
+            // 후자는 MeteorImpactTierTests 몫이다.
             Assert.AreEqual(spawner.ScaledImpactRadiusFor(MeteorSize.Small),
                             meteor.ImpactRadius, 0.01f);
 
@@ -401,23 +398,19 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
-        /// <b>공세는 커지기도 한다</b>(2026-09-18). 간격만 줄면 "같은 것이 자주 온다" 고,
-        /// 개수까지 늘어야 "점점 더 강해진다" 가 된다.
+        /// 컷신이 개수도 바꾼다. 간격만 줄면 "같은 것이 자주 온다" 고,
+        /// 개수까지 늘어야 "달라졌다" 가 된다.
         ///
-        /// 스포너를 굴리지 않고 순수 계산을 본다 — 개수는 난수로 뽑히므로 한 번 굴려서는
-        /// 곡선이 올라갔는지 알 수 없고, 여러 번 굴리면 예고가 쌓여 세기가 어긋난다.
+        /// 스포너를 굴리지 않고 강도값을 본다 — 개수는 인원 보정과 난수를 거치므로
+        /// 한 번 굴려서는 판정이 안 되고, 여러 번 굴리면 예고가 쌓여 세기가 어긋난다.
         /// </summary>
         [Test]
-        public void LateWaves_CarryMoreMeteorsThanEarlyOnes()
+        public void TheCutsceneMakesWavesBigger()
         {
-            // §17.4 마지막 칸의 5개가 바탕이다.
-            var early = MeteorEscalation.CountFor(5, 0f);
-            var late = MeteorEscalation.CountFor(5, 30f * 60f);
+            var before = MeteorIntensity.For(false).Meteors;
+            var after = MeteorIntensity.For(true).Meteors;
 
-            Assert.AreEqual(5, early, "0분에는 조임이 없다 — 표 그대로.");
-            Assert.Greater(late, early, $"초반 {early}개 · 후반 {late}개");
-            Assert.LessOrEqual(late, PhysicsScale.MeteorEscalationCountCap,
-                "상한 위로는 올라가지 않는다.");
+            Assert.Greater(after, before, $"컷신 전 {before}발 · 후 {after}발");
         }
 
         [Test]

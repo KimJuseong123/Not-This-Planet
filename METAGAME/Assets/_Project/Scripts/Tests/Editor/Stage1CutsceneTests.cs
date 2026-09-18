@@ -42,9 +42,19 @@ namespace Metagame.Gameplay.Tests
             _now = 18; _sequence.Tick();
             Assert.That(_sequence.Phase, Is.EqualTo(Stage1SequencePhase.Exploration));
             Assert.That(_session.CinematicInputBlocked, Is.False);
-            _now = 300; _sequence.Tick(); _spawner.Tick(300);
-            Assert.That(_spawner.SequenceHold, Is.True);
-            Assert.That(_spawner.Live.Count, Is.Zero, "The explicit trigger, not a timer, starts attacks.");
+            // 탐색 구간에는 가랑비가 흐른다(2026-09-18). 예전에는 여기서
+            // SequenceHold 가 True 라 **한 발도 안 떨어졌다** — 그러면 운석이 위협이라는
+            // 것을 공세 컷신에서 처음 배우게 된다.
+            _now = 300; _sequence.Tick();
+            Assert.That(_spawner.SequenceHold, Is.False, "탐색 구간은 막지 않는다.");
+            for (var i = 0; i < 400; i++) _spawner.Tick(0.1f);
+            Assert.That(_spawner.Pending.Count + _spawner.Live.Count, Is.GreaterThan(0),
+                "가랑비라도 떨어져야 한다.");
+
+            // <b>그래도 공세는 시작되지 않았다.</b> 이 검증의 원래 의도가 그것이다 —
+            // 공세를 켜는 것은 시계가 아니라 명시적 트리거다.
+            Assert.That(_spawner.AssaultEnabled, Is.False,
+                "The explicit trigger, not a timer, starts attacks.");
         }
 
         [Test] public void UnreadyParticipantsCannotHoldAuthorityPastTenSeconds()
@@ -89,13 +99,21 @@ namespace Metagame.Gameplay.Tests
             _sequence.TryBeginEntry(); _now = 18; _sequence.Tick();
             _spawner.Tick(12f);
             float elapsed = _spawner.Elapsed, oldInterval = _spawner.CurrentInterval;
+            Assert.That(oldInterval, Is.EqualTo(PhysicsScale.MeteorDrizzleIntervalSeconds).Within(0.001f),
+                "컷신 전은 가랑비 간격이다.");
             Assert.That(_sequence.TryBeginAssault(), Is.True);
             _now = 22.99; _sequence.Tick();
             Assert.That(_spawner.AssaultEnabled, Is.False);
             _now = 23; _sequence.Tick();
             Assert.That(_spawner.SequenceHold, Is.False);
             Assert.That(_spawner.AssaultEnabled, Is.True);
-            Assert.That(_spawner.CurrentInterval, Is.EqualTo(oldInterval * 0.35f).Within(0.001f));
+
+            // <b>배율이 아니라 단계다</b>(2026-09-18). 예전에는 같은 간격에 0.35 를
+            // 곱했는데, 지금은 컷신 뒤 값이 MeteorIntensity.FullBlast 로 정해져 있다 —
+            // 둘을 겹치면 5초가 1.75초가 되어 §17.3 의 5초 전 신호가 붙을 자리가 없다.
+            Assert.That(_spawner.CurrentInterval,
+                Is.EqualTo(PhysicsScale.MeteorFullBlastIntervalSeconds).Within(0.001f));
+            Assert.That(_spawner.CurrentInterval, Is.LessThan(oldInterval), "컷신 뒤가 더 잦다.");
             Assert.That(_spawner.Elapsed, Is.EqualTo(elapsed));
             _now = 26; _sequence.Tick();
             Assert.That(_sequence.Phase, Is.EqualTo(Stage1SequencePhase.Combat));

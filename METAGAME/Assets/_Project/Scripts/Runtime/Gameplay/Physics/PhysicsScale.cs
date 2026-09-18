@@ -1031,56 +1031,58 @@ namespace Metagame.Gameplay
         public const float MeteorPartKnockSpin = 2f;
 
         /// <summary>
-        /// 공세가 두 배로 세지는 데 걸리는 시간(분). 기획 §17.4 표 <b>위에</b> 얹는다.
+        /// <b>컷신 전</b> 공세 간격(초). 기획 §17.8 의 공세 트리거를 밟기 전 상태다.
         ///
-        /// <b>표만으로는 20분에서 멈춘다.</b> §17.4 의 마지막 칸이 "20분~ · 15초 · 5개"
-        /// 하나이고 그 뒤로는 영원히 같다 — 2026-09-18 플레이 확인의 "진행될수록 점점 더
-        /// 강하게" 가 그것이다. 표는 다섯 칸짜리 <b>계단</b>이라 칸 안에서도 변화가 없다.
+        /// <b>예전에는 0 발이었다.</b> <c>Stage1Sequence.ApplyGate</c> 가 공세가 켜지기
+        /// 전까지 스포너를 통째로 막아, 비행선까지 걸어가는 동안 하늘이 완전히 조용했다.
+        /// 그러면 운석이 <b>이 게임의 위협</b>이라는 것을 컷신에서 처음 배우게 된다 —
+        /// 배우는 자리가 곧 위험해지는 자리면 늦다.
         ///
-        /// <b>계단을 없애지 않는다.</b> <see cref="Hazards.MeteorSpawner.IntervalAt"/> 이
-        /// 적어 둔 대로 공세는 하나씩 흐르는 것이 아니라 <b>묶음</b>으로 와야 §17.3 의
-        /// "5초 전 신호" 가 붙을 자리가 있다. 바뀌는 것은 묶음의 세기와 간격뿐이고
-        /// 묶음이라는 구조는 그대로다.
-        ///
-        /// 15분에 ×2, 30분에 ×3, 45분에 ×4. 끝이 없다 — 오래 끌수록 불리해야
-        /// 발사를 서두른다.
+        /// 10초에 한 발이면 피할 것도 없이 "저게 떨어지는구나" 만 알려 준다.
+        /// 예고 원과 넉백을 안전할 때 한 번 겪어 두는 것이 목적이다.
         /// </summary>
-        public const float MeteorEscalationRampMinutes = 15f;
+        public const float MeteorDrizzleIntervalSeconds = 10f;
+
+        /// <summary>컷신 전 한 공세의 운석 수. 한 발이다 — 묶음이 아니라 한 방울이다.</summary>
+        public const int MeteorDrizzleMeteors = 1;
 
         /// <summary>
-        /// 아무리 세져도 공세 간격은 이보다 짧아지지 않는다(초).
+        /// <b>컷신 뒤</b> 공세 간격(초). 비행선 공세 컷신이 끝나면 바로 이 값이 된다.
+        ///
+        /// <b>시간에 따라 오르지 않는다</b>(2026-09-18). 처음에는 경과 시간으로 서서히
+        /// 조이는 곡선을 넣었는데, 실제 난이도 전환점은 시계가 아니라 <b>플레이어가
+        /// 비행선 구역에 들어선 순간</b>이다 — 기획 §17.8 의 트리거가 이미 그 자리에
+        /// 있고, 컷신이 "이제부터 다르다" 를 이미 말한다. 시계가 따로 돌면 컷신을
+        /// 일찍 본 판과 늦게 본 판의 난이도가 달라져, 같은 연출이 다른 뜻이 된다.
         ///
         /// 5초는 §17.3 의 신호 시간(<see cref="MeteorWaveLeadSeconds"/>)과 같다. 더
-        /// 줄이면 신호가 이전 공세 안에서 울려 <b>무엇을 예고하는지 알 수 없다.</b>
+        /// 줄이면 5초 전 신호가 <b>이전 공세 안에서</b> 울려 무엇을 예고하는지 알 수 없다.
         /// </summary>
-        public const float MeteorEscalationIntervalFloor = 5f;
+        public const float MeteorFullBlastIntervalSeconds = 5f;
 
         /// <summary>
-        /// 한 공세의 운석 수 상한. 인원 보정(§17.6) 전에 자른다.
+        /// 컷신 뒤 한 공세의 운석 수. 인원 보정(§17.6) <b>전</b>의 값이다.
         ///
-        /// 8개는 <c>MeteorWavePreset</c> 의 "과부하"(6~7)보다 한 칸 위다 — 그 프리셋이
-        /// "일부러 넘긴 값 · 혼자서는 못 지나가는 경계" 이므로, 시간이 끌리면 그보다
-        /// 조금 더 나쁜 곳까지는 갈 수 있어야 한다.
+        /// <c>MeteorWavePreset</c> 의 "과부하"(6~7)를 넘어선다 — 그 프리셋이 "일부러
+        /// 넘긴 값 · 혼자서는 못 지나가는 경계" 인데, 컷신 뒤는 넷이 함께 막으라고
+        /// 만든 구간이므로 그보다 나쁜 것이 맞다. 혼자면 보정이 45% 로 눌러 5발이 된다.
         /// </summary>
-        public const int MeteorEscalationCountCap = 8;
-
-        /// <summary>분당 오르는 중형 확률. <b>표가 이미 중형을 허용한 뒤에만</b> 더한다.</summary>
-        public const float MeteorEscalationMediumPerMinute = 0.012f;
-
-        /// <summary>중형 확률 상한. 절반을 넘기되 소형이 다수로 남는 선.</summary>
-        public const float MeteorEscalationMediumCap = 0.65f;
-
-        /// <summary>분당 오르는 충격 반경 배율.</summary>
-        public const float MeteorEscalationRadiusPerMinute = 0.02f;
+        public const int MeteorFullBlastMeteors = 10;
 
         /// <summary>
-        /// 충격 반경 배율 상한. 30분에 닿는다.
-        ///
-        /// 소형 2m → 3.2m, 중형 3.5m → 5.6m. 충격파는 여기에
-        /// <see cref="MeteorShockwaveRadiusScale"/> 이 또 곱해지므로 소형도 5.8m 까지
-        /// 간다 — 더 키우면 아레나 어디에 서 있어도 맞는다.
+        /// 컷신 뒤 중형 확률. 절반을 넘기되 소형이 다수로 남는 선이다 —
+        /// 전부 중형이면 방망이(§18)로 쳐낼 수 있는 것이 사라진다.
         /// </summary>
-        public const float MeteorEscalationRadiusCap = 1.6f;
+        public const float MeteorFullBlastMediumChance = 0.6f;
+
+        /// <summary>
+        /// 컷신 뒤 충격 반경 배율. 크기별 반경(§17.7)에 곱한다.
+        ///
+        /// ×1.4 에서 소형 2m → 2.8m, 중형 3.5m → 4.9m 다. 충격파는 여기에
+        /// <see cref="MeteorShockwaveRadiusScale"/> 이 또 곱해지므로 소형이 5.0m ·
+        /// 중형이 8.8m 까지 간다 — 더 키우면 50m 아레나에서 어디에 서 있어도 맞는다.
+        /// </summary>
+        public const float MeteorFullBlastRadiusScale = 1.4f;
 
         /// <summary>
         /// 착탄 지점의 지면을 찾을 때 위에서 아래로 훑는 높이(m).

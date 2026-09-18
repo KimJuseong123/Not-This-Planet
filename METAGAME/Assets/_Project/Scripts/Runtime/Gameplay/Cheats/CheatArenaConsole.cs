@@ -243,7 +243,28 @@ namespace Metagame.Gameplay.Cheats
             if (target == null) return;
             if (target.ActivePreset != null) target.ClearPreset();
             target.SkipTo(minutes * 60f);
-            Note($"경과 {minutes}분으로 이동 · 간격 {target.CurrentInterval:0}초");
+
+            // <b>강도는 안 바뀐다</b>(2026-09-18). 경과 시간이 공세 세기를 정하던 시절의
+            // 버튼이고, 지금은 컷신 단계가 정한다(<see cref="MeteorIntensity"/>).
+            // 흔적 수명처럼 시계를 쓰는 것이 남아 있어 지우지는 않았다.
+            Note($"경과 {minutes}분으로 이동 — 공세 세기는 그대로다(컷신 단계가 정한다)");
+        }
+
+        /// <summary>
+        /// 공세 컷신을 지난 상태를 흉내낸다. 시험장에는 <c>Stage1Sequence</c> 가 없어
+        /// 비행선 트리거를 밟을 방법이 없다 — 그러면 <b>가랑비만 보고 끝난다.</b>
+        /// </summary>
+        public void ToggleFullBlast()
+        {
+            var target = Spawner;
+            if (target == null) { Note("운석 스포너가 없다"); return; }
+            if (target.ActivePreset != null) target.ClearPreset();
+
+            target.SetAssault(!target.AssaultEnabled);
+            var level = MeteorIntensity.For(target.AssaultEnabled);
+            Note(target.AssaultEnabled
+                ? $"컷신 이후 — {level.WaveIntervalSeconds:0}초마다 {level.Meteors}발 · 중형 {level.MediumChance:P0}"
+                : $"컷신 이전 — {level.WaveIntervalSeconds:0}초마다 {level.Meteors}발");
         }
 
         /// <summary>공세 강도를 고정한다. 인원 보정은 4인으로 함께 고정된다.</summary>
@@ -719,6 +740,11 @@ namespace Metagame.Gameplay.Cheats
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("내 앞에 소형")) DropMeteorNearPlayer(MeteorSize.Small);
             if (GUILayout.Button("내 앞에 중형")) DropMeteorNearPlayer(MeteorSize.Medium);
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button(target.AssaultEnabled ? "컷신 이후 ▣ → 이전으로" : "컷신 이전 □ → 이후로"))
+                ToggleFullBlast();
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();

@@ -105,10 +105,28 @@ namespace Metagame.Gameplay
             ApplyGate();
         }
 
+        /// <summary>
+        /// 스포너를 멈춰 둘 구간을 정한다.
+        ///
+        /// <para><b>공세 전에도 조금은 내린다</b>(2026-09-18). 예전 조건은
+        /// <c>!AssaultEnabled</c> 를 포함해서, 비행선까지 걸어가는 내내 <b>운석이 한 발도
+        /// 떨어지지 않았다.</b> 그러면 운석이 이 게임의 위협이라는 것을 공세 컷신에서
+        /// 처음 배우게 된다 — 배우는 자리가 곧 위험해지는 자리면 늦다. 탐색 구간에는
+        /// <see cref="Hazards.MeteorIntensity.Drizzle"/>(10초에 한 발)이 흐른다.</para>
+        ///
+        /// <para>막는 것은 <b>조작을 못 하는 동안</b>뿐이다 — 아직 시작하지 않았거나
+        /// (<see cref="Stage1SequencePhase.Waiting"/>) 입장 연출이 도는 중
+        /// (<see cref="Stage1SequencePhase.Entry"/>). 그때 떨어뜨리면 피할 수 없는
+        /// 운석에 맞는다.</para>
+        ///
+        /// <para><b>공세 컷신(<see cref="Stage1SequencePhase.Assault"/>)은 막지 않는다.</b>
+        /// 카메라가 하늘을 올려다보는 연출이라 그 사이 운석이 보이는 편이 낫고,
+        /// 5초차에 <see cref="AssaultEnabled"/> 가 켜지면 그대로 본 공세로 이어진다.</para>
+        /// </summary>
         void ApplyGate()
         {
             if (_spawner != null)
-                _spawner.SetSequenceHold(!AssaultEnabled || Phase == Stage1SequencePhase.Waiting
+                _spawner.SetSequenceHold(Phase == Stage1SequencePhase.Waiting
                     || Phase == Stage1SequencePhase.Entry);
             if (BlocksInput && _session != null && _session.LocalPlayer != null)
                 _session.LocalPlayer.SetInput(new Metagame.Core.InputFrame());

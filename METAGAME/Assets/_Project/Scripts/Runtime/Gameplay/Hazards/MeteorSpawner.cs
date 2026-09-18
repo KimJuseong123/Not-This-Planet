@@ -53,6 +53,17 @@ namespace Metagame.Gameplay.Hazards
         [SerializeField, Min(0f)] float _groundProbe = PhysicsScale.MeteorGroundProbe;
 
         [Header("공세")]
+        /// <summary>
+        /// 기획 §17.4 의 시간대 표. <b>2026-09-18 부터 읽지 않는다.</b>
+        ///
+        /// 강도를 시계가 아니라 공세 컷신이 정하게 바꿨다 — 이유는
+        /// <see cref="MeteorIntensity"/> 에 적었다. 필드를 지우지 않는 것은 이미 저장된
+        /// 씬(<c>Stage1_Astra</c>·<c>CheatArena</c>)이 값을 들고 있고, 시간대 방식으로
+        /// 되돌릴 수 있게 남겨 두기 위해서다.
+        ///
+        /// <b>인스펙터에서 고쳐도 아무 일도 일어나지 않는다.</b> 그것을 모르고 값을
+        /// 만지다 시간을 버리지 않도록 여기에 적어 둔다.
+        /// </summary>
         [SerializeField] MeteorWaveBand[] _waveBands = MeteorWaveBand.CreateDefaults();
         [SerializeField, Min(0f)] float _waveLeadSeconds = PhysicsScale.MeteorWaveLeadSeconds;
         [SerializeField, Min(0f)] float _withinWaveMinSeconds = PhysicsScale.MeteorWithinWaveMinSeconds;
@@ -99,7 +110,6 @@ namespace Metagame.Gameplay.Hazards
 
         /// <summary>대각선 경로 검사의 버퍼. 운석마다 새로 만들지 않는다.</summary>
         static readonly RaycastHit[] EntryProbe = new RaycastHit[16];
-        static readonly MeteorWaveBand DefaultWaveBand = new(0f, 30f, 1, 2, 0f);
         float _elapsed;
 
         // 공세 상태. 공세 사이에는 _waveRemaining 이 0 이다.
@@ -215,11 +225,21 @@ namespace Metagame.Gameplay.Hazards
         public void SetSequenceHold(bool hold) => SequenceHold = hold;
 
         /// <summary>기존 운석·파츠·난수 스트림을 유지한 채 공세 주기만 올린다.</summary>
-        public void BeginAssault()
+        public void BeginAssault() => SetAssault(true);
+
+        /// <summary>
+        /// 공세 컷신을 지났는지 직접 세운다. 시험장이 두 단계를 오가며 재려고 쓴다
+        /// (<see cref="MeteorIntensity"/>).
+        ///
+        /// <b>켜는 순간 첫 공세가 곧바로 온다</b> — <c>_sinceLastWave</c> 를 간격만큼
+        /// 채워 둔다. 컷신이 끝났는데 몇 초 조용하면 연출이 거짓말이 된다.
+        /// </summary>
+        public void SetAssault(bool enabled)
         {
-            if (AssaultEnabled) return;
-            AssaultEnabled = true;
-            _sinceLastWave = CurrentInterval;
+            if (AssaultEnabled == enabled) return;
+
+            AssaultEnabled = enabled;
+            if (enabled) _sinceLastWave = CurrentInterval;
         }
 
         /// <summary>이번 공세에 남은 운석 수. 공세 사이에는 0 이다.</summary>
@@ -307,25 +327,7 @@ namespace Metagame.Gameplay.Hazards
         /// <b>예고 원·운석·흔적이 모두 이 값을 거쳐야 한다.</b> 한 곳이라도 빠지면 §17.2 의
         /// "실제 충격 범위와 같은 크기" 가 깨져, 원 밖인데 맞거나 원 안인데 멀쩡해진다.
         /// </summary>
-        public float ImpactRadiusScale
-        {
-            get
-            {
-                // 예고 원이 매 프레임 읽는 값이다 — 시간대를 두 번 찾지 않는다.
-                var band = WaveBandAt(_elapsed).ImpactRadiusScale;
-                return Escalating ? MeteorEscalation.RadiusScaleFor(band, _elapsed) : band;
-            }
-        }
-
-        /// <summary>
-        /// 경과 시간에 따른 조임(<see cref="MeteorEscalation"/>)을 적용하는가.
-        ///
-        /// <b>프리셋을 고른 동안은 끈다.</b> <see cref="MeteorWavePreset"/> 은 "강도 하나를
-        /// 고정해 같은 조건을 몇 번이고 반복해 재는" 장치이고, 그 문서가 "프리셋의 개수는
-        /// <b>본 그대로</b> 나온다" 고 약속한다 — 시계가 끼어들면 버튼에 적힌 초와 실제가
-        /// 갈린다.
-        /// </summary>
-        bool Escalating => _pinnedBand == null;
+        public float ImpactRadiusScale => WaveBandAt(_elapsed).ImpactRadiusScale;
 
         /// <summary>크기별 충격파 반경(m)에 배율까지 적용한 값.</summary>
         public float ScaledImpactRadiusFor(MeteorSize size)
@@ -539,48 +541,37 @@ namespace Metagame.Gameplay.Hazards
         /// 끊임없이 하나씩 오는 것과 <b>묶음으로</b> 오는 것은 다른 리듬이고, 기획이
         /// 요구하는 것은 후자다.
         ///
-        /// <b>시간이 갈수록 그 계단이 함께 내려온다</b>(2026-09-18). 표만으로는 20분에서
-        /// 멈추는데, 그 뒤로 영원히 같으면 "오래 끌면 불리하다" 가 사라져 발사를 서두를
-        /// 이유가 없다. 조이는 것은 <see cref="MeteorEscalation"/> 이고 <b>묶음이라는
-        /// 구조는 건드리지 않는다.</b>
+        /// <b>시계가 아니라 컷신이 정한다</b>(2026-09-18). 경과 시간은 더 이상 간격에
+        /// 영향을 주지 않는다 — 이유는 <see cref="MeteorIntensity"/> 에 적었다.
+        /// 인자를 남겨 두는 것은 프리셋과 검증이 특정 시점을 물어보기 때문이다.
+        ///
+        /// <b>공세 배율을 더 곱하지 않는다.</b> 예전에는 여기에
+        /// <c>_assaultWaveIntervalMultiplier</c>(0.35)를 곱했는데, 컷신 뒤 값이
+        /// <see cref="MeteorIntensity.FullBlast"/> 안에 이미 들어 있으므로 또 곱하면
+        /// 5초가 1.75초가 된다.
         /// </summary>
-        public float IntervalAt(float elapsedSeconds)
-        {
-            var band = WaveBandAt(elapsedSeconds).WaveIntervalSeconds;
-            var tightened = Escalating
-                ? MeteorEscalation.IntervalFor(band, elapsedSeconds)
-                : band;
+        public float IntervalAt(float elapsedSeconds) =>
+            WaveBandAt(elapsedSeconds).WaveIntervalSeconds;
 
-            return tightened
-                * (AssaultEnabled ? Mathf.Clamp(_assaultWaveIntervalMultiplier, 0.05f, 1f) : 1f);
-        }
+        /// <summary>그 시각의 중형 확률 0~1. 컷신 전에는 0 이다.</summary>
+        public float MediumChanceAt(float elapsedSeconds) =>
+            WaveBandAt(elapsedSeconds).MediumChance;
 
-        /// <summary>그 시각의 중형 확률 0~1. 10분 전에는 0 이다(§17.7).</summary>
-        public float MediumChanceAt(float elapsedSeconds)
-        {
-            var band = WaveBandAt(elapsedSeconds).MediumChance;
-            return Escalating
-                ? MeteorEscalation.MediumChanceFor(band, elapsedSeconds)
-                : band;
-        }
-
+        /// <summary>
+        /// 지금 적용되는 강도. 우선순위는 <b>프리셋 → 컷신 단계</b> 다.
+        ///
+        /// <b>시간대 표(§17.4)를 더 이상 읽지 않는다</b>(2026-09-18) — 이유는
+        /// <see cref="MeteorIntensity"/> 에 적었다. <paramref name="elapsedSeconds"/> 는
+        /// 호출부 계약을 유지하려고 남겨 둔다.
+        /// </summary>
         MeteorWaveBand WaveBandAt(float elapsedSeconds)
         {
             EnsureConfiguration();
 
-            // 강도를 고정했으면 경과 시간을 보지 않는다(<see cref="ApplyPreset"/>).
+            // 강도를 고정했으면 컷신 단계도 보지 않는다(<see cref="ApplyPreset"/>).
             if (_pinnedBand != null) return _pinnedBand;
 
-            var minutes = Mathf.Max(0f, elapsedSeconds) / 60f;
-            var selected = DefaultWaveBand;
-
-            for (var i = 0; i < _waveBands.Length; i++)
-            {
-                var band = _waveBands[i];
-                if (band != null && minutes >= band.FromMinutes) selected = band;
-            }
-
-            return selected;
+            return MeteorIntensity.For(AssaultEnabled).ToBand();
         }
 
         float CrewScaleFor(int crew)
@@ -698,18 +689,8 @@ namespace Metagame.Gameplay.Hazards
         int RollWaveSize()
         {
             var band = WaveBandAt(_elapsed);
-
-            // <b>조인 뒤에 뽑는다</b>(2026-09-18). 뽑고 나서 곱하면 최소·최대가 같은
-            // 배율로 벌어지지 않아, 후반에도 "운이 나쁘면 1개" 가 나온다.
             var min = band.MinMeteors;
             var max = band.MaxMeteors;
-
-            if (Escalating)
-            {
-                min = MeteorEscalation.CountFor(min, _elapsed);
-                max = MeteorEscalation.CountFor(max, _elapsed);
-            }
-
             var span = max - min;
             var raw = min + (int)(Mathf.Clamp01((float)_random.NextDouble()) * (span + 1));
             raw = Mathf.Clamp(raw, min, max);
@@ -728,7 +709,8 @@ namespace Metagame.Gameplay.Hazards
             _nextInWaveDelay = Mathf.Lerp(
                 _withinWaveMinSeconds,
                 _withinWaveMaxSeconds,
-                (float)_random.NextDouble()) * (AssaultEnabled ? Mathf.Clamp(_assaultWithinWaveIntervalMultiplier, 0.05f, 1f) : 1f);
+                (float)_random.NextDouble())
+                * (AssaultEnabled ? Mathf.Clamp(_assaultWithinWaveIntervalMultiplier, 0.05f, 1f) : 1f);
 
             _waveRemaining--;
             Launch();
