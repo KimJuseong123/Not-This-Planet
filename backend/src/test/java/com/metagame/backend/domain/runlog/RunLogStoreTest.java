@@ -72,18 +72,72 @@ class RunLogStoreTest {
         // 비면 이름이 그대로 겹친다 — 예전에는 `REPLACE_EXISTING` 이라 먼저 받은
         // 로그가 조용히 사라졌다. 사라지는 쪽이 보통 더 중요한 쪽(크래시)이다.
         String base = "20260913-101500_u7_prod_none";
-        assertThat(RunLogStore.freeName(dir, base)).isEqualTo(base + ".log");
+        assertThat(RunLogStore.freeName(dir, base, ".log")).isEqualTo(base + ".log");
 
         Files.writeString(dir.resolve(base + ".log"), "먼저 받은 것");
-        assertThat(RunLogStore.freeName(dir, base))
+        assertThat(RunLogStore.freeName(dir, base, ".log"))
                 .as("이미 있는 이름을 다시 고른다 — 먼저 받은 로그를 덮어쓴다")
                 .isEqualTo(base + "-2.log");
 
         Files.writeString(dir.resolve(base + "-2.log"), "두 번째");
-        assertThat(RunLogStore.freeName(dir, base)).isEqualTo(base + "-3.log");
+        assertThat(RunLogStore.freeName(dir, base, ".log")).isEqualTo(base + "-3.log");
 
         // 먼저 받은 것이 그대로 있어야 한다.
         assertThat(Files.readString(dir.resolve(base + ".log"))).isEqualTo("먼저 받은 것");
+    }
+
+    @Test
+    void whatIsInTheFileIsVisibleInItsName(@TempDir Path dir) throws IOException {
+        // **파일 목록만으로 두 종류가 갈려야 한다** (S15P21B202-623). 예전에는 저장 이름
+        // 뒤에 `.log` 를 무조건 붙여 이벤트가 `….ndjson.log` 로 남았고, 그러면
+        // `*.log` 로 훑는 도구가 NDJSON 을 실행 로그로 읽는다.
+        RunLogStore s = store(dir);
+        byte[] body = "한 줄".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+
+        String event = s.save(7, "20260918-122304.ndjson", "qa-514-0b171dc9", "dev", body);
+        assertThat(event)
+                .as("이벤트 파일이 실행 로그 이름으로 저장됐다")
+                .endsWith(".ndjson")
+                .doesNotContain(".ndjson.log");
+
+        String run = s.save(7, "20260918-122210.log", "qa-514-0b171dc9", "dev", body);
+        assertThat(run).endsWith(".log").doesNotContain(".log.log");
+
+        // 둘 다 실제로 놓였는지 본다 — 이름만 맞고 파일이 없으면 뜻이 없다.
+        assertThat(Files.walk(dir).filter(Files::isRegularFile).map(p -> p.getFileName().toString()))
+                .containsExactlyInAnyOrder(event, run);
+    }
+
+    @Test
+    void theClientCannotChooseTheExtension() {
+        // 확장자는 **우리가 정한 둘 중 하나**다. 클라이언트 이름에서 그대로 떼어 오면
+        // 밖에서 온 값이 우리 폴더에 놓이는 파일의 확장자가 된다.
+        assertThat(RunLogStore.extOf("payload.ndjson")).isEqualTo(".ndjson");
+        assertThat(RunLogStore.extOf("PAYLOAD.NDJSON")).isEqualTo(".ndjson");
+        assertThat(RunLogStore.extOf("run.log")).isEqualTo(".log");
+        assertThat(RunLogStore.extOf("확장자없음")).isEqualTo(".log");
+        assertThat(RunLogStore.extOf(null)).isEqualTo(".log");
+        assertThat(RunLogStore.extOf("shell.jsp"))
+                .as("모르는 확장자를 그대로 쓰면 밖에서 온 값이 파일 이름의 끝을 정한다")
+                .isEqualTo(".log");
+
+        // 몸통에서는 클라이언트가 준 확장자를 뺀다 — 그 자리에 위 값이 다시 붙는다.
+        assertThat(RunLogStore.stem("20260918-122304.ndjson")).isEqualTo("20260918-122304");
+        assertThat(RunLogStore.stem("20260918-122210.log")).isEqualTo("20260918-122210");
+        assertThat(RunLogStore.stem("shell.jsp")).isEqualTo("shell.jsp");
+        assertThat(RunLogStore.stem(".ndjson"))
+                .as("이름이 확장자뿐이면 몸통이 빈다 — 빈 이름은 두지 않는다")
+                .isEqualTo("none");
+        assertThat(RunLogStore.stem(null)).isEqualTo("none");
+    }
+
+    @Test
+    void theCollisionSuffixStaysBeforeTheExtension(@TempDir Path dir) throws IOException {
+        // 뒤에 붙이면 `….ndjson-2` 가 되어 확장자로 가르는 것이 다시 깨진다.
+        String base = "20260918-122718_u7_dev_20260918-122304";
+        Files.writeString(dir.resolve(base + ".ndjson"), "먼저 받은 것");
+
+        assertThat(RunLogStore.freeName(dir, base, ".ndjson")).isEqualTo(base + "-2.ndjson");
     }
 
     @Test
