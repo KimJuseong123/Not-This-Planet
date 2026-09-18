@@ -40,6 +40,7 @@ namespace Metagame.Gameplay.Tests
                 Assert.That(hits.Any(h=>h.transform.root.name.StartsWith("Stage2 Earth Art")),Is.False,"Environment blocks walking route at "+p);
             }
         }
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator ReplicaMovesCraneLidLiftAndLadderArtWithoutNewNetworkObjects()
         {

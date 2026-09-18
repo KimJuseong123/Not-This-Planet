@@ -125,6 +125,7 @@ namespace Metagame.AIExperiment.Tests
             finally { Object.DestroyImmediate(go); }
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator RepeatedMisunderstandingsSuggestSpeakingClearlyAndAcceptedOrdersResetIt()
         {
@@ -148,6 +149,7 @@ namespace Metagame.AIExperiment.Tests
             yield return new ExitPlayMode();
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator UnrecognizedCommandsShowQuestionWithoutStoppingAndAcceptedOrdersClearIt()
         {
@@ -198,6 +200,7 @@ namespace Metagame.AIExperiment.Tests
             finally { Object.DestroyImmediate(go); }
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator RealLobbyCompanionFollowsStopsAndRejectsToolOrders()
         {
@@ -241,6 +244,7 @@ namespace Metagame.AIExperiment.Tests
             yield return new ExitPlayMode();
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator FourPinsSelectNearestWithoutLookingAndRejectOutOfRange()
         {
@@ -303,6 +307,7 @@ namespace Metagame.AIExperiment.Tests
             Assert.AreSame(pin, player.CurrentInteractionTarget.Clamp, "Actual crosshair must point at " + pin.name);
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator RealPinGripCancelAndResumeReleasesTheAuthoredPin()
         {
@@ -360,6 +365,7 @@ namespace Metagame.AIExperiment.Tests
             yield return new ExitPlayMode();
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator MoveOnlyDoesNotPullAndBatchCanCancelThenFinishAllFour()
         {

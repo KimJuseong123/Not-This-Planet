@@ -141,7 +141,7 @@ namespace Metagame.Gameplay.Tests
             }
         }
 
-        [UnityTest] public IEnumerator ActualWorldSurvivesBothCutscenesAndRestoresCamera()
+        [Category("Heavy")] [UnityTest] public IEnumerator ActualWorldSurvivesBothCutscenesAndRestoresCamera()
         {
             Object.DestroyImmediate(_root);
             yield return new EnterPlayMode();

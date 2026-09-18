@@ -23,6 +23,7 @@ namespace Metagame.Gameplay.Tests
             yield return new EnterPlayMode();
         }
         [UnityTearDown] public IEnumerator Cleanup(){if(Application.isPlaying)yield return new ExitPlayMode();}
+        [Category("Heavy")]
         [TestCase(1)] [TestCase(4)]
         public void CommonClockIncludesCrashBeforeStage2(int players)
         {
@@ -33,6 +34,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(DemoEnding.StageAt(start+22.99f,players),Is.Not.EqualTo(DemoEndingStage.Lobby));
             Assert.That(DemoEnding.StageAt(start+23,players),Is.EqualTo(DemoEndingStage.Lobby));
         }
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator AssembledSnapshotBreaksApartAndLateJoinSeeksDeterministically()
         {

@@ -22,6 +22,7 @@ namespace Metagame.AIExperiment.Tests
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator RealToolsPickUpSwapAndDropWithoutFiring()
         {
@@ -60,6 +61,7 @@ namespace Metagame.AIExperiment.Tests
             yield return new ExitPlayMode();
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator RealBatHitsPracticeBallThenDefendsAndStops()
         {

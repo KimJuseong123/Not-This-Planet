@@ -35,7 +35,7 @@ namespace Metagame.Gameplay.Tests
             float end=Time.fixedTime+seconds;
             while(Time.fixedTime<end){rig.SetInput(input);yield return null;}
         }
-        [UnityTest] public IEnumerator DeepWaterFloatsAscendsDescendsAndStopsAtSurface()
+        [Category("Heavy")] [UnityTest] public IEnumerator DeepWaterFloatsAscendsDescendsAndStopsAtSurface()
         {
             Move(new Vector3(33,-1.4f,0));yield return Run(default,.5f);
             float y=rig.Position.y;
@@ -50,7 +50,7 @@ namespace Metagame.Gameplay.Tests
             yield return Run(default,.8f);float stopped=rig.Position.y;
             yield return Run(default,.6f);Assert.That(rig.Position.y,Is.EqualTo(stopped).Within(.15f));
         }
-        [UnityTest] public IEnumerator ShallowsSlowWalkingAndBridgeRemainsDry()
+        [Category("Heavy")] [UnityTest] public IEnumerator ShallowsSlowWalkingAndBridgeRemainsDry()
         {
             Move(new Vector3(27,.1f,0));yield return Run(new InputFrame{Move=Vector2.up},.8f);
             float dry=rig.Doll.Hips.linearVelocity.z;
@@ -63,7 +63,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(rig.InWater,Is.False,"Walking on a crossing must not count as wading");
             Assert.That(rig.Doll.Bodies.All(b=>b.useGravity),Is.True);
         }
-        [UnityTest] public IEnumerator ExitRespawnAndDisabledWaterRestoreGravity()
+        [Category("Heavy")] [UnityTest] public IEnumerator ExitRespawnAndDisabledWaterRestoreGravity()
         {
             Move(new Vector3(33,-1.3f,0));yield return Run(default,.2f);Assert.That(rig.Swimming,Is.True);
             Move(new Vector3(25,.2f,0));yield return Run(default,.2f);
@@ -75,14 +75,14 @@ namespace Metagame.Gameplay.Tests
             GameSession.Instance.RespawnPlayer(rig);yield return Run(default,.2f);
             Assert.That(rig.InWater||rig.Swimming,Is.False);
         }
-        [UnityTest] public IEnumerator EndRampLetsSwimmerReturnToDryLand()
+        [Category("Heavy")] [UnityTest] public IEnumerator EndRampLetsSwimmerReturnToDryLand()
         {
             Move(new Vector3(33,-1,25));yield return Run(default,.2f);
             yield return Run(new InputFrame{Move=Vector2.up,Jump=true,AimYaw=0},6);
             Assert.That(rig.Position.z,Is.GreaterThan(31));
             Assert.That(rig.Swimming,Is.False);Assert.That(rig.Doll.Bodies.All(b=>b.useGravity),Is.True);
         }
-        [UnityTest] public IEnumerator DownedPlayerCannotUseSwimInputAndReplicaUsesSameStaticVolume()
+        [Category("Heavy")] [UnityTest] public IEnumerator DownedPlayerCannotUseSwimInputAndReplicaUsesSameStaticVolume()
         {
             Move(new Vector3(33,-1.3f,0));yield return Run(default,.2f);rig.GoDown("water test");
             float y=rig.Position.y;yield return Run(new InputFrame{Jump=true,Move=Vector2.up},.5f);
@@ -92,7 +92,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(rig.Swimming,Is.True);Assert.That(rig.Position.y,Is.GreaterThan(-.9f));
             Assert.That(water.GetComponentsInChildren<Mirror.NetworkIdentity>(),Is.Empty,"Static water must not add another state authority");
         }
-        [UnityTest] public IEnumerator TerrainHasShallowBanksDeepBedAndCameraHasRefractionInputs()
+        [Category("Heavy")] [UnityTest] public IEnumerator TerrainHasShallowBanksDeepBedAndCameraHasRefractionInputs()
         {
             var terrain=Object.FindFirstObjectByType<Terrain>();
             float Height(float x,float z)=>terrain.SampleHeight(new Vector3(x,0,z))+terrain.transform.position.y;
