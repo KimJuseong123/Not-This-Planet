@@ -29,6 +29,16 @@ namespace Metagame.Gameplay
         /// <summary>F2 춤 3번 'BAD' (S15P21B202-593). 24.4초 — 셋 중 가장 길다.</summary>
         public const string BadResource = "RabbitLocomotion/Rabbit_Bad";
 
+        // ── 엎드리기 (S15P21B202-616) ────────────────────────────────
+        //
+        // **몸이 눕는 것은 이 클립들에 없다.** 그건 물리가 한다(PlayerRig.Balance 의
+        // 목표 회전). 클립은 그 위에 얹히는 팔다리 모양만 맡는다 — 둘 다 눕히면
+        // 두 번 눕는다.
+        public const string ProneIdleResource = "RabbitLocomotion/Rabbit_ProneIdle";
+        public const string CrawlResource = "RabbitLocomotion/Rabbit_Crawl";
+        public const string LieDownResource = "RabbitLocomotion/Rabbit_LieDown";
+        public const string StandUpResource = "RabbitLocomotion/Rabbit_StandUp";
+
         /// <summary>
         /// 춤을 끊는 <b>밀림</b> 속도(m/s) (S15P21B202-596).
         ///
@@ -105,7 +115,11 @@ namespace Metagame.Gameplay
         readonly OneShot _danceShot = new() { Slot = 3, CancelOnMove = true };
         readonly OneShot _redredShot = new() { Slot = 4, CancelOnMove = true };
         readonly OneShot _badShot = new() { Slot = 5, CancelOnMove = true };
-        OneShot[] OneShots => _oneShots ??= new[] { _tossShot, _danceShot, _redredShot, _badShot };
+        // 자세 전환은 **걸어도 안 끊긴다** — 끊기면 눕다 만 자세로 굳는다.
+        readonly OneShot _lieDownShot = new() { Slot = 6, CancelOnMove = false };
+        readonly OneShot _standUpShot = new() { Slot = 7, CancelOnMove = false };
+        OneShot[] OneShots => _oneShots ??= new[]
+            { _tossShot, _danceShot, _redredShot, _badShot, _lieDownShot, _standUpShot };
         OneShot[] _oneShots;
 
         /// <summary>
@@ -115,6 +129,12 @@ namespace Metagame.Gameplay
         OneShot[] _danceShots;
         PlayableGraph _graph;
         AnimationClipPlayable _walkNode, _runNode;
+        AnimationClip _proneIdle, _crawl;
+        AnimationClipPlayable _proneIdleNode, _crawlNode;
+        int ProneIdleSlot => 2 + OneShots.Length;
+        int CrawlSlot => ProneIdleSlot + 1;
+        float _proneWeight, _crawlBlend, _proneIdleTime;
+        bool _proneLast;
         AnimationMixerPlayable _mixer;
         float _phase, _weight, _runBlend;
         public float Weight => _weight;
@@ -202,12 +222,19 @@ namespace Metagame.Gameplay
             var dance = Resources.Load<AnimationClip>(DanceResource);
             var redred = Resources.Load<AnimationClip>(RedRedResource);
             var bad = Resources.Load<AnimationClip>(BadResource);
-            return new RabbitLocomotion(model, reference, walk, run, toss, dance, redred, bad);
+            var proneIdle = Resources.Load<AnimationClip>(ProneIdleResource);
+            var crawl = Resources.Load<AnimationClip>(CrawlResource);
+            var lieDown = Resources.Load<AnimationClip>(LieDownResource);
+            var standUp = Resources.Load<AnimationClip>(StandUpResource);
+            return new RabbitLocomotion(model, reference, walk, run, toss, dance, redred, bad,
+                                        proneIdle, crawl, lieDown, standUp);
         }
 
         RabbitLocomotion(Transform model, GameObject reference, AnimationClip walk,
                          AnimationClip run, AnimationClip toss, AnimationClip dance,
-                         AnimationClip redred, AnimationClip bad)
+                         AnimationClip redred, AnimationClip bad,
+                         AnimationClip proneIdle, AnimationClip crawl,
+                         AnimationClip lieDown, AnimationClip standUp)
         {
             _walk = walk;
             _run = run;
@@ -215,6 +242,10 @@ namespace Metagame.Gameplay
             _danceShot.Clip = dance;
             _redredShot.Clip = redred;
             _badShot.Clip = bad;
+            _lieDownShot.Clip = lieDown;
+            _standUpShot.Clip = standUp;
+            _proneIdle = proneIdle;
+            _crawl = crawl;
             // 메시/콜라이더/스크립트 없이 Transform만 복제한다. 원본 프리팹을 수정하지 않는다.
             _poseRoot = CloneSkeleton(reference.transform, null).gameObject;
             _poseRoot.name = "~Rabbit locomotion pose (runtime only)";
@@ -243,10 +274,11 @@ namespace Metagame.Gameplay
             _runNode = AnimationClipPlayable.Create(_graph, run);
             _walkNode.SetSpeed(0); _runNode.SetSpeed(0);
             _walkNode.SetApplyFootIK(false); _runNode.SetApplyFootIK(false);
-            // 0 걷기 · 1 달리기 · 2 던지기 · 3 뮤직챌린지 · 4 REDRED · 5 BAD.
+            // 0 걷기 · 1 달리기 · 2 던지기 · 3~5 춤 · 6 엎드리기 · 7 일어서기
+            // · 8 엎드린 대기 · 9 기어가기.
             // **한 번짜리가 늘면 이 수도 같이 늘려야 한다** — 안 늘리면 새 클립이
             // 믹서에 못 붙어 조용히 아무 일도 안 일어난다. 검증이 이 수를 센다.
-            _mixer = AnimationMixerPlayable.Create(_graph, 2 + OneShots.Length);
+            _mixer = AnimationMixerPlayable.Create(_graph, 2 + OneShots.Length + 2);
             _graph.Connect(_walkNode, 0, _mixer, 0);
             _graph.Connect(_runNode, 0, _mixer, 1);
             foreach (var shot in OneShots)
@@ -256,6 +288,18 @@ namespace Metagame.Gameplay
                 shot.Node.SetSpeed(0);
                 shot.Node.SetApplyFootIK(false);
                 _graph.Connect(shot.Node, 0, _mixer, shot.Slot);
+            }
+            if (_proneIdle != null)
+            {
+                _proneIdleNode = AnimationClipPlayable.Create(_graph, _proneIdle);
+                _proneIdleNode.SetSpeed(0); _proneIdleNode.SetApplyFootIK(false);
+                _graph.Connect(_proneIdleNode, 0, _mixer, ProneIdleSlot);
+            }
+            if (_crawl != null)
+            {
+                _crawlNode = AnimationClipPlayable.Create(_graph, _crawl);
+                _crawlNode.SetSpeed(0); _crawlNode.SetApplyFootIK(false);
+                _graph.Connect(_crawlNode, 0, _mixer, CrawlSlot);
             }
             AnimationPlayableOutput.Create(_graph, "Pose only", animator).SetSourcePlayable(_mixer);
             _mixer.SetInputWeight(0, 1f);
@@ -295,6 +339,9 @@ namespace Metagame.Gameplay
             /// 것은 "방향키를 누르기 전까지는 고정된 춤" 이다.</para>
             /// </summary>
             public bool MoveInput;
+
+            /// <summary>제 발로 엎드려 있는가 (S15P21B202-616).</summary>
+            public bool Prone;
         }
 
         public static State ReadState(PlayerRig rig)
@@ -310,10 +357,15 @@ namespace Metagame.Gameplay
                 Blocked = rig.Downed || rig.Ragdolled || rig.Floating || rig.IsRiding || rig.Hanging,
                 Direction = rig.MovementDirectionLocal,
                 MoveInput = input.Move.sqrMagnitude > 1e-4f || input.Jump,
+                Prone = rig.Prone,
                 LeftArmBusy = input.GrabLeft || input.ArmsUp || rig.LeftHand.Gripping || rig.LeftHand.Carrying || rig.HeldTool != null,
                 RightArmBusy = input.GrabRight || input.ArmsUp || rig.RightHand.Gripping || rig.RightHand.Carrying || rig.HeldTool != null
             };
         }
+
+        /// <summary>엎드린 자세를 그릴 수 있는가. 아직 안 구운 저장소에서도 게임은 돌아야 한다.</summary>
+        bool ProneReady => _proneIdle != null && _crawl != null
+            && _proneIdleNode.IsValid() && _crawlNode.IsValid();
 
         public static bool CanAnimate(State state) => state.Grounded && !state.Blocked &&
             state.Speed > 0.15f && Mathf.Abs(state.Direction.x) <= Mathf.Abs(state.Direction.y) + 0.1f;
@@ -323,6 +375,14 @@ namespace Metagame.Gameplay
         {
             if (!_graph.IsValid()) return;
             deltaTime = Mathf.Clamp(deltaTime, 0f, 0.1f);
+
+            // 엎드리기/일어서기 전환을 **여기서** 켠다 (S15P21B202-616). 자세가 바뀐
+            // 것은 State 로 이미 들어오므로 밖에서 부르는 배관을 따로 늘리지 않는다.
+            if (state.Prone != _proneLast)
+            {
+                Play(state.Prone ? _lieDownShot : _standUpShot);
+                _proneLast = state.Prone;
+            }
 
             // ── 던지기가 보행보다 앞선다 (S15P21B202-519) ──────────────────
             //
@@ -361,6 +421,40 @@ namespace Metagame.Gameplay
                 WriteBones(link => link.InToss, shot.Weight, state, respectArmBusy: false);
                 return;
             }
+
+            // ── 엎드린 자세 (S15P21B202-616) ────────────────────────────
+            //
+            // 걷기/달리기와 **같은 층**이다 — 뗄 때까지 유지되는 자세라
+            // 한 번짜리(OneShot)로는 표현할 수 없다. 멈춰 있으면 대기,
+            // 움직이면 기어가기로 섞는다.
+            if (state.Prone && ProneReady)
+            {
+                _weight = 0f;
+                _proneWeight = Mathf.MoveTowards(_proneWeight, 1f, deltaTime / 0.12f);
+                _crawlBlend = Mathf.MoveTowards(_crawlBlend,
+                    state.Speed > 0.12f ? 1f : 0f, deltaTime / 0.15f);
+
+                _proneIdleTime = Mathf.Repeat(_proneIdleTime + deltaTime, _proneIdle.length);
+                // 기어가는 주기를 **실제 속도에 맞춘다.** 고정 속도로 돌리면 제자리에서
+                // 팔다리만 젓거나, 미끄러지듯 밀려간다.
+                float crawlRate = Mathf.Clamp(state.Speed / PlayerRig.CrawlSpeed, 0f, 1.6f);
+                _phase = Mathf.Repeat(_phase + deltaTime * crawlRate / Mathf.Max(_crawl.length, 0.01f), 1f);
+
+                _proneIdleNode.SetTime(_proneIdleTime);
+                _crawlNode.SetTime(_phase * _crawl.length);
+                _mixer.SetInputWeight(0, 0f);
+                _mixer.SetInputWeight(1, 0f);
+                foreach (var shot in OneShots) if (shot.Ready) _mixer.SetInputWeight(shot.Slot, 0f);
+                _mixer.SetInputWeight(ProneIdleSlot, 1f - _crawlBlend);
+                _mixer.SetInputWeight(CrawlSlot, _crawlBlend);
+                _graph.Evaluate(0f);
+
+                // 엎드리면 팔도 자세의 일부다 — 던지기와 같은 이유로 바쁜 팔을 빼지 않는다.
+                WriteBones(link => link.InToss, _proneWeight, state, respectArmBusy: false);
+                return;
+            }
+            _proneWeight = 0f;
+            _crawlBlend = 0f;
 
             // 공중/기절/탑승은 즉시 물리로 돌아가고 일반 정지만 짧게 전환한다.
             if (state.Blocked || !state.Grounded) { _weight = 0f; return; }

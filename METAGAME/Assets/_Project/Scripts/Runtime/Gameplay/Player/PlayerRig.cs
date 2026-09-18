@@ -319,6 +319,23 @@ namespace Metagame.Gameplay
             RefreshDollVisibility();
         }
 
+        /// <summary>
+        /// 남의 몸에 자세를 반영한다 (S15P21B202-616).
+        ///
+        /// <para><b>서버에서는 하지 않는다</b> — <see cref="SetRemoteDowned"/> 와 같은
+        /// 이유다. 서버의 몸이 진짜 상태이고, 한 틱 늦은 SyncVar 값이 방금 바뀐
+        /// 상태를 지울 수 있다.</para>
+        ///
+        /// <para>이게 없으면 <b>남의 화면에서 그 사람의 <see cref="Balance"/> 와
+        /// <see cref="Hover"/> 가 선 자세를 목표로 잡는다.</b> 골반 위치는 서버가
+        /// 보내 주지만 팔다리는 각자 기계의 조인트가 잡으므로 자세가 어긋난다.</para>
+        /// </summary>
+        public void SetRemoteProne(bool value)
+        {
+            Prone = value;
+            proneHeldLast = false;
+        }
+
         public void SetRemoteDowned(bool nowDowned)
         {
             // 인형이 아직 없을 때를 같은 값으로 걸러내면 안 된다 — 플래그만 남고
@@ -381,6 +398,31 @@ namespace Metagame.Gameplay
         public float StepPhase { get; private set; }
         /// <summary>현재 캐릭터가 유지하는 수평 정면. 이동 방향과 독립적으로 카메라를 따른다.</summary>
         public Vector3 FacingDirection { get { return faceDir; } }
+
+        /// <summary>
+        /// 제 발로 엎드려 있는가 (S15P21B202-616).
+        ///
+        /// <para><b><see cref="Ragdolled"/> 와 다르다.</b> 저쪽은 "자빠졌다" 이고
+        /// 이쪽은 "엎드리기로 했다" 다. 엎드리면 머리가 골반보다 낮아져
+        /// <see cref="Ragdolled"/> 가 <b>저절로 켜지는데</b>, 그러면 조종을 잃어
+        /// 기어갈 수가 없다 — 그래서 그 계산에서 이 상태를 뺀다.</para>
+        ///
+        /// <para>폭풍 면제의 근거이기도 하다. 물리는 서버가 도므로
+        /// (S15P21B202-145) 이 값을 서버가 갖고 있어야 판정이 갈리지 않는다 —
+        /// 그래서 토글 처리는 <see cref="Tick"/>(양쪽에서 도는 자리)에서 하고,
+        /// 누름이 아니라 <b>눌린 상태</b>를 받아 가장자리를 여기서 잡는다.</para>
+        /// </summary>
+        public bool Prone { get; private set; }
+        bool proneHeldLast;
+
+        /// <summary>엎드린 채 기어가는 속도(m/s). 걷기 2.9 의 31% — 일반적인 게임의 포복 속도.</summary>
+        public const float CrawlSpeed = 0.9f;
+
+        /// <summary>엎드렸을 때 골반이 떠 있는 높이(m). 선 자세는 <see cref="Tuning.RideHeight"/> 0.30 이다.</summary>
+        public const float ProneRideHeight = 0.13f;
+
+        /// <summary>엎드린 몸통이 앞으로 기운 각도. 90 이면 완전히 수평이다.</summary>
+        const float PronePitch = 84f;
 
         /// <summary>
         /// 춤 때문에 몸이 시점을 안 따라가는 상태인가 (S15P21B202-596).
@@ -2511,6 +2553,7 @@ namespace Metagame.Gameplay
 
             if (Doll == null || Doll.Hips == null) return;
             if (!JointTools.IsFinite(Doll.Hips.position)) { return; }
+            ReleaseProneIfTaken();
 
             RefreshInteractionFocus();
 
@@ -2610,6 +2653,7 @@ namespace Metagame.Gameplay
                 return;
             }
 
+            UpdatePosture();
             UpdateFloating();
             UpdateSpeed();
             Hover();
@@ -2617,6 +2661,39 @@ namespace Metagame.Gameplay
             Balance();
             DriveLegs();
             DriveArms();
+        }
+
+        /// <summary>
+        /// 엎드리기 토글. <b>눌린 상태의 가장자리를 여기서 잡는다</b>(S15P21B202-616).
+        ///
+        /// <para>몸을 가져가는 것들이 끼어들면 자세가 풀린다 — 기절·던져짐·탑승·
+        /// 매달림·부유. 이걸 안 풀면 기절해서 누운 사람이 폭풍 면제를 계속 받는다.</para>
+        /// </summary>
+        /// <summary>
+        /// 몸을 가져가는 것이 끼어들면 자세를 푼다.
+        ///
+        /// <para><b><see cref="Tick"/> 의 맨 앞에서 부른다.</b> 보행 계산 옆에 두면
+        /// 기절·탑승 분기가 그 전에 <c>return</c> 해서 <see cref="Prone"/> 이 켜진 채
+        /// 남는다 — 기절한 사람이 폭풍 면제를 계속 받는다(검증이 잡은 자리).</para>
+        /// </summary>
+        void ReleaseProneIfTaken()
+        {
+            if (!Prone) return;
+            if (BodyOutOfControl || IsRiding || Hanging || Floating || MountedVehicle != null)
+                Prone = false;
+        }
+
+        void UpdatePosture()
+        {
+            bool held = input.ProneHeld;
+            bool pressed = held && !proneHeldLast;
+            proneHeldLast = held;
+
+            if (!pressed) return;
+            if (Prone) { Prone = false; return; }
+            // 땅에 붙어 있을 때만 엎드린다. 공중에서 엎드리면 떨어지는 동안 면제가 붙는다.
+            if (Grounded && !BodyOutOfControl && !IsRiding && !Hanging && !Floating
+                && MountedVehicle == null) Prone = true;
         }
 
         // ── 바닥 ────────────────────────────────────────────────
@@ -2751,8 +2828,10 @@ namespace Metagame.Gameplay
             if (staggerSeconds > 0f) staggerSeconds -= Time.fixedDeltaTime;
 
             // 머리가 골반보다 낮으면 완전히 자빠진 것 — 잠깐 조종을 놓았다가 천천히 일어난다
+            // 엎드리면 머리가 골반보다 낮아 이 검사가 **저절로 켜진다.** 그러면
+            // Blocked 에 걸려 기어가기가 죽는다 — 매달림과 같은 이유로 뺀다.
             bool down = Doll.Head.position.y < Doll.Hips.position.y + 0.12f;
-            Ragdolled = down && !Hanging;
+            Ragdolled = down && !Hanging && !Prone;
 
             // 휘청임은 그 사이 단계다(§20.2, S15P21B202-334). 세우는 힘만 약해지고
             // Ragdolled 는 켜지 않으므로 걷기와 점프가 유지된다.
@@ -2840,7 +2919,10 @@ namespace Metagame.Gameplay
         {
             if (!Grounded || Hanging) return;
 
-            float offset = Tuning.RideHeight - GroundDistance;
+            // 엎드리면 낮게 뜬다. **세우는 힘(uprightBlend)은 그대로 둔다** —
+            // 그걸 0 으로 하면 래그돌로 무너져서 방향을 못 잡는다.
+            float ride = Prone ? ProneRideHeight : Tuning.RideHeight;
+            float offset = ride - GroundDistance;
             if (offset < -0.2f) return;
 
             float vy = Doll.Hips.linearVelocity.y - (groundBody != null ? groundBody.linearVelocity.y : 0f);
@@ -2977,6 +3059,9 @@ namespace Metagame.Gameplay
             // (S15P21B202-442) — 무게는 같고, 이것이 없으면 잡은 쪽이 일방적으로
             // 이겨서 잡힌 쪽이 빠져나갈 방법이 없다.
             if (CarryingTeammate) top *= PhysicsScale.DownedCarrySpeedScale;
+            // 엎드리면 기어간다. 다른 감속과 곱하지 않고 **상한으로** 둔다 —
+            // 곱하면 달리기 키를 누른 채 기어가는 것이 더 빨라진다.
+            if (Prone) top = Mathf.Min(top, CrawlSpeed);
             // S15P21B202-577: tall flora uses 0.45 of target speed (55% reduction),
             // including floating/carrying; overlapping plants do not stack.
             // Acceptance procedure: docs/records/2026-09-17-577-review-resolution.md.
@@ -3166,7 +3251,10 @@ namespace Metagame.Gameplay
 
         void Balance()
         {
+            // 엎드린 자세는 **목표 회전**으로 만든다(S15P21B202-616). 세우는 힘을
+            // 끄는 쪽이 싸지만 그건 곧 래그돌이고, 그러면 기어가는 방향을 못 잡는다.
             Quaternion desired = Quaternion.LookRotation(faceDir, Vector3.up);
+            if (Prone) desired *= Quaternion.AngleAxis(PronePitch, Vector3.right);
 
             // 공중에서는 힘을 빼야 팔다리가 허우적거린다. 저중력이라 그 시간이 길다.
             float k = (Grounded ? 1f : 0.26f) * uprightBlend;
