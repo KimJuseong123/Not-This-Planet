@@ -119,7 +119,12 @@ namespace Metagame.Network
             Server = go.AddComponent<TeamSeats>();
             Server.session = forSession;
             for (int i = 0; i < Server.seats.Length; i++) Server.seats[i] = new Seat();
-            Debug.Log($"[TeamSeats] 자리 {TeamSlots.Count}개를 연다");
+
+            // 음성 명령도 여기서 같이 세운다. 씬에 손으로 넣으면 공용 씬을 고쳐야 하고,
+            // 그 씬은 팀원들이 함께 쓴다.
+            go.AddComponent<CompanionVoiceCommand>();
+
+            Debug.Log($"[TeamSeats] 자리 {TeamSlots.Count}개를 연다 · 음성 명령 대기");
             return Server;
         }
 
@@ -400,6 +405,52 @@ namespace Metagame.Network
             // 방장도 사람이다. 이것을 켜지 않으면 방장 혼자 들어간 판에서 나머지 자리가
             // 영영 비어 있는다 — 방장은 ClaimBody 를 거치지 않고 여기로 온다.
             humanSeated = true;
+        }
+
+        /// <summary>
+        /// 말한 사람에게 <b>가장 가까운 AI 하나</b>에게 명령을 넘긴다.
+        ///
+        /// <para><b>왜 가장 가까운 하나인가.</b> 자리가 넷이라 "누구에게 말했나" 를 정해야
+        /// 한다. 규칙이 단순해야 사람이 예측할 수 있고, 부르고 싶은 동료 옆으로 가면 되므로
+        /// 조작으로도 성립한다. 전원에게 보내면 '못 뽑아' 한 마디에 셋이 같은 못에 달려든다.</para>
+        ///
+        /// <para>서버에서만 부른다.</para>
+        /// </summary>
+        public bool TryCommandNearest(Transform speaker, string action, out string feedback)
+        {
+            feedback = "명령을 받을 동료가 없어요";
+            if (speaker == null) return false;
+
+            CompanionMotor brain = NearestBrainTo(speaker.position);
+            if (brain == null) return false;
+
+            bool accepted = CompanionOrders.TryApply(brain, action, speaker, out feedback);
+            Debug.Log($"[TeamSeats] 명령 '{action}' → {brain.name} · {(accepted ? "수행" : "거절")} · {feedback}");
+            return accepted;
+        }
+
+        /// <summary>이 지점에서 가장 가까운 AI 의 두뇌. 없으면 null.</summary>
+        CompanionMotor NearestBrainTo(Vector3 from)
+        {
+            CompanionMotor best = null;
+            float bestDistance = float.MaxValue;
+
+            for (int slot = 0; slot < seats.Length; slot++)
+            {
+                Seat seat = seats[slot];
+                if (seat.Body == null || seat.Driver == null || !seat.Driver.IsAiDriver) continue;
+
+                var brain = seat.Body.GetComponent<CompanionMotor>();
+                if (brain == null) continue;
+
+                float distance = (seat.Body.Hips.position - from).sqrMagnitude;
+                if (distance >= bestDistance) continue;
+
+                bestDistance = distance;
+                best = brain;
+            }
+
+            return best;
         }
 
         /// <summary>이 자리를 지금 누가 몰고 있나. 비어 있으면 null.</summary>

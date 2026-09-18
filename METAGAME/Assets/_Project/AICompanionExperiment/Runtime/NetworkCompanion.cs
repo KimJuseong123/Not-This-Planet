@@ -91,33 +91,14 @@ namespace Metagame.AIExperiment
         {
             feedback = "지원하지 않는 요청 · 기존 행동 유지";
             if (!CanControl || _motor == null) { feedback = "동료가 준비되지 않았어요"; return false; }
-            if (!CompanionPolicy.TryParse(action, out var order)) return false;
-            if (CompanionMotor.IsToolOrder(order))
-            {
-                bool started = _motor.TryStartTool(order, speaker, out feedback);
-                if (started) ClearEmote();
-                return started;
-            }
-            if (order == CompanionOrder.PullNearbyPins)
-            {
-                bool started = _motor.TryStartNearbyPins(CompanionPinTarget.Nearby(speaker), out feedback);
-                if (started) ClearEmote();
-                return started;
-            }
-            if (order == CompanionOrder.PullPin || order == CompanionOrder.MoveToPin)
-            {
-                var pin = CompanionPinTarget.Resolve(speaker, out feedback);
-                if (pin == null) return false;
-                bool started = order == CompanionOrder.MoveToPin
-                    ? _motor.TryMoveToPin(pin, out feedback) : _motor.TryStartPin(pin, out feedback);
-                if (started) ClearEmote();
-                return started;
-            }
-            _motor.SetOrder(order, speaker);
+
+            // 어느 일을 시킬지 고르는 판단은 CompanionOrders 가 한다 — Stage1 도 같은
+            // 판단을 써야 해서 옮겼다. 여기서는 그 결과에 실험 씬 몫(이모티콘 지우기,
+            // 로그)만 얹는다.
+            if (!CompanionOrders.TryApply(_motor, action, speaker, out feedback)) return false;
+
             ClearEmote();
-            feedback = order == CompanionOrder.Cancel ? "중단 명령을 확인했어요"
-                : order == CompanionOrder.Wait ? "대기 명령을 확인했어요" : "따라오기 명령을 확인했어요";
-            Debug.Log($"[AIExperiment] order={order}");
+            Debug.Log($"[AIExperiment] action={action}");
             return true;
         }
 
