@@ -13,7 +13,10 @@
 *.json text
 
 # Unity TerrainData is binary even though it uses the .asset extension.
-METAGAME/Assets/_Project/Terrain/Stage1/TerrainData/*.asset -text
+# Terrain tools also create binary data directly under Assets or other folders.
+TerrainData_*.asset filter=lfs diff=lfs merge=lfs -text
+"New Terrain*.asset" filter=lfs diff=lfs merge=lfs -text
+METAGAME/Assets/_Project/Terrain/Stage1/TerrainData/*.asset filter=lfs diff=lfs merge=lfs -text
 METAGAME/Assets/_Project/Terrain/Stage1/TerrainData/TD_Stage1_AstraBasin.asset filter=lfs diff=lfs merge=lfs -text
 
 # Large binary assets use Git LFS.
