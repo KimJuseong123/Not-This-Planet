@@ -14,6 +14,72 @@ namespace Metagame.Gameplay.Tests
 {
     public class ToolDisplayMountTests
     {
+        [TestCase("MeteorBat_Stage1")]
+        [TestCase("WeldingPlasmaGun_Stage1")]
+        public void AuthoredVisibleModelOverlapsItsPhysicalBody(string name)
+        {
+            var scene = EditorSceneManager.OpenScene("Assets/Scenes/Stage1_Astra.unity");
+            var tool = scene.GetRootGameObjects()
+                .SelectMany(g => g.GetComponentsInChildren<ToolBase>(true))
+                .Single(t => t.name == name);
+            Physics.SyncTransforms();
+            var colliders = tool.GetComponentsInChildren<Collider>()
+                .Where(c => c.enabled && !c.isTrigger).ToArray();
+            var renderers = tool.GetComponentsInChildren<MeshRenderer>()
+                .Where(r => r.enabled).ToArray();
+            Assert.IsNotEmpty(colliders);
+            Assert.IsNotEmpty(renderers);
+            foreach (var renderer in renderers)
+            {
+                float distance = colliders.Min(c =>
+                    Vector3.Distance(c.ClosestPoint(renderer.bounds.center), renderer.bounds.center));
+                Assert.Less(distance, .25f,
+                    $"{name}/{renderer.name}: visible geometry must stay near its collision body.");
+            }
+        }
+
+        [TestCase("MeteorBat_Stage1")]
+        [TestCase("WeldingPlasmaGun_Stage1")]
+        public void AuthoredToolIsVisibleInFirstPersonAndRestoresDroppedPose(string name)
+        {
+            var scene = EditorSceneManager.OpenScene("Assets/Scenes/Stage1_Astra.unity");
+            var tool = scene.GetRootGameObjects()
+                .SelectMany(g => g.GetComponentsInChildren<ToolBase>(true))
+                .Single(t => t.name == name);
+            var transforms = tool.GetComponentsInChildren<Transform>();
+            var positions = transforms.Select(t => t.localPosition).ToArray();
+            var rotations = transforms.Select(t => t.localRotation).ToArray();
+            var scales = transforms.Select(t => t.localScale).ToArray();
+            var player = PlayerRig.Create("Authored tool view test", Vector3.zero,
+                Quaternion.identity, Color.white, Color.gray, false);
+            var camera = OrbitCamera.Create(player.Hips.transform, Color.black, true);
+            camera.Cam.aspect = 16f / 9f;
+            camera.transform.SetPositionAndRotation(new Vector3(100, 20, 100), Quaternion.identity);
+            player.Cam = camera;
+            try
+            {
+                tool.Equip(player, tool.GetComponent<Rigidbody>());
+                Assert.IsNotNull(tool.FirstPersonModel);
+                var planes = GeometryUtility.CalculateFrustumPlanes(camera.Cam);
+                var visible = tool.FirstPersonModel.GetComponentsInChildren<MeshRenderer>();
+                Assert.IsTrue(visible.Any(r => r.enabled && !r.forceRenderingOff &&
+                    GeometryUtility.TestPlanesAABB(planes, r.bounds)), name + " must appear in the camera frustum.");
+                tool.Unequip();
+                for (int i = 0; i < transforms.Length; i++)
+                {
+                    Assert.That(Vector3.Distance(positions[i], transforms[i].localPosition), Is.LessThan(.0001f));
+                    Assert.That(Quaternion.Angle(rotations[i], transforms[i].localRotation), Is.LessThan(.01f));
+                    Assert.That(Vector3.Distance(scales[i], transforms[i].localScale), Is.LessThan(.0001f));
+                }
+            }
+            finally
+            {
+                if (tool.IsEquipped) tool.Unequip();
+                Object.DestroyImmediate(camera.gameObject);
+                Object.DestroyImmediate(player.gameObject);
+            }
+        }
+
         /// <summary>
         /// <b>연 씬을 반드시 닫는다</b> (S15P21B202-604). 열어 둔 채 끝나면 뒤이어 도는
         /// 검증들이 이 씬의 콜라이더를 만나 무너진다 — 2026-09-17 에 그렇게
@@ -123,6 +189,20 @@ namespace Metagame.Gameplay.Tests
                 body.AddForce(Vector3.right * 2f + Vector3.up, ForceMode.VelocityChange);
                 for (int i = 0; i < 60; i++) Physics.Simulate(1f / 60f);
                 Assert.Greater(Vector3.Distance(dropped, body.position), .05f);
+                // Check settling, not just that a released body moves. Use the authored
+                // colliders and restored model, above the middle of the isolated floor.
+                body.position = new Vector3(-30.5f, 2f, -24f);
+                body.rotation = Quaternion.identity;
+                body.linearVelocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+                Physics.SyncTransforms();
+                for (int i = 0; i < 600; i++) Physics.Simulate(1f / 60f);
+                Assert.Greater(body.position.y, -.5f, tool.name + " must not fall through the floor.");
+                Assert.Less(body.linearVelocity.magnitude, .1f, tool.name + " must settle after dropping.");
+                foreach (var renderer in tool.GetComponentsInChildren<MeshRenderer>())
+                    if (renderer.enabled)
+                        Assert.Greater(renderer.bounds.center.y, .15f,
+                            tool.name + "/" + renderer.name + " must remain above the floor.");
                 report += tool.name + ": focus, pickup, detach, Q drop, gravity/throw PASS\n";
             }
             Physics.gravity = gravity;

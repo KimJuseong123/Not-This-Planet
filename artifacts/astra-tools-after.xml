@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="34" result="Passed" total="34" passed="34" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-18 06:20:45Z" end-time="2026-09-18 06:20:46Z" duration="0.6676764">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="2019" result="Passed" start-time="2026-09-18 06:20:45Z" end-time="2026-09-18 06:20:46Z" duration="0.667676" total="34" passed="34" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="3268" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202/outputs/tractor-tests/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="1983" result="Passed" start-time="2026-09-18 06:20:45Z" end-time="2026-09-18 06:20:46Z" duration="0.582656" total="34" passed="34" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="28448" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="3269" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="1983" result="Passed" start-time="2026-09-18 06:20:45Z" end-time="2026-09-18 06:20:46Z" duration="0.567403" total="34" passed="34" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="3274" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="1934" result="Passed" start-time="2026-09-18 06:20:45Z" end-time="2026-09-18 06:20:46Z" duration="0.550307" total="34" passed="34" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="3275" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="1934" result="Passed" start-time="2026-09-18 06:20:45Z" end-time="2026-09-18 06:20:46Z" duration="0.535248" total="34" passed="34" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1621" name="FirstPersonToolVisualTests" fullname="Metagame.Gameplay.Tests.FirstPersonToolVisualTests" classname="Metagame.Gameplay.Tests.FirstPersonToolVisualTests" runstate="Runnable" testcasecount="5" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:29Z" duration="0.172924" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-suite type="ParameterizedMethod" id="1624" name="AirBeamStaysParallelToAimWhenWorldGunMovesRelativeToView" fullname="Metagame.Gameplay.Tests.FirstPersonToolVisualTests.AirBeamStaysParallelToAimWhenWorldGunMovesRelativeToView" classname="Metagame.Gameplay.Tests.FirstPersonToolVisualTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:29Z" duration="0.127569" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="1622" name="AirBeamStaysParallelToAimWhenWorldGunMovesRelativeToView(Weld)" fullname="Metagame.Gameplay.Tests.FirstPersonToolVisualTests.AirBeamStaysParallelToAimWhenWorldGunMovesRelativeToView(Weld)" methodname="AirBeamStaysParallelToAimWhenWorldGunMovesRelativeToView" classname="Metagame.Gameplay.Tests.FirstPersonToolVisualTests" runstate="Runnable" seed="1989817832" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:29Z" duration="0.110175" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="1623" name="AirBeamStaysParallelToAimWhenWorldGunMovesRelativeToView(Cut)" fullname="Metagame.Gameplay.Tests.FirstPersonToolVisualTests.AirBeamStaysParallelToAimWhenWorldGunMovesRelativeToView(Cut)" methodname="AirBeamStaysParallelToAimWhenWorldGunMovesRelativeToView" classname="Metagame.Gameplay.Tests.FirstPersonToolVisualTests" runstate="Runnable" seed="1530497200" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:29Z" duration="0.007158" asserts="0">
+                  <properties />
+                </test-case>
+              </test-suite>
+              <test-case id="1626" name="CopyHasOnlyPresentationAndRestoresOriginalVisibility" fullname="Metagame.Gameplay.Tests.FirstPersonToolVisualTests.CopyHasOnlyPresentationAndRestoresOriginalVisibility" methodname="CopyHasOnlyPresentationAndRestoresOriginalVisibility" classname="Metagame.Gameplay.Tests.FirstPersonToolVisualTests" runstate="Runnable" seed="884682710" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:29Z" duration="0.009292" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1627" name="FirstPersonPoseCannotMoveGameplayMuzzle" fullname="Metagame.Gameplay.Tests.FirstPersonToolVisualTests.FirstPersonPoseCannotMoveGameplayMuzzle" methodname="FirstPersonPoseCannotMoveGameplayMuzzle" classname="Metagame.Gameplay.Tests.FirstPersonToolVisualTests" runstate="Runnable" seed="1254367918" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:29Z" duration="0.010241" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="1625" name="RemoteHeldPresentationDoesNotGrantAuthorityAndClearsOnDrop" fullname="Metagame.Gameplay.Tests.FirstPersonToolVisualTests.RemoteHeldPresentationDoesNotGrantAuthorityAndClearsOnDrop" methodname="RemoteHeldPresentationDoesNotGrantAuthorityAndClearsOnDrop" classname="Metagame.Gameplay.Tests.FirstPersonToolVisualTests" runstate="Runnable" seed="1420986260" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:29Z" duration="0.008096" asserts="0">
+                <properties />
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="3060" name="ToolCarryCollisionTests" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" testcasecount="13" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:29Z" duration="0.067182" total="13" passed="13" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-suite type="ParameterizedMethod" id="3063" name="AimedEquipmentAtPickupRange_EquipsAndChargesUntilQIsReleased" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.AimedEquipmentAtPickupRange_EquipsAndChargesUntilQIsReleased" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:29Z" duration="0.046884" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="3061" name="AimedEquipmentAtPickupRange_EquipsAndChargesUntilQIsReleased(False)" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.AimedEquipmentAtPickupRange_EquipsAndChargesUntilQIsReleased(False)" methodname="AimedEquipmentAtPickupRange_EquipsAndChargesUntilQIsReleased" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="999639965" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:29Z" duration="0.039781" asserts="0">
+                  <properties />
+                  <output><![CDATA[[NotThisPlanet][상호작용] 좌클릭 → 양손 도구 집기 | 대상=없음 | 질량=3.0kg
+]]></output>
+                </test-case>
+                <test-case id="3062" name="AimedEquipmentAtPickupRange_EquipsAndChargesUntilQIsReleased(True)" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.AimedEquipmentAtPickupRange_EquipsAndChargesUntilQIsReleased(True)" methodname="AimedEquipmentAtPickupRange_EquipsAndChargesUntilQIsReleased" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="1649966916" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:29Z" duration="0.006285" asserts="0">
+                  <properties />
+                  <output><![CDATA[[NotThisPlanet][상호작용] 좌클릭 → 양손 도구 집기 | 대상=없음 | 질량=3.0kg
+]]></output>
+                </test-case>
+              </test-suite>
+              <test-case id="3072" name="AToolThatStartedWithCollisionsOff_StaysOff" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.AToolThatStartedWithCollisionsOff_StaysOff" methodname="AToolThatStartedWithCollisionsOff_StaysOff" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="775469569" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:29Z" duration="0.000977" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="3074" name="DirectlyUnequippedBatRestoresGravityAndFreeRotation" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.DirectlyUnequippedBatRestoresGravityAndFreeRotation" methodname="DirectlyUnequippedBatRestoresGravityAndFreeRotation" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="1710857789" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:29Z" duration="0.000549" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="3064" name="EquipmentCannotBypassEquippingThroughAnOrdinaryHandGrip" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.EquipmentCannotBypassEquippingThroughAnOrdinaryHandGrip" methodname="EquipmentCannotBypassEquippingThroughAnOrdinaryHandGrip" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="1650345727" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:29Z" duration="0.000962" asserts="0">
+                <properties />
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="3067" name="EquipmentOutsideReachOrCrosshairAssist_IsNotFocused" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.EquipmentOutsideReachOrCrosshairAssist_IsNotFocused" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:29Z" duration="0.010109" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="3065" name="EquipmentOutsideReachOrCrosshairAssist_IsNotFocused(1.8f,0.0f)" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.EquipmentOutsideReachOrCrosshairAssist_IsNotFocused(1.8f,0.0f)" methodname="EquipmentOutsideReachOrCrosshairAssist_IsNotFocused" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="896267284" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:29Z" duration="0.004599" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="3066" name="EquipmentOutsideReachOrCrosshairAssist_IsNotFocused(0.9f,0.4f)" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.EquipmentOutsideReachOrCrosshairAssist_IsNotFocused(0.9f,0.4f)" methodname="EquipmentOutsideReachOrCrosshairAssist_IsNotFocused" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="1989825306" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:29Z" duration="0.004289" asserts="0">
+                  <properties />
+                </test-case>
+              </test-suite>
+              <test-case id="3068" name="EquippingABat_TurnsOffItsCollisions" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.EquippingABat_TurnsOffItsCollisions" methodname="EquippingABat_TurnsOffItsCollisions" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="1889839915" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:29Z" duration="0.000964" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="3069" name="EquippingTheWeldingGun_TurnsOffItsCollisions" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.EquippingTheWeldingGun_TurnsOffItsCollisions" methodname="EquippingTheWeldingGun_TurnsOffItsCollisions" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="499656871" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:29Z" duration="0.000496" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="3075" name="EquippingTwice_KeepsTheOriginalValue" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.EquippingTwice_KeepsTheOriginalValue" methodname="EquippingTwice_KeepsTheOriginalValue" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="1146281375" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:29Z" duration="0.000482" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="3070" name="UnequippingABat_RestoresItsCollisions" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.UnequippingABat_RestoresItsCollisions" methodname="UnequippingABat_RestoresItsCollisions" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="633566212" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:29Z" duration="0.000339" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="3073" name="UnequippingSomethingNeverEquipped_ChangesNothing" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.UnequippingSomethingNeverEquipped_ChangesNothing" methodname="UnequippingSomethingNeverEquipped_ChangesNothing" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="1049806907" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:29Z" duration="0.000366" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="3071" name="UnequippingTheWeldingGun_RestoresItsCollisions" fullname="Metagame.Gameplay.Tests.ToolCarryCollisionTests.UnequippingTheWeldingGun_RestoresItsCollisions" methodname="UnequippingTheWeldingGun_RestoresItsCollisions" classname="Metagame.Gameplay.Tests.ToolCarryCollisionTests" runstate="Runnable" seed="2114683271" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:29Z" duration="0.000387" asserts="0">
+                <properties />
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="3076" name="ToolDisplayMountTests" fullname="Metagame.Gameplay.Tests.ToolDisplayMountTests" classname="Metagame.Gameplay.Tests.ToolDisplayMountTests" runstate="Runnable" testcasecount="6" result="Passed" start-time="2026-09-18 06:20:45Z" end-time="2026-09-18 06:20:46Z" duration="0.380771" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-suite type="ParameterizedMethod" id="3082" name="AuthoredToolIsVisibleInFirstPersonAndRestoresDroppedPose" fullname="Metagame.Gameplay.Tests.ToolDisplayMountTests.AuthoredToolIsVisibleInFirstPersonAndRestoresDroppedPose" classname="Metagame.Gameplay.Tests.ToolDisplayMountTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:32Z" duration="2.629720" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="3080" name="AuthoredToolIsVisibleInFirstPersonAndRestoresDroppedPose(&quot;MeteorBat_Stage1&quot;)" fullname="Metagame.Gameplay.Tests.ToolDisplayMountTests.AuthoredToolIsVisibleInFirstPersonAndRestoresDroppedPose(&quot;MeteorBat_Stage1&quot;)" methodname="AuthoredToolIsVisibleInFirstPersonAndRestoresDroppedPose" classname="Metagame.Gameplay.Tests.ToolDisplayMountTests" runstate="Runnable" seed="1805507614" result="Passed" start-time="2026-09-18 06:20:29Z" end-time="2026-09-18 06:20:31Z" duration="2.098900" asserts="0">
+                  <properties />
+                  <output><![CDATA[Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_be89ef69
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_0ecb763e
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_415f0994
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_e0b152e9
+]]></output>
+                </test-case>
+                <test-case id="3081" name="AuthoredToolIsVisibleInFirstPersonAndRestoresDroppedPose(&quot;WeldingPlasmaGun_Stage1&quot;)" fullname="Metagame.Gameplay.Tests.ToolDisplayMountTests.AuthoredToolIsVisibleInFirstPersonAndRestoresDroppedPose(&quot;WeldingPlasmaGun_Stage1&quot;)" methodname="AuthoredToolIsVisibleInFirstPersonAndRestoresDroppedPose" classname="Metagame.Gameplay.Tests.ToolDisplayMountTests" runstate="Runnable" seed="357808727" result="Passed" start-time="2026-09-18 06:20:31Z" end-time="2026-09-18 06:20:32Z" duration="0.529870" asserts="0">
+                  <properties />
+                </test-case>
+              </test-suite>
+              <test-case id="3083" name="AuthoredToolsStaySeatedAndCanBePickedUpAndDropped" fullname="Metagame.Gameplay.Tests.ToolDisplayMountTests.AuthoredToolsStaySeatedAndCanBePickedUpAndDropped" methodname="AuthoredToolsStaySeatedAndCanBePickedUpAndDropped" classname="Metagame.Gameplay.Tests.ToolDisplayMountTests" runstate="Runnable" seed="820887202" result="Passed" start-time="2026-09-18 06:20:32Z" end-time="2026-09-18 06:20:39Z" duration="6.645585" asserts="0">
+                <properties>
+                  <property name="Category" value="Heavy" />
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <output><![CDATA[[NotThisPlanet][상호작용] 좌클릭 → 양손 도구 집기 | 대상=운석 방망이 | 질량=3.0kg
+[NotThisPlanet][상호작용] 좌클릭 → 양손 도구 집기 | 대상=플라즈마 용접기 | 질량=4.0kg
+]]></output>
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="3079" name="AuthoredVisibleModelOverlapsItsPhysicalBody" fullname="Metagame.Gameplay.Tests.ToolDisplayMountTests.AuthoredVisibleModelOverlapsItsPhysicalBody" classname="Metagame.Gameplay.Tests.ToolDisplayMountTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-18 06:20:39Z" end-time="2026-09-18 06:20:41Z" duration="2.613989" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="3077" name="AuthoredVisibleModelOverlapsItsPhysicalBody(&quot;MeteorBat_Stage1&quot;)" fullname="Metagame.Gameplay.Tests.ToolDisplayMountTests.AuthoredVisibleModelOverlapsItsPhysicalBody(&quot;MeteorBat_Stage1&quot;)" methodname="AuthoredVisibleModelOverlapsItsPhysicalBody" classname="Metagame.Gameplay.Tests.ToolDisplayMountTests" runstate="Runnable" seed="1035375352" result="Passed" start-time="2026-09-18 06:20:39Z" end-time="2026-09-18 06:20:41Z" duration="1.991124" asserts="0">
+                  <properties />
+                  <output><![CDATA[Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_be89ef69
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_0ecb763e
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_415f0994
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_e0b152e9
+]]></output>
+                </test-case>
+                <test-case id="3078" name="AuthoredVisibleModelOverlapsItsPhysicalBody(&quot;WeldingPlasmaGun_Stage1&quot;)" fullname="Metagame.Gameplay.Tests.ToolDisplayMountTests.AuthoredVisibleModelOverlapsItsPhysicalBody(&quot;WeldingPlasmaGun_Stage1&quot;)" methodname="AuthoredVisibleModelOverlapsItsPhysicalBody" classname="Metagame.Gameplay.Tests.ToolDisplayMountTests" runstate="Runnable" seed="1032802174" result="Passed" start-time="2026-09-18 06:20:41Z" end-time="2026-09-18 06:20:41Z" duration="0.619993" asserts="0">
+                  <properties />
+                </test-case>
+              </test-suite>
+              <test-case id="3084" name="RemotePickupLateJoinAndDisableReleaseMounts" fullname="Metagame.Gameplay.Tests.ToolDisplayMountTests.RemotePickupLateJoinAndDisableReleaseMounts" methodname="RemotePickupLateJoinAndDisableReleaseMounts" classname="Metagame.Gameplay.Tests.ToolDisplayMountTests" runstate="Runnable" seed="1964099682" result="Passed" start-time="2026-09-18 06:20:41Z" end-time="2026-09-18 06:20:46Z" duration="4.474077" asserts="0">
+                <properties>
+                  <property name="Category" value="Heavy" />
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="3085" name="ToolShadowTests" fullname="Metagame.Gameplay.Tests.ToolShadowTests" classname="Metagame.Gameplay.Tests.ToolShadowTests" runstate="Runnable" testcasecount="10" result="Passed" start-time="2026-09-18 06:20:46Z" end-time="2026-09-18 06:20:46Z" duration="0.055839" total="10" passed="10" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="3091" name="ARendererThatNeverCastShadows_StillDoesNot" fullname="Metagame.Gameplay.Tests.ToolShadowTests.ARendererThatNeverCastShadows_StillDoesNot" methodname="ARendererThatNeverCastShadows_StillDoesNot" classname="Metagame.Gameplay.Tests.ToolShadowTests" runstate="Runnable" seed="57845865" result="Passed" start-time="2026-09-18 06:20:46Z" end-time="2026-09-18 06:20:46Z" duration="0.010689" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="3090" name="ARendererThatWasAlreadyOff_StaysOff" fullname="Metagame.Gameplay.Tests.ToolShadowTests.ARendererThatWasAlreadyOff_StaysOff" methodname="ARendererThatWasAlreadyOff_StaysOff" classname="Metagame.Gameplay.Tests.ToolShadowTests" runstate="Runnable" seed="81649840" result="Passed" start-time="2026-09-18 06:20:46Z" end-time="2026-09-18 06:20:46Z" duration="0.000689" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="3092" name="HidingWithoutEverShowing_LeavesTheOriginalAlone" fullname="Metagame.Gameplay.Tests.ToolShadowTests.HidingWithoutEverShowing_LeavesTheOriginalAlone" methodname="HidingWithoutEverShowing_LeavesTheOriginalAlone" classname="Metagame.Gameplay.Tests.ToolShadowTests" runstate="Runnable" seed="1606009014" result="Passed" start-time="2026-09-18 06:20:46Z" end-time="2026-09-18 06:20:46Z" duration="0.000534" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="3089" name="LettingGo_RestoresEverything" fullname="Metagame.Gameplay.Tests.ToolShadowTests.LettingGo_RestoresEverything" methodname="LettingGo_RestoresEverything" classname="Metagame.Gameplay.Tests.ToolShadowTests" runstate="Runnable" seed="1031937740" result="Passed" start-time="2026-09-18 06:20:46Z" end-time="2026-09-18 06:20:46Z" duration="0.000708" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="3094" name="ShowAndHideRepeatedly_DoesNotDrift" fullname="Metagame.Gameplay.Tests.ToolShadowTests.ShowAndHideRepeatedly_DoesNotDrift" methodname="ShowAndHideRepeatedly_DoesNotDrift" classname="Metagame.Gameplay.Tests.ToolShadowTests" runstate="Runnable" seed="1597688886" result="Passed" start-time="2026-09-18 06:20:46Z" end-time="2026-09-18 06:20:46Z" duration="0.000586" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="3093" name="ShowingTwiceThenHiding_StillRestoresTheOriginal" fullname="Metagame.Gameplay.Tests.ToolShadowTests.ShowingTwiceThenHiding_StillRestoresTheOriginal" methodname="ShowingTwiceThenHiding_StillRestoresTheOriginal" classname="Metagame.Gameplay.Tests.ToolShadowTests" runstate="Runnable" seed="598525611" result="Passed" start-time="2026-09-18 06:20:46Z" end-time="2026-09-18 06:20:46Z" duration="0.000490" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="3095" name="TheBodyKeepsItsOwnShadowInFirstPerson" fullname="Metagame.Gameplay.Tests.ToolShadowTests.TheBodyKeepsItsOwnShadowInFirstPerson" methodname="TheBodyKeepsItsOwnShadowInFirstPerson" classname="Metagame.Gameplay.Tests.ToolShadowTests" runstate="Runnable" seed="672210447" result="Passed" start-time="2026-09-18 06:20:46Z" end-time="2026-09-18 06:20:46Z" duration="0.033384" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+
+IgnoreFailingMessages:false
+]]></output>
+              </test-case>
+              <test-case id="3087" name="TheFirstPersonCopyNeverCastsOne" fullname="Metagame.Gameplay.Tests.ToolShadowTests.TheFirstPersonCopyNeverCastsOne" methodname="TheFirstPersonCopyNeverCastsOne" classname="Metagame.Gameplay.Tests.ToolShadowTests" runstate="Runnable" seed="1950953284" result="Passed" start-time="2026-09-18 06:20:46Z" end-time="2026-09-18 06:20:46Z" duration="0.002731" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="3088" name="TheRealMeshIsStillHiddenFromTheCamera" fullname="Metagame.Gameplay.Tests.ToolShadowTests.TheRealMeshIsStillHiddenFromTheCamera" methodname="TheRealMeshIsStillHiddenFromTheCamera" classname="Metagame.Gameplay.Tests.ToolShadowTests" runstate="Runnable" seed="910934099" result="Passed" start-time="2026-09-18 06:20:46Z" end-time="2026-09-18 06:20:46Z" duration="0.000697" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="3086" name="WhileHeld_TheRealToolStillCastsAShadow" fullname="Metagame.Gameplay.Tests.ToolShadowTests.WhileHeld_TheRealToolStillCastsAShadow" methodname="WhileHeld_TheRealToolStillCastsAShadow" classname="Metagame.Gameplay.Tests.ToolShadowTests" runstate="Runnable" seed="1640642419" result="Passed" start-time="2026-09-18 06:20:46Z" end-time="2026-09-18 06:20:46Z" duration="0.000585" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>
