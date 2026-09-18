@@ -116,12 +116,24 @@ print("  ③ 스케줄 테스트 + 실패해도 카드 발송 · 순서 강제�
 # 잡 구간 전체에서 `changes:` 가 한 줄도 없어야 한다(설명 주석은 빼고 센다).
 ct = [l for l in job("ci-tests").split(NL_) if l.strip() and not l.strip().startswith("#")]
 assert any("merge_request_event" in l for l in ct), "ci-tests 에 MR 규칙이 없다 — MR 에서 아예 안 돈다"
-narrowed = [l.strip() for l in ct if l.strip().startswith("changes:")]
+# **줄 어디에 있든 잡는다** (`!539` 3차 리뷰). 줄 머리만 보면 흐름 스타일
+# (`- {if: …, changes: [...]}`)을 놓치고, 가드 자신이 조용히 통과한다.
+narrowed = [l.strip() for l in ct if "changes:" in l]
 assert not narrowed, (
     "ci-tests 에 changes: 가 다시 생겼다.\n"
     "  이 잡의 검사들은 scripts/ci 밖(Tests/Editor 의 C#, 모든 씬·프리팹)을 읽는다 —\n"
-    "  좁히면 그 대상만 바꾼 MR 에서 가드가 조용히 꺼진다(-614 가 그렇게 지나갔다).")
-print("  ③-2 모든 MR 에서 돈다(changes 없음) ✅")
+    "  좁히면 그 대상만 바꾼 MR 에서 가드가 조용히 꺼진다(-614 가 그렇게 지나갔다).\n"
+    "  걸린 줄: " + str(narrowed))
+
+# **읽지 못하는 모양이면 통과시키지 않는다.** `extends` 나 앵커 병합으로 들어온 규칙은
+# 이 잡 구간의 글자에 보이지 않는다 — 그러면 위 검사가 아무것도 못 보고 초록이 된다.
+# 조용히 통과하는 검사는 없는 검사와 같다(`!511` 이 test_scene_cleanup 에 남긴 것과 같은 결).
+opaque = [l.strip() for l in ct if l.strip().startswith(("extends:", "<<:"))]
+assert not opaque, (
+    "ci-tests 가 extends/앵커로 규칙을 받아 온다 — 이 검사가 그 안의 changes: 를 볼 수 없다.\n"
+    "  글자만 보는 방식의 한계다. 규칙을 잡 안에 직접 쓰거나, 이 검사를 그 모양까지 읽게 넓힌다.\n"
+    "  걸린 줄: " + str(opaque))
+print("  ③-2 모든 MR 에서 돈다(changes 없음 · 가려진 규칙 없음) ✅")
 
 # ── ④ 스풀 격리 회귀 검사가 살아 있다 (-252)
 assert "/spool" in job("repo-hygiene"), "repo-hygiene 에 스풀 격리 검사가 없다"

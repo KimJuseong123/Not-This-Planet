@@ -232,6 +232,9 @@ def teardown_bodies(code: str, rel: str):
                              f"(이 검사가 그 훅을 못 읽는다)")
                 unreadable = True
                 break
+        if unreadable:
+            # 다른 속성까지 마저 훑어 봐야 같은 파일에 대한 말만 늘어난다 (`!539` 3차 리뷰).
+            break
     return out, unreadable
 
 
