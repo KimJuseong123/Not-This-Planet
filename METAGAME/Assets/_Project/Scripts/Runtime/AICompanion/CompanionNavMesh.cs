@@ -77,8 +77,14 @@ namespace Metagame.AICompanion
             NavMeshBuilder.CollectSources(bounds, ~0, NavMeshCollectGeometry.PhysicsColliders, 0,
                 new List<NavMeshBuildMarkup>(), sources);
 
-            // 트리거와 움직이는 물체는 바닥이 아니다. 넣으면 허공에 길이 난다.
-            sources.RemoveAll(s => s.component is Collider c && (c.isTrigger || c.attachedRigidbody != null));
+            // 트리거는 바닥이 아니다. 넣으면 허공에 길이 난다.
+            //
+            // <b>움직이는 물체만 뺀다.</b> 예전에는 리지드바디가 붙은 것을 모두 뺐는데,
+            // 그러면 문·해치·조립된 구조물처럼 <b>키네마틱</b> 인 것까지 빠져 실내에 길이
+            // 나지 않았다 — AI 가 건물에서 못 나오던 이유다. 굴러다니는 것(운석·도구)만
+            // 빼면 된다.
+            sources.RemoveAll(s => s.component is Collider c
+                && (c.isTrigger || (c.attachedRigidbody != null && !c.attachedRigidbody.isKinematic)));
 
             var settings = NavMesh.GetSettingsByID(0);
             settings.agentRadius = CompanionMotor.AgentRadius;

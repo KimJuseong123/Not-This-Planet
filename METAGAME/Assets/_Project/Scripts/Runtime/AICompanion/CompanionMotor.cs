@@ -131,8 +131,11 @@ namespace Metagame.AICompanion
 
             if (!_agent.isOnNavMesh)
             {
-                // 바닥 밖이다(떨어졌거나 아직 안 구워졌다). 가까운 바닥으로 옮겨 붙인다.
-                if (NavMesh.SamplePosition(position, out var spot, 4f, NavMesh.AllAreas))
+                // 바닥 밖이다(떨어졌거나 아직 안 구워졌다). <b>바로 옆에 바닥이 있을 때만</b>
+                // 옮겨 붙인다 — 멀리까지 찾아 옮기면 벽 너머로 건너뛰어, 길잡이가 벽 밖에서
+                // 방향을 계산해 몸은 벽에 처박힌다. 가까이 없으면 그냥 두고, 부르는 쪽이
+                // 곧장 걷기로 넘어간다.
+                if (NavMesh.SamplePosition(position, out var spot, WarpRange, NavMesh.AllAreas))
                     _agent.Warp(spot.position);
                 return;
             }
@@ -328,11 +331,60 @@ namespace Metagame.AICompanion
             if (steer.sqrMagnitude > 0.01f)
             {
                 input.AimYaw = Mathf.Atan2(steer.x, steer.z) * Mathf.Rad2Deg;
-                input.Move = new Vector2(0, _walkInput);
+                ApplyGait(delta.magnitude - stopDistance, ref input);
                 TickStuck(position, ref input);
             }
             return false;
         }
+
+        /// <summary>
+        /// 남은 거리에 맞춰 <b>걷기와 달리기를 가른다.</b>
+        ///
+        /// <para>예전에는 늘 이동 입력을 0.7 만 넣고 달리기를 쓰지 않았다. 사람이 걷기만 해도
+        /// (2.9m/s) AI 는 그보다 느려 계속 뒤처졌고, 달리면(4.6m/s) 아예 따라잡지 못했다.</para>
+        ///
+        /// <para>가까우면 천천히 걷는다 — 다 와서까지 뛰면 사람을 들이받는다.</para>
+        /// </summary>
+        void ApplyGait(float remaining, ref InputFrame input)
+        {
+            if (remaining > RunBeyond)
+            {
+                input.Run = true;
+                input.Move = new Vector2(0, 1f);
+                return;
+            }
+
+            input.Run = false;
+            input.Move = new Vector2(0, remaining > EaseWithin ? 1f : _walkInput);
+        }
+
+        /// <summary>이보다 더 남으면 달린다(m). 사람이 달려도 따라잡을 수 있어야 한다.</summary>
+        const float RunBeyond = 3.5f;
+
+        /// <summary>이 안으로 들어오면 속도를 늦춘다(m). 다 와서 뛰면 들이받는다.</summary>
+        const float EaseWithin = 1.2f;
+
+        /// <summary>길잡이를 바닥으로 끌어다 붙일 때 찾아보는 거리(m). 넓히면 벽을 건너뛴다.</summary>
+        const float WarpRange = 1.2f;
+
+        /// <summary>
+        /// <b>막히면 뛰어 본다.</b> 턱이나 낮은 장애물은 길찾기 바닥에 안 잡히는 일이 많다.
+        ///
+        /// <para>옆으로 비집는 것만으로는 못 넘는 자리가 있어서, 비집기와 번갈아 쓴다.</para>
+        /// </summary>
+        void TickHop(ref InputFrame input)
+        {
+            if (!_rig.Grounded) return;
+            if (Time.time < _nextHop) return;
+
+            _nextHop = Time.time + HopInterval;
+            input.Jump = true;
+        }
+
+        /// <summary>막혔을 때 뛰어 보는 간격(초).</summary>
+        const float HopInterval = 0.9f;
+
+        float _nextHop;
 
         /// <summary>
         /// <b>가려는데 못 가고 있으면 옆으로 한 걸음 낸다.</b>
@@ -356,6 +408,9 @@ namespace Metagame.AICompanion
             // 한쪽으로만 밀어붙이다 같은 자리에 머무는 것을 피한다.
             float side = Mathf.Repeat(Time.time - _stuckSince, StuckSeconds * 2) < StuckSeconds ? 1f : -1f;
             input.AimYaw += side * 70f;
+
+            // 턱이나 낮은 장애물은 옆으로 비집어도 못 넘는다. 같이 뛰어 본다.
+            TickHop(ref input);
             Status = "길을 비집는 중";
         }
 
