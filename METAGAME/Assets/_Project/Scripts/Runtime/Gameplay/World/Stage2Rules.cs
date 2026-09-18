@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace Metagame.Gameplay.Stage2
 {
-    public enum YardAction { None, Interact, Recover, Unfasten }
+    public enum YardAction { None, Interact, Recover, Unfasten, ThrowWrench, ExitCrane }
     public enum YardTargetKind { Container, Ring, Bolt, Crane, Lift, Ladder, LadderClimb, Wrench, Sprayer, Shower, Recovery, Launch, PressureRelief }
     public enum YardTool { None, Wrench, Sprayer }
 

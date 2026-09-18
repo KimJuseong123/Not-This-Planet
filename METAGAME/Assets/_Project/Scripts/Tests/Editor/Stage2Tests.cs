@@ -19,6 +19,108 @@ namespace Metagame.Gameplay.Tests
         { if (Application.isPlaying) yield return new ExitPlayMode(); }
         static IEnumerator WaitForSimulation(float seconds)
         { float end=Time.time+seconds; while(Time.time<end) yield return null; }
+
+        [UnityTest]
+        public IEnumerator WrenchQThrowsPhysicalPropAndAllowsPickup()
+        {
+            EditorSceneManager.OpenScene(Stage2SceneBuilder.ScenePath);
+            yield return new EnterPlayMode(); yield return null;
+            var session = GameSession.Instance;
+            session.ScriptedInput = true;
+            session.SetCursor(true);
+            var rig = session.LocalPlayer;
+            rig.SetInput(default);
+            var yard = Object.FindAnyObjectByType<Stage2Yard>();
+            var rack = yard.Targets.First(t => t.Kind == YardTargetKind.Wrench);
+            rig.Teleport(rack.transform.position + Vector3.back - Vector3.up, Quaternion.identity);
+            Physics.SyncTransforms();
+            yard.Submit(1, new YardCommand { Action = YardAction.Interact, Target = rack.Id });
+            Assert.That(yard.PlayerState(1).Tool, Is.EqualTo(YardTool.Wrench));
+            rig.Teleport(new Vector3(-24, 2, -15), Quaternion.identity);
+            yield return WaitForSimulation(.25f);
+            var consumed = session.StageInputFilter(new InputFrame { ToolAction = true, ToolUtility = true });
+            Assert.That(consumed.ToolAction || consumed.ToolUtility, Is.False);
+            Assert.That(yard.PlayerState(1).Tool, Is.EqualTo(YardTool.None));
+            Assert.That(yard.LooseToolTargets.Count, Is.EqualTo(1));
+            var loose = yard.LooseToolTargets[0];
+            var body = loose.GetComponent<Rigidbody>();
+            Assert.That(body.isKinematic, Is.False);
+            Assert.That(body.linearVelocity.magnitude, Is.GreaterThan(5));
+            Vector3 start = body.position;
+            session.StageInputFilter(new InputFrame { ToolAction = true });
+            Assert.That(yard.LooseToolTargets.Count, Is.EqualTo(1), "Holding Q must not duplicate a throw");
+            yield return WaitForSimulation(.3f);
+            Assert.That(Vector3.Distance(start, body.position), Is.GreaterThan(.1f));
+            var snapshot = JsonUtility.FromJson<Stage2State>(JsonUtility.ToJson(yard.Capture()));
+            Assert.That(snapshot.LooseTools.Single().Id, Is.EqualTo(loose.Id));
+            Assert.That(Vector3.Distance(snapshot.LooseTools[0].Position, body.position), Is.LessThan(.01f));
+            rig.Teleport(body.position + Vector3.back - Vector3.up * .45f, Quaternion.identity);
+            Physics.SyncTransforms();
+            yard.Submit(1, new YardCommand { Action = YardAction.Interact, Target = loose.Id });
+            Assert.That(yard.PlayerState(1).Tool, Is.EqualTo(YardTool.Wrench));
+            Assert.That(yard.LooseToolTargets.Count, Is.Zero);
+            Assert.That(yard.Capture().LooseTools, Is.Empty);
+            // Tablet and incapacitation must not produce accidental throws.
+            session.StageInputFilter(default);
+            session.StageInputFilter(new InputFrame { TabletToggle = true, ToolAction = true });
+            Assert.That(yard.PlayerState(1).Tool, Is.EqualTo(YardTool.Wrench));
+            session.StageInputFilter(new InputFrame { TabletToggle = true });
+            rig.GoDown("test");
+            yard.Submit(1, new YardCommand { Action = YardAction.ThrowWrench, Aim = Vector3.forward });
+            Assert.That(yard.LooseToolTargets.Count, Is.Zero);
+            // A late observer reconstructs a physical prop as a non-authoritative replica.
+            // Stop the local bridge so it cannot take authority back during this assertion.
+            Object.FindAnyObjectByType<Metagame.Network.Stage2Bridge>().enabled = false;
+            yard.SetAuthority(false);
+            yard.ApplyReplica(snapshot);
+            Assert.That(yard.LooseToolTargets.Count, Is.EqualTo(1));
+            var replica = yard.LooseToolTargets[0];
+            Assert.That(replica.GetComponent<Rigidbody>().isKinematic, Is.True);
+            yard.Submit(1, new YardCommand { Action = YardAction.Interact, Target = replica.Id });
+            Assert.That(yard.LooseToolTargets.Count, Is.EqualTo(1), "Observer cannot perform local pickup");
+            snapshot.LooseTools = System.Array.Empty<YardLooseToolState>();
+            yard.ApplyReplica(snapshot);
+            Assert.That(yard.LooseToolTargets.Count, Is.Zero);
+            yield return new ExitPlayMode();
+        }
+
+        [UnityTest]
+        public IEnumerator CraneEntersThirdPersonAndExitsWithoutAimingAtControls()
+        {
+            EditorSceneManager.OpenScene(Stage2SceneBuilder.ScenePath);
+            yield return new EnterPlayMode(); yield return null;
+            var session = GameSession.Instance;
+            session.ScriptedInput = true;
+            session.SetCursor(true);
+            var rig = session.LocalPlayer;
+            rig.SetInput(default);
+            var yard = Object.FindAnyObjectByType<Stage2Yard>();
+            var controls = yard.Targets.First(t => t.Kind == YardTargetKind.Crane);
+            bool original = rig.Cam.FirstPerson;
+            float distance = rig.Cam.Distance;
+            rig.Teleport(controls.transform.position + Vector3.back - Vector3.up, Quaternion.identity);
+            Physics.SyncTransforms();
+            yard.Submit(1, new YardCommand { Action = YardAction.Interact, Target = controls.Id });
+            Assert.That(yard.State.Pilot, Is.EqualTo(1));
+            yield return null; yield return null;
+            Assert.That(rig.Cam.FirstPerson, Is.False);
+            Assert.That(rig.Cam.VehicleView, Is.True);
+            float radius = yard.State.Radius;
+            float moveUntil = Time.time + .15f;
+            while (Time.time < moveUntil)
+            {
+                session.StageInputFilter(new InputFrame { Move = Vector2.up });
+                yield return null;
+            }
+            Assert.That(yard.State.Radius, Is.GreaterThan(radius));
+            session.StageInputFilter(new InputFrame { TransportAction = true });
+            Assert.That(yard.State.Pilot, Is.Zero, "E exits regardless of camera focus");
+            yield return null; yield return null;
+            Assert.That(rig.Cam.VehicleView, Is.False);
+            Assert.That(rig.Cam.FirstPerson, Is.EqualTo(original));
+            Assert.That(rig.Cam.Distance, Is.EqualTo(distance));
+            yield return new ExitPlayMode();
+        }
         [Test]
         public void CranePolarCoordinatesReachAllStoresAndSockets()
         {

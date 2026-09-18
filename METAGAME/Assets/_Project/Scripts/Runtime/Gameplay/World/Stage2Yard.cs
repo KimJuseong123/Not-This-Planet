@@ -90,6 +90,7 @@ namespace Metagame.Gameplay.Stage2
             _authority = authority;
             for (int i = 0; i < _parts.Length; i++)
                 _parts[i].isKinematic = !authority || _state.Parts[i].Secured || !_state.Parts[i].Open;
+            foreach (var tool in _looseTools.Values) tool.isKinematic = !authority;
         }
         bool _authorityConfigured;
 
@@ -128,6 +129,17 @@ namespace Metagame.Gameplay.Stage2
             w.Command = command;
             w.LastInput = Time.time;
             if (w.Rig.Downed) return;
+            // These actions belong to the worker, not the object under the crosshair.
+            if (command.Action == YardAction.ExitCrane)
+            {
+                if (_state.Pilot == id) { _state.Pilot = 0; w.Rig.WorkstationMovementLocked = false; }
+                return;
+            }
+            if (command.Action == YardAction.ThrowWrench)
+            {
+                ThrowWrench(id, w, command.Aim);
+                return;
+            }
             if (command.Action != YardAction.None && Time.time - w.LastUse >= .2f)
             {
                 if (_targetMap.TryGetValue(command.Target, out var target) && CanReach(w.Rig, target))
@@ -199,7 +211,10 @@ namespace Metagame.Gameplay.Stage2
                         _climbEnd = _ladder.position + (atTop ? new Vector3(0, .1f, -2.6f) : new Vector3(0, _state.LadderHeight + .2f, 0));
                     }
                     break;
-                case YardTargetKind.Wrench: w.State.Tool = YardTool.Wrench; break;
+                case YardTargetKind.Wrench:
+                    w.State.Tool = YardTool.Wrench;
+                    RemoveLooseTool(target.Id);
+                    break;
                 case YardTargetKind.Sprayer: w.State.Tool = YardTool.Sprayer; break;
                 case YardTargetKind.Bolt:
                     if (action == YardAction.Unfasten && w.State.Tool == YardTool.Wrench) Unfasten(index / 3, index % 3);
@@ -292,6 +307,7 @@ namespace Metagame.Gameplay.Stage2
 
         public Stage2State Capture()
         {
+            CaptureLooseTools();
             for (int i = 0; i < _parts.Length; i++)
             { _state.Parts[i].Position = _parts[i].position; _state.Parts[i].Rotation = _parts[i].rotation; }
             _state.Players = new YardPlayerState[_workers.Count];
@@ -310,6 +326,7 @@ namespace Metagame.Gameplay.Stage2
         {
             if (_authority || state == null || state.Parts == null || state.Parts.Length != _parts.Length || state.Players == null) return;
             _state = state;
+            ApplyLooseTools(state.LooseTools);
             _replicas.Add(state);
             if (_replicas.Count > 8) _replicas.RemoveAt(0);
         }

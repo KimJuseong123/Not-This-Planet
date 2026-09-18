@@ -16,7 +16,8 @@ namespace Metagame.Bootstrap
         Stage2Hud _hud;
         readonly CircularWrenchInput _circle = new();
         float _sendAt, _turns;
-        bool _interactHeld, _secondaryHeld;
+        bool _interactHeld, _secondaryHeld, _throwHeld;
+        OrbitCamera _craneCamera;
         int _bolt = -1;
         public void Configure(Stage2Yard yard) => _yard = yard;
 
@@ -45,10 +46,10 @@ namespace Metagame.Bootstrap
             if (player == null || player.Cam == null) return frame;
             bool active = _space.Session.CursorLocked && !_space.Session.InputSuppressed && !player.Downed;
             var target = active ? Focus(player) : null;
-            _hud.Focus = target;
             if (frame.TabletToggle) _hud.GuideOpen = !_hud.GuideOpen;
             var tool = _yard.PlayerState(_bridge.LocalId).Tool;
             bool pilot = _yard.State.Pilot == _bridge.LocalId;
+            _hud.Focus = pilot ? null : target;
             bool climbing = _yard.State.Climber == _bridge.LocalId;
             bool wrench = active && !pilot && !climbing && !_hud.GuideOpen && tool == YardTool.Wrench
                 && target != null && target.Kind == YardTargetKind.Bolt && frame.ToolPrimary;
@@ -60,15 +61,20 @@ namespace Metagame.Bootstrap
             }
             bool interact = active && !_hud.GuideOpen && frame.TransportAction && !_interactHeld;
             bool unfasten = active && wrench && frame.ToolSecondary && !_secondaryHeld;
+            bool throwHeld = frame.ToolAction || frame.ToolUtility;
+            bool throwWrench = active && !pilot && !climbing && !_hud.GuideOpen
+                && tool == YardTool.Wrench && throwHeld && !_throwHeld;
             _interactHeld = frame.TransportAction;
             _secondaryHeld = frame.ToolSecondary;
-            if (Time.unscaledTime >= _sendAt || interact || unfasten)
+            _throwHeld = throwHeld;
+            if (Time.unscaledTime >= _sendAt || interact || unfasten || throwWrench)
             {
                 _sendAt = Time.unscaledTime + .05f;
                 _bridge.Send(new YardCommand
                 {
                     Target = target != null ? target.Id : -1,
-                    Action = unfasten ? YardAction.Unfasten : interact ? YardAction.Interact : YardAction.None,
+                    Action = interact && pilot ? YardAction.ExitCrane : throwWrench ? YardAction.ThrowWrench
+                        : unfasten ? YardAction.Unfasten : interact ? YardAction.Interact : YardAction.None,
                     Axes = active && pilot && !_hud.GuideOpen ? new Vector3(frame.Move.x, frame.Move.y, (frame.Jump ? 1 : 0) - (frame.ArmsUp ? 1 : 0)) : Vector3.zero,
                     Slow = frame.Run,
                     Primary = active && !_hud.GuideOpen && frame.ToolPrimary,
@@ -80,7 +86,7 @@ namespace Metagame.Bootstrap
             if (wrench || _hud.GuideOpen) frame.Look = Vector2.zero;
             if (pilot || climbing || _hud.GuideOpen) { frame.Move = Vector2.zero; frame.Jump = frame.ArmsUp = false; }
             if (tool != YardTool.None || pilot || climbing || _hud.GuideOpen)
-            { frame.GrabLeft = frame.GrabRight = frame.ToolPrimary = frame.ToolSecondary = frame.ToolAction = false; }
+            { frame.GrabLeft = frame.GrabRight = frame.ToolPrimary = frame.ToolSecondary = frame.ToolAction = frame.ToolUtility = false; }
             frame.TransportAction = false;
             return frame;
         }
@@ -97,11 +103,43 @@ namespace Metagame.Bootstrap
                 if (dot <= score || !_yard.CanReach(player, target)) continue;
                 score = dot; best = target;
             }
+            foreach (var target in _yard.LooseToolTargets)
+            {
+                Vector3 delta = target.transform.position - camera.position;
+                float dot = Vector3.Dot(camera.forward, delta.normalized);
+                if (dot <= score || !_yard.CanReach(player, target)) continue;
+                score = dot; best = target;
+            }
             return best;
         }
 
+        void LateUpdate()
+        {
+            if (_space?.Session == null || _bridge == null) return;
+            var player = _space.Session.LocalPlayer;
+            var camera = player != null && !player.Downed && _yard.State.Pilot == _bridge.LocalId
+                ? player.Cam : null;
+            if (_craneCamera == camera) return;
+            ReleaseCraneCamera();
+            if (camera == null) return;
+            _craneCamera = camera;
+            camera.SetVehicleEye(_yard.Seat);
+            camera.SetVehicleView(true);
+            camera.Distance = 6f;
+            camera.TargetHeight = 1.2f;
+        }
+
+        void ReleaseCraneCamera()
+        {
+            if (_craneCamera != null) _craneCamera.SetVehicleView(false);
+            _craneCamera = null;
+        }
+
+        void OnDisable() => ReleaseCraneCamera();
+
         void OnDestroy()
         {
+            ReleaseCraneCamera();
             if (_space != null && _space.Session != null)
             {
                 _space.Session.StageInputFilter = null;
