@@ -168,9 +168,26 @@ ci-tests:                 # scripts/ci 오프라인 테스트 — 네트워크·
   stage: lint             # CI 스크립트를 고칠 때 + 매일 스케줄에서 돈다
   needs: []
   rules:
+    # **`changes:` 를 두지 않는다** (S15P21B202-632). 예전에는 `scripts/ci/**` 뿐이었는데,
+    # 이 안의 검사들은 **저장소를 읽는다.** 그래서 읽는 대상만 바꾼 MR 에서는 그 검사가
+    # 아예 돌지 않았다:
+    #   · `test_scene_cleanup.py`      — `Tests/Editor` 의 C#(씬을 연 검증이 닫는가)
+    #   · `test_scene_backend_urls.py` — 모든 `.unity`·`.prefab`(씬에 서버 주소가 박혔는가)
+    #   · `test_unity_reuse.py`        — `Tests/Editor`
+    #   · `test_ai_review_paths.py`    — `git ls-files` 전부
+    #
+    # `-614` 는 검증 파일만 고쳐 머지됐고, 그래서 씬 정리 가드가 **한 번도 안 돌았다.**
+    # 머지 뒤 develop 에서 씬이 새어 뒤이은 검증 3건이 흔들렸다. 더 위험한 쪽은 씬이다 —
+    # `-584`(한 실행이 두 환경을 봤다)를 막는 검사인데, 씬만 바꾼 MR 에서는 안 돌았다.
+    #
+    # **목록으로 막지 않는다.** "넣을 것" 목록은 잊으면 조용히 빠진다 — 방금 그렇게 됐고,
+    # `test_ai_review_paths.py` 가 존재하는 이유도 그것이다. 게다가 정직하게 적으면
+    # `METAGAME/Assets/**/*` 까지 와서 "항상" 과 거의 같아진다.
+    #
+    # **값**: 실측 32.5초(잡 577933) · `needs: []` · lint 스테이지의 파이썬 잡이라 Unity
+    # 러너를 쓰지 않는다 — `repo-hygiene` 과 같은 무게다. 더 드는 것은 Unity 를 아예
+    # 안 건드리는 MR 에서의 32초뿐이다.
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes:
-        - "scripts/ci/**/*"
     # 코드가 안 바뀌어도 **시간이 흘러** 깨지는 것을 잡는다. -281 이 그랬다: 픽스처의 merged_at 이
     # 08-27 고정인데 검사 창이 now-7일이라 09-03 17:06 KST 에 저절로 깨졌고, 그 뒤 scripts/ci 를
     # 건드린 MR 이 없어 아무도 못 봤다. 매일 09:30 스케줄에서 돌면 09:33 카드가 나가기 전에 드러난다.
@@ -1105,7 +1122,7 @@ mm-ci-failed:             # 🔴 CI 실패 알림 — 실패한 잡 이름·링�
     - job: repo-hygiene
       optional: true
     - job: ci-tests
-      optional: true      # CI 스크립트를 건드리지 않은 MR 에는 이 잡이 없다
+      optional: true      # MR 에서는 항상 돈다(-632). optional 은 다른 소스를 위해 남긴다
     - job: mr-overlap
       optional: true
     - job: unity-compile  # 이것이 빠져 있어 unity-compile 만 실패하면 카드가 안 나갔다(-344)
@@ -1154,7 +1171,7 @@ mm-ci-resolved:           # 검사 통과 시, 남아 있는 CI 실패 코멘트
     - job: repo-hygiene   # when: on_success 가 알아서 이 잡을 건너뛴다.
       optional: true      # optional 인 이유는 mm-ci-failed 쪽 주석 참고(-344).
     - job: ci-tests
-      optional: true      # CI 스크립트를 건드리지 않은 MR 에는 이 잡이 없다
+      optional: true      # MR 에서는 항상 돈다(-632). optional 은 다른 소스를 위해 남긴다
     - job: mr-overlap
       optional: true
     - job: unity-compile

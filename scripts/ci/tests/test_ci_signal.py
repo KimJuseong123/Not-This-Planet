@@ -104,6 +104,22 @@ assert "when: always" in job("stack-order"), (
     "only_allow_merge_if_pipeline_succeeds=false 라 빨간 파이프라인도 머지할 수 있다")
 print("  ③ 스케줄 테스트 + 실패해도 카드 발송 · 순서 강제는 항상 실행 ✅")
 
+# ── ③-2 그리고 **모든 MR 에서** 돈다 (S15P21B202-632)
+# 예전에는 `changes: scripts/ci/**` 였다. 그런데 이 잡 안의 검사들은 **저장소를 읽는다** —
+# `test_scene_cleanup.py` 는 `Tests/Editor` 의 C# 을, `test_scene_backend_urls.py` 는 모든
+# `.unity`·`.prefab` 을 본다. 그래서 검증 파일만 고친 `-614` 가 씬 정리 가드를 **한 번도
+# 안 돌리고** 머지됐고, develop 에서 씬이 새어 뒤이은 검증 3건이 흔들렸다.
+# 목록을 다시 좁히면 그 순간 가드가 조용히 꺼진다 — 그것을 여기서 막는다.
+ct = [l for l in job("ci-tests").split(NL_) if l.strip() and not l.strip().startswith("#")]
+i_mr = next((i for i, l in enumerate(ct) if "merge_request_event" in l), -1)
+assert i_mr >= 0, "ci-tests 에 MR 규칙이 없다 — MR 에서 아예 안 돈다"
+after = ct[i_mr + 1].strip() if i_mr + 1 < len(ct) else ""
+assert not after.startswith("changes:"), (
+    "ci-tests 의 MR 규칙에 changes: 가 다시 생겼다.\n"
+    "  이 잡의 검사들은 scripts/ci 밖(Tests/Editor 의 C#, 모든 씬·프리팹)을 읽는다 —\n"
+    "  좁히면 그 대상만 바꾼 MR 에서 가드가 조용히 꺼진다(-614 가 그렇게 지나갔다).")
+print("  ③-2 모든 MR 에서 돈다(changes 없음) ✅")
+
 # ── ④ 스풀 격리 회귀 검사가 살아 있다 (-252)
 assert "/spool" in job("repo-hygiene"), "repo-hygiene 에 스풀 격리 검사가 없다"
 # **배포 잡을 이름으로 세지 않는다.** -284 에서 하나가 둘로 갈렸는데, 이름을
