@@ -1,0 +1,274 @@
+using Mirror;
+using UnityEngine;
+using Metagame.Gameplay;
+
+namespace Metagame.Network
+{
+    /// <summary>
+    /// 자리 네 개의 <b>몸을 판 내내 살려 둔다</b>. 조종자만 갈아끼운다.
+    ///
+    /// <para><b>왜 필요한가.</b> 지금까지는 연결이 몸을 만들고, 끊기면 그 몸이 사라졌다.
+    /// 그러면 들고 있던 도구가 떨어지고 탑승 상태가 풀린다. 네 자리를 고정하고 빈 자리를
+    /// AI 가 채우려면 <b>몸이 연결보다 오래 살아야</b> 한다.</para>
+    ///
+    /// <para><b>서버에만 있다.</b> 참가자 화면에는 정할 것이 없다 — 몸의 모습은
+    /// <see cref="NetPlayer"/> 의 SyncVar 를 타고 내려가고, 남의 몸은 각자
+    /// <c>BuildRemoteBody</c> 가 그린다.</para>
+    ///
+    /// <para><b>방장 몸은 여기서 만들지 않는다.</b> 게임 씬(<c>SpaceBootstrap</c>)이 이미
+    /// 세웠고 카메라·HUD·태블릿이 거기 붙어 있다. 대신 <see cref="RegisterHostBody"/> 로
+    /// 그 몸을 자리에 등록해, 이 관리자가 같은 자리에 하나 더 만들지 않게 한다.</para>
+    /// </summary>
+    public sealed class TeamSeats : MonoBehaviour
+    {
+        /// <summary>사람이 나간 뒤 AI 가 이어받기까지 기다리는 시간(초).</summary>
+        ///
+        /// <para>짧으면 잠깐의 랙에도 AI 가 조종을 낚아채고, 길면 몸이 멍하니 서 있는다.
+        /// <c>RejoinMemory.GraceSeconds</c>(30초)는 자리를 지켜 주는 시간이라 뜻이 다르다 —
+        /// 그동안 AI 가 대신 움직여도 자리는 그대로 그 사람 것이다.</para>
+        public const float AiTakeoverSeconds = 5f;
+
+        /// <summary>서버에만 선다. 참가자에서는 늘 null 이다.</summary>
+        public static TeamSeats Server { get; private set; }
+
+        sealed class Seat
+        {
+            /// <summary>이 자리의 몸. 판 내내 같은 것을 쓴다.</summary>
+            public PlayerRig Body;
+
+            /// <summary>지금 이 몸을 모는 쪽. 없으면 아무도 안 몰고 있다.</summary>
+            public NetPlayer Driver;
+
+            /// <summary>사람이 몰던 자리인가. AI 가 이어받을지 정하는 데 쓴다.</summary>
+            public bool WasHuman;
+
+            /// <summary>비워진 시각(<c>Time.time</c>). 음수면 비어 있지 않다.</summary>
+            public float FreeSince = -1f;
+
+            /// <summary>
+            /// 띄웠지만 아직 몸을 세우지 못한 AI.
+            ///
+            /// <para><see cref="NetPlayer"/> 는 게임 씬을 찾은 다음 물리 스텝에야 자리를
+            /// 잡는다. 그 사이를 표시해 두지 않으면 매 프레임 같은 자리에 AI 를 하나씩
+            /// 더 띄운다.</para>
+            /// </summary>
+            public NetPlayer AiPending;
+        }
+
+        readonly Seat[] seats = new Seat[TeamSlots.Count];
+        GameSession session;
+
+        /// <summary>
+        /// 사람이 한 명이라도 앉은 적 있나.
+        ///
+        /// <para>이것 전에는 자리를 채우지 않는다. 판이 서자마자 네 자리를 AI 로 메우면
+        /// 방장이 앉을 자리가 남지 않는다 — 방장의 <see cref="NetPlayer"/> 는 게임 씬이
+        /// 몸을 세운 뒤에야 자리를 잡기 때문이다.</para>
+        /// </summary>
+        bool humanSeated;
+
+        /// <summary>서버에 관리자를 세운다. 이미 있으면 그것을 돌려준다.</summary>
+        public static TeamSeats EnsureServer(GameSession forSession)
+        {
+            if (!NetworkServer.active || forSession == null) return null;
+            if (Server != null)
+            {
+                Server.session = forSession;
+                return Server;
+            }
+
+            var go = new GameObject("팀 자리");
+            Server = go.AddComponent<TeamSeats>();
+            Server.session = forSession;
+            for (int i = 0; i < Server.seats.Length; i++) Server.seats[i] = new Seat();
+            Debug.Log($"[TeamSeats] 자리 {TeamSlots.Count}개를 연다");
+            return Server;
+        }
+
+        void OnDestroy()
+        {
+            if (Server == this) Server = null;
+        }
+
+        /// <summary>
+        /// 그 자리의 몸을 내준다. 아직 없으면 지금 만든다.
+        ///
+        /// <para>이미 다른 조종자가 쥐고 있으면 <c>null</c> 을 돌려준다 — 한 몸을 둘이
+        /// 몰면 입력이 뒤섞인다. 정상 흐름에서는 오지 않는 길이다(AI 를 먼저 내린 뒤
+        /// 사람이 잡는다).</para>
+        /// </summary>
+        public PlayerRig ClaimBody(int slot, NetPlayer driver, bool human, string nickname)
+        {
+            Seat seat = At(slot);
+            if (seat == null || driver == null) return null;
+
+            if (seat.Driver != null && seat.Driver != driver)
+            {
+                // 사람이 오면 AI 는 비켜 준다. 자리 주인은 언제나 사람이다.
+                if (human && seat.Driver.IsAiDriver)
+                {
+                    NetPlayer leaving = seat.Driver;
+
+                    // 자리를 먼저 넘긴다. 아래 Destroy 가 그 AI 의 OnStopServer 를 그 자리에서
+                    // 부르는데, 그때 자리가 아직 AI 것이면 방금 앉은 사람이 지워진다.
+                    seat.Driver = driver;
+                    Debug.Log($"[TeamSeats] {slot}번({TeamSlots.Name(slot)}) 자리를 사람이 이어받는다 · {nickname}");
+                    NetworkServer.Destroy(leaving.gameObject);
+                }
+                else
+                {
+                    Debug.LogWarning($"[TeamSeats] {slot}번 자리를 이미 {seat.Driver.name} 이(가) 쥐고 있다");
+                    return null;
+                }
+            }
+
+            if (seat.Body == null)
+            {
+                Vector3 foot = SpawnFootFor(slot);
+                seat.Body = PlayerRig.Create(
+                    string.IsNullOrEmpty(nickname) ? "비행사" : nickname,
+                    foot + Vector3.up * 0.10f,
+                    Quaternion.LookRotation(Vector3.right, Vector3.up),
+                    TeamSlots.Suit(slot), TeamSlots.Accent(slot),
+                    // 헤드리스 서버에는 모델을 씌우지 않는다. 그릴 일이 없고 로딩만 든다.
+                    useModel: !Application.isBatchMode);
+                Debug.Log($"[TeamSeats] {slot}번({TeamSlots.Name(slot)}) 몸을 세웠다 · {foot}");
+            }
+
+            seat.Driver = driver;
+            seat.WasHuman = human;
+            seat.FreeSince = -1f;
+            if (seat.AiPending == driver) seat.AiPending = null;
+            if (human) humanSeated = true;
+            return seat.Body;
+        }
+
+        /// <summary>빈 자리를 살펴 때가 된 것부터 AI 로 채운다. 서버에서만 돈다.</summary>
+        void Update()
+        {
+            if (!NetworkServer.active || !humanSeated) return;
+
+            for (int slot = 0; slot < seats.Length; slot++)
+            {
+                if (NeedsAi(slot)) SpawnAi(slot);
+            }
+        }
+
+        /// <summary>
+        /// 그 자리에 사람 없는 <see cref="NetPlayer"/> 를 띄운다.
+        ///
+        /// <para>사람과 <b>같은 프리팹</b>을 쓴다. 그래야 색·이름표·쓰러짐·탑승이 사람과
+        /// 같은 길로 내려가고, 참가자 화면에서 팀원과 구분되지 않는다.</para>
+        ///
+        /// <para>아직 두뇌는 붙이지 않는다 — 이 어셈블리는 AI 코드를 참조하지 않는다.
+        /// 지금은 자리를 지키고 서 있기만 한다.</para>
+        /// </summary>
+        void SpawnAi(int slot)
+        {
+            GameObject prefab = NetworkManager.singleton != null
+                ? NetworkManager.singleton.playerPrefab
+                : null;
+            if (prefab == null)
+            {
+                Debug.LogError("[TeamSeats] 플레이어 프리팹을 찾지 못해 AI 자리를 띄우지 못한다");
+                enabled = false;   // 매 프레임 같은 오류를 쏟지 않는다
+                return;
+            }
+
+            GameObject go = Instantiate(prefab);
+            var player = go.GetComponent<NetPlayer>();
+            if (player == null)
+            {
+                Debug.LogError("[TeamSeats] 플레이어 프리팹에 NetPlayer 가 없다");
+                Destroy(go);
+                enabled = false;
+                return;
+            }
+
+            // 스폰보다 먼저 정해야 처음 상태에 실려 내려간다.
+            player.ServerConfigureAi((byte)slot, "동료 " + TeamSlots.Name(slot));
+
+            // 주인 없이 띄운다. 어느 화면에서도 isLocalPlayer 가 아니므로 모두가
+            // '남의 몸'으로 그린다 — 사람 팀원과 같은 경로다.
+            NetworkServer.Spawn(go);
+
+            // 자리는 NetPlayer 가 몸을 세울 때 잡는다. 여기서는 '띄우는 중'만 표시한다 —
+            // 미리 잡아 버리면 몸을 못 세운 채 자리만 차지한다.
+            seats[slot].AiPending = player;
+            seats[slot].FreeSince = -1f;
+            Debug.Log($"[TeamSeats] {slot}번({TeamSlots.Name(slot)}) 자리를 AI 가 맡는다");
+        }
+
+        /// <summary>
+        /// 조종자가 자리를 놓는다. <b>몸은 그대로 둔다.</b>
+        ///
+        /// <para>지금 쥔 사람이 아니면 아무것도 하지 않는다 — 사람이 들어와 AI 를 밀어낸
+        /// 뒤 그 AI 의 <c>OnStopServer</c> 가 뒤늦게 부르는 경우가 있다. 그때 자리를 비우면
+        /// 방금 들어온 사람의 몸이 주인 없는 것으로 표시된다.</para>
+        /// </summary>
+        public void ReleaseBody(int slot, NetPlayer driver)
+        {
+            Seat seat = At(slot);
+            if (seat == null || driver == null || seat.Driver != driver) return;
+
+            seat.Driver = null;
+            seat.FreeSince = Time.time;
+        }
+
+        /// <summary>
+        /// 게임 씬이 세운 방장 몸을 이 자리 것으로 등록한다.
+        ///
+        /// <para>등록해 두지 않으면 이 관리자가 같은 자리에 몸을 하나 더 만든다. 방장 몸은
+        /// 여기서 만들지도 지우지도 않는다 — 카메라·HUD 가 그것을 보고 있다.</para>
+        /// </summary>
+        public void RegisterHostBody(int slot, NetPlayer driver, PlayerRig hostBody)
+        {
+            Seat seat = At(slot);
+            if (seat == null || hostBody == null) return;
+
+            seat.Body = hostBody;
+            seat.Driver = driver;
+            seat.WasHuman = true;
+            seat.FreeSince = -1f;
+
+            // 방장도 사람이다. 이것을 켜지 않으면 방장 혼자 들어간 판에서 나머지 자리가
+            // 영영 비어 있는다 — 방장은 ClaimBody 를 거치지 않고 여기로 온다.
+            humanSeated = true;
+        }
+
+        /// <summary>이 자리를 지금 누가 몰고 있나. 비어 있으면 null.</summary>
+        public NetPlayer DriverOf(int slot) => At(slot)?.Driver;
+
+        /// <summary>이 자리에 몸이 이미 서 있나.</summary>
+        public bool HasBody(int slot) => At(slot)?.Body != null;
+
+        /// <summary>
+        /// 자리가 비었고 AI 가 이어받을 때가 됐나.
+        ///
+        /// <para>몸이 아직 없는 자리(아무도 온 적 없는 자리)는 기다리지 않는다 — 판이
+        /// 시작될 때부터 AI 가 채워야 한다.</para>
+        /// </summary>
+        public bool NeedsAi(int slot)
+        {
+            Seat seat = At(slot);
+            if (seat == null || seat.Driver != null) return false;
+
+            // 이미 띄워 두었고 아직 앉는 중이다. Unity 의 == null 은 파괴된 것도 잡아내므로
+            // 사람에게 밀려난 AI 는 여기서 걸리지 않는다.
+            if (seat.AiPending != null) return false;
+
+            if (seat.Body == null) return true;
+            return seat.FreeSince >= 0f && Time.time - seat.FreeSince >= AiTakeoverSeconds;
+        }
+
+        /// <summary>자리마다 조금씩 떼어 놓는다. 같은 지점에 넷을 세우면 서로 밀어낸다.</summary>
+        Vector3 SpawnFootFor(int slot)
+        {
+            Vector3 origin = session != null ? session.SpawnFoot : transform.position;
+            return origin + Vector3.right * ((slot - (TeamSlots.Count - 1) * 0.5f) * 1.5f);
+        }
+
+        Seat At(int slot) =>
+            slot >= 0 && slot < seats.Length ? seats[slot] : null;
+    }
+}

@@ -538,8 +538,26 @@ namespace Metagame.Network
         /// <summary>이 사람의 운반 장치 조작. 서버에만 있다(-149).</summary>
         TractorBeamController transport;
 
-        /// <summary>게임 씬이 만든 몸을 넘겨받았는가. 그렇다면 여기서 없애지 않는다(-263).</summary>
-        bool adoptedBody;
+        /// <summary>
+        /// 방장 자신의 몸인가. 게임 씬이 세운 것을 넘겨받았다는 뜻이다(-263).
+        ///
+        /// <para><b>참이면 네트워크 입력을 넣지 않는다.</b> 방장은 로컬 입력으로 직접
+        /// 움직이는데 여기서 또 넣으면 자기가 쓴 값을 자기가 되읽는 고리가 생겨
+        /// 방장만 움직이지 못한다(2026-09-02 실측).</para>
+        /// </summary>
+        bool hostOwnBody;
+
+        /// <summary>
+        /// 자리(<see cref="TeamSeats"/>)에서 빌려 온 몸인가.
+        ///
+        /// <para><b>참이면 내가 없어져도 그 몸을 지우지 않는다</b> — 다음 조종자(사람이든
+        /// AI 든)가 그대로 이어받는다. 들고 있던 도구와 탑승 상태가 끊기지 않는 이유다.</para>
+        ///
+        /// <para><see cref="hostOwnBody"/> 와 나누어 둔 이유. 예전에는 한 값이 "지우지 마"와
+        /// "입력 넣지 마"를 겸했다. 빌려 온 몸은 지우면 안 되지만 <b>입력은 받아야</b> 하므로,
+        /// 겸한 채로 두면 참가자가 움직이지 못한다.</para>
+        /// </summary>
+        bool pooledBody;
 
         /// <summary>몸을 못 세운 채 지나간 물리 스텝 수. 진단 로그를 한 번만 남기려고 센다.</summary>
         int waitedSteps;
@@ -560,6 +578,34 @@ namespace Metagame.Network
         // ── 서버 ────────────────────────────────────────────────
         InputFrame pending;          // 이 사람이 마지막으로 보낸 입력
         bool everReceived;           // 서버가 이 사람 입력을 한 번이라도 받았나(진단용)
+
+        /// <summary>
+        /// 사람 없이 뜬 자리인가. 연결이 없고 자리를 미리 지정받는다.
+        ///
+        /// <para>서버에만 둔다. 참가자는 이것을 알 필요가 없다 — AI 자리도 사람 자리와
+        /// 똑같은 SyncVar 를 타고 내려가고, 남의 몸을 그리는 길도 하나뿐이다.
+        /// 그래서 다른 화면에서는 AI 도 팀원과 같은 색·이름표로 보인다.</para>
+        /// </summary>
+        bool aiDriver;
+
+        /// <summary>사람 없이 서버가 띄운 자리인가.</summary>
+        public bool IsAiDriver => aiDriver;
+
+        /// <summary>
+        /// AI 자리로 쓰겠다고 표시한다. <b><see cref="NetworkServer.Spawn(GameObject, NetworkConnectionToClient)"/>
+        /// 보다 먼저</b> 불러야 한다 — 자리와 이름이 처음 상태에 실려 내려가야
+        /// 참가자 화면에서 색이 한 번 바뀌는 일이 없다.
+        /// </summary>
+        public void ServerConfigureAi(byte slot, string aiName)
+        {
+            aiDriver = true;
+            teamSlot = slot;
+            nickname = aiName;
+
+            // 사람의 userId 와 겹치지 않게 음수를 쓴다. 겹치면 중복 접속 정리
+            // (EvictStaleDuplicates)가 애먼 사람을 걷어낸다.
+            userId = -1L - slot;
+        }
         string lastAim;              // 마지막으로 남긴 조준 상태(바뀔 때만 찍는다)
         bool previousPingPressed;
 
@@ -592,9 +638,12 @@ namespace Metagame.Network
 
             // 자리(색)를 정한다 (S15P21B202-375). userId 가 확정된 뒤여야 한다 —
             // 같은 사람이 끊겼다 돌아오면 같은 자리를 다시 받는다.
-            teamSlot = (byte)TeamSlots.Claim(userId);
+            //
+            // AI 는 자리를 이미 지정받고 뜬다. 여기서 다시 뽑으면 사람 몫의 빈 자리를
+            // AI 가 차지해, 그 자리 주인이 돌아왔을 때 줄 자리가 없어진다.
+            if (!aiDriver) teamSlot = (byte)TeamSlots.Claim(userId);
 
-            name = "플레이어 " + nickname;
+            name = (aiDriver ? "AI " : "플레이어 ") + nickname;
 
             // 같은 사람이 이미 붙어 있으면 낡은 쪽을 먼저 걷어낸다 (S15P21B202-373).
             // 이 줄이 없어서 재접속할 때마다 이전 캐릭터가 유령으로 남았다.
@@ -641,7 +690,7 @@ namespace Metagame.Network
             {
                 var other = ServerPlayers[i];
                 if (other == null || other == this) continue;
-                if (RejoinMemory.IsStaleDuplicate(userId, other.userId, other.adoptedBody)) stale.Add(other);
+                if (RejoinMemory.IsStaleDuplicate(userId, other.userId, other.hostOwnBody)) stale.Add(other);
             }
 
             for (int i = 0; i < stale.Count; i++)
@@ -707,6 +756,9 @@ namespace Metagame.Network
             // 게임 씬이 아직이다. 다음 물리 스텝에 다시 본다.
             if (session == null) return false;
 
+            // 자리 관리자는 게임 씬이 선 뒤에야 세울 수 있다 — 스폰 지점을 그것에게서 받는다.
+            var teamSeats = TeamSeats.EnsureServer(session);
+
             // 호스트 모드(방장의 PC 가 서버 겸 클라이언트)에서 방장 자신의 몸은
             // 게임 씬이 이미 세웠다 — 카메라·HUD·태블릿이 전부 그 몸에 붙어 있다.
             // 여기서 하나 더 만들면 방장만 몸이 두 벌이 되고, 카메라가 따라갈 대상이
@@ -718,7 +770,7 @@ namespace Metagame.Network
 
                 body = session.LocalPlayer;
                 ApplyAppearance();
-                adoptedBody = true;
+                hostOwnBody = true;
 
                 // 진행 판정(낙사·전원 기절)은 서버가 한다. 호스트에서는 내가 곧 서버라
                 // GameSession 이 로컬로 한 번 더 부활시키면 두 번 일어난다.
@@ -728,32 +780,56 @@ namespace Metagame.Network
                 transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
                 ApplyRiding(riding);
                 ApplyDowned(downed);
+
+                // 이 몸이 곧 그 자리의 몸이라고 알려 둔다. 안 하면 관리자가 같은 자리에
+                // 하나 더 세운다.
+                if (teamSeats != null) teamSeats.RegisterHostBody(teamSlot, this, body);
+
                 Debug.Log($"[NetPlayer] 방장의 몸을 넘겨받았다 · {nickname}(userId={userId})");
                 return true;
             }
 
-            // 끊겼다 돌아온 사람이면 그 자리에 세운다 (S15P21B202-150).
-            // 없으면(첫 입장·유예 초과) 스폰 지점이다.
-            Vector3 foot;
-            Quaternion facing;
-            if (RejoinMemory.TryTake(userId, out Vector3 lastFoot, out Vector3 lastForward))
+            // 내 자리의 몸을 빌린다. 이미 서 있으면 그것을 그대로 이어받는다 —
+            // 끊겼다 돌아오거나 AI 가 몰던 자리를 넘겨받는 길이 모두 여기다.
+            // 그래서 들고 있던 도구와 탑승 상태가 끊기지 않는다.
+            if (teamSeats != null)
             {
-                foot = lastFoot;
-                facing = Quaternion.LookRotation(lastForward, Vector3.up);
-                Debug.Log($"[NetPlayer] 끊긴 자리로 복귀 · {nickname}(userId={userId}) · {foot}");
+                PlayerRig seatBody = teamSeats.ClaimBody(teamSlot, this, human: !aiDriver, nickname);
+
+                // 아직 누가 쥐고 있다. 다음 물리 스텝에 다시 본다.
+                if (seatBody == null) return false;
+
+                body = seatBody;
+                pooledBody = true;
+
+                // 이 자리로 돌아온 것이므로 옛 좌표는 버린다. 몸이 그 자리에 그대로 있어
+                // RejoinMemory 가 복원할 것이 없다.
+                RejoinMemory.TryTake(userId, out _, out _);
             }
             else
             {
-                foot = session != null ? session.SpawnFoot : transform.position;
-                facing = Quaternion.LookRotation(Vector3.right, Vector3.up);
-            }
+                // 자리 관리자가 없는 길(전용 서버 초기화 전 등). 예전처럼 하나 만든다.
+                Vector3 foot;
+                Quaternion facing;
+                if (RejoinMemory.TryTake(userId, out Vector3 lastFoot, out Vector3 lastForward))
+                {
+                    foot = lastFoot;
+                    facing = Quaternion.LookRotation(lastForward, Vector3.up);
+                    Debug.Log($"[NetPlayer] 끊긴 자리로 복귀 · {nickname}(userId={userId}) · {foot}");
+                }
+                else
+                {
+                    foot = session != null ? session.SpawnFoot : transform.position;
+                    facing = Quaternion.LookRotation(Vector3.right, Vector3.up);
+                }
 
-            // 헤드리스 서버에는 모델을 씌우지 않는다. 그릴 일이 없고 로딩만 든다.
-            body = PlayerRig.Create(
-                string.IsNullOrEmpty(nickname) ? "비행사" : nickname,
-                foot + Vector3.up * 0.10f, facing,
-                TeamSuitColor, TeamAccentColor,
-                useModel: !Application.isBatchMode);
+                // 헤드리스 서버에는 모델을 씌우지 않는다. 그릴 일이 없고 로딩만 든다.
+                body = PlayerRig.Create(
+                    string.IsNullOrEmpty(nickname) ? "비행사" : nickname,
+                    foot + Vector3.up * 0.10f, facing,
+                    TeamSuitColor, TeamAccentColor,
+                    useModel: !Application.isBatchMode);
+            }
 
             ApplyAppearance();
 
@@ -824,7 +900,7 @@ namespace Metagame.Network
             // 다시 보내므로 "내가 쓴 값을 내가 되읽는" 고리가 생기고, 입력이 처음 값에서
             // 영원히 갱신되지 않는다. 그래서 방장만 움직이지 못했다(2026-09-02 실측).
             // FixedUpdate 는 Update 보다 먼저 도니까 순서로도 막을 수 없다.
-            InputFrame frame = adoptedBody ? body.CurrentInput : pending;
+            InputFrame frame = hostOwnBody ? body.CurrentInput : pending;
             if (GameSession.Instance != null && GameSession.Instance.CinematicInputBlocked)
                 frame = new InputFrame();
 
@@ -863,7 +939,10 @@ namespace Metagame.Network
             }
 
             // 넘겨받은 몸(방장 자신)에는 넣지 않는다 — 위에서 적은 고리 때문이다.
-            if (!adoptedBody) body.SetInput(frame);
+            //
+            // AI 자리에도 넣지 않는다. 보내는 사람이 없어 늘 빈 입력인데, 그것을 매 스텝
+            // 덮어쓰면 나중에 붙일 두뇌가 무엇을 넣어도 지워진다.
+            if (!hostOwnBody && !aiDriver) body.SetInput(frame);
 
             // 이번에 적용한 순번을 기억한다. 다음 스텝의 echo 가 이 값을 쓴다.
             if (frame.Seq != 0) appliedSeq = frame.Seq;
@@ -1444,9 +1523,18 @@ namespace Metagame.Network
             //
             // 넘겨받은 몸(방장 자기 몸)은 적지 않는다 — 게임 씬이 만든 것이고 호스트가
             // 끊기면 매치 자체가 끝난다.
-            if (body != null && !adoptedBody)
+            //
+            // 자리에서 빌린 몸도 적지 않는다 — 그 몸이 그 자리에 그대로 남아 있어
+            // 복원할 좌표가 없다. 적어 두면 돌아왔을 때 옛 좌표로 되돌릴 뻔한다.
+            if (body != null && !hostOwnBody && !pooledBody)
             {
                 RejoinMemory.Remember(userId, body.FootPosition, body.PlanarForward);
+            }
+
+            // 자리를 놓는다. 몸은 그대로 서 있고, 잠시 뒤 AI 가 이어받는다.
+            if (pooledBody && TeamSeats.Server != null)
+            {
+                TeamSeats.Server.ReleaseBody(teamSlot, this);
             }
 
             ServerPlayers.Remove(this);
@@ -1471,12 +1559,23 @@ namespace Metagame.Network
                 Destroy(remoteAvatar);
             }
 
-            // 넘겨받은 몸은 게임 씬 것이다 — 카메라와 HUD 가 아직 보고 있다.
-            if (!adoptedBody && (!isLocalPlayer || isServer)) Destroy(body.gameObject);
+            // 몸을 남길 때는 내 운반 장치 조작을 먼저 걷어낸다. 컨트롤러는 <b>조종자마다</b>
+            // 하나씩 붙는 것이라(-149), 그냥 두면 다음 조종자가 붙일 때 몸에 겹쳐 쌓인다.
+            if (pooledBody && transport != null)
+            {
+                transport.ReleaseForRespawn();
+                Destroy(transport);
+                transport = null;
+            }
+
+            // 방장 몸은 게임 씬 것이라 두고(카메라와 HUD 가 아직 본다), 자리에서 빌려 온
+            // 몸도 둔다 — 다음 조종자가 들고 있던 도구를 그대로 이어받는다.
+            if (!hostOwnBody && !pooledBody && (!isLocalPlayer || isServer)) Destroy(body.gameObject);
 
             body = null;
             remoteAvatar = null;
-            adoptedBody = false;
+            hostOwnBody = false;
+            pooledBody = false;
         }
     }
 }
