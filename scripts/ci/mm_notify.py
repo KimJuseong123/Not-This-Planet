@@ -614,7 +614,13 @@ def deploy(result: str, detail: str = "") -> int:
         rows.append(("링크", " · ".join(links)))
     if blame:
         rows.append(("볼 곳", "잡 로그 · 호스트 `~/metagame/deploy/deploy.log` · `systemctl status metagame-deploy.path`"))
-    infra = mm_of(INFRA) if blame else None      # 못 찾으면 멘션 없이 — 알림 자체가 사라지는 것보다 낫다
+
+    # **예약 실행에서는 부르지 않는다** (S15P21B202-608). 새벽 04:00 에 나가는 카드는
+    # 아무도 못 본다 — 그 시각의 멘션은 알림만 시끄럽게 하고, 아침에 읽을 때는 이미
+    # 멘션이 필요 없다(카드가 그대로 있다). 무엇을 볼지는 위 '볼 곳' 칸에 남는다.
+    #
+    # 낮에 사람이 눌러 도는 배포는 그대로 부른다 — 거기서는 기다리는 사람이 있다.
+    infra = mm_of(INFRA) if blame and not is_scheduled() else None
     return send(card(f"{emoji} **{label}**{' ' + infra if infra else ''}", rows))
 
 
