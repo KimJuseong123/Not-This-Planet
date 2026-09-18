@@ -31,7 +31,7 @@
 
 - **한 판이 저장되지 않습니다.** `RoomManager` 가 방을 `ConcurrentHashMap` 에 들고 있을 뿐이고 **`@Entity` 는 여전히 `User` 하나, JPA 저장소는 `UserRepository` 하나**입니다. 파일은 서버에 쌓이지만 서버는 *"어제 몇 판이 돌았나"* 를 답하지 못합니다 — `-499` 의 일입니다
 - **평문 로그는 판 단위가 아닙니다.** 이름이 `yyyyMMdd-HHmmss.log` 이고 **프로세스가 뜰 때** 하나 만듭니다 — 켜서 세 판 하고 끄면 파일 1개에 세 판이 섞입니다. **이벤트는 판마다 갈리므로**, 판 단위로 볼 것은 이벤트 쪽입니다
-- **어느 단계에서 그만뒀는지 모릅니다.** 이벤트에 국면 표시가 없고(`-627`), 끝난 이유가 `result` 하나에 뭉쳐 있습니다(`-625`) — 클리어하고 로비로 간 판과 중간에 타이틀로 나간 판이 **같은 값**입니다
+- **어느 단계에서 그만뒀는지는 이제 답해집니다.** 끝난 이유가 갈리고(`-625` — `cleared`·`abandoned`·`quit`·`destroy`), 국면이 남습니다(`-627` — `cutscene`·`play`·`ending`). 마지막 `phase` 와 마지막 `floors` 와 `result` 를 나란히 보면 *"조립하다 그만뒀다"* 가 나옵니다. **아직 없는 것은 그 셋을 사람 수·역할과 묶어 볼 수단입니다**(`-499`)
 - **볼 수단이 없습니다.** 모인 파일을 질의하는 것은 아직 §10 의 계획입니다
 
 ### 수집 경로 — 2026-09-18 에 처음으로 끝까지 동작했습니다
@@ -138,6 +138,7 @@
 
 | 이벤트 | 무엇을 본다 | 어디 |
 | --- | --- | --- |
+| `phase` | 국면이 바뀔 때 — `cutscene`·`play`·`ending`. 연출일 때는 `stage` 칸에 세부(`Boarding`·`Launching`·`MeteorImpact` …) | `GameSession.Sequence` · `GameSession.EndingActive` · `DemoEnding.Stage` (`-627`) |
 | `assembly` | `Floors` 배열이 바뀔 때 | `ShipAssembly.Floors` · `Evaluate()` |
 | `blocked` | `IsBoardable` 이 false 이고 `Blocker` 가 바뀔 때 | `ShipAssembly.Blocker` |
 | `checkpoint` | `CheckpointIndex` 가 바뀔 때 | `GameSession.ReachCheckpoint` |
@@ -166,7 +167,9 @@
 | 보내는 쪽 | 무엇 |
 | --- | --- |
 | **호스트** | 세계 상태 — `assembly` · `blocked` · `weld` · `dock` · `checkpoint` · `cleared` |
-| **각자** | 자기 것 — `session_start` · `session_end` · `fall` · 튕김 |
+| **각자** | 자기 것 — `session_start` · `session_end` · `fall` · 튕김 · **`phase`** |
+
+**`phase` 는 세계 상태인데도 각자 냅니다** (`-627`). 값은 모두에게 같지만 답해야 하는 질문이 *"이 사람이 어디서 그만뒀나"* 라 **떠난 사람의 파일에** 있어야 합니다. 호스트만 내면 참가자 파일에는 국면이 없고, 그 둘을 잇는 `match` 는 아직 계획일 뿐이라 참가자의 이탈이 분석 불가가 됩니다. 참가자도 스스로 압니다 — 컷신과 연출은 각자 화면에서 돌고 `DemoEnding.StageAt` 은 공통 시계를 받는 순수 함수입니다.
 
 둘 다 같은 `match` 를 달아 나중에 한 판으로 합칩니다(§5).
 

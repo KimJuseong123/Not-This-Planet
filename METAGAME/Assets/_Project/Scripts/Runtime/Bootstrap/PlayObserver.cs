@@ -17,6 +17,13 @@ namespace Metagame.Bootstrap
     /// <para><b>세계 상태는 호스트만 낸다.</b> 그 값들이 권위 있는 자리가 거기다. 참가자
     /// 화면에서만 나는 일(튕김 등)은 각자가 자기 것으로 남긴다.
     ///
+    /// <para><b>국면(<c>phase</c>)은 그 규칙의 예외다</b> (S15P21B202-627). 값 자체는
+    /// 모두에게 같지만 답해야 하는 질문이 <i>"이 사람이 어디서 그만뒀나"</i> 라,
+    /// <b>떠난 사람의 파일에 있어야 한다.</b> 호스트만 내면 참가자 파일에는 국면이 없고
+    /// 그 둘을 잇는 <c>match</c> 열쇠는 아직 없다 — 그러면 참가자의 이탈은 분석이 아예
+    /// 안 된다. 그래서 <see cref="PhaseOf"/> 는 <c>authority</c> 를 보기 <b>전에</b>
+    /// 불린다.
+    ///
     /// <para><b><see cref="ShipAssembly.Floors"/> 하나가 대부분을 답한다.</b> 판이 끝난
     /// 순간의 그 배열이 곧 "어디까지 갔나" 이고, <c>WrongPart</c>·<c>Tilted</c> 가 몇 층에
     /// 얼마나 오래 있었나가 "어디서 막혔나" 다.
@@ -45,6 +52,9 @@ namespace Metagame.Bootstrap
         int falls = -1;
         bool cleared;
 
+        /// <summary>직전 국면. 세부까지 한 문자열로 들고 있어 <c>ending</c> 안의 변화도 잡힌다.</summary>
+        string phase = string.Empty;
+
         /// <summary>
         /// 이 판을 시작한다. <paramref name="header"/> 는 첫 줄에 실린다.
         ///
@@ -69,6 +79,7 @@ namespace Metagame.Bootstrap
             checkpoint = -1;
             falls = -1;
             cleared = false;
+            phase = string.Empty;
             next = 0f;
             assembly = null;
 
@@ -88,6 +99,29 @@ namespace Metagame.Bootstrap
             {
                 if (falls >= 0) PlayEvents.Write("fall", One("count", session.Falls));
                 falls = session.Falls;
+            }
+
+            // **국면도 자기 것이다** (S15P21B202-627). 값 자체는 모두에게 같지만,
+            // 답해야 하는 질문이 *"이 사람이 어디서 그만뒀나"* 라 **떠난 사람의 파일에
+            // 있어야 한다.** 호스트만 내면 참가자 파일에는 국면이 없고, 그 둘을 잇는
+            // `match` 열쇠는 아직 없다(계획만 있다) — 그러면 참가자의 이탈은 분석이
+            // 아예 안 된다. 여러 벌 모이는 것은 이 설계가 의도한 것이다.
+            //
+            // 참가자도 스스로 안다 — 컷신과 연출은 각자 화면에서 돌고,
+            // `DemoEnding.StageAt` 은 공통 시계를 받는 순수 함수다.
+            string name = PhaseOf(session.EndingActive, session.Sequence != null);
+            string stage = session.EndingActive && session.Ending != null
+                ? session.Ending.Stage.ToString() : string.Empty;
+            string key = stage.Length > 0 ? name + ":" + stage : name;
+            if (key != phase)
+            {
+                // **첫 국면도 남긴다.** `fall`·`checkpoint` 는 처음 본 값을 건너뛰지만
+                // (그 값은 0 이라 뜻이 없다) 국면의 첫 값은 **판이 어디서 시작했나**라
+                // 그 자체가 답이다.
+                var fields = One("name", name);
+                if (stage.Length > 0) fields["stage"] = stage;
+                PlayEvents.Write("phase", fields);
+                phase = key;
             }
 
             if (!authority) return;
@@ -256,6 +290,25 @@ namespace Metagame.Bootstrap
             if (reason.Contains("발사 구역")) return "off_pad";
             if (reason.Contains("기울어")) return "tilted";
             return "other";
+        }
+
+        /// <summary>
+        /// 지금 어느 국면인가 (S15P21B202-627). <b>값만 받는다</b> — 그래야 검사가 세
+        /// 갈래를 다 지난다(<c>-501</c>·<c>-523</c>·<c>-625</c> 에서 계산을 떼어 낸 것과
+        /// 같은 이유다. <see cref="GameSession"/> 을 받으면 검사가 부를 수 없다).
+        ///
+        /// <para><b>셋으로 잡는다.</b> 이탈 구간을 보는 데는 그것이 거의 다 답하고, 잘게
+        /// 쪼개면 이벤트 수가 늘면서 "어디까지 넣을지" 를 매번 판단해야 한다. 연출 안의
+        /// 세부는 <see cref="DemoEndingStage"/> 가 이미 아홉 가지를 정의해 두었으므로
+        /// 부르는 쪽이 <c>stage</c> 칸으로 <b>공짜로</b> 싣는다.</para>
+        ///
+        /// <para><b>연출을 먼저 본다.</b> 연출은 발사 뒤이고 컷신은 입장이라, 둘이 함께
+        /// 참으로 보이면 뒤의 것이 맞다.</para>
+        /// </summary>
+        public static string PhaseOf(bool endingActive, bool inCutscene)
+        {
+            if (endingActive) return "ending";
+            return inCutscene ? "cutscene" : "play";
         }
 
         static Dictionary<string, object> One(string key, object value)
