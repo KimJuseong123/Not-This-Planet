@@ -129,6 +129,25 @@ class RunLogStoreTest {
                 .as("이름이 확장자뿐이면 몸통이 빈다 — 빈 이름은 두지 않는다")
                 .isEqualTo("none");
         assertThat(RunLogStore.stem(null)).isEqualTo("none");
+
+        // **이미 겹쳐 온 이름도 하나로 만든다** (`!523` AI 리뷰). 한 번만 떼면
+        // `x.ndjson.log` 에서 `.log` 만 떨어지고 다시 `.log` 가 붙어 겹친 채로 남는다.
+        assertThat(RunLogStore.stem("x.ndjson.log")).isEqualTo("x");
+        assertThat(RunLogStore.stem("a.log.log.log")).isEqualTo("a");
+        assertThat(RunLogStore.stem(".log.ndjson")).isEqualTo("none");
+    }
+
+    @Test
+    void anAlreadyDoubledNameIsStoredWithOneExtension(@TempDir Path dir) throws IOException {
+        // 위 `stem` 단위 검사와 따로 둔다 — **저장까지 갔을 때** 겹치지 않는지가
+        // 이 이슈의 완료 조건이고, 둘 사이에 `extOf` 가 한 번 더 끼어든다.
+        RunLogStore s = store(dir);
+        byte[] body = "한 줄".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(s.save(7, "20260918-122304.ndjson.log", "b", "dev", body))
+                .as("이미 겹쳐 온 이름이 겹친 채로 저장된다")
+                .endsWith(".log")
+                .doesNotContain(".ndjson");
     }
 
     @Test

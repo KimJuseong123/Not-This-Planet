@@ -309,15 +309,26 @@ public class RunLogStore {
      */
     static String stem(String clientName) {
         String t = token(clientName);
-        String lower = t.toLowerCase(Locale.ROOT);
-        for (String ext : new String[] {EVENT_EXT, LOG_EXT}) {
-            if (lower.endsWith(ext)) {
-                String cut = t.substring(0, t.length() - ext.length());
-                // 이름이 확장자뿐이면(`.ndjson`) 몸통이 빈다 — 빈 이름은 두지 않는다.
-                return cut.isEmpty() ? "none" : cut;
+
+        // **더 이상 떨어지지 않을 때까지 뗀다** (`!523` AI 리뷰). 한 번만 떼면
+        // 이미 겹쳐 온 이름(`x.ndjson.log`)은 `.log` 만 떨어져 `x.ndjson` 이 되고,
+        // 거기에 다시 `.log` 가 붙어 **겹친 채로 저장된다** — 이 이슈가 막으려는
+        // 모양이 그대로 남는다. 한 번 뗄 때마다 이름이 넉 자 이상 줄고, 다 떨어지면
+        // 빈 문자열은 어느 확장자로도 끝나지 않으므로 여기서 멈춘다.
+        for (boolean cut = true; cut; ) {
+            cut = false;
+            String lower = t.toLowerCase(Locale.ROOT);
+            for (String ext : new String[] {EVENT_EXT, LOG_EXT}) {
+                if (lower.endsWith(ext)) {
+                    t = t.substring(0, t.length() - ext.length());
+                    cut = true;
+                    break;
+                }
             }
         }
-        return t;
+
+        // 이름이 확장자뿐이면(`.ndjson`) 몸통이 빈다 — 빈 이름은 두지 않는다.
+        return t.isEmpty() ? "none" : t;
     }
 
     /**
