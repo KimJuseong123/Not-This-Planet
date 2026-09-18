@@ -54,6 +54,42 @@ ESCAPE_RE = re.compile(r"^\s*//.*" + re.escape(ESCAPE) + r".*S15P21B202-\d+", re
 fails = []
 
 
+def without_line_comments(text: str) -> str:
+    """`//` 주석을 지운다. 설명에 적어 둔 `[UnityTearDown]` 이 훅으로 잡히면 안 된다."""
+    return re.sub(r"//[^\n]*", "", text)
+
+
+def teardown_bodies(text: str) -> list:
+    """정리 훅이 붙은 메서드의 본문들. 중괄호 짝으로 자른다 (S15P21B202-632).
+
+    C# 파서가 아니다 — 우리 검증 파일에 실제로 나오는 모양만 다룬다. 속성이 메서드와
+    같은 줄인 것(`[UnityTearDown] public IEnumerator Cleanup(){…}`)과 다른 줄인 것 둘 다
+    이 방식으로 잘린다. 주석은 미리 지워 두므로 그 안의 중괄호에 걸리지 않는다.
+    """
+    code = without_line_comments(text)
+    out = []
+    for marker in TEARDOWNS:
+        at = 0
+        while True:
+            i = code.find(marker, at)
+            if i < 0:
+                break
+            at = i + len(marker)
+            open_at = code.find("{", at)
+            if open_at < 0:
+                break
+            depth = 0
+            for j in range(open_at, len(code)):
+                if code[j] == "{":
+                    depth += 1
+                elif code[j] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        out.append(code[open_at:j + 1])
+                        break
+    return out
+
+
 def check(ok, msg):
     if not ok:
         fails.append(msg)
@@ -118,8 +154,17 @@ for path in test_files():
               f"      뒤이어 도는 검증이 그 씬의 오브젝트를 함께 보게 된다")
         continue
 
-    has_reset = RESETS in text
-    has_teardown = any(t in text for t in TEARDOWNS)
+    # **되돌리기가 정리 훅 *안에* 있어야 한다** (S15P21B202-632).
+    #
+    # 예전에는 둘이 **같은 파일에 있기만 하면** 통과했다. 그래서 `Stage2Tests.cs` 가
+    # 새어 나갔다 — 정리 훅은 `ExitPlayMode` 만 하고, `NewScene(...EmptyScene...)` 은
+    # 300줄 아래 **어느 테스트의 준비 과정**에 있었다. 파일 단위로 글자만 세면 그 둘을
+    # 가릴 수 없고, 그 결과 뒤이어 도는 검증 3건이 흔들렸다.
+    # **빈 씬으로 되돌리거나, 연 씬을 닫거나** — 둘 다 다음 픽스처에게 깨끗한 상태를 남긴다.
+    # `Single` 로 연 씬을 닫으면 유니티가 빈 씬을 남기므로 되돌린 것과 같다.
+    bodies = teardown_bodies(text)
+    has_teardown = bool(bodies)
+    has_reset = any(RESETS in b or CLOSES in b for b in bodies)
     if has_reset and has_teardown:
         guarded += 1
         continue
@@ -127,8 +172,11 @@ for path in test_files():
     missing = []
     if not has_teardown:
         missing.append("정리 훅(TearDown·OneTimeTearDown·UnityTearDown)이 없다")
-    if not has_reset:
-        missing.append(f"`{RESETS}…)` 로 되돌리지 않는다")
+    elif not has_reset:
+        # 파일 어딘가에는 있는데 훅 밖인 경우를 따로 말한다 — 그게 이 검사가 놓쳤던 모양이다.
+        where = ("**정리 훅 밖**에 있다 — 그 자리는 다음 픽스처를 지키지 못한다"
+                 if (RESETS in text or CLOSES in text) else "없다")
+        missing.append(f"정리 훅 안에서 `{RESETS}…)` 나 `{CLOSES}(…)` 로 되돌리는 것이 {where}")
     check(False,
           f"{rel} — 씬을 여는데 {' · '.join(missing)}.\n"
           f"      열어 둔 채 끝나면 **뒤이어 도는 검증들이 이 씬의 콜라이더를 만난다** "
