@@ -68,6 +68,41 @@ namespace Metagame.Gameplay.Parts
                 ? Mathf.FloorToInt(elapsed / GreetingSeconds) : -1;
         }
 
+        // 인사 스포트라이트의 여닫는 시간 (S15P21B202-639). 카메라가 다음 사람으로
+        // 넘어가는 0.3초(DemoEndingView.ShowBoarding)보다 **먼저** 꺼져야 넘어가는
+        // 화면에 두 개가 같이 걸리지 않는다.
+        // 카메라가 **도착한 뒤에** 켜져야 뿅 하는 것이 보인다. 먼저 켜 놓으면 이미 켜진
+        // 것을 향해 카메라가 다가갈 뿐이라 켜지는 순간이 없다 — 렌더해 보고 고친 값이다.
+        public const float SpotlightStartsAt = 0.20f;
+        public const float SpotlightPopSeconds = 0.14f;
+        public const float SpotlightSettleSeconds = 0.22f;
+        public const float SpotlightOvershoot = 0.28f;
+        public const float SpotlightFadeSeconds = 0.25f;
+        public const float SpotlightDarkAt = GreetingSeconds - 0.05f;
+
+        /// <summary>
+        /// 인사 중인 사람의 스포트라이트 세기. <paramref name="localTime"/> 은 그 사람의
+        /// 차례가 시작된 뒤 지난 시간이다(0 ~ <see cref="GreetingSeconds"/>).
+        ///
+        /// <para><b>뿅 하고 켜진다</b> — 빠르게 차오르며 한 번 넘겼다가 가라앉는다.
+        /// 그래서 최대값이 1 을 넘는다(1.23). 카메라가 다음 사람에게 도착한 뒤
+        /// (<see cref="SpotlightStartsAt"/>) 켜야 켜지는 순간이 보인다.</para>
+        ///
+        /// <para>순수 함수다. <b>코루틴이 아니라 공용 시계에서 뽑으므로</b> 늦게 들어온
+        /// 참가자도 같은 순간에 같은 밝기를 본다.</para>
+        /// </summary>
+        public static float SpotlightIntensityAt(float localTime)
+        {
+            if (localTime < SpotlightStartsAt || localTime >= GreetingSeconds) return 0f;
+            float since = localTime - SpotlightStartsAt;
+            float rise = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(since / SpotlightPopSeconds));
+            float settle = 1f - Mathf.SmoothStep(0f, 1f,
+                Mathf.Clamp01((since - SpotlightPopSeconds) / SpotlightSettleSeconds));
+            float fade = 1f - Mathf.SmoothStep(0f, 1f,
+                Mathf.Clamp01((localTime - (SpotlightDarkAt - SpotlightFadeSeconds)) / SpotlightFadeSeconds));
+            return rise * (1f + SpotlightOvershoot * rise * settle) * fade;
+        }
+
         public static float BoardingProgressAt(float elapsed, int players) => Mathf.Clamp01(
             (elapsed - Mathf.Clamp(players, 1, 4) * GreetingSeconds)
             / (BoardingSeconds - GreetingSeconds));

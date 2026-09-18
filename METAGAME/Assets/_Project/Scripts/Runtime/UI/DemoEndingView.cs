@@ -24,6 +24,7 @@ namespace Metagame.UI
         readonly List<Canvas> _previousCanvases = new();
         readonly List<(Light Light, int Mask)> _previousLights = new();
         readonly List<Material> _glowMaterials = new();
+        readonly List<StageSpotlight> _spots = new();
         Bounds _bounds;
         RenderTexture _photo;
         GUIStyle _title, _timeLabel;
@@ -194,7 +195,40 @@ namespace Metagame.UI
                 foreach (var t in doll.Root.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = StageLayer;
                 _actors.Add(doll);
             }
+            BuildGreetingSpotlights();
         }
+
+        /// <summary>
+        /// 인사 자리마다 무대 조명을 한 벌씩 세운다 (S15P21B202-639).
+        ///
+        /// <para><b>레이어 31 을 안 주면 아무것도 안 보인다</b> — 엔딩 카메라는 그 레이어만
+        /// 본다(<c>cullingMask</c>). 그리고 무대는 원점이 아니라 (10000,10000,10000) 에
+        /// 있으므로 반드시 <see cref="_stage"/> 의 자식이어야 한다.</para>
+        ///
+        /// <para>커마(631)보다 <b>좁게</b> 만든다. 인사 자리 간격이 1.1m 뿐이라 커마의
+        /// 폭(아래 반지름 0.78)을 그대로 쓰면 옆 사람 발밑까지 밝아져 "그 사람만 비춘다"
+        /// 가 깨진다.</para>
+        /// </summary>
+        void BuildGreetingSpotlights()
+        {
+            for (var i = 0; i < _actors.Count; i++)
+            {
+                var spot = StageSpotlight.Create("Greeting Spot " + i, _stage,
+                    StageSpotlight.DefaultApexHeight, StageSpotlight.DefaultTopRadius,
+                    GreetingSpotRadius, 1.15f, 0.82f, StageLayer);
+                if (spot == null) return;
+                spot.Root.localPosition = GreetingFoot(i);
+                spot.Intensity = 0f;
+                _spots.Add(spot);
+            }
+        }
+
+        /// <summary>
+        /// 인사 자리 간격(1.1m)보다 좁아야 옆 사람과 안 겹친다. 웅덩이는 여기에
+        /// 1.15 를 곱한 반지름이라 지름 1.04m — 간격 안에 들어온다. <b>처음에 1.5 를
+        /// 곱했다가 검증에 걸렸다</b>(지름 1.35m).
+        /// </summary>
+        const float GreetingSpotRadius = 0.45f;
 
         void CopyMeshes(Transform source, Transform destination)
         {
@@ -269,6 +303,27 @@ namespace Metagame.UI
                     _camera.transform.LookAt(Vector3.Lerp(focus, StageOrigin + _bounds.center, blend));
                 }
             }
+            UpdateGreetingSpotlights(elapsed, greeting);
+        }
+
+        /// <summary>
+        /// 인사 중인 사람에게만 불을 켠다 (S15P21B202-639).
+        ///
+        /// <para>세기는 <see cref="DemoEnding.SpotlightIntensityAt"/> 가 공용 시계에서
+        /// 뽑는다 — <b>코루틴이 아니라 순수 함수라</b> 늦게 들어온 참가자도 같은 순간에
+        /// 같은 그림을 본다.</para>
+        ///
+        /// <para>카메라를 옮긴 <b>뒤에</b> 부른다. 광원 원반은 카메라를 마주봐야 하는데
+        /// 먼저 돌리면 한 프레임 늦은 방향을 본다.</para>
+        /// </summary>
+        void UpdateGreetingSpotlights(float elapsed, int greeting)
+        {
+            for (var i = 0; i < _spots.Count; i++)
+                _spots[i].Intensity = i == greeting
+                    ? DemoEnding.SpotlightIntensityAt(elapsed - i * DemoEnding.GreetingSeconds)
+                    : 0f;
+            if (greeting >= 0 && greeting < _spots.Count)
+                _spots[greeting].FaceCamera(_camera.transform.rotation);
         }
 
         Vector3 GreetingFoot(int index) => new Vector3(
@@ -293,6 +348,7 @@ namespace Metagame.UI
             _planet.gameObject.SetActive(true);
             _flames.gameObject.SetActive(true);
             foreach (var actor in _actors) actor.Root.gameObject.SetActive(false);
+            foreach (var spot in _spots) spot.Intensity = 0f;
             // 원래 상대 배치를 유지한 채 전체 우주선만 위로 가속한다.
             var rise = Vector3.up * (4f * t + 320f * t * t * t);
             _ship.localPosition = _launchBase + rise;
@@ -486,6 +542,8 @@ namespace Metagame.UI
             if (_font != null) Destroy(_font);
             foreach (var entry in _previousLights) if (entry.Light != null) entry.Light.cullingMask = entry.Mask;
             foreach (var material in _glowMaterials) if (material != null) Destroy(material);
+            foreach (var spot in _spots) spot.Destroy();
+            _spots.Clear();
             Destroy(_stage.gameObject);
         }
     }
