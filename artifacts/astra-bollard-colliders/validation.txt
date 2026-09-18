@@ -1,0 +1,5 @@
+PASS
+Bollards: 42
+Added: 42
+Reload verified: 42
+Raycast hits: 42

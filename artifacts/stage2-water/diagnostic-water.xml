@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="5" result="Failed(Child)" total="5" passed="2" failed="3" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-17 15:41:35Z" end-time="2026-09-17 15:41:36Z" duration="1.2153627">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="1897" result="Failed" site="Child" start-time="2026-09-17 15:41:35Z" end-time="2026-09-17 15:41:36Z" duration="1.215363" total="5" passed="2" failed="3" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="3124" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202/METAGAME/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="1861" result="Failed" site="Child" start-time="2026-09-17 15:41:35Z" end-time="2026-09-17 15:41:36Z" duration="1.132778" total="5" passed="2" failed="3" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="29024" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="3125" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="1861" result="Failed" site="Child" start-time="2026-09-17 15:41:35Z" end-time="2026-09-17 15:41:36Z" duration="1.119270" total="5" passed="2" failed="3" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="3130" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="1812" result="Failed" site="Child" start-time="2026-09-17 15:41:35Z" end-time="2026-09-17 15:41:36Z" duration="1.105953" total="5" passed="2" failed="3" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="3131" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="1812" result="Failed" site="Child" start-time="2026-09-17 15:41:35Z" end-time="2026-09-17 15:41:36Z" duration="1.092850" total="5" passed="2" failed="3" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="2745" name="Stage2WaterTests" fullname="Metagame.Gameplay.Tests.Stage2WaterTests" classname="Metagame.Gameplay.Tests.Stage2WaterTests" runstate="Runnable" testcasecount="5" result="Failed" site="Child" start-time="2026-09-17 15:41:35Z" end-time="2026-09-17 15:41:36Z" duration="1.070397" total="5" passed="2" failed="3" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="2746" name="DeepWaterFloatsAscendsDescendsAndStopsAtSurface" fullname="Metagame.Gameplay.Tests.Stage2WaterTests.DeepWaterFloatsAscendsDescendsAndStopsAtSurface" methodname="DeepWaterFloatsAscendsDescendsAndStopsAtSurface" classname="Metagame.Gameplay.Tests.Stage2WaterTests" runstate="Runnable" seed="1068038749" result="Failed" start-time="2026-09-17 15:41:02Z" end-time="2026-09-17 15:41:11Z" duration="9.059105" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  Expected: greater than -0.6000278f
+  But was:  -1.04621685f
+]]></message>
+                  <stack-trace><![CDATA[at Metagame.Gameplay.Tests.Stage2WaterTests+<DeepWaterFloatsAscendsDescendsAndStopsAtSurface>d__6.MoveNext () [0x0029a] in C:\workspace\2-PJT\S15P21B202\METAGAME\Assets\_Project\Scripts\Tests\Editor\Stage2WaterTests.cs:41
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in .\Library\PackageCache\com.unity.test-framework@1405238725ab\UnityEngine.TestRunner\NUnitExtensions\Attributes\TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[[Water ascent] pos=(33.00, -1.05, -0.08) velocity=(0.00, 0.64, -0.32) swim=True down=False lock=False scripted=True inputJump=True nearby=
+]]></output>
+              </test-case>
+              <test-case id="2749" name="DownedPlayerCannotUseSwimInputAndReplicaUsesSameStaticVolume" fullname="Metagame.Gameplay.Tests.Stage2WaterTests.DownedPlayerCannotUseSwimInputAndReplicaUsesSameStaticVolume" methodname="DownedPlayerCannotUseSwimInputAndReplicaUsesSameStaticVolume" classname="Metagame.Gameplay.Tests.Stage2WaterTests" runstate="Runnable" seed="645200113" result="Failed" start-time="2026-09-17 15:41:11Z" end-time="2026-09-17 15:41:17Z" duration="6.045702" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  Expected: greater than -0.899999976f
+  But was:  -0.997596502f
+]]></message>
+                  <stack-trace><![CDATA[at Metagame.Gameplay.Tests.Stage2WaterTests+<DownedPlayerCannotUseSwimInputAndReplicaUsesSameStaticVolume>d__9.MoveNext () [0x00192] in C:\workspace\2-PJT\S15P21B202\METAGAME\Assets\_Project\Scripts\Tests\Editor\Stage2WaterTests.cs:79
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in .\Library\PackageCache\com.unity.test-framework@1405238725ab\UnityEngine.TestRunner\NUnitExtensions\Attributes\TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[[NotThisPlanet] 비행사 기절 (water test)
+]]></output>
+              </test-case>
+              <test-case id="2748" name="ExitRespawnAndDisabledWaterRestoreGravity" fullname="Metagame.Gameplay.Tests.Stage2WaterTests.ExitRespawnAndDisabledWaterRestoreGravity" methodname="ExitRespawnAndDisabledWaterRestoreGravity" classname="Metagame.Gameplay.Tests.Stage2WaterTests" runstate="Runnable" seed="59713364" result="Passed" start-time="2026-09-17 15:41:17Z" end-time="2026-09-17 15:41:23Z" duration="6.126232" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="2747" name="ShallowsSlowWalkingAndBridgeRemainsDry" fullname="Metagame.Gameplay.Tests.Stage2WaterTests.ShallowsSlowWalkingAndBridgeRemainsDry" methodname="ShallowsSlowWalkingAndBridgeRemainsDry" classname="Metagame.Gameplay.Tests.Stage2WaterTests" runstate="Runnable" seed="540908579" result="Failed" start-time="2026-09-17 15:41:23Z" end-time="2026-09-17 15:41:29Z" duration="6.122288" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  Expected: less than 1.04425097f
+  But was:  1.09413886f
+]]></message>
+                  <stack-trace><![CDATA[at Metagame.Gameplay.Tests.Stage2WaterTests+<ShallowsSlowWalkingAndBridgeRemainsDry>d__7.MoveNext () [0x00147] in C:\workspace\2-PJT\S15P21B202\METAGAME\Assets\_Project\Scripts\Tests\Editor\Stage2WaterTests.cs:55
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in .\Library\PackageCache\com.unity.test-framework@1405238725ab\UnityEngine.TestRunner\NUnitExtensions\Attributes\TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+              </test-case>
+              <test-case id="2750" name="TerrainHasShallowBanksDeepBedAndCameraHasRefractionInputs" fullname="Metagame.Gameplay.Tests.Stage2WaterTests.TerrainHasShallowBanksDeepBedAndCameraHasRefractionInputs" methodname="TerrainHasShallowBanksDeepBedAndCameraHasRefractionInputs" classname="Metagame.Gameplay.Tests.Stage2WaterTests" runstate="Runnable" seed="1848596407" result="Passed" start-time="2026-09-17 15:41:29Z" end-time="2026-09-17 15:41:36Z" duration="6.493456" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>
