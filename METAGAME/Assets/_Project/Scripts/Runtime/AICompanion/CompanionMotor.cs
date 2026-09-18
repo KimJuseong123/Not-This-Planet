@@ -15,11 +15,7 @@ namespace Metagame.AICompanion
         [SerializeField, Range(0.1f, 1f)] float _walkInput = 0.7f;
         PlayerRig _rig;
         Transform _target;
-        NavMeshData _data;
-        NavMeshDataInstance _instance;
         NavMeshPath _path;
-        Vector3[] _corners = System.Array.Empty<Vector3>();
-        int _corner;
         float _nextPath;
         PartClamp _pin;
         readonly Queue<PartClamp> _pendingPins = new Queue<PartClamp>();
@@ -72,79 +68,76 @@ namespace Metagame.AICompanion
         /// </summary>
         bool _holdStill;
 
+        /// <summary>길찾기에서 보는 몸 굵기(m). 바닥을 구울 때와 같은 값이어야 한다.</summary>
+        public const float AgentRadius = 0.45f;
+
+        /// <summary>길찾기에서 보는 키(m).</summary>
+        public const float AgentHeight = 1.5f;
+
         /// <summary>
-        /// 길찾기용으로 한 번에 굽는 영역(m).
+        /// 서로 비켜설 때의 우선순위(0~99, 낮을수록 세다). 자리 관리자가 AI 마다 다르게 준다.
         ///
-        /// <para>예전에는 <b>월드 원점 기준 25×21 을 한 번만</b> 구웠다. 실험실 크기라서
-        /// 그 안에서만 길이 났고, Stage1 처럼 넓은 맵에서는 조금 따라오다 박스를 벗어나는
-        /// 순간 길을 잃고 멈췄다. 이제 AI 를 따라 다시 굽는다.</para>
+        /// <para>같은 값이면 둘이 똑같이 양보하다 마주 보고 굳는다. 값을 달리 줘야 한쪽이
+        /// 먼저 비킨다.</para>
         /// </summary>
-        static readonly Vector3 NavMeshSize = new Vector3(48, 16, 48);
+        public int AvoidancePriority
+        {
+            get => _agent != null ? _agent.avoidancePriority : 50;
+            set { if (_agent != null) _agent.avoidancePriority = Mathf.Clamp(value, 0, 99); }
+        }
 
-        /// <summary>구운 영역의 가장자리에서 이만큼 안으로 들어오면 다시 굽는다(m).</summary>
-        const float NavMeshMargin = 10f;
-
-        /// <summary>다시 굽기까지의 최소 간격(초). 매 프레임 구우면 프레임이 튄다.</summary>
-        const float NavMeshRebakeInterval = 1.5f;
-
-        Vector3 _navCenter;
-        bool _navBuilt;
-        float _nextBake;
+        NavMeshAgent _agent;
 
         public void Initialize(PlayerRig rig)
         {
             _rig = rig;
             _path = new NavMeshPath();
-            EnsureNavMesh(rig != null && rig.Hips != null ? rig.Hips.position : Vector3.zero, force: true);
+
+            Vector3 here = rig != null && rig.Hips != null ? rig.Hips.position : Vector3.zero;
+            CompanionNavMesh.EnsureCovers(here);
+
+            // 길찾기와 <b>서로 비켜서기</b>를 Unity 에 맡긴다. 직접 만들면 셋이 마주쳤을 때
+            // 서로 밀고 굳는 것을 일일이 풀어야 한다.
+            //
+            // 다만 몸을 옮기는 것은 맡기지 않는다 — 우리 몸은 래그돌이고 InputFrame 으로만
+            // 움직인다(CLAUDE.md: AI 입력은 기존 PlayerRig 경로를 쓴다). 그래서 위치·회전
+            // 갱신을 끄고 <b>방향만</b> 받아 쓴다.
+            _agent = rig.gameObject.AddComponent<NavMeshAgent>();
+            _agent.updatePosition = false;
+            _agent.updateRotation = false;
+            _agent.updateUpAxis = false;
+            _agent.radius = AgentRadius;
+            _agent.height = AgentHeight;
+            _agent.speed = 3.5f;
+            _agent.acceleration = 12f;
+            _agent.angularSpeed = 720f;
+            _agent.autoBraking = false;
+            _agent.autoRepath = true;
+            _agent.obstacleAvoidanceType = ObstacleAvoidanceType.GoodQualityObstacleAvoidance;
+            SyncAgent(here);
+
             SetOrder(CompanionOrder.Wait, null);
         }
 
         /// <summary>
-        /// 이 지점을 덮는 길찾기 영역을 마련한다. 이미 넉넉히 덮고 있으면 아무것도 하지 않는다.
+        /// 길잡이를 몸이 실제로 서 있는 자리로 끌어다 놓는다.
+        ///
+        /// <para><c>updatePosition</c> 을 끄면 길잡이는 제자리에 머문 채 자기가 걸어간 줄
+        /// 안다. 매번 맞춰 주지 않으면 몸과 어긋나 엉뚱한 방향을 내놓는다.</para>
         /// </summary>
-        void EnsureNavMesh(Vector3 around, bool force = false)
+        void SyncAgent(Vector3 position)
         {
-            if (!force)
+            if (_agent == null || !_agent.enabled) return;
+
+            if (!_agent.isOnNavMesh)
             {
-                if (!_navBuilt) return;
-                if (Time.time < _nextBake) return;
-
-                // 가장자리에 가까워졌을 때만 다시 굽는다. 중심에 있는 동안은 그대로 쓴다.
-                Vector3 offset = around - _navCenter;
-                offset.y = 0;
-                float slack = Mathf.Min(NavMeshSize.x, NavMeshSize.z) * 0.5f - NavMeshMargin;
-                if (Mathf.Abs(offset.x) < slack && Mathf.Abs(offset.z) < slack) return;
-            }
-
-            _nextBake = Time.time + NavMeshRebakeInterval;
-            _navCenter = around;
-
-            var bounds = new Bounds(around, NavMeshSize);
-            var sources = new List<NavMeshBuildSource>();
-            NavMeshBuilder.CollectSources(bounds, ~0, NavMeshCollectGeometry.PhysicsColliders, 0,
-                new List<NavMeshBuildMarkup>(), sources);
-
-            // 트리거와 움직이는 물체는 바닥이 아니다. 넣으면 허공에 길이 난다.
-            sources.RemoveAll(s => s.component is Collider c && (c.isTrigger || c.attachedRigidbody != null));
-
-            var settings = NavMesh.GetSettingsByID(0);
-            settings.agentRadius = 0.45f;
-            settings.agentHeight = 1.5f;
-            settings.agentClimb = 0.25f;
-            settings.agentSlope = 40;
-
-            if (_navBuilt && _data != null)
-            {
-                // 이미 있는 것을 갱신한다 — 새로 만들어 붙였다 떼면 그 순간 길이 사라진다.
-                NavMeshBuilder.UpdateNavMeshData(_data, settings, sources, bounds);
+                // 바닥 밖이다(떨어졌거나 아직 안 구워졌다). 가까운 바닥으로 옮겨 붙인다.
+                if (NavMesh.SamplePosition(position, out var spot, 4f, NavMesh.AllAreas))
+                    _agent.Warp(spot.position);
                 return;
             }
 
-            _data = NavMeshBuilder.BuildNavMeshData(settings, sources, bounds, around, Quaternion.identity);
-            if (_data == null) return;
-
-            _instance = NavMesh.AddNavMeshData(_data);
-            _navBuilt = true;
+            _agent.nextPosition = position;
         }
 
         public void SetOrder(CompanionOrder order, Transform speaker)
@@ -161,7 +154,6 @@ namespace Metagame.AICompanion
             // 내부적으로 Wait 로 돌아온 것(speaker 없음)은 느슨한 대기로 이어진다.
             _holdStill = order == CompanionOrder.Wait && speaker != null;
 
-            _corners = System.Array.Empty<Vector3>();
             _nextPath = 0;
             Status = order == CompanionOrder.Follow ? "따라오는 중" : order == CompanionOrder.Cancel ? "작업 중단" : "여기서 대기";
             if (_rig != null) _rig.SetInput(default);
@@ -196,6 +188,11 @@ namespace Metagame.AICompanion
             outward.y = 0;
             if (outward.sqrMagnitude < 0.01f) outward = Vector3.back;
             Vector3 approach = center + outward.normalized * 0.55f;
+
+            // 갈 수 있는지 보기 전에 그 근처 바닥을 깔아 둔다. 안 그러면 아직 안 구운
+            // 자리라는 이유로 "길이 없어요" 가 나온다.
+            CompanionNavMesh.EnsureCovers(_rig.Hips.position, approach);
+
             if (!NavMesh.SamplePosition(approach, out var spot, 1.2f, NavMesh.AllAreas))
             { reason = "고정못 앞에 설 수 있는 곳이 없어요"; return false; }
             if (!NavMesh.SamplePosition(_rig.Hips.position, out var from, 2f, NavMesh.AllAreas)
@@ -203,7 +200,7 @@ namespace Metagame.AICompanion
                 || _path.status != NavMeshPathStatus.PathComplete)
             { reason = "고정못까지 갈 수 있는 길이 없어요"; return false; }
             if (!continuing) SetOrder(order, null);
-            else { _corners = System.Array.Empty<Vector3>(); _nextPath = 0; _rig.SetInput(default); }
+            else { _nextPath = 0; _rig.SetInput(default); }
             _pin = pin; _approach = spot.position;
             _pinPhase = PinPhase.Approach;
             _phaseStart = _taskStart = _lastProgressTime = Time.time;
@@ -305,44 +302,71 @@ namespace Metagame.AICompanion
             if (delta.magnitude <= stopDistance && Mathf.Abs(destination.y - position.y) < 1.5f) return true;
 
             // 넓은 맵에서는 걷다 보면 구워 둔 영역을 벗어난다. 나와 목적지를 모두 덮게 다시 굽는다.
-            EnsureNavMesh(Vector3.Lerp(position, destination, 0.5f));
+            CompanionNavMesh.EnsureCovers(position, destination);
+            SyncAgent(position);
 
-            if (Time.time >= _nextPath)
+            Vector3 steer = Vector3.zero;
+            if (_agent != null && _agent.isOnNavMesh)
             {
-                _nextPath = Time.time + 0.35f;
-                bool valid = NavMesh.SamplePosition(position, out var from, 2f, NavMesh.AllAreas)
-                    && NavMesh.SamplePosition(destination, out var to, 2f, NavMesh.AllAreas)
-                    && NavMesh.CalculatePath(from.position, to.position, NavMesh.AllAreas, _path)
-                    && _path.status == NavMeshPathStatus.PathComplete;
-                _corners = valid ? _path.corners : System.Array.Empty<Vector3>();
-                _corner = 1;
-            }
-            while (_corner < _corners.Length)
-            {
-                delta = _corners[_corner] - position; delta.y = 0;
-                float cornerDistance = _corner == _corners.Length - 1 ? Mathf.Min(0.1f, stopDistance * 0.5f) : 0.35f;
-                if (delta.magnitude > cornerDistance) break;
-                _corner++;
-            }
-            if (_corner < _corners.Length)
-            {
-                input.AimYaw = Mathf.Atan2(delta.x, delta.z) * Mathf.Rad2Deg;
-                input.Move = new Vector2(0, _walkInput);
-                return false;
+                _agent.stoppingDistance = stopDistance;
+                if (Time.time >= _nextPath)
+                {
+                    _nextPath = Time.time + 0.25f;
+                    _agent.SetDestination(destination);
+                }
+
+                // desiredVelocity 에는 <b>서로 비켜서기까지 반영돼 있다</b>. 이것을 쓰려고
+                // 길잡이를 붙였다 — 방향만 받아 우리 입력으로 옮긴다.
+                steer = _agent.desiredVelocity;
+                steer.y = 0;
             }
 
-            // 길을 못 찾았다. <b>멈춰 서지는 않는다</b> — 사람을 따라갈 때 길찾기가 실패하면
-            // 그대로 굳어 버려 "왜 안 따라와" 가 된다. 곧장 목적지 쪽으로 걷는다.
-            // 장애물을 못 피하지만, 서 있는 것보다는 낫다.
-            delta = destination - position;
-            delta.y = 0;
-            if (delta.sqrMagnitude > 0.01f)
+            // 길잡이가 방향을 못 내놓으면(바닥 밖·경로 없음) 곧장 목적지 쪽으로 걷는다.
+            // 장애물을 못 피하지만, 굳어 서 있으면 "왜 안 따라와" 가 된다.
+            if (steer.sqrMagnitude < 0.01f) steer = delta;
+
+            if (steer.sqrMagnitude > 0.01f)
             {
-                input.AimYaw = Mathf.Atan2(delta.x, delta.z) * Mathf.Rad2Deg;
+                input.AimYaw = Mathf.Atan2(steer.x, steer.z) * Mathf.Rad2Deg;
                 input.Move = new Vector2(0, _walkInput);
+                TickStuck(position, ref input);
             }
             return false;
         }
+
+        /// <summary>
+        /// <b>가려는데 못 가고 있으면 옆으로 한 걸음 낸다.</b>
+        ///
+        /// <para>길잡이가 방향을 내놓아도 몸이 실제로 못 나아가는 자리가 있다 — 좁은 틈,
+        /// 다른 몸에 낀 경우. 앞으로만 계속 밀면 영영 낀 채로 있는다. 사람이 비켜 줘야
+        /// 풀리는 것이 그 증상이다.</para>
+        /// </summary>
+        void TickStuck(Vector3 position, ref InputFrame input)
+        {
+            if ((position - _stuckFrom).sqrMagnitude > StuckRadius * StuckRadius)
+            {
+                _stuckFrom = position;
+                _stuckSince = Time.time;
+                return;
+            }
+
+            if (Time.time - _stuckSince < StuckSeconds) return;
+
+            // 낀 쪽 반대가 어딘지 알 수 없으므로 한쪽으로 돈다. 몇 초마다 방향을 바꿔
+            // 한쪽으로만 밀어붙이다 같은 자리에 머무는 것을 피한다.
+            float side = Mathf.Repeat(Time.time - _stuckSince, StuckSeconds * 2) < StuckSeconds ? 1f : -1f;
+            input.AimYaw += side * 70f;
+            Status = "길을 비집는 중";
+        }
+
+        /// <summary>이 거리 안에 머물면 못 나아간 것으로 본다(m).</summary>
+        const float StuckRadius = 0.35f;
+
+        /// <summary>이만큼 못 나아가면 옆으로 낸다(초).</summary>
+        const float StuckSeconds = 1.2f;
+
+        Vector3 _stuckFrom;
+        float _stuckSince;
 
         void TickPin(ref InputFrame input)
         {
@@ -406,8 +430,9 @@ namespace Metagame.AICompanion
         void OnDisable() { if (_rig != null) _rig.SetInput(default); }
         void OnDestroy()
         {
-            if (_instance.valid) _instance.Remove();
-            if (_data != null) Destroy(_data);
+            // 길찾기 바닥은 이제 모두가 함께 쓴다(CompanionNavMesh) — 여기서 걷어내면
+            // 남은 AI 들의 길이 같이 사라진다. 내 길잡이만 치운다.
+            if (_agent != null) Destroy(_agent);
         }
     }
 }

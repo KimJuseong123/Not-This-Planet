@@ -272,6 +272,10 @@ namespace Metagame.Network
                 // 자리마다 유지 거리를 달리 준다. 셋이 같은 거리를 노리면 한 점에 겹쳐
                 // 서로 밀어내므로, 조금씩 벌려 줄줄이 따라오게 한다.
                 brain.StandbyDistance = FollowDistance + slot * FollowDistanceStep;
+
+                // 비켜서기 우선순위도 자리마다 다르게 둔다. 같은 값이면 둘이 똑같이
+                // 양보하다 마주 보고 굳는다.
+                brain.AvoidancePriority = 40 + slot * 5;
             }
         }
 
