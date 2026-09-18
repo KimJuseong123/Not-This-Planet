@@ -10,7 +10,7 @@ namespace Metagame.Gameplay
         Doll doll;
         Renderer[] surfaces;
         readonly List<Material> ownedMaterials = new List<Material>();
-        Transform helmetRoot, badgeRoot;
+        Transform helmetRoot, badgeRoot, auraRoot;
         int applied = -1;
         public int Applied => applied;
 
@@ -123,34 +123,10 @@ namespace Metagame.Gameplay
             Tint(surfaces, CustomizationData.TintColor(data.Tint));
             Clear(ref helmetRoot);
             Clear(ref badgeRoot);
-            Color accent = new Color(0.28f, 0.85f, 0.95f);
-            if (data.Helmet != 0)
-            {
-                helmetRoot = Prim.DecoRoot(doll.Head.transform);
-                helmetRoot.gameObject.layer = doll.Head.gameObject.layer;
-                helmetRoot.name = "Customizer Helmet";
-                if (data.Helmet == 1)
-                {
-                    Piece(helmetRoot, PrimitiveType.Cube, new Vector3(0.25f, 0.25f, 0), new Vector3(0.025f, 0.22f, 0.025f), Color.white);
-                    Piece(helmetRoot, PrimitiveType.Sphere, new Vector3(0.25f, 0.37f, 0), Vector3.one * 0.065f, accent);
-                }
-                else
-                    for (int side = -1; side <= 1; side += 2)
-                        Piece(helmetRoot, PrimitiveType.Sphere, new Vector3(side * 0.31f, 0, 0), new Vector3(0.09f, 0.19f, 0.19f), accent);
-            }
-            if (data.Badge != 0)
-            {
-                badgeRoot = Prim.DecoRoot(doll.Chest.transform);
-                badgeRoot.gameObject.layer = doll.Chest.gameObject.layer;
-                badgeRoot.name = "Customizer Badge";
-                int count = data.Badge;
-                for (int i = 0; i < count; i++)
-                {
-                    var piece = Piece(badgeRoot, PrimitiveType.Cube,
-                        new Vector3(-0.09f + i * 0.07f, 0, 0.24f), new Vector3(0.055f, 0.055f, 0.025f), accent);
-                    piece.localRotation = Quaternion.Euler(0, 0, 45);
-                }
-            }
+            Clear(ref auraRoot);
+            helmetRoot = Attach(doll.Head.transform, "Helmet", data.Helmet);
+            badgeRoot = Attach(doll.Chest.transform, "Badge", data.Badge);
+            auraRoot = Attach(doll.Chest.transform, "Aura", data.Aura);
             // 선택 동기화가 1인칭/탑승 숨김보다 늦게 와도 새 장식이 튀어나오지 않는다.
             if (!doll.Visible)
             {
@@ -162,20 +138,21 @@ namespace Metagame.Gameplay
             }
         }
 
-        static Transform Piece(Transform parent, PrimitiveType type, Vector3 position, Vector3 scale, Color color)
+        static Transform Attach(Transform parent, string slot, int index)
         {
-            var go = GameObject.CreatePrimitive(type);
-            var collider = go.GetComponent<Collider>();
-            collider.enabled = false;
-            if (Application.isPlaying) Destroy(collider); else DestroyImmediate(collider);
-            go.layer = parent.gameObject.layer;
-            go.transform.SetParent(parent, false);
-            go.transform.localPosition = position;
-            go.transform.localScale = scale;
-            // 커스터마이저 장식도 몸과 같이 안개에서 뺀다 (S15P21B202-540).
-            // 몸만 또렷하고 헬멧 뿔·배지만 회색이면 그것대로 눈에 띈다.
-            go.GetComponent<Renderer>().sharedMaterial = Prim.Dough(color, 0.2f, fogExempt: true);
-            return go.transform;
+            if (index == 0) return null;
+            var prefab = Resources.Load<GameObject>($"Cosmetics609/{slot}{index:00}");
+            if (prefab == null)
+            {
+                Debug.LogError($"[PlayerAppearance] Missing cosmetic: {slot}{index:00}");
+                return null;
+            }
+            var root = Prim.DecoRoot(parent);
+            root.name = "Customizer " + slot;
+            var instance = Instantiate(prefab, root, false);
+            foreach (var child in root.GetComponentsInChildren<Transform>(true))
+                child.gameObject.layer = parent.gameObject.layer;
+            return root;
         }
 
         static void Clear(ref Transform root)
