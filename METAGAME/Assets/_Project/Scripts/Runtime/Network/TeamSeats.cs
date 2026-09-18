@@ -28,6 +28,15 @@ namespace Metagame.Network
         /// 그동안 AI 가 대신 움직여도 자리는 그대로 그 사람 것이다.</para>
         public const float AiTakeoverSeconds = 5f;
 
+        /// <summary>자리끼리 떼어 놓는 거리(m). 같은 지점에 넷을 세우면 서로 밀어낸다.</summary>
+        const float SeatSpacing = 1.5f;
+
+        /// <summary>발이 바닥에 박히지 않게 띄우는 높이(m). <see cref="NetPlayer"/> 와 같은 값이다.</summary>
+        const float FootLift = 0.10f;
+
+        /// <summary>띄우기에 실패했을 때 다시 시도하기까지 쉬는 시간(초).</summary>
+        const float RetrySeconds = 5f;
+
         /// <summary>서버에만 선다. 참가자에서는 늘 null 이다.</summary>
         public static TeamSeats Server { get; private set; }
 
@@ -38,9 +47,6 @@ namespace Metagame.Network
 
             /// <summary>지금 이 몸을 모는 쪽. 없으면 아무도 안 몰고 있다.</summary>
             public NetPlayer Driver;
-
-            /// <summary>사람이 몰던 자리인가. AI 가 이어받을지 정하는 데 쓴다.</summary>
-            public bool WasHuman;
 
             /// <summary>비워진 시각(<c>Time.time</c>). 음수면 비어 있지 않다.</summary>
             public float FreeSince = -1f;
@@ -66,6 +72,9 @@ namespace Metagame.Network
         /// 몸을 세운 뒤에야 자리를 잡기 때문이다.</para>
         /// </summary>
         bool humanSeated;
+
+        /// <summary>띄우기에 실패한 뒤 쉬는 시각. <see cref="Complain"/> 이 민다.</summary>
+        float retryAfter;
 
         /// <summary>서버에 관리자를 세운다. 이미 있으면 그것을 돌려준다.</summary>
         public static TeamSeats EnsureServer(GameSession forSession)
@@ -102,10 +111,22 @@ namespace Metagame.Network
             Seat seat = At(slot);
             if (seat == null || driver == null) return null;
 
-            if (seat.Driver != null && seat.Driver != driver)
+            // 사람이 오면 AI 는 비켜 준다. 자리 주인은 언제나 사람이다.
+            //
+            // <b>아직 몸을 못 잡은 AI(AiPending)도 같이 치운다.</b> 이것을 빠뜨리면 그 AI 는
+            // 다음 물리 스텝부터 계속 null 을 받아 몸을 영영 못 세우고, 매 스텝 경고를 쏟는
+            // 좀비로 남는다. 게다가 AiPending 이 그 AI 를 가리킨 채 남아 NeedsAi 가 늘 false 가
+            // 되어, 나중에 그 자리가 진짜 비어도 AI 이어받기가 조용히 멈춘다.
+            if (human)
             {
-                // 사람이 오면 AI 는 비켜 준다. 자리 주인은 언제나 사람이다.
-                if (human && seat.Driver.IsAiDriver)
+                if (seat.AiPending != null && seat.AiPending != driver)
+                {
+                    Debug.Log($"[TeamSeats] {slot}번 자리에 뜨던 AI 를 내린다 — 사람이 앉는다");
+                    NetworkServer.Destroy(seat.AiPending.gameObject);
+                    seat.AiPending = null;
+                }
+
+                if (seat.Driver != null && seat.Driver != driver && seat.Driver.IsAiDriver)
                 {
                     NetPlayer leaving = seat.Driver;
 
@@ -115,11 +136,12 @@ namespace Metagame.Network
                     Debug.Log($"[TeamSeats] {slot}번({TeamSlots.Name(slot)}) 자리를 사람이 이어받는다 · {nickname}");
                     NetworkServer.Destroy(leaving.gameObject);
                 }
-                else
-                {
-                    Debug.LogWarning($"[TeamSeats] {slot}번 자리를 이미 {seat.Driver.name} 이(가) 쥐고 있다");
-                    return null;
-                }
+            }
+
+            if (seat.Driver != null && seat.Driver != driver)
+            {
+                Debug.LogWarning($"[TeamSeats] {slot}번 자리를 이미 {seat.Driver.name} 이(가) 쥐고 있다");
+                return null;
             }
 
             if (seat.Body == null)
@@ -127,7 +149,7 @@ namespace Metagame.Network
                 Vector3 foot = SpawnFootFor(slot);
                 seat.Body = PlayerRig.Create(
                     string.IsNullOrEmpty(nickname) ? "비행사" : nickname,
-                    foot + Vector3.up * 0.10f,
+                    foot + Vector3.up * FootLift,
                     Quaternion.LookRotation(Vector3.right, Vector3.up),
                     TeamSlots.Suit(slot), TeamSlots.Accent(slot),
                     // 헤드리스 서버에는 모델을 씌우지 않는다. 그릴 일이 없고 로딩만 든다.
@@ -136,7 +158,6 @@ namespace Metagame.Network
             }
 
             seat.Driver = driver;
-            seat.WasHuman = human;
             seat.FreeSince = -1f;
             if (seat.AiPending == driver) seat.AiPending = null;
             if (human) humanSeated = true;
@@ -147,11 +168,19 @@ namespace Metagame.Network
         void Update()
         {
             if (!NetworkServer.active || !humanSeated) return;
+            if (Time.time < retryAfter) return;
 
             for (int slot = 0; slot < seats.Length; slot++)
             {
                 if (NeedsAi(slot)) SpawnAi(slot);
             }
+        }
+
+        /// <summary>같은 오류를 매 프레임 쏟지 않도록 한 번 알리고 잠시 쉰다.</summary>
+        void Complain(string message)
+        {
+            Debug.LogError("[TeamSeats] " + message + $" — {RetrySeconds}초 뒤 다시 시도한다");
+            retryAfter = Time.time + RetrySeconds;
         }
 
         /// <summary>
@@ -170,8 +199,9 @@ namespace Metagame.Network
                 : null;
             if (prefab == null)
             {
-                Debug.LogError("[TeamSeats] 플레이어 프리팹을 찾지 못해 AI 자리를 띄우지 못한다");
-                enabled = false;   // 매 프레임 같은 오류를 쏟지 않는다
+                // 컴포넌트를 영구 정지시키지 않는다 — 그러면 나중에 정상이 되어도 자리
+                // 채우기가 되살아나지 않고 조용히 4인 미만으로 진행된다. 대신 잠시 쉰다.
+                Complain("플레이어 프리팹을 찾지 못해 AI 자리를 띄우지 못한다");
                 return;
             }
 
@@ -179,9 +209,8 @@ namespace Metagame.Network
             var player = go.GetComponent<NetPlayer>();
             if (player == null)
             {
-                Debug.LogError("[TeamSeats] 플레이어 프리팹에 NetPlayer 가 없다");
+                Complain("플레이어 프리팹에 NetPlayer 가 없다");
                 Destroy(go);
-                enabled = false;
                 return;
             }
 
@@ -228,7 +257,6 @@ namespace Metagame.Network
 
             seat.Body = hostBody;
             seat.Driver = driver;
-            seat.WasHuman = true;
             seat.FreeSince = -1f;
 
             // 방장도 사람이다. 이것을 켜지 않으면 방장 혼자 들어간 판에서 나머지 자리가
@@ -257,6 +285,12 @@ namespace Metagame.Network
             // 사람에게 밀려난 AI 는 여기서 걸리지 않는다.
             if (seat.AiPending != null) return false;
 
+            // <b>이미 사람이 받아 둔 자리는 건드리지 않는다.</b> 자리(teamSlot)는 접속하자마자
+            // 정해지지만 몸은 다음 물리 스텝에야 선다. 그 틈에 '몸이 없다'는 이유로 AI 를
+            // 띄우면 방금 들어온 사람의 자리를 선점한다 — 두 명 이상이 거의 동시에 들어오면
+            // 흔히 걸린다.
+            if (NetPlayer.HumanHoldsSlot(slot)) return false;
+
             if (seat.Body == null) return true;
             return seat.FreeSince >= 0f && Time.time - seat.FreeSince >= AiTakeoverSeconds;
         }
@@ -265,7 +299,7 @@ namespace Metagame.Network
         Vector3 SpawnFootFor(int slot)
         {
             Vector3 origin = session != null ? session.SpawnFoot : transform.position;
-            return origin + Vector3.right * ((slot - (TeamSlots.Count - 1) * 0.5f) * 1.5f);
+            return origin + Vector3.right * ((slot - (TeamSlots.Count - 1) * 0.5f) * SeatSpacing);
         }
 
         Seat At(int slot) =>
