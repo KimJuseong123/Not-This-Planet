@@ -222,6 +222,7 @@ namespace Metagame.Gameplay
                     f.ToolUtility = false;
                     f.TransportAction = false;
                     f.ArmsUp = false;
+                    f.ProneHeld = false;
                     f.FreeLook = false;
                     f.PingPressed = false;
                 }
@@ -286,6 +287,7 @@ namespace Metagame.Gameplay
                         f.ToolSecondary = false;
                         f.ToolUtility = false;
                         f.ArmsUp = false;
+                        f.ProneHeld = false;
                     }
                 }
                 LocalPlayer.SetInput(f);

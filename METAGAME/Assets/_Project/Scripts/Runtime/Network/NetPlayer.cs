@@ -143,6 +143,16 @@ namespace Metagame.Network
         public bool downed;
 
         /// <summary>
+        /// 엎드려 있는가 (S15P21B202-616).
+        ///
+        /// <para><b>서버가 물리 결과로 적는다</b> — 클라이언트가 켜는 값이 아니다
+        /// (<see cref="downed"/> 와 같은 모양). 몸이 기운 것 자체는
+        /// <c>NetworkTransform</c> 으로 가지만, "엎드려 있다" 는 사실은 표시와
+        /// 판정이 따로 읽는다.</para>
+        /// </summary>
+        [SyncVar(hook = nameof(OnProneChanged))] public bool prone;
+
+        /// <summary>
         /// 셋 이상이 모여 파츠를 실제로 밀고 있는가 (기획 §13 · §10.2).
         ///
         /// <b>참가자는 이 값을 스스로 알 수 없어서 실어 보낸다.</b> 파츠 물리는 서버에서만
@@ -874,6 +884,7 @@ namespace Metagame.Network
             // 그래서 몸의 결과를 옮겨 싣는 이 자리에 둔다. 위의 SetPositionAndRotation
             // 과 같은 일이다 — 물리가 낸 결과를 SyncVar·NetworkTransform 에 넘긴다.
             downed = body.Downed;
+            prone = body.Prone;
 
             // **이 기계가 서버라고 몸에 알린다** (S15P21B202-414).
             //
@@ -1222,7 +1233,8 @@ namespace Metagame.Network
                 && a.PingPressed == b.PingPressed
                 // 여기 빠지면 눌러도 서버가 모른다 (S15P21B202-390). Same() 이 같다고
                 // 보면 그 프레임을 보내지 않는다 — StuckEscapeHeld 가 실제로 그 상태다.
-                && a.RescueHeld == b.RescueHeld;
+                && a.RescueHeld == b.RescueHeld
+                && a.ProneHeld == b.ProneHeld;
         }
 
         // ── 클라이언트: 남의 몸 ─────────────────────────────────
@@ -1274,6 +1286,16 @@ namespace Metagame.Network
         void OnRidingChanged(bool _, bool nowRiding) => ApplyRiding(nowRiding);
 
         void OnDownedChanged(bool _, bool nowDowned) => ApplyDowned(nowDowned);
+
+        void OnProneChanged(bool _, bool nowProne) => ApplyProne(nowProne);
+
+        /// <summary>남의 화면의 자세를 맞춘다 (S15P21B202-616). 서버에서는 하지 않는다.</summary>
+        void ApplyProne(bool nowProne)
+        {
+            if (body == null || isServer) return;
+
+            body.SetRemoteProne(nowProne);
+        }
 
         /// <summary>
         /// 남의 화면의 기절 표시를 맞춘다 (S15P21B202-378).

@@ -36,6 +36,7 @@ namespace Metagame.UI
             Jump,
             Run,
             ArmsUp,
+            Prone,
             FreeLook,
             TransportAction,
             ToolAction,
@@ -57,6 +58,7 @@ namespace Metagame.UI
             BindingAction.Jump,
             BindingAction.Run,
             BindingAction.ArmsUp,
+            BindingAction.Prone,
             BindingAction.FreeLook,
             BindingAction.TransportAction,
             BindingAction.ToolAction,
@@ -751,6 +753,7 @@ namespace Metagame.UI
                 case BindingAction.Jump: return "점프";
                 case BindingAction.Run: return "달리기";
                 case BindingAction.ArmsUp: return "팔 올리기";
+                case BindingAction.Prone: return "엎드리기";
                 case BindingAction.FreeLook: return "자유 시점";
                 case BindingAction.TransportAction: return "상호작용 / 탑승";
                 case BindingAction.ToolAction: return "장비 동작";
@@ -775,6 +778,7 @@ namespace Metagame.UI
                 case BindingAction.Jump: return Controls.Jump;
                 case BindingAction.Run: return Controls.Run;
                 case BindingAction.ArmsUp: return Controls.ArmsUp;
+                case BindingAction.Prone: return Controls.Prone;
                 case BindingAction.FreeLook: return Controls.FreeLook;
                 case BindingAction.TransportAction: return Controls.TransportAction;
                 case BindingAction.ToolAction: return Controls.ToolAction;
@@ -800,6 +804,7 @@ namespace Metagame.UI
                 case BindingAction.Jump: settings.jump = value; break;
                 case BindingAction.Run: settings.run = value; break;
                 case BindingAction.ArmsUp: settings.armsUp = value; break;
+                case BindingAction.Prone: settings.prone = value; break;
                 case BindingAction.FreeLook: settings.freeLook = value; break;
                 case BindingAction.TransportAction: settings.transportAction = value; break;
                 case BindingAction.ToolAction: settings.toolAction = value; break;
