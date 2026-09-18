@@ -1,4 +1,4 @@
-"""Merge only the new Terrain, ground enable flags, and its parent's child list."""
+"""Publish the validated Terrain and remove the replaced legacy floor object."""
 import hashlib
 import json
 import re
@@ -26,32 +26,33 @@ def main():
     original = snapshot.decode("utf-8").replace("\r\n", "\n")
     authored = (WORK / "project/Assets/Scenes/Stage1_Astra.unity").read_text(encoding="utf-8")
     before, after = blocks(original), blocks(authored)
-    assert before.keys() <= after.keys(), "Existing scene data removed"
     added = after.keys() - before.keys()
     assert len([k for k in added if after[k].startswith("--- !u!1 ")]) == 1
     source = next(v for v in before.values() if "sculpted ground" in v)
     components = [int(c) for c in re.findall(r"component: \{fileID: (\d+)\}", source)]
     transform = next(before[c] for c in components if before[c].startswith("--- !u!4 "))
     parent = int(re.search(r"m_Father: \{fileID: (\d+)\}", transform)[1])
-    disabled = [c for c in components if before[c].startswith(("--- !u!23 ", "--- !u!64 "))]
-    assert len(disabled) == 2
+    source_id = next(k for k, v in before.items() if v == source)
+    removed = {source_id, *components}
+    assert before.keys() - after.keys() == removed, "Unexpected scene removal"
+    assert "  m_Children: []\n" in transform, "Legacy floor has children"
+    assert report["sourceComparisonPerformed"], "Initial mesh comparison required"
+    assert reload_report["legacyObjectRemoved"], "Legacy floor survived reload"
     changes = {}
-    for c in disabled:
-        assert "  m_Enabled: 1\n" in before[c] and "  m_Enabled: 0\n" in after[c]
-        changes[c] = before[c].replace("  m_Enabled: 1\n", "  m_Enabled: 0\n", 1)
     old_children = re.search(r"  m_Children:.*?(?=  m_Father:)", before[parent], re.S)[0]
     new_children = re.search(r"  m_Children:.*?(?=  m_Father:)", after[parent], re.S)[0]
     old_refs = re.findall(r"fileID: (\d+)", old_children)
     new_refs = re.findall(r"fileID: (\d+)", new_children)
-    assert [v for v in new_refs if v in old_refs] == old_refs
+    transform_id = next(c for c in components if before[c].startswith("--- !u!4 "))
+    assert [v for v in new_refs if v in old_refs] == [v for v in old_refs if int(v) != transform_id]
     new_ref = set(new_refs) - set(old_refs)
     assert len(new_ref) == 1 and int(next(iter(new_ref))) in added
     changes[parent] = before[parent].replace(old_children, new_children)
     merged = original[:original.index("--- !u!")]
-    merged += "".join(changes.get(k,v) for k,v in before.items())
+    merged += "".join(changes.get(k,v) for k,v in before.items() if k not in removed)
     merged += "".join(v for k,v in after.items() if k in added)
     final = blocks(merged)
-    assert all(final[k] == v for k,v in before.items() if k not in changes)
+    assert all(final[k] == v for k,v in before.items() if k not in changes and k not in removed)
     for k,v in final.items():
         for ref in re.findall(r"\{fileID: (\d+)\}",v):
             assert int(ref) == 0 or int(ref) in final, (k,ref)
@@ -73,10 +74,11 @@ def main():
     SCENE.write_bytes(merged.replace("\n",newline).encode("utf-8"))
     audit = {
         "status":"PASS",
-        "existingBlocksPreserved":len(before)-len(changes),
+        "existingBlocksPreserved":len(before)-len(changes)-len(removed),
         "existingObjectTransformsChanged":0,
         "modifiedBlocks":list(changes),
-        "changes":"Disable old ground renderer/collider; append Terrain to landscape child list",
+        "removedBlocks":sorted(removed),
+        "changes":"Remove legacy floor object/components; replace its parent child entry with Terrain",
         "addedBlocks":len(added),
         "sourceSHA256":hashlib.sha256(snapshot).hexdigest(),
         "sceneSHA256":hashlib.sha256(SCENE.read_bytes()).hexdigest(),

@@ -83,16 +83,16 @@ namespace Metagame.UI
             }
             if (rhythmPending)
             {
-                Box(new Rect(x, y, panelWidth, 50f), new Color(0.025f, 0.035f, 0.07f, 0.88f));
-                L(new Rect(x, y + 10f, panelWidth, 30f), "운석 타격 준비", center, Color.white);
+                UiTheme.DrawPanel(new Rect(x, y, panelWidth, 50f), true, false);
+                L(new Rect(x, y + 10f, panelWidth, 30f), "운석 타격 준비", center, UiTheme.Text);
             }
             if (rhythmTarget == null || !rhythmTarget.TryPredictImpact(out float seconds, out _)) return;
             float window = rhythmTarget.BatSwingWindowSeconds;
             float span = Mathf.Max(MeteorBat.GuideSeconds, window * 1.5f);
-            Box(new Rect(x, y, panelWidth, 112f), new Color(0.025f, 0.035f, 0.07f, 0.88f));
+            UiTheme.DrawPanel(new Rect(x, y, panelWidth, 112f), true, false);
             bool ready = seconds <= window && rhythmBat.CanSwing;
             L(new Rect(x, y + 7f, panelWidth, 25f),
-                ready ? "지금 클릭!" : "운석 타격 준비", center, Color.white);
+                ready ? "지금 클릭!" : "운석 타격 준비", center, ready ? UiTheme.Lime : UiTheme.Text);
             float left = x + 20f, barWidth = panelWidth - 40f;
             float barY = y + 43f;
             Box(new Rect(left, barY, barWidth, 18f), new Color(0.16f, 0.21f, 0.3f));
@@ -105,7 +105,7 @@ namespace Metagame.UI
             float marker = left + barWidth * Mathf.Clamp01(1f - seconds / span);
             Box(new Rect(marker - 2f, barY - 7f, 4f, 32f), Color.white);
             L(new Rect(x, y + 70f, panelWidth, 28f), rhythmBat.CanSwing
-                ? "좌클릭 · 노란 구간에 맞춰 휘두르기" : "다시 준비...", center, Color.white);
+                ? "좌클릭 · 노란 구간에 맞춰 휘두르기" : "다시 준비...", center, UiTheme.MutedText);
         }
     }
 }

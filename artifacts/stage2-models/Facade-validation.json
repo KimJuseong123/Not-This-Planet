@@ -1,0 +1,13 @@
+{
+  "asset": "Facade",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 1,
+  "dimensions_m": [
+    4.0,
+    0.5000008344650269,
+    5.003559112548828
+  ],
+  "pivots_count": 1,
+  "passed": true
+}

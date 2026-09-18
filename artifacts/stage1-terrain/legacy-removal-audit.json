@@ -1,0 +1,17 @@
+{
+  "status": "PASS",
+  "validation": "serialized scene preservation; not Unity runtime",
+  "removedBlocks": [
+    515537853,
+    515537854,
+    515537855,
+    515537856,
+    515537857
+  ],
+  "modifiedParent": 1265883843,
+  "unrelatedBlocksPreserved": 5676,
+  "sourceSHA256": "dd53857c0bea3435316651d4916d64f3277d00758284e99c792b167d1f099577",
+  "sceneSHA256": "d808307e44d11bfba7068e9a1b31474083ca28e58c3732a47f5b6fe8352d86ff",
+  "terrainAndColliderPreserved": true,
+  "referencesToRemovedBlocks": 0
+}

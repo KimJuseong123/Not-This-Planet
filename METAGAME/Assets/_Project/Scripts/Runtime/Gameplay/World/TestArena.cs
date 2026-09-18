@@ -46,7 +46,15 @@ namespace Metagame.Gameplay
         {
             if (!Requested) return;
             Requested = false;
+            Arrange(player);
+        }
 
+        /// <summary>
+        /// 배치를 지금 옮긴다. 로비의 시험 진입과 치트 시험장(<c>CheatArenaConsole</c>)이
+        /// 같은 코드를 쓴다 — 배치 규칙이 두 벌이 되지 않게 한다.
+        /// </summary>
+        public static void Arrange(PlayerRig player)
+        {
             if (player == null || player.Doll == null)
             {
                 Debug.LogWarning("[TestArena] 사람이 아직 없어 배치를 건너뛴다.");
@@ -131,7 +139,8 @@ namespace Metagame.Gameplay
             Physics.SyncTransforms();
         }
 
-        static void ReleaseClamps(SpaceshipPart part, int index)
+        /// <summary>파츠의 고정못을 전부 풀어 멀리 치운다. 치트 시험장도 이것을 쓴다.</summary>
+        internal static void ReleaseClamps(SpaceshipPart part, int index)
         {
             var clamps = part.Clamps;
             if (clamps == null) return;

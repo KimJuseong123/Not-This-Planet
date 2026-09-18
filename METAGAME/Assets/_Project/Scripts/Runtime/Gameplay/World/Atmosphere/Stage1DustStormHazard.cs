@@ -136,6 +136,12 @@ namespace Metagame.Gameplay
                 var player = body.GetComponentInParent<PlayerRig>();
                 if (player != null)
                 {
+                    // 엎드리면 폭풍이 지나간다 (S15P21B202-616). 이 판정은 자세를
+                    // 전혀 보지 않는 OverlapBox 였다 — 상자 밑면이 사실상 지면이라
+                    // (groundClearance 0.08m) 누워도 그대로 걸린다. 그래서 면제를
+                    // 여기 한 줄로 둔다. **서버에서만 도는 자리**라 남의 화면과
+                    // 판정이 갈리지 않는다.
+                    if (player.Prone) continue;
                     float strength = residual && player.Doll != null && player.Doll.Hips != null
                         ? wake.StrengthAt(player.Doll.Hips.worldCenterOfMass) * settings.wakeInfluence : 1f;
                     if (strength <= .0001f) continue;

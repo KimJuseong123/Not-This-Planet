@@ -1,0 +1,15 @@
+{
+  "asset": "Drain",
+  "fbx": "S2_Drain.fbx",
+  "fbm": "S2_Drain.fbm",
+  "textures": [
+    "S2_Concrete_BaseColor.png",
+    "S2_Steel_BaseColor.png"
+  ],
+  "relative_texture_paths": [
+    "S2_Drain.fbm/S2_Concrete_BaseColor.png",
+    "S2_Drain.fbm/S2_Steel_BaseColor.png"
+  ],
+  "relative_paths_valid": true,
+  "passed": true
+}

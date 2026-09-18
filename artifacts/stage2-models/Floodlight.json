@@ -1,0 +1,42 @@
+{
+  "asset": "Floodlight",
+  "fbx": "S2_Floodlight.fbx",
+  "blend": "Source~/S2_Floodlight.blend",
+  "mesh_objects": 3,
+  "triangles": 1180,
+  "dimensions_m": [
+    1.3899999856948853,
+    1.3392305374145508,
+    2.569999933242798
+  ],
+  "bounds_min": [
+    -0.6399999856948853,
+    -0.6696152687072754,
+    0.0
+  ],
+  "bounds_max": [
+    0.75,
+    0.6696152687072754,
+    2.569999933242798
+  ],
+  "materials": [
+    "S2_Dark",
+    "S2_Lamp",
+    "S2_Orange",
+    "S2_Steel",
+    "S2_Teal"
+  ],
+  "pivots": [
+    "S2_Floodlight_Root",
+    "LampTilt",
+    "LampTilt.001"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

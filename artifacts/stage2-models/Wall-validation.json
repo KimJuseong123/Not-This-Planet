@@ -1,0 +1,13 @@
+{
+  "asset": "Wall",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 1,
+  "dimensions_m": [
+    4.0,
+    0.41100046038627625,
+    2.8522214889526367
+  ],
+  "pivots_count": 1,
+  "passed": true
+}

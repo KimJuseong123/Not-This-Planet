@@ -1,0 +1,13 @@
+{
+  "asset": "Lichen",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 1,
+  "dimensions_m": [
+    0.6211097240447998,
+    0.4169699549674988,
+    0.04584295302629471
+  ],
+  "pivots_count": 1,
+  "passed": true
+}

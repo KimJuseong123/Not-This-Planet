@@ -1,0 +1,13 @@
+{
+  "asset": "Container",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 2,
+  "dimensions_m": [
+    5.102499961853027,
+    5.245000839233398,
+    4.195001125335693
+  ],
+  "pivots_count": 2,
+  "passed": true
+}

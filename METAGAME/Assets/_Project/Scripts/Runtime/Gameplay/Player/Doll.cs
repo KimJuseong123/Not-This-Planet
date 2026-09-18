@@ -109,6 +109,13 @@ namespace Metagame.Gameplay
                     renderers[i].enabled = false;
                     continue;
                 }
+                // Transparent wearable particles must not appear in first person or cast body shadows.
+                if (renderers[i] is ParticleSystemRenderer)
+                {
+                    renderers[i].enabled = visible;
+                    renderers[i].shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                    continue;
+                }
                 renderers[i].enabled = visible || keepShadow;
                 renderers[i].shadowCastingMode = visible
                     ? UnityEngine.Rendering.ShadowCastingMode.On

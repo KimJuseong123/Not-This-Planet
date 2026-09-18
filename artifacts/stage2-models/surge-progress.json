@@ -1,0 +1,75 @@
+{
+  "running": false,
+  "result": {
+    "asset": "SurgePump",
+    "fbx": "S2_SurgePump.fbx",
+    "blend": "Source~/S2_SurgePump.blend",
+    "mesh_objects": 5,
+    "triangles": 13632,
+    "dimensions_m": [
+      2.4000000953674316,
+      1.4769999980926514,
+      2.259999990463257
+    ],
+    "bounds_min": [
+      -1.2000000476837158,
+      -0.7519999742507935,
+      0.029999999329447746
+    ],
+    "bounds_max": [
+      1.2000000476837158,
+      0.7250000238418579,
+      2.2899999618530273
+    ],
+    "materials": [
+      "S2Surge_Dark",
+      "S2Surge_Ivory",
+      "S2Surge_Lamp",
+      "S2Surge_Orange",
+      "S2Surge_Steel",
+      "S2Surge_Teal",
+      "S2Surge_Yellow"
+    ],
+    "pivots": [
+      "S2_SurgePump_Root",
+      "ReliefWheel",
+      "GaugeNeedle",
+      "OutletFlap",
+      "JetOrigin",
+      "WarningBeacon"
+    ],
+    "errors": [],
+    "reference_views": [
+      "front",
+      "left",
+      "right",
+      "back"
+    ],
+    "source_created_after_references": true,
+    "fbm": {
+      "asset": "SurgePump",
+      "fbx": "S2_SurgePump.fbx",
+      "fbm": "S2_SurgePump.fbm",
+      "textures": [
+        "S2Surge_Dark_BaseColor.png",
+        "S2Surge_Ivory_BaseColor.png",
+        "S2Surge_Lamp_BaseColor.png",
+        "S2Surge_Orange_BaseColor.png",
+        "S2Surge_Steel_BaseColor.png",
+        "S2Surge_Teal_BaseColor.png",
+        "S2Surge_Yellow_BaseColor.png"
+      ],
+      "relative_texture_paths": [
+        "S2_SurgePump.fbm/S2Surge_Dark_BaseColor.png",
+        "S2_SurgePump.fbm/S2Surge_Ivory_BaseColor.png",
+        "S2_SurgePump.fbm/S2Surge_Lamp_BaseColor.png",
+        "S2_SurgePump.fbm/S2Surge_Orange_BaseColor.png",
+        "S2_SurgePump.fbm/S2Surge_Steel_BaseColor.png",
+        "S2_SurgePump.fbm/S2Surge_Teal_BaseColor.png",
+        "S2_SurgePump.fbm/S2Surge_Yellow_BaseColor.png"
+      ],
+      "relative_paths_valid": true,
+      "passed": true
+    }
+  }
+}

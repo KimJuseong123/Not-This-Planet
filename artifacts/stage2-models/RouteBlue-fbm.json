@@ -1,0 +1,19 @@
+{
+  "asset": "RouteBlue",
+  "fbx": "S2_RouteBlue.fbx",
+  "fbm": "S2_RouteBlue.fbm",
+  "textures": [
+    "S2_Concrete_BaseColor.png",
+    "S2_Dark_BaseColor.png",
+    "S2_Steel_BaseColor.png",
+    "S2_Teal_BaseColor.png"
+  ],
+  "relative_texture_paths": [
+    "S2_RouteBlue.fbm/S2_Concrete_BaseColor.png",
+    "S2_RouteBlue.fbm/S2_Dark_BaseColor.png",
+    "S2_RouteBlue.fbm/S2_Steel_BaseColor.png",
+    "S2_RouteBlue.fbm/S2_Teal_BaseColor.png"
+  ],
+  "relative_paths_valid": true,
+  "passed": true
+}

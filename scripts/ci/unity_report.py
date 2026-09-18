@@ -397,17 +397,33 @@ def write_verdict(path_dir: str, code: int) -> str:
 
 # ── 코멘트 ──────────────────────────────────────────────────────────────────
 def merged_note() -> str:
-    """무엇을 검사했는지 한 줄로 밝힌다 (S15P21B202-342).
+    """무엇을 검사했는지 한 줄로 밝힌다 (S15P21B202-342 · -602).
 
     `.gitlab-ci.yml` 의 unity-compile 이 대상 브랜치를 합친 뒤 검사하고 그 sha 를
     `UNITY_MERGED_BASE` 로 넘긴다. 없으면 브랜치 끝만 검사한 것이므로 **그렇게 적는다** —
-    검사 범위를 읽는 사람이 착각하면 초록의 의미를 잘못 읽는다."""
+    검사 범위를 읽는 사람이 착각하면 초록의 의미를 잘못 읽는다.
+
+    **덜 돌았거나 안 돌았으면 반드시 적는다** (S15P21B202-602). 이 잡은 두 가지 이유로
+    평소보다 적게 일할 수 있다 — ① 검사 대상이 지난 실행과 같아 결과를 그대로 쓴 경우,
+    ② 무거운 테스트를 MR 에서 뺀 경우. 둘 다 초록의 뜻이 달라지므로 조용히 두지 않는다.
+    """
+    parts = []
+    reused = (os.environ.get("UNITY_REUSED_FROM") or "").strip()
+    if reused:
+        parts.append(f"검사 대상이 같아 **잡 {reused} 의 결과를 그대로 썼습니다**"
+                     f"(브랜치·develop 둘 다 Unity 입력 무변경)")
+
     base = (os.environ.get("UNITY_MERGED_BASE") or "").strip()
     if base:
-        return f"`{base}` 를 합친 결과에서 검사했습니다"
-    if os.environ.get("CI_MERGE_REQUEST_TARGET_BRANCH_NAME"):
-        return "**대상 브랜치를 합치지 못해 브랜치 끝에서만 검사했습니다** — 합쳐서 깨지는 경우는 가리지 못합니다"
-    return ""
+        parts.append(f"`{base}` 를 합친 결과에서 검사했습니다")
+    elif os.environ.get("CI_MERGE_REQUEST_TARGET_BRANCH_NAME"):
+        parts.append("**대상 브랜치를 합치지 못해 브랜치 끝에서만 검사했습니다** — 합쳐서 깨지는 경우는 가리지 못합니다")
+
+    skipped = (os.environ.get("UNITY_SKIPPED_CATEGORY") or "").strip()
+    if skipped:
+        parts.append(f"무거운 테스트(`{skipped}`)는 **머지 직후 develop 에서** 돕니다")
+
+    return " · ".join(parts)
 
 
 # **판정이 곧 차단 여부다** (S15P21B202-425). 이 잡은 종료 코드로 막는다 —

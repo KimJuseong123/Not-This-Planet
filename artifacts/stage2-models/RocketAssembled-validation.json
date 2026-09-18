@@ -1,0 +1,13 @@
+{
+  "asset": "RocketAssembled",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 1,
+  "dimensions_m": [
+    2.9000000953674316,
+    3.04600191116333,
+    11.515000343322754
+  ],
+  "pivots_count": 1,
+  "passed": true
+}

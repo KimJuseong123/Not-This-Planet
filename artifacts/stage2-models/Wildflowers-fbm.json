@@ -1,0 +1,17 @@
+{
+  "asset": "Wildflowers",
+  "fbx": "S2_Wildflowers.fbx",
+  "fbm": "S2_Wildflowers.fbm",
+  "textures": [
+    "S2_Flower_BaseColor.png",
+    "S2_Olive_BaseColor.png",
+    "S2_Orange_BaseColor.png"
+  ],
+  "relative_texture_paths": [
+    "S2_Wildflowers.fbm/S2_Flower_BaseColor.png",
+    "S2_Wildflowers.fbm/S2_Olive_BaseColor.png",
+    "S2_Wildflowers.fbm/S2_Orange_BaseColor.png"
+  ],
+  "relative_paths_valid": true,
+  "passed": true
+}

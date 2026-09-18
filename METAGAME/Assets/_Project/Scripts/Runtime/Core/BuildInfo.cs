@@ -52,6 +52,20 @@ namespace Metagame.Core
         public const string VersionPrefix = "버전=";
 
         /// <summary>
+        /// 빌드 신원 줄의 머리표 — <c>빌드=qa-498-5275441c</c> (S15P21B202-597).
+        ///
+        /// <para><b><see cref="VersionPrefix"/> 와 일부러 나눠 두었다.</b> 그 줄은
+        /// <b>서버 게이트</b>가 읽어 구버전을 막는 값이라 <c>vX.Y.Z</c> 여야 하고,
+        /// 그래서 개발·QA 빌드에는 <b>일부러 없다</b>(있으면 "버전을 못 읽음" 으로
+        /// 거절된다 — <c>-404</c>).</para>
+        ///
+        /// <para>그런데 <b>"이 판이 어느 빌드였나" 는 모든 빌드가 말할 수 있어야 한다</b> —
+        /// 없으면 쌓은 이벤트를 견줄 수 없다. 한 줄이 두 일을 겸하려 해서 개발 빌드의
+        /// 이벤트 <c>build</c> 가 내내 빈칸이었다. 그래서 신원용을 따로 둔다.</para>
+        /// </summary>
+        public const string BuildIdPrefix = "빌드=";
+
+        /// <summary>
         /// 이 빌드의 릴리스 버전(<c>v1.0.0</c>). 릴리스 빌드가 아니면 빈 문자열이다 —
         /// 에디터 실행·로컬 빌드·개발 빌드가 그렇다.
         ///
@@ -60,6 +74,19 @@ namespace Metagame.Core
         /// "나는 최신" 이라고 판단하면 그 판단째로 우회된다.</para>
         /// </summary>
         public static string ReleaseVersion { get; private set; } = string.Empty;
+
+        /// <summary>
+        /// 이 빌드의 신원 — <c>v1.1.0</c> · <c>qa-498-5275441c</c> · <c>dev-20260917-9ae7220d</c>.
+        /// 스탬프에 그 줄이 없으면 빈 문자열이다(에디터 실행·손으로 만든 로컬 빌드).
+        ///
+        /// <para><b>이벤트가 이 값을 쓴다</b> (S15P21B202-597). <see cref="ReleaseVersion"/>
+        /// 은 릴리스 빌드에만 있어서, 개발 빌드로 모은 이벤트가 어느 빌드에서 나온
+        /// 것인지 말할 수 없었다 — QA 는 개발 빌드로 하므로 쌓이던 것 대부분이 그랬다.</para>
+        ///
+        /// <para><b>빈 값을 숨기지 않는다.</b> 읽는 쪽이 "모른다" 를 알아야 한다 —
+        /// 빈칸을 그럴듯한 값으로 메우면 그 판이 어느 빌드였는지 영영 알 수 없게 된다.</para>
+        /// </summary>
+        public static string BuildId { get; private set; } = string.Empty;
 
         /// <summary>
         /// 이 빌드가 가리키는 백엔드 — <c>dev</c> · <c>prod</c> · 빈 문자열(옛 빌드).
@@ -121,6 +148,8 @@ namespace Metagame.Core
                         BackendEnvironment = line.Substring(BackendPrefix.Length).Trim();
                     else if (line.StartsWith(VersionPrefix))
                         ReleaseVersion = line.Substring(VersionPrefix.Length).Trim();
+                    else if (line.StartsWith(BuildIdPrefix))
+                        BuildId = line.Substring(BuildIdPrefix.Length).Trim();
                 }
 
                 return lines[0].Trim();

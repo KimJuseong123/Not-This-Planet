@@ -1,0 +1,13 @@
+{
+  "asset": "GrassDry",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 1,
+  "dimensions_m": [
+    0.365095853805542,
+    0.36947786808013916,
+    0.2993045449256897
+  ],
+  "pivots_count": 1,
+  "passed": true
+}

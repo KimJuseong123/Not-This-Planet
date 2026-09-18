@@ -29,6 +29,7 @@ namespace Metagame.EditorTools
             public float maximumHeightError, meanHeightError, maximumVegetationError;
             public Vector3 terrainPosition, terrainSize;
             public bool legacyRendererDisabled, legacyColliderDisabled, heightBrushRoundtrip, textureBrushRoundtrip;
+            public bool legacyObjectRemoved, sourceComparisonPerformed;
         }
 
         static void Check(bool valid, string message)
@@ -40,7 +41,7 @@ namespace Metagame.EditorTools
             .SelectMany(g => g.GetComponentsInChildren<Transform>(true)).ToArray();
 
         static MeshCollider Source(Scene scene) => All(scene)
-            .Single(t => t.name.Contains("sculpted ground")).GetComponent<MeshCollider>();
+            .SingleOrDefault(t => t.name.Contains("sculpted ground"))?.GetComponent<MeshCollider>();
 
         static Ray RayAt(float x, float z) => new Ray(new Vector3(x, 60f, z), Vector3.down);
 
@@ -128,12 +129,13 @@ namespace Metagame.EditorTools
             terrain.shadowCastingMode=ShadowCastingMode.On;
             terrain.allowAutoConnect=false;
             go.GetComponent<TerrainCollider>().sharedMaterial=source.sharedMaterial;
-            // Retain the original mesh for reversible comparison, but never double-collide.
+            // Keep the source only until comparison succeeds; Git retains the rollback source.
             source.enabled=false;
             source.GetComponent<Renderer>().enabled=false;
             terrain.Flush();
             Physics.SyncTransforms();
             ValidateScene(scene,true);
+            Object.DestroyImmediate(source.gameObject);
             EditorSceneManager.SaveScene(scene);
             AssetDatabase.SaveAssets();
             Debug.Log("ASTRA_TERRAIN_CONVERSION_PASS");
@@ -164,47 +166,63 @@ namespace Metagame.EditorTools
                 terrainPosition=terrain.transform.position,
                 terrainSize=data.size,
                 paintLayers=data.terrainLayers.Length,
-                legacyRendererDisabled=!source.GetComponent<Renderer>().enabled,
-                legacyColliderDisabled=!source.enabled
+                legacyObjectRemoved=!source,
+                legacyRendererDisabled=source && !source.GetComponent<Renderer>().enabled,
+                legacyColliderDisabled=source && !source.enabled
             };
-            Check(report.legacyRendererDisabled&&report.legacyColliderDisabled,"Old floor still renders/collides.");
+            Check(report.legacyObjectRemoved || (report.legacyRendererDisabled&&report.legacyColliderDisabled),"Old floor still renders/collides.");
             Check(collider.enabled&&collider.terrainData==data&&terrain.gameObject.layer==GameLayers.Ground,"Invalid Terrain collision.");
             Check(data.terrainLayers.Length==3&&data.terrainLayers.All(l=>l&&l.diffuseTexture),"Missing paint layers.");
             Check(terrain.materialTemplate&&terrain.materialTemplate.shader.name=="Universal Render Pipeline/Terrain/Lit","Incorrect Terrain shader.");
-            source.enabled=true;
-            Physics.SyncTransforms();
-            try
+            Check(!testBrushes || source, "Initial conversion requires the source mesh comparison.");
+            // Saved scenes no longer contain the legacy object. Do not report a new
+            // mesh comparison when only the published Terrain is being validated.
+            if (source)
             {
-                var b=source.bounds;
-                double totalError=0;
-                void Compare(float x,float z)
+                source.enabled=true;
+                Physics.SyncTransforms();
+                try
                 {
-                    x=Mathf.Clamp(x,b.min.x+.002f,b.max.x-.002f);
-                    z=Mathf.Clamp(z,b.min.z+.002f,b.max.z-.002f);
-                    float error=Mathf.Abs(Sample(source,x,z).point.y-Sample(collider,x,z).point.y);
-                    report.maximumHeightError=Mathf.Max(report.maximumHeightError,error);
-                    totalError+=error; report.surfaceSamples++;
+                    var b=source.bounds;
+                    double totalError=0;
+                    void Compare(float x,float z)
+                    {
+                        x=Mathf.Clamp(x,b.min.x+.002f,b.max.x-.002f);
+                        z=Mathf.Clamp(z,b.min.z+.002f,b.max.z-.002f);
+                        float error=Mathf.Abs(Sample(source,x,z).point.y-Sample(collider,x,z).point.y);
+                        report.maximumHeightError=Mathf.Max(report.maximumHeightError,error);
+                        totalError+=error; report.surfaceSamples++;
+                    }
+                    // Sample original vertices and independent sub-cell positions, not only copied height samples.
+                    foreach(var vertex in source.sharedMesh.vertices)
+                    {var p=source.transform.TransformPoint(vertex);Compare(p.x,p.z);}
+                    var random=new System.Random(917);
+                    for(int i=0;i<12000;i++)Compare(Mathf.Lerp(b.min.x,b.max.x,(float)random.NextDouble()),Mathf.Lerp(b.min.z,b.max.z,(float)random.NextDouble()));
+                    foreach(var plant in All(scene).Where(t=>t.GetComponent<PlantRustle>()))
+                    {
+                        var p=plant.position;
+                        float expected=Sample(source,p.x,p.z).point.y;
+                        float actual=Sample(collider,p.x,p.z).point.y;
+                        report.maximumVegetationError=Mathf.Max(report.maximumVegetationError,Mathf.Abs(expected-actual));
+                        report.vegetationSamples++;
+                    }
+                    foreach(var t in All(scene).Where(t=>t.name.StartsWith("Astra Floor Guidance")||t.name.Contains("Player Spawn")))
+                    {Compare(t.position.x,t.position.z);report.routeSamples++;}
+                    report.meanHeightError=(float)(totalError/report.surfaceSamples);
+                    report.sourceComparisonPerformed=true;
+                    Check(report.maximumHeightError<.05f,$"Terrain height deviation too large: {report.maximumHeightError}");
+                    Check(report.maximumVegetationError<.025f,$"Vegetation height deviation: {report.maximumVegetationError}");
                 }
-                // Sample original vertices and independent sub-cell positions, not only copied height samples.
-                foreach(var vertex in source.sharedMesh.vertices)
-                {var p=source.transform.TransformPoint(vertex);Compare(p.x,p.z);}
-                var random=new System.Random(917);
-                for(int i=0;i<12000;i++)Compare(Mathf.Lerp(b.min.x,b.max.x,(float)random.NextDouble()),Mathf.Lerp(b.min.z,b.max.z,(float)random.NextDouble()));
-                foreach(var plant in All(scene).Where(t=>t.GetComponent<PlantRustle>()))
-                {
-                    var p=plant.position;
-                    float expected=Sample(source,p.x,p.z).point.y;
-                    float actual=Sample(collider,p.x,p.z).point.y;
-                    report.maximumVegetationError=Mathf.Max(report.maximumVegetationError,Mathf.Abs(expected-actual));
-                    report.vegetationSamples++;
-                }
-                foreach(var t in All(scene).Where(t=>t.name.StartsWith("Astra Floor Guidance")||t.name.Contains("Player Spawn")))
-                {Compare(t.position.x,t.position.z);report.routeSamples++;}
-                report.meanHeightError=(float)(totalError/report.surfaceSamples);
-                Check(report.maximumHeightError<.05f,$"Terrain height deviation too large: {report.maximumHeightError}");
-                Check(report.maximumVegetationError<.025f,$"Vegetation height deviation: {report.maximumVegetationError}");
+                finally { source.enabled=false; Physics.SyncTransforms(); }
             }
-            finally { source.enabled=false; Physics.SyncTransforms(); }
+            else
+            {
+                Physics.SyncTransforms();
+                foreach(var plant in All(scene).Where(t=>t.GetComponent<PlantRustle>()))
+                { Sample(collider,plant.position.x,plant.position.z); report.vegetationSamples++; }
+                foreach(var t in All(scene).Where(t=>t.name.StartsWith("Astra Floor Guidance")||t.name.Contains("Player Spawn")))
+                { Sample(collider,t.position.x,t.position.z); report.routeSamples++; }
+            }
             if(testBrushes)
             {
                 // Verify both authoring channels and restore them before the initial save.

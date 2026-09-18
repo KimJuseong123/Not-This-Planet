@@ -1,0 +1,13 @@
+{
+  "asset": "BoltLoose",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 2,
+  "dimensions_m": [
+    0.30000001192092896,
+    0.30000001192092896,
+    0.4790000319480896
+  ],
+  "pivots_count": 2,
+  "passed": true
+}

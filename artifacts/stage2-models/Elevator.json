@@ -1,0 +1,41 @@
+{
+  "asset": "Elevator",
+  "fbx": "S2_Elevator.fbx",
+  "blend": "Source~/S2_Elevator.blend",
+  "mesh_objects": 3,
+  "triangles": 4192,
+  "dimensions_m": [
+    4.449999809265137,
+    3.995000123977661,
+    11.0
+  ],
+  "bounds_min": [
+    -2.2249999046325684,
+    -1.75,
+    0.0
+  ],
+  "bounds_max": [
+    2.2249999046325684,
+    2.245000123977661,
+    11.0
+  ],
+  "materials": [
+    "S2_Concrete",
+    "S2_Orange",
+    "S2_Steel",
+    "S2_Teal"
+  ],
+  "pivots": [
+    "S2_Elevator_Root",
+    "LiftCabin",
+    "CabinGate"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

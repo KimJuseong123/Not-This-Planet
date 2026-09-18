@@ -1,0 +1,38 @@
+{
+  "asset": "Wall",
+  "fbx": "S2_Wall.fbx",
+  "blend": "Source~/S2_Wall.blend",
+  "mesh_objects": 1,
+  "triangles": 412,
+  "dimensions_m": [
+    4.0,
+    0.41100001335144043,
+    2.8522214889526367
+  ],
+  "bounds_min": [
+    -2.0,
+    -0.210999995470047,
+    0.0
+  ],
+  "bounds_max": [
+    2.0,
+    0.20000000298023224,
+    2.8522214889526367
+  ],
+  "materials": [
+    "S2_Concrete",
+    "S2_Orange",
+    "S2_Rust"
+  ],
+  "pivots": [
+    "S2_Wall_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

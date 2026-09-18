@@ -1,0 +1,11 @@
+{
+    "passed": true,
+    "interactions": 29,
+    "bolts": 9,
+    "modules": 3,
+    "missingScripts": 0,
+    "visibleMeshes": 1618,
+    "vegetationMeshes": 888,
+    "errors": [],
+    "unityVersion": "6000.5.4f1"
+}

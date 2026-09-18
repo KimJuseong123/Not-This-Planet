@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Metagame.Gameplay.Parts
 {
-    public enum DemoEndingStage { Playing, Boarding, Launching, Photograph, EndTitle, Lobby }
+    public enum DemoEndingStage { Playing, Boarding, Launching, Photograph, EndTitle, Lobby, SpaceDrift, MeteorImpact, EmergencyDescent }
 
     /// <summary>서버가 확정한 완성 순간. 연출은 이 스냅샷과 공통 시각만 읽는다.</summary>
     [Serializable]
@@ -47,12 +47,15 @@ namespace Metagame.Gameplay.Parts
         public const float FadeSeconds = 1.5f;
         public const float EndTitleSeconds = 3f;
         public const float TitleStartsAt = BoardingSeconds + LaunchSeconds + PhotographSeconds;
-        public const float TotalSeconds = TitleStartsAt + EndTitleSeconds;
+        public const float SpaceDriftSeconds = 8f, MeteorImpactSeconds = 6f, EmergencyDescentSeconds = 9f;
+        public const float ArrivalSeconds = SpaceDriftSeconds + MeteorImpactSeconds + EmergencyDescentSeconds;
+        public const float TotalSeconds = TitleStartsAt + EndTitleSeconds + ArrivalSeconds;
 
         public int ParticipantCount => Mathf.Clamp(Snapshot?.Players?.Length ?? 1, 1, 4);
         public float BoardingEndsAt => BoardingDuration(ParticipantCount);
         public float PhotographStartsAt => BoardingEndsAt + LaunchSeconds;
         public float EndTitleStartsAt => PhotographStartsAt + PhotographSeconds;
+        public float ArrivalStartsAt => EndTitleStartsAt + EndTitleSeconds;
 
         // 기존 상수는 1인 기준이다. 인원이 늘어도 각자의 인사/클로즈업 시간을 보장한다.
         public static float BoardingDuration(int players) => BoardingSeconds
@@ -113,7 +116,11 @@ namespace Metagame.Gameplay.Parts
             if (elapsed < boardingEnd) return DemoEndingStage.Boarding;
             if (elapsed < boardingEnd + LaunchSeconds) return DemoEndingStage.Launching;
             if (elapsed < titleStart) return DemoEndingStage.Photograph;
-            return elapsed < titleStart + EndTitleSeconds ? DemoEndingStage.EndTitle : DemoEndingStage.Lobby;
+            float arrivalStart = titleStart + EndTitleSeconds;
+            if (elapsed < arrivalStart) return DemoEndingStage.EndTitle;
+            if (elapsed < arrivalStart + SpaceDriftSeconds) return DemoEndingStage.SpaceDrift;
+            if (elapsed < arrivalStart + SpaceDriftSeconds + MeteorImpactSeconds) return DemoEndingStage.MeteorImpact;
+            return elapsed < arrivalStart + ArrivalSeconds ? DemoEndingStage.EmergencyDescent : DemoEndingStage.Lobby;
         }
 
         /// <summary>네 종류가 정확히 하나씩 있고 살아 있는 비드 접합만으로 연결되는가.</summary>

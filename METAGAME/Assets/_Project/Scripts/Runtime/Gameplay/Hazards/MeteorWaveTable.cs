@@ -41,13 +41,15 @@ namespace Metagame.Gameplay.Hazards
         public readonly struct Row
         {
             public Row(float fromMinutes, float waveIntervalSeconds,
-                       int minMeteors, int maxMeteors, float mediumChance)
+                       int minMeteors, int maxMeteors, float mediumChance,
+                       float impactRadiusScale = 1f)
             {
                 FromMinutes = fromMinutes;
                 WaveIntervalSeconds = waveIntervalSeconds;
                 MinMeteors = minMeteors;
                 MaxMeteors = maxMeteors;
                 MediumChance = mediumChance;
+                ImpactRadiusScale = impactRadiusScale;
             }
 
             public float FromMinutes { get; }
@@ -57,21 +59,36 @@ namespace Metagame.Gameplay.Hazards
 
             /// <summary>이 시간대에서 중형이 나올 확률 0~1.</summary>
             public float MediumChance { get; }
+
+            /// <summary>이 시간대의 충격파 반경 배율. 크기별 반경(§17.7)에 곱한다.</summary>
+            public float ImpactRadiusScale { get; }
         }
 
         /// <summary>
         /// 기획 §17.4 의 시간대별 공세 초기값과 §17.7 의 중형 비율.
         ///
         /// <code>
-        /// 경과      간격   공세당   중형
-        /// 0~5분     30초   1~2      0%
-        /// 5~10분    25초   2~3      0%
-        /// 10~15분   20초   3~4      15%
-        /// 15~20분   15초   4~5      25%
-        /// 20분~     15초   5        30%
+        /// 경과      간격   공세당   중형   반경 배율
+        /// 0~5분     30초   1~2      0%     ×1
+        /// 5~10분    25초   2~3      0%     ×1
+        /// 10~15분   20초   3~4      15%    ×1
+        /// 15~20분   15초   4~5      25%    ×1
+        /// 20분~     15초   5        30%    ×1
         /// </code>
         ///
         /// 중형은 10분 이후에만 나온다(§17.7 "중형 · 등장 10분 이후").
+        ///
+        /// <b>반경 배율 칸은 기획서에 없고, 지금은 전부 ×1 이라 아무것도 바꾸지 않는다.</b>
+        /// §17.7 은 크기별 반경만 정하고 시간에 따른 증가를 말하지 않는다. 후반으로 갈수록
+        /// 충격파가 넓어져 혼자 피하기 어렵고 방망이 인원이 필요해지는 구조를 시험하려고
+        /// 자리만 마련해 두었고, <b>실제 곡선은 <see cref="MeteorWavePreset"/> 에서만</b>
+        /// 쓴다 — 치트 시험장에서 골라야 켜진다. 여기에 값을 넣는 것은 시험으로 곡선을 정하고
+        /// [Plan] 확인을 받은 뒤다.
+        ///
+        /// <b>여기를 고치면 새로 만드는 스포너가 따라간다.</b> 이미 저장된 씬
+        /// (<c>Stage1_Astra</c>)은 시간대를 직접 직렬화해 두어 영향을 받지 않지만,
+        /// <c>Stage1PuzzleBuilder</c> 가 퍼즐을 다시 세우면 <see cref="MeteorWaveBand.CreateDefaults"/>
+        /// 로 이 표를 복사해 간다. 그래서 여기는 기획값 그대로 둔다.
         /// </summary>
         public static readonly Row[] Rows =
         {
@@ -81,6 +98,10 @@ namespace Metagame.Gameplay.Hazards
             new(15f, 15f, 4, 5, 0.25f),
             new(20f, 15f, 5, 5, 0.30f),
         };
+
+        /// <summary><paramref name="elapsedSeconds"/> 시점의 충격파 반경 배율.</summary>
+        public static float ImpactRadiusScaleAt(float elapsedSeconds) =>
+            RowAt(elapsedSeconds).ImpactRadiusScale;
 
         /// <summary>
         /// 기획 §17.6 의 인원수 보정. 인덱스가 접속 인원(1~4)이다.

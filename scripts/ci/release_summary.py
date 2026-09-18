@@ -17,7 +17,7 @@
 
 **공개하지 않는다.** 이 스크립트는 **초안 파일 하나**를 만들 뿐이다. AI 가 쓴 문장이
 그대로 사용자에게 나가면 이상한 한 줄이 게임의 첫인상이 된다. 사람이 보고 고친 뒤에
-사이트·Release·Jira 에 싣는다 — `promote-builds`(공개 버튼)와 같은 결이다.
+사이트·Release·Jira 에 싣는다 — `release-prod`(공개 버튼)와 같은 결이다.
 """
 import argparse
 import json
@@ -78,7 +78,10 @@ def summaries(keys: list[str]) -> tuple[list[str], list[str]]:
     if not keys:
         return [], []
     jira = C.Jira()
-    if not jira.available():
+    # **속성이지 함수가 아니다** (S15P21B202-579). `()` 를 붙이면 그 줄에서
+    # `TypeError: 'bool' object is not callable` 이 난다. 저장소의 다른 다섯 곳
+    # (`ai_review`·`mm_digest`×2·`mr_lint`·`mr_title`)은 전부 속성으로 읽는다.
+    if not jira.available:
         return [], list(keys)
 
     found: dict[str, str] = {}
@@ -177,8 +180,25 @@ def main(argv: list[str] | None = None) -> int:
         print("❌ 재료가 없다 — Jira 요약을 하나도 읽지 못했다(토큰·네트워크 확인)")
         return 1
 
-    raw = AI.call_cli(C.env("AI_REVIEW_MODEL", AI.DEFAULT_MODEL), SYSTEM,
-                      build_prompt(a.version, prev, lines, missing))
+    # **백엔드를 고른다** (S15P21B202-579). 예전에는 `call_cli` 를 바로 불렀다. 그래서
+    # ① `ANTHROPIC_API_KEY` 가 있어도 API 로 못 갔고 ② `claude` 가 없는 이미지에서는
+    # 그대로 죽었다 — 이 잡이 Unity 이미지 안에 있던 동안 초안이 한 번도 안 나온 이유다.
+    # `ai-review` 와 **같은 고르기**를 쓴다: 두 곳이 갈리면 한쪽만 조용히 안 돈다.
+    backend = AI.pick_backend()
+    if not backend:
+        print("❌ AI 백엔드가 없다 — ANTHROPIC_API_KEY 도, 러너의 claude CLI 도 없다")
+        return 1
+    model = C.env("AI_REVIEW_MODEL", AI.DEFAULT_MODEL)
+    print(f"백엔드={backend} 모델={model}" + (f" claude={AI.find_claude()}" if backend == "cli" else ""))
+
+    try:
+        raw = AI.call(backend, model, SYSTEM, build_prompt(a.version, prev, lines, missing))
+    except RuntimeError as e:
+        # **스택 대신 한 줄로 말한다.** 이 잡은 릴리스를 막지 않으므로(allow_failure)
+        # 사람이 읽는 것은 로그 한 줄뿐이다 — 거기서 원인이 보여야 한다.
+        print(f"❌ 모델 호출 실패 — {e}")
+        return 1
+
     d = parse(raw)
     if d is None:
         print("❌ 모델 출력을 읽지 못했다 — 초안을 만들지 않는다")

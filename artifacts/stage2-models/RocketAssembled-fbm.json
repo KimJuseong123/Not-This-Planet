@@ -1,0 +1,23 @@
+{
+  "asset": "RocketAssembled",
+  "fbx": "S2_RocketAssembled.fbx",
+  "fbm": "S2_RocketAssembled.fbm",
+  "textures": [
+    "S2_Dark_BaseColor.png",
+    "S2_Glass_BaseColor.png",
+    "S2_Ivory_BaseColor.png",
+    "S2_Orange_BaseColor.png",
+    "S2_Steel_BaseColor.png",
+    "S2_Teal_BaseColor.png"
+  ],
+  "relative_texture_paths": [
+    "S2_RocketAssembled.fbm/S2_Dark_BaseColor.png",
+    "S2_RocketAssembled.fbm/S2_Glass_BaseColor.png",
+    "S2_RocketAssembled.fbm/S2_Ivory_BaseColor.png",
+    "S2_RocketAssembled.fbm/S2_Orange_BaseColor.png",
+    "S2_RocketAssembled.fbm/S2_Steel_BaseColor.png",
+    "S2_RocketAssembled.fbm/S2_Teal_BaseColor.png"
+  ],
+  "relative_paths_valid": true,
+  "passed": true
+}

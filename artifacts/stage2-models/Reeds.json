@@ -1,0 +1,38 @@
+{
+  "asset": "Reeds",
+  "fbx": "S2_Reeds.fbx",
+  "blend": "Source~/S2_Reeds.blend",
+  "mesh_objects": 1,
+  "triangles": 432,
+  "dimensions_m": [
+    0.41931790113449097,
+    0.46503913402557373,
+    0.8823015093803406
+  ],
+  "bounds_min": [
+    -0.20709317922592163,
+    -0.2199927121400833,
+    0.014999999664723873
+  ],
+  "bounds_max": [
+    0.21222472190856934,
+    0.24504640698432922,
+    0.8973014950752258
+  ],
+  "materials": [
+    "S2_Bark",
+    "S2_Dry",
+    "S2_Olive"
+  ],
+  "pivots": [
+    "S2_Reeds_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

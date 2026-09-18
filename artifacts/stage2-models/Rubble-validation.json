@@ -1,0 +1,13 @@
+{
+  "asset": "Rubble",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 1,
+  "dimensions_m": [
+    2.0793323516845703,
+    1.428220272064209,
+    0.6113399863243103
+  ],
+  "pivots_count": 1,
+  "passed": true
+}

@@ -1,2 +1,0 @@
-{"seq":1,"t":0,"type":"session_start","build":"","backend":"prod","role":"client","scene":"Stage2_Earth","session":"a55c7e3fc4854fd4a6da04fe415141b5","at":"2026-09-17T16:49:57Z"}
-{"seq":2,"t":0.2,"type":"session_end","result":"quit","elapsed":11.827,"falls":0,"cleared":false}

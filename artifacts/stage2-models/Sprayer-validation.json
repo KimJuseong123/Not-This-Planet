@@ -1,0 +1,13 @@
+{
+  "asset": "Sprayer",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 1,
+  "dimensions_m": [
+    0.25999999046325684,
+    0.5840000510215759,
+    0.3668588697910309
+  ],
+  "pivots_count": 1,
+  "passed": true
+}

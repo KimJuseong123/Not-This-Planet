@@ -13,6 +13,11 @@
 #   AI_REVIEW_MODEL / AI_REVIEW_EFFORT : (선택) 기본 claude-opus-5 / medium (팀 결정 2026-08-27)
 #   MM_WEBHOOK_URL              : Mattermost 수신 웹훅 — mm-digest 용 — masked
 #   JIRA_RELEASE_WEBHOOK        : (선택, S15P21B202-327) Jira 자동화 수신 웹훅 — 릴리스 뒤 버전·이슈 목록을 보낸다 — masked·protected
+#   DEVBUILD_TRIGGER_TOKEN      : 파이프라인 트리거 토큰 — MR 의 qa 빌드를 develop 파이프라인으로 넘겨 배치시킨다 (S15P21B202-582).
+#                                 **masked · Protected 는 끈다.** MR 파이프라인은 보호 ref 가 아니라서 Protected 변수가
+#                                 전달되지 않는다 — 걸어 두면 토큰이 빈 문자열로 들어와 배치가 조용히 안 된다.
+#                                 대신 workflow.rules 가 트리거를 `develop` + `$STAGE_VERSION` 일 때만 받아 범위를 좁힌다.
+#                                 Maintainer 가 Settings → CI/CD → Pipeline trigger tokens 에서 한 번 만든다.
 #   CI_ENABLE=true              : 러너 등록 후 켬 — 없으면 파이프라인 자체가 생성되지 않음
 
 workflow:
@@ -48,6 +53,18 @@ workflow:
     # 자동 취소를 끄는 이유는 master 와 같다 — 90분짜리 빌드가 중간에 죽으면 반쯤 만든
     # 산출물이 남고, 리허설의 목적(경로가 끝까지 가는지 본다)이 성립하지 않는다.
     - if: $CI_PIPELINE_SOURCE == "web"
+      auto_cancel:
+        on_new_commit: none
+    # **qa 빌드 배치 하나만을 위한 길** (S15P21B202-582). MR 의 `build-devbuild` 가
+    # 끝나면서 `trigger_stage.py` 로 이 파이프라인을 만든다 — 배포 러너가 `ref_protected`
+    # 라 MR ref 의 잡을 집지 않기 때문이다(`-405` 실측).
+    #
+    # **세 조건을 다 본다.** 토큰은 MR 파이프라인에서 읽혀야 하므로 Protected 를 걸 수
+    # 없고, 그러면 아무 브랜치의 잡이 그 값을 쓸 수 있다. 그래서 그 토큰으로 할 수 있는
+    # 일을 여기서 좁힌다 — `develop` 이 아니거나 `STAGE_VERSION` 이 없으면 **파이프라인
+    # 자체가 만들어지지 않는다.** 만들어져도 `publish-devbuild` 말고는 걸리는 rules 가
+    # 없다(다른 잡은 전부 merge_request_event·push·schedule·web 을 못 박는다).
+    - if: $CI_PIPELINE_SOURCE == "trigger" && $CI_COMMIT_BRANCH == "develop" && $STAGE_VERSION
       auto_cancel:
         on_new_commit: none
 
@@ -204,8 +221,21 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
   tags: [linux]
   needs: []
   rules:
-    # 자동 실행한다. 실측(2026-09-02): 콜드 8분 16초 → **웜 70초**(임포트 64초 + 테스트 20초).
-    # Library 2.2GB 가 슬롯에 남아 증분 임포트가 되기 때문이다. 슬롯이 비워지면 다시 8분이 든다.
+    # 자동 실행한다.
+    #
+    # **실측(2026-09-17, 잡 564663 · 6.0분)** — 어디에 시간이 가는지:
+    #   체크아웃·develop 합치기   3초
+    #   에셋 임포트              36초   ← 이미 웜이다(`GIT_CLEAN_FLAGS` 의 Library 예외)
+    #   도메인 리로드 8회·시작/종료 35초
+    #   **EditMode 테스트       275초**  ← 여기다 (1795건)
+    #
+    # 예전 주석은 "콜드 8분 16초 → 웜 70초(임포트 64초 + 테스트 20초)" 였다(2026-09-02).
+    # 그 뒤 테스트가 1795건으로 늘어 **테스트가 임포트의 7배**가 됐다. 낡은 수치를 두면
+    # 다음 사람이 임포트를 줄이려고 엉뚱한 곳을 판다. 슬롯이 비워지면 임포트는 다시
+    # 8분이 든다(그 부분은 그대로다).
+    #
+    # 1795건 중 **5초 이상인 21건이 테스트 시간의 71%(195초)** 를 먹는다 — 그래서
+    # 아래 script 에서 MR 일 때만 `-testCategory "!Heavy"` 로 뺀다 (S15P21B202-602).
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["METAGAME/Assets/**/*", "METAGAME/Packages/**/*", "METAGAME/ProjectSettings/**/*", ".gitlab-ci.yml"]
     # 머지 직후에도 돈다 — 개별 MR 은 통과했는데 합쳐서 깨지는 경우를 잡는다.
@@ -301,21 +331,50 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
           fi
         fi
       fi
-    - echo "=== 임포트 + 컴파일 + EditMode 테스트 시작 ==="
-    - date -u +"시작 %H:%M:%S UTC"
+    # ── 같은 것을 두 번 검사하지 않는다 (S15P21B202-602) ───────────────────────
+    #
+    # MR 파이프라인의 `rules:changes` 는 **대상 브랜치와의 차이**를 보므로, 브랜치에
+    # Unity 변경이 한 번 쌓이면 그 뒤 push 가 문서만 고쳐도 여기가 다시 돈다.
+    # 2026-09-17 실측: 이어진 재실행 15건 중 7건이 Unity 무변경이었다(`565396` 7.8분 ·
+    # 같은 커밋 재시도 `565473` 4.4분). 직렬화돼 있어 그 시간이 남의 대기 시간이 된다.
+    #
+    # **합친 base 를 남긴다** — 다음 실행이 "그때 무엇과 합쳐 검사했나" 를 알아야
+    # 재사용 여부를 판단할 수 있다. 아래 판단이 이 파일을 읽는다.
+    - echo "${UNITY_MERGED_BASE:-}" > "$CI_PROJECT_DIR/unity-base.txt"
+    - python3 scripts/ci/unity_reuse.py || true
     # unity-editor 래퍼가 xvfb-run 과 -batchmode 를 붙여 준다(이미지 실측) — 여기서 또 주지 않는다.
     # -nographics 도 주지 않는다: xvfb 가 있어 URP 셰이더 관련 임포트가 정상적으로 돈다.
     - |
-      set +e
-      unity-editor \
-        -projectPath METAGAME \
-        -runTests -testPlatform EditMode \
-        -testResults "$CI_PROJECT_DIR/unity-results.xml" \
-        -logFile "$CI_PROJECT_DIR/unity.log"
-      RC=$?
-      set -e
-      date -u +"종료 %H:%M:%S UTC (exit $RC)"
-      echo "$RC" > "$CI_PROJECT_DIR/unity-rc.txt"
+      if [ -s "$CI_PROJECT_DIR/unity-reused.txt" ]; then
+        export UNITY_REUSED_FROM="$(cat "$CI_PROJECT_DIR/unity-reused.txt")"
+        echo "=== Unity 를 건너뛴다 — 잡 $UNITY_REUSED_FROM 의 결과를 그대로 쓴다 ==="
+        echo "    검사 대상이 바이트 단위로 같다(브랜치·develop 둘 다 Unity 입력 무변경)."
+      else
+        # **무거운 21건은 MR 에서 빼고 develop 에서 돈다** (S15P21B202-602).
+        # 1795건 중 5초 이상인 21건이 테스트 시간 275초의 71%(195초)를 먹는다.
+        # 머지 직후 실행(`-309`)이 그 21건을 전부 돌리므로 회귀는 2분 안에 잡힌다.
+        # 되돌리려면 이 `-testCategory` 를 빼면 된다.
+        if [ "$CI_PIPELINE_SOURCE" = "merge_request_event" ]; then
+          set -- -testCategory "!Heavy"
+          # 코멘트에 "덜 돌았다" 를 적게 한다 — 안 적으면 초록이 '전부 돌았다' 로 읽힌다.
+          export UNITY_SKIPPED_CATEGORY="Heavy"
+          echo "=== 임포트 + 컴파일 + EditMode 테스트 시작 (Heavy 제외) ==="
+        else
+          set --
+          echo "=== 임포트 + 컴파일 + EditMode 테스트 시작 (전체) ==="
+        fi
+        date -u +"시작 %H:%M:%S UTC"
+        set +e
+        unity-editor \
+          -projectPath METAGAME \
+          -runTests -testPlatform EditMode "$@" \
+          -testResults "$CI_PROJECT_DIR/unity-results.xml" \
+          -logFile "$CI_PROJECT_DIR/unity.log"
+        RC=$?
+        set -e
+        date -u +"종료 %H:%M:%S UTC (exit $RC)"
+        echo "$RC" > "$CI_PROJECT_DIR/unity-rc.txt"
+      fi
     # 결과를 MR 에서 보이게 한다 (S15P21B202-271):
     #   · NUnit3 → JUnit 변환. Unity 형식을 GitLab 이 못 읽어 reports: junit 이 **조용히 0건**이었다
     #     (2026-09-02 실측: test_report_summary total 0). 변환하면 MR 테스트 위젯이 살아난다
@@ -409,8 +468,12 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
     # unity-recheck-* 는 플래키 판별 근거다 (S15P21B202-347) — 판정을 다시 볼 때 필요하다.
     # 기준선으로 읽히는 것은 unity-results.xml 하나뿐이므로 재실행 결과가 섞이지 않는다.
     # **글롭으로 둔다** — RECHECK_RUNS 를 바꿔도 목록을 함께 고칠 필요가 없다.
+    # `unity-base.txt`·`unity-rc.txt` 는 **다음 실행이 재사용을 판단할 때** 읽는다
+    # (S15P21B202-602). base 가 없으면 "그때 무엇과 합쳐 검사했는지" 를 알 수 없어
+    # 재사용하지 않는다 — 이 파일이 빠지면 최적화가 조용히 꺼진다.
     paths: [unity-results.xml, unity-junit.xml, unity.log, unity-verdict.txt,
-            unity-recheck.txt, unity-baseline.json,
+            unity-recheck.txt, unity-baseline.json, unity-base.txt, unity-rc.txt,
+            unity-reused.txt,
             unity-recheck-*.xml, unity-recheck-*.log]
     reports:
       # Unity 가 낸 NUnit3 가 아니라 변환한 JUnit 을 올린다 — 전자는 GitLab 이 0건으로 읽는다.
@@ -444,7 +507,7 @@ build-backend:            # 백엔드 **테스트 + jar** — MR 에서는 검�
     # **서버만 고쳐야 할 때** (S15P21B202-464). Run pipeline 에서 ref 를 `master` 로
     # 두고 `DEPLOY_PROD=1` 을 주면 이 잡이 jar 을 만들고 `deploy-prod` 버튼이 생긴다.
     # 이것이 없으면 `deploy-prod` 의 `needs` 가 없는 잡을 가리켜 **파이프라인 생성이
-    # 거절된다** — `-467` 이 `promote-builds` 에서 겪은 것과 같은 자리다.
+    # 거절된다** — `-467` 이 `release-prod` 에서 겪은 것과 같은 자리다.
     # `$DEPLOY_PROD` 만 쓰면 **있기만 하면 참**이라 `DEPLOY_PROD=0` 에도 걸린다
     # (`!379` 리뷰). 끄려고 0 을 넣은 사람이 켜는 결과를 얻는다.
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == "master" && $DEPLOY_PROD == "1"
@@ -599,11 +662,11 @@ deploy-prod:              # 릴리스 뒤 **사람이 눌러서** 배포 — 배
     name: production
     url: https://j15b202.p.ssafy.io
   rules:
-    # **수동을 유지한다.** prod 재시작은 진행 중인 세션을 끊는다 — EC2 가 릴레이·매칭을
-    # 맡는 구조라 게임 중인 사람이 튕긴다. 릴리스가 났다고 자동으로 끊으면 안 된다.
-    # 언제 끊을지는 사람이 정한다.
-    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
-      when: manual
+    # **릴리스 파이프라인에는 이 버튼을 두지 않는다** (S15P21B202-592). 거기서는
+    # `release-prod` 가 백엔드 배포까지 맡는다. 버튼이 나란히 둘이면 "둘 다 눌러야 하나"
+    # 가 되고, 실제로 v1.1.0 에서 한쪽만 눌려 **배포 백엔드가 나흘째 뒤처져 있었다.**
+    #
+    # 아래 `web` 길만 남긴다 — 설정 한 줄 고치자고 릴리스를 새로 낼 수는 없다.
     # **서버만 고치는 길** (S15P21B202-464).
     #
     # `master` 머지는 **빌드 릴리스**이지 서버 배포가 아니다 — 이 버튼을 눌러야 배포
@@ -653,8 +716,8 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
     # (Pipelines → Run pipeline)으로 아무 브랜치에서나 돌리면 RELEASE_DRY_RUN=1 이 되어
     # 빌드·zip 까지 진짜로 하고 **패키지 업로드·Release 생성·🟢 카드만 건너뛴다.**
     # **되돌리기 파이프라인에서는 돌지 않는다** (S15P21B202-467). `PROMOTE_VERSION` 은
-    # `promote-builds` 하나만 쓰는 변수다. 이것이 없으면 latest.json 한 줄 되돌리자고
-    # **90분짜리 Unity 빌드**가 딸려 돌고, `promote-builds` 는 그 90분을 기다린다 —
+    # `release-prod` 하나만 쓰는 변수다. 이것이 없으면 latest.json 한 줄 되돌리자고
+    # **90분짜리 Unity 빌드**가 딸려 돌고, `release-prod` 는 그 90분을 기다린다 —
     # 되돌리기는 급할 때 쓰는 길이라 그 시간이 곧 장애 시간이다.
     # 브랜치까지 본다 — 같은 이유다(`!379` 리뷰). `-467` 이 이 규칙을 넣을 때는
     # 조건이 `web && $PROMOTE_VERSION` 뿐이었고, 그러면 아무 브랜치의 리허설에서도
@@ -738,21 +801,40 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
     - sh scripts/ci/unity_dirty_guard.sh || RC=1
     # 3) zip → 패키지 레지스트리(잡 토큰) → Release(태그는 ref 로 생성) → MM 🟢. RC≠0 이면 🔴 만 보내고 실패
     - python3 scripts/ci/publish_release.py publish "$RC"
-    # 4) 사용자용 요약 **초안** (S15P21B202-462).
-    #
-    # **릴리스를 막지 않는다** (`|| true`). 이것은 사람이 고쳐서 쓰는 초안이고, 초안이
-    # 없다고 릴리스가 실패할 이유가 없다 — Jira 나 Claude CLI 가 잠깐 안 되는 것으로
-    # 배포를 세우면 그다음부터 사람이 이 단계를 지우고 싶어진다.
-    #
-    # **공개하지 않는다.** 아티팩트로만 남고, 사이트·Release·Jira 에 싣는 것은 사람이
-    # 보고 고친 뒤다 — `promote-builds`(공개 버튼)와 같은 결이다.
-    - python3 scripts/ci/release_summary.py "$(cat release-version.txt)" || true
+    # 요약 **초안**은 여기 있지 않다 — 아래 `release-summary` 잡이다 (S15P21B202-579).
   artifacts:
     when: always
     expire_in: 14 days
-    paths: [unity-build.log, unity-tests.log, unity-results.xml, release-version.txt, release-notes.md, release-package.txt, release-summary.md]   # zip 은 아티팩트에 싣지 않는다 — 상한(100MB)에 걸린다. 패키지 레지스트리에 있다
+    paths: [unity-build.log, unity-tests.log, unity-results.xml, release-version.txt, release-notes.md, release-package.txt]   # zip 은 아티팩트에 싣지 않는다 — 상한(100MB)에 걸린다. 패키지 레지스트리에 있다
     reports:
       junit: unity-junit.xml    # 실패한 테스트를 파이프라인 화면에서 바로 본다(unity-compile 과 같은 결)
+
+release-summary:          # 사용자용 요약 **초안** (S15P21B202-462 · 잡 분리는 -579)
+  stage: notify           # 릴리스가 끝난 뒤다. 초안은 릴리스의 산출물이 아니라 그 다음 일이다.
+  # **이미지를 덮어쓰지 않는다.** 기본 이미지(python:3.12)에만 `claude` CLI 가 있다 —
+  # `ai-review` 가 그 위에서 돈다(`백엔드=cli claude=/usr/local/bin/claude`).
+  # 처음에는 이 단계가 `release-windows` 안에 있었는데 그 잡은 Unity 이미지라
+  # `find_claude()` 가 None 이었고, `|| true` 에 묻혀 **초안이 한 번도 안 나왔다.**
+  # `test_release_summary.py` 가 이 잡에 `image:` 가 없는지 검사한다.
+  needs:
+    - job: release-windows
+      artifacts: true     # `release-version.txt` 를 받는다. 버전을 여기서 다시 정하면
+                          # 두 곳이 어긋나고, 어긋난 버전으로 쓴 요약은 아무도 못 알아본다
+  interruptible: false
+  # **릴리스를 막지 않는다.** 사람이 고쳐서 쓰는 초안이고, Jira 나 Claude 가 잠깐 안 되는
+  # 것으로 배포를 세우면 그다음부터 사람이 이 잡을 지우고 싶어진다. 다만 `|| true` 로
+  # 성공인 척하지는 않는다 — 실패는 파이프라인에 ⚠ 로 남아야 다음에 누가 본다.
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
+  script:
+    # **공개하지 않는다.** 아티팩트로만 남고, 사이트·Release·Jira 에 싣는 것은 사람이
+    # 보고 고친 뒤다 — `release-prod`(공개 버튼)와 같은 결이다.
+    - python scripts/ci/release_summary.py "$(cat release-version.txt)"
+  artifacts:
+    when: always
+    expire_in: 30 days    # 릴리스 로그(14일)보다 길게 — 사람이 고쳐 올리는 데 그만큼 걸린다
+    paths: [release-summary.md]
 
 build-devbuild:           # QA 가 쓸 개발·QA 빌드 (S15P21B202-460)
   stage: deploy           # **손으로 빌드해 나눠 주는 일을 없앤다.** QA 는 두 번 일어나는데
@@ -788,6 +870,15 @@ build-devbuild:           # QA 가 쓸 개발·QA 빌드 (S15P21B202-460)
     - echo "=== 빌드 시작 ($(cat release-version.txt)) ==="
     # **릴리스 버전을 박지 않는다.** dev·qa 빌드는 `vX.Y.Z` 가 아니므로 `-404` 의
     # 게이트에서 "버전을 못 읽음" 이 된다 — 그래서 개발 서버는 게이트를 꺼 둔다.
+    #
+    # **대신 신원은 박는다** (S15P21B202-597). `BuildStamp` 가 이 값을 `빌드=` 줄로
+    # 넣고, 이벤트와 런로그 헤더가 그것을 읽는다. 위 `publish_devbuild.py version` 이
+    # 이미 정해 둔 이름(`qa-498-5275441c` · `dev-20260917-9ae7220d`)을 그대로 쓴다 —
+    # 여기서 다시 만들면 배치된 파일 이름과 이벤트의 이름이 어긋난다.
+    #
+    # 이 줄이 없던 동안 개발 빌드로 모은 이벤트는 전부 `build: ""` 였다. QA 는 개발
+    # 빌드로 하므로, 쌓아 둔 것 대부분이 어느 빌드의 판인지 말하지 못한다.
+    - export SPACE_BUILD_ID="$(cat release-version.txt)"
     - |
       set +e
       unity-editor \
@@ -810,6 +901,11 @@ build-devbuild:           # QA 가 쓸 개발·QA 빌드 (S15P21B202-460)
     # 조용했던 이유의 절반이 이것이다(나머지 절반은 `mm-ci-failed` 가 schedule 에 없는 것).
     - sh scripts/ci/unity_dirty_guard.sh || RC=1
     - python3 scripts/ci/publish_devbuild.py publish "$RC"
+    # **배치까지 잇는다** (S15P21B202-582). MR 것만 넘긴다 — 새벽 빌드는 같은
+    # 파이프라인에 `publish-devbuild` 가 이미 있어서, 여기서 또 부르면 두 번 배치된다.
+    # 그 판정은 `trigger_stage.needs_stage()` 안에 있다(여기서 `if` 로 가르면 두 곳이
+    # 어긋난다). 넘길 것이 없으면 그렇다고 찍고 0 으로 끝낸다.
+    - python3 scripts/ci/trigger_stage.py
   artifacts:
     when: always
     expire_in: 3 days     # 로그만 남긴다. zip 은 레지스트리를 거쳐 바로 배치되고 지워진다
@@ -822,7 +918,7 @@ publish-devbuild:         # 개발·QA 빌드를 배포 폴더로 (S15P21B202-46
   needs:
     # **`optional: true` 가 없으면 qa 배치 경로가 아예 안 만들어진다.** web 파이프라인
     # (`STAGE_VERSION`)에서는 `build-devbuild` 가 rules 로 빠지는데, 없는 잡을 `needs` 로
-    # 걸면 GitLab 은 **파이프라인 생성 자체를 거절한다.** `promote-builds` 가 `-467` 에서
+    # 걸면 GitLab 은 **파이프라인 생성 자체를 거절한다.** `release-prod` 가 `-467` 에서
     # 똑같이 당했다. `glab ci lint` 는 rules 를 평가하지 않아 통과한다 — 여기서만 걸린다.
     - job: build-devbuild
       artifacts: true
@@ -835,8 +931,16 @@ publish-devbuild:         # 개발·QA 빌드를 배포 폴더로 (S15P21B202-46
     # MR ref 의 잡을 **아예 집지 않는다**(`-405` 실측). 만들어 두면 눌렀을 때 러너를
     # 찾지 못해 **영원히 pending 으로 파이프라인을 붙잡는다.**
     #
-    # qa 빌드는 대신 이 길로 배치한다: Run pipeline(develop) 에서 `STAGE_VERSION` 에
-    # `qa-<MR번호>-<커밋>` 을 주고 이 잡을 누른다. `promote-builds` 의 되돌리기와 같은 결이다.
+    # **qa 빌드는 트리거로 온다** (S15P21B202-582). MR 의 `build-devbuild` 가 끝나면서
+    # `trigger_stage.py` 로 `develop` 대상 파이프라인을 만들고 `STAGE_VERSION` 을 넘긴다.
+    # 그쪽 ref 는 보호 브랜치라 배포 러너가 집는다.
+    #
+    # **자동이다.** 여기서 또 누르게 하면 그 버튼도 Maintainer 만 누를 수 있어 —
+    # develop 은 보호 브랜치다 — 고치려던 것이 그대로 남는다.
+    - if: $CI_PIPELINE_SOURCE == "trigger" && $STAGE_VERSION
+    # 손으로 배치하는 길은 **남겨 둔다.** 트리거가 안 될 때(토큰 만료·API 장애)
+    # 되돌아갈 자리가 있어야 한다 — `release-prod` 의 되돌리기와 같은 결이다.
+    # 다만 이 길은 web 파이프라인이라 `release-windows` 리허설(90분)이 딸려 온다.
     - if: $CI_PIPELINE_SOURCE == "web" && $STAGE_VERSION
       when: manual
   script:
@@ -858,18 +962,28 @@ publish-builds:           # 릴리스 산출물을 사용자가 받는 자리로
   script:
     - python scripts/ci/publish_builds.py stage
 
-promote-builds:           # latest.json 을 옮긴다 — **사람이 누른다** (S15P21B202-405)
-  stage: deploy           # 이 한 줄이 옮겨지는 순간 **모든 사용자의 런처가 그 버전으로 간다**.
-  image: python:3.12      # 시점은 사람이 고르는 것이 맞다(deploy-prod 와 같은 결).
-  tags: [deploy]          # 되돌리기도 이 잡이다 — PROMOTE_VERSION 에 옛 버전을 준다.
+release-prod:             # 릴리스를 사용자에게 내보낸다 — **누르는 버튼은 이것 하나** (S15P21B202-592)
+  stage: deploy           # ① 배포 백엔드에 jar 적용 → ② latest.json 이동.
+  image: python:3.12      # 이 버튼을 누르는 순간 **게임 중인 사람이 튕기고**(백엔드 재시작 약 7초)
+  tags: [deploy]          # **모든 사용자의 런처가 새 버전으로 간다.** 그래서 시점은 사람이 고른다.
+  #
+  # **전에는 버튼이 둘이었다** — `deploy-prod` 와 `promote-builds`. 둘이 서로를 몰라서
+  # 순서도 눌렀는지도 알 수 없었고, 실제로 어긋났다: v1.1.0 에서 promote 만 눌려
+  # 배포 백엔드가 **나흘째 옛 jar** 이었다(`-570` 이 prod 에 없었다). 한쪽만 눌러도
+  # 파이프라인이 초록이라 아무도 몰랐다. 순서와 누락을 **스크립트가** 맡는다.
+  #
   # **`optional: true` 가 없으면 되돌리기 경로가 아예 안 만들어진다** (S15P21B202-467,
   # `!368` 리뷰). 되돌리기는 web 파이프라인인데 `publish-builds` 는 master push 에서만
   # 생긴다 — 없는 잡을 `needs` 로 걸면 GitLab 은 **파이프라인 생성 자체를 거절한다.**
-  # 그래서 "PROMOTE_VERSION 을 주고 이 잡만 돌린다" 는 위 주석은 지금까지 거짓이었다.
   needs:
     - job: publish-builds
       optional: true
     - job: release-windows
+      artifacts: true
+      optional: true
+    # jar 을 받는다. **백엔드가 안 바뀐 릴리스에는 이 잡이 없다** — 그때는 배포를
+    # 건너뛴다(`release_prod.py` 가 jar 이 없는 것으로 판단한다).
+    - job: build-backend
       artifacts: true
       optional: true
   interruptible: false
@@ -880,10 +994,12 @@ promote-builds:           # latest.json 을 옮긴다 — **사람이 누른다*
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
       when: manual
     # 되돌리기: Run pipeline 에서 PROMOTE_VERSION 을 주고 이 잡만 돌린다.
+    # **되돌리기는 백엔드를 건드리지 않는다** — 급할 때 쓰는 길이라 서버까지 되돌리면
+    # 그 시간이 곧 장애 시간이다. 그 판단도 스크립트 안에 있다.
     - if: $CI_PIPELINE_SOURCE == "web" && $PROMOTE_VERSION
       when: manual
   script:
-    - python scripts/ci/publish_builds.py promote
+    - python scripts/ci/release_prod.py
 
 # ── 런처 ─────────────────────────────────────────────────────────────────────
 #
@@ -892,7 +1008,7 @@ promote-builds:           # latest.json 을 옮긴다 — **사람이 누른다*
 # 없었다. 그래서 저장소본이 **세 번** 앞서 있었다 — `-406`(개발 모드) · `-460`(채널) ·
 # `-507`(로그 보존). 2026-09-14 에 `--dev` 가 안 먹어서 드러났다.
 #
-# **빌드는 자동, 내보내기는 버튼**으로 나눈다(`promote-builds` 와 같은 결):
+# **빌드는 자동, 내보내기는 버튼**으로 나눈다(`release-prod` 와 같은 결):
 #   · 빌드가 자동이어야 **손으로 돌리는 것을 잊지 않는다**
 #   · 내보내기가 버튼이어야 **언제 새 exe 가 나가는지 사람이 정한다** — 백신 평판
 #     (`-456`)이 리셋될 수 있어 아무 때나 바꾸면 안 된다

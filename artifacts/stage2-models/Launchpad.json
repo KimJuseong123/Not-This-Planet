@@ -1,0 +1,39 @@
+{
+  "asset": "Launchpad",
+  "fbx": "S2_Launchpad.fbx",
+  "blend": "Source~/S2_Launchpad.blend",
+  "mesh_objects": 1,
+  "triangles": 7688,
+  "dimensions_m": [
+    6.0,
+    6.0,
+    0.5713292360305786
+  ],
+  "bounds_min": [
+    -3.0,
+    -3.0,
+    0.0
+  ],
+  "bounds_max": [
+    3.0,
+    3.0,
+    0.5713292360305786
+  ],
+  "materials": [
+    "S2_Concrete",
+    "S2_Orange",
+    "S2_Steel",
+    "S2_Teal"
+  ],
+  "pivots": [
+    "S2_Launchpad_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

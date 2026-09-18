@@ -1,0 +1,13 @@
+{
+  "asset": "Chimney",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 1,
+  "dimensions_m": [
+    2.5,
+    2.500001907348633,
+    12.0
+  ],
+  "pivots_count": 1,
+  "passed": true
+}

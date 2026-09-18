@@ -144,7 +144,10 @@ namespace Metagame.Gameplay
             colors.Add(new Color(1f, 1f, 1f, alpha[index]));
         }
 
-        public void Hide() { root.SetActive(false); nextRefresh = 0f; }
+        // 바로 위 Visible 은 root 가 없어질 수 있다는 것을 이미 알고 검사한다.
+        // 여기만 안 해서, 안내선 오브젝트가 먼저 지워진 뒤 OnDisable 이 오면
+        // MissingReferenceException 이 난다 — 씬이 정리되는 순서에 따라 터진다.
+        public void Hide() { if (root != null) root.SetActive(false); nextRefresh = 0f; }
         public void Dispose() { Release(root); Release(mesh); Release(material); }
         static void Release(UnityEngine.Object value)
         {

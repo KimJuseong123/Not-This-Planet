@@ -2,7 +2,8 @@
 
 Stage1_Astra의 "Basin - Editable Terrain"이 실제 Unity Terrain 바닥이다.
 기존 "Basin · sculpted ground" 메시에서 높이를 샘플링해 지형 형태를 옮겼다.
-기존 바닥 MeshRenderer와 MeshCollider만 끄고 원본 메시/위치는 보관한다.
+기존 바닥 GameObject와 컴포넌트는 제거했다. 원본 메시 에셋은 복구를 위해 보관한다.
+결정 근거·정량 확인 절차·복구는 [577 리뷰 대응](2026-09-17-577-review-resolution.md)을 따른다.
 시설, 핵심 파츠, 식생, 스폰, 카메라, 조명은 이동하거나 수정하지 않는다.
 
 ## 편집
@@ -38,6 +39,7 @@ TerrainData에는 초기 식생을 굽지 않았다. 기존 식생 프리팹의 
 
 ## 검증
 
+아래는 기존 지면 오브젝트 제거 전의 전환 당시 검증 기록이다.
 Unity 6000.5.4f1의 별도 프로젝트 사본에서 컴파일, 변환, 저장 후 재열기,
 지면 충돌 및 오프스크린 렌더를 수행했다. 사용자 화면을 조작하지 않는다.
 
@@ -54,5 +56,8 @@ terrain-reload.json, preservation-audit.json 및 overview.png / grove.png.
 별도 물리 씬의 강체 착지 검사 결과도 재열기 보고서에 포함한다.
 
 tools/unity/publish_astra_terrain.py는 저장된 사용자 씬의 동시 변경 여부를 확인하고
-기존 바닥의 enabled 플래그 두 개, 지형 부모의 자식 목록, 새 Terrain 블록만 반영한다.
+기존 바닥 오브젝트/컴포넌트 제거, 지형 부모의 자식 목록, 새 Terrain 블록만 반영한다.
 기존 오브젝트의 Transform과 컴포넌트 값은 해당 변경 외에 원본 그대로 보존한다.
+기존 변환 보고서는 수정하지 않는다. 제거 후 새 검증 보고서는 원본 비교 여부를
+`sourceComparisonPerformed`로 구분한다. 기존에 변환된 씬의 비활성 지면 제거는
+`tools/unity/remove_legacy_astra_ground.py --apply`로 수행하며 재실행 시 중단한다.

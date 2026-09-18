@@ -1,0 +1,41 @@
+{
+  "asset": "HelmetFilter",
+  "fbx": "S2_HelmetFilter.fbx",
+  "blend": "Source~/S2_HelmetFilter.blend",
+  "mesh_objects": 1,
+  "triangles": 1800,
+  "dimensions_m": [
+    0.31200000643730164,
+    0.20800000429153442,
+    0.1525000035762787
+  ],
+  "bounds_min": [
+    -0.15600000321865082,
+    -0.10300000011920929,
+    0.01900000125169754
+  ],
+  "bounds_max": [
+    0.15600000321865082,
+    0.10499999672174454,
+    0.17149999737739563
+  ],
+  "materials": [
+    "S2_Dark",
+    "S2_Ivory",
+    "S2_Olive",
+    "S2_Orange",
+    "S2_Steel",
+    "S2_Teal"
+  ],
+  "pivots": [
+    "S2_HelmetFilter_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

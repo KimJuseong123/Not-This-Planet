@@ -40,6 +40,7 @@ namespace Metagame.Bootstrap
         [Header("분위기")]
         [Tooltip("지정하면 이 Stage는 Vacuum·레거시 Starfield 대신 공용 URP 분위기 프레임워크를 사용한다.")]
         [SerializeField] AtmosphereProfile atmosphereProfile;
+        public AtmosphereProfile AtmosphereProfile => atmosphereProfile;
         [Tooltip("씬에 배치한 자기장 폭풍. 비어 있으면 전용 이동 오브젝트를 생성한다.")]
         [SerializeField] AtmosphereDustStorm stormPresentation;
 
@@ -214,6 +215,8 @@ namespace Metagame.Bootstrap
             // 전용 서버 조기 반환(아래)보다 **먼저** 설치해야 한다: 세계는 서버에서도
             // 돌아야 하고, 운석을 정하는 것이 바로 그 서버다.
             var meteorSpawnerForClock = FindAnyObjectByType<Metagame.Gameplay.Hazards.MeteorSpawner>();
+            if (gameObject.scene.path == Stage1CutsceneFlow.StagePath)
+                gameObject.AddComponent<Stage1CutsceneFlow>().Configure(this, meteorSpawnerForClock);
             if (meteorSpawnerForClock != null)
             {
                 var meteorBridge = sys.AddComponent<Metagame.Network.MeteorClockBridge>();
@@ -231,9 +234,10 @@ namespace Metagame.Bootstrap
             if (!authoredLighting && !useAtmosphere && starfield && !Application.isBatchMode)
                 Space = Starfield.Create(transform, Sky.SunDirection);
 
-            var ending = sys.AddComponent<DemoEnding>();
+            bool chapterTwo = gameObject.scene.name == StageCatalog.Stage2SceneName;
+            DemoEnding ending = chapterTwo ? null : sys.AddComponent<DemoEnding>();
             bool endingNetworked = Mirror.NetworkServer.active || Mirror.NetworkClient.active;
-            ending.Configure(Session, FindObjectsByType<SpaceshipPart>(FindObjectsSortMode.None),
+            if (ending != null) ending.Configure(Session, FindObjectsByType<SpaceshipPart>(FindObjectsSortMode.None),
                 () => !endingNetworked || Mirror.NetworkServer.active,
                 () => endingNetworked ? Mirror.NetworkTime.time : Time.unscaledTimeAsDouble,
                 CaptureEndingPlayers,
@@ -241,9 +245,9 @@ namespace Metagame.Bootstrap
                     ? NetworkSession.Instance.RoomPlayTimeSeconds : Session.Elapsed);
             foreach (var hatch in FindObjectsByType<ShipHatch>(FindObjectsSortMode.None)) hatch.enabled = false;
             foreach (var launch in FindObjectsByType<LaunchTest>(FindObjectsSortMode.None)) launch.enabled = false;
-            EndingSceneFlow.Ensure().Watch(ending);
+            if (ending != null) EndingSceneFlow.Ensure().Watch(ending);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-            if (!MatchRole.DedicatedServer)
+            if (!MatchRole.DedicatedServer && ending != null)
                 GetComponent<DevManager>().Configure(Session, ending, PauseMenu, endingNetworked);
 #endif
 
@@ -321,11 +325,20 @@ namespace Metagame.Bootstrap
             bool host = !inMatch || Mirror.NetworkServer.active;
             var head = new System.Collections.Generic.Dictionary<string, object>
             {
-                ["build"] = Core.BuildInfo.ReleaseVersion,
                 ["backend"] = Core.BackendEndpoints.IsDev ? "dev" : "prod",
                 ["role"] = !inMatch ? "solo" : (Mirror.NetworkServer.active ? "host" : "client"),
                 ["scene"] = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name,
             };
+
+            // **어느 빌드의 판인지 싣는다** (S15P21B202-597). 전에는 `ReleaseVersion` 을
+            // 실었는데 그 값은 **서버 게이트용**이라 릴리스 빌드에만 있다 — QA 를 개발
+            // 빌드로 하는 동안 쌓인 이벤트는 전부 `build: ""` 였다.
+            //
+            // **이름을 모르면 그 칸을 안 적는다.** 아래 `humans` 와 같은 규칙이다 —
+            // 빈 값으로 보내면 **이름이 없는 빌드**와 **이 줄이 생기기 전 빌드**가
+            // 데이터에서 구분되지 않는다(`!505` AI 리뷰). 손으로 만든 로컬 빌드만 이
+            // 자리에 온다 — CI 가 만든 것은 dev·qa·릴리스 전부 이름이 있다.
+            if (!string.IsNullOrEmpty(Core.BuildInfo.BuildId)) head["build"] = Core.BuildInfo.BuildId;
 
             // **인원수는 호스트만 안다.** 참가자에게 `NetworkServer.connections` 는 비어
             // 있어서, 그대로 쓰면 "0명이 플레이했다" 는 줄이 남는다. 모르면 안 적는다 —

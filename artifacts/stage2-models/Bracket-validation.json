@@ -1,0 +1,13 @@
+{
+  "asset": "Bracket",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 1,
+  "dimensions_m": [
+    0.550000011920929,
+    0.3800000846385956,
+    0.5100001096725464
+  ],
+  "pivots_count": 1,
+  "passed": true
+}

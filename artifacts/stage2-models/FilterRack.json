@@ -1,0 +1,39 @@
+{
+  "asset": "FilterRack",
+  "fbx": "S2_FilterRack.fbx",
+  "blend": "Source~/S2_FilterRack.blend",
+  "mesh_objects": 1,
+  "triangles": 3168,
+  "dimensions_m": [
+    1.100000023841858,
+    0.5,
+    1.2999999523162842
+  ],
+  "bounds_min": [
+    -0.550000011920929,
+    -0.25,
+    0.0
+  ],
+  "bounds_max": [
+    0.550000011920929,
+    0.25,
+    1.2999999523162842
+  ],
+  "materials": [
+    "S2_Ivory",
+    "S2_Orange",
+    "S2_Steel",
+    "S2_Teal"
+  ],
+  "pivots": [
+    "S2_FilterRack_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

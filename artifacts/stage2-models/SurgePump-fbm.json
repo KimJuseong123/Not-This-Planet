@@ -1,0 +1,25 @@
+{
+  "asset": "SurgePump",
+  "fbx": "S2_SurgePump.fbx",
+  "fbm": "S2_SurgePump.fbm",
+  "textures": [
+    "S2Surge_Dark_BaseColor.png",
+    "S2Surge_Ivory_BaseColor.png",
+    "S2Surge_Lamp_BaseColor.png",
+    "S2Surge_Orange_BaseColor.png",
+    "S2Surge_Steel_BaseColor.png",
+    "S2Surge_Teal_BaseColor.png",
+    "S2Surge_Yellow_BaseColor.png"
+  ],
+  "relative_texture_paths": [
+    "S2_SurgePump.fbm/S2Surge_Dark_BaseColor.png",
+    "S2_SurgePump.fbm/S2Surge_Ivory_BaseColor.png",
+    "S2_SurgePump.fbm/S2Surge_Lamp_BaseColor.png",
+    "S2_SurgePump.fbm/S2Surge_Orange_BaseColor.png",
+    "S2_SurgePump.fbm/S2Surge_Steel_BaseColor.png",
+    "S2_SurgePump.fbm/S2Surge_Teal_BaseColor.png",
+    "S2_SurgePump.fbm/S2Surge_Yellow_BaseColor.png"
+  ],
+  "relative_paths_valid": true,
+  "passed": true
+}

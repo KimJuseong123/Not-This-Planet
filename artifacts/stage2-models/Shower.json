@@ -1,0 +1,39 @@
+{
+  "asset": "Shower",
+  "fbx": "S2_Shower.fbx",
+  "blend": "Source~/S2_Shower.blend",
+  "mesh_objects": 1,
+  "triangles": 1256,
+  "dimensions_m": [
+    2.119999885559082,
+    2.0,
+    2.559999942779541
+  ],
+  "bounds_min": [
+    -1.059999942779541,
+    -1.0,
+    0.0
+  ],
+  "bounds_max": [
+    1.059999942779541,
+    1.0,
+    2.559999942779541
+  ],
+  "materials": [
+    "S2_Ivory",
+    "S2_Orange",
+    "S2_Steel",
+    "S2_Teal"
+  ],
+  "pivots": [
+    "S2_Shower_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

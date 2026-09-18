@@ -102,7 +102,7 @@ namespace Metagame.UI
             // 혼자 돌릴 때는 네트워크를 거치지 않는다. 연결 중인 클라이언트가 로컬
             // 재생으로 성공한 것처럼 보이지 않게 한다 — EmoteHud 와 같은 이유다.
             if (!NetworkClient.active && !NetworkServer.active)
-                _session?.LocalPlayer?.Doll?.Suit?.PlayDance();
+                _session?.LocalPlayer?.Doll?.Suit?.PlayDance(id);
         }
 
         void OnGUI()

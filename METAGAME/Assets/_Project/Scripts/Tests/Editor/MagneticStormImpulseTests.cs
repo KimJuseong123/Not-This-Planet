@@ -46,6 +46,7 @@ namespace Metagame.Gameplay.Tests
             finally { Object.DestroyImmediate(root); }
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator TriggerKicksInteractiveBodiesAndWholePlayerOncePerSecondOnlyWithAuthority()
         {
@@ -157,6 +158,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(Vector3.Distance(wake.Pose.Center, other.Pose.Center), Is.GreaterThan(1));
         }
 
+        [Category("Heavy")]
         [UnityTest]
         public IEnumerator ResidualImpulseIsWeakerAndStillRequiresAuthorityAndCooldown()
         {

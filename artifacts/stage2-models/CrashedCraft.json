@@ -1,0 +1,41 @@
+{
+  "asset": "CrashedCraft",
+  "fbx": "S2_CrashedCraft.fbx",
+  "blend": "Source~/S2_CrashedCraft.blend",
+  "mesh_objects": 1,
+  "triangles": 2868,
+  "dimensions_m": [
+    4.0960001945495605,
+    5.460000038146973,
+    3.200000047683716
+  ],
+  "bounds_min": [
+    -2.0480000972747803,
+    -2.7149999141693115,
+    -2.3841858265427618e-08
+  ],
+  "bounds_max": [
+    2.0480000972747803,
+    2.744999885559082,
+    3.200000047683716
+  ],
+  "materials": [
+    "S2_Dark",
+    "S2_Glass",
+    "S2_Ivory",
+    "S2_Rust",
+    "S2_Steel",
+    "S2_Teal"
+  ],
+  "pivots": [
+    "S2_CrashedCraft_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

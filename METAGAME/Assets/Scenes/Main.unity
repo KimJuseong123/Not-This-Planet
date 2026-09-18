@@ -163,9 +163,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6a5b4c3d2e1f09876543210fedcba987, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Metagame.Bootstrap::Metagame.Bootstrap.LobbyBootstrap
-  defaultServerAddress: 127.0.0.1:8080
-  httpBaseUrl: http://127.0.0.1:8080
-  webSocketUrl: ws://127.0.0.1:8080/ws/game
   defaultNickname: "\uBE44\uD589\uC0AC"
   deviceIdOverride: 
   lobbyBackgroundImage: {fileID: 0}

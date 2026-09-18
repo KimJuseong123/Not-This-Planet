@@ -36,6 +36,10 @@
 
 ## Terrain 후속 작업
 
+아래 내용은 식생 배치 당시 상태다. 이후 Terrain 전환과 기존 지면 제거가 적용되었다.
+현재 상태 및 감속의 완료 조건/확인 절차는
+[577 리뷰 대응](2026-09-17-577-review-resolution.md)을 따른다.
+
 현재 지면은 "Basin · sculpted ground" 메시이며 이번에는 Terrain으로 변환하지 않았다.
 향후 Terrain/TerrainLayer를 추가한 뒤 메뉴
 "Tools > Not This Planet > Vegetation > Resnap vegetation to ground"를 실행하면

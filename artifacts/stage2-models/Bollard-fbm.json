@@ -1,0 +1,17 @@
+{
+  "asset": "Bollard",
+  "fbx": "S2_Bollard.fbx",
+  "fbm": "S2_Bollard.fbm",
+  "textures": [
+    "S2_Dark_BaseColor.png",
+    "S2_Orange_BaseColor.png",
+    "S2_Steel_BaseColor.png"
+  ],
+  "relative_texture_paths": [
+    "S2_Bollard.fbm/S2_Dark_BaseColor.png",
+    "S2_Bollard.fbm/S2_Orange_BaseColor.png",
+    "S2_Bollard.fbm/S2_Steel_BaseColor.png"
+  ],
+  "relative_paths_valid": true,
+  "passed": true
+}
