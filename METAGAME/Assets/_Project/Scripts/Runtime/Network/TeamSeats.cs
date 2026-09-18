@@ -37,6 +37,17 @@ namespace Metagame.Network
         /// <summary>띄우기에 실패했을 때 다시 시도하기까지 쉬는 시간(초).</summary>
         const float RetrySeconds = 5f;
 
+        /// <summary>
+        /// 띄운 AI 가 이 시간 안에 자리를 못 잡으면 포기하고 다시 띄운다(초).
+        ///
+        /// <para>보통은 다음 물리 스텝에 잡는다. 이 값은 '영원히 매달려 있지 않게' 하는
+        /// 안전장치라 넉넉히 둔다.</para>
+        /// </summary>
+        const float AiPendingTimeout = 10f;
+
+        /// <summary>같은 '자리가 막혔다' 경고를 다시 찍기까지의 간격(초).</summary>
+        const float BlockedLogInterval = 5f;
+
         /// <summary>서버에만 선다. 참가자에서는 늘 null 이다.</summary>
         public static TeamSeats Server { get; private set; }
 
@@ -59,6 +70,17 @@ namespace Metagame.Network
             /// 더 띄운다.</para>
             /// </summary>
             public NetPlayer AiPending;
+
+            /// <summary>
+            /// <see cref="AiPending"/> 을 띄운 시각. 만료를 재는 데 쓴다.
+            ///
+            /// <para>만료가 없으면, 띄운 AI 가 어떤 이유로든 자리를 못 잡을 때(게임 씬을
+            /// 못 찾는 등) 그 표시가 영원히 남아 <b>자리가 조용히 계속 빈다.</b></para>
+            /// </summary>
+            public float AiPendingSince;
+
+            /// <summary>자리가 막혔다고 마지막으로 알린 시각. 같은 경고를 쏟지 않으려고 센다.</summary>
+            public float LastBlockedLog = -999f;
         }
 
         readonly Seat[] seats = new Seat[TeamSlots.Count];
@@ -100,6 +122,34 @@ namespace Metagame.Network
         }
 
         /// <summary>
+        /// 사람이 앉기 전에 그 자리의 AI 를 모두 내린다. <b>사람이 오는 모든 길에서 부른다</b>
+        /// (<see cref="ClaimBody"/>, <see cref="RegisterHostBody"/>).
+        ///
+        /// <para>띄우기만 하고 아직 몸을 못 잡은 것(<see cref="Seat.AiPending"/>)까지 내린다.
+        /// 빠뜨리면 그 AI 는 자리를 영영 못 잡고 매 물리 스텝 경고를 쏟는 좀비로 남으며,
+        /// 표시가 남아 그 자리의 AI 이어받기도 조용히 멈춘다.</para>
+        /// </summary>
+        void EvictAi(Seat seat, int slot, NetPlayer newDriver, string nickname)
+        {
+            if (seat.AiPending != null && seat.AiPending != newDriver)
+            {
+                Debug.Log($"[TeamSeats] {slot}번 자리에 뜨던 AI 를 내린다 — 사람이 앉는다");
+                NetworkServer.Destroy(seat.AiPending.gameObject);
+            }
+            seat.AiPending = null;
+
+            if (seat.Driver == null || seat.Driver == newDriver || !seat.Driver.IsAiDriver) return;
+
+            NetPlayer leaving = seat.Driver;
+
+            // 자리를 먼저 넘긴다. 아래 Destroy 가 그 AI 의 OnStopServer 를 그 자리에서
+            // 부르는데, 그때 자리가 아직 AI 것이면 방금 앉은 사람이 지워진다.
+            seat.Driver = newDriver;
+            Debug.Log($"[TeamSeats] {slot}번({TeamSlots.Name(slot)}) 자리를 사람이 이어받는다 · {nickname}");
+            NetworkServer.Destroy(leaving.gameObject);
+        }
+
+        /// <summary>
         /// 그 자리의 몸을 내준다. 아직 없으면 지금 만든다.
         ///
         /// <para>이미 다른 조종자가 쥐고 있으면 <c>null</c> 을 돌려준다 — 한 몸을 둘이
@@ -117,30 +167,17 @@ namespace Metagame.Network
             // 다음 물리 스텝부터 계속 null 을 받아 몸을 영영 못 세우고, 매 스텝 경고를 쏟는
             // 좀비로 남는다. 게다가 AiPending 이 그 AI 를 가리킨 채 남아 NeedsAi 가 늘 false 가
             // 되어, 나중에 그 자리가 진짜 비어도 AI 이어받기가 조용히 멈춘다.
-            if (human)
-            {
-                if (seat.AiPending != null && seat.AiPending != driver)
-                {
-                    Debug.Log($"[TeamSeats] {slot}번 자리에 뜨던 AI 를 내린다 — 사람이 앉는다");
-                    NetworkServer.Destroy(seat.AiPending.gameObject);
-                    seat.AiPending = null;
-                }
-
-                if (seat.Driver != null && seat.Driver != driver && seat.Driver.IsAiDriver)
-                {
-                    NetPlayer leaving = seat.Driver;
-
-                    // 자리를 먼저 넘긴다. 아래 Destroy 가 그 AI 의 OnStopServer 를 그 자리에서
-                    // 부르는데, 그때 자리가 아직 AI 것이면 방금 앉은 사람이 지워진다.
-                    seat.Driver = driver;
-                    Debug.Log($"[TeamSeats] {slot}번({TeamSlots.Name(slot)}) 자리를 사람이 이어받는다 · {nickname}");
-                    NetworkServer.Destroy(leaving.gameObject);
-                }
-            }
+            if (human) EvictAi(seat, slot, driver, nickname);
 
             if (seat.Driver != null && seat.Driver != driver)
             {
-                Debug.LogWarning($"[TeamSeats] {slot}번 자리를 이미 {seat.Driver.name} 이(가) 쥐고 있다");
+                // 사람 NetPlayer 는 null 을 받으면 다음 물리 스텝에 다시 온다. 매번 찍으면
+                // 초당 50줄이 쏟아져 진짜 문제를 덮는다 — 간격을 두고 한 번씩만 알린다.
+                if (Time.time - seat.LastBlockedLog >= BlockedLogInterval)
+                {
+                    seat.LastBlockedLog = Time.time;
+                    Debug.LogWarning($"[TeamSeats] {slot}번 자리를 이미 {seat.Driver.name} 이(가) 쥐고 있다");
+                }
                 return null;
             }
 
@@ -224,6 +261,7 @@ namespace Metagame.Network
             // 자리는 NetPlayer 가 몸을 세울 때 잡는다. 여기서는 '띄우는 중'만 표시한다 —
             // 미리 잡아 버리면 몸을 못 세운 채 자리만 차지한다.
             seats[slot].AiPending = player;
+            seats[slot].AiPendingSince = Time.time;
             seats[slot].FreeSince = -1f;
             Debug.Log($"[TeamSeats] {slot}번({TeamSlots.Name(slot)}) 자리를 AI 가 맡는다");
         }
@@ -255,6 +293,18 @@ namespace Metagame.Network
             Seat seat = At(slot);
             if (seat == null || hostBody == null) return;
 
+            // 방장도 사람이다 — ClaimBody 와 같게 AI 를 먼저 내린다. 안 내리면 그 AI 는
+            // pooledBody 라 제 몸도 지우지 않아, 주인 없는 캐릭터가 씬에 남는다.
+            EvictAi(seat, slot, driver, driver != null ? driver.nickname : "방장");
+
+            // 자리에 있던 몸은 더 쓰이지 않는다. 방장 몸(게임 씬 것)이 그 자리를 대신하므로
+            // 남겨 두면 아무도 몰지 않는 캐릭터가 된다.
+            if (seat.Body != null && seat.Body != hostBody)
+            {
+                Debug.Log($"[TeamSeats] {slot}번 자리의 옛 몸을 치운다 — 방장 몸이 대신한다");
+                Destroy(seat.Body.gameObject);
+            }
+
             seat.Body = hostBody;
             seat.Driver = driver;
             seat.FreeSince = -1f;
@@ -283,7 +333,18 @@ namespace Metagame.Network
 
             // 이미 띄워 두었고 아직 앉는 중이다. Unity 의 == null 은 파괴된 것도 잡아내므로
             // 사람에게 밀려난 AI 는 여기서 걸리지 않는다.
-            if (seat.AiPending != null) return false;
+            //
+            // <b>다만 영원히 기다리지는 않는다.</b> 띄운 AI 가 어떤 이유로든 자리를 못 잡으면
+            // (게임 씬을 못 찾는 등) 이 표시가 남아 그 자리가 조용히 계속 빈다.
+            if (seat.AiPending != null)
+            {
+                if (Time.time - seat.AiPendingSince < AiPendingTimeout) return false;
+
+                Debug.LogWarning($"[TeamSeats] {slot}번 자리의 AI 가 {AiPendingTimeout}초 안에 "
+                                 + "몸을 세우지 못했다 — 물리고 다시 띄운다");
+                NetworkServer.Destroy(seat.AiPending.gameObject);
+                seat.AiPending = null;
+            }
 
             // <b>이미 사람이 받아 둔 자리는 건드리지 않는다.</b> 자리(teamSlot)는 접속하자마자
             // 정해지지만 몸은 다음 물리 스텝에야 선다. 그 틈에 '몸이 없다'는 이유로 AI 를
