@@ -542,7 +542,7 @@ R4 에는 스프린트를 **조건으로 보는 항목이 없다**(R4 절 참고
 | --- | --- |
 | 목록 | `POST {base}/{projectId}/rules` body `{"offset":0,"limit":50,"filter":"","actionTypes":[],"triggerTypes":[],"orchestrationTypes":[],"systemLabelId":"CONTAINER","sortKey":"NAME","sortOrder":"ASC"}` — **`systemLabelId:"CONTAINER"`를 넣으면 새로 만든 규칙이 빠진다**(2026-09-07: UI로 만든 R10이 목록에 없었다). 그 키를 빼고 부르거나 id로 직접 조회한다 |
 | 상세 | `GET {base}/{projectId}/rule/{id}` — **숫자 id와 uuid 모두 받는다.** 새 UI로 만든 규칙은 주소창(`…/settings/automate#/rule/<값>`)에 **uuid 만** 나온다(2026-09-07 R10). 응답은 `ruleConfigBean` 래핑 없이 규칙 본문 그대로이고, **트리거는 `components`가 아니라 최상위 `trigger` 키**에 따로 있다 |
-| 수정 | `PUT {base}/{projectId}/rule/{ruleUuid}` body `{"ruleConfigBean": <GET 결과를 고친 것>, "newConnections": []}` |
+| 수정 | `PUT {base}/{projectId}/rule/{uuid}` body `{"ruleConfigBean": <GET 결과를 고친 것>, "newConnections": []}` — **그 uuid 는 상세 응답의 `idUuid` 키에 있다**(2026-09-18 실측). `ruleUuid`·`uuid` 라는 키는 응답에 없어서, 그 이름으로 찾으면 "uuid 를 못 찾았다" 로 조용히 건너뛴다 |
 | 활성/비활성 | `PATCH {base}/{projectId}/rule/{ruleUuid}` body `[{"op":"replace","path":"/state","value":"ENABLED"}]` |
 | 신규 | 내부 `POST /rule`은 403 → 공개 API `POST …/automation/public/jira/{cloudId}/rest/v1/template/create` `{"templateId":"software_template_26","ruleHome":"<프로젝트 ARI>","state":"DISABLED"}`로 껍데기를 만든 뒤 PUT으로 덮어쓴다 |
 
@@ -561,7 +561,7 @@ R4 에는 스프린트를 **조건으로 보는 항목이 없다**(R4 절 참고
   | --- | --- |
   | 로그인 | Playwright `launch_persistent_context(channel="chrome")`로 창을 띄우고 **사람이 그 창에서 로그인**하면 프로필에 세션이 남아 다음 실행부터 바로 통과한다. 2026-08-31 에 "프로필이 새로 생겨 로그인 상태가 없다" 고 적었던 것은 프로필을 재사용하지 않은 탓이었다 |
   | `input()` 금지 | 로그인 대기를 `input()`으로 잡아 두면 **그 뒤 `page.request.*`가 진행되지 않는다**(2026-09-07: dry-run은 되고 `--apply`만 멈췄다). 규칙 조회가 200 이 될 때까지 `page.wait_for_timeout`으로 폴링해 로그인 완료를 감지한다 |
-  | PUT body | GET 응답이 곧 `ruleConfigBean` 본문이다(최상위에 `components`가 보인다). 그것을 고쳐 `{"ruleConfigBean": …, "newConnections": []}`로 감싸 `PUT …/rule/{ruleUuid}` — 숫자 id가 아니라 **uuid** 다 |
+  | PUT body | GET 응답이 곧 `ruleConfigBean` 본문이다(최상위에 `components`가 보인다). 그것을 고쳐 `{"ruleConfigBean": …, "newConnections": []}`로 감싸 `PUT …/rule/{uuid}` — 숫자 id가 아니라 **uuid**(상세 응답의 `idUuid`) 다 |
   | 검증 | PUT 뒤 다시 GET 해서 새 정규식 개수 ≥ 바꾼 개수, 옛 정규식 0 을 확인한다. `before-<id>.json`·`after-<id>.json`을 남긴다. PUT은 규칙 상태(사용 중)를 바꾸지 않는다 |
 
   **저장소에는 도구만 둔다 — 일회성 교정 스크립트는 두지 않는다**(2026-09-08, `-338`).
