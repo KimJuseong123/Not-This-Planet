@@ -30,7 +30,7 @@ namespace Metagame.EditorTools
         static void Folder(string path){if(AssetDatabase.IsValidFolder(path))return;Folder(Path.GetDirectoryName(path).Replace('\\','/'));AssetDatabase.CreateFolder(Path.GetDirectoryName(path).Replace('\\','/'),Path.GetFileName(path));}
         static Transform Group(Transform parent,string name,Vector3 position=default)
         {var go=new GameObject(name);Undo.RegisterCreatedObjectUndo(go,"Stage2 art");go.transform.SetParent(parent,false);go.transform.localPosition=position;return go.transform;}
-        static GameObject Model(string id,Transform parent,Vector3 position,float yaw=0,Vector3? scale=null,bool unpack=false)
+        static GameObject Model(string id,Transform parent,Vector3 position,float yaw=0,Vector3? scale=null,bool unpack=false,bool configureMaterials=true)
         {
             var asset=AssetDatabase.LoadAssetAtPath<GameObject>(Models+"S2_"+id+".fbx");Require(asset!=null,"Missing model "+id);
             var frame=Group(parent,"Art "+id,position);
@@ -40,7 +40,7 @@ namespace Metagame.EditorTools
             foreach(var c in instance.GetComponentsInChildren<Collider>(true))Object.DestroyImmediate(c);
             if(id=="Wall"){var wall=frame.gameObject.AddComponent<BoxCollider>();wall.center=new Vector3(0,1.2f,0);wall.size=new Vector3(4,2.4f,.4f);}
             foreach(var r in instance.GetComponentsInChildren<Renderer>(true))
-            {r.SetPropertyBlock(null);r.shadowCastingMode=ShadowCastingMode.On;foreach(var m in r.sharedMaterials)if(m!=null&&!m.enableInstancing){m.enableInstancing=true;EditorUtility.SetDirty(m);}}
+            {r.SetPropertyBlock(null);r.shadowCastingMode=ShadowCastingMode.On;foreach(var m in r.sharedMaterials)if(configureMaterials&&m!=null&&!m.enableInstancing){m.enableInstancing=true;EditorUtility.SetDirty(m);}}
             Used.Add(id);Counts[id]=Counts.TryGetValue(id,out int count)?count+1:1;
             return frame.gameObject;
         }

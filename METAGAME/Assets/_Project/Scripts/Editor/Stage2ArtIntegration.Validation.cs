@@ -14,6 +14,9 @@ namespace Metagame.EditorTools
 {
     public static partial class Stage2ArtIntegration
     {
+        const int ExpectedPressureRelief = 3;
+        const int ExpectedTargets = 26 + ExpectedPressureRelief;
+
         // Blockout labels float through equipment and read backwards from the arrival route.
         // Interaction prompts remain provided by Stage2Target and the gameplay HUD.
         static void HideDraftLabels(Scene scene)
@@ -49,14 +52,20 @@ namespace Metagame.EditorTools
             var targets=roots.SelectMany(r=>r.GetComponentsInChildren<Stage2Target>(true)).ToArray();var errors=new System.Collections.Generic.List<string>();
             int missing=roots.SelectMany(r=>r.GetComponentsInChildren<Transform>(true)).Sum(t=>GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(t.gameObject));
             if(missing>0)errors.Add("Missing scripts");
-            int expected=26+targets.Count(t=>t.Kind==YardTargetKind.PressureRelief);
-            if(targets.Length!=expected||targets.Select(t=>t.Id).Distinct().Count()!=expected)errors.Add("Interaction IDs changed");
+            if(targets.Count(t=>t.Kind==YardTargetKind.PressureRelief)!=ExpectedPressureRelief)errors.Add("Pressure relief interaction count");
+            if(targets.Length!=ExpectedTargets||!targets.Select(t=>t.Id).OrderBy(id=>id).SequenceEqual(Enumerable.Range(0,26).Concat(new[]{100,101,102})))errors.Add("Interaction IDs changed");
             if(targets.Count(t=>t.Kind==YardTargetKind.Bolt)!=9)errors.Add("Bolt interaction count");
             var serialized=new SerializedObject(yard);
             foreach(string name in new[]{"_cranePivot","_arm","_hook","_seat","_lift","_ladder","_launch","_shower"})
                 if(serialized.FindProperty(name).objectReferenceValue==null)errors.Add("Missing yard reference "+name);
             foreach(string name in new[]{"_parts","_sockets","_lids","_gasZones","_targets"})
             {var arr=serialized.FindProperty(name);for(int i=0;i<arr.arraySize;i++)if(arr.GetArrayElementAtIndex(i).objectReferenceValue==null)errors.Add("Missing array reference "+name);}
+            var registered=serialized.FindProperty("_targets");
+            var registeredTargets=Enumerable.Range(0,registered.arraySize).Select(i=>registered.GetArrayElementAtIndex(i).objectReferenceValue).ToArray();
+            if(registeredTargets.Length!=ExpectedTargets||registeredTargets.Distinct().Count()!=ExpectedTargets||targets.Any(t=>!registeredTargets.Contains(t)))
+                errors.Add("Registered interaction targets differ from scene");
+            if(!targets.Where(t=>t.Kind==YardTargetKind.PressureRelief).Select(t=>t.Id).OrderBy(id=>id).SequenceEqual(new[]{100,101,102}))
+                errors.Add("Pressure relief interaction IDs changed");
             var renderers=roots.SelectMany(g=>g.GetComponentsInChildren<MeshRenderer>(true)).Where(r=>r.enabled).ToArray();
             if(renderers.Any(r=>r.sharedMaterials.Any(m=>m==null||m.shader==null||m.shader.name=="Hidden/InternalErrorShader")))errors.Add("Missing materials or shaders");
             var art=roots.FirstOrDefault(g=>g.name==ArtRoot);if(art==null)errors.Add("Missing art root");
