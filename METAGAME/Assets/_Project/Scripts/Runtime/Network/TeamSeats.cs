@@ -49,6 +49,12 @@ namespace Metagame.Network
         /// <summary>같은 '자리가 막혔다' 경고를 다시 찍기까지의 간격(초).</summary>
         const float BlockedLogInterval = 5f;
 
+        /// <summary>할 일이 없는 AI 가 사람 뒤에서 유지할 기본 거리(m).</summary>
+        const float FollowDistance = 2.5f;
+
+        /// <summary>자리 번호마다 유지 거리를 더하는 몫(m). 셋이 겹치지 않게 벌린다.</summary>
+        const float FollowDistanceStep = 0.9f;
+
         /// <summary>서버에만 선다. 참가자에서는 늘 null 이다.</summary>
         public static TeamSeats Server { get; private set; }
 
@@ -262,6 +268,10 @@ namespace Metagame.Network
                 if (brain == null) continue;
 
                 brain.StandbyAnchor = NearestHumanTo(seat.Body);
+
+                // 자리마다 유지 거리를 달리 준다. 셋이 같은 거리를 노리면 한 점에 겹쳐
+                // 서로 밀어내므로, 조금씩 벌려 줄줄이 따라오게 한다.
+                brain.StandbyDistance = FollowDistance + slot * FollowDistanceStep;
             }
         }
 

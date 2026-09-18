@@ -39,22 +39,29 @@ namespace Metagame.AICompanion
         public PartClamp TargetPin => _pin;
 
         /// <summary>
-        /// 할 일이 없을 때 곁에 머무를 기준. <c>null</c> 이면 그냥 서 있는다.
-        ///
-        /// <para>빈 자리를 맡은 AI 가 가만히 서 있으면 길을 막는다. 그렇다고 졸졸 따라다니면
-        /// 넷 중 셋이 AI 인 판에서 거슬린다. 그래서 <b>멀면 다가오고 너무 가까우면 비켜서는</b>
-        /// 정도만 한다.</para>
+        /// 할 일이 없을 때 따라다닐 대상. <c>null</c> 이면 그 자리에 선다.
         ///
         /// <para>값은 밖에서(자리 관리자) 가장 가까운 사람으로 갱신해 준다 — 이 어셈블리는
         /// 누가 사람인지 모른다.</para>
         /// </summary>
         public Transform StandbyAnchor { get; set; }
 
-        /// <summary>이보다 멀어지면 다가간다(m).</summary>
-        const float StandbyFar = 8f;
+        /// <summary>
+        /// 따라다닐 때 유지할 거리(m). 자리 관리자가 <b>AI 마다 다르게</b> 준다.
+        ///
+        /// <para>셋이 같은 거리를 노리면 한 점에 겹쳐 서로 밀어낸다. 조금씩 다르게 두면
+        /// 줄줄이 늘어선다.</para>
+        /// </summary>
+        public float StandbyDistance { get; set; } = 2.5f;
+
+        /// <summary>유지 거리보다 이만큼 더 벌어지면 따라 걷기 시작한다(m).</summary>
+        ///
+        /// <para>딱 맞춰 쫓으면 사람이 한 발 떼자마자 같이 움직여 들러붙은 것처럼 보인다.
+        /// 여유를 둬야 사람이 서 있을 때 AI 도 선다.</para>
+        const float StandbySlack = 1.2f;
 
         /// <summary>이보다 가까우면 비켜선다(m). 길을 막지 않으려는 것이다.</summary>
-        const float StandbyNear = 2.2f;
+        const float StandbyNear = 1.6f;
 
         /// <summary>
         /// 사람이 <b>직접</b> "여기서 기다려" 라고 했나. 그때는 곁에 머무르지 않고 선 자리를
@@ -199,10 +206,11 @@ namespace Metagame.AICompanion
         }
 
         /// <summary>
-        /// 할 일이 없을 때의 느슨한 대기. <b>멀면 다가가고, 너무 가까우면 비켜선다.</b>
+        /// 할 일이 없을 때는 사람을 따라다닌다. <b>벌어지면 쫓아가고, 너무 붙으면 비켜선다.</b>
         ///
-        /// <para>그 사이 거리에서는 아무것도 하지 않는다 — 계속 자리를 고쳐 잡으면 옆에서
-        /// 꼼지락대는 것처럼 보인다.</para>
+        /// <para>유지 거리에서 <see cref="StandbySlack"/> 만큼은 그냥 둔다 — 딱 맞춰 쫓으면
+        /// 사람이 한 발 뗄 때마다 같이 움직여 들러붙은 것처럼 보이고, 멈춰 서 있을 때도
+        /// 옆에서 꼼지락댄다.</para>
         /// </summary>
         void TickStandby(ref InputFrame input)
         {
@@ -212,11 +220,10 @@ namespace Metagame.AICompanion
             delta.y = 0;
             float distance = delta.magnitude;
 
-            if (distance > StandbyFar)
+            if (distance > StandbyDistance + StandbySlack)
             {
-                // 뒤처졌다. 너무 바짝 붙지 않게 여유를 두고 다가간다.
-                Navigate(StandbyAnchor.position, StandbyFar * 0.6f, ref input);
-                Status = "곁으로 가는 중";
+                Navigate(StandbyAnchor.position, StandbyDistance, ref input);
+                Status = "따라가는 중";
                 return;
             }
 
@@ -229,6 +236,8 @@ namespace Metagame.AICompanion
                 return;
             }
 
+            // 사람을 바라보고 선다. 등지고 서 있으면 말을 걸어도 반응이 없어 보인다.
+            if (distance > 0.05f) input.AimYaw = Mathf.Atan2(delta.x, delta.z) * Mathf.Rad2Deg;
             Status = "대기 중";
         }
 
