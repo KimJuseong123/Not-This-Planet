@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Metagame.Gameplay.Interaction;
+using Metagame.Gameplay.Parts;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -43,13 +44,14 @@ namespace Metagame.Gameplay.Tests
         [TestCase(0, 0, -5, false)]
         public void CollectRespectsCameraFrustum(float x, float y, float z, bool expected)
         {
-            Cube(new Vector3(x, y, z));
+            Cube(new Vector3(x, y, z)).AddComponent<MeteorBat>();
             Assert.AreEqual(expected, new OccludedInteractionTargets().Collect(Camera()));
         }
 
         [Test] public void CameraLayerMaskAndHiddenRendererAreRespected()
         {
             var go = Cube(Vector3.forward * 5);
+            go.AddComponent<MeteorBat>();
             var camera = Camera();
             camera.cullingMask = 0;
             Assert.IsFalse(new OccludedInteractionTargets().Collect(camera));
@@ -81,9 +83,52 @@ namespace Metagame.Gameplay.Tests
         }
 
 
+        [TestCase("Part_1", true)]
+        [TestCase("Part_2", true)]
+        [TestCase("Part_3", true)]
+        [TestCase("Part_4", true)]
+        [TestCase("Part_5", false)]
+        [TestCase("Environment", false)]
+        public void OnlyCorePartsAreCollected(string name, bool expected)
+        {
+            var go = Cube(Vector3.forward * 5);
+            go.name = name;
+            go.AddComponent<SpaceshipPart>();
+            Assert.AreEqual(expected, new OccludedInteractionTargets().Collect(Camera()));
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void GrabbablesAndClampsAreExcluded(bool clamp)
+        {
+            var go = Cube(Vector3.forward * 5);
+            if (clamp) go.AddComponent<PartClamp>();
+            Assert.IsFalse(new OccludedInteractionTargets().Collect(Camera()));
+        }
+
+        [Test] public void ClampUnderCorePartIsExcluded()
+        {
+            var part = Cube(Vector3.forward * 5);
+            part.name = "Part_1";
+            part.AddComponent<SpaceshipPart>();
+            var clamp = Cube(Vector3.forward * 5);
+            clamp.AddComponent<PartClamp>();
+            clamp.transform.SetParent(part.transform);
+            var targets = new OccludedInteractionTargets();
+            Assert.IsTrue(targets.Collect(Camera()));
+            Assert.AreEqual(1, targets.Targets.Count);
+            Assert.AreSame(part.GetComponent<Renderer>(), targets.Targets[0].Renderer);
+        }
+
+        [Test] public void WeldingToolIsCollected()
+        {
+            Cube(Vector3.forward * 5).AddComponent<PlasmaWeldingTool>();
+            Assert.IsTrue(new OccludedInteractionTargets().Collect(Camera()));
+        }
+
         [Category("Heavy")]
         [Test]
-        public void AuthoredStageToolsPartsAndClampsHaveOutlineTargets()
+        public void AuthoredStageOutlinesOnlyToolsAndCoreParts()
         {
             _scene = EditorSceneManager.OpenScene("Assets/Scenes/Stage1_Astra.unity", OpenSceneMode.Single);
             var tools = Object.FindObjectsByType<ToolBase>(FindObjectsSortMode.None);
@@ -104,6 +149,7 @@ namespace Metagame.Gameplay.Tests
                 Assert.IsNotEmpty(renderers, root.name);
                 var renderer = System.Linq.Enumerable.FirstOrDefault(renderers,
                     item => item.enabled && item.gameObject.activeInHierarchy && !item.forceRenderingOff &&
+                            (root is PartClamp || item.GetComponentInParent<PartClamp>() == null) &&
                             item.GetComponent<MeshFilter>() != null &&
                             item.GetComponent<MeshFilter>().sharedMesh != null);
                 Assert.NotNull(renderer, root.name + " must have an active visual mesh.");
@@ -112,7 +158,9 @@ namespace Metagame.Gameplay.Tests
                 camera.transform.rotation = Quaternion.identity;
                 var targets = new OccludedInteractionTargets();
                 targets.Collect(camera);
-                Assert.IsTrue(System.Linq.Enumerable.Any(targets.Targets,
+                Assert.AreEqual(root is MeteorBat || root is PlasmaWeldingTool ||
+                    (root is SpaceshipPart part && PartSpec.Find(part.name) != null),
+                    System.Linq.Enumerable.Any(targets.Targets,
                     target => target.Renderer == renderer), root.name);
             }
         }

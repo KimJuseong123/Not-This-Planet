@@ -29,12 +29,9 @@ namespace Metagame.Gameplay.Interaction
         {
             if (root == null || !root.gameObject.activeInHierarchy ||
                 root.GetComponentInParent<PlayerRig>() != null) return false;
-            var tool = root.GetComponentInParent<ToolBase>();
-            if (tool != null && tool.IsHeldForView) return false;
-            // 고정못은 CanGrab=false인 동안에도 뽑기 상호작용이 가능하다.
-            if (root is Grabbable grab && !grab.CanGrab &&
-                grab.GetComponent<PartClamp>() == null) return false;
-            return true;
+            if (root is MeteorBat || root is PlasmaWeldingTool)
+                return !((ToolBase)root).IsHeldForView;
+            return root is SpaceshipPart part && PartSpec.Find(part.name) != null;
         }
 
         public bool Collect(Camera camera)
@@ -42,15 +39,14 @@ namespace Metagame.Gameplay.Interaction
             _targets.Clear();
             _seen.Clear();
             if (camera == null) return false;
-            // 런타임 생성/해제된 고정못도 발견하며, 매 프레임 전체 씬 검색은 피한다.
+            // 도구와 핵심 파츠만 수집하며, 매 프레임 전체 씬 검색은 피한다.
             if (Time.unscaledTime >= _nextRefresh)
             {
                 _nextRefresh = Time.unscaledTime + 0.5f;
                 _roots.Clear();
-                _roots.AddRange(Object.FindObjectsByType<ToolBase>(FindObjectsSortMode.None));
-                _roots.AddRange(Object.FindObjectsByType<InteractableBase>(FindObjectsSortMode.None));
+                _roots.AddRange(Object.FindObjectsByType<MeteorBat>(FindObjectsSortMode.None));
+                _roots.AddRange(Object.FindObjectsByType<PlasmaWeldingTool>(FindObjectsSortMode.None));
                 _roots.AddRange(Object.FindObjectsByType<SpaceshipPart>(FindObjectsSortMode.None));
-                _roots.AddRange(Object.FindObjectsByType<Grabbable>(FindObjectsSortMode.None));
                 RefreshMeshes();
             }
             GeometryUtility.CalculateFrustumPlanes(camera, _planes);
@@ -77,6 +73,8 @@ namespace Metagame.Gameplay.Interaction
                 root.GetComponentsInChildren(false, _renderers);
                 foreach (var renderer in _renderers)
                 {
+                    // 파츠 자식으로 배치된 고정못도 파츠 외형에 섞이지 않게 제외한다.
+                    if (renderer.GetComponentInParent<PartClamp>() != null) continue;
                     if (!_seen.Add(renderer)) continue;
                     Mesh mesh = null;
                     if (renderer is SkinnedMeshRenderer skinned) mesh = skinned.sharedMesh;
