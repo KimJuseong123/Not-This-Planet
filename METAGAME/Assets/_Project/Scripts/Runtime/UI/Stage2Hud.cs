@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Metagame.Core;
 using Metagame.Gameplay;
 using Metagame.Gameplay.Stage2;
 using UnityEngine;
@@ -55,18 +56,16 @@ namespace Metagame.UI
                 _toolView.localPosition = new Vector3(.32f,-.28f,.62f);
                 var material = _yard.GetComponentInChildren<Renderer>().sharedMaterial;
                 _wrenchView = new GameObject("Manual wrench").transform; _wrenchView.SetParent(_toolView,false);
-                ToolPiece(_wrenchView,new Vector3(0,0,0),new Vector3(.06f,.38f,.035f),material);
-                ToolPiece(_wrenchView,new Vector3(0,.22f,0),new Vector3(.18f,.06f,.05f),material);
-                ToolPiece(_wrenchView,new Vector3(-.07f,.27f,0),new Vector3(.04f,.1f,.05f),material);
-                ToolPiece(_wrenchView,new Vector3(.07f,.27f,0),new Vector3(.04f,.1f,.05f),material);
+                Stage2Yard.BuildWrenchVisual(_wrenchView, material);
                 _sprayerView = new GameObject("Decontamination nozzle").transform; _sprayerView.SetParent(_toolView,false);
                 ToolPiece(_sprayerView,Vector3.zero,new Vector3(.12f,.12f,.34f),material);
                 ToolPiece(_sprayerView,new Vector3(0,-.12f,-.07f),new Vector3(.06f,.2f,.06f),material);
                 ToolPiece(_sprayerView,new Vector3(0,0,.22f),new Vector3(.2f,.2f,.12f),material);
             }
             var tool = _yard.PlayerState(_localId()).Tool;
-            _wrenchView.gameObject.SetActive(tool == YardTool.Wrench && !GuideOpen);
-            _sprayerView.gameObject.SetActive(tool == YardTool.Sprayer && !GuideOpen);
+            bool showTool = !GuideOpen && _yard.State.Pilot != _localId() && !_session.LocalPlayer.Downed;
+            _wrenchView.gameObject.SetActive(tool == YardTool.Wrench && showTool);
+            _sprayerView.gameObject.SetActive(tool == YardTool.Sprayer && showTool);
             _wrenchView.localRotation = Quaternion.Euler(15,0,-WrenchAngle);
         }
 
@@ -117,7 +116,15 @@ namespace Metagame.UI
             }
             GUI.Label(new Rect(796, 447, 20, 20), "+", _text);
             if (_yard.State.Pilot == _localId())
-                GUI.Label(new Rect(470, 805, 950, 70), "크레인  A/D 회전 · W/S 반경 · Space/Ctrl 인양 · Shift 정밀\nE 조종석 교대 — 내려도 하중 유지 / 동료가 접합면 안내", _text);
+            {
+                GUI.Box(new Rect(420, 782, 1160, 100), "");
+                GUI.Label(new Rect(440, 793, 1120, 85),
+                    $"크레인 조종 · 3인칭   |   {Controls.MoveLeft}/{Controls.MoveRight} 회전 · {Controls.MoveForward}/{Controls.MoveBack} 반경\n" +
+                    $"{Controls.Jump} 상승 · {Controls.ArmsUp} 하강 · {Controls.Run} 정밀 · 마우스 시점\n" +
+                    $"{Controls.TransportAction} 조종 종료 · {Controls.Tablet} 작업 안내 — 내려도 하중 유지", _text);
+            }
+            else if (me.Tool == YardTool.Wrench && !GuideOpen)
+                GUI.Label(new Rect(470, 815, 1050, 50), $"렌치: 좌클릭 + 마우스 원형 회전으로 체결 · {Controls.ToolAction} 던지기 · 떨어진 렌치 {Controls.TransportAction} 줍기", _text);
             if (_yard.State.Launched)
             {
                 GUI.Box(new Rect(370, 300, 860, 230), "");
@@ -135,7 +142,7 @@ namespace Metagame.UI
                 "01  상부 뚜껑을 열고 큰 인양 고리에 훅을 연결합니다.\n\n" +
                 "02  승강기로 조종석에 올라 회전·반경·높이를 조작합니다.\n     접합면은 동료가 가까이서 확인합니다.\n\n" +
                 "03  사다리를 들고 평평한 바닥에 설치합니다.\n     설치 시 다음 접합 높이에 맞춰 펼쳐집니다. 점유 중 이동 금지.\n\n" +
-                "04  렌치 장착 → 볼트 조준 → 좌클릭 유지 + 마우스 원형 이동.\n     3곳 체결 → 와이어 하강 → 큰 고리 E로 연결 해제.\n     수정: 훅을 다시 지지한 상태에서 볼트 좌+우클릭.\n\n" +
+                $"04  렌치 장착 → 볼트 조준 → 좌클릭 유지 + 마우스 원형 이동.\n     3곳 체결 → 와이어 하강 → 큰 고리 E로 연결 해제.\n     수정: 볼트 좌+우클릭 / {Controls.ToolAction} 던지기 · {Controls.TransportAction} 줍기.\n\n" +
                 "05  첫 체결 뒤 오염 시작. 분사기를 들고 좌클릭으로 동료 제독.\n     기절한 동료는 제독 후 G 구조. 솔로는 파란 고정 샤워 이용.\n\n" +
                 "06  모두 체결·훅 분리·크레인 후퇴 후 발사대에 모여 출발.\n     유실 파츠는 준비 구역의 복구 패널에서 회수합니다.", _small);
             var rect = new Rect(1080, 245, 70, 275);

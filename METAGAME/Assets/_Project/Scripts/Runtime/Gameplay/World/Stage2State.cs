@@ -29,6 +29,12 @@ namespace Metagame.Gameplay.Stage2
         public Vector3 Position;
         public Vector3 SprayStart, SprayEnd;
     }
+    [Serializable] public struct YardLooseToolState
+    {
+        public int Id;
+        public Vector3 Position;
+        public Quaternion Rotation;
+    }
     [Serializable] public sealed class Stage2State
     {
         public double Time;
@@ -43,5 +49,6 @@ namespace Metagame.Gameplay.Stage2
         public int Attached = -1;
         public YardPartState[] Parts = new YardPartState[3];
         public YardPlayerState[] Players = Array.Empty<YardPlayerState>();
+        public YardLooseToolState[] LooseTools = Array.Empty<YardLooseToolState>();
     }
 }
