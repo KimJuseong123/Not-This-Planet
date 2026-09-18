@@ -51,9 +51,8 @@ namespace Metagame.Bootstrap
         Light _flash;
         Material _trailMaterial;
         bool _impacted, _warned;
-        Metagame.Gameplay.Hazards.MeteorSpawner _spawner;
-        bool _hasAssaultTarget;
-        Vector3 _assaultTarget;
+        readonly List<Transform> _assaultMeteors = new();
+        readonly List<LineRenderer> _assaultTrails = new();
 
         public void Author(bool assault, GameObject meteorVisual, Shot[] shots)
         { _assault = assault; _meteorVisual = meteorVisual; _shots = shots; }
@@ -108,8 +107,8 @@ namespace Metagame.Bootstrap
             _cutsceneShower.BindCamera(_orbit.Cam);
             _cutsceneShower.SetIntensity(1f);
             _cutsceneShower.SetAlertIntensity(1f);
-            _spawner = FindAnyObjectByType<Metagame.Gameplay.Hazards.MeteorSpawner>();
-            if (!_assault) BuildEntryEffects();
+            _warned = false;
+            if (_assault) BuildAssaultEffects(); else BuildEntryEffects();
             Debug.Log("[Stage1Cutscene] " + (_assault ? "Assault" : "Entry") + " · live world bound");
         }
 
@@ -162,6 +161,54 @@ namespace Metagame.Bootstrap
             return light;
         }
 
+        void BuildAssaultEffects()
+        {
+            if (_meteorVisual == null) return;
+            if (_trailMaterial == null) _trailMaterial = Prim.Flat(new Color(4f, 1.5f, 0.3f));
+            // A fixed budget of local visual models; no Meteor components or gameplay spawns.
+            for (int i = 0; i < 12; i++)
+            {
+                var meteor = Instantiate(_meteorVisual, transform);
+                meteor.name = "Assault meteor visual " + (i + 1);
+                meteor.SetActive(false);
+                var trail = meteor.AddComponent<LineRenderer>();
+                trail.sharedMaterial = _trailMaterial;
+                trail.useWorldSpace = true;
+                trail.positionCount = 2;
+                trail.startWidth = 0.48f + (i % 3) * 0.12f;
+                trail.endWidth = 0f;
+                trail.numCapVertices = 3;
+                trail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                trail.receiveShadows = false;
+                _assaultMeteors.Add(meteor.transform);
+                _assaultTrails.Add(trail);
+            }
+        }
+
+        void TickAssaultMeteors(float t)
+        {
+            for (int i = 0; i < _assaultMeteors.Count; i++)
+            {
+                var meteor = _assaultMeteors[i];
+                bool visible = t >= 1f && t < Stage1Sequence.AssaultSeconds;
+                meteor.gameObject.SetActive(visible);
+                if (!visible) continue;
+                // Shared sequence age gives late joiners the same staggered falling formation.
+                float u = Mathf.Repeat(t - 1f + i * 0.23f, 3f) / 3f;
+                var from = _assembly + new Vector3(-30f + i * 3f, 48f, 8f + (i % 3) * 8f);
+                var to = _assembly + new Vector3(-12f + i * 3f, 4f, 8f + (i % 3) * 8f);
+                float travel = u * (0.65f + 0.35f * u);
+                meteor.position = Vector3.Lerp(from, to, travel);
+                meteor.rotation = Quaternion.Euler(t * (90f + i * 7f), i * 31f + t * 65f, t * 35f);
+                float fade = Mathf.Clamp01(u / 0.08f) * Mathf.Clamp01((1f - u) / 0.15f);
+                meteor.localScale = Vector3.one * ((0.65f + (i % 4) * 0.18f) * fade);
+                var trail = _assaultTrails[i];
+                trail.widthMultiplier = fade;
+                trail.SetPosition(0, meteor.position);
+                trail.SetPosition(1, meteor.position + (from - to).normalized * ((5f + i % 4) * fade));
+            }
+        }
+
         void LateUpdate()
         {
             if (!Playing || _orbit == null) return;
@@ -191,26 +238,10 @@ namespace Metagame.Bootstrap
             foreach (var candidate in _shots) if (t >= candidate.start) shot = candidate;
             float u = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - shot.start) / Mathf.Max(0.01f, shot.duration)));
             Vector3 anchor = Resolve(shot.anchor);
-            if (_assault && t >= Stage1Sequence.WarningSeconds && _spawner != null)
-            {
-                if (!_hasAssaultTarget && _spawner.Pending.Count > 0)
-                { _assaultTarget = _spawner.Pending[0].ImpactPoint; _hasAssaultTarget = true; }
-                if (_hasAssaultTarget) anchor = _assaultTarget;
-            }
             Vector3 look = anchor + shot.look;
             Vector3 position = anchor + Vector3.Lerp(shot.from, shot.to, u);
             if (!_assault && shot.anchor == Anchor.Impact && t < 9f)
                 look = EntryMeteorPosition(t);
-            if (_assault && t >= Stage1Sequence.WarningSeconds && _hasAssaultTarget)
-            {
-                Vector3 falling = _assaultTarget + Vector3.up * 15f;
-                if (_spawner.Live.Count > 0 && _spawner.Live[0] != null)
-                    falling = _spawner.Live[0].transform.position;
-                else if (_spawner.Ghosts.Count > 0 && _spawner.Ghosts[0] != null)
-                    falling = _spawner.Ghosts[0].transform.position;
-                look = falling;
-                position = falling + Vector3.Lerp(shot.from, shot.to, u).normalized * 12f;
-            }
             // 실내/이동한 파츠가 카메라 사이에 들어왔을 때 벽 너머를 촬영하지 않는다.
             Vector3 ray = position - look;
             if (ray.sqrMagnitude > 0.1f && Physics.SphereCast(look, 0.18f, ray.normalized,
@@ -248,6 +279,7 @@ namespace Metagame.Bootstrap
 
         void TickAssault(float t)
         {
+            TickAssaultMeteors(t);
             if (!_warned)
             {
                 _warned = true;
@@ -292,6 +324,12 @@ namespace Metagame.Bootstrap
             SetLights(1f);
             foreach (var component in _hidden) if (component != null) component.enabled = true;
             _hidden.Clear();
+            foreach (var meteor in _assaultMeteors)
+                if (meteor != null) { meteor.gameObject.SetActive(false); Destroy(meteor.gameObject); }
+            _assaultMeteors.Clear();
+            _assaultTrails.Clear();
+            _lights.Clear();
+            _intensities.Clear();
             if (_cutsceneShower != null)
             {
                 _cutsceneShower.Clear();

@@ -173,7 +173,7 @@ MonoBehaviour:
     anchor: 2
     from: {x: 16, y: 13, z: -18}
     to: {x: 12, y: 9, z: -14}
-    look: {x: 0, y: 3, z: 0}
+    look: {x: 0, y: 16, z: 12}
     fieldOfView: 76
 --- !u!4 &313417791
 Transform:

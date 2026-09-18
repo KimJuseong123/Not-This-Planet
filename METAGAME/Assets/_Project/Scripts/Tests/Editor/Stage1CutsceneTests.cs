@@ -186,7 +186,40 @@ namespace Metagame.Gameplay.Tests
             Assert.That(trigger, Is.Not.Null);
             player.Teleport(trigger.transform.position - Vector3.up, Quaternion.identity);
             deadline = Time.realtimeSinceStartup + 14;
-            while (state.Phase != Stage1SequencePhase.Combat && Time.realtimeSinceStartup < deadline) yield return null;
+            bool sawVolley = false, sawWideVolley = false;
+            while (state.Phase != Stage1SequencePhase.Combat && Time.realtimeSinceStartup < deadline)
+            {
+                var view = Object.FindAnyObjectByType<Stage1CutsceneScene>();
+                if (!sawVolley && view != null && view.IsAssault && state.Age >= 2f)
+                {
+                    var trails = view.GetComponentsInChildren<LineRenderer>();
+                    Assert.That(trails.Length, Is.EqualTo(12), "Assault must show a simultaneous meteor volley.");
+                    foreach (var trail in trails)
+                    {
+                        Assert.That(trail.GetComponentsInChildren<Collider>().Length, Is.Zero);
+                        Assert.That(trail.GetComponentsInChildren<Rigidbody>().Length, Is.Zero);
+                        Assert.That(trail.GetComponentsInChildren<Meteor>().Length, Is.Zero,
+                            "Cinematic meteors must not change gameplay damage or authority.");
+                    }
+                    sawVolley = true;
+                }
+                if (!sawWideVolley && view != null && view.IsAssault && state.Age >= 5.5f)
+                {
+                    int visibleMeteors = 0;
+                    foreach (var trail in view.GetComponentsInChildren<LineRenderer>())
+                    {
+                        Vector3 point = player.Cam.Cam.WorldToViewportPoint(trail.transform.position);
+                        if (point.z > 0 && point.x > 0 && point.x < 1 && point.y > 0.1f && point.y < 0.9f)
+                            visibleMeteors++;
+                    }
+                    Assert.That(visibleMeteors, Is.GreaterThanOrEqualTo(3),
+                        "The final wide shot must frame multiple meteors inside the cinematic bars.");
+                    sawWideVolley = true;
+                }
+                yield return null;
+            }
+            Assert.That(sawVolley, Is.True);
+            Assert.That(sawWideVolley, Is.True);
             yield return new WaitForSecondsRealtime(0.5f);
             Assert.That(state.Phase, Is.EqualTo(Stage1SequencePhase.Combat));
             Assert.That(player.GetEntityId(), Is.EqualTo(playerId));
@@ -195,6 +228,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(player.Cam.enabled, Is.True);
             Assert.That(boot.Session.CinematicInputBlocked, Is.False);
             Assert.That(GameObject.Find("Cutscene meteor shower"), Is.Null, "Cutscene effects must not persist into combat.");
+            Assert.That(GameObject.Find("Assault meteor visual 1"), Is.Null, "Assault models must be removed after the cutscene.");
             Assert.That(boot.GetComponent<Stage1CutsceneFlow>().PlayEntry(), Is.True, "F10 replay route");
             yield return new ExitPlayMode();
         }
