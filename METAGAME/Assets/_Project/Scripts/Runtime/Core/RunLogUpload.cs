@@ -189,13 +189,40 @@ namespace Metagame.Core
             // 마찬가지다. `MaxPerRun` 은 **합계**로 지킨다(서버가 사용자당 6건/창이다).
             return Interleave(
                 PendingIn(FolderOf(RunLog.Path), "*.log", RunLog.Path),
-                PendingIn(FolderOf(PlayEvents.Path), "*" + PlayEvents.Extension, PlayEvents.Path),
+                PendingIn(EventsFolder(), "*" + PlayEvents.Extension, OpenEventFile()),
                 MaxPerRun);
         }
 
         static string FolderOf(string path)
         {
             return string.IsNullOrEmpty(path) ? null : Path.GetDirectoryName(path);
+        }
+
+        /// <summary>
+        /// 이벤트 폴더. <b><see cref="PlayEvents"/> 와 같은 판단을 쓴다</b>
+        /// (<c>!514</c> AI 리뷰).
+        ///
+        /// <para>전에는 <c>PlayEvents.Path</c> 에서 폴더를 역산했다. 그런데 <b>로그인 직후
+        /// 쓸어 담을 때는 이번 실행이 아직 파일을 연 적이 없어</b> 그 값이 비어 있다 —
+        /// 폴더가 <c>null</c> 이 되어 <b>events 를 통째로 건너뛴다.</b> 그게 이 기능의 주
+        /// 경로라, 수집이 조용히 0건이 될 뻔했다.</para>
+        /// </summary>
+        static string EventsFolder()
+        {
+            var resolve = PlayEvents.FolderResolver;
+            return resolve == null ? null : resolve();
+        }
+
+        /// <summary>
+        /// <b>지금 쓰고 있는</b> 이벤트 파일. 닫혀 있으면 없다(<c>!514</c> AI 리뷰).
+        ///
+        /// <para><see cref="PlayEvents.End"/> 는 <c>Path</c> 를 비우지 않는다 — 방금 닫은
+        /// 파일의 이름이 그대로 남는다. 그것을 "쓰는 중" 으로 보고 빼면 <b>판이 끝나며
+        /// 보내려던 바로 그 파일</b>이 목록에서 사라진다. 열려 있을 때만 뺀다.</para>
+        /// </summary>
+        static string OpenEventFile()
+        {
+            return PlayEvents.Open ? PlayEvents.Path : null;
         }
 
         /// <summary>

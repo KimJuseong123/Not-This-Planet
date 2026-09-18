@@ -106,6 +106,63 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
+        /// <b>판이 끝나며 닫은 파일이 실제로 목록에 든다</b> (<c>!514</c> AI 리뷰).
+        ///
+        /// <para><see cref="PlayEvents.End"/> 는 <c>Path</c> 를 비우지 않는다 — 그 값을
+        /// 그대로 "쓰는 중" 으로 보고 빼면 <b>판 끝 전송이 아무것도 안 보낸다.</b>
+        /// 이 이슈가 만든 길이 통째로 헛도는 것이라, 값으로 잡는다.</para>
+        /// </summary>
+        [Test]
+        public void TheFileFromTheMatchThatJustEndedIsSent()
+        {
+            string dir = Temp("justclosed");
+            var saved = PlayEvents.FolderResolver;
+            try
+            {
+                PlayEvents.FolderResolver = () => dir;
+                PlayEvents.Begin(new Dictionary<string, object> { ["build"] = "test" });
+                string written = PlayEvents.Path;
+                Assert.That(written, Is.Not.Empty, "이벤트 파일이 열리지 않아 이 검사가 아무것도 못 본다");
+
+                PlayEvents.End(null);
+
+                Assert.That(RunLogUpload.Pending(), Does.Contain(written),
+                            "방금 닫은 파일을 '쓰는 중' 으로 보고 뺐다 — 판 끝 전송이 아무것도 안 보낸다");
+            }
+            finally
+            {
+                PlayEvents.FolderResolver = saved;
+            }
+        }
+
+        /// <summary>
+        /// <b>이번 실행이 아직 파일을 열지 않았어도 찾는다</b> (<c>!514</c> AI 리뷰).
+        ///
+        /// <para>로그인 직후 쓸어 담기가 그 상태다 — 폴더를 <c>PlayEvents.Path</c> 에서
+        /// 역산하면 그때 빈 값이라 <b>events 를 통째로 건너뛴다.</b> 그것이 이 기능의
+        /// 주 경로이므로 수집이 조용히 0건이 된다.</para>
+        /// </summary>
+        [Test]
+        public void EventsAreFoundBeforeThisRunOpensAnyFile()
+        {
+            string dir = Temp("beforeopen");
+            string older = Path.Combine(dir, "20260101-000000.ndjson");
+            File.WriteAllText(older, "{}");
+
+            var saved = PlayEvents.FolderResolver;
+            try
+            {
+                PlayEvents.FolderResolver = () => dir;
+                Assert.That(RunLogUpload.Pending(), Does.Contain(older),
+                            "이번 실행이 파일을 열기 전에는 events 를 아예 안 본다 — 로그인 직후 쓸어 담기가 그 상태다");
+            }
+            finally
+            {
+                PlayEvents.FolderResolver = saved;
+            }
+        }
+
+        /// <summary>
         /// 모으는 쪽이 <b>두 폴더를 다 본다</b>. 값으로는 잡히지 않는 배선이라 여기서 본다.
         /// </summary>
         [Test]
@@ -115,8 +172,13 @@ namespace Metagame.Gameplay.Tests
                                             "public static List<string> Pending()");
 
             Assert.That(pending, Does.Contain("RunLog.Path"), "평문 로그를 안 모은다");
-            Assert.That(pending, Does.Contain("PlayEvents.Path"), "이벤트를 안 모은다 — 기기에만 쌓인다");
+            Assert.That(pending, Does.Contain("EventsFolder"), "이벤트를 안 모은다 — 기기에만 쌓인다");
             Assert.That(pending, Does.Contain("Interleave"), "한쪽이 굶는 채로 모은다");
+
+            // **폴더를 Path 에서 역산하지 않는다** (`!514` AI 리뷰). 그러면 이번 실행이
+            // 파일을 열기 전에는 events 폴더가 null 이 되어 통째로 건너뛴다.
+            Assert.That(pending, Does.Not.Contain("FolderOf(PlayEvents.Path)"),
+                        "이벤트 폴더를 Path 에서 역산한다 — 파일을 열기 전에는 아무것도 안 본다");
         }
 
         /// <summary>
