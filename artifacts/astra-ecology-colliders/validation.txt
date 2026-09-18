@@ -1,0 +1,6 @@
+PASS
+Mushroom groves: 8
+Ion crystals: 25
+Added: 33
+Reload verified: 33
+Raycast hits: 33

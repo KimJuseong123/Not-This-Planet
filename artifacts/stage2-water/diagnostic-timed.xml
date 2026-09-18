@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="6" result="Passed" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-17 15:43:36Z" end-time="2026-09-17 15:43:38Z" duration="1.2627724">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="1898" result="Passed" start-time="2026-09-17 15:43:36Z" end-time="2026-09-17 15:43:38Z" duration="1.262772" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="3125" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202/METAGAME/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="1862" result="Passed" start-time="2026-09-17 15:43:37Z" end-time="2026-09-17 15:43:38Z" duration="1.181361" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="15120" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="3126" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="1862" result="Passed" start-time="2026-09-17 15:43:37Z" end-time="2026-09-17 15:43:38Z" duration="1.168417" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="3131" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="1813" result="Passed" start-time="2026-09-17 15:43:37Z" end-time="2026-09-17 15:43:38Z" duration="1.156049" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="3132" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="1813" result="Passed" start-time="2026-09-17 15:43:37Z" end-time="2026-09-17 15:43:38Z" duration="1.143917" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="2745" name="Stage2WaterTests" fullname="Metagame.Gameplay.Tests.Stage2WaterTests" classname="Metagame.Gameplay.Tests.Stage2WaterTests" runstate="Runnable" testcasecount="6" result="Passed" start-time="2026-09-17 15:43:37Z" end-time="2026-09-17 15:43:38Z" duration="1.122190" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2746" name="DeepWaterFloatsAscendsDescendsAndStopsAtSurface" fullname="Metagame.Gameplay.Tests.Stage2WaterTests.DeepWaterFloatsAscendsDescendsAndStopsAtSurface" methodname="DeepWaterFloatsAscendsDescendsAndStopsAtSurface" classname="Metagame.Gameplay.Tests.Stage2WaterTests" runstate="Runnable" seed="713656036" result="Passed" start-time="2026-09-17 15:42:41Z" end-time="2026-09-17 15:42:56Z" duration="14.468708" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="2750" name="DownedPlayerCannotUseSwimInputAndReplicaUsesSameStaticVolume" fullname="Metagame.Gameplay.Tests.Stage2WaterTests.DownedPlayerCannotUseSwimInputAndReplicaUsesSameStaticVolume" methodname="DownedPlayerCannotUseSwimInputAndReplicaUsesSameStaticVolume" classname="Metagame.Gameplay.Tests.Stage2WaterTests" runstate="Runnable" seed="1763065109" result="Passed" start-time="2026-09-17 15:42:56Z" end-time="2026-09-17 15:43:03Z" duration="7.308360" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <output><![CDATA[[NotThisPlanet] 비행사 기절 (water test)
+]]></output>
+              </test-case>
+              <test-case id="2749" name="EndRampLetsSwimmerReturnToDryLand" fullname="Metagame.Gameplay.Tests.Stage2WaterTests.EndRampLetsSwimmerReturnToDryLand" methodname="EndRampLetsSwimmerReturnToDryLand" classname="Metagame.Gameplay.Tests.Stage2WaterTests" runstate="Runnable" seed="145180179" result="Passed" start-time="2026-09-17 15:43:03Z" end-time="2026-09-17 15:43:16Z" duration="12.268100" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="2748" name="ExitRespawnAndDisabledWaterRestoreGravity" fullname="Metagame.Gameplay.Tests.Stage2WaterTests.ExitRespawnAndDisabledWaterRestoreGravity" methodname="ExitRespawnAndDisabledWaterRestoreGravity" classname="Metagame.Gameplay.Tests.Stage2WaterTests" runstate="Runnable" seed="1038361693" result="Passed" start-time="2026-09-17 15:43:16Z" end-time="2026-09-17 15:43:23Z" duration="7.327798" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="2747" name="ShallowsSlowWalkingAndBridgeRemainsDry" fullname="Metagame.Gameplay.Tests.Stage2WaterTests.ShallowsSlowWalkingAndBridgeRemainsDry" methodname="ShallowsSlowWalkingAndBridgeRemainsDry" classname="Metagame.Gameplay.Tests.Stage2WaterTests" runstate="Runnable" seed="2032430619" result="Passed" start-time="2026-09-17 15:43:23Z" end-time="2026-09-17 15:43:31Z" duration="8.196844" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="2751" name="TerrainHasShallowBanksDeepBedAndCameraHasRefractionInputs" fullname="Metagame.Gameplay.Tests.Stage2WaterTests.TerrainHasShallowBanksDeepBedAndCameraHasRefractionInputs" methodname="TerrainHasShallowBanksDeepBedAndCameraHasRefractionInputs" classname="Metagame.Gameplay.Tests.Stage2WaterTests" runstate="Runnable" seed="212014749" result="Passed" start-time="2026-09-17 15:43:31Z" end-time="2026-09-17 15:43:38Z" duration="6.535705" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

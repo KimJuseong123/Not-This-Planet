@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="34" result="Failed(Child)" total="34" passed="31" failed="3" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-17 15:36:33Z" end-time="2026-09-17 15:36:35Z" duration="1.3939011">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="1897" result="Failed" site="Child" start-time="2026-09-17 15:36:33Z" end-time="2026-09-17 15:36:35Z" duration="1.393901" total="34" passed="31" failed="3" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="3124" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202/METAGAME/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="1861" result="Failed" site="Child" start-time="2026-09-17 15:36:33Z" end-time="2026-09-17 15:36:35Z" duration="1.308660" total="34" passed="31" failed="3" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="35172" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="3125" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="1861" result="Failed" site="Child" start-time="2026-09-17 15:36:34Z" end-time="2026-09-17 15:36:35Z" duration="1.295912" total="34" passed="31" failed="3" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="3130" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="1812" result="Failed" site="Child" start-time="2026-09-17 15:36:34Z" end-time="2026-09-17 15:36:35Z" duration="1.281082" total="34" passed="31" failed="3" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="3131" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="1812" result="Failed" site="Child" start-time="2026-09-17 15:36:34Z" end-time="2026-09-17 15:36:35Z" duration="1.267453" total="34" passed="31" failed="3" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="2445" name="PlayerFloatTests" fullname="Metagame.Gameplay.Tests.PlayerFloatTests" classname="Metagame.Gameplay.Tests.PlayerFloatTests" runstate="Runnable" testcasecount="12" result="Passed" start-time="2026-09-17 15:34:57Z" end-time="2026-09-17 15:34:58Z" duration="0.338252" total="12" passed="12" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2446" name="FieldVisual_TogglesAndStaysWorldDownWhenCraftRolls" fullname="Metagame.Gameplay.Tests.PlayerFloatTests.FieldVisual_TogglesAndStaysWorldDownWhenCraftRolls" methodname="FieldVisual_TogglesAndStaysWorldDownWhenCraftRolls" classname="Metagame.Gameplay.Tests.PlayerFloatTests" runstate="Runnable" seed="1773096105" result="Passed" start-time="2026-09-17 15:34:57Z" end-time="2026-09-17 15:34:57Z" duration="0.042445" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2457" name="Floating_DoesNotAccumulateAirTime" fullname="Metagame.Gameplay.Tests.PlayerFloatTests.Floating_DoesNotAccumulateAirTime" methodname="Floating_DoesNotAccumulateAirTime" classname="Metagame.Gameplay.Tests.PlayerFloatTests" runstate="Runnable" seed="57952255" result="Passed" start-time="2026-09-17 15:34:57Z" end-time="2026-09-17 15:34:57Z" duration="0.077402" asserts="0">
+                <properties />
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="2453" name="Player_DescendsWithArmsUpInput" fullname="Metagame.Gameplay.Tests.PlayerFloatTests.Player_DescendsWithArmsUpInput" methodname="Player_DescendsWithArmsUpInput" classname="Metagame.Gameplay.Tests.PlayerFloatTests" runstate="Runnable" seed="433001555" result="Passed" start-time="2026-09-17 15:34:57Z" end-time="2026-09-17 15:34:57Z" duration="0.016027" asserts="0">
+                <properties />
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="2449" name="Player_DoesNotFloat_OutsideTheField" fullname="Metagame.Gameplay.Tests.PlayerFloatTests.Player_DoesNotFloat_OutsideTheField" methodname="Player_DoesNotFloat_OutsideTheField" classname="Metagame.Gameplay.Tests.PlayerFloatTests" runstate="Runnable" seed="655563568" result="Passed" start-time="2026-09-17 15:34:57Z" end-time="2026-09-17 15:34:57Z" duration="0.008132" asserts="0">
+                <properties />
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="2450" name="Player_DoesNotFloat_WhenFieldIsOff" fullname="Metagame.Gameplay.Tests.PlayerFloatTests.Player_DoesNotFloat_WhenFieldIsOff" methodname="Player_DoesNotFloat_WhenFieldIsOff" classname="Metagame.Gameplay.Tests.PlayerFloatTests" runstate="Runnable" seed="1357830597" result="Passed" start-time="2026-09-17 15:34:57Z" end-time="2026-09-17 15:34:57Z" duration="0.007637" asserts="0">
+                <properties />
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="2448" name="Player_EntersFloating_InsideTheField" fullname="Metagame.Gameplay.Tests.PlayerFloatTests.Player_EntersFloating_InsideTheField" methodname="Player_EntersFloating_InsideTheField" classname="Metagame.Gameplay.Tests.PlayerFloatTests" runstate="Runnable" seed="1997670312" result="Passed" start-time="2026-09-17 15:34:57Z" end-time="2026-09-17 15:34:57Z" duration="0.008262" asserts="0">
+                <properties />
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="2456" name="Player_FallsAfterFieldTurnsOff" fullname="Metagame.Gameplay.Tests.PlayerFloatTests.Player_FallsAfterFieldTurnsOff" methodname="Player_FallsAfterFieldTurnsOff" classname="Metagame.Gameplay.Tests.PlayerFloatTests" runstate="Runnable" seed="1667128978" result="Passed" start-time="2026-09-17 15:34:57Z" end-time="2026-09-17 15:34:57Z" duration="0.034879" asserts="0">
+                <properties />
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="2447" name="Player_IsLiftedWithoutJump_ThenHoldsHeight" fullname="Metagame.Gameplay.Tests.PlayerFloatTests.Player_IsLiftedWithoutJump_ThenHoldsHeight" methodname="Player_IsLiftedWithoutJump_ThenHoldsHeight" classname="Metagame.Gameplay.Tests.PlayerFloatTests" runstate="Runnable" seed="1286437531" result="Passed" start-time="2026-09-17 15:34:57Z" end-time="2026-09-17 15:34:57Z" duration="0.029381" asserts="0">
+                <properties />
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="2451" name="Player_IsNotPulledTowardTheAxis" fullname="Metagame.Gameplay.Tests.PlayerFloatTests.Player_IsNotPulledTowardTheAxis" methodname="Player_IsNotPulledTowardTheAxis" classname="Metagame.Gameplay.Tests.PlayerFloatTests" runstate="Runnable" seed="1614527508" result="Passed" start-time="2026-09-17 15:34:57Z" end-time="2026-09-17 15:34:57Z" duration="0.017308" asserts="0">
+                <properties />
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="2455" name="Player_RegainsGravityWhileStillRisingWhenFieldTurnsOff" fullname="Metagame.Gameplay.Tests.PlayerFloatTests.Player_RegainsGravityWhileStillRisingWhenFieldTurnsOff" methodname="Player_RegainsGravityWhileStillRisingWhenFieldTurnsOff" classname="Metagame.Gameplay.Tests.PlayerFloatTests" runstate="Runnable" seed="1686840408" result="Passed" start-time="2026-09-17 15:34:57Z" end-time="2026-09-17 15:34:58Z" duration="0.015609" asserts="0">
+                <properties />
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="2452" name="Player_RisesWithJumpInput" fullname="Metagame.Gameplay.Tests.PlayerFloatTests.Player_RisesWithJumpInput" methodname="Player_RisesWithJumpInput" classname="Metagame.Gameplay.Tests.PlayerFloatTests" runstate="Runnable" seed="712618675" result="Passed" start-time="2026-09-17 15:34:58Z" end-time="2026-09-17 15:34:58Z" duration="0.032685" asserts="0">
+                <properties />
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="2454" name="Player_StopsRisingAfterReleasingInput" fullname="Metagame.Gameplay.Tests.PlayerFloatTests.Player_StopsRisingAfterReleasingInput" methodname="Player_StopsRisingAfterReleasingInput" classname="Metagame.Gameplay.Tests.PlayerFloatTests" runstate="Runnable" seed="531439056" result="Passed" start-time="2026-09-17 15:34:58Z" end-time="2026-09-17 15:34:58Z" duration="0.026425" asserts="0">
+                <properties />
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="2724" name="Stage2ArtTests" fullname="Metagame.Gameplay.Tests.Stage2ArtTests" classname="Metagame.Gameplay.Tests.Stage2ArtTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-17 15:35:07Z" end-time="2026-09-17 15:35:07Z" duration="0.674833" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2725" name="AuthoredModelsKeepThreeBodiesAndOpenWalkingRoutes" fullname="Metagame.Gameplay.Tests.Stage2ArtTests.AuthoredModelsKeepThreeBodiesAndOpenWalkingRoutes" methodname="AuthoredModelsKeepThreeBodiesAndOpenWalkingRoutes" classname="Metagame.Gameplay.Tests.Stage2ArtTests" runstate="Runnable" seed="1480703223" result="Passed" start-time="2026-09-17 15:34:58Z" end-time="2026-09-17 15:34:58Z" duration="0.767737" asserts="0">
+                <properties />
+                <output><![CDATA[[Stage2Art] Scene validation passed: 26 interactions, 9 bolts, 3 independent rocket modules.
+[Stage2 Terrain] Heightmap, four paint layers, collider and level work areas verified.
+]]></output>
+              </test-case>
+              <test-case id="2726" name="ReplicaMovesCraneLidLiftAndLadderArtWithoutNewNetworkObjects" fullname="Metagame.Gameplay.Tests.Stage2ArtTests.ReplicaMovesCraneLidLiftAndLadderArtWithoutNewNetworkObjects" methodname="ReplicaMovesCraneLidLiftAndLadderArtWithoutNewNetworkObjects" classname="Metagame.Gameplay.Tests.Stage2ArtTests" runstate="Runnable" seed="375352822" result="Passed" start-time="2026-09-17 15:34:58Z" end-time="2026-09-17 15:35:07Z" duration="9.025038" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="2727" name="Stage2ContaminationTests" fullname="Metagame.Gameplay.Tests.Stage2ContaminationTests" classname="Metagame.Gameplay.Tests.Stage2ContaminationTests" runstate="Runnable" testcasecount="5" result="Passed" start-time="2026-09-17 15:35:38Z" end-time="2026-09-17 15:35:39Z" duration="0.635043" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2728" name="CycleHasSafeIntroductionWarningLeakAndRest" fullname="Metagame.Gameplay.Tests.Stage2ContaminationTests.CycleHasSafeIntroductionWarningLeakAndRest" methodname="CycleHasSafeIntroductionWarningLeakAndRest" classname="Metagame.Gameplay.Tests.Stage2ContaminationTests" runstate="Runnable" seed="1067702259" result="Passed" start-time="2026-09-17 15:35:07Z" end-time="2026-09-17 15:35:14Z" duration="6.243356" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="2729" name="ExposureUsesHeightBoundsAndDoesNotStackOverlappingVolumes" fullname="Metagame.Gameplay.Tests.Stage2ContaminationTests.ExposureUsesHeightBoundsAndDoesNotStackOverlappingVolumes" methodname="ExposureUsesHeightBoundsAndDoesNotStackOverlappingVolumes" classname="Metagame.Gameplay.Tests.Stage2ContaminationTests" runstate="Runnable" seed="2079162703" result="Passed" start-time="2026-09-17 15:35:14Z" end-time="2026-09-17 15:35:20Z" duration="6.241508" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="2731" name="ShowerCleansAndFullExposureDownsWithoutHealingBySpray" fullname="Metagame.Gameplay.Tests.Stage2ContaminationTests.ShowerCleansAndFullExposureDownsWithoutHealingBySpray" methodname="ShowerCleansAndFullExposureDownsWithoutHealingBySpray" classname="Metagame.Gameplay.Tests.Stage2ContaminationTests" runstate="Runnable" seed="542666883" result="Passed" start-time="2026-09-17 15:35:20Z" end-time="2026-09-17 15:35:26Z" duration="6.202921" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <output><![CDATA[[NotThisPlanet] 비행사 기절 (유독물질 오염 — 동료 제독 후 G 구조)
+]]></output>
+              </test-case>
+              <test-case id="2732" name="SprayReachesUpperFloorButRejectsRangeAndAngleAndReplicaCannotSimulate" fullname="Metagame.Gameplay.Tests.Stage2ContaminationTests.SprayReachesUpperFloorButRejectsRangeAndAngleAndReplicaCannotSimulate" methodname="SprayReachesUpperFloorButRejectsRangeAndAngleAndReplicaCannotSimulate" classname="Metagame.Gameplay.Tests.Stage2ContaminationTests" runstate="Runnable" seed="330914620" result="Passed" start-time="2026-09-17 15:35:26Z" end-time="2026-09-17 15:35:32Z" duration="6.201693" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="2730" name="WalkingBackToSpawnDoesNotReplaceShowerButRespawnCleans" fullname="Metagame.Gameplay.Tests.Stage2ContaminationTests.WalkingBackToSpawnDoesNotReplaceShowerButRespawnCleans" methodname="WalkingBackToSpawnDoesNotReplaceShowerButRespawnCleans" classname="Metagame.Gameplay.Tests.Stage2ContaminationTests" runstate="Runnable" seed="2033007949" result="Passed" start-time="2026-09-17 15:35:32Z" end-time="2026-09-17 15:35:39Z" duration="6.246116" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="2733" name="Stage2Tests" fullname="Metagame.Gameplay.Tests.Stage2Tests" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" testcasecount="10" result="Passed" start-time="2026-09-17 15:35:59Z" end-time="2026-09-17 15:36:01Z" duration="2.333160" total="10" passed="10" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2734" name="CranePolarCoordinatesReachAllStoresAndSockets" fullname="Metagame.Gameplay.Tests.Stage2Tests.CranePolarCoordinatesReachAllStoresAndSockets" methodname="CranePolarCoordinatesReachAllStoresAndSockets" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" seed="1140482933" result="Passed" start-time="2026-09-17 15:35:39Z" end-time="2026-09-17 15:35:39Z" duration="0.005000" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2739" name="MouseCircleCountsTurnsButStraightAndZigzagDoNot" fullname="Metagame.Gameplay.Tests.Stage2Tests.MouseCircleCountsTurnsButStraightAndZigzagDoNot" methodname="MouseCircleCountsTurnsButStraightAndZigzagDoNot" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" seed="164860698" result="Passed" start-time="2026-09-17 15:35:39Z" end-time="2026-09-17 15:35:39Z" duration="0.000836" asserts="0">
+                <properties />
+              </test-case>
+              <test-case id="2740" name="PartialBoltsCannotCarryTheRocket" fullname="Metagame.Gameplay.Tests.Stage2Tests.PartialBoltsCannotCarryTheRocket" methodname="PartialBoltsCannotCarryTheRocket" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" seed="1657768212" result="Passed" start-time="2026-09-17 15:35:39Z" end-time="2026-09-17 15:35:39Z" duration="0.000605" asserts="0">
+                <properties />
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="2738" name="PlacementRejectsDistanceAndTilt" fullname="Metagame.Gameplay.Tests.Stage2Tests.PlacementRejectsDistanceAndTilt" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-09-17 15:35:39Z" end-time="2026-09-17 15:35:39Z" duration="0.003937" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="2735" name="PlacementRejectsDistanceAndTilt(0.64f,11.0f,True)" fullname="Metagame.Gameplay.Tests.Stage2Tests.PlacementRejectsDistanceAndTilt(0.64f,11.0f,True)" methodname="PlacementRejectsDistanceAndTilt" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" seed="1353546660" result="Passed" start-time="2026-09-17 15:35:39Z" end-time="2026-09-17 15:35:39Z" duration="0.002076" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="2736" name="PlacementRejectsDistanceAndTilt(0.7f,0.0f,False)" fullname="Metagame.Gameplay.Tests.Stage2Tests.PlacementRejectsDistanceAndTilt(0.7f,0.0f,False)" methodname="PlacementRejectsDistanceAndTilt" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" seed="896947726" result="Passed" start-time="2026-09-17 15:35:39Z" end-time="2026-09-17 15:35:39Z" duration="0.000127" asserts="0">
+                  <properties />
+                </test-case>
+                <test-case id="2737" name="PlacementRejectsDistanceAndTilt(0.0f,13.0f,False)" fullname="Metagame.Gameplay.Tests.Stage2Tests.PlacementRejectsDistanceAndTilt(0.0f,13.0f,False)" methodname="PlacementRejectsDistanceAndTilt" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" seed="1929297485" result="Passed" start-time="2026-09-17 15:35:39Z" end-time="2026-09-17 15:35:39Z" duration="0.000093" asserts="0">
+                  <properties />
+                </test-case>
+              </test-suite>
+              <test-case id="2741" name="SceneHasUniqueInteractionsAndNoStage1Tools" fullname="Metagame.Gameplay.Tests.Stage2Tests.SceneHasUniqueInteractionsAndNoStage1Tools" methodname="SceneHasUniqueInteractionsAndNoStage1Tools" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" seed="172503748" result="Passed" start-time="2026-09-17 15:35:39Z" end-time="2026-09-17 15:35:39Z" duration="0.011940" asserts="0">
+                <properties />
+                <output><![CDATA[Unloading the last loaded scene Assets/Scenes/Stage2_Earth.unity(build index: 8), is not supported. Please use SceneManager.LoadScene()/EditorSceneManager.OpenScene() to switch to another scene.
+]]></output>
+              </test-case>
+              <test-case id="2742" name="SceneRunsAndHostEnforcesRangeOccupancyAssemblyAndRecovery" fullname="Metagame.Gameplay.Tests.Stage2Tests.SceneRunsAndHostEnforcesRangeOccupancyAssemblyAndRecovery" methodname="SceneRunsAndHostEnforcesRangeOccupancyAssemblyAndRecovery" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" seed="1721166364" result="Passed" start-time="2026-09-17 15:35:39Z" end-time="2026-09-17 15:35:46Z" duration="7.041550" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <output><![CDATA[[Stage2Visual] M_Stage2_Steel RGBA(0.080, 0.130, 0.160, 1.000) Universal Render Pipeline/Lit
+[NotThisPlanet] 도착 — 1.0초, 추락 0회
+]]></output>
+              </test-case>
+              <test-case id="2743" name="SprayCleansTeammateButCannotCrossWallOrCleanSelf" fullname="Metagame.Gameplay.Tests.Stage2Tests.SprayCleansTeammateButCannotCrossWallOrCleanSelf" methodname="SprayCleansTeammateButCannotCrossWallOrCleanSelf" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" seed="1409147626" result="Passed" start-time="2026-09-17 15:35:46Z" end-time="2026-09-17 15:35:54Z" duration="8.682389" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="2744" name="Stage1EndingContinuesIntoStage2WithFreshGameplay" fullname="Metagame.Gameplay.Tests.Stage2Tests.Stage1EndingContinuesIntoStage2WithFreshGameplay" methodname="Stage1EndingContinuesIntoStage2WithFreshGameplay" classname="Metagame.Gameplay.Tests.Stage2Tests" runstate="Runnable" seed="905769890" result="Passed" start-time="2026-09-17 15:35:54Z" end-time="2026-09-17 15:36:01Z" duration="6.834201" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <output><![CDATA[[백엔드] https://j15b202.p.ssafy.io:443/dev  (개발)
+]]></output>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="2745" name="Stage2WaterTests" fullname="Metagame.Gameplay.Tests.Stage2WaterTests" classname="Metagame.Gameplay.Tests.Stage2WaterTests" runstate="Runnable" testcasecount="5" result="Failed" site="Child" start-time="2026-09-17 15:36:34Z" end-time="2026-09-17 15:36:35Z" duration="1.156657" total="5" passed="2" failed="3" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="2746" name="DeepWaterFloatsAscendsDescendsAndStopsAtSurface" fullname="Metagame.Gameplay.Tests.Stage2WaterTests.DeepWaterFloatsAscendsDescendsAndStopsAtSurface" methodname="DeepWaterFloatsAscendsDescendsAndStopsAtSurface" classname="Metagame.Gameplay.Tests.Stage2WaterTests" runstate="Runnable" seed="1025003781" result="Failed" start-time="2026-09-17 15:36:01Z" end-time="2026-09-17 15:36:08Z" duration="6.458549" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  Expected: greater than -0.600058913f
+  But was:  -1.07404685f
+]]></message>
+                  <stack-trace><![CDATA[at Metagame.Gameplay.Tests.Stage2WaterTests+<DeepWaterFloatsAscendsDescendsAndStopsAtSurface>d__6.MoveNext () [0x00180] in C:\workspace\2-PJT\S15P21B202\METAGAME\Assets\_Project\Scripts\Tests\Editor\Stage2WaterTests.cs:40
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in .\Library\PackageCache\com.unity.test-framework@1405238725ab\UnityEngine.TestRunner\NUnitExtensions\Attributes\TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+              </test-case>
+              <test-case id="2749" name="DownedPlayerCannotUseSwimInputAndReplicaUsesSameStaticVolume" fullname="Metagame.Gameplay.Tests.Stage2WaterTests.DownedPlayerCannotUseSwimInputAndReplicaUsesSameStaticVolume" methodname="DownedPlayerCannotUseSwimInputAndReplicaUsesSameStaticVolume" classname="Metagame.Gameplay.Tests.Stage2WaterTests" runstate="Runnable" seed="2057624992" result="Failed" start-time="2026-09-17 15:36:08Z" end-time="2026-09-17 15:36:14Z" duration="6.470799" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  Expected: greater than -0.899999976f
+  But was:  -0.997596502f
+]]></message>
+                  <stack-trace><![CDATA[at Metagame.Gameplay.Tests.Stage2WaterTests+<DownedPlayerCannotUseSwimInputAndReplicaUsesSameStaticVolume>d__9.MoveNext () [0x00192] in C:\workspace\2-PJT\S15P21B202\METAGAME\Assets\_Project\Scripts\Tests\Editor\Stage2WaterTests.cs:78
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in .\Library\PackageCache\com.unity.test-framework@1405238725ab\UnityEngine.TestRunner\NUnitExtensions\Attributes\TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[[NotThisPlanet] 비행사 기절 (water test)
+]]></output>
+              </test-case>
+              <test-case id="2748" name="ExitRespawnAndDisabledWaterRestoreGravity" fullname="Metagame.Gameplay.Tests.Stage2WaterTests.ExitRespawnAndDisabledWaterRestoreGravity" methodname="ExitRespawnAndDisabledWaterRestoreGravity" classname="Metagame.Gameplay.Tests.Stage2WaterTests" runstate="Runnable" seed="1664499182" result="Passed" start-time="2026-09-17 15:36:14Z" end-time="2026-09-17 15:36:21Z" duration="6.990417" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="2747" name="ShallowsSlowWalkingAndBridgeRemainsDry" fullname="Metagame.Gameplay.Tests.Stage2WaterTests.ShallowsSlowWalkingAndBridgeRemainsDry" methodname="ShallowsSlowWalkingAndBridgeRemainsDry" classname="Metagame.Gameplay.Tests.Stage2WaterTests" runstate="Runnable" seed="1013548059" result="Passed" start-time="2026-09-17 15:36:21Z" end-time="2026-09-17 15:36:28Z" duration="6.687286" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="2750" name="TerrainHasShallowBanksDeepBedAndCameraHasRefractionInputs" fullname="Metagame.Gameplay.Tests.Stage2WaterTests.TerrainHasShallowBanksDeepBedAndCameraHasRefractionInputs" methodname="TerrainHasShallowBanksDeepBedAndCameraHasRefractionInputs" classname="Metagame.Gameplay.Tests.Stage2WaterTests" runstate="Runnable" seed="105177016" result="Failed" start-time="2026-09-17 15:36:28Z" end-time="2026-09-17 15:36:35Z" duration="6.883625" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[Unhandled log message: '[Error] Releasing render texture that is set as Camera.targetTexture!'. Use UnityEngine.TestTools.LogAssert.Expect]]></message>
+                  <stack-trace><![CDATA[UnityEngine.Object:DestroyImmediate (UnityEngine.Object)
+Metagame.EditorTools.Stage2WaterAuthoring:Render () (at Assets/_Project/Scripts/Editor/Stage2WaterAuthoring.cs:135)
+Metagame.Gameplay.Tests.Stage2WaterTests/<TerrainHasShallowBanksDeepBedAndCameraHasRefractionInputs>d__10:MoveNext () (at Assets/_Project/Scripts/Tests/Editor/Stage2WaterTests.cs:90)
+UnityEditor.EditorApplication:Internal_CallUpdateFunctions ()
+
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[Releasing render texture that is set as Camera.targetTexture!
+Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>
