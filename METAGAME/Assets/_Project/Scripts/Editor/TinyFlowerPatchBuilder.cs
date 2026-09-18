@@ -12,8 +12,6 @@ namespace Metagame.EditorTools
         private const string TexturePath = Root + "/Textures/TinyFlowerPalette.asset";
         private const string MaterialPath = Root + "/Materials/TinyFlowerPatch.mat";
         private const string PrefabPath = Root + "/Prefabs/PF_TinyFlowerPatch.prefab";
-        private const int GeneratorVersion = 10;
-        private const string GeneratorVersionKey = "Metagame.TinyFlowerPatch.Version";
 
         [SerializeField, Min(1)] private int flowerCount = 48;
         [SerializeField, Min(0.1f)] private float patchRadius = 2.6f;
@@ -23,22 +21,6 @@ namespace Metagame.EditorTools
 
         [MenuItem("Tools/Not This Planet/Vegetation/작은 꽃밭 만들기", false, 20)]
         private static void Open() => GetWindow<TinyFlowerPatchBuilder>("작은 꽃밭");
-
-        [InitializeOnLoadMethod]
-        private static void CreateDefaultAssetOnce()
-        {
-            EditorApplication.delayCall += () =>
-            {
-                if (EditorPrefs.GetInt(GeneratorVersionKey, 0) >= GeneratorVersion &&
-                    AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath) != null) return;
-
-                var window = CreateInstance<TinyFlowerPatchBuilder>();
-                window.placeInCurrentScene = false;
-                window.Build();
-                DestroyImmediate(window);
-                EditorPrefs.SetInt(GeneratorVersionKey, GeneratorVersion);
-            };
-        }
 
         [MenuItem("Tools/Not This Planet/Vegetation/기본 작은 꽃밭 바로 생성", false, 21)]
         public static void BuildDefault()
@@ -423,14 +405,15 @@ namespace Metagame.EditorTools
         private static Vector2 PaletteUv(int index) => new Vector2((index + 0.5f) / 8f, 0.5f);
         private static float Next(System.Random random, float min, float max) => min + (float)random.NextDouble() * (max - min);
 
-        private static Texture2D CreateOrReplacePalette()
+        private static Texture2D CreateOrReplacePalette(string assetPath = TexturePath)
         {
-            var texture = new Texture2D(8, 1, TextureFormat.RGBA32, false, false)
-            {
-                name = "TinyFlowerPalette",
-                filterMode = FilterMode.Point,
-                wrapMode = TextureWrapMode.Clamp
-            };
+            var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(assetPath);
+            bool isNew = texture == null;
+            if (isNew) texture = new Texture2D(8, 1, TextureFormat.RGBA32, false, false);
+            else texture.Reinitialize(8, 1, TextureFormat.RGBA32, false);
+            texture.name = "TinyFlowerPalette";
+            texture.filterMode = FilterMode.Point;
+            texture.wrapMode = TextureWrapMode.Clamp;
             texture.SetPixels32(new[]
             {
                 new Color32(71, 111, 66, 255),
@@ -444,8 +427,8 @@ namespace Metagame.EditorTools
             });
             texture.Apply(false, false);
 
-            AssetDatabase.DeleteAsset(TexturePath);
-            AssetDatabase.CreateAsset(texture, TexturePath);
+            if (isNew) AssetDatabase.CreateAsset(texture, assetPath);
+            else EditorUtility.SetDirty(texture);
             return texture;
         }
 
@@ -473,10 +456,24 @@ namespace Metagame.EditorTools
             return material;
         }
 
-        private static void SaveOrReplaceMesh(Mesh mesh)
+        private static void SaveOrReplaceMesh(Mesh mesh, string assetPath = MeshPath)
         {
-            AssetDatabase.DeleteAsset(MeshPath);
-            AssetDatabase.CreateAsset(mesh, MeshPath);
+            var existing = AssetDatabase.LoadAssetAtPath<Mesh>(assetPath);
+            if (existing == null)
+            {
+                AssetDatabase.CreateAsset(mesh, assetPath);
+                return;
+            }
+
+            existing.Clear();
+            existing.indexFormat = mesh.indexFormat;
+            existing.SetVertices(mesh.vertices);
+            existing.SetNormals(mesh.normals);
+            existing.SetUVs(0, mesh.uv);
+            existing.SetTriangles(mesh.triangles, 0);
+            existing.bounds = mesh.bounds;
+            EditorUtility.SetDirty(existing);
+            DestroyImmediate(mesh);
         }
 
         private static void EnsureFolders()

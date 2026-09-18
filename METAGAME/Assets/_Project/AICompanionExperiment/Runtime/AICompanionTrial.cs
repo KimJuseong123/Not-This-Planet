@@ -239,7 +239,7 @@ namespace Metagame.AIExperiment
         string NoteUnclear(string message)
         {
             if (++_unclearStreak < UnclearHintAfter) return message;
-            Trace("발화 안내", $"연속 {_unclearStreak}회 인식 실패 · {SpeechHint}");
+            // TraceReceipt records the complete message once, including this hint.
             return message + " · " + SpeechHint;
         }
 
