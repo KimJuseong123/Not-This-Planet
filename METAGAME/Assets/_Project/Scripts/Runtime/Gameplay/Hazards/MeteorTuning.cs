@@ -26,6 +26,8 @@ namespace Metagame.Gameplay.Hazards
         [SerializeField, Min(0f)] float _shockwaveKnockSpeed = PhysicsScale.MeteorShockwaveKnockSpeed;
         [SerializeField, Min(0f)] float _shockwaveLift = PhysicsScale.MeteorShockwaveLift;
         [SerializeField, Min(0f)] float _shockwaveStaggerSeconds = PhysicsScale.MeteorShockwaveStaggerSeconds;
+        [SerializeField, Min(0f)] float _partKnockSpeed = PhysicsScale.MeteorPartKnockSpeed;
+        [SerializeField, Min(0f)] float _partKnockSpin = PhysicsScale.MeteorPartKnockSpin;
 
         [Header("정착·흔적")]
         [SerializeField, Min(0f)] float _restSpeed = PhysicsScale.MeteorRestSpeed;
@@ -61,6 +63,10 @@ namespace Metagame.Gameplay.Hazards
         public float ShockwaveKnockSpeed => _shockwaveKnockSpeed;
         public float ShockwaveLift => _shockwaveLift;
         public float ShockwaveStaggerSeconds => _shockwaveStaggerSeconds;
+
+        /// <summary>운석이 파츠를 미는 속도(m/s). 0 이면 파츠가 밀리지 않는다.</summary>
+        public float PartKnockSpeed => _partKnockSpeed;
+        public float PartKnockSpin => _partKnockSpin;
 
         public float RestSpeed => _restSpeed;
         public float RestSeconds => _restSeconds;

@@ -1001,6 +1001,88 @@ namespace Metagame.Gameplay
         public const float MeteorImpactUpwardsModifier = 0.4f;
 
         /// <summary>
+        /// 운석이 <b>파츠</b>를 미는 속도(m/s). 착탄점에서 멀수록 줄어든다.
+        ///
+        /// <b>폭발력으로는 파츠가 꿈쩍도 안 한다.</b> 놓인 파츠는
+        /// <see cref="PartMass"/>(500kg)이라 <see cref="MeteorImpactForce"/> 900N 을
+        /// <c>ForceMode.Force</c> 로 한 스텝 주면 0.036m/s 다 — 기체(80kg)가 0.11m/s 로
+        /// 안 움직여 <see cref="CraftImpactSpeed"/> 를 직접 주기로 한 것과 같은 계산이고,
+        /// 파츠는 그보다 여섯 배 무겁다. 그래서 속도로 준다.
+        ///
+        /// <b>-247 의 판단을 뒤집는다.</b> 그때는 파츠를 폭발 대상에서 아예 뺐다 —
+        /// "파츠에 폭발력을 더 얹으면 조인트가 끊어질지를 상수가 결정해 버린다" 는
+        /// 이유였다. 2026-09-18 플레이 확인에서 <b>파츠가 거의 안 날아갔다.</b>
+        /// 운석이 조립을 흐트러뜨리는 것은 이 게임의 중심 긴장이고
+        /// (<see cref="Hazards.Meteor"/> 의 클래스 주석), 지금은 운석 <b>본체가 직접
+        /// 맞힌</b> 파츠만 그 일을 겪는다.
+        ///
+        /// <b>그래도 끊을지는 여전히 솔버가 정한다.</b> 여기서 주는 것은 속도뿐이고,
+        /// 그 속도가 조인트에 만드는 힘이 <c>breakForce</c> 를 넘는지는 용접 정도가
+        /// 정한다 — 상수가 결과를 정하지 않는다.
+        /// </summary>
+        public const float MeteorPartKnockSpeed = 3f;
+
+        /// <summary>
+        /// 운석이 파츠에 주는 각속도(rad/s). 미는 방향과 수직인 수평축으로 넘어간다.
+        ///
+        /// <see cref="CraftImpactSpin"/> 과 같은 모양이다. 회전이 없으면 무거운 상자가
+        /// 미끄러지기만 해서 "밀렸다" 로 보이지 <b>"맞았다"</b> 로 보이지 않는다.
+        /// </summary>
+        public const float MeteorPartKnockSpin = 2f;
+
+        /// <summary>
+        /// 공세가 두 배로 세지는 데 걸리는 시간(분). 기획 §17.4 표 <b>위에</b> 얹는다.
+        ///
+        /// <b>표만으로는 20분에서 멈춘다.</b> §17.4 의 마지막 칸이 "20분~ · 15초 · 5개"
+        /// 하나이고 그 뒤로는 영원히 같다 — 2026-09-18 플레이 확인의 "진행될수록 점점 더
+        /// 강하게" 가 그것이다. 표는 다섯 칸짜리 <b>계단</b>이라 칸 안에서도 변화가 없다.
+        ///
+        /// <b>계단을 없애지 않는다.</b> <see cref="Hazards.MeteorSpawner.IntervalAt"/> 이
+        /// 적어 둔 대로 공세는 하나씩 흐르는 것이 아니라 <b>묶음</b>으로 와야 §17.3 의
+        /// "5초 전 신호" 가 붙을 자리가 있다. 바뀌는 것은 묶음의 세기와 간격뿐이고
+        /// 묶음이라는 구조는 그대로다.
+        ///
+        /// 15분에 ×2, 30분에 ×3, 45분에 ×4. 끝이 없다 — 오래 끌수록 불리해야
+        /// 발사를 서두른다.
+        /// </summary>
+        public const float MeteorEscalationRampMinutes = 15f;
+
+        /// <summary>
+        /// 아무리 세져도 공세 간격은 이보다 짧아지지 않는다(초).
+        ///
+        /// 5초는 §17.3 의 신호 시간(<see cref="MeteorWaveLeadSeconds"/>)과 같다. 더
+        /// 줄이면 신호가 이전 공세 안에서 울려 <b>무엇을 예고하는지 알 수 없다.</b>
+        /// </summary>
+        public const float MeteorEscalationIntervalFloor = 5f;
+
+        /// <summary>
+        /// 한 공세의 운석 수 상한. 인원 보정(§17.6) 전에 자른다.
+        ///
+        /// 8개는 <c>MeteorWavePreset</c> 의 "과부하"(6~7)보다 한 칸 위다 — 그 프리셋이
+        /// "일부러 넘긴 값 · 혼자서는 못 지나가는 경계" 이므로, 시간이 끌리면 그보다
+        /// 조금 더 나쁜 곳까지는 갈 수 있어야 한다.
+        /// </summary>
+        public const int MeteorEscalationCountCap = 8;
+
+        /// <summary>분당 오르는 중형 확률. <b>표가 이미 중형을 허용한 뒤에만</b> 더한다.</summary>
+        public const float MeteorEscalationMediumPerMinute = 0.012f;
+
+        /// <summary>중형 확률 상한. 절반을 넘기되 소형이 다수로 남는 선.</summary>
+        public const float MeteorEscalationMediumCap = 0.65f;
+
+        /// <summary>분당 오르는 충격 반경 배율.</summary>
+        public const float MeteorEscalationRadiusPerMinute = 0.02f;
+
+        /// <summary>
+        /// 충격 반경 배율 상한. 30분에 닿는다.
+        ///
+        /// 소형 2m → 3.2m, 중형 3.5m → 5.6m. 충격파는 여기에
+        /// <see cref="MeteorShockwaveRadiusScale"/> 이 또 곱해지므로 소형도 5.8m 까지
+        /// 간다 — 더 키우면 아레나 어디에 서 있어도 맞는다.
+        /// </summary>
+        public const float MeteorEscalationRadiusCap = 1.6f;
+
+        /// <summary>
         /// 착탄 지점의 지면을 찾을 때 위에서 아래로 훑는 높이(m).
         ///
         /// <b>예전에는 훑지 않았다.</b> 스폰 영역 transform 의 y 를 그대로 착탄 지점의

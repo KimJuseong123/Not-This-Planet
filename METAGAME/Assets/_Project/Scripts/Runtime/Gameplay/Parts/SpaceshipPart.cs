@@ -303,6 +303,55 @@ namespace Metagame.Gameplay.Parts
             _ => false,
         };
 
+        /// <summary>
+        /// 운석 충격파가 이 파츠를 민다(2026-09-18).
+        ///
+        /// <para><b>속도로 준다.</b> 놓인 파츠는 <see cref="PhysicsScale.PartMass"/>
+        /// (500kg)이라 <c>AddExplosionForce</c> 의 900N 을 한 물리 스텝 받아 봐야
+        /// 0.036m/s 다 — 기체(80kg)가 폭발력으로 안 움직여
+        /// <see cref="TransportVehicle.TakeMeteorImpact"/> 가 속도를 직접 주는 것과
+        /// 같은 계산이고, 파츠는 그보다 여섯 배 무겁다.</para>
+        ///
+        /// <para><b>회전도 같이 준다.</b> 미는 방향과 수직인 수평축으로 넘어간다.
+        /// 회전이 없으면 무거운 상자가 미끄러지기만 해서 "밀렸다" 로 보이지
+        /// <b>"맞았다"</b> 로 보이지 않는다.</para>
+        ///
+        /// <para><b>끊을지는 여전히 솔버가 정한다.</b> 여기서 주는 것은 속도뿐이고,
+        /// 그 속도가 조인트에 만드는 힘이 <c>breakForce</c> 를 넘는지는 용접 정도가
+        /// 정한다 — 상수가 결과를 정하지 않는다
+        /// (<see cref="Hazards.Meteor"/> 의 클래스 주석과 같은 원칙).</para>
+        /// </summary>
+        /// <param name="point">착탄 지점.</param>
+        /// <param name="reach">이 거리에서 0 이 되도록 선형으로 준다.</param>
+        /// <param name="speed">착탄점에서의 속도 변화(m/s).</param>
+        /// <param name="spin">착탄점에서의 각속도 변화(rad/s).</param>
+        /// <returns>실제로 밀었으면 true.</returns>
+        public bool TakeMeteorBlast(Vector3 point, float reach, float speed, float spin)
+        {
+            if (_body == null) _body = GetComponent<Rigidbody>();
+            if (_body == null || _body.isKinematic) return false;
+
+            // <b>고정쇠에 박힌 파츠는 움직이지 않는다</b> — <see cref="PartState.Locked"/>
+            // 의 정의가 "운석에 맞아도 움직이지 않는다" 다. 견인 중인 파츠도 뺀다:
+            // 빔이 자세를 잡고 있는데 여기서 속도를 얹으면 둘이 같은 강체를 두고 다툰다.
+            if (_state is PartState.Locked or PartState.Carried) return false;
+
+            var offset = _body.worldCenterOfMass - point;
+            var falloff = reach > 0f ? Mathf.Clamp01(1f - offset.magnitude / reach) : 1f;
+            if (falloff <= 0f) return false;
+
+            // 착탄점이 지면이고 파츠의 무게중심은 그보다 위에 있으므로, 이 방향에는
+            // 위로 뜨는 성분이 이미 들어 있다 — 따로 더하지 않는다.
+            var away = offset.sqrMagnitude > 1e-6f ? offset.normalized : Vector3.up;
+
+            var axis = Vector3.Cross(Vector3.up, away);
+            if (axis.sqrMagnitude < 1e-6f) axis = Vector3.right;
+
+            _body.linearVelocity += away * (speed * falloff);
+            _body.angularVelocity += axis.normalized * (spin * falloff);
+            return true;
+        }
+
         /// <summary>놓였을 때의 질량. 명세가 없으면 예전 고정값으로 돌아간다.</summary>
         public float PlacedMass => _placedMass > 0f ? _placedMass : PhysicsScale.PartMass;
 

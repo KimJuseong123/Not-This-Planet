@@ -307,7 +307,25 @@ namespace Metagame.Gameplay.Hazards
         /// <b>예고 원·운석·흔적이 모두 이 값을 거쳐야 한다.</b> 한 곳이라도 빠지면 §17.2 의
         /// "실제 충격 범위와 같은 크기" 가 깨져, 원 밖인데 맞거나 원 안인데 멀쩡해진다.
         /// </summary>
-        public float ImpactRadiusScale => WaveBandAt(_elapsed).ImpactRadiusScale;
+        public float ImpactRadiusScale
+        {
+            get
+            {
+                // 예고 원이 매 프레임 읽는 값이다 — 시간대를 두 번 찾지 않는다.
+                var band = WaveBandAt(_elapsed).ImpactRadiusScale;
+                return Escalating ? MeteorEscalation.RadiusScaleFor(band, _elapsed) : band;
+            }
+        }
+
+        /// <summary>
+        /// 경과 시간에 따른 조임(<see cref="MeteorEscalation"/>)을 적용하는가.
+        ///
+        /// <b>프리셋을 고른 동안은 끈다.</b> <see cref="MeteorWavePreset"/> 은 "강도 하나를
+        /// 고정해 같은 조건을 몇 번이고 반복해 재는" 장치이고, 그 문서가 "프리셋의 개수는
+        /// <b>본 그대로</b> 나온다" 고 약속한다 — 시계가 끼어들면 버튼에 적힌 초와 실제가
+        /// 갈린다.
+        /// </summary>
+        bool Escalating => _pinnedBand == null;
 
         /// <summary>크기별 충격파 반경(m)에 배율까지 적용한 값.</summary>
         public float ScaledImpactRadiusFor(MeteorSize size)
@@ -520,12 +538,31 @@ namespace Metagame.Gameplay.Hazards
         /// 줄었는데, 그러면 §17.3 의 "공세 약 5초 전 신호" 가 붙을 자리가 없다 — 운석이
         /// 끊임없이 하나씩 오는 것과 <b>묶음으로</b> 오는 것은 다른 리듬이고, 기획이
         /// 요구하는 것은 후자다.
+        ///
+        /// <b>시간이 갈수록 그 계단이 함께 내려온다</b>(2026-09-18). 표만으로는 20분에서
+        /// 멈추는데, 그 뒤로 영원히 같으면 "오래 끌면 불리하다" 가 사라져 발사를 서두를
+        /// 이유가 없다. 조이는 것은 <see cref="MeteorEscalation"/> 이고 <b>묶음이라는
+        /// 구조는 건드리지 않는다.</b>
         /// </summary>
-        public float IntervalAt(float elapsedSeconds) => WaveBandAt(elapsedSeconds).WaveIntervalSeconds
-            * (AssaultEnabled ? Mathf.Clamp(_assaultWaveIntervalMultiplier, 0.05f, 1f) : 1f);
+        public float IntervalAt(float elapsedSeconds)
+        {
+            var band = WaveBandAt(elapsedSeconds).WaveIntervalSeconds;
+            var tightened = Escalating
+                ? MeteorEscalation.IntervalFor(band, elapsedSeconds)
+                : band;
+
+            return tightened
+                * (AssaultEnabled ? Mathf.Clamp(_assaultWaveIntervalMultiplier, 0.05f, 1f) : 1f);
+        }
 
         /// <summary>그 시각의 중형 확률 0~1. 10분 전에는 0 이다(§17.7).</summary>
-        public float MediumChanceAt(float elapsedSeconds) => WaveBandAt(elapsedSeconds).MediumChance;
+        public float MediumChanceAt(float elapsedSeconds)
+        {
+            var band = WaveBandAt(elapsedSeconds).MediumChance;
+            return Escalating
+                ? MeteorEscalation.MediumChanceFor(band, elapsedSeconds)
+                : band;
+        }
 
         MeteorWaveBand WaveBandAt(float elapsedSeconds)
         {
@@ -661,11 +698,24 @@ namespace Metagame.Gameplay.Hazards
         int RollWaveSize()
         {
             var band = WaveBandAt(_elapsed);
-            var span = band.MaxMeteors - band.MinMeteors;
-            var raw = band.MinMeteors
-                      + (int)(Mathf.Clamp01((float)_random.NextDouble()) * (span + 1));
-            raw = Mathf.Clamp(raw, band.MinMeteors, band.MaxMeteors);
 
+            // <b>조인 뒤에 뽑는다</b>(2026-09-18). 뽑고 나서 곱하면 최소·최대가 같은
+            // 배율로 벌어지지 않아, 후반에도 "운이 나쁘면 1개" 가 나온다.
+            var min = band.MinMeteors;
+            var max = band.MaxMeteors;
+
+            if (Escalating)
+            {
+                min = MeteorEscalation.CountFor(min, _elapsed);
+                max = MeteorEscalation.CountFor(max, _elapsed);
+            }
+
+            var span = max - min;
+            var raw = min + (int)(Mathf.Clamp01((float)_random.NextDouble()) * (span + 1));
+            raw = Mathf.Clamp(raw, min, max);
+
+            // 인원 보정(§17.6)은 <b>조인 다음</b>이다. 순서를 바꾸면 혼자 할 때 상한이
+            // 8 이 아니라 3.6 이 되어 상한의 뜻이 달라진다.
             return Mathf.Max(1, Mathf.RoundToInt(raw * CrewScaleFor(_crew)));
         }
 

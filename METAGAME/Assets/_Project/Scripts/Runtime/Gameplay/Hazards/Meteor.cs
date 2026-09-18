@@ -42,6 +42,13 @@ namespace Metagame.Gameplay.Hazards
         static readonly List<Parts.TransportVehicle> StruckCraft = new();
 
         /// <summary>
+        /// 이번 충격으로 밀 파츠. 기체와 같은 이유로 모아서 한 번만 처리한다 —
+        /// 파츠 하나에 콜라이더가 여럿이라 그때마다 속도를 더하면 덩치 큰 파츠일수록
+        /// 더 세게 날아간다.
+        /// </summary>
+        static readonly List<Parts.SpaceshipPart> StruckParts = new();
+
+        /// <summary>
         /// 이 운석이 이미 굴린 기체. 콜라이더가 여러 개라 한 충돌에서 여러 번 들어오고,
         /// 그때마다 굴리면 회전량이 예측할 수 없게 커진다
         /// (<see cref="_directPlayersHit"/> 와 같은 이유다).
@@ -892,7 +899,11 @@ namespace Metagame.Gameplay.Hazards
             // 였고, 그 안에서도 바깥 절반은 <see cref="ApplyTier"/> 가 그냥 돌아갔다 —
             // 소형 운석의 실질 판정이 1m 라 "정가운데 맞지 않으면 아무 일도 없다" 가 됐다.
             var reach = ShockwaveRadius;
-            var mask = GameLayers.PlayerMask | GameLayers.PropMask;
+
+            // <b>파츠도 훑는다</b>(2026-09-18). 예전에는 빠져 있었고 — 이유는
+            // <see cref="PhysicsScale.MeteorPartKnockSpeed"/> 에 적었다 — 그래서 운석
+            // 본체가 <b>직접 맞힌</b> 파츠만 움직였다.
+            var mask = GameLayers.PlayerMask | GameLayers.PropMask | GameLayers.PartMask;
             var hits = UnityEngine.Physics.OverlapSphere(
                 point, reach, mask, QueryTriggerInteraction.Ignore);
 
@@ -927,6 +938,16 @@ namespace Metagame.Gameplay.Hazards
                     continue;
                 }
 
+                // 파츠도 모아서 한 번만 민다. 폭발력을 얹지 않는 것은 500kg 에
+                // ForceMode.Force 한 스텝이 0.036m/s 라 아무 일도 안 하기 때문이고,
+                // 두 가지를 겹쳐 주면 어느 쪽이 움직인 것인지 알 수 없어진다.
+                var part = hit.GetComponentInParent<Parts.SpaceshipPart>();
+                if (part != null)
+                {
+                    if (!StruckParts.Contains(part)) StruckParts.Add(part);
+                    continue;
+                }
+
                 // 감쇠 반경도 reach 다. 여기에 _impactRadius 를 넣으면 바깥 띠에 있는
                 // 물체는 감쇠가 음수라 힘이 0 이 되어, 훑기만 넓히고 미는 것은 그대로다.
                 //
@@ -943,6 +964,11 @@ namespace Metagame.Gameplay.Hazards
                 StruckCraft[i].TakeMeteorImpact(point, reach);
 
             StruckCraft.Clear();
+
+            for (var i = 0; i < StruckParts.Count; i++)
+                StruckParts[i].TakeMeteorBlast(point, reach, PartKnockSpeed, PartKnockSpin);
+
+            StruckParts.Clear();
 
             // 직접 맞은 사람은 반경 밖에 있을 수도 있다 — 떨어지는 중에 얻어맞으면
             // 착탄 지점이 그 사람 발밑이 아니다.
@@ -1054,6 +1080,10 @@ namespace Metagame.Gameplay.Hazards
             _tuning != null ? _tuning.ShockwaveLift : PhysicsScale.MeteorShockwaveLift;
         float ShockwaveStaggerSeconds =>
             _tuning != null ? _tuning.ShockwaveStaggerSeconds : PhysicsScale.MeteorShockwaveStaggerSeconds;
+        float PartKnockSpeed =>
+            _tuning != null ? _tuning.PartKnockSpeed : PhysicsScale.MeteorPartKnockSpeed;
+        float PartKnockSpin =>
+            _tuning != null ? _tuning.PartKnockSpin : PhysicsScale.MeteorPartKnockSpin;
         float RestSpeed => _tuning != null ? _tuning.RestSpeed : PhysicsScale.MeteorRestSpeed;
         float RestSeconds => _tuning != null ? _tuning.RestSeconds : PhysicsScale.MeteorRestSeconds;
         float DeflectedDespawnSeconds =>
