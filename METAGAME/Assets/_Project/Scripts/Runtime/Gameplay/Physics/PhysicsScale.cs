@@ -939,6 +939,68 @@ namespace Metagame.Gameplay
         public const float MeteorHeavyKnockSpeed = 8f;
 
         /// <summary>
+        /// 충격파가 미치는 거리를 충격 반경의 <b>몇 배</b>로 볼 것인가.
+        ///
+        /// <b>예전에는 충격 반경 밖이 완전히 안전했다.</b> 소형은 2m, 그중 강한 충격은
+        /// 안쪽 절반뿐이라(<see cref="MeteorHeavyImpactFraction"/>) 실제로는
+        /// <b>착탄점에서 1m 안쪽에 서 있지 않으면 아무 일도 일어나지 않았다</b> —
+        /// 2026-09-18 인게임 확인에서 "정가운데 맞지 않으면 피해가 없다" 로 올라온 것이
+        /// 그것이다. 기획 §20.1 이 약한 단계를 "충격<b>파</b>" 라고 부르는데, 파가
+        /// 퍼지는 거리가 없었다.
+        ///
+        /// <b>새 반경 상수를 두지 않고 배율로 둔다.</b> 이 저장소는 운석 값을 반경
+        /// 하나에서 끌어내는 방식을 지킨다(<see cref="Hazards.MeteorImpact.ForceFor"/>
+        /// 의 같은 판단) — 배율이면 소형·중형 어느 쪽 반경을 바꿔도 충격파가 따라온다.
+        ///
+        /// 1.8 배 → 소형 2m·3.6m, 중형 3.5m·6.3m. 강한 충격 경계(소형 1m)는 그대로다.
+        /// 넓어진 것은 <b>밀리기만 하는 바깥 띠</b>뿐이다.
+        /// </summary>
+        public const float MeteorShockwaveRadiusScale = 1.8f;
+
+        /// <summary>
+        /// 약한 충격파가 밀어내는 속도(m/s). 착탄점에서 멀수록 줄어든다.
+        ///
+        /// <b>폭발력만으로는 보이지 않는다.</b> <see cref="MeteorImpactForce"/> 는
+        /// <c>ForceMode.Force</c> 라 한 스텝(0.02초)에만 작용하고, 서 있는 사람은
+        /// <c>Balance</c> 가 곧바로 되세운다 — 기체가 폭발력으로 움직이지 않는 것과
+        /// (<see cref="CraftImpactSpeed"/>) 같은 이유다. 그래서 속도를 직접 더한다.
+        ///
+        /// 강한 충격(<see cref="MeteorHeavyKnockSpeed"/> 8m/s)의 절반 아래다. §20.1 이
+        /// 약한 단계를 "밀려나지만 <b>바로 행동 가능</b>" 으로 정하므로, 넘어질 만큼
+        /// 세면 강한 충격과 구분이 없어진다.
+        /// </summary>
+        public const float MeteorShockwaveKnockSpeed = 3.5f;
+
+        /// <summary>
+        /// 충격파가 사람을 띄우는 정도. 수평 방향에 이만큼 위를 섞는다.
+        ///
+        /// <b>바깥 띠에는 폭발력이 닿지 않는다</b> — <c>AddExplosionForce</c> 의 감쇠가
+        /// 가장자리에서 0 이므로, 위로 뜨는 성분을 여기서 만들지 않으면 발만 옆으로
+        /// 미끄러지고 래그돌은 가만히 서 있다. 0.35 는 약 19도로, "조금 날아간다" 는
+        /// 보이되 사람이 지붕 높이로 뜨지는 않는 각이다.
+        /// </summary>
+        public const float MeteorShockwaveLift = 0.35f;
+
+        /// <summary>
+        /// 충격파를 맞은 사람이 휘청이는 시간(초).
+        ///
+        /// <b>새 상태를 만들지 않는다.</b> <c>PlayerRig.Stagger</c> 가 이미 §20.2 의
+        /// 휘청임으로 세우는 힘만 약하게 만든다(S15P21B202-334) — 조종은 그대로이므로
+        /// §20.1 의 "바로 행동 가능" 을 지키면서 <b>래그돌이 실제로 흔들린다.</b>
+        /// 이것이 없으면 속도를 줘도 <c>Balance</c> 가 그 스텝에 되세워 티가 안 난다.
+        /// </summary>
+        public const float MeteorShockwaveStaggerSeconds = 0.7f;
+
+        /// <summary>
+        /// 착탄 폭발력을 지면 아래에서 밀어 올리는 정도(m).
+        ///
+        /// <c>AddExplosionForce</c> 의 <c>upwardsModifier</c> 다. 착탄 지점이 지면이라
+        /// 폭발 중심이 발과 같은 높이이고, 그러면 힘이 거의 수평이라 소품이 굴러갈 뿐
+        /// <b>튀어 오르지 않는다.</b> 중심을 조금 내려 잡으면 파편이 뜬다.
+        /// </summary>
+        public const float MeteorImpactUpwardsModifier = 0.4f;
+
+        /// <summary>
         /// 착탄 지점의 지면을 찾을 때 위에서 아래로 훑는 높이(m).
         ///
         /// <b>예전에는 훑지 않았다.</b> 스폰 영역 transform 의 y 를 그대로 착탄 지점의

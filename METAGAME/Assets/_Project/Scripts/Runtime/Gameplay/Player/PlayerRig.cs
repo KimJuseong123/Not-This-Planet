@@ -3686,7 +3686,32 @@ namespace Metagame.Gameplay
 
         public void KnockDown(Vector3 direction, float speed)
         {
-            if (Downed) return;
+            if (!Shove(direction, speed)) return;
+
+            Ragdolled = true;
+        }
+
+        /// <summary>
+        /// 몸 전체를 한 방향으로 민다. <b>조종을 빼앗지 않는다.</b>
+        ///
+        /// <see cref="KnockDown"/> 에서 속도만 떼어낸 것이다. 둘을 가르는 것은
+        /// <see cref="Ragdolled"/> 한 줄뿐이고, 운석의 약한 충격파(기획 §20.1
+        /// "밀려나지만 바로 행동 가능")가 그 한 줄 없는 쪽을 쓴다.
+        ///
+        /// <b>폭발력으로는 안 된다</b>(2026-09-18). <c>AddExplosionForce</c> 는
+        /// <c>ForceMode.Force</c> 라 한 물리 스텝에만 작용하고, <see cref="Balance"/> 가
+        /// 그 다음 스텝에 되세워 버린다 — 기체가 폭발력으로 움직이지 않아
+        /// <see cref="PhysicsScale.CraftImpactSpeed"/> 를 직접 주는 것과 같은 이유다.
+        /// 눈에 보이게 하려면 속도를 얹어야 한다.
+        ///
+        /// <b>뼈마다 같은 속도를 준다.</b> 래그돌이 한 덩어리로 밀린다 —
+        /// <see cref="RideAlong"/> 처럼 회전까지 맞추지는 않으므로 관절이 흔들리고,
+        /// 그 흔들림이 "충격을 맞았다" 로 보인다.
+        /// </summary>
+        /// <returns>실제로 밀었으면 true. 기절 중이거나 인형이 없으면 false.</returns>
+        public bool Shove(Vector3 direction, float speed)
+        {
+            if (Downed || Doll == null) return false;
 
             var away = direction;
             if (away.sqrMagnitude < 1e-6f) away = -faceDir;
@@ -3700,7 +3725,7 @@ namespace Metagame.Gameplay
                 body.linearVelocity += away * speed;
             }
 
-            Ragdolled = true;
+            return true;
         }
 
         /// <summary>

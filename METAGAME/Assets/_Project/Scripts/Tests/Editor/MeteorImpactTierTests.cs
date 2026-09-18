@@ -55,9 +55,11 @@ namespace Metagame.Gameplay.Tests
         // --- 경계 (순수 계산) ---------------------------------------------
 
         [Test]
-        public void OutsideTheRadius_IsNothing()
+        public void OutsideTheShockwave_IsNothing()
         {
-            Assert.AreEqual(MeteorImpactTier.None, MeteorImpact.TierFor(2.1f, 2f));
+            // 반경 2m × 배율 1.8 → 충격파는 3.6m 까지다.
+            Assert.AreEqual(MeteorImpactTier.None, MeteorImpact.TierFor(3.7f, 2f));
+            Assert.AreEqual(MeteorImpactTier.None, MeteorImpact.TierFor(20f, 2f));
         }
 
         [Test]
@@ -68,6 +70,49 @@ namespace Metagame.Gameplay.Tests
             Assert.AreEqual(MeteorImpactTier.Heavy, MeteorImpact.TierFor(1f, 2f));
             Assert.AreEqual(MeteorImpactTier.Shockwave, MeteorImpact.TierFor(1.01f, 2f));
             Assert.AreEqual(MeteorImpactTier.Shockwave, MeteorImpact.TierFor(2f, 2f));
+        }
+
+        /// <summary>
+        /// <b>충격 반경 밖에도 충격파가 있다</b>(2026-09-18). 예전에는 충격 반경이 곧
+        /// 경계라 소형 운석은 2m 밖이 완전히 안전했고, 그나마 그 안의 바깥 절반도
+        /// 아무 일을 하지 않아 <b>실질 판정이 1m</b> 였다 — "정가운데 맞지 않으면
+        /// 피해가 없다" 가 그것이다.
+        /// </summary>
+        [Test]
+        public void TheShockwaveReachesPastTheImpactRadius()
+        {
+            Assert.AreEqual(MeteorImpactTier.Shockwave, MeteorImpact.TierFor(2.5f, 2f),
+                "충격 반경(2m) 밖인데 충격파는 닿아야 한다.");
+            Assert.AreEqual(MeteorImpactTier.Shockwave, MeteorImpact.TierFor(3.6f, 2f),
+                "3.6m 가 가장 바깥이다.");
+        }
+
+        /// <summary>강한 충격 경계는 그대로다 — 넓어진 것은 바깥 띠뿐이다.</summary>
+        [Test]
+        public void TheHeavyBoundaryDidNotMove()
+        {
+            Assert.AreEqual(MeteorImpactTier.Heavy, MeteorImpact.TierFor(1f, 2f));
+            Assert.AreEqual(MeteorImpactTier.Shockwave, MeteorImpact.TierFor(1.01f, 2f));
+        }
+
+        /// <summary>
+        /// 배율이 1 아래로 들어와도 충격파가 강한 충격보다 좁아지면 안 된다 —
+        /// 그러면 동심원의 순서가 뒤집힌다.
+        /// </summary>
+        [Test]
+        public void TheShockwaveNeverShrinksInsideTheImpactRadius()
+        {
+            Assert.AreEqual(2f, MeteorImpact.ShockwaveRadiusFor(2f, 0.5f), 0.001f);
+            Assert.AreEqual(MeteorImpactTier.Shockwave, MeteorImpact.TierFor(1.5f, 2f, 0.5f, 0.5f));
+        }
+
+        [Test]
+        public void TheFalloffIsOneAtTheCenterAndZeroAtTheEdge()
+        {
+            Assert.AreEqual(1f, MeteorImpact.FalloffAt(0f, 4f), 0.001f);
+            Assert.AreEqual(0.5f, MeteorImpact.FalloffAt(2f, 4f), 0.001f);
+            Assert.AreEqual(0f, MeteorImpact.FalloffAt(4f, 4f), 0.001f);
+            Assert.AreEqual(0f, MeteorImpact.FalloffAt(9f, 4f), 0.001f, "밖은 음수가 아니라 0 이다.");
         }
 
         /// <summary>중형은 반경이 넓으니 강한 충격 범위도 함께 넓어져야 한다.</summary>
@@ -214,13 +259,91 @@ namespace Metagame.Gameplay.Tests
             Assert.Greater(BodySpeed(player), 0f, "밀려나기는 한다.");
         }
 
+        /// <summary>
+        /// <b>충격 반경 밖에서도 밀린다</b>(2026-09-18). 2.8m 는 소형 운석의 충격
+        /// 반경(2m) 밖이고 충격파(3.6m) 안이다 — 예전에는 여기가 완전히 안전했다.
+        /// </summary>
         [Test]
-        public void OutsideTheRadius_NothingHappens()
+        public void TheShockwaveStillPushesYouOutsideTheImpactRadius()
+        {
+            var player = MakePlayer(new Vector3(2.8f, 0f, 0f));
+            var meteor = MakeMeteor(new Vector3(0f, 5f, 0f));
+
+            Assert.Greater(2.8f, meteor.ImpactRadius, "충격 반경 밖에 세운 것이 전제다.");
+            Assert.Less(2.8f, meteor.ShockwaveRadius, "충격파 안이어야 한다.");
+
+            meteor.ApplyImpact(Vector3.zero);
+            UnityEngine.Physics.Simulate(Step);
+
+            Assert.Greater(BodySpeed(player), 0.1f, "충격 반경 밖도 밀려야 한다.");
+            Assert.IsFalse(player.Ragdolled, "밀리기만 한다 — 바로 행동 가능(§20.1).");
+            Assert.IsFalse(player.Downed);
+        }
+
+        /// <summary>
+        /// 밀리는 것만으로는 안 보인다. <c>Balance</c> 가 다음 스텝에 되세우므로
+        /// 휘청임까지 걸어야 래그돌이 실제로 흔들린다.
+        /// </summary>
+        [Test]
+        public void TheShockwaveMakesYouStagger()
+        {
+            var player = MakePlayer(new Vector3(1.6f, 0f, 0f));
+            var meteor = MakeMeteor(new Vector3(0f, 5f, 0f));
+
+            Assert.IsFalse(player.Staggering);
+
+            meteor.ApplyImpact(Vector3.zero);
+
+            Assert.IsTrue(player.Staggering, "휘청이지 않으면 밀린 티가 나지 않는다.");
+            Assert.IsFalse(player.Ragdolled, "휘청임은 조종을 빼앗지 않는다.");
+        }
+
+        /// <summary>"래그돌도 조금 날아가게" — 옆으로만 미끄러지면 안 된다.</summary>
+        [Test]
+        public void TheShockwaveLiftsTheRagdollOffTheGround()
+        {
+            var player = MakePlayer(new Vector3(1.6f, 0f, 0f));
+            var meteor = MakeMeteor(new Vector3(0f, 5f, 0f));
+
+            meteor.ApplyImpact(Vector3.zero);
+
+            Assert.Greater(player.Doll.Hips.linearVelocity.y, 0f,
+                "위로 뜨는 성분이 없으면 발만 미끄러진다.");
+            Assert.Greater(player.Doll.Hips.linearVelocity.x, 0f,
+                "착탄 지점 반대쪽으로 밀려야 한다.");
+        }
+
+        /// <summary>가까울수록 세게 — 폭발력과 같은 감쇠 축을 쓴다.</summary>
+        [Test]
+        public void TheShockwaveFadesWithDistance()
+        {
+            var near = MakePlayer(new Vector3(1.2f, 0f, 0f));    // 강한 충격 경계(1m) 밖
+            var far = MakePlayer(new Vector3(3.2f, 0f, 0f));     // 충격파 가장자리
+            var meteor = MakeMeteor(new Vector3(0f, 5f, 0f));
+
+            meteor.ApplyImpact(Vector3.zero);
+
+            Assert.IsFalse(near.Ragdolled, "둘 다 약한 충격파여야 비교가 된다.");
+            Assert.Greater(BodySpeed(near), BodySpeed(far));
+            Assert.Greater(BodySpeed(far), 0f, "가장자리도 0 은 아니다.");
+        }
+
+        [Test]
+        public void OutsideTheShockwave_NothingHappens()
         {
             var player = MakePlayer(new Vector3(6f, 0f, 0f));
             var meteor = MakeMeteor(new Vector3(0f, 5f, 0f));
 
+            Assert.Greater(6f, meteor.ShockwaveRadius, "충격파 밖에 세운 것이 전제다.");
+
             meteor.ApplyImpact(Vector3.zero);
+
+            // <b>물리 스텝 전에 본다.</b> 한 스텝을 돌리면 중력만으로도 속도가 붙어
+            // "밀리지 않았다" 를 0 으로 잴 수 없다. 넉백은 속도를 즉시 더하므로
+            // 여기서 0 이면 아무것도 들어가지 않은 것이다.
+            Assert.AreEqual(0f, BodySpeed(player), 0.001f, "충격파 밖은 밀리지 않는다.");
+            Assert.IsFalse(player.Staggering);
+
             UnityEngine.Physics.Simulate(Step);
 
             Assert.IsFalse(player.Downed);

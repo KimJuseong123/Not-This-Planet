@@ -36,6 +36,14 @@ namespace Metagame.Gameplay
             {
                 if (instance != null) return instance;
                 if (!Enabled) return null;
+
+                // <b>에디터에서는 만들지 않는다.</b> EditMode 검증에서는 Awake 가 돌지
+                // 않아 <c>holder</c> 와 재질이 비고, <c>Update</c> 도 돌지 않아 알갱이가
+                // 씬에 영원히 남는다. 운석 착탄이 먼지를 뿜게 되면서(2026-09-18) 먼지를
+                // 끄지 않은 검증들까지 이 길을 지나게 됐다 — <see cref="Enabled"/> 를
+                // 검증마다 끄게 하는 대신 여기서 한 번 막는다.
+                if (!Application.isPlaying) return null;
+
                 var go = new GameObject("~먼지");
                 instance = go.AddComponent<Puff>();
                 return instance;
@@ -64,6 +72,42 @@ namespace Metagame.Gameplay
                 p.Spawn(foot + new Vector3(dir.x, 0.03f, dir.z) * 0.10f,
                         dir.normalized * Random.Range(0.8f, 2.4f) * (0.5f + strength),
                         Random.Range(0.045f, 0.10f), Random.Range(0.9f, 1.8f), true, p.dustMat);
+            }
+        }
+
+        /// <summary>
+        /// 착탄 충격파 — 먼지 고리가 <paramref name="radius"/> 까지 <b>퍼져 나간다</b>
+        /// (2026-09-18).
+        ///
+        /// <see cref="Regolith"/> 는 발밑에서 위로 튀지만 이것은 <b>바깥으로 달린다.</b>
+        /// 충격파의 범위가 눈에 보여야 "여기까지는 맞는다" 를 배울 수 있다 — 낙하 예고
+        /// 원은 강한 충격 범위만 그리므로(§17.2) 바깥 띠는 표시가 없다.
+        ///
+        /// 알갱이가 <b>수명 안에 반경만큼</b> 가도록 속도를 맞춘다. 진공이라 감속이
+        /// 없으므로 속도 × 수명이 곧 거리다.
+        /// </summary>
+        public static void Shockwave(Vector3 center, float radius)
+        {
+            var p = Instance;
+            if (p == null || radius <= 0f) return;
+
+            const float Life = 0.45f;
+            float speed = radius / Life;
+            int n = Mathf.Clamp(Mathf.RoundToInt(radius * 7f), 12, 40);
+
+            for (int i = 0; i < n; i++)
+            {
+                float a = (i / (float)n) * Mathf.PI * 2f + Random.Range(-0.12f, 0.12f);
+                Vector3 outward = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+
+                // 살짝만 위로 — 고리가 지면을 훑어야 반경으로 읽힌다.
+                Vector3 vel = outward * (speed * Random.Range(0.8f, 1.1f))
+                            + Vector3.up * Random.Range(0.4f, 1.3f);
+
+                p.Spawn(center + outward * 0.25f + Vector3.up * 0.05f,
+                        vel,
+                        Random.Range(0.10f, 0.20f), Life * Random.Range(0.85f, 1.15f),
+                        true, p.dustMat);
             }
         }
 

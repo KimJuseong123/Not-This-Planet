@@ -21,6 +21,12 @@ namespace Metagame.Gameplay.Hazards
         [SerializeField, Range(0f, 1f)] float _heavyImpactFraction = PhysicsScale.MeteorHeavyImpactFraction;
         [SerializeField, Min(0f)] float _heavyKnockSpeed = PhysicsScale.MeteorHeavyKnockSpeed;
 
+        [Header("약한 충격파")]
+        [SerializeField, Min(1f)] float _shockwaveRadiusScale = PhysicsScale.MeteorShockwaveRadiusScale;
+        [SerializeField, Min(0f)] float _shockwaveKnockSpeed = PhysicsScale.MeteorShockwaveKnockSpeed;
+        [SerializeField, Min(0f)] float _shockwaveLift = PhysicsScale.MeteorShockwaveLift;
+        [SerializeField, Min(0f)] float _shockwaveStaggerSeconds = PhysicsScale.MeteorShockwaveStaggerSeconds;
+
         [Header("정착·흔적")]
         [SerializeField, Min(0f)] float _restSpeed = PhysicsScale.MeteorRestSpeed;
         [SerializeField, Min(0f)] float _restSeconds = PhysicsScale.MeteorRestSeconds;
@@ -49,6 +55,13 @@ namespace Metagame.Gameplay.Hazards
         public float ImpactForce => _impactForce;
         public float HeavyImpactFraction => _heavyImpactFraction;
         public float HeavyKnockSpeed => _heavyKnockSpeed;
+
+        /// <summary>충격파가 닿는 거리를 충격 반경의 몇 배로 볼 것인가(2026-09-18).</summary>
+        public float ShockwaveRadiusScale => _shockwaveRadiusScale;
+        public float ShockwaveKnockSpeed => _shockwaveKnockSpeed;
+        public float ShockwaveLift => _shockwaveLift;
+        public float ShockwaveStaggerSeconds => _shockwaveStaggerSeconds;
+
         public float RestSpeed => _restSpeed;
         public float RestSeconds => _restSeconds;
         public float DeflectedDespawnSeconds => _deflectedDespawnSeconds;
@@ -84,6 +97,16 @@ namespace Metagame.Gameplay.Hazards
 
         public float ImpactRadiusFor(MeteorSize size) =>
             size == MeteorSize.Medium ? _mediumImpactRadius : _smallImpactRadius;
+
+        /// <summary>
+        /// 크기에 해당하는 충격파 반경(m). 충격 반경보다 넓다(2026-09-18).
+        ///
+        /// <b>낙하 예고 원은 이것을 쓰지 않는다.</b> §17.2 는 예고가 "실제 충격 범위와
+        /// 같은 크기" 라고 정하고, 그 충격 범위는 밀리기만 하는 바깥 띠가 아니라
+        /// <see cref="ImpactRadiusFor"/> 다.
+        /// </summary>
+        public float ShockwaveRadiusFor(MeteorSize size) =>
+            MeteorImpact.ShockwaveRadiusFor(ImpactRadiusFor(size), _shockwaveRadiusScale);
 
         public float ImpactForceFor(MeteorSize size)
         {
