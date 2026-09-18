@@ -425,11 +425,10 @@ namespace Metagame.Gameplay.Tests
         {
             var rig = MakeFlyingRig();
 
-            // 지면에서 터진 운석 — 실제 상황이다. 충격파까지 넓힌 반경으로 본다
-            // (2026-09-18) — 그쪽이 실제로 기체에 넘어가는 값이다.
-            rig.Vehicle.TakeMeteorImpact(
-                new Vector3(1.5f, 0f, 0f),
-                MeteorImpact.ShockwaveRadiusFor(PhysicsScale.MeteorSmallImpactRadius));
+            // 지면에서 터진 운석 — 실제 상황이다. 충격파를 넓혔어도 기체에 넘어가는
+            // 값은 여전히 충격 반경이다(!525 AI 리뷰).
+            rig.Vehicle.TakeMeteorImpact(new Vector3(1.5f, 0f, 0f),
+                                         PhysicsScale.MeteorSmallImpactRadius);
 
             Assert.IsFalse(rig.Vehicle.Tumbling,
                 "반경 판정이 호버 고도에 닿았다. 전제가 바뀌었으면 이 검증을 지워야 한다.");

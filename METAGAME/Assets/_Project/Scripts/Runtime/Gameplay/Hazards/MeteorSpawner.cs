@@ -61,9 +61,11 @@ namespace Metagame.Gameplay.Hazards
         /// 씬(<c>Stage1_Astra</c>·<c>CheatArena</c>)이 값을 들고 있고, 시간대 방식으로
         /// 되돌릴 수 있게 남겨 두기 위해서다.
         ///
-        /// <b>인스펙터에서 고쳐도 아무 일도 일어나지 않는다.</b> 그것을 모르고 값을
-        /// 만지다 시간을 버리지 않도록 여기에 적어 둔다.
+        /// <b>인스펙터에서 숨긴다</b>(!525 AI 리뷰). 값이 보이면 고칠 수 있다고 믿게
+        /// 되고, 고쳐도 아무 일이 없으면 그 시간이 통째로 버려진다. 직렬화는 유지하되
+        /// 보이지만 않게 한다 — 씬을 다시 저장해도 값이 날아가지 않는다.
         /// </summary>
+        [HideInInspector]
         [SerializeField] MeteorWaveBand[] _waveBands = MeteorWaveBand.CreateDefaults();
         [SerializeField, Min(0f)] float _waveLeadSeconds = PhysicsScale.MeteorWaveLeadSeconds;
         [SerializeField, Min(0f)] float _withinWaveMinSeconds = PhysicsScale.MeteorWithinWaveMinSeconds;
@@ -239,7 +241,12 @@ namespace Metagame.Gameplay.Hazards
             if (AssaultEnabled == enabled) return;
 
             AssaultEnabled = enabled;
-            if (enabled) _sinceLastWave = CurrentInterval;
+
+            // 켤 때는 곧바로 한 발, <b>끌 때는 처음부터</b>(!525 AI 리뷰). 풀 가동
+            // 5초 기준으로 쌓인 경과를 그대로 두면 가랑비 10초 기준으로는 이미 넘겨서,
+            // 되돌리자마자 한 발이 나가 "버튼에 적힌 초와 다르다" 가 된다.
+            _sinceLastWave = enabled ? CurrentInterval : 0f;
+            _leadSent = false;
         }
 
         /// <summary>이번 공세에 남은 운석 수. 공세 사이에는 0 이다.</summary>
@@ -550,10 +557,20 @@ namespace Metagame.Gameplay.Hazards
         /// <see cref="MeteorIntensity.FullBlast"/> 안에 이미 들어 있으므로 또 곱하면
         /// 5초가 1.75초가 된다.
         /// </summary>
+        /// <param name="elapsedSeconds">
+        /// <b>지금은 결과에 영향을 주지 않는다</b>(!525 AI 리뷰). 강도를 정하는 것은
+        /// 컷신 단계뿐이고, 인자는 호출부 계약과 시간 기반으로 되돌릴 여지를 위해
+        /// 남겨 둔다. 이 값을 바꿔 가며 곡선을 재려 하면 아무것도 안 바뀐다.
+        /// </param>
         public float IntervalAt(float elapsedSeconds) =>
             WaveBandAt(elapsedSeconds).WaveIntervalSeconds;
 
-        /// <summary>그 시각의 중형 확률 0~1. 컷신 전에는 0 이다.</summary>
+        /// <summary>
+        /// 그 시각의 중형 확률 0~1. 컷신 전에는 0 이다.
+        ///
+        /// <paramref name="elapsedSeconds"/> 는 <see cref="IntervalAt"/> 과 같은 이유로
+        /// 결과에 영향을 주지 않는다.
+        /// </summary>
         public float MediumChanceAt(float elapsedSeconds) =>
             WaveBandAt(elapsedSeconds).MediumChance;
 

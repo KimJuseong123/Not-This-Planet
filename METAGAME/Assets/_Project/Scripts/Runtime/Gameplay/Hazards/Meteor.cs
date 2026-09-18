@@ -960,8 +960,12 @@ namespace Metagame.Gameplay.Hazards
                 if (player != null && !Struck.Contains(player)) Struck.Add(player);
             }
 
+            // <b>기체에는 넓힌 반경을 넘기지 않는다</b>(!525 AI 리뷰). 충격파를 넓힌
+            // 것은 사람과 파츠 때문이고, 기체가 구르는 거리 판정까지 1.8배가 되는 것은
+            // 이 변경이 의도한 바가 아니다 — <c>TakeMeteorImpact</c> 는 반경을 감쇠에
+            // 그대로 쓰므로 넓히면 멀리 뜬 기체까지 굴러간다.
             for (var i = 0; i < StruckCraft.Count; i++)
-                StruckCraft[i].TakeMeteorImpact(point, reach);
+                StruckCraft[i].TakeMeteorImpact(point, _impactRadius);
 
             StruckCraft.Clear();
 

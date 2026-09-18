@@ -24,6 +24,7 @@ namespace Metagame.Gameplay.Tests
     {
         readonly List<GameObject> _spawned = new();
         bool _puffWasEnabled;
+        bool _logWasIgnoring;
         SimulationMode _savedMode;
 
         [SetUp]
@@ -38,6 +39,7 @@ namespace Metagame.Gameplay.Tests
             _puffWasEnabled = Puff.Enabled;
             Puff.Enabled = false;
 
+            _logWasIgnoring = LogAssert.ignoreFailingMessages;
             LogAssert.ignoreFailingMessages = true;
         }
 
@@ -46,6 +48,11 @@ namespace Metagame.Gameplay.Tests
         {
             UnityEngine.Physics.simulationMode = _savedMode;
             Puff.Enabled = _puffWasEnabled;
+
+            // <b>전역 상태다 — 반드시 되돌린다</b>(!525 AI 리뷰). 켜 둔 채로
+            // 끝나면 뒤에 도는 다른 검증의 에러 로그까지 삼켜, 실패해야 할 것이
+            // 조용히 통과한다.
+            LogAssert.ignoreFailingMessages = _logWasIgnoring;
 
             foreach (var go in _spawned)
                 if (go != null)
