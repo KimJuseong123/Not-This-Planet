@@ -2652,7 +2652,7 @@ namespace Metagame.Gameplay
                 && water.CanSwim(Doll.Hips.position, Swimming);
             if (Swimming) fallPeakFootHeight = FootPosition.y;
             ProbeGround();
-            UpdateVerticalSpeed();
+            UpdateVerticalSpeed(Time.fixedDeltaTime);
 
             // 기절·던져짐 중에는 조작이 없다. 넉백은 그대로 받는다 — 운석에 굴러다녀야
             // 한다(기획 §26-13 의 긴장이 거기서 나온다).
@@ -2726,10 +2726,9 @@ namespace Metagame.Gameplay
         /// <para>첫 틱에는 이전 값이 없으므로 0 으로 둔다 — 안 그러면 태어나는
         /// 순간 엄청난 속도가 한 번 튀고, 그 프레임의 공중 자세가 튄다.</para>
         /// </summary>
-        void UpdateVerticalSpeed()
+        void UpdateVerticalSpeed(float dt)
         {
             float y = Doll.Hips.position.y;
-            float dt = Time.fixedDeltaTime;
             VerticalSpeed = hipsYKnown && dt > 0f ? (y - lastHipsY) / dt : 0f;
             lastHipsY = y;
             hipsYKnown = true;

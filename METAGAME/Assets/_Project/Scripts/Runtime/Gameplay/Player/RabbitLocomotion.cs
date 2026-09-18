@@ -61,6 +61,9 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float AirPoseWeight = 0.65f;
 
+        /// <summary>공중 자세가 다 올라오는 데 걸리는 시간(초). 엎드리기와 같은 값으로 둔다.</summary>
+        public const float AirBlendTime = 0.15f;
+
         /// <summary>
         /// 춤을 끊는 <b>밀림</b> 속도(m/s) (S15P21B202-596).
         ///
@@ -164,7 +167,7 @@ namespace Metagame.Gameplay
         float _proneWeight, _crawlBlend, _proneIdleTime;
         bool _proneLast;
         float _airWeight;
-        bool _airLast, _heelDone;
+        bool _airLast, _heelDone, _landLead;
         float _lastVertical;
         AnimationMixerPlayable _mixer;
         float _phase, _weight, _runBlend;
@@ -395,6 +398,9 @@ namespace Metagame.Gameplay
 
             /// <summary>제 발로 뛴 점프인가. 떨어진 것과 구별한다 (S15P21B202-628).</summary>
             public bool JumpedUp;
+
+            /// <summary>발밑까지의 거리(m). 착지 동작을 <b>닿기 전에</b> 띄우는 데 쓴다.</summary>
+            public float GroundDistance;
         }
 
         public static State ReadState(PlayerRig rig)
@@ -413,10 +419,25 @@ namespace Metagame.Gameplay
                 Prone = rig.Prone,
                 VerticalSpeed = rig.VerticalSpeed,
                 JumpedUp = rig.JumpedUp,
+                GroundDistance = rig.GroundDistance,
                 LeftArmBusy = input.GrabLeft || input.ArmsUp || rig.LeftHand.Gripping || rig.LeftHand.Carrying || rig.HeldTool != null,
                 RightArmBusy = input.GrabRight || input.ArmsUp || rig.RightHand.Gripping || rig.RightHand.Carrying || rig.HeldTool != null
             };
         }
+
+        /// <summary>
+        /// 착지 동작을 <b>닿기 전에</b> 띄우는 여유(초) (S15P21B202-628).
+        ///
+        /// <para>접지한 뒤에 켜면 예고 없이 착지 자세가 붙는다. 남은 시간을
+        /// <c>발밑거리 / 내려오는 속도</c> 로 어림해서 그만큼 먼저 띄운다.</para>
+        /// </summary>
+        public const float LandLeadTime = 0.18f;
+
+        /// <summary>최고점 뒤꿈치 딱이 이번 체공에서 켜졌는가 (S15P21B202-628). 검증이 읽는다.</summary>
+        public bool HeelClickPlayed => _heelDone;
+
+        /// <summary>뛰어오름 동작을 켠다. 검증이 '실제로 화면에 나오는가' 를 보려고 쓴다.</summary>
+        public void PlayJumpLaunch() => Play(_launchShot);
 
         /// <summary>공중 자세를 그릴 수 있는가. 아직 안 구운 저장소에서도 게임은 돌아야 한다.</summary>
         bool AirReady => _air != null && _airNode.IsValid() && _air.length > 0.01f;
@@ -448,10 +469,20 @@ namespace Metagame.Gameplay
             if (air != _airLast)
             {
                 if (air) { if (state.JumpedUp) Play(_launchShot); }
-                else Play(_landShot);
+                // 이미 닿기 전에 띄웠으면 다시 처음부터 돌리지 않는다.
+                else if (!_landLead) Play(_landShot);
                 _airLast = air;
                 _heelDone = false;
+                _landLead = false;
             }
+            // 착지 동작을 **닿기 전에** 띄운다. 접지 뒤에 켜면 예고 없이 붙는다.
+            if (air && !_landLead && state.VerticalSpeed < -0.2f
+                && state.GroundDistance / -state.VerticalSpeed <= LandLeadTime)
+            {
+                Play(_landShot);
+                _landLead = true;
+            }
+
             // 최고점의 뒤꿈치 딱은 **뛴 점프에서만**. 떨어질 때는 최고점이 없다.
             if (air && state.JumpedUp && !_heelDone
                 && state.VerticalSpeed <= 0f && _lastVertical > 0f)
@@ -504,11 +535,14 @@ namespace Metagame.Gameplay
             // **세로 속도 하나로 자세가 정해진다.** 클립의 시간축이 곧 속도축이라
             // 되매핑해서 찍기만 하면 된다 — 최고점 조각도, 상승/하강을 가르는
             // 분기도 없다. 그래서 난간 낙하가 점프와 같은 길을 탄다.
-            if (!state.Grounded && !state.Blocked && !state.Prone && AirReady)
+            if (!state.Grounded && !state.Blocked && !state.Prone)
             {
+                // 클립을 아직 안 구웠으면 걷기로 흘려보내지 않고 물리로 돌려준다 —
+                // 그러지 않으면 공중에서 다리가 걸음을 걷는다.
+                if (!AirReady) { _weight = 0f; _airWeight = 0f; return; }
                 _weight = 0f;
                 _proneWeight = 0f;
-                _airWeight = Mathf.MoveTowards(_airWeight, AirPoseWeight, deltaTime / 0.15f);
+                _airWeight = Mathf.MoveTowards(_airWeight, AirPoseWeight, deltaTime / AirBlendTime);
 
                 float k = Mathf.Clamp(state.VerticalSpeed / AirSpeedSpan, -1f, 1f);
                 _airNode.SetTime((k + 1f) * 0.5f * _air.length);

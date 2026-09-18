@@ -159,8 +159,20 @@ namespace Metagame.Gameplay.Tests
             Advance(state, 12);
 
             Assert.That(Suit.Locomotion.Weight, Is.Zero, "공중에서 걷기가 안 꺼졌다.");
-            Assert.That(Suit.WorstDrift(), Is.GreaterThan(0.0001f),
-                "공중인데 물리 자세 그대로다 — 공중 자세가 안 써지고 있다.");
+
+            // **드리프트만 보면 안 된다.** 물리와 모델이 조금만 어긋나도 통과해서,
+            // 공중 자세가 아닌 아무 흔들림으로도 초록불이 된다(AI 리뷰 지적).
+            // 상승과 하강이 서로 다른 자세로 나오는지를 본다 — 속도축이 살아 있다는 뜻이다.
+            var thigh = Suit.Model.GetComponentsInChildren<Transform>(true)
+                .Single(x => x.name == "R_Thigh");
+            var falling = thigh.localRotation;
+
+            var up = Walking; up.Grounded = false; up.VerticalSpeed = 3f;
+            Advance(up, 12);
+            var rising = thigh.localRotation;
+
+            Assert.That(Quaternion.Angle(falling, rising), Is.GreaterThan(5f),
+                "상승과 하강의 자세가 같다 — 공중 클립의 속도축이 안 먹고 있다.");
         }
 
         [Test]
