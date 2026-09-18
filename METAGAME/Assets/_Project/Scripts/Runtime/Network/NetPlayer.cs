@@ -604,7 +604,27 @@ namespace Metagame.Network
 
             // 사람의 userId 와 겹치지 않게 음수를 쓴다. 겹치면 중복 접속 정리
             // (EvictStaleDuplicates)가 애먼 사람을 걷어낸다.
+            //
+            // 규약: AI 의 userId 는 -1 - 자리번호. userId 를 저장하거나 집계하는 쪽은
+            // 음수를 사람으로 세지 않아야 한다.
             userId = -1L - slot;
+        }
+
+        /// <summary>
+        /// 이 자리를 사람이 이미 받아 두었나. <b>아직 몸을 못 세운 사람도 센다.</b>
+        ///
+        /// <para>자리(<see cref="teamSlot"/>)는 접속하자마자 정해지지만 몸은 다음 물리
+        /// 스텝에야 선다. <see cref="TeamSeats"/> 가 그 틈에 '몸이 없다'는 이유로 AI 를
+        /// 띄우면 방금 들어온 사람의 자리를 선점한다.</para>
+        /// </summary>
+        public static bool HumanHoldsSlot(int slot)
+        {
+            for (int i = 0; i < ServerPlayers.Count; i++)
+            {
+                NetPlayer player = ServerPlayers[i];
+                if (player != null && !player.aiDriver && player.teamSlot == slot) return true;
+            }
+            return false;
         }
         string lastAim;              // 마지막으로 남긴 조준 상태(바뀔 때만 찍는다)
         bool previousPingPressed;
@@ -796,8 +816,20 @@ namespace Metagame.Network
             {
                 PlayerRig seatBody = teamSeats.ClaimBody(teamSlot, this, human: !aiDriver, nickname);
 
-                // 아직 누가 쥐고 있다. 다음 물리 스텝에 다시 본다.
-                if (seatBody == null) return false;
+                if (seatBody == null)
+                {
+                    // AI 는 자리를 뺏긴 것이다(사람이 먼저 앉았다). 스스로 사라진다 —
+                    // 남겨 두면 매 물리 스텝 ClaimBody 에 부딪혀 경고만 쏟는 좀비가 된다.
+                    if (aiDriver)
+                    {
+                        Debug.Log($"[NetPlayer] {teamSlot}번 자리를 사람이 가져갔다 — AI 가 물러난다");
+                        NetworkServer.Destroy(gameObject);
+                        return false;
+                    }
+
+                    // 사람이면 아직 AI 를 내리는 중일 수 있다. 다음 물리 스텝에 다시 본다.
+                    return false;
+                }
 
                 body = seatBody;
                 pooledBody = true;
@@ -1532,7 +1564,12 @@ namespace Metagame.Network
             }
 
             // 자리를 놓는다. 몸은 그대로 서 있고, 잠시 뒤 AI 가 이어받는다.
-            if (pooledBody && TeamSeats.Server != null)
+            //
+            // <b>방장 자리도 놓는다.</b> 방장 몸은 게임 씬 것이라 pooledBody 가 아니지만,
+            // 자리는 RegisterHostBody 로 점유해 두었다. 놓지 않으면 방장이 사라진 뒤에도
+            // 그 자리가 '누가 몰고 있는' 상태로 남아, 이어받기(HostMigration) 때 새 방장도
+            // AI 도 앉지 못한다.
+            if ((pooledBody || hostOwnBody) && TeamSeats.Server != null)
             {
                 TeamSeats.Server.ReleaseBody(teamSlot, this);
             }
