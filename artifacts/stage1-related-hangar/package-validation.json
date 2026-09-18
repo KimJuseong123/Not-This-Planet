@@ -1,0 +1,79 @@
+{
+  "assets": 13,
+  "fbx": 13,
+  "fbm_folders": 13,
+  "pbr_textures": 78,
+  "source_blends": 13,
+  "zip_files": 0,
+  "texture_size": 2048,
+  "unique_guids": 159,
+  "max_path_length": 180,
+  "checks": [
+    {
+      "asset": "SM_Astra_SouthApproachWalkway",
+      "triangles": 33140,
+      "status": "PASS"
+    },
+    {
+      "asset": "SM_Astra_EastEntranceLanding",
+      "triangles": 22604,
+      "status": "PASS"
+    },
+    {
+      "asset": "SM_Astra_PedestrianAccess",
+      "triangles": 45352,
+      "status": "PASS"
+    },
+    {
+      "asset": "SM_Astra_FoundationApproachDeck",
+      "triangles": 115740,
+      "status": "PASS"
+    },
+    {
+      "asset": "SM_Astra_BrokenPersonnelBridge0",
+      "triangles": 5648,
+      "status": "PASS"
+    },
+    {
+      "asset": "SM_Astra_BrokenPersonnelBridge1",
+      "triangles": 6060,
+      "status": "PASS"
+    },
+    {
+      "asset": "SM_Astra_BrokenPersonnelBridge2",
+      "triangles": 6160,
+      "status": "PASS"
+    },
+    {
+      "asset": "SM_Astra_BrokenPersonnelBridge5",
+      "triangles": 6144,
+      "status": "PASS"
+    },
+    {
+      "asset": "SM_Astra_BrokenPersonnelBridge6",
+      "triangles": 5696,
+      "status": "PASS"
+    },
+    {
+      "asset": "SM_Astra_ModularEdgeCurb",
+      "triangles": 2356,
+      "status": "PASS"
+    },
+    {
+      "asset": "SM_Astra_CargoApronEntryStairs",
+      "triangles": 7664,
+      "status": "PASS"
+    },
+    {
+      "asset": "SM_Astra_AdjustableDeckSupport",
+      "triangles": 7532,
+      "status": "PASS"
+    },
+    {
+      "asset": "SM_Astra_RouteWayfindingBeacon",
+      "triangles": 4796,
+      "status": "PASS"
+    }
+  ],
+  "scope": "Blender FBX roundtrip, file completeness, metadata and texture linkage; Unity runtime not tested"
+}

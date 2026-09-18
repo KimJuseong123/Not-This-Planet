@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="6" result="Failed(Child)" total="6" passed="2" failed="4" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-18 06:19:22Z" end-time="2026-09-18 06:19:23Z" duration="0.5109828">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="2019" result="Failed" site="Child" start-time="2026-09-18 06:19:22Z" end-time="2026-09-18 06:19:23Z" duration="0.510983" total="6" passed="2" failed="4" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="3268" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202/outputs/tractor-tests/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="1983" result="Failed" site="Child" start-time="2026-09-18 06:19:22Z" end-time="2026-09-18 06:19:23Z" duration="0.429231" total="6" passed="2" failed="4" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="33436" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="3269" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="1983" result="Failed" site="Child" start-time="2026-09-18 06:19:22Z" end-time="2026-09-18 06:19:23Z" duration="0.415853" total="6" passed="2" failed="4" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="3274" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="1934" result="Failed" site="Child" start-time="2026-09-18 06:19:23Z" end-time="2026-09-18 06:19:23Z" duration="0.402402" total="6" passed="2" failed="4" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="3275" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="1934" result="Failed" site="Child" start-time="2026-09-18 06:19:23Z" end-time="2026-09-18 06:19:23Z" duration="0.388303" total="6" passed="2" failed="4" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="3076" name="ToolDisplayMountTests" fullname="Metagame.Gameplay.Tests.ToolDisplayMountTests" classname="Metagame.Gameplay.Tests.ToolDisplayMountTests" runstate="Runnable" testcasecount="6" result="Failed" site="Child" start-time="2026-09-18 06:19:23Z" end-time="2026-09-18 06:19:23Z" duration="0.367093" total="6" passed="2" failed="4" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-suite type="ParameterizedMethod" id="3082" name="AuthoredToolIsVisibleInFirstPersonAndRestoresDroppedPose" fullname="Metagame.Gameplay.Tests.ToolDisplayMountTests.AuthoredToolIsVisibleInFirstPersonAndRestoresDroppedPose" classname="Metagame.Gameplay.Tests.ToolDisplayMountTests" runstate="Runnable" testcasecount="2" result="Failed" site="Child" start-time="2026-09-18 06:19:06Z" end-time="2026-09-18 06:19:09Z" duration="2.751770" total="2" passed="1" failed="1" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <failure>
+                  <message><![CDATA[One or more child tests had errors]]></message>
+                </failure>
+                <test-case id="3080" name="AuthoredToolIsVisibleInFirstPersonAndRestoresDroppedPose(&quot;MeteorBat_Stage1&quot;)" fullname="Metagame.Gameplay.Tests.ToolDisplayMountTests.AuthoredToolIsVisibleInFirstPersonAndRestoresDroppedPose(&quot;MeteorBat_Stage1&quot;)" methodname="AuthoredToolIsVisibleInFirstPersonAndRestoresDroppedPose" classname="Metagame.Gameplay.Tests.ToolDisplayMountTests" runstate="Runnable" seed="1206316512" result="Passed" start-time="2026-09-18 06:19:06Z" end-time="2026-09-18 06:19:09Z" duration="2.154155" asserts="0">
+                  <properties />
+                  <output><![CDATA[Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_be89ef69
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_0ecb763e
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_415f0994
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_e0b152e9
+]]></output>
+                </test-case>
+                <test-case id="3081" name="AuthoredToolIsVisibleInFirstPersonAndRestoresDroppedPose(&quot;WeldingPlasmaGun_Stage1&quot;)" fullname="Metagame.Gameplay.Tests.ToolDisplayMountTests.AuthoredToolIsVisibleInFirstPersonAndRestoresDroppedPose(&quot;WeldingPlasmaGun_Stage1&quot;)" methodname="AuthoredToolIsVisibleInFirstPersonAndRestoresDroppedPose" classname="Metagame.Gameplay.Tests.ToolDisplayMountTests" runstate="Runnable" seed="749269115" result="Failed" start-time="2026-09-18 06:19:09Z" end-time="2026-09-18 06:19:09Z" duration="0.589039" asserts="0">
+                  <properties />
+                  <failure>
+                    <message><![CDATA[  WeldingPlasmaGun_Stage1 must appear in the camera frustum.
+  Expected: True
+  But was:  False
+]]></message>
+                    <stack-trace><![CDATA[at Metagame.Gameplay.Tests.ToolDisplayMountTests.AuthoredToolIsVisibleInFirstPersonAndRestoresDroppedPose (System.String name) [0x00197] in C:\workspace\2-PJT\S15P21B202\outputs\tractor-tests\Assets\_Project\Scripts\Tests\Editor\ToolDisplayMountTests.cs:65
+]]></stack-trace>
+                  </failure>
+                </test-case>
+              </test-suite>
+              <test-case id="3083" name="AuthoredToolsStaySeatedAndCanBePickedUpAndDropped" fullname="Metagame.Gameplay.Tests.ToolDisplayMountTests.AuthoredToolsStaySeatedAndCanBePickedUpAndDropped" methodname="AuthoredToolsStaySeatedAndCanBePickedUpAndDropped" classname="Metagame.Gameplay.Tests.ToolDisplayMountTests" runstate="Runnable" seed="1881399664" result="Failed" start-time="2026-09-18 06:19:09Z" end-time="2026-09-18 06:19:16Z" duration="6.845740" asserts="0">
+                <properties>
+                  <property name="Category" value="Heavy" />
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  WeldingPlasmaGun_Stage1/Petal_01 must remain above the floor.
+  Expected: greater than 0.150000006f
+  But was:  -1.07704139f
+]]></message>
+                  <stack-trace><![CDATA[at Metagame.Gameplay.Tests.ToolDisplayMountTests+<AuthoredToolsStaySeatedAndCanBePickedUpAndDropped>d__3.MoveNext () [0x0088a] in C:\workspace\2-PJT\S15P21B202\outputs\tractor-tests\Assets\_Project\Scripts\Tests\Editor\ToolDisplayMountTests.cs:204
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in .\Library\PackageCache\com.unity.test-framework@1405238725ab\UnityEngine.TestRunner\NUnitExtensions\Attributes\TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[[NotThisPlanet][상호작용] 좌클릭 → 양손 도구 집기 | 대상=운석 방망이 | 질량=3.0kg
+[NotThisPlanet][상호작용] 좌클릭 → 양손 도구 집기 | 대상=플라즈마 용접기 | 질량=4.0kg
+]]></output>
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="3079" name="AuthoredVisibleModelOverlapsItsPhysicalBody" fullname="Metagame.Gameplay.Tests.ToolDisplayMountTests.AuthoredVisibleModelOverlapsItsPhysicalBody" classname="Metagame.Gameplay.Tests.ToolDisplayMountTests" runstate="Runnable" testcasecount="2" result="Failed" site="Child" start-time="2026-09-18 06:19:16Z" end-time="2026-09-18 06:19:19Z" duration="2.550672" total="2" passed="0" failed="2" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <failure>
+                  <message><![CDATA[One or more child tests had errors]]></message>
+                </failure>
+                <test-case id="3077" name="AuthoredVisibleModelOverlapsItsPhysicalBody(&quot;MeteorBat_Stage1&quot;)" fullname="Metagame.Gameplay.Tests.ToolDisplayMountTests.AuthoredVisibleModelOverlapsItsPhysicalBody(&quot;MeteorBat_Stage1&quot;)" methodname="AuthoredVisibleModelOverlapsItsPhysicalBody" classname="Metagame.Gameplay.Tests.ToolDisplayMountTests" runstate="Runnable" seed="2081067819" result="Failed" start-time="2026-09-18 06:19:16Z" end-time="2026-09-18 06:19:18Z" duration="2.018883" asserts="0">
+                  <properties />
+                  <failure>
+                    <message><![CDATA[  MeteorBat_Stage1/Visual_ZUpToYUp: visible geometry must stay near its collision body.
+  Expected: less than 0.25f
+  But was:  1.85054588f
+]]></message>
+                    <stack-trace><![CDATA[at Metagame.Gameplay.Tests.ToolDisplayMountTests.AuthoredVisibleModelOverlapsItsPhysicalBody (System.String name) [0x000ee] in C:\workspace\2-PJT\S15P21B202\outputs\tractor-tests\Assets\_Project\Scripts\Tests\Editor\ToolDisplayMountTests.cs:36
+]]></stack-trace>
+                  </failure>
+                  <output><![CDATA[Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_be89ef69
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_0ecb763e
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_415f0994
+Couldn't create a Convex Mesh from source mesh, within the maximum polygons limit (256). The partial hull will be used. Consider simplifying your mesh. Source mesh name: tripo_node_e0b152e9
+]]></output>
+                </test-case>
+                <test-case id="3078" name="AuthoredVisibleModelOverlapsItsPhysicalBody(&quot;WeldingPlasmaGun_Stage1&quot;)" fullname="Metagame.Gameplay.Tests.ToolDisplayMountTests.AuthoredVisibleModelOverlapsItsPhysicalBody(&quot;WeldingPlasmaGun_Stage1&quot;)" methodname="AuthoredVisibleModelOverlapsItsPhysicalBody" classname="Metagame.Gameplay.Tests.ToolDisplayMountTests" runstate="Runnable" seed="245093367" result="Failed" start-time="2026-09-18 06:19:18Z" end-time="2026-09-18 06:19:19Z" duration="0.528814" asserts="0">
+                  <properties />
+                  <failure>
+                    <message><![CDATA[  WeldingPlasmaGun_Stage1/Petal_01: visible geometry must stay near its collision body.
+  Expected: less than 0.25f
+  But was:  2.00976849f
+]]></message>
+                    <stack-trace><![CDATA[at Metagame.Gameplay.Tests.ToolDisplayMountTests.AuthoredVisibleModelOverlapsItsPhysicalBody (System.String name) [0x000ee] in C:\workspace\2-PJT\S15P21B202\outputs\tractor-tests\Assets\_Project\Scripts\Tests\Editor\ToolDisplayMountTests.cs:36
+]]></stack-trace>
+                  </failure>
+                </test-case>
+              </test-suite>
+              <test-case id="3084" name="RemotePickupLateJoinAndDisableReleaseMounts" fullname="Metagame.Gameplay.Tests.ToolDisplayMountTests.RemotePickupLateJoinAndDisableReleaseMounts" methodname="RemotePickupLateJoinAndDisableReleaseMounts" classname="Metagame.Gameplay.Tests.ToolDisplayMountTests" runstate="Runnable" seed="1040609872" result="Passed" start-time="2026-09-18 06:19:19Z" end-time="2026-09-18 06:19:23Z" duration="4.366238" asserts="0">
+                <properties>
+                  <property name="Category" value="Heavy" />
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

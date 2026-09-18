@@ -129,6 +129,26 @@ namespace Metagame.Gameplay.Parts
             if (candidate == null || candidate.GetComponent<Rigidbody>() == Origin.GetComponentInParent<Rigidbody>()
                 || !CanReach(candidate)) return BeamGrabResult.NoTarget;
 
+            // 사람이 타고 있는 견인선은 집지 않는다 (S15P21B202-554).
+            //
+            // <b>집으면 그 기체가 그 판 내내 죽는다.</b> 붙잡으면 파츠가 Free 에서
+            // Carried 로 넘어가는데(아래 TryTransitionTo), 상태 전이표에 <b>Free 로
+            // 돌아오는 길이 없다</b>(SpaceshipPart.IsTransitionAllowed). 그리고
+            // TransportVehicle.HasPartAttachment() 는 State != Free 를 "붙어 있음" 으로
+            // 보므로, 그 뒤로는
+            //   · TickPartFlight 가 부양·추진을 통째로 건너뛰고 (탄 사람은 조작이 죽는다)
+            //   · CanBoardFrom 이 거짓이라 아무도 다시 못 탄다.
+            // 실측: 방장이 탄 견인선을 팀원이 집었더니 스페이스바가 먹지 않았고, 내린
+            // 뒤에는 탑승이 막혔다.
+            //
+            // <b>빈 기체는 그대로 집힌다.</b> 엔진은 결국 조립해야 하는 파츠다 —
+            // 막을 것은 "타고 있는 동안" 뿐이다.
+            //
+            // AssemblyDock 이 같은 판단을 이미 하고 있다(CanCapture 의 TransportVehicle
+            // 거르기). 빔에만 이 가드가 없었다.
+            if (candidate.TryGetComponent<TransportVehicle>(out var craft) && craft.IsOccupied)
+                return BeamGrabResult.Occupied;
+
             switch (candidate.State)
             {
                 case PartState.Locked: return BeamGrabResult.Clamped;

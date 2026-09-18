@@ -18,6 +18,22 @@ namespace Metagame.Gameplay.Parts
     public sealed class SpaceshipPart : MonoBehaviour
     {
         [SerializeField] PartState _state = PartState.Locked;
+        [SerializeField] bool _isDockedToPad;
+        public bool IsDockedToPad => _isDockedToPad;
+
+        /// <summary>도킹 판정은 조립대/서버만 수행하고, 참가자는 받은 상태를 적용한다.</summary>
+        public void ApplyDockedToPad(bool docked)
+        {
+            Initialize();
+            if (_isDockedToPad == docked) return;
+            _isDockedToPad = docked;
+            if (docked && !_body.isKinematic)
+            {
+                _body.linearVelocity = Vector3.zero;
+                _body.angularVelocity = Vector3.zero;
+            }
+            ApplyRepresentation(_state);
+        }
 
         /// <summary>
         /// 이 파츠가 놓였을 때의 질량. 씬을 만드는 도구가 <see cref="PartSpec"/> 의 값을 넣는다.
@@ -43,6 +59,54 @@ namespace Metagame.Gameplay.Parts
 
         Rigidbody _body;
         bool _initialized;
+        Collider[] _hullColliders;
+
+        public bool TryGetHullBounds(out Bounds bounds)
+        {
+            Initialize();
+            if (_hullColliders == null) _hullColliders = GetComponentsInChildren<Collider>(true);
+            bounds = default;
+            var found = false;
+            foreach (var collider in _hullColliders)
+            {
+                if (collider == null || !collider.enabled || collider.isTrigger
+                    || collider.attachedRigidbody != _body || !collider.gameObject.activeInHierarchy
+                    || collider.GetComponentInParent<PartClamp>() != null) continue;
+                if (!found) { bounds = collider.bounds; found = true; }
+                else bounds.Encapsulate(collider.bounds);
+            }
+            return found;
+        }
+
+        /// <summary>위치를 옮기지 않고 목표 회전에서의 외곽을 계산한다. 실제 콜라이더 크기/피벗을 존중한다.</summary>
+        public bool TryGetHullBoundsAtRotation(Quaternion rotation, out Bounds bounds)
+        {
+            TryGetHullBounds(out bounds); // 콜라이더 캐시 초기화
+            var found = false;
+            var delta = rotation * Quaternion.Inverse(transform.rotation);
+            foreach (var collider in _hullColliders)
+            {
+                if (collider == null || !collider.enabled || collider.isTrigger
+                    || collider.attachedRigidbody != _body || !collider.gameObject.activeInHierarchy
+                    || collider.GetComponentInParent<PartClamp>() != null) continue;
+                var local = true;
+                Bounds source;
+                if (collider is BoxCollider box) source = new Bounds(box.center, box.size);
+                else if (collider is MeshCollider mesh && mesh.sharedMesh != null) source = mesh.sharedMesh.bounds;
+                else { source = collider.bounds; local = false; }
+                for (var corner = 0; corner < 8; corner++)
+                {
+                    var point = source.center + Vector3.Scale(source.extents, new Vector3(
+                        (corner & 1) == 0 ? -1f : 1f, (corner & 2) == 0 ? -1f : 1f,
+                        (corner & 4) == 0 ? -1f : 1f));
+                    if (local) point = collider.transform.TransformPoint(point);
+                    point = transform.position + delta * (point - transform.position);
+                    if (!found) { bounds = new Bounds(point, Vector3.zero); found = true; }
+                    else bounds.Encapsulate(point);
+                }
+            }
+            return found;
+        }
 
         /// <summary>남은 고정못을 지면에 묶어 두는 조인트들. 부분 부양이 이것으로 표현된다.</summary>
         readonly List<ConfigurableJoint> _clampJoints = new();
@@ -53,7 +117,7 @@ namespace Metagame.Gameplay.Parts
         public Vector3 AssemblyUp => GetComponent<TransportVehicle>() is TransportVehicle vehicle
             ? vehicle.AssemblyUp : transform.up;
 
-        public bool CanReceiveAssembly => State is PartState.Placed or PartState.Welded
+        public bool CanReceiveAssembly => IsDockedToPad || State is PartState.Placed or PartState.Welded
             || (State == PartState.Free && GetComponent<TransportVehicle>() is TransportVehicle vehicle
                 && vehicle.CanReceiveAssembly);
 
@@ -114,7 +178,10 @@ namespace Metagame.Gameplay.Parts
             RefreshClamps();
             RefreshSockets();
             EnsureGrabbable();
+            // 표현을 먼저 적용하고 그 뒤에 안개에서 뺀다 (S15P21B202-540). 순서가
+            // 반대면, 표현 전환이 나중에 재질을 갈아끼우는 날 예외가 조용히 날아간다.
             ApplyRepresentation(_state);
+            ExemptFromFog();
         }
 
         /// <summary>
@@ -129,6 +196,22 @@ namespace Metagame.Gameplay.Parts
         /// 파츠를 옮기는 수단은 견인 도구 하나로 유지된다.
         /// </summary>
         void EnsureGrabbable() => Grabbable.Mark(gameObject, name, climbable: true);
+
+        /// <summary>
+        /// 파츠는 안개를 받지 않는다 (S15P21B202-540).
+        ///
+        /// <para><b>왜 사람과 같이 빼는가.</b> 사람만 또렷하고 그가 나르는 파츠만
+        /// 회색이면 어색하다. 그리고 파츠는 이 게임의 목표물이다 — 어디에 있는지
+        /// 읽히는 편이 맞다. 리포에 이미 같은 판단이 있다: 유도등과 유도광선이
+        /// <c>GuidanceNoFog</c> 로 안개를 피한다.</para>
+        ///
+        /// <para><b>잡는 동안만 빼지 않는 이유.</b> 잡기는 입력으로 서버에 가고
+        /// (<c>InputFrame.GrabLeft</c>), 참가자 기계에는 결과 위치만 내려온다 —
+        /// <c>Grabbable.NotifyGrabbed</c> 가 거기서는 돌지 않는다. 잡는 동안만
+        /// 빼면 <b>내가 든 것만 또렷하고 팀원이 든 것은 그대로 회색</b>이라
+        /// 고치려던 문제가 남는다.</para>
+        /// </summary>
+        void ExemptFromFog() => Core.Prim.SetFogExempt(gameObject, true);
 
         /// <summary>
         /// 자식의 고정쇠 목록을 다시 모은다.
@@ -160,6 +243,7 @@ namespace Metagame.Gameplay.Parts
             Initialize();
 
             if (next == _state) return false;
+            if (_isDockedToPad && next == PartState.Carried) return false;
             if (!IsTransitionAllowed(_state, next)) return false;
             if (next == PartState.Free && RemainingRequiredClamps > 0) return false;
 
@@ -218,6 +302,55 @@ namespace Metagame.Gameplay.Parts
 
             _ => false,
         };
+
+        /// <summary>
+        /// 운석 충격파가 이 파츠를 민다(2026-09-18).
+        ///
+        /// <para><b>속도로 준다.</b> 놓인 파츠는 <see cref="PhysicsScale.PartMass"/>
+        /// (500kg)이라 <c>AddExplosionForce</c> 의 900N 을 한 물리 스텝 받아 봐야
+        /// 0.036m/s 다 — 기체(80kg)가 폭발력으로 안 움직여
+        /// <see cref="TransportVehicle.TakeMeteorImpact"/> 가 속도를 직접 주는 것과
+        /// 같은 계산이고, 파츠는 그보다 여섯 배 무겁다.</para>
+        ///
+        /// <para><b>회전도 같이 준다.</b> 미는 방향과 수직인 수평축으로 넘어간다.
+        /// 회전이 없으면 무거운 상자가 미끄러지기만 해서 "밀렸다" 로 보이지
+        /// <b>"맞았다"</b> 로 보이지 않는다.</para>
+        ///
+        /// <para><b>끊을지는 여전히 솔버가 정한다.</b> 여기서 주는 것은 속도뿐이고,
+        /// 그 속도가 조인트에 만드는 힘이 <c>breakForce</c> 를 넘는지는 용접 정도가
+        /// 정한다 — 상수가 결과를 정하지 않는다
+        /// (<see cref="Hazards.Meteor"/> 의 클래스 주석과 같은 원칙).</para>
+        /// </summary>
+        /// <param name="point">착탄 지점.</param>
+        /// <param name="reach">이 거리에서 0 이 되도록 선형으로 준다.</param>
+        /// <param name="speed">착탄점에서의 속도 변화(m/s).</param>
+        /// <param name="spin">착탄점에서의 각속도 변화(rad/s).</param>
+        /// <returns>실제로 밀었으면 true.</returns>
+        public bool TakeMeteorBlast(Vector3 point, float reach, float speed, float spin)
+        {
+            if (_body == null) _body = GetComponent<Rigidbody>();
+            if (_body == null || _body.isKinematic) return false;
+
+            // <b>고정쇠에 박힌 파츠는 움직이지 않는다</b> — <see cref="PartState.Locked"/>
+            // 의 정의가 "운석에 맞아도 움직이지 않는다" 다. 견인 중인 파츠도 뺀다:
+            // 빔이 자세를 잡고 있는데 여기서 속도를 얹으면 둘이 같은 강체를 두고 다툰다.
+            if (_state is PartState.Locked or PartState.Carried) return false;
+
+            var offset = _body.worldCenterOfMass - point;
+            var falloff = reach > 0f ? Mathf.Clamp01(1f - offset.magnitude / reach) : 1f;
+            if (falloff <= 0f) return false;
+
+            // 착탄점이 지면이고 파츠의 무게중심은 그보다 위에 있으므로, 이 방향에는
+            // 위로 뜨는 성분이 이미 들어 있다 — 따로 더하지 않는다.
+            var away = offset.sqrMagnitude > 1e-6f ? offset.normalized : Vector3.up;
+
+            var axis = Vector3.Cross(Vector3.up, away);
+            if (axis.sqrMagnitude < 1e-6f) axis = Vector3.right;
+
+            _body.linearVelocity += away * (speed * falloff);
+            _body.angularVelocity += axis.normalized * (spin * falloff);
+            return true;
+        }
 
         /// <summary>놓였을 때의 질량. 명세가 없으면 예전 고정값으로 돌아간다.</summary>
         public float PlacedMass => _placedMass > 0f ? _placedMass : PhysicsScale.PartMass;
@@ -356,6 +489,14 @@ namespace Metagame.Gameplay.Parts
 
         void ApplyRepresentation(PartState state)
         {
+            if (_isDockedToPad)
+            {
+                if (_body == null) _body = GetComponent<Rigidbody>();
+                gameObject.layer = GameLayers.Part;
+                _body.isKinematic = true;
+                _body.mass = PlacedMass + _extraMass;
+                return;
+            }
             // Converted engines keep their vehicle physics, including during bead mass updates
             // and host migration. Component.enabled does not prevent these direct calls.
             if (GetComponent<PartTractorActivator>() is PartTractorActivator activator && activator.IsActivated)

@@ -1,5 +1,60 @@
 # Unity Project Context
 
+## 2026-09-17 editable Astra Terrain
+
+Stage1_Astra's sculpted basin is now "Basin - Editable Terrain": a 112x112m Unity
+Terrain with 2049 height samples per axis and three paintable layers. The source
+mesh object has been removed; its asset remains for rollback. Existing facilities,
+vegetation, cameras and lighting retain their serialized data and transforms.
+TerrainData is a dedicated LFS binary asset. The isolated conversion refuses to
+overwrite existing TerrainData, preserving future manual sculpting/painting.
+See repository-root docs/records/2026-09-17-stage1-terrain.md for authoring controls,
+height approximation tolerances, physics/render validation and asset paths.
+See docs/records/2026-09-17-577-review-resolution.md for the scope decision,
+movement acceptance criteria, rollback steps and current validation limitations.
+Saved-scene validation skips legacy height comparison when the source is absent.
+
+## 2026-09-17 numbered Stage1 vegetation
+
+Stage1_Astra has an additive "Stage1 Vegetation - Numbered Flora" group: 721 textured
+plants from the seven numbered Stage1 model folders and 18 mesh-colliding mushroom
+trees. PlantRustle now has a damped visual spring and serialized movement multiplier;
+PlayerRig samples current Prop-layer trigger geometry (minimum multiplier, no stacking
+or stale membership). New tall plants use 0.45 speed; all new plants use 25-degree sway.
+Original scene objects, ground, lighting and cameras are preserved. The vegetation
+editor resnap command accepts the current sculpted ground and future TerrainCollider.
+Unity 6000.5.4f1 isolated validation passed 20 focused tests, including real Play Mode
+contact and settling. See docs/records/2026-09-17-stage1-vegetation.md at repository root
+for tuning, serialization preservation, rendering evidence and validation limits.
+
+## 2026-09-17 magnetic storm wake
+
+`MagneticStormVisual` now exposes independent travel/opposite-direction billow multipliers
+(1.4/1.8). The shader uses per-renderer world-travel projection and metre-based offsets
+in the travel/up plane, eliminating the former width-dominant lateral wobble.
+`Stage1AtmosphereProfile.dustStorm` supplies wake duration/opacity/impulse influence
+(4 seconds/0.35/0.18). `DustStormSchedule.EvaluateWake` reconstructs the deposited
+rear path from shared time/seed; presentation uses up to two reusable smoke volumes
+and `Stage1DustStormHazard` applies fading impulses only with physics authority.
+Main and wake hits share cooldowns. See `docs/records/2026-09-17-magnetic-storm-wake.md`
+for 18/19 focused tests, the reproduced pre-existing failure and URP render evidence.
+
+## 2026-09-15 clamp rope glow
+
+`PartClamp` now explicitly sets the private tether material emission to the part route hue, enables emission at intensity 4, and raises the GuidanceNoFog brightness cap to 5 so the existing Bloom can respond. Rope width is 0.085m, including its pull-progress oscillation. No particles or scene setup are added. Isolated Stage1_Astra Play Mode validation covered 16 ropes across four parts, visibility lifecycle and release; all four rendered color variants were visually inspected. See repository-root `docs/records/2026-09-15-clamp-rope-glow.md`.
+
+## 2026-09-15 core part optical guidance
+
+`AssemblyGuidanceLight` attaches scene-local `PartGuidanceVfx` optics to the four existing part-location beacons (three `Module beacon · visual guide`, one `02 Tractor sky beacon`). They reuse the welder's WeldingParticle shader, with private HDR beacon/halo materials, a pulse ring and bounded motes. The existing beacon bounds determine the full beam extent. Effects never follow or read movable parts and remain visible after part movement/docking/destruction. Disabling/destroying the effect restores the original beacon material. No scene wiring is required in Stage1_Astra. Isolated EditMode regression tests cover 116 cases. Multi-peer/player build validation was not run. See `docs/records/2026-09-15-part-guidance-vfx.md` at repository root for current evidence and limitations.
+
+## 2026-09-14 welding joint recommendations
+
+PlasmaWeldingTool now owns a local-only yellow collider-projected joint recommendation mesh, using the first bead contact query from WeldBead. The transparent WeldingGuide resource shader draws recommendations before the purple aim ring without writing depth. Default range is 4m and normal offset is 1.2cm. No scene/prefab setup is required. Unity 6000.5.4f1 isolated EditMode validation passed 99/99 tests; live visual/multi-peer validation remains pending. See repository-root docs/records/2026-09-14-welding-joint-guide.md.
+
+## 2026-09-14 meteor rhythm HUD
+
+`GameHud.MeteorRhythm.cs` renders a held-bat-only landing-zone guide and observes confirmed `MeteorBat` rhythm results. `MeteorBat` grades timing and scales launch speed; `OrbitCamera` adds a short local rotational impact effect. `WorldSync` replicates result/cooldown and meteor prediction metadata for disabled client ghosts. `Meteor.TryPredictImpact` no longer initializes/registers the meteor or clears hit history on presentation queries. See repository-root `docs/records/2026-09-14-meteor-rhythm.md`. No scene/prefab setup is required.
+
 ## 2026-09-13 UI cursor integration
 
 `Metagame.UI.LocalCursorFeedback` auto-installs a persistent local presentation component in interactive players. It reuses `Resources/PingMarker`, reads the owning `NetPlayer.PingColor` (solo fallback: `GameSession.LocalPlayer.TeamColor`), and leaves cursor visibility/locking to existing bootstrap/session code. `UiInteraction` wraps current IMGUI controls to emit bounded screen sparks and synthesized 2D click audio only on consumed pointer presses. Audio honors the existing listener master volume and settings SFX volume; no network events are emitted. See `docs/records/2026-09-13-cursor-feedback.md` at repository root for scope and validation (22 EditMode tests passed in Unity 6000.5.4f1).

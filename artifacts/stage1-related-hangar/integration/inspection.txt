@@ -1,0 +1,80 @@
+Assembly · entry stair 0 pos=(0.0000, 0.1200, -10.9000) rot=(0.00, 0.00, 0.00) scale=(5.23, 0.24, 0.60) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Assembly · entry stair 1 pos=(0.0000, 0.3100, -10.4200) rot=(0.00, 0.00, 0.00) scale=(5.23, 0.24, 0.60) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Assembly · entry stair 2 pos=(0.0000, 0.5000, -9.9400) rot=(0.00, 0.00, 0.00) scale=(5.23, 0.24, 0.60) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Assembly · entry stair 3 pos=(0.0000, 0.6900, -9.4600) rot=(0.00, 0.00, 0.00) scale=(5.23, 0.24, 0.60) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Tractor dock · entry stair 0 pos=(23.0000, 0.1200, -26.4000) rot=(0.00, 0.00, 0.00) scale=(3.30, 0.24, 0.60) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Tractor dock · entry stair 1 pos=(23.0000, 0.3100, -25.9200) rot=(0.00, 0.00, 0.00) scale=(3.30, 0.24, 0.60) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Tractor dock · entry stair 2 pos=(23.0000, 0.5000, -25.4400) rot=(0.00, 0.00, 0.00) scale=(3.30, 0.24, 0.60) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Tractor dock · entry stair 3 pos=(23.0000, 0.6900, -24.9600) rot=(0.00, 0.00, 0.00) scale=(3.30, 0.24, 0.60) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Hill observatory · entry stair 0 pos=(28.0000, 7.3200, 11.5000) rot=(0.00, 0.00, 0.00) scale=(3.36, 0.24, 0.60) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Hill observatory · entry stair 1 pos=(28.0000, 7.5100, 11.9800) rot=(0.00, 0.00, 0.00) scale=(3.36, 0.24, 0.60) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Hill observatory · entry stair 2 pos=(28.0000, 7.7000, 12.4600) rot=(0.00, 0.00, 0.00) scale=(3.36, 0.24, 0.60) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Hill observatory · entry stair 3 pos=(28.0000, 7.8900, 12.9400) rot=(0.00, 0.00, 0.00) scale=(3.36, 0.24, 0.60) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Hangar foundation and approach deck pos=(-27.0500, 5.1500, 27.0000) rot=(0.00, 0.00, 0.00) scale=(23.10, 0.50, 15.50) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Cargo pickup apron · entry stair 0 pos=(-9.5000, 5.1200, 21.6000) rot=(0.00, 0.00, 0.00) scale=(3.30, 0.24, 0.60) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Cargo pickup apron · entry stair 1 pos=(-9.5000, 5.3100, 22.0800) rot=(0.00, 0.00, 0.00) scale=(3.30, 0.24, 0.60) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Cargo pickup apron · entry stair 2 pos=(-9.5000, 5.5000, 22.5600) rot=(0.00, 0.00, 0.00) scale=(3.30, 0.24, 0.60) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Cargo pickup apron · entry stair 3 pos=(-9.5000, 5.6900, 23.0400) rot=(0.00, 0.00, 0.00) scale=(3.30, 0.24, 0.60) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Broken personnel bridge 0 pos=(-29.0000, 5.0000, 12.0000) rot=(0.00, 0.00, 0.00) scale=(2.60, 0.40, 1.15) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Broken personnel bridge 1 pos=(-29.0000, 5.0000, 13.3500) rot=(0.00, 0.00, 0.00) scale=(2.60, 0.40, 1.15) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Broken personnel bridge 2 pos=(-29.0000, 5.0000, 14.7000) rot=(0.00, 0.00, 0.00) scale=(2.60, 0.40, 1.15) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Broken personnel bridge 5 pos=(-29.0000, 5.0000, 18.7500) rot=(0.00, 0.00, 0.00) scale=(2.60, 0.40, 1.15) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Broken personnel bridge 6 pos=(-29.0000, 5.0000, 20.1000) rot=(0.00, 0.00, 0.00) scale=(2.60, 0.40, 1.15) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Hangar cliff face pos=(-39.0000, -0.2500, 13.7000) rot=(0.00, 174.25, 0.00) scale=(2.48, 2.48, 2.48) components=Transform
+Hangar cliff face pos=(-35.2000, -0.2500, 13.7000) rot=(0.00, 179.55, 0.00) scale=(2.52, 2.52, 2.52) components=Transform
+Hangar cliff face pos=(-23.8000, -0.2500, 13.7000) rot=(0.00, 63.34, 0.00) scale=(2.70, 2.70, 2.70) components=Transform
+Hangar cliff face pos=(-20.0000, -0.2500, 13.7000) rot=(0.00, 177.16, 0.00) scale=(2.57, 2.57, 2.57) components=Transform
+Hangar cliff face pos=(-16.2000, -0.2500, 13.7000) rot=(0.00, 101.46, 0.00) scale=(2.61, 2.61, 2.61) components=Transform
+Hangar cliff face pos=(-12.4000, -0.2500, 13.7000) rot=(0.00, 202.97, 0.00) scale=(2.54, 2.54, 2.54) components=Transform
+Hangar cliff face pos=(-8.6000, -0.2500, 13.7000) rot=(0.00, 304.01, 0.00) scale=(2.52, 2.52, 2.52) components=Transform
+Hangar cliff face pos=(-4.8000, -0.2500, 13.7000) rot=(0.00, 92.65, 0.00) scale=(2.52, 2.52, 2.52) components=Transform
+Hangar pedestrian access pos=(-32.0000, 2.7150, 10.5750) rot=(341.89, 21.61, 0.00) scale=(3.20, 0.40, 17.14) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+CapsuleHangar pos=(-21.9800, 4.9500, 27.1079) rot=(0.00, 180.00, 0.00) scale=(33.31, 8.64, 33.31) components=Transform
+Astra Hangar pos=(-29.0000, 5.1400, 27.0000) rot=(0.00, 90.00, 0.00) scale=(0.75, 0.75, 1.00) components=Transform
+SM_AstraHangar_01_Structure.002 pos=(-29.0000, 5.1400, 27.0000) rot=(270.00, 90.00, 0.00) scale=(0.75, 1.00, 0.75) components=Transform,MeshFilter,MeshRenderer,MeshCollider
+SM_AstraHangar_02_Floor.002 pos=(-29.0000, 5.1400, 27.0000) rot=(270.00, 90.00, 0.00) scale=(0.75, 1.00, 0.75) components=Transform,MeshFilter,MeshRenderer
+SM_AstraHangar_03_Wall_Left.002 pos=(-29.0000, 5.1400, 27.0000) rot=(270.00, 90.00, 0.00) scale=(0.75, 1.00, 0.75) components=Transform,MeshFilter,MeshRenderer,MeshCollider
+SM_AstraHangar_03_Wall_Right.002 pos=(-29.0000, 5.1400, 27.0000) rot=(270.00, 90.00, 0.00) scale=(0.75, 1.00, 0.75) components=Transform,MeshFilter,MeshRenderer,MeshCollider
+SM_AstraHangar_04_Facade.002 pos=(-29.0000, 5.1400, 27.0000) rot=(270.00, 90.00, 0.00) scale=(0.75, 1.00, 0.75) components=Transform,MeshFilter,MeshRenderer,MeshCollider
+SM_AstraHangar_05_PersonnelDoor.002 pos=(-29.0000, 5.1400, 27.0000) rot=(270.00, 90.00, 0.00) scale=(0.75, 1.00, 0.75) components=Transform,MeshFilter,MeshRenderer,MeshCollider
+SM_AstraHangar_06_Interior.002 pos=(-29.0000, 5.1400, 27.0000) rot=(270.00, 90.00, 0.00) scale=(0.75, 1.00, 0.75) components=Transform,MeshFilter,MeshRenderer
+SM_AstraHangar_07_RearWall.002 pos=(-29.0000, 5.1400, 27.0000) rot=(270.00, 90.00, 0.00) scale=(0.75, 1.00, 0.75) components=Transform,MeshFilter,MeshRenderer,MeshCollider
+SM_AstraHangar_08_Fasteners.002 pos=(-29.0000, 5.1400, 27.0000) rot=(270.00, 90.00, 0.00) scale=(0.75, 1.00, 0.75) components=Transform,MeshFilter,MeshRenderer
+SM_AstraHangar_09_Grilles.002 pos=(-29.0000, 5.1400, 27.0000) rot=(270.00, 90.00, 0.00) scale=(0.75, 1.00, 0.75) components=Transform,MeshFilter,MeshRenderer
+SM_AstraHangar_10_Emission.002 pos=(-29.0000, 5.1400, 27.0000) rot=(270.00, 90.00, 0.00) scale=(0.75, 1.00, 0.75) components=Transform,MeshFilter,MeshRenderer
+SM_AstraHangar_11_RoofPanels.002 pos=(-29.0000, 5.1400, 27.0000) rot=(270.00, 90.00, 0.00) scale=(0.75, 1.00, 0.75) components=Transform,MeshFilter,MeshRenderer,MeshCollider
+SM_AstraHangar_12_Skylight.002 pos=(-29.0000, 5.1400, 27.0000) rot=(270.00, 90.00, 0.00) scale=(0.75, 1.00, 0.75) components=Transform,MeshFilter,MeshRenderer,MeshCollider
+SM_AstraHangar_13_RoofEquipment.002 pos=(-29.0000, 5.1400, 27.0000) rot=(270.00, 90.00, 0.00) scale=(0.75, 1.00, 0.75) components=Transform,MeshFilter,MeshRenderer
+SM_AstraHangar_14_Crane.002 pos=(-29.0000, 5.1400, 27.0000) rot=(270.00, 90.00, 0.00) scale=(0.75, 1.00, 0.75) components=Transform,MeshFilter,MeshRenderer,MeshCollider
+SM_AstraHangar_16_PersonnelDoor_MOVABLE.002 pos=(-29.0000, 5.1400, 27.0000) rot=(270.00, 90.00, 0.00) scale=(0.75, 1.00, 0.75) components=Transform,MeshFilter,MeshRenderer,MeshCollider
+SM_AstraHangar_17_HoistTrolley_MOVABLE.002 pos=(-29.0000, 5.1400, 27.0000) rot=(270.00, 90.00, 0.00) scale=(0.75, 1.00, 0.75) components=Transform,MeshFilter,MeshRenderer,MeshCollider
+Hangar south approach walkway pos=(-23.2500, 5.2500, 18.2500) rot=(0.00, 0.00, 0.00) scale=(14.10, 0.30, 2.80) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Hangar east entrance landing pos=(-17.0000, 5.2500, 21.9000) rot=(0.00, 0.00, 0.00) scale=(3.50, 0.30, 9.50) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Walkway south curb pos=(-23.5000, 5.5000, 16.9400) rot=(0.00, 0.00, 0.00) scale=(13.50, 0.20, 0.16) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+Walkway east curb pos=(-15.3200, 5.5000, 20.2500) rot=(0.00, 0.00, 0.00) scale=(0.16, 0.20, 6.80) components=Transform,MeshFilter,BoxCollider,MeshRenderer
+ASSET SM_Astra_SouthApproachWalkway bounds=Center: (0.0000, 0.1565, 0.0000), Extents: (1.4030, 0.1565, 7.0500)
+  SM_Astra_SouthApproachWalkway p=(0.00, 0.00, 0.00) r=(270.02, 0.00, 0.00) s=(1.00, 1.00, 1.00)
+ASSET SM_Astra_EastEntranceLanding bounds=Center: (0.0000, 0.1565, 0.0000), Extents: (1.7530, 0.1565, 4.7500)
+  SM_Astra_EastEntranceLanding p=(0.00, 0.00, 0.00) r=(270.02, 0.00, 0.00) s=(1.00, 1.00, 1.00)
+ASSET SM_Astra_PedestrianAccess bounds=Center: (0.0000, 2.8564, 0.0817), Extents: (1.6030, 2.8387, 8.1826)
+  SM_Astra_PedestrianAccess p=(0.00, 0.00, 0.00) r=(270.02, 0.00, 0.00) s=(1.00, 1.00, 1.00)
+ASSET SM_Astra_FoundationApproachDeck bounds=Center: (0.0000, 0.2565, 0.0000), Extents: (11.5530, 0.2565, 7.7500)
+  SM_Astra_FoundationApproachDeck p=(0.00, 0.00, 0.00) r=(270.02, 0.00, 0.00) s=(1.00, 1.00, 1.00)
+ASSET SM_Astra_BrokenPersonnelBridge0 bounds=Center: (0.0000, 0.2463, 0.0000), Extents: (1.3000, 0.2088, 0.5750)
+  SM_Astra_BrokenPersonnelBridge0 p=(0.00, 0.00, 0.00) r=(270.02, 0.00, 0.00) s=(1.00, 1.00, 1.00)
+ASSET SM_Astra_BrokenPersonnelBridge1 bounds=Center: (0.0000, 0.2208, 0.0273), Extents: (1.3000, 0.1833, 0.6023)
+  SM_Astra_BrokenPersonnelBridge1 p=(0.00, 0.00, 0.00) r=(270.02, 0.00, 0.00) s=(1.00, 1.00, 1.00)
+ASSET SM_Astra_BrokenPersonnelBridge2 bounds=Center: (0.0000, 0.2208, -0.0200), Extents: (1.3000, 0.1833, 0.5950)
+  SM_Astra_BrokenPersonnelBridge2 p=(0.00, 0.00, 0.00) r=(270.02, 0.00, 0.00) s=(1.00, 1.00, 1.00)
+ASSET SM_Astra_BrokenPersonnelBridge5 bounds=Center: (0.0000, 0.2208, 0.0200), Extents: (1.3000, 0.1833, 0.5950)
+  SM_Astra_BrokenPersonnelBridge5 p=(0.00, 0.00, 0.00) r=(270.02, 0.00, 0.00) s=(1.00, 1.00, 1.00)
+ASSET SM_Astra_BrokenPersonnelBridge6 bounds=Center: (0.0000, 0.2463, 0.0000), Extents: (1.3000, 0.2088, 0.5750)
+  SM_Astra_BrokenPersonnelBridge6 p=(0.00, 0.00, 0.00) r=(270.02, 0.00, 0.00) s=(1.00, 1.00, 1.00)
+ASSET SM_Astra_ModularEdgeCurb bounds=Center: (0.0000, 0.1005, 0.0015), Extents: (1.0000, 0.1005, 0.0815)
+  SM_Astra_ModularEdgeCurb p=(0.00, 0.00, 0.00) r=(270.02, 0.00, 0.00) s=(1.00, 1.00, 1.00)
+ASSET SM_Astra_CargoApronEntryStairs bounds=Center: (0.0000, 0.4177, 0.0022), Extents: (1.6500, 0.4183, 1.0223)
+  SM_Astra_CargoApronEntryStairs p=(0.00, 0.00, 0.00) r=(270.02, 0.00, 0.00) s=(1.00, 1.00, 1.00)
+ASSET SM_Astra_AdjustableDeckSupport bounds=Center: (0.0000, 2.4000, 0.0000), Extents: (1.2600, 2.4000, 0.7000)
+  SM_Astra_AdjustableDeckSupport p=(0.00, 0.00, 0.00) r=(270.02, 0.00, 0.00) s=(1.00, 1.00, 1.00)
+ASSET SM_Astra_RouteWayfindingBeacon bounds=Center: (0.0000, 0.8000, 0.0000), Extents: (0.2250, 0.8000, 0.2000)
+  SM_Astra_RouteWayfindingBeacon p=(0.00, 0.00, 0.00) r=(270.02, 0.00, 0.00) s=(1.00, 1.00, 1.00)

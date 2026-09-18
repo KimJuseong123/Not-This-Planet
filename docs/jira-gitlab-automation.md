@@ -6,7 +6,7 @@ Jira와 GitLab 사이에서 이슈 상태·레이블·기한·알림을 처리�
 
 [문서 안내](README.md) · 사용 규칙: [Jira 컨벤션](jira-convention.md) · 검증: [E2E 점검표](e2e-checklist.md)
 
-> 관련 문서: [워크플로우 구현 계획](./workflow-plan.md) (검증 근거·출처) · [Jira 컨벤션](./jira-convention.md) · [Git 컨벤션](./git-convention.md)
+> 관련 문서: [워크플로우 구현 계획](./records/2026-08-26-workflow-plan-v1.md) (검증 근거·출처) · [Jira 컨벤션](./jira-convention.md) · [Git 컨벤션](./git-convention.md)
 > 기준 버전: workflow-plan v1.0 (2026-08-26)
 
 **이 문서의 내용**
@@ -369,6 +369,49 @@ R4 에는 스프린트를 **조건으로 보는 항목이 없다**(R4 절 참고
 문자열 두 개만 바꿔 `PUT 200`. 컴포넌트를 새로 만들지 않았으므로 `__NEW__COMPONENT__`는 쓰지 않았다.
 **최종 JQL은 위 R5·R9 절에 그대로 적혀 있다** — 다시 적용해야 하면 그 값을 쓰면 된다.
 
+### R11 · 진행 중이면 스토리 포인트 필수 (S15P21B202-568)
+
+**적용·검증 완료 2026-09-16** — 규칙 `01a0a914-a904-77c6-b468-30ddf99608c9`.
+
+**실측**: 포인트를 비우고 `has-branch` 레이블을 붙인 테스트 이슈(R5 가드를 통과시켜 R11 만
+남긴 것)를 진행 중으로 옮기자 **22초 뒤 `해야 할 일` 로 되돌려지고 코멘트가 달렸다.** 포인트를
+채우고 다시 옮기니 **그대로 유지**됐다. 검증 후 그 이슈는 삭제했다(`-207`·`-208` 때와 같은 방식).
+
+- 트리거 **이슈 전환됨** (도착: `진행 중`)
+- 규칙 상세 → **"다른 규칙의 액션이 이 규칙을 트리거하도록 허용" 체크 ON**
+  - **R5 와 반대다.** R5 는 R4 의 자동 전환에 반응하면 루프라서 껐다. 여기는 그 반대로
+    **R4 의 전환을 봐야 뜻이 있다** — 진행 중으로 들어오는 정상 경로가 `브랜치 만들기` 이고,
+    그것을 안 보면 규칙이 거의 걸리지 않는다.
+  - 루프가 아닌 이유: 이 규칙의 액션은 `해야 할 일` 로 보내는 것인데, **도착이 `해야 할 일` 인**
+    **규칙이 하나도 없다.** R4 는 브랜치 생성, R8 은 스프린트 필드 변경이 트리거다.
+- 조건 **업무 항목 필드 조건** — 유형이 `스토리`·`에픽` 중 하나가 **아님** (R5 와 같은 이유:
+  그 둘은 자기 브랜치를 갖지 않고 사람이 손으로 옮긴다)
+- 액션 **If/Else**: **JQL 조건** `cf[10031] is not EMPTY`
+  - If → (액션 없음: 통과)
+  - Else → **이슈 전환** → `해야 할 일` · 코멘트(별표를 쓰지 않는다, R5 와 같은 이유):
+    `스토리 포인트가 비어 있어 되돌렸습니다. 채운 뒤 다시 옮기거나 브랜치를 다시 만들어 주세요. (자동 되돌림)`
+
+**왜 R5 에 얹지 않았나.** 얹으면 한 조건에 두 이유가 섞여, 포인트가 없어서 되돌아간 사람에게
+*"진행 중은 브랜치 만들기로만 진입합니다"* 라는 **틀린 이유**가 간다. 되돌림 알림의 이유가 틀리면
+사람은 엉뚱한 곳을 고친다.
+
+**왜 생성 시 필수가 아닌가.** `-482` 의 결정을 그대로 둔다 — 만드는 순간에는 예측이 안 서는
+이슈가 있고, 막으면 아무 숫자나 넣게 된다. **틀린 값은 빈 값과 달리 눈에 띄지 않는다.**
+진행 중은 다르다: 그때는 무엇을 할지 정해져 있다.
+
+**왜 아침 점검만으로는 안 되나** (2026-09-16 실측). 아침 점검은 `statusCategory != Done` 만 본다.
+`-544`·`-545` 는 만들어진 날 완료됐고, 그래서 **어느 아침에도 목록에 오른 적이 없다** — 포인트
+없이 끝났는데 아무도 모른다. 진행 중은 모든 Task·Bug 가 지나가는 자리라 시점에 상관없이 걸린다.
+
+**스토리는 이 규칙에 안 걸린다.** 아침 점검이 그쪽을 맡는다(범위에 `진행 중` 을 더했다).
+
+**MM 카드의 멘션 대상이 R5 와 다르다.** R5 는 사람이 손으로 끈 경우만 걸리므로 `initiator` 를
+멘션하면 맞는다. **R11 은 R4 의 자동 전환에도 걸려** 그때 `initiator` 가 `Automation for Jira` 다 —
+그대로 두면 **가장 흔한 경로에서 아무도 멘션되지 않는다.** 그래서 `issue.assignee` 를 멘션한다.
+
+**MR 시점에도 한 번 더 본다.** `mr-lint` 가 같은 필드를 본다 — 이 규칙이 꺼지거나 조건이 빠져도
+저장소 쪽 검사는 남는다. `-88` 이후 3주 동안 아무도 눈치채지 못한 것이 그 이유다.
+
 <a id="section-5"></a>
 
 ## 3. (권한 있으면) 워크플로우 전환 제한 — 드래그 자체 차단
@@ -443,7 +486,8 @@ R4 에는 스프린트를 **조건으로 보는 항목이 없다**(R4 절 참고
 | R1 생성 보정 | 5799874 | ✅ 활성 | 설명 템플릿 · 기한=스프린트 종료(스프린트 있을 때). 보고자 치환 액션은 08-27 삭제됨 |
 | R2 제목 형식 검사 | 5800352 | ✅ 활성 | 트리거 요약·상위 항목 변경(생성 포함) · if 제목 불일치 → needs-fix+댓글 / else-if Task인데 상위 없음 → needs-fix+댓글 / else needs-fix 제거+파트 레이블 (08-27 상위 Epic 검사 추가) |
 | R4 브랜치 생성 → 진행 중 | 5793964 | ✅ 활성 | 조건: 상태=해야 할 일, JQL `labels is EMPTY OR labels not in (needs-fix)` |
-| R5 진행 중은 브랜치로만 | 5793968 | ✅ 활성 | initiator ≠ 자동화 · IF JQL(커밋/MR 있음 AND 스프린트 AND Story Points) / ELSE 되돌림+댓글 |
+| R5 진행 중은 브랜치로만 | 5793968 | ✅ 활성 | initiator ≠ 자동화 · 유형 ≠ 스토리·에픽 · IF JQL(`has-branch` OR 커밋 OR MR OR `automation-missed`) / ELSE 되돌림+댓글. **스프린트·Story Points 는 보지 않는다** — `-88`(08-27) 때 뺐다 |
+| R11 진행 중이면 포인트 필수 | `01a0a914-a904-77c6-b468-30ddf99608c9` | ✅ 활성 | 2026-09-16 신설. 허용 ON(R5 와 반대 — R4 의 전환을 봐야 한다) · 유형 ≠ 스토리·에픽 · IF `cf[10031] is not EMPTY` / ELSE 되돌림+댓글+MM 카드 |
 | R6 MR 병합 → 완료 | 5793966 | ✅ 활성 | 조건 상태 ≠ 완료 |
 | R7 MR 닫힘 알림 | 5800235 | ✅ 활성 | 트리거 "풀 리퀘스트 거부됨" |
 | R8 기한 = 스프린트 종료 | 5800237 | ✅ 활성 | 트리거 "필드 값 변경(스프린트)", 다른 규칙 트리거 허용 ON |
@@ -498,7 +542,7 @@ R4 에는 스프린트를 **조건으로 보는 항목이 없다**(R4 절 참고
 | --- | --- |
 | 목록 | `POST {base}/{projectId}/rules` body `{"offset":0,"limit":50,"filter":"","actionTypes":[],"triggerTypes":[],"orchestrationTypes":[],"systemLabelId":"CONTAINER","sortKey":"NAME","sortOrder":"ASC"}` — **`systemLabelId:"CONTAINER"`를 넣으면 새로 만든 규칙이 빠진다**(2026-09-07: UI로 만든 R10이 목록에 없었다). 그 키를 빼고 부르거나 id로 직접 조회한다 |
 | 상세 | `GET {base}/{projectId}/rule/{id}` — **숫자 id와 uuid 모두 받는다.** 새 UI로 만든 규칙은 주소창(`…/settings/automate#/rule/<값>`)에 **uuid 만** 나온다(2026-09-07 R10). 응답은 `ruleConfigBean` 래핑 없이 규칙 본문 그대로이고, **트리거는 `components`가 아니라 최상위 `trigger` 키**에 따로 있다 |
-| 수정 | `PUT {base}/{projectId}/rule/{ruleUuid}` body `{"ruleConfigBean": <GET 결과를 고친 것>, "newConnections": []}` |
+| 수정 | `PUT {base}/{projectId}/rule/{uuid}` body `{"ruleConfigBean": <GET 결과를 고친 것>, "newConnections": []}` — **그 uuid 는 상세 응답의 `idUuid` 키에 있다**(2026-09-18 실측). `ruleUuid`·`uuid` 라는 키는 응답에 없어서, 그 이름으로 찾으면 "uuid 를 못 찾았다" 로 조용히 건너뛴다 |
 | 활성/비활성 | `PATCH {base}/{projectId}/rule/{ruleUuid}` body `[{"op":"replace","path":"/state","value":"ENABLED"}]` |
 | 신규 | 내부 `POST /rule`은 403 → 공개 API `POST …/automation/public/jira/{cloudId}/rest/v1/template/create` `{"templateId":"software_template_26","ruleHome":"<프로젝트 ARI>","state":"DISABLED"}`로 껍데기를 만든 뒤 PUT으로 덮어쓴다 |
 
@@ -517,7 +561,7 @@ R4 에는 스프린트를 **조건으로 보는 항목이 없다**(R4 절 참고
   | --- | --- |
   | 로그인 | Playwright `launch_persistent_context(channel="chrome")`로 창을 띄우고 **사람이 그 창에서 로그인**하면 프로필에 세션이 남아 다음 실행부터 바로 통과한다. 2026-08-31 에 "프로필이 새로 생겨 로그인 상태가 없다" 고 적었던 것은 프로필을 재사용하지 않은 탓이었다 |
   | `input()` 금지 | 로그인 대기를 `input()`으로 잡아 두면 **그 뒤 `page.request.*`가 진행되지 않는다**(2026-09-07: dry-run은 되고 `--apply`만 멈췄다). 규칙 조회가 200 이 될 때까지 `page.wait_for_timeout`으로 폴링해 로그인 완료를 감지한다 |
-  | PUT body | GET 응답이 곧 `ruleConfigBean` 본문이다(최상위에 `components`가 보인다). 그것을 고쳐 `{"ruleConfigBean": …, "newConnections": []}`로 감싸 `PUT …/rule/{ruleUuid}` — 숫자 id가 아니라 **uuid** 다 |
+  | PUT body | GET 응답이 곧 `ruleConfigBean` 본문이다(최상위에 `components`가 보인다). 그것을 고쳐 `{"ruleConfigBean": …, "newConnections": []}`로 감싸 `PUT …/rule/{uuid}` — 숫자 id가 아니라 **uuid**(상세 응답의 `idUuid`) 다 |
   | 검증 | PUT 뒤 다시 GET 해서 새 정규식 개수 ≥ 바꾼 개수, 옛 정규식 0 을 확인한다. `before-<id>.json`·`after-<id>.json`을 남긴다. PUT은 규칙 상태(사용 중)를 바꾸지 않는다 |
 
   **저장소에는 도구만 둔다 — 일회성 교정 스크립트는 두지 않는다**(2026-09-08, `-338`).

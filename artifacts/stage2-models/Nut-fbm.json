@@ -1,0 +1,15 @@
+{
+  "asset": "Nut",
+  "fbx": "S2_Nut.fbx",
+  "fbm": "S2_Nut.fbm",
+  "textures": [
+    "S2_Dark_BaseColor.png",
+    "S2_Steel_BaseColor.png"
+  ],
+  "relative_texture_paths": [
+    "S2_Nut.fbm/S2_Dark_BaseColor.png",
+    "S2_Nut.fbm/S2_Steel_BaseColor.png"
+  ],
+  "relative_paths_valid": true,
+  "passed": true
+}

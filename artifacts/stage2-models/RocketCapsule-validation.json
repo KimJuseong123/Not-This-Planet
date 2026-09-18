@@ -1,0 +1,13 @@
+{
+  "asset": "RocketCapsule",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 4,
+  "dimensions_m": [
+    2.9000000953674316,
+    3.0460004806518555,
+    3.4050004482269287
+  ],
+  "pivots_count": 4,
+  "passed": true
+}

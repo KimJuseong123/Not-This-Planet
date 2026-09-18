@@ -1,0 +1,15 @@
+{
+  "asset": "DeadSapling",
+  "fbx": "S2_DeadSapling.fbx",
+  "fbm": "S2_DeadSapling.fbm",
+  "textures": [
+    "S2_Bark_BaseColor.png",
+    "S2_Dry_BaseColor.png"
+  ],
+  "relative_texture_paths": [
+    "S2_DeadSapling.fbm/S2_Bark_BaseColor.png",
+    "S2_DeadSapling.fbm/S2_Dry_BaseColor.png"
+  ],
+  "relative_paths_valid": true,
+  "passed": true
+}

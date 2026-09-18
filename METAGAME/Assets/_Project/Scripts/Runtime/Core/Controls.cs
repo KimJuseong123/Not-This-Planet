@@ -51,6 +51,16 @@ namespace Metagame.Core
         public bool ToolUtility;  // 현재는 Q — 공통 장비 동작과 호환
         public bool TransportAction; // E — 운반 장치 탑승 / 하차
         public bool ArmsUp;       // 두 팔을 위로 (기어오를 때)
+
+        /// <summary>
+        /// 엎드리기 키를 누르고 있는가 (S15P21B202-616).
+        ///
+        /// <para><b>토글인데 왜 누름(edge)이 아니라 누르고 있음(held)인가.</b>
+        /// 누름은 한 프레임짜리 펄스라 그 프레임이 <see cref="Seq"/> 중복 제거나
+        /// 유실에 걸리면 토글이 통째로 사라진다. 눌린 상태를 계속 보내고
+        /// <b>서버가 가장자리를 잡으면</b> 그런 일이 없다 — 구조(G)와 같은 모양이다.</para>
+        /// </summary>
+        public bool ProneHeld;
         public bool FreeLook;     // Alt — 시점은 자유롭게 돌리고 이동·조준 기준은 현재 시점을 따른다
         public bool TabletToggle; // Tab
         public bool FieldToggle;  // F — 광역 저중력장 켜기·끄기 (기획 §14.1)
@@ -103,6 +113,9 @@ namespace Metagame.Core
         public static KeyCode Jump = KeyCode.Space;
         public static KeyCode Run = KeyCode.LeftShift;
         public static KeyCode ArmsUp = KeyCode.LeftControl;
+
+        /// <summary>엎드리기 토글 (S15P21B202-616). LeftControl 은 ArmsUp 이 이미 쓴다.</summary>
+        public static KeyCode Prone = KeyCode.Z;
         public static KeyCode FreeLook = KeyCode.LeftAlt;
         public static KeyCode Restart = KeyCode.R;
         public static KeyCode StuckEscape = KeyCode.T;  // 끼었을 때 탈출 (기획 §21)
@@ -125,6 +138,13 @@ namespace Metagame.Core
         public static KeyCode TabletPreviousPageAlternate = KeyCode.A;
         public static KeyCode TabletNextPageAlternate = KeyCode.D;
         public static KeyCode FreeCursor = KeyCode.Escape;
+        public static KeyCode EmoteWheel = KeyCode.F1;
+
+        /// <summary>
+        /// 춤 감정표현 고르기 (S15P21B202-563). <see cref="EmoteWheel"/> 바로 옆에 둔다 —
+        /// 조작이 같고(누른 채 방향, 떼면 결정) 고르는 것만 다르다.
+        /// </summary>
+        public static KeyCode DanceWheel = KeyCode.F2;
 
         public static float LookSensitivity = 2.4f;
         public static bool InvertLookY;
@@ -141,6 +161,7 @@ namespace Metagame.Core
             Jump = SafeKey(settings.jump, KeyCode.Space);
             Run = SafeKey(settings.run, KeyCode.LeftShift);
             ArmsUp = SafeKey(settings.armsUp, KeyCode.LeftControl);
+            Prone = SafeKey(settings.prone, KeyCode.Z);
             FreeLook = SafeKey(settings.freeLook, KeyCode.LeftAlt);
             Restart = SafeKey(settings.restart, KeyCode.R);
             RescueTeammate = SafeKey(settings.rescueTeammate, KeyCode.G);
@@ -171,6 +192,7 @@ namespace Metagame.Core
                 || !AddBinding(settings.jump, used, ref duplicate)
                 || !AddBinding(settings.run, used, ref duplicate)
                 || !AddBinding(settings.armsUp, used, ref duplicate)
+                || !AddBinding(settings.prone, used, ref duplicate)
                 || !AddBinding(settings.freeLook, used, ref duplicate)
                 || !AddBinding(settings.restart, used, ref duplicate)
                 || !AddBinding(settings.stuckEscape, used, ref duplicate)
@@ -200,6 +222,7 @@ namespace Metagame.Core
             f.ToolUtility = f.ToolAction;
             f.TransportAction = Input.GetKeyDown(TransportAction);
             f.ArmsUp = Input.GetKey(ArmsUp);
+            f.ProneHeld = Input.GetKey(Prone);
             f.FreeLook = Input.GetKey(FreeLook) || Input.GetKey(KeyCode.RightAlt);
             f.TabletToggle = Input.GetKeyDown(Tablet);
             f.FieldToggle = Input.GetKeyDown(FieldToggle);

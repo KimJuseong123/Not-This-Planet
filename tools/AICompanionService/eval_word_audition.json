@@ -1,0 +1,50 @@
+{
+  "note": "게임 용어 단어 오디션. 같은 문장에서 목표 단어만 바꿔 문장 난이도 효과를 제거한다.",
+  "note_method": "target이 인식 결과에 얼마나 남았는지를 잰다. 나머지 단어가 깨져도 target만 보면 된다.",
+  "note_current": "current=true는 지금 게임에서 쓰는 말이다. 후보가 이보다 나아야 바꿀 이유가 있다.",
+  "note_order": "group 순서대로 읽는다. 중간에 끊으면 watch_captures.py --start 로 이어간다.",
+  "lines": [
+    {"id": "bat1", "group": "몽둥이", "target": "몽둥이", "current": true, "text": "몽둥이 가져와"},
+    {"id": "bat2", "group": "몽둥이", "target": "방망이", "current": true, "text": "방망이 가져와"},
+    {"id": "bat3", "group": "몽둥이", "target": "배트", "current": true, "text": "배트 가져와"},
+    {"id": "bat4", "group": "몽둥이", "target": "야구방망이", "text": "야구방망이 가져와"},
+    {"id": "bat5", "group": "몽둥이", "target": "빠따", "text": "빠따 가져와"},
+
+    {"id": "wel1", "group": "용접건", "target": "용접건", "current": true, "text": "용접건 가져와"},
+    {"id": "wel2", "group": "용접건", "target": "용접기", "text": "용접기 가져와"},
+    {"id": "wel3", "group": "용접건", "target": "토치", "text": "토치 가져와"},
+    {"id": "wel4", "group": "용접건", "target": "용접도구", "text": "용접도구 가져와"},
+
+    {"id": "ball1", "group": "공", "target": "공", "current": true, "text": "공 때려줘"},
+    {"id": "ball2", "group": "공", "target": "야구공", "text": "야구공 때려줘"},
+    {"id": "ball3", "group": "공", "target": "연습공", "text": "연습공 때려줘"},
+
+    {"id": "pin1", "group": "고정못", "target": "못", "current": true, "text": "못 뽑아줘"},
+    {"id": "pin2", "group": "고정못", "target": "고정못", "current": true, "text": "고정못 뽑아줘"},
+    {"id": "pin3", "group": "고정못", "target": "나사", "text": "나사 뽑아줘"},
+    {"id": "pin4", "group": "고정못", "target": "볼트", "text": "볼트 뽑아줘"},
+    {"id": "pin5", "group": "고정못", "target": "핀", "text": "핀 뽑아줘"},
+
+    {"id": "get1", "group": "집기동사", "target": "주워줘", "current": true, "text": "나사 주워줘"},
+    {"id": "get2", "group": "집기동사", "target": "집어줘", "current": true, "text": "나사 집어줘"},
+    {"id": "get3", "group": "집기동사", "target": "가져와", "text": "나사 가져와"},
+    {"id": "get4", "group": "집기동사", "target": "챙겨", "text": "나사 챙겨"},
+    {"id": "get5", "group": "집기동사", "target": "들어올려", "text": "나사 들어올려"},
+
+    {"id": "drop1", "group": "놓기동사", "target": "내려놔", "current": true, "text": "그거 내려놔"},
+    {"id": "drop2", "group": "놓기동사", "target": "놓아줘", "current": true, "text": "그거 놓아줘"},
+    {"id": "drop3", "group": "놓기동사", "target": "버려", "text": "그거 버려"},
+    {"id": "drop4", "group": "놓기동사", "target": "내려놓아", "text": "그거 내려놓아"},
+
+    {"id": "stop1", "group": "중단", "target": "멈춰", "current": true, "text": "멈춰"},
+    {"id": "stop2", "group": "중단", "target": "그만해", "current": true, "text": "그만해"},
+    {"id": "stop3", "group": "중단", "target": "정지", "text": "정지"},
+    {"id": "stop4", "group": "중단", "target": "멈추라고", "text": "멈추라고"},
+    {"id": "stop5", "group": "중단", "target": "그만하라고", "text": "그만하라고"},
+
+    {"id": "def1", "group": "운석방어", "target": "막아줘", "current": true, "text": "운석 막아줘"},
+    {"id": "def2", "group": "운석방어", "target": "쳐내줘", "current": true, "text": "운석 쳐내줘"},
+    {"id": "def3", "group": "운석방어", "target": "튕겨내", "text": "운석 튕겨내"},
+    {"id": "def4", "group": "운석방어", "target": "방어해", "text": "운석 방어해"}
+  ]
+}

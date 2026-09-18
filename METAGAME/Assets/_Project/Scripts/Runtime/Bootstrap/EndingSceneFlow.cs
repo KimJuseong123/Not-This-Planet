@@ -115,7 +115,7 @@ namespace Metagame.Bootstrap
                 NetworkClient.Send(new EndingSceneReadyMessage { Prepared = prepared });
             }
             if (NetworkServer.active && prepared && !started && AllParticipantsReady()) StartTogether();
-            if (playback != null && playback.PlaybackStarted && playback.Finished) ReturnToLobby();
+            if (playback != null && playback.PlaybackStarted && playback.Finished) ContinueToStage2();
         }
 
         public void Begin(DemoEndingSnapshot snapshot)
@@ -265,7 +265,7 @@ namespace Metagame.Bootstrap
                 foreach (var prefab in scene.PartVisuals)
                     if (prefab == null) throw new System.InvalidOperationException("엔딩 파츠 표시 프리팹이 누락되었습니다.");
                 var view = scene.gameObject.AddComponent<DemoEndingView>();
-                view.Configure(playback, ReturnToLobby, scene.PartVisuals);
+                view.Configure(playback, ContinueToStage2, scene.PartVisuals);
                 view.Prepare();
             }
             prepared = true;
@@ -298,6 +298,24 @@ namespace Metagame.Bootstrap
             return lastClock;
         }
 
+        bool ContinueToStage2()
+        {
+            if (returning) return true;
+            if (playback == null || !playback.PlaybackStarted || !playback.Finished) return false;
+            if (networked && !NetworkServer.active) return false;
+            string path = Metagame.Core.StageCatalog.SceneFolder + Metagame.Core.StageCatalog.Stage2SceneName + ".unity";
+            if (SceneUtility.GetBuildIndexByScenePath(path) < 0)
+            { Abort("빌드 목록에 Stage2_Earth 씬이 없습니다."); return false; }
+            var manager = NetworkManager.singleton;
+            if (NetworkServer.active && manager == null) return false;
+            returning = true;
+            if (hasSavedAutoCreate && manager != null) manager.autoCreatePlayer = savedAutoCreate;
+            hasSavedAutoCreate = false;
+            if (NetworkServer.active) manager.ServerChangeScene(path);
+            else SceneManager.LoadSceneAsync(path, LoadSceneMode.Single);
+            return true;
+        }
+
         bool ReturnToLobby()
         {
             if (returning) return true;
@@ -319,6 +337,14 @@ namespace Metagame.Bootstrap
 
         void OnSceneLoaded(Scene loaded, LoadSceneMode mode)
         {
+            if (mode == LoadSceneMode.Single && loaded.name == Metagame.Core.StageCatalog.Stage2SceneName)
+            {
+                if (hasSavedAutoCreate && NetworkManager.singleton != null)
+                    NetworkManager.singleton.autoCreatePlayer = savedAutoCreate;
+                hasSavedAutoCreate = false;
+                Destroy(gameObject);
+                return;
+            }
             if (mode != LoadSceneMode.Single || loaded.path != LobbyPath) return;
             if (networked && transferring && !returning)
                 Abort("엔딩 도중 서버 연결이 종료되었습니다. 로비로 돌아갑니다.", false);

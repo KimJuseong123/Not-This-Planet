@@ -1,0 +1,22 @@
+{
+  "asset": "SM_Astra_PedestrianAccess",
+  "concept": "docs\\assets\\concepts\\stage1-related-hangar\\03-pedestrian-access.png",
+  "fbx": "SM_Astra_PedestrianAccess.fbx",
+  "textures": "SM_Astra_PedestrianAccess.fbm",
+  "unity_material": "M_Astra_PedestrianAccess.mat",
+  "metres": true,
+  "blender_dimensions_XYZ": [
+    3.2059998512268066,
+    16.36525535583496,
+    5.677320241928101
+  ],
+  "triangles": 45352,
+  "editable_components": 294,
+  "source_blend": "artifacts\\stage1-related-hangar\\03-pedestrian-access\\SM_Astra_PedestrianAccess.blend",
+  "validation_report": "artifacts\\stage1-related-hangar\\03-pedestrian-access\\validation.json",
+  "fbx_roundtrip": "PASS",
+  "sha256": "dc66ffd1c178c75a21805a4e440c5fe5853977b9a323023f85be122f1099fcc5",
+  "scene_placement": "Assets/Scenes/Stage1_Astra.unity / Hangar Related - Concept Models",
+  "pivot": "base center; ramp low-end elevation",
+  "scene_instances": 1
+}

@@ -939,6 +939,152 @@ namespace Metagame.Gameplay
         public const float MeteorHeavyKnockSpeed = 8f;
 
         /// <summary>
+        /// 충격파가 미치는 거리를 충격 반경의 <b>몇 배</b>로 볼 것인가.
+        ///
+        /// <b>예전에는 충격 반경 밖이 완전히 안전했다.</b> 소형은 2m, 그중 강한 충격은
+        /// 안쪽 절반뿐이라(<see cref="MeteorHeavyImpactFraction"/>) 실제로는
+        /// <b>착탄점에서 1m 안쪽에 서 있지 않으면 아무 일도 일어나지 않았다</b> —
+        /// 2026-09-18 인게임 확인에서 "정가운데 맞지 않으면 피해가 없다" 로 올라온 것이
+        /// 그것이다. 기획 §20.1 이 약한 단계를 "충격<b>파</b>" 라고 부르는데, 파가
+        /// 퍼지는 거리가 없었다.
+        ///
+        /// <b>새 반경 상수를 두지 않고 배율로 둔다.</b> 이 저장소는 운석 값을 반경
+        /// 하나에서 끌어내는 방식을 지킨다(<see cref="Hazards.MeteorImpact.ForceFor"/>
+        /// 의 같은 판단) — 배율이면 소형·중형 어느 쪽 반경을 바꿔도 충격파가 따라온다.
+        ///
+        /// 1.8 배 → 소형 2m·3.6m, 중형 3.5m·6.3m. 강한 충격 경계(소형 1m)는 그대로다.
+        /// 넓어진 것은 <b>밀리기만 하는 바깥 띠</b>뿐이다.
+        /// </summary>
+        public const float MeteorShockwaveRadiusScale = 1.8f;
+
+        /// <summary>
+        /// 약한 충격파가 밀어내는 속도(m/s). 착탄점에서 멀수록 줄어든다.
+        ///
+        /// <b>폭발력만으로는 보이지 않는다.</b> <see cref="MeteorImpactForce"/> 는
+        /// <c>ForceMode.Force</c> 라 한 스텝(0.02초)에만 작용하고, 서 있는 사람은
+        /// <c>Balance</c> 가 곧바로 되세운다 — 기체가 폭발력으로 움직이지 않는 것과
+        /// (<see cref="CraftImpactSpeed"/>) 같은 이유다. 그래서 속도를 직접 더한다.
+        ///
+        /// 강한 충격(<see cref="MeteorHeavyKnockSpeed"/> 8m/s)의 절반 아래다. §20.1 이
+        /// 약한 단계를 "밀려나지만 <b>바로 행동 가능</b>" 으로 정하므로, 넘어질 만큼
+        /// 세면 강한 충격과 구분이 없어진다.
+        /// </summary>
+        public const float MeteorShockwaveKnockSpeed = 3.5f;
+
+        /// <summary>
+        /// 충격파가 사람을 띄우는 정도. 수평 방향에 이만큼 위를 섞는다.
+        ///
+        /// <b>바깥 띠에는 폭발력이 닿지 않는다</b> — <c>AddExplosionForce</c> 의 감쇠가
+        /// 가장자리에서 0 이므로, 위로 뜨는 성분을 여기서 만들지 않으면 발만 옆으로
+        /// 미끄러지고 래그돌은 가만히 서 있다. 0.35 는 약 19도로, "조금 날아간다" 는
+        /// 보이되 사람이 지붕 높이로 뜨지는 않는 각이다.
+        /// </summary>
+        public const float MeteorShockwaveLift = 0.35f;
+
+        /// <summary>
+        /// 충격파를 맞은 사람이 휘청이는 시간(초).
+        ///
+        /// <b>새 상태를 만들지 않는다.</b> <c>PlayerRig.Stagger</c> 가 이미 §20.2 의
+        /// 휘청임으로 세우는 힘만 약하게 만든다(S15P21B202-334) — 조종은 그대로이므로
+        /// §20.1 의 "바로 행동 가능" 을 지키면서 <b>래그돌이 실제로 흔들린다.</b>
+        /// 이것이 없으면 속도를 줘도 <c>Balance</c> 가 그 스텝에 되세워 티가 안 난다.
+        /// </summary>
+        public const float MeteorShockwaveStaggerSeconds = 0.7f;
+
+        /// <summary>
+        /// 착탄 폭발력을 지면 아래에서 밀어 올리는 정도(m).
+        ///
+        /// <c>AddExplosionForce</c> 의 <c>upwardsModifier</c> 다. 착탄 지점이 지면이라
+        /// 폭발 중심이 발과 같은 높이이고, 그러면 힘이 거의 수평이라 소품이 굴러갈 뿐
+        /// <b>튀어 오르지 않는다.</b> 중심을 조금 내려 잡으면 파편이 뜬다.
+        /// </summary>
+        public const float MeteorImpactUpwardsModifier = 0.4f;
+
+        /// <summary>
+        /// 운석이 <b>파츠</b>를 미는 속도(m/s). 착탄점에서 멀수록 줄어든다.
+        ///
+        /// <b>폭발력으로는 파츠가 꿈쩍도 안 한다.</b> 놓인 파츠는
+        /// <see cref="PartMass"/>(500kg)이라 <see cref="MeteorImpactForce"/> 900N 을
+        /// <c>ForceMode.Force</c> 로 한 스텝 주면 0.036m/s 다 — 기체(80kg)가 0.11m/s 로
+        /// 안 움직여 <see cref="CraftImpactSpeed"/> 를 직접 주기로 한 것과 같은 계산이고,
+        /// 파츠는 그보다 여섯 배 무겁다. 그래서 속도로 준다.
+        ///
+        /// <b>-247 의 판단을 뒤집는다.</b> 그때는 파츠를 폭발 대상에서 아예 뺐다 —
+        /// "파츠에 폭발력을 더 얹으면 조인트가 끊어질지를 상수가 결정해 버린다" 는
+        /// 이유였다. 2026-09-18 플레이 확인에서 <b>파츠가 거의 안 날아갔다.</b>
+        /// 운석이 조립을 흐트러뜨리는 것은 이 게임의 중심 긴장이고
+        /// (<see cref="Hazards.Meteor"/> 의 클래스 주석), 지금은 운석 <b>본체가 직접
+        /// 맞힌</b> 파츠만 그 일을 겪는다.
+        ///
+        /// <b>그래도 끊을지는 여전히 솔버가 정한다.</b> 여기서 주는 것은 속도뿐이고,
+        /// 그 속도가 조인트에 만드는 힘이 <c>breakForce</c> 를 넘는지는 용접 정도가
+        /// 정한다 — 상수가 결과를 정하지 않는다.
+        /// </summary>
+        public const float MeteorPartKnockSpeed = 3f;
+
+        /// <summary>
+        /// 운석이 파츠에 주는 각속도(rad/s). 미는 방향과 수직인 수평축으로 넘어간다.
+        ///
+        /// <see cref="CraftImpactSpin"/> 과 같은 모양이다. 회전이 없으면 무거운 상자가
+        /// 미끄러지기만 해서 "밀렸다" 로 보이지 <b>"맞았다"</b> 로 보이지 않는다.
+        /// </summary>
+        public const float MeteorPartKnockSpin = 2f;
+
+        /// <summary>
+        /// <b>컷신 전</b> 공세 간격(초). 기획 §17.8 의 공세 트리거를 밟기 전 상태다.
+        ///
+        /// <b>예전에는 0 발이었다.</b> <c>Stage1Sequence.ApplyGate</c> 가 공세가 켜지기
+        /// 전까지 스포너를 통째로 막아, 비행선까지 걸어가는 동안 하늘이 완전히 조용했다.
+        /// 그러면 운석이 <b>이 게임의 위협</b>이라는 것을 컷신에서 처음 배우게 된다 —
+        /// 배우는 자리가 곧 위험해지는 자리면 늦다.
+        ///
+        /// 10초에 한 발이면 피할 것도 없이 "저게 떨어지는구나" 만 알려 준다.
+        /// 예고 원과 넉백을 안전할 때 한 번 겪어 두는 것이 목적이다.
+        /// </summary>
+        public const float MeteorDrizzleIntervalSeconds = 10f;
+
+        /// <summary>컷신 전 한 공세의 운석 수. 한 발이다 — 묶음이 아니라 한 방울이다.</summary>
+        public const int MeteorDrizzleMeteors = 1;
+
+        /// <summary>
+        /// <b>컷신 뒤</b> 공세 간격(초). 비행선 공세 컷신이 끝나면 바로 이 값이 된다.
+        ///
+        /// <b>시간에 따라 오르지 않는다</b>(2026-09-18). 처음에는 경과 시간으로 서서히
+        /// 조이는 곡선을 넣었는데, 실제 난이도 전환점은 시계가 아니라 <b>플레이어가
+        /// 비행선 구역에 들어선 순간</b>이다 — 기획 §17.8 의 트리거가 이미 그 자리에
+        /// 있고, 컷신이 "이제부터 다르다" 를 이미 말한다. 시계가 따로 돌면 컷신을
+        /// 일찍 본 판과 늦게 본 판의 난이도가 달라져, 같은 연출이 다른 뜻이 된다.
+        ///
+        /// 5초는 §17.3 의 신호 시간(<see cref="MeteorWaveLeadSeconds"/>)과 같다. 더
+        /// 줄이면 5초 전 신호가 <b>이전 공세 안에서</b> 울려 무엇을 예고하는지 알 수 없다.
+        /// </summary>
+        public const float MeteorFullBlastIntervalSeconds = 5f;
+
+        /// <summary>
+        /// 컷신 뒤 한 공세의 운석 수. 인원 보정(§17.6) <b>전</b>의 값이다.
+        ///
+        /// <c>MeteorWavePreset</c> 의 "과부하"(6~7)를 넘어선다 — 그 프리셋이 "일부러
+        /// 넘긴 값 · 혼자서는 못 지나가는 경계" 인데, 컷신 뒤는 넷이 함께 막으라고
+        /// 만든 구간이므로 그보다 나쁜 것이 맞다. 혼자면 보정이 45% 로 눌러 5발이 된다.
+        /// </summary>
+        public const int MeteorFullBlastMeteors = 10;
+
+        /// <summary>
+        /// 컷신 뒤 중형 확률. 절반을 넘기되 소형이 다수로 남는 선이다 —
+        /// 전부 중형이면 방망이(§18)로 쳐낼 수 있는 것이 사라진다.
+        /// </summary>
+        public const float MeteorFullBlastMediumChance = 0.6f;
+
+        /// <summary>
+        /// 컷신 뒤 충격 반경 배율. 크기별 반경(§17.7)에 곱한다.
+        ///
+        /// ×1.4 에서 소형 2m → 2.8m, 중형 3.5m → 4.9m 다. 충격파는 여기에
+        /// <see cref="MeteorShockwaveRadiusScale"/> 이 또 곱해지므로 소형이 5.0m ·
+        /// 중형이 8.8m 까지 간다 — 더 키우면 50m 아레나에서 어디에 서 있어도 맞는다.
+        /// </summary>
+        public const float MeteorFullBlastRadiusScale = 1.4f;
+
+        /// <summary>
         /// 착탄 지점의 지면을 찾을 때 위에서 아래로 훑는 높이(m).
         ///
         /// <b>예전에는 훑지 않았다.</b> 스폰 영역 transform 의 y 를 그대로 착탄 지점의
@@ -1178,6 +1324,72 @@ namespace Metagame.Gameplay
         /// 성립하지 않는다. 1 에 가까울수록 잡힌 쪽이 버티고, 0 에 가까울수록 끌려온다.
         /// </summary>
         public const float GrabbedGroundControl = 0.55f;
+
+        // --- 동료를 시선으로 끌기 (기획 §20.4 · S15P21B202-555) ---
+
+        /// <summary>
+        /// 잡은 동료를 잡은 사람 <b>앞</b> 이만큼 떨어진 자리로 끌어온다(m).
+        ///
+        /// <para>팔 길이(<see cref="TeammateHoldDistance"/> 보다 짧으면 두 몸이 겹치고,
+        /// 길면 손 조인트가 늘어난 채로 버틴다. 어깨에서 손끝까지가 대략 0.6m 이고
+        /// 두 몸의 반지름을 합치면 이만큼이 된다.</para>
+        /// </summary>
+        public const float TeammateHoldDistance = 1.25f;
+
+        /// <summary>
+        /// 고개를 내렸을 때 끌리는 높이(m, 잡은 사람의 발 기준). 0 이면 땅에 박히고,
+        /// 너무 높으면 "끌린다" 로 안 보인다.
+        /// </summary>
+        public const float TeammateDragHeight = 0.45f;
+
+        /// <summary>고개를 막 올렸을 때 들리는 높이(m).</summary>
+        public const float TeammateLiftHeightLow = 1.0f;
+
+        /// <summary>똑바로 위를 봤을 때 들리는 높이(m).</summary>
+        public const float TeammateLiftHeightHigh = 1.8f;
+
+        /// <summary>
+        /// 끌기에서 들기로 넘어가는 조준 높이(<c>aim.normalized.y</c>). 약 15도.
+        ///
+        /// <para><b>나가는 문턱(<see cref="TeammateLiftExit"/>)과 다르다.</b> 하나면
+        /// 경계에서 고개가 조금만 흔들려도 몸이 떴다 내렸다 한다.</para>
+        /// </summary>
+        public const float TeammateLiftEnter = 0.26f;
+
+        /// <summary>들기에서 끌기로 돌아오는 조준 높이. 약 5도 — 들어온 문턱보다 낮다.</summary>
+        public const float TeammateLiftExit = 0.09f;
+
+        /// <summary>끌어오는 스프링의 세기(1/s²).</summary>
+        public const float TeammatePullAccel = 26f;
+
+        /// <summary>끌어오는 감쇠(1/s). 없으면 목표를 지나쳐 출렁인다.</summary>
+        public const float TeammatePullDamp = 7f;
+
+        /// <summary>끌어오는 가속의 상한(m/s²). 두 몸이 서로 밀며 튀지 않게 한다.</summary>
+        public const float TeammatePullMaxAccel = 34f;
+
+        /// <summary>
+        /// 잡힌 사람이 반대로 버티는 동안 끌리는 힘의 비율.
+        ///
+        /// <para><b>0 이 아니다.</b> 0 이면 버티는 순간 완전히 멈춰 "잡은 의미" 가 없고,
+        /// 1 이면 저항이 무의미해져 <b>잡히면 끝</b>이 된다. 줄다리기가 성립하려면
+        /// 버티는 쪽이 느리게라도 끌려오되 시간을 벌 수 있어야 한다.</para>
+        /// </summary>
+        public const float TeammateResistPullScale = 0.35f;
+
+        /// <summary>
+        /// 이만큼 계속 버티면 손이 풀린다(초).
+        ///
+        /// <para><b>이것이 없으면 이 기능은 트롤 도구가 된다.</b> 시선으로 끌어오면
+        /// 잡힌 쪽이 빠져나갈 방법이 사라지므로, 버티는 것에 끝이 있어야 한다.</para>
+        /// </summary>
+        public const float TeammateResistSeconds = 1.4f;
+
+        /// <summary>
+        /// 반대 방향으로 친다고 볼 각도. 끌리는 방향과 입력의 내적이 이보다 작으면 저항이다.
+        /// -0.4 는 약 114도 — 옆으로 걷는 정도로는 저항이 되지 않는다.
+        /// </summary>
+        public const float TeammateResistDot = -0.4f;
 
         // --- 기절 카메라 (기획 §10.3) ---
         /// <summary>

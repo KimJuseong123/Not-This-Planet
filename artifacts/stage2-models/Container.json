@@ -1,0 +1,41 @@
+{
+  "asset": "Container",
+  "fbx": "S2_Container.fbx",
+  "blend": "Source~/S2_Container.blend",
+  "mesh_objects": 2,
+  "triangles": 3088,
+  "dimensions_m": [
+    5.102499961853027,
+    5.244999885559082,
+    4.195000171661377
+  ],
+  "bounds_min": [
+    -2.5512499809265137,
+    -2.615000009536743,
+    0.0
+  ],
+  "bounds_max": [
+    2.5512499809265137,
+    2.630000114440918,
+    4.195000171661377
+  ],
+  "materials": [
+    "S2_Dark",
+    "S2_Ivory",
+    "S2_Orange",
+    "S2_Steel",
+    "S2_Teal"
+  ],
+  "pivots": [
+    "S2_Container_Root",
+    "RoofHinge"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

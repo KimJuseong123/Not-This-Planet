@@ -1,0 +1,11 @@
+{
+    "project": "C:/workspace/2-PJT/S15P21B202/METAGAME/Assets",
+    "playing": false,
+    "scenes": [
+        {
+            "path": "Assets/Scenes/Stage2_Earth.unity",
+            "dirty": false,
+            "roots": 4
+        }
+    ]
+}

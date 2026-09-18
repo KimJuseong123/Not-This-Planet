@@ -14,8 +14,8 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 import ec2_status
-from ci_common import (PROJECT_KEY, GitLab, Jira, banner, completes_on_merge, env, http,
-                       key_from_branch, load_team, role_member)
+from ci_common import (PROJECT_KEY, STORY_POINTS_JQL, GitLab, Jira, banner, completes_on_merge,
+                       env, http, key_from_branch, load_team, role_member)
 
 JIRA_BROWSE = (env("JIRA_URL", "https://ssafy.atlassian.net") or "").rstrip("/") + "/browse/"
 TEAM = load_team()
@@ -43,6 +43,10 @@ def fmt_issues(issues: list[dict]) -> str:
 
 
 KEYS_PER_QUERY = 50      # 이보다 많으면 키 조회를 포기하고 전량 조회로 간다
+
+# 번호는 `ci_common.STORY_POINTS_ID` 한 곳에 있다 — `mr-lint` 도 같은 필드를 본다.
+# 번호가 틀리면 Jira 가 JQL 을 거부하고 **그 항목만** "조회 실패" 로 나간다(아래 try/except).
+STORY_POINTS = STORY_POINTS_JQL
 
 
 def not_done_issues(jira: Jira, keys: list[str]) -> tuple[list[dict], bool]:
@@ -238,6 +242,49 @@ DEPLOY_SCAN_PIPELINES = 20      # 파이프라인 몇 건까지 거슬러 볼지
 KST = timezone(timedelta(hours=9))
 
 
+# **`__file__` 기준 절대 경로다** (`!423` 리뷰). 상대 경로로 열면 잡의 작업
+# 디렉터리가 저장소 루트가 아닐 때 매일 "읽지 못했다" 가 뜨거나, 반대로 조용해진다.
+# `-485`(호스트 배포 스크립트)에서 똑같은 것을 고쳤는데 여기로 옮기지 못했다.
+LAUNCHER_VERSION_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "launcher", "VERSION")
+LAUNCHER_JSON = "https://j15b202.p.ssafy.io/builds/launcher.json"
+
+
+def launcher_drift() -> str | None:
+    """저장소의 런처 버전과 **내보낸 것**이 다른가 (S15P21B202-508).
+
+    빌드는 자동이지만 **내보내기는 버튼**이다. 그래서 "고쳐서 머지했는데 아무도
+    안 누른" 상태가 남는다 — 2026-09-14 에 그 상태가 **세 번** 쌓여 있었고
+    (`-406` 개발 모드 · `-460` 채널 · `-507` 로그 보존) 아무것도 빨갛지 않았다.
+    `--dev` 가 안 먹어서야 드러났다.
+
+    **못 읽으면 조용히 넘어가지 않는다.** 판정을 못 한 것과 같은 것은 다르다 —
+    전자는 이 검사 자체가 죽은 것이다.
+    """
+    try:
+        with open(LAUNCHER_VERSION_FILE, encoding="utf-8") as f:
+            want = f.read().strip()
+    except OSError:
+        return (f"🚀 **런처 버전 파일을 읽지 못했다** — `{LAUNCHER_VERSION_FILE}` "
+                f"→ @{INFRA_MM} 확인")
+    if not want:
+        return f"🚀 **`{LAUNCHER_VERSION_FILE}` 이 비었다** → @{INFRA_MM} 확인"
+
+    try:
+        st, data = http("GET", LAUNCHER_JSON)
+    except Exception as e:  # noqa: BLE001 — 이 항목 실패가 카드를 막지 않는다
+        return f"🚀 **내보낸 런처 버전을 읽지 못했다** ({type(e).__name__}) → @{INFRA_MM} 확인"
+    if st != 200 or not isinstance(data, dict):
+        return f"🚀 **내보낸 런처 버전을 읽지 못했다** (HTTP {st}) → @{INFRA_MM} 확인"
+
+    live = str(data.get("version") or "").lstrip("v")
+    if live == want:
+        return None          # 같으면 조용하다 — 이 카드의 규칙
+    return (f"🚀 **내보내지 않은 런처가 있습니다** — 저장소 `v{want}` · 내보낸 것 "
+            f"`v{live or '?'}`. develop 파이프라인의 **`promote-launcher` 버튼**을 "
+            f"누르면 사용자에게 갑니다 → @{INFRA_MM}")
+
 def now_kst() -> str:
     """카드 헤더용 현재 시각(KST). naive datetime.now() 를 쓰면 EC2 컨테이너 TZ 가 UTC 라
     09:33 발송 카드에 '00:33' 이 찍힌다 — 09-01·02·03 사흘 연속 그렇게 나갔다(-282)."""
@@ -357,10 +404,32 @@ def deploy_line(st: dict, label: str = "배포", hint: str = "") -> str:
         if hint:
             head += f" — {hint}"
     else:
-        sha = (live.get("commit") or {}).get("short_id") or (live.get("commit") or {}).get("id", "")[:8] or "?"
-        head = f"🚀 {label} 서버: `{sha}` ({kst(live.get('finished_at'))})"
+        c = live.get("commit") or {}
+        sha = c.get("short_id") or c.get("id", "")[:8] or "?"
+        # **해시를 누를 수 있게 한다.** 더 볼 것이 있으면 링크로 가면 되고,
+        # 주소가 없으면 코드 조각으로 물러선다(줄이 깨지지 않는 것이 먼저다).
+        url = c.get("web_url")
+        mark = f"[`{sha}`]({url})" if url else f"`{sha}`"
+        # **무엇을 배포했는지가 아니라 `백엔드` 라고 적는다** (S15P21B202-490).
+        #
+        # 한때 여기에 머지 커밋의 MR 제목을 붙이려 했다. 그런데 개발 서버는 새벽
+        # 스케줄이 develop 머리를 **`changes` 를 보지 않고** 배포하므로, 그때 머리가
+        # 씬·아트 MR 이면 `🚀 개발 서버: … [Plan] scene: v1.1.0` 이 된다 —
+        # **백엔드 줄에 백엔드와 무관한 문구**가 실린다. 해시는 "그 jar 을 어느
+        # 커밋에서 만들었나" 일 뿐이고, 사람이 알고 싶은 것은 그 다음 줄이다.
+        head = f"🚀 {label} 서버 백엔드: {mark} ({kst(live.get('finished_at'))})"
     if pending:
         head += f" · 백엔드 변경 **{pending}건 배포 대기**(수동 잡을 눌러야 올라갑니다)"
+    elif st.get("drift") == []:
+        # **같을 때도 말한다** (S15P21B202-490). 아무 말이 없으면 "최신이라 조용한
+        # 것" 과 "확인을 못 한 것" 이 구별되지 않는다 — `drift` 는 확인 실패 시
+        # `None` 이고 같을 때 `[]` 다. 그 둘을 여기서 가른다.
+        head += " · develop 과 같음"
+    elif live and st.get("drift") is None:
+        # **배포 이력이 아예 없을 때는 붙이지 않는다.** 올린 적이 없는데 "최신 여부를
+        # 확인 못 했다" 고 적으면, 이미 "CI 로 올린 이력 없음" 이라고 말한 줄에
+        # 쓸데없는 말이 하나 더 붙는다.
+        head += " · (최신 여부 확인 못 함)"
     elif st.get("drift"):
         # 눌릴 잡이 없는데 코드가 다르다 = 배포 잡이 사라진 것이다. 이쪽이 훨씬 위험하다 —
         # 대기 잡은 보이지만 없는 잡은 안 보인다.
@@ -379,12 +448,57 @@ def main() -> int:
     blocks = []
     if jira.available:
         base = f"project = {PROJECT_KEY} AND statusCategory != Done"
+        # 완료까지 봐야 하는 항목이 있다 — 포인트는 끝난 뒤에야 안 채운 것이 드러난다.
+        allstates = f"project = {PROJECT_KEY}"
         fields = ["summary", "assignee", "status"]
         q = [
             ("🏷 `needs-fix` — 제목 형식/상위 Epic 확인", f"{base} AND labels = needs-fix ORDER BY updated DESC"),
             ("⏰ 기한 지남", f"{base} AND duedate < startOfDay() ORDER BY duedate ASC"),
             ("🐢 3일 이상 갱신 없는 진행 중", f"{base} AND status = \"In Progress\" AND updated <= -3d ORDER BY updated ASC"),
             ("👤 스프린트에 있는데 담당자 없음", f"{base} AND sprint in openSprints() AND assignee is EMPTY AND issuetype != Epic"),
+            # **포인트는 이슈를 만들 때 예측해 넣는 값인데 Jira 가 비어도 막지 않는다**
+            # (S15P21B202-482). 생성 화면 스키마에서 `customfield_10031` 은 `required: false` 다 —
+            # 이 프로젝트의 필수 필드는 project·issuetype·summary·reporter 넷뿐이라 조용히 빈 채로 들어간다.
+            #
+            # **필수로 바꾸지 않는다.** 만드는 순간에는 예측이 안 서는 이슈가 있고, 막으면
+            # 아무 숫자나 넣게 된다. **틀린 값은 빈 값과 달리 눈에 띄지 않는다.**
+            # 그래서 막는 대신 다음 날 아침에 목록으로 돌려준다.
+            #
+            # **두 항목으로 나눈다** (S15P21B202-568). 읽는 사람이 할 일이 다르다 —
+            # 하나는 지금 채우면 되는 것이고, 다른 하나는 **이미 끝났는데 안 채운 것**이라
+            # 스프린트 속도 계산이 그만큼 틀어져 있다는 뜻이다.
+            #
+            # **끝난 것도 본다.** 전에는 모든 항목이 `statusCategory != Done` 으로 시작해
+            # 만든 날 완료된 이슈는 **어느 아침에도 목록에 오른 적이 없었다** — `-544`·`-545`
+            # 가 그렇게 포인트 없이 끝났고 아무도 몰랐다(2026-09-16 확인).
+            #
+            # **상태명은 영문 `In Progress` 다** — 화면은 `진행 중` 으로 보이지만 JQL 이 받는
+            # 것은 영문이다. 틀리면 Jira 가 질의를 거부하고 아래 try/except 가 삼켜 **그 항목만**
+            # **조용히 사라진다** — 위 `🐢` 가 같은 표기로 매일 결과를 내는 것이 그 증거다.
+            #
+            # 스프린트 밖에서 진행 중인 것도 넣는다. 그런 이슈가 실제로 있고(바로 아래 항목이
+            # 그 자체를 알린다), 스프린트만 보면 통째로 빠진다.
+            ("🔢 스토리 포인트 없음 — 지금 채운다",
+             f"{base} AND {STORY_POINTS} is EMPTY AND issuetype != Epic"
+             f" AND (sprint in openSprints() OR status = \"In Progress\")"),
+            ("🔢 스토리 포인트 없이 **완료됨** — 이번 스프린트 속도가 그만큼 틀렸다",
+             f"{allstates} AND {STORY_POINTS} is EMPTY AND issuetype != Epic"
+             f" AND statusCategory = Done AND sprint in openSprints()"),
+            # **진행 중인데 스프린트에 없는 이슈는 위 질의들에 아예 안 잡힌다**
+            # (S15P21B202-528). 바로 위 둘을 포함해 대부분이 `sprint in openSprints()` 로
+            # 거르기 때문이다 — 담당자 없음도, 포인트 없음도, 기한 지남도(기한 자체가
+            # 스프린트 종료일에서 온다) 전부 비껴간다. 번다운에도 안 들어간다.
+            #
+            # **어떻게 생기나.** 스프린트 자동 편입이 브랜치 생성이 아니라 `해야 할 일 →
+            # 진행 중` **전이**에 붙어 있다(2026-09-14 실측: 해야 할 일이던 `-518` 은 편입됐고,
+            # 이미 진행 중이던 이슈는 `has-branch` 만 붙고 스프린트가 비었다). 되돌림을 한 번
+            # 겪은 이슈가 그 상태가 되기 쉽다 — `완료로 끌기` 는 **진행 중으로** 되돌리므로
+            # 그다음 브랜치 생성에는 전이가 없다.
+            #
+            # 규칙을 고치지 않고 **보이게만** 한다 — `-485`(배포 스크립트)·`-508`(런처 버전)과
+            # 같은 방식이다. 얼마나 자주 생기는지 먼저 보고 규칙을 건드릴지 정한다.
+            ("🫥 진행 중인데 스프린트에 없음 — 아침 점검의 다른 줄에 안 잡힌다",
+             f"{base} AND status = \"In Progress\" AND sprint is EMPTY AND issuetype != Epic"),
         ]
         for title, jql in q:
             try:
@@ -500,10 +614,26 @@ def main() -> int:
     # 대신 남는 것: 호스트의 `systemctl is-active gitlab-runner`(아래 상태 파일)와
     # `-130` 의 "검사가 돌지 않은 MR". 빠지는 것은 좁은 한 경우뿐이고 그것도
     # `-130` 이 몇 시간 뒤에 잡는다.
+    # **내보내지 않은 런처** (S15P21B202-508). 조치 항목이라 꼬리가 아니라 블록이다 —
+    # 버튼을 눌러야 사용자에게 간다.
     try:
-        srv = ec2_status.section(ec2_status.load())
+        drift = launcher_drift()
+        if drift:
+            blocks.append(drift)
+    except Exception as e:  # noqa: BLE001 — 이 항목이 실패해도 나머지는 나간다
+        blocks.append(f"🚀 **런처 판정 실패** → @{INFRA_MM} 확인: {type(e).__name__}: {e}")
+
+    try:
+        srv_data = ec2_status.load()
+        srv = ec2_status.section(srv_data)
         if srv:
             blocks.append(srv)
+        # **정상일 때도 숫자를 남긴다** (S15P21B202-486). 위 블록은 문제가 있을
+        # 때만 붙어서, 조용한 화면이 "멀쩡하다" 인지 "재는 쪽이 죽었다" 인지
+        # 구별되지 않았다. 꼬리는 🚀 와 같은 자리다 — 이것만으로 카드를 보내진 않는다.
+        srv_tail = ec2_status.tail(srv_data)
+        if srv_tail:
+            tails.append(srv_tail)
     except Exception as e:  # noqa: BLE001 — 서버 판정 실패가 점검 전체를 막지 않는다
         blocks.append(f"**🖥 서버** — 판정 실패 → @{INFRA_MM} 확인: {type(e).__name__}: {e}")
 

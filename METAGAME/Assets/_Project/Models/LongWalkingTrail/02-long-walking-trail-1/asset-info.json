@@ -1,0 +1,68 @@
+{
+  "id": "L02",
+  "folder": "02-long-walking-trail-1",
+  "fbx": "SM_Astra_Trail1.fbx",
+  "material": "M_SM_Astra_Trail1",
+  "source_components": 114,
+  "geometry": {
+    "vertices": 7504,
+    "triangles": 14552,
+    "bounds_min": [
+      -2.2009999752044678,
+      -6.914011478424072,
+      -0.30000001192092896
+    ],
+    "bounds_max": [
+      2.2009999752044678,
+      6.914011478424072,
+      0.30300000309944153
+    ],
+    "dimensions_blender_xyz": [
+      4.4019999504089355,
+      13.828022956848145,
+      0.6030000150203705
+    ]
+  },
+  "roundtrip": {
+    "vertices": 7504,
+    "triangles": 14552,
+    "bounds_min": [
+      -2.2009999752044678,
+      -6.914011478424072,
+      -0.3000011444091797
+    ],
+    "bounds_max": [
+      2.2009999752044678,
+      6.914011478424072,
+      0.30300113558769226
+    ],
+    "dimensions_blender_xyz": [
+      4.4019999504089355,
+      13.828022956848145,
+      0.603002279996872
+    ]
+  },
+  "roundtrip_status": "PASS",
+  "visual_mesh_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "collision_mesh_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "collision_triangles": 12,
+  "texture_links": [
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\02-long-walking-trail-1\\SM_Astra_Trail1.fbm\\SM_Astra_Trail1_BaseColor.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\02-long-walking-trail-1\\SM_Astra_Trail1.fbm\\SM_Astra_Trail1_Emission.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\02-long-walking-trail-1\\SM_Astra_Trail1.fbm\\SM_Astra_Trail1_Metallic.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\02-long-walking-trail-1\\SM_Astra_Trail1.fbm\\SM_Astra_Trail1_Normal.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\02-long-walking-trail-1\\SM_Astra_Trail1.fbm\\SM_Astra_Trail1_Roughness.png"
+  ],
+  "missing_textures": [],
+  "uv0": "4x4 PBR trim atlas",
+  "unity_lightmap_uv": "generate in ModelImporter",
+  "units": "metres",
+  "pivot": "scene-compatible centered deck for L01-L06/L09; ground-center for L07/L08/L10; spiral center at ground level for L11",
+  "preview": "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\Previews~\\02-long-walking-trail-1-concept.png"
+}

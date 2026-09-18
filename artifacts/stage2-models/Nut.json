@@ -1,0 +1,37 @@
+{
+  "asset": "Nut",
+  "fbx": "S2_Nut.fbx",
+  "blend": "Source~/S2_Nut.blend",
+  "mesh_objects": 1,
+  "triangles": 3264,
+  "dimensions_m": [
+    0.23999999463558197,
+    0.11999999731779099,
+    0.27556297183036804
+  ],
+  "bounds_min": [
+    -0.11999999731779099,
+    -0.11999999731779099,
+    0.0007824967615306377
+  ],
+  "bounds_max": [
+    0.11999999731779099,
+    0.0,
+    0.27634546160697937
+  ],
+  "materials": [
+    "S2_Dark",
+    "S2_Steel"
+  ],
+  "pivots": [
+    "S2_Nut_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

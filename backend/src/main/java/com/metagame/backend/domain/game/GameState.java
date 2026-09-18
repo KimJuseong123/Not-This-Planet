@@ -22,10 +22,22 @@ import lombok.Getter;
 @Getter
 public class GameState {
 
-    private String stageId;
+    private final String stageId;
     private final Map<Long, PlayerState> players = new ConcurrentHashMap<>();
     private final Set<String> solvedPuzzles = ConcurrentHashMap.newKeySet();
     private final Set<String> collectedItems = ConcurrentHashMap.newKeySet();
+
+    /**
+     * 어느 스테이지의 판인지를 <b>들고 태어난다</b> (2맵 준비).
+     *
+     * <p>예전에는 필드만 있고 아무도 넣지 않아 언제나 {@code null} 이었다. 이 객체는
+     * 재접속 복구({@code STATE_SYNC})와 체크포인트 복원에 그대로 실려 나가므로,
+     * 스테이지가 비어 있는 틈에 만들어진 스냅샷은 <b>"어느 맵이었는지 모르는 판"</b>
+     * 이 된다. 그래서 나중에 채우지 않고 생성자에서만 정한다.
+     */
+    public GameState(String stageId) {
+        this.stageId = stageId;
+    }
 
     public void addPlayer(Long userId) {
         players.computeIfAbsent(userId, id -> new PlayerState());

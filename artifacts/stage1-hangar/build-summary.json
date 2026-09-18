@@ -1,0 +1,23 @@
+{
+  "scene": "Astra_Hangar_Production.001",
+  "mesh_objects": 831,
+  "collections": [
+    "02_Floor",
+    "10_Emission",
+    "09_Grilles",
+    "03_Wall_Left",
+    "08_Fasteners",
+    "06_Interior",
+    "03_Wall_Right",
+    "05_PersonnelDoor",
+    "01_Structure",
+    "04_Facade",
+    "07_RearWall",
+    "11_RoofPanels",
+    "12_Skylight",
+    "13_RoofEquipment",
+    "14_Crane",
+    "99_Presentation_ONLY"
+  ],
+  "base": "C:\\workspace\\2-PJT\\S15P21B202\\artifacts\\stage1-hangar"
+}

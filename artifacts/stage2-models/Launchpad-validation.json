@@ -1,0 +1,13 @@
+{
+  "asset": "Launchpad",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 1,
+  "dimensions_m": [
+    6.0,
+    6.0,
+    0.571330189704895
+  ],
+  "pivots_count": 1,
+  "passed": true
+}

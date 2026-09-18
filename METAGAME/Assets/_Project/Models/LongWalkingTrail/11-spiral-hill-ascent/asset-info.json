@@ -1,0 +1,68 @@
+{
+  "id": "L11",
+  "folder": "11-spiral-hill-ascent",
+  "fbx": "SM_Astra_SpiralHillAscent.fbx",
+  "material": "M_SM_Astra_SpiralHillAscent",
+  "source_components": 327,
+  "geometry": {
+    "vertices": 20652,
+    "triangles": 39996,
+    "bounds_min": [
+      -16.200000762939453,
+      -16.200000762939453,
+      0.0
+    ],
+    "bounds_max": [
+      16.200000762939453,
+      16.200000762939453,
+      7.622000217437744
+    ],
+    "dimensions_blender_xyz": [
+      32.400001525878906,
+      32.400001525878906,
+      7.622000217437744
+    ]
+  },
+  "roundtrip": {
+    "vertices": 20652,
+    "triangles": 39996,
+    "bounds_min": [
+      -16.200000762939453,
+      -16.200000762939453,
+      -2.639315198393888e-06
+    ],
+    "bounds_max": [
+      16.200000762939453,
+      16.200002670288086,
+      7.622003078460693
+    ],
+    "dimensions_blender_xyz": [
+      32.400001525878906,
+      32.40000343322754,
+      7.622005717775892
+    ]
+  },
+  "roundtrip_status": "PASS",
+  "visual_mesh_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "collision_mesh_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "collision_triangles": 1156,
+  "texture_links": [
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\11-spiral-hill-ascent\\SM_Astra_SpiralHillAscent.fbm\\SM_Astra_SpiralHillAscent_BaseColor.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\11-spiral-hill-ascent\\SM_Astra_SpiralHillAscent.fbm\\SM_Astra_SpiralHillAscent_Emission.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\11-spiral-hill-ascent\\SM_Astra_SpiralHillAscent.fbm\\SM_Astra_SpiralHillAscent_Metallic.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\11-spiral-hill-ascent\\SM_Astra_SpiralHillAscent.fbm\\SM_Astra_SpiralHillAscent_Normal.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\11-spiral-hill-ascent\\SM_Astra_SpiralHillAscent.fbm\\SM_Astra_SpiralHillAscent_Roughness.png"
+  ],
+  "missing_textures": [],
+  "uv0": "4x4 PBR trim atlas",
+  "unity_lightmap_uv": "generate in ModelImporter",
+  "units": "metres",
+  "pivot": "scene-compatible centered deck for L01-L06/L09; ground-center for L07/L08/L10; spiral center at ground level for L11",
+  "preview": "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\LongWalkingTrail\\Previews~\\11-spiral-hill-ascent-concept.png"
+}

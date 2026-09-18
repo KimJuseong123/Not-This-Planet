@@ -251,11 +251,27 @@ namespace Metagame.Gameplay.Tests
             Assert.That(session, Does.Contain("RunLogUpload.SweepOnce"),
                 "로그인 뒤에 로그를 보내지 않는다");
 
-            var upload = TestSource.Read("Runtime/Core/RunLogUpload.cs");
+            // **주석이 아니라 코드를 본다** (S15P21B202-607). 이 단정이 원문을 보던 동안,
+            // *"왜 종료 훅을 쓰지 않는가"* 를 설명하는 주석 한 줄이 그대로 걸렸다 —
+            // 지키려는 것은 훅을 **거는 코드**이지 그 이름을 입에 올리는 것이 아니다.
+            // 이유를 적을 수 없는 가드는 다음 사람이 이유를 모른 채 지우게 만든다.
+            var upload = TestSource.Blank(TestSource.Read("Runtime/Core/RunLogUpload.cs"));
             Assert.That(upload, Does.Not.Contain("OnApplicationQuit"),
                 "종료 훅에서 보낸다 — 종료가 지연되고 크래시 판을 못 받는다");
             Assert.That(upload, Does.Not.Contain("Application.quitting"),
                 "종료 훅에서 보낸다 — 종료가 지연되고 크래시 판을 못 받는다");
+
+            // **이 파일만 봐서는 부족하다** (`!514` AI 리뷰). 종료 경로가 다른 파일에
+            // 생길 수 있고 실제로 생겼다 — `PlayObserver.OnApplicationQuit` → `End` →
+            // `RunLogUpload.Request` 로 이어져, 위 단정은 통과하는데 **종료 훅에서
+            // 전송이 시작됐다.** 부르는 쪽까지 본다.
+            var observer = TestSource.Blank(TestSource.Read("Runtime/Bootstrap/PlayObserver.cs"));
+            Assert.That(observer, Does.Contain("OnApplicationQuit() => End("),
+                "종료 훅이 사라졌다 — 판을 닫는 자리가 하나 없어졌다");
+            Assert.That(observer, Does.Contain("sweep: false"),
+                "종료 훅이 보내기를 끄지 않는다 — 끝나지 못하는 전송이 시작된다");
+            Assert.That(observer, Does.Contain("if (sweep)"),
+                "보내기 요청이 그 스위치를 보지 않는다 — 끈 것이 지켜지지 않는다");
         }
 
         [Test]
@@ -290,6 +306,94 @@ namespace Metagame.Gameplay.Tests
                 "토큰을 헤더로 보내지 않는다");
             Assert.That(src, Does.Not.Contain("?token="),
                 "토큰이 쿼리에 실린다 — 접근 로그에 남는다");
+        }
+
+        [Test]
+        public void AKoreanBuildStampDoesNotBreakTheUpload()
+        {
+            // **수집 경로가 한 건도 배달한 적이 없던 이유다** (S15P21B202-501).
+            //
+            // HTTP 헤더는 ASCII 만 받는데 빌드 스탬프는 사람이 읽으라고 만든 값이라
+            // 한글과 가운뎃점이 들어 있다. 전에는 제어문자만 걸러서 그대로 지나갔고,
+            // SetRequestHeader 가 던졌다. 그 예외가 요청을 보내기 **전**에 나서 서버에는
+            // 흔적조차 없었고, 표시(.sent)에도 못 가서 같은 파일이 실행마다 또 던졌다.
+            const string stamp = "2026-09-13 15:36 · 작업트리(재현불가·수정 28개) · HEAD";
+
+            string got = RunLogUpload.Sanitize(stamp);
+
+            foreach (char c in got)
+                Assert.That((int)c, Is.InRange(32, 126),
+                    "헤더에 못 넣는 문자가 남았다: " + ((int)c) + " in " + got);
+        }
+
+        [Test]
+        public void TheAsciiPartSurvivesAndTheRestLeavesAMark()
+        {
+            // 그냥 지우면 `버전=v1.1.0` 이 `=v1.1.0` 이 되어 앞이 무엇이었는지 알 수 없다.
+            // 이어진 비 ASCII 를 `?` 하나로 바꿔 자리가 있었다는 것을 남긴다.
+            Assert.That(RunLogUpload.Sanitize("버전=v1.1.0"), Is.EqualTo("?=v1.1.0"));
+            Assert.That(RunLogUpload.Sanitize("백엔드=prod"), Is.EqualTo("?=prod"));
+
+            // ASCII 만 있으면 그대로 둔다 — 멀쩡한 값을 건드리지 않는다.
+            Assert.That(RunLogUpload.Sanitize("v1.1.0"), Is.EqualTo("v1.1.0"));
+        }
+
+        [Test]
+        public void TheBuildHeaderIsAlwaysAscii()
+        {
+            // 헤더에 실리는 값은 BuildTag() 하나다. 그것이 무엇을 읽든 ASCII 여야 한다 —
+            // 에디터에서는 스탬프가 한글(`에디터에서 실행`)이다.
+            string tag = RunLogUpload.BuildTag();
+
+            foreach (char c in tag)
+                Assert.That((int)c, Is.InRange(32, 126),
+                    "BuildTag 가 헤더에 못 넣는 값을 냈다: " + tag);
+        }
+
+        [Test]
+        public void TheStampIsInTheLogBodyBecauseTheHeaderCannotHoldIt()
+        {
+            // 헤더는 ASCII 만 싣기로 했으므로 사람이 읽는 원문은 **본문**에 있어야 한다.
+            // 전에는 `[빌드]` 줄이 RunLog.Start() 보다 먼저 나가서 화면에만 있고 파일에는
+            // 없었다 — 서버로 올라가는 것은 파일이다.
+            var src = TestSource.Read("Runtime/Core/BuildInfo.cs");
+
+            int opened = src.IndexOf("RunLog.Start();");
+            int logged = src.IndexOf("[빌드] ");
+
+            Assert.That(opened, Is.GreaterThan(0), "RunLog.Start() 를 찾지 못했다");
+            Assert.That(logged, Is.GreaterThan(0), "[빌드] 줄을 찾지 못했다");
+            Assert.That(opened, Is.LessThan(logged),
+                "로그 파일을 열기 전에 [빌드] 를 찍는다 — 그 줄이 파일에 안 남는다");
+        }
+
+        [Test]
+        public void TheBuildHeaderIsNeverEmpty()
+        {
+            // **빈 값도 헤더에 못 넣는다** (S15P21B202-501, `!459` 리뷰).
+            //
+            // `SetRequestHeader` 는 빈 문자열에도 던진다. 그러면 요청이 나가기 전에
+            // 죽고 `.sent` 표시에도 못 가서 같은 파일이 실행마다 또 던진다 — 이 이슈가
+            // 고친 바로 그 경로다.
+            //
+            // **값을 넣어서 부른다** (`!463` 리뷰). 인자 없는 쪽은 에디터에서 스탬프가
+            // 늘 차 있어 빈 값 경로를 한 번도 지나지 않는다 — 그러면 폴백을 지워도
+            // 이 검사가 초록이라 아무것도 안 지킨다.
+
+            // 둘 다 빈 경우 — 빌드 스탬프 파일의 첫 줄이 비면 실제로 이렇게 된다.
+            Assert.That(RunLogUpload.BuildTag("", ""), Is.EqualTo("unknown"));
+
+            // Sanitize 가 전부 걸러 내는 스탬프 — 제어문자와 공백뿐이면 같은 자리에 닿는다.
+            Assert.That(RunLogUpload.BuildTag("", "  \n \t "), Is.EqualTo("unknown"));
+
+            // 릴리스 버전이 있으면 그것을 쓴다.
+            Assert.That(RunLogUpload.BuildTag("v1.1.0", "아무거나"), Is.EqualTo("v1.1.0"));
+
+            // 버전이 없으면 스탬프를 걸러 쓴다 — 한글은 `?` 로 줄고, 비지 않는다.
+            Assert.That(RunLogUpload.BuildTag("", "에디터에서 실행"), Is.Not.Empty);
+
+            // 실제 환경에서도 비지 않는다.
+            Assert.That(RunLogUpload.BuildTag(), Is.Not.Empty);
         }
     }
 }

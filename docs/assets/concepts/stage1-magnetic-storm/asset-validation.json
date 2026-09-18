@@ -1,0 +1,37 @@
+{
+  "png_dimensions": {
+    "magnetic-storm-back.png": [
+      1942,
+      809
+    ],
+    "magnetic-storm-front.png": [
+      1942,
+      809
+    ],
+    "magnetic-storm-left.png": [
+      1944,
+      809
+    ],
+    "magnetic-storm-right.png": [
+      1942,
+      809
+    ],
+    "magnetic-storm-top.png": [
+      1944,
+      809
+    ]
+  },
+  "gif_dimensions": [
+    960,
+    400
+  ],
+  "decoded_frame_count": 120,
+  "decoded_total_duration_ms": 6000,
+  "decoded_frame_durations_ms": [
+    50
+  ],
+  "infinite_loop": true,
+  "decoded_seam_mae": 1.5853454861111111,
+  "decoded_typical_adjacent_mae": 1.4244228087068163,
+  "decoded_seam_ratio": 1.1129739543769248
+}

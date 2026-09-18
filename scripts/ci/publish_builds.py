@@ -47,7 +47,13 @@ VERSION_FILE = "release-version.txt"
 #
 # 리허설이 쓰는 `v0.0.0-rehearsal` 도 여기서 걸린다 — **그게 맞다.** 리허설 산출물은
 # 올라간 적이 없으므로 사용자를 그리로 보내면 안 된다.
-VERSION_RE = re.compile(r"v?\d+\.\d+\.\d+")
+# 채널 빌드도 여기를 지난다 (S15P21B202-460). **좁게 적는다** — 이 값이 그대로
+# `manifest/<값>.json` 경로가 되므로, 넓히는 순간 경로 탈출이 다시 열린다.
+# 커밋 해시는 16진수만, MR 번호는 숫자만, 날짜는 8자리만 받는다.
+VERSION_RE = re.compile(
+    r"v?\d+\.\d+\.\d+"
+    r"|dev-\d{8}-[0-9a-f]{7,40}"
+    r"|qa-\d+-[0-9a-f]{7,40}")
 
 PACKAGE_FILE = "release-package.txt"
 PACKAGE_NAME = "metagame"
@@ -108,13 +114,24 @@ def stage() -> int:
         print("   배포 러너 config.toml 의 volumes 에 /var/www/metagame-builds 가 rw 로")
         print("   마운트돼 있어야 한다 — scripts/deploy/host/mount-release-dirs.sh 가 해 준다")
         return 1
-    for f in (VERSION_FILE, PACKAGE_FILE):
-        if not os.path.exists(f):
-            print(f"❌ {f} 가 없다 — release-windows 아티팩트가 넘어오지 않았다")
+    # **다른 파이프라인에서 올린 것을 배치하는 길** (S15P21B202-460). MR 에서 만든
+    # qa 빌드가 이 경로로 온다 — 배포 러너는 `ref_protected` 라 **MR ref 의 잡을 아예
+    # 집지 않으므로**(`-405` 실측), MR 파이프라인 안에서는 배치할 수가 없다. 그래서
+    # 보호 브랜치의 web 파이프라인에서 버전을 주고 이 잡만 돌린다.
+    staged = env("STAGE_VERSION", "").strip()
+    if staged:
+        if not VERSION_RE.fullmatch(staged):
+            print(f"❌ STAGE_VERSION 이 허용된 모양이 아니다: {staged!r}")
             return 1
-
-    version = read_line(VERSION_FILE)
-    name = read_line(PACKAGE_FILE)
+        version, name = staged, f"metagame-{staged}.zip"
+    else:
+        for f in (VERSION_FILE, PACKAGE_FILE):
+            if not os.path.exists(f):
+                print(f"❌ {f} 가 없다 — 빌드 잡 아티팩트가 넘어오지 않았다")
+                print("   다른 파이프라인에서 올린 것을 배치하려면 STAGE_VERSION 을 주세요")
+                return 1
+        version = read_line(VERSION_FILE)
+        name = read_line(PACKAGE_FILE)
     print(f"=== 배치 {version} ===")
     print(f"패키지: {name}")
 
@@ -136,29 +153,139 @@ def stage() -> int:
             z.extractall(game)
         print(f"풀었다: 파일 {sum(len(f) for _, _, f in os.walk(game))}개")
 
-        # 매니페스트와 내용 주소 저장소. **`latest.json` 은 건드리지 않는다.**
         import make_manifest
 
-        rc = make_manifest.main([game, version, "--out", BUILDS, "--no-latest"])
+        channel = make_manifest.channel_of(version)
+        # **모르는 이름이면 여기서 멈춘다.** 예전 모양이라면 `channel != RELEASE` 가 참이
+        # 되어 **zip 배치를 건너뛰고 패키지까지 지우는** dev 경로로 조용히 빠진다 —
+        # 릴리스를 올렸는데 아무도 받을 수 없게 되고 아무 오류도 안 난다.
+        if channel is None:
+            print(f"❌ 버전 이름이 어느 채널도 아니다: {version!r}")
+            return 1
+
+        rc = make_manifest.main(manifest_args(game, version, channel, staged))
         if rc != 0:
             print(f"❌ 매니페스트 생성 실패({rc})")
             return rc
 
-        # zip 도 같이 둔다 — 런처를 쓰지 않는 사람이 받는 길이 남아야 한다.
-        dst = os.path.join(BUILDS, name)
-        if os.path.exists(dst):
-            print(f"zip 은 이미 있다: {name}")
+        if channel == make_manifest.RELEASE:
+            # zip 도 같이 둔다 — 런처를 쓰지 않는 사람이 받는 길이 남아야 한다.
+            dst = os.path.join(BUILDS, name)
+            if os.path.exists(dst):
+                print(f"zip 은 이미 있다: {name}")
+            else:
+                shutil.copyfile(zip_path, dst + ".part")
+                os.replace(dst + ".part", dst)
+                print(f"zip 배치: {name}")
         else:
-            shutil.copyfile(zip_path, dst + ".part")
-            os.replace(dst + ".part", dst)
-            print(f"zip 배치: {name}")
+            # **dev·qa zip 은 공개 폴더에 두지 않는다.** nginx 허용 목록이 `*.zip` 을
+            # 열어 두므로 두면 누구나 받을 수 있고, 그것은 "배포 런처에 dev 빌드가
+            # 보이면 안 된다" 는 결정과 어긋난다. 런처가 받는 길은 이미 있다.
+            print("dev·qa zip 은 공개 폴더에 두지 않는다 — 런처로 받는다")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
+    if channel != make_manifest.RELEASE:
+        # **전송용 패키지를 지운다.** 레지스트리는 잡 사이로 156 MB 를 넘기는 수단일
+        # 뿐이고, 내용은 이미 `files/<sha>.gz` 에 있다. 매일 쌓아 두면 저장소 할당량을
+        # 먹는데 아무도 그것을 보지 않는다.
+        delete_package(version)
+        print()
+        print(f"✅ {version} 배치 완료 — 개발 런처 목록에 보인다.")
+        return 0
+
     print()
     print(f"✅ {version} 을 올려 뒀다 — 아직 **아무도 이 버전을 받지 않는다.**")
-    print("   `promote-builds` 버튼을 눌러야 latest.json 이 옮겨진다.")
+    print("   `release-prod` 버튼을 눌러야 latest.json 이 옮겨진다.")
     return 0
+
+
+def manifest_args(game: str, version: str, channel: str, staged: str) -> list[str]:
+    """`make_manifest` 에 넘길 인자. **채널마다 "최신" 을 가져가는지가 다르다.**
+
+    이것이 `stage()` 밖에 있는 이유는 검사하기 위해서다 — `stage()` 는 레지스트리에서
+    156 MB 를 받아 푸는 일까지 하므로 오프라인 검사에서 부를 수가 없고, 그러면 이
+    판정이 통째로 검사 밖에 남는다.
+
+    |채널|`latest` 를 가져가나|왜|
+    |---|---|---|
+    |release|**아니오**|다 올라가기 전에 최신이 바뀌면 그 사이에 켠 사람이 없는 파일을 받는다. 사람이 `release-prod` 로 옮긴다|
+    |dev|예|develop 빌드라 기본값이 되는 것이 맞다. 아침마다 사람이 눌러 주게 만들면 그 버튼은 안 눌린다|
+    |qa|**아니오** (S15P21B202-582)|dev 와 `dev-latest.json` 을 함께 쓴다 — qa 가 그것을 가져가면 **누가 MR 버튼을 누를 때마다 팀 전체 개발 런처의 기본값이 그 미머지 브랜치가 된다.** 한 사람이 그 MR 을 QA 하려고 누른 것 때문에 나머지가 모르는 코드를 켜게 된다. 목록에는 올라가므로 **골라서** 쓴다|
+    """
+    import make_manifest
+
+    args = [game, version, "--out", BUILDS]
+    if channel == make_manifest.RELEASE:
+        return args + ["--no-latest"]
+    # **무엇으로 만든 빌드인지 싣는다.** 버전 문자열만으로는 목록에서
+    # "이거 언제 코드예요?" 를 매번 사람에게 물어야 한다.
+    args += ["--branch", stage_branch(staged), "--commit", stage_commit(staged, version)]
+    if channel == make_manifest.QA:
+        args.append("--no-latest")
+    return args
+
+
+def stage_branch(staged: str) -> str:
+    """이 빌드를 만든 브랜치. 모르면 **빈 문자열**이다.
+
+    **`CI_COMMIT_REF_NAME` 을 그대로 쓰면 거짓말이 된다.** qa 빌드는 MR 파이프라인에서
+    만들어지지만 배치는 `develop` 의 web 파이프라인에서 하므로, 그 변수는 `develop` 이다.
+    목록에 `develop @ …` 이 찍히면 **출처를 말한다는 것이 곧 틀린 것을 말하는 것**이 된다.
+
+    그래서 두 단계 배치일 때는 `STAGE_BRANCH` 로 **명시해서** 받고, 없으면 비운다.
+    비어 있는 것은 "모른다" 이고, 그것이 틀린 값보다 낫다.
+    """
+    if staged:
+        return env("STAGE_BRANCH", "").strip()
+    return env("CI_COMMIT_REF_NAME", "")
+
+
+def stage_commit(staged: str, version: str) -> str:
+    """이 빌드를 만든 커밋. 두 단계 배치면 **버전 이름에서** 꺼낸다.
+
+    `qa-401-1a2b3c4` · `dev-20260914-1a2b3c4` 의 마지막 조각이 그 커밋이다 —
+    `publish_devbuild.py` 가 거기에 넣어 둔 값이라 다른 데서 찾을 이유가 없다.
+    """
+    if not staged:
+        return env("CI_COMMIT_SHORT_SHA", "")
+    tail = version.rsplit("-", 1)[-1]
+    return tail if re.fullmatch(r"[0-9a-f]{7,40}", tail) else ""
+
+
+def delete_package(version: str) -> None:
+    """그 버전의 전송용 패키지를 레지스트리에서 지운다 (S15P21B202-460).
+
+    **실패해도 배치는 성공이다.** 파일은 이미 배포 폴더에 있고, 못 지운 패키지는
+    디스크를 먹을 뿐 사용자에게 아무 영향이 없다. 여기서 잡을 빨갛게 만들면
+    "빨간데 괜찮은 경우" 를 하나 더 만드는 것이다.
+    """
+    token = env("CI_JOB_TOKEN") or env("GITLAB_TOKEN")
+    if not token:
+        print("⚠ 토큰이 없어 전송용 패키지를 지우지 못했다")
+        return
+    try:
+        import json as _json
+        import urllib.request as _req
+
+        base = f"{env('CI_API_V4_URL')}/projects/{env('CI_PROJECT_ID')}/packages"
+        head = {"JOB-TOKEN": token} if env("CI_JOB_TOKEN") else {"PRIVATE-TOKEN": token}
+        # **찾는 것을 서버에 맡긴다.** 첫 페이지만 훑으면 패키지가 쌓인 뒤에는 대상이
+        # 뒤 페이지로 밀려 **정리가 조용히 멈춘다** — 그것이 바로 막으려던 것이다.
+        query = (f"?package_type=generic&package_name={PACKAGE_NAME}"
+                 f"&package_version={version}&per_page=100")
+        with _req.urlopen(_req.Request(base + query, headers=head), timeout=30) as r:
+            packages = _json.loads(r.read().decode("utf-8"))
+        for pkg in packages:
+            if pkg.get("version") != version:
+                continue
+            req = _req.Request(f"{base}/{pkg['id']}", headers=head, method="DELETE")
+            with _req.urlopen(req, timeout=30) as r:
+                print(f"전송용 패키지 정리: {version} ({r.status})")
+            return
+        print(f"⚠ 지울 패키지를 찾지 못했다: {version}")
+    except Exception as e:
+        print(f"⚠ 전송용 패키지를 지우지 못했다({type(e).__name__}) — 배치는 끝났다")
 
 
 def promote() -> int:

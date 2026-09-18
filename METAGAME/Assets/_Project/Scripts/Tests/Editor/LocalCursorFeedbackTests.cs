@@ -6,6 +6,7 @@ namespace Metagame.Gameplay.Tests
 {
     public sealed class LocalCursorFeedbackTests
     {
+        [Category("Heavy")]
         [Test]
         public void PingCursor_UsesReadableAlphaAndPlayerTint_WithoutChangingSource()
         {
@@ -17,7 +18,9 @@ namespace Metagame.Gameplay.Tests
             try
             {
                 Assert.That(texture.isReadable, Is.True);
-                Assert.That(texture.width, Is.EqualTo(40));
+                // 상수를 따라간다 — 핀을 눕히면서 칸이 48 로 커졌다(S15P21B202-535).
+                // 숫자를 적어 두면 각도를 만질 때마다 멀쩡한 검증이 깨진다.
+                Assert.That(texture.width, Is.EqualTo(LocalCursorFeedback.CursorSize));
                 int red = 0, clear = 0;
                 foreach (Color pixel in texture.GetPixels())
                 {

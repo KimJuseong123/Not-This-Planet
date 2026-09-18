@@ -13,6 +13,8 @@ namespace Metagame.Gameplay
         public static GameSession Instance;
 
         public PlayerRig LocalPlayer;
+        public event System.Action<PlayerRig> PlayerRespawned;
+        public System.Func<InputFrame, InputFrame> StageInputFilter { get; set; }
 
         /// <summary>전원이 기절한 채 흐른 시간. 출구 판정에만 쓴다.</summary>
         float allDownedSeconds;
@@ -51,6 +53,38 @@ namespace Metagame.Gameplay
         public bool ProgressFromHost { get; private set; }
 
         public bool CursorLocked { get; private set; }
+        public bool EmoteWheelOpen { get; private set; }
+
+        /// <summary>춤 고르는 바퀴가 열려 있는가 (S15P21B202-563).</summary>
+        public bool DanceWheelOpen { get; private set; }
+
+        /// <summary>
+        /// 고르는 바퀴가 <b>하나라도</b> 열려 있는가. 열려 있으면 게임 입력을 막는다.
+        ///
+        /// <para>깃발을 하나로 합치지 않았다 — 합치면 한쪽 HUD 가 닫히면서 다른 쪽이
+        /// 열어 둔 깃발을 내린다(<c>EmoteHud.Close</c> 는 깃발만 보고 내린다).</para>
+        /// </summary>
+        public bool WheelOpen => EmoteWheelOpen || DanceWheelOpen;
+
+        public void SetEmoteWheelOpen(bool open)
+        {
+            EmoteWheelOpen = open;
+            RefreshWheelCursor(open);
+        }
+
+        public void SetDanceWheelOpen(bool open)
+        {
+            DanceWheelOpen = open;
+            RefreshWheelCursor(open);
+        }
+
+        void RefreshWheelCursor(bool open)
+        {
+            if (open) SetCursor(false);
+            // 다른 바퀴가 아직 열려 있으면 커서를 되돌리지 않는다.
+            else if (!WheelOpen && !InputSuppressed && !EndingActive
+                && (Exploration == null || !Exploration.TabletOpen)) SetCursor(true);
+        }
 
         readonly PingLifetimeState localPing = new PingLifetimeState();
 
@@ -67,6 +101,12 @@ namespace Metagame.Gameplay
         /// 세계 시간과 물리·운석 진행은 계속 흘러야 하므로 Time.timeScale을 바꾸지 않는다.
         /// </summary>
         public bool InputSuppressed { get; private set; }
+        public Stage1Sequence Sequence { get; set; }
+        public bool CinematicInputBlocked => Sequence != null && Sequence.BlocksInput;
+
+        /// <summary>로컬 태블릿 입력과 키 안내가 공유하는 사용 가능 조건.</summary>
+        public bool CanToggleTablet => LocalPlayer != null && Exploration != null
+            && !EndingActive && !InputSuppressed && !ScriptedInput && !CinematicInputBlocked;
 
         /// <summary>체크포인트 N 에 서 있을 때 화면에 뜨는 "지금 할 일".</summary>
         static readonly string[] Hints =
@@ -110,6 +150,12 @@ namespace Metagame.Gameplay
         void Update()
         {
             if (EndingActive) return;
+            if (CinematicInputBlocked)
+            {
+                LocalPlayer?.SetInput(new InputFrame());
+                Transport?.SetInput(new InputFrame());
+                return;
+            }
             if (!Cleared && !ProgressFromHost && LocalPlayer == null) Elapsed += Time.deltaTime;
             if (LocalPlayer == null) return;
 
@@ -126,9 +172,9 @@ namespace Metagame.Gameplay
 
             if (!ScriptedInput)
             {
-                var f = Controls.Read();
+                var f = WheelOpen ? new InputFrame() : Controls.Read();
 
-                if (f.TabletToggle && Exploration != null)
+                if (f.TabletToggle && CanToggleTablet)
                 {
                     Exploration.ToggleTablet();
                     SetCursor(!Exploration.TabletOpen);
@@ -138,10 +184,13 @@ namespace Metagame.Gameplay
                 {
                     if (f.TabletPreviousPage) Exploration.PreviousTabletPage();
                     if (f.TabletNextPage) Exploration.NextTabletPage();
+                    // E는 태블릿 안에서만 안내 확인/다시 보기로 소비한다.
+                    if (f.TransportAction) Exploration.ActivateTabletGuide();
                 }
 
                 if (Input.GetKeyDown(Controls.FreeCursor)) SetCursor(false);
                 if (Input.GetMouseButtonDown(0) && !CursorLocked
+                    && !WheelOpen
                     && (Exploration == null || !Exploration.TabletOpen))
                     SetCursor(true);
                 if (!CursorLocked)
@@ -173,9 +222,12 @@ namespace Metagame.Gameplay
                     f.ToolUtility = false;
                     f.TransportAction = false;
                     f.ArmsUp = false;
+                    f.ProneHeld = false;
                     f.FreeLook = false;
                     f.PingPressed = false;
                 }
+
+                if (StageInputFilter != null) f = StageInputFilter(f);
 
                 // 끼임 탈출은 3초 유지다(기획 §21). 예전에는 GetKeyDown 으로 즉시
                 // 스폰 지점으로 보내면서 Revive 까지 불러 §20 의 기절·구조를 우회했다
@@ -235,6 +287,7 @@ namespace Metagame.Gameplay
                         f.ToolSecondary = false;
                         f.ToolUtility = false;
                         f.ArmsUp = false;
+                        f.ProneHeld = false;
                     }
                 }
                 LocalPlayer.SetInput(f);
@@ -356,6 +409,7 @@ namespace Metagame.Gameplay
             rig.Revive(rig.MaxHealth);
             rig.ResetHealth();
             rig.Teleport(SpawnFoot + Vector3.up * 0.15f, Quaternion.LookRotation(Vector3.right, Vector3.up));
+            PlayerRespawned?.Invoke(rig);
         }
 
         /// <summary>낙사인가. 서버가 접속자마다 같은 기준으로 본다(-55).</summary>

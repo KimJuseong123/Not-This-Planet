@@ -77,6 +77,12 @@ namespace Metagame.Gameplay
         protected virtual void Awake()
         {
             ResolveMuzzle();
+
+            // 도구는 안개를 받지 않는다 (S15P21B202-540). 사람만 또렷하고 그가 든
+            // 방망이·용접기만 회색이면 어색하다. 파츠와 같은 이유이고, 같은 이유로
+            // "잡는 동안만" 이 아니다 — 참가자 기계에서는 잡기 판정이 돌지 않아
+            // 내가 든 것만 또렷해진다. SpaceshipPart.ExemptFromFog 의 주석 참고.
+            Prim.SetFogExempt(gameObject, true);
         }
 
         protected virtual void OnValidate()
@@ -88,6 +94,7 @@ namespace Metagame.Gameplay
         public void Equip(PlayerRig owner, Rigidbody body)
         {
             if (IsEquipped) Unequip();
+            GetComponent<ToolDisplayMount>()?.Release();
 
             // **원격으로 껐던 것을 먼저 되돌린다**(AI 리뷰 지적, 2026-09-08).
             // 그 상태에서는 collisionsSuspended 가 이미 참이라 아래 SuspendCollisions 가
@@ -173,6 +180,7 @@ namespace Metagame.Gameplay
 
             if (held)
             {
+                GetComponent<ToolDisplayMount>()?.Release();
                 SuspendCollisions();
                 OnEquipped();
                 return;

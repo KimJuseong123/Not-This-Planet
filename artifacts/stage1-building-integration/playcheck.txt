@@ -1,0 +1,4 @@
+Starting solo spawn and exit check
+Settled spawn foot=(-31.814, 0.294, -24.000) camera=(-31.614, 1.144, -24.000)
+Exit foot=(-21.912, 0.041, -23.993)
+PASS: actual player spawned, settled, and walked through shelter exit.

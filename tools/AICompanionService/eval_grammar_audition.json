@@ -1,0 +1,40 @@
+{
+  "note": "지시대명사와 어미 오디션. 명사가 아니라 '이거/저거', '~해줘/~하지 마'를 잰다.",
+  "note_method": "단어 생존율(eval_word_audition.py)과 최종 행동 정확도(eval_llm.py)를 함께 본다.",
+  "note_negation": "부정은 뒤집히면 AI가 정반대로 움직인다. 이 묶음만은 생존율보다 행동 정확도가 중요하다.",
+  "note_carrier": "지시대명사는 '뽑아줘'로, 어미는 '못'으로 앞뒤를 고정해 비교 대상만 바뀌게 했다.",
+  "lines": [
+    {"id": "dem1", "group": "지시대명사", "target": "이거", "current": true, "text": "이거 뽑아줘", "expected_action": "pull_pin"},
+    {"id": "dem2", "group": "지시대명사", "target": "저거", "text": "저거 뽑아줘", "expected_action": "pull_pin"},
+    {"id": "dem3", "group": "지시대명사", "target": "그거", "current": true, "text": "그거 뽑아줘", "expected_action": "pull_pin"},
+    {"id": "dem4", "group": "지시대명사", "target": "이것", "text": "이것 좀 뽑아줘", "expected_action": "pull_pin"},
+    {"id": "dem5", "group": "지시대명사", "target": "저것", "text": "저것 좀 뽑아줘", "expected_action": "pull_pin"},
+    {"id": "dem6", "group": "지시대명사", "target": "여기", "text": "여기 이거 뽑아줘", "expected_action": "pull_pin"},
+    {"id": "dem7", "group": "지시대명사", "target": "저기", "text": "저기 저거 뽑아줘", "expected_action": "pull_pin"},
+
+    {"id": "pos1", "group": "긍정어미", "target": "뽑아", "text": "못 뽑아", "expected_action": "pull_pin"},
+    {"id": "pos2", "group": "긍정어미", "target": "뽑아줘", "current": true, "text": "못 뽑아줘", "expected_action": "pull_pin"},
+    {"id": "pos3", "group": "긍정어미", "target": "뽑아봐", "text": "못 뽑아봐", "expected_action": "pull_pin"},
+    {"id": "pos4", "group": "긍정어미", "target": "뽑아줄래", "current": true, "text": "못 뽑아줄래", "expected_action": "pull_pin"},
+    {"id": "pos5", "group": "긍정어미", "target": "뽑아주라", "text": "못 뽑아주라", "expected_action": "pull_pin"},
+    {"id": "pos6", "group": "긍정어미", "target": "뽑아야 돼", "text": "못 뽑아야 돼", "expected_action": "pull_pin"},
+
+    {"id": "neg1", "group": "부정어미", "target": "뽑지 마", "current": true, "text": "못 뽑지 마", "expected_action": "cancel"},
+    {"id": "neg2", "group": "부정어미", "target": "뽑지 말고", "text": "못 뽑지 말고", "expected_action": "cancel"},
+    {"id": "neg3", "group": "부정어미", "target": "뽑으면 안 돼", "text": "못 뽑으면 안 돼", "expected_action": "cancel"},
+    {"id": "neg4", "group": "부정어미", "target": "뽑지 말아줘", "text": "못 뽑지 말아줘", "expected_action": "cancel"},
+    {"id": "neg5", "group": "부정어미", "target": "건드리지 마", "text": "못 건드리지 마", "expected_action": "cancel"},
+    {"id": "neg6", "group": "부정어미", "target": "하지 마", "current": true, "text": "그거 하지 마", "expected_action": "cancel"},
+    {"id": "neg7", "group": "부정어미", "target": "따라오지 마", "current": true, "text": "따라오지 마", "expected_action": "cancel"},
+    {"id": "neg8", "group": "부정어미", "target": "오지 말고", "text": "이리 오지 말고", "expected_action": "cancel"},
+
+    {"id": "call1", "group": "호출", "target": "야", "text": "야 따라와", "expected_action": "follow"},
+    {"id": "call2", "group": "호출", "target": "어이", "text": "어이 따라와", "expected_action": "follow"},
+    {"id": "call3", "group": "호출", "target": "잠깐", "text": "잠깐 따라와", "expected_action": "follow"},
+    {"id": "call4", "group": "호출", "target": "따라와", "current": true, "text": "따라와", "expected_action": "follow"},
+
+    {"id": "vague1", "group": "모호", "target": "그거 해줘", "current": true, "text": "그거 해줘", "expected_action": "clarify"},
+    {"id": "vague2", "group": "모호", "target": "저거 좀", "text": "저거 좀", "expected_action": "clarify"},
+    {"id": "vague3", "group": "모호", "target": "저기로 가", "text": "저기로 가", "expected_action": "clarify"}
+  ]
+}

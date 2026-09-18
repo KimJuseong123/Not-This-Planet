@@ -3,9 +3,10 @@
 실행: python scripts/ci/tests/test_deploy_notify.py
 네트워크·토큰 없이 ci_common.http 를 가짜로 바꿔 돌린다.
 
-왜 이 알림이 있는가 — 배포는 **사람이 눌러서** 도는 수동 잡이다(-139). 누른 사람은 잡 로그를
-보고 있지만 같은 서버로 테스트하던 팀원은 재시작을 모른다. 재시작은 진행 중인 WebSocket 세션을
-전부 끊으므로 **성공도** 알려야 한다.
+왜 이 알림이 있는가 — **같은 서버로 테스트하던 팀원은 재시작을 모른다.** 재시작은 진행 중인
+WebSocket 세션을 전부 끊으므로 **성공도** 알려야 한다. 배포는 사람이 누를 수도(-139), 새벽에
+예약으로 돌 수도(-455) 있는데, 읽는 사람에게 그 차이는 중요하지 않다 — 서버가 재시작됐다는
+것만 알면 된다.
 
 핵심 구분: `live`(지금 서버에 올라간 것) 와 `attempt`(마지막 시도) 는 다르다. 마지막 시도가
 실패했어도 서버는 그 전 성공분으로 돌고 있다. 섞으면 실패한 커밋이 배포된 것처럼 읽힌다.
@@ -110,12 +111,22 @@ rc, t = notify("무슨값", "")
 assert "🔴" in t and f"@{INFRA_MM}" in t and "불명" in t, t
 print("  결과값 불명 → 실패 취급 ✅")
 
-# ── ⑤ 누른 사람 — 팀 명단에 있으면 넣고, 없으면 넣지 않는다
+# ── ⑤ 누른 사람을 적지 않는다 (S15P21B202-566)
+#
+# `GITLAB_USER_LOGIN` 은 예약 파이프라인에서 **예약을 만든 사람**이다. 그것을 "누른 사람"
+# 으로 실으면 새벽 자동 배포(-455)가 돌 때마다 아무것도 안 한 사람이 누른 것으로 찍힌다 —
+# 2026-09-16 04:03 파이프라인 197264 에서 실제로 그랬다. 배포 뒤에 문제가 생기면 그 이름을
+# 먼저 찾게 되므로 **틀린 이름은 없는 것보다 나쁘다.**
+#
+# 사람 이름이 들어 있는 채로 성공하지 않게, 팀 명단에 있는 계정으로 넣어 본다.
 _, t = notify("ok", "", GITLAB_USER_LOGIN=N.INFRA)
-assert f"@{INFRA_MM}" in t and "누른 사람" in t, t
-_, t = notify("ok", "", GITLAB_USER_LOGIN="not-a-member")
 assert "누른 사람" not in t, t
-print("  누른 사람 표시 ✅")
+assert f"@{INFRA_MM}" not in t, "성공 카드가 사람을 멘션한다 — 누른 사람 줄이 되살아났다:\n" + t
+
+# 실패 카드의 Infra 멘션은 **조치할 사람**이라 남는다. 둘을 헷갈리면 안 된다.
+_, t = notify("fail", "")
+assert f"@{INFRA_MM}" in t and "누른 사람" not in t, t
+print("  누른 사람을 적지 않는다 (실패 시 Infra 멘션은 남는다) ✅")
 
 # ── ⑥ 링크는 있는 것만 — CI 밖에서 부를 때 빈 링크가 남으면 안 된다
 _, t = notify("ok", "")
@@ -239,5 +250,24 @@ assert st["drift"] is None, st
 assert "배포 대기 잡이 없는데" not in D.deploy_line(st)
 COMPARE_FAILS.clear()
 print("  비교 실패는 경고하지 않음 ✅")
+
+
+# ── 새벽(예약) 배포 카드는 **아무도 부르지 않는다** (S15P21B202-608)
+#
+#     04:00 에 나가는 카드는 아무도 못 본다 — 그 시각의 멘션은 알림만 시끄럽게 하고,
+#     아침에 읽을 때는 이미 멘션이 필요 없다(카드가 그대로 남아 있다).
+rc, t = notify("fail", "준비 확인 실패", CI_PIPELINE_SOURCE="schedule",
+               CI_COMMIT_SHA="abc1234def567", CI_COMMIT_TITLE="[Backend] fix: y")
+assert rc == 0, rc
+assert t.startswith("🔴 **배포 실패**"), t
+assert "@" not in t, "새벽 카드가 사람을 부른다 — 그 시각엔 아무도 못 본다: " + t
+assert "볼 곳" in t, "부르지 않더라도 무엇을 볼지는 남아야 한다: " + t
+print("  새벽 배포 카드는 아무도 부르지 않는다 ✅")
+
+#     낮에 사람이 눌러 도는 배포는 **그대로 부른다** — 거기서는 기다리는 사람이 있다.
+rc, t = notify("fail", "준비 확인 실패", CI_PIPELINE_SOURCE="push",
+               CI_COMMIT_SHA="abc1234def567")
+assert f"@{INFRA_MM}" in t, "사람이 기다리는 배포인데 아무도 안 부른다: " + t
+print("  사람이 돌린 배포는 그대로 부른다 ✅")
 
 print("TEST144 OK")

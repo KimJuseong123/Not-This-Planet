@@ -33,6 +33,37 @@ namespace Metagame.Gameplay
             [Min(0f)] public float maximumBrightness = 1f;
             [Min(0.001f)] public float minimumSize = 0.1f;
             [Min(0.001f)] public float maximumSize = 0.55f;
+
+            /// <summary>
+            /// 은하수 띠의 두께(대원에서 벗어나는 정도). 0 이면 실 한 줄, 1 이면 거의 온 하늘
+            /// (S15P21B202-530).
+            ///
+            /// <para>예전에는 <c>0.22</c> 가 메시를 짜는 루프 안에 박혀 있었다. 별에 관한
+            /// 다른 수는 전부 여기 있는데 이것만 코드에 있었다.</para>
+            ///
+            /// <para><b>기본값은 그대로 둔다.</b> 넓히면 별이 고르게 퍼질 것 같지만 실측은
+            /// 아니었다 — 0.22 → 0.45 로 넓혀도 방향별 편차가 1.790 → 1.768 로 1.2%만
+            /// 움직였다. 몰림은 띠 두께가 아니라 <b>띠가 없는 쪽이 비어 있어서</b>였다
+            /// (S15P21B202-530).</para>
+            /// </summary>
+            [Min(0f)] public float bandSpread = 0.22f;
+
+            /// <summary>
+            /// 별이 반짝이는 깊이. 0 이면 안 반짝이고, 1 이면 완전히 꺼졌다 켜진다
+            /// (S15P21B202-546).
+            ///
+            /// <para>밝기를 <c>1-amount</c> 와 <c>1</c> 사이에서 흔든다. 별마다 위상이
+            /// 다르므로 하늘 전체가 한꺼번에 밝아졌다 어두워지지는 않는다.</para>
+            ///
+            /// <para><b>눈으로 맞춘 값이다.</b> 별은 화면에서 1~3픽셀이라(`-530` 실측)
+            /// 숫자로는 정할 수 없다. 너무 얕으면 안 보이고, 너무 깊으면 반짝임이 아니라
+            /// 지글거리는 잡티가 된다.</para>
+            /// </summary>
+            [Range(0f, 1f)] public float twinkleAmount = 0.55f;
+
+            /// <summary>반짝이는 빠르기(라디안/초). 별 하나가 한 번 밝아졌다 어두워지는 데
+            /// <c>2π/speed</c> 초 걸린다 — 2.4 면 약 2.6초다.</summary>
+            [Min(0f)] public float twinkleSpeed = 2.4f;
         }
 
         [Serializable]
@@ -160,13 +191,21 @@ namespace Metagame.Gameplay
             [Min(0.1f)] public float minimumInterval = 8f;
             [Min(0.1f)] public float maximumInterval = 14f;
             [Min(0.01f)] public float speed = 6f;
-            // Local X is the travel axis, Y is vertical, and Z is the lateral axis.
-            public Vector3 halfExtents = new Vector3(12f, 2.5f, 5f);
+            [Tooltip("반크기: X=쓸어가는 너비, Y=높이, Z=진행 방향 두께")]
+            public Vector3 halfExtents = new Vector3(12f, 2.5f, 2.5f);
             [Range(0f, 180f)] public float directionConeDegrees = 60f;
             [Min(0f)] public float spawnMargin = 6f;
             public int seed = 20260903;
 
-            [Header("Grounding")]
+            [Header("Magnetic storm wake")]
+            [Tooltip("후면이 지나간 자리에 잔운이 남는 시간(초). 0이면 끕니다. 최대 한 폭풍 주기까지 유지됩니다.")]
+            [Range(0f, 30f)] public float wakeDuration = 4f;
+            [Tooltip("잔운의 연기 불투명도 배율. 0이면 보이지 않지만 영향 배율이 있으면 힘은 적용됩니다.")]
+            [Range(0f, 1f)] public float wakeOpacity = .35f;
+            [Tooltip("잔운이 주는 충격의 배율. 본체의 힘에 곱하며 시간이 지날수록 0으로 감소합니다. 0이면 시각 효과만 남습니다.")]
+            [Range(0f, 1f)] public float wakeInfluence = .18f;
+
+            [Header("Fixed height above map base")]
             [Min(0f)] public float groundClearance = 0.08f;
 
             [Header("Test visualization")]
@@ -176,20 +215,29 @@ namespace Metagame.Gameplay
             [Min(10f)] public float debugSkyMarkerHeight = 80f;
 
             [Header("Gameplay")]
-            [Tooltip("폭풍이 적용하는 기준 힘의 크기입니다. 단위는 Newton이며 FixedUpdate마다 지속 적용됩니다.")]
-            [Min(0f)] public float windForce = 6f;
-            [Tooltip("플레이어 골반에 적용할 기준 힘의 배율입니다. 낮출수록 플레이어는 덜 밀립니다.")]
-            [Min(0f)] public float playerWindForceMultiplier = 0.45f;
-            [Tooltip("일반 Rigidbody에 적용할 기준 힘의 배율입니다. 플레이어보다 크게 설정하면 가벼운 물체가 더 잘 밀립니다.")]
-            [Min(0f)] public float objectWindForceMultiplier = 1.25f;
-            [Tooltip("이 질량을 초과하는 플레이어 또는 일반 Rigidbody에는 폭풍 힘을 적용하지 않습니다.")]
-            [Min(0f)] public float maximumAffectedMass = 40f;
-            [Min(0)] public int maxPhysicalFragments = 3;
-            [Min(0f)] public float fragmentDamage = 5f;
-            [Min(0.01f)] public float fragmentRepeatCooldown = 1f;
-            [Min(0.1f)] public float fragmentLifetime = 2.5f;
-            [Min(0.01f)] public float fragmentSpeed = 5f;
+            [Tooltip("같은 대상에 다시 충격을 주기까지의 시간(초). 진입 시 즉시 1회 적용합니다.")]
+            [Min(0.05f)] public float impulseInterval = 1f;
+            [Tooltip("진행 방향 순간 속도 증가량(m/s). 질량과 무관하게 플레이어도 강하게 밀립니다.")]
+            [Min(0f)] public float impulseSpeed = 18f;
+            [Tooltip("타격 시 위쪽 속도 증가량(m/s). 0이면 수평 방향으로만 밀립니다.")]
+            [Min(0f)] public float impulseLift = 4f;
+            [Min(0f)] public float playerImpulseMultiplier = 1f;
+            [Min(0f)] public float objectImpulseMultiplier = 1f;
+            [Tooltip("타격 대상을 찾을 레이어 마스크입니다.")]
             public int affectedLayers = ~0;
+            [Tooltip("폭풍이 적용하는 기준 힘의 크기입니다. 단위는 Newton이며 FixedUpdate마다 지속 적용됩니다.")]
+            [HideInInspector, Min(0f)] public float windForce = 6f;
+            [Tooltip("플레이어 골반에 적용할 기준 힘의 배율입니다. 낮출수록 플레이어는 덜 밀립니다.")]
+            [HideInInspector, Min(0f)] public float playerWindForceMultiplier = 0.45f;
+            [Tooltip("일반 Rigidbody에 적용할 기준 힘의 배율입니다. 플레이어보다 크게 설정하면 가벼운 물체가 더 잘 밀립니다.")]
+            [HideInInspector, Min(0f)] public float objectWindForceMultiplier = 1.25f;
+            [Tooltip("이 질량을 초과하는 플레이어 또는 일반 Rigidbody에는 폭풍 힘을 적용하지 않습니다.")]
+            [HideInInspector, Min(0f)] public float maximumAffectedMass = 40f;
+            [HideInInspector, Min(0)] public int maxPhysicalFragments = 3;
+            [HideInInspector, Min(0f)] public float fragmentDamage = 5f;
+            [HideInInspector, Min(0.01f)] public float fragmentRepeatCooldown = 1f;
+            [HideInInspector, Min(0.1f)] public float fragmentLifetime = 2.5f;
+            [HideInInspector, Min(0.01f)] public float fragmentSpeed = 5f;
 
             [Header("Visual debris")]
             [Min(0)] public int maxVisualFragments = 6;
@@ -291,6 +339,9 @@ namespace Metagame.Gameplay
             dustStorm.minimumInterval = Mathf.Max(0.1f, dustStorm.minimumInterval);
             dustStorm.maximumInterval = Mathf.Max(dustStorm.minimumInterval, dustStorm.maximumInterval);
             dustStorm.speed = Mathf.Max(0.01f, dustStorm.speed);
+            dustStorm.wakeDuration = Mathf.Clamp(dustStorm.wakeDuration, 0f, 30f);
+            dustStorm.wakeOpacity = Mathf.Clamp01(dustStorm.wakeOpacity);
+            dustStorm.wakeInfluence = Mathf.Clamp01(dustStorm.wakeInfluence);
             dustStorm.halfExtents = new Vector3(
                 Mathf.Max(0.1f, Mathf.Abs(dustStorm.halfExtents.x)),
                 Mathf.Max(0.1f, Mathf.Abs(dustStorm.halfExtents.y)),
@@ -301,6 +352,11 @@ namespace Metagame.Gameplay
             dustStorm.debugBoundaryWidth = Mathf.Max(0.001f, dustStorm.debugBoundaryWidth);
             dustStorm.debugSkyMarkerHeight = Mathf.Max(10f, dustStorm.debugSkyMarkerHeight);
             dustStorm.windForce = Mathf.Max(0f, dustStorm.windForce);
+            dustStorm.impulseInterval = Mathf.Max(.05f, dustStorm.impulseInterval);
+            dustStorm.impulseSpeed = Mathf.Max(0f, dustStorm.impulseSpeed);
+            dustStorm.impulseLift = Mathf.Max(0f, dustStorm.impulseLift);
+            dustStorm.playerImpulseMultiplier = Mathf.Max(0f, dustStorm.playerImpulseMultiplier);
+            dustStorm.objectImpulseMultiplier = Mathf.Max(0f, dustStorm.objectImpulseMultiplier);
             dustStorm.playerWindForceMultiplier = Mathf.Max(0f, dustStorm.playerWindForceMultiplier);
             dustStorm.objectWindForceMultiplier = Mathf.Max(0f, dustStorm.objectWindForceMultiplier);
             dustStorm.maximumAffectedMass = Mathf.Max(0f, dustStorm.maximumAffectedMass);

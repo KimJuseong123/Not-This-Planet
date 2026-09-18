@@ -22,5 +22,14 @@ namespace Metagame.Gameplay.Parts
 
         /// <summary>이 빔이 이미 다른 파츠를 들고 있다.</summary>
         BeamBusy,
+
+        /// <summary>
+        /// 사람이 타고 있는 견인선이라 집을 수 없다 (S15P21B202-554).
+        ///
+        /// <para><see cref="AlreadyCarried"/> 와 섞지 않는다. 그쪽은 "다른 빔이 들고
+        /// 있으니 기다리면 된다" 이고, 이쪽은 "타고 있는 사람이 내려야 한다" 다 —
+        /// 사람에게 할 말이 다르다.</para>
+        /// </summary>
+        Occupied,
     }
 }

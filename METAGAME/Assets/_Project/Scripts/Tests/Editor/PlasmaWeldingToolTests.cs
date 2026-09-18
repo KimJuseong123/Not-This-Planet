@@ -107,6 +107,32 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void PlasmaTool_CutBeamShowsContactGlowOnWeldBead()
+        {
+            WeldingBody();
+            var tool = CreateTool(out _);
+            var aim = new ToolAimContext(null, null, Vector3.forward);
+            Physics.SyncTransforms();
+            // 최소 용접량(0.1초)은 자국 콜라이더가 표면 안쪽에 남아
+            // 다음 레이가 다시 파츠 표면을 먼저 맞힐 수 있다. 이 테스트는
+            // 발광 효과를 검증하므로 실제로 절단 가능한 크기까지 자국을 만든다.
+            Assert.IsTrue(tool.WeldTick(0.5f, PlasmaBeamMode.Weld));
+            Physics.SyncTransforms();
+
+            Assert.IsTrue(tool.TryGetBeamHit(Vector3.forward, out var cutContact));
+            Assert.IsTrue(WeldBead.CanApplyAt(cutContact, true),
+                "테스트 자국이 실제 절단 판정을 통과해야 한다.");
+
+            tool.SetInput(new ToolInputFrame { SecondaryHeld = true }, aim);
+            InvokeLateUpdate(tool);
+
+            var contactFx = tool.transform.Find("WeldContactFx");
+            Assert.IsNotNull(contactFx);
+            Assert.IsTrue(contactFx.GetComponent<Light>().enabled);
+            Assert.IsTrue(contactFx.Find("HotMetal").gameObject.activeSelf);
+        }
+
+        [Test]
         public void PlasmaTool_DisablesBodyCollisionsOnlyWhileEquipped()
         {
             var tool = CreateTool(out _);
@@ -354,6 +380,84 @@ namespace Metagame.Gameplay.Tests
             tool.Unequip();
             Assert.IsFalse(tool.GuideVisible);
             Assert.IsFalse(guide.gameObject.activeSelf);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void JointRecommendation_FirstBeadActuallyJoins_AndDistantSurfaceDoesNot(bool meshHull)
+        {
+            var a = WeldingBody();
+            var b = WeldingBody();
+            if (meshHull)
+            {
+                var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                var shape = cube.GetComponent<MeshFilter>().sharedMesh;
+                Object.DestroyImmediate(cube);
+                foreach (var part in new[] { a, b })
+                {
+                    Object.DestroyImmediate(part.GetComponent<BoxCollider>());
+                    var hull = part.gameObject.AddComponent<MeshCollider>();
+                    hull.sharedMesh = shape;
+                    hull.convex = true;
+                }
+            }
+            b.transform.position += Vector3.right;
+            Physics.SyncTransforms();
+            var collider = a.GetComponent<Collider>();
+            Assert.IsTrue(collider.Raycast(new Ray(new Vector3(0.49f, 0f, 0f), Vector3.forward), out var seam, 2f));
+            Assert.IsTrue(WeldBead.CanStartJoiningAt(seam));
+            Assert.IsNull(a.GetComponent<WeldBead>(), "표시 판정은 상태를 변경하지 않는다.");
+            Assert.IsTrue(collider.Raycast(new Ray(Vector3.zero, Vector3.forward), out var middle, 2f));
+            Assert.IsFalse(WeldBead.CanStartJoiningAt(middle));
+            Assert.IsTrue(WeldBead.TryApplyAt(seam, 0.02f, false, out var bead));
+            CollectionAssert.Contains(new List<SpaceshipPart>(bead.BridgedParts), b);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void JointRecommendation_LocalHeldOnly_InSoloAndRemotePresentation(bool remote)
+        {
+            WeldingBody();
+            var b = WeldingBody();
+            b.transform.position += Vector3.right;
+            var player = PlayerRig.Create("Joint guide owner", Vector3.left * 4f,
+                Quaternion.identity, Color.white, Color.gray, useModel: false);
+            spawned.Add(player.gameObject);
+            var tool = CreateTool(out _, remote ? null : player);
+            if (remote)
+            {
+                tool.Unequip();
+                tool.ApplyRemoteHeld(true);
+                tool.ApplyRemotePresentation(player, 0, 1f, Vector3.forward);
+            }
+            Physics.SyncTransforms();
+            tool.SetInput(default, new ToolAimContext(player, null, Vector3.forward));
+            InvokeLateUpdate(tool);
+            Assert.IsTrue(tool.JointGuideVisible);
+            var recommendation = GameObject.Find("Welding joint recommendations");
+            Assert.IsNotNull(recommendation);
+            Assert.IsNull(recommendation.GetComponent<Collider>());
+            Assert.AreEqual(3000, recommendation.GetComponent<MeshRenderer>().sharedMaterial.renderQueue);
+            bool frontSurfaceFound = false;
+            foreach (var vertex in recommendation.GetComponent<MeshFilter>().sharedMesh.vertices)
+                if (Mathf.Abs(vertex.z - 0.538f) < 0.0001f) frontSurfaceFound = true;
+            Assert.IsTrue(frontSurfaceFound, "앞면 콜라이더(z=0.55)에서 1.2cm 띄워 그린다.");
+            b.transform.position += Vector3.right * 2f;
+            Physics.SyncTransforms();
+            InvokeLateUpdate(tool);
+            Assert.IsFalse(tool.JointGuideVisible, "접합부가 떨어지면 추천을 즉시 지운다.");
+            b.transform.position -= Vector3.right * 2f;
+            Physics.SyncTransforms();
+            InvokeLateUpdate(tool);
+            Assert.IsTrue(tool.JointGuideVisible);
+            player.IsLocal = false;
+            InvokeLateUpdate(tool);
+            Assert.IsFalse(tool.JointGuideVisible);
+            player.IsLocal = true;
+            InvokeLateUpdate(tool);
+            Assert.IsTrue(tool.JointGuideVisible);
+            if (remote) tool.ApplyRemoteHeld(false); else tool.Unequip();
+            Assert.IsFalse(tool.JointGuideVisible);
         }
 
         SpaceshipPart WeldingBody()

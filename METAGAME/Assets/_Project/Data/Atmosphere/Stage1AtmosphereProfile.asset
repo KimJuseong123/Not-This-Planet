@@ -19,14 +19,17 @@ MonoBehaviour:
     horizonHeight: 0
     horizonExponent: 1.6
   stars:
-    starCount: 1500
+    starCount: 3500
     bandCount: 900
     radius: 300
     seed: 20260825
     minimumBrightness: 0.1
     maximumBrightness: 1
-    minimumSize: 0.1
+    minimumSize: 0.18
     maximumSize: 0.55
+    bandSpread: 0.22
+    twinkleAmount: 0.55
+    twinkleSpeed: 2.4
   celestialBodies:
     planetEnabled: 1
     planetColor: {r: 0.2, g: 0.4, b: 0.72, a: 1}
@@ -118,16 +121,24 @@ MonoBehaviour:
     minimumInterval: 8
     maximumInterval: 14
     speed: 6
-    halfExtents: {x: 12, y: 2.5, z: 5}
+    halfExtents: {x: 12, y: 2.5, z: 2.5}
     directionConeDegrees: 60
     spawnMargin: 6
     seed: 20260903
+    wakeDuration: 4
+    wakeOpacity: 0.35
+    wakeInfluence: 0.18
     groundClearance: 0.08
     showDebugBoundary: 0
     debugBoundaryColor: {r: 1, g: 0, b: 0, a: 1}
     debugBoundaryWidth: 0.04
     debugSkyMarkerHeight: 80
     windForce: 6
+    impulseInterval: 1
+    impulseSpeed: 18
+    impulseLift: 4
+    playerImpulseMultiplier: 1
+    objectImpulseMultiplier: 1
     playerWindForceMultiplier: 0.45
     objectWindForceMultiplier: 1.25
     maximumAffectedMass: 40

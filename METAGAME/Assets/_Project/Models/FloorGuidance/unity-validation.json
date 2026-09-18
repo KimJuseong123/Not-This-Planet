@@ -1,0 +1,108 @@
+{
+    "unityVersion": "6000.5.4f1",
+    "status": "PASS",
+    "scope": "Isolated Unity import, URP material remapping, mesh/UV/scale, prefab and collider validation; no production scene changes.",
+    "assets": [
+        {
+            "name": "FloorLight",
+            "size": {
+                "x": 0.35199999809265139,
+                "y": 0.03510001301765442,
+                "z": 0.12264999747276306
+            },
+            "min": {
+                "x": -0.17599999904632569,
+                "y": -7.450580596923828e-9,
+                "z": -0.06174999848008156
+            },
+            "triangles": 4252,
+            "materials": 2,
+            "uv2": true,
+            "prefab": "Assets/FloorGuidance/01-floor-light/PF_Astra_FloorLight.prefab",
+            "texturePaths": [
+                "Assets/FloorGuidance/01-floor-light/SM_Astra_FloorLight.fbm/SM_Astra_FloorLight_BaseColor.png",
+                "Assets/FloorGuidance/01-floor-light/SM_Astra_FloorLight.fbm/SM_Astra_FloorLight_Emission.png",
+                "Assets/FloorGuidance/01-floor-light/SM_Astra_FloorLight.fbm/SM_Astra_FloorLight_Metallic.png",
+                "Assets/FloorGuidance/01-floor-light/SM_Astra_FloorLight.fbm/SM_Astra_FloorLight_MS.png",
+                "Assets/FloorGuidance/01-floor-light/SM_Astra_FloorLight.fbm/SM_Astra_FloorLight_Normal.png",
+                "Assets/FloorGuidance/01-floor-light/SM_Astra_FloorLight.fbm/SM_Astra_FloorLight_Roughness.png"
+            ]
+        },
+        {
+            "name": "DirectionTile",
+            "size": {
+                "x": 0.2199999988079071,
+                "y": 0.025100024417042733,
+                "z": 0.2199999839067459
+            },
+            "min": {
+                "x": -0.10999999940395355,
+                "y": -1.30385160446167e-8,
+                "z": -0.10999999195337296
+            },
+            "triangles": 4240,
+            "materials": 2,
+            "uv2": true,
+            "prefab": "Assets/FloorGuidance/02-direction-tile/PF_Astra_DirectionTile.prefab",
+            "texturePaths": [
+                "Assets/FloorGuidance/02-direction-tile/SM_Astra_DirectionTile.fbm/SM_Astra_DirectionTile_BaseColor.png",
+                "Assets/FloorGuidance/02-direction-tile/SM_Astra_DirectionTile.fbm/SM_Astra_DirectionTile_Emission.png",
+                "Assets/FloorGuidance/02-direction-tile/SM_Astra_DirectionTile.fbm/SM_Astra_DirectionTile_Metallic.png",
+                "Assets/FloorGuidance/02-direction-tile/SM_Astra_DirectionTile.fbm/SM_Astra_DirectionTile_MS.png",
+                "Assets/FloorGuidance/02-direction-tile/SM_Astra_DirectionTile.fbm/SM_Astra_DirectionTile_Normal.png",
+                "Assets/FloorGuidance/02-direction-tile/SM_Astra_DirectionTile.fbm/SM_Astra_DirectionTile_Roughness.png"
+            ]
+        },
+        {
+            "name": "StairEdgeLight",
+            "size": {
+                "x": 0.4000000059604645,
+                "y": 0.060100007802248,
+                "z": 0.08089999854564667
+            },
+            "min": {
+                "x": -0.20000000298023225,
+                "y": -5.587935447692871e-9,
+                "z": -0.04089999571442604
+            },
+            "triangles": 3780,
+            "materials": 2,
+            "uv2": true,
+            "prefab": "Assets/FloorGuidance/03-stair-edge/PF_Astra_StairEdgeLight.prefab",
+            "texturePaths": [
+                "Assets/FloorGuidance/03-stair-edge/SM_Astra_StairEdgeLight.fbm/SM_Astra_StairEdgeLight_BaseColor.png",
+                "Assets/FloorGuidance/03-stair-edge/SM_Astra_StairEdgeLight.fbm/SM_Astra_StairEdgeLight_Emission.png",
+                "Assets/FloorGuidance/03-stair-edge/SM_Astra_StairEdgeLight.fbm/SM_Astra_StairEdgeLight_Metallic.png",
+                "Assets/FloorGuidance/03-stair-edge/SM_Astra_StairEdgeLight.fbm/SM_Astra_StairEdgeLight_MS.png",
+                "Assets/FloorGuidance/03-stair-edge/SM_Astra_StairEdgeLight.fbm/SM_Astra_StairEdgeLight_Normal.png",
+                "Assets/FloorGuidance/03-stair-edge/SM_Astra_StairEdgeLight.fbm/SM_Astra_StairEdgeLight_Roughness.png"
+            ]
+        },
+        {
+            "name": "TerrainLight",
+            "size": {
+                "x": 0.3799999952316284,
+                "y": 0.14010000228881837,
+                "z": 0.14000000059604646
+            },
+            "min": {
+                "x": -0.1899999976158142,
+                "y": -7.450580596923828e-9,
+                "z": -0.06999999284744263
+            },
+            "triangles": 5916,
+            "materials": 2,
+            "uv2": true,
+            "prefab": "Assets/FloorGuidance/04-terrain-light/PF_Astra_TerrainLight.prefab",
+            "texturePaths": [
+                "Assets/FloorGuidance/04-terrain-light/SM_Astra_TerrainLight.fbm/SM_Astra_TerrainLight_BaseColor.png",
+                "Assets/FloorGuidance/04-terrain-light/SM_Astra_TerrainLight.fbm/SM_Astra_TerrainLight_Emission.png",
+                "Assets/FloorGuidance/04-terrain-light/SM_Astra_TerrainLight.fbm/SM_Astra_TerrainLight_Metallic.png",
+                "Assets/FloorGuidance/04-terrain-light/SM_Astra_TerrainLight.fbm/SM_Astra_TerrainLight_MS.png",
+                "Assets/FloorGuidance/04-terrain-light/SM_Astra_TerrainLight.fbm/SM_Astra_TerrainLight_Normal.png",
+                "Assets/FloorGuidance/04-terrain-light/SM_Astra_TerrainLight.fbm/SM_Astra_TerrainLight_Roughness.png"
+            ]
+        }
+    ],
+    "errors": []
+}

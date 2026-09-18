@@ -1,0 +1,64 @@
+{
+  "asset": "SM_Astra_EastEntranceLanding",
+  "concept": "C:\\workspace\\2-PJT\\S15P21B202\\docs\\assets\\concepts\\stage1-related-hangar\\02-east-entrance-landing.png",
+  "components": 137,
+  "before_export": {
+    "meshes": 1,
+    "vertices": 11576,
+    "triangles": 22604,
+    "bounds_min": [
+      -1.7529999017715454,
+      -4.75,
+      0.0
+    ],
+    "bounds_max": [
+      1.7529999017715454,
+      4.75,
+      0.31299999356269836
+    ],
+    "dimensions": [
+      3.505999803543091,
+      9.5,
+      0.31299999356269836
+    ]
+  },
+  "after_reimport": {
+    "meshes": 1,
+    "vertices": 11576,
+    "triangles": 22604,
+    "bounds_min": [
+      -1.7529999017715454,
+      -4.75,
+      -7.738732392681413e-07
+    ],
+    "bounds_max": [
+      1.7529999017715454,
+      4.75,
+      0.31300076842308044
+    ],
+    "dimensions": [
+      3.505999803543091,
+      9.5,
+      0.3130015422963197
+    ]
+  },
+  "geometry_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "missing_textures": [],
+  "texture_links": [
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\02-east-entrance-landing\\SM_Astra_EastEntranceLanding.fbm\\SM_Astra_EastEntranceLanding_BaseColor.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\02-east-entrance-landing\\SM_Astra_EastEntranceLanding.fbm\\SM_Astra_EastEntranceLanding_Emission.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\02-east-entrance-landing\\SM_Astra_EastEntranceLanding.fbm\\SM_Astra_EastEntranceLanding_Metallic.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\02-east-entrance-landing\\SM_Astra_EastEntranceLanding.fbm\\SM_Astra_EastEntranceLanding_Normal.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\02-east-entrance-landing\\SM_Astra_EastEntranceLanding.fbm\\SM_Astra_EastEntranceLanding_Roughness.png"
+  ],
+  "roundtrip": "PASS",
+  "units": "metres",
+  "front_blender": "-Y",
+  "export_axes": "-Z forward / Y up",
+  "pivot": "base center; ramp low-end elevation",
+  "fbx": "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\02-east-entrance-landing\\SM_Astra_EastEntranceLanding.fbx",
+  "material": "M_Astra_EastEntranceLanding"
+}

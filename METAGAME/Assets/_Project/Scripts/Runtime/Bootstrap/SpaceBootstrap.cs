@@ -40,6 +40,9 @@ namespace Metagame.Bootstrap
         [Header("분위기")]
         [Tooltip("지정하면 이 Stage는 Vacuum·레거시 Starfield 대신 공용 URP 분위기 프레임워크를 사용한다.")]
         [SerializeField] AtmosphereProfile atmosphereProfile;
+        public AtmosphereProfile AtmosphereProfile => atmosphereProfile;
+        [Tooltip("씬에 배치한 자기장 폭풍. 비어 있으면 전용 이동 오브젝트를 생성한다.")]
+        [SerializeField] AtmosphereDustStorm stormPresentation;
 
         [Header("오디오")]
         [Tooltip("비워 두면 Resources/Audio/Stage1AudioManager를 사용한다.")]
@@ -51,6 +54,9 @@ namespace Metagame.Bootstrap
         public Vacuum Sky { get; private set; }
         public Starfield Space { get; private set; }
         public AtmosphereController Atmosphere { get; private set; }
+
+        /// <summary>수제 맵에서 별만 뿌릴 때 쓰는 배경 (S15P21B202-546).</summary>
+        public AtmosphereBackdrop Backdrop { get; private set; }
         public GameHud Hud { get; private set; }
         public GamePauseMenu PauseMenu { get; private set; }
         public TeamPingHud PingHud { get; private set; }
@@ -101,6 +107,13 @@ namespace Metagame.Bootstrap
             sys.transform.SetParent(transform, false);
 
             bool useAtmosphere = !authoredLighting && atmosphereProfile != null && !Application.isBatchMode;
+
+            // 수제 맵이라도 **별은 코드가 뿌린다** (S15P21B202-546). 조명·안개·스카이박스는
+            // 아트 것을 그대로 둔다 — 갈라 놓지 않으면 문지기 하나가 넷을 한꺼번에 끈다.
+            bool authoredStarsOnly = authoredLighting
+                                     && authoredMap.useCodeStarfield
+                                     && atmosphereProfile != null
+                                     && !Application.isBatchMode;
             Stage1DustStormHazard dustStormHazard = null;
             AtmosphereDustStorm dustStormVisual = null;
             if (atmosphereProfile != null)
@@ -112,7 +125,15 @@ namespace Metagame.Bootstrap
                 dustStormHazard = sys.AddComponent<Stage1DustStormHazard>();
                 // 수제 맵의 조명을 보존해도 플레이어에게 영향을 주는 폭풍은 보여야 한다.
                 if (!Application.isBatchMode && !Metagame.Network.MatchRole.DedicatedServer)
-                    dustStormVisual = sys.AddComponent<AtmosphereDustStorm>();
+                {
+                    dustStormVisual = stormPresentation;
+                    if (dustStormVisual == null)
+                    {
+                        var stormRoot = new GameObject("Stage1 Magnetic Storm");
+                        stormRoot.transform.SetParent(transform, false);
+                        dustStormVisual = stormRoot.AddComponent<AtmosphereDustStorm>();
+                    }
+                }
             }
 
             if (useAtmosphere)
@@ -121,6 +142,13 @@ namespace Metagame.Bootstrap
                 sys.AddComponent<AtmosphereBackdrop>();
                 sys.AddComponent<AtmosphereMeteorShower>();
                 sys.AddComponent<AtmosphereDustGust>();
+            }
+            else if (authoredStarsOnly)
+            {
+                // 카메라는 아직 없다. `AtmosphereBackdrop.LateUpdate` 가 `Camera.main` 을
+                // 찾아 따라가므로 여기서는 넘기지 않는다.
+                Backdrop = sys.AddComponent<AtmosphereBackdrop>();
+                Backdrop.ApplyStarsOnly(atmosphereProfile);
             }
             else if (!authoredLighting)
             {
@@ -134,6 +162,8 @@ namespace Metagame.Bootstrap
             PauseMenu.Initialize(Session);
             PingHud = sys.AddComponent<TeamPingHud>();
             PingHud.Initialize(Session);
+            sys.AddComponent<EmoteHud>().Initialize(Session);
+            sys.AddComponent<DanceHud>().Initialize(Session);
             // 팀원 머리 위 이름표 (S15P21B202-375). 핑과 같은 방식이라 옆에 둔다.
             NameplateHud = sys.AddComponent<TeamNameplateHud>();
             NameplateHud.Initialize(Session);
@@ -171,9 +201,8 @@ namespace Metagame.Bootstrap
                 if (dustStormVisual != null)
                 {
                     dustStormVisual.BindMapBounds(mapBounds);
-                    // 일반 맵은 아래 Atmosphere.Apply가 초기화한다. 수제 맵은 직접 연결한다.
-                    if (!useAtmosphere)
-                        dustStormVisual.Apply(atmosphereProfile);
+                    // The moving presenter is independent of the stationary shared systems.
+                    dustStormVisual.Apply(atmosphereProfile);
                 }
 
                 var clockBridge = sys.AddComponent<DustStormClockBridge>();
@@ -186,6 +215,8 @@ namespace Metagame.Bootstrap
             // 전용 서버 조기 반환(아래)보다 **먼저** 설치해야 한다: 세계는 서버에서도
             // 돌아야 하고, 운석을 정하는 것이 바로 그 서버다.
             var meteorSpawnerForClock = FindAnyObjectByType<Metagame.Gameplay.Hazards.MeteorSpawner>();
+            if (gameObject.scene.path == Stage1CutsceneFlow.StagePath)
+                gameObject.AddComponent<Stage1CutsceneFlow>().Configure(this, meteorSpawnerForClock);
             if (meteorSpawnerForClock != null)
             {
                 var meteorBridge = sys.AddComponent<Metagame.Network.MeteorClockBridge>();
@@ -203,9 +234,10 @@ namespace Metagame.Bootstrap
             if (!authoredLighting && !useAtmosphere && starfield && !Application.isBatchMode)
                 Space = Starfield.Create(transform, Sky.SunDirection);
 
-            var ending = sys.AddComponent<DemoEnding>();
+            bool chapterTwo = gameObject.scene.name == StageCatalog.Stage2SceneName;
+            DemoEnding ending = chapterTwo ? null : sys.AddComponent<DemoEnding>();
             bool endingNetworked = Mirror.NetworkServer.active || Mirror.NetworkClient.active;
-            ending.Configure(Session, FindObjectsByType<SpaceshipPart>(FindObjectsSortMode.None),
+            if (ending != null) ending.Configure(Session, FindObjectsByType<SpaceshipPart>(FindObjectsSortMode.None),
                 () => !endingNetworked || Mirror.NetworkServer.active,
                 () => endingNetworked ? Mirror.NetworkTime.time : Time.unscaledTimeAsDouble,
                 CaptureEndingPlayers,
@@ -213,9 +245,9 @@ namespace Metagame.Bootstrap
                     ? NetworkSession.Instance.RoomPlayTimeSeconds : Session.Elapsed);
             foreach (var hatch in FindObjectsByType<ShipHatch>(FindObjectsSortMode.None)) hatch.enabled = false;
             foreach (var launch in FindObjectsByType<LaunchTest>(FindObjectsSortMode.None)) launch.enabled = false;
-            EndingSceneFlow.Ensure().Watch(ending);
+            if (ending != null) EndingSceneFlow.Ensure().Watch(ending);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-            if (!MatchRole.DedicatedServer)
+            if (!MatchRole.DedicatedServer && ending != null)
                 GetComponent<DevManager>().Configure(Session, ending, PauseMenu, endingNetworked);
 #endif
 
@@ -269,6 +301,10 @@ namespace Metagame.Bootstrap
             Player.ConfigureClampInteraction(Player.Cam.transform);
             Transport.Configure(Player, beams, randomizeVehicles: !inMatch && (authoredMap == null || authoredMap.randomizeVehicles));
 
+            // 시험 진입이면 조립 구역 앞으로 배치를 모은다 (S15P21B202-572).
+            // 요청이 없으면 아무 일도 하지 않으므로 혼자 하기 경로는 그대로다.
+            TestArena.ArrangeIfRequested(Player);
+
             // 매치 중에는 조준·안내만 하고 실행은 서버에 맡긴다(-149).
             Transport.Authoritative = !inMatch;
             Transport.PhysicsAuthority = !inMatch;
@@ -279,6 +315,41 @@ namespace Metagame.Bootstrap
             Session.Transport = Transport;
             Exploration.Begin(Player);
             Session.Begin(Player, Level, Level.SpawnFoot, Exploration);
+
+            // **판이 시작하는 자리에서 이벤트를 연다** (S15P21B202-498). 여기가
+            // 세계와 플레이어가 둘 다 선 뒤 처음 오는 지점이다 — 더 이르면 인원수도
+            // 역할도 아직 모른다.
+            //
+            // 세계 상태는 **호스트만** 낸다(권위가 거기 있다). 혼자 하는 판은 자기가
+            // 곧 권위다. 참가자도 자기 판의 시작·끝·낙사는 남긴다.
+            bool host = !inMatch || Mirror.NetworkServer.active;
+            var head = new System.Collections.Generic.Dictionary<string, object>
+            {
+                ["backend"] = Core.BackendEndpoints.IsDev ? "dev" : "prod",
+                ["role"] = !inMatch ? "solo" : (Mirror.NetworkServer.active ? "host" : "client"),
+                ["scene"] = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name,
+            };
+
+            // **어느 빌드의 판인지 싣는다** (S15P21B202-597). 전에는 `ReleaseVersion` 을
+            // 실었는데 그 값은 **서버 게이트용**이라 릴리스 빌드에만 있다 — QA 를 개발
+            // 빌드로 하는 동안 쌓인 이벤트는 전부 `build: ""` 였다.
+            //
+            // **이름을 모르면 그 칸을 안 적는다.** 아래 `humans` 와 같은 규칙이다 —
+            // 빈 값으로 보내면 **이름이 없는 빌드**와 **이 줄이 생기기 전 빌드**가
+            // 데이터에서 구분되지 않는다(`!505` AI 리뷰). 손으로 만든 로컬 빌드만 이
+            // 자리에 온다 — CI 가 만든 것은 dev·qa·릴리스 전부 이름이 있다.
+            if (!string.IsNullOrEmpty(Core.BuildInfo.BuildId)) head["build"] = Core.BuildInfo.BuildId;
+
+            // **인원수는 호스트만 안다.** 참가자에게 `NetworkServer.connections` 는 비어
+            // 있어서, 그대로 쓰면 "0명이 플레이했다" 는 줄이 남는다. 모르면 안 적는다 —
+            // 없는 값과 0 은 다르고, 뒤에 붙일 `match` 로 호스트 기록과 묶으면 된다.
+            if (host) head["humans"] = inMatch ? Mirror.NetworkServer.connections.Count : 1;
+
+            // **한 개만 붙인다.** 기록기는 정적 단일 상태라 관찰자가 둘이면 같은 변화가
+            // 두 줄씩 남고, 그러면 `seq` 로 유실을 세는 것 자체가 뜻을 잃는다.
+            var observer = sys.GetComponent<PlayObserver>();
+            if (observer == null) observer = sys.AddComponent<PlayObserver>();
+            observer.Begin(Session, host, head);
             if (!lockCursor) Session.SetCursor(false);
 
             // 다른 사람의 몸은 Mirror 가 세운다(NetPlayer). 예전에는 WebSocket 으로

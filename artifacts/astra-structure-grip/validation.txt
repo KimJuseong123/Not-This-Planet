@@ -1,0 +1,91 @@
+PASS
+Grabbable surfaces: 297
+Added mesh colliders: 0
+Surface queries: 297
+World-fixed grab and release: 297
+PhysX hold against gravity (20 steps): 297
+PhysX fall after release (10 steps): 297
+Final merged scene reload: PASS
+STAGE # — ASTRA BASIN / Environment/# · Landscape / walkable mineral basin/Lamp · foot: 20
+STAGE # — ASTRA BASIN / Environment/# · Landscape / walkable mineral basin/Lamp · ceramic body: 20
+STAGE # — ASTRA BASIN / Environment/# · Landscape / walkable mineral basin/Lamp · cap: 20
+STAGE # — ASTRA BASIN / Environment/# · Landscape / walkable mineral basin/Astra Part# Spiral - SpiralHillAscent/Collision: 1
+STAGE # — ASTRA BASIN / Environment/# · Landscape / walkable mineral basin/Astra Part# Spiral - Ground entry/Collision: 1
+STAGE # — ASTRA BASIN / Environment/# · Landscape / walkable mineral basin/Astra Part# Spiral - Ground entry rail -# #/Collision: 4
+STAGE # — ASTRA BASIN / Environment/# · Landscape / walkable mineral basin/Astra Part# Spiral - Ground entry rail # #/Collision: 4
+STAGE # — ASTRA BASIN / Environment/# · Landscape / walkable mineral basin/Astra Part# Spiral - Observatory bridge/Astra Part# Spiral - Observatory bridge/Collision: 1
+STAGE # — ASTRA BASIN / Environment/# · Landscape / walkable mineral basin/Astra Part# Spiral - Observatory bridge/Astra Part# Spiral - Observatory bridge rail -# #/Collision: 3
+STAGE # — ASTRA BASIN / Environment/# · Landscape / walkable mineral basin/Astra Part# Spiral - Observatory bridge/Astra Part# Spiral - Observatory bridge rail # #/Collision: 3
+STAGE # — ASTRA BASIN / Environment/# · Landscape / walkable mineral basin/Astra Part# Spiral - Entry landing/Collision: 1
+STAGE # — ASTRA BASIN / Environment/# · Landscape / walkable mineral basin/Astra Part# Spiral - Summit landing/Collision: 1
+STAGE # — ASTRA BASIN / Environment/# · Landscape / walkable mineral basin/Astra Part# Spiral - Curve rail # #/Collision: 78
+STAGE # — ASTRA BASIN / Environment/# · CENTRAL LAUNCH ASSEMBLY / rendezvous/Lamp · foot: 4
+STAGE # — ASTRA BASIN / Environment/# · CENTRAL LAUNCH ASSEMBLY / rendezvous/Lamp · ceramic body: 4
+STAGE # — ASTRA BASIN / Environment/# · CENTRAL LAUNCH ASSEMBLY / rendezvous/Lamp · cap: 4
+STAGE # — ASTRA BASIN / Environment/# · CENTRAL LAUNCH ASSEMBLY / rendezvous/Assembly console/Console foot: 1
+STAGE # — ASTRA BASIN / Environment/# · CENTRAL LAUNCH ASSEMBLY / rendezvous/Assembly console/Console support: 1
+STAGE # — ASTRA BASIN / Environment/# · CENTRAL LAUNCH ASSEMBLY / rendezvous/Assembly console/Console housing: 1
+STAGE # — ASTRA BASIN / Environment/# · SOUTHWEST / starting habitat + pushable engine [visual]/Lamp · foot: 3
+STAGE # — ASTRA BASIN / Environment/# · SOUTHWEST / starting habitat + pushable engine [visual]/Lamp · ceramic body: 3
+STAGE # — ASTRA BASIN / Environment/# · SOUTHWEST / starting habitat + pushable engine [visual]/Lamp · cap: 3
+STAGE # — ASTRA BASIN / Environment/# · SOUTHEAST / tractor activation · color sequence [visual]/Color-sequence terminal · visual placeholder/Console foot: 1
+STAGE # — ASTRA BASIN / Environment/# · SOUTHEAST / tractor activation · color sequence [visual]/Color-sequence terminal · visual placeholder/Console support: 1
+STAGE # — ASTRA BASIN / Environment/# · SOUTHEAST / tractor activation · color sequence [visual]/Color-sequence terminal · visual placeholder/Console housing: 1
+STAGE # — ASTRA BASIN / Environment/# · SOUTHEAST / tractor activation · color sequence [visual]/Lamp · foot: 5
+STAGE # — ASTRA BASIN / Environment/# · SOUTHEAST / tractor activation · color sequence [visual]/Lamp · ceramic body: 5
+STAGE # — ASTRA BASIN / Environment/# · SOUTHEAST / tractor activation · color sequence [visual]/Lamp · cap: 5
+STAGE # — ASTRA BASIN / Environment/# · EAST / elevated open-air module · long ramp + lift shortcut/Lamp · foot: 1
+STAGE # — ASTRA BASIN / Environment/# · EAST / elevated open-air module · long ramp + lift shortcut/Lamp · ceramic body: 1
+STAGE # — ASTRA BASIN / Environment/# · EAST / elevated open-air module · long ramp + lift shortcut/Lamp · cap: 1
+STAGE # — ASTRA BASIN / Environment/# · EAST / elevated open-air module · long ramp + lift shortcut/Astra Part# Detail - ObservatoryEntryStairs/Collision: 1
+STAGE # — ASTRA BASIN / Environment/# · EAST / elevated open-air module · long ramp + lift shortcut/Astra Part# Detail - ObservatoryInstrument #/Collision: 3
+STAGE # — ASTRA BASIN / Environment/# · NORTHWEST / low-ceiling rock hangar + open pickup apron/Supply crate: 5
+STAGE # — ASTRA BASIN / Environment/# · NORTHWEST / low-ceiling rock hangar + open pickup apron/Crate inset: 5
+STAGE # — ASTRA BASIN / Environment/# · NORTHWEST / low-ceiling rock hangar + open pickup apron/Crate latch: 5
+STAGE # — ASTRA BASIN / Environment/# · NORTHWEST / low-ceiling rock hangar + open pickup apron/Lamp · foot: 5
+STAGE # — ASTRA BASIN / Environment/# · NORTHWEST / low-ceiling rock hangar + open pickup apron/Lamp · ceramic body: 5
+STAGE # — ASTRA BASIN / Environment/# · NORTHWEST / low-ceiling rock hangar + open pickup apron/Lamp · cap: 5
+Stage#/Gameplay/Puzzle/AssemblyPoint/MainAssemblyLaunchpad/StaticCollision/Deck: 1
+Stage#/Gameplay/Puzzle/AssemblyPoint/MainAssemblyLaunchpad/StaticCollision/EntryRamp: 1
+Stage#/Gameplay/Puzzle/AssemblyPoint/MainAssemblyLaunchpad/StaticCollision/PylonBase-#: 1
+Stage#/Gameplay/Puzzle/AssemblyPoint/MainAssemblyLaunchpad/StaticCollision/PylonColumn-#: 1
+Stage#/Gameplay/Puzzle/AssemblyPoint/MainAssemblyLaunchpad/StaticCollision/PylonBase#: 1
+Stage#/Gameplay/Puzzle/AssemblyPoint/MainAssemblyLaunchpad/StaticCollision/PylonColumn#: 1
+Stage#/Gameplay/Puzzle/AssemblyPoint/MainAssemblyLaunchpad/StaticCollision/#_RearService: 1
+Stage#/Gameplay/Puzzle/AssemblyPoint/MainAssemblyLaunchpad/StaticCollision/#_Console: 1
+Assembly Platforms - Imported FBX/CentralAssemblyDock/Visual: 1
+Assembly Platforms - Imported FBX/EngineCamp/Visual: 1
+Assembly Platforms - Imported FBX/HoverObservatory/Visual: 1
+Assembly Platforms - Imported FBX/CapsuleHangar/Visual: 1
+Assembly Platforms - Imported FBX/TractorDock/Visual: 1
+Buildings - Authored FBX/Astra Shelter/Visual/SM_AstraShelter_SH_#_Frame.#: 1
+Buildings - Authored FBX/Astra Shelter/Visual/SM_AstraShelter_SH_#_Front.#: 1
+Buildings - Authored FBX/Astra Shelter/Visual/SM_AstraShelter_SH_#_SideWalls.#: 1
+Buildings - Authored FBX/Astra Shelter/Visual/SM_AstraShelter_SH_#_Rear.#: 1
+Buildings - Authored FBX/Astra Shelter/Visual/SM_AstraShelter_SH_#_Entry.#: 1
+Buildings - Authored FBX/Astra Shelter/Visual/SM_AstraShelter_SH_#_Roof.#: 1
+Buildings - Authored FBX/Astra Shelter/Visual/SM_AstraShelter_SH_#_Ceiling.#: 1
+Buildings - Authored FBX/Astra Shelter/Walkable floor: 1
+Buildings - Authored FBX/Astra Shelter/Walkable entrance ramp: 1
+Buildings - Authored FBX/Astra Hangar/Visual/SM_AstraHangar_#_Structure.#: 1
+Buildings - Authored FBX/Astra Hangar/Visual/SM_AstraHangar_#_Wall_Left.#: 1
+Buildings - Authored FBX/Astra Hangar/Visual/SM_AstraHangar_#_Wall_Right.#: 1
+Buildings - Authored FBX/Astra Hangar/Visual/SM_AstraHangar_#_Facade.#: 1
+Buildings - Authored FBX/Astra Hangar/Visual/SM_AstraHangar_#_PersonnelDoor.#: 1
+Buildings - Authored FBX/Astra Hangar/Visual/SM_AstraHangar_#_RearWall.#: 1
+Buildings - Authored FBX/Astra Hangar/Visual/SM_AstraHangar_#_RoofPanels.#: 1
+Buildings - Authored FBX/Astra Hangar/Visual/SM_AstraHangar_#_Crane.#: 1
+Buildings - Authored FBX/Astra Hangar/Walkable floor: 1
+Buildings - Authored FBX/Astra Hangar/Walkable entrance ramp: 1
+Hangar Related - Concept Models/South approach - panel walkway/Walkable slab: 1
+Hangar Related - Concept Models/East entrance - landing/Walkable slab: 1
+Hangar Related - Concept Models/Hangar foundation - panel deck/Walkable slab: 1
+Hangar Related - Concept Models/Pedestrian access - inclined panels/SM_Astra_PedestrianAccess: 1
+Hangar Related - Concept Models/Continuous ramp collision: 1
+Hangar Related - Concept Models/South edge curb #/Curb collision: 6
+Hangar Related - Concept Models/East edge curb #/Curb collision: 4
+Hangar Related - Concept Models/Cargo apron - four step entry/Step #: 4
+Hangar Related - Concept Models/Foundation support northwest/Support column: 1
+Hangar Related - Concept Models/GameObject/Personnel bridge - fragment #/Walkable slab: 5
+Hangar Related - Concept Models/GameObject/Abandoned bridge abutment/Support column: 1
+Hangar Related - Concept Models/Route beacon #/Beacon post: 3

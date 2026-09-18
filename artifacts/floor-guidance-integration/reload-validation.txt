@@ -1,0 +1,1 @@
+PASS: 138 prefabs, zero legacy floor fixtures, 8 assembly lens references, materials/shaders/emission/colliders validated after reload.

@@ -1,0 +1,46 @@
+{
+  "note": "STT 낭독 평가용 대본. 게임 안에서 V를 누르고 한 문장씩 읽는다. 정답 대본이 곧 이 text다.",
+  "note_scope": "여기의 expected_action은 나중 LLM/책임분리 비교용이며 이 파일 자체가 LLM 정확도를 측정하지는 않는다.",
+  "lines": [
+    {"id": "pin01", "text": "이 고정못 좀 뽑아줘", "expected_action": "pull_pin"},
+    {"id": "pin02", "text": "못 하나만 빼줄래", "expected_action": "pull_pin"},
+    {"id": "pin03", "text": "저기 나사못 제거해줘", "expected_action": "pull_pin"},
+    {"id": "pin04", "text": "주변 못 전부 뽑아줘", "expected_action": "pull_nearby_pins"},
+    {"id": "pin05", "text": "여기 박힌 나사 다 빼줘", "expected_action": "pull_nearby_pins"},
+    {"id": "pin06", "text": "못들 하나씩 쭉 뽑아줘", "expected_action": "pull_nearby_pins"},
+    {"id": "pin07", "text": "가까운 못 앞으로 가봐", "expected_action": "move_to_pin"},
+    {"id": "pin08", "text": "못 있는 곳으로 가서 기다려", "expected_action": "move_to_pin"},
+
+    {"id": "move01", "text": "나 따라와", "expected_action": "follow"},
+    {"id": "move02", "text": "일로 와봐", "expected_action": "follow"},
+    {"id": "move03", "text": "내 뒤로 따라붙어", "expected_action": "follow"},
+    {"id": "move04", "text": "여기서 기다려", "expected_action": "wait"},
+    {"id": "move05", "text": "잠깐 가만히 있어", "expected_action": "wait"},
+
+    {"id": "tool01", "text": "몽둥이 주워줘", "expected_action": "pickup_bat"},
+    {"id": "tool02", "text": "방망이 좀 가져와", "expected_action": "pickup_bat"},
+    {"id": "tool03", "text": "배트 집어봐", "expected_action": "pickup_bat"},
+    {"id": "tool04", "text": "용접건 주워줘", "expected_action": "pickup_welder"},
+    {"id": "tool05", "text": "플라즈마 총 집어줘", "expected_action": "pickup_welder"},
+    {"id": "tool06", "text": "근처 도구 하나 집어", "expected_action": "pickup_tool"},
+    {"id": "tool07", "text": "그거 내려놔", "expected_action": "drop_tool"},
+    {"id": "tool08", "text": "들고 있는 거 놓아줘", "expected_action": "drop_tool"},
+
+    {"id": "hit01", "text": "공 때려줘", "expected_action": "hit_target"},
+    {"id": "hit02", "text": "저거 한 대 때려봐", "expected_action": "hit_target"},
+    {"id": "hit03", "text": "운석 막아줘", "expected_action": "defend_meteors"},
+    {"id": "hit04", "text": "운석 쳐내줘", "expected_action": "defend_meteors"},
+
+    {"id": "neg01", "text": "그 못은 뽑지 마", "expected_action": "cancel"},
+    {"id": "neg02", "text": "못 다 빼지 마", "expected_action": "cancel"},
+    {"id": "neg03", "text": "따라오지 마", "expected_action": "cancel"},
+    {"id": "neg04", "text": "그만해", "expected_action": "cancel"},
+    {"id": "neg05", "text": "멈춰", "expected_action": "cancel"},
+    {"id": "neg06", "text": "운석 방어 그만해", "expected_action": "cancel"},
+    {"id": "neg07", "text": "몽둥이 줍지 마", "expected_action": "cancel"},
+
+    {"id": "etc01", "text": "용접해줘", "expected_action": "none"},
+    {"id": "etc02", "text": "도구 던져줘", "expected_action": "none"},
+    {"id": "etc03", "text": "그거 해줘", "expected_action": "clarify"}
+  ]
+}

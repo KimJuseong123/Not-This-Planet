@@ -11,17 +11,64 @@ namespace Metagame.Gameplay.Tests
     public class CustomizationTests
     {
         [Test]
+        public void DefaultSuitTintRemainsWhite()
+        {
+            Assert.That(CustomizationData.TintNames,
+                Is.EqualTo(new[] { "기본", "노랑", "라벤더", "분홍", "하늘" }));
+            Assert.That(CustomizationData.TintColor(0), Is.EqualTo(Color.white));
+            Assert.That(CustomizationData.TintNames.Length, Is.EqualTo(5));
+        }
+
+        [Test]
+        public void LegacyAppearancePreservesTintWhenMigrated()
+        {
+            const string legacyKey = "appearance.v1";
+            const string currentKey = "appearance.v2";
+            bool hadLegacy = PlayerPrefs.HasKey(legacyKey);
+            bool hadCurrent = PlayerPrefs.HasKey(currentKey);
+            int oldLegacy = PlayerPrefs.GetInt(legacyKey);
+            int oldCurrent = PlayerPrefs.GetInt(currentKey);
+            int legacyPacked = 2 | (1 << 3) | (2 << 5);
+            PlayerPrefs.DeleteKey(currentKey);
+            PlayerPrefs.SetInt(legacyKey, legacyPacked);
+
+            try
+            {
+                CustomizationData migrated = CustomizationData.Load();
+                Assert.That(migrated.Tint, Is.EqualTo(3));
+                Assert.That(migrated.Helmet, Is.EqualTo(1));
+                Assert.That(migrated.Badge, Is.EqualTo(2));
+                Assert.That(PlayerPrefs.HasKey(currentKey), Is.True);
+            }
+            finally
+            {
+                if (hadLegacy) PlayerPrefs.SetInt(legacyKey, oldLegacy); else PlayerPrefs.DeleteKey(legacyKey);
+                if (hadCurrent) PlayerPrefs.SetInt(currentKey, oldCurrent); else PlayerPrefs.DeleteKey(currentKey);
+                PlayerPrefs.Save();
+            }
+        }
+
+        [Test]
+        public void CustomizerStage1BackgroundAssetExists()
+        {
+            const string path = "Assets/_Project/Resources/UI/Customizer/T_Customizer_Stage1Background.png";
+            Assert.That(AssetDatabase.LoadAssetAtPath<Texture2D>(path), Is.Not.Null);
+        }
+
+        [Test]
         public void EverySelectionSurvivesNetworkEncoding()
         {
-            for (int tint = 0; tint < 5; tint++)
-            for (int helmet = 0; helmet < 3; helmet++)
-            for (int badge = 0; badge < 3; badge++)
+            for (int tint = 0; tint < CustomizationData.TintNames.Length; tint++)
+            for (int helmet = 0; helmet < CustomizationData.HelmetNames.Length; helmet++)
+            for (int badge = 0; badge < CustomizationData.BadgeNames.Length; badge++)
+            for (int aura = 0; aura < CustomizationData.AuraNames.Length; aura++)
             {
-                var choice = new CustomizationData { Tint = tint, Helmet = helmet, Badge = badge };
+                var choice = new CustomizationData { Tint = tint, Helmet = helmet, Badge = badge, Aura = aura };
                 var restored = CustomizationData.Decode(choice.Packed);
                 Assert.That(restored.Tint, Is.EqualTo(tint));
                 Assert.That(restored.Helmet, Is.EqualTo(helmet));
                 Assert.That(restored.Badge, Is.EqualTo(badge));
+                Assert.That(restored.Aura, Is.EqualTo(aura));
             }
         }
 
@@ -31,9 +78,36 @@ namespace Metagame.Gameplay.Tests
         public void InvalidNetworkDataIsBounded(int packed)
         {
             var choice = CustomizationData.Decode(packed);
-            Assert.That(choice.Tint, Is.InRange(0, 4));
-            Assert.That(choice.Helmet, Is.InRange(0, 2));
-            Assert.That(choice.Badge, Is.InRange(0, 2));
+            Assert.That(choice.Tint, Is.InRange(0, CustomizationData.TintNames.Length - 1));
+            Assert.That(choice.Helmet, Is.InRange(0, CustomizationData.HelmetNames.Length - 1));
+            Assert.That(choice.Badge, Is.InRange(0, CustomizationData.BadgeNames.Length - 1));
+            Assert.That(choice.Aura, Is.InRange(0, CustomizationData.AuraNames.Length - 1));
+        }
+
+        [Test]
+        public void SuitTintPaletteCanBeConfiguredAndRemainsOpaque()
+        {
+            var original = new Color[CustomizationData.TintNames.Length];
+            var configured = new Color[CustomizationData.TintNames.Length];
+            for (int i = 0; i < original.Length; i++)
+            {
+                original[i] = CustomizationData.TintColor(i);
+                configured[i] = new Color(i * 0.1f, i * 0.15f, i * 0.2f, 0.25f);
+            }
+
+            try
+            {
+                CustomizationData.ConfigureTintColors(configured);
+                for (int i = 0; i < configured.Length; i++)
+                {
+                    configured[i].a = 1f;
+                    Assert.That(CustomizationData.TintColor(i), Is.EqualTo(configured[i]));
+                }
+            }
+            finally
+            {
+                CustomizationData.ConfigureTintColors(original);
+            }
         }
 
         [Test]
@@ -84,6 +158,25 @@ namespace Metagame.Gameplay.Tests
                 PlayerAppearance.Tint(new[] { renderer }, Color.white);
                 renderer.GetPropertyBlock(block, 0);
                 Assert.That(block.GetColor("_Color"), Is.EqualTo(Color.white));
+            }
+            finally { Object.DestroyImmediate(go); Object.DestroyImmediate(material); }
+        }
+
+        [Test]
+        public void TintLeavesColoredAccentMaterialUnchanged()
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var material = new Material(Metagame.Core.Prim.DoughShader);
+            var accent = new Color(0.42f, 0.18f, 0.82f, 1f);
+            try
+            {
+                material.SetColor("_Color", accent);
+                var renderer = go.GetComponent<Renderer>();
+                renderer.sharedMaterial = material;
+                PlayerAppearance.Tint(new[] { renderer }, CustomizationData.TintColor(1));
+                var block = new MaterialPropertyBlock();
+                renderer.GetPropertyBlock(block, 0);
+                Assert.That(block.GetColor("_Color"), Is.EqualTo(accent));
             }
             finally { Object.DestroyImmediate(go); Object.DestroyImmediate(material); }
         }

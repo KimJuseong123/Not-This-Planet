@@ -143,6 +143,16 @@ namespace Metagame.Network
         public bool downed;
 
         /// <summary>
+        /// 엎드려 있는가 (S15P21B202-616).
+        ///
+        /// <para><b>서버가 물리 결과로 적는다</b> — 클라이언트가 켜는 값이 아니다
+        /// (<see cref="downed"/> 와 같은 모양). 몸이 기운 것 자체는
+        /// <c>NetworkTransform</c> 으로 가지만, "엎드려 있다" 는 사실은 표시와
+        /// 판정이 따로 읽는다.</para>
+        /// </summary>
+        [SyncVar(hook = nameof(OnProneChanged))] public bool prone;
+
+        /// <summary>
         /// 셋 이상이 모여 파츠를 실제로 밀고 있는가 (기획 §13 · §10.2).
         ///
         /// <b>참가자는 이 값을 스스로 알 수 없어서 실어 보낸다.</b> 파츠 물리는 서버에서만
@@ -185,6 +195,80 @@ namespace Metagame.Network
         /// </summary>
         [SyncVar]
         public float rescueProgress;
+
+        /// <summary>
+        /// 이 사람의 체력 (S15P21B202-513).
+        ///
+        /// <para><b>왜 보내야 하나.</b> 빨간 테두리(<c>GameHud.HealthFrame</c>)가
+        /// <c>Health01</c> 을 읽는데 참가자 기계에는 서버가 깎은 값이 오지 않았다 —
+        /// 실측으로 이 파일과 <c>WorldSync</c> 둘 다에서 <c>health</c> 가 <b>0회</b>였다.
+        /// 그래서 참가자에게 체력은 <b>"가득" 아니면 "기절" 둘뿐</b>이었다.</para>
+        ///
+        /// <para><b>비율이 아니라 절댓값을 보낸다.</b> <c>PlayerRig.IsDead</c> 가
+        /// <c>Health &lt;= 0</c> 이라, 비율만 보내면 그 값이 로컬로 남아 어긋난다 —
+        /// <c>DamageSource</c> 가 <c>IsDead</c> 로 피해를 거르므로 서버가 기절시킨
+        /// 사람을 계속 때리게 된다. <c>MaxHealth</c> 는 상수(<c>Tuning.MaxHealth</c>)라
+        /// 받는 쪽에서 비율을 다시 만들 수 있다.</para>
+        ///
+        /// <para><b>내 몸에만 넣는다.</b> 지금 테두리는 자기 것만 그린다 — 남의 체력을
+        /// 읽는 곳이 없다. 팀원 체력바가 생기면 그때 넓힌다(<c>rescueProgress</c> 가 같은
+        /// 판단을 한 자리다).</para>
+        ///
+        /// <para>기본값 0 이 아니라 <b>가득</b>이어야 안전하다 — 스폰 직후 값이 오기
+        /// 전에 0 이면 잠깐 죽은 것으로 보인다.</para>
+        /// </summary>
+        [SyncVar]
+        public float health = Core.Tuning.MaxHealth;
+
+        /// <summary>
+        /// 지금 남에게 던져져 <b>날아가는 중</b>인가 (S15P21B202-519).
+        ///
+        /// <para><b>왜 보내야 하나.</b> 던져진 사람의 시야는 몸이 구르는 대로 넘어갔다가
+        /// 3인칭으로 물러나야 한다(<c>PlayerRig.BodyViewActive</c>). 그 판단은 서버에서
+        /// 나므로 값이 안 가면 <b>참가자는 던져져도 1인칭 그대로</b>다 —
+        /// <c>-511</c> 이 기절에서 겪은 것과 같은 모양이다.</para>
+        ///
+        /// <para><b>몸의 위치는 이미 간다.</b> 물리는 서버에서만 돌고(<c>-145</c>) 결과
+        /// 자세는 기존 동기화가 나른다. 여기서 보내는 것은 <b>시야를 바꾸라는 사실</b>
+        /// 하나다.</para>
+        ///
+        /// <para><b>내 몸에만 넣는다.</b> 카메라는 각자 화면의 일이라 남의 몸(그림)에
+        /// 넣어 봐야 읽는 데가 없다 — <c>health</c> · <c>rescueProgress</c> 와 같은
+        /// 판단이다.</para>
+        /// </summary>
+        [SyncVar]
+        public bool tossed;
+
+        /// <summary>
+        /// 이 사람이 동료를 던진 <b>횟수</b> (S15P21B202-519).
+        ///
+        /// <para><b>왜 상태가 아니라 수인가.</b> 던지는 동작은 한 순간의 사건이라 "지금
+        /// 던지는 중" 이라는 값이 없다. 그래서 <c>ClientRpc</c> 로 보내고 싶어지는데,
+        /// 그러면 <b>패킷 하나를 잃으면 그 동작은 영영 안 보인다</b>. 세어서 보내면 받는
+        /// 쪽이 "내가 마지막으로 본 수와 <b>다르다</b>" 로 판단하므로 한 번 늦게 와도
+        /// 복구되고, 늦게 들어온 사람도 어긋난 상태로 시작하지 않는다.
+        /// <b>"크다" 가 아니다</b> — <c>uint</c> 는 한 바퀴 돌면 작아지고, 그때
+        /// <c>&gt;</c> 는 영영 거짓이 되어 던지기가 멈춘다(!436 AI 리뷰가 주석과 코드가
+        /// 어긋난 것을 짚었다).</para>
+        ///
+        /// <para><b>이것은 남의 몸에도 넣는다.</b> 던지는 동작은 <b>남이 보는 그림</b>
+        /// 이다 — 위 셋(시야·테두리·게이지)과 정반대다.</para>
+        /// </summary>
+        [SyncVar]
+        public uint tossSeq;
+
+        /// <summary>
+        /// 동료를 던지려고 충전한 정도(0~1) (S15P21B202-519).
+        ///
+        /// <para><b>왜 보내야 하나.</b> 게이지는 던지는 <b>본인 화면</b>에 뜨는데 충전을
+        /// 세는 것은 서버다. 안 보내면 참가자는 얼마나 찼는지 모른 채 Q 를 놓게 된다 —
+        /// <c>-448</c> 의 구조 게이지와 같은 자리다.</para>
+        ///
+        /// <para><b>참가자가 스스로 세게 하지 않는 이유</b>는 잡기 판정이 서버에 있기
+        /// 때문이다. 참가자 기계의 내 손에 그 조인트가 있다고 믿을 근거가 없다.</para>
+        /// </summary>
+        [SyncVar]
+        public float tossCharge;
 
         /// <summary>
         /// 방 안의 자리 번호(0~3). 색이 여기서 나온다 (S15P21B202-375).
@@ -258,9 +342,132 @@ namespace Metagame.Network
         public Vector3 PingPosition { get { return pingPosition; } }
         public Color PingColor { get { return TeamAccentColor; } }
 
+        [SyncVar] byte _emoteId;
+        [SyncVar] double _emoteExpiresAt;
+        readonly EmoteState _emoteState = new EmoteState();
+        public byte EmoteId => _emoteId;
+        public double EmoteExpiresAt => _emoteExpiresAt;
+
+        /// <summary>소유자만 요청하며 서버에서 종류와 반복 간격을 검사한다.</summary>
+        public void RequestEmote(byte id)
+        {
+            if (isLocalPlayer && EmoteState.IsValid(id)) CmdShowEmote(id);
+        }
+
+        [Command]
+        void CmdShowEmote(byte id)
+        {
+            if (body == null || body.Downed
+                || (GameSession.Instance != null && GameSession.Instance.EndingActive)
+                || !_emoteState.TryShow(id, NetworkTime.time)) return;
+            _emoteId = _emoteState.Id;
+            _emoteExpiresAt = _emoteState.ExpiresAt;
+        }
+
+        // ── 춤 감정표현 (S15P21B202-563) ──────────────────────────────
+        //
+        // **이모티콘과 다른 방식으로 나른다.** 위 이모티콘은 종류와 만료 시각을 보낸다 —
+        // 화면에 몇 초 떠 있는 그림이라 언제 사라지는지를 모두가 같이 알아야 한다.
+        // 춤은 몸이 재생하는 클립이라 시작 신호만 가면 각자 제 시계로 끝까지 돈다.
+        // 그래서 던지기(S15P21B202-519)와 같은 **순번** 을 쓴다.
+
+        /// <summary>춤을 시작한 횟수. 값이 바뀌면 새 춤이다.</summary>
+        [SyncVar] public uint danceSeq;
+
+        /// <summary>어떤 춤인가 (1부터. 0 은 없음).</summary>
+        [SyncVar] public byte danceId;
+
+        uint _seenDanceSeq;
+        bool _danceSeqKnown;
+        double _nextDanceAllowed;
+
+        /// <summary>
+        /// 이 값이 새 춤인가 (S15P21B202-563).
+        ///
+        /// <para>던지기의 <see cref="ShouldPlayToss"/> 와 같은 규칙이고, 같은 이유로
+        /// 그렇다. <b>처음 받은 값으로는 재생하지 않는다</b> — 늦게 들어온 사람에게는
+        /// 이미 쌓인 수가 한꺼번에 오는데, 그것을 새 춤으로 보면 접속하자마자 모두가
+        /// 춤을 춘다. <c>&gt;</c> 가 아니라 <c>!=</c> 로 보는 것은 <c>uint</c> 가 한 바퀴
+        /// 돌면 작아지기 때문이다.</para>
+        /// </summary>
+        public static bool ShouldPlayDance(uint seen, uint now, bool known) => known && now != seen;
+
+        /// <summary>소유자만 요청하며 서버에서 종류와 반복 간격을 검사한다.</summary>
+        public void RequestDance(byte id)
+        {
+            if (isLocalPlayer && DanceCatalog.IsValid(id)) CmdPlayDance(id);
+        }
+
+        [Command]
+        void CmdPlayDance(byte id)
+        {
+            if (!DanceCatalog.IsValid(id)) return;
+            if (body == null || body.Downed
+                || (GameSession.Instance != null && GameSession.Instance.EndingActive)) return;
+
+            var now = NetworkTime.time;
+            if (double.IsNaN(now) || double.IsInfinity(now) || now < _nextDanceAllowed) return;
+            _nextDanceAllowed = now + DanceCatalog.Cooldown;
+
+            danceId = id;
+            danceSeq++;
+
+            // 서버 화면의 춤. 참가자 화면은 아래 PlayDanceIfNew 가 danceSeq 로 켠다.
+            // 남이 보내온 요청도 여기서 도는 서버 쪽 몸에 그대로 먹으므로,
+            // **호스트는 참가자의 춤을 이 줄에서 본다.**
+            body.Doll?.Suit?.PlayDance(id);
+        }
+
+        void PlayDanceIfNew(uint now, byte id)
+        {
+            // **그릴 곳이 아직 없으면 본 것으로 치지 않는다** — 던지기와 같은 이유다.
+            // 스폰 도중 옷이 아직 없는 틈에 신호가 오면 재생은 건너뛰면서 본 것으로
+            // 적혀 그 춤이 영영 안 보인다.
+            var suit = body != null && body.Doll != null ? body.Doll.Suit : null;
+            if (suit == null) return;
+
+            if (ShouldPlayDance(_seenDanceSeq, now, _danceSeqKnown) && DanceCatalog.IsValid(id))
+                suit.PlayDance(id);
+
+            _seenDanceSeq = now;
+            _danceSeqKnown = true;
+        }
+
         // 이동 판정을 복제하지 않고, 표시용 걷기/달리기 상태만 함께 전달한다.
         [SyncVar]
         RabbitLocomotion.State _locomotionState;
+
+        uint _seenTossSeq;
+        bool _tossSeqKnown;
+
+        /// <summary>
+        /// 이 값이 새 던지기인가 (S15P21B202-519).
+        ///
+        /// <para><b>처음 받은 값으로는 재생하지 않는다.</b> 늦게 들어온 사람에게는 이미
+        /// 쌓인 수가 한꺼번에 오는데, 그것을 새 던지기로 보면 <b>접속하자마자 모두가
+        /// 허공에 던지는 시늉을 한다.</b> 그래서 첫 값은 기준점으로만 적어 둔다.</para>
+        ///
+        /// <para><c>&gt;</c> 가 아니라 <c>!=</c> 로 본다 — <c>uint</c> 는 한 바퀴 돌면
+        /// 작아진다. 그때 <c>&gt;</c> 는 영영 거짓이 되어 던지기가 멈춘다.</para>
+        /// </summary>
+        public static bool ShouldPlayToss(uint seen, uint now, bool known) => known && now != seen;
+
+        void PlayTossIfNew(uint now)
+        {
+            // **그릴 곳이 아직 없으면 본 것으로 치지 않는다** (!436 AI 리뷰).
+            //
+            // 예전에는 `body?.Doll?.Suit?.PlayToss()` 로 두고 아래에서 무조건 수를
+            // 적었다. 스폰 도중 옷이 아직 없는 틈에 던지기가 오면 **재생은 건너뛰면서
+            // 본 것으로 적혀** 그 동작이 영영 안 보인다. 여기서 돌아가면 다음 틱에
+            // 다시 판단한다.
+            var suit = body != null && body.Doll != null ? body.Doll.Suit : null;
+            if (suit == null) return;
+
+            if (ShouldPlayToss(_seenTossSeq, now, _tossSeqKnown)) suit.PlayToss();
+
+            _seenTossSeq = now;
+            _tossSeqKnown = true;
+        }
 
         /// <summary>서버에서 물리를 도는 진짜 몸. 클라이언트에서는 그림용 몸이다.</summary>
         PlayerRig body;
@@ -298,6 +505,27 @@ namespace Metagame.Network
             // 권위가 있는 몸에서 스스로 무시하지만, 부르지 않는 것이 뜻이 분명하다.
             if (!isServer && isLocalPlayer)
                 body.SetRemoteBeingRescued(rescueProgress);
+
+            // **내 몸에만.** 테두리를 그리는 곳이 자기 화면뿐이고, 남의 몸(그림)에
+            // 넣어 봐야 읽는 데가 없다. 서버에서는 자기 판정이 정답이므로 넣지 않는다 —
+            // SetRemoteHealth 가 권위가 있는 몸에서 스스로 무시하지만, 부르지 않는
+            // 것이 뜻이 분명하다.
+            if (!isServer && isLocalPlayer)
+                body.SetRemoteHealth(health);
+
+            // **내 몸에만.** 던져진 시야를 바꾸는 것은 당사자 화면의 일이다
+            // (S15P21B202-519). 위 셋과 같은 규칙이다.
+            if (!isServer && isLocalPlayer)
+            {
+                body.SetRemoteTossed(tossed);
+                body.SetRemoteTossCharge(tossCharge);
+            }
+
+            // **여기는 남의 몸에도 넣는다.** 던지는 동작은 남이 보는 그림이라 위 셋과
+            // 정반대다 — 이것을 자기 몸에만 넣으면 "호스트만 던지는 게 보인다" 가 된다.
+            if (!isServer) PlayTossIfNew(tossSeq);
+            // 춤도 같은 자리에서 켠다. 서버는 CmdPlayDance 에서 이미 켰다.
+            if (!isServer) PlayDanceIfNew(danceSeq, danceId);
 
             if (isServer) _locomotionState = RabbitLocomotion.ReadState(body);
             if (body.Doll.Suit != null)
@@ -597,6 +825,8 @@ namespace Metagame.Network
             // 영원히 갱신되지 않는다. 그래서 방장만 움직이지 못했다(2026-09-02 실측).
             // FixedUpdate 는 Update 보다 먼저 도니까 순서로도 막을 수 없다.
             InputFrame frame = adoptedBody ? body.CurrentInput : pending;
+            if (GameSession.Instance != null && GameSession.Instance.CinematicInputBlocked)
+                frame = new InputFrame();
 
             if (transport != null)
             {
@@ -654,6 +884,7 @@ namespace Metagame.Network
             // 그래서 몸의 결과를 옮겨 싣는 이 자리에 둔다. 위의 SetPositionAndRotation
             // 과 같은 일이다 — 물리가 낸 결과를 SyncVar·NetworkTransform 에 넘긴다.
             downed = body.Downed;
+            prone = body.Prone;
 
             // **이 기계가 서버라고 몸에 알린다** (S15P21B202-414).
             //
@@ -682,6 +913,16 @@ namespace Metagame.Network
             // 쓰러진 사람 화면의 게이지가 읽을 값이다 (S15P21B202-448). 위 downed 와
             // 같은 자리에 둔다 — 같은 몸의 같은 상태이고, 탑승과 무관하다(-378).
             rescueProgress = body.BeingRescuedProgress01;
+
+            // 빨간 테두리가 읽을 값이다 (S15P21B202-513). 위 downed 와 같은 자리에
+            // 둔다 — 같은 몸의 같은 상태이고 탑승과 무관하다(-378).
+            health = body.Health;
+
+            // 던져져 날아가는 중인지, 그리고 몇 번째 던지기인지 (S15P21B202-519).
+            // 위 downed 와 같은 자리다 — 같은 몸의 같은 상태다.
+            tossed = body.Tossed;
+            tossSeq = body.TossSeq;
+            tossCharge = body.TossCharge01;
 
             // 어느 탈것을 타는지도 같은 자리에서 실어 보낸다 (S15P21B202-434).
             //
@@ -804,7 +1045,7 @@ namespace Metagame.Network
         void CmdRequestRespawn()
         {
             var session = GameSession.Instance;
-            if (body == null || session == null || session.Cleared
+            if (body == null || session == null || session.Cleared || session.CinematicInputBlocked
                 || NetworkTime.time < nextManualRespawnTime
                 || (session.Recovery != null && session.Recovery.RecoverySuspended)) return;
             nextManualRespawnTime = NetworkTime.time + 1.0;
@@ -992,7 +1233,8 @@ namespace Metagame.Network
                 && a.PingPressed == b.PingPressed
                 // 여기 빠지면 눌러도 서버가 모른다 (S15P21B202-390). Same() 이 같다고
                 // 보면 그 프레임을 보내지 않는다 — StuckEscapeHeld 가 실제로 그 상태다.
-                && a.RescueHeld == b.RescueHeld;
+                && a.RescueHeld == b.RescueHeld
+                && a.ProneHeld == b.ProneHeld;
         }
 
         // ── 클라이언트: 남의 몸 ─────────────────────────────────
@@ -1044,6 +1286,16 @@ namespace Metagame.Network
         void OnRidingChanged(bool _, bool nowRiding) => ApplyRiding(nowRiding);
 
         void OnDownedChanged(bool _, bool nowDowned) => ApplyDowned(nowDowned);
+
+        void OnProneChanged(bool _, bool nowProne) => ApplyProne(nowProne);
+
+        /// <summary>남의 화면의 자세를 맞춘다 (S15P21B202-616). 서버에서는 하지 않는다.</summary>
+        void ApplyProne(bool nowProne)
+        {
+            if (body == null || isServer) return;
+
+            body.SetRemoteProne(nowProne);
+        }
 
         /// <summary>
         /// 남의 화면의 기절 표시를 맞춘다 (S15P21B202-378).

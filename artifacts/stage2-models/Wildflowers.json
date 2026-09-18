@@ -1,0 +1,38 @@
+{
+  "asset": "Wildflowers",
+  "fbx": "S2_Wildflowers.fbx",
+  "blend": "Source~/S2_Wildflowers.blend",
+  "mesh_objects": 1,
+  "triangles": 760,
+  "dimensions_m": [
+    0.4345729351043701,
+    0.40886449813842773,
+    0.4205344319343567
+  ],
+  "bounds_min": [
+    -0.21257293224334717,
+    -0.2196194976568222,
+    -0.0019016346195712686
+  ],
+  "bounds_max": [
+    0.22200000286102295,
+    0.18924498558044434,
+    0.4186328053474426
+  ],
+  "materials": [
+    "S2_Flower",
+    "S2_Olive",
+    "S2_Orange"
+  ],
+  "pivots": [
+    "S2_Wildflowers_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

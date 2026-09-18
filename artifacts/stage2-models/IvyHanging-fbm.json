@@ -1,0 +1,19 @@
+{
+  "asset": "IvyHanging",
+  "fbx": "S2_IvyHanging.fbx",
+  "fbm": "S2_IvyHanging.fbm",
+  "textures": [
+    "S2_Bark_BaseColor.png",
+    "S2_Concrete_BaseColor.png",
+    "S2_LeafLight_BaseColor.png",
+    "S2_Olive_BaseColor.png"
+  ],
+  "relative_texture_paths": [
+    "S2_IvyHanging.fbm/S2_Bark_BaseColor.png",
+    "S2_IvyHanging.fbm/S2_Concrete_BaseColor.png",
+    "S2_IvyHanging.fbm/S2_LeafLight_BaseColor.png",
+    "S2_IvyHanging.fbm/S2_Olive_BaseColor.png"
+  ],
+  "relative_paths_valid": true,
+  "passed": true
+}

@@ -1,0 +1,92 @@
+[
+  {
+    "material": "S2_Ivory",
+    "texture": "S2_Ivory_BaseColor.png",
+    "width": 512,
+    "height": 512
+  },
+  {
+    "material": "S2_Teal",
+    "texture": "S2_Teal_BaseColor.png",
+    "width": 512,
+    "height": 512
+  },
+  {
+    "material": "S2_Orange",
+    "texture": "S2_Orange_BaseColor.png",
+    "width": 512,
+    "height": 512
+  },
+  {
+    "material": "S2_Steel",
+    "texture": "S2_Steel_BaseColor.png",
+    "width": 512,
+    "height": 512
+  },
+  {
+    "material": "S2_Dark",
+    "texture": "S2_Dark_BaseColor.png",
+    "width": 512,
+    "height": 512
+  },
+  {
+    "material": "S2_Concrete",
+    "texture": "S2_Concrete_BaseColor.png",
+    "width": 512,
+    "height": 512
+  },
+  {
+    "material": "S2_Rust",
+    "texture": "S2_Rust_BaseColor.png",
+    "width": 512,
+    "height": 512
+  },
+  {
+    "material": "S2_Glass",
+    "texture": "S2_Glass_BaseColor.png",
+    "width": 512,
+    "height": 512
+  },
+  {
+    "material": "S2_Olive",
+    "texture": "S2_Olive_BaseColor.png",
+    "width": 512,
+    "height": 512
+  },
+  {
+    "material": "S2_LeafLight",
+    "texture": "S2_LeafLight_BaseColor.png",
+    "width": 512,
+    "height": 512
+  },
+  {
+    "material": "S2_Dry",
+    "texture": "S2_Dry_BaseColor.png",
+    "width": 512,
+    "height": 512
+  },
+  {
+    "material": "S2_Bark",
+    "texture": "S2_Bark_BaseColor.png",
+    "width": 512,
+    "height": 512
+  },
+  {
+    "material": "S2_Flower",
+    "texture": "S2_Flower_BaseColor.png",
+    "width": 512,
+    "height": 512
+  },
+  {
+    "material": "S2_Lamp",
+    "texture": "S2_Lamp_BaseColor.png",
+    "width": 512,
+    "height": 512
+  },
+  {
+    "material": "S2_Moss",
+    "texture": "S2_Moss_BaseColor.png",
+    "width": 512,
+    "height": 512
+  }
+]

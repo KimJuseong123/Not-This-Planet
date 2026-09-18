@@ -1,0 +1,22 @@
+{
+  "asset": "SM_Astra_CargoApronEntryStairs",
+  "concept": "docs\\assets\\concepts\\stage1-related-hangar\\11-cargo-apron-entry-stairs.png",
+  "fbx": "SM_Astra_CargoApronEntryStairs.fbx",
+  "textures": "SM_Astra_CargoApronEntryStairs.fbm",
+  "unity_material": "M_Astra_CargoApronEntryStairs.mat",
+  "metres": true,
+  "blender_dimensions_XYZ": [
+    3.299999952316284,
+    2.04449999332428,
+    0.8366380006773397
+  ],
+  "triangles": 7664,
+  "editable_components": 52,
+  "source_blend": "artifacts\\stage1-related-hangar\\11-cargo-apron-entry-stairs\\SM_Astra_CargoApronEntryStairs.blend",
+  "validation_report": "artifacts\\stage1-related-hangar\\11-cargo-apron-entry-stairs\\validation.json",
+  "fbx_roundtrip": "PASS",
+  "sha256": "29d0960bab411c482cecd422b4f8602fd715bde32a9dfc9249e3a6392b32770f",
+  "scene_placement": "Assets/Scenes/Stage1_Astra.unity / Hangar Related - Concept Models",
+  "pivot": "base center; ramp low-end elevation",
+  "scene_instances": 1
+}

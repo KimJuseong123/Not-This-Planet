@@ -12,7 +12,7 @@ namespace Metagame.UI
     /// 중간 RenderTexture를 거치지 않아 비스듬한 휴대 포즈에서도 글자를 선명하게 유지한다.
     /// </summary>
     [DisallowMultipleComponent]
-    public sealed class Stage1TabletScreen : MonoBehaviour
+    public sealed partial class Stage1TabletScreen : MonoBehaviour
     {
         const int UiLayer = 0;
         const float CanvasWidth = 1024f;
@@ -126,7 +126,11 @@ namespace Metagame.UI
         static readonly Color Stacked = new(0.26f, 0.90f, 0.82f, 1f);
         static readonly Color Wrong = new(1f, 0.30f, 0.28f, 1f);
 
-        void Update() => Tick();
+        void Update()
+        {
+            Tick();
+            HandleGuidePointer();
+        }
 
         /// <summary>
         /// 화면을 갱신한다.
@@ -204,6 +208,7 @@ namespace Metagame.UI
             CreatePartsPage(background.transform);
             CreateHelpPage(background.transform);
             CreateNavigation(background.transform);
+            CreateGuidePage(background.transform);
             footer = Label(background.transform, "Footer", 20, TextAnchor.MiddleCenter,
                 new Color(0.48f, 0.85f, 0.94f, 1f),
                 Vector2.zero, new Vector2(1f, 0.12f),
@@ -215,6 +220,8 @@ namespace Metagame.UI
         void Refresh(bool force)
         {
             if (exploration == null || title == null || body == null || footer == null) return;
+
+            if (RefreshGuidePage()) return;
 
             var page = Mathf.Clamp(exploration.TabletPage, 0, Stage1Exploration.TabletPageCount - 1);
             var nextTitle = PageTitle(page);
@@ -584,9 +591,12 @@ namespace Metagame.UI
                 ? new Color(0.48f, 0.92f, 1f, 0.95f)
                 : new Color(0.24f, 0.34f, 0.39f, 0.45f);
             for (var i = 0; i < pageDots.Length; i++)
+            {
+                pageDots[i].gameObject.SetActive(true);
                 pageDots[i].color = i == page
                     ? new Color(0.42f, 0.96f, 1f, 0.95f)
                     : new Color(0.28f, 0.42f, 0.50f, 0.95f);
+            }
         }
 
         static string HelpText(int page)

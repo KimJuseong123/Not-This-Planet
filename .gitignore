@@ -60,6 +60,7 @@
 *.dmp
 
 # Local tooling/dependency caches
+/tmp/
 node_modules/
 .npm/
 .yarn/cache/
@@ -114,3 +115,21 @@ scripts/rules/
 
 # CI 잡이 만드는 산출물 (S15P21B202-458). 로컬에서 검사를 돌려도 같은 이름으로 생긴다.
 ec2-status.json
+
+# AI 동료 로컬 서버 (S15P21B202-590).
+# 모델 11GB, 파이썬 환경, 개인 발화 녹음과 측정 결과는 저장소에 넣지 않는다.
+# 서버를 돌리면 각자 PC에 생기므로 규칙이 먼저 있어야 실수로도 올라가지 않는다.
+/tools/AICompanionService/.venv/
+/tools/AICompanionService/.venv-eval/
+/tools/AICompanionService/models/
+/tools/AICompanionService/logs/
+/tools/AICompanionService/results/
+/tools/AICompanionService/fixtures/
+/tools/AICompanionService/__pycache__/
+
+# Local Stage1 concept archive and pre-conversion scene backup.
+/docs/assets/concepts/stage1-grass-flora/astra-flora-9-species-4-views.zip
+/artifacts/stage1-terrain/Stage1_Astra.before.unity
+
+# Local Stage2 multiplayer validation player (rebuild with Stage2Validation).
+/artifacts/stage2-smoke/

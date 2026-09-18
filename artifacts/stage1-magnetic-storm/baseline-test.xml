@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Failed(Child)" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-16 04:57:06Z" end-time="2026-09-16 04:57:06Z" duration="0.1091031">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="1692" result="Failed" site="Child" start-time="2026-09-16 04:57:06Z" end-time="2026-09-16 04:57:06Z" duration="0.109103" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="2880" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202-564-art/METAGAME/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="1692" result="Failed" site="Child" start-time="2026-09-16 04:57:06Z" end-time="2026-09-16 04:57:06Z" duration="0.094285" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="13664" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="2881" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="1692" result="Failed" site="Child" start-time="2026-09-16 04:57:06Z" end-time="2026-09-16 04:57:06Z" duration="0.084183" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="2886" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="1649" result="Failed" site="Child" start-time="2026-09-16 04:57:06Z" end-time="2026-09-16 04:57:06Z" duration="0.075168" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="2887" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="1649" result="Failed" site="Child" start-time="2026-09-16 04:57:06Z" end-time="2026-09-16 04:57:06Z" duration="0.066912" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1380" name="DustStormScheduleTests" fullname="Metagame.Gameplay.Tests.DustStormScheduleTests" classname="Metagame.Gameplay.Tests.DustStormScheduleTests" runstate="Runnable" testcasecount="11" result="Failed" site="Child" start-time="2026-09-16 04:57:06Z" end-time="2026-09-16 04:57:06Z" duration="0.052022" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1389" name="DebrisSource_IsResolvedFromATemporaryInstance" fullname="Metagame.Gameplay.Tests.DustStormScheduleTests.DebrisSource_IsResolvedFromATemporaryInstance" methodname="DebrisSource_IsResolvedFromATemporaryInstance" classname="Metagame.Gameplay.Tests.DustStormScheduleTests" runstate="Runnable" seed="1208391065" result="Failed" start-time="2026-09-16 04:57:06Z" end-time="2026-09-16 04:57:06Z" duration="0.039910" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  유효한 debris 원본은 임시 인스턴스에서 Mesh를 추출해야 한다.
+  Expected: not null
+  But was:  null
+]]></message>
+                  <stack-trace><![CDATA[at Metagame.Gameplay.Tests.DustStormScheduleTests.DebrisSource_IsResolvedFromATemporaryInstance () [0x0005f] in C:\workspace\2-PJT\S15P21B202-564-art\METAGAME\Assets\_Project\Scripts\Tests\Editor\DustStormScheduleTests.cs:180
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

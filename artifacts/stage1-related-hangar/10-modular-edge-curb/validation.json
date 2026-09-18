@@ -1,0 +1,64 @@
+{
+  "asset": "SM_Astra_ModularEdgeCurb",
+  "concept": "C:\\workspace\\2-PJT\\S15P21B202\\docs\\assets\\concepts\\stage1-related-hangar\\10-modular-edge-curb.png",
+  "components": 15,
+  "before_export": {
+    "meshes": 1,
+    "vertices": 1208,
+    "triangles": 2356,
+    "bounds_min": [
+      -1.0,
+      -0.08299999684095383,
+      0.0
+    ],
+    "bounds_max": [
+      1.0,
+      0.07999999821186066,
+      0.20100000500679016
+    ],
+    "dimensions": [
+      2.0,
+      0.16299999505281448,
+      0.20100000500679016
+    ]
+  },
+  "after_reimport": {
+    "meshes": 1,
+    "vertices": 1208,
+    "triangles": 2356,
+    "bounds_min": [
+      -1.0,
+      -0.08299999684095383,
+      -1.303365415594726e-08
+    ],
+    "bounds_max": [
+      1.0,
+      0.08000002801418304,
+      0.20100001990795135
+    ],
+    "dimensions": [
+      2.0,
+      0.16300002485513687,
+      0.2010000329416055
+    ]
+  },
+  "geometry_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "missing_textures": [],
+  "texture_links": [
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\10-modular-edge-curb\\SM_Astra_ModularEdgeCurb.fbm\\SM_Astra_ModularEdgeCurb_BaseColor.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\10-modular-edge-curb\\SM_Astra_ModularEdgeCurb.fbm\\SM_Astra_ModularEdgeCurb_Emission.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\10-modular-edge-curb\\SM_Astra_ModularEdgeCurb.fbm\\SM_Astra_ModularEdgeCurb_Metallic.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\10-modular-edge-curb\\SM_Astra_ModularEdgeCurb.fbm\\SM_Astra_ModularEdgeCurb_Normal.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\10-modular-edge-curb\\SM_Astra_ModularEdgeCurb.fbm\\SM_Astra_ModularEdgeCurb_Roughness.png"
+  ],
+  "roundtrip": "PASS",
+  "units": "metres",
+  "front_blender": "-Y",
+  "export_axes": "-Z forward / Y up",
+  "pivot": "base center; ramp low-end elevation",
+  "fbx": "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\10-modular-edge-curb\\SM_Astra_ModularEdgeCurb.fbx",
+  "material": "M_Astra_ModularEdgeCurb"
+}

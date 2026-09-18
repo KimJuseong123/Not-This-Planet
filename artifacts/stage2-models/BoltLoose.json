@@ -1,0 +1,38 @@
+{
+  "asset": "BoltLoose",
+  "fbx": "S2_BoltLoose.fbx",
+  "blend": "Source~/S2_BoltLoose.blend",
+  "mesh_objects": 2,
+  "triangles": 2912,
+  "dimensions_m": [
+    0.30000001192092896,
+    0.30000001192092896,
+    0.4790000021457672
+  ],
+  "bounds_min": [
+    -0.15000000596046448,
+    -0.15000000596046448,
+    0.009999999776482582
+  ],
+  "bounds_max": [
+    0.15000000596046448,
+    0.15000000596046448,
+    0.48899999260902405
+  ],
+  "materials": [
+    "S2_Orange",
+    "S2_Steel"
+  ],
+  "pivots": [
+    "S2_BoltLoose_Root",
+    "BoltRotation"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

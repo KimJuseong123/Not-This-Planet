@@ -1,0 +1,37 @@
+{
+  "asset": "DeadSapling",
+  "fbx": "S2_DeadSapling.fbx",
+  "blend": "Source~/S2_DeadSapling.blend",
+  "mesh_objects": 1,
+  "triangles": 512,
+  "dimensions_m": [
+    0.7767393589019775,
+    0.6456090807914734,
+    1.0760080814361572
+  ],
+  "bounds_min": [
+    -0.32742947340011597,
+    -0.3480129837989807,
+    -0.0035632988438010216
+  ],
+  "bounds_max": [
+    0.44930991530418396,
+    0.2975960969924927,
+    1.0724447965621948
+  ],
+  "materials": [
+    "S2_Bark",
+    "S2_Dry"
+  ],
+  "pivots": [
+    "S2_DeadSapling_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

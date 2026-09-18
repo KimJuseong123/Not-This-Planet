@@ -1,0 +1,13 @@
+{
+  "asset": "Drain",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 1,
+  "dimensions_m": [
+    1.0,
+    2.0,
+    0.2800002992153168
+  ],
+  "pivots_count": 1,
+  "passed": true
+}

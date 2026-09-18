@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="6" result="Passed" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-16 05:00:48Z" end-time="2026-09-16 05:00:49Z" duration="0.746214">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="1692" result="Passed" start-time="2026-09-16 05:00:48Z" end-time="2026-09-16 05:00:49Z" duration="0.746214" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="2880" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202-564-art/METAGAME/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="1692" result="Passed" start-time="2026-09-16 05:00:48Z" end-time="2026-09-16 05:00:49Z" duration="0.688630" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="36424" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="2881" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="1692" result="Passed" start-time="2026-09-16 05:00:48Z" end-time="2026-09-16 05:00:49Z" duration="0.684317" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="2886" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="1649" result="Passed" start-time="2026-09-16 05:00:48Z" end-time="2026-09-16 05:00:49Z" duration="0.679894" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="2887" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="1649" result="Passed" start-time="2026-09-16 05:00:48Z" end-time="2026-09-16 05:00:49Z" duration="0.675110" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1663" name="MagneticStormVisualTests" fullname="Metagame.Gameplay.Tests.MagneticStormVisualTests" classname="Metagame.Gameplay.Tests.MagneticStormVisualTests" runstate="Runnable" testcasecount="6" result="Passed" start-time="2026-09-16 05:00:48Z" end-time="2026-09-16 05:00:49Z" duration="0.658803" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1670" name="ExistingStormPresenterControlsVisibilitySeedReuseAndCleanup" fullname="Metagame.Gameplay.Tests.MagneticStormVisualTests.ExistingStormPresenterControlsVisibilitySeedReuseAndCleanup" methodname="ExistingStormPresenterControlsVisibilitySeedReuseAndCleanup" classname="Metagame.Gameplay.Tests.MagneticStormVisualTests" runstate="Runnable" seed="245637505" result="Passed" start-time="2026-09-16 05:00:44Z" end-time="2026-09-16 05:00:49Z" duration="5.038370" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="1669" name="PresentationClockWrapsWithoutDrift" fullname="Metagame.Gameplay.Tests.MagneticStormVisualTests.PresentationClockWrapsWithoutDrift" classname="Metagame.Gameplay.Tests.MagneticStormVisualTests" runstate="Runnable" testcasecount="5" result="Passed" start-time="2026-09-16 05:00:49Z" end-time="2026-09-16 05:00:49Z" duration="0.004395" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="1664" name="PresentationClockWrapsWithoutDrift(0.0d,0.0f)" fullname="Metagame.Gameplay.Tests.MagneticStormVisualTests.PresentationClockWrapsWithoutDrift(0.0d,0.0f)" methodname="PresentationClockWrapsWithoutDrift" classname="Metagame.Gameplay.Tests.MagneticStormVisualTests" runstate="Runnable" seed="1780530688" result="Passed" start-time="2026-09-16 05:00:49Z" end-time="2026-09-16 05:00:49Z" duration="0.001365" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1665" name="PresentationClockWrapsWithoutDrift(1.5d,0.25f)" fullname="Metagame.Gameplay.Tests.MagneticStormVisualTests.PresentationClockWrapsWithoutDrift(1.5d,0.25f)" methodname="PresentationClockWrapsWithoutDrift" classname="Metagame.Gameplay.Tests.MagneticStormVisualTests" runstate="Runnable" seed="158185948" result="Passed" start-time="2026-09-16 05:00:49Z" end-time="2026-09-16 05:00:49Z" duration="0.000099" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1666" name="PresentationClockWrapsWithoutDrift(6.0d,0.0f)" fullname="Metagame.Gameplay.Tests.MagneticStormVisualTests.PresentationClockWrapsWithoutDrift(6.0d,0.0f)" methodname="PresentationClockWrapsWithoutDrift" classname="Metagame.Gameplay.Tests.MagneticStormVisualTests" runstate="Runnable" seed="1465848309" result="Passed" start-time="2026-09-16 05:00:49Z" end-time="2026-09-16 05:00:49Z" duration="0.000070" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1667" name="PresentationClockWrapsWithoutDrift(123456.75d,0.125f)" fullname="Metagame.Gameplay.Tests.MagneticStormVisualTests.PresentationClockWrapsWithoutDrift(123456.75d,0.125f)" methodname="PresentationClockWrapsWithoutDrift" classname="Metagame.Gameplay.Tests.MagneticStormVisualTests" runstate="Runnable" seed="1292763317" result="Passed" start-time="2026-09-16 05:00:49Z" end-time="2026-09-16 05:00:49Z" duration="0.000045" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1668" name="PresentationClockWrapsWithoutDrift(-1.5d,0.75f)" fullname="Metagame.Gameplay.Tests.MagneticStormVisualTests.PresentationClockWrapsWithoutDrift(-1.5d,0.75f)" methodname="PresentationClockWrapsWithoutDrift" classname="Metagame.Gameplay.Tests.MagneticStormVisualTests" runstate="Runnable" seed="505859331" result="Passed" start-time="2026-09-16 05:00:49Z" end-time="2026-09-16 05:00:49Z" duration="0.000043" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+                </test-case>
+              </test-suite>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

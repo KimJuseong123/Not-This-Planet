@@ -14,7 +14,11 @@ from urllib.parse import quote
 import urllib.parse
 import urllib.request
 
-PARTS = ["Plan", "Art", "Sound", "UI", "Character", "Physics", "Puzzle", "Level",
+# **네 곳이 같아야 한다** (docs/parts.md §태그를 늘리거나 이름을 바꿀 때). 이 목록 ·
+# `docs/parts.md` 의 표 · `team.json` 의 `members[].parts` · Jira 자동화 R2 의 정규식.
+# 앞의 셋은 `test_parts_agree.py` 가 대조한다. **R2 는 기계가 못 읽으므로 사람이 맞춘다** —
+# 빠뜨리면 이슈는 Jira 가 `needs-fix` 로 막고 MR 은 여기서 막힌다(S15P21B202-586).
+PARTS = ["Plan", "Art", "Sound", "UI", "Character", "AI", "Physics", "Puzzle", "Level",
          "Network", "Backend", "Infra", "Data", "QA"]
 TYPES = ["feat", "fix", "asset", "scene", "refactor", "docs", "test", "perf", "build", "chore"]
 PROJECT_KEY = os.environ.get("JIRA_PROJECT_KEY", "S15P21B202")
@@ -179,6 +183,61 @@ def http(method: str, url: str, headers: dict | None = None, body: dict | str | 
         return status, json.loads(raw) if raw else None
     except json.JSONDecodeError:
         return status, raw
+
+
+# 본문에 섞여 나올 수 있는 비밀. **응답은 우리가 만든 것이 아니라 상대 서버가
+# 만든 것**이라 무엇이 들어 있을지 우리가 정하지 못한다(S15P21B202-484).
+SECRET_ENVS = ("JIRA_RELEASE_WEBHOOK", "MM_WEBHOOK_URL", "JIRA_API_TOKEN",
+               "GITLAB_TOKEN", "ANTHROPIC_API_KEY", "JIRA_USER",
+               # 배치 트리거 토큰 (S15P21B202-582). **Masked 이지만 여기에도 둔다** —
+               # Masked 는 러너가 로그를 가려 주는 것이고, 이 목록은 우리가 본문을
+               # 찍기 전에 가리는 것이다. 트리거 실패 응답에 요청이 되비칠 수 있다.
+               "DEVBUILD_TRIGGER_TOKEN")
+
+
+def _forms(v: str) -> list[str]:
+    """같은 값이 본문에 나올 수 있는 **꼴들.**
+
+    글자 그대로만 찾으면 새어 나간다 — 서버가 주소를 **URL 인코딩해서** 되비추면
+    `https%3A%2F%2F…` 가 되어 원문과 한 글자도 안 맞는다(`!410` 리뷰).
+    긴 것부터 지운다: 짧은 꼴을 먼저 지우면 긴 꼴이 반쯤 남는다.
+    """
+    out = {v, quote(v, safe=""), quote(v)}
+    return sorted(out, key=len, reverse=True)
+
+
+def redact(s: str) -> str:
+    """알려진 비밀 환경변수 **값**을 이름으로 바꾼다.
+
+    8자 미만은 건너뛴다 — 두세 글자짜리를 지우면 멀쩡한 문장이 걸레가 되고,
+    그러면 정작 사유를 못 읽는다. **그래서 짧은 비밀은 이 목록에 넣어도 안 가려진다**
+    (docs/ci-cd-pipeline.md 에 적어 두었다).
+    """
+    for name in SECRET_ENVS:
+        v = env(name)
+        if not v or len(v) < 8:
+            continue
+        for form in _forms(v):
+            s = s.replace(form, "<%s>" % name)
+    return s
+
+
+def why(body, limit: int = 300) -> str:
+    """실패 응답의 **이유 한 줄**. 잡 로그에만 쓴다.
+
+    `http()` 는 본문을 이미 파싱해 돌려주는데 호출부들이 `_` 로 버려 왔다. 그래서
+    2026-09-11·09-14 의 Jira 릴리스 웹훅 400 과 2026-09-13 의 MM 400 이 모두
+    **숫자만 남고 이유가 없었다** — 같은 실패를 세 번 겪고도 원인을 못 봤다
+    (S15P21B202-484).
+
+    **카드·코멘트로는 내보내지 않는다.** 잡 로그는 GitLab 이 masked 변수를 가려
+    주지만 MM 카드는 아무도 안 가려 준다(`-335` 에서 정한 규칙 그대로).
+    """
+    if body is None or body == "":
+        return "(본문 없음)"
+    s = body if isinstance(body, str) else json.dumps(body, ensure_ascii=False)
+    s = redact(" ".join(s.split()))          # 줄바꿈을 접어 로그 한 줄로
+    return s if len(s) <= limit else s[:limit] + "…"
 
 
 class GitLab:
@@ -485,6 +544,15 @@ class GitLab:
                      self._h())
         return d if st == 200 and isinstance(d, list) else []
 
+# 스토리 포인트의 커스텀 필드 번호. **인스턴스마다 다르므로 여기 한 곳에만 적는다** —
+# `GET /rest/api/3/field` 에서 이름이 "Story Points" 인 것의 id 다(2026-09-14·09-16 확인: 10031).
+#
+# 전에는 `mm_digest` 가 JQL 모양(`cf[10031]`)으로 따로 들고 있었다. 두 곳에 적힌 번호는
+# 한쪽만 고쳐지고, 그러면 **아침 점검과 mr-lint 가 서로 다른 필드를 본다.**
+STORY_POINTS_ID = 10031
+STORY_POINTS_FIELD = f"customfield_{STORY_POINTS_ID}"   # REST 의 `fields=` · 응답 키
+STORY_POINTS_JQL = f"cf[{STORY_POINTS_ID}]"             # JQL 안에서 쓰는 모양
+
 
 class Jira:
     # **읽기 전용이다.** 이슈 상태를 바꾸는 것은 Jira 자동화 규칙(R5·R6·R9)만 한다 — CI 는 검사·알림만
@@ -511,7 +579,8 @@ class Jira:
     def get_issue(self, key: str) -> dict | None:
         """이슈 dict, 없으면 None. 그 외 오류는 예외."""
         st, d = http("GET", f"{self.api}/rest/api/3/issue/{key}"
-                            "?fields=summary,status,labels,issuetype,assignee,parent,duedate,description",
+                            "?fields=summary,status,labels,issuetype,assignee,parent,duedate,description"
+                            f",{STORY_POINTS_FIELD}",
                      self._h())
         if st == 404:
             return None

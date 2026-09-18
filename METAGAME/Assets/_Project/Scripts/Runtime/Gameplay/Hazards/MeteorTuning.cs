@@ -21,6 +21,14 @@ namespace Metagame.Gameplay.Hazards
         [SerializeField, Range(0f, 1f)] float _heavyImpactFraction = PhysicsScale.MeteorHeavyImpactFraction;
         [SerializeField, Min(0f)] float _heavyKnockSpeed = PhysicsScale.MeteorHeavyKnockSpeed;
 
+        [Header("약한 충격파")]
+        [SerializeField, Min(1f)] float _shockwaveRadiusScale = PhysicsScale.MeteorShockwaveRadiusScale;
+        [SerializeField, Min(0f)] float _shockwaveKnockSpeed = PhysicsScale.MeteorShockwaveKnockSpeed;
+        [SerializeField, Min(0f)] float _shockwaveLift = PhysicsScale.MeteorShockwaveLift;
+        [SerializeField, Min(0f)] float _shockwaveStaggerSeconds = PhysicsScale.MeteorShockwaveStaggerSeconds;
+        [SerializeField, Min(0f)] float _partKnockSpeed = PhysicsScale.MeteorPartKnockSpeed;
+        [SerializeField, Min(0f)] float _partKnockSpin = PhysicsScale.MeteorPartKnockSpin;
+
         [Header("정착·흔적")]
         [SerializeField, Min(0f)] float _restSpeed = PhysicsScale.MeteorRestSpeed;
         [SerializeField, Min(0f)] float _restSeconds = PhysicsScale.MeteorRestSeconds;
@@ -49,6 +57,17 @@ namespace Metagame.Gameplay.Hazards
         public float ImpactForce => _impactForce;
         public float HeavyImpactFraction => _heavyImpactFraction;
         public float HeavyKnockSpeed => _heavyKnockSpeed;
+
+        /// <summary>충격파가 닿는 거리를 충격 반경의 몇 배로 볼 것인가(2026-09-18).</summary>
+        public float ShockwaveRadiusScale => _shockwaveRadiusScale;
+        public float ShockwaveKnockSpeed => _shockwaveKnockSpeed;
+        public float ShockwaveLift => _shockwaveLift;
+        public float ShockwaveStaggerSeconds => _shockwaveStaggerSeconds;
+
+        /// <summary>운석이 파츠를 미는 속도(m/s). 0 이면 파츠가 밀리지 않는다.</summary>
+        public float PartKnockSpeed => _partKnockSpeed;
+        public float PartKnockSpin => _partKnockSpin;
+
         public float RestSpeed => _restSpeed;
         public float RestSeconds => _restSeconds;
         public float DeflectedDespawnSeconds => _deflectedDespawnSeconds;
@@ -67,8 +86,33 @@ namespace Metagame.Gameplay.Hazards
         public float BatSwingWindowSeconds => _batSwingWindowSeconds;
         public float BatAssistRadius => _batAssistRadius;
 
+        // ── 시험용 즉시 조정 (CheatArenaConsole) ─────────────────────────────
+        //
+        // 이 객체는 스포너가 만들어 <b>모든 운석이 같은 것을 참조</b>하므로, 여기서 값을
+        // 바꾸면 이미 떨어지고 있는 운석에도 그 자리에서 적용된다. 치트 패널이 충격파의
+        // 세기를 손으로 맞춰 보기 위한 것이고, 판을 다시 시작하면 씬에 직렬화된 값으로
+        // 돌아간다.
+
+        /// <summary>강한 충격이 되는 안쪽 비율 0~1(§20.1). 기본 0.5.</summary>
+        public void SetHeavyImpactFraction(float value) =>
+            _heavyImpactFraction = Mathf.Clamp01(value);
+
+        /// <summary>강한 충격·직접 충돌로 날아가는 속도(m/s). 기본 8.</summary>
+        public void SetHeavyKnockSpeed(float value) =>
+            _heavyKnockSpeed = Mathf.Max(0f, value);
+
         public float ImpactRadiusFor(MeteorSize size) =>
             size == MeteorSize.Medium ? _mediumImpactRadius : _smallImpactRadius;
+
+        /// <summary>
+        /// 크기에 해당하는 충격파 반경(m). 충격 반경보다 넓다(2026-09-18).
+        ///
+        /// <b>낙하 예고 원은 이것을 쓰지 않는다.</b> §17.2 는 예고가 "실제 충격 범위와
+        /// 같은 크기" 라고 정하고, 그 충격 범위는 밀리기만 하는 바깥 띠가 아니라
+        /// <see cref="ImpactRadiusFor"/> 다.
+        /// </summary>
+        public float ShockwaveRadiusFor(MeteorSize size) =>
+            MeteorImpact.ShockwaveRadiusFor(ImpactRadiusFor(size), _shockwaveRadiusScale);
 
         public float ImpactForceFor(MeteorSize size)
         {

@@ -34,7 +34,8 @@ namespace Metagame.UI
                     float px = (x + 0.5f) * 2f / Size - 1f;
                     float py = (y + 0.5f) * 2f / Size - 1f;
                     float radius = Mathf.Sqrt(px * px + py * py);
-                    float angle = Mathf.Atan2(py, px) * Mathf.Rad2Deg;
+                    // HUD의 왼쪽 볼록 호와 같은 방향이 되도록 원본 부채꼴을 수평 반전한다.
+                    float angle = Mathf.Atan2(py, -px) * Mathf.Rad2Deg;
                     if (radius < inner || radius > 1f || angle < -18f || angle > 48f) continue;
                     active.Add(y * Size + x);
                     levels.Add((angle + 18f) / 66f);

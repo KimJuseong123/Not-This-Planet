@@ -250,7 +250,25 @@ namespace Metagame.Gameplay.Parts
                 grounded = ProbeGround(out _);
                 return;
             }
-            if (HasPartAttachment()) return;
+            // 붙어 버린 기체는 더 이상 날 수 없다. 그런데 조용히 조작만 죽이면 탄 사람이
+            // <b>내릴 때까지 아무것도 안 되는 기체 안에 갇힌다</b> — 그리고 내려도
+            // CanBoardFrom 이 거짓이라 다시 못 탄다 (S15P21B202-554).
+            //
+            // 빔은 이제 사람 탄 기체를 집지 못하지만(TractorBeam.TryGrab), 용접이나
+            // 조립 링크처럼 붙는 경로가 더 있다. 여기는 그 그물이다 — 갇히는 대신 내린다.
+            //
+            // 경고를 남긴다. 이것이 자주 찍히면 막지 못한 경로가 더 있다는 뜻이다.
+            if (HasPartAttachment())
+            {
+                if (rider != null)
+                {
+                    Debug.LogWarning("[TransportVehicle] 타고 있는 동안 기체가 파츠로 붙어 "
+                                     + "더 날 수 없다 — 탑승자를 내린다 (S15P21B202-554). "
+                                     + $"상태 {flightPart.State}");
+                    ReleaseRiderForRespawn();
+                }
+                return;
+            }
 
             body.linearVelocity = LimitFlightVelocity(body.linearVelocity, dt);
 

@@ -1,0 +1,42 @@
+{
+  "asset": "Console",
+  "fbx": "S2_Console.fbx",
+  "blend": "Source~/S2_Console.blend",
+  "mesh_objects": 4,
+  "triangles": 1192,
+  "dimensions_m": [
+    1.5,
+    0.800000011920929,
+    1.5807431936264038
+  ],
+  "bounds_min": [
+    -0.75,
+    -0.4000000059604645,
+    0.0
+  ],
+  "bounds_max": [
+    0.75,
+    0.4000000059604645,
+    1.5807431936264038
+  ],
+  "materials": [
+    "S2_Dark",
+    "S2_Orange",
+    "S2_Steel",
+    "S2_Teal"
+  ],
+  "pivots": [
+    "S2_Console_Root",
+    "Lever_0",
+    "Lever_1",
+    "Lever_2"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

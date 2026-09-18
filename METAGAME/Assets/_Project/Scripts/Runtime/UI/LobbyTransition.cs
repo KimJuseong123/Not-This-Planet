@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using Metagame.Core;
 using Metagame.Gameplay;
 using Metagame.Network;
 
@@ -13,7 +14,11 @@ namespace Metagame.UI
     /// </summary>
     public sealed class LobbyTransition : MonoBehaviour
     {
-        private const string GameSceneName = "Stage1_Astra";
+        /// <summary>
+        /// 기본 맵의 씬 이름. 씬 이름을 여기 적지 않고 <see cref="StageCatalog"/> 에서 가져온다 —
+        /// 맵을 더할 때 고칠 곳이 목록 한 곳이어야 한다(2맵 준비).
+        /// </summary>
+        private const string GameSceneName = StageCatalog.DefaultStageScene;
         private const string TitleScenePath = "Assets/Scenes/Lobby.unity";
         private const float FadeOutSeconds = 0.35f;
         private const float LoadingHoldSeconds = 0.80f;
@@ -41,6 +46,16 @@ namespace Metagame.UI
         }
 
         public bool IsBusy => busy;
+
+        public const string PracticeScenePath = "Assets/Scenes/PracticeLobby.unity";
+
+        public bool BeginPractice()
+        {
+            if (busy || Mirror.NetworkClient.active || Mirror.NetworkServer.active) return false;
+            busy = true;
+            transitionRoutine = StartCoroutine(LoadSoloRoutine(PracticeScenePath, false));
+            return true;
+        }
 
         private void Awake()
         {
@@ -253,10 +268,16 @@ namespace Metagame.UI
             completed?.Invoke(IsGameSceneReady());
         }
 
+        /// <summary>
+        /// 게임 씬이 떴고 세션이 살아 있는가.
+        ///
+        /// <para>기본 맵 이름 하나와 비교하지 않고 <see cref="StageCatalog.IsStageScene"/> 로 묻는다 —
+        /// 맵이 둘이 되면 방이 연 맵이 무엇이든 "게임 씬에 도착했다" 로 봐야 한다(2맵 준비).
+        /// 여기가 기본 맵만 인정하면 2맵으로 시작한 방은 로딩창에서 시간 초과가 난다.</para>
+        /// </summary>
         private bool IsGameSceneReady()
         {
-            if (!string.Equals(SceneManager.GetActiveScene().name, GameSceneName,
-                    StringComparison.Ordinal))
+            if (!StageCatalog.IsStageScene(SceneManager.GetActiveScene().name))
                 return false;
 
             return FindAnyObjectByType<GameSession>() != null;

@@ -1,0 +1,14 @@
+{
+  "peers": 3,
+  "assertions": [
+    "[Stage2Smoke] HOST containers from both authenticated peers PASS",
+    "[Stage2Smoke] HOST remote pilot motion PASS; late observer may join",
+    "[Stage2Smoke] HOST disconnect cleanup PASS",
+    "[Stage2Smoke] CLIENT input and replicated crane PASS",
+    "[Stage2Smoke] LATE OBSERVER full state PASS"
+  ],
+  "passed": true,
+  "transport": "Mirror Telepathy loopback",
+  "utc": "2026-09-17T16:44:50.4595713Z",
+  "mode": "yard"
+}

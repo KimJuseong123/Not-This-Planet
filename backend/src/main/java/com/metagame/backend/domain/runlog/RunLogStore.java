@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -202,12 +203,14 @@ public class RunLogStore {
 
         String env = "dev".equalsIgnoreCase(backend) ? "dev" : "prod";
         String base = String.format("%s_u%d_%s_%s",
-                now.format(STAMP), userId, env, token(clientName));
+                now.format(STAMP), userId, env, stem(clientName));
+        // **무엇이 담긴 파일인지 이름으로 말한다** (S15P21B202-623).
+        String ext = extOf(clientName);
 
         // **덮어쓰지 않는다** (S15P21B202-467). 이름이 **초 단위**라, 같은 사람이 같은
-        // 초에 두 건을 올리고 클라이언트 이름이 비면(`token()=="none"`) 이름이 겹친다.
+        // 초에 두 건을 올리고 클라이언트 이름이 비면(`stem()=="none"`) 이름이 겹친다.
         // 예전에는 `REPLACE_EXISTING` 이라 **먼저 받은 로그가 조용히 사라졌다.**
-        String name = freeName(dayDir, base);
+        String name = freeName(dayDir, base, ext);
         Path target = dayDir.resolve(name);   // 아래 경합 재시도에서 다시 고를 수 있다
 
         // **임시 파일 이름은 요청마다 다르다** (`!378` 2차 리뷰). 예전에는 `name + ".part"`
@@ -246,7 +249,7 @@ public class RunLogStore {
                     break;
                 } catch (FileAlreadyExistsException e) {
                     if (attempt >= MOVE_TRIES) throw e;
-                    name = freeName(dayDir, base);
+                    name = freeName(dayDir, base, ext);
                     target = dayDir.resolve(name);
                 }
             }
@@ -275,17 +278,73 @@ public class RunLogStore {
         return dayDir.resolve(base + "." + UUID.randomUUID() + ".part");
     }
 
+    /** 판마다 남는 실행 로그. */
+    static final String LOG_EXT = ".log";
+
+    /** 판 안에서 일어난 일을 한 줄에 하나씩 적은 것 (S15P21B202-498). */
+    static final String EVENT_EXT = ".ndjson";
+
+    /**
+     * 저장할 이름의 확장자. <b>우리가 정한 둘 중 하나다.</b>
+     *
+     * <p><b>왜 클라이언트 이름에서 그대로 떼어 오지 않는가.</b> 그러면 밖에서 온 값이
+     * 우리 폴더에 놓이는 파일의 확장자가 된다 — {@code .html}·{@code .jsp} 로 끝나는
+     * 이름을 만들 수 있고, 그 폴더가 언젠가 무엇에든 노출되면 확장자가 곧 실행 경로다.
+     * {@code token()} 이 글자를 거르는 것과 같은 이유로 여기서는 <b>고르기만</b> 한다.</p>
+     *
+     * <p>이름이 {@code .ndjson} 인지만 본다. 그 밖에는 전부 실행 로그로 본다 —
+     * 옛 빌드가 보내는 것도, 우리가 모르는 이름도 그쪽이 맞다.</p>
+     */
+    static String extOf(String clientName) {
+        if (clientName == null) return LOG_EXT;
+        return clientName.trim().toLowerCase(Locale.ROOT).endsWith(EVENT_EXT) ? EVENT_EXT : LOG_EXT;
+    }
+
+    /**
+     * 이름의 몸통 — 클라이언트가 준 확장자를 뺀 것 (S15P21B202-623).
+     *
+     * <p>빼지 않으면 {@code ….ndjson.log} 처럼 확장자가 두 번 붙고, 그러면
+     * <b>{@code *.log} 로 훑는 도구가 이벤트 파일을 실행 로그로 읽는다.</b>
+     * 무엇이 담겼는지는 파일 목록만으로 갈라져야 한다.</p>
+     */
+    static String stem(String clientName) {
+        String t = token(clientName);
+
+        // **더 이상 떨어지지 않을 때까지 뗀다** (`!523` AI 리뷰). 한 번만 떼면
+        // 이미 겹쳐 온 이름(`x.ndjson.log`)은 `.log` 만 떨어져 `x.ndjson` 이 되고,
+        // 거기에 다시 `.log` 가 붙어 **겹친 채로 저장된다** — 이 이슈가 막으려는
+        // 모양이 그대로 남는다. 한 번 뗄 때마다 이름이 넉 자 이상 줄고, 다 떨어지면
+        // 빈 문자열은 어느 확장자로도 끝나지 않으므로 여기서 멈춘다.
+        for (boolean cut = true; cut; ) {
+            cut = false;
+            String lower = t.toLowerCase(Locale.ROOT);
+            for (String ext : new String[] {EVENT_EXT, LOG_EXT}) {
+                if (lower.endsWith(ext)) {
+                    t = t.substring(0, t.length() - ext.length());
+                    cut = true;
+                    break;
+                }
+            }
+        }
+
+        // 이름이 확장자뿐이면(`.ndjson`) 몸통이 빈다 — 빈 이름은 두지 않는다.
+        return t.isEmpty() ? "none" : t;
+    }
+
     /**
      * 비어 있는 이름을 고른다 — {@code base.log}, 있으면 {@code base-2.log}, …
      *
      * <p>50까지만 본다. 같은 초에 같은 사람이 50개를 올리는 것은 빈도 상한이 이미
      * 막았어야 하는 상황이라, 여기서 더 세는 것보다 {@code Files.move} 가
      * 실패해서 눈에 띄는 편이 낫다.</p>
+     *
+     * <p><b>겹침을 피하는 {@code -2} 는 확장자 앞에 온다</b> — 뒤에 붙이면
+     * {@code ….ndjson-2} 가 되어 확장자로 가르는 것이 다시 깨진다.</p>
      */
-    static String freeName(Path dayDir, String base) {
-        String name = base + ".log";
+    static String freeName(Path dayDir, String base, String ext) {
+        String name = base + ext;
         for (int i = 2; Files.exists(dayDir.resolve(name)) && i <= 50; i++) {
-            name = base + "-" + i + ".log";
+            name = base + "-" + i + ext;
         }
         return name;
     }

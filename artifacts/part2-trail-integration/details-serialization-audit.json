@@ -1,0 +1,13 @@
+{
+  "removedObjects": 10,
+  "addedBlocks": 364,
+  "modifiedParentChildLists": [
+    883643003,
+    1265883843,
+    1496453649
+  ],
+  "unrelatedBlocksPreserved": 4285,
+  "localReferences": "PASS",
+  "sourceHashCheck": "PASS",
+  "sceneSHA256": "93d0c7adb19bbdfcc4d1055bc61a47dc4fcec15ee514fe51e7d1c37e44833a6d"
+}

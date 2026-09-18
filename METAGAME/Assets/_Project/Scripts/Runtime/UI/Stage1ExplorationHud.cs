@@ -13,7 +13,7 @@ namespace Metagame.UI
     /// 카탈로그의 네 우주선 파츠와 수동 도움말을 카드와 단순화한 실루엣으로 보여 준다.
     /// </summary>
     [DisallowMultipleComponent]
-    public sealed class Stage1ExplorationHud : MonoBehaviour
+    public sealed partial class Stage1ExplorationHud : MonoBehaviour
     {
         const int SizeSmall = 15;
         const int SizeMid = 20;
@@ -86,8 +86,10 @@ namespace Metagame.UI
         /// <summary>탐험 상태와 현재 단계 안내를 태블릿에 연결한다.</summary>
         public void Initialize(Stage1Exploration exploration, GameSession session)
         {
+            ReleaseGuide();
             _exploration = exploration;
             _session = session;
+            InitializeGuide();
         }
 
         /// <summary>현재 플레이어 카메라에 태블릿 3D 모델을 연결한다.</summary>
@@ -109,6 +111,7 @@ namespace Metagame.UI
         void Update()
         {
             if (!_warmed && _exploration != null) WarmFont();
+            TickGuideNotice();
         }
 
         void OnGUI()
@@ -125,6 +128,7 @@ namespace Metagame.UI
             if (_exploration == null) return;
 
             EnsureStyles();
+            DrawGuideNotice();
 
             var exploration = _exploration;
             if (exploration.TabletOpen)
@@ -151,6 +155,11 @@ namespace Metagame.UI
 
         void DrawTabletPanel(Rect panel, Stage1Exploration exploration)
         {
+            if (exploration.Guide.Visible)
+            {
+                DrawGuideFallback(panel);
+                return;
+            }
 
             Box(panel, new Color(0.07f, 0.12f, 0.17f, 0.98f));
             Box(new Rect(panel.x, panel.y, panel.width, 5f), new Color(0.28f, 0.82f, 1f, 0.95f));
@@ -173,6 +182,9 @@ namespace Metagame.UI
                 DrawHelpPage(panel, page);
 
             DrawPageControls(panel, page, exploration);
+            if (exploration.Guide.Enabled && GuideInputAllowed
+                && UiInteraction.Button(new Rect(panel.xMax - 215f, panel.yMax - 48f, 185f, 34f), "사용 가이드"))
+                exploration.ActivateTabletGuide();
         }
 
         void DrawPartsPage(Rect panel, Stage1Exploration exploration)

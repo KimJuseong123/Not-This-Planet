@@ -62,6 +62,9 @@ namespace Metagame.Network
         private const int DefaultServerPort = 8080;
         private const int SecurePort = 443;
 
+        /// <summary>로비 WebSocket 의 경로. 주소에 이것이 이미 붙어 와도 두 번 붙이지 않는다.</summary>
+        private const string SocketPath = "/ws/game";
+
         public event Action<NetworkConnectionState> ConnectionStateChanged;
         public event Action<RoomSnapshot> RoomStateChanged;
         public event Action GameStarted;
@@ -268,6 +271,11 @@ namespace Metagame.Network
             // 막을 이유는 아니다.
             StartCoroutine(Metagame.Core.RunLogUpload.SweepOnce(
                 Metagame.Core.BackendEndpoints.HttpBaseUrl, accessToken, UserId));
+
+            // **판이 끝나면 한 번 더 보낸다** (S15P21B202-607). 로그인 때만 보내면
+            // "한 번 켜서 한 판 하고 끄는 사람" 의 기록은 영영 오지 않는다 — 데모에서는
+            // 그쪽이 다수다. 요청은 `PlayObserver` 가 판을 닫으면서 보낸다.
+            Metagame.Core.RunLogUpload.SweepRequested = SweepNow;
 
             Connect();
         }
@@ -810,9 +818,24 @@ namespace Metagame.Network
                 trimmed = trimmed.Substring(schemeEnd + 3);
             }
 
+            // **경로를 지킨다** (S15P21B202-573). 예전에는 여기서 버렸는데, 그러면
+            // `https://…/dev` 로 띄워도 로비와 WebSocket 만 **배포 서버로 간다.**
+            // 그 상태에서는 방이 배포 쪽 메모리에 생기고 입장 검증은 개발 쪽으로 가서,
+            // 개발 서버가 "그런 방 없다" 로 401 을 낸다 — **로비까지는 멀쩡히 되고
+            // 입장에서만 막혀** 원인이 눈에 안 보였다(2026-09-16 실측).
+            string path = string.Empty;
             int pathStart = trimmed.IndexOf('/');
             if (pathStart >= 0)
+            {
+                path = trimmed.Substring(pathStart).TrimEnd('/');
                 trimmed = trimmed.Substring(0, pathStart);
+            }
+
+            // **끝의 `/ws/game` 은 접두가 아니다.** 사람이 WebSocket 주소를 통째로 붙여
+            // 넣는 경우가 있어서, 그대로 두면 `/ws/game/ws/game` 이 된다. 떼어 내면
+            // `wss://host/ws/game` 과 `https://host/dev/ws/game` 이 둘 다 옳게 풀린다.
+            if (path.EndsWith(SocketPath, StringComparison.OrdinalIgnoreCase))
+                path = path.Substring(0, path.Length - SocketPath.Length);
 
             string host = trimmed;
             bool portGiven = false;
@@ -842,8 +865,8 @@ namespace Metagame.Network
             if (!portGiven)
                 port = secure ? SecurePort : DefaultServerPort;
 
-            httpUrl = (secure ? "https://" : "http://") + host + ":" + port;
-            webSocketUrl = (secure ? "wss://" : "ws://") + host + ":" + port + "/ws/game";
+            httpUrl = (secure ? "https://" : "http://") + host + ":" + port + path;
+            webSocketUrl = (secure ? "wss://" : "ws://") + host + ":" + port + path + SocketPath;
             return true;
         }
 
@@ -868,19 +891,29 @@ namespace Metagame.Network
             return trimmed.Trim();
         }
 
-        /// <summary>마지막으로 입력한 서버 주소. 없으면 <paramref name="fallback"/>, 그것도 없으면 기본값.</summary>
         /// <summary>
-        /// 어느 서버를 볼지 정한다. 평소에는 배포 서버 한 곳이다.
+        /// 어느 서버를 볼지 정한다. 우선순위는 <b>실행 인자 → 빌드 채널</b> 둘뿐이다.
         ///
-        /// 예전에는 로비 화면에서 주소를 고쳐 PlayerPrefs 에 저장했는데, 화면에서 입력칸을
-        /// 없애면서(-162) 저장값도 읽지 않는다. 한 번 잘못 저장되면 게임 안에서 고칠
-        /// 방법이 없어 로그인이 조용히 멈추기 때문이다 — 실제로 예전 LAN 테스트 값
-        /// (192.168.x.x:8081)이 남아 접속이 막힌 적이 있다.
+        /// <para>예전에는 로비 화면에서 주소를 고쳐 PlayerPrefs 에 저장했는데, 화면에서
+        /// 입력칸을 없애면서(-162) 저장값도 읽지 않는다. 한 번 잘못 저장되면 게임 안에서
+        /// 고칠 방법이 없어 로그인이 조용히 멈추기 때문이다 — 실제로 예전 LAN 테스트 값
+        /// (192.168.x.x:8081)이 남아 접속이 막힌 적이 있다.</para>
         ///
-        /// 개발자가 다른 서버를 봐야 할 때는 실행 인자로 준다:
-        /// <c>MetaGame.exe -metagame-server=127.0.0.1:8080</c>
+        /// <para><b>씬이 준 값을 더 이상 받지 않는다</b> (S15P21B202-584). 예전에는
+        /// <c>fallback</c> 인자가 있었고 그것을 <b>빌드 채널보다 먼저</b> 봤다. 그 값은
+        /// <c>LobbyBootstrap.defaultServerAddress</c> 였는데 씬에 <c>j15b202.p.ssafy.io</c>
+        /// (배포 주소)가 저장돼 있어서, <b>개발 빌드인데 로비만 배포 서버로 갔다.</b>
+        /// 방은 배포 쪽 메모리에 생기고 입장 검증은 개발 쪽으로 가 401 이 난다 —
+        /// <c>-563</c> 이 보고한 그 증상이고, <c>-573</c> 이 상수를 없앴지만 <b>씬에
+        /// 저장된 같은 값</b>이 그 일을 계속 했다(2026-09-17 nginx 로그 실측).</para>
+        ///
+        /// <para>그래서 <b>한 곳만 남긴다.</b> <see cref="Metagame.Core.BackendEndpoints.Base"/>
+        /// 는 실행 인자(<c>-backend=</c>)와 빌드 채널을 이미 반영한 값이다 — 여기서
+        /// 그것만 쓰면 <b>한 실행이 한 환경만 본다.</b> 다른 서버를 봐야 하면 인자로 준다:
+        /// <c>NotThisPlanet.exe -metagame-server=127.0.0.1:8080</c> 또는
+        /// <c>-backend=https://…/dev</c>.</para>
         /// </summary>
-        public static string ResolveServerAddress(string fallback = null)
+        public static string ResolveServerAddress()
         {
             const string argumentPrefix = "-metagame-server=";
             string[] args = Environment.GetCommandLineArgs();
@@ -892,7 +925,8 @@ namespace Metagame.Network
                 if (value.Length > 0) return value;
             }
 
-            return string.IsNullOrWhiteSpace(fallback) ? DefaultServerAddress : fallback.Trim();
+            string backend = Metagame.Core.BackendEndpoints.Base;
+            return string.IsNullOrWhiteSpace(backend) ? DefaultServerAddress : backend.Trim();
         }
 
         public static string ResolveDeviceId(string overrideValue = null)
@@ -997,12 +1031,30 @@ namespace Metagame.Network
 
         void OnApplicationQuit() => Shutdown();
 
+        /// <summary>
+        /// 판이 끝났다는 요청을 받아 한 번 더 쓸어 담는다 (S15P21B202-607).
+        ///
+        /// <para><b>플레이 중에는 오지 않는다</b> — 부르는 쪽(<c>PlayObserver</c>)이 판을
+        /// 닫으면서 부르고, 그 시점은 이미 판이 끝난 뒤다. 로그인 전이거나 이 오브젝트가
+        /// 내려가는 중이면 아무 일도 하지 않는다 — 못 보낸 것은 다음 로그인이 잡는다.</para>
+        /// </summary>
+        void SweepNow()
+        {
+            if (!IsLoggedIn || !isActiveAndEnabled) return;
+            StartCoroutine(Metagame.Core.RunLogUpload.SweepOnce(
+                Metagame.Core.BackendEndpoints.HttpBaseUrl, accessToken, UserId));
+        }
+
         void OnDestroy()
         {
             // 로그 전송 코루틴은 이 오브젝트가 돌린다. 여기서 정리하지 않으면 "돌고
             // 있다" 는 표시가 선 채로 남아 **그 프로세스가 끝날 때까지 다시는 안 돈다**
             // (S15P21B202-443).
             Metagame.Core.RunLogUpload.StopNow();
+
+            // 이 오브젝트가 없으면 요청을 받아도 코루틴을 못 돌린다. 매달린 대리자를
+            // 남기면 죽은 오브젝트를 붙잡는다 (S15P21B202-607).
+            Metagame.Core.RunLogUpload.SweepRequested = null;
 
             Shutdown();
             if (Instance == this) Instance = null;

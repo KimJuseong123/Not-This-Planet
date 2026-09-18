@@ -24,6 +24,7 @@ namespace Metagame.Gameplay
         const float ClampInteractionRange = 3f;
         const float ClampCrosshairAssistRadius = 0.14f;
         const int ClampHitBufferSize = 32;
+        readonly Collider[] _vegetationHits = new Collider[32];
 
         [SerializeField, Min(0f)]
         [Tooltip("직접 조준한 고정못의 실제 Collider 표면까지 플레이어 골반에서 클릭할 수 있는 최대 거리(m). 고정못은 특수 보정으로 처리됨")]
@@ -85,6 +86,7 @@ namespace Metagame.Gameplay
         /// 넘겨받은 자기 몸에도 참이라서, 서버와 클라이언트를 가르지 못한다.</para>
         /// </summary>
         public bool ServerAuthority = true;
+        public bool WorkstationMovementLocked { get; set; }
 
         /// <summary>조준 기준점. 카메라가 없는 서버에서도 겨냥이 가능하게 한다.</summary>
         Transform aimPivot;
@@ -95,9 +97,55 @@ namespace Metagame.Gameplay
         public Vector3 GroundVelocity { get; private set; }
         public float Speed { get; private set; }
         public float MaxHealth { get { return Tuning.MaxHealth; } }
-        public float Health { get; private set; }
+
+        float health;
+
+        /// <summary>
+        /// 지금 체력.
+        ///
+        /// <para><b>왜 대입을 세터로 모았나</b>(S15P21B202-539). 빨간 테두리가
+        /// <see cref="DamageFlash01"/> 를 읽게 바뀌면서 "이번에 얼마나 깎였나" 를
+        /// 알아야 하는데, 깎는 자리가 <see cref="ApplyDamage"/> · <see cref="GoDown"/> ·
+        /// <see cref="SetRemoteHealth"/> 로 흩어져 있다. 세 곳에 같은 줄을 넣으면
+        /// <b>한 곳이 빠진다</b> — <c>-513</c> 이 참가자 기계에서 정확히 그렇게 빠졌다.
+        /// 세터에 두면 어느 경로로 깎여도 번쩍인다.</para>
+        ///
+        /// <para>늘어나는 것은 번쩍이지 않는다 — 구조(<see cref="Revive"/>)와 판 초기화
+        /// (<see cref="ResetHealth"/>)가 그 경로다.</para>
+        /// </summary>
+        public float Health
+        {
+            get { return health; }
+            private set
+            {
+                float lost = health - value;
+                health = value;
+
+                if (lost <= 0f || MaxHealth <= 0f) return;
+
+                // 겹쳐 맞으면 더 센 쪽이 남는다. 합치면 연달아 맞을 때 1 에 붙어
+                // 버려서 "얼마나 세게 맞았나" 가 사라진다.
+                DamageFlash01 = Mathf.Max(DamageFlash01,
+                                          Mathf.Clamp01(lost / MaxHealth * Tuning.DamageFlashGain));
+            }
+        }
+
         public float Health01 { get { return MaxHealth <= 0f ? 0f : Mathf.Clamp01(Health / MaxHealth); } }
         public bool IsDead { get { return Health <= 0f; } }
+
+        /// <summary>
+        /// 피해를 받은 직후의 번쩍임 0~1. <c>GameHud</c> 의 빨간 테두리가 이것을 읽는다
+        /// (S15P21B202-539).
+        ///
+        /// <para><b>왜 체력이 아니라 이것인가.</b> 예전 테두리는 <see cref="Health01"/> 에
+        /// 정비례하는 상시 표시였다. 그런데 구조는 체력을 절반만 돌려주고
+        /// (<c>PhysicsScale.RescueHealthRatio</c>) 게임 안에 체력을 되돌리는 수단이
+        /// 없다 — <b>한 번 구조되면 판이 끝날 때까지 테두리가 남았다.</b></para>
+        ///
+        /// <para>밸런스가 아니라 표시 방식을 고친다. <c>RescueHealthRatio</c> 0.5 는
+        /// 의도된 값이다(<c>PhysicsScale</c> 의 주석).</para>
+        /// </summary>
+        public float DamageFlash01 { get; private set; }
 
         /// <summary>
         /// 기절해 쓰러져 있는가(기획 §26-13). 동료가 일으켜야 다시 움직인다.
@@ -107,6 +155,48 @@ namespace Metagame.Gameplay
         /// 낙사 처리를 그대로 쓴 것이다. 팀원이 도우러 갈 틈도 이유도 없었다.
         /// </summary>
         public bool Downed { get; private set; }
+
+        /// <summary>
+        /// 남이 나를 양손으로 들어 <b>내던져서 날아가는 중</b>인가 (기획 §20.4 ·
+        /// S15P21B202-519).
+        ///
+        /// <para><b>기절과 다르다.</b> 기절은 체력이 다한 상태이고 이것은 잠깐 날아가는
+        /// 것뿐이다. 땅에 닿으면 스스로 풀린다. 그런데 <b>시야는 같은 것이 필요하다</b> —
+        /// 몸이 구르는 대로 화면이 함께 넘어갔다가 3인칭으로 물러나는 것
+        /// (<see cref="OrbitCamera.SetDownedView"/>). 그래서 카메라는 이 둘을 합쳐
+        /// 판단한다(<see cref="BodyViewActive"/>).</para>
+        /// </summary>
+        public bool Tossed { get; private set; }
+
+        /// <summary>던져진 뒤 지난 시간(초). 착지 판정을 너무 이르게 하지 않기 위한 것.</summary>
+        public float TossedSeconds { get; private set; }
+
+        /// <summary>
+        /// 내가 동료를 던진 횟수. <b>참가자에게 던지는 동작을 알리는 값</b>이다.
+        ///
+        /// <para>던지기는 한 순간의 사건이라 "지금 던지는 중" 이라는 상태가 없다. 그래서
+        /// 이벤트(<c>ClientRpc</c>) 로 보내고 싶어지는데, 그러면 <b>패킷 하나를 잃으면
+        /// 그 동작은 영영 안 보인다.</b> 대신 <b>세어서 보내면</b> 받는 쪽이 "내가
+        /// 마지막으로 본 수보다 크다" 로 판단하므로 한 번쯤 늦게 와도 복구된다.</para>
+        /// </summary>
+        public uint TossSeq { get; private set; }
+
+        /// <summary>
+        /// 시야가 몸을 따라가야 하는가. 기절이든 던져졌든 같은 화면이 필요하다.
+        /// </summary>
+        public bool BodyViewActive => BodyOutOfControl;
+
+        /// <summary>
+        /// 몸이 내 조종을 벗어난 상태 — 기절했거나(<c>-259</c>) 던져져 날아가는
+        /// 중이다(<c>-519</c> · <c>-550</c>).
+        ///
+        /// <para><b>왜 하나로 묶나.</b> 둘은 같은 것을 뜻한다 — 넉백은 받되 입력은 없고,
+        /// 몸을 세우지 않으며, 시야는 몸을 따라 넘어갔다가 3인칭으로 물러난다.
+        /// <c>Tick</c> 의 조기 반환과 <see cref="BodyViewActive"/> 가 같은 조건을 따로
+        /// 적고 있으면 한쪽만 고치는 날이 온다.</para>
+        /// </summary>
+        public bool BodyOutOfControl => Downed || Tossed;
+
         public TransportVehicle MountedVehicle { get; private set; }
         public bool IsMounted { get { return MountedVehicle != null || RemoteRiding; } }
 
@@ -178,6 +268,74 @@ namespace Metagame.Gameplay
         /// 둘 다 돌지 않으므로 <see cref="CarryTarget"/> 이 비어 있고, 그러면
         /// <b>플래그만 맞춰도 후보가 되지 않는다</b>(잡을 지점이 없다).</para>
         /// </summary>
+        /// <summary>
+        /// 서버가 보낸 체력을 받는다 (S15P21B202-513).
+        ///
+        /// <para><b>왜 필요한가.</b> 빨간 테두리(<c>GameHud.HealthFrame</c>)는
+        /// <see cref="Health01"/> 을 읽는데, 참가자 기계에는 서버가 깎은 값이 오지
+        /// 않았다 — 실측으로 <c>NetPlayer</c> 와 <c>WorldSync</c> 둘 다에서
+        /// <c>health</c> 가 <b>0회</b>였다. 그래서 참가자에게 체력은 사실상
+        /// <b>"가득" 아니면 "기절" 둘뿐</b>이었다(운석 직격은 <c>ApplyDamage</c> 를
+        /// 거치지 않고 곧바로 <see cref="GoDown"/> 이고 <c>downed</c> 는 전송된다).</para>
+        ///
+        /// <para><b>0~1 이 아니라 절댓값을 받는다.</b> <see cref="IsDead"/> 가
+        /// <c>Health &lt;= 0</c> 이라, 비율만 받으면 그 값이 여전히 로컬로 남아
+        /// 어긋난다 — <c>DamageSource</c> 와 <c>Stage1DustStormFragment</c> 가
+        /// <c>IsDead</c> 로 피해를 거르므로, 서버가 기절시킨 사람을 참가자 기계에서
+        /// 계속 때리게 된다.</para>
+        ///
+        /// <para><b>권위가 있는 몸은 무시한다.</b> 호스트·혼자 실행에서는 자기 판정이
+        /// 정답이고, 받은 값으로 덮으면 값이 두 곳에서 오게 된다
+        /// (<c>-383</c>). <see cref="SetRemoteBeingRescued"/> 와 같은 규칙이다.</para>
+        /// </summary>
+        public void SetRemoteHealth(float nowHealth)
+        {
+            if (ServerAuthority) return;
+
+            Health = Mathf.Clamp(nowHealth, 0f, MaxHealth);
+        }
+
+        /// <summary>
+        /// 서버가 "너는 지금 던져져 날아가는 중" 이라고 알려 준 것을 받는다
+        /// (S15P21B202-519).
+        ///
+        /// <para><b>권위가 있는 몸은 무시한다.</b> <see cref="SetRemoteHealth"/> 와 같은
+        /// 규칙이다 — 호스트는 자기 판정이 정답이고, 받은 값으로 덮으면 두 곳에서 정하는
+        /// 것이 되어 갈라진다(<c>-383</c> · <c>-513</c>).</para>
+        ///
+        /// <para><b>카메라까지 여기서 바꾼다.</b> <c>-511</c> 이 기절에서 겪은 것과 같은
+        /// 자리다 — 값은 내려오는데 받는 쪽이 플래그만 세우고 카메라를 안 바꾸면
+        /// "호스트만 3인칭" 이 된다(QA 유형 M).</para>
+        /// </summary>
+        public void SetRemoteTossed(bool nowTossed)
+        {
+            if (ServerAuthority) return;
+            if (Tossed == nowTossed && Doll != null) return;
+
+            Tossed = nowTossed;
+            if (!nowTossed) TossedSeconds = 0f;
+
+            RefreshDownedCamera();
+            RefreshDollVisibility();
+        }
+
+        /// <summary>
+        /// 남의 몸에 자세를 반영한다 (S15P21B202-616).
+        ///
+        /// <para><b>서버에서는 하지 않는다</b> — <see cref="SetRemoteDowned"/> 와 같은
+        /// 이유다. 서버의 몸이 진짜 상태이고, 한 틱 늦은 SyncVar 값이 방금 바뀐
+        /// 상태를 지울 수 있다.</para>
+        ///
+        /// <para>이게 없으면 <b>남의 화면에서 그 사람의 <see cref="Balance"/> 와
+        /// <see cref="Hover"/> 가 선 자세를 목표로 잡는다.</b> 골반 위치는 서버가
+        /// 보내 주지만 팔다리는 각자 기계의 조인트가 잡으므로 자세가 어긋난다.</para>
+        /// </summary>
+        public void SetRemoteProne(bool value)
+        {
+            Prone = value;
+            proneHeldLast = false;
+        }
+
         public void SetRemoteDowned(bool nowDowned)
         {
             // 인형이 아직 없을 때를 같은 값으로 걸러내면 안 된다 — 플래그만 남고
@@ -189,6 +347,18 @@ namespace Metagame.Gameplay
 
             RefreshRescueTarget();
             RefreshCarryTarget();
+
+            // **참가자 본인의 기절 카메라 전환**(S15P21B202-511). 예전에는 여기에
+            // 없어서 참가자는 죽어도 1인칭 그대로였다 — 실측으로 `Downed=True` 인데
+            // `DownedView=False` 였다. 값은 잘 내려오고 구조 지점·잡을 지점도 켜지는데
+            // 카메라만 안 바뀌었다.
+            //
+            // S15P21B202-378 이 "넉백·장비 해제·레이어·카메라는 여기서 하지 않는다 —
+            // 서버 권위다" 로 넷을 묶었는데, **셋은 맞고 하나는 틀리다.** 카메라는
+            // 각자 화면의 일이라 남이 볼 일도 서버가 알 일도 없다. 같은 문장에 들어
+            // 있어서 함께 빠졌고, 그 주석 스스로 "따로 봐야 한다" 고 적어 두었다.
+            RefreshDownedCamera();
+
             RefreshDollVisibility();
 
             // **이 기계가 남의 기절을 받았는지 남긴다** (S15P21B202-414).
@@ -228,6 +398,51 @@ namespace Metagame.Gameplay
         public float StepPhase { get; private set; }
         /// <summary>현재 캐릭터가 유지하는 수평 정면. 이동 방향과 독립적으로 카메라를 따른다.</summary>
         public Vector3 FacingDirection { get { return faceDir; } }
+
+        /// <summary>
+        /// 제 발로 엎드려 있는가 (S15P21B202-616).
+        ///
+        /// <para><b><see cref="Ragdolled"/> 와 다르다.</b> 저쪽은 "자빠졌다" 이고
+        /// 이쪽은 "엎드리기로 했다" 다. 엎드리면 머리가 골반보다 낮아져
+        /// <see cref="Ragdolled"/> 가 <b>저절로 켜지는데</b>, 그러면 조종을 잃어
+        /// 기어갈 수가 없다 — 그래서 그 계산에서 이 상태를 뺀다.</para>
+        ///
+        /// <para>폭풍 면제의 근거이기도 하다. 물리는 서버가 도므로
+        /// (S15P21B202-145) 이 값을 서버가 갖고 있어야 판정이 갈리지 않는다 —
+        /// 그래서 토글 처리는 <see cref="Tick"/>(양쪽에서 도는 자리)에서 하고,
+        /// 누름이 아니라 <b>눌린 상태</b>를 받아 가장자리를 여기서 잡는다.</para>
+        /// </summary>
+        public bool Prone { get; private set; }
+        bool proneHeldLast;
+
+        /// <summary>엎드린 채 기어가는 속도(m/s). 걷기 2.9 의 31% — 일반적인 게임의 포복 속도.</summary>
+        public const float CrawlSpeed = 0.9f;
+
+        /// <summary>엎드렸을 때 골반이 떠 있는 높이(m). 선 자세는 <see cref="Tuning.RideHeight"/> 0.30 이다.</summary>
+        public const float ProneRideHeight = 0.13f;
+
+        /// <summary>엎드린 몸통이 앞으로 기운 각도. 90 이면 완전히 수평이다.</summary>
+        const float PronePitch = 84f;
+
+        /// <summary>
+        /// 춤 때문에 몸이 시점을 안 따라가는 상태인가 (S15P21B202-596).
+        ///
+        /// <para><b>춤 클립은 뿌리를 돌리지 않는다</b>(<c>applyRootMotion = false</c>).
+        /// 허리·척추를 최대 ±76도 비틀 뿐이고, 캐릭터의 세계 방향은 전부
+        /// <see cref="faceDir"/> 다. 그 <see cref="faceDir"/> 이 춤 중에도 시정수
+        /// 1/7초로 카메라를 쫓으면 비틀린 상체 위에 골반까지 돌아 <b>미리보기와 다른
+        /// 그림</b>이 된다 — 실제로 그 지적을 받았다.</para>
+        ///
+        /// <para><b>물리는 서버가 돈다</b>(S15P21B202-145, <c>RemoteAvatar</c>).
+        /// 남의 화면에 보이는 골반 회전은 서버가 보낸 것이므로, 이 판단이 서버에서도
+        /// 같아야 한다. 그래서 카메라가 아니라 <b>몸이 실제로 춤 클립을 돌리고
+        /// 있는가</b>를 본다 — 서버도 <c>CmdPlayDance</c> 에서 같은 <c>Suit</c> 로
+        /// 춤을 켜므로 양쪽이 같은 답을 낸다.</para>
+        /// </summary>
+        public bool DanceHolding
+        {
+            get { return Doll != null && Doll.Suit != null && Doll.Suit.DanceActive; }
+        }
         /// <summary>현재 실제 수평 이동을 캐릭터 정면 기준 좌우·전후로 나타낸 값.</summary>
         public Vector2 MovementDirectionLocal { get { return movementDirectionLocal; } }
 
@@ -365,6 +580,9 @@ namespace Metagame.Gameplay
         /// 이미 수평을 그렇게 다루고 있어 세로도 같은 방식으로 맞췄다.
         /// </summary>
         public bool Floating { get; private set; }
+        public bool Swimming { get; private set; }
+        public bool InWater => water != null;
+        DrainageWater water;
         public Grabbable HeldTool { get { return toolHeld; } }
         // 서버의 장착/입력 권한과 별개인 화면 표시 연결. 참가자에게도 설정된다.
         public ToolBase PresentationTool { get; internal set; }
@@ -924,7 +1142,8 @@ namespace Metagame.Gameplay
                                             0f, Tuning.ArmReach + Tuning.GrabAssistRange);
                     probePoint = origin + forward * depth;
                 }
-                var point = collider.ClosestPoint(probePoint);
+                var pointReach = isSpecial ? Tuning.SpecialGrabAssistRadius : Tuning.GrabAssistRange;
+                if (!Hand.TryGetGripPoint(collider, probePoint, pointReach, out var point)) continue;
                 var centerDistance = Vector3.Distance(center, point);
                 var distance = Vector3.Distance(origin, point);
                 var angle = AngleFrom(origin, forward, point);
@@ -1046,9 +1265,42 @@ namespace Metagame.Gameplay
             Health = MaxHealth;
         }
 
-        /// <summary>외부 피해 오브젝트와 낙하 판정이 공통으로 사용하는 피해 진입점.</summary>
+        /// <summary>
+        /// 피해 번쩍임을 식힌다 (S15P21B202-539).
+        ///
+        /// <para>매 고정틱 <c>Time.fixedDeltaTime</c> 을 적산한다 — <see cref="TickRescue"/> ·
+        /// <see cref="TickTossed"/> 와 같은 규칙이다. 시간을 인수로 받지 않는 이유도 같다.</para>
+        ///
+        /// <para>0 에 닿으면 <c>GameHud.HealthFrameStrength</c> 가 테두리를 그리지 않는다.
+        /// <see cref="Mathf.MoveTowards"/> 라 0 을 지나치지 않는다 — 음수가 되면
+        /// 테두리 두께 보간이 뒤집힌다.</para>
+        /// </summary>
+        void TickDamageFlash()
+        {
+            if (DamageFlash01 <= 0f) return;
+
+            DamageFlash01 = Mathf.MoveTowards(DamageFlash01, 0f,
+                                              Time.fixedDeltaTime / Tuning.DamageFlashSeconds);
+        }
+
+        /// <summary>
+        /// 외부 피해 오브젝트와 낙하 판정이 공통으로 사용하는 피해 진입점.
+        ///
+        /// <para><b>판정은 서버가 한다</b>(S15P21B202-513). 예전에는 권한 게이트가 없어서
+        /// 참가자 기계의 트리거(<c>DamageSource</c> · <c>Stage1DustStormFragment</c>)가
+        /// 자기 몸에 닿으면 <b>로컬에서만 체력이 깎였다</b> — 실측으로
+        /// <c>ServerAuthority=False</c> 인데 <c>Health01</c> 이 1.000 → 0.700 이 됐다.</para>
+        ///
+        /// <para>체력을 전송하기 시작하면 그 값과 <b>싸운다</b> — 서버 값이 내려오는데
+        /// 로컬에서도 깎으면 화면이 깜빡인다. <c>-383</c> 의 "판정을 두 곳에 두면 반드시
+        /// 갈라진다" 이고, <b>전송과 이 게이트는 짝이다.</b></para>
+        ///
+        /// <para>혼자 실행·호스트에서는 <see cref="ServerAuthority"/> 가 참이라 그대로
+        /// 돈다.</para>
+        /// </summary>
         public void ApplyDamage(float amount, string source = "피해")
         {
+            if (!ServerAuthority) return;
             if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
             if (IsDead || float.IsNaN(amount) || float.IsInfinity(amount) || amount <= 0f) return;
 
@@ -1084,8 +1336,8 @@ namespace Metagame.Gameplay
             RefreshCarryTarget();
 
             // 시야가 몸과 함께 넘어간 뒤 3인칭으로 물러난다(기획 §10.1 · §10.3,
-            // S15P21B202-259). 머리 본을 넘기는 이유는 OrbitCamera 쪽에 적었다.
-            if (Cam != null) Cam.SetDownedView(true, Doll?.Head?.transform);
+            // S15P21B202-259). 규칙은 RefreshDownedCamera 한 곳에 있다.
+            RefreshDownedCamera();
 
             // 시점이 바뀌었으니 몸을 그릴지 다시 정한다(S15P21B202-267).
             RefreshDollVisibility();
@@ -1129,7 +1381,7 @@ namespace Metagame.Gameplay
             RefreshCarryTarget();
 
             // 기획 §10.3 "구조되면 1인칭으로 돌아온다".
-            if (Cam != null) Cam.SetDownedView(false);
+            RefreshDownedCamera();
 
             RefreshDollVisibility();
         }
@@ -1274,6 +1526,382 @@ namespace Metagame.Gameplay
             return null;
         }
 
+        // ── 동료 던지기 (기획 §20.4 · S15P21B202-519) ───────────────────────
+
+        /// <summary>
+        /// 지금 <b>양손으로</b> 잡고 있어서 던질 수 있는 동료. 아니면 null.
+        ///
+        /// <para><b>양손이어야 한다.</b> 동작 자체가 양손으로 허리를 잡아 머리 위로
+        /// 넘기는 것이라(<c>Rabbit_TossUp</c>) 한 손으로 되면 그림과 규칙이 어긋난다.
+        /// 도구도 같은 규칙을 쓴다 — "도구는 반드시 양손이 같은 대상을 잡고 있어야
+        /// 한다".</para>
+        /// </summary>
+        public PlayerRig TossVictim
+        {
+            get
+            {
+                var left = OwnerOfHeldGrabPoint(LeftHand);
+                return left != null && left == OwnerOfHeldGrabPoint(RightHand) ? left : null;
+            }
+        }
+
+        /// <summary>
+        /// 던지기 충전 진행(0~1). HUD 가 도구 충전과 같은 자리에 그린다.
+        ///
+        /// <para><b>서버만 이 값을 만든다.</b> 참가자 화면의 값은
+        /// <see cref="SetRemoteTossCharge"/> 로 내려온다 — <c>-448</c> 의
+        /// <c>rescueProgress</c> 와 같은 판단이다. 충전을 참가자가 스스로 세게 하면
+        /// 두 곳에서 정하는 것이 되고(<c>-383</c>), 무엇보다 <b>참가자 기계에 그 조인트가
+        /// 있는지에 기대게 된다</b> — 잡기 판정은 서버가 하므로 믿을 근거가 없다.</para>
+        /// </summary>
+        public float TossCharge01 { get { return tossCharge; } }
+
+        /// <summary>지금 동료를 던지려고 충전 중인가. HUD 가 게이지를 그릴지 정한다.</summary>
+        public bool ChargingToss => tossCharge > 0f;
+
+        /// <summary>
+        /// 서버가 센 충전 진행을 받는다 (S15P21B202-519). 권위가 있는 몸은 무시한다 —
+        /// <see cref="SetRemoteHealth"/> · <see cref="SetRemoteBeingRescued"/> 와 같은 규칙.
+        /// </summary>
+        public void SetRemoteTossCharge(float nowCharge)
+        {
+            if (ServerAuthority) return;
+
+            tossCharge = Mathf.Clamp01(nowCharge);
+        }
+
+        float tossCharge;
+        bool tossActionHeld;
+        PlayerRig pendingTossVictim;
+
+        /// <summary>넘어가는 빠르기를 정할 충전량 (S15P21B202-551).</summary>
+        float pendingTossCharge = 1f;
+        Vector3 pendingTossVelocity;
+
+        /// <summary>
+        /// 충전한 만큼의 세기. <b>0 에서 시작하지 않는다</b> — 문턱만 넘겨 툭 던져도
+        /// 사람이 떠야 한다. 완전히 비례시키면 짧게 누른 던지기가 제자리 놓기와
+        /// 구별되지 않는다.
+        /// </summary>
+        public static float TossStrength(float charge01) =>
+            Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(charge01));
+
+        /// <summary>
+        /// 던져지는 속도. <b>위가 크고 앞이 작다</b> — "높으면서 살짝 앞으로".
+        ///
+        /// <para>앞 성분은 <b>수평으로 눕힌다.</b> 조준을 그대로 쓰면 하늘을 보고 던질 때
+        /// 위 성분이 두 번 더해져 천장까지 날아가고, 땅을 보고 던지면 서로 상쇄되어
+        /// 제자리에 떨어진다.</para>
+        /// </summary>
+        public static Vector3 TossVelocity(Vector3 aim, float charge01)
+        {
+            var forward = aim;
+            forward.y = 0f;
+            forward = forward.sqrMagnitude > 1e-4f ? forward.normalized : Vector3.zero;
+
+            var strength = TossStrength(charge01);
+            return Vector3.up * (Tuning.TossUpSpeed * strength)
+                   + forward * (Tuning.TossForwardSpeed * strength);
+        }
+
+        // ── 동료를 시선으로 끌기 (S15P21B202-555) ──────────────────
+
+        /// <summary>
+        /// 지금 들고 있는가(끌기가 아니라). <b>히스테리시스가 있다</b> — 들어가는 문턱과
+        /// 나오는 문턱이 다르다.
+        ///
+        /// <para>문턱이 하나면 그 경계에서 고개가 조금만 흔들려도 몸이 떴다 내렸다 한다.
+        /// 저중력장이 <c>-538</c> 에서 겪은 떨림과 원인이 다르지만 보기에는 같다.</para>
+        /// </summary>
+        public static bool TeammateLifted(float aimUp, bool wasLifted) =>
+            wasLifted ? aimUp > PhysicsScale.TeammateLiftExit
+                      : aimUp > PhysicsScale.TeammateLiftEnter;
+
+        /// <summary>
+        /// 끌어올 높이(m, 잡은 사람의 발 기준). 고개를 내렸으면 땅에 끌리는 높이,
+        /// 올렸으면 <b>올려다볼수록 더 높이</b>.
+        /// </summary>
+        public static float TeammateHoldHeight(float aimUp, bool lifted)
+        {
+            if (!lifted) return PhysicsScale.TeammateDragHeight;
+
+            var t = Mathf.InverseLerp(PhysicsScale.TeammateLiftEnter, 1f, aimUp);
+            return Mathf.Lerp(PhysicsScale.TeammateLiftHeightLow,
+                              PhysicsScale.TeammateLiftHeightHigh, t);
+        }
+
+        /// <summary>
+        /// 끌어올 자리. 잡은 사람의 <b>발</b>에서 조준의 수평 방향으로 떨어진 곳이다.
+        ///
+        /// <para><b>발을 기준으로 잡는다.</b> 눈이나 골반에서 재면 잡은 사람이 점프하거나
+        /// 경사에 서는 것만으로 동료의 높이가 따라 흔들린다 — "고개 높이로 정한다" 는
+        /// 규칙이 무너진다.</para>
+        /// </summary>
+        public static Vector3 TeammateHoldPoint(Vector3 holderFoot, Vector3 aim, float height)
+        {
+            var forward = aim;
+            forward.y = 0f;
+            forward = forward.sqrMagnitude > 1e-4f ? forward.normalized : Vector3.forward;
+
+            return holderFoot + forward * PhysicsScale.TeammateHoldDistance
+                   + Vector3.up * height;
+        }
+
+        /// <summary>
+        /// 끌어오는 가속. 스프링-댐퍼이고 상한이 있다.
+        ///
+        /// <para><c>ForceMode.Acceleration</c> 으로 쓸 값이라 질량과 무관하다 — 저중력장이
+        /// 같은 이유로 그렇게 한다. 상한이 없으면 두 몸이 서로 밀며 튄다.</para>
+        /// </summary>
+        public static Vector3 TeammatePull(Vector3 from, Vector3 to, Vector3 velocity, float scale)
+        {
+            var accel = (to - from) * PhysicsScale.TeammatePullAccel
+                        - velocity * PhysicsScale.TeammatePullDamp;
+
+            return Vector3.ClampMagnitude(accel * scale, PhysicsScale.TeammatePullMaxAccel);
+        }
+
+        /// <summary>
+        /// 잡힌 쪽이 <b>반대로 버티고</b> 있는가. 옆으로 걷는 정도로는 저항이 아니다.
+        /// </summary>
+        public static bool TeammateResisting(Vector3 victimWish, Vector3 pullDirection)
+        {
+            if (victimWish.sqrMagnitude < 0.01f) return false;
+
+            var pull = pullDirection;
+            pull.y = 0f;
+            if (pull.sqrMagnitude < 1e-4f) return false;
+
+            var wish = victimWish;
+            wish.y = 0f;
+            if (wish.sqrMagnitude < 1e-4f) return false;
+
+            return Vector3.Dot(wish.normalized, pull.normalized) < PhysicsScale.TeammateResistDot;
+        }
+
+        /// <summary>들고 있는가. 표시와 검증이 읽는다.</summary>
+        public bool CarryLifted { get; private set; }
+
+        /// <summary>잡힌 동료가 버틴 시간(초). <see cref="PhysicsScale.TeammateResistSeconds"/> 에서 손이 풀린다.</summary>
+        public float CarryResistSeconds { get; private set; }
+
+        /// <summary>
+        /// 잡은 동료를 조준 방향으로 끌어온다 (S15P21B202-555).
+        ///
+        /// <para><b>서버만 한다.</b> 잡기 판정이 서버에 있으므로 참가자 기계의 내 손에 그
+        /// 조인트가 있다고 믿을 근거가 없다 — 충전 게이지가 <c>-519</c> 에서 같은 판단을
+        /// 했다. 조준은 <c>CmdSendInput</c> 으로 이미 올라오므로 <b>추가 전송이 없다</b>.</para>
+        /// </summary>
+        void PullTeammate(PlayerRig victim, Vector3 aim)
+        {
+            if (victim == null || victim.Doll == null || victim.Doll.Hips == null) return;
+
+            var aimUp = aim.sqrMagnitude > 1e-4f ? aim.normalized.y : 0f;
+            CarryLifted = TeammateLifted(aimUp, CarryLifted);
+
+            var target = TeammateHoldPoint(FootPosition, aim,
+                                           TeammateHoldHeight(aimUp, CarryLifted));
+
+            var hips = victim.Doll.Hips;
+            var pullDirection = target - hips.position;
+
+            if (TeammateResisting(victim.MoveWish, pullDirection))
+                CarryResistSeconds += Time.fixedDeltaTime;
+            else
+                CarryResistSeconds = 0f;
+
+            // 버티는 데 끝이 있어야 한다. 없으면 잡힌 쪽이 빠져나갈 방법이 사라진다.
+            if (CarryResistSeconds >= PhysicsScale.TeammateResistSeconds)
+            {
+                ReleaseHand(LeftHand, HandReleaseReason.Throw);
+                ReleaseHand(RightHand, HandReleaseReason.Throw);
+                CarryResistSeconds = 0f;
+                CarryLifted = false;
+                return;
+            }
+
+            var scale = CarryResistSeconds > 0f ? PhysicsScale.TeammateResistPullScale : 1f;
+            var pull = TeammatePull(hips.position, target, hips.linearVelocity, scale);
+            if (!JointTools.IsFinite(pull)) return;
+
+            // 골반과 가슴에 나눠 준다. 골반에만 주면 상체가 뒤로 끌리며 접힌다 —
+            // 잡힌 쪽 이동이 이미 같은 비율(0.6 / 0.4)을 쓴다.
+            hips.AddForce(pull * 0.6f, ForceMode.Acceleration);
+            if (victim.Doll.Chest != null)
+                victim.Doll.Chest.AddForce(pull * 0.4f, ForceMode.Acceleration);
+        }
+
+        /// <summary>
+        /// 양손으로 동료를 잡고 있는 동안의 Q 처리. 처리했으면 참을 돌려 팔 구동을 넘긴다.
+        ///
+        /// <para><b>판정은 서버만 한다.</b> 물리는 서버에서만 돌고(<c>-145</c>) 입력은
+        /// <c>CmdSendInput</c> 으로 이미 올라간다 — 참가자가 여기서 스스로 던지면 같은
+        /// 던지기가 두 번 일어난다(<c>-513</c> 이 체력에서 겪은 것과 같은 갈라짐).</para>
+        /// </summary>
+        bool ProcessTeammateToss(Vector3 aim)
+        {
+            var victim = TossVictim;
+            if (victim == null)
+            {
+                // **참가자 화면에서는 지우지 않는다.** 잡기 판정은 서버가 하므로 참가자
+                // 기계의 내 손에는 그 조인트가 없을 수 있고, 그러면 여기서 매 틱 0 을
+                // 써서 서버가 보낸 게이지를 지운다 — 게이지가 호스트에만 보이게 된다.
+                if (ServerAuthority)
+                {
+                    tossCharge = 0f;
+                    tossActionHeld = false;
+                    CarryResistSeconds = 0f;
+                    CarryLifted = false;
+                }
+                return false;
+            }
+
+            // 잡고 있는 동안 두 팔은 그 대상을 향해 둔다. 도구를 들었을 때와 같다.
+            DriveArm(Doll.Left, true, aim);
+            DriveArm(Doll.Right, true, aim);
+
+            if (!ServerAuthority) return true;
+
+            // 잡고 있는 동안 계속 끌어온다(S15P21B202-555). 충전·던지기보다 앞에 둔다 —
+            // 던진 뒤에는 잡은 것이 없으므로 이 아래 분기들이 먼저 돌면 한 틱이 어긋난다.
+            PullTeammate(victim, aim);
+
+            if (GetToolUtilityHeld())
+            {
+                tossCharge = Mathf.Clamp01(tossCharge + Time.fixedDeltaTime / Tuning.ToolChargeDuration);
+                tossActionHeld = true;
+                return true;
+            }
+
+            if (!tossActionHeld) return true;
+
+            if (tossCharge >= Tuning.TossChargeThreshold) TossTeammate(victim, aim, tossCharge);
+
+            tossCharge = 0f;
+            tossActionHeld = false;
+            return true;
+        }
+
+        void TossTeammate(PlayerRig victim, Vector3 aim, float charge)
+        {
+            if (!ServerAuthority || victim == null) return;
+
+            ReleaseHand(LeftHand, HandReleaseReason.Throw);
+            ReleaseHand(RightHand, HandReleaseReason.Throw);
+            toolThrowRegrabLock = Tuning.ToolThrowRegrabLock;
+
+            var direction = aim.sqrMagnitude > 1e-4f ? aim : Doll.Chest.transform.forward;
+
+            // **한 틱 늦춘다.** 바로 위 도구 투척이 같은 이유로 그렇게 한다 — 놓은
+            // 조인트는 다음 틱에 사라지므로, 지금 속도를 넣으면 구속이 먹어 버린다.
+            pendingTossVictim = victim;
+            pendingTossVelocity = TossVelocity(direction, charge);
+            pendingTossCharge = charge;
+
+            TossSeq++;
+
+            // 호스트 화면의 던지는 그림. 참가자 화면은 NetPlayer 가 tossSeq 로 켠다.
+            Doll?.Suit?.PlayToss();
+
+            Debug.Log($"[NotThisPlanet][던지기] {Nickname} → {victim.Nickname}"
+                      + $" · 충전={charge:F2} · 속도={pendingTossVelocity}");
+        }
+
+        /// <summary>
+        /// 던져져 날아가기 시작한다. <b>서버에서만</b> 불린다.
+        ///
+        /// <para>속도는 <see cref="Doll.Bodies"/> 전부에 넣는다. 골반에만 넣으면 나머지
+        /// 부위가 조인트에 끌려가며 몸이 늘어나 보인다.</para>
+        /// </summary>
+        /// <summary>
+        /// 던져진 몸이 넘어갈 축과 빠르기 (S15P21B202-551).
+        ///
+        /// <para><b>앞구르기다.</b> 날아가는 방향을 축으로 삼으면 꼬치처럼 제자리에서 돌고,
+        /// 위를 축으로 삼으면 팽이가 된다. 넘어가 보이려면 <b>가는 방향과 위, 둘 다에
+        /// 수직인 축</b>이어야 한다.</para>
+        ///
+        /// <para>빠르기는 던진 세기를 따른다 — 살짝 던지면 조금 기울고 꽉 채우면 한 바퀴
+        /// 넘어간다. 위로만 던져 앞 성분이 없으면 <paramref name="fallbackRight"/> 로
+        /// 축을 잡는다(몸의 오른쪽). 그것마저 없으면 회전을 주지 않는다 — 아무 축이나
+        /// 고르면 던질 때마다 다르게 돈다.</para>
+        /// </summary>
+        public static Vector3 TossSpin(Vector3 velocity, float charge01, Vector3 fallbackRight)
+        {
+            var forward = velocity;
+            forward.y = 0f;
+
+            var axis = forward.sqrMagnitude > 1e-4f
+                ? Vector3.Cross(Vector3.up, forward.normalized)
+                : fallbackRight;
+
+            if (axis.sqrMagnitude < 1e-4f) return Vector3.zero;
+
+            return axis.normalized * (Tuning.TossSpinSpeed * TossStrength(charge01));
+        }
+
+        public void LaunchTossed(Vector3 velocity) => LaunchTossed(velocity, 1f);
+
+        public void LaunchTossed(Vector3 velocity, float charge01)
+        {
+            if (!ServerAuthority) return;
+
+            // 나를 잡고 있던 손이 하나라도 남아 있으면 조인트가 도로 끌어당긴다.
+            ReleaseCarriersOf(CarryTarget);
+
+            Tossed = true;
+            TossedSeconds = 0f;
+
+            if (Doll != null)
+            {
+                for (var i = 0; i < Doll.Bodies.Count; i++)
+                {
+                    var body = Doll.Bodies[i];
+                    if (body == null || body.isKinematic) continue;
+
+                    var horizontal = body.linearVelocity;
+                    horizontal.y = 0f;
+                    body.linearVelocity = horizontal + velocity;
+                }
+
+                // 넘어가게 한다(S15P21B202-551). 속도와 같은 이유로 **부위 전부**에 넣는다 —
+                // 골반에만 넣으면 나머지가 조인트에 끌려가며 몸이 늘어져 보인다.
+                var spin = TossSpin(velocity, charge01,
+                                    Doll.Hips != null ? Doll.Hips.transform.right : Vector3.right);
+                if (spin.sqrMagnitude > 1e-6f)
+                {
+                    for (var i = 0; i < Doll.Bodies.Count; i++)
+                    {
+                        var body = Doll.Bodies[i];
+                        if (body == null || body.isKinematic) continue;
+                        body.angularVelocity = spin;
+                    }
+                }
+            }
+
+            RefreshDownedCamera();
+            RefreshDollVisibility();
+        }
+
+        /// <summary>
+        /// 날아가는 것이 끝났는지 본다. <b>최소 시간을 두는 이유</b>는
+        /// <see cref="Tuning.TossedMinSeconds"/> 에 적었다 — 발이 아직 땅에 있는
+        /// 그 틱에 <see cref="Grounded"/> 를 읽으면 던지자마자 끝난다.
+        /// </summary>
+        void TickTossed()
+        {
+            if (!Tossed) return;
+
+            TossedSeconds += Time.fixedDeltaTime;
+
+            if (!ServerAuthority) return;
+            if (TossedSeconds < Tuning.TossedMinSeconds || !Grounded) return;
+
+            Tossed = false;
+            TossedSeconds = 0f;
+            RefreshDownedCamera();
+            RefreshDollVisibility();
+        }
+
         /// <summary>
         /// 조준 앞의 동료를 후보로 넣는다(기획 §20.4 · S15P21B202-442).
         ///
@@ -1369,6 +1997,9 @@ namespace Metagame.Gameplay
             ReleaseCarriersOf(CarryTarget);
 
             Doll.Teleport(footPos + Vector3.up * RagdollBuilder.HipsY, facing);
+            water = null;
+            Swimming = false;
+            UpdateFloating();
             faceDir = facing * Vector3.forward;
             movementDirectionLocal = Vector2.zero;
             uprightBlend = 1f;
@@ -1686,6 +2317,39 @@ namespace Metagame.Gameplay
         ///
         /// <see cref="Cam"/> 이 null 인 원격 플레이어는 그대로 보인다.
         /// </summary>
+        /// <summary>
+        /// 기절 시점(1인칭 ↔ 3인칭)을 지금 상태에 맞춘다 (S15P21B202-511).
+        ///
+        /// <para><b>규칙을 한 곳에 둔다.</b> 예전에는 <see cref="GoDown"/> 과
+        /// <see cref="Revive"/> 안에 <c>Cam.SetDownedView(...)</c> 가 각각 인라인으로
+        /// 있었고, <see cref="SetRemoteDowned"/> 에는 아무것도 없었다. 그래서 참가자
+        /// 기계에서는 — <c>GoDown</c>·<c>Revive</c> 가 돌지 않으므로 — <b>죽어도
+        /// 1인칭 그대로였다.</b></para>
+        ///
+        /// <para><b>남의 몸은 저절로 걸러진다.</b> <see cref="Cam"/> 은
+        /// <c>SpaceBootstrap</c> 이 <b>로컬 플레이어 하나에만</b> 붙인다 — 원격 몸의
+        /// 카메라는 <c>null</c> 이다. 그래서 "내 것일 때만" 같은 조건을 따로 두지
+        /// 않는다.</para>
+        ///
+        /// <para><b>여러 번 불려도 안전하다.</b>
+        /// <see cref="OrbitCamera.SetDownedView"/> 의 첫 줄이
+        /// <c>if (on == downedView) return;</c> 이다.</para>
+        ///
+        /// <para>머리 본을 넘기는 이유는 <c>OrbitCamera</c> 쪽에 적었다 — 그 회전을
+        /// 따라가야 시야가 몸과 함께 넘어간다(S15P21B202-259).</para>
+        /// </summary>
+        void RefreshDownedCamera()
+        {
+            if (Cam == null) return;
+
+            // 기절과 던져짐을 함께 본다(S15P21B202-519). 둘 다 "몸이 구르는 대로 화면이
+            // 넘어갔다가 3인칭으로 물러난다" 로 같고, 카메라 쪽에 상태를 하나 더 만들면
+            // 저장·복원이 두 벌이 되어 서로의 값을 덮는다 — SetDownedView 안의
+            // pushView·vehicleView 처리가 이미 그 문제를 적어 두었다.
+            var on = BodyViewActive;
+            Cam.SetDownedView(on, on ? Doll?.Head?.transform : null);
+        }
+
         void RefreshDollVisibility()
         {
             if (Doll == null) return;
@@ -1870,6 +2534,18 @@ namespace Metagame.Gameplay
         public void Tick()
         {
             if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
+            if (WorkstationMovementLocked)
+            {
+                input.Move = Vector2.zero;
+                input.Jump = input.GrabLeft = input.GrabRight = false;
+                input.ToolPrimary = input.ToolSecondary = false;
+            }
+
+            // 피해 번쩍임을 식힌다 (S15P21B202-539). 아래 게이지들보다 앞에 두는 이유는
+            // 뒤쪽 이른 반환(Doll 이 아직 없거나 Hips 좌표가 망가진 틱) 때문이다 —
+            // 그 뒤에 두면 그런 틱에 번쩍임이 식지 않고 화면에 얼어붙는다.
+            TickDamageFlash();
+
             SyncCameraTilt();
 
             // 파츠 밀기 상태를 먼저 갱신한다 — 아래 Locomotion 이 이 값으로 이동
@@ -1878,6 +2554,7 @@ namespace Metagame.Gameplay
 
             if (Doll == null || Doll.Hips == null) return;
             if (!JointTools.IsFinite(Doll.Hips.position)) { return; }
+            ReleaseProneIfTaken();
 
             RefreshInteractionFocus();
 
@@ -1890,6 +2567,10 @@ namespace Metagame.Gameplay
             // 진행분을 쌓은 뒤에 읽어야 같은 틱의 값이 나온다.
             RefreshBeingRescued();
 
+            // 던져져 날아가는 중인지 센다(S15P21B202-519). 기절 게이지와 같은 줄에
+            // 두는 이유도 같다 — 매 고정틱 돌아야 시간이 맞는다.
+            TickTossed();
+
             // 기절 5초 뒤 3인칭으로 물러나는 것처럼(S15P21B202-259) 카메라가 스스로 시점을
             // 바꾸는 경우가 있다. 기절 중에도 돌아야 하므로 아래 조기 반환보다 앞이다.
             RefreshDollVisibilityIfViewChanged();
@@ -1901,10 +2582,19 @@ namespace Metagame.Gameplay
                 pendingThrowBody = null;
             }
 
+            // 던져진 동료도 같은 이유로 한 틱 늦춘다(S15P21B202-519). 잡고 있던 손의
+            // 조인트가 사라지기 전에 속도를 넣으면 구속이 그것을 먹는다.
+            if (pendingTossVictim != null)
+            {
+                pendingTossVictim.LaunchTossed(pendingTossVelocity, pendingTossCharge);
+                pendingTossVictim = null;
+            }
+
             // 몸이 탈것에 붙어 있으면 보행 물리를 돌리지 않는다. 돌리면 부양·이동력이
             // 좌석과 싸운다. 운반 장치는 제 속도를 알려 주고, 우주선은 강체에서 읽는다.
             if (IsRiding)
             {
+                UpdateFloating();
                 // 적어 둔 상대 자세로 몸을 옮긴다 (S15P21B202-434). 보행 물리를 건너뛰는
                 // 이 분기 안에 둔다 — 걷기와 좌석이 같은 스텝에 몸을 두 번 옮기면 안 된다.
                 HoldSeat();
@@ -1936,11 +2626,25 @@ namespace Metagame.Gameplay
                 return;
             }
 
+            water = DrainageWater.Sample(Doll.Hips.position);
+            Swimming = water != null && !Hanging && !WorkstationMovementLocked
+                && water.CanSwim(Doll.Hips.position, Swimming);
+            if (Swimming) fallPeakFootHeight = FootPosition.y;
             ProbeGround();
 
-            // 기절 중에는 조작이 없다. 넉백은 그대로 받는다 — 운석에 굴러다녀야 한다
-            // (기획 §26-13 의 긴장이 거기서 나온다).
-            if (Downed)
+            // 기절·던져짐 중에는 조작이 없다. 넉백은 그대로 받는다 — 운석에 굴러다녀야
+            // 한다(기획 §26-13 의 긴장이 거기서 나온다).
+            //
+            // **던져져 날아가는 동안도 같다**(S15P21B202-550). 예전에는 `Tossed` 가
+            // 카메라 플래그 하나였고 몸에는 아무 일도 하지 않았다 — 실측으로 던져진 몸과
+            // 그냥 같은 속도로 띄운 몸의 기울기 계열이 완전히 같았고(0.7 1.3 1.5 1.6 1.6
+            // 1.5), 공중 가로 이동도 1.804m 로 같았다. 즉 던져진 사람이 선 자세로 날아가며
+            // 평소처럼 조종했다.
+            //
+            // **여기서 고쳐야 한다.** `LaunchTossed` 에서 `Ragdolled = true` 를 한 번 써
+            // 봐야 소용없다 — `UpdateSpeed` 가 매 틱 "머리가 골반보다 낮은가" 로 다시
+            // 계산해서 지운다. 매 틱 유지되는 자리는 여기뿐이다.
+            if (BodyOutOfControl)
             {
                 UpdateFloating();
                 Speed = 0f;
@@ -1950,6 +2654,7 @@ namespace Metagame.Gameplay
                 return;
             }
 
+            UpdatePosture();
             UpdateFloating();
             UpdateSpeed();
             Hover();
@@ -1957,6 +2662,39 @@ namespace Metagame.Gameplay
             Balance();
             DriveLegs();
             DriveArms();
+        }
+
+        /// <summary>
+        /// 엎드리기 토글. <b>눌린 상태의 가장자리를 여기서 잡는다</b>(S15P21B202-616).
+        ///
+        /// <para>몸을 가져가는 것들이 끼어들면 자세가 풀린다 — 기절·던져짐·탑승·
+        /// 매달림·부유. 이걸 안 풀면 기절해서 누운 사람이 폭풍 면제를 계속 받는다.</para>
+        /// </summary>
+        /// <summary>
+        /// 몸을 가져가는 것이 끼어들면 자세를 푼다.
+        ///
+        /// <para><b><see cref="Tick"/> 의 맨 앞에서 부른다.</b> 보행 계산 옆에 두면
+        /// 기절·탑승 분기가 그 전에 <c>return</c> 해서 <see cref="Prone"/> 이 켜진 채
+        /// 남는다 — 기절한 사람이 폭풍 면제를 계속 받는다(검증이 잡은 자리).</para>
+        /// </summary>
+        void ReleaseProneIfTaken()
+        {
+            if (!Prone) return;
+            if (BodyOutOfControl || IsRiding || Hanging || Floating || MountedVehicle != null)
+                Prone = false;
+        }
+
+        void UpdatePosture()
+        {
+            bool held = input.ProneHeld;
+            bool pressed = held && !proneHeldLast;
+            proneHeldLast = held;
+
+            if (!pressed) return;
+            if (Prone) { Prone = false; return; }
+            // 땅에 붙어 있을 때만 엎드린다. 공중에서 엎드리면 떨어지는 동안 면제가 붙는다.
+            if (Grounded && !BodyOutOfControl && !IsRiding && !Hanging && !Floating
+                && MountedVehicle == null) Prone = true;
         }
 
         // ── 바닥 ────────────────────────────────────────────────
@@ -2091,8 +2829,10 @@ namespace Metagame.Gameplay
             if (staggerSeconds > 0f) staggerSeconds -= Time.fixedDeltaTime;
 
             // 머리가 골반보다 낮으면 완전히 자빠진 것 — 잠깐 조종을 놓았다가 천천히 일어난다
+            // 엎드리면 머리가 골반보다 낮아 이 검사가 **저절로 켜진다.** 그러면
+            // Blocked 에 걸려 기어가기가 죽는다 — 매달림과 같은 이유로 뺀다.
             bool down = Doll.Head.position.y < Doll.Hips.position.y + 0.12f;
-            Ragdolled = down && !Hanging;
+            Ragdolled = down && !Hanging && !Prone;
 
             // 휘청임은 그 사이 단계다(§20.2, S15P21B202-334). 세우는 힘만 약해지고
             // Ragdolled 는 켜지 않으므로 걷기와 점프가 유지된다.
@@ -2122,14 +2862,15 @@ namespace Metagame.Gameplay
         void UpdateFloating()
         {
             var field = Parts.LowGravityField.FindContaining(Doll.Hips.position);
-            var wants = field != null && !Hanging && !IsRiding;
+            if (IsRiding) { water = null; Swimming = false; }
+            var wants = (field != null || Swimming) && !Hanging && !IsRiding;
 
             // 들고 날 때 인형의 중력을 끄고 켠다. 상태가 바뀔 때만 건드려 매 스텝 강체를
             // 훑지 않는다.
             if (wants != floatingGravityOff)
             {
-                floatingAutoLift = wants;
-                if (wants)
+                floatingAutoLift = wants && !Swimming;
+                if (wants && field != null)
                     floatingLiftTarget = Mathf.Min(Doll.Hips.position.y + 1.5f,
                         field.Origin.position.y - 1.2f);
                 for (int i = 0; i < Doll.Bodies.Count; i++)
@@ -2149,20 +2890,27 @@ namespace Metagame.Gameplay
             fallPeakFootHeight = Doll.Hips.position.y - RagdollBuilder.HipsY;
 
             // Space 로 올라가고 Ctrl 로 내려간다. 탑승 중 고도 조작과 같은 두 키다.
-            float wish = (input.Jump ? 1f : 0f) - (input.ArmsUp ? 1f : 0f);
+            float wish = BodyOutOfControl ? 0 : (input.Jump ? 1f : 0f) - (input.ArmsUp ? 1f : 0f);
             if (wish != 0f) floatingAutoLift = false;
             float target = wish * PhysicsScale.FieldFloatVerticalSpeed;
             if (floatingAutoLift)
                 target = Mathf.Clamp((floatingLiftTarget - Doll.Hips.position.y) * 3f,
                     0f, PhysicsScale.FieldFloatVerticalSpeed);
             float rate = PhysicsScale.FieldFloatVerticalSpeed / PhysicsScale.FieldFloatStopSeconds;
+            if (Swimming)
+            {
+                floatingAutoLift = false;
+                target = water.VerticalTarget(Doll.Hips.position.y, wish);
+                rate = 4f;
+            }
 
             for (int i = 0; i < Doll.Bodies.Count; i++)
             {
                 var body = Doll.Bodies[i];
-                if (body == null) continue;
+                if (body == null || body.isKinematic) continue;
 
                 Vector3 v = body.linearVelocity;
+                if (Swimming) v.y = Mathf.Clamp(v.y, -2f, 2f);
                 v.y = Mathf.MoveTowards(v.y, target, rate * Time.fixedDeltaTime);
                 body.linearVelocity = v;
             }
@@ -2172,7 +2920,10 @@ namespace Metagame.Gameplay
         {
             if (!Grounded || Hanging) return;
 
-            float offset = Tuning.RideHeight - GroundDistance;
+            // 엎드리면 낮게 뜬다. **세우는 힘(uprightBlend)은 그대로 둔다** —
+            // 그걸 0 으로 하면 래그돌로 무너져서 방향을 못 잡는다.
+            float ride = Prone ? ProneRideHeight : Tuning.RideHeight;
+            float offset = ride - GroundDistance;
             if (offset < -0.2f) return;
 
             float vy = Doll.Hips.linearVelocity.y - (groundBody != null ? groundBody.linearVelocity.y : 0f);
@@ -2309,7 +3060,17 @@ namespace Metagame.Gameplay
             // (S15P21B202-442) — 무게는 같고, 이것이 없으면 잡은 쪽이 일방적으로
             // 이겨서 잡힌 쪽이 빠져나갈 방법이 없다.
             if (CarryingTeammate) top *= PhysicsScale.DownedCarrySpeedScale;
+            // 엎드리면 기어간다. 다른 감속과 곱하지 않고 **상한으로** 둔다 —
+            // 곱하면 달리기 키를 누른 채 기어가는 것이 더 빨라진다.
+            if (Prone) top = Mathf.Min(top, CrawlSpeed);
+            // S15P21B202-577: tall flora uses 0.45 of target speed (55% reduction),
+            // including floating/carrying; overlapping plants do not stack.
+            // Acceptance procedure: docs/records/2026-09-17-577-review-resolution.md.
+            top *= PlantRustle.SampleMovementMultiplier(Doll.Hips.position, _vegetationHits);
+            if (Swimming) top = Mathf.Min(top, DrainageWater.SwimSpeed);
+            else if (water != null) top *= water.MovementScale(Doll.Hips.position);
             Vector3 targetVel = wish * top;
+            if (water != null) targetVel += water.Current * (Swimming ? 1 : .35f);
             targetVel.x += GroundVelocity.x;
             targetVel.z += GroundVelocity.z;
 
@@ -2365,7 +3126,7 @@ namespace Metagame.Gameplay
             UpdateMovementDirection(wish, right, fwd);
 
             // 등짐의 자세제어 분사기가 공중에서 방향을 잡아준다는 설정
-            Thrusting = !Grounded && !Hanging && wish.sqrMagnitude > 0.04f;
+            Thrusting = !InWater && !Grounded && !Hanging && wish.sqrMagnitude > 0.04f;
             if (Thrusting)
             {
                 thrustPuff -= Time.fixedDeltaTime;
@@ -2389,6 +3150,14 @@ namespace Metagame.Gameplay
             Vector3 cameraFacing = fwd;
             if (facingClamp.sqrMagnitude > 0.02f)
                 cameraFacing = facingClamp.normalized;
+
+            // 춤 중에는 시점을 따라 돌지 않는다 (S15P21B202-596). 카메라는 그대로 돈다 —
+            // 막는 것은 **몸**이지 둘러보는 것이 아니다.
+            //
+            // 고정못을 잡고 있으면 그쪽이 먼저다(위 §12.1). 그건 조작이 아니라 기획이
+            // 요구하는 자세라서, 춤보다 앞선다.
+            else if (DanceHolding)
+                cameraFacing = Vector3.zero;
 
             if (cameraFacing.sqrMagnitude > 0.02f)
                 faceDir = Vector3.Slerp(faceDir, cameraFacing,
@@ -2461,9 +3230,32 @@ namespace Metagame.Gameplay
             }
         }
 
+        /// <summary>
+        /// 균형 조인트의 감쇠 계수. 스프링과 달리 <b>바닥이 있다</b> — 그리고 그 바닥을
+        /// 언제 걷느냐가 "구르는가" 를 가른다 (S15P21B202-551).
+        ///
+        /// <para><b>왜 바닥이 있었나.</b> 감쇠가 0 이면 한 번 흔들린 몸이 멈추지 않는다.
+        /// 휘청임(<see cref="Staggering"/>)과 평소 공중(<c>k = 0.26</c>)은 조종이 살아
+        /// 있는 상태라 그 바닥이 필요하다.</para>
+        ///
+        /// <para><b>왜 걷어야 하나.</b> 균형 조인트는 <c>connectedBody = null</c> 이라
+        /// <b>세계</b>를 기준으로 붙잡는다. 그래서 이 감쇠는 세계에 대한 회전을 통째로
+        /// 먹는다 — 스프링이 0 이라 "세우지는" 않으면서 "구르지도 못하게" 한다.
+        /// 실측(각속도 12 rad/s, 1.2초, 골반 기울기): 지금 그대로 8.5도 ·
+        /// 강체 각저항을 0 으로 해도 8.7도 · <b>이 감쇠를 걷으면 179.6도</b>.
+        /// 강체의 각저항(0.70)은 범인이 아니었다.</para>
+        ///
+        /// <para>그래서 <b>조종을 잃었을 때만</b> 걷는다. 기절과 던져짐이 함께 해당된다 —
+        /// 둘 다 "몸이 내 것이 아닌" 상태이고 <c>-550</c> 이 이미 한 조건으로 묶었다.</para>
+        /// </summary>
+        float DampFloor(float k) => BodyOutOfControl ? k : Mathf.Max(k, 0.25f);
+
         void Balance()
         {
+            // 엎드린 자세는 **목표 회전**으로 만든다(S15P21B202-616). 세우는 힘을
+            // 끄는 쪽이 싸지만 그건 곧 래그돌이고, 그러면 기어가는 방향을 못 잡는다.
             Quaternion desired = Quaternion.LookRotation(faceDir, Vector3.up);
+            if (Prone) desired *= Quaternion.AngleAxis(PronePitch, Vector3.right);
 
             // 공중에서는 힘을 빼야 팔다리가 허우적거린다. 저중력이라 그 시간이 길다.
             float k = (Grounded ? 1f : 0.26f) * uprightBlend;
@@ -2471,7 +3263,7 @@ namespace Metagame.Gameplay
 
             JointTools.SetDrive(Doll.Balance,
                                 Tuning.UprightSpring * k,
-                                Tuning.UprightDamp * Mathf.Max(k, 0.25f),
+                                Tuning.UprightDamp * DampFloor(k),
                                 Tuning.UprightMaxTorque);
             JointTools.SetTargetLocalRotation(Doll.Balance, desired, Quaternion.identity);
 
@@ -2483,6 +3275,8 @@ namespace Metagame.Gameplay
 
             // 고개는 카메라 피치를 조금 따라간다 (서버에서는 클라이언트가 보낸 피치)
             float pitch = Mathf.Clamp(Cam != null ? Cam.Pitch : input.AimPitch, -26f, 26f);
+            var sequence = GameSession.Instance != null ? GameSession.Instance.Sequence : null;
+            if (sequence != null) pitch = Mathf.Lerp(pitch, -45f, sequence.LookUpWeight);
             JointTools.SetTargetLocalRotation(Doll.HeadJoint,
                                               Quaternion.AngleAxis(pitch * 0.5f, Vector3.right),
                                               Quaternion.identity);
@@ -2619,9 +3413,21 @@ namespace Metagame.Gameplay
                 return;
             }
 
+            // 여기까지 왔으면 도구를 들고 있지 않다. 도구 충전 상태를 **던지기 분기보다
+            // 먼저** 내린다 — 뒤에 두면 던지기가 early return 하면서 이 초기화를 건너뛰고,
+            // HUD 가 ChargingTool 분기를 먼저 타 던지기 게이지를 가린다(!436 AI 리뷰).
             chargingTool = false;
             toolCharge = 0f;
             toolActionHeld = false;
+
+            // 양손으로 동료를 잡고 있으면 그쪽이 Q 를 가져간다(S15P21B202-519).
+            // 도구 경로 바로 뒤가 자리다 — 규칙이 같고(양손·Q·충전), 아래의 일반 손
+            // 탐색으로 내려가면 잡은 채로 다른 것을 다시 잡으려 든다.
+            if (ProcessTeammateToss(aim))
+            {
+                SyncHeldObjectOwnerCollision();
+                return;
+            }
 
             // 고정쇠가 조준 중이면 일반 손잡이/도구 탐색보다 우선한다.
             // 단순히 클릭한 상태가 아니라 실제 한 손이 고정쇠에 결합되어야 시작한다.
@@ -2881,7 +3687,32 @@ namespace Metagame.Gameplay
 
         public void KnockDown(Vector3 direction, float speed)
         {
-            if (Downed) return;
+            if (!Shove(direction, speed)) return;
+
+            Ragdolled = true;
+        }
+
+        /// <summary>
+        /// 몸 전체를 한 방향으로 민다. <b>조종을 빼앗지 않는다.</b>
+        ///
+        /// <see cref="KnockDown"/> 에서 속도만 떼어낸 것이다. 둘을 가르는 것은
+        /// <see cref="Ragdolled"/> 한 줄뿐이고, 운석의 약한 충격파(기획 §20.1
+        /// "밀려나지만 바로 행동 가능")가 그 한 줄 없는 쪽을 쓴다.
+        ///
+        /// <b>폭발력으로는 안 된다</b>(2026-09-18). <c>AddExplosionForce</c> 는
+        /// <c>ForceMode.Force</c> 라 한 물리 스텝에만 작용하고, <see cref="Balance"/> 가
+        /// 그 다음 스텝에 되세워 버린다 — 기체가 폭발력으로 움직이지 않아
+        /// <see cref="PhysicsScale.CraftImpactSpeed"/> 를 직접 주는 것과 같은 이유다.
+        /// 눈에 보이게 하려면 속도를 얹어야 한다.
+        ///
+        /// <b>뼈마다 같은 속도를 준다.</b> 래그돌이 한 덩어리로 밀린다 —
+        /// <see cref="RideAlong"/> 처럼 회전까지 맞추지는 않으므로 관절이 흔들리고,
+        /// 그 흔들림이 "충격을 맞았다" 로 보인다.
+        /// </summary>
+        /// <returns>실제로 밀었으면 true. 기절 중이거나 인형이 없으면 false.</returns>
+        public bool Shove(Vector3 direction, float speed)
+        {
+            if (Downed || Doll == null) return false;
 
             var away = direction;
             if (away.sqrMagnitude < 1e-6f) away = -faceDir;
@@ -2895,7 +3726,7 @@ namespace Metagame.Gameplay
                 body.linearVelocity += away * speed;
             }
 
-            Ragdolled = true;
+            return true;
         }
 
         /// <summary>

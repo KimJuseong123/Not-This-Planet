@@ -1,0 +1,37 @@
+{
+  "asset": "Lichen",
+  "fbx": "S2_Lichen.fbx",
+  "blend": "Source~/S2_Lichen.blend",
+  "mesh_objects": 1,
+  "triangles": 820,
+  "dimensions_m": [
+    0.6211097240447998,
+    0.4169699251651764,
+    0.045842885971069336
+  ],
+  "bounds_min": [
+    -0.29809701442718506,
+    -0.21149183809757233,
+    0.0030367914587259293
+  ],
+  "bounds_max": [
+    0.32301270961761475,
+    0.20547808706760406,
+    0.048879675567150116
+  ],
+  "materials": [
+    "S2_LeafLight",
+    "S2_Rust"
+  ],
+  "pivots": [
+    "S2_Lichen_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

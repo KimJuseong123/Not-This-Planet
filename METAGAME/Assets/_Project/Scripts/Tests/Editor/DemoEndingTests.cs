@@ -219,7 +219,12 @@ namespace Metagame.Gameplay.Tests
         [TestCase(17.999f, DemoEndingStage.Photograph)]
         [TestCase(18f, DemoEndingStage.EndTitle)]
         [TestCase(20.999f, DemoEndingStage.EndTitle)]
-        [TestCase(21f, DemoEndingStage.Lobby)]
+        [TestCase(21f, DemoEndingStage.SpaceDrift)]
+        [TestCase(28.999f, DemoEndingStage.SpaceDrift)]
+        [TestCase(29f, DemoEndingStage.MeteorImpact)]
+        [TestCase(35f, DemoEndingStage.EmergencyDescent)]
+        [TestCase(43.999f, DemoEndingStage.EmergencyDescent)]
+        [TestCase(44f, DemoEndingStage.Lobby)]
         public void AllStagesFollowServerClockWithExactlyThreeSecondsOfEndTitle(float elapsed, DemoEndingStage stage)
         {
             Assert.That(DemoEnding.StageAt(elapsed), Is.EqualTo(stage));

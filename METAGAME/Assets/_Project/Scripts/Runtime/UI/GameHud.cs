@@ -16,8 +16,15 @@ namespace Metagame.UI
     /// 그리는 도중에 아틀라스가 다시 만들어지면 이미 찍은 글자의 UV 가 어긋나
     /// 엉뚱한 글자가 나온다. clipping = Overflow 도 필수(받침이 잘린다).
     /// </summary>
-    public class GameHud : MonoBehaviour
+    public partial class GameHud : MonoBehaviour
     {
+        public enum InteractionReticleState
+        {
+            Dot,
+            OpenRabbitHand,
+            GrippingRabbitHand
+        }
+
         public PlayerRig Local;
         public TractorBeamController Transport;
         public Stage1Exploration Exploration;
@@ -32,16 +39,30 @@ namespace Metagame.UI
         static bool koFontSearched;
         static readonly Dictionary<int, Font> Fonts = new Dictionary<int, Font>();
 
-        GUIStyle small, mid, center, big;
+        GUIStyle small, mid, center, big, weldingTick;
         Texture2D white;
+        Texture2D rabbitHandCrosshairSheet;
         bool warmed;
         WeldingGaugeTexture weldingGaugeTexture;
+
+        [Header("용접 재료 게이지")]
+        [Tooltip("화면 크기 대비 게이지 중심 위치입니다. (0, 0)은 왼쪽 위, (1, 1)은 오른쪽 아래입니다.")]
+        [SerializeField] Vector2 weldingGaugeViewportAnchor = new Vector2(0.14f, 0.76f);
+        [Tooltip("화면 앵커에서 게이지 중심을 추가로 옮길 픽셀 값입니다.")]
+        [SerializeField] Vector2 weldingGaugeScreenOffset = Vector2.zero;
+        [Min(40f)] [SerializeField] float weldingGaugeMaxRadius = 82f;
+
+        [Header("상호작용 크로스헤드")]
+        [Tooltip("상호작용 가능한 물체를 바라볼 때 표시할 토끼손 아이콘 크기입니다.")]
+        [Range(32f, 96f)] [SerializeField] float rabbitHandReticleSize = 58f;
 
         void Awake()
         {
             white = new Texture2D(1, 1);
             white.SetPixel(0, 0, Color.white);
             white.Apply();
+            rabbitHandCrosshairSheet = Resources.Load<Texture2D>("UI/Crosshair/T_RabbitHandCrosshairSheet");
+            InitializeKeyGuides();
         }
 
         void OnEnable() { Font.textureRebuilt += OnFontRebuilt; }
@@ -64,10 +85,17 @@ namespace Metagame.UI
 
         void Update()
         {
+            if (_keyGuideRevision != KeyGuides.Revision)
+            {
+                _keyGuideRevision = KeyGuides.Revision;
+                warmed = false;
+            }
             if (!warmed) WarmFont();
+            UpdateMeteorRhythm();
 
             if (Local == null && GameSession.Instance != null) Local = GameSession.Instance.LocalPlayer;
             if (Transport == null && GameSession.Instance != null) Transport = GameSession.Instance.Transport;
+            KeyGuides.Refresh();
         }
 
         // ── 폰트 ────────────────────────────────────────────────
@@ -114,6 +142,9 @@ namespace Metagame.UI
 
             var sb = new StringBuilder();
             sb.Append("0123456789.,:/%()[]·—+-!?초회중력 ");
+            sb.Append("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz 태블릿 던지기");
+            for (int i = 0; i < KeyGuides.Entries.Count; i++)
+                sb.Append(KeyGuides.Entries[i].Label);
             sb.Append("경과 시간 표지 추락 도착 기록 남은 구간 진행 상태 목표 지구의");
             sb.Append("서 있음 공중 매달림 자빠짐 걷는 중 달리는 중 미끄러짐 착지 분사 중 나르는 중");
             sb.Append("왼팔 오른팔 뻗음 잡음 비어 있음 놓침 잡은 것 없음 닿는 곳");
@@ -123,7 +154,7 @@ namespace Metagame.UI
             sb.Append("처음부터 다시 그 자리에서 서기 도움말 커서 풀기 이동 달리기 점프 시점 기어오르기");
             sb.Append("자유 이동 방향 카메라 기준 Alt 떼도 현재 시점 유지 토끼 귀");
             sb.Append("팔을 위로 누르고 있으면 손이 잡는다 가벼운 도구는 크로스헤드에 고정된다 무거운 물체는 고정물처럼 짚는다");
-            sb.Append("도구 양손 투척 충전 놓기");
+            sb.Append("도구 양손 투척 충전 놓기 운석 타격 준비 지금 클릭 좌클릭 노란 구간에 맞춰 휘두르기 다시 준비 너무 일찍 실패 GOOD GREAT PERFECT MISS");
             sb.Append("운반 장치 탑승 하차 운전 견인 부유");
             sb.Append("1장 탐험 태블릿 파츠 발견 미발견 상태 씬 배치 확인 고정 해제 운반 중 배치됨 조립 완료");
             for (int i = 0; i < WorldLabel.All.Count; i++)
@@ -163,6 +194,7 @@ namespace Metagame.UI
             center = MakeStyle(SizeCenter, TextAnchor.MiddleCenter);
             mid = MakeStyle(SizeMid, TextAnchor.UpperLeft);
             small = MakeStyle(SizeSmall, TextAnchor.UpperLeft);
+            weldingTick = MakeStyle(SizeSmall, TextAnchor.MiddleRight);
         }
 
         // ── 그리기 도구 ─────────────────────────────────────────
@@ -196,18 +228,16 @@ namespace Metagame.UI
         void WeldingMaterialGauge(float width, float height)
         {
             var tool = Local != null ? Local.PresentationTool as PlasmaWeldingTool : null;
-            if (tool == null || !tool.IsHeldForView || Local.Downed || Local.IsRiding || Local.Cam == null) return;
-            var camera = Local.Cam.Cam;
-            if (camera == null) return;
-            var model = tool.FirstPersonModel;
-            var position = model != null && model.gameObject.activeInHierarchy ? model.position : tool.transform.position;
-            var screen = camera.WorldToScreenPoint(position);
-            if (screen.z <= camera.nearClipPlane) return;
-            float radius = Mathf.Min(125f, height * 0.23f);
+            if (tool == null || !tool.IsHeldForView || Local.Downed || Local.IsRiding) return;
+
+            // 무기 모델이 움직여도 읽기 쉽도록 화면 왼쪽의 고정 앵커에 배치한다.
+            float radius = Mathf.Min(weldingGaugeMaxRadius, height * 0.16f);
             float thickness = radius * 0.19f;
             var origin = new Vector2(
-                Mathf.Clamp(screen.x / UiScale.Value, 12f, width - radius - 60f),
-                Mathf.Clamp((Screen.height - screen.y) / UiScale.Value, radius + 20f, height - 65f));
+                Mathf.Clamp(width * weldingGaugeViewportAnchor.x + weldingGaugeScreenOffset.x,
+                    radius + 70f, width - radius - 60f),
+                Mathf.Clamp(height * weldingGaugeViewportAnchor.y + weldingGaugeScreenOffset.y,
+                    radius + 30f, height - radius - 30f));
             Color yellow = new Color(1f, 0.85f, 0.08f, 0.95f);
             if (weldingGaugeTexture == null) weldingGaugeTexture = new WeldingGaugeTexture();
             weldingGaugeTexture.SetFraction(tool.RemainingFraction);
@@ -232,14 +262,15 @@ namespace Metagame.UI
                 GaugeLine(GaugePoint(origin, radius - thickness * 0.5f, fraction),
                     GaugePoint(origin, radius + thickness * 0.5f + 4f, fraction), 2f, Color.white);
                 var label = GaugePoint(origin, radius + thickness * 0.5f + 10f, fraction);
-                L(new Rect(label.x, label.y - 10f, 50f, 22f), WeldingTicks[i], small, Color.white);
+                L(new Rect(label.x - 58f, label.y - 11f, 52f, 22f),
+                    WeldingTicks[i], weldingTick, Color.white);
             }
         }
 
         static Vector2 GaugePoint(Vector2 origin, float radius, float fraction)
         {
             float angle = Mathf.Lerp(18f, -48f, fraction) * Mathf.Deg2Rad;
-            return origin + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
+            return origin + new Vector2(-Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
         }
 
         void GaugeLine(Vector2 start, Vector2 end, float thickness, Color color)
@@ -262,52 +293,8 @@ namespace Metagame.UI
 
             Reticle(w, h);
             WeldingMaterialGauge(w, h);
-
-            // 왼쪽 위 — 진행 상황
-            Box(new Rect(14f, 12f, 268f, 142f), new Color(0f, 0f, 0f, 0.38f));
-            if (s != null)
-            {
-                L(new Rect(26f, 20f, 260f, 24f),
-                  "경과 " + s.Elapsed.ToString("0.0") + "초", mid, Color.white);
-                L(new Rect(26f, 44f, 260f, 24f),
-                  "표지 " + s.CheckpointIndex + " / 6", mid, new Color(0.72f, 0.90f, 1f));
-                L(new Rect(26f, 68f, 120f, 24f),
-                  "추락 " + s.Falls + "회", small, new Color(1f, 0.78f, 0.70f));
-                bool powered = PowerSocket.Instance != null && PowerSocket.Instance.Powered;
-                L(new Rect(26f, 90f, 120f, 24f),
-                  "전원 " + (powered ? "들어옴" : "없음"), small,
-                  powered ? new Color(0.55f, 1f, 0.6f) : new Color(0.9f, 0.7f, 0.6f));
-                L(new Rect(150f, 90f, 130f, 24f),
-                  "해치 " + (SlidingDoor.Instance != null && SlidingDoor.Instance.IsOpen ? "열림" : "닫힘"),
-                  small, new Color(0.85f, 0.85f, 0.85f));
-                L(new Rect(26f, 114f, 250f, 24f),
-                  "중력 " + Mathf.Abs(Physics.gravity.y).ToString("0.0") + " m/s² · 지구의 "
-                  + (Mathf.Abs(Physics.gravity.y) / 9.81f * 100f).ToString("0") + "%",
-                  small, new Color(0.72f, 0.82f, 1f));
-            }
-
-            // 오른쪽 위 — 몸 상태
-            if (Local != null)
-            {
-                Box(new Rect(w - 266f, 12f, 252f, 142f), new Color(0f, 0f, 0f, 0.38f));
-                bool free = Local.Cam != null && Local.Cam.FreeLook;
-                string state = Local.IsMounted ? "운반 장치 탑승 중"
-                             : free ? "시점 자유"
-                             : Local.Ragdolled ? "자빠짐"
-                             : Local.Hanging ? "매달림"
-                             : Local.Grounded ? (Local.Speed > 0.5f ? "걷는 중" : "서 있음")
-                             : (Local.Thrusting ? "분사 중" : "공중");
-                L(new Rect(w - 254f, 20f, 240f, 24f), state, mid, new Color(0.95f, 0.95f, 0.80f));
-                L(new Rect(w - 254f, 44f, 240f, 24f), HandLine("왼팔", Local.LeftHand), small,
-                  Local.LeftHand.Gripping ? new Color(0.55f, 1f, 0.6f) : new Color(0.8f, 0.8f, 0.8f));
-                L(new Rect(w - 254f, 66f, 240f, 24f), HandLine("오른팔", Local.RightHand), small,
-                  Local.RightHand.Gripping ? new Color(0.55f, 1f, 0.6f) : new Color(0.8f, 0.8f, 0.8f));
-                L(new Rect(w - 254f, 88f, 240f, 24f),
-                  "속도 " + Local.Speed.ToString("0.0") + " m/s", small, new Color(0.75f, 0.8f, 0.9f));
-                L(new Rect(w - 140f, 88f, 240f, 24f),
-                  Local.Grounded ? "" : "체공 " + Local.AirTime.ToString("0.0") + "초", small,
-                  new Color(0.80f, 0.90f, 1f));
-            }
+            DrawMeteorRhythm(w, h);
+            DrawKeyGuides(w, h);
 
             // 도착
             if (s != null && s.Cleared)
@@ -323,10 +310,34 @@ namespace Metagame.UI
                 HealthFrame(w, h);
         }
 
+        /// <summary>
+        /// 빨간 테두리의 진하기 0~1. 0 이면 그리지 않는다 (S15P21B202-539).
+        ///
+        /// <para><b>무엇이 바뀌었나.</b> 예전에는 남은 체력에 정비례하는 <b>상시 표시</b>
+        /// 였다(<c>1 - health01</c>, <c>-513</c>). 그런데 구조는 체력을 절반만 돌려주고
+        /// (<c>PhysicsScale.RescueHealthRatio</c>) 게임 안에 체력을 되돌리는 수단이
+        /// 없다 — <b>한 번 구조되면 판이 끝날 때까지 테두리가 남았다.</b> 이제는
+        /// 피해를 받은 순간 번쩍였다가 식는 값(<c>PlayerRig.DamageFlash01</c>)을 읽는다.
+        /// 구조 직후에는 피해 이벤트가 없으므로 화면이 깨끗하다.</para>
+        ///
+        /// <para><b>값을 그대로 쓴다.</b> 예전의 <c>1 - x</c> 뒤집기가 없다 — 번쩍임은
+        /// 이미 "얼마나 세게 맞았나" 라서 크면 짙은 쪽이 맞다. 뒤집으면 다 식은 0 이
+        /// 가장 짙어진다.</para>
+        ///
+        /// <para><b>왜 순수 메서드로 빼는가.</b> 이 판단이 <see cref="OnGUI"/> 경로 안의
+        /// 조건문으로만 있으면 검증이 닿지 못한다 — <c>-438</c>·<c>-448</c>·<c>-489</c>
+        /// 에서 세 번 걸린 자리다. 밖에서 부를 수 있게 두면 대조가 실제 경로를 지난다.</para>
+        ///
+        /// <para>임계값이 있는 이유는 부동소수 찌꺼기다 — 다 식었는데 1e-7 만큼 남아
+        /// 테두리가 깜빡이는 것을 막는다.</para>
+        /// </summary>
+        public static float HealthFrameStrength(float damageFlash01) =>
+            Mathf.Clamp01(damageFlash01) <= 0.001f ? 0f : Mathf.Clamp01(damageFlash01);
+
         void HealthFrame(float width, float height)
         {
-            float damage = Mathf.Clamp01(1f - Local.Health01);
-            if (damage <= 0.001f) return;
+            float damage = HealthFrameStrength(Local.DamageFlash01);
+            if (damage <= 0f) return;
 
             float thickness = Mathf.Lerp(0f, Mathf.Min(width, height) * 0.08f, damage);
             float alpha = Mathf.Lerp(0.10f, 0.78f, damage);
@@ -354,20 +365,25 @@ namespace Metagame.UI
             bool mountedVehicle = Local != null && Local.IsMounted;
 
             float cx = w * 0.5f, cy = h * 0.5f;
+            bool interactionPressed = Local != null
+                && (Local.CurrentInput.GrabLeft || Local.CurrentInput.GrabRight);
+            bool toolEquipped = Local != null && Local.ActiveTool != null;
+            var reticleState = ResolveInteractionReticleState(
+                hasTarget, interactionPressed, toolEquipped, clampGrabbed);
             Color c = releasingClamp ? new Color(0.45f, 1f, 0.60f, 0.95f)
                     : focus.Kind == PlayerInteractionKind.Clamp ? new Color(1f, 0.78f, 0.28f, 0.95f)
                     : hasTarget || mountedVehicle ? new Color(0.45f, 0.90f, 1f, 0.95f)
                     : new Color(1f, 1f, 1f, 0.55f);
 
-            float gap = hasTarget || clampGrabbed || mountedVehicle ? 7f : 3f;
-            float len = hasTarget || clampGrabbed || mountedVehicle ? 7f : 3f;
-            Box(new Rect(cx - gap - len, cy - 1f, len, 2f), c);
-            Box(new Rect(cx + gap, cy - 1f, len, 2f), c);
-            Box(new Rect(cx - 1f, cy - gap - len, 2f, len), c);
-            Box(new Rect(cx - 1f, cy + gap, 2f, len), c);
-
-            if (hasTarget)
-                L(new Rect(cx - 90f, cy + 26f, 180f, 24f), focus.Keyword, center, c);
+            if (reticleState == InteractionReticleState.Dot || rabbitHandCrosshairSheet == null)
+            {
+                // 아무것도 가리키지 않을 때에는 시야를 가리지 않는 작은 점만 남긴다.
+                Box(new Rect(cx - 2f, cy - 2f, 4f, 4f), c);
+            }
+            else
+            {
+                DrawRabbitHandReticle(cx, cy, reticleState);
+            }
 
             if (Local != null && clampGrabbed)
                 ClampGauge(cx, cy,
@@ -375,6 +391,43 @@ namespace Metagame.UI
                            releasingClamp);
             else if (Local != null && Local.ChargingTool)
                 ChargeGauge(cx, cy, Local.ToolCharge);
+            // 동료를 던지는 충전도 같은 게이지를 쓴다 (S15P21B202-519). 조작이 같으니
+            // (양손으로 잡고 Q 를 누르고 있다가 놓는다) 화면도 같은 것이 맞다.
+            else if (Local != null && Local.ChargingToss)
+                ChargeGauge(cx, cy, Local.TossCharge01);
+        }
+
+        /// <summary>
+        /// 상호작용 조준점 상태를 입력과 분리해 EditMode에서도 전이를 검증할 수 있게 한다.
+        /// 클릭을 누르고 있는 동안만 손을 오므리고, 버튼을 놓으면 다시 펼친 손으로 돌아간다.
+        /// </summary>
+        public static InteractionReticleState ResolveInteractionReticleState(
+            bool canInteract, bool interactionPressed, bool toolEquipped = false,
+            bool pullingClamp = false)
+        {
+            // 용접건과 방망이는 모두 ToolBase로 장착된다. 도구를 든 동안에는 월드
+            // 상호작용보다 도구 조준이 우선이므로 대상과 클릭 상태에 관계없이 작은
+            // 점만 유지한다. 대상이 보여도 거리·점유 제한으로 실제 상호작용이
+            // 불가능하면(canInteract=false) 손 아이콘을 노출하지 않는다.
+            // 고정못을 손으로 잡고 뽑는 동안에는 이미 상호작용이
+            // 진행 중이므로 손 표시 대신 점을 유지한다. 완전히 뽑힌 뒤
+            // ClampGrabbed가 풀리면 새로 집을 수 있는 대상에 다시 손을 표시한다.
+            if (toolEquipped || pullingClamp || !canInteract)
+                return InteractionReticleState.Dot;
+            return interactionPressed
+                ? InteractionReticleState.GrippingRabbitHand
+                : InteractionReticleState.OpenRabbitHand;
+        }
+
+        void DrawRabbitHandReticle(float cx, float cy, InteractionReticleState state)
+        {
+            // 한 장에 나란히 만든 두 아이콘을 UV로 잘라 사용한다. 원본은 투명 PNG다.
+            Rect uv = state == InteractionReticleState.GrippingRabbitHand
+                ? new Rect(0.50f, 0.22f, 0.46f, 0.46f)
+                : new Rect(0.03f, 0.21f, 0.55f, 0.55f);
+            float size = rabbitHandReticleSize;
+            var rect = new Rect(cx - size * 0.5f, cy - size * 0.5f, size, size);
+            GUI.DrawTextureWithTexCoords(rect, rabbitHandCrosshairSheet, uv, true);
         }
 
         void ClampGauge(float cx, float cy, float progress, bool releaseHolding)
@@ -403,12 +456,5 @@ namespace Metagame.UI
             Box(new Rect(x, y, width * ratio, height), fill);
         }
 
-        static string HandLine(string name, Hand hand)
-        {
-            if (hand == null) return name + " —";
-            if (hand.Gripping)
-                return name + " 잡음";
-            return name + " 비어 있음";
-        }
     }
 }

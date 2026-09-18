@@ -1,0 +1,164 @@
+{
+  "unityVersion": "6000.5.4f1",
+  "missingScriptsBefore": 0,
+  "missingScriptsAfter": 0,
+  "objects": [
+    {
+      "name": "Astra Part2 - SM_Astra_Trail0",
+      "model": "Assets/_Project/Models/LongWalkingTrail/01-long-walking-trail-0/SM_Astra_Trail0.fbx",
+      "position": {
+        "x": 34.0,
+        "y": 0.550000011920929,
+        "z": -4.5
+      },
+      "size": {
+        "x": 4.400000095367432,
+        "y": 0.6000000238418579,
+        "z": 13.81067943572998
+      },
+      "visualSize": {
+        "x": 4.4019999504089355,
+        "y": 0.6030016541481018,
+        "z": 13.814681053161621
+      },
+      "rotation": {
+        "x": -0.054058220237493515,
+        "y": 0.5535282492637634,
+        "z": 0.03603881597518921,
+        "w": 0.8302923440933228
+      },
+      "floorSamples": 123
+    },
+    {
+      "name": "Astra Part2 - SM_Astra_Trail1",
+      "model": "Assets/_Project/Models/LongWalkingTrail/02-long-walking-trail-1/SM_Astra_Trail1.fbx",
+      "position": {
+        "x": 42.5,
+        "y": 2.299999952316284,
+        "z": 4.0
+      },
+      "size": {
+        "x": 4.40000057220459,
+        "y": 0.6000000238418579,
+        "z": 13.824024200439453
+      },
+      "visualSize": {
+        "x": 4.4019999504089355,
+        "y": 0.6030016541481018,
+        "z": 13.828022003173828
+      },
+      "rotation": {
+        "x": -0.06740425527095795,
+        "y": 0.19565227627754211,
+        "z": 0.013480850495398045,
+        "w": 0.9782612919807434
+      },
+      "floorSamples": 123
+    },
+    {
+      "name": "Astra Part2 - SM_Astra_Trail2",
+      "model": "Assets/_Project/Models/LongWalkingTrail/03-long-walking-trail-2/SM_Astra_Trail2.fbx",
+      "position": {
+        "x": 44.0,
+        "y": 4.149999618530273,
+        "z": 17.5
+      },
+      "size": {
+        "x": 4.40000057220459,
+        "y": 0.6000000238418579,
+        "z": 15.951557159423828
+      },
+      "visualSize": {
+        "x": 4.4019999504089355,
+        "y": 0.6030018925666809,
+        "z": 15.95555591583252
+      },
+      "rotation": {
+        "x": -0.06227336823940277,
+        "y": -0.06609814614057541,
+        "z": -0.004133268725126982,
+        "w": 0.9958594441413879
+      },
+      "floorSamples": 123
+    },
+    {
+      "name": "Astra Part2 - SM_Astra_Trail3",
+      "model": "Assets/_Project/Models/LongWalkingTrail/04-long-walking-trail-3/SM_Astra_Trail3.fbx",
+      "position": {
+        "x": 38.0,
+        "y": 5.949999809265137,
+        "z": 26.5
+      },
+      "size": {
+        "x": 4.399999618530273,
+        "y": 0.6000000238418579,
+        "z": 11.277806282043457
+      },
+      "visualSize": {
+        "x": 4.4019999504089355,
+        "y": 0.6030013561248779,
+        "z": 11.281805038452148
+      },
+      "rotation": {
+        "x": -0.0646803230047226,
+        "y": -0.5949875116348267,
+        "z": -0.04812414199113846,
+        "w": 0.7996814250946045
+      },
+      "floorSamples": 123
+    },
+    {
+      "name": "Astra Part2 - SM_Astra_Trail4",
+      "model": "Assets/_Project/Models/LongWalkingTrail/05-long-walking-trail-4/SM_Astra_Trail4.fbx",
+      "position": {
+        "x": 30.5,
+        "y": 6.799999713897705,
+        "z": 25.0
+      },
+      "size": {
+        "x": 4.400001525878906,
+        "y": 0.6000000238418579,
+        "z": 8.510252952575684
+      },
+      "visualSize": {
+        "x": 4.4019999504089355,
+        "y": 0.6030009984970093,
+        "z": 8.514248847961426
+      },
+      "rotation": {
+        "x": 0.0,
+        "y": 0.9402716159820557,
+        "z": 0.0,
+        "w": -0.3404253125190735
+      },
+      "floorSamples": 123
+    },
+    {
+      "name": "Astra Part2 - SM_Astra_HillDeckTransition",
+      "model": "Assets/_Project/Models/LongWalkingTrail/06-hill-deck-transition/SM_Astra_HillDeckTransition.fbx",
+      "position": {
+        "x": 30.200000762939453,
+        "y": 7.4200005531311035,
+        "z": 24.899999618530273
+      },
+      "size": {
+        "x": 3.8000004291534424,
+        "y": 0.3600001335144043,
+        "z": 2.7832746505737305
+      },
+      "visualSize": {
+        "x": 3.801999807357788,
+        "y": 0.3630003035068512,
+        "z": 2.787274122238159
+      },
+      "rotation": {
+        "x": 0.062248531728982925,
+        "y": 0.9347495436668396,
+        "z": 0.2055930197238922,
+        "w": -0.2830192744731903
+      },
+      "floorSamples": 123
+    }
+  ],
+  "status": "PASS: 6 FBX replacements; 738 floor rays; identical original collision extents; Part2 preserved"
+}

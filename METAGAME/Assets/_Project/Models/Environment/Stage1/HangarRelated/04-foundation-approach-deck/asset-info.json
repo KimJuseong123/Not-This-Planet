@@ -1,0 +1,22 @@
+{
+  "asset": "SM_Astra_FoundationApproachDeck",
+  "concept": "docs\\assets\\concepts\\stage1-related-hangar\\04-foundation-approach-deck.png",
+  "fbx": "SM_Astra_FoundationApproachDeck.fbx",
+  "textures": "SM_Astra_FoundationApproachDeck.fbm",
+  "unity_material": "M_Astra_FoundationApproachDeck.mat",
+  "metres": true,
+  "blender_dimensions_XYZ": [
+    23.105998992919922,
+    15.5,
+    0.5130000114440918
+  ],
+  "triangles": 115740,
+  "editable_components": 769,
+  "source_blend": "artifacts\\stage1-related-hangar\\04-foundation-approach-deck\\SM_Astra_FoundationApproachDeck.blend",
+  "validation_report": "artifacts\\stage1-related-hangar\\04-foundation-approach-deck\\validation.json",
+  "fbx_roundtrip": "PASS",
+  "sha256": "6e5c9a997726d8ace4660fbbe4dc12073e9bf546e32a2f22e8b4ee608c4195f9",
+  "scene_placement": "Assets/Scenes/Stage1_Astra.unity / Hangar Related - Concept Models",
+  "pivot": "base center; ramp low-end elevation",
+  "scene_instances": 1
+}

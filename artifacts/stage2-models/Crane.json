@@ -1,0 +1,43 @@
+{
+  "asset": "Crane",
+  "fbx": "S2_Crane.fbx",
+  "blend": "Source~/S2_Crane.blend",
+  "mesh_objects": 4,
+  "triangles": 9372,
+  "dimensions_m": [
+    30.130001068115234,
+    4.545000076293945,
+    22.05198097229004
+  ],
+  "bounds_min": [
+    -5.065000057220459,
+    -2.5450000762939453,
+    0.0
+  ],
+  "bounds_max": [
+    25.065000534057617,
+    2.0,
+    22.05198097229004
+  ],
+  "materials": [
+    "S2_Concrete",
+    "S2_Dark",
+    "S2_Orange",
+    "S2_Steel",
+    "S2_Teal"
+  ],
+  "pivots": [
+    "S2_Crane_Root",
+    "SlewPivot",
+    "Trolley",
+    "HookHeight"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

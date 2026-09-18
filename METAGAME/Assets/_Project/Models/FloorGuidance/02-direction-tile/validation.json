@@ -1,0 +1,64 @@
+{
+  "asset": "SM_Astra_DirectionTile",
+  "before_export": {
+    "dimensions": [
+      0.2199999988079071,
+      0.2199999988079071,
+      0.025100000202655792
+    ],
+    "min": [
+      -0.10999999940395355,
+      -0.10999999940395355,
+      0.0
+    ],
+    "max": [
+      0.10999999940395355,
+      0.10999999940395355,
+      0.025100000202655792
+    ],
+    "vertices": 2160,
+    "triangles": 4240,
+    "uv_layers": 2,
+    "materials": 2
+  },
+  "reimport": {
+    "dimensions": [
+      0.2199999988079071,
+      0.2200000062584877,
+      0.025100036750382415
+    ],
+    "min": [
+      -0.10999999940395355,
+      -0.10999999940395355,
+      -1.7921275130561298e-08
+    ],
+    "max": [
+      0.10999999940395355,
+      0.11000000685453415,
+      0.025100018829107285
+    ],
+    "vertices": 2160,
+    "triangles": 4240,
+    "uv_layers": 2,
+    "materials": 2
+  },
+  "geometry_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "missing_textures": [],
+  "texture_links": [
+    "C:\\workspace\\2-PJT\\S15P21B202-560-art\\METAGAME\\Assets\\_Project\\Models\\FloorGuidance\\02-direction-tile\\SM_Astra_DirectionTile.fbm\\SM_Astra_DirectionTile_BaseColor.png",
+    "C:\\workspace\\2-PJT\\S15P21B202-560-art\\METAGAME\\Assets\\_Project\\Models\\FloorGuidance\\02-direction-tile\\SM_Astra_DirectionTile.fbm\\SM_Astra_DirectionTile_Metallic.png",
+    "C:\\workspace\\2-PJT\\S15P21B202-560-art\\METAGAME\\Assets\\_Project\\Models\\FloorGuidance\\02-direction-tile\\SM_Astra_DirectionTile.fbm\\SM_Astra_DirectionTile_Roughness.png"
+  ],
+  "roundtrip": "PASS",
+  "materials": [
+    "M_Astra_DirectionTile_Body",
+    "M_Astra_DirectionTile_Lens"
+  ],
+  "fbx": "METAGAME\\Assets\\_Project\\Models\\FloorGuidance\\02-direction-tile\\SM_Astra_DirectionTile.fbx",
+  "parts": 21,
+  "units": "metres",
+  "pivot": "bottom center"
+}

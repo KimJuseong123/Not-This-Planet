@@ -48,6 +48,16 @@ namespace Metagame.Core
         // ── 체력 · 피해 ────────────────────────────────────────
         // 일반 점프는 안전하게 유지하고, 높은 곳에서 빠르게 착지했을 때만 낙하 피해를 준다.
         public const float MaxHealth = 100f;
+
+        // 빨간 테두리는 피해를 받은 순간 번쩍였다가 식는다 (S15P21B202-539).
+        // 예전처럼 남은 체력에 정비례하면, 구조가 체력을 절반만 돌려주는데
+        // (PhysicsScale.RescueHealthRatio) 되돌릴 수단이 없어 테두리가 판 끝까지 남는다.
+        //
+        // 0.45초는 "맞았다" 가 읽히면서 조작을 가리지 않는 길이다. 운석 직격(25)이
+        // 게인 2.2 로 0.55 가 되어 화면 짧은 변의 4.4% 두께로 뜬다 — 눈에 걸리되
+        // 시야를 막지는 않는다.
+        public const float DamageFlashSeconds = 0.45f;
+        public const float DamageFlashGain = 2.2f;
         // 낙하 피해 상수를 걷어냈다(S15P21B202-334). 기획 §20.2 는 낙하를 피해가 아니라
         // 자세로 처리한다 — 단계와 경계는 PhysicsScale.FallStagger/Knock/StunHeight 에 있다.
 
@@ -105,6 +115,38 @@ namespace Metagame.Core
         public const float CarryMassScale = 0.35f;
         /// <summary>이 질량 이상인 물체는 들어 올리지 않고 고정물을 짚듯 잡는다.</summary>
         public const float FixedGripMass = 40f;
+
+        // ── 동료 던지기 (기획 §20.4 · S15P21B202-519) ───────────
+        /// <summary>양손으로 잡은 동료를 위로 내던질 때의 위쪽 속도(m/s).</summary>
+        public const float TossUpSpeed = 8.5f;
+        /// <summary>같은 던지기의 앞쪽 속도. 위보다 작다 — "높으면서 살짝 앞으로".</summary>
+        public const float TossForwardSpeed = 3.2f;
+        /// <summary>이만큼 충전해야 던진다. 못 미치면 그냥 놓는다(도구와 같은 규칙).</summary>
+        public const float TossChargeThreshold = 0.10f;
+        /// <summary>
+        /// 던져진 사람이 최소한 이만큼은 날아가는 것으로 친다.
+        ///
+        /// 발이 땅에서 떨어지기 전에 <c>Grounded</c> 를 읽으면 던진 그 틱에 곧바로
+        /// 끝나 버린다 — 시야가 깜빡이고 아무 일도 없던 것처럼 보인다.
+        /// </summary>
+        public const float TossedMinSeconds = 0.45f;
+
+        /// <summary>
+        /// 던져진 몸이 넘어가는 빠르기(라디안/초). 꽉 채워 던졌을 때의 값이고,
+        /// 약하게 던지면 <see cref="Metagame.Gameplay.PlayerRig.TossStrength"/> 만큼 줄어든다
+        /// (S15P21B202-551).
+        ///
+        /// <para><b>실측으로 고른 값이다.</b> 균형 조인트의 감쇠를 걷은 뒤 각속도를 바꿔
+        /// 가며 1.2초 동안 골반이 얼마나 넘어가는지 쟀다.</para>
+        ///
+        /// <list type="table">
+        /// <item><description>4 rad/s → 62도 · 완전히 뒤집히지는 않는다</description></item>
+        /// <item><description>8 rad/s → 124도 · 한 번 뒤집힌다</description></item>
+        /// <item><description><b>12 rad/s → 180도</b></description></item>
+        /// <item><description>20 rad/s → 180도 · 더 올려도 늘지 않는다</description></item>
+        /// </list>
+        /// </summary>
+        public const float TossSpinSpeed = 12f;
 
         // ── 도구 투척 ──────────────────────────────────────────
         public const float ToolChargeDuration = 2.0f;

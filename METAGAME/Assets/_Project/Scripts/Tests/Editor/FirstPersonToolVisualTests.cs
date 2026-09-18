@@ -99,7 +99,19 @@ namespace Metagame.Gameplay.Tests
                 using (var view = new FirstPersonToolVisual(source.transform, camera.transform))
                 {
                     view.SetVisible(true);
-                    Assert.IsTrue(renderer.forceRenderingOff);
+
+                    // **감추는 수단이 아니라 결과를 잰다**(S15P21B202-489).
+                    //
+                    // 예전에는 `Assert.IsTrue(renderer.forceRenderingOff)` 였다. 그
+                    // 플래그는 그림자 패스까지 끄므로 들고 있는 동안 도구 그림자가
+                    // 사라졌고, 고치려면 감추는 수단을 shadowCastingMode 로 바꿔야
+                    // 했다 — 그러자 동작은 옳은데 이 단언이 깨졌다.
+                    //
+                    // 이 검증의 이름이 말하는 것은 "사본은 표시뿐이고 원본 표시는
+                    // 되돌아온다" 이지 "어떤 플래그를 쓴다" 가 아니다. 수단을 재면
+                    // 다른 옳은 구현을 거짓으로 몬다.
+                    Assert.IsFalse(DrawnInColorPass(renderer),
+                        "진짜 도구가 카메라에 그려지면 사본과 겹쳐 두 개로 보인다.");
                     Assert.IsEmpty(view.Model.GetComponentsInChildren<Collider>(true));
                     Assert.IsEmpty(view.Model.GetComponentsInChildren<Rigidbody>(true));
                     Assert.IsEmpty(view.Model.GetComponentsInChildren<MonoBehaviour>(true));
@@ -110,12 +122,24 @@ namespace Metagame.Gameplay.Tests
                     Assert.AreEqual(originalPosition, source.transform.position);
                     Assert.AreSame(originalParent, source.transform.parent);
                     view.SetVisible(false);
-                    Assert.IsFalse(renderer.forceRenderingOff);
+                    Assert.IsTrue(DrawnInColorPass(renderer),
+                        "놓으면 원본이 다시 그려져야 한다 — 3인칭에서 도구가 보인다.");
+                    Assert.IsFalse(renderer.forceRenderingOff, "플래그도 원래대로.");
                 }
                 Assert.AreEqual(0, camera.transform.childCount);
             }
             finally { Object.DestroyImmediate(source); Object.DestroyImmediate(camera); }
         }
+
+        /// <summary>
+        /// 이 렌더러가 카메라의 색 패스에 들어가는가. "감춰졌다" 를 수단과 무관하게
+        /// 재려고 둔다(S15P21B202-489) — <c>forceRenderingOff</c> · <c>enabled</c> ·
+        /// <c>ShadowsOnly</c> 중 어느 것으로 감춰도 답이 같다.
+        /// </summary>
+        static bool DrawnInColorPass(Renderer renderer) =>
+            !renderer.forceRenderingOff
+            && renderer.enabled
+            && renderer.shadowCastingMode != UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
 
         [Test]
         public void FirstPersonPoseCannotMoveGameplayMuzzle()

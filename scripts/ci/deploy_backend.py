@@ -114,6 +114,24 @@ def stale_verdict(behind: int | None, drift: list[str] | None,
 NOTIFY_JOBS = ("deploy-dev", "deploy-prod")   # 이 이름의 잡에서만 알린다
 
 
+def is_dev() -> bool:
+    """이 잡이 개발 환경을 배포하는가. 잡 이름이 유일한 근거다 — 스풀 경로는
+    `DEPLOY_SPOOL` 로 덮어쓸 수 있어서 이름만큼 믿을 수 없다."""
+    return env("CI_JOB_NAME", "") == "deploy-dev"
+
+
+def host_unit() -> str:
+    """무응답일 때 볼 systemd 유닛. **환경마다 다르다** (S15P21B202-483) —
+    옛 문구는 prod 이름을 하드코딩해서, dev 가 멈췄을 때 엉뚱한 유닛을 보게 했다."""
+    return "metagame-deploy-dev.path" if is_dev() else "metagame-deploy.path"
+
+
+def host_log() -> str:
+    """무응답일 때 볼 로그. 같은 이유로 환경마다 다르다."""
+    return "~/metagame-dev/deploy/deploy.log" if is_dev() else "~/metagame/deploy/deploy.log"
+
+
+
 def announce(result: str, detail: str = "") -> None:
     """배포 결과를 MM 에 알린다(S15P21B202-144). **최선 노력** — 알림이 실패해도 배포 결과를 덮지 않는다.
 
@@ -238,7 +256,7 @@ def main(argv: list[str] | None = None) -> int:
     st = wait_status(spool, sha, sleep=time.sleep)
     if st is None:
         print(f"❌ {TIMEOUT}초 안에 결과가 오지 않았다 — 호스트 쪽을 봐야 한다:")
-        print("   systemctl status metagame-deploy.path · tail ~/metagame/deploy/deploy.log")
+        print(f"   systemctl status {host_unit()} · tail {host_log()}")
         announce("timeout", f"{TIMEOUT}초 안에 호스트가 결과를 남기지 않았다")
         return 1
 

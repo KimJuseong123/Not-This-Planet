@@ -1,0 +1,13 @@
+{
+  "asset": "Console",
+  "scale_ok": true,
+  "uv_ok": true,
+  "mesh_count": 4,
+  "dimensions_m": [
+    1.5,
+    0.8000003099441528,
+    1.5807433128356934
+  ],
+  "pivots_count": 4,
+  "passed": true
+}

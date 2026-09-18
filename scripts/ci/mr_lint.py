@@ -8,7 +8,8 @@ import re
 
 from urllib.parse import quote
 
-from ci_common import (BRANCH_RE, KEY_RE, PROJECT_KEY, TITLE_RE, GitLab, Jira, Report, banner, env,
+from ci_common import (BRANCH_RE, KEY_RE, PROJECT_KEY, STORY_POINTS_FIELD, TITLE_RE, GitLab, Jira,
+                       Report, banner, env,
                        env_int, find_section, http, is_release_mr, key_from_branch, load_team,
                        part_of_issue, release_version, sections, strip_draft)
 
@@ -223,6 +224,38 @@ def existence_problem(key: str | None, issue: dict | None, lookup_failed: bool) 
         return (f"Jira 이슈 {key} 가 존재하지 않음 — 브랜치 이름의 번호를 확인하세요. "
                 f"번호를 잘못 적었다면 그 번호의 **다른 이슈**가 자동으로 진행 중으로 바뀌었을 수 있습니다")
     return None
+
+
+# 스토리 포인트를 매기지 않는 유형. **R11(진행 중 게이트)의 제외 조건과 같아야 한다** —
+# 그 둘이 어긋나면 같은 이슈가 한 자리에서는 막히고 다른 자리에서는 통과한다.
+POINTLESS_TYPES = ("에픽", "Epic", "스토리", "Story")
+
+
+def check_story_points(rep: Report, key: str, fields: dict) -> None:
+    """스토리 포인트가 비어 있으면 막는다 (S15P21B202-568).
+
+    **왜 MR 시점인가.** 이 검사는 전에 두 번 빠졌다 — `-88` 은 R5 자동화에서(브랜치만
+    만든 이슈가 되돌아가서), `-482` 는 생성 화면에서(*"만드는 순간에는 예측이 안 서는
+    이슈가 있고, 막으면 아무 숫자나 넣게 된다"*). 두 반대 다 **만들 때·진행 중으로 갈 때**
+    막는 것에 대한 것이었다. MR 을 올리는 시점에는 작업이 끝나 있어 크기가 추측이 아니므로
+    그 실패 모드가 없다. 생성 시 필수로 만들지 않는 결정은 그대로다.
+
+    **번호가 틀리면 모든 MR 이 막힌다.** Jira 는 모르는 필드를 조용히 빼고 주므로,
+    "값이 없다" 와 "필드를 못 받았다" 를 가른다 — 후자는 우리 설정 문제이지 작성자의
+    잘못이 아니다. 팀 전체를 세우는 대신 경고로 알린다.
+
+    **`0` 은 유효한 값이다.** 참/거짓으로 보면 0 포인트가 빈 값이 된다.
+    """
+    if STORY_POINTS_FIELD not in fields:
+        rep.warn(f"스토리 포인트 필드({STORY_POINTS_FIELD})를 Jira 가 돌려주지 않음 — "
+                 "번호가 바뀌었는지 확인 필요(ci_common.STORY_POINTS_ID). 이 검사는 건너뜀")
+        return
+    if fields[STORY_POINTS_FIELD] is None:
+        rep.fail(f"Jira 이슈 스토리 포인트 없음 — 담당자·상위 Epic 과 같은 필수 필드입니다. "
+                 f"{key} 를 열어 채우세요(척도: docs/jira-convention.md §5). "
+                 "만들 때의 예측이 아니라 **끝난 작업의 크기**를 적으면 됩니다")
+        return
+    rep.ok(f"스토리 포인트 {fields[STORY_POINTS_FIELD]:g}")
 
 
 def assignee_mismatch(mr: dict, issue: dict) -> str | None:
@@ -497,6 +530,11 @@ def main() -> int:
                     rep.warn(mismatch)
             if itype not in ("에픽", "Epic") and not f.get("parent"):
                 rep.fail("Jira 이슈에 상위 Epic 없음 — 상위 항목 필수")
+            # **R11 과 같은 기준으로 뺀다** (S15P21B202-568). 스토리·에픽은 자기 브랜치를
+            # 갖지 않고 사람이 손으로 옮기는 유형이라 진행 중 게이트(R11)도 빼 두었다.
+            # 두 겹의 대상이 다르면 어느 쪽이 맞는지 아무도 모르게 된다.
+            if itype not in POINTLESS_TYPES:
+                check_story_points(rep, key, f)
             jpart = part_of_issue(issue)
             if part and jpart and part != jpart:
                 rep.fail(f"MR 제목 파트 [{part}] ≠ Jira 이슈 파트 [{jpart}] — MR 파트는 이슈 파트를 따름")

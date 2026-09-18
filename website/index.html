@@ -56,6 +56,14 @@
         <div class="download-action"><a class="download-button" id="downloadLink" hidden>Windows 버전 다운로드 ↓</a><button class="download-button" id="downloadPending" disabled>다운로드 준비 중</button><p id="downloadStatus">다운로드가 열리면 이곳에서 받을 수 있습니다.</p><a class="guide-link" href="#guide">실행 방법 확인</a><a class="secondary-button feedback-button" data-feedback-link href="https://docs.google.com/forms/d/e/1FAIpQLSeUK83EHeX9n6cuMBYJWsuoGVNIfnNwRiW2XKEIjVoV950Z3w/viewform" target="_blank" rel="noopener noreferrer">플레이 후기 남기기 ↗<span class="sr-only"> (새 탭)</span></a><p class="feedback-hint">1분 설문 · 솔직한 후기를 들려주세요</p></div>
       </section>
     </section>
+    <!-- 이번 버전에서 바뀐 것 (S15P21B202-462·-595).
+         `release-config.js` 의 `notes` 가 비어 있으면 release.js 가 이 절을 켜지 않는다 —
+         빈 제목만 남으면 고장으로 보인다. 버전은 /builds/latest.json 에서 채운다. -->
+    <section id="notes" class="section" aria-labelledby="notes-heading" hidden>
+      <div class="section-heading"><p class="eyebrow">WHAT'S NEW</p><h2 id="notes-heading">이번 버전(<span id="notesVersion">최신</span>)에서 바뀐 것</h2></div>
+      <ul class="notes-list" id="notesList"></ul>
+    </section>
+
     <section id="about" class="section">
       <div class="section-heading"><p class="eyebrow">ABOUT THE GAME</p><h2>혹독한 환경의 외계 행성에서 탈출하라!</h2><p>혼자서는 버거운 일도, 함께라면 새로운 방법이 생깁니다.</p></div>
       <h3 class="subheading">핵심 플레이 루프</h3>

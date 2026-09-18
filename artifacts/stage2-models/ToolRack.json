@@ -1,0 +1,38 @@
+{
+  "asset": "ToolRack",
+  "fbx": "S2_ToolRack.fbx",
+  "blend": "Source~/S2_ToolRack.blend",
+  "mesh_objects": 1,
+  "triangles": 972,
+  "dimensions_m": [
+    1.2000000476837158,
+    0.6700000166893005,
+    1.399999976158142
+  ],
+  "bounds_min": [
+    -0.6000000238418579,
+    -0.39500001072883606,
+    0.0
+  ],
+  "bounds_max": [
+    0.6000000238418579,
+    0.2750000059604645,
+    1.399999976158142
+  ],
+  "materials": [
+    "S2_Orange",
+    "S2_Steel",
+    "S2_Teal"
+  ],
+  "pivots": [
+    "S2_ToolRack_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

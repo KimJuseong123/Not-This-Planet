@@ -1,0 +1,64 @@
+{
+  "asset": "SM_Astra_CargoApronEntryStairs",
+  "concept": "C:\\workspace\\2-PJT\\S15P21B202\\docs\\assets\\concepts\\stage1-related-hangar\\11-cargo-apron-entry-stairs.png",
+  "components": 52,
+  "before_export": {
+    "meshes": 1,
+    "vertices": 3936,
+    "triangles": 7664,
+    "bounds_min": [
+      -1.649999976158142,
+      -1.0245000123977661,
+      -0.0006380350096151233
+    ],
+    "bounds_max": [
+      1.649999976158142,
+      1.0199999809265137,
+      0.8359999656677246
+    ],
+    "dimensions": [
+      3.299999952316284,
+      2.04449999332428,
+      0.8366380006773397
+    ]
+  },
+  "after_reimport": {
+    "meshes": 1,
+    "vertices": 3936,
+    "triangles": 7664,
+    "bounds_min": [
+      -1.649999976158142,
+      -1.0245000123977661,
+      -0.0006382011924870312
+    ],
+    "bounds_max": [
+      1.649999976158142,
+      1.0200001001358032,
+      0.8360001444816589
+    ],
+    "dimensions": [
+      3.299999952316284,
+      2.0445001125335693,
+      0.836638345674146
+    ]
+  },
+  "geometry_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "missing_textures": [],
+  "texture_links": [
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\11-cargo-apron-entry-stairs\\SM_Astra_CargoApronEntryStairs.fbm\\SM_Astra_CargoApronEntryStairs_BaseColor.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\11-cargo-apron-entry-stairs\\SM_Astra_CargoApronEntryStairs.fbm\\SM_Astra_CargoApronEntryStairs_Emission.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\11-cargo-apron-entry-stairs\\SM_Astra_CargoApronEntryStairs.fbm\\SM_Astra_CargoApronEntryStairs_Metallic.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\11-cargo-apron-entry-stairs\\SM_Astra_CargoApronEntryStairs.fbm\\SM_Astra_CargoApronEntryStairs_Normal.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\11-cargo-apron-entry-stairs\\SM_Astra_CargoApronEntryStairs.fbm\\SM_Astra_CargoApronEntryStairs_Roughness.png"
+  ],
+  "roundtrip": "PASS",
+  "units": "metres",
+  "front_blender": "-Y",
+  "export_axes": "-Z forward / Y up",
+  "pivot": "base center; ramp low-end elevation",
+  "fbx": "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\11-cargo-apron-entry-stairs\\SM_Astra_CargoApronEntryStairs.fbx",
+  "material": "M_Astra_CargoApronEntryStairs.002"
+}

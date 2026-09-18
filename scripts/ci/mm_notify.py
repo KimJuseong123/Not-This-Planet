@@ -9,14 +9,17 @@
 **모든 사람의 다음 브랜치가 빨간 기준선 위에서 시작하기** 때문이다. `branch_failed`·
 `branch_resolved` 가 그 경우를 맡는다.
 
-원칙(docs/ci-and-notifications.md §5): 태그할 사람이 없는 메시지는 보내지 않는다. 첫 줄 = 등급 이모지 + 굵은 제목 + 링크,
+원칙(docs/ci-and-notifications.md §4): 태그할 사람이 없는 메시지는 보내지 않는다. 첫 줄 = 등급 이모지 + 굵은 제목 + 링크,
 둘째 줄 = @멘션 + 조치. 사용자 매핑은 scripts/ci/team.json. 필요 변수: MM_WEBHOOK_URL, GITLAB_TOKEN(파이프라인·잡 조회).
 """
 import json
 import os
 import sys
+from datetime import datetime, timedelta, timezone
 
-from ci_common import GitLab, banner, bot_line, env, http, load_team, role_member, strip_draft
+from ci_common import GitLab, banner, bot_line, env, http, load_team, role_member, strip_draft, why
+
+KST = timezone(timedelta(hours=9))
 
 TEAM = load_team()
 BY_GITLAB = {m["gitlab"]: m for m in TEAM["members"]}
@@ -40,9 +43,17 @@ def send(text: str) -> int:
     url = env("MM_WEBHOOK_URL")
     if not url:
         print("MM_WEBHOOK_URL 없음 → 전송 생략(아래는 보냈을 문구)"); print(text); return 0
-    st, _ = http("POST", url, body={"text": text, "username": "METAGAME 봇"})
+    st, resp = http("POST", url, body={"text": text, "username": "METAGAME 봇"})
     print(text); print(f"MM 전송 → {st}")
-    return 0 if st == 200 else 1
+    # **성공 기준을 한 번만 정한다** (S15P21B202-484, `!410` 리뷰). 사유 판정과
+    # 반환값이 서로 다른 기준을 쓰면, 2xx 인데 잡만 실패하는 조합이 생긴다.
+    # 옆 호출부(publish_release.jira_release_webhook)도 같은 띠를 쓴다.
+    ok = 200 <= (st or 0) < 300
+    if not ok:
+        # 2026-09-13: 배포 무응답 카드가 400 으로 떨어져 **아무도 못 봤다.**
+        # 숫자만으로는 다음에도 못 찾는다 (S15P21B202-484).
+        print(f"   ↳ 사유: {why(resp)}")
+    return 0 if ok else 1
 
 
 MAX_COMMENT_CHARS = 8000        # GitLab 코멘트 본문이 지나치게 커지지 않도록(-134)
@@ -89,7 +100,12 @@ def mr_opened(gl: GitLab) -> int:
         ("MR", f"[!{gl.iid} {title}]({mr.get('web_url')})"),
         ("리뷰어", mentions),
         ("작성", author_txt.lstrip("@")),
-        ("조치", "파이프라인 결과 확인 후 MR 본문 하단 '리뷰어 확인' 5항목 기준으로 리뷰·머지"),
+        # **팀장이 매 MR 마다 받는 지시문이다.** `-415` 가 MR 템플릿의
+        # `## 리뷰어 확인` 절을 없앴는데 이 줄은 계속 그리로 안내했다 — 그대로
+        # 따라 본문 하단으로 내려가면 그런 절이 없고, 리뷰 기준이 어디 있는지
+        # 모른 채 머지하게 된다. 지금 실제로 보는 두 가지를 적는다(`-517`).
+        ("조치", "AI 리뷰 코멘트의 판정표에서 ⚠️·❓ 를 보고, MR 본문의 "
+                 "`머지 전에 팀장이 확인할 것` 을 확인한 뒤 머지"),
     ]))
 
 
@@ -191,19 +207,90 @@ def upsert_mr_comment(gl: GitLab, body: str) -> None:
         print(f"MR 코멘트 게시 실패(무시): {type(e).__name__}: {e}")
 
 
+#: 해소 코멘트의 머리줄. 같은 코멘트를 두 번 갱신할 때 **이미 해소된 것인지** 가르는 표시다.
+RESOLVED_HEAD = "✅ **CI 실패가 해소되었습니다**"
+#: 접어 둔 실패 기록의 시작. 이 문자열로 찾아 지우고 다시 만든다.
+HISTORY_OPEN = "<details><summary>고치기 전 실패 내용</summary>"
+#: 접힌 기록의 **끝을 여는 고유 표시** (`!513` AI 리뷰). `</details>` 로 끝을 찾으면
+#: 실패 본문 자체가 `<details>` 를 품고 있을 때(잡 로그 접기 등) **안쪽 닫는 태그에서
+#: 잘려** 뒷조각이 본문에 남고 태그 짝이 어긋난다. 우리가 심은 표시로만 자른다.
+HISTORY_END = "<!-- history-end -->"
+HISTORY_CLOSE = f"</details>\n{HISTORY_END}"
+
+
+def find_history(body: str) -> tuple:
+    """접힌 기록의 `(시작, 끝)` 자리. 없으면 `(-1, -1)`.
+
+    끝은 **우리가 심은 `HISTORY_END`** 로만 찾는다 — 안쪽에 남의 `</details>` 가
+    있어도 흔들리지 않는다.
+    """
+    i = body.find(HISTORY_OPEN)
+    if i < 0:
+        return -1, -1
+    j = body.find(HISTORY_END, i)
+    if j < 0:
+        return -1, -1        # 짝이 없으면 손대지 않는다 — 반쯤 자르는 것이 더 나쁘다
+    return i, j + len(HISTORY_END)
+
+
+def strip_history(body: str) -> str:
+    """접어 둔 기록을 떼어 낸다. **기록이 기록을 품지 않게** 하려고 쓴다."""
+    i, j = find_history(body)
+    if i < 0:
+        return body.strip()
+    return (body[:i] + body[j:]).strip()
+
+
+def history_block(old: str) -> str:
+    """해소 코멘트에 함께 실을 **접힌 실패 기록**. 남길 것이 없으면 빈 문자열.
+
+    <b>왜 남기나</b> (S15P21B202-606). CI 코멘트는 고정 마커에 덮어쓰므로, 고치고 나면
+    <b>무엇이 왜 실패했었는지가 MR 에서 사라진다.</b> 2026-09-17 `!506` 이 그랬다 —
+    씬 파일이 깨져 10건이 실패했던 기록이 통째로 ✅ 로 덮여, 리뷰어가 "이 MR 이 한 번
+    빨갰었나" 를 알 방법이 없었다. 남은 것은 채팅 카드뿐이고 그건 스크롤 위로 사라진다.
+
+    <b>한 단계만 남긴다.</b> 덮어쓸 때마다 쌓으면 코멘트가 끝없이 길어진다 — 그러면
+    아무도 안 읽고, 그건 지우는 것과 같다. 그래서 새 기록을 만들 때 옛 기록은 버린다.
+
+    <b>이미 해소된 코멘트는 그 기록을 그대로 물려준다.</b> 통과한 뒤 또 통과했다고 해서
+    실패 기록이 사라지면 안 된다 — 같은 잡이 두 번 도는 일은 흔하다(재시도·재푸시).
+    """
+    body = old.split(FAIL_MARKER, 1)[-1] if FAIL_MARKER in old else old
+
+    if RESOLVED_HEAD in body:
+        # 이미 해소 코멘트다 — 새로 접을 실패가 없다. 안에 든 기록만 옮긴다.
+        i, j = find_history(body)
+        block = body[i:j] if i >= 0 else ""
+    else:
+        inner = strip_history(body)
+        block = f"{HISTORY_OPEN}\n\n{inner}\n\n{HISTORY_CLOSE}" if inner else ""
+
+    # **모양을 한곳에서 맞춘다** (`!513` AI 리뷰). 두 경로가 앞뒤 개행을 다르게
+    # 돌려주면 두 번째 해소 코멘트의 렌더가 첫 번째와 달라진다.
+    return f"\n{block}\n" if block else ""
+
+
 def ci_resolved(gl: GitLab) -> int:
     """검사가 통과했을 때, 남아 있는 실패 코멘트를 '해소됨' 으로 갱신한다(없으면 아무 것도 하지 않음).
     mm-ci-failed 는 on_failure 전용이라 통과 시점에는 실행되지 않으므로 별도 잡으로 처리한다."""
     if not gl.can_write:
         print("GITLAB_TOKEN 없음 → 생략"); return 0
     try:
-        if not any(FAIL_MARKER in (n.get("body") or "") for n in gl.notes()):
+        old = next((n.get("body") or "" for n in gl.notes()
+                    if FAIL_MARKER in (n.get("body") or "")), None)
+        if old is None:
             print("이전 실패 코멘트 없음 → 생략"); return 0
-        body = (f"{FAIL_MARKER}\n✅ **CI 실패가 해소되었습니다** — 커밋 `{env('CI_COMMIT_SHORT_SHA', '')}` 기준으로 검사를 통과했습니다.\n"
-                f"{bot_line(env('CI_JOB_NAME', 'mm-ci-resolved'), '**머지를 막지 않습니다** — 해소 알림입니다', with_sha=False)}\n\n"
-                f"<sub>자동 생성(mm-notify) · 이전 실패 내용은 이 코멘트가 대체합니다</sub>")
+        kept = history_block(old)
+        body = (f"{FAIL_MARKER}\n{RESOLVED_HEAD} — 커밋 `{env('CI_COMMIT_SHORT_SHA', '')}` 기준으로 검사를 통과했습니다.\n"
+                f"{bot_line(env('CI_JOB_NAME', 'mm-ci-resolved'), '**머지를 막지 않습니다** — 해소 알림입니다', with_sha=False)}\n"
+                f"{kept}\n"
+                f"<sub>자동 생성(mm-notify)</sub>")
         st, _ = gl.upsert_note(FAIL_MARKER, body)
-        print(f"해소 코멘트 {'갱신' if st in (200, 201) else '실패 ' + str(st)}")
+        # **결과를 먼저 말한다** (`!513` AI 리뷰). 갱신이 실패했는데 "접어서 남긴다" 가
+        # 먼저 찍히면 로그가 실제와 어긋난다.
+        ok = st in (200, 201)
+        print(f"해소 코멘트 {'갱신' if ok else '실패 ' + str(st)}"
+              + (" · 이전 실패 내용을 접어서 남겼다" if ok and kept else ""))
     except Exception as e:  # noqa: BLE001
         print(f"해소 코멘트 갱신 실패(무시): {type(e).__name__}: {e}")
     return 0
@@ -379,6 +466,30 @@ def branch_pipeline_jobs(gl: GitLab) -> list[dict]:
     return failed_jobs(gl)[0]
 
 
+def is_scheduled() -> bool:
+    """예약 실행인가. 새벽 배포·아침 점검이 여기 든다."""
+    return env("CI_PIPELINE_SOURCE", "") == "schedule"
+
+
+def schedule_name() -> str:
+    """어느 예약인지 사람 말로. 시각을 쓰는 이유는 스케줄 이름을 잡이 모르기 때문이다.
+
+    **KST 로 바꿔야 한다** (`!448` AI 리뷰). `CI_PIPELINE_CREATED_AT` 은 UTC 라
+    글자를 그대로 잘라 쓰면 04:00 예약이 카드에 **"19:00 예약"** 으로 찍힌다 —
+    스케줄이 04:00·09:30 둘뿐인데 둘 다 못 알아보는 이름이 된다.
+    """
+    raw = env("CI_PIPELINE_CREATED_AT", "")
+    if not raw:
+        return "예약"
+    try:
+        ts = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return "예약"
+    if ts.tzinfo is None:          # 오프셋이 없으면 UTC 로 본다 — GitLab 이 주는 모양이다
+        ts = ts.replace(tzinfo=timezone.utc)
+    return ts.astimezone(KST).strftime("%H:%M") + " 예약"
+
+
 def branch_failed(gl: GitLab) -> int:
     branch = env("CI_COMMIT_BRANCH", "") or "?"
     sha = env("CI_COMMIT_SHORT_SHA", "") or "?"
@@ -418,6 +529,34 @@ def branch_failed(gl: GitLab) -> int:
                      "`release/<키>-vX.Y.Z` 가 없는 것이다(git-convention §8). 고친 뒤 "
                      "이 파이프라인을 재실행하면 릴리스가 다시 시도된다"),
         ]
+    elif is_scheduled():
+        # **예약 실행은 말이 또 다르다** (S15P21B202-533).
+        #
+        # 새벽 배포·아침 점검이 실패한 것은 `develop` 의 코드가 빨간 것이 아니다 —
+        # 그 커밋은 이미 MR 파이프라인을 통과해 머지된 것이다. 여기에 대고
+        # "빨간 기준선 위에서 시작한다" 고 하면 **읽는 사람이 할 일을 잘못 고른다**
+        # (있지도 않은 원인 MR 을 되돌리려 든다).
+        #
+        # 2026-09-15 04:03 에 `build-devbuild` 가 죽었는데 이 잡이 `schedule` 에서
+        # 아예 돌지 않아 **아무도 못 들었다.** 그래 놓고 08:31 푸시가 ✅ 회복 카드를
+        # 보냈다 — 알린 적 없는 실패가 해소됐다고 알려진 것이다.
+        # **여기서는 아무도 멘션하지 않는다** (S15P21B202-608).
+        #
+        # 채널 원칙은 *"태그할 사람이 없는 메시지는 보내지 않는다"* 인데, 예약 실행은
+        # 그 원칙이 가리키는 사람이 **없다.** 멘션 대상이 `GITLAB_USER_LOGIN`(= 마지막
+        # 머지를 누른 사람)이라 **실패와 아무 상관이 없는 사람**이 불린다. 2026-09-18
+        # 04:03 카드가 팀장과 금준영을 불렀는데 원인은 `-590` 의 씬이었다.
+        #
+        # 게다가 이 카드는 **고칠 때까지 매일 같은 시각에 다시 나간다.** 매일 엉뚱한
+        # 사람을 부르면 그 채널의 멘션이 통째로 무시된다 — 정작 불러야 할 때 안 읽힌다.
+        #
+        # 그래서 **누가 보는 일인지는 적되 부르지는 않는다.**
+        head, tail = f"🔴 **예약 실행이 실패했다** ({schedule_name()})", [
+            ("영향", "`" + branch + "` 의 코드가 빨간 것이 아니다 — 그 커밋은 이미 검사를 통과했다. "
+                     "**그 시간에 하기로 한 일이 안 됐다**(아래 '실패한 잡' 이 무엇이 안 됐는지다)"),
+            ("담당", "Infra — 멘션은 하지 않는다(매일 같은 시각에 반복되는 알림이다)"),
+            ("조치", "잡 로그의 ❌ 줄을 보고 고친다. 고칠 때까지 **매일 같은 시각에 다시 실패한다**"),
+        ]
     else:
         head, tail = f"🔴 **{branch} 가 빨갛다**", [
             ("영향", f"지금 `{branch}` 에서 딴 브랜치는 **빨간 기준선 위에서 시작한다** — 남의 실패를 물려받는다"),
@@ -430,6 +569,61 @@ def branch_failed(gl: GitLab) -> int:
         ("실패한 잡", parts),
         ("이유", reason_cell),
     ] + tail))
+
+
+def pick_previous(pipes: list, pid, source: str) -> tuple:
+    """회복 카드의 **"직전"** 을 고른다. `(직전, 건너뛸 이유)` — 둘 중 하나만 채워진다.
+
+    **순수 함수로 갈라 둔다.** 이 판단이 틀리면 깨진 브랜치에 "돌아왔다" 가 나가는데,
+    실제 파이프라인 목록으로는 그 상황을 검사에서 만들 수 없다.
+
+    <b>나보다 새 파이프라인이 있으면 아무 말도 하지 않는다</b> (S15P21B202-606).
+    전에는 **자기 자신만** 건너뛰고 최신순 목록의 첫 번째를 "직전" 으로 삼았다. 그래서
+    내가 남들보다 늦게 끝나면 **나보다 나중 파이프라인이 "직전" 자리**에 들어왔다.
+
+    2026-09-17 실측: `a71aacaf`(18:53:53)의 성공이 8초 뒤 커밋 `10bdab36` 의 **실패한**
+    파이프라인 `203567` 을 "직전" 으로 집어 *"develop 가 초록으로 돌아왔다 — 이제 브랜치를
+    따도 된다"* 를 보냈다. develop 은 그때도 깨져 있었다. `resource_group: unity` 로
+    직렬화돼 있어 완료 순서가 생성 순서와 다른 것은 드문 일이 아니다.
+
+    <b>새것의 상태를 보지 않고 무조건 침묵한다.</b> 성공이면 그쪽이 자기 카드를 보내고
+    (중복), 실패면 "돌아왔다" 가 거짓말이고, 도는 중이면 모른다 — 셋 다 내가 말할 자리가
+    아니다. **내 초록은 더 이상 브랜치 끝을 말하지 않는다.**
+    """
+    try:
+        mine = int(pid)
+    except (TypeError, ValueError):
+        # 내 id 를 모르면 나이를 견줄 수 없다 — 그 상태로 "돌아왔다" 를 말하지 않는다.
+        return None, "내 파이프라인 id 를 읽지 못했다 → 생략"
+
+    def same_kind(p) -> bool:
+        # **같은 종류끼리만 견준다** (S15P21B202-533). 예약 실행과 머지 푸시는 도는 잡이
+        # 다르다(`changes:`). 2026-09-15 에 04:03 새벽 실패를 직전으로 보고 08:31 머지가
+        # 회복 카드를 보냈는데, 그 푸시는 `scripts/ci/**` 만 바꿔 실질 잡이 하나였다.
+        #
+        # **키가 있을 때만 견준다** (`!448` AI 리뷰). 없으면 모든 후보가 걸러져 회복
+        # 카드가 조용히 사라진다 — 없는 쪽으로 틀리면 안 된다.
+        other = p.get("source")
+        return not (source and other and other != source)
+
+    def pid_of(p):
+        try:
+            return int(p.get("id"))
+        except (TypeError, ValueError):
+            return None
+
+    kin = [p for p in pipes if same_kind(p) and pid_of(p) is not None]
+
+    newer = [p for p in kin if pid_of(p) > mine]
+    if newer:
+        ids = " ".join(str(pid_of(p)) for p in sorted(newer, key=pid_of))
+        return None, (f"나보다 새 파이프라인이 있다({ids}) — 이 초록은 브랜치 끝을 "
+                      f"말하지 않는다 → 생략")
+
+    for p in sorted([p for p in kin if pid_of(p) < mine], key=pid_of, reverse=True):
+        if p.get("status") in ("success", "failed"):   # running·canceled 는 판단 근거가 아니다
+            return p, None
+    return None, "직전 파이프라인을 찾지 못했다 → 생략"
 
 
 def branch_resolved(gl: GitLab) -> int:
@@ -459,16 +653,9 @@ def branch_resolved(gl: GitLab) -> int:
     if st != 200 or not isinstance(pipes, list):
         print(f"파이프라인 목록 조회 실패 {st} → 생략"); return 0
 
-    previous = None
-    for p in pipes:
-        if str(p.get("id")) == str(pid):
-            continue
-        if p.get("status") in ("success", "failed"):   # running·canceled 는 판단 근거가 아니다
-            previous = p
-            break
-
-    if previous is None:
-        print("직전 파이프라인을 찾지 못했다 → 생략"); return 0
+    previous, skip = pick_previous(pipes, pid, env("CI_PIPELINE_SOURCE", ""))
+    if skip:
+        print(skip); return 0
     if previous.get("status") != "failed":
         print(f"직전 파이프라인이 {previous.get('status')} → 알릴 것 없음"); return 0
 
@@ -477,6 +664,10 @@ def branch_resolved(gl: GitLab) -> int:
     return send(card(f"✅ **{branch} 가 초록으로 돌아왔다**", [
         ("커밋", f"[`{sha}`]({env('CI_PROJECT_URL', '')}/-/commit/{env('CI_COMMIT_SHA', '')}) {title}".strip()),
         ("직전", f"[실패한 파이프라인]({previous.get('web_url', '')})"),
+        # **예약 실행은 여기 오지 않는다** (S15P21B202-533). 회복 카드를 예약에서
+        # 보내면 09:30 점검 성공이 04:00 새벽 실패를 해소한 것처럼 말하게 된다 —
+        # 둘 다 `source=schedule` 이라 갈라낼 수가 없다. `.gitlab-ci.yml` 의
+        # `mm-nightly-failed` 주석에 근거를 적어 뒀다.
         ("조치", f"이제 `{branch}` 에서 브랜치를 따도 된다"),
     ]))
 
@@ -495,9 +686,17 @@ DEPLOY_GRADE = {
 def deploy(result: str, detail: str = "") -> int:
     """배포 결과 카드를 보낸다. 실패면 조치할 사람(Infra)을 멘션한다.
 
-    이 알림이 필요한 이유는 배포가 **사람이 눌러서** 도는 수동 잡이라는 데 있다(-139 결정).
-    누른 사람은 잡 로그를 보고 있지만, **같은 서버로 테스트하던 다른 팀원은 재시작을 모른다** —
+    이 알림이 필요한 이유는 **같은 서버로 테스트하던 다른 팀원이 재시작을 모른다**는 데 있다 —
     재시작은 진행 중인 WebSocket 세션을 전부 끊는다. 그래서 성공도 알린다.
+
+    **누가 배포했는지는 적지 않는다**(S15P21B202-566). 전에는 `GITLAB_USER_LOGIN` 을 "누른
+    사람" 으로 실었는데, 그 값은 예약 파이프라인에서 **예약을 만든 사람**이다 — 새벽 자동
+    배포(-455)가 돌 때마다 아무것도 안 한 사람이 누른 것으로 찍혔다. 배포 뒤에 문제가 생기면
+    그 이름을 먼저 찾게 되므로 **틀린 이름은 없는 것보다 나쁘다.**
+
+    지운 것이지 다른 데로 옮긴 것이 아니다. 이 카드를 읽는 사람에게 필요한 것은 "서버가
+    재시작됐다" 뿐이고, 누른 사람 본인은 잡 로그를 이미 보고 있다. 누가 돌렸는지는
+    파이프라인 링크에 그대로 남는다.
     """
     emoji, label, blame = DEPLOY_GRADE.get(result, ("🔴", f"배포 결과 불명({result})", True))
     sha = (env("CI_COMMIT_SHA", "") or "")[:8] or "?"
@@ -511,9 +710,6 @@ def deploy(result: str, detail: str = "") -> int:
         rows.append(("지금 서버", "**상태를 확인해야 합니다** — 배포가 시작됐는지조차 응답이 없었습니다"))
     elif result == "ok":
         rows.append(("주의", "재시작으로 **진행 중이던 접속이 모두 끊겼습니다** — 테스트 중이었다면 다시 접속하세요"))
-    who = mm_of(env("GITLAB_USER_LOGIN", ""))
-    if who:
-        rows.append(("누른 사람", who))
     links = []
     if env("CI_PIPELINE_URL"):
         links.append(f"[파이프라인]({env('CI_PIPELINE_URL')})")
@@ -523,7 +719,13 @@ def deploy(result: str, detail: str = "") -> int:
         rows.append(("링크", " · ".join(links)))
     if blame:
         rows.append(("볼 곳", "잡 로그 · 호스트 `~/metagame/deploy/deploy.log` · `systemctl status metagame-deploy.path`"))
-    infra = mm_of(INFRA) if blame else None      # 못 찾으면 멘션 없이 — 알림 자체가 사라지는 것보다 낫다
+
+    # **예약 실행에서는 부르지 않는다** (S15P21B202-608). 새벽 04:00 에 나가는 카드는
+    # 아무도 못 본다 — 그 시각의 멘션은 알림만 시끄럽게 하고, 아침에 읽을 때는 이미
+    # 멘션이 필요 없다(카드가 그대로 있다). 무엇을 볼지는 위 '볼 곳' 칸에 남는다.
+    #
+    # 낮에 사람이 눌러 도는 배포는 그대로 부른다 — 거기서는 기다리는 사람이 있다.
+    infra = mm_of(INFRA) if blame and not is_scheduled() else None
     return send(card(f"{emoji} **{label}**{' ' + infra if infra else ''}", rows))
 
 

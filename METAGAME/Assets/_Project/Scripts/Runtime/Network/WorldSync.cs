@@ -40,8 +40,8 @@ namespace Metagame.Network
         static float SendInterval =>
             NetworkServer.sendInterval > 0f ? NetworkServer.sendInterval : 1f / 20f;
 
-        /// <summary>자세 하나의 바이트 수 — Vector3 12 + Quaternion 16. Mirror 는 둘 다 그대로 쓴다.</summary>
-        const int PoseBytes = 28;
+        /// <summary>자세와 도킹 상태: Vector3 12 + Quaternion 16 + bool 1.</summary>
+        const int PoseBytes = 29; // position + rotation + pad docking flag
 
         /// <summary>RPC 머리말·배치 여유. 정확히 셀 이유는 없고 넉넉히 잡는다.</summary>
         const int PacketHeadroom = 64;
@@ -64,11 +64,43 @@ namespace Metagame.Network
         /// 받은 자세로 옮겨 가는 속도. 20Hz 로 받은 사이를 메운다.
         const float Smoothing = 20f;
 
+        /// <summary>
+        /// 한 걸음에 목표 쪽으로 얼마나 가는가 (S15P21B202-538).
+        ///
+        /// <para><b>왜 밖으로 뺐나.</b> 이 값이 <see cref="FollowOnClient"/> 안의 한 줄로만
+        /// 있으면 검증이 닿지 못한다. <c>ShouldSendFields</c> 와 같은 이유다.</para>
+        ///
+        /// <para>지수보간이라 <b>같은 시간을 몇 번에 나눠 밟든 결과가 거의 같다</b> —
+        /// 그래서 이 함수 자체는 문제가 아니었다. 문제는 <i>어떤 시계로</i> 밟느냐였다.</para>
+        /// </summary>
+        public static float FollowFactor(float deltaTime) =>
+            deltaTime <= 0f ? 0f : 1f - Mathf.Exp(-Smoothing * deltaTime);
+
+        /// <summary>
+        /// 한 번 보내고 난 뒤 남길 타이머 (S15P21B202-538).
+        ///
+        /// <para><b>0 으로 되돌리면 안 된다.</b> 남은 시간을 버리므로 실제 전송 주기가
+        /// 프레임 시간만큼 늘어나고(144fps 호스트면 33.3ms 가 아니라 34.7ms), 프레임 시간이
+        /// 흔들리는 만큼 주기도 흔들린다. 받는 쪽은 그 주기를 계단 삼아 따라가므로
+        /// 주기가 흔들리면 화면이 떨린다.</para>
+        ///
+        /// <para>길게 끊긴 프레임 뒤에 <b>밀린 만큼 몰아 보내지도 않는다</b>. 신뢰 없는
+        /// 채널이라 몰아 보내야 얻을 것이 없고, 한 묶음이 자세 전부를 담고 있어 마지막
+        /// 하나만 도착해도 결과가 같다.</para>
+        /// </summary>
+        public static float NextSendTimer(float timer, float interval)
+        {
+            if (interval <= 0f) return 0f;
+            var left = timer - interval;
+            return left < 0f ? 0f : (left > interval ? interval : left);
+        }
+
         [Serializable]
         public struct Pose
         {
             public Vector3 Position;
             public Quaternion Rotation;
+            public bool DockedToPad;
         }
 
         readonly List<Rigidbody> tracked = new List<Rigidbody>();
@@ -76,6 +108,18 @@ namespace Metagame.Network
         /// <summary>고정쇠. 위치가 아니라 <b>진행도</b>가 사람마다 달라지는 것들이다.</summary>
         readonly List<PartClamp> clamps = new List<PartClamp>();
         ClampState[] clampTargets = Array.Empty<ClampState>();
+
+        /// <summary>
+        /// 저중력장을 가진 탈것의 <see cref="tracked"/> 색인 (S15P21B202-505).
+        /// <see cref="Collect"/> 가 줄 세우기를 끝낸 뒤 채운다.
+        /// </summary>
+        readonly List<int> vehicleSlots = new List<int>();
+
+        FieldState[] sendFields = Array.Empty<FieldState>();
+        FieldState[] lastSentFields = Array.Empty<FieldState>();
+        float fieldKeepaliveTimer;
+        uint lastFieldSeq;
+        bool everField;
         Pose[] targets = Array.Empty<Pose>();
         float sendTimer;
 
@@ -164,6 +208,9 @@ namespace Metagame.Network
         readonly List<ToolBase> tools = new List<ToolBase>();
         public struct ToolViewState
         {
+            public uint RhythmSequence;
+            public byte RhythmGrade;
+            public float RhythmCooldown;
             public uint Owner;
             public byte Action;
             public float Progress;
@@ -293,6 +340,13 @@ namespace Metagame.Network
             dustStormSeed = seed;
         }
 
+        /// <summary>도구 소유자는 사람일 수도, 서버가 모는 AI 동료일 수도 있다.</summary>
+        static uint ToolOwnerId(PlayerRig rig)
+        {
+            var player = NetPlayer.NetIdOfRig(rig);
+            return player != 0 ? player : NetworkRigOwner.NetIdOf(rig);
+        }
+
         void OnDustStormSeedChanged(int oldSeed, int newSeed)
         {
             DustStormMatchSeed.ApplyServerSeed(newSeed);
@@ -312,10 +366,7 @@ namespace Metagame.Network
             if (tracked.Count == 0) return false;
 
             foreach (var body in tracked)
-            {
-                if (body == null) continue;
-                body.isKinematic = true;   // 서버가 보낸 자세만 따라간다
-            }
+                PrepareClientBody(body);
 
             targets = new Pose[tracked.Count];
             for (int i = 0; i < tracked.Count; i++)
@@ -340,6 +391,23 @@ namespace Metagame.Network
         {
             public float Progress;      // 0~1
             public bool Released;
+        }
+
+        /// <summary>
+        /// 탈것의 저중력장이 켜져 있는가 (S15P21B202-505).
+        ///
+        /// <para><b>번호는 <see cref="tracked"/> 의 색인이다.</b> 새 줄을 세우지 않는다 —
+        /// S15P21B202-434 가 그 이유를 적어 두었다(-315 의 "개수는 같은데 순서만 어긋남").
+        /// 받는 쪽은 <see cref="VehicleAt"/> 로 되찾는다.</para>
+        ///
+        /// <para><b>켜짐/꺼짐만 보낸다.</b> 장의 모양(꼭짓점·반경)은 기체 위치에서 매번
+        /// 다시 잡으므로(<c>TransportVehicle.Field</c> 게터가 <c>Configure</c> 를 부른다)
+        /// 탈것 자세가 이미 동기화되는 것으로 따라온다.</para>
+        /// </summary>
+        public struct FieldState
+        {
+            public int Vehicle;         // tracked 색인
+            public bool Active;
         }
 
         // ── 로그 진단용 (S15P21B202-352) ──────────────────────────────────
@@ -481,6 +549,7 @@ namespace Metagame.Network
                     h = FoldFloat(h, poses[i].Rotation.y);
                     h = FoldFloat(h, poses[i].Rotation.z);
                     h = FoldFloat(h, poses[i].Rotation.w);
+                    h = FoldInt(h, poses[i].DockedToPad ? 1 : 0);
                 }
 
                 return h;
@@ -596,6 +665,24 @@ namespace Metagame.Network
             trackedParts.Clear();
             for (int i = 0; i < tracked.Count; i++)
                 trackedParts.Add(tracked[i] != null ? tracked[i].GetComponent<SpaceshipPart>() : null);
+
+            // 저중력장을 실어 보낼 자리 (S15P21B202-505).
+            //
+            // **새 줄을 세우지 않는다.** 여기 담는 것은 `tracked` 의 색인이고, 그
+            // 색인은 위에서 이미 확정됐다. S15P21B202-434 가 "탈것만 따로 줄을 세우면
+            // -315 가 기록한 사고(개수는 같은데 순서만 어긋남)를 새로 만든다" 고 적어
+            // 두었다 — 그래서 부분집합만 들고 있는다.
+            //
+            // 매 틱 GetComponent 를 돌지 않으려고 여기서 한 번만 모은다. trackedParts
+            // 가 같은 이유로 같은 자리에 있다.
+            vehicleSlots.Clear();
+            for (int i = 0; i < tracked.Count; i++)
+            {
+                if (tracked[i] == null) continue;
+
+                var vehicle = tracked[i].GetComponent<TransportVehicle>();
+                if (vehicle != null) vehicleSlots.Add(i);
+            }
         }
 
         /// <summary>
@@ -685,7 +772,8 @@ namespace Metagame.Network
         {
             return body == null
                 ? default
-                : new Pose { Position = body.position, Rotation = body.rotation };
+                : new Pose { Position = body.position, Rotation = body.rotation,
+                    DockedToPad = body.TryGetComponent<SpaceshipPart>(out var part) && part.IsDockedToPad };
         }
 
         public override void OnStopClient()
@@ -748,7 +836,7 @@ namespace Metagame.Network
 
             // 클라이언트는 따라가기만 하므로 새로 들어온 것도 서버 자세를 받게 만든다.
             foreach (var body in tracked)
-                if (body != null) body.isKinematic = true;
+                PrepareClientBody(body);
 
             targets = new Pose[tracked.Count];
             for (int i = 0; i < tracked.Count; i++)
@@ -788,21 +876,65 @@ namespace Metagame.Network
                 return;
             }
 
-            FollowOnClient();
             ClearGhostsIfSilent();
+        }
+
+        /// <summary>
+        /// 참가자 화면의 물체 하나를 "받은 자세를 따라가기만 하는" 상태로 세운다.
+        ///
+        /// <para><b>보간을 켠다</b>(S15P21B202-538). 강체의 <c>transform</c> 은 물리 스텝에서만
+        /// 갱신되므로, 켜지 않으면 프레임레이트가 물리 주기(100Hz)보다 빠를 때 어떤 프레임은
+        /// 제자리이고 다음 프레임이 몰아서 간다. 보간은 마지막 두 물리 자세 사이를 프레임
+        /// 시각으로 메워 그 층계를 없앤다.</para>
+        ///
+        /// <para>씬의 <c>Part_1~4</c> 는 <c>m_Interpolate: 0</c> 이다(실측). 호스트에는 그래도
+        /// 괜찮다 — 호스트의 부품은 물리가 직접 적분하므로 매 스텝 제 속도로 간다. 문제는
+        /// <b>밖에서 자세를 받아 옮기는 쪽</b>에만 생긴다.</para>
+        ///
+        /// <para>이어받기(<c>-389</c>) 뒤에도 보간은 켜진 채로 남는다. 보간은 <b>보여 주는
+        /// 방식</b>일 뿐 물리 결과를 바꾸지 않으므로 되돌릴 이유가 없다.</para>
+        /// </summary>
+        static void PrepareClientBody(Rigidbody body)
+        {
+            if (body == null) return;
+            body.isKinematic = true;   // 서버가 보낸 자세만 따라간다
+            body.interpolation = RigidbodyInterpolation.Interpolate;
+        }
+
+        /// <summary>
+        /// 참가자의 부품을 <b>물리 스텝에서</b> 움직인다 (S15P21B202-538).
+        ///
+        /// <para><b>왜 Update 가 아닌가.</b> 예전에는 <see cref="Update"/> 에서 따라갔다.
+        /// 그러면 서로 맞지 않는 시계가 셋 겹친다 — 서버가 보내는 주기(30Hz), 참가자의
+        /// 프레임 주기, 강체의 <c>transform</c> 이 갱신되는 물리 주기(100Hz). 그래서 프레임마다
+        /// 전진하는 양이 들쭉날쭉해지고, 느리게 오래 움직이는 물체(저중력장에 뜬 부품)에서
+        /// 그것이 "덜덜 떨림" 으로 보인다.</para>
+        ///
+        /// <para>실측 — 이웃한 두 프레임의 이동량 비율(1.00배면 옆 프레임과 같은 속도).
+        /// 165fps 에서 호스트 1.21배 · 참가자 2.13배였다. 물리 스텝으로 옮기고 보간을 켜면
+        /// 1.24배로, 프레임레이트와 무관해진다.</para>
+        ///
+        /// <para>호스트는 이 문제가 없다. 호스트의 부품은 물리가 100Hz 로 적분한 결과이고
+        /// 저중력장의 유지 가속이 연속이라 속도가 매끄럽다.</para>
+        /// </summary>
+        void FixedUpdate()
+        {
+            if (!ready || isServer) return;
+            FollowOnClient();
         }
 
         void SendFromServer()
         {
             sendTimer += Time.deltaTime;
             clampKeepaliveTimer += Time.deltaTime;
+            fieldKeepaliveTimer += Time.deltaTime;
             weldKeepaliveTimer += Time.deltaTime;
             linkKeepaliveTimer += Time.deltaTime;
             velocityTimer += Time.deltaTime;
             dropKeepaliveTimer += Time.deltaTime;
             scarKeepaliveTimer += Time.deltaTime;
             if (sendTimer < SendInterval) return;
-            sendTimer = 0f;
+            sendTimer = NextSendTimer(sendTimer, SendInterval);
 
             sendSeq++;
 
@@ -843,6 +975,45 @@ namespace Metagame.Network
                 if (lastSentClamps.Length != sendClamps.Length)
                     lastSentClamps = new ClampState[sendClamps.Length];
                 Array.Copy(sendClamps, lastSentClamps, sendClamps.Length);
+            }
+
+            // ── 저중력장 (S15P21B202-505) ───────────────────────
+            //
+            // **빔은 켜짐/꺼짐이 전송되지 않아 호스트에게만 보였다.** 빔 그림은
+            // LowGravityField.SetActive 안에서 IsActive 가 참일 때만 붙는데, 그 값을
+            // 바꾸는 유일한 경로가 TractorBeamController 의 `if (!Authoritative) return;`
+            // 뒤에 있다. 실측으로 이 파일에 `Field` 라는 글자가 0회였다.
+            //
+            // 고정쇠와 같은 성질이라 같은 방식으로 보낸다 — 사람이 F 를 누르는 순간을
+            // 빼면 내내 그대로이므로 바뀔 때만, 그리고 신뢰 없는 채널이라 가끔 다시.
+            if (sendFields.Length != vehicleSlots.Count)
+                sendFields = new FieldState[vehicleSlots.Count];
+
+            for (int i = 0; i < vehicleSlots.Count; i++)
+            {
+                var vehicle = VehicleAt(vehicleSlots[i]);
+
+                // **게터를 한 번만 읽는다**(!417 AI 리뷰). `TransportVehicle.Field` 는
+                // 부를 때마다 `Configure` 와 `SetPhysicsAuthority` 를 다시 부른다 —
+                // 부작용이 있는 게터다. 처음에는 이 줄에서 두 번 읽었고, 그러면 보내는
+                // 틱마다 탈것 수의 두 배로 그 일이 돈다.
+                var field = vehicle != null ? vehicle.Field : null;
+
+                sendFields[i] = new FieldState
+                {
+                    Vehicle = vehicleSlots[i],
+                    Active = field != null && field.IsActive,
+                };
+            }
+
+            if (ShouldSendFields(sendFields, lastSentFields, fieldKeepaliveTimer, ClampKeepalive))
+            {
+                RpcApplyFields(sendSeq, sendFields);
+                fieldKeepaliveTimer = 0f;
+
+                if (lastSentFields.Length != sendFields.Length)
+                    lastSentFields = new FieldState[sendFields.Length];
+                Array.Copy(sendFields, lastSentFields, sendFields.Length);
             }
 
             // ── 용접 ────────────────────────────────────────────
@@ -908,7 +1079,10 @@ namespace Metagame.Network
                 var tool = tools[i];
                 sendToolViews[i] = tool != null ? new ToolViewState
                 {
-                    Owner = tool.IsEquipped ? NetPlayer.NetIdOfRig(tool.Owner) : 0,
+                    RhythmCooldown = tool is MeteorBat cooldownBat ? cooldownBat.Cooldown : 0f,
+                    RhythmSequence = tool is MeteorBat bat ? bat.RhythmSequence : 0,
+                    RhythmGrade = tool is MeteorBat rhythmBat ? rhythmBat.RhythmGrade : (byte)0,
+                    Owner = tool.IsEquipped ? ToolOwnerId(tool.Owner) : 0,
                     Action = tool.IsEquipped ? tool.ViewAction : (byte)0,
                     Progress = tool.ViewProgress, Direction = tool.Owner != null ? tool.Owner.AimForward : tool.transform.forward
                 } : default;
@@ -1236,9 +1410,11 @@ namespace Metagame.Network
                 var b = lastSentWeld[i];
                 if (a.BlobCount != b.BlobCount) return false;
                 if (a.PadWeldIntact != b.PadWeldIntact) return false;
+                if (a.HasBrushFrom != b.HasBrushFrom) return false;
                 if (Mathf.Abs(a.TipRadius - b.TipRadius) > 1e-4f) return false;
                 if ((a.Origin - b.Origin).sqrMagnitude > 1e-8f) return false;
                 if ((a.Direction - b.Direction).sqrMagnitude > 1e-8f) return false;
+                if ((a.BrushFrom - b.BrushFrom).sqrMagnitude > 1e-8f) return false;
             }
 
             return true;
@@ -1620,14 +1796,16 @@ namespace Metagame.Network
                 var state = states[i];
                 PlayerRig owner = null;
                 if (state.Owner != 0 && NetworkClient.spawned.TryGetValue(state.Owner, out var identity))
-                    owner = identity.GetComponent<NetPlayer>()?.VisualRig;
+                    owner = identity.GetComponent<NetPlayer>()?.VisualRig
+                            ?? identity.GetComponent<NetworkRigOwner>()?.Rig;
+                if (tool is MeteorBat bat) bat.ApplyRhythmResult(state.RhythmSequence, state.RhythmGrade, state.RhythmCooldown);
                 tool.ApplyRemoteHeld(state.Owner != 0);
                 tool.ApplyRemotePresentation(owner, state.Action, state.Progress, state.Direction);
             }
         }
 
-        /// <summary>낙하 자세 하나의 바이트 수 — 자세 28 + 속도 12.</summary>
-        const int MeteorPoseBytes = PoseBytes + 12;
+        /// <summary>낙하 자세 하나의 바이트 수 — 자세 28 + 속도 12 + 타격 가이드 13.</summary>
+        const int MeteorPoseBytes = PoseBytes + 25;
 
         /// <summary>
         /// 한 묶음에 실을 수 있는 낙하 자세 개수. 공세 최대가 표에서 8개이므로 닿을 일이
@@ -1709,12 +1887,20 @@ namespace Metagame.Network
                         Position = body.position,
                         Rotation = body.rotation,
                         Velocity = body.linearVelocity,
+                        GroundHeight = meteor.GroundHeight,
+                        Harmless = meteor.Harmless,
+                        BatWindow = meteor.BatSwingWindowSeconds,
+                        BatRadius = meteor.BatAssistRadius,
                     }
                     : new MeteorPose
                     {
                         Position = meteor.transform.position,
                         Rotation = meteor.transform.rotation,
                         Velocity = Vector3.zero,
+                        GroundHeight = meteor.GroundHeight,
+                        Harmless = meteor.Harmless,
+                        BatWindow = meteor.BatSwingWindowSeconds,
+                        BatRadius = meteor.BatAssistRadius,
                     };
             }
 
@@ -1785,6 +1971,52 @@ namespace Metagame.Network
         /// <summary>
         /// 고정쇠의 진행도와 해제 여부를 맞춘다. 판정은 서버가 하고 여기서는 따라만 간다.
         /// </summary>
+        [ClientRpc(channel = Channels.Unreliable)]
+        void RpcApplyFields(uint seq, FieldState[] states)
+        {
+            if (isServer) return;               // 호스트는 자기 물리가 정답이다
+            if (states == null || !ready) return;
+            if (!IsNewer(seq, lastFieldSeq, everField)) return;
+            lastFieldSeq = seq;
+            everField = true;
+
+            // **개수가 달라도 버리지 않는다.** 고정쇠와 다른 점이다 — 저쪽은 색인이
+            // 곧 자리라서 개수가 어긋나면 남의 고정쇠에 값이 들어간다. 여기는 번호를
+            // 함께 실어 보내므로 짝이 틀릴 수 없고, 못 찾은 번호만 건너뛰면 된다.
+            for (int i = 0; i < states.Length; i++)
+            {
+                var vehicle = VehicleAt(states[i].Vehicle);
+                if (vehicle == null) continue;
+
+                var field = vehicle.Field;
+                if (field != null) field.ApplyNetworkActive(states[i].Active);
+            }
+        }
+
+        /// <summary>
+        /// 지금 저중력장 상태를 보낼 차례인가 (S15P21B202-505).
+        ///
+        /// <para><b>왜 순수 메서드로 빼는가.</b> 이 판단이 <see cref="SendFromServer"/> 안의
+        /// 조건문으로만 있으면 검증이 닿지 못한다 — <c>-400</c>·<c>-438</c>·<c>-448</c> 에서
+        /// 세 번 겪은 자리다. 밖에서 부를 수 있게 두면 대조가 실제 경로를 지난다.</para>
+        ///
+        /// <para>바뀌면 보내고, 조용해도 <paramref name="keepalive"/> 마다 다시 보낸다 —
+        /// 신뢰 없는 채널이라 한 번 잃으면 끝나기 때문이다(고정쇠와 같은 이유).</para>
+        /// </summary>
+        public static bool ShouldSendFields(FieldState[] now, FieldState[] lastSent,
+                                            float keepaliveTimer, float keepalive) =>
+            !SameFields(now, lastSent) || keepaliveTimer >= keepalive;
+
+        static bool SameFields(FieldState[] a, FieldState[] b)
+        {
+            if (a.Length != b.Length) return false;
+
+            for (int i = 0; i < a.Length; i++)
+                if (a[i].Vehicle != b[i].Vehicle || a[i].Active != b[i].Active) return false;
+
+            return true;
+        }
+
         [ClientRpc(channel = Channels.Unreliable)]
         void RpcApplyClamps(uint seq, ClampState[] states)
         {
@@ -1888,7 +2120,11 @@ namespace Metagame.Network
 
         void FollowOnClient()
         {
-            float t = 1f - Mathf.Exp(-Smoothing * Time.deltaTime);
+            // **물리 스텝의 폭으로 밟는다**(S15P21B202-538). 예전에는 `Time.deltaTime`,
+            // 곧 프레임 폭이었다. 그러면 같은 33ms 계단을 프레임레이트마다 다른 횟수로
+            // 나눠 밟게 되어, 자세가 막 도착한 직후 프레임은 크게 가고 다음 프레임부터
+            // 작게 간다 — 그 톱니가 "덜덜 떨림" 이다.
+            float t = FollowFactor(Time.fixedDeltaTime);
 
             for (int i = 0; i < tracked.Count && i < targets.Length; i++)
             {
@@ -1899,14 +2135,25 @@ namespace Metagame.Network
                 // 게임플레이 코드가 나중에 다시 풀 수 있다. 탈것으로 바뀐 파츠는
                 // `part.enabled = false` 라 SpaceshipPart 의 게이트를 타지 않으므로 그쪽은
                 // 이 한 줄만이 막는다. 풀린 채로 두면 로컬 물리가 서버 자세와 다툰다.
-                if (!body.isKinematic) body.isKinematic = true;
+                //
+                // 보간도 같이 본다 — `-538` 이 켠 것을 게임플레이 코드가 되돌릴 수 있고,
+                // 꺼지면 떨림이 조용히 돌아온다.
+                if (!body.isKinematic || body.interpolation != RigidbodyInterpolation.Interpolate)
+                    PrepareClientBody(body);
 
-                // `transform` 이 아니라 `body` 로 읽고 쓴다. 탈것은 보간
-                // (`RigidbodyInterpolation.Interpolate`)이 걸려 있어 `transform.position` 은
-                // **보간된 표시 위치**다 — 그 값을 Lerp 의 출발점으로 다시 읽으면 되먹임으로
-                // 계속 뒤로 끌린다. 보내는 쪽(`Read`)도 `body.position` 을 쓰므로 대칭이 맞는다.
-                body.position = Vector3.Lerp(body.position, targets[i].Position, t);
-                body.rotation = Quaternion.Slerp(body.rotation, targets[i].Rotation, t);
+                if (body.TryGetComponent<SpaceshipPart>(out var part))
+                    part.ApplyDockedToPad(targets[i].DockedToPad);
+
+                // `transform` 이 아니라 `body` 로 읽는다. 보간이 걸린 강체의
+                // `transform.position` 은 **보간된 표시 위치**다 — 그 값을 Lerp 의 출발점으로
+                // 다시 읽으면 되먹임으로 계속 뒤로 끌린다. 보내는 쪽(`Read`)도 `body.position`
+                // 을 쓰므로 대칭이 맞는다.
+                //
+                // 쓰는 것은 `MovePosition`/`MoveRotation` 이다. 키네마틱 강체에 위치를 직접
+                // 대입하면 **순간이동**으로 취급되어 그 스텝의 보간이 건너뛰어진다 — 보간을
+                // 켠 의미가 없어진다.
+                body.MovePosition(Vector3.Lerp(body.position, targets[i].Position, t));
+                body.MoveRotation(Quaternion.Slerp(body.rotation, targets[i].Rotation, t));
             }
         }
     }

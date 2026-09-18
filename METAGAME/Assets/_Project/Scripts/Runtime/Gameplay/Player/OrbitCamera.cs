@@ -559,7 +559,26 @@ namespace Metagame.Gameplay
             LateUpdate();
         }
 
+        float batShakeUntil;
+        float batShakeStrength;
+
+        public void PlayBatImpact(byte grade)
+        {
+            batShakeStrength = grade == 3 ? 1.5f : grade == 2 ? 0.9f : 0.4f;
+            batShakeUntil = Time.unscaledTime + 0.24f;
+        }
+
         void LateUpdate()
+        {
+            UpdateCameraPose();
+            if (Target == null || DownedFalling || Time.unscaledTime >= batShakeUntil) return;
+            float t = Time.unscaledTime;
+            float strength = batShakeStrength * Mathf.Clamp01((batShakeUntil - t) / 0.24f);
+            transform.rotation *= Quaternion.Euler(Mathf.Sin(t * 91f) * strength,
+                Mathf.Sin(t * 117f) * strength * 0.6f, Mathf.Sin(t * 73f) * strength * 0.4f);
+        }
+
+        void UpdateCameraPose()
         {
             if (Target == null) return;
             if (Cam != null)

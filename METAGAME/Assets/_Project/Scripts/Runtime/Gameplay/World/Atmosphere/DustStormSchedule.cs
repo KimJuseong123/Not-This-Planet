@@ -5,7 +5,7 @@ namespace Metagame.Gameplay
 {
     /// <summary>
     /// A deterministic snapshot of the moving storm volume.
-    /// Local X is the travel axis, Y is vertical, and Z is lateral.
+    /// Local X is the broad sweep width, Y is vertical, and Z is the travel axis.
     /// </summary>
     public readonly struct StormPose
     {
@@ -29,7 +29,7 @@ namespace Metagame.Gameplay
         {
             get { return Direction.sqrMagnitude < 0.0001f
                 ? Quaternion.identity
-                : Quaternion.LookRotation(Direction, Vector3.up) * Quaternion.Euler(0f, 90f, 0f); }
+                : Quaternion.LookRotation(Direction, Vector3.up); }
         }
 
         public bool Contains(Vector3 point)
@@ -44,6 +44,30 @@ namespace Metagame.Gameplay
         public static StormPose Inactive(Vector3 halfExtents, int cycleIndex = -1)
         {
             return new StormPose(false, Vector3.zero, Vector3.forward, halfExtents, cycleIndex);
+        }
+    }
+
+    /// <summary>A continuous deposited wake; +Z is its newest end.</summary>
+    public readonly struct StormWake
+    {
+        public readonly StormPose Pose;
+        public readonly float HeadAge, TailAge, Lifetime;
+
+        public StormWake(StormPose pose, float headAge, float tailAge, float lifetime)
+        {
+            Pose = pose;
+            HeadAge = headAge;
+            TailAge = tailAge;
+            Lifetime = lifetime;
+        }
+
+        public float StrengthAt(Vector3 point)
+        {
+            if (!Pose.Contains(point) || Lifetime <= 0f) return 0f;
+            float along = Vector3.Dot(point - Pose.Center, Pose.Direction);
+            float front = Mathf.InverseLerp(-Pose.HalfExtents.z, Pose.HalfExtents.z, along);
+            float remaining = Mathf.Clamp01(1f - Mathf.Lerp(TailAge, HeadAge, front) / Lifetime);
+            return remaining * remaining;
         }
     }
 
@@ -78,7 +102,7 @@ namespace Metagame.Gameplay
 
             float gap = Mathf.Max(0.1f, (settings.minimumInterval + settings.maximumInterval) * 0.5f);
             float travelDistance = Mathf.Sqrt(size.x * size.x + size.z * size.z)
-                                 + 2f * (halfExtents.x + settings.spawnMargin);
+                                 + 2f * (halfExtents.z + settings.spawnMargin);
             float travelDuration = travelDistance / Mathf.Max(0.01f, settings.speed);
             double cycleDuration = travelDuration + gap;
             int cycle = (int)Math.Floor(simulationTime / cycleDuration);
@@ -89,6 +113,42 @@ namespace Metagame.Gameplay
             if (elapsed < 0d || elapsed > travelDuration)
                 return StormPose.Inactive(halfExtents, cycle);
 
+            return PoseAt(cycle, elapsed, mapBounds, halfExtents);
+        }
+
+        /// <summary>
+        /// Reconstructs deposits without frame history, including during the inactive gap.
+        /// Lifetime is capped to one cycle, so only the current and previous cycle can remain.
+        /// </summary>
+        public StormWake EvaluateWake(double simulationTime, Bounds mapBounds, int previousCycles = 0)
+        {
+            if (previousCycles < 0 || previousCycles > 1 || !settings.enabled
+                || settings.wakeDuration <= 0f || settings.speed <= .001f
+                || simulationTime < 0d || double.IsNaN(simulationTime) || double.IsInfinity(simulationTime)
+                || mapBounds.size.x <= .01f || mapBounds.size.z <= .01f) return default;
+            var halfExtents = new Vector3(Mathf.Max(.1f, Mathf.Abs(settings.halfExtents.x)),
+                Mathf.Max(.1f, Mathf.Abs(settings.halfExtents.y)), Mathf.Max(.1f, Mathf.Abs(settings.halfExtents.z)));
+            float gap = Mathf.Max(.1f, (settings.minimumInterval + settings.maximumInterval) * .5f);
+            float travel = (new Vector2(mapBounds.size.x, mapBounds.size.z).magnitude
+                + 2f * (halfExtents.z + settings.spawnMargin)) / Mathf.Max(.01f, settings.speed);
+            double period = travel + gap;
+            int cycle = (int)Math.Floor(simulationTime / period) - previousCycles;
+            if (cycle < 0) return default;
+            float lifetime = (float)Math.Min(Mathf.Clamp(settings.wakeDuration, 0f, 30f), period);
+            double start = cycle * period + gap;
+            double newest = Math.Min(simulationTime, start + travel);
+            double oldest = Math.Max(start, simulationTime - lifetime);
+            if (newest - oldest <= .0001d) return default;
+            var head = PoseAt(cycle, newest - start, mapBounds, halfExtents);
+            float length = (float)(newest - oldest) * settings.speed;
+            Vector3 center = head.Center - head.Direction * (halfExtents.z + length * .5f);
+            var pose = new StormPose(true, center, head.Direction,
+                new Vector3(halfExtents.x, halfExtents.y, length * .5f), cycle);
+            return new StormWake(pose, (float)(simulationTime-newest), (float)(simulationTime-oldest), lifetime);
+        }
+
+        StormPose PoseAt(int cycle, double elapsed, Bounds mapBounds, Vector3 halfExtents)
+        {
             Vector3 perimeter = SelectPerimeterPoint(mapBounds, settings.seed, cycle);
             Vector3 toCenter = mapBounds.center - perimeter;
             toCenter.y = 0f;
@@ -102,10 +162,11 @@ namespace Metagame.Gameplay
             direction.y = 0f;
             direction.Normalize();
 
-            Vector3 start = perimeter - direction * (halfExtents.x + settings.spawnMargin);
+            Vector3 start = perimeter - direction * (halfExtents.z + settings.spawnMargin);
             Vector3 center = start + direction * (float)elapsed * settings.speed;
-            center.y = DustStormBounds.SampleGroundHeight(center, mapBounds)
-                       + halfExtents.y + settings.groundClearance;
+            // A shared map datum fixes height for the entire pass, including late joiners.
+            // Terrain, props and collisions must never steer the storm.
+            center.y = mapBounds.min.y + halfExtents.y + settings.groundClearance;
             return new StormPose(true, center, direction, halfExtents, cycle);
         }
 

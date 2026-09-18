@@ -61,9 +61,9 @@ namespace Metagame.Gameplay
                 var col = Probe[i];
                 if (col == null) continue;
                 var g = col.GetComponentInParent<Grabbable>();
-                if (g == null || !g.CanGrab) continue;
+                if (g == null || !g.isActiveAndEnabled || !g.CanGrab) continue;
 
-                Vector3 p = col.ClosestPoint(center);
+                if (!TryGetGripPoint(col, center, radius, out var p)) continue;
 
                 if (useAngle)
                 {
@@ -82,6 +82,40 @@ namespace Metagame.Gameplay
                 body = col.attachedRigidbody;
             }
             return best;
+        }
+
+        /// <summary>
+        /// Finds a reachable surface for hand assistance. Unity's ClosestPoint does not
+        /// support non-convex MeshColliders; sample their cooked physics surface instead.
+        /// Every accepted mesh point is an actual hit within reach, never its bounding box.
+        /// </summary>
+        public static bool TryGetGripPoint(Collider collider, Vector3 probe, float reach, out Vector3 point)
+        {
+            point = probe;
+            if (collider == null || !collider.enabled || !collider.gameObject.activeInHierarchy
+                || collider.isTrigger || reach < 0f) return false;
+
+            if (!(collider is MeshCollider mesh) || mesh.convex)
+            {
+                point = collider.ClosestPoint(probe);
+                return (point - probe).sqrMagnitude <= reach * reach;
+            }
+
+            // A centre-directed ray handles rounded props. Sampling surrounding directions
+            // also reaches sloped ledges and recesses away from the mesh centre.
+            var closest = reach;
+            bool found = false;
+            for (int i = -1; i < 27; i++)
+            {
+                var direction = i < 0 ? collider.bounds.center - probe
+                    : new Vector3(i % 3 - 1, i / 3 % 3 - 1, i / 9 - 1);
+                if (direction.sqrMagnitude < 1e-8f) continue;
+                if (!collider.Raycast(new Ray(probe, direction.normalized), out var hit, closest)) continue;
+                closest = hit.distance;
+                point = hit.point;
+                found = true;
+            }
+            return found;
         }
 
         public bool TryGrip()

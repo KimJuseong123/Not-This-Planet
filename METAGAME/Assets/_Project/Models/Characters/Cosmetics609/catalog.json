@@ -1,0 +1,134 @@
+[
+  {
+    "name": "Helmet01_SurveyAntenna",
+    "slot": "Helmet",
+    "index": 1,
+    "triangles": 904,
+    "dimensions": [
+      0.12699998915195465,
+      0.11999999731779099,
+      0.4520000219345093
+    ]
+  },
+  {
+    "name": "Helmet02_CommsHeadset",
+    "slot": "Helmet",
+    "index": 2,
+    "triangles": 1180,
+    "dimensions": [
+      0.7799999713897705,
+      0.39499998092651367,
+      0.24500000476837158
+    ]
+  },
+  {
+    "name": "Helmet03_Searchlight",
+    "slot": "Helmet",
+    "index": 3,
+    "triangles": 440,
+    "dimensions": [
+      0.12999999523162842,
+      0.1525000035762787,
+      0.09000000357627869
+    ]
+  },
+  {
+    "name": "Helmet04_StarFeelers",
+    "slot": "Helmet",
+    "index": 4,
+    "triangles": 408,
+    "dimensions": [
+      0.7360289096832275,
+      0.11999999731779099,
+      0.2959999442100525
+    ]
+  },
+  {
+    "name": "Helmet05_BioSprout",
+    "slot": "Helmet",
+    "index": 5,
+    "triangles": 616,
+    "dimensions": [
+      0.21705812215805054,
+      0.11999999731779099,
+      0.2602729797363281
+    ]
+  },
+  {
+    "name": "Helmet06_OrbitFins",
+    "slot": "Helmet",
+    "index": 6,
+    "triangles": 864,
+    "dimensions": [
+      0.856999933719635,
+      0.17000000178813934,
+      0.19349999725818634
+    ]
+  },
+  {
+    "name": "Badge01_Explorer",
+    "slot": "Badge",
+    "index": 1,
+    "triangles": 656,
+    "dimensions": [
+      0.12999999523162842,
+      0.06549999117851257,
+      0.14000000059604645
+    ]
+  },
+  {
+    "name": "Badge02_TwinStars",
+    "slot": "Badge",
+    "index": 2,
+    "triangles": 180,
+    "dimensions": [
+      0.20999999344348907,
+      0.04900000989437103,
+      0.10000000149011612
+    ]
+  },
+  {
+    "name": "Badge03_Saturn",
+    "slot": "Badge",
+    "index": 3,
+    "triangles": 796,
+    "dimensions": [
+      0.16762694716453552,
+      0.04900002479553223,
+      0.1599999964237213
+    ]
+  },
+  {
+    "name": "Badge04_Rocket",
+    "slot": "Badge",
+    "index": 4,
+    "triangles": 512,
+    "dimensions": [
+      0.14000000059604645,
+      0.07349999248981476,
+      0.1599999964237213
+    ]
+  },
+  {
+    "name": "Badge05_Rescue",
+    "slot": "Badge",
+    "index": 5,
+    "triangles": 324,
+    "dimensions": [
+      0.17000000178813934,
+      0.056500017642974854,
+      0.12999999523162842
+    ]
+  },
+  {
+    "name": "Badge06_FlightRecorder",
+    "slot": "Badge",
+    "index": 6,
+    "triangles": 1212,
+    "dimensions": [
+      0.17000000178813934,
+      0.06000000238418579,
+      0.14000000059604645
+    ]
+  }
+]

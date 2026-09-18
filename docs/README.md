@@ -9,9 +9,11 @@
 | 문서 | 확인할 내용 |
 | --- | --- |
 | [프로젝트 개요](overview.md) | 게임 목표, 플레이 흐름, Unity·백엔드·릴레이의 역할 |
-| [1장 기획 안내](planning/README.md) | 기본 기획에서 상세 조작·판정으로 이어지는 읽기 순서 |
+| [장별 기획 안내](planning/README.md) | 각 장의 기본 기획·상세 설계·컨셉 자료를 읽는 순서 |
 | [1장 기본 기획](planning/chapter-1-plan.md) | 배경, 핵심 경험, 콘텐츠와 필요한 산출물 |
 | [1장 상세 기획](planning/chapter-1-detailed-design.md) | 조작, 장비, 협동, 조립, 용접, 운석, 실패·복구 규칙과 테스트값 |
+| [2장 기본 기획](planning/chapter-2-plan.md) | 폐허 지구의 컨테이너·크레인·이동식 사다리·수동 체결·제독 협동 초안 |
+| [2장 컨셉 자료](assets/concepts/stage2/README.md) | 최신 v2 맵 방향과 이전 v1 개별 에셋 시안·프롬프트 |
 | [파트와 담당](parts.md) | 작업 영역별 태그, 담당 팀원과 Epic 책임. 담당 변경 시 갱신 |
 
 ## 2. 실행과 기능 개발
@@ -23,8 +25,11 @@
 | 에셋 선택·배치 | [에셋 카탈로그](asset-catalog.md): 프리뷰, 크기, Texture → Material → Prefab 연결. 에셋 추가 시 갱신 |
 | 백엔드 로컬 실행·개발 | [백엔드 지침](backend-guidelines.md): 기술 스택, 인증·상태 설계, 개발 환경 |
 | 네트워크에 닿는 동작을 만든다 | [네트워크 동기화 정책](network-sync-policy.md): 동기화 방식 P1~P4 와 각 동작이 어디에 속하는지. **동작을 추가하면 그 표에 한 줄 더한다** |
+| 방에 NPC 동료를 넣고 말로 지시한다 | [AI 동료 계획](ai-companion.md): 말 → 의도 → 행동의 세 층, 호스트 권위가 강제하는 것, 모델 전달 |
+| 플레이 데이터를 모아 분석한다 | [플레이 데이터 파이프라인 계획](data-pipeline.md): 이벤트 스키마, 보내는 시점, 저장과 질의 |
 | 멀티플레이 동기화 구현 | [설계 결정](records/S15P21B202-145-sync-design.md) → [상호작용 규칙](records/S15P21B202-149-interaction-sync.md) → [오브젝트 동기화](records/S15P21B202-352-object-sync.md) |
 | 두 PC에서 접속 확인 | [멀티플레이 테스트 안내](multiplayer-test-guide.md) → [지연·대역폭 측정 기록](records/S15P21B202-151-multiplay-measurement.md) |
+| 기획 수치를 바꾸고 기다리지 않고 확인 | [치트 시험장](cheat-arena.md): 넓은 바닥 위 Stage1 조립·운석 복제, F8 치트 패널(운석 즉시 낙하·공세 시작·시간대 이동·무적·순간이동), F5/F9 리셋 |
 
 ## 3. 이슈부터 MR 완료까지
 
@@ -35,7 +40,7 @@
 | 이슈 작성 | [Jira 컨벤션](jira-convention.md): 유형, 필수 필드, 파트, 스토리 포인트 |
 | 브랜치 생성·커밋 | [Git 컨벤션](git-convention.md): 이름 규칙, push, 릴리스 |
 | MR 제출·충돌 해결·머지 | [MR 흐름](mr-flow.md): 검사, 스택 구성, 부모부터 머지하는 순서 |
-| 팀장 리뷰 | MR 템플릿 하단 “리뷰어 확인” 5항목 → [MR 흐름](mr-flow.md) §3 → [CI/CD 구조](ci-cd-pipeline.md) §8의 남은 설정 |
+| 팀장 리뷰 | AI 리뷰 코멘트의 5항목 판정표 — ⚠️·❓ 만 보면 된다 → [MR 흐름](mr-flow.md) §3 → [CI/CD 구조](ci-cd-pipeline.md) §8의 남은 설정 |
 | AI 도구 연결 | [AI 도구 연동](ai-tooling.md): 개인 계정, 로컬 MCP·CLI, 토큰 취급 |
 | 이슈 설명·작업 기록 작성 | [템플릿 안내](templates/README.md) |
 
@@ -52,7 +57,7 @@
 
 ## 5. 결정 배경과 작업 이력
 
-[컨벤션의 결정 배경](conventions.md)에서 주요 이유를 확인하고, 대안 검토가 필요하면 [초기 워크플로우 계획](workflow-plan.md)을 읽습니다. 이 계획은 당시의 결정 기록이며 현재 규칙은 각 컨벤션 문서를 따릅니다.
+[컨벤션의 결정 배경](conventions.md)에서 주요 이유를 확인하고, 대안 검토가 필요하면 [초기 워크플로우 계획](records/2026-08-26-workflow-plan-v1.md)을 읽습니다. 이 계획은 당시의 결정 기록이며 현재 규칙은 각 컨벤션 문서를 따릅니다.
 
 [작업 기록 색인](records/README.md)은 기능·운영 주제별로 모든 기록을 연결합니다. 예를 들어 [develop 전체 AI 리뷰](records/S15P21B202-82-develop-ai-review.md)와 [머지된 MR 리뷰 대조](records/S15P21B202-134-merged-mr-ai-review.md)는 당시의 지적과 처리 결과를 확인할 때 읽습니다.
 
@@ -63,6 +68,7 @@
 | `docs/records/` | 이슈별 결정·구현·측정·사고 대응 이력. 이름은 `<이슈키>-<slug>.md` |
 | `docs/templates/` | Jira 설명과 작업 기록 작성 양식 |
 | `docs/assets/previews/` | 문서에서 사용하는 에셋 프리뷰 이미지 |
+| `docs/assets/concepts/` | 게임 적용 전의 컨셉 아트와 버전별 제작 참고 자료 |
 
 ## 문서가 아닌 곳에 있는 것들
 

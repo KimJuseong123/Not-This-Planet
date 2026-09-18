@@ -1,0 +1,64 @@
+{
+  "asset": "SM_Astra_AdjustableDeckSupport",
+  "concept": "C:\\workspace\\2-PJT\\S15P21B202\\docs\\assets\\concepts\\stage1-related-hangar\\12-adjustable-deck-support.png",
+  "components": 53,
+  "before_export": {
+    "meshes": 1,
+    "vertices": 3872,
+    "triangles": 7532,
+    "bounds_min": [
+      -1.2599999904632568,
+      -0.699999988079071,
+      0.0
+    ],
+    "bounds_max": [
+      1.2599999904632568,
+      0.699999988079071,
+      4.799999713897705
+    ],
+    "dimensions": [
+      2.5199999809265137,
+      1.399999976158142,
+      4.799999713897705
+    ]
+  },
+  "after_reimport": {
+    "meshes": 1,
+    "vertices": 3872,
+    "triangles": 7532,
+    "bounds_min": [
+      -1.2599999904632568,
+      -0.699999988079071,
+      -1.1404447519680616e-07
+    ],
+    "bounds_max": [
+      1.2599999904632568,
+      0.7000007629394531,
+      4.799999713897705
+    ],
+    "dimensions": [
+      2.5199999809265137,
+      1.4000007510185242,
+      4.79999982794218
+    ]
+  },
+  "geometry_audit": {
+    "non_manifold_edges": 0,
+    "degenerate_faces": 0
+  },
+  "missing_textures": [],
+  "texture_links": [
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\12-adjustable-deck-support\\SM_Astra_AdjustableDeckSupport.fbm\\SM_Astra_AdjustableDeckSupport_BaseColor.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\12-adjustable-deck-support\\SM_Astra_AdjustableDeckSupport.fbm\\SM_Astra_AdjustableDeckSupport_Emission.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\12-adjustable-deck-support\\SM_Astra_AdjustableDeckSupport.fbm\\SM_Astra_AdjustableDeckSupport_Metallic.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\12-adjustable-deck-support\\SM_Astra_AdjustableDeckSupport.fbm\\SM_Astra_AdjustableDeckSupport_Normal.png",
+    "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\12-adjustable-deck-support\\SM_Astra_AdjustableDeckSupport.fbm\\SM_Astra_AdjustableDeckSupport_Roughness.png"
+  ],
+  "roundtrip": "PASS",
+  "units": "metres",
+  "front_blender": "-Y",
+  "export_axes": "-Z forward / Y up",
+  "pivot": "base center; ramp low-end elevation",
+  "fbx": "C:\\workspace\\2-PJT\\S15P21B202\\METAGAME\\Assets\\_Project\\Models\\Environment\\Stage1\\HangarRelated\\12-adjustable-deck-support\\SM_Astra_AdjustableDeckSupport.fbx",
+  "material": "M_Astra_AdjustableDeckSupport"
+}

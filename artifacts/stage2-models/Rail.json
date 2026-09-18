@@ -1,0 +1,39 @@
+{
+  "asset": "Rail",
+  "fbx": "S2_Rail.fbx",
+  "blend": "Source~/S2_Rail.blend",
+  "mesh_objects": 1,
+  "triangles": 688,
+  "dimensions_m": [
+    2.1500000953674316,
+    0.3499999940395355,
+    1.100000023841858
+  ],
+  "bounds_min": [
+    -1.0750000476837158,
+    -0.17499999701976776,
+    0.0
+  ],
+  "bounds_max": [
+    1.0750000476837158,
+    0.17499999701976776,
+    1.100000023841858
+  ],
+  "materials": [
+    "S2_Concrete",
+    "S2_Orange",
+    "S2_Steel",
+    "S2_Teal"
+  ],
+  "pivots": [
+    "S2_Rail_Root"
+  ],
+  "errors": [],
+  "reference_views": [
+    "front",
+    "left",
+    "right",
+    "back"
+  ],
+  "source_created_after_references": true
+}

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="3" result="Failed(Child)" total="3" passed="2" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-17 15:13:36Z" end-time="2026-09-17 15:13:37Z" duration="0.5719577">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="1892" result="Failed" site="Child" start-time="2026-09-17 15:13:36Z" end-time="2026-09-17 15:13:37Z" duration="0.571958" total="3" passed="2" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="3118" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202/METAGAME/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="1856" result="Failed" site="Child" start-time="2026-09-17 15:13:36Z" end-time="2026-09-17 15:13:37Z" duration="0.483068" total="3" passed="2" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="28212" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="3119" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="1856" result="Failed" site="Child" start-time="2026-09-17 15:13:36Z" end-time="2026-09-17 15:13:37Z" duration="0.469242" total="3" passed="2" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="3124" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="1807" result="Failed" site="Child" start-time="2026-09-17 15:13:36Z" end-time="2026-09-17 15:13:37Z" duration="0.456001" total="3" passed="2" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="3125" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="1807" result="Failed" site="Child" start-time="2026-09-17 15:13:36Z" end-time="2026-09-17 15:13:37Z" duration="0.441033" total="3" passed="2" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="2719" name="Stage2ArrivalTests" fullname="Metagame.Gameplay.Tests.Stage2ArrivalTests" classname="Metagame.Gameplay.Tests.Stage2ArrivalTests" runstate="Runnable" testcasecount="3" result="Failed" site="Child" start-time="2026-09-17 15:13:36Z" end-time="2026-09-17 15:13:37Z" duration="0.417296" total="3" passed="2" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="2723" name="AssembledSnapshotBreaksApartAndLateJoinSeeksDeterministically" fullname="Metagame.Gameplay.Tests.Stage2ArrivalTests.AssembledSnapshotBreaksApartAndLateJoinSeeksDeterministically" methodname="AssembledSnapshotBreaksApartAndLateJoinSeeksDeterministically" classname="Metagame.Gameplay.Tests.Stage2ArrivalTests" runstate="Runnable" seed="1728438611" result="Failed" label="Error" start-time="2026-09-17 15:13:30Z" end-time="2026-09-17 15:13:37Z" duration="6.322645" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[System.NullReferenceException : Object reference not set to an instance of an object]]></message>
+                  <stack-trace><![CDATA[  at Metagame.Gameplay.Tests.Stage2ArrivalTests+<AssembledSnapshotBreaksApartAndLateJoinSeeksDeterministically>d__3.MoveNext () [0x000cc] in C:\workspace\2-PJT\S15P21B202\METAGAME\Assets\_Project\Scripts\Tests\Editor\Stage2ArrivalTests.cs:39 
+  at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in .\Library\PackageCache\com.unity.test-framework@1405238725ab\UnityEngine.TestRunner\NUnitExtensions\Attributes\TestEnumerator.cs:44 ]]></stack-trace>
+                </failure>
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="2722" name="CommonClockIncludesCrashBeforeStage2" fullname="Metagame.Gameplay.Tests.Stage2ArrivalTests.CommonClockIncludesCrashBeforeStage2" classname="Metagame.Gameplay.Tests.Stage2ArrivalTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-17 15:13:37Z" end-time="2026-09-17 15:13:37Z" duration="0.016071" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="2720" name="CommonClockIncludesCrashBeforeStage2(1)" fullname="Metagame.Gameplay.Tests.Stage2ArrivalTests.CommonClockIncludesCrashBeforeStage2(1)" methodname="CommonClockIncludesCrashBeforeStage2" classname="Metagame.Gameplay.Tests.Stage2ArrivalTests" runstate="Runnable" seed="665565109" result="Passed" start-time="2026-09-17 15:13:37Z" end-time="2026-09-17 15:13:37Z" duration="0.012740" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="2721" name="CommonClockIncludesCrashBeforeStage2(4)" fullname="Metagame.Gameplay.Tests.Stage2ArrivalTests.CommonClockIncludesCrashBeforeStage2(4)" methodname="CommonClockIncludesCrashBeforeStage2" classname="Metagame.Gameplay.Tests.Stage2ArrivalTests" runstate="Runnable" seed="1898337618" result="Passed" start-time="2026-09-17 15:13:37Z" end-time="2026-09-17 15:13:37Z" duration="0.000193" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+                </test-case>
+              </test-suite>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>
