@@ -149,4 +149,33 @@ assert rc == 0 and len(sent7) == 0, ("예약 실행의 실패를 머지 푸시�
                                      + str(sent7))
 print("  종류가 다르면 견주지 않는다 ✅")
 
+
+# ── ⑧ 예약 실행 실패 카드는 **아무도 부르지 않는다** (S15P21B202-608)
+#
+#     멘션 대상이 `GITLAB_USER_LOGIN`(= 마지막 머지를 누른 사람)이라, 예약 실행에서는
+#     **실패와 아무 상관 없는 사람**이 불린다. 2026-09-18 04:03 카드가 팀장과 금준영을
+#     불렀는데 원인은 `-590` 의 씬이었다. 게다가 이 카드는 고칠 때까지 **매일 같은
+#     시각에 다시 나가므로**, 엉뚱한 멘션이 반복되면 채널의 멘션이 통째로 무시된다.
+_saved_source = os.environ.get("CI_PIPELINE_SOURCE", "")
+os.environ["CI_PIPELINE_SOURCE"] = "schedule"
+sent8, http8 = fake([])
+ci_common.http = http8
+N.http = http8
+rc = N.branch_failed(ci_common.GitLab())
+assert rc == 0 and len(sent8) == 1, sent8
+night = sent8[0]
+assert "예약 실행이 실패했다" in night, night
+assert "@" not in night, "예약 실행 카드가 사람을 부른다 — 매일 엉뚱한 사람이 불린다: " + night
+assert "Infra" in night, "누가 보는 일인지는 남아야 한다: " + night
+
+#     **그 시간에 하기로 한 일**을 싸잡아 단정하지 않는다. 2026-09-18 새벽에는
+#     `ci-tests` 만 죽고 개발 서버 갱신·QA 빌드는 **성공했는데**, 카드가 그것들이
+#     안 됐다고 말했다. 무엇이 안 됐는지는 '실패한 잡' 칸이 말한다.
+assert "QA 빌드 등" not in night, "안 된 일을 싸잡아 단정한다: " + night
+if _saved_source:
+    os.environ["CI_PIPELINE_SOURCE"] = _saved_source
+else:
+    os.environ.pop("CI_PIPELINE_SOURCE", None)
+print("  예약 실행 카드는 아무도 부르지 않는다 ✅")
+
 print("TEST344 OK")
