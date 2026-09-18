@@ -72,23 +72,79 @@ namespace Metagame.AICompanion
         /// </summary>
         bool _holdStill;
 
+        /// <summary>
+        /// 길찾기용으로 한 번에 굽는 영역(m).
+        ///
+        /// <para>예전에는 <b>월드 원점 기준 25×21 을 한 번만</b> 구웠다. 실험실 크기라서
+        /// 그 안에서만 길이 났고, Stage1 처럼 넓은 맵에서는 조금 따라오다 박스를 벗어나는
+        /// 순간 길을 잃고 멈췄다. 이제 AI 를 따라 다시 굽는다.</para>
+        /// </summary>
+        static readonly Vector3 NavMeshSize = new Vector3(48, 16, 48);
+
+        /// <summary>구운 영역의 가장자리에서 이만큼 안으로 들어오면 다시 굽는다(m).</summary>
+        const float NavMeshMargin = 10f;
+
+        /// <summary>다시 굽기까지의 최소 간격(초). 매 프레임 구우면 프레임이 튄다.</summary>
+        const float NavMeshRebakeInterval = 1.5f;
+
+        Vector3 _navCenter;
+        bool _navBuilt;
+        float _nextBake;
+
         public void Initialize(PlayerRig rig)
         {
             _rig = rig;
             _path = new NavMeshPath();
+            EnsureNavMesh(rig != null && rig.Hips != null ? rig.Hips.position : Vector3.zero, force: true);
+            SetOrder(CompanionOrder.Wait, null);
+        }
+
+        /// <summary>
+        /// 이 지점을 덮는 길찾기 영역을 마련한다. 이미 넉넉히 덮고 있으면 아무것도 하지 않는다.
+        /// </summary>
+        void EnsureNavMesh(Vector3 around, bool force = false)
+        {
+            if (!force)
+            {
+                if (!_navBuilt) return;
+                if (Time.time < _nextBake) return;
+
+                // 가장자리에 가까워졌을 때만 다시 굽는다. 중심에 있는 동안은 그대로 쓴다.
+                Vector3 offset = around - _navCenter;
+                offset.y = 0;
+                float slack = Mathf.Min(NavMeshSize.x, NavMeshSize.z) * 0.5f - NavMeshMargin;
+                if (Mathf.Abs(offset.x) < slack && Mathf.Abs(offset.z) < slack) return;
+            }
+
+            _nextBake = Time.time + NavMeshRebakeInterval;
+            _navCenter = around;
+
+            var bounds = new Bounds(around, NavMeshSize);
             var sources = new List<NavMeshBuildSource>();
-            var bounds = new Bounds(Vector3.zero, new Vector3(25, 10, 21));
             NavMeshBuilder.CollectSources(bounds, ~0, NavMeshCollectGeometry.PhysicsColliders, 0,
                 new List<NavMeshBuildMarkup>(), sources);
+
+            // 트리거와 움직이는 물체는 바닥이 아니다. 넣으면 허공에 길이 난다.
             sources.RemoveAll(s => s.component is Collider c && (c.isTrigger || c.attachedRigidbody != null));
+
             var settings = NavMesh.GetSettingsByID(0);
             settings.agentRadius = 0.45f;
             settings.agentHeight = 1.5f;
             settings.agentClimb = 0.25f;
             settings.agentSlope = 40;
-            _data = NavMeshBuilder.BuildNavMeshData(settings, sources, bounds, Vector3.zero, Quaternion.identity);
-            if (_data != null) _instance = NavMesh.AddNavMeshData(_data);
-            SetOrder(CompanionOrder.Wait, null);
+
+            if (_navBuilt && _data != null)
+            {
+                // 이미 있는 것을 갱신한다 — 새로 만들어 붙였다 떼면 그 순간 길이 사라진다.
+                NavMeshBuilder.UpdateNavMeshData(_data, settings, sources, bounds);
+                return;
+            }
+
+            _data = NavMeshBuilder.BuildNavMeshData(settings, sources, bounds, around, Quaternion.identity);
+            if (_data == null) return;
+
+            _instance = NavMesh.AddNavMeshData(_data);
+            _navBuilt = true;
         }
 
         public void SetOrder(CompanionOrder order, Transform speaker)
@@ -247,6 +303,10 @@ namespace Metagame.AICompanion
             Vector3 delta = destination - position;
             delta.y = 0;
             if (delta.magnitude <= stopDistance && Mathf.Abs(destination.y - position.y) < 1.5f) return true;
+
+            // 넓은 맵에서는 걷다 보면 구워 둔 영역을 벗어난다. 나와 목적지를 모두 덮게 다시 굽는다.
+            EnsureNavMesh(Vector3.Lerp(position, destination, 0.5f));
+
             if (Time.time >= _nextPath)
             {
                 _nextPath = Time.time + 0.35f;
@@ -265,6 +325,18 @@ namespace Metagame.AICompanion
                 _corner++;
             }
             if (_corner < _corners.Length)
+            {
+                input.AimYaw = Mathf.Atan2(delta.x, delta.z) * Mathf.Rad2Deg;
+                input.Move = new Vector2(0, _walkInput);
+                return false;
+            }
+
+            // 길을 못 찾았다. <b>멈춰 서지는 않는다</b> — 사람을 따라갈 때 길찾기가 실패하면
+            // 그대로 굳어 버려 "왜 안 따라와" 가 된다. 곧장 목적지 쪽으로 걷는다.
+            // 장애물을 못 피하지만, 서 있는 것보다는 낫다.
+            delta = destination - position;
+            delta.y = 0;
+            if (delta.sqrMagnitude > 0.01f)
             {
                 input.AimYaw = Mathf.Atan2(delta.x, delta.z) * Mathf.Rad2Deg;
                 input.Move = new Vector2(0, _walkInput);
