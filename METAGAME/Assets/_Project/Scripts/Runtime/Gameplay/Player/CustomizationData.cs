@@ -8,10 +8,12 @@ namespace Metagame.Gameplay
         const string SaveKey = "appearance.v2";
         const string LegacySaveKey = "appearance.v1";
         const int LegacyTintCount = 4;
-        public int Tint, Helmet, Badge;
+        public int Tint, Helmet, Badge, Aura;
         public static readonly string[] TintNames = { "기본", "노랑", "라벤더", "분홍", "하늘" };
-        public static readonly string[] HelmetNames = { "없음", "탐사 안테나", "통신 헤드셋" };
-        public static readonly string[] BadgeNames = { "없음", "탐사 배지", "쌍별 배지" };
+        public static readonly string[] HelmetNames = { "없음", "탐사 안테나", "통신 헤드셋", "탐조등", "별 더듬이", "새싹", "궤도 핀" };
+        public static readonly string[] BadgeNames = { "없음", "탐사 배지", "쌍별 배지", "토성 배지", "로켓 배지", "구조대 배지", "비행기록 배지" };
+
+        public static readonly string[] AuraNames = { "없음", "황금 별가루", "푸른 궤도", "보랏빛 반딧불" };
 
         static readonly Color[] TintColors =
         {
@@ -43,13 +45,24 @@ namespace Metagame.Gameplay
                 TintColors[i] = color;
             }
         }
-        public int Packed => Mathf.Clamp(Tint, 0, TintNames.Length - 1) | (Mathf.Clamp(Helmet, 0, 2) << 3)
-            | (Mathf.Clamp(Badge, 0, 2) << 5);
+        // Preserve v2's low bits; new indices use previously unused high bits.
+        public int Packed
+        {
+            get
+            {
+                int helmet = Mathf.Clamp(Helmet, 0, HelmetNames.Length - 1);
+                int badge = Mathf.Clamp(Badge, 0, BadgeNames.Length - 1);
+                return Mathf.Clamp(Tint, 0, TintNames.Length - 1) | ((helmet & 3) << 3)
+                    | ((badge & 3) << 5) | ((helmet >> 2) << 7) | ((badge >> 2) << 8)
+                    | (Mathf.Clamp(Aura, 0, AuraNames.Length - 1) << 9);
+            }
+        }
         public static CustomizationData Decode(int value) => new CustomizationData
         {
             Tint = Mathf.Clamp(value & 7, 0, TintNames.Length - 1),
-            Helmet = Mathf.Clamp((value >> 3) & 3, 0, 2),
-            Badge = Mathf.Clamp((value >> 5) & 3, 0, 2)
+            Helmet = Mathf.Clamp(((value >> 3) & 3) | (((value >> 7) & 1) << 2), 0, HelmetNames.Length - 1),
+            Badge = Mathf.Clamp(((value >> 5) & 3) | (((value >> 8) & 1) << 2), 0, BadgeNames.Length - 1),
+            Aura = Mathf.Clamp((value >> 9) & 3, 0, AuraNames.Length - 1)
         };
         public static CustomizationData Load()
         {

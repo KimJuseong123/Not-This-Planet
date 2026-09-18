@@ -307,6 +307,7 @@ namespace Metagame.Bootstrap
             draft.Tint = TintChoice(draft.Tint);
             draft.Helmet = Choice("헬멧 장식", CustomizationData.HelmetNames, draft.Helmet, 3);
             draft.Badge = Choice("가슴 장식", CustomizationData.BadgeNames, draft.Badge, 3);
+            draft.Aura = Choice("아우라", CustomizationData.AuraNames, draft.Aura, 2);
             if (old != draft.Packed) PlayerAppearance.Apply(preview, draft.Packed);
             GUILayout.EndScrollView();
             skin.verticalScrollbarThumb = previousThumb;

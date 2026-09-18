@@ -24,6 +24,10 @@ namespace Metagame.Gameplay.Tests
         {
             const string legacyKey = "appearance.v1";
             const string currentKey = "appearance.v2";
+            bool hadLegacy = PlayerPrefs.HasKey(legacyKey);
+            bool hadCurrent = PlayerPrefs.HasKey(currentKey);
+            int oldLegacy = PlayerPrefs.GetInt(legacyKey);
+            int oldCurrent = PlayerPrefs.GetInt(currentKey);
             int legacyPacked = 2 | (1 << 3) | (2 << 5);
             PlayerPrefs.DeleteKey(currentKey);
             PlayerPrefs.SetInt(legacyKey, legacyPacked);
@@ -38,8 +42,9 @@ namespace Metagame.Gameplay.Tests
             }
             finally
             {
-                PlayerPrefs.DeleteKey(legacyKey);
-                PlayerPrefs.DeleteKey(currentKey);
+                if (hadLegacy) PlayerPrefs.SetInt(legacyKey, oldLegacy); else PlayerPrefs.DeleteKey(legacyKey);
+                if (hadCurrent) PlayerPrefs.SetInt(currentKey, oldCurrent); else PlayerPrefs.DeleteKey(currentKey);
+                PlayerPrefs.Save();
             }
         }
 
@@ -54,14 +59,16 @@ namespace Metagame.Gameplay.Tests
         public void EverySelectionSurvivesNetworkEncoding()
         {
             for (int tint = 0; tint < CustomizationData.TintNames.Length; tint++)
-            for (int helmet = 0; helmet < 3; helmet++)
-            for (int badge = 0; badge < 3; badge++)
+            for (int helmet = 0; helmet < CustomizationData.HelmetNames.Length; helmet++)
+            for (int badge = 0; badge < CustomizationData.BadgeNames.Length; badge++)
+            for (int aura = 0; aura < CustomizationData.AuraNames.Length; aura++)
             {
-                var choice = new CustomizationData { Tint = tint, Helmet = helmet, Badge = badge };
+                var choice = new CustomizationData { Tint = tint, Helmet = helmet, Badge = badge, Aura = aura };
                 var restored = CustomizationData.Decode(choice.Packed);
                 Assert.That(restored.Tint, Is.EqualTo(tint));
                 Assert.That(restored.Helmet, Is.EqualTo(helmet));
                 Assert.That(restored.Badge, Is.EqualTo(badge));
+                Assert.That(restored.Aura, Is.EqualTo(aura));
             }
         }
 
@@ -72,8 +79,9 @@ namespace Metagame.Gameplay.Tests
         {
             var choice = CustomizationData.Decode(packed);
             Assert.That(choice.Tint, Is.InRange(0, CustomizationData.TintNames.Length - 1));
-            Assert.That(choice.Helmet, Is.InRange(0, 2));
-            Assert.That(choice.Badge, Is.InRange(0, 2));
+            Assert.That(choice.Helmet, Is.InRange(0, CustomizationData.HelmetNames.Length - 1));
+            Assert.That(choice.Badge, Is.InRange(0, CustomizationData.BadgeNames.Length - 1));
+            Assert.That(choice.Aura, Is.InRange(0, CustomizationData.AuraNames.Length - 1));
         }
 
         [Test]

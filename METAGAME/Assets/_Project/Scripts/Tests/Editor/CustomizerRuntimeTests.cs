@@ -39,6 +39,14 @@ namespace Metagame.Gameplay.Tests
                 Assert.That(body.isKinematic, Is.True);
                 Assert.That(body.detectCollisions, Is.False);
             }
+            // Prefab play-on-awake must work without the editor's explicit Simulate calls.
+            var auraPreview = Object.Instantiate(Resources.Load<GameObject>("Cosmetics609/Aura02"), appearance.transform);
+            yield return null;
+            foreach (var particles in auraPreview.GetComponentsInChildren<ParticleSystem>())
+            {
+                Assert.That(particles.isPlaying, Is.True);
+                Assert.That(particles.particleCount, Is.GreaterThan(0));
+            }
             Assert.That(LobbyTransition.Ensure().BeginTitle(), Is.True);
             float deadline = Time.realtimeSinceStartup + 15;
             while (SceneManager.GetActiveScene().name != "Lobby" && Time.realtimeSinceStartup < deadline)
