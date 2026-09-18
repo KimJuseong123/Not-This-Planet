@@ -140,9 +140,7 @@ namespace Metagame.Bootstrap
         GameObject previewBackgroundObject;
         Material previewBackgroundMaterial;
         GameObject lightObject, fillLightObject;
-        GameObject beamObject, poolObject, lampObject;
-        Material glowMaterial;
-        Mesh beamMesh, discMesh;
+        StageSpotlight spotlight;
         float zoom = 1f;
         GUIStyle title, sectionTitle, option, swatchCheck, swatchTooltip;
         GUIStyle primaryButton, secondaryButton, quietButton, errorText;
@@ -207,140 +205,17 @@ namespace Metagame.Bootstrap
         static Vector3 PreviewFocus => new Vector3(0f, 0.66f, 0f);
 
         /// <summary>
-        /// 빛이 나오는 자리. <b>캐릭터 바로 위</b>다 (S15P21B202-631).
-        ///
-        /// <para>처음에는 앞옆으로 비스듬히 뒀는데, 그러면 빛기둥이 한쪽으로
-        /// 치우쳐 보인다 — 정면에서는 왼쪽으로, 옆에서는 뒤로 쏠렸다.
-        /// <b>광원과 캐릭터의 세로축이 같아야</b> 머리 위 고리와 귀에 딱 맞는다.</para>
-        /// </summary>
-        static Vector3 SpotOrigin => new Vector3(0f, 1.98f, 0f);
-
-        /// <summary>
         /// 스포트라이트의 <b>보이는 부분</b>을 만든다 (S15P21B202-631).
         ///
-        /// <para><b>Light 컴포넌트는 이걸 안 그린다.</b> 광원은 표면을 밝힐 뿐이고
-        /// 공기 중의 빛줄기는 URP 기본으로 렌더되지 않는다. 무대 조명처럼 보이려면
-        /// 기둥·바닥 웅덩이·광원 원반을 <b>직접 그려야</b> 한다.</para>
-        ///
-        /// <para>셋 다 가산 합성이라 조명 계산과 무관하게 항상 보인다 — 이 씬에서
-        /// 광원이 표면에 기여하지 않는 것(실측: 광원을 다 꺼도 그림이 동일)과
-        /// 상관없이 그림이 나온다.</para>
+        /// <para>실제 모양과 이유는 <see cref="StageSpotlight"/> 에 있다 — 엔딩 개인
+        /// 컷씬도 같은 것을 쓰므로 공용으로 뺐다 (S15P21B202-639).</para>
         /// </summary>
         void BuildSpotlightGlow()
         {
-            var shader = Resources.Load<Shader>("SpotlightGlow");
-            if (shader == null)
-            {
-                Debug.LogError("[Customizer] SpotlightGlow 셰이더를 찾지 못했습니다.");
-                return;
-            }
-            glowMaterial = new Material(shader) { name = "Customizer Spotlight Glow" };
-
-            Vector3 apex = SpotOrigin;
-            // 축을 세운다. 바닥 중심이 광원 바로 아래여야 원뿔이 기울지 않는다.
-            Vector3 floorCentre = new Vector3(apex.x, 0.01f, apex.z);
-            float height = apex.y - floorCentre.y;
-            float topRadius = 0.085f;
-            float bottomRadius = 0.78f;
-
-            beamMesh = BuildCone(topRadius, bottomRadius, height);
-            beamObject = NewGlow("Customizer Spot Beam", beamMesh, 0f, 0.30f);
-            beamObject.transform.position = apex;
-            beamObject.transform.rotation =
-                Quaternion.FromToRotation(Vector3.down, (floorCentre - apex).normalized);
-
-            discMesh = BuildDisc(1f);
-            poolObject = NewGlow("Customizer Spot Pool", discMesh, 1f, 0.85f);
-            poolObject.transform.position = floorCentre;
-            poolObject.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
-            poolObject.transform.localScale = new Vector3(bottomRadius * 1.9f, bottomRadius * 1.35f, 1f);
-
-            lampObject = NewGlow("Customizer Spot Lamp", discMesh, 1f, 1f);
-            lampObject.transform.position = apex;
-            lampObject.transform.localScale = Vector3.one * (topRadius * 4.2f);
-        }
-
-        GameObject NewGlow(string name, Mesh mesh, float radialMix, float strength)
-        {
-            var go = new GameObject(name);
-            go.AddComponent<MeshFilter>().sharedMesh = mesh;
-            var renderer = go.AddComponent<MeshRenderer>();
-            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            renderer.receiveShadows = false;
-            var material = new Material(glowMaterial) { name = name };
-            material.SetFloat("_RadialMix", radialMix);
-            material.SetFloat("_Strength", strength);
-            renderer.sharedMaterial = material;
-            return go;
-        }
-
-        /// <summary>끝이 열린 원뿔. uv.y 는 위에서 0, 아래에서 1 이다(셰이더가 그렇게 읽는다).</summary>
-        static Mesh BuildCone(float topRadius, float bottomRadius, float height)
-        {
-            const int segments = 40;
-            var vertices = new Vector3[(segments + 1) * 2];
-            var uv = new Vector2[vertices.Length];
-            var colors = new Color[vertices.Length];
-            var triangles = new int[segments * 6];
-            for (int i = 0; i <= segments; i++)
-            {
-                float t = i / (float)segments;
-                float angle = t * Mathf.PI * 2f;
-                var dir = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
-                vertices[i * 2] = dir * topRadius;
-                vertices[i * 2 + 1] = dir * bottomRadius + Vector3.down * height;
-                uv[i * 2] = new Vector2(t, 0f);
-                uv[i * 2 + 1] = new Vector2(t, 1f);
-                colors[i * 2] = Color.white;
-                colors[i * 2 + 1] = new Color(1f, 1f, 1f, 0.55f);
-            }
-            for (int i = 0; i < segments; i++)
-            {
-                int v = i * 2, q = i * 6;
-                triangles[q] = v; triangles[q + 1] = v + 1; triangles[q + 2] = v + 2;
-                triangles[q + 3] = v + 2; triangles[q + 4] = v + 1; triangles[q + 5] = v + 3;
-            }
-            var mesh = new Mesh { name = "Spotlight Cone" };
-            mesh.SetVertices(vertices);
-            mesh.SetUVs(0, uv);
-            mesh.SetColors(colors);
-            mesh.SetTriangles(triangles, 0);
-            mesh.RecalculateNormals();
-            return mesh;
-        }
-
-        /// <summary>가운데가 밝은 원반. 셰이더가 중심에서 방사로 옅어지게 한다.</summary>
-        static Mesh BuildDisc(float radius)
-        {
-            const int segments = 48;
-            var vertices = new Vector3[segments + 2];
-            var uv = new Vector2[vertices.Length];
-            var colors = new Color[vertices.Length];
-            var triangles = new int[segments * 3];
-            vertices[0] = Vector3.zero;
-            uv[0] = new Vector2(0.5f, 0.5f);
-            colors[0] = Color.white;
-            for (int i = 0; i <= segments; i++)
-            {
-                float angle = i / (float)segments * Mathf.PI * 2f;
-                var dir = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
-                vertices[i + 1] = new Vector3(dir.x, dir.y, 0f) * radius;
-                uv[i + 1] = new Vector2(0.5f + dir.x * 0.5f, 0.5f + dir.y * 0.5f);
-                colors[i + 1] = new Color(1f, 1f, 1f, 0f);
-            }
-            for (int i = 0; i < segments; i++)
-            {
-                triangles[i * 3] = 0;
-                triangles[i * 3 + 1] = i + 1;
-                triangles[i * 3 + 2] = i + 2;
-            }
-            var mesh = new Mesh { name = "Spotlight Disc" };
-            mesh.SetVertices(vertices);
-            mesh.SetUVs(0, uv);
-            mesh.SetColors(colors);
-            mesh.SetTriangles(triangles, 0);
-            mesh.RecalculateNormals();
-            return mesh;
+            spotlight = StageSpotlight.Create("Customizer Spot", null,
+                StageSpotlight.DefaultApexHeight,
+                StageSpotlight.DefaultTopRadius,
+                StageSpotlight.DefaultBottomRadius);
         }
 
         void LateUpdate()
@@ -352,8 +227,8 @@ namespace Metagame.Bootstrap
             float distance = Mathf.Max(2.55f, 1.48f / Mathf.Max(0.3f, previewCamera.aspect)) * zoom;
             previewCamera.transform.position = focus + Quaternion.Euler(0f, yaw, 0f) * new Vector3(0f, 0.15f, distance);
             previewCamera.transform.LookAt(focus);
-            if (lampObject != null)
-                lampObject.transform.rotation = previewCamera.transform.rotation;
+            if (spotlight != null)
+                spotlight.FaceCamera(previewCamera.transform.rotation);
             UpdatePreviewBackground();
         }
 
@@ -822,9 +697,7 @@ namespace Metagame.Bootstrap
             previewCamera.gameObject.SetActive(false);
             lightObject.SetActive(false);
             fillLightObject.SetActive(false);
-            if (beamObject != null) beamObject.SetActive(false);
-            if (poolObject != null) poolObject.SetActive(false);
-            if (lampObject != null) lampObject.SetActive(false);
+            if (spotlight != null) spotlight.Intensity = 0f;
             // 기존 로비 연결/인증/준비/시작과 오류 처리를 그대로 재사용한다.
             gameObject.AddComponent<LobbyBootstrap>();
             GetComponent<LobbyHud>().OpenMultiplayer();
@@ -851,12 +724,7 @@ namespace Metagame.Bootstrap
             if (previewCamera != null) Destroy(previewCamera.gameObject);
             if (lightObject != null) Destroy(lightObject);
             if (fillLightObject != null) Destroy(fillLightObject);
-            if (beamObject != null) Destroy(beamObject);
-            if (poolObject != null) Destroy(poolObject);
-            if (lampObject != null) Destroy(lampObject);
-            if (glowMaterial != null) Destroy(glowMaterial);
-            if (beamMesh != null) Destroy(beamMesh);
-            if (discMesh != null) Destroy(discMesh);
+            if (spotlight != null) spotlight.Destroy();
             ReleaseUiTextures();
         }
 
