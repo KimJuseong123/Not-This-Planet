@@ -53,6 +53,19 @@ namespace Metagame.Gameplay.Hazards
         [SerializeField, Min(0f)] float _groundProbe = PhysicsScale.MeteorGroundProbe;
 
         [Header("공세")]
+        /// <summary>
+        /// 기획 §17.4 의 시간대 표. <b>2026-09-18 부터 읽지 않는다.</b>
+        ///
+        /// 강도를 시계가 아니라 공세 컷신이 정하게 바꿨다 — 이유는
+        /// <see cref="MeteorIntensity"/> 에 적었다. 필드를 지우지 않는 것은 이미 저장된
+        /// 씬(<c>Stage1_Astra</c>·<c>CheatArena</c>)이 값을 들고 있고, 시간대 방식으로
+        /// 되돌릴 수 있게 남겨 두기 위해서다.
+        ///
+        /// <b>인스펙터에서 숨긴다</b>(!525 AI 리뷰). 값이 보이면 고칠 수 있다고 믿게
+        /// 되고, 고쳐도 아무 일이 없으면 그 시간이 통째로 버려진다. 직렬화는 유지하되
+        /// 보이지만 않게 한다 — 씬을 다시 저장해도 값이 날아가지 않는다.
+        /// </summary>
+        [HideInInspector]
         [SerializeField] MeteorWaveBand[] _waveBands = MeteorWaveBand.CreateDefaults();
         [SerializeField, Min(0f)] float _waveLeadSeconds = PhysicsScale.MeteorWaveLeadSeconds;
         [SerializeField, Min(0f)] float _withinWaveMinSeconds = PhysicsScale.MeteorWithinWaveMinSeconds;
@@ -99,7 +112,6 @@ namespace Metagame.Gameplay.Hazards
 
         /// <summary>대각선 경로 검사의 버퍼. 운석마다 새로 만들지 않는다.</summary>
         static readonly RaycastHit[] EntryProbe = new RaycastHit[16];
-        static readonly MeteorWaveBand DefaultWaveBand = new(0f, 30f, 1, 2, 0f);
         float _elapsed;
 
         // 공세 상태. 공세 사이에는 _waveRemaining 이 0 이다.
@@ -215,11 +227,26 @@ namespace Metagame.Gameplay.Hazards
         public void SetSequenceHold(bool hold) => SequenceHold = hold;
 
         /// <summary>기존 운석·파츠·난수 스트림을 유지한 채 공세 주기만 올린다.</summary>
-        public void BeginAssault()
+        public void BeginAssault() => SetAssault(true);
+
+        /// <summary>
+        /// 공세 컷신을 지났는지 직접 세운다. 시험장이 두 단계를 오가며 재려고 쓴다
+        /// (<see cref="MeteorIntensity"/>).
+        ///
+        /// <b>켜는 순간 첫 공세가 곧바로 온다</b> — <c>_sinceLastWave</c> 를 간격만큼
+        /// 채워 둔다. 컷신이 끝났는데 몇 초 조용하면 연출이 거짓말이 된다.
+        /// </summary>
+        public void SetAssault(bool enabled)
         {
-            if (AssaultEnabled) return;
-            AssaultEnabled = true;
-            _sinceLastWave = CurrentInterval;
+            if (AssaultEnabled == enabled) return;
+
+            AssaultEnabled = enabled;
+
+            // 켤 때는 곧바로 한 발, <b>끌 때는 처음부터</b>(!525 AI 리뷰). 풀 가동
+            // 5초 기준으로 쌓인 경과를 그대로 두면 가랑비 10초 기준으로는 이미 넘겨서,
+            // 되돌리자마자 한 발이 나가 "버튼에 적힌 초와 다르다" 가 된다.
+            _sinceLastWave = enabled ? CurrentInterval : 0f;
+            _leadSent = false;
         }
 
         /// <summary>이번 공세에 남은 운석 수. 공세 사이에는 0 이다.</summary>
@@ -520,30 +547,48 @@ namespace Metagame.Gameplay.Hazards
         /// 줄었는데, 그러면 §17.3 의 "공세 약 5초 전 신호" 가 붙을 자리가 없다 — 운석이
         /// 끊임없이 하나씩 오는 것과 <b>묶음으로</b> 오는 것은 다른 리듬이고, 기획이
         /// 요구하는 것은 후자다.
+        ///
+        /// <b>시계가 아니라 컷신이 정한다</b>(2026-09-18). 경과 시간은 더 이상 간격에
+        /// 영향을 주지 않는다 — 이유는 <see cref="MeteorIntensity"/> 에 적었다.
+        /// 인자를 남겨 두는 것은 프리셋과 검증이 특정 시점을 물어보기 때문이다.
+        ///
+        /// <b>공세 배율을 더 곱하지 않는다.</b> 예전에는 여기에
+        /// <c>_assaultWaveIntervalMultiplier</c>(0.35)를 곱했는데, 컷신 뒤 값이
+        /// <see cref="MeteorIntensity.FullBlast"/> 안에 이미 들어 있으므로 또 곱하면
+        /// 5초가 1.75초가 된다.
         /// </summary>
-        public float IntervalAt(float elapsedSeconds) => WaveBandAt(elapsedSeconds).WaveIntervalSeconds
-            * (AssaultEnabled ? Mathf.Clamp(_assaultWaveIntervalMultiplier, 0.05f, 1f) : 1f);
+        /// <param name="elapsedSeconds">
+        /// <b>지금은 결과에 영향을 주지 않는다</b>(!525 AI 리뷰). 강도를 정하는 것은
+        /// 컷신 단계뿐이고, 인자는 호출부 계약과 시간 기반으로 되돌릴 여지를 위해
+        /// 남겨 둔다. 이 값을 바꿔 가며 곡선을 재려 하면 아무것도 안 바뀐다.
+        /// </param>
+        public float IntervalAt(float elapsedSeconds) =>
+            WaveBandAt(elapsedSeconds).WaveIntervalSeconds;
 
-        /// <summary>그 시각의 중형 확률 0~1. 10분 전에는 0 이다(§17.7).</summary>
-        public float MediumChanceAt(float elapsedSeconds) => WaveBandAt(elapsedSeconds).MediumChance;
+        /// <summary>
+        /// 그 시각의 중형 확률 0~1. 컷신 전에는 0 이다.
+        ///
+        /// <paramref name="elapsedSeconds"/> 는 <see cref="IntervalAt"/> 과 같은 이유로
+        /// 결과에 영향을 주지 않는다.
+        /// </summary>
+        public float MediumChanceAt(float elapsedSeconds) =>
+            WaveBandAt(elapsedSeconds).MediumChance;
 
+        /// <summary>
+        /// 지금 적용되는 강도. 우선순위는 <b>프리셋 → 컷신 단계</b> 다.
+        ///
+        /// <b>시간대 표(§17.4)를 더 이상 읽지 않는다</b>(2026-09-18) — 이유는
+        /// <see cref="MeteorIntensity"/> 에 적었다. <paramref name="elapsedSeconds"/> 는
+        /// 호출부 계약을 유지하려고 남겨 둔다.
+        /// </summary>
         MeteorWaveBand WaveBandAt(float elapsedSeconds)
         {
             EnsureConfiguration();
 
-            // 강도를 고정했으면 경과 시간을 보지 않는다(<see cref="ApplyPreset"/>).
+            // 강도를 고정했으면 컷신 단계도 보지 않는다(<see cref="ApplyPreset"/>).
             if (_pinnedBand != null) return _pinnedBand;
 
-            var minutes = Mathf.Max(0f, elapsedSeconds) / 60f;
-            var selected = DefaultWaveBand;
-
-            for (var i = 0; i < _waveBands.Length; i++)
-            {
-                var band = _waveBands[i];
-                if (band != null && minutes >= band.FromMinutes) selected = band;
-            }
-
-            return selected;
+            return MeteorIntensity.For(AssaultEnabled).ToBand();
         }
 
         float CrewScaleFor(int crew)
@@ -661,11 +706,14 @@ namespace Metagame.Gameplay.Hazards
         int RollWaveSize()
         {
             var band = WaveBandAt(_elapsed);
-            var span = band.MaxMeteors - band.MinMeteors;
-            var raw = band.MinMeteors
-                      + (int)(Mathf.Clamp01((float)_random.NextDouble()) * (span + 1));
-            raw = Mathf.Clamp(raw, band.MinMeteors, band.MaxMeteors);
+            var min = band.MinMeteors;
+            var max = band.MaxMeteors;
+            var span = max - min;
+            var raw = min + (int)(Mathf.Clamp01((float)_random.NextDouble()) * (span + 1));
+            raw = Mathf.Clamp(raw, min, max);
 
+            // 인원 보정(§17.6)은 <b>조인 다음</b>이다. 순서를 바꾸면 혼자 할 때 상한이
+            // 8 이 아니라 3.6 이 되어 상한의 뜻이 달라진다.
             return Mathf.Max(1, Mathf.RoundToInt(raw * CrewScaleFor(_crew)));
         }
 
@@ -678,7 +726,8 @@ namespace Metagame.Gameplay.Hazards
             _nextInWaveDelay = Mathf.Lerp(
                 _withinWaveMinSeconds,
                 _withinWaveMaxSeconds,
-                (float)_random.NextDouble()) * (AssaultEnabled ? Mathf.Clamp(_assaultWithinWaveIntervalMultiplier, 0.05f, 1f) : 1f);
+                (float)_random.NextDouble())
+                * (AssaultEnabled ? Mathf.Clamp(_assaultWithinWaveIntervalMultiplier, 0.05f, 1f) : 1f);
 
             _waveRemaining--;
             Launch();

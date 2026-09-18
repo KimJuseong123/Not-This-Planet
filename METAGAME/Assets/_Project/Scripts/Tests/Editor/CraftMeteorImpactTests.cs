@@ -425,7 +425,8 @@ namespace Metagame.Gameplay.Tests
         {
             var rig = MakeFlyingRig();
 
-            // 지면에서 터진 운석 — 실제 상황이다.
+            // 지면에서 터진 운석 — 실제 상황이다. 충격파를 넓혔어도 기체에 넘어가는
+            // 값은 여전히 충격 반경이다(!525 AI 리뷰).
             rig.Vehicle.TakeMeteorImpact(new Vector3(1.5f, 0f, 0f),
                                          PhysicsScale.MeteorSmallImpactRadius);
 

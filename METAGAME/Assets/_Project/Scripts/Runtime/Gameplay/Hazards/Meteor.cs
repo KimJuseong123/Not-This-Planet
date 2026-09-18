@@ -42,6 +42,13 @@ namespace Metagame.Gameplay.Hazards
         static readonly List<Parts.TransportVehicle> StruckCraft = new();
 
         /// <summary>
+        /// 이번 충격으로 밀 파츠. 기체와 같은 이유로 모아서 한 번만 처리한다 —
+        /// 파츠 하나에 콜라이더가 여럿이라 그때마다 속도를 더하면 덩치 큰 파츠일수록
+        /// 더 세게 날아간다.
+        /// </summary>
+        static readonly List<Parts.SpaceshipPart> StruckParts = new();
+
+        /// <summary>
         /// 이 운석이 이미 굴린 기체. 콜라이더가 여러 개라 한 충돌에서 여러 번 들어오고,
         /// 그때마다 굴리면 회전량이 예측할 수 없게 커진다
         /// (<see cref="_directPlayersHit"/> 와 같은 이유다).
@@ -213,6 +220,16 @@ namespace Metagame.Gameplay.Hazards
 
         /// <summary>넉백이 미치는 반경(m). 크기가 정한다.</summary>
         public float ImpactRadius => _impactRadius;
+
+        /// <summary>
+        /// 충격파까지 포함해 <b>무언가라도 일어나는</b> 가장 바깥 반경(m).
+        ///
+        /// <see cref="ImpactRadius"/> 와 따로 두는 이유는
+        /// <see cref="MeteorImpact.TierFor(float,float,float,float)"/> 에 적었다 —
+        /// 낙하 예고 원과 강한 충격 경계는 <see cref="ImpactRadius"/> 를 계속 쓴다.
+        /// </summary>
+        public float ShockwaveRadius =>
+            MeteorImpact.ShockwaveRadiusFor(_impactRadius, ShockwaveRadiusScale);
 
         /// <summary>스포너가 넘긴 장면별 방망이 판정 창.</summary>
         public float BatSwingWindowSeconds =>
@@ -683,6 +700,12 @@ namespace Metagame.Gameplay.Hazards
             ImpactPoint = point;
 
             ApplyKnockback(point, directHit);
+
+            // 충격파가 어디까지 갔는지 보여 준다(2026-09-18). 낙하 예고 원은 강한 충격
+            // 범위만 그리므로(§17.2), 바깥 띠는 이 먼지 고리 말고는 표시가 없다.
+            Puff.Regolith(point, 1f);
+            Puff.Shockwave(point, ShockwaveRadius);
+
             Settle(point, normal);
             Impacted?.Invoke(this, point);
             AnyImpacted?.Invoke(this, point);
@@ -872,9 +895,17 @@ namespace Metagame.Gameplay.Hazards
         /// </summary>
         void ApplyKnockback(Vector3 point, PlayerRig directHit)
         {
-            var mask = GameLayers.PlayerMask | GameLayers.PropMask;
+            // <b>충격파 반경까지 훑는다</b>(2026-09-18). 예전에는 <see cref="ImpactRadius"/>
+            // 였고, 그 안에서도 바깥 절반은 <see cref="ApplyTier"/> 가 그냥 돌아갔다 —
+            // 소형 운석의 실질 판정이 1m 라 "정가운데 맞지 않으면 아무 일도 없다" 가 됐다.
+            var reach = ShockwaveRadius;
+
+            // <b>파츠도 훑는다</b>(2026-09-18). 예전에는 빠져 있었고 — 이유는
+            // <see cref="PhysicsScale.MeteorPartKnockSpeed"/> 에 적었다 — 그래서 운석
+            // 본체가 <b>직접 맞힌</b> 파츠만 움직였다.
+            var mask = GameLayers.PlayerMask | GameLayers.PropMask | GameLayers.PartMask;
             var hits = UnityEngine.Physics.OverlapSphere(
-                point, _impactRadius, mask, QueryTriggerInteraction.Ignore);
+                point, reach, mask, QueryTriggerInteraction.Ignore);
 
             Struck.Clear();
 
@@ -907,15 +938,41 @@ namespace Metagame.Gameplay.Hazards
                     continue;
                 }
 
-                body.AddExplosionForce(_impactForce, point, _impactRadius);
+                // 파츠도 모아서 한 번만 민다. 폭발력을 얹지 않는 것은 500kg 에
+                // ForceMode.Force 한 스텝이 0.036m/s 라 아무 일도 안 하기 때문이고,
+                // 두 가지를 겹쳐 주면 어느 쪽이 움직인 것인지 알 수 없어진다.
+                var part = hit.GetComponentInParent<Parts.SpaceshipPart>();
+                if (part != null)
+                {
+                    if (!StruckParts.Contains(part)) StruckParts.Add(part);
+                    continue;
+                }
+
+                // 감쇠 반경도 reach 다. 여기에 _impactRadius 를 넣으면 바깥 띠에 있는
+                // 물체는 감쇠가 음수라 힘이 0 이 되어, 훑기만 넓히고 미는 것은 그대로다.
+                //
+                // <b>위로 띄우는 성분을 준다</b>(upwardsModifier). 착탄 지점이 지면이라
+                // 폭발 중심이 발과 같은 높이이고, 그러면 힘이 거의 수평이라 소품이
+                // 굴러가기만 하고 튀어 오르지 않는다.
+                body.AddExplosionForce(
+                    _impactForce, point, reach, PhysicsScale.MeteorImpactUpwardsModifier);
 
                 if (player != null && !Struck.Contains(player)) Struck.Add(player);
             }
 
+            // <b>기체에는 넓힌 반경을 넘기지 않는다</b>(!525 AI 리뷰). 충격파를 넓힌
+            // 것은 사람과 파츠 때문이고, 기체가 구르는 거리 판정까지 1.8배가 되는 것은
+            // 이 변경이 의도한 바가 아니다 — <c>TakeMeteorImpact</c> 는 반경을 감쇠에
+            // 그대로 쓰므로 넓히면 멀리 뜬 기체까지 굴러간다.
             for (var i = 0; i < StruckCraft.Count; i++)
                 StruckCraft[i].TakeMeteorImpact(point, _impactRadius);
 
             StruckCraft.Clear();
+
+            for (var i = 0; i < StruckParts.Count; i++)
+                StruckParts[i].TakeMeteorBlast(point, reach, PartKnockSpeed, PartKnockSpin);
+
+            StruckParts.Clear();
 
             // 직접 맞은 사람은 반경 밖에 있을 수도 있다 — 떨어지는 중에 얻어맞으면
             // 착탄 지점이 그 사람 발밑이 아니다.
@@ -958,11 +1015,52 @@ namespace Metagame.Gameplay.Hazards
             // 만들고 래그돌만 발 위치에 놓아 부모로 붙인다 — transform.position 으로
             // 재면 모든 플레이어가 원점 기준이 된다. 착탄 지점이 지면이므로 발에서 잰다.
             var distance = Vector3.Distance(player.FootPosition, point);
-            if (MeteorImpact.TierFor(distance, _impactRadius, HeavyImpactFraction)
-                != MeteorImpactTier.Heavy) return;
+            var tier = MeteorImpact.TierFor(
+                distance, _impactRadius, HeavyImpactFraction, ShockwaveRadiusScale);
 
-            player.KnockDown(AwayFrom(player, point), HeavyKnockSpeed);
-            player.DropEquipment();
+            if (tier == MeteorImpactTier.Heavy)
+            {
+                player.KnockDown(AwayFrom(player, point), HeavyKnockSpeed);
+                player.DropEquipment();
+                return;
+            }
+
+            if (tier != MeteorImpactTier.Shockwave) return;
+
+            ApplyShockwave(player, point, distance);
+        }
+
+        /// <summary>
+        /// 약한 충격파 — 기획 §20.1 "밀려나지만 바로 행동 가능"(2026-09-18).
+        ///
+        /// <b>예전에는 여기가 비어 있었다.</b> 단계만 계산하고 아무것도 하지 않아서
+        /// (주석은 "약한 충격파에는 아무것도 없다" 였다) 폭발력 한 스텝이 전부였고,
+        /// <c>PlayerRig.Balance</c> 가 그 다음 스텝에 되세워 <b>화면에서는
+        /// 아무 일도 일어나지 않았다.</b> 세 단계 중 하나가 사실상 없던 셈이다.
+        ///
+        /// 두 가지를 준다.
+        ///
+        /// <list type="bullet">
+        /// <item><b>속도</b> — <see cref="PlayerRig.Shove"/> 로 래그돌을 통째로 민다.
+        /// <see cref="PlayerRig.Ragdolled"/> 를 켜지 않으므로 걷기도 점프도 유지된다.</item>
+        /// <item><b>휘청임</b> — 세우는 힘만 잠깐 약해진다(§20.2 의 기존 장치). 이것이
+        /// 없으면 속도를 줘도 관절이 즉시 뻣뻣해져 밀린 티가 나지 않는다.</item>
+        /// </list>
+        ///
+        /// 둘 다 거리로 줄어든다. 감쇠 축은 폭발력과 같은 것을 쓴다
+        /// (<see cref="MeteorImpact.FalloffAt"/>) — 규칙이 둘이면 가장자리에서 어긋난다.
+        /// </summary>
+        void ApplyShockwave(PlayerRig player, Vector3 point, float distance)
+        {
+            var falloff = MeteorImpact.FalloffAt(distance, ShockwaveRadius);
+            if (falloff <= 0f) return;
+
+            // 위를 조금 섞는다. 바깥 띠에는 폭발력의 감쇠가 거의 0 이라, 여기서 만들지
+            // 않으면 발만 옆으로 미끄러지고 몸이 뜨지 않는다.
+            var away = AwayFrom(player, point) + Vector3.up * ShockwaveLift;
+
+            player.Shove(away, ShockwaveKnockSpeed * falloff);
+            player.Stagger(ShockwaveStaggerSeconds * falloff);
         }
 
         /// <summary>착탄 지점에서 멀어지는 수평 방향. 위로 띄우는 것은 폭발력이 한다.</summary>
@@ -978,6 +1076,18 @@ namespace Metagame.Gameplay.Hazards
             _tuning != null ? _tuning.HeavyImpactFraction : PhysicsScale.MeteorHeavyImpactFraction;
         float HeavyKnockSpeed =>
             _tuning != null ? _tuning.HeavyKnockSpeed : PhysicsScale.MeteorHeavyKnockSpeed;
+        float ShockwaveRadiusScale =>
+            _tuning != null ? _tuning.ShockwaveRadiusScale : PhysicsScale.MeteorShockwaveRadiusScale;
+        float ShockwaveKnockSpeed =>
+            _tuning != null ? _tuning.ShockwaveKnockSpeed : PhysicsScale.MeteorShockwaveKnockSpeed;
+        float ShockwaveLift =>
+            _tuning != null ? _tuning.ShockwaveLift : PhysicsScale.MeteorShockwaveLift;
+        float ShockwaveStaggerSeconds =>
+            _tuning != null ? _tuning.ShockwaveStaggerSeconds : PhysicsScale.MeteorShockwaveStaggerSeconds;
+        float PartKnockSpeed =>
+            _tuning != null ? _tuning.PartKnockSpeed : PhysicsScale.MeteorPartKnockSpeed;
+        float PartKnockSpin =>
+            _tuning != null ? _tuning.PartKnockSpin : PhysicsScale.MeteorPartKnockSpin;
         float RestSpeed => _tuning != null ? _tuning.RestSpeed : PhysicsScale.MeteorRestSpeed;
         float RestSeconds => _tuning != null ? _tuning.RestSeconds : PhysicsScale.MeteorRestSeconds;
         float DeflectedDespawnSeconds =>
