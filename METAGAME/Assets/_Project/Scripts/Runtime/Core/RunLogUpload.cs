@@ -25,8 +25,11 @@ namespace Metagame.Core
     ///         적어 둔 그 판이다 — 종료 훅은 그때 아예 안 불린다</item>
     /// </list>
     ///
-    /// <para>대가는 하나다. <b>한 번만 플레이하고 다시 켜지 않는 사람의 로그는 오지
-    /// 않는다.</b> 알파 테스트는 같은 사람이 여러 번 켜므로 감수한다.</para>
+    /// <para><b>그 대가를 뒤에 하나 더 메웠다</b> (S15P21B202-607). 시작할 때만 보내면
+    /// <i>"한 번 켜서 한 판 하고 끄는 사람"</i> 의 기록은 영영 오지 않는데, 데모에서는
+    /// 그쪽이 다수다 — 알파 테스트의 "같은 사람이 여러 번 켠다" 는 전제가 깨진다.
+    /// 그래서 <b>판이 끝날 때도 한 번 더 보낸다</b>(<see cref="SweepRequested"/>).
+    /// 여전히 종료 훅은 쓰지 않는다 — 위 두 이유가 그대로다.</para>
     ///
     /// <para><b>로그인 뒤에 부른다.</b> 서버가 게스트 토큰을 요구한다 — 아무나 우리
     /// 서버에 파일을 부어넣지 못하게 하는 것이 그 토큰의 역할이다.</para>
@@ -60,6 +63,41 @@ namespace Metagame.Core
         /// 그대로 남아 있다. 두 번 보내는 것은 이름 바꾸기가 막는다.
         /// </summary>
         static bool running;
+
+        /// <summary>
+        /// <b>판이 끝났을 때 한 번 더 보내 달라</b>는 요청을 받는 자리 (S15P21B202-607).
+        ///
+        /// <para><b>왜 필요한가.</b> 지금까지는 <b>로그인 직후 한 번만</b> 쓸어 담았다.
+        /// 그래서 <i>"한 번 켜서 한 판 하고 끄는 사람"</i> 의 기록은 영영 오지 않는다 —
+        /// 위 주석이 그 대가를 적어 두고 <i>"알파 테스트는 같은 사람이 여러 번 켜므로
+        /// 감수한다"</i> 고 했는데, <b>데모에서는 그 전제가 깨진다.</b></para>
+        ///
+        /// <para><b>앱 종료가 아니라 판이 끝나는 자리다.</b> <c>OnApplicationQuit</c> 에서
+        /// 시작한 코루틴은 끝나지 못하고, 끝내려면 종료를 붙잡아야 하는데 그것은 게임이
+        /// 안 꺼지는 위험이다. 판이 끝날 때 보내면 그 경우가 대부분 덮인다 — 한 판 하고
+        /// 끄는 사람은 그 시점에 이미 보냈다.</para>
+        ///
+        /// <para><b>아무도 듣지 않으면 아무 일도 없다.</b> 로그인 전이거나 세션 객체가
+        /// 이미 내려갔으면 요청은 그냥 버려지고, 다음 로그인의 쓸어 담기가 잡는다.
+        /// 보내는 일이 게임을 막을 이유는 없다.</para>
+        /// </summary>
+        public static Action SweepRequested;
+
+        /// <summary>판이 끝났다고 알린다. 듣는 쪽이 없거나 실패해도 조용히 넘어간다.</summary>
+        public static void Request()
+        {
+            var handler = SweepRequested;
+            if (handler == null) return;
+            try
+            {
+                handler();
+            }
+            catch (Exception e)
+            {
+                // 세션 객체가 내려가는 중이면 코루틴 시작이 던진다 — 그건 정상적인 끝이다.
+                Debug.Log("[RUN] 판이 끝나 보내려 했으나 지금은 못 보낸다 · " + e.GetType().Name);
+            }
+        }
 
         /// <summary>
         /// 지금 나가 있는 요청. <b>끊을 수 있어야 한다</b> — 게임이 시작되면 남은 전송을
@@ -146,12 +184,56 @@ namespace Metagame.Core
         /// </summary>
         public static List<string> Pending()
         {
+            // **로그와 이벤트를 번갈아 담는다** (S15P21B202-607). 한쪽을 먼저 다 담으면
+            // 다른 쪽이 굶는다 — 밀린 로그 3개가 있으면 이벤트는 영영 안 가고, 반대도
+            // 마찬가지다. `MaxPerRun` 은 **합계**로 지킨다(서버가 사용자당 6건/창이다).
+            return Interleave(
+                PendingIn(FolderOf(RunLog.Path), "*.log", RunLog.Path),
+                PendingIn(EventsFolder(), "*" + PlayEvents.Extension, OpenEventFile()),
+                MaxPerRun);
+        }
+
+        static string FolderOf(string path)
+        {
+            return string.IsNullOrEmpty(path) ? null : Path.GetDirectoryName(path);
+        }
+
+        /// <summary>
+        /// 이벤트 폴더. <b><see cref="PlayEvents"/> 와 같은 판단을 쓴다</b>
+        /// (<c>!514</c> AI 리뷰).
+        ///
+        /// <para>전에는 <c>PlayEvents.Path</c> 에서 폴더를 역산했다. 그런데 <b>로그인 직후
+        /// 쓸어 담을 때는 이번 실행이 아직 파일을 연 적이 없어</b> 그 값이 비어 있다 —
+        /// 폴더가 <c>null</c> 이 되어 <b>events 를 통째로 건너뛴다.</b> 그게 이 기능의 주
+        /// 경로라, 수집이 조용히 0건이 될 뻔했다.</para>
+        /// </summary>
+        static string EventsFolder()
+        {
+            var resolve = PlayEvents.FolderResolver;
+            return resolve == null ? null : resolve();
+        }
+
+        /// <summary>
+        /// <b>지금 쓰고 있는</b> 이벤트 파일. 닫혀 있으면 없다(<c>!514</c> AI 리뷰).
+        ///
+        /// <para><see cref="PlayEvents.End"/> 는 <c>Path</c> 를 비우지 않는다 — 방금 닫은
+        /// 파일의 이름이 그대로 남는다. 그것을 "쓰는 중" 으로 보고 빼면 <b>판이 끝나며
+        /// 보내려던 바로 그 파일</b>이 목록에서 사라진다. 열려 있을 때만 뺀다.</para>
+        /// </summary>
+        static string OpenEventFile()
+        {
+            return PlayEvents.Open ? PlayEvents.Path : null;
+        }
+
+        /// <summary>
+        /// 한 폴더에서 아직 안 보낸 파일을 새것부터. <b>지금 쓰고 있는 것은 뺀다.</b>
+        /// </summary>
+        public static List<string> PendingIn(string folder, string pattern, string current)
+        {
             var result = new List<string>();
-            string folder = RunLog.Path.Length > 0 ? Path.GetDirectoryName(RunLog.Path) : null;
             if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder)) return result;
 
-            string current = RunLog.Path;
-            var files = new List<string>(Directory.GetFiles(folder, "*.log"));
+            var files = new List<string>(Directory.GetFiles(folder, pattern));
             // 이름이 yyyyMMdd-HHmmss 라 문자열 정렬이 곧 시각 정렬이다. 새것부터 보낸다 —
             // 밀려 있을 때 오래된 것보다 최근 것이 쓸모 있다.
             files.Sort(StringComparer.Ordinal);
@@ -159,14 +241,31 @@ namespace Metagame.Core
 
             foreach (var f in files)
             {
-                if (string.Equals(f, current, StringComparison.OrdinalIgnoreCase)) continue;
+                if (!string.IsNullOrEmpty(current)
+                    && string.Equals(f, current, StringComparison.OrdinalIgnoreCase)) continue;
 
-                // 보낸 것은 이름이 `*.log.sent` 라 위의 `*.log` 목록에 아예 안 들어온다.
-                // 다만 이름을 못 바꾼 경우를 대비해 표시 파일도 본다(아래 Mark 참조).
+                // 보낸 것은 이름이 `*.sent` 라 위의 목록에 아예 안 들어온다. 다만 이름을
+                // 못 바꾼 경우를 대비해 표시 파일도 본다(아래 Mark 참조).
                 if (File.Exists(f + SentSuffix)) continue;
 
                 result.Add(f);
-                if (result.Count >= MaxPerRun) break;
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// 두 목록을 번갈아 <paramref name="max"/> 개까지. <b>순수 함수다</b> — 굶는
+        /// 경우를 검사가 값으로 잡을 수 있어야 한다.
+        /// </summary>
+        public static List<string> Interleave(List<string> a, List<string> b, int max)
+        {
+            var result = new List<string>();
+            for (int i = 0; result.Count < max; i++)
+            {
+                bool took = false;
+                if (a != null && i < a.Count) { result.Add(a[i]); took = true; }
+                if (result.Count < max && b != null && i < b.Count) { result.Add(b[i]); took = true; }
+                if (!took) break;
             }
             return result;
         }
