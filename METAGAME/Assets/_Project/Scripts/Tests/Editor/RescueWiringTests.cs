@@ -420,7 +420,11 @@ namespace Metagame.Gameplay.Tests
                 "서버 루프가 권위를 되찾지 않는다");
 
             // 이 줄은 탑승 블록이 끝난 **뒤**에 있다. 그래서 이보다 뒤라면 블록 밖이다.
-            var afterTransport = loop.IndexOf("if (!adoptedBody) body.SetInput(frame);",
+            //
+            // 조건부는 기준으로 삼지 않는다 — 앞에 붙는 가드는 늘어난다(S15P21B202-612 에서
+            // adoptedBody 가 hostOwnBody 로 갈리고 aiDriver 가 더해지며 이 줄이 통째로
+            // 사라졌다). 위치만 알면 되므로 호출 자체를 기준으로 삼는다.
+            var afterTransport = loop.IndexOf("body.SetInput(frame);",
                                               System.StringComparison.Ordinal);
             Assert.That(afterTransport, Is.GreaterThanOrEqualTo(0),
                 "기준으로 삼은 줄이 사라졌다 — 이 테스트를 다시 맞춰야 한다");
