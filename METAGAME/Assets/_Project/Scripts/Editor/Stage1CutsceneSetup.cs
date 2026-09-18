@@ -45,7 +45,7 @@ namespace Metagame.EditorTools
                 Shot("02 하늘을 덮는 유성우", 2, 3, Stage1CutsceneScene.Anchor.Assembly,
                     new(7, 4, -9), new(9, 6, -10), new(-8, 25, 10), 72),
                 Shot("03 실제 운석 공세와 기지", 5, 3, Stage1CutsceneScene.Anchor.Assembly,
-                    new(16, 13, -18), new(12, 9, -14), new(0, 3, 0), 76),
+                    new(16, 13, -18), new(12, 9, -14), new(0, 16, 12), 76),
             });
             if (previous.IsValid() && previous.isLoaded) SceneManager.SetActiveScene(previous);
             var stage = SceneManager.GetSceneByPath(Stage1CutsceneFlow.StagePath);
