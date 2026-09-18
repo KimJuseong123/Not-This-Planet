@@ -47,7 +47,7 @@ namespace Metagame.Gameplay.Tests
             var target = GameObject.CreatePrimitive(PrimitiveType.Cube);
             target.name = "Hidden interactable";
             target.transform.position = Vector3.forward * 6;
-            target.AddComponent<Grabbable>();
+            target.AddComponent<MeteorBat>().enabled = false;
             var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
             wall.name = "Occluder";
             wall.transform.position = Vector3.forward * 3;
@@ -63,7 +63,7 @@ namespace Metagame.Gameplay.Tests
                 yield return null;
                 yield return null;
                 Assert.Greater(ReadYellow(rt, snapshot, "occluded"), 10, "Hidden target needs an outline.");
-                wall.AddComponent<Grabbable>();
+                wall.AddComponent<MeteorBat>().enabled = false;
                 yield return new WaitForSecondsRealtime(0.6f);
                 Assert.Greater(ReadYellow(rt, snapshot, "behind-interactable"), 10,
                     "An interactable occluder must not erase the rear object's outline.");
