@@ -12,7 +12,11 @@ namespace Metagame.Gameplay.Tests
 {
     public sealed class Stage2ArtTests
     {
-        [UnityTearDown] public IEnumerator Cleanup(){if(Application.isPlaying)yield return new ExitPlayMode();}
+        // **연 씬을 반드시 닫는다** (S15P21B202-611). 플레이 모드만 빠져나오면 이 씬이
+        // 열린 채로 남아, 뒤이어 도는 검증들이 그 콜라이더를 만난다 — `-604` 에서
+        // 그렇게 운반체 검증 9건이 한꺼번에 무너졌다.
+        [UnityTearDown] public IEnumerator Cleanup(){if(Application.isPlaying)yield return new ExitPlayMode();
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);}
         static Transform Find(Transform root,string name)=>root.GetComponentsInChildren<Transform>(true).First(t=>t.name==name);
         [Test]
         public void AuthoredModelsKeepThreeBodiesAndOpenWalkingRoutes()
