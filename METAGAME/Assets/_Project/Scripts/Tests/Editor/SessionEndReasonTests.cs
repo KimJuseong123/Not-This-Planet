@@ -20,6 +20,18 @@ namespace Metagame.Gameplay.Tests
     /// </summary>
     public sealed class SessionEndReasonTests
     {
+        /// <summary>
+        /// 표시는 <b>프로세스 전역</b>이라 다른 검사가 남긴 값이 흘러들 수 있다
+        /// (<c>!527</c> AI 리뷰). <c>finally</c> 로 되돌리는 것만으로는 <b>들어올 때</b>가
+        /// 안 덮이므로 양쪽에 둔다.
+        /// </summary>
+        [SetUp]
+        public void NobodyHasLeftYet() => PlayEvents.NoteLeftForTitle(false);
+
+        /// <summary>다음 검사에 흘려보내지 않는다 — 이 파일 밖에도 <c>PlayEvents</c> 검사가 있다.</summary>
+        [TearDown]
+        public void LeaveNoMark() => PlayEvents.NoteLeftForTitle(false);
+
         /// <summary>완료 조건 1 — 타이틀로 나간 판과 그냥 씬이 내려간 판이 달라야 한다.</summary>
         [Test]
         public void LeavingForTheTitleIsNotTheSameAsTheSceneJustGoingAway()
@@ -75,14 +87,18 @@ namespace Metagame.Gameplay.Tests
         /// 씬 교체가 섞인다.
         ///
         /// <para>원문을 본다 — <see cref="TestSource.Blank"/> 는 문자열 안을 비우므로
-        /// 값이 무엇인지 볼 수 없다. 이 파일에 이 글자가 든 주석은 없다.</para>
+        /// 값이 무엇인지 볼 수 없다.</para>
+        ///
+        /// <para><b>모양이 아니라 값을 본다</b> (<c>!527</c> AI 리뷰). 글자를 그대로 대면
+        /// 식 본문(<c>=&gt;</c>)을 블록으로 바꾸는 <b>무해한 정리에도 깨진다</b> — 헛되게
+        /// 빨개지는 검사는 다음 사람이 지운다. 그래서 훅과 값 사이를 느슨하게 둔다.</para>
         /// </summary>
         [Test]
         public void ClosingTheWindowKeepsItsOwnResult()
         {
             var raw = TestSource.Read("Runtime/Bootstrap/PlayObserver.cs");
 
-            Assert.That(raw, Does.Contain("OnApplicationQuit() => End(\"quit\""),
+            Assert.That(raw, Does.Match(@"OnApplicationQuit\(\)[\s\S]{0,80}?End\(""quit"""),
                         "창을 닫은 판이 씬 교체와 같은 값으로 남는다");
         }
 
