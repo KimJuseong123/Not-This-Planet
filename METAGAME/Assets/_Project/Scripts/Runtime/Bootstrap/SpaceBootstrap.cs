@@ -149,6 +149,8 @@ namespace Metagame.Bootstrap
                 // 찾아 따라가므로 여기서는 넘기지 않는다.
                 Backdrop = sys.AddComponent<AtmosphereBackdrop>();
                 Backdrop.ApplyStarsOnly(atmosphereProfile);
+                var meteorShower = sys.AddComponent<AtmosphereMeteorShower>();
+                meteorShower.Apply(atmosphereProfile);
             }
             else if (!authoredLighting)
             {

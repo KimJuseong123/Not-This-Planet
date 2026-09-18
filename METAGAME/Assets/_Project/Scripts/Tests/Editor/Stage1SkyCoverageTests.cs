@@ -116,6 +116,21 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void TheShippedStageEnablesTheGalaxyAndShootingStars()
+        {
+            var profile = ShippedProfile();
+
+            Assert.IsTrue(profile.galaxy.enabled, "은하수 광운이 꺼져 있다");
+            Assert.NotNull(profile.galaxy.texture, "은하수 성운 텍스처가 연결되지 않았다");
+            Assert.Greater(profile.galaxy.intensity, 0f, "은하수 밝기가 0이다");
+            Assert.Greater(profile.galaxy.width, 0.05f, "은하수 띠가 화면에서 식별하기 어려울 만큼 얇다");
+            Assert.IsTrue(profile.meteorShower.enabled, "별똥별 효과가 꺼져 있다");
+            Assert.Greater(profile.meteorShower.emissionRate, 0f, "별똥별 발생 빈도가 0이다");
+            Assert.LessOrEqual(profile.meteorShower.emissionRate, 30f,
+                "별똥별 발생량이 연출 기준인 초당 30개를 초과한다");
+        }
+
+        [Test]
         public void TheBakedArtStarMeshIsOff_SoTheSkyIsNotDrawnTwice()
         {
             var scene = OpenStage();

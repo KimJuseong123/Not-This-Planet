@@ -162,8 +162,22 @@ namespace Metagame.Gameplay
             [Min(0f)] public float speed = 18f;
             [Min(0f)] public float spread = 20f;
             public Color color = new Color(0.65f, 0.82f, 1f, 0.75f);
+            public Color secondaryColor = new Color(1f, 1f, 1f, 0.95f);
             [Min(0.001f)] public float startSize = 0.08f;
             [Min(0.001f)] public float endSize = 0.01f;
+        }
+
+        [Serializable]
+        public sealed class GalaxySettings
+        {
+            public bool enabled = true;
+            [Tooltip("은하수 성운 텍스처. 비어 있으면 절차적 광운만 사용합니다.")]
+            public Texture2D texture;
+            [Range(0.01f, 1f)] public float width = 0.28f;
+            [Range(0f, 2f)] public float intensity = 0.55f;
+            public Color coreColor = new Color(0.72f, 0.66f, 1f, 0.42f);
+            public Color edgeColor = new Color(0.24f, 0.42f, 0.82f, 0f);
+            [Range(32, 256)] public int segments = 128;
         }
 
         [Serializable]
@@ -281,6 +295,7 @@ namespace Metagame.Gameplay
         public PostProcessingSettings postProcessing = new PostProcessingSettings();
 
         [Header("Visual-only effects")]
+        public GalaxySettings galaxy = new GalaxySettings();
         public MeteorShowerSettings meteorShower = new MeteorShowerSettings();
         public DustGustSettings dustGust = new DustGustSettings();
 
@@ -301,6 +316,7 @@ namespace Metagame.Gameplay
             if (haze == null) haze = new HazeSettings();
             if (groundFog == null) groundFog = new GroundFogSettings();
             if (postProcessing == null) postProcessing = new PostProcessingSettings();
+            if (galaxy == null) galaxy = new GalaxySettings();
             if (meteorShower == null) meteorShower = new MeteorShowerSettings();
             if (dustGust == null) dustGust = new DustGustSettings();
             if (dustStorm == null) dustStorm = new DustStormSettings();
@@ -319,6 +335,9 @@ namespace Metagame.Gameplay
             groundFog.noiseScale = Mathf.Max(0.001f, groundFog.noiseScale);
             groundFog.noiseStrength = Mathf.Clamp01(groundFog.noiseStrength);
             meteorShower.maxParticles = Mathf.Clamp(meteorShower.maxParticles, 0, 64);
+            galaxy.width = Mathf.Clamp(galaxy.width, 0.01f, 1f);
+            galaxy.intensity = Mathf.Clamp(galaxy.intensity, 0f, 2f);
+            galaxy.segments = Mathf.Clamp(galaxy.segments, 32, 256);
             meteorShower.alertEmissionMultiplier = Mathf.Max(1f, meteorShower.alertEmissionMultiplier);
             meteorShower.lifetime = Mathf.Max(0.05f, meteorShower.lifetime);
             if (dustGust.direction.sqrMagnitude < 0.0001f)
