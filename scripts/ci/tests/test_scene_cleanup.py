@@ -54,19 +54,92 @@ ESCAPE_RE = re.compile(r"^\s*//.*" + re.escape(ESCAPE) + r".*S15P21B202-\d+", re
 fails = []
 
 
-def without_line_comments(text: str) -> str:
-    """`//` 주석을 지운다. 설명에 적어 둔 `[UnityTearDown]` 이 훅으로 잡히면 안 된다."""
-    return re.sub(r"//[^\n]*", "", text)
+def code_only(text: str) -> str:
+    """주석과 문자열 **내용**을 공백으로 지운 사본. 길이는 그대로 둔다.
+
+    두 가지를 막는다. 둘 다 **조용히 틀리는** 모양이라 없는 검사보다 나쁘다(`!539` 리뷰).
+
+      · 설명 주석에 적어 둔 `[UnityTearDown]` 이 진짜 훅으로 잡히는 것
+      · **문자열 안의 `//` 를 주석으로 보는 것.** `"wss://"`·`IndexOf("//")` 가 이
+        저장소에 실제로 있다(`BackendEndpointsTests` · `PlayEventsTests` 등 5곳).
+        줄 끝까지 지우면 그 줄의 닫는 중괄호까지 사라져 **훅 본문이 파일 뒤쪽을
+        삼키고**, 거기 있는 `NewScene(…)` 때문에 그냥 통과한다
+
+    C# 파서가 아니라 **글자 상태기**다. 가르는 것은 주석·문자열·문자 리터럴뿐이다.
+    """
+    out = list(text)
+    i, n = 0, len(text)
+
+    def blank(k):
+        if out[k] != "\n":
+            out[k] = " "
+
+    while i < n:
+        two = text[i:i + 2]
+        if two == "//":
+            while i < n and text[i] != "\n":
+                blank(i)
+                i += 1
+        elif two == "/*":
+            while i < n and text[i:i + 2] != "*/":
+                blank(i)
+                i += 1
+            for _ in range(2):
+                if i < n:
+                    blank(i)
+                    i += 1
+        elif two == '@"':                      # 축자 문자열 — `\` 는 이스케이프가 아니고 `""` 가 따옴표다
+            blank(i)
+            blank(i + 1)
+            i += 2
+            while i < n:
+                if text[i] == '"':
+                    if text[i:i + 2] == '""':
+                        blank(i)
+                        blank(i + 1)
+                        i += 2
+                        continue
+                    blank(i)
+                    i += 1
+                    break
+                blank(i)
+                i += 1
+        elif text[i] in ('"', "'"):
+            quote = text[i]
+            blank(i)
+            i += 1
+            while i < n:
+                if text[i] == chr(92) and i + 1 < n:   # 역슬래시 이스케이프
+                    blank(i)
+                    blank(i + 1)
+                    i += 2
+                    continue
+                if text[i] == quote:
+                    blank(i)
+                    i += 1
+                    break
+                blank(i)
+                i += 1
+        else:
+            i += 1
+    return "".join(out)
 
 
-def teardown_bodies(text: str) -> list:
-    """정리 훅이 붙은 메서드의 본문들. 중괄호 짝으로 자른다 (S15P21B202-632).
+def teardown_bodies(text: str, rel: str) -> list:
+    """정리 훅이 붙은 메서드의 본문들 (S15P21B202-632).
 
     C# 파서가 아니다 — 우리 검증 파일에 실제로 나오는 모양만 다룬다. 속성이 메서드와
-    같은 줄인 것(`[UnityTearDown] public IEnumerator Cleanup(){…}`)과 다른 줄인 것 둘 다
-    이 방식으로 잘린다. 주석은 미리 지워 두므로 그 안의 중괄호에 걸리지 않는다.
+    같은 줄인 것(`[UnityTearDown] public IEnumerator Cleanup(){…}`)과 다른 줄인 것,
+    그리고 **식 본문**(`[TearDown] public void Cleanup() => Foo();`) 셋이다.
+
+    식 본문을 따로 다루는 이유: 그때 뒤따라 나오는 첫 `{` 는 **다음 메서드의 본문**이다.
+    그것을 이 훅의 본문으로 읽으면 엉뚱한 코드를 보게 된다 — 이 저장소에 그 모양이
+    4곳 있다(`AuthoredMapSettingsTests` · `TinyFlowerPatchBuilderTests` 등).
+
+    **짝을 못 찾으면 조용히 넘어가지 않는다.** 그냥 넘어가면 "훅이 없다" 는 엉뚱한
+    메시지가 나가거나, 더 나쁘게는 통과한다.
     """
-    code = without_line_comments(text)
+    code = code_only(text)
     out = []
     for marker in TEARDOWNS:
         at = 0
@@ -76,9 +149,23 @@ def teardown_bodies(text: str) -> list:
                 break
             at = i + len(marker)
             open_at = code.find("{", at)
+            arrow = code.find("=>", at)
+
+            if arrow >= 0 and (open_at < 0 or arrow < open_at):
+                end = code.find(";", arrow)
+                if end < 0:
+                    check(False, f"{rel} — `{marker}` 의 식 본문이 `;` 로 끝나지 않는다 "
+                                 f"(이 검사가 그 훅을 못 읽는다)")
+                    break
+                out.append(code[arrow:end + 1])
+                continue
+
             if open_at < 0:
+                check(False, f"{rel} — `{marker}` 뒤에 본문(`{{`)도 식 본문(`=>`)도 없다 "
+                             f"(이 검사가 그 훅을 못 읽는다)")
                 break
-            depth = 0
+
+            depth, closed = 0, False
             for j in range(open_at, len(code)):
                 if code[j] == "{":
                     depth += 1
@@ -86,7 +173,12 @@ def teardown_bodies(text: str) -> list:
                     depth -= 1
                     if depth == 0:
                         out.append(code[open_at:j + 1])
+                        closed = True
                         break
+            if not closed:
+                check(False, f"{rel} — `{marker}` 의 본문 중괄호 짝을 못 찾았다 "
+                             f"(이 검사가 그 훅을 못 읽는다)")
+                break
     return out
 
 
@@ -162,7 +254,7 @@ for path in test_files():
     # 가릴 수 없고, 그 결과 뒤이어 도는 검증 3건이 흔들렸다.
     # **빈 씬으로 되돌리거나, 연 씬을 닫거나** — 둘 다 다음 픽스처에게 깨끗한 상태를 남긴다.
     # `Single` 로 연 씬을 닫으면 유니티가 빈 씬을 남기므로 되돌린 것과 같다.
-    bodies = teardown_bodies(text)
+    bodies = teardown_bodies(text, rel)
     has_teardown = bool(bodies)
     has_reset = any(RESETS in b or CLOSES in b for b in bodies)
     if has_reset and has_teardown:
