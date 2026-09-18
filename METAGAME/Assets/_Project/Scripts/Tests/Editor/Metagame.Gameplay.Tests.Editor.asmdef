@@ -13,7 +13,8 @@
     "UnityEngine.UI",
     "Unity.RenderPipelines.Universal.Runtime",
     "Unity.RenderPipelines.Core.Runtime",
-    "Metagame.Editor"
+    "Metagame.Editor",
+    "Metagame.AICompanion"
   ],
   "includePlatforms": [
     "Editor"

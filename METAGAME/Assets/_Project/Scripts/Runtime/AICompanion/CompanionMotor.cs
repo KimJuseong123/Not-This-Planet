@@ -5,7 +5,7 @@ using Metagame.Gameplay.Parts;
 using UnityEngine;
 using UnityEngine.AI;
 
-namespace Metagame.AIExperiment
+namespace Metagame.AICompanion
 {
     /// <summary>Navigation chooses movement input; existing PlayerRig owns physics and animation.</summary>
     [DefaultExecutionOrder(-50)]

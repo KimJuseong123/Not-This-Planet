@@ -1,6 +1,16 @@
 {
   "name": "Metagame.AIExperiment",
   "rootNamespace": "Metagame.AIExperiment",
-  "references": ["Metagame.Core", "Metagame.Gameplay", "Metagame.Network", "Metagame.Bootstrap", "Metagame.UI", "Mirror", "Mirror.Components", "Mirror.Transports"],
+  "references": [
+    "Metagame.Core",
+    "Metagame.Gameplay",
+    "Metagame.Network",
+    "Metagame.Bootstrap",
+    "Metagame.UI",
+    "Mirror",
+    "Mirror.Components",
+    "Mirror.Transports",
+    "Metagame.AICompanion"
+  ],
   "autoReferenced": true
 }

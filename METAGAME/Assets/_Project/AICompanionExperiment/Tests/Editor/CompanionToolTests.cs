@@ -1,4 +1,5 @@
 using System.Collections;
+using Metagame.AICompanion;
 using Metagame.Gameplay;
 using Metagame.Gameplay.Hazards;
 using NUnit.Framework;

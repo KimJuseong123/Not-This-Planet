@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Metagame.Gameplay.Parts;
 using UnityEngine;
 
-namespace Metagame.AIExperiment
+namespace Metagame.AICompanion
 {
     public static class CompanionPinTarget
     {

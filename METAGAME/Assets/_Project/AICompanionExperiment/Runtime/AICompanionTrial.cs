@@ -1,4 +1,5 @@
 using System;
+using Metagame.AICompanion;
 using System.Collections;
 using Metagame.Gameplay;
 using Metagame.UI;

@@ -1,0 +1,6 @@
+{
+  "name": "Metagame.AICompanion",
+  "rootNamespace": "Metagame.AICompanion",
+  "references": ["Metagame.Core", "Metagame.Gameplay"],
+  "autoReferenced": true
+}

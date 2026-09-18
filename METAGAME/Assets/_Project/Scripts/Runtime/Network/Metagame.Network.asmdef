@@ -7,7 +7,8 @@
     "Mirror.Transports",
     "Mirror.Authenticators",
     "Metagame.Core",
-    "Metagame.Gameplay"
+    "Metagame.Gameplay",
+    "Metagame.AICompanion"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

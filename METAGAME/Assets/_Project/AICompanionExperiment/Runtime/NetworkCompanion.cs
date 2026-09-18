@@ -1,4 +1,5 @@
 using Metagame.Gameplay;
+using Metagame.AICompanion;
 using Metagame.Core;
 using Metagame.Network;
 using Mirror;

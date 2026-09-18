@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using UnityEngine;
 
-namespace Metagame.AIExperiment
+namespace Metagame.AICompanion
 {
     public enum CompanionOrder : byte { Wait, Follow, Cancel, PullPin, MoveToPin, PullNearbyPins,
         PickUpTool, PickUpBat, PickUpWelder, DropTool, HitTarget, DefendMeteors }

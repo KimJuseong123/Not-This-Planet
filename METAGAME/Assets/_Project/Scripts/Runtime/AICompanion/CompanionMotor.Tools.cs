@@ -4,7 +4,7 @@ using Metagame.Gameplay.Hazards;
 using UnityEngine;
 using UnityEngine.AI;
 
-namespace Metagame.AIExperiment
+namespace Metagame.AICompanion
 {
     // Chooses input only. Equip, drop, damage and deflection remain owned by PlayerRig/ToolBase.
     public sealed partial class CompanionMotor
