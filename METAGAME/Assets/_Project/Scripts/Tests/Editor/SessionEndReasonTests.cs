@@ -152,5 +152,36 @@ namespace Metagame.Gameplay.Tests
                 PlayEvents.FolderResolver = saved;
             }
         }
+
+        /// <summary>
+        /// 판을 닫으면 표시도 내려간다 (<c>!527</c> AI 리뷰). 표시의 수명이 <b>열린
+        /// 판</b>과 같아야, 그 값이 다음 판에 얹힐 수 있는지 매번 따지지 않아도 된다.
+        /// </summary>
+        [Test]
+        public void ClosingAPlayTakesTheMarkDownToo()
+        {
+            string dir = Path.Combine(Path.GetTempPath(), "metagame-end-reason-close");
+            if (Directory.Exists(dir)) Directory.Delete(dir, true);
+            Directory.CreateDirectory(dir);
+
+            var saved = PlayEvents.FolderResolver;
+            try
+            {
+                PlayEvents.FolderResolver = () => dir;
+
+                PlayEvents.Begin(new Dictionary<string, object>());
+                PlayEvents.NoteLeftForTitle(true);
+                PlayEvents.End();
+
+                Assert.That(PlayEvents.LeftForTitle, Is.False,
+                            "판을 닫았는데 표시가 서 있다 — 다음 판에 얹히는지 따져야 한다");
+            }
+            finally
+            {
+                PlayEvents.End();
+                PlayEvents.NoteLeftForTitle(false);
+                PlayEvents.FolderResolver = saved;
+            }
+        }
     }
 }
