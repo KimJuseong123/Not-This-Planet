@@ -128,7 +128,9 @@ assert not narrowed, (
 # **읽지 못하는 모양이면 통과시키지 않는다.** `extends` 나 앵커 병합으로 들어온 규칙은
 # 이 잡 구간의 글자에 보이지 않는다 — 그러면 위 검사가 아무것도 못 보고 초록이 된다.
 # 조용히 통과하는 검사는 없는 검사와 같다(`!511` 이 test_scene_cleanup 에 남긴 것과 같은 결).
-opaque = [l.strip() for l in ct if l.strip().startswith(("extends:", "<<:"))]
+# 줄 머리만 보면 흐름 스타일 `extends: [.x]` 나 `rules: !reference [.base, rules]` 를
+# 놓친다 (`!539` 4차 리뷰) — 규칙이 밖에서 들어오면 위 검사가 볼 것이 없어진다.
+opaque = [l.strip() for l in ct if any(k in l for k in ("extends:", "<<:", "!reference"))]
 assert not opaque, (
     "ci-tests 가 extends/앵커로 규칙을 받아 온다 — 이 검사가 그 안의 changes: 를 볼 수 없다.\n"
     "  글자만 보는 방식의 한계다. 규칙을 잡 안에 직접 쓰거나, 이 검사를 그 모양까지 읽게 넓힌다.\n"

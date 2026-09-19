@@ -138,8 +138,15 @@ def body_of_method(code: str, name: str) -> str:
     """같은 파일에서 `name(…) { … }` 로 **선언된** 메서드의 본문. 없으면 빈 문자열.
 
     호출부(`ResetScene();`)는 `)` 뒤가 `;` 라 걸리지 않는다 — 선언만 본다.
+
+    **제어 블록을 선언으로 읽지 않는다** (`!539` 4차 리뷰). `if (Foo()) {` 는 이름 뒤가
+    `(…) {` 라 예전 정규식에 걸렸고, 그 블록 안에 `NewScene` 이 있으면 정리 훅이 실제로
+    아무것도 안 해도 통과했다 — 이 MR 이 막으려던 바로 그 모양이다. 선언에는 이름 앞에
+    **반환형**이 온다(`void ResetScene()`)는 점으로 가른다. `if`·`using`·`catch` 는
+    이름 앞이 `(` 라 걸리지 않는다.
     """
-    m = re.search(r"\b" + re.escape(name) + r"\s*\([^;{]*\)\s*\{", code)
+    #                반환형의 마지막 글자 ─┐  (`List<int>`·`int[]` 도 받는다)
+    m = re.search(r"[\w>\]]\s+" + re.escape(name) + r"\s*\([^;{]*\)\s*\{", code)
     if not m:
         return ""
     open_at = code.find("{", m.start())
