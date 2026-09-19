@@ -40,6 +40,22 @@ def main() -> int:
     for leak in ("MM_WEBHOOK_URL", "GITLAB_TOKEN", "JIRA_API_TOKEN", "ANTHROPIC_API_KEY",
                  "DEVBUILD_TRIGGER_TOKEN"):
         env.pop(leak, None)
+    # **파이프라인 맥락도 지운다** (S15P21B202-648). 비밀값과 같은 이유지만 고장 모양이 다르다.
+    #
+    # 이 테스트들은 전부 **로컬에서 통과하도록** 쓰여 있다. 로컬에는 `CI_*` 가 하나도 없다.
+    # 그런데 CI 에서는 러너가 넣어 준 값을 그대로 물려받아서, **같은 코드가 어디서 도느냐에
+    # 따라 다른 답**을 냈다. 2026-09-19 04:03 예약 실행(잡 584017)에서 그렇게 깨졌다:
+    # `-608` 이 "예약 실행이면 Infra 를 멘션하지 않는다" 를 넣자, `CI_PIPELINE_SOURCE=schedule`
+    # 을 물려받은 `test_deploy_notify` 의 단정들이 멘션을 못 찾았다.
+    #
+    # **MR·push 에서는 초록이고 예약에서만 빨강**이라 알아채기 어렵다 — 고치기 전까지
+    # 새벽·아침 카드가 매일 같은 실패를 달고 나간다.
+    #
+    # 값이 필요한 테스트는 자기가 정한다(그 파일들은 이미 그렇게 하고 있다).
+    # `GITLAB_USER_LOGIN` 도 같이 지운다 — `CI_` 로 시작하지 않지만 러너가 넣는 값이다.
+    for ci_var in [k for k in env if k.startswith("CI_")]:
+        env.pop(ci_var, None)
+    env.pop("GITLAB_USER_LOGIN", None)
     sh = shell()
     cmds = [(f, [sys.executable, os.path.join(HERE, f)]) for f in files]
     if shells and sh:
