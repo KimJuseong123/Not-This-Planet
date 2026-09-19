@@ -51,11 +51,15 @@ def main() -> int:
     # **MR·push 에서는 초록이고 예약에서만 빨강**이라 알아채기 어렵다 — 고치기 전까지
     # 새벽·아침 카드가 매일 같은 실패를 달고 나간다.
     #
-    # 값이 필요한 테스트는 자기가 정한다(그 파일들은 이미 그렇게 하고 있다).
-    # `GITLAB_USER_LOGIN` 도 같이 지운다 — `CI_` 로 시작하지 않지만 러너가 넣는 값이다.
-    for ci_var in [k for k in env if k.startswith("CI_")]:
-        env.pop(ci_var, None)
-    env.pop("GITLAB_USER_LOGIN", None)
+    # 값이 필요한 테스트는 자기가 정한다 — 실제로 전부 그렇게 하고 있다. `CI_` 를 읽기만
+    # 하는 두 곳(`test_deploy_backend` · `test_notify_branch_red`)은 **저장·복원 쌍**이라
+    # 주변 값이 없으면 없는 대로 정확하다. `test_notify_branch_red` 는 하필
+    # `CI_PIPELINE_SOURCE` 를 저장하던 곳이라, 이 정리로 같은 위험에서 함께 벗어난다.
+    #
+    # **접두사 둘을 다 지운다.** `GITLAB_` 을 빼면 같은 고장이 `GITLAB_USER_LOGIN`·
+    # `GITLAB_CI` 같은 이름으로 재발한다 — 러너가 넣는 값이라는 점이 같다(`!540` 리뷰).
+    for runner_var in [k for k in env if k.startswith(("CI_", "GITLAB_"))]:
+        env.pop(runner_var, None)
     sh = shell()
     cmds = [(f, [sys.executable, os.path.join(HERE, f)]) for f in files]
     if shells and sh:
