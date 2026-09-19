@@ -133,6 +133,12 @@ def code_only(text: str) -> str:
 #: 같은 키워드가 걸리지 않는다.
 CALL_RE = re.compile(r"\b([A-Z][A-Za-z0-9_]*)\s*\(")
 
+#: 이름 **앞**에 오면 그것은 반환형이 아니고, 따라서 선언도 아니다 (`!539` 5차 리뷰).
+#: `foreach (var s in GetScenes()) {` · `var x = new SceneSetup() { … }` 가 이것 없이
+#: 선언으로 읽혔고, 그 블록 안의 `NewScene` 때문에 **정리 훅이 아무것도 안 해도 통과**했다.
+NOT_A_TYPE = {"in", "new", "return", "await", "is", "as", "throw", "yield",
+              "case", "out", "ref", "using", "lock", "while", "if", "switch", "catch"}
+
 
 def body_of_method(code: str, name: str) -> str:
     """같은 파일에서 `name(…) { … }` 로 **선언된** 메서드의 본문. 없으면 빈 문자열.
@@ -145,11 +151,17 @@ def body_of_method(code: str, name: str) -> str:
     **반환형**이 온다(`void ResetScene()`)는 점으로 가른다. `if`·`using`·`catch` 는
     이름 앞이 `(` 라 걸리지 않는다.
     """
-    #                반환형의 마지막 글자 ─┐  (`List<int>`·`int[]` 도 받는다)
-    m = re.search(r"[\w>\]]\s+" + re.escape(name) + r"\s*\([^;{]*\)\s*\{", code)
-    if not m:
+    # 이름 앞의 토큰이 **반환형**이어야 한다. 단어 글자이기만 하면 된다고 두면
+    # `foreach (var s in GetScenes()) {` 의 `in` 과 `new SceneSetup() { … }` 의 `new` 가
+    # 선언으로 읽힌다 — 실측으로 둘 다 뚫렸다 (`!539` 5차 리뷰).
+    open_at = -1
+    for m in re.finditer(r"([\w>\].]+)\s+" + re.escape(name) + r"\s*\([^;{]*?\)\s*\{", code):
+        if m.group(1) in NOT_A_TYPE:
+            continue
+        open_at = code.find("{", m.start())
+        break
+    if open_at < 0:
         return ""
-    open_at = code.find("{", m.start())
     depth = 0
     for j in range(open_at, len(code)):
         if code[j] == "{":
