@@ -341,6 +341,10 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
     # **합친 base 를 남긴다** — 다음 실행이 "그때 무엇과 합쳐 검사했나" 를 알아야
     # 재사용 여부를 판단할 수 있다. 아래 판단이 이 파일을 읽는다.
     - echo "${UNITY_MERGED_BASE:-}" > "$CI_PROJECT_DIR/unity-base.txt"
+    # **검사 대상 트리의 지문을 남긴다** (S15P21B202-642). 머지가 끝난 **뒤**라야
+    # `HEAD` 가 실제로 검사할 트리다. 이 파일이 있어야 다른 ref 의 잡이 "같은 것을
+    # 이미 검사했다" 를 알 수 있다 — 지금은 `release-windows` 가 그것을 쓴다.
+    - python3 scripts/ci/unity_reuse.py key || true
     - python3 scripts/ci/unity_reuse.py || true
     # unity-editor 래퍼가 xvfb-run 과 -batchmode 를 붙여 준다(이미지 실측) — 여기서 또 주지 않는다.
     # -nographics 도 주지 않는다: xvfb 가 있어 URP 셰이더 관련 임포트가 정상적으로 돈다.
@@ -473,6 +477,7 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
     # 재사용하지 않는다 — 이 파일이 빠지면 최적화가 조용히 꺼진다.
     paths: [unity-results.xml, unity-junit.xml, unity.log, unity-verdict.txt,
             unity-recheck.txt, unity-baseline.json, unity-base.txt, unity-rc.txt,
+            unity-key.txt,
             unity-reused.txt,
             unity-recheck-*.xml, unity-recheck-*.log]
     reports:
@@ -751,15 +756,29 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
     # 콜드 임포트가 이미 이 잡에서 한 번 일어나므로 추가 비용은 테스트 실행분뿐이다.
     #
     # 실패하면 빌드하지 않는다. ❌ 줄을 남기므로 mm-ci-failed 가 그것을 카드의 이유로 싣는다.
+    # **같은 트리를 이미 전체로 검사했으면 빌려 온다** (S15P21B202-642).
+    #
+    # 릴리스 시점의 master 트리는 develop 과 같은 것이 보통이고(릴리스 머지가 파일을
+    # 바꾸지 않는다), 그 트리는 develop 의 `unity-compile` 이 **Heavy 까지 포함해**
+    # 이미 검사했다. 2026-09-18 실측: 여기서 20분 20초가 들었고 결과는 develop 이 낸
+    # 것과 실패 수까지 같았다(26 = 26). 릴리스 24.8분의 82% 였다.
+    #
+    # 지문이 다르면(핫픽스로 갈라졌다면) 그냥 돈다 — 그때가 이 검사가 필요한 때다.
+    - python3 scripts/ci/unity_reuse.py borrow || true
     - echo "=== EditMode 테스트 (빌드 전) ==="
     - |
       set +e
-      unity-editor \
-        -projectPath METAGAME \
-        -runTests -testPlatform EditMode \
-        -testResults "$CI_PROJECT_DIR/unity-results.xml" \
-        -logFile "$CI_PROJECT_DIR/unity-tests.log"
-      TRC=$?
+      if [ -s "$CI_PROJECT_DIR/unity-reused.txt" ]; then
+        TRC=$(cat "$CI_PROJECT_DIR/unity-rc.txt")
+        echo "↻ 잡 $(cat "$CI_PROJECT_DIR/unity-reused.txt") 의 결과를 쓴다 (종료 코드 $TRC)"
+      else
+        unity-editor \
+          -projectPath METAGAME \
+          -runTests -testPlatform EditMode \
+          -testResults "$CI_PROJECT_DIR/unity-results.xml" \
+          -logFile "$CI_PROJECT_DIR/unity-tests.log"
+        TRC=$?
+      fi
       set -e
       echo "테스트 종료 코드 $TRC"
     - python3 scripts/ci/publish_release.py gate "$TRC" "$CI_PROJECT_DIR/unity-results.xml" "$CI_PROJECT_DIR/unity-tests.log"
