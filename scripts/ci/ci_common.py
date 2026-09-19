@@ -192,7 +192,11 @@ SECRET_ENVS = ("JIRA_RELEASE_WEBHOOK", "MM_WEBHOOK_URL", "JIRA_API_TOKEN",
                # 배치 트리거 토큰 (S15P21B202-582). **Masked 이지만 여기에도 둔다** —
                # Masked 는 러너가 로그를 가려 주는 것이고, 이 목록은 우리가 본문을
                # 찍기 전에 가리는 것이다. 트리거 실패 응답에 요청이 되비칠 수 있다.
-               "DEVBUILD_TRIGGER_TOKEN")
+               "DEVBUILD_TRIGGER_TOKEN",
+               # Jira 수신 웹훅 secret (S15P21B202-645). 같은 이유다 — 이제 이 값을
+               # `X-Automation-Webhook-Token` 헤더로 **보내므로**, 상대가 요청을
+               # 되비추는 400 을 주면 우리가 그 본문을 로그에 찍게 된다.
+               "JIRA_RELEASE_WEBHOOK_TOKEN")
 
 
 def _forms(v: str) -> list[str]:

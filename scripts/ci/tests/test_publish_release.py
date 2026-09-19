@@ -22,7 +22,8 @@ RELEASE_EXISTS: dict = {}     # tag → release dict (GET 200), 없으면 404
 
 
 def http(method, url, headers=None, body=None, timeout=30):
-    CALLS.append((method, url, body))
+    # 헤더는 **뒤에** 붙인다 (S15P21B202-645) — 기존 단정들이 `c[2]` 를 본문으로 읽는다.
+    CALLS.append((method, url, body, dict(headers or {})))
     if "/releases/" in url and method == "GET" and not url.endswith("/assets/links"):
         tag = url.rsplit("/", 1)[1]
         return (200, RELEASE_EXISTS[tag]) if tag in RELEASE_EXISTS else (404, {"message": "404 Not Found"})
@@ -109,11 +110,36 @@ assert not any(c[1].endswith("/assets/links") for c in CALLS), "이미 있는 �
 print("  4) Release: 없으면 생성(ref 로 태그) · 있으면 갱신 · 링크는 없을 때만 ✅")
 
 # ── 4b) Jira 웹훅 본문은 Jira 수신 웹훅 형식 — issues 배열 + data 객체(-327) ──
+TOKEN = "t0ken-value-do-not-log"
 CALLS.clear(); os.environ["JIRA_RELEASE_WEBHOOK"] = "https://automation.example/hook"
+os.environ[P.WEBHOOK_TOKEN_VAR] = TOKEN
 P.jira_release_webhook("v0.1.0", ["S15P21B202-2", "S15P21B202-1", "S15P21B202-2"], "https://lab.example/g/p/-/releases/v0.1.0")
 hook = [c for c in CALLS if c[1] == "https://automation.example/hook"][0]
 assert hook[2]["issues"] == ["S15P21B202-1", "S15P21B202-2"] and hook[2]["data"]["version"] == "v0.1.0", hook
 assert "releaseUrl" in hook[2]["data"] and "date" in hook[2]["data"]
+
+# ── 4b-2) **토큰을 헤더로 보낸다** (S15P21B202-645) ──────────────────────
+#
+# v1.1.0·v1.2.0 두 릴리스가 `{"errorMessages": ["Missing token"]}` 로 400 을 받았다.
+# 주소도 인증도 아니고 **헤더를 하나도 안 보냈다**는 뜻이었다.
+POSTS = [c for c in CALLS if c[0] == "POST" and c[1] == "https://automation.example/hook"]
+assert POSTS, CALLS
+sent_headers = POSTS[0][3] if len(POSTS[0]) > 3 else None
+assert isinstance(sent_headers, dict), f"헤더를 넘기지 않는다: {POSTS[0]!r}"
+assert sent_headers.get(P.WEBHOOK_TOKEN_HEADER) == TOKEN, (
+    f"{P.WEBHOOK_TOKEN_HEADER} 헤더를 보내지 않는다 — Jira 가 Missing token 을 준다: {sent_headers!r}")
+
+# **주소에 붙이지 않는다.** 붙이면 잡 로그·리다이렉트·프록시 기록 어디에나 남는다.
+assert TOKEN not in POSTS[0][1], f"토큰이 주소에 실렸다: {POSTS[0][1]!r}"
+
+# 토큰이 없으면 **보내지 않는다** — 보내 봐야 400 이 확정이고, 0분에 말해 주는 편이 낫다.
+os.environ.pop(P.WEBHOOK_TOKEN_VAR)
+CALLS.clear()
+line = P.jira_release_webhook("v0.1.0", ["S15P21B202-1"], "https://l/r")
+assert not CALLS, "토큰이 없는데 보냈다 — Jira 가 400(Missing token)을 준다"
+assert line and P.WEBHOOK_TOKEN_VAR in line, f"토큰이 없다는 것을 카드가 말하지 않는다: {line!r}"
+assert P.webhook_shape_problem(), "토큰 없음을 모양 검사가 못 잡는다"
+os.environ[P.WEBHOOK_TOKEN_VAR] = TOKEN
 assert P.jira_release_webhook("v0.1.0", [], "https://l/r") is None, (
     "정상 응답인데 카드에 실을 줄을 돌려준다")
 
