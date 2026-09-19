@@ -114,7 +114,10 @@ print("  ③ 스케줄 테스트 + 실패해도 카드 발송 · 순서 강제�
 # **다음 한 줄만 보지 않는다** (`!539` AI 리뷰). `when:` 한 줄을 끼우거나 두 번째 MR
 # 규칙에 붙이면 통과해 버린다 — 이 검사가 막으려던 '조용히 꺼짐'이 그대로 재현된다.
 # 잡 구간 전체에서 `changes:` 가 한 줄도 없어야 한다(설명 주석은 빼고 센다).
-ct = [l for l in job("ci-tests").split(NL_) if l.strip() and not l.strip().startswith("#")]
+# **줄 끝 주석까지 걷어 낸다** (`!539` 6차 리뷰). 줄 머리만 보면 `stage: lint  # …` 의
+# 설명에 `changes:` 라는 낱말이 들어갈 때 **가짜로 실패**하고, 반대로 설명을 인라인으로
+# 옮겨 검사를 피할 여지도 남는다. 이 잡 구간에 따옴표 친 `#` 은 없다.
+ct = [c for c in (l.split("#", 1)[0] for l in job("ci-tests").split(NL_)) if c.strip()]
 assert any("merge_request_event" in l for l in ct), "ci-tests 에 MR 규칙이 없다 — MR 에서 아예 안 돈다"
 # **줄 어디에 있든 잡는다** (`!539` 3차 리뷰). 줄 머리만 보면 흐름 스타일
 # (`- {if: …, changes: [...]}`)을 놓치고, 가드 자신이 조용히 통과한다.
