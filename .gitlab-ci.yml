@@ -36,8 +36,20 @@ workflow:
       # 건드리지 않아 **새 파이프라인에는 백엔드 잡이 아예 없었다** — 누를 배포 버튼이 사라졌고,
       # 파이프라인은 초록이라 아무도 몰랐다. 백엔드는 이틀 전 것으로 계속 돌았다.
       # MR 파이프라인은 그대로 둔다 — 거기서는 새 push 가 앞 것을 죽이는 게 맞다.
+      #
+      # **이제 `interruptible` 이다** (S15P21B202-641). 2026-09-18 에 머지가 몰리며
+      # develop 의 `unity-compile` 이 **8건까지 쌓였고**, 하나가 20분에 `resource_group:
+      # unity` 로 직렬이라 그 줄이 MR 검사와 릴리스를 통째로 막았다. 앞의 실행은 뒤의
+      # 실행에 **포함된다**(`b823a6bd` ⊂ `83f2e240` ⊂ `be320ccd`)는데도 각각 돌았다.
+      #
+      # `none` 으로 두었던 이유(`-309`)는 그대로 유효하다 — **그래서 구멍 둘을 함께
+      # 막았다.** 둘 중 하나라도 빠지면 지금보다 나쁜 상태가 된다:
+      #   ① `build-backend: interruptible: false` — `-309` 사고가 정확히 이것이었다
+      #   ② develop 쪽 `unity-compile` 의 `changes:` 제거 — 문서만 바꾼 머지의
+      #      파이프라인에는 그 잡이 없어서, 그것이 앞의 Unity 실행을 취소하면
+      #      **그 변경이 develop 에서 한 번도 검사되지 않는다**
       auto_cancel:
-        on_new_commit: none
+        on_new_commit: interruptible
     # master 머지 = 릴리스 (S15P21B202-326). release-windows 가 빌드·패키지·Release 를 만든다.
     # 릴리스 도중 다른 머지가 이 파이프라인을 죽이면 반쯤 올라간 패키지가 남으므로 여기도 자동 취소 없음.
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
@@ -257,11 +269,18 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
       changes: ["METAGAME/Assets/**/*", "METAGAME/Packages/**/*", "METAGAME/ProjectSettings/**/*", ".gitlab-ci.yml"]
     # 머지 직후에도 돈다 — 개별 MR 은 통과했는데 합쳐서 깨지는 경우를 잡는다.
     # 09-02 사고는 감지까지 2시간 37분이 걸렸다(그 사이 develop 머지 0건). 이 규칙이면 2분이다.
+    # **develop 에서는 `changes:` 를 보지 않는다** (S15P21B202-641).
+    #
+    # `-641` 이 develop 의 자동 취소를 켰다(머지가 몰리면 Unity 실행 8건이 쌓였다).
+    # 그런데 `changes:` 가 있으면 **문서만 바꾼 머지의 파이프라인에는 이 잡이 없다** —
+    # 그것이 앞의 Unity 머지 실행을 취소하면 그 변경은 develop 에서 **한 번도 검사되지
+    # 않는다.** `-309` 가 `build-backend` 에서 겪은 것과 같은 모양이다.
+    #
+    # 대가는 문서만 고친 머지도 이 잡이 생기는 것인데, **거의 들지 않는다**:
+    #   · 몰아서 들어오면 합쳐져 어차피 한 번이다
+    #   · 따로 들어와도 `unity_reuse.py` 가 앞 실행과 같은 트리임을 알고 건너뛴다
+    #     (그 재사용이 develop 에서 안 돌던 것을 이 이슈에서 함께 고쳤다 — `NO_MERGE`)
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
-      # 여기에는 `.gitlab-ci.yml` 을 넣지 않는다 — 위 MR 규칙에 이미 있어서 **머지 전에**
-      # 이 잡 정의로 한 번 돈다. 여기서 또 보면 CI 만 고친 MR 이 머지될 때마다 Unity 가
-      # 한 번 더 돌고, 4 vCPU 를 게임 서버와 나눠 쓰는 EC2 라 실유저 응답이 느려진다.
-      changes: ["METAGAME/Assets/**/*", "METAGAME/Packages/**/*", "METAGAME/ProjectSettings/**/*"]
   # 종료 코드로 판정을 나눈다 (S15P21B202-309). unity_report.py 가 **대상 브랜치 기준선과
   # 비교해서** 정한다:
   #   0 = 통과(기존 실패만 있음) · 1 = **이 MR 이 만든** 컴파일 오류·새 테스트 실패 → 막는다
@@ -357,7 +376,10 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
     #
     # **합친 base 를 남긴다** — 다음 실행이 "그때 무엇과 합쳐 검사했나" 를 알아야
     # 재사용 여부를 판단할 수 있다. 아래 판단이 이 파일을 읽는다.
-    - echo "${UNITY_MERGED_BASE:-}" > "$CI_PROJECT_DIR/unity-base.txt"
+    # **합칠 대상이 없으면 `-` 를 적는다** (S15P21B202-641). 빈 줄로 두면 읽는 쪽이
+    # "합칠 것이 없었다"(develop push — 정상)와 "이 기능 이전 잡이라 모른다"를
+    # 구별하지 못하고, 실제로 그 탓에 **develop 에서는 재사용이 한 번도 안 됐다**.
+    - echo "${UNITY_MERGED_BASE:--}" > "$CI_PROJECT_DIR/unity-base.txt"
     # **검사 대상 트리의 지문을 남긴다** (S15P21B202-642). 머지가 끝난 **뒤**라야
     # `HEAD` 가 실제로 검사할 트리다. 이 파일이 있어야 다른 ref 의 잡이 "같은 것을
     # 이미 검사했다" 를 알 수 있다 — 지금은 `release-windows` 가 그것을 쓴다.
@@ -511,6 +533,17 @@ build-backend:            # 백엔드 **테스트 + jar** — MR 에서는 검�
   image: eclipse-temurin:17-jdk    # 프로젝트는 Java 17 · Gradle 9.7.1 래퍼
   tags: [linux]           # 이미지가 필요한 잡이므로 도커 러너를 못 박는다 — 셸 러너(내 PC)로 가면
                           # image 가 무시되고 chmod 도 없어 실패한다(2026-09-01 실측: 파이프라인 176688)
+  # **이 잡은 취소되면 안 된다** (S15P21B202-309 · -641).
+  #
+  # `-309` 사고가 정확히 이것이었다. 09-06 19:43 에 `-303` 이 머지돼 백엔드 잡이
+  # 생겼는데 1분 뒤 `-304` 가 머지되며 앞 파이프라인이 자동 취소됐다. `default:
+  # interruptible: true` 라 **아직 시작 안 한 `build-backend` 가 취소 대상**이었고,
+  # `-304` 는 `backend/` 를 안 건드려 **새 파이프라인에는 백엔드 잡이 아예 없었다** —
+  # 누를 배포 버튼이 사라졌고 파이프라인은 초록이라 아무도 몰랐다.
+  #
+  # 그 사고 때문에 develop 의 `auto_cancel` 을 껐었다. `-641` 이 그것을 다시 켜므로
+  # (Unity 실행을 합치려고), **이 한 줄이 그 구멍을 대신 막는다.**
+  interruptible: false
   needs: []
   rules:                  # .gitlab-ci.yml 이 바뀔 때도 돌린다 — 이 잡 자체가 여전히 도는지 확인하려고
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
