@@ -138,7 +138,11 @@
 
 | 이벤트 | 무엇을 본다 | 어디 |
 | --- | --- | --- |
-| `phase` | 국면이 바뀔 때 — `cutscene`·`play`·`ending`. 연출일 때는 `stage` 칸에 세부(`Boarding`·`Launching`·`MeteorImpact` …) | `GameSession.Sequence` · `GameSession.EndingActive` · `DemoEnding.Stage` (`-627`) |
+| `phase` | 국면이 바뀔 때 — `cutscene`·`play`·`ending`. **`stage` 칸에 세부**가 함께 실린다: 연출이면 `Boarding`·`Launching`·`MeteorImpact` …, 그 밖에는 Stage1 시퀀스의 단계(`Waiting`·`Entry`·`Exploration`·`Assault`·`Combat`) | `Stage1Sequence.BlocksInput` · `Stage1Sequence.Phase` · `GameSession.EndingActive` · `DemoEnding.Stage` (`-627` · `-646`) |
+
+> **`cutscene` 은 `Sequence != null` 이 아니다** (`-646`). 그 값은 *"여기가 Stage1 이다"* 라는 뜻이라 — `Stage1CutsceneFlow` 가 시작할 때 컴포넌트를 붙이고 떼지 않는다 — **Stage1 세션 내내 참**이었다. 배포 서버에 도착한 첫 실제 세션(2026-09-18, 199초)이 국면을 **한 건, 값 `cutscene`** 으로만 남겼고, 같은 세션의 클라이언트 로그는 그동안 내내 실제 플레이였다(도구 집기·고정못 시도·차량 하차).
+>
+> 이제 `Stage1Sequence.BlocksInput` 을 본다 — `GameSession.CinematicInputBlocked` 가 쓰는 바로 그 값이다. 실제 컷신은 `Entry`·`Assault` 둘뿐이고 `Exploration`·`Combat` 은 플레이다.
 | `assembly` | `Floors` 배열이 바뀔 때 | `ShipAssembly.Floors` · `Evaluate()` |
 | `blocked` | `IsBoardable` 이 false 이고 `Blocker` 가 바뀔 때 | `ShipAssembly.Blocker` |
 | `checkpoint` | `CheckpointIndex` 가 바뀔 때 | `GameSession.ReachCheckpoint` |

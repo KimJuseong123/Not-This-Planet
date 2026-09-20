@@ -109,9 +109,23 @@ namespace Metagame.Bootstrap
             //
             // 참가자도 스스로 안다 — 컷신과 연출은 각자 화면에서 돌고,
             // `DemoEnding.StageAt` 은 공통 시계를 받는 순수 함수다.
-            string name = PhaseOf(session.EndingActive, session.Sequence != null);
+            // **`Sequence != null` 은 "컷신 중" 이 아니다** (S15P21B202-646). 그것은
+            // *"여기가 Stage1 이다"* 라는 뜻이다 — `Stage1CutsceneFlow` 가 시작할 때
+            // 컴포넌트를 한 번 붙이고 떼지 않는다. 그래서 배포 서버에 도착한 첫 실제
+            // 세션(2026-09-18, 199초)이 `phase` 를 **한 건, 값 `cutscene`** 으로만
+            // 남겼다. 같은 세션의 클라이언트 로그는 그동안 내내 실제 플레이였다 —
+            // 도구 집기·고정못 시도·차량 하차.
+            //
+            // 게임 코드는 이미 둘을 가르고 있다: `GameSession.CinematicInputBlocked`
+            // 가 `Sequence.BlocksInput` 을 본다. 국면이 물어야 할 것이 그것이다.
+            bool blocked = session.Sequence != null && session.Sequence.BlocksInput;
+            string name = PhaseOf(session.EndingActive, blocked);
+            // **연출이 아니면 시퀀스의 단계를 그대로 싣는다.** `Entry`·`Exploration`·
+            // `Assault`·`Combat` 은 "어디서 그만뒀나" 에 곧바로 답한다 — `cutscene`/`play`
+            // 두 값보다 훨씬 좁게 짚는다. 자리는 이미 있다(연출이 쓰던 `stage`).
             string stage = session.EndingActive && session.Ending != null
-                ? session.Ending.Stage.ToString() : string.Empty;
+                ? session.Ending.Stage.ToString()
+                : (session.Sequence != null ? session.Sequence.Phase.ToString() : string.Empty);
             string key = stage.Length > 0 ? name + ":" + stage : name;
             if (key != phase)
             {
