@@ -147,6 +147,94 @@ check(marked >= 15, f"Heavy 로 표시된 테스트가 {marked}건뿐이다 — 
 print(f"  Heavy 표시 {marked}건 · 입력 {len(U.INPUTS)}종")
 
 
+# ── ⑤ 다른 ref 의 같은 트리를 빌려 온다 (S15P21B202-642) ─────────────────
+#
+#     `release-windows` 가 빌드 전에 EditMode 를 스스로 돌린다. 2026-09-18 실측
+#     **20분 20초**로 릴리스의 82% 였고, 결과는 같은 트리를 검사한 develop 의
+#     `unity-compile` 과 실패 수까지 같았다(26 = 26).
+#
+#     **범위를 반드시 맞춘다.** MR 은 `!Heavy` 로 빼고 도는데 그 결과를 전체 실행
+#     자리에 쓰면 Heavy 가 검사되지 않은 채 초록이 된다 — 이 파일의 ④ 가 지키려는
+#     것을 재사용이 뒷문으로 무너뜨리는 모양이다.
+check(U.category.__doc__, "category() 에 설명이 없다")
+os.environ["CI_PIPELINE_SOURCE"] = "merge_request_event"
+check(U.category() == U.CAT_NO_HEAVY, f"MR 인데 범위가 {U.category()} 다")
+os.environ["CI_PIPELINE_SOURCE"] = "push"
+check(U.category() == U.CAT_FULL, f"push 인데 범위가 {U.category()} 다")
+os.environ.pop("CI_PIPELINE_SOURCE", None)
+
+#     지문은 **검사 대상 경로 전부**를 담아야 한다. 하나라도 빠지면 그것만 바뀐 트리를
+#     같다고 말한다.
+check(U.tree_key(["METAGAME/Assets"]) != U.tree_key(U.INPUTS),
+      "입력 일부만으로 만든 지문이 전체와 같다 — 경로가 지문에 안 들어간다")
+check(U.tree_key(["없는/경로"]) is None, "읽지 못한 경로를 지문으로 만들었다 — 모르면 None 이어야 한다")
+
+
+class _FakeGL:
+    """`find_same_tree` 만 보기 위한 최소 가짜. 아티팩트는 잡 id → 한 줄."""
+    token = "x"
+    project = "1"
+
+    def __init__(self, jobs, arts):
+        self._jobs, self._arts = jobs, arts
+
+    def project_jobs(self):
+        return self._jobs
+
+    def job_artifact_text(self, jid, name):
+        return self._arts.get((jid, name))
+
+
+def _job(jid, ref, status="success"):
+    return {"id": jid, "name": U.JOB_NAME, "ref": ref, "status": status}
+
+
+JOBS = [_job(30, "develop"), _job(20, "refs/merge-requests/9/head"), _job(10, "develop")]
+ARTS = {(30, U.KEY_FILE): "aaaa full", (20, U.KEY_FILE): "aaaa no-heavy",
+        (10, U.KEY_FILE): "bbbb full"}
+gl = _FakeGL(JOBS, ARTS)
+
+got = U.find_same_tree(gl, "aaaa", U.CAT_FULL)
+check(got and got["id"] == 30, f"다른 ref 의 같은 트리를 못 찾았다: {got}")
+
+#     **범위가 다르면 쓰지 않는다.** 여기서 20번(no-heavy)을 집으면 Heavy 가 샌다.
+got = U.find_same_tree(_FakeGL([_job(20, "refs/merge-requests/9/head")], ARTS),
+                       "aaaa", U.CAT_FULL)
+check(got is None, f"범위가 다른 잡을 집었다: {got} — Heavy 가 검사되지 않고 지나간다")
+
+#     지문이 다르면 그대로 돈다(핫픽스로 갈라진 경우).
+check(U.find_same_tree(gl, "cccc", U.CAT_FULL) is None, "없는 지문에 아무거나 집었다")
+
+#     지문 파일이 없는 옛 잡은 건너뛴다.
+check(U.find_same_tree(_FakeGL(JOBS, {}), "aaaa", U.CAT_FULL) is None,
+      "지문이 없는 잡을 같다고 봤다")
+
+#     도는 중·취소된 잡의 아티팩트는 반쪽이다.
+check(U.find_same_tree(_FakeGL([_job(30, "develop", "canceled")], ARTS),
+                       "aaaa", U.CAT_FULL) is None, "취소된 잡을 집었다")
+
+# ── ⑤-b 배선: 지문을 남기고, 릴리스가 그것을 쓴다 ────────────────────────
+check("unity_reuse.py key" in CODE, "unity-compile 이 트리 지문을 남기지 않는다")
+check("unity-key.txt" in JOB.split("artifacts:")[-1],
+      "unity-key.txt 가 아티팩트에 없다 — 다른 ref 가 받아 갈 수 없다")
+#     **머지 뒤라야 한다.** 머지 전에 남기면 소스 브랜치의 트리를 가리켜 다른 것을
+#     같다고 말한다.
+check(-1 < CODE.find("unity-base.txt") < CODE.find("unity_reuse.py key"),
+      "지문을 머지 결과보다 먼저 남긴다 — 검사 대상과 다른 트리를 가리킨다")
+
+rw = re.search(r"(?ms)^release-windows:.*?(?=^[a-z][a-z0-9-]*:|^# ──|\Z)", CI)
+check(rw is not None, "release-windows 잡을 못 찾았다")
+if rw:
+    RW = "\n".join(l for l in rw.group(0).splitlines() if not l.lstrip().startswith("#"))
+    check("unity_reuse.py borrow" in RW, "릴리스가 지난 결과를 빌려 오지 않는다")
+    check("unity-reused.txt" in RW, "릴리스가 재사용 여부로 갈라지지 않는다")
+    #  빌려 왔는데도 Unity 를 돌리면 아낀 것이 없다 — 분기가 editor 호출을 감싸야 한다.
+    i_b, i_mark, i_ed = (RW.find("unity_reuse.py borrow"), RW.find("unity-reused.txt"),
+                         RW.find("unity-editor"))
+    check(-1 < i_b < i_mark < i_ed,
+          f"릴리스의 재사용 순서가 어긋났다 (빌림 {i_b} · 분기 {i_mark} · unity {i_ed})")
+
+
 if fails:
     print()
     for f in fails:
