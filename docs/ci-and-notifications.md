@@ -79,6 +79,15 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 | `MM_WEBHOOK_URL` | Mattermost 수신 웹훅 | MM 채널 → 통합 → 수신 웹훅 | `mm-digest` 생기지 않음 |
 | `CI_ENABLE` | 파이프라인 전체 게이트 | 러너 등록 직후 팀장이 `true` | 파이프라인이 생성되지 않음(의도) |
 | `JIRA_RELEASE_WEBHOOK` | (선택) 릴리스 뒤 Jira에 버전·이슈 목록을 보낸다(-327) | Jira 자동화 수신 웹훅 | Jira 릴리스 연동만 조용히 멈춤 |
+| `JIRA_RELEASE_WEBHOOK_TOKEN` | **위와 짝이다**(-645). Jira 규칙의 수신 웹훅 secret — CI 가 `X-Automation-Webhook-Token` 헤더로 보낸다 | Jira 규칙 화면의 수신 웹훅 트리거 | 주소만 있고 이 값이 없으면 **보내지 않는다**(보내 봐야 `400 Missing token`) |
+
+> **주소와 토큰을 나눠 둔 이유**(-645). 주소가 로그에 새더라도 그것만으로는 아무것도
+> 못 하게 하기 위해서다. 그리고 토큰을 **주소에 붙이지 않는다** — 붙이면 잡 로그·
+> 리다이렉트·프록시 기록 어디에나 남는다. 둘 다 Masked 로 두고, 값은 이슈·문서·채팅에
+> 적지 않는다(이름과 넣을 자리만 적는다).
+>
+> v1.1.0·v1.2.0 두 릴리스가 `{"errorMessages": ["Missing token"]}` 로 400 을 받았다.
+> **한 번도 동작한 적이 없었다** — 헤더를 하나도 안 보내고 있었다.
 
 > ~~`UNITY_RUNNER`·`UNITY_PATH`~~ 행은 **지웠다**(-336). CI 가 그 값을 **읽는 곳이 없다** —
 > `.gitlab-ci.yml` 머리 주석과 러너 설치 안내문에만 남아 있었고, `unity-compile` 은

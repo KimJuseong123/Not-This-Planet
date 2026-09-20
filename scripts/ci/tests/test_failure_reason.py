@@ -71,6 +71,9 @@ def main() -> int:
     import publish_release as P
 
     os.environ["JIRA_RELEASE_WEBHOOK"] = "https://ssafy.example/automation/hook/zzzzzzzzzzzz"
+    # 토큰이 없으면 **보내기 전에** 걸린다(S15P21B202-645). 여기서 보려는 것은 그다음
+    # 단계(서버가 400 을 줬을 때 사유를 어디에 적는가)이므로 채워 둔다.
+    os.environ[P.WEBHOOK_TOKEN_VAR] = "yyyyyyyyyyyy"
 
     def fake(status, payload):
         def http(method, url, headers=None, body=None, timeout=30):
@@ -91,6 +94,15 @@ def main() -> int:
     assert "webhook rule is disabled" not in line, line
     assert "zzzzzzzzzzzz" not in line and "zzzzzzzzzzzz" not in c.text, "웹훅 주소가 샜다"
     assert "<JIRA_RELEASE_WEBHOOK>" in c.text, "가려진 흔적이 없다: %s" % c.text
+
+    # **토큰도 가려야 한다** (S15P21B202-645). 이제 그 값을 헤더로 보내므로, 요청을
+    # 되비추는 응답이 오면 우리가 그것을 로그에 찍게 된다.
+    fake(400, {"errorMessages": ["Missing token"],
+               "echo": {"X-Automation-Webhook-Token": "yyyyyyyyyyyy"}})
+    with Cap() as c:
+        P.jira_release_webhook("v1.1.0", ["S15P21B202-1"], "https://lab/r/v1.1.0")
+    assert "yyyyyyyyyyyy" not in c.text, "웹훅 토큰이 잡 로그로 샜다: %s" % c.text
+    assert "<JIRA_RELEASE_WEBHOOK_TOKEN>" in c.text, "토큰을 가린 흔적이 없다: %s" % c.text
     print("  Jira 웹훅 실패 — 사유는 로그에, 카드 문구에는 숫자만")
 
     # 성공이면 아무것도 더 찍지 않는다 — 로그가 길어지면 아무도 안 읽는다
