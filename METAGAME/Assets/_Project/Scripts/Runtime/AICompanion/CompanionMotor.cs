@@ -293,7 +293,11 @@ namespace Metagame.AICompanion
             }
 
             // 사람을 바라보고 선다. 등지고 서 있으면 말을 걸어도 반응이 없어 보인다.
-            if (distance > 0.05f) input.AimYaw = Mathf.Atan2(delta.x, delta.z) * Mathf.Rad2Deg;
+            if (distance > 0.05f) SteerTowards(delta, ref input);
+
+            // 서 있는 동안에도 막힘 시계를 되감는다. 안 그러면 다시 걷는 첫 걸음에
+            // "한참 못 나아갔다" 로 판정돼 곧바로 뛴다.
+            ResetStuck(_rig.Hips.position);
             Status = "대기 중";
         }
 
@@ -324,18 +328,77 @@ namespace Metagame.AICompanion
                 steer.y = 0;
             }
 
-            // 길잡이가 방향을 못 내놓으면(바닥 밖·경로 없음) 곧장 목적지 쪽으로 걷는다.
-            // 장애물을 못 피하지만, 굳어 서 있으면 "왜 안 따라와" 가 된다.
-            if (steer.sqrMagnitude < 0.01f) steer = delta;
+            // 길잡이가 방향을 못 내놓았다(바닥 밖·경로 없음). 곧장 걸어도 되는지 본다 —
+            // <b>사이에 벽이 있으면 걷지 않는다.</b> 예전에는 무조건 직선으로 밀어서,
+            // 실내에서 문으로 돌아 나오지 않고 벽에 처박혔다.
+            if (steer.sqrMagnitude < 0.01f && !Blocked(position, destination)) steer = delta;
 
             if (steer.sqrMagnitude > 0.01f)
             {
-                input.AimYaw = Mathf.Atan2(steer.x, steer.z) * Mathf.Rad2Deg;
+                SteerTowards(steer, ref input);
                 ApplyGait(delta.magnitude - stopDistance, ref input);
                 TickStuck(position, ref input);
             }
+            else
+            {
+                ResetStuck(position);
+            }
             return false;
         }
+
+        /// <summary>두 지점 사이가 길찾기 바닥에서 막혀 있나. 바닥이 없으면 막힌 것으로 본다.</summary>
+        static bool Blocked(Vector3 from, Vector3 to)
+        {
+            if (!NavMesh.SamplePosition(from, out var a, 2f, NavMesh.AllAreas)) return true;
+            if (!NavMesh.SamplePosition(to, out var b, 2f, NavMesh.AllAreas)) return true;
+            return NavMesh.Raycast(a.position, b.position, out _, NavMesh.AllAreas);
+        }
+
+        /// <summary>
+        /// 가려는 쪽으로 <b>몸을 돌려 가며</b> 걷는다.
+        ///
+        /// <para>예전에는 목표 방향을 그대로 <c>AimYaw</c> 에 꽂았다. 그러면 몸은 아직 안
+        /// 돌았는데 옆으로 미끄러지는 상태가 되고, 그 상태는 걷기 애니메이션 조건
+        /// (<c>RabbitLocomotion.CanAnimate</c>: 앞뒤로 갈 때만)에 걸리지 않는다. 그래서
+        /// 다리가 멎은 채 스르륵 미끄러져 왔다.</para>
+        ///
+        /// <para>사람이 마우스를 돌리는 것처럼 <b>돌아가는 속도에 한계를 둔다.</b> 많이 꺾을
+        /// 때는 속도도 줄인다 — 사람도 급히 꺾을 때 제자리에서 돌고 나서 간다.</para>
+        /// </summary>
+        void SteerTowards(Vector3 steer, ref InputFrame input)
+        {
+            float want = Mathf.Atan2(steer.x, steer.z) * Mathf.Rad2Deg;
+
+            // <b>Hips 의 회전을 쓰면 안 된다.</b> 골반은 래그돌 뼈라 향한 방향과 무관하게
+            // 돌아가 있다. 조준 기준 방향(PlanarForward)이 이 몸이 향한 쪽이다.
+            Vector3 facing = _rig.PlanarForward;
+            float have = facing.sqrMagnitude > 0.01f
+                ? Mathf.Atan2(facing.x, facing.z) * Mathf.Rad2Deg
+                : want;
+
+            input.AimYaw = Mathf.MoveTowardsAngle(have, want, TurnDegreesPerSecond * Time.fixedDeltaTime);
+
+            // 많이 꺾여 있으면 앞으로 덜 민다. 그래야 옆으로 미끄러지지 않는다.
+            //
+            // <b>너무 줄이면 도착을 못 한다.</b> 고정못 앞은 0.16m 까지 다가가야 하는데,
+            // 속도를 크게 깎으면 그 거리를 좁히지 못하고 시간 초과로 실패한다(실측).
+            float off = Mathf.Abs(Mathf.DeltaAngle(have, want));
+            _turnEase = off > TurnEaseAngle
+                ? Mathf.Lerp(1f, TurnEaseFloor, Mathf.InverseLerp(TurnEaseAngle, 150f, off))
+                : 1f;
+        }
+
+        /// <summary>몸이 도는 속도 한계(초당 도). 사람이 마우스로 도는 정도로 잡는다.</summary>
+        const float TurnDegreesPerSecond = 540f;
+
+        /// <summary>이보다 많이 꺾여 있으면 속도를 줄이기 시작한다(도).</summary>
+        const float TurnEaseAngle = 60f;
+
+        /// <summary>돌아설 때도 이 정도는 앞으로 민다. 더 줄이면 정밀 접근이 시간 초과된다.</summary>
+        const float TurnEaseFloor = 0.6f;
+
+        /// <summary>이번 스텝에 앞으로 미는 정도(0~1). 많이 꺾여 있으면 작아진다.</summary>
+        float _turnEase = 1f;
 
         /// <summary>
         /// 남은 거리에 맞춰 <b>걷기와 달리기를 가른다.</b>
@@ -347,7 +410,8 @@ namespace Metagame.AICompanion
         /// </summary>
         void ApplyGait(float remaining, ref InputFrame input)
         {
-            if (remaining > RunBeyond)
+            // 많이 꺾여 있으면 뛰지 않는다 — 돌면서 뛰면 옆으로 미끄러진다.
+            if (remaining > RunBeyond && _turnEase > 0.9f)
             {
                 input.Run = true;
                 input.Move = new Vector2(0, 1f);
@@ -355,7 +419,8 @@ namespace Metagame.AICompanion
             }
 
             input.Run = false;
-            input.Move = new Vector2(0, remaining > EaseWithin ? 1f : _walkInput);
+            float forward = remaining > EaseWithin ? 1f : _walkInput;
+            input.Move = new Vector2(0, forward * _turnEase);
         }
 
         /// <summary>이보다 더 남으면 달린다(m). 사람이 달려도 따라잡을 수 있어야 한다.</summary>
@@ -397,8 +462,7 @@ namespace Metagame.AICompanion
         {
             if ((position - _stuckFrom).sqrMagnitude > StuckRadius * StuckRadius)
             {
-                _stuckFrom = position;
-                _stuckSince = Time.time;
+                ResetStuck(position);
                 return;
             }
 
@@ -419,6 +483,19 @@ namespace Metagame.AICompanion
 
         /// <summary>이만큼 못 나아가면 옆으로 낸다(초).</summary>
         const float StuckSeconds = 1.2f;
+
+        /// <summary>
+        /// 막힘 판정을 처음부터 다시 잰다.
+        ///
+        /// <para><b>가만히 있을 때도 불러야 한다.</b> 서 있는 동안 갱신하지 않으면 시계가
+        /// 계속 흘러, 걷기 시작하는 순간 "1.2초째 못 나아갔다" 로 판정돼 <b>첫 걸음에
+        /// 곧바로 뛴다.</b></para>
+        /// </summary>
+        void ResetStuck(Vector3 position)
+        {
+            _stuckFrom = position;
+            _stuckSince = Time.time;
+        }
 
         Vector3 _stuckFrom;
         float _stuckSince;

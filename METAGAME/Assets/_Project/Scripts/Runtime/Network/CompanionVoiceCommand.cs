@@ -21,16 +21,21 @@ namespace Metagame.Network
         /// <summary>누르는 동안 듣는다. <c>Controls</c> 에 아직 없는 키다.</summary>
         const KeyCode TalkKey = KeyCode.V;
 
-        /// <summary>화면에 한 줄을 띄워 두는 시간(초).</summary>
-        const float NoticeSeconds = 3.5f;
+        /// <summary>
+        /// 명령 기록을 켜고 끄는 키.
+        ///
+        /// <para>F1~F12 가 이미 전부 쓰이고 있어(휠·춤·개발자 기능) 남는 키로 잡았다.</para>
+        /// </summary>
+        const KeyCode LogKey = KeyCode.Backslash;
+
+        /// <summary>기록에 남겨 두는 줄 수. 넘으면 오래된 것부터 지운다.</summary>
+        const int LogLines = 12;
 
         GameSession _session;
         CompanionVoiceService _voice;
-        string _notice = string.Empty;
-        float _noticeUntil;
-
-        /// <summary>사람에게 보여 줄 한 줄. 없으면 빈 문자열.</summary>
-        public string Notice => Time.unscaledTime <= _noticeUntil ? _notice : string.Empty;
+        readonly System.Collections.Generic.List<string> _log =
+            new System.Collections.Generic.List<string>();
+        bool _logOpen;
 
         void Awake()
         {
@@ -43,6 +48,8 @@ namespace Metagame.Network
 
             // 서버가 아니면 시킬 상대가 없다 — 자리와 두뇌는 서버에만 있다.
             if (!NetworkServer.active || _session == null || _session.LocalPlayer == null) return;
+
+            if (Input.GetKeyDown(LogKey)) _logOpen = !_logOpen;
 
             // 글자를 치는 중이거나 멈춘 화면에서는 듣지 않는다.
             if (Time.timeScale == 0) return;
@@ -60,7 +67,7 @@ namespace Metagame.Network
         void BeginTalking()
         {
             if (!_voice.StartRecording(out string problem)) { Show(problem); return; }
-            Show("● 듣는 중 · V 를 놓으면 보냅니다");
+            Show("● 듣는 중");
         }
 
         /// <summary>서버가 들은 말과 고른 행동을 받는다.</summary>
@@ -78,14 +85,18 @@ namespace Metagame.Network
             { Show("잘 못 들었어요 · 다시 말해 주세요"); return; }
 
             TeamSeats.Server.TryCommandNearest(speaker, action, out string feedback);
-            Show($"\"{text}\" · {feedback}");
+
+            // 들린 말과 고른 행동을 같이 남긴다. 셋을 나란히 봐야 어디서 틀렸는지 갈린다 —
+            // 잘못 들은 것인지, 엉뚱한 행동을 고른 것인지, 행동이 거절된 것인지.
+            Show($"\"{text}\" → {action} · {feedback}");
         }
 
         void Show(string line)
         {
             if (string.IsNullOrEmpty(line)) return;
-            _notice = line;
-            _noticeUntil = Time.unscaledTime + NoticeSeconds;
+
+            _log.Add($"[{System.DateTime.Now:HH:mm:ss}] {line}");
+            if (_log.Count > LogLines) _log.RemoveAt(0);
         }
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -106,7 +117,7 @@ namespace Metagame.Network
             if (_typing) _typed = string.Empty;
         }
 
-        void OnGUI()
+        void DrawTextCommand()
         {
             if (!_typing) return;
 
@@ -126,5 +137,39 @@ namespace Metagame.Network
             }
         }
 #endif
+
+        void OnGUI()
+        {
+            DrawLog();
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            DrawTextCommand();
+#endif
+        }
+
+        /// <summary>
+        /// 주고받은 명령 기록. <b>들린 말 · 고른 행동 · 결과</b>를 나란히 놓는다.
+        ///
+        /// <para>셋을 같이 봐야 어디서 틀렸는지 갈린다 — 잘못 들은 것인지, 엉뚱한 행동을
+        /// 고른 것인지, 행동이 거절된 것인지.</para>
+        /// </summary>
+        void DrawLog()
+        {
+            // 녹음 중에는 접어 두었어도 알려 준다. 말하는 동안 아무 표시가 없으면
+            // 눌린 것인지 알 수 없다.
+            if (_voice != null && _voice.Recording)
+            {
+                var dot = new Rect(20, 20, 200, 24);
+                GUI.Box(dot, "● 듣는 중");
+            }
+
+            if (!_logOpen || _log.Count == 0) return;
+
+            float height = 30 + _log.Count * 20;
+            var box = new Rect(20, 54, 640, height);
+            GUI.Box(box, $"AI 명령 기록  (\\ 로 닫기)");
+
+            for (int i = 0; i < _log.Count; i++)
+                GUI.Label(new Rect(box.x + 12, box.y + 26 + i * 20, box.width - 24, 20), _log[i]);
+        }
     }
 }
