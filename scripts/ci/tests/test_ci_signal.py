@@ -104,6 +104,42 @@ assert "when: always" in job("stack-order"), (
     "only_allow_merge_if_pipeline_succeeds=false 라 빨간 파이프라인도 머지할 수 있다")
 print("  ③ 스케줄 테스트 + 실패해도 카드 발송 · 순서 강제는 항상 실행 ✅")
 
+# ── ③-2 그리고 **모든 MR 에서** 돈다 (S15P21B202-632)
+# 예전에는 `changes: scripts/ci/**` 였다. 그런데 이 잡 안의 검사들은 **저장소를 읽는다** —
+# `test_scene_cleanup.py` 는 `Tests/Editor` 의 C# 을, `test_scene_backend_urls.py` 는 모든
+# `.unity`·`.prefab` 을 본다. 그래서 검증 파일만 고친 `-614` 가 씬 정리 가드를 **한 번도
+# 안 돌리고** 머지됐고, develop 에서 씬이 새어 뒤이은 검증 3건이 흔들렸다.
+# 목록을 다시 좁히면 그 순간 가드가 조용히 꺼진다 — 그것을 여기서 막는다.
+#
+# **다음 한 줄만 보지 않는다** (`!539` AI 리뷰). `when:` 한 줄을 끼우거나 두 번째 MR
+# 규칙에 붙이면 통과해 버린다 — 이 검사가 막으려던 '조용히 꺼짐'이 그대로 재현된다.
+# 잡 구간 전체에서 `changes:` 가 한 줄도 없어야 한다(설명 주석은 빼고 센다).
+# **줄 끝 주석까지 걷어 낸다** (`!539` 6차 리뷰). 줄 머리만 보면 `stage: lint  # …` 의
+# 설명에 `changes:` 라는 낱말이 들어갈 때 **가짜로 실패**하고, 반대로 설명을 인라인으로
+# 옮겨 검사를 피할 여지도 남는다. 이 잡 구간에 따옴표 친 `#` 은 없다.
+ct = [c for c in (l.split("#", 1)[0] for l in job("ci-tests").split(NL_)) if c.strip()]
+assert any("merge_request_event" in l for l in ct), "ci-tests 에 MR 규칙이 없다 — MR 에서 아예 안 돈다"
+# **줄 어디에 있든 잡는다** (`!539` 3차 리뷰). 줄 머리만 보면 흐름 스타일
+# (`- {if: …, changes: [...]}`)을 놓치고, 가드 자신이 조용히 통과한다.
+narrowed = [l.strip() for l in ct if "changes:" in l]
+assert not narrowed, (
+    "ci-tests 에 changes: 가 다시 생겼다.\n"
+    "  이 잡의 검사들은 scripts/ci 밖(Tests/Editor 의 C#, 모든 씬·프리팹)을 읽는다 —\n"
+    "  좁히면 그 대상만 바꾼 MR 에서 가드가 조용히 꺼진다(-614 가 그렇게 지나갔다).\n"
+    "  걸린 줄: " + str(narrowed))
+
+# **읽지 못하는 모양이면 통과시키지 않는다.** `extends` 나 앵커 병합으로 들어온 규칙은
+# 이 잡 구간의 글자에 보이지 않는다 — 그러면 위 검사가 아무것도 못 보고 초록이 된다.
+# 조용히 통과하는 검사는 없는 검사와 같다(`!511` 이 test_scene_cleanup 에 남긴 것과 같은 결).
+# 줄 머리만 보면 흐름 스타일 `extends: [.x]` 나 `rules: !reference [.base, rules]` 를
+# 놓친다 (`!539` 4차 리뷰) — 규칙이 밖에서 들어오면 위 검사가 볼 것이 없어진다.
+opaque = [l.strip() for l in ct if any(k in l for k in ("extends:", "<<:", "!reference"))]
+assert not opaque, (
+    "ci-tests 가 extends/앵커로 규칙을 받아 온다 — 이 검사가 그 안의 changes: 를 볼 수 없다.\n"
+    "  글자만 보는 방식의 한계다. 규칙을 잡 안에 직접 쓰거나, 이 검사를 그 모양까지 읽게 넓힌다.\n"
+    "  걸린 줄: " + str(opaque))
+print("  ③-2 모든 MR 에서 돈다(changes 없음 · 가려진 규칙 없음) ✅")
+
 # ── ④ 스풀 격리 회귀 검사가 살아 있다 (-252)
 assert "/spool" in job("repo-hygiene"), "repo-hygiene 에 스풀 격리 검사가 없다"
 # **배포 잡을 이름으로 세지 않는다.** -284 에서 하나가 둘로 갈렸는데, 이름을

@@ -14,9 +14,18 @@ namespace Metagame.Gameplay.Tests
 {
     public sealed class Stage2Tests
     {
+        // **연 씬을 반드시 닫는다** (S15P21B202-632). 플레이 모드만 빠져나오면 Stage2 씬이
+        // 열린 채로 남아, 뒤이어 도는 검증들이 그 콜라이더를 만난다 — 2026-09-18 에
+        // `StuckEscapeTests`·`TransportAltitudeTests`·`TransportDismountTests` 셋이 그렇게
+        // 흔들렸다(바닥이 없어야 하는데 하나를 찾고, 8m 에서 멈춰야 하는데 28m 까지 올랐다).
+        //
+        // **뒤 픽스처의 정리에 기대고 있었다.** `Stage2WaterTests` 가 `-611` 로 받은 정리가
+        // 이 누수를 덮고 있었는데, 그 픽스처가 Heavy 로 빠지면서(`-611`) 실행 집합에서
+        // 사라지자 드러났다. 청소를 남에게 맡기면 그 남이 안 도는 날 깨진다.
         [UnityTearDown]
         public IEnumerator CleanupPlayMode()
-        { if (Application.isPlaying) yield return new ExitPlayMode(); }
+        { if (Application.isPlaying) yield return new ExitPlayMode();
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single); }
         static IEnumerator WaitForSimulation(float seconds)
         { float end=Time.time+seconds; while(Time.time<end) yield return null; }
 
