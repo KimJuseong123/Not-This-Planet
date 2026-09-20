@@ -128,7 +128,13 @@ def trigger_allowed() -> bool:
     if source == "schedule":
         # 새벽 배포일 때만 — 아침 점검(09:30)도 `schedule` 이라 이것으로 갈라야 한다.
         return env("NIGHTLY_DEPLOY_DEV").lower() == "true"
-    return source == "merge_request_event"
+    if source != "merge_request_event":
+        return False
+    # **master 로 가는 MR 은 아니다** (S15P21B202-644). 그쪽 빌드는 `release-windows`
+    # 가 만들고, 이 버튼을 누르면 `qa-…` 라는 다른 빌드가 하나 더 나와 `resource_group:
+    # unity` 로 **릴리스 앞에 줄을 선다.** 잡 쪽 rules 에 `when: never` 를 넣었으므로
+    # 여기도 같이 좁힌다 — 둘이 어긋나면 이 파일의 검사가 그것을 실패로 낸다.
+    return env("CI_MERGE_REQUEST_TARGET_BRANCH_NAME") != "master"
 
 
 def cmd_version() -> int:

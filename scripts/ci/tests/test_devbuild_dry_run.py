@@ -108,9 +108,38 @@ e = next((i for i in range(s + 1, len(yml)) if TOP.match(yml[i])), len(yml))
 found = [" ".join(l.split()) for l in yml[s:e] if l.strip().startswith("- if:")]
 assert found == [
     '- if: $CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_DEPLOY_DEV == "true"',
+    '- if: $CI_PIPELINE_SOURCE == "merge_request_event" && '
+    '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"',
     '- if: $CI_PIPELINE_SOURCE == "merge_request_event"',
 ], ("build-devbuild 의 rules 가 바뀌었다. trigger_allowed() 도 같이 고쳐야 한다 — "
     "안 그러면 그 트리거로 돈 빌드가 마지막 줄에서 실패한다." + chr(10) + repr(found))
+
+# ── 6b) master 로 가는 MR 에는 버튼이 없다 (S15P21B202-644) ──
+#
+# 릴리스 MR 에 이 버튼이 떠서 실제로 눌렸고, `resource_group: unity` 라 **릴리스의
+# unity-compile 앞에 줄을 섰다**(2026-09-18, 취소함). 잡 쪽은 `when: never` 로 막고
+# 여기 `trigger_allowed()` 도 같이 좁혔다 — 둘이 어긋나면 위 ⑥ 이 잡는다.
+_never = [" ".join(l.split()) for l in yml[s:e] if l.strip() == "when: never"]
+assert _never, "master 대상 MR 을 막는 when: never 가 없다 — 릴리스 MR 에 버튼이 다시 뜬다"
+
+_KEYS = ("CI_PIPELINE_SOURCE", "CI_MERGE_REQUEST_TARGET_BRANCH_NAME")
+_saved = {k: os.environ.get(k) for k in _KEYS}
+try:
+    #  대상이 없을 때(`""`)도 막지 않는다 — 못 읽은 것을 master 로 단정하면 멀쩡한
+    #  develop MR 의 버튼이 사라진다. 틀릴 때는 **버튼이 남는 쪽**으로 틀린다.
+    for _target, _want in (("master", False), ("develop", True), ("", True)):
+        os.environ["CI_PIPELINE_SOURCE"] = "merge_request_event"
+        if _target:
+            os.environ["CI_MERGE_REQUEST_TARGET_BRANCH_NAME"] = _target
+        else:
+            os.environ.pop("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", None)
+        _got = D.trigger_allowed()
+        assert _got is _want, f"대상 {_target!r} 인데 trigger_allowed()={_got} (기대 {_want})"
+finally:
+    for _k, _v in _saved.items():
+        os.environ.pop(_k, None)
+        if _v is not None:
+            os.environ[_k] = _v
 
 # ── 7) 끝까지 — 진짜로 업로드를 부른다 ──
 UPLOADED: list = []
