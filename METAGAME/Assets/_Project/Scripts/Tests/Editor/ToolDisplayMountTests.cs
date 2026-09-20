@@ -14,11 +14,38 @@ namespace Metagame.Gameplay.Tests
 {
     public class ToolDisplayMountTests
     {
+        const string StagePath = "Assets/Scenes/Stage1_Astra.unity";
+
+        /// <summary>
+        /// 이미 그 씬이 열려 있으면 그대로 쓴다 (S15P21B202-643).
+        ///
+        /// <para><b>왜.</b> <c>Stage1_Astra.unity</c> 는 5.7MB 라 한 번 여는 데 수 초다.
+        /// 이 픽스처의 앞 두 검증은 <c>[TestCase]</c> 가 둘씩이라 **같은 씬을 네 번**
+        /// 열었고, 그 넷이 잡 <c>585392</c> 실측에서 <b>60.8초</b> — EditMode 전체
+        /// 219.8초의 28% 였다. 픽스처별 합계 1위다.</para>
+        ///
+        /// <para><b>공유해도 되는 이유.</b> 둘 다 저작된 값을 <b>읽기만</b> 한다.
+        /// 두 번째는 <c>Equip</c> 뒤 <c>Unequip</c> 하지만 **원래 자세로 돌아왔는지를
+        /// 스스로 단정**하고(0.0001f), 만든 오브젝트는 <c>finally</c> 에서 지운다 —
+        /// 그 계약이 깨지면 그 검증이 먼저 빨개지므로 순서 의존이 조용히 생기지 않는다.</para>
+        ///
+        /// <para><b>씬 참조를 들고 있지 않는다</b> (S15P21B202-622). <c>[OneTimeSetUp]</c>
+        /// 에서 잡아 두면 아래 Heavy 검증이 플레이 모드를 오가며 그 참조를 무효로
+        /// 만든다 — 그것이 `-622` 가 겪고 있는 모양이다. 그래서 **부를 때마다 지금
+        /// 열린 씬을 보고** 판단한다.</para>
+        /// </summary>
+        static Scene OpenStageOnce()
+        {
+            var active = SceneManager.GetActiveScene();
+            if (active.IsValid() && active.path == StagePath) return active;
+            return EditorSceneManager.OpenScene(StagePath);
+        }
+
         [TestCase("MeteorBat_Stage1")]
         [TestCase("WeldingPlasmaGun_Stage1")]
         public void AuthoredVisibleModelOverlapsItsPhysicalBody(string name)
         {
-            var scene = EditorSceneManager.OpenScene("Assets/Scenes/Stage1_Astra.unity");
+            var scene = OpenStageOnce();
             var tool = scene.GetRootGameObjects()
                 .SelectMany(g => g.GetComponentsInChildren<ToolBase>(true))
                 .Single(t => t.name == name);
@@ -42,7 +69,7 @@ namespace Metagame.Gameplay.Tests
         [TestCase("WeldingPlasmaGun_Stage1")]
         public void AuthoredToolIsVisibleInFirstPersonAndRestoresDroppedPose(string name)
         {
-            var scene = EditorSceneManager.OpenScene("Assets/Scenes/Stage1_Astra.unity");
+            var scene = OpenStageOnce();
             var tool = scene.GetRootGameObjects()
                 .SelectMany(g => g.GetComponentsInChildren<ToolBase>(true))
                 .Single(t => t.name == name);
