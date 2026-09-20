@@ -296,4 +296,58 @@ assert not any("디스크 0%" in l for l in _lines), \
     "없는 값을 0 으로 읽는다: " + str(_lines)
 print("  값이 비면 한 번만 말한다 ✅")
 
+# ── 감시 목록이 두 곳에서 어긋나지 않는다 (S15P21B202-620) ───────────────
+#
+#     호스트는 저장소를 갖고 있지 않다. 그래서 "무엇을 잴지" 는 `ec2-status.sh` 가,
+#     "무엇과 견줄지" 는 `ec2_status.py` 가 안다. **한쪽만 늘면 그 파일은 조용히
+#     감시 밖이 된다** — 이 이슈가 막으려는 것이 정확히 그 모양이라, 장치 자신이
+#     같은 병에 걸리면 안 된다.
+import io as _io  # noqa: E402
+import re as _re  # noqa: E402
+
+_sh = _io.open(os.path.join(ROOT, "scripts", "deploy", "host", "ec2-status.sh"),
+               encoding="utf-8").read()
+_m = _re.search(r'(?s)WATCHED="(.*?)"', _sh)
+assert _m, "ec2-status.sh 에서 WATCHED 목록을 못 읽었다 — 검사가 아무것도 안 보게 된다"
+_host_list = [l.strip() for l in _m.group(1).splitlines() if l.strip()]
+_py_list = [h for h, _r in E.HOST_FILES]
+assert _host_list == _py_list, (
+    "감시 목록이 두 곳에서 다르다 — 한쪽에만 있는 파일은 조용히 감시 밖이다.\n"
+    f"  ec2-status.sh 에만: {sorted(set(_host_list) - set(_py_list))}\n"
+    f"  ec2_status.py 에만: {sorted(set(_py_list) - set(_host_list))}")
+
+#     저장소본이 실제로 있어야 견줄 수 있다. 경로가 틀리면 "못 견줬다" 가 매일 난다.
+for _h, _rel in E.HOST_FILES:
+    assert E.repo_sha(_rel) is not None, f"저장소본을 못 읽는다: {_rel} (호스트 {_h})"
+
+#     네 번 낡았던 그 파일들이 실제로 목록에 있는가 — 이 이슈의 이유다.
+for _must in ("/opt/metagame-deploy/deploy.sh", "/opt/metagame-deploy/ec2-cleanup.sh",
+              "/home/ubuntu/metagame/docker-compose.yml",
+              "/etc/systemd/system/claude-token-refresh.timer"):
+    assert _must in _py_list, f"{_must} 가 감시 목록에 없다 — 실제로 낡았던 파일이다"
+
+#     다름·없음·못 견줌을 **가른다.** 뭉치면 가장 심한 것이 가장 약한 문구로 나간다.
+_ok = {h: E.repo_sha(r) for h, r in E.HOST_FILES}
+assert E.host_files_drift({"host_files": _ok}) == [], "전부 같은데 무언가를 말한다"
+
+_bad = dict(_ok); _bad["/opt/metagame-deploy/deploy.sh"] = "0" * 64
+_lines = E.host_files_drift({"host_files": _bad})
+assert _lines and "다르다" in _lines[0], _lines
+assert any("deploy.sh" in l for l in _lines), "어느 파일인지 안 말한다: " + str(_lines)
+
+_gone = dict(_ok); _gone["/opt/metagame-deploy/ec2-cleanup.sh"] = ""
+_lines = E.host_files_drift({"host_files": _gone})
+assert any("없는 파일" in l for l in _lines), "호스트에 없는 것을 '다르다' 로 뭉갠다: " + str(_lines)
+
+#     옛 호스트(목록이 없는 판)에서는 예전 검사로 떨어진다 — 조용해지면 안 된다.
+_old = E.problems({**healthy(), "deploy_sh_sha256": "0" * 64}, NOW)
+assert any("배포 스크립트" in l for l in _old), "옛 호스트에서 드리프트 검사가 사라졌다: " + str(_old)
+
+#     카드를 덮지 않는다. 설치를 통째로 빠뜨리면 18줄이 되는데 그러면 아무도 안 읽는다.
+_all_bad = {h: "0" * 64 for h, _r in E.HOST_FILES}
+_lines = E.host_files_drift({"host_files": _all_bad})
+assert len(_lines) <= E.MAX_DRIFT_LINES + 2, f"카드를 덮는다({len(_lines)}줄): " + str(_lines)
+assert any("그 밖" in l for l in _lines), "생략했다는 사실을 안 말한다: " + str(_lines)
+print(f"  감시 목록 {len(_py_list)}개 · 두 곳 일치 · 다름/없음/못 견줌을 가른다 ✅")
+
 print("== 통과 ==")

@@ -122,17 +122,64 @@ RUNLOG_MB=$(du -sm /var/log/metagame-runlogs /var/log/metagame-dev-runlogs 2>/de
 # 해시만 재서 넘긴다. 견주는 것은 CI 쪽이다 — 호스트는 저장소를 갖고 있지 않다.
 # `\r` 을 지우고 재는 이유: 저장소가 윈도우에서 체크아웃되면 CRLF 가 될 수 있는데,
 # 그것은 **내용이 다른 것이 아니다.**
-DEPLOY_SH=/opt/metagame-deploy/deploy.sh
+# **저장소에 정본이 있는 호스트 파일 전부** (S15P21B202-620).
+#
+# `deploy.sh` 하나만 재던 동안 호스트 파일이 **네 번** 조용히 낡았다: `deploy.sh`
+# 7일(`-485`) · `docker-compose.yml` 4일 · `claude-token-refresh.*` 5일 ·
+# `ec2-cleanup.sh` **8일**(2026-09-19 발견 — `-467` 의 떠돌이 이미지 보호가 통째로
+# 빠진 상태였다). 그동안 아무것도 빨갛지 않았다.
+#
+# **이 목록은 `scripts/ci/ec2_status.py` 의 `HOST_FILES` 와 같아야 한다** — 여기는
+# "무엇을 잴지", 거기는 "무엇과 견줄지" 를 안다. 한쪽만 늘면 그 파일은 조용히 감시
+# 밖이 된다. `test_ec2_status.py` 가 둘을 대조한다.
+#
+# `/etc/gitlab-runner/config.toml` 은 넣지 않는다 — 저장소에 정본이 없다(토큰이 들어
+# 있어 둘 수 없다). 견줄 기준이 없는 것을 넣으면 매일 "다르다" 가 난다.
+WATCHED="/opt/metagame-deploy/deploy.sh
+/opt/metagame-deploy/ec2-status.sh
+/opt/metagame-deploy/ec2-cleanup.sh
+/opt/metagame-runner/claude_auth_check.py
+/etc/systemd/system/metagame-deploy.service
+/etc/systemd/system/metagame-deploy.path
+/etc/systemd/system/metagame-deploy-dev.service
+/etc/systemd/system/metagame-deploy-dev.path
+/etc/systemd/system/metagame-status.service
+/etc/systemd/system/metagame-status.timer
+/etc/systemd/system/metagame-cleanup.service
+/etc/systemd/system/metagame-cleanup.timer
+/etc/systemd/system/claude-token-refresh.service
+/etc/systemd/system/claude-token-refresh.timer
+/home/ubuntu/metagame/docker-compose.yml
+/home/ubuntu/metagame-dev/docker-compose.yml
+/etc/nginx/conf.d/upgrade-map.conf
+/etc/nginx/conf.d/limits.conf"
+
 # **파일이 없으면 빈 값을 보낸다** (`!426` 리뷰). 그냥 파이프로 넘기면 `tr` 이 실패해도
 # `sha256sum` 이 **빈 입력의 해시**(e3b0c442…)를 내보내고, 읽는 쪽은 그것을
 # "못 쟀음" 이 아니라 **"다름"** 으로 읽는다 — 없는 드리프트를 매일 보고하게 된다.
-DEPLOY_SH_SHA=""
-if [ -r "$DEPLOY_SH" ]; then
-  DEPLOY_SH_SHA=$(tr -d '\r' < "$DEPLOY_SH" | sha256sum | cut -d' ' -f1)
-fi
+#
+# `\r` 을 지우는 이유: 저장소가 윈도우에서 체크아웃되면 CRLF 가 될 수 있는데,
+# 그것은 **내용이 다른 것이 아니다.**
+FILE_SHAS=""
+while IFS= read -r p; do
+  [ -n "$p" ] || continue
+  s=""
+  if [ -r "$p" ]; then
+    s=$(tr -d '\r' < "$p" | sha256sum | cut -d' ' -f1)
+  fi
+  FILE_SHAS="${FILE_SHAS}${p} ${s}
+"
+done <<EOF
+$WATCHED
+EOF
+
+# **옛 CI 도 계속 읽을 수 있게 남긴다.** 호스트와 CI 는 따로 올라가므로, 이 파일이
+# 먼저 새것이 되는 날이 반드시 있다. 그때 `deploy.sh` 감시가 한 번이라도 꺼지면
+# 이 이슈가 막으려던 상태로 돌아간다.
+DEPLOY_SH_SHA=$(printf '%s' "$FILE_SHAS" | awk '$1=="/opt/metagame-deploy/deploy.sh"{print $2}')
 
 export DISK_PCT DISK_FREE_GB MEM_TOTAL_GB MEM_AVAIL_GB UPTIME_DAYS \
-       CERT_DAYS DOCKER_GB BUILDS_MB SITE_MB RUNLOG_MB DEPLOY_SH_SHA \
+       CERT_DAYS DOCKER_GB BUILDS_MB SITE_MB RUNLOG_MB DEPLOY_SH_SHA FILE_SHAS \
        CONTAINER_LINES BACKEND_LINES UNIT_LINES
 
 python3 > "$TMP" <<'PY'
@@ -179,6 +226,13 @@ print(json.dumps({
     # 못 쟀으면 **빈 문자열이 아니라 없는 것으로** 둔다 — 읽는 쪽이 "같다" 로
     # 오해하면 안 된다(S15P21B202-485).
     "deploy_sh_sha256": (os.environ.get("DEPLOY_SH_SHA") or "").strip() or None,
+    # 감시 대상 전부 (S15P21B202-620). **못 쟀으면 빈 문자열로 둔다** — 키를 빼면
+    # 읽는 쪽이 "목록에서 빠진 것" 과 "호스트에 없는 것" 을 구별하지 못한다.
+    "host_files": {
+        parts[0]: (parts[1] if len(parts) > 1 else "")
+        for parts in (l.split() for l in (os.environ.get("FILE_SHAS") or "").splitlines())
+        if parts
+    },
     "sizes": {
         "docker_gb": num("DOCKER_GB"), "builds_mb": num("BUILDS_MB"),
         "site_mb": num("SITE_MB"), "runlogs_mb": num("RUNLOG_MB"),
