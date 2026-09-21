@@ -1,5 +1,6 @@
 using System;
 using Metagame.Gameplay.Hazards;
+using Metagame.Gameplay.Parts;
 using UnityEngine;
 
 namespace Metagame.Gameplay
@@ -47,7 +48,11 @@ namespace Metagame.Gameplay
             _clock = clock;
             _waitingSince = clock();
             session.Sequence = this;
-            if (spawner != null) spawner.SetSequenceHold(true);
+            if (spawner != null)
+            {
+                spawner.EnableIndependentDrops();
+                spawner.SetSequenceHold(true);
+            }
         }
 
         public bool TryBeginEntry()
@@ -83,6 +88,15 @@ namespace Metagame.Gameplay
             if (AssaultEnabled && _spawner != null && !_spawner.AssaultEnabled) _spawner.BeginAssault();
             if (Phase == Stage1SequencePhase.Entry && Age >= EntrySeconds)
                 Change(AssaultEnabled ? Stage1SequencePhase.Combat : Stage1SequencePhase.Exploration);
+            // 입장/재구성 중 이미 뽑힌 못도 놓치지 않는다. 다른 가산 씬은 제외한다.
+            if (Phase == Stage1SequencePhase.Exploration && !AssaultEnabled)
+                for (int i = 0; i < PartClamp.All.Count; i++)
+                {
+                    var clamp = PartClamp.All[i];
+                    if (clamp == null || !clamp.IsReleased || clamp.gameObject.scene != gameObject.scene) continue;
+                    TryBeginAssault();
+                    break;
+                }
             if (Phase != Stage1SequencePhase.Assault) return;
             if (Age >= WarningSeconds && !AssaultEnabled)
             {
@@ -112,7 +126,7 @@ namespace Metagame.Gameplay
         /// <c>!AssaultEnabled</c> 를 포함해서, 비행선까지 걸어가는 내내 <b>운석이 한 발도
         /// 떨어지지 않았다.</b> 그러면 운석이 이 게임의 위협이라는 것을 공세 컷신에서
         /// 처음 배우게 된다 — 배우는 자리가 곧 위험해지는 자리면 늦다. 탐색 구간에는
-        /// <see cref="Hazards.MeteorIntensity.Drizzle"/>(10초에 한 발)이 흐른다.</para>
+        /// 독립 시계 하나가 1~5초 간격으로 맵에 낙하를 만든다.</para>
         ///
         /// <para>막는 것은 <b>조작을 못 하는 동안</b>뿐이다 — 아직 시작하지 않았거나
         /// (<see cref="Stage1SequencePhase.Waiting"/>) 입장 연출이 도는 중

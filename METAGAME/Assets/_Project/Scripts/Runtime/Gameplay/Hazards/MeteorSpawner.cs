@@ -5,7 +5,8 @@ using UnityEngine;
 namespace Metagame.Gameplay.Hazards
 {
     /// <summary>
-    /// 운석을 <b>공세 단위</b>로 예고하고 떨어뜨린다(기획 §17.3~17.7).
+    /// Stage1은 독립 낙하 시계를, 기존 시험장/프리셋은 공세 묶음을 사용한다.
+    /// 아래 공세 설명은 기존 묶음 모드의 계약이다.
     ///
     /// 흐름은 이렇다.
     ///  1) 공세 간격이 되기 5초 전에 <see cref="WaveIncoming"/> 을 보낸다(§17.3).
@@ -109,6 +110,29 @@ namespace Metagame.Gameplay.Hazards
         readonly List<Vector3> _workAreas = new();
 
         System.Random _random;
+        MeteorDropSchedule _dropSchedule;
+        bool _independentDrops;
+        bool UsesIndependentDrops => _independentDrops && _pinnedBand == null;
+        int ActiveDropClocks => AssaultEnabled ? MeteorDropSchedule.SpawnerCount : 1;
+
+        [Header("Stage1 독립 낙하")]
+        [Tooltip("공세 때 선택한 플레이어의 수평 위치 주변에 낙하할 최대 반경(m).") ]
+        [SerializeField, Min(0f)] float _assaultPlayerTargetRadius = 5f;
+        [Tooltip("동시에 살아 있는 운석 상한. 기본 네트워크 패킷 용량에도 여유를 둔다.")]
+        [SerializeField, Range(1, 16)] int _maxIndependentLiveMeteors = 16;
+
+        /// <summary>솔로와 멀티 모두 동일한 8개 시계. 생성·복제 관리자는 하나만 유지한다.</summary>
+        public void EnableIndependentDrops()
+        {
+            if (_independentDrops) return;
+            _independentDrops = true;
+            _dropSchedule = new MeteorDropSchedule(_seed);
+            _waveRemaining = 0;
+            _leadSent = false;
+        }
+
+        public bool IndependentDropsEnabled => UsesIndependentDrops;
+        public float AssaultPlayerTargetRadius => Mathf.Max(0f, _assaultPlayerTargetRadius);
 
         /// <summary>대각선 경로 검사의 버퍼. 운석마다 새로 만들지 않는다.</summary>
         static readonly RaycastHit[] EntryProbe = new RaycastHit[16];
@@ -229,6 +253,14 @@ namespace Metagame.Gameplay.Hazards
             if (AssaultEnabled == enabled) return;
 
             AssaultEnabled = enabled;
+            if (UsesIndependentDrops)
+            {
+                // 각 시계의 첫 낙하도 무작위로 분산한다. 이전 묶음은 이어서 내보내지 않는다.
+                _dropSchedule.Reset(_seed);
+                _waveRemaining = 0;
+                _leadSent = false;
+                return;
+            }
 
             // 켤 때는 곧바로 한 발, <b>끌 때는 처음부터</b>(!525 AI 리뷰). 풀 가동
             // 5초 기준으로 쌓인 경과를 그대로 두면 가랑비 10초 기준으로는 이미 넘겨서,
@@ -288,6 +320,7 @@ namespace Metagame.Gameplay.Hazards
 
         /// <summary>다음 공세까지 남은 초. 공세 중이면 0.</summary>
         public float SecondsUntilWave =>
+            UsesIndependentDrops ? _dropSchedule.SecondsUntilNext(ActiveDropClocks) :
             _waveRemaining > 0 ? 0f : Mathf.Max(0f, CurrentInterval - _sinceLastWave);
 
         /// <summary>
@@ -446,6 +479,7 @@ namespace Metagame.Gameplay.Hazards
         {
             EnsureConfiguration();
             _random = new System.Random(_seed);
+            _dropSchedule = new MeteorDropSchedule(_seed);
             _elapsed = 0f;
             AssaultEnabled = false;
             _sinceLastWave = 0f;
@@ -640,6 +674,7 @@ namespace Metagame.Gameplay.Hazards
         {
             if (_random == null) ResetRun();
 
+            if (deltaTime <= 0f || float.IsNaN(deltaTime) || float.IsInfinity(deltaTime)) return;
             _elapsed += deltaTime;
 
             AdvanceSchedule(deltaTime);
@@ -654,6 +689,17 @@ namespace Metagame.Gameplay.Hazards
         void AdvanceSchedule(float deltaTime)
         {
             if (IsPaused || SequenceHold) return;
+            if (UsesIndependentDrops)
+            {
+                var due = _dropSchedule.Tick(deltaTime, ActiveDropClocks);
+                for (int i = 0; i < MeteorDropSchedule.SpawnerCount; i++)
+                {
+                    // 상한에 막힌 낙하는 버린다. 재개 시 밀린 운석이 폭주하지 않는다.
+                    if ((due & (1 << i)) == 0 || _live.Count >= Mathf.Clamp(_maxIndependentLiveMeteors, 1, 16)) continue;
+                    Launch();
+                }
+                return;
+            }
 
             if (_waveRemaining > 0)
             {
@@ -1325,6 +1371,13 @@ namespace Metagame.Gameplay.Hazards
         /// </summary>
         Vector3 NextImpactPoint()
         {
+            if (UsesIndependentDrops)
+            {
+                // 탐색은 맵 전체, 공세는 기존 플레이어 주변 비율(기본 30%)을 유지한다.
+                // 연속 위치 필터로 플레이어 주변 후보가 맵 반대편으로 바뀌지 않게 한다.
+                return OnGround(AssaultEnabled && _random.NextDouble() < NearPlayerWeight
+                    ? NearPlayerPoint() : EnvironmentPoint());
+            }
             // <b>시험용일 때만 종류를 유지한다</b>(<see cref="TestTargeting"/>).
             //
             // 거리 검사는 <b>가까운 목표만 골라 탈락시킨다</b> — 멀리 있는 환경 목표는 직전
@@ -1487,6 +1540,9 @@ namespace Metagame.Gameplay.Hazards
                 _playerTargetMaxRadius,
                 (float)_random.NextDouble());
 
+            if (UsesIndependentDrops)
+                radius = Mathf.Sqrt((float)_random.NextDouble()) * AssaultPlayerTargetRadius;
+
             var position = target.Position;
             return new Vector3(
                 position.x + Mathf.Cos(angle) * radius,
@@ -1518,7 +1574,7 @@ namespace Metagame.Gameplay.Hazards
         PlayerRig PickPlayer()
         {
             var target = PickPlayer(false);
-            if (target != null || !TestTargeting) return target;
+            if (target != null || (!TestTargeting && !UsesIndependentDrops)) return target;
 
             return PickPlayer(true);
         }
