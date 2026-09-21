@@ -190,18 +190,41 @@ namespace Metagame.Gameplay
             SetTabletOpen(!TabletOpen);
         }
 
+        /// <summary>
+        /// 앞 쪽으로. <b>진행도에서 더 앞으로 가면 안내로 되돌아간다</b>
+        /// (S15P21B202-657) — 안내 4쪽 · 진행도 1쪽 · 조작 3쪽이 한 줄이다.
+        /// </summary>
         public void PreviousTabletPage()
         {
             if (TabletOpen && Guide.Visible) { Guide.Move(-1); return; }
+            if (TabletOpen && TabletPage == 0 && Guide.Enabled)
+            {
+                Guide.OpenAt(TabletGuideState.PageCount - 1);
+                return;
+            }
             SetTabletPage(TabletPage - 1);
         }
 
+        /// <summary>
+        /// 뒤 쪽으로. <b>마지막 안내에서 더 넘기면 진행도로 나간다</b> (S15P21B202-657).
+        /// 확인 키를 따로 누르지 않아도 된다.
+        /// </summary>
         public void NextTabletPage()
         {
-            if (TabletOpen && Guide.Visible) { Guide.Move(1); return; }
+            if (TabletOpen && Guide.Visible)
+            {
+                if (Guide.Move(1)) SetTabletPage(0);
+                return;
+            }
             SetTabletPage(TabletPage + 1);
         }
 
+        /// <summary>
+        /// 안내를 건너뛰거나 다시 연다 (S15P21B202-657).
+        ///
+        /// <para><b>더 이상 관문이 아니다.</b> 넘기다 보면 저절로 빠져나오므로 이것은
+        /// 지름길일 뿐이다 — 안내를 다 읽지 않고 진행도로 바로 가고 싶을 때 쓴다.</para>
+        /// </summary>
         public void ActivateTabletGuide()
         {
             if (!TabletOpen || !Guide.Enabled) return;

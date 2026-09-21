@@ -52,9 +52,12 @@ namespace Metagame.UI
             guideAction.gameObject.SetActive(guide.Enabled);
             guideActionBackground.gameObject.SetActive(guide.Enabled && (!guide.Visible || guide.CanConfirm));
             guideKeys.gameObject.SetActive(guide.Enabled);
-            guideKeys.text = "A / D  페이지 이동     " + Controls.Tablet + "  닫기";
+            guideKeys.text = TabletHelpContent.PageDots(true, guide.Page)
+                             + "   A / D  페이지 이동     " + Controls.Tablet + "  닫기";
+            // **관문이 아니라 지름길이다** (S15P21B202-657). 넘기다 보면 저절로
+            // 빠져나오므로 "확인" 이라는 말을 쓰지 않는다 — 눌러야 열리는 줄 알았다.
             guideAction.text = !guide.Visible ? "[" + Controls.TransportAction + "]  사용 가이드"
-                : guide.CanConfirm ? "[" + Controls.TransportAction + "]  확인 · 진행도 보기" : "안내  " + (guide.Page + 1) + " / " + TabletGuideState.PageCount;
+                : "[" + Controls.TransportAction + "]  진행도로 건너뛰기";
             if (!guide.Visible)
             {
                 if (guideRenderedPage >= 0) { lastTitle = null; guideRenderedPage = -1; }
