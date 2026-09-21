@@ -69,6 +69,7 @@ namespace Metagame.UI
         {
             if (!_warmed && _exploration != null) WarmFont();
             TickGuideNotice();
+            if (_exploration != null && GuideInputAllowed) _exploration.TickOnboarding(Time.unscaledDeltaTime);
         }
 
         void OnGUI()
