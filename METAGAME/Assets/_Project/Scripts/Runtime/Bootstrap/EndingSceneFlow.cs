@@ -46,6 +46,17 @@ namespace Metagame.Bootstrap
         string failure;
         public bool IsTransferring => transferring;
         public string Failure => failure;
+        public DemoEnding Playback => !returning && string.IsNullOrEmpty(failure) && started ? playback : null;
+
+        public bool TrySkip(DemoEndingStage expectedStage)
+        {
+            if ((networked && !NetworkServer.active) || Playback == null || playback.Stage != expectedStage
+                || !playback.TryGetSkipTarget(out float target)) return false;
+            startAt = Clock() - target;
+            playback.Snapshot.StartedAt = startAt;
+            if (NetworkServer.active) NetworkServer.SendToAll(StateMessage());
+            return true;
+        }
         GUIStyle loadingStyle;
 
         public static EndingSceneFlow Ensure()
@@ -59,12 +70,14 @@ namespace Metagame.Bootstrap
             if (Instance != null && Instance != this) { Destroy(gameObject); return; }
             Instance = this;
             DontDestroyOnLoad(gameObject);
+            gameObject.AddComponent<CutsceneSkipFlow>();
             SceneManager.sceneLoaded += OnSceneLoaded;
             RegisterMessages();
         }
 
         public void Watch(DemoEnding ending)
         {
+            GetComponent<CutsceneSkipFlow>().RegisterMessages(true);
             source = ending;
             networked = NetworkServer.active || NetworkClient.active;
             RegisterMessages(true);
@@ -148,6 +161,7 @@ namespace Metagame.Bootstrap
 
         public void Attach(Stage1EndingBootstrap target)
         {
+            GetComponent<CutsceneSkipFlow>().RegisterMessages(true);
             scene = target;
             networked = NetworkServer.active || NetworkClient.active;
             if (!transferring) preparationBeganAt = Time.realtimeSinceStartupAsDouble;

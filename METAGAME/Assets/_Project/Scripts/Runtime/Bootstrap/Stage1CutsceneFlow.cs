@@ -103,6 +103,15 @@ namespace Metagame.Bootstrap
                 yield return SceneManager.LoadSceneAsync(path, LoadSceneMode.Additive);
                 scene = SceneManager.GetSceneByPath(path);
             }
+            // Unanimous skip can finish while the additive scene is still loading.
+            // Do not briefly take over the gameplay camera with an obsolete shot.
+            if (Sequence == null || Sequence.Revision != revision || !Sequence.IsCinematic
+                || _bootstrap.Session.EndingActive)
+            {
+                if (scene.IsValid() && scene.isLoaded) yield return SceneManager.UnloadSceneAsync(scene);
+                _loading = false;
+                yield break;
+            }
             foreach (var root in scene.GetRootGameObjects())
             {
                 _view = root.GetComponentInChildren<Stage1CutsceneScene>();
