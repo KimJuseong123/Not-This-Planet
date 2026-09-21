@@ -71,7 +71,7 @@ namespace Metagame.UI
             float cursor = y + pad;
 
             DrawLabel(new Rect(x + pad, cursor, width - pad * 2f, 30f * scale),
-                "기록", titleStyle, UiTheme.Cyan);
+                "랭킹", titleStyle, UiTheme.Cyan);
             cursor += 42f * scale;
 
             DrawBoardTabs(new Rect(x + pad, cursor, width - pad * 2f, 40f * scale), scale);
@@ -127,7 +127,7 @@ namespace Metagame.UI
 
             if (!boardLoaded)
             {
-                DrawLabel(area, "기록을 불러오지 못했어요.", labelStyle, UiTheme.MutedText);
+                DrawLabel(area, "랭킹을 불러오지 못했어요.", labelStyle, UiTheme.MutedText);
                 return;
             }
 

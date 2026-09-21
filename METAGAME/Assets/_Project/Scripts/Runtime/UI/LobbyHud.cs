@@ -310,7 +310,7 @@ namespace Metagame.UI
                     "우주선 연습실", buttonStyle))
                 LobbyTransition.Ensure().BeginPractice();
             if (UiInteraction.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 5, gap),
-                    "기록", buttonStyle))
+                    "랭킹", buttonStyle))
                 OpenLeaderboard();
             if (UiInteraction.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 6, gap),
                     "종료하기", quietButtonStyle))
@@ -1219,6 +1219,9 @@ namespace Metagame.UI
             characters.Append(".,인원이 다 찼습니다 이미 시작된 방입니다 끝나면 다시 시도해 주세요");
             characters.Append("그런 방이 없습니다 코드를 확인해 주세요 판에 참가했던 사람만 돌아올 수 있습니다");
             characters.Append("게임에 들어가는 중입니다 잠시만 기다려 주세요 방장이 바뀌는 중입니다");
+            // 랭킹 화면 (S15P21B202-656). 위 주석대로 새 문구는 여기에도 더한다.
+            characters.Append("…랭킹 인 돌아가기 불러오는 중 아직 혼자 깬 사람이 없어요");
+            characters.Append("으로 팀이 첫 기록의 주인이 되어 보세요 랭킹을 불러오지 못했어요");
 
             int[] sizes = { 15, 16, 19, 20, 29 };
             for (int i = 0; i < sizes.Length; i++)
