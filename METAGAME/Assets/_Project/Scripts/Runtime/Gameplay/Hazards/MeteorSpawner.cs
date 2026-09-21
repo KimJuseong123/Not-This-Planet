@@ -821,6 +821,7 @@ namespace Metagame.Gameplay.Hazards
         /// </summary>
         public struct NetworkMeteorPose
         {
+            public byte DeflectionGrade;
             public float GroundHeight;
             public bool Harmless;
             public float BatWindow;
@@ -862,7 +863,8 @@ namespace Metagame.Gameplay.Hazards
                 var ghost = _ghosts[i];
                 if (ghost == null) continue;
 
-                ghost.ApplyGuideSnapshot(poses[i].GroundHeight, poses[i].Harmless, poses[i].BatWindow, poses[i].BatRadius);
+                ghost.ApplyGuideSnapshot(poses[i].GroundHeight, poses[i].Harmless, poses[i].BatWindow, poses[i].BatRadius,
+                    poses[i].DeflectionGrade);
                 var body = ghost.GetComponent<Rigidbody>();
                 if (body != null)
                 {
