@@ -213,12 +213,13 @@ namespace Metagame.Bootstrap
             if (spawner == null) return;
 
             var warning = Object.FindAnyObjectByType<MeteorWarningView>();
-            var scars = Object.FindAnyObjectByType<MeteorScarView>();
 
             // 방망이(§18)가 "낙하 지점 반경 2.5m 안" 을 요구한다. 원이 없으면
             // 어디가 2.5m 인지 알 수 없어 기믹이 성립하지 않는다.
             Check(warning != null, "낙하 예고 원을 그리는 것이 존재한다 (§17.2)");
-            Check(scars != null, "운석 분화구를 그리는 것이 존재한다 (§19)");
+
+            // 착탄 흔적 원반은 S15P21B202-653 에서 걷어냈다. [Art] 가 분화구 데칼을
+            // 주면 그때 그리는 것이 다시 생기고, 이 자리에 검사도 함께 돌아온다.
         }
 
         // ── 3. 서 있기 ──────────────────────────────────────────

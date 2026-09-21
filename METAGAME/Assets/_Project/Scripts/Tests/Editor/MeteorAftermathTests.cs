@@ -306,14 +306,17 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
-        /// 흔적이 <b>식는 연출이 끝난 뒤에</b> 사라진다. §19 "약 5초 동안 붉은 빛, 연기와
-        /// 불꽃이 약해진다" 가 화면에 보이지 않으면 의미가 없다.
+        /// 박힌 운석이 <b>쳐낸 소품보다 오래</b> 남는다.
+        ///
+        /// 플레이어가 처리한 것을 더 빨리 치운다는 규칙이다. 예전에는 여기서 식는
+        /// 시간과 비교했는데, 흔적 원반을 걷어내면서(S15P21B202-653) 식는 단계가
+        /// 사라져 비교 대상이 없어졌다 — 남은 것은 돌의 수명뿐이다.
         /// </summary>
         [Test]
-        public void TheScarOutlivesItsCooldown()
+        public void TheScarOutlastsTheDeflectedProp()
         {
             Assert.Greater(PhysicsScale.MeteorScarDespawnSeconds,
-                           PhysicsScale.MeteorScarCoolSeconds);
+                           PhysicsScale.MeteorDeflectedDespawnSeconds);
         }
 
         // --- 리그 ---------------------------------------------------------

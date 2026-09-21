@@ -51,19 +51,18 @@ namespace Metagame.Gameplay.Tests
         // --- 붙는다 -----------------------------------------------------------
 
         [Test]
-        public void ASpawnerWithNoViews_GetsBoth()
+        public void ASpawnerWithNoViews_GetsTheWarningRing()
         {
             var spawner = MakeSpawner();
 
             Assert.IsNull(spawner.GetComponent<MeteorWarningView>(),
                 "이 검증이 의미를 가지려면 처음에는 없어야 한다.");
 
-            Assert.AreEqual(2, spawner.EnsureViews());
+            // 흔적 원반은 S15P21B202-653 에서 걷어냈다 — 이제 붙는 것은 예고 원뿐이다.
+            Assert.AreEqual(1, spawner.EnsureViews());
 
             Assert.IsNotNull(spawner.GetComponent<MeteorWarningView>(),
                 "낙하 예고 원이 없으면 방망이(§18)가 성립하지 않는다.");
-            Assert.IsNotNull(spawner.GetComponent<MeteorScarView>(),
-                "분화구가 없으면 §19 의 흔적이 보이지 않는다.");
         }
 
         [Test]
@@ -75,7 +74,6 @@ namespace Metagame.Gameplay.Tests
 
             Assert.AreEqual(0, spawner.EnsureViews(), "두 번 불러도 하나씩만 있어야 한다.");
             Assert.AreEqual(1, spawner.GetComponents<MeteorWarningView>().Length);
-            Assert.AreEqual(1, spawner.GetComponents<MeteorScarView>().Length);
         }
 
         /// <summary>씬에서 이미 붙여 둔 것을 덮어쓰지 않는다.</summary>
@@ -85,7 +83,7 @@ namespace Metagame.Gameplay.Tests
             var spawner = MakeSpawner();
             var existing = spawner.gameObject.AddComponent<MeteorWarningView>();
 
-            Assert.AreEqual(1, spawner.EnsureViews(), "분화구만 새로 붙어야 한다.");
+            Assert.AreEqual(0, spawner.EnsureViews(), "이미 있으므로 새로 붙을 것이 없다.");
             Assert.AreSame(existing, spawner.GetComponent<MeteorWarningView>());
         }
 
@@ -110,8 +108,15 @@ namespace Metagame.Gameplay.Tests
             Assert.Greater(view.VisibleCount, 0, "예고가 화면에 나와야 한다(§17.2).");
         }
 
+        /// <summary>
+        /// 착탄 자리에 <b>원반을 그리지 않는다</b>(S15P21B202-653).
+        ///
+        /// 색으로 흉내 낸 그을음이 회색 반투명 원반으로 보여서 걷어냈다. 그리는 것은
+        /// 사라졌지만 <b>기록은 남아야 한다</b> — 그것이 운석 소멸 타이머이고,
+        /// 없애면 박힌 돌이 영구히 쌓인다(S15P21B202-438).
+        /// </summary>
         [Test]
-        public void TheScarAppearsWithoutAnyManualSetup()
+        public void TheImpactLeavesNoDiscButStillRemembers()
         {
             var spawner = MakeSpawner();
             spawner.EnsureViews();
@@ -121,12 +126,12 @@ namespace Metagame.Gameplay.Tests
             meteor.ApplyImpact(Vector3.zero);
             spawner.Tick(Step);
 
-            Assert.AreEqual(1, spawner.Scars.Count, "흔적이 남아야 의미가 있다.");
+            Assert.AreEqual(1, spawner.Scars.Count,
+                "기록은 남아야 한다 — 이것이 소멸 타이머다.");
 
-            var view = spawner.GetComponent<MeteorScarView>();
-            view.Tick();
-
-            Assert.AreEqual(1, view.VisibleCount, "분화구가 화면에 나와야 한다(§19).");
+            foreach (var renderer in spawner.GetComponentsInChildren<Renderer>(true))
+                Assert.IsFalse(renderer.gameObject.name.StartsWith("MeteorScar"),
+                    $"착탄 흔적 원반이 그려졌다: {renderer.gameObject.name}");
         }
 
         /// <summary>
