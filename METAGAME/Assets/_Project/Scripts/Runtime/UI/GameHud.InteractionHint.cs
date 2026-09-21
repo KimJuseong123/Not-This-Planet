@@ -32,7 +32,12 @@ namespace Metagame.UI
 
             _hintContent.text = text;
             float boxWidth = Mathf.Min(width - 80f, mid.CalcSize(_hintContent).x + 40f);
-            var box = new Rect((width - boxWidth) * 0.5f, height * 0.5f + 40f, boxWidth, 34f);
+            // **작은 창에서도 겹치지 않게 한다.** S15P21B202-665 의 안내 줄은
+            // Min(h*0.5 + 92, h - 168) 이라 창이 520px 보다 낮으면 위로 올라온다 —
+            // 그때 이 줄이 고정 자리에 있으면 두 줄이 포개진다(mr-overlap 이 잡았다).
+            // 같은 방식으로 눌러 18px 을 남긴다: (h - 168) - 34 - 18 = h - 220.
+            float y = Mathf.Min(height * 0.5f + 40f, height - 220f);
+            var box = new Rect((width - boxWidth) * 0.5f, y, boxWidth, 34f);
             UiTheme.DrawPanel(box, true, false);
             L(box, text, mid, UiTheme.CyanSoft);
         }

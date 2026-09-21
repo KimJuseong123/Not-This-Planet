@@ -295,7 +295,10 @@ namespace Metagame.UI
             WeldingMaterialGauge(w, h);
             DrawMeteorRhythm(w, h);
             DrawKeyGuides(w, h);
+            // 둘은 화면 가운데 아래에 **위아래로 나뉘어** 그려진다 — 키 힌트가 위(+40),
+            // 안내 한 줄이 아래(+92). 자리 계산은 각자 안에 있다.
             DrawInteractionHint(w, h);
+            DrawOnboardingNotice(w, h);
 
             // 도착
             if (s != null && s.Cleared)
