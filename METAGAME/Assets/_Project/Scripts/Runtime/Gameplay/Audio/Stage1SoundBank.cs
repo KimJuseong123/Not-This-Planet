@@ -87,7 +87,8 @@ namespace Metagame.Gameplay.Audio
         UiConnection = 78,
         UiReconnect = 79,
         UiVoiceTransmit = 80,
-        Count = 81
+        WeldingGunTrigger = 81,
+        Count = 82
     }
 
     public enum SoundStyle

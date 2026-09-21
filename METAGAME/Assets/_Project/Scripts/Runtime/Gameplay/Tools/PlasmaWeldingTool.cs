@@ -128,6 +128,19 @@ namespace Metagame.Gameplay
         public bool BeamActive { get; private set; }
         public bool BeamHasContact { get; private set; }
         public Vector3 BeamEnd { get; private set; }
+        /// <summary>
+        /// 현재 빔이 기획에 등록된 네 우주선 파츠 중 하나를 직접 겨누는가.
+        /// 일반 물체나 테스트용 SpaceshipPart에는 용접 사운드를 내지 않는다.
+        /// </summary>
+        public bool HasSpaceshipPartTarget
+        {
+            get
+            {
+                if (!TryGetBeamHit(aimDirection, out var hit)) return false;
+                var part = hit.collider.GetComponentInParent<SpaceshipPart>();
+                return part != null && PartSpec.Find(part.name) != null;
+            }
+        }
         RaycastHit lastCutContact;
         bool hasLastCutContact;
 

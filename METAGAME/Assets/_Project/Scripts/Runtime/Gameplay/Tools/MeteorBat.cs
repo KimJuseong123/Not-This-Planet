@@ -138,6 +138,9 @@ namespace Metagame.Gameplay
         /// <summary>휘둘렀을 때. 애니메이션과 소리가 여기에 붙는다(맞았는지 여부 포함).</summary>
         public event Action<MeteorBat, bool> Swung;
 
+        /// <summary>모든 방망이의 스윙 결과. 월드 사운드 런타임이 운석 반사음을 구독한다.</summary>
+        public static event Action<MeteorBat, bool> AnySwung;
+
         protected override void OnValidate()
         {
             base.OnValidate();
@@ -278,6 +281,7 @@ namespace Metagame.Gameplay
 
             RhythmSequence++;
             Swung?.Invoke(this, LastSwingConnected);
+            AnySwung?.Invoke(this, LastSwingConnected);
             return LastSwingConnected;
         }
 
@@ -370,9 +374,8 @@ namespace Metagame.Gameplay
         /// <summary>
         /// 휘두른 것을 눈에 보이게 한다.
         ///
-        /// <b>소리는 붙이지 못한다.</b> 프로젝트에 <c>AudioSource</c> 사용처가 0곳이라
-        /// 재생 경로 자체가 없다. <see cref="Swung"/> 이벤트를 붙일 자리로 남긴다 —
-        /// 소리 시스템이 생기면 그것을 구독한다([Sound]).
+        /// 소리는 이 클래스에서 직접 재생하지 않는다. <see cref="AnySwung"/>을
+        /// <c>SoundRuntime</c>이 구독해, 실제 운석을 반사했을 때만 월드 타격음을 낸다.
         ///
         /// 맞았을 때와 헛스윙을 <b>구분해서</b> 낸다. 둘이 같으면 대기 1초 동안 클릭이
         /// 먹히지 않는 이유를 플레이어가 알 수 없다.

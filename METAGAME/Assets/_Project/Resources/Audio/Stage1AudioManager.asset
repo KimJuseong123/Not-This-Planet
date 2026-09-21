@@ -314,10 +314,10 @@ MonoBehaviour:
     maxInstances: 8
     minRetriggerInterval: 0
   - eventId: 19
-    enabled: 0
+    enabled: 1
     clipOverride: {fileID: 0}
     noiseClipOverride: {fileID: 0}
-    volumeScale: 1
+    volumeScale: 0.3
     pitchScale: 1
     maxDistanceScale: 1
     fadeInScale: 1
@@ -329,11 +329,11 @@ MonoBehaviour:
     maxInstances: 8
     minRetriggerInterval: 0
   - eventId: 20
-    enabled: 0
+    enabled: 1
     clipOverride: {fileID: 0}
     noiseClipOverride: {fileID: 0}
-    volumeScale: 1
-    pitchScale: 1
+    volumeScale: 0.3
+    pitchScale: 1.1
     maxDistanceScale: 1
     fadeInScale: 1
     fadeOutScale: 1
@@ -344,10 +344,10 @@ MonoBehaviour:
     maxInstances: 8
     minRetriggerInterval: 0
   - eventId: 21
-    enabled: 0
+    enabled: 1
     clipOverride: {fileID: 0}
     noiseClipOverride: {fileID: 0}
-    volumeScale: 1
+    volumeScale: 0.3
     pitchScale: 1
     maxDistanceScale: 1
     fadeInScale: 1
@@ -359,10 +359,10 @@ MonoBehaviour:
     maxInstances: 8
     minRetriggerInterval: 0
   - eventId: 22
-    enabled: 0
+    enabled: 1
     clipOverride: {fileID: 0}
     noiseClipOverride: {fileID: 0}
-    volumeScale: 1
+    volumeScale: 0.3
     pitchScale: 1
     maxDistanceScale: 1
     fadeInScale: 1
@@ -374,10 +374,10 @@ MonoBehaviour:
     maxInstances: 8
     minRetriggerInterval: 0
   - eventId: 23
-    enabled: 0
+    enabled: 1
     clipOverride: {fileID: 0}
     noiseClipOverride: {fileID: 0}
-    volumeScale: 1
+    volumeScale: 0.3
     pitchScale: 1
     maxDistanceScale: 1
     fadeInScale: 1
@@ -404,11 +404,11 @@ MonoBehaviour:
     maxInstances: 8
     minRetriggerInterval: 0
   - eventId: 25
-    enabled: 0
+    enabled: 1
     clipOverride: {fileID: 0}
     noiseClipOverride: {fileID: 0}
-    volumeScale: 1
-    pitchScale: 1
+    volumeScale: 0.3
+    pitchScale: 1.1
     maxDistanceScale: 1
     fadeInScale: 1
     fadeOutScale: 1
@@ -419,11 +419,11 @@ MonoBehaviour:
     maxInstances: 8
     minRetriggerInterval: 0
   - eventId: 26
-    enabled: 0
+    enabled: 1
     clipOverride: {fileID: 0}
     noiseClipOverride: {fileID: 0}
-    volumeScale: 1
-    pitchScale: 1
+    volumeScale: 0.3
+    pitchScale: 1.1
     maxDistanceScale: 1
     fadeInScale: 1
     fadeOutScale: 1
@@ -839,7 +839,7 @@ MonoBehaviour:
     maxInstances: 8
     minRetriggerInterval: 0
   - eventId: 54
-    enabled: 0
+    enabled: 1
     clipOverride: {fileID: 0}
     noiseClipOverride: {fileID: 0}
     volumeScale: 1
@@ -869,7 +869,7 @@ MonoBehaviour:
     maxInstances: 8
     minRetriggerInterval: 0
   - eventId: 56
-    enabled: 0
+    enabled: 1
     clipOverride: {fileID: 0}
     noiseClipOverride: {fileID: 0}
     volumeScale: 1
@@ -1243,3 +1243,18 @@ MonoBehaviour:
     concurrencyPolicy: 0
     maxInstances: 8
     minRetriggerInterval: 0
+  - eventId: 81
+    enabled: 1
+    clipOverride: {fileID: 0}
+    noiseClipOverride: {fileID: 0}
+    volumeScale: 0.3
+    pitchScale: 1
+    maxDistanceScale: 1
+    fadeInScale: 1
+    fadeOutScale: 1
+    noiseVolumeScale: 1
+    noisePitchScale: 1
+    loopPolicy: 0
+    concurrencyPolicy: 0
+    maxInstances: 8
+    minRetriggerInterval: 0.08
