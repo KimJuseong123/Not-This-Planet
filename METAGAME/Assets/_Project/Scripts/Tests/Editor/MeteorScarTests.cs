@@ -119,10 +119,10 @@ namespace Metagame.Gameplay.Tests
             var expired = false;
             meteor.Expired += _ => expired = true;
 
-            // 분화구가 식는 동안에는 남아 있어야 한다.
-            for (var i = 0; i < Mathf.CeilToInt(PhysicsScale.MeteorScarCoolSeconds / Step); i++)
+            // 수명 절반이 지나도 아직 남아 있어야 한다.
+            for (var i = 0; i < Mathf.CeilToInt(PhysicsScale.MeteorScarDespawnSeconds * 0.5f / Step); i++)
                 meteor.Tick(Step);
-            Assert.IsFalse(expired, "식는 연출이 끝나기 전에 사라지면 안 된다.");
+            Assert.IsFalse(expired, "수명이 다 되기 전에 사라지면 안 된다.");
 
             var guard = 0;
             while (!expired && guard++ < 200000) meteor.Tick(Step);
@@ -168,28 +168,6 @@ namespace Metagame.Gameplay.Tests
             Assert.AreEqual(PhysicsScale.MeteorMediumImpactRadius, scar.Radius, 0.01f);
         }
 
-        // --- 5초 감쇠 (§19) -----------------------------------------------
-
-        [Test]
-        public void AScarCoolsOverFiveSeconds()
-        {
-            var spawner = MakeSpawner();
-            var meteor = MakeMeteor(new Vector3(0f, 4f, 0f));
-            Attach(spawner, meteor);
-
-            meteor.ApplyImpact(Vector3.zero);
-            spawner.Tick(Step);
-
-            var scar = spawner.Scars[0];
-            Assert.IsFalse(scar.Cooled);
-
-            Advance(spawner, PhysicsScale.MeteorScarCoolSeconds * 0.5f);
-            Assert.IsFalse(scar.Cooled, "절반에서는 아직 식는 중이다.");
-
-            Advance(spawner, PhysicsScale.MeteorScarCoolSeconds);
-            Assert.IsTrue(scar.Cooled);
-        }
-
         /// <summary>
         /// <b>흔적이 실제로 목록에서 빠진다.</b>
         ///
@@ -216,11 +194,9 @@ namespace Metagame.Gameplay.Tests
             spawner.Tick(Step);
             Assert.AreEqual(1, spawner.Scars.Count, "흔적이 생겼다.");
 
-            // 다 옅어져 보이지 않게 된 시점. 아직 목록에는 있다.
-            Advance(spawner, PhysicsScale.MeteorScarCoolSeconds
-                             + PhysicsScale.MeteorScarFadeSeconds + 0.5f);
-            Assert.IsTrue(spawner.Scars.Count == 0 || spawner.Scars[0].ColorIsFinal,
-                "이 시점에는 보이지 않는다.");
+            // 수명 직전에는 아직 목록에 있다.
+            Advance(spawner, PhysicsScale.MeteorScarDespawnSeconds * 0.5f);
+            Assert.AreEqual(1, spawner.Scars.Count, "수명 중간에는 남아 있다.");
 
             Advance(spawner, PhysicsScale.MeteorScarDespawnSeconds + 1f);
 
@@ -229,86 +205,6 @@ namespace Metagame.Gameplay.Tests
                 + "잰다 — 예전에는 Meteor._sinceSettled 가 셌는데 정착한 운석은 "
                 + "AdvanceLive 에서 빠져나가며 더 틱하지 않아 그 타이머가 멈춰 있었다. "
                 + "그래서 흔적이 영구히 남았다(S15P21B202-438).");
-        }
-
-        /// <summary>
-        /// 식은 뒤에도 <b>옅어지는 동안은</b> 나이를 센다(S15P21B202-438).
-        ///
-        /// <b>예전에는 식으면 멈췄다</b> — 150~200개가 쌓여도 매 프레임 비용이 0 이
-        /// 되어야 한다는 §19 의 성능 기준 때문이었다. 그런데 그러면 알파가 0.5 에서
-        /// 굳어 <b>검은 원이 지면에 박혀 남는다.</b> 멈추는 지점을
-        /// <c>Cooled</c> 에서 <c>ColorIsFinal</c> 로 옮겨, 화면에서 사라진 뒤부터
-        /// 건너뛴다 — 성능 기준은 그대로 지킨다.
-        /// </summary>
-        [Test]
-        public void ACoolingScarKeepsAgingWhileItFades()
-        {
-            var spawner = MakeSpawner();
-            var meteor = MakeMeteor(new Vector3(0f, 4f, 0f));
-            Attach(spawner, meteor);
-
-            meteor.ApplyImpact(Vector3.zero);
-            spawner.Tick(Step);
-
-            // 식은 직후. 예전에는 여기서 나이 세기가 멈췄다.
-            Advance(spawner, PhysicsScale.MeteorScarCoolSeconds + 1f);
-            var cooledAge = spawner.Scars[0].Age;
-            Assert.IsTrue(spawner.Scars[0].Cooled, "이미 식었다.");
-            Assert.IsFalse(spawner.Scars[0].ColorIsFinal, "아직 옅어지는 중이다.");
-
-            Advance(spawner, 1f);
-
-            Assert.Greater(spawner.Scars[0].Age, cooledAge,
-                "식은 뒤에도 옅어지는 동안은 나이가 늘어야 표시가 따라온다 "
-                + "(S15P21B202-438). 예전에는 Cooled 에서 멈춰 알파가 0.5 로 굳었다.");
-        }
-
-        [Test]
-        public void TheColorGoesFromHotToCold()
-        {
-            var hot = MeteorScarLook.ColorOf(0f);
-            var cold = MeteorScarLook.ColorOf(PhysicsScale.MeteorScarCoolSeconds);
-
-            Assert.AreEqual(MeteorScarLook.HotColor, hot);
-
-            // 색조만 본다. 알파는 옅어지는 단계가 따로 다룬다(S15P21B202-438) —
-            // 식는 순간에는 아직 1배지만 그 뒤 0 으로 빠진다.
-            Assert.AreEqual(MeteorScarLook.ColdColor.r, cold.r, 1e-4f);
-            Assert.AreEqual(MeteorScarLook.ColdColor.g, cold.g, 1e-4f);
-            Assert.AreEqual(MeteorScarLook.ColdColor.b, cold.b, 1e-4f);
-            Assert.Greater(hot.r, cold.r, "붉은 빛이 약해진다(§19).");
-        }
-
-        /// <summary>
-        /// 식은 뒤에는 <b>색조가 굳고 알파만 빠진다</b>(S15P21B202-438).
-        ///
-        /// 예전에는 색이 통째로 굳었다 — 그래서 밝기 0.106 의 검은 원이 알파 0.5 로
-        /// 지면에 박혀 남았다. 지금은 색조는 그대로 두고 투명해진다. 색조까지
-        /// 흔들면 타다 남은 자리가 아니라 다른 것으로 보인다.
-        /// </summary>
-        [Test]
-        public void AfterCooling_OnlyTheAlphaKeepsChanging()
-        {
-            var cool = PhysicsScale.MeteorScarCoolSeconds;
-            var a = MeteorScarLook.ColorOf(cool);
-            var b = MeteorScarLook.ColorOf(cool + PhysicsScale.MeteorScarFadeSeconds * 0.5f);
-
-            Assert.AreEqual(a.r, b.r, 1e-4f, "색조는 굳는다.");
-            Assert.AreEqual(a.g, b.g, 1e-4f);
-            Assert.AreEqual(a.b, b.b, 1e-4f);
-            Assert.Less(b.a, a.a, "알파는 계속 빠진다 — 검은 원이 남지 않는 이유다.");
-        }
-
-        /// <summary>
-        /// 분화구 지름이 충격 반경과 같다. 낙하 예고(§17.2 "실제 충격 범위와 같은 크기")와
-        /// 같은 값이어야 맞은 자리와 예고가 어긋나 보이지 않는다.
-        /// </summary>
-        [Test]
-        public void TheCraterMatchesTheImpactRadius()
-        {
-            Assert.AreEqual(PhysicsScale.MeteorSmallImpactRadius * 2f,
-                            MeteorScarLook.DiameterOf(PhysicsScale.MeteorSmallImpactRadius),
-                            0.01f);
         }
 
         // --- 개수 상한 (§19 의 성능 기준) -----------------------------------

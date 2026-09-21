@@ -141,11 +141,11 @@ namespace Metagame.Gameplay.Tests
 
             Assert.IsTrue(meteor.Settled);
 
-            // 분화구가 식는 시간(5초)보다는 오래 남아야 한다.
-            for (var i = 0; i < Mathf.RoundToInt(PhysicsScale.MeteorScarCoolSeconds
+            // 수명 절반이 지나도 아직 남아 있어야 한다.
+            for (var i = 0; i < Mathf.RoundToInt(PhysicsScale.MeteorScarDespawnSeconds * 0.5f
                                                  / Tuning.FixedStep); i++)
                 meteor.Tick(Tuning.FixedStep);
-            Assert.IsFalse(expired, "식는 연출이 끝나기 전에 사라지면 안 된다.");
+            Assert.IsFalse(expired, "수명이 다 되기 전에 사라지면 안 된다.");
 
             var guard = 0;
             while (!expired && guard++ < 200000) meteor.Tick(Tuning.FixedStep);
@@ -195,19 +195,31 @@ namespace Metagame.Gameplay.Tests
             Assert.Less(player.linearVelocity.magnitude, 0.001f);
         }
 
+        /// <summary>
+        /// 충격파가 파츠를 민다(S15P21B202-624).
+        ///
+        /// <b>S15P21B202-247 의 판단을 뒤집은 자리다.</b> 그때는 "파츠에 폭발력을 얹으면
+        /// 조인트가 끊어질지를 솔버가 아니라 상수가 정한다" 는 이유로 파츠를 폭발
+        /// 대상에서 뺐고, 이 검증이 그것을 잠갔다. 그런데 인게임에서 <b>파츠가 거의
+        /// 안 날아갔다.</b>
+        ///
+        /// 지금 주는 것은 폭발력이 아니라 <b>속도</b>다(<c>SpaceshipPart.TakeMeteorBlast</c>).
+        /// 그 속도가 조인트에 만드는 힘이 <c>breakForce</c> 를 넘는지는 <b>여전히 용접
+        /// 정도가 정한다</b> — 상수가 결과를 정하지 않는다는 -247 의 원칙은 지켜진다.
+        ///
+        /// 단계별 세부(고정쇠·견인 중 제외, 거리 감쇠)는 <c>MeteorPartBlastTests</c> 가 본다.
+        /// </summary>
         [Test]
-        public void Impact_DoesNotDirectlyPushParts()
+        public void Impact_PushesLoosePartsWithVelocity()
         {
-            // 파츠에 폭발력을 얹으면 조인트가 끊어질지를 솔버가 아니라 이 상수가 결정해 버려서
-            // 용접 정도에 따른 차이가 흐려진다. 파츠에 대한 영향은 물리 충돌만으로 남긴다.
             var meteor = CreateMeteor(Vector3.up * 5f);
             var part = CreateLooseBody(Vector3.right * 1.5f, GameLayers.Part, PhysicsScale.PartMass);
 
             meteor.ApplyImpact(Vector3.zero);
             Simulate(0.1f);
 
-            Assert.Less(part.linearVelocity.magnitude, 0.001f,
-                "파츠는 코드가 아니라 물리 충돌로만 영향을 받아야 한다.");
+            Assert.Greater(part.linearVelocity.magnitude, 0.001f,
+                "충격파 안의 파츠는 밀려야 한다. 500kg 이라 폭발력만으로는 안 움직인다.");
         }
 
         // --- 붕괴 선택성 -----------------------------------------------------

@@ -168,30 +168,18 @@ namespace Metagame.Gameplay.Hazards
             public Meteor Meteor;
             public Vector3 Point;
             public float Radius;
-            public float Age;
-
-            /// <summary>다 식었는가. 기획 §19 "약 5초 동안 … 약해진다".</summary>
-            public float CoolSeconds;
-
-            /// <summary>식은 뒤 옅어져 사라지는 시간(초). S15P21B202-438.</summary>
-            public float FadeSeconds;
-
-            public bool Cooled => Age >= CoolSeconds;
 
             /// <summary>
-            /// 화면에서 아예 보이지 않게 됐는가.
+            /// 박힌 뒤 지난 시간(초). <b>이것이 소멸 타이머다</b> —
+            /// <see cref="AdvanceScars"/> 가 <see cref="MeteorTuning.ScarDespawnSeconds"/>
+            /// 를 넘으면 운석을 없앤다.
             ///
-            /// <b><see cref="Cooled"/> 와 다르다.</b> 식은 것은 색이 굳었다는 뜻이고
-            /// 이것은 투명해졌다는 뜻이다. 표시를 갱신할지 말지는 이쪽으로 판단해야
-            /// 한다 — <c>Cooled</c> 로 끊으면 옅어지는 단계가 화면에 반영되지 않는다.
+            /// <para><b>표시가 사라져도 이 값은 남는다</b>(S15P21B202-653). 원반을
+            /// 걷어내면서 색 관련 필드는 지웠지만 나이는 지우면 안 된다 — 예전에
+            /// 운석 쪽 타이머와 갈라져 있다가 <b>흔적이 영구히 남은</b> 결함이
+            /// 그것이었다(S15P21B202-438, 실제 플레이 로그에 36개가 살아 있었다).</para>
             /// </summary>
-            /// <summary>
-            /// 색이 더 이상 변하지 않는가. <b>계산은 한 곳에만 둔다</b> — 예전에는 여기와
-            /// <see cref="MeteorScarLook"/> 에 따로 있었고, 페이드가 0 일 때 둘이 서로
-            /// 다른 답을 냈다(!347 AI 리뷰가 그 차이에 걸렸다).
-            /// </summary>
-            public bool ColorIsFinal =>
-                MeteorScarLook.ColorIsFinal(Age, CoolSeconds, FadeSeconds);
+            public float Age;
         }
 
         readonly List<Scar> _scars = new();
@@ -1250,12 +1238,9 @@ namespace Metagame.Gameplay.Hazards
             {
                 Id = ++_nextScarId,
                 Meteor = meteor,
-                // 박힌 몸통은 지면 아래다 — 분화구를 거기에 그리면 묻힌다.
                 Point = meteor.ImpactPoint,
                 Radius = meteor.ImpactRadius,
                 Age = 0f,
-                CoolSeconds = _tuning.ScarCoolSeconds,
-                FadeSeconds = _tuning.ScarFadeSeconds,
             });
 
             Trim();
@@ -1301,12 +1286,8 @@ namespace Metagame.Gameplay.Hazards
                 }
 
                 // **나이는 언제나 센다.** 예전에는 다 식으면 건너뛰었는데(§19 의
-                // 성능 기준), 그러면 두 가지가 깨진다 — 옅어지는 단계가 화면에
-                // 반영되지 않고, 아래 수명 판정이 영영 오지 않는다.
-                //
-                // 여기서 아끼는 것은 float 덧셈 하나뿐이다. 무거운 것은 재질에 색을
-                // 넣는 쪽이고 그것은 MeteorScarView.ShouldRepaint 가 건너뛴다 —
-                // §19 의 기준은 거기서 지킨다(S15P21B202-438).
+                // 성능 기준), 그러면 아래 수명 판정이 영영 오지 않는다.
+                // 비용은 float 덧셈 하나뿐이다.
                 scar.Age += deltaTime;
 
                 // **흔적을 여기서 없앤다.**
@@ -1385,13 +1366,13 @@ namespace Metagame.Gameplay.Hazards
         }
 
         /// <summary>
-        /// 낙하 예고와 흔적을 <b>그리는 컴포넌트를 붙인다</b>(S15P21B202-275).
+        /// 낙하 예고를 <b>그리는 컴포넌트를 붙인다</b>(S15P21B202-275).
         ///
         /// <b>아무도 이것을 만들지 않았다.</b> S15P21B202-241 이
-        /// <see cref="MeteorWarningView"/> 를, 251 이 <see cref="MeteorScarView"/> 를
-        /// 만들고 268 이 줄어드는 원으로 바꿨지만, 씬에도 프리팹에도 붙어 있지 않았고
-        /// 런타임에 붙이는 코드도 없었다 — <b>세 이슈가 만든 표현이 인게임에서 한 번도
-        /// 실행된 적이 없다.</b> "운석 워닝포인트가 안보인다" 의 진짜 원인이 이것이다.
+        /// <see cref="MeteorWarningView"/> 를 만들고 268 이 줄어드는 원으로 바꿨지만,
+        /// 씬에도 프리팹에도 붙어 있지 않았고 런타임에 붙이는 코드도 없었다 —
+        /// <b>그 이슈들이 만든 표현이 인게임에서 한 번도 실행된 적이 없다.</b>
+        /// "운석 워닝포인트가 안보인다" 의 진짜 원인이 이것이다.
         ///
         /// S15P21B202-254 가 예고 지점을 실제 지면 위로 내린 것은 필요했지만, 그리는
         /// 컴포넌트가 없으면 그것만으로는 아무것도 보이지 않는다.
@@ -1417,12 +1398,9 @@ namespace Metagame.Gameplay.Hazards
                 added++;
             }
 
-            if (GetComponent<MeteorScarView>() == null)
-            {
-                gameObject.AddComponent<MeteorScarView>().Configure(this);
-                added++;
-            }
-
+            // <b>흔적 원반은 더 이상 그리지 않는다</b>(S15P21B202-653). 색으로 흉내 낸
+            // 그을음이 회색 반투명 원반으로 보였다 — 이유는 그 이슈에 적었다. 기록
+            // 자체(<see cref="Scar"/>)는 남는다: 그것이 운석 소멸 타이머다.
             return added;
         }
 
