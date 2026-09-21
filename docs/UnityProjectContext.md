@@ -48,3 +48,7 @@ Stage1_Astra 상호작용 물체의 가려진 윤곽을 로컬 카메라에만 �
 - Stage1 엔딩 종료 시 호스트가 같은 연결로 Stage2를 연다. StageCatalog와 EditorBuildSettings에 `stage2`가 등록된다.
 - 도구는 초안용 장비대 장착 방식이며 기존 ToolBase의 운반·투척에 아직 통합하지 않았다. 수치·미정 채택·검증 근거는 [작업 기록](records/2026-09-17-stage2-earth-draft.md)에 남긴다.
 - 현재 제공된 Unity MCP 호출은 없다. 지정 버전 Unity 배치모드로 씬 생성·컴파일·테스트·로컬 검증 빌드를 실행한다.
+
+## 2026-09-21 Stage1 독립 운석 (661)
+
+공세의 실제 게임 트리거는 주차대 진입에서 첫 고정못 완전 해제로 바뀌었다. Stage1Sequence가 서버/솔로의 해제 상태를 확인하고 기존 컷신 시계를 유지한다. Stage1 운석은 탐색 1개/공세 8개의 독립 1~5초 타이머를 한 MeteorSpawner에서 관리하며, 공세의 플레이어 주변 낙하는 기본 5m 원판 내 무작위 지점이다. 기존 시험장 프리셋과 WorldSync 복제 경로는 유지한다. 설정·검증 범위: [661 작업 기록](records/2026-09-21-661-independent-meteors.md).
