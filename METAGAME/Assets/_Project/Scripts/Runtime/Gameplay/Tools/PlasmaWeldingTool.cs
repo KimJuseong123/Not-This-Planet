@@ -130,7 +130,7 @@ namespace Metagame.Gameplay
         public Vector3 BeamEnd { get; private set; }
         /// <summary>
         /// 현재 빔이 기획에 등록된 네 우주선 파츠 중 하나를 직접 겨누는가.
-        /// 일반 물체나 테스트용 SpaceshipPart에는 용접 사운드를 내지 않는다.
+        /// 오디오는 등록된 파츠에 접촉/작업 루프를, 그 외 대상에는 공중 빔 루프를 사용한다.
         /// </summary>
         public bool HasSpaceshipPartTarget
         {

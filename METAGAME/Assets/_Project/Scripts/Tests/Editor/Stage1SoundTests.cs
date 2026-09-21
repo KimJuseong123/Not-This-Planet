@@ -1,3 +1,4 @@
+using System.Reflection;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
@@ -7,6 +8,30 @@ namespace Metagame.Gameplay.Tests
 {
     public sealed class Stage1SoundTests
     {
+        [TestCase(true, PlasmaBeamMode.Weld, false, false, false, false, SoundEventId.WeldBeamAirLoop)]
+        [TestCase(true, PlasmaBeamMode.Cut, false, false, false, false, SoundEventId.CutBeamAirLoop)]
+        [TestCase(true, PlasmaBeamMode.Weld, true, false, false, false, SoundEventId.WeldBeamContactLoop)]
+        [TestCase(true, PlasmaBeamMode.Cut, true, false, false, false, SoundEventId.CutBeamContactLoop)]
+        [TestCase(true, PlasmaBeamMode.Weld, true, false, true, false, SoundEventId.WeldBeadGrowLoop)]
+        [TestCase(true, PlasmaBeamMode.Weld, true, true, true, false, SoundEventId.WeldBridgeGrowLoop)]
+        [TestCase(true, PlasmaBeamMode.Cut, true, false, false, true, SoundEventId.WeldBeadRemoveLoop)]
+        // Recent progress must not keep a contact/work loop alive after aiming away from the part.
+        [TestCase(true, PlasmaBeamMode.Weld, false, true, true, false, SoundEventId.WeldBeamAirLoop)]
+        [TestCase(true, PlasmaBeamMode.Cut, false, false, false, true, SoundEventId.CutBeamAirLoop)]
+        [TestCase(false, PlasmaBeamMode.Weld, true, true, true, false, SoundEventId.Count)]
+        [TestCase(false, PlasmaBeamMode.Cut, true, false, false, true, SoundEventId.Count)]
+        [TestCase(true, PlasmaBeamMode.None, true, true, true, true, SoundEventId.Count)]
+        public void ToolLoopSelectionMatchesBeamState(bool active, PlasmaBeamMode mode,
+            bool partTarget, bool bridge, bool welding, bool cutting, SoundEventId expected)
+        {
+            var select = typeof(SoundRuntime).GetMethod("SelectToolLoop",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.IsNotNull(select);
+            var actual = (SoundEventId)select.Invoke(null,
+                new object[] { active, mode, partTarget, bridge, welding, cutting });
+            Assert.AreEqual(expected, actual);
+        }
+
         [Test]
         public void MaterialImpactPairsMapToSixDistinctEvents()
         {

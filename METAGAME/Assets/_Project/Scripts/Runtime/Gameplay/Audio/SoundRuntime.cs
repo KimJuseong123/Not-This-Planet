@@ -556,30 +556,33 @@ namespace Metagame.Gameplay.Audio
                 PlaySpatial(SoundEventId.WeldingGunTrigger, tool.transform.position, 0.72f);
             weldingHeld[tool] = isWeldingHeld;
 
-            var desired = SoundEventId.Count;
-            if (tool.BeamActive)
-            {
-                if (tool.BeamMode == PlasmaBeamMode.Weld)
-                {
-                    if (!hasSpaceshipPartTarget) desired = SoundEventId.Count;
-                    else if (tool.GrowingBead != null && tool.GrowingBead.HasLiveBridge)
-                        desired = SoundEventId.WeldBridgeGrowLoop;
-                    else if (weldProgressTimes.TryGetValue(tool, out var weldTime)
-                             && Time.unscaledTime - weldTime <= ProgressWindow)
-                        desired = SoundEventId.WeldBeadGrowLoop;
-                    else desired = SoundEventId.WeldBeamContactLoop;
-                }
-                else if (tool.BeamMode == PlasmaBeamMode.Cut)
-                {
-                    if (!hasSpaceshipPartTarget) desired = SoundEventId.Count;
-                    else if (cutProgressTimes.TryGetValue(tool, out var cutTime)
-                             && Time.unscaledTime - cutTime <= ProgressWindow)
-                        desired = SoundEventId.WeldBeadRemoveLoop;
-                    else desired = SoundEventId.CutBeamContactLoop;
-                }
-            }
-
+            var desired = SelectToolLoop(tool.BeamActive, tool.BeamMode, hasSpaceshipPartTarget,
+                tool.GrowingBead != null && tool.GrowingBead.HasLiveBridge,
+                weldProgressTimes.TryGetValue(tool, out var weldTime)
+                    && Time.unscaledTime - weldTime <= ProgressWindow,
+                cutProgressTimes.TryGetValue(tool, out var cutTime)
+                    && Time.unscaledTime - cutTime <= ProgressWindow);
             UpdateLoop(toolLoops, tool, desired, 0.62f);
+        }
+
+        static SoundEventId SelectToolLoop(bool beamActive, PlasmaBeamMode mode,
+            bool hasSpaceshipPartTarget, bool hasLiveBridge, bool weldProgressing, bool cutProgressing)
+        {
+            if (!beamActive) return SoundEventId.Count;
+
+            // Only registered spaceship parts select contact/work sounds; all other aims use air loops.
+            if (mode == PlasmaBeamMode.Weld)
+            {
+                if (!hasSpaceshipPartTarget) return SoundEventId.WeldBeamAirLoop;
+                if (hasLiveBridge) return SoundEventId.WeldBridgeGrowLoop;
+                return weldProgressing ? SoundEventId.WeldBeadGrowLoop : SoundEventId.WeldBeamContactLoop;
+            }
+            if (mode == PlasmaBeamMode.Cut)
+            {
+                if (!hasSpaceshipPartTarget) return SoundEventId.CutBeamAirLoop;
+                return cutProgressing ? SoundEventId.WeldBeadRemoveLoop : SoundEventId.CutBeamContactLoop;
+            }
+            return SoundEventId.Count;
         }
 
         void UpdateLoop<T>(Dictionary<T, LoopState> states, T target,
