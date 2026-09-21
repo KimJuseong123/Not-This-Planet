@@ -49,6 +49,19 @@ public class SecurityConfig {
                         // 그것을 확인할 통합 테스트가 없다.
                         .requestMatchers("/logs").permitAll()
 
+                        // 리더보드 (S15P21B202-656). **읽기는 정말 열려 있고 쓰기는 아니다.**
+                        //
+                        // GET 은 로비가 로그인 전에도 표를 보여 주므로 열어야 한다.
+                        // POST 는 위 `/logs` 와 똑같이 컨트롤러가 Authorization 헤더의
+                        // 게스트 토큰을 직접 검증하고, 없거나 틀리면 401 을 돌려준다.
+                        //
+                        // **아래 TODO 의 조건이 이걸로 충족됐다** — 인증이 필요한 REST 가
+                        // 둘이 됐다. 그럼에도 여기서 필터를 만들지 않은 것은, 그 주석이
+                        // 함께 적어 둔 이유 때문이다: 필터를 넣으면 모든 경로의 거동이
+                        // 바뀌는데 그것을 확인할 통합 테스트가 아직 없다. 리더보드를
+                        // 넣으면서 인증 구조까지 바꾸면 무엇이 깨졌는지 가려진다.
+                        .requestMatchers("/leaderboard").permitAll()
+
                         .anyRequest().authenticated());
         // TODO: 인증 필요한 REST API 가 둘 이상이 되면 JWT 인증 필터를 등록하고
         //       위 /logs · /ws 의 자체 검증을 그쪽으로 옮긴다

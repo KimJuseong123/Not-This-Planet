@@ -11,13 +11,16 @@ namespace Metagame.UI
     /// 로비 전용 IMGUI. 현재 프로젝트의 HUD가 IMGUI 기반이므로 같은 방식으로
     /// 메인 메뉴와 온라인 방 화면을 구성한다.
     /// </summary>
-    public sealed class LobbyHud : MonoBehaviour
+    public sealed partial class LobbyHud : MonoBehaviour
     {
         private enum LobbyView
         {
             Main,
             Multiplayer,
-            Settings
+            Settings,
+
+            /// <summary>클리어 기록 표 (S15P21B202-656).</summary>
+            Leaderboard
         }
 
         private enum SettingsTab
@@ -256,6 +259,8 @@ namespace Metagame.UI
                 DrawMainMenu();
             else if (view == LobbyView.Multiplayer)
                 DrawMultiplayer();
+            else if (view == LobbyView.Leaderboard)
+                DrawLeaderboard();
             else
                 DrawSettings();
         }
@@ -266,7 +271,8 @@ namespace Metagame.UI
             float buttonWidth = 330f * scale;
             float buttonHeight = 60f * scale;
             float gap = 14f * scale;
-            float totalHeight = buttonHeight * 6f + gap * 5f;   // 테스트 버튼이 늘어 6칸 (S15P21B202-572)
+            // 기록 버튼이 늘어 7칸 (S15P21B202-656). 572 가 테스트 버튼으로 6칸이 됐다.
+            float totalHeight = buttonHeight * 7f + gap * 6f;
             Rect safe = UiScale.SafeArea;
             float x = Mathf.Clamp(UiScale.Width * 0.16f, safe.xMin + 20f, safe.xMax - buttonWidth - 20f);
             float y = Mathf.Clamp(UiScale.Height * 0.54f, safe.yMin + 20f,
@@ -304,6 +310,9 @@ namespace Metagame.UI
                     "우주선 연습실", buttonStyle))
                 LobbyTransition.Ensure().BeginPractice();
             if (UiInteraction.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 5, gap),
+                    "랭킹", buttonStyle))
+                OpenLeaderboard();
+            if (UiInteraction.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 6, gap),
                     "종료하기", quietButtonStyle))
                 Application.Quit();
 
@@ -1210,6 +1219,9 @@ namespace Metagame.UI
             characters.Append(".,인원이 다 찼습니다 이미 시작된 방입니다 끝나면 다시 시도해 주세요");
             characters.Append("그런 방이 없습니다 코드를 확인해 주세요 판에 참가했던 사람만 돌아올 수 있습니다");
             characters.Append("게임에 들어가는 중입니다 잠시만 기다려 주세요 방장이 바뀌는 중입니다");
+            // 랭킹 화면 (S15P21B202-656). 위 주석대로 새 문구는 여기에도 더한다.
+            characters.Append("…랭킹 인 돌아가기 불러오는 중 아직 혼자 깬 사람이 없어요");
+            characters.Append("으로 팀이 첫 기록의 주인이 되어 보세요 랭킹을 불러오지 못했어요");
 
             int[] sizes = { 15, 16, 19, 20, 29 };
             for (int i = 0; i < sizes.Length; i++)

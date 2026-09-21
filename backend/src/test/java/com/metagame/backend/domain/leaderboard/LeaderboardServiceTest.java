@@ -1,0 +1,325 @@
+package com.metagame.backend.domain.leaderboard;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.metagame.backend.domain.leaderboard.dto.LeaderboardEntry;
+import com.metagame.backend.domain.leaderboard.dto.SubmitRunRequest;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.Pageable;
+
+/**
+ * 리더보드가 받는 값과 돌려주는 순서 (S15P21B202-656).
+ *
+ * <p><b>무엇을 막는 검증인가.</b> 이 자리는 <b>공개 서버의 쓰기 자리</b>다. 본문은
+ * 누구나 만들 수 있으므로, 0초 클리어나 99명짜리 기록이 그대로 저장되면 표 맨 위가
+ * 가짜로 덮인다 — 그러면 리더보드가 있으나 마나다. 검사를 컨트롤러가 아니라
+ * 서비스에 둔 이유가 여기 닿기 위해서다.</p>
+ */
+class LeaderboardServiceTest {
+
+    private FakeRepository repository;
+    private LeaderboardService service;
+
+    @BeforeEach
+    void setUp() {
+        repository = new FakeRepository();
+        service = new LeaderboardService(repository);
+    }
+
+    private static SubmitRunRequest run(long millis, String... names) {
+        return new SubmitRunRequest(millis, List.of(names), "v1.0.0");
+    }
+
+    // --- 표는 인원이 정한다 ------------------------------------------------
+
+    /** 닉네임 수가 곧 인원이고, 그 인원이 곧 이 기록이 오를 표다. */
+    @Test
+    void theCrewSizeComesFromTheNameCount() {
+        assertThat(service.submit(1L, run(600_000, "재현")).getCrewSize()).isEqualTo(1);
+        assertThat(service.submit(1L, run(600_000, "재현", "수호")).getCrewSize()).isEqualTo(2);
+        assertThat(service.submit(1L, run(600_000, "가", "나", "다")).getCrewSize()).isEqualTo(3);
+        assertThat(service.submit(1L, run(600_000, "가", "나", "다", "라")).getCrewSize()).isEqualTo(4);
+    }
+
+    /** 한 판이 한 줄이다 — 협동이라고 사람마다 줄을 만들지 않는다. */
+    @Test
+    void aCoopRunIsStoredAsOneRowWithEveryName() {
+        RunRecord saved = service.submit(1L, run(252_000, "재현", "수호", "주성"));
+
+        assertThat(repository.rows).hasSize(1);
+        assertThat(saved.getCrewNames()).isEqualTo("재현 · 수호 · 주성");
+    }
+
+    // --- 값을 믿지 않는다 -------------------------------------------------
+
+    /**
+     * <b>0초 클리어를 받으면 표 맨 위가 영영 가짜다.</b> 기획 §6.1 의 입장 연출만
+     * 15~20초이고 §6.2 의 학습 흐름이 뒤따르므로, 30초 아래는 물리적으로 나올 수 없다.
+     */
+    @Test
+    void anImpossiblyFastRunIsRejected() {
+        assertThatThrownBy(() -> service.submit(1L, run(1_000, "재현")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.submit(1L, run(
+                LeaderboardService.MIN_CLEAR_MILLIS - 1, "재현")))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(repository.rows).isEmpty();
+    }
+
+    @Test
+    void anAbsurdlySlowRunIsRejected() {
+        assertThatThrownBy(() -> service.submit(1L, run(
+                LeaderboardService.MAX_CLEAR_MILLIS + 1, "재현")))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void theBoundariesThemselvesAreAccepted() {
+        service.submit(1L, run(LeaderboardService.MIN_CLEAR_MILLIS, "재현"));
+        service.submit(1L, run(LeaderboardService.MAX_CLEAR_MILLIS, "수호"));
+
+        assertThat(repository.rows).hasSize(2);
+    }
+
+    @Test
+    void aRunWithNoUsableNameIsRejected() {
+        assertThatThrownBy(() -> service.submit(1L, new SubmitRunRequest(
+                600_000, List.of("   ", "\n"), null)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /** 다섯 명은 있을 수 없다. 잘라서 받지 않고 거절한다 — 없는 표다. */
+    @Test
+    void moreNamesThanTheGameAllowsIsRejected() {
+        assertThatThrownBy(() -> service.submit(1L, new SubmitRunRequest(
+                600_000, List.of("가", "나", "다", "라", "마"), null)))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(repository.rows).isEmpty();
+    }
+
+    // --- 닉네임을 다듬는다 ------------------------------------------------
+
+    /**
+     * <b>구분자가 이름에 있으면 사람이 하나 더 있는 것처럼 보인다.</b> 저장은 한
+     * 문자열이므로 읽는 쪽이 그것을 구분할 방법이 없다.
+     */
+    @Test
+    void aNameContainingTheSeparatorCannotFakeAnExtraPlayer() {
+        RunRecord saved = service.submit(1L, run(600_000, "재현 · 가짜"));
+
+        assertThat(saved.getCrewSize()).isEqualTo(1);
+        assertThat(saved.getCrewNames().split(" · ")).hasSize(1);
+    }
+
+    @Test
+    void controlCharactersAreStripped() {
+        RunRecord saved = service.submit(1L, run(600_000, "재\n현\t"));
+
+        assertThat(saved.getCrewNames()).isEqualTo("재현");
+    }
+
+    /** 이상한 이름은 이상한 이름이지 없는 이름이 아니다 — 판째로 버리지 않는다. */
+    @Test
+    void aBadNameDoesNotThrowAwayTheWholeRun() {
+        RunRecord saved = service.submit(1L, new SubmitRunRequest(
+                600_000, List.of("재현", " ", "주성"), null));
+
+        assertThat(saved.getCrewNames()).isEqualTo("재현 · 주성");
+    }
+
+    /**
+     * <b>공백 닉네임으로 더 쉬운 표에 내려앉을 수 없다</b>(!558 AI 리뷰).
+     *
+     * 인원을 다듬은 뒤의 개수로 세면, 4인 기록에 빈 이름 셋을 실어 보내
+     * <b>1인 표 1위</b>를 만들 수 있다. 인원별로 표를 나눈 근거가 난이도 차(§17.6)
+     * 인데 그것을 요청 본문만으로 우회하는 길이 열린다.
+     */
+    @Test
+    void blankNamesCannotDowngradeTheBoard() {
+        RunRecord saved = service.submit(1L, new SubmitRunRequest(
+                600_000, List.of("재현", " ", " ", " "), null));
+
+        assertThat(saved.getCrewSize()).isEqualTo(4);
+        assertThat(saved.getCrewNames()).isEqualTo("재현");
+    }
+
+    /**
+     * 나열 전체가 칸을 넘으면 저장에서 잘려 판이 통째로 사라진다. 미리 덜어낸다.
+     */
+    @Test
+    void aTooLongNameListIsTrimmedBeforeItReachesTheColumn() {
+        String longName = "가".repeat(20);
+        RunRecord saved = service.submit(1L, new SubmitRunRequest(
+                600_000, List.of(longName, longName, longName, longName), null));
+
+        assertThat(saved.getCrewNames().length())
+                .isLessThanOrEqualTo(RunRecord.MAX_CREW_TEXT);
+        assertThat(saved.getCrewSize()).isEqualTo(4);   // 인원은 보낸 그대로다
+    }
+
+    // --- 도배 ------------------------------------------------------------
+
+    @Test
+    void oneUserCannotFloodTheBoard() {
+        for (int i = 0; i < LeaderboardService.MAX_SUBMITS_PER_WINDOW; i++) {
+            service.submit(7L, run(600_000, "도배"));
+        }
+
+        assertThatThrownBy(() -> service.submit(7L, run(600_000, "도배")))
+                .isInstanceOf(LeaderboardService.TooManySubmitsException.class);
+    }
+
+    @Test
+    void theCapIsPerUserNotGlobal() {
+        for (int i = 0; i < LeaderboardService.MAX_SUBMITS_PER_WINDOW; i++) {
+            service.submit(7L, run(600_000, "도배"));
+        }
+
+        // 다른 사람은 막히지 않는다.
+        assertThat(service.submit(8L, run(600_000, "남")).getId()).isNotNull();
+    }
+
+    // --- 순서 ------------------------------------------------------------
+
+    @Test
+    void theFastestRunIsFirst() {
+        service.submit(1L, run(600_000, "느림"));
+        service.submit(2L, run(252_000, "빠름"));
+        service.submit(3L, run(400_000, "중간"));
+
+        List<LeaderboardEntry> top = service.top(1, 10);
+
+        assertThat(top).extracting(LeaderboardEntry::crewNames)
+                .containsExactly("빠름", "중간", "느림");
+        assertThat(top).extracting(LeaderboardEntry::rank).containsExactly(1, 2, 3);
+    }
+
+    /**
+     * <b>네 표가 섞이지 않는다.</b> 게임이 인원으로 난이도를 조정하므로(§17.6)
+     * 인원이 다르면 애초에 다른 판이고, 한 표에 섞으면 비교가 성립하지 않는다.
+     */
+    @Test
+    void theFourBoardsDoNotMix() {
+        service.submit(1L, run(252_000, "혼자"));
+        service.submit(2L, run(200_000, "둘", "이서"));
+        service.submit(3L, run(180_000, "셋", "이서", "함께"));
+        service.submit(4L, run(150_000, "넷", "이", "함께", "간다"));
+
+        assertThat(service.top(1, 10)).extracting(LeaderboardEntry::crewNames)
+                .containsExactly("혼자");
+        assertThat(service.top(2, 10)).extracting(LeaderboardEntry::crewNames)
+                .containsExactly("둘 · 이서");
+        assertThat(service.top(3, 10)).extracting(LeaderboardEntry::crewNames)
+                .containsExactly("셋 · 이서 · 함께");
+        assertThat(service.top(4, 10)).extracting(LeaderboardEntry::crewNames)
+                .containsExactly("넷 · 이 · 함께 · 간다");
+    }
+
+    /**
+     * 없는 표를 물으면 잘못된 요청이다. <b>빈 목록으로 답하지 않는다</b> —
+     * 그러면 오타를 "아직 기록이 없다" 로 읽게 된다.
+     */
+    @Test
+    void askingForABoardThatDoesNotExistIsAnError() {
+        assertThatThrownBy(() -> service.top(0, 10)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.top(5, 10)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.top(-1, 10)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void theLimitIsClampedToSomethingSane() {
+        for (int i = 0; i < 5; i++) service.submit(1L, run(600_000 + i, "사람" + i));
+
+        assertThat(service.top(1, 2)).hasSize(2);
+        assertThat(service.top(1, 0)).hasSize(1);      // 최소 1
+        assertThat(service.top(1, 9999)).hasSize(5);   // 있는 만큼
+    }
+
+    @Test
+    void anEmptyBoardIsEmptyNotAnError() {
+        assertThat(service.top(4, 10)).isEmpty();
+    }
+
+    // --- 리그 ------------------------------------------------------------
+
+    /**
+     * 메모리 저장소. JPA 를 띄우지 않는 이유는 여기서 재려는 것이 <b>값 검사와
+     * 순서</b>이지 매핑이 아니기 때문이다 — 매핑은 스프링이 뜨면 알아서 깨진다.
+     */
+    private static class FakeRepository implements RunRecordRepository {
+        final List<RunRecord> rows = new ArrayList<>();
+        private long nextId = 1;
+
+        @Override
+        public List<RunRecord> findByCrewSizeOrderByClearMillisAscCreatedAtAsc(
+                int crewSize, Pageable pageable) {
+            return rows.stream()
+                    .filter(r -> r.getCrewSize() == crewSize)
+                    .sorted(Comparator.comparingLong(RunRecord::getClearMillis)
+                            .thenComparing(RunRecord::getCreatedAt))
+                    .limit(pageable.getPageSize())
+                    .toList();
+        }
+
+        @Override
+        public long countBySubmitterUserIdAndCreatedAtAfter(Long userId, LocalDateTime after) {
+            return rows.stream()
+                    .filter(r -> r.getSubmitterUserId().equals(userId))
+                    .filter(r -> r.getCreatedAt().isAfter(after))
+                    .count();
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <S extends RunRecord> S save(S entity) {
+            try {
+                var field = RunRecord.class.getDeclaredField("id");
+                field.setAccessible(true);
+                field.set(entity, nextId++);
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException(e);
+            }
+            rows.add(entity);
+            return entity;
+        }
+
+        // --- 쓰지 않는 것 ---------------------------------------------------
+        @Override public java.util.List<RunRecord> findAll() { return rows; }
+        @Override public java.util.List<RunRecord> findAll(org.springframework.data.domain.Sort sort) { return rows; }
+        @Override public org.springframework.data.domain.Page<RunRecord> findAll(Pageable pageable) { throw new UnsupportedOperationException(); }
+        @Override public java.util.List<RunRecord> findAllById(Iterable<Long> ids) { throw new UnsupportedOperationException(); }
+        @Override public <S extends RunRecord> java.util.List<S> saveAll(Iterable<S> entities) { throw new UnsupportedOperationException(); }
+        @Override public java.util.Optional<RunRecord> findById(Long id) { throw new UnsupportedOperationException(); }
+        @Override public boolean existsById(Long id) { throw new UnsupportedOperationException(); }
+        @Override public long count() { return rows.size(); }
+        @Override public void deleteById(Long id) { throw new UnsupportedOperationException(); }
+        @Override public void delete(RunRecord entity) { throw new UnsupportedOperationException(); }
+        @Override public void deleteAllById(Iterable<? extends Long> ids) { throw new UnsupportedOperationException(); }
+        @Override public void deleteAll(Iterable<? extends RunRecord> entities) { throw new UnsupportedOperationException(); }
+        @Override public void deleteAll() { rows.clear(); }
+        @Override public void flush() { }
+        @Override public <S extends RunRecord> S saveAndFlush(S entity) { return save(entity); }
+        @Override public <S extends RunRecord> java.util.List<S> saveAllAndFlush(Iterable<S> entities) { throw new UnsupportedOperationException(); }
+        @Override public void deleteAllInBatch(Iterable<RunRecord> entities) { throw new UnsupportedOperationException(); }
+        @Override public void deleteAllByIdInBatch(Iterable<Long> ids) { throw new UnsupportedOperationException(); }
+        @Override public void deleteAllInBatch() { rows.clear(); }
+        @Override public RunRecord getOne(Long id) { throw new UnsupportedOperationException(); }
+        @Override public RunRecord getById(Long id) { throw new UnsupportedOperationException(); }
+        @Override public RunRecord getReferenceById(Long id) { throw new UnsupportedOperationException(); }
+        @Override public <S extends RunRecord> java.util.Optional<S> findOne(org.springframework.data.domain.Example<S> example) { throw new UnsupportedOperationException(); }
+        @Override public <S extends RunRecord> java.util.List<S> findAll(org.springframework.data.domain.Example<S> example) { throw new UnsupportedOperationException(); }
+        @Override public <S extends RunRecord> java.util.List<S> findAll(org.springframework.data.domain.Example<S> example, org.springframework.data.domain.Sort sort) { throw new UnsupportedOperationException(); }
+        @Override public <S extends RunRecord> org.springframework.data.domain.Page<S> findAll(org.springframework.data.domain.Example<S> example, Pageable pageable) { throw new UnsupportedOperationException(); }
+        @Override public <S extends RunRecord> long count(org.springframework.data.domain.Example<S> example) { throw new UnsupportedOperationException(); }
+        @Override public <S extends RunRecord> boolean exists(org.springframework.data.domain.Example<S> example) { throw new UnsupportedOperationException(); }
+        @Override public <S extends RunRecord, R> R findBy(org.springframework.data.domain.Example<S> example, java.util.function.Function<org.springframework.data.repository.query.FluentQuery.FetchableFluentQuery<S>, R> fn) { throw new UnsupportedOperationException(); }
+    }
+}
