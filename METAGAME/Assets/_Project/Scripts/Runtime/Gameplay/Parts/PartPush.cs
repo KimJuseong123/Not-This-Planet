@@ -307,7 +307,19 @@ namespace Metagame.Gameplay.Parts
                 // 밀기가 아니다 — §13.1 "당기기는 제공하지 않으며 반대편으로 이동해
                 // 반대 방향으로 민다". 손이 비었으면 파츠를 당길 수단이 없다.
                 var toPart = Toward(player);
+                //
+                // **질량중심보다 위에서는 몸으로 못 민다** (S15P21B202-667). 위를 밀면
+                // 토크가 생겨 파츠가 넘어진다 — 실측으로 73.8도까지 기울었다. 파츠를
+                // 넘어뜨리는 것은 §13 의 밀기가 아니라 §22.4 의 붕괴다.
+                //
+                // 정상적으로 서서 미는 데에는 영향이 없다. 골반은 지면에서 0.30m
+                // (Tuning.RideHeight)라 파츠 질량중심보다 늘 아래다. 막히는 것은
+                // **올라타서 윗부분을 밀 때**뿐이다.
+                var lowEnough = player.Doll != null && player.Doll.Hips != null
+                                && player.Doll.Hips.position.y <= _body.worldCenterOfMass.y;
+
                 var bodyPushing = able && !holding
+                                  && lowEnough
                                   && toPart.sqrMagnitude > 1e-6f
                                   && IsTouching(player)
                                   && moving
@@ -414,8 +426,21 @@ namespace Metagame.Gameplay.Parts
                 _lastTopSpeed = top;
                 _pushedRecently = true;
 
+                // **회전 억제는 조기 return 보다 먼저다.** 아래로 두었더니 상한에
+                // 닿는 순간부터 매 스텝 그냥 빠져나가 회전이 82.8 → 74.3 도로 거의
+                // 안 줄었다 — 값이 소수점까지 같아서 드러났다.
+                //
+                // **넘어지는 축만 잡는다.** 미는 힘은 질량중심에 넣어 토크를 안 만드는데
+                // 미는 사람의 **몸 콜라이더**가 윗부분에 닿으면 그 접촉이 토크를 만든다.
+                // 파츠를 넘어뜨리는 것은 §13 의 밀기가 아니라 §22.4 의 붕괴다.
+                // 세로축(yaw) 회전은 밀다 보면 자연스럽게 생기므로 살려 둔다.
+                var spin = _body.angularVelocity;
+                var yaw = Vector3.up * spin.y;
+                _body.angularVelocity =
+                    yaw + (spin - yaw) * Mathf.Pow(PhysicsScale.PartPushSpinDamping, deltaTime);
+
                 var along = Vector3.Dot(horizontal, HaulDirection);
-                if (along >= top) return;   // 이미 더 빠르다 — 건드리지 않는다
+                if (along >= top) return;   // 이미 더 빠르다 — 힘은 안 넣는다
 
                 // **남은 여유에 맞춰 힘을 깎는다.** AddForce 는 다음 물리 스텝에야
                 // 속도가 되므로, 상한 바로 아래에서 온 힘을 넣으면 그 한 스텝이
@@ -432,6 +457,14 @@ namespace Metagame.Gameplay.Parts
                 // 질량중심에 넣어 토크를 만들지 않는다 — 미는 것이 파츠를 넘어뜨리는
                 // 것이 되면 §13 이 아니라 §22.4 의 붕괴가 된다.
                 _body.AddForce(HaulDirection * applied, ForceMode.Force);
+
+                // **미는 동안에는 구르지 않는다** (S15P21B202-667). 위의 힘은 질량중심에
+                // 넣어 토크를 안 만드는데, 미는 사람의 **몸 콜라이더**가 윗부분에 닿으면
+                // 그 접촉이 토크를 만든다 — 실측 82.8도까지 돌았다. 파츠를 넘어뜨리는
+                // 것은 §13 의 밀기가 아니라 §22.4 의 붕괴다.
+                //
+                // 0 으로 죽이지 않는 이유는 경사에서 자세를 잡는 것과 운석에 맞아 도는
+                // 것까지 막으면 물리가 죽은 것처럼 보이기 때문이다.
                 return;
             }
 

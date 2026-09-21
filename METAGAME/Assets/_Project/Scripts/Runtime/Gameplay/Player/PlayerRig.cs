@@ -3098,6 +3098,10 @@ namespace Metagame.Gameplay
             // (S15P21B202-442) — 무게는 같고, 이것이 없으면 잡은 쪽이 일방적으로
             // 이겨서 잡힌 쪽이 빠져나갈 방법이 없다.
             if (CarryingTeammate) top *= PhysicsScale.DownedCarrySpeedScale;
+            // 파츠를 미는 동안 느려진다 (S15P21B202-667). 이것이 없으면 파츠는 0.6m/s 로
+            // 제한되는데 사람은 2.9m/s 로 걸어 **두고 앞서 간다** — 손으로 잡아도
+            // Hand.BraceTo 는 조인트를 만들지 않아 붙잡아 주지 않는다.
+            if (Hauling) top *= PhysicsScale.PartPushSpeedScale;
             // 엎드리면 기어간다. 다른 감속과 곱하지 않고 **상한으로** 둔다 —
             // 곱하면 달리기 키를 누른 채 기어가는 것이 더 빨라진다.
             if (Prone) top = Mathf.Min(top, CrawlSpeed);
