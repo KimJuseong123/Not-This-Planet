@@ -98,13 +98,17 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void TheSameFallSpeedGivesTheSamePoseWhetherYouJumpedOrNot()
         {
-            Advance(Air(-2.0f, jumped: true), 30);
+            // **60프레임(1.2초)을 본다.** 뛴 쪽은 뛰어오름 동작이 먼저 돌아 공중 자세가
+            // 늦게 시작하는데, S15P21B202-670 이 팔을 0.40초에 걸쳐 섞도록 늦추면서
+            // 30프레임 창에서는 아직 따라잡지 못한다. 이 검사가 지키는 것은 "같은
+            // 속도면 같은 자세로 모인다" 이지 "몇 프레임 만에" 가 아니다.
+            Advance(Air(-2.0f, jumped: true), 60);
             var afterJump = Bone("R_Upperarm");
 
             TearDown();
             SetUp();
 
-            Advance(Air(-2.0f, jumped: false), 30);
+            Advance(Air(-2.0f, jumped: false), 60);
             var afterFall = Bone("R_Upperarm");
 
             Assert.Less(Quaternion.Angle(afterJump, afterFall), 1f,
