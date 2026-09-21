@@ -20,49 +20,6 @@ namespace Metagame.UI
         const int SizeTitle = 30;
         const FontStyle Style = FontStyle.Normal;
 
-        struct HelpEntry
-        {
-            public readonly string Keys;
-            public readonly string Description;
-
-            public HelpEntry(string keys, string description)
-            {
-                Keys = keys;
-                Description = description;
-            }
-        }
-
-        static readonly HelpEntry[] MovementHelp =
-        {
-            new HelpEntry("WASD", "이동"),
-            new HelpEntry("Shift", "달리기"),
-            new HelpEntry("Space", "점프"),
-            new HelpEntry("마우스", "시점과 캐릭터 정면·조준 기준"),
-            new HelpEntry("Alt", "이동·조준·캐릭터 정면은 카메라를 따르고 시점 자유롭게 돌리기"),
-        };
-
-        static readonly HelpEntry[] InteractionHelp =
-        {
-            new HelpEntry("좌·우클릭", "고정쇠에 손을 결합하고 반대 방향으로 뒤로 이동"),
-            new HelpEntry("Ctrl", "팔을 위로 올려 레일·케이블 잡기"),
-            new HelpEntry("W + 잡기", "잡은 레일·케이블을 따라 기어오르기"),
-            new HelpEntry("Q 짧게", "현재 손 장비 내려놓기"),
-            new HelpEntry("Q 길게", "충전 후 바라보는 방향으로 장비 투척"),
-        };
-
-        static readonly HelpEntry[] TransportHelp =
-        {
-            new HelpEntry("E", "장비 줍기·교환, 동료 구조, 운반 장치 탑승·하차"),
-            new HelpEntry("WASD", "탑승 중 운반 장치 운전"),
-            new HelpEntry("좌·우클릭", "탑승 중 견인 빔 사용"),
-            new HelpEntry("Space / Ctrl", "탑승 중 상승 / 하강"),
-            new HelpEntry("T", "그 자리에서 다시 서기"),
-            new HelpEntry("R", "처음부터 다시 시작"),
-            new HelpEntry("Tab", "태블릿 열기·닫기"),
-            new HelpEntry("← → / A D", "이전·다음 태블릿 페이지"),
-            new HelpEntry("Esc", "커서 잠금 풀기"),
-        };
-
         static readonly Dictionary<int, Font> Fonts = new();
 
         Stage1Exploration _exploration;
@@ -257,7 +214,7 @@ namespace Metagame.UI
             }
         }
 
-        void DrawHelpCard(Rect card, HelpEntry entry)
+        void DrawHelpCard(Rect card, TabletHelpContent.Entry entry)
         {
             Box(card, new Color(0.08f, 0.15f, 0.20f, 0.98f));
             Box(new Rect(card.x, card.y, card.width, 3f), new Color(0.30f, 0.84f, 1f, 0.90f));
@@ -382,33 +339,9 @@ namespace Metagame.UI
             return texture;
         }
 
-        static string PageTitle(int page)
-        {
-            switch (page)
-            {
-                case 1: return "조작 안내 · 이동과 시점";
-                case 2: return "조작 안내 · 손과 도구";
-                case 3: return "조작 안내 · 운반과 복구";
-                default: return "탐사 태블릿";
-            }
-        }
+        static string PageTitle(int page) => TabletHelpContent.PageTitle(page);
 
-        static HelpEntry[] HelpForPage(int page)
-        {
-            switch (page)
-            {
-                case 1: return MovementHelp;
-                case 2: return InteractionHelp;
-                case 3: return TransportHelp;
-                default: return MovementHelp;
-            }
-        }
-
-        static void AppendHelpText(StringBuilder text, HelpEntry[] entries)
-        {
-            for (var i = 0; i < entries.Length; i++)
-                text.Append(entries[i].Keys).Append(entries[i].Description);
-        }
+        static TabletHelpContent.Entry[] HelpForPage(int page) => TabletHelpContent.Page(page);
 
         void DrawSilhouette(Rect area, Stage1Exploration.PartKind kind, bool discovered)
         {
@@ -493,9 +426,9 @@ namespace Metagame.UI
             text.Append("0123456789./· 1장 탐험 태블릿 파츠 상태 조작 안내 이동과 시점 손과 도구 운반과 복구 DEBUG 현재 단계");
             text.Append("파츠 발견 미발견 상태 씬 배치 확인 고정 해제 운반 중 배치됨 조립 완료");
             text.Append("발견됩니다 이전 다음");
-            AppendHelpText(text, MovementHelp);
-            AppendHelpText(text, InteractionHelp);
-            AppendHelpText(text, TransportHelp);
+            // **안내에 쓰는 글자를 여기에 다 넣어야 한다.** 빠뜨리면 그 글자가
+            // 네모로 뜬다 — 안내를 고칠 때 같이 고쳐야 하는 자리라 공용으로 뺐다.
+            TabletHelpContent.AppendGlyphs(text);
             if (_session != null) text.Append(_session.StageHint);
 
             foreach (var size in new[] { SizeSmall, SizeMid, SizeTitle })

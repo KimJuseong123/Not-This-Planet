@@ -46,16 +46,26 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
-        public void NavigationClampsAndDoesNotWrap()
+        public void NavigationClampsBackwardsAndLeavesForwards()
         {
             var guide = new TabletGuideState();
             guide.Enable();
             guide.OnTabletOpened();
-            guide.Move(-1);
+
+            // 첫 쪽에서 더 앞으로는 못 간다 — 안내 앞에는 아무것도 없다.
+            Assert.IsFalse(guide.Move(-1));
             Assert.AreEqual(0, guide.Page);
-            for (int i = 0; i < 10; i++) guide.Move(1);
+
+            // 마지막 쪽까지는 그냥 넘어간다.
+            for (int i = 0; i < TabletGuideState.PageCount - 1; i++) Assert.IsFalse(guide.Move(1));
             Assert.AreEqual(TabletGuideState.PageCount - 1, guide.Page);
-            Assert.IsTrue(guide.CanConfirm);
+
+            // **여기서 한 번 더 넘기면 안내를 벗어난다** (S15P21B202-657).
+            // 예전에는 마지막 쪽에 붙잡혀 있었고, 확인 키를 모르는 사람은 진행도를
+            // 영영 못 봤다 — 처음 하는 사람이 실제로 그랬다.
+            Assert.IsTrue(guide.Move(1));
+            Assert.IsFalse(guide.Visible);
+            Assert.IsTrue(guide.Completed);
         }
 
         [Test]

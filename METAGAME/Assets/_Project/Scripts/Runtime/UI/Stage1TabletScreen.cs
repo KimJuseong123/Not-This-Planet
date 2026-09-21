@@ -34,11 +34,10 @@ namespace Metagame.UI
         ShipAssembly assembly;
         readonly Image[] discoveryDots = new Image[Stage1Exploration.RequiredPartCount];
         readonly Image[] pageDots = new Image[Stage1Exploration.TabletPageCount];
-        readonly HelpCardView[] helpCards = new HelpCardView[9];
+        readonly HelpCardView[] helpCards = new HelpCardView[TabletHelpContent.MaxRows];
         Font font;
         bool ownsFont;
         string lastTitle;
-        string lastBody;
         string lastFooter;
 
         /// <summary>
@@ -61,49 +60,6 @@ namespace Metagame.UI
             public Text Keys;
             public Text Description;
         }
-
-        readonly struct HelpEntry
-        {
-            public readonly string Keys;
-            public readonly string Description;
-
-            public HelpEntry(string keys, string description)
-            {
-                Keys = keys;
-                Description = description;
-            }
-        }
-
-        static readonly HelpEntry[] MovementHelp =
-        {
-            new("WASD", "이동"),
-            new("Shift", "달리기"),
-            new("Space", "점프"),
-            new("마우스", "시점과 캐릭터 정면·조준 기준"),
-            new("Alt", "이동·조준·캐릭터 정면은 카메라를 따르고 시점 자유롭게 돌리기"),
-        };
-
-        static readonly HelpEntry[] InteractionHelp =
-        {
-            new("좌·우클릭", "고정쇠에 손을 결합하고 반대 방향으로 뒤로 이동"),
-            new("Ctrl", "팔을 위로 올려 레일·케이블 잡기"),
-            new("W + 잡기", "잡은 레일·케이블을 따라 기어오르기"),
-            new("Q 짧게", "현재 손 장비 내려놓기"),
-            new("Q 길게", "충전 후 바라보는 방향으로 장비 투척"),
-        };
-
-        static readonly HelpEntry[] TransportHelp =
-        {
-            new("E", "장비 줍기·교환, 동료 구조, 운반 장치 탑승·하차"),
-            new("WASD", "탑승 중 운반 장치 운전"),
-            new("좌·우클릭", "탑승 중 견인 빔 사용"),
-            new("Space / Ctrl", "탑승 중 상승 / 하강"),
-            new("T", "그 자리에서 다시 서기"),
-            new("R", "처음부터 다시 시작"),
-            new("Tab", "태블릿 열기·닫기"),
-            new("← → / A D", "이전·다음 태블릿 페이지"),
-            new("Esc", "커서 잠금 풀기"),
-        };
 
         public void Initialize(Stage1Exploration state, Renderer screenRenderer)
         {
@@ -226,11 +182,10 @@ namespace Metagame.UI
             var page = Mathf.Clamp(exploration.TabletPage, 0, Stage1Exploration.TabletPageCount - 1);
             var nextTitle = PageTitle(page);
             var showingParts = page == 0;
-            var nextBody = showingParts ? string.Empty : HelpText(page);
-            var dots = new StringBuilder();
-            for (var i = 0; i < Stage1Exploration.TabletPageCount; i++)
-                dots.Append(i == page ? "●" : "○").Append(' ');
-            var nextFooter = dots + "     A / D · ← / →  페이지 이동     Tab  닫기";
+            // 본문 라벨(body)은 늘 꺼 둔다 — 안내는 카드로 그린다. 예전에는 여기서
+            // 안내 문구를 또 한 벌 만들어 넣었는데, 화면에 나온 적이 한 번도 없다.
+            var nextFooter = TabletHelpContent.PageDots(false, page)
+                             + "    A / D · ← / →  페이지 이동     Tab  닫기";
 
             partsRoot.SetActive(showingParts);
             helpRoot.SetActive(!showingParts);
@@ -241,7 +196,6 @@ namespace Metagame.UI
             RefreshNavigation(page);
 
             if (force || nextTitle != lastTitle) title.text = lastTitle = nextTitle;
-            if (force || nextBody != lastBody) body.text = lastBody = nextBody;
             if (force || nextFooter != lastFooter) footer.text = lastFooter = nextFooter;
         }
 
@@ -551,13 +505,7 @@ namespace Metagame.UI
         void RefreshHelp(int page)
         {
             foreach (var dot in discoveryDots) dot.gameObject.SetActive(false);
-            var entries = page switch
-            {
-                1 => MovementHelp,
-                2 => InteractionHelp,
-                3 => TransportHelp,
-                _ => MovementHelp,
-            };
+            var entries = TabletHelpContent.Page(page);
             var rows = Mathf.CeilToInt(entries.Length / 2f);
             const float columnGap = 0.02f;
             const float rowGap = 0.035f;
@@ -599,28 +547,7 @@ namespace Metagame.UI
             }
         }
 
-        static string HelpText(int page)
-        {
-            return page switch
-            {
-                1 => "WASD          카메라 기준 이동\n\nShift             달리기\n\nSpace           점프\n\n마우스          1인칭 시점·정면\n\nAlt                현재 카메라 기준으로 자유 시점",
-                2 => "좌·우클릭     고정쇠에 손 결합 / 도구 사용\n\nCtrl               팔 올리기\n\nW + 잡기       레일·케이블 오르기\n\nQ 짧게          장비 내려놓기\n\nQ 길게          바라보는 방향으로 장비 던지기",
-                3 => "E                  장비 줍기·교환 / 탑승·구조\n\nWASD          운반 장치 운전\n\nSpace / Ctrl  상승 / 하강\n\nT                  그 자리에서 다시 서기\n\nR                  리스폰 지역에서 부활",
-                _ => string.Empty,
-            };
-        }
-
-        static string PageTitle(int page)
-        {
-            return page switch
-            {
-                0 => "탐사 태블릿 · 파츠 상태",
-                1 => "조작 안내 · 이동과 시점",
-                2 => "조작 안내 · 손과 도구",
-                3 => "조작 안내 · 운반과 복구",
-                _ => "탐사 태블릿",
-            };
-        }
+        static string PageTitle(int page) => TabletHelpContent.PageTitle(page);
 
         static GameObject Panel(Transform parent, string name, Color color,
                                 Vector2 anchorMin, Vector2 anchorMax,

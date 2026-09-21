@@ -12,12 +12,13 @@ namespace Metagame.UI
 
         void InitializeKeyGuides()
         {
-            KeyGuides.Register("tablet", "태블릿", () => Controls.Tablet, () =>
-                IsKeyGuideOwner && GameSession.Instance.CanToggleTablet
-                && (GameSession.Instance.Exploration.Guide.Completed
-                    || !GameSession.Instance.Exploration.Guide.Enabled
-                    || GameSession.Instance.Exploration.TabletOpen));
-            KeyGuides.Register("throw", "던지기", () => Controls.ToolAction, CanShowThrowGuide);
+            // **항상 보인다** (S15P21B202-657). 예전에는 안내를 끝낸 뒤에만 띄웠는데,
+            // 태블릿은 진행도를 다시 볼 유일한 길이라 늘 보여야 한다.
+            KeyGuides.Register("tablet", "태블릿", () => Controls.Tablet,
+                () => IsKeyGuideOwner && GameSession.Instance.CanToggleTablet);
+            // "던지기" 만 적혀 있어 **버리는 방법인 줄 몰랐다.** 짧게 누르면 버리기,
+            // 길게 누르면 던지기라 둘 다 적는다.
+            KeyGuides.Register("throw", "버리기 · 길게 던지기", () => Controls.ToolAction, CanShowThrowGuide);
         }
 
         bool IsKeyGuideOwner => Local != null && GameSession.Instance != null
