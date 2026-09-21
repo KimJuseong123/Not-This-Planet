@@ -40,13 +40,15 @@ JOB_NAME = "unity-compile"
 #: 이 중 하나라도 바뀌면 결과가 달라질 수 있다.
 #:
 #: `METAGAME/` 셋은 Unity 가 읽는 것이고(`.gitlab-ci.yml` 의 `changes:` 게이트와 같은
-#: 범위다 — `-420`), 나머지 둘은 **검사하는 쪽**이다: 잡 정의가 바뀌면 무엇을 어떻게
-#: 돌리는지가 달라지고, 판정 스크립트가 바뀌면 같은 결과에서 다른 판정이 나온다.
+#: 범위다 — `-420`). 나머지는 에셋 복원과 검사 설정이다: LFS 속성이 바뀌면
+#: 임포트할 파일이 달라지고, 잡 정의와 검사 스크립트가 바뀌면 판정이 달라진다.
 INPUTS = (
     "METAGAME/Assets",
     "METAGAME/Packages",
     "METAGAME/ProjectSettings",
     ".gitlab-ci.yml",
+    ".gitattributes",
+    "scripts/ci/validate_unity_lfs.py",
     "scripts/ci/unity_report.py",
 )
 
