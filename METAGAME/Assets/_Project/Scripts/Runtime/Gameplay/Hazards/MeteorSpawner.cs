@@ -900,9 +900,15 @@ namespace Metagame.Gameplay.Hazards
         // 2026-09-10 QA 신고가 그것이다: "호스트 화면에서 운석이 보이는데 나는 안 보여.
         // 그런데 보이지만 않고 상호작용은 돼."
         //
-        // 낙하 그림과 같은 방식이다(ApplyNetworkMeteors) — 판정에 관여하지 않는 그림만
-        // 만들고 Meteor 컴포넌트와 충돌러를 끈다. 다른 점은 **번호로 짝을 짓는다는
-        // 것**뿐이다. 사람이 집어 옮기므로 어느 돌인지가 중요하다.
+        // 낙하 그림과 마찬가지로 **판정은 하지 않는다** — Meteor 컴포넌트를 끈다.
+        // 다른 점이 둘이다.
+        //
+        //  · **번호로 짝을 짓는다.** 사람이 집어 옮기므로 어느 돌인지가 중요하다.
+        //  · **콜라이더는 켜 둔다**(S15P21B202-658). 예전에는 낙하 그림처럼 콜라이더까지
+        //    껐는데, 그러면 참가자가 착지한 돌을 **몸으로 통과**한다 — 호스트에게는
+        //    막힌 벽이고, 피해는 호스트가 주므로 **안 부딪혔는데 체력만 깎였다.**
+        //    판정을 막는 데 필요한 것은 Meteor 컴포넌트를 끄는 것 하나이고,
+        //    콜라이더는 막는 일만 할 뿐 아무것도 판정하지 않는다(`-654` Q7).
 
         /// <summary>
         /// 착지한 흔적 하나의 자세. <b>속도를 싣지 않는다</b> — 쉬는 돌은 속도가 0이고,
@@ -942,6 +948,18 @@ namespace Metagame.Gameplay.Hazards
             public Vector3 Position;
             public Quaternion Rotation;
             public float Time;
+
+            /// <summary>
+            /// 다음 묶음까지 이어서 밟을 속도 (S15P21B202-658).
+            ///
+            /// <para><b>왜 강체에 넣지 않고 여기 두나.</b> 흔적 그림은 이제
+            /// <b>키네마틱</b>이다(콜라이더를 켜면서 그렇게 바꿨다 — 아니면 참가자가
+            /// 돌을 밀어 버린다). 키네마틱 강체는 <c>linearVelocity</c> 를 무시하므로
+            /// 예전처럼 속도를 넣어 두면 <b>돌이 아예 안 움직인다</b>.
+            /// <see cref="AdvanceScarGhosts"/> 가 이 값으로 직접 밟는다.</para>
+            /// </summary>
+            public Vector3 Linear;
+            public Vector3 Angular;
         }
 
         /// <summary>
@@ -1009,7 +1027,9 @@ namespace Metagame.Gameplay.Hazards
                 if (!_scarGhosts.TryGetValue(state.Id, out var ghost))
                 {
                     if (!full) continue;
-                    ghost = CreateGhost();
+                    // **막히는 돌로 만든다** (S15P21B202-658). 낙하 그림과 다른 유일한 곳이다 —
+                    // 참가자가 착지한 돌을 몸으로 통과하던 것이 여기서 갈렸다.
+                    ghost = CreateGhost(solid: true);
                     ghost.name = "Meteor(원격 흔적)";
                     _scarGhosts[state.Id] = ghost;
                 }
@@ -1024,35 +1044,39 @@ namespace Metagame.Gameplay.Hazards
                 var body = ghost.Body;
                 if (body != null)
                 {
+                    // **방어선** (S15P21B202-658, `WorldSync.FollowOnClient` 과 같은 이유).
+                    // 만들 때 키네마틱으로 세우지만 게임플레이 코드가 나중에 풀 수 있고,
+                    // 풀린 채로 두면 참가자가 돌을 밀어 서버 자세와 다투게 된다.
+                    if (!body.isKinematic || body.interpolation != RigidbodyInterpolation.Interpolate)
+                        PrepareSolidGhostBody(body);
+
                     body.position = state.Position;
                     body.rotation = state.Rotation;
-
-                    // **쉬는 돌은 떨어지지 않아야 한다.** 낙하 그림은 중력으로 궤적을
-                    // 흉내내지만 흔적은 땅에 박혀 있다 — 충돌러가 꺼져 있으므로 중력을
-                    // 그대로 두면 지면을 뚫고 영영 내려간다.
-                    body.useGravity = false;
 
                     // **움직임 묶음은 속도를 준다** (S15P21B202-434).
                     //
                     // 전체 목록은 권위이므로 그 자리에 세운다(속도 0). 움직임 묶음은
                     // 30Hz 로 오는데 화면은 120fps 라, 속도를 0 으로 두면 33ms 동안
                     // 멈춰 있다가 순간이동해 굴러가는 돌이 뚝뚝 끊긴다.
-                    if (full) SetScarAtRest(body, state);
-                    else DeadReckonScar(body, state);
+                    //
+                    // 그 속도는 이제 **강체가 아니라 기록에** 넣고
+                    // <see cref="AdvanceScarGhosts"/> 가 밟는다 — 키네마틱 강체는
+                    // <c>linearVelocity</c> 를 무시하므로 넣어 봐야 돌이 안 움직인다
+                    // (S15P21B202-658).
+                    if (full) SetScarAtRest(state);
+                    else DeadReckonScar(state);
                     continue;
                 }
 
                 ghost.transform.SetPositionAndRotation(state.Position, state.Rotation);
-                RememberScarMotion(state);
+                RememberScarMotion(state, Vector3.zero, Vector3.zero);
             }
         }
 
         /// <summary>전체 목록이 말하는 자리에 세운다. 그 목록이 권위다.</summary>
-        void SetScarAtRest(Rigidbody body, NetworkScarState state)
+        void SetScarAtRest(NetworkScarState state)
         {
-            body.linearVelocity = Vector3.zero;
-            body.angularVelocity = Vector3.zero;
-            RememberScarMotion(state);
+            RememberScarMotion(state, Vector3.zero, Vector3.zero);
         }
 
         /// <summary>
@@ -1069,40 +1093,32 @@ namespace Metagame.Gameplay.Hazards
         /// 2초 낡은 자세에서 출발하고, 묶음이 유실되면 간격이 벌어진다. 그때 계산된
         /// 속도는 보간이 아니라 순간이동이므로 자리만 찍고 다음 묶음을 기다린다.</para>
         /// </summary>
-        void DeadReckonScar(Rigidbody body, NetworkScarState state)
+        void DeadReckonScar(NetworkScarState state)
         {
             float now = Time.time;
 
             if (!_scarMotion.TryGetValue(state.Id, out var last))
             {
                 // 처음 받는 것 — 비빌 자세가 없다. 세워 두고 다음 묶음부터 잇는다.
-                body.linearVelocity = Vector3.zero;
-                body.angularVelocity = Vector3.zero;
-                RememberScarMotion(state);
+                RememberScarMotion(state, Vector3.zero, Vector3.zero);
                 return;
             }
 
             float dt = now - last.Time;
             if (dt < ScarInterpolationMinInterval || dt > ScarInterpolationMaxInterval)
             {
-                body.linearVelocity = Vector3.zero;
-                body.angularVelocity = Vector3.zero;
-                RememberScarMotion(state);
+                RememberScarMotion(state, Vector3.zero, Vector3.zero);
                 return;
             }
 
             Vector3 linear = (state.Position - last.Position) / dt;
             if (linear.magnitude > ScarInterpolationSpeedLimit)
             {
-                body.linearVelocity = Vector3.zero;
-                body.angularVelocity = Vector3.zero;
-                RememberScarMotion(state);
+                RememberScarMotion(state, Vector3.zero, Vector3.zero);
                 return;
             }
 
-            body.linearVelocity = linear;
-            body.angularVelocity = AngularFrom(last.Rotation, state.Rotation, dt);
-            RememberScarMotion(state);
+            RememberScarMotion(state, linear, AngularFrom(last.Rotation, state.Rotation, dt));
         }
 
         /// <summary>
@@ -1124,14 +1140,16 @@ namespace Metagame.Gameplay.Hazards
             return axis.normalized * (degrees * Mathf.Deg2Rad / dt);
         }
 
-        /// <summary>다음 묶음이 비빌 기준을 남긴다.</summary>
-        void RememberScarMotion(NetworkScarState state)
+        /// <summary>다음 묶음이 비빌 기준과, 그까지 밟을 속도를 남긴다.</summary>
+        void RememberScarMotion(NetworkScarState state, Vector3 linear, Vector3 angular)
         {
             _scarMotion[state.Id] = new ScarMotion
             {
                 Position = state.Position,
                 Rotation = state.Rotation,
                 Time = Time.time,
+                Linear = linear,
+                Angular = angular,
             };
         }
 
@@ -1152,15 +1170,34 @@ namespace Metagame.Gameplay.Hazards
         }
 
         /// <summary>
-        /// 판정에 관여하지 않는 낙하 그림 하나. <see cref="_live"/> 에는 넣지 않는다 —
+        /// <b>판정에 관여하지 않는</b> 그림 하나. <see cref="_live"/> 에는 넣지 않는다 —
         /// 그 목록은 권위 쪽의 것이고 <see cref="AdvanceLive"/> 가 틱한다.
+        ///
+        /// <para>판정을 막는 것은 <c>ghost.enabled = false</c> 한 줄이다. 그래서
+        /// <paramref name="solid"/> 로 <b>막히는 돌</b>을 만들어도 착탄·피해를 이 기계가
+        /// 스스로 판단하는 일은 없다(S15P21B202-658).</para>
         ///
         /// <para>낙하 꼬리는 그대로 나온다. <c>Meteor.Awake</c> 가 <c>EnsureTrail</c> 로
         /// 만들고 방출을 끄는 곳은 착탄 처리(<c>StopTrail</c>)뿐이라, 컴포넌트를 꺼도 이미
         /// 만들어진 <c>TrailRenderer</c> 는 계속 그린다 — 하늘에서 뭔가 떨어지는 것이
         /// 보이는 데 이 꼬리가 큰 몫을 한다.</para>
         /// </summary>
-        Meteor CreateGhost()
+        /// <param name="solid">
+        /// 참가자의 몸을 <b>막는</b> 돌인가 (S15P21B202-658).
+        ///
+        /// <para><b>왜 갈랐나.</b> 예전에는 "판정에 관여하지 않는다" 를 <b>콜라이더까지
+        /// 끄는 것</b>으로 구현했다. 그런데 판정을 끄는 데 필요한 것은 <see cref="Meteor"/>
+        /// 컴포넌트를 끄는 것 하나다 — 콜라이더는 <b>막는</b> 일만 하고 아무것도 판정하지
+        /// 않는다. 그래서 참가자는 착지한 돌을 <b>몸으로 통과</b>했고, 피해는 호스트가
+        /// 주므로 <b>안 부딪혔는데 체력만 깎였다</b>. 기획 확인 결과 의도가 아니었다
+        /// (`-654` Q7).</para>
+        ///
+        /// <para><b>착지한 흔적에만 켠다.</b> 흔적은 멈춰 있어 참가자 화면의 자리가
+        /// 서버와 같다. 낙하 중인 돌은 ~166ms(≈1.6m) 낡은 자리에 있어서, 막기 시작하면
+        /// "호스트에는 안 맞았는데 참가자만 막히는" 새 어긋남이 생긴다 — 그쪽은 실제
+        /// 플레이로 확인한 뒤 정한다.</para>
+        /// </param>
+        Meteor CreateGhost(bool solid = false)
         {
             EnsureConfiguration();
 
@@ -1172,21 +1209,107 @@ namespace Metagame.Gameplay.Hazards
             ghost.name = "Meteor(원격 그림)";
 
             // 끄는 것이 핵심이다. 꺼진 컴포넌트에는 충돌 통보도 틱도 오지 않는다.
+            // **이 한 줄이 판정을 막는다** — 아래에서 콜라이더를 켜도 그대로다.
             ghost.enabled = false;
 
-            foreach (var collider in ghost.GetComponentsInChildren<Collider>(true))
-                collider.enabled = false;
-
             var body = ghost.GetComponent<Rigidbody>();
-            if (body != null)
+
+            if (!solid)
             {
-                body.detectCollisions = false;
-                body.isKinematic = false;
-                body.useGravity = true;
-                body.interpolation = RigidbodyInterpolation.Interpolate;
+                foreach (var collider in ghost.GetComponentsInChildren<Collider>(true))
+                    collider.enabled = false;
+
+                if (body != null)
+                {
+                    body.detectCollisions = false;
+                    body.isKinematic = false;
+                    body.useGravity = true;
+                    body.interpolation = RigidbodyInterpolation.Interpolate;
+                }
+
+                return ghost;
             }
 
+            // **레이어를 옮긴다** (S15P21B202-658). 호스트에서는 <c>Meteor.Settle</c> 이
+            // 착지한 돌을 <see cref="GameLayers.Prop"/> 으로 옮기는데(`Meteor.cs:538`),
+            // 그림은 <see cref="Meteor"/> 컴포넌트가 꺼져 있어 <b>그 줄을 절대 지나지
+            // 않는다</b>. 콜라이더만 켜고 레이어를 두면 방망이 타격 범위
+            // (<see cref="GameLayers.BatStrikeMask"/> 는 Meteor 를 빼고 Prop 은 넣는다)와
+            // 상호작용이 호스트와 다르게 잡힌다.
+            SetLayerDeep(ghost.gameObject, GameLayers.Prop);
+
+            if (body != null) PrepareSolidGhostBody(body);
             return ghost;
+        }
+
+        /// <summary>
+        /// 막히는 그림의 강체를 "받은 자세만 따라가는" 상태로 세운다 (S15P21B202-658).
+        ///
+        /// <para><see cref="Network"/> 쪽 <c>WorldSync.PrepareClientBody</c> 와 같은 모양이다 —
+        /// 참가자 화면의 부품이 이미 이렇게 서 있고, 그래서 참가자 몸이 부품에는 막힌다.
+        /// 운석만 다른 방식이었던 것이 `-654` Q7 의 원인이다.</para>
+        ///
+        /// <para><b>키네마틱이어야 한다.</b> 콜라이더를 켜면서 동적 강체로 두면 참가자가
+        /// 돌을 <b>밀어 버리고</b>, 다음 묶음이 자리를 되돌려 덜덜 떨린다. 키네마틱 강체는
+        /// 남을 밀되 남에게 밀리지 않는다 — 호스트의 돌과 같은 성질이다.</para>
+        ///
+        /// <para><b>중력은 끈다.</b> 키네마틱에는 애초에 안 걸리지만, 게임플레이 코드가
+        /// 강체를 되돌렸을 때 그림이 지면을 뚫고 내려가지 않게 함께 꺼 둔다.</para>
+        /// </summary>
+        static void PrepareSolidGhostBody(Rigidbody body)
+        {
+            body.detectCollisions = true;
+            body.isKinematic = true;
+            body.useGravity = false;
+            body.interpolation = RigidbodyInterpolation.Interpolate;
+        }
+
+        /// <summary>깊이 우선으로 레이어를 바꾼다. <c>Meteor.SetLayerDeep</c> 과 같다.</summary>
+        static void SetLayerDeep(GameObject go, int layer)
+        {
+            go.layer = layer;
+            for (int i = 0; i < go.transform.childCount; i++)
+                SetLayerDeep(go.transform.GetChild(i).gameObject, layer);
+        }
+
+        /// <summary>
+        /// 흔적 그림을 다음 묶음까지 이어서 밟는다 (S15P21B202-658).
+        ///
+        /// <para><b>왜 필요해졌나.</b> 예전에는 강체에 속도를 넣어 두면 물리가 적분해
+        /// 주었다. 콜라이더를 켜면서 키네마틱으로 바꿨는데, 키네마틱 강체는
+        /// <c>linearVelocity</c> 를 <b>무시한다</b> — 그대로 두면 굴러가는 돌이 묶음과
+        /// 묶음 사이에 멈춰 `-434` 가 고친 "뚝뚝 끊김" 이 그대로 돌아온다.</para>
+        ///
+        /// <para><b>참가자에서만 부른다.</b> 호스트에는 그림이 없다
+        /// (<see cref="_scarGhosts"/> 가 비어 있다). <c>MeteorClockBridge</c> 의 참가자
+        /// 갈래가 물리 스텝마다 부른다 — <c>AgeNetworkPending</c> 과 같은 자리다.</para>
+        ///
+        /// <para><b><c>MovePosition</c> 을 쓴다.</b> 키네마틱 강체에 자리를 직접 대입하면
+        /// 순간이동으로 취급되어 그 스텝의 보간이 건너뛰어진다 — 보간을 켠 의미가 없어진다
+        /// (<c>WorldSync.FollowOnClient</c> 의 같은 주석).</para>
+        /// </summary>
+        public void AdvanceScarGhosts(float deltaTime)
+        {
+            if (deltaTime <= 0f || _scarGhosts.Count == 0) return;
+
+            foreach (var pair in _scarGhosts)
+            {
+                var ghost = pair.Value;
+                if (ghost == null) continue;
+
+                var body = ghost.Body;
+                if (body == null) continue;
+
+                if (!_scarMotion.TryGetValue(pair.Key, out var motion)) continue;
+                if (motion.Linear == Vector3.zero && motion.Angular == Vector3.zero) continue;
+
+                body.MovePosition(body.position + motion.Linear * deltaTime);
+
+                float radians = motion.Angular.magnitude * deltaTime;
+                if (radians > 1e-6f)
+                    body.MoveRotation(Quaternion.AngleAxis(radians * Mathf.Rad2Deg,
+                                                           motion.Angular.normalized) * body.rotation);
+            }
         }
 
 

@@ -32,28 +32,36 @@ namespace Metagame.Gameplay.Tests
                 TestSource.Read(Spawner),
                 "public void ApplyNetworkScars(");
 
-            Assert.That(scope, Does.Contain("if (full) SetScarAtRest(body, state);"),
+            Assert.That(scope, Does.Contain("if (full) SetScarAtRest(state);"),
                 "전체 목록과 움직임 묶음을 가르지 않는다 — 둘을 같게 다루면 굴러가는 돌이 끊긴다");
-            Assert.That(scope, Does.Contain("else DeadReckonScar(body, state);"),
+            Assert.That(scope, Does.Contain("else DeadReckonScar(state);"),
                 "움직임 묶음이 속도를 주지 않는다");
 
             // 자리는 여전히 받은 값으로 찍는다(권위). 속도는 그 사이를 채우는 것뿐이다.
             Assert.That(scope, Does.Contain("body.position = state.Position"),
                 "자리를 받은 값으로 찍지 않는다 — 오차가 누적된다");
 
-            // 충돌러가 꺼져 있으므로 중력을 켜면 지면을 뚫고 내려간다.
-            Assert.That(scope, Does.Contain("body.useGravity = false"),
-                "중력을 끄지 않는다 — 충돌러가 없어 그림이 지면을 뚫는다");
+            // **속도를 강체에 넣지 않는다** (S15P21B202-658). 흔적 그림은 콜라이더를
+            // 켜면서 키네마틱이 됐고, 키네마틱 강체는 `linearVelocity` 를 무시한다 —
+            // 예전처럼 넣어 두면 굴러가는 돌이 묶음 사이에 **멈춘다**. 이 이슈가 고친
+            // 증상이 그대로 돌아오는 길이다.
+            Assert.That(scope, Does.Not.Contain("body.linearVelocity"),
+                "키네마틱 강체에 속도를 넣는다 — 무시되어 돌이 묶음 사이에 멈춘다");
+            Assert.That(scope, Does.Not.Contain("body.angularVelocity"),
+                "키네마틱 강체에 각속도를 넣는다 — 무시되어 돌이 안 구른다");
         }
 
         [Test]
         public void RestingScarsGetNoVelocity()
         {
             // 쉬는 돌에 속도가 남으면 땅에 박힌 것이 흘러간다.
+            //
+            // 속도가 사는 곳이 강체에서 **기록**으로 옮겨졌다(S15P21B202-658) — 뜻은
+            // 그대로다: 전체 목록이 말한 자리에 세우고 다음 묶음까지 아무 데도 안 간다.
             var scope = TestSource.Method(TestSource.Read(Spawner), "void SetScarAtRest(");
 
-            Assert.That(scope, Does.Contain("body.linearVelocity = Vector3.zero"));
-            Assert.That(scope, Does.Contain("body.angularVelocity = Vector3.zero"));
+            Assert.That(scope, Does.Contain("RememberScarMotion(state, Vector3.zero, Vector3.zero)"),
+                "쉬는 돌에 0 이 아닌 속도가 남는다 — 땅에 박힌 것이 흘러간다");
         }
 
         [Test]
