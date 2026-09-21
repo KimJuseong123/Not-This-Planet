@@ -65,24 +65,44 @@ namespace Metagame.Gameplay.Tests
         // --- 끙끙 끌린다: 미는 동안 사람이 느려진다 ------------------------------------
 
         [Test]
-        public void PushingAPartSlowsTheWalkerDownToThePartsPace()
+        public void ThePusherKeepsUpWithThePartAtEveryCrewSize()
         {
-            // 파츠는 1명일 때 0.6m/s 다(기획 §13.2). 사람이 2.9m/s 로 걸으면
-            // **파츠를 두고 앞서 간다** — 그것이 "잘 안 밀린다" 의 정체였다.
-            var walk = Tuning.WalkSpeed * PhysicsScale.PartPushSpeedScale;
-            Assert.That(walk, Is.GreaterThan(PartPushTable.SpeedFor(1)),
-                $"미는 사람이 {walk:0.00}m/s 라 1인이 미는 파츠(0.6m/s)를 못 따라간다.");
-            Assert.That(walk, Is.LessThan(PartPushTable.SpeedFor(4)),
-                "혼자가 넷이 미는 속도만큼 빠르면 협동할 이유가 없다.");
+            // 파츠는 1명 0.6 · 4명 1.5m/s 다(기획 §13.2). 사람이 2.9m/s 로 걸으면
+            // **파츠를 두고 앞서 가고**, 반대로 고정 배율로 눌러 버리면 넷이 밀 때
+            // **전원이 뒤처져 접촉이 끊긴다.** 그래서 파츠 속도를 따라간다.
+            for (var people = 1; people <= 4; people++)
+            {
+                var part = PartPushTable.SpeedFor(people);
+                var walker = part * PhysicsScale.PartPushKeepUpMargin;
+                Assert.That(walker, Is.GreaterThan(part),
+                    $"{people}명일 때 미는 사람이 파츠({part:0.00})보다 느리다 — 접촉이 끊긴다.");
+                Assert.That(walker, Is.LessThan(part * 1.4f),
+                    $"{people}명일 때 미는 사람이 너무 앞선다 — 끙끙 끄는 느낌이 사라진다.");
+            }
         }
 
         [Test]
         public void RunningWhilePushingIsNotAShortcut()
         {
-            // 달리기로 상한을 넘겨 버리면 미는 감각이 사라진다.
-            var run = Tuning.RunSpeed * PhysicsScale.PartPushSpeedScale;
-            Assert.That(run, Is.LessThan(PartPushTable.SpeedFor(4) * 1.05f),
-                $"뛰면서 밀면 {run:0.00}m/s 다 — 네 명이 미는 것보다 빠르면 안 된다.");
+            // 상한이라 달리기로 넘길 수 없다. 넘기면 미는 감각이 사라진다.
+            var cap = PartPushTable.SpeedFor(1) * PhysicsScale.PartPushKeepUpMargin;
+            Assert.That(cap, Is.LessThan(Tuning.RunSpeed),
+                "뛰는 속도보다 상한이 높으면 상한이 아무 일도 안 한다.");
+            Assert.That(cap, Is.LessThan(Tuning.WalkSpeed),
+                "걷는 속도보다 상한이 높으면 혼자 밀 때 느려지지 않는다.");
+        }
+
+        [Test]
+        public void TheSpeedCapFollowsHowManyArePushing()
+        {
+            var player = PlayerRig.Create("속도", Vector3.zero, Quaternion.identity,
+                                          Color.white, Color.gray, false);
+            _spawned.Add(player.gameObject);
+
+            // 참가자 화면에는 인원수가 안 온다 — 1인 값을 바닥으로 쓴다.
+            player.SetHaulState(true, Vector3.right, Vector3.zero);
+            Assert.That(player.HaulTopSpeed, Is.EqualTo(PartPushTable.SpeedFor(1)).Within(0.001f),
+                "인원수를 모를 때 바닥값이 1인 속도가 아니다.");
         }
 
         [Test]

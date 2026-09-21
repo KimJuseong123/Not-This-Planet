@@ -469,6 +469,15 @@ namespace Metagame.Gameplay
         /// <summary>미는 방향(수평 단위). 밀고 있지 않으면 0 이다.</summary>
         public Vector3 HaulDirection { get; private set; }
 
+        /// <summary>
+        /// 지금 미는 파츠가 낼 수 있는 속도(m/s) (S15P21B202-667). 미는 사람은 여기에
+        /// 맞춰 걷는다 — <b>고정 배율로 하면 넷이 밀 때 전원이 뒤처진다</b>(파츠는
+        /// 1.5m/s 인데 사람은 0.73m/s 라 접촉이 끊긴다).
+        ///
+        /// <para>참가자 화면에서는 인원수가 안 오므로 1인 값을 바닥으로 쓴다.</para>
+        /// </summary>
+        public float HaulTopSpeed { get; private set; }
+
         /// <summary>파츠 표면에서 이 사람이 잡거나 짚은 지점(월드).</summary>
         public Vector3 HaulGrasp { get; private set; }
 
@@ -478,7 +487,9 @@ namespace Metagame.Gameplay
         /// </summary>
         public void SetHaulState(bool hauling, Vector3 direction, Vector3 grasp)
         {
-            ApplyHaulState(hauling, direction, grasp);
+            // 참가자 화면에는 인원수가 안 온다. 1인 값을 바닥으로 쓴다 — 넷이 밀면
+            // 서버가 파츠를 더 빨리 보내므로 몸이 따라가고, 그 사이 접촉은 유지된다.
+            ApplyHaulState(hauling, direction, grasp, Parts.PartPushTable.SpeedFor(1));
         }
 
         // 밀기 중 이동 기준. **시점이 아니라 밀기를 시작한 방향이다** — §10.2
@@ -494,8 +505,9 @@ namespace Metagame.Gameplay
         /// <summary>밀기 중 이동·조작의 기준 방향(도). 밀고 있지 않으면 의미가 없다.</summary>
         public float HaulBasisYaw => haulBasisYaw;
 
-        void ApplyHaulState(bool hauling, Vector3 direction, Vector3 grasp)
+        void ApplyHaulState(bool hauling, Vector3 direction, Vector3 grasp, float topSpeed)
         {
+            HaulTopSpeed = topSpeed > 0f ? topSpeed : Parts.PartPushTable.SpeedFor(1);
             var flat = new Vector3(direction.x, 0f, direction.z);
 
             Hauling = hauling && flat.sqrMagnitude > 1e-6f;
@@ -557,11 +569,12 @@ namespace Metagame.Gameplay
             var push = Parts.PartPush.MovingPartFor(this);
             if (push == null)
             {
-                ApplyHaulState(false, Vector3.zero, Vector3.zero);
+                ApplyHaulState(false, Vector3.zero, Vector3.zero, 0f);
                 return;
             }
 
-            ApplyHaulState(true, push.HaulDirection, push.GraspPointFor(this));
+            ApplyHaulState(true, push.HaulDirection, push.GraspPointFor(this),
+                           Parts.PartPushTable.SpeedFor(push.HaulerCount));
         }
         /// <summary>공중에서 자세제어 분사기를 쓰고 있는가 (HUD·연기 표시용).</summary>
         public bool Thrusting { get; private set; }
@@ -865,6 +878,9 @@ namespace Metagame.Gameplay
         /// <see cref="RefreshAnchoredPartCollision"/> 참고.
         /// </summary>
         readonly List<CollisionPair> anchoredPartCollisionPairs = new List<CollisionPair>(24);
+
+        /// <summary>무시 쌍을 이미 지었는가. 매 틱 다시 만들지 않으려고 둔다.</summary>
+        bool anchoredPartsBuilt;
         readonly RaycastHit[] rayHits = new RaycastHit[8];
         readonly Collider[] interactionCandidates = new Collider[32];
         readonly RaycastHit[] clampHits = new RaycastHit[ClampHitBufferSize];
@@ -3115,7 +3131,11 @@ namespace Metagame.Gameplay
             // 파츠를 미는 동안 느려진다 (S15P21B202-667). 이것이 없으면 파츠는 0.6m/s 로
             // 제한되는데 사람은 2.9m/s 로 걸어 **두고 앞서 간다** — 손으로 잡아도
             // Hand.BraceTo 는 조인트를 만들지 않아 붙잡아 주지 않는다.
-            if (Hauling) top *= PhysicsScale.PartPushSpeedScale;
+            // 파츠를 미는 동안 느려진다 (S15P21B202-667). **파츠가 낼 수 있는 속도에
+            // 맞춘다** — 고정 배율이면 넷이 밀 때(1.5m/s) 전원이 뒤처져 접촉이 끊긴다.
+            // 여유를 조금 둬야 따라붙으면서 밀 수 있다.
+            if (Hauling)
+                top = Mathf.Min(top, HaulTopSpeed * PhysicsScale.PartPushKeepUpMargin);
             // 엎드리면 기어간다. 다른 감속과 곱하지 않고 **상한으로** 둔다 —
             // 곱하면 달리기 키를 누른 채 기어가는 것이 더 빨라진다.
             if (Prone) top = Mathf.Min(top, CrawlSpeed);
@@ -4338,9 +4358,28 @@ namespace Metagame.Gameplay
             if (!ClampGrabbed)
             {
                 if (anchoredPartCollisionPairs.Count > 0) ClearAnchoredPartCollision();
+                anchoredPartsBuilt = false;
                 return;
             }
             if (Doll == null) return;
+
+            // **더 이상 밀 수 없게 된 것은 즉시 되돌린다.** 잡고 있는 사이에 그 파츠가
+            // Placed/Welded 로 넘어가면(남이 조립하면) 무시가 남아 **조립된 우주선
+            // 안으로 걸어 들어갈 수 있다** — 이 함수가 막겠다고 한 바로 그것이다.
+            for (int i = anchoredPartCollisionPairs.Count - 1; i >= 0; i--)
+            {
+                var pair = anchoredPartCollisionPairs[i];
+                if (pair.Player != null && pair.Held != null && StillPushable(pair.Held)) continue;
+                if (pair.Player != null && pair.Held != null)
+                    Physics.IgnoreCollision(pair.Player, pair.Held, false);
+                anchoredPartCollisionPairs.RemoveAt(i);
+            }
+
+            // **매 틱 다시 만들지 않는다.** 예전에는 잡고 있는 내내 파츠마다
+            // GetComponentsInChildren 을 돌려 배열을 새로 할당했다. 잡기 시작한
+            // 프레임에 한 번만 짓고, 위의 해제만 매 틱 본다.
+            if (anchoredPartsBuilt) return;
+            anchoredPartsBuilt = true;
 
             var parts = Parts.PartPush.All;
             for (int p = 0; p < parts.Count; p++)
@@ -4368,6 +4407,13 @@ namespace Metagame.Gameplay
             }
         }
 
+        /// <summary>그 콜라이더가 아직 밀 수 있는 파츠의 것인가.</summary>
+        static bool StillPushable(Collider collider)
+        {
+            var push = collider.GetComponentInParent<Parts.PartPush>();
+            return push != null && push.CanPush;
+        }
+
         /// <summary>고정못을 놓으면 파츠와 다시 부딪힌다.</summary>
         void ClearAnchoredPartCollision()
         {
@@ -4378,6 +4424,7 @@ namespace Metagame.Gameplay
                     Physics.IgnoreCollision(pair.Player, pair.Held, false);
             }
             anchoredPartCollisionPairs.Clear();
+            anchoredPartsBuilt = false;
         }
 
         void IgnoreHeldObjectFromOwner(Rigidbody body)

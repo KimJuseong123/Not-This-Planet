@@ -1268,19 +1268,13 @@ namespace Metagame.Gameplay
         public const float PartPushForeignSpeedFactor = 1.5f;
 
         /// <summary>
-        /// 파츠를 미는 동안의 이동 속도 배율 (S15P21B202-667).
+        /// 미는 사람이 파츠보다 얼마나 더 빨리 걸을 수 있는가 (S15P21B202-667).
         ///
-        /// <para><b>없으면 파츠를 두고 앞서 간다.</b> 파츠는 1명일 때 0.6m/s 로 제한되는데
-        /// (기획 §13.2) 미는 사람은 걸어서 <see cref="Core.Tuning.WalkSpeed"/> 2.9m/s,
-        /// 뛰면 4.6m/s 로 간다. 손으로 잡아도 <c>Hand.BraceTo</c> 는 조인트를 만들지 않아
-        /// 붙잡아 주지 않는다 — 잡고 걸으면 그냥 파츠에서 떨어진다. 그래서 "손으로 잡고
-        /// 밀면 잘 안 밀린다" 가 된다.</para>
-        ///
-        /// <para>0.25 면 걸어서 <b>0.73m/s</b> 다 — 1명이 미는 0.6 보다 조금 빨라 따라붙고,
-        /// 4명이 미는 1.5 보다 느려 협동이 여전히 이득이다. 동료 운반(0.5)보다 낮은 이유는
-        /// 파츠가 34.9kg 이 아니라 100kg 이 넘기 때문이다.</para>
+        /// <para>파츠 속도에 딱 맞추면 접촉을 유지할 여유가 없다 — 조금 앞설 수
+        /// 있어야 몸을 붙이고 민다. 1.15 면 1인 밀기(0.6)에서 0.69m/s,
+        /// 4인(1.5)에서 1.73m/s 다.</para>
         /// </summary>
-        public const float PartPushSpeedScale = 0.25f;
+        public const float PartPushKeepUpMargin = 1.15f;
 
         /// <summary>
         /// 미는 동안 파츠의 회전을 얼마나 눌러 두는가 (S15P21B202-667). 초당 남는 비율.
