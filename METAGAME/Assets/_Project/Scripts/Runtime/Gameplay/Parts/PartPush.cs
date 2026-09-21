@@ -318,7 +318,11 @@ namespace Metagame.Gameplay.Parts
                 var lowEnough = player.Doll != null && player.Doll.Hips != null
                                 && player.Doll.Hips.position.y <= _body.worldCenterOfMass.y;
 
+                // **고정못을 잡고 있으면 몸으로 미는 것이 아니다** (S15P21B202-667).
+                // 그때 몸은 파츠 강체에 묶여 밀리지 않는 벽이고, 여기서 미는 힘까지
+                // 더하면 충돌과 밀기가 겹쳐 아주 쉽게 밀려 나간다.
                 var bodyPushing = able && !holding
+                                  && !player.ClampGrabbed
                                   && lowEnough
                                   && toPart.sqrMagnitude > 1e-6f
                                   && IsTouching(player)

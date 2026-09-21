@@ -178,5 +178,53 @@ namespace Metagame.Gameplay.Tests
             Assert.That(CountsAsPushing(Tuning.RideHeight), Is.True,
                 "서서 미는 것까지 막혔다 — 문턱이 너무 높다.");
         }
+
+        // --- 고정못을 잡은 채로 몸을 비비는 것 ------------------------------------------
+
+        /// <summary>
+        /// 고정못을 잡으면 손이 <b>파츠 강체에 FixedJoint</b> 로 묶이고 박힌 파츠는
+        /// kinematic 이라, 잡은 사람은 <b>밀리지 않는 벽</b>이 된다. 그 상태로 자유
+        /// 파츠에 몸을 비비면 힘이 한쪽으로만 가서 아주 쉽게 밀려 나간다.
+        /// </summary>
+        [Test]
+        public void AnchoredByAClampYouCannotShovePartsWithYourBody()
+        {
+            var push = MakeBoxOnGround();
+            var player = MakePlayer(new Vector3(-1.4f, 0f, 0f));
+            var surface = push.transform.position.x - 1.0f;
+            var hips = new Vector3(surface - 0.22f, Tuning.RideHeight, 0f);
+            player.Teleport(hips - Vector3.up * Tuning.RideHeight, Quaternion.identity);
+            UnityEngine.Physics.SyncTransforms();
+
+            for (var i = 0; i < 40; i++) push.Tick(Step);
+            Assert.That(push.HaulerCount, Is.GreaterThan(0),
+                "빈손으로는 밀 수 있어야 비교가 뜻을 갖는다.");
+
+            // 고정못을 잡은 상태를 만든다.
+            player.ClampGrabbedForTests = true;
+            push.Tick(Step);
+            for (var i = 0; i < 80; i++) push.Tick(Step);
+            Assert.That(push.HaulerCount, Is.Zero,
+                "고정못을 잡은 채로 몸을 비비는데 밀기로 집계된다.");
+        }
+
+        [Test]
+        public void LettingGoOfTheClampMakesYouAPusherAgain()
+        {
+            var push = MakeBoxOnGround();
+            var player = MakePlayer(new Vector3(-1.4f, 0f, 0f));
+            var surface = push.transform.position.x - 1.0f;
+            player.Teleport(new Vector3(surface - 0.22f, 0f, 0f), Quaternion.identity);
+            UnityEngine.Physics.SyncTransforms();
+
+            player.ClampGrabbedForTests = true;
+            for (var i = 0; i < 40; i++) push.Tick(Step);
+            Assert.That(push.HaulerCount, Is.Zero);
+
+            player.ClampGrabbedForTests = false;
+            for (var i = 0; i < 40; i++) push.Tick(Step);
+            Assert.That(push.HaulerCount, Is.GreaterThan(0), "고정못을 놓았는데 못 민다.");
+        }
+
     }
 }

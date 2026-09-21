@@ -723,11 +723,18 @@ namespace Metagame.Gameplay
                 return focus as DownedRescue;
             }
         }
+        /// <summary>
+        /// 검증이 "고정못을 잡은 상태" 를 만들 때 쓴다 (S15P21B202-667). 조건이 손·대상·
+        /// 해제 여부까지 걸려 있어 조작 전체를 흉내내기 어렵다.
+        /// </summary>
+        public bool ClampGrabbedForTests { get; set; }
+
         /// <summary>실제로 한 손이 고정쇠에 결합된 상태.</summary>
         public bool ClampGrabbed
         {
             get
             {
+                if (ClampGrabbedForTests) return true;
                 return clampGrabbed && clampGrabHand != null && clampGrabTarget != null
                        && !clampGrabTarget.IsReleased
                        && clampGrabHand.Gripping
@@ -852,6 +859,12 @@ namespace Metagame.Gameplay
         Rigidbody ignoredHeldBodyB;
         readonly Dictionary<Rigidbody, CarriedBodyState> carriedBodies = new Dictionary<Rigidbody, CarriedBodyState>(4);
         readonly List<CollisionPair> heldObjectCollisionPairs = new List<CollisionPair>(24);
+
+        /// <summary>
+        /// 고정못을 잡고 있는 동안 파츠와 무시하는 충돌 쌍 (S15P21B202-667).
+        /// <see cref="RefreshAnchoredPartCollision"/> 참고.
+        /// </summary>
+        readonly List<CollisionPair> anchoredPartCollisionPairs = new List<CollisionPair>(24);
         readonly RaycastHit[] rayHits = new RaycastHit[8];
         readonly Collider[] interactionCandidates = new Collider[32];
         readonly RaycastHit[] clampHits = new RaycastHit[ClampHitBufferSize];
@@ -2573,6 +2586,7 @@ namespace Metagame.Gameplay
             // 파츠 밀기 상태를 먼저 갱신한다 — 아래 Locomotion 이 이 값으로 이동
             // 기준을 정하고(§10.2), 밀기 카메라도 같은 값을 본다.
             RefreshHaulState();
+            RefreshAnchoredPartCollision();
 
             if (Doll == null || Doll.Hips == null) return;
             if (!JointTools.IsFinite(Doll.Hips.position)) { return; }
@@ -4302,6 +4316,68 @@ namespace Metagame.Gameplay
             ignoredHeldBodyB = right;
             IgnoreHeldObjectFromOwner(left);
             IgnoreHeldObjectFromOwner(right);
+        }
+
+        /// <summary>
+        /// 고정못을 잡고 있는 동안에는 <b>몸으로 파츠를 밀지 못한다</b> (S15P21B202-667).
+        ///
+        /// <para>고정못을 잡으면 손이 <b>파츠 강체에 FixedJoint</b> 로 묶이고
+        /// (<c>TryAttachClampHand</c>), 박혀 있는 파츠는 kinematic 이다. 그래서 잡은
+        /// 사람은 <b>밀리지 않는 벽</b>이 된다 — 그것은 의도된 것이다(기획 §12.1 의
+        /// "발을 구르며 낑낑대는" 그림).</para>
+        ///
+        /// <para><b>문제는 그 벽이 다른 파츠에 닿을 때다.</b> 힘이 한쪽으로만 가서
+        /// 파츠는 밀리는데 사람은 안 밀린다 — 무한 질량으로 미는 셈이다. 고정못을
+        /// 잡은 채 자유 파츠에 몸을 비비면 아주 쉽게 밀려 나간다.</para>
+        ///
+        /// <para>밀 수 있는 파츠(<c>Free</c>)와만 무시한다. 박힌·놓인 파츠까지 통과시키면
+        /// 조립된 우주선 안으로 걸어 들어가게 된다.</para>
+        /// </summary>
+        void RefreshAnchoredPartCollision()
+        {
+            if (!ClampGrabbed)
+            {
+                if (anchoredPartCollisionPairs.Count > 0) ClearAnchoredPartCollision();
+                return;
+            }
+            if (Doll == null) return;
+
+            var parts = Parts.PartPush.All;
+            for (int p = 0; p < parts.Count; p++)
+            {
+                var part = parts[p];
+                if (part == null || !part.CanPush) continue;
+
+                var partColliders = part.GetComponentsInChildren<Collider>(true);
+                for (int i = 0; i < Doll.Colliders.Count; i++)
+                {
+                    var mine = Doll.Colliders[i];
+                    if (mine == null || !mine.enabled || !mine.gameObject.activeInHierarchy) continue;
+
+                    for (int k = 0; k < partColliders.Length; k++)
+                    {
+                        var theirs = partColliders[k];
+                        if (theirs == null || theirs == mine || theirs.isTrigger
+                            || !theirs.enabled || !theirs.gameObject.activeInHierarchy) continue;
+                        if (Physics.GetIgnoreCollision(mine, theirs)) continue;
+
+                        Physics.IgnoreCollision(mine, theirs, true);
+                        anchoredPartCollisionPairs.Add(new CollisionPair { Player = mine, Held = theirs });
+                    }
+                }
+            }
+        }
+
+        /// <summary>고정못을 놓으면 파츠와 다시 부딪힌다.</summary>
+        void ClearAnchoredPartCollision()
+        {
+            for (int i = anchoredPartCollisionPairs.Count - 1; i >= 0; i--)
+            {
+                var pair = anchoredPartCollisionPairs[i];
+                if (pair.Player != null && pair.Held != null)
+                    Physics.IgnoreCollision(pair.Player, pair.Held, false);
+            }
+            anchoredPartCollisionPairs.Clear();
         }
 
         void IgnoreHeldObjectFromOwner(Rigidbody body)
