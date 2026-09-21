@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using Metagame.Gameplay.Hazards;
+using Metagame.Network;
+using Mirror;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
@@ -22,6 +24,46 @@ namespace Metagame.Gameplay.Tests
     public sealed class NetworkReceivedStateTests
     {
         readonly List<GameObject> _spawned = new();
+
+        [UnityEngine.TestTools.UnityTest]
+        public System.Collections.IEnumerator MeteorFeedbackSurvivesNetworkSerialization()
+        {
+            yield return new UnityEngine.TestTools.EnterPlayMode();
+            var state = new WorldSync.ToolViewState
+            {
+                RhythmSequence = 42,
+                RhythmGrade = 3,
+                RhythmImpactPoint = new Vector3(4f, 5f, 6f),
+                RhythmCooldown = 0.2f,
+                Owner = 7,
+            };
+            var writer = new NetworkWriter();
+            writer.Write(state);
+            var received = new NetworkReader(writer.ToArraySegment()).Read<WorldSync.ToolViewState>();
+            Assert.AreEqual(state.RhythmSequence, received.RhythmSequence);
+            Assert.AreEqual(state.RhythmGrade, received.RhythmGrade);
+            Assert.AreEqual(state.RhythmImpactPoint, received.RhythmImpactPoint);
+            Assert.AreEqual(state.RhythmCooldown, received.RhythmCooldown);
+            Assert.AreEqual(state.Owner, received.Owner);
+
+            writer = new NetworkWriter();
+            var pose = new MeteorSpawner.NetworkMeteorPose
+            {
+                DeflectionGrade = 3, Harmless = true, Position = Vector3.up * 5f,
+                Velocity = Vector3.forward * MeteorBat.SpeedFor(3),
+            };
+            writer.Write(pose);
+            var sizeField = typeof(WorldSync).GetField("MeteorPoseBytes",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Assert.AreEqual((int)sizeField.GetRawConstantValue(), writer.Position,
+                "Packet capacity must use the actual serialized meteor size.");
+            var remote = new NetworkReader(writer.ToArraySegment()).Read<MeteorSpawner.NetworkMeteorPose>();
+            Assert.AreEqual(pose.DeflectionGrade, remote.DeflectionGrade);
+            Assert.AreEqual(pose.Harmless, remote.Harmless);
+            Assert.AreEqual(pose.Position, remote.Position);
+            Assert.AreEqual(pose.Velocity, remote.Velocity);
+            yield return new UnityEngine.TestTools.ExitPlayMode();
+        }
 
         [TearDown]
         public void TearDown()
@@ -280,12 +322,24 @@ namespace Metagame.Gameplay.Tests
                 Position = new Vector3(3f, 12f, -4f),
                 Rotation = Quaternion.Euler(10f, 20f, 30f),
                 Velocity = new Vector3(1f, -9f, 0.5f),
+                Harmless = true,
+                DeflectionGrade = 3,
             };
             spawner.ApplyNetworkMeteors(new List<MeteorSpawner.NetworkMeteorPose> { pose });
 
             var body = spawner.Ghosts[0].GetComponent<Rigidbody>();
             Assert.AreEqual(pose.Position, body.position);
             Assert.AreEqual(pose.Velocity, body.linearVelocity);
+            Assert.AreEqual(3, spawner.Ghosts[0].DeflectionGrade);
+            Assert.IsTrue(spawner.Ghosts[0].Harmless);
+            Assert.IsFalse(spawner.Ghosts[0].enabled);
+            Assert.IsFalse(body.detectCollisions);
+
+            pose.DeflectionGrade = 0;
+            pose.Harmless = false;
+            spawner.ApplyNetworkMeteors(new[] { pose });
+            Assert.AreEqual(0, spawner.Ghosts[0].DeflectionGrade);
+            Assert.IsFalse(spawner.Ghosts[0].Harmless);
         }
 
         /// <summary>매치가 끝나면 남기지 않는다 — 충돌러가 꺼져 있어 지면을 뚫고 내려간다.</summary>

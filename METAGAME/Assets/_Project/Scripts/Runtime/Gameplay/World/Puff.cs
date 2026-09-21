@@ -28,6 +28,7 @@ namespace Metagame.Gameplay
         readonly List<Grain> live = new List<Grain>();
         readonly Stack<Transform> pool = new Stack<Transform>();
         Material dustMat, jetMat;
+        readonly Material[] batMats = new Material[3];
         Transform holder;
 
         static Puff Instance
@@ -121,6 +122,37 @@ namespace Metagame.Gameplay
                 p.Spawn(pos + Random.insideUnitSphere * 0.05f,
                         dir.normalized * Random.Range(1.2f, 2.2f) + Random.insideUnitSphere * 0.4f,
                         Random.Range(0.05f, 0.09f), Random.Range(0.18f, 0.30f), false, p.jetMat);
+        }
+
+        /// <summary>Confirmed meteor contact; bounded particles reuse the existing pool.</summary>
+        public static void BatImpact(Vector3 point, byte grade)
+        {
+            if (!Enabled || grade < 1 || grade > 3) return;
+            var p = Instance;
+            if (p == null) return;
+            int index = grade - 1;
+            if (p.batMats[index] == null)
+                p.batMats[index] = Prim.Ghost(BatSwingLook.ImpactColor(grade), 3f, 0f);
+            int count = grade == 3 ? 32 : grade == 2 ? 22 : 14;
+            // Deterministic directions avoid consuming gameplay's shared Random state.
+            for (int i = 0; i < count; i++)
+            {
+                float y = 1f - 2f * (i + 0.5f) / count;
+                float radius = Mathf.Sqrt(1f - y * y);
+                float angle = i * 2.399963f;
+                var direction = new Vector3(Mathf.Cos(angle) * radius, y, Mathf.Sin(angle) * radius);
+                p.Spawn(point, direction * (3f + grade * 1.5f),
+                    0.12f + grade * 0.035f, 0.22f + grade * 0.07f, false, p.batMats[index]);
+            }
+        }
+
+        void OnDestroy()
+        {
+            if (instance == this) instance = null;
+            if (dustMat != null) Destroy(dustMat);
+            if (jetMat != null) Destroy(jetMat);
+            foreach (var material in batMats)
+                if (material != null) Destroy(material);
         }
 
         void Spawn(Vector3 pos, Vector3 vel, float size, float life, bool falls, Material mat)

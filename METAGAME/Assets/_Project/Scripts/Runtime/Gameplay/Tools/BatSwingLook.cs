@@ -19,6 +19,11 @@ namespace Metagame.Gameplay
     /// </summary>
     public static class BatSwingLook
     {
+        public static Color ImpactColor(byte grade) => grade == 3
+            ? new Color(1f, 0.88f, 0.12f, 0.95f)
+            : grade == 2 ? new Color(0.3f, 0.65f, 1f, 0.9f)
+            : new Color(0.35f, 1f, 0.8f, 0.85f);
+
         /// <summary>궤적 시작 색. 에너지가 실린 흰빛에 가깝다.</summary>
         public static readonly Color ArcStartColor = new(1f, 0.92f, 0.62f, 0.85f);
 

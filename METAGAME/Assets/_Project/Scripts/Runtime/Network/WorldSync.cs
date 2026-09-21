@@ -210,6 +210,7 @@ namespace Metagame.Network
         {
             public uint RhythmSequence;
             public byte RhythmGrade;
+            public Vector3 RhythmImpactPoint;
             public float RhythmCooldown;
             public uint Owner;
             public byte Action;
@@ -1082,6 +1083,7 @@ namespace Metagame.Network
                     RhythmCooldown = tool is MeteorBat cooldownBat ? cooldownBat.Cooldown : 0f,
                     RhythmSequence = tool is MeteorBat bat ? bat.RhythmSequence : 0,
                     RhythmGrade = tool is MeteorBat rhythmBat ? rhythmBat.RhythmGrade : (byte)0,
+                    RhythmImpactPoint = tool is MeteorBat impactBat ? impactBat.RhythmImpactPoint : Vector3.zero,
                     Owner = tool.IsEquipped ? ToolOwnerId(tool.Owner) : 0,
                     Action = tool.IsEquipped ? tool.ViewAction : (byte)0,
                     Progress = tool.ViewProgress, Direction = tool.Owner != null ? tool.Owner.AimForward : tool.transform.forward
@@ -1798,14 +1800,15 @@ namespace Metagame.Network
                 if (state.Owner != 0 && NetworkClient.spawned.TryGetValue(state.Owner, out var identity))
                     owner = identity.GetComponent<NetPlayer>()?.VisualRig
                             ?? identity.GetComponent<NetworkRigOwner>()?.Rig;
-                if (tool is MeteorBat bat) bat.ApplyRhythmResult(state.RhythmSequence, state.RhythmGrade, state.RhythmCooldown);
+                if (tool is MeteorBat bat) bat.ApplyRhythmResult(state.RhythmSequence, state.RhythmGrade,
+                    state.RhythmCooldown, state.RhythmImpactPoint);
                 tool.ApplyRemoteHeld(state.Owner != 0);
                 tool.ApplyRemotePresentation(owner, state.Action, state.Progress, state.Direction);
             }
         }
 
-        /// <summary>낙하 자세 하나의 바이트 수 — 자세 28 + 속도 12 + 타격 가이드 13.</summary>
-        const int MeteorPoseBytes = PoseBytes + 25;
+        /// <summary>낙하 자세 하나의 바이트 수 — 자세 28 + 속도 12 + 타격 가이드 13 + 반사 등급 1.</summary>
+        const int MeteorPoseBytes = 54;
 
         /// <summary>
         /// 한 묶음에 실을 수 있는 낙하 자세 개수. 공세 최대가 표에서 8개이므로 닿을 일이
@@ -1889,6 +1892,7 @@ namespace Metagame.Network
                         Velocity = body.linearVelocity,
                         GroundHeight = meteor.GroundHeight,
                         Harmless = meteor.Harmless,
+                        DeflectionGrade = meteor.DeflectionGrade,
                         BatWindow = meteor.BatSwingWindowSeconds,
                         BatRadius = meteor.BatAssistRadius,
                     }
@@ -1899,6 +1903,7 @@ namespace Metagame.Network
                         Velocity = Vector3.zero,
                         GroundHeight = meteor.GroundHeight,
                         Harmless = meteor.Harmless,
+                        DeflectionGrade = meteor.DeflectionGrade,
                         BatWindow = meteor.BatSwingWindowSeconds,
                         BatRadius = meteor.BatAssistRadius,
                     };

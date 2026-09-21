@@ -185,12 +185,14 @@ namespace Metagame.Gameplay.Hazards
         float guideRadius;
 
         // Disabled client ghosts expose prediction data only; no collision or damage is enabled.
-        public void ApplyGuideSnapshot(float groundHeight, bool harmless, float window, float radius)
+        public void ApplyGuideSnapshot(float groundHeight, bool harmless, float window, float radius,
+            byte deflectionGrade = 0)
         {
             GroundHeight = groundHeight;
             guideHarmless = harmless;
             guideWindow = window;
             guideRadius = radius;
+            ApplyDeflectionLook(deflectionGrade);
         }
 
         /// <summary>
@@ -209,6 +211,7 @@ namespace Metagame.Gameplay.Hazards
 
         /// <summary>한 번이라도 쳐냈는가. 기획 §17.1 의 "반사된 이후" 를 구분한다.</summary>
         public bool WasDeflected { get; private set; }
+        public byte DeflectionGrade { get; private set; }
 
         /// <summary>
         /// 크기(기획 §17.7). 넉백 반경이 여기서 나온다.
@@ -375,6 +378,7 @@ namespace Metagame.Gameplay.Hazards
         /// 색이 운석마다 다르지 않으므로 나눌 이유가 없다.
         /// </summary>
         static Material trailMaterial;
+        static Material perfectTrailMaterial;
 
         TrailRenderer _trail;
 
@@ -411,6 +415,24 @@ namespace Metagame.Gameplay.Hazards
             _trail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             _trail.receiveShadows = false;
             _trail.sharedMaterial = trailMaterial;
+            ApplyDeflectionLook(DeflectionGrade);
+        }
+
+        void ApplyDeflectionLook(byte grade)
+        {
+            bool changed = DeflectionGrade != grade;
+            DeflectionGrade = grade;
+            if (_trail == null) return;
+            if (changed) _trail.Clear();
+            bool perfect = grade == 3;
+            var color = perfect ? BatSwingLook.ImpactColor(3) : TrailColor;
+            if (perfect && perfectTrailMaterial == null)
+                perfectTrailMaterial = Prim.Ghost(color, 3f);
+            _trail.sharedMaterial = perfect ? perfectTrailMaterial : trailMaterial;
+            _trail.startColor = color;
+            _trail.endColor = new Color(color.r, color.g, color.b, 0f);
+            _trail.startWidth = PhysicsScale.MeteorTrailWidth * (perfect ? 1.35f : 1f);
+            _trail.time = PhysicsScale.MeteorTrailSeconds * (perfect ? 1.3f : 1f);
         }
 
         /// <summary>
@@ -507,7 +529,7 @@ namespace Metagame.Gameplay.Hazards
         /// 자연물과 지면 어디든 충돌할 수 있다" 는 <see cref="OnCollisionEnter"/> 가
         /// 이미 아무거나 받으므로 저절로 성립한다.
         /// </summary>
-        public void Deflect(Vector3 velocity)
+        public void Deflect(Vector3 velocity, byte grade = 0)
         {
             if (HasImpacted) return;
 
@@ -516,6 +538,7 @@ namespace Metagame.Gameplay.Hazards
 
             _body.linearVelocity = velocity;
             WasDeflected = true;
+            ApplyDeflectionLook(grade);
 
             // 맞은 순간부터 소품이다(S15P21B202-273). 날아가는 동안에도 사람을 때리지
             // 않는다 — §19 의 "충돌 순간에만" 을 타격에도 적용한다.

@@ -103,6 +103,8 @@ namespace Metagame.Gameplay
         // Results persist until the next accepted swing and travel with tool snapshots.
         public uint RhythmSequence { get; private set; }
         public byte RhythmGrade { get; private set; } // 0 miss, 1 good, 2 great, 3 perfect
+        public Vector3 RhythmImpactPoint { get; private set; }
+        bool receivedRhythm;
         public const float GuideSeconds = 3f;
         public const float PerfectAt = 0.60f;
 
@@ -116,11 +118,17 @@ namespace Metagame.Gameplay
         public static float SpeedFor(byte grade) => PhysicsScale.BatDeflectSpeed *
             (grade == 3 ? 1.8f : grade == 2 ? 1.35f : 1f);
 
-        public void ApplyRhythmResult(uint sequence, byte grade, float remainingCooldown = 0f)
+        public void ApplyRhythmResult(uint sequence, byte grade, float remainingCooldown = 0f,
+            Vector3 impactPoint = default)
         {
+            // The first snapshot establishes a baseline; joining must not replay old hits.
+            bool newHit = receivedRhythm && sequence != RhythmSequence && grade >= 1 && grade <= 3;
+            receivedRhythm = true;
             RhythmSequence = sequence;
             RhythmGrade = grade;
+            RhythmImpactPoint = impactPoint;
             cooldown = Mathf.Max(0f, remainingCooldown);
+            if (newHit) Puff.BatImpact(impactPoint, grade);
         }
 
         /// <summary>가장 최근 스윙에서 쳐낸 운석. 헛스윙이면 null.</summary>
@@ -240,7 +248,8 @@ namespace Metagame.Gameplay
             {
                 meteor.TryPredictImpact(out var seconds, out _);
                 RhythmGrade = GradeFor(seconds, meteor.BatSwingWindowSeconds);
-                meteor.Deflect(direction * SpeedFor(RhythmGrade));
+                RhythmImpactPoint = meteor.transform.position;
+                meteor.Deflect(direction * SpeedFor(RhythmGrade), RhythmGrade);
                 LastDeflected = meteor;
                 LastSwingConnected = true;
             }
@@ -394,7 +403,8 @@ namespace Metagame.Gameplay
                     ? LastPushed.worldCenterOfMass
                     : origin + direction * 0.5f;
 
-            Puff.Thruster(point, direction);
+            if (LastDeflected != null) Puff.BatImpact(point, RhythmGrade);
+            else Puff.Thruster(point, direction);
 
             // 방망이에서 맞은 자리까지 줄기를 남긴다(S15P21B202-276).
             //
@@ -529,35 +539,78 @@ namespace Metagame.Gameplay
         /// </summary>
         public static Meteor FindTarget(Vector3 origin) => FindGuideTarget(origin, Meteor.All, true);
 
+        public readonly struct GuideTarget
+        {
+            public readonly Meteor Meteor;
+            public readonly float Seconds;
+            public float Window => Meteor.BatSwingWindowSeconds;
+            public float Span => Mathf.Max(GuideSeconds, Window * 1.5f);
+            public float Progress01 => Mathf.Clamp01(1f - Seconds / Span);
+
+            public GuideTarget(Meteor meteor, float seconds)
+            {
+                Meteor = meteor;
+                Seconds = seconds;
+            }
+        }
+
+        // Both the strike and HUD use the same range/eligibility predicate.
+        static bool TryGetGuideTarget(Vector3 origin, Meteor meteor, out GuideTarget target)
+        {
+            target = default;
+            if (meteor == null || meteor.Harmless || meteor.GroundProp) return false;
+            if (!meteor.TryPredictImpact(out var seconds, out var point)) return false;
+            var offset = point - origin;
+            offset.y = 0f;
+            if (offset.magnitude > meteor.BatAssistRadius) return false;
+            target = new GuideTarget(meteor, seconds);
+            return true;
+        }
+
         public static Meteor FindGuideTarget(Vector3 origin,
             System.Collections.Generic.IReadOnlyList<Meteor> meteors, bool strikeOnly = false)
         {
             Meteor best = null;
             var bestSeconds = float.MaxValue;
-
             for (var i = 0; i < meteors.Count; i++)
             {
-                var meteor = meteors[i];
-                if (meteor == null || meteor.Harmless || meteor.GroundProp) continue;
-                if (!meteor.TryPredictImpact(out var seconds, out var point)) continue;
-
-                // 너무 이르면 헛스윙이다. 이 조건이 §18.1 의 "너무 일찍 휘두르면
-                // 헛스윙하지만 다시 시도할 수 있다" 를 만든다.
-                if (strikeOnly && seconds > meteor.BatSwingWindowSeconds) continue;
-
-                // 낙하 지점까지의 거리는 <b>수평으로</b> 잰다. 운석은 아직 공중에 있고
-                // 플레이어는 지면에 있으므로, 3차원 거리로 재면 높이 차가 판정을 먹는다.
-                var offset = point - origin;
-                offset.y = 0f;
-                if (offset.magnitude > meteor.BatAssistRadius) continue;
-
-                if (seconds >= bestSeconds) continue;
-
-                bestSeconds = seconds;
-                best = meteor;
+                if (!TryGetGuideTarget(origin, meteors[i], out var target)) continue;
+                if (strikeOnly && target.Seconds > target.Window) continue;
+                if (target.Seconds >= bestSeconds) continue;
+                bestSeconds = target.Seconds;
+                best = target.Meteor;
             }
-
             return best;
+        }
+
+        /// <summary>All nearby incoming meteors, in the same priority order as a strike.</summary>
+        public static void CollectGuideTargets(Vector3 origin,
+            System.Collections.Generic.IReadOnlyList<Meteor> meteors,
+            System.Collections.Generic.List<GuideTarget> into,
+            System.Collections.Generic.IReadOnlyList<Meteor> ghosts = null)
+        {
+            into.Clear();
+            AppendGuideTargets(origin, meteors, into);
+            AppendGuideTargets(origin, ghosts, into);
+        }
+
+        static void AppendGuideTargets(Vector3 origin,
+            System.Collections.Generic.IReadOnlyList<Meteor> meteors,
+            System.Collections.Generic.List<GuideTarget> into)
+        {
+            if (meteors == null) return;
+            for (int i = 0; i < meteors.Count; i++)
+            {
+                if (!TryGetGuideTarget(origin, meteors[i], out var target)) continue;
+                bool duplicate = false;
+                for (int j = 0; j < into.Count; j++)
+                    if (into[j].Meteor == target.Meteor) { duplicate = true; break; }
+                if (duplicate) continue;
+                // Stable insertion keeps equal impact times in server selection order.
+                int index = into.Count;
+                while (index > 0 && into[index - 1].Seconds > target.Seconds) index--;
+                into.Insert(index, target);
+            }
         }
 
         /// <summary>
