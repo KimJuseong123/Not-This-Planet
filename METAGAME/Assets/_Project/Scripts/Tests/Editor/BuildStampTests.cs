@@ -177,5 +177,58 @@ namespace Metagame.Gameplay.Tests
             Assert.That(src, Does.Contain("static string Run(string arguments, out int exit)"),
                 "종료 코드를 볼 수 있는 통로가 없다");
         }
+
+        /// <summary>
+        /// <b>사람이 자기 PC 에서 만든 빌드는 실유저 서버를 가리키면 안 된다</b>
+        /// (S15P21B202-652).
+        ///
+        /// <para>2026-09-21 실측: 배포 서버에 쌓인 판 6건 중 <b>5건이 로컬 빌드</b>였다.
+        /// 데이터가 섞이는 것으로 끝나지 않는다 — 실유저 백엔드에 로그인하고 실유저 방에
+        /// 끼어든다.</para>
+        /// </summary>
+        [Test]
+        public void ABuildMadeOutsideCIPointsAtTheDevBackend()
+        {
+            Assert.That(BuildStamp.BackendIsDev(null, null, null), Is.True,
+                "아무 표시도 없는 빌드(사람이 손으로 만든 것)가 배포 서버를 가리킨다");
+            Assert.That(BuildStamp.BackendIsDev("", "", ""), Is.True,
+                "빈 값을 '정했다' 로 읽는다");
+            Assert.That(BuildStamp.BackendIsDev("  ", null, null), Is.True,
+                "공백만 있는 값을 '정했다' 로 읽는다");
+        }
+
+        /// <summary>
+        /// <b>반대 방향이 더 위험하다.</b> CI 가 만든 릴리스 빌드가 개발 서버를 가리키면
+        /// <b>나간 게임을 아무도 못 논다.</b> 그래서 <c>prod</c> 신호를 둘 둔다 —
+        /// 릴리스 버전의 존재와 CI 표시. 하나만 있어도 <c>prod</c> 다.
+        /// </summary>
+        [Test]
+        public void ACIBuildStillPointsAtTheRealBackend()
+        {
+            Assert.That(BuildStamp.BackendIsDev(null, "v1.2.0", null), Is.False,
+                "릴리스 버전이 박히는 빌드인데 개발 서버를 가리킨다 — 나간 게임이 안 돈다");
+            Assert.That(BuildStamp.BackendIsDev(null, null, "207911"), Is.False,
+                "CI 가 만든 빌드인데 개발 서버를 가리킨다");
+            Assert.That(BuildStamp.BackendIsDev(null, "v1.2.0", "207911"), Is.False,
+                "둘 다 있는데 개발 서버를 가리킨다");
+        }
+
+        /// <summary>
+        /// <b>일부러 정한 것이 가장 세다.</b> 둘 다 한 방향으로만 읽혀야 한다 —
+        /// 한쪽만 존중하면 "껐는데 켜진다" 가 생긴다.
+        /// </summary>
+        [Test]
+        public void AnExplicitFlagWinsOverEverythingElse()
+        {
+            // 켠 것: CI 든 릴리스든 개발로 간다(QA 빌드가 그 경우다).
+            Assert.That(BuildStamp.BackendIsDev("1", "v1.2.0", "207911"), Is.True,
+                "SPACE_DEV=1 인데 배포 서버를 가리킨다");
+            // 끈 것: CI 밖이어도 배포로 간다(prod 를 일부러 재현할 때).
+            Assert.That(BuildStamp.BackendIsDev("0", null, null), Is.False,
+                "SPACE_DEV=0 인데 개발 서버를 가리킨다");
+            // 공백이 섞여도 같은 뜻이다 — 환경변수는 곧잘 공백을 달고 온다.
+            Assert.That(BuildStamp.BackendIsDev(" 1 ", null, null), Is.True);
+            Assert.That(BuildStamp.BackendIsDev(" 0 ", null, null), Is.False);
+        }
     }
 }

@@ -104,7 +104,11 @@ namespace Metagame.EditorTools
             // 값은 `SpaceBuild` 가 확정해 둔 `SPACE_DEV` 를 본다(그쪽이 인자로 켠 dev 를
             // 환경변수로 되돌려 박는다). 여기서 다시 판단하지 않는다 — 두 곳이 각각
             // 판단하면 어긋난다.
-            bool dev = (Environment.GetEnvironmentVariable("SPACE_DEV") ?? string.Empty).Trim() == "1";
+            //
+            // **다만 값이 없을 때의 기본을 바꾼다** (S15P21B202-652) — 아래 참고.
+            string version = (Environment.GetEnvironmentVariable("SPACE_RELEASE_VERSION") ?? string.Empty).Trim();
+            bool dev = BackendIsDev(Environment.GetEnvironmentVariable("SPACE_DEV"), version,
+                                    Environment.GetEnvironmentVariable("CI_PIPELINE_ID"));
             line.Append('\n').Append(BuildInfo.BackendPrefix).Append(dev ? "dev" : "prod");
 
             // **릴리스 버전을 박는다** (S15P21B202-404). 서버가 이 값으로 구버전을 막는다.
@@ -115,7 +119,6 @@ namespace Metagame.EditorTools
             //
             // 릴리스가 아닌 빌드(로컬·개발·에디터)에는 이 줄이 없다. 그것을 어떻게 볼지는
             // **서버가** 정한다 — 클라이언트가 스스로 판단하면 그 판단째로 우회된다.
-            string version = (Environment.GetEnvironmentVariable("SPACE_RELEASE_VERSION") ?? string.Empty).Trim();
             if (!string.IsNullOrEmpty(version))
             {
                 version = version.Replace("\r", " ").Replace("\n", " ");
@@ -189,6 +192,47 @@ namespace Metagame.EditorTools
         /// 짚었다 — "덮어씀" 으로 단정하면 이 표시가 또 부정확해진다)</item>
         /// </list>
         /// </summary>
+        /// <summary>
+        /// 이 빌드가 <b>개발 백엔드</b>를 가리켜야 하는가 (S15P21B202-652).
+        ///
+        /// <para><b>순수 함수다</b> — 환경변수를 여기서 읽지 않는다. 세 경우를 검사로
+        /// 잠그기 위해서고, 이 판단이 틀리면 **나간 게임이 아무도 못 노는** 쪽으로도
+        /// 틀릴 수 있어서다.</para>
+        ///
+        /// <para><b>무엇이 문제였나.</b> 예전에는 <c>SPACE_DEV</c> 가 없으면 무조건
+        /// <c>prod</c> 였다. 그래서 사람이 자기 PC 에서 <see cref="SpaceBuild.BuildWindows"/>
+        /// 를 돌리면 <b>실유저 서버를 가리키는 바이너리</b>가 나왔다 — 2026-09-21 실측에서
+        /// 배포 서버에 쌓인 판 6건 중 5건이 그런 빌드였다. 데이터가 섞이는 것으로 끝나지
+        /// 않는다: 실유저 백엔드에 로그인하고, 실유저 방에 끼어들고,
+        /// <c>MatchAuthenticator</c> 가 참가자 토큰을 prod 에 되묻는다 — <c>-284</c> 가
+        /// 경고한 자리가 그것이다.</para>
+        ///
+        /// <para><c>BackendEndpoints</c> 의 방어 넷 중 ②(에디터는 개발)와 ④(스탬프 없는
+        /// 개발 빌드는 개발)는 이 경우를 막는다. 그런데 <b>스탬프가 있고 그것이
+        /// <c>prod</c> 라고 말하면</b>(③) 그대로 믿는다. 그 한 칸이 비어 있었다.</para>
+        ///
+        /// <para><b>양쪽으로 안전해야 한다.</b> 기본을 무조건 <c>dev</c> 로 뒤집으면
+        /// 반대 사고가 생긴다 — CI 를 못 알아본 릴리스 빌드가 개발 서버를 가리키면
+        /// <b>나간 게임을 아무도 못 논다.</b> 그래서 <c>prod</c> 신호를 <b>둘</b> 둔다:
+        /// 명시적인 <c>SPACE_DEV=0</c> 과 <b>릴리스 버전의 존재</b>. 둘 중 하나라도
+        /// 있으면 <c>prod</c> 이고, 거기에 CI 표시가 더해진다.</para>
+        /// </summary>
+        /// <param name="devFlag"><c>SPACE_DEV</c>. <c>"1"</c> 켬 · <c>"0"</c> 끔 · 그 밖은 "안 정함".</param>
+        /// <param name="releaseVersion"><c>SPACE_RELEASE_VERSION</c>. 있으면 릴리스 빌드다.</param>
+        /// <param name="ciPipelineId"><c>CI_PIPELINE_ID</c>. 있으면 CI 가 만든 빌드다.</param>
+        public static bool BackendIsDev(string devFlag, string releaseVersion, string ciPipelineId)
+        {
+            string flag = (devFlag ?? string.Empty).Trim();
+            if (flag == "1") return true;       // 일부러 켰다
+            if (flag == "0") return false;      // 일부러 껐다 — 여기서 더 묻지 않는다
+
+            // 안 정했다. **누가 만들었나**로 가른다. 릴리스 버전이 박히는 빌드는
+            // `release-windows` 뿐이고, `CI_PIPELINE_ID` 는 모든 CI 잡에 있다.
+            bool fromCI = !string.IsNullOrEmpty((releaseVersion ?? string.Empty).Trim())
+                          || !string.IsNullOrEmpty((ciPipelineId ?? string.Empty).Trim());
+            return !fromCI;
+        }
+
         public static string SourceLabel(string headShort, string worktree, string staged,
                                          string untracked, string overwrittenFrom)
         {
