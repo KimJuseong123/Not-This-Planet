@@ -89,6 +89,32 @@ check(U.git_changed("abc", "") is None, "빈 sha 를 '안 바뀌었다' 로 읽�
 check(U.git_changed("0" * 40, "1" * 40) is None, "git 실패를 '안 바뀌었다' 로 읽는다")
 
 
+# ── ②-b 합칠 대상이 없는 것과 모르는 것을 가른다 (S15P21B202-641) ────────
+#
+#     빈 문자열로 뭉쳐 두었을 때 **develop 에서는 재사용이 한 번도 안 됐다.**
+#     develop push 는 합칠 대상이 없어 `unity-base.txt` 가 빈 줄이 되는데, 읽는 쪽은
+#     그것을 "이 기능 이전 잡이라 모른다" 로 읽고 매번 다시 돌렸다(잡 `578864` 로그).
+#
+#     `-641` 이 develop 의 `changes:` 를 없애므로 문서만 바꾼 머지도 이 잡이 생긴다.
+#     그 비용을 받아 주는 것이 재사용이라, **먼저 이것이 돌아야** 그 변경이 값싸다.
+check(U.NO_MERGE, "합칠 대상 없음을 나타내는 값이 없다")
+check(U.NO_MERGE.strip() != "", "합칠 대상 없음이 빈 문자열이다 — '모른다' 와 구별되지 않는다")
+
+#     둘 다 "합칠 것 없음" 이면 **그 조건은 이미 만족**이다(비교할 것이 없다).
+check(U.git_changed(U.NO_MERGE, U.NO_MERGE) is False,
+      "develop 끼리인데 base 가 바뀌었다고 본다 — 재사용이 영영 안 된다")
+
+#     한쪽만 "없음" 이면 상태가 달라진 것이다 — git 이 실패하고 다시 돈다.
+check(U.git_changed(U.NO_MERGE, "0" * 40) is None, "없음↔sha 를 '안 바뀌었다' 로 읽는다")
+
+#     옛 잡(빈 값)은 여전히 "모른다" 다.
+check(U.git_changed("", U.NO_MERGE) is None, "옛 잡의 빈 값을 '없음' 과 같게 본다")
+
+#     재는 쪽도 같이 고쳐져 있어야 한다 — 한쪽만 고치면 영영 안 맞는다.
+check('UNITY_MERGED_BASE:--' in read(".gitlab-ci.yml"),
+      "합칠 대상이 없을 때 표시를 안 남긴다 — develop 재사용이 계속 꺼진 채다")
+
+
 # ── ③ 잡 배선 ───────────────────────────────────────────────────────────
 CI = read(".gitlab-ci.yml")
 m = re.search(r"(?ms)^unity-compile:.*?(?=^[a-z][a-z0-9-]*:|^# ──|\Z)", CI)
@@ -233,6 +259,47 @@ if rw:
                          RW.find("unity-editor"))
     check(-1 < i_b < i_mark < i_ed,
           f"릴리스의 재사용 순서가 어긋났다 (빌림 {i_b} · 분기 {i_mark} · unity {i_ed})")
+# ── ⑥ develop 실행을 합친다 — **셋이 한 묶음이다** (S15P21B202-641) ──────
+#
+#     2026-09-18 에 머지가 몰리며 develop 의 `unity-compile` 이 8건까지 쌓였다.
+#     앞의 실행은 뒤의 실행에 포함되는데도 각각 돌았고, `resource_group: unity` 로
+#     직렬이라 그 줄이 MR 검사와 릴리스를 통째로 막았다.
+#
+#     **하나라도 빠지면 지금보다 나쁜 상태가 된다.** 자동 취소만 켜고 ①②를 빼면
+#     검사되지 않은 변경이 develop 으로 조용히 들어간다 — `-309` 가 겪은 그 방식이다.
+WF = re.search(r"(?ms)^workflow:.*?(?=^[a-z][a-z0-9-]*:|^# ──|\Z)", CI)
+check(WF is not None, "workflow 블록을 못 찾았다")
+if WF:
+    dev_rule = re.search(
+        r'(?ms)- if: \$CI_PIPELINE_SOURCE == "push" && \$CI_COMMIT_BRANCH == "develop"'
+        r'(.*?)(?=^    - if:|\Z)', WF.group(0))
+    check(dev_rule is not None, "workflow 에 develop push 규칙이 없다")
+    if dev_rule:
+        check("on_new_commit: interruptible" in dev_rule.group(1),
+              "develop 의 자동 취소가 꺼져 있다 — 머지가 몰리면 Unity 실행이 그대로 쌓인다")
+
+#     ① 백엔드 잡은 **어떤 경우에도** 취소되지 않는다.
+BB = re.search(r"(?ms)^build-backend:.*?(?=^[a-z][a-z0-9-]*:|^# ──|\Z)", CI)
+check(BB is not None, "build-backend 잡을 못 찾았다")
+if BB:
+    bb = "\n".join(l for l in BB.group(0).splitlines() if not l.lstrip().startswith("#"))
+    check("interruptible: false" in bb,
+          "build-backend 가 취소될 수 있다 — 뒤 머지가 그것을 죽이면 배포 버튼이 사라진다(-309)")
+
+#     ② develop 쪽 `unity-compile` 에는 `changes:` 가 없다.
+#        있으면 문서만 바꾼 머지의 파이프라인에 이 잡이 없고, 그것이 앞의 Unity
+#        실행을 취소해 **그 변경이 develop 에서 한 번도 검사되지 않는다.**
+dev_unity = re.search(
+    r'(?ms)- if: \$CI_PIPELINE_SOURCE == "push" && \$CI_COMMIT_BRANCH == "develop"'
+    r'(.*?)(?=^  [a-z]|\Z)', JOB)
+check(dev_unity is not None, "unity-compile 에 develop push 규칙이 없다")
+if dev_unity:
+    tail = "\n".join(l for l in dev_unity.group(1).splitlines()
+                     if not l.lstrip().startswith("#"))
+    check("changes:" not in tail,
+          "develop 의 unity-compile 에 changes: 가 있다 — 문서만 바꾼 머지가 앞의 "
+          "Unity 실행을 취소하면 그 변경이 검사 없이 지나간다(-641 ②)")
+print("  develop 실행 합치기: 자동 취소 · 백엔드 비취소 · develop changes 없음 ✅")
 
 
 if fails:

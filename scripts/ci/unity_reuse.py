@@ -62,6 +62,20 @@ BASE_FILE = "unity-base.txt"
 #: `unity_report.py` 가 코멘트에 한 줄을 싣는다.
 MARK_FILE = "unity-reused.txt"
 
+#: **합칠 대상이 없었다**는 표시 (S15P21B202-641). develop·master push 가 그 경우다.
+#:
+#: 빈 문자열로 두면 안 된다. 그러면 "합칠 것이 없었다"(정상)와 "이 기능 이전에 돈
+#: 잡이라 파일이 없다"(모른다)가 **구별되지 않는다.** 실제로 그 둘이 뭉쳐 있어서
+#: **develop 에서는 재사용이 한 번도 안 됐다** — 잡 `578864` 로그가 그것이다:
+#:
+#:     앞선 실행: 잡 576971 (success, …) · 합친 base 없음
+#:     앞선 잡에 unity-base.txt 이 없다(이 이슈 이전 실행) — 다시 돌린다
+#:
+#: 메시지는 "이 이슈 이전" 이라고 말하지만 사실이 아니었다. develop push 는 **매번**
+#: 이 길로 떨어졌다. `-641` 이 develop 의 `changes:` 를 없애려면 그 비용을 재사용이
+#: 받아 줘야 하므로, 먼저 이것을 가른다.
+NO_MERGE = "-"
+
 
 #: 트리 지문을 적어 두는 파일. **ref 와 무관하게** 같은 대상을 찾으려면 이것이 있어야 한다.
 KEY_FILE = "unity-key.txt"
@@ -315,6 +329,10 @@ def main() -> int:
     if env("CI_MERGE_REQUEST_TARGET_BRANCH_NAME") and not base:
         print("합친 base 를 모른다(대상 브랜치를 못 합쳤다) — 다시 돌린다")
         return 0
+    # 여기까지 왔는데 비어 있으면 **합칠 대상이 없는 것**이다(develop·master push).
+    # 위 분기가 "MR 인데 못 합쳤다" 를 이미 걸렀으므로 남는 경우는 그것뿐이다.
+    if not base:
+        base = NO_MERGE
 
     gl = GitLab()
     ref = job_ref()
@@ -330,8 +348,11 @@ def main() -> int:
           f"· 합친 base {prev_base[:8] or '없음'}")
 
     if not prev_base:
-        # 이 이슈 이전에 돈 잡에는 이 파일이 없다. 한 번은 반드시 이 길로 온다.
-        print(f"앞선 잡에 {BASE_FILE} 이 없다(이 이슈 이전 실행) — 다시 돌린다")
+        # **여기 오는 경우가 하나뿐이어야 한다** (S15P21B202-641). 예전에는 둘이었다 —
+        # "이 기능 이전에 돈 잡" 과 "합칠 대상이 없던 잡(develop push)". 뒤의 것이
+        # 매번 여기로 떨어져 **develop 에서는 재사용이 한 번도 안 됐다.**
+        # 이제 합칠 대상이 없으면 `NO_MERGE` 를 적으므로, 빈 값은 옛 잡뿐이다.
+        print(f"앞선 잡에 {BASE_FILE} 이 비어 있다(이 이슈 이전 실행) — 다시 돌린다")
         return 0
 
     branch_moved = git_changed(prev_sha, env("CI_COMMIT_SHA"))
