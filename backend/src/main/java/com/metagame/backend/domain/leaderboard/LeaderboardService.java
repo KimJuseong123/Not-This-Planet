@@ -69,15 +69,20 @@ public class LeaderboardService {
                     "클리어 시간이 범위를 벗어납니다: " + millis + "ms");
         }
 
+        // **인원은 보낸 목록의 크기로 정한다 — 정제 전이다**(!558 AI 리뷰).
+        //
+        // 예전에는 다듬은 뒤의 개수를 썼는데, 그러면 4인 기록에 공백 닉네임 셋을
+        // 실어 보내 **1인 표 1위**를 만들 수 있다. 인원별로 표를 나눈 근거가
+        // 난이도 차(§17.6)인데 그것을 본문만으로 우회하는 길이 열린다.
+        //
+        // 닉네임을 다듬는 것은 **표에 찍을 글자**를 위한 일이지 인원을 세는 일이 아니다.
+        int crewSize = request.crewNames() == null ? 0 : request.crewNames().size();
+        requireValidCrew(crewSize);
+
         List<String> names = cleanNames(request.crewNames());
         if (names.isEmpty()) {
-            throw new IllegalArgumentException("닉네임이 하나도 없습니다.");
+            throw new IllegalArgumentException("쓸 수 있는 닉네임이 하나도 없습니다.");
         }
-
-        // **인원 수는 닉네임 수로 정한다.** 따로 보내게 하면 둘이 어긋날 수 있고,
-        // 그때 무엇을 믿을지 정하는 규칙이 또 필요해진다. 보내는 값을 하나로 줄인다.
-        // 그 인원이 곧 이 기록이 오를 표다 — 1인·2인·3인·4인이 따로 있다.
-        int crewSize = names.size();
 
         long recent = repository.countBySubmitterUserIdAndCreatedAtAfter(
                 userId, LocalDateTime.now().minus(SUBMIT_WINDOW));
@@ -148,6 +153,8 @@ public class LeaderboardService {
                                  .trim();
             if (cleaned.isEmpty()) continue;
             out.add(trim(cleaned, 20));
+            // 인원 검사는 submit 이 원본 개수로 이미 했다. 여기서 멈추는 것은
+            // 표시 문자열이 칸을 넘지 않게 하는 안전선이다.
             if (out.size() >= RunRecord.MAX_CREW) break;
         }
 

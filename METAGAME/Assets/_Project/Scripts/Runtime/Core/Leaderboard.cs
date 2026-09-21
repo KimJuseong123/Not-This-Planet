@@ -40,7 +40,7 @@ namespace Metagame.Core
     /// </summary>
     public static class Leaderboard
     {
-        /// <summary>게임이 허용하는 최대 인원. 서버의 <c>RunMode.MAX_CREW</c> 와 같다.</summary>
+        /// <summary>게임이 허용하는 최대 인원. 서버의 <c>RunRecord.MAX_CREW</c> 와 같다.</summary>
         public const int MaxCrew = 4;
 
         /// <summary>서버가 받아 주는 가장 빠른 클리어(밀리초).</summary>

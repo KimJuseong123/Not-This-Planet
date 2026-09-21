@@ -8,9 +8,9 @@ import java.util.List;
 /**
  * 클리어 한 판을 올린다 (S15P21B202-656).
  *
- * <p><b>모드를 보내지 않는다.</b> 닉네임 수가 곧 인원이고 인원이 곧 모드다
- * ({@link com.metagame.backend.domain.leaderboard.RunMode#ofCrew}). 따로 받으면
- * 둘이 어긋날 수 있고, 그때 무엇을 믿을지 정하는 규칙이 또 필요해진다.</p>
+ * <p><b>모드를 보내지 않는다.</b> 닉네임 수가 곧 인원이고 인원이 곧 표다
+ * ({@link com.metagame.backend.domain.leaderboard.RunRecord#MAX_CREW} 까지). 따로
+ * 받으면 둘이 어긋날 수 있고, 그때 무엇을 믿을지 정하는 규칙이 또 필요해진다.</p>
  */
 public record SubmitRunRequest(
 

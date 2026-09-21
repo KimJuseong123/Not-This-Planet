@@ -199,5 +199,64 @@ namespace Metagame.Gameplay.Tests
             Assert.AreEqual(0, LeaderboardUpload.ParseRows(string.Empty).Length);
             Assert.AreEqual(0, LeaderboardUpload.ParseRows(null).Length);
         }
+
+        // --- 밀린 기록 --------------------------------------------------------
+
+        /// <summary>
+        /// <b>못 올린 기록이 줄을 선다</b>(!558 AI 리뷰).
+        ///
+        /// 예전에는 파일 하나를 덮어써서, 서버가 닿지 않는 동안 두 판을 깨면 앞 판이
+        /// 복구 없이 사라졌다. 판이 인원별로 갈리므로 두 기록이 <b>다른 표</b>에 오를
+        /// 수도 있어, 최근 것만 남기는 것은 그냥 기록 하나를 잃는 것이다.
+        /// </summary>
+        [Test]
+        public void PendingRunsQueueUpInsteadOfOverwriting()
+        {
+            LeaderboardUpload.Forget();
+            try
+            {
+                Assert.IsTrue(LeaderboardUpload.Remember(
+                    Leaderboard.BuildSubmission(300.0, new[] { "혼자" }, null)));
+                Assert.IsTrue(LeaderboardUpload.Remember(
+                    Leaderboard.BuildSubmission(250.0, new[] { "넷", "이", "함께", "간다" }, null)));
+
+                Assert.AreEqual(2, LeaderboardUpload.PendingCount,
+                    "앞 판이 덮여 사라지면 안 된다.");
+            }
+            finally
+            {
+                LeaderboardUpload.Forget();
+            }
+        }
+
+        /// <summary>파일이 무한히 자라지 않는다. 넘치면 오래된 것부터 버린다.</summary>
+        [Test]
+        public void ThePendingQueueHasACap()
+        {
+            LeaderboardUpload.Forget();
+            try
+            {
+                for (var i = 0; i < 12; i++)
+                    LeaderboardUpload.Remember(
+                        Leaderboard.BuildSubmission(300.0 + i, new[] { "사람" + i }, null));
+
+                Assert.LessOrEqual(LeaderboardUpload.PendingCount, LeaderboardUpload.MaxPending);
+                Assert.Greater(LeaderboardUpload.PendingCount, 0);
+            }
+            finally
+            {
+                LeaderboardUpload.Forget();
+            }
+        }
+
+        [Test]
+        public void ForgettingClearsEverything()
+        {
+            LeaderboardUpload.Remember(Leaderboard.BuildSubmission(300.0, new[] { "가" }, null));
+            LeaderboardUpload.Forget();
+
+            Assert.IsFalse(LeaderboardUpload.HasPending);
+            Assert.AreEqual(0, LeaderboardUpload.PendingCount);
+        }
     }
 }

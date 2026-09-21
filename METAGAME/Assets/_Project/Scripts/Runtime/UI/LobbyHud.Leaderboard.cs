@@ -48,9 +48,12 @@ namespace Metagame.UI
                     // 탭을 빠르게 바꾸면 늦게 온 응답이 새 탭을 덮을 수 있다.
                     if (crewSize != boardCrew) return;
 
-                    boardRows = rows;
+                    // **실패는 null 이다**(!558 AI 리뷰). 예전에는 실패도 빈 배열이라
+                    // boardLoaded 가 늘 true 가 됐고, 서버가 죽어도 "아직 아무도 못
+                    // 깼어요" 가 떴다 — 아래 실패 문구는 닿을 수 없는 죽은 코드였다.
+                    boardRows = rows ?? System.Array.Empty<LeaderboardRow>();
                     boardLoading = false;
-                    boardLoaded = true;
+                    boardLoaded = rows != null;
                 }));
         }
 
