@@ -77,7 +77,7 @@ check(reuse is True, f"둘 다 그대로인데 다시 돈다 — 이 이슈가 �
 #     Unity 가 읽는 것만으로는 부족하다. **검사하는 쪽**이 바뀌어도 결과가 달라진다 —
 #     잡 정의(`.gitlab-ci.yml`)와 판정 스크립트(`unity_report.py`)가 그것이다.
 for must in ("METAGAME/Assets", "METAGAME/Packages", "METAGAME/ProjectSettings",
-             ".gitlab-ci.yml", "scripts/ci/unity_report.py"):
+             ".gitlab-ci.yml", ".gitattributes", "scripts/ci/validate_unity_lfs.py", "scripts/ci/unity_report.py"):
     check(must in U.INPUTS, f"입력 집합에 {must} 가 없다 — 그것만 바뀐 push 를 건너뛰게 된다")
 
 # 같은 sha 면 git 을 부르지 않고 '안 바뀌었다' 로 답한다(비용 0).

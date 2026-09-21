@@ -266,7 +266,7 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
     # 1795건 중 **5초 이상인 21건이 테스트 시간의 71%(195초)** 를 먹는다 — 그래서
     # 아래 script 에서 MR 일 때만 `-testCategory "!Heavy"` 로 뺀다 (S15P21B202-602).
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes: ["METAGAME/Assets/**/*", "METAGAME/Packages/**/*", "METAGAME/ProjectSettings/**/*", ".gitlab-ci.yml"]
+      changes: ["METAGAME/Assets/**/*", "METAGAME/Packages/**/*", "METAGAME/ProjectSettings/**/*", ".gitlab-ci.yml", ".gitattributes", "scripts/ci/validate_unity_lfs.py"]
     # 머지 직후에도 돈다 — 개별 MR 은 통과했는데 합쳐서 깨지는 경우를 잡는다.
     # 09-02 사고는 감지까지 2시간 37분이 걸렸다(그 사이 develop 머지 0건). 이 규칙이면 2분이다.
     # **develop 에서는 `changes:` 를 보지 않는다** (S15P21B202-641).
@@ -383,6 +383,7 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
     # **검사 대상 트리의 지문을 남긴다** (S15P21B202-642). 머지가 끝난 **뒤**라야
     # `HEAD` 가 실제로 검사할 트리다. 이 파일이 있어야 다른 ref 의 잡이 "같은 것을
     # 이미 검사했다" 를 알 수 있다 — 지금은 `release-windows` 가 그것을 쓴다.
+    - python3 scripts/ci/validate_unity_lfs.py
     - python3 scripts/ci/unity_reuse.py key || true
     - python3 scripts/ci/unity_reuse.py || true
     # unity-editor 래퍼가 xvfb-run 과 -batchmode 를 붙여 준다(이미지 실측) — 여기서 또 주지 않는다.
@@ -814,6 +815,7 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
     # 것과 실패 수까지 같았다(26 = 26). 릴리스 24.8분의 82% 였다.
     #
     # 지문이 다르면(핫픽스로 갈라졌다면) 그냥 돈다 — 그때가 이 검사가 필요한 때다.
+    - python3 scripts/ci/validate_unity_lfs.py
     - python3 scripts/ci/unity_reuse.py borrow || true
     - echo "=== EditMode 테스트 (빌드 전) ==="
     - |
@@ -952,6 +954,7 @@ build-devbuild:           # QA 가 쓸 개발·QA 빌드 (S15P21B202-460)
       if [ ! -s "$LIC" ]; then
         echo "❌ Unity 라이선스가 마운트되지 않았다: $LIC (S15P21B202-271)"; exit 1
       fi
+    - python3 scripts/ci/validate_unity_lfs.py
     - python3 scripts/ci/publish_devbuild.py version
     - echo "=== 빌드 시작 ($(cat release-version.txt)) ==="
     # **릴리스 버전을 박지 않는다.** dev·qa 빌드는 `vX.Y.Z` 가 아니므로 `-404` 의

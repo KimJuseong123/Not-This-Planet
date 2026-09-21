@@ -37,7 +37,8 @@ METAGAME/Assets/_Project/Art/Stage2Earth/DrainageReflection.asset filter=lfs dif
 
 *.png filter=lfs diff=lfs merge=lfs -text
 *.jpg filter=lfs diff=lfs merge=lfs -text
-*.jpeg filter=lfs diff=lfs merge=lfs -text
+# Windows core.ignorecase hid uppercase .JPEG pointers from the Linux build.
+*.[jJ][pP][eE][gG] filter=lfs diff=lfs merge=lfs -text
 *.gif filter=lfs diff=lfs merge=lfs -text
 *.tga filter=lfs diff=lfs merge=lfs -text
 *.tif filter=lfs diff=lfs merge=lfs -text
