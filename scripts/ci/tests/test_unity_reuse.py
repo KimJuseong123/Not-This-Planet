@@ -10,8 +10,9 @@
   · 건너뛰어도 되는데 안 건너뛴다 → 6분 낭비 (아깝지만 안전하다)
 
 전자를 막기 위해 **모르면 다시 돌린다**(fail-closed)를 값으로 못박고, 후자는 실측으로
-확인한다. 그리고 무거운 테스트를 MR 에서 빼는 쪽도 여기서 함께 잠근다 — **develop 에서도
-빠지면 그 21건은 아무 데서도 안 돈다.**
+확인한다. 그리고 무거운 테스트를 빼는 쪽도 여기서 함께 잠근다 — `-662` 에서 Heavy 를
+**새벽 스케줄**로 옮겼으므로, 그 스케줄 rule 이 빠지면 **55건이 아무 데서도 안 돈다.**
+그때 잡은 그대로 초록이다.
 
 **`assert` 를 쓰지 않는다** (`!461` AI 리뷰). `python -O` 로 돌리면 통째로 사라진다.
 """
@@ -142,18 +143,49 @@ check(-1 < i_base < i_reuse < i_skip < i_unity,
 
 # ── ④ 무거운 테스트는 **어딘가에서는** 돈다 ─────────────────────────────
 #
-#     MR 에서 빼는 것이 이 이슈의 결정이다. 그런데 develop 쪽에서도 빠지면 그 21건은
-#     **아무 데서도 안 돈다** — 검사가 있는데 아무것도 안 지키는 상태가 된다.
-check('-testCategory "!Heavy"' in CODE, "무거운 테스트를 MR 에서 빼는 배선이 없다")
+#     `-662` 에서 Heavy 를 머지 직후에서 **새벽 스케줄**로 옮겼다. 그래서 지킬 것이 넷이다.
+#       ㉠ 빼는 배선이 있다
+#       ㉡ 조건이 "스케줄이 아니면" 이고, 스케줄 가지에서는 안 뺀다
+#       ㉢ **그 스케줄이 실제로 이 잡을 만든다** — 없으면 55건이 아무 데서도 안 돈다
+#       ㉣ 잡의 조건과 `unity_reuse.category()` 가 같다
+#
+#     ㉢ 이 가장 조용히 깨지는 자리다: rule 한 줄만 빠지면 **잡은 그대로 초록이고
+#     테스트만 사라진다.** 아무도 알아채지 못한다.
+check('-testCategory "!Heavy"' in CODE, "무거운 테스트를 빼는 배선이 없다")
 
-merge_only = re.search(r'(?ms)if \[ "\$CI_PIPELINE_SOURCE" = "merge_request_event" \];(.*?)\bfi\b', CODE)
-check(merge_only is not None, "Heavy 제외가 MR 조건 안에 있는지 확인할 수 없다")
-if merge_only:
-    body = merge_only.group(1)
+not_schedule = re.search(r'(?ms)if \[ "\$CI_PIPELINE_SOURCE" != "schedule" \];(.*?)\bfi\b', CODE)
+check(not_schedule is not None,
+      'Heavy 제외 조건이 `!= "schedule"` 이 아니다 — category() 와 어긋난다')
+if not_schedule:
+    body = not_schedule.group(1)
     head, _, tail = body.partition("else")
-    check('-testCategory' in head, "Heavy 제외가 MR 쪽 가지에 없다")
+    check('-testCategory' in head, "스케줄이 아닐 때 Heavy 를 빼지 않는다")
     check('-testCategory' not in tail,
-          "develop 쪽에서도 Heavy 를 뺀다 — 그러면 그 21건이 아무 데서도 안 돈다")
+          "스케줄에서도 Heavy 를 뺀다 — 그러면 55건이 아무 데서도 안 돈다")
+
+#     ㉢ 새벽 스케줄 트리거가 rules 에 있어야 한다.
+check('$CI_PIPELINE_SOURCE == "schedule"' in CODE and '$NIGHTLY_DEPLOY_DEV == "true"' in CODE,
+      "새벽 스케줄 rule 이 없다 — Heavy 를 뺀 채로 아무 데서도 안 돌게 된다")
+
+#     ㉣ 잡과 파이썬이 **같은 조건**이어야 한다. 어긋나면 범위가 다른 잡의 결과를 빌려
+#     Heavy 가 검사되지 않은 채 초록이 된다(⑤ 가 그 경로를 따로 막는다).
+#
+#     **환경변수는 되돌린다.** 같은 프로세스의 뒤 검사로 새면 그쪽이 조용히 다른 답을 낸다.
+_saved_source = os.environ.get("CI_PIPELINE_SOURCE")
+try:
+    for _source, _want in (("schedule", U.CAT_FULL),
+                           ("merge_request_event", U.CAT_NO_HEAVY),
+                           ("push", U.CAT_NO_HEAVY),
+                           ("web", U.CAT_NO_HEAVY)):
+        os.environ["CI_PIPELINE_SOURCE"] = _source
+        _got = U.category()
+        check(_got == _want,
+              f"{_source} 의 검사 범위가 {_got} 다 — 잡의 `!= schedule` 분기와 어긋난다")
+finally:
+    if _saved_source is None:
+        os.environ.pop("CI_PIPELINE_SOURCE", None)
+    else:
+        os.environ["CI_PIPELINE_SOURCE"] = _saved_source
 
 #     "덜 돌았다" 를 코멘트가 말해야 한다. 안 적으면 초록이 '전부 돌았다' 로 읽힌다.
 check("UNITY_SKIPPED_CATEGORY" in CODE, "무거운 테스트를 뺀 사실을 코멘트에 넘기지 않는다")
@@ -183,11 +215,20 @@ print(f"  Heavy 표시 {marked}건 · 입력 {len(U.INPUTS)}종")
 #     자리에 쓰면 Heavy 가 검사되지 않은 채 초록이 된다 — 이 파일의 ④ 가 지키려는
 #     것을 재사용이 뒷문으로 무너뜨리는 모양이다.
 check(U.category.__doc__, "category() 에 설명이 없다")
-os.environ["CI_PIPELINE_SOURCE"] = "merge_request_event"
-check(U.category() == U.CAT_NO_HEAVY, f"MR 인데 범위가 {U.category()} 다")
-os.environ["CI_PIPELINE_SOURCE"] = "push"
-check(U.category() == U.CAT_FULL, f"push 인데 범위가 {U.category()} 다")
-os.environ.pop("CI_PIPELINE_SOURCE", None)
+
+#     **릴리스는 언제나 `full` 결과만 빌린다.** `mode_borrow` 가 `category()` 가 아니라
+#     `CAT_FULL` 을 **못박고** 있어야 한다.
+#
+#     `-662` 로 거의 모든 실행이 `no-heavy` 가 됐다(Heavy 는 새벽 스케줄에서만 돈다).
+#     여기서 `category()` 를 쓰면 master push 도 `no-heavy` 라, 릴리스가 **Heavy 가
+#     검사되지 않은 결과를 빌려** 그대로 나간다. 그리고 릴리스 잡 자신은 `-testCategory`
+#     없이 전체를 돌므로, 빌린 것과 도는 것이 서로 다른 것이 된다.
+_reuse_src = read("scripts/ci/unity_reuse.py")
+_borrow_body = _reuse_src[_reuse_src.index("def mode_borrow"):].split("\ndef ", 1)[0]
+check("find_same_tree(gl, key, CAT_FULL" in _borrow_body,
+      "릴리스가 category() 로 빌린다 — no-heavy 결과를 빌려 Heavy 없이 릴리스된다")
+check("category()" not in _borrow_body,
+      "mode_borrow 가 category() 를 본다 — 릴리스 범위가 실행마다 달라진다")
 
 #     지문은 **검사 대상 경로 전부**를 담아야 한다. 하나라도 빠지면 그것만 바뀐 트리를
 #     같다고 말한다.
@@ -309,4 +350,4 @@ if fails:
     raise SystemExit(1)
 
 print("  모르면 다시 돌린다 · 둘 다 그대로일 때만 건너뛴다 ✅")
-print("  무거운 테스트는 MR 에서만 빠지고 develop 에서 전부 돈다 ✅")
+print("  무거운 테스트는 새벽 스케줄에서만 돈다 · 릴리스는 full 결과만 빌린다 ✅")

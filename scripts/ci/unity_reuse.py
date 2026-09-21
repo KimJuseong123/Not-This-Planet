@@ -87,8 +87,20 @@ CAT_NO_HEAVY = "no-heavy"
 
 
 def category() -> str:
-    """이 실행이 무엇을 돌리는가. `.gitlab-ci.yml` 의 `-testCategory` 분기와 같은 조건."""
-    return CAT_NO_HEAVY if env("CI_PIPELINE_SOURCE") == "merge_request_event" else CAT_FULL
+    """이 실행이 무엇을 돌리는가. `.gitlab-ci.yml` 의 `-testCategory` 분기와 같은 조건.
+
+    **무거운 것은 새벽 스케줄에서만 돈다** (S15P21B202-662). 그 전에는 MR 만 빼고
+    develop 머지 직후에는 전체를 돌렸는데, 그 15분이 5일에 진짜 회귀 1건을 잡는 동안
+    `resource_group: unity` 를 물어 MR 검사와 릴리스를 막았다.
+
+    **"스케줄이 아니면 뺀다" 로 쓴다** — 잡 쪽 `if [ "$CI_PIPELINE_SOURCE" != "schedule" ]`
+    와 **글자 그대로 같은 조건**이어야 한다. 어긋나면 범위가 다른 잡의 결과를 빌려
+    **Heavy 가 검사되지 않은 채 초록**이 된다. `test_unity_reuse.py` 가 둘을 대조한다.
+
+    한쪽을 "MR 이면" 으로 두면 새 트리거(예: 웹 실행·태그 push)가 생겼을 때 두 판정이
+    갈린다 — 빼는 쪽이 기본이고 돌리는 쪽이 예외다.
+    """
+    return CAT_FULL if env("CI_PIPELINE_SOURCE") == "schedule" else CAT_NO_HEAVY
 
 
 def tree_key(paths=INPUTS) -> str | None:
