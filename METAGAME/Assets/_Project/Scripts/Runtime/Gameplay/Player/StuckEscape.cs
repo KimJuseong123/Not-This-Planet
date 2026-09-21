@@ -53,9 +53,56 @@ namespace Metagame.Gameplay
         /// <b>키를 놓으면 진행분을 버린다.</b> 고정못(§12.1)처럼 유지하면 끼지 않았을 때
         /// 조금씩 눌러 모아 둘 수 있고, 그러면 "3초 유지" 가 아니라 "합쳐서 3초" 가 된다.
         /// </summary>
+        /// <summary>
+        /// 끼어 보이는가 — <b>T 를 알려 줄 때다</b> (S15P21B202-669).
+        ///
+        /// <para>가고 싶다는 입력이 있는데 실제로 안 가는 상태가
+        /// <see cref="PhysicsScale.StuckNoticeSeconds"/> 동안 이어지면 참이 된다.</para>
+        ///
+        /// <para><b>제자리가 정상인 구간을 빼는 것이 이 판정의 본체다.</b> 파츠를 밀 때와
+        /// 고정못을 당길 때는 원래 거의 안 움직인다(S15P21B202-667). 거기서 "끼었습니다"
+        /// 가 뜨면 <b>게임이 제 기능을 오작동으로 알리는 것</b>이 된다.</para>
+        /// </summary>
+        public bool LooksStuck { get; private set; }
+
+        float _stuckSeconds;
+
+        /// <summary>
+        /// 지금 끼었다고 볼 수 있는 상태인가. 제자리가 정상인 구간은 전부 뺀다.
+        /// </summary>
+        bool CouldBeStuck()
+        {
+            if (_player == null || _player.Downed || _player.Ragdolled) return false;
+            if (!_player.Grounded) return false;          // 떨어지는 중은 낀 것이 아니다
+            if (_player.IsRiding) return false;           // 탈것은 몸이 안 움직인다
+            if (_player.Prone) return false;              // 기어가는 속도가 원래 느리다
+            if (_player.Hauling) return false;            // 파츠를 미는 중 — 0.73m/s 가 정상
+            if (_player.ClampGrabbed) return false;       // 고정못을 당기는 중 — 제자리가 기획이다
+
+            var wish = _player.MoveWish;
+            wish.y = 0f;
+            if (wish.sqrMagnitude < 1e-4f) return false;  // 갈 생각이 없으면 낀 것이 아니다
+
+            return _player.Speed < PhysicsScale.StuckNoticeSpeed;
+        }
+
+        void TickStuckNotice(float deltaTime)
+        {
+            if (!CouldBeStuck())
+            {
+                _stuckSeconds = 0f;
+                LooksStuck = false;
+                return;
+            }
+            _stuckSeconds += deltaTime;
+            LooksStuck = _stuckSeconds >= PhysicsScale.StuckNoticeSeconds;
+        }
+
         public bool Tick(float deltaTime, bool held)
         {
             if (_player == null || deltaTime <= 0f) return false;
+
+            TickStuckNotice(deltaTime);
 
             // 기절 중에는 쌓이지 않는다(§21). 진행분도 버린다 — 맞기 직전에 눌러 두고
             // 기절한 뒤에 채우는 것이 되면 §20.3 의 구조 대기가 의미를 잃는다.

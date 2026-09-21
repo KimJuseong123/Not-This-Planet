@@ -1267,6 +1267,27 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float PartPushForeignSpeedFactor = 1.5f;
 
+        /// <summary>
+        /// 미는 사람이 파츠보다 얼마나 더 빨리 걸을 수 있는가 (S15P21B202-667).
+        ///
+        /// <para>파츠 속도에 딱 맞추면 접촉을 유지할 여유가 없다 — 조금 앞설 수
+        /// 있어야 몸을 붙이고 민다. 1.15 면 1인 밀기(0.6)에서 0.69m/s,
+        /// 4인(1.5)에서 1.73m/s 다.</para>
+        /// </summary>
+        public const float PartPushKeepUpMargin = 1.15f;
+
+        /// <summary>
+        /// 미는 동안 파츠의 회전을 얼마나 눌러 두는가 (S15P21B202-667). 초당 남는 비율.
+        ///
+        /// <para><b>윗부분을 몸으로 밀면 파츠가 굴러갔다</b> — 실측 82.8도. <c>PartPush</c> 는
+        /// 질량중심에 힘을 넣어 토크를 안 만드는데, <b>미는 사람의 몸 콜라이더가 그것을
+        /// 우회한다.</b> 파츠를 넘어뜨리는 것은 §13 의 밀기가 아니라 §22.4 의 붕괴다.</para>
+        ///
+        /// <para>0 으로 죽이지는 않는다 — 경사에서 자세를 잡거나 운석에 맞아 도는 것까지
+        /// 막으면 물리가 죽은 것처럼 보인다. 미는 동안에만, 강하게 줄인다.</para>
+        /// </summary>
+        public const float PartPushSpinDamping = 0.04f;
+
         // --- 기절한 동료 운반 (기획 §20.4) ---
         /// <summary>
         /// 기절한 동료를 끌고 갈 때의 이동 속도 배율. 기획 §20.4 "운반 중 이동 속도가
@@ -1484,6 +1505,24 @@ namespace Metagame.Gameplay
         /// 더 싸면 아무도 구조를 기다리지 않는다.
         /// </summary>
         public const float StuckEscapeSeconds = 3f;
+
+        /// <summary>
+        /// 끼어 보인다고 판단하기까지의 시간(초) (S15P21B202-669).
+        ///
+        /// <para>짧으면 문틈에 잠깐 걸린 것에도 뜨고, 길면 이미 짜증이 난 뒤다.
+        /// 탈출에 걸리는 시간(<see cref="StuckEscapeSeconds"/> 3초)보다 짧아야
+        /// 알려 주는 뜻이 있다.</para>
+        /// </summary>
+        public const float StuckNoticeSeconds = 1.6f;
+
+        /// <summary>
+        /// 이 속도 아래로 움직이면 "가고 싶은데 못 간다" 로 본다(m/s) (S15P21B202-669).
+        ///
+        /// <para>걷기는 2.9m/s 다. 파츠를 밀 때가 0.73m/s 이므로 그보다 훨씬 낮게
+        /// 잡아야 하는데, <b>밀기와 고정못은 어차피 따로 제외한다</b> — 둘 다 제자리가
+        /// 정상이기 때문이다(S15P21B202-667 에서 확인).</para>
+        /// </summary>
+        public const float StuckNoticeSpeed = 0.25f;
 
         /// <summary>
         /// 안전한 지면을 찾는 최대 거리(m).
