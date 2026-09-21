@@ -108,11 +108,41 @@ e = next((i for i in range(s + 1, len(yml)) if TOP.match(yml[i])), len(yml))
 found = [" ".join(l.split()) for l in yml[s:e] if l.strip().startswith("- if:")]
 assert found == [
     '- if: $CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_DEPLOY_DEV == "true"',
+    '- if: $CI_PIPELINE_SOURCE == "schedule" && $WARM_UNITY_CACHE == "true"',
     '- if: $CI_PIPELINE_SOURCE == "merge_request_event" && '
     '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"',
     '- if: $CI_PIPELINE_SOURCE == "merge_request_event"',
 ], ("build-devbuild 의 rules 가 바뀌었다. trigger_allowed() 도 같이 고쳐야 한다 — "
     "안 그러면 그 트리거로 돈 빌드가 마지막 줄에서 실패한다." + chr(10) + repr(found))
+
+# ── 6a) 캐시 데우기 실행은 **아무 데도 안 올린다** (S15P21B202-664) ──
+#
+# 그 실행의 목적은 비보호 볼륨의 셰이더 캐시를 데우는 것 하나다. 산출물이 나가면
+# `dev-latest.json` 이 아무도 안 쓸 빌드를 가리키고, 레지스트리에 156MB 가 쌓인다.
+#
+# `trigger_allowed()` 는 **거짓**이어야 한다(새벽 배포가 아니므로). 그러면
+# `mismatch()` 가 참이 되어 잡이 죽는데, 그것을 막는 것이 `DEVBUILD_DRY_RUN` 이다 —
+# 그래서 **그 변수가 잡의 rules 안에 박혀 있어야** 한다. 스케줄 변수에만 두면
+# 빠뜨렸을 때 90분 빌드가 마지막 줄에서 죽는다.
+WARM = dict(CI_PIPELINE_SOURCE="schedule", WARM_UNITY_CACHE="true")
+at(**WARM)
+assert D.trigger_allowed() is False,     "데우기 실행이 업로드를 통과한다 — 아무도 안 쓸 빌드가 레지스트리에 올라간다"
+assert D.mismatch() is True,     "리허설 표시가 없는데 어긋남으로 안 잡는다 — 그 잡이 조용히 버려진다"
+
+at(DEVBUILD_DRY_RUN="1", **WARM)
+assert D.rehearsal_requested() is True and D.dry_run() is True,     "데우기 실행이 리허설이 아니다"
+assert D.mismatch() is False,     "일부러 켠 리허설을 어긋남으로 잡는다 — 데우기가 매번 빨갛게 죽는다"
+
+warm_block = chr(10).join(yml[s:e])
+assert 'DEVBUILD_DRY_RUN: "1"' in warm_block,     "데우기 규칙이 DEVBUILD_DRY_RUN 을 박아 두지 않는다 — 스케줄 변수를 빠뜨리면 죽는다"
+
+# ── 6b) 데우기 스케줄이 **엉뚱한 잡을 깨우지 않는다** ──
+#
+# 그 스케줄에도 `NIGHTLY_DEPLOY_DEV` 가 없다. 막지 않으면 `mm-digest` 의
+# `!= "true"` 조건이 참이 되어 **다이제스트 카드가 하루 두 번** 간다.
+whole = chr(10).join(yml)
+assert '$NIGHTLY_DEPLOY_DEV != "true" && $WARM_UNITY_CACHE != "true"' in whole,     "mm-digest 가 데우기 실행에서도 돈다 — 카드가 하루 두 번 간다"
+assert '$CI_PIPELINE_SOURCE == "schedule" && $WARM_UNITY_CACHE != "true"' in whole,     "retarget-pipelines 가 데우기 실행에서도 돈다 — 남의 MR 파이프라인을 새로 만든다"
 
 # ── 6b) master 로 가는 MR 에는 버튼이 없다 (S15P21B202-644) ──
 #
