@@ -22,6 +22,16 @@ namespace Metagame.Gameplay.Tests
     {
         static double clock;
 
+        /// <summary>
+        /// 연 씬을 반드시 닫는다 (S15P21B202-604). 열어 둔 채 끝나면 뒤이어 도는
+        /// 검증들이 이 씬의 콜라이더를 만난다.
+        /// </summary>
+        [OneTimeTearDown]
+        public void CloseAnyOpenScene()
+        {
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        }
+
         // --- 시각 계산은 씬 없이 잰다 ------------------------------------------------
 
         [Test]
@@ -100,6 +110,18 @@ namespace Metagame.Gameplay.Tests
 
         static Transform Spot(Transform stage, int index) => stage.Find("Greeting Spot " + index);
 
+        /// <summary>
+        /// 무대를 치운다. <b><see cref="Physics.SyncTransforms"/> 를 빼면 안 된다</b> —
+        /// 배우는 래그돌이라 콜라이더를 달고 있고, 플레이 중에 지워도 물리 씬에는 그대로
+        /// 남는다. 그러면 <b>뒤이어 도는 남의 검증이 여기 있던 콜라이더를 만난다</b>
+        /// (S15P21B202-616 때 <c>StuckEscapeTests</c> 를 이렇게 깨뜨렸다).
+        /// </summary>
+        static void Destroy(GameObject root)
+        {
+            Object.DestroyImmediate(root);
+            Physics.SyncTransforms();
+        }
+
         [Category("Heavy")]
         [UnityTest]
         public IEnumerator EachGreeterGetsALightOnTheirOwnAxis()
@@ -146,7 +168,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(bounds.size.x, Is.LessThan(gap),
                 $"웅덩이 폭 {bounds.size.x:0.00}m 가 자리 간격 {gap:0.00}m 보다 넓다.");
 
-            Object.DestroyImmediate(root);
+            Destroy(root);
             yield return new ExitPlayMode();
         }
 
@@ -193,7 +215,7 @@ namespace Metagame.Gameplay.Tests
             for (int j = 0; j < 4; j++)
                 Assert.That(Spot(stage, j).gameObject.activeSelf, Is.False, $"{j} 번이 발사 중에도 켜져 있다.");
 
-            Object.DestroyImmediate(root);
+            Destroy(root);
             yield return new ExitPlayMode();
         }
 
@@ -209,7 +231,7 @@ namespace Metagame.Gameplay.Tests
                 FindObjectsSortMode.None).Count(r => r.name.StartsWith("Greeting Spot"));
             Assert.That(before, Is.EqualTo(6), "조명 한 벌은 세 조각이다 — 2 명이면 6 개.");
 
-            Object.DestroyImmediate(root);
+            Destroy(root);
             yield return null;
             var after = Object.FindObjectsByType<MeshRenderer>(FindObjectsInactive.Include,
                 FindObjectsSortMode.None).Count(r => r.name.StartsWith("Greeting Spot"));
