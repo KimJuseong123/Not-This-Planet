@@ -176,11 +176,15 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
-        public void SidewaysMovementKeepsExistingSideStep()
+        public void SidewaysMovementNowAnimatesInsteadOfSliding()
         {
+            // **예전에는 여기서 가중치가 0 이었다** — 옆으로 가면 애니메이션을 통째로
+            // 껐고, 그 0 이 날것 래그돌이라 다리가 멈추고 그대로 미끄러졌다.
+            // 옆걸음 클립이 생겨 그 조건을 걷어냈다 (S15P21B202-670).
             var state = Walking; state.Direction = Vector2.right;
             Advance(state);
-            Assert.That(Suit.Locomotion.Weight, Is.Zero);
+            Assert.That(Suit.Locomotion.Weight, Is.GreaterThan(0.5f),
+                "옆으로 가는데 애니메이션이 꺼졌다.");
         }
 
         [Test]
