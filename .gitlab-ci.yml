@@ -122,7 +122,9 @@ retarget-pipelines:       # 결함 ① — 부모 브랜치가 지워져 자동 
     # 재대상이 일어나는 시점 — 부모가 develop 에 머지된 직후
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
     # 안전망. develop push 파이프라인이 실패·취소된 날에도 다음 아침에 메운다
-    - if: $CI_PIPELINE_SOURCE == "schedule"
+    # 캐시 데우기 실행에서는 하지 않는다 (S15P21B202-664) — 그 실행의 목적은
+    # 볼륨을 데우는 것 하나이고, 여기서 남의 MR 파이프라인을 새로 만들 이유가 없다.
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $WARM_UNITY_CACHE != "true"
       when: always
   allow_failure: true     # 이 잡이 실패해도 머지·배포를 막을 이유가 없다. 다음 실행에서 다시 본다
   script:
@@ -976,6 +978,23 @@ build-devbuild:           # QA 가 쓸 개발·QA 빌드 (S15P21B202-460)
     # **develop 은 새벽에만.** 머지마다 돌리면 웜이어도 10분대인 데다 `resource_group`
     # 때문에 `unity-compile` 과 직렬이라 **아침에 MR 검사가 줄을 선다**(-460 의 비용 표).
     - if: $CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_DEPLOY_DEV == "true"
+    # **셰이더 캐시를 데우는 전용 실행** (S15P21B202-664).
+    #
+    # 러너는 보호 ref 와 비보호 ref 에 **다른 빌드 볼륨**을 주고 `METAGAME/Library` 가
+    # 그 안에 있다. 새벽 배포는 develop(보호)에서 돌아 제 캐시를 매일 데우지만,
+    # **MR 의 QA 빌드 버튼은 비보호 볼륨**이라 한동안 안 누르면 반드시 식는다 —
+    # 2026-09-21 실측으로 그 볼륨의 첫 빌드가 40~80분, 그 뒤가 3.5~5.2분이었다.
+    #
+    # 그래서 **비보호 브랜치의 스케줄**이 밤마다 한 번 빌드해 그쪽을 데운다. 셰이더
+    # 캐시는 **실제 Windows 빌드만** 데운다 — EditMode 로는 안 된다(같은 날 실측:
+    # Library 를 지운 볼륨에서 EditMode 를 두 번 돌렸는데 ShaderCache 가 6.4M 뿐이었다).
+    #
+    # **산출물은 아무 데도 안 간다.** `DEVBUILD_DRY_RUN` 을 여기서 박아 둔다 —
+    # 스케줄 변수에만 두면 빠뜨렸을 때 `publish_devbuild` 가 어긋남으로 죽거나,
+    # 더 나쁘게는 아무도 안 쓸 빌드가 레지스트리에 올라간다.
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $WARM_UNITY_CACHE == "true"
+      variables:
+        DEVBUILD_DRY_RUN: "1"
     # **master 로 가는 MR 에는 만들지 않는다** (S15P21B202-644).
     #
     # 릴리스 MR(`!535`)에 이 버튼이 떠서 헷갈렸고 **실제로 눌렸다.** 이 버튼은
@@ -1007,6 +1026,41 @@ build-devbuild:           # QA 가 쓸 개발·QA 빌드 (S15P21B202-460)
       if [ ! -s "$LIC" ]; then
         echo "❌ Unity 라이선스가 마운트되지 않았다: $LIC (S15P21B202-271)"; exit 1
       fi
+    # **데우기 실행은 develop 끝을 받아 빌드한다** (S15P21B202-664).
+    #
+    # 이 스케줄은 **비보호 브랜치**를 가리켜야 한다 — 볼륨의 보호 등급이 ref 로
+    # 정해지기 때문이고, 데우려는 것이 비보호 쪽이다. 그런데 그 브랜치를 고정해 두면
+    # 날이 갈수록 develop 과 벌어져 **데운 캐시가 실제 빌드와 안 맞는다.**
+    # 그래서 브랜치는 "보호 등급을 나르는 그릇" 으로만 쓰고 내용은 develop 을 쓴다.
+    #
+    # 산출물은 어차피 아무 데도 안 간다(`DEVBUILD_DRY_RUN`) — 그래서 이 실행의
+    # `빌드=` 스탬프가 체크아웃과 어긋나도 읽는 사람이 없다.
+    - |
+      if [ "$WARM_UNITY_CACHE" = "true" ]; then
+        # **산출물이 나가면 안 되는 실행이다** — 여기서 한 번 더 못박는다 (`!567` AI 리뷰).
+        # 위 `rules` 가 `DEVBUILD_DRY_RUN: "1"` 을 박아 두지만, 그것이 언젠가 빠지면
+        # **비보호 자격으로 만든 develop 산출물이 레지스트리로 나간다.** 값싼 확인이다.
+        if [ "$DEVBUILD_DRY_RUN" != "1" ]; then
+          echo "❌ 데우기 실행인데 DEVBUILD_DRY_RUN 이 '1' 이 아니다 — 산출물이 나갈 수 있다"
+          exit 1
+        fi
+        echo "=== 캐시 데우기 — develop 끝을 받아 빌드한다 ==="
+        # **`&&` 로 묶지 않는다** (`!567` AI 리뷰). 묶으면 fetch 가 실패했을 때 checkout 을
+        # 건너뛰고 **그릇 브랜치의 낡은 내용으로 조용히 빌드한다** — 엉뚱한 캐시를 데우고도
+        # 초록이다. 이 잡의 목적이 통째로 사라지는데 아무도 모른다.
+        if ! git fetch --no-tags origin develop; then
+          echo "❌ develop 을 받지 못했다 — 그릇 브랜치 내용으로 데우면 엉뚱한 캐시가 된다"
+          exit 1
+        fi
+        if ! git checkout -f FETCH_HEAD; then
+          echo "❌ develop 끝으로 옮기지 못했다"
+          exit 1
+        fi
+        git --no-pager log -1 --format='데우는 대상: %h %s'
+      fi
+    # **LFS 검증은 데우기 체크아웃 *뒤*에 둔다** (S15P21B202-664 · develop 과의 충돌 해소).
+    # `git checkout -f` 는 LFS 스머지가 안 돌면 에셋을 포인터로 남길 수 있고, 그것이
+    # 바로 이 검사가 잡으려는 것이다. 앞에 두면 **곧 갈아치울 트리**를 검사한다.
     - python3 scripts/ci/validate_unity_lfs.py
     - python3 scripts/ci/publish_devbuild.py version
     - echo "=== 빌드 시작 ($(cat release-version.txt)) ==="
@@ -1377,7 +1431,9 @@ mm-digest:                # 스케줄 파이프라인(매일 09:30 · 실제 발
   rules:
     # **새벽 배포 스케줄에는 끼지 않는다** (S15P21B202-455). 스케줄 파이프라인은
     # 소스가 다 `schedule` 이라, 변수로 가르지 않으면 아침 카드가 하루 두 번 나간다.
-    - if: $CI_PIPELINE_SOURCE == "schedule" && $MM_WEBHOOK_URL && $NIGHTLY_DEPLOY_DEV != "true"
+    # **캐시 데우기 실행에서는 안 보낸다** (S15P21B202-664) — 그 스케줄에도
+    # `NIGHTLY_DEPLOY_DEV` 가 없어서, 막지 않으면 다이제스트 카드가 하루 두 번 간다.
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $MM_WEBHOOK_URL && $NIGHTLY_DEPLOY_DEV != "true" && $WARM_UNITY_CACHE != "true"
       when: always
   script:
     - python scripts/ci/mm_digest.py
