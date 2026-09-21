@@ -4,7 +4,6 @@ import com.metagame.backend.domain.leaderboard.dto.LeaderboardEntry;
 import com.metagame.backend.domain.leaderboard.dto.SubmitRunRequest;
 import com.metagame.backend.global.auth.JwtProvider;
 import jakarta.validation.Valid;
-import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -42,12 +41,24 @@ public class LeaderboardController {
         this.service = service;
     }
 
-    /** 그 판의 상위 기록. 빠른 순이다. */
+    /**
+     * 그 인원 표의 상위 기록. 빠른 순이다.
+     *
+     * <p><b>표가 넷이다</b> — 1인·2인·3인·4인. 게임이 인원으로 난이도를 조정하므로
+     * (기획 §17.6) 인원이 다르면 애초에 다른 판이고, 한 표에 섞으면 비교가 성립하지
+     * 않는다.</p>
+     */
     @GetMapping
-    public ResponseEntity<List<LeaderboardEntry>> top(
-            @RequestParam(defaultValue = "COOP") RunMode mode,
+    public ResponseEntity<?> top(
+            @RequestParam(defaultValue = "4") int crew,
             @RequestParam(defaultValue = "" + DEFAULT_LIMIT) int limit) {
-        return ResponseEntity.ok(service.top(mode, limit));
+        try {
+            return ResponseEntity.ok(service.top(crew, limit));
+        } catch (IllegalArgumentException e) {
+            // 없는 표를 물었다. **빈 목록으로 답하지 않는다** — 그러면 오타를
+            // "아직 기록이 없다" 로 읽게 된다.
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
     /**
@@ -71,8 +82,8 @@ public class LeaderboardController {
 
         try {
             RunRecord saved = service.submit(userId, request);
-            log.info("[leaderboard] 기록 user={} mode={} {}ms crew={}",
-                    userId, saved.getMode(), saved.getClearMillis(), saved.getCrewSize());
+            log.info("[leaderboard] 기록 user={} {}인 {}ms",
+                    userId, saved.getCrewSize(), saved.getClearMillis());
             return ResponseEntity.status(HttpStatus.CREATED).body(saved.getId());
         } catch (LeaderboardService.TooManySubmitsException e) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(e.getMessage());

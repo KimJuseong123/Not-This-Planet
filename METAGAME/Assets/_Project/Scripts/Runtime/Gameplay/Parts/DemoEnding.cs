@@ -267,7 +267,48 @@ namespace Metagame.Gameplay.Parts
             ApplySnapshot(snapshot);
             _session.Clear();
             Debug.Log("[DemoEnding] 네 핵심 파츠 비드 연결 확정. 전원 엔딩 시작.");
+            RememberForLeaderboard(snapshot);
             return true;
+        }
+
+        /// <summary>
+        /// 클리어 기록을 리더보드에 올리도록 적어 둔다 (S15P21B202-656).
+        ///
+        /// <para><b>여기가 호스트다.</b> <see cref="TryComplete"/> 는 <c>_authority()</c>
+        /// 뒤에서만 진행하므로 이 줄에 닿는 것은 방장 하나뿐이다 — 팀원이 각자 올리면
+        /// 같은 판이 표에 여러 줄로 남는데, 서버가 그것을 묶을 방법이 없다.</para>
+        ///
+        /// <para><b>네트워크를 쓰지 않는다.</b> 이 저장소의 "플레이 중에는 네트워킹을
+        /// 쓰지 않는다" 를 지킨다 — 파일 하나만 적고, 보내는 것은 로비로 돌아온 뒤
+        /// <see cref="Metagame.Core.LeaderboardUpload.SubmitPending"/> 가 한다.</para>
+        ///
+        /// <para><b>실패해도 엔딩은 그대로 간다.</b> 기록은 곁다리다.</para>
+        /// </summary>
+        static void RememberForLeaderboard(DemoEndingSnapshot snapshot)
+        {
+            try
+            {
+                var names = new List<string>();
+                foreach (var player in snapshot.Players)
+                    if (player != null) names.Add(player.Name);
+
+                var submission = Metagame.Core.Leaderboard.BuildSubmission(
+                    snapshot.PlayTimeSeconds, names, Metagame.Core.RunLogUpload.BuildTag());
+
+                if (submission == null)
+                {
+                    // 서버가 거절할 값이다(시간이 범위 밖이거나 닉네임이 없다).
+                    // 보내 봐야 400 이므로 적어 두지 않는다.
+                    Debug.Log("[DemoEnding] 리더보드에 올릴 수 없는 기록이다. 건너뛴다.");
+                    return;
+                }
+
+                Metagame.Core.LeaderboardUpload.Remember(submission);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning("[DemoEnding] 리더보드 기록 적기 실패: " + e.Message);
+            }
         }
 
         public void ApplySnapshot(DemoEndingSnapshot snapshot)

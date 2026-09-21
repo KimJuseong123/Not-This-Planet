@@ -11,13 +11,16 @@ namespace Metagame.UI
     /// 로비 전용 IMGUI. 현재 프로젝트의 HUD가 IMGUI 기반이므로 같은 방식으로
     /// 메인 메뉴와 온라인 방 화면을 구성한다.
     /// </summary>
-    public sealed class LobbyHud : MonoBehaviour
+    public sealed partial class LobbyHud : MonoBehaviour
     {
         private enum LobbyView
         {
             Main,
             Multiplayer,
-            Settings
+            Settings,
+
+            /// <summary>클리어 기록 표 (S15P21B202-656).</summary>
+            Leaderboard
         }
 
         private enum SettingsTab
@@ -256,6 +259,8 @@ namespace Metagame.UI
                 DrawMainMenu();
             else if (view == LobbyView.Multiplayer)
                 DrawMultiplayer();
+            else if (view == LobbyView.Leaderboard)
+                DrawLeaderboard();
             else
                 DrawSettings();
         }
@@ -266,7 +271,8 @@ namespace Metagame.UI
             float buttonWidth = 330f * scale;
             float buttonHeight = 60f * scale;
             float gap = 14f * scale;
-            float totalHeight = buttonHeight * 6f + gap * 5f;   // 테스트 버튼이 늘어 6칸 (S15P21B202-572)
+            // 기록 버튼이 늘어 7칸 (S15P21B202-656). 572 가 테스트 버튼으로 6칸이 됐다.
+            float totalHeight = buttonHeight * 7f + gap * 6f;
             Rect safe = UiScale.SafeArea;
             float x = Mathf.Clamp(UiScale.Width * 0.16f, safe.xMin + 20f, safe.xMax - buttonWidth - 20f);
             float y = Mathf.Clamp(UiScale.Height * 0.54f, safe.yMin + 20f,
@@ -304,6 +310,9 @@ namespace Metagame.UI
                     "우주선 연습실", buttonStyle))
                 LobbyTransition.Ensure().BeginPractice();
             if (UiInteraction.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 5, gap),
+                    "기록", buttonStyle))
+                OpenLeaderboard();
+            if (UiInteraction.Button(ButtonRect(x, y, buttonWidth, buttonHeight, 6, gap),
                     "종료하기", quietButtonStyle))
                 Application.Quit();
 

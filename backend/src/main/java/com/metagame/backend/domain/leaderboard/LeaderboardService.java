@@ -76,7 +76,8 @@ public class LeaderboardService {
 
         // **인원 수는 닉네임 수로 정한다.** 따로 보내게 하면 둘이 어긋날 수 있고,
         // 그때 무엇을 믿을지 정하는 규칙이 또 필요해진다. 보내는 값을 하나로 줄인다.
-        RunMode mode = RunMode.ofCrew(names.size());
+        // 그 인원이 곧 이 기록이 오를 표다 — 1인·2인·3인·4인이 따로 있다.
+        int crewSize = names.size();
 
         long recent = repository.countBySubmitterUserIdAndCreatedAtAfter(
                 userId, LocalDateTime.now().minus(SUBMIT_WINDOW));
@@ -86,21 +87,28 @@ public class LeaderboardService {
         }
 
         return repository.save(RunRecord.builder()
-                .mode(mode)
                 .clearMillis(millis)
-                .crewSize(names.size())
+                .crewSize(crewSize)
                 .crewNames(String.join(NAME_SEPARATOR, names))
                 .submitterUserId(userId)
                 .build(trim(request.build(), 80))
                 .build());
     }
 
-    /** 그 판의 상위 기록. 1위부터 번호를 매겨 돌려준다. */
+    /**
+     * 그 인원 표의 상위 기록. 1위부터 번호를 매겨 돌려준다.
+     *
+     * @throws IllegalArgumentException 인원이 1~{@link RunRecord#MAX_CREW} 밖이면.
+     *     없는 표를 물으면 빈 목록이 아니라 잘못된 요청이다 — 빈 목록으로 답하면
+     *     오타를 "아직 기록이 없다" 로 읽게 된다.
+     */
     @Transactional(readOnly = true)
-    public List<LeaderboardEntry> top(RunMode mode, int limit) {
+    public List<LeaderboardEntry> top(int crewSize, int limit) {
+        requireValidCrew(crewSize);
+
         int size = Math.max(1, Math.min(limit, MAX_LIMIT));
-        List<RunRecord> records =
-                repository.findByModeOrderByClearMillisAscCreatedAtAsc(mode, PageRequest.of(0, size));
+        List<RunRecord> records = repository.findByCrewSizeOrderByClearMillisAscCreatedAtAsc(
+                crewSize, PageRequest.of(0, size));
 
         List<LeaderboardEntry> entries = new ArrayList<>(records.size());
         for (int i = 0; i < records.size(); i++) {
@@ -109,6 +117,14 @@ public class LeaderboardService {
                     i + 1, r.getCrewNames(), r.getClearMillis(), r.getCrewSize(), r.getCreatedAt()));
         }
         return entries;
+    }
+
+    /** 없는 표를 묻지 않았는지 본다. */
+    static void requireValidCrew(int crewSize) {
+        if (crewSize < 1 || crewSize > RunRecord.MAX_CREW) {
+            throw new IllegalArgumentException(
+                    "인원 수가 1~" + RunRecord.MAX_CREW + " 를 벗어납니다: " + crewSize);
+        }
     }
 
     /**
@@ -132,7 +148,7 @@ public class LeaderboardService {
                                  .trim();
             if (cleaned.isEmpty()) continue;
             out.add(trim(cleaned, 20));
-            if (out.size() >= RunMode.MAX_CREW) break;
+            if (out.size() >= RunRecord.MAX_CREW) break;
         }
 
         // 나열 전체가 칸을 넘지 않는지 마지막으로 본다. 넘으면 뒤에서 덜어낸다 —

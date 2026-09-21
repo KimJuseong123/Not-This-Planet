@@ -272,6 +272,12 @@ namespace Metagame.Network
             StartCoroutine(Metagame.Core.RunLogUpload.SweepOnce(
                 Metagame.Core.BackendEndpoints.HttpBaseUrl, accessToken, UserId));
 
+            // 클리어 기록도 같은 자리에서 보낸다 (S15P21B202-656). 판이 끝난 순간에는
+            // 파일만 적어 두고(`DemoEnding`), 올리는 것은 여기다 — 같은 이유로
+            // **플레이 중에 네트워킹을 쓰지 않는다.**
+            StartCoroutine(Metagame.Core.LeaderboardUpload.SubmitPending(
+                Metagame.Core.BackendEndpoints.HttpBaseUrl, accessToken));
+
             // **판이 끝나면 한 번 더 보낸다** (S15P21B202-607). 로그인 때만 보내면
             // "한 번 켜서 한 판 하고 끄는 사람" 의 기록은 영영 오지 않는다 — 데모에서는
             // 그쪽이 다수다. 요청은 `PlayObserver` 가 판을 닫으면서 보낸다.
@@ -1043,6 +1049,10 @@ namespace Metagame.Network
             if (!IsLoggedIn || !isActiveAndEnabled) return;
             StartCoroutine(Metagame.Core.RunLogUpload.SweepOnce(
                 Metagame.Core.BackendEndpoints.HttpBaseUrl, accessToken, UserId));
+
+            // 방금 끝난 판의 클리어 기록. 적어 둔 것이 없으면 아무 일도 하지 않는다.
+            StartCoroutine(Metagame.Core.LeaderboardUpload.SubmitPending(
+                Metagame.Core.BackendEndpoints.HttpBaseUrl, accessToken));
         }
 
         void OnDestroy()
