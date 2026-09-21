@@ -281,6 +281,31 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
     #   · 따로 들어와도 `unity_reuse.py` 가 앞 실행과 같은 트리임을 알고 건너뛴다
     #     (그 재사용이 develop 에서 안 돌던 것을 이 이슈에서 함께 고쳤다 — `NO_MERGE`)
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
+    # **무거운 것은 여기서만 돈다** (S15P21B202-662). 새벽 배포 스케줄에 얹었다.
+    #
+    # `-602` 는 Heavy 를 "MR 에서 빼고 머지 직후에 돌린다" 로 두었다. 그 15분이 무엇을
+    # 얻는지 재 보니(2026-09-21, develop 실행 19회의 로그 전수) **새 실패 21종 중
+    # Heavy 는 2종이고 그중 진짜 회귀는 1건**이었다(`552259`, 나머지 1건은 플래키).
+    # 나머지 19종은 비-Heavy 라 MR 에서도 도는 것들이다.
+    #
+    # 낸 것은 develop 실행 25회 × 15분 ≈ 375분이고, 그 15분이 `resource_group: unity`
+    # 를 물고 있어 2026-09-18 에는 8건이 쌓여 MR 검사와 릴리스를 통째로 막았다(`-641`).
+    #
+    # **잃는 것은 "그 1건을 최대 하루 늦게 안다" 이다.** 실측 기준 5일에 1건꼴이다.
+    #
+    # 여기에 두는 이유: 이미 도는 스케줄이라 새 예약을 만들지 않고, 실패하면
+    # `mm-nightly-failed` 가 잡 이름과 함께 알린다.
+    #
+    # **순서.** 이 잡(`stage: test`)이 `build-devbuild`(`stage: deploy`)보다 먼저
+    # 만들어지므로 `resource_group: unity` 의 `oldest_first` 에서 Unity 슬롯을 먼저
+    # 잡는다 — 새벽 배포가 20분 뒤로 밀린다. 04:00 시작이라 배포는 04:45 쯤이고 팀이
+    # 오기까지 4시간 넘게 남으므로 그대로 둔다. **순서를 뒤집으려고 `needs:` 로 묶지
+    # 않는다** — MR 에서는 `build-devbuild` 가 수동 버튼이라 `needs` 가 걸리면 그쪽
+    # 파이프라인의 `unity-compile` 이 버튼을 누를 때까지 안 돈다.
+    #
+    # **배포는 이 잡에 걸려 있지 않다**(`build-devbuild` 는 `needs: []`) — Heavy 가
+    # 깨져도 아침 빌드는 나온다. 막히는 것은 Unity 슬롯 순서뿐이다.
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_DEPLOY_DEV == "true"
   # 종료 코드로 판정을 나눈다 (S15P21B202-309). unity_report.py 가 **대상 브랜치 기준선과
   # 비교해서** 정한다:
   #   0 = 통과(기존 실패만 있음) · 1 = **이 MR 이 만든** 컴파일 오류·새 테스트 실패 → 막는다
@@ -393,11 +418,20 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
         echo "=== Unity 를 건너뛴다 — 잡 $UNITY_REUSED_FROM 의 결과를 그대로 쓴다 ==="
         echo "    검사 대상이 바이트 단위로 같다(브랜치·develop 둘 다 Unity 입력 무변경)."
       else
-        # **무거운 21건은 MR 에서 빼고 develop 에서 돈다** (S15P21B202-602).
-        # 1795건 중 5초 이상인 21건이 테스트 시간 275초의 71%(195초)를 먹는다.
-        # 머지 직후 실행(`-309`)이 그 21건을 전부 돌리므로 회귀는 2분 안에 잡힌다.
-        # 되돌리려면 이 `-testCategory` 를 빼면 된다.
-        if [ "$CI_PIPELINE_SOURCE" = "merge_request_event" ]; then
+        # **무거운 55건은 새벽 스케줄에서만 돈다** (S15P21B202-602 → -662).
+        #
+        # `-602` 는 "MR 에서 빼고 머지 직후에 돌린다" 였다. `-662` 에서 머지 직후도 빼고
+        # 새벽 배포 스케줄로 옮겼다 — 그 15분이 5일에 진짜 회귀 1건을 잡는 동안
+        # `resource_group: unity` 를 물어 MR 검사와 릴리스를 막았다(위 rules 의 근거).
+        #
+        # **조건을 "스케줄이 아니면" 으로 쓴다.** "MR 이면" 으로 두면 스케줄이 아닌 새
+        # 트리거가 생겼을 때 그쪽이 조용히 전체를 돌려 다시 20분이 된다 — 빼는 쪽이
+        # 기본이고 돌리는 쪽이 예외다.
+        #
+        # ⚠ `unity_reuse.category()` 와 **같은 조건**이어야 한다. 어긋나면 범위가 다른
+        # 잡의 결과를 빌려 **Heavy 가 검사되지 않은 채 초록**이 된다.
+        # `test_unity_reuse.py` 가 둘을 대조한다.
+        if [ "$CI_PIPELINE_SOURCE" != "schedule" ]; then
           set -- -testCategory "!Heavy"
           # 코멘트에 "덜 돌았다" 를 적게 한다 — 안 적으면 초록이 '전부 돌았다' 로 읽힌다.
           export UNITY_SKIPPED_CATEGORY="Heavy"
@@ -808,10 +842,14 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
     # 실패하면 빌드하지 않는다. ❌ 줄을 남기므로 mm-ci-failed 가 그것을 카드의 이유로 싣는다.
     # **같은 트리를 이미 전체로 검사했으면 빌려 온다** (S15P21B202-642).
     #
-    # 릴리스 시점의 master 트리는 develop 과 같은 것이 보통이고(릴리스 머지가 파일을
-    # 바꾸지 않는다), 그 트리는 develop 의 `unity-compile` 이 **Heavy 까지 포함해**
-    # 이미 검사했다. 2026-09-18 실측: 여기서 20분 20초가 들었고 결과는 develop 이 낸
-    # 것과 실패 수까지 같았다(26 = 26). 릴리스 24.8분의 82% 였다.
+    # 2026-09-18 실측: 여기서 20분 20초가 들었고 결과는 같은 트리를 검사한 develop 의
+    # `unity-compile` 과 실패 수까지 같았다(26 = 26). 릴리스 24.8분의 82% 였다.
+    #
+    # **`-662` 이후로는 대개 못 빌린다 — 그리고 그것이 맞다.** Heavy 가 새벽 스케줄로
+    # 옮겨가면서 `full` 로 도는 실행은 하루 한 번뿐이 됐다. `borrow` 는 `CAT_FULL` 을
+    # 못박고 찾으므로(`unity_reuse.mode_borrow`) `no-heavy` 결과를 집는 일은 없고,
+    # 못 찾으면 **여기서 Heavy 까지 제 트리로 직접 돈다.** 릴리스가 20분을 다시 쓰는
+    # 대신, 나가는 그 트리에 Heavy 가 실제로 돌았다는 것이 보장된다.
     #
     # 지문이 다르면(핫픽스로 갈라졌다면) 그냥 돈다 — 그때가 이 검사가 필요한 때다.
     - python3 scripts/ci/unity_reuse.py borrow || true
