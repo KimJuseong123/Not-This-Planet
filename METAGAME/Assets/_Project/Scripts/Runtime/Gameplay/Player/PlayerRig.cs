@@ -474,7 +474,9 @@ namespace Metagame.Gameplay
         /// 맞춰 걷는다 — <b>고정 배율로 하면 넷이 밀 때 전원이 뒤처진다</b>(파츠는
         /// 1.5m/s 인데 사람은 0.73m/s 라 접촉이 끊긴다).
         ///
-        /// <para>참가자 화면에서는 인원수가 안 오므로 1인 값을 바닥으로 쓴다.</para>
+        /// <para>참가자 화면에는 <c>NetPlayer.haulTopSpeed</c> 로 서버가 계산한 값이
+        /// 그대로 온다. <b>0 이면 상한을 안 건다</b> — 모를 때 1인 값을 넣으면 그것이
+        /// 바닥이 아니라 천장이 되어 넷이 밀 때 참가자만 뒤처진다.</para>
         /// </summary>
         public float HaulTopSpeed { get; private set; }
 
@@ -485,11 +487,14 @@ namespace Metagame.Gameplay
         /// 참가자 화면에서 서버가 보낸 밀기 상태를 넣는다.
         /// 서버·혼자 실행에서는 <see cref="Tick"/> 이 직접 채우므로 부르지 않는다.
         /// </summary>
-        public void SetHaulState(bool hauling, Vector3 direction, Vector3 grasp)
+        /// <param name="topSpeed">
+        /// 그 파츠가 낼 수 있는 속도(m/s). <b>0 이면 걷기 상한을 안 건다</b> —
+        /// 모르는 값을 1인 속도로 채우면 그것이 바닥이 아니라 천장이 된다.
+        /// </param>
+        public void SetHaulState(bool hauling, Vector3 direction, Vector3 grasp,
+                                 float topSpeed = 0f)
         {
-            // 참가자 화면에는 인원수가 안 온다. 1인 값을 바닥으로 쓴다 — 넷이 밀면
-            // 서버가 파츠를 더 빨리 보내므로 몸이 따라가고, 그 사이 접촉은 유지된다.
-            ApplyHaulState(hauling, direction, grasp, Parts.PartPushTable.SpeedFor(1));
+            ApplyHaulState(hauling, direction, grasp, topSpeed);
         }
 
         // 밀기 중 이동 기준. **시점이 아니라 밀기를 시작한 방향이다** — §10.2
@@ -507,7 +512,10 @@ namespace Metagame.Gameplay
 
         void ApplyHaulState(bool hauling, Vector3 direction, Vector3 grasp, float topSpeed)
         {
-            HaulTopSpeed = topSpeed > 0f ? topSpeed : Parts.PartPushTable.SpeedFor(1);
+            // **0 이면 상한을 안 건다.** 예전에는 모를 때 1인 값을 넣었는데, 걷기
+            // 상한이 Min 이라 그것이 바닥이 아니라 **천장**이 됐다 — 넷이 미는데
+            // 참가자만 0.69m/s 로 묶여 파츠를 놓쳤다. 모르면 안 누르는 쪽이 낫다.
+            HaulTopSpeed = topSpeed;
             var flat = new Vector3(direction.x, 0f, direction.z);
 
             Hauling = hauling && flat.sqrMagnitude > 1e-6f;
@@ -3134,7 +3142,7 @@ namespace Metagame.Gameplay
             // 파츠를 미는 동안 느려진다 (S15P21B202-667). **파츠가 낼 수 있는 속도에
             // 맞춘다** — 고정 배율이면 넷이 밀 때(1.5m/s) 전원이 뒤처져 접촉이 끊긴다.
             // 여유를 조금 둬야 따라붙으면서 밀 수 있다.
-            if (Hauling)
+            if (Hauling && HaulTopSpeed > 0f)
                 top = Mathf.Min(top, HaulTopSpeed * PhysicsScale.PartPushKeepUpMargin);
             // 엎드리면 기어간다. 다른 감속과 곱하지 않고 **상한으로** 둔다 —
             // 곱하면 달리기 키를 누른 채 기어가는 것이 더 빨라진다.

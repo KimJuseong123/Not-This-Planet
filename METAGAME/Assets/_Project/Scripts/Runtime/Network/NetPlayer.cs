@@ -177,6 +177,17 @@ namespace Metagame.Network
         public Vector3 haulGrasp;
 
         /// <summary>
+        /// 지금 미는 파츠가 낼 수 있는 속도(m/s) (S15P21B202-667).
+        ///
+        /// <para><b>이것을 안 보내면 참가자 화면이 1인 속도에 묶인다.</b> 걷기 상한이
+        /// <c>Min(걷기, 이 값 × 여유)</c> 라, 인원수를 모른다고 1인 값을 넣으면 그것이
+        /// 바닥이 아니라 <b>천장</b>이 된다 — 넷이 미는데 참가자만 0.69m/s 로 묶여
+        /// 파츠를 놓친다. 이 MR 이 고치려던 바로 그 증상이다.</para>
+        /// </summary>
+        [SyncVar]
+        public float haulTopSpeed;
+
+        /// <summary>
         /// <b>남이 이 사람을 일으키는 진행도 0~1</b> (S15P21B202-448).
         ///
         /// <para><b>왜 보내야 하나.</b> 진행분은 구조자의 인터랙터가 대상의
@@ -497,7 +508,7 @@ namespace Metagame.Network
             // (IsHostOwnPlayer 주석)는 **서버 쪽 몸 세우기**의 스폰 경쟁 이야기고,
             // 이 자리는 body 가 이미 있는지 확인한 뒤이며 한 프레임 늦어도 무해하다.
             if (!isServer && isLocalPlayer)
-                body.SetHaulState(hauling, haulDirection, haulGrasp);
+                body.SetHaulState(hauling, haulDirection, haulGrasp, haulTopSpeed);
 
             // **내 몸에만 넣는다.** 이 값을 그리는 곳은 쓰러진 당사자의 화면뿐이고,
             // 남의 몸(그림)에 넣어 봐야 읽는 데가 없다. 서버에서는 PlayerRig 가 자기
@@ -1020,6 +1031,7 @@ namespace Metagame.Network
             hauling = body.Hauling;
             haulDirection = body.HaulDirection;
             haulGrasp = body.HaulGrasp;
+            haulTopSpeed = body.HaulTopSpeed;
 
             // 쓰러진 사람 화면의 게이지가 읽을 값이다 (S15P21B202-448). 위 downed 와
             // 같은 자리에 둔다 — 같은 몸의 같은 상태이고, 탑승과 무관하다(-378).
