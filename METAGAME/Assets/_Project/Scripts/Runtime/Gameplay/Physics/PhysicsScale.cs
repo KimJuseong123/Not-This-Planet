@@ -1486,6 +1486,24 @@ namespace Metagame.Gameplay
         public const float StuckEscapeSeconds = 3f;
 
         /// <summary>
+        /// 끼어 보인다고 판단하기까지의 시간(초) (S15P21B202-669).
+        ///
+        /// <para>짧으면 문틈에 잠깐 걸린 것에도 뜨고, 길면 이미 짜증이 난 뒤다.
+        /// 탈출에 걸리는 시간(<see cref="StuckEscapeSeconds"/> 3초)보다 짧아야
+        /// 알려 주는 뜻이 있다.</para>
+        /// </summary>
+        public const float StuckNoticeSeconds = 1.6f;
+
+        /// <summary>
+        /// 이 속도 아래로 움직이면 "가고 싶은데 못 간다" 로 본다(m/s) (S15P21B202-669).
+        ///
+        /// <para>걷기는 2.9m/s 다. 파츠를 밀 때가 0.73m/s 이므로 그보다 훨씬 낮게
+        /// 잡아야 하는데, <b>밀기와 고정못은 어차피 따로 제외한다</b> — 둘 다 제자리가
+        /// 정상이기 때문이다(S15P21B202-667 에서 확인).</para>
+        /// </summary>
+        public const float StuckNoticeSpeed = 0.25f;
+
+        /// <summary>
         /// 안전한 지면을 찾는 최대 거리(m).
         ///
         /// §21 은 "<b>가까운</b> 안전 지면" 이라고만 한다. 8m 는 저중력 점프 한 번보다

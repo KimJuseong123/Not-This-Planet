@@ -295,6 +295,7 @@ namespace Metagame.UI
             WeldingMaterialGauge(w, h);
             DrawMeteorRhythm(w, h);
             DrawKeyGuides(w, h);
+            DrawInteractionHint(w, h);
 
             // 도착
             if (s != null && s.Cleared)

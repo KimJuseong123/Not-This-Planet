@@ -723,11 +723,21 @@ namespace Metagame.Gameplay
                 return focus as DownedRescue;
             }
         }
+        /// <summary>
+        /// 검증이 "고정못을 잡은 상태" 를 만들 때 쓴다. 조건이 손·대상·해제 여부까지
+        /// 걸려 있어 조작 전체를 흉내내기 어렵다.
+        ///
+        /// <para><b>S15P21B202-667 도 같은 이음새를 넣는다</b> — 둘 다 이 상태를
+        /// 흉내내야 해서다. 먼저 머지되는 쪽이 이기면 되는 같은 내용이다.</para>
+        /// </summary>
+        public bool ClampGrabbedForTests { get; set; }
+
         /// <summary>실제로 한 손이 고정쇠에 결합된 상태.</summary>
         public bool ClampGrabbed
         {
             get
             {
+                if (ClampGrabbedForTests) return true;
                 return clampGrabbed && clampGrabHand != null && clampGrabTarget != null
                        && !clampGrabTarget.IsReleased
                        && clampGrabHand.Gripping
