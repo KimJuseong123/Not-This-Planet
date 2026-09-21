@@ -70,6 +70,19 @@ namespace Metagame.Gameplay
             return true;
         }
 
+        public bool TrySkip(int revision)
+        {
+            if (!Authoritative || !IsCinematic || Revision != revision || _session == null || _session.EndingActive)
+                return false;
+            if (Phase == Stage1SequencePhase.Assault)
+            {
+                AssaultEnabled = true;
+                _spawner?.BeginAssault();
+            }
+            Change(AssaultEnabled ? Stage1SequencePhase.Combat : Stage1SequencePhase.Exploration);
+            return true;
+        }
+
         void Change(Stage1SequencePhase phase)
         {
             Phase = phase;

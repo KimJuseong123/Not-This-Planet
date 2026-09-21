@@ -123,6 +123,24 @@ namespace Metagame.Gameplay.Parts
         public IReadOnlyList<SpaceshipPart> Parts => _parts;
         public bool PlaybackStarted => Active && _clock() >= Snapshot.StartedAt;
 
+        // Stage1 clear time is a mandatory stop: never offer a target past EndTitle from an earlier shot.
+        public bool TryGetSkipTarget(out float target)
+        {
+            target = 0f;
+            if (!PlaybackStarted) return false;
+            switch (Stage)
+            {
+                case DemoEndingStage.Boarding: target = BoardingEndsAt; break;
+                case DemoEndingStage.Launching: target = PhotographStartsAt; break;
+                case DemoEndingStage.Photograph: target = EndTitleStartsAt; break;
+                case DemoEndingStage.SpaceDrift: target = ArrivalStartsAt + SpaceDriftSeconds; break;
+                case DemoEndingStage.MeteorImpact: target = ArrivalStartsAt + SpaceDriftSeconds + MeteorImpactSeconds; break;
+                case DemoEndingStage.EmergencyDescent: target = ArrivalStartsAt + ArrivalSeconds; break;
+                default: return false;
+            }
+            return true;
+        }
+
         /// <summary>엔딩 전용 씬에서는 게임 세션이나 물리 파츠 없이 스냅샷만 재생한다.</summary>
         public void ConfigurePlayback(DemoEndingSnapshot snapshot, Func<double> clock)
         {
