@@ -77,17 +77,50 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
-        public void TheGhostStaysDynamicSoVelocityWritesAreLegal()
+        public void NoVelocityIsEverWrittenToAKinematicGhost()
         {
-            // 흔적·낙하 그림에는 속도를 쓴다(`ApplyNetworkScars`·`ApplyNetworkMeteors`).
-            // 그림을 kinematic 으로 만들면 그 대입이 전부 거부되면서 같은 폭주가 난다 —
-            // 참가자 로그 96% 가 이 경고였던 것이 그 자리와 한 줄 차이다.
-            var scope = TestSource.Method(
-                TestSource.Read("Runtime/Gameplay/Hazards/MeteorSpawner.cs"),
-                "Meteor CreateGhost()");
+            // **이 검사가 바뀐 이유** (S15P21B202-658). 예전에는 "그림은 동적이다" 를
+            // 지켰다 — 흔적·낙하 그림 **둘 다** 속도를 받았기 때문이다.
+            //
+            // `-658` 이 흔적 그림만 kinematic 으로 바꿨다. 참가자가 착지한 돌을 몸으로
+            // 통과하고 있었고(콜라이더가 꺼져 있었다), 콜라이더를 켜면서 동적으로 두면
+            // 이번엔 참가자가 돌을 **밀어 버린다.**
+            //
+            // 그때 이 이슈의 폭주가 돌아오지 않게 **속도 대입을 함께 걷어냈다** — 흔적의
+            // 이동은 `_scarMotion` 에 적고 `AdvanceScarGhosts` 가 `MovePosition` 으로 밟는다.
+            //
+            // 그래서 지켜야 할 것이 "그림은 동적이다" 가 아니라 이 클래스가 원래 내건
+            // **"kinematic 강체에 속도를 쓰지 않는다"** 로 좁혀졌다. 둘 중 하나만 바뀌면
+            // — 흔적을 동적으로 되돌리거나, kinematic 인 채로 속도를 다시 쓰거나 —
+            // 여기서 걸린다.
+            var src = TestSource.Read("Runtime/Gameplay/Hazards/MeteorSpawner.cs");
 
-            Assert.That(scope, Does.Contain("isKinematic = false"),
-                "그림을 동적으로 두지 않으면 ApplyNetworkScars 의 속도 대입이 매 묶음마다 거부된다");
+            // ① 낙하 그림은 **동적**이다. 그쪽은 속도를 받으므로 그래야 합법이다.
+            var ghost = TestSource.Method(src, "Meteor CreateGhost(");
+            Assert.That(ghost, Does.Contain("isKinematic = false"),
+                "낙하 그림을 동적으로 두지 않는다 — ApplyNetworkMeteors 의 속도 대입이 매 묶음 거부된다");
+            Assert.That(TestSource.Method(src, "public void ApplyNetworkMeteors("),
+                Does.Contain("linearVelocity"),
+                "낙하 그림에 속도를 주지 않는다 — 묶음 사이 궤적이 멈춘다");
+
+            // ② 흔적 그림은 **kinematic** 이다(`-658`).
+            Assert.That(TestSource.Method(src, "void PrepareSolidGhostBody("),
+                Does.Contain("isKinematic = true"),
+                "흔적 그림이 kinematic 이 아니다 — 참가자가 돌을 밀어 서버 자세와 다툰다");
+
+            // ③ 그러므로 흔적 경로 **어디에도** 속도 대입이 없어야 한다. 하나라도 남으면
+            //    묶음마다 경고가 나가고, 그것이 이 이슈가 없앤 로그 97% 다.
+            foreach (var method in new[] { "public void ApplyNetworkScars(",
+                                           "void SetScarAtRest(",
+                                           "void DeadReckonScar(",
+                                           "public void AdvanceScarGhosts(" })
+            {
+                var scope = TestSource.Method(src, method);
+                Assert.That(scope, Does.Not.Contain("linearVelocity"),
+                    method + " 가 kinematic 인 흔적에 속도를 쓴다 — 경고가 매 묶음 나간다");
+                Assert.That(scope, Does.Not.Contain("angularVelocity"),
+                    method + " 가 kinematic 인 흔적에 각속도를 쓴다 — 같은 폭주다");
+            }
         }
     }
 }

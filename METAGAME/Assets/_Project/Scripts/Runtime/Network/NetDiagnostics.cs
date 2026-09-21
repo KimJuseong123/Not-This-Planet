@@ -56,17 +56,43 @@ namespace Metagame.Network
         Transport loggedTransport;
         readonly StringBuilder line = new StringBuilder(256);
 
-        /// <summary>인자나 환경변수로 켜졌는가. 평소 실행에서는 이 컴포넌트를 붙이지 않는다.</summary>
-        public static bool Requested
+        /// <summary>
+        /// 켜졌는가. 평소 실행에서는 이 컴포넌트를 붙이지 않는다.
+        ///
+        /// <para><b>QA 빌드는 스스로 켠다</b> (S15P21B202-658). 두 사람이 각자 창을 띄워
+        /// 노는 QA 에서 <c>-netdiag</c> 를 <b>둘 다</b> 붙이는 것은 잊기 쉽고, 한 쪽만
+        /// 잊어도 <c>netdiag.py</c> 가 짝지을 줄이 없어 <b>판 하나가 통째로 버려진다</b> —
+        /// 그때는 이미 다 놀고 난 뒤다. 켜는 일을 사람 기억에 맡기지 않는다.</para>
+        ///
+        /// <para>릴리스 빌드(<c>버전=vX.Y.Z</c>)와 새벽 개발 빌드(<c>dev-…</c>)는 그대로
+        /// 꺼져 있다 — 켜지는 것은 <b>MR 버튼으로 만든 <c>qa-…</c> 빌드</b>뿐이다.</para>
+        /// </summary>
+        public static bool Requested =>
+            EnabledFor(System.Environment.GetCommandLineArgs(),
+                       System.Environment.GetEnvironmentVariable(EnvVar),
+                       Core.BuildInfo.BuildId);
+
+        /// <summary>QA 빌드 신원의 머리표. <c>publish_devbuild.py</c> 가 <c>qa-&lt;MR&gt;-&lt;sha&gt;</c> 로 짓는다.</summary>
+        public const string QaBuildPrefix = "qa-";
+
+        /// <summary>
+        /// 무엇이 들어오면 켜지는가 (S15P21B202-658).
+        ///
+        /// <para><b>순수 함수로 갈라 둔다</b>(<c>BuildStamp.BackendIsDev</c> 와 같은 이유).
+        /// 에디터에서 도는 검사는 실행 인자도 환경변수도 흔들 수 없고, 흔들면 같은
+        /// 프로세스의 다른 검사로 새어 나간다.</para>
+        /// </summary>
+        public static bool EnabledFor(string[] args, string envValue, string buildId)
         {
-            get
-            {
-                var args = System.Environment.GetCommandLineArgs();
+            if (args != null)
                 for (int i = 0; i < args.Length; i++)
                     if (string.Equals(args[i], Flag, System.StringComparison.OrdinalIgnoreCase))
                         return true;
-                return System.Environment.GetEnvironmentVariable(EnvVar) == "1";
-            }
+
+            if (envValue == "1") return true;
+
+            return (buildId ?? string.Empty).Trim()
+                   .StartsWith(QaBuildPrefix, System.StringComparison.OrdinalIgnoreCase);
         }
 
         void Start()
@@ -153,7 +179,14 @@ namespace Metagame.Network
             Append("live", spawner != null
                 ? (spawner.Live.Count + spawner.Ghosts.Count).ToString()
                 : "-");
-            Append("scars", spawner != null ? spawner.Scars.Count.ToString() : "-");
+            // **여기도 합쳐 찍는다** (S15P21B202-658). 바로 위 `live` 와 같은 함정이다 —
+            // 참가자에게는 진짜 흔적이 없고 그림만 있으므로(`ScarGhostCount`) `Scars` 만
+            // 찍으면 **호스트 5 대 참가자 0** 이 되어 `netdiag.py` 의 "다르다" 가 매 초
+            // 참이 된다. 늘 빨간 신호는 아무도 안 읽고, 그러면 **진짜로 갈렸을 때도
+            // 못 본다.** 뜻은 하나다 — 지금 땅에 있는 돌이 몇 개인가.
+            Append("scars", spawner != null
+                ? (spawner.Scars.Count + spawner.ScarGhostCount).ToString()
+                : "-");
             Append("crew", spawner != null ? spawner.Crew.ToString() : "-");
 
             // 세계가 실제로 같은지 증명하는 값. **같은 seq 의 poses 를** 견준다 —
