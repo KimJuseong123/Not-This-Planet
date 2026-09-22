@@ -48,6 +48,31 @@ namespace Metagame.Gameplay.Tests
                 + "더 든다. 이미 찾아 둔 값을 UsedForNavigation(collider, part) 로 넘길 것");
         }
 
+        /// <summary>
+        /// 파츠 찾기는 <b>싼 필터를 모두 지난 뒤</b>에만 한다 (S15P21B202-704).
+        ///
+        /// <para><b>고치다 반대로 만들 뻔한 자리다.</b> 굽는 고리의 중복 탐색을 없애려고
+        /// 1인자 갈래가 <c>GetComponentInParent&lt;SpaceshipPart&gt;()</c> 를 <b>미리</b> 찾아
+        /// 2인자 갈래에 넘기게 했더니, 레이어·트리거·사람 몸에서 걸러질 콜라이더까지 계층
+        /// 탐색을 하게 됐다 — <b>베이커는 더 느려졌다.</b> <c>!595</c> AI 리뷰가 짚었다.</para>
+        ///
+        /// <para>판단을 한 벌로 두는 것과 게으르게 찾는 것은 <b>함께 지켜야 한다.</b> 값으로는
+        /// 둘 다 같은 답을 내므로 순서로만 확인할 수 있다.</para>
+        /// </summary>
+        [Test]
+        public void ThePartLookupComesAfterTheCheapFilters()
+        {
+            var scope = TestSource.Method(TestSource.Read("Runtime/Network/AiNavigationWorld.cs"),
+                "static bool UsedForNavigation(Collider collider, SpaceshipPart part, bool partKnown)");
+
+            int rigidbody = scope.IndexOf("attachedRigidbody", System.StringComparison.Ordinal);
+            int part = scope.IndexOf("GetComponentInParent<SpaceshipPart>", System.StringComparison.Ordinal);
+            Assert.That(rigidbody, Is.GreaterThanOrEqualTo(0), "동적 콜라이더 단락이 사라졌다");
+            Assert.That(part, Is.GreaterThan(rigidbody),
+                "파츠를 싼 필터보다 먼저 찾는다 — 걸러질 콜라이더까지 계층 탐색을 하게 되어 "
+                + "굽는 고리를 위해 고친 것이 베이커를 더 느리게 만든다");
+        }
+
         static GameObject Box(string name, Vector3 center, Vector3 size)
         {
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);

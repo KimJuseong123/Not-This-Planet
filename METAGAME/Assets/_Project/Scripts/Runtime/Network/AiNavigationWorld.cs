@@ -49,7 +49,7 @@ namespace Metagame.Network
         /// <c>area = 1</c> 로 "막지만 걸을 수는 없는" 것이 된다.</para>
         /// </summary>
         public static bool UsedForNavigation(Collider collider)
-            => UsedForNavigation(collider, collider != null ? collider.GetComponentInParent<SpaceshipPart>() : null);
+            => UsedForNavigation(collider, null, false);
 
         /// <summary>
         /// 이미 찾아 둔 파츠를 넘기는 갈래 (S15P21B202-704).
@@ -62,30 +62,61 @@ namespace Metagame.Network
         /// <para>판단은 한 벌 그대로 두고, 이미 아는 값만 넘겨받는다.</para>
         /// </summary>
         public static bool UsedForNavigation(Collider collider, SpaceshipPart part)
+            => UsedForNavigation(collider, part, true);
+
+        /// <summary>
+        /// 판단은 <b>한 벌</b>이고, 파츠는 <b>꼭 필요할 때만</b> 찾는다.
+        ///
+        /// <para>두 갈래를 각각 쓰면 같은 규칙을 두 곳이 다르게 풀게 된다. 그렇다고 1인자
+        /// 갈래가 2인자 갈래에 <c>GetComponentInParent</c> 결과를 미리 찾아 넘기면, <b>싼
+        /// 필터에서 걸러질 콜라이더까지 비싼 계층 탐색을 하게 된다</b> — 굽는 고리를 위해
+        /// 고친 것이 베이커를 더 느리게 만든다. 그래서 몸은 하나로 두고 마지막 줄에서만
+        /// 찾는다.</para>
+        ///
+        /// <para>순서가 규칙이다 — 레이어 · 트리거 · 사람 몸 · <c>attachedRigidbody == null</c>
+        /// 로 끝날 수 있으면 파츠는 <b>찾지 않는다.</b></para>
+        /// </summary>
+        static bool UsedForNavigation(Collider collider, SpaceshipPart part, bool partKnown)
         {
             if (collider == null) return true;   // 콜라이더가 아닌 소스(터레인 등)는 그대로 쓴다
             if ((PermanentLayerMask & (1 << collider.gameObject.layer)) == 0) return false;
             if (collider.isTrigger || collider.GetComponentInParent<PlayerRig>() != null) return false;
-            return collider.attachedRigidbody == null || part != null;
+            if (collider.attachedRigidbody == null) return true;
+            return (partKnown ? part : collider.GetComponentInParent<SpaceshipPart>()) != null;
         }
 
         void Update()
         {
-            if (!NetworkServer.active || AiHostSettings.ServerState != AiRoomState.Active
-                || Time.time < nextBuild || IsBuilding) return;
+            if (!NetworkServer.active || AiHostSettings.ServerState != AiRoomState.Active) return;
+            // 굽기가 끝난 프레임에 걸린 시간을 거둔다. 아래 IsBuilding 으로 먼저 빠져나가면
+            // 이 자리를 지나치므로 굽는 시간은 영영 관측되지 않는다.
+            if (bakeStartedAt > 0f && !IsBuilding)
+            {
+                float ms = (Time.realtimeSinceStartup - bakeStartedAt) * 1000f;
+                bakeTotalMs += ms; bakeMaxMs = Mathf.Max(bakeMaxMs, ms); baked++;
+                bakeStartedAt = 0f;
+            }
+            // 밀려 있을 때가 이 줄이 가장 필요한 때다 — 아래로 못 내려가도 찍는다.
+            Report();
+            if (Time.time < nextBuild) return;
+            // 굽느라 이번 차례를 거른다. 세지 않으면 로그에서 그냥 사라져서, 기계가 쉬지
+            // 못하고 있는 것과 세계가 그대로라 건너뛴 것이 똑같이 "안 구웠다" 로 보인다.
+            if (IsBuilding) { stalledFrames++; return; }
             // Work acceptance (tool pickup/boarding) queries paths before its first Tick.
             // Keep discovering changed obstacles while AI exists, even while it is idle;
             // otherwise the first order after an idle period can reject a now-open route.
             if (!NetPlayer.HasAiPlayers) return;
             int before = BuildCount;
             Rebuild(new Bounds(transform.position, new Vector3(512, 128, 512)));
-            if (BuildCount == before) skipped++;
+            if (BuildCount == before) unchanged++;
+            else bakeStartedAt = Time.realtimeSinceStartup;
             nextBuild = Time.time + 2f;
-            Report();
         }
 
-        int skipped;
-        float nextReport;
+        int baked, unchanged, stalledFrames;
+        float bakeStartedAt, bakeTotalMs, bakeMaxMs, nextReport;
+
+        void OnEnable() => nextReport = Time.realtimeSinceStartup + 30f;
 
         /// <summary>
         /// 30초마다 한 줄 (S15P21B202-704).
@@ -96,20 +127,34 @@ namespace Metagame.Network
         /// 그 이유가 <b>얼마나 자주 굽는지 아무도 몰랐던 것</b>이었다. QA 하는 사람 PC 에
         /// 프로파일러를 붙일 수는 없다.</para>
         ///
-        /// <para><b>건너뛴 횟수가 핵심이다.</b> <c>건너뜀 0회</c> 면 서명 비교가 매번 다르다는
-        /// 뜻이고, 그러면 이 이슈의 수정이 <b>아무것도 막지 못하고 있다</b>. 그 실패가
-        /// 조용하면 안 된다.</para>
+        /// <para><b>"안 구웠다" 를 둘로 나눠 센다.</b> 둘은 정반대의 뜻인데 한 칸에 섞으면
+        /// 어느 쪽인지 알 수 없다.</para>
+        /// <list type="bullet">
+        /// <item><c>그대로라 건너뜀</c> — 게이트가 일한 것이다. <b>0회면 게이트가 아무것도
+        /// 막지 못하고 있다</b>는 뜻이고, 그때는 무엇이 매 주기 흔들리는지부터 봐야 한다.</item>
+        /// <item><c>굽느라 밀린 프레임</c> — 기계가 <b>쉬지 못하고 있다</b>. 앞의 값이 아무리
+        /// 커도 이것이 크면 렉은 그대로다.</item>
+        /// </list>
         ///
-        /// <para>매 주기 찍지 않는다 — 2초마다면 그 줄이 로그를 못 읽게 만든다.</para>
+        /// <para><b>굽는 시간이 판단 근거다.</b> 범위(512m)와 복셀(12cm)을 줄일지는 이 값을
+        /// 보고 정한다 — 둘 다 길찾기 품질을 바꾸는 결정이라 재지 않고 손대면 안 된다.
+        /// <c>ProfilerMarker</c> 로는 볼 수 없다. 프로파일러를 붙였을 때만 보이는데, 이 값이
+        /// 가장 필요한 자리는 <b>QA 하는 사람의 PC</b>다.</para>
+        ///
+        /// <para>매 주기 찍지 않는다 — 2초마다면 그 줄이 로그를 못 읽게 만든다. 첫 30초도
+        /// 버리지 않는다(<see cref="OnEnable"/> 이 기준을 잡아 둔다) — 시작 직후가 가장 자주
+        /// 굽는 구간이라 거기를 버리면 제일 나쁜 수치를 못 본다.</para>
         /// </summary>
         void Report()
         {
             if (Time.realtimeSinceStartup < nextReport) return;
-            if (nextReport > 0f)
-                Debug.Log($"[AiNav] 30초: 구움 {BuildCount}회(누적) · 건너뜀 {skipped}회"
-                          + $" · 소스 {sources.Count}개 · 대체 박스 {ApproximateMeshCount}개");
             nextReport = Time.realtimeSinceStartup + 30f;
-            skipped = 0;
+            Debug.Log($"[AiNav] 30초: 구움 {baked}회 · 평균 {(baked > 0 ? bakeTotalMs / baked : 0f):F0}ms"
+                      + $" · 최대 {bakeMaxMs:F0}ms · 그대로라 건너뜀 {unchanged}회"
+                      + $" · 굽느라 밀린 프레임 {stalledFrames} · 소스 {sources.Count}개"
+                      + $" · 대체 박스 {ApproximateMeshCount}개");
+            baked = unchanged = stalledFrames = 0;
+            bakeTotalMs = bakeMaxMs = 0;
         }
 
         public void Rebuild(Bounds region, bool force = false)
@@ -225,6 +270,8 @@ namespace Metagame.Network
             if (data != null) Destroy(data);
             data = null; building = null; nextBuild = 0;
             hasBuilt = false; BuildCount = 0;
+            baked = unchanged = stalledFrames = 0;
+            bakeStartedAt = bakeTotalMs = bakeMaxMs = 0;
             sources.Clear(); previousSources.Clear();
         }
     }
