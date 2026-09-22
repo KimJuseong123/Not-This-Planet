@@ -126,6 +126,8 @@ ec2-status.json
 /tools/AICompanionService/results/
 /tools/AICompanionService/fixtures/
 /tools/AICompanionService/__pycache__/
+/tools/AICompanionService/.pack-venv/
+/artifacts/ai-pack/
 
 # Local Stage1 concept archive and pre-conversion scene backup.
 /docs/assets/concepts/stage1-grass-flora/astra-flora-9-species-4-views.zip

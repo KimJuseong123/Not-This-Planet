@@ -1,0 +1,333 @@
+using System;
+using System.Collections;
+using System.Diagnostics;
+using System.Globalization;
+using System.IO;
+using System.Security.Cryptography;
+using System.Text;
+using Metagame.Gameplay;
+using Mirror;
+using UnityEngine;
+using UnityEngine.Networking;
+
+namespace Metagame.Network
+{
+    /// <summary>현재 PC가 소유한 추가팩만 실행한다. 모델 다운로드, 공개 서버 접속, 임의 PID 종료는 없다.</summary>
+    public sealed class AiLocalRuntime : MonoBehaviour, IAiRuntimeStatus
+    {
+        [Serializable] public sealed class Health { public string service; public string protocol; public string state; public string command_schema; public bool voice_plan; }
+        [Serializable] public sealed class Decision { public string action; public string recipients; public bool approach; public bool safety_override; public string text; public float elapsed_ms; }
+        [Serializable] public sealed class PlanDecision { public string status; public AiCommandAssignment[] orders; public bool safety_override; public float elapsed_ms; }
+        [Serializable] sealed class TextRequest { public string text; }
+        public static AiLocalRuntime Current { get; private set; }
+        public AiRuntimeState State { get; private set; } = AiRuntimeState.Missing;
+        public string Message { get; private set; } = "추가팩 대기";
+        public bool Busy { get; private set; }
+        public string PackRoot { get; private set; }
+        public AiPackInstaller Installer { get; private set; }
+        public const string Address = "http://127.0.0.1:18765";
+        Process worker;
+        string token;
+        int generation;
+        bool attempted;
+        UnityWebRequest pendingHealth, pendingText;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        static void Boot()
+        {
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+            if (Application.isBatchMode || Current != null) return;
+            new GameObject("Local AI runtime").AddComponent<AiLocalRuntime>();
+#endif
+        }
+
+        void Awake()
+        {
+            if (Current != null && Current != this) { Destroy(this); return; }
+            Current = this;
+            DontDestroyOnLoad(gameObject);
+            PackRoot = DefaultPackRoot();
+            Installer = gameObject.AddComponent<AiPackInstaller>();
+            AiHostSettings.BindRuntime(this);
+        }
+
+        public static string DefaultPackRoot()
+        {
+#if UNITY_EDITOR
+            string localPack = Path.GetFullPath(Path.Combine(Application.dataPath, "../../artifacts/ai-pack/p3"));
+            if (HasPack(localPack)) return localPack;
+#endif
+            // Fresh clones can reuse the installed optional pack; models are not Git assets.
+            return Path.Combine(Application.persistentDataPath, "AI/p3");
+        }
+
+        public static bool HasPack(string root) => !string.IsNullOrEmpty(root)
+            && File.Exists(Path.Combine(root, "runtime/ntp-ai-worker/ntp-ai-worker.exe"))
+            && File.Exists(Path.Combine(root, "models/whisper-small-ko-zeroth/model.bin"))
+            && File.Exists(Path.Combine(root, "models/ollama/manifests/registry.ollama.ai/library/qwen3/1.7b"));
+
+        public static bool ValidHealth(string json)
+        {
+            try
+            {
+                var h = JsonUtility.FromJson<Health>(json);
+                return h != null && h.service == "ntp-ai-worker" && h.protocol == "companion-v4" && h.state == "ready" && h.command_schema == "work-v1" && h.voice_plan;
+            }
+            catch (ArgumentException) { return false; }
+        }
+
+        static bool HostWantsRuntime => AiHostSettings.Requested && !AiHostSettings.IdleTest
+            && (NetworkServer.active || AiHostSettings.CanConfigure);
+
+        void Update()
+        {
+            if (Installer != null && Installer.Busy) return;
+            if (!HostWantsRuntime)
+            {
+                if (attempted || worker != null) StopRuntime();
+                return;
+            }
+            if (!attempted) StartRuntime();
+        }
+
+        public void Retry()
+        {
+            if (!AiHostSettings.CanConfigure) return;
+            StopRuntime();
+        }
+        public void PreparePackInstall() { StopRuntime(); }
+
+        void StartRuntime()
+        {
+            attempted = true;
+            if (!HasPack(PackRoot)) { State = AiRuntimeState.Missing; Message = "추가팩 없음: " + PackRoot; return; }
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+            try
+            {
+                // 점유 포트는 건드리지 않고 실패한다. 토큰은 명령행·파일·로그에 남기지 않는다.
+                using (var port = new System.Net.Sockets.Socket(System.Net.Sockets.AddressFamily.InterNetwork,
+                    System.Net.Sockets.SocketType.Stream, System.Net.Sockets.ProtocolType.Tcp))
+                    port.Bind(new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 18765));
+                byte[] bytes = new byte[32];
+                using (var random = RandomNumberGenerator.Create()) random.GetBytes(bytes);
+                token = BitConverter.ToString(bytes).Replace("-", "").ToLowerInvariant();
+                using (var parent = Process.GetCurrentProcess())
+                {
+                    double birth = (parent.StartTime.ToUniversalTime() - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
+                    worker = new Process { StartInfo = new ProcessStartInfo
+                    {
+                        FileName = Path.Combine(PackRoot, "runtime/ntp-ai-worker/ntp-ai-worker.exe"),
+                        Arguments = "--model-root \"" + Path.Combine(PackRoot, "models") + "\" --parent-pid " + parent.Id
+                            + " --parent-started " + birth.ToString("R", CultureInfo.InvariantCulture),
+                        UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true
+                    }};
+                    worker.Start();
+                    worker.StandardInput.WriteLine(token);
+                    worker.StandardInput.Close();
+                }
+                State = AiRuntimeState.Loading;
+                Message = "추가팩 로딩 중";
+                StartCoroutine(Watch(++generation));
+            }
+            catch (Exception e) { Fail("추가팩 실행 실패 (" + e.GetType().Name + ")"); }
+#else
+            State = AiRuntimeState.Failed; Message = "Windows 추가팩만 지원합니다";
+#endif
+        }
+
+        IEnumerator Watch(int epoch)
+        {
+            float deadline = Time.realtimeSinceStartup + 120f;
+            int failures = 0;
+            while (epoch == generation)
+            {
+                if (worker == null || worker.HasExited) { Fail("추가팩이 종료됐습니다"); yield break; }
+                using (var request = UnityWebRequest.Get(Address + "/api/health"))
+                {
+                    request.SetRequestHeader("Authorization", "Bearer " + token);
+                    request.timeout = 3;
+                    pendingHealth = request;
+                    yield return request.SendWebRequest();
+                    pendingHealth = null;
+                    if (epoch != generation) yield break;
+                    if (request.result == UnityWebRequest.Result.Success && ValidHealth(request.downloadHandler.text))
+                    {
+                        if (State != AiRuntimeState.Ready) Message = "준비 완료 · 행동 / 대상 / 접근 여부 LLM 판단";
+                        State = AiRuntimeState.Ready; failures = 0;
+                    }
+                    else if (State == AiRuntimeState.Ready && ++failures >= 3)
+                    { Fail("추가팩 연결을 잃었습니다"); yield break; }
+                    else if (State != AiRuntimeState.Ready && Time.realtimeSinceStartup > deadline)
+                    { Fail("추가팩 준비 시간 초과 · 로비에서 다시 준비해 주세요"); yield break; }
+                }
+                yield return new WaitForSecondsRealtime(.5f);
+            }
+        }
+
+        public bool SendText(string text, NetPlayer selected)
+            => SendText(text, AiRecipients.Selected, selected);
+
+        public bool SendText(string text, AiRecipients recipients, NetPlayer selected)
+        {
+            var session = GameSession.Instance;
+            if (Busy || State != AiRuntimeState.Ready || !NetworkServer.active || session == null
+                || session.LocalPlayer == null || session.CinematicInputBlocked || session.EndingActive
+                || AiHostSettings.ServerState != AiRoomState.Active || string.IsNullOrWhiteSpace(text) || text.Length > 300) return false;
+            var group = AiGroupOrders.Capture(AiRecipients.All, null, session.LocalPlayer);
+            if (group.Count == 0) { Message = "배정 가능한 AI 없음"; return false; }
+            Busy = true;
+            Message = "판단 대상: " + group.Names;
+            StartCoroutine(Classify(text, group, recipients, selected, session, generation));
+            return true;
+        }
+
+        IEnumerator Classify(string text, AiGroupOrders group, AiRecipients fallback, NetPlayer selected, GameSession session, int epoch)
+        {
+            using (var request = new UnityWebRequest(Address + "/api/companion-plan/text", "POST"))
+            {
+                request.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(JsonUtility.ToJson(new TextRequest { text = text })));
+                request.downloadHandler = new DownloadHandlerBuffer();
+                request.SetRequestHeader("Content-Type", "application/json");
+                request.SetRequestHeader("Authorization", "Bearer " + token);
+                request.timeout = 90;
+                pendingText = request;
+                yield return request.SendWebRequest();
+                pendingText = null;
+                if (epoch != generation) yield break;
+                Busy = false;
+                if (request.result != UnityWebRequest.Result.Success) { Message = "명령 통신 실패 · 기존 행동 유지"; yield break; }
+                if (!NetworkServer.active || session == null || session != GameSession.Instance || session.EndingActive
+                    || session.CinematicInputBlocked
+                    || AiHostSettings.ServerState != AiRoomState.Active) { Message = "대상·게임 상태가 바뀌어 명령 취소"; yield break; }
+                PlanDecision result = null;
+                try { result = JsonUtility.FromJson<PlanDecision>(request.downloadHandler.text); }
+                catch (ArgumentException) { }
+                Message = result == null ? "잘못된 응답 · 기존 행동 유지"
+                    : (result.status == "none" || result.status == "clarify") && result.orders != null && result.orders.Length == 0
+                    ? "실행할 작업 불명확/미지원 · 기존 행동 유지"
+                    : result.status != "ok" || !AiCommandPlan.Valid(result.orders) ? "잘못된 계획 · 기존 행동 유지"
+                    : group.ExecutePlan(result.orders, fallback, selected, session.LocalPlayer)
+                    + (result.safety_override ? " · 금지 표현 안전 중단" : "")
+                    + " (" + result.elapsed_ms.ToString("0") + "ms)";
+            }
+        }
+
+        public bool SendVoice(byte[] wav, NetPlayer requester, AiGroupOrders group)
+        {
+            var session = GameSession.Instance;
+            if (Busy || State != AiRuntimeState.Ready || !NetworkServer.active || session == null
+                || requester == null || requester.IsAi || requester.VisualRig == null || requester.VisualRig.Downed
+                || session.CinematicInputBlocked || session.EndingActive || AiHostSettings.ServerState != AiRoomState.Active
+                || !AiVoicePacket.Valid(wav)) return false;
+            var speaker = requester.VisualRig;
+            if (group == null || group.Count == 0) return false;
+            NetPlayer nearest = group.Nearest;
+            Busy = true;
+            StartCoroutine(ClassifyVoice(wav, requester, speaker, group, nearest, session, generation));
+            return true;
+        }
+
+        IEnumerator ClassifyVoice(byte[] wav, NetPlayer requester, PlayerRig speaker, AiGroupOrders group,
+            NetPlayer selected, GameSession session, int epoch)
+        {
+            var form = new WWWForm();
+            form.AddBinaryData("audio", wav, "command.wav", "audio/wav");
+            using (var request = UnityWebRequest.Post(Address + "/api/companion-plan/voice", form))
+            {
+                request.SetRequestHeader("Authorization", "Bearer " + token); request.timeout = 90;
+                pendingText = request;
+                yield return request.SendWebRequest();
+                pendingText = null;
+                if (epoch != generation) yield break;
+                Busy = false;
+                if (requester == null || requester.VisualRig != speaker || speaker == null) yield break;
+                if (!NetworkServer.active || session == null || session != GameSession.Instance || session.EndingActive
+                    || session.CinematicInputBlocked || AiHostSettings.ServerState != AiRoomState.Active || speaker.Downed)
+                { requester.ReportAiVoice("상태가 바뀌어 명령을 취소했어요"); yield break; }
+                if (request.result != UnityWebRequest.Result.Success)
+                { requester.ReportAiVoice("음성 처리에 실패했어요. 다시 말해 주세요"); yield break; }
+                PlanDecision result = null;
+                try { result = JsonUtility.FromJson<PlanDecision>(request.downloadHandler.text); }
+                catch (ArgumentException) { }
+                if (result == null || result.status != "ok" || !AiCommandPlan.Valid(result.orders))
+                { requester.ReportAiVoice("명령을 이해하지 못했어요"); yield break; }
+                // Snapshot membership/revisions prevents delayed replies from replacing newer orders.
+                Message = group.ExecutePlan(result.orders, AiRecipients.Selected, selected, speaker);
+                requester.ReportAiVoice(group.LastAccepted > 0 ? $"AI 동료 {group.LastAccepted}명이 명령을 받았어요" : "지금 수행할 수 있는 AI 동료가 없어요");
+            }
+        }
+
+        public static bool ValidDecision(Decision result)
+        {
+            if(result==null) return false;
+            bool action = AiCommandPlan.Action(result.action) || result.action=="none" || result.action=="clarify";
+            bool target = result.recipients=="default" || result.recipients=="all" || result.recipients=="one" || result.recipients=="two"
+                || result.recipients=="red" || result.recipients=="blue" || result.recipients=="yellow" || result.recipients=="green";
+            return action && target && (!result.approach || AiCompanionController.IsSocial(result.action));
+        }
+
+        public bool TestPullPin(NetPlayer selected)
+            => SendDirect("pull_pin", AiRecipients.Selected, selected);
+
+        public bool SendDirect(string action, AiRecipients recipients, NetPlayer selected)
+        {
+            var session = GameSession.Instance;
+            if (!NetworkServer.active || session == null || session.LocalPlayer == null
+                || session.CinematicInputBlocked || session.EndingActive || AiHostSettings.ServerState != AiRoomState.Active) return false;
+            CancelPendingText();
+            var group = AiGroupOrders.Capture(recipients, selected, session.LocalPlayer);
+            Message = group.Execute(action, session.LocalPlayer) + " · 직접 실행(LLM 미사용)";
+            return group.Count > 0;
+        }
+
+        public void StopOrders()
+        {
+            if (!NetworkServer.active) return;
+            // 늦게 도착한 follow 응답이 중단을 뒤집지 못한다.
+            CancelPendingText();
+            foreach (var player in NetPlayer.AllServerPlayers)
+                if (player != null && player.IsAi) player.TryApplyAiOrder("cancel", null);
+            Message = "모든 AI 중단";
+        }
+
+        void CancelPendingText()
+        {
+            ++generation;
+            pendingText?.Abort(); pendingText = null; Busy = false;
+            pendingHealth?.Abort(); pendingHealth = null;
+            StopAllCoroutines();
+            if (worker != null && !worker.HasExited) StartCoroutine(Watch(generation));
+        }
+
+        void Fail(string reason)
+        {
+            StopRuntime(); attempted = true; State = AiRuntimeState.Failed; Message = reason;
+        }
+
+        void StopRuntime()
+        {
+            ++generation;
+            pendingHealth?.Abort(); pendingText?.Abort();
+            pendingHealth = pendingText = null;
+            StopAllCoroutines(); Busy = false;
+            if (worker != null)
+            {
+                try { if (!worker.HasExited) worker.Kill(); }
+                catch (InvalidOperationException) { }
+                catch (System.ComponentModel.Win32Exception) { }
+                worker.Dispose(); worker = null;
+            }
+            // worker의 Windows Job Object가 자신이 만든 Ollama 자식만 정리한다.
+            token = null; attempted = false; State = AiRuntimeState.Missing;
+            Message = "추가팩 대기";
+        }
+
+        void OnDestroy()
+        {
+            if (Current != this) return;
+            StopRuntime(); AiHostSettings.UnbindRuntime(this); Current = null;
+        }
+        void OnDisable() { if (Current == this) StopRuntime(); }
+        void OnApplicationQuit() { if (Current == this) StopRuntime(); }
+    }
+}

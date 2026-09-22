@@ -75,6 +75,7 @@ namespace Metagame.Core
         [Serializable]
         public sealed class VoiceSettings
         {
+            public bool microphoneMuted;
             public bool pushToTalk;
             [Range(0f, 2f)] public float microphoneSensitivity = 1f;
             public string microphoneDevice = string.Empty;
@@ -205,6 +206,7 @@ namespace Metagame.Core
                 },
                 voice = new VoiceSettings
                 {
+                    microphoneMuted = voice != null && voice.microphoneMuted,
                     pushToTalk = voice != null && voice.pushToTalk,
                     microphoneSensitivity = voice != null ? voice.microphoneSensitivity : 1f,
                     microphoneDevice = voice != null && voice.microphoneDevice != null

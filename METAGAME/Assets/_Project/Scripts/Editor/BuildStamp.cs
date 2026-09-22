@@ -338,16 +338,21 @@ namespace Metagame.EditorTools
                 {
                     if (git == null) return string.Empty;
 
-                    string output = git.StandardOutput.ReadToEnd();
-                    // 표준오류를 비우지 않으면 출력이 많을 때 git 이 버퍼에서 멈춘다.
-                    git.StandardError.ReadToEnd();
+                    var output = git.StandardOutput.ReadToEndAsync();
+                    var error = git.StandardError.ReadToEndAsync();
 
                     // 저장소가 잠겨 있거나 하면 끝나지 않을 수 있다. 빌드를 붙잡아 두지 않는다.
                     // **`exit` 는 -1 로 둔다** — 안 끝난 것은 판정이 아니다.
-                    if (!git.WaitForExit(5000)) return string.Empty;
+                    if (!git.WaitForExit(5000))
+                    {
+                        try { git.Kill(); } catch (Exception) { }
+                        return string.Empty;
+                    }
+                    if (!System.Threading.Tasks.Task.WaitAll(new System.Threading.Tasks.Task[] { output, error }, 1000))
+                        return string.Empty;
 
                     exit = git.ExitCode;
-                    return output.Trim();
+                    return output.Result.Trim();
                 }
             }
             catch (Exception)
