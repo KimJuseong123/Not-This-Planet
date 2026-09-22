@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Metagame.Bootstrap;
 using Metagame.Gameplay;
@@ -27,6 +28,8 @@ namespace Metagame.Gameplay.Tests
     {
         const string ScenePath = "Assets/Scenes/Stage1_Astra.unity";
         const string ProfilePath = "Assets/_Project/Data/Atmosphere/Stage1AtmosphereProfile.asset";
+        const string GalaxyShaderPath = "Assets/_Project/Shaders/Atmosphere/Galaxy.shader";
+        const string GraphicsSettingsPath = "ProjectSettings/GraphicsSettings.asset";
 
         /// <summary>고도를 <c>sin</c> 으로 8등분 × 방위를 12등분. 96칸의 넓이가 모두 같다.</summary>
         const int AltitudeBands = 8;
@@ -128,6 +131,18 @@ namespace Metagame.Gameplay.Tests
             Assert.Greater(profile.meteorShower.emissionRate, 0f, "별똥별 발생 빈도가 0이다");
             Assert.LessOrEqual(profile.meteorShower.emissionRate, 30f,
                 "별똥별 발생량이 연출 기준인 초당 30개를 초과한다");
+        }
+
+        [Test]
+        public void TheGalaxyShaderIsAlwaysIncludedInPlayerBuilds()
+        {
+            string shaderGuid = AssetDatabase.AssetPathToGUID(GalaxyShaderPath);
+            Assert.IsNotEmpty(shaderGuid, "은하수 셰이더를 찾을 수 없다: " + GalaxyShaderPath);
+
+            string graphicsSettings = File.ReadAllText(GraphicsSettingsPath);
+            StringAssert.Contains($"guid: {shaderGuid}", graphicsSettings,
+                "은하수 셰이더가 Always Included Shaders 에 없다 — Shader.Find 로만 참조하면 "
+                + "플레이어 빌드에서 제거되어 런처의 은하수 띠가 사라진다");
         }
 
         [Test]
