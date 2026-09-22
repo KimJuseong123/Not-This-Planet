@@ -103,7 +103,20 @@ namespace Metagame.Network
     {
         public bool Busy { get; private set; }
         public float Progress { get; private set; }
-        public string Message { get; private set; }
+        readonly AiStatusLog statusLog = new AiStatusLog();
+        string message;
+
+        /// <summary>받기·설치 상황. 화면과 로그가 같은 값을 본다 (S15P21B202-708).</summary>
+        public string Message
+        {
+            get => message;
+            private set
+            {
+                if (message == value) return;
+                message = value;
+                if (value != null) statusLog.Write("[AI팩]", value);
+            }
+        }
         UnityWebRequest request;
         CancellationTokenSource cancellation;
         Task diskTask;
