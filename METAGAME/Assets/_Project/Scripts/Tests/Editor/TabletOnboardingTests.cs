@@ -132,7 +132,9 @@ namespace Metagame.Gameplay.Tests
             ("저중력장", Controls.FieldToggle),
             ("자유 시점", Controls.FreeLook),
             ("버리기·던지기", Controls.ToolAction),
-            ("줍기·탑승", Controls.TransportAction),
+            // **줍기가 여기 붙어 있었다** (S15P21B202-696). E 로는 아무것도 못 줍는데
+            // 이 목록이 그 짝을 잠그고 있어서, 안내가 틀린 채로 세 이슈를 지나갔다.
+            ("운반 장치 탑승", Controls.TransportAction),
             ("동료 구조", Controls.RescueTeammate),
             ("끼임 탈출", Controls.StuckEscape),
             ("다시 시작", Controls.Restart),
@@ -159,7 +161,7 @@ namespace Metagame.Gameplay.Tests
             // **태블릿과 HUD 가 서로 다른 키를 가르쳤다.**
             var interact = AllEntries().First(e => e.Keys == TabletHelpContent.Name(Controls.TransportAction));
             Assert.That(interact.Description, Does.Not.Contain("구조"),
-                "줍기 줄이 아직 구조까지 떠안고 있다.");
+                "탑승 줄이 아직 구조까지 떠안고 있다.");
 
             var rescue = AllEntries().FirstOrDefault(
                 e => e.Keys == TabletHelpContent.Name(Controls.RescueTeammate));

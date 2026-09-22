@@ -70,6 +70,10 @@ namespace Metagame.UI
 
         public static Entry[] Interaction() => new[]
         {
+            // **잡기는 좌클릭이다** (S15P21B202-696). 예전에는 이 줄이 없고 아래
+            // Transport 의 E 줄이 "장비 줍기" 를 떠안고 있었다 — E 로는 아무것도
+            // 못 줍는데 태블릿과 HUD 가 나란히 그렇게 가르쳤다.
+            new Entry("좌클릭", "장비·파츠 잡기. 놓으면 떨어진다"),
             new Entry("좌·우클릭", "고정쇠에 손을 결합하고 반대 방향으로 뒤로 이동"),
             new Entry(Name(Controls.ArmsUp), "팔을 위로 올려 레일·케이블 잡기"),
             new Entry("W + 잡기", "잡은 레일·케이블을 따라 기어오르기"),
@@ -80,8 +84,9 @@ namespace Metagame.UI
 
         public static Entry[] Transport() => new[]
         {
-            // 예전에는 이 줄이 "동료 구조" 까지 떠안고 있었다. 구조는 E 가 아니다.
-            new Entry(Name(Controls.TransportAction), "장비 줍기·교환, 운반 장치 탑승·하차"),
+            // 이 줄은 두 번 남의 것을 떠안았다 — 동료 구조(G)는 S15P21B202-657 이,
+            // 장비 줍기(좌클릭)는 S15P21B202-696 이 떼어냈다. **E 는 탑승·하차뿐이다.**
+            new Entry(Name(Controls.TransportAction), "운반 장치 탑승·하차"),
             new Entry(Name(Controls.RescueTeammate), "쓰러진 동료 일으키기"),
             new Entry("WASD", "탑승 중 운반 장치 운전"),
             new Entry("좌·우클릭", "탑승 중 견인 빔 사용"),
