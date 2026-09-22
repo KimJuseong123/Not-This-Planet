@@ -1378,6 +1378,28 @@ namespace Metagame.Gameplay
         /// </summary>
         public void GoDown(string source = "기절")
         {
+            // **판정은 서버가 한다** (S15P21B202-692). <see cref="ApplyDamage"/> 가 같은
+            // 가드를 이미 갖고 있는데(`-513`) 여기에는 없었고, <c>Meteor.ApplyTier</c> 가
+            // 직접 충돌에서 체력을 거치지 않고 <b>이 함수를 직접</b> 부른다 — 직접 충돌은
+            // 즉시 기절이라 그쪽이 맞다. 그래서 `-513` 이 막은 구멍이 이 경로로만 열려
+            // 있었다.
+            //
+            // **2026-09-22 QA 로그에 그대로 찍혔다.** `Player-prev.log:12252` 의 스택이
+            // `OnCollisionEnter → ApplyKnockback → ApplyTier → GoDown` 이고, 같은 시각의
+            // 진단이 `role=client rtt=94.4 crew=4` 다 — 접속한 참가자 기계가 권위 판정을
+            // 실행했다.
+            //
+            // **증상이 셋으로 갈려 보인다.** 참가자가 자기 몸만 기절시키면 서버는 모른다.
+            // 서버 리그는 입력을 계속 적용하므로 <b>쓰러진 채 미끄러지고</b>,
+            // <c>NetPlayer.downed</c> 는 서버의 <c>body.Downed</c> 를 실으므로 <b>남의
+            // 화면에서는 정당하게 서 있고</b>, <c>CollectRescueCandidates</c> 는
+            // <c>!other.Downed</c> 로 거르므로 <b>살리기 후보가 아예 안 생긴다.</b>
+            //
+            // **부르는 쪽을 고치지 않는다.** 부르는 곳이 넷이고(운석 직접 충돌 · 높은 곳에서
+            // 머리부터 · 오염 · 치트) 한 곳만 고치면 다음에 또 갈린다 — `-383` 의 "판정을
+            // 두 곳에 두면 반드시 갈라진다" 가 이 파일에 이미 적혀 있다.
+            if (!ServerAuthority) return;
+
             if (Downed) return;
 
             Downed = true;
