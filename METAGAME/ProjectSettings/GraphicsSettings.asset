@@ -40,6 +40,7 @@ GraphicsSettings:
   - {fileID: 4800000, guid: de39794b949946ab841a3743ae8b6f5e, type: 3}
   - {fileID: 4800000, guid: b8169e4f11d14781b6634e9ca4fe81b1, type: 3}
   - {fileID: 4800000, guid: 64767d613dc04825ab09994a69249257, type: 3}
+  - {fileID: 4800000, guid: c13a2e79076d48e8b29f1cc8a9090629, type: 3}
   - {fileID: 4800000, guid: 798e6d74c3b64844a6d255b414fcab6f, type: 3}
   - {fileID: 4800000, guid: 7c5d9e2f3a864b6ca1e8f0d23456789b, type: 3}
   - {fileID: 4800000, guid: 6c2fca0d0c8b4a3e9e1d3f6b7a5c8124, type: 3}
