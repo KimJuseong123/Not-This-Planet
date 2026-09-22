@@ -48,42 +48,46 @@ namespace Metagame.Network
         /// 동적 콜라이더</b>(굴러다니는 도구는 영구한 벽이 아니다). 파츠는 남기되
         /// <c>area = 1</c> 로 "막지만 걸을 수는 없는" 것이 된다.</para>
         /// </summary>
-        public static bool UsedForNavigation(Collider collider)
-            => UsedForNavigation(collider, null, false);
+        public static bool UsedForNavigation(Collider collider) => UsedForNavigation(collider, out _);
 
         /// <summary>
-        /// 이미 찾아 둔 파츠를 넘기는 갈래 (S15P21B202-704).
+        /// 같은 판단을 하되 <b>찾은 파츠를 함께 돌려준다</b> (S15P21B202-704).
         ///
-        /// <para><c>-690</c> 에서 굽는 쪽과 쓰는 쪽의 판단을 한 벌로 합치면서, 굽는 고리가
-        /// <c>GetComponentInParent&lt;SpaceshipPart&gt;()</c> 를 소스마다 <b>두 번</b> 부르게
-        /// 됐다 — 이 함수 안에서 한 번, 부르는 쪽의 <c>area = 1</c> 판정에서 또 한 번.
-        /// 소스가 실측 665개라 굽을 때마다 <b>665번의 추가 계층 탐색</b>이다.</para>
+        /// <para><b>왜 돌려주나.</b> 부르는 쪽은 통과한 소스마다 <c>area = 1</c> 인지 정해야
+        /// 해서 같은 파츠가 필요하다. 그래서 <c>-690</c> 이후 <c>GetComponentInParent</c> 가
+        /// 소스마다 <b>두 번</b> 돌았다 — 이 안에서 한 번, 부르는 쪽에서 또 한 번. 665개면
+        /// 굽을 때마다 665번이 더 든다.</para>
         ///
-        /// <para>판단은 한 벌 그대로 두고, 이미 아는 값만 넘겨받는다.</para>
+        /// <para><b>미리 찾아 넘기는 것으로는 못 고친다.</b> 그러면 레이어·트리거·사람 몸에서
+        /// 걸러질 콜라이더까지 비싼 계층 탐색을 하게 되어, 굽는 고리를 위해 고친 것이
+        /// <b>거르는 쪽을 더 느리게</b> 만든다. 실제로 한 번 그렇게 고쳤다가 <c>!595</c> AI
+        /// 리뷰가 짚었다. 찾는 자리는 여기 하나로 두고, 값만 밖으로 낸다.</para>
+        ///
+        /// <para><b>순서가 규칙이다.</b> 싼 필터에서 걸러지면 파츠는 찾지 않는다(0회).
+        /// 통과하면 정확히 한 번 찾고, 그 값을 부르는 쪽이 그대로 쓴다.</para>
+        ///
+        /// <para>판정만 필요한 쪽(<c>AiNavigationGeometryBaker</c>)은 <c>out _</c> 로 버린다 —
+        /// 정적 콜라이더에서 예전엔 건너뛰던 탐색을 한 번 하게 되지만, 베이커는 에디터에서
+        /// 한 판에 한 번 도는 일이고 <b>규칙이 두 벌로 갈리는 쪽이 더 비싸다.</b></para>
         /// </summary>
-        public static bool UsedForNavigation(Collider collider, SpaceshipPart part)
-            => UsedForNavigation(collider, part, true);
-
-        /// <summary>
-        /// 판단은 <b>한 벌</b>이고, 파츠는 <b>꼭 필요할 때만</b> 찾는다.
-        ///
-        /// <para>두 갈래를 각각 쓰면 같은 규칙을 두 곳이 다르게 풀게 된다. 그렇다고 1인자
-        /// 갈래가 2인자 갈래에 <c>GetComponentInParent</c> 결과를 미리 찾아 넘기면, <b>싼
-        /// 필터에서 걸러질 콜라이더까지 비싼 계층 탐색을 하게 된다</b> — 굽는 고리를 위해
-        /// 고친 것이 베이커를 더 느리게 만든다. 그래서 몸은 하나로 두고 마지막 줄에서만
-        /// 찾는다.</para>
-        ///
-        /// <para>순서가 규칙이다 — 레이어 · 트리거 · 사람 몸 · <c>attachedRigidbody == null</c>
-        /// 로 끝날 수 있으면 파츠는 <b>찾지 않는다.</b></para>
-        /// </summary>
-        static bool UsedForNavigation(Collider collider, SpaceshipPart part, bool partKnown)
+        public static bool UsedForNavigation(Collider collider, out SpaceshipPart part)
         {
+            part = null;
             if (collider == null) return true;   // 콜라이더가 아닌 소스(터레인 등)는 그대로 쓴다
             if ((PermanentLayerMask & (1 << collider.gameObject.layer)) == 0) return false;
             if (collider.isTrigger || collider.GetComponentInParent<PlayerRig>() != null) return false;
-            if (collider.attachedRigidbody == null) return true;
-            return (partKnown ? part : collider.GetComponentInParent<SpaceshipPart>()) != null;
+            part = collider.GetComponentInParent<SpaceshipPart>();
+            return collider.attachedRigidbody == null || part != null;
         }
+
+        /// <summary>
+        /// <see cref="Rebuild"/> 가 <b>무엇을 했는지</b> (S15P21B202-704).
+        ///
+        /// <para>안 구운 이유를 밖에서 <c>BuildCount</c> 증가 여부로 역추론하면, 나중에 조기
+        /// 반환이 하나 늘 때 그것이 <b>조용히 "게이트가 일했다" 로 집계된다.</b> 새 반환 경로는
+        /// 여기서 이름을 골라야 한다.</para>
+        /// </summary>
+        public enum RebuildOutcome { Busy, Unchanged, Baked }
 
         void Update()
         {
@@ -106,10 +110,11 @@ namespace Metagame.Network
             // Keep discovering changed obstacles while AI exists, even while it is idle;
             // otherwise the first order after an idle period can reject a now-open route.
             if (!NetPlayer.HasAiPlayers) return;
-            int before = BuildCount;
-            Rebuild(new Bounds(transform.position, new Vector3(512, 128, 512)));
-            if (BuildCount == before) unchanged++;
-            else bakeStartedAt = Time.realtimeSinceStartup;
+            // 무엇을 했는지 되묻지 않고 그대로 돌려받는다 — BuildCount 증가 여부로 역추론하면
+            // 나중에 조기 반환이 하나 늘 때 그것이 조용히 "게이트가 일했다" 로 집계된다.
+            if (Rebuild(new Bounds(transform.position, new Vector3(512, 128, 512))) == RebuildOutcome.Baked)
+                bakeStartedAt = Time.realtimeSinceStartup;
+            else unchanged++;
             nextBuild = Time.time + 2f;
         }
 
@@ -157,9 +162,9 @@ namespace Metagame.Network
             bakeTotalMs = bakeMaxMs = 0;
         }
 
-        public void Rebuild(Bounds region, bool force = false)
+        public RebuildOutcome Rebuild(Bounds region, bool force = false)
         {
-            if (IsBuilding) return;
+            if (IsBuilding) return RebuildOutcome.Busy;
             hasBuilt = Ready;
             if (!loadedGeometry)
             {
@@ -180,11 +185,9 @@ namespace Metagame.Network
                     // Characters and loose tools are local collision concerns, not permanent walls.
                     // **베이커와 같은 판단을 쓴다** (S15P21B202-690) — 갈리면 조용히 나빠진다.
                     //
-                    // **파츠는 한 번만 찾는다** (S15P21B202-704). 판단을 함수로 빼면서 같은
-                    // 계층 탐색이 소스마다 두 번 돌고 있었다 — 665개면 굽을 때마다 665번이
-                    // 더 든다. 판단은 한 벌 그대로 두고 이미 아는 값만 넘긴다.
-                    var part = collider.GetComponentInParent<SpaceshipPart>();
-                    if (!UsedForNavigation(collider, part)) { sources.RemoveAt(i); continue; }
+                    // **파츠는 여기서 찾지 않는다** (S15P21B202-704). 판단하는 쪽이 이미 찾으므로
+                    // 그 값을 돌려받는다 — 미리 찾아 넘기면 걸러질 콜라이더까지 탐색하게 된다.
+                    if (!UsedForNavigation(collider, out var part)) { sources.RemoveAt(i); continue; }
                     // Parts block routes; their tops are not walking surfaces.
                     if (part != null) source.area = 1;
                 }
@@ -210,7 +213,7 @@ namespace Metagame.Network
             }
             // Keep the discovery pass: doors, spawned scenery and destroyed colliders need no
             // registration contract. Unchanged geometry must not schedule another native build.
-            if (!force && hasBuilt && bounds.Equals(region) && SameSources()) return;
+            if (!force && hasBuilt && bounds.Equals(region) && SameSources()) return RebuildOutcome.Unchanged;
             bounds = region;
             previousSources.Clear();
             previousSources.AddRange(sources);
@@ -232,6 +235,7 @@ namespace Metagame.Network
             using (BuildMarker.Auto())
                 building = NavMeshBuilder.UpdateNavMeshDataAsync(data, settings, sources, bounds);
             BuildCount++;
+            return RebuildOutcome.Baked;
         }
 
         bool SameSources()
