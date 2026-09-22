@@ -49,6 +49,8 @@ namespace Metagame.Gameplay
         PlayerRig _player;
         public RabbitLocomotion Locomotion { get; private set; }
         public RabbitLocomotion.State? NetworkLocomotionState { get; set; }
+        public float AiGreetingPhase { get; set; } = -1f;
+        Transform greetingArm;
 
         public Transform Model { get; private set; }
         public int LinkCount { get { return links != null ? links.Length : 0; } }
@@ -263,6 +265,17 @@ namespace Metagame.Gameplay
                     Locomotion.Apply(NetworkLocomotionState.Value, Time.deltaTime);
             }
             else Locomotion.Apply(RabbitLocomotion.ReadState(_player), Time.deltaTime);
+            // Cosmetic only: never move the physical arm or generate grab input.
+            if(AiGreetingPhase>=0 && AiGreetingPhase<2.5f && !_player.Downed && !_player.Ragdolled)
+            {
+                if(greetingArm==null) greetingArm=FindBone(Model,"R_Upperarm");
+                if(greetingArm!=null)
+                {
+                    float blend=Mathf.Clamp01(AiGreetingPhase/.25f)*Mathf.Clamp01((2.5f-AiGreetingPhase)/.25f);
+                    var axis=_player.Doll.Chest.rotation*Vector3.forward;
+                    greetingArm.rotation=Quaternion.AngleAxis((125f+12f*Mathf.Sin(AiGreetingPhase*12f))*blend,axis)*greetingArm.rotation;
+                }
+            }
         }
 
         /// <summary>

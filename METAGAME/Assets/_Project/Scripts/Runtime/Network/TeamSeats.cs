@@ -102,6 +102,8 @@ namespace Metagame.Network
         public static TeamSeats EnsureServer(GameSession forSession)
         {
             if (!NetworkServer.active || forSession == null) return null;
+            if (forSession.GetComponent<AiNavigationWorld>() == null)
+                forSession.gameObject.AddComponent<AiNavigationWorld>();
             if (Server != null)
             {
                 Server.session = forSession;
@@ -205,6 +207,7 @@ namespace Metagame.Network
         void Update()
         {
             if (!NetworkServer.active || !humanSeated) return;
+            if (!AiHostPolicy.CanFill(AiHostSettings.ServerState)) return;
             if (Time.time < retryAfter) return;
 
             for (int slot = 0; slot < seats.Length; slot++)

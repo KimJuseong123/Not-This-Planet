@@ -126,6 +126,14 @@ ec2-status.json
 /tools/AICompanionService/results/
 /tools/AICompanionService/fixtures/
 /tools/AICompanionService/__pycache__/
+/tools/AICompanionService/.pack-venv/
+/artifacts/ai-pack/
+
+# AI 추가팩 산출물 (S15P21B202-690). 배포하려고 루트에 잠깐 두는 일이 있는데,
+# models.zip 이 2.2GB 라 `git add -A` 한 번이면 되돌리기 어려운 커밋이 된다.
+/models.zip
+/runtime.zip
+/pack-manifest*.json
 
 # Local Stage1 concept archive and pre-conversion scene backup.
 /docs/assets/concepts/stage1-grass-flora/astra-flora-9-species-4-views.zip

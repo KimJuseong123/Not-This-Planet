@@ -74,6 +74,14 @@ def forbidden_reasons(path: str) -> list[str]:
         hits.append(why)
     return hits
 ASSETS = "METAGAME/Assets/"
+# Unity reads this deployment configuration through Application.streamingAssetsPath.
+# Only these exact configuration paths are exempt from the location rule.
+# Forbidden files, size limits and .meta pairing remain checked independently.
+STREAMING_CONFIG_PATHS = {
+    ASSETS + "StreamingAssets.meta",
+    ASSETS + "StreamingAssets/ai-pack-source.json",
+    ASSETS + "StreamingAssets/ai-pack-source.json.meta",
+}
 THIRDPARTY = ASSETS + "_Project/ThirdParty/"
 MAX_NON_LFS = 5 * 1024 * 1024
 # 리포 상대 경로 상한. Windows 러너의 빌드 경로 접두어가 약 71자이고 MAX_PATH 가 260 이라
@@ -128,6 +136,8 @@ def location_problems(asset_added: list[str], base_top: set[str]) -> list[str]:
     (2026-08-31 MR !112 Mirror 임포트에서 실측)."""
     direct, folders = [], {}
     for path in asset_added:
+        if path in STREAMING_CONFIG_PATHS:
+            continue
         rel = path[len(ASSETS):]
         top = rel.split("/", 1)[0]
         if "/" not in rel:

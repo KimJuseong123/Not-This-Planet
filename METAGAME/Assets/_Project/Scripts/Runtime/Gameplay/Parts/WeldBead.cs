@@ -1017,6 +1017,21 @@ namespace Metagame.Gameplay.Parts
             return owner != null && PartTouching(owner, hit.point, PhysicsScale.WeldBeadMinRadius) != null;
         }
 
+        /// <summary>Read-only target query using exactly the same contact rule as manual welding.</summary>
+        public static SpaceshipPart JoiningTargetAt(RaycastHit hit)
+        {
+            if (!CanApplyAt(hit, false) || IsBeadCollider(hit.collider)) return null;
+            var owner = hit.collider.GetComponentInParent<SpaceshipPart>();
+            return owner == null ? null : PartTouching(owner, hit.point, PhysicsScale.WeldBeadMinRadius);
+        }
+
+        public static bool CanJoinTargetAt(RaycastHit hit, SpaceshipPart target)
+        {
+            if (target == null || !CanApplyAt(hit, false)) return false;
+            var owner = hit.collider.GetComponentInParent<SpaceshipPart>();
+            return owner != null && PartTouching(owner, hit.point, PhysicsScale.WeldBeadMinRadius) == target;
+        }
+
         static SpaceshipPart PartTouching(SpaceshipPart owner, Vector3 point, float radius)
         {
             var count = UnityEngine.Physics.OverlapSphereNonAlloc(

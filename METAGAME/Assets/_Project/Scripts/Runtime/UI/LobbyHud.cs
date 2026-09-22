@@ -852,7 +852,7 @@ namespace Metagame.UI
         private void DrawMultiplayer()
         {
             float width = Mathf.Min(780f, UiScale.Width - 40f);
-            float height = Mathf.Min(700f, UiScale.Height - 40f);
+            float height = Mathf.Min(network != null && network.CurrentRoom != null ? 740f : 700f, UiScale.Height - 40f);
             float x = (UiScale.Width - width) * 0.5f;
             float y = (UiScale.Height - height) * 0.5f;
 
@@ -951,6 +951,7 @@ namespace Metagame.UI
                     "새 방 만들기", primaryButtonStyle))
             {
                 error = string.Empty;
+                AiHostSettings.BeginRoom();
                 network.CreateRoom();
             }
 
@@ -1008,6 +1009,8 @@ namespace Metagame.UI
             }
 
             float controlsY = rowY + Mathf.Max(1, room.Players.Count) * 34f + 24f;
+            AiRoomControls.Draw(new Rect(x + 54f, controlsY, width - 108f, 62f), smallButtonStyle, smallStyle, true);
+            controlsY += 72f;
             if (UiInteraction.Button(new Rect(x + 54f, controlsY, width * 0.40f, 48f),
                     network.IsLocalReady ? "준비 취소" : "준비", buttonStyle))
                 network.SetReady(!network.IsLocalReady);

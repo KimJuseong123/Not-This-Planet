@@ -651,6 +651,22 @@ namespace Metagame.Gameplay
         /// 이미 수평을 그렇게 다루고 있어 세로도 같은 방식으로 맞췄다.
         /// </summary>
         public bool Floating { get; private set; }
+        LowGravityField assistedFloatField;
+        Vector3 assistedFloatTarget;
+        float assistedFloatUntil;
+        /// <summary>A short server-owned lease, renewed only for the player who requested AI transport.</summary>
+        public bool RequestAssistedFloat(LowGravityField field, Vector3 hipsTarget)
+        {
+            if (WorldEvents.RemoteDecides || field == null || !field.IsActive || !field.Contains(Position)
+                || Downed || IsRiding || Hanging || input.Move.sqrMagnitude > .01f || input.Jump || input.ArmsUp) return false;
+            assistedFloatField = field; assistedFloatTarget = hipsTarget; assistedFloatUntil = Time.time + .25f;
+            return true;
+        }
+        public void ReleaseAssistedFloat(LowGravityField field)
+        { if (assistedFloatField == field) { assistedFloatField = null; assistedFloatUntil = 0; } }
+        bool AssistedFloating => !WorldEvents.RemoteDecides && assistedFloatField != null && assistedFloatField.IsActive
+            && Time.time < assistedFloatUntil && assistedFloatField.Contains(Position) && !Downed && !IsRiding && !Hanging
+            && input.Move.sqrMagnitude <= .01f && !input.Jump && !input.ArmsUp;
         public bool Swimming { get; private set; }
         public bool InWater => water != null;
         DrainageWater water;
@@ -3038,6 +3054,9 @@ namespace Metagame.Gameplay
             if (floatingAutoLift)
                 target = Mathf.Clamp((floatingLiftTarget - Doll.Hips.position.y) * 3f,
                     0f, PhysicsScale.FieldFloatVerticalSpeed);
+            if (AssistedFloating)
+                target = Mathf.Clamp((assistedFloatTarget.y - Doll.Hips.position.y) * 2f,
+                    -PhysicsScale.FieldFloatVerticalSpeed, PhysicsScale.FieldFloatVerticalSpeed);
             float rate = PhysicsScale.FieldFloatVerticalSpeed / PhysicsScale.FieldFloatStopSeconds;
             if (Swimming)
             {
@@ -3183,6 +3202,11 @@ namespace Metagame.Gameplay
 
                 Vector2 move = input.Move.sqrMagnitude > 1f ? input.Move.normalized : input.Move;
                 wish = right * move.x + fwd * move.y;
+            }
+            if (Floating && AssistedFloating)
+            {
+                wish = assistedFloatTarget - Doll.Hips.position; wish.y = 0;
+                wish = Vector3.ClampMagnitude(wish * .75f, 1f);
             }
             if (wish.sqrMagnitude > 1f) wish.Normalize();
 

@@ -177,10 +177,10 @@ namespace Metagame.UI
 
             float scale = Mathf.Clamp(Mathf.Min(Screen.width / 1600f, Screen.height / 900f),
                                       0.78f, 1.25f);
-            float panelWidth = 430f * scale;
+            float panelWidth = 620f * scale;
             var retry = TeamRetryFlow.Instance;
             bool showRetry = session != null && StageCatalog.IsStageScene(session.gameObject.scene.name);
-            float panelHeight = (showRetry ? 430f : 366f) * scale;
+            float panelHeight = (showRetry ? 694f : 630f) * scale;
             float x = (UiScale.Width - panelWidth) * 0.5f;
             float y = (UiScale.Height - panelHeight) * 0.5f;
             float buttonWidth = 320f * scale;
@@ -222,6 +222,12 @@ namespace Metagame.UI
             if (UiInteraction.Button(new Rect(buttonX, firstButtonY + (buttonHeight + gap) * (showRetry ? 3f : 2f),
                                     buttonWidth, buttonHeight), "타이틀로 나가기", quietButtonStyle))
                 ReturnToTitle();
+
+            float aiTop = (showRetry ? 382f : 318f) * scale;
+            AiRoomControls.Draw(new Rect(x + 24f * scale, y + aiTop,
+                panelWidth - 48f * scale, 78f * scale), quietButtonStyle, hintStyle, false);
+            ProximityVoiceMenu.Draw(new Rect(x + 24f * scale, y + aiTop + 87f * scale,
+                panelWidth - 48f * scale, 190f * scale));
 
             DrawLabel(new Rect(x, y + panelHeight - 28f * scale, panelWidth, 22f * scale),
                       "Esc 닫기", hintStyle, UiTheme.MutedText);

@@ -107,11 +107,26 @@ def test_scene_changes_thirdparty():
     print("  서드파티 신규 씬·프리팹 제외 · 수정한 것은 검사 유지")
 
 
+def test_streaming_config_location():
+    prefix = H.ASSETS + "StreamingAssets"
+    allowed = [prefix + ".meta", prefix + "/ai-pack-source.json",
+               prefix + "/ai-pack-source.json.meta"]
+    assert H.location_problems(allowed, {"_Project"}) == []
+    for path in [prefix + "/other.json", prefix + "/nested/ai-pack-source.json",
+                 prefix + "/models.zip", prefix + "/runtime.exe",
+                 H.ASSETS + "StreamingAssetsOther/file.json"]:
+        assert H.location_problems([path], {"_Project"}), path
+    for path in [prefix + "/models.zip", prefix + "/runtime.exe"]:
+        assert H.forbidden_reasons(path), path
+    print("  StreamingAssets: exact config paths only; archives/executables still forbidden")
+
+
 def main() -> int:
     test_too_long()
     test_key_files_forbidden()
     test_location_problems_deduped()
     test_scene_changes_thirdparty()
+    test_streaming_config_location()
     print("TEST_HYGIENE_GUARDS OK")
     return 0
 

@@ -288,6 +288,10 @@ namespace Metagame.Network
         [SyncVar(hook = nameof(OnDustStormSeedChanged))]
         int dustStormSeed;
 
+        [SyncVar] AiRoomState aiRoomState;
+        public AiRoomState RoomAiState => aiRoomState;
+        float nextAiStatusCheck;
+
         /// <summary>클라이언트로서 챙길 것이 남았는가. 스폰이 등록된 뒤에만 참이 된다.</summary>
         bool needsClientPrepare;
 
@@ -297,6 +301,7 @@ namespace Metagame.Network
             Current = this;
 
             dustStormSeed = DustStormMatchSeed.EnsureServerMatch();
+            aiRoomState = AiHostSettings.ServerState;
             Collect();
             ready = true;
 
@@ -779,6 +784,7 @@ namespace Metagame.Network
 
         public override void OnStopClient()
         {
+            if (!isServer && HostMigration.Taking) AiHostSettings.InheritRoomChoice(aiRoomState);
             // 내가 새 방장이 되는 길이면 세계를 물리로 돌려놓는다 (S15P21B202-389).
             // 이 컴포넌트가 사라지기 전이어야 한다 — 받아 둔 속도와 줄 세운 순서를
             // 아는 것이 여기뿐이다. RemoteDecides 는 그 안에서 내린다.
@@ -848,6 +854,11 @@ namespace Metagame.Network
 
         void Update()
         {
+            if (isServer && Time.unscaledTime >= nextAiStatusCheck)
+            {
+                nextAiStatusCheck = Time.unscaledTime + 0.25f;
+                aiRoomState = AiHostSettings.ServerState;
+            }
             if (!ready)
             {
                 // 여기서 isServer 를 보면 안 된다 — 스폰 등록 전에는 netIdentity 가 없어

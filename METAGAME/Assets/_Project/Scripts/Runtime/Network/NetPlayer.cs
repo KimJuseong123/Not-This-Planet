@@ -20,7 +20,7 @@ namespace Metagame.Network
     /// 예외가 아니다 — 각자 계산하면 두 부품을 함께 옮길 때 결과가 갈린다.
     /// </summary>
     [RequireComponent(typeof(NetworkIdentity))]
-    public sealed class NetPlayer : NetworkBehaviour
+    public sealed partial class NetPlayer : NetworkBehaviour
     {
         /// <summary>
         /// 입력을 보내는 최소 간격. 물리는 100Hz 로 돌지만 그 속도로 보낼 이유는 없다 —
@@ -447,8 +447,11 @@ namespace Metagame.Network
             var suit = body != null && body.Doll != null ? body.Doll.Suit : null;
             if (suit == null) return;
 
-            if (ShouldPlayDance(_seenDanceSeq, now, _danceSeqKnown) && DanceCatalog.IsValid(id))
-                suit.PlayDance(id);
+            if (ShouldPlayDance(_seenDanceSeq, now, _danceSeqKnown))
+            {
+                if (DanceCatalog.IsValid(id)) suit.PlayDance(id);
+                else if (id == 0) suit.CancelDance();
+            }
 
             _seenDanceSeq = now;
             _danceSeqKnown = true;
@@ -574,7 +577,10 @@ namespace Metagame.Network
 
             if (isServer) _locomotionState = RabbitLocomotion.ReadState(body);
             if (body.Doll.Suit != null)
+            {
                 body.Doll.Suit.NetworkLocomotionState = _locomotionState;
+                body.Doll.Suit.AiGreetingPhase = aiGreeting ? (float)(NetworkTime.time - aiGreetingStarted) : -1f;
+            }
             if (remoteAvatar != null)
                 remoteAvatar.SetArmIntent(_locomotionState.LeftArmBusy,
                                           _locomotionState.RightArmBusy);
@@ -627,11 +633,10 @@ namespace Metagame.Network
         /// <summary>
         /// 사람 없이 뜬 자리인가. 연결이 없고 자리를 미리 지정받는다.
         ///
-        /// <para>서버에만 둔다. 참가자는 이것을 알 필요가 없다 — AI 자리도 사람 자리와
-        /// 똑같은 SyncVar 를 타고 내려가고, 남의 몸을 그리는 길도 하나뿐이다.
-        /// 그래서 다른 화면에서는 AI 도 팀원과 같은 색·이름표로 보인다.</para>
+        /// <para>명령 수신 대상 판별을 위해 참가자에게도 보낸다.
+        /// 몸과 자리의 소유권은 계속 TeamSeats가 서버에서 관리한다.</para>
         /// </summary>
-        bool aiDriver;
+        [SyncVar] bool aiDriver;
 
         /// <summary>사람 없이 서버가 띄운 자리인가.</summary>
         public bool IsAiDriver => aiDriver;
@@ -878,6 +883,7 @@ namespace Metagame.Network
 
                 body = seatBody;
                 pooledBody = true;
+                if (aiDriver) body.IsLocal = false;
 
                 // 이 자리로 돌아온 것이므로 옛 좌표는 버린다. 몸이 그 자리에 그대로 있어
                 // RejoinMemory 가 복원할 것이 없다.
@@ -1071,6 +1077,14 @@ namespace Metagame.Network
             // 영원히 갱신되지 않는다. 그래서 방장만 움직이지 못했다(2026-09-02 실측).
             // FixedUpdate 는 Update 보다 먼저 도니까 순서로도 막을 수 없다.
             InputFrame frame = hostOwnBody ? body.CurrentInput : pending;
+            if (IsAi)
+            {
+                frame = aiFollow.Tick(body, AiHostSettings.ServerState == AiRoomState.Active
+                    && !HostMigration.Pending && !HostMigration.Taking && !HostMigration.Settling
+                    && GameSession.Instance != null && !GameSession.Instance.CinematicInputBlocked
+                    && !GameSession.Instance.EndingActive);
+                UpdateAiSocialPresentation();
+            }
             if (GameSession.Instance != null && GameSession.Instance.CinematicInputBlocked)
                 frame = new InputFrame();
             else if (GameSession.Instance != null && GameSession.Instance.Stage2Demo != null && GameSession.Instance.Stage2Demo.DemoMode)
@@ -1114,7 +1128,7 @@ namespace Metagame.Network
             //
             // AI 자리에도 넣지 않는다. 보내는 사람이 없어 늘 빈 입력인데, 그것을 매 스텝
             // 덮어쓰면 나중에 붙일 두뇌가 무엇을 넣어도 지워진다.
-            if (!hostOwnBody && !aiDriver) body.SetInput(frame);
+            if (!hostOwnBody) body.SetInput(frame);
 
             // 이번에 적용한 순번을 기억한다. 다음 스텝의 echo 가 이 값을 쓴다.
             if (frame.Seq != 0) appliedSeq = frame.Seq;
@@ -1674,14 +1688,14 @@ namespace Metagame.Network
             //
             // 내 몸은 적지 않는다. 게임 씬 것이라 <see cref="RemoveBody"/> 가 남겨 두고,
             // 서버가 된 뒤 <see cref="OnStartServer"/> 가 그것을 그대로 넘겨받는다.
-            if (HostMigration.Taking && body != null && !isLocalPlayer)
+            if (!IsAi && HostMigration.Taking && body != null && !isLocalPlayer)
             {
                 RejoinMemory.Remember(userId, body.FootPosition, body.PlanarForward);
             }
 
             // 쓰던 색도 물려받는다 (S15P21B202-396). <b>내 것까지 적는다</b> — 자리 기록과
             // 달리 내 색도 방장이 정해 준 것이라, 안 적으면 내 색이 바뀐다.
-            if (HostMigration.Taking)
+            if (!IsAi && HostMigration.Taking)
             {
                 TeamSlots.Remember(userId, teamSlot);
             }
@@ -1692,6 +1706,8 @@ namespace Metagame.Network
         }
         public override void OnStopServer()
         {
+            // Release reservations without dropping the persistent seat's equipment.
+            if (IsAi) aiFollow.DetachDriver();
             // 어디에 서 있었는지 적어 둔다 (S15P21B202-150). 이것이 없으면 다시 붙었을 때
             // 새 몸이 스폰 지점에 서서, 멀리까지 걸어간 사람이 처음으로 되돌아간다.
             //
