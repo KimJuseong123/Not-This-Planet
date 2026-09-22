@@ -3,6 +3,7 @@ using System.Reflection;
 using Metagame.Core;
 using Metagame.Gameplay.Interaction;
 using NUnit.Framework;
+using Metagame.UI;
 using UnityEngine;
 
 namespace Metagame.Gameplay.Tests
@@ -380,6 +381,55 @@ namespace Metagame.Gameplay.Tests
         /// 줄로 나오는데 표시 화면이 높이가 작아서 글자가 안 보여." 닉네임이 길면
         /// (`졸다일어난우주인송승우`) 한 줄에 안 들어간다.
         /// </summary>
+        // ── 구조자 화면이 무엇을 그리는가 (S15P21B202-699) ──────
+        //
+        // "구조자 화면에 안내가 안 뜬다" 는 신고가 있었는데, **그리는 조건이 OnGUI
+        // 안에만 있어 화면 없이는 잴 방법이 없었다.** 이 파일이 그 화면에 대해 재던
+        // 것은 소스에 wordWrap 이 있는지뿐이다. 이제 결정을 직접 잰다.
+
+        [Test]
+        public void TheRescuerSeesThePromptAsSoonAsThereIsSomeoneToLift()
+        {
+            Assert.That(DownedRescueHud.Decide(false, 0f, hasCandidate: true, progress01: 0f),
+                Is.EqualTo(DownedRescueHud.RescueHudView.Prompt),
+                "일으킬 사람이 있는데 [G] 안내가 안 뜬다.");
+        }
+
+        [Test]
+        public void TheRescuerSeesTheGaugeOnceThereIsProgress()
+        {
+            // 앞사람이 남긴 진행분이 있으면 누르지 않아도 막대가 보여야 이어받는다는
+            // 것을 알 수 있다(DownedRescue.Release 가 누른 만큼을 남긴다).
+            Assert.That(DownedRescueHud.Decide(false, 0f, hasCandidate: true, progress01: 0.4f),
+                Is.EqualTo(DownedRescueHud.RescueHudView.Progress));
+        }
+
+        [Test]
+        public void WithNobodyToLiftTheRescuerSeesNothing()
+        {
+            Assert.That(DownedRescueHud.Decide(false, 0f, hasCandidate: false, progress01: 0f),
+                Is.EqualTo(DownedRescueHud.RescueHudView.None));
+        }
+
+        [Test]
+        public void TheDownedSideIsUnchanged()
+        {
+            // S15P21B202-448 이 만든 화면이다. 이 이슈가 건드리면 안 된다.
+            Assert.That(DownedRescueHud.Decide(true, 0.3f, hasCandidate: false, progress01: 0f),
+                Is.EqualTo(DownedRescueHud.RescueHudView.BeingRescued));
+            Assert.That(DownedRescueHud.Decide(true, 0f, hasCandidate: false, progress01: 0f),
+                Is.EqualTo(DownedRescueHud.RescueHudView.None),
+                "아무도 안 일으키는데 게이지가 뜬다.");
+        }
+
+        [Test]
+        public void ADownedPlayerNeverSeesTheLiftPrompt()
+        {
+            // 쓰러진 사람은 남을 못 일으킨다. 후보가 남아 있어도 안내는 안 뜬다.
+            Assert.That(DownedRescueHud.Decide(true, 0f, hasCandidate: true, progress01: 0.5f),
+                Is.EqualTo(DownedRescueHud.RescueHudView.None));
+        }
+
         [Test]
         public void TheGaugeLabelMakesRoomForTwoLines()
         {
