@@ -8,16 +8,16 @@ namespace Metagame.Gameplay.Tests
 {
     public sealed class Stage1SoundTests
     {
-        [TestCase(true, PlasmaBeamMode.Weld, false, false, false, false, SoundEventId.WeldBeamAirLoop)]
-        [TestCase(true, PlasmaBeamMode.Cut, false, false, false, false, SoundEventId.CutBeamAirLoop)]
+        [TestCase(true, PlasmaBeamMode.Weld, false, false, false, false, SoundEventId.Count)]
+        [TestCase(true, PlasmaBeamMode.Cut, false, false, false, false, SoundEventId.Count)]
         [TestCase(true, PlasmaBeamMode.Weld, true, false, false, false, SoundEventId.WeldBeamContactLoop)]
         [TestCase(true, PlasmaBeamMode.Cut, true, false, false, false, SoundEventId.CutBeamContactLoop)]
         [TestCase(true, PlasmaBeamMode.Weld, true, false, true, false, SoundEventId.WeldBeadGrowLoop)]
         [TestCase(true, PlasmaBeamMode.Weld, true, true, true, false, SoundEventId.WeldBridgeGrowLoop)]
         [TestCase(true, PlasmaBeamMode.Cut, true, false, false, true, SoundEventId.WeldBeadRemoveLoop)]
-        // Recent progress must not keep a contact/work loop alive after aiming away from the part.
-        [TestCase(true, PlasmaBeamMode.Weld, false, true, true, false, SoundEventId.WeldBeamAirLoop)]
-        [TestCase(true, PlasmaBeamMode.Cut, false, false, false, true, SoundEventId.CutBeamAirLoop)]
+        // Recent progress must not keep any sound alive after aiming away from the part.
+        [TestCase(true, PlasmaBeamMode.Weld, false, true, true, false, SoundEventId.Count)]
+        [TestCase(true, PlasmaBeamMode.Cut, false, false, false, true, SoundEventId.Count)]
         [TestCase(false, PlasmaBeamMode.Weld, true, true, true, false, SoundEventId.Count)]
         [TestCase(false, PlasmaBeamMode.Cut, true, false, false, true, SoundEventId.Count)]
         [TestCase(true, PlasmaBeamMode.None, true, true, true, true, SoundEventId.Count)]
@@ -66,8 +66,10 @@ namespace Metagame.Gameplay.Tests
                 // 아직 제작 전인 슬롯은 의도적으로 비워 둔다. 클립이 연결되기 전에는
                 // SoundRuntime.Resolve 가 null을 반환해 해당 상호작용이 무음으로 남는다.
                 if (i > (int)SoundEventId.Footstep &&
+                    i != (int)SoundEventId.PlayerJump &&
                     i != (int)SoundEventId.BatSwing &&
                     i != (int)SoundEventId.BatMeteorReflect &&
+                    i != (int)SoundEventId.ClampDetached &&
                     i != (int)SoundEventId.WeldingGunTrigger)
                 {
                     Assert.IsNull(slot.stylized, "Future stylized clip should be empty for " + (SoundEventId)i);
@@ -135,6 +137,44 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void ClampDetachedUsesApprovedPpyokClip()
+        {
+            var bank = AssetDatabase.LoadAssetAtPath<Stage1SoundBank>(
+                "Assets/_Project/Resources/Audio/Stage1SoundBank.asset");
+            var manager = AssetDatabase.LoadAssetAtPath<AudioManager>(
+                "Assets/_Project/Resources/Audio/Stage1AudioManager.asset");
+            var source = AssetDatabase.LoadAssetAtPath<AudioClip>(
+                "Assets/_Project/Audio/SFX/Stylized/SFX_Clamp_Detached_Ppyok.wav");
+            var slot = bank != null ? bank.GetSlot(SoundEventId.ClampDetached) : null;
+
+            Assert.IsNotNull(source, "Clamp detached ppyok clip is missing or not imported.");
+            Assert.IsNotNull(slot, "Clamp detached sound slot is missing.");
+            Assert.IsFalse(slot.loop, "Clamp detached must play once when the screw comes free.");
+            Assert.AreSame(source, slot.stylized);
+            Assert.AreSame(source, slot.realistic);
+            Assert.AreSame(source, manager.Resolve(SoundEventId.ClampDetached, out _));
+        }
+
+        [Test]
+        public void PlayerJumpUsesApprovedRisingClip()
+        {
+            var bank = AssetDatabase.LoadAssetAtPath<Stage1SoundBank>(
+                "Assets/_Project/Resources/Audio/Stage1SoundBank.asset");
+            var manager = AssetDatabase.LoadAssetAtPath<AudioManager>(
+                "Assets/_Project/Resources/Audio/Stage1AudioManager.asset");
+            var source = AssetDatabase.LoadAssetAtPath<AudioClip>(
+                "Assets/_Project/Audio/SFX/Stylized/SFX_Rabbit_Jump.wav");
+            var slot = bank != null ? bank.GetSlot(SoundEventId.PlayerJump) : null;
+
+            Assert.IsNotNull(source, "Rabbit jump clip is missing or not imported.");
+            Assert.IsNotNull(slot, "Player jump sound slot is missing.");
+            Assert.IsFalse(slot.loop, "Player jump must play once per accepted jump.");
+            Assert.AreSame(source, slot.stylized);
+            Assert.AreSame(source, slot.realistic);
+            Assert.AreSame(source, manager.Resolve(SoundEventId.PlayerJump, out _));
+        }
+
+        [Test]
         public void WeldingStatesUseSelectedVibrationAndHissClip()
         {
             var bank = AssetDatabase.LoadAssetAtPath<Stage1SoundBank>(
@@ -196,6 +236,48 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void PilotedCraftMovementSoundsAreEnabled()
+        {
+            var manager = AssetDatabase.LoadAssetAtPath<AudioManager>(
+                "Assets/_Project/Resources/Audio/Stage1AudioManager.asset");
+            var events = new[]
+            {
+                SoundEventId.TractorMoveLoop,
+                SoundEventId.TractorTowLoop,
+                SoundEventId.TractorDescendLoop
+            };
+
+            Assert.IsNotNull(manager);
+            foreach (var eventId in events)
+                Assert.IsNotNull(manager.Resolve(eventId, out _),
+                    "Piloted craft movement sound should be enabled for " + eventId);
+
+            var selectedEngine = AssetDatabase.LoadAssetAtPath<AudioClip>(
+                "Assets/_Project/Audio/SFX/Stylized/SFX_Tractor_Move_Loop.wav");
+            Assert.AreSame(selectedEngine, manager.Resolve(SoundEventId.TractorMoveLoop, out _));
+            Assert.Less(manager.VolumeScale(SoundEventId.TractorMoveLoop), 0.25f,
+                "Continuous craft engine should stay behind the background music.");
+        }
+
+        [Test]
+        public void TractorBoardUsesApprovedLongBoongClip()
+        {
+            var bank = AssetDatabase.LoadAssetAtPath<Stage1SoundBank>(
+                "Assets/_Project/Resources/Audio/Stage1SoundBank.asset");
+            var manager = AssetDatabase.LoadAssetAtPath<AudioManager>(
+                "Assets/_Project/Resources/Audio/Stage1AudioManager.asset");
+            var source = AssetDatabase.LoadAssetAtPath<AudioClip>(
+                "Assets/_Project/Audio/SFX/Stylized/SFX_Tractor_Board.wav");
+            var slot = bank != null ? bank.GetSlot(SoundEventId.TractorBoard) : null;
+
+            Assert.IsNotNull(source, "Approved tractor boarding clip is missing.");
+            Assert.IsNotNull(slot, "Tractor board sound slot is missing.");
+            Assert.IsFalse(slot.loop, "Boarding sound must play only once when entering the craft.");
+            Assert.AreSame(source, manager.Resolve(SoundEventId.TractorBoard, out _));
+        }
+
+
+        [Test]
         public void AudioManagerProvidesCentralStage1Settings()
         {
             var manager = AssetDatabase.LoadAssetAtPath<AudioManager>(
@@ -224,8 +306,8 @@ namespace Metagame.Gameplay.Tests
                 Assert.GreaterOrEqual(settings.minRetriggerInterval, 0f);
             }
 
-            Assert.IsNull(manager.Resolve(SoundEventId.PlayerJump, out _),
-                "An empty future slot should remain silent.");
+            Assert.IsNotNull(manager.Resolve(SoundEventId.PlayerJump, out _),
+                "The approved jump sound should remain enabled.");
 
             var globalDiscovery = bank.GetSlot(SoundEventId.ExplorationFoundGlobal);
             var globalWeld = bank.GetSlot(SoundEventId.WeldAllCompleteGlobal);

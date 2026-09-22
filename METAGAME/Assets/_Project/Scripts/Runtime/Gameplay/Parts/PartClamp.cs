@@ -261,6 +261,7 @@ namespace Metagame.Gameplay.Parts
 
         public event Action<PartClamp> Released;
         public static event Action<PartClamp, int> AnyProgressed;
+        public static event Action<PartClamp> AnyReleased;
 
         void Awake() => Initialize();
 
@@ -498,6 +499,7 @@ namespace Metagame.Gameplay.Parts
             PrepareReleasedPhysics();
 
             Released?.Invoke(this);
+            AnyReleased?.Invoke(this);
 
             if (_part != null) _part.NotifyClampReleased(this);
 

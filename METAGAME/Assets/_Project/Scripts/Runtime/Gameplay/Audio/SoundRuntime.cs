@@ -185,8 +185,10 @@ namespace Metagame.Gameplay.Audio
             PlayerRig.AnyHandGrabAttempted += OnHandGrabAttempted;
             PlayerRig.AnyHandReleased += OnHandReleased;
             PlayerRig.AnyFootstep += OnFootstep;
+            PlayerRig.AnyJumped += OnJumped;
             Grabbable.AnyGrabbed += OnGrabbed;
             PartClamp.AnyProgressed += OnClampProgressed;
+            PartClamp.AnyReleased += OnClampReleased;
             Meteor.AnyImpacted += OnMeteorImpacted;
             PartAssemblyLink.AnyWelded += OnLinkWelded;
             PartAssemblyLink.AnyReleased += OnLinkReleased;
@@ -206,8 +208,10 @@ namespace Metagame.Gameplay.Audio
             PlayerRig.AnyHandGrabAttempted -= OnHandGrabAttempted;
             PlayerRig.AnyHandReleased -= OnHandReleased;
             PlayerRig.AnyFootstep -= OnFootstep;
+            PlayerRig.AnyJumped -= OnJumped;
             Grabbable.AnyGrabbed -= OnGrabbed;
             PartClamp.AnyProgressed -= OnClampProgressed;
+            PartClamp.AnyReleased -= OnClampReleased;
             Meteor.AnyImpacted -= OnMeteorImpacted;
             PartAssemblyLink.AnyWelded -= OnLinkWelded;
             PartAssemblyLink.AnyReleased -= OnLinkReleased;
@@ -536,12 +540,12 @@ namespace Metagame.Gameplay.Audio
         void UpdateVehicleLoop(TransportVehicle vehicle)
         {
             var desired = SoundEventId.Count;
-            if (vehicle.IsReturning)
+            // 탑승 중에는 속도나 견인 상태가 바뀌어도 같은 엔진 루프를 유지한다.
+            // 정지 때 Count로 빠졌다가 재출발하며 처음부터 재생되던 단절도 막는다.
+            if (vehicle.IsOccupied)
+                desired = SoundEventId.TractorMoveLoop;
+            else if (vehicle.IsReturning)
                 desired = SoundEventId.TractorDescendLoop;
-            else if (vehicle.IsOccupied && vehicle.HorizontalSpeed > 0.12f)
-                desired = vehicle.Beam != null && vehicle.Beam.IsHolding
-                    ? SoundEventId.TractorTowLoop
-                    : SoundEventId.TractorMoveLoop;
 
             UpdateLoop(vehicleLoops, vehicle, desired, 0.72f);
         }
@@ -570,16 +574,17 @@ namespace Metagame.Gameplay.Audio
         {
             if (!beamActive) return SoundEventId.Count;
 
-            // Only registered spaceship parts select contact/work sounds; all other aims use air loops.
+            // 등록된 네 우주선 파츠를 직접 겨눌 때만 용접음을 낸다.
+            // 허공이나 다른 소품에서 클릭해도 용접건 자체의 공중 루프는 재생하지 않는다.
+            if (!hasSpaceshipPartTarget) return SoundEventId.Count;
+
             if (mode == PlasmaBeamMode.Weld)
             {
-                if (!hasSpaceshipPartTarget) return SoundEventId.WeldBeamAirLoop;
                 if (hasLiveBridge) return SoundEventId.WeldBridgeGrowLoop;
                 return weldProgressing ? SoundEventId.WeldBeadGrowLoop : SoundEventId.WeldBeamContactLoop;
             }
             if (mode == PlasmaBeamMode.Cut)
             {
-                if (!hasSpaceshipPartTarget) return SoundEventId.CutBeamAirLoop;
                 return cutProgressing ? SoundEventId.WeldBeadRemoveLoop : SoundEventId.CutBeamContactLoop;
             }
             return SoundEventId.Count;
@@ -823,6 +828,20 @@ namespace Metagame.Gameplay.Audio
             EmitLocalOneShot(SoundEventId.Footstep, position, intensity);
         }
 
+        void OnJumped(PlayerRig rig, Vector3 position)
+        {
+            if (rig == null) return;
+
+            if (networked)
+            {
+                if (worldAuthority)
+                    EmitWorldOneShot(SoundEventId.PlayerJump, position, 1f);
+                return;
+            }
+
+            EmitLocalOneShot(SoundEventId.PlayerJump, position, 1f);
+        }
+
         void OnGrabbed(Grabbable target, Hand hand)
         {
             var rig = hand != null ? hand.GetComponentInParent<PlayerRig>() : null;
@@ -850,6 +869,12 @@ namespace Metagame.Gameplay.Audio
         {
             if (clamp == null || bucket <= 0) return;
             EmitWorldOneShot(SoundEventId.ClampPullProgress, clamp.transform.position, 0.72f);
+        }
+
+        void OnClampReleased(PartClamp clamp)
+        {
+            if (clamp == null) return;
+            EmitWorldOneShot(SoundEventId.ClampDetached, clamp.transform.position, 1f);
         }
 
         void OnMeteorImpacted(Meteor meteor, Vector3 point)
