@@ -269,6 +269,16 @@ namespace Metagame.Network
         public uint tossSeq;
 
         /// <summary>
+        /// 방망이를 휘두른 수 (S15P21B202-694).
+        ///
+        /// <para><b>스윙은 남이 보라고 있는 동작이다.</b> 1인칭인 내 화면에는 팔밖에
+        /// 안 나오고, 몸이 휘두르는 그림은 오직 남의 화면에만 보인다. 던지기
+        /// (<see cref="tossSeq"/>)와 같은 규칙으로 실어 보낸다.</para>
+        /// </summary>
+        [SyncVar]
+        public uint swingSeq;
+
+        /// <summary>
         /// 동료를 던지려고 충전한 정도(0~1) (S15P21B202-519).
         ///
         /// <para><b>왜 보내야 하나.</b> 게이지는 던지는 <b>본인 화면</b>에 뜨는데 충전을
@@ -450,6 +460,8 @@ namespace Metagame.Network
 
         uint _seenTossSeq;
         bool _tossSeqKnown;
+        uint _seenSwingSeq;
+        bool _swingSeqKnown;
 
         /// <summary>
         /// 이 값이 새 던지기인가 (S15P21B202-519).
@@ -478,6 +490,26 @@ namespace Metagame.Network
 
             _seenTossSeq = now;
             _tossSeqKnown = true;
+        }
+
+        /// <summary>
+        /// 새 스윙이면 재생한다 (S15P21B202-694). 규칙은 던지기와 같다 —
+        /// <b>처음 받은 값으로는 재생하지 않고</b>(늦게 들어온 사람이 접속하자마자
+        /// 허공에 휘두른다), <c>&gt;</c> 가 아니라 <c>!=</c> 로 본다(<c>uint</c> 가
+        /// 한 바퀴 돌면 <c>&gt;</c> 는 영영 거짓이 된다).
+        ///
+        /// <para>그릴 곳이 아직 없으면 <b>본 것으로 치지 않는다</b> — 스폰 도중 옷이
+        /// 없는 틈에 오면 재생은 건너뛰면서 본 것으로 적혀 영영 안 보인다.</para>
+        /// </summary>
+        void PlaySwingIfNew(uint now)
+        {
+            var suit = body != null && body.Doll != null ? body.Doll.Suit : null;
+            if (suit == null) return;
+
+            if (ShouldPlayToss(_seenSwingSeq, now, _swingSeqKnown)) suit.PlaySwing();
+
+            _seenSwingSeq = now;
+            _swingSeqKnown = true;
         }
 
         /// <summary>서버에서 물리를 도는 진짜 몸. 클라이언트에서는 그림용 몸이다.</summary>
@@ -535,6 +567,8 @@ namespace Metagame.Network
             // **여기는 남의 몸에도 넣는다.** 던지는 동작은 남이 보는 그림이라 위 셋과
             // 정반대다 — 이것을 자기 몸에만 넣으면 "호스트만 던지는 게 보인다" 가 된다.
             if (!isServer) PlayTossIfNew(tossSeq);
+            // 스윙도 같은 자리에서 켠다. 서버는 MeteorBat.Swing 에서 이미 켰다.
+            if (!isServer) PlaySwingIfNew(swingSeq);
             // 춤도 같은 자리에서 켠다. 서버는 CmdPlayDance 에서 이미 켰다.
             if (!isServer) PlayDanceIfNew(danceSeq, danceId);
 
@@ -1051,6 +1085,7 @@ namespace Metagame.Network
             // 위 downed 와 같은 자리다 — 같은 몸의 같은 상태다.
             tossed = body.Tossed;
             tossSeq = body.TossSeq;
+            swingSeq = body.SwingSeq;
             tossCharge = body.TossCharge01;
 
             // 어느 탈것을 타는지도 같은 자리에서 실어 보낸다 (S15P21B202-434).

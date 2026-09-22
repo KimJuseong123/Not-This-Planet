@@ -182,6 +182,37 @@ namespace Metagame.Gameplay
         public uint TossSeq { get; private set; }
 
         /// <summary>
+        /// 방망이를 한 번 휘두를 때마다 오른다 (S15P21B202-694).
+        ///
+        /// <para><see cref="TossSeq"/> 와 같은 규칙이다 — <c>NetPlayer</c> 가 SyncVar 로
+        /// 실어 보내고, 받은 쪽은 값이 <b>바뀌었을 때만</b> 재생한다. 스윙은 남이
+        /// 보라고 있는 동작이라 이 경로가 이 기능의 절반이다.</para>
+        /// </summary>
+        public uint SwingSeq { get; private set; }
+
+        /// <summary>
+        /// 방망이를 <b>칠 수 있게</b> 들고 있는가 (S15P21B202-694).
+        ///
+        /// <para>대기 코일을 켜는 조건이다. 쿨다운 중이면 끈다 — 자세가 "지금 칠 수
+        /// 있다" 를 알리는 몫도 하기 때문이다(S15P21B202-665 · 669 와 같은 자리).</para>
+        /// </summary>
+        public bool BatCoiled
+        {
+            get
+            {
+                var bat = ActiveTool as MeteorBat;
+                return bat != null && bat.CanSwing && !Downed && !IsRiding;
+            }
+        }
+
+        /// <summary>방망이를 휘둘렀다. 스윙 동작을 켜고 수를 올린다.</summary>
+        public void NotifyBatSwing()
+        {
+            SwingSeq++;
+            Doll?.Suit?.PlaySwing();
+        }
+
+        /// <summary>
         /// 시야가 몸을 따라가야 하는가. 기절이든 던져졌든 같은 화면이 필요하다.
         /// </summary>
         public bool BodyViewActive => BodyOutOfControl;
