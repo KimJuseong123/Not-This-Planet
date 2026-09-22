@@ -128,8 +128,7 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
-        /// 반사 방향은 <b>조준 방향</b>이다(§18.2 "카메라의 수평 방향에 약간의 위쪽
-        /// 각도"). 운석이 어디서 왔는지와 무관하다 — 대각선이 되어도 바뀌지 않는다.
+        /// 반사 방향은 <b>조준 방향</b>이다. 운석이 어디서 왔는지와 무관하다.
         /// </summary>
         [Test]
         public void TheDeflectionFollowsTheAimNotTheIncomingPath()
@@ -147,7 +146,7 @@ namespace Metagame.Gameplay.Tests
 
             Assert.AreEqual(1f, Vector3.Dot(horizontal, Vector3.forward), 0.01f,
                 "조준한 쪽으로 날아가야 한다.");
-            Assert.Greater(after.y, 0f, "약간 들려야 한다(§18.2).");
+            Assert.AreEqual(0f, after.y, 0.01f, "수평 시선을 따라 수평으로 출발한다.");
             Assert.Less(Vector3.Dot(after.normalized, incoming.normalized), 0.9f,
                 "들어온 방향을 이어받지 않는다.");
         }

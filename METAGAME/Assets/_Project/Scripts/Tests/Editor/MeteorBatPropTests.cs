@@ -82,7 +82,7 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
-        public void ThePushGoesTheSameWayAsADeflection()
+        public void ThePushRetainsItsUpwardLift()
         {
             var prop = MakeProp(new Vector3(1f, 0.5f, 0f), mass: 20f);
             var bat = MakeBat();
@@ -93,7 +93,7 @@ namespace Metagame.Gameplay.Tests
             var velocity = prop.linearVelocity;
 
             Assert.Greater(velocity.x, 0f, "조준한 쪽으로 가야 한다.");
-            Assert.Greater(velocity.y, 0f, "운석과 같이 약간 위로 들려야 한다(기획 §18.2).");
+            Assert.Greater(velocity.y, 0f, "소품은 기존의 위로 들어 올리는 타격을 유지한다.");
             Assert.AreEqual(0f, velocity.z, 0.05f);
         }
 

@@ -252,6 +252,11 @@ namespace Metagame.Gameplay
                 meteor.TryPredictImpact(out var seconds, out _);
                 RhythmGrade = GradeFor(seconds, meteor.BatSwingWindowSeconds);
                 RhythmImpactPoint = meteor.transform.position;
+                // AimForward also reads replicated yaw/pitch on a camera-less server.
+                // The supplied tool aim may include the raised-arm pose; use the actual
+                // view for meteors while retaining the existing lift for players/props.
+                var meteorAim = Owner != null ? Owner.AimForward : facing;
+                if (meteorAim.sqrMagnitude > 1e-4f) direction = meteorAim.normalized;
                 meteor.Deflect(direction * SpeedFor(RhythmGrade), RhythmGrade);
                 LastDeflected = meteor;
                 LastSwingConnected = true;
@@ -334,7 +339,7 @@ namespace Metagame.Gameplay
         ///
         /// 조준의 <b>수평 성분</b>을 축으로 삼는다. 방망이가 위를 보든 아래를 보든 같은
         /// 궤적이어야 하고, 그것은 <see cref="LaunchDirection"/> 이 반사 방향을 정하는
-        /// 방식과 같은 규칙이다.
+        /// 방식과 같은 규칙이다. 운석의 발사 방향은 별도로 실제 시선을 따른다.
         ///
         /// 상태를 갖지 않으므로 검증이 진행도를 직접 넣어 궤적을 잠글 수 있다.
         /// </summary>
@@ -732,7 +737,8 @@ namespace Metagame.Gameplay
         }
 
         /// <summary>
-        /// 쳐내는 방향. 조준의 <b>수평 성분</b>에 고정 각도를 더한다(기획 §18.2).
+        /// 동료·소품의 타격 방향 및 시선 없는 운석의 대체 방향.
+        /// 조준의 <b>수평 성분</b>에 기존 고정 각도를 더한다.
         ///
         /// 이것이 §18.2 의 "카메라가 지나치게 위나 아래를 보더라도 수직 각도는 자동
         /// 보정한다" 다. 보정을 따로 계산하지 않는다 — 수평 성분만 쓰면 위를 보든 아래를
