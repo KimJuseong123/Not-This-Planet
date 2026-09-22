@@ -266,5 +266,85 @@ namespace Metagame.Gameplay.Tests
             Assert.Less(Quaternion.Angle(rest, rig.Doll.Right.Shoulder.targetRotation), 0.1f,
                 "잡기 intent를 해제했는데 어깨 조인트가 기본 자세로 돌아오지 않았다.");
         }
+        /// <summary>
+        /// 기절한 남의 몸은 <b>서 있지 않다</b> (S15P21B202-683).
+        ///
+        /// <para><b>무엇을 막는 검증인가.</b> 남의 몸은 <c>rig.enabled = false</c> 라
+        /// <c>PlayerRig.Tick()</c> 이 돌지 않는다 — 기절 자세를 만드는 그쪽 분기
+        /// (<c>uprightBlend = 0</c> · <c>Ragdolled = true</c> · <c>Speed = 0</c>)가
+        /// <b>한 번도 실행되지 않는다.</b> 그래서 <c>SetRemoteDowned</c> 가 플래그를
+        /// 세워도 팔다리는 설정 때 걸어 둔 선 자세 드라이브가 계속 붙들고 있었다.</para>
+        ///
+        /// <para>그 결과가 2026-09-22 QA 신고다 — <i>기절했을 때 다른 사람한테는
+        /// 일어서서 움직이는 것처럼 보임.</i> 골반은 서버 자리로 옮겨지는데 팔다리가
+        /// 선 자세를 유지하므로 <b>선 채로 끌려다니는 그림</b>이 된다.</para>
+        ///
+        /// <para>이 파일의 다른 검증들이 <b>선 자세를 유지하는 것</b>을 고정하고
+        /// 있으므로(그게 평소에 맞다), 여기서는 <b>기절했을 때만 반대로 되는지</b>를
+        /// 본다. 두 검증이 함께 있어야 한쪽으로 기울지 않는다.</para>
+        /// </summary>
+        [Test]
+        public void RemoteDownedBodyGoesLimpInsteadOfStandingUp()
+        {
+            var (avatar, rig, _) = Spawn(Vector3.zero);
+
+            // 설정 직후에는 선 자세를 붙든다 — 평소 동작.
+            avatar.Follow();
+            var joint = rig.Doll.LeftLeg.Knee;
+            Assert.Greater(joint.slerpDrive.positionSpring, 0f,
+                "기절하지 않은 남의 몸은 선 자세를 붙들어야 한다");
+
+            float standingSpring = joint.slerpDrive.positionSpring;
+            var shin = rig.Doll.LeftLeg.Shin;
+            bool limbGravityWhileStanding = shin.useGravity;
+
+            // 서버가 기절을 알려 온다.
+            rig.SetRemoteDowned(true);
+            avatar.Follow();
+
+            Assert.AreEqual(0f, joint.slerpDrive.positionSpring,
+                "기절한 몸의 팔다리를 아직 선 자세로 당긴다 — 남의 화면에서 서 있게 된다");
+            Assert.Greater(joint.slerpDrive.positionDamper, 0f,
+                "감쇠까지 0 이면 골반이 움직일 때 팔다리가 떨린다");
+
+            // 중력도 켜져야 처진다. 설정 때는 일부러 꺼 두었다(선 자세를 지키려고).
+            Assert.IsFalse(limbGravityWhileStanding,
+                "선 자세에서는 팔다리 중력이 꺼져 있어야 한다(전제 확인)");
+            Assert.IsTrue(shin.useGravity,
+                "기절했는데 팔다리 중력이 꺼져 있다 — 아래로 처지지 않는다");
+
+            // **골반은 건드리지 않는다.** 네트워크가 옮기는 유일한 몸이다.
+            Assert.IsTrue(rig.Hips.isKinematic, "골반이 kinematic 이 아니게 됐다");
+
+            // 되살아나면 선 자세로 돌아온다. 돌아오지 않으면 살린 뒤에도 늘어져 있다.
+            rig.SetRemoteDowned(false);
+            avatar.Follow();
+
+            Assert.AreEqual(standingSpring, joint.slerpDrive.positionSpring,
+                "되살아났는데 팔다리가 늘어진 채다");
+            Assert.IsFalse(shin.useGravity,
+                "되살아났는데 팔다리 중력이 켜진 채다 — 자세가 무너진다");
+        }
+
+        /// <summary>
+        /// 기절 중에는 <b>팔 자세를 다시 세우지 않는다</b> (S15P21B202-683).
+        ///
+        /// <para><c>ApplyArmPose</c> 는 매 틱 어깨·팔꿈치 드라이브를 선 자세 값으로
+        /// 되돌린다. 기절 처리를 그 앞에 두기만 하면 <b>같은 틱에 되돌려진다</b> —
+        /// 팔만 서 있는 몸이 된다.</para>
+        /// </summary>
+        [Test]
+        public void ArmsStayLimpWhileDownedEvenAcrossManyTicks()
+        {
+            var (avatar, rig, _) = Spawn(Vector3.zero);
+            rig.SetRemoteDowned(true);
+
+            for (int i = 0; i < 5; i++) avatar.Follow();
+
+            Assert.AreEqual(0f, rig.Doll.Left.Shoulder.slerpDrive.positionSpring,
+                "어깨가 선 자세로 되돌려졌다 — ApplyArmPose 가 같은 틱에 덮는다");
+            Assert.AreEqual(0f, rig.Doll.Left.Elbow.slerpDrive.positionSpring,
+                "팔꿈치가 선 자세로 되돌려졌다");
+        }
     }
 }

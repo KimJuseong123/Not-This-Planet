@@ -1398,7 +1398,19 @@ namespace Metagame.Gameplay
             // 시점이 바뀌었으니 몸을 그릴지 다시 정한다(S15P21B202-267).
             RefreshDollVisibility();
 
-            Debug.Log("[NotThisPlanet] " + Nickname + " 기절 (" + source + ")");
+            // **움직일 수 있는 상태인지 함께 남긴다** (S15P21B202-683).
+            //
+            // 2026-09-22 QA 신고가 둘이었다 — *남에게는 서서 움직이는 것처럼 보임* 과
+            // *기절 상태에서 이동도 됨*. 앞의 것은 `RemoteAvatar` 가 원격 몸의 자세를
+            // 안 바꾸던 것이고, 뒤의 것은 **자기 몸이 기절을 알았는지**에 달렸는데
+            // 그 값이 어디에도 남지 않아 둘을 가릴 근거가 없었다.
+            //
+            // `BodyOutOfControl` 이 조종을 끊는 스위치이고(`Speed = 0`), `Prone` 은
+            // 그 대신 기어가기 상한을 거는 값이다 — 기절이 엎드리기로 취급되면
+            // 속도가 0 이 아니라 기어가기가 된다. 한 줄에 둘 다 적어 둔다.
+            Debug.Log("[NotThisPlanet] " + Nickname + " 기절 (" + source + ")"
+                      + " · 조종=" + (BodyOutOfControl ? "잃음" : "유지")
+                      + " · 엎드림=" + (Prone ? "O" : "X"));
         }
 
         /// <summary>
