@@ -1,0 +1,178 @@
+using System.Collections;
+using System.Linq;
+using Metagame.Bootstrap;
+using Metagame.Core;
+using Metagame.Gameplay.Audio;
+using Metagame.Gameplay.Parts;
+using NUnit.Framework;
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.TestTools;
+
+namespace Metagame.Gameplay.Tests
+{
+    public sealed class SceneMusicTests
+    {
+        [TestCase(MusicCue.Assault, "Stage 1 Offensive Stage Song")]
+        [TestCase(MusicCue.Escape, "Stage 1 Escape BGM")]
+        [TestCase(MusicCue.CrashLanding, "Stage 2 Crash Landing BGM")]
+        [TestCase(MusicCue.Stage2, "Stage 2 Gameplay BGM")]
+        [TestCase(MusicCue.Practice, "practice operation tutorial room")]
+        public void BuildResourceReferencesTheExpectedStreamingClip(MusicCue cue, string name)
+        {
+            var manager = Resources.Load<AudioManager>("Audio/Stage1AudioManager");
+            Assert.That(manager, Is.Not.Null);
+            var clip = manager.GetMusicClip(cue);
+            Assert.That(clip, Is.Not.Null);
+            Assert.That(clip.name, Is.EqualTo(name));
+            Assert.That(clip.length, Is.GreaterThan(20f));
+            var importer = (AudioImporter)AssetImporter.GetAtPath(AssetDatabase.GetAssetPath(clip));
+            Assert.That(importer.defaultSampleSettings.loadType, Is.EqualTo(AudioClipLoadType.Streaming));
+            Assert.That(importer.forceToMono, Is.False);
+        }
+
+        [TestCase("Lobby", false, MusicCue.Default)]
+        [TestCase("Main", false, MusicCue.Default)]
+        [TestCase("Stage1_Astra", false, MusicCue.Default)]
+        [TestCase("Stage1_Astra", true, MusicCue.Practice)]
+        [TestCase("PracticeLobby", false, MusicCue.Practice)]
+        [TestCase("AIPracticeLobby", false, MusicCue.Practice)]
+        [TestCase("AICompanionTest", false, MusicCue.Practice)]
+        [TestCase("CheatArena", false, MusicCue.Practice)]
+        [TestCase("Stage2_Earth", false, MusicCue.Stage2)]
+        public void SceneRoutingPreservesNormalExploration(string scene, bool test, MusicCue expected)
+            => Assert.That(SceneMusicController.SceneCue(scene, test), Is.EqualTo(expected));
+
+        [Test]
+        public void ExistingLobbyAndExplorationAssetsKeepTheirOriginalTracks()
+        {
+            Assert.That(Resources.Load<AudioManager>("Audio/LobbyAudioManager").MusicClip.name, Is.EqualTo("Lobby Drift"));
+            var stage = Resources.Load<AudioManager>("Audio/Stage1AudioManager");
+            Assert.That(stage.MusicClip.name, Is.EqualTo("Weightless Curiosity"));
+            Assert.That(stage.MusicRepeatDelaySeconds, Is.EqualTo(5f));
+        }
+
+        [UnityTest]
+        public IEnumerator LegacyWaitRemainsAndNewGameplayTracksLoopWithoutGaps()
+        {
+            yield return new EnterPlayMode();
+            var root = new GameObject("BGM repeat test");
+            root.AddComponent<AudioListener>();
+            var manager = ScriptableObject.CreateInstance<AudioManager>();
+            var clip = AudioClip.Create("short music fixture", 4800, 1, 48000, false);
+            try
+            {
+                var config = new SerializedObject(manager);
+                foreach (var field in new[] { "musicClip", "stage2MusicClip", "practiceMusicClip" })
+                    config.FindProperty(field).objectReferenceValue = clip;
+                config.FindProperty("musicRepeatDelaySeconds").floatValue = .5f;
+                config.FindProperty("musicFadeInSeconds").floatValue = 0f;
+                config.FindProperty("musicFadeOutSeconds").floatValue = 0f;
+                config.ApplyModifiedPropertiesWithoutUndo();
+                var controller = root.AddComponent<SceneMusicController>();
+                controller.ConfigureGameplay(manager, null, "Stage1_Astra", false);
+                yield return new WaitForSecondsRealtime(.25f);
+                Assert.That(root.GetComponents<AudioSource>().Any(s => s.isPlaying), Is.False, "기존 곡은 종료 후 대기한다.");
+                double deadline = Time.realtimeSinceStartupAsDouble + 2;
+                while (!root.GetComponents<AudioSource>().Any(s => s.isPlaying) && Time.realtimeSinceStartupAsDouble < deadline)
+                    yield return null;
+                Assert.That(root.GetComponents<AudioSource>().Any(s => s.isPlaying), Is.True, "기존 곡은 대기 후 재시작한다.");
+                foreach (var scene in new[] { "Stage2_Earth", "PracticeLobby" })
+                {
+                    controller.ConfigureGameplay(manager, null, scene, false);
+                    yield return new WaitForSecondsRealtime(.4f);
+                    var active = root.GetComponents<AudioSource>().Single(s => s.isPlaying);
+                    Assert.That(active.loop, Is.True, "여러 반복 경계가 지나도 공백이 없어야 한다.");
+                    Assert.That(active.clip, Is.SameAs(clip));
+                    controller.Tick();
+                    Assert.That(root.GetComponents<AudioSource>().Length, Is.EqualTo(2));
+                }
+            }
+            finally { Object.Destroy(root); Object.Destroy(manager); Object.Destroy(clip); }
+            yield return null;
+            yield return new ExitPlayMode();
+        }
+
+        [UnityTest]
+        public IEnumerator ReplicatedAssaultPersistsIntoCombatAndSettingsAndDisableApply()
+        {
+            yield return new EnterPlayMode();
+            var root = new GameObject("BGM replica test");
+            var settings = GameSettingsRuntime.Ensure();
+            var saved = settings.Current.Clone();
+            try
+            {
+                var session = root.AddComponent<GameSession>();
+                session.Begin(null, null, Vector3.zero);
+                session.enabled = false;
+                double now = 20;
+                var sequence = root.AddComponent<Stage1Sequence>();
+                sequence.Configure(session, null, () => false, () => now);
+                var controller = root.AddComponent<SceneMusicController>();
+                var manager = Resources.Load<AudioManager>("Audio/Stage1AudioManager");
+                controller.ConfigureGameplay(manager, session, "Stage1_Astra", false);
+                var player = root.GetComponent<GameMusicPlayer>();
+                Assert.That(player.Cue, Is.EqualTo(MusicCue.Default));
+                sequence.ApplyReplica(Stage1SequencePhase.Assault, 17, 1, false);
+                controller.Tick();
+                Assert.That(player.Cue, Is.EqualTo(MusicCue.Assault));
+                var assault = root.GetComponents<AudioSource>().Single(s => s.clip == manager.GetMusicClip(MusicCue.Assault));
+                Assert.That(assault.loop, Is.True);
+                Assert.That(assault.time, Is.EqualTo(3f).Within(.25f), "늦참은 공세의 경과 위치에서 시작한다.");
+                sequence.ApplyReplica(Stage1SequencePhase.Combat, 20, 2, true);
+                controller.Tick();
+                Assert.That(player.Cue, Is.EqualTo(MusicCue.Assault));
+                Assert.That(root.GetComponents<AudioSource>().Length, Is.EqualTo(2));
+                var muted = saved.Clone(); muted.audio.musicVolume = 0f;
+                settings.Preview(muted);
+                yield return null;
+                foreach (var source in root.GetComponents<AudioSource>()) Assert.That(source.volume, Is.Zero);
+                var audible = saved.Clone(); audible.audio.musicVolume = 1f;
+                settings.Preview(audible);
+                yield return new WaitForSecondsRealtime(.5f);
+                Assert.That(assault.volume, Is.EqualTo(manager.MusicBaseVolume).Within(.001f));
+                root.SetActive(false);
+                foreach (var source in root.GetComponents<AudioSource>()) Assert.That(source.isPlaying, Is.False);
+                root.SetActive(true);
+                controller.Tick();
+                Assert.That(player.Cue, Is.EqualTo(MusicCue.Assault));
+            }
+            finally { settings.Preview(saved); Object.Destroy(root); }
+            yield return null;
+            yield return new ExitPlayMode();
+        }
+
+        [UnityTest]
+        public IEnumerator EndingWaitsForSharedStartAndLateJoinSeeksCrashCue()
+        {
+            yield return new EnterPlayMode();
+            var root = new GameObject("BGM ending test");
+            try
+            {
+                double now = 0;
+                var snapshot = new DemoEndingSnapshot { StartedAt = 10, Players = new DemoEndingPlayer[4] };
+                var ending = root.AddComponent<DemoEnding>();
+                ending.ConfigurePlayback(snapshot, () => now);
+                var controller = root.AddComponent<SceneMusicController>();
+                var manager = Resources.Load<AudioManager>("Audio/Stage1AudioManager");
+                controller.ConfigureEnding(manager, ending);
+                var player = root.GetComponent<GameMusicPlayer>();
+                Assert.That(player.Cue, Is.EqualTo(MusicCue.Silence));
+                now = 12; controller.Tick();
+                Assert.That(player.Cue, Is.EqualTo(MusicCue.Escape));
+                now = 10 + ending.ArrivalStartsAt + 9; controller.Tick();
+                Assert.That(player.Cue, Is.EqualTo(MusicCue.CrashLanding));
+                var crash = root.GetComponents<AudioSource>().Single(s => s.clip == manager.GetMusicClip(MusicCue.CrashLanding));
+                Assert.That(crash.loop, Is.False);
+                Assert.That(crash.time, Is.EqualTo(9f).Within(.25f));
+                now = 10 + ending.ArrivalStartsAt + DemoEnding.ArrivalSeconds; controller.Tick();
+                Assert.That(player.Cue, Is.EqualTo(MusicCue.Silence));
+                yield return new WaitForSecondsRealtime(.5f);
+                foreach (var source in root.GetComponents<AudioSource>()) Assert.That(source.isPlaying, Is.False);
+            }
+            finally { Object.Destroy(root); }
+            yield return null;
+            yield return new ExitPlayMode();
+        }
+    }
+}

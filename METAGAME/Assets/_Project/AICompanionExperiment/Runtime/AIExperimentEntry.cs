@@ -1,4 +1,6 @@
 using Mirror;
+using Metagame.Bootstrap;
+using Metagame.Gameplay.Audio;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -15,6 +17,9 @@ namespace Metagame.AIExperiment
             Application.runInBackground = true;
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+            if (SceneMusicController.CanPlayLocally)
+                gameObject.AddComponent<SceneMusicController>().ConfigureGameplay(
+                    Resources.Load<AudioManager>("Audio/Stage1AudioManager"), null, gameObject.scene.name, true);
             string[] args = System.Environment.GetCommandLineArgs();
             if (System.Array.IndexOf(args, "-aiHost") >= 0) _manager.StartHost();
             else if (System.Array.IndexOf(args, "-aiClient") >= 0) _manager.StartClient();
