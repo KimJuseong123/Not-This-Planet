@@ -876,6 +876,9 @@ namespace Metagame.Network
 
             ApplyAppearance();
 
+            // 몸이 새로 섰으니 셈도 새로 센다 (S15P21B202-693). 안 되돌리면 지난 몸에서
+            // 쌓인 수 때문에 새 몸이 **첫 시도부터 상한을 넘은 것**으로 취급된다.
+            transportRetrySteps = 0;
             AttachTransport();
             transform.SetPositionAndRotation(body.Hips.position, body.Hips.rotation);
             ApplyRiding(riding);
@@ -888,15 +891,93 @@ namespace Metagame.Network
         /// 컨트롤러가 1인용이라 접속자마다 하나씩 둔다 — 장치 자체는 씬에 하나뿐이고
         /// 여럿이 나눠 쓴다. 배치는 이미 끝나 있으므로 여기서 다시 섞지 않는다.
         /// </summary>
-        void AttachTransport()
+        /// <summary>
+        /// 붙이려 했는가 (S15P21B202-693). <b>다시 시도할지를 이 값으로 가른다</b> —
+        /// 붙일 일이 없는 기계에 조작기를 새로 만들지 않으려면 "한 번은 붙이려 했다" 를
+        /// 알아야 한다.
+        /// </summary>
+        bool transportWanted;
+
+        /// <summary>다시 붙이려 한 물리 스텝 수 (S15P21B202-693).</summary>
+        int transportRetrySteps;
+
+        /// <summary>
+        /// 다시 붙이기를 그만두는 지점 — 물리 50Hz 기준 <b>5초</b>.
+        ///
+        /// <para><b>왜 상한이 필요한가.</b> 거절 원인이 "같은 프레임의 파괴 예약" 이면
+        /// 다음 스텝에 붙는다. 그것이 원인이 아니면 여기가 <b>매 물리 스텝</b> 돌고,
+        /// <c>AddComponent</c> 는 거절될 때마다 <b>Unity 가 제 오류를 찍는다</b> — 초당
+        /// 50줄이면 그 줄들이 로그를 못 읽게 만든다. 이 MR 이 없애려던 모양을 새 코드로
+        /// 다시 만드는 것이다(`!586` AI 리뷰 지적).</para>
+        ///
+        /// <para>이 파일의 <c>waitedSteps == 250</c> 과 같은 값·같은 방식이다.</para>
+        /// </summary>
+        const int TransportRetryMaxSteps = 250;
+
+        /// <returns>붙었는가. 거짓이면 <b>이번 스텝에는</b> 못 붙었다는 뜻이다.</returns>
+        bool AttachTransport()
         {
+            transportWanted = true;
+
             // A pooled body survives an AI-to-human handoff. Its controller survives with it:
             // Destroy is deferred, so destroying/re-adding in the same frame violates DisallowMultipleComponent.
             transport = body.GetComponent<TractorBeamController>();
             if (transport == null) transport = body.gameObject.AddComponent<TractorBeamController>();
+
+            // **AddComponent 는 null 을 돌려줄 수 있다** (S15P21B202-693).
+            //
+            // 바로 위 주석이 그 상황을 이미 적어 두었다 — `DisallowMultipleComponent` 인
+            // 조작기가 **파괴 예약 상태**로 남아 있으면 추가가 거절된다. 그런데 돌려받은
+            // 값을 확인하지 않고 다음 줄에서 바로 썼다. **위험을 적어 두고 결과를 보지
+            // 않은 것이다.**
+            //
+            // 2026-09-22 QA 로그에 3건 났다(`Player.log:669` 외). 그 예외가
+            // <see cref="BuildServerBody"/> 를 중간에 끊어 그 뒤의 자세·탑승·기절 반영이
+            // 건너뛰어졌고, <c>transport</c> 는 null 로 남았다. 입력 경로가
+            // <c>if (transport != null)</c> 로 감싸여 있으므로 **그 사람의 견인빔은 아무
+            // 말 없이 영영 동작하지 않았다.**
+            // **말하는 것은 여기가 아니다.** 첫 실패도 상한도
+            // <see cref="RetryAttachTransport"/> 가 센다 — 세는 곳과 말하는 곳을 한
+            // 군데로 모아 두지 않으면 둘이 갈라진다.
+            if (transport == null) return false;
+
             transport.enabled = true;
             transport.Configure(body, FindObjectsByType<TractorBeam>(FindObjectsSortMode.None),
                                 randomizeVehicles: false);
+            transportRetrySteps = 0;
+            return true;
+        }
+
+        /// <summary>
+        /// 못 붙은 조작기를 다시 붙여 본다. <b>상한이 있다</b> (S15P21B202-693).
+        ///
+        /// <para>보통 다음 스텝에 붙는다(파괴 예약이 그 프레임에 끝난다). 5초를 넘기면
+        /// 원인이 그것이 아니므로 <b>그만둔다</b> — 계속 부르면 거절될 때마다 Unity 가
+        /// 제 오류를 찍어 로그를 못 읽게 만든다.</para>
+        ///
+        /// <para><b>조용히 그만두지 않는다.</b> 그만두는 순간 한 줄을 남긴다 — 그 사람의
+        /// 견인빔은 이 판에서 동작하지 않고, 그 사실이 로그에 있어야 다음 QA 에서
+        /// "나만 장치가 안 된다" 를 여기로 이을 수 있다.</para>
+        /// </summary>
+        void RetryAttachTransport()
+        {
+            transportRetrySteps++;
+
+            // 첫 실패는 한 줄로 족하다 — 다음 스텝에 붙는 것이 보통이다.
+            if (transportRetrySteps == 1)
+                Debug.LogWarning("[NetPlayer] 견인빔 조작을 못 붙였다 — 다시 시도한다 · "
+                                 + $"{nickname}(userId={userId})");
+
+            if (transportRetrySteps > TransportRetryMaxSteps)
+            {
+                if (transportRetrySteps == TransportRetryMaxSteps + 1)
+                    Debug.LogError("[NetPlayer] 5초 동안 견인빔 조작을 못 붙였다 — 그만둔다. "
+                                   + "이 사람의 견인빔은 이 판에서 동작하지 않는다 · "
+                                   + $"{nickname}(userId={userId})");
+                return;
+            }
+
+            AttachTransport();
         }
 
         /// <summary>
@@ -930,6 +1011,14 @@ namespace Metagame.Network
                     return;
                 }
             }
+
+            // **못 붙였으면 다시 시도한다** (S15P21B202-693). 거절 원인이 "같은 프레임의
+            // 파괴 예약" 이라 다음 스텝에는 붙는다. 여기서 다시 하지 않으면 그 사람의
+            // 견인빔이 **판이 끝날 때까지** 없는 채로 돈다.
+            //
+            // `transportWanted` 로 가른다 — <see cref="AttachTransport"/> 가 실제로 돌았던
+            // 기계에서만 참이므로, 붙일 일이 없는 기계에 조작기를 새로 만들지 않는다.
+            if (transportWanted && transport == null) RetryAttachTransport();
 
             // **먼저 돌려준다** (S15P21B202-363). 지금 골반 자세는 `직전에 적용한 입력`
             // 까지의 결과다 — 이번 입력은 아래에서 넣고 물리는 그 뒤에 돈다. 그래서
