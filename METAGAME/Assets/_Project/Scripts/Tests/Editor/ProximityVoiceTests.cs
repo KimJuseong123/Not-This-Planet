@@ -93,21 +93,56 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
-        /// 놓는 쪽과 보내는 쪽이 <b>같은 꼬리를 쓴다</b> (S15P21B202-705).
+        /// 보내는 쪽은 <b>마이크가 닫히기를 기다린다</b> — 제 시계로 꼬리를 재지 않는다
+        /// (S15P21B202-705).
         ///
         /// <para>V 를 놓는 순간 마이크를 닫으면 링 버퍼에 아직 읽지 않은 마지막 조각이 남은 채
-        /// 버려진다 — <b>끝 낱말이 잘린다.</b> 두 쪽이 따로 값을 들고 있으면 한쪽만 바뀌어
-        /// 다시 잘리는데, 그것이 <b>말은 되는 문장으로 잘리므로</b> 아무도 알아채지 못한다.</para>
+        /// 버려진다 — <b>끝 낱말이 잘린다.</b> 그래서 마이크가 <c>ReleaseTail</c> 만큼 더 연다.</para>
+        ///
+        /// <para><b>양쪽이 각자 재면 어긋난다.</b> 마이크는 "마지막으로 눌린 프레임"에서
+        /// <c>unscaledTime</c> 으로, 보내는 쪽은 "놓인 프레임"에서 <c>realtimeSinceStartup</c>
+        /// 으로 같은 0.35초를 재면 <b>마이크가 늘 먼저 닫힌다.</b> 그 틈에 열림 가드가 걸려
+        /// 0.6초 넘는 멀쩡한 녹음이 전부 취소됐다 — <c>!596</c> AI 리뷰가 잡았다. 값으로는
+        /// 안 보인다. 두 상수가 똑같아도 나는 일이다.</para>
+        ///
+        /// <para>더 올 조각이 없다는 <b>참인 신호는 하나뿐이다</b> — 마이크가 닫힌 것.</para>
         /// </summary>
-        [Test] public void BothSidesShareTheSameReleaseTail()
+        [Test] public void TheSendWaitsForTheMicrophoneToClose()
         {
             string controls = TestSource.Read("Runtime/UI/AiVoiceControls.cs");
+            var update = TestSource.Method(controls, "void Update()");
 
-            Assert.That(controls, Does.Contain("ProximityMicrophone.ReleaseTail"),
-                "보내는 쪽이 자기 값을 들고 있다 — 마이크가 여는 시간과 어긋나면 끝 낱말이 잘린다");
-            Assert.That(TestSource.Method(controls, "void Update()"),
-                Does.Not.Contain("Input.GetKeyUp(KeyCode.V)"),
-                "놓자마자 보낸다. 마이크가 꼬리만큼 더 받은 마지막 조각이 실려 가지 않는다");
+            Assert.That(update, Does.Contain("microphone.Capturing"),
+                "마이크가 닫혔는지 보지 않는다 — 언제 보내야 하는지 알 방법이 없다");
+            Assert.That(update, Does.Not.Contain("ReleaseTail"),
+                "보내는 쪽이 제 시계로 꼬리를 잰다. 두 상수가 같아도 기준 프레임과 시계가 달라 "
+                + "마이크가 늘 먼저 닫히고, 그 틈에 멀쩡한 녹음이 버려진다");
+            Assert.That(update, Does.Not.Contain("Input.GetKeyUp(KeyCode.V)"),
+                "놓자마자 보낸다 — 마이크가 꼬리만큼 더 받은 마지막 조각이 실려 가지 않는다");
         }
+
+        /// <summary>
+        /// 마이크가 안 열렸다는 안내는 <b>V 를 누르고 있는 동안에만</b> 나간다
+        /// (S15P21B202-705).
+        ///
+        /// <para>놓은 뒤에 마이크가 닫히는 것은 <b>정상</b>이다. 그 가드가 거기까지 걸리면
+        /// 0.6초 넘는 녹음이 전부 "마이크가 아직 열리지 않았어요" 로 <b>조용히 취소된다</b> —
+        /// 실제로 그렇게 만들었다가 <c>!596</c> AI 리뷰가 잡았다.</para>
+        /// </summary>
+        [Test] public void TheNotOpenNoticeOnlyFiresWhileVIsHeld()
+        {
+            var update = TestSource.Method(
+                TestSource.Read("Runtime/UI/AiVoiceControls.cs"), "void Update()");
+
+            int guard = update.IndexOf("!microphone.Capturing", System.StringComparison.Ordinal);
+            Assert.That(guard, Is.GreaterThanOrEqualTo(0), "열림 가드가 사라졌다");
+
+            int line = update.LastIndexOf("if (recording", guard, System.StringComparison.Ordinal);
+            Assert.That(line, Is.GreaterThanOrEqualTo(0));
+            Assert.That(update.Substring(line, guard - line), Does.Contain("Input.GetKey(KeyCode.V)"),
+                "V 를 놓은 뒤에도 이 가드가 걸린다 — 마이크가 닫히는 것은 그때 정상인데, "
+                + "0.6초 넘는 멀쩡한 녹음이 전부 취소된다");
+        }
+
     }
 }

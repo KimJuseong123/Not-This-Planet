@@ -62,8 +62,13 @@ namespace Metagame.Network
         ///
         /// <para>상시로 열려 있을 때는 링 버퍼가 매 프레임 비워졌다. 놓는 순간 닫으면
         /// <b>아직 읽지 않은 마지막 조각</b>이 남은 채 버려진다 — AI 명령의 <b>끝 낱말이
-        /// 잘린다.</b> <c>AiVoiceControls</c> 도 같은 값만큼 기다렸다가 보내므로, 한쪽만
-        /// 바꾸면 그 낱말은 잡히고도 실려 가지 않는다.</para>
+        /// 잘린다.</b></para>
+        ///
+        /// <para><b>꼬리의 주인은 여기 하나다.</b> 보내는 쪽(<c>AiVoiceControls</c>)은 제 시계로
+        /// 같은 값을 재지 않고 <see cref="Capturing"/> 이 꺼지기를 기다린다. 양쪽이 각자 재면
+        /// 이쪽은 "마지막으로 눌린 프레임"에서 <c>unscaledTime</c> 으로, 저쪽은 "놓인 프레임"
+        /// 에서 <c>realtimeSinceStartup</c> 으로 세게 되어 <b>늘 이쪽이 먼저 닫힌다</b> —
+        /// 그 틈이 멀쩡한 녹음을 통째로 버리게 만들었다(<c>!596</c> AI 리뷰).</para>
         /// </summary>
         public const float ReleaseTail = .35f;
         public static ProximityMicrophone Current { get; private set; }

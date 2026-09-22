@@ -13,7 +13,7 @@ namespace Metagame.UI
         readonly List<float> samples = new List<float>(AiVoicePacket.Rate * AiVoicePacket.Seconds);
         bool recording;
         string notice;
-        float started, noticeUntil, resultSeen, releaseAt;
+        float started, noticeUntil, resultSeen;
         GameSession recordingSession;
         NetPlayer recordingOwner;
         ProximityMicrophone microphone;
@@ -50,7 +50,10 @@ namespace Metagame.UI
             { Notify(microphone.Problem); Cancel(); return; }
             // 장치가 아예 열리지 않은 녹음(3초 물러서기 중)은 한 조각도 못 받는다. 그대로 두면
             // "조금 더 길게 말해 주세요" 가 나가는데, 길이는 죄가 없다.
-            if (recording && microphone != null && !microphone.Capturing
+            //
+            // **V 를 누르고 있는 동안에만 본다.** 놓은 뒤에는 마이크가 닫히는 것이 정상이라,
+            // 이 가드가 거기까지 걸리면 0.6초 넘는 멀쩡한 녹음이 전부 취소된다(!596 AI 리뷰).
+            if (recording && Input.GetKey(KeyCode.V) && microphone != null && !microphone.Capturing
                 && Time.realtimeSinceStartup - started > .6f)
             { Notify("마이크가 아직 열리지 않았어요 · 잠시 후 다시"); Cancel(); return; }
             if (recording && (!CanRecord(session) || !Ready || session != recordingSession || local != recordingOwner
@@ -61,10 +64,13 @@ namespace Metagame.UI
             if (recording && !Input.GetKey(KeyCode.V))
             {
                 // 마이크의 링 버퍼에 아직 읽지 않은 마지막 조각이 남아 있다 (S15P21B202-705).
-                // 여기서 곧바로 보내면 그 낱말은 잡히고도 실려 가지 않는다 — 마이크가 꼬리만큼
-                // 더 여는 것과 짝이다. 한쪽만 바꾸면 끝 낱말이 잘린다.
-                if (releaseAt == 0) releaseAt = Time.realtimeSinceStartup + ProximityMicrophone.ReleaseTail;
-                if (Time.realtimeSinceStartup < releaseAt) return;
+                // 여기서 곧바로 보내면 그 낱말은 잡히고도 실려 가지 않는다.
+                //
+                // **닫히기를 기다린다 — 꼬리를 제 시계로 재지 않는다.** 양쪽이 각자 0.35초를
+                // 세면 마이크는 "마지막으로 눌린 프레임"에서 unscaledTime 으로, 이쪽은 "놓인
+                // 프레임"에서 realtimeSinceStartup 으로 재게 되어 **마이크가 늘 먼저 닫힌다**
+                // (!596 AI 리뷰). 더 올 조각이 없다는 참인 신호는 마이크가 닫힌 것 하나뿐이다.
+                if (microphone != null && microphone.Capturing) return;
                 SendRecording(); return;
             }
             if (!Input.GetKeyDown(KeyCode.V) || !CanRecord(session)) return;
@@ -72,7 +78,7 @@ namespace Metagame.UI
             if (GameSettingsRuntime.Instance?.Current?.voice?.microphoneMuted ?? false)
             { Notify("마이크가 음소거되어 있어요 · ESC에서 해제"); return; }
             if (microphone == null || microphone.Problem != null) { Notify(microphone?.Problem ?? "마이크 준비 중"); return; }
-            samples.Clear(); recording = true; started = Time.realtimeSinceStartup; releaseAt = 0;
+            samples.Clear(); recording = true; started = Time.realtimeSinceStartup;
             recordingSession = session; recordingOwner = local; local.BeginAiListening();
         }
         void Capture(float[] frame)
@@ -88,14 +94,14 @@ namespace Metagame.UI
             if (peak < .002f) { Notify("목소리가 들리지 않았어요"); Cancel(); return; }
             recording = false;
             recordingOwner?.SubmitAiVoice(AiVoicePacket.Encode(samples, AiVoicePacket.Rate, 1));
-            samples.Clear(); recordingOwner = null; recordingSession = null; releaseAt = 0;
+            samples.Clear(); recordingOwner = null; recordingSession = null;
             Notify("AI가 듣고 생각하는 중…", 95);
         }
         void Notify(string message, float seconds = 4) { notice = message; noticeUntil = Time.unscaledTime + seconds; }
         void Cancel()
         {
             if (recording) recordingOwner?.CancelAiListening();
-            recording = false; samples.Clear(); recordingOwner = null; recordingSession = null; releaseAt = 0;
+            recording = false; samples.Clear(); recordingOwner = null; recordingSession = null;
         }
         void OnApplicationFocus(bool focused) { if (!focused) Cancel(); }
         void OnDisable() => Cancel();
