@@ -131,6 +131,7 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-678)
         public void TheBakedArtStarMeshIsOff_SoTheSkyIsNotDrawnTwice()
         {
             var scene = OpenStage();

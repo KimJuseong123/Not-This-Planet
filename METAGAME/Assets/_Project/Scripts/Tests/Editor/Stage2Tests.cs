@@ -30,6 +30,7 @@ namespace Metagame.Gameplay.Tests
         { float end=Time.time+seconds; while(Time.time<end) yield return null; }
 
         [UnityTest]
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-678)
         public IEnumerator WrenchQThrowsPhysicalPropAndAllowsPickup()
         {
             EditorSceneManager.OpenScene(Stage2SceneBuilder.ScenePath);
@@ -94,6 +95,7 @@ namespace Metagame.Gameplay.Tests
         }
 
         [UnityTest]
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-678)
         public IEnumerator CraneEntersThirdPersonAndExitsWithoutAimingAtControls()
         {
             EditorSceneManager.OpenScene(Stage2SceneBuilder.ScenePath);

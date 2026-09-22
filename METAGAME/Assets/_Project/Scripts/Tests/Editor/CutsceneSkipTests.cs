@@ -12,6 +12,7 @@ namespace Metagame.Gameplay.Tests
     public sealed class CutsceneSkipTests
     {
         [UnityTest]
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-678)
         public IEnumerator ServerDispatchRequiresFourConnectionsAndRejectsDuplicateAndStalePackets()
         {
             yield return new EnterPlayMode();
@@ -70,6 +71,7 @@ namespace Metagame.Gameplay.Tests
         }
 
         [UnityTest]
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-678)
         public IEnumerator SoloAdapterSkipsAndRestoresInputWithoutClosingPauseMenu()
         {
             yield return new EnterPlayMode();
@@ -108,6 +110,7 @@ namespace Metagame.Gameplay.Tests
         }
 
         [UnityTest]
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-678)
         public IEnumerator MirrorSkipMessagesPreserveBallotIdentityAndPersonalVote()
         {
             yield return new EnterPlayMode();
