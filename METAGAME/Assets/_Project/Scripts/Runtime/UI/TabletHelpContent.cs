@@ -121,7 +121,7 @@ namespace Metagame.UI
         }
 
         /// <summary>
-        /// 쪽 표시 — <b>안내 4 · 진행도 1 · 조작 3 을 한 줄로</b> (S15P21B202-657).
+        /// 쪽 표시 — <b>안내 6 · 진행도 1 · 조작 3 을 한 줄로</b>.
         ///
         /// <para>구분선을 넣는다. 점 여덟 개가 나란히 있으면 "얼마나 남았지" 가 안
         /// 읽히는데, 세 덩어리로 끊으면 지금 어느 구역에 있는지가 보인다.</para>
@@ -144,12 +144,15 @@ namespace Metagame.UI
         /// 부르는 쪽이 늘 <c>inGuide: true</c> 를 넘겨, 안내를 빠져나와 조작 안내를
         /// 넘겨도 불이 안내 칸에 머물렀다 — <b>오른쪽으로 가는데 점이 안 따라왔다.</b></para>
         /// </summary>
-        public static string PageStrip(bool guideVisible, int guidePage, int tabletPage)
+        public static string PageStrip(bool guideVisible, int guidePage, int tabletPage, bool compact = false)
         {
             var page = guideVisible
                 ? guidePage
                 : UnityEngine.Mathf.Clamp(tabletPage, 0,
                     Metagame.Gameplay.Stage1Exploration.TabletPageCount - 1);
+            if (compact)
+                return PageDots(guideVisible, page).Replace(" ", "")
+                       + "   A/D 넘기기   " + Cap(Metagame.Core.Controls.Tablet) + " 닫기";
             return PageDots(guideVisible, page)
                    + "   A / D  페이지 이동     " + Cap(Metagame.Core.Controls.Tablet) + "  닫기";
         }

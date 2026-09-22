@@ -57,7 +57,7 @@ namespace Metagame.UI
             // **쪽 표시는 지금 있는 자리를 가리켜야 한다** (S15P21B202-679).
             // 어느 칸에 불이 들어오는지는 TabletHelpContent 가 정한다.
             guideKeys.text = TabletHelpContent.PageStrip(
-                guide.Visible, guide.Page, exploration.TabletPage);
+                guide.Visible, guide.Page, exploration.TabletPage, compact: true);
             // **관문이 아니라 지름길이다** (S15P21B202-657). 넘기다 보면 저절로
             // 빠져나오므로 "확인" 이라는 말을 쓰지 않는다 — 눌러야 열리는 줄 알았다.
             guideAction.text = TabletHelpContent.Cap(Controls.TransportAction)
