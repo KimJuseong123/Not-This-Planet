@@ -5,7 +5,7 @@ namespace Metagame.Gameplay
     /// <summary>개인 태블릿 안내 상태. 게임 진행·물리·다른 플레이어를 변경하지 않는다.</summary>
     public sealed class TabletGuideState
     {
-        public const int PageCount = 4;
+        public const int PageCount = 6;
         public int RunVersion { get; private set; }
         public bool Enabled { get; private set; }
         public bool Completed { get; private set; }

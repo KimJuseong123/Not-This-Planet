@@ -142,6 +142,8 @@ namespace Metagame.Gameplay.Tests
 
             foreach (var graphic in screen.GetComponentsInChildren<PartSilhouetteGraphic>(true))
             {
+                // Explicitly exercise the fallback; the normal illustrated page hides it.
+                graphic.gameObject.SetActive(true);
                 Assert.DoesNotThrow(() => graphic.Rebuild(CanvasUpdate.PreRender),
                     $"{graphic.name} 을 실제로 그리려 하면 터진다.");
 
@@ -489,6 +491,167 @@ namespace Metagame.Gameplay.Tests
             var outline = FindOutlines(screen)[1];
             Assert.Greater(outline.color.g, outline.color.r + 0.3f,
                 $"다시 열었는데도 조립대를 못 찾아 2층이 회색이다({outline.color}).");
+        }
+
+        // The tests above retain coverage of the resource-missing silhouette fallback.
+        // These checks assert the visible illustrated path, not the hidden fallback.
+        [Test]
+        public void ApprovedArtworkIsVisibleAndMissingPartsAreDim()
+        {
+            var screen = MakeScreen();
+            for (var i = 1; i <= 4; i++)
+            {
+                var art = FindNamed<RawImage>(screen, $"AssemblyPart{i}");
+                Assert.IsTrue(art.gameObject.activeInHierarchy);
+                Assert.IsNotNull(art.texture);
+                Assert.AreEqual("Metagame/UI/Tablet Chalk Ink", art.material.shader.name);
+                Assert.Less(art.color.r, 0.5f);
+            }
+            Assert.AreEqual("배치 0 / 4", FindNamed<Text>(screen, "AssemblyCount").text);
+            Assert.AreEqual("파츠를 가져와 주세요", FindNamed<Text>(screen, "AssemblyAction").text);
+        }
+
+        [Test]
+        public void PlacedArtBrightensButStillAsksForWelding()
+        {
+            Stack(4, weld: false);
+            var screen = MakeScreen(out var exploration);
+            DiscoverEverything(exploration, 4);
+            Assembly().Evaluate();
+            screen.Tick();
+            Assert.Greater(FindNamed<RawImage>(screen, "AssemblyPart2").color.r, 0.7f);
+            StringAssert.Contains("용접해 주세요", FindNamed<Text>(screen, "AssemblyAction").text);
+            Assert.AreEqual("배치 4 / 4 · 용접 대기", FindNamed<Text>(screen, "AssemblyCount").text);
+            Assert.IsEmpty(FindNamed<Text>(screen, "AssemblyCheck2").text);
+            Assert.AreEqual("✓", FindNamed<Text>(screen, "AssemblyStepCheck1").text);
+            Assert.IsEmpty(FindNamed<Text>(screen, "AssemblyStepCheck2").text);
+        }
+
+        [Test]
+        public void WrongArtOverridesWeldHintAndCompletionClearsIt()
+        {
+            var parts = Stack(4, weld: true);
+            var screen = MakeScreen(out var exploration);
+            DiscoverEverything(exploration, 4);
+            Assembly().Evaluate();
+            screen.Tick();
+            Assert.AreEqual("조립 완료!", FindNamed<Text>(screen, "AssemblyAction").text);
+            Assert.AreEqual("✓", FindNamed<Text>(screen, "AssemblyCheck2").text);
+            parts[2].transform.rotation = Quaternion.Euler(PhysicsScale.BoardingMaxTilt + 10f, 0, 0);
+            UnityEngine.Physics.SyncTransforms();
+            Assembly().Evaluate();
+            screen.Tick();
+            Assert.AreEqual("파츠를 다시 놓아 주세요", FindNamed<Text>(screen, "AssemblyAction").text);
+            Assert.Greater(FindNamed<RawImage>(screen, "AssemblyPart3").color.r,
+                FindNamed<RawImage>(screen, "AssemblyPart3").color.g);
+        }
+
+        [Test]
+        public void TabletTextHasReadableMinimumSizeAndBoundedRasterDensity()
+        {
+            var screen = MakeScreen();
+            foreach (var label in screen.GetComponentsInChildren<Text>(true))
+            {
+                Assert.GreaterOrEqual(label.fontSize, 24, label.name);
+                Assert.AreSame(Resources.Load<Font>("Fonts/SUIT-Bold"), label.font, label.name);
+            }
+            Assert.AreEqual(2f, screen.GetComponentInChildren<CanvasScaler>(true).dynamicPixelsPerUnit);
+        }
+
+        [Test]
+        public void IllustrationImportPreservesSizeAndSmoothMinification()
+        {
+            foreach (var name in new[] { "Ship", "Actions" })
+            {
+                var texture = Resources.Load<Texture2D>("TabletAssembly/" + name);
+                Assert.IsNotNull(texture);
+                Assert.Greater(texture.mipmapCount, 1);
+                Assert.AreEqual(FilterMode.Trilinear, texture.filterMode);
+                Assert.AreEqual(TextureWrapMode.Clamp, texture.wrapMode);
+            }
+            var ship = Resources.Load<Texture2D>("TabletAssembly/Ship");
+            Assert.AreEqual(1774, ship.width);
+            Assert.AreEqual(887, ship.height);
+        }
+
+        [Test]
+        public void CompactFooterPreservesCurrentPageAndControlKeys()
+        {
+            var text = TabletHelpContent.PageStrip(false, 0, 2, compact: true);
+            StringAssert.Contains(TabletHelpContent.PageDots(false, 2).Replace(" ", ""), text);
+            StringAssert.Contains("A/D", text);
+            StringAssert.Contains(TabletHelpContent.Cap(Controls.Tablet), text);
+        }
+
+        [Test, Explicit("Graphics-device visual QA only")]
+        public void CaptureAssemblyArtworkPreview()
+        {
+            var screen = MakeScreen();
+            Capture(screen, "tablet-empty");
+            for (var page = 1; page <= 3; page++)
+            {
+                var state = Object.FindAnyObjectByType<Stage1Exploration>();
+                state.NextTabletPage();
+                screen.Tick();
+                Capture(screen, $"tablet-help-{page}");
+            }
+            Object.DestroyImmediate(screen.gameObject);
+            Stack(4, weld: false);
+            screen = MakeScreen(out var exploration);
+            DiscoverEverything(exploration, 4);
+            Assembly().Evaluate();
+            screen.Tick();
+            Capture(screen, "tablet-placed");
+        }
+
+        void Capture(Stage1TabletScreen screen, string name)
+        {
+            var canvas = screen.GetComponentInChildren<Canvas>(true);
+            canvas.transform.localPosition = Vector3.zero;
+            canvas.transform.localRotation = Quaternion.identity;
+            canvas.transform.localScale = Vector3.one;
+            foreach (var child in canvas.GetComponentsInChildren<Transform>(true)) child.gameObject.layer = 31;
+            var cameraObject = new GameObject("Tablet QA camera");
+            _spawned.Add(cameraObject);
+            var camera = cameraObject.AddComponent<Camera>();
+            camera.orthographic = true;
+            camera.orthographicSize = 256;
+            camera.transform.position = new Vector3(0, 0, -10);
+            camera.cullingMask = 1 << 31;
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = Color.black;
+            foreach (var width in new[] { 2048, 1024 })
+            {
+                var target = new RenderTexture(width, width / 2, 24);
+                var image = new Texture2D(width, width / 2, TextureFormat.RGB24, false);
+                var previous = RenderTexture.active;
+                try
+                {
+                    camera.targetTexture = target;
+                    Canvas.ForceUpdateCanvases();
+                    camera.Render();
+                    RenderTexture.active = target;
+                    image.ReadPixels(new Rect(0, 0, width, width / 2), 0, 0);
+                    image.Apply();
+                    System.IO.File.WriteAllBytes($"Logs/{name}-{width}.png", image.EncodeToPNG());
+                }
+                finally
+                {
+                    camera.targetTexture = null;
+                    RenderTexture.active = previous;
+                    Object.DestroyImmediate(image);
+                    target.Release();
+                    Object.DestroyImmediate(target);
+                }
+            }
+        }
+
+        static T FindNamed<T>(Component screen, string name) where T : Component
+        {
+            foreach (var item in screen.GetComponentsInChildren<T>(true))
+                if (item.name == name) return item;
+            Assert.Fail($"Missing visible UI: {name}");
+            return null;
         }
 
         // --- 하니스 -----------------------------------------------------------

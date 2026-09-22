@@ -134,7 +134,9 @@ namespace Metagame.UI
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
             // World Space의 동적 글꼴을 높은 밀도로 래스터화해 가까이 보거나
             // 화면을 기울여도 한글 획이 뭉개지지 않게 한다.
-            scaler.dynamicPixelsPerUnit = 10f;
+            // 10배 글리프를 작은 화면으로 축소하면 얇은 획이 반짝인다.
+            // 화면용 밀도로 제한하고 작은 본문은 24px 이상으로 표시한다.
+            scaler.dynamicPixelsPerUnit = 2f;
 
             var background = Panel(uiRoot.transform, "Background",
                 new Color(0.035f, 0.085f, 0.115f, 1f), Vector2.zero, Vector2.one,
@@ -227,6 +229,7 @@ namespace Metagame.UI
                     bottom, top);
                 bottom = top;
             }
+            CreateAssemblyArtwork();
         }
 
         /// <summary>실루엣 탑이 차지하는 가로 폭(0~1). 오른쪽은 층 이름 자리다.</summary>
@@ -384,6 +387,7 @@ namespace Metagame.UI
 
                 Paint(view, floor, discovered, i == nextFloor, blink);
             }
+            RefreshAssemblyArtwork(floors);
         }
 
         /// <summary>
@@ -558,7 +562,8 @@ namespace Metagame.UI
             rect.offsetMax = offsetMax;
             var label = go.AddComponent<Text>();
             label.font = font;
-            label.fontSize = size;
+            label.fontSize = Mathf.Max(24, size);
+            label.fontStyle = FontStyle.Bold;
             label.alignment = alignment;
             label.color = color;
             label.supportRichText = true;
@@ -571,6 +576,10 @@ namespace Metagame.UI
         static Font CreateKoreanFont(out bool ownsFont)
         {
             ownsFont = false;
+            // The static bold face is already packaged for the game's UI. Unlike the
+            // variable font's default instance, its stroke weight survives minification.
+            var tabletFont = Resources.Load<Font>("Fonts/SUIT-Bold");
+            if (tabletFont != null) return tabletFont;
             // 프로젝트에 포함한 OFL 한글 폰트를 우선 사용해 모든 PC와 빌드에서
             // 동일한 한글 모양과 글꼴 데이터를 보장한다.
             var packaged = Resources.Load<Font>("Fonts/NotoSansKR-Variable");
@@ -591,6 +600,7 @@ namespace Metagame.UI
 
         void OnDestroy()
         {
+            if (_assemblyInk != null) Destroy(_assemblyInk);
             if (uiRoot != null) Destroy(uiRoot);
             if (ownsFont && font != null) Destroy(font);
         }
