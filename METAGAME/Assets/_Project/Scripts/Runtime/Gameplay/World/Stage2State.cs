@@ -1,4 +1,5 @@
 using System;
+using Metagame.Gameplay.Parts;
 using UnityEngine;
 
 namespace Metagame.Gameplay.Stage2
@@ -38,6 +39,9 @@ namespace Metagame.Gameplay.Stage2
     [Serializable] public sealed class Stage2State
     {
         public double Time;
+        public bool DemoStarted;
+        public double DemoStart;
+        public DemoEndingPlayer[] DemoPlayers = Array.Empty<DemoEndingPlayer>();
         public float PressureClock;
         public float[] PressureRelief = new float[3];
         public float Elapsed, ClearTime;

@@ -64,6 +64,11 @@ namespace Metagame.EditorTools
             EditorGUILayout.PropertyField(serializedObject.FindProperty("musicFadeInSeconds"), new GUIContent("페이드 인 (초)"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("musicFadeOutSeconds"), new GUIContent("페이드 아웃 (초)"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("musicRepeatDelaySeconds"), new GUIContent("곡 사이 대기 (초)"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("assaultMusicClip"), new GUIContent("공세 BGM"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("escapeMusicClip"), new GUIContent("1장 탈출 BGM"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("crashLandingMusicClip"), new GUIContent("지구 불시착 BGM"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("stage2MusicClip"), new GUIContent("2장 BGM"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("practiceMusicClip"), new GUIContent("연습·조립 테스트 BGM"));
             EditorGUILayout.HelpBox("음악은 기본 음량 × 설정의 음악 음량 × 전체 음량으로 재생됩니다. 효과음 설정과는 독립적입니다.", MessageType.Info);
 
             EditorGUILayout.Space(4f);

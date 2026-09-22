@@ -19,6 +19,11 @@ MonoBehaviour:
   musicFadeInSeconds: 4
   musicFadeOutSeconds: 6
   musicRepeatDelaySeconds: 5
+  practiceMusicClip: {fileID: 8300000, guid: 09dce0a7b79a4e38aeaeabc9d8757d10, type: 3}
+  stage2MusicClip: {fileID: 8300000, guid: a52044002bbc435b9137260853908170, type: 3}
+  crashLandingMusicClip: {fileID: 8300000, guid: 3a95317b3db74f14818065493f6b00a6, type: 3}
+  escapeMusicClip: {fileID: 8300000, guid: 31c8962b97464a439af9a0c50a073f47, type: 3}
+  assaultMusicClip: {fileID: 8300000, guid: 56091ba73ae44cbabda25f0fcfbf10db, type: 3}
   masterVolume: 1
   muted: 0
   outputMixerGroup: {fileID: 0}

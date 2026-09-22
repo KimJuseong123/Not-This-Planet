@@ -102,7 +102,9 @@ namespace Metagame.Gameplay
         /// </summary>
         public bool InputSuppressed { get; private set; }
         public Stage1Sequence Sequence { get; set; }
-        public bool CinematicInputBlocked => Sequence != null && Sequence.BlocksInput;
+        public Stage2.Stage2Yard Stage2Demo { get; set; }
+        public bool CinematicInputBlocked => (Sequence != null && Sequence.BlocksInput)
+            || (Stage2Demo != null && Stage2Demo.DemoBlocksInput);
 
         /// <summary>로컬 태블릿 입력과 키 안내가 공유하는 사용 가능 조건.</summary>
         public bool CanToggleTablet => LocalPlayer != null && Exploration != null

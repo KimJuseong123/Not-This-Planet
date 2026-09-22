@@ -244,11 +244,64 @@ namespace Metagame.Gameplay.Tests
             // 타고 있는지가 화면에 남는다. 그 결정의 근거는 PhysicsScale 쪽 주석에 있다.
             Assert.IsFalse(camera.FirstPerson, "탑승 시 3인칭으로 물러나야 한다 (S15P21B202-441).");
 
+            // **키를 뗐다 다시 누른다.** 예전에는 true 를 두 번 넣어 탑승→하차를
+            // 기대했는데, 그것은 실제 입력이 아니라 이 결함의 모습이었다
+            // (S15P21B202-680) — 서버가 마지막 입력을 매 틱 다시 적용하므로
+            // 한 번 눌러도 true 가 두 틱 들어온다.
+            controller.SetInput(new InputFrame());
             controller.SetInput(new InputFrame { TransportAction = true });
 
             Assert.IsFalse(controller.IsControlling, "하차 요청 즉시 플레이어 조작으로 복귀한다.");
             Assert.IsTrue(vehicle.IsReturning);
             Assert.IsFalse(player.IsMounted);
+        }
+
+        /// <summary>
+        /// <b>한 번 눌러 탄 뒤 바로 내리지 않는다</b>(S15P21B202-680).
+        ///
+        /// <para>멀티에서 탑승 버튼을 누르면 즉시 내려졌다. 서버는 참가자가 마지막으로
+        /// 보낸 입력(<c>NetPlayer.pending</c>)을 새 프레임이 올 때까지 <b>매 물리 스텝
+        /// 다시 적용</b>한다 — <c>GetKeyDown</c> 으로 한 프레임만 참이던 값이 서버에서는
+        /// 여러 틱 참이고, 첫 틱에 타고 둘째 틱에 내렸다.</para>
+        ///
+        /// <para>잡기(<c>GrabLeft</c>)는 이미 누른 순간만 보고 있었고 탑승만 빠져 있었다.</para>
+        /// </summary>
+        [Test]
+        public void HoldingTheBoardKey_DoesNotBoardAndDismountInOneGo()
+        {
+            var beamObject = new GameObject("TractorBeam");
+            beamObject.transform.SetPositionAndRotation(
+                new Vector3(0f, TransportVehicle.GroundY, 3.2f),
+                Quaternion.LookRotation(Vector3.down, Vector3.forward));
+            var beam = beamObject.AddComponent<TractorBeam>();
+            beam.Configure(beamObject.transform, PhysicsScale.BeamRange, TransportVehicle.BeamHoldDistance);
+            var vehicle = beamObject.AddComponent<TransportVehicle>();
+            vehicle.Initialize(beam, TransportVehicle.BeamHoldDistance);
+            vehicle.PlaceOnGround(beamObject.transform.position, 0f);
+            spawned.Add(beamObject);
+
+            var player = PlayerRig.Create("테스트", Vector3.zero, Quaternion.identity,
+                                         Color.white, Color.gray, false);
+            var camera = OrbitCamera.Create(player.Hips.transform, Color.black, false);
+            player.Cam = camera;
+            camera.Yaw = 0f;
+            camera.SnapToTarget();
+            spawned.Add(player.gameObject);
+            spawned.Add(camera.gameObject);
+
+            var controllerObject = new GameObject("TransportController");
+            var controller = controllerObject.AddComponent<TractorBeamController>();
+            controller.Configure(player, new[] { beam }, false);
+            spawned.Add(controllerObject);
+
+            // 서버가 같은 입력을 다시 적용하는 상황. 키를 뗀 적이 없다.
+            controller.SetInput(new InputFrame { TransportAction = true });
+            controller.SetInput(new InputFrame { TransportAction = true });
+            controller.SetInput(new InputFrame { TransportAction = true });
+
+            Assert.IsTrue(controller.IsControlling, "한 번 눌렀는데 내려졌다.");
+            Assert.IsTrue(player.IsMounted);
+            Assert.IsFalse(vehicle.IsReturning, "하차가 시작되면 안 된다.");
         }
 
         [TestCase(false)]

@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="22" result="Passed" total="22" passed="22" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-22 01:35:11Z" end-time="2026-09-22 01:35:12Z" duration="1.2689713">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="2166" result="Passed" start-time="2026-09-22 01:35:11Z" end-time="2026-09-22 01:35:12Z" duration="1.268971" total="22" passed="22" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="3433" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202/.local-worktrees/677-ui-2stage/METAGAME/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="2130" result="Passed" start-time="2026-09-22 01:35:11Z" end-time="2026-09-22 01:35:12Z" duration="1.177935" total="22" passed="22" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="32776" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="3434" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="2130" result="Passed" start-time="2026-09-22 01:35:11Z" end-time="2026-09-22 01:35:12Z" duration="1.158543" total="22" passed="22" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="3439" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="2081" result="Passed" start-time="2026-09-22 01:35:11Z" end-time="2026-09-22 01:35:12Z" duration="1.137876" total="22" passed="22" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="3440" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="2081" result="Passed" start-time="2026-09-22 01:35:11Z" end-time="2026-09-22 01:35:12Z" duration="1.118382" total="22" passed="22" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="2982" name="Stage2DemoTests" fullname="Metagame.Gameplay.Tests.Stage2DemoTests" classname="Metagame.Gameplay.Tests.Stage2DemoTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-09-22 01:35:11Z" end-time="2026-09-22 01:35:12Z" duration="0.847921" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2984" name="RejectsPuzzleCommandsAndReplicaStartAndSeeksLateSnapshot" fullname="Metagame.Gameplay.Tests.Stage2DemoTests.RejectsPuzzleCommandsAndReplicaStartAndSeeksLateSnapshot" methodname="RejectsPuzzleCommandsAndReplicaStartAndSeeksLateSnapshot" classname="Metagame.Gameplay.Tests.Stage2DemoTests" runstate="Runnable" seed="1126573806" result="Passed" start-time="2026-09-22 01:34:47Z" end-time="2026-09-22 01:34:58Z" duration="10.985044" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="2983" name="ThreeSecondsThenCameraAssemblyAndTerminalCardWithoutClearing" fullname="Metagame.Gameplay.Tests.Stage2DemoTests.ThreeSecondsThenCameraAssemblyAndTerminalCardWithoutClearing" methodname="ThreeSecondsThenCameraAssemblyAndTerminalCardWithoutClearing" classname="Metagame.Gameplay.Tests.Stage2DemoTests" runstate="Runnable" seed="126592204" result="Passed" start-time="2026-09-22 01:34:58Z" end-time="2026-09-22 01:35:06Z" duration="7.641907" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <output><![CDATA[[DemoVisual] module=(9.00, 3.60, 9.00) socket=(9.00, 3.60, 9.00)
+[DemoVisual] platform=Center: (9.00, 3.33, 6.70), Extents: (1.73, 0.61, 1.69)
+]]></output>
+              </test-case>
+              <test-case id="2985" name="YardOptOutRetainsUnderlyingGameplayAndSessionInput" fullname="Metagame.Gameplay.Tests.Stage2DemoTests.YardOptOutRetainsUnderlyingGameplayAndSessionInput" methodname="YardOptOutRetainsUnderlyingGameplayAndSessionInput" classname="Metagame.Gameplay.Tests.Stage2DemoTests" runstate="Runnable" seed="1152476809" result="Passed" start-time="2026-09-22 01:35:06Z" end-time="2026-09-22 01:35:12Z" duration="6.076400" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="3331" name="TransportCockpitTests" fullname="Metagame.Gameplay.Tests.TransportCockpitTests" classname="Metagame.Gameplay.Tests.TransportCockpitTests" runstate="Runnable" testcasecount="11" result="Passed" start-time="2026-09-22 01:35:12Z" end-time="2026-09-22 01:35:12Z" duration="0.120569" total="11" passed="11" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="3338" name="Board_CentersTheHullOverTheBeam" fullname="Metagame.Gameplay.Tests.TransportCockpitTests.Board_CentersTheHullOverTheBeam" methodname="Board_CentersTheHullOverTheBeam" classname="Metagame.Gameplay.Tests.TransportCockpitTests" runstate="Runnable" seed="570471741" result="Passed" start-time="2026-09-22 01:35:12Z" end-time="2026-09-22 01:35:12Z" duration="0.054917" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="3334" name="Board_HidesRider_AndExitShowsAgain" fullname="Metagame.Gameplay.Tests.TransportCockpitTests.Board_HidesRider_AndExitShowsAgain" methodname="Board_HidesRider_AndExitShowsAgain" classname="Metagame.Gameplay.Tests.TransportCockpitTests" runstate="Runnable" seed="662903959" result="Passed" start-time="2026-09-22 01:35:12Z" end-time="2026-09-22 01:35:12Z" duration="0.009719" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="3336" name="Board_KeepsCraftHullVisible" fullname="Metagame.Gameplay.Tests.TransportCockpitTests.Board_KeepsCraftHullVisible" methodname="Board_KeepsCraftHullVisible" classname="Metagame.Gameplay.Tests.TransportCockpitTests" runstate="Runnable" seed="915467644" result="Passed" start-time="2026-09-22 01:35:12Z" end-time="2026-09-22 01:35:12Z" duration="0.005095" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="3333" name="Board_SwitchesToThirdPerson_AndExitRestores" fullname="Metagame.Gameplay.Tests.TransportCockpitTests.Board_SwitchesToThirdPerson_AndExitRestores" methodname="Board_SwitchesToThirdPerson_AndExitRestores" classname="Metagame.Gameplay.Tests.TransportCockpitTests" runstate="Runnable" seed="477222198" result="Passed" start-time="2026-09-22 01:35:12Z" end-time="2026-09-22 01:35:12Z" duration="0.009030" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="3339" name="Exit_CameraStandsOnFarSideFromCraft" fullname="Metagame.Gameplay.Tests.TransportCockpitTests.Exit_CameraStandsOnFarSideFromCraft" methodname="Exit_CameraStandsOnFarSideFromCraft" classname="Metagame.Gameplay.Tests.TransportCockpitTests" runstate="Runnable" seed="191727589" result="Passed" start-time="2026-09-22 01:35:12Z" end-time="2026-09-22 01:35:12Z" duration="0.005398" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="3340" name="Exit_FirstPersonLooksAwayFromCraft" fullname="Metagame.Gameplay.Tests.TransportCockpitTests.Exit_FirstPersonLooksAwayFromCraft" methodname="Exit_FirstPersonLooksAwayFromCraft" classname="Metagame.Gameplay.Tests.TransportCockpitTests" runstate="Runnable" seed="1346189740" result="Passed" start-time="2026-09-22 01:35:12Z" end-time="2026-09-22 01:35:12Z" duration="0.005511" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="3335" name="Exit_PlacesHipsAboveGround_NotBuriedInIt" fullname="Metagame.Gameplay.Tests.TransportCockpitTests.Exit_PlacesHipsAboveGround_NotBuriedInIt" methodname="Exit_PlacesHipsAboveGround_NotBuriedInIt" classname="Metagame.Gameplay.Tests.TransportCockpitTests" runstate="Runnable" seed="211618005" result="Passed" start-time="2026-09-22 01:35:12Z" end-time="2026-09-22 01:35:12Z" duration="0.005143" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="3332" name="LookAround_KeepsFocusOnTheCockpit" fullname="Metagame.Gameplay.Tests.TransportCockpitTests.LookAround_KeepsFocusOnTheCockpit" methodname="LookAround_KeepsFocusOnTheCockpit" classname="Metagame.Gameplay.Tests.TransportCockpitTests" runstate="Runnable" seed="1363480702" result="Passed" start-time="2026-09-22 01:35:12Z" end-time="2026-09-22 01:35:12Z" duration="0.005920" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="3342" name="Seat_FallsBackToConstantWithoutVisual" fullname="Metagame.Gameplay.Tests.TransportCockpitTests.Seat_FallsBackToConstantWithoutVisual" methodname="Seat_FallsBackToConstantWithoutVisual" classname="Metagame.Gameplay.Tests.TransportCockpitTests" runstate="Runnable" seed="1408368591" result="Passed" start-time="2026-09-22 01:35:12Z" end-time="2026-09-22 01:35:12Z" duration="0.000685" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="3341" name="Seat_SitsInsideCraftBounds" fullname="Metagame.Gameplay.Tests.TransportCockpitTests.Seat_SitsInsideCraftBounds" methodname="Seat_SitsInsideCraftBounds" classname="Metagame.Gameplay.Tests.TransportCockpitTests" runstate="Runnable" seed="1801953037" result="Passed" start-time="2026-09-22 01:35:12Z" end-time="2026-09-22 01:35:12Z" duration="0.000945" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="3337" name="TurningTheView_KeepsTheHullOverTheBeam" fullname="Metagame.Gameplay.Tests.TransportCockpitTests.TurningTheView_KeepsTheHullOverTheBeam" methodname="TurningTheView_KeepsTheHullOverTheBeam" classname="Metagame.Gameplay.Tests.TransportCockpitTests" runstate="Runnable" seed="1905024522" result="Passed" start-time="2026-09-22 01:35:12Z" end-time="2026-09-22 01:35:12Z" duration="0.005155" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="3343" name="TransportDismountTests" fullname="Metagame.Gameplay.Tests.TransportDismountTests" classname="Metagame.Gameplay.Tests.TransportDismountTests" runstate="Runnable" testcasecount="8" result="Passed" start-time="2026-09-22 01:35:12Z" end-time="2026-09-22 01:35:12Z" duration="0.043894" total="8" passed="8" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="3348" name="Dismount_CompletesOnStructureTop" fullname="Metagame.Gameplay.Tests.TransportDismountTests.Dismount_CompletesOnStructureTop" methodname="Dismount_CompletesOnStructureTop" classname="Metagame.Gameplay.Tests.TransportDismountTests" runstate="Runnable" seed="233084626" result="Passed" start-time="2026-09-22 01:35:12Z" end-time="2026-09-22 01:35:12Z" duration="0.015116" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="3350" name="Exit_NeverPlacesRiderInsideCraftHull" fullname="Metagame.Gameplay.Tests.TransportDismountTests.Exit_NeverPlacesRiderInsideCraftHull" methodname="Exit_NeverPlacesRiderInsideCraftHull" classname="Metagame.Gameplay.Tests.TransportDismountTests" runstate="Runnable" seed="411414858" result="Passed" start-time="2026-09-22 01:35:12Z" end-time="2026-09-22 01:35:12Z" duration="0.007256" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+[TransportVehicle] 하차 지점을 찾지 못했다 — 기체 (0.00, 0.06, 0.00), 껍데기 밖 (0.00, 2.58, 1.80) 에 내려놓는다.
+]]></output>
+              </test-case>
+              <test-case id="3349" name="Exit_RiderStaysWhereItWasPlaced" fullname="Metagame.Gameplay.Tests.TransportDismountTests.Exit_RiderStaysWhereItWasPlaced" methodname="Exit_RiderStaysWhereItWasPlaced" classname="Metagame.Gameplay.Tests.TransportDismountTests" runstate="Runnable" seed="1763957050" result="Passed" start-time="2026-09-22 01:35:12Z" end-time="2026-09-22 01:35:12Z" duration="0.012330" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="3345" name="ExitFoot_FollowsStructureTopInsteadOfAbsoluteGroundHeight" fullname="Metagame.Gameplay.Tests.TransportDismountTests.ExitFoot_FollowsStructureTopInsteadOfAbsoluteGroundHeight" methodname="ExitFoot_FollowsStructureTopInsteadOfAbsoluteGroundHeight" classname="Metagame.Gameplay.Tests.TransportDismountTests" runstate="Runnable" seed="1647091604" result="Passed" start-time="2026-09-22 01:35:12Z" end-time="2026-09-22 01:35:12Z" duration="0.001436" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="3344" name="ExitFoot_LandsOutsidePlatformFootprint" fullname="Metagame.Gameplay.Tests.TransportDismountTests.ExitFoot_LandsOutsidePlatformFootprint" methodname="ExitFoot_LandsOutsidePlatformFootprint" classname="Metagame.Gameplay.Tests.TransportDismountTests" runstate="Runnable" seed="1288936008" result="Passed" start-time="2026-09-22 01:35:12Z" end-time="2026-09-22 01:35:12Z" duration="0.000950" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="3351" name="ExitFoot_PicksAnotherDirectionWhenFrontIsBlocked" fullname="Metagame.Gameplay.Tests.TransportDismountTests.ExitFoot_PicksAnotherDirectionWhenFrontIsBlocked" methodname="ExitFoot_PicksAnotherDirectionWhenFrontIsBlocked" classname="Metagame.Gameplay.Tests.TransportDismountTests" runstate="Runnable" seed="794590815" result="Passed" start-time="2026-09-22 01:35:12Z" end-time="2026-09-22 01:35:12Z" duration="0.001085" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="3347" name="PlaceOnGround_AlignsVisualBoundsAboveTheGround" fullname="Metagame.Gameplay.Tests.TransportDismountTests.PlaceOnGround_AlignsVisualBoundsAboveTheGround" methodname="PlaceOnGround_AlignsVisualBoundsAboveTheGround" classname="Metagame.Gameplay.Tests.TransportDismountTests" runstate="Runnable" seed="677028217" result="Passed" start-time="2026-09-22 01:35:12Z" end-time="2026-09-22 01:35:12Z" duration="0.000858" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="3346" name="TouchingSurface_TrueOnStructureTop_FalseWhileHovering" fullname="Metagame.Gameplay.Tests.TransportDismountTests.TouchingSurface_TrueOnStructureTop_FalseWhileHovering" methodname="TouchingSurface_TrueOnStructureTop_FalseWhileHovering" classname="Metagame.Gameplay.Tests.TransportDismountTests" runstate="Runnable" seed="780849630" result="Passed" start-time="2026-09-22 01:35:12Z" end-time="2026-09-22 01:35:12Z" duration="0.001126" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>
