@@ -1,11 +1,13 @@
 using Metagame.Core;
 using Metagame.Gameplay;
 using UnityEngine;
+using Unity.Profiling;
 
 namespace Metagame.Network
 {
     public sealed class AiCompanionController
     {
+        static readonly ProfilerMarker TickMarker = new("AI.Companion.Tick");
         readonly AiFollowController follow = new AiFollowController();
         readonly AiPinTask pin = new AiPinTask();
         readonly AiMovementRecovery recovery = new AiMovementRecovery();
@@ -55,6 +57,7 @@ namespace Metagame.Network
         }
         public InputFrame Tick(PlayerRig self, bool allowed)
         {
+            using var sample = TickMarker.Auto();
             if (advance && pending.Count > 0)
             {
                 var next = pending.Dequeue(); var rest = pending.ToArray(); var source = planSpeaker;

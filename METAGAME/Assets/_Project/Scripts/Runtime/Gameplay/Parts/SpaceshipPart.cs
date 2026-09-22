@@ -160,6 +160,8 @@ namespace Metagame.Gameplay.Parts
         public event Action<PartState, PartState> StateChanged;
 
         void Awake() => Initialize();
+        void OnEnable() => PartOutlineTargets.Register(this);
+        void OnDisable() => PartOutlineTargets.Unregister(this);
 
         /// <summary>
         /// 자식의 고정쇠를 모으고 현재 상태의 물리 표현을 적용한다.

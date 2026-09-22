@@ -31,8 +31,41 @@ namespace Metagame.Gameplay.Tests
             Physics.SyncTransforms();
             world.Rebuild(new Bounds(Vector3.zero, Vector3.one * 100));
             float until = Time.realtimeSinceStartup + 20f;
-            while (!world.Ready && Time.realtimeSinceStartup < until) yield return null;
+            while ((!world.Ready || world.IsBuilding) && Time.realtimeSinceStartup < until) yield return null;
             Assert.That(world.Ready, Is.True, "Navigation build timed out");
+            Assert.That(world.IsBuilding, Is.False);
+        }
+
+        [UnityTest]
+        public IEnumerator UnchangedGeometrySkipsBuildAndRefreshKeepsLastValidNavigation()
+        {
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            yield return new EnterPlayMode();
+            Box("floor", new Vector3(0, -.5f, 0), new Vector3(30, 1, 30));
+            var world = new GameObject("navigation").AddComponent<AiNavigationWorld>();
+            yield return Bake(world);
+            int builds = world.BuildCount;
+            yield return Bake(world);
+            Assert.That(world.BuildCount, Is.EqualTo(builds));
+            var wall = Box("wall", new Vector3(0, 2, 0), new Vector3(1, 4, 10));
+            Physics.SyncTransforms();
+            world.Rebuild(new Bounds(Vector3.zero, Vector3.one * 100));
+            Assert.That(world.Ready, Is.True, "A refresh must not disable an existing valid mesh");
+            Assert.That(world.BuildCount, Is.EqualTo(builds + 1));
+            float until = Time.realtimeSinceStartup + 20;
+            while (world.IsBuilding && Time.realtimeSinceStartup < until) yield return null;
+            Assert.That(world.IsBuilding, Is.False);
+            var path = new NavMeshPath();
+            Assert.That(world.CalculatePath(new Vector3(-4, 0, 0), new Vector3(4, 0, 0), path), Is.True);
+            Assert.That(path.corners.Length, Is.GreaterThan(2));
+            wall.transform.position += Vector3.forward * 12;
+            yield return Bake(world);
+            Assert.That(world.BuildCount, Is.EqualTo(builds + 2));
+            world.enabled = false;
+            Assert.That(world.Ready, Is.False);
+            world.enabled = true;
+            yield return Bake(world);
+            Assert.That(world.Ready, Is.True);
         }
 
         [UnityTest]

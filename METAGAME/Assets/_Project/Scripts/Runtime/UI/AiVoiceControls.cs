@@ -69,7 +69,7 @@ namespace Metagame.UI
             float peak = 0; foreach (float value in samples) peak = Mathf.Max(peak, Mathf.Abs(value));
             if (peak < .002f) { Notify("목소리가 들리지 않았어요"); Cancel(); return; }
             recording = false;
-            recordingOwner?.SubmitAiVoice(AiVoicePacket.Encode(samples.ToArray(), AiVoicePacket.Rate, 1));
+            recordingOwner?.SubmitAiVoice(AiVoicePacket.Encode(samples, AiVoicePacket.Rate, 1));
             samples.Clear(); recordingOwner = null; recordingSession = null;
             Notify("AI가 듣고 생각하는 중…", 95);
         }
