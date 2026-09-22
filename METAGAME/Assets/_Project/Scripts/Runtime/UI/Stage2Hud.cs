@@ -85,12 +85,20 @@ namespace Metagame.UI
             _small ??= new GUIStyle(_text) { fontSize = 15 };
             float scale = Mathf.Min(Screen.width / 1600f, Screen.height / 900f);
             var previous = GUI.matrix; GUI.matrix = Matrix4x4.Scale(Vector3.one * scale);
+            // 공통 팀 상태 HUD의 실제 픽셀 높이를 이 패널의 좌표계로 변환한다.
+            float teamOffset = GameHud.TeamStatusHeight * UiScale.Value / Mathf.Max(.01f, scale);
+            GUI.BeginGroup(new Rect(0, teamOffset, 1600, 550));
             GUI.Box(new Rect(24, 24, 530, 200), "");
             GUI.Label(new Rect(42, 34, 500, 38), "CHAPTER 02  /  폐허가 된 지구의 발사장", _title);
             int complete = 0; foreach (var part in _yard.State.Parts) if (part.Secured) complete++;
             GUI.Label(new Rect(42, 78, 480, 60), $"로켓 조립 {complete}/3  ·  훅 {(_yard.State.Attached < 0 ? "분리" : "연결됨")}\n컨테이너 → 인양 → 사다리 → 볼트 3곳 → 하중 해제", _text);
             var me = _yard.PlayerState(_localId());
             GUI.Label(new Rect(42, 142, 480, 65), $"장비: {me.Tool}   오염: {me.Contamination:P0}\nE 상호작용 · Tab 작업 태블릿 · R 개인 복구", _small);
+            int row=0;
+            foreach(var member in _yard.State.Players)
+            {
+                GUI.Label(new Rect(24,245+row++*30,510,30),$"동료 {member.Id}  오염 {member.Contamination:P0}  {(member.Downed ? "기절 — 제독 후 G 구조" : "작업 가능")}",_small);
+            }
             string warning = _yard.GasActive ? "유독 가스 누출 중 — 초록 구역 이탈 / 동료에게 제독 요청"
                 : _yard.GasWarning ? "6초 예고 — 배관 경고 구역에서 누출 예정" : _yard.State.GasEnabled ? "누출 휴지기 — 남은 오염은 동료에게 제독 요청" : "첫 조립 학습 구간 / 준비 구역은 안전";
             GUI.Label(new Rect(580, 28, 980, 55), warning, _text);
@@ -103,11 +111,7 @@ namespace Metagame.UI
                 GUI.Label(new Rect(580, 85, 980, 55), swimmer.Swimming
                     ? "깊은 배수로 — WASD 이동 · Space 상승 · Ctrl 하강 · 완만한 둑으로 나가기"
                     : "얕은 배수로 — 물의 저항으로 이동이 느려집니다", _text);
-            int row=0;
-            foreach(var member in _yard.State.Players)
-            {
-                GUI.Label(new Rect(24,245+row++*30,510,30),$"동료 {member.Id}  오염 {member.Contamination:P0}  {(member.Downed ? "기절 — 제독 후 G 구조" : "작업 가능")}",_small);
-            }
+            GUI.EndGroup();
             if (Focus != null)
             {
                 string hint = Focus.Kind == YardTargetKind.Bolt ? _yard.BoltCondition(Focus.Index / 3) : "E  " + Focus.Label;
