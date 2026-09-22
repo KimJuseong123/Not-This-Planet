@@ -115,6 +115,28 @@ namespace Metagame.Gameplay.Hazards
         bool UsesIndependentDrops => _independentDrops && _pinnedBand == null;
         int ActiveDropClocks => AssaultEnabled ? MeteorDropSchedule.SpawnerCount : 1;
 
+        /// <summary>
+        /// 한 프레임에 띄우는 운석 수의 상한 (S15P21B202-684).
+        ///
+        /// <para><b>낙하 빈도를 바꾸지 않는다.</b> 시계 8개가 1~5초를 다시 뽑으므로
+        /// 평균은 초당 2.7발이고, 120fps 면 프레임당 0.02발이다 — 정상 진행에서는 이
+        /// 상한에 걸리는 일이 없다. 걸리는 경우는 <b>프레임이 길어졌을 때</b>다.</para>
+        ///
+        /// <para><see cref="MeteorDropSchedule.Tick"/> 은 한 레인이 밀린 낙하를 몰아
+        /// 내지 않게 막지만(<b>레인 안에서만</b>), 프레임이 길면 <b>여러 레인이 같은 틱에</b>
+        /// 만료된다. 그러면 렉이 난 프레임에 여덟 발의 <c>Instantiate</c> 와 예고와
+        /// 네트워크 묶음이 함께 실려 <b>렉이 다음 렉을 만든다</b>. 늦게 띄우는 값은
+        /// 프레임 몇 개뿐이고(120fps 에서 8발이면 50ms) 돌은 몇 초를 떨어지므로 사람이
+        /// 알 수 없다.</para>
+        /// </summary>
+        const int MaxLaunchesPerFrame = 2;
+
+        /// <summary>
+        /// 이 프레임에 못 띄우고 넘긴 레인 비트. <b>쌓이지 않는다</b> — 레인이 여덟 개라
+        /// 최대 여덟 비트이고, 같은 레인이 두 번 밀려도 비트는 하나다.
+        /// </summary>
+        int _dueCarry;
+
         [Header("Stage1 독립 낙하")]
         [Tooltip("공세 때 선택한 플레이어의 수평 위치 주변에 낙하할 최대 반경(m).") ]
         [SerializeField, Min(0f)] float _assaultPlayerTargetRadius = 5f;
@@ -127,6 +149,7 @@ namespace Metagame.Gameplay.Hazards
             if (_independentDrops) return;
             _independentDrops = true;
             _dropSchedule = new MeteorDropSchedule(_seed);
+            _dueCarry = 0;
             _waveRemaining = 0;
             _leadSent = false;
         }
@@ -257,6 +280,7 @@ namespace Metagame.Gameplay.Hazards
             {
                 // 각 시계의 첫 낙하도 무작위로 분산한다. 이전 묶음은 이어서 내보내지 않는다.
                 _dropSchedule.Reset(_seed);
+                _dueCarry = 0;
                 _waveRemaining = 0;
                 _leadSent = false;
                 return;
@@ -480,6 +504,7 @@ namespace Metagame.Gameplay.Hazards
             EnsureConfiguration();
             _random = new System.Random(_seed);
             _dropSchedule = new MeteorDropSchedule(_seed);
+            _dueCarry = 0;
             _elapsed = 0f;
             AssaultEnabled = false;
             _sinceLastWave = 0f;
@@ -691,11 +716,26 @@ namespace Metagame.Gameplay.Hazards
             if (IsPaused || SequenceHold) return;
             if (UsesIndependentDrops)
             {
-                var due = _dropSchedule.Tick(deltaTime, ActiveDropClocks);
+                var due = _dropSchedule.Tick(deltaTime, ActiveDropClocks) | _dueCarry;
+                _dueCarry = 0;
+                var launched = 0;
+
                 for (int i = 0; i < MeteorDropSchedule.SpawnerCount; i++)
                 {
+                    if ((due & (1 << i)) == 0) continue;
+
                     // 상한에 막힌 낙하는 버린다. 재개 시 밀린 운석이 폭주하지 않는다.
-                    if ((due & (1 << i)) == 0 || _live.Count >= Mathf.Clamp(_maxIndependentLiveMeteors, 1, 16)) continue;
+                    if (_live.Count >= Mathf.Clamp(_maxIndependentLiveMeteors, 1, 16)) continue;
+
+                    // **한 프레임의 상한을 넘으면 미룬다** (S15P21B202-684). 버리지 않는다 —
+                    // 버리면 긴 프레임이 낙하 수를 줄여 기획 값이 프레임률에 따라 달라진다.
+                    if (launched >= MaxLaunchesPerFrame)
+                    {
+                        _dueCarry |= 1 << i;
+                        continue;
+                    }
+
+                    launched++;
                     Launch();
                 }
                 return;
@@ -883,6 +923,32 @@ namespace Metagame.Gameplay.Hazards
         public IReadOnlyList<Meteor> Ghosts => _ghosts;
 
         /// <summary>
+        /// 다 쓴 낙하 그림을 세워 두는 곳 (S15P21B202-684).
+        ///
+        /// <para><b>왜 필요한가.</b> 공세를 켜면 낙하 시계가 1개에서 8개가 되고(기획 §17.8)
+        /// 동시에 떠 있는 돌이 1~2개에서 열 개쯤으로 늘어난다. 참가자 쪽 그림 수는 그것을
+        /// 그대로 따라가므로, 초당 두세 개의 <c>Instantiate</c> 와 <c>Destroy</c> 가
+        /// <b>공세 내내</b> 프레임에 실린다. 돌은 서로 구별되지 않으니 다시 쓰면 된다.</para>
+        ///
+        /// <para><b>흔적 그림은 여기 넣지 않는다.</b> 흔적은 콜라이더를 켜고 레이어를
+        /// <see cref="GameLayers.Prop"/> 으로 옮기고 kinematic 으로 세운다(S15P21B202-658) —
+        /// 한 풀에 섞으면 꺼낸 돌이 <b>지난 쓰임의 설정</b>을 물고 온다. 게다가 흔적은
+        /// 매치 동안 쌓이기만 해서 돌아오는 일 자체가 드물다.</para>
+        ///
+        /// <para><b>여기 있는 것은 <see cref="Ghosts"/> 에 세지 않는다.</b> 진단이
+        /// <c>live</c> 를 <c>Live.Count + Ghosts.Count</c> 로 찍으므로(<c>NetDiagnostics</c>),
+        /// 세워 둔 것까지 세면 참가자 쪽 <c>live</c> 가 호스트와 갈려 <b>세계가 어긋난 것처럼
+        /// 보인다</b>.</para>
+        /// </summary>
+        readonly List<Meteor> _ghostPool = new();
+
+        /// <summary>
+        /// 세워 둘 수 있는 그림 수. <see cref="_maxIndependentLiveMeteors"/> 의 상한과 같다 —
+        /// 동시에 떠 있을 수 있는 수를 넘겨 쥐고 있을 이유가 없다.
+        /// </summary>
+        const int MaxPooledGhosts = 16;
+
+        /// <summary>
         /// 호스트가 보낸 낙하 자세로 그림을 맞춘다 (S15P21B202-352).
         ///
         /// <para><b>권위 쪽에서 부르면 안 된다</b> — 자기 운석 위에 그림을 겹쳐 띄운다.
@@ -899,7 +965,7 @@ namespace Metagame.Gameplay.Hazards
             while (_ghosts.Count > n)
             {
                 var last = _ghosts.Count - 1;
-                if (_ghosts[last] != null) _ghosts[last].Despawn();
+                ParkGhost(_ghosts[last]);
                 _ghosts.RemoveAt(last);
             }
             while (_ghosts.Count < n) _ghosts.Add(CreateGhost());
@@ -911,7 +977,10 @@ namespace Metagame.Gameplay.Hazards
 
                 ghost.ApplyGuideSnapshot(poses[i].GroundHeight, poses[i].Harmless, poses[i].BatWindow, poses[i].BatRadius,
                     poses[i].DeflectionGrade);
-                var body = ghost.GetComponent<Rigidbody>();
+                // `Meteor.Body` 를 쓴다 (`!321` AI 리뷰, S15P21B202-684). 이 고리는 매
+                // 묶음마다 그림 전부를 훑으므로 여기서 GetComponent 를 부르면 공세 때
+                // 초당 수백 번이 된다 — 흔적 쪽은 같은 이유로 이미 고쳐져 있었다.
+                var body = ghost.Body;
                 if (body != null)
                 {
                     body.position = poses[i].Position;
@@ -938,6 +1007,62 @@ namespace Metagame.Gameplay.Hazards
                 if (_ghosts[i] != null) _ghosts[i].Despawn();
 
             _ghosts.Clear();
+
+            // **세워 둔 것까지 지운다** (S15P21B202-684). 이 함수의 계약이 "씬에 남겨 두지
+            // 않는다" 이므로 풀도 비운다 — 꺼져 있어 보이지도 밟히지도 않지만, 남겨 두면
+            // 이 계약을 읽은 사람이 틀리게 된다.
+            for (var i = 0; i < _ghostPool.Count; i++)
+                if (_ghostPool[i] != null) _ghostPool[i].Despawn();
+
+            _ghostPool.Clear();
+        }
+
+        /// <summary>
+        /// 다 쓴 낙하 그림을 지우지 않고 세워 둔다 (S15P21B202-684).
+        ///
+        /// <para><b>꺼서 세운다.</b> <c>SetActive(false)</c> 면 그리지도 물리를 밟지도
+        /// 않는다 — 살아 있는 것과 구별되는 것은 그 한 줄이다. <c>Meteor.All</c> 에서도
+        /// 빼 둔다(이미 <c>enabled = false</c> 로 빠져 있지만, 그 사실이 여기 적혀 있어야
+        /// 세워 둔 돌이 남의 순회에 끼는 일이 없다).</para>
+        ///
+        /// <para>넘치면 지운다. 쥐고 있어 봐야 다시 쓰이지 않는다.</para>
+        /// </summary>
+        void ParkGhost(Meteor ghost)
+        {
+            if (ghost == null) return;
+
+            if (_ghostPool.Count >= MaxPooledGhosts)
+            {
+                ghost.Despawn();
+                return;
+            }
+
+            ghost.Unregister();
+            ghost.gameObject.SetActive(false);
+            _ghostPool.Add(ghost);
+        }
+
+        /// <summary>
+        /// 세워 둔 낙하 그림을 하나 꺼낸다. 없으면 <c>null</c> (S15P21B202-684).
+        ///
+        /// <para>씬 전환이나 <c>Destroy</c> 로 사라진 것은 건너뛰고 버린다 — 꺼낸 것이
+        /// <c>null</c> 이면 부르는 쪽이 새로 만든다.</para>
+        /// </summary>
+        Meteor TakeParkedGhost()
+        {
+            while (_ghostPool.Count > 0)
+            {
+                var last = _ghostPool.Count - 1;
+                var ghost = _ghostPool[last];
+                _ghostPool.RemoveAt(last);
+
+                if (ghost == null) continue;
+
+                ghost.gameObject.SetActive(true);
+                return ghost;
+            }
+
+            return null;
         }
 
         // ── 네트워크에서 받은 흔적 (S15P21B202-355) ───────────────────────
@@ -1249,9 +1374,15 @@ namespace Metagame.Gameplay.Hazards
         {
             EnsureConfiguration();
 
-            var ghost = _meteorPrefab != null
-                ? Instantiate(_meteorPrefab)
-                : CreateFallbackMeteor(Vector3.zero);
+            // **세워 둔 것을 먼저 쓴다** (S15P21B202-684). 흔적은 풀을 쓰지 않는다 —
+            // 이유는 <see cref="_ghostPool"/> 에 적었다.
+            var ghost = solid ? null : TakeParkedGhost();
+            var reused = ghost != null;
+
+            if (ghost == null)
+                ghost = _meteorPrefab != null
+                    ? Instantiate(_meteorPrefab)
+                    : CreateFallbackMeteor(Vector3.zero);
 
             ghost.ApplyTuning(_tuning);
             ghost.name = "Meteor(원격 그림)";
@@ -1260,12 +1391,20 @@ namespace Metagame.Gameplay.Hazards
             // **이 한 줄이 판정을 막는다** — 아래에서 콜라이더를 켜도 그대로다.
             ghost.enabled = false;
 
-            var body = ghost.GetComponent<Rigidbody>();
+            // **다시 쓰는 돌은 꼬리를 지운다** (S15P21B202-684). 남겨 두면 옛 자리의
+            // 점들이 새 자리까지 한 줄로 이어져 하늘을 가로지른다. 부르는 쪽이 같은
+            // 프레임에 자세를 얹으므로, 지운 뒤 순간이동해도 그 사이에 그려지지 않는다.
+            if (reused) ghost.RestartTrail();
+
+            var body = ghost.Body;
 
             if (!solid)
             {
-                foreach (var collider in ghost.GetComponentsInChildren<Collider>(true))
-                    collider.enabled = false;
+                // 계층을 매번 훑지 않는다 (S15P21B202-684) — `Meteor.Colliders` 가 돌
+                // 하나당 한 번만 구해 쥐고 있다.
+                var colliders = ghost.Colliders;
+                for (var i = 0; i < colliders.Length; i++)
+                    if (colliders[i] != null) colliders[i].enabled = false;
 
                 if (body != null)
                 {
@@ -1831,7 +1970,7 @@ namespace Metagame.Gameplay.Hazards
             // 이 값으로 푼다.
             meteor.SetGroundHeight(impactPoint.y);
 
-            var body = meteor.GetComponent<Rigidbody>();
+            var body = meteor.Body;
             if (body != null)
             {
                 // 수평은 등속이다 — 공기 저항이 없으므로 거리 / 예고 시간이면 정확히

@@ -19,7 +19,7 @@ namespace Metagame.Gameplay.Tests
 
         [TearDown] public void Cleanup()
         {
-            foreach (var meteor in Object.FindObjectsByType<Meteor>(FindObjectsSortMode.None))
+            foreach (var meteor in Object.FindObjectsByType<Meteor>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 Object.DestroyImmediate(meteor.gameObject);
             foreach (var go in _objects) if (go != null) Object.DestroyImmediate(go);
             _objects.Clear();

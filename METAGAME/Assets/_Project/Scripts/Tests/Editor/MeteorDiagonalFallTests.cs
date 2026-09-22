@@ -24,7 +24,7 @@ namespace Metagame.Gameplay.Tests
         [TearDown]
         public void TearDown()
         {
-            foreach (var meteor in Object.FindObjectsByType<Meteor>(FindObjectsSortMode.None))
+            foreach (var meteor in Object.FindObjectsByType<Meteor>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 if (meteor != null)
                     Object.DestroyImmediate(meteor.gameObject);
 

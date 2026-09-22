@@ -70,7 +70,7 @@ namespace Metagame.Gameplay.Tests
         public void TearDown()
         {
             // 그림이 남으면 다음 테스트의 FindObjectsByType 에 섞인다.
-            foreach (var meteor in Object.FindObjectsByType<Meteor>(FindObjectsSortMode.None))
+            foreach (var meteor in Object.FindObjectsByType<Meteor>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 if (meteor != null)
                     Object.DestroyImmediate(meteor.gameObject);
 
@@ -353,7 +353,7 @@ namespace Metagame.Gameplay.Tests
             spawner.ClearNetworkMeteors();
 
             Assert.AreEqual(0, spawner.Ghosts.Count);
-            Assert.AreEqual(0, Object.FindObjectsByType<Meteor>(FindObjectsSortMode.None).Length,
+            Assert.AreEqual(0, Object.FindObjectsByType<Meteor>(FindObjectsInactive.Include, FindObjectsSortMode.None).Length,
                 "씬에도 남아 있으면 안 된다.");
         }
 
@@ -466,7 +466,7 @@ namespace Metagame.Gameplay.Tests
             spawner.ClearNetworkScars();
 
             Assert.AreEqual(0, spawner.ScarGhostCount);
-            Assert.AreEqual(0, Object.FindObjectsByType<Meteor>(FindObjectsSortMode.None).Length,
+            Assert.AreEqual(0, Object.FindObjectsByType<Meteor>(FindObjectsInactive.Include, FindObjectsSortMode.None).Length,
                 "씬에도 남아 있으면 안 된다.");
         }
 
