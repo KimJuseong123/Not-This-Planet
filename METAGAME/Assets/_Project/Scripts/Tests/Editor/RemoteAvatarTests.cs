@@ -291,10 +291,10 @@ namespace Metagame.Gameplay.Tests
             // 설정 직후에는 선 자세를 붙든다 — 평소 동작.
             avatar.Follow();
             var joint = rig.Doll.LeftLeg.Knee;
-            Assert.Greater(joint.angularXDrive.positionSpring, 0f,
+            Assert.Greater(joint.slerpDrive.positionSpring, 0f,
                 "기절하지 않은 남의 몸은 선 자세를 붙들어야 한다");
 
-            float standingSpring = joint.angularXDrive.positionSpring;
+            float standingSpring = joint.slerpDrive.positionSpring;
             var shin = rig.Doll.LeftLeg.Shin;
             bool limbGravityWhileStanding = shin.useGravity;
 
@@ -302,9 +302,9 @@ namespace Metagame.Gameplay.Tests
             rig.SetRemoteDowned(true);
             avatar.Follow();
 
-            Assert.AreEqual(0f, joint.angularXDrive.positionSpring,
+            Assert.AreEqual(0f, joint.slerpDrive.positionSpring,
                 "기절한 몸의 팔다리를 아직 선 자세로 당긴다 — 남의 화면에서 서 있게 된다");
-            Assert.Greater(joint.angularXDrive.positionDamper, 0f,
+            Assert.Greater(joint.slerpDrive.positionDamper, 0f,
                 "감쇠까지 0 이면 골반이 움직일 때 팔다리가 떨린다");
 
             // 중력도 켜져야 처진다. 설정 때는 일부러 꺼 두었다(선 자세를 지키려고).
@@ -320,7 +320,7 @@ namespace Metagame.Gameplay.Tests
             rig.SetRemoteDowned(false);
             avatar.Follow();
 
-            Assert.AreEqual(standingSpring, joint.angularXDrive.positionSpring,
+            Assert.AreEqual(standingSpring, joint.slerpDrive.positionSpring,
                 "되살아났는데 팔다리가 늘어진 채다");
             Assert.IsFalse(shin.useGravity,
                 "되살아났는데 팔다리 중력이 켜진 채다 — 자세가 무너진다");
@@ -341,9 +341,9 @@ namespace Metagame.Gameplay.Tests
 
             for (int i = 0; i < 5; i++) avatar.Follow();
 
-            Assert.AreEqual(0f, rig.Doll.Left.Shoulder.angularXDrive.positionSpring,
+            Assert.AreEqual(0f, rig.Doll.Left.Shoulder.slerpDrive.positionSpring,
                 "어깨가 선 자세로 되돌려졌다 — ApplyArmPose 가 같은 틱에 덮는다");
-            Assert.AreEqual(0f, rig.Doll.Left.Elbow.angularXDrive.positionSpring,
+            Assert.AreEqual(0f, rig.Doll.Left.Elbow.slerpDrive.positionSpring,
                 "팔꿈치가 선 자세로 되돌려졌다");
         }
     }
