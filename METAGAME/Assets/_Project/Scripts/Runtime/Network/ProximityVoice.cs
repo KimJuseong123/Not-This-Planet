@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using Metagame.Core;
 using Metagame.Gameplay;
 using UnityEngine;
@@ -9,22 +8,16 @@ namespace Metagame.Network
     public static class VoiceRules
     {
         public const int Rate = 16000, Frame = 640;
+
+        /// <summary>
+        /// <b>AI 가 누구 말을 듣는가</b>의 반경.
+        ///
+        /// <para>플레이어끼리의 근접 음성 채팅은 <c>S15P21B202-705</c> 에서 걷어냈지만 이 값은
+        /// 남는다 — <see cref="NetPlayer.BeginAiListening"/> 이 명령을 받을 AI 를 고를 때 그대로
+        /// 쓴다. "가까이 있는 동료에게 말한다" 는 규칙 자체는 없어지지 않았다.</para>
+        /// </summary>
         public const float Range = 20f;
         public static bool Audible(Vector3 a, Vector3 b) => (a - b).sqrMagnitude <= Range * Range;
-        // G.711 mu-law: independent 40 ms packets, no cross-packet decoder state.
-        public static byte Encode(float value)
-        {
-            int sample = (int)(Mathf.Clamp(value, -1, 1) * 32767), sign = sample < 0 ? 128 : 0;
-            sample = Math.Min(Math.Abs(sample), 32635) + 132;
-            int exponent = 7;
-            for (int mask = 16384; exponent > 0 && (sample & mask) == 0; mask >>= 1) exponent--;
-            return (byte)~(sign | exponent << 4 | (sample >> (exponent + 3) & 15));
-        }
-        public static float Decode(byte value)
-        {
-            int v = (~value) & 255, sample = (((v & 15) << 3) + 132) << ((v >> 4) & 7);
-            return ((v & 128) != 0 ? 132 - sample : sample - 132) / 32768f;
-        }
     }
 
     /// <summary>Basic high-pass / adaptive downward expansion, not acoustic echo cancellation.</summary>
@@ -52,18 +45,42 @@ namespace Metagame.Network
         }
     }
 
-    /// <summary>Single microphone owner shared by open voice and V recording. Main-thread callbacks only.</summary>
+    /// <summary>
+    /// <b>V 를 누르는 동안에만</b> 열리는 마이크. 잡은 소리가 갈 곳은 AI 명령뿐이다.
+    /// Main-thread callbacks only.
+    ///
+    /// <para><b>왜 상시 열어 두지 않는가</b> (S15P21B202-705). 예전에는 오픈 마이크로 늘 열려
+    /// 있으면서 프레임마다 근접 음성 패킷을 올렸고, <b>호스트가 그것을 받아 들리는 사람 수만큼
+    /// 되뿌렸다</b> — 사람 수의 제곱으로 늘어 호스트만 렉이 심했다. 같은 PC 에서 AI 모델이
+    /// CPU 로 도는 판에서는 감당할 수 없었다. 플레이어끼리 말하는 길을 걷어내고 나면 마이크를
+    /// 늘 열어 둘 이유도 없다 — OS 의 마이크 표시까지 꺼진다.</para>
+    /// </summary>
     public sealed class ProximityMicrophone : MonoBehaviour
     {
+        /// <summary>
+        /// V 를 놓은 뒤 <b>이만큼 더 받는다</b> (S15P21B202-705).
+        ///
+        /// <para>상시로 열려 있을 때는 링 버퍼가 매 프레임 비워졌다. 놓는 순간 닫으면
+        /// <b>아직 읽지 않은 마지막 조각</b>이 남은 채 버려진다 — AI 명령의 <b>끝 낱말이
+        /// 잘린다.</b> <c>AiVoiceControls</c> 도 같은 값만큼 기다렸다가 보내므로, 한쪽만
+        /// 바꾸면 그 낱말은 잡히고도 실려 가지 않는다.</para>
+        /// </summary>
+        public const float ReleaseTail = .35f;
         public static ProximityMicrophone Current { get; private set; }
         public event Action<float[]> FrameReady;
+
+        /// <summary>
+        /// 장치가 <b>실제로 열려 있는가</b>. 3초 물러서기(<c>retryAt</c>) 중에는 V 를 눌러도
+        /// 열리지 않는데, 그 사이의 녹음은 <b>한 조각도 못 받고 끝난다</b> — 부르는 쪽이
+        /// 이것을 보지 않으면 "조금 더 길게 말해 주세요" 라는 엉뚱한 안내가 나간다.
+        /// </summary>
         public bool Capturing => clip != null;
         public bool Speaking { get; private set; }
         public string Problem { get; private set; }
         AudioClip clip;
         string device;
-        int read, sequence;
-        float retryAt, lastPoll;
+        int read;
+        float retryAt, lastPoll, holdUntil;
         float[] raw, mono = new float[VoiceRules.Frame];
         VoiceFilter filter = new VoiceFilter();
         GameSession session;
@@ -71,7 +88,7 @@ namespace Metagame.Network
         static void Boot()
         {
             if (Application.isBatchMode || Current != null) return;
-            Current = new GameObject("Shared proximity microphone").AddComponent<ProximityMicrophone>();
+            Current = new GameObject("AI command microphone (V)").AddComponent<ProximityMicrophone>();
             DontDestroyOnLoad(Current.gameObject);
         }
         void Update()
@@ -79,10 +96,13 @@ namespace Metagame.Network
             var local = Mirror.NetworkClient.localPlayer != null ? Mirror.NetworkClient.localPlayer.GetComponent<NetPlayer>() : null;
             var now = GameSession.Instance;
             var settings = GameSettingsRuntime.Instance?.Current?.voice;
+            // 마이크는 V 를 누르는 동안(+ 꼬리)에만 열린다. 고를 수 있는 설정이 아니다 —
+            // 오픈 마이크로 갈 곳이 없어졌기 때문이다 (S15P21B202-705).
+            if (Input.GetKey(KeyCode.V)) holdUntil = Time.unscaledTime + ReleaseTail;
             bool allowed = Application.isFocused && local != null && now != null && now.LocalPlayer != null
                 && !now.LocalPlayer.Downed && now.CursorLocked && !now.CinematicInputBlocked && !now.EndingActive
                 && !(settings?.microphoneMuted ?? false)
-                && (!(settings?.pushToTalk ?? false) || Input.GetKey(KeyCode.V));
+                && Time.unscaledTime < holdUntil;
             if (!allowed) { Stop(); return; }
             string wanted = settings?.microphoneDevice ?? "";
             if (clip != null && (session != now || wanted != device)) Stop();
@@ -120,14 +140,8 @@ namespace Metagame.Network
                     mono[i] = value / clip.channels;
                 }
                 Speaking = filter.Process(mono, settings?.microphoneSensitivity ?? 1f);
+                // 잡은 소리는 AI 명령으로만 간다. 플레이어끼리 보내는 길은 없다 (S15P21B202-705).
                 FrameReady?.Invoke(mono);
-                // V is never speech-gated. Normal chat uses VAD plus a 240 ms release tail.
-                if (Speaking || Input.GetKey(KeyCode.V))
-                {
-                    var packet = new byte[mono.Length];
-                    for (int i = 0; i < packet.Length; i++) packet[i] = VoiceRules.Encode(mono[i]);
-                    local.SendProximityVoice(packet, ++sequence);
-                }
             }
         }
         void Stop()
@@ -140,58 +154,5 @@ namespace Metagame.Network
         void OnDisable() => Stop();
         void OnApplicationFocus(bool focused) { if (!focused) Stop(); }
         void OnDestroy() { Stop(); if (Current == this) Current = null; }
-    }
-
-    public sealed class ProximityVoicePlayback : MonoBehaviour
-    {
-        readonly Queue<float> queue = new Queue<float>(VoiceRules.Rate / 2);
-        readonly object gate = new object();
-        AudioSource source;
-        AudioClip clip;
-        NetPlayer owner;
-        bool primed;
-        int lastSequence;
-        float lastPacket;
-        public bool Speaking => Time.unscaledTime - lastPacket < .3f;
-        public void Receive(NetPlayer player, byte[] bytes, int sequence)
-        {
-            if (source != null && sequence <= lastSequence) return;
-            owner = player; lastSequence = sequence; lastPacket = Time.unscaledTime;
-            if (source == null)
-            {
-                source = gameObject.AddComponent<AudioSource>(); source.spatialBlend = 1;
-                source.rolloffMode = AudioRolloffMode.Linear; source.minDistance = 3; source.maxDistance = VoiceRules.Range;
-                source.dopplerLevel = 0; source.loop = true; source.playOnAwake = false;
-                clip = AudioClip.Create("Remote voice (memory only)", VoiceRules.Rate, 1, VoiceRules.Rate, true, Read);
-                source.clip = clip; source.Play();
-            }
-            lock (gate)
-            {
-                if (queue.Count > VoiceRules.Frame * 5) { queue.Clear(); primed = false; }
-                foreach (byte b in bytes) queue.Enqueue(VoiceRules.Decode(b));
-            }
-        }
-        void Read(float[] output)
-        {
-            lock (gate)
-            {
-                if (!primed && queue.Count >= VoiceRules.Frame * 2) primed = true;
-                for (int i = 0; i < output.Length; i++) output[i] = primed && queue.Count > 0 ? queue.Dequeue() : 0;
-                if (queue.Count == 0) primed = false;
-            }
-        }
-        void Update()
-        {
-            if (source == null) return;
-            var session = GameSession.Instance; var settings = GameSettingsRuntime.Instance?.Current;
-            bool audible = owner != null && owner.VisualRig != null && session?.LocalPlayer != null
-                && VoiceRules.Audible(owner.VisualRig.FootPosition, session.LocalPlayer.FootPosition)
-                && !(settings?.voice?.mutedPlayerIds?.Contains(owner.userId.ToString()) ?? false);
-            // Master volume is already applied by GameSettingsRuntime to AudioListener.
-            source.volume = audible ? (settings?.audio?.voiceVolume ?? 1f) : 0;
-            if (owner?.VisualRig != null) transform.position = owner.VisualRig.FootPosition + Vector3.up * 1.3f;
-            if (!audible || Time.unscaledTime - lastPacket > .4f) lock (gate) { queue.Clear(); primed = false; }
-        }
-        void OnDestroy() { if (clip != null) Destroy(clip); }
     }
 }
