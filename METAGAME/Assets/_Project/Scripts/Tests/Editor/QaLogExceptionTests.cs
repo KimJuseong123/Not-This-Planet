@@ -76,8 +76,48 @@ namespace Metagame.Gameplay.Tests
             Assert.That(scope, Does.Contain("transportWanted && transport == null"),
                 "못 붙은 것을 다시 시도하지 않는다 — 그 사람의 견인빔이 판이 끝날 때까지 "
                 + "조용히 없는 채로 남는다");
-            Assert.That(scope, Does.Contain("AttachTransport()"),
+            Assert.That(scope, Does.Contain("RetryAttachTransport()"),
                 "다시 붙이는 호출이 없다");
+        }
+
+        /// <summary>
+        /// 다시 붙이기에 <b>상한이 있고, 그만두는 것을 말한다</b> (S15P21B202-693).
+        ///
+        /// <para><b>이 검사가 막는 것은 이 MR 이 만들 수 있었던 새 침묵이다</b>(`!586` AI
+        /// 리뷰 지적). 거절 원인이 "같은 프레임의 파괴 예약" 이 아니면 재시도가 <b>매 물리
+        /// 스텝</b> 돌고, <c>AddComponent</c> 는 거절될 때마다 <b>Unity 가 제 오류를 찍는다</b>
+        /// — 초당 50줄이면 그 줄들이 로그를 못 읽게 만든다. 고치려던 모양을 새 코드로 다시
+        /// 만드는 것이다.</para>
+        ///
+        /// <para>그리고 <b>그만두는 것을 조용히 하지 않는다.</b> 그만둔 판에서 그 사람의
+        /// 견인빔은 동작하지 않으므로, 그 사실이 로그에 있어야 다음 QA 의 "나만 장치가
+        /// 안 된다" 를 여기로 이을 수 있다.</para>
+        /// </summary>
+        [Test]
+        public void TheRetryStopsAndSaysSoInsteadOfHammeringForever()
+        {
+            var src = TestSource.Read(NetPlayer);
+            var scope = TestSource.Method(src, "void RetryAttachTransport()");
+
+            Assert.That(scope, Does.Contain("TransportRetryMaxSteps"),
+                "재시도에 상한이 없다 — 붙을 때까지 매 스텝 AddComponent 가 돌고, 거절될 "
+                + "때마다 Unity 가 오류를 찍어 로그를 못 읽게 만든다");
+            Assert.That(scope, Does.Contain("Debug.LogError"),
+                "그만두는 것을 조용히 한다 — 그 판에서 그 사람의 견인빔이 동작하지 않는데 "
+                + "로그에 근거가 남지 않는다");
+
+            // 상한 뒤에 **붙이기를 부르지 않는다.** 남기기만 하고 그대로 계속 부르면
+            // 상한이 아무것도 막지 못한다.
+            int stop = scope.IndexOf("TransportRetryMaxSteps", System.StringComparison.Ordinal);
+            int call = scope.IndexOf("AttachTransport()", System.StringComparison.Ordinal);
+            Assert.That(call, Is.GreaterThan(stop),
+                "상한 검사보다 먼저 붙이기를 부른다 — 상한이 아무것도 막지 못한다");
+
+            // 몸을 새로 세우면 셈을 되돌린다. 안 되돌리면 새 몸이 첫 시도부터 상한을
+            // 넘은 것으로 취급된다.
+            Assert.That(TestSource.Method(src, "bool BuildServerBody()"),
+                Does.Contain("transportRetrySteps = 0"),
+                "몸을 새로 세울 때 셈을 되돌리지 않는다 — 새 몸이 첫 시도부터 포기한다");
         }
 
         /// <summary>
