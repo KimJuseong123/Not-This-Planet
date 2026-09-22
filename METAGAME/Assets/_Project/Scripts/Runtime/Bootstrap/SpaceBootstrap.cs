@@ -76,6 +76,7 @@ namespace Metagame.Bootstrap
             var authoredMap = FindAnyObjectByType<AuthoredMapSettings>();
             bool authoredLighting = authoredMap != null && authoredMap.preserveSceneLighting;
             settingsRuntime = GameSettingsRuntime.Ensure();
+            FpsOverlay.Ensure(settingsRuntime);
             settingsRuntime.Changed += OnSettingsChanged;
 
             // SampleScene처럼 기본 Main Camera가 들어 있는 씬에서도 런타임 카메라만 사용한다.
