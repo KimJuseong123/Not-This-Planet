@@ -1,5 +1,9 @@
 # Unity Project Context
 
+## 2026-09-22 Stage2 데모 마무리 (677)
+
+`Stage2Bootstrap`은 기본적으로 데모 모드다. 서버가 준비된 플레이어들의 공통 시작 시각을 `Stage2State`로 복제하며, 3초 이동 → 6초 주변 소개 → 18초 조립 연출 → 3초 마무리 → `-- 데모 완 --`으로 이어진다. `GameSession.CinematicInputBlocked`가 서버/로컬 입력을 함께 차단하며 ESC 메뉴는 유지한다. 실제 퍼즐 클리어 상태는 바꾸지 않고, 기존 퍼즐 검증은 `ConfigureDemo(false)`로 유지한다. 씬·프리팹 변경 없음. 근거와 검증: [677 작업 기록](records/2026-09-22-677-stage2-demo.md).
+
 ## 2026-09-21 컷씬 스킵 (666)
 
 `EndingSceneFlow`가 소유하는 `CutsceneSkipFlow`는 Stage1 입장/공세 및 엔딩 각 구간에 오른쪽 아래 SKIP 투표 UI를 제공한다. 서버가 현재 인증 연결의 만장일치를 판정하며, `CutsceneSkipVotes`는 중복/구간이 지난 표를 거부한다. **1장 완료·플레이 타임을 표시하는 EndTitle은 스킵 불가 지점**이며 기존 3초를 유지한다. 씬/프리팹 연결 변경은 없다. 구현과 검증/기존 테스트 실패 구분은 [작업 기록](records/2026-09-21-666-cutscene-skip.md)을 참고한다.

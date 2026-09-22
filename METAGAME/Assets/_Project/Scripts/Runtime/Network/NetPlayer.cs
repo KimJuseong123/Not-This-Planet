@@ -890,7 +890,11 @@ namespace Metagame.Network
         /// </summary>
         void AttachTransport()
         {
-            transport = body.gameObject.AddComponent<TractorBeamController>();
+            // A pooled body survives an AI-to-human handoff. Its controller survives with it:
+            // Destroy is deferred, so destroying/re-adding in the same frame violates DisallowMultipleComponent.
+            transport = body.GetComponent<TractorBeamController>();
+            if (transport == null) transport = body.gameObject.AddComponent<TractorBeamController>();
+            transport.enabled = true;
             transport.Configure(body, FindObjectsByType<TractorBeam>(FindObjectsSortMode.None),
                                 randomizeVehicles: false);
         }
@@ -946,6 +950,8 @@ namespace Metagame.Network
             InputFrame frame = hostOwnBody ? body.CurrentInput : pending;
             if (GameSession.Instance != null && GameSession.Instance.CinematicInputBlocked)
                 frame = new InputFrame();
+            else if (GameSession.Instance != null && GameSession.Instance.Stage2Demo != null && GameSession.Instance.Stage2Demo.DemoMode)
+                frame = GameSession.Instance.Stage2Demo.FilterDemoInput(frame);
 
             if (transport != null)
             {
@@ -1608,12 +1614,12 @@ namespace Metagame.Network
                 Destroy(remoteAvatar);
             }
 
-            // 몸을 남길 때는 내 운반 장치 조작을 먼저 걷어낸다. 컨트롤러는 <b>조종자마다</b>
-            // 하나씩 붙는 것이라(-149), 그냥 두면 다음 조종자가 붙일 때 몸에 겹쳐 쌓인다.
+            // Keep one controller per pooled body. Clear old input and disable it until the next
+            // driver claims it; deferred Destroy would race that driver's same-frame attachment.
             if (pooledBody && transport != null)
             {
                 transport.ReleaseForRespawn();
-                Destroy(transport);
+                transport.enabled = false;
                 transport = null;
             }
 
