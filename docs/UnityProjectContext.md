@@ -1,5 +1,9 @@
 # Unity Project Context
 
+## 2026-09-22 팀 생존 HUD (682)
+
+`GameHud.TeamStatus`는 왼쪽 위에 현재 참가자(자신 포함)의 원형 실제 모델 초상화, 팀 색 닉네임 및 생존/쓰러짐 심장을 표시한다. `TeamStatusRoster`는 기존 NetPlayer의 동기화된 신원·체력·downed를 읽고, `TeamPortrait`는 게임 카메라와 원본 렌더러를 바꾸지 않고 이미지를 캐시한다. `Stage2Hud`는 공통 HUD 높이를 환산해 상단 안내를 아래로 옮긴다. 씬/프리팹 설정은 없다. 관련 47개 및 최종 구도 재검사 8개 통과; 다인 플레이는 미검증. [작업 기록](records/2026-09-22-682-team-status-hud.md).
+
 ## 2026-09-21 컷씬 스킵 (666)
 
 `EndingSceneFlow`가 소유하는 `CutsceneSkipFlow`는 Stage1 입장/공세 및 엔딩 각 구간에 오른쪽 아래 SKIP 투표 UI를 제공한다. 서버가 현재 인증 연결의 만장일치를 판정하며, `CutsceneSkipVotes`는 중복/구간이 지난 표를 거부한다. **1장 완료·플레이 타임을 표시하는 EndTitle은 스킵 불가 지점**이며 기존 3초를 유지한다. 씬/프리팹 연결 변경은 없다. 구현과 검증/기존 테스트 실패 구분은 [작업 기록](records/2026-09-21-666-cutscene-skip.md)을 참고한다.
