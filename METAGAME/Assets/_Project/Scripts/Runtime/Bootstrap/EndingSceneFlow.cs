@@ -133,7 +133,10 @@ namespace Metagame.Bootstrap
 
         public void Begin(DemoEndingSnapshot snapshot)
         {
-            if (transferring || ((networked || NetworkClient.active) && !NetworkServer.active)) return;
+            // 리트라이/맵 복구가 확정된 뒤 옛 월드의 마지막 프레임이 엔딩을 요청할 수 있다.
+            // 이미 진행 중인 씬 로딩을 엔딩으로 덮어쓰거나 플레이어 생성을 막지 않는다.
+            if (transferring || MapRecoveryBridge.IsReloading
+                || ((networked || NetworkClient.active) && !NetworkServer.active)) return;
             if (SceneUtility.GetBuildIndexByScenePath(ScenePath) < 0)
             {
                 Abort("빌드 목록에 Stage1_Ending 씬이 없습니다.");

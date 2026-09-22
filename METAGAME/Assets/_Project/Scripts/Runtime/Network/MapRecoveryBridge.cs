@@ -10,6 +10,10 @@ namespace Metagame.Network
     public sealed class MapRecoveryBridge : MonoBehaviour
     {
         MapRecovery recovery;
+        static AsyncOperation _localReload;
+        public static bool IsReloading => NetworkServer.isLoadingScene || NetworkClient.isLoadingScene
+            || (NetworkManager.loadingSceneAsync != null && !NetworkManager.loadingSceneAsync.isDone)
+            || (_localReload != null && !_localReload.isDone);
 
         public void Configure(MapRecovery target)
         {
@@ -46,27 +50,45 @@ namespace Metagame.Network
 
         void ReloadScene()
         {
-            string scenePath = gameObject.scene.path;
+            TryReloadScene(gameObject.scene.path);
+        }
+
+        /// <summary>새 판은 플레이어 몸까지 다시 만든다. 연결과 방은 유지한다.</summary>
+        public static bool TryReloadScene(string scenePath, System.Action onStarting = null)
+        {
+            if (HostMigration.Pending || HostMigration.Taking || HostMigration.Settling || IsReloading)
+                return false;
+            if (!Application.CanStreamedLevelBeLoaded(scenePath))
+            {
+                Debug.LogError("[MapRecovery] 빌드 목록에 재시작할 씬이 없습니다: " + scenePath);
+                return false;
+            }
             if (NetworkServer.active)
             {
                 var manager = NetworkManager.singleton;
                 if (manager == null)
                 {
                     Debug.LogError("[MapRecovery] 서버의 NetworkManager가 없어 씬을 재시작할 수 없습니다.");
-                    return;
+                    return false;
                 }
                 // Mirror가 새 씬 Ready 후 플레이어를 다시 만들도록 기존 접속 객체만 제거한다.
                 // 연결·방은 유지하며 옛 플레이어의 복귀 위치는 새 판에 넘기지 않는다.
+                onStarting?.Invoke();
                 var connections = new List<NetworkConnectionToClient>(NetworkServer.connections.Values);
                 foreach (var connection in connections)
                     if (connection.identity != null)
                         NetworkServer.RemovePlayerForConnection(connection, RemovePlayerOptions.Destroy);
                 RejoinMemory.Clear();
                 manager.ServerChangeScene(scenePath);
-                return;
+                return true;
             }
             if (!NetworkClient.active)
-                SceneManager.LoadSceneAsync(scenePath, LoadSceneMode.Single);
+            {
+                onStarting?.Invoke();
+                _localReload = SceneManager.LoadSceneAsync(scenePath, LoadSceneMode.Single);
+                return _localReload != null;
+            }
+            return false;
         }
     }
 }

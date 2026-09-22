@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using Metagame.Core;
 using Metagame.Gameplay;
+using Metagame.Network;
 
 namespace Metagame.UI
 {
@@ -34,6 +35,7 @@ namespace Metagame.UI
         private GUIStyle quietButtonStyle;
         private GUIStyle kickerStyle;
         private GUIStyle hintStyle;
+        private GUIStyle retryNoticeStyle;
 
         public bool IsOpen { get { return isOpen; } }
 
@@ -167,6 +169,7 @@ namespace Metagame.UI
 
         void DrawScaledGui()
         {
+            DrawRetryNotice();
             if (!isOpen || titleTransitionStarted || SettingsIsOpen)
                 return;
 
@@ -175,7 +178,9 @@ namespace Metagame.UI
             float scale = Mathf.Clamp(Mathf.Min(Screen.width / 1600f, Screen.height / 900f),
                                       0.78f, 1.25f);
             float panelWidth = 430f * scale;
-            float panelHeight = 366f * scale;
+            var retry = TeamRetryFlow.Instance;
+            bool showRetry = session != null && StageCatalog.IsStageScene(session.gameObject.scene.name);
+            float panelHeight = (showRetry ? 430f : 366f) * scale;
             float x = (UiScale.Width - panelWidth) * 0.5f;
             float y = (UiScale.Height - panelHeight) * 0.5f;
             float buttonWidth = 320f * scale;
@@ -202,7 +207,19 @@ namespace Metagame.UI
                                     buttonWidth, buttonHeight), "설정", buttonStyle))
                 OpenSettings();
 
-            if (UiInteraction.Button(new Rect(buttonX, firstButtonY + (buttonHeight + gap) * 2f,
+            if (showRetry)
+            {
+                bool previousEnabled = GUI.enabled;
+                GUI.enabled = previousEnabled && retry != null && retry.CanVote;
+                string label = retry != null && retry.State.Voted ? "리트라이 요청 완료" : "리트라이";
+                if (UiInteraction.Button(new Rect(buttonX, firstButtonY + (buttonHeight + gap) * 2f,
+                                        buttonWidth, buttonHeight), label, buttonStyle)
+                    && retry.RequestRetry())
+                    CloseMenu();
+                GUI.enabled = previousEnabled;
+            }
+
+            if (UiInteraction.Button(new Rect(buttonX, firstButtonY + (buttonHeight + gap) * (showRetry ? 3f : 2f),
                                     buttonWidth, buttonHeight), "타이틀로 나가기", quietButtonStyle))
                 ReturnToTitle();
 
@@ -210,6 +227,26 @@ namespace Metagame.UI
                       "Esc 닫기", hintStyle, UiTheme.MutedText);
 
             GUI.depth = previousDepth;
+        }
+
+        private void DrawRetryNotice()
+        {
+            var retry = TeamRetryFlow.Instance;
+            if (retry == null || session == null || session.EndingActive || titleTransitionStarted
+                || MatchRole.DedicatedServer || HostMigration.Pending || HostMigration.Taking || HostMigration.Settling)
+                return;
+            var state = retry.State;
+            if (!state.Restarting && (!state.Available || state.Votes == 0)) return;
+            EnsureStyles();
+            var rect = new Rect(Mathf.Max(12f, UiScale.Width - 472f), UiScale.Height - 146f,
+                                Mathf.Min(448f, UiScale.Width - 24f), 58f);
+            int depth = GUI.depth;
+            GUI.depth = -8000;
+            UiTheme.DrawPanel(rect);
+            DrawLabel(rect, state.Restarting ? "모두 동의했습니다. 1stage를 다시 시작합니다…"
+                : $"리트라이를 원하는 팀원들이 있습니다 ({state.Votes}/{state.Total})",
+                retryNoticeStyle, UiTheme.Text);
+            GUI.depth = depth;
         }
 
         private void EnsureStyles()
@@ -222,6 +259,9 @@ namespace Metagame.UI
             titleStyle = MakeLabelStyle(TitleSize, TextAnchor.MiddleCenter, FontStyle.Bold);
             kickerStyle = MakeLabelStyle(HintSize, TextAnchor.MiddleCenter, FontStyle.Bold);
             hintStyle = MakeLabelStyle(HintSize, TextAnchor.MiddleCenter, FontStyle.Normal);
+            retryNoticeStyle = MakeLabelStyle(HintSize, TextAnchor.MiddleCenter, FontStyle.Normal);
+            retryNoticeStyle.wordWrap = true;
+            retryNoticeStyle.clipping = TextClipping.Clip;
             Font font = FontAt(ButtonSize);
             buttonStyle = UiTheme.ButtonStyle(font, ButtonSize);
             primaryButtonStyle = UiTheme.ButtonStyle(font, ButtonSize, true);
@@ -231,7 +271,7 @@ namespace Metagame.UI
         private void WarmFont()
         {
             fontWarmed = true;
-            const string characters = "일시 메뉴 계속하기 설정 타이틀로 나가기 Esc 닫기";
+            const string characters = "일시 메뉴 계속하기 설정 타이틀로 나가기 Esc 닫기 리트라이 요청 완료 원하는 팀원들이 있습니다 모두 동의했습니다 1stage를 다시 시작합니다… (0123456789/)";
             int[] sizes = { TitleSize, ButtonSize, HintSize };
             for (int i = 0; i < sizes.Length; i++)
             {

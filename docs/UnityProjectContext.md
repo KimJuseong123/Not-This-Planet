@@ -1,5 +1,9 @@
 # Unity Project Context
 
+## 2026-09-22 ESC 팀 리트라이 (681)
+
+`SpaceBootstrap`이 설치하는 `TeamRetryFlow`는 현재 인증 연결의 만장일치로 Stage1을 새로 로드한다. `GamePauseMenu`에 리트라이 버튼과 우측 하단 투표 안내를 표시한다. 공세/운석/부품/플레이어는 씬 재생성으로 초기화하며 `MapRecoveryBridge.TryReloadScene`으로 Mirror 연결을 유지한다. 투표는 컷씬 스킵 및 R키 개인 리스폰과 별개다. 엔딩의 동시 씬 전환을 차단하고 Stage1 입장 시 `onlineScene`도 갱신한다. 검증 및 기존 실패: [681 기록](records/2026-09-22-681-team-retry.md).
+
 ## 2026-09-21 컷씬 스킵 (666)
 
 `EndingSceneFlow`가 소유하는 `CutsceneSkipFlow`는 Stage1 입장/공세 및 엔딩 각 구간에 오른쪽 아래 SKIP 투표 UI를 제공한다. 서버가 현재 인증 연결의 만장일치를 판정하며, `CutsceneSkipVotes`는 중복/구간이 지난 표를 거부한다. **1장 완료·플레이 타임을 표시하는 EndTitle은 스킵 불가 지점**이며 기존 3초를 유지한다. 씬/프리팹 연결 변경은 없다. 구현과 검증/기존 테스트 실패 구분은 [작업 기록](records/2026-09-21-666-cutscene-skip.md)을 참고한다.
