@@ -1,9 +1,15 @@
 # Unity Project Context
 
 
+## 2026-09-22 ESC 팀 리트라이 (681)
+
+`SpaceBootstrap`이 설치하는 `TeamRetryFlow`는 현재 인증 연결의 만장일치로 Stage1을 새로 로드한다. `GamePauseMenu`에 리트라이 버튼과 우측 하단 투표 안내를 표시한다. 공세/운석/부품/플레이어는 씬 재생성으로 초기화하며 `MapRecoveryBridge.TryReloadScene`으로 Mirror 연결을 유지한다. 투표는 컷씬 스킵 및 R키 개인 리스폰과 별개다. 엔딩의 동시 씬 전환을 차단하고 Stage1 입장 시 `onlineScene`도 갱신한다. 검증 및 기존 실패: [681 기록](records/2026-09-22-681-team-retry.md).
+
+
 ## 2026-09-22 팀 생존 HUD (682)
 
 `GameHud.TeamStatus`는 왼쪽 위에 현재 참가자(자신 포함)의 원형 실제 모델 초상화, 팀 색 닉네임 및 생존/쓰러짐 심장을 표시한다. `TeamStatusRoster`는 기존 NetPlayer의 동기화된 신원·체력·downed를 읽고, `TeamPortrait`는 게임 카메라와 원본 렌더러를 바꾸지 않고 이미지를 캐시한다. `Stage2Hud`는 공통 HUD 높이를 환산해 상단 안내를 아래로 옮긴다. 씬/프리팹 설정은 없다. 관련 47개 및 최종 구도 재검사 8개 통과; 다인 플레이는 미검증. [작업 기록](records/2026-09-22-682-team-status-hud.md).
+
 
 ## 2026-09-22 Stage2 데모 마무리 (677)
 

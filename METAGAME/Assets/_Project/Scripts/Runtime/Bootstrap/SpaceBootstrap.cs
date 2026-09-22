@@ -158,6 +158,10 @@ namespace Metagame.Bootstrap
             }
 
             Session = sys.AddComponent<GameSession>();
+            // Stage2에서 리트라이한 뒤 호스트를 이어받아도 현재 Stage1을 유지한다.
+            if (Mirror.NetworkManager.singleton != null && StageCatalog.IsStageScene(gameObject.scene.name))
+                Mirror.NetworkManager.singleton.onlineScene = gameObject.scene.path;
+            TeamRetryFlow.Ensure();
             Level = sys.AddComponent<LevelBuilder>();
             Hud = sys.AddComponent<GameHud>();
             PauseMenu = sys.AddComponent<GamePauseMenu>();

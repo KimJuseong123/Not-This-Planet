@@ -36,6 +36,7 @@ namespace Metagame.Network
         double roomTimerStartedAt = -1d;
         public double RoomPlayTimeSeconds => roomTimerStartedAt < 0d ? 0d
             : Math.Max(0d, Time.realtimeSinceStartupAsDouble - roomTimerStartedAt);
+        internal void RestartRoomTimer() => roomTimerStartedAt = Time.realtimeSinceStartupAsDouble;
         public bool IsLocalReady { get; private set; }
         public string ServerAddress { get; private set; } = DefaultServerAddress;
 
