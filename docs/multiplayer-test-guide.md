@@ -230,7 +230,7 @@ journalctl -u metagame-relay -f
 두 사람 모두 아래 파일을 가져옵니다.
 
 ```
-%USERPROFILE%\AppData\LocalLow\NotThisPlanet\Not This Planet\Player.log
+%USERPROFILE%\AppData\LocalLow\Not This Planet\Not This Planet\Player.log
 ```
 
 ### 6-4. 대조
