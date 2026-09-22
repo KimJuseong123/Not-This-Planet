@@ -184,6 +184,64 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
+        /// <b>판정하지 않는 기계에서는 직접 충돌로도 기절하지 않는다</b> (S15P21B202-692).
+        ///
+        /// <para><b>실제로 일어났다.</b> 2026-09-22 QA 로그 <c>Player-prev.log:12252</c> 의
+        /// 스택이 <c>OnCollisionEnter → ApplyKnockback → ApplyTier → GoDown</c> 이고, 같은
+        /// 시각의 진단이 <c>role=client rtt=94.4 crew=4</c> 다 — <b>접속한 참가자 기계가
+        /// 권위 판정을 실행했다.</b> 접속이 끝나기 전 창에서는 그 기계도 권위로 보이므로
+        /// 진짜 운석이 생길 수 있고(<c>MeteorClockBridge</c> 가 그 사실을 적어 두고 있다),
+        /// 그 돌이 판정까지 하면 안 된다.</para>
+        ///
+        /// <para><b>증상이 셋으로 갈려 보인다.</b> 참가자가 자기 몸만 기절시키면 서버는
+        /// 모른다 — 서버 리그는 입력을 계속 적용하므로 <b>쓰러진 채 미끄러지고</b>,
+        /// <c>NetPlayer.downed</c> 는 서버 값을 실으므로 <b>남의 화면에서는 서 있고</b>,
+        /// <c>CollectRescueCandidates</c> 는 <c>!other.Downed</c> 로 거르므로 <b>살리기
+        /// 후보가 아예 안 생긴다.</b> 하나를 막으면 셋이 사라진다.</para>
+        ///
+        /// <para>바로 위 <see cref="ADirectHit_DownsThePlayerInOneGo"/> 와 <b>짝</b>이다 —
+        /// 권위 쪽에서는 한 번에 기절해야 하고, 여기서는 기절하지 않아야 한다. 한쪽만 두면
+        /// 게이트를 너무 넓게 잡아도, 아예 안 잡아도 통과한다.</para>
+        /// </summary>
+        [Test]
+        public void ADirectHit_DoesNotDownOnAMachineThatDoesNotJudge()
+        {
+            var player = MakePlayer(Vector3.zero);
+            player.ServerAuthority = false;   // 참가자 기계의 몸 (RemoteAvatar 가 내려놓는다)
+
+            var meteor = MakeMeteor(new Vector3(0f, 5f, 0f));
+            meteor.ApplyImpact(new Vector3(0f, 1f, 0f), player);
+
+            Assert.IsFalse(player.Downed,
+                "참가자 기계가 자기 몸을 기절시켰다 — 서버는 모르므로 쓰러진 채 끌려다니고 "
+                + "살리기 후보도 안 생긴다");
+        }
+
+        /// <summary>
+        /// 체력과 기절이 <b>같은 게이트</b>를 쓴다 (S15P21B202-692).
+        ///
+        /// <para><see cref="PlayerRig.ApplyDamage"/> 는 <c>-513</c> 에서 이미 막혔는데
+        /// <see cref="PlayerRig.GoDown"/> 은 그대로였고, 직접 충돌은 체력을 거치지 않고
+        /// <c>GoDown</c> 을 직접 부르므로 <b>막힌 구멍이 한 경로로만 열려 있었다.</b>
+        /// 이 파일의 주석이 이미 적고 있다 — "판정을 두 곳에 두면 반드시 갈라진다".</para>
+        ///
+        /// <para>그래서 둘을 <b>한 검사에서 같이</b> 본다. 한쪽만 보면 다음에 또 갈린다.</para>
+        /// </summary>
+        [Test]
+        public void HealthAndDowningUseTheSameGate()
+        {
+            var player = MakePlayer(Vector3.zero);
+            player.ServerAuthority = false;
+            float health = player.Health;
+
+            player.ApplyDamage(999f, "검증");
+            player.GoDown("검증");
+
+            Assert.AreEqual(health, player.Health, "체력 게이트가 열렸다 (`-513` 의 회귀)");
+            Assert.IsFalse(player.Downed, "기절 게이트가 열렸다 (`-692`)");
+        }
+
+        /// <summary>
         /// 순서가 중요하다. <c>GoDown</c> 이 먼저 돌면 <c>KnockDown</c> 이 <c>Downed</c> 를
         /// 보고 즉시 돌아나가 <b>날아가지 않는다</b> — §20.1 은 "날아간 뒤 기절" 이다.
         /// </summary>
