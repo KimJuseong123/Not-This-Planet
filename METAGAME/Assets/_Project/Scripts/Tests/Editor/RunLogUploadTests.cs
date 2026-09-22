@@ -395,5 +395,57 @@ namespace Metagame.Gameplay.Tests
             // 실제 환경에서도 비지 않는다.
             Assert.That(RunLogUpload.BuildTag(), Is.Not.Empty);
         }
+
+        /// <summary>
+        /// 같은 초에 두 번 회전해도 <b>앞 판을 지우지 않는다</b> (S15P21B202-685).
+        ///
+        /// <para>판이 끝날 때마다 로그를 닫고 새 파일을 여는데, 이름이
+        /// <c>yyyyMMdd-HHmmss.log</c> 라 같은 초에 두 번이면 겹친다. 그때
+        /// <c>new StreamWriter(path, false)</c> 는 있는 파일을 <b>자른다</b> —
+        /// 보내기도 전에 방금 한 판이 사라진다. 짧은 판을 연달아 하면 실제로
+        /// 일어나는 일이다.</para>
+        /// </summary>
+        [Test]
+        public void RotatingTwiceInTheSameSecondDoesNotOverwriteTheClosedLog()
+        {
+            string folder = Path.Combine(Path.GetTempPath(),
+                                         "metagame-runlog-" + Path.GetRandomFileName());
+            Directory.CreateDirectory(folder);
+            try
+            {
+                var when = new System.DateTime(2026, 9, 22, 10, 42, 52);
+
+                string first = RunLog.NextFreePath(folder, when);
+                Assert.That(Path.GetFileName(first), Is.EqualTo(RunLog.FileNameFor(when)),
+                    "빈 폴더에서는 시각 그대로여야 한다 — 사람이 파일을 시각으로 찾는다");
+
+                File.WriteAllText(first, "첫 판");
+
+                // 같은 초에 다시 물어보면 **다른 이름**이어야 한다.
+                string second = RunLog.NextFreePath(folder, when);
+                Assert.That(second, Is.Not.EqualTo(first),
+                    "같은 초에 같은 이름을 준다 — 새로 열면 앞 판이 잘린다");
+
+                File.WriteAllText(second, "둘째 판");
+                Assert.That(File.ReadAllText(first), Is.EqualTo("첫 판"),
+                    "앞 판이 덮였다");
+
+                // 세 번째도 비켜야 한다 — 한 번만 비켜 보면 여기서 또 겹친다.
+                string third = RunLog.NextFreePath(folder, when);
+                Assert.That(third, Is.Not.EqualTo(first));
+                Assert.That(third, Is.Not.EqualTo(second));
+
+                // 이름은 여전히 `.log` 여야 한다 — 쓸이가 `*.log` 로 찾는다.
+                foreach (var path in new[] { first, second, third })
+                {
+                    Assert.That(path, Does.EndWith(".log"),
+                        "확장자가 바뀌면 RunLogUpload.Pending 이 그 파일을 못 찾는다");
+                }
+            }
+            finally
+            {
+                Directory.Delete(folder, true);
+            }
+        }
     }
 }
