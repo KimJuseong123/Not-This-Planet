@@ -23,6 +23,19 @@ namespace Metagame.Gameplay.Parts
         /// <summary>테두리를 그리지 않는다는 뜻. 마스크의 빈 곳과 같은 값이다.</summary>
         public const int NoGroup = 0;
 
+        /// <summary>Caller-owned scratch storage; reuse it on the render path.</summary>
+        public sealed class Workspace
+        {
+            internal readonly List<SpaceshipPart> Ordered = new();
+            internal readonly Dictionary<SpaceshipPart, int> Index = new();
+            internal readonly Dictionary<int, int> Members = new();
+            internal readonly List<SpaceshipPart> Lonely = new();
+            internal int[] Parent = System.Array.Empty<int>();
+            internal int[] GroupOf = System.Array.Empty<int>();
+            public void Clear()
+            { Ordered.Clear(); Index.Clear(); Members.Clear(); Lonely.Clear(); }
+        }
+
         /// <summary>
         /// 파츠마다 덩어리 번호를 매긴다. 번호는 1 부터 센다 — 0 은 "없음" 이다.
         ///
@@ -37,14 +50,20 @@ namespace Metagame.Gameplay.Parts
         public static int Assign(IReadOnlyList<SpaceshipPart> parts,
                                  IReadOnlyList<PartAssemblyLink> links,
                                  Dictionary<SpaceshipPart, int> into)
+            => Assign(parts, links, into, new Workspace());
+
+        public static int Assign(IReadOnlyList<SpaceshipPart> parts,
+                                 IReadOnlyList<PartAssemblyLink> links,
+                                 Dictionary<SpaceshipPart, int> into, Workspace workspace)
         {
             if (into == null) return 0;
             into.Clear();
             if (parts == null || parts.Count == 0) return 0;
 
             // 유니온-파인드. 파츠 수가 한 자릿수라 배열 두 개로 족하다.
-            var ordered = new List<SpaceshipPart>(parts.Count);
-            var index = new Dictionary<SpaceshipPart, int>(parts.Count);
+            var ordered = workspace.Ordered;
+            var index = workspace.Index;
+            ordered.Clear(); index.Clear();
             for (var i = 0; i < parts.Count; i++)
             {
                 var part = parts[i];
@@ -54,8 +73,13 @@ namespace Metagame.Gameplay.Parts
             }
             if (ordered.Count == 0) return 0;
 
-            var parent = new int[ordered.Count];
-            for (var i = 0; i < parent.Length; i++) parent[i] = i;
+            if (workspace.Parent.Length < ordered.Count)
+            {
+                workspace.Parent = new int[ordered.Count];
+                workspace.GroupOf = new int[ordered.Count];
+            }
+            var parent = workspace.Parent;
+            for (var i = 0; i < ordered.Count; i++) parent[i] = i;
 
             if (links != null)
                 for (var i = 0; i < links.Count; i++)
@@ -72,7 +96,8 @@ namespace Metagame.Gameplay.Parts
                     Union(parent, a, b);
                 }
 
-            var groupOf = new int[ordered.Count];
+            var groupOf = workspace.GroupOf;
+            System.Array.Clear(groupOf, 0, ordered.Count);
             var groups = 0;
             for (var i = 0; i < ordered.Count; i++)
             {
@@ -99,15 +124,20 @@ namespace Metagame.Gameplay.Parts
         /// </param>
         /// <returns>남은 덩어리 수.</returns>
         public static int KeepMergedOnly(Dictionary<SpaceshipPart, int> groups)
+            => KeepMergedOnly(groups, new Workspace());
+
+        public static int KeepMergedOnly(Dictionary<SpaceshipPart, int> groups, Workspace workspace)
         {
             if (groups == null || groups.Count == 0) return 0;
 
-            var members = new Dictionary<int, int>();
+            var members = workspace.Members;
+            members.Clear();
             foreach (var pair in groups)
                 members[pair.Value] = members.TryGetValue(pair.Value, out var n) ? n + 1 : 1;
 
             // 사전을 돌면서 지울 수 없다 — 지울 것을 먼저 모은다.
-            var lonely = new List<SpaceshipPart>();
+            var lonely = workspace.Lonely;
+            lonely.Clear();
             foreach (var pair in groups)
                 if (members[pair.Value] < 2) lonely.Add(pair.Key);
 

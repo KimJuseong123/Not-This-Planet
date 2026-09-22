@@ -55,6 +55,9 @@ namespace Metagame.Gameplay.Tests
             until=Time.realtimeSinceStartup+20;
             while(!world.Ready && Time.realtimeSinceStartup<until) yield return null;
             Assert.That(world.Ready,Is.True);
+            int idleBuilds = world.BuildCount;
+            yield return new WaitForSeconds(2.1f);
+            Assert.That(world.BuildCount, Is.EqualTo(idleBuilds), "Idle AI must retain the warm mesh without periodic rebuilds");
             Assert.That(AiGroupOrders.Capture(AiRecipients.All,null,host).Count,Is.EqualTo(3));
             // Hearing membership is fixed at V-down, not after speech recognition.
             var savedPositions = ais.Select(a => a.VisualRig.FootPosition).ToArray();

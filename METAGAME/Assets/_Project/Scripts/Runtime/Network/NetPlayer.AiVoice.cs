@@ -13,12 +13,15 @@ namespace Metagame.Network
         GameSession voiceSession;
         AiGroupOrders hearingGroup;
         double hearingDeadline;
-        public void BeginAiListening() { if (isLocalPlayer) CmdStartAiListening(); }
-        public void CancelAiListening() { if (isLocalPlayer) CmdCancelAiListening(); }
+        readonly AiVoiceTransfer voiceTransfer = new();
+        uint voiceUploadId;
+        GameSession localVoiceSession;
+        public void BeginAiListening() { if (isLocalPlayer) { voiceTransfer.Clear(); CmdStartAiListening(); } }
+        public void CancelAiListening() { if (isLocalPlayer) { voiceTransfer.Clear(); CmdCancelAiListening(); } }
         [Command] void CmdCancelAiListening() { hearingGroup = null; voiceUpload = null; }
         [Command] void CmdStartAiListening()
         {
-            hearingGroup = null;
+            hearingGroup = null; voiceUpload = null;
             if (body == null || body.Downed || IsAi || AiHostSettings.ServerState != AiRoomState.Active) return;
             hearingGroup = AiGroupOrders.Capture(AiRecipients.All, null, body, VoiceRules.Range);
             hearingDeadline = NetworkTime.time + AiVoicePacket.Seconds + 5;
@@ -31,41 +34,68 @@ namespace Metagame.Network
         public void SubmitAiVoice(byte[] wav)
         {
             if (!isLocalPlayer || !AiVoicePacket.Valid(wav)) return;
-            CmdBeginAiVoice(wav.Length);
-            for (int offset = 0; offset < wav.Length; offset += 8192)
+            localVoiceSession = GameSession.Instance;
+            var id = voiceTransfer.Begin(wav, Time.unscaledTimeAsDouble);
+            CmdBeginAiVoice(id, wav.Length);
+        }
+
+        void TickAiVoiceTransfer()
+        {
+            if (isServer && voiceUpload != null && NetworkTime.time >= voiceDeadline)
             {
-                var chunk = new byte[Math.Min(8192, wav.Length - offset)];
-                Buffer.BlockCopy(wav, offset, chunk, 0, chunk.Length);
-                CmdAiVoiceChunk(chunk);
+                voiceUpload = null;
+                RejectAiVoice(voiceUploadId, "음성 전송 시간이 초과됐어요. 다시 말해 주세요");
             }
-            CmdEndAiVoice();
+            if (!isLocalPlayer || !voiceTransfer.Active) return;
+            if (GameSession.Instance != localVoiceSession || localVoiceSession == null
+                || localVoiceSession.CinematicInputBlocked || localVoiceSession.EndingActive || body == null || body.Downed)
+            { CancelAiListening(); return; }
+            if (voiceTransfer.Expire(Time.unscaledTimeAsDouble))
+            {
+                CmdCancelAiListening();
+                AiVoiceMessage = "음성 전송 시간이 초과됐어요. 다시 말해 주세요";
+                AiVoiceMessageUntil = Time.unscaledTime + 4;
+                return;
+            }
+            if (!voiceTransfer.TryNext(Time.unscaledTimeAsDouble, out var chunk, out var last)) return;
+            CmdAiVoiceChunk(voiceTransfer.Id, chunk);
+            if (last) CmdEndAiVoice(voiceTransfer.Id);
         }
         // Default Mirror authority requires the sending connection to own this player.
-        [Command] void CmdBeginAiVoice(int length)
+        [Command] void CmdBeginAiVoice(uint id, int length)
         {
             voiceUpload = null; voiceReceived = 0;
-            if (NetworkTime.time < nextVoiceAt) return;
+            if (NetworkTime.time < nextVoiceAt) { RejectAiVoice(id, "잠시 후 다시 말해 주세요"); return; }
             nextVoiceAt = NetworkTime.time + 2;
             if (length < 44 || length > AiVoicePacket.MaxBytes || IsAi || body == null || body.Downed
                 || GameSession.Instance == null || GameSession.Instance.CinematicInputBlocked
-                || AiHostSettings.ServerState != AiRoomState.Active) { ReportAiVoice("지금은 AI 명령을 사용할 수 없어요"); return; }
+                || AiHostSettings.ServerState != AiRoomState.Active) { RejectAiVoice(id, "지금은 AI 명령을 사용할 수 없어요"); return; }
             if (AiLocalRuntime.Current == null || AiLocalRuntime.Current.Busy)
-            { ReportAiVoice("다른 명령을 처리 중이에요. 잠시 후 말해 주세요"); return; }
+            { RejectAiVoice(id, "다른 명령을 처리 중이에요. 잠시 후 말해 주세요"); return; }
             if (hearingGroup == null || hearingGroup.Count == 0 || NetworkTime.time > hearingDeadline || voiceSession != GameSession.Instance)
-            { ReportAiVoice("주변에 명령을 들을 AI가 없어요"); return; }
+            { RejectAiVoice(id, "주변에 명령을 들을 AI가 없어요"); return; }
             voiceUpload = new byte[length]; voiceDeadline = NetworkTime.time + 12;
             voiceSession = GameSession.Instance;
+            voiceUploadId = id;
+            TargetAiVoiceAccepted(id, true);
         }
-        [Command] void CmdAiVoiceChunk(byte[] chunk)
+        void RejectAiVoice(uint id, string message)
+        { TargetAiVoiceAccepted(id, false); ReportAiVoice(message); }
+
+        [TargetRpc] void TargetAiVoiceAccepted(uint id, bool accepted)
+            => voiceTransfer.Approve(id, accepted, Time.unscaledTimeAsDouble);
+
+        [Command] void CmdAiVoiceChunk(uint id, ArraySegment<byte> chunk)
         {
-            if (voiceUpload == null) return;
-            if (NetworkTime.time > voiceDeadline || chunk == null || chunk.Length == 0 || chunk.Length > 8192
-                || voiceReceived + chunk.Length > voiceUpload.Length)
-            { voiceUpload = null; return; }
-            Buffer.BlockCopy(chunk, 0, voiceUpload, voiceReceived, chunk.Length); voiceReceived += chunk.Length;
+            if (voiceUpload == null || id != voiceUploadId) return;
+            if (NetworkTime.time > voiceDeadline || chunk.Array == null || chunk.Count == 0 || chunk.Count > AiVoiceTransfer.ChunkBytes
+                || voiceReceived + chunk.Count > voiceUpload.Length)
+            { voiceUpload = null; RejectAiVoice(id, "음성 전송이 중단됐어요. 다시 말해 주세요"); return; }
+            Buffer.BlockCopy(chunk.Array, chunk.Offset, voiceUpload, voiceReceived, chunk.Count); voiceReceived += chunk.Count;
         }
-        [Command] void CmdEndAiVoice()
+        [Command] void CmdEndAiVoice(uint id)
         {
+            if (id != voiceUploadId) return;
             var wav = voiceUpload; voiceUpload = null;
             if (wav == null) return;
             if (voiceReceived != wav.Length || NetworkTime.time > voiceDeadline || voiceSession != GameSession.Instance
@@ -93,10 +123,13 @@ namespace Metagame.Network
                 && BitConverter.ToInt32(bytes, 24) == Rate && BitConverter.ToInt16(bytes, 34) == 16
                 && BitConverter.ToUInt32(bytes, 36) == 0x61746164 && BitConverter.ToInt32(bytes, 40) == bytes.Length - 44;
         }
-        public static byte[] Encode(float[] samples, int rate, int channels, float gain = 1f)
+        public static byte[] Encode(System.Collections.Generic.IReadOnlyList<float> samples, int rate, int channels, float gain = 1f)
         {
-            int count = Math.Min(Rate * Seconds, (int)((long)samples.Length * Rate / (rate * channels)));
-            using (var stream = new System.IO.MemoryStream())
+            if (samples == null) throw new ArgumentNullException(nameof(samples));
+            if (rate <= 0 || channels <= 0) throw new ArgumentOutOfRangeException(nameof(rate));
+            int count = (int)Math.Min(Rate * Seconds, (long)(samples.Count / channels) * Rate / rate);
+            var bytes = new byte[44 + count * 2];
+            using (var stream = new System.IO.MemoryStream(bytes))
             using (var writer = new System.IO.BinaryWriter(stream))
             {
                 writer.Write(0x46464952); writer.Write(36 + count * 2); writer.Write(0x45564157);
@@ -105,12 +138,12 @@ namespace Metagame.Network
                 writer.Write(0x61746164); writer.Write(count * 2);
                 for (int i = 0; i < count; i++)
                 {
-                    int at = Math.Min(samples.Length / channels - 1, (int)((long)i * rate / Rate));
+                    int at = Math.Min(samples.Count / channels - 1, (int)((long)i * rate / Rate));
                     float sample = 0;
                     for (int c = 0; c < channels; c++) sample += samples[at * channels + c];
                     writer.Write((short)(Mathf.Clamp(sample / channels * gain, -1f, 1f) * 32767));
                 }
-                return stream.ToArray();
+                return bytes;
             }
         }
     }
