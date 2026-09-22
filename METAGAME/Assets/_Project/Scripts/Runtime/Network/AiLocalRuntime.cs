@@ -135,9 +135,51 @@ namespace Metagame.Network
 #endif
         }
 
+        /// <summary>
+        /// <b>대답이 없을 때</b>까지만 기다리는 시간 (S15P21B202-706).
+        ///
+        /// <para>워커 프로세스는 떠 있는데 HTTP 로 아무 대답도 없는 상태다 — 포트를 못 열었거나
+        /// 시작하다 멈춘 것이다. 이 경우는 기다려도 나아지지 않는다.</para>
+        /// </summary>
+        public const float SilenceLimit = 120f;
+
+        /// <summary>
+        /// <b>데우는 중이어도</b> 여기까지 (S15P21B202-706).
+        ///
+        /// <para><b>2026-09-22 실측 3분 47초(227초).</b> 예전 마감은 120초 하나뿐이어서, 워커가
+        /// 살아서 대답하며 모델을 데우고 있는데도 <b>절반쯤에서 잘렸다.</b> QA 에서 "추가팩 설치
+        /// 완료인데 AI 가 준비되지 않는다" 로 보인 것이 이것이다.</para>
+        ///
+        /// <para>그렇다고 무한정 기다리면 <b>영영 안 되는 것과 오래 걸리는 것이 같아진다.</b>
+        /// 실측의 네 배쯤에서 끊는다.</para>
+        /// </summary>
+        public const float WarmupLimit = 900f;
+
+        /// <summary>사람이 읽는 경과 시간. <c>"1분 12초"</c> · <c>"42초"</c>.</summary>
+        public static string Clock(float seconds)
+        {
+            int total = Mathf.Max(0, Mathf.FloorToInt(seconds));
+            return total < 60 ? total + "초" : total / 60 + "분 " + total % 60 + "초";
+        }
+
+        /// <summary>
+        /// 준비 중 화면에 적을 말 (S15P21B202-706).
+        ///
+        /// <para><b>멈춘 것과 느린 것은 다르다.</b> 예전에는 <c>"추가팩 로딩 중"</c> 이 최대 2분
+        /// 동안 한 글자도 바뀌지 않아 둘을 구분할 수 없었다. <b>글자가 바뀌면 살아 있는 것</b>이고,
+        /// 대답이 오는지 아닌지가 그다음으로 알아야 할 것이다.</para>
+        ///
+        /// <para>값으로 검증할 수 있게 떼어 둔다 — 실제 워커 없이 확인할 수 있어야 한다.</para>
+        /// </summary>
+        public static string WarmupMessage(bool answered, float waited)
+            => answered
+                ? "AI 준비 중 · 모델 데우는 중 " + Clock(waited) + " · 첫 실행은 몇 분 걸려요"
+                : "AI 준비 중 · 추가팩 응답 대기 " + Clock(waited);
+
         IEnumerator Watch(int epoch)
         {
-            float deadline = Time.realtimeSinceStartup + 120f;
+            float began = Time.realtimeSinceStartup;
+            float silentUntil = began + SilenceLimit;
             int failures = 0;
             while (epoch == generation)
             {
@@ -150,15 +192,26 @@ namespace Metagame.Network
                     yield return request.SendWebRequest();
                     pendingHealth = null;
                     if (epoch != generation) yield break;
-                    if (request.result == UnityWebRequest.Result.Success && ValidHealth(request.downloadHandler.text))
+                    bool answered = request.result == UnityWebRequest.Result.Success;
+                    // 아직 ready 가 아니어도 **대답이 왔다면 살아서 데우고 있다.** 그 사실만으로
+                    // 침묵 마감을 다시 민다 — 예전에는 이 구분이 없어 데우는 중에 잘렸다.
+                    if (answered) silentUntil = Time.realtimeSinceStartup + SilenceLimit;
+                    if (answered && ValidHealth(request.downloadHandler.text))
                     {
                         if (State != AiRuntimeState.Ready) Message = "준비 완료 · 행동 / 대상 / 접근 여부 LLM 판단";
                         State = AiRuntimeState.Ready; failures = 0;
                     }
                     else if (State == AiRuntimeState.Ready && ++failures >= 3)
                     { Fail("추가팩 연결을 잃었습니다"); yield break; }
-                    else if (State != AiRuntimeState.Ready && Time.realtimeSinceStartup > deadline)
-                    { Fail("추가팩 준비 시간 초과 · 로비에서 다시 준비해 주세요"); yield break; }
+                    else if (State != AiRuntimeState.Ready)
+                    {
+                        float waited = Time.realtimeSinceStartup - began;
+                        if (waited > WarmupLimit)
+                        { Fail("추가팩 준비 시간 초과 · 로비에서 다시 준비해 주세요"); yield break; }
+                        if (Time.realtimeSinceStartup > silentUntil)
+                        { Fail("추가팩이 응답하지 않습니다 · 로비에서 다시 준비해 주세요"); yield break; }
+                        Message = WarmupMessage(answered, waited);
+                    }
                 }
                 yield return new WaitForSecondsRealtime(.5f);
             }
