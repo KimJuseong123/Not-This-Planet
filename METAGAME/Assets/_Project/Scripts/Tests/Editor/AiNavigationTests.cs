@@ -88,7 +88,17 @@ namespace Metagame.Gameplay.Tests
             self.SetInput(default);
             Assert.That(furthestZ, Is.GreaterThan(3f), "Must physically walk around wall");
             Assert.That(Vector3.Distance(self.FootPosition, target.FootPosition), Is.LessThan(2.8f), controller.Status + " " + self.FootPosition);
+            self.Teleport(target.FootPosition + Vector3.right, Quaternion.identity);
+            controller.Tick(self, true);
+            Assert.That(controller.Arrived, Is.True);
+            typeof(AiFollowController).GetProperty(nameof(AiFollowController.Status))
+                .GetSetMethod(true).Invoke(controller, new object[] { "Waiting near requester" });
+            Assert.That(controller.WantsMovement, Is.False, "Display text must not decide arrival");
+            controller.SuspendMovement();
+            Assert.That(controller.Arrived, Is.False, "Recovery invalidates the previous arrival");
+            Assert.That(controller.WantsMovement, Is.True);
             controller.Apply("cancel", target);
+            Assert.That(controller.Arrived, Is.False, "Cancellation is not successful arrival");
             Assert.That(controller.Tick(self, true).Move, Is.EqualTo(Vector2.zero));
             yield return new ExitPlayMode();
         }

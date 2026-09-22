@@ -23,6 +23,7 @@ namespace Metagame.Network
         SpaceshipPart requestedPart;
         readonly HashSet<PartClamp> excluded = new HashSet<PartClamp>();
         public bool Active { get; private set; }
+        public bool Succeeded { get; private set; }
         public string Status { get; private set; } = "대기";
         public PartClamp Target => target;
         public bool WantsMovement => Active && (target == null || approaching);
@@ -59,6 +60,7 @@ namespace Metagame.Network
 
         public void Cancel(string status = "대기")
         {
+            Succeeded = false;
             if (owner != null)
             {
                 owner.SetInput(default);
@@ -77,7 +79,8 @@ namespace Metagame.Network
             if (!allowed || owner == null || speaker == null || owner.Downed || owner.IsRiding || speaker.Downed)
             { Cancel("못 뽑기 중단"); return default; }
             if (Time.time - started > 90f) { Cancel("못 작업 시간 초과"); return default; }
-            if (target != null && target.IsReleased) { Cancel("고정못 해제 확인 · 완료"); return default; }
+            if (target != null && target.IsReleased)
+            { Cancel("고정못 해제 확인 · 완료"); Succeeded = true; return default; }
             if (owner.HeldTool != null) { Cancel("도구를 내려놓은 뒤 지시해 주세요"); return default; }
             var world = GameSession.Instance != null ? GameSession.Instance.GetComponent<AiNavigationWorld>() : null;
             if (world == null || !world.Ready) { Status = "못 작업 · 이동 경로 준비 중"; return default; }

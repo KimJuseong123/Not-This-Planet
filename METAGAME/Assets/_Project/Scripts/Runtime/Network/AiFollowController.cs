@@ -19,14 +19,16 @@ namespace Metagame.Network
         public Vector3? Goal => fixedGoal ?? (target != null ? target.FootPosition + formationOffset : (Vector3?)null);
         public string Status { get; private set; } = "대기";
         public bool Active => target != null;
-        public bool WantsMovement => target != null && Status != "곁에서 대기";
-        public void SuspendMovement() { route.Reset(); moving = false; progressTime = Time.time; }
+        public bool Arrived { get; private set; }
+        public bool WantsMovement => Active && !Arrived;
+        public void SuspendMovement() { Arrived = false; route.Reset(); moving = false; progressTime = Time.time; }
 
         public bool Apply(string action, PlayerRig speaker)
         {
             if (action == "cancel" || action == "wait") { Stop(); return true; }
             if (action != "follow" || speaker == null) return false;
             target = speaker;
+            Arrived = false;
             fixedGoal = null; formationOffset = Vector3.zero;
             progressTime = Time.time;
             moving = false;
@@ -36,8 +38,8 @@ namespace Metagame.Network
         }
 
         public void SetFormation(Vector3 offset, bool gather)
-        { formationOffset = offset; fixedGoal = gather && target != null ? target.FootPosition + offset : (Vector3?)null; route.Reset(); }
-        public void Stop() { target = null; fixedGoal = null; formationOffset = Vector3.zero; moving = false; route.Reset(); Status = "대기"; }
+        { Arrived = false; formationOffset = offset; fixedGoal = gather && target != null ? target.FootPosition + offset : (Vector3?)null; route.Reset(); }
+        public void Stop() { Arrived = false; target = null; fixedGoal = null; formationOffset = Vector3.zero; moving = false; route.Reset(); Status = "대기"; }
 
         public static InputFrame Direction(Vector3 from, Vector3 to, float stopDistance)
         {
@@ -50,6 +52,7 @@ namespace Metagame.Network
 
         public InputFrame Tick(PlayerRig self, bool allowed)
         {
+            Arrived = false;
             if (!allowed || self == null || self.Downed || self.IsRiding) { Stop(); return default; }
             if (target == null) return default;
             if (target.Downed) { Stop(); return default; }
@@ -63,7 +66,7 @@ namespace Metagame.Network
                 moving = false;
                 return default;
             }
-            if (route.Arrived) { moving = false; Status = "곁에서 대기"; return default; }
+            if (route.Arrived) { Arrived = true; moving = false; Status = "곁에서 대기"; return default; }
             if (!moving || (to - progressGoal).sqrMagnitude > 4f)
             { bestRemaining = route.Remaining; progressGoal = to; progressTime = Time.time; moving = true; }
             if (route.Remaining < bestRemaining - .25f) { bestRemaining = route.Remaining; progressTime = Time.time; }

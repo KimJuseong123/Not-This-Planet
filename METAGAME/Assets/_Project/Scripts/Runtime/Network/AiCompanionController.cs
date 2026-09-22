@@ -106,13 +106,14 @@ namespace Metagame.Network
                 return frame;
             }
             var input = pinOrder ? pin.Tick(allowed) : follow.Tick(self, allowed);
-            if (pinOrder && !pin.Active) { advance = pin.Status.Contains("완료"); if (!advance) pending.Clear(); }
+            if (pinOrder && !pin.Active) { advance = pin.Succeeded; if (!advance) pending.Clear(); }
             if(approaching)
             {
                 if(!follow.Active || Time.time>approachDeadline) { Stop(); recoveryStatus="접근 실패 · 행동 취소"; return default; }
-                if(!follow.WantsMovement) { follow.Stop(); approaching=false; faceStarted=Time.time; return Face(self,requester); }
+                if(follow.Arrived) { follow.Stop(); approaching=false; faceStarted=Time.time; return Face(self,requester); }
             }
-            if (gather && !follow.WantsMovement) { follow.Stop(); gather = false; watchRequester=true; advance = true; }
+            if (gather && !follow.Active) { gather = false; pending.Clear(); }
+            if (gather && follow.Arrived) { follow.Stop(); gather = false; watchRequester=true; advance = true; }
             if(watchRequester) return Face(self,requester);
             return input;
         }

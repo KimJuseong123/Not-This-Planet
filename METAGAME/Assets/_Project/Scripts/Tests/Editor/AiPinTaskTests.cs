@@ -79,10 +79,15 @@ namespace Metagame.Gameplay.Tests
             Assert.That(near.IsReleased, Is.True, task.Status + " " + self.FootPosition);
             self.SetInput(task.Tick(true));
             Assert.That(task.Active, Is.False);
+            Assert.That(task.Succeeded, Is.True);
+            typeof(AiPinTask).GetProperty(nameof(AiPinTask.Status)).GetSetMethod(true)
+                .Invoke(task, new object[] { "Pin released" });
+            Assert.That(task.Succeeded, Is.True, "Localized presentation does not change success");
             Assert.That(far.IsReleased, Is.False);
             Assert.That(far.Progress, Is.Zero);
             Assert.That(self.CurrentInput.Move, Is.EqualTo(Vector2.zero));
             task.Cancel();
+            Assert.That(task.Succeeded, Is.False, "Cancellation clears previous success");
             yield return new ExitPlayMode();
         }
 
@@ -126,6 +131,48 @@ namespace Metagame.Gameplay.Tests
             task.Cancel();
             Assert.That(chosen, Is.Not.Null, status);
             Assert.That(chosen.IsReleased, Is.True, status + " AI=" + self.FootPosition + " pin=" + chosen.transform.position);
+            yield return new ExitPlayMode();
+        }
+
+        [Test]
+        public void CompletionWordInCancellationIsNotSuccess()
+        {
+            var task = new AiPinTask();
+            task.Cancel("완료되지 않음");
+            Assert.That(task.Succeeded, Is.False);
+            task.Begin(null, null);
+            task.Tick(true);
+            Assert.That(task.Active, Is.False);
+            Assert.That(task.Succeeded, Is.False);
+        }
+
+        [UnityTest]
+        public IEnumerator QueuedPlanUsesTaskOutcomeNotDisplayText()
+        {
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            yield return new EnterPlayMode();
+            var speaker = PlayerRig.Create("speaker", Vector3.zero, Quaternion.identity, Color.red, Color.white, false);
+            var self = PlayerRig.Create("AI", Vector3.right * 3, Quaternion.identity, Color.blue, Color.white, false);
+            foreach (bool success in new[] { false, true })
+            {
+                var controller = new AiCompanionController();
+                Assert.That(controller.Apply("pull_pin", speaker, self), Is.True);
+                controller.QueueAfterCurrent(new[] {
+                    new AiCommandStep { action = "pull_pin" },
+                    new AiCommandStep { action = "follow" }
+                }, speaker);
+                var task = (AiPinTask)typeof(AiCompanionController).GetField("pin",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(controller);
+                task.Cancel(success ? "Pin released" : "완료되지 않음");
+                // Inject the executor boundary outcome; physical completion is covered above.
+                typeof(AiPinTask).GetProperty(nameof(AiPinTask.Succeeded)).GetSetMethod(true)
+                    .Invoke(task, new object[] { success });
+                controller.Tick(self, true);
+                controller.Tick(self, true);
+                Assert.That(controller.Busy, Is.EqualTo(success), "Only success may start the queued follow");
+                controller.Stop();
+                Assert.That(controller.Busy, Is.False);
+            }
             yield return new ExitPlayMode();
         }
 
