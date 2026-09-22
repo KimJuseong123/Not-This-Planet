@@ -19,6 +19,57 @@ namespace Metagame.Gameplay.Tests
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         }
 
+        /// <summary>
+        /// 굽는 고리가 <b>파츠를 스스로 찾지 않는다</b> (S15P21B202-704).
+        ///
+        /// <para><b>값으로는 볼 수 없다.</b> 어느 쪽이든 같은 길찾기를 내놓는다 — 다른 것은
+        /// 굽을 때마다 드는 비용뿐이다. 소스가 실측 665개라 한 번이 그대로 665번이 된다.</para>
+        ///
+        /// <para><b>두 번 틀린 자리다.</b> <c>-690</c> 에서 굽는 쪽과 쓰는 쪽의 판단을
+        /// <c>UsedForNavigation</c> 한 벌로 합치면서 계층 탐색이 소스마다 두 번 돌게 됐다
+        /// (판단 안에서 한 번, <c>area = 1</c> 판정에서 또 한 번). 처음 고칠 때는 부르는 쪽이
+        /// <b>미리 찾아 넘기게</b> 했는데, 그러면 싼 필터에서 걸러질 콜라이더까지 탐색하게
+        /// 되어 <b>거르는 쪽이 더 느려진다</b> — <c>!595</c> AI 리뷰가 짚었다.</para>
+        ///
+        /// <para>그래서 <b>굽는 고리 안에 탐색이 하나도 없어야 한다.</b> 찾는 자리는
+        /// <c>UsedForNavigation</c> 하나뿐이고, 값은 <c>out</c> 으로 나온다. 그 형태가 아니면
+        /// 둘 중 한 가지 실수로 되돌아간 것이다.</para>
+        /// </summary>
+        [Test]
+        public void TheBakeLoopNeverLooksUpThePartItself()
+        {
+            var scope = TestSource.Method(
+                TestSource.Read("Runtime/Network/AiNavigationWorld.cs"), "public RebuildOutcome Rebuild(");
+
+            Assert.That(scope, Does.Contain("UsedForNavigation(collider, out var part)"),
+                "판단하는 쪽이 찾은 파츠를 돌려받지 않는다 — 같은 계층 탐색이 두 번 돌거나, "
+                + "부르는 쪽이 미리 찾아 넘기게 된다");
+            Assert.That(scope, Does.Not.Contain("GetComponentInParent<SpaceshipPart>"),
+                "굽는 고리가 파츠를 스스로 찾는다. 소스 665개면 굽을 때마다 665번이 더 들고, "
+                + "그 자리가 필터보다 앞이면 걸러질 콜라이더까지 탐색하게 된다");
+        }
+
+        /// <summary>
+        /// 파츠 찾기는 <b>싼 필터를 모두 지난 뒤</b>에만 한다 (S15P21B202-704).
+        ///
+        /// <para>레이어·트리거·사람 몸에서 걸러질 콜라이더는 계층 탐색을 <b>0번</b> 해야 한다.
+        /// 위의 검사가 굽는 고리를 보고, 이 검사가 <b>찾는 자리 안의 순서</b>를 본다 — 탐색을
+        /// 함수 안으로 옮기기만 하고 순서를 지키지 않으면 비용은 그대로다.</para>
+        /// </summary>
+        [Test]
+        public void ThePartLookupComesAfterTheCheapFilters()
+        {
+            var scope = TestSource.Method(TestSource.Read("Runtime/Network/AiNavigationWorld.cs"),
+                "public static bool UsedForNavigation(Collider collider, out SpaceshipPart part)");
+
+            int trigger = scope.IndexOf("isTrigger", System.StringComparison.Ordinal);
+            int part = scope.IndexOf("GetComponentInParent<SpaceshipPart>", System.StringComparison.Ordinal);
+            Assert.That(trigger, Is.GreaterThanOrEqualTo(0), "싼 필터가 사라졌다");
+            Assert.That(part, Is.GreaterThan(trigger),
+                "파츠를 싼 필터보다 먼저 찾는다 — 걸러질 콜라이더까지 계층 탐색을 하게 되어 "
+                + "굽는 고리를 위해 고친 것이 베이커를 더 느리게 만든다");
+        }
+
         static GameObject Box(string name, Vector3 center, Vector3 size)
         {
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
