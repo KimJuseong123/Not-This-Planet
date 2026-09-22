@@ -349,9 +349,9 @@ namespace Metagame.Network
         /// </summary>
         void ReportPlan(PlanDecision result)
         {
-            if (result == null) { Debug.Log("[AI] 응답을 읽지 못했다"); return; }
-            if (!string.IsNullOrWhiteSpace(result.text)) Debug.Log("[AI] 들음: " + result.text);
-            Debug.Log("[AI] 계획 " + result.status + " " + AiCommandPlan.Describe(result.orders)
+            if (result == null) { UnityEngine.Debug.Log("[AI] 응답을 읽지 못했다"); return; }
+            if (!string.IsNullOrWhiteSpace(result.text)) UnityEngine.Debug.Log("[AI] 들음: " + result.text);
+            UnityEngine.Debug.Log("[AI] 계획 " + result.status + " " + AiCommandPlan.Describe(result.orders)
                       + (result.safety_override ? " · 안전 중단" : "")
                       + " · " + result.elapsed_ms.ToString("0") + "ms");
         }
