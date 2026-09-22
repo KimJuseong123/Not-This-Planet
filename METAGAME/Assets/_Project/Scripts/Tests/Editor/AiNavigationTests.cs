@@ -12,6 +12,13 @@ namespace Metagame.Gameplay.Tests
 {
     public sealed class AiNavigationTests
     {
+        [UnityTearDown]
+        public IEnumerator Cleanup()
+        {
+            if (Application.isPlaying) yield return new ExitPlayMode();
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        }
+
         static GameObject Box(string name, Vector3 center, Vector3 size)
         {
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);

@@ -11,6 +11,13 @@ namespace Metagame.Gameplay.Tests
 {
     public sealed class AiPinTaskTests
     {
+        [UnityTearDown]
+        public IEnumerator Cleanup()
+        {
+            if (Application.isPlaying) yield return new ExitPlayMode();
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        }
+
         static PartClamp Pin(SpaceshipPart part, Vector3 position)
         {
             var go = new GameObject("Test pin") { layer = GameLayers.Interactable };
