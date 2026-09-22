@@ -13,7 +13,7 @@ namespace Metagame.Gameplay.Tests
     /// <list type="number">
     /// <item>낙하 예측이 맞는다 — 이것이 없으면 "착탄 1초 전" 을 알 수 없다.</item>
     /// <item>사거리·시각 조건이 맞을 때만 쳐낸다.</item>
-    /// <item>쳐낸 운석이 조준의 <b>수평</b> 방향으로 날아간다.</item>
+    /// <item>쳐낸 운석이 조준의 높낮이를 포함한 시선 방향으로 날아간다.</item>
     /// <item>동료를 때리면 넘어지지만 <b>기절하지 않는다</b>.</item>
     /// </list>
     /// </summary>
@@ -137,11 +137,14 @@ namespace Metagame.Gameplay.Tests
         public void SwingingTooEarly_Misses()
         {
             // 착탄까지 창(1초)보다 훨씬 많이 남은 높이에 둔다.
-            MakeMeteor(new Vector3(0f, 30f, 0f), Vector3.zero);
+            var meteor = MakeMeteor(new Vector3(0f, 30f, 0f), Vector3.zero);
             var bat = MakeBat();
 
             Assert.IsFalse(bat.Swing(Vector3.zero, Vector3.forward),
                 "아직 멀었으면 헛스윙이다.");
+            Assert.AreEqual(0, bat.RhythmGrade);
+            Assert.IsFalse(meteor.WasDeflected);
+            Assert.AreEqual(Vector3.zero, meteor.Body.linearVelocity);
         }
 
         [Test]
@@ -211,35 +214,46 @@ namespace Metagame.Gameplay.Tests
 
             Assert.AreEqual(PhysicsScale.BatDeflectSpeed * 1.35f, velocity.magnitude, 0.01f);
             Assert.Greater(velocity.x, 0f, "조준한 쪽으로 가야 한다.");
-            Assert.Greater(velocity.y, 0f, "약간 위로 들려야 한다(기획 §18.2).");
+            Assert.AreEqual(0f, velocity.y, 0.01f, "수평 시선이면 수평으로 출발한다.");
             Assert.AreEqual(0f, velocity.z, 0.01f);
         }
 
-        /// <summary>
-        /// 기획 §18.2 "카메라가 지나치게 위나 아래를 보더라도 수직 각도는 자동 보정한다".
-        ///
-        /// 보정을 따로 만들지 않았다 — 조준의 수평 성분만 쓰므로 위를 보든 아래를 보든
-        /// 결과가 같다. 그것을 여기서 잠근다.
-        /// </summary>
-        [Test]
-        public void AimingUpOrDown_GivesTheSameLaunchAngle()
+        [TestCase(1f, 4f, 0f)]
+        [TestCase(1f, -4f, 0f)]
+        [TestCase(0f, 1f, 0f)]
+        [TestCase(0f, -1f, 0f)]
+        [TestCase(-3f, 2f, -5f)]
+        public void MeteorLaunchFollowsTheFullAim(float x, float y, float z)
         {
-            var up = DeflectWith(new Vector3(1f, 4f, 0f));
-            var down = DeflectWith(new Vector3(1f, -4f, 0f));
-
-            Assert.AreEqual(up.y, down.y, 0.01f, "위를 봐도 아래를 봐도 들리는 각도가 같아야 한다.");
-            Assert.AreEqual(up.x, down.x, 0.01f);
-            Assert.Greater(up.y, 0f);
+            var aim = new Vector3(x, y, z);
+            var velocity = DeflectWith(aim);
+            Assert.Less(Vector3.Distance(aim.normalized, velocity.normalized), 0.001f);
+            Assert.AreEqual(PhysicsScale.BatDeflectSpeed * 1.35f, velocity.magnitude, 0.01f);
         }
 
         [Test]
-        public void AimingStraightDown_StillPicksAHorizontalDirection()
+        public void MissingAimStillProducesAFiniteLaunch()
         {
-            var velocity = DeflectWith(Vector3.down);
+            var velocity = DeflectWith(Vector3.zero);
 
             Assert.AreEqual(PhysicsScale.BatDeflectSpeed * 1.35f, velocity.magnitude, 0.01f);
-            Assert.Greater(velocity.y, 0f, "수직으로 겨눠도 위로 들려 날아가야 한다.");
+            Assert.Greater(velocity.y, 0f, "시선이 없을 때만 기존 방향 보정을 사용한다.");
             Assert.IsFalse(float.IsNaN(velocity.x), "방향을 정하지 못해 NaN 이 되면 안 된다.");
+        }
+
+        [TestCase(-35f)]
+        [TestCase(35f)]
+        public void EquippedMeteorLaunchUsesServerPlayerViewInsteadOfArmPose(float pitch)
+        {
+            var player = MakePlayer(Vector3.zero);
+            player.SetInput(new Metagame.Core.InputFrame { AimYaw = 120f, AimPitch = pitch });
+            var meteor = MakeMeteorAtWindow(Vector3.zero);
+            var bat = MakeBat();
+            bat.Equip(player, bat.gameObject.AddComponent<Rigidbody>());
+
+            Assert.IsTrue(bat.Swing(Vector3.zero, Vector3.up));
+            var expected = Quaternion.Euler(pitch, 120f, 0f) * Vector3.forward;
+            Assert.Less(Vector3.Distance(expected, meteor.Body.linearVelocity.normalized), 0.001f);
         }
 
         // --- 동료 직접 타격 --------------------------------------------------
@@ -308,8 +322,10 @@ namespace Metagame.Gameplay.Tests
             Assert.IsTrue(bat.Swing(Vector3.zero, Vector3.forward));
             Assert.AreEqual(grade, bat.RhythmGrade);
             Assert.AreEqual(grade, meteor.DeflectionGrade);
+            Assert.IsTrue(meteor.Harmless, "성공 직후부터 피해 없는 소품이어야 한다.");
             Assert.AreEqual(meteor.transform.position, bat.RhythmImpactPoint);
             Assert.AreEqual(PhysicsScale.BatDeflectSpeed * multiplier, meteor.Body.linearVelocity.magnitude, 0.01f);
+            Assert.Less(Vector3.Distance(Vector3.forward, meteor.Body.linearVelocity.normalized), 0.001f);
             Assert.AreEqual(1u, bat.RhythmSequence);
             Assert.IsNull(MeteorBat.FindGuideTarget(Vector3.zero, Meteor.All));
         }
