@@ -4595,6 +4595,15 @@ namespace Metagame.Gameplay
             toolBody.MoveRotation(Quaternion.Slerp(toolBody.rotation, targetRotation, blend));
         }
 
+        /// <summary>
+        /// 잡고 있던 파츠에서 손이 <b>너무 멀어졌을 때</b> 놓는다 (S15P21B202-686).
+        ///
+        /// <para><see cref="PartPush"/> 가 거리를 재고 여기로 돌려보낸다. 손을 실제로
+        /// 놓아야 한다 — 밀기 집계에서 빼기만 하면 손은 영영 붙어 있는 것으로 남아
+        /// 다시 잡을 수도, 다른 것을 잡을 수도 없다.</para>
+        /// </summary>
+        internal void ReleaseHaulGrip(Hand hand) => ReleaseHand(hand);
+
         void ReleaseHand(Hand hand, HandReleaseReason reason = HandReleaseReason.Release)
         {
             if (hand == null) return;
@@ -4734,6 +4743,17 @@ namespace Metagame.Gameplay
             {
                 hand.Aimed = hand.Held;
                 hand.AimedPoint = hand.Body.position;
+
+                // **파츠를 잡고 있으면 팔을 잡은 지점으로 뻗는다** (S15P21B202-686).
+                // 조준 방향(카메라 앞)으로만 뻗으면 옆이나 뒤로 걸을 때 손이 파츠를
+                // 떠난다 — 3초를 끄는 동안 손과 표면이 0.16 → 0.83m 로 벌어졌다(실측).
+                // 파츠는 여전히 §13.2 의 표가 움직인다. 여기서 정하는 것은 **팔이
+                // 어디를 향하는가**뿐이다.
+                if (Hauling && HeldPartGrasp(hand, out var grasp))
+                {
+                    hand.AimedPoint = grasp;
+                    target = HaulArmTarget(shoulder, grasp, aim);
+                }
             }
 
             Vector3 armDir = target - shoulder;
@@ -4781,6 +4801,34 @@ namespace Metagame.Gameplay
                 if (regrabLock <= 0f && !toolTarget && gripped && hand.Carrying)
                     BeginCarriedBody(hand.HeldBody);
             }
+        }
+
+        /// <summary>
+        /// 파츠를 짚은 팔이 향할 지점 (S15P21B202-686).
+        ///
+        /// <para><b>팔 길이 안으로 자른다.</b> 넘기면 팔이 뻗다 못해 뜯긴다 — 자석 손이
+        /// 같은 이유로 같은 것을 한다.</para>
+        ///
+        /// <para>잡은 지점이 어깨와 겹치면 조준 방향으로 돌아간다. 방향이 0 이면
+        /// <c>Quaternion.FromToRotation</c> 이 쓰레기 회전을 내놓는다.</para>
+        /// </summary>
+        public static Vector3 HaulArmTarget(Vector3 shoulder, Vector3 grasp, Vector3 aim)
+        {
+            Vector3 toGrasp = grasp - shoulder;
+            if (toGrasp.sqrMagnitude <= 1e-4f) return shoulder + aim * Tuning.ArmReach;
+            return shoulder + toGrasp.normalized
+                   * Mathf.Min(toGrasp.magnitude, Tuning.ArmReach);
+        }
+
+        /// <summary>
+        /// 이 손이 <b>지금 밀고 있는 파츠</b>를 잡고 있으면 그 잡은 지점을 돌려준다.
+        /// 지점은 <see cref="HaulGrasp"/> 라 호스트와 참가자가 같은 값을 쓴다.
+        /// </summary>
+        bool HeldPartGrasp(Hand hand, out Vector3 grasp)
+        {
+            grasp = HaulGrasp;
+            if (HaulGrasp.sqrMagnitude <= 1e-6f) return false;
+            return hand.Held != null && hand.Held.GetComponentInParent<PartPush>() != null;
         }
 
         bool TryGripTarget(Hand hand, Grabbable focusedTarget)

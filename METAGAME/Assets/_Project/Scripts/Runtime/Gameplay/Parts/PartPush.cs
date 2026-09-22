@@ -184,10 +184,15 @@ namespace Metagame.Gameplay.Parts
         /// <summary>파츠 몸통 콜라이더 중 이 사람의 골반에 가장 가까운 점.</summary>
         Vector3 ClosestSurfacePoint(PlayerRig player)
         {
-            var from = player != null && player.Doll != null && player.Doll.Hips != null
-                ? player.Doll.Hips.position
-                : transform.position;
+            return SurfacePointNearest(
+                player != null && player.Doll != null && player.Doll.Hips != null
+                    ? player.Doll.Hips.position
+                    : transform.position);
+        }
 
+        /// <summary>파츠 몸통 콜라이더 중 <paramref name="from"/> 에 가장 가까운 점.</summary>
+        Vector3 SurfacePointNearest(Vector3 from)
+        {
             if (!_collidersCollected) _colliders = CollectBodyColliders();
             if (_colliders == null || _colliders.Length == 0) return Center();
 
@@ -298,10 +303,14 @@ namespace Metagame.Gameplay.Parts
                 var moving = wish.sqrMagnitude > 1e-4f;
                 var heading = moving ? wish.normalized : Vector3.zero;
 
-                // 손으로 잡았으면 접촉·조준을 다시 보지 않는다. 잡는 것 자체가
-                // 이미 의도적인 행동이고, 잡은 사람은 어느 쪽으로든 끌 수 있다.
-                var holding = able && (IsHoldingPart(player.LeftHand)
-                                       || IsHoldingPart(player.RightHand));
+                // 손으로 잡았으면 조준은 다시 보지 않는다. 잡는 것 자체가 이미
+                // 의도적인 행동이고, 잡은 사람은 어느 쪽으로든 끌 수 있다.
+                //
+                // **거리는 본다** (S15P21B202-686). 예전에는 이것이 없어서
+                // **73m 떨어져서도 파츠가 0.62m/s 로 끌렸다**(실측). 손이 팔 길이를
+                // 한참 벗어나면 잡고 있는 것이 아니다.
+                var holding = able && (HoldingWithinReach(player, player.LeftHand)
+                                       | HoldingWithinReach(player, player.RightHand));
 
                 // 몸으로 밀 때만 "파츠 쪽으로 향하는 이동인가" 를 본다. 멀어지는 입력은
                 // 밀기가 아니다 — §13.1 "당기기는 제공하지 않으며 반대편으로 이동해
@@ -386,6 +395,24 @@ namespace Metagame.Gameplay.Parts
         bool IsHoldingPart(Hand hand) => hand != null
                                          && hand.Held == _grabbable
                                          && hand.Gripping;
+
+        /// <summary>
+        /// 이 손이 파츠를 잡고 있고, <b>아직 닿을 수 있는 거리인가</b>
+        /// (S15P21B202-686). 벗어났으면 <b>그 자리에서 놓는다</b> — 세지 않기만 하면
+        /// 손은 영영 붙어 있는 것으로 남아 다시 잡을 수도 놓을 수도 없다.
+        /// </summary>
+        bool HoldingWithinReach(PlayerRig player, Hand hand)
+        {
+            if (!IsHoldingPart(hand)) return false;
+
+            var from = hand.transform.position;
+            if (Vector3.Distance(from, SurfacePointNearest(from))
+                <= PhysicsScale.PartPushHoldReach)
+                return true;
+
+            player.ReleaseHaulGrip(hand);
+            return false;
+        }
 
         /// <summary>더 이상 미는 사람이 아닌 항목을 지운다.</summary>
         void Forget()
