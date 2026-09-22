@@ -13,6 +13,8 @@ namespace Metagame.Gameplay
         Transform helmetRoot, badgeRoot, auraRoot;
         int applied = -1;
         public int Applied => applied;
+        /// <summary>초상화 등 로컬 표현이 읽는 현재 머리 장식. 소유권은 이 컴포넌트에 있다.</summary>
+        public Transform HelmetVisual => helmetRoot;
 
         public static void Apply(Doll target, int packed)
         {

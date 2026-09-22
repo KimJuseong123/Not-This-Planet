@@ -1,8 +1,14 @@
 # Unity Project Context
 
+
+## 2026-09-22 팀 생존 HUD (682)
+
+`GameHud.TeamStatus`는 왼쪽 위에 현재 참가자(자신 포함)의 원형 실제 모델 초상화, 팀 색 닉네임 및 생존/쓰러짐 심장을 표시한다. `TeamStatusRoster`는 기존 NetPlayer의 동기화된 신원·체력·downed를 읽고, `TeamPortrait`는 게임 카메라와 원본 렌더러를 바꾸지 않고 이미지를 캐시한다. `Stage2Hud`는 공통 HUD 높이를 환산해 상단 안내를 아래로 옮긴다. 씬/프리팹 설정은 없다. 관련 47개 및 최종 구도 재검사 8개 통과; 다인 플레이는 미검증. [작업 기록](records/2026-09-22-682-team-status-hud.md).
+
 ## 2026-09-22 Stage2 데모 마무리 (677)
 
 `Stage2Bootstrap`은 기본적으로 데모 모드다. 서버가 준비된 플레이어들의 공통 시작 시각을 `Stage2State`로 복제하며, 3초 이동 → 6초 주변 소개 → 18초 조립 연출 → 3초 마무리 → `-- 데모 완 --`으로 이어진다. `GameSession.CinematicInputBlocked`가 서버/로컬 입력을 함께 차단하며 ESC 메뉴는 유지한다. 실제 퍼즐 클리어 상태는 바꾸지 않고, 기존 퍼즐 검증은 `ConfigureDemo(false)`로 유지한다. 씬·프리팹 변경 없음. 근거와 검증: [677 작업 기록](records/2026-09-22-677-stage2-demo.md).
+
 
 ## 2026-09-21 컷씬 스킵 (666)
 

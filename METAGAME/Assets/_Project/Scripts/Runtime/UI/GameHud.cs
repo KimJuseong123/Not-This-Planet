@@ -16,6 +16,7 @@ namespace Metagame.UI
     /// 그리는 도중에 아틀라스가 다시 만들어지면 이미 찍은 글자의 UV 가 어긋나
     /// 엉뚱한 글자가 나온다. clipping = Overflow 도 필수(받침이 잘린다).
     /// </summary>
+    [DefaultExecutionOrder(1000)]
     public partial class GameHud : MonoBehaviour
     {
         public enum InteractionReticleState
@@ -70,6 +71,7 @@ namespace Metagame.UI
 
         void OnDestroy()
         {
+            DisposeTeamStatus();
             weldingGaugeTexture?.Dispose();
             if (white != null)
             {
@@ -90,10 +92,11 @@ namespace Metagame.UI
                 _keyGuideRevision = KeyGuides.Revision;
                 warmed = false;
             }
+            if (Local == null && GameSession.Instance != null) Local = GameSession.Instance.LocalPlayer;
+            UpdateTeamStatus();
             if (!warmed) WarmFont();
             UpdateMeteorRhythm();
 
-            if (Local == null && GameSession.Instance != null) Local = GameSession.Instance.LocalPlayer;
             if (Transport == null && GameSession.Instance != null) Transport = GameSession.Instance.Transport;
             KeyGuides.Refresh();
         }
@@ -141,6 +144,7 @@ namespace Metagame.UI
             if (string.IsNullOrEmpty(KoreanFontName)) return;
 
             var sb = new StringBuilder();
+            foreach (var member in _teamRoster.Members) sb.Append(member.Name);
             sb.Append("0123456789.,:/%()[]·—+-!?초회중력 ");
             sb.Append("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz 태블릿 던지기");
             for (int i = 0; i < KeyGuides.Entries.Count; i++)
@@ -325,6 +329,7 @@ namespace Metagame.UI
             WeldingMaterialGauge(w, h);
             DrawMeteorRhythm(w, h);
             DrawKeyGuides(w, h);
+            DrawTeamStatus(w);
             // 둘은 화면 가운데 아래에 **위아래로 나뉘어** 그려진다 — 키 힌트가 위(+40),
             // 안내 한 줄이 아래(+92). 자리 계산은 각자 안에 있다.
             DrawInteractionHint(w, h);
