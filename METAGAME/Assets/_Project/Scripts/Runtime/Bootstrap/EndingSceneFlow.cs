@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Metagame.Gameplay.Parts;
+using Metagame.Gameplay.Audio;
 using Metagame.Network;
 using Metagame.UI;
 using Mirror;
@@ -284,6 +285,9 @@ namespace Metagame.Bootstrap
                 var view = scene.gameObject.AddComponent<DemoEndingView>();
                 view.Configure(playback, ContinueToStage2, scene.PartVisuals);
                 view.Prepare();
+                if (SceneMusicController.CanPlayLocally)
+                    scene.gameObject.AddComponent<SceneMusicController>().ConfigureEnding(
+                        Resources.Load<AudioManager>("Audio/Stage1AudioManager"), playback);
             }
             prepared = true;
         }

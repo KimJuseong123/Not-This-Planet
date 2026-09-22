@@ -430,8 +430,9 @@ namespace Metagame.Bootstrap
                 ? audioManager
                 : Resources.Load<AudioManager>("Audio/Stage1AudioManager");
             runtime.Configure(manager, authority, networked);
-            if (!MatchRole.DedicatedServer && !Application.isBatchMode)
-                systemRoot.AddComponent<GameMusicPlayer>().Configure(manager);
+            if (SceneMusicController.CanPlayLocally)
+                systemRoot.AddComponent<SceneMusicController>()
+                    .ConfigureGameplay(manager, Session, gameObject.scene.name, TestArena.Requested);
 
             if (networked)
             {

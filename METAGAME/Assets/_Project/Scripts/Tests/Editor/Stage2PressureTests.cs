@@ -17,6 +17,7 @@ namespace Metagame.Gameplay.Tests
         [UnitySetUp] public IEnumerator Setup()
         {
             EditorSceneManager.OpenScene(Stage2SceneBuilder.ScenePath);
+            Object.FindAnyObjectByType<Metagame.Bootstrap.Stage2Bootstrap>().ConfigureDemo(false);
             yield return new EnterPlayMode();yield return null;yield return null;
             GameSession.Instance.ScriptedInput=true;Object.FindFirstObjectByType<Stage2Bridge>().enabled=false;
             yard=Object.FindFirstObjectByType<Stage2Yard>();yard.enabled=false;yard.SetAuthority(true);
