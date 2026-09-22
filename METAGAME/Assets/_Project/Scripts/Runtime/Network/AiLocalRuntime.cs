@@ -82,6 +82,46 @@ namespace Metagame.Network
             return Path.Combine(Application.persistentDataPath, "AI/p3");
         }
 
+        /// <summary>
+        /// 자식 프로세스에게 홈을 알리는 환경 변수 이름. <b>상수로 두는 이유가 있다</b> —
+        /// 문자열로 두면 배선을 지키는 검사가 <c>TestSource.Blank</c> 에 가려 <b>헛돈다.</b>
+        /// 이름은 글자로 고정하고, 값은 값으로 확인한다.
+        /// </summary>
+        public const string HomeVariableWindows = "USERPROFILE", HomeVariableUnix = "HOME";
+
+        /// <summary>추가팩 안의 <b>쓰기 가능한 홈</b>. ollama 의 키 파일이 여기 들어간다.</summary>
+        public static string PackHome(string root)
+            => string.IsNullOrEmpty(root) ? null : Path.Combine(root, "home");
+
+        /// <summary>
+        /// 워커(와 그 자식 ollama)의 <b>홈을 추가팩 안으로</b> 돌린다 (S15P21B202-707).
+        ///
+        /// <para><b>무엇이 실패했나.</b> <c>ollama serve</c> 는 처음 뜰 때 홈에 키 파일을
+        /// 만든다 — <c>%USERPROFILE%\.ollama\id_ed25519</c>. 그 경로가 쓰기 불가하면(정책으로
+        /// 잠긴 프로파일·로밍 프로파일) ollama 가 뜨지 못하고, 워커는 <c>ready</c> 로 올라오지
+        /// 못한 채 계속 데우는 상태로 남는다. 2026-09-22 에 실제로 났다.</para>
+        ///
+        /// <para><b>왜 여기서 고치나.</b> 워커는 <c>os.environ.copy()</c> 로 환경을 물려받아
+        /// ollama 에 넘긴다. 그래서 <b>띄우는 쪽이 정해 주면 그대로 내려간다</b> — 워커를 고쳐
+        /// 2.34GB 추가팩을 다시 구워 올리지 않아도 된다.</para>
+        ///
+        /// <para><b>왜 추가팩 안인가.</b> 추가팩은 자기 폴더 안에서 완결되어야 한다. 이 한
+        /// 가지만 밖(사용자 프로파일)을 쓰고 있었다 — 그래서 <b>추가팩을 지워도 흔적이
+        /// 남았고</b>, 홈이 잠긴 PC 에서는 아예 못 떴다.</para>
+        ///
+        /// <para>홈을 못 만들면 <b>덮어쓰지 않고 그대로 띄운다.</b> 예전처럼 동작할 뿐이고,
+        /// 여기서 멈추면 홈이 멀쩡한 PC 까지 AI 를 못 쓰게 된다.</para>
+        /// </summary>
+        void PointHomeIntoThePack(ProcessStartInfo start)
+        {
+            string home = PackHome(PackRoot);
+            if (string.IsNullOrEmpty(home)) return;
+            try { Directory.CreateDirectory(home); }
+            catch (Exception) { return; }
+            start.Environment[HomeVariableWindows] = home;
+            start.Environment[HomeVariableUnix] = home;
+        }
+
         public static bool HasPack(string root) => !string.IsNullOrEmpty(root)
             && File.Exists(Path.Combine(root, "runtime/ntp-ai-worker/ntp-ai-worker.exe"))
             && File.Exists(Path.Combine(root, "models/whisper-small-ko-zeroth/model.bin"))
@@ -135,13 +175,15 @@ namespace Metagame.Network
                 using (var parent = Process.GetCurrentProcess())
                 {
                     double birth = (parent.StartTime.ToUniversalTime() - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
-                    worker = new Process { StartInfo = new ProcessStartInfo
+                    var start = new ProcessStartInfo
                     {
                         FileName = Path.Combine(PackRoot, "runtime/ntp-ai-worker/ntp-ai-worker.exe"),
                         Arguments = "--model-root \"" + Path.Combine(PackRoot, "models") + "\" --parent-pid " + parent.Id
                             + " --parent-started " + birth.ToString("R", CultureInfo.InvariantCulture),
                         UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true
-                    }};
+                    };
+                    PointHomeIntoThePack(start);
+                    worker = new Process { StartInfo = start };
                     worker.Start();
                     worker.StandardInput.WriteLine(token);
                     worker.StandardInput.Close();
