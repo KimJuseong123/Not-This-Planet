@@ -45,3 +45,15 @@
 - Unity 로그에는 기존 API 폐기 경고, Mirror Weaver의 BouncyCastle 참조 경고와 Terrain 셰이더 의존성 경고가 관찰되었다. 이 작업에서 해당 영역은 수정하지 않았다.
 - 근거: 워크트리 `Temp/bgm-validation/regression.xml`, `regression.log`, `server-compile.log`, `assets.json`, `unchanged-meteor-baseline.txt`. `Temp`는 Git에 포함하지 않는다.
 - 실제 여러 프로세스/PC의 네트워크 플레이, 전체 클라이언트/서버 빌드, 사람이 듣는 음량·전환·루프 경계 품질, GitLab 원격 업로드는 미검증이다. 원격 전송이나 커밋은 수행하지 않았다.
+
+## 후속: 짧은 음원 재생을 놓치는 테스트 수정
+
+`SceneMusicTests.LegacyWaitRemainsAndNewGameplayTracksLoopWithoutGaps`에서 “기존 곡은 대기 후 재시작한다 / Expected True, False” 실패가 보고되었다.
+
+- 기준 커밋 `0c9f037f`. 원래 테스트는 0.1초 음원의 `AudioSource.isPlaying`을 프레임마다 관찰하고 2초 안에 True가 되는지 기다린다. 로컬 재실행 및 `-noaudio` 옵션 재실행은 통과했다. 오디오 장치 부재가 직접 원인이라는 가설은 이 실험으로 확인되지 않았다.
+- 검사 프레임에 임시로 0.2초 지연을 넣자 같은 메시지로 실패했다. 오디오 재생이 검사 사이에 시작·종료되면 테스트는 재시작을 놓친다. 이는 BGM이 재시작하지 않았다는 증거가 아니다. 실제 보고 환경의 전체 로그를 확인한 것은 아니지만 동일 실패를 일으키는 타이밍 의존성을 재현했다.
+- `GameMusicPlayer`의 기존 종료→대기→재시작 판단을 작은 `MusicRepeatState`로 옮겼다. 실제 실행에서는 이전과 같이 DSP 시각과 AudioSource 상태를 입력한다. 대기 길이·시작 조건·음소거·컷씬 정책은 유지한다.
+- 원래 테스트는 같은 상태 객체에 명시적인 시각과 종료 상태를 입력해 대기 직전/경계/재시작을 검증한다. 2장·연습은 실제 플레이어에 설정된 루프·클립·소스 재사용을 검증한다. 순간적인 `isPlaying == true` 관찰이나 실제 오디오 장치에 테스트 성공을 의존시키지 않는다.
+- 프레임 건너뜀, 대기 시각이 계속 밀리지 않는지, 대기 0초, 비활성화 시 사용하는 Reset을 별도 검사한다. 실패 검사를 제외하거나 대기 시간만 늘리지 않았다. 임시 `Thread.Sleep`은 제거했다.
+- 재현 근거: `Temp/bgm-validation/slow-frame-before.xml` (1개 실패), `slow-frame-before.log`. 수정 후 결과는 `timing-fixed.xml`과 `timing-fixed.log`에 기록한다.
+- 수정 후 Unity 6000.5.4f1 배치 검사: **40/40 통과**. SceneMusicTests 20개, CameraAudioListenerTests 2개, Stage1SoundTests 4개, GameSettingsTests 14개. 원래 실패했던 테스트와 새 프레임 건너뜀·재설정 검사가 포함된다. 원격 CI 재실행 결과는 별도 확인이 필요하다.

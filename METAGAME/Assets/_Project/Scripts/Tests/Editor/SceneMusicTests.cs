@@ -55,6 +55,15 @@ namespace Metagame.Gameplay.Tests
         [UnityTest]
         public IEnumerator LegacyWaitRemainsAndNewGameplayTracksLoopWithoutGaps()
         {
+            // 0.1초 음원의 isPlaying을 프레임마다 관찰하면 느린 CI에서 재생 구간을 놓친다.
+            // 실제 플레이어가 사용하는 전이 규칙을 명시적인 시각/종료 입력으로 검증한다.
+            var repeat = new MusicRepeatState();
+            repeat.Reset(10d);
+            Assert.That(repeat.Tick(10d, false, .5f), Is.EqualTo(MusicRepeatStep.Start));
+            Assert.That(repeat.Tick(10.05d, true, .5f), Is.EqualTo(MusicRepeatStep.Playing));
+            Assert.That(repeat.Tick(10.1d, false, .5f), Is.EqualTo(MusicRepeatStep.Waiting));
+            Assert.That(repeat.Tick(10.599d, false, .5f), Is.EqualTo(MusicRepeatStep.Waiting));
+            Assert.That(repeat.Tick(10.6d, false, .5f), Is.EqualTo(MusicRepeatStep.Start), "기존 곡은 대기 후 재시작한다.");
             yield return new EnterPlayMode();
             var root = new GameObject("BGM repeat test");
             root.AddComponent<AudioListener>();
@@ -70,27 +79,46 @@ namespace Metagame.Gameplay.Tests
                 config.FindProperty("musicFadeOutSeconds").floatValue = 0f;
                 config.ApplyModifiedPropertiesWithoutUndo();
                 var controller = root.AddComponent<SceneMusicController>();
-                controller.ConfigureGameplay(manager, null, "Stage1_Astra", false);
-                yield return new WaitForSecondsRealtime(.25f);
-                Assert.That(root.GetComponents<AudioSource>().Any(s => s.isPlaying), Is.False, "기존 곡은 종료 후 대기한다.");
-                double deadline = Time.realtimeSinceStartupAsDouble + 2;
-                while (!root.GetComponents<AudioSource>().Any(s => s.isPlaying) && Time.realtimeSinceStartupAsDouble < deadline)
-                    yield return null;
-                Assert.That(root.GetComponents<AudioSource>().Any(s => s.isPlaying), Is.True, "기존 곡은 대기 후 재시작한다.");
                 foreach (var scene in new[] { "Stage2_Earth", "PracticeLobby" })
                 {
                     controller.ConfigureGameplay(manager, null, scene, false);
-                    yield return new WaitForSecondsRealtime(.4f);
-                    var active = root.GetComponents<AudioSource>().Single(s => s.isPlaying);
-                    Assert.That(active.loop, Is.True, "여러 반복 경계가 지나도 공백이 없어야 한다.");
+                    var active = root.GetComponents<AudioSource>().Single(s => s.loop);
+                    Assert.That(active.loop, Is.True, "새 상시 곡은 종료/대기 정책 대신 AudioSource 연속 루프를 사용한다.");
                     Assert.That(active.clip, Is.SameAs(clip));
                     controller.Tick();
+                    Assert.That(root.GetComponents<AudioSource>().Single(s => s.loop), Is.SameAs(active));
                     Assert.That(root.GetComponents<AudioSource>().Length, Is.EqualTo(2));
                 }
             }
             finally { Object.Destroy(root); Object.Destroy(manager); Object.Destroy(clip); }
             yield return null;
             yield return new ExitPlayMode();
+        }
+
+        [Test]
+        public void LegacyRepeatHandlesSkippedFramesWithoutMovingTheDeadline()
+        {
+            var repeat = new MusicRepeatState();
+            repeat.Reset(0d);
+            Assert.That(repeat.Tick(0d, false, .5f), Is.EqualTo(MusicRepeatStep.Start));
+            // 0.1초 곡의 재생 중 프레임을 한 번도 관찰하지 못한 경우.
+            Assert.That(repeat.Tick(.2d, false, .5f), Is.EqualTo(MusicRepeatStep.Waiting));
+            Assert.That(repeat.Tick(.4d, false, .5f), Is.EqualTo(MusicRepeatStep.Waiting));
+            Assert.That(repeat.Tick(.6d, false, .5f), Is.EqualTo(MusicRepeatStep.Waiting));
+            Assert.That(repeat.Tick(.8d, false, .5f), Is.EqualTo(MusicRepeatStep.Start));
+        }
+
+        [Test]
+        public void LegacyRepeatResetAndZeroDelayPreserveRestartBehavior()
+        {
+            var repeat = new MusicRepeatState();
+            repeat.Reset(0d);
+            Assert.That(repeat.Tick(0d, false, 0f), Is.EqualTo(MusicRepeatStep.Start));
+            Assert.That(repeat.Tick(1d, false, 0f), Is.EqualTo(MusicRepeatStep.Waiting));
+            Assert.That(repeat.Tick(1d, false, 0f), Is.EqualTo(MusicRepeatStep.Start));
+            Assert.That(repeat.Tick(2d, false, 5f), Is.EqualTo(MusicRepeatStep.Waiting));
+            repeat.Reset(3d); // 비활성화·재설정은 이전 곡의 대기를 이어받지 않는다.
+            Assert.That(repeat.Tick(3d, false, 5f), Is.EqualTo(MusicRepeatStep.Start));
         }
 
         [UnityTest]

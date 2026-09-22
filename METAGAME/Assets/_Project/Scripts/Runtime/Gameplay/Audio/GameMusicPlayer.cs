@@ -11,8 +11,8 @@ namespace Metagame.Gameplay.Audio
         AudioSource source;
         AudioSource outgoing;
         GameSettingsRuntime settings;
-        bool playing;
-        double restartAt;
+        bool cueStarted;
+        readonly MusicRepeatState repeat = new();
         double transitionAt;
         float outgoingGain;
         float incomingGain;
@@ -35,9 +35,9 @@ namespace Metagame.Gameplay.Audio
             source.loop = false;
             source.clip = manager != null ? manager.MusicClip : null;
             Cue = MusicCue.Default;
-            playing = false;
+            cueStarted = false;
             incomingGain = outgoingGain = 0f;
-            restartAt = AudioSettings.dspTime;
+            repeat.Reset(AudioSettings.dspTime);
             if (source.clip == null)
                 Debug.LogWarning("[BGM] AudioManager에 Music Clip이 지정되지 않았습니다.", this);
         }
@@ -58,7 +58,7 @@ namespace Metagame.Gameplay.Audio
             if (source == null || manager == null) return;
             cueTime = double.IsNaN(elapsedSeconds) || double.IsInfinity(elapsedSeconds)
                 ? 0d : System.Math.Max(0d, elapsedSeconds);
-            if (Cue == cue && playing) return;
+            if (Cue == cue && cueStarted) return;
             if (Cue == cue && cue == MusicCue.Default) return;
 
             if (Cue != cue)
@@ -75,8 +75,8 @@ namespace Metagame.Gameplay.Audio
             transitionAt = AudioSettings.dspTime;
             source.clip = manager.GetMusicClip(cue);
             source.loop = cue == MusicCue.Assault || cue == MusicCue.Stage2 || cue == MusicCue.Practice;
-            playing = cue != MusicCue.Default;
-            restartAt = AudioSettings.dspTime;
+            cueStarted = cue != MusicCue.Default;
+            repeat.Reset(AudioSettings.dspTime);
             if (source.clip == null || source.clip.length <= 0f)
             {
                 if (cue != MusicCue.Silence)
@@ -117,19 +117,16 @@ namespace Metagame.Gameplay.Audio
                 source.volume = volume * incomingGain;
                 return;
             }
-            if (!playing)
+            var step = repeat.Tick(AudioSettings.dspTime, source.isPlaying, manager.MusicRepeatDelaySeconds);
+            if (step == MusicRepeatStep.Waiting)
             {
-                if (AudioSettings.dspTime < restartAt) return;
+                source.volume = 0f;
+                return;
+            }
+            if (step == MusicRepeatStep.Start)
+            {
                 source.volume = 0f;
                 source.Play();
-                playing = true;
-            }
-            else if (!source.isPlaying)
-            {
-                source.volume = 0f;
-                playing = false;
-                restartAt = AudioSettings.dspTime + manager.MusicRepeatDelaySeconds;
-                return;
             }
 
             float elapsed = (float)source.timeSamples / source.clip.frequency;
@@ -148,8 +145,8 @@ namespace Metagame.Gameplay.Audio
         {
             if (source != null) source.Stop();
             if (outgoing != null) { outgoing.Stop(); outgoing.clip = null; }
-            playing = false;
-            restartAt = AudioSettings.dspTime;
+            cueStarted = false;
+            repeat.Reset(AudioSettings.dspTime);
         }
 
         void OnDestroy()
