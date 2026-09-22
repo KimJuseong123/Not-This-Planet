@@ -1122,3 +1122,107 @@ with tempfile.TemporaryDirectory() as d:
         "새 테스트 실패에서도 잡 로그에 마커 줄이 있어야 한다" + chr(10) + printed[-500:])
     assert NOTES, "코멘트도 올라가야 한다"
     print(f"  새 테스트 실패 — 로그에 이유가 남는다 ({len(marked)}줄) ✅")
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 전체 실행의 기준선은 **전체 실행**이어야 한다 (S15P21B202-673)
+#
+# `unity-compile` 은 "다 초록인가" 가 아니라 "이번 변경이 새로 깨뜨렸나" 를 묻고,
+# 그 뺄셈은 **양쪽이 같은 테스트 집합을 돌렸을 때만** 뜻이 있다.
+#
+#   전체 실행 2120건(Heavy 포함) − 기준선 2056건(`!Heavy`) = Heavy 실패 전부가 '새 실패'
+#
+# 2026-09-22 새벽에 실제로 그랬다. 깨져서가 아니라 **잰 적이 없어서** 새 실패가 됐고,
+# 고치지 않으면 매일 밤 되풀이된다 — 늘 빨간 검사는 없는 것과 같다(-672).
+# ══════════════════════════════════════════════════════════════════════════
+print()
+print("== 전체 실행 기준선 (S15P21B202-673) ==")
+
+FULL_XML = NUNIT                                     # 이 기준선이 쓰여야 한다
+OTHER_XML = NUNIT.replace("Failed", "Passed")        # `!Heavy` 잡 — 쓰이면 결과가 달라진다
+
+
+def cat_api(cats, results=None, seen=None):
+    """잡마다 `unity-key.txt` 의 범위를 정해 주는 가짜 API. `seen` 에 URL 을 모은다."""
+    results = results or {}
+
+    def api(method, url, headers=None, body=None, timeout=30):
+        if seen is not None:
+            seen.append(url)
+        if "/jobs?per_page=100&page=1" in url:
+            return 200, [{"id": i, "name": "unity-compile", "ref": "develop",
+                          "status": "failed"} for i in sorted(cats, reverse=True)]
+        for jid, cat in cats.items():
+            if f"/jobs/{jid}/artifacts/unity-key.txt" in url:
+                return (404, {}) if cat is None else (200, f"deadbeef {cat}")
+            if f"/jobs/{jid}/artifacts/unity-results.xml" in url:
+                return 200, results.get(jid, OTHER_XML)
+        if "/pipelines?ref=" in url:
+            return 200, []
+        raise AssertionError(f"예상 못한 호출: {method} {url}")
+    return api
+
+
+# ── ① `!Heavy` 잡은 전체 실행의 기준선이 될 수 없다 — 이 파일의 핵심
+SEEN = []
+ci_common.http = cat_api({62: "no-heavy", 61: "no-heavy", 60: "full"},
+                         results={60: FULL_XML}, seen=SEEN)
+got = R.baseline_failures(ci_common.GitLab(), "develop",
+                          runs=R.FULL_BASELINE_RUNS, want_cat=R.CAT_FULL,
+                          max_candidates=R.FULL_BASELINE_CANDIDATES)
+if got != fails:
+    raise AssertionError(f"전체 실행 기준선이 전체 실행 잡(60)의 실패가 아니다: {got}")
+for jid in (62, 61):
+    if any(f"/jobs/{jid}/artifacts/unity-results.xml" in u for u in SEEN):
+        raise AssertionError(
+            f"`!Heavy` 잡 {jid} 의 결과를 기준선으로 읽었다 — 그 실행에는 Heavy 가 아예 "
+            "없어서, 실패하는 Heavy 가 전부 '새 실패' 로 잡힌다")
+print("  `!Heavy` 잡은 전체 실행 기준선에서 빠진다 ✅")
+
+
+# ── ② 더 최신이라도 범위가 다르면 쓰지 않는다 (최신 우선이 범위를 이기지 않는다)
+ci_common.http = cat_api({70: "no-heavy"}, seen=None)
+if R.baseline_failures(ci_common.GitLab(), "develop", runs=R.FULL_BASELINE_RUNS,
+                       want_cat=R.CAT_FULL) is not None:
+    raise AssertionError("쓸 수 있는 전체 실행이 없는데 기준선을 만들어 냈다")
+print("  쓸 전체 실행이 없으면 None — 판정 2(판단 불가)로 간다 ✅")
+
+
+# ── ③ 범위를 **모르는** 잡(`unity-key.txt` 없음)도 쓰지 않는다
+#     모르는 것을 같은 범위로 치면 이 검사가 아무것도 막지 못한다.
+ci_common.http = cat_api({71: None})
+if R.baseline_failures(ci_common.GitLab(), "develop", runs=R.FULL_BASELINE_RUNS,
+                       want_cat=R.CAT_FULL) is not None:
+    raise AssertionError("범위를 모르는 잡을 전체 실행 기준선으로 썼다")
+print("  범위를 모르는 옛 잡도 쓰지 않는다 ✅")
+
+
+# ── ④ MR·push 경로는 **바뀌지 않는다**
+#     그쪽 기준선이 까다로워지면 못 찾는 경우가 늘고, 못 찾으면 판정 2 는 **비차단**이라
+#     진짜 회귀가 그대로 통과한다. 위험 방향이 정반대라 같이 좁히지 않는다.
+SEEN2 = []
+ci_common.http = cat_api({81: "no-heavy", 80: "full"},
+                         results={81: FULL_XML, 80: FULL_XML}, seen=SEEN2)
+if R.baseline_failures(ci_common.GitLab(), "develop") != fails:
+    raise AssertionError("MR 경로의 기준선 동작이 바뀌었다")
+if any("unity-key.txt" in u for u in SEEN2):
+    raise AssertionError("MR 경로가 범위를 조회한다 — 조회가 실패하면 기준선을 잃는다")
+print("  MR·push 경로는 범위를 보지 않는다 (그대로) ✅")
+
+
+# ── ⑤ 배선: 전체 실행이면 1회 + 범위 고정, 아니면 예전 그대로
+_SRC = Path(os.path.dirname(HERE), "unity_report.py").read_text(encoding="utf-8")
+_CALL = _SRC[_SRC.index("if not pinned:"):]
+_CALL = _CALL[:_CALL.index("if base is None:")]
+for need in ("run_category()", "CAT_FULL", "runs=FULL_BASELINE_RUNS",
+             "want_cat=cat", "max_candidates=FULL_BASELINE_CANDIDATES"):
+    if need not in _CALL:
+        raise AssertionError(f"전체 실행 갈림에 {need} 가 없다 — 배선이 끊겼다")
+_ELSE = _CALL[_CALL.index("else:"):]
+if "want_cat" in _ELSE:
+    raise AssertionError("MR 경로에도 범위를 걸었다 — 기준선을 잃으면 회귀가 통과한다")
+if R.FULL_BASELINE_RUNS != 1:
+    raise AssertionError(
+        f"전체 실행 기준선이 {R.FULL_BASELINE_RUNS}회다 — 하루 1회뿐이라 "
+        "합치면 기준선이 그만큼 날짜를 거슬러 늘어지고 진짜 회귀가 묻힌다")
+print("  전체 실행 = 직전 1회 · MR = 최근 3회 ✅")

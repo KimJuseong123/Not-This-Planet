@@ -34,6 +34,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 from ci_common import GitLab, banner, bot_line, env  # noqa: E402
+from unity_reuse import CAT_FULL, KEY_FILE, category as run_category  # noqa: E402
 
 MARKER = "<!-- unity-compile:metagame -->"
 JOB_NAME = "unity-compile"
@@ -54,6 +55,20 @@ MAX_BASELINE_CANDIDATES = 10   # !259 3차 AI 리뷰 (S15P21B202-342)
 # 기준선에 들어가 넘어간다.** 그래서 3 으로 좁게 두고, 어느 잡이 무엇을 보탰는지 로그에
 # 남긴다. 이것만으로는 부족해서 아래 재실행(RECHECK_RUNS)을 함께 쓴다.
 BASELINE_RUNS = 3
+
+# 전체 실행(Heavy 포함)의 기준선은 **전체 실행 1회**다 (S15P21B202-673).
+#
+# 위 합집합 3회는 *같은 범위끼리* 견줄 때의 이야기다. 전체 실행은 하루 한 번뿐이라
+# 3회를 합치면 기준선이 **사흘 전까지 늘어지고**, 그 사이 하루라도 실패한 적 있는
+# 테스트는 진짜 회귀여도 넘어간다. 플래키는 여기가 아니라 **재실행**(RECHECK_RUNS)이
+# 거른다 — 새 실패만 골라 2회 다시 돌려 한 번이라도 통과하면 뺀다.
+FULL_BASELINE_RUNS = 1
+
+# 전체 실행 기준선은 후보를 더 멀리 본다. `develop` 에는 머지마다 `unity-compile` 이
+# 생기는데 전체 실행은 하루 한 번이라, 10개만 보면 바쁜 날 직전 새벽이 창 밖으로
+# 밀린다(2026-09-21 에 develop 머지가 6건이었다). 열어 보는 것은 `unity-key.txt`
+# 한 줄이라 싸고, 이 경로는 하루 한 번만 돈다.
+FULL_BASELINE_CANDIDATES = 30
 
 # 재실행 **횟수와 상한은 여기 없다** — `.gitlab-ci.yml` 의 `RECHECK_RUNS`·`RECHECK_MAX_NEW`
 # 하나에만 둔다 (S15P21B202-347, `!272` AI 리뷰). 이 스크립트는 Unity 를 돌리지 않으므로
@@ -156,6 +171,17 @@ def compile_errors(log_text: str, cap: int = MAX_COMPILE_ERRORS) -> list[str]:
 
 
 # ── 기준선(대상 브랜치의 마지막 결과) ────────────────────────────────────────
+def job_category(gl: GitLab, job_id: int) -> str | None:
+    """그 잡이 **무엇을 돌렸는지**(`full` · `no-heavy`). 판단 못 하면 None.
+
+    `unity_reuse` 가 남긴 `unity-key.txt` 는 `<트리지문> <범위>` 두 칸이다. 이 이슈
+    이전 잡에는 그 파일이 없어 None 이 나오고, **전체 실행 기준선에서는 쓰지 않는다** —
+    모르는 것을 같은 범위로 치면 이 검사가 아무것도 막지 못한다.
+    """
+    parts = (gl.job_artifact_text(job_id, KEY_FILE) or "").strip().split()
+    return parts[1] if len(parts) >= 2 else None
+
+
 def baseline_candidates(gl: GitLab, ref: str, max_pipelines: int) -> list[dict]:
     """기준선으로 쓸 `unity-compile` 잡을 최신 순으로 준다 (S15P21B202-342).
 
@@ -190,7 +216,9 @@ def baseline_candidates(gl: GitLab, ref: str, max_pipelines: int) -> list[dict]:
 
 
 def baseline_failures(gl: GitLab, ref: str, max_pipelines: int = 15,
-                      meta: dict | None = None, runs: int = BASELINE_RUNS) -> set | None:
+                      meta: dict | None = None, runs: int = BASELINE_RUNS,
+                      want_cat: str | None = None,
+                      max_candidates: int = MAX_BASELINE_CANDIDATES) -> set | None:
     """대상 브랜치의 최근 `runs` 회 unity-compile 실패의 **합집합**. 못 구하면 None.
 
     None 과 빈 집합을 구분한다 — '기준선을 못 봤다' 와 '기준선에 실패가 없다' 는 다르다.
@@ -207,11 +235,20 @@ def baseline_failures(gl: GitLab, ref: str, max_pipelines: int = 15,
     used: list[str] = []
     try:
         cands = baseline_candidates(gl, ref, max_pipelines)
-        if len(cands) > MAX_BASELINE_CANDIDATES:
-            print(f"기준선 후보 {len(cands)}개 중 최신 {MAX_BASELINE_CANDIDATES}개만 본다")
-        for j in cands[:MAX_BASELINE_CANDIDATES]:
+        if len(cands) > max_candidates:
+            print(f"기준선 후보 {len(cands)}개 중 최신 {max_candidates}개만 본다")
+        for j in cands[:max_candidates]:
             if len(used) >= max(1, runs):
                 break
+            # **범위가 다른 잡은 기준선이 될 수 없다** (S15P21B202-673). `!Heavy` 실행에는
+            # Heavy 테스트가 아예 없으므로, 그것을 전체 실행의 기준선으로 쓰면 실패하는
+            # Heavy 가 전부 '새 실패' 로 잡힌다 — 깨져서가 아니라 잰 적이 없어서다.
+            if want_cat is not None:
+                got = job_category(gl, j["id"])
+                if got != want_cat:
+                    print(f"기준선 후보에서 뺀다: 잡 {j['id']} 범위 "
+                          f"{got or '알 수 없음'} ≠ {want_cat}")
+                    continue
             txt = gl.job_artifact_text(j["id"], ARTIFACT)
             if not txt:
                 continue          # 아티팩트 만료(expire_in) — 더 최신 것부터 계속 본다
@@ -715,7 +752,16 @@ def main(argv: list[str] | None = None) -> int:
     elif baseline_from:
         print(f"[warn] 기준선 고정 파일이 없다: {baseline_from} — 다시 조회한다")
     if not pinned:
-        base = baseline_failures(gl, ref, meta=bmeta)
+        # **전체 실행은 전체 실행끼리 견준다** (S15P21B202-673). MR·push 는 건드리지
+        # 않는다 — 그쪽 기준선이 까다로워지면 못 찾는 경우가 늘고, 못 찾으면 판정이
+        # 2(비차단)라 **진짜 회귀가 그대로 통과한다.** 위험 방향이 정반대다.
+        cat = run_category()
+        if cat == CAT_FULL:
+            print(f"기준선 범위: {cat} — 같은 범위의 직전 {FULL_BASELINE_RUNS}회만 쓴다")
+            base = baseline_failures(gl, ref, meta=bmeta, runs=FULL_BASELINE_RUNS,
+                                     want_cat=cat, max_candidates=FULL_BASELINE_CANDIDATES)
+        else:
+            base = baseline_failures(gl, ref, meta=bmeta)
     if base is None:
         print(f"기준선 없음 — `{ref}` 에서 이 잡이 돈 결과를 찾지 못했다")
     else:
