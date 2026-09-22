@@ -93,18 +93,18 @@ namespace Metagame.UI
             int complete = 0; foreach (var part in _yard.State.Parts) if (part.Secured) complete++;
             GUI.Label(new Rect(42, 78, 480, 60), $"로켓 조립 {complete}/3  ·  훅 {(_yard.State.Attached < 0 ? "분리" : "연결됨")}\n컨테이너 → 인양 → 사다리 → 볼트 3곳 → 하중 해제", _text);
             var me = _yard.PlayerState(_localId());
-            GUI.Label(new Rect(42, 142, 480, 65), $"장비: {me.Tool}   오염: {me.Contamination:P0}\nE 상호작용 · Tab 작업 태블릿 · R 개인 복구", _small);
+            GUI.Label(new Rect(42, 142, 480, 65), $"장비: {me.Tool}   오염: {me.Contamination:P0}\n{TabletHelpContent.Name(Controls.TransportAction)} 상호작용 · {TabletHelpContent.Name(Controls.Tablet)} 작업 태블릿 · {TabletHelpContent.Name(Controls.Restart)} 개인 복구", _small);
             int row=0;
             foreach(var member in _yard.State.Players)
             {
-                GUI.Label(new Rect(24,245+row++*30,510,30),$"동료 {member.Id}  오염 {member.Contamination:P0}  {(member.Downed ? "기절 — 제독 후 G 구조" : "작업 가능")}",_small);
+                GUI.Label(new Rect(24,245+row++*30,510,30),$"동료 {member.Id}  오염 {member.Contamination:P0}  {(member.Downed ? $"기절 — 제독 후 {TabletHelpContent.Name(Controls.RescueTeammate)} 구조" : "작업 가능")}",_small);
             }
             string warning = _yard.GasActive ? "유독 가스 누출 중 — 초록 구역 이탈 / 동료에게 제독 요청"
                 : _yard.GasWarning ? "6초 예고 — 배관 경고 구역에서 누출 예정" : _yard.State.GasEnabled ? "누출 휴지기 — 남은 오염은 동료에게 제독 요청" : "첫 조립 학습 구간 / 준비 구역은 안전";
             GUI.Label(new Rect(580, 28, 980, 55), warning, _text);
             int pressure=_yard.PressurePhase(_yard.ActivePressurePump);
             if(pressure>0)GUI.Label(new Rect(580,145,980,55),pressure==1
-                ? "배수 압력 상승 — 주황 분출선에서 대피 / 펌프 손잡이 E로 감압"
+                ? $"배수 압력 상승 — 주황 분출선에서 대피 / 펌프 손잡이 {TabletHelpContent.Name(Controls.TransportAction)}로 감압"
                 : "고압 역류 분출 — 물줄기를 피하거나 감압 밸브를 여세요",_text);
             var swimmer = _session.LocalPlayer;
             if (swimmer != null && swimmer.InWater)
@@ -114,7 +114,8 @@ namespace Metagame.UI
             GUI.EndGroup();
             if (Focus != null)
             {
-                string hint = Focus.Kind == YardTargetKind.Bolt ? _yard.BoltCondition(Focus.Index / 3) : "E  " + Focus.Label;
+                string hint = FocusHintFor(Focus.Kind, Focus.Label,
+                    Focus.Kind == YardTargetKind.Bolt ? _yard.BoltCondition(Focus.Index / 3) : null);
                 GUI.Box(new Rect(490, 718, 650, 75), "");
                 GUI.Label(new Rect(510, 730, 610, 60), hint, _text);
             }
@@ -138,6 +139,16 @@ namespace Metagame.UI
             GUI.matrix = previous;
         }
 
+        /// <summary>2장 장비와 시설은 E 상호작용, 볼트 체결은 마우스 입력을 유지한다.</summary>
+        public static string FocusHintFor(YardTargetKind kind, string label, string boltCondition) =>
+            kind switch
+            {
+                YardTargetKind.Bolt => boltCondition,
+                // 샤워는 버튼이 아니라 범위 안에 서 있으면 제독한다.
+                YardTargetKind.Shower => "고정 샤워 가까이에서 제독",
+                _ => TabletHelpContent.Cap(Controls.TransportAction) + "  " + label,
+            };
+
         void DrawGuide()
         {
             GUI.Box(new Rect(270, 110, 1060, 630), "");
@@ -146,8 +157,8 @@ namespace Metagame.UI
                 "01  상부 뚜껑을 열고 큰 인양 고리에 훅을 연결합니다.\n\n" +
                 "02  승강기로 조종석에 올라 회전·반경·높이를 조작합니다.\n     접합면은 동료가 가까이서 확인합니다.\n\n" +
                 "03  사다리를 들고 평평한 바닥에 설치합니다.\n     설치 시 다음 접합 높이에 맞춰 펼쳐집니다. 점유 중 이동 금지.\n\n" +
-                $"04  렌치 장착 → 볼트 조준 → 좌클릭 유지 + 마우스 원형 이동.\n     3곳 체결 → 와이어 하강 → 큰 고리 E로 연결 해제.\n     수정: 볼트 좌+우클릭 / {Controls.ToolAction} 던지기 · {Controls.TransportAction} 줍기.\n\n" +
-                "05  첫 체결 뒤 오염 시작. 분사기를 들고 좌클릭으로 동료 제독.\n     기절한 동료는 제독 후 G 구조. 솔로는 파란 고정 샤워 이용.\n\n" +
+                $"04  렌치 장착 → 볼트 조준 → 좌클릭 유지 + 마우스 원형 이동.\n     3곳 체결 → 와이어 하강 → 큰 고리 {TabletHelpContent.Name(Controls.TransportAction)}로 연결 해제.\n     수정: 볼트 좌+우클릭 / {Controls.ToolAction} 던지기 · {Controls.TransportAction} 줍기.\n\n" +
+                $"05  첫 체결 뒤 오염 시작. 분사기를 들고 좌클릭으로 동료 제독.\n     기절한 동료는 제독 후 {TabletHelpContent.Name(Controls.RescueTeammate)} 구조. 솔로는 파란 고정 샤워 이용.\n\n" +
                 "06  모두 체결·훅 분리·크레인 후퇴 후 발사대에 모여 출발.\n     유실 파츠는 준비 구역의 복구 패널에서 회수합니다.", _small);
             var rect = new Rect(1080, 245, 70, 275);
             var old = GUI.color;
@@ -160,7 +171,7 @@ namespace Metagame.UI
                 GUI.Label(new Rect(990, rect.y + (2-i)*90, 90, 80), $"{i+1}단\n{p.A:P0}\n{p.B:P0} / {p.C:P0}", _small);
             }
             GUI.color = old;
-            GUI.Label(new Rect(965, 550, 325, 170), "고정 하단 → 연료부 → 거주부 → 노즈\n황색: 작업 / 청색: 지원 / 녹색: 위험\n\n배수 압력 경고 시 주황 분출선 대피\n펌프 손잡이 E: 45초 감압\nTab 닫기", _small);
+            GUI.Label(new Rect(965, 550, 325, 170), $"고정 하단 → 연료부 → 거주부 → 노즈\n황색: 작업 / 청색: 지원 / 녹색: 위험\n\n배수 압력 경고 시 주황 분출선 대피\n펌프 손잡이 {TabletHelpContent.Name(Controls.TransportAction)}: 45초 감압\n{TabletHelpContent.Name(Controls.Tablet)} 닫기", _small);
         }
     }
 }

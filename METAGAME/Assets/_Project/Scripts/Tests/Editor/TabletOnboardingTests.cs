@@ -132,7 +132,7 @@ namespace Metagame.Gameplay.Tests
             ("저중력장", Controls.FieldToggle),
             ("자유 시점", Controls.FreeLook),
             ("버리기·던지기", Controls.ToolAction),
-            ("줍기·탑승", Controls.TransportAction),
+            ("탑승·하차", Controls.TransportAction),
             ("동료 구조", Controls.RescueTeammate),
             ("끼임 탈출", Controls.StuckEscape),
             ("다시 시작", Controls.Restart),
@@ -165,6 +165,17 @@ namespace Metagame.Gameplay.Tests
                 e => e.Keys == TabletHelpContent.Name(Controls.RescueTeammate));
             Assert.That(rescue.Description, Is.Not.Null.And.Contains("일으"),
                 "구조가 제 키로 안 적혀 있다.");
+        }
+
+        [Test]
+        public void GrabbingAndToolPickupAreTaughtWithMouseButtons()
+        {
+            var mouse = TabletHelpContent.Interaction().Where(e => e.Keys.Contains("클릭")).ToArray();
+            Assert.That(mouse.Any(e => e.Description.Contains("고정물") && e.Description.Contains("동료")), Is.True);
+            Assert.That(mouse.Any(e => e.Description.Contains("방망이") && e.Description.Contains("용접 건")), Is.True);
+            var transport = TabletHelpContent.Transport().First(e => e.Keys == TabletHelpContent.Name(Controls.TransportAction));
+            Assert.That(transport.Description, Does.Contain("탑승").And.Contain("하차"));
+            Assert.That(transport.Description, Does.Not.Contain("줍기").And.Not.Contain("교환"));
         }
 
         [Test]

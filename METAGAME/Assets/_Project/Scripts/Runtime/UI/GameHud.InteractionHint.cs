@@ -68,8 +68,9 @@ namespace Metagame.UI
                 PlayerInteractionKind.Clamp =>
                     new HudPrompt(TabletHelpContent.Cap("좌클릭 유지"), "고정못을 잡고 뒤로 당기기"),
                 // "줍기" 는 집어서 주머니에 넣는 말로 읽힌다. 실제로는 손으로 쥔다.
+                // 고정물·운반물·동료·도구 모두 GrabLeft/GrabRight 경로다. E는 탑승용이다.
                 PlayerInteractionKind.Grabbable =>
-                    new HudPrompt(TabletHelpContent.Cap(Controls.TransportAction), "잡기"),
+                    new HudPrompt(TabletHelpContent.Cap("좌클릭"), "잡기"),
                 PlayerInteractionKind.Transport =>
                     new HudPrompt(TabletHelpContent.Cap(Controls.TransportAction), "타기"),
                 _ => default,
@@ -81,7 +82,8 @@ namespace Metagame.UI
         {
             text.Append(TabletHelpContent.Cap(Controls.StuckEscape)).Append("꾹 눌러 빠져나오기");
             text.Append(TabletHelpContent.Cap("좌클릭 유지")).Append("고정못을 잡고 뒤로 당기기");
-            text.Append(TabletHelpContent.Cap(Controls.TransportAction)).Append("잡기타기");
+            text.Append(TabletHelpContent.Cap("좌클릭")).Append("잡기");
+            text.Append(TabletHelpContent.Cap(Controls.TransportAction)).Append("타기");
         }
     }
 }

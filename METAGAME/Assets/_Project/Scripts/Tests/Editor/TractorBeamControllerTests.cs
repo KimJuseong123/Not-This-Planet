@@ -74,8 +74,9 @@ namespace Metagame.Gameplay.Tests
             return grabbable;
         }
 
-        [Test]
-        public void InteractionFocus_SelectsOnlyTheNearestCameraCenterCandidate()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void InteractionFocus_SelectsOnlyTheNearestCameraCenterCandidate(bool rightClick)
         {
             var player = MakePlayerWithCamera();
             var center = player.Cam.transform.position + player.Cam.transform.forward * Tuning.ArmReach;
@@ -88,13 +89,20 @@ namespace Metagame.Gameplay.Tests
                 player.CurrentInteractionTarget.Kind);
             Assert.AreSame(centered, player.CurrentInteractionTarget.Grabbable,
                 "화면 중심에 더 가까운 하나만 현재 상호작용 대상이어야 한다.");
+            Assert.AreEqual("[좌클릭]", Metagame.UI.GameHud.PromptFor(false, false,
+                player.CurrentInteractionTarget.CanInteract, player.CurrentInteractionTarget.Kind).Key);
 
-            player.SetInput(new InputFrame { GrabLeft = true });
+            player.SetInput(new InputFrame { TransportAction = true });
             player.Tick();
+            Assert.IsNull(player.LeftHand.Held);
+            Assert.IsNull(player.RightHand.Held);
+            player.SetInput(new InputFrame { GrabLeft = !rightClick, GrabRight = rightClick });
+            player.Tick();
+            var hand = rightClick ? player.RightHand : player.LeftHand;
 
-            Assert.AreSame(centered, player.LeftHand.Held,
+            Assert.AreSame(centered, hand.Held,
                 "선택된 물체만 클릭으로 잡혀야 한다.");
-            Assert.AreNotSame(offCenter, player.LeftHand.Held,
+            Assert.AreNotSame(offCenter, hand.Held,
                 "선택되지 않은 물체는 같은 클릭에 반응하면 안 된다.");
         }
 

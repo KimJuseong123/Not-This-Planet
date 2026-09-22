@@ -32,7 +32,7 @@ namespace Metagame.Gameplay.Tests
         public void TheKeyNameMatchesTheTablet()
         {
             // 손으로 적으면 키를 바꾼 사람에게 거짓말이 된다(S15P21B202-657).
-            var prompt = GameHud.PromptFor(false, false, true, PlayerInteractionKind.Grabbable);
+            var prompt = GameHud.PromptFor(false, false, true, PlayerInteractionKind.Transport);
             Assert.That(prompt.Key, Is.EqualTo("[" + TabletHelpContent.Name(Controls.TransportAction) + "]"));
         }
 
@@ -45,8 +45,10 @@ namespace Metagame.Gameplay.Tests
             try
             {
                 Controls.TransportAction = UnityEngine.KeyCode.F7;
-                var prompt = GameHud.PromptFor(false, false, true, PlayerInteractionKind.Grabbable);
+                var prompt = GameHud.PromptFor(false, false, true, PlayerInteractionKind.Transport);
                 Assert.That(prompt.Key, Is.EqualTo("[F7]"));
+                Assert.That(GameHud.PromptFor(false, false, true, PlayerInteractionKind.Grabbable).Key,
+                    Is.EqualTo("[좌클릭]"), "탑승 키 재지정은 마우스 잡기 안내를 바꾸면 안 된다.");
             }
             finally { Controls.TransportAction = original; }
         }
@@ -67,6 +69,39 @@ namespace Metagame.Gameplay.Tests
             // "줍기" 는 집어서 주머니에 넣는 말로 읽힌다. 실제로는 손으로 쥔다.
             var prompt = GameHud.PromptFor(false, false, true, PlayerInteractionKind.Grabbable);
             Assert.That(prompt.Label, Is.EqualTo("잡기"));
+            Assert.That(prompt.Key, Is.EqualTo("[좌클릭]"));
+        }
+
+        [Test]
+        public void ClampKeepsMouseHoldAndTransportKeepsItsOwnKey()
+        {
+            Assert.That(GameHud.PromptFor(false, false, true, PlayerInteractionKind.Clamp).Key,
+                Is.EqualTo("[좌클릭 유지]"));
+            Assert.That(GameHud.PromptFor(false, false, true, PlayerInteractionKind.Transport).Key,
+                Is.EqualTo(TabletHelpContent.Cap(Controls.TransportAction)));
+        }
+
+        [Test]
+        public void Stage2EquipmentAndFacilitiesKeepReboundInteractWhileBoltsKeepMouse()
+        {
+            var original = Controls.TransportAction;
+            try
+            {
+                Controls.TransportAction = UnityEngine.KeyCode.F7;
+                foreach (Metagame.Gameplay.Stage2.YardTargetKind kind in
+                         System.Enum.GetValues(typeof(Metagame.Gameplay.Stage2.YardTargetKind)))
+                {
+                    string hint = Stage2Hud.FocusHintFor(kind, "대상", "좌클릭 유지 + 마우스 원형 회전");
+                    string expected = kind switch
+                    {
+                        Metagame.Gameplay.Stage2.YardTargetKind.Bolt => "좌클릭 유지 + 마우스 원형 회전",
+                        Metagame.Gameplay.Stage2.YardTargetKind.Shower => "고정 샤워 가까이에서 제독",
+                        _ => "[F7]  대상",
+                    };
+                    Assert.That(hint, Is.EqualTo(expected), kind.ToString());
+                }
+            }
+            finally { Controls.TransportAction = original; }
         }
 
         [Test]

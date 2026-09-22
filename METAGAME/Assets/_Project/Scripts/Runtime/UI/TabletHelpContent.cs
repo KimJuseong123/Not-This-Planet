@@ -70,9 +70,11 @@ namespace Metagame.UI
 
         public static Entry[] Interaction() => new[]
         {
+            new Entry("좌·우클릭", "누른 채 고정물·물체·동료 잡기"),
+            new Entry("좌·우클릭", "방망이·용접 건 들기 (양손 장착)"),
             new Entry("좌·우클릭", "고정쇠에 손을 결합하고 반대 방향으로 뒤로 이동"),
             new Entry(Name(Controls.ArmsUp), "팔을 위로 올려 레일·케이블 잡기"),
-            new Entry("W + 잡기", "잡은 레일·케이블을 따라 기어오르기"),
+            new Entry(Name(Controls.MoveForward) + " + 잡기", "잡은 레일·케이블을 따라 기어오르기"),
             // "내려놓기" 로는 버리는 방법인 줄 모른다 — 처음 하는 사람이 못 찾았다.
             new Entry(Name(Controls.ToolAction) + " 짧게", "들고 있는 것 버리기"),
             new Entry(Name(Controls.ToolAction) + " 길게", "충전 후 바라보는 방향으로 던지기"),
@@ -80,11 +82,11 @@ namespace Metagame.UI
 
         public static Entry[] Transport() => new[]
         {
-            // 예전에는 이 줄이 "동료 구조" 까지 떠안고 있었다. 구조는 E 가 아니다.
-            new Entry(Name(Controls.TransportAction), "장비 줍기·교환, 운반 장치 탑승·하차"),
+            // 1장 도구 집기는 마우스, 구조는 G다. E는 운반 장치 탑승에만 사용한다.
+            new Entry(Name(Controls.TransportAction), "운반 장치 탑승·하차"),
             new Entry(Name(Controls.RescueTeammate), "쓰러진 동료 일으키기"),
             new Entry("WASD", "탑승 중 운반 장치 운전"),
-            new Entry("좌·우클릭", "탑승 중 견인 빔 사용"),
+            new Entry("좌·우클릭", "탑승 중 저중력장 켜기·끄기"),
             new Entry(Name(Controls.Jump) + " / " + Name(Controls.ArmsUp), "탑승 중 상승 / 하강"),
             new Entry(Name(Controls.StuckEscape), "그 자리에서 다시 서기"),
             new Entry(Name(Controls.Restart), "처음부터 다시 시작"),

@@ -22,9 +22,11 @@ namespace Metagame.Gameplay.Tests
     {
         readonly List<GameObject> _spawned = new();
 
-        [TestCase(false)]
-        [TestCase(true)]
-        public void AimedEquipmentAtPickupRange_EquipsAndChargesUntilQIsReleased(bool welding)
+        [TestCase(false, false)]
+        [TestCase(true, false)]
+        [TestCase(false, true)]
+        [TestCase(true, true)]
+        public void AimedEquipmentAtPickupRange_EquipsAndChargesUntilQIsReleased(bool welding, bool rightClick)
         {
             var player = PlayerRig.Create("Tool pickup test", new Vector3(100f, 20f, 100f),
                 Quaternion.identity, Color.white, Color.gray, false);
@@ -47,7 +49,12 @@ namespace Metagame.Gameplay.Tests
             player.RefreshInteractionFocus();
             Assert.AreEqual(PlayerInteractionKind.Grabbable, player.CurrentInteractionTarget.Kind);
             Assert.AreSame(target, player.CurrentInteractionTarget.Grabbable);
-            player.SetInput(new InputFrame { GrabLeft = true });
+            Assert.AreEqual("[좌클릭]", Metagame.UI.GameHud.PromptFor(false, false,
+                player.CurrentInteractionTarget.CanInteract, player.CurrentInteractionTarget.Kind).Key);
+            player.SetInput(new InputFrame { TransportAction = true });
+            player.Tick();
+            Assert.IsNull(player.HeldTool, "탑승 키로 방망이·용접 건을 줍는 동작을 추가하면 안 된다.");
+            player.SetInput(new InputFrame { GrabLeft = !rightClick, GrabRight = rightClick });
             player.Tick();
             Assert.AreSame(target, player.HeldTool);
             Assert.AreSame(tool, player.ActiveTool);
