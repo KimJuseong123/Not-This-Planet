@@ -1,11 +1,18 @@
 """AI 추가팩의 다운로드 주소를 빌드에 심는다 (S15P21B202-690).
 
-실행: python3 scripts/ci/write_ai_pack_source.py
+실행: python3 scripts/ci/write_ai_pack_source.py [--required]
 
 `AI_PACK_MANIFEST_URL` 과 `AI_PACK_MANIFEST_SHA256` 이 **둘 다** 있을 때만
 `METAGAME/Assets/StreamingAssets/ai-pack-source.json` 을 **덮어쓴다.** 없으면 아무것도
 쓰지 않고 그 사실을 말한다 — 게임은 그 경우 "다운로드 배포 주소가 아직 설정되지
 않았어요" 로 멈추고 나머지는 정상 동작한다(`AiPackInstaller.Begin`).
+
+**`--required` 는 그 경우에 실패한다** (S15P21B202-709). 릴리스에 쓴다.
+
+개발 빌드는 주소가 없어도 쓸모가 있다 — AI 말고 다른 것을 시험한다. 그런데 **릴리스는
+다르다.** 주소 없이 나간 릴리스는 사용자가 "AI 동료 추가" 를 눌러도 **영영 받을 수 없는
+빌드**이고, 그때 화면에 뜨는 문구는 *변수를 안 넣은 경우와 글자 하나까지 같다.* 즉
+**내보낸 뒤에는 원인을 화면으로 가릴 수 없다.** 그래서 릴리스는 여기서 멈춘다.
 
 **왜 저장소 파일을 그대로 쓰지 않나.** 저장소의 `ai-pack-source.json` 은 **값이 빈
 껍데기**다(`manifest_url` · `manifest_sha256` 이 `""`). 배포 주소와 해시는 팩을 올리는
@@ -54,11 +61,19 @@ def valid_url(value):
             and not parts.query and not parts.fragment)
 
 
-def main():
+def main(argv=None):
+    required = "--required" in (argv if argv is not None else sys.argv[1:])
     url = (os.environ.get("AI_PACK_MANIFEST_URL") or "").strip()
     digest = (os.environ.get("AI_PACK_MANIFEST_SHA256") or "").strip()
 
     if not url and not digest:
+        if required:
+            # 릴리스는 여기서 멈춘다. 이대로 내보내면 사용자가 "AI 동료 추가" 를 눌러도
+            # 영영 받을 수 없고, 그 화면은 변수를 안 넣은 경우와 글자 하나까지 같다.
+            print("❌ 릴리스 빌드에 AI 추가팩 주소가 없다 —"
+                  " AI_PACK_MANIFEST_URL · AI_PACK_MANIFEST_SHA256 을 CI 변수에 넣어야 한다")
+            print("   (이대로 내보내면 게임 안에서 추가팩을 받을 길이 없는 빌드가 된다)")
+            return 1
         # **조용히 넘기지 않는다.** 이 줄이 없으면 "AI 설치가 안 된다" 의 원인이
         # 변수 미설정인지 기능 결함인지 빌드 로그로 가릴 수 없다.
         print("AI 추가팩 주소가 설정되지 않았다 — ai-pack-source.json 을 쓰지 않는다.")

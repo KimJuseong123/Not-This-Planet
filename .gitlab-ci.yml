@@ -900,7 +900,12 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
     # **릴리스 빌드에도 심는다** (S15P21B202-690). `build-devbuild` 와 같은 스크립트·같은
     # 자리(Unity 앞)다 — 두 벌로 두면 한쪽만 고쳐져, 시험은 되는데 사용자 빌드에서만
     # 설치가 안 되는 상태가 된다. 그 차이는 내보내기 전까지 아무도 모른다.
-    - python3 scripts/ci/write_ai_pack_source.py
+    #
+    # **릴리스만 `--required` 다** (S15P21B202-709). 개발 빌드는 주소 없이도 쓸모가 있지만
+    # (AI 말고 다른 것을 시험한다), 주소 없이 나간 릴리스는 사용자가 "AI 동료 추가" 를
+    # 눌러도 **영영 받을 수 없는 빌드**다. 그때 뜨는 문구는 변수를 안 넣은 경우와 글자
+    # 하나까지 같아서, **내보낸 뒤에는 원인을 화면으로 가릴 수 없다.**
+    - python3 scripts/ci/write_ai_pack_source.py --required
     - |
       set +e
       unity-editor \

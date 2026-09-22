@@ -34,7 +34,7 @@ def check(ok, msg):
         fails.append(msg)
 
 
-def run(url=None, digest=None):
+def run(url=None, digest=None, args=()):
     """스크립트를 돌리고 (종료코드, 출력, 파일내용) 을 준다. 실제 파일은 되돌린다."""
     saved = None
     if os.path.exists(TARGET):
@@ -49,7 +49,7 @@ def run(url=None, digest=None):
     if digest is not None:
         env["AI_PACK_MANIFEST_SHA256"] = digest
     env["PYTHONIOENCODING"] = "utf-8"
-    r = subprocess.run([sys.executable, SCRIPT], capture_output=True, text=True,
+    r = subprocess.run([sys.executable, SCRIPT] + list(args), capture_output=True, text=True,
                        encoding="utf-8", errors="replace", env=env)
     body = None
     if os.path.exists(TARGET):
@@ -124,10 +124,12 @@ print("  올바른 값은 게임이 읽는 두 키로 들어간다 ✅")
 #     겪은 모양이라(한 문제를 두 곳이 다르게 푼다) 두 잡을 함께 본다.
 with io.open(os.path.join(ROOT, ".gitlab-ci.yml"), encoding="utf-8") as f:
     ci = f.read()
+jobs = {}
 for name, end, version in [("build-devbuild", "publish-devbuild", "SPACE_BUILD_ID"),
                            ("release-windows", "release-summary", "SPACE_RELEASE_VERSION")]:
     job = ci[ci.index(chr(10) + name + ":"):]
     job = job[:job.index(chr(10) + end + ":")]
+    jobs[name] = job
     call = job.find("write_ai_pack_source.py")
     unity = job.find(version)
     check(call >= 0, f"{name} 이 write_ai_pack_source.py 를 부르지 않는다 — "
@@ -135,6 +137,30 @@ for name, end, version in [("build-devbuild", "publish-devbuild", "SPACE_BUILD_I
     check(unity >= 0 and call > unity,
           f"{name} 이 버전을 정하기 전에 주소를 쓴다 — 순서가 바뀌면 읽기 어렵다")
 print("  두 빌드 잡이 Unity 앞에서 부른다 ✅")
+
+# ── ⑦ 주소가 없을 때: 개발 빌드는 넘어가고 **릴리스는 멈춘다** (S15P21B202-709)
+#
+#     개발 빌드는 주소 없이도 쓸모가 있다 — AI 말고 다른 것을 시험한다. 릴리스는 다르다.
+#     주소 없이 나간 릴리스는 사용자가 "AI 동료 추가" 를 눌러도 **영영 받을 수 없는
+#     빌드**이고, 그때 뜨는 문구는 변수를 안 넣은 경우와 글자 하나까지 같다. 즉
+#     **내보낸 뒤에는 원인을 화면으로 가릴 수 없다.**
+code, out, body = run(args=["--required"])
+check(code != 0, "주소가 없는데 릴리스가 통과했다 — 게임 안에서 받을 길이 없는 빌드가 나간다")
+check(body is None, "주소가 없는데 파일을 썼다")
+code, out, body = run(GOOD_URL, GOOD_HASH, args=["--required"])
+check(code == 0, "올바른 값인데 --required 가 실패했다: " + out.strip()[:200])
+check(body is not None, "--required 로 올바른 값을 줬는데 파일을 쓰지 않았다")
+print("  주소가 없으면 릴리스만 멈춘다 ✅")
+
+# ── ⑧ 그 엄격함이 **릴리스 잡에만** 걸려 있다
+#
+#     개발 빌드까지 막으면 AI 변수가 없는 브랜치의 QA 빌드가 통째로 죽는다 — 그러면
+#     사람들이 이 검사를 끄려 든다. 빨간 것이 늘 있으면 없는 것과 같아진다.
+check("write_ai_pack_source.py --required" in jobs["release-windows"],
+      "release-windows 가 --required 없이 부른다 — 주소 없는 릴리스가 조용히 나간다")
+check("write_ai_pack_source.py --required" not in jobs["build-devbuild"],
+      "build-devbuild 까지 --required 다 — AI 변수 없는 브랜치의 QA 빌드가 통째로 죽는다")
+print("  엄격함은 릴리스에만 걸려 있다 ✅")
 
 if fails:
     print(f"\n❌ 실패 {len(fails)}건")
