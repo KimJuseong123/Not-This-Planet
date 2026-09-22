@@ -499,6 +499,7 @@ namespace Metagame.Gameplay.Tests
         }
 
         [UnityTest]
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-678)
         public System.Collections.IEnumerator RemoteImpactPlaysOnceAndParticlesExpire()
         {
             yield return new EnterPlayMode();

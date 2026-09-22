@@ -26,6 +26,7 @@ namespace Metagame.Gameplay.Tests
         readonly List<GameObject> _spawned = new();
 
         [UnityEngine.TestTools.UnityTest]
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-678)
         public System.Collections.IEnumerator MeteorFeedbackSurvivesNetworkSerialization()
         {
             yield return new UnityEngine.TestTools.EnterPlayMode();

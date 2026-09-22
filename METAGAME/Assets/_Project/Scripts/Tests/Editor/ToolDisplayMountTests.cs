@@ -43,6 +43,7 @@ namespace Metagame.Gameplay.Tests
 
         [TestCase("MeteorBat_Stage1")]
         [TestCase("WeldingPlasmaGun_Stage1")]
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-678)
         public void AuthoredVisibleModelOverlapsItsPhysicalBody(string name)
         {
             var scene = OpenStageOnce();
@@ -67,6 +68,7 @@ namespace Metagame.Gameplay.Tests
 
         [TestCase("MeteorBat_Stage1")]
         [TestCase("WeldingPlasmaGun_Stage1")]
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-678)
         public void AuthoredToolIsVisibleInFirstPersonAndRestoresDroppedPose(string name)
         {
             var scene = OpenStageOnce();
