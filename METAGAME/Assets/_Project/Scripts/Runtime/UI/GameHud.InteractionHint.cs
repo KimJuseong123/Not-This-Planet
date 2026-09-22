@@ -66,10 +66,16 @@ namespace Metagame.UI
             return kind switch
             {
                 PlayerInteractionKind.Clamp =>
-                    new HudPrompt(TabletHelpContent.Cap("좌클릭 유지"), "고정못을 잡고 뒤로 당기기"),
-                // "줍기" 는 집어서 주머니에 넣는 말로 읽힌다. 실제로는 손으로 쥔다.
+                    new HudPrompt(HudGlyph.MouseLeft, "꾹 눌러 고정못을 뒤로 당기기"),
+                // **잡기는 좌클릭이다** (S15P21B202-696). 예전에는 E 로 적었는데
+                // E(TransportAction)는 태블릿 단축키와 운반 장치 탑승·하차에만 쓰인다 —
+                // **E 로는 아무것도 못 줍는다.** 잡기는 input.GrabLeft 다.
+                //
+                // "줍기" 가 아니라 "잡기" 인 이유도 있다 — 줍기는 주머니에 넣는
+                // 말로 읽히는데 실제로는 손으로 쥐고, 놓으면 떨어진다.
                 PlayerInteractionKind.Grabbable =>
-                    new HudPrompt(TabletHelpContent.Cap(Controls.TransportAction), "잡기"),
+                    new HudPrompt(HudGlyph.MouseLeft, "잡기"),
+                // 탑승만 E 가 맞다.
                 PlayerInteractionKind.Transport =>
                     new HudPrompt(TabletHelpContent.Cap(Controls.TransportAction), "타기"),
                 _ => default,
@@ -80,7 +86,7 @@ namespace Metagame.UI
         public static void AppendPromptGlyphs(System.Text.StringBuilder text)
         {
             text.Append(TabletHelpContent.Cap(Controls.StuckEscape)).Append("꾹 눌러 빠져나오기");
-            text.Append(TabletHelpContent.Cap("좌클릭 유지")).Append("고정못을 잡고 뒤로 당기기");
+            text.Append("꾹 눌러 고정못을 뒤로 당기기");
             text.Append(TabletHelpContent.Cap(Controls.TransportAction)).Append("잡기타기");
         }
     }
