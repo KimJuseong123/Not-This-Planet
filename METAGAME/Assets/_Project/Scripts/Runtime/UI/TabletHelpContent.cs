@@ -42,8 +42,18 @@ namespace Metagame.UI
             UnityEngine.KeyCode.LeftAlt or UnityEngine.KeyCode.RightAlt => "Alt",
             UnityEngine.KeyCode.Escape => "Esc",
             UnityEngine.KeyCode.Return => "Enter",
-            _ => key.ToString(),
+            // "Alpha1" 은 KeyCode 의 이름이지 키캡에 적힌 글자가 아니다.
+            _ => Trim(key.ToString()),
         };
+
+        static string Trim(string name) =>
+            name.StartsWith("Alpha", System.StringComparison.Ordinal) ? name.Substring(5) : name;
+
+        /// <summary>키 이름을 안내 표시에 쓰는 <c>[E]</c> 꼴로 (S15P21B202-679).</summary>
+        public static string Cap(UnityEngine.KeyCode key) => "[" + Name(key) + "]";
+
+        /// <summary>이미 사람이 읽는 이름일 때. <c>[좌클릭 유지]</c> 처럼 바인딩이 없는 것.</summary>
+        public static string Cap(string name) => "[" + name + "]";
 
         public static Entry[] Movement() => new[]
         {
@@ -96,6 +106,7 @@ namespace Metagame.UI
         public static void AppendGlyphs(System.Text.StringBuilder text)
         {
             text.Append("●○|[]");     // 쪽 표시와 키 괄호도 글자다 — 빠지면 네모가 뜬다
+            text.Append(PageStrip(true, 0, 0)).Append(PageStrip(false, 0, 0));
             for (var page = 1; page <= 3; page++)
             {
                 var entries = Page(page);
@@ -119,6 +130,23 @@ namespace Metagame.UI
             for (var i = 1; i < Metagame.Gameplay.Stage1Exploration.TabletPageCount; i++)
                 text.Append(!inGuide && i == page ? '●' : '○').Append(' ');
             return text.ToString();
+        }
+
+        /// <summary>
+        /// 태블릿 아래 한 줄. <b>쪽 표시는 여기 하나뿐이다</b> (S15P21B202-679).
+        ///
+        /// <para>어느 칸에 불이 들어오는지를 <b>화면이 아니라 여기서</b> 정한다. 예전에는
+        /// 부르는 쪽이 늘 <c>inGuide: true</c> 를 넘겨, 안내를 빠져나와 조작 안내를
+        /// 넘겨도 불이 안내 칸에 머물렀다 — <b>오른쪽으로 가는데 점이 안 따라왔다.</b></para>
+        /// </summary>
+        public static string PageStrip(bool guideVisible, int guidePage, int tabletPage)
+        {
+            var page = guideVisible
+                ? guidePage
+                : UnityEngine.Mathf.Clamp(tabletPage, 0,
+                    Metagame.Gameplay.Stage1Exploration.TabletPageCount - 1);
+            return PageDots(guideVisible, page)
+                   + "   A / D  페이지 이동     " + Cap(Metagame.Core.Controls.Tablet) + "  닫기";
         }
 
         /// <summary>조작 안내 쪽의 제목.</summary>

@@ -17,6 +17,10 @@ namespace Metagame.UI
         /// <para><b>자리.</b> 크로스헤드 바로 아래(+40)다. 왼쪽 아래 키캡을 처음 하는
         /// 사람이 아무도 못 봤기 때문이다(S15P21B202-657). S15P21B202-665 의 안내
         /// 한 줄은 +92 에서 시작하므로 18px 이 남는다 — 겹치지 않는다.</para>
+        ///
+        /// <para><b>모양.</b> 눌러야 하는 것이므로 둥근 테두리 안에 담는다
+        /// (S15P21B202-679). 그냥 읽기만 하면 되는 안내(<see cref="DrawOnboardingNotice"/>)
+        /// 는 반대로 테두리가 없다 — 테두리의 있고 없음이 "누르라"와 "읽으라"를 가른다.</para>
         /// </summary>
         void DrawInteractionHint(float width, float height)
         {
@@ -27,49 +31,57 @@ namespace Metagame.UI
             if (Local == null || Local.Downed || Local.IsMounted) return;
             if (session.Exploration != null && session.Exploration.TabletOpen) return;
 
-            var text = HintText(session);
-            if (string.IsNullOrEmpty(text)) return;
+            var target = Local.CurrentInteractionTarget;
+            var prompt = PromptFor(
+                session.Escape != null && session.Escape.LooksStuck,
+                Local.ActiveTool != null || Local.ClampGrabbed,
+                target.CanInteract, target.Kind);
+            if (!prompt.Exists) return;
 
-            _hintContent.text = text;
-            float boxWidth = Mathf.Min(width - 80f, mid.CalcSize(_hintContent).x + 40f);
             // **작은 창에서도 겹치지 않게 한다.** S15P21B202-665 의 안내 줄은
             // Min(h*0.5 + 92, h - 168) 이라 창이 520px 보다 낮으면 위로 올라온다 —
             // 그때 이 줄이 고정 자리에 있으면 두 줄이 포개진다(mr-overlap 이 잡았다).
-            // 같은 방식으로 눌러 18px 을 남긴다: (h - 168) - 34 - 18 = h - 220.
-            float y = Mathf.Min(height * 0.5f + 40f, height - 220f);
-            var box = new Rect((width - boxWidth) * 0.5f, y, boxWidth, 34f);
-            UiTheme.DrawPanel(box, true, false);
-            L(box, text, mid, UiTheme.CyanSoft);
+            // 같은 방식으로 눌러 18px 을 남긴다: (h - 168) - 38 - 18 = h - 224.
+            float y = Mathf.Min(height * 0.5f + 40f, height - 224f);
+            DrawPromptCentered(width * 0.5f, y, prompt);
         }
 
         /// <summary>
         /// 그 순간에 쓸 수 있는 것 하나만 고른다. <b>다 띄우면 다시 안 보이게 된다.</b>
         ///
         /// <para>끼었을 때가 먼저다 — 그때는 다른 무엇도 할 수 없다.</para>
+        ///
+        /// <para>화면 없이 검사할 수 있도록 상태만 받는다.</para>
         /// </summary>
-        string HintText(GameSession session)
+        public static HudPrompt PromptFor(bool stuck, bool handsBusy, bool canInteract,
+                                          PlayerInteractionKind kind)
         {
             // 끼임은 판을 못 이어 가는 상태라 다른 안내보다 앞선다.
-            if (session.Escape != null && session.Escape.LooksStuck)
-                return "[" + TabletHelpContent.Name(Controls.StuckEscape) + "]  꾹 눌러 빠져나오기";
+            if (stuck)
+                return new HudPrompt(TabletHelpContent.Cap(Controls.StuckEscape), "꾹 눌러 빠져나오기");
 
             // 도구를 들고 있으면 도구 조준이 우선이다 — 크로스헤드와 같은 규칙이다.
-            if (Local.ActiveTool != null || Local.ClampGrabbed) return null;
+            if (handsBusy || !canInteract) return default;
 
-            var target = Local.CurrentInteractionTarget;
-            if (!target.CanInteract) return null;
-
-            return target.Kind switch
+            return kind switch
             {
-                PlayerInteractionKind.Clamp => "[좌클릭 유지]  고정못을 잡고 뒤로 당기기",
+                PlayerInteractionKind.Clamp =>
+                    new HudPrompt(TabletHelpContent.Cap("좌클릭 유지"), "고정못을 잡고 뒤로 당기기"),
+                // "줍기" 는 집어서 주머니에 넣는 말로 읽힌다. 실제로는 손으로 쥔다.
                 PlayerInteractionKind.Grabbable =>
-                    "[" + TabletHelpContent.Name(Controls.TransportAction) + "]  줍기",
+                    new HudPrompt(TabletHelpContent.Cap(Controls.TransportAction), "잡기"),
                 PlayerInteractionKind.Transport =>
-                    "[" + TabletHelpContent.Name(Controls.TransportAction) + "]  타기",
-                _ => null,
+                    new HudPrompt(TabletHelpContent.Cap(Controls.TransportAction), "타기"),
+                _ => default,
             };
         }
 
-        readonly GUIContent _hintContent = new GUIContent();
+        /// <summary>안내에 쓰는 모든 글자. 폰트가 미리 굽지 않으면 네모로 나온다.</summary>
+        public static void AppendPromptGlyphs(System.Text.StringBuilder text)
+        {
+            text.Append(TabletHelpContent.Cap(Controls.StuckEscape)).Append("꾹 눌러 빠져나오기");
+            text.Append(TabletHelpContent.Cap("좌클릭 유지")).Append("고정못을 잡고 뒤로 당기기");
+            text.Append(TabletHelpContent.Cap(Controls.TransportAction)).Append("잡기타기");
+        }
     }
 }

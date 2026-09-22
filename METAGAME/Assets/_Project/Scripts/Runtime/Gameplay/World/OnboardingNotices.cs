@@ -80,6 +80,13 @@ namespace Metagame.Gameplay
             _ => string.Empty,
         };
 
+        /// <summary>안내에 쓰는 모든 글자. 폰트가 미리 굽지 않으면 네모로 나온다.</summary>
+        public static void AppendGlyphs(System.Text.StringBuilder text)
+        {
+            foreach (OnboardingCue cue in System.Enum.GetValues(typeof(OnboardingCue)))
+                text.Append(TextFor(cue));
+        }
+
         /// <summary>
         /// 그 순간이 왔다. <b>한 판에 한 번만 뜬다</b> — 두 번째부터 거슬리는 순간
         /// 아무도 안 읽는다. 이미 하나가 떠 있으면 줄을 세운다(덮어쓰지 않는다).

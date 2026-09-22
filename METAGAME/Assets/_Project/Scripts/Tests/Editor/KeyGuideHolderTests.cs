@@ -5,6 +5,11 @@ using UnityEngine;
 
 namespace Metagame.Gameplay.Tests
 {
+    /// <summary>
+    /// <b>키 이름은 태블릿과 같은 것을 쓴다</b> (S15P21B202-679). 예전에는 여기만
+    /// 대문자로 적어 같은 키가 화면마다 "TAB" 과 "Tab" 으로 나왔다 — 이 검사도 그
+    /// 대문자를 잠그고 있었다.
+    /// </summary>
     public sealed class KeyGuideHolderTests
     {
         [Test]
@@ -15,12 +20,12 @@ namespace Metagame.Gameplay.Tests
             bool available = true;
             holder.Register("tablet", "태블릿", () => key, () => available);
             holder.Refresh();
-            Assert.AreEqual("TAB", holder.Entries[0].KeyText);
+            Assert.AreEqual("Tab", holder.Entries[0].KeyText);
             Assert.IsTrue(holder.Entries[0].Visible);
             key = KeyCode.Mouse4;
             available = false;
             holder.Refresh();
-            Assert.AreEqual("MOUSE4", holder.Entries[0].KeyText);
+            Assert.AreEqual("Mouse4", holder.Entries[0].KeyText);
             Assert.IsFalse(holder.Entries[0].Visible);
             available = true;
             holder.Refresh();
@@ -72,7 +77,7 @@ namespace Metagame.Gameplay.Tests
                 Controls.ToolAction = KeyCode.Mouse3;
                 holder.Refresh();
                 Assert.AreEqual("F3", holder.Entries[0].KeyText);
-                Assert.AreEqual("MOUSE3", holder.Entries[1].KeyText);
+                Assert.AreEqual("Mouse3", holder.Entries[1].KeyText);
             }
             finally
             {

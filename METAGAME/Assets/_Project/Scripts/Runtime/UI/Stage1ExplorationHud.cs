@@ -246,12 +246,11 @@ namespace Metagame.UI
             if (canNext && UiInteraction.Button(right, GUIContent.none, GUIStyle.none))
                 exploration.NextTabletPage();
 
-            var width = Stage1Exploration.TabletPageCount * 12f;
-            var start = panel.center.x - width * 0.5f;
-            for (var i = 0; i < Stage1Exploration.TabletPageCount; i++)
-                Box(new Rect(start + i * 12f, panel.y + panel.height - 34f, 7f, 7f),
-                    i == page ? new Color(0.42f, 0.96f, 1f, 0.95f)
-                              : new Color(0.28f, 0.42f, 0.50f, 0.95f));
+            // **쪽 표시는 태블릿과 같은 한 줄이다** (S15P21B202-679). 예전에는 여기가
+            // 네모 점, 월드 태블릿이 글자 점이라 같은 것을 두 문법으로 말했다.
+            L(new Rect(panel.x + 30f, panel.yMax - 44f, panel.width - 60f, 30f),
+                TabletHelpContent.PageStrip(false, 0, page), _mid,
+                new Color(0.48f, 0.85f, 0.94f));
         }
 
         void DrawDiscoveryDots(Rect area, int count)
