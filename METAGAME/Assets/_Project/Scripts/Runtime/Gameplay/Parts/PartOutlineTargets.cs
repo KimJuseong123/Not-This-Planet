@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Unity.Profiling;
 
 namespace Metagame.Gameplay.Parts
 {
@@ -44,6 +45,34 @@ namespace Metagame.Gameplay.Parts
         static readonly List<SpaceshipPart> PartBuffer = new();
         static readonly Dictionary<SpaceshipPart, int> GroupBuffer = new();
         static readonly List<Renderer> RendererBuffer = new();
+        static readonly List<SpaceshipPart> ActiveParts = new();
+        static readonly PartOutlineGroups.Workspace GroupWorkspace = new();
+        static readonly ProfilerMarker CollectMarker = new("Parts.Outline.Collect");
+        static bool registrySeeded;
+        static readonly List<SpaceshipPart> PreviousParts = new();
+        static readonly List<(SpaceshipPart Moving, SpaceshipPart Target, bool Joined)> PreviousLinks = new();
+        static int foundGroups, mergedGroups;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetRegistry()
+        {
+            ActiveParts.Clear(); TargetBuffer.Clear(); PartBuffer.Clear(); GroupBuffer.Clear();
+            RendererBuffer.Clear(); PreviousParts.Clear(); PreviousLinks.Clear(); GroupWorkspace.Clear();
+            registrySeeded = false; collectedFrame = -1;
+            reportedParts = reportedMerged = -1;
+        }
+
+        internal static void Register(SpaceshipPart part)
+        {
+            if (!ActiveParts.Contains(part)) ActiveParts.Add(part);
+            collectedFrame = -1;
+        }
+
+        internal static void Unregister(SpaceshipPart part)
+        {
+            ActiveParts.Remove(part);
+            collectedFrame = -1;
+        }
 
         public static IReadOnlyList<Target> Targets => TargetBuffer;
 
@@ -61,7 +90,7 @@ namespace Metagame.Gameplay.Parts
         {
             if (collectedFrame == Time.frameCount) return collectedResult;
             collectedFrame = Time.frameCount;
-            collectedResult = CollectNow();
+            using (CollectMarker.Auto()) collectedResult = CollectNow();
             return collectedResult;
         }
 
@@ -70,24 +99,38 @@ namespace Metagame.Gameplay.Parts
             TargetBuffer.Clear();
             PartBuffer.Clear();
 
-            var parts = Object.FindObjectsByType<SpaceshipPart>(
-                FindObjectsInactive.Exclude, FindObjectsSortMode.None);
-            for (var i = 0; i < parts.Length; i++)
+            // EditMode does not guarantee OnEnable for ordinary MonoBehaviours. Runtime needs
+            // only one seed, including when Enter Play Mode disables scene/domain reload.
+            if (!Application.isPlaying || !registrySeeded)
             {
-                var part = parts[i];
+                ActiveParts.Clear();
+                ActiveParts.AddRange(Object.FindObjectsByType<SpaceshipPart>(
+                    FindObjectsInactive.Exclude, FindObjectsSortMode.None));
+                registrySeeded = Application.isPlaying;
+            }
+            for (var i = 0; i < ActiveParts.Count; i++)
+            {
+                var part = ActiveParts[i];
                 if (part == null || !part.isActiveAndEnabled) continue;
                 if (PartSpec.Find(part.name) == null) continue;
                 PartBuffer.Add(part);
             }
-            if (PartBuffer.Count == 0) return false;
+            if (PartBuffer.Count == 0)
+            {
+                GroupBuffer.Clear(); PreviousParts.Clear(); PreviousLinks.Clear(); GroupWorkspace.Clear();
+                return false;
+            }
 
-            var found = PartOutlineGroups.Assign(PartBuffer, PartAssemblyLink.All, GroupBuffer);
+            if (GroupsChanged())
+            {
+                foundGroups = PartOutlineGroups.Assign(PartBuffer, PartAssemblyLink.All, GroupBuffer, GroupWorkspace);
+                mergedGroups = PartOutlineGroups.KeepMergedOnly(GroupBuffer, GroupWorkspace);
+            }
 
             // 혼자인 파츠에는 테두리를 두르지 않는다 (S15P21B202-562). 테두리는
             // "붙었다" 를 보여 주는 표시라, 아직 혼자인 것까지 두르면 뜻이 흐려진다.
-            var merged = PartOutlineGroups.KeepMergedOnly(GroupBuffer);
-            Report(found, merged);
-            if (merged == 0) return false;
+            Report(foundGroups, mergedGroups);
+            if (mergedGroups == 0) return false;
 
             for (var i = 0; i < PartBuffer.Count; i++)
             {
@@ -108,6 +151,28 @@ namespace Metagame.Gameplay.Parts
             }
 
             return TargetBuffer.Count > 0;
+        }
+
+        static bool GroupsChanged()
+        {
+            bool changed = PreviousParts.Count != PartBuffer.Count;
+            if (!changed)
+                for (int i = 0; i < PartBuffer.Count; i++)
+                    if (PreviousParts[i] != PartBuffer[i]) { changed = true; break; }
+            PreviousParts.Clear(); PreviousParts.AddRange(PartBuffer);
+            var links = PartAssemblyLink.All;
+            changed |= PreviousLinks.Count != links.Count;
+            for (int i = 0; i < links.Count; i++)
+            {
+                var link = links[i];
+                var state = (link != null ? link.MovingPart : null,
+                    link != null ? link.TargetPart : null, PartOutlineGroups.IsWeldJoined(link));
+                if (i >= PreviousLinks.Count) { PreviousLinks.Add(state); changed = true; }
+                else if (!PreviousLinks[i].Equals(state)) { PreviousLinks[i] = state; changed = true; }
+            }
+            if (PreviousLinks.Count > links.Count)
+                PreviousLinks.RemoveRange(links.Count, PreviousLinks.Count - links.Count);
+            return changed;
         }
 
         static int reportedParts = -1;

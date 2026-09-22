@@ -48,6 +48,8 @@ namespace Metagame.Gameplay.Audio
         bool worldAuthority;
         bool networked;
         bool audioAvailable;
+        AudioListener cachedListener;
+        float nextListenerSearch;
         float userSfxVolume = 1f;
         GameSettingsRuntime settingsRuntime;
         float registryRefresh;
@@ -232,8 +234,14 @@ namespace Metagame.Gameplay.Audio
         {
             if (bank == null) return;
 
-            audioAvailable = !Application.isBatchMode
-                             && FindAnyObjectByType<AudioListener>() != null;
+            if (!Application.isBatchMode && cachedListener == null && Time.unscaledTime >= nextListenerSearch)
+            {
+                cachedListener = FindAnyObjectByType<AudioListener>();
+                nextListenerSearch = Time.unscaledTime + RegistryRefreshSeconds;
+            }
+            audioAvailable = !Application.isBatchMode && cachedListener != null
+                             && cachedListener.gameObject.activeInHierarchy;
+            if (cachedListener != null && !cachedListener.gameObject.activeInHierarchy) cachedListener = null;
             UpdateOneShots();
 
             registryRefresh -= Time.unscaledDeltaTime;

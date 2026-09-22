@@ -4,6 +4,7 @@ using Metagame.Gameplay.Parts;
 using Mirror;
 using UnityEngine;
 using UnityEngine.AI;
+using Unity.Profiling;
 
 namespace Metagame.Network
 {
@@ -12,6 +13,10 @@ namespace Metagame.Network
     {
         readonly List<NavMeshBuildSource> sources = new List<NavMeshBuildSource>();
         readonly List<NavMeshBuildMarkup> markups = new List<NavMeshBuildMarkup>();
+        readonly List<NavMeshBuildSource> previousSources = new();
+        static readonly ProfilerMarker CollectMarker = new("AI.Navigation.CollectSources");
+        static readonly ProfilerMarker BuildMarker = new("AI.Navigation.ScheduleBuild");
+        bool hasBuilt;
         NavMeshData data;
         NavMeshDataInstance instance;
         AsyncOperation building;
@@ -19,7 +24,9 @@ namespace Metagame.Network
         Bounds bounds;
         AiNavigationGeometry geometry;
         bool loadedGeometry;
-        public bool Ready => instance.valid && building != null && building.isDone;
+        public bool Ready => instance.valid && (hasBuilt || (building != null && building.isDone));
+        public bool IsBuilding => building != null && !building.isDone;
+        public int BuildCount { get; private set; }
         public int ApproximateMeshCount { get; private set; }
         public int SourceCount => sources.Count;
 
@@ -52,23 +59,28 @@ namespace Metagame.Network
         void Update()
         {
             if (!NetworkServer.active || AiHostSettings.ServerState != AiRoomState.Active
-                || Time.time < nextBuild || (building != null && !building.isDone)) return;
+                || Time.time < nextBuild || IsBuilding) return;
+            // Work acceptance (tool pickup/boarding) queries paths before its first Tick.
+            // Keep discovering changed obstacles while AI exists, even while it is idle;
+            // otherwise the first order after an idle period can reject a now-open route.
+            if (!NetPlayer.HasAiPlayers) return;
             Rebuild(new Bounds(transform.position, new Vector3(512, 128, 512)));
             nextBuild = Time.time + 2f;
         }
 
-        public void Rebuild(Bounds region)
+        public void Rebuild(Bounds region, bool force = false)
         {
-            if (building != null && !building.isDone) return;
-            bounds = region;
+            if (IsBuilding) return;
+            hasBuilt = Ready;
             if (!loadedGeometry)
             {
                 geometry = Resources.Load<AiNavigationGeometry>("AiNavigationGeometry");
                 loadedGeometry = true;
             }
             sources.Clear();
-            NavMeshBuilder.CollectSources(bounds, PermanentLayerMask, NavMeshCollectGeometry.PhysicsColliders,
-                0, markups, sources);
+            using (CollectMarker.Auto())
+                NavMeshBuilder.CollectSources(region, PermanentLayerMask, NavMeshCollectGeometry.PhysicsColliders,
+                    0, markups, sources);
             ApproximateMeshCount = 0;
             for (int i = sources.Count - 1; i >= 0; i--)
             {
@@ -102,6 +114,12 @@ namespace Metagame.Network
                 }
                 sources[i] = source;
             }
+            // Keep the discovery pass: doors, spawned scenery and destroyed colliders need no
+            // registration contract. Unchanged geometry must not schedule another native build.
+            if (!force && hasBuilt && bounds.Equals(region) && SameSources()) return;
+            bounds = region;
+            previousSources.Clear();
+            previousSources.AddRange(sources);
             var settings = NavMesh.GetSettingsByID(0);
             settings.agentRadius = .55f;
             settings.agentHeight = 1.8f;
@@ -117,7 +135,21 @@ namespace Metagame.Network
                 data = new NavMeshData(settings.agentTypeID);
                 instance = NavMesh.AddNavMeshData(data);
             }
-            building = NavMeshBuilder.UpdateNavMeshDataAsync(data, settings, sources, bounds);
+            using (BuildMarker.Auto())
+                building = NavMeshBuilder.UpdateNavMeshDataAsync(data, settings, sources, bounds);
+            BuildCount++;
+        }
+
+        bool SameSources()
+        {
+            if (sources.Count != previousSources.Count) return false;
+            for (int i = 0; i < sources.Count; i++)
+            {
+                var a = sources[i]; var b = previousSources[i];
+                if (a.component != b.component || a.sourceObject != b.sourceObject || a.shape != b.shape
+                    || a.area != b.area || !a.size.Equals(b.size) || !a.transform.Equals(b.transform)) return false;
+            }
+            return true;
         }
 
         public bool CalculatePath(Vector3 from, Vector3 to, NavMeshPath path)
@@ -143,6 +175,8 @@ namespace Metagame.Network
             if (instance.valid) instance.Remove();
             if (data != null) Destroy(data);
             data = null; building = null; nextBuild = 0;
+            hasBuilt = false; BuildCount = 0;
+            sources.Clear(); previousSources.Clear();
         }
     }
 }

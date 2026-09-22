@@ -618,6 +618,15 @@ namespace Metagame.Network
 
         /// <summary>서버가 들고 있는 접속자 목록. "전원 기절" 의 '전원' 이 이것이다.</summary>
         static readonly List<NetPlayer> ServerPlayers = new List<NetPlayer>();
+        public static bool HasAiPlayers
+        {
+            get
+            {
+                foreach (var player in ServerPlayers)
+                    if (player != null && player.IsAi) return true;
+                return false;
+            }
+        }
 
         /// <summary>현재 클라이언트가 화면에 표시할 네트워크 플레이어 목록.</summary>
         static readonly List<NetPlayer> ClientPlayers = new List<NetPlayer>();
@@ -627,7 +636,7 @@ namespace Metagame.Network
         }
 
         // ── 서버 ────────────────────────────────────────────────
-        InputFrame pending;          // 이 사람이 마지막으로 보낸 입력
+        readonly RemoteInputBuffer pendingInput = new();
         bool everReceived;           // 서버가 이 사람 입력을 한 번이라도 받았나(진단용)
 
         /// <summary>
@@ -676,7 +685,7 @@ namespace Metagame.Network
             }
             return false;
         }
-        string lastAim;              // 마지막으로 남긴 조준 상태(바뀔 때만 찍는다)
+        int lastAim = -1;            // Compare value state before formatting a log.
         bool previousPingPressed;
 
         // ── 클라이언트(내 것) ───────────────────────────────────
@@ -1076,7 +1085,7 @@ namespace Metagame.Network
             // 다시 보내므로 "내가 쓴 값을 내가 되읽는" 고리가 생기고, 입력이 처음 값에서
             // 영원히 갱신되지 않는다. 그래서 방장만 움직이지 못했다(2026-09-02 실측).
             // FixedUpdate 는 Update 보다 먼저 도니까 순서로도 막을 수 없다.
-            InputFrame frame = hostOwnBody ? body.CurrentInput : pending;
+            InputFrame frame = hostOwnBody ? body.CurrentInput : pendingInput.Consume();
             if (IsAi)
             {
                 frame = aiFollow.Tick(body, AiHostSettings.ServerState == AiRoomState.Active
@@ -1086,7 +1095,10 @@ namespace Metagame.Network
                 UpdateAiSocialPresentation();
             }
             if (GameSession.Instance != null && GameSession.Instance.CinematicInputBlocked)
+            {
+                pendingInput.DiscardActions();
                 frame = new InputFrame();
+            }
             else if (GameSession.Instance != null && GameSession.Instance.Stage2Demo != null && GameSession.Instance.Stage2Demo.DemoMode)
                 frame = GameSession.Instance.Stage2Demo.FilterDemoInput(frame);
 
@@ -1249,14 +1261,15 @@ namespace Metagame.Network
             bool carrying = (body.LeftHand != null && body.LeftHand.Carrying)
                          || (body.RightHand != null && body.RightHand.Carrying);
 
+            int state = ((int)body.CurrentInteractionTarget.Kind << 4)
+                | (body.IsRiding ? 1 : 0) | (body.Downed ? 2 : 0) | (holding ? 4 : 0) | (carrying ? 8 : 0);
+            if (state == lastAim) return;
+            lastAim = state;
             string now = $"{body.CurrentInteractionTarget.Kind}"
                        + $"·탑승{(body.IsRiding ? "O" : "X")}"
                        + $"·기절{(body.Downed ? "O" : "X")}"
                        + $"·잡음{(holding ? "O" : "X")}"
                        + $"·운반{(carrying ? "O" : "X")}";
-            if (now == lastAim) return;
-
-            lastAim = now;
             Debug.Log($"[NetPlayer] 조준 · {nickname}(userId={userId}) · {now}");
         }
 
@@ -1329,7 +1342,7 @@ namespace Metagame.Network
                 everReceived = true;
                 Debug.Log($"[NetPlayer] 서버가 입력을 받기 시작 · {nickname}(userId={userId})");
             }
-            pending = frame;
+            if (!IsHostOwnPlayer) pendingInput.Receive(frame);
         }
 
         // ── 클라이언트: 내 몸 ───────────────────────────────────
@@ -1362,6 +1375,7 @@ namespace Metagame.Network
         /// </summary>
         void Update()
         {
+            TickAiVoiceTransfer();
             if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
             if (!isLocalPlayer) return;
 
@@ -1675,6 +1689,7 @@ namespace Metagame.Network
 
         public override void OnStopClient()
         {
+            voiceTransfer.Clear();
             // 내가 이어받는 중이면 이 사람이 서 있던 자리를 적어 둔다 (S15P21B202-389).
             //
             // <b>적지 않으면 팀원 전원이 시작 지점으로 되돌아간다.</b> 탑·용접은 씬에
