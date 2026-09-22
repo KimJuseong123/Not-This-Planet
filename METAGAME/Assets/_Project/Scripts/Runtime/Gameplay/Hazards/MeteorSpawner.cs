@@ -1401,10 +1401,10 @@ namespace Metagame.Gameplay.Hazards
             if (!solid)
             {
                 // 계층을 매번 훑지 않는다 (S15P21B202-684) — `Meteor.Colliders` 가 돌
-                // 하나당 한 번만 구해 쥐고 있다.
-                var colliders = ghost.Colliders;
-                for (var i = 0; i < colliders.Length; i++)
-                    if (colliders[i] != null) colliders[i].enabled = false;
+                // 하나당 한 번만 구해 쥐고 있다. 배열 foreach 는 열거자를 만들지 않으므로
+                // 이 고리 자체에는 할당이 없다.
+                foreach (var collider in ghost.Colliders)
+                    collider.enabled = false;
 
                 if (body != null)
                 {
