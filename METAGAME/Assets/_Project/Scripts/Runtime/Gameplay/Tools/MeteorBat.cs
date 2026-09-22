@@ -290,6 +290,9 @@ namespace Metagame.Gameplay
             // 입력 순간의 시간으로 판정하고 스윙 연출을 시작한다.
             swingElapsed = 0f;
             swingAim = facing;
+            // **몸도 휘두른다** (S15P21B202-694). 여기서 켜야 맞았든 헛쳤든 한 번만
+            // 돈다 — 아래 Swung 이벤트는 소리가 맞고 틀림을 가르는 데 쓴다.
+            Owner?.NotifyBatSwing();
 
             ShowSwing(direction);
 

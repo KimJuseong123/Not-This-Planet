@@ -292,6 +292,22 @@ namespace Metagame.Gameplay
             Locomotion?.PlayDance(id);
         }
 
+        /// <summary>
+        /// 방망이 스윙을 한 번 재생한다 (S15P21B202-694).
+        ///
+        /// <para>위 <see cref="PlayToss"/> 와 같은 이유로 남의 몸에도 그대로 먹는다.
+        /// <b>스윙은 1인칭으로는 거의 안 보인다</b> — 내 화면에는 팔만 나온다.
+        /// 이 동작이 값을 하는 곳은 <b>남의 화면</b>이라 그 성질이 전부다.</para>
+        /// </summary>
+        public void PlaySwing()
+        {
+            InitializeLocomotion();
+            Locomotion?.PlaySwing();
+        }
+
+        /// <summary>스윙이 재생 중인가. 검증이 읽는다.</summary>
+        public bool SwingActive => Locomotion != null && Locomotion.SwingActive;
+
         /// <summary>춤을 즉시 끝낸다.</summary>
         public void CancelDance() => Locomotion?.CancelDance();
 
