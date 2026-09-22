@@ -20,7 +20,7 @@ namespace Metagame.Gameplay.Tests
         public void TearDown()
         {
             // 스포너가 만든 운석까지 정리한다.
-            foreach (var meteor in Object.FindObjectsByType<Meteor>(FindObjectsSortMode.None))
+            foreach (var meteor in Object.FindObjectsByType<Meteor>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 if (meteor != null)
                     Object.DestroyImmediate(meteor.gameObject);
 

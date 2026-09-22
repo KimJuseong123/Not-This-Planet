@@ -121,6 +121,22 @@ namespace Metagame.Gameplay.Hazards
         /// 깨어난다. 흔적 동기화가 "움직이는 것만" 을 그 잠듦으로 판별한다.</para>
         /// </summary>
         public Rigidbody Body => _body != null ? _body : (_body = GetComponent<Rigidbody>());
+        Collider[] _colliders;
+
+        /// <summary>
+        /// 이 돌의 콜라이더 전부. <b>계층을 한 번만 훑는다</b> (S15P21B202-684).
+        ///
+        /// <para><see cref="Body"/> 와 같은 자리다. 원격 그림은 판정을 막으려고 콜라이더를
+        /// 끄는데, 그것을 <c>GetComponentsInChildren</c> 로 매번 구하면 <b>그림을 만들
+        /// 때마다 배열 하나와 계층 훑기 한 번</b>이 생긴다. 공세 때는 초당 두세 개가
+        /// 만들어지고 사라지므로 그 비용이 프레임에 그대로 실린다.</para>
+        ///
+        /// <para><c>true</c> 로 구한다 — 꺼진 것까지 포함해야 다시 켤 수 있다. 계층이
+        /// 도중에 바뀌지 않는다는 가정이고, 운석 프리팹은 그렇다(부품이 붙거나 떨어지지
+        /// 않는다).</para>
+        /// </summary>
+        public Collider[] Colliders => _colliders ??= GetComponentsInChildren<Collider>(true);
+
         MeteorTuning _tuning;
         bool _tuningScaleApplied;
         float _life;
@@ -446,6 +462,22 @@ namespace Metagame.Gameplay.Hazards
             if (_trail == null) return;
 
             _trail.emitting = false;
+        }
+
+        /// <summary>
+        /// 꼬리를 지우고 다시 뿜게 한다. <b>돌을 다시 쓸 때</b> 부른다 (S15P21B202-684).
+        ///
+        /// <para><see cref="StopTrail"/> 은 방출만 끄고 그려진 꼬리를 남긴다 — 착탄 뒤에는
+        /// 그게 맞다. 그런데 그 돌을 <b>다른 자리에서 다시 쓰면</b> 남아 있던 꼬리가 옛
+        /// 자리에서 새 자리까지 <b>한 줄로 이어져</b> 하늘을 가로지른다. 그래서 다시 쓰는
+        /// 길에서만 지운다.</para>
+        /// </summary>
+        internal void RestartTrail()
+        {
+            if (_trail == null) return;
+
+            _trail.Clear();
+            _trail.emitting = true;
         }
 
         static readonly Color TrailColor = new(1f, 0.62f, 0.22f, 0.75f);
