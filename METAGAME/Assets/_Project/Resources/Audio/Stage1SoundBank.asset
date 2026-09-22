@@ -406,8 +406,8 @@ MonoBehaviour:
     loop: 0
   - eventId: 30
     selection: 0
-    stylized: {fileID: 0}
-    realistic: {fileID: 0}
+    stylized: {fileID: 8300000, guid: 46a7f46653cb48d8ad8157f923f0633b, type: 3}
+    realistic: {fileID: 8300000, guid: 46a7f46653cb48d8ad8157f923f0633b, type: 3}
     custom: {fileID: 0}
     noise: {fileID: 0}
     volume: 0.52
@@ -536,8 +536,8 @@ MonoBehaviour:
     loop: 1
   - eventId: 40
     selection: 0
-    stylized: {fileID: 0}
-    realistic: {fileID: 0}
+    stylized: {fileID: 8300000, guid: b7633659f9cf42f0b203652ca7a67c16, type: 3}
+    realistic: {fileID: 8300000, guid: b7633659f9cf42f0b203652ca7a67c16, type: 3}
     custom: {fileID: 0}
     noise: {fileID: 0}
     volume: 0.68

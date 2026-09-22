@@ -822,6 +822,7 @@ namespace Metagame.Gameplay
         public static event Action<PlayerRig, Hand, Grabbable> AnyHandGrabAttempted;
         public static event Action<PlayerRig, Hand, Grabbable, HandReleaseReason> AnyHandReleased;
         public static event Action<PlayerRig, Vector3, float> AnyFootstep;
+        public static event Action<PlayerRig, Vector3> AnyJumped;
 
         void OnEnable()
         {
@@ -3260,6 +3261,7 @@ namespace Metagame.Gameplay
                 jumpLock = 0.30f;
                 Grounded = false;
                 JumpedUp = true;
+                AnyJumped?.Invoke(this, FootPosition);
                 Puff.Regolith(FootPosition, 0.45f);
             }
         }
