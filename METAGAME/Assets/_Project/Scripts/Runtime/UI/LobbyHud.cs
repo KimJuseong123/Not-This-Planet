@@ -436,6 +436,15 @@ namespace Metagame.UI
 
         private void DrawDisplaySettings(float x, ref float y, float width)
         {
+            bool showFps = UiInteraction.Toggle(new Rect(x, y, width - 12f, 30f),
+                editingSettings.display.showFps, "FPS 표시", labelStyle);
+            if (showFps != editingSettings.display.showFps)
+            {
+                editingSettings.display.showFps = showFps;
+                ApplySettingsPreview();
+            }
+            y += 38f;
+
             DrawLabel(new Rect(x, y, 230f, 30f), "UI 텍스트 크기 조정", labelStyle, Color.white);
             float textScale = UiInteraction.HorizontalSlider(new Rect(x + 250f, y + 7f, 300f, 20f),
                 editingSettings.display.uiTextScale, 0.8f, 1.5f);
@@ -1209,7 +1218,7 @@ namespace Metagame.UI
             characters.Append("게스트 로그아웃 복사 클립보드에 복사되었습니다 대기 중 게임 중 알 수 없음");
             characters.Append("친구에게 방 코드를 공유해 함께 출발하세요 최대 12자 바로 시작합니다 로그인 완료 유저 명");
             characters.Append("설정 변경값은 즉시 미리보기로 적용되며 저장 버튼을 눌러야 파일에 기록됩니다");
-            characters.Append("그래픽 오디오 조작 해상도 화면 모드 품질 수직 동기화 프레임 제한 전체 음량 효과음 음악 음성 마이크");
+            characters.Append("그래픽 오디오 조작 해상도 화면 모드 품질 수직 동기화 프레임 제한 FPS 표시 전체 음량 효과음 음악 음성 마이크");
             characters.Append("음악 시스템 준비 중 음성 채팅 시스템 준비 중 마우스 감도 Y축 반전 키 재매핑 입력 대기 중 취소 저장 기본값");
             characters.Append("앞으로 이동 뒤로 이동 왼쪽 이동 오른쪽 이동 점프 달리기 팔 올리기 자유 시점 상호작용 탑승 장비 동작 태블릿 저중력장 끼임 탈출 재시작 이전 다음 커서 해제");
             characters.Append("이미 사용 중인 키입니다 중복된 키를 먼저 변경해 주세요 제한 없음 창 모드 전체 화면 최대화 창 테두리 없는 창");

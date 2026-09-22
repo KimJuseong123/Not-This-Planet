@@ -155,7 +155,7 @@ namespace Metagame.Bootstrap
 
         void Start()
         {
-            GameSettingsRuntime.Ensure();
+            FpsOverlay.Ensure(GameSettingsRuntime.Ensure());
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
             ApplySuitColorSettings();

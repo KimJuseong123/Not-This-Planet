@@ -33,6 +33,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(settings.display.width, Is.GreaterThanOrEqualTo(320));
             Assert.That(settings.display.height, Is.GreaterThanOrEqualTo(240));
             Assert.That(settings.display.frameRateLimit, Is.EqualTo(120));
+            Assert.That(settings.display.showFps, Is.False);
             Assert.That(settings.display.uiTextScale, Is.EqualTo(1f));
             Assert.That(settings.audio.masterVolume, Is.EqualTo(1f));
             Assert.That(settings.audio.sfxVolume, Is.EqualTo(1f));
@@ -83,6 +84,7 @@ namespace Metagame.Gameplay.Tests
             original.display.width = 1280;
             original.display.height = 720;
             original.display.vSync = false;
+            original.display.showFps = true;
             original.display.uiTextScale = 1.35f;
             original.audio.masterVolume = 0.35f;
             original.audio.sfxVolume = 0.65f;
@@ -101,6 +103,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(loaded.display.width, Is.EqualTo(1280));
             Assert.That(loaded.display.height, Is.EqualTo(720));
             Assert.That(loaded.display.vSync, Is.False);
+            Assert.That(loaded.display.showFps, Is.True);
             Assert.That(loaded.display.uiTextScale, Is.EqualTo(1.35f).Within(0.0001f));
             Assert.That(loaded.audio.masterVolume, Is.EqualTo(0.35f).Within(0.0001f));
             Assert.That(loaded.audio.sfxVolume, Is.EqualTo(0.65f).Within(0.0001f));
@@ -123,6 +126,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(loaded.audio.sfxVolume, Is.EqualTo(1f));
             Assert.That(loaded.controls.jump, Is.EqualTo(KeyCode.Space));
             Assert.That(loaded.display.frameRateLimit, Is.EqualTo(120));
+            Assert.That(loaded.display.showFps, Is.False);
             Assert.That(loaded.display.uiTextScale, Is.EqualTo(1f));
         }
 

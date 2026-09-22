@@ -61,6 +61,7 @@ namespace Metagame.Bootstrap
             if (SkipToGameScene()) return;
 
             settings = GameSettingsRuntime.Ensure();
+            FpsOverlay.Ensure(settings);
             if (!Application.isBatchMode && !MatchRole.DedicatedServer)
             {
                 var music = GetComponent<GameMusicPlayer>();

@@ -29,6 +29,7 @@ namespace Metagame.Core
             public int fullscreenMode = (int)FullScreenMode.FullScreenWindow;
             public int qualityLevel = -1;
             public bool vSync = true;
+            public bool showFps;
             public int frameRateLimit = 120;
             [Range(0.8f, 1.5f)] public float uiTextScale = 1f;
         }
@@ -167,6 +168,7 @@ namespace Metagame.Core
                     fullscreenMode = display != null ? display.fullscreenMode : (int)FullScreenMode.FullScreenWindow,
                     qualityLevel = display != null ? display.qualityLevel : -1,
                     vSync = display != null && display.vSync,
+                    showFps = display != null && display.showFps,
                     frameRateLimit = display != null ? display.frameRateLimit : 120,
                     uiTextScale = display != null ? display.uiTextScale : 1f
                 },
