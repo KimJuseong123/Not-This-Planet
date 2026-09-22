@@ -17,11 +17,32 @@ namespace Metagame.Network
     {
         [Serializable] public sealed class Health { public string service; public string protocol; public string state; public string command_schema; public bool voice_plan; }
         [Serializable] public sealed class Decision { public string action; public string recipients; public bool approach; public bool safety_override; public string text; public float elapsed_ms; }
-        [Serializable] public sealed class PlanDecision { public string status; public AiCommandAssignment[] orders; public bool safety_override; public float elapsed_ms; }
+        // `text` 는 워커가 이미 보내고 있었다 — 여기서 선언하지 않아 JsonUtility 가 버렸다
+        // (S15P21B202-708). 선언만 더하면 워커도 추가팩도 건드리지 않고 전사를 얻는다.
+        [Serializable] public sealed class PlanDecision { public string status; public AiCommandAssignment[] orders; public bool safety_override; public float elapsed_ms; public string text; }
         [Serializable] sealed class TextRequest { public string text; }
         public static AiLocalRuntime Current { get; private set; }
         public AiRuntimeState State { get; private set; } = AiRuntimeState.Missing;
-        public string Message { get; private set; } = "추가팩 대기";
+        readonly AiStatusLog statusLog = new AiStatusLog();
+        string message = "추가팩 대기";
+
+        /// <summary>
+        /// 지금 무슨 일인지. <b>화면과 로그가 같은 값을 본다</b> (S15P21B202-708).
+        ///
+        /// <para>판단 지점마다 이미 여기에 적고 있었는데 화면에서만 쓰여서, 다음 문구로 덮이면
+        /// 사라졌다 — QA 뒤 <c>Player.log</c> 에 <b>AI 줄이 하나도 없었다.</b> 기록할 자리를
+        /// 따로 만들지 않는다: 만들면 다음에 생기는 판단 지점이 조용히 빠진다.</para>
+        /// </summary>
+        public string Message
+        {
+            get => message;
+            private set
+            {
+                if (message == value) return;
+                message = value;
+                statusLog.Write("[AI]", value);
+            }
+        }
         public bool Busy { get; private set; }
         public string PackRoot { get; private set; }
         public AiPackInstaller Installer { get; private set; }
@@ -255,6 +276,7 @@ namespace Metagame.Network
                 PlanDecision result = null;
                 try { result = JsonUtility.FromJson<PlanDecision>(request.downloadHandler.text); }
                 catch (ArgumentException) { }
+                ReportPlan(result);
                 Message = result == null ? "잘못된 응답 · 기존 행동 유지"
                     : (result.status == "none" || result.status == "clarify") && result.orders != null && result.orders.Length == 0
                     ? "실행할 작업 불명확/미지원 · 기존 행동 유지"
@@ -302,12 +324,36 @@ namespace Metagame.Network
                 PlanDecision result = null;
                 try { result = JsonUtility.FromJson<PlanDecision>(request.downloadHandler.text); }
                 catch (ArgumentException) { }
+                ReportPlan(result);
                 if (result == null || result.status != "ok" || !AiCommandPlan.Valid(result.orders))
                 { requester.ReportAiVoice("명령을 이해하지 못했어요"); yield break; }
                 // Snapshot membership/revisions prevents delayed replies from replacing newer orders.
                 Message = group.ExecutePlan(result.orders, AiRecipients.Selected, selected, speaker);
                 requester.ReportAiVoice(group.LastAccepted > 0 ? $"AI 동료 {group.LastAccepted}명이 명령을 받았어요" : "지금 수행할 수 있는 AI 동료가 없어요");
             }
+        }
+
+        /// <summary>
+        /// <b>무엇을 듣고 무엇을 하기로 했는지</b> 한 줄씩 (S15P21B202-708).
+        ///
+        /// <para>실행 요약(<c>ExecutePlan</c> 의 반환)은 <b>결과</b>만 말한다. 명령이 엉뚱하게
+        /// 수행됐을 때, 잘못 들은 것인지 · 잘못 계획한 것인지 · 계획대로 됐는데 결과가 다른
+        /// 것인지를 가르려면 <b>앞의 둘</b>이 있어야 한다.</para>
+        ///
+        /// <para><b>전사는 사람이 말한 내용이다.</b> 참가자가 말한 것도 호스트의
+        /// <c>Player.log</c> 에 글자로 남는다 — 음성은 어차피 판단을 위해 호스트로 가지만,
+        /// 글자로 파일에 남는 것은 다른 일이라 QA 를 위한 결정으로 적어 둔다.</para>
+        ///
+        /// <para>상태 문구와 달리 <b>매번 적는다.</b> 명령은 사람이 V 를 누를 때만 나므로
+        /// 로그를 덮지 않는다.</para>
+        /// </summary>
+        void ReportPlan(PlanDecision result)
+        {
+            if (result == null) { Debug.Log("[AI] 응답을 읽지 못했다"); return; }
+            if (!string.IsNullOrWhiteSpace(result.text)) Debug.Log("[AI] 들음: " + result.text);
+            Debug.Log("[AI] 계획 " + result.status + " " + AiCommandPlan.Describe(result.orders)
+                      + (result.safety_override ? " · 안전 중단" : "")
+                      + " · " + result.elapsed_ms.ToString("0") + "ms");
         }
 
         public static bool ValidDecision(Decision result)
