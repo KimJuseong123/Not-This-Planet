@@ -714,11 +714,21 @@ namespace Metagame.Gameplay.Tests
             var push = MakePart();
             var players = ThreeHaulers(push);
 
-            Tick(push, 3f);
+            // **미는 동안에는 따라간다.** 제자리에 서 있으면 팔 길이를 벗어나 손을
+            // 놓는다(S15P21B202-686) — 그러면 재려던 관성이 아니라 놓는 것을 재게 된다.
+            var previous = push.transform.position;
+            for (var i = 0; i < 300; i++)
+            {
+                FollowPart(push, players, ref previous);
+                UnityEngine.Physics.SyncTransforms();
+                push.Tick(Step);
+                UnityEngine.Physics.Simulate(Step);
+            }
             var moving = Horizontal(push).magnitude;
             Assert.Greater(moving, 0.3f);
 
-            // 손은 놓지 않고 걸음만 멈춘다 — 잡기는 거리로 끊기지 않는다.
+            // 손은 놓지 않고 걸음만 멈춘다. 그 자리에 함께 서 있으므로 거리로도
+            // 안 끊긴다 — 멈춘 뒤에 줄어드는 것이 관성인지를 본다.
             for (var i = 0; i < players.Count; i++)
                 SetWish(players[i], Vector3.zero);
 
@@ -921,6 +931,36 @@ namespace Metagame.Gameplay.Tests
             property.SetValue(player, wish.sqrMagnitude > 1e-6f ? wish.normalized : Vector3.zero);
         }
 
+        /// <summary>
+        /// 인형을 통째로 옮긴다. <b><see cref="PlayerRig.Teleport"/> 를 쓰면 안 된다</b> —
+        /// 그것이 스스로 두 손을 놓는다 (S15P21B202-686).
+        /// </summary>
+        static void ShiftDoll(PlayerRig player, Vector3 delta)
+        {
+            foreach (var body in player.Doll.Bodies) body.transform.position += delta;
+        }
+
+        /// <summary>
+        /// <b>잡은 사람은 파츠를 따라간다</b> (S15P21B202-686).
+        ///
+        /// <para>예전에는 하네스가 사람을 출발선에 세워 둔 채 파츠만 몇 미터 보냈다.
+        /// 그때는 그래도 됐다 — <c>PartPush</c> 가 <b>거리를 아예 안 봤기</b> 때문이다.
+        /// 실측으로 <b>73m 떨어져서도 파츠가 0.62m/s 로 끌렸고</b>, 그것이 -686 이
+        /// 고친 결함이다. 이제 손이 팔 길이를 벗어나면 놓으므로, 하네스도 실제
+        /// 운반처럼 따라가야 한다.</para>
+        ///
+        /// <para><see cref="Freeze"/> 가 콜라이더를 껐으니 따라가도 접촉은 안 생긴다 —
+        /// 재는 것은 여전히 지면 마찰뿐이다.</para>
+        /// </summary>
+        static void FollowPart(PartPush push, List<PlayerRig> haulers, ref Vector3 previous)
+        {
+            var delta = push.transform.position - previous;
+            previous = push.transform.position;
+            delta.y = 0f;
+            if (delta.sqrMagnitude <= 0f) return;
+            for (var i = 0; i < haulers.Count; i++) ShiftDoll(haulers[i], delta);
+        }
+
         static void Teleport(PlayerRig player, Vector3 foot)
         {
             player.Teleport(foot, Quaternion.identity);
@@ -1036,11 +1076,14 @@ namespace Metagame.Gameplay.Tests
             }
 
             var start = push.transform.position;
+            var previous = start;
 
             for (var i = 0; i < 300; i++)
             {
-                // 실제 이동 입력처럼 파츠를 따라가며 접촉을 유지한다.
-                if (!grab)
+                // 실제 이동 입력처럼 파츠를 따라간다. 몸밀기는 접촉을, 잡기는 팔
+                // 길이를 유지해야 한다(S15P21B202-686).
+                if (grab) FollowPart(push, haulers, ref previous);
+                else
                     for (var h = 0; h < haulers.Count; h++)
                         PlaceBodyPusherAtSurface(push, haulers[h], offsets[h % offsets.Length]);
                 UnityEngine.Physics.SyncTransforms();
