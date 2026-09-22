@@ -83,9 +83,22 @@ namespace Metagame.Core
         /// </summary>
         public static Action SweepRequested;
 
-        /// <summary>판이 끝났다고 알린다. 듣는 쪽이 없거나 실패해도 조용히 넘어간다.</summary>
+        /// <summary>
+        /// 판이 끝났다고 알린다. 듣는 쪽이 없거나 실패해도 조용히 넘어간다.
+        ///
+        /// <para><b>먼저 런로그를 닫는다</b> (S15P21B202-685). <see cref="Pending"/> 는
+        /// 지금 쓰고 있는 파일(<c>RunLog.Path</c>)을 일부러 제외하는데 그 제외가 맞다 —
+        /// 아직 쓰는 중인 파일을 보내면 꼬리가 잘린다. 그래서 <b>방금 한 판의 로그가
+        /// 다음 실행까지 올라가지 않았다.</b> 2026-09-22 QA 에서 가장 보고 싶은 세 판이
+        /// 전부 로컬에만 남아 사람이 손으로 옮겼다.
+        ///
+        /// <b>닫는 것은 듣는 쪽이 없어도 한다.</b> 그래야 다음 로그인의 쓸이가 그것을
+        /// 집는다 — 여기서 돌아나가면 그 판은 영영 열린 파일로 남는다.</para>
+        /// </summary>
         public static void Request()
         {
+            RunLog.Rotate();
+
             var handler = SweepRequested;
             if (handler == null) return;
             try

@@ -358,6 +358,95 @@ namespace Metagame.Core
         }
 
         /// <summary>
+        /// 판이 끝났다 — 지금 파일을 닫고 <b>다음 판을 새 파일에 쓴다</b>
+        /// (S15P21B202-685). 닫은 파일의 경로를 돌려준다(없었으면 빈 문자열).
+        ///
+        /// <para><b>이것이 없으면 방금 한 판의 로그가 다음 실행까지 올라가지 않는다.</b>
+        /// 쓸이(<c>RunLogUpload.Pending</c>)는 <see cref="Path"/> 를 일부러 제외하는데
+        /// 그 제외가 맞다 — 아직 쓰고 있는 파일을 보내면 꼬리가 잘린다. 그래서 보낼 수
+        /// 있게 <b>닫아 주는 쪽</b>이 필요하다. 2026-09-22 QA 에서 가장 보고 싶은 판이
+        /// 늘 로컬에만 남아 사람이 손으로 옮겼다.</para>
+        ///
+        /// <para><b>앱 종료 경로에서는 부르지 않는다.</b> 거기서 시작한 전송은 끝나지
+        /// 못한다 — 그 결정은 <c>RunLogUpload</c> 주석에 있고 <c>PlayObserver</c> 의
+        /// <c>if (sweep)</c> 가 그것을 지킨다. 이 함수는 판이 끝나고 게임이 살아 있는
+        /// 동안만 쓴다.</para>
+        ///
+        /// <para><b>훅은 떼지 않는다.</b> <see cref="Stop"/> 는 끝내는 길이라
+        /// <c>logMessageReceivedThreaded</c> 를 떼지만, 여기서 떼었다 붙이면 그 사이의
+        /// 줄이 사라진다 — 판이 막 끝난 직후가 정리 로그가 가장 많은 때다.</para>
+        /// </summary>
+        internal static string Rotate()
+        {
+            if (Application.isEditor) return string.Empty;
+
+            lock (Gate)
+            {
+                if (writer == null) return string.Empty;
+
+                string closed = Path;
+                try
+                {
+                    writer.Flush();
+                    writer.Dispose();
+                }
+                catch (Exception)
+                {
+                    // 닫는 데 실패해도 다음 판은 새 파일에 써야 한다.
+                }
+                writer = null;
+
+                string folder = Folder();
+                if (string.IsNullOrEmpty(folder))
+                {
+                    Path = string.Empty;
+                    return closed;
+                }
+
+                try
+                {
+                    Path = NextFreePath(folder, DateTime.Now);
+                    writer = new StreamWriter(Path, false) { AutoFlush = true };
+                }
+                catch (Exception e)
+                {
+                    // **조용히 넘기지 않는다.** 여기서 실패하면 이 판 뒤의 로그가
+                    // 아무 데도 안 남는다 — 그 사실이 닫은 파일에는 못 들어가므로
+                    // 화면 로그로라도 남아야 한다.
+                    Debug.LogWarning("[RUN] 판이 끝나 새 로그 파일을 열지 못했다 · "
+                                     + folder + " · " + e.GetType().Name);
+                    writer = null;
+                    Path = string.Empty;
+                    return closed;
+                }
+
+                Debug.Log("[RUN] 판이 끝나 로그를 닫았다: " + closed
+                          + " · 다음 판은 " + Path);
+                return closed;
+            }
+        }
+
+        /// <summary>
+        /// 아직 없는 파일 이름. 같은 초에 두 번 회전하면 이름이 겹치는데, 그때
+        /// <c>new StreamWriter(path, false)</c> 는 <b>앞 판을 지운다</b> — 보내기도
+        /// 전에 사라진다. 그래서 겹치면 뒤에 번호를 붙인다.
+        /// </summary>
+        public static string NextFreePath(string folder, DateTime when)
+        {
+            string name = FileNameFor(when);
+            string candidate = System.IO.Path.Combine(folder, name);
+            if (!File.Exists(candidate)) return candidate;
+
+            string stem = name.Substring(0, name.Length - 4);   // ".log" 를 뗀다
+            for (var n = 2; n <= 99; n++)
+            {
+                candidate = System.IO.Path.Combine(folder, stem + "-" + n + ".log");
+                if (!File.Exists(candidate)) return candidate;
+            }
+            return candidate;
+        }
+
+        /// <summary>
         /// 오래된 파일을 지운다. 실험을 반복하면 쌓이기만 하고, 폴더를 통째로 압축해
         /// 넘기는 것이 이 기능의 사용법이므로 옛것이 섞이면 받는 쪽이 헷갈린다.
         /// </summary>
