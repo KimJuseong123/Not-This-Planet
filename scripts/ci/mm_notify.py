@@ -524,16 +524,37 @@ def schedule_result(gl: GitLab) -> int:
         # 내용이 비었다고 보내지 않으면 멈춘 것과 구분되지 않는다.
         ran = "잡 목록을 읽지 못했다 — 파이프라인 링크에서 확인한다"
 
+    # **성공한 잡만 세면 이 카드가 거짓말을 한다** (`!570` AI 리뷰). 데우기 잡이
+    # 취소되거나 규칙이 어긋나 **아예 만들어지지 않은** 날에도 `failed_jobs` 는 빈
+    # 목록이라 초록 카드가 나간다 — 이 카드가 잡으려던 *조용히 안 도는* 실패 모드와
+    # 정확히 겹친다. 그래서 **그 예약이 하기로 한 잡**을 이름으로 확인한다.
+    #
+    # ⚠ `.gitlab-ci.yml` 의 규칙과 같은 조건이어야 한다. 어긋나면 이 확인이
+    # 있으나 마나다 — `test_notify_schedule_card.py` 가 둘을 대조한다.
+    if env("WARM_UNITY_CACHE") == "true":
+        expected = ["build-devbuild"]
+    elif env("NIGHTLY_DEPLOY_DEV") == "true":
+        expected = ["build-devbuild", "deploy-dev"]
+    else:
+        expected = []
+    ran_names = {j.get("name") for j in done}
+    missing = [n for n in expected if n not in ran_names]
+
     sha = env("CI_COMMIT_SHORT_SHA", "") or "?"
     title = env("CI_COMMIT_TITLE", "") or ""
     rows = [
         ("커밋", f"[`{sha}`]({env('CI_PROJECT_URL', '')}/-/commit/{env('CI_COMMIT_SHA', '')}) {title}".strip()),
         ("한 일", ran),
     ]
+    if missing:
+        rows.append(("안 돈 잡", " · ".join(f"`{n}`" for n in missing) +
+                     " — **실패가 아니라 아예 안 돌았다**(취소·건너뜀·규칙 어긋남)"))
     if env("CI_PIPELINE_URL"):
         rows.append(("링크", f"[파이프라인]({env('CI_PIPELINE_URL')})"))
     rows.append(("이 카드가 없는 날", "**예약이 멈춘 것이다** — 스케줄이 꺼졌거나 그 브랜치가 지워졌다"))
-    return send(card(f"🟢 **예약 실행 완료** ({schedule_name()})", rows))
+    head = ("🟡 **예약 실행이 덜 돌았다**" if missing
+            else "🟢 **예약 실행 완료**")
+    return send(card(f"{head} ({schedule_name()})", rows))
 
 
 def branch_failed(gl: GitLab) -> int:

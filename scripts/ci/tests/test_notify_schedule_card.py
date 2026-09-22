@@ -42,6 +42,7 @@ os.environ.update({
     # **직접 정한다** (S15P21B202-533). 안 정하면 이 테스트를 돌리는 잡 자신의 값이
     # 새어 들어와 로컬에서는 통과하고 CI 에서만 깨진다.
     "CI_PIPELINE_SOURCE": "schedule",
+    "WARM_UNITY_CACHE": "true",   # 01:00 데우기 예약이다
 })
 os.environ.pop("CI_MERGE_REQUEST_IID", None)
 
@@ -115,8 +116,12 @@ print("  멘션 없이 내용만 ✅")
 # ── ③ 무엇을 했는지 적는다 (잡 이름 + 소요)
 check("ci-tests" in t and "build-devbuild" in t, f"한 일이 안 적혔다: {t}")
 check("4.2분" in t, f"소요 시간이 안 적혔다(252초 → 4.2분): {t}")
-check("mm-nightly-result" not in t.split("한 일")[-1].split("|")[2] if "한 일" in t else True,
-      "'한 일' 에 알림 잡 자신이 들어 있다")
+#     **값 셀을 정확히 집어야 한다** (`!570` AI 리뷰). `split("한 일")[-1].split("|")[2]`
+#     로 쓰면 값이 아니라 그 뒤의 개행을 집어 **무엇을 넣어도 통과하는 죽은 검사**가 된다.
+_ran = re.search(r"\| 한 일 \| (.*?) \|", t)
+check(_ran is not None, f"'한 일' 행을 못 찾았다: {t}")
+check(_ran is None or "mm-nightly-result" not in _ran.group(1),
+      f"'한 일' 에 알림 잡 자신이 들어 있다: {_ran.group(1) if _ran else ''}")
 print("  무엇을 했는지 적는다 ✅")
 
 
@@ -133,6 +138,37 @@ print("  안 온 날이 신호라는 것을 적는다 ✅")
 rc, t_empty = run([])
 check(bool(t_empty), "잡 목록이 비었다고 카드를 통째로 생략한다 — 멈춘 것과 구분되지 않는다")
 print("  잡 목록을 못 읽어도 카드는 나간다 ✅")
+
+
+# ── ⑤b **하기로 한 잡이 안 돌았으면 초록이 아니다** (`!570` AI 리뷰)
+#
+#     성공한 잡만 세면, 데우기 잡이 취소되거나 규칙이 어긋나 **아예 만들어지지 않은**
+#     날에도 실패가 0건이라 🟢 가 나간다 — 이 카드가 잡으려던 *조용히 안 도는* 실패
+#     모드와 정확히 겹친다. 그러면 카드가 있으나 마나다.
+ONLY_LIGHT = [
+    {"id": 31, "name": "ci-tests", "status": "success", "duration": 25.0,
+     "allow_failure": False, "web_url": "https://lab/j/31"},
+]
+rc, t_miss = run(ONLY_LIGHT)
+check(bool(t_miss), "기대한 잡이 없는데 카드가 아예 안 나갔다")
+check(not t_miss.startswith("🟢"),
+      f"`build-devbuild` 가 안 돌았는데 초록 '완료' 카드가 나간다 — 조용한 멈춤을 덮는다: {t_miss[:60]}")
+check("build-devbuild" in t_miss and "안 돈 잡" in t_miss,
+      f"무엇이 안 돌았는지 카드가 말하지 않는다: {t_miss}")
+check("@" not in t_miss, f"덜 돈 카드가 누군가를 부른다: {t_miss}")
+print("  하기로 한 잡이 빠지면 초록이 아니다 ✅")
+
+
+# ── ⑤c 기대 잡 목록이 `.gitlab-ci.yml` 의 규칙과 **같은 조건**을 쓴다
+#      어긋나면 위 검사가 있으나 마나다 — 규칙에 있는 잡을 기대 목록이 모르면
+#      그 잡이 통째로 빠져도 초록이 나간다.
+SRC = io.open(os.path.join(ROOT, "scripts", "ci", "mm_notify.py"), encoding="utf-8").read()
+scope = SRC[SRC.index("def schedule_result"):]
+scope = scope.split(chr(10) + "def ", 1)[0]
+for var in ("WARM_UNITY_CACHE", "NIGHTLY_DEPLOY_DEV"):
+    check(var in scope, f"기대 잡을 고를 때 {var} 를 보지 않는다")
+check("build-devbuild" in scope, "기대 잡에 build-devbuild 가 없다")
+print("  기대 잡을 예약 변수로 고른다 ✅")
 
 
 # ── ⑥ 실패했으면 **실패 카드**다 (초록으로 덮지 않는다)
