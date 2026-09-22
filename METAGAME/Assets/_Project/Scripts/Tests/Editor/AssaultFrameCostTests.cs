@@ -83,8 +83,12 @@ namespace Metagame.Gameplay.Tests
             var spawner = Spawner();
 
             spawner.ApplyNetworkMeteors(Poses(6));
-            var first = new int[6];
-            for (var i = 0; i < 6; i++) first[i] = spawner.Ghosts[i].GetInstanceID();
+
+            // **id 가 아니라 객체로 견준다.** `GetInstanceID` 는 이 Unity 버전에서
+            // obsolete 고(경고를 오류로 다루므로 컴파일이 안 된다), "같은 돌이 돌아왔나" 는
+            // 객체 같음으로 바로 말할 수 있다 — 버전에 딸리지 않는다.
+            var first = new List<Meteor>();
+            for (var i = 0; i < 6; i++) first.Add(spawner.Ghosts[i]);
             Assert.AreEqual(6, StonesInScene(), "그림 여섯 개면 돌도 여섯 개다");
 
             spawner.ApplyNetworkMeteors(Poses(0));
@@ -93,8 +97,8 @@ namespace Metagame.Gameplay.Tests
                 "줄어든 그림을 지웠다 — 공세 내내 만들고 지우기가 반복된다");
 
             spawner.ApplyNetworkMeteors(Poses(6));
-            var again = new List<int>();
-            for (var i = 0; i < 6; i++) again.Add(spawner.Ghosts[i].GetInstanceID());
+            var again = new List<Meteor>();
+            for (var i = 0; i < 6; i++) again.Add(spawner.Ghosts[i]);
 
             CollectionAssert.AreEquivalent(first, again,
                 "세워 둔 것을 쓰지 않고 새로 만들었다");
@@ -180,7 +184,7 @@ namespace Metagame.Gameplay.Tests
             }, full: true);
 
             Assert.IsTrue(spawner.TryGetScarGhost(7, out var scar), "흔적 그림이 없다");
-            Assert.AreNotEqual(parked.GetInstanceID(), scar.GetInstanceID(),
+            Assert.AreNotEqual(parked, scar,
                 "세워 둔 낙하 그림을 흔적으로 꺼냈다 — 콜라이더가 꺼진 흔적이 된다");
 
             foreach (var collider in scar.Colliders)
@@ -191,7 +195,7 @@ namespace Metagame.Gameplay.Tests
 
             // 낙하 그림 쪽은 그대로 남아 있다 — 흔적이 훔쳐 가지 않았다.
             spawner.ApplyNetworkMeteors(Poses(1));
-            Assert.AreEqual(parked.GetInstanceID(), spawner.Ghosts[0].GetInstanceID());
+            Assert.AreEqual(parked, spawner.Ghosts[0]);
         }
 
         /// <summary>매치가 끝나면 <b>세워 둔 것까지</b> 지운다.</summary>
