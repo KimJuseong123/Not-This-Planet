@@ -1022,6 +1022,11 @@ namespace Metagame.Gameplay
                                        PhysicsScale.DownedCarryAngle);
             RescueInteractor.Accepts = OnlyDownedRescue;
 
+            // **살리러 다가가면 후보에서 떨어지던 것을 막는다** (S15P21B202-699).
+            // 구조 지점은 바닥(0.30m)이고 눈은 0.83m 라, 0.8m 안쪽에서는 내려다보는
+            // 각이 35도를 넘었다 — 실측 0.5m 에서 46.6도.
+            RescueInteractor.NearRadius = PhysicsScale.DownedRescueNearReach;
+
             // **물리 질의만으로는 참가자 화면에서 아무도 못 찾는다**(S15P21B202-448).
             // 이유는 Interactor.ExtraCandidates 에 적었다. 잡기가 -249 이후로 목록을
             // 훑는 것과 같은 처리다.
@@ -3886,7 +3891,20 @@ namespace Metagame.Gameplay
         /// 놓거나 운석에 맞아도 빠진 정도는 유지된다".
         /// </summary>
         /// <summary><see cref="RescueInteractor"/> 가 받는 것 — 구조 지점뿐이다.</summary>
-        static bool OnlyDownedRescue(IInteractable candidate) => candidate is DownedRescue;
+        /// <summary>
+        /// 일으킬 수 있는 대상인가.
+        ///
+        /// <para><b>"나 자신이 아니다" 와 "내가 안 쓰러졌다" 를 여기서 못 박는다</b>
+        /// (S15P21B202-699). 예전에는 <b>시야각 검사가 우연히 그것을 막고 있었다</b> —
+        /// 내 구조 지점은 내 발밑이라 눈에서 보면 거의 수직 아래고, 그래서 35도 원뿔
+        /// 밖이었다. 발치를 봐 주기 시작하자 <b>내가 나를 일으키는 후보가 됐다.</b>
+        /// 규칙을 기하에 기대고 있었던 것이다.</para>
+        ///
+        /// <para><see cref="DownedRescue.GetAvailability"/> 도 같은 것을 막지만, 그것은
+        /// 잡은 뒤에 보는 문이라 <b>후보 목록에는 남는다</b> — 화면에 안내가 뜬다.</para>
+        /// </summary>
+        bool OnlyDownedRescue(IInteractable candidate) =>
+            candidate is DownedRescue rescue && rescue.Target != this && !Downed;
 
         /// <summary>
         /// 누르고 있는 동안 동료를 일으킨다 (S15P21B202-390).

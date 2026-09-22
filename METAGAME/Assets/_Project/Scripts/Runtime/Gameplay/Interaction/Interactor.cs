@@ -178,6 +178,18 @@ namespace Metagame.Gameplay.Interaction
 
         Transform Aim => _aim != null ? _aim : transform;
 
+        /// <summary>
+        /// <b>이 거리 안이면 시야각을 안 본다</b> (S15P21B202-699). 0 이면 늘 본다.
+        ///
+        /// <para><b>바닥에 있는 대상을 위한 것이다.</b> 원뿔은 눈에서 나가므로, 발치에
+        /// 있는 것일수록 내려다보는 각이 가팔라져 시야각 밖으로 나간다 — 다가갈수록
+        /// 후보에서 떨어진다. 그 자리에서는 누구를 가리키는지 모호하지도 않다.</para>
+        ///
+        /// <para>고르는 규칙(<see cref="IsBetter"/>)은 그대로라, 둘이 나란히 있어도
+        /// 더 정면에 가까운 쪽이 이긴다.</para>
+        /// </summary>
+        public float NearRadius { get; set; }
+
         public void Configure(Transform aim, float range, float halfAngleDegrees)
         {
             _aim = aim;
@@ -413,7 +425,9 @@ namespace Metagame.Gameplay.Interaction
             if (sqrDistance > _range * _range) return;
 
             var angle = sqrDistance < 1e-6f ? 0f : Vector3.Angle(forward, offset);
-            if (angle > _halfAngleDegrees) return;
+            // 발치에 있는 것은 각도를 묻지 않는다 (S15P21B202-699).
+            bool near = NearRadius > 0f && sqrDistance <= NearRadius * NearRadius;
+            if (!near && angle > _halfAngleDegrees) return;
 
             if (!IsBetter(angle, sqrDistance, position, bestAngle, bestSqrDistance, bestPosition)) return;
 
