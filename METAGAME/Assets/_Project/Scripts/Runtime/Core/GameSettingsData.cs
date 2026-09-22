@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using UnityEngine;
 
 namespace Metagame.Core
@@ -42,7 +41,6 @@ namespace Metagame.Core
 
             // BGM 기본 음량에 곱하는 사용자 음량. 효과음과 독립적으로 저장한다.
             [Range(0f, 1f)] public float musicVolume = 1f;
-            [Range(0f, 1f)] public float voiceVolume = 1f;
         }
 
         [Serializable]
@@ -72,14 +70,21 @@ namespace Metagame.Core
             public KeyCode freeCursor = KeyCode.Escape;
         }
 
+        /// <summary>
+        /// 마이크 설정. <b>여기 없는 것들이 더 중요하다</b> (S15P21B202-705).
+        ///
+        /// <para><c>pushToTalk</c>(오픈 마이크 대신 V) · <c>mutedPlayerIds</c>(플레이어별 음소거) ·
+        /// <c>AudioSettings.voiceVolume</c>(음성 듣기) 는 <b>지웠다.</b> 플레이어끼리 말하는 길을
+        /// 걷어냈으므로 오픈 마이크는 고를 수 없는 선택지고, 음소거할 목소리도 들을 목소리도
+        /// 없다. 다시 넣기 전에 <c>-705</c> 를 먼저 읽을 것 — 그 셋은 <b>호스트만 렉이 심하던
+        /// 원인</b>과 한 덩어리였다.</para>
+        /// </summary>
         [Serializable]
         public sealed class VoiceSettings
         {
             public bool microphoneMuted;
-            public bool pushToTalk;
             [Range(0f, 2f)] public float microphoneSensitivity = 1f;
             public string microphoneDevice = string.Empty;
-            public List<string> mutedPlayerIds = new List<string>();
         }
 
         /// <summary>현재 실행 환경의 프로젝트 기본값을 만든다.</summary>
@@ -107,7 +112,6 @@ namespace Metagame.Core
             if (audio == null) audio = new AudioSettings();
             if (controls == null) controls = new ControlSettings();
             if (voice == null) voice = new VoiceSettings();
-            if (voice.mutedPlayerIds == null) voice.mutedPlayerIds = new List<string>();
 
             version = CurrentVersion;
             display.width = Mathf.Clamp(display.width, 320, 16384);
@@ -127,7 +131,6 @@ namespace Metagame.Core
             audio.masterVolume = Mathf.Clamp01(audio.masterVolume);
             audio.sfxVolume = Mathf.Clamp01(audio.sfxVolume);
             audio.musicVolume = Mathf.Clamp01(audio.musicVolume);
-            audio.voiceVolume = Mathf.Clamp01(audio.voiceVolume);
 
             controls.lookSensitivity = Mathf.Clamp(controls.lookSensitivity, 0.1f, 5f);
             controls.moveForward = NormalizeKey(controls.moveForward, KeyCode.W);
@@ -177,8 +180,7 @@ namespace Metagame.Core
                 {
                     masterVolume = audio != null ? audio.masterVolume : 1f,
                     sfxVolume = audio != null ? audio.sfxVolume : 1f,
-                    musicVolume = audio != null ? audio.musicVolume : 1f,
-                    voiceVolume = audio != null ? audio.voiceVolume : 1f
+                    musicVolume = audio != null ? audio.musicVolume : 1f
                 },
                 controls = new ControlSettings
                 {
@@ -207,12 +209,9 @@ namespace Metagame.Core
                 voice = new VoiceSettings
                 {
                     microphoneMuted = voice != null && voice.microphoneMuted,
-                    pushToTalk = voice != null && voice.pushToTalk,
                     microphoneSensitivity = voice != null ? voice.microphoneSensitivity : 1f,
                     microphoneDevice = voice != null && voice.microphoneDevice != null
-                        ? voice.microphoneDevice : string.Empty,
-                    mutedPlayerIds = voice != null && voice.mutedPlayerIds != null
-                        ? new List<string>(voice.mutedPlayerIds) : new List<string>()
+                        ? voice.microphoneDevice : string.Empty
                 }
             };
             result.Normalize();

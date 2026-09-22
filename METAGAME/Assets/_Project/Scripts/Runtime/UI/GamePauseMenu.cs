@@ -227,7 +227,7 @@ namespace Metagame.UI
             AiRoomControls.Draw(new Rect(x + 24f * scale, y + aiTop,
                 panelWidth - 48f * scale, 78f * scale), quietButtonStyle, hintStyle, false);
             ProximityVoiceMenu.Draw(new Rect(x + 24f * scale, y + aiTop + 87f * scale,
-                panelWidth - 48f * scale, 190f * scale));
+                panelWidth - 48f * scale, 76f * scale));
 
             DrawLabel(new Rect(x, y + panelHeight - 28f * scale, panelWidth, 22f * scale),
                       "Esc 닫기", hintStyle, UiTheme.MutedText);
