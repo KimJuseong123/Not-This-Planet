@@ -897,6 +897,10 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
     # 값을 그대로 쓴다 — 빌드 쪽에서 태그를 다시 읽으면 두 곳이 어긋나고, 어긋난 버전은
     # **게이트를 조용히 무력화**한다.
     - export SPACE_RELEASE_VERSION="$(cat release-version.txt)"
+    # **릴리스 빌드에도 심는다** (S15P21B202-690). `build-devbuild` 와 같은 스크립트·같은
+    # 자리(Unity 앞)다 — 두 벌로 두면 한쪽만 고쳐져, 시험은 되는데 사용자 빌드에서만
+    # 설치가 안 되는 상태가 된다. 그 차이는 내보내기 전까지 아무도 모른다.
+    - python3 scripts/ci/write_ai_pack_source.py
     - |
       set +e
       unity-editor \
@@ -1075,6 +1079,17 @@ build-devbuild:           # QA 가 쓸 개발·QA 빌드 (S15P21B202-460)
     # 이 줄이 없던 동안 개발 빌드로 모은 이벤트는 전부 `build: ""` 였다. QA 는 개발
     # 빌드로 하므로, 쌓아 둔 것 대부분이 어느 빌드의 판인지 말하지 못한다.
     - export SPACE_BUILD_ID="$(cat release-version.txt)"
+    # **AI 추가팩 주소를 빌드에 심는다** (S15P21B202-690).
+    #
+    # 저장소의 `ai-pack-source.json` 은 **값이 빈 껍데기**다(배포 주소는 저장소에 두지
+    # 않는다). 그대로 빌드하면 게임이 "다운로드 배포 주소가 아직 설정되지 않았어요" 에서
+    # 멈추므로, 값을 CI 변수에 두고 여기서 덮어쓴다.
+    #
+    # 변수가 없으면 아무것도 쓰지 않고 그 사실을 남긴다 — 안 남기면 "AI 설치가 안 된다"
+    # 의 원인이 변수 미설정인지 기능 결함인지 빌드 로그로 가릴 수 없다. **값이 틀리면
+    # 여기서 실패한다**: 게임이 내는 문구가 주소를 안 넣은 경우와 똑같아서, 통과시키면
+    # QA 가 오타인지 결함인지 구별할 수 없다.
+    - python3 scripts/ci/write_ai_pack_source.py
     - |
       set +e
       unity-editor \
