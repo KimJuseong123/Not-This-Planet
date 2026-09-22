@@ -19,6 +19,35 @@ namespace Metagame.Gameplay.Tests
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         }
 
+        /// <summary>
+        /// 굽는 고리가 <b>같은 계층 탐색을 두 번 하지 않는다</b> (S15P21B202-704).
+        ///
+        /// <para><b>값으로는 볼 수 없다.</b> 두 방식 모두 같은 길찾기를 내놓는다 — 다른 것은
+        /// 굽을 때마다 드는 비용뿐이다. 소스가 실측 665개라 한 번이 그대로 665번이 된다.</para>
+        ///
+        /// <para><b>어떻게 생겼던 결함인가.</b> <c>-690</c> 에서 굽는 쪽(베이커)과 쓰는 쪽의
+        /// 판단을 <c>UsedForNavigation</c> 한 벌로 합쳤다. 그 함수가 안에서
+        /// <c>GetComponentInParent&lt;SpaceshipPart&gt;()</c> 를 부르는데, 부르는 쪽도
+        /// <c>area = 1</c> 을 정하려고 같은 것을 또 불렀다. 판단을 한 벌로 두려던 것이
+        /// <b>조용히 비용을 두 배로</b> 만들었다.</para>
+        ///
+        /// <para>판단은 한 벌 그대로 두고 이미 아는 값을 넘기는 갈래로 풀었다. 이 검사는
+        /// 그 갈래가 다시 사라지는 것을 막는다.</para>
+        /// </summary>
+        [Test]
+        public void TheBakeLoopLooksUpThePartOnlyOnce()
+        {
+            var scope = TestSource.Method(
+                TestSource.Read("Runtime/Network/AiNavigationWorld.cs"), "public void Rebuild(");
+
+            int first = scope.IndexOf("GetComponentInParent<SpaceshipPart>", System.StringComparison.Ordinal);
+            Assert.That(first, Is.GreaterThanOrEqualTo(0), "파츠를 아예 찾지 않는다 — area 판정이 사라졌다");
+            Assert.That(scope.IndexOf("GetComponentInParent<SpaceshipPart>", first + 1,
+                                      System.StringComparison.Ordinal), Is.LessThan(0),
+                "굽는 고리가 같은 계층 탐색을 두 번 한다 — 소스 665개면 굽을 때마다 665번이 "
+                + "더 든다. 이미 찾아 둔 값을 UsedForNavigation(collider, part) 로 넘길 것");
+        }
+
         static GameObject Box(string name, Vector3 center, Vector3 size)
         {
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);

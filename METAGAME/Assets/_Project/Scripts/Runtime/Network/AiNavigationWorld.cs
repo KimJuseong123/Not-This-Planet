@@ -49,11 +49,24 @@ namespace Metagame.Network
         /// <c>area = 1</c> 로 "막지만 걸을 수는 없는" 것이 된다.</para>
         /// </summary>
         public static bool UsedForNavigation(Collider collider)
+            => UsedForNavigation(collider, collider != null ? collider.GetComponentInParent<SpaceshipPart>() : null);
+
+        /// <summary>
+        /// 이미 찾아 둔 파츠를 넘기는 갈래 (S15P21B202-704).
+        ///
+        /// <para><c>-690</c> 에서 굽는 쪽과 쓰는 쪽의 판단을 한 벌로 합치면서, 굽는 고리가
+        /// <c>GetComponentInParent&lt;SpaceshipPart&gt;()</c> 를 소스마다 <b>두 번</b> 부르게
+        /// 됐다 — 이 함수 안에서 한 번, 부르는 쪽의 <c>area = 1</c> 판정에서 또 한 번.
+        /// 소스가 실측 665개라 굽을 때마다 <b>665번의 추가 계층 탐색</b>이다.</para>
+        ///
+        /// <para>판단은 한 벌 그대로 두고, 이미 아는 값만 넘겨받는다.</para>
+        /// </summary>
+        public static bool UsedForNavigation(Collider collider, SpaceshipPart part)
         {
             if (collider == null) return true;   // 콜라이더가 아닌 소스(터레인 등)는 그대로 쓴다
             if ((PermanentLayerMask & (1 << collider.gameObject.layer)) == 0) return false;
             if (collider.isTrigger || collider.GetComponentInParent<PlayerRig>() != null) return false;
-            return collider.attachedRigidbody == null || collider.GetComponentInParent<SpaceshipPart>() != null;
+            return collider.attachedRigidbody == null || part != null;
         }
 
         void Update()
@@ -64,8 +77,39 @@ namespace Metagame.Network
             // Keep discovering changed obstacles while AI exists, even while it is idle;
             // otherwise the first order after an idle period can reject a now-open route.
             if (!NetPlayer.HasAiPlayers) return;
+            int before = BuildCount;
             Rebuild(new Bounds(transform.position, new Vector3(512, 128, 512)));
+            if (BuildCount == before) skipped++;
             nextBuild = Time.time + 2f;
+            Report();
+        }
+
+        int skipped;
+        float nextReport;
+
+        /// <summary>
+        /// 30초마다 한 줄 (S15P21B202-704).
+        ///
+        /// <para><b>왜 프로파일러 표식만으로는 모자라나.</b> <c>ProfilerMarker</c> 는 프로파일러를
+        /// 붙였을 때만 보인다. 그런데 이 값이 가장 필요한 자리는 <b>배포된 QA 빌드</b>다 —
+        /// 2026-09-22 에 "AI 를 켜면 호스트가 렉이다" 를 원인까지 좁히는 데 하루가 걸렸고,
+        /// 그 이유가 <b>얼마나 자주 굽는지 아무도 몰랐던 것</b>이었다. QA 하는 사람 PC 에
+        /// 프로파일러를 붙일 수는 없다.</para>
+        ///
+        /// <para><b>건너뛴 횟수가 핵심이다.</b> <c>건너뜀 0회</c> 면 서명 비교가 매번 다르다는
+        /// 뜻이고, 그러면 이 이슈의 수정이 <b>아무것도 막지 못하고 있다</b>. 그 실패가
+        /// 조용하면 안 된다.</para>
+        ///
+        /// <para>매 주기 찍지 않는다 — 2초마다면 그 줄이 로그를 못 읽게 만든다.</para>
+        /// </summary>
+        void Report()
+        {
+            if (Time.realtimeSinceStartup < nextReport) return;
+            if (nextReport > 0f)
+                Debug.Log($"[AiNav] 30초: 구움 {BuildCount}회(누적) · 건너뜀 {skipped}회"
+                          + $" · 소스 {sources.Count}개 · 대체 박스 {ApproximateMeshCount}개");
+            nextReport = Time.realtimeSinceStartup + 30f;
+            skipped = 0;
         }
 
         public void Rebuild(Bounds region, bool force = false)
@@ -89,10 +133,15 @@ namespace Metagame.Network
                 if (collider != null)
                 {
                     // Characters and loose tools are local collision concerns, not permanent walls.
-                    // **베이커와 같은 함수를 쓴다** (S15P21B202-690) — 갈리면 조용히 나빠진다.
-                    if (!UsedForNavigation(collider)) { sources.RemoveAt(i); continue; }
+                    // **베이커와 같은 판단을 쓴다** (S15P21B202-690) — 갈리면 조용히 나빠진다.
+                    //
+                    // **파츠는 한 번만 찾는다** (S15P21B202-704). 판단을 함수로 빼면서 같은
+                    // 계층 탐색이 소스마다 두 번 돌고 있었다 — 665개면 굽을 때마다 665번이
+                    // 더 든다. 판단은 한 벌 그대로 두고 이미 아는 값만 넘긴다.
+                    var part = collider.GetComponentInParent<SpaceshipPart>();
+                    if (!UsedForNavigation(collider, part)) { sources.RemoveAt(i); continue; }
                     // Parts block routes; their tops are not walking surfaces.
-                    if (collider.GetComponentInParent<SpaceshipPart>() != null) source.area = 1;
+                    if (part != null) source.area = 1;
                 }
                 if (source.shape == NavMeshBuildSourceShape.Mesh && source.sourceObject is Mesh mesh && !mesh.isReadable)
                 {
