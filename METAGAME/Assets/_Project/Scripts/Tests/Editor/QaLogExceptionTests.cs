@@ -108,8 +108,13 @@ namespace Metagame.Gameplay.Tests
 
             // 상한 뒤에 **붙이기를 부르지 않는다.** 남기기만 하고 그대로 계속 부르면
             // 상한이 아무것도 막지 못한다.
+            //
+            // **`;` 까지 넣어 찾는다.** `TestSource.Method` 는 서명 줄부터 잘라 주는데
+            // `RetryAttachTransport()` 안에 `AttachTransport()` 가 들어 있어서, 세미콜론
+            // 없이 찾으면 **메서드 제 이름을 호출로 잡는다**(처음에 그렇게 걸렸고 이
+            // 검사가 스스로 잡았다). 서명 뒤에는 `;` 이 오지 않으므로 이것으로 갈린다.
             int stop = scope.IndexOf("TransportRetryMaxSteps", System.StringComparison.Ordinal);
-            int call = scope.IndexOf("AttachTransport()", System.StringComparison.Ordinal);
+            int call = scope.IndexOf("AttachTransport();", System.StringComparison.Ordinal);
             Assert.That(call, Is.GreaterThan(stop),
                 "상한 검사보다 먼저 붙이기를 부른다 — 상한이 아무것도 막지 못한다");
 
