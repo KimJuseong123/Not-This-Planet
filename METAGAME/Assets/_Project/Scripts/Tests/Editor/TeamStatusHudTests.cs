@@ -12,6 +12,70 @@ namespace Metagame.Gameplay.Tests
         readonly List<GameObject> _objects = new();
         readonly TeamStatusRoster _roster = new();
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void MissingOrDestroyedSessionSkipsBothTeamHudEntryPoints(bool destroySession)
+        {
+            var previousSession = GameSession.Instance;
+            var root = new GameObject("HUD session lifecycle"); _objects.Add(root);
+            var hud = root.AddComponent<GameHud>();
+            hud.Local = root.AddComponent<PlayerRig>();
+            try
+            {
+                GameSession.Instance = null;
+                if (destroySession)
+                {
+                    var session = root.AddComponent<GameSession>();
+                    session.LocalPlayer = hud.Local;
+                    GameSession.Instance = session;
+                    Object.DestroyImmediate(session);
+                    // Keep the destroyed Unity reference to cover Unity's null semantics.
+                    GameSession.Instance = session;
+                }
+                Assert.That(TeamHudVisible(hud), Is.False);
+                Assert.DoesNotThrow(() => InvokeTeamHud(hud, "LateUpdate"));
+                Assert.DoesNotThrow(() => InvokeTeamHud(hud, "DrawTeamStatus", 1280f));
+            }
+            finally { GameSession.Instance = previousSession; }
+        }
+
+        [Test]
+        public void TeamHudVisibilityFollowsSessionOwnershipAndSuppression()
+        {
+            var previousSession = GameSession.Instance;
+            var root = new GameObject("HUD visibility"); _objects.Add(root);
+            var hud = root.AddComponent<GameHud>();
+            var local = root.AddComponent<PlayerRig>();
+            var session = root.AddComponent<GameSession>();
+            try
+            {
+                GameSession.Instance = session;
+                session.LocalPlayer = local;
+                Assert.That(TeamHudVisible(hud), Is.False, "No HUD owner yet");
+                hud.Local = local;
+                Assert.That(TeamHudVisible(hud), Is.True);
+                session.SetInputSuppressed(true);
+                Assert.That(TeamHudVisible(hud), Is.False);
+                session.SetInputSuppressed(false);
+                session.ScriptedInput = true;
+                Assert.That(TeamHudVisible(hud), Is.False);
+                session.ScriptedInput = false;
+                Assert.That(TeamHudVisible(hud), Is.True);
+                session.LocalPlayer = null;
+                Assert.That(TeamHudVisible(hud), Is.False, "Session no longer owns this HUD");
+            }
+            finally { GameSession.Instance = previousSession; }
+        }
+
+        // Exercise the actual guards/entry points without opening or operating an Editor window.
+        static bool TeamHudVisible(GameHud hud) => (bool)typeof(GameHud)
+            .GetProperty("ShowTeamStatus", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            .GetValue(hud);
+
+        static void InvokeTeamHud(GameHud hud, string method, params object[] arguments) => typeof(GameHud)
+            .GetMethod(method, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            .Invoke(hud, arguments);
+
         NetPlayer Player(byte slot, string nickname)
         {
             var go = new GameObject("Roster test"); _objects.Add(go);

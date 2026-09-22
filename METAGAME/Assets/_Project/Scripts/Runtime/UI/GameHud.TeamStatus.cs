@@ -54,9 +54,17 @@ namespace Metagame.UI
                 view.Portrait.Refresh(view.Member.Rig, view.Member.Appearance);
         }
 
-        bool ShowTeamStatus => IsKeyGuideOwner && !GameSession.Instance.InputSuppressed
-            && !GameSession.Instance.ScriptedInput && !GameSession.Instance.EndingActive
-            && (GameSession.Instance.Exploration == null || !GameSession.Instance.Exploration.TabletOpen);
+        bool ShowTeamStatus
+        {
+            get
+            {
+                var session = GameSession.Instance;
+                // 표시 조건 자체가 세션 수명을 검사하고 같은 참조로 소유권도 확인한다.
+                if (session == null || Local == null || session.LocalPlayer != Local) return false;
+                return !session.InputSuppressed && !session.ScriptedInput && !session.EndingActive
+                    && (session.Exploration == null || !session.Exploration.TabletOpen);
+            }
+        }
 
         void DrawTeamStatus(float width)
         {
