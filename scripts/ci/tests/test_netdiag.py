@@ -93,7 +93,14 @@ rc, out = run(h, c4)
 assert "개수가 다르다" in out, out
 assert "자세를 하나도 적용하지 않는다" in out, "왜 심각한지 말해야 한다: " + out
 assert "같은 빌드인지" in out, "무엇을 먼저 볼지 알려 줘야 한다: " + out
-print("  tracked 개수 갈림 → 원인 후보까지 안내 ✅")
+# **판정에도 담겨야 한다** (`!578` AI 리뷰). 자세가 하나도 적용되지 않는
+# 상태인데 마지막 줄이 `✅ 판정` 에 종료 0 이면, 이 파일이 없애려던 "경고만
+# 내고 판정은 초록" 이 그대로 남는다.
+assert rc == 1, f"나르는 목록 개수가 갈렸는데 종료 코드가 {rc}"
+# 체크섬은 그 경우에도 일치할 수 있다 — 봐야 할 것은 **마지막 판정 줄**이다.
+assert "✅ 판정:" not in out, "자세가 하나도 안 먹었는데 초록으로 단언한다: " + out
+assert "❌ 판정:" in out and "나르는 목록" in out, out
+print("  tracked 개수 갈림 → 원인 후보까지 안내 · 종료 1 ✅")
 
 # ── ⑤ 개수는 같은데 순서가 다른 것도 잡는다
 #     묶음 체크섬으로는 안 잡히는 사고다(양쪽이 같은 바이트를 받았으니 값이 같다).
@@ -103,7 +110,10 @@ c5 = ["[NETDIAG] tracked(6) = Part_2 | Part_1 | Part_3 | Part_4 | Bat | WeldGun"
 rc, out = run(h, c5)
 assert "순서·이름이 다르다" in out, out
 assert "남의 자리에 값이 들어간다" in out, out
-print("  개수 같고 순서 다름 → 목록 비교가 잡는다 ✅")
+assert rc == 1, f"나르는 목록 순서가 갈렸는데 종료 코드가 {rc}"
+assert "✅ 판정:" not in out, "남의 자리에 값이 들어가는데 초록으로 단언한다: " + out
+assert "❌ 판정:" in out and "나르는 목록" in out, out
+print("  개수 같고 순서 다름 → 목록 비교가 잡는다 · 종료 1 ✅")
 
 # ── ⑥ 세계 상태 개수 차이를 항목별로 세고 예시를 준다
 #

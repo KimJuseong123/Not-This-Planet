@@ -242,10 +242,16 @@ def main(argv):
     if host_names and client_names:
         print(f"호스트 tracked({host_names[0]}) : {host_names[1]}")
         print(f"참가자 tracked({client_names[0]}) : {client_names[1]}")
+        # **여기도 판정에 담는다** (`!578` AI 리뷰). 담지 않으면 자세가 하나도
+        # 적용되지 않는 상태에서도 마지막 줄이 `✅ 판정` 에 종료 0 이 된다 —
+        # 이 파일이 없애려던 "경고만 내고 판정은 초록" 이 이 경로에 남아 있었고,
+        # 새로 넣은 최종 판정 줄이 그것을 **더 단정적으로** 만들었다.
         if host_names[0] != client_names[0]:
+            verdict.append("나르는 목록의 개수가 다르다")
             print("  ❌ **개수가 다르다** — 이 상태에서는 WorldSync 가 자세를 하나도 "
                   "적용하지 않는다. 두 창이 같은 빌드인지 먼저 확인할 것")
         elif host_names[1] != client_names[1]:
+            verdict.append("나르는 목록의 순서·이름이 다르다")
             print("  ❌ 개수는 같은데 **순서·이름이 다르다** — 남의 자리에 값이 들어간다")
         else:
             print("  ✅ 목록과 순서가 같다")
