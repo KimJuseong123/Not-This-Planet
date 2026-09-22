@@ -157,6 +157,10 @@ namespace Metagame.UI
             sb.Append("도구 양손 투척 충전 놓기 운석 타격 준비 지금 클릭 좌클릭 노란 구간에 맞춰 휘두르기 다시 준비 너무 일찍 실패 다음 타격 대기 먼저 떨어지는 순서 노란 구간에 맞추기 반사 속도 ×1.8 GOOD GREAT PERFECT MISS");
             sb.Append("운반 장치 탑승 하차 운전 견인 부유");
             sb.Append("1장 탐험 태블릿 파츠 발견 미발견 상태 씬 배치 확인 고정 해제 운반 중 배치됨 조립 완료");
+            // 화면 안내(S15P21B202-665 · 669)의 글자. 여기 빠지면 **네모로 나온다** —
+            // 657 이 같은 함정에 한 번 걸렸다.
+            OnboardingNotices.AppendGlyphs(sb);
+            AppendPromptGlyphs(sb);
             for (int i = 0; i < WorldLabel.All.Count; i++)
                 if (WorldLabel.All[i] != null) sb.Append(WorldLabel.All[i].Text);
             for (int i = 0; i < Grabbable.All.Count; i++)
@@ -212,6 +216,32 @@ namespace Metagame.UI
             var old = GUI.color;
             GUI.color = new Color(0f, 0f, 0f, 0.55f * c.a);
             GUI.Label(new Rect(r.x + 1.5f, r.y + 1.5f, r.width, r.height), text, s);
+            GUI.color = c;
+            GUI.Label(r, text, s);
+            GUI.color = old;
+        }
+
+        // 글자 둘레 여덟 방향. 한쪽에만 그림자를 깔면 그 반대쪽이 밝은 지면과 붙는다.
+        static readonly Vector2[] OutlineOffsets =
+        {
+            new Vector2(-1.7f, 0f), new Vector2(1.7f, 0f),
+            new Vector2(0f, -1.7f), new Vector2(0f, 1.7f),
+            new Vector2(-1.2f, -1.2f), new Vector2(1.2f, -1.2f),
+            new Vector2(-1.2f, 1.2f), new Vector2(1.2f, 1.2f),
+        };
+
+        /// <summary>
+        /// 바탕 없이 글자만 띄울 때 (S15P21B202-679). <see cref="L"/> 의 한쪽 그림자로는
+        /// 모래 지면 위에서 글자가 사라진다 — 둘레를 다 두른다.
+        /// </summary>
+        void LOutline(Rect r, string text, GUIStyle s, Color c)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+            var old = GUI.color;
+            GUI.color = new Color(0f, 0f, 0f, 0.85f * c.a);
+            for (int i = 0; i < OutlineOffsets.Length; i++)
+                GUI.Label(new Rect(r.x + OutlineOffsets[i].x, r.y + OutlineOffsets[i].y,
+                    r.width, r.height), text, s);
             GUI.color = c;
             GUI.Label(r, text, s);
             GUI.color = old;

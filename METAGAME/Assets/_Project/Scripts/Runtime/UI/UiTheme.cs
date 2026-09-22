@@ -20,6 +20,8 @@ namespace Metagame.UI
         public static readonly Color MutedText = new Color32(0xAE, 0xBB, 0xD2, 0xFF);
         public static readonly Color FrameWhite = new Color32(0xD9, 0xDC, 0xEC, 0xE8);
         public static readonly Color Dimmer = new Color(0.01f, 0.015f, 0.045f, 0.66f);
+        /// <summary>안내 한 줄의 바탕. 지면이 밝아도 글자가 읽히게 어둡고, 뒤가 비친다.</summary>
+        public static readonly Color PromptFill = new Color32(0x05, 0x0D, 0x20, 0xD2);
 
         static Texture2D white;
         static Texture2D panel;
@@ -32,11 +34,13 @@ namespace Metagame.UI
         static Texture2D quiet;
         static Texture2D input;
         static Texture2D inputFocused;
+        static Texture2D prompt;
         static Texture2D circleWhite;
         static Texture2D circleViolet;
         static Texture2D circleCyan;
         static GUIStyle panelStyle;
         static GUIStyle softPanelStyle;
+        static GUIStyle promptStyle;
 
         public static void Ensure()
         {
@@ -68,6 +72,9 @@ namespace Metagame.UI
                 new Color(Cyan.r, Cyan.g, Cyan.b, 0.14f));
             inputFocused = RoundedLayered(new Color32(0x06, 0x0D, 0x22, 0xFF), 10,
                 FrameWhite, Violet, Cyan);
+            // 테두리만 청록이고 안은 그냥 어둡다 — 창이 아니라 버튼으로 읽혀야 한다.
+            prompt = RoundedLayered(PromptFill, 16,
+                new Color(Cyan.r, Cyan.g, Cyan.b, 0.90f), PromptFill, PromptFill);
             circleWhite = Circle(FrameWhite);
             circleViolet = Circle(Violet);
             circleCyan = Circle(Cyan);
@@ -79,6 +86,11 @@ namespace Metagame.UI
             };
             softPanelStyle = new GUIStyle(panelStyle);
             softPanelStyle.normal.background = panelSoft;
+            promptStyle = new GUIStyle(GUI.skin.box)
+            {
+                border = new RectOffset(18, 18, 18, 18),
+                normal = { background = prompt }
+            };
         }
 
         public static GUIStyle ButtonStyle(Font font, int size, bool isPrimary = false,
@@ -171,6 +183,20 @@ namespace Metagame.UI
             if (lens) DrawLens(area);
         }
 
+        /// <summary>
+        /// 안내 한 줄을 담는 둥근 테두리 (S15P21B202-679).
+        ///
+        /// <para><see cref="DrawPanel"/> 와 달리 <b>모서리 표식도 렌즈도 없다.</b> 그것은
+        /// 창의 장식이라, 한 줄짜리 안내에 붙이면 읽을 것이 아니라 열어 볼 것처럼
+        /// 보인다. 여기 필요한 것은 "지금 이 키를 누르면 된다" 하나뿐이다.</para>
+        /// </summary>
+        public static void DrawPrompt(Rect area)
+        {
+            if (Event.current.type != EventType.Repaint) return;
+            Ensure();
+            promptStyle.Draw(area, GUIContent.none, false, false, false, false);
+        }
+
         public static void DrawDimmer(Rect area)
         {
             if (Event.current.type != EventType.Repaint) return;
@@ -182,18 +208,6 @@ namespace Metagame.UI
             if (Event.current.type != EventType.Repaint) return;
             DrawSolid(area, new Color(0.10f, 0.22f, 0.38f, 0.82f));
             DrawSolid(new Rect(area.x, area.yMax - 2f, area.width, 2f), Cyan);
-        }
-
-        public static void DrawKeyCap(Rect area)
-        {
-            if (Event.current.type != EventType.Repaint) return;
-            Ensure();
-            var style = new GUIStyle(GUI.skin.box)
-            {
-                border = new RectOffset(12, 12, 12, 12),
-                normal = { background = button }
-            };
-            style.Draw(area, GUIContent.none, false, false, false, false);
         }
 
         public static void DrawSolid(Rect area, Color color)

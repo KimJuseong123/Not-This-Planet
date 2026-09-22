@@ -22,7 +22,6 @@ namespace Metagame.UI
         GameObject uiRoot;
         Text title;
         Text body;
-        Text footer;
         Text discoverySummary;
         GameObject partsRoot;
         GameObject helpRoot;
@@ -33,12 +32,10 @@ namespace Metagame.UI
 
         ShipAssembly assembly;
         readonly Image[] discoveryDots = new Image[Stage1Exploration.RequiredPartCount];
-        readonly Image[] pageDots = new Image[Stage1Exploration.TabletPageCount];
         readonly HelpCardView[] helpCards = new HelpCardView[TabletHelpContent.MaxRows];
         Font font;
         bool ownsFont;
         string lastTitle;
-        string lastFooter;
 
         /// <summary>
         /// 탑 한 층. 실루엣 채움·외곽선과 층 이름을 함께 갖는다(S15P21B202-345).
@@ -165,17 +162,12 @@ namespace Metagame.UI
             CreateHelpPage(background.transform);
             CreateNavigation(background.transform);
             CreateGuidePage(background.transform);
-            footer = Label(background.transform, "Footer", 20, TextAnchor.MiddleCenter,
-                new Color(0.48f, 0.85f, 0.94f, 1f),
-                Vector2.zero, new Vector2(1f, 0.12f),
-                new Vector2(28f, 6f), new Vector2(-28f, 0f));
-            footer.gameObject.SetActive(false);
             uiRoot.SetActive(exploration.TabletOpen);
         }
 
         void Refresh(bool force)
         {
-            if (exploration == null || title == null || body == null || footer == null) return;
+            if (exploration == null || title == null || body == null) return;
 
             if (RefreshGuidePage()) return;
 
@@ -184,8 +176,6 @@ namespace Metagame.UI
             var showingParts = page == 0;
             // 본문 라벨(body)은 늘 꺼 둔다 — 안내는 카드로 그린다. 예전에는 여기서
             // 안내 문구를 또 한 벌 만들어 넣었는데, 화면에 나온 적이 한 번도 없다.
-            var nextFooter = TabletHelpContent.PageDots(false, page)
-                             + "    A / D · ← / →  페이지 이동     Tab  닫기";
 
             partsRoot.SetActive(showingParts);
             helpRoot.SetActive(!showingParts);
@@ -193,10 +183,9 @@ namespace Metagame.UI
             discoverySummary.gameObject.SetActive(false);
             if (showingParts) RefreshParts();
             else RefreshHelp(page);
-            RefreshNavigation(page);
+            RefreshNavigation(page, Stage1Exploration.TabletPageCount);
 
             if (force || nextTitle != lastTitle) title.text = lastTitle = nextTitle;
-            if (force || nextFooter != lastFooter) footer.text = lastFooter = nextFooter;
         }
 
         /// <summary>
@@ -333,14 +322,6 @@ namespace Metagame.UI
                 new Vector2(0.945f, 0.42f), new Vector2(1f, 0.58f),
                 Vector2.zero, Vector2.zero);
             nextArrow.text = "▶";
-            for (var i = 0; i < pageDots.Length; i++)
-            {
-                var x = 0.475f + i * 0.017f;
-                pageDots[i] = Panel(parent, $"PageDot_{i + 1}",
-                    new Color(0.28f, 0.42f, 0.50f, 0.95f),
-                    new Vector2(x, 0.055f), new Vector2(x + 0.008f, 0.071f),
-                    Vector2.zero, Vector2.zero).GetComponent<Image>();
-            }
             for (var i = 0; i < discoveryDots.Length; i++)
             {
                 var x = 0.82f + i * 0.032f;
@@ -530,21 +511,18 @@ namespace Metagame.UI
             }
         }
 
-        void RefreshNavigation(int page)
+        /// <summary>
+        /// 화살표만 칠한다. <b>쪽 표시는 글자 점 한 줄뿐이다</b> (S15P21B202-679) —
+        /// 예전에는 네모 점 줄이 따로 있어 같은 것을 두 번, 그것도 서로 다르게 말했다.
+        /// </summary>
+        void RefreshNavigation(int page, int pageCount)
         {
             previousArrow.color = page > 0
                 ? new Color(0.48f, 0.92f, 1f, 0.95f)
                 : new Color(0.24f, 0.34f, 0.39f, 0.45f);
-            nextArrow.color = page < Stage1Exploration.TabletPageCount - 1
+            nextArrow.color = page < pageCount - 1
                 ? new Color(0.48f, 0.92f, 1f, 0.95f)
                 : new Color(0.24f, 0.34f, 0.39f, 0.45f);
-            for (var i = 0; i < pageDots.Length; i++)
-            {
-                pageDots[i].gameObject.SetActive(true);
-                pageDots[i].color = i == page
-                    ? new Color(0.42f, 0.96f, 1f, 0.95f)
-                    : new Color(0.28f, 0.42f, 0.50f, 0.95f);
-            }
         }
 
         static string PageTitle(int page) => TabletHelpContent.PageTitle(page);

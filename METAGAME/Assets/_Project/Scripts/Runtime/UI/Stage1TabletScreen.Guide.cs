@@ -39,8 +39,10 @@ namespace Metagame.UI
             guideAction = Label(parent, "GuideAction", 23, TextAnchor.MiddleCenter,
                 new Color(0.65f, 0.96f, 1f), new Vector2(0.65f, 0.018f), new Vector2(0.98f, 0.11f), Vector2.zero, Vector2.zero);
             guideAction.fontStyle = FontStyle.Bold;
+            // 네모 점 줄이 쓰던 자리(0.44~0.53)까지 넓힌다 — 그것을 지웠으므로
+            // 이제 쪽 표시와 키 안내가 한 줄에 들어간다 (S15P21B202-679).
             guideKeys = Label(parent, "GuideKeys", 21, TextAnchor.MiddleLeft,
-                new Color(0.48f, 0.85f, 0.94f), new Vector2(0.055f, 0.018f), new Vector2(0.44f, 0.11f), Vector2.zero, Vector2.zero);
+                new Color(0.48f, 0.85f, 0.94f), new Vector2(0.055f, 0.018f), new Vector2(0.62f, 0.11f), Vector2.zero, Vector2.zero);
             guideKeys.fontStyle = FontStyle.Bold;
         }
 
@@ -52,12 +54,14 @@ namespace Metagame.UI
             guideAction.gameObject.SetActive(guide.Enabled);
             guideActionBackground.gameObject.SetActive(guide.Enabled && (!guide.Visible || guide.CanConfirm));
             guideKeys.gameObject.SetActive(guide.Enabled);
-            guideKeys.text = TabletHelpContent.PageDots(true, guide.Page)
-                             + "   A / D  페이지 이동     " + Controls.Tablet + "  닫기";
+            // **쪽 표시는 지금 있는 자리를 가리켜야 한다** (S15P21B202-679).
+            // 어느 칸에 불이 들어오는지는 TabletHelpContent 가 정한다.
+            guideKeys.text = TabletHelpContent.PageStrip(
+                guide.Visible, guide.Page, exploration.TabletPage);
             // **관문이 아니라 지름길이다** (S15P21B202-657). 넘기다 보면 저절로
             // 빠져나오므로 "확인" 이라는 말을 쓰지 않는다 — 눌러야 열리는 줄 알았다.
-            guideAction.text = !guide.Visible ? "[" + Controls.TransportAction + "]  사용 가이드"
-                : "[" + Controls.TransportAction + "]  진행도로 건너뛰기";
+            guideAction.text = TabletHelpContent.Cap(Controls.TransportAction)
+                + (guide.Visible ? "  진행도로 건너뛰기" : "  사용 가이드");
             if (!guide.Visible)
             {
                 if (guideRenderedPage >= 0) { lastTitle = null; guideRenderedPage = -1; }
@@ -76,10 +80,7 @@ namespace Metagame.UI
                 guideArt.texture = TabletGuideContent.Illustration(guide.Page);
                 guideArt.enabled = guideArt.texture != null;
             }
-            RefreshNavigation(guide.Page);
-            nextArrow.color = guide.Page < TabletGuideState.PageCount - 1
-                ? new Color(0.48f, 0.92f, 1f) : new Color(0.24f, 0.34f, 0.39f, 0.45f);
-            for (int i = TabletGuideState.PageCount; i < pageDots.Length; i++) pageDots[i].gameObject.SetActive(false);
+            RefreshNavigation(guide.Page, TabletGuideState.PageCount);
             return true;
         }
 

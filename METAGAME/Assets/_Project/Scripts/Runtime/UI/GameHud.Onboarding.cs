@@ -13,6 +13,11 @@ namespace Metagame.UI
         /// 바로 아래라 시선을 거의 안 옮겨도 읽힌다.</para>
         ///
         /// <para>글은 <see cref="OnboardingNotices"/> 가 정한다. 여기는 그리기만 한다.</para>
+        ///
+        /// <para><b>바탕을 깔지 않는다</b> (S15P21B202-679). 이것은 눌러야 하는 것이
+        /// 아니라 읽기만 하면 되는 것이라, 테두리가 있으면 상호작용 안내
+        /// (<see cref="DrawInteractionHint"/>)와 구별이 안 된다. 대신 글자에 검은
+        /// 테를 둘러 밝은 지면 위에서도 읽히게 한다.</para>
         /// </summary>
         void DrawOnboardingNotice(float width, float height)
         {
@@ -30,14 +35,14 @@ namespace Metagame.UI
             if (string.IsNullOrEmpty(text)) return;
 
             _onboardingContent.text = text;
-            float textWidth = Mathf.Min(width - 80f, mid.CalcSize(_onboardingContent).x + 44f);
-            float boxHeight = 44f;
+            var size = mid.CalcSize(_onboardingContent);
+            float textWidth = Mathf.Min(width - 80f, size.x);
             // 크로스헤드(화면 한가운데) 아래. 키캡 줄과 겹치지 않게 아래쪽에서 띄운다.
             float y = Mathf.Min(height * 0.5f + 92f, height - 168f);
-            var box = new Rect((width - textWidth) * 0.5f, y, textWidth, boxHeight);
+            var line = new Rect((width - textWidth) * 0.5f, y + (44f - size.y) * 0.5f,
+                textWidth, size.y);
 
-            UiTheme.DrawPanel(box, true, false);
-            L(box, text, mid, UiTheme.Text);
+            LOutline(line, text, mid, UiTheme.CyanSoft);
         }
 
         readonly GUIContent _onboardingContent = new GUIContent();
