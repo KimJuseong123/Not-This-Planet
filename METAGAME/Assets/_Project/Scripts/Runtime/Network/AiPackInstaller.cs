@@ -109,6 +109,23 @@ namespace Metagame.Network
         Task diskTask;
         string work;
         public void Cancel() { cancellation?.Cancel(); request?.Abort(); }
+
+        /// <summary>
+        /// 받는 중에 <b>멈춘 것과 느린 것을 가른다</b> (S15P21B202-706).
+        ///
+        /// <para>2.2GB 를 받는 동안 숫자가 안 오르면 방장은 <b>멈춘 건지 느린 건지 알 수 없다.</b>
+        /// 아래 고리는 60초 동안 한 바이트도 안 오면 끊는데, 그때까지 화면은 마지막 숫자 그대로
+        /// 서 있었다 — 끊기고 나서야 실패를 안다.</para>
+        ///
+        /// <para>값으로 검증할 수 있게 떼어 둔다 — 실제 다운로드 없이 확인할 수 있어야 한다.</para>
+        /// </summary>
+        public static string DownloadMessage(float progress, long done, long total, float idle)
+            => idle > StallNotice
+                ? "다운로드 " + progress.ToString("P0") + " · " + Mathf.FloorToInt(idle) + "초째 응답 없음"
+                : "다운로드 " + progress.ToString("P0") + " · " + done / 1048576 + " / " + total / 1048576 + " MB";
+
+        /// <summary>이만큼 조용하면 화면에 말한다. 끊는 것은 <c>60</c>초, 말하는 것은 그 한참 전.</summary>
+        public const float StallNotice = 5f;
         public void Begin()
         {
             if (Busy || !AiHostSettings.CanConfigure || AiLocalRuntime.Current == null) return;
@@ -138,7 +155,9 @@ namespace Metagame.Network
                     if (cancellation.IsCancellationRequested || request.downloadedBytes > (ulong)bytes
                         || Time.realtimeSinceStartup - lastDataAt > 60 || Time.realtimeSinceStartup - began > 3600) { request.Abort(); break; }
                     Progress = Mathf.Clamp01((float)(completed + (long)request.downloadedBytes) / total);
-                    if (total > 65536) Message = $"다운로드 {Progress:P0} · {(completed + (long)request.downloadedBytes) / 1048576} / {total / 1048576} MB";
+                    if (total > 65536)
+                        Message = DownloadMessage(Progress, completed + (long)request.downloadedBytes, total,
+                                                  Time.realtimeSinceStartup - lastDataAt);
                     yield return null;
                 }
                 if (request.result != UnityWebRequest.Result.Success || request.downloadedBytes > (ulong)bytes)

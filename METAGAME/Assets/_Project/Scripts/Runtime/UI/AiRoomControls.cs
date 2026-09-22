@@ -16,21 +16,21 @@ namespace Metagame.UI
                 if (UiInteraction.Button(new Rect(area.x, area.y, buttonWidth, rowHeight),
                     AiHostSettings.Requested ? "AI 동료 사용: 켜짐" : "AI 동료 사용: 꺼짐", buttonStyle))
                     AiHostSettings.TrySetRequested(!AiHostSettings.Requested);
+                // **버튼 하나가 흐름 전체를 맡는다** (S15P21B202-706). 예전에는 자리는 하나인데
+                // 단계마다 다른 버튼이 나왔다 — 다운로드 / 다시 준비. 어느 쪽이 나올지 알려면
+                // 방장이 지금 어느 단계인지를 먼저 알아야 했는데, 그것이 바로 화면에 없던 것이다.
                 var runtime = AiLocalRuntime.Current;
-                if (runtime != null && runtime.Installer != null && runtime.Installer.Busy)
+                if (runtime != null)
                 {
-                    if (UiInteraction.Button(new Rect(area.x + buttonWidth + 8f, area.y, buttonWidth, rowHeight),
-                        "설치 취소", buttonStyle)) runtime.Installer.Cancel();
-                }
-                else if (runtime != null && !AiLocalRuntime.HasPack(runtime.PackRoot))
-                {
-                    if (UiInteraction.Button(new Rect(area.x + buttonWidth + 8f, area.y, buttonWidth, rowHeight),
-                        "AI 추가팩 다운로드", buttonStyle)) runtime.Installer.Begin();
-                }
-                else if (AiLocalRuntime.Current != null && (AiHostSettings.RuntimeState == AiRuntimeState.Failed || AiHostSettings.RuntimeState == AiRuntimeState.Missing))
-                {
-                    if (UiInteraction.Button(new Rect(area.x + buttonWidth + 8f, area.y, buttonWidth, rowHeight),
-                        "추가팩 다시 준비", buttonStyle)) AiLocalRuntime.Current.Retry();
+                    var spot = new Rect(area.x + buttonWidth + 8f, area.y, buttonWidth, rowHeight);
+                    if (runtime.Installer != null && runtime.Installer.Busy)
+                    {
+                        if (UiInteraction.Button(spot, "준비 취소", buttonStyle)) runtime.Installer.Cancel();
+                    }
+                    else if (NeedsPreparing(runtime))
+                    {
+                        if (UiInteraction.Button(spot, "AI 추가팩 준비", buttonStyle)) Prepare(runtime);
+                    }
                 }
             }
             else
@@ -49,6 +49,25 @@ namespace Metagame.UI
                 if (installer.Busy || AiHostSettings.RuntimeState != AiRuntimeState.Ready) status = installer.Message;
             }
             GUI.Label(new Rect(area.x, area.y + rowHeight + 3f, area.width, area.height - rowHeight), status, labelStyle);
+        }
+
+        /// <summary>손댈 것이 남았는가 — 받을 것이 없고 이미 준비됐으면 버튼을 내보내지 않는다.</summary>
+        static bool NeedsPreparing(AiLocalRuntime runtime)
+            => !AiLocalRuntime.HasPack(runtime.PackRoot)
+               || AiHostSettings.RuntimeState == AiRuntimeState.Failed
+               || AiHostSettings.RuntimeState == AiRuntimeState.Missing;
+
+        /// <summary>
+        /// 받기 · 설치 · 준비를 <b>한 번에</b> (S15P21B202-706).
+        ///
+        /// <para><b>흐름은 원래 하나였다.</b> <see cref="AiPackInstaller"/> 는 마지막에
+        /// <c>Retry()</c> 를 불러 준비까지 이어 간다. 갈려 있던 것은 <b>버튼뿐</b>이었고,
+        /// 그래서 방장이 "지금 무엇을 눌러야 하는가" 를 스스로 판단해야 했다.</para>
+        /// </summary>
+        static void Prepare(AiLocalRuntime runtime)
+        {
+            if (!AiLocalRuntime.HasPack(runtime.PackRoot)) runtime.Installer?.Begin();
+            else runtime.Retry();
         }
     }
 }
