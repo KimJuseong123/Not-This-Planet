@@ -490,6 +490,73 @@ def schedule_name() -> str:
     return ts.astimezone(KST).strftime("%H:%M") + " 예약"
 
 
+def schedule_result(gl: GitLab) -> int:
+    """예약 실행이 끝났다 — **성공이든 실패든 한 장** 보낸다 (S15P21B202-675).
+
+    **성공에도 보내는 이유는 조용한 멈춤이다.** 새벽에 하는 일이 늘었는데(전체 테스트
+    `-662` · 느린 테스트 측정 `-617` · 캐시 데우기 `-664`) 알림은 실패에만 있었다.
+    특히 데우기는 스케줄 브랜치가 사라지거나 ref 를 안 옮기면 **실패하지 않고 그냥
+    안 돈다** — 파이프라인은 전부 초록이고 캐시만 식는다. 그걸 알아채는 방법이
+    "언젠가 QA 버튼이 다시 40~80분 걸리는 것" 뿐이었다.
+
+    카드가 매일 오면 **안 온 날이 신호**가 된다. 그래서 마지막 줄에 그 사실을 적는다 —
+    적지 않으면 읽는 사람이 이 카드를 그냥 소음으로 여긴다.
+
+    **멘션은 하지 않는다**(`-608`) — 성공이든 실패든. 예약 실행의 멘션 대상은
+    `GITLAB_USER_LOGIN`, 곧 마지막 머지를 누른 사람이라 **실패와 아무 상관이 없다.**
+    """
+    failed, _retried = failed_jobs(gl)
+    if failed:
+        # 실패 쪽 말은 `-533`·`-608` 이 이미 다듬어 두었다 — 여기서 다시 쓰지 않는다.
+        return branch_failed(gl)
+
+    pid = env("CI_PIPELINE_ID")
+    jobs = gl.pipeline_jobs(pid) if (gl.token and pid) else []
+    me = env("CI_JOB_NAME", "")
+    done = [j for j in jobs
+            if j.get("status") == "success" and j.get("name") != me]
+    done.sort(key=lambda j: j.get("id") or 0)
+    if done:
+        ran = " · ".join(f"{j.get('name')} {(j.get('duration') or 0) / 60:.1f}분"
+                         for j in done)
+    else:
+        # 잡 목록을 못 읽어도 **카드는 나간다.** 이 카드의 존재 이유가 "왔는가" 이므로,
+        # 내용이 비었다고 보내지 않으면 멈춘 것과 구분되지 않는다.
+        ran = "잡 목록을 읽지 못했다 — 파이프라인 링크에서 확인한다"
+
+    # **성공한 잡만 세면 이 카드가 거짓말을 한다** (`!570` AI 리뷰). 데우기 잡이
+    # 취소되거나 규칙이 어긋나 **아예 만들어지지 않은** 날에도 `failed_jobs` 는 빈
+    # 목록이라 초록 카드가 나간다 — 이 카드가 잡으려던 *조용히 안 도는* 실패 모드와
+    # 정확히 겹친다. 그래서 **그 예약이 하기로 한 잡**을 이름으로 확인한다.
+    #
+    # ⚠ `.gitlab-ci.yml` 의 규칙과 같은 조건이어야 한다. 어긋나면 이 확인이
+    # 있으나 마나다 — `test_notify_schedule_card.py` 가 둘을 대조한다.
+    if env("WARM_UNITY_CACHE") == "true":
+        expected = ["build-devbuild"]
+    elif env("NIGHTLY_DEPLOY_DEV") == "true":
+        expected = ["build-devbuild", "deploy-dev"]
+    else:
+        expected = []
+    ran_names = {j.get("name") for j in done}
+    missing = [n for n in expected if n not in ran_names]
+
+    sha = env("CI_COMMIT_SHORT_SHA", "") or "?"
+    title = env("CI_COMMIT_TITLE", "") or ""
+    rows = [
+        ("커밋", f"[`{sha}`]({env('CI_PROJECT_URL', '')}/-/commit/{env('CI_COMMIT_SHA', '')}) {title}".strip()),
+        ("한 일", ran),
+    ]
+    if missing:
+        rows.append(("안 돈 잡", " · ".join(f"`{n}`" for n in missing) +
+                     " — **실패가 아니라 아예 안 돌았다**(취소·건너뜀·규칙 어긋남)"))
+    if env("CI_PIPELINE_URL"):
+        rows.append(("링크", f"[파이프라인]({env('CI_PIPELINE_URL')})"))
+    rows.append(("이 카드가 없는 날", "**예약이 멈춘 것이다** — 스케줄이 꺼졌거나 그 브랜치가 지워졌다"))
+    head = ("🟡 **예약 실행이 덜 돌았다**" if missing
+            else "🟢 **예약 실행 완료**")
+    return send(card(f"{head} ({schedule_name()})", rows))
+
+
 def branch_failed(gl: GitLab) -> int:
     branch = env("CI_COMMIT_BRANCH", "") or "?"
     sha = env("CI_COMMIT_SHORT_SHA", "") or "?"
@@ -667,7 +734,7 @@ def branch_resolved(gl: GitLab) -> int:
         # **예약 실행은 여기 오지 않는다** (S15P21B202-533). 회복 카드를 예약에서
         # 보내면 09:30 점검 성공이 04:00 새벽 실패를 해소한 것처럼 말하게 된다 —
         # 둘 다 `source=schedule` 이라 갈라낼 수가 없다. `.gitlab-ci.yml` 의
-        # `mm-nightly-failed` 주석에 근거를 적어 뒀다.
+        # `mm-nightly-result` 주석에 근거를 적어 뒀다.
         ("조치", f"이제 `{branch}` 에서 브랜치를 따도 된다"),
     ]))
 
@@ -744,6 +811,8 @@ def main() -> int:
             return branch_failed(gl)
         if branch and mode == "ci-resolved":
             return branch_resolved(gl)
+        if mode == "schedule-result":
+            return schedule_result(gl)
         print("MR 파이프라인이 아님 → 생략"); return 0
     if mode == "mr-opened":
         return mr_opened(gl)
@@ -751,7 +820,8 @@ def main() -> int:
         return ci_failed(gl)
     if mode == "ci-resolved":
         return ci_resolved(gl)
-    print("사용법: mm_notify.py mr-opened | ci-failed | ci-resolved | deploy <ok|rollback|timeout|fail> [상세]"); return 2
+    print("사용법: mm_notify.py mr-opened | ci-failed | ci-resolved | schedule-result | "
+          "deploy <ok|rollback|timeout|fail> [상세]"); return 2
 
 
 if __name__ == "__main__":

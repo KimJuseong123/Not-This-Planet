@@ -296,7 +296,7 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
     # **잃는 것은 "그 1건을 최대 하루 늦게 안다" 이다.** 실측 기준 5일에 1건꼴이다.
     #
     # 여기에 두는 이유: 이미 도는 스케줄이라 새 예약을 만들지 않고, 실패하면
-    # `mm-nightly-failed` 가 잡 이름과 함께 알린다.
+    # `mm-nightly-result` 가 잡 이름과 함께 알린다.
     #
     # **순서.** 이 잡(`stage: test`)이 `build-devbuild`(`stage: deploy`)보다 먼저
     # 만들어지므로 `resource_group: unity` 의 `oldest_first` 에서 Unity 슬롯을 먼저
@@ -1413,13 +1413,23 @@ mm-ci-resolved:           # 검사 통과 시, 남아 있는 CI 실패 코멘트
 # (실측 `191907` 23:32 · `184417` 10:18). 그래서 **거짓말하느니 말하지 않는다.**
 # 🔴 카드가 이미 "고칠 때까지 매일 같은 시각에 다시 실패한다" 고 적는다.
 
-mm-nightly-failed:        # 🔴 예약 실행 실패 — 새벽 배포·아침 점검
-  stage: notify
-  when: on_failure
-  rules:
+mm-nightly-result:        # 예약 실행 결과 — 새벽 데우기·새벽 배포·아침 점검
+  stage: notify           # **needs 를 달지 않는다.** 스테이지 순서로 미루는 것이 이 잡의
+  when: always            # 존재 이유다 — needs 목록에서 빠진 잡의 실패를 다시 놓친다(-344·-533).
+  rules:                  # 버튼 잡을 넣으면 안 눌린 파이프라인에서 통째로 skipped 가 된다(!448).
+    # **새벽 작업은 성공해도 보낸다** (S15P21B202-675).
+    #
+    # 데우기(-664)는 스케줄 브랜치가 사라지거나 ref 를 안 옮기면 **실패하지 않고 그냥
+    # 안 돈다** — 파이프라인은 전부 초록이고 캐시만 식는다. 카드가 매일 오면
+    # **안 온 날이 신호**가 된다. 그래서 카드 마지막 줄이 그 사실을 적는다.
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $MM_WEBHOOK_URL && ($NIGHTLY_DEPLOY_DEV == "true" || $WARM_UNITY_CACHE == "true")
+      when: always
+    # 아침 점검(09:30)은 **실패했을 때만.** 그쪽은 `mm-digest` 가 제 카드를 매일 보내므로
+    # 성공까지 알리면 같은 아침에 두 장이 간다.
     - if: $CI_PIPELINE_SOURCE == "schedule" && $MM_WEBHOOK_URL
+      when: on_failure
   script:
-    - python scripts/ci/mm_notify.py ci-failed
+    - python scripts/ci/mm_notify.py schedule-result
   allow_failure: true
 
 

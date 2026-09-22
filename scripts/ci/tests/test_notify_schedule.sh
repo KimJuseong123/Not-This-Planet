@@ -49,7 +49,7 @@ manual_jobs=$(awk '
 ' "$CI" | sort -u)
 
 # ① 예약 실행 전용 잡이 있어야 한다 — 그리고 **needs 가 없어야** 한다.
-for job in mm-nightly-failed; do
+for job in mm-nightly-result; do
   seg=$(section "$job")
   if [ -z "$seg" ]; then
     bad "$job 이 없다. 새벽 실패가 조용해진다"
@@ -80,10 +80,10 @@ if grep -qE "^mm-nightly-resolved:" "$CI"; then
 else
   ok "예약에는 회복 카드가 없다 (두 예약을 갈라낼 수 없다)"
 fi
-if grep -q "ci-resolved" "$CI" && section mm-nightly-failed | grep -q "ci-resolved"; then
-  bad "mm-nightly-failed 가 ci-resolved 를 부른다"
+if grep -q "ci-resolved" "$CI" && section mm-nightly-result | grep -q "ci-resolved"; then
+  bad "mm-nightly-result 가 ci-resolved 를 부른다"
 else
-  ok "mm-nightly-failed 는 ci-failed 만 부른다"
+  ok "mm-nightly-result 는 회복 카드를 부르지 않는다"
 fi
 
 # ② **mm-ci-* 의 needs 에는 버튼이 들어가면 안 된다.**
