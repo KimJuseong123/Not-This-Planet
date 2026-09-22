@@ -888,15 +888,50 @@ namespace Metagame.Network
         /// 컨트롤러가 1인용이라 접속자마다 하나씩 둔다 — 장치 자체는 씬에 하나뿐이고
         /// 여럿이 나눠 쓴다. 배치는 이미 끝나 있으므로 여기서 다시 섞지 않는다.
         /// </summary>
-        void AttachTransport()
+        /// <summary>
+        /// 붙이려 했는가 (S15P21B202-693). <b>다시 시도할지를 이 값으로 가른다</b> —
+        /// 붙일 일이 없는 기계에 조작기를 새로 만들지 않으려면 "한 번은 붙이려 했다" 를
+        /// 알아야 한다.
+        /// </summary>
+        bool transportWanted;
+
+        /// <returns>붙었는가. 거짓이면 <b>이번 스텝에는</b> 못 붙었다는 뜻이다.</returns>
+        bool AttachTransport()
         {
+            bool first = !transportWanted;
+            transportWanted = true;
+
             // A pooled body survives an AI-to-human handoff. Its controller survives with it:
             // Destroy is deferred, so destroying/re-adding in the same frame violates DisallowMultipleComponent.
             transport = body.GetComponent<TractorBeamController>();
             if (transport == null) transport = body.gameObject.AddComponent<TractorBeamController>();
+
+            // **AddComponent 는 null 을 돌려줄 수 있다** (S15P21B202-693).
+            //
+            // 바로 위 주석이 그 상황을 이미 적어 두었다 — `DisallowMultipleComponent` 인
+            // 조작기가 **파괴 예약 상태**로 남아 있으면 추가가 거절된다. 그런데 돌려받은
+            // 값을 확인하지 않고 다음 줄에서 바로 썼다. **위험을 적어 두고 결과를 보지
+            // 않은 것이다.**
+            //
+            // 2026-09-22 QA 로그에 3건 났다(`Player.log:669` 외). 그 예외가
+            // <see cref="BuildServerBody"/> 를 중간에 끊어 그 뒤의 자세·탑승·기절 반영이
+            // 건너뛰어졌고, <c>transport</c> 는 null 로 남았다. 입력 경로가
+            // <c>if (transport != null)</c> 로 감싸여 있으므로 **그 사람의 견인빔은 아무
+            // 말 없이 영영 동작하지 않았다.**
+            if (transport == null)
+            {
+                // **한 번만 남긴다.** 물리 스텝마다 찍으면 초당 50줄이 되고, 그러면 이
+                // 줄이 로그를 못 읽게 만든다 — 없는 것과 같아진다.
+                if (first)
+                    Debug.LogWarning("[NetPlayer] 견인빔 조작을 못 붙였다 — 다음 스텝에 "
+                                     + $"다시 시도한다 · {nickname}(userId={userId})");
+                return false;
+            }
+
             transport.enabled = true;
             transport.Configure(body, FindObjectsByType<TractorBeam>(FindObjectsSortMode.None),
                                 randomizeVehicles: false);
+            return true;
         }
 
         /// <summary>
@@ -930,6 +965,14 @@ namespace Metagame.Network
                     return;
                 }
             }
+
+            // **못 붙였으면 다시 시도한다** (S15P21B202-693). 거절 원인이 "같은 프레임의
+            // 파괴 예약" 이라 다음 스텝에는 붙는다. 여기서 다시 하지 않으면 그 사람의
+            // 견인빔이 **판이 끝날 때까지** 없는 채로 돈다.
+            //
+            // `transportWanted` 로 가른다 — <see cref="AttachTransport"/> 가 실제로 돌았던
+            // 기계에서만 참이므로, 붙일 일이 없는 기계에 조작기를 새로 만들지 않는다.
+            if (transportWanted && transport == null) AttachTransport();
 
             // **먼저 돌려준다** (S15P21B202-363). 지금 골반 자세는 `직전에 적용한 입력`
             // 까지의 결과다 — 이번 입력은 아래에서 넣고 물리는 그 뒤에 돈다. 그래서

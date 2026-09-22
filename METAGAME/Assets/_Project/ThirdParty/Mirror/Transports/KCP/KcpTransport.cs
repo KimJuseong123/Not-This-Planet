@@ -124,7 +124,7 @@ namespace kcp2k
             server = new KcpServer(
                 (connectionId, endPoint) => OnServerConnectedWithAddress.Invoke(connectionId, endPoint.PrettyAddress()),
                 (connectionId, message, channel) => OnServerDataReceived.Invoke(connectionId, message, FromKcpChannel(channel)),
-                (connectionId) => OnServerDisconnected.Invoke(connectionId),
+                (connectionId) => OnServerDisconnected?.Invoke(connectionId), // may be null when the server is already down — same cause as OnClientDisconnected above (S15P21B202-693)
                 (connectionId, error, reason) => OnServerError.Invoke(connectionId, ToTransportError(error), reason),
                 config
             );
