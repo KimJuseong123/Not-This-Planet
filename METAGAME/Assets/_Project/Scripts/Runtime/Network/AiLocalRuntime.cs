@@ -17,11 +17,32 @@ namespace Metagame.Network
     {
         [Serializable] public sealed class Health { public string service; public string protocol; public string state; public string command_schema; public bool voice_plan; }
         [Serializable] public sealed class Decision { public string action; public string recipients; public bool approach; public bool safety_override; public string text; public float elapsed_ms; }
-        [Serializable] public sealed class PlanDecision { public string status; public AiCommandAssignment[] orders; public bool safety_override; public float elapsed_ms; }
+        // `text` 는 워커가 이미 보내고 있었다 — 여기서 선언하지 않아 JsonUtility 가 버렸다
+        // (S15P21B202-708). 선언만 더하면 워커도 추가팩도 건드리지 않고 전사를 얻는다.
+        [Serializable] public sealed class PlanDecision { public string status; public AiCommandAssignment[] orders; public bool safety_override; public float elapsed_ms; public string text; }
         [Serializable] sealed class TextRequest { public string text; }
         public static AiLocalRuntime Current { get; private set; }
         public AiRuntimeState State { get; private set; } = AiRuntimeState.Missing;
-        public string Message { get; private set; } = "추가팩 대기";
+        readonly AiStatusLog statusLog = new AiStatusLog();
+        string message = "추가팩 대기";
+
+        /// <summary>
+        /// 지금 무슨 일인지. <b>화면과 로그가 같은 값을 본다</b> (S15P21B202-708).
+        ///
+        /// <para>판단 지점마다 이미 여기에 적고 있었는데 화면에서만 쓰여서, 다음 문구로 덮이면
+        /// 사라졌다 — QA 뒤 <c>Player.log</c> 에 <b>AI 줄이 하나도 없었다.</b> 기록할 자리를
+        /// 따로 만들지 않는다: 만들면 다음에 생기는 판단 지점이 조용히 빠진다.</para>
+        /// </summary>
+        public string Message
+        {
+            get => message;
+            private set
+            {
+                if (message == value) return;
+                message = value;
+                statusLog.Write("[AI]", value);
+            }
+        }
         public bool Busy { get; private set; }
         public string PackRoot { get; private set; }
         public AiPackInstaller Installer { get; private set; }
@@ -59,6 +80,46 @@ namespace Metagame.Network
 #endif
             // Fresh clones can reuse the installed optional pack; models are not Git assets.
             return Path.Combine(Application.persistentDataPath, "AI/p3");
+        }
+
+        /// <summary>
+        /// 자식 프로세스에게 홈을 알리는 환경 변수 이름. <b>상수로 두는 이유가 있다</b> —
+        /// 문자열로 두면 배선을 지키는 검사가 <c>TestSource.Blank</c> 에 가려 <b>헛돈다.</b>
+        /// 이름은 글자로 고정하고, 값은 값으로 확인한다.
+        /// </summary>
+        public const string HomeVariableWindows = "USERPROFILE", HomeVariableUnix = "HOME";
+
+        /// <summary>추가팩 안의 <b>쓰기 가능한 홈</b>. ollama 의 키 파일이 여기 들어간다.</summary>
+        public static string PackHome(string root)
+            => string.IsNullOrEmpty(root) ? null : Path.Combine(root, "home");
+
+        /// <summary>
+        /// 워커(와 그 자식 ollama)의 <b>홈을 추가팩 안으로</b> 돌린다 (S15P21B202-707).
+        ///
+        /// <para><b>무엇이 실패했나.</b> <c>ollama serve</c> 는 처음 뜰 때 홈에 키 파일을
+        /// 만든다 — <c>%USERPROFILE%\.ollama\id_ed25519</c>. 그 경로가 쓰기 불가하면(정책으로
+        /// 잠긴 프로파일·로밍 프로파일) ollama 가 뜨지 못하고, 워커는 <c>ready</c> 로 올라오지
+        /// 못한 채 계속 데우는 상태로 남는다. 2026-09-22 에 실제로 났다.</para>
+        ///
+        /// <para><b>왜 여기서 고치나.</b> 워커는 <c>os.environ.copy()</c> 로 환경을 물려받아
+        /// ollama 에 넘긴다. 그래서 <b>띄우는 쪽이 정해 주면 그대로 내려간다</b> — 워커를 고쳐
+        /// 2.34GB 추가팩을 다시 구워 올리지 않아도 된다.</para>
+        ///
+        /// <para><b>왜 추가팩 안인가.</b> 추가팩은 자기 폴더 안에서 완결되어야 한다. 이 한
+        /// 가지만 밖(사용자 프로파일)을 쓰고 있었다 — 그래서 <b>추가팩을 지워도 흔적이
+        /// 남았고</b>, 홈이 잠긴 PC 에서는 아예 못 떴다.</para>
+        ///
+        /// <para>홈을 못 만들면 <b>덮어쓰지 않고 그대로 띄운다.</b> 예전처럼 동작할 뿐이고,
+        /// 여기서 멈추면 홈이 멀쩡한 PC 까지 AI 를 못 쓰게 된다.</para>
+        /// </summary>
+        void PointHomeIntoThePack(ProcessStartInfo start)
+        {
+            string home = PackHome(PackRoot);
+            if (string.IsNullOrEmpty(home)) return;
+            try { Directory.CreateDirectory(home); }
+            catch (Exception) { return; }
+            start.Environment[HomeVariableWindows] = home;
+            start.Environment[HomeVariableUnix] = home;
         }
 
         public static bool HasPack(string root) => !string.IsNullOrEmpty(root)
@@ -114,13 +175,15 @@ namespace Metagame.Network
                 using (var parent = Process.GetCurrentProcess())
                 {
                     double birth = (parent.StartTime.ToUniversalTime() - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
-                    worker = new Process { StartInfo = new ProcessStartInfo
+                    var start = new ProcessStartInfo
                     {
                         FileName = Path.Combine(PackRoot, "runtime/ntp-ai-worker/ntp-ai-worker.exe"),
                         Arguments = "--model-root \"" + Path.Combine(PackRoot, "models") + "\" --parent-pid " + parent.Id
                             + " --parent-started " + birth.ToString("R", CultureInfo.InvariantCulture),
                         UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true
-                    }};
+                    };
+                    PointHomeIntoThePack(start);
+                    worker = new Process { StartInfo = start };
                     worker.Start();
                     worker.StandardInput.WriteLine(token);
                     worker.StandardInput.Close();
@@ -135,9 +198,51 @@ namespace Metagame.Network
 #endif
         }
 
+        /// <summary>
+        /// <b>대답이 없을 때</b>까지만 기다리는 시간 (S15P21B202-706).
+        ///
+        /// <para>워커 프로세스는 떠 있는데 HTTP 로 아무 대답도 없는 상태다 — 포트를 못 열었거나
+        /// 시작하다 멈춘 것이다. 이 경우는 기다려도 나아지지 않는다.</para>
+        /// </summary>
+        public const float SilenceLimit = 120f;
+
+        /// <summary>
+        /// <b>데우는 중이어도</b> 여기까지 (S15P21B202-706).
+        ///
+        /// <para><b>2026-09-22 실측 3분 47초(227초).</b> 예전 마감은 120초 하나뿐이어서, 워커가
+        /// 살아서 대답하며 모델을 데우고 있는데도 <b>절반쯤에서 잘렸다.</b> QA 에서 "추가팩 설치
+        /// 완료인데 AI 가 준비되지 않는다" 로 보인 것이 이것이다.</para>
+        ///
+        /// <para>그렇다고 무한정 기다리면 <b>영영 안 되는 것과 오래 걸리는 것이 같아진다.</b>
+        /// 실측의 네 배쯤에서 끊는다.</para>
+        /// </summary>
+        public const float WarmupLimit = 900f;
+
+        /// <summary>사람이 읽는 경과 시간. <c>"1분 12초"</c> · <c>"42초"</c>.</summary>
+        public static string Clock(float seconds)
+        {
+            int total = Mathf.Max(0, Mathf.FloorToInt(seconds));
+            return total < 60 ? total + "초" : total / 60 + "분 " + total % 60 + "초";
+        }
+
+        /// <summary>
+        /// 준비 중 화면에 적을 말 (S15P21B202-706).
+        ///
+        /// <para><b>멈춘 것과 느린 것은 다르다.</b> 예전에는 <c>"추가팩 로딩 중"</c> 이 최대 2분
+        /// 동안 한 글자도 바뀌지 않아 둘을 구분할 수 없었다. <b>글자가 바뀌면 살아 있는 것</b>이고,
+        /// 대답이 오는지 아닌지가 그다음으로 알아야 할 것이다.</para>
+        ///
+        /// <para>값으로 검증할 수 있게 떼어 둔다 — 실제 워커 없이 확인할 수 있어야 한다.</para>
+        /// </summary>
+        public static string WarmupMessage(bool answered, float waited)
+            => answered
+                ? "AI 준비 중 · 모델 데우는 중 " + Clock(waited) + " · 첫 실행은 몇 분 걸려요"
+                : "AI 준비 중 · 추가팩 응답 대기 " + Clock(waited);
+
         IEnumerator Watch(int epoch)
         {
-            float deadline = Time.realtimeSinceStartup + 120f;
+            float began = Time.realtimeSinceStartup;
+            float silentUntil = began + SilenceLimit;
             int failures = 0;
             while (epoch == generation)
             {
@@ -150,15 +255,26 @@ namespace Metagame.Network
                     yield return request.SendWebRequest();
                     pendingHealth = null;
                     if (epoch != generation) yield break;
-                    if (request.result == UnityWebRequest.Result.Success && ValidHealth(request.downloadHandler.text))
+                    bool answered = request.result == UnityWebRequest.Result.Success;
+                    // 아직 ready 가 아니어도 **대답이 왔다면 살아서 데우고 있다.** 그 사실만으로
+                    // 침묵 마감을 다시 민다 — 예전에는 이 구분이 없어 데우는 중에 잘렸다.
+                    if (answered) silentUntil = Time.realtimeSinceStartup + SilenceLimit;
+                    if (answered && ValidHealth(request.downloadHandler.text))
                     {
                         if (State != AiRuntimeState.Ready) Message = "준비 완료 · 행동 / 대상 / 접근 여부 LLM 판단";
                         State = AiRuntimeState.Ready; failures = 0;
                     }
                     else if (State == AiRuntimeState.Ready && ++failures >= 3)
                     { Fail("추가팩 연결을 잃었습니다"); yield break; }
-                    else if (State != AiRuntimeState.Ready && Time.realtimeSinceStartup > deadline)
-                    { Fail("추가팩 준비 시간 초과 · 로비에서 다시 준비해 주세요"); yield break; }
+                    else if (State != AiRuntimeState.Ready)
+                    {
+                        float waited = Time.realtimeSinceStartup - began;
+                        if (waited > WarmupLimit)
+                        { Fail("추가팩 준비 시간 초과 · 로비에서 다시 준비해 주세요"); yield break; }
+                        if (Time.realtimeSinceStartup > silentUntil)
+                        { Fail("추가팩이 응답하지 않습니다 · 로비에서 다시 준비해 주세요"); yield break; }
+                        Message = WarmupMessage(answered, waited);
+                    }
                 }
                 yield return new WaitForSecondsRealtime(.5f);
             }
@@ -202,6 +318,7 @@ namespace Metagame.Network
                 PlanDecision result = null;
                 try { result = JsonUtility.FromJson<PlanDecision>(request.downloadHandler.text); }
                 catch (ArgumentException) { }
+                ReportPlan(result);
                 Message = result == null ? "잘못된 응답 · 기존 행동 유지"
                     : (result.status == "none" || result.status == "clarify") && result.orders != null && result.orders.Length == 0
                     ? "실행할 작업 불명확/미지원 · 기존 행동 유지"
@@ -249,12 +366,36 @@ namespace Metagame.Network
                 PlanDecision result = null;
                 try { result = JsonUtility.FromJson<PlanDecision>(request.downloadHandler.text); }
                 catch (ArgumentException) { }
+                ReportPlan(result);
                 if (result == null || result.status != "ok" || !AiCommandPlan.Valid(result.orders))
                 { requester.ReportAiVoice("명령을 이해하지 못했어요"); yield break; }
                 // Snapshot membership/revisions prevents delayed replies from replacing newer orders.
                 Message = group.ExecutePlan(result.orders, AiRecipients.Selected, selected, speaker);
                 requester.ReportAiVoice(group.LastAccepted > 0 ? $"AI 동료 {group.LastAccepted}명이 명령을 받았어요" : "지금 수행할 수 있는 AI 동료가 없어요");
             }
+        }
+
+        /// <summary>
+        /// <b>무엇을 듣고 무엇을 하기로 했는지</b> 한 줄씩 (S15P21B202-708).
+        ///
+        /// <para>실행 요약(<c>ExecutePlan</c> 의 반환)은 <b>결과</b>만 말한다. 명령이 엉뚱하게
+        /// 수행됐을 때, 잘못 들은 것인지 · 잘못 계획한 것인지 · 계획대로 됐는데 결과가 다른
+        /// 것인지를 가르려면 <b>앞의 둘</b>이 있어야 한다.</para>
+        ///
+        /// <para><b>전사는 사람이 말한 내용이다.</b> 참가자가 말한 것도 호스트의
+        /// <c>Player.log</c> 에 글자로 남는다 — 음성은 어차피 판단을 위해 호스트로 가지만,
+        /// 글자로 파일에 남는 것은 다른 일이라 QA 를 위한 결정으로 적어 둔다.</para>
+        ///
+        /// <para>상태 문구와 달리 <b>매번 적는다.</b> 명령은 사람이 V 를 누를 때만 나므로
+        /// 로그를 덮지 않는다.</para>
+        /// </summary>
+        void ReportPlan(PlanDecision result)
+        {
+            if (result == null) { UnityEngine.Debug.Log("[AI] 응답을 읽지 못했다"); return; }
+            if (!string.IsNullOrWhiteSpace(result.text)) UnityEngine.Debug.Log("[AI] 들음: " + result.text);
+            UnityEngine.Debug.Log("[AI] 계획 " + result.status + " " + AiCommandPlan.Describe(result.orders)
+                      + (result.safety_override ? " · 안전 중단" : "")
+                      + " · " + result.elapsed_ms.ToString("0") + "ms");
         }
 
         public static bool ValidDecision(Decision result)
