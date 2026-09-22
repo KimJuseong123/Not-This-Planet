@@ -23,6 +23,32 @@ namespace Metagame.Network
         public int ApproximateMeshCount { get; private set; }
         public int SourceCount => sources.Count;
 
+        /// <summary>
+        /// 길찾기가 <b>영구한 벽으로 세는 레이어</b>만 남기는 마스크.
+        ///
+        /// <para><see cref="AiNavigationGeometryBaker"/> 가 같은 값을 쓴다 — 굽는 쪽과
+        /// 쓰는 쪽이 갈리면 <b>조용히 나빠진다</b>(S15P21B202-690). 베이커가 덜 구우면
+        /// 런타임이 읽기용 사본을 못 찾아 <see cref="ApproximateMeshCount"/> 의 대체
+        /// 박스로 때우는데, 그것은 실제 바닥을 <b>장애물로</b> 바꾼다.</para>
+        /// </summary>
+        public static int PermanentLayerMask => ~((1 << GameLayers.Player) | (1 << GameLayers.PlayerDowned)
+            | (1 << GameLayers.Interactable) | (1 << GameLayers.BeamQuery) | (1 << GameLayers.Meteor));
+
+        /// <summary>
+        /// 이 콜라이더가 <b>길찾기에 쓰이는가</b>. 굽는 쪽과 쓰는 쪽이 이 함수를 함께 쓴다.
+        ///
+        /// <para>버리는 것은 셋이다 — 통과하는 트리거, 사람 몸, 그리고 <b>파츠가 아닌
+        /// 동적 콜라이더</b>(굴러다니는 도구는 영구한 벽이 아니다). 파츠는 남기되
+        /// <c>area = 1</c> 로 "막지만 걸을 수는 없는" 것이 된다.</para>
+        /// </summary>
+        public static bool UsedForNavigation(Collider collider)
+        {
+            if (collider == null) return true;   // 콜라이더가 아닌 소스(터레인 등)는 그대로 쓴다
+            if ((PermanentLayerMask & (1 << collider.gameObject.layer)) == 0) return false;
+            if (collider.isTrigger || collider.GetComponentInParent<PlayerRig>() != null) return false;
+            return collider.attachedRigidbody == null || collider.GetComponentInParent<SpaceshipPart>() != null;
+        }
+
         void Update()
         {
             if (!NetworkServer.active || AiHostSettings.ServerState != AiRoomState.Active
@@ -41,9 +67,8 @@ namespace Metagame.Network
                 loadedGeometry = true;
             }
             sources.Clear();
-            int mask = ~((1 << GameLayers.Player) | (1 << GameLayers.PlayerDowned)
-                | (1 << GameLayers.Interactable) | (1 << GameLayers.BeamQuery) | (1 << GameLayers.Meteor));
-            NavMeshBuilder.CollectSources(bounds, mask, NavMeshCollectGeometry.PhysicsColliders, 0, markups, sources);
+            NavMeshBuilder.CollectSources(bounds, PermanentLayerMask, NavMeshCollectGeometry.PhysicsColliders,
+                0, markups, sources);
             ApproximateMeshCount = 0;
             for (int i = sources.Count - 1; i >= 0; i--)
             {
@@ -51,12 +76,11 @@ namespace Metagame.Network
                 var collider = source.component as Collider;
                 if (collider != null)
                 {
-                    var part = collider.GetComponentInParent<SpaceshipPart>();
                     // Characters and loose tools are local collision concerns, not permanent walls.
-                    if (collider.isTrigger || collider.GetComponentInParent<PlayerRig>() != null
-                        || (collider.attachedRigidbody != null && part == null))
-                    { sources.RemoveAt(i); continue; }
-                    if (part != null) source.area = 1; // Parts block routes; their tops are not walking surfaces.
+                    // **베이커와 같은 함수를 쓴다** (S15P21B202-690) — 갈리면 조용히 나빠진다.
+                    if (!UsedForNavigation(collider)) { sources.RemoveAt(i); continue; }
+                    // Parts block routes; their tops are not walking surfaces.
+                    if (collider.GetComponentInParent<SpaceshipPart>() != null) source.area = 1;
                 }
                 if (source.shape == NavMeshBuildSourceShape.Mesh && source.sourceObject is Mesh mesh && !mesh.isReadable)
                 {

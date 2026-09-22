@@ -159,6 +159,20 @@ namespace Metagame.Gameplay.Tests
             }
             Debug.Log($"[AI Navigation Audit] sources={world.SourceCount}, approximateMeshes={world.ApproximateMeshCount}, reachablePinApproaches={reachable}/{sampled}, spawn={session.SpawnFoot}");
             Assert.That(reachable, Is.GreaterThan(0), "No route from authored spawn to any pin approach");
+
+            // **대체 박스가 하나라도 생기면 실패다** (S15P21B202-690).
+            //
+            // 읽기용 사본을 못 찾으면 런타임은 그 메시를 **메시 경계 상자**로 바꾸고
+            // `area = 1` 을 준다 — 실제 바닥이 **장애물로** 바뀐다. 길은 여전히 어딘가로
+            // 나므로 위의 `reachable > 0` 은 통과하고, 지금까지 이 값은 **로그로만** 찍혀
+            // 아무도 읽지 않았다.
+            //
+            // 베이커가 런타임과 같은 필터를 쓰게 만든 김에(`AiNavigationGeometryBaker`)
+            // 이것을 단언으로 올린다. 베이커가 필요한 메시를 빠뜨리면 여기서 걸리고,
+            // 빠뜨리지 않으면서 크기가 줄었다는 것을 이 검사가 증명한다.
+            Assert.That(world.ApproximateMeshCount, Is.Zero,
+                "읽기용 사본을 못 찾아 대체 박스로 때운 메시가 있다 — 실제 바닥이 장애물이 "
+                + "된다. `Tools/Not This Planet/AI/Rebuild Navigation Geometry` 를 다시 돌릴 것");
             yield return new ExitPlayMode();
         }
     }
