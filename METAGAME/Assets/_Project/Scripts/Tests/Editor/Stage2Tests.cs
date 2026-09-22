@@ -33,6 +33,7 @@ namespace Metagame.Gameplay.Tests
         public IEnumerator WrenchQThrowsPhysicalPropAndAllowsPickup()
         {
             EditorSceneManager.OpenScene(Stage2SceneBuilder.ScenePath);
+            Object.FindAnyObjectByType<Metagame.Bootstrap.Stage2Bootstrap>().ConfigureDemo(false);
             yield return new EnterPlayMode(); yield return null;
             var session = GameSession.Instance;
             session.ScriptedInput = true;
@@ -97,6 +98,7 @@ namespace Metagame.Gameplay.Tests
         public IEnumerator CraneEntersThirdPersonAndExitsWithoutAimingAtControls()
         {
             EditorSceneManager.OpenScene(Stage2SceneBuilder.ScenePath);
+            Object.FindAnyObjectByType<Metagame.Bootstrap.Stage2Bootstrap>().ConfigureDemo(false);
             yield return new EnterPlayMode(); yield return null;
             var session = GameSession.Instance;
             session.ScriptedInput = true;
@@ -182,6 +184,7 @@ namespace Metagame.Gameplay.Tests
         public IEnumerator SceneRunsAndHostEnforcesRangeOccupancyAssemblyAndRecovery()
         {
             EditorSceneManager.OpenScene(Stage2SceneBuilder.ScenePath);
+            Object.FindAnyObjectByType<Metagame.Bootstrap.Stage2Bootstrap>().ConfigureDemo(false);
             yield return new EnterPlayMode();
             yield return null;
             if(SystemInfo.graphicsDeviceType != UnityEngine.Rendering.GraphicsDeviceType.Null)
@@ -283,6 +286,7 @@ namespace Metagame.Gameplay.Tests
         public IEnumerator SprayCleansTeammateButCannotCrossWallOrCleanSelf()
         {
             EditorSceneManager.OpenScene(Stage2SceneBuilder.ScenePath);
+            Object.FindAnyObjectByType<Metagame.Bootstrap.Stage2Bootstrap>().ConfigureDemo(false);
             yield return new EnterPlayMode(); yield return null;
             var session=GameSession.Instance; session.ScriptedInput=true;
             var rig=session.LocalPlayer; rig.SetInput(default);

@@ -89,7 +89,7 @@ namespace Metagame.Gameplay.Stage2
             _authorityConfigured = true;
             _authority = authority;
             for (int i = 0; i < _parts.Length; i++)
-                _parts[i].isKinematic = !authority || _state.Parts[i].Secured || !_state.Parts[i].Open;
+                _parts[i].isKinematic = DemoMode || !authority || _state.Parts[i].Secured || !_state.Parts[i].Open;
             foreach (var tool in _looseTools.Values) tool.isKinematic = !authority;
         }
         bool _authorityConfigured;
@@ -121,7 +121,7 @@ namespace Metagame.Gameplay.Stage2
 
         public void Submit(uint id, YardCommand command)
         {
-            if (!_authority || _state.Launched || !_workers.TryGetValue(id, out var w) || w.Rig == null) return;
+            if (DemoMode || !_authority || _state.Launched || !_workers.TryGetValue(id, out var w) || w.Rig == null) return;
             if (!Stage2Rules.Finite(command.Axes) || !Stage2Rules.Finite(command.Aim) || !Stage2Rules.Finite(command.Turns)) return;
             command.Axes = Vector3.ClampMagnitude(command.Axes, 1.7321f);
             command.Aim = command.Aim.sqrMagnitude > .5f ? command.Aim.normalized : w.Rig.FacingDirection;

@@ -22,6 +22,7 @@ namespace Metagame.Gameplay.Tests
         public void AuthoredModelsKeepThreeBodiesAndOpenWalkingRoutes()
         {
             var scene=EditorSceneManager.OpenScene(Stage2SceneBuilder.ScenePath);
+            Object.FindAnyObjectByType<Metagame.Bootstrap.Stage2Bootstrap>().ConfigureDemo(false);
             Stage2ArtIntegration.Validate();
             Stage2ArtIntegration.ValidateTerrain();
             var yard=scene.GetRootGameObjects().Single(g=>g.GetComponent<Stage2Yard>());
@@ -45,6 +46,7 @@ namespace Metagame.Gameplay.Tests
         public IEnumerator ReplicaMovesCraneLidLiftAndLadderArtWithoutNewNetworkObjects()
         {
             EditorSceneManager.OpenScene(Stage2SceneBuilder.ScenePath);
+            Object.FindAnyObjectByType<Metagame.Bootstrap.Stage2Bootstrap>().ConfigureDemo(false);
             yield return new EnterPlayMode();yield return null;yield return null;
             var yard=Object.FindFirstObjectByType<Stage2Yard>();Assert.That(yard.GetComponent<Stage2ArtMotion>(),Is.Not.Null);
             GameSession.Instance.ScriptedInput=true;

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="3" result="Passed" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-22 01:27:04Z" end-time="2026-09-22 01:27:05Z" duration="0.7842694">
+  <test-suite type="TestSuite" id="1000" name="Not This Planet" fullname="Not This Planet" runstate="Runnable" testcasecount="2166" result="Passed" start-time="2026-09-22 01:27:04Z" end-time="2026-09-22 01:27:05Z" duration="0.784269" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="3433" name="Metagame.Gameplay.Tests.Editor.dll" fullname="C:/workspace/2-PJT/S15P21B202/.local-worktrees/677-ui-2stage/METAGAME/Library/ScriptAssemblies/Metagame.Gameplay.Tests.Editor.dll" runstate="Runnable" testcasecount="2130" result="Passed" start-time="2026-09-22 01:27:04Z" end-time="2026-09-22 01:27:05Z" duration="0.688253" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="34980" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="3434" name="Metagame" fullname="Metagame" runstate="Runnable" testcasecount="2130" result="Passed" start-time="2026-09-22 01:27:04Z" end-time="2026-09-22 01:27:05Z" duration="0.668159" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="3439" name="Gameplay" fullname="Metagame.Gameplay" runstate="Runnable" testcasecount="2081" result="Passed" start-time="2026-09-22 01:27:04Z" end-time="2026-09-22 01:27:05Z" duration="0.647869" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="3440" name="Tests" fullname="Metagame.Gameplay.Tests" runstate="Runnable" testcasecount="2081" result="Passed" start-time="2026-09-22 01:27:04Z" end-time="2026-09-22 01:27:05Z" duration="0.626530" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="2982" name="Stage2DemoTests" fullname="Metagame.Gameplay.Tests.Stage2DemoTests" classname="Metagame.Gameplay.Tests.Stage2DemoTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-09-22 01:27:04Z" end-time="2026-09-22 01:27:05Z" duration="0.592462" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="2984" name="RejectsPuzzleCommandsAndReplicaStartAndSeeksLateSnapshot" fullname="Metagame.Gameplay.Tests.Stage2DemoTests.RejectsPuzzleCommandsAndReplicaStartAndSeeksLateSnapshot" methodname="RejectsPuzzleCommandsAndReplicaStartAndSeeksLateSnapshot" classname="Metagame.Gameplay.Tests.Stage2DemoTests" runstate="Runnable" seed="105141666" result="Passed" start-time="2026-09-22 01:26:43Z" end-time="2026-09-22 01:26:52Z" duration="8.518897" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+              </test-case>
+              <test-case id="2983" name="ThreeSecondsThenCameraAssemblyAndTerminalCardWithoutClearing" fullname="Metagame.Gameplay.Tests.Stage2DemoTests.ThreeSecondsThenCameraAssemblyAndTerminalCardWithoutClearing" methodname="ThreeSecondsThenCameraAssemblyAndTerminalCardWithoutClearing" classname="Metagame.Gameplay.Tests.Stage2DemoTests" runstate="Runnable" seed="1129672694" result="Passed" start-time="2026-09-22 01:26:52Z" end-time="2026-09-22 01:26:58Z" duration="6.246614" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                </properties>
+                <output><![CDATA[[DemoVisual] module=(9.00, 3.60, 9.00) socket=(9.00, 3.60, 9.00)
+[DemoVisual] platform=Center: (9.00, 3.33, 6.70), Extents: (1.73, 0.61, 1.69)
+]]></output>
+              </test-case>
+              <test-case id="2985" name="YardOptOutRetainsUnderlyingGameplayAndSessionInput" fullname="Metagame.Gameplay.Tests.Stage2DemoTests.YardOptOutRetainsUnderlyingGameplayAndSessionInput" methodname="YardOptOutRetainsUnderlyingGameplayAndSessionInput" classname="Metagame.Gameplay.Tests.Stage2DemoTests" runstate="Runnable" seed="600658808" result="Passed" start-time="2026-09-22 01:26:58Z" end-time="2026-09-22 01:27:05Z" duration="6.629135" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Saving results to: C:/Users/SSAFY/AppData/LocalLow/Not This Planet/Not This Planet\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>
