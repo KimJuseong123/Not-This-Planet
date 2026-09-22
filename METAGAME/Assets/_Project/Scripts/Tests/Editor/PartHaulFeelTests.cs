@@ -99,10 +99,16 @@ namespace Metagame.Gameplay.Tests
                                           Color.white, Color.gray, false);
             _spawned.Add(player.gameObject);
 
-            // 참가자 화면에는 인원수가 안 온다 — 1인 값을 바닥으로 쓴다.
+            // 서버가 계산한 값이 그대로 온다.
+            player.SetHaulState(true, Vector3.right, Vector3.zero, PartPushTable.SpeedFor(4));
+            Assert.That(player.HaulTopSpeed, Is.EqualTo(PartPushTable.SpeedFor(4)).Within(0.001f),
+                "서버가 보낸 파츠 속도가 안 들어왔다.");
+
+            // **모를 때 1인 값을 채우면 안 된다.** 상한이 Min 이라 그것이 바닥이
+            // 아니라 천장이 되어, 넷이 미는데 참가자만 0.69m/s 로 묶인다.
             player.SetHaulState(true, Vector3.right, Vector3.zero);
-            Assert.That(player.HaulTopSpeed, Is.EqualTo(PartPushTable.SpeedFor(1)).Within(0.001f),
-                "인원수를 모를 때 바닥값이 1인 속도가 아니다.");
+            Assert.That(player.HaulTopSpeed, Is.Zero,
+                "모르는 값을 채워 넣었다 — 그것이 천장이 된다.");
         }
 
         [Test]
