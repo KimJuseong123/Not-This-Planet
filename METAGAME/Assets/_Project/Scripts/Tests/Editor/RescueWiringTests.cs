@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using Metagame.Core;
 using Metagame.Gameplay.Interaction;
+using Metagame.Network;
 using NUnit.Framework;
 using Metagame.UI;
 using UnityEngine;
@@ -559,5 +560,39 @@ namespace Metagame.Gameplay.Tests
                 "같은 값을 걸러내는 조기 반환이 없으면 이 로그가 매 프레임 찍힌다");
         }
 
+        /// <summary>
+        /// <b>AI 도 사람과 같은 칸을 채운다</b> (S15P21B202-716).
+        ///
+        /// <para>일으키기를 따로 구현하면 두 길이 갈린다 — 사람 쪽 규칙(진행분 이어받기 ·
+        /// 서버 권위 판정 · 기절한 사람은 못 일으킨다)을 AI 쪽만 안 지키게 된다.
+        /// <c>InputFrame.RescueHeld</c> 를 채우는 한 그 전부가 저절로 따라온다.</para>
+        /// </summary>
+        [Test]
+        public void AiRevivesThroughTheSameInput()
+        {
+            var work = TestSource.Read("Runtime/Network/AiWorkTask.cs");
+            var tick = TestSource.Method(work, "InputFrame TickRevive()");
+
+            Assert.That(tick, Does.Contain("input.RescueHeld = true;"),
+                "AI 가 G 와 같은 칸을 채우지 않으면 살리기 규칙이 둘로 갈린다");
+            Assert.That(tick, Does.Contain("rescueTarget.Downed"),
+                "완료를 대상의 상태로 보지 않으면 언제 끝났는지 모른다");
+            Assert.That(TestSource.Blank(work), Does.Contain("TickRevive()"),
+                "정의만 있고 부르는 곳이 없으면 아무 일도 일어나지 않는다");
+        }
+
+        /// <summary>
+        /// <b>AI 가 서는 자리가 시야각을 안 보는 거리 안이어야 한다</b> (S15P21B202-716).
+        ///
+        /// <para>쓰러진 사람의 구조 지점은 바닥(0.30m)에 있어서, 가까이 갈수록 내려다보는
+        /// 각이 가팔라져 <c>DownedCarryAngle</c> 35도를 넘는다. 게임은 그래서
+        /// <see cref="PhysicsScale.DownedRescueNearReach"/> 안에서는 각을 묻지 않는데,
+        /// AI 가 그 밖에 서면 <b>붙어 놓고도 후보로 안 잡힌다</b> — 거절도 오류도 없이
+        /// 진행도만 0 이다.</para>
+        /// </summary>
+        [Test]
+        public void AiStandsInsideTheAngleFreeReach()
+            => Assert.That(AiWorkTask.ReviveReach, Is.LessThan(PhysicsScale.DownedRescueNearReach),
+                "AI 가 서는 거리가 각을 안 보는 거리보다 멀면 조용히 진행도가 안 찬다");
     }
 }
