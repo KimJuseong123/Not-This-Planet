@@ -30,8 +30,11 @@ import companion_social
 import companion_plan
 
 VERSION = "0.1.0-preview"
-ASR_NAME = "whisper-small-ko-zeroth"
+ASR_NAME = ASR_MODEL_NAME
 LLM_NAME = "qwen3:1.7b"
+
+# 받아쓰기 힌트는 engine.py 에 있다 — 개발 서버(app.py)와 **같은 값을 본다**.
+from engine import ASR_CONTEXT, ASR_HOTWORDS, ASR_MODEL_NAME
 
 
 def check_models(root: Path):
@@ -168,7 +171,8 @@ class Worker:
         if len(audio) > 16000 * 30:
             raise ValueError("audio_too_long")
         segments, _ = self.asr.transcribe(audio, language="ko", beam_size=1,
-                                         vad_filter=True, condition_on_previous_text=False)
+                                         vad_filter=True, condition_on_previous_text=False,
+                                         initial_prompt=ASR_CONTEXT, hotwords=ASR_HOTWORDS)
         return " ".join(s.text.strip() for s in segments).strip()
 
     def execute(self, text=None, raw=None, social=False, plan=False):

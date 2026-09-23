@@ -19,13 +19,14 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from engine import ROOT, OLLAMA, MODELS, THREADS, SKILLS, Monitor, classify, sample_resources, append_result
+from engine import (ROOT, OLLAMA, MODELS, THREADS, SKILLS, ASR_CONTEXT, ASR_HOTWORDS,
+                    ASR_MODEL_NAME, Monitor, classify, sample_resources, append_result)
 
 LOCK = threading.Lock()
 ASR = None
 # 한국어 파인튜닝 모델이 기본. 측정: CER 0.86(whisper-base) -> 0.61, 속도는 비슷하다.
 # 다른 모델로 시험하려면 COMPANION_ASR_MODEL 환경변수에 models/ 아래 폴더 이름을 넣는다.
-ASR_MODEL = os.environ.get("COMPANION_ASR_MODEL", "whisper-small-ko-zeroth")
+ASR_MODEL = os.environ.get("COMPANION_ASR_MODEL", ASR_MODEL_NAME)
 ollama_process = None
 SERVER = None
 SOURCE_HASHES = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
@@ -177,8 +178,11 @@ def transcribe(raw):
     audio = decode_audio(io.BytesIO(raw), sampling_rate=16000)
     if len(audio) > 16000 * 30:
         raise ValueError("음성은 30초 이하로 입력해 주세요.")
+    # 워커와 **같은 힌트**를 쓴다 (S15P21B202-714). 갈리면 여기서 시험한 것과 게임에
+    # 나가는 것이 달라진다.
     segments, info = ASR.transcribe(audio, language="ko", beam_size=1, vad_filter=True,
-                                    condition_on_previous_text=False)
+                                    condition_on_previous_text=False,
+                                    initial_prompt=ASR_CONTEXT, hotwords=ASR_HOTWORDS)
     text = " ".join(s.text.strip() for s in segments).strip()
     elapsed = (time.perf_counter() - start) * 1000
     return text, {"asr_ms": round(elapsed, 1), "asr_load_ms": round(load_ms, 1), "asr_cold": cold,
