@@ -25,7 +25,7 @@ namespace Metagame.Network
             DontDestroyOnLoad(gameObject);
             _started = Time.realtimeSinceStartup;
             var root = new GameObject("Local Stage2 smoke network"); root.SetActive(false);
-            var transport = root.AddComponent<TelepathyTransport>(); transport.port = 27863;
+            var transport = root.AddComponent<kcp2k.KcpTransport>(); transport.port = 27863;
             var manager = root.AddComponent<NetworkManager>();
             manager.transport = transport; manager.playerPrefab = _playerPrefab;
             manager.networkAddress = "127.0.0.1"; manager.onlineScene = StageCatalog.SceneFolder + StageCatalog.Stage2SceneName + ".unity";
@@ -64,7 +64,8 @@ namespace Metagame.Network
             if (yard.State.Launched || GameSession.Instance.Cleared || !GameSession.Instance.CinematicInputBlocked
                 || yard.State.DemoPlayers.Length != castCount)
             { Debug.LogError("[DemoSmoke] FAIL terminal demo changed gameplay result"); Application.Quit(2); yield break; }
-            if (!_observer) Debug.Log(_host ? "[DemoSmoke] HOST terminal demo PASS" : "[DemoSmoke] CLIENT terminal demo PASS");
+            Debug.Log(_host ? "[DemoSmoke] HOST terminal demo PASS" : _observer
+                ? "[DemoSmoke] OBSERVER terminal demo PASS" : "[DemoSmoke] CLIENT terminal demo PASS");
             // Keep the authority alive long enough for remote peers' delayed snapshots to settle.
             if (_host) yield return new WaitForSecondsRealtime(5);
             Application.Quit(0);

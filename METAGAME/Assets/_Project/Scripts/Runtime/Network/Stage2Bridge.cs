@@ -96,8 +96,10 @@ namespace Metagame.Network
             _sendAt = Time.unscaledTime + .05f;
             var state = _yard.Capture();
             state.Time = NetworkServer.active ? NetworkTime.time : Time.timeAsDouble;
+            // Full yard JSON (including the demo cast) exceeds KCP/relay unreliable MTU.
+            // Reliable transport fragments it; otherwise remote peers never receive DemoStarted.
             if (NetworkServer.active)
-                NetworkServer.SendToAll(new Stage2SnapshotMessage { Sequence = ++_sequence, Json = JsonUtility.ToJson(state) }, Channels.Unreliable, sendToReadyOnly: true);
+                NetworkServer.SendToAll(new Stage2SnapshotMessage { Sequence = ++_sequence, Json = JsonUtility.ToJson(state) }, Channels.Reliable, sendToReadyOnly: true);
         }
 
         public void Send(YardCommand command)

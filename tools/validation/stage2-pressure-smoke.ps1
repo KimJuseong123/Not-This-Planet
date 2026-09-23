@@ -6,7 +6,7 @@ $out=Join-Path $repo $OutputFolder
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 $lateTrigger=if($Mode -eq 'pressure'){'authenticated remote relief PASS'}elseif($Mode -eq 'demo'){'demo panorama PASS'}else{'remote pilot motion PASS'}
 $marker=if($Mode -eq 'pressure'){'\[PressureSmoke\]'}elseif($Mode -eq 'demo'){'\[DemoSmoke\]'}else{'\[Stage2Smoke\]'}
-$expected=if($Mode -eq 'pressure'){8}else{5}
+$expected=if($Mode -eq 'pressure'){8}elseif($Mode -eq 'demo'){6}else{5}
 $started=[DateTime]::UtcNow
 $owned=@()
 try {
@@ -35,11 +35,11 @@ try {
     }
     if(-not $observerStarted -or ($owned | Where-Object {-not $_.HasExited})) {throw 'Pressure smoke timed out'}
     $peerLogs=@(Get-Content (Join-Path $out 'host.log'),(Join-Path $out 'client.log'),(Join-Path $out 'observer.log'))
-    $runtimeErrors=@($peerLogs | Where-Object {$_ -match '^(?:[A-Za-z_][A-Za-z0-9_]*\.)*[A-Za-z_][A-Za-z0-9_]*Exception:|^Can.t add '})
+    $runtimeErrors=@($peerLogs | Where-Object {$_ -match '^(?:[A-Za-z_][A-Za-z0-9_]*\.)*[A-Za-z_][A-Za-z0-9_]*Exception:|^Can.t add |larger than the max allowed message size|The message was dropped'})
     if($runtimeErrors.Count) {throw ('Stage2 runtime errors: '+(($runtimeErrors | Select-Object -First 3) -join '; '))}
     $messages=@($peerLogs | Where-Object {$_ -match $marker})
     if(($messages | Where-Object {$_ -match 'PASS'}).Count -ne $expected) {throw ('Missing smoke assertions: '+($messages -join '; '))}
-    $report=@{passed=$true;mode=$Mode;transport='Mirror Telepathy loopback';peers=3;assertions=$messages;utc=[DateTime]::UtcNow.ToString('o')}
+    $report=@{passed=$true;mode=$Mode;transport='Mirror KCP loopback';peers=3;assertions=$messages;utc=[DateTime]::UtcNow.ToString('o')}
     $report | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $out 'network-smoke.json') -Encoding UTF8
     $messages
 } finally {
