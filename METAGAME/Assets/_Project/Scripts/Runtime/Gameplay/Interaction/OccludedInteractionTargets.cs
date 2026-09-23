@@ -142,6 +142,16 @@ namespace Metagame.Gameplay.Interaction
                 {
                     // 파츠 자식으로 배치된 고정못도 파츠 외형에 섞이지 않게 제외한다.
                     if (renderer.GetComponentInParent<PartClamp>() != null) continue;
+
+                    // **손에 든 도구는 사람의 일부가 아니다** (S15P21B202-724).
+                    //
+                    // 도구는 제 루트로 먼저 훑으므로 보통은 여기 안 온다. 그런데
+                    // 위의 씬 이름 검사를 사람에게만 면제했기 때문에, **런타임에
+                    // 만들어져 Stage1_Astra 밖에 있는 도구**는 도구 루트에서 건너뛰어지고
+                    // 그 렌더러가 사람 루트로 흘러든다 — 그러면 방망이에 초록 테두리가
+                    // 붙는다. AI 리뷰가 잡았다.
+                    if (root is PlayerRig && renderer.GetComponentInParent<ToolBase>() != null)
+                        continue;
                     if (!_seen.Add(renderer)) continue;
                     Mesh mesh = null;
                     if (renderer is SkinnedMeshRenderer skinned) mesh = skinned.sharedMesh;

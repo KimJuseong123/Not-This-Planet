@@ -238,6 +238,69 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
+        /// <b>손에 든 도구가 사람의 일부가 되면 안 된다</b> (AI 리뷰가 잡은 것).
+        ///
+        /// <para>도구는 제 루트로 먼저 훑으므로 보통은 사람 루트로 안 온다. 그런데
+        /// 씬 이름 검사를 사람에게만 면제했기 때문에, <b>런타임에 만들어져
+        /// <c>Stage1_Astra</c> 밖에 있는 도구</b>는 도구 루트에서 건너뛰어지고 그
+        /// 렌더러가 사람 루트로 흘러든다 — 그러면 방망이에 초록 테두리가 붙는다.</para>
+        ///
+        /// <para><c>IsEligible(bat) == false</c> 만 재는 검사로는 이 경로를 못 잡는다.
+        /// <b>여기서는 실제 수집 결과의 색을 본다</b> — 도구가 사람 색으로 나오면
+        /// 빨간불이다.</para>
+        /// </summary>
+        [Test]
+        public void AToolUnderAPersonNeverTakesThePersonColour()
+        {
+            var player = MakePlayer();
+            var tool = new GameObject("방망이");
+            _spawned.Add(tool);
+            tool.transform.SetParent(player.transform, false);
+            tool.AddComponent<MeteorBat>();
+            tool.AddComponent<MeshFilter>().sharedMesh =
+                Resources.GetBuiltinResource<Mesh>("Cube.fbx");
+            var renderer = tool.AddComponent<MeshRenderer>();
+
+            var targets = new OccludedInteractionTargets();
+            targets.Collect(MakeCamera());
+
+            foreach (var target in targets.Targets)
+            {
+                if (target.Renderer != renderer) continue;
+                Assert.That(target.Outline,
+                    Is.Not.EqualTo(OccludedInteractionTargets.CrewColor),
+                    "손에 든 도구가 사람 색으로 그려진다.");
+                Assert.That(target.Outline,
+                    Is.Not.EqualTo(OccludedInteractionTargets.DownedColor),
+                    "손에 든 도구가 쓰러짐 색으로 그려진다.");
+            }
+        }
+
+        /// <summary>
+        /// <b>"내가 아닌가" 는 매 수집마다 다시 본다.</b> 리뷰가 0.5초 갱신 주기에
+        /// 묶여 있을 가능성을 짚었는데, <c>IsEligible</c> 은 <c>Collect</c> 의 루프에서
+        /// 불린다 — <c>RefreshMeshes</c> 가 아니다. 말로 반박하지 않고 잰다.
+        /// </summary>
+        [Test]
+        public void WhoIsMeIsCheckedEveryCollectNotEveryRefresh()
+        {
+            var player = MakePlayer();
+            var camera = MakeCamera();
+            var targets = new OccludedInteractionTargets();
+
+            Assert.That(targets.Collect(camera), Is.True);
+            var before = targets.Targets.Count;
+
+            // 갱신 주기를 기다리지 않고 리그를 끈다. 후보 목록(_candidates)은 그대로인데
+            // IsEligible 이 매번 불리므로 결과에서 빠져야 한다.
+            player.gameObject.SetActive(false);
+
+            targets.Collect(camera);
+            Assert.That(targets.Targets.Count, Is.LessThan(before),
+                "규칙이 갱신 주기에 묶여 있다 — 매 수집마다 다시 보지 않는다.");
+        }
+
+        /// <summary>
         /// <b>수집 경로가 실제로 <c>IsEligible</c> 을 지난다.</b> 규칙만 있고 부르는
         /// 곳이 없으면 아무 소용이 없다 — AI 리뷰가 그 가능성을 짚었다.
         ///
