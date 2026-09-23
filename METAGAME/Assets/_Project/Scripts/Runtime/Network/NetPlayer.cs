@@ -291,6 +291,10 @@ namespace Metagame.Network
         [SyncVar]
         public float tossCharge;
 
+        // 도구 투척도 서버가 충전하므로 참가자 본인의 HUD까지 전달한다.
+        [SyncVar]
+        public float toolCharge;
+
         /// <summary>
         /// 방 안의 자리 번호(0~3). 색이 여기서 나온다 (S15P21B202-375).
         ///
@@ -565,6 +569,7 @@ namespace Metagame.Network
             {
                 body.SetRemoteTossed(tossed);
                 body.SetRemoteTossCharge(tossCharge);
+                body.SetRemoteToolCharge(toolCharge);
             }
 
             // **여기는 남의 몸에도 넣는다.** 던지는 동작은 남이 보는 그림이라 위 셋과
@@ -1202,6 +1207,7 @@ namespace Metagame.Network
             tossSeq = body.TossSeq;
             swingSeq = body.SwingSeq;
             tossCharge = body.TossCharge01;
+            toolCharge = body.ChargingTool ? body.ToolCharge : 0f;
 
             // 어느 탈것을 타는지도 같은 자리에서 실어 보낸다 (S15P21B202-434).
             //

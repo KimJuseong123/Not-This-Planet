@@ -675,8 +675,18 @@ namespace Metagame.Gameplay
         public ToolBase PresentationTool { get; internal set; }
         /// <summary>현재 장착된 도구 동작 컴포넌트. 도구가 없거나 구형 Tool이면 null이다.</summary>
         public ToolBase ActiveTool { get { return activeTool; } }
-        public float ToolCharge { get { return toolCharge; } }
-        public bool ChargingTool { get { return chargingTool; } }
+        public float ToolCharge => ServerAuthority ? toolCharge : remoteToolCharge;
+        public bool ChargingTool => ServerAuthority ? chargingTool : remoteToolCharge > 0f;
+
+        // 참가자의 손 시뮬레이션은 서버의 도구 조인트를 갖지 않는다.
+        // DriveArms/ResetToolState가 지우는 로컬 충전과 HUD용 수신 값을 분리한다.
+        float remoteToolCharge;
+
+        public void SetRemoteToolCharge(float charge)
+        {
+            if (ServerAuthority) return;
+            remoteToolCharge = Mathf.Clamp01(charge);
+        }
         /// <summary>현재 조준 중인 고정쇠를 찾고 해제 홀드를 진행하는 상호작용 주체.</summary>
         public Interactor ClampInteractor { get; private set; }
 
