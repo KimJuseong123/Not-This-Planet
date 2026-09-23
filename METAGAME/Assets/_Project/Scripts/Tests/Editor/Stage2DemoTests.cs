@@ -46,6 +46,7 @@ namespace Metagame.Gameplay.Tests
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         }
 
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-731)
         [UnityTest]
         public IEnumerator ThreeSecondsThenCameraAssemblyAndTerminalCardWithoutClearing()
         {
@@ -133,6 +134,7 @@ namespace Metagame.Gameplay.Tests
             }
         }
 
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-731)
         [UnityTest]
         public IEnumerator RejectsPuzzleCommandsAndReplicaStartAndSeeksLateSnapshot()
         {
@@ -160,6 +162,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(yard.DemoBlocksInput, Is.True, "Wait for a server start before allowing the initial walk.");
         }
 
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-731)
         [UnityTest]
         public IEnumerator FullSnapshotFitsKcpAndReachesReadyConnections()
         {

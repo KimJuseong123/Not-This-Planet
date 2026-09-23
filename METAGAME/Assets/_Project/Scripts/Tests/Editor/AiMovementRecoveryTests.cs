@@ -26,6 +26,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(world.Ready, Is.True);
         }
 
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-731)
         [UnityTest]
         public IEnumerator DisconnectedLandingReturnsToPreviouslySafeGround()
         {
@@ -69,6 +70,7 @@ namespace Metagame.Gameplay.Tests
             yield return new ExitPlayMode();
         }
 
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-731)
         [UnityTest]
         public IEnumerator PinOrderSurvivesAirborneDisplacementAndCancelPreventsResume()
         {
@@ -109,6 +111,7 @@ namespace Metagame.Gameplay.Tests
             yield return new ExitPlayMode();
         }
 
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-731)
         [UnityTest]
         public IEnumerator StalledMovementTriesPhysicalEscapeBeforeRelocation()
         {

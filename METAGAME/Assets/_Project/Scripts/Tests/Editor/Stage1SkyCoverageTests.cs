@@ -96,6 +96,7 @@ namespace Metagame.Gameplay.Tests
                 "수제 조명 보존이 꺼졌다 — 그렇다면 이 티켓의 전제가 바뀐 것이니 다시 본다");
         }
 
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-731)
         [Test]
         public void TheStageAsksForTheCodeStarfield()
         {

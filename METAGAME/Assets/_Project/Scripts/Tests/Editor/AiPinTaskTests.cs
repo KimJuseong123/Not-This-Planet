@@ -27,6 +27,7 @@ namespace Metagame.Gameplay.Tests
             part.RefreshClamps(); return pin;
         }
 
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-731)
         [UnityTest]
         public IEnumerator RealGrabPullCanCancelResumeAndReleaseOnlyOnePin()
         {
@@ -91,6 +92,7 @@ namespace Metagame.Gameplay.Tests
             yield return new ExitPlayMode();
         }
 
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-731)
         [UnityTest]
         public IEnumerator ActualStagePinCanBeReachedAndPulledUsingPlayerInputs()
         {
@@ -146,6 +148,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(task.Succeeded, Is.False);
         }
 
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-731)
         [UnityTest]
         public IEnumerator QueuedPlanUsesTaskOutcomeNotDisplayText()
         {

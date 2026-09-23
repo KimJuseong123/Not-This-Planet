@@ -23,6 +23,7 @@ namespace Metagame.Gameplay.Tests
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         }
 
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-731)
         [UnityTest]
         public IEnumerator RuntimeRegistryTracksLateSpawnDisableAndDestruction()
         {
