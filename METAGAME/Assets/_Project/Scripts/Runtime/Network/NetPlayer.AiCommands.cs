@@ -26,14 +26,26 @@ namespace Metagame.Network
         }
 
         public bool TryApplyAiOrder(string action, PlayerRig speaker, bool approach = false, string destination = "default")
+            => TryApplyAiOrder(action, speaker, out _, approach, destination);
+
+        /// <summary>
+        /// 거절하면 <paramref name="refusal"/> 에 <b>왜 거절했는지</b>를 담는다
+        /// (S15P21B202-715). 받아들이면 <c>null</c> 이다.
+        /// </summary>
+        public bool TryApplyAiOrder(string action, PlayerRig speaker, out string refusal,
+                                    bool approach = false, string destination = "default")
         {
-            if (!isServer || !IsAi || body == null) return false;
-            if (action != "cancel" && AiHostSettings.ServerState != AiRoomState.Active) return false;
-            if (action != "cancel" && (body.Downed || (body.IsRiding && !AiWorkTask.VehicleOrder(action) && action != "wait")
-                || GameSession.Instance == null || GameSession.Instance.CinematicInputBlocked || GameSession.Instance.EndingActive)) return false;
-            if (action == "dance" && (body.Doll?.Suit?.Locomotion == null
-                || !body.Doll.Suit.Locomotion.HasDance(1) || NetworkTime.time < _nextDanceAllowed)) return false;
-            bool applied = aiFollow.Apply(action, speaker, body, approach, destination);
+            var session = GameSession.Instance;
+            refusal = AiCommandPlan.OrderRefusal(action,
+                aiSeat: isServer && IsAi && body != null,
+                roomActive: AiHostSettings.ServerState == AiRoomState.Active,
+                downed: body != null && body.Downed,
+                ridingBlocks: body != null && body.IsRiding && !AiWorkTask.VehicleOrder(action) && action != "wait",
+                cutscene: session == null || session.CinematicInputBlocked || session.EndingActive,
+                danceBlocked: action == "dance" && (body?.Doll?.Suit?.Locomotion == null
+                    || !body.Doll.Suit.Locomotion.HasDance(1) || NetworkTime.time < _nextDanceAllowed));
+            if (refusal != null) return false;
+            bool applied = aiFollow.Apply(action, speaker, body, out refusal, approach, destination);
             if (applied)
             {
                 AiOrderRevision++;
@@ -44,9 +56,14 @@ namespace Metagame.Network
         }
 
         public bool TryApplyAiPlan(AiCommandStep[] steps, PlayerRig speaker)
+            => TryApplyAiPlan(steps, speaker, out _);
+
+        /// <summary>계획이 서지 않은 이유를 그대로 올려 보낸다 (S15P21B202-715).</summary>
+        public bool TryApplyAiPlan(AiCommandStep[] steps, PlayerRig speaker, out string refusal)
         {
-            if (!AiCommandPlan.ValidSteps(steps)
-                || !TryApplyAiOrder(steps[0].action, speaker, steps[0].approach, steps[0].destination)) return false;
+            refusal = null;
+            if (!AiCommandPlan.ValidSteps(steps)) { refusal = "계획 형식이 틀림"; return false; }
+            if (!TryApplyAiOrder(steps[0].action, speaker, out refusal, steps[0].approach, steps[0].destination)) return false;
             aiFollow.QueueAfterCurrent(steps, speaker);
             return true;
         }
