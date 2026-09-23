@@ -51,6 +51,15 @@ namespace Metagame.Network
         }
 
         public string Summary() => Summarize(reasons);
+
+        /// <summary>
+        /// 첫 사유. <b>말한 사람에게 돌려줄 한 마디</b>다 (S15P21B202-730).
+        ///
+        /// <para>전체 요약은 방장 화면과 로그의 것이라 기술적이다. 명령을 말한 사람에게는
+        /// <c>지금 수행할 수 있는 AI 동료가 없어요</c> 대신 <b>왜 안 됐는지</b>를 준다 —
+        /// 쓰러진 채 말했을 때 아무 말도 없던 것이 이 이슈의 시작이다.</para>
+        /// </summary>
+        public string First => reasons.Count > 0 ? reasons[0] : null;
     }
 
     /// <summary>Snapshot recipients before async classification; never substitute a newly joined actor.</summary>
@@ -64,6 +73,9 @@ namespace Metagame.Network
         public string Names { get; private set; }
         public int Requested { get; private set; }
         public int LastAccepted { get; private set; }
+
+        /// <summary>아무도 안 받았을 때 <b>왜</b> (S15P21B202-730). 받았으면 <c>null</c>.</summary>
+        public string LastRefusal { get; private set; }
         AiGroupOrders(bool auto) { automatic = auto; }
 
         public AiGroupOrders Select(string recipients, AiRecipients fallback, NetPlayer selected)
@@ -131,7 +143,7 @@ namespace Metagame.Network
 
         public string ExecutePlan(AiCommandAssignment[] assignments, AiRecipients fallback, NetPlayer selected, PlayerRig speaker)
         {
-            LastAccepted = 0;
+            LastAccepted = 0; LastRefusal = null;
             if (!AiCommandPlan.Valid(assignments) || !NetworkServer.active || speaker == null) return "잘못된 계획 · 기존 행동 유지";
             var usedActors = new HashSet<NetPlayer>();
             var reservedPlaces = new List<Vector3>();
@@ -164,6 +176,7 @@ namespace Metagame.Network
                     .Append(" ").Append(applied).Append('/').Append(group.Requested).Append("명")
                     .Append(assignment.steps.Length > 1 ? " · 순차 작업 예약" : "")
                     .Append(refusals.Summary());
+                if (LastRefusal == null) LastRefusal = refusals.First;
             }
             return report.ToString();
         }

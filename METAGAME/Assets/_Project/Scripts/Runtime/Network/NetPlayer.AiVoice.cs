@@ -22,7 +22,10 @@ namespace Metagame.Network
         [Command] void CmdStartAiListening()
         {
             hearingGroup = null; voiceUpload = null;
-            if (body == null || body.Downed || IsAi || AiHostSettings.ServerState != AiRoomState.Active) return;
+            // **쓰러져도 말은 할 수 있다** (S15P21B202-730). 전에는 여기서 그냥 돌아가
+            // 아무 말도 안 남겼다 — 바로 아래 "주변에 AI 가 없어요" 는 말해 주는데
+            // 기절만 조용했다. 그래서 마이크 고장과 구별되지 않았다.
+            if (body == null || IsAi || AiHostSettings.ServerState != AiRoomState.Active) return;
             hearingGroup = AiGroupOrders.Capture(AiRecipients.All, null, body, VoiceRules.Range);
             hearingDeadline = NetworkTime.time + AiVoicePacket.Seconds + 5;
             voiceSession = GameSession.Instance;
@@ -48,7 +51,7 @@ namespace Metagame.Network
             }
             if (!isLocalPlayer || !voiceTransfer.Active) return;
             if (GameSession.Instance != localVoiceSession || localVoiceSession == null
-                || localVoiceSession.CinematicInputBlocked || localVoiceSession.EndingActive || body == null || body.Downed)
+                || localVoiceSession.CinematicInputBlocked || localVoiceSession.EndingActive || body == null)
             { CancelAiListening(); return; }
             if (voiceTransfer.Expire(Time.unscaledTimeAsDouble))
             {
@@ -67,7 +70,9 @@ namespace Metagame.Network
             voiceUpload = null; voiceReceived = 0;
             if (NetworkTime.time < nextVoiceAt) { RejectAiVoice(id, "잠시 후 다시 말해 주세요"); return; }
             nextVoiceAt = NetworkTime.time + 2;
-            if (length < 44 || length > AiVoicePacket.MaxBytes || IsAi || body == null || body.Downed
+            // 여기도 기절을 뺀다 (S15P21B202-730). 듣기는 열어 놓고 업로드만 막으면
+            // "지금은 AI 명령을 사용할 수 없어요" 로 끝나 **살려 달라는 말을 못 한다.**
+            if (length < 44 || length > AiVoicePacket.MaxBytes || IsAi || body == null
                 || GameSession.Instance == null || GameSession.Instance.CinematicInputBlocked
                 || AiHostSettings.ServerState != AiRoomState.Active) { RejectAiVoice(id, "지금은 AI 명령을 사용할 수 없어요"); return; }
             if (AiLocalRuntime.Current == null || AiLocalRuntime.Current.Busy)

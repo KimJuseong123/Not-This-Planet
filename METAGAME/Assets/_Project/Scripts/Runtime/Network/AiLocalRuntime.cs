@@ -358,7 +358,7 @@ namespace Metagame.Network
         {
             var session = GameSession.Instance;
             if (Busy || State != AiRuntimeState.Ready || !NetworkServer.active || session == null
-                || requester == null || requester.IsAi || requester.VisualRig == null || requester.VisualRig.Downed
+                || requester == null || requester.IsAi || requester.VisualRig == null
                 || session.CinematicInputBlocked || session.EndingActive || AiHostSettings.ServerState != AiRoomState.Active
                 || !AiVoicePacket.Valid(wav)) return false;
             var speaker = requester.VisualRig;
@@ -384,7 +384,7 @@ namespace Metagame.Network
                 Busy = false;
                 if (requester == null || requester.VisualRig != speaker || speaker == null) yield break;
                 if (!NetworkServer.active || session == null || session != GameSession.Instance || session.EndingActive
-                    || session.CinematicInputBlocked || AiHostSettings.ServerState != AiRoomState.Active || speaker.Downed)
+                    || session.CinematicInputBlocked || AiHostSettings.ServerState != AiRoomState.Active)
                 { requester.ReportAiVoice("상태가 바뀌어 명령을 취소했어요"); yield break; }
                 if (request.result != UnityWebRequest.Result.Success)
                 { requester.ReportAiVoice("음성 처리에 실패했어요. 다시 말해 주세요"); yield break; }
@@ -396,7 +396,11 @@ namespace Metagame.Network
                 { requester.ReportAiVoice("명령을 이해하지 못했어요"); yield break; }
                 // Snapshot membership/revisions prevents delayed replies from replacing newer orders.
                 Message = group.ExecutePlan(result.orders, AiRecipients.Selected, selected, speaker);
-                requester.ReportAiVoice(group.LastAccepted > 0 ? $"AI 동료 {group.LastAccepted}명이 명령을 받았어요" : "지금 수행할 수 있는 AI 동료가 없어요");
+                // 아무도 안 받았으면 **왜인지**를 말한다 (S15P21B202-730). 전에는 언제나
+                // "지금 수행할 수 있는 AI 동료가 없어요" 라서, 쓰러진 채 말한 사람은
+                // 자기가 기절해서인지 동료가 바빠서인지 알 수 없었다.
+                requester.ReportAiVoice(group.LastAccepted > 0 ? $"AI 동료 {group.LastAccepted}명이 명령을 받았어요"
+                                        : group.LastRefusal ?? "지금 수행할 수 있는 AI 동료가 없어요");
             }
         }
 
