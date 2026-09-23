@@ -51,14 +51,26 @@ SCHEMA = {"type": "object", "properties": {
     "required": ["status", "orders"], "additionalProperties": False}
 
 def validate(plan):
+    """계획이 게임이 실행할 수 있는 꼴인가.
+
+    **첫 지시의 `remaining` 은 막지 않는다** (S15P21B202-727). 전에는 막았다. 그래서
+    `나머지는 고정못 뽑아` 처럼 **한 글자도 안 틀리게 받아쓴 명령이 조용히 사라졌다** —
+    저장 녹음 24개 중 2개가 이것이었다. 모델은 `SYSTEM` 이 가르친 대로 `나머지=remaining`
+    을 내놓았는데 우리가 버린 것이다. `나머지` 는 `ASR_HOTWORDS` 에도 넣어 **더 잘 듣도록
+    일부러 가르쳐 둔 낱말**이다.
+
+    막을 이유가 없었다. 게임의 `AiGroupOrders.ExecutePlan` 은 `remaining` 을 **앞선
+    지시가 쓰지 않은 동료들**로 푸는데, 첫 지시에서는 그 집합이 곧 전원이다 — 즉
+    `all` 과 같아진다. 그래서 통과시켜도 새로 닿는 곳이 없다.
+    """
     if not isinstance(plan, dict) or set(plan) != {"status", "orders"} or plan["status"] not in {"ok", "none", "clarify"}:
         raise ValueError("Invalid plan")
     orders = plan["orders"]
     if not isinstance(orders, list) or len(orders) > 3 or bool(orders) != (plan["status"] == "ok"):
         raise ValueError("Invalid assignments")
-    for index, order in enumerate(orders):
+    for order in orders:
         if (not isinstance(order, dict) or set(order) != {"recipients", "steps"}
-                or order["recipients"] not in RECIPIENTS or (index == 0 and order["recipients"] == "remaining")):
+                or order["recipients"] not in RECIPIENTS):
             raise ValueError("Invalid recipients")
         steps = order["steps"]
         if not isinstance(steps, list) or not 1 <= len(steps) <= 4:
