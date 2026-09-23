@@ -150,6 +150,26 @@ namespace Metagame.Gameplay.Hazards
         /// <summary>이미 부딪혔는지. 착탄은 한 번만 처리한다.</summary>
         public bool HasImpacted { get; private set; }
 
+        public int ReplicaId { get; internal set; }
+        public bool IsReplica { get; private set; }
+        public MeteorReplicaVisual ReplicaVisual { get; private set; }
+
+        internal void PrepareReplica(bool solid)
+        {
+            IsReplica = true;
+            if (ReplicaVisual == null)
+            {
+                ReplicaVisual = gameObject.AddComponent<MeteorReplicaVisual>();
+                ReplicaVisual.Initialize();
+            }
+            ReplicaVisual.ResetPose();
+            if (solid)
+            {
+                StopTrail();
+                if (_trail != null) _trail.Clear();
+            }
+        }
+
         /// <summary>
         /// 낙하 착탄 처리가 끝났는지.
         ///
@@ -488,6 +508,7 @@ namespace Metagame.Gameplay.Hazards
 
         public void Register()
         {
+            if (IsReplica) return;
             if (!All.Contains(this)) All.Add(this);
         }
 
@@ -563,6 +584,7 @@ namespace Metagame.Gameplay.Hazards
         /// </summary>
         public void Deflect(Vector3 velocity, byte grade = 0)
         {
+            if (IsReplica) return;
             if (HasImpacted) return;
 
             Initialize();
@@ -603,6 +625,8 @@ namespace Metagame.Gameplay.Hazards
 
         void OnCollisionEnter(Collision collision)
         {
+            // Unity also delivers collision messages to disabled MonoBehaviours.
+            if (IsReplica) return;
             // 착탄이 끝난 운석은 일반 운반물이다. 착지 후 새 충돌을 직접 충돌로
             // 해석하면 몸이 스치기만 해도 다시 기절하므로, 이후 접촉은 PhysX에 맡긴다.
             if (HasImpacted || Rolling || GroundProp) return;
@@ -745,6 +769,7 @@ namespace Metagame.Gameplay.Hazards
 
         void ApplyImpact(Vector3 point, PlayerRig directHit, Vector3 normal)
         {
+            if (IsReplica) return;
             if (HasImpacted || Rolling || GroundProp) return;
 
             // 쳐낸 운석은 흔적이 되지 않는다(S15P21B202-273). 착지해도 굴러다니는 소품으로
@@ -777,6 +802,7 @@ namespace Metagame.Gameplay.Hazards
         /// </summary>
         public void Tick(float deltaTime)
         {
+            if (IsReplica) return;
             if (deltaTime <= 0f) return;
 
             // 박힌 흔적. 일정 시간 뒤 사라진다(S15P21B202-273).

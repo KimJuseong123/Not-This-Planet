@@ -25,30 +25,32 @@ namespace Metagame.Gameplay.Tests
         const string Spawner = "Runtime/Gameplay/Hazards/MeteorSpawner.cs";
 
         [Test]
-        public void TheMovingPacketGivesVelocityAndTheFullListDoesNot()
+        public void FullAndMovingSnapshotsKeepTheColliderAuthoritativeAndKinematic()
         {
-            // 전체 목록은 권위다 — 그 자리에 세운다. 움직임 묶음은 다음 33ms 를 채운다.
-            var scope = TestSource.Method(
-                TestSource.Read(Spawner),
-                "public void ApplyNetworkScars(");
-
-            Assert.That(scope, Does.Contain("if (full) SetScarAtRest(state);"),
-                "전체 목록과 움직임 묶음을 가르지 않는다 — 둘을 같게 다루면 굴러가는 돌이 끊긴다");
-            Assert.That(scope, Does.Contain("else DeadReckonScar(state);"),
-                "움직임 묶음이 속도를 주지 않는다");
-
-            // 자리는 여전히 받은 값으로 찍는다(권위). 속도는 그 사이를 채우는 것뿐이다.
-            Assert.That(scope, Does.Contain("body.position = state.Position"),
-                "자리를 받은 값으로 찍지 않는다 — 오차가 누적된다");
-
-            // **속도를 강체에 넣지 않는다** (S15P21B202-658). 흔적 그림은 콜라이더를
-            // 켜면서 키네마틱이 됐고, 키네마틱 강체는 `linearVelocity` 를 무시한다 —
-            // 예전처럼 넣어 두면 굴러가는 돌이 묶음 사이에 **멈춘다**. 이 이슈가 고친
-            // 증상이 그대로 돌아오는 길이다.
-            Assert.That(scope, Does.Not.Contain("body.linearVelocity"),
-                "키네마틱 강체에 속도를 넣는다 — 무시되어 돌이 묶음 사이에 멈춘다");
-            Assert.That(scope, Does.Not.Contain("body.angularVelocity"),
-                "키네마틱 강체에 각속도를 넣는다 — 무시되어 돌이 안 구른다");
+            var go = new GameObject("scar interpolation");
+            var spawner = go.AddComponent<MeteorSpawner>();
+            spawner.Configure(718);
+            try
+            {
+                var state = new MeteorSpawner.NetworkScarState
+                {
+                    Id = 1, Position = Vector3.zero, Rotation = Quaternion.identity,
+                    Moving = true,
+                };
+                spawner.ApplyNetworkScars(new[] { state }, true, 10);
+                state.Position = Vector3.right * 0.1f;
+                spawner.ApplyNetworkScars(new[] { state }, false, 10.05);
+                Assert.That(spawner.TryGetScarGhost(1, out var ghost), Is.True);
+                Assert.That(ghost.Body.position, Is.EqualTo(state.Position));
+                Assert.That(ghost.Body.isKinematic, Is.True);
+                Assert.That(ghost.Body.detectCollisions, Is.True);
+                Assert.That(ghost.enabled, Is.False);
+            }
+            finally
+            {
+                spawner.ClearNetworkScars();
+                Object.DestroyImmediate(go);
+            }
         }
 
         [Test]
