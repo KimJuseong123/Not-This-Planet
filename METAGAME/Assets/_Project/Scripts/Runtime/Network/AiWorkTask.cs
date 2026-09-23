@@ -18,6 +18,7 @@ namespace Metagame.Network
         readonly List<Object> ownedClaims = new List<Object>();
         PlayerRig self, speaker;
         PlayerRig rescueTarget;
+        readonly List<PlayerRig> downed = new List<PlayerRig>(3);
         float rescueBest, rescueAt;
         SpaceshipPart part;
         string action, destination;
@@ -197,26 +198,34 @@ namespace Metagame.Network
         /// </summary>
         bool BeginRevive()
         {
-            var target = NearestDowned();
-            if (target == null) { Finish(false, "기절한 동료가 없음"); return false; }
-            if (!Claim(target)) { Finish(false, "다른 동료가 이미 일으키러 감"); return false; }
-            rescueTarget = target; rescueBest = 0f; rescueAt = Time.time;
-            return true;
+            // **가까운 순서로 훑으며 아직 아무도 안 잡은 첫 대상을 고른다** (`!615` AI 리뷰).
+            //
+            // 전에는 최근접 하나만 보고 그것이 이미 잡혀 있으면 바로 포기했다. 그래서
+            // 둘이 쓰러진 방에서 `다들 살려줘` 를 하면 **두 번째 동료가 남은 사람을 두고
+            // 멈췄다** — 분담하라고 넣은 Claim 이 오히려 한 명을 놀게 만들었다.
+            CollectDowned();
+            foreach (var rig in downed)
+                if (Claim(rig)) { rescueTarget = rig; rescueBest = 0f; rescueAt = Time.time; return true; }
+            Finish(false, downed.Count == 0 ? "기절한 동료가 없음"
+                                            : "쓰러진 동료마다 이미 다른 동료가 가고 있음");
+            return false;
         }
 
-        PlayerRig NearestDowned()
+        /// <summary>쓰러진 동료를 <b>가까운 순서로</b> 모은다. 범위 밖은 없는 것으로 본다.</summary>
+        void CollectDowned()
         {
-            PlayerRig chosen = null;
-            float best = ReviveSearchRange * ReviveSearchRange;
+            downed.Clear();
             foreach (var player in NetPlayer.AllServerPlayers)
             {
                 var rig = player != null ? player.VisualRig : null;
                 if (rig == null || rig == self || !rig.Downed) continue;
                 if (rig.gameObject.scene != self.gameObject.scene) continue;
-                float distance = (rig.FootPosition - self.FootPosition).sqrMagnitude;
-                if (distance < best) { chosen = rig; best = distance; }
+                if ((rig.FootPosition - self.FootPosition).sqrMagnitude > ReviveSearchRange * ReviveSearchRange) continue;
+                downed.Add(rig);
             }
-            return chosen;
+            var from = self.FootPosition;
+            downed.Sort((a, b) => (a.FootPosition - from).sqrMagnitude
+                                  .CompareTo((b.FootPosition - from).sqrMagnitude));
         }
 
         InputFrame TickRevive()

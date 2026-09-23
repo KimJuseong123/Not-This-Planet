@@ -594,5 +594,38 @@ namespace Metagame.Gameplay.Tests
         public void AiStandsInsideTheAngleFreeReach()
             => Assert.That(AiWorkTask.ReviveReach, Is.LessThan(PhysicsScale.DownedRescueNearReach),
                 "AI 가 서는 거리가 각을 안 보는 거리보다 멀면 조용히 진행도가 안 찬다");
+
+        /// <summary>
+        /// <b>대상이 잡혀 있으면 다음 사람으로 넘어간다</b> (`!615` AI 리뷰).
+        ///
+        /// <para>처음에는 최근접 하나만 보고 그것이 잡혀 있으면 바로 포기했다. 그래서
+        /// 둘이 쓰러진 방에서 <c>다들 살려줘</c> 를 하면 <b>두 번째 동료가 남은 사람을
+        /// 두고 멈췄다</b> — 분담하라고 넣은 <c>Claim</c> 이 오히려 한 명을 놀게 했다.</para>
+        ///
+        /// <para>포기하는 <c>Finish</c> 가 <b>순회 뒤에</b> 와야 한다. 앞에 있으면 첫
+        /// 후보에서 끝난다는 뜻이고, 그것이 정확히 되돌아간 모양이다.</para>
+        /// </summary>
+        [Test]
+        public void ReviveTriesEveryDownedBeforeGivingUp()
+        {
+            var begin = TestSource.Method(
+                TestSource.Read("Runtime/Network/AiWorkTask.cs"), "bool BeginRevive()");
+
+            int loop = begin.IndexOf("foreach", System.StringComparison.Ordinal);
+            int claim = begin.IndexOf("Claim(", System.StringComparison.Ordinal);
+            int give = begin.IndexOf("Finish(", System.StringComparison.Ordinal);
+
+            Assert.That(loop, Is.GreaterThanOrEqualTo(0), "후보를 하나만 보면 분담이 깨진다");
+            Assert.That(claim, Is.GreaterThan(loop), "Claim 이 순회 안에서 일어나야 한다");
+            Assert.That(give, Is.GreaterThan(claim), "포기가 순회보다 앞에 있으면 첫 후보에서 끝난다");
+        }
+
+        /// <summary>가까운 사람부터 간다 — 순서가 없으면 둘이 엇갈려 간다.</summary>
+        [Test]
+        public void ReviveGoesToTheNearestFirst()
+            => Assert.That(TestSource.Method(
+                   TestSource.Read("Runtime/Network/AiWorkTask.cs"), "void CollectDowned()"),
+                   Does.Contain("Sort"),
+                   "거리순으로 세우지 않으면 가까운 사람을 두고 먼 사람에게 간다");
     }
 }
