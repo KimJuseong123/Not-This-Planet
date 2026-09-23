@@ -129,6 +129,41 @@ namespace Metagame.Gameplay.Tests
         public void GatheringSomewhereElseIsAMove(string action, string destination, bool expected)
             => Assert.That(AiCommandPlan.GathersAwayFromSpeaker(action, destination), Is.EqualTo(expected));
 
+        /// <summary>
+        /// <b>무엇을 누구에게 시켰는지 사람 말로</b> (S15P21B202-736).
+        ///
+        /// <para>명령 뒤 화면에 돌아가던 것은 <c>AI 동료 1명이 명령을 받았어요</c> 뿐이었다.
+        /// 그래서 헛말이 춤으로 실행돼도 플레이어는 동료가 왜 춤추는지 알 수 없었다.</para>
+        /// </summary>
+        [Test] public void TheSpokenResultNamesWhatWasOrdered()
+        {
+            Assert.That(AiCommandPlan.Spoken(new[] {
+                new AiCommandAssignment { recipients = "green", steps = new[] { Step("pull_pin") } } }),
+                Is.EqualTo("초록에게 고정못 뽑기"));
+
+            Assert.That(AiCommandPlan.Spoken(new[] {
+                new AiCommandAssignment { recipients = "all", steps = new[] { Step("pickup_bat"), Step("defend_meteors") } } }),
+                Is.EqualTo("모두에게 방망이 집기 다음 운석 막기"));
+
+            Assert.That(AiCommandPlan.Spoken(null), Is.Null, "빈 계획인데 할 말을 지어낸다");
+            Assert.That(AiCommandPlan.Spoken(new AiCommandAssignment[0]), Is.Null);
+        }
+
+        /// <summary>
+        /// <b>모르는 행동은 그대로 돌려준다.</b> 빈 문자열로 만들면 새 행동이 생겼을 때
+        /// 화면에서 조용히 사라진다 — 영어라도 보이는 편이 낫다.
+        /// </summary>
+        [Test] public void EveryActionHasAHumanName()
+        {
+            foreach (var action in AiWorkTask.Actions)
+                Assert.That(AiCommandPlan.ActionName(action), Is.Not.EqualTo(action),
+                    $"{action} 의 사람 말 이름이 없다 — 화면에 영어가 나온다");
+            foreach (var action in new[] { "follow", "wait", "gather", "cancel", "pull_pin" })
+                Assert.That(AiCommandPlan.ActionName(action), Is.Not.EqualTo(action), action);
+            Assert.That(AiCommandPlan.ActionName("newly_added"), Is.EqualTo("newly_added"),
+                "모르는 행동을 빈 문자열로 만들면 화면에서 조용히 사라진다");
+        }
+
         [Test] public void NavigationParametersAreAllowlisted()
         {
             Assert.That(AiCommandPlan.Destination("assembly"), Is.True);

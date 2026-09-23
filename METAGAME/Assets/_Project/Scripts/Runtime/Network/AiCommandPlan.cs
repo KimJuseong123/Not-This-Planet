@@ -66,6 +66,99 @@ namespace Metagame.Network
         public static bool GathersAwayFromSpeaker(string action, string destination)
             => action == "gather" && destination != "default" && destination != "speaker";
 
+        /// <summary>
+        /// 행동을 <b>사람 말로</b> (S15P21B202-736).
+        ///
+        /// <para>명령 뒤 화면에 돌아가던 것은 <c>AI 동료 1명이 명령을 받았어요</c> 뿐이라
+        /// <b>무엇을 시킨 것인지가 없었다.</b> 2026-09-23 QA 에서 헛말이 춤으로 실행됐는데
+        /// 플레이어는 동료가 왜 춤추는지 알 방법이 없었다.</para>
+        ///
+        /// <para>모르는 것은 <b>그대로 돌려준다.</b> 빈 문자열로 만들면 새 행동이 생겼을 때
+        /// 화면에서 조용히 사라진다 — 영어라도 보이는 편이 낫다.</para>
+        /// </summary>
+        public static string ActionName(string action)
+        {
+            switch (action)
+            {
+                case "follow": return "따라오기";
+                case "wait": return "기다리기";
+                case "gather": return "모이기";
+                case "goto": return "그곳으로 가기";
+                case "cancel": return "하던 일 그만두기";
+                case "revive": return "쓰러진 동료 일으키기";
+                case "pull_pin": return "고정못 뽑기";
+                case "pull_all_pins": return "고정못 모두 뽑기";
+                case "pickup_tool": return "도구 집기";
+                case "pickup_bat": return "방망이 집기";
+                case "pickup_welder": return "용접건 집기";
+                case "drop_tool": return "도구 내려놓기";
+                case "bring_tool": return "도구 가져다주기";
+                case "bring_bat": return "방망이 가져다주기";
+                case "bring_welder": return "용접건 가져다주기";
+                case "hit_target": return "연습공 때리기";
+                case "defend_meteors": return "운석 막기";
+                case "grab_part": return "파츠 잡고 있기";
+                case "release_part": return "파츠 놓기";
+                case "carry_part": return "파츠 옮기기";
+                case "weld": return "용접하기";
+                case "cut_weld": return "용접 떼기";
+                case "board_tractor": return "견인 장치 타기";
+                case "leave_tractor": return "견인 장치에서 내리기";
+                case "move_tractor": return "견인 장치 옮기기";
+                case "hold_tractor": return "견인 장치 자리 지키기";
+                case "lift_player": return "동료 올려주기";
+                case "lift_part": return "파츠 들어 올리기";
+                case "transport_part": return "파츠 운반하기";
+                case "stack_part": return "파츠 위에 쌓기";
+                case "dance": return "춤추기";
+                case "greet": return "인사하기";
+                case "heart": return "하트";
+                case "cheer": return "응원하기";
+                default: return action;
+            }
+        }
+
+        /// <summary>대상을 사람 말로. 색은 <see cref="TeamSlots.Names"/> 와 같아야 한다.</summary>
+        public static string RecipientName(string recipients)
+        {
+            switch (recipients)
+            {
+                case "all": return "모두";
+                case "one": return "한 명";
+                case "two": return "둘";
+                case "remaining": return "나머지";
+                case "red": return "빨강";
+                case "blue": return "파랑";
+                case "yellow": return "노랑";
+                case "green": return "초록";
+                default: return "가까운 동료";
+            }
+        }
+
+        /// <summary>
+        /// 말한 사람에게 돌려줄 한 줄 — <b>무엇을 누구에게 시켰는가</b> (S15P21B202-736).
+        ///
+        /// <para>계획이 비었으면 <c>null</c>. 부르는 쪽이 들은 말과 이어 붙인다.</para>
+        /// </summary>
+        public static string Spoken(AiCommandAssignment[] orders)
+        {
+            if (orders == null || orders.Length == 0) return null;
+            var text = new System.Text.StringBuilder();
+            for (int i = 0; i < orders.Length; i++)
+            {
+                var order = orders[i];
+                if (order == null || order.steps == null || order.steps.Length == 0) continue;
+                if (text.Length > 0) text.Append(", ");
+                text.Append(RecipientName(order.recipients)).Append("에게 ");
+                for (int s = 0; s < order.steps.Length; s++)
+                {
+                    if (s > 0) text.Append(" 다음 ");
+                    text.Append(ActionName(order.steps[s] != null ? order.steps[s].action : null));
+                }
+            }
+            return text.Length > 0 ? text.ToString() : null;
+        }
+
         public static bool Action(string action) => AiCompanionController.IsSocial(action) || AiWorkTask.Supports(action)
             || action == "follow" || action == "gather" || action == "wait" || action == "cancel" || action == "pull_pin";
         public static bool Recipients(string value) => value == "default" || value == "all" || value == "one" || value == "two"
