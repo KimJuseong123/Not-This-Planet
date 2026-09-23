@@ -149,6 +149,24 @@ check("num_gpu" not in code,
       "companion_plan.py 가 num_gpu 를 지정한다 — ollama 의 자동 판단을 덮어쓴다")
 print("  LLM 을 CPU 로 강제하지 않는다 ✅")
 
+# ── ⑥ 게임도 모델 이름을 들고 있지 않다
+#
+#     ②가 파이썬 세 곳만 봐서 **네 번째 자리를 놓쳤다** (S15P21B202-726). `AiLocalRuntime`
+#     이 `models/whisper-small-ko-zeroth/model.bin` 을 글자 그대로 찾고 있었고, 모델을 바꾸자
+#     설치를 마친 팩이 **"없는 팩"** 이 됐다. 그 사실은 1.9GB 를 받아 설치한 뒤에야 드러난다.
+#
+#     게임은 "팩이 깔렸는가" 만 알면 된다. 모델 식별은 워커의 일이다.
+RUNTIME = os.path.join(ROOT, "METAGAME", "Assets", "_Project", "Scripts",
+                       "Runtime", "Network", "AiLocalRuntime.cs")
+runtime = read(RUNTIME)
+code = "\n".join(line for line in runtime.splitlines()
+                 if not line.lstrip().startswith("///"))
+hard = re.findall(r'"([^"]*whisper[^"]*)"', code, re.I)
+check(not hard,
+      f"AiLocalRuntime.cs 가 모델 이름을 들고 있다: {hard} — "
+      "모델을 바꾸면 설치된 팩을 '없는 팩' 으로 본다")
+print("  게임도 모델 이름을 들고 있지 않다 ✅")
+
 if fails:
     print(f"\n❌ 실패 {len(fails)}건")
     for line in fails:

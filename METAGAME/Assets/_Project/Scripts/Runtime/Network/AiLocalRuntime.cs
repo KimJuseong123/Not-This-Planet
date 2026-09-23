@@ -124,8 +124,33 @@ namespace Metagame.Network
 
         public static bool HasPack(string root) => !string.IsNullOrEmpty(root)
             && File.Exists(Path.Combine(root, "runtime/ntp-ai-worker/ntp-ai-worker.exe"))
-            && File.Exists(Path.Combine(root, "models/whisper-small-ko-zeroth/model.bin"))
+            && HasAsrModel(Path.Combine(root, "models"))
             && File.Exists(Path.Combine(root, "models/ollama/manifests/registry.ollama.ai/library/qwen3/1.7b"));
+
+        /// <summary>
+        /// 받아쓰기 모델이 하나라도 있는가 — <b>어느 모델인지는 묻지 않는다</b> (S15P21B202-726).
+        ///
+        /// <para>전에는 <c>models/whisper-small-ko-zeroth/model.bin</c> 을 글자 그대로 찾았다.
+        /// 그래서 모델을 바꾸자 <b>설치를 마친 팩이 "없는 팩" 이 됐다</b> — 방장은 1.9GB 를
+        /// 받고 "설치 파일 누락" 을 보고, 버튼은 또 받으라고 한다.</para>
+        ///
+        /// <para>게임이 알아야 하는 것은 <b>"팩이 깔렸는가"</b> 뿐이다. 어느 모델을 쓰는지는
+        /// 워커가 정하고, 제 모델을 못 찾으면 워커가 <c>failed</c> 로 사유를 말한다. 그것을
+        /// 여기서 한 번 더, 다른 글자로 적으면 <b>한 문제를 두 곳이 다르게 푸는 것</b>이다.</para>
+        ///
+        /// <para><c>models/</c> 바로 아래만 본다. <c>ollama</c> 폴더의 blob 까지 뒤지지 않으므로
+        /// 이 검사는 프레임마다 돌아도 예전과 같은 값이다 (<c>AiRoomControls.NeedsPreparing</c>).</para>
+        /// </summary>
+        static bool HasAsrModel(string models)
+        {
+            try
+            {
+                foreach (string folder in Directory.EnumerateDirectories(models))
+                    if (File.Exists(Path.Combine(folder, "model.bin"))) return true;
+            }
+            catch (Exception) { }
+            return false;
+        }
 
         public static bool ValidHealth(string json)
         {
