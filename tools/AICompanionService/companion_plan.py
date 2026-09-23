@@ -88,8 +88,15 @@ def classify(text, url):
         response = client.post(url + "/api/chat", json={
             "model": "qwen3:1.7b", "stream": False, "think": False, "keep_alive": "10m",
             "messages": messages, "format": SCHEMA,
+            # `num_gpu` 를 주지 않는다 (S15P21B202-714). 예전에는 0 으로 **CPU 를 강제**해서
+            # ollama 의 자동 판단을 덮어썼다. 방장은 누구나 될 수 있으므로 GPU 를 강제해도
+            # 안 되고(내장 그래픽 PC 에서 터진다) 끄는 것도 답이 아니다 — 있으면 쓰고 없으면
+            # CPU 로 떨어지게 ollama 가 정하게 둔다.
+            #
+            # 정확도는 그대로다(2026-09-16 실측: "GPU — 속도만 1.5배, 정확도 동일"). 이것은
+            # 명령 뒤 2.7~4.2초 걸리던 **지연**을 줄이려는 것이다.
             "options": {"temperature": 0, "seed": 42, "num_predict": 640, "num_ctx": 4096,
-                        "num_thread": THREADS, "num_gpu": 0}})
+                        "num_thread": THREADS}})
         response.raise_for_status()
     data = response.json()
     raw = json.loads(data.get("message", {}).get("content", ""))

@@ -11,6 +11,11 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parent
 
+# 모델 이름은 engine.py 한 곳에만 둔다 (S15P21B202-714). 전에는 app.py ·
+# portable_worker.py · 여기 세 곳에 박혀 있어서, 모델을 바꿀 때 하나만 고치면
+# **굽는 것과 쓰는 것이 달라진다** — 그 어긋남은 팩을 다 굽고 나서야 드러난다.
+from engine import ASR_MODEL_NAME  # noqa: E402  (ROOT 를 정한 뒤 읽는다)
+
 
 def sha256(path):
     h = hashlib.sha256()
@@ -103,7 +108,7 @@ def main():
             shutil.copy2(item, cpu / item.name)
     if models.exists():
         raise SystemExit("Model destination already exists; use a fresh output. Nothing overwritten.")
-    copy_asr(args.model_root / "whisper-small-ko-zeroth", models / "whisper-small-ko-zeroth", args.tokenizer)
+    copy_asr(args.model_root / ASR_MODEL_NAME, models / ASR_MODEL_NAME, args.tokenizer)
     copy_llm(args.model_root / "ollama", models / "ollama")
     notices = runtime / "THIRD_PARTY"
     notices.mkdir(exist_ok=True)
@@ -121,7 +126,7 @@ def main():
     (notices / "dependency-inventory.json").write_text(json.dumps(dependencies, indent=2), encoding="utf-8")
     manifest = {"schema": 1, "version": "0.1.0-preview", "platform": "windows-x64-cpu", "protocol": "companion-v4",
                 "release_approved": False, "release_blockers": ["clean-PC validation", "model/runtime license review", "game integration"],
-                "models": ["qwen3:1.7b", "whisper-small-ko-zeroth"], "archives": []}
+                "models": ["qwen3:1.7b", ASR_MODEL_NAME], "archives": []}
     for name, folder in (("runtime", runtime), ("models", models)):
         files = inventory(folder)
         (folder / "files.json").write_text(json.dumps(files, indent=2), encoding="utf-8")

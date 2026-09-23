@@ -29,8 +29,12 @@ import companion_v4
 import companion_social
 import companion_plan
 
+# 모델 이름과 받아쓰기 힌트는 engine.py 한 곳에 있다 — 개발 서버(app.py)와 **같은 값을
+# 본다**. 갈리면 시험한 것과 게임에 나가는 것이 달라지고, 시험 쪽이 늘 더 좋아 보인다.
+from engine import ASR_CONTEXT, ASR_HOTWORDS, ASR_MODEL_NAME
+
 VERSION = "0.1.0-preview"
-ASR_NAME = "whisper-small-ko-zeroth"
+ASR_NAME = ASR_MODEL_NAME
 LLM_NAME = "qwen3:1.7b"
 
 
@@ -168,7 +172,8 @@ class Worker:
         if len(audio) > 16000 * 30:
             raise ValueError("audio_too_long")
         segments, _ = self.asr.transcribe(audio, language="ko", beam_size=1,
-                                         vad_filter=True, condition_on_previous_text=False)
+                                         vad_filter=True, condition_on_previous_text=False,
+                                         initial_prompt=ASR_CONTEXT, hotwords=ASR_HOTWORDS)
         return " ".join(s.text.strip() for s in segments).strip()
 
     def execute(self, text=None, raw=None, social=False, plan=False):

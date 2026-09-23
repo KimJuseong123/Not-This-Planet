@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Metagame.Core;
 using Metagame.Gameplay.Interaction;
 using Metagame.Network;
+using Metagame.UI;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -407,6 +408,58 @@ namespace Metagame.Gameplay.Tests
                 "고정쇠 인터랙터까지 각도를 안 보게 됐다.");
             Assert.That(me.RescueInteractor.NearRadius,
                 Is.EqualTo(PhysicsScale.DownedRescueNearReach).Within(0.001f));
+        }
+
+        [Test]
+        public void RescuerDisplaysTheTargetsServerGaugeInsteadOfLocalPrediction()
+        {
+            var me = MakePlayer(Vector3.zero);
+            me.ServerAuthority = false;
+            var target = MakeRemoteDowned(new Vector3(0f, 0f, 1f));
+            me.RescueInteractor.Tick(0.02f);
+            Assert.IsTrue(me.RescueInteractor.TryBeginFocused());
+            me.RescueInteractor.Tick(0.2f);
+            target.SetRemoteBeingRescued(0.65f);
+            target.SetRemoteRescueAccumulated(0.65f);
+            Assert.AreEqual(target.BeingRescuedProgress01, me.RescueDisplayProgress01);
+            Assert.AreNotEqual(me.RescueProgress01, me.RescueDisplayProgress01);
+
+            me.RescueInteractor.Cancel();
+            me.RescueInteractor.Tick(0f);
+            target.SetRemoteBeingRescued(0f);
+            Assert.AreEqual(0.65f, me.RescueDisplayProgress01, 0.0001f);
+            Assert.IsFalse(DownedRescueHud.ShouldDrawBeingRescued(true, target.BeingRescuedProgress01));
+
+            Assert.IsTrue(me.RescueInteractor.TryBeginFocused());
+            target.SetRemoteBeingRescued(0.7f);
+            Assert.AreEqual(0.7f, me.RescueDisplayProgress01, 0.0001f);
+            target.SetRemoteDowned(false);
+            Assert.Zero(me.RescueDisplayProgress01);
+        }
+
+        [Test]
+        public void HoldingShowsProgressEvenBeforeTheFirstServerSnapshot()
+        {
+            Assert.AreEqual(DownedRescueHud.RescueHudView.Progress,
+                DownedRescueHud.Decide(false, 0f, true, 0f, true));
+            Assert.AreEqual(DownedRescueHud.RescueHudView.Prompt,
+                DownedRescueHud.Decide(false, 0f, true, 0f, false));
+            Assert.AreEqual(DownedRescueHud.RescueHudView.None,
+                DownedRescueHud.Decide(false, 0f, false, 0.5f, true));
+        }
+
+        [Test]
+        public void AccumulatedSnapshotCannotOverrideServerOrLivingPlayer()
+        {
+            var player = MakePlayer(Vector3.zero);
+            player.GoDown("test");
+            player.SetRemoteRescueAccumulated(0.8f);
+            Assert.Zero(player.RescueAccumulatedProgress01);
+            player.ServerAuthority = false;
+            player.SetRemoteRescueAccumulated(1.5f);
+            Assert.AreEqual(1f, player.RescueAccumulatedProgress01);
+            player.SetRemoteDowned(false);
+            Assert.Zero(player.RescueAccumulatedProgress01);
         }
 
         PlayerRig MakeRemoteDowned(Vector3 foot)

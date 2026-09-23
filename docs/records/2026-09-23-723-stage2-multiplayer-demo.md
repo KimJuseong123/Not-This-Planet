@@ -88,3 +88,18 @@ Build method: `Metagame.EditorTools.Stage2Validation.BuildNetworkSmoke`.
   network clock after the start snapshot, rather than waiting for each new frame.
 - Manual acceptance: with 2–4 players enter Stage2 from the Stage1 ending, verify
   the same intro/assembly/final card on every peer, ESC open/close, and lobby exit.
+## 725-first merge preparation (2026-09-23)
+
+- Integrated the current 725 tip `2700f409` into 723 without rewriting published history.
+  This also includes its develop baseline `af143761`.
+- 725 was revised upstream: it now contains replica diagnostics and size tests only;
+  the reliable-channel correction remains in 723. Both contributions are retained.
+- The merge was conflict-free. A temporary Git-tree simulation of 725 squashed onto
+  develop followed by 723 also completed without conflicts; no target branch was
+  changed by the simulation. This result applies to the above inspected tips.
+- Combined Unity batch run: Stage2DemoTests 4/4 and Stage2SnapshotSizeTests 2/2,
+  **6 passed / 0 failed** (`artifacts/723-validation/merge-725.xml`).
+- Relative to 725, the 723 change remains its original five files, including this
+  record. Generated Unity settings changes were restored before committing.
+- Intended integration order: merge 725 into develop, then merge 723 into develop.
+  Demo-specific bandwidth optimization is a separate change and is not included.
