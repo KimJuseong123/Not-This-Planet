@@ -64,8 +64,14 @@ namespace Metagame.Network
         /// 잊어도 <c>netdiag.py</c> 가 짝지을 줄이 없어 <b>판 하나가 통째로 버려진다</b> —
         /// 그때는 이미 다 놀고 난 뒤다. 켜는 일을 사람 기억에 맡기지 않는다.</para>
         ///
-        /// <para>릴리스 빌드(<c>버전=vX.Y.Z</c>)와 새벽 개발 빌드(<c>dev-…</c>)는 그대로
-        /// 꺼져 있다 — 켜지는 것은 <b>MR 버튼으로 만든 <c>qa-…</c> 빌드</b>뿐이다.</para>
+        /// <para><b>개발 단계에서 시험하는 빌드는 다 켠다</b> (S15P21B202-711). 전에는
+        /// <c>qa-</c> 만 켰는데, 그 규칙은 "QA 는 MR 버튼 빌드로 한다" 를 가정했다.
+        /// <b>실제로는 <c>dev-</c> 빌드로도 QA 한다</b> — 2026-09-22 에 그 판의 성능
+        /// 자료가 통째로 없었고, 2026-09-23 에는 MR 이 다 머지돼 <c>qa-</c> 를 만들
+        /// 길조차 없었다. 전제와 실제가 어긋나는 자리를 없앤다.</para>
+        ///
+        /// <para>릴리스 빌드(<c>버전=vX.Y.Z</c>)는 그대로 꺼져 있다. 손으로 만든 빌드
+        /// (신원이 빈 문자열)도 꺼져 있다 — 켜는 쪽은 <b>이름이 붙은 빌드</b>뿐이다.</para>
         /// </summary>
         public static bool Requested =>
             EnabledFor(System.Environment.GetCommandLineArgs(),
@@ -74,6 +80,9 @@ namespace Metagame.Network
 
         /// <summary>QA 빌드 신원의 머리표. <c>publish_devbuild.py</c> 가 <c>qa-&lt;MR&gt;-&lt;sha&gt;</c> 로 짓는다.</summary>
         public const string QaBuildPrefix = "qa-";
+
+        /// <summary>새벽·develop 개발 빌드 신원의 머리표. <c>dev-&lt;날짜&gt;-&lt;sha&gt;</c> 다.</summary>
+        public const string DevBuildPrefix = "dev-";
 
         /// <summary>
         /// 무엇이 들어오면 켜지는가 (S15P21B202-658).
@@ -91,8 +100,12 @@ namespace Metagame.Network
 
             if (envValue == "1") return true;
 
-            return (buildId ?? string.Empty).Trim()
-                   .StartsWith(QaBuildPrefix, System.StringComparison.OrdinalIgnoreCase);
+            // **개발 단계의 빌드는 둘 다 켠다** (S15P21B202-711). `qa-` 만 켜던 규칙은
+            // "QA 는 MR 버튼 빌드로 한다" 를 가정했는데 실제로는 `dev-` 로도 한다.
+            // 릴리스(`v…`)와 손으로 만든 빌드(신원 없음)는 여기 안 걸린다.
+            var id = (buildId ?? string.Empty).Trim();
+            return id.StartsWith(QaBuildPrefix, System.StringComparison.OrdinalIgnoreCase)
+                   || id.StartsWith(DevBuildPrefix, System.StringComparison.OrdinalIgnoreCase);
         }
 
         void Start()
