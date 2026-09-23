@@ -69,6 +69,14 @@ namespace Metagame.UI
             if (recording && (!CanRecord(session) || !Ready || session != recordingSession || local != recordingOwner
                 || (GameSettingsRuntime.Instance?.Current?.voice?.microphoneMuted ?? false)))
             { Cancel(); return; }
+            // **묻히고 있으면 말하는 도중에 말해 준다** (S15P21B202-735). 전에는 V 를 놓은
+            // 뒤에야 "목소리가 들리지 않았어요" 가 나왔다 — 그때는 이미 10초를 쓴 뒤고,
+            // 다시 말해도 같은 목소리로 되풀이하게 된다.
+            if (recording && microphone != null && microphone.Capturing
+                && Time.realtimeSinceStartup - started > QuietNotice && !microphone.Speaking
+                && Time.unscaledTime >= noticeUntil)
+                Notify("목소리가 잡음에 묻혀요 · 더 크게 말해 주세요", 1.5f);
+
             if (recording && Time.realtimeSinceStartup - started >= AiVoicePacket.Seconds)
             { SendRecording(); return; }
             if (recording && !Input.GetKey(KeyCode.V))
@@ -108,6 +116,54 @@ namespace Metagame.UI
             Notify("AI가 듣고 생각하는 중…", 95);
         }
         void Notify(string message, float seconds = 4) { notice = message; noticeUntil = Time.unscaledTime + seconds; }
+
+        /// <summary>
+        /// 막대의 오른쪽 끝이 뜻하는 크기 (S15P21B202-735).
+        ///
+        /// <para>보통 말소리의 rms 는 0.02~0.08 이고 문턱은 0.003 근처다. 1.0 을 끝으로
+        /// 잡으면 <b>막대가 거의 안 움직여</b> 아무것도 못 말한다.</para>
+        /// </summary>
+        public const float LevelFullScale = .12f;
+
+        /// <summary>
+        /// 이만큼 말했는데도 말로 안 쳐지면 <b>그 자리에서</b> 알려 준다(초).
+        ///
+        /// <para>너무 짧으면 숨 고르는 사이에도 뜨고, 너무 길면 말이 다 끝난 뒤가 된다.
+        /// 최대 녹음이 8초이므로 그 안에서 다시 말할 여유가 남는 값이어야 한다.</para>
+        /// </summary>
+        public const float QuietNotice = 1.2f;
+
+        /// <summary>
+        /// <b>지금 내 목소리가 들어가고 있는가</b>를 말하는 동안 보여 준다 (S15P21B202-735).
+        ///
+        /// <para>전에는 글자 두 줄뿐이라, 시끄러운 방에서 목소리가 묻히는지 알 수 없었다.
+        /// 알게 되는 것은 V 를 놓은 <b>뒤</b>였고(<c>목소리가 들리지 않았어요</c>) 그때는
+        /// 이미 10초를 쓴 뒤다.</para>
+        ///
+        /// <para><b>문턱 선을 같이 그린다.</b> 크기만 보여 주면 "이 정도면 큰 건가" 를 알 수
+        /// 없다 — 필요한 것은 내 목소리가 <b>잡음 위에 있는가</b> 이고, 그 선이 곧 필터가
+        /// 말/침묵을 가르는 자리다.</para>
+        /// </summary>
+        void DrawLevel()
+        {
+            if (!recording || microphone == null || !microphone.Capturing) return;
+
+            float w = Screen.width * .3f, h = 10f;
+            var box = new Rect((Screen.width - w) * .5f, Screen.height - 118, w, h);
+            GUI.color = new Color(1, 1, 1, .18f);
+            GUI.DrawTexture(box, Texture2D.whiteTexture);
+
+            float level = Mathf.Clamp01(microphone.Level / LevelFullScale);
+            GUI.color = microphone.Speaking ? new Color(.45f, .85f, .45f, .9f)
+                                            : new Color(.9f, .75f, .3f, .9f);
+            GUI.DrawTexture(new Rect(box.x, box.y, box.width * level, h), Texture2D.whiteTexture);
+
+            // 말로 치는 문턱. 막대가 이 선을 넘어야 들어간다.
+            float floor = Mathf.Clamp01(microphone.SpeechFloor / LevelFullScale);
+            GUI.color = new Color(1, 1, 1, .55f);
+            GUI.DrawTexture(new Rect(box.x + box.width * floor, box.y - 2f, 2f, h + 4f), Texture2D.whiteTexture);
+            GUI.color = Color.white;
+        }
         void Cancel()
         {
             if (recording) recordingOwner?.CancelAiListening();
@@ -131,6 +187,7 @@ namespace Metagame.UI
                 : "마이크는 V를 누르는 동안에만 켜집니다");
             if (label == null) { UiTheme.Ensure(); label = new GUIStyle(GUI.skin.label) { fontSize = 17, alignment = TextAnchor.MiddleCenter, wordWrap = true }; }
             GUI.Label(new Rect(Screen.width * .2f, Screen.height - 100, Screen.width * .6f, 70), mic + "\n" + text, label);
+            DrawLevel();
         }
     }
 }
