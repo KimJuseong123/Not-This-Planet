@@ -132,6 +132,58 @@ check(CODE.find("unity_report.py") < i_meas,
 
 
 print(f"  기준 {S.THRESHOLD_SECONDS:g}초 · 파일 {S.FILTER_FILE}·{S.LIST_FILE}·{S.EXPECT_FILE}")
+
+# ── 받는 쪽 (S15P21B202-701) ────────────────────────────────────────────────
+#
+# 재는 쪽이 돌고 있었는데 **읽는 쪽이 없어서** 사람이 세 번 손으로 붙였다
+# (`-602`·`-611`·`-731`). 아래는 그 읽는 쪽이 조용히 틀리지 않는가를 본다.
+
+# ① 집합은 한 방향으로만 자란다
+#
+#    매일 그날 느린 것만 빼면 어제 느렸던 테스트가 오늘 4.9초라고 MR 로 돌아온다.
+#    시간이 들쭉날쭉해지고, 무엇이 왜 빠졌는지 아무도 모르게 된다.
+kept, left = S.merge_monotone(["A", "B"], [(9.0, "C"), (8.0, "A")], cap=5)
+check(set(kept) >= {"A", "B"}, f"이전 집합을 잃었다: {kept}")
+check("C" in kept, f"새로 잰 것을 안 더했다: {kept}")
+check(left == [], f"상한 안인데 남겼다: {left}")
+
+# ② 상한에 걸린 것은 **버리지 않고 돌려준다**
+#
+#    조용히 자르면 "왜 아직 안 빠지지" 를 아무도 못 본다.
+kept, left = S.merge_monotone([], [(9.0, "X"), (8.0, "Y"), (7.0, "Z")], cap=1)
+check(kept == ["X"], f"상한을 안 지켰다: {kept}")
+check(left == ["Y", "Z"], f"넘친 것을 안 돌려줬다: {left}")
+
+# ③ 머리말이 이름으로 읽히지 않는다
+names = S.names_from_list(S.HEADER + "    9.00" + chr(9) + "Cls.Test" + chr(10))
+check(names == ["Cls.Test"], f"목록을 되돌리지 못했다: {names}")
+
+# ④ **0건 실행에 초록**을 잡는다 — 이 방식에서 가장 위험한 실패다
+check(S.enough(0, 100) is False, "정규식이 다 걸러도 통과시킨다")
+check(S.enough(50, 100) is True, "예상의 절반이면 통과여야 한다")
+check(S.enough(10, 0) is True, "예상이 없으면 막지 않는다")
+
+# ⑤ 받는 쪽이 `.gitlab-ci.yml` 에 **실제로 배선돼 있다**
+#
+#    스크립트만 있고 부르는 곳이 없던 것이 `-701` 이 존재한 이유다. 같은 일이
+#    다시 나지 않게 값으로 못박는다.
+i_apply = CODE.find("slow_tests.py apply")
+i_filter = CODE.find("-testFilter")
+i_verify = CODE.find("slow_tests.py verify")
+check(i_apply >= 0, "목록을 받아 오는 곳이 없다 — 재기만 하고 아무도 안 읽는다")
+check(i_filter > i_apply >= 0, "받아 온 목록을 -testFilter 로 넘기지 않는다")
+check(i_verify > i_filter >= 0, "거른 뒤 정말 돌았는지 확인하지 않는다")
+
+# ⑥ 거르는 배선이 **전체 실행 가지 앞**에 있다
+#
+#    전체 실행은 거르면 안 된다 — 재는 쪽이자, 검증이 사라지면 안 되는 쪽이다.
+#    거르는 줄이 그 가지 안이나 뒤로 옮겨 가면 새벽이 스스로를 걸러 버린다.
+i_full = CODE.find("(전체)")
+check(i_full >= 0, "전체 실행 가지를 못 찾았다 — 이 검사가 헛돈다")
+check(0 <= i_filter < i_full,
+      "거르는 줄이 전체 실행 가지 안이나 뒤에 있다 — 새벽이 스스로를 걸러 버린다")
+print("  받아 읽고 · 한 방향으로 자라고 · 0건 실행을 잡는다 ✅")
+
 if fails:
     print(f"\n❌ 실패 {len(fails)}건")
     for f in fails:
