@@ -14,6 +14,7 @@ namespace Metagame.Gameplay.Tests
 {
     public sealed class FpsOverlayTests
     {
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-731)
         [UnityTest]
         public IEnumerator PreviewCancelSaveResetAndOwnerLifetime()
         {

@@ -37,6 +37,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(tally.Summary(), Is.EqualTo(" · 거절 1: 알 수 없음"));
         }
 
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-731)
         [UnityTest]
         public IEnumerator HostAssignsCountsProtectsBusyActorsAndSharesSocialSignals()
         {

@@ -52,6 +52,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(stage.MusicRepeatDelaySeconds, Is.EqualTo(5f));
         }
 
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-731)
         [UnityTest]
         public IEnumerator LegacyWaitRemainsAndNewGameplayTracksLoopWithoutGaps()
         {
@@ -121,6 +122,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(repeat.Tick(3d, false, 5f), Is.EqualTo(MusicRepeatStep.Start));
         }
 
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-731)
         [UnityTest]
         public IEnumerator ReplicatedAssaultPersistsIntoCombatAndSettingsAndDisableApply()
         {
@@ -170,6 +172,7 @@ namespace Metagame.Gameplay.Tests
             yield return new ExitPlayMode();
         }
 
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-731)
         [UnityTest]
         public IEnumerator EndingWaitsForSharedStartAndLateJoinSeeksCrashCue()
         {
