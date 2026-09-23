@@ -4071,11 +4071,28 @@ namespace Metagame.Gameplay
         {
             var candidate = RescueCandidate;
             string now = candidate != null ? candidate.Nickname : null;
-            if (now == lastRescueCandidate) return;
 
-            lastRescueCandidate = now;
-            Debug.Log("[NotThisPlanet][구조] 후보 "
-                      + (now != null ? $"O · 대상={now}" : "X · 겨냥 안에 기절한 동료가 없다"));
+            // **"겨냥조차 안 했다" 와 "겨냥했는데 후보가 안 됐다" 를 가른다**
+            // (S15P21B202-691). 2026-09-22 QA 신고가 "살리기 안 되는 듯" 이었는데
+            // 로그에 `후보 O` 가 0줄이었다. 그 0줄로는 고칠 곳이 표시인지 판정인지
+            // 알 수 없었고, 그래서 이슈가 한 판을 더 기다려야 했다.
+            var rejected = RescueInteractor != null ? RescueInteractor.RejectedNearest : null;
+            string key = now != null ? "O:" + now
+                       : rejected != null ? "X:" + RescueInteractor.RejectedReason
+                       : "X:없음";
+            if (key == lastRescueCandidate) return;
+
+            lastRescueCandidate = key;
+            if (now != null) Debug.Log($"[NotThisPlanet][구조] 후보 O · 대상={now}");
+            else if (rejected != null)
+                Debug.Log("[NotThisPlanet][구조] 후보 X · 가장 가까운 기절자가 "
+                          + RescueInteractor.RejectedReason
+                          + $" · 거리={RescueInteractor.RejectedDistance:F1}m"
+                          + $" · 각={RescueInteractor.RejectedAngle:F0}도"
+                          + $" (닿는 거리 {PhysicsScale.DownedCarryReach:F1}m"
+                          + $" · 겨냥 {PhysicsScale.DownedCarryAngle:F0}도"
+                          + $" · 발치 {PhysicsScale.DownedRescueNearReach:F1}m 안은 각 무시)");
+            else Debug.Log("[NotThisPlanet][구조] 후보 X · 주변에 기절한 동료가 없다");
         }
 
         /// <summary>

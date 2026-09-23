@@ -148,6 +148,87 @@ namespace Metagame.Gameplay.Tests
         sealed class NotARescuePoint : InteractableBase { }
 
         /// <summary>
+        /// <b>떨어진 이유가 남는다</b> (S15P21B202-691).
+        ///
+        /// <para>2026-09-22 QA 신고가 <i>"살리기 안 되는 듯"</i> 이었는데 로그에
+        /// <c>후보 O</c> 가 <b>0줄</b>이었다. 그 0줄은 <b>겨냥조차 안 했다</b> 와
+        /// <b>겨냥했는데 후보가 안 됐다</b> 를 같게 만든다 — 고칠 곳이 표시인지
+        /// 판정인지 갈리는데도. 그래서 이슈가 한 판을 더 기다려야 했다.</para>
+        ///
+        /// <para><b>글자가 아니라 동작으로 잰다</b>(`-448` 과 같은 이유).</para>
+        /// </summary>
+        [TestCase(5f, 0f, "너무 멀다")]
+        [TestCase(2f, 60f, "겨냥 밖")]
+        public void ARejectedRescuePointSaysWhy(float distance, float offAngle, string reason)
+        {
+            var owner = new GameObject("인터랙터");
+            try
+            {
+                var interactor = Build(owner);
+                var target = Place(owner, distance, offAngle);
+
+                interactor.ExtraCandidates = into => into.Add(target);
+                interactor.Tick(0.02f);
+
+                Assert.IsNull(interactor.Focus, "떨어져야 하는 대상이 포커스가 됐다");
+                Assert.That(interactor.RejectedNearest, Is.SameAs((IInteractable)target),
+                    "떨어진 대상을 남기지 않으면 로그가 여전히 '후보 X' 한 줄이다");
+                Assert.That(interactor.RejectedReason, Is.EqualTo(reason));
+                Assert.That(interactor.RejectedDistance, Is.EqualTo(distance).Within(0.05f),
+                    "거리를 밖에서 다시 재지 않으려고 여기서 남긴다 — 값이 틀리면 뜻이 없다");
+            }
+            finally { Object.DestroyImmediate(owner); }
+        }
+
+        /// <summary>
+        /// <b>발치에 있으면 각을 묻지 않는다</b>(S15P21B202-699) — 그때는 떨어진 것도 없다.
+        ///
+        /// <para>이 경우까지 "떨어졌다" 로 남기면 <b>살리는 중에도 사유가 찍혀</b> 로그를
+        /// 읽는 사람이 실패로 오해한다.</para>
+        /// </summary>
+        [Test]
+        public void AtTheFeetNothingIsRejected()
+        {
+            var owner = new GameObject("인터랙터");
+            try
+            {
+                var interactor = Build(owner);
+                var target = Place(owner, 0.5f, 60f);   // NearRadius 1.2m 안 · 각은 크다
+
+                interactor.ExtraCandidates = into => into.Add(target);
+                interactor.Tick(0.02f);
+
+                Assert.That(interactor.Focus, Is.SameAs((IInteractable)target),
+                    "발치 예외가 깨졌다 — 살리러 다가가면 후보에서 떨어진다");
+                Assert.IsNull(interactor.RejectedNearest, "붙잡았는데 떨어진 것으로도 남긴다");
+            }
+            finally { Object.DestroyImmediate(owner); }
+        }
+
+        static Interactor Build(GameObject owner)
+        {
+            var aim = new GameObject("조준").transform;
+            aim.SetParent(owner.transform, false);
+            aim.localPosition = Vector3.zero;
+            aim.localRotation = Quaternion.identity;
+
+            var interactor = owner.AddComponent<Interactor>();
+            // 게임과 같은 값으로 잰다 — 시험만의 숫자를 쓰면 실제와 어긋난다.
+            interactor.Configure(aim, PhysicsScale.DownedCarryReach, PhysicsScale.DownedCarryAngle);
+            interactor.NearRadius = PhysicsScale.DownedRescueNearReach;
+            return interactor;
+        }
+
+        static NotARescuePoint Place(GameObject owner, float distance, float offAngle)
+        {
+            var go = new GameObject("기절한 동료의 구조 지점");
+            go.transform.SetParent(owner.transform, false);
+            go.transform.localPosition =
+                Quaternion.Euler(0f, offAngle, 0f) * Vector3.forward * distance;
+            return go.AddComponent<NotARescuePoint>();
+        }
+
+        /// <summary>
         /// <b>홀드를 도는 곳이 있다.</b> 이것이 없어서 기능이 돌지 않았다 —
         /// <c>DownedRescue</c> 는 완성돼 있었고 부르는 곳만 없었다.
         /// </summary>
