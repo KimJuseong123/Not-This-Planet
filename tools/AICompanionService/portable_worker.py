@@ -29,12 +29,13 @@ import companion_v4
 import companion_social
 import companion_plan
 
+# 모델 이름과 받아쓰기 힌트는 engine.py 한 곳에 있다 — 개발 서버(app.py)와 **같은 값을
+# 본다**. 갈리면 시험한 것과 게임에 나가는 것이 달라지고, 시험 쪽이 늘 더 좋아 보인다.
+from engine import ASR_CONTEXT, ASR_HOTWORDS, ASR_MODEL_NAME
+
 VERSION = "0.1.0-preview"
 ASR_NAME = ASR_MODEL_NAME
 LLM_NAME = "qwen3:1.7b"
-
-# 받아쓰기 힌트는 engine.py 에 있다 — 개발 서버(app.py)와 **같은 값을 본다**.
-from engine import ASR_CONTEXT, ASR_HOTWORDS, ASR_MODEL_NAME
 
 
 def check_models(root: Path):

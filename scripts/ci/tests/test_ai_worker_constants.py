@@ -78,6 +78,35 @@ for name in ("app.py", "portable_worker.py", "build_portable.py"):
           f"{name} 이 ASR_MODEL_NAME 을 쓰지 않는다")
 print("  쓰는 쪽 셋이 모두 공용 상수를 본다 ✅")
 
+# ── ②-b 가져오기가 **쓰기보다 먼저** 온다
+#
+#     `!606` AI 리뷰가 잡은 것이다. import 를 나중에 덧붙이면 모듈이 읽히는 순간
+#     `NameError` 로 **워커가 아예 안 뜬다.** 그런데 그 실패는 추가팩을 다 굽고 올려
+#     실행해 봐야 드러난다 — 2.34GB 를 버린 뒤다.
+#
+#     실제로 import 해 보는 것이 가장 확실하지만 faster-whisper·fastapi 가 필요해
+#     CI 에서는 못 한다. 그래서 **순서만** 글자로 본다.
+for name in ("app.py", "portable_worker.py", "build_portable.py"):
+    source = read(AI, name)
+    tree = ast.parse(source)
+    imported = None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "engine":
+            names = {a.name for a in node.names}
+            if "ASR_MODEL_NAME" in names or "ASR_CONTEXT" in names:
+                imported = node.lineno if imported is None else min(imported, node.lineno)
+    check(imported is not None, f"{name} 이 engine 에서 상수를 가져오지 않는다")
+    if imported is None:
+        continue
+    used = [n.lineno for n in ast.walk(tree)
+            if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)
+            and n.id in ("ASR_MODEL_NAME", "ASR_CONTEXT", "ASR_HOTWORDS")]
+    first = min(used) if used else None
+    check(first is None or first > imported,
+          f"{name}:{first} 이 {imported}행의 import 보다 먼저 상수를 쓴다 — "
+          "모듈을 읽는 순간 NameError 로 기동하지 못한다")
+print("  가져오기가 쓰기보다 먼저 온다 ✅")
+
 # ── ③ 받아쓰기가 힌트를 실제로 넘긴다
 #
 #     상수만 있고 안 넘기면 **아무 일도 일어나지 않는다.** 2026-09-23 실측으로 이것이
