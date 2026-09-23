@@ -29,6 +29,24 @@ namespace Metagame.Gameplay.Tests
                         Is.EqualTo(" · 거절 3: 기절해 있음 ×2, 설 자리를 못 찾음"));
         }
 
+        /// <summary>
+        /// <b>규칙을 만들어 놓고 안 읽으면 아무것도 안 바뀐다</b> (S15P21B202-729).
+        ///
+        /// <para>먼 곳으로 모이는 것을 <c>goto</c> 로 넘기는 쪽(<c>Apply</c>)과, 그때
+        /// 말한 사람 옆자리를 잡지 않는 쪽(<c>ExecutePlan</c>) <b>둘 다</b> 같은 규칙을
+        /// 봐야 한다. 한쪽만 읽으면 조립대로 보내면서 말한 사람 주변에 설 자리를 찾고,
+        /// 그 자리가 없으면 <b>가 보지도 못하고 거절</b>된다.</para>
+        /// </summary>
+        [Test] public void BothSidesReadTheGatherRule()
+        {
+            Assert.That(TestSource.Blank(TestSource.Read("Runtime/Network/AiCompanionController.cs")),
+                        Does.Contain("GathersAwayFromSpeaker"),
+                        "Apply 가 안 읽으면 조립대로 모여도 말한 사람 앞으로 온다");
+            Assert.That(TestSource.Blank(TestSource.Read("Runtime/Network/AiGroupOrders.cs")),
+                        Does.Contain("GathersAwayFromSpeaker"),
+                        "ExecutePlan 이 안 읽으면 설 자리가 없다고 거절될 수 있다");
+        }
+
         /// <summary>사유 없는 거절은 <b>사유 없음이라고 적는다</b> — 조용히 사라지지 않는다.</summary>
         [Test] public void MissingReasonStillCounts()
         {

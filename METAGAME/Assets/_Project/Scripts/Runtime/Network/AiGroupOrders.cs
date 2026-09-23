@@ -148,7 +148,11 @@ namespace Metagame.Network
                 {
                     if (ai == null) continue;
                     var first = assignment.steps[0];
-                    bool place = first.action == "gather" || (first.action == "follow" && group.Count > 1) || first.approach;
+                    // **먼 곳으로 모이는 것은 말한 사람 옆자리를 잡지 않는다**
+                    // (S15P21B202-729). 그러지 않으면 조립대로 보내면서 말한 사람 주변에
+                    // 설 자리를 찾고, 그 자리가 없으면 **가 보지도 못하고 거절**된다.
+                    bool place = (first.action == "gather" && !AiCommandPlan.GathersAwayFromSpeaker(first.action, first.destination))
+                                 || (first.action == "follow" && group.Count > 1) || first.approach;
                     Vector3 offset = default;
                     if (place && !FindPlace(ai, speaker, reservedPlaces, out offset)) { refusals.Add("설 자리를 못 찾음"); continue; }
                     if (!ai.TryApplyAiPlan(assignment.steps, speaker, out string refusal)) { refusals.Add(refusal); continue; }

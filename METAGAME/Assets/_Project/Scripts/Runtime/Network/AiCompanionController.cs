@@ -67,6 +67,14 @@ namespace Metagame.Network
             if (action == "pull_pin") { pinOrder = true; pin.Begin(self, speaker); return true; }
             if (action == "gather")
             {
+                // 말한 사람 쪽이 아니면 `goto` 와 같은 일이다 (S15P21B202-729). 새로 짜지
+                // 않고 그쪽에 넘긴다 — 두 곳이 같은 일을 각자 하면 한쪽만 고쳐진다.
+                if (AiCommandPlan.GathersAwayFromSpeaker(action, destination))
+                {
+                    workOrder = true;
+                    if (work.Begin("goto", self, speaker, destination)) return true;
+                    refusal = "모일 자리를 못 찾음"; return false;
+                }
                 gather = true;
                 if (follow.Apply("follow", speaker)) return true;
                 refusal = "따라갈 상대를 못 잡음"; return false;
