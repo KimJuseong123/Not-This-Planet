@@ -292,7 +292,21 @@ namespace Metagame.Gameplay.Parts
                 var chain = _chains[i];
                 padIntact |= state.PadWeldIntact;
                 if (state.BlobCount == chain.Blobs.Count && state.TipRadius == chain.TipRadius)
+                {
+                    // **비드가 그대로여도 접촉은 다시 본다** (S15P21B202-732).
+                    //
+                    // 접촉은 비드가 아니라 **세계의 상태**다. `WorldSync` 는 새 용접
+                    // 입력이 없어도 같은 스냅샷을 되풀이해 보내는데, 그 사이에 상대
+                    // 파츠가 움직여 닿을 수 있다. 여기서 건너뛰면 참가자 화면에서
+                    // **용접이 닿았는데 붙지 않은 것처럼 보인다** — 외곽선도 안 켜지고
+                    // 조립 판정도 안 선다. 방장은 원본을 갖고 있어 멀쩡하므로
+                    // **참가자만 겪는다.**
+                    //
+                    // 이 최적화가 아끼려던 것은 콜라이더·머티리얼을 부수고 다시 만드는
+                    // 비용이다. 접촉 재검사는 그 안에 없다.
+                    RefreshContact(i);
                     continue;
+                }
 
                 changed = true;
                 while (chain.Blobs.Count > state.BlobCount)
