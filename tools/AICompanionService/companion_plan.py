@@ -166,9 +166,21 @@ def classify(text, url):
     if ghost:
         plan = {"status": "none", "orders": []}
 
+    # **판단에 걸린 시간을 따로 남긴다** (S15P21B202-734). 전에도 재고는 있었는데
+    # `execute` 가 `elapsed_ms` 를 받아쓰기까지 합친 값으로 덮어써서 **나눠 잰 값이
+    # 버려졌다.** 2026-09-23 QA 에 19.7초짜리가 찍혔는데 받아쓰기 탓인지 판단 탓인지
+    # 가릴 근거가 없었다.
+    #
+    # ollama 가 주는 내역도 함께 싣는다 — `engine.classify` 가 이미 같은 값을 읽는다.
+    # `load` 가 크면 모델이 내려갔다 다시 올라온 것이고(`keep_alive` 문제), `eval` 이
+    # 크면 토큰을 많이 뱉은 것이다(`num_predict` 문제). 고칠 곳이 다르다.
     return {**plan, "raw_decision": raw, "safety_override": stop, "text": text,
             "unsaid_social": ghost,
             "prompt_version": "work-v1", "model": "qwen3:1.7b",
+            "llm_ms": round((time.perf_counter() - started) * 1000),
+            "llm_load_ms": round(data.get("load_duration", 0) / 1e6),
+            "llm_eval_ms": round(data.get("eval_duration", 0) / 1e6),
+            "llm_tokens": data.get("eval_count", 0),
             "elapsed_ms": round((time.perf_counter() - started) * 1000)}
 
 

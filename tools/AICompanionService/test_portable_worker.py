@@ -3,6 +3,7 @@ from pathlib import Path
 import tempfile
 import socket
 import sys
+import time
 import unittest
 from unittest.mock import patch
 from fastapi.testclient import TestClient
@@ -42,6 +43,28 @@ class PortableTests(unittest.TestCase):
         with patch.object(w, "transcribe", return_value="못 다 뽑아줘"), patch.object(p.companion_plan, "classify", return_value={"status": "ok", "orders": []}) as classify:
             w.execute(raw=b"audio", plan=True)
             classify.assert_called_once_with("못 다 뽑아줘", w.url)
+
+    def test_the_two_slow_parts_are_reported_apart(self):
+        """받아쓰기와 판단을 **따로** 돌려준다 (S15P21B202-734).
+
+        2026-09-23 QA 에 19.7초가 찍혔는데 어디서 났는지 가릴 수 없었다 —
+        `execute` 가 나눠 잰 값을 합계로 덮어썼기 때문이다.
+        """
+        w = self.worker(); w.state = "ready"
+
+        def slow_transcribe(_raw):
+            time.sleep(.05)
+            return "초록아 고정못 뽑아"
+
+        with patch.object(w, "transcribe", side_effect=slow_transcribe), \
+             patch.object(p.companion_plan, "classify",
+                          return_value={"status": "ok", "orders": [], "llm_ms": 1234}):
+            result = w.execute(raw=b"audio", plan=True)
+
+        self.assertGreaterEqual(result["asr_ms"], 40, "받아쓰기 시간이 안 잡힌다")
+        self.assertEqual(result["llm_ms"], 1234, "판단 시간이 합계에 덮였다")
+        self.assertGreaterEqual(result["elapsed_ms"], result["asr_ms"],
+                                "합계가 부분보다 작다")
 
     def test_rejected_plan_still_reports_what_was_heard(self):
         """계획이 터져도 **받아쓴 말은 돌려준다** (S15P21B202-727).
