@@ -32,8 +32,18 @@ namespace Metagame.Network
             "pull_all_pins", "pickup_tool", "pickup_bat", "pickup_welder", "drop_tool", "bring_tool",
             "bring_bat", "bring_welder", "hit_target", "defend_meteors", "grab_part", "release_part",
             "carry_part", "weld", "cut_weld", "board_tractor", "leave_tractor", "move_tractor",
-            "lift_player", "lift_part", "transport_part", "hold_tractor", "stack_part"
+            "lift_player", "lift_part", "transport_part", "hold_tractor", "stack_part", "goto"
         };
+
+        /// <summary>
+        /// <c>goto</c> 로 자리를 잡은 뒤 이만큼 밀려나면 다시 간다 (S15P21B202-717).
+        ///
+        /// <para>지시는 "거기 가 있어" 이지 "거기를 한 번 밟아" 가 아니다. 운석이나 파츠에
+        /// 밀려 자리를 떠도 아무 일이 없으면, 방장이 미리 잡아 둔 자리가 <b>조용히
+        /// 비어 버린다.</b> 멈춰 서는 거리(<c>.6f</c>)보다 넉넉히 커야 제자리에서
+        /// 들썩이지 않는다.</para>
+        /// </summary>
+        public const float GotoDriftLimit = 2.5f;
         public static bool Supports(string value) => System.Array.IndexOf(Actions, value) >= 0;
         public static bool VehicleOrder(string value) => value == "board_tractor" || value == "leave_tractor"
             || value == "move_tractor" || value == "lift_player" || value == "lift_part"
@@ -63,6 +73,8 @@ namespace Metagame.Network
                 if (part == null) { Finish(false, "못이 남은 파츠 없음"); return false; }
                 pin.Begin(self, speaker, part, attemptedPins); return true;
             }
+            // goto 는 목적지 말고는 준비할 것이 없다 — 위에서 이미 풀었다.
+            if (command == "goto") return true;
             if (VehicleOrder(command)) return BeginVehicle();
             if (command == "grab_part" || command == "carry_part" || command == "release_part") return BeginCarry();
             return BeginTool();
@@ -74,7 +86,10 @@ namespace Metagame.Network
             if (!Active) return default;
             if (self == null || speaker == null || self.Downed || speaker.Downed)
             { Finish(false, "플레이어 상태 변경으로 중단"); return default; }
-            if (Time.time - started > 180f && action != "defend_meteors" && action != "grab_part" && action != "hold_tractor")
+            // goto 는 도착한 뒤 그 자리를 지키는 지속 작업이라 시간으로 끊지 않는다
+            // (S15P21B202-717). 못 가는 경우는 Navigate 가 "이동 막힘" 으로 따로 끝낸다.
+            if (Time.time - started > 180f && action != "defend_meteors" && action != "grab_part"
+                && action != "hold_tractor" && action != "goto")
             { Finish(false, "작업 시간 초과"); return default; }
             if (action == "pull_all_pins")
             {
@@ -94,6 +109,7 @@ namespace Metagame.Network
                 }
                 return input;
             }
+            if (action == "goto") return TickGoto();
             if (VehicleOrder(action)) return TickVehicle();
             if (action == "grab_part" || action == "carry_part" || action == "release_part") return TickCarry();
             return TickTool();
@@ -133,6 +149,32 @@ namespace Metagame.Network
         }
         void Phase(int value)
         { phase = value; phaseAt = movedAt = Time.time; bestDistance = float.PositiveInfinity; pulse = false; route.Reset(); }
+
+        /// <summary>
+        /// 말한 곳으로 가서 <b>거기 있는다</b> (S15P21B202-717).
+        ///
+        /// <para>전에는 이동 명령이 <c>follow</c> 와 <c>gather</c> 둘뿐이라 <b>AI 를
+        /// "나에게" 만 부를 수 있었다.</b> 자리를 미리 잡아 두려면 사람이 그 자리까지 가서
+        /// <c>여기서 기다려</c> 를 말해야 했다.</para>
+        ///
+        /// <para>목적지는 기존 <c>destination</c> 칸을 그대로 쓴다 — 조립대 · 보고 있는 곳 ·
+        /// 생략하면 말한 사람 옆. 길이 없거나 막히면 <see cref="Navigate"/> 가 사유를 남기고
+        /// 끝낸다(<c>S15P21B202-715</c>).</para>
+        /// </summary>
+        InputFrame TickGoto()
+        {
+            var input = default(InputFrame);
+            float distance = Vector3.Distance(self.FootPosition, destinationPoint);
+            if (phase == 0)
+            {
+                Status = "이동 중 · " + distance.ToString("0.0") + "m";
+                if (!Navigate(destinationPoint, .6f, ref input)) return input;
+                Phase(1);
+            }
+            Status = "자리 지키는 중";
+            if (distance > GotoDriftLimit) Phase(0);
+            return input;
+        }
         InputFrame Aim(Vector3 point)
         {
             var delta = point - self.AimOrigin;
