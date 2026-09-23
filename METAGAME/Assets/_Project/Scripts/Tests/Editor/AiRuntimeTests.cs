@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.IO;
 using System.Linq;
 using Metagame.Core;
 using Metagame.Gameplay;
@@ -28,6 +29,37 @@ namespace Metagame.Gameplay.Tests
             => Assert.That(AiLocalRuntime.ValidHealth(json), Is.EqualTo(expected));
 
         [Test] public void MissingPackDoesNotQualify() => Assert.That(AiLocalRuntime.HasPack(""), Is.False);
+
+        /// <summary>
+        /// 팩 인식은 <b>모델 이름에 걸려 있으면 안 된다</b> (S15P21B202-726).
+        ///
+        /// <para>전에는 <c>whisper-small-ko-zeroth</c> 를 글자 그대로 찾았다. 모델을
+        /// <c>whisper-small</c> 로 바꾸자 <b>설치를 마친 팩이 "없는 팩" 이 됐고</b>, 그 사실은
+        /// 1.9GB 를 받아 설치까지 끝낸 뒤에야 드러났다. 여기서 이름을 다시 박으면 같은 일이
+        /// 다음 모델 교체 때 또 난다 — 그래서 이 시험은 <b>일부러 없는 이름</b>을 쓴다.</para>
+        /// </summary>
+        [TestCase("whisper-small", true)]
+        [TestCase("whisper-small-ko-zeroth", true)]
+        [TestCase("whatever-we-pick-next", true)]
+        [TestCase(null, false)]
+        public void PackIsRecognisedWhateverTheModelIsCalled(string model, bool expected)
+        {
+            string root = Path.Combine(Path.GetTempPath(), "ntp-pack-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Directory.CreateDirectory(Path.Combine(root, "runtime/ntp-ai-worker"));
+                File.WriteAllText(Path.Combine(root, "runtime/ntp-ai-worker/ntp-ai-worker.exe"), "");
+                Directory.CreateDirectory(Path.Combine(root, "models/ollama/manifests/registry.ollama.ai/library/qwen3"));
+                File.WriteAllText(Path.Combine(root, "models/ollama/manifests/registry.ollama.ai/library/qwen3/1.7b"), "");
+                if (model != null)
+                {
+                    Directory.CreateDirectory(Path.Combine(root, "models", model));
+                    File.WriteAllText(Path.Combine(root, "models", model, "model.bin"), "");
+                }
+                Assert.That(AiLocalRuntime.HasPack(root), Is.EqualTo(expected));
+            }
+            finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+        }
 
         [Test] public void DecisionsRequireKnownActionsTargetsAndApproach()
         {
