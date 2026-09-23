@@ -190,6 +190,39 @@ namespace Metagame.Gameplay.Interaction
         /// </summary>
         public float NearRadius { get; set; }
 
+        /// <summary>
+        /// <b>가장 가까운 "닿았지만 떨어진" 후보</b>와 그 사유 (S15P21B202-691).
+        ///
+        /// <para>2026-09-22 QA 신고가 <i>"살리기 버튼 모르겠음 / 안 되는 듯"</i> 이었는데
+        /// 로그에 <c>후보 O</c> 가 <b>0줄</b>이었다. 그 0줄은 두 가지를 같게 만든다 —
+        /// <b>겨냥조차 안 했다</b> 와 <b>겨냥했는데 후보가 안 됐다</b>. 둘은 고치는 곳이
+        /// 완전히 다르다(표시 vs 판정).</para>
+        ///
+        /// <para>거리와 각은 <see cref="Consider"/> 가 <b>이미</b> 계산한다. 밖에서 다시
+        /// 재면 같은 판단을 두 곳이 각자 하게 되어 어긋난다 — 그래서 여기서 남긴다.</para>
+        ///
+        /// <para><b>진단 전용이다.</b> 이 값으로 무엇을 고르지 않는다.</para>
+        /// </summary>
+        public IInteractable RejectedNearest { get; private set; }
+        public float RejectedDistance { get; private set; }
+        public float RejectedAngle { get; private set; }
+        public string RejectedReason { get; private set; }
+
+        void ClearRejected()
+        {
+            RejectedNearest = null; RejectedReason = null;
+            RejectedDistance = RejectedAngle = 0f;
+        }
+
+        void NoteRejected(IInteractable candidate, float sqrDistance, float angle, string reason)
+        {
+            // 가장 가까운 것만 남긴다 — 여럿이면 사람이 볼 것은 제일 가까운 하나다.
+            float distance = Mathf.Sqrt(sqrDistance);
+            if (RejectedNearest != null && distance >= RejectedDistance) return;
+            RejectedNearest = candidate; RejectedDistance = distance;
+            RejectedAngle = angle; RejectedReason = reason;
+        }
+
         public void Configure(Transform aim, float range, float halfAngleDegrees)
         {
             _aim = aim;
@@ -370,6 +403,7 @@ namespace Metagame.Gameplay.Interaction
             var bestAngle = float.MaxValue;
             var bestSqrDistance = float.MaxValue;
             var bestPosition = Vector3.positiveInfinity;
+            ClearRejected();   // 이번 훑기의 사유만 남긴다 (S15P21B202-691)
 
             for (var i = 0; i < count; i++)
             {
@@ -422,12 +456,14 @@ namespace Metagame.Gameplay.Interaction
             var position = candidate.Transform.position;
             var offset = position - origin;
             var sqrDistance = offset.sqrMagnitude;
-            if (sqrDistance > _range * _range) return;
-
             var angle = sqrDistance < 1e-6f ? 0f : Vector3.Angle(forward, offset);
+            if (sqrDistance > _range * _range)
+            { NoteRejected(candidate, sqrDistance, angle, "너무 멀다"); return; }
+
             // 발치에 있는 것은 각도를 묻지 않는다 (S15P21B202-699).
             bool near = NearRadius > 0f && sqrDistance <= NearRadius * NearRadius;
-            if (!near && angle > _halfAngleDegrees) return;
+            if (!near && angle > _halfAngleDegrees)
+            { NoteRejected(candidate, sqrDistance, angle, "겨냥 밖"); return; }
 
             if (!IsBetter(angle, sqrDistance, position, bestAngle, bestSqrDistance, bestPosition)) return;
 
