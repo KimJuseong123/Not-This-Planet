@@ -69,7 +69,7 @@ Mirror 가 `bufferTime = sendInterval × bufferTimeMultiplier` 만큼 뒤로 잡
 |---|---|---|---|---|
 | **내 캐릭터 위치·회전** | **P1** | 📐 | `NetPlayer` · `RemoteAvatar` · `PredictionCorrection` | 내 입력만으로 정해진다. 지형은 안 변한다. **`-363` 에서 적용** — 3인 실측은 아직 |
 | 남의 캐릭터 위치·회전 | **P2** | ✅ | `NetPlayer` + `NetworkTransform` | 남의 입력을 모른다 — 원리상 예측 불가 |
-| 내 입력 전송 | — | ✅ | `NetPlayer.CmdSendInput` | 변화 시 즉시 + 20Hz 하트비트. P1 이 되면 **순번**이 붙는다 |
+| 내 입력 전송 | — | ✅ | `NetPlayer.CmdSendInput` | 이동/버튼 변화 시 즉시, 연속 조준·유지 입력은 20Hz. 순번별 시작 자세와 이미 적용한 보정량을 비교한다 (`-728`) |
 | **부품**(SpaceshipPart) 위치·회전 | **P2** | ✅ | `WorldSync.Pose` | **둘이 함께 들 수 있다** → 상대 입력에 달렸다. 이 게임의 핵심이라 갈리면 안 된다 |
 | **운반체**(TransportVehicle) 위치 | **P2** | 🔍 | `WorldSync.Pose` | 운전자 입력만인 듯 보이나 **탑승자·화물이 얹혀 있다.** 운전 조작감을 재고 다시 판단 |
 | 도구 위치 — 손에 든 동안 | **P1 에 딸림** | 📐 | `ToolBase` | 내 손에 붙어 있어 내 몸을 예측하면 따라온다. 따로 예측할 것이 없다 |
@@ -77,7 +77,7 @@ Mirror 가 `bufferTime = sendInterval × bufferTimeMultiplier` 만큼 뒤로 잡
 | 도구 들림 여부 | **P3** | ✅ | `WorldSync.RpcApplyTools` | 이산 |
 | **고정쇠 진행도** — 게이지 표시 | **P2** | ✅ | `PartClamp` · `WorldSync.ClampState` | 원리상 P1 로 올릴 수 있지만 **P2 로 유지하기로 했다**(2026-09-21 기획 확인, `-654` Q5) — 플레이에서 느리다고 느낀 적이 없다. 참가자의 `ClampInteractor` 는 꺼 둔다(`RemoteAvatar.cs:190·208`) — 켜면 이중 판정이 된다 |
 | **고정쇠 — 뽑혔다는 판정** | **P3** | ✅ | 같음 | 게임 진행을 바꾸므로 **서버가 확정한다** |
-| **용접 비드** — 늘어나는 표시 | **P2** | ✅ | `WorldSync.RpcWeldGrown/Shrunk` | 고정쇠 게이지와 같은 판단으로 **P2 유지**(2026-09-21, `-654` Q5) |
+| **용접 비드** — 늘어나는 표시 | **P2** | ✅ | `WorldSync.RpcApplyWeld` · `WeldBead.RestoreChains` | 서버 사슬 스냅샷으로 통일. 같은 비드는 재사용하고 변경된 끝만 갱신한다. 행동 재판정과 스냅샷의 이중 적용 제거 (`-728`) |
 | **용접 — 접합 결과** | **P3** | ✅ | 같음 | 협동 핵심. **결과는 반드시 서버** |
 | **저중력장(UFO 빔) 켜짐/꺼짐** | **P3** | ✅ | `LowGravityField.ApplyNetworkActive` · `WorldSync.FieldState` | 켜는 것은 탑승자의 입력이지만 **그 결과를 안 탄 사람도 봐야 한다**. "절반 켜짐" 이 없으니 섞을 것도 없다. 물리는 서버만 돈다(`Tick` 이 `!_physicsAuthority` 에서 반환) — 참가자는 **그림만** 켠다 (`-505`) |
 | **체력** | **P3** | ✅ | `PlayerRig.SetRemoteHealth` · `NetPlayer.health` | 피해 판정은 서버가 한다(`ApplyDamage` 가 `!ServerAuthority` 에서 반환). 참가자는 받아서 **빨간 테두리와 `IsDead`** 에만 쓴다. 비율이 아니라 **절댓값**을 보내는 이유는 `IsDead` 가 `Health <= 0` 이라서다 — 비율만 보내면 그 값이 로컬로 남아 어긋난다. 지금은 **자기 것만** 보낸다(남의 체력을 읽는 곳이 없다) (`-513`) |

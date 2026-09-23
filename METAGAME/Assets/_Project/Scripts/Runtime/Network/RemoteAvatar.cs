@@ -277,6 +277,7 @@ namespace Metagame.Network
         // ── 내 몸의 오차 갚기 (S15P21B202-363) ──────────────────────────
 
         Vector3 correction;
+        public Vector3 AppliedCorrection { get; private set; }
 
         /// <summary>서버가 알려 준 오차를 쌓는다. 갚는 것은 물리 스텝에서 조금씩 한다.</summary>
         public void AddCorrection(Vector3 error)
@@ -294,7 +295,11 @@ namespace Metagame.Network
         void Converge()
         {
             Vector3 step = PredictionCorrection.Step(correction, out correction);
-            if (step != Vector3.zero) doll.Hips.position += step;
+            if (step == Vector3.zero) return;
+            // Translate the whole ragdoll; moving only the hips stretches its joints.
+            foreach (var body in doll.Bodies)
+                if (body != null) body.position += step;
+            AppliedCorrection += step;
         }
 
         void FixedUpdate() => Follow();

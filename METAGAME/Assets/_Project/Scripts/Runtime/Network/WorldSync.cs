@@ -148,9 +148,8 @@ namespace Metagame.Network
 
         // ── 용접 스냅샷 (S15P21B202-386) ───────────────────────────
         //
-        // 용접은 RpcWeldGrown 으로 **행동**만 나르고 있었다. 처음부터 있던 사람은 그
-        // 행동들을 다 들어 같은 모양이 되지만 **중간에 들어온 사람은 아무 비드도 없다.**
-        // 그래서 상태도 함께 보낸다. 파츠 순서는 자세와 같은 색인을 쓴다.
+        // 현재 참가자와 늦참자 모두 같은 서버 스냅샷을 적용한다. 보간된 클라이언트
+        // 콜라이더에서 용접 행동을 재판정하지 않는다. 파츠 순서는 자세와 같은 색인이다.
         WeldBead.ChainState[] sendWeld = Array.Empty<WeldBead.ChainState>();
         int[] sendWeldCounts = Array.Empty<int>();
         WeldBead.ChainState[] lastSentWeld = Array.Empty<WeldBead.ChainState>();
@@ -316,9 +315,9 @@ namespace Metagame.Network
             // 수집하면 그것은 끝까지 추적 밖에 남아 혼자만 움직인다(S15P21B202-315).
             TransportVehicle.AnyActivated += OnVehicleActivated;
 
-            // 용접은 서버에서만 판정된다. 그 사건을 받아 모두에게 중계한다.
-            WorldEvents.WeldGrown += RpcWeldGrown;
-            WorldEvents.WeldShrunk += RpcWeldShrunk;
+            // Welding replicas use the authoritative chain snapshot only. Replaying
+            // nozzle queries on interpolated client colliders can select another
+            // chain, then get overwritten by that same tick's snapshot.
 
             Debug.Log($"[WorldSync] 서버가 {tracked.Count}개를 맡는다 · 고정쇠 {clamps.Count}개 · {Order()}");
         }
@@ -816,8 +815,6 @@ namespace Metagame.Network
         public override void OnStopServer()
         {
             // 남겨 두면 다음 매치에서 이미 사라진 오브젝트를 향해 사건이 날아간다.
-            WorldEvents.WeldGrown -= RpcWeldGrown;
-            WorldEvents.WeldShrunk -= RpcWeldShrunk;
             TransportVehicle.AnyActivated -= OnVehicleActivated;
 
             // OnStopClient 와 같은 이유로 내가 지금 것일 때만 지운다 (S15P21B202-434).
@@ -2119,27 +2116,6 @@ namespace Metagame.Network
 
             for (int i = 0; i < clamps.Count; i++)
                 if (clamps[i] != null) clamps[i].ApplyNetworkState(states[i].Progress, states[i].Released);
-        }
-
-        // ── 용접 — 상태가 아니라 행동을 실어 나른다 ─────────────
-
-        /// <summary>
-        /// 서버에서 용접이 진행되면 그 사실을 모두에게 알린다.
-        /// 부품이 이미 같은 자리에 맞춰져 있으므로, 같은 자리에서 같은 양만큼 자라게 하면
-        /// 같은 모양이 나온다 — 덩어리 사슬을 통째로 보내지 않아도 된다(-152).
-        /// </summary>
-        [ClientRpc]
-        void RpcWeldGrown(Vector3 nozzle, float amount)
-        {
-            if (isServer) return;
-            WeldBead.TryGrowNear(nozzle, amount, out _);
-        }
-
-        [ClientRpc]
-        void RpcWeldShrunk(Vector3 nozzle, float amount)
-        {
-            if (isServer) return;
-            WeldBead.TryShrinkNear(nozzle, amount, out _);
         }
 
         /// <summary>

@@ -14,17 +14,16 @@ namespace Metagame.Network
     /// Mirror 의 스폰 목록에 등록할 수 없다. 그래서 NetworkIdentity 만 가진 얇은 프리팹을
     /// 스폰하고, 몸은 서버와 클라이언트가 각자 만든다.
     ///
-    /// <b>물리는 서버에서만 돈다</b>(S15P21B202-145·-147). 클라이언트는 누른 키를
-    /// [Command] 로 보내고, 서버의 PlayerRig 가 그 입력으로 힘을 가한다. 결과인 골반
-    /// 위치가 이 오브젝트에 실려 NetworkTransform 으로 모두에게 간다. 내 캐릭터도
-    /// 예외가 아니다 — 각자 계산하면 두 부품을 함께 옮길 때 결과가 갈린다.
+    /// 서버가 상호작용과 공유 물리의 결과를 확정한다. 참가자는 자기 몸의 이동만
+    /// 예측하고 입력 경계의 서버 자세로 오차를 보정한다. 다른 사람의 골반 자세는
+    /// NetworkTransform의 스냅샷 보간으로 표시한다.
     /// </summary>
     [RequireComponent(typeof(NetworkIdentity))]
     public sealed partial class NetPlayer : NetworkBehaviour
     {
         /// <summary>
         /// 입력을 보내는 최소 간격. 물리는 100Hz 로 돌지만 그 속도로 보낼 이유는 없다 —
-        /// 사람이 키를 100분의 1초 단위로 바꾸지 않는다. 바뀌면 바로 보내고,
+        /// 사람이 키를 100분의 1초 단위로 바꾸지 않는다. 버튼/이동이 바뀌면 바로 보내고,
         /// 안 바뀌어도 이 간격마다 한 번은 보내 서버가 연결이 살아 있음을 안다.
         /// </summary>
         const float SendInterval = 1f / 20f;
@@ -49,14 +48,18 @@ namespace Metagame.Network
         {
             public uint Seq;
             public Vector3 Position;
+            public Vector3 Correction;
         }
 
         readonly SentPose[] history = new SentPose[HistorySize];
         int historyCount;
+        int historyNext;
         uint nextSeq;
 
-        /// <summary>서버가 마지막으로 적용한 입력의 순번. 그 결과 자세와 함께 돌려준다.</summary>
+        /// <summary>서버에서 처음 소비한 입력의 순번과 그 입력을 시작하는 자세.</summary>
         uint appliedSeq;
+        Vector3 appliedPosition;
+        bool appliedRiding;
         float echoTimer;
 
         /// <summary>
@@ -1077,15 +1080,14 @@ namespace Metagame.Network
             // 기계에서만 참이므로, 붙일 일이 없는 기계에 조작기를 새로 만들지 않는다.
             if (transportWanted && transport == null) RetryAttachTransport();
 
-            // **먼저 돌려준다** (S15P21B202-363). 지금 골반 자세는 `직전에 적용한 입력`
-            // 까지의 결과다 — 이번 입력은 아래에서 넣고 물리는 그 뒤에 돈다. 그래서
-            // 짝지을 순번은 `appliedSeq`(직전 것)이고, 이 순서를 바꾸면 한 스텝씩 어긋난다.
+            // Return the cached input-boundary pose. Sampling the current hips
+            // here would associate a variable number of held ticks with one seq.
             echoTimer += Time.fixedDeltaTime;
             if (echoTimer >= EchoInterval && appliedSeq != 0 && !IsHostOwnPlayer
                 && body.Hips != null)
             {
                 echoTimer = 0f;
-                TargetEcho(appliedSeq, body.Hips.position, body.IsRiding);
+                TargetEcho(appliedSeq, appliedPosition, appliedRiding);
             }
 
             // 방장 자신의 몸은 게임 씬(GameSession)이 매 프레임 직접 입력을 넣는다.
@@ -1150,8 +1152,14 @@ namespace Metagame.Network
             // 덮어쓰면 나중에 붙일 두뇌가 무엇을 넣어도 지워진다.
             if (!hostOwnBody) body.SetInput(frame);
 
-            // 이번에 적용한 순번을 기억한다. 다음 스텝의 echo 가 이 값을 쓴다.
-            if (frame.Seq != 0) appliedSeq = frame.Seq;
+            // A sent pose describes the start of this input, not an arbitrary later
+            // tick while the server keeps holding it. Capture that boundary once.
+            if (frame.Seq != 0 && frame.Seq != appliedSeq && body.Hips != null)
+            {
+                appliedSeq = frame.Seq;
+                appliedPosition = body.Hips.position;
+                appliedRiding = body.IsRiding;
+            }
 
             HandlePing(frame);
 
@@ -1414,7 +1422,9 @@ namespace Metagame.Network
                 now.AimFrom = body.Cam.transform.position;
             }
 
-            bool changed = !everSent || !Same(now, lastSent);
+            // Mouse deltas/aim change every rendered frame. Only control edges
+            // bypass 20 Hz; their packet still contains the latest complete aim.
+            bool changed = !everSent || !SameControls(now, lastSent);
             if (!changed && sendTimer < SendInterval) return;
 
             if (!everSent)
@@ -1427,6 +1437,7 @@ namespace Metagame.Network
             if (!isServer)
             {
                 now.Seq = ++nextSeq;
+                if (now.Seq == 0) now.Seq = ++nextSeq;
                 Remember(now.Seq, body.Hips != null ? body.Hips.position : transform.position);
             }
 
@@ -1439,8 +1450,13 @@ namespace Metagame.Network
         /// <summary>보낸 순번과 그때의 자세를 고리 버퍼에 적는다.</summary>
         void Remember(uint seq, Vector3 position)
         {
-            history[historyCount % HistorySize] = new SentPose { Seq = seq, Position = position };
-            historyCount++;
+            history[historyNext] = new SentPose
+            {
+                Seq = seq, Position = position,
+                Correction = remoteAvatar != null ? remoteAvatar.AppliedCorrection : Vector3.zero
+            };
+            historyNext = (historyNext + 1) % HistorySize;
+            historyCount = Mathf.Min(historyCount + 1, HistorySize);
         }
 
         /// <summary>그 순번을 보낼 때 내가 있던 자리. 너무 오래돼 밀려났으면 거짓.</summary>
@@ -1451,6 +1467,8 @@ namespace Metagame.Network
             {
                 if (history[i].Seq != seq) continue;
                 position = history[i].Position;
+                if (remoteAvatar != null)
+                    position += remoteAvatar.AppliedCorrection - history[i].Correction;
                 return true;
             }
             position = Vector3.zero;
@@ -1458,7 +1476,7 @@ namespace Metagame.Network
         }
 
         /// <summary>
-        /// 서버가 "순번 <paramref name="seq"/> 까지 적용한 결과는 이 자세다" 를 소유자에게만
+        /// 서버가 "순번 <paramref name="seq"/> 입력을 시작할 때의 자세" 를 소유자에게만
         /// 돌려준다. 신뢰 없는 채널이다 — 하나 빠져도 다음 것이 오고, 신뢰 채널에 실으면
         /// 재전송 대기가 지연으로 쌓인다(S15P21B202-328 에서 겪은 것과 같은 종류).
         /// </summary>
@@ -1470,7 +1488,7 @@ namespace Metagame.Network
             if (seq == 0 || remoteAvatar == null || body == null) return;
 
             // 순서가 뒤집혀 온 옛 소식은 버린다. 받아들이면 이미 갚은 오차를 되돌린다.
-            if (seq <= lastEchoSeq) return;
+            if (lastEchoSeq != 0 && unchecked((int)(seq - lastEchoSeq)) <= 0) return;
             lastEchoSeq = seq;
 
             // 탑승 자세는 NetworkTransform을 따른다. 보행 오차로 갚으면 좌석에서 밀린다.
@@ -1490,6 +1508,8 @@ namespace Metagame.Network
                 // 물리로 이어질 수 없는 이동이다(리스폰·순간이동). 그 자리로 옮긴다.
                 body.Doll?.Teleport(position, body.Hips != null ? body.Hips.rotation : transform.rotation);
                 remoteAvatar.ClearCorrection();
+                historyCount = 0;
+                historyNext = 0;
                 return;
             }
 
@@ -1497,19 +1517,12 @@ namespace Metagame.Network
         }
 
         /// <summary>
-        /// 두 입력이 사실상 같은가. 마우스와 시선은 늘 미세하게 흔들려 그대로
-        /// 비교하면 매 프레임 "바뀜" 이 되고, 제한을 둔 뜻이 사라진다.
-        /// 시선은 1도까지는 같은 것으로 본다 — 그 차이는 화면에서 보이지 않는다.
+        /// 즉시 전달해야 할 이동/버튼 변화인가. 연속 조준은 SendInterval에 따라
+        /// 최신 상태를 보내고, 버튼의 누름과 해제는 간격과 무관하게 전달한다.
         /// </summary>
-        static bool Same(InputFrame a, InputFrame b)
+        static bool SameControls(InputFrame a, InputFrame b)
         {
             return (a.Move - b.Move).sqrMagnitude < 0.0001f
-                && (a.Look - b.Look).sqrMagnitude < 0.0001f
-                && Mathf.Abs(Mathf.DeltaAngle(a.AimYaw, b.AimYaw)) < 1f
-                && Mathf.Abs(a.AimPitch - b.AimPitch) < 1f
-                // 조준 시작점도 늘 조금씩 흔들린다. 10cm 까지는 같은 것으로 본다 —
-                // 잡기 판정(보조 반경 1.1m)에 영향을 주지 않는 차이다.
-                && (a.AimFrom - b.AimFrom).sqrMagnitude < 0.01f
                 && a.Jump == b.Jump && a.Run == b.Run
                 && a.GrabLeft == b.GrabLeft && a.GrabRight == b.GrabRight
                 && a.ToolAction == b.ToolAction
@@ -1522,9 +1535,9 @@ namespace Metagame.Network
                 && a.TabletNextPage == b.TabletNextPage
                 && a.Restart == b.Restart
                 && a.PingPressed == b.PingPressed
-                // 여기 빠지면 눌러도 서버가 모른다 (S15P21B202-390). Same() 이 같다고
-                // 보면 그 프레임을 보내지 않는다 — StuckEscapeHeld 가 실제로 그 상태다.
+                // Include both edges for every held action, including stuck escape.
                 && a.RescueHeld == b.RescueHeld
+                && a.StuckEscapeHeld == b.StuckEscapeHeld
                 && a.ProneHeld == b.ProneHeld;
         }
 
@@ -1631,6 +1644,7 @@ namespace Metagame.Network
             if (body.RemoteRiding != nowRiding)
             {
                 historyCount = 0;
+                historyNext = 0;
                 remoteAvatar?.ClearCorrection();
             }
             body.SetRemoteRiding(nowRiding);
