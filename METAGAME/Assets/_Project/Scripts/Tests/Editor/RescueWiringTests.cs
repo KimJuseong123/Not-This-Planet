@@ -85,7 +85,9 @@ namespace Metagame.Gameplay.Tests
         public void TheInputReachesTheServer()
         {
             var body = TestSource.Method(
-                TestSource.Read("Runtime/Network/NetPlayer.cs"), "static bool Same(InputFrame a, InputFrame b)");
+                // 이름은 `-728` 이 `Same` → `SameControls` 로 바꿨다. 지키는 것은
+                // 그대로다 — 새 칸이 이 비교에 빠지면 눌러도 서버가 모른다.
+                TestSource.Read("Runtime/Network/NetPlayer.cs"), "static bool SameControls(InputFrame a, InputFrame b)");
 
             Assert.That(body, Does.Contain("a.RescueHeld == b.RescueHeld"),
                 "입력 비교에 없으면 눌러도 그 프레임이 서버로 가지 않는다");
