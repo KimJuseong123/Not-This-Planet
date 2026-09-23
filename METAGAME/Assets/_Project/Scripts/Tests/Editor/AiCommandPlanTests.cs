@@ -56,6 +56,22 @@ namespace Metagame.Gameplay.Tests
                         Is.EqualTo("춤을 아직 못 춤 (쿨다운이거나 동작이 없음)"));
         }
 
+        /// <summary>
+        /// <b>쓰러진 사람의 말도 듣되, 뜻을 잃는 것은 이름을 붙여 거절한다</b>
+        /// (S15P21B202-730).
+        ///
+        /// <para>막지 않으면 <c>TickCore</c> 가 곧바로 멈추므로 화면에는
+        /// <c>follow 3/3명</c> 이 뜨고 동료는 가만히 있는다 — 거절보다 나쁘다.
+        /// <c>revive</c> 와 <c>cancel</c> 은 통해야 한다.</para>
+        /// </summary>
+        [TestCase("revive", null)]
+        [TestCase("cancel", null)]
+        [TestCase("follow", "말한 사람이 기절해 그 명령은 뜻을 잃음")]
+        [TestCase("weld", "말한 사람이 기절해 그 명령은 뜻을 잃음")]
+        public void ADownedSpeakerCanStillAskForHelp(string action, string expected)
+            => Assert.That(AiCommandPlan.OrderRefusal(action, true, true, false, false, false, false,
+                                                      speakerDowned: true), Is.EqualTo(expected));
+
         [Test] public void StopIsAlwaysHeard()
         {
             Assert.That(AiCommandPlan.OrderRefusal("cancel", true, false, true, true, true, true), Is.Null);

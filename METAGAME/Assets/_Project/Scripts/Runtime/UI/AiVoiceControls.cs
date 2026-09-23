@@ -29,8 +29,18 @@ namespace Metagame.UI
         static NetPlayer Local => NetworkClient.localPlayer != null ? NetworkClient.localPlayer.GetComponent<NetPlayer>() : null;
         static bool Ready => (NetworkServer.active ? AiHostSettings.ServerState
             : WorldSync.Current != null ? WorldSync.Current.RoomAiState : AiRoomState.Unknown) == AiRoomState.Active;
+        /// <summary>
+        /// <b>쓰러져도 말은 할 수 있다</b> (S15P21B202-730).
+        ///
+        /// <para>여기가 여섯 개 관문 중 <b>맨 앞</b>이었다. 기절하면 V 자체가 안 먹어서
+        /// 뒤쪽을 다 열어도 소용이 없다 — <c>살려줘</c> 를 <b>가장 필요한 사람이</b>
+        /// 말할 수 없었다.</para>
+        ///
+        /// <para>몸은 여전히 못 쓴다. 뜻을 잃는 명령은 <see cref="AiCommandPlan.OrderRefusal"/>
+        /// 이 <b>이름 있는 사유로</b> 거절하고, 그 한 마디가 화면에 돌아온다.</para>
+        /// </summary>
         static bool CanRecord(GameSession session) => Application.isFocused && Local != null && session != null
-            && session.LocalPlayer != null && !session.LocalPlayer.Downed && session.CursorLocked
+            && session.LocalPlayer != null && session.CursorLocked
             && !session.WheelOpen && !session.CinematicInputBlocked && !session.EndingActive && !session.Cleared;
         void Update()
         {

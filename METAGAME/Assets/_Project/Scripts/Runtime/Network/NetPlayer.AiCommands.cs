@@ -43,7 +43,8 @@ namespace Metagame.Network
                 ridingBlocks: body != null && body.IsRiding && !AiWorkTask.VehicleOrder(action) && action != "wait",
                 cutscene: session == null || session.CinematicInputBlocked || session.EndingActive,
                 danceBlocked: action == "dance" && (body?.Doll?.Suit?.Locomotion == null
-                    || !body.Doll.Suit.Locomotion.HasDance(1) || NetworkTime.time < _nextDanceAllowed));
+                    || !body.Doll.Suit.Locomotion.HasDance(1) || NetworkTime.time < _nextDanceAllowed),
+                speakerDowned: speaker != null && speaker.Downed);
             if (refusal != null) return false;
             bool applied = aiFollow.Apply(action, speaker, body, out refusal, approach, destination);
             if (applied)

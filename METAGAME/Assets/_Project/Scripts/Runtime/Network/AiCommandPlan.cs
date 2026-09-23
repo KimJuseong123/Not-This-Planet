@@ -32,10 +32,16 @@ namespace Metagame.Network
         /// 하기 때문이다 — 기절했든 연출 중이든 진행 중인 작업은 멈출 수 있어야 한다.</para>
         /// </summary>
         public static string OrderRefusal(string action, bool aiSeat, bool roomActive, bool downed,
-                                          bool ridingBlocks, bool cutscene, bool danceBlocked)
+                                          bool ridingBlocks, bool cutscene, bool danceBlocked,
+                                          bool speakerDowned = false)
         {
             if (!aiSeat) return "AI 자리가 아니거나 몸이 없음";
             if (action == "cancel") return null;
+            // **쓰러진 사람의 말도 듣는다 — 다만 뜻을 잃는 것은 여기서 거절한다**
+            // (S15P21B202-730). `TickCore` 와 `AiWorkTask.Tick` 이 말한 사람이 쓰러지면
+            // 살리기만 빼고 작업을 끊으므로, 막지 않으면 **시작했다가 곧바로 죽는다** —
+            // 화면에는 `follow 3/3명` 이 뜨고 동료는 가만히 있는다. 그쪽이 더 나쁘다.
+            if (speakerDowned && action != "revive") return "말한 사람이 기절해 그 명령은 뜻을 잃음";
             if (!roomActive) return "방이 명령을 받는 상태가 아님";
             if (downed) return "기절해 있음";
             if (ridingBlocks) return "탑승 중이라 그 명령은 못 함";

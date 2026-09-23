@@ -47,6 +47,21 @@ namespace Metagame.Gameplay.Tests
                         "ExecutePlan 이 안 읽으면 설 자리가 없다고 거절될 수 있다");
         }
 
+        /// <summary>
+        /// <b>말한 사람에게는 한 마디만 돌려준다</b> (S15P21B202-730).
+        ///
+        /// <para>전체 요약은 방장 화면과 로그의 것이고, 명령을 말한 사람에게는 첫 사유
+        /// 하나를 준다 — 쓰러진 채 말했을 때 <b>아무 말도 없던 것</b>이 시작이다.</para>
+        /// </summary>
+        [Test] public void TheSpeakerGetsOneReasonNotTheWholeReport()
+        {
+            var tally = new AiRefusalTally();
+            Assert.That(tally.First, Is.Null, "거절이 없으면 할 말도 없다");
+            tally.Add("말한 사람이 기절해 그 명령은 뜻을 잃음");
+            tally.Add("설 자리를 못 찾음");
+            Assert.That(tally.First, Is.EqualTo("말한 사람이 기절해 그 명령은 뜻을 잃음"));
+        }
+
         /// <summary>사유 없는 거절은 <b>사유 없음이라고 적는다</b> — 조용히 사라지지 않는다.</summary>
         [Test] public void MissingReasonStillCounts()
         {
