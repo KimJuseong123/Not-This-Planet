@@ -9,7 +9,7 @@ ACTIONS = ["follow", "wait", "cancel", "pull_pin", "gather", "greet", "dance", "
            "pull_all_pins", "pickup_tool", "pickup_bat", "pickup_welder", "drop_tool", "bring_tool",
            "bring_bat", "bring_welder", "hit_target", "defend_meteors", "grab_part", "release_part",
            "carry_part", "weld", "cut_weld", "board_tractor", "leave_tractor", "move_tractor",
-           "lift_player", "lift_part", "transport_part", "hold_tractor", "stack_part", "goto"]
+           "lift_player", "lift_part", "transport_part", "hold_tractor", "stack_part", "goto", "revive"]
 RECIPIENTS = ["default", "all", "one", "two", "remaining", "red", "blue", "yellow", "green"]
 DESTINATIONS = ["default", "speaker", "aim", "assembly", "high"]
 SOCIAL = {"greet", "dance", "heart", "cheer"}
@@ -27,6 +27,7 @@ board_tractor 견인 장치 탑승, leave_tractor 하차, move_tractor 장치 �
 lift_player 말한 플레이어 올려주기, lift_part 파츠 들어 유지, transport_part 파츠 운반·하역,
 hold_tractor 현재 고도·위치 유지, stack_part 다른 조립 파츠 위에 하역.
 dance 춤, greet 인사, heart 하트, cheer 따봉/응원.
+revive 기절한 동료에게 가서 일으키기(살려/일으켜/구해).
 recipients: 생략=default, 다들/전원=all, 한명=one, 둘=two, 나머지=remaining,
 빨강=red 파랑=blue 노랑=yellow 초록=green. 말투가 단수여도 이름/인원 없으면 default.
 steps는 같은 AI가 순서대로 할 작업(최대4). orders는 서로 다른 대상의 분담(최대3).

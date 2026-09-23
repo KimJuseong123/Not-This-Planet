@@ -103,7 +103,15 @@ namespace Metagame.Network
         InputFrame TickCore(PlayerRig self, bool allowed)
         {
             recoveryStatus = null;
-            if (!allowed || self == null || self.Downed || (self.IsRiding && !workOrder) || requester == null || requester.Downed)
+            // **살리는 중이면 말한 사람이 쓰러져도 멈추지 않는다** (S15P21B202-716).
+            //
+            // `AiWorkTask.Tick` 에 같은 예외를 두었는데 **여기가 먼저 끊어서 그 코드가
+            // 죽어 있었다.** 둘이 연달아 쓰러지면 AI 가 가던 길을 되돌아온다 — 가장
+            // 필요한 순간에. 시킨 사람이 쓰러지면 뜻을 잃는 다른 작업과 달리, 살리기는
+            // **대상이 따로** 있다.
+            bool rescuing = workOrder && work.Rescuing;
+            if (!allowed || self == null || self.Downed || (self.IsRiding && !workOrder)
+                || requester == null || (requester.Downed && !rescuing))
             { Stop(); return default; }
             if (workOrder)
             {

@@ -17,6 +17,9 @@ namespace Metagame.Network
         static readonly Dictionary<Object, PlayerRig> claims = new Dictionary<Object, PlayerRig>();
         readonly List<Object> ownedClaims = new List<Object>();
         PlayerRig self, speaker;
+        PlayerRig rescueTarget;
+        readonly List<PlayerRig> downed = new List<PlayerRig>(3);
+        float rescueBest, rescueAt;
         SpaceshipPart part;
         string action, destination;
         Vector3 goal, destinationPoint;
@@ -24,6 +27,15 @@ namespace Metagame.Network
         int phase, pinCount;
         bool pulse;
         public bool Active { get; private set; }
+
+        /// <summary>
+        /// 지금 동료를 일으키는 중인가 (S15P21B202-716).
+        ///
+        /// <para><see cref="AiCompanionController"/> 가 <b>말한 사람이 쓰러졌을 때 멈출지</b>
+        /// 를 이 값으로 가른다. 다른 작업은 시킨 사람이 쓰러지면 뜻을 잃지만 살리기는
+        /// <b>대상이 따로</b> 있다.</para>
+        /// </summary>
+        public bool Rescuing => Active && action == "revive";
         public bool Succeeded { get; private set; }
         public string Status { get; private set; } = "대기";
         public bool WantsMovement { get; private set; }
@@ -32,8 +44,24 @@ namespace Metagame.Network
             "pull_all_pins", "pickup_tool", "pickup_bat", "pickup_welder", "drop_tool", "bring_tool",
             "bring_bat", "bring_welder", "hit_target", "defend_meteors", "grab_part", "release_part",
             "carry_part", "weld", "cut_weld", "board_tractor", "leave_tractor", "move_tractor",
-            "lift_player", "lift_part", "transport_part", "hold_tractor", "stack_part", "goto"
+            "lift_player", "lift_part", "transport_part", "hold_tractor", "stack_part", "goto", "revive"
         };
+
+        /// <summary>
+        /// 일으키러 갈 동료를 찾는 반경(m) (S15P21B202-716). 이보다 멀면 "없다" 로 본다 —
+        /// 맵 반대편으로 혼자 보내는 것은 도움이 아니다.
+        /// </summary>
+        public const float ReviveSearchRange = 40f;
+
+        /// <summary>
+        /// 이만큼 붙어야 일으키기가 걸린다(m).
+        ///
+        /// <para><see cref="PhysicsScale.DownedRescueNearReach"/> 1.2m 안에서는 게임이
+        /// <b>시야각을 묻지 않는다</b> — 쓰러진 사람의 구조 지점은 바닥(0.30m)에 있어서
+        /// 가까이 갈수록 내려다보는 각이 35도를 넘기 때문이다. 그 여유를 3D 거리로 쓰려면
+        /// 평면 거리는 더 짧아야 하므로 <c>.9</c> 로 둔다.</para>
+        /// </summary>
+        public const float ReviveReach = .9f;
 
         /// <summary>
         /// <c>goto</c> 로 자리를 잡은 뒤 이만큼 밀려나면 다시 간다 (S15P21B202-717).
@@ -75,6 +103,7 @@ namespace Metagame.Network
             }
             // goto 는 목적지 말고는 준비할 것이 없다 — 위에서 이미 풀었다.
             if (command == "goto") return true;
+            if (command == "revive") return BeginRevive();
             if (VehicleOrder(command)) return BeginVehicle();
             if (command == "grab_part" || command == "carry_part" || command == "release_part") return BeginCarry();
             return BeginTool();
@@ -84,7 +113,10 @@ namespace Metagame.Network
         {
             WantsMovement = false;
             if (!Active) return default;
-            if (self == null || speaker == null || self.Downed || speaker.Downed)
+            // **살리기는 말한 사람이 쓰러져도 이어 간다** (S15P21B202-716). 다른 작업은
+            // 시킨 사람이 쓰러지면 뜻을 잃지만, 살리기는 **대상이 따로 있다.** 여기서 끊으면
+            // 둘이 연달아 쓰러졌을 때 AI 가 가던 길을 되돌아온다 — 가장 필요한 순간에.
+            if (self == null || speaker == null || self.Downed || (speaker.Downed && action != "revive"))
             { Finish(false, "플레이어 상태 변경으로 중단"); return default; }
             // goto 는 도착한 뒤 그 자리를 지키는 지속 작업이라 시간으로 끊지 않는다
             // (S15P21B202-717). 못 가는 경우는 Navigate 가 "이동 막힘" 으로 따로 끝낸다.
@@ -110,6 +142,7 @@ namespace Metagame.Network
                 return input;
             }
             if (action == "goto") return TickGoto();
+            if (action == "revive") return TickRevive();
             if (VehicleOrder(action)) return TickVehicle();
             if (action == "grab_part" || action == "carry_part" || action == "release_part") return TickCarry();
             return TickTool();
@@ -125,6 +158,7 @@ namespace Metagame.Network
             pin.Cancel(); ReleaseClaims(); route.Reset(); StopVehicle();
             Active = false; WantsMovement = false; Succeeded = false;
             self = speaker = null; part = null; tool = null; toolGrab = null; carry = null; vehicle = null;
+            rescueTarget = null;
         }
         public void DetachDriver()
         {
@@ -161,6 +195,73 @@ namespace Metagame.Network
         /// 생략하면 말한 사람 옆. 길이 없거나 막히면 <see cref="Navigate"/> 가 사유를 남기고
         /// 끝낸다(<c>S15P21B202-715</c>).</para>
         /// </summary>
+        /// <summary>
+        /// 쓰러진 동료에게 가서 <b>사람과 같은 길로</b> 일으킨다 (S15P21B202-716).
+        ///
+        /// <para>새로 만든 것은 대상 고르기와 다가가기뿐이다. 일으키는 것 자체는
+        /// <c>InputFrame.RescueHeld</c> 를 채우는 것 — <b>G 키가 채우는 바로 그 칸</b>이다.
+        /// 완료 판정도 서버의 <see cref="Metagame.Gameplay.DownedRescue"/> 가 한다.</para>
+        ///
+        /// <para>대상은 <see cref="Claim"/> 으로 잡는다. 안 그러면 동료 셋에게 "살려줘" 를
+        /// 말했을 때 <b>셋이 같은 사람에게 몰린다.</b></para>
+        /// </summary>
+        bool BeginRevive()
+        {
+            // **가까운 순서로 훑으며 아직 아무도 안 잡은 첫 대상을 고른다** (`!615` AI 리뷰).
+            //
+            // 전에는 최근접 하나만 보고 그것이 이미 잡혀 있으면 바로 포기했다. 그래서
+            // 둘이 쓰러진 방에서 `다들 살려줘` 를 하면 **두 번째 동료가 남은 사람을 두고
+            // 멈췄다** — 분담하라고 넣은 Claim 이 오히려 한 명을 놀게 만들었다.
+            CollectDowned();
+            foreach (var rig in downed)
+                if (Claim(rig)) { rescueTarget = rig; rescueBest = 0f; rescueAt = Time.time; return true; }
+            Finish(false, downed.Count == 0 ? "기절한 동료가 없음"
+                                            : "쓰러진 동료마다 이미 다른 동료가 가고 있음");
+            return false;
+        }
+
+        /// <summary>쓰러진 동료를 <b>가까운 순서로</b> 모은다. 범위 밖은 없는 것으로 본다.</summary>
+        void CollectDowned()
+        {
+            downed.Clear();
+            foreach (var player in NetPlayer.AllServerPlayers)
+            {
+                var rig = player != null ? player.VisualRig : null;
+                if (rig == null || rig == self || !rig.Downed) continue;
+                if (rig.gameObject.scene != self.gameObject.scene) continue;
+                if ((rig.FootPosition - self.FootPosition).sqrMagnitude > ReviveSearchRange * ReviveSearchRange) continue;
+                downed.Add(rig);
+            }
+            var from = self.FootPosition;
+            downed.Sort((a, b) => (a.FootPosition - from).sqrMagnitude
+                                  .CompareTo((b.FootPosition - from).sqrMagnitude));
+        }
+
+        InputFrame TickRevive()
+        {
+            if (rescueTarget == null) { Finish(false, "대상 동료가 사라짐"); return default; }
+            if (!rescueTarget.Downed) { Finish(true, "동료를 일으켰다"); return default; }
+            var input = default(InputFrame);
+            float distance = Vector3.Distance(self.FootPosition, rescueTarget.FootPosition);
+            if (distance > ReviveReach)
+            {
+                Status = "일으키러 가는 중 · " + distance.ToString("0.0") + "m";
+                rescueAt = Time.time;
+                if (!Navigate(rescueTarget.FootPosition, ReviveReach, ref input)) return input;
+            }
+            // **닿았는데 안 차는 경우를 따로 끝낸다.** 인터랙터가 대상을 못 잡으면
+            // RescueHeld 를 아무리 눌러도 진행도가 0 인 채로 180초를 버틴다 — 그동안
+            // 이 동료는 다른 일을 못 한다. 그것은 도움이 아니라 인원 손실이다.
+            if (self.RescueProgress01 > rescueBest + .01f)
+            { rescueBest = self.RescueProgress01; rescueAt = Time.time; }
+            if (Time.time - rescueAt > 6f)
+            { Finish(false, "일으키기가 진행되지 않음 · 대상을 잡지 못함"); return default; }
+            Status = "일으키는 중 " + (self.RescueProgress01 * 100f).ToString("0") + "%";
+            input = Aim(rescueTarget.FootPosition);
+            input.RescueHeld = true;
+            return input;
+        }
+
         InputFrame TickGoto()
         {
             var input = default(InputFrame);

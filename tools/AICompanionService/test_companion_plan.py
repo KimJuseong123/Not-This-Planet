@@ -19,6 +19,18 @@ class PlanTests(unittest.TestCase):
         first["steps"] += order("defend_meteors")["steps"]
         plan.validate({"status": "ok", "orders": [first, order("wait", "remaining")]})
 
+    def test_revive_is_a_finishing_job(self):
+        """`초록아 쟤 좀 살려줘` (S15P21B202-716).
+
+        일으키고 나면 할 일이 남으므로 지속 작업이 아니다 — `쟤 살리고 따라와` 가
+        서야 한다.
+        """
+        up = {"action": "revive", "approach": False, "destination": "default"}
+        follow = {"action": "follow", "approach": False, "destination": "default"}
+        value = {"status": "ok", "orders": [{"recipients": "green", "steps": [up, follow]}]}
+        self.assertEqual(plan.validate(value), value)
+        self.assertNotIn("revive", plan.CONTINUOUS)
+
     def test_goto_carries_a_destination_and_comes_last(self):
         """`초록아 조립대로 가 있어` (S15P21B202-717).
 

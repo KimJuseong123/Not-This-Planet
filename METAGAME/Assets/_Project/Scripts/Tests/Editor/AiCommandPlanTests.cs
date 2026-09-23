@@ -83,6 +83,19 @@ namespace Metagame.Gameplay.Tests
             Assert.That(AiCommandPlan.ValidSteps(new[] { Step("pickup_bat"), there }), Is.True);
         }
 
+        /// <summary>
+        /// <c>revive</c> 는 <b>끝나는 일</b>이다 (S15P21B202-716).
+        ///
+        /// <para>일으키고 나면 할 일이 남으므로 지속 작업이 아니다 — <c>쟤 살리고 따라와</c>
+        /// 가 서야 한다. 목적지 칸은 쓰지 않는다(대상이 어디 쓰러져 있는지는 게임이 안다).</para>
+        /// </summary>
+        [Test] public void ReviveFinishesSoItCanLeadIntoTheNextStep()
+        {
+            Assert.That(AiCommandPlan.ValidSteps(new[] { Step("revive") }), Is.True);
+            Assert.That(AiCommandPlan.Continuous("revive"), Is.False);
+            Assert.That(AiCommandPlan.ValidSteps(new[] { Step("revive"), Step("follow") }), Is.True);
+        }
+
         [Test] public void NavigationParametersAreAllowlisted()
         {
             Assert.That(AiCommandPlan.Destination("assembly"), Is.True);
