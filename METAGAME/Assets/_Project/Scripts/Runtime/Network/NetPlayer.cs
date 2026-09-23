@@ -207,6 +207,9 @@ namespace Metagame.Network
         [SyncVar]
         public float rescueProgress;
 
+        // 중단 후 다른 구조자가 이어받을 때도 서버의 누적량을 표시한다.
+        [SyncVar] public float rescueAccumulatedProgress;
+
         /// <summary>
         /// 이 사람의 체력 (S15P21B202-513).
         ///
@@ -549,12 +552,12 @@ namespace Metagame.Network
             if (!isServer && isLocalPlayer)
                 body.SetHaulState(hauling, haulDirection, haulGrasp, haulTopSpeed);
 
-            // **내 몸에만 넣는다.** 이 값을 그리는 곳은 쓰러진 당사자의 화면뿐이고,
-            // 남의 몸(그림)에 넣어 봐야 읽는 데가 없다. 서버에서는 PlayerRig 가 자기
-            // RescueTarget 에서 직접 읽으므로 넣지 않는다 — SetRemoteBeingRescued 가
-            // 권위가 있는 몸에서 스스로 무시하지만, 부르지 않는 것이 뜻이 분명하다.
-            if (!isServer && isLocalPlayer)
+            // 구조자도 원격 대상의 진행도를 읽으므로 모든 클라이언트 몸에 반영한다.
+            if (!isServer)
+            {
                 body.SetRemoteBeingRescued(rescueProgress);
+                body.SetRemoteRescueAccumulated(rescueAccumulatedProgress);
+            }
 
             // **내 몸에만.** 테두리를 그리는 곳이 자기 화면뿐이고, 남의 몸(그림)에
             // 넣어 봐야 읽는 데가 없다. 서버에서는 자기 판정이 정답이므로 넣지 않는다 —
@@ -1196,6 +1199,7 @@ namespace Metagame.Network
             // 쓰러진 사람 화면의 게이지가 읽을 값이다 (S15P21B202-448). 위 downed 와
             // 같은 자리에 둔다 — 같은 몸의 같은 상태이고, 탑승과 무관하다(-378).
             rescueProgress = body.BeingRescuedProgress01;
+            rescueAccumulatedProgress = body.RescueAccumulatedProgress01;
 
             // 빨간 테두리가 읽을 값이다 (S15P21B202-513). 위 downed 와 같은 자리에
             // 둔다 — 같은 몸의 같은 상태이고 탑승과 무관하다(-378).

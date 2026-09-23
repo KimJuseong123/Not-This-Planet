@@ -722,6 +722,30 @@ namespace Metagame.Gameplay
             }
         }
 
+        // HUD는 예측 누적값 대신 대상의 서버 스냅샷을 읽는다.
+        // RescueProgress01은 기존 예측/로그 경로를 위해 유지한다.
+        public float RescueDisplayProgress01
+        {
+            get
+            {
+                var target = RescueCandidate;
+                if (Downed || target == null || !target.Downed) return 0f;
+                return RescueHolding ? target.BeingRescuedProgress01
+                    : target.RescueAccumulatedProgress01;
+            }
+        }
+
+        float remoteRescueAccumulatedProgress;
+        public float RescueAccumulatedProgress01 => !Downed ? 0f
+            : ServerAuthority ? (RescueTarget != null ? RescueTarget.Progress : 0f)
+            : remoteRescueAccumulatedProgress;
+
+        public void SetRemoteRescueAccumulated(float progress01)
+        {
+            if (ServerAuthority) return;
+            remoteRescueAccumulatedProgress = Mathf.Clamp01(progress01);
+        }
+
         /// <summary>지금 누르고 있는가. HUD 문구가 "일으키기" 와 "일으키는 중" 을 가른다.</summary>
         public bool RescueHolding =>
             RescueInteractor != null && RescueInteractor.State == InteractorState.Holding;
