@@ -620,6 +620,27 @@ namespace Metagame.Gameplay.Tests
             Assert.That(give, Is.GreaterThan(claim), "포기가 순회보다 앞에 있으면 첫 후보에서 끝난다");
         }
 
+        /// <summary>
+        /// <b>예외를 둔 자리보다 위에서 끊으면 그 예외는 죽은 코드다</b> (S15P21B202-716).
+        ///
+        /// <para><c>AiWorkTask.Tick</c> 에 "살리기는 말한 사람이 쓰러져도 이어 간다" 를
+        /// 두었는데, <c>AiCompanionController.TickCore</c> 가 <b>그 위에서 먼저</b>
+        /// <c>requester.Downed</c> 로 <c>Stop()</c> 했다. 둘이 연달아 쓰러지면 AI 가
+        /// 가던 길을 되돌아온다 — 가장 필요한 순간에.</para>
+        /// </summary>
+        [Test]
+        public void TheDownedSpeakerDoesNotStopARescue()
+        {
+            var tick = TestSource.Method(
+                TestSource.Read("Runtime/Network/AiCompanionController.cs"),
+                "InputFrame TickCore(PlayerRig self, bool allowed)");
+
+            Assert.That(tick, Does.Contain("work.Rescuing"),
+                "여기서 살리기를 가려내지 않으면 AiWorkTask 의 예외는 닿지도 않는다");
+            Assert.That(tick, Does.Not.Contain("|| requester.Downed)"),
+                "예외 없이 requester.Downed 로 끊으면 살리러 가다 되돌아온다");
+        }
+
         /// <summary>가까운 사람부터 간다 — 순서가 없으면 둘이 엇갈려 간다.</summary>
         [Test]
         public void ReviveGoesToTheNearestFirst()

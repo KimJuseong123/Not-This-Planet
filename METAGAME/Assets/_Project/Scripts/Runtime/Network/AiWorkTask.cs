@@ -27,6 +27,15 @@ namespace Metagame.Network
         int phase, pinCount;
         bool pulse;
         public bool Active { get; private set; }
+
+        /// <summary>
+        /// 지금 동료를 일으키는 중인가 (S15P21B202-716).
+        ///
+        /// <para><see cref="AiCompanionController"/> 가 <b>말한 사람이 쓰러졌을 때 멈출지</b>
+        /// 를 이 값으로 가른다. 다른 작업은 시킨 사람이 쓰러지면 뜻을 잃지만 살리기는
+        /// <b>대상이 따로</b> 있다.</para>
+        /// </summary>
+        public bool Rescuing => Active && action == "revive";
         public bool Succeeded { get; private set; }
         public string Status { get; private set; } = "대기";
         public bool WantsMovement { get; private set; }
