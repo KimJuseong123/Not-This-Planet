@@ -127,6 +127,70 @@ namespace Metagame.Gameplay.Tests
                 Is.GreaterThan(0.8f), "초록과 빨강이 너무 가깝다.");
         }
 
+        // --- 색이 쓰러진 순간을 놓치지 않는다 (AI 리뷰가 잡은 것) -----------------------
+
+        Camera MakeCamera()
+        {
+            var go = new GameObject("검증 카메라");
+            _spawned.Add(go);
+            var camera = go.AddComponent<Camera>();
+            camera.enabled = false;                     // 그리지는 않는다
+            camera.transform.position = new Vector3(0f, 1f, -4f);
+            camera.transform.rotation = Quaternion.identity;
+            return camera;
+        }
+
+        /// <summary>
+        /// <b>색을 캐시하면 안 된다.</b> 처음에는 <c>RefreshMeshes</c> 에서 한 번 정해
+        /// 담았는데, 그것은 0.5초마다만 돈다 — <c>downed</c> 는 그 사이에 바뀌는
+        /// SyncVar 라 <b>쓰러져도 최대 0.5초 동안 초록이었다.</b>
+        ///
+        /// <para>쓰러진 것을 알아채라고 만든 기능에서 가장 중요한 순간이 늦는다.
+        /// AI 리뷰가 잡았고, 맞았다.</para>
+        ///
+        /// <para>이 검사는 <b>두 번째 수집을 갱신 주기 안에</b> 한다 — 그래야 캐시를
+        /// 되살려도 빨간불이 된다.</para>
+        /// </summary>
+        [Test]
+        public void TheColourChangesTheMomentSomeoneGoesDown()
+        {
+            var player = MakePlayer();
+            var camera = MakeCamera();
+            var targets = new OccludedInteractionTargets();
+
+            Assert.That(targets.Collect(camera), Is.True, "사람을 하나도 못 모았다.");
+            Assert.That(targets.Targets[0].Outline,
+                Is.EqualTo(OccludedInteractionTargets.CrewColor), "멀쩡한데 초록이 아니다.");
+
+            player.SetRemoteDowned(true);
+
+            // **기다리지 않는다.** RefreshMeshes 는 0.5초마다만 도는데, 그 전에도
+            // 색이 바뀌어야 한다.
+            Assert.That(targets.Collect(camera), Is.True);
+            Assert.That(targets.Targets[0].Outline,
+                Is.EqualTo(OccludedInteractionTargets.DownedColor),
+                "쓰러졌는데 아직 초록이다 — 색이 갱신 주기에 묶여 있다.");
+        }
+
+        [Test]
+        public void GettingUpTurnsItBackToGreen()
+        {
+            var player = MakePlayer();
+            var camera = MakeCamera();
+            var targets = new OccludedInteractionTargets();
+
+            player.SetRemoteDowned(true);
+            targets.Collect(camera);
+            Assert.That(targets.Targets[0].Outline,
+                Is.EqualTo(OccludedInteractionTargets.DownedColor));
+
+            player.SetRemoteDowned(false);
+            targets.Collect(camera);
+            Assert.That(targets.Targets[0].Outline,
+                Is.EqualTo(OccludedInteractionTargets.CrewColor),
+                "일어났는데 빨강이 남았다.");
+        }
+
         // --- 남의 것만 그린다 -----------------------------------------------------------
 
         [Test]
@@ -172,5 +236,40 @@ namespace Metagame.Gameplay.Tests
             // 결과가 달랐다 — 전역 상태에 기댄 검사였다.
             Assert.That(OccludedInteractionTargets.IsCrewTarget(MakePlayer(), null), Is.True);
         }
+
+        /// <summary>
+        /// <b>수집 경로가 실제로 <c>IsEligible</c> 을 지난다.</b> 규칙만 있고 부르는
+        /// 곳이 없으면 아무 소용이 없다 — AI 리뷰가 그 가능성을 짚었다.
+        ///
+        /// <para><b>이름이 <c>PartSpec</c> 에 없는 파츠</b>로 잰다. 그것은 세션도
+        /// 들고 있는 상태도 필요 없이 <c>IsEligible</c> 하나로만 걸러지는 경우라,
+        /// 전역 상태를 건드리지 않고 "거르는 문을 실제로 지난다" 를 보일 수 있다.</para>
+        ///
+        /// <para>처음에는 손에 든 방망이로 재려 했는데, 하네스의 방망이는 실제로
+        /// 들려 있지 않아(<c>IsHeldForView</c> 가 거짓) <b>월드 오브젝트로서 정당하게
+        /// 수집된다</b> — 검사의 전제가 틀렸다.</para>
+        /// </summary>
+        [Test]
+        public void TheCollectPathActuallyAsksIsEligible()
+        {
+            var stray = new GameObject("이름없는파츠") { layer = 0 };
+            _spawned.Add(stray);
+            stray.AddComponent<Parts.SpaceshipPart>();
+            stray.AddComponent<MeshFilter>().sharedMesh =
+                Resources.GetBuiltinResource<Mesh>("Cube.fbx");
+            stray.AddComponent<MeshRenderer>();
+
+            Assert.That(OccludedInteractionTargets.IsEligible(
+                stray.GetComponent<Parts.SpaceshipPart>()), Is.False,
+                "규칙이 이미 통과시킨다 — 이 검사가 아무것도 안 지킨다.");
+
+            var targets = new OccludedInteractionTargets();
+            targets.Collect(MakeCamera());
+
+            foreach (var target in targets.Targets)
+                Assert.That(target.Renderer.gameObject, Is.Not.SameAs(stray),
+                    "규칙이 거르는 것이 수집됐다 — 수집 경로가 IsEligible 을 안 지난다.");
+        }
+
     }
 }

@@ -19,6 +19,11 @@ namespace Metagame.Gameplay.Interaction
             /// <para><b>덩어리마다 다를 수 있다.</b> 렌더러 피처가 덩어리 하나에 마스크와
             /// 블릿을 한 벌씩 돌리므로, 색을 그 벌의 속성 블록에 실으면 된다 —
             /// 셰이더도 마스크 포맷도 안 건드린다.</para>
+            ///
+            /// <para><b>캐시하지 않는다.</b> 처음에는 <see cref="RefreshMeshes"/> 에서
+            /// 한 번 정해 담았는데, 그것은 0.5초마다만 돈다 — <c>downed</c> 는 그 사이에
+            /// 바뀌는 SyncVar 라 <b>쓰러져도 최대 0.5초 동안 초록이었다.</b> 쓰러진 것을
+            /// 알아채라고 만든 기능에서 가장 중요한 순간이 늦는다. AI 리뷰가 잡았다.</para>
             /// </summary>
             public readonly Color Outline;
 
@@ -113,7 +118,11 @@ namespace Metagame.Gameplay.Interaction
                     !renderer.gameObject.activeInHierarchy || renderer.forceRenderingOff ||
                     (camera.cullingMask & (1 << renderer.gameObject.layer)) == 0 ||
                     !GeometryUtility.TestPlanesAABB(_planes, renderer.bounds)) continue;
-                _targets.Add(candidate.Draw);
+                // **색은 매 수집마다 다시 읽는다.** 담아 두면 쓰러진 순간을 놓친다.
+                var draw = candidate.Draw;
+                _targets.Add(candidate.Root is PlayerRig owner
+                    ? new Target(draw.Renderer, draw.SubMeshCount, draw.Group, ColorFor(owner))
+                    : draw);
             }
             return _targets.Count > 0;
         }
@@ -139,8 +148,10 @@ namespace Metagame.Gameplay.Interaction
                     else if (renderer is MeshRenderer &&
                              renderer.TryGetComponent<MeshFilter>(out var filter)) mesh = filter.sharedMesh;
                     if (mesh == null) continue;
-                    var color = root is PlayerRig owner ? ColorFor(owner) : ObjectColor;
-                    _candidates.Add((root, new Target(renderer, mesh.subMeshCount, i + 1, color)));
+                    // 색은 여기서 안 정한다 — 이 함수는 0.5초마다만 돈다. Collect 가
+                    // 매번 루트에서 다시 읽는다.
+                    _candidates.Add((root, new Target(renderer, mesh.subMeshCount, i + 1,
+                                                      ObjectColor)));
                 }
             }
         }
