@@ -43,6 +43,32 @@ class PortableTests(unittest.TestCase):
             w.execute(raw=b"audio", plan=True)
             classify.assert_called_once_with("못 다 뽑아줘", w.url)
 
+    def test_rejected_plan_still_reports_what_was_heard(self):
+        """계획이 터져도 **받아쓴 말은 돌려준다** (S15P21B202-727).
+
+        전에는 `text` 없이 돌려줘서 게임의 `[AI] 들음:` 로그에 아무것도 안 남았다 —
+        밖에서 보면 **"못 알아들었다" 와 "듣고 버렸다" 가 똑같아 보인다.** 2026-09-23
+        측정에서 실제로 받아쓰기를 애먼 곳에서 의심하게 만들었다.
+        """
+        w = self.worker(); w.state = "ready"
+        with patch.object(w, "transcribe", return_value="나머지는 고정못 뽑아"), \
+             patch.object(p.companion_plan, "classify", side_effect=ValueError("Invalid recipients")):
+            result = w.execute(raw=b"audio", plan=True)
+        self.assertEqual(result["status"], "none")
+        self.assertEqual(result["text"], "나머지는 고정못 뽑아")
+
+    def test_silence_reports_an_empty_transcript_not_a_missing_one(self):
+        """빈 받아쓰기도 `text` 자리를 비워 둔 채 돌려준다 (S15P21B202-727).
+
+        키가 아예 없으면 받는 쪽이 "말이 없었다" 와 "응답이 이상하다" 를 못 가른다.
+        """
+        w = self.worker(); w.state = "ready"
+        with patch.object(w, "transcribe", return_value=""), \
+             patch.object(p.companion_plan, "classify", side_effect=AssertionError("no model call")):
+            result = w.execute(raw=b"audio", plan=True)
+        self.assertEqual(result["text"], "")
+        self.assertEqual(result["status"], "none")
+
     def test_invalid_plan_does_not_kill_runtime(self):
         w = self.worker(); w.state = "ready"
         with patch.object(p.companion_plan, "classify", side_effect=ValueError("invalid plan")):

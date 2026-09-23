@@ -181,16 +181,27 @@ class Worker:
             raise HTTPException(503, "runtime_not_ready")
         if not self.lock.acquire(blocking=False):
             raise HTTPException(409, "busy")
+        # 아래 `except` 도 이 값을 쓴다 — try 안에 두면 "실패한 경로에서는 안 잡혀 있을 수도
+        # 있나" 를 매번 다시 확인해야 한다.
+        started = time.perf_counter()
         try:
-            started = time.perf_counter()
             if raw is not None:
                 text = self.transcribe(raw)
-            result = (companion_plan.classify(text, self.url) if plan else companion_social.classify(text, self.url) if social else companion_v4.classify_companion(text)) if text and text.strip() else ({"status": "none", "orders": []} if plan else {"action": "none", "text": ""})
+            result = (companion_plan.classify(text, self.url) if plan else companion_social.classify(text, self.url) if social else companion_v4.classify_companion(text)) if text and text.strip() else ({"status": "none", "orders": [], "text": text or ""} if plan else {"action": "none", "text": ""})
             result["elapsed_ms"] = round((time.perf_counter() - started) * 1000)
             return result  # response only; never written to disk
         except (ValueError, TypeError, KeyError):
             # Malformed model output is a rejected command, not a permanently dead AI runtime.
-            return {"status": "none", "orders": [], "elapsed_ms": 0} if plan else {"action": "none", "text": ""}
+            #
+            # **받아쓴 말은 돌려준다** (S15P21B202-727). 전에는 `text` 없이 돌려줘서, 게임의
+            # `[AI] 들음:` 로그에 아무것도 안 남았다 — 밖에서 보면 **"못 알아들었다" 와
+            # "듣고 버렸다" 가 똑같아 보인다.** 2026-09-23 측정에서 그 때문에 받아쓰기를
+            # 애먼 곳에서 의심했다(70% 로 보였지만 실제로는 77%였다).
+            #
+            # `elapsed_ms` 도 실제 값으로 준다. `0` 이면 "아무 일도 안 했다" 로 읽힌다.
+            elapsed = round((time.perf_counter() - started) * 1000)
+            return ({"status": "none", "orders": [], "text": text or "", "elapsed_ms": elapsed} if plan
+                    else {"action": "none", "text": text or "", "elapsed_ms": elapsed})
         except Exception:
             self.state, self.error = "failed", "inference_failed"
             raise HTTPException(503, "inference_failed") from None

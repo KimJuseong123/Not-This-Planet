@@ -73,12 +73,22 @@ namespace Metagame.Network
             return text.ToString();
         }
 
+        /// <summary>
+        /// 게임이 실행할 수 있는 꼴인가.
+        ///
+        /// <para><b>첫 지시의 <c>remaining</c> 은 막지 않는다</b> (S15P21B202-727). 전에는
+        /// 막았고, 그래서 <c>나머지는 고정못 뽑아</c> 처럼 <b>한 글자도 안 틀리게 받아쓴
+        /// 명령이 조용히 사라졌다.</b></para>
+        ///
+        /// <para>막을 이유가 없었다. <see cref="AiGroupOrders.ExecutePlan"/> 은
+        /// <c>remaining</c> 을 <b>앞선 지시가 쓰지 않은 동료들</b>로 푸는데, 첫 지시에서는
+        /// 그 집합이 곧 전원이라 <c>all</c> 과 같아진다 — 통과시켜도 새로 닿는 곳이 없다.</para>
+        /// </summary>
         public static bool Valid(AiCommandAssignment[] orders)
         {
             if (orders == null || orders.Length == 0 || orders.Length > 3) return false;
             for (int i = 0; i < orders.Length; i++)
-                if (orders[i] == null || !Recipients(orders[i].recipients) || !ValidSteps(orders[i].steps)
-                    || (i == 0 && orders[i].recipients == "remaining")) return false;
+                if (orders[i] == null || !Recipients(orders[i].recipients) || !ValidSteps(orders[i].steps)) return false;
             return true;
         }
     }
