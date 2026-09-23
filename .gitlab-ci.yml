@@ -452,8 +452,23 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
           set -- -testCategory "!Heavy"
           # 코멘트에 "덜 돌았다" 를 적게 한다 — 안 적으면 초록이 '전부 돌았다' 로 읽힌다.
           export UNITY_SKIPPED_CATEGORY="Heavy"
-          echo "=== 임포트 + 컴파일 + EditMode 테스트 시작 (Heavy 제외) ==="
+          # **새벽이 잰 목록을 여기서 쓴다** (S15P21B202-701). 손으로 `Category("Heavy")`
+          # 를 붙이는 것은 `-602`·`-611`·`-731` 로 세 번 했고 매번 하루 만에 낡았다.
+          #
+          # 못 받아 오면 파일이 없고, 그러면 **전부 돈다** — 빼는 것을 실패로 만들지
+          # 않는다. 목록이 없다고 검사를 멈추면 그날 아무도 머지하지 못한다. 대신
+          # `apply` 가 그 사실을 로그에 남긴다.
+          python3 scripts/ci/slow_tests.py apply "$CI_PROJECT_DIR" || true
+          if [ -s "$CI_PROJECT_DIR/unity-slow-filter.txt" ]; then
+            set -- "$@" -testFilter "$(cat "$CI_PROJECT_DIR/unity-slow-filter.txt")"
+            echo "=== 임포트 + 컴파일 + EditMode 테스트 시작 (Heavy 제외 · 느린 것 제외) ==="
+          else
+            echo "=== 임포트 + 컴파일 + EditMode 테스트 시작 (Heavy 제외) ==="
+          fi
         else
+          # 전체 실행은 거르지 않는다 — **재는 쪽이자 검증이 사라지면 안 되는 쪽**이다.
+          # `set --` 가 인자를 통째로 비우므로, 목록이 어떤 이유로 남아 있어도 여기서는
+          # 쓰이지 않는다(이 잡은 `needs: []` 라 아티팩트를 받지도 않는다).
           set --
           echo "=== 임포트 + 컴파일 + EditMode 테스트 시작 (전체) ==="
         fi
@@ -563,6 +578,15 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
     - |
       V="$CI_PROJECT_DIR/unity-verdict.txt"
       if [ -s "$V" ]; then RC=$(cat "$V"); else echo "⚠ 판정 파일이 없다 — 보고 스크립트가 죽었다"; RC=2; fi
+      # **거르고 나서 정말 돌았는지 본다** (S15P21B202-701). 이 방식에서 가장 위험한
+      # 실패는 정규식이 다 걸러 0건이 돌고 **초록이 뜨는 것**이다. 잰 쪽이 남긴 예상
+      # 수와 견주어 잡는다.
+      #
+      # 실패해도 1(회귀)이 아니라 **2(판단 불가)** 로 올린다 — 이 MR 이 만든 문제가
+      # 아니라 우리 도구가 이상한 것이고, 그걸로 머지를 막으면 그날 전부 멈춘다.
+      if ! python3 scripts/ci/slow_tests.py verify "$CI_PROJECT_DIR/unity-results.xml" "$CI_PROJECT_DIR"; then
+        if [ "$RC" = "0" ]; then RC=2; fi
+      fi
       echo "unity-compile 종료 $RC (0 통과 · 1 이 MR 이 만든 문제 · 2 판단 불가)"
       exit "$RC"
   artifacts:
