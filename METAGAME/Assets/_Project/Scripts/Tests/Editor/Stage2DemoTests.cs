@@ -161,6 +161,57 @@ namespace Metagame.Gameplay.Tests
         }
 
         [UnityTest]
+        public IEnumerator FullSnapshotFitsKcpAndReachesReadyConnections()
+        {
+            yard.State.DemoPlayers = new[]
+            {
+                new DemoEndingPlayer { Name = "Host", Suit = Color.red, Accent = Color.white },
+                new DemoEndingPlayer { Name = "Guest", Suit = Color.blue, Accent = Color.white }
+            };
+            var previousTransport = Mirror.Transport.active;
+            var root = new GameObject("Stage2 snapshot transport regression");
+            var transport = root.AddComponent<kcp2k.KcpTransport>();
+            transport.port = 0;
+            var bridge = root.AddComponent<Stage2Bridge>();
+            bridge.enabled = false;
+            bool sent = false;
+            int channel = -1, bytes = 0;
+            void OnSend(Mirror.NetworkDiagnostics.MessageInfo info)
+            {
+                if (!(info.message is Stage2SnapshotMessage)) return;
+                sent = true;
+                channel = info.channel;
+                bytes = info.bytes;
+            }
+            try
+            {
+                Mirror.Transport.active = transport;
+                Mirror.NetworkServer.Listen(4);
+                Mirror.NetworkServer.connections.Add(1, new Mirror.NetworkConnectionToClient(1)
+                    { isAuthenticated = true, isReady = true });
+                bridge.Configure(yard);
+                Mirror.NetworkDiagnostics.OutMessageEvent += OnSend;
+                bridge.SendMessage("Update");
+                Assert.That(sent, Is.True, "The complete snapshot must not be dropped before transport send.");
+                Assert.That(bytes, Is.GreaterThan(Mirror.NetworkMessages.MaxMessageSize(Mirror.Channels.Unreliable)),
+                    "Exercise the real full snapshot that exceeded the old KCP channel limit.");
+                Assert.That(channel, Is.EqualTo(Mirror.Channels.Reliable));
+                Assert.That(bytes, Is.LessThanOrEqualTo(Mirror.NetworkMessages.MaxMessageSize(channel)));
+                Debug.Log($"[Stage2Snapshot] {bytes} bytes; KCP unreliable limit {Mirror.NetworkMessages.MaxMessageSize(Mirror.Channels.Unreliable)}; channel {channel}");
+            }
+            finally
+            {
+                Mirror.NetworkDiagnostics.OutMessageEvent -= OnSend;
+                Object.DestroyImmediate(bridge);
+                Mirror.NetworkServer.connections.Clear();
+                Mirror.NetworkServer.Shutdown();
+                Object.DestroyImmediate(root);
+                Mirror.Transport.active = previousTransport;
+            }
+            yield return null;
+        }
+
+        [UnityTest]
         public IEnumerator YardOptOutRetainsUnderlyingGameplayAndSessionInput()
         {
             yard.SetDemoMode(false);
