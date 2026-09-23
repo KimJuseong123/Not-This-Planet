@@ -51,9 +51,14 @@ namespace Metagame.UI
             GUI.Label(new Rect(area.x, area.y + rowHeight + 3f, area.width, area.height - rowHeight), status, labelStyle);
         }
 
-        /// <summary>손댈 것이 남았는가 — 받을 것이 없고 이미 준비됐으면 버튼을 내보내지 않는다.</summary>
+        /// <summary>
+        /// 손댈 것이 남았는가 — 받을 것이 없고 이미 준비됐으면 버튼을 내보내지 않는다.
+        ///
+        /// <para><b>새 팩이 올라온 것도 "손댈 것" 이다</b> (S15P21B202-733). 전에는
+        /// <c>HasPack</c> 만 봐서, 한 번 깐 사람에게는 새 팩이 영영 안 갔다.</para>
+        /// </summary>
         static bool NeedsPreparing(AiLocalRuntime runtime)
-            => !AiLocalRuntime.HasPack(runtime.PackRoot)
+            => AiPackInstaller.WantsDownload(runtime.PackRoot)
                || AiHostSettings.RuntimeState == AiRuntimeState.Failed
                || AiHostSettings.RuntimeState == AiRuntimeState.Missing;
 
@@ -66,8 +71,10 @@ namespace Metagame.UI
         /// </summary>
         static void Prepare(AiLocalRuntime runtime)
         {
-            if (!AiLocalRuntime.HasPack(runtime.PackRoot)) runtime.Installer?.Begin();
-            else runtime.Retry();
+            // 안 깔렸거나 **깔린 것이 옛 팩이면** 받는다 (S15P21B202-733).
+            if (AiPackInstaller.WantsDownload(runtime.PackRoot)) { runtime.Installer?.Begin(); return; }
+            runtime.Installer?.ReportAlreadyCurrent();
+            runtime.Retry();
         }
     }
 }

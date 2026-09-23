@@ -139,12 +139,62 @@ namespace Metagame.Network
 
         /// <summary>이만큼 조용하면 화면에 말한다. 끊는 것은 <c>60</c>초, 말하는 것은 그 한참 전.</summary>
         public const float StallNotice = 5f;
+
+        /// <summary>설치본 안에 함께 들어가는 배포 정보. 무엇을 깔았는지가 여기 남는다.</summary>
+        public const string ManifestName = "pack-manifest.json";
+
+        /// <summary>이 빌드가 가리키는 배포 주소. 값은 빌드 때 심는다(<c>write_ai_pack_source.py</c>).</summary>
+        public static AiPackSource LoadSource()
+        {
+            var config = Path.Combine(Application.streamingAssetsPath, "ai-pack-source.json");
+            try { if (File.Exists(config)) return JsonUtility.FromJson<AiPackSource>(File.ReadAllText(config)); }
+            catch (Exception) { }
+            return null;
+        }
+
+        /// <summary>
+        /// 깔려 있는 것이 <b>이 빌드가 가리키는 바로 그 팩</b>인가 (S15P21B202-733).
+        ///
+        /// <para><b>버전 문자열을 견주지 않는다.</b> 설치할 때 배포 정보 파일을 그대로
+        /// 넣어 두므로, 빌드가 이미 고정하고 있는 <c>manifest_sha256</c> 과 대조하면
+        /// 된다 — 바이트가 같으면 같은 팩이다. 네트워크도, 버전 대소 비교도 필요 없고,
+        /// <b>받을 때 쓰는 검증과 같은 함수</b>를 쓴다.</para>
+        ///
+        /// <para><b>모르면 "아니다" 로 본다.</b> 파일이 없는 옛 설치나 읽기 실패는
+        /// 받기를 제안하는 쪽으로 떨어진다 — 헛걸음은 1.8GB 를 한 번 더 받는 것이고,
+        /// 반대로 틀리면 <b>고친 것이 영영 안 나간다.</b></para>
+        /// </summary>
+        public static bool InstalledIsCurrent(string root, AiPackSource source)
+        {
+            if (string.IsNullOrEmpty(root) || !AiPackValidation.Source(source)) return false;
+            try { AiPackValidation.Verify(Path.Combine(root, ManifestName), -1, source.manifest_sha256); }
+            catch (Exception) { return false; }
+            return true;
+        }
+
+        /// <summary>
+        /// 받을 것이 있는가 — <b>안 깔렸거나, 깔린 것이 옛 팩이거나</b> (S15P21B202-733).
+        ///
+        /// <para>전에는 "안 깔렸을 때" 만 받았다. 그래서 새 팩을 올려도 <b>한 번 깐 사람에게는
+        /// 영영 안 갔다</b> — 버튼을 눌러도 아무 말 없이 준비만 됐다.</para>
+        /// </summary>
+        public static bool WantsDownload(string root)
+        {
+            if (!AiLocalRuntime.HasPack(root)) return true;
+            return !InstalledIsCurrent(root, LoadSource());
+        }
+
+        /// <summary>
+        /// 받을 것이 없을 때도 <b>말은 한다</b> (S15P21B202-733).
+        ///
+        /// <para>버튼을 눌렀는데 아무 말 없이 준비만 되던 것이 이 이슈의 절반이었다 —
+        /// 방장은 "새 팩이 없어서" 인지 "버튼이 안 먹어서" 인지 알 수 없었다.</para>
+        /// </summary>
+        public void ReportAlreadyCurrent() => Message = "추가팩이 이미 최신이에요 · AI 준비 중";
         public void Begin()
         {
             if (Busy || !AiHostSettings.CanConfigure || AiLocalRuntime.Current == null) return;
-            var config = Path.Combine(Application.streamingAssetsPath, "ai-pack-source.json");
-            AiPackSource source = null;
-            try { if (File.Exists(config)) source = JsonUtility.FromJson<AiPackSource>(File.ReadAllText(config)); } catch (Exception) { }
+            var source = LoadSource();
             if (!AiPackValidation.Source(source)) { Message = "다운로드 배포 주소가 아직 설정되지 않았어요"; return; }
             Busy = true; Progress = 0; Message = "추가팩 정보 확인 중";
             cancellation = new CancellationTokenSource();
