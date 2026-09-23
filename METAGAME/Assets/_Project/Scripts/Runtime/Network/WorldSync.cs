@@ -225,9 +225,16 @@ namespace Metagame.Network
         ScarState[] sendScarSet = System.Array.Empty<ScarState>();
         ScarState[] sendScarMoves = System.Array.Empty<ScarState>();
         int[] lastScarIds = System.Array.Empty<int>();
+        ScarState[] sendScarAdded = Array.Empty<ScarState>();
+        int[] sendScarRemoved = Array.Empty<int>();
+        readonly HashSet<int> currentScarIds = new();
+        bool sentScarSet;
         float scarKeepaliveTimer;
         uint lastScarSeq;
         bool everScar;
+        uint lastScarSetSeq;
+        bool everScarSet;
+        int scarMoveCursor;
         bool warnedScarCap;
         bool warnedToolMismatch;
 
@@ -263,8 +270,8 @@ namespace Metagame.Network
         /// </summary>
         const float ScarKeepalive = 2f;
 
-        /// <summary>흔적 자세 하나 — 자세 28 + 번호 4. 속도는 싣지 않는다.</summary>
-        const int ScarStateBytes = PoseBytes + 4;
+        /// <summary>흔적 자세: varint ID 최대 5 + 자세 28 + 이동 여부 1.</summary>
+        const int ScarStateBytes = 34; // worst case: 5-byte varint ID + 28 pose + 1 moving
         float lastMeteorAt;
 
         /// <summary>
@@ -1153,11 +1160,13 @@ namespace Metagame.Network
 
             if (!SameScarIds(scars) || scarKeepaliveTimer >= ScarKeepalive)
             {
+                bool full = !sentScarSet || scarKeepaliveTimer >= ScarKeepalive;
+                if (!full) BuildScarChanges(scars);
                 int n = 0;
                 for (int i = 0; i < total; i++)
                     if (scars[i] != null && scars[i].Meteor != null) n++;
 
-                if (sendScarSet.Length != n) sendScarSet = new ScarState[n];
+                if (full && sendScarSet.Length != n) sendScarSet = new ScarState[n];
                 if (lastScarIds.Length != n) lastScarIds = new int[n];
 
                 int w = 0;
@@ -1167,12 +1176,19 @@ namespace Metagame.Network
                     if (scar == null || scar.Meteor == null) continue;
 
                     lastScarIds[w] = scar.Id;
-                    sendScarSet[w++] = StateOf(scar);
+                    if (full) sendScarSet[w] = StateOf(scar);
+                    w++;
                 }
 
-                RpcScarSet(sendSeq, sendScarSet);
-                scarKeepaliveTimer = 0f;
-                return;     // 같은 틱에 두 묶음을 내지 않는다
+                if (full)
+                {
+                    RpcScarSet(sendSeq, Time.timeAsDouble, sendScarSet);
+                    scarKeepaliveTimer = 0f;
+                    sentScarSet = true;
+                }
+                else RpcScarChanges(sendSeq, Time.timeAsDouble, sendScarAdded, sendScarRemoved);
+                // A membership delta carries no poses for existing moving stones.
+                if (full) return;
             }
 
             // 움직이는 것만. 잠든 강체는 자세가 그대로다.
@@ -1200,14 +1216,15 @@ namespace Metagame.Network
             if (sendScarMoves.Length != awake) sendScarMoves = new ScarState[awake];
 
             int m = 0;
-            for (int i = 0; i < total && m < awake; i++)
+            int visited = 0;
+            for (; visited < total && m < awake; visited++)
             {
-                var scar = scars[i];
+                var scar = scars[(scarMoveCursor + visited) % total];
                 if (!IsScarAwake(scar)) continue;
                 sendScarMoves[m++] = StateOf(scar);
             }
-
-            RpcScarMoves(sendSeq, sendScarMoves);
+            if (total > 0) scarMoveCursor = (scarMoveCursor + visited) % total;
+            RpcScarMoves(sendSeq, Time.timeAsDouble, sendScarMoves);
         }
 
         /// <summary>
@@ -1215,6 +1232,34 @@ namespace Metagame.Network
         /// 쉬는 물체를 재우고, 사람이 집어 흔들면 깨어난다. 그래서 이 한 줄이
         /// "끌리는 돌만" 을 그대로 뜻한다.
         /// </summary>
+        void BuildScarChanges(IReadOnlyList<ScarRecord> scars)
+        {
+            currentScarIds.Clear();
+            int added = 0;
+            if (scars != null)
+                for (int i = 0; i < scars.Count; i++)
+                {
+                    var scar = scars[i];
+                    if (scar?.Meteor == null) continue;
+                    currentScarIds.Add(scar.Id);
+                    if (Array.IndexOf(lastScarIds, scar.Id) < 0) added++;
+                }
+            int removed = 0;
+            foreach (int id in lastScarIds) if (!currentScarIds.Contains(id)) removed++;
+            if (sendScarAdded.Length != added) sendScarAdded = new ScarState[added];
+            if (sendScarRemoved.Length != removed) sendScarRemoved = new int[removed];
+            int a = 0, r = 0;
+            if (scars != null)
+                for (int i = 0; i < scars.Count; i++)
+                {
+                    var scar = scars[i];
+                    if (scar?.Meteor != null && Array.IndexOf(lastScarIds, scar.Id) < 0)
+                        sendScarAdded[a++] = StateOf(scar);
+                }
+            foreach (int id in lastScarIds)
+                if (!currentScarIds.Contains(id)) sendScarRemoved[r++] = id;
+        }
+
         static bool IsScarAwake(ScarRecord scar)
         {
             if (scar == null || scar.Meteor == null) return false;
@@ -1244,7 +1289,8 @@ namespace Metagame.Network
         {
             var body = scar.Meteor.Body;      // 위와 같은 이유로 GetComponent 를 쓰지 않는다
             return body != null
-                ? new ScarState { Id = scar.Id, Position = body.position, Rotation = body.rotation }
+                ? new ScarState { Id = scar.Id, Position = body.position, Rotation = body.rotation,
+                    Moving = IsScarAwake(scar) }
                 : new ScarState
                 {
                     Id = scar.Id,
@@ -1279,33 +1325,49 @@ namespace Metagame.Network
         /// 사라지거나 유령이 남고, 다음 착탄까지 그대로다.
         /// </summary>
         [ClientRpc]
-        void RpcScarSet(uint seq, ScarState[] states)
+        void RpcScarSet(uint seq, double sampleTime, ScarState[] states)
         {
             if (isServer) return;               // 호스트에는 진짜 흔적이 있다
             if (!ready) return;
 
-            // **이동 묶음과 같은 순번 축으로 본다** (`!321` AI 리뷰).
-            //
-            // 두 묶음은 채널이 달라(이쪽은 신뢰, 이동은 비신뢰) 서로 순서가 보장되지
-            // 않는다. 순번을 안 보면 **늦게 도착한 전체 목록이 최신 이동을 덮어**,
-            // 끌고 있는 돌이 2초마다 옛 자리로 되돌아간다.
-            //
-            // 늦은 목록은 버린다. 그러면 그 목록이 실어 온 생성·삭제도 함께 놓치는데,
-            // 되보내기가 2초마다 오므로 스스로 낫는다 — 돌이 뒤로 튀는 것보다 낫다.
-            if (!IsNewer(seq, lastScarSeq, everScar)) return;
-            lastScarSeq = seq;
-            everScar = true;
+            // 채널 간 순서는 보장되지 않는다. 늦은 전체 목록도 생성·삭제는 반영하고,
+            // 이미 더 새로 받은 이동 자세만 보호한다. 멤버십과 자세 순번을 분리한다.
+            if (!IsNewer(seq, lastScarSetSeq, everScarSet)) return;
+            lastScarSetSeq = seq;
+            everScarSet = true;
+            bool applyPoses = IsNewer(seq, lastScarSeq, everScar);
+            if (applyPoses)
+            {
+                lastScarSeq = seq;
+                everScar = true;
+            }
 
             var spawner = MeteorSpawner;
-            if (spawner != null) spawner.ApplyNetworkScars(states, full: true);
+            if (spawner != null) spawner.ApplyNetworkScars(states, full: true,
+                sampleTime: sampleTime, applyExistingPoses: applyPoses);
         }
 
         /// <summary>
         /// 움직이는 흔적의 자세. 신뢰 없는 채널이고 <b>아무것도 만들지 않는다</b> —
         /// 만드는 것은 전체 목록의 몫이다(<c>ApplyNetworkScars</c> 의 <c>full</c>).
         /// </summary>
+        [ClientRpc]
+        void RpcScarChanges(uint seq, double sampleTime, ScarState[] added, int[] removed)
+        {
+            if (isServer || !ready) return;
+            if (!IsNewer(seq, lastScarSetSeq, everScarSet)) return;
+            lastScarSetSeq = seq;
+            everScarSet = true;
+            // Delta poses concern newly created stones only. Do not advance the
+            // movement sequence: movement can arrive in the same server tick.
+            bool applyPoses = IsNewer(seq, lastScarSeq, everScar);
+            var spawner = MeteorSpawner;
+            if (spawner != null)
+                spawner.ApplyNetworkScarChanges(added, removed, sampleTime, applyPoses);
+        }
+
         [ClientRpc(channel = Channels.Unreliable)]
-        void RpcScarMoves(uint seq, ScarState[] states)
+        void RpcScarMoves(uint seq, double sampleTime, ScarState[] states)
         {
             if (isServer) return;
             if (!ready) return;
@@ -1314,7 +1376,7 @@ namespace Metagame.Network
             everScar = true;
 
             var spawner = MeteorSpawner;
-            if (spawner != null) spawner.ApplyNetworkScars(states, full: false);
+            if (spawner != null) spawner.ApplyNetworkScars(states, full: false, sampleTime: sampleTime);
         }
 
         /// <summary>한 묶음에 실을 수 있는 자세 개수. 전송 계층이 정하는 값이다.</summary>
@@ -1819,7 +1881,7 @@ namespace Metagame.Network
         }
 
         /// <summary>낙하 자세 하나의 바이트 수 — 자세 28 + 속도 12 + 타격 가이드 13 + 반사 등급 1.</summary>
-        const int MeteorPoseBytes = 54;
+        const int MeteorPoseBytes = 59; // 54-byte state + worst-case 5-byte varint ID
 
         /// <summary>
         /// 한 묶음에 실을 수 있는 낙하 자세 개수. 공세 최대가 표에서 8개이므로 닿을 일이
@@ -1894,10 +1956,11 @@ namespace Metagame.Network
 
                 // 보내는 쪽도 받는 쪽도 `body` 로 읽고 쓴다 — 운석은 보간이 걸려 있어
                 // `transform.position` 은 **표시 위치**다(FollowOnClient 의 주석과 같은 이유).
-                var body = meteor.GetComponent<Rigidbody>();
+                var body = meteor.Body;
                 sendMeteors[w++] = body != null
                     ? new MeteorPose
                     {
+                        Id = meteor.ReplicaId,
                         Position = body.position,
                         Rotation = body.rotation,
                         Velocity = body.linearVelocity,
@@ -1909,6 +1972,7 @@ namespace Metagame.Network
                     }
                     : new MeteorPose
                     {
+                        Id = meteor.ReplicaId,
                         Position = meteor.transform.position,
                         Rotation = meteor.transform.rotation,
                         Velocity = Vector3.zero,

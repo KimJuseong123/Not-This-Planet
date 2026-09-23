@@ -56,8 +56,8 @@ namespace Metagame.Gameplay.Tests
             writer.Write(pose);
             var sizeField = typeof(WorldSync).GetField("MeteorPoseBytes",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-            Assert.AreEqual((int)sizeField.GetRawConstantValue(), writer.Position,
-                "Packet capacity must use the actual serialized meteor size.");
+            Assert.LessOrEqual(writer.Position, (int)sizeField.GetRawConstantValue(),
+                "Packet capacity must cover the variable-length serialized meteor ID.");
             var remote = new NetworkReader(writer.ToArraySegment()).Read<MeteorSpawner.NetworkMeteorPose>();
             Assert.AreEqual(pose.DeflectionGrade, remote.DeflectionGrade);
             Assert.AreEqual(pose.Harmless, remote.Harmless);
@@ -546,7 +546,7 @@ namespace Metagame.Gameplay.Tests
             // 받는 쪽도 같다. 전체 목록은 흔적 전부를 훑는다.
             var apply = TestSource.Method(
                 TestSource.Read("Runtime/Gameplay/Hazards/MeteorSpawner.cs"),
-                "public void ApplyNetworkScars(IReadOnlyList<NetworkScarState> states, bool full)");
+                "public void ApplyNetworkScars(");
             Assert.That(apply, Does.Not.Contain("GetComponent"),
                 "받는 쪽도 목록 크기만큼 컴포넌트를 찾는다 — Meteor.Body 를 쓸 것");
         }
@@ -592,8 +592,8 @@ namespace Metagame.Gameplay.Tests
 
             foreach (var name in new[]
                      {
-                         "void RpcScarSet(uint seq, ScarState[] states)",
-                         "void RpcScarMoves(uint seq, ScarState[] states)",
+                         "void RpcScarSet(uint seq, double sampleTime, ScarState[] states)",
+                         "void RpcScarMoves(uint seq, double sampleTime, ScarState[] states)",
                      })
             {
                 var body = TestSource.Method(sync, name);
