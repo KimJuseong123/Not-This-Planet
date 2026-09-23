@@ -96,6 +96,23 @@ namespace Metagame.Gameplay.Tests
             Assert.That(AiCommandPlan.ValidSteps(new[] { Step("revive"), Step("follow") }), Is.True);
         }
 
+        /// <summary>
+        /// <c>다들 조립대로 모여</c> 는 <b>조립대로</b> 가야 한다 (S15P21B202-729).
+        ///
+        /// <para><c>gather</c> 가 <c>destination</c> 을 안 봐서 말한 사람 앞으로 모였고,
+        /// 화면에는 <c>gather 4/4명</c> 이라 <b>시킨 대로 된 것처럼 보였다.</b>
+        /// <c>다들 모여</c>(목적지 생략)와 <c>여기로 모여</c> 는 그대로여야 한다.</para>
+        /// </summary>
+        [TestCase("gather", "assembly", true)]
+        [TestCase("gather", "aim", true)]
+        [TestCase("gather", "high", true)]
+        [TestCase("gather", "default", false)]
+        [TestCase("gather", "speaker", false)]
+        [TestCase("follow", "assembly", false)]
+        [TestCase("goto", "assembly", false)]
+        public void GatheringSomewhereElseIsAMove(string action, string destination, bool expected)
+            => Assert.That(AiCommandPlan.GathersAwayFromSpeaker(action, destination), Is.EqualTo(expected));
+
         [Test] public void NavigationParametersAreAllowlisted()
         {
             Assert.That(AiCommandPlan.Destination("assembly"), Is.True);

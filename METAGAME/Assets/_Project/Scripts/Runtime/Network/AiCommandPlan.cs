@@ -44,6 +44,22 @@ namespace Metagame.Network
             return null;
         }
 
+        /// <summary>
+        /// <b>말한 사람 쪽이 아닌 곳으로 모이라는 것은 <c>goto</c> 와 같은 일이다</b>
+        /// (S15P21B202-729).
+        ///
+        /// <para><c>gather</c> 는 말한 사람을 따라가는 것으로 끝나고 <c>destination</c> 을
+        /// 아예 보지 않았다. 그래서 <c>다들 조립대로 모여</c> 가 <b>말한 사람 앞으로</b>
+        /// 모였다 — 거절도 오류도 아니라 화면에는 <c>gather 4/4명</c> 이라고 떴다.
+        /// <b>시킨 대로 된 것처럼 보이는 것</b>이 이 버그의 전부다.</para>
+        ///
+        /// <para>규칙을 두 곳이 각자 알면 또 갈린다. 여기 한 번 적고
+        /// <see cref="AiCompanionController.Apply"/> 와
+        /// <see cref="AiGroupOrders.ExecutePlan"/> 이 같이 읽는다.</para>
+        /// </summary>
+        public static bool GathersAwayFromSpeaker(string action, string destination)
+            => action == "gather" && destination != "default" && destination != "speaker";
+
         public static bool Action(string action) => AiCompanionController.IsSocial(action) || AiWorkTask.Supports(action)
             || action == "follow" || action == "gather" || action == "wait" || action == "cancel" || action == "pull_pin";
         public static bool Recipients(string value) => value == "default" || value == "all" || value == "one" || value == "two"
