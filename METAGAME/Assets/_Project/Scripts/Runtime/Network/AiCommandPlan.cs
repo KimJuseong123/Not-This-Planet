@@ -50,7 +50,7 @@ namespace Metagame.Network
             || value == "remaining" || value == "red" || value == "blue" || value == "yellow" || value == "green";
         public static bool Destination(string value) => value == "default" || value == "speaker" || value == "aim" || value == "assembly" || value == "high";
         public static bool Continuous(string action) => action == "follow" || action == "wait" || action == "defend_meteors"
-            || action == "grab_part" || action == "hold_tractor" || action == "lift_part";
+            || action == "grab_part" || action == "hold_tractor" || action == "lift_part" || action == "goto";
         public static bool ValidSteps(AiCommandStep[] steps)
         {
             if (steps == null || steps.Length == 0 || steps.Length > 4) return false;

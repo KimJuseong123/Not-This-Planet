@@ -68,6 +68,21 @@ namespace Metagame.Gameplay.Tests
             => Assert.That(AiCommandPlan.Valid(new[] {
                 new AiCommandAssignment { recipients = "two", steps = new[] { Step("pull_all_pins") } },
                 new AiCommandAssignment { recipients = "remaining", steps = new[] { Step("defend_meteors") } } }), Is.True);
+        /// <summary>
+        /// <c>goto</c> 는 목적지를 고를 수 있는 <b>유일한 이동 명령</b>이다 (S15P21B202-717).
+        ///
+        /// <para><c>follow</c>·<c>gather</c> 는 말한 사람 쪽으로만 온다. 도착한 뒤 그 자리를
+        /// 지키는 지속 작업이므로 <b>뒤에 다른 단계가 올 수 없다.</b></para>
+        /// </summary>
+        [Test] public void GoToIsAPlaceableContinuousMove()
+        {
+            var there = new AiCommandStep { action = "goto", destination = "assembly" };
+            Assert.That(AiCommandPlan.ValidSteps(new[] { there }), Is.True);
+            Assert.That(AiCommandPlan.Continuous("goto"), Is.True);
+            Assert.That(AiCommandPlan.ValidSteps(new[] { there, Step("dance") }), Is.False);
+            Assert.That(AiCommandPlan.ValidSteps(new[] { Step("pickup_bat"), there }), Is.True);
+        }
+
         [Test] public void NavigationParametersAreAllowlisted()
         {
             Assert.That(AiCommandPlan.Destination("assembly"), Is.True);

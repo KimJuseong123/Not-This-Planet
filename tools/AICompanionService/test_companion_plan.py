@@ -19,6 +19,20 @@ class PlanTests(unittest.TestCase):
         first["steps"] += order("defend_meteors")["steps"]
         plan.validate({"status": "ok", "orders": [first, order("wait", "remaining")]})
 
+    def test_goto_carries_a_destination_and_comes_last(self):
+        """`초록아 조립대로 가 있어` (S15P21B202-717).
+
+        전에는 이동 명령이 `follow`·`gather` 뿐이라 **AI 를 "나에게" 만 부를 수
+        있었다.** 도착한 뒤 자리를 지키는 지속 작업이므로 뒤에 다른 단계가 못 온다.
+        """
+        there = {"action": "goto", "approach": False, "destination": "assembly"}
+        value = {"status": "ok", "orders": [{"recipients": "green", "steps": [there]}]}
+        self.assertEqual(plan.validate(value), value)
+        self.assertIn("goto", plan.CONTINUOUS)
+        with self.assertRaises(ValueError):
+            plan.validate({"status": "ok", "orders": [
+                {"recipients": "green", "steps": [there, order("dance")["steps"][0]]}]})
+
     def test_remaining_alone_is_a_command_not_a_mistake(self):
         """`나머지는 고정못 뽑아` (S15P21B202-727).
 
