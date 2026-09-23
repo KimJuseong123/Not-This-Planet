@@ -7,7 +7,7 @@ using UnityEngine.Rendering;
 namespace Metagame.Gameplay
 {
     /// <summary>근처 파츠의 접합 가능한 표면만 샘플링하는 로컬 표시. 물리/네트워크 상태는 바꾸지 않는다.</summary>
-    internal sealed class WeldingJointGuide : IDisposable
+    public sealed class WeldingJointGuide : IDisposable
     {
         const int MaxCells = 48;
         const float Step = 0.025f;
@@ -15,6 +15,25 @@ namespace Metagame.Gameplay
         readonly List<Collider> hulls = new List<Collider>();
         readonly List<SpaceshipPart> owners = new List<SpaceshipPart>();
         readonly List<Matrix4x4> poses = new List<Matrix4x4>();
+
+        /// <summary>
+        /// 움직였다고 볼 거리(m). <b>정확한 일치를 요구하면 멀티에서 매 프레임 다시
+        /// 짓는다</b>(S15P21B202-722).
+        ///
+        /// <para>참가자 화면의 파츠는 <c>WorldSync</c> 가 목표를 향해 <c>Lerp</c> 로
+        /// 미는 키네마틱 강체이고 <c>RigidbodyInterpolation.Interpolate</c> 가 걸려
+        /// 있다. Lerp 는 목표에 <b>정확히 닿지 않으므로</b> 눈에는 멈춰 있어도 행렬이
+        /// 매 프레임 조금씩 달라진다 — 그러면 아래 0.1초 스로틀이 통째로 무시되고
+        /// O(n²) 재구성과 메시 재생성이 프레임마다 돈다.</para>
+        ///
+        /// <para>싱글에서 안 보이던 이유가 이것이다. 방장 쪽 파츠는 보통 강체이고
+        /// 멈추면 잠들어 행렬이 그대로다.</para>
+        ///
+        /// <para>0.5mm 는 비드 판정(<see cref="PhysicsScale.WeldBeadContactSkin"/>)보다
+        /// 훨씬 작다 — 이 안에서 움직인 것은 표시가 달라질 이유가 없다.</para>
+        /// </summary>
+        public const float MoveEpsilon = 0.0005f;
+
         readonly List<Vector3> vertices = new List<Vector3>();
         readonly List<Color> colors = new List<Color>();
         readonly List<int> triangles = new List<int>();
@@ -46,11 +65,15 @@ namespace Metagame.Gameplay
 
         public void Show(Vector3 center, float range, float offset)
         {
-            bool moved = false;
+            // **정말 움직였으면 그 프레임에 다시 짓는다.** 파츠가 떨어져 나갔는데
+            // 추천이 남아 있으면 없는 접합부를 가리킨다 — 느린 것보다 틀린 것이 나쁘다.
+            // 아낀 것은 "멈춰 있는데 움직인 것처럼 보이던" 경우뿐이다(MoveEpsilon).
+            bool changed = false;
             for (int i = 0; i < hulls.Count; i++)
                 if (hulls[i] == null || !hulls[i].enabled || !hulls[i].gameObject.activeInHierarchy ||
-                    hulls[i].transform.localToWorldMatrix != poses[i]) { moved = true; break; }
-            if (!moved && Time.unscaledTime < nextRefresh) return;
+                    Moved(hulls[i].transform.localToWorldMatrix, poses[i])) { changed = true; break; }
+
+            if (!changed && Time.unscaledTime < nextRefresh) return;
             nextRefresh = Time.unscaledTime + 0.1f;
             hulls.Clear(); owners.Clear(); poses.Clear();
             vertices.Clear(); colors.Clear(); triangles.Clear();
@@ -86,6 +109,24 @@ namespace Metagame.Gameplay
             mesh.SetVertices(vertices); mesh.SetColors(colors); mesh.SetTriangles(triangles, 0);
             mesh.RecalculateBounds();
             root.SetActive(triangles.Count > 0);
+        }
+
+        /// <summary>
+        /// 다시 지어야 할 만큼 움직였는가. <b>행렬을 그대로 비교하지 않는다</b> —
+        /// 이유는 <see cref="MoveEpsilon"/> 에 적었다.
+        /// </summary>
+        public static bool Moved(in Matrix4x4 now, in Matrix4x4 before)
+        {
+            if ((now.GetColumn(3) - before.GetColumn(3)).sqrMagnitude
+                > MoveEpsilon * MoveEpsilon) return true;
+
+            // 회전·크기도 본다. 제자리에서 도는 파츠를 놓치면 표시가 옛 면에 남는다.
+            // 축 셋을 그대로 견주는 것이 쿼터니언을 뽑는 것보다 싸다.
+            for (int axis = 0; axis < 3; axis++)
+                if ((now.GetColumn(axis) - before.GetColumn(axis)).sqrMagnitude
+                    > MoveEpsilon * MoveEpsilon) return true;
+
+            return false;
         }
 
         void ProjectPair(Collider source, Bounds target, Vector3 center, float range, float offset)
