@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using Metagame.Gameplay.Parts;
 using UnityEngine;
@@ -9,8 +10,19 @@ namespace Metagame.Gameplay
     /// <summary>근처 파츠의 접합 가능한 표면만 샘플링하는 로컬 표시. 물리/네트워크 상태는 바꾸지 않는다.</summary>
     public sealed class WeldingJointGuide : IDisposable
     {
-        const int MaxCells = 48;
-        const float Step = 0.025f;
+        // This translucent recommendation is not the weld hit test. A 7.5 cm
+        // display grid avoids hundreds of thousands of overlapping vertices near
+        // assembled cores; the actual bead/contact precision stays unchanged.
+        const int MaxCells = 16;
+        const float Step = 0.075f;
+        public const int WorkPerFrame = 2048;
+        const double MillisecondsPerFrame = 2.0;
+        IEnumerator build;
+        Vector3 buildCenter;
+        float buildRange;
+        float buildOffset;
+        public int LastWorkCount { get; private set; }
+        public bool IsBuilding => build != null;
         readonly Collider[] nearby = new Collider[128];
         readonly List<Collider> hulls = new List<Collider>();
         readonly List<SpaceshipPart> owners = new List<SpaceshipPart>();
@@ -65,16 +77,48 @@ namespace Metagame.Gameplay
 
         public void Show(Vector3 center, float range, float offset)
         {
-            // **정말 움직였으면 그 프레임에 다시 짓는다.** 파츠가 떨어져 나갔는데
-            // 추천이 남아 있으면 없는 접합부를 가리킨다 — 느린 것보다 틀린 것이 나쁘다.
-            // 아낀 것은 "멈춰 있는데 움직인 것처럼 보이던" 경우뿐이다(MoveEpsilon).
-            bool changed = false;
+            LastWorkCount = 0;
+            if (root == null) return;
+            // Hide stale geometry immediately, but never bypass the per-frame work
+            // budget when network interpolation keeps moving a nearby part.
+            bool changed = (center - buildCenter).sqrMagnitude > 0.25f
+                || range != buildRange || offset != buildOffset;
             for (int i = 0; i < hulls.Count; i++)
                 if (hulls[i] == null || !hulls[i].enabled || !hulls[i].gameObject.activeInHierarchy ||
                     Moved(hulls[i].transform.localToWorldMatrix, poses[i])) { changed = true; break; }
 
-            if (!changed && Time.unscaledTime < nextRefresh) return;
-            nextRefresh = Time.unscaledTime + 0.1f;
+            if (changed)
+            {
+                CancelBuild();
+                root.SetActive(false);
+                nextRefresh = 0f;
+            }
+            if (build == null)
+            {
+                if (Time.unscaledTime < nextRefresh) return;
+                buildCenter = center;
+                buildRange = range;
+                buildOffset = offset;
+                build = Rebuild(center, range, offset);
+            }
+            long start = System.Diagnostics.Stopwatch.GetTimestamp();
+            while (LastWorkCount < WorkPerFrame)
+            {
+                LastWorkCount++;
+                if (!build.MoveNext())
+                {
+                    CancelBuild();
+                    nextRefresh = Time.unscaledTime + 0.1f;
+                    return;
+                }
+                if (LastWorkCount % 32 == 0 &&
+                    (System.Diagnostics.Stopwatch.GetTimestamp() - start) * 1000.0 /
+                    System.Diagnostics.Stopwatch.Frequency >= MillisecondsPerFrame) return;
+            }
+        }
+
+        IEnumerator Rebuild(Vector3 center, float range, float offset)
+        {
             hulls.Clear(); owners.Clear(); poses.Clear();
             vertices.Clear(); colors.Clear(); triangles.Clear();
             int count = Physics.OverlapSphereNonAlloc(center, range, nearby, GameLayers.PartMask,
@@ -95,16 +139,27 @@ namespace Metagame.Gameplay
                 poses.Add(collider.transform.localToWorldMatrix);
             }
             for (int a = 0; a < hulls.Count; a++)
+            {
+                // Several neighbouring core parts can cover the same source face.
+                // Project it once; the contact query still rejects non-joining points.
+                bool hasTarget = false;
+                Bounds targetBounds = default;
                 for (int b = 0; b < hulls.Count; b++)
                 {
+                    yield return null;
                     if (a == b || owners[a] == owners[b]) continue;
                     var link = PartAssemblyLink.FindBetween(owners[a], owners[b]);
                     if (link != null && link.IsIntact) continue;
                     var bounds = hulls[b].bounds;
                     bounds.Expand((PhysicsScale.WeldBeadMinRadius + PhysicsScale.WeldBeadContactSkin) * 2f);
                     if (!bounds.Intersects(hulls[a].bounds)) continue;
-                    ProjectPair(hulls[a], bounds, center, range, Mathf.Max(0.002f, offset));
+                    if (hasTarget) targetBounds.Encapsulate(bounds);
+                    else { targetBounds = bounds; hasTarget = true; }
                 }
+                if (!hasTarget) continue;
+                var projection = ProjectPair(hulls[a], targetBounds, center, range, Mathf.Max(0.002f, offset));
+                while (projection.MoveNext()) yield return null;
+            }
             mesh.Clear();
             mesh.SetVertices(vertices); mesh.SetColors(colors); mesh.SetTriangles(triangles, 0);
             mesh.RecalculateBounds();
@@ -129,7 +184,7 @@ namespace Metagame.Gameplay
             return false;
         }
 
-        void ProjectPair(Collider source, Bounds target, Vector3 center, float range, float offset)
+        IEnumerator ProjectPair(Collider source, Bounds target, Vector3 center, float range, float offset)
         {
             var bounds = source.bounds;
             var min = Vector3.Max(Vector3.Max(bounds.min, target.min), center - Vector3.one * range);
@@ -160,10 +215,12 @@ namespace Metagame.Gameplay
                                 Mathf.Abs(hit.normal[axis]) >= Mathf.Abs(hit.normal[v]);
                             alpha[index] = valid[index] && (hit.point - center).sqrMagnitude <= range * range &&
                                 WeldBead.CanStartJoiningAt(hit) ? 1f : 0f;
+                            yield return null;
                         }
                     for (int y = 0; y < height; y++)
                         for (int x = 0; x < width; x++)
                         {
+                            yield return null;
                             int a = y * (width + 1) + x, b = a + 1, c = a + width + 1, d = c + 1;
                             if (!valid[a] || !valid[b] || !valid[c] || !valid[d] ||
                                 alpha[a] + alpha[b] + alpha[c] + alpha[d] == 0f) continue;
@@ -188,8 +245,14 @@ namespace Metagame.Gameplay
         // 바로 위 Visible 은 root 가 없어질 수 있다는 것을 이미 알고 검사한다.
         // 여기만 안 해서, 안내선 오브젝트가 먼저 지워진 뒤 OnDisable 이 오면
         // MissingReferenceException 이 난다 — 씬이 정리되는 순서에 따라 터진다.
-        public void Hide() { if (root != null) root.SetActive(false); nextRefresh = 0f; }
-        public void Dispose() { Release(root); Release(mesh); Release(material); }
+        void CancelBuild() { (build as IDisposable)?.Dispose(); build = null; }
+        public void Hide()
+        {
+            CancelBuild();
+            if (root != null) root.SetActive(false);
+            nextRefresh = 0f;
+        }
+        public void Dispose() { CancelBuild(); Release(root); Release(mesh); Release(material); }
         static void Release(UnityEngine.Object value)
         {
             if (value == null) return;

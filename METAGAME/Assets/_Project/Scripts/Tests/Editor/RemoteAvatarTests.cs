@@ -56,6 +56,37 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void PredictionCorrectionMovesEveryBodyWithoutStretchingJoints()
+        {
+            var (avatar, rig, source) = Spawn(Vector3.zero, mine: true);
+            var positions = new Vector3[rig.Doll.Bodies.Count];
+            for (int i = 0; i < positions.Length; i++) positions[i] = rig.Doll.Bodies[i].position;
+            avatar.AddCorrection(Vector3.right);
+            avatar.Follow();
+            for (int i = 0; i < positions.Length; i++)
+                Assert.That(Vector3.Distance(rig.Doll.Bodies[i].position - positions[i],
+                    Vector3.right * PredictionCorrection.Rate), Is.LessThan(0.0001f));
+            Assert.AreEqual(Vector3.right * PredictionCorrection.Rate, avatar.AppliedCorrection);
+        }
+
+        [Test]
+        public void OutstandingInputHistoryIncludesCorrectionsAlreadyPaid()
+        {
+            var (avatar, rig, source) = Spawn(Vector3.zero, mine: true);
+            var net = source.gameObject.AddComponent<NetPlayer>();
+            const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance
+                | System.Reflection.BindingFlags.NonPublic;
+            typeof(NetPlayer).GetField("remoteAvatar", flags).SetValue(net, avatar);
+            typeof(NetPlayer).GetMethod("Remember", flags).Invoke(net, new object[] { 1u, Vector3.zero });
+            avatar.AddCorrection(Vector3.right);
+            for (int i = 0; i < 4; i++) avatar.Follow();
+            var args = new object[] { 1u, Vector3.zero };
+            Assert.IsTrue((bool)typeof(NetPlayer).GetMethod("TryRecall", flags).Invoke(net, args));
+            Assert.That(Vector3.Distance((Vector3)args[1], avatar.AppliedCorrection), Is.LessThan(0.0001f),
+                "Delayed echoes must not charge the already-applied correction a second time.");
+        }
+
+        [Test]
         public void LocalRiderFollowsServerWithoutWalkingOrColliding()
         {
             var (avatar, rig, source) = Spawn(Vector3.zero, mine: true);

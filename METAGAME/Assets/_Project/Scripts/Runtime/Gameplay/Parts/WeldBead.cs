@@ -209,14 +209,18 @@ namespace Metagame.Gameplay.Parts
         }
 
         /// <summary>
-        /// 받은 상태로 사슬을 통째로 다시 세운다. <b>기존 사슬은 버린다.</b>
+        /// 받은 상태를 적용한다. 같은 사슬은 재사용하고 변경된 끝 비드만 갱신한다.
         ///
         /// <para>클라이언트에서만 부른다 — 서버는 원본을 갖고 있다. 만드는 순서는
-        /// <see cref="StartChain"/> 과 같다(사슬 추가 → 덩어리 → 질량 → 접촉).</para>
+        /// <see cref="StartChain"/> 과 같다. 사슬의 형상이 바뀌면 전체 복원 경로를 쓴다.</para>
         /// </summary>
         public void RestoreChains(ChainState[] states, int offset, int count)
         {
             Initialize();
+
+            // Repeated network snapshots must not destroy colliders/materials. For
+            // an unchanged chain layout, resize only the beads that actually changed.
+            if (TryUpdateChains(states, offset, count)) return;
 
             ClearChains();
             if (states == null) return;
@@ -248,6 +252,70 @@ namespace Metagame.Gameplay.Parts
 
             ApplyMass();
             if (!padWeldIntact) ReleasePadWeld();
+        }
+
+        bool TryUpdateChains(ChainState[] states, int offset, int count)
+        {
+            if (states == null || offset < 0 || count < 0 || offset > states.Length - count)
+                return false;
+            for (int i = 0; i < count; i++)
+            {
+                var state = states[offset + i];
+                if (state.BlobCount <= 0) return false;
+                if (i >= _chains.Count) continue;
+                var chain = _chains[i];
+                if (state.Origin != chain.Origin
+                    || state.Direction != chain.Direction || state.HasBrushFrom != chain.HasBrushFrom
+                    || state.BrushFrom != chain.BrushFrom) return false;
+            }
+
+            bool changed = false;
+            bool padIntact = false;
+            while (_chains.Count > count)
+            {
+                var removed = _chains[_chains.Count - 1];
+                foreach (var blob in removed.Blobs) DestroyObject(blob);
+                _chains.RemoveAt(_chains.Count - 1);
+                if (removed.Touched != null) ApplyStrengthTo(removed.Touched);
+                changed = true;
+            }
+            for (int i = 0; i < count; i++)
+            {
+                var state = states[offset + i];
+                if (i == _chains.Count)
+                    _chains.Add(new Chain
+                    {
+                        Origin = state.Origin, Direction = state.Direction,
+                        HasBrushFrom = state.HasBrushFrom, BrushFrom = state.BrushFrom,
+                        HeatedAt = -999f
+                    });
+                var chain = _chains[i];
+                padIntact |= state.PadWeldIntact;
+                if (state.BlobCount == chain.Blobs.Count && state.TipRadius == chain.TipRadius)
+                    continue;
+
+                changed = true;
+                while (chain.Blobs.Count > state.BlobCount)
+                {
+                    int last = chain.Blobs.Count - 1;
+                    DestroyObject(chain.Blobs[last]);
+                    chain.Blobs.RemoveAt(last);
+                }
+                if (chain.Blobs.Count < state.BlobCount && chain.Blobs.Count > 0)
+                    ApplyRadius(chain, chain.Blobs.Count - 1, PhysicsScale.WeldBeadMaxRadius);
+                chain.TipRadius = PhysicsScale.WeldBeadMaxRadius;
+                while (chain.Blobs.Count < state.BlobCount) SpawnBlob(chain, chain.Blobs.Count);
+                chain.TipRadius = state.TipRadius;
+                ApplyRadius(chain, chain.Blobs.Count - 1, chain.TipRadius);
+                chain.HeatedAt = Time.time;
+                RefreshContact(i);
+            }
+            if (changed) ApplyMass();
+            // A severed pad joint can change without changing the bead geometry.
+            if (!padIntact) ReleasePadWeld();
+            else if (!IsWeldedToPad)
+                for (int i = 0; i < count; i++) RefreshContact(i);
+            return true;
         }
 
         /// <summary>덩어리와 사슬을 전부 치운다. 다시 세우기 전에 부른다.</summary>

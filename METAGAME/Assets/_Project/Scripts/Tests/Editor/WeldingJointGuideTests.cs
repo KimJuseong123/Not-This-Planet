@@ -1,4 +1,6 @@
 using Metagame.Gameplay;
+using Metagame.Gameplay.Parts;
+using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -16,6 +18,39 @@ namespace Metagame.Gameplay.Tests
     /// </summary>
     public sealed class WeldingJointGuideTests
     {
+        [Test]
+        public void DenseContactBuildIsBoundedAndStaleGeometryDisappearsImmediately()
+        {
+            var objects = new List<GameObject>();
+            var guide = new WeldingJointGuide(Color.yellow);
+            try
+            {
+                var a = SocketTestRig.Placed(objects, Vector3.zero);
+                var b = SocketTestRig.Placed(objects, Vector3.right);
+                Physics.SyncTransforms();
+                guide.Show(Vector3.zero, 4f, 0.012f);
+                Assert.IsTrue(guide.IsBuilding, "Dense geometry must not finish in one blocking frame.");
+                for (int i = 0; i < 2048 && guide.IsBuilding; i++)
+                {
+                    guide.Show(Vector3.zero, 4f, 0.012f);
+                    Assert.LessOrEqual(guide.LastWorkCount, WeldingJointGuide.WorkPerFrame);
+                }
+                Assert.IsFalse(guide.IsBuilding, "Stable contact must eventually finish.");
+                Assert.IsTrue(guide.Visible);
+                b.transform.position += Vector3.right * 10f;
+                Physics.SyncTransforms();
+                guide.Show(Vector3.zero, 4f, 0.012f);
+                Assert.IsFalse(guide.Visible, "Never show a recommendation at a departed part.");
+                guide.Hide();
+                Assert.IsFalse(guide.IsBuilding);
+            }
+            finally
+            {
+                guide.Dispose();
+                foreach (var go in objects) if (go != null) Object.DestroyImmediate(go);
+            }
+        }
+
         static Matrix4x4 At(Vector3 position) =>
             Matrix4x4.TRS(position, Quaternion.identity, Vector3.one);
 
