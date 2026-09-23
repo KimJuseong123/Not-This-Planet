@@ -31,13 +31,33 @@ namespace Metagame.Network
             (social == "dance" ? "춤추는 중" : social == "greet" ? "인사하는 중" : "감정 표현 중") :
             pinOrder ? pin.Status : follow.Status);
         public bool Apply(string action, PlayerRig speaker, PlayerRig self, bool approach = false, string destination = "default")
+            => Apply(action, speaker, self, out _, approach, destination);
+
+        /// <summary>
+        /// 시작하지 못하면 <paramref name="refusal"/> 에 <b>왜 못 시작했는지</b>를 담는다
+        /// (S15P21B202-715).
+        ///
+        /// <para>갈래마다 이름이 있어야 한다. 전에는 전부 <c>return false</c> 라서, 화면에는
+        /// <c>0/1명</c> 만 남고 <b>손이 차 있어서인지 대상을 못 찾아서인지 알 수 없었다.</b></para>
+        /// </summary>
+        public bool Apply(string action, PlayerRig speaker, PlayerRig self, out string refusal,
+                          bool approach = false, string destination = "default")
         {
-            if (action != "follow" && action != "gather" && action != "wait" && action != "cancel" && action != "pull_pin" && !IsSocial(action) && !AiWorkTask.Supports(action)) return false;
-            if (action != "wait" && action != "cancel" && (speaker == null || self == null)) return false;
-            if (IsSocial(action) && (Busy || self.HeldTool != null || self.Carrying || self.LeftHand.Gripping || self.RightHand.Gripping || self.GrabbedByOthers)) return false;
+            refusal = null;
+            if (action != "follow" && action != "gather" && action != "wait" && action != "cancel" && action != "pull_pin" && !IsSocial(action) && !AiWorkTask.Supports(action))
+            { refusal = "모르는 행동"; return false; }
+            if (action != "wait" && action != "cancel" && (speaker == null || self == null))
+            { refusal = "말한 사람을 못 찾음"; return false; }
+            if (IsSocial(action) && (Busy || self.HeldTool != null || self.Carrying || self.LeftHand.Gripping || self.RightHand.Gripping || self.GrabbedByOthers))
+            { refusal = Busy ? "다른 작업 중이라 감정 표현 불가" : "손에 무언가를 들고 있어 감정 표현 불가"; return false; }
             Stop();
             requester = speaker;
-            if (AiWorkTask.Supports(action)) { workOrder = true; return work.Begin(action, self, speaker, destination); }
+            if (AiWorkTask.Supports(action))
+            {
+                workOrder = true;
+                if (work.Begin(action, self, speaker, destination)) return true;
+                refusal = "작업 대상을 못 찾음"; return false;
+            }
             if (IsSocial(action))
             {
                 social = action; approaching = approach; faceStarted = Time.time;
@@ -45,8 +65,15 @@ namespace Metagame.Network
                 return true;
             }
             if (action == "pull_pin") { pinOrder = true; pin.Begin(self, speaker); return true; }
-            if (action == "gather") { gather = true; return follow.Apply("follow", speaker); }
-            return follow.Apply(action, speaker);
+            if (action == "gather")
+            {
+                gather = true;
+                if (follow.Apply("follow", speaker)) return true;
+                refusal = "따라갈 상대를 못 잡음"; return false;
+            }
+            if (follow.Apply(action, speaker)) return true;
+            refusal = "이동 명령을 시작하지 못함";
+            return false;
         }
         public void SetFormation(Vector3 offset) => follow.SetFormation(offset, gather || approaching);
         public static InputFrame Face(PlayerRig self, PlayerRig speaker)

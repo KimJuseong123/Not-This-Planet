@@ -17,6 +17,33 @@ namespace Metagame.Network
     }
     public static class AiCommandPlan
     {
+        /// <summary>
+        /// 이 명령을 지금 받을 수 없다면 <b>왜 못 받는지</b>. 받을 수 있으면 <c>null</c>
+        /// (S15P21B202-715).
+        ///
+        /// <para>전에는 이 판단 전체가 <c>bool</c> 하나였다. 그래서 화면에 남는 것은
+        /// <c>0/1명</c> 이라는 숫자뿐이었고, <b>왜 거절했는지는 아무 데도 없었다</b> —
+        /// 고치려면 매번 추측해야 했다.</para>
+        ///
+        /// <para><b>값으로 받는다.</b> 씬도 네트워크도 없이 확인할 수 있어야, 다음에 조건이
+        /// 늘어도 이 표가 실제 동작과 같은지를 시험이 말해 준다.</para>
+        ///
+        /// <para><c>cancel</c> 은 거의 모든 것을 통과한다. <b>멈추라는 말은 언제나 들어야</b>
+        /// 하기 때문이다 — 기절했든 연출 중이든 진행 중인 작업은 멈출 수 있어야 한다.</para>
+        /// </summary>
+        public static string OrderRefusal(string action, bool aiSeat, bool roomActive, bool downed,
+                                          bool ridingBlocks, bool cutscene, bool danceBlocked)
+        {
+            if (!aiSeat) return "AI 자리가 아니거나 몸이 없음";
+            if (action == "cancel") return null;
+            if (!roomActive) return "방이 명령을 받는 상태가 아님";
+            if (downed) return "기절해 있음";
+            if (ridingBlocks) return "탑승 중이라 그 명령은 못 함";
+            if (cutscene) return "연출·엔딩 중";
+            if (danceBlocked) return "춤을 아직 못 춤 (쿨다운이거나 동작이 없음)";
+            return null;
+        }
+
         public static bool Action(string action) => AiCompanionController.IsSocial(action) || AiWorkTask.Supports(action)
             || action == "follow" || action == "gather" || action == "wait" || action == "cancel" || action == "pull_pin";
         public static bool Recipients(string value) => value == "default" || value == "all" || value == "one" || value == "two"

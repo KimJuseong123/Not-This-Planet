@@ -14,6 +14,29 @@ namespace Metagame.Gameplay.Tests
     {
         sealed class Runtime : IAiRuntimeStatus { public AiRuntimeState State => AiRuntimeState.Ready; }
 
+        /// <summary>
+        /// 거절 사유가 <b>보고 문자열에 실제로 실린다</b> (S15P21B202-715).
+        ///
+        /// <para>전에 남던 것은 <c>0/1명</c> 뿐이었다. 사유를 만들어 놓고 화면까지
+        /// 안 이으면 아무것도 달라지지 않으므로, 글자로 못박는다.</para>
+        /// </summary>
+        [Test] public void RefusalsAreNamedAndGrouped()
+        {
+            Assert.That(AiRefusalTally.Summarize(new string[0]), Is.Empty);
+            Assert.That(AiRefusalTally.Summarize(new[] { "기절해 있음" }),
+                        Is.EqualTo(" · 거절 1: 기절해 있음"));
+            Assert.That(AiRefusalTally.Summarize(new[] { "기절해 있음", "기절해 있음", "설 자리를 못 찾음" }),
+                        Is.EqualTo(" · 거절 3: 기절해 있음 ×2, 설 자리를 못 찾음"));
+        }
+
+        /// <summary>사유 없는 거절은 <b>사유 없음이라고 적는다</b> — 조용히 사라지지 않는다.</summary>
+        [Test] public void MissingReasonStillCounts()
+        {
+            var tally = new AiRefusalTally();
+            tally.Add(null);
+            Assert.That(tally.Summary(), Is.EqualTo(" · 거절 1: 알 수 없음"));
+        }
+
         [UnityTest]
         public IEnumerator HostAssignsCountsProtectsBusyActorsAndSharesSocialSignals()
         {

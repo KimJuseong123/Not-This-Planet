@@ -33,6 +33,37 @@ namespace Metagame.Gameplay.Tests
         [Test] public void RemainingAloneIsACommand()
             => Assert.That(AiCommandPlan.Valid(new[] {
                 new AiCommandAssignment { recipients = "remaining", steps = new[] { Step("pull_pin") } } }), Is.True);
+        /// <summary>
+        /// 거절마다 <b>이름이 있다</b> (S15P21B202-715). 전에는 전부 <c>bool</c> 하나였다.
+        ///
+        /// <para><c>cancel</c> 만은 거의 모든 것을 통과한다 — <b>멈추라는 말은 언제나
+        /// 들어야</b> 하기 때문이다. 기절했든 연출 중이든 진행 중인 작업은 멈출 수 있다.</para>
+        /// </summary>
+        [Test] public void EveryRefusalHasAName()
+        {
+            Assert.That(AiCommandPlan.OrderRefusal("follow", true, true, false, false, false, false), Is.Null);
+            Assert.That(AiCommandPlan.OrderRefusal("follow", false, true, false, false, false, false),
+                        Is.EqualTo("AI 자리가 아니거나 몸이 없음"));
+            Assert.That(AiCommandPlan.OrderRefusal("follow", true, false, false, false, false, false),
+                        Is.EqualTo("방이 명령을 받는 상태가 아님"));
+            Assert.That(AiCommandPlan.OrderRefusal("follow", true, true, true, false, false, false),
+                        Is.EqualTo("기절해 있음"));
+            Assert.That(AiCommandPlan.OrderRefusal("weld", true, true, false, true, false, false),
+                        Is.EqualTo("탑승 중이라 그 명령은 못 함"));
+            Assert.That(AiCommandPlan.OrderRefusal("follow", true, true, false, false, true, false),
+                        Is.EqualTo("연출·엔딩 중"));
+            Assert.That(AiCommandPlan.OrderRefusal("dance", true, true, false, false, false, true),
+                        Is.EqualTo("춤을 아직 못 춤 (쿨다운이거나 동작이 없음)"));
+        }
+
+        [Test] public void StopIsAlwaysHeard()
+        {
+            Assert.That(AiCommandPlan.OrderRefusal("cancel", true, false, true, true, true, true), Is.Null);
+            // 자리 자체가 없으면 멈출 대상도 없다.
+            Assert.That(AiCommandPlan.OrderRefusal("cancel", false, true, false, false, false, false),
+                        Is.EqualTo("AI 자리가 아니거나 몸이 없음"));
+        }
+
         [Test] public void RolesCanUseRemainingActors()
             => Assert.That(AiCommandPlan.Valid(new[] {
                 new AiCommandAssignment { recipients = "two", steps = new[] { Step("pull_all_pins") } },
