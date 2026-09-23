@@ -35,6 +35,8 @@ namespace Metagame.Gameplay.Interaction
                 camera != session.LocalPlayer.Cam.Cam ||
                 renderingData.cameraData.renderType != CameraRenderType.Base ||
                 _pass == null || !_pass.Collect(camera)) return;
+            // 덩어리마다 속성 블록으로 덮어쓴다 (S15P21B202-724). 여기 값은 속성
+            // 블록이 비었을 때의 바탕이다.
             _outline.SetColor("_OutlineColor", _outlineColor);
             _outline.SetFloat("_OutlineThickness", _thickness);
             renderer.EnqueuePass(_pass);
@@ -55,6 +57,7 @@ namespace Metagame.Gameplay.Interaction
             static readonly int MaskId = Shader.PropertyToID("_InteractionMask");
             static readonly int DepthId = Shader.PropertyToID("_InteractionSceneDepth");
             static readonly int GroupId = Shader.PropertyToID("_InteractionGroup");
+            static readonly int ColorId = Shader.PropertyToID("_OutlineColor");
             readonly Material _mask;
             readonly Material _outline;
             readonly OccludedInteractionTargets _targets = new();
@@ -72,6 +75,7 @@ namespace Metagame.Gameplay.Interaction
                 public TextureHandle Mask;
                 public TextureHandle Depth;
                 public Rect Scissor;
+                public Color Color;
                 public readonly MaterialPropertyBlock Properties = new();
             }
 
@@ -142,6 +146,10 @@ namespace Metagame.Gameplay.Interaction
                         data.Mask = mask;
                         data.Depth = resources.cameraDepthTexture;
                         data.Scissor = ScreenRect(camera, bounds, descriptor.width, descriptor.height);
+                        // **색은 덩어리마다 다르다** (S15P21B202-724). 이 패스가 덩어리
+                        // 하나에 마스크와 블릿을 한 벌씩 돌리므로, 여기 실으면 된다 —
+                        // 셰이더도 마스크 포맷도 안 건드린다.
+                        data.Color = targets[start].Outline;
                         builder.UseTexture(mask);
                         builder.UseTexture(data.Depth);
                         builder.SetRenderAttachment(resources.activeColorTexture, 0, AccessFlags.ReadWrite);
@@ -149,6 +157,7 @@ namespace Metagame.Gameplay.Interaction
                         {
                             pass.Properties.SetTexture(MaskId, pass.Mask);
                             pass.Properties.SetTexture(DepthId, pass.Depth);
+                            pass.Properties.SetColor(ColorId, pass.Color);
                             context.cmd.EnableScissorRect(pass.Scissor);
                             context.cmd.DrawProcedural(Matrix4x4.identity, pass.Material, 0, MeshTopology.Triangles, 3, 1, pass.Properties);
                             context.cmd.DisableScissorRect();
