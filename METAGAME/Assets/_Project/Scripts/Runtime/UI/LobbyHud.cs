@@ -107,6 +107,13 @@ namespace Metagame.UI
         /// <summary>방금 내보낸 사람. 다음 방 상태가 올 때까지 그 줄의 × 를 막는다. 0 은 아무도 아니다.</summary>
         private long kickAsked;
 
+        /// <summary>
+        /// "AI 동료 추가" 의 설치 창 (S15P21B202-713). 처음 쓸 때 만든다 — 설정 화면만 빌려 쓰는 게임 씬의
+        /// 이 컴포넌트(<see cref="InitializeSettingsOnly"/>)에는 필요 없다.
+        /// </summary>
+        private AiInstallPopup installPopup;
+        private AiInstallPopup Popup => installPopup ??= new AiInstallPopup(AddAiNow);
+
         private GUIStyle titleStyle;
         private GUIStyle labelStyle;
         private GUIStyle smallStyle;
@@ -203,6 +210,8 @@ namespace Metagame.UI
             editingSettings = null;
             rebindingAction = null;
             Font.textureRebuilt -= OnFontRebuilt;
+            // 창이 사라지면 받던 것도 멈춘다 — 그리지 않는 창이 뒤에서 2GB 를 받게 두지 않는다.
+            installPopup?.Cancel();
             Unsubscribe();
         }
 
@@ -210,6 +219,13 @@ namespace Metagame.UI
         {
             if (!fontWarmed)
                 WarmFont();
+
+            // 설치 창은 방 화면이 떠 있는 동안만 산다. 방을 떠났거나 방장이 아니게 되면 창이 스스로 닫힌다.
+            if (installPopup != null && network != null)
+            {
+                string said = installPopup.Tick(view == LobbyView.Multiplayer && network.CurrentRoom != null);
+                if (said != null) error = said;
+            }
         }
 
         private void Subscribe()
@@ -894,6 +910,12 @@ namespace Metagame.UI
 
         private void DrawMultiplayer()
         {
+            // 설치 창이 떠 있으면 그 아래는 모두 막는다 (S15P21B202-713). IMGUI 는 먼저 그린 버튼이 누름을
+            // 먼저 받는다 — 창 뒤의 "게임 시작" · "방 나가기" 가 창을 뚫고 눌리면 설치 도중 판이 시작된다.
+            bool popupOpen = installPopup != null && installPopup.Visible;
+            bool enabledBefore = GUI.enabled;
+            if (popupOpen) GUI.enabled = false;
+
             float width = Mathf.Min(780f, UiScale.Width - 40f);
             float height = Mathf.Min(network != null && network.CurrentRoom != null ? 740f : 700f, UiScale.Height - 40f);
             float x = (UiScale.Width - width) * 0.5f;
@@ -911,6 +933,7 @@ namespace Metagame.UI
             {
                 if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == CustomizerFlow.SceneName)
                 {
+                    GUI.enabled = enabledBefore;
                     transition.BeginTitle();
                     return;
                 }
@@ -929,6 +952,14 @@ namespace Metagame.UI
                 DrawRoom(x, y, width, network.CurrentRoom);
 
             DrawMessage(new Rect(x + 36f, y + height - 62f, width - 72f, 38f));
+
+            // 되돌린 뒤에 그린다 — 창의 버튼까지 막히면 안 된다.
+            GUI.enabled = enabledBefore;
+            if (popupOpen)
+            {
+                string said = installPopup.Draw(labelStyle, smallStyle, buttonStyle, primaryButtonStyle);
+                if (said != null) error = said;
+            }
         }
 
         private void DrawLogin(float x, float y, float width)
@@ -1039,7 +1070,8 @@ namespace Metagame.UI
             // LobbyRoster 가 정한다 — 여기서 방 상태를 따로 읽어 줄을 만들면 규칙이 두 벌이 된다.
             // 네 줄이 다 차도 아래 버튼이 메시지 줄(패널 아래 62)과 겹치지 않게 줄 높이를 32 로 줄였다.
             bool pending = network.PendingAiCount.HasValue;
-            List<RosterRow> rows = LobbyRoster.Rows(room, network.UserId, AiHostSettings.RuntimeState, rosterRows);
+            List<RosterRow> rows = LobbyRoster.Rows(room, network.UserId, AiHostSettings.RuntimeState, rosterRows,
+                                                    AiRoomControls.LoadingText());
             const float rowHeight = 32f;
             float rowY = y + 222f;
             for (int i = 0; i < rows.Count; i++)
@@ -1060,18 +1092,33 @@ namespace Metagame.UI
             }
 
             // 막혀 있어도 버튼은 그린다. 이유를 옆에 적는다 — 죽은 버튼만 보이면 고장으로 읽는다.
+            //
+            // **누르면 바로 넣지 않는다** (S15P21B202-713). 이 PC 에 쓸 팩이 있는지부터 보고(설치 창), 있으면
+            // 그 자리에서 넣고, 없으면 설치를 묻는다. 넣는 것은 AddAiNow 한 곳이다.
             float addY = rowY + Mathf.Max(1, rows.Count) * rowHeight + 4f;
             AddState add = LobbyRoster.Add(room, network.UserId, pending);
+            bool popupBusy = installPopup != null && installPopup.Busy;
             bool addEnabled = GUI.enabled;
-            GUI.enabled = addEnabled && add.Enabled;
+            GUI.enabled = addEnabled && add.Enabled && !popupBusy;
             if (UiInteraction.Button(new Rect(x + 54f, addY, 200f, 34f), LobbyRoster.AddLabel, smallButtonStyle))
-                AskAi(room.AiCount + 1);
+                Popup.Begin(true);
             GUI.enabled = addEnabled;
+
+            // 넣은 AI 의 워커가 실패했으면 되살릴 길을 둔다 — 자리가 다 차 추가를 누를 수 없어도.
+            float reasonX = x + 266f;
+            if (AiAddFlow.OffersRetry(AiHostSettings.CanConfigure, room.AiCount, AiHostSettings.RuntimeState))
+            {
+                GUI.enabled = addEnabled && !popupBusy;
+                if (UiInteraction.Button(new Rect(reasonX, addY, 132f, 34f), AiAddFlow.RetryRuntimeLabel, smallButtonStyle))
+                    Popup.Begin(false);
+                GUI.enabled = addEnabled;
+                reasonX += 144f;
+            }
             if (!add.Enabled)
-                DrawLabel(new Rect(x + 266f, addY, width - 320f, 34f), add.Reason, smallStyle, UiTheme.MutedText);
+                DrawLabel(new Rect(reasonX, addY, x + width - 54f - reasonX, 34f), add.Reason, smallStyle, UiTheme.MutedText);
 
             float controlsY = addY + 40f;
-            AiRoomControls.Draw(new Rect(x + 54f, controlsY, width - 108f, 56f), smallButtonStyle, smallStyle, true);
+            AiRoomControls.Draw(new Rect(x + 54f, controlsY, width - 108f, 56f), smallStyle, true);
             controlsY += 62f;
             if (UiInteraction.Button(new Rect(x + 54f, controlsY, width * 0.40f, 48f),
                     network.IsLocalReady ? "준비 취소" : "준비", buttonStyle))
@@ -1079,11 +1126,13 @@ namespace Metagame.UI
 
             // 사람의 준비만 본다. AI 줄은 준비 단추가 없고, 실행기가 준비 중이어도 시작을 막지 않는다.
             bool canStart = isHost && room.IsWaiting && room.AllReady;
-            GUI.enabled = canStart;
+            // 켜 두었던 값으로 되돌린다 — true 로 되돌리면 설치 창이 막아 둔 아래 버튼(방 나가기)이 다시 눌린다.
+            bool startEnabled = GUI.enabled;
+            GUI.enabled = startEnabled && canStart;
             if (UiInteraction.Button(new Rect(x + width * 0.52f, controlsY, width * 0.40f, 48f),
                     "게임 시작", primaryButtonStyle))
                 network.StartGame();
-            GUI.enabled = true;
+            GUI.enabled = startEnabled;
 
             // 게임 중인 방에 앉아 있는데 매치로 못 들어간 상태를 설명한다 (S15P21B202-413).
             //
@@ -1150,6 +1199,23 @@ namespace Metagame.UI
             // 보내기 전에 적는다. 소켓이 없으면 오류가 곧바로(OnError) 와서 지운다 — 뒤에 적으면 그 지움을 덮는다.
             aiAsked = count;
             if (!AiHostSettings.TrySetRequestedCount(count)) aiAsked = null;
+        }
+
+        /// <summary>
+        /// AI 를 하나 넣는다 — 설치 창이 부른다(팩이 이미 있으면 곧바로, 설치했으면 "완료" 를 누를 때).
+        ///
+        /// <para><b>그 순간의 방으로 다시 확인한다.</b> 설치하는 몇 분 사이 사람이 들어와 자리가 찼을 수 있다.
+        /// 막혔으면 이유를 돌려주고 보내지 않는다 — 보내면 서버가 줄여 받아, 누른 것이 먹지 않은 것처럼
+        /// 보인다.</para>
+        /// </summary>
+        private string AddAiNow()
+        {
+            RoomSnapshot room = network != null ? network.CurrentRoom : null;
+            AddState add = LobbyRoster.Add(room, network != null ? network.UserId : 0,
+                                           network != null && network.PendingAiCount.HasValue);
+            if (!add.Enabled) return add.Reason;
+            AskAi(room.AiCount + 1);
+            return null;
         }
 
         private static Color RosterColor(RosterTone tone)
@@ -1366,6 +1432,17 @@ namespace Metagame.UI
             characters.Append("자리가 모두 찼습니다 (최대 4명) 처리 중입니다");
             characters.Append("사람이 들어와 AI 동료 하나를 뺐습니다 명을 뺐습니다 자리가 모자라 AI 동료를 더 넣지 못했습니다");
             characters.Append("게임 입장 후 방장의 AI 상태가 표시됩니다");
+            // 설치 창과 진행 글자·상태 줄 (S15P21B202-713). AiAddFlowTests 가 창이 낼 수 있는 글자가 모두 여기 있는지 본다.
+            characters.Append("AI 동료 기능을 확인하는 중입니다 사용하려면 설치가 필요합니다 준비하는 중입니다 준비하지 못했습니다");
+            characters.Append("완료되었습니다 확인 취소 재시도 완료 다시 시도 %GB");
+            characters.Append("설치 정보를 확인하는 중 내려받는 중 설치하는 중 설치를 마무리하는 중 AI 동료를 준비하는 중");
+            characters.Append("약 분 남음 시간 1분 미만 남음 남은 시간 계산 중 조금 더 걸리고 있어요 연결이 잠시 멈췄어요 취소했습니다");
+            characters.Append("이 빌드에서는 설치할 수 없습니다 저장 공간이 부족합니다 를 더 비운 뒤 다시 시도해 주세요 공간을 비운 뒤");
+            characters.Append("내려받지 못했습니다 인터넷 연결을 확인한 뒤 연결이 너무 오래 멈춰 중단했습니다 받은 파일이 올바르지 않습니다");
+            characters.Append("설치 파일을 쓰지 못했습니다 디스크 권한을 확인한 뒤 준비가 너무 오래 걸립니다 시작하지 못했습니다");
+            characters.Append("방장이 바뀌어 준비를 멈췄습니다");
+            characters.Append("AI 동료 사용 안 함 AI 동료를 쓸 수 없어요 사람만 플레이 방장 AI 준비 중 방장 AI 사용 중 방장 AI 실행 실패");
+            characters.Append("대기 AI 테스트 명령 수행 없음 방장의 AI 상태 확인 중");
             // 랭킹 화면 (S15P21B202-656). 위 주석대로 새 문구는 여기에도 더한다.
             characters.Append("…랭킹 인 돌아가기 불러오는 중 아직 혼자 깬 사람이 없어요");
             characters.Append("으로 팀이 첫 기록의 주인이 되어 보세요 랭킹을 불러오지 못했어요");

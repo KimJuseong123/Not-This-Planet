@@ -11,9 +11,12 @@ namespace Metagame.Gameplay.Tests
     public sealed class AiPackInstallerTests
     {
         /// <summary>
-        /// 작은 파일을 해시할 때 <b>1MB 를 잡지 않는다</b> (S15P21B202-713 리뷰). 로비가 IMGUI 이벤트마다
-        /// 1KB 배포 정보를 확인하므로, 크기에 안 맞춘 버퍼는 곧바로 GC 끊김이 된다. 로비의 확인 자체도
-        /// 0.5초에 한 번으로 줄인다.
+        /// 작은 파일을 해시할 때 <b>1MB 를 잡지 않는다</b> (S15P21B202-713 리뷰). 크기에 안 맞춘 버퍼는
+        /// 1KB 배포 정보를 확인할 때마다 1MB 쓰레기가 되어 GC 가 로비를 끊는다.
+        ///
+        /// <para><b>로비는 이제 이벤트마다 확인하지 않는다</b> (S15P21B202-713). 전에는 상태 줄의 임시 준비 버튼이
+        /// IMGUI 이벤트마다(0.5초 보관으로 줄였어도) 배포 정보를 해시했다. 그 버튼을 설치 창이 대신하면서
+        /// 확인은 <b>"AI 동료 추가" 를 누를 때 한 번</b>, 작업 스레드에서 한다.</para>
         /// </summary>
         [Test] public void HashingASmallFileDoesNotGrabAMegabyte()
         {
@@ -21,9 +24,16 @@ namespace Metagame.Gameplay.Tests
             Assert.That(hash, Does.Not.Contain("new byte[1048576]"), "파일 크기와 상관없이 1MB 를 잡는다");
             Assert.That(hash, Does.Contain("Math.Min(input.Length, 1048576L)"), "버퍼를 파일 크기에 맞추지 않는다");
 
-            string check = TestSource.Method(TestSource.Read("Runtime/UI/AiRoomControls.cs"), "static bool NeedsPreparing(");
-            Assert.That(check, Does.Contain("now >= nextPackCheck"), "로비가 이벤트마다 배포 정보를 해시한다");
-            Assert.That(Metagame.UI.AiRoomControls.PackCheckSeconds, Is.InRange(.1f, 2f));
+            string controls = TestSource.Read("Runtime/UI/AiRoomControls.cs");
+            foreach (string call in new[] { "WantsDownload(", "InstalledIsCurrent(", "LoadSource(", "HasPack(" })
+                Assert.That(TestSource.Count(controls, call), Is.Zero, "상태 줄이 그릴 때마다 팩을 확인한다 — " + call);
+
+            string popup = TestSource.Read("Runtime/UI/AiInstallPopup.cs");
+            Assert.That(TestSource.Count(popup, "InstalledIsCurrent("), Is.EqualTo(1), "설치 창이 팩을 한 자리에서만 확인하지 않는다");
+            Assert.That(TestSource.Method(popup, "public void Begin("), Does.Contain("StartCheck();"),
+                "누를 때 확인하지 않는다");
+            Assert.That(TestSource.Method(popup, "public string Draw("), Does.Not.Contain("StartCheck"),
+                "그릴 때마다 팩을 확인한다 — 예전의 이벤트마다 해시가 돌아왔다");
         }
 
         string root;

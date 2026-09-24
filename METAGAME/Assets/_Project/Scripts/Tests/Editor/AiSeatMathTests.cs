@@ -154,6 +154,35 @@ namespace Metagame.Gameplay.Tests
                 "AI 를 센 뒤에 NeedsAi 를 부른다 — 방금 치운 AI 를 센다");
         }
 
+        /// <summary>
+        /// 실행기를 띄울지 (S15P21B202-713). <b>AI 수가 0 이어도 설치 창이 기다리는 동안은 띄운다</b> — 창은
+        /// 워커가 Ready 라고 해야 "완료" 를 보이고, AI 는 완료를 누를 때 넣는다. 수만 보면 서로를 기다린다.
+        /// </summary>
+        [TestCase(0, false, false, false, true, false)]   // 아무도 원하지 않는다
+        [TestCase(0, true, false, false, true, true)]     // 수는 0 이지만 창이 기다린다
+        [TestCase(2, false, false, false, true, true)]    // 넣은 AI 가 있다
+        [TestCase(2, false, true, false, true, false)]    // 대기 AI 시험은 워커를 쓰지 않는다
+        [TestCase(0, true, true, false, true, false)]
+        [TestCase(1, false, false, true, false, true)]    // 판(서버)
+        [TestCase(1, true, false, false, false, false)]   // 방장이 아니고 판도 아니다
+        public void TheRuntimeRunsForTheCountOrWhileTheWindowWaits(int requested, bool preparing, bool idleTest,
+                                                                   bool server, bool canConfigure, bool expected)
+        {
+            Assert.That(AiSeatMath.HostWantsRuntime(requested, preparing, idleTest, server, canConfigure), Is.EqualTo(expected));
+        }
+
+        /// <summary>실행기가 이 셈을 <b>실제로 쓴다</b> — 예전 식(수만 보는 것)이 돌아오면 창이 영영 기다린다.</summary>
+        [Test]
+        public void TheRuntimeAsksTheSameRule()
+        {
+            string runtime = TestSource.Read("Runtime/Network/AiLocalRuntime.cs");
+            Assert.That(runtime, Does.Contain("static bool HostWantsRuntime => AiSeatMath.HostWantsRuntime(AiHostSettings.RequestedCount,"),
+                "실행기가 띄울지 스스로 셈한다 — 설치 창이 기다리는 것을 모른다");
+            Assert.That(TestSource.Count(runtime, "AiHostSettings.Preparing"), Is.EqualTo(1),
+                "실행기가 설치 창의 기다림을 보지 않는다");
+            Assert.That(runtime, Does.Not.Contain("AiHostSettings.Requested &&"), "수만 보던 식이 돌아왔다");
+        }
+
         static int[] Fill(string seats, int requested)
         {
             ParseSeats(seats, out bool[] human, out bool[] ai, out bool[] eligible);

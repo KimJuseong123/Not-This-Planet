@@ -105,6 +105,20 @@ namespace Metagame.Network
         }
 
         /// <summary>
+        /// 이 PC 가 AI 실행기(<see cref="AiLocalRuntime"/>)를 띄워 두어야 하나 (S15P21B202-713).
+        ///
+        /// <para><b>수가 0 이어도 준비 중이면 띄운다.</b> 설치 창은 "완료되었습니다" 를 워커가 Ready 라고
+        /// 할 때만 보이고, AI 는 방장이 완료를 누를 때 넣는다. 그런데 예전 조건(수 &gt; 0)만 보면 AI 를
+        /// 넣기 전에는 워커가 뜨지 않는다 — 창은 데우기를 기다리고, 데우기는 AI 를 기다린다. 막다른
+        /// 곳이다. 그래서 창이 기다리는 동안은 <paramref name="preparing"/> 이 대신 원한다.</para>
+        ///
+        /// <para>나머지는 예전 그대로다 — 대기 AI 시험 중에는 띄우지 않고, 판(서버)이거나 대기 중인
+        /// 로비의 방장일 때만 띄운다.</para>
+        /// </summary>
+        public static bool HostWantsRuntime(int requested, bool preparing, bool idleTest, bool server, bool canConfigure)
+            => (requested > 0 || preparing) && !idleTest && (server || canConfigure);
+
+        /// <summary>
         /// 채울 수보다 더 떠 있는 AI 의 수. 정상 흐름에서는 늘 0 이다 — 0 이 아니면 부르는 쪽이
         /// 경고를 남긴다(내리지는 않는다).
         /// </summary>

@@ -139,7 +139,7 @@ namespace Metagame.Network
         /// 여기서 한 번 더, 다른 글자로 적으면 <b>한 문제를 두 곳이 다르게 푸는 것</b>이다.</para>
         ///
         /// <para><c>models/</c> 바로 아래만 본다. <c>ollama</c> 폴더의 blob 까지 뒤지지 않으므로
-        /// 이 검사는 프레임마다 돌아도 예전과 같은 값이다 (<c>AiRoomControls.NeedsPreparing</c>).</para>
+        /// "AI 동료 추가" 를 누를 때마다 도는 확인(<c>AiInstallPopup</c>)도 예전과 같은 값이다.</para>
         /// </summary>
         static bool HasAsrModel(string models)
         {
@@ -162,8 +162,10 @@ namespace Metagame.Network
             catch (ArgumentException) { return false; }
         }
 
-        static bool HostWantsRuntime => AiHostSettings.Requested && !AiHostSettings.IdleTest
-            && (NetworkServer.active || AiHostSettings.CanConfigure);
+        // 설치 창이 기다리는 동안(Preparing)은 AI 수가 0 이어도 띄운다 (S15P21B202-713) — 규칙은
+        // 값으로 시험할 수 있게 AiSeatMath 에 둔다.
+        static bool HostWantsRuntime => AiSeatMath.HostWantsRuntime(AiHostSettings.RequestedCount,
+            AiHostSettings.Preparing, AiHostSettings.IdleTest, NetworkServer.active, AiHostSettings.CanConfigure);
 
         void Update()
         {
