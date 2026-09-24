@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import lombok.Getter;
 
 /**
@@ -83,6 +84,16 @@ public class Room {
      */
     private volatile int aiCount;
 
+    /**
+     * 방송한 방 상태의 번호 (S15P21B202-713 리뷰). 방송은 스레드마다 따로 만들어져 <b>순서 없이</b>
+     * 도착하므로, 받는 쪽이 옛 것을 버릴 수 있게 한 방향으로만 는다.
+     *
+     * <p>변경마다 올리지 않고 <b>스냅숏을 만들 때</b> 받는다 — 번호를 먼저 받고 필드를 그 뒤에 읽으면,
+     * 번호가 큰 스냅숏은 그보다 앞서 끝난 변경을 모두 담는다. 변경 쪽에 두면 새 변경 경로가 생길 때마다
+     * 올리는 것을 잊지 않아야 한다.</p>
+     */
+    private final AtomicLong stateVersion = new AtomicLong();
+
     // 판이 시작될 때의 방장. 끝날 때 방장이 달라졌으면(판 중 이전) AI 수를 비운다 — end() 참고
     private volatile Long hostAtStart;
 
@@ -103,6 +114,11 @@ public class Room {
      * <p><b>판단은 여기 한 곳에서만 한다.</b> 부르는 쪽에서 {@code getStatus()} 와
      * 인원수를 다시 보고 이유를 짐작하면, 그 조건이 이 메서드와 갈리는 날이 온다.
      */
+    /** 다음 방송의 번호. 한 방향으로만 는다. */
+    public long nextStateVersion() {
+        return stateVersion.incrementAndGet();
+    }
+
     public synchronized JoinResult tryJoin(Long userId, String nickname) {
         if (status != Status.WAITING) {
             return JoinResult.ROOM_PLAYING;

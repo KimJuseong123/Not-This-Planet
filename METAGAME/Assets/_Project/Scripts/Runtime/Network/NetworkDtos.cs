@@ -185,6 +185,12 @@ namespace Metagame.Network
         /// 옛 서버에 AI 요청을 보내 모르는 메시지 오류를 받는 일이 없다.
         /// </summary>
         public int? aiCount;
+
+        /// <summary>
+        /// 방송 번호 (S15P21B202-713 리뷰). 같은 방에서 한 방향으로만 는다 — 늦게 온 옛 방송을 가른다.
+        /// 옛 서버는 보내지 않아 0 이다.
+        /// </summary>
+        public long stateVersion;
     }
 
     public sealed class PlayerSummary

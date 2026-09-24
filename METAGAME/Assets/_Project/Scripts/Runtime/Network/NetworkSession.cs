@@ -607,9 +607,30 @@ namespace Metagame.Network
             MatchAuthenticator.ClientRoomId = null;
         }
 
+        /// <summary>같은 방에서 마지막으로 받아 둔 방송 번호. 방이 바뀌거나 비면 0.</summary>
+        long lastRoomStateVersion;
+
+        /// <summary>
+        /// 이 ROOM_STATE 를 받을까 (S15P21B202-713 리뷰). 값으로 받는다 — 씬도 소켓도 없이 시험한다.
+        ///
+        /// <para><b>내가 없는 방송은 버린다</b> — 만들기·들어가기의 답에는 언제나 내가 있으므로, 내가 없다면
+        /// 이미 나간(내보내진) 방의 늦은 방송이다. 로그인 전(0)에는 이 규칙을 쓰지 않는다.</para>
+        ///
+        /// <para><b>같은 방에서 번호가 줄면 버린다.</b> 번호가 없는(0) 옛 서버의 방송은 늘 받는다.</para>
+        /// </summary>
+        public static bool AcceptsRoomState(string currentRoomId, long lastVersion, string roomId, long version,
+                                            long localUserId, bool includesLocal)
+        {
+            if (localUserId != 0 && !includesLocal) return false;
+            bool sameRoom = !string.IsNullOrEmpty(currentRoomId)
+                && string.Equals(currentRoomId, roomId, StringComparison.OrdinalIgnoreCase);
+            return !(sameRoom && version > 0 && version <= lastVersion);
+        }
+
         private void ClearRoomState()
         {
             roomTimerStartedAt = -1d;
+            lastRoomStateVersion = 0;
             CurrentRoomId = string.Empty;
             CurrentRoom = null;
             IsLocalReady = false;
@@ -766,6 +787,19 @@ namespace Metagame.Network
                     CurrentRoomId = data.roomId ?? string.Empty;
                     break;
                 case "ROOM_STATE":
+                    // **늦게 왔거나 내 것이 아닌 방송은 버린다** (S15P21B202-713 리뷰). 방송은 스레드마다
+                    // 따로 만들어져 순서 없이 닿는다 — 옛 aiCount 가 새 값을 덮으면 PC 마다 AI 수가 달라진
+                    // 채 판이 시작된다. 내보내진 직후에는 그 전에 만든 방송이 늦게 닿아 나간 방이 되살아난다.
+                    if (!AcceptsRoomState(CurrentRoomId, lastRoomStateVersion, data.roomId, data.stateVersion,
+                                          UserId, data.players != null && data.players.ContainsKey(UserId)))
+                    {
+                        Debug.Log($"[NetworkSession] 방 상태를 버린다 · 방={data.roomId} 번호={data.stateVersion}"
+                                  + $" (받아 둔 번호 {lastRoomStateVersion})");
+                        break;
+                    }
+                    if (!string.Equals(data.roomId, CurrentRoomId, StringComparison.OrdinalIgnoreCase))
+                        lastRoomStateVersion = 0;
+                    if (data.stateVersion > 0) lastRoomStateVersion = data.stateVersion;
                     // 같은 방의 상태 갱신/준비/재시작에는 유지하고 새 방 또는 방장 교체에만 리셋한다.
                     if (roomTimerStartedAt < 0d || (CurrentRoom != null
                         && (CurrentRoomId != data.roomId || CurrentRoom.HostUserId != data.hostUserId)))

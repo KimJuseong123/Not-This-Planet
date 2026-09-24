@@ -6,6 +6,16 @@ import org.junit.jupiter.api.Test;
 
 class RoomTest {
 
+    /** 방송 번호는 한 방향으로만 는다 (S15P21B202-713 리뷰) — 받는 쪽이 늦게 온 옛 방송을 버린다. */
+    @org.junit.jupiter.api.Test
+    void theStateVersionOnlyGrows() {
+        Room room = new Room("R", 1L, "철수");
+        long a = room.nextStateVersion();
+        long b = room.nextStateVersion();
+        org.assertj.core.api.Assertions.assertThat(a).isPositive();
+        org.assertj.core.api.Assertions.assertThat(b).isGreaterThan(a);
+    }
+
     @Test
     void roomStartsOnlyWhenEveryPlayerIsReady() {
         Room room = new Room("room-1", 1L, "철수");

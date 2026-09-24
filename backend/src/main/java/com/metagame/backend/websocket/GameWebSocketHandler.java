@@ -931,6 +931,10 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
     private void broadcastRoomState(Room room) {
         Map<String, Object> data = new LinkedHashMap<>();
+        // 번호를 **먼저** 받는다 (S15P21B202-713 리뷰) — 그 뒤에 읽은 필드는 그보다 앞서 끝난 변경을
+        // 모두 담는다. 받는 쪽은 번호가 줄어든 방송을 버린다. 번호 없이는 늦게 온 옛 방송이 새 값을
+        // 덮어 PC 마다 AI 수가 달라지고, 그대로 판이 시작된다(START_GAME 은 방 상태를 다시 싣지 않는다).
+        data.put("stateVersion", room.nextStateVersion());
         data.put("roomId", room.getRoomId());
         data.put("hostUserId", room.getHostUserId());
         data.put("status", room.getStatus().name());

@@ -748,6 +748,31 @@ class GameWebSocketIntegrationTest {
         assertThat(guest.await("ROOM_STATE").get("aiCount").asInt()).isEqualTo(2);
     }
 
+    /**
+     * 방 상태 방송은 <b>번호가 한 방향으로만 는다</b> (S15P21B202-713 리뷰). 방송은 스레드마다 따로
+     * 만들어져 순서 없이 닿으므로, 받는 쪽이 옛 것을 버리려면 번호가 있어야 한다.
+     */
+    @Test
+    void everyRoomStateCarriesAGrowingVersion() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        String code = createRoom(host);
+        guest.send("JOIN_ROOM", Map.of("roomId", code));
+        long afterJoin = host.await("ROOM_STATE").get("stateVersion").asLong();
+        guest.await("ROOM_STATE");
+
+        host.send("SET_AI_COUNT", Map.of("aiCount", 1));
+        long first = host.await("ROOM_STATE").get("stateVersion").asLong();
+        long seenByGuest = guest.await("ROOM_STATE").get("stateVersion").asLong();
+        host.send("SET_AI_COUNT", Map.of("aiCount", 2));
+        long second = host.await("ROOM_STATE").get("stateVersion").asLong();
+
+        assertThat(afterJoin).isPositive();
+        assertThat(first).isGreaterThan(afterJoin);
+        assertThat(seenByGuest).as("같은 방송은 모두에게 같은 번호다").isEqualTo(first);
+        assertThat(second).isGreaterThan(first);
+    }
+
     /** 범위를 넘는 값은 줄여서 방송한다 — 방장이 실제 수를 본다. */
     @Test
     void anOverCapAiCountIsClampedAndBroadcast() throws Exception {

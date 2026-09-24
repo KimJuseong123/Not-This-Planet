@@ -201,6 +201,11 @@ namespace Metagame.Network
             // 둘 다 <b>사라지기 전에</b> 해야 하므로 StopClient 앞에 세운다. 그리고
             // <c>WorldSyncInstaller.SpawnIfNeeded</c> 가 이것을 보고 그 자리 기록을
             // 지우지 않으므로, <b>StartHost 가 끝날 때까지</b> 내리지 않는다.
+            // **이어받는 PC 는 자리표를 비우고 시작한다** (S15P21B202-713 리뷰). 자리표는 정적이라, 이 PC 가
+            // 예전에 방장을 한 판의 기록이 남아 있을 수 있다. 그러면 아래 OnStopClient 의 Remember 가 "남이
+            // 쓰는 자리" 로 알고 건너뛰고, TeamSeats 는 그 옛 기록을 사람 자리로 세어 **AI 를 덜 띄운다**
+            // — 4 명 판 기록이면 0 명. 오류도 경고도 없다. 비운 뒤에는 지금 판의 사람만 적힌다.
+            if (becomingHost) TeamSlots.Clear();
             Taking = becomingHost;
 
             if (NetworkClient.active || NetworkServer.active) manager.StopClient();

@@ -20,6 +20,42 @@ namespace Metagame.Gameplay.Tests
         [TearDown]
         public void TearDown() => TeamSlots.Clear();
 
+        /// <summary>
+        /// <b>옛 판의 자리표가 남으면 이어받기의 기록이 빠진다</b> — 그래서 이어받는 PC 는 먼저 비운다
+        /// (S15P21B202-713 리뷰).
+        ///
+        /// <para>이 PC 가 예전에 4 명 판을 호스트했으면 그 기록이 정적 표에 남는다. 다른 방에 참가자로
+        /// 들어가 방장을 이어받으면 <c>Remember</c> 가 "남이 쓰는 자리" 로 알고 건너뛰고, 자리 수를 세는
+        /// <c>TeamSeats</c> 가 옛 기록을 사람 자리로 쳐 AI 를 하나도 안 띄운다 — 오류도 없이.</para>
+        /// </summary>
+        [Test]
+        public void ATakeoverStartsFromACleanSeatTable()
+        {
+            // 예전에 호스트한 4 명 판
+            TeamSlots.Claim(11L); TeamSlots.Claim(22L); TeamSlots.Claim(33L); TeamSlots.Claim(44L);
+
+            // 지금 판: 방장 E(900)가 0, 나(901)가 1 — 이어받으며 적는다
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("TeamSlots"));
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("TeamSlots"));
+            TeamSlots.Remember(900L, 0);
+            TeamSlots.Remember(901L, 1);
+            Assert.That(TeamSlots.IsAssigned(2) && TeamSlots.IsAssigned(3), Is.True,
+                "검증 준비: 옛 기록이 남아 있으면 빈 자리까지 사람 자리로 보인다 — 이것이 AI 를 막는다");
+
+            TeamSlots.Clear();
+            TeamSlots.Remember(900L, 0);
+            TeamSlots.Remember(901L, 1);
+            Assert.That(TeamSlots.IsAssigned(0) && TeamSlots.IsAssigned(1), Is.True);
+            Assert.That(TeamSlots.IsAssigned(2) || TeamSlots.IsAssigned(3), Is.False, "비운 뒤에도 옛 기록이 남았다");
+
+            var migrate = TestSource.Method(TestSource.Read("Runtime/Network/HostMigration.cs"), "IEnumerator Migrate()");
+            int clear = migrate.IndexOf("if (becomingHost) TeamSlots.Clear();", System.StringComparison.Ordinal);
+            int stop = migrate.IndexOf("manager.StopClient();", System.StringComparison.Ordinal);
+            Assert.That(clear, Is.GreaterThanOrEqualTo(0), "이어받는 PC 가 자리표를 비우지 않는다");
+            Assert.That(stop, Is.GreaterThan(clear),
+                "비우기가 StopClient 뒤에 있다 — OnStopClient 가 적은 지금 판의 기록까지 지운다");
+        }
+
         [Test]
         public void FourPlayersGetFourDifferentSeats()
         {

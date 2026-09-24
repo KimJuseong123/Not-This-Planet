@@ -280,6 +280,86 @@ namespace Metagame.Network.Tests
             finally { Object.DestroyImmediate(go); }
         }
 
+        /// <summary>
+        /// 방송은 순서 없이 닿는다 — <b>번호가 줄면 버린다</b> (S15P21B202-713 리뷰). 옛 aiCount 가 새 값을
+        /// 덮으면 PC 마다 AI 수가 달라진 채 판이 시작된다(START_GAME 은 방 상태를 다시 싣지 않는다).
+        /// </summary>
+        [Test]
+        public void AnOlderRoomStateDoesNotOverwriteANewerOne()
+        {
+            var go = new GameObject("State version test");
+            try
+            {
+                var session = go.AddComponent<NetworkSession>();
+                var handle = typeof(NetworkSession).GetMethod("HandleMessage", Hidden);
+
+                handle.Invoke(session, new object[] { TwoPlayerRoomOpen + ",\"aiCount\":2,\"stateVersion\":6}}" });
+                Assert.That(AiHostSettings.RequestedCount, Is.EqualTo(2));
+
+                LogAssert.Expect(LogType.Log, new Regex("방 상태를 버린다"));
+                handle.Invoke(session, new object[] { TwoPlayerRoomOpen + ",\"aiCount\":0,\"stateVersion\":5}}" });
+                Assert.That(AiHostSettings.RequestedCount, Is.EqualTo(2),
+                    "늦게 온 옛 방송이 AI 수를 덮었다 — PC 마다 수가 갈린다");
+
+                handle.Invoke(session, new object[] { TwoPlayerRoomOpen + ",\"aiCount\":1,\"stateVersion\":7}}" });
+                Assert.That(AiHostSettings.RequestedCount, Is.EqualTo(1), "새 방송을 안 받는다");
+
+                // 번호가 없는 옛 서버는 늘 받는다 — 막으면 옛 서버와는 방 상태가 한 번만 들어온다.
+                handle.Invoke(session, new object[] { TwoPlayerRoomOpen + ",\"aiCount\":0}}" });
+                Assert.That(AiHostSettings.RequestedCount, Is.Zero, "번호 없는 방송을 버렸다");
+            }
+            finally { Object.DestroyImmediate(go); }
+        }
+
+        /// <summary>
+        /// <b>내가 없는 방 상태는 받지 않는다</b> (S15P21B202-713 리뷰). 내보내진 직후 그 전에 만들어진
+        /// 방송이 늦게 닿으면 이미 나간 방이 화면에 되살아나고, 서버는 나를 그 방 사람으로 치지 않아
+        /// 준비·시작이 조용히 무시된다.
+        /// </summary>
+        [Test]
+        public void AStateWithoutMeDoesNotBringTheRoomBack()
+        {
+            var go = new GameObject("Stale state after kick test");
+            try
+            {
+                var session = go.AddComponent<NetworkSession>();
+                var handle = typeof(NetworkSession).GetMethod("HandleMessage", Hidden);
+                typeof(NetworkSession).GetProperty(nameof(NetworkSession.UserId)).SetValue(session, 2L);
+
+                handle.Invoke(session, new object[] { TwoPlayerRoomOpen + ",\"aiCount\":0,\"stateVersion\":3}}" });
+                Assert.That(session.CurrentRoom, Is.Not.Null, "검증 준비: 내가 있는 방송은 받아야 한다");
+                handle.Invoke(session, new object[] { "{\"type\":\"KICKED\",\"data\":{\"roomId\":\"K7M2QX\"}}" });
+                Assert.That(session.CurrentRoom, Is.Null);
+
+                LogAssert.Expect(LogType.Log, new Regex("방 상태를 버린다"));
+                string withoutMe = "{\"type\":\"ROOM_STATE\",\"data\":{\"roomId\":\"K7M2QX\",\"hostUserId\":1,"
+                    + "\"status\":\"WAITING\",\"players\":{\"1\":{\"nickname\":\"철수\",\"ready\":false}},"
+                    + "\"aiCount\":0,\"stateVersion\":4}}";
+                handle.Invoke(session, new object[] { withoutMe });
+                Assert.That(session.CurrentRoom, Is.Null, "내보내진 방이 늦은 방송으로 되살아났다");
+                Assert.That(session.CurrentRoomId, Is.Empty);
+            }
+            finally { Object.DestroyImmediate(go); }
+        }
+
+        /// <summary><see cref="NetworkSession.AcceptsRoomState"/> 의 표.</summary>
+        [Test]
+        public void RoomStateAcceptanceTable()
+        {
+            // 같은 방 · 번호가 늘면 받는다 / 같거나 줄면 버린다
+            Assert.That(NetworkSession.AcceptsRoomState("R", 5, "R", 6, 2, true), Is.True);
+            Assert.That(NetworkSession.AcceptsRoomState("R", 5, "R", 5, 2, true), Is.False, "같은 번호를 두 번 받는다");
+            Assert.That(NetworkSession.AcceptsRoomState("R", 5, "r", 4, 2, true), Is.False, "방 코드 대소문자로 옛 방송이 샌다");
+            // 다른 방이거나 방이 없으면 번호를 견주지 않는다
+            Assert.That(NetworkSession.AcceptsRoomState("R", 9, "Q", 1, 2, true), Is.True);
+            Assert.That(NetworkSession.AcceptsRoomState("", 9, "R", 1, 2, true), Is.True);
+            // 옛 서버(번호 0)는 늘 받는다
+            Assert.That(NetworkSession.AcceptsRoomState("R", 9, "R", 0, 2, true), Is.True);
+            // 내가 없으면 버린다 — 로그인 전(0)에는 이 규칙을 쓰지 않는다
+            Assert.That(NetworkSession.AcceptsRoomState("R", 0, "R", 7, 2, false), Is.False);
+            Assert.That(NetworkSession.AcceptsRoomState("R", 0, "R", 7, 0, false), Is.True);
+        }
+
         /// <summary>그 사이 다른 방에 들어갔으면 옛 방의 늦은 통지가 지금 방을 지우지 않는다.</summary>
         [Test]
         public void AKickFromAnotherRoomIsIgnored()
