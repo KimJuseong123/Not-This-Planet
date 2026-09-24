@@ -299,6 +299,52 @@ namespace Metagame.Gameplay.Tests
             Assert.That(LobbyRoster.ShortfallNotice(null, Room(humans: 4, ai: 0)), Is.Null);
         }
 
+        /// <summary>
+        /// × 를 누른 뒤와 줄 수가 바뀐 뒤에는 <b>모든</b> × 가 잠깐 막힌다 (S15P21B202-713 리뷰). 답이 두 번
+        /// 누르는 사이보다 빨라, 답만 기다리면 올라온 다음 줄의 × 가 두 번째 누름을 받는다.
+        /// </summary>
+        [Test]
+        public void EveryRemoveButtonWaitsUntilTheListSettles()
+        {
+            RoomSnapshot room = Room(humans: 3, ai: 1);
+            var rows = LobbyRoster.Rows(room, Host, AiRuntimeState.Ready);
+            foreach (var row in rows.Where(r => r.Remove != RosterRemove.None))
+            {
+                Assert.That(LobbyRoster.CanPress(row, false, 0, settled: false), Is.False,
+                    row.Label + " 의 × 가 줄이 자리 잡기 전에 눌린다 — 올라온 다음 줄을 내보낸다");
+                Assert.That(LobbyRoster.CanPress(row, false, 0, settled: true), Is.True, row.Label);
+            }
+            Assert.That(LobbyRoster.RemoveSettleSeconds, Is.InRange(.2f, 1f),
+                "너무 짧으면 두 번 누름을 못 막고, 너무 길면 차례로 빼는 것이 답답하다");
+
+            string lobby = TestSource.Read("Runtime/UI/LobbyHud.cs");
+            Assert.That(TestSource.Method(lobby, "private void RemoveRow("),
+                Does.Contain("removeSettleUntil = Time.unscaledTime + LobbyRoster.RemoveSettleSeconds;"), "누를 때 막지 않는다");
+            Assert.That(TestSource.Method(lobby, "private void OnRoomState("),
+                Does.Contain("removeSettleUntil = Time.unscaledTime + LobbyRoster.RemoveSettleSeconds;"), "줄 수가 바뀔 때 막지 않는다");
+        }
+
+        /// <summary>
+        /// "사람이 들어와 AI 를 뺐다" 는 <b>들어온 사람이 정원을 넘긴 만큼만</b> 말한다 (리뷰). 방장이 뺀 것과
+        /// 사람이 들어온 것이 한 번에 보여도 방장이 뺀 몫을 들어온 사람 탓으로 돌리지 않는다.
+        /// </summary>
+        [Test]
+        public void TheDropNoticeBlamesOnlyTheOverflow()
+        {
+            Assert.That(LobbyRoster.DropNotice(Room(humans: 1, ai: 2), Room(humans: 2, ai: 1)), Is.Null,
+                "정원이 남는데 사람 탓을 한다 — 방장이 뺀 AI 다");
+            Assert.That(LobbyRoster.DropNotice(Room(humans: 2, ai: 2), Room(humans: 3, ai: 1)), Is.Not.Null,
+                "정원을 넘겨 빠졌는데 말하지 않는다");
+            Assert.That(LobbyRoster.DropNotice(Room(humans: 2, ai: 2), Room(humans: 3, ai: 0)),
+                Is.EqualTo(LobbyRoster.DropNotice(Room(humans: 2, ai: 2), Room(humans: 3, ai: 1))),
+                "들어온 한 명 몫보다 많이 뺐다고 한다");
+        }
+
+        [Test]
+        public void AStoppedWorkerIsNotCalledAMissingPack()
+            => Assert.That(LobbyRoster.AiStatus(AiRuntimeState.Missing), Is.Not.EqualTo("준비 필요"),
+                "팩을 받은 방장에게 \"준비 필요\" 라고 한다 — 워커는 AI 수가 0 이면 꺼져 있다");
+
         // ---------- 글자 ----------
 
         /// <summary>
@@ -350,7 +396,7 @@ namespace Metagame.Gameplay.Tests
                 "방 목록을 LobbyRoster 로 만들지 않는다");
             Assert.That(draw, Does.Not.Contain("room.Players"),
                 "사람 줄을 목록 밖에서 따로 그린다 — AI 줄과 × 규칙이 두 벌이 된다");
-            Assert.That(draw, Does.Contain("LobbyRoster.CanPress(row, pending, kickAsked)"),
+            Assert.That(draw, Does.Contain("LobbyRoster.CanPress(row, pending, kickAsked,").And.Contain("Time.unscaledTime >= removeSettleUntil"),
                 "답을 기다리는 동안 AI 줄의 × 가, 내보내는 동안 그 사람의 × 가 눌린다");
             Assert.That(draw, Does.Contain("LobbyRoster.Add(room, network.UserId, pending);"),
                 "추가 버튼이 막힌 이유를 모른다");

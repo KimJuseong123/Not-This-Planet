@@ -140,7 +140,10 @@ namespace Metagame.UI
                 case AiRuntimeState.Ready: return "준비 완료";
                 case AiRuntimeState.Loading: return "준비 중";
                 case AiRuntimeState.Failed: return "실행 실패";
-                default: return "준비 필요";
+                // 워커가 아직 안 떴다. 팩이 없어서일 수도, AI 수가 0 이라 꺼져 있었을 수도 있다 —
+                // "준비 필요" 라고 하면 팩을 이미 받은 방장에게 틀린 말이 된다(리뷰). 준비가 필요하면
+                // 그 버튼이 따로 보인다.
+                default: return "시작 전";
             }
         }
 
@@ -181,8 +184,18 @@ namespace Metagame.UI
         /// 다음 방 상태가 올 때까지 막는다 — 두 번 누르면 두 번째는 이미 없는 사람이라 서버가 거절하고,
         /// "내보낼 수 없는 대상입니다" 가 뜬다. 0 은 아무도 아니다.</para>
         /// </summary>
-        public static bool CanPress(RosterRow row, bool aiPending, long kicking = 0)
+        /// <summary>
+        /// × 를 누른 뒤와 줄 수가 바뀐 뒤 <b>모든</b> × 를 이만큼 막는다(초) (S15P21B202-713 리뷰).
+        ///
+        /// <para>답은 두 번 누르는 사이보다 빨리 온다(로컬 서버 5ms, 배포 서버 수십 ms). 답이 오면 줄이
+        /// 한 칸씩 올라가 <b>다음 줄의 × 가 같은 자리에 온다</b> — 두 번째 누름이 다른 사람을 내보내거나
+        /// AI 를 하나 더 뺐다. 답만 기다려서는 못 막는다.</para>
+        /// </summary>
+        public const float RemoveSettleSeconds = .5f;
+
+        public static bool CanPress(RosterRow row, bool aiPending, long kicking = 0, bool settled = true)
         {
+            if (!settled) return false;
             switch (row.Remove)
             {
                 case RosterRemove.Kick: return kicking == 0 || row.UserId != kicking;
@@ -211,6 +224,12 @@ namespace Metagame.UI
             if (!string.Equals(before.RoomId, after.RoomId, StringComparison.OrdinalIgnoreCase)) return null;
             int dropped = before.AiCount - after.AiCount;
             if (after.Players.Count <= before.Players.Count || dropped <= 0) return null;
+            // **들어온 사람이 정원을 실제로 넘긴 만큼만** 그 탓으로 돌린다 (리뷰). 방장이 AI 를 뺀 방송과
+            // 사람이 들어온 방송이 한 번에 보이면(앞 방송을 번호로 버린 경우) 방장이 뺀 것까지 들어온
+            // 사람 탓으로 알렸다.
+            int overflow = after.Players.Count + before.AiCount - TeamSlots.Count;
+            if (overflow <= 0) return null;
+            dropped = Math.Min(dropped, overflow);
             return dropped == 1 ? DroppedOne : "사람이 들어와 AI 동료 " + dropped + "명을 뺐습니다";
         }
 

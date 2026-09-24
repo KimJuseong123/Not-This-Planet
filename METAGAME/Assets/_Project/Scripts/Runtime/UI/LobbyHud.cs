@@ -262,11 +262,23 @@ namespace Metagame.UI
         /// </summary>
         private void OnRoomState(RoomSnapshot room)
         {
+            // 줄 수가 바뀌면 × 를 잠깐 막는다 — 아래 줄의 × 가 누르던 자리로 올라온다(리뷰).
+            if (room != null && shownRoom != null
+                && (room.Players.Count != shownRoom.Players.Count || room.AiCount != shownRoom.AiCount))
+                removeSettleUntil = Time.unscaledTime + LobbyRoster.RemoveSettleSeconds;
             string said = LobbyRoster.DropNotice(shownRoom, room) ?? LobbyRoster.ShortfallNotice(aiAsked, room);
             if (said != null)
             {
                 notice = said;
                 error = string.Empty;
+                rosterNotice = true;
+            }
+            // 방 목록 알림은 그 상태가 지나면 지운다 — 뒤에 추가가 먹었는데 "자리가 모자라…" 가 남거나,
+            // 방을 나간 뒤에도 따라오면 거짓말이다(리뷰).
+            else if (rosterNotice && (room == null || (shownRoom != null && room.AiCount != shownRoom.AiCount)))
+            {
+                notice = string.Empty;
+                rosterNotice = false;
             }
             aiAsked = null;
             kickAsked = 0;
@@ -1039,7 +1051,8 @@ namespace Metagame.UI
 
                 // 확인 창 없이 바로 뺀다 — 내보낸 사람은 방 코드로 다시 들어올 수 있다.
                 bool rowEnabled = GUI.enabled;
-                GUI.enabled = rowEnabled && LobbyRoster.CanPress(row, pending, kickAsked);
+                GUI.enabled = rowEnabled && LobbyRoster.CanPress(row, pending, kickAsked,
+                                                                 Time.unscaledTime >= removeSettleUntil);
                 if (UiInteraction.Button(new Rect(x + width - 86f, top, 32f, 28f),
                         LobbyRoster.RemoveLabel, smallButtonStyle))
                     RemoveRow(room, row);
@@ -1108,9 +1121,16 @@ namespace Metagame.UI
         /// 줄의 × (S15P21B202-713). 사람 줄은 내보내고, AI 줄은 수를 하나 줄인다 — AI 에게는 이름표가
         /// 없어서 어느 AI 줄에서 눌러도 같다. 되는지는 서버가 다시 확인한다(방장·대기 중).
         /// </summary>
+        /// <summary>× 를 다시 누를 수 있게 되는 때 (<see cref="LobbyRoster.RemoveSettleSeconds"/>).</summary>
+        private float removeSettleUntil;
+
+        /// <summary>지금 <see cref="notice"/> 가 방 목록의 알림인가. 방을 나가거나 수가 다시 바뀌면 지운다.</summary>
+        private bool rosterNotice;
+
         private void RemoveRow(RoomSnapshot room, RosterRow row)
         {
             error = string.Empty;
+            removeSettleUntil = Time.unscaledTime + LobbyRoster.RemoveSettleSeconds;
             if (row.Remove == RosterRemove.Kick)
             {
                 // 보내기 전에 적는다. 소켓이 없으면 오류가 곧바로(OnError) 와서 지운다.
@@ -1341,7 +1361,7 @@ namespace Metagame.UI
             characters.Append("방장이 방에서 내보냈습니다 방장만 할 수 있습니다 게임 중에는 할 수 없습니다 내보낼 수 없는 대상입니다");
             // 방 목록 (S15P21B202-713) — AI 줄·× ·추가 버튼과 막힌 이유·알림. LobbyRosterTests 가
             // 목록이 낼 수 있는 문구의 글자가 모두 여기 있는지 본다.
-            characters.Append("AI 동료 추가 × 연결 끊김 준비 완료 준비 필요 실행 실패 (나)");
+            characters.Append("AI 동료 추가 × 연결 끊김 준비 완료 준비 필요 실행 실패 (나) 시작 전 설치 취소");
             characters.Append("서버 업데이트가 필요합니다 방장만 추가할 수 있습니다 게임 중에는 바꿀 수 없습니다");
             characters.Append("자리가 모두 찼습니다 (최대 4명) 처리 중입니다");
             characters.Append("사람이 들어와 AI 동료 하나를 뺐습니다 명을 뺐습니다 자리가 모자라 AI 동료를 더 넣지 못했습니다");

@@ -29,7 +29,8 @@ namespace Metagame.UI
                     var spot = new Rect(area.x, area.y, buttonWidth, rowHeight);
                     if (runtime.Installer != null && runtime.Installer.Busy)
                     {
-                        if (UiInteraction.Button(spot, "준비 취소", buttonStyle)) runtime.Installer.Cancel();
+                        // "준비 취소" 는 바로 아래 준비 버튼의 이름과 같다 — 받기를 멈추려다 준비를 푼다(리뷰).
+                        if (UiInteraction.Button(spot, "설치 취소", buttonStyle)) runtime.Installer.Cancel();
                     }
                     else if (NeedsPreparing(runtime))
                     {
