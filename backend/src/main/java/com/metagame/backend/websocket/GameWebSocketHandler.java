@@ -138,6 +138,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 case GAME_END -> endGame(userId);
                 case HOST_TAKEOVER -> hostTakeover(userId, msg.data());
                 case PLAYER_MOVE -> playerMove(userId, msg.data());
+                case SET_AI_COUNT -> setAiCount(session, userId, msg.data().get("aiCount").asInt());
+                case KICK_PLAYER -> kickPlayer(session, userId, msg.data().get("targetUserId").asLong());
                 default -> send(session, WsMessage.Type.ERROR, Map.of("message", "unknown type"));
             }
         } catch (RuntimeException e) {
@@ -620,6 +622,81 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     }
 
     /**
+     * 방장이 AI 자리 수를 정한다 (S15P21B202-713).
+     *
+     * <p><b>값이 그대로여도 언제나 방송한다.</b> 보낸 쪽 화면은 답이 올 때까지 "처리 중" 으로
+     * 기다린다 — 같은 값이라고 조용히 넘기면 그 화면이 풀리지 않는다. 범위를 넘어 줄인
+     * 값도 이 방송으로 돌아가 방장이 실제 수를 본다.
+     *
+     * <p><b>들어온 필드가 있는지로 뜻을 짐작하지 않는다.</b> 클라이언트는 JsonUtility 로
+     * 보내서 모든 메시지에 모든 필드가 실려 온다 — {@code data.has("aiCount")} 는 늘 참이다.
+     * 메시지 종류가 곧 뜻이다.
+     */
+    private void setAiCount(WebSocketSession session, Long userId, int wanted) {
+        Room room = roomOf(userId);
+        if (room == null) {
+            // 방에 없으면 방장도 아니다 — 같은 사유로 알린다.
+            sendError(session, Room.AiCountResult.NOT_HOST.name(), "cannot set ai count");
+            return;
+        }
+
+        Room.AiCountResult result = room.setAiCount(userId, wanted);
+        if (result != Room.AiCountResult.OK) {
+            sendError(session, result.name(), "cannot set ai count");
+            return;
+        }
+
+        broadcastRoomState(room);
+        log.info("ai count: room={} by userId={} wanted={} now={}",
+                room.getRoomId(), userId, wanted, room.getAiCount());
+    }
+
+    /**
+     * 방장이 사람을 방에서 내보낸다 (S15P21B202-713). 대기 중에만 된다.
+     *
+     * <p><b>0 은 누구도 아니다.</b> 클라이언트는 JsonUtility 로 보내 이 필드가 모든 메시지에
+     * 실리고, 채우지 않으면 0 이다 — 0 을 받았다는 것은 대상을 고르지 않았다는 뜻이다.
+     *
+     * <p><b>내보낸 사람의 세션에서 방 표시를 지운 뒤 알린다.</b> 그래야 그 뒤의 방송이 그
+     * 사람에게 새지 않고({@link #broadcastExcept} 가 방 표시를 본다), 그 사람이 연결을 끊어도
+     * {@link #afterConnectionClosed} 가 이 방을 다시 건드리지 않는다. 방 코드로 다시 들어오는
+     * 것은 막지 않는다 — 잘못 누른 것을 되돌릴 길을 남긴다.
+     */
+    private void kickPlayer(WebSocketSession session, Long userId, long target) {
+        if (target == 0L) {
+            sendError(session, "BAD_TARGET", "cannot kick player");
+            return;
+        }
+        Room room = roomOf(userId);
+        if (room == null) {
+            sendError(session, Room.KickResult.NOT_HOST.name(), "cannot kick player");
+            return;
+        }
+
+        // 제거와 유예 취소를 한 임계구역에서 한다 — 재입장 경로(joinRoom)와 같은 모양이다.
+        Room.KickResult result;
+        synchronized (room) {
+            result = room.kick(userId, target);
+            if (result == Room.KickResult.OK) {
+                graceManager.cancel(room.getRoomId(), target);
+            }
+        }
+        if (result != Room.KickResult.OK) {
+            boolean badTarget = result == Room.KickResult.SELF || result == Room.KickResult.NOT_IN_ROOM;
+            sendError(session, badTarget ? "BAD_TARGET" : result.name(), "cannot kick player");
+            return;
+        }
+
+        WebSocketSession kicked = sessions.get(target);
+        if (kicked != null && room.getRoomId().equals(kicked.getAttributes().get(ROOM_ID_ATTR))) {
+            kicked.getAttributes().remove(ROOM_ID_ATTR);
+            send(kicked, WsMessage.Type.KICKED, Map.of("roomId", room.getRoomId()));
+        }
+        afterLeave(room);
+        log.info("kicked: room={} by userId={} target={}", room.getRoomId(), userId, target);
+    }
+
+    /**
      * 모두가 같은 공유기 뒤에 있는가 — 공인 IP 가 하나뿐이면 그렇다(S15P21B202-264).
      *
      * <p>그럴 때는 사설 주소로 서로 바로 닿으므로 릴레이가 필요 없다. 굳이 태우면
@@ -860,6 +937,9 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         data.put("stageId", stageIdOf(room));
         data.put("players", room.getPlayers());
         data.put("disconnected", room.getDisconnected());
+        // AI 자리 수 (S15P21B202-713). 이 필드가 있다는 것 자체가 "AI 수를 다루는 서버" 라는
+        // 표시다 — 옛 서버에는 없고, 클라이언트는 그때 AI 추가 버튼을 막는다.
+        data.put("aiCount", room.getAiCount());
         broadcast(room, WsMessage.Type.ROOM_STATE, data);
     }
 
@@ -959,6 +1039,11 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
      * <p>{@code reason} 을 모르는 옛 클라이언트는 예전처럼 {@code message} 를 보여 준다.
      */
     private void sendJoinError(WebSocketSession session, String reason, String message) {
+        sendError(session, reason, message);
+    }
+
+    /** 사유 코드를 실은 ERROR. 문구는 클라이언트가 {@code reason} 으로 고른다(-413). */
+    private void sendError(WebSocketSession session, String reason, String message) {
         send(session, WsMessage.Type.ERROR, Map.of("message", message, "reason", reason));
     }
 

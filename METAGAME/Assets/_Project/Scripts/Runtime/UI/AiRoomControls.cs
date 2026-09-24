@@ -13,9 +13,14 @@ namespace Metagame.UI
             float rowHeight = area.height * 0.55f;
             if (canEdit)
             {
+                // 켜면 빈 자리를 전부 AI 로 채워 달라고 서버에 요청한다 (S15P21B202-713). 한 명씩
+                // 넣고 빼는 로비 목록이 들어오기 전까지의 임시 버튼이다 — 예전 켜기/끄기와 같은 결과를
+                // 수로 낸다. 값은 답(ROOM_STATE)이 와야 바뀌므로 그 사이 다시 눌러도 같은 수가 간다.
                 if (UiInteraction.Button(new Rect(area.x, area.y, buttonWidth, rowHeight),
                     AiHostSettings.Requested ? "AI 동료 사용: 켜짐" : "AI 동료 사용: 꺼짐", buttonStyle))
-                    AiHostSettings.TrySetRequested(!AiHostSettings.Requested);
+                    AiHostSettings.TrySetRequestedCount(AiHostSettings.Requested
+                        ? 0
+                        : AiSeatMath.MaxAi(NetworkSession.Instance.CurrentRoom.Players.Count));
                 // **버튼 하나가 흐름 전체를 맡는다** (S15P21B202-706). 예전에는 자리는 하나인데
                 // 단계마다 다른 버튼이 나왔다 — 다운로드 / 다시 준비. 어느 쪽이 나올지 알려면
                 // 방장이 지금 어느 단계인지를 먼저 알아야 했는데, 그것이 바로 화면에 없던 것이다.
@@ -48,6 +53,9 @@ namespace Metagame.UI
                 var installer = AiLocalRuntime.Current.Installer;
                 if (installer.Busy || AiHostSettings.RuntimeState != AiRuntimeState.Ready) status = installer.Message;
             }
+            // 옛 서버는 AI 수를 모른다 (S15P21B202-713) — 위 버튼이 아무 일도 하지 않는 이유를 알린다.
+            if (canEdit && !NetworkSession.Instance.CurrentRoom.SupportsAi)
+                status = "서버 업데이트가 필요합니다";
             GUI.Label(new Rect(area.x, area.y + rowHeight + 3f, area.width, area.height - rowHeight), status, labelStyle);
         }
 

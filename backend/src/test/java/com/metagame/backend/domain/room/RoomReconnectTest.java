@@ -124,6 +124,27 @@ class RoomReconnectTest {
         assertThat(room.getDisconnected()).isEmpty();
     }
 
+    /**
+     * 복귀는 AI 수를 건드리지 않는다 (S15P21B202-713). 돌아오는 사람은 시작할 때 있던
+     * 사람이라, 시작할 때 사람 + AI 가 4를 넘지 않았으면 복귀해도 넘지 않는다.
+     */
+    @Test
+    void rejoinDoesNotTouchTheAiCount() {
+        Room room = new Room("ROOM01", 1L, "유저1");
+        room.join(2L, "유저2");
+        room.setAiCount(1L, 2);
+        room.setReady(1L, true);
+        room.setReady(2L, true);
+        room.start();
+
+        room.markDisconnected(2L);
+        assertThat(room.rejoin(2L, "복귀자")).isEqualTo(Room.RejoinResult.OK);
+        room.leave(2L);
+        assertThat(room.rejoin(2L, "복귀자")).isEqualTo(Room.RejoinResult.OK);
+
+        assertThat(room.getAiCount()).isEqualTo(2);
+    }
+
     @Test
     void everyPlayerAtStartIsRecordedAsParticipant() {
         Room room = playingRoomWith(1L, 2L, 3L);

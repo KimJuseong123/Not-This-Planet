@@ -726,6 +726,163 @@ class GameWebSocketIntegrationTest {
         assertThat(latecomer.await("ROOM_STATE").get("players").properties()).hasSize(3);
     }
 
+    // ---------- AI 자리 · 내보내기 (S15P21B202-713) ----------
+
+    /**
+     * {@code ROOM_STATE} 는 처음부터 {@code aiCount} 를 싣는다. 이 필드가 있다는 것 자체가
+     * 클라이언트에게 "AI 수를 다루는 서버" 라는 표시다.
+     */
+    @Test
+    void theHostSetsTheAiCountAndEveryoneSeesIt() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        host.send("CREATE_ROOM", Map.of());
+        String code = host.await("ROOM_CREATED").get("roomId").asString();
+        assertThat(host.await("ROOM_STATE").get("aiCount").asInt()).isZero();
+        guest.send("JOIN_ROOM", Map.of("roomId", code));
+        drainRoomState(host, guest);
+
+        host.send("SET_AI_COUNT", Map.of("aiCount", 2));
+
+        assertThat(host.await("ROOM_STATE").get("aiCount").asInt()).isEqualTo(2);
+        assertThat(guest.await("ROOM_STATE").get("aiCount").asInt()).isEqualTo(2);
+    }
+
+    /** 범위를 넘는 값은 줄여서 방송한다 — 방장이 실제 수를 본다. */
+    @Test
+    void anOverCapAiCountIsClampedAndBroadcast() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        String code = createRoom(host);
+        guest.send("JOIN_ROOM", Map.of("roomId", code));
+        drainRoomState(host, guest);
+
+        host.send("SET_AI_COUNT", Map.of("aiCount", 9));
+
+        assertThat(host.await("ROOM_STATE").get("aiCount").asInt()).isEqualTo(2);
+        assertThat(guest.await("ROOM_STATE").get("aiCount").asInt()).isEqualTo(2);
+    }
+
+    /** 같은 값을 다시 보내도 방송한다 — 보낸 쪽 화면이 그 답을 기다린다. */
+    @Test
+    void anUnchangedAiCountIsStillBroadcast() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        createRoom(host);
+
+        host.send("SET_AI_COUNT", Map.of("aiCount", 0));
+
+        assertThat(host.await("ROOM_STATE").get("aiCount").asInt()).isZero();
+    }
+
+    @Test
+    void aGuestCannotSetTheAiCount() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        String code = createRoom(host);
+        guest.send("JOIN_ROOM", Map.of("roomId", code));
+        drainRoomState(host, guest);
+
+        guest.send("SET_AI_COUNT", Map.of("aiCount", 1));
+
+        assertThat(guest.await("ERROR").get("reason").asString()).isEqualTo("NOT_HOST");
+        assertThat(host.messageWithin(400)).as("거절된 요청은 방송하지 않는다").isNull();
+    }
+
+    @Test
+    void theAiCountCannotChangeDuringAMatch() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        startedRoom(host, guest);
+
+        host.send("SET_AI_COUNT", Map.of("aiCount", 1));
+
+        assertThat(host.await("ERROR").get("reason").asString()).isEqualTo("NOT_WAITING");
+    }
+
+    /** 사람이 들어와 자리가 넘치면 AI 하나가 비켜 준다. 입장은 막지 않는다. */
+    @Test
+    void aJoiningHumanTakesAnAiSeat() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        String code = createRoom(host);
+        host.send("SET_AI_COUNT", Map.of("aiCount", 3));
+        host.await("ROOM_STATE");
+
+        TestClient guest = connect("영희", "device-b");
+        guest.send("JOIN_ROOM", Map.of("roomId", code));
+
+        JsonNode state = guest.await("ROOM_STATE");
+        assertThat(state.get("players").properties()).hasSize(2);
+        assertThat(state.get("aiCount").asInt()).isEqualTo(2);
+        assertThat(host.await("ROOM_STATE").get("aiCount").asInt()).isEqualTo(2);
+    }
+
+    /**
+     * 내보낸 사람은 {@code KICKED} 를 받고 그 뒤 방송을 더 받지 않는다. 남은 사람의 목록에서는
+     * 빠진다.
+     */
+    @Test
+    void theHostKicksAPlayerOut() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        TestClient third = connect("민수", "device-c");
+        String code = createRoom(host);
+        guest.send("JOIN_ROOM", Map.of("roomId", code));
+        drainRoomState(host, guest);
+        third.send("JOIN_ROOM", Map.of("roomId", code));
+        drainRoomState(host, guest, third);
+
+        host.send("KICK_PLAYER", Map.of("targetUserId", guest.userId));
+
+        assertThat(guest.await("KICKED").get("roomId").asString()).isEqualTo(code);
+        JsonNode after = host.await("ROOM_STATE");
+        assertThat(after.get("players").has(String.valueOf(guest.userId))).isFalse();
+        assertThat(after.get("players").properties()).hasSize(2);
+        assertThat(third.await("ROOM_STATE").get("players").has(String.valueOf(guest.userId))).isFalse();
+
+        // 그 뒤의 방송은 내보낸 사람에게 가지 않는다.
+        third.send("READY", Map.of("ready", true));
+        drainRoomState(host, third);
+        assertThat(guest.messageWithin(400)).isNull();
+    }
+
+    /** 내보낸 사람도 방 코드로 다시 들어올 수 있다 — 잘못 누른 것을 되돌릴 길이다. */
+    @Test
+    void aKickedPlayerCanComeBackWithTheCode() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        String code = createRoom(host);
+        guest.send("JOIN_ROOM", Map.of("roomId", code));
+        drainRoomState(host, guest);
+        host.send("KICK_PLAYER", Map.of("targetUserId", guest.userId));
+        guest.await("KICKED");
+        host.await("ROOM_STATE");
+
+        guest.send("JOIN_ROOM", Map.of("roomId", code));
+
+        assertThat(guest.await("ROOM_STATE").get("players").properties()).hasSize(2);
+    }
+
+    /** 0(고르지 않음)과 방장 자신은 대상이 될 수 없고, 방장이 아니면 내보낼 수 없다. */
+    @Test
+    void kickRefusesZeroTheHostItselfAndNonHosts() throws Exception {
+        TestClient host = connect("철수", "device-a");
+        TestClient guest = connect("영희", "device-b");
+        String code = createRoom(host);
+        guest.send("JOIN_ROOM", Map.of("roomId", code));
+        drainRoomState(host, guest);
+
+        host.send("KICK_PLAYER", Map.of("targetUserId", 0));
+        assertThat(host.await("ERROR").get("reason").asString()).isEqualTo("BAD_TARGET");
+
+        host.send("KICK_PLAYER", Map.of("targetUserId", host.userId));
+        assertThat(host.await("ERROR").get("reason").asString()).isEqualTo("BAD_TARGET");
+
+        guest.send("KICK_PLAYER", Map.of("targetUserId", host.userId));
+        assertThat(guest.await("ERROR").get("reason").asString()).isEqualTo("NOT_HOST");
+
+        assertThat(guest.messageWithin(400)).as("아무도 내보내지지 않았다").isNull();
+    }
+
     // ---------- 도우미 ----------
 
     private String createRoom(TestClient host) throws Exception {

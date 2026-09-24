@@ -186,5 +186,58 @@ namespace Metagame.Gameplay.Tests
 
             Assert.That(TeamSlots.Claim(11L), Is.EqualTo(0), "새 판은 첫 자리부터다");
         }
+
+        // --- 사람이 받아 둔 자리 (S15P21B202-713) ---------------------------
+
+        /// <summary>
+        /// 받아 둔 자리는 AI 가 앉지 않는 자리다. 배정(Claim)과 물려받기(Remember) 둘 다 센다 —
+        /// 끊겨 돌아올 사람과 이어받기에서 물려받은 사람이 여기 남는다.
+        /// </summary>
+        [Test]
+        public void ClaimedAndRememberedSeatsCountAsTaken()
+        {
+            Assert.That(TeamSlots.Claim(11L), Is.EqualTo(0));
+            TeamSlots.Remember(22L, 3);
+
+            Assert.That(TeamSlots.IsAssigned(0), Is.True, "배정한 자리를 빈 자리로 본다");
+            Assert.That(TeamSlots.IsAssigned(3), Is.True, "물려받은 자리를 빈 자리로 본다");
+            Assert.That(TeamSlots.IsAssigned(1), Is.False);
+            Assert.That(TeamSlots.IsAssigned(2), Is.False);
+        }
+
+        [Test]
+        public void ANewMatchFreesEverySeat()
+        {
+            TeamSlots.Claim(11L);
+            TeamSlots.Remember(22L, 3);
+
+            TeamSlots.Clear();
+
+            for (int slot = 0; slot < TeamSlots.Count; slot++)
+                Assert.That(TeamSlots.IsAssigned(slot), Is.False, $"{slot}번 자리가 새 판에도 남았다");
+        }
+
+        /// <summary>
+        /// "그 자리가 찼나" 는 감싸지 않는다 — 색과 달리 5번을 1번으로 읽으면 엉뚱한 자리를 막는다.
+        /// </summary>
+        [Test]
+        public void OutOfRangeSeatsAreNeverTaken()
+        {
+            TeamSlots.Claim(11L);   // 0번
+
+            Assert.That(TeamSlots.IsAssigned(TeamSlots.Count), Is.False);
+            Assert.That(TeamSlots.IsAssigned(-TeamSlots.Count), Is.False);
+            Assert.That(TeamSlots.IsAssigned(-1), Is.False);
+        }
+
+        /// <summary>
+        /// 자리 수와 방 정원은 같은 수다 (S15P21B202-713). 사람 + AI 가 정원을 넘지 않는다는 규칙이
+        /// 자리 네 개에 그대로 맞아야 한다 — 한쪽만 바뀌면 AI 가 앉을 자리가 없거나 남는다.
+        /// </summary>
+        [Test]
+        public void SeatCountMatchesTheRoomCapacity()
+        {
+            Assert.That(TeamSlots.Count, Is.EqualTo(NetworkSession.MaxRoomPlayers));
+        }
     }
 }

@@ -77,8 +77,9 @@ namespace Metagame.Gameplay.Tests
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             yield return new EnterPlayMode();
             TeamSlots.Clear(); AiHostSettings.BeginRoom();
-            var lobby = AiHostPolicyTests.CreateLobby();
-            Assert.That(AiHostSettings.TrySetRequested(true), Is.True);
+            // AI 수는 방(ROOM_STATE)이 정한다 — 방장 혼자면 셋이 다 찬다 (S15P21B202-713).
+            var lobby = AiHostPolicyTests.CreateLobby(aiCount: 3);
+            Assert.That(AiHostSettings.RequestedCount, Is.EqualTo(3));
             AiHostSettings.BindRuntime(new Runtime());
             var floor = new GameObject("test floor");
             Assert.That(floor,Is.Not.Null,"Floor object");
