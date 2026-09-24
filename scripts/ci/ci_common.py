@@ -507,7 +507,7 @@ class GitLab:
                             f"?ref={quote(ref, safe='')}&per_page={per_page}&order_by=id&sort=desc", self._h())
         return d if st == 200 and isinstance(d, list) else []
 
-    def project_jobs(self, max_pages: int = 8, per_page: int = 100) -> list[dict]:
+    def project_jobs(self, max_pages: int = 8, per_page: int = 100, strict: bool = False) -> list[dict]:
         """프로젝트의 잡 목록(최신 우선). 한 번 호출로 100건이 오고 `ref`·`status`·`artifacts` 가 함께 온다.
 
         **왜 이것이 필요한가** (S15P21B202-342). Unity 기준선을 찾을 때 파이프라인을 하나씩 훑으면
@@ -517,12 +517,21 @@ class GitLab:
         이 API 는 잡을 바로 주므로 같은 호출 수로 훨씬 멀리 되짚는다.
 
         조회 실패는 **빈 목록이 아니라 그때까지 모은 것**을 준다 — 부르는 쪽이 폴백을 판단한다.
+
+        `strict=True` 면 **어느 쪽이든 실패하면 OSError** 를 던진다 (S15P21B202-739). 느린
+        목록은 "찾아봤는데 없다" 와 "끝까지 못 봤다" 를 갈라야 한다 — 2쪽이 502 로 끊긴 목록을
+        "없다" 로 읽으면 새벽이 이전 목록을 버리고 그날 잰 것만 남긴다. 200 에 빈 쪽은 목록의
+        **자연스러운 끝**이라 실패가 아니다.
         """
         out: list[dict] = []
         for page in range(1, max_pages + 1):
             st, d = http("GET", f"{self.api}/projects/{self.project}/jobs"
                                 f"?per_page={per_page}&page={page}", self._h())
-            if st != 200 or not isinstance(d, list) or not d:
+            if st != 200 or not isinstance(d, list):
+                if strict:
+                    raise OSError(f"잡 목록 {page}쪽 HTTP {st}")
+                break
+            if not d:
                 break
             out.extend(d)
             if len(d) < per_page:

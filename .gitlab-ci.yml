@@ -448,6 +448,11 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
         # ⚠ `unity_reuse.category()` 와 **같은 조건**이어야 한다. 어긋나면 범위가 다른
         # 잡의 결과를 빌려 **Heavy 가 검사되지 않은 채 초록**이 된다.
         # `test_unity_reuse.py` 가 둘을 대조한다.
+        #
+        # 지난 실행이 남긴 "넘겼다" 표시를 먼저 지운다(S15P21B202-739) — 워크스페이스가
+        # 재사용되면 새벽 전체 실행을 verify 가 "건너뛴 실행" 으로 읽는다. 아래에서 넘기는
+        # 가지만 다시 쓴다.
+        rm -f "$CI_PROJECT_DIR/unity-slow-flag.txt"
         if [ "$CI_PIPELINE_SOURCE" != "schedule" ]; then
           set -- -testCategory "!Heavy"
           # 코멘트에 "덜 돌았다" 를 적게 한다 — 안 적으면 초록이 '전부 돌았다' 로 읽힌다.
@@ -476,7 +481,16 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
           python3 scripts/ci/slow_tests.py apply "$CI_PROJECT_DIR" || true
           if [ -s "$CI_PROJECT_DIR/unity-slow-settings.json" ] && [ -s "$CI_PROJECT_DIR/unity-slow-applied.txt" ]; then
             set -- "$@" -testSettingsFile "$CI_PROJECT_DIR/unity-slow-settings.json"
-            echo "=== 임포트 + 컴파일 + EditMode 테스트 시작 (Heavy 제외 · 느린 목록 건너뜀) ==="
+            # **넘긴 바로 이 가지에서 표시를 남긴다.** verify 는 apply 의 표시가 아니라 이것으로
+            # "건너뛰었다" 를 안다 — apply 는 목록을 만들 뿐이고 넘기는 것은 위 줄이다. MR 은
+            # 그 브랜치의 YAML 로 돌므로, 이 줄이 없는 옛 YAML 이면 apply 가 만든 목록은
+            # 넘어가지 않는다. 그때 verify 가 "목록이 돌았다 — 장치 고장" 으로 오진하지 않는다.
+            echo "$CI_PROJECT_DIR/unity-slow-settings.json" > "$CI_PROJECT_DIR/unity-slow-flag.txt"
+            # 코멘트에 "느린 목록을 건너뛰었다" 를 적게 한다 — Heavy 와 같은 이유다. **넘긴
+            # 가지에서만** 내보낸다. 수는 apply 표시의 `listed`(설정 파일에 든 이름 수)다.
+            SLOW_N="$(sed -n 's/^listed //p' "$CI_PROJECT_DIR/unity-slow-applied.txt")"
+            export UNITY_SKIPPED_SLOW="${SLOW_N:-?}"
+            echo "=== 임포트 + 컴파일 + EditMode 테스트 시작 (Heavy 제외 · 느린 목록 ${UNITY_SKIPPED_SLOW}건 건너뜀) ==="
           else
             echo "=== 임포트 + 컴파일 + EditMode 테스트 시작 (Heavy 제외) ==="
           fi
@@ -624,6 +638,7 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
             unity-recheck.txt, unity-baseline.json, unity-base.txt, unity-rc.txt,
             unity-key.txt,
             unity-slow.txt, unity-slow-settings.json, unity-slow-applied.txt,
+            unity-slow-flag.txt,
             unity-reused.txt,
             unity-recheck-*.xml, unity-recheck-*.log]
     reports:

@@ -76,11 +76,20 @@ LIST_FILE = "unity-slow.txt"
 #: `-testSettingsFile` 로 넘기는 파일. `apply` 가 쓰고 **되읽어 확인한 뒤에만** 남긴다.
 SETTINGS_FILE = "unity-slow-settings.json"
 
-#: `apply` 가 마지막에 쓰는 표시. 잡은 설정 파일과 **이것이 함께 있을 때만** 넘기고,
-#: `verify` 는 이것으로 "이번 실행이 건너뛰었나" 를 안다.
+#: `apply` 가 마지막에 쓰는 표시. 잡은 설정 파일과 **이것이 함께 있을 때만** 넘긴다.
+#: 머리의 `listed` 가 넘긴 이름 수다 — 잡이 이것을 읽어 MR 코멘트에 "몇 건 건너뛰었다" 를 싣는다.
 APPLIED_FILE = "unity-slow-applied.txt"
 
-#: 이 모듈이 남기는 파일 전부 — `.gitlab-ci.yml` 의 artifacts 에 다 있어야 한다.
+#: **잡이** `-testSettingsFile` 을 붙인 바로 그 가지에서 쓰는 표시 (S15P21B202-739).
+#:
+#: `verify` 는 이것으로 "이번 실행이 건너뛰었나" 를 안다. `apply` 의 표시만 보면 "목록을
+#: 만들었다" 까지만 안다 — 잡이 그것을 넘겼는지는 모른다. MR 파이프라인은 **그 브랜치의
+#: YAML** 로 돌면서 develop 을 합친 **새 스크립트**를 부르므로, 이 기능 이전 YAML 이면
+#: apply 는 목록을 만들고 잡은 넘기지 않는다. 그때 apply 의 표시로 판단하면 "목록이
+#: 돌았다 — 건너뛰는 장치가 동작하지 않는다" 라는 **엉뚱한 곳을 가리키는 경고**가 나간다.
+FLAG_FILE = "unity-slow-flag.txt"
+
+#: `apply` 가 남기는 파일 전부 — `.gitlab-ci.yml` 의 artifacts 에 다 있어야 한다.
 PUBLISHED = (LIST_FILE, SETTINGS_FILE, APPLIED_FILE)
 
 #: Unity 가 이 이름으로 로그를 쓴다(`-logFile`). `verify` 가 실행 설정 덤프를 읽는다.
@@ -222,6 +231,13 @@ def merge_monotone(previous, measured, cap: int = MAX_NEW_PER_RUN):
 
     `measured` 는 (초, 이름) 이고 느린 것부터다. 새로 더하는 것은 `cap` 까지만
     고르고, 못 고른 것은 **돌려준다** — 부르는 쪽이 그것을 로그에 남긴다.
+
+    **예외는 하나다 — 새벽에 실패한 것** (S15P21B202-739). 부르는 쪽(`cmd_measure`)이
+    `previous` 에서 먼저 내린다. 목록에 든 테스트는 MR 과 develop 머지에서 **돌지 않으므로**,
+    깨진 채 남겨 두면 그것을 고치는 MR 도, 더 깨뜨리는 MR 도 초록으로 지나가고 새벽만 안다.
+    "자주 바뀌면 왜 빠졌는지 모른다" 보다 "깨진 것을 아무도 못 본다" 가 훨씬 나쁘다. 그래서
+    내리는 것은 **로그에 이름으로 남기고**, 통과하는 밤에 다시 느리면 다시 들어온다.
+    (Heavy 가 된 것을 내리는 것은 예외가 아니다 — 빠지는 집합 Heavy ∪ 목록은 그대로다.)
 
     순수 함수다. 검사가 여기를 본다.
     """
@@ -433,12 +449,14 @@ def find_published(gl, job_name: str = "unity-compile"):
     `json.loads` 에 먼저 넣어서 숫자만 든 파일을 숫자로 바꾼다.
     """
     try:
-        jobs = gl.project_jobs()
+        # **끝까지 읽은 목록만 쓴다** (`strict`). 기본 모양은 어느 쪽에서 끊기면 그때까지
+        # 모은 것을 준다 — 1쪽이 MR 잡뿐이고 2쪽이 502 면 develop 잡을 하나도 못 본 채
+        # "없다" 가 되고, `measure` 가 이전 목록을 버린 새 목록을 쓴다.
+        jobs = gl.project_jobs(strict=True)
     except Exception as e:  # noqa: BLE001
-        raise LookupFailed(f"잡 목록 조회 실패 {type(e).__name__}") from e
+        raise LookupFailed(f"잡 목록 조회 실패 {type(e).__name__}: {e}") from e
     if not jobs:
-        # 이 저장소에 잡이 0건일 리 없다 — 조회가 실패한 것이다(project_jobs 는 실패를
-        # 빈 목록으로 준다).
+        # 이 저장소에 잡이 0건일 리 없다 — 1쪽이 200 인데 비었어도 조회를 믿지 않는다.
         raise LookupFailed("잡 목록이 비었다")
     seen = 0
     for j in sorted(jobs, key=lambda x: -(x.get("id") or 0)):
@@ -479,11 +497,18 @@ def cmd_measure(results_path: str, out_dir: str) -> int:
         return 0
 
     heavy = {c["full"] for c in cases if c["heavy"]}
+    passed = {c["full"] for c in cases if c["result"] == "Passed"}
+    failed = {c["full"] for c in cases if c["result"] == "Failed"}
     slow_all = slow_cases(cases)
     # **Heavy 는 목록에 넣지 않는다** (S15P21B202-739). `-testCategory "!Heavy"` 가 이미
     # 빼므로 목록에 있어 봐야 하는 일이 없고, 그 탓에 `-701` 의 목록은 100건 중 99건이
     # Heavy 였다 — "목록이 돈다" 를 확인할 이름이 1건밖에 없었다.
-    slow = [(s, n) for s, n in slow_all if n not in heavy]
+    #
+    # **통과한 것만 넣는다** (S15P21B202-739). 느린 테스트에서 가장 흔한 것이 `WaitUntil`
+    # 이나 시한을 다 채우고 **실패한** 것이다 — 평소 0.8초짜리가 깨져서 10초를 기다렸다면
+    # 그것은 느린 게 아니라 깨진 것이다. 넣으면 다음 날부터 MR 이 그 테스트를 건너뛰어,
+    # 고치는 MR 도 확인 없이 초록이 된다.
+    slow = [(s, n) for s, n in slow_all if n not in heavy and n in passed]
 
     # **이전 집합을 포함한다** (S15P21B202-701). 그날 느린 것만 빼면 어제 느렸던
     # 테스트가 오늘 4.9초라고 MR 로 돌아온다.
@@ -508,6 +533,17 @@ def cmd_measure(results_path: str, out_dir: str) -> int:
     before = [n for n in before if n not in heavy]
     if moved:
         print(f"Heavy 로 이미 빠지는 {len(moved)}건은 목록에서 내린다")
+    # **새벽에 실패한 것은 목록에서 내린다** — "한 방향으로만 자란다" 의 유일한 예외다
+    # (`merge_monotone` 참고). 남겨 두면 MR 과 develop 머지가 계속 건너뛰어 **새벽 말고는
+    # 아무도 그 실패를 못 본다.** 내리면 다음 실행부터 돌아서, 깨뜨린 쪽과 고치는 쪽이 보인다.
+    # 조용히 내리지 않는다 — 이름을 남긴다.
+    broke = [n for n in before if n in failed]
+    before = [n for n in before if n not in failed]
+    if broke:
+        print(f"⚠ 목록에 있던 {len(broke)}건이 이번 전체 실행에서 실패했다 — 목록에서 내린다"
+              f"(MR 과 develop 머지에서 다시 돈다)")
+        for n in broke:
+            print("   " + n)
 
     names, left = merge_monotone(before, slow)
     if left:
@@ -524,7 +560,11 @@ def cmd_measure(results_path: str, out_dir: str) -> int:
     share = (100.0 * spent / whole) if whole else 0.0
     print(f"느린 테스트 {len(slow_all)}건 · {spent:.1f}초 "
           f"(전체 {len(cases)}건 · {whole:.1f}초의 {share:.1f}%) · 기준 {THRESHOLD_SECONDS:g}초")
-    print(f"  그중 Heavy {len(slow_all) - len(slow)}건은 이미 빠진다 · 목록 {len(names)}건")
+    unpassed = [n for _s, n in slow_all if n not in heavy and n not in passed]
+    print(f"  그중 Heavy {sum(1 for _s, n in slow_all if n in heavy)}건은 이미 빠진다 · "
+          f"통과하지 못한 {len(unpassed)}건은 넣지 않는다 · 목록 {len(names)}건")
+    for n in unpassed[:5]:
+        print("   넣지 않음(통과 못 함): " + n)
     for s, n in slow[:10]:
         print(f"  {s:8.2f}초  {n}")
     if len(slow) > 10:
@@ -611,8 +651,15 @@ def cmd_verify(results_path: str, out_dir: str) -> int:
         print(f"잡 {reused} 의 결과를 그대로 썼다 — 이름 확인은 그 잡이 했다")
         return 0
 
+    # **"건너뛰었다" 는 잡이 플래그를 붙였다는 뜻이다** — apply 가 목록을 만들었다는 뜻이
+    # 아니다. 잡이 `-testSettingsFile` 을 붙인 가지에서만 FLAG_FILE 을 쓴다. apply 의 표시만
+    # 있고 이것이 없으면 잡이 넘기지 않은 것이다(이 기능 이전 YAML 로 도는 MR 등). 그때 목록과
+    # 견주면 "목록이 돌았다 — 장치가 고장" 이라는 **틀린 곳을 가리키는** 경고가 나간다.
     marker_path = os.path.join(out_dir, APPLIED_FILE)
-    applied = os.path.exists(marker_path)
+    applied = bool((_read(os.path.join(out_dir, FLAG_FILE)) or "").strip())
+    if not applied and os.path.exists(marker_path):
+        print(f"apply 는 목록을 만들었지만 잡이 -testSettingsFile 을 넘기지 않았다({FLAG_FILE} 없음) — "
+              f"건너뛰지 않은 실행으로 확인한다. 이 브랜치의 .gitlab-ci.yml 이 이 기능 이전 것일 수 있다")
     listed: list[str] = []
     expect = 0
     if applied:

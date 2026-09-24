@@ -282,8 +282,9 @@ import unity_report as _UR
 assert not hasattr(_UR, "RECHECK_RUNS"), (
     "unity_report.py 에 RECHECK_RUNS 가 다시 생겼다 — YAML 과 이중 관리가 된다(!272 리뷰)")
 # 지난 실행이 남긴 재실행 결과를 지워야 한다 — 워크스페이스가 재사용되면 옛 통과
-# 기록으로 새 실패가 면제된다(!272 리뷰)
-assert "rm -f" in _uc and "unity-recheck-*.xml" in _uc.split("rm -f")[1][:200], (
+# 기록으로 새 실패가 면제된다(!272 리뷰). **첫** `rm -f` 가 아니라 **어느** `rm -f` 든
+# 그 바로 뒤를 본다 — 이 잡에는 다른 것을 지우는 `rm -f` 도 있다(`-739` 의 느린 목록 표시).
+assert any("unity-recheck-*.xml" in _seg[:200] for _seg in _uc.split("rm -f")[1:]), (
     "재실행 전에 지난 결과를 지우지 않는다 — 옛 통과 기록으로 새 실패가 면제될 수 있다")
 # **파일 이름이 파이썬 상수와 YAML 양쪽에 있다.** 파이썬만 바꾸면 잡의 cat·
 # --baseline-from 이 조용히 깨져 재실행 면제가 사라진다(!272 5차 리뷰).

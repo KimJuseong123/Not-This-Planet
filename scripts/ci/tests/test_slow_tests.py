@@ -20,6 +20,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import urllib.error
@@ -60,12 +61,21 @@ class FakeGitLab:
     """`project_jobs`·`job_artifact_raw` 만 흉내 낸다. 새 잡이 먼저 온다.
 
     `arts` = {잡 id: {파일: 원문}}. `refs` 에 없는 잡은 develop 에서 돈 것이다.
-    `broken` 의 잡은 아티팩트를 읽을 때 OSError 를 던진다(404 가 아닌 실패)."""
+    `broken` 의 잡은 아티팩트를 읽을 때 OSError 를 던진다(404 가 아닌 실패).
 
-    def __init__(self, arts, refs=None, broken=()):
+    `partial` 이면 잡 목록이 **2쪽에서 끊긴다** — 진짜 `project_jobs` 처럼 기본 모양은
+    1쪽(MR 잡뿐)만 주고, `strict=True` 면 OSError 를 던진다."""
+
+    def __init__(self, arts, refs=None, broken=(), partial=False):
         self.arts, self.refs, self.broken = arts, dict(refs or {}), set(broken)
+        self.partial = partial
 
-    def project_jobs(self):
+    def project_jobs(self, strict=False):
+        if self.partial:
+            if strict:
+                raise OSError("잡 목록 2쪽 HTTP 502")
+            return [{"id": 999, "name": "unity-compile", "status": "success",
+                     "ref": "refs/merge-requests/9/head"}]
         return [{"id": i, "name": "unity-compile", "status": "success",
                  "ref": self.refs.get(i, "develop")} for i in sorted(self.arts, reverse=True)]
 
@@ -249,11 +259,43 @@ check(got is not None and sorted(got["names"]) == sorted([YARD, METEOR]),
 
 #     **모르면**(조회 실패) 아무것도 쓰지 않는다. "없다" 로 치면 오늘 잰 것만 남아
 #     집합이 줄어든 목록이 최신이 되고, 다음 MR 들이 그것을 받아 간다.
+#
+#     **목록이 중간에 끊긴 것도 "모른다" 다** (S15P21B202-739). 1쪽이 MR 잡뿐이고 2쪽이
+#     502 면 develop 잡을 하나도 못 본다 — 기본 `project_jobs` 는 그 1쪽을 주므로 "없다" 가
+#     되어, 이전 목록을 버린 새 목록이 최신이 됐다.
 for label, gl in (("잡 목록 조회가 비었다", FakeGitLab({})),
                   ("아티팩트를 못 읽었다", FakeGitLab({300: {S.LIST_FILE: PREV}}, broken={300})),
+                  ("잡 목록이 2쪽에서 끊겼다", FakeGitLab({300: {S.LIST_FILE: PREV}}, partial=True)),
                   ("토큰이 없다", None)):
     text, _log = measure_with(gl)
     check(text is None, f"{label} — 그런데 목록을 썼다(줄어든 목록이 최신이 된다)")
+try:
+    S.find_published(FakeGitLab({300: {S.LIST_FILE: PREV}}, partial=True))
+    check(False, "끊긴 잡 목록을 '없다' 로 읽는다 — LookupFailed 를 던져야 한다")
+except S.LookupFailed as e:
+    check("2쪽" in str(e), f"끊긴 사유가 로그에 남지 않는다: {e}")
+
+#     **새벽에 통과한 것만 넣는다** (S15P21B202-739). 느린 테스트에서 흔한 것이 시한을 다
+#     채우고 **실패한** 것이다 — 넣으면 다음 날부터 MR 이 그것을 건너뛰어, 고치는 MR 도
+#     확인 없이 초록이 된다. 그리고 목록에 **있던** 것이 실패하면 내린다 — "한 방향으로만
+#     자란다" 의 유일한 예외다. 없어진 이름(GONE)처럼 실패가 아닌 것은 그대로 둔다.
+BROKE_XML = (FULL_XML
+             .replace(f'fullname="{YARD}" result="Passed"', f'fullname="{YARD}" result="Failed"')
+             .replace(f'fullname="{YESTERDAY}" result="Passed"', f'fullname="{YESTERDAY}" result="Failed"'))
+check(BROKE_XML.count('result="Failed"') == 2, "실패 모양을 못 만들었다 — 검사 자체가 틀렸다")
+text, log = measure_with(FakeGitLab({300: {S.LIST_FILE: PREV}}), xml=BROKE_XML)
+got = S.read_list(text)
+check(got is not None, "실패가 섞인 밤에 목록을 못 쓴다: " + str(text))
+if got:
+    check(YARD not in got["names"], "새벽에 실패한 느린 테스트를 목록에 넣는다 — 깨진 것이 MR 에서 사라진다")
+    check(METEOR in got["names"], f"통과한 느린 것을 안 넣었다: {got['names']}")
+    check(YESTERDAY not in got["names"],
+          "목록에 있던 것이 새벽에 실패했는데 내리지 않는다 — 새벽 말고는 아무도 그 실패를 못 본다")
+    check(GONE in got["names"], "실패가 아닌 이전 이름(결과에 없음)까지 내린다 — 한 방향으로 자라야 한다")
+    #     내린 것은 다시 도는 쪽으로 센다 — 남을 수 = 전체 8 − Heavy 4 − 목록 중 트리에 있는 METEOR.
+    check(got["expect"] == 3, f"내린 이름을 남을 수에 안 넣었다: {got['expect']}")
+check(YESTERDAY in log, "목록에서 내린 이름을 로그에 안 남긴다 — 조용히 줄어든다: " + log)
+check(YARD in log, "통과 못 해 넣지 않은 느린 이름을 로그에 안 남긴다: " + log)
 text, _log = measure_with(FakeGitLab({300: {S.LIST_FILE: PREV}}), xml=None)
 check(text is None, "결과를 못 읽었는데 목록을 썼다 — 앞 실행의 목록을 덮는다")
 text, _log = measure_with(FakeGitLab({300: {S.LIST_FILE: PREV}}), xml="<test-run/>")
@@ -341,10 +383,16 @@ for label, gl in (("옛 목록뿐", FakeGitLab({200: {S.LIST_FILE: OLD}})),
                   ("MR 잡에만 있다", FakeGitLab({300: {S.LIST_FILE: LIST_OK}}, refs={300: "refs/merge-requests/9/head"})),
                   ("조회가 비었다", FakeGitLab({})),
                   ("아티팩트를 못 읽었다", FakeGitLab({300: {S.LIST_FILE: LIST_OK}}, broken={300})),
+                  ("잡 목록이 2쪽에서 끊겼다", FakeGitLab({300: {S.LIST_FILE: LIST_OK}}, partial=True)),
                   ("목록이 비었다", FakeGitLab({300: {S.LIST_FILE: S.list_text([], {}, 2500)}})),
                   ("토큰이 없다", None)):
     wrote, _got, _log = apply_into(gl, before=S.PUBLISHED)
     check(wrote == [], f"{label} — 그런데 {wrote} 가 남았다(옛 파일로 건너뛴다)")
+#     끊긴 목록은 "없다" 가 아니라 **조회 실패**로 적는다 — 로그가 사유를 틀리게 말하면
+#     "왜 오늘 13분이지" 를 엉뚱한 곳에서 찾는다.
+_w, _g, _log = apply_into(FakeGitLab({300: {S.LIST_FILE: LIST_OK}}, partial=True))
+check("조회 실패" in _log and "온전한 목록이 없다" not in _log,
+      "끊긴 잡 목록을 '온전한 목록이 없다' 로 적는다: " + _log)
 
 #     상한에 걸리면 느린 것부터 건너뛰고, **넘친 이름을 로그에 남기고**, 목록은 원문 그대로 싣는다.
 _keep_cap, S.MAX_LISTED = S.MAX_LISTED, 2
@@ -412,6 +460,44 @@ try:
         pass
 finally:
     ci_common.urllib.request.urlopen = _keep_open
+
+#     **끝까지 읽은 잡 목록** (`project_jobs(strict=True)`, S15P21B202-739). 기본 모양은 어느
+#     쪽에서 끊기면 그때까지 모은 것을 준다 — 기준선 찾기에는 그게 맞지만(폴백이 있다),
+#     느린 목록에는 "없다" 와 "끝까지 못 봤다" 를 섞는 길이 된다.
+_PAGES = {}
+
+
+def _pages_http(method, url, headers=None, body=None, timeout=60):
+    page = int(url.split("&page=")[1].split("&")[0])
+    return _PAGES.get(page, (200, []))
+
+
+_keep_http = ci_common.http
+ci_common.http = _pages_http
+try:
+    _gl = ci_common.GitLab()
+    _gl.api, _gl.project, _gl.token = "https://lab.example/api/v4", "1443653", "t"
+    _full = [{"id": i} for i in range(100)]
+    _PAGES = {1: (200, _full), 2: (502, "<html>bad</html>")}
+    check(len(_gl.project_jobs()) == 100, "기본 모양이 끊긴 쪽까지 모은 것을 주지 않는다 — 기준선 폴백이 바뀐다")
+    try:
+        _gl.project_jobs(strict=True)
+        check(False, "2쪽이 502 인데 strict 가 끊긴 목록을 준다 — '없다' 와 '모른다' 가 섞인다")
+    except OSError as e:
+        check("2쪽" in str(e) and "502" in str(e), f"어느 쪽이 왜 끊겼는지 말하지 않는다: {e}")
+    _PAGES = {1: (200, _full), 2: (200, {"message": "error"})}
+    try:
+        _gl.project_jobs(strict=True)
+        check(False, "2쪽이 목록이 아닌데 strict 가 끊긴 목록을 준다")
+    except OSError:
+        pass
+    #     200 에 빈 쪽·덜 찬 쪽은 **목록의 끝**이다 — 실패가 아니다.
+    _PAGES = {1: (200, _full), 2: (200, [])}
+    check(len(_gl.project_jobs(strict=True)) == 100, "빈 2쪽(목록의 끝)을 실패로 본다 — 목록이 영영 안 시작한다")
+    _PAGES = {1: (200, _full[:30]), 2: (502, "")}
+    check(len(_gl.project_jobs(strict=True)) == 30, "덜 찬 1쪽 뒤를 또 읽는다 — 목록이 끝났다")
+finally:
+    ci_common.http = _keep_http
 
 
 # ── ⑨ 확인한다 — **이름으로** (S15P21B202-739) ──────────────────────────────
@@ -523,16 +609,22 @@ def log_for(names):
             + "".join(f"ignoreTests[{i}] = '{n}': '{S.MARK} · 잡 631830'\n" for i, n in enumerate(names)))
 
 
-def verify_in(xml, listed=None, expect=3, log="auto", reused=None, settings="auto"):
-    """폴더를 꾸며 `cmd_verify` 를 돌리고 (반환값, 찍은 글). `listed` 가 None 이면 넘기지 않은 잡이다."""
+def verify_in(xml, listed=None, expect=3, log="auto", reused=None, settings="auto", flag="auto", marker=True):
+    """폴더를 꾸며 `cmd_verify` 를 돌리고 (반환값, 찍은 글). `listed` 가 None 이면 넘기지 않은 잡이다.
+
+    `flag` 는 잡이 `-testSettingsFile` 을 붙인 가지에서 쓰는 표시다 — "auto" 면 `listed` 가
+    있을 때 쓰고, None 이면 쓰지 않는다(apply 는 목록을 만들었는데 잡이 넘기지 않은 실행)."""
     with tempfile.TemporaryDirectory() as d:
         path = os.path.join(d, "unity-results.xml")
         if xml is not None:
             S.write(path, xml)
         if listed is not None:
-            S.write(os.path.join(d, S.APPLIED_FILE), S.marker_text(631830, len(listed), expect, 0))
+            if marker:
+                S.write(os.path.join(d, S.APPLIED_FILE), S.marker_text(631830, len(listed), expect, 0))
             if settings == "auto":
                 S.write(os.path.join(d, S.SETTINGS_FILE), S.settings_json(listed, 631830))
+            if flag == "auto":
+                S.write(os.path.join(d, S.FLAG_FILE), os.path.join(d, S.SETTINGS_FILE) + "\n")
         if log == "auto":
             log = log_for(listed or [])
         if log is not None:
@@ -572,12 +664,26 @@ with tempfile.TemporaryDirectory() as _d:
     S.write(os.path.join(_d, "unity-results.xml"), SKIP_XML)
     S.write(os.path.join(_d, S.APPLIED_FILE), S.marker_text(631830, 3, 3, 0))
     S.write(os.path.join(_d, S.SETTINGS_FILE), S.settings_json(LIST_630674[:2], 631830))   # 표시는 3건
+    S.write(os.path.join(_d, S.FLAG_FILE), "넘겼다\n")
     S.write(os.path.join(_d, S.LOG_FILE), log_for(LIST_630674[:2]))
     rc, log = quietly(S.cmd_verify, os.path.join(_d, "unity-results.xml"), _d)
 check(rc == 1 and "무엇을 건너뛰었는지 읽지 못한다" in log,
       "표시의 건수와 설정 파일의 건수가 다른데 통과시킨다: " + log)
 rc, log = verify_in(None, LIST_630674)
 check(rc == 1, "건너뛰고 결과가 없는데 통과시킨다: " + log)
+
+#     **"건너뛰었다" 는 잡이 플래그를 붙였다는 뜻이다** (S15P21B202-739). apply 의 표시만 있고
+#     잡의 표시가 없으면 잡이 넘기지 않은 것이다 — 이 기능 이전 YAML 로 도는 MR 이 그렇다.
+#     잡 630674 처럼 목록의 테스트가 돌고 로그에 ignoreTests 가 없어도, 그것은 장치 고장이
+#     아니므로 1 을 주지 않고 **그 사실을 말한다.** ❌ 로 적으면 카드가 그 줄을 이유로 싣는다.
+rc, log = verify_in(REPLAY_XML, LIST_630674, flag=None, log="Exiting batchmode\n")
+check(rc == 0, "잡이 넘기지 않았는데 '목록이 돌았다 — 장치 고장' 으로 막는다: " + log)
+check("넘기지 않았다" in log and S.FLAG_FILE in log, "잡이 넘기지 않은 사실을 말하지 않는다: " + log)
+check("❌" not in log, "넘기지 않은 실행을 ❌ 로 적는다 — 틀린 곳을 가리키는 경고가 카드에 실린다: " + log)
+#     잡은 넘겼다고 표시했는데 apply 의 표시가 없다 — 무엇을 건너뛰었는지 모른다.
+rc, log = verify_in(SKIP_XML, LIST_630674, marker=False)
+check(rc == 1 and "무엇을 건너뛰었는지 읽지 못한다" in log,
+      "넘겼다는 표시만 있고 apply 의 표시가 없는데 통과시킨다: " + log)
 
 #     넘기지 않은 실행(새벽·목록 없음) — 확인할 것이 없다. 다만 목록 사유 행이 있으면 이상하다.
 rc, log = verify_in(REPLAY_XML)
@@ -647,6 +753,98 @@ check(f'-testSettingsFile "$CI_PROJECT_DIR/{S.SETTINGS_FILE}"' in _flag_line,
 check(_cond.lstrip().startswith("if ") and f'-s "$CI_PROJECT_DIR/{S.SETTINGS_FILE}"' in _cond
       and f'-s "$CI_PROJECT_DIR/{S.APPLIED_FILE}"' in _cond,
       "설정 파일과 표시가 둘 다 있을 때만 넘기지 않는다: " + _cond.strip())
+#     **둘 다**다 — `||` 로 바뀌면 되읽기에 실패해 표시가 없는 설정 파일도 넘어간다(`-739` 리뷰).
+#     아래 진리표가 동작으로 못박고, 셸이 없는 곳에서도 이 줄이 연산자를 본다.
+check("] && [" in _cond and "||" not in _cond, "두 파일 조건이 && 가 아니다: " + _cond.strip())
+
+#     넘기는 가지(`if` 부터 그 `else` 까지)와 안 넘기는 가지를 떼어 본다.
+_lines = CODE.splitlines()
+_ci = next((i for i, l in enumerate(_lines) if l == _cond), -1)
+_ind = len(_cond) - len(_cond.lstrip())
+_else = next((i for i in range(_ci + 1, len(_lines))
+              if _lines[i].strip() == "else" and len(_lines[i]) - len(_lines[i].lstrip()) == _ind), -1)
+_fi = next((i for i in range(max(_else, _ci) + 1, len(_lines))
+            if _lines[i].strip() == "fi" and len(_lines[i]) - len(_lines[i].lstrip()) == _ind), -1)
+check(0 <= _ci < _else < _fi, "넘기는 if/else/fi 를 못 찾았다 — 아래 검사가 헛돈다")
+PASS_BRANCH = "\n".join(_lines[_ci + 1:_else])
+SKIP_BRANCH = "\n".join(_lines[_else + 1:_fi])
+BLOCK = "\n".join(l[_ind:] for l in _lines[_ci:_fi + 1])
+
+#     **verify 가 믿는 표시는 넘긴 가지가 쓴다** — apply 의 표시만으로는 넘겼는지 모른다.
+_flag_write = f'> "$CI_PROJECT_DIR/{S.FLAG_FILE}"'
+check(_flag_write in PASS_BRANCH, f"넘기는 가지가 {S.FLAG_FILE} 를 쓰지 않는다 — verify 가 '건너뛰었다' 를 모른다")
+check(CODE.count(_flag_write) == 1, f"{S.FLAG_FILE} 를 넘기는 가지 밖에서도 쓴다 — 안 넘긴 실행이 넘긴 것이 된다")
+#     지난 실행의 표시는 **가지가 갈리기 전에** 지운다 — 남으면 새벽 전체 실행이 "건너뛴 실행" 이 된다.
+_i_rm = CODE.find(f'rm -f "$CI_PROJECT_DIR/{S.FLAG_FILE}"')
+check(0 <= _i_rm < CODE.find('if [ "$CI_PIPELINE_SOURCE" != "schedule" ]'),
+      f"가지가 갈리기 전에 지난 {S.FLAG_FILE} 를 지우지 않는다 — 재사용된 워크스페이스에서 새벽이 '건너뛴 실행' 이 된다")
+check(S.FLAG_FILE in (_paths.group(1) if _paths else ""), f"{S.FLAG_FILE} 가 아티팩트에 없다 — 넘겼는지를 나중에 못 본다")
+
+#     **코멘트가 "느린 목록을 건너뛰었다" 를 말한다** — 넘긴 가지에서만. Heavy 와 같은 이유다.
+check("export UNITY_SKIPPED_SLOW=" in PASS_BRANCH, "넘기는 가지가 UNITY_SKIPPED_SLOW 를 내보내지 않는다 — 코멘트가 건너뛴 것을 숨긴다")
+check(CODE.count("UNITY_SKIPPED_SLOW=") == 1 and "UNITY_SKIPPED_SLOW" not in SKIP_BRANCH,
+      "UNITY_SKIPPED_SLOW 를 넘기지 않은 가지에서도 내보낸다 — 전부 돈 실행에 '건너뛰었다' 가 적힌다")
+check(S.APPLIED_FILE in PASS_BRANCH and "listed" in PASS_BRANCH,
+      f"건너뛴 수를 {S.APPLIED_FILE} 의 listed 에서 읽지 않는다 — 코멘트의 수가 넘긴 수와 어긋난다")
+
+
+def _shell():
+    """진리표를 돌릴 셸. `run_all.shell` 과 같은 규칙으로 찾는다."""
+    try:
+        from run_all import shell
+    except Exception:  # noqa: BLE001
+        return None
+    return shell()
+
+
+#     **동작으로 못박는다** — 넘기는 블록을 셸로 돌려 두 파일의 9가지 조합을 본다.
+#     넘기는 것 · 표시를 쓰는 것 · 건너뛴 수를 내보내는 것이 **셋 다 같은 조건**이어야 한다.
+_sh = _shell()
+if _sh is None:
+    print("  ⏭ sh·bash 를 찾지 못해 넘기는 블록의 진리표를 건너뛴다(위 정적 검사만 했다)")
+else:
+    _probe = ('set -- -testCategory "!Heavy"\n' + BLOCK + "\n"
+              + 'for a in "$@"; do echo "ARG=$a"; done\n'
+              + 'echo "SLOW=${UNITY_SKIPPED_SLOW-unset}"\n')
+    _marker = S.marker_text(631830, 2, 2409, 0)
+    for s_state in ("없음", "빈 파일", "있음"):
+        for a_state in ("없음", "빈 파일", "있음", "listed 없음"):
+            if a_state == "listed 없음" and s_state != "있음":
+                continue
+            with tempfile.TemporaryDirectory() as d:
+                if s_state != "없음":
+                    S.write(os.path.join(d, S.SETTINGS_FILE), "" if s_state == "빈 파일" else "{}\n")
+                if a_state != "없음":
+                    S.write(os.path.join(d, S.APPLIED_FILE),
+                            {"빈 파일": "", "있음": _marker, "listed 없음": "source 631830\n"}[a_state])
+                r = subprocess.run([_sh, "-c", _probe], capture_output=True, text=True,
+                                   encoding="utf-8", errors="replace",
+                                   env=dict(os.environ, CI_PROJECT_DIR=d.replace("\\", "/")))
+                args = [l[4:] for l in r.stdout.splitlines() if l.startswith("ARG=")]
+                slow = next((l[5:] for l in r.stdout.splitlines() if l.startswith("SLOW=")), None)
+                flagged = os.path.exists(os.path.join(d, S.FLAG_FILE))
+            want = s_state == "있음" and a_state in ("있음", "listed 없음")
+            where = f"설정 파일 {s_state} · 표시 {a_state}"
+            check(r.returncode == 0, f"{where}: 넘기는 블록이 셸에서 실패했다: {r.stderr.strip()[:200]}")
+            check(("-testSettingsFile" in args) == want,
+                  f"{where}: -testSettingsFile 을 {'안 ' if want else ''}넘긴다 — 둘 다 있을 때만이어야 한다: {args}")
+            check(flagged == want, f"{where}: 넘긴 것과 {S.FLAG_FILE} 가 어긋난다(넘김 {want} · 표시 {flagged})")
+            check(slow == ({"있음": "2", "listed 없음": "?"}[a_state] if want else "unset"),
+                  f"{where}: UNITY_SKIPPED_SLOW 가 {slow!r} 다 — 넘겼을 때만, 넘긴 수로 내보내야 한다")
+
+#     Unity 가 쓰는 사유 머리와 코멘트가 읽는 머리가 같아야 한다 — 어긋나면 기준선이
+#     건너뛴 테스트를 못 가려 **남의 실패로 MR 이 막힌다.**
+import unity_report as R  # noqa: E402
+check(R.SLOW_SKIP_MARK == S.MARK, f"unity_report.SLOW_SKIP_MARK({R.SLOW_SKIP_MARK!r}) ≠ slow_tests.MARK({S.MARK!r})")
+_keep_env = os.environ.get("UNITY_SKIPPED_SLOW")
+os.environ["UNITY_SKIPPED_SLOW"] = "2"
+try:
+    check(S.SETTINGS_FILE in R.merged_note(), f"코멘트가 가리키는 파일이 {S.SETTINGS_FILE} 가 아니다: {R.merged_note()}")
+finally:
+    if _keep_env is None:
+        os.environ.pop("UNITY_SKIPPED_SLOW", None)
+    else:
+        os.environ["UNITY_SKIPPED_SLOW"] = _keep_env
 
 #     건너뛰는 배선이 **전체 실행 가지 앞**에 있고, 전체 실행은 인자를 통째로 비운다.
 check(0 <= i_flag < i_full, "건너뛰는 줄이 전체 실행 가지 안이나 뒤에 있다 — 새벽이 스스로를 건너뛴다")
