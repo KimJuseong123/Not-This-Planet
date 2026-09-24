@@ -1,5 +1,7 @@
 using System.Collections;
+using System.Collections.Generic;
 using Metagame.Gameplay;
+using Metagame.Gameplay.Parts;
 using Metagame.Network;
 using NUnit.Framework;
 using UnityEditor.SceneManagement;
@@ -148,6 +150,106 @@ namespace Metagame.Gameplay.Tests
             while ((!world.Ready || world.IsBuilding) && Time.realtimeSinceStartup < until) yield return null;
             Assert.That(world.Ready, Is.True, "Navigation build timed out");
             Assert.That(world.IsBuilding, Is.False);
+        }
+
+        static readonly Bounds Area = new Bounds(Vector3.zero, Vector3.one * 100);
+
+        static IEnumerator Built(AiNavigationWorld world)
+        {
+            float until = Time.realtimeSinceStartup + 20f;
+            while (world.IsBuilding && Time.realtimeSinceStartup < until) yield return null;
+            Assert.That(world.IsBuilding, Is.False, "Navigation build timed out");
+        }
+
+        /// <summary>
+        /// <b>조종 중인 파츠는 굽기에서 빠졌다가, 내려놓이면 한 번 돌아온다</b> (S15P21B202-737).
+        ///
+        /// <para>2026-09-23 로그에서 Part_4 를 타는 동안 30초에 15/15번 구웠다. 타 있는 동안 파츠가 움직여도
+        /// 굽지 않아야 하고, 내리면 <b>그 자리에 장애물로 돌아와야</b> 한다 — 돌아오지 않으면 AI 가 파츠를
+        /// 뚫고 가는 길을 받는다. 견인 빔(Carried → Placed)도 같다.</para>
+        ///
+        /// <para>각 단계에서 파츠가 <b>거르기는 통과하는</b> 상태인지 먼저 확인한다. 거르기에서 이미 빠지는
+        /// 상태라면 이 검사는 제외 규칙이 없어도 통과한다.</para>
+        /// </summary>
+        [Category("Heavy")]   // 플레이 모드와 실제 굽기를 쓴다
+        [UnityTest]
+        public IEnumerator RiddenOrCarriedPartLeavesTheBakeAndReturnsOnce()
+        {
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            yield return new EnterPlayMode();
+            Box("floor", new Vector3(0, -.5f, 0), new Vector3(30, 1, 30));
+            var world = new GameObject("navigation").AddComponent<AiNavigationWorld>();
+
+            // BeamOccupiedCraftTests.BoardedCraft 와 같은 모양 — 고정못을 푼 파츠 하나.
+            var go = new GameObject("Part_1") { layer = GameLayers.Part };
+            go.transform.position = new Vector3(0, .5f, 0);
+            var body = go.AddComponent<Rigidbody>();
+            var collider = go.AddComponent<BoxCollider>();
+            collider.size = Vector3.one;
+            var part = go.AddComponent<SpaceshipPart>();
+            go.AddComponent<PartPush>();
+            var clamps = new List<PartClamp>(4);
+            for (int i = 0; i < 4; i++)
+            {
+                var clampObject = new GameObject($"Clamp_{i}") { layer = GameLayers.Interactable };
+                clampObject.transform.SetParent(go.transform, false);
+                clampObject.AddComponent<SphereCollider>().isTrigger = true;
+                clamps.Add(clampObject.AddComponent<PartClamp>());
+            }
+            part.RefreshClamps();
+            var activator = go.AddComponent<PartTractorActivator>();
+            activator.Initialize();
+            for (int i = 0; i < clamps.Count; i++)
+            {
+                clamps[i].transform.position = new Vector3(50f + i * 2f, 0f, 0f);
+                clamps[i].Release();
+            }
+            var pilot = PlayerRig.Create("Pilot", go.transform.position + Vector3.right * 2f,
+                Quaternion.identity, Color.white, Color.gray, false);
+            yield return new WaitForSeconds(1f);   // 풀린 파츠가 바닥에 자리 잡을 때까지
+
+            yield return Bake(world);
+            int withPart = world.SourceCount;
+
+            // ── 탄다 ──
+            var vehicle = activator.Vehicle;
+            Assert.That(vehicle.TryBoard(pilot), Is.True, "검증 준비: 탑승이 돼야 한다");
+            Physics.SyncTransforms();
+            Assert.That(AiNavigationWorld.UsedForNavigation(collider), Is.True,
+                "탄 파츠가 이미 거르기에서 빠진다 — 이 검사가 제외 규칙 없이도 통과한다");
+            Assert.That(world.Rebuild(Area), Is.EqualTo(AiNavigationWorld.RebuildOutcome.Baked),
+                "탔는데 굽지 않았다 — 옮겨 갈 파츠의 구멍이 그 자리에 남는다");
+            Assert.That(world.SourceCount, Is.EqualTo(withPart - 1), "탄 파츠가 굽기에 남아 있다");
+            yield return Built(world);
+            for (int i = 0; i < 3; i++)
+            {
+                body.position += Vector3.right * .2f;
+                Physics.SyncTransforms();
+                Assert.That(world.Rebuild(Area), Is.EqualTo(AiNavigationWorld.RebuildOutcome.Unchanged),
+                    "탄 파츠가 움직일 때마다 굽는다 — 2026-09-23 의 30초 15/15번이 그대로다");
+            }
+
+            // ── 내린다 ──
+            vehicle.ReleaseRiderForRespawn();
+            Physics.SyncTransforms();
+            Assert.That(world.Rebuild(Area), Is.EqualTo(AiNavigationWorld.RebuildOutcome.Baked),
+                "내렸는데 굽지 않는다 — 내려놓인 파츠가 길찾기에 없어 AI 가 뚫고 간다");
+            Assert.That(world.SourceCount, Is.EqualTo(withPart), "내린 파츠가 장애물로 돌아오지 않았다");
+            yield return Built(world);
+
+            // ── 견인 빔에 들렸다가 내려놓인다 ──
+            Assert.That(part.TryTransitionTo(PartState.Carried), Is.True, "검증 준비: 들 수 있어야 한다");
+            Physics.SyncTransforms();
+            Assert.That(AiNavigationWorld.UsedForNavigation(collider), Is.True,
+                "들린 파츠가 이미 거르기에서 빠진다 — 이 검사가 제외 규칙 없이도 통과한다");
+            Assert.That(world.Rebuild(Area), Is.EqualTo(AiNavigationWorld.RebuildOutcome.Baked));
+            Assert.That(world.SourceCount, Is.EqualTo(withPart - 1), "들린 파츠가 굽기에 남아 있다");
+            yield return Built(world);
+            Assert.That(part.TryTransitionTo(PartState.Placed), Is.True, "검증 준비: 내려놓을 수 있어야 한다");
+            Physics.SyncTransforms();
+            Assert.That(world.Rebuild(Area), Is.EqualTo(AiNavigationWorld.RebuildOutcome.Baked));
+            Assert.That(world.SourceCount, Is.EqualTo(withPart), "내려놓인 파츠가 장애물로 돌아오지 않았다");
+            yield return Built(world);
         }
 
         [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-731)
