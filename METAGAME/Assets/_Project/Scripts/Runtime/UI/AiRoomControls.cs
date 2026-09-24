@@ -57,10 +57,28 @@ namespace Metagame.UI
         /// <para><b>새 팩이 올라온 것도 "손댈 것" 이다</b> (S15P21B202-733). 전에는
         /// <c>HasPack</c> 만 봐서, 한 번 깐 사람에게는 새 팩이 영영 안 갔다.</para>
         /// </summary>
+        /// <summary>
+        /// 설치가 필요한지 — <b>0.5초에 한 번만 본다</b> (S15P21B202-713 리뷰). 이 함수는 IMGUI 이벤트마다
+        /// (한 프레임에 두 번 이상) 불리는데, 그때마다 배포 정보 파일을 열어 해시하면 로비가 끊긴다.
+        /// 설치가 끝난 뒤 버튼이 0.5초 늦게 바뀌는 것은 보이지 않는다.
+        /// </summary>
         static bool NeedsPreparing(AiLocalRuntime runtime)
-            => AiPackInstaller.WantsDownload(runtime.PackRoot)
+        {
+            float now = Time.realtimeSinceStartup;
+            if (now >= nextPackCheck || runtime.PackRoot != checkedRoot)
+            {
+                wantsDownload = AiPackInstaller.WantsDownload(runtime.PackRoot);
+                checkedRoot = runtime.PackRoot; nextPackCheck = now + PackCheckSeconds;
+            }
+            return wantsDownload
                || AiHostSettings.RuntimeState == AiRuntimeState.Failed
                || AiHostSettings.RuntimeState == AiRuntimeState.Missing;
+        }
+
+        public const float PackCheckSeconds = .5f;
+        static float nextPackCheck;
+        static bool wantsDownload;
+        static string checkedRoot;
 
         /// <summary>
         /// 받기 · 설치 · 준비를 <b>한 번에</b> (S15P21B202-706).

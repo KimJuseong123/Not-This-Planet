@@ -10,6 +10,22 @@ namespace Metagame.Gameplay.Tests
 {
     public sealed class AiPackInstallerTests
     {
+        /// <summary>
+        /// 작은 파일을 해시할 때 <b>1MB 를 잡지 않는다</b> (S15P21B202-713 리뷰). 로비가 IMGUI 이벤트마다
+        /// 1KB 배포 정보를 확인하므로, 크기에 안 맞춘 버퍼는 곧바로 GC 끊김이 된다. 로비의 확인 자체도
+        /// 0.5초에 한 번으로 줄인다.
+        /// </summary>
+        [Test] public void HashingASmallFileDoesNotGrabAMegabyte()
+        {
+            string hash = TestSource.Method(TestSource.Read("Runtime/Network/AiPackInstaller.cs"), "public static string Hash(");
+            Assert.That(hash, Does.Not.Contain("new byte[1048576]"), "파일 크기와 상관없이 1MB 를 잡는다");
+            Assert.That(hash, Does.Contain("Math.Min(input.Length, 1048576L)"), "버퍼를 파일 크기에 맞추지 않는다");
+
+            string check = TestSource.Method(TestSource.Read("Runtime/UI/AiRoomControls.cs"), "static bool NeedsPreparing(");
+            Assert.That(check, Does.Contain("now >= nextPackCheck"), "로비가 이벤트마다 배포 정보를 해시한다");
+            Assert.That(Metagame.UI.AiRoomControls.PackCheckSeconds, Is.InRange(.1f, 2f));
+        }
+
         string root;
         [SetUp] public void Setup() { root = Path.Combine(Path.GetTempPath(), "ntp-pack-test-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root); }
         [TearDown] public void Cleanup() { if (Directory.Exists(root)) Directory.Delete(root, true); }

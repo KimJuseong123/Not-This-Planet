@@ -98,6 +98,46 @@ namespace Metagame.Gameplay.Tests
         /// 막대는 <b>뒤로 가지 않는다</b> (S15P21B202-713). 속도가 떨어져 남은 시간이 늘어도,
         /// 바이트 비율에서 시간 비율로 바뀌어도. 끝나기 전에는 99% 를 넘지 않는다.
         /// </summary>
+        /// <summary>
+        /// <b>받아 둔 파일을 다시 확인하는 재시도에서도 막대가 서 있지 않는다</b> (S15P21B202-713 리뷰).
+        ///
+        /// <para>두 파일을 다 받아 둔 채 다시 시도하면, 속도를 모르는 확인 단계에서 바이트 비율이 47% 쯤
+        /// 간다. 시간 비율은 그보다 한참 뒤라, "줄지 않는다" 만 지키면 풀기와 데우기 몇 분 동안 막대가
+        /// 47% 에 서 있고 남은 시간만 준다 — 멈춘 것으로 보인다.</para>
+        /// </summary>
+        [Test] public void ACachedRetryKeepsTheBarMoving()
+        {
+            long runtimeZip = 128 * MB, modelsZip = 2105 * MB, installed = 2500 * MB;
+            var s = new AiPrepSnapshot
+            {
+                Phase = AiPrepPhase.Check, HashTotal = runtimeZip + modelsZip, HashDone = runtimeZip + modelsZip,
+                ExtractTotal = installed, WarmupExpected = 227, Elapsed = 6,
+            };
+            s.Progress = AiPrepProgress.Fraction(s, 0); s.ProgressAt = s.Elapsed;
+            Assert.That(s.Progress, Is.GreaterThan(.3f), "검증 준비: 확인 단계에서 바이트 비율이 앞서 가야 한다");
+
+            // 풀기 — 이제 속도를 안다. 시간 비율은 훨씬 뒤다.
+            s.Phase = AiPrepPhase.Unpack; s.HashRate = 400.0 * MB; s.ExtractRate = 150.0 * MB;
+            float last = s.Progress;
+            for (int i = 1; i <= 8; i++)
+            {
+                s.Elapsed = 6 + i * 2; s.ExtractDone = System.Math.Min(installed, i * 300 * MB);
+                s.Progress = AiPrepProgress.Fraction(s, s.Progress); s.ProgressAt = s.Elapsed;
+                Assert.That(s.Progress, Is.GreaterThan(last), $"풀기 {i}번째에 막대가 섰다 — 남은 시간만 준다");
+                last = s.Progress;
+            }
+            // 데우기 — 여기서도 움직인다.
+            s.Phase = AiPrepPhase.Start; s.ExtractDone = installed;
+            for (int i = 1; i <= 5; i++)
+            {
+                s.WarmupElapsed = i * 30; s.Elapsed = 22 + i * 30;
+                s.Progress = AiPrepProgress.Fraction(s, s.Progress); s.ProgressAt = s.Elapsed;
+                Assert.That(s.Progress, Is.GreaterThan(last), $"데우기 {i * 30}초에 막대가 섰다");
+                Assert.That(s.Progress, Is.LessThanOrEqualTo(AiPrepProgress.Cap));
+                last = s.Progress;
+            }
+        }
+
         [Test] public void TheFractionNeverDecreases()
         {
             var steps = new[]

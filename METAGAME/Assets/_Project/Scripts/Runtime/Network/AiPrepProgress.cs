@@ -59,6 +59,9 @@ namespace Metagame.Network
         /// <summary>지금까지 보여 준 진행률. <see cref="AiPrepProgress.Fraction"/> 이 준 값을 그대로 담는다.</summary>
         public float Progress;
 
+        /// <summary><see cref="Progress"/> 를 정한 때의 <see cref="Elapsed"/>. 앞서 간 막대를 시간에 맞춰 움직이는 데 쓴다.</summary>
+        public double ProgressAt;
+
         /// <summary>공간이 모자랄 때 더 비워야 하는 바이트. 모르면 0.</summary>
         public long NeededBytes;
     }
@@ -219,7 +222,20 @@ namespace Metagame.Network
             double f;
             double? left = Remaining(s);
             double spent = Math.Max(s.Elapsed, s.Phase == AiPrepPhase.Start ? s.WarmupElapsed : 0);
-            if (left.HasValue && spent > 0) f = spent / (spent + left.Value);
+            if (left.HasValue && spent > 0)
+            {
+                f = spent / (spent + left.Value);
+                // **앞서 간 막대를 세워 두지 않는다** (S15P21B202-713 리뷰). 속도를 모르는 동안은 바이트
+                // 비율로 가는데, 받아 둔 파일을 다시 확인하는 재시도에서는 그것이 시간 비율보다 한참 앞선다
+                // (두 파일을 다 받아 둔 경우 47% 대 4%). 그대로 "줄지 않는다" 로 붙잡으면 막대가 몇 분 서
+                // 있는 동안 남은 시간만 줄어 멈춘 것처럼 보인다. 그때는 **남은 틈을 남은 시간에 맞춰** 줄인다
+                // — 지난번부터 흐른 초 ÷ (그 초 + 남은 초) 만큼.
+                if (f < before)
+                {
+                    double since = Math.Max(0, s.Elapsed - s.ProgressAt);
+                    f = before + (1 - before) * (since / (since + Math.Max(1e-6, left.Value)));
+                }
+            }
             else f = WorkFraction(s);
             if (double.IsNaN(f) || double.IsInfinity(f)) f = 0;
             return (float)Math.Min(Cap, Math.Max(before, f));

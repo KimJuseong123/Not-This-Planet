@@ -88,7 +88,10 @@ namespace Metagame.Network
         {
             using (var input = File.OpenRead(path)) using (var sha = SHA256.Create())
             {
-                byte[] buffer = new byte[1048576]; int count;
+                // **파일 크기에 맞춰 잡는다** (S15P21B202-713 리뷰). 로비가 IMGUI 이벤트마다 1KB 짜리
+                // 배포 정보를 확인하는데, 1MB 를 늘 잡으면 프레임마다 2MB 넘는 쓰레기가 생겨 GC 가 로비를
+                // 끊는다. 큰 파일은 1MB 조각으로 읽는다.
+                byte[] buffer = new byte[(int)Math.Max(1L, Math.Min(input.Length, 1048576L))]; int count;
                 while ((count = input.Read(buffer, 0, buffer.Length)) > 0)
                 {
                     token.ThrowIfCancellationRequested();
@@ -677,6 +680,7 @@ namespace Metagame.Network
             snap.HashRate = hashRate?.PerSecond;
             snap.ExtractRate = extractRate?.PerSecond;
             snap.Progress = AiPrepProgress.Fraction(snap, snap.Progress);
+            snap.ProgressAt = snap.Elapsed;
             if (!force && now - reportedAt < ReportEvery) return;
             reportedAt = now;
             Message = AiPrepProgress.Log(snap);
