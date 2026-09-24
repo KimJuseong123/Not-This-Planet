@@ -73,7 +73,9 @@ namespace Metagame.UI
         {
             // 안 깔렸거나 **깔린 것이 옛 팩이면** 받는다 (S15P21B202-733).
             if (AiPackInstaller.WantsDownload(runtime.PackRoot)) { runtime.Installer?.Begin(); return; }
-            runtime.Installer?.ReportAlreadyCurrent();
+            // 받을 것이 없으면 준비만 다시 한다. "이미 최신" 이라고 따로 말하지 않는다
+            // (S15P21B202-713) — Draw 의 상태 줄은 설치기 글자를 먼저 보이므로, 그 말이 데우는
+            // 내내 서서 준비 상태를 가렸다. 할 말은 준비 상태가 한다.
             runtime.Retry();
         }
     }

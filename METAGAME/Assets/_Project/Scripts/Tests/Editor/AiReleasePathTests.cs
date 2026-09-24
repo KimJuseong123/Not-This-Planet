@@ -32,6 +32,7 @@ namespace Metagame.Gameplay.Tests
             foreach (string file in new[]
             {
                 "Runtime/Network/AiPackInstaller.cs",   // 받기·검증·설치
+                "Runtime/Network/AiPrepProgress.cs",    // 진행률·남은 시간·화면 글자
                 "Runtime/UI/AiRoomControls.cs",         // 방장이 누르는 버튼
             })
                 Assert.That(TestSource.Read(file), Does.Not.Contain("DEVELOPMENT_BUILD"),
