@@ -7,11 +7,19 @@ using UnityEngine;
 
 namespace Metagame.UI
 {
-    /// <summary>V selects a command segment from the shared microphone.</summary>
+    /// <summary>
+    /// V(주변 동료) 또는 1~4(그 색 동료)를 누르는 동안 명령을 녹음한다 (S15P21B202-738).
+    /// </summary>
     public sealed class AiVoiceControls : MonoBehaviour
     {
         readonly List<float> samples = new List<float>(AiVoicePacket.Rate * AiVoicePacket.Seconds);
+        readonly List<int> aiSlots = new List<int>(3);
         bool recording;
+        /// <summary>
+        /// 누르고 있는 키가 고른 대상 (S15P21B202-738). <b>놓았는지는 이 키로 본다</b> — V 로만
+        /// 보면 1 을 누르고 말하는 동안 "놓았다" 로 읽혀 첫 프레임에 보내 버린다.
+        /// </summary>
+        int recordingTarget = AiTalkKeys.Anyone;
         string notice;
         float started, noticeUntil, resultSeen;
         GameSession recordingSession;
@@ -63,7 +71,7 @@ namespace Metagame.UI
             //
             // **V 를 누르고 있는 동안에만 본다.** 놓은 뒤에는 마이크가 닫히는 것이 정상이라,
             // 이 가드가 거기까지 걸리면 0.6초 넘는 멀쩡한 녹음이 전부 취소된다(!596 AI 리뷰).
-            if (recording && Input.GetKey(KeyCode.V) && microphone != null && !microphone.Capturing
+            if (recording && AiTalkKeys.Held(recordingTarget) && microphone != null && !microphone.Capturing
                 && Time.realtimeSinceStartup - started > .6f)
             { Notify("마이크가 아직 열리지 않았어요 · 잠시 후 다시"); Cancel(); return; }
             if (recording && (!CanRecord(session) || !Ready || session != recordingSession || local != recordingOwner
@@ -79,7 +87,7 @@ namespace Metagame.UI
 
             if (recording && Time.realtimeSinceStartup - started >= AiVoicePacket.Seconds)
             { SendRecording(); return; }
-            if (recording && !Input.GetKey(KeyCode.V))
+            if (recording && !AiTalkKeys.Held(recordingTarget))
             {
                 // 마이크의 링 버퍼에 아직 읽지 않은 마지막 조각이 남아 있다 (S15P21B202-705).
                 // 여기서 곧바로 보내면 그 낱말은 잡히고도 실려 가지 않는다.
@@ -91,13 +99,52 @@ namespace Metagame.UI
                 if (microphone != null && microphone.Capturing) return;
                 SendRecording(); return;
             }
-            if (!Input.GetKeyDown(KeyCode.V) || !CanRecord(session)) return;
+            if (!AiTalkKeys.PressedNow(out int target) || !CanRecord(session)) return;
             if (!Ready) { Notify("방장의 AI 추가팩이 준비되지 않았어요"); return; }
             if (GameSettingsRuntime.Instance?.Current?.voice?.microphoneMuted ?? false)
             { Notify("마이크가 음소거되어 있어요 · ESC에서 해제"); return; }
             if (microphone == null || microphone.Problem != null) { Notify(microphone?.Problem ?? "마이크 준비 중"); return; }
-            samples.Clear(); recording = true; started = Time.realtimeSinceStartup;
-            recordingSession = session; recordingOwner = local; local.BeginAiListening();
+            // 그 자리에 AI 가 없으면 **마이크를 열기 전에** 말해 준다. 서버도 다시 보지만
+            // 그 답은 말을 다 한 뒤에야 온다 — 8초를 말하고 나서 "없어요" 를 듣게 된다.
+            string missing = TargetProblem(target, AiSlots());
+            if (missing != null) { Notify(missing); return; }
+            samples.Clear(); recording = true; started = Time.realtimeSinceStartup; recordingTarget = target;
+            recordingSession = session; recordingOwner = local; local.BeginAiListening(target);
+        }
+
+        /// <summary>지금 AI 가 앉은 자리들. 화면 안내와 누르기 전 확인이 같이 쓴다.</summary>
+        List<int> AiSlots()
+        {
+            aiSlots.Clear();
+            foreach (var player in NetPlayer.AllClientPlayers)
+                if (player != null && player.IsAi && !aiSlots.Contains(player.teamSlot)) aiSlots.Add(player.teamSlot);
+            aiSlots.Sort();
+            return aiSlots;
+        }
+
+        /// <summary>
+        /// 이 대상에게 지금 말할 수 없다면 그 이유. 말할 수 있으면 <c>null</c> (S15P21B202-738).
+        /// 값으로 받는다 — 씬 없이 확인한다.
+        /// </summary>
+        public static string TargetProblem(int target, IReadOnlyList<int> aiSlots)
+        {
+            if (target == AiTalkKeys.Anyone) return null;
+            if (aiSlots != null)
+                foreach (int slot in aiSlots) if (slot == target) return null;
+            return TeamSlots.Name(target) + " 자리에 AI 동료가 없어요";
+        }
+
+        /// <summary>
+        /// 누르기 전 안내 한 줄 (S15P21B202-738). <b>AI 가 앉은 자리만</b> 적는다 — 사람이
+        /// 앉은 색의 키를 적어 두면 눌러 보고서야 안 된다는 것을 알게 된다.
+        /// </summary>
+        public static string KeyHint(IReadOnlyList<int> aiSlots)
+        {
+            var text = new System.Text.StringBuilder("누르고 말하기 · ").Append(AiTalkKeys.Cap(AiTalkKeys.Anyone)).Append(" 주변 동료");
+            if (aiSlots != null)
+                foreach (int slot in aiSlots)
+                    text.Append(" · ").Append(AiTalkKeys.Cap(slot)).Append(' ').Append(TeamSlots.Name(slot));
+            return text.ToString();
         }
         void Capture(float[] frame)
         {
@@ -112,7 +159,7 @@ namespace Metagame.UI
             if (peak < .002f) { Notify("목소리가 들리지 않았어요"); Cancel(); return; }
             recording = false;
             recordingOwner?.SubmitAiVoice(AiVoicePacket.Encode(samples, AiVoicePacket.Rate, 1));
-            samples.Clear(); recordingOwner = null; recordingSession = null;
+            samples.Clear(); recordingOwner = null; recordingSession = null; recordingTarget = AiTalkKeys.Anyone;
             Notify("AI가 듣고 생각하는 중…", 95);
         }
         void Notify(string message, float seconds = 4) { notice = message; noticeUntil = Time.unscaledTime + seconds; }
@@ -168,6 +215,7 @@ namespace Metagame.UI
         {
             if (recording) recordingOwner?.CancelAiListening();
             recording = false; samples.Clear(); recordingOwner = null; recordingSession = null;
+            recordingTarget = AiTalkKeys.Anyone;
         }
         void OnApplicationFocus(bool focused) { if (!focused) Cancel(); }
         void OnDisable() => Cancel();
@@ -179,12 +227,16 @@ namespace Metagame.UI
         void OnGUI()
         {
             if (!CanRecord(GameSession.Instance)) return;
-            string text = recording ? "● 듣고 있어요 · V를 놓으면 주변 AI에게 명령"
-                : Time.unscaledTime < noticeUntil ? notice : Ready ? "V 누르고 말하기 · 주변 AI 동료" : null;
+            // **지금 누구에게 말하는지**가 보여야 한다 (S15P21B202-738) — 1 을 눌렀는데
+            // "주변 AI에게" 라고 적혀 있으면 버튼이 먹었는지 알 수 없다.
+            string text = recording
+                ? (recordingTarget == AiTalkKeys.Anyone ? "● 듣고 있어요 · V를 놓으면 주변 AI에게 명령"
+                   : "● " + TeamSlots.Name(recordingTarget) + "에게 말하는 중 · 키를 놓으면 명령")
+                : Time.unscaledTime < noticeUntil ? notice : Ready ? KeyHint(AiSlots()) : null;
             string mic = microphone?.Problem ?? ((GameSettingsRuntime.Instance?.Current?.voice?.microphoneMuted ?? false)
                 ? "마이크 꺼짐 · ESC에서 해제"
                 : recording && microphone != null && microphone.Speaking ? "● 목소리 인식 중"
-                : "마이크는 V를 누르는 동안에만 켜집니다");
+                : "마이크는 말하기 키를 누르는 동안에만 켜집니다");
             if (label == null) { UiTheme.Ensure(); label = new GUIStyle(GUI.skin.label) { fontSize = 17, alignment = TextAnchor.MiddleCenter, wordWrap = true }; }
             GUI.Label(new Rect(Screen.width * .2f, Screen.height - 100, Screen.width * .6f, 70), mic + "\n" + text, label);
             DrawLevel();

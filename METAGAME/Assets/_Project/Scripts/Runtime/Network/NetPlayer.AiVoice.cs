@@ -12,23 +12,42 @@ namespace Metagame.Network
         double voiceDeadline, nextVoiceAt;
         GameSession voiceSession;
         AiGroupOrders hearingGroup;
+        /// <summary>버튼으로 고른 자리 (S15P21B202-738). 주변에 말하면 <see cref="AiTalkKeys.Anyone"/>.</summary>
+        int hearingTarget = AiTalkKeys.Anyone;
+        /// <summary>
+        /// 듣기를 열 때 못 붙잡은 이유. 업로드를 거절할 때 <b>같은 말</b>을 다시 쓴다 —
+        /// 안 그러면 "빨강 동료가 기절해 있어요" 가 곧바로 "주변에 명령을 들을 AI가
+        /// 없어요" 로 덮인다.
+        /// </summary>
+        string hearingRefusal;
         double hearingDeadline;
         readonly AiVoiceTransfer voiceTransfer = new();
         uint voiceUploadId;
         GameSession localVoiceSession;
-        public void BeginAiListening() { if (isLocalPlayer) { voiceTransfer.Clear(); CmdStartAiListening(); } }
+        public void BeginAiListening(int target = AiTalkKeys.Anyone)
+        { if (isLocalPlayer) { voiceTransfer.Clear(); CmdStartAiListening(target); } }
         public void CancelAiListening() { if (isLocalPlayer) { voiceTransfer.Clear(); CmdCancelAiListening(); } }
-        [Command] void CmdCancelAiListening() { hearingGroup = null; voiceUpload = null; }
-        [Command] void CmdStartAiListening()
+        [Command] void CmdCancelAiListening() { hearingGroup = null; hearingTarget = AiTalkKeys.Anyone; hearingRefusal = null; voiceUpload = null; }
+        [Command] void CmdStartAiListening(int target)
         {
-            hearingGroup = null; voiceUpload = null;
+            hearingGroup = null; voiceUpload = null; hearingTarget = AiTalkKeys.Anyone; hearingRefusal = null;
             // **쓰러져도 말은 할 수 있다** (S15P21B202-730). 전에는 여기서 그냥 돌아가
             // 아무 말도 안 남겼다 — 바로 아래 "주변에 AI 가 없어요" 는 말해 주는데
             // 기절만 조용했다. 그래서 마이크 고장과 구별되지 않았다.
             if (body == null || IsAi || AiHostSettings.ServerState != AiRoomState.Active) return;
-            hearingGroup = AiGroupOrders.Capture(AiRecipients.All, null, body, VoiceRules.Range);
             hearingDeadline = NetworkTime.time + AiVoicePacket.Seconds + 5;
             voiceSession = GameSession.Instance;
+            // **버튼으로 골랐으면 그 한 명만 듣는다** (S15P21B202-738). 거리를 보지 않으므로
+            // 멀리 있는 동료에게도 시킬 수 있다. 못 붙잡은 이유는 그 자리의 이름으로 돌려준다
+            // — "주변에 AI가 없어요" 는 주변을 고르지 않은 사람에게 틀린 말이다.
+            if (target != AiTalkKeys.Anyone)
+            {
+                hearingGroup = AiGroupOrders.CaptureSlot(target, body, out hearingRefusal);
+                hearingTarget = target;
+                if (hearingRefusal != null) ReportAiVoice(hearingRefusal);
+                return;
+            }
+            hearingGroup = AiGroupOrders.Capture(AiRecipients.All, null, body, VoiceRules.Range);
             if (hearingGroup.Count == 0) ReportAiVoice("주변에 명령을 들을 AI가 없어요");
         }
         public string AiVoiceMessage { get; private set; }
@@ -78,7 +97,7 @@ namespace Metagame.Network
             if (AiLocalRuntime.Current == null || AiLocalRuntime.Current.Busy)
             { RejectAiVoice(id, "다른 명령을 처리 중이에요. 잠시 후 말해 주세요"); return; }
             if (hearingGroup == null || hearingGroup.Count == 0 || NetworkTime.time > hearingDeadline || voiceSession != GameSession.Instance)
-            { RejectAiVoice(id, "주변에 명령을 들을 AI가 없어요"); return; }
+            { RejectAiVoice(id, hearingRefusal ?? "주변에 명령을 들을 AI가 없어요"); return; }
             voiceUpload = new byte[length]; voiceDeadline = NetworkTime.time + 12;
             voiceSession = GameSession.Instance;
             voiceUploadId = id;
@@ -104,9 +123,9 @@ namespace Metagame.Network
             var wav = voiceUpload; voiceUpload = null;
             if (wav == null) return;
             if (voiceReceived != wav.Length || NetworkTime.time > voiceDeadline || voiceSession != GameSession.Instance
-                || AiLocalRuntime.Current == null || !AiLocalRuntime.Current.SendVoice(wav, this, hearingGroup))
+                || AiLocalRuntime.Current == null || !AiLocalRuntime.Current.SendVoice(wav, this, hearingGroup, hearingTarget))
                 ReportAiVoice("명령을 받지 못했어요. 잠시 후 다시 말해 주세요");
-            hearingGroup = null;
+            hearingGroup = null; hearingTarget = AiTalkKeys.Anyone; hearingRefusal = null;
         }
         [Server] public void ReportAiVoice(string message)
         {

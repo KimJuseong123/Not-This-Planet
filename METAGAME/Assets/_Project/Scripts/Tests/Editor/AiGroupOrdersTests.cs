@@ -70,6 +70,37 @@ namespace Metagame.Gameplay.Tests
             Assert.That(tally.Summary(), Is.EqualTo(" · 거절 1: 알 수 없음"));
         }
 
+        /// <summary>
+        /// <b>버튼으로 고른 대상이 끝까지 간다</b> (S15P21B202-738).
+        ///
+        /// <para>고른 대상은 세 곳을 지난다 — 듣기를 열 때(<c>CmdStartAiListening</c>),
+        /// 업로드가 끝날 때(<c>CmdEndAiVoice</c>), 계획을 실행할 때(<c>ClassifyVoice</c>).
+        /// 한 곳이라도 안 넘기면 <b>1 을 눌러도 V 와 똑같이</b> 주변 동료와 말 속 색으로
+        /// 돌아간다 — 오류도 없이. 네트워크 명령이라 값으로 따라가기 어려워 배선을 글자로
+        /// 못박는다.</para>
+        /// </summary>
+        [Test] public void TheChosenSeatTravelsFromKeyToPlan()
+        {
+            string voice = TestSource.Blank(TestSource.Read("Runtime/Network/NetPlayer.AiVoice.cs"));
+            string start = TestSource.Method(voice, "void CmdStartAiListening(int target)");
+            Assert.That(start, Does.Contain("AiGroupOrders.CaptureSlot(target, body, out hearingRefusal)"),
+                "버튼으로 고른 동료를 붙잡지 않는다 — 주변 동료가 듣는다");
+            Assert.That(start, Does.Contain("hearingTarget = target;"), "고른 자리를 기억하지 않는다");
+            Assert.That(voice, Does.Contain("SendVoice(wav, this, hearingGroup, hearingTarget)"),
+                "업로드가 끝날 때 고른 자리를 넘기지 않는다 — 계획이 말 속 색으로 돌아간다");
+
+            string runtime = TestSource.Blank(TestSource.Read("Runtime/Network/AiLocalRuntime.cs"));
+            string classify = TestSource.Method(runtime, "IEnumerator ClassifyVoice(");
+            Assert.That(classify, Does.Contain("AiCommandPlan.ForTarget(result.orders, target)"),
+                "버튼의 색으로 계획을 덮지 않는다 — 말 속 색이 틀리면 아무도 안 움직인다");
+            Assert.That(classify, Does.Contain("group.ExecutePlan(orders,"),
+                "덮은 계획이 아니라 원래 계획을 실행한다");
+            Assert.That(classify, Does.Not.Contain("ExecutePlan(result.orders"),
+                "원래 계획을 실행하는 길이 남아 있다");
+            Assert.That(classify, Does.Contain("AiCommandPlan.Spoken(orders)"),
+                "화면에 돌아가는 한 줄이 실제로 시킨 것과 다르다");
+        }
+
         [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-731)
         [UnityTest]
         public IEnumerator HostAssignsCountsProtectsBusyActorsAndSharesSocialSignals()
@@ -124,6 +155,16 @@ namespace Metagame.Gameplay.Tests
             var hearing = AiGroupOrders.Capture(AiRecipients.All, null, host, VoiceRules.Range);
             Assert.That(hearing.Count, Is.EqualTo(1));
             Assert.That(hearing.Nearest, Is.EqualTo(ais[0]));
+            // **버튼으로 고르면 거리를 보지 않는다** (S15P21B202-738). ais[1] 은 지금 25m 밖이라
+            // 주변 듣기에는 안 들어가지만, 그 자리의 키를 누르면 그 한 명이 듣는다.
+            var targeted = AiGroupOrders.CaptureSlot(ais[1].teamSlot, host, out string refusal);
+            Assert.That(refusal, Is.Null, refusal);
+            Assert.That(targeted.Count, Is.EqualTo(1));
+            Assert.That(targeted.Nearest, Is.EqualTo(ais[1]), "고른 자리가 아닌 동료를 붙잡았다");
+            // 빨강(0)은 사람 자리다 — 아래 "Human red slot must never be selected" 와 같은 전제.
+            var human = AiGroupOrders.CaptureSlot(0, host, out refusal);
+            Assert.That(human.Count, Is.Zero, "사람 자리를 AI 로 붙잡았다");
+            Assert.That(refusal, Does.Contain("AI 동료가 아니에요").Or.Contain("AI 동료가 없어요"), refusal);
             ais[0].VisualRig.Teleport(host.FootPosition + Vector3.right * 30, Quaternion.identity);
             ais[1].VisualRig.Teleport(host.FootPosition + Vector3.right * 1, Quaternion.identity);
             Assert.That(hearing.Select("all", AiRecipients.All, null).Count, Is.EqualTo(1));

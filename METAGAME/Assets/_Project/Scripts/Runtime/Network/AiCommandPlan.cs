@@ -159,6 +159,50 @@ namespace Metagame.Network
             return text.Length > 0 ? text.ToString() : null;
         }
 
+        /// <summary>
+        /// 자리 번호와 계획의 대상 이름. <see cref="TeamSlots"/> 의 순서와 같다.
+        ///
+        /// <para>한 곳에만 둔다 — <see cref="AiGroupOrders.Select"/> 가 색을 자리로 풀고
+        /// <see cref="ForTarget"/> 가 자리를 색으로 되돌린다. 두 곳이 각자 표를 가지면
+        /// 한쪽만 고쳐졌을 때 <b>버튼으로 고른 동료와 다른 동료가 움직인다.</b></para>
+        /// </summary>
+        static readonly string[] SlotRecipients = { "red", "blue", "yellow", "green" };
+
+        /// <summary>색 대상의 자리 번호. 색이 아니면 <c>-1</c>.</summary>
+        public static int SlotOf(string recipients) => Array.IndexOf(SlotRecipients, recipients);
+
+        /// <summary>자리 번호의 색 대상. 범위 밖이면 <c>null</c>.</summary>
+        public static string RecipientOf(int slot)
+            => slot >= 0 && slot < SlotRecipients.Length ? SlotRecipients[slot] : null;
+
+        /// <summary>
+        /// <b>버튼으로 고른 동료에게 보내는 계획</b>으로 바꾼다 (S15P21B202-738).
+        ///
+        /// <para><b>왜.</b> 명령 실패가 두 곳에서 나는데 둘 다 "누구에게" 였다. 받아쓰기는
+        /// 문장 첫머리의 색을 가장 많이 틀리고(<c>노랑</c>↔<c>너랑</c> 자모 거리 1), LLM 은
+        /// 색을 제대로 들어도 대상을 틀린다(<c>초록아 방망이 잡아</c> → <c>one</c>).
+        /// 버튼으로 고르면 <b>둘 다 통째로 사라진다</b> — 말에는 행동만 남는다.</para>
+        ///
+        /// <para><b>버튼이 말을 덮는다.</b> 말 속의 대상은 무시하고 버튼의 색으로 고친다.
+        /// 여러 지시가 왔으면 <b>그 색에게 한 지시</b>를 고르고, 없으면 첫 지시를 쓴다 —
+        /// <c>나머지는 따라와</c> 처럼 버튼과 안 맞는 말도 버튼의 동료가 한다.</para>
+        ///
+        /// <para><c>default</c> 로 두지 않고 <b>색으로</b> 적는 이유: 화면에 돌아가는 한 줄
+        /// (<see cref="Spoken"/>)이 <c>가까운 동료에게</c> 가 아니라 <c>빨강에게</c> 가 되고,
+        /// 로그(<see cref="Describe"/>)에도 누구에게 갔는지가 남는다.</para>
+        ///
+        /// <para>계획이 실행할 수 없는 꼴이거나 자리가 범위 밖이면 <c>null</c>.</para>
+        /// </summary>
+        public static AiCommandAssignment[] ForTarget(AiCommandAssignment[] orders, int slot)
+        {
+            string target = RecipientOf(slot);
+            if (target == null || !Valid(orders)) return null;
+            var picked = orders[0];
+            foreach (var order in orders)
+                if (order.recipients == target) { picked = order; break; }
+            return new[] { new AiCommandAssignment { recipients = target, steps = picked.steps } };
+        }
+
         public static bool Action(string action) => AiCompanionController.IsSocial(action) || AiWorkTask.Supports(action)
             || action == "follow" || action == "gather" || action == "wait" || action == "cancel" || action == "pull_pin";
         public static bool Recipients(string value) => value == "default" || value == "all" || value == "one" || value == "two"
