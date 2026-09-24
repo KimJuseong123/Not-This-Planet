@@ -64,6 +64,7 @@ namespace Metagame.UI
         // 데우는 동안의 막대는 줄지 않아야 한다 — 예상을 넘기면 셈이 "모름" 이 되어 0 으로 떨어진다.
         // 이 워커(데우기를 시작한 시각)에서 마지막으로 보인 값을 들고 있다.
         static float shownProgress;
+        static double shownAt = -1;
         static float shownFor = -1f;
 
         /// <summary>
@@ -74,11 +75,11 @@ namespace Metagame.UI
         {
             if (runtime.Installer != null && runtime.Installer.Busy) return runtime.Installer.Snapshot;
             float began = runtime.WarmupBegan;
-            if (began != shownFor) { shownFor = began; shownProgress = 0f; }
+            if (began != shownFor) { shownFor = began; shownProgress = 0f; shownAt = -1; }
             double elapsed = runtime.State == AiRuntimeState.Loading && began >= 0f
                 ? Mathf.Max(0f, Time.realtimeSinceStartup - began) : 0;
-            AiPrepSnapshot s = AiAddFlow.Warming(default, elapsed, elapsed, runtime.WarmupExpected, shownProgress);
-            shownProgress = s.Progress;
+            AiPrepSnapshot s = AiAddFlow.Warming(default, elapsed, elapsed, runtime.WarmupExpected, shownProgress, shownAt);
+            shownProgress = s.Progress; shownAt = s.ProgressAt;
             return s;
         }
     }

@@ -203,8 +203,11 @@ namespace Metagame.UI
         /// <param name="warmupElapsed">워커가 데우기 시작한 뒤 흐른 초. 아직 안 떴으면 0</param>
         /// <param name="warmupExpected">이 PC 의 예상. 0 이하면 <paramref name="basis"/> 의 값을 쓴다</param>
         /// <param name="previous">지난번 막대. 막대는 줄지 않는다</param>
+        /// <param name="previousAt">지난번 막대를 정한 때(<see cref="AiPrepSnapshot.ProgressAt"/>). 모르면 음수.
+        /// <b>바탕(<paramref name="basis"/>)의 때를 쓰면 안 된다</b> — 설치가 끝난 순간에 멈춰 있어, 앞서 간
+        /// 막대를 따라잡는 계산이 매 프레임 "설치가 끝난 뒤 전부" 를 흐른 시간으로 쳐 순식간에 99% 로 간다(리뷰).</param>
         public static AiPrepSnapshot Warming(AiPrepSnapshot basis, double elapsed, double warmupElapsed,
-                                             double warmupExpected, float previous)
+                                             double warmupExpected, float previous, double previousAt = -1)
         {
             AiPrepSnapshot s = basis;
             s.Phase = AiPrepPhase.Start;
@@ -213,6 +216,7 @@ namespace Metagame.UI
             s.WarmupElapsed = Math.Max(0, warmupElapsed);
             if (warmupExpected > 0) s.WarmupExpected = warmupExpected;
             s.Elapsed = Math.Max(Math.Max(0, elapsed), s.WarmupElapsed);
+            if (previousAt >= 0) s.ProgressAt = previousAt;
             s.Progress = AiPrepProgress.Fraction(s, previous);
             s.ProgressAt = s.Elapsed;
             return s;
@@ -374,7 +378,12 @@ namespace Metagame.UI
                     return Installed(now, see.Installer);
                 case Work.Restarting:
                     // 재시도로 멈춘 받기가 정리되기를 기다렸다가 다시 시킨다. 받아 둔 파일은 설치기가 다시 쓴다.
-                    return see.InstallerBusy ? AiAddCommand.None : BeginInstall(now);
+                    //
+                    // **그 사이 설치가 끝났으면 다시 시키지 않는다** (리뷰). 재시도가 설치가 끝나는 바로 그
+                    // 프레임에 닿으면 멈출 받기가 없다 — 설치기는 이미 받아 둔 파일을 비우고 새 팩을 깔았다.
+                    // 그대로 다시 시키면 2GB 를 처음부터 받고 방금 깐 팩을 갈아 끼운다. 끝났으면 워커를 기다린다.
+                    if (see.InstallerBusy) return AiAddCommand.None;
+                    return see.Installer.Phase == AiPrepPhase.Start ? Installed(now, see.Installer) : BeginInstall(now);
                 default:
                     Watch(now, see);
                     return AiAddCommand.None;
@@ -491,7 +500,7 @@ namespace Metagame.UI
                 case AiRuntimeState.Loading:
                     work = Work.Warming;
                     StalledFor = 0;
-                    Progress = Warming(installed, Spent(now), see.WarmupElapsed, see.WarmupExpected, Progress.Progress);
+                    Progress = Warming(installed, Spent(now), see.WarmupElapsed, see.WarmupExpected, Progress.Progress, Progress.ProgressAt);
                     return;
             }
 
@@ -500,7 +509,7 @@ namespace Metagame.UI
             StalledFor = Math.Max(0, now - waitFrom);
             if (now - waitFrom >= StartGraceSeconds) { Fail(AiPrepFailure.StartTimeout, Progress); return; }
             // 아직 안 뜬 워커의 예상은 지난번 값이다 — 설치기가 이번 팩으로 잡아 둔 예상(installed)을 쓴다.
-            Progress = Warming(installed, Spent(now), 0, 0, Progress.Progress);
+            Progress = Warming(installed, Spent(now), 0, 0, Progress.Progress, Progress.ProgressAt);
         }
 
         /// <summary>설치 전체에 쓴 시간 — 설치기가 잰 시간에, 설치가 끝난 뒤 흐른 시간을 이어 붙인다.</summary>
@@ -512,7 +521,7 @@ namespace Metagame.UI
             work = Work.Starting;
             waitFrom = now;
             StalledFor = 0;
-            Progress = Warming(installed, Spent(now), 0, 0, Progress.Progress);
+            Progress = Warming(installed, Spent(now), 0, 0, Progress.Progress, Progress.ProgressAt);
         }
 
         /// <summary>멈춘다. 창의 글자는 <paramref name="basis"/> 에 실패 사유를 얹어 만든다.</summary>

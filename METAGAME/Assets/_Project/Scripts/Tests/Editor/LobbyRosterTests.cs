@@ -365,6 +365,22 @@ namespace Metagame.Gameplay.Tests
             => Assert.That(LobbyRoster.AiStatus(AiRuntimeState.Missing), Is.Not.EqualTo("준비 필요"),
                 "팩을 받은 방장에게 \"준비 필요\" 라고 한다 — 워커는 AI 수가 0 이면 꺼져 있다");
 
+        /// <summary>
+        /// 설치 창이 열려 있는 동안 <b>로그인·연결 화면의 버튼도</b> 막힌다 (S15P21B202-713 리뷰). 받는 중에 로비
+        /// 소켓이 끊기면 창은 그대로인데 그 뒤로 연결 화면이 그려지고, 거기서 켜 버린 버튼이 창을 뚫고 눌렸다.
+        /// </summary>
+        [Test]
+        public void TheLoginAndConnectButtonsRespectThePopup()
+        {
+            string lobby = TestSource.Read("Runtime/UI/LobbyHud.cs");
+            foreach (var method in new[] { "private void DrawLogin(", "private void DrawConnecting(" })
+            {
+                string body = TestSource.Method(lobby, method);
+                Assert.That(body, Does.Contain("bool enabledBefore = GUI.enabled;"), method + " 가 들어온 값을 안 본다");
+                Assert.That(body, Does.Not.Contain("GUI.enabled = true;"), method + " 가 창이 꺼 둔 버튼을 켠다");
+            }
+        }
+
         // ---------- 글자 ----------
 
         /// <summary>

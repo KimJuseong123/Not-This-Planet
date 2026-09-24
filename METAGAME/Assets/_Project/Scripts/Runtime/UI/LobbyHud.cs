@@ -974,14 +974,17 @@ namespace Metagame.UI
 
             bool canLogin = network.State != NetworkConnectionState.LoggingIn
                          && network.State != NetworkConnectionState.Connecting;
-            GUI.enabled = canLogin;
+            // **들어온 값과 합친다** (S15P21B202-713 리뷰). 설치 창이 열려 있으면 부르는 쪽이 이미 꺼 뒀다 —
+            // 여기서 덮어 켜면 창 뒤의 버튼이 창을 뚫고 눌린다.
+            bool enabledBefore = GUI.enabled;
+            GUI.enabled = enabledBefore && canLogin;
             if (UiInteraction.Button(new Rect(x + 54f, y + 270f, width - 108f, 54f),
                     "게스트 로그인", primaryButtonStyle))
             {
                 error = string.Empty;
                 network.LoginGuest(nickname, NetworkSession.ResolveDeviceId(deviceIdOverride));
             }
-            GUI.enabled = true;
+            GUI.enabled = enabledBefore;
 
             if (network.State == NetworkConnectionState.LoggingIn)
                 DrawLabel(new Rect(x + 54f, y + 342f, width - 108f, 30f),
@@ -1001,14 +1004,18 @@ namespace Metagame.UI
                 smallStyle, new Color(0.72f, 0.84f, 0.94f));
 
             bool canConnect = network.State != NetworkConnectionState.Connecting;
-            GUI.enabled = canConnect;
+            // **들어온 값과 합친다** (S15P21B202-713 리뷰). 받는 중에 로비 소켓이 끊기면 방 상태는 남아 설치
+            // 창이 그대로 열려 있는데, 여기서 켜 버리면 창의 글자를 누른 것이 "게스트 로그아웃" 이 되어 설치가
+            // 취소됐다 — 창이 견디라고 만든 바로 그 상황이다.
+            bool enabledBefore = GUI.enabled;
+            GUI.enabled = enabledBefore && canConnect;
             if (UiInteraction.Button(new Rect(x + 54f, y + 274f, width - 108f, 52f),
                     "다시 연결", buttonStyle))
             {
                 error = string.Empty;
                 network.Connect();
             }
-            GUI.enabled = true;
+            GUI.enabled = enabledBefore;
 
             if (UiInteraction.Button(new Rect(x + 54f, y + 348f, width - 108f, 42f),
                     "게스트 로그아웃", smallButtonStyle))

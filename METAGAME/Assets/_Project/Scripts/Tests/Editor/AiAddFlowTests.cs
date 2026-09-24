@@ -255,6 +255,51 @@ namespace Metagame.Gameplay.Tests
         /// 재시도는 <b>실패했거나 5초 넘게 멈췄을 때만</b> 눌린다. 흐르는 받기를 다시 시작하면 기다린 만큼을 잃는다.
         /// 멈춘 받기에서 누르면 받기를 멈추고, 정리가 끝나면 다시 시킨다 — 받아 둔 파일은 설치기가 다시 쓴다.
         /// </summary>
+        /// <summary>
+        /// 준비가 실패한 뒤 재시도해도 <b>막대가 튀지 않는다</b> (S15P21B202-713 리뷰). 따라잡기 계산이 설치가
+        /// 끝난 때를 "지난번" 으로 쓰면 매 프레임 그 뒤 전부를 흐른 시간으로 쳐, 0.2초 만에 99% 가 됐다.
+        /// </summary>
+        [Test]
+        public void ARetryAfterAFailedStartDoesNotJumpTheBar()
+        {
+            var flow = Installing(0);
+            flow.Tick(100, See(installer: Finished()));
+            flow.Tick(101, See(AiRuntimeState.Loading, installer: Finished(), warmed: 1));
+            flow.Tick(200, See(AiRuntimeState.Loading, installer: Finished(), warmed: 100));
+            flow.Tick(201, See(AiRuntimeState.Failed, installer: Finished()));
+            Assert.That(flow.Step, Is.EqualTo(AiAddStep.Failed), "검증 준비: 준비가 실패해야 한다");
+            float before = flow.Progress.Progress;
+
+            Assert.That(flow.Press(AiAddButton.Retry, 210), Is.EqualTo(AiAddCommand.RetryRuntime));
+            for (int frame = 1; frame <= 30; frame++)
+                flow.Tick(210 + frame / 60.0, See(installer: Finished()));
+
+            Assert.That(flow.Progress.Progress, Is.GreaterThanOrEqualTo(before), "막대가 뒤로 갔다");
+            Assert.That(flow.Progress.Progress, Is.LessThan(before + .05f),
+                "재시도하자마자 막대가 튀었다 — 0.5초에 " + (flow.Progress.Progress - before).ToString("0.000"));
+        }
+
+        /// <summary>
+        /// 재시도가 <b>설치가 끝나는 바로 그 프레임</b>에 닿아도 다시 받지 않는다 (리뷰). 그때 설치기는 이미 받아
+        /// 둔 파일을 비우고 새 팩을 깔았다 — 다시 시키면 2GB 를 처음부터 받는다.
+        /// </summary>
+        [Test]
+        public void ARetryThatMeetsAFinishedInstallWaitsForTheWorker()
+        {
+            var flow = Installing(0);
+            var unpack = Installer(AiPrepPhase.Unpack, 2000 * MB);
+            unpack.HashDone = 900 * MB;
+            flow.Tick(10, See(busy: true, installer: unpack));
+            flow.Tick(22, See(busy: true, installer: unpack));
+            Assert.That(flow.Press(AiAddButton.Retry, 22), Is.EqualTo(AiAddCommand.CancelInstall), "검증 준비: 재시도가 눌려야 한다");
+
+            // 같은 프레임에 설치가 끝났다 — 멈출 받기가 없었다.
+            Assert.That(flow.Tick(22.05, See(installer: Finished())), Is.Not.EqualTo(AiAddCommand.Install),
+                "끝난 설치를 처음부터 다시 시킨다 — 받아 둔 파일은 이미 비워졌다");
+            Assert.That(flow.Step, Is.EqualTo(AiAddStep.Working));
+            Assert.That(flow.WantsRuntime, Is.True, "끝난 설치 뒤 워커를 기다리지 않는다");
+        }
+
         [Test]
         public void RetryOpensOnlyAfterAStall()
         {
