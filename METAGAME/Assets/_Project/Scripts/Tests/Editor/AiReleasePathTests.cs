@@ -33,6 +33,7 @@ namespace Metagame.Gameplay.Tests
             {
                 "Runtime/Network/AiPackInstaller.cs",   // 받기·검증·설치
                 "Runtime/UI/AiRoomControls.cs",         // 방장이 누르는 버튼
+                "Runtime/UI/LobbyRoster.cs",            // 방 목록 — AI 추가·빼기 (S15P21B202-713)
             })
                 Assert.That(TestSource.Read(file), Does.Not.Contain("DEVELOPMENT_BUILD"),
                     file + " 가 개발 빌드에서만 도는 길을 갖고 있다 — QA 에서는 되고 사용자 "

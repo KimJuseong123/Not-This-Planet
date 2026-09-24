@@ -92,6 +92,21 @@ namespace Metagame.UI
         private readonly List<Vector2Int> resolutionOptions = new List<Vector2Int>();
         private string[] qualityOptions = new string[0];
 
+        // 방 목록 (S15P21B202-713). 줄은 IMGUI 이벤트마다 다시 만들므로 목록 하나를 돌려 쓴다.
+        private readonly List<RosterRow> rosterRows = new List<RosterRow>();
+
+        /// <summary>마지막으로 받은 방 상태. 다음 방송과 견주어 AI 가 빠졌는지 본다.</summary>
+        private RoomSnapshot shownRoom;
+
+        /// <summary>
+        /// 이 화면이 보낸 AI 수. 요청 뒤 처음 온 방 상태에서 한 번 견주고 비운다 —
+        /// <see cref="NetworkSession.PendingAiCount"/> 가 풀리는 규칙과 같다.
+        /// </summary>
+        private int? aiAsked;
+
+        /// <summary>방금 내보낸 사람. 다음 방 상태가 올 때까지 그 줄의 × 를 막는다. 0 은 아무도 아니다.</summary>
+        private long kickAsked;
+
         private GUIStyle titleStyle;
         private GUIStyle labelStyle;
         private GUIStyle smallStyle;
@@ -207,7 +222,11 @@ namespace Metagame.UI
 
             network.ErrorReceived += OnError;
             network.ConnectionClosed += OnClosed;
+            network.RoomStateChanged += OnRoomState;
             transition.Failed += OnTransitionFailed;
+            shownRoom = network.CurrentRoom;
+            aiAsked = null;
+            kickAsked = 0;
             subscribed = true;
         }
 
@@ -220,6 +239,7 @@ namespace Metagame.UI
             {
                 network.ErrorReceived -= OnError;
                 network.ConnectionClosed -= OnClosed;
+                network.RoomStateChanged -= OnRoomState;
             }
 
             if (transition != null)
@@ -230,6 +250,27 @@ namespace Metagame.UI
         private void OnError(string message)
         {
             error = message ?? string.Empty;
+            // 거절도 답이다 (S15P21B202-713). 남겨 두면 나중의 방송을 이 요청의 답으로 잘못 읽는다.
+            aiAsked = null;
+            kickAsked = 0;
+        }
+
+        /// <summary>
+        /// 방 상태가 바뀔 때마다 알릴 것이 있는지 본다 (S15P21B202-713) — 사람이 들어와 AI 가 빠졌거나,
+        /// 방장이 넣으려던 AI 가 자리가 모자라 덜 들어왔거나. 말없이 줄이 사라지면 방장은 자기가 잘못
+        /// 누른 것으로 읽는다.
+        /// </summary>
+        private void OnRoomState(RoomSnapshot room)
+        {
+            string said = LobbyRoster.DropNotice(shownRoom, room) ?? LobbyRoster.ShortfallNotice(aiAsked, room);
+            if (said != null)
+            {
+                notice = said;
+                error = string.Empty;
+            }
+            aiAsked = null;
+            kickAsked = 0;
+            shownRoom = room;
         }
 
         private void OnClosed()
@@ -979,32 +1020,51 @@ namespace Metagame.UI
             }
 
             DrawLabel(new Rect(x + 54f, y + 184f, width - 108f, 26f),
-                "상태: " + RoomStatusLabel(room.Status) + " · " + room.Players.Count + "/4명",
+                "상태: " + RoomStatusLabel(room.Status) + " · " + LobbyRoster.Count(room),
                 smallStyle, new Color(0.72f, 0.84f, 0.94f));
 
-            float rowY = y + 228f;
-            for (int i = 0; i < room.Players.Count; i++)
+            // 사람과 AI 를 한 목록으로 그린다 (S15P21B202-713). 누가 × 를 보는지, 추가가 왜 막혔는지는
+            // LobbyRoster 가 정한다 — 여기서 방 상태를 따로 읽어 줄을 만들면 규칙이 두 벌이 된다.
+            // 네 줄이 다 차도 아래 버튼이 메시지 줄(패널 아래 62)과 겹치지 않게 줄 높이를 32 로 줄였다.
+            bool pending = network.PendingAiCount.HasValue;
+            List<RosterRow> rows = LobbyRoster.Rows(room, network.UserId, AiHostSettings.RuntimeState, rosterRows);
+            const float rowHeight = 32f;
+            float rowY = y + 222f;
+            for (int i = 0; i < rows.Count; i++)
             {
-                PlayerSnapshot player = room.Players[i];
-                string role = player.UserId == room.HostUserId ? "방장" : "참가자";
-                string state = player.Disconnected
-                    ? "연결 끊김"
-                    : player.Ready ? "준비 완료" : "준비 중";
-                Color color = player.Disconnected
-                    ? new Color(1f, 0.72f, 0.42f)
-                    : player.Ready ? new Color(0.55f, 1f, 0.68f) : Color.white;
-                DrawLabel(new Rect(x + 68f, rowY + i * 34f, width - 136f, 28f),
-                    player.Nickname + (player.UserId == network.UserId ? " (나)" : "")
-                    + " · " + role + " · " + state, smallStyle, color);
+                RosterRow row = rows[i];
+                float top = rowY + i * rowHeight;
+                DrawLabel(new Rect(x + 68f, top, width - 174f, 28f), row.Label, smallStyle, RosterColor(row.Tone));
+                if (row.Remove == RosterRemove.None) continue;
+
+                // 확인 창 없이 바로 뺀다 — 내보낸 사람은 방 코드로 다시 들어올 수 있다.
+                bool rowEnabled = GUI.enabled;
+                GUI.enabled = rowEnabled && LobbyRoster.CanPress(row, pending, kickAsked);
+                if (UiInteraction.Button(new Rect(x + width - 86f, top, 32f, 28f),
+                        LobbyRoster.RemoveLabel, smallButtonStyle))
+                    RemoveRow(room, row);
+                GUI.enabled = rowEnabled;
             }
 
-            float controlsY = rowY + Mathf.Max(1, room.Players.Count) * 34f + 24f;
-            AiRoomControls.Draw(new Rect(x + 54f, controlsY, width - 108f, 62f), smallButtonStyle, smallStyle, true);
-            controlsY += 72f;
+            // 막혀 있어도 버튼은 그린다. 이유를 옆에 적는다 — 죽은 버튼만 보이면 고장으로 읽는다.
+            float addY = rowY + Mathf.Max(1, rows.Count) * rowHeight + 4f;
+            AddState add = LobbyRoster.Add(room, network.UserId, pending);
+            bool addEnabled = GUI.enabled;
+            GUI.enabled = addEnabled && add.Enabled;
+            if (UiInteraction.Button(new Rect(x + 54f, addY, 200f, 34f), LobbyRoster.AddLabel, smallButtonStyle))
+                AskAi(room.AiCount + 1);
+            GUI.enabled = addEnabled;
+            if (!add.Enabled)
+                DrawLabel(new Rect(x + 266f, addY, width - 320f, 34f), add.Reason, smallStyle, UiTheme.MutedText);
+
+            float controlsY = addY + 40f;
+            AiRoomControls.Draw(new Rect(x + 54f, controlsY, width - 108f, 56f), smallButtonStyle, smallStyle, true);
+            controlsY += 62f;
             if (UiInteraction.Button(new Rect(x + 54f, controlsY, width * 0.40f, 48f),
                     network.IsLocalReady ? "준비 취소" : "준비", buttonStyle))
                 network.SetReady(!network.IsLocalReady);
 
+            // 사람의 준비만 본다. AI 줄은 준비 단추가 없고, 실행기가 준비 중이어도 시작을 막지 않는다.
             bool canStart = isHost && room.IsWaiting && room.AllReady;
             GUI.enabled = canStart;
             if (UiInteraction.Button(new Rect(x + width * 0.52f, controlsY, width * 0.40f, 48f),
@@ -1042,6 +1102,45 @@ namespace Metagame.UI
             if (UiInteraction.Button(new Rect(x + 54f, controlsY + 116f + waitNotice, width - 108f, 40f),
                     "게스트 로그아웃", smallButtonStyle))
                 LogoutGuest();
+        }
+
+        /// <summary>
+        /// 줄의 × (S15P21B202-713). 사람 줄은 내보내고, AI 줄은 수를 하나 줄인다 — AI 에게는 이름표가
+        /// 없어서 어느 AI 줄에서 눌러도 같다. 되는지는 서버가 다시 확인한다(방장·대기 중).
+        /// </summary>
+        private void RemoveRow(RoomSnapshot room, RosterRow row)
+        {
+            error = string.Empty;
+            if (row.Remove == RosterRemove.Kick)
+            {
+                // 보내기 전에 적는다. 소켓이 없으면 오류가 곧바로(OnError) 와서 지운다.
+                kickAsked = row.UserId;
+                network.KickPlayer(row.UserId);
+            }
+            else if (row.Remove == RosterRemove.DropAi) AskAi(LobbyRoster.CountAfterDrop(room));
+        }
+
+        /// <summary>
+        /// AI 수를 서버에 요청한다. 화면의 수는 여기서 바꾸지 않는다 — 답(ROOM_STATE)이 와야 바뀐다.
+        /// 보낸 수는 기억해 둔다. 자리가 모자라 덜 들어오면 <see cref="OnRoomState"/> 가 그렇다고 알린다.
+        /// </summary>
+        private void AskAi(int count)
+        {
+            error = string.Empty;
+            // 보내기 전에 적는다. 소켓이 없으면 오류가 곧바로(OnError) 와서 지운다 — 뒤에 적으면 그 지움을 덮는다.
+            aiAsked = count;
+            if (!AiHostSettings.TrySetRequestedCount(count)) aiAsked = null;
+        }
+
+        private static Color RosterColor(RosterTone tone)
+        {
+            switch (tone)
+            {
+                case RosterTone.Offline: return new Color(1f, 0.72f, 0.42f);
+                case RosterTone.Ready: return new Color(0.55f, 1f, 0.68f);
+                case RosterTone.Ai: return UiTheme.CyanSoft;
+                default: return Color.white;
+            }
         }
 
         private void LogoutGuest()
@@ -1204,6 +1303,23 @@ namespace Metagame.UI
             if (string.IsNullOrEmpty(fontName))
                 return;
 
+            string characters = WarmCharacters();
+            int[] sizes = { 15, 16, 19, 20, 29 };
+            for (int i = 0; i < sizes.Length; i++)
+            {
+                Font font = FontAt(sizes[i]);
+                if (font != null)
+                    font.RequestCharactersInTexture(characters, sizes[i], FontStyle.Normal);
+            }
+        }
+
+        /// <summary>
+        /// 미리 그려 둘 글자 (S15P21B202-713 에서 <see cref="WarmFont"/> 밖으로 뺐다). 값으로 떼어 둔 것은
+        /// 시험이 방 목록의 문구가 모두 여기 있는지 볼 수 있게 하려는 것이다 — "새 문구는 여기에도 더한다"
+        /// 는 주석만으로는 잊힌다.
+        /// </summary>
+        private static string WarmCharacters()
+        {
             var characters = new StringBuilder();
             characters.Append("0123456789 /·()[]+-!?MENU");
             characters.Append("혼자 하기 함께 설정 종료하기 준비 중입니다 게스트 로그인 로그인 중 서버 연결 다시 연결");
@@ -1223,17 +1339,17 @@ namespace Metagame.UI
             characters.Append("게임에 들어가는 중입니다 잠시만 기다려 주세요 방장이 바뀌는 중입니다");
             // AI 자리·내보내기 사유 (S15P21B202-713). 방 화면의 오류 줄에 뜬다.
             characters.Append("방장이 방에서 내보냈습니다 방장만 할 수 있습니다 게임 중에는 할 수 없습니다 내보낼 수 없는 대상입니다");
+            // 방 목록 (S15P21B202-713) — AI 줄·× ·추가 버튼과 막힌 이유·알림. LobbyRosterTests 가
+            // 목록이 낼 수 있는 문구의 글자가 모두 여기 있는지 본다.
+            characters.Append("AI 동료 추가 × 연결 끊김 준비 완료 준비 필요 실행 실패 (나)");
+            characters.Append("서버 업데이트가 필요합니다 방장만 추가할 수 있습니다 게임 중에는 바꿀 수 없습니다");
+            characters.Append("자리가 모두 찼습니다 (최대 4명) 처리 중입니다");
+            characters.Append("사람이 들어와 AI 동료 하나를 뺐습니다 명을 뺐습니다 자리가 모자라 AI 동료를 더 넣지 못했습니다");
+            characters.Append("게임 입장 후 방장의 AI 상태가 표시됩니다");
             // 랭킹 화면 (S15P21B202-656). 위 주석대로 새 문구는 여기에도 더한다.
             characters.Append("…랭킹 인 돌아가기 불러오는 중 아직 혼자 깬 사람이 없어요");
             characters.Append("으로 팀이 첫 기록의 주인이 되어 보세요 랭킹을 불러오지 못했어요");
-
-            int[] sizes = { 15, 16, 19, 20, 29 };
-            for (int i = 0; i < sizes.Length; i++)
-            {
-                Font font = FontAt(sizes[i]);
-                if (font != null)
-                    font.RequestCharactersInTexture(characters.ToString(), sizes[i], FontStyle.Normal);
-            }
+            return characters.ToString();
         }
 
         private void OnFontRebuilt(Font font)
