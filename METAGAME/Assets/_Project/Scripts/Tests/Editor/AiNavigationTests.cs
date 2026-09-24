@@ -99,6 +99,24 @@ namespace Metagame.Gameplay.Tests
             Assert.That(copy, Is.GreaterThan(skip), "건너뛰기 전에 스냅숏을 바꾼다");
         }
 
+        /// <summary>
+        /// 조종 중인 파츠를 빼는 자리는 <b>굽는 고리</b>이지 공용 판단이 아니다 (S15P21B202-737).
+        ///
+        /// <para><c>UsedForNavigation</c> 은 에디터 베이커도 쓴다. 거기서 빼면 그 파츠의 읽기용 사본이 안 구워져,
+        /// 런타임이 실제 바닥을 대체 박스(장애물)로 바꾼다 — <c>-690</c> 에서 한 번 겪은 일이다.</para>
+        /// </summary>
+        [Test]
+        public void PartsUnderControlLeaveOnlyTheRuntimeBake()
+        {
+            string source = TestSource.Read("Runtime/Network/AiNavigationWorld.cs");
+            var shared = TestSource.Method(source, "public static bool UsedForNavigation(Collider collider, out SpaceshipPart part)");
+            Assert.That(shared, Does.Contain("isTrigger"), "공용 판단을 못 찾았다 — 이 검사가 헛돈다");
+            foreach (var banned in new[] { "UnderControl", "IsOccupied", "PartState.Carried" })
+                Assert.That(shared, Does.Not.Contain(banned), "조종 판정이 공용 판단에 들어갔다 — 베이커가 바닥을 덜 굽는다");
+            var rebuild = TestSource.Method(source, "public RebuildOutcome Rebuild(");
+            Assert.That(rebuild, Does.Contain("if (part != null && UnderControl(part))"), "굽는 고리가 조종 중인 파츠를 빼지 않는다");
+        }
+
         static GameObject Box(string name, Vector3 center, Vector3 size)
         {
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);

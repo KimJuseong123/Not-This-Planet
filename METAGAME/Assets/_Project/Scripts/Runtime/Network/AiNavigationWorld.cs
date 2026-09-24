@@ -152,6 +152,18 @@ namespace Metagame.Network
         /// <summary>30초 동안 "바뀌었다" 가 무엇이었는지 (S15P21B202-737).</summary>
         AiNavigationSources.Tally window;
 
+        /// <summary>조종 중이라 뺀 소스 수 — 이번 수집 · 30초 중 최대와 그 파츠.</summary>
+        int controlledNow, controlledMax;
+        Object controlledOwner, controlledMaxOwner;
+
+        /// <summary>
+        /// 이 파츠를 지금 누가 조종하고 있는가 (S15P21B202-737). 판정 자체는 값으로 시험하는
+        /// <see cref="AiNavigationSources.MovesUnderControl"/> 이고, 여기서는 상태를 읽기만 한다.
+        /// </summary>
+        static bool UnderControl(SpaceshipPart part)
+            => AiNavigationSources.MovesUnderControl(part.State,
+                   part.TryGetComponent(out TransportVehicle vehicle) && vehicle.IsOccupied);
+
         void Accumulate(AiNavigationSources.Tally t)
         {
             window.PartMoved += t.PartMoved; window.PartShape += t.PartShape; window.OtherChanged += t.OtherChanged;
@@ -209,7 +221,8 @@ namespace Metagame.Network
             Debug.Log($"[AiNav] 30초 원인: 파츠 이동 {window.PartMoved}회 · 파츠 모양 {window.PartShape}회"
                       + $"(+{window.Added}/-{window.Removed}) · 그 밖의 변화 {window.OtherChanged}회"
                       + $" · 순서만 달라 건너뜀 {reordered}회 · 최대 이동 {window.MaxShift:F3}m({Owner(window.MaxShiftOwner)})"
-                      + $" · 반 복셀({VoxelSize * 50f:0}cm) 안 {window.WithinHalfVoxel}회");
+                      + $" · 반 복셀({VoxelSize * 50f:0}cm) 안 {window.WithinHalfVoxel}회"
+                      + $" · 조종 중이라 뺀 소스 최대 {controlledMax}개({Owner(controlledMaxOwner)})");
             // **굽기 말고 메인 스레드가 내는 값** (S15P21B202-737). 수집·거르기·비교는 굽는 ms 에 안 들어간다.
             Debug.Log($"[AiNav] 30초 비용: 수집 {Of(collectCost)} · 거르기 {Of(filterCost)} · 비교 {Of(compareCost)}"
                       + $" · 예약 {Of(scheduleCost)} · 굽는 중 프레임 {Of(bakingFrames)}({bakingFrames.Count})"
@@ -217,6 +230,7 @@ namespace Metagame.Network
             baked = unchanged = reordered = stalledFrames = 0;
             bakeTotalMs = bakeMaxMs = 0;
             window = default;
+            controlledMax = 0; controlledMaxOwner = null;
             collectCost = filterCost = compareCost = scheduleCost = bakingFrames = quietFrames = default;
         }
 
@@ -236,6 +250,7 @@ namespace Metagame.Network
                     0, markups, sources);
             Add(ref collectCost, Lap());
             ApproximateMeshCount = 0;
+            controlledNow = 0;
             sourceIsPart.Clear();
             for (int i = 0; i < sources.Count; i++) sourceIsPart.Add(false);
             for (int i = sources.Count - 1; i >= 0; i--)
@@ -250,6 +265,16 @@ namespace Metagame.Network
                     // **파츠는 여기서 찾지 않는다** (S15P21B202-704). 판단하는 쪽이 이미 찾으므로
                     // 그 값을 돌려받는다 — 미리 찾아 넘기면 걸러질 콜라이더까지 탐색하게 된다.
                     if (!UsedForNavigation(collider, out var part)) { sources.RemoveAt(i); sourceIsPart.RemoveAt(i); continue; }
+                    // **조종 중인 파츠는 굽지 않는다** (S15P21B202-737). 견인 빔에 들렸거나 누가 타고 있으면
+                    // 물리 한 걸음마다 자세가 바뀌어 게이트를 매 주기 연다 — 2026-09-23 로그에서 Part_4 를
+                    // 타는 동안 30초에 15/15번 구웠다. 그 자리의 구멍은 2초 뒤면 틀린 자리이고, 가까이서
+                    // 부딪히지 않는 것은 걸음 검사(SafeStep)가 이미 파츠를 장애물로 본다. 내려놓이면 다시
+                    // 소스가 되어 **한 번** 굽는다.
+                    //
+                    // UsedForNavigation 에 넣지 않는다 — 에디터 베이커가 같은 함수를 쓰는데, 거기서 빠지면
+                    // 읽기용 사본이 안 구워져 실제 바닥이 대체 박스(장애물)가 된다(S15P21B202-690).
+                    if (part != null && UnderControl(part))
+                    { sources.RemoveAt(i); sourceIsPart.RemoveAt(i); controlledNow++; controlledOwner = part; continue; }
                     // Parts block routes; their tops are not walking surfaces.
                     if (part != null) { source.area = 1; sourceIsPart[i] = true; }
                 }
@@ -273,6 +298,7 @@ namespace Metagame.Network
                 }
                 sources[i] = source;
             }
+            if (controlledNow > controlledMax) { controlledMax = controlledNow; controlledMaxOwner = controlledOwner; }
             keys.Clear();
             for (int i = 0; i < sources.Count; i++) keys.Add(new AiNavigationSources.Key(sources[i], sourceIsPart[i]));
             Add(ref filterCost, Lap());
@@ -343,6 +369,7 @@ namespace Metagame.Network
             baked = unchanged = reordered = stalledFrames = 0;
             bakeStartedAt = bakeTotalMs = bakeMaxMs = 0;
             window = default;
+            controlledNow = controlledMax = 0; controlledOwner = controlledMaxOwner = null;
             collectCost = filterCost = compareCost = scheduleCost = bakingFrames = quietFrames = default;
             sources.Clear(); sourceIsPart.Clear();
             keys.Clear(); bakedKeys.Clear(); bakedSorted.Clear(); currentSorted.Clear();
