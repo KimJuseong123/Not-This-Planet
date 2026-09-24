@@ -1449,7 +1449,7 @@ try:
     os.environ["UNITY_SKIPPED_CATEGORY"] = "Heavy"
     _n = R.merged_note()
     #     Heavy 는 `-662` 부터 머지 직후 develop 에서도 빠진다 — 새벽 전체 실행에서만 돈다.
-    _bcheck("새벽 전체 실행에서만" in _n and "머지 직후" not in _n, "Heavy 문구가 낡았다: " + _n)
+    _bcheck("새벽 전체 실행과 릴리스에서만" in _n and "머지 직후" not in _n, "Heavy 문구가 낡았다: " + _n)
     _bcheck("느린 목록" not in _n, "넘기지 않았는데 느린 목록을 건너뛰었다고 적는다 — 전부 돈 실행이다: " + _n)
     os.environ["UNITY_SKIPPED_SLOW"] = "2"
     _n = R.merged_note()

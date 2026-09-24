@@ -579,8 +579,9 @@ def phase_gate(test_rc: int, xml_path: str, log_path: str = "") -> int:
     # **읽다가 죽으면 안 된다** (`!350` AI 리뷰). `GitLab()` 생성이나 조회에서 예외가
     # 나면 `phase_gate` 가 통째로 죽고 잡이 실패한다 — 아래에 적어 둔 "못 읽으면 막지
     # 않는다" 와 **정반대로** 릴리스가 멈춘다. 토큰 미설정·네트워크 오류가 그 길이다.
+    meta: dict = {}
     try:
-        base = unity_report.baseline_failures(GitLab(), unity_report.baseline_ref("master"))
+        base = unity_report.baseline_failures(GitLab(), unity_report.baseline_ref("master"), meta=meta)
     except Exception as e:  # noqa: BLE001
         print(f"   기준선 조회가 예외로 끝났다: {type(e).__name__}: {e}")
         base = None
@@ -595,7 +596,18 @@ def phase_gate(test_rc: int, xml_path: str, log_path: str = "") -> int:
         print(f"🔴 기준선을 읽지 못했다 — 기존 실패와 새 실패를 가릴 수 없다"
               f" (지금 실패 {len(now_failing)}건). 막지 않고 넘어간다")
     else:
-        fresh = sorted(now_failing - base)
+        # **기준선이 돌리지 않은 테스트는 이 트리 탓으로 단정하지 않는다** (S15P21B202-739).
+        # develop 의 MR·푸시 실행은 느린 목록을 건너뛰므로 기준선에는 그 테스트의 결과가 없다.
+        # 릴리스는 전부 돌리니, 원래부터 실패하던 느린 테스트가 여기서 처음 "새 실패" 로 보인다 —
+        # unity-compile 이 판단 불가(2)로 두는 것과 같은 까닭으로 막지 않고 크게 적는다.
+        blind = set(meta.get("slow_skipped") or [])
+        unseen = sorted((now_failing - base) & blind)
+        if unseen:
+            print(f"⚠️ 기준선이 느린 목록으로 건너뛴 테스트의 실패 {len(unseen)}건 — "
+                  f"이 트리가 만든 것인지 가릴 수 없어 막지 않는다")
+            for name in unseen[:10]:
+                print(f"   {name}")
+        fresh = sorted(now_failing - base - blind)
         if fresh:
             print(f"❌ 이 트리가 만든 EditMode 실패 {len(fresh)}건 — 릴리스를 빌드하지 않는다"
                   f" (기존 실패 {len(base & now_failing)}건은 세지 않았다)")

@@ -498,16 +498,17 @@ def merged_note() -> str:
     elif os.environ.get("CI_MERGE_REQUEST_TARGET_BRANCH_NAME"):
         parts.append("**대상 브랜치를 합치지 못해 브랜치 끝에서만 검사했습니다** — 합쳐서 깨지는 경우는 가리지 못합니다")
 
-    # Heavy 는 `-662` 부터 **새벽 전체 실행에서만** 돈다(머지 직후 develop 도 뺀다). 예전
-    # 문구("머지 직후 develop 에서")는 그 뒤로 사실이 아니었다.
+    # Heavy 는 `-662` 부터 **새벽 전체 실행과 릴리스에서만** 돈다(머지 직후 develop 도 뺀다).
+    # 예전 문구("머지 직후 develop 에서")는 그 뒤로 사실이 아니었다. 릴리스 잡도 전부 돌리므로
+    # "새벽에서만" 은 조금 모자란 말이다(S15P21B202-739 검증).
     skipped = (os.environ.get("UNITY_SKIPPED_CATEGORY") or "").strip()
     if skipped:
-        parts.append(f"무거운 테스트(`{skipped}`)는 **새벽 전체 실행에서만** 돕니다")
+        parts.append(f"무거운 테스트(`{skipped}`)는 **새벽 전체 실행과 릴리스에서만** 돕니다")
 
     slow = (os.environ.get("UNITY_SKIPPED_SLOW") or "").strip()
     if slow:
         count = f"{slow}건" if slow.isascii() and slow.isdigit() else "(건수를 읽지 못함)"
-        parts.append(f"**느린 목록 {count}을 건너뛰었습니다** — 새벽 전체 실행에서만 돕니다"
+        parts.append(f"**느린 목록 {count}을 건너뛰었습니다** — 새벽 전체 실행과 릴리스에서만 돕니다"
                      f"(이름은 아티팩트 `unity-slow-settings.json`)")
 
     return " · ".join(parts)

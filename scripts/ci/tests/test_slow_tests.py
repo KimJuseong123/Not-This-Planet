@@ -819,7 +819,10 @@ else:
                             {"빈 파일": "", "있음": _marker, "listed 없음": "source 631830\n"}[a_state])
                 r = subprocess.run([_sh, "-c", _probe], capture_output=True, text=True,
                                    encoding="utf-8", errors="replace",
-                                   env=dict(os.environ, CI_PROJECT_DIR=d.replace("\\", "/")))
+                                   # 바깥의 UNITY_SKIPPED_SLOW 를 물려받지 않는다 — 물려받으면 넘기지 않아야
+                                   # 할 칸이 그 값을 찍어 틀리게 빨개진다(검증에서 짚음).
+                                   env={**{k: v for k, v in os.environ.items() if k != "UNITY_SKIPPED_SLOW"},
+                                        "CI_PROJECT_DIR": d.replace("\\", "/")})
                 args = [l[4:] for l in r.stdout.splitlines() if l.startswith("ARG=")]
                 slow = next((l[5:] for l in r.stdout.splitlines() if l.startswith("SLOW=")), None)
                 flagged = os.path.exists(os.path.join(d, S.FLAG_FILE))
