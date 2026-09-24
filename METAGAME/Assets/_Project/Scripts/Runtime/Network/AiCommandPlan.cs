@@ -191,12 +191,18 @@ namespace Metagame.Network
         /// (<see cref="Spoken"/>)이 <c>가까운 동료에게</c> 가 아니라 <c>빨강에게</c> 가 되고,
         /// 로그(<see cref="Describe"/>)에도 누구에게 갔는지가 남는다.</para>
         ///
+        /// <para><b>고르지 않았으면(<see cref="AiTalkKeys.Anyone"/>) 계획을 그대로 돌려준다.</b>
+        /// 부르는 쪽이 "골랐을 때만 부른다" 를 따로 적지 않게 한다 — 그 가드가 빠지면 V 로 한
+        /// 명령이 <b>전부</b> 잘못된 계획이 되는데, 글자 검사로는 그것을 못 잡는다(리뷰).</para>
+        ///
         /// <para>계획이 실행할 수 없는 꼴이거나 자리가 범위 밖이면 <c>null</c>.</para>
         /// </summary>
         public static AiCommandAssignment[] ForTarget(AiCommandAssignment[] orders, int slot)
         {
+            if (!Valid(orders)) return null;
+            if (slot == AiTalkKeys.Anyone) return orders;
             string target = RecipientOf(slot);
-            if (target == null || !Valid(orders)) return null;
+            if (target == null) return null;
             var picked = orders[0];
             foreach (var order in orders)
                 if (order.recipients == target) { picked = order; break; }

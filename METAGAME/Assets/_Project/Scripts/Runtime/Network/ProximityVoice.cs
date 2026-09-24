@@ -21,50 +21,37 @@ namespace Metagame.Network
     }
 
     /// <summary>
-    /// AI 에게 말하는 키 (S15P21B202-738).
+    /// AI 동료 키를 읽는 곳 (S15P21B202-738). 표는 <see cref="Controls.AiTalk"/> ·
+    /// <see cref="Controls.AiTargetKeys"/> 하나다.
     ///
-    /// <para><c>V</c> 는 <b>주변 동료 · 대상은 말로</b>, <c>1</c>~<c>4</c> 는 <b>그 색 자리의 동료
-    /// 한 명</b>이다. 번호는 들어온 순서가 아니라 <see cref="TeamSlots"/> 의 색에 묶인다
-    /// (1 빨강 · 2 파랑 · 3 노랑 · 4 초록) — 순서로 매기면 누가 나가고 들어올 때마다
-    /// 같은 키가 다른 동료를 가리킨다.</para>
+    /// <para><b>고르기와 말하기는 따로다.</b> 1~4 는 누르면 대상이 <b>정해지고</b>(다시 누르면
+    /// 풀린다), 말은 언제나 V 로 한다. 1~4 를 누른 채 말하게 하면 손이 이동 키에서 떨어진다 —
+    /// V 는 남는 엄지로 누른다.</para>
     ///
-    /// <para><b>마이크와 녹음이 이 표 하나를 같이 본다.</b> 한쪽만 새 키를 알면 1 을
-    /// 누르는 동안 녹음은 도는데 마이크는 닫혀 있어 <b>한 조각도 안 들어간다.</b></para>
+    /// <para><b>마이크와 녹음이 같은 말하기 키를 본다.</b> 한쪽만 다른 키를 알면 녹음은 도는데
+    /// 마이크는 닫혀 있어 한 조각도 안 들어간다.</para>
     /// </summary>
     public static class AiTalkKeys
     {
         /// <summary>대상을 고르지 않았다 — 주변 동료에게 말하고 대상은 말로 정한다.</summary>
         public const int Anyone = -1;
 
-        static readonly KeyCode[] SlotKeys = { KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3, KeyCode.Alpha4 };
+        public static bool TalkHeld() => Input.GetKey(Controls.AiTalk);
+        public static bool TalkPressed() => Input.GetKeyDown(Controls.AiTalk);
 
-        /// <summary>이 대상을 고르는 키. 자리가 범위 밖이면 <c>V</c>.</summary>
-        public static KeyCode KeyFor(int target)
-            => target >= 0 && target < SlotKeys.Length ? SlotKeys[target] : KeyCode.V;
+        /// <summary>이 자리를 고르는 키. 범위 밖이면 <c>None</c>.</summary>
+        public static KeyCode KeyFor(int slot)
+            => slot >= 0 && slot < Controls.AiTargetKeys.Count ? Controls.AiTargetKeys[slot] : KeyCode.None;
 
         /// <summary>화면에 적는 키 글자. <c>Alpha1</c> 이 아니라 키캡의 <c>1</c> 이다.</summary>
-        public static string Cap(int target) => target >= 0 && target < SlotKeys.Length ? (target + 1).ToString() : "V";
+        public static string Cap(int slot) => slot >= 0 && slot < Controls.AiTargetKeys.Count ? (slot + 1).ToString() : "V";
 
-        /// <summary>말하는 데 쓰는 키 전부 — 마이크를 여는 조건이 이것이다.</summary>
-        public static int Count => SlotKeys.Length + 1;
-        public static KeyCode KeyAt(int index) => index == 0 ? KeyCode.V : SlotKeys[index - 1];
-
-        public static bool Held(int target) => Input.GetKey(KeyFor(target));
-
-        public static bool AnyHeld()
+        /// <summary>이번 프레임에 눌린 고르기 키의 자리.</summary>
+        public static bool TargetPressed(out int slot)
         {
-            for (int i = 0; i < Count; i++)
-                if (Input.GetKey(KeyAt(i))) return true;
-            return false;
-        }
-
-        /// <summary>이번 프레임에 눌린 말하기 키. 둘이 한 프레임에 눌리면 <c>V</c> 가 먼저다.</summary>
-        public static bool PressedNow(out int target)
-        {
-            target = Anyone;
-            if (Input.GetKeyDown(KeyCode.V)) return true;
-            for (int i = 0; i < SlotKeys.Length; i++)
-                if (Input.GetKeyDown(SlotKeys[i])) { target = i; return true; }
+            for (int i = 0; i < Controls.AiTargetKeys.Count; i++)
+                if (Input.GetKeyDown(Controls.AiTargetKeys[i])) { slot = i; return true; }
+            slot = Anyone;
             return false;
         }
     }
@@ -179,12 +166,17 @@ namespace Metagame.Network
             var local = Mirror.NetworkClient.localPlayer != null ? Mirror.NetworkClient.localPlayer.GetComponent<NetPlayer>() : null;
             var now = GameSession.Instance;
             var settings = GameSettingsRuntime.Instance?.Current?.voice;
-            // 마이크는 말하기 키를 누르는 동안(+ 꼬리)에만 열린다. 고를 수 있는 설정이 아니다 —
-            // 오픈 마이크로 갈 곳이 없어졌기 때문이다 (S15P21B202-705). 키는 V 와 1~4 다
-            // (S15P21B202-738) — 녹음하는 쪽과 **같은 표**를 본다.
-            if (AiTalkKeys.AnyHeld()) holdUntil = Time.unscaledTime + ReleaseTail;
+            // 마이크는 V 를 누르는 동안(+ 꼬리)에만 열린다. 고를 수 있는 설정이 아니다 —
+            // 오픈 마이크로 갈 곳이 없어졌기 때문이다 (S15P21B202-705). 1~4 는 대상을 고를 뿐
+            // 마이크를 열지 않는다(S15P21B202-738) — 녹음하는 쪽과 **같은 키**를 본다.
+            if (AiTalkKeys.TalkHeld()) holdUntil = Time.unscaledTime + ReleaseTail;
+            // **기절해도 연다** (S15P21B202-738 리뷰). `-730` 이 녹음·전송·서버의 여섯 관문에서
+            // 기절을 뺐는데 **마이크가 일곱 번째**였다. 그래서 쓰러진 사람이 V 를 누르면 녹음은
+            // 시작되고 마이크는 끝내 안 열려, 0.6초 뒤 "마이크가 아직 열리지 않았어요" 로 끝났다 —
+            // `살려줘` 를 가장 필요한 사람이 여전히 말할 수 없었다. 뜻을 잃는 명령은 서버가
+            // 이름 있는 사유로 거절한다(AiCommandPlan.OrderRefusal).
             bool allowed = Application.isFocused && local != null && now != null && now.LocalPlayer != null
-                && !now.LocalPlayer.Downed && now.CursorLocked && !now.CinematicInputBlocked && !now.EndingActive
+                && now.CursorLocked && !now.CinematicInputBlocked && !now.EndingActive
                 && !(settings?.microphoneMuted ?? false)
                 && Time.unscaledTime < holdUntil;
             if (!allowed) { Stop(); return; }
@@ -192,30 +184,34 @@ namespace Metagame.Network
             if (clip != null && (session != now || wanted != device)) Stop();
             if (clip == null)
             {
+                // **물러서기는 실패한 뒤에만 건다** (S15P21B202-738 리뷰). 예전에는 여는 순간마다
+                // 3초를 걸어서, 명령 하나를 말하고 3초 안에 다음 키를 누르면 마이크가 안 열려
+                // "마이크가 아직 열리지 않았어요" 로 취소됐다. 1 다음 2 처럼 동료에게 차례로
+                // 시키는 것이 버튼의 쓰임새라, 그 3초가 곧바로 걸린다.
                 if (Time.unscaledTime < retryAt) return;
-                retryAt = Time.unscaledTime + 3;
                 try
                 {
-                    if (Microphone.devices.Length == 0) { Problem = "마이크 없음"; return; }
+                    if (Microphone.devices.Length == 0) { Problem = "마이크 없음"; retryAt = Time.unscaledTime + 3; return; }
                     string selected = string.IsNullOrEmpty(wanted) || Array.IndexOf(Microphone.devices, wanted) < 0 ? null : wanted;
                     clip = Microphone.Start(selected, true, 2, VoiceRules.Rate);
-                    if (clip == null) { Problem = "마이크 시작 실패"; return; }
+                    if (clip == null) { Problem = "마이크 시작 실패"; retryAt = Time.unscaledTime + 3; return; }
                     device = wanted; session = now; read = 0; lastPoll = Time.unscaledTime;
                     raw = new float[(int)(clip.frequency * .04f) * clip.channels];
                     filter = new VoiceFilter(); Problem = null;
                 }
-                catch (Exception) { Stop(); Problem = "마이크 권한 확인 필요"; }
+                catch (Exception) { Stop(); Problem = "마이크 권한 확인 필요"; retryAt = Time.unscaledTime + 3; }
                 return;
             }
             string active = string.IsNullOrEmpty(device) || Array.IndexOf(Microphone.devices, device) < 0 ? null : device;
             int position = Microphone.GetPosition(active), frames = raw.Length / clip.channels;
-            if (position < 0) { Stop(); return; }
+            // 장치가 도중에 사라진 것이다 — 곧바로 다시 열면 매 프레임 열고 닫는다.
+            if (position < 0) { Stop(); retryAt = Time.unscaledTime + 3; return; }
             if (Time.unscaledTime - lastPoll > .5f) { read = position; lastPoll = Time.unscaledTime; return; }
             lastPoll = Time.unscaledTime;
             int available = (position - read + clip.samples) % clip.samples;
             for (int processed = 0; available >= frames && processed < 5; processed++)
             {
-                if (!clip.GetData(raw, read)) { Stop(); return; }
+                if (!clip.GetData(raw, read)) { Stop(); retryAt = Time.unscaledTime + 3; return; }
                 read = (read + frames) % clip.samples; available -= frames;
                 for (int i = 0; i < mono.Length; i++)
                 {

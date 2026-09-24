@@ -403,12 +403,9 @@ namespace Metagame.Network
                 // **버튼으로 골랐으면 말 속의 대상을 버튼의 색으로 덮는다** (S15P21B202-738).
                 // 받아쓰기가 색을 틀리거나 LLM 이 대상을 잘못 골라도 버튼의 동료가 한다.
                 // 원래 계획은 위의 ReportPlan 이 이미 남겼으므로, 덮은 뒤의 모양만 한 줄 더 남긴다.
-                var orders = result.orders;
+                var orders = AiCommandPlan.ForTarget(result.orders, target);
                 if (target != AiTalkKeys.Anyone)
-                {
-                    orders = AiCommandPlan.ForTarget(result.orders, target);
                     UnityEngine.Debug.Log("[AI] 버튼 대상 " + TeamSlots.Name(target) + " · " + AiCommandPlan.Describe(orders));
-                }
                 // Snapshot membership/revisions prevents delayed replies from replacing newer orders.
                 Message = group.ExecutePlan(orders, AiRecipients.Selected, selected, speaker);
                 // **무엇을 시켰는지 보여 준다** (S15P21B202-736). 전에는 개수뿐이라, 헛말이

@@ -211,8 +211,21 @@ namespace Metagame.Gameplay.Tests
         {
             Assert.That(AiCommandPlan.ForTarget(null, 0), Is.Null);
             Assert.That(AiCommandPlan.ForTarget(new[] { To("red", "teleport") }, 0), Is.Null, "실행할 수 없는 계획을 살렸다");
-            Assert.That(AiCommandPlan.ForTarget(new[] { To("red", "follow") }, -1), Is.Null);
+            Assert.That(AiCommandPlan.ForTarget(new[] { To("red", "follow") }, -2), Is.Null);
             Assert.That(AiCommandPlan.ForTarget(new[] { To("red", "follow") }, TeamSlots.Count), Is.Null);
+        }
+
+        /// <summary>
+        /// <b>고르지 않았으면 계획을 건드리지 않는다</b> (S15P21B202-738 리뷰).
+        ///
+        /// <para>부르는 쪽이 "골랐을 때만 덮는다" 를 따로 적으면, 그 가드가 빠지는 날 V 로 한 명령이
+        /// <b>전부</b> 잘못된 계획이 된다 — 글자 검사로는 못 잡는다. 그래서 여기서 값으로 못박는다.</para>
+        /// </summary>
+        [Test] public void NoChosenSeatLeavesThePlanAlone()
+        {
+            var plan = new[] { To("red", "pull_pin"), To("remaining", "follow") };
+            Assert.That(AiCommandPlan.ForTarget(plan, AiTalkKeys.Anyone), Is.SameAs(plan),
+                "고르지 않았는데 계획을 바꿨다 — 말로 고른 대상이 사라진다");
         }
 
         /// <summary>

@@ -19,7 +19,7 @@ namespace Metagame.UI
             GUILayout.BeginArea(rect);
             bool muted = GUILayout.Toggle(data.voice.microphoneMuted, "마이크 음소거");
             changed |= muted != data.voice.microphoneMuted; data.voice.microphoneMuted = muted;
-            GUILayout.Label("마이크는 V를 누르는 동안에만 켜지고, 그 소리는 AI 동료에게 내리는 명령에만 쓰입니다.");
+            GUILayout.Label("마이크는 V(주변 동료)나 1~4(그 색 동료)를 누르는 동안에만 켜지고, 그 소리는 AI 동료에게 내리는 명령에만 쓰입니다.");
             GUILayout.EndArea();
             if (changed) runtime.Save(data, out _);
         }

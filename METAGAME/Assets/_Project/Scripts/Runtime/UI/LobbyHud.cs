@@ -614,7 +614,9 @@ namespace Metagame.UI
             SetBinding(candidate.controls, rebindingAction.Value, key);
             if (Controls.HasDuplicateBindings(candidate.controls, out var duplicate))
             {
-                error = "이미 사용 중인 키입니다: " + duplicate;
+                error = Controls.IsAiKey(duplicate)
+                    ? "AI 동료 키(V · 1~4)라 쓸 수 없습니다: " + TabletHelpContent.Name(duplicate)
+                    : "이미 사용 중인 키입니다: " + duplicate;
                 Event.current.Use();
                 return;
             }
@@ -714,7 +716,9 @@ namespace Metagame.UI
         {
             if (Controls.HasDuplicateBindings(editingSettings.controls, out var duplicate))
             {
-                error = "중복된 키를 먼저 변경해 주세요: " + duplicate;
+                error = Controls.IsAiKey(duplicate)
+                    ? "AI 동료 키(V · 1~4)에 묶인 동작을 먼저 바꿔 주세요: " + TabletHelpContent.Name(duplicate)
+                    : "중복된 키를 먼저 변경해 주세요: " + duplicate;
                 return;
             }
 
