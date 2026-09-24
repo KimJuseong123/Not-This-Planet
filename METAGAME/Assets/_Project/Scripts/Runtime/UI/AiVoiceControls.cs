@@ -144,7 +144,9 @@ namespace Metagame.UI
                 selectedTarget = AiTalkKeys.Anyone;
             }
             if (recording || !AiTalkKeys.TalkPressed()) return;
-            if (!Ready) { Notify("방장의 AI 추가팩이 준비되지 않았어요"); return; }
+            // 화면에는 "추가팩" 같은 속사정을 적지 않는다 (S15P21B202-713 의 규칙) — 플레이어가 알아야 할 것은
+            // "지금 AI 에게 말할 수 없다" 뿐이다.
+            if (!Ready) { Notify("방장의 AI 동료 기능이 아직 준비되지 않았어요"); return; }
             // **앞 명령을 올리는 중이면 새로 듣지 않는다** (S15P21B202-738 리뷰). 새로 들으면 전송을
             // 비우고 서버가 받던 것을 버려서 앞 명령이 아무 말 없이 사라진다.
             if (local.AiVoiceSending) { Notify("앞 명령을 보내는 중이에요 · 잠시 후 다시"); return; }
