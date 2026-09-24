@@ -70,6 +70,35 @@ namespace Metagame.Gameplay.Tests
                 + "굽는 고리를 위해 고친 것이 베이커를 더 느리게 만든다");
         }
 
+        /// <summary>
+        /// 굽기 결과마다 <b>이름 있는 칸</b>이 있다 (S15P21B202-737).
+        ///
+        /// <para>전에는 <c>else unchanged++</c> 한 줄이 "안 구웠다" 를 전부 받았다. 순서만 달라 건너뛴 것이
+        /// 새로 생기면 그것이 조용히 "그대로라 건너뜀" 에 섞여, 게이트가 일한 것처럼 보인다.</para>
+        /// </summary>
+        [Test]
+        public void EveryBakeOutcomeHasItsOwnCounter()
+        {
+            var update = TestSource.Method(TestSource.Read("Runtime/Network/AiNavigationWorld.cs"), "void Update()");
+            foreach (var outcome in new[] { "Busy", "Unchanged", "Reordered", "Baked" })
+                Assert.That(update, Does.Contain("case RebuildOutcome." + outcome + ":"), outcome + " 을 세는 칸이 없다");
+            Assert.That(update, Does.Not.Contain("else unchanged++"), "안 구운 것을 한 칸에 몰아 센다");
+        }
+
+        /// <summary>
+        /// 스냅숏은 <b>굽기로 정한 뒤에만</b> 바꾼다 (S15P21B202-737). 건너뛰는 길에서 바꾸면 조금씩 움직이는
+        /// 것이 매번 "지난번과 같다" 로 이어져 한 번도 안 굽는다 — 낡은 길을 조용히 쓴다.
+        /// </summary>
+        [Test]
+        public void TheSnapshotIsTakenOnlyWhenBaking()
+        {
+            var rebuild = TestSource.Method(TestSource.Read("Runtime/Network/AiNavigationWorld.cs"), "public RebuildOutcome Rebuild(");
+            int skip = rebuild.IndexOf("return RebuildOutcome.Reordered;", System.StringComparison.Ordinal);
+            int copy = rebuild.IndexOf("bakedKeys.AddRange(keys);", System.StringComparison.Ordinal);
+            Assert.That(skip, Is.GreaterThanOrEqualTo(0), "순서만 다른 것을 건너뛰는 길이 없다");
+            Assert.That(copy, Is.GreaterThan(skip), "건너뛰기 전에 스냅숏을 바꾼다");
+        }
+
         static GameObject Box(string name, Vector3 center, Vector3 size)
         {
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);

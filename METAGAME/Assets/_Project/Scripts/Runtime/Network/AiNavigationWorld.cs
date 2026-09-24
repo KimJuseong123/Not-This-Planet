@@ -13,7 +13,13 @@ namespace Metagame.Network
     {
         readonly List<NavMeshBuildSource> sources = new List<NavMeshBuildSource>();
         readonly List<NavMeshBuildMarkup> markups = new List<NavMeshBuildMarkup>();
-        readonly List<NavMeshBuildSource> previousSources = new();
+        /// <summary>
+        /// 지난번 <b>구운</b> 소스를 값으로 (S15P21B202-737). 자리대로 한 벌, 정렬해서 한 벌 —
+        /// 순서만 다른 것을 "바뀌었다" 로 읽지 않으려면 정렬한 쪽이 있어야 한다.
+        /// </summary>
+        readonly List<AiNavigationSources.Key> keys = new(), bakedKeys = new(), bakedSorted = new(), currentSorted = new();
+        readonly List<bool> sourceIsPart = new();
+        readonly System.Diagnostics.Stopwatch watch = new();
         static readonly ProfilerMarker CollectMarker = new("AI.Navigation.CollectSources");
         static readonly ProfilerMarker BuildMarker = new("AI.Navigation.ScheduleBuild");
         bool hasBuilt;
@@ -87,11 +93,21 @@ namespace Metagame.Network
         /// 반환이 하나 늘 때 그것이 <b>조용히 "게이트가 일했다" 로 집계된다.</b> 새 반환 경로는
         /// 여기서 이름을 골라야 한다.</para>
         /// </summary>
-        public enum RebuildOutcome { Busy, Unchanged, Baked }
+        public enum RebuildOutcome { Busy, Unchanged, Reordered, Baked }
+
+        /// <summary>
+        /// 복셀 한 칸(m). 굽는 설정과 로그의 "반 복셀 안" 이 같은 값을 본다. <b>값은 그대로다</b> — 바꾸는 것은
+        /// 길찾기 품질을 바꾸는 결정이라 재지 않고 손대지 않는다.
+        /// </summary>
+        public const float VoxelSize = .12f;
 
         void Update()
         {
             if (!NetworkServer.active || AiHostSettings.ServerState != AiRoomState.Active) return;
+            // 굽는 동안의 프레임과 평소 프레임을 따로 잰다 (S15P21B202-737). "AI 를 켜면 끊긴다" 가 굽기
+            // 탓인지는 두 값을 견줘야 안다 — 굽기는 다른 코어에서 돌아 밀린 프레임이 0 이어도 느려질 수 있다.
+            float frameMs = Time.unscaledDeltaTime * 1000f;
+            if (IsBuilding) Add(ref bakingFrames, frameMs); else Add(ref quietFrames, frameMs);
             // 굽기가 끝난 프레임에 걸린 시간을 거둔다. 아래 IsBuilding 으로 먼저 빠져나가면
             // 이 자리를 지나치므로 굽는 시간은 영영 관측되지 않는다.
             if (bakeStartedAt > 0f && !IsBuilding)
@@ -112,14 +128,44 @@ namespace Metagame.Network
             if (!NetPlayer.HasAiPlayers) return;
             // 무엇을 했는지 되묻지 않고 그대로 돌려받는다 — BuildCount 증가 여부로 역추론하면
             // 나중에 조기 반환이 하나 늘 때 그것이 조용히 "게이트가 일했다" 로 집계된다.
-            if (Rebuild(new Bounds(transform.position, new Vector3(512, 128, 512))) == RebuildOutcome.Baked)
-                bakeStartedAt = Time.realtimeSinceStartup;
-            else unchanged++;
+            // **결과마다 이름 있는 칸이 있다** (S15P21B202-737) — 새 결과가 생기면 여기서 칸을 골라야 한다.
+            switch (Rebuild(new Bounds(transform.position, new Vector3(512, 128, 512))))
+            {
+                case RebuildOutcome.Baked: bakeStartedAt = Time.realtimeSinceStartup; break;
+                case RebuildOutcome.Unchanged: unchanged++; break;
+                case RebuildOutcome.Reordered: reordered++; break;
+                case RebuildOutcome.Busy: stalledFrames++; break;
+            }
             nextBuild = Time.time + 2f;
         }
 
-        int baked, unchanged, stalledFrames;
+        int baked, unchanged, reordered, stalledFrames;
         float bakeStartedAt, bakeTotalMs, bakeMaxMs, nextReport;
+
+        /// <summary>합 · 최대 · 횟수. 30초마다 "평균/최대" 로 적고 비운다.</summary>
+        struct Span { public float Sum, Max; public int Count; }
+        Span collectCost, filterCost, compareCost, scheduleCost, bakingFrames, quietFrames;
+        static void Add(ref Span span, float ms) { span.Sum += ms; span.Max = Mathf.Max(span.Max, ms); span.Count++; }
+        static string Of(Span span) => (span.Count > 0 ? span.Sum / span.Count : 0f).ToString("0.0") + "/" + span.Max.ToString("0.0") + "ms";
+        float Lap() { float ms = (float)watch.Elapsed.TotalMilliseconds; watch.Restart(); return ms; }
+
+        /// <summary>30초 동안 "바뀌었다" 가 무엇이었는지 (S15P21B202-737).</summary>
+        AiNavigationSources.Tally window;
+
+        void Accumulate(AiNavigationSources.Tally t)
+        {
+            window.PartMoved += t.PartMoved; window.PartShape += t.PartShape; window.OtherChanged += t.OtherChanged;
+            window.Added += t.Added; window.Removed += t.Removed; window.WithinHalfVoxel += t.WithinHalfVoxel;
+            if (t.MaxShift > window.MaxShift) { window.MaxShift = t.MaxShift; window.MaxShiftOwner = t.MaxShiftOwner; }
+        }
+
+        /// <summary>로그에 적는 주인 이름. 파츠면 파츠 이름 — 콜라이더 자식 이름은 네 파츠가 다 비슷하다.</summary>
+        static string Owner(Object owner)
+        {
+            if (owner == null) return "?";
+            var part = owner is Component c ? c.GetComponentInParent<SpaceshipPart>() : null;
+            return part != null ? part.name + "/" + owner.name : owner.name;
+        }
 
         void OnEnable() => nextReport = Time.realtimeSinceStartup + 30f;
 
@@ -158,8 +204,20 @@ namespace Metagame.Network
                       + $" · 최대 {bakeMaxMs:F0}ms · 그대로라 건너뜀 {unchanged}회"
                       + $" · 굽느라 밀린 프레임 {stalledFrames} · 소스 {sources.Count}개"
                       + $" · 대체 박스 {ApproximateMeshCount}개");
-            baked = unchanged = stalledFrames = 0;
+            // **무엇이 바뀌어서 구웠는지** (S15P21B202-737). 첫 줄은 그대로 둔다 — 전의 QA 로그와 견줄 수
+            // 있어야 한다. 이 줄이 없어서 이슈가 원인을 운석 흔적으로 잘못 짚었다.
+            Debug.Log($"[AiNav] 30초 원인: 파츠 이동 {window.PartMoved}회 · 파츠 모양 {window.PartShape}회"
+                      + $"(+{window.Added}/-{window.Removed}) · 그 밖의 변화 {window.OtherChanged}회"
+                      + $" · 순서만 달라 건너뜀 {reordered}회 · 최대 이동 {window.MaxShift:F3}m({Owner(window.MaxShiftOwner)})"
+                      + $" · 반 복셀({VoxelSize * 50f:0}cm) 안 {window.WithinHalfVoxel}회");
+            // **굽기 말고 메인 스레드가 내는 값** (S15P21B202-737). 수집·거르기·비교는 굽는 ms 에 안 들어간다.
+            Debug.Log($"[AiNav] 30초 비용: 수집 {Of(collectCost)} · 거르기 {Of(filterCost)} · 비교 {Of(compareCost)}"
+                      + $" · 예약 {Of(scheduleCost)} · 굽는 중 프레임 {Of(bakingFrames)}({bakingFrames.Count})"
+                      + $" · 평소 프레임 {Of(quietFrames)}({quietFrames.Count})");
+            baked = unchanged = reordered = stalledFrames = 0;
             bakeTotalMs = bakeMaxMs = 0;
+            window = default;
+            collectCost = filterCost = compareCost = scheduleCost = bakingFrames = quietFrames = default;
         }
 
         public RebuildOutcome Rebuild(Bounds region, bool force = false)
@@ -172,10 +230,14 @@ namespace Metagame.Network
                 loadedGeometry = true;
             }
             sources.Clear();
+            watch.Restart();
             using (CollectMarker.Auto())
                 NavMeshBuilder.CollectSources(region, PermanentLayerMask, NavMeshCollectGeometry.PhysicsColliders,
                     0, markups, sources);
+            Add(ref collectCost, Lap());
             ApproximateMeshCount = 0;
+            sourceIsPart.Clear();
+            for (int i = 0; i < sources.Count; i++) sourceIsPart.Add(false);
             for (int i = sources.Count - 1; i >= 0; i--)
             {
                 var source = sources[i];
@@ -187,9 +249,9 @@ namespace Metagame.Network
                     //
                     // **파츠는 여기서 찾지 않는다** (S15P21B202-704). 판단하는 쪽이 이미 찾으므로
                     // 그 값을 돌려받는다 — 미리 찾아 넘기면 걸러질 콜라이더까지 탐색하게 된다.
-                    if (!UsedForNavigation(collider, out var part)) { sources.RemoveAt(i); continue; }
+                    if (!UsedForNavigation(collider, out var part)) { sources.RemoveAt(i); sourceIsPart.RemoveAt(i); continue; }
                     // Parts block routes; their tops are not walking surfaces.
-                    if (part != null) source.area = 1;
+                    if (part != null) { source.area = 1; sourceIsPart[i] = true; }
                 }
                 if (source.shape == NavMeshBuildSourceShape.Mesh && source.sourceObject is Mesh mesh && !mesh.isReadable)
                 {
@@ -211,12 +273,26 @@ namespace Metagame.Network
                 }
                 sources[i] = source;
             }
+            keys.Clear();
+            for (int i = 0; i < sources.Count; i++) keys.Add(new AiNavigationSources.Key(sources[i], sourceIsPart[i]));
+            Add(ref filterCost, Lap());
             // Keep the discovery pass: doors, spawned scenery and destroyed colliders need no
             // registration contract. Unchanged geometry must not schedule another native build.
-            if (!force && hasBuilt && bounds.Equals(region) && SameSources()) return RebuildOutcome.Unchanged;
+            //
+            // **순서만 다른 것은 굽지 않는다** (S15P21B202-737) — 네이티브 수집이 같은 순서를 준다는
+            // 보장이 없다. 스냅숏은 **굽기로 정한 뒤에만** 바꾼다: 건너뛰는 길에서 바꾸면 조금씩 움직이는
+            // 것이 "지난번과 같다" 로 이어져 한 번도 안 굽게 된다.
+            bool comparable = !force && hasBuilt && bounds.Equals(region);
+            var verdict = comparable ? AiNavigationSources.Compare(bakedKeys, bakedSorted, keys, currentSorted)
+                                     : AiNavigationSources.Verdict.Changed;
+            Add(ref compareCost, Lap());
+            if (verdict == AiNavigationSources.Verdict.Same) return RebuildOutcome.Unchanged;
+            if (verdict == AiNavigationSources.Verdict.Reordered) return RebuildOutcome.Reordered;
+            if (!comparable) AiNavigationSources.Sort(keys, currentSorted);
+            else Accumulate(AiNavigationSources.Diff(bakedSorted, currentSorted, VoxelSize));
             bounds = region;
-            previousSources.Clear();
-            previousSources.AddRange(sources);
+            bakedKeys.Clear(); bakedKeys.AddRange(keys);
+            bakedSorted.Clear(); bakedSorted.AddRange(currentSorted);
             var settings = NavMesh.GetSettingsByID(0);
             settings.agentRadius = .55f;
             settings.agentHeight = 1.8f;
@@ -224,7 +300,7 @@ namespace Metagame.Network
             settings.agentClimb = .05f;
             settings.agentSlope = 40f;
             settings.overrideVoxelSize = true;
-            settings.voxelSize = .12f;
+            settings.voxelSize = VoxelSize;
             settings.overrideTileSize = true;
             settings.tileSize = 128;
             if (data == null)
@@ -232,22 +308,12 @@ namespace Metagame.Network
                 data = new NavMeshData(settings.agentTypeID);
                 instance = NavMesh.AddNavMeshData(data);
             }
+            watch.Restart();
             using (BuildMarker.Auto())
                 building = NavMeshBuilder.UpdateNavMeshDataAsync(data, settings, sources, bounds);
+            Add(ref scheduleCost, Lap());
             BuildCount++;
             return RebuildOutcome.Baked;
-        }
-
-        bool SameSources()
-        {
-            if (sources.Count != previousSources.Count) return false;
-            for (int i = 0; i < sources.Count; i++)
-            {
-                var a = sources[i]; var b = previousSources[i];
-                if (a.component != b.component || a.sourceObject != b.sourceObject || a.shape != b.shape
-                    || a.area != b.area || !a.size.Equals(b.size) || !a.transform.Equals(b.transform)) return false;
-            }
-            return true;
         }
 
         public bool CalculatePath(Vector3 from, Vector3 to, NavMeshPath path)
@@ -274,9 +340,12 @@ namespace Metagame.Network
             if (data != null) Destroy(data);
             data = null; building = null; nextBuild = 0;
             hasBuilt = false; BuildCount = 0;
-            baked = unchanged = stalledFrames = 0;
+            baked = unchanged = reordered = stalledFrames = 0;
             bakeStartedAt = bakeTotalMs = bakeMaxMs = 0;
-            sources.Clear(); previousSources.Clear();
+            window = default;
+            collectCost = filterCost = compareCost = scheduleCost = bakingFrames = quietFrames = default;
+            sources.Clear(); sourceIsPart.Clear();
+            keys.Clear(); bakedKeys.Clear(); bakedSorted.Clear(); currentSorted.Clear();
         }
     }
 }
