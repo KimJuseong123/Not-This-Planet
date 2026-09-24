@@ -162,8 +162,11 @@ def is_release_mr(source: str, target: str) -> bool:
 
 
 def http(method: str, url: str, headers: dict | None = None, body: dict | str | None = None,
-         timeout: int = 60):
-    """(status, parsed-json-or-text). 4xx/5xx 도 예외 대신 튜플로 반환."""
+         timeout: int = 60, parse_json: bool = True):
+    """(status, parsed-json-or-text). 4xx/5xx 도 예외 대신 튜플로 반환.
+
+    `parse_json=False` 면 본문을 **글자 그대로** 준다 (S15P21B202-739). 기본은 JSON 으로
+    먼저 풀어 보므로 `"2413\\n"` 같은 파일이 숫자 2413 이 되어 돌아온다."""
     data = None
     hdrs = {"Accept": "application/json"}
     if headers:
@@ -179,6 +182,8 @@ def http(method: str, url: str, headers: dict | None = None, body: dict | str | 
     except urllib.error.HTTPError as e:
         raw = e.read().decode("utf-8", "replace")
         status = e.code
+    if not parse_json:
+        return status, raw
     try:
         return status, json.loads(raw) if raw else None
     except json.JSONDecodeError:
@@ -542,6 +547,24 @@ class GitLab:
         st, d = http("GET", f"{self.api}/projects/{self.project}/jobs/{job_id}/artifacts/{path}",
                      self._h())
         return d if st == 200 and isinstance(d, str) and d.strip() else None
+
+    def job_artifact_raw(self, job_id: int | str, path: str) -> str | None:
+        """잡 아티팩트 한 개를 **글자 그대로.** 없으면(404) None, 그 밖의 실패는 OSError.
+
+        `job_artifact_text` 는 본문을 JSON 으로 먼저 풀어 보므로 `2413` 만 든 파일이
+        숫자가 되어 None 으로 떨어진다 (S15P21B202-739). 그 함수를 고치지 않고 따로 두는
+        이유 — 고치는 순간 `unity_reuse` 가 `unity-rc.txt` 를 읽기 시작해 **처음으로 재사용이
+        켜진다.** 그쪽은 느린 목록을 모르는 채 결과를 빌리므로 따로 다룬다.
+
+        **없는 것과 못 읽은 것을 가른다.** 느린 목록은 "없다" 면 새로 시작하고, "모른다" 면
+        아무것도 쓰지 않아야 한다 — 섞으면 조회가 한 번 흔들린 날 목록이 줄어든다."""
+        st, d = http("GET", f"{self.api}/projects/{self.project}/jobs/{job_id}/artifacts/{path}",
+                     self._h(), parse_json=False)
+        if st == 404:
+            return None
+        if st != 200:
+            raise OSError(f"HTTP {st}")
+        return d if isinstance(d, str) and d.strip() else None
 
     def open_mrs(self) -> list[dict]:
         st, d = http("GET", f"{self.api}/projects/{self.project}/merge_requests?state=opened&per_page=100",
