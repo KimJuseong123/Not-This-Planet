@@ -93,7 +93,16 @@ namespace Metagame.Network
         /// 반환이 하나 늘 때 그것이 <b>조용히 "게이트가 일했다" 로 집계된다.</b> 새 반환 경로는
         /// 여기서 이름을 골라야 한다.</para>
         /// </summary>
-        public enum RebuildOutcome { Busy, Unchanged, Reordered, Baked }
+        public enum RebuildOutcome { Busy, Unchanged, Reordered, Deferred, Baked }
+
+        /// <summary>
+        /// AI 가 쉬는 동안 바뀐 세계를 이만큼 묵힌 뒤에 굽는다(초) (S15P21B202-737).
+        ///
+        /// <para>쉬는 동안에는 아무도 길을 안 묻는다(요청자 없는 AI 는 멈춰 선다). 명령이 오면 그 순간
+        /// <see cref="AiNavigationSources.Wakes"/> 가 곧바로 굽게 하므로, 이 값은 "명령 없이 길을 묻는 길"
+        /// (디버그 버튼)이 볼 수 있는 가장 낡은 정도다 — 로그의 "쉬는 중 묵은 길 물음" 이 그것을 센다.</para>
+        /// </summary>
+        public const float IdleStaleSeconds = 10f;
 
         /// <summary>
         /// 복셀 한 칸(m). 굽는 설정과 로그의 "반 복셀 안" 이 같은 값을 본다. <b>값은 그대로다</b> — 바꾸는 것은
@@ -118,6 +127,12 @@ namespace Metagame.Network
             }
             // 밀려 있을 때가 이 줄이 가장 필요한 때다 — 아래로 못 내려가도 찍는다.
             Report();
+            // **쓸 일이 생긴 순간 기다리지 않고 굽는다** (S15P21B202-737). V 를 누르거나 계획을 세우기
+            // 시작하면 다음 2초 점검을 기다리지 않는다 — 계획이 서는 데 몇 초가 걸리므로 첫 길을 물을
+            // 때는 새 길이다. 이 줄이 주기 검사 **앞**에 있어야 깨우기가 뜻이 있다.
+            var demand = CurrentDemand();
+            if (AiNavigationSources.Wakes(lastDemand, demand)) nextBuild = 0;
+            lastDemand = demand;
             if (Time.time < nextBuild) return;
             // 굽느라 이번 차례를 거른다. 세지 않으면 로그에서 그냥 사라져서, 기계가 쉬지
             // 못하고 있는 것과 세계가 그대로라 건너뛴 것이 똑같이 "안 구웠다" 로 보인다.
@@ -125,21 +140,56 @@ namespace Metagame.Network
             // Work acceptance (tool pickup/boarding) queries paths before its first Tick.
             // Keep discovering changed obstacles while AI exists, even while it is idle;
             // otherwise the first order after an idle period can reject a now-open route.
+            //
+            // **쉬는 동안에는 찾기만 하고 굽기는 묵힌다** (S15P21B202-737). 묵히는 것은 Rebuild 가 하고,
+            // 여기서는 점검 수를 센다.
             if (!NetPlayer.HasAiPlayers) return;
+            CountDemand(lastDemand);
             // 무엇을 했는지 되묻지 않고 그대로 돌려받는다 — BuildCount 증가 여부로 역추론하면
             // 나중에 조기 반환이 하나 늘 때 그것이 조용히 "게이트가 일했다" 로 집계된다.
             // **결과마다 이름 있는 칸이 있다** (S15P21B202-737) — 새 결과가 생기면 여기서 칸을 골라야 한다.
-            switch (Rebuild(new Bounds(transform.position, new Vector3(512, 128, 512))))
+            switch (Rebuild(new Bounds(transform.position, new Vector3(512, 128, 512)), demand: lastDemand))
             {
                 case RebuildOutcome.Baked: bakeStartedAt = Time.realtimeSinceStartup; break;
                 case RebuildOutcome.Unchanged: unchanged++; break;
                 case RebuildOutcome.Reordered: reordered++; break;
+                case RebuildOutcome.Deferred: deferred++; break;
                 case RebuildOutcome.Busy: stalledFrames++; break;
             }
             nextBuild = Time.time + 2f;
         }
 
-        int baked, unchanged, reordered, stalledFrames;
+        int baked, unchanged, reordered, deferred, stalledFrames;
+
+        AiNavigationSources.Demand lastDemand = AiNavigationSources.Demand.Idle;
+        /// <summary>구운 뒤 바뀐 것을 처음 본 때. 0 이면 바뀐 것이 없다.</summary>
+        float changedSince;
+        int idleChecks, incomingChecks, workingChecks, idleStaleQueries;
+        float idleStaleMax;
+
+        void CountDemand(AiNavigationSources.Demand demand)
+        {
+            if (demand == AiNavigationSources.Demand.Working) workingChecks++;
+            else if (demand == AiNavigationSources.Demand.Incoming) incomingChecks++;
+            else idleChecks++;
+        }
+
+        /// <summary>서버의 지금 수요. 값 판단은 <see cref="AiNavigationSources.DemandOf"/> 가 한다.</summary>
+        static AiNavigationSources.Demand CurrentDemand()
+        {
+            // 매 프레임 돈다 — 인터페이스 foreach 는 열거자를 박싱해 프레임마다 할당하므로 번호로 돈다.
+            bool aiBusy = false, hearing = false;
+            var players = NetPlayer.AllServerPlayers;
+            for (int i = 0; i < players.Count; i++)
+            {
+                var player = players[i];
+                if (player == null) continue;
+                if (player.IsAi) aiBusy |= player.AiBusy;
+                else hearing |= player.AiHearingOpen;
+            }
+            bool planning = AiLocalRuntime.Current != null && AiLocalRuntime.Current.Busy;
+            return AiNavigationSources.DemandOf(aiBusy, planning, hearing);
+        }
         float bakeStartedAt, bakeTotalMs, bakeMaxMs, nextReport;
 
         /// <summary>합 · 최대 · 횟수. 30초마다 "평균/최대" 로 적고 비운다.</summary>
@@ -176,7 +226,7 @@ namespace Metagame.Network
         {
             if (owner == null) return "?";
             var part = owner is Component c ? c.GetComponentInParent<SpaceshipPart>() : null;
-            return part != null ? part.name + "/" + owner.name : owner.name;
+            return part != null && part != owner ? part.name + "/" + owner.name : owner.name;
         }
 
         void OnEnable() => nextReport = Time.realtimeSinceStartup + 30f;
@@ -227,14 +277,23 @@ namespace Metagame.Network
             Debug.Log($"[AiNav] 30초 비용: 수집 {Of(collectCost)} · 거르기 {Of(filterCost)} · 비교 {Of(compareCost)}"
                       + $" · 예약 {Of(scheduleCost)} · 굽는 중 프레임 {Of(bakingFrames)}({bakingFrames.Count})"
                       + $" · 평소 프레임 {Of(quietFrames)}({quietFrames.Count})");
-            baked = unchanged = reordered = stalledFrames = 0;
+            // **쉬는 동안 얼마나 미뤘고, 그 사이 누가 묵은 길을 물었는지** (S15P21B202-737). 묵은 길 물음이
+            // 0 이 아니면 명령 없이 길을 묻는 길이 있다는 뜻이다 — 미루는 값을 줄이거나 그 길에서 깨워야 한다.
+            Debug.Log($"[AiNav] 30초 까닭: 점검 쉼/예고/작업 {idleChecks}/{incomingChecks}/{workingChecks}"
+                      + $" · 쉬는 중이라 미룸 {deferred}회 · 쉬는 중 묵은 길 물음 {idleStaleQueries}회(최대 {idleStaleMax:0.0}s)");
+            baked = unchanged = reordered = deferred = stalledFrames = 0;
+            idleChecks = incomingChecks = workingChecks = idleStaleQueries = 0; idleStaleMax = 0;
             bakeTotalMs = bakeMaxMs = 0;
             window = default;
             controlledMax = 0; controlledMaxOwner = null;
             collectCost = filterCost = compareCost = scheduleCost = bakingFrames = quietFrames = default;
         }
 
-        public RebuildOutcome Rebuild(Bounds region, bool force = false)
+        /// <param name="demand">지금 AI 가 길을 쓸 일이 있는가. 쉬고 있으면 바뀐 세계를
+        /// <see cref="IdleStaleSeconds"/> 만큼 묵힌 뒤에 굽는다. 직접 부르는 쪽(시험 · 강제 굽기)은 기본값
+        /// <c>Working</c> 이라 미루지 않는다.</param>
+        public RebuildOutcome Rebuild(Bounds region, bool force = false,
+                                      AiNavigationSources.Demand demand = AiNavigationSources.Demand.Working)
         {
             if (IsBuilding) return RebuildOutcome.Busy;
             hasBuilt = Ready;
@@ -312,8 +371,16 @@ namespace Metagame.Network
             var verdict = comparable ? AiNavigationSources.Compare(bakedKeys, bakedSorted, keys, currentSorted)
                                      : AiNavigationSources.Verdict.Changed;
             Add(ref compareCost, Lap());
-            if (verdict == AiNavigationSources.Verdict.Same) return RebuildOutcome.Unchanged;
-            if (verdict == AiNavigationSources.Verdict.Reordered) return RebuildOutcome.Reordered;
+            if (verdict == AiNavigationSources.Verdict.Same) { changedSince = 0; return RebuildOutcome.Unchanged; }
+            if (verdict == AiNavigationSources.Verdict.Reordered) { changedSince = 0; return RebuildOutcome.Reordered; }
+            // 바뀌었다. 쉬는 중이면 묵힌다 — 스냅숏은 그대로 두어 다음 점검도 "바뀌었다" 로 본다.
+            if (comparable)
+            {
+                if (changedSince <= 0) changedSince = Time.realtimeSinceStartup;
+                if (!AiNavigationSources.BakeDue(demand, Time.realtimeSinceStartup - changedSince, IdleStaleSeconds))
+                    return RebuildOutcome.Deferred;
+            }
+            changedSince = 0;
             if (!comparable) AiNavigationSources.Sort(keys, currentSorted);
             else Accumulate(AiNavigationSources.Diff(bakedSorted, currentSorted, VoxelSize));
             bounds = region;
@@ -344,6 +411,13 @@ namespace Metagame.Network
 
         public bool CalculatePath(Vector3 from, Vector3 to, NavMeshPath path)
         {
+            // 묵히는 동안 누가 길을 물으면 센다 (S15P21B202-737). 명령으로 오는 길은 깨우기가 먼저 굽는다 —
+            // 그래도 여기 걸리면 그 길이 깨우기를 거치지 않는다는 뜻이다.
+            if (changedSince > 0)
+            {
+                idleStaleQueries++;
+                idleStaleMax = Mathf.Max(idleStaleMax, Time.realtimeSinceStartup - changedSince);
+            }
             if (!Ready || !Project(from, out var start) || !Project(to, out var end)) return false;
             return NavMesh.CalculatePath(start, end, NavMesh.AllAreas, path)
                 && path.status == NavMeshPathStatus.PathComplete;
@@ -370,6 +444,8 @@ namespace Metagame.Network
             bakeStartedAt = bakeTotalMs = bakeMaxMs = 0;
             window = default;
             controlledNow = controlledMax = 0; controlledOwner = controlledMaxOwner = null;
+            deferred = idleChecks = incomingChecks = workingChecks = idleStaleQueries = 0; idleStaleMax = 0;
+            changedSince = 0; lastDemand = AiNavigationSources.Demand.Idle;
             collectCost = filterCost = compareCost = scheduleCost = bakingFrames = quietFrames = default;
             sources.Clear(); sourceIsPart.Clear();
             keys.Clear(); bakedKeys.Clear(); bakedSorted.Clear(); currentSorted.Clear();

@@ -80,7 +80,7 @@ namespace Metagame.Gameplay.Tests
         public void EveryBakeOutcomeHasItsOwnCounter()
         {
             var update = TestSource.Method(TestSource.Read("Runtime/Network/AiNavigationWorld.cs"), "void Update()");
-            foreach (var outcome in new[] { "Busy", "Unchanged", "Reordered", "Baked" })
+            foreach (var outcome in new[] { "Busy", "Unchanged", "Reordered", "Deferred", "Baked" })
                 Assert.That(update, Does.Contain("case RebuildOutcome." + outcome + ":"), outcome + " 을 세는 칸이 없다");
             Assert.That(update, Does.Not.Contain("else unchanged++"), "안 구운 것을 한 칸에 몰아 센다");
         }
@@ -115,6 +115,22 @@ namespace Metagame.Gameplay.Tests
                 Assert.That(shared, Does.Not.Contain(banned), "조종 판정이 공용 판단에 들어갔다 — 베이커가 바닥을 덜 굽는다");
             var rebuild = TestSource.Method(source, "public RebuildOutcome Rebuild(");
             Assert.That(rebuild, Does.Contain("if (part != null && UnderControl(part))"), "굽는 고리가 조종 중인 파츠를 빼지 않는다");
+        }
+
+        /// <summary>
+        /// 수요는 <b>세 곳</b>에서 온다 — 일하는 동료, 말하고 있는 사람, 계획을 세우는 중 (S15P21B202-737).
+        /// 하나라도 빠지면 그 길로 오는 명령이 묵은 길로 첫 길을 묻는다. 서버 상태라 값으로 따라가기 어려워
+        /// 글자로 못박는다. 묵은 길을 물으면 세는 줄도 함께 — 그것이 이 판단이 틀렸는지 알려 주는 유일한 값이다.
+        /// </summary>
+        [Test]
+        public void DemandReadsWorkHearingAndPlanning()
+        {
+            string source = TestSource.Read("Runtime/Network/AiNavigationWorld.cs");
+            var demand = TestSource.Method(source, "static AiNavigationSources.Demand CurrentDemand()");
+            foreach (var needle in new[] { ".AiBusy", ".AiHearingOpen", "AiLocalRuntime.Current" })
+                Assert.That(demand, Does.Contain(needle), needle + " 를 안 본다 — 그 길로 오는 명령이 묵은 길을 묻는다");
+            var query = TestSource.Method(source, "public bool CalculatePath(");
+            Assert.That(query, Does.Contain("idleStaleQueries++;"), "묵은 길 물음을 안 센다 — 미루기가 틀려도 모른다");
         }
 
         static GameObject Box(string name, Vector3 center, Vector3 size)

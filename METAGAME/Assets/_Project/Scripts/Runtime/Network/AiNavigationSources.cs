@@ -194,5 +194,29 @@ namespace Metagame.Network
         /// 이미 파츠를 장애물로 본다.</para>
         /// </summary>
         public static bool MovesUnderControl(PartState state, bool ridden) => state == PartState.Carried || ridden;
+
+        /// <summary>
+        /// 지금 AI 가 <b>길을 쓸 일이 있는가</b> (S15P21B202-737).
+        ///
+        /// <list type="bullet">
+        /// <item><c>Working</c> — 동료 하나라도 일하는 중이다. 길을 계속 묻는다.</item>
+        /// <item><c>Incoming</c> — 명령이 오고 있다(누가 V 를 누르고 있거나, 계획을 세우는 중). 곧 길을 묻는다.</item>
+        /// <item><c>Idle</c> — 아무도 안 쓴다. 2026-09-23 로그의 판이 거의 전부 이 상태였다.</item>
+        /// </list>
+        /// </summary>
+        public enum Demand { Idle, Incoming, Working }
+
+        public static Demand DemandOf(bool anyAiBusy, bool plannerBusy, bool anyHearingOpen)
+            => anyAiBusy ? Demand.Working : plannerBusy || anyHearingOpen ? Demand.Incoming : Demand.Idle;
+
+        /// <summary>
+        /// 바뀐 세계를 <b>지금</b> 구울 때인가. 쉬는 동안에는 <paramref name="idleStaleSeconds"/> 만큼 묵은
+        /// 뒤에만 굽는다 — 운석이 파츠를 흔드는 동안 아무도 안 쓰는 길을 2초마다 새로 굽고 있었다.
+        /// </summary>
+        public static bool BakeDue(Demand demand, float staleFor, float idleStaleSeconds)
+            => demand != Demand.Idle || staleFor >= idleStaleSeconds;
+
+        /// <summary>쉬다가 쓸 일이 생겼는가 — 그 순간 기다리지 않고 한 번 굽는다.</summary>
+        public static bool Wakes(Demand before, Demand now) => before == Demand.Idle && now != Demand.Idle;
     }
 }

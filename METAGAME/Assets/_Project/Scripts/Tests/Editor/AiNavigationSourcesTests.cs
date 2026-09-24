@@ -158,6 +158,43 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
+        /// <b>누가 길을 쓸 일이 있는가</b> (S15P21B202-737). 일하는 동료가 있으면 작업, 말하는 중이거나
+        /// 계획을 세우는 중이면 예고, 아니면 쉼이다.
+        /// </summary>
+        [Test]
+        public void DemandComesFromWorkThenIncomingOrders()
+        {
+            Assert.That(AiNavigationSources.DemandOf(false, false, false), Is.EqualTo(AiNavigationSources.Demand.Idle));
+            Assert.That(AiNavigationSources.DemandOf(false, true, false), Is.EqualTo(AiNavigationSources.Demand.Incoming),
+                "계획을 세우는 중인데 쉰다고 본다 — 첫 길을 묵은 길로 묻는다");
+            Assert.That(AiNavigationSources.DemandOf(false, false, true), Is.EqualTo(AiNavigationSources.Demand.Incoming),
+                "누가 V 를 누르고 있는데 쉰다고 본다");
+            Assert.That(AiNavigationSources.DemandOf(true, false, false), Is.EqualTo(AiNavigationSources.Demand.Working));
+            Assert.That(AiNavigationSources.DemandOf(true, true, true), Is.EqualTo(AiNavigationSources.Demand.Working));
+        }
+
+        /// <summary>
+        /// 쉬는 동안에만 묵히고, <b>정확히</b> 그만큼 지나면 굽는다. 쓸 일이 생기면 기다리지 않는다.
+        /// </summary>
+        [Test]
+        public void IdleChangesWaitThenBakeAndAnyDemandBakesAtOnce()
+        {
+            float wait = AiNavigationWorld.IdleStaleSeconds;
+            Assert.That(AiNavigationSources.BakeDue(AiNavigationSources.Demand.Idle, 0f, wait), Is.False);
+            Assert.That(AiNavigationSources.BakeDue(AiNavigationSources.Demand.Idle, wait - .01f, wait), Is.False);
+            Assert.That(AiNavigationSources.BakeDue(AiNavigationSources.Demand.Idle, wait, wait), Is.True,
+                "묵힌 시간이 다 찼는데 안 굽는다 — 경계에서 한 주기가 더 밀린다");
+            Assert.That(AiNavigationSources.BakeDue(AiNavigationSources.Demand.Incoming, 0f, wait), Is.True);
+            Assert.That(AiNavigationSources.BakeDue(AiNavigationSources.Demand.Working, 0f, wait), Is.True);
+
+            Assert.That(AiNavigationSources.Wakes(AiNavigationSources.Demand.Idle, AiNavigationSources.Demand.Incoming), Is.True);
+            Assert.That(AiNavigationSources.Wakes(AiNavigationSources.Demand.Idle, AiNavigationSources.Demand.Working), Is.True);
+            Assert.That(AiNavigationSources.Wakes(AiNavigationSources.Demand.Incoming, AiNavigationSources.Demand.Working), Is.False,
+                "이미 깨어 있는데 또 깨운다 — 주기를 무시하고 매 프레임 굽는다");
+            Assert.That(AiNavigationSources.Wakes(AiNavigationSources.Demand.Idle, AiNavigationSources.Demand.Idle), Is.False);
+        }
+
+        /// <summary>
         /// <b>조종 중인 파츠</b>만 굽기에서 뺀다 (S15P21B202-737). 견인 빔에 들렸거나 누가 탔다. 내려놓인 ·
         /// 용접된 · 풀린 파츠는 제자리의 장애물이다.
         /// </summary>
