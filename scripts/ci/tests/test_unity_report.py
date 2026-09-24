@@ -128,11 +128,39 @@ assert "Meteor_Settles" in b, "새 실패는 나열해야 한다"
 assert "MovingAwayFromTheClamp_PullsIt" not in b.split("**새 실패**")[1], "기존 실패는 목록에서 빠져야 한다"
 print("  새 실패만 나열 ✅")
 
-# ── ⑨ 되살린 것도 알려 준다
-base_more = base_all | {"Metagame.Gameplay.Tests.Other.WasFailing"}
-b = R.body(d, [], base_more, "develop")
-assert "되살린" in b and "WasFailing" in b, b
-print("  되살린 테스트 표시 ✅")
+# ── ⑨ 되살린 것도 알려 준다 — 단 **이번에 돌아서 통과한 것만** (S15P21B202-621)
+#
+#     "지금 실패가 아니다" 로 세면 이번 실행에 **없는** 것(Heavy·지운 테스트)과 느린
+#     목록으로 **건너뛴** 것까지 이 MR 이 고친 것으로 적힌다. 기준선에 새벽 전체 실행이
+#     섞이면 Heavy 실패가 전부 그렇게 된다.
+#
+#     이 절은 `assert` 를 쓰지 않는다 — `python -O` 로 돌리면 통째로 사라진다.
+_revive_fails = []
+
+
+def _revive_check(ok, msg):
+    if not ok:
+        _revive_fails.append(msg)
+
+
+_PASSING = "Metagame.Gameplay.Tests.ClampPullTests.HoldingWithoutMoving_DoesNotPull"   # d 에서 Passed
+_GONE = "Metagame.Gameplay.Tests.Other.WasFailing"                                  # d 에 없다
+_SKIPPED = "Metagame.Gameplay.Tests.SlowTests.ListedOnSlowList"                     # 건너뛰었다
+_d_skip = dict(d, cases=d["cases"] + [{"cls": "Metagame.Gameplay.Tests.SlowTests", "name": "ListedOnSlowList",
+                                       "result": "Skipped", "msg": "", "time": "0"}])
+b = R.body(_d_skip, [], base_all | {_PASSING, _GONE, _SKIPPED}, "develop")
+_revive_check("| 이 MR 이 되살린 것 | 1 |" in b, "되살린 수가 1(이번에 통과한 것)이 아니다: " + b)
+_revive_check("`HoldingWithoutMoving_DoesNotPull`" in b, "이번에 통과한 기준선 실패를 되살린 것으로 적지 않는다")
+_revive_check("WasFailing" not in b, "이번 실행에 없는 테스트를 되살린 것으로 적는다 — Heavy·지운 테스트가 다 그렇게 된다")
+_revive_check("ListedOnSlowList" not in b, "건너뛴 테스트를 되살린 것으로 적는다 — 느린 목록이 전부 '고친 것' 이 된다")
+
+b = R.body(_d_skip, [], base_all | {_GONE, _SKIPPED}, "develop")
+_revive_check("되살린" not in b, "통과한 것이 하나도 없는데 되살린 것이 있다고 적는다: " + b)
+if _revive_fails:
+    for _m in _revive_fails:
+        print("  ❌ " + _m)
+    raise SystemExit(1)
+print("  되살린 테스트 표시 — 이번에 통과한 것만 ✅")
 
 # ── ⑩ 기준선 조회 — 대상 브랜치의 마지막 unity-compile 아티팩트를 쓴다
 CALLS = []

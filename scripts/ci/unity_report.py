@@ -526,7 +526,11 @@ def body(data: dict, errs: list[str], base: set | None, ref: str,
     # (S15P21B202-347). 조용히 빼면 테스트 격리 결함을 아무도 고치지 않는다.
     excused = sorted((flaky or set()) & set(now_fail))
     new = [k for k in now_fail if k not in base and k not in excused]
-    fixed = [k for k in base if k not in now_fail]
+    # **이번에 돌아서 통과한 것만** 되살린 것이다 (S15P21B202-621). "지금 실패가 아니다" 로
+    # 세면 이번 실행에 **아예 없는** 것(Heavy·지운 테스트)과 느린 목록으로 **건너뛴** 것까지
+    # 이 MR 이 고친 것으로 적힌다 — 기준선에 새벽 전체 실행이 섞이면 Heavy 실패가 전부 그렇다.
+    passed_now = {f'{c["cls"]}.{c["name"]}' for c in data["cases"] if c["result"] == "Passed"}
+    fixed = [k for k in base if k in passed_now]
     if not new:
         head = "✅ **Unity 컴파일 통과 · 이 MR 이 만든 테스트 실패 없음**"
         if excused:
