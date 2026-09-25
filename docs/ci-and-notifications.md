@@ -283,7 +283,7 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 
 | 항목 | 지난 프로젝트 | 이번 적용 |
 | --- | --- | --- |
-| 모델·effort | `claude-opus-5-5` + `--effort medium` | 동일 (`AI_REVIEW_MODEL`/`AI_REVIEW_EFFORT`) |
+| 모델·effort | `claude-opus-5` + `--effort medium` | `claude-opus-5-5` + `--effort medium` — 2026-09-25 에 모델만 올렸다 (`AI_REVIEW_MODEL`/`AI_REVIEW_EFFORT`) |
 | CLI 격리 플래그 | `--tools "" --setting-sources user --strict-mcp-config --disable-slash-commands --permission-mode dontAsk --no-session-persistence`, 호출마다 일회성 `CLAUDE_CONFIG_DIR` | 플래그 동일. 자격은 러너 호스트 사용자 프로필을 공유(`CLAUDE_CONFIG_DIR` 주입) — 단일 러너·단일 계정이라 일회성 디렉터리는 생략 |
 | 프롬프트 원칙 | MR 본문·diff는 untrusted 구분자로 감싸고, "diff에 없다 ≠ 저장소에 없다", 추측 금지, 한국어 출력 | 시스템 프롬프트에 반영 |
 | 실패 처리 | stdout/stderr 원문을 로그·코멘트에 남기지 않고 카테고리만(`rate_limit`·`authentication`·`server_error`·`network`·`invalid_request`), 인증·요청 오류는 재시도 안 함 | 카테고리 분류 로그 반영(비차단 잡이라 재시도는 파이프라인 재실행으로) |
