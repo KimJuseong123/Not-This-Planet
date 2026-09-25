@@ -129,33 +129,46 @@ namespace Metagame.Gameplay.Tests
         /// 지우고 보므로 이름으로는 단정할 수 없다.</para>
         ///
         /// <para><b>방 목록이 들어온 뒤에도 하나다</b> (S15P21B202-713). 이 자리의 켜기/끄기는 지웠고,
-        /// AI 수는 방 목록의 "AI 동료 추가" 와 줄마다의 × 가 정한다. 그 버튼은 <b>수만 요청한다</b> —
-        /// 받기나 다시 준비를 부르면 준비로 들어가는 입구가 둘이 된다. 추가를 누르면 설치 창이 뜨는
-        /// 흐름으로 바꿀 때 이 검사도 함께, 일부러 고친다.</para>
+        /// AI 수는 방 목록의 "AI 동료 추가" 와 줄마다의 × 가 정한다.</para>
+        ///
+        /// <para><b>설치 창이 들어온 뒤의 입구는 그 창이다</b> (S15P21B202-713, 일부러 고쳤다). 방장이 팩 없이
+        /// "AI 동료 추가" 를 누르면 설치 창이 묻고, 받기 → 설치 → 준비를 한 흐름으로 이어 간다. 상태 줄
+        /// (<c>AiRoomControls</c>)에 있던 임시 "AI 추가팩 준비" · "설치 취소" 버튼은 지웠다 — 남겨 두면 창과
+        /// 버튼이 서로 다른 단계를 보고 다른 것을 시킨다. 받기(<c>Installer.Begin</c>)와 다시 띄우기
+        /// (<c>Retry</c>)를 부르는 화면은 설치 창 하나다.</para>
         /// </summary>
         [Test] public void OneEntryPointCarriesTheWholePreparation()
         {
-            var draw = TestSource.Method(
-                TestSource.Read("Runtime/UI/AiRoomControls.cs"), "public static void Draw(");
-
-            Assert.That(TestSource.Count(draw, "Prepare(runtime)"), Is.EqualTo(1),
-                "준비로 들어가는 자리가 하나가 아니다 — 방장이 단계를 알아야 고를 수 있게 된다");
-            Assert.That(draw, Does.Not.Contain("Installer.Begin()"),
-                "받기를 화면이 직접 부른다 — 다시 갈라진다");
-            Assert.That(draw, Does.Not.Contain("runtime.Retry()"),
-                "다시 준비를 화면이 직접 부른다 — 다시 갈라진다");
-            Assert.That(draw, Does.Not.Contain("TrySetRequestedCount("),
+            string controls = TestSource.Read("Runtime/UI/AiRoomControls.cs");
+            Assert.That(TestSource.Count(controls, "UiInteraction.Button("), Is.Zero,
+                "상태 줄에 버튼이 돌아왔다 — 설치 창과 함께 준비로 들어가는 입구가 둘이 된다");
+            Assert.That(TestSource.Count(controls, "Installer.Begin("), Is.Zero, "상태 줄이 받기를 직접 부른다");
+            Assert.That(TestSource.Count(controls, "Retry()"), Is.Zero, "상태 줄이 다시 띄우기를 직접 부른다");
+            Assert.That(TestSource.Count(controls, "TrySetRequestedCount("), Is.Zero,
                 "AI 수를 바꾸는 버튼이 방 목록 밖에 또 있다 — 두 곳이 서로 다른 수를 보내게 된다");
+
+            string popup = TestSource.Read("Runtime/UI/AiInstallPopup.cs");
+            Assert.That(TestSource.Count(popup, "runtime.Installer.Begin()"), Is.EqualTo(1),
+                "설치 창이 받기를 시키지 않거나, 두 자리에서 시킨다");
+            string ui = System.IO.Path.Combine(UnityEngine.Application.dataPath, "_Project", "Scripts", "Runtime", "UI");
+            foreach (string file in System.IO.Directory.GetFiles(ui, "*.cs"))
+            {
+                if (System.IO.Path.GetFileName(file) == "AiInstallPopup.cs") continue;
+                Assert.That(TestSource.Count(System.IO.File.ReadAllText(file), "Installer.Begin("), Is.Zero,
+                    System.IO.Path.GetFileName(file) + " 가 받기를 직접 부른다 — 설치 창 말고 입구가 또 생겼다");
+            }
 
             string lobby = TestSource.Read("Runtime/UI/LobbyHud.cs");
             Assert.That(TestSource.Count(lobby, "AiHostSettings.TrySetRequestedCount("), Is.EqualTo(1),
                 "방 화면에서 AI 수를 보내는 자리가 하나가 아니다");
             Assert.That(TestSource.Count(lobby, "Installer"), Is.Zero,
-                "방 목록이 받기를 직접 부른다 — 준비로 들어가는 입구가 둘이 된다");
+                "방 화면이 설치기를 직접 만진다 — 설치 창과 입구가 둘이 된다");
             Assert.That(TestSource.Count(lobby, "Retry()"), Is.Zero,
-                "방 목록이 다시 준비를 직접 부른다 — 준비로 들어가는 입구가 둘이 된다");
+                "방 화면이 다시 띄우기를 직접 부른다 — 설치 창과 입구가 둘이 된다");
+            Assert.That(TestSource.Count(lobby, "Popup.Begin("), Is.EqualTo(2),
+                "설치 창을 여는 자리가 \"AI 동료 추가\" 와 \"다시 시도\" 둘이 아니다");
             Assert.That(TestSource.Count(lobby, "AiRoomControls.Draw("), Is.EqualTo(1),
-                "로비의 준비 버튼이 사라졌거나 둘이 됐다 — 팩이 없는 방장이 받을 길이 없다");
+                "로비의 상태 줄이 사라졌거나 둘이 됐다");
         }
     }
 }

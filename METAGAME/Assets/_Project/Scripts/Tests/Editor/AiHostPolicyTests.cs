@@ -160,6 +160,42 @@ namespace Metagame.Gameplay.Tests
             Assert.That(AiHostSettings.RuntimeState, Is.EqualTo(AiRuntimeState.Missing));
         }
 
+        /// <summary>
+        /// 설치 창의 "워커를 기다린다" 는 대기 중인 방장만 켤 수 있고, 방을 떠나면 내려간다 (S15P21B202-713).
+        /// 남으면 AI 없는 판 내내 워커가 돈다. 끄는 것은 언제나 된다 — 방장이 아니게 된 뒤에도 내릴 수 있어야 한다.
+        /// </summary>
+        [TestCase("WAITING", 0, true)]
+        [TestCase("WAITING", 1, false)]
+        [TestCase("PLAYING", 0, false)]
+        public void OnlyTheWaitingHostCanHoldTheWorker(string status, long host, bool allowed)
+        {
+            var session = CreateLobby(status, host);
+            try
+            {
+                Assert.That(AiHostSettings.TrySetPreparing(true), Is.EqualTo(allowed));
+                Assert.That(AiHostSettings.Preparing, Is.EqualTo(allowed));
+                Assert.That(AiHostSettings.RequestedCount, Is.Zero, "기다린다고 AI 수가 바뀌었다 — 취소해도 줄이 남는다");
+                Assert.That(AiHostSettings.TrySetPreparing(false), Is.True, "내릴 수 없다");
+                Assert.That(AiHostSettings.Preparing, Is.False);
+
+                AiHostSettings.TrySetPreparing(true);
+                AiHostSettings.AdoptRoom(null);
+                Assert.That(AiHostSettings.Preparing, Is.False, "방을 떠났는데 워커를 붙잡고 있다");
+
+                AiHostSettings.TrySetPreparing(true);
+                AiHostSettings.BeginRoom();
+                Assert.That(AiHostSettings.Preparing, Is.False, "새 방에 지난 방의 기다림이 남았다");
+            }
+            finally { Object.DestroyImmediate(session.gameObject); }
+        }
+
+        /// <summary>팩이 없는 방장의 판을 참가자도 이 말로 본다. 속사정("실행 기능 미연결")이 아니라 결과만 말한다.</summary>
+        [Test]
+        public void AMissingRuntimeSaysOnlyWhatItMeans()
+        {
+            Assert.That(AiHostPolicy.Label(AiRoomState.Missing), Is.EqualTo("AI 동료를 쓸 수 없어요 · 사람만 플레이"));
+        }
+
         [Test]
         public void NoHostCannotChangeTheRoomOrProduceServerState()
         {

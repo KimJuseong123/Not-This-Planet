@@ -95,9 +95,10 @@ namespace Metagame.UI
         /// 비우고 다시 채운다 — 매번 새 목록을 만들지 않는다.</para>
         /// </summary>
         /// <param name="hostRuntime">이 PC 의 AI 실행기 상태. 이 PC 가 방장일 때만 읽는다</param>
+        /// <param name="loading">데우는 중일 때 "준비 중" 뒤에 붙일 남은 시간(<c>"약 3분 남음"</c>). 방장 화면에만 붙는다</param>
         public static List<RosterRow> Rows(RoomSnapshot room, long localUserId,
                                            AiRuntimeState hostRuntime = AiRuntimeState.Missing,
-                                           List<RosterRow> into = null)
+                                           List<RosterRow> into = null, string loading = null)
         {
             List<RosterRow> rows = into ?? new List<RosterRow>();
             rows.Clear();
@@ -120,7 +121,11 @@ namespace Metagame.UI
                     canRemove && !local ? RosterRemove.Kick : RosterRemove.None, tone));
             }
 
-            string status = hostView ? " · " + AiStatus(hostRuntime) : string.Empty;
+            // 데우는 중이면 얼마나 남았는지도 적는다 (S15P21B202-713). 게임은 그동안에도 시작할 수 있고 AI 는
+            // 준비되는 대로 판에 들어온다 — 방장이 기다릴지 먼저 시작할지 고르려면 남은 시간이 있어야 한다.
+            string status = !hostView ? string.Empty
+                : " · " + AiStatus(hostRuntime)
+                  + (hostRuntime == AiRuntimeState.Loading && !string.IsNullOrEmpty(loading) ? " · " + loading : string.Empty);
             for (int n = 1; n <= room.AiCount; n++)
                 rows.Add(new RosterRow("AI 동료 " + n + status, true, false, false, 0,
                     canRemove ? RosterRemove.DropAi : RosterRemove.None, RosterTone.Ai));

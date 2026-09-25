@@ -225,7 +225,7 @@ namespace Metagame.UI
 
             float aiTop = (showRetry ? 382f : 318f) * scale;
             AiRoomControls.Draw(new Rect(x + 24f * scale, y + aiTop,
-                panelWidth - 48f * scale, 78f * scale), quietButtonStyle, hintStyle, false);
+                panelWidth - 48f * scale, 78f * scale), hintStyle, false);
             ProximityVoiceMenu.Draw(new Rect(x + 24f * scale, y + aiTop + 87f * scale,
                 panelWidth - 48f * scale, 76f * scale));
 

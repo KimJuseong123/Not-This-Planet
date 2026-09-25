@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using Metagame.Network;
+using Metagame.UI;
 using NUnit.Framework;
 
 namespace Metagame.Gameplay.Tests
@@ -16,7 +17,7 @@ namespace Metagame.Gameplay.Tests
     public sealed class AiPrepTextTests
     {
         /// <summary>화면에 나오면 안 되는 말. 방장에게는 속사정이고, 겁만 준다.</summary>
-        static readonly string[] Banned =
+        internal static readonly string[] Banned =
         {
             "모델", "데우", "첫 실행", "warm", "cold", "슬롯", "slot", "캐시", "cache",
             "llm", "워커", "worker", ".zip", "압축", "추가팩", "/", "\\",
@@ -107,7 +108,65 @@ namespace Metagame.Gameplay.Tests
                 "공간이 모자란데 얼마를 비워야 하는지 말하지 않는다 — 방장이 할 수 있는 것이 없다");
         }
 
-        static IEnumerable<AiPrepSnapshot> Every()
+        /// <summary>
+        /// 설치 창과 방 화면의 상태 줄도 <b>방장의 말로만</b> 되어 있다 (S15P21B202-713). 창의 제목·버튼·본문,
+        /// 방장 AI 줄의 남은 시간, 상태 줄이 낼 수 있는 모든 글자를 그려 본다.
+        ///
+        /// <para>상태 줄은 전에 실행기·설치기의 로그 글자를 그대로 보였다 — "추가팩 로딩 중", "LLM 판단",
+        /// "추가팩 없음: C:\…". 이제 그 글자는 로그에만 간다.</para>
+        /// </summary>
+        [Test] public void NothingInTheInstallWindowSpeaksInternals()
+        {
+            int drawn = 0;
+            foreach (string text in WindowTexts())
+            {
+                Assert.That(text, Is.Not.Null.And.Not.Empty, "창이나 상태 줄의 글자가 비었다");
+                string lower = text.ToLowerInvariant();
+                foreach (string word in Banned)
+                    Assert.That(lower, Does.Not.Contain(word), "창·상태 줄 글자에 \"" + word + "\" 가 나온다: " + text);
+                drawn++;
+            }
+            Assert.That(drawn, Is.GreaterThan(Enum.GetValues(typeof(AiPrepPhase)).Length * Enum.GetValues(typeof(AiPrepFailure)).Length),
+                "창이 낼 수 있는 글자를 다 그리지 않았다");
+
+            // "완료" 는 끝에서만 — 설치가 끝났을 뿐인데 끝났다고 하면 방장은 AI 가 왜 안 오는지 모른다.
+            foreach (AiAddStep step in Enum.GetValues(typeof(AiAddStep)))
+            {
+                if (step == AiAddStep.Done) continue;
+                Assert.That(AiAddFlow.Title(step), Does.Not.Contain("완료"), step + " 에서 끝나기 전에 완료라고 한다");
+                foreach (AiPrepFailure failure in Enum.GetValues(typeof(AiPrepFailure)))
+                    Assert.That(AiAddFlow.Buttons(step, failure), Has.No.Member(AiAddButton.Finish), step + " 에 완료 버튼이 있다");
+            }
+        }
+
+        /// <summary>
+        /// 설치 창과 방 화면이 낼 수 있는 글자 전부 — 금지어 검사와 글꼴 예열 검사(<c>AiAddFlowTests</c>)가 함께 쓴다.
+        /// 창의 본문은 흐름을 실제로 돌려 얻는다.
+        /// </summary>
+        internal static IEnumerable<string> WindowTexts()
+        {
+            foreach (AiAddStep step in Enum.GetValues(typeof(AiAddStep)))
+            {
+                if (step != AiAddStep.Idle) yield return AiAddFlow.Title(step);
+                foreach (AiPrepFailure failure in Enum.GetValues(typeof(AiPrepFailure)))
+                    foreach (AiAddButton button in AiAddFlow.Buttons(step, failure))
+                        yield return AiAddFlow.Label(button);
+            }
+            yield return AiAddFlow.RetryRuntimeLabel;
+            foreach (AiRoomState state in Enum.GetValues(typeof(AiRoomState)))
+                yield return AiAddFlow.HostStatus(state, false, AiRuntimeState.Ready, default);
+            foreach (var s in Every())
+            {
+                yield return AiAddFlow.HostStatus(AiRoomState.Off, true, AiRuntimeState.Missing, s);
+                yield return AiAddFlow.HostStatus(AiRoomState.Loading, false, AiRuntimeState.Loading, s);
+                yield return AiAddFlow.RemainingText(s);
+                if (s.Phase == AiPrepPhase.Start)
+                    yield return AiPrepProgress.Display(AiAddFlow.Warming(s, s.Elapsed, s.WarmupElapsed, s.WarmupExpected, s.Progress));
+            }
+            foreach (string body in AiAddFlowTests.EveryBody()) yield return body;
+        }
+
+        internal static IEnumerable<AiPrepSnapshot> Every()
         {
             foreach (AiPrepPhase phase in Enum.GetValues(typeof(AiPrepPhase)))
             foreach (AiPrepFailure failure in Enum.GetValues(typeof(AiPrepFailure)))

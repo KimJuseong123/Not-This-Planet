@@ -174,6 +174,26 @@ namespace Metagame.Gameplay.Tests
                 "참가자 화면에 자기 PC 의 실행기 상태가 AI 상태처럼 적혔다");
         }
 
+        /// <summary>
+        /// 데우는 중이면 방장의 AI 줄이 <b>얼마나 남았는지</b> 말한다 (S15P21B202-713). 게임은 그동안에도 시작할 수
+        /// 있다 — 기다릴지 먼저 시작할지 고르려면 남은 시간이 있어야 한다. 참가자 화면과 다른 상태에는 붙지 않는다.
+        /// </summary>
+        [Test]
+        public void TheHostsWarmingRowSaysHowLongIsLeft()
+        {
+            RoomSnapshot room = Room(humans: 2, ai: 1);
+            const string left = "약 3분 남음";
+
+            Assert.That(LobbyRoster.Rows(room, Host, AiRuntimeState.Loading, null, left)[2].Label,
+                Is.EqualTo("AI 동료 1 · 준비 중 · 약 3분 남음"));
+            Assert.That(LobbyRoster.Rows(room, 2, AiRuntimeState.Loading, null, left)[2].Label, Is.EqualTo("AI 동료 1"),
+                "참가자 화면에 방장 PC 의 남은 시간이 적혔다");
+            Assert.That(LobbyRoster.Rows(room, Host, AiRuntimeState.Ready, null, left)[2].Label,
+                Is.EqualTo("AI 동료 1 · " + LobbyRoster.AiStatus(AiRuntimeState.Ready)), "준비가 끝났는데 남은 시간을 댄다");
+            Assert.That(LobbyRoster.Rows(room, Host, AiRuntimeState.Loading)[2].Label,
+                Is.EqualTo("AI 동료 1 · " + LobbyRoster.AiStatus(AiRuntimeState.Loading)));
+        }
+
         /// <summary>실행기 상태마다 다른 말이 나온다 — 같으면 방장이 준비 중인지 실패인지 모른다.</summary>
         [Test]
         public void EveryRuntimeStateSaysSomethingDifferent()
@@ -345,6 +365,22 @@ namespace Metagame.Gameplay.Tests
             => Assert.That(LobbyRoster.AiStatus(AiRuntimeState.Missing), Is.Not.EqualTo("준비 필요"),
                 "팩을 받은 방장에게 \"준비 필요\" 라고 한다 — 워커는 AI 수가 0 이면 꺼져 있다");
 
+        /// <summary>
+        /// 설치 창이 열려 있는 동안 <b>로그인·연결 화면의 버튼도</b> 막힌다 (S15P21B202-713 리뷰). 받는 중에 로비
+        /// 소켓이 끊기면 창은 그대로인데 그 뒤로 연결 화면이 그려지고, 거기서 켜 버린 버튼이 창을 뚫고 눌렸다.
+        /// </summary>
+        [Test]
+        public void TheLoginAndConnectButtonsRespectThePopup()
+        {
+            string lobby = TestSource.Read("Runtime/UI/LobbyHud.cs");
+            foreach (var method in new[] { "private void DrawLogin(", "private void DrawConnecting(" })
+            {
+                string body = TestSource.Method(lobby, method);
+                Assert.That(body, Does.Contain("bool enabledBefore = GUI.enabled;"), method + " 가 들어온 값을 안 본다");
+                Assert.That(body, Does.Not.Contain("GUI.enabled = true;"), method + " 가 창이 꺼 둔 버튼을 켠다");
+            }
+        }
+
         // ---------- 글자 ----------
 
         /// <summary>
@@ -392,15 +428,20 @@ namespace Metagame.Gameplay.Tests
             string lobby = TestSource.Read("Runtime/UI/LobbyHud.cs");
             string draw = TestSource.Method(lobby, "private void DrawRoom(");
 
-            Assert.That(draw, Does.Contain("LobbyRoster.Rows(room, network.UserId, AiHostSettings.RuntimeState, rosterRows);"),
+            Assert.That(draw, Does.Contain("LobbyRoster.Rows(room, network.UserId, AiHostSettings.RuntimeState, rosterRows,"),
                 "방 목록을 LobbyRoster 로 만들지 않는다");
+            Assert.That(draw, Does.Contain("AiRoomControls.LoadingText());"), "방장의 AI 줄이 남은 시간을 모른다");
             Assert.That(draw, Does.Not.Contain("room.Players"),
                 "사람 줄을 목록 밖에서 따로 그린다 — AI 줄과 × 규칙이 두 벌이 된다");
             Assert.That(draw, Does.Contain("LobbyRoster.CanPress(row, pending, kickAsked,").And.Contain("Time.unscaledTime >= removeSettleUntil"),
                 "답을 기다리는 동안 AI 줄의 × 가, 내보내는 동안 그 사람의 × 가 눌린다");
             Assert.That(draw, Does.Contain("LobbyRoster.Add(room, network.UserId, pending);"),
                 "추가 버튼이 막힌 이유를 모른다");
-            Assert.That(draw, Does.Contain("AskAi(room.AiCount + 1);"), "추가 버튼이 하나씩 넣지 않는다");
+            // 추가 버튼은 바로 넣지 않고 설치 창을 거친다 (S15P21B202-713). 넣는 것은 AddAiNow 한 곳이다.
+            Assert.That(draw, Does.Contain("Popup.Begin(true);"), "추가 버튼이 설치 창을 거치지 않는다 — 팩이 없는 방장이 AI 를 넣는다");
+            Assert.That(draw, Does.Not.Contain("AskAi("), "추가 버튼이 팩을 보지 않고 바로 넣는다");
+            Assert.That(TestSource.Method(lobby, "private string AddAiNow("), Does.Contain("AskAi(room.AiCount + 1);"),
+                "추가가 하나씩 넣지 않는다");
             Assert.That(draw, Does.Contain("room.AllReady;"), "시작 조건이 사람의 준비만 보지 않는다");
 
             string remove = TestSource.Method(lobby, "private void RemoveRow(");
