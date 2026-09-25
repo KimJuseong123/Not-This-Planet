@@ -39,10 +39,39 @@ class PortableTests(unittest.TestCase):
         self.assertEqual(paths, {"/api/health", "/api/shutdown", "/api/companion-v4/text", "/api/companion-v4/voice", "/api/companion-social/text", "/api/companion-plan/text", "/api/companion-plan/voice"})
 
     def test_voice_uses_current_plan_classifier(self):
+        # 규칙이 못 정하는 말이어야 판단기까지 간다 (S15P21B202-741)
         w = self.worker(); w.state = "ready"
-        with patch.object(w, "transcribe", return_value="못 다 뽑아줘"), patch.object(p.companion_plan, "classify", return_value={"status": "ok", "orders": []}) as classify:
+        with patch.object(w, "transcribe", return_value="저것 좀 어떻게 해 봐"), patch.object(p.companion_plan, "classify", return_value={"status": "ok", "orders": []}) as classify:
             w.execute(raw=b"audio", plan=True)
-            classify.assert_called_once_with("못 다 뽑아줘", w.url)
+            classify.assert_called_once_with("저것 좀 어떻게 해 봐", w.url)
+
+    def test_rules_decide_without_calling_the_model(self):
+        """낱말 규칙이 정하면 **판단기를 부르지 않는다** (S15P21B202-741).
+
+        목표는 말이 끝난 뒤 행동이 정해질 때까지의 시간이다. 2026-09-25 녹음 74개에서
+        판단기만 쓰면 6.4초, 규칙을 먼저 보면 2.0초였다(51개를 판단기 없이 정했다).
+        """
+        w = self.worker(); w.state = "ready"
+        with patch.object(w, "transcribe", return_value="못 하나만 빼 줘"), \
+             patch.object(p.companion_plan, "classify", side_effect=AssertionError("no model call")):
+            result = w.execute(raw=b"audio", plan=True)
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["orders"][0]["steps"][0]["action"], "pull_pin")
+        self.assertEqual(result["decided_by"], "rules")
+        # 게임 로그는 판단 시간 0 으로 "규칙이 정했다" 를 안다 — 받아쓰기 시간은 그대로 있어야 한다
+        self.assertEqual(result["llm_ms"], 0)
+        self.assertEqual(result["text"], "못 하나만 빼 줘")
+        self.assertIn("asr_ms", result)
+        # 게임이 받는 꼴은 판단기의 것과 같다
+        self.assertEqual(p.companion_plan.validate({"status": result["status"], "orders": result["orders"]})["status"], "ok")
+
+    def test_a_stop_word_never_starts_work(self):
+        """`춤추지 마` 에 춤추지 않는다 — 멈춤·부정문은 규칙에서도 cancel 이다 (S15P21B202-736 · -741)."""
+        w = self.worker(); w.state = "ready"
+        with patch.object(p.companion_plan, "classify", side_effect=AssertionError("no model call")):
+            for said in ("춤추지 마", "그만해", "하던 거 멈춰"):
+                steps = w.execute(text=said, plan=True)["orders"][0]["steps"]
+                self.assertEqual([s["action"] for s in steps], ["cancel"], said)
 
     def test_the_two_slow_parts_are_reported_apart(self):
         """받아쓰기와 판단을 **따로** 돌려준다 (S15P21B202-734).
@@ -54,7 +83,7 @@ class PortableTests(unittest.TestCase):
 
         def slow_transcribe(_raw):
             time.sleep(.05)
-            return "초록아 고정못 뽑아"
+            return "저것 좀 어떻게 해 봐"
 
         with patch.object(w, "transcribe", side_effect=slow_transcribe), \
              patch.object(p.companion_plan, "classify",
@@ -74,11 +103,11 @@ class PortableTests(unittest.TestCase):
         측정에서 실제로 받아쓰기를 애먼 곳에서 의심하게 만들었다.
         """
         w = self.worker(); w.state = "ready"
-        with patch.object(w, "transcribe", return_value="나머지는 고정못 뽑아"), \
+        with patch.object(w, "transcribe", return_value="나머지는 저것 좀 어떻게 해 봐"), \
              patch.object(p.companion_plan, "classify", side_effect=ValueError("Invalid recipients")):
             result = w.execute(raw=b"audio", plan=True)
         self.assertEqual(result["status"], "none")
-        self.assertEqual(result["text"], "나머지는 고정못 뽑아")
+        self.assertEqual(result["text"], "나머지는 저것 좀 어떻게 해 봐")
 
     def test_silence_reports_an_empty_transcript_not_a_missing_one(self):
         """빈 받아쓰기도 `text` 자리를 비워 둔 채 돌려준다 (S15P21B202-727).

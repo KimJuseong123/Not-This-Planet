@@ -429,7 +429,7 @@ namespace Metagame.Network
             }
         }
 
-        public bool SendVoice(byte[] wav, NetPlayer requester, AiGroupOrders group)
+        public bool SendVoice(byte[] wav, NetPlayer requester, AiGroupOrders group, int target = AiTalkKeys.Anyone)
         {
             var session = GameSession.Instance;
             if (Busy || State != AiRuntimeState.Ready || !NetworkServer.active || session == null
@@ -440,12 +440,12 @@ namespace Metagame.Network
             if (group == null || group.Count == 0) return false;
             NetPlayer nearest = group.Nearest;
             Busy = true;
-            StartCoroutine(ClassifyVoice(wav, requester, speaker, group, nearest, session, generation));
+            StartCoroutine(ClassifyVoice(wav, requester, speaker, group, nearest, session, generation, target));
             return true;
         }
 
         IEnumerator ClassifyVoice(byte[] wav, NetPlayer requester, PlayerRig speaker, AiGroupOrders group,
-            NetPlayer selected, GameSession session, int epoch)
+            NetPlayer selected, GameSession session, int epoch, int target)
         {
             var form = new WWWForm();
             form.AddBinaryData("audio", wav, "command.wav", "audio/wav");
@@ -472,8 +472,14 @@ namespace Metagame.Network
                 // 목소리로 되풀이하는 것 말고 할 수 있는 것이 없다.
                 if (result == null || result.status != "ok" || !AiCommandPlan.Valid(result.orders))
                 { requester.ReportAiVoice(Heard(result) + "명령으로 알아듣지 못했어요"); yield break; }
+                // **버튼으로 골랐으면 말 속의 대상을 버튼의 색으로 덮는다** (S15P21B202-738).
+                // 받아쓰기가 색을 틀리거나 LLM 이 대상을 잘못 골라도 버튼의 동료가 한다.
+                // 원래 계획은 위의 ReportPlan 이 이미 남겼으므로, 덮은 뒤의 모양만 한 줄 더 남긴다.
+                var orders = AiCommandPlan.ForTarget(result.orders, target);
+                if (target != AiTalkKeys.Anyone)
+                    UnityEngine.Debug.Log("[AI] 버튼 대상 " + TeamSlots.Name(target) + " · " + AiCommandPlan.Describe(orders));
                 // Snapshot membership/revisions prevents delayed replies from replacing newer orders.
-                Message = group.ExecutePlan(result.orders, AiRecipients.Selected, selected, speaker);
+                Message = group.ExecutePlan(orders, AiRecipients.Selected, selected, speaker);
                 // **무엇을 시켰는지 보여 준다** (S15P21B202-736). 전에는 개수뿐이라, 헛말이
                 // 춤으로 실행돼도 플레이어는 동료가 왜 춤추는지 알 수 없었다.
                 //
@@ -481,7 +487,7 @@ namespace Metagame.Network
                 // "지금 수행할 수 있는 AI 동료가 없어요" 라서, 쓰러진 채 말한 사람은
                 // 자기가 기절해서인지 동료가 바빠서인지 알 수 없었다.
                 requester.ReportAiVoice(group.LastAccepted > 0
-                    ? Heard(result) + (AiCommandPlan.Spoken(result.orders) ?? "명령") + " 시켰어요"
+                    ? Heard(result) + (AiCommandPlan.Spoken(orders) ?? "명령") + " 시켰어요"
                     : Heard(result) + (group.LastRefusal ?? "지금 수행할 수 있는 AI 동료가 없어요"));
             }
         }

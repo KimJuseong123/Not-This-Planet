@@ -366,8 +366,7 @@ def user_payload(mr: dict, title: str, issue_txt: str, info: dict, role: str) ->
             f"# Jira 이슈 (신뢰 가능한 메타데이터)\n{issue_txt}\n\n"
             f"# 변경 요약\n코드 파일 {len(info['code'])} · Assets/설정 파일 {len(info['assets'])} · 텍스트 diff 제외 {len(info['skipped'])}\n"
             + (f"diff 를 담지 못한 텍스트 파일: {' · '.join(missing[:20])}\n" if missing else "")
-            + ""
-            f"바뀐 .unity/.prefab (diff 에서 계산 — MR 본문의 선언이 아니다): {', '.join(info['scene_like']) or '없음'}\n")
+            + f"바뀐 .unity/.prefab (diff 에서 계산 — MR 본문의 선언이 아니다): {', '.join(info['scene_like']) or '없음'}\n")
     if role == "assets":
         listing = "\n".join(info["assets"][:400]) or "(없음)"
         diff, note = clip(info['diff'], 30000, "diff")

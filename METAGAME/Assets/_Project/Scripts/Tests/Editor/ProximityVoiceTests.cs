@@ -35,7 +35,7 @@ namespace Metagame.Gameplay.Tests
         }
 
         /// <summary>
-        /// 마이크는 <b>V 를 누르는 동안에만</b> 열린다 (S15P21B202-705).
+        /// 마이크는 <b>V 를 누르는 동안에만</b> 열린다 (S15P21B202-705). 1~4 는 대상을 고를 뿐이다(-738).
         ///
         /// <para><b>값으로는 볼 수 없다.</b> 확인하려면 진짜 마이크 장치가 있어야 하고, CI 에는
         /// 없다. 그래서 문을 여는 조건 자체를 글자로 못박는다.</para>
@@ -48,8 +48,9 @@ namespace Metagame.Gameplay.Tests
             var update = TestSource.Method(
                 TestSource.Read("Runtime/Network/ProximityVoice.cs"), "void Update()");
 
-            Assert.That(update, Does.Contain("Input.GetKey(KeyCode.V)"),
-                "V 를 보지 않는다 — 무엇이 마이크를 여는지 알 수 없다");
+            Assert.That(update, Does.Contain("AiTalkKeys.TalkHeld()"),
+                "V 를 보지 않는다 — 무엇이 마이크를 여는지 알 수 없다. 녹음하는 쪽과 다른 키를 "
+                + "보면 녹음은 도는데 마이크는 닫혀 있다(-738)");
             Assert.That(update, Does.Contain("Time.unscaledTime < holdUntil"),
                 "여는 조건이 V 에 매여 있지 않다. 이 줄이 빠지면 마이크가 상시로 열린다");
             Assert.That(update, Does.Contain("if (!allowed) { Stop(); return; }"),
@@ -118,7 +119,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(update, Does.Not.Contain("ReleaseTail"),
                 "보내는 쪽이 제 시계로 꼬리를 잰다. 두 상수가 같아도 기준 프레임과 시계가 달라 "
                 + "마이크가 늘 먼저 닫히고, 그 틈에 멀쩡한 녹음이 버려진다");
-            Assert.That(update, Does.Not.Contain("Input.GetKeyUp(KeyCode.V)"),
+            Assert.That(update, Does.Not.Contain("GetKeyUp"),
                 "놓자마자 보낸다 — 마이크가 꼬리만큼 더 받은 마지막 조각이 실려 가지 않는다");
         }
 
@@ -140,9 +141,175 @@ namespace Metagame.Gameplay.Tests
 
             int line = update.LastIndexOf("if (recording", guard, System.StringComparison.Ordinal);
             Assert.That(line, Is.GreaterThanOrEqualTo(0));
-            Assert.That(update.Substring(line, guard - line), Does.Contain("Input.GetKey(KeyCode.V)"),
+            Assert.That(update.Substring(line, guard - line), Does.Contain("AiTalkKeys.TalkHeld()"),
                 "V 를 놓은 뒤에도 이 가드가 걸린다 — 마이크가 닫히는 것은 그때 정상인데, "
                 + "0.6초 넘는 멀쩡한 녹음이 전부 취소된다");
+        }
+
+        /// <summary>
+        /// <b>숫자키는 대상을 고를 뿐 마이크를 열지 않는다</b> (S15P21B202-738).
+        ///
+        /// <para>1~4 를 누른 채 말하게 하면 손이 이동 키에서 떨어진다. 그래서 고르기와 말하기를
+        /// 나눴다 — 1~4 가 마이크를 열면 그 약속이 깨지고, 대상을 고를 때마다 마이크가 켜진다.</para>
+        /// </summary>
+        [Test] public void TheNumberKeysPickSeatsAndNeverOpenTheMicrophone()
+        {
+            Assert.That(Controls.AiTalk, Is.EqualTo(KeyCode.V), "말하기 키가 V 가 아니다");
+            Assert.That(AiTalkKeys.KeyFor(0), Is.EqualTo(KeyCode.Alpha1));
+            Assert.That(AiTalkKeys.KeyFor(3), Is.EqualTo(KeyCode.Alpha4));
+            Assert.That(AiTalkKeys.KeyFor(TeamSlots.Count), Is.EqualTo(KeyCode.None), "범위 밖 자리가 키를 얻었다");
+            Assert.That(AiTalkKeys.Cap(0), Is.EqualTo("1"), "키캡에 적힌 글자가 아니다");
+            Assert.That(Controls.AiTargetKeys.Count, Is.EqualTo(TeamSlots.Count), "자리 수와 고르기 키 수가 다르다");
+
+            var mic = TestSource.Blank(TestSource.Method(
+                TestSource.Read("Runtime/Network/ProximityVoice.cs"), "void Update()"));
+            Assert.That(mic, Does.Contain("AiTalkKeys.TalkHeld()"), "마이크가 V 를 보지 않는다");
+            Assert.That(mic, Does.Not.Contain("TargetPressed").And.Not.Contain("AiTargetKeys"),
+                "고르기 키가 마이크를 연다 — 대상을 고를 때마다 마이크가 켜진다");
+        }
+
+        /// <summary>
+        /// 녹음하는 쪽이 <b>키를 직접 읽지 않는다</b> — 표는 한 곳이다 (S15P21B202-738).
+        /// 그리고 <b>녹음 중에는 대상을 바꾸지 않는다</b> — 서버는 말하기를 시작할 때 이미 그
+        /// 대상을 붙잡았으므로, 바꾸면 화면과 실제가 갈린다.
+        /// </summary>
+        [Test] public void TheRecorderReadsKeysOnlyThroughTheTable()
+        {
+            var update = TestSource.Blank(TestSource.Method(
+                TestSource.Read("Runtime/UI/AiVoiceControls.cs"), "void Update()"));
+            Assert.That(update, Does.Not.Contain("KeyCode."), "키를 직접 읽는다 — 표가 두 벌이 된다");
+            Assert.That(update, Does.Contain("if (Ready && !recording && AiTalkKeys.TargetPressed(out int pressed))"),
+                "녹음 중에도 대상이 바뀐다 — 화면은 새 색인데 서버는 앞 대상에게 보낸다");
+            Assert.That(update, Does.Contain("AiTalkKeys.TalkPressed()"), "V 로 말하지 않는다");
+            Assert.That(update, Does.Contain("int target = selectedTarget;"), "고른 대상으로 녹음하지 않는다");
+            Assert.That(update, Does.Contain("BeginAiListening(target)"), "고른 대상을 서버에 보내지 않는다");
+            Assert.That(update, Does.Contain("TalkProblem(selectedTarget, seats, VoiceRules.Range)"),
+                "말할 수 없는 대상인데 V 가 녹음을 시작한다");
+        }
+
+        static AiSeatView Seat(int slot, bool ai = true, bool mine = false, bool downed = false, float distance = 5f)
+            => new AiSeatView { Slot = slot, Occupied = true, Ai = ai, Mine = mine, Downed = downed, Distance = distance };
+
+        static AiSeatView Empty(int slot) => new AiSeatView { Slot = slot, Distance = float.PositiveInfinity };
+
+        /// <summary>
+        /// <b>고르기</b>는 같은 키를 다시 누르면 풀리고, AI 가 없는 자리는 고르지 않는다
+        /// (S15P21B202-738). 1~4 는 자리에 묶일 뿐 <b>누가 앉았는지는 모른다</b> — 사람일 수도,
+        /// 비어 있을 수도 있다.
+        /// </summary>
+        [Test] public void PickingASeatTogglesAndSkipsSeatsWithoutAnAi()
+        {
+            var seats = new List<AiSeatView> { Seat(0, ai: false, mine: true), Seat(1), Seat(2, ai: false), Empty(3) };
+
+            Assert.That(AiVoiceControls.NextSelection(AiTalkKeys.Anyone, 1, seats, out string notice), Is.EqualTo(1));
+            Assert.That(notice, Does.Contain("파랑"));
+            Assert.That(AiVoiceControls.NextSelection(1, 1, seats, out notice), Is.EqualTo(AiTalkKeys.Anyone),
+                "같은 키를 다시 눌러도 풀리지 않는다");
+
+            Assert.That(AiVoiceControls.NextSelection(1, 2, seats, out notice), Is.EqualTo(1),
+                "사람 자리를 골랐다 — 고른 채로 두면 V 가 막히기만 한다");
+            Assert.That(notice, Is.EqualTo("노랑은 AI 동료가 아니에요"));
+            Assert.That(AiVoiceControls.NextSelection(AiTalkKeys.Anyone, 3, seats, out notice), Is.EqualTo(AiTalkKeys.Anyone));
+            Assert.That(notice, Is.EqualTo("초록 자리에 AI 동료가 없어요"));
+            AiVoiceControls.NextSelection(AiTalkKeys.Anyone, 0, seats, out notice);
+            Assert.That(notice, Is.EqualTo("빨강은 나예요"));
+
+            // 기절한 AI 는 고른다 — 살아날 수 있다. 그때 막는 것은 V 쪽이다.
+            var downed = new List<AiSeatView> { Seat(1, downed: true) };
+            Assert.That(AiVoiceControls.NextSelection(AiTalkKeys.Anyone, 1, downed, out notice), Is.EqualTo(1));
+
+            // 고른 자리에서 AI 가 빠지면 더는 고를 수 없다 — 부르는 쪽이 푼다.
+            Assert.That(AiVoiceControls.StillSelectable(1, seats), Is.True);
+            Assert.That(AiVoiceControls.StillSelectable(1, new List<AiSeatView> { Empty(1) }), Is.False);
+            Assert.That(AiVoiceControls.StillSelectable(AiTalkKeys.Anyone, new List<AiSeatView>()), Is.True);
+        }
+
+        /// <summary>
+        /// <b>말할 수 없으면 V 가 막히고 이유가 보인다</b> (S15P21B202-738).
+        ///
+        /// <para>고른 대상은 <b>거리를 보지 않는다</b> — 멀리 있는 동료에게 시키는 것이 고르는 이유다.
+        /// 고르지 않았으면 주변 20m 안의 AI 만 듣는다(서버의 <c>Capture</c> 와 같은 규칙).</para>
+        /// </summary>
+        [Test] public void TalkIsBlockedWithAReasonWhenNobodyCanHear()
+        {
+            float range = VoiceRules.Range;
+            var far = new List<AiSeatView> { Seat(0, ai: false, mine: true), Seat(1, distance: 80f), Seat(2, distance: 21f) };
+            Assert.That(AiVoiceControls.TalkProblem(1, far, range), Is.Null, "고른 대상인데 멀다고 막는다");
+            Assert.That(AiVoiceControls.TalkProblem(AiTalkKeys.Anyone, far, range), Does.Contain("20m").And.Contain("1~4"),
+                "주변에 들을 동료가 없는데 V 가 열려 있다 — 8초를 말하고 나서야 안다");
+
+            var near = new List<AiSeatView> { Seat(1, distance: 20f) };
+            Assert.That(AiVoiceControls.TalkProblem(AiTalkKeys.Anyone, near, range), Is.Null, "경계(20m)는 들린다");
+
+            var downedNear = new List<AiSeatView> { Seat(1, downed: true, distance: 3f) };
+            Assert.That(AiVoiceControls.TalkProblem(AiTalkKeys.Anyone, downedNear, range), Is.Not.Null,
+                "기절한 동료는 주변 듣기에 안 든다 — 서버가 거절할 것을 열어 둔다");
+            Assert.That(AiVoiceControls.TalkProblem(1, downedNear, range), Is.EqualTo("파랑 동료가 기절해 있어요"));
+
+            Assert.That(AiVoiceControls.TalkProblem(AiTalkKeys.Anyone, new List<AiSeatView>(), range), Is.EqualTo("AI 동료가 없어요"));
+            Assert.That(AiVoiceControls.TalkProblem(3, new List<AiSeatView> { Empty(3) }, range), Is.EqualTo("초록 자리에 AI 동료가 없어요"));
+        }
+
+        /// <summary>
+        /// 화면의 칸과 V 한 줄이 <b>지금 상태를 그대로</b> 말한다 (S15P21B202-738). 막혔으면
+        /// "V 사용 불가" 가 이유보다 먼저 온다 — 이유만 적으면 눌러 보고서야 안다.
+        /// </summary>
+        [Test] public void TheSeatStripAndTalkLineSayWhatIsTrue()
+        {
+            Assert.That(AiVoiceControls.SeatLabel(Seat(1, distance: 12.4f)), Is.EqualTo("2 파랑 · AI 12m"));
+            Assert.That(AiVoiceControls.SeatLabel(Seat(1, downed: true)), Is.EqualTo("2 파랑 · AI 기절"));
+            Assert.That(AiVoiceControls.SeatLabel(Seat(0, ai: false, mine: true)), Is.EqualTo("1 빨강 · 나"));
+            Assert.That(AiVoiceControls.SeatLabel(Seat(2, ai: false)), Is.EqualTo("3 노랑 · 사람"));
+            Assert.That(AiVoiceControls.SeatLabel(Empty(3)), Is.EqualTo("4 초록 · 비어 있음"));
+
+            Assert.That(AiVoiceControls.TalkLine(1, null), Is.EqualTo("V 누르고 말하기 · 파랑에게"));
+            Assert.That(AiVoiceControls.TalkLine(AiTalkKeys.Anyone, null), Does.Contain("주변 동료"));
+            Assert.That(AiVoiceControls.TalkLine(1, "파랑 동료가 기절해 있어요"), Is.EqualTo("V 사용 불가 · 파랑 동료가 기절해 있어요"));
+        }
+
+        /// <summary>
+        /// <b>쓰러져도 마이크는 열린다</b> (S15P21B202-738 리뷰로 드러난 <c>-730</c> 의 빈틈).
+        ///
+        /// <para><c>-730</c> 이 녹음·전송·서버의 여섯 관문에서 기절을 뺐는데 마이크가 일곱 번째였다.
+        /// 녹음은 시작되고 마이크는 끝내 안 열려, 쓰러진 사람의 <c>살려줘</c> 가 0.6초 뒤
+        /// "마이크가 아직 열리지 않았어요" 로 끝났다. 진짜 장치 없이는 값으로 볼 수 없어 글자로 못박는다.</para>
+        /// </summary>
+        [Test] public void TheMicrophoneOpensForADownedPlayer()
+        {
+            var update = TestSource.Blank(TestSource.Method(
+                TestSource.Read("Runtime/Network/ProximityVoice.cs"), "void Update()"));
+            int at = update.IndexOf("bool allowed", System.StringComparison.Ordinal);
+            Assert.That(at, Is.GreaterThanOrEqualTo(0), "여는 조건을 못 찾았다 — 이 검사가 헛돈다");
+            int end = update.IndexOf(';', at);
+            string allowed = update.Substring(at, end - at);
+            Assert.That(allowed, Does.Contain("CursorLocked"), "여는 조건을 잘못 잘랐다");
+            Assert.That(allowed, Does.Not.Contain("Downed"), "기절하면 마이크가 안 열린다 — 살려 달라는 말을 못 한다");
+        }
+
+        /// <summary>
+        /// <b>3초 물러서기는 실패한 뒤에만 건다</b> (S15P21B202-738 리뷰).
+        ///
+        /// <para>예전에는 여는 순간마다 걸어서, 명령 하나를 말하고 3초 안에 다음 명령을 말하면
+        /// 마이크가 안 열려 취소됐다. 동료를 골라 차례로 시키는 것이 이번 변경의 쓰임새다.</para>
+        /// </summary>
+        [Test] public void OpeningTheMicrophoneDoesNotBlockTheNextCommand()
+        {
+            // Method 는 주석과 문자열을 지운 글을 준다 — 그래서 문자열이 아니라 코드로 자리를 찾는다.
+            var update = TestSource.Method(
+                TestSource.Read("Runtime/Network/ProximityVoice.cs"), "void Update()");
+            int open = update.IndexOf("if (clip == null)", System.StringComparison.Ordinal);
+            int start = update.IndexOf("Microphone.Start(", open, System.StringComparison.Ordinal);
+            Assert.That(open, Is.GreaterThanOrEqualTo(0));
+            Assert.That(start, Is.GreaterThan(open), "여는 자리를 못 찾았다 — 이 검사가 헛돈다");
+            string beforeStart = update.Substring(open, start - open);
+            Assert.That(beforeStart, Does.Contain("Time.unscaledTime < retryAt"), "물러서기를 아예 안 본다");
+            Assert.That(System.Text.RegularExpressions.Regex.Matches(beforeStart, @"retryAt = ").Count, Is.EqualTo(1),
+                "여는 길에서 물러서기를 건다 — 장치가 없을 때 한 번만 걸어야 한다");
+            int none = beforeStart.IndexOf("Microphone.devices.Length == 0", System.StringComparison.Ordinal);
+            Assert.That(none, Is.GreaterThanOrEqualTo(0), "장치 없음 갈래를 못 찾았다 — 이 검사가 헛돈다");
+            string noDevice = beforeStart.Substring(none, beforeStart.IndexOf("return;", none, System.StringComparison.Ordinal) - none);
+            Assert.That(noDevice, Does.Contain("retryAt = "),
+                "장치가 없을 때 물러서지 않는다 — 매 프레임 장치를 찾는다");
         }
 
         /// <summary>
