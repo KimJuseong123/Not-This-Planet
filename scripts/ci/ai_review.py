@@ -380,16 +380,28 @@ def pick_backend() -> str:
 
 
 def call_api(model: str, system: str, user: str) -> str:
+    # claude-opus-5 는 `thinking` 을 빼면 **생각한다** — 생각도 max_tokens 안에서 쓰므로 3000 으로는
+    # JSON 이 중간에 잘린다. effort 는 cli 경로와 같은 값을 쓴다(팀 결정: medium).
+    # 거절되면 서버가 알맞은 모델로 다시 돌린다(`fallbacks: default`).
     st, d = http("POST", "https://api.anthropic.com/v1/messages",
-                 {"x-api-key": env("ANTHROPIC_API_KEY"), "anthropic-version": "2023-06-01"},
-                 {"model": model, "max_tokens": 3000, "system": system,
-                  "messages": [{"role": "user", "content": user}]}, timeout=180)
+                 {"x-api-key": env("ANTHROPIC_API_KEY"), "anthropic-version": "2023-06-01",
+                  "anthropic-beta": "server-side-fallback-2026-07-01"},
+                 {"model": model, "max_tokens": 16000, "system": system,
+                  "output_config": {"effort": env("AI_REVIEW_EFFORT", DEFAULT_EFFORT)},
+                  "fallbacks": "default",
+                  "messages": [{"role": "user", "content": user}]},
+                 timeout=int(env("AI_REVIEW_TIMEOUT", "600")))
     if st != 200:
         # 응답 본문은 **로그에만** 남긴다. `fail_reason` 이 우리 RuntimeError 의 메시지를
         # 그대로 공개 코멘트에 싣기 때문에, 여기 원문을 넣으면 ②의 목적이 무너진다
         # (S15P21B202-342 · `!259` 5차 AI 리뷰). 아래 두 raise 는 이미 이 방식이다.
         print(f"[api] 응답 {st}: {str(d)[:300]}")
         raise RuntimeError(f"Anthropic API {st} → 키·모델명·사용량 확인")
+    stop = d.get("stop_reason")
+    if stop in ("max_tokens", "refusal"):
+        # 잘렸거나 거절된 글은 JSON 이 아니다 — '해석 실패' 로 떨어지기 전에 이유를 적는다.
+        raise RuntimeError(f"Anthropic API stop_reason={stop} → "
+                           + ("max_tokens 를 늘리거나 AI_REVIEW_EFFORT 를 낮춘다" if stop == "max_tokens" else "안전 분류기가 거절했다"))
     return "".join(b.get("text", "") for b in d.get("content", []) if b.get("type") == "text")
 
 
