@@ -37,6 +37,7 @@ namespace Metagame.Gameplay.Tests
                 "Runtime/UI/LobbyRoster.cs",            // 방 목록 — AI 추가·빼기 (S15P21B202-713)
                 "Runtime/UI/AiAddFlow.cs",              // 추가 → 설치 → 준비 → 완료의 흐름
                 "Runtime/UI/AiInstallPopup.cs",         // 설치 창 — 받기를 시작하는 유일한 화면
+                "Runtime/Network/AiPackProcesses.cs",   // 남은 팩 프로세스 끝내기 (S15P21B202-745)
             })
                 Assert.That(TestSource.Read(file), Does.Not.Contain("DEVELOPMENT_BUILD"),
                     file + " 가 개발 빌드에서만 도는 길을 갖고 있다 — QA 에서는 되고 사용자 "

@@ -1452,6 +1452,7 @@ namespace Metagame.UI
             characters.Append("내려받지 못했습니다 인터넷 연결을 확인한 뒤 연결이 너무 오래 멈춰 중단했습니다 받은 파일이 올바르지 않습니다");
             characters.Append("설치 파일을 쓰지 못했습니다 디스크 권한을 확인한 뒤 준비가 너무 오래 걸립니다 시작하지 못했습니다");
             characters.Append("방장이 바뀌어 준비를 멈췄습니다");
+            characters.Append("AI 동료 파일을 다른 프로그램이 쓰고 있습니다 다른 게임 창을 닫거나 PC를 다시 시작한 뒤 시도해 주세요");
             characters.Append("AI 동료 사용 안 함 AI 동료를 쓸 수 없어요 사람만 플레이 방장 AI 준비 중 방장 AI 사용 중 방장 AI 실행 실패");
             characters.Append("대기 AI 테스트 명령 수행 없음 방장의 AI 상태 확인 중");
             // 랭킹 화면 (S15P21B202-656). 위 주석대로 새 문구는 여기에도 더한다.

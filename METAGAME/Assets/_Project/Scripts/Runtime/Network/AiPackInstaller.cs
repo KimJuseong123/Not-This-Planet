@@ -628,24 +628,105 @@ namespace Metagame.Network
             if (cancellation.IsCancellationRequested) { Finish(AiPrepPhase.Cancelled); yield break; }
             if (!AiLocalRuntime.HasPack(staging)) { Fail(AiPrepFailure.Corrupt, "설치 파일 누락 · 기존 팩은 유지"); yield break; }
             Enter(AiPrepPhase.Apply, null);
-            string backup = root + ".backup-" + Guid.NewGuid().ToString("N"); bool moved = false;
-            try
+            try { File.Copy(manifestPath, Path.Combine(staging, ManifestName)); }
+            catch (Exception e) { Fail(AiPrepFailure.Apply, "설치 적용 실패 · " + Describe(e)); yield break; }
+            // 설치된 팩에서 뜬 프로세스가 남아 있으면 폴더를 옮기지 못한다 (S15P21B202-745). 주인 없는
+            // 것은 먼저 끝내고, 백신 검사처럼 잠깐 잡히는 경우를 위해 몇 번 다시 해 본다.
+            EndAbandoned(root);
+            string backup; Exception blocked;
+            for (int attempt = 0; ; attempt++)
             {
-                File.Copy(manifestPath, Path.Combine(staging, ManifestName));
-                if (Directory.Exists(root)) { Directory.Move(root, backup); moved = true; }
-                Directory.Move(staging, root);
+                blocked = Promote(staging, root, out backup);
+                if (blocked == null || attempt >= PromoteRetrySeconds.Length) break;
+                yield return new WaitForSecondsRealtime(PromoteRetrySeconds[attempt]);
+                if (cancellation.IsCancellationRequested) { Finish(AiPrepPhase.Cancelled); yield break; }
+                EndAbandoned(root);
             }
-            catch (Exception e)
+            if (blocked != null)
             {
-                if (moved && !Directory.Exists(root)) { try { Directory.Move(backup, root); } catch (Exception) { } }
-                Fail(AiPrepFailure.Apply, "설치 적용 실패 · " + Describe(e)); yield break;
+                int running = AiPackProcesses.Running(root);
+                Fail(Blocked(blocked), "설치 적용 실패 · " + Describe(blocked)
+                     + (running > 0 ? " · 팩에서 실행 중인 프로세스 " + running + "개" : ""));
+                yield break;
             }
+            DropOldPacks(root);
             ClearCache(cache);
             AiLocalRuntime.MarkInstalled(source.manifest_sha256);
             // 여기서 "설치 완료" 라고 하지 않는다 (S15P21B202-713). 전에는 이 자리에서 그렇게
             // 말했는데, 방장에게 남은 것은 몇 분짜리 데우기였다 — 완료는 워커가 Ready 일 때다.
             Finish(AiPrepPhase.Start);
             AiLocalRuntime.Current?.Retry();
+        }
+
+        /// <summary>폴더 교체를 다시 해 보기 전에 기다리는 초. 다 쓰면 실패로 알린다 (S15P21B202-745).</summary>
+        public static readonly float[] PromoteRetrySeconds = { .5f, 1f, 2f };
+
+        /// <summary>
+        /// 새 팩을 제자리에 넣는다. 설치된 팩은 옆으로 옮겨 두었다가, 새 팩을 넣지 못하면 되돌린다.
+        /// 실패하면 그 예외를, 성공하면 null 을 돌려준다.
+        /// </summary>
+        static Exception Promote(string staging, string root, out string backup)
+        {
+            backup = root + BackupInfix + Guid.NewGuid().ToString("N"); bool moved = false;
+            try
+            {
+                if (Directory.Exists(root)) { Directory.Move(root, backup); moved = true; }
+                Directory.Move(staging, root);
+                return null;
+            }
+            catch (Exception e)
+            {
+                if (moved && !Directory.Exists(root)) { try { Directory.Move(backup, root); } catch (Exception) { } }
+                return e;
+            }
+        }
+
+        /// <summary>
+        /// 폴더를 옮기지 못한 까닭. 같은 볼륨 안의 이름 바꾸기가 거부되면 거의 언제나 <b>누가 안의
+        /// 파일을 쓰고 있는</b> 것이다 — 전에는 이것을 "디스크 권한" 으로 안내해 사용자가 풀 수 없었다.
+        /// </summary>
+        public static AiPrepFailure Blocked(Exception e)
+            => e is IOException || e is UnauthorizedAccessException ? AiPrepFailure.InUse : AiPrepFailure.Apply;
+
+        static void EndAbandoned(string root)
+        {
+            int ended = AiPackProcesses.EndAbandoned(root);
+            if (ended > 0) Debug.Log("[AI팩] 설치된 팩에 주인 없이 남은 프로세스 " + ended + "개를 끝냈다");
+        }
+
+        /// <summary>교체 때 옆으로 옮겨 둔 옛 팩의 이름 가운데. 뒤에 32자리 16진수가 붙는다.</summary>
+        public const string BackupInfix = ".backup-";
+
+        /// <summary>
+        /// 이 팩 폴더의 옛 팩(<c>p3.backup-</c> + 32자리 16진수)이면 참. 우리가 붙인 이름만 지운다.
+        /// </summary>
+        public static bool IsOldPack(string folderName, string rootName)
+        {
+            string prefix = rootName + BackupInfix;
+            if (folderName == null || !folderName.StartsWith(prefix, StringComparison.Ordinal)) return false;
+            string id = folderName.Substring(prefix.Length);
+            if (id.Length != 32) return false;
+            foreach (char c in id) if (!Uri.IsHexDigit(c)) return false;
+            return true;
+        }
+
+        /// <summary>
+        /// 교체가 끝난 뒤 옛 팩을 지운다 (S15P21B202-745). 전에는 업데이트마다 약 2GB 가 남았다.
+        /// 새 팩은 이미 제자리에 있으므로 되돌릴 일이 없다. 뒤에서 지우고, 못 지우면 다음 설치 때 또 해 본다.
+        /// </summary>
+        static void DropOldPacks(string root)
+        {
+            string parent = Path.GetDirectoryName(root), name = Path.GetFileName(root);
+            if (string.IsNullOrEmpty(parent) || !Directory.Exists(parent)) return;
+            var old = new List<string>();
+            try { foreach (var dir in Directory.GetDirectories(parent)) if (IsOldPack(Path.GetFileName(dir), name)) old.Add(dir); }
+            catch (Exception) { return; }
+            if (old.Count == 0) return;
+            Task.Run(() =>
+            {
+                foreach (var dir in old)
+                    try { Directory.Delete(dir, true); } catch (Exception) { }
+            });
         }
 
         /// <summary>디스크 작업을 기다리며 그 일의 속도를 잰다. 기다리는 동안만 그 시계가 간다.</summary>
@@ -711,7 +792,8 @@ namespace Metagame.Network
             snap.Phase = phase; snap.Idle = 0;
             Tick(true);
             Busy = false;
-            // Only our unique staging directory; never delete the installed pack, backup or download cache.
+            // Only our unique staging directory; never delete the installed pack or download cache here.
+            // Old packs are dropped only after a successful promotion (DropOldPacks).
             if (work != null && Path.GetFileName(work).StartsWith(".install-", StringComparison.Ordinal))
                 try { Directory.Delete(work, true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
             work = null; cancellation?.Dispose(); cancellation = null;

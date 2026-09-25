@@ -8,7 +8,7 @@ namespace Metagame.Network
     public enum AiPrepPhase { Check, Fetch, Unpack, Apply, Start, Done, Failed, Cancelled }
 
     /// <summary>왜 멈췄나. 화면에는 쉬운 말로, 로그에는 이름 그대로 나간다.</summary>
-    public enum AiPrepFailure { None, NoSource, NoSpace, Network, Stalled, Corrupt, Apply, StartTimeout, StartFailed, LostHost }
+    public enum AiPrepFailure { None, NoSource, NoSpace, Network, Stalled, Corrupt, Apply, StartTimeout, StartFailed, LostHost, InUse }
 
     /// <summary>
     /// 준비가 지금 어디쯤인가 — <b>화면과 로그가 함께 읽는 한 가지 상태</b> (S15P21B202-713).
@@ -336,6 +336,9 @@ namespace Metagame.Network
                 case AiPrepFailure.StartTimeout: return "AI 동료 준비가 너무 오래 걸립니다 · 다시 시도해 주세요";
                 case AiPrepFailure.StartFailed: return "AI 동료를 시작하지 못했습니다 · 다시 시도해 주세요";
                 case AiPrepFailure.LostHost: return "방장이 바뀌어 준비를 멈췄습니다";
+                // 설치된 팩을 다른 프로그램이 쓰고 있다 (S15P21B202-745). 주인 없는 것은 이미 끝냈으므로
+                // 남은 것은 다른 게임 창이거나 백신·탐색기 같은 것이다.
+                case AiPrepFailure.InUse: return "AI 동료 파일을 다른 프로그램이 쓰고 있습니다 · 다른 게임 창을 닫거나 PC를 다시 시작한 뒤 시도해 주세요";
                 default: return "준비하지 못했습니다 · 다시 시도해 주세요";
             }
         }
