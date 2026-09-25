@@ -65,6 +65,21 @@ namespace Metagame.Network
         /// (2026-09-02 SSAFY 교육장 실측). 랜 주소를 알려 주면 그 자리에서 갈린다.
         /// </summary>
         public string localAddress;
+
+        /// <summary>
+        /// SET_AI_COUNT 의 AI 자리 수 (S15P21B202-713). 늘리거나 줄이는 차이가 아니라
+        /// <b>절대값</b>이다 — 두 번 눌려 두 번 가도 결과가 같다.
+        ///
+        /// <para>JsonUtility 는 모든 필드를 늘 보내므로 다른 메시지에도 0 으로 실린다.
+        /// 서버는 필드가 있는지가 아니라 메시지 종류로 뜻을 가린다.</para>
+        /// </summary>
+        public int aiCount;
+
+        /// <summary>
+        /// KICK_PLAYER 로 내보낼 사람 (S15P21B202-713). 채우지 않으면 0 으로 가고,
+        /// 서버는 0 을 "고르지 않았다" 로 보고 거절한다.
+        /// </summary>
+        public long targetUserId;
     }
 
     /// <summary>PLAYER_MOVE — 내 위치를 서버에 알린다. 서버는 계산하지 않고 중계만 한다.</summary>
@@ -164,6 +179,18 @@ namespace Metagame.Network
 
         /// <summary>연결이 끊겨 유예 시간을 기다리는 중인 userId. players 에는 아직 남아 있다.</summary>
         public long[] disconnected;
+
+        /// <summary>
+        /// ROOM_STATE 의 AI 자리 수 (S15P21B202-713). <b>null 이면 옛 서버다</b> — 0 과 구분해야
+        /// 옛 서버에 AI 요청을 보내 모르는 메시지 오류를 받는 일이 없다.
+        /// </summary>
+        public int? aiCount;
+
+        /// <summary>
+        /// 방송 번호 (S15P21B202-713 리뷰). 같은 방에서 한 방향으로만 는다 — 늦게 온 옛 방송을 가른다.
+        /// 옛 서버는 보내지 않아 0 이다.
+        /// </summary>
+        public long stateVersion;
     }
 
     public sealed class PlayerSummary
@@ -212,6 +239,19 @@ namespace Metagame.Network
 
         /// <summary>판이 돌고 있는가. 호스트 이전은 이때만 일어난다 (S15P21B202-389).</summary>
         public bool IsPlaying => string.Equals(Status, "PLAYING", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// 방장이 채우겠다고 한 AI 자리 수 (S15P21B202-713). <c>0 ~ 4 - 사람 수</c> 안으로 줄여 둔
+        /// 값이다 — 서버도 같은 범위로 줄이므로 넘친 값이 오면 어딘가 규칙이 갈린 것이다.
+        /// 옛 서버면 0 이다.
+        /// </summary>
+        public int AiCount { get; }
+
+        /// <summary>
+        /// 이 방의 서버가 AI 수를 다루나 (S15P21B202-713). ROOM_STATE 에 aiCount 가 실려 왔으면 참이다.
+        /// 거짓이면 AI 추가·내보내기를 막는다 — 보내 봐야 모르는 메시지 오류만 돌아온다.
+        /// </summary>
+        public bool SupportsAi { get; }
         public bool AllReady
         {
             get
@@ -234,6 +274,8 @@ namespace Metagame.Network
             RoomId = source.roomId ?? string.Empty;
             HostUserId = source.hostUserId;
             Status = source.status ?? string.Empty;
+            SupportsAi = source.aiCount.HasValue;
+            AiCount = ReadAiCount(source.aiCount ?? 0, source.players != null ? source.players.Count : 0);
             players = new List<PlayerSnapshot>();
 
             if (source.players == null) return;
@@ -248,6 +290,19 @@ namespace Metagame.Network
 
             // 사전은 순서를 보장하지 않는다. 방 목록이 갱신될 때마다 줄이 뒤바뀌지 않도록 고정한다.
             players.Sort((a, b) => a.UserId.CompareTo(b.UserId));
+        }
+
+        /// <summary>
+        /// 받은 AI 수를 범위 안으로 줄인다. 줄여야 했다면 한 줄 남긴다 — 서버와 클라이언트의
+        /// 규칙이 갈렸다는 뜻이고, 조용히 줄이기만 하면 아무도 모른다.
+        /// </summary>
+        static int ReadAiCount(int received, int humans)
+        {
+            int clamped = AiSeatMath.ClampRequested(received, humans);
+            if (clamped != received)
+                UnityEngine.Debug.LogWarning($"[RoomSnapshot] 받은 AI 수 {received} 가 범위를 넘어 "
+                                             + $"{clamped} 로 줄였다 · 사람 {humans}명");
+            return clamped;
         }
 
         public bool TryGetPlayer(long userId, out PlayerSnapshot player)

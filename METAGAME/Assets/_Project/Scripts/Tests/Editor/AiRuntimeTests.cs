@@ -96,9 +96,11 @@ namespace Metagame.Gameplay.Tests
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             yield return new EnterPlayMode();
             TeamSlots.Clear();
-            var lobby = AiHostPolicyTests.CreateLobby();
+            // 방을 먼저 비우고 방의 AI 수를 받는다 — 반대로 하면 BeginRoom 이 받아 둔 수를 지운다
+            // (S15P21B202-713). 방장 혼자면 셋이 다 찬다.
             AiHostSettings.BeginRoom();
-            Assert.That(AiHostSettings.TrySetRequested(true), Is.True);
+            var lobby = AiHostPolicyTests.CreateLobby(aiCount: 3);
+            Assert.That(AiHostSettings.RequestedCount, Is.EqualTo(3));
             var runtime = new GameObject("Test local worker").AddComponent<AiLocalRuntime>();
             float deadline = Time.realtimeSinceStartup + 150f;
             while (runtime.State != AiRuntimeState.Ready && runtime.State != AiRuntimeState.Failed && Time.realtimeSinceStartup < deadline)

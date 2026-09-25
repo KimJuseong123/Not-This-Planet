@@ -26,6 +26,10 @@ namespace Metagame.Network
         /// <para>짧으면 잠깐의 랙에도 AI 가 조종을 낚아채고, 길면 몸이 멍하니 서 있는다.
         /// <c>RejoinMemory.GraceSeconds</c>(30초)는 자리를 지켜 주는 시간이라 뜻이 다르다 —
         /// 그동안 AI 가 대신 움직여도 자리는 그대로 그 사람 것이다.</para>
+        ///
+        /// <para><b>사람이 받아 둔 자리에는 더 이상 쓰이지 않는다</b> (S15P21B202-713). 배정
+        /// (<see cref="TeamSlots.IsAssigned"/>)은 판 내내 남아 사람 자리로 세므로, 끊긴 사람의
+        /// 자리는 돌아올 때까지 비워 둔다. 이 시간은 AI 가 비운 자리에만 걸린다.</para>
         public const float AiTakeoverSeconds = 5f;
 
         /// <summary>자리끼리 떼어 놓는 거리(m). 같은 지점에 넷을 세우면 서로 밀어낸다.</summary>
@@ -85,6 +89,16 @@ namespace Metagame.Network
 
         readonly Seat[] seats = new Seat[TeamSlots.Count];
         GameSession session;
+
+        // 매 프레임 자리를 세는 데 쓰는 칸 (S15P21B202-713). 미리 만들어 둔다 — 서버의 Update 에서
+        // 프레임마다 배열을 새로 만들면 쓰레기가 쌓여 GC 멈춤이 랙으로 보인다.
+        readonly bool[] fillEligible = new bool[TeamSlots.Count];
+        readonly bool[] humanSeat = new bool[TeamSlots.Count];
+        readonly bool[] aiSeat = new bool[TeamSlots.Count];
+        readonly int[] fillSlots = new int[TeamSlots.Count];
+
+        /// <summary>넘치는 AI 를 이미 알렸나. 같은 경고를 매 프레임 쏟지 않으려고 센다.</summary>
+        bool warnedExcess;
 
         /// <summary>
         /// 사람이 한 명이라도 앉은 적 있나.
@@ -203,7 +217,13 @@ namespace Metagame.Network
             return seat.Body;
         }
 
-        /// <summary>빈 자리를 살펴 때가 된 것부터 AI 로 채운다. 서버에서만 돈다.</summary>
+        /// <summary>
+        /// 방장이 고른 수만큼만 빈 자리를 AI 로 채운다. 서버에서만 돈다.
+        ///
+        /// <para><b>예전에는 빈 자리를 전부 채웠다.</b> 수는 방(<c>ROOM_STATE</c> 의 aiCount)이
+        /// 정하고 <see cref="AiHostSettings.RequestedCount"/> 로 받아 둔다(S15P21B202-713).
+        /// 자리는 <see cref="AiSeatMath.SlotsToFill"/> 가 높은 번호부터 고른다.</para>
+        /// </summary>
         void Update()
         {
             if (!NetworkServer.active || !humanSeated) return;
@@ -212,8 +232,50 @@ namespace Metagame.Network
 
             for (int slot = 0; slot < seats.Length; slot++)
             {
-                if (NeedsAi(slot)) SpawnAi(slot);
+                // NeedsAi 를 <b>먼저, 한 번만</b> 부른다. 오래 매달린 AiPending 을 여기서 치우므로,
+                // 아래에서 AI 를 셀 때 이미 버린 것을 세지 않는다.
+                fillEligible[slot] = NeedsAi(slot);
+
+                Seat seat = seats[slot];
+                // 끊겨 돌아올 사람의 자리(TeamSlots 에 남은 배정)도 사람 자리다 — AI 가 앉으면
+                // 돌아온 사람이 AI 를 밀어내고, 그 AI 가 다른 자리에 다시 뜨며 색이 바뀐다.
+                humanSeat[slot] = NetPlayer.HumanHoldsSlot(slot) || TeamSlots.IsAssigned(slot)
+                                  || (seat.Driver != null && !seat.Driver.IsAiDriver);
+                aiSeat[slot] = seat.AiPending != null || (seat.Driver != null && seat.Driver.IsAiDriver);
             }
+
+            int requested = AiSeatMath.EffectiveRequest(AiHostSettings.RequestedCount,
+                AiHostSettings.IdleTest && AiHostSettings.TestModeAvailable);
+            int count = AiSeatMath.SlotsToFill(humanSeat, aiSeat, fillEligible, requested, fillSlots);
+            for (int i = 0; i < count; i++)
+            {
+                SpawnAi(fillSlots[i]);
+                // 띄우기에 실패했으면(Complain) 남은 자리도 같은 이유로 실패한다. 같은 오류를 한
+                // 프레임에 여러 번 찍지 않고 쉰다.
+                if (Time.time < retryAfter) break;
+            }
+
+            WarnIfExcess(requested);
+        }
+
+        /// <summary>
+        /// 고른 수보다 AI 가 많으면 한 번 알린다. <b>내리지는 않는다</b> — 판 중에 수가 줄어드는
+        /// 정상 경로가 없으므로(서버가 대기 중에만 바꾸게 한다) 내리는 길을 두면 그 길이 오히려
+        /// 버그의 증상을 가린다.
+        /// </summary>
+        void WarnIfExcess(int requested)
+        {
+            int excess = AiSeatMath.Excess(humanSeat, aiSeat, requested);
+            if (excess == 0)
+            {
+                warnedExcess = false;
+                return;
+            }
+            if (warnedExcess) return;
+
+            warnedExcess = true;
+            Debug.LogWarning($"[TeamSeats] AI 가 {excess}명 더 떠 있다 — 고른 수 {requested}명. "
+                             + "내리지 않고 그대로 둔다");
         }
 
         /// <summary>같은 오류를 매 프레임 쏟지 않도록 한 번 알리고 잠시 쉰다.</summary>
