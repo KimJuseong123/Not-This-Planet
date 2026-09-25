@@ -1,10 +1,27 @@
 # AI 추가팩 배포 담당자 인계
 
 ## 현재 상태
-- 게임 내 다운로드/취소, MB·백분율 진행률, HTTPS manifest 고정 해시, ZIP 크기/SHA-256, 압축 경로·용량 제한, 필수 실행 파일 확인 후 설치 적용 구현.
-- 서버 업로드/공개 URL 설정은 아직 하지 않음. `Assets/StreamingAssets/ai-pack-source.json` 값은 비어 있음.
-- 현재 팩은 내부 preview이며 `release_approved: false`. 재배포 라이선스/고지 검토와 깨끗한 PC 확인을 마친 뒤 담당자가 승인해야 함. 승인 전 팩을 인터넷 설치기로 배포할 수 없도록 거부함.
-- 게임 빌드와 모델은 분리. 모델을 게임 Assets에 복사하지 않음.
+- 게임 내 다운로드/취소, MB·백분율 진행률, HTTPS manifest 해시 검증, ZIP 크기/SHA-256, 압축 경로·용량 제한, 필수 실행 파일 확인 후 설치 적용 구현.
+- 팩은 EC2 `/var/www/metagame-ai-packs/<버전>/` 에 있고 `https://j15b202.p.ssafy.io/ai-packs/<버전>/` 으로 나간다(nginx 는 `runtime.zip` · `models.zip` · `pack-manifest.json` 셋만 연다). 2026-09-25 기준 최신은 `0.3.0-preview`.
+- **게임은 서버의 최신 팩을 스스로 찾는다** (S15P21B202-744). 빌드에는 고정 주소 `…/ai-packs/latest-companion-v4/pack-manifest.json` 이 들어가고, 서버의 `latest-companion-v4` 는 최신 팩 폴더를 가리키는 링크다. 게임은 뜰 때 그 manifest 를 한 번 받아 설치기와 같은 규칙으로 검사하고, 그 바이트의 해시로 설치·최신 판단을 한다. 못 받으면 빌드에 박힌 대체값(CI 변수 `AI_PACK_MANIFEST_URL` · `AI_PACK_MANIFEST_SHA256`, 없어도 됨)을 쓴다. **팩을 바꿀 때 CI 변수와 빌드는 건드리지 않는다.**
+- 게임 빌드와 모델은 분리. 모델을 게임 Assets에 복사하지 않음. 에디터는 저장소의 빈 `ai-pack-source.json` 을 쓰므로 최신 주소를 보지 않는다.
+
+## 새 팩 올리기 (S15P21B202-744)
+
+`tools/AICompanionService` 의 워커만 바뀌었으면 `runtime.zip` 만 새로 굽고 `models.zip` 은 앞 버전 것을 서버에서 하드링크로 이어 쓴다(복사·업로드 없음). manifest 는 `build_portable.py` 와 같은 형식으로, `version` 을 올리고 `models.zip` 항목은 앞 버전 것을 그대로 옮긴다.
+
+```bash
+V=0.4.0-preview; P=0.3.0-preview; D=/var/www/metagame-ai-packs
+sudo install -d -o ubuntu -g www-data -m 755 $D/$V
+ln $D/$P/models.zip $D/$V/models.zip            # 모델이 같을 때만
+# scp 로 runtime.zip 을 먼저, pack-manifest.json 을 마지막에 $D/$V/ 로 올린다
+sudo ln -sfn $V $D/latest-companion-v4          # 이것이 "게임에 내보내기" 다
+```
+
+- **링크를 마지막에 옮긴다.** 그 전까지는 게임이 새 폴더를 모른다. 되돌리려면 링크를 앞 버전으로 다시 옮긴다
+- 앞 버전 폴더는 지우지 않는다 — 옛 링크를 받은 채 설치 중인 사람이 있을 수 있고, 대체값이 그것을 가리킬 수 있다
+- 이미 설치한 사람은 다음에 게임을 켤 때 새 팩을 최신으로 보고, "AI 동료 추가" 에서 받는다. **설치가 끝나면 받아 둔 압축을 비우므로 `models.zip` 도 다시 받는다**(약 1.9GB)
+- 워커 **프로토콜**(`companion-v4`)이 바뀌는 팩은 새 이름의 링크(`latest-companion-v5`)로 내보내고 게임 쪽 주소도 함께 바꾼다 — 옛 빌드는 옛 링크의 팩을 계속 받는다
 
 ## 2026-09-22 검증 기록
 - Unity EditMode 필터 `AiPackInstallerTests|AiRuntimeTests|BuildStampTests`: 총 36개, 통과 35개, 실패 0개, 실제 모델 실행 opt-in 검사 1개 제외.

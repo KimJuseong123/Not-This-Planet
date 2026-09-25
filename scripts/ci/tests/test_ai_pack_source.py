@@ -34,7 +34,7 @@ def check(ok, msg):
         fails.append(msg)
 
 
-def run(url=None, digest=None, args=()):
+def run(url=None, digest=None, args=(), latest=None):
     """스크립트를 돌리고 (종료코드, 출력, 파일내용) 을 준다. 실제 파일은 되돌린다."""
     saved = None
     if os.path.exists(TARGET):
@@ -44,6 +44,9 @@ def run(url=None, digest=None, args=()):
     env = dict(os.environ)
     env.pop("AI_PACK_MANIFEST_URL", None)
     env.pop("AI_PACK_MANIFEST_SHA256", None)
+    env.pop("AI_PACK_LATEST_URL", None)
+    if latest is not None:
+        env["AI_PACK_LATEST_URL"] = latest
     if url is not None:
         env["AI_PACK_MANIFEST_URL"] = url
     if digest is not None:
@@ -67,14 +70,28 @@ def run(url=None, digest=None, args=()):
 print()
 print("== AI 추가팩 주소 심기 (S15P21B202-690) ==")
 
-# ── ① 값이 없으면 아무것도 쓰지 않고 **그 사실을 말한다**
+import json
+sys.path.insert(0, CI)
+import write_ai_pack_source as W  # noqa: E402
+
+# ── ① 변수가 없으면 **최신 주소만** 쓴다 (S15P21B202-744)
+#     팩을 바꿀 때마다 CI 변수를 고치지 않으려는 것이 목적이다 — 변수 없이도 게임이 받을 수 있어야 한다.
 code, out, body = run()
-check(code == 0, "변수가 없을 때 빌드를 실패시킨다 — AI 없이 빌드하는 것이 정상 경로다")
-check(body is None, "변수가 없는데 파일을 썼다")
+check(code == 0, "변수가 없을 때 빌드를 실패시킨다")
+check(body is not None, "변수가 없으면 최신 주소라도 써야 한다 — 안 쓰면 CI 변수를 또 고쳐야 한다")
+if body:
+    data = json.loads(body)
+    check(data.get("latest_url") == W.LATEST_URL, "최신 주소가 기본값으로 들어가지 않았다")
+    check(data.get("manifest_url") == "" and data.get("manifest_sha256") == "",
+          "대체값이 없는데 무언가를 넣었다")
+check("최신" in out, "최신 주소를 썼다는 것을 말하지 않는다")
+
+# 최신 주소를 끄고(`-`) 변수도 없으면 예전처럼 쓰지 않고 그 사실을 말한다
+code, out, body = run(latest="-")
+check(code == 0 and body is None, "최신 주소를 껐는데 파일을 썼다")
 check("설정되지 않았다" in out,
-      "변수가 없다는 것을 말하지 않는다 — 'AI 설치가 안 된다' 의 원인이 변수 미설정인지 "
-      "기능 결함인지 빌드 로그로 가릴 수 없다")
-print("  없으면 안 쓰고, 안 썼다고 말한다 ✅")
+      "아무것도 없다는 것을 말하지 않는다 — 'AI 설치가 안 된다' 의 원인을 빌드 로그로 가릴 수 없다")
+print("  변수가 없으면 최신 주소만 쓰고, 그것도 끄면 안 쓴다고 말한다 ✅")
 
 # ── ② 한쪽만 있으면 실패
 for url, digest, what in [(GOOD_URL, None, "주소만"), (None, GOOD_HASH, "해시만")]:
@@ -109,13 +126,14 @@ check(body is not None, "올바른 값인데 파일을 쓰지 않았다")
 if body:
     import json
     data = json.loads(body)
-    check(set(data) == {"manifest_url", "manifest_sha256"},
-          f"게임이 읽는 두 키가 아니다: {sorted(data)} (AiPackSource 와 어긋나면 조용히 null 이 된다)")
+    check(set(data) == {"manifest_url", "manifest_sha256", "latest_url"},
+          f"게임이 읽는 세 키가 아니다: {sorted(data)} (AiPackSource 와 어긋나면 조용히 null 이 된다)")
+    check(data.get("latest_url") == W.LATEST_URL, "대체값을 줘도 최신 주소는 들어가야 한다")
     check(data.get("manifest_url") == GOOD_URL, "주소가 그대로 들어가지 않았다")
     check(data.get("manifest_sha256") == GOOD_HASH, "해시가 그대로 들어가지 않았다")
 # 값을 로그에 흘리지 않는다 — 같은 자리에 비밀이 오는 날이 온다.
 check(GOOD_HASH not in out, "해시 전체를 로그에 찍는다")
-print("  올바른 값은 게임이 읽는 두 키로 들어간다 ✅")
+print("  올바른 값은 게임이 읽는 세 키로 들어간다 ✅")
 
 # ── ⑥ **두 빌드 잡 모두** Unity 보다 먼저 이것을 부른다
 #
@@ -144,9 +162,12 @@ print("  두 빌드 잡이 Unity 앞에서 부른다 ✅")
 #     주소 없이 나간 릴리스는 사용자가 "AI 동료 추가" 를 눌러도 **영영 받을 수 없는
 #     빌드**이고, 그때 뜨는 문구는 변수를 안 넣은 경우와 글자 하나까지 같다. 즉
 #     **내보낸 뒤에는 원인을 화면으로 가릴 수 없다.**
-code, out, body = run(args=["--required"])
+code, out, body = run(args=["--required"], latest="-")
 check(code != 0, "주소가 없는데 릴리스가 통과했다 — 게임 안에서 받을 길이 없는 빌드가 나간다")
 check(body is None, "주소가 없는데 파일을 썼다")
+# 최신 주소만 있어도 릴리스는 받을 길이 있다 (S15P21B202-744)
+code, out, body = run(args=["--required"])
+check(code == 0 and body is not None, "최신 주소가 있는데 릴리스가 멈췄다: " + out.strip()[:200])
 code, out, body = run(GOOD_URL, GOOD_HASH, args=["--required"])
 check(code == 0, "올바른 값인데 --required 가 실패했다: " + out.strip()[:200])
 check(body is not None, "--required 로 올바른 값을 줬는데 파일을 쓰지 않았다")
@@ -161,6 +182,23 @@ check("write_ai_pack_source.py --required" in jobs["release-windows"],
 check("write_ai_pack_source.py --required" not in jobs["build-devbuild"],
       "build-devbuild 까지 --required 다 — AI 변수 없는 브랜치의 QA 빌드가 통째로 죽는다")
 print("  엄격함은 릴리스에만 걸려 있다 ✅")
+
+# ── ⑨ 최신 주소도 게임의 검증을 통과해야 하고, **이름의 프로토콜이 게임의 것과 같아야** 한다
+#     (S15P21B202-744). 이름이 어긋나면 옛 빌드와 새 빌드가 서로의 팩을 받는다.
+for bad, what in [("http://example.invalid/latest/pack-manifest.json", "http"),
+                  ("https://example.invalid/latest/pack-manifest.json?x=1", "질의")]:
+    code, out, body = run(latest=bad)
+    check(code != 0 and body is None, f"최신 주소에 {what} 가 있는데 통과했다")
+code, out, body = run(latest="https://example.invalid/ai-packs/latest-x/pack-manifest.json")
+check(code == 0 and body is not None and json.loads(body)["latest_url"].endswith("latest-x/pack-manifest.json"),
+      "AI_PACK_LATEST_URL 로 최신 주소를 덮지 못한다")
+with io.open(os.path.join(ROOT, "METAGAME", "Assets", "_Project", "Scripts", "Runtime", "Network", "AiPackInstaller.cs"),
+             encoding="utf-8") as f:
+    installer = f.read()
+protocol = installer.split('value.protocol != "', 1)[1].split('"', 1)[0] if 'value.protocol != "' in installer else None
+check(protocol is not None and ("latest-" + protocol + "/") in W.LATEST_URL,
+      f"최신 주소 이름의 프로토콜이 게임이 요구하는 프로토콜({protocol})과 다르다: {W.LATEST_URL}")
+print("  최신 주소를 검증하고, 이름의 프로토콜이 게임과 같다 ✅")
 
 if fails:
     print(f"\n❌ 실패 {len(fails)}건")

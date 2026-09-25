@@ -32,6 +32,7 @@ namespace Metagame.Gameplay.Tests
             foreach (string file in new[]
             {
                 "Runtime/Network/AiPackInstaller.cs",   // 받기·검증·설치
+                "Runtime/Network/AiPackLatest.cs",      // 서버의 최신 팩 찾기 (S15P21B202-744)
                 "Runtime/Network/AiPrepProgress.cs",    // 진행률·남은 시간·화면 글자
                 "Runtime/UI/AiRoomControls.cs",         // 방장이 누르는 버튼
                 "Runtime/UI/LobbyRoster.cs",            // 방 목록 — AI 추가·빼기 (S15P21B202-713)
