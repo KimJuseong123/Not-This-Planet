@@ -80,7 +80,7 @@ namespace Metagame.Network
 
         public AiGroupOrders Select(string recipients, AiRecipients fallback, NetPlayer selected)
         {
-            int slot = recipients == "red" ? 0 : recipients == "blue" ? 1 : recipients == "yellow" ? 2 : recipients == "green" ? 3 : -1;
+            int slot = AiCommandPlan.SlotOf(recipients);
             var mode = recipients == "default" ? fallback : recipients == "all" ? AiRecipients.All
                 : recipients == "one" ? AiRecipients.OneIdle : recipients == "two" ? AiRecipients.TwoIdle : AiRecipients.Selected;
             var result = new AiGroupOrders(mode == AiRecipients.OneIdle || mode == AiRecipients.TwoIdle);
@@ -116,6 +116,37 @@ namespace Metagame.Network
             if (order.actors.Count > order.Requested) order.actors.RemoveRange(order.Requested, order.actors.Count-order.Requested);
             if (mode == AiRecipients.All) order.Requested = order.Count;
             foreach (var ai in order.actors) { order.revisions.Add(ai.AiOrderRevision); order.Names += (order.Names == null ? "" : ", ") + ai.nickname; }
+            return order;
+        }
+
+        /// <summary>
+        /// <b>버튼으로 고른 자리의 동료 한 명</b>을 붙잡는다 (S15P21B202-738).
+        ///
+        /// <para><see cref="Capture"/> 와 달리 <b>거리를 보지 않는다.</b> 멀리 있거나 벽 뒤에
+        /// 있는 동료에게 시킬 수 있다는 것이 버튼으로 고르는 이유 중 하나다 — 겨냥으로
+        /// 고르는 안(B)이 못 하던 것이다.</para>
+        ///
+        /// <para>못 붙잡으면 <b>왜인지</b>를 <paramref name="refusal"/> 로 준다. 빈 목록만
+        /// 돌려주면 부르는 쪽은 "주변에 명령을 들을 AI가 없어요" 밖에 할 말이 없는데,
+        /// 버튼을 누른 사람에게 그것은 틀린 말이다 — 주변을 고른 것이 아니다.</para>
+        /// </summary>
+        public static AiGroupOrders CaptureSlot(int slot, PlayerRig speaker, out string refusal)
+        {
+            var order = new AiGroupOrders(false) { Requested = 1 };
+            refusal = null;
+            string color = AiCommandPlan.RecipientOf(slot) != null ? TeamSlots.Name(slot) : null;
+            if (color == null) { refusal = "없는 자리예요"; return order; }
+            if (!NetworkServer.active || speaker == null) { refusal = "지금은 AI 명령을 사용할 수 없어요"; return order; }
+            foreach (var ai in NetPlayer.AllServerPlayers)
+            {
+                if (ai == null || ai.teamSlot != slot) continue;
+                if (!ai.IsAi) { refusal = color + "은 AI 동료가 아니에요"; return order; }
+                if (!ai.HasBody) { refusal = color + " 동료가 아직 준비되지 않았어요"; return order; }
+                if (ai.VisualRig.Downed) { refusal = color + " 동료가 기절해 있어요"; return order; }
+                order.actors.Add(ai); order.revisions.Add(ai.AiOrderRevision); order.Names = ai.nickname;
+                return order;
+            }
+            refusal = color + " 자리에 AI 동료가 없어요";
             return order;
         }
 
