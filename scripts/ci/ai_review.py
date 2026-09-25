@@ -16,7 +16,7 @@
 백엔드 (AI_REVIEW_BACKEND 로 강제: api | cli)
   cli : 러너 호스트에 로그인된 Claude Code CLI(`claude -p`) — Team 플랜, 키 불필요 (채택). AI_REVIEW_CLI=true
   api : ANTHROPIC_API_KEY 가 있으면 Messages API
-환경변수: GITLAB_TOKEN(코멘트, 필수) · AI_REVIEW_MODEL(기본 claude-opus-5) · AI_REVIEW_EFFORT(cli, 기본 medium)
+환경변수: GITLAB_TOKEN(코멘트, 필수) · AI_REVIEW_MODEL(기본 claude-opus-5-5) · AI_REVIEW_EFFORT(cli, 기본 medium)
           AI_REVIEW_SUMMARY_MODEL(요약용, 기본 = AI_REVIEW_MODEL) · AI_REVIEW_ROLES(예 "scope,code" 강제) · AI_REVIEW_PARALLEL(기본 3)
           JIRA_USER/JIRA_API_TOKEN(있으면 완료 조건을 기준에 포함)
 """
@@ -45,7 +45,10 @@ MAX_DIFF_CHARS = int(env("AI_REVIEW_MAX_CHARS", "90000"))
 # 지금은 평문으로 펴서 담으므로 같은 글자 수가 그대로 글자 수다. diff 예산이
 # 90000 인데 설명이 3000 인 것은 균형이 맞지 않았다.
 MAX_JIRA_DESC_CHARS = int(env("AI_REVIEW_JIRA_DESC_CHARS", "12000"))
-DEFAULT_MODEL = "claude-opus-5"          # 팀 결정 2026-08-27: Opus + effort medium
+# Opus + effort medium 은 팀 결정(2026-08-27). 모델은 2026-09-25 에 claude-opus-5-5 로 올렸다 —
+# **러너의 Claude Code 가 2.1.280 이상이어야 한다**(그보다 낮으면 400 "version 2.1.280 or newer is required").
+# 5.5 의 API 기본 effort 도 medium 이지만 기대지 않고 명시한다.
+DEFAULT_MODEL = "claude-opus-5-5"
 DEFAULT_EFFORT = "medium"
 
 COMMON_RULES = """한국어로, 짧고 구체적으로. 주어진 자료만으로 판단합니다.
@@ -399,7 +402,7 @@ def pick_backend() -> str:
 
 
 def call_api(model: str, system: str, user: str, schema: dict | None = None) -> str:
-    # claude-opus-5 는 `thinking` 을 빼면 **생각한다** — 생각도 max_tokens 안에서 쓰므로 3000 으로는
+    # Opus 5 부터는 `thinking` 을 빼면 **생각한다**(5.5 는 끌 수도 없다) — 생각도 max_tokens 안에서 쓰므로 3000 으로는
     # JSON 이 중간에 잘린다. effort 는 cli 경로와 같은 값을 쓴다(팀 결정: medium).
     # 거절되면 서버가 알맞은 모델로 다시 돌린다(`fallbacks: default`).
     st, d = http("POST", "https://api.anthropic.com/v1/messages",
