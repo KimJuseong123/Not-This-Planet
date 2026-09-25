@@ -19,7 +19,10 @@ namespace Metagame.Network
         [Serializable] public sealed class Decision { public string action; public string recipients; public bool approach; public bool safety_override; public string text; public float elapsed_ms; }
         // `text` 는 워커가 이미 보내고 있었다 — 여기서 선언하지 않아 JsonUtility 가 버렸다
         // (S15P21B202-708). 선언만 더하면 워커도 추가팩도 건드리지 않고 전사를 얻는다.
-        [Serializable] public sealed class PlanDecision { public string status; public AiCommandAssignment[] orders; public bool safety_override; public float elapsed_ms; public string text; }
+        // `asr_ms`·`llm_ms` 는 **워커가 이미 나눠 재던 값**이다 (S15P21B202-734). 여기서
+        // 선언하지 않으면 JsonUtility 가 버리므로, 19.7초가 받아쓰기 탓인지 판단 탓인지
+        // 가릴 수 없다. `unsaid_social` 은 막은 감정 표현 이름이다(-736).
+        [Serializable] public sealed class PlanDecision { public string status; public AiCommandAssignment[] orders; public bool safety_override; public float elapsed_ms; public float asr_ms; public float llm_ms; public float llm_load_ms; public int llm_tokens; public string unsaid_social; public string text; }
         [Serializable] sealed class TextRequest { public string text; }
         public static AiLocalRuntime Current { get; private set; }
         public AiRuntimeState State { get; private set; } = AiRuntimeState.Missing;
@@ -514,13 +517,39 @@ namespace Metagame.Network
             return "\"" + said + "\" 로 듣고 ";
         }
 
+        /// <summary>
+        /// 시간을 <b>나눠</b> 적는다 (S15P21B202-734).
+        ///
+        /// <para>2026-09-23 QA 에 <c>19731ms</c> 가 찍혔는데 <b>받아쓰기 탓인지 판단
+        /// 탓인지 가릴 수 없었다.</b> 워커는 둘을 따로 재고 있었고, 합친 값 하나만
+        /// 넘어왔다.</para>
+        ///
+        /// <para><c>load</c> 는 모델이 내려갔다 다시 올라온 시간이다 — 크면 고칠 곳이
+        /// <c>keep_alive</c> 이고, <c>eval</c>·토큰 수가 크면 <c>num_predict</c> 다.
+        /// <b>합계만 보면 둘이 구별되지 않는다.</b></para>
+        ///
+        /// <para>값이 없는 옛 워커에서는 합계만 적는다 — 새 필드는 0 으로 온다.</para>
+        /// </summary>
+        static string Timing(PlanDecision result)
+        {
+            string total = result.elapsed_ms.ToString("0") + "ms";
+            if (result.asr_ms <= 0 && result.llm_ms <= 0) return total;
+            string split = " (받아쓰기 " + (result.asr_ms / 1000f).ToString("0.0")
+                         + "초 · 판단 " + (result.llm_ms / 1000f).ToString("0.0") + "초";
+            if (result.llm_load_ms > 0)
+                split += " · 모델 올리기 " + (result.llm_load_ms / 1000f).ToString("0.0") + "초";
+            if (result.llm_tokens > 0) split += " · " + result.llm_tokens + "토큰";
+            return total + split + ")";
+        }
+
         void ReportPlan(PlanDecision result)
         {
             if (result == null) { UnityEngine.Debug.Log("[AI] 응답을 읽지 못했다"); return; }
             if (!string.IsNullOrWhiteSpace(result.text)) UnityEngine.Debug.Log("[AI] 들음: " + result.text);
             UnityEngine.Debug.Log("[AI] 계획 " + result.status + " " + AiCommandPlan.Describe(result.orders)
                       + (result.safety_override ? " · 안전 중단" : "")
-                      + " · " + result.elapsed_ms.ToString("0") + "ms");
+                      + (string.IsNullOrEmpty(result.unsaid_social) ? "" : " · 말에 없던 " + result.unsaid_social + " 막음")
+                      + " · " + Timing(result));
         }
 
         public static bool ValidDecision(Decision result)

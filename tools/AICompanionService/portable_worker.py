@@ -184,10 +184,17 @@ class Worker:
         # 아래 `except` 도 이 값을 쓴다 — try 안에 두면 "실패한 경로에서는 안 잡혀 있을 수도
         # 있나" 를 매번 다시 확인해야 한다.
         started = time.perf_counter()
+        asr_ms = 0
         try:
             if raw is not None:
+                # **받아쓰기만 따로 잰다** (S15P21B202-734). 아래에서 `elapsed_ms` 를
+                # 덮어쓰기 때문에, 이것을 여기서 안 잡으면 분해할 길이 사라진다 —
+                # 2026-09-23 QA 의 19.7초가 어디서 났는지 가릴 수 없었던 이유다.
+                asr_began = time.perf_counter()
                 text = self.transcribe(raw)
+                asr_ms = round((time.perf_counter() - asr_began) * 1000)
             result = (companion_plan.classify(text, self.url) if plan else companion_social.classify(text, self.url) if social else companion_v4.classify_companion(text)) if text and text.strip() else ({"status": "none", "orders": [], "text": text or ""} if plan else {"action": "none", "text": ""})
+            result["asr_ms"] = asr_ms
             result["elapsed_ms"] = round((time.perf_counter() - started) * 1000)
             return result  # response only; never written to disk
         except (ValueError, TypeError, KeyError):
@@ -200,8 +207,10 @@ class Worker:
             #
             # `elapsed_ms` 도 실제 값으로 준다. `0` 이면 "아무 일도 안 했다" 로 읽힌다.
             elapsed = round((time.perf_counter() - started) * 1000)
-            return ({"status": "none", "orders": [], "text": text or "", "elapsed_ms": elapsed} if plan
-                    else {"action": "none", "text": text or "", "elapsed_ms": elapsed})
+            return ({"status": "none", "orders": [], "text": text or "",
+                     "asr_ms": asr_ms, "elapsed_ms": elapsed} if plan
+                    else {"action": "none", "text": text or "",
+                          "asr_ms": asr_ms, "elapsed_ms": elapsed})
         except Exception:
             self.state, self.error = "failed", "inference_failed"
             raise HTTPException(503, "inference_failed") from None
