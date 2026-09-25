@@ -26,6 +26,10 @@ namespace Metagame.Network
         bool watchRequester;
         public string SocialPerforming => performing ? social : null;
         public bool Busy => work.Active || pin.Active || follow.Active || social != null || pending.Count > 0;
+
+        /// <summary>마지막 작업이 어떻게 끝났는가 · 왜 (S15P21B202-703). 화면 글자가 아니라 값이다.</summary>
+        public AiTaskOutcome WorkOutcome => work.Outcome;
+        public string WorkReason => work.Reason;
         public static bool IsSocial(string action) => action == "dance" || action == "greet" || action == "heart" || action == "cheer";
         public string Status => recoveryStatus ?? (workOrder ? work.Status : approaching ? "다가가는 중" : social != null && !performing ? "말한 사람 바라보는 중" : social != null ?
             (social == "dance" ? "춤추는 중" : social == "greet" ? "인사하는 중" : "감정 표현 중") :
@@ -50,13 +54,15 @@ namespace Metagame.Network
             { refusal = "말한 사람을 못 찾음"; return false; }
             if (IsSocial(action) && (Busy || self.HeldTool != null || self.Carrying || self.LeftHand.Gripping || self.RightHand.Gripping || self.GrabbedByOthers))
             { refusal = Busy ? "다른 작업 중이라 감정 표현 불가" : "손에 무언가를 들고 있어 감정 표현 불가"; return false; }
-            Stop();
+            Stop(action == "cancel" ? "취소 명령" : "새 명령");
             requester = speaker;
             if (AiWorkTask.Supports(action))
             {
                 workOrder = true;
                 if (work.Begin(action, self, speaker, destination)) return true;
-                refusal = "작업 대상을 못 찾음"; return false;
+                // 못 시작한 **그 이유**를 올린다 (S15P21B202-703). 전에는 뭉뚱그린 한 문구라
+                // "견인 가능한 빈 파츠 없음" 인지 "목적지를 찾지 못함" 인지 화면에서 사라졌다.
+                refusal = work.Reason ?? "작업 대상을 못 찾음"; return false;
             }
             if (IsSocial(action))
             {
@@ -73,7 +79,7 @@ namespace Metagame.Network
                 {
                     workOrder = true;
                     if (work.Begin("goto", self, speaker, destination)) return true;
-                    refusal = "모일 자리를 못 찾음"; return false;
+                    refusal = work.Reason ?? "모일 자리를 못 찾음"; return false;
                 }
                 gather = true;
                 if (follow.Apply("follow", speaker)) return true;
@@ -118,9 +124,8 @@ namespace Metagame.Network
             // 필요한 순간에. 시킨 사람이 쓰러지면 뜻을 잃는 다른 작업과 달리, 살리기는
             // **대상이 따로** 있다.
             bool rescuing = workOrder && work.Rescuing;
-            if (!allowed || self == null || self.Downed || (self.IsRiding && !workOrder)
-                || requester == null || (requester.Downed && !rescuing))
-            { Stop(); return default; }
+            string halt = HaltReason(self, allowed, rescuing);
+            if (halt != null) { Stop(halt); return default; }
             if (workOrder)
             {
                 if (!self.IsRiding && work.Active && recovery.Tick(self, requester, work.WantsMovement, out var rescued, work.MovementGoal))
@@ -163,9 +168,25 @@ namespace Metagame.Network
             if(watchRequester) return Face(self,requester);
             return input;
         }
-        public void Stop()
+        /// <summary>
+        /// 지금 멈춰야 하면 <b>그 이유</b>, 아니면 null (S15P21B202-703). 전에는 한 줄의 or 로
+        /// 묶여 있어 무엇 때문에 멈췄는지 남지 않았다.
+        /// </summary>
+        string HaltReason(PlayerRig self, bool allowed, bool rescuing)
         {
-            work.Cancel(); workOrder = false; pending.Clear(); planSpeaker = null; advance = false;
+            if (!allowed) return "AI 명령이 막힌 상태";
+            if (self == null || self.Downed) return "AI 가 쓰러짐";
+            if (self.IsRiding && !workOrder) return "작업 없이 탑승 중";
+            if (requester == null) return "말한 사람이 없음";
+            if (requester.Downed && !rescuing) return "말한 사람이 쓰러짐";
+            return null;
+        }
+
+        public void Stop() => Stop("중단");
+
+        public void Stop(string reason)
+        {
+            work.Cancel(reason); workOrder = false; pending.Clear(); planSpeaker = null; advance = false;
             pin.Cancel(); follow.Stop(); recovery.Reset(); requester = null; recoveryStatus = null; pinOrder = false;
             social = null; gather = false; approaching=false; performing=false; watchRequester=false;
         }
