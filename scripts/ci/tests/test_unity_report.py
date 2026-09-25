@@ -128,11 +128,39 @@ assert "Meteor_Settles" in b, "새 실패는 나열해야 한다"
 assert "MovingAwayFromTheClamp_PullsIt" not in b.split("**새 실패**")[1], "기존 실패는 목록에서 빠져야 한다"
 print("  새 실패만 나열 ✅")
 
-# ── ⑨ 되살린 것도 알려 준다
-base_more = base_all | {"Metagame.Gameplay.Tests.Other.WasFailing"}
-b = R.body(d, [], base_more, "develop")
-assert "되살린" in b and "WasFailing" in b, b
-print("  되살린 테스트 표시 ✅")
+# ── ⑨ 되살린 것도 알려 준다 — 단 **이번에 돌아서 통과한 것만** (S15P21B202-621)
+#
+#     "지금 실패가 아니다" 로 세면 이번 실행에 **없는** 것(Heavy·지운 테스트)과 느린
+#     목록으로 **건너뛴** 것까지 이 MR 이 고친 것으로 적힌다. 기준선에 새벽 전체 실행이
+#     섞이면 Heavy 실패가 전부 그렇게 된다.
+#
+#     이 절은 `assert` 를 쓰지 않는다 — `python -O` 로 돌리면 통째로 사라진다.
+_revive_fails = []
+
+
+def _revive_check(ok, msg):
+    if not ok:
+        _revive_fails.append(msg)
+
+
+_PASSING = "Metagame.Gameplay.Tests.ClampPullTests.HoldingWithoutMoving_DoesNotPull"   # d 에서 Passed
+_GONE = "Metagame.Gameplay.Tests.Other.WasFailing"                                  # d 에 없다
+_SKIPPED = "Metagame.Gameplay.Tests.SlowTests.ListedOnSlowList"                     # 건너뛰었다
+_d_skip = dict(d, cases=d["cases"] + [{"cls": "Metagame.Gameplay.Tests.SlowTests", "name": "ListedOnSlowList",
+                                       "result": "Skipped", "msg": "", "time": "0"}])
+b = R.body(_d_skip, [], base_all | {_PASSING, _GONE, _SKIPPED}, "develop")
+_revive_check("| 이 MR 이 되살린 것 | 1 |" in b, "되살린 수가 1(이번에 통과한 것)이 아니다: " + b)
+_revive_check("`HoldingWithoutMoving_DoesNotPull`" in b, "이번에 통과한 기준선 실패를 되살린 것으로 적지 않는다")
+_revive_check("WasFailing" not in b, "이번 실행에 없는 테스트를 되살린 것으로 적는다 — Heavy·지운 테스트가 다 그렇게 된다")
+_revive_check("ListedOnSlowList" not in b, "건너뛴 테스트를 되살린 것으로 적는다 — 느린 목록이 전부 '고친 것' 이 된다")
+
+b = R.body(_d_skip, [], base_all | {_GONE, _SKIPPED}, "develop")
+_revive_check("되살린" not in b, "통과한 것이 하나도 없는데 되살린 것이 있다고 적는다: " + b)
+if _revive_fails:
+    for _m in _revive_fails:
+        print("  ❌ " + _m)
+    raise SystemExit(1)
+print("  되살린 테스트 표시 — 이번에 통과한 것만 ✅")
 
 # ── ⑩ 기준선 조회 — 대상 브랜치의 마지막 unity-compile 아티팩트를 쓴다
 CALLS = []
@@ -1226,3 +1254,221 @@ if R.FULL_BASELINE_RUNS != 1:
         f"전체 실행 기준선이 {R.FULL_BASELINE_RUNS}회다 — 하루 1회뿐이라 "
         "합치면 기준선이 그만큼 날짜를 거슬러 늘어지고 진짜 회귀가 묻힌다")
 print("  전체 실행 = 직전 1회 · MR = 최근 3회 ✅")
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 기준선이 **돌리지 않은** 테스트의 실패로 막지 않는다 (S15P21B202-739)
+#
+# develop 의 실행도 느린 목록을 건너뛴다. 그래서 목록에 든 테스트가 develop 에서 깨져
+# 있어도 기준선(최근 develop 3회의 합집합)에는 실패가 없다 — 통과해서가 아니라 **안
+# 돌아서**다. MR 이 목록을 못 받아(API 오류) 전부 돌리거나, 새벽이 실패한 이름을 목록에서
+# 내리면 그 실패가 "새 실패" 가 되고, 재실행에서도 결정적으로 실패하니 1(차단)이 됐다 —
+# 이 MR 이 만들지 않은 실패로.
+#
+# 그리고 코멘트가 **느린 목록을 건너뛰었다** 는 사실을 말한다 — Heavy 와 같은 이유다.
+#
+# 이 절은 `assert` 를 쓰지 않는다 — `python -O` 로 돌리면 통째로 사라진다.
+# ══════════════════════════════════════════════════════════════════════════
+print()
+print("== 기준선이 돌리지 않은 테스트 · 느린 목록 표시 (S15P21B202-739) ==")
+_blind_fails = []
+
+
+def _bcheck(ok, msg):
+    if not ok:
+        _blind_fails.append(msg)
+
+
+def _case(full, result, reason=None, msg=None):
+    """결과 XML 의 테스트 한 건. `reason` 은 Unity 가 건너뛴 사유를 남기는 자리다."""
+    why = f"<reason><message><![CDATA[{reason}]]></message></reason>" if reason else ""
+    fail = f"<failure><message><![CDATA[{msg}]]></message></failure>" if msg else ""
+    return (f'<test-case name="{full.rsplit(".", 1)[-1]}" fullname="{full}" result="{result}" '
+            f'duration="0.1">{fail}{why}</test-case>')
+
+
+def _run_xml(*cases):
+    n_fail = sum('result="Failed"' in c for c in cases)
+    n_skip = sum('result="Skipped"' in c for c in cases)
+    return ('<?xml version="1.0" encoding="utf-8"?>\n'
+            f'<test-run id="2" total="{len(cases)}" passed="{len(cases) - n_fail - n_skip}" '
+            f'failed="{n_fail}" skipped="{n_skip}" duration="1">'
+            '<test-suite type="TestFixture" name="T" fullname="G.T">'
+            + "".join(cases) + "</test-suite></test-run>\n")
+
+
+_SLOW_WHY_NEW = f"{R.SLOW_SKIP_MARK} · 잡 631830"
+_SLOW_WHY_OLD = f"{R.SLOW_SKIP_MARK} · 잡 620000"
+#     최신 실행(91): Blind 를 목록으로 건너뛰었다 · RanNewest 는 돌아서 통과 · Ignored 는 [Ignore]
+_NEWEST = _run_xml(_case("G.T.Blind", "Skipped", reason=_SLOW_WHY_NEW),
+                   _case("G.T.RanNewest", "Passed"),
+                   _case("G.T.Ignored", "Skipped", reason="Opt-in local models integration; no model downloads."),
+                   _case("G.T.Broken", "Failed", msg="develop 에서도 깨져 있다"))
+#     그 전 실행(90): Blind 는 통과(새벽) · OnlyOld 는 목록으로 건너뜀 · RanNewest 도 건너뜀
+_OLDER = _run_xml(_case("G.T.Blind", "Passed"),
+                  _case("G.T.OnlyOld", "Skipped", reason=_SLOW_WHY_OLD),
+                  _case("G.T.RanNewest", "Skipped", reason=_SLOW_WHY_OLD))
+
+# ── ① 건너뛴 사유를 읽는다 — `[Ignore]` 와 느린 목록을 가를 자리다
+_why = {f'{c["cls"]}.{c["name"]}': c.get("reason") for c in R.parse_nunit(_NEWEST)["cases"]}
+_bcheck(_why.get("G.T.Blind") == _SLOW_WHY_NEW, f"건너뛴 사유를 읽지 못한다: {_why.get('G.T.Blind')!r}")
+_bcheck(_why.get("G.T.RanNewest") == "", f"사유가 없는 테스트에 사유를 만든다: {_why.get('G.T.RanNewest')!r}")
+
+
+# ── ② 기준선이 **돌리지 않은** 이름을 남긴다 — 이름마다 **가장 최근 기록**으로 본다
+def _blind_http(method, url, headers=None, body=None, timeout=30):
+    if "/jobs?per_page=100&page=" in url:
+        if url.split("&page=")[1].split("&")[0] != "1":
+            return 200, []
+        return 200, [
+            {"id": 91, "name": "unity-compile", "ref": "develop", "status": "success",
+             "created_at": "2026-09-24T10:00:00", "commit": {"id": "cccccccc3333"}},
+            {"id": 90, "name": "unity-compile", "ref": "develop", "status": "success",
+             "created_at": "2026-09-24T04:03:00", "commit": {"id": "dddddddd4444"}},
+        ]
+    if "/jobs/91/artifacts/unity-results.xml" in url:
+        return 200, _NEWEST
+    if "/jobs/90/artifacts/unity-results.xml" in url:
+        return 200, _OLDER
+    return 599, "예상 못한 호출: " + url
+
+
+_keep_http_b = ci_common.http
+_meta_b: dict = {}
+try:
+    ci_common.http = _blind_http
+    with contextlib.redirect_stdout(_io.StringIO()):
+        _base_b = R.baseline_failures(ci_common.GitLab(), "develop", meta=_meta_b)
+finally:
+    ci_common.http = _keep_http_b
+_bcheck(_base_b == {"G.T.Broken"}, f"기준선 실패가 틀렸다: {_base_b}")
+_bcheck(_meta_b.get("slow_skipped") == ["G.T.Blind", "G.T.OnlyOld"],
+        "기준선이 건너뛴 이름이 틀렸다 — 최신 실행이 건너뛴 Blind·옛 실행에만 있는 OnlyOld 만이어야 하고, "
+        f"최신 실행이 돌린 RanNewest 와 [Ignore] 는 아니다: {_meta_b.get('slow_skipped')}")
+_UNSEEN = set(_meta_b.get("slow_skipped") or [])
+
+
+# ── ③ 판정 — 기준선이 돌리지 않은 것의 실패는 **2**(경고), 1 이 아니다
+def _fails(*names, total=10):
+    cases = [{"cls": "G.T", "name": n, "result": "Failed", "msg": f"{n} 실패"} for n in names]
+    return {"total": total, "passed": total - len(cases), "failed": len(cases),
+            "skipped": 0, "duration": 1.0, "cases": cases}
+
+
+code, why = R.decide(_fails("Blind"), [], {"G.T.Broken"}, 2)
+_bcheck(code == REG, f"검사 전제가 틀렸다 — unseen 없이도 막지 않는다: {code} {why}")
+code, why = R.decide(_fails("Blind"), [], {"G.T.Broken"}, 2, unseen=_UNSEEN)
+_bcheck(code == UNK, f"기준선이 건너뛴 테스트의 실패로 막는다 — 이 MR 이 만든 실패가 아니다: {code} {why}")
+_bcheck("건너뛴" in why, f"왜 경고인지 말하지 않는다: {why}")
+code, why = R.decide(_fails("Blind", "Fresh"), [], {"G.T.Broken"}, 2, unseen=_UNSEEN)
+_bcheck(code == REG and "1건" in why, f"기준선이 본 새 실패까지 면제하거나 수를 틀린다: {code} {why}")
+code, why = R.decide(_fails("RanNewest"), [], {"G.T.Broken"}, 2, unseen=_UNSEEN)
+_bcheck(code == REG, "가장 최근 기준선이 돌려서 통과한 테스트의 실패를 면제한다 — 옛 실행의 건너뜀이 최신 통과를 이긴다")
+code, why = R.decide(_fails("Blind"), ["error CS0103: x"], {"G.T.Broken"}, 1, unseen=_UNSEEN)
+_bcheck(code == REG, "컴파일 오류를 기준선이 건너뛴 이름으로 낮춘다 — R2 가 무너진다")
+code, why = R.decide(_fails("Blind"), [], {"G.T.Broken"}, 2, flaky={"G.T.Blind"}, unseen=_UNSEEN)
+_bcheck(code == PASS, f"재실행에서 통과한 것은 여전히 플래키로 통과여야 한다: {code} {why}")
+
+# ── ④ 코멘트 — 새 실패와 **따로** 적고, 표와 판정이 어긋나지 않는다
+_b = R.body(_fails("Blind", "Broken"), [], {"G.T.Broken"}, "develop", unseen=_UNSEEN, verdict=UNK)
+_head_b = _b.split("\n")[1]
+_bcheck("🔴" not in _head_b and "가릴 수 없습니다" in _head_b, f"머리줄이 이 MR 탓으로 단정한다: {_head_b}")
+_bcheck("| 그중 **새로 생긴 것** | **0** |" in _b, "기준선이 돌리지 않은 것을 '새로 생긴 것' 에 센다: " + _b)
+_bcheck("| `develop` 가 돌리지 않아 가리지 못한 것 | 1 |" in _b, "가리지 못한 수가 표에 없다: " + _b)
+_bcheck("| `develop` 에도 있던 것 | 1 |" in _b, "기존 실패 수가 틀렸다 — 가리지 못한 것까지 기존으로 센다: " + _b)
+_bcheck("`T.Blind`" in _b and "느린 목록으로 건너뛰었습니다" in _b, "어느 테스트가 왜 그런지 적지 않는다: " + _b)
+_b2 = R.body(_fails("Blind", "Fresh"), [], set(), "develop", unseen=_UNSEEN, verdict=REG)
+_bcheck("새로 실패하는 테스트 1개" in _b2, "기준선이 돌리지 않은 것까지 새 실패 수에 넣는다: " + _b2[:300])
+_bcheck("Blind" not in _b2.split("**새 실패**")[1].split("가 돌리지 않은 테스트의 실패")[0],
+        "기준선이 돌리지 않은 것을 '새 실패' 목록에 넣는다")
+_bcheck("✅" in R.body(_fails(), [], set(), "develop", unseen=_UNSEEN).split("\n")[1],
+        "실패가 없는데 기준선이 건너뛴 이름이 있다는 이유로 경고한다")
+
+
+# ── ⑤ 배선 — 계획 단계가 고정하고, 최종 판정이 그것을 쓴다
+_posted_b = []
+
+
+def _notes_http(method, url, headers=None, body=None, timeout=30):
+    if "/notes" in url:
+        if method == "GET":
+            return 200, []
+        _posted_b.append((body or {}).get("body", ""))
+        return 201, {"id": 1}
+    return 599, "기준선을 고정했는데 다시 조회했다: " + url
+
+
+_MR_XML = _run_xml(_case("G.T.Blind", "Failed", msg="기다리다 시한을 넘겼다"), _case("G.T.Ok", "Passed"))
+
+
+def _verdict_with(slow_skipped):
+    """기준선을 고정 파일로 주고 최종 판정을 돌린다 — (판정, 찍은 글)."""
+    with tempfile.TemporaryDirectory() as d:
+        nunit = os.path.join(d, "unity-results.xml")
+        Path(nunit).write_text(_MR_XML, encoding="utf-8")
+        pinned = os.path.join(d, R.BASELINE_FILE)
+        Path(pinned).write_text(json.dumps({"base": [], "meta": {"slow_skipped": slow_skipped}}),
+                                encoding="utf-8")
+        buf = _io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            R.main([nunit, os.path.join(d, "nope.log"), "2", "--baseline-from", pinned])
+        return Path(d, R.VERDICT_FILE).read_text(encoding="utf-8"), buf.getvalue()
+
+
+_keep_http_b2 = ci_common.http
+_keep_bf_b = R.baseline_failures
+try:
+    ci_common.http = _notes_http
+    _v, _log_b = _verdict_with(["G.T.Blind"])
+    _bcheck(_v == str(UNK), f"기준선이 건너뛴 테스트의 실패로 최종 판정이 막는다(판정 {_v}): " + _log_b[-400:])
+    _bcheck(_posted_b and "가리지 못한 것" in _posted_b[-1], "올린 코멘트가 가리지 못한 것을 말하지 않는다")
+    _v, _log_b = _verdict_with([])
+    _bcheck(_v == str(REG), f"기준선이 본 새 실패인데 막지 않는다(판정 {_v}) — 검사가 헛돈다")
+
+    #     계획 단계가 기준선을 고정할 때 **건너뛴 이름도 함께** 고정한다 — 재실행 사이에
+    #     develop 잡이 끝나도 두 단계가 같은 집합을 본다.
+    R.baseline_failures = (lambda gl, ref, max_pipelines=15, meta=None, runs=3, **kw:
+                           (meta.update(slow_skipped=["G.T.Blind"]) if meta is not None else None)
+                           or set())
+    with tempfile.TemporaryDirectory() as d:
+        nunit = os.path.join(d, "unity-results.xml")
+        Path(nunit).write_text(_MR_XML, encoding="utf-8")
+        with contextlib.redirect_stdout(_io.StringIO()):
+            R.main([nunit, os.path.join(d, "nope.log"), "2", "--recheck-plan", os.path.join(d, R.RECHECK_PLAN)])
+        _saved = json.loads(Path(d, R.BASELINE_FILE).read_text(encoding="utf-8"))
+    _bcheck((_saved.get("meta") or {}).get("slow_skipped") == ["G.T.Blind"],
+            f"계획 단계가 건너뛴 이름을 고정하지 않는다: {_saved}")
+finally:
+    ci_common.http = _keep_http_b2
+    R.baseline_failures = _keep_bf_b
+
+# ── ⑥ 코멘트가 **건너뛴 것을 말한다** — 넘긴 가지에서만 내보내는 `UNITY_SKIPPED_SLOW`
+_ENV_B = ("UNITY_SKIPPED_SLOW", "UNITY_SKIPPED_CATEGORY", "UNITY_REUSED_FROM", "UNITY_MERGED_BASE")
+_kept_env_b = {k: os.environ.pop(k, None) for k in _ENV_B}
+try:
+    os.environ["UNITY_SKIPPED_CATEGORY"] = "Heavy"
+    _n = R.merged_note()
+    #     Heavy 는 `-662` 부터 머지 직후 develop 에서도 빠진다 — 새벽 전체 실행에서만 돈다.
+    _bcheck("새벽 전체 실행과 릴리스에서만" in _n and "머지 직후" not in _n, "Heavy 문구가 낡았다: " + _n)
+    _bcheck("느린 목록" not in _n, "넘기지 않았는데 느린 목록을 건너뛰었다고 적는다 — 전부 돈 실행이다: " + _n)
+    os.environ["UNITY_SKIPPED_SLOW"] = "2"
+    _n = R.merged_note()
+    _bcheck("느린 목록 2건" in _n, "느린 목록을 건너뛴 수를 코멘트에 적지 않는다 — 초록이 '전부 돌았다' 로 읽힌다: " + _n)
+    _bcheck("느린 목록 2건" in R.body(_fails(), [], set(), "develop")
+            and "느린 목록 2건" in R.body(_fails(), [], None, "develop"),
+            "기준선이 있든 없든 각주에 느린 목록이 실려야 한다")
+    os.environ["UNITY_SKIPPED_SLOW"] = "?"
+    _bcheck("건수를 읽지 못함" in R.merged_note(),
+            "수를 못 읽었다고 표시를 통째로 빼거나 '?건' 으로 적는다 — 건너뛴 사실은 남아야 한다: " + R.merged_note())
+finally:
+    for k, v in _kept_env_b.items():
+        if v is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = v
+
+if _blind_fails:
+    for _m in _blind_fails:
+        print("  ❌ " + _m)
+    raise SystemExit(1)
+print("  기준선이 건너뛴 테스트는 막지 않고 따로 적는다 · 느린 목록을 건너뛴 수를 코멘트에 싣는다 ✅")

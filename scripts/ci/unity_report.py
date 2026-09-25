@@ -101,6 +101,11 @@ VERDICT_FILE = "unity-verdict.txt"      # 잡이 이 파일의 값으로 끝난�
 # 종료 코드 — .gitlab-ci.yml 의 `allow_failure: exit_codes: [2]` 와 짝이다
 PASS, REGRESSION, UNKNOWN = 0, 1, 2
 
+# 느린 목록으로 건너뛴 테스트의 사유 머리 (S15P21B202-739). `slow_tests.MARK` 와 **같아야
+# 한다** — `test_slow_tests.py` 가 둘을 대조한다. 가져다 쓰지 않는 이유: 그 모듈은 불리는
+# 순간 stdout 을 다시 설정하는데, 이 모듈은 릴리스 게이트(`publish_release`)도 가져다 쓴다.
+SLOW_SKIP_MARK = "slow-list"
+
 
 # ── NUnit3 읽기 ──────────────────────────────────────────────────────────────
 def parse_nunit(text: str) -> dict:
@@ -120,9 +125,12 @@ def parse_nunit(text: str) -> dict:
         m = tc.find("failure/message")
         if m is not None and m.text:
             msg = " ".join(m.text.split())
+        # 건너뛴 사유 — `[Ignore]` 와 느린 목록(`slow-list …`)을 가른다 (S15P21B202-739).
+        why = tc.find("reason/message")
         out["cases"].append({
             "cls": cls or "(클래스 없음)", "name": name or full,
             "result": tc.get("result") or "", "msg": msg,
+            "reason": " ".join((why.text or "").split()) if why is not None else "",
             "time": tc.get("duration") or "0",
         })
     return out
@@ -228,11 +236,20 @@ def baseline_failures(gl: GitLab, ref: str, max_pipelines: int = 15,
     **가장 최신 실행**의 것을 담는다 — 기준선 신선도 검사(`metagame_changed`)가 "기준선이
     합친 base 보다 낡았나" 를 묻기 때문이다. 합집합에 옛 실행이 섞여도 그 질문의 답은
     가장 최신 실행으로 정해진다.</para>
+
+    <para>`meta["slow_skipped"]` 에 **기준선이 돌리지 않은 이름**을 남긴다 (S15P21B202-739).
+    이름마다 가장 최근 기록이 "느린 목록으로 건너뜀" 인 것이다. 기준선에 실패가 없다는 것은
+    그 테스트가 develop 에서 **통과한다**는 뜻이 아니라 **안 돌았다**는 뜻일 뿐이라, 이 이름의
+    실패는 `decide` 가 이 MR 탓으로 단정하지 않는다.</para>
     """
     if not (gl.token and gl.project):
         return None
     union: set = set()
     used: list[str] = []
+    # 이름 → 가장 최근 실행에서 느린 목록으로 건너뛰었나. 실행을 최신부터 보므로 처음 본
+    # 값이 곧 가장 최근 기록이다 — 옛 새벽이 통과시켰어도 그 뒤 실행들이 건너뛰었으면
+    # 그 사이 develop 이 그 테스트를 깨뜨렸는지 아무도 모른다.
+    latest: dict[str, bool] = {}
     try:
         cands = baseline_candidates(gl, ref, max_pipelines)
         if len(cands) > max_candidates:
@@ -256,6 +273,10 @@ def baseline_failures(gl: GitLab, ref: str, max_pipelines: int = 15,
             when = (j.get('created_at') or '시각미상')[:16]
             sha = ((j.get('commit') or {}).get('id') or '')[:8]
             fails = {f'{c["cls"]}.{c["name"]}' for c in d["cases"] if c["result"] == "Failed"}
+            for c in d["cases"]:
+                latest.setdefault(f'{c["cls"]}.{c["name"]}',
+                                  c["result"] == "Skipped"
+                                  and (c.get("reason") or "").startswith(SLOW_SKIP_MARK))
             added = fails - union
             print(f"기준선: 잡 {j['id']} ({j.get('status')}, {when}, {sha or 'sha미상'}) "
                   f"실패 {len(fails)}건 · 합집합에 새로 보탠 것 {len(added)}건")
@@ -270,10 +291,14 @@ def baseline_failures(gl: GitLab, ref: str, max_pipelines: int = 15,
         print(f"[warn] 기준선 조회 실패({type(e).__name__}: {e}) — 새/기존 구분 없이 보고한다")
     if not used:
         return None
+    blind = sorted(n for n, skipped in latest.items() if skipped)
     if meta is not None:
-        meta.update(runs=used)
+        meta.update(runs=used, slow_skipped=blind)
     if len(used) > 1:
         print(f"기준선 = 최근 {len(used)}회 합집합 (잡 {', '.join(used)}) → 실패 {len(union)}건")
+    if blind:
+        print(f"기준선이 느린 목록으로 건너뛴 이름 {len(blind)}건 — 이번에 실패해도 이 MR 탓으로 "
+              f"단정하지 않는다(기준선이 돌리지 않았다)")
     return union
 
 
@@ -378,12 +403,18 @@ def classify_rechecks(new: set, paths: list[str]) -> tuple[set, set, set]:
 
 
 def decide(data: dict, errs: list[str], base: set | None, unity_rc: int,
-           flaky: set | None = None) -> tuple[int, str]:
+           flaky: set | None = None, unseen: set | None = None) -> tuple[int, str]:
     """잡의 종료 코드와 그 이유. (S15P21B202-309)
 
     원칙은 하나다 — **이 MR 이 만든 것만 막는다.** 나머지는 경고이거나 통과다.
     판단하지 못한 것을 회귀로 단정하면 아무 잘못 없는 사람의 머지가 막히고, 그러면
     사람들이 이 신호를 우회하는 법을 배운다(mr-lint 의 스택 경고가 실측 26 대 0 으로 무시됐다).
+
+    `unseen` 은 **기준선이 돌리지 않은** 이름이다(`baseline_failures` 의 `slow_skipped`,
+    S15P21B202-739). develop 실행은 느린 목록을 건너뛰므로, 목록에 든 테스트가 develop 에서
+    깨져 있어도 기준선에는 실패가 없다. 이 실행이 목록을 못 받아 전부 돌렸거나 그 사이
+    목록에서 내려진 이름이면 그 실패가 "새 실패" 로 보인다 — 그것은 이 MR 이 깨뜨렸다는
+    증거가 아니다. 그래서 **1 이 아니라 2**(경고)로 둔다. 통과로도 두지 않는다 — 사람이 봐야 한다.
     """
     if errs:
         # **컴파일 오류는 기준선을 보지 않고 막는다.** 잡이 대상 브랜치를 합친 뒤 검사하므로
@@ -408,11 +439,18 @@ def decide(data: dict, errs: list[str], base: set | None, unity_rc: int,
     # `classify_rechecks` 가 정한다 — 확인하지 못한 것은 여기 들어오지 않는다.
     excused = (flaky or set()) & new
     new = new - excused
+    blind = (unseen or set()) & new
+    new = new - blind
     if new:
         why = f"이 MR 이 만든 테스트 실패 {len(new)}건"
         if excused:
             why += f" (재실행에서 통과한 {len(excused)}건은 플래키로 빼고 센 것)"
+        if blind:
+            why += f" (기준선이 돌리지 않은 {len(blind)}건은 빼고 센 것)"
         return REGRESSION, why
+    if blind:
+        return UNKNOWN, (f"새 실패로 보인 {len(blind)}건은 기준선이 느린 목록으로 건너뛴 테스트다 — "
+                         f"develop 에서 돌지 않아 이 MR 탓인지 가릴 수 없다. 경고로 둔다")
     if excused:
         return PASS, (f"새 실패로 보였던 {len(excused)}건이 재실행에서 통과했다 — "
                       f"플래키다. 이 MR 탓이 아니다")
@@ -440,9 +478,13 @@ def merged_note() -> str:
     `UNITY_MERGED_BASE` 로 넘긴다. 없으면 브랜치 끝만 검사한 것이므로 **그렇게 적는다** —
     검사 범위를 읽는 사람이 착각하면 초록의 의미를 잘못 읽는다.
 
-    **덜 돌았거나 안 돌았으면 반드시 적는다** (S15P21B202-602). 이 잡은 두 가지 이유로
+    **덜 돌았거나 안 돌았으면 반드시 적는다** (S15P21B202-602). 이 잡은 세 가지 이유로
     평소보다 적게 일할 수 있다 — ① 검사 대상이 지난 실행과 같아 결과를 그대로 쓴 경우,
-    ② 무거운 테스트를 MR 에서 뺀 경우. 둘 다 초록의 뜻이 달라지므로 조용히 두지 않는다.
+    ② 무거운 테스트를 MR 에서 뺀 경우, ③ 새벽이 잰 느린 목록을 건너뛴 경우(S15P21B202-739).
+    셋 다 초록의 뜻이 달라지므로 조용히 두지 않는다.
+
+    ③ 은 **잡이 `-testSettingsFile` 을 실제로 붙인 가지에서만** `UNITY_SKIPPED_SLOW` 를
+    내보낸다 — 목록을 못 받아 전부 돈 실행에 "건너뛰었다" 를 적으면 그것도 거짓이다.
     """
     parts = []
     reused = (os.environ.get("UNITY_REUSED_FROM") or "").strip()
@@ -456,9 +498,18 @@ def merged_note() -> str:
     elif os.environ.get("CI_MERGE_REQUEST_TARGET_BRANCH_NAME"):
         parts.append("**대상 브랜치를 합치지 못해 브랜치 끝에서만 검사했습니다** — 합쳐서 깨지는 경우는 가리지 못합니다")
 
+    # Heavy 는 `-662` 부터 **새벽 전체 실행과 릴리스에서만** 돈다(머지 직후 develop 도 뺀다).
+    # 예전 문구("머지 직후 develop 에서")는 그 뒤로 사실이 아니었다. 릴리스 잡도 전부 돌리므로
+    # "새벽에서만" 은 조금 모자란 말이다(S15P21B202-739 검증).
     skipped = (os.environ.get("UNITY_SKIPPED_CATEGORY") or "").strip()
     if skipped:
-        parts.append(f"무거운 테스트(`{skipped}`)는 **머지 직후 develop 에서** 돕니다")
+        parts.append(f"무거운 테스트(`{skipped}`)는 **새벽 전체 실행과 릴리스에서만** 돕니다")
+
+    slow = (os.environ.get("UNITY_SKIPPED_SLOW") or "").strip()
+    if slow:
+        count = f"{slow}건" if slow.isascii() and slow.isdigit() else "(건수를 읽지 못함)"
+        parts.append(f"**느린 목록 {count}을 건너뛰었습니다** — 새벽 전체 실행과 릴리스에서만 돕니다"
+                     f"(이름은 아티팩트 `unity-slow-settings.json`)")
 
     return " · ".join(parts)
 
@@ -476,7 +527,7 @@ BLOCKS_LINE = {
 
 def body(data: dict, errs: list[str], base: set | None, ref: str,
          stale_base: dict | None = None, flaky: set | None = None,
-         verdict: int | None = None) -> str:
+         verdict: int | None = None, unseen: set | None = None) -> str:
     now_fail = {f'{c["cls"]}.{c["name"]}': c for c in data["cases"] if c["result"] == "Failed"}
 
     def comment(parts: list[str]) -> str:
@@ -525,9 +576,20 @@ def body(data: dict, errs: list[str], base: set | None, ref: str,
     # 재실행에서 통과한 것은 "새 실패" 에서 뺀다 — 다만 **아래에 반드시 적는다**
     # (S15P21B202-347). 조용히 빼면 테스트 격리 결함을 아무도 고치지 않는다.
     excused = sorted((flaky or set()) & set(now_fail))
-    new = [k for k in now_fail if k not in base and k not in excused]
-    fixed = [k for k in base if k not in now_fail]
-    if not new:
+    # 기준선이 **돌리지 않은** 테스트의 실패는 새 실패와 따로 적는다 (S15P21B202-739) —
+    # `decide` 가 그것으로 막지 않으므로, 여기서 "새로 생긴 것" 에 넣으면 표와 판정이 어긋난다.
+    blind = sorted(k for k in now_fail
+                   if k not in base and k not in excused and k in (unseen or set()))
+    new = [k for k in now_fail if k not in base and k not in excused and k not in blind]
+    # **이번에 돌아서 통과한 것만** 되살린 것이다 (S15P21B202-621). "지금 실패가 아니다" 로
+    # 세면 이번 실행에 **아예 없는** 것(Heavy·지운 테스트)과 느린 목록으로 **건너뛴** 것까지
+    # 이 MR 이 고친 것으로 적힌다 — 기준선에 새벽 전체 실행이 섞이면 Heavy 실패가 전부 그렇다.
+    passed_now = {f'{c["cls"]}.{c["name"]}' for c in data["cases"] if c["result"] == "Passed"}
+    fixed = [k for k in base if k in passed_now]
+    if not new and blind:
+        head = (f"⚠ **실패하는 테스트 {len(blind)}개 — 기준선이 돌리지 않은 테스트라 "
+                f"이 MR 탓인지 가릴 수 없습니다**")
+    elif not new:
         head = "✅ **Unity 컴파일 통과 · 이 MR 이 만든 테스트 실패 없음**"
         if excused:
             head = (f"✅ **이 MR 이 만든 테스트 실패 없음** — 새 실패로 보였던 "
@@ -542,7 +604,9 @@ def body(data: dict, errs: list[str], base: set | None, ref: str,
              "| 항목 | 수 |", "|---|---|",
              f"| 이 MR 의 실패 | {failed} |",
              f"| 그중 **새로 생긴 것** | **{len(new)}** |",
-             f"| `{ref}` 에도 있던 것 | {failed - len(new)} |"]
+             f"| `{ref}` 에도 있던 것 | {failed - len(new) - len(blind)} |"]
+    if blind:
+        parts.append(f"| `{ref}` 가 돌리지 않아 가리지 못한 것 | {len(blind)} |")
     if fixed:
         parts.append(f"| 이 MR 이 되살린 것 | {len(fixed)} |")
     if new:
@@ -552,6 +616,21 @@ def body(data: dict, errs: list[str], base: set | None, ref: str,
             parts.append(f"- `{c['cls'].split('.')[-1]}.{c['name']}`" + (f" — {c['msg'][:160]}" if c["msg"] else ""))
         if len(new) > MAX_LISTED:
             parts.append(f"- … 외 {len(new) - MAX_LISTED}건")
+    if blind:
+        # **막지 않되 드러낸다** (S15P21B202-739). 이 테스트들은 `ref` 의 최근 실행이 느린
+        # 목록으로 건너뛴 것이라 `ref` 에서도 깨져 있는지 모른다. 이 실행은 목록을 못 받아
+        # 전부 돌렸거나, 그 사이 새벽이 목록에서 내린 것이다(새벽에 실패하면 내린다).
+        parts += ["", f"**`{ref}` 가 돌리지 않은 테스트의 실패** — 이 MR 탓인지 가릴 수 없어 "
+                      f"막지 않습니다", ""]
+        for k in blind[:MAX_LISTED]:
+            c = now_fail[k]
+            parts.append(f"- `{c['cls'].split('.')[-1]}.{c['name']}`" + (f" — {c['msg'][:160]}" if c["msg"] else ""))
+        if len(blind) > MAX_LISTED:
+            parts.append(f"- … 외 {len(blind) - MAX_LISTED}건")
+        parts += ["", f"`{ref}` 의 최근 실행은 이 테스트들을 **느린 목록으로 건너뛰었습니다** — "
+                      f"그래서 기준선에 실패가 없는 것은 통과했다는 뜻이 아닙니다. 새벽 전체 "
+                      f"실행(`schedule`)의 `unity-compile` 에서 `{ref}` 도 실패하는지 확인해 주세요. "
+                      f"이 MR 이 그 테스트가 닿는 코드를 바꿨다면 먼저 그쪽을 보십시오."]
     if excused:
         # **판정에서 뺀 것을 드러낸다** (S15P21B202-347). 그 테스트만 골라 다시 돌렸을 때
         # 통과했다는 뜻이고, 그러면 원인은 둘 중 하나다 — 진짜 무작위이거나, 전체 실행에서
@@ -816,7 +895,10 @@ def main(argv: list[str] | None = None) -> int:
         for name in sorted(unverified):
             print(f"  확인 못함(회귀로 둔다): {name}")
 
-    code, why = decide(data, errs, base, unity_rc, flaky=flaky)
+    # 기준선이 느린 목록으로 건너뛴 이름 (S15P21B202-739). 계획 단계가 `bmeta` 째로
+    # 고정해 두므로 재실행 전후가 같은 집합을 본다.
+    unseen = set(bmeta.get("slow_skipped") or [])
+    code, why = decide(data, errs, base, unity_rc, flaky=flaky, unseen=unseen)
 
     # 면제했는데 **이 MR 이 게임 코드를 건드렸으면** 판정을 2(경고)로 낮춘다
     # (`!272` 4차 AI 리뷰). 격리 재실행 통과는 "실패가 실행 맥락에 달렸다" 는 뜻이고,
@@ -887,7 +969,7 @@ def main(argv: list[str] | None = None) -> int:
     write_verdict(where, code)
 
     text = body(data, errs, base, ref, stale_base=bmeta if stale else None, flaky=flaky,
-                verdict=code)
+                verdict=code, unseen=unseen)
     # **코멘트를 올리든 말든 로그에도 남긴다** (S15P21B202-556).
     #
     # 전에는 `can_write` 가 참이면 코멘트만 올리고 로그에는 "MR 코멘트 갱신" 한 줄만

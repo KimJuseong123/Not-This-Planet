@@ -228,6 +228,27 @@ _baseline(set())
 _rc, _ = _gate(PASS_XML, trc=2)
 assert _rc == 1, "테스트는 통과인데 종료 코드가 0이 아니다 — 이때는 막아야 한다"
 
+# **기준선이 돌리지 않은 테스트의 실패로 릴리스를 막지 않는다** (S15P21B202-739).
+#
+# develop 의 MR·푸시 실행은 느린 목록을 건너뛴다. 기준선에는 그 테스트의 결과가 없는데
+# 릴리스는 전부 돌리므로, 원래부터 실패하던 느린 테스트가 여기서 처음 "새 실패" 로 보인다.
+def _baseline_blind(names, blind):
+    def fake(*a, meta=None, **k):
+        if meta is not None:
+            meta["slow_skipped"] = sorted(blind)
+        return names
+    R.unity_report.baseline_failures = fake
+
+
+_baseline_blind(set(), {"N.C.b"})
+_rc, _ = _gate(FAIL_XML)
+if _rc != 0:
+    raise AssertionError("기준선이 건너뛴 느린 테스트의 실패로 릴리스를 막는다 — 이 트리 탓인지 모른다")
+_baseline_blind(set(), {"N.C.x"})         # 다른 이름이 건너뛰어졌다 — 이 실패는 여전히 새것이다
+_rc, _ = _gate(FAIL_XML)
+if _rc != 1:
+    raise AssertionError("건너뛴 목록에 없는 새 실패까지 봐준다")
+
 _baseline(None)                           # 기준선을 못 읽었다
 _rc, _ = _gate(FAIL_XML)
 assert _rc == 0, ("기준선을 못 읽었는데 막는다 — 릴리스 MR 과 develop 머지에서 이미 "
