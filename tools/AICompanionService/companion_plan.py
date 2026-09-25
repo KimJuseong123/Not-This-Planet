@@ -211,11 +211,14 @@ DEMO_SHOTS = [("가서 반망이 집어", "defend_meteors"), ("고정못 때", "
               ("초록아 이리 와", "come"), ("오늘 진짜 재밌다", "none")]
 #: 판단이 이보다 오래 걸리면 기다리지 않는다(초). 워커가 규칙으로 대신 정한다.
 DEMO_TIMEOUT = 6.0
+#: **데울 때는 길게 기다린다** (2026-09-25 QA). 첫 호출은 모델(1.3GB)을 올린다 — 막 풀린 파일이라 백신이
+#: 읽고 게임이 CPU 를 나눠 쓰면 6초를 넘겼고, 데우기 실패로 ollama 가 꺼진 채 게임은 "데우는 중" 에 멈췄다.
+DEMO_WARMUP_TIMEOUT = 180.0
 #: ollama 가 같은 인스턴스를 쓰게 데울 때와 판단할 때 같은 값을 준다 — 다르면 모델을 다시 올린다.
 DEMO_OPTIONS = {"temperature": 0, "seed": 42, "num_predict": 24, "num_ctx": 1024}
 
 
-def classify_demo(text, url):
+def classify_demo(text, url, timeout=DEMO_TIMEOUT):
     """들은 말 → 넷 중 하나 또는 none. 형식이 틀리면 예외(워커가 규칙으로 대신한다)."""
     messages = [{"role": "system", "content": DEMO_SYSTEM}]
     for example, action in DEMO_SHOTS:
@@ -223,7 +226,7 @@ def classify_demo(text, url):
         messages.append({"role": "assistant", "content": json.dumps({"action": action})})
     messages.append({"role": "user", "content": text})
     started = time.perf_counter()
-    with httpx.Client(timeout=DEMO_TIMEOUT, trust_env=False) as client:
+    with httpx.Client(timeout=timeout, trust_env=False) as client:
         response = client.post(url + "/api/chat", json={
             "model": "qwen3:1.7b", "stream": False, "think": False, "keep_alive": -1,
             "messages": messages, "format": DEMO_SCHEMA,

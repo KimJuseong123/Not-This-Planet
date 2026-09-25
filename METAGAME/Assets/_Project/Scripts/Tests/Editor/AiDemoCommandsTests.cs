@@ -128,6 +128,26 @@ namespace Metagame.Gameplay.Tests
             Assert.That(TestSource.Method(tools, "bool Chase(Vector3 point, float stop, ref InputFrame input, bool run)"), Does.Not.Contain("Finish("));
         }
 
+        /// <summary>
+        /// 워커가 준비에 실패했다고 말하면 게임이 곧바로 실패로 보인다 (2026-09-25 QA). 전에는 "대답이 왔으니
+        /// 데우는 중" 으로 보고 15분을 기다려, 설치 99% 에서 멈춘 것처럼 보였다.
+        /// </summary>
+        [Test]
+        public void AWorkerThatSaysItFailedIsAFailureNotAWarmup()
+        {
+            Assert.That(AiLocalRuntime.ReportedFailure("{\"state\":\"failed\",\"error\":\"runtime_preparation_failed\"}"),
+                Is.EqualTo("runtime_preparation_failed"));
+            Assert.That(AiLocalRuntime.ReportedFailure("{\"state\":\"failed\"}"), Is.EqualTo("failed"));
+            Assert.That(AiLocalRuntime.ReportedFailure("{\"state\":\"loading\"}"), Is.Null, "데우는 중을 실패로 본다");
+            Assert.That(AiLocalRuntime.ReportedFailure("{\"state\":\"ready\"}"), Is.Null);
+            Assert.That(AiLocalRuntime.ReportedFailure("<html>"), Is.Null);
+            string watch = TestSource.Method(TestSource.Read("Runtime/Network/AiLocalRuntime.cs"), "IEnumerator Watch(int epoch)");
+            int reported = watch.IndexOf("ReportedFailure(request.downloadHandler.text)", System.StringComparison.Ordinal);
+            int warming = watch.IndexOf("Message = WarmupMessage(answered, waited, WarmupExpected);", System.StringComparison.Ordinal);
+            Assert.That(reported, Is.GreaterThanOrEqualTo(0), "워커의 실패를 읽지 않는다");
+            Assert.That(reported, Is.LessThan(warming), "실패를 읽기 전에 '데우는 중' 으로 넘어간다");
+        }
+
         [Test]
         public void ThePinIsTheNearestToTheCompanionNotToTheSpeaker()
         {

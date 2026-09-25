@@ -154,7 +154,8 @@ class Worker:
             # 시연에서는 시연 프롬프트로 데운다 (S15P21B202-746) — 게임이 실제로 부르는 앞머리여야
             # 첫 명령이 캐시를 쓴다(-741).
             if command_rules.DEMO:
-                if companion_plan.classify_demo("준비 검사입니다", self.url).get("action") not in companion_plan.DEMO_CHOICES:
+                if companion_plan.classify_demo("준비 검사입니다", self.url,
+                                                timeout=companion_plan.DEMO_WARMUP_TIMEOUT).get("action") not in companion_plan.DEMO_CHOICES:
                     raise ValueError("invalid_warmup_result")
             else:
                 result = companion_plan.classify("준비 검사입니다", self.url)
@@ -169,7 +170,14 @@ class Worker:
     def stop_ollama(self):
         process = self.process
         if process is not None and process.poll() is None:
-            # Only the child started by this worker. Never kill by port or process name.
+            # Only the child started by this worker (and its own children). Never kill by port or process name.
+            # ollama 만 끝내면 그 자식 llama-server 가 남는다 (S15P21B202-745 · -746) — 워커가 살아 있는 동안은
+            # 잡 객체도 닫히지 않으므로, 데우기 실패 뒤에도 모델 1.5GB 를 쥔 채 남았다.
+            try:
+                for child in psutil.Process(process.pid).children(recursive=True):
+                    child.kill()
+            except psutil.Error:
+                pass
             process.terminate()
             try:
                 process.wait(timeout=5)

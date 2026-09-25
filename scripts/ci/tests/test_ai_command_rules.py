@@ -176,6 +176,9 @@ check(demo_src.find("classify_demo") < demo_src.find('"rules-fallback"'),
       "규칙은 LLM 뒤에서 거드는 쪽이다(none·실패일 때만)")
 check("command_rules.DEMO_STOP.search" in demo_src, "멈추라는 말은 판단 없이 거절한다")
 check("companion_plan.classify_demo(" in warm, "시연이면 시연 프롬프트로 데운다 — 첫 명령이 캐시를 쓴다")
+check("timeout=companion_plan.DEMO_WARMUP_TIMEOUT" in warm,
+      "데울 때 판단용 6초 제한을 쓴다 — 첫 호출은 모델을 올리므로 넘기고, 워커가 실패한 채 멈춘다(2026-09-25 QA)")
+check("children(recursive=True)" in method("stop_ollama"), "ollama 를 끌 때 그 자식(llama-server)도 끈다")
 D = constants("companion_plan.py", {"DEMO_CHOICES"})
 check(set(D["DEMO_CHOICES"]) == set(R.DEMO_ACTIONS) | {"none"}, "LLM 의 선택지가 워커 규칙·게임의 넷과 같다")
 

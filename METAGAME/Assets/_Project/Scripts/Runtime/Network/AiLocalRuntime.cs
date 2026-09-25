@@ -341,6 +341,19 @@ namespace Metagame.Network
             return " · 데우기 " + Clock(took) + (warmupFirst ? " (설치 뒤 첫 실행)" : "") + " · 예상 " + Clock(WarmupExpected);
         }
 
+        /// <summary>워커의 건강 응답이 <c>failed</c> 이면 그 이유, 아니면 null. <b>순수 함수</b>다.</summary>
+        public static string ReportedFailure(string json)
+        {
+            try
+            {
+                var h = JsonUtility.FromJson<HealthReport>(json);
+                return h != null && h.state == "failed" ? (string.IsNullOrEmpty(h.error) ? "failed" : h.error) : null;
+            }
+            catch (System.Exception) { return null; }
+        }
+
+        [System.Serializable] sealed class HealthReport { public string state; public string error; }
+
         IEnumerator Watch(int epoch)
         {
             float began = Time.realtimeSinceStartup;
@@ -362,6 +375,10 @@ namespace Metagame.Network
                     // 아직 ready 가 아니어도 **대답이 왔다면 살아서 데우고 있다.** 그 사실만으로
                     // 침묵 마감을 다시 민다 — 예전에는 이 구분이 없어 데우는 중에 잘렸다.
                     if (answered) silentUntil = Time.realtimeSinceStartup + SilenceLimit;
+                    // **워커가 실패했다고 말하면 곧바로 실패다** (S15P21B202-746). 전에는 "대답이 왔으니 데우는 중"
+                    // 으로 보고 15분(WarmupLimit)을 기다렸다 — 2026-09-25 QA 에서 설치 99% 에 멈춘 것처럼 보였다.
+                    string reported = answered ? ReportedFailure(request.downloadHandler.text) : null;
+                    if (reported != null) { Fail("추가팩 준비 실패 (" + reported + ") · 다시 시도해 주세요"); yield break; }
                     if (answered && ValidHealth(request.downloadHandler.text))
                     {
                         if (State != AiRuntimeState.Ready)
