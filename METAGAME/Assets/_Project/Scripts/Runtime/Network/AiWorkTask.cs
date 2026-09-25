@@ -38,6 +38,18 @@ namespace Metagame.Network
         public bool Rescuing => Active && action == "revive";
         public bool Succeeded { get; private set; }
         public string Status { get; private set; } = "대기";
+
+        /// <summary>
+        /// 마지막으로 받은 작업이 어떻게 끝났는가 (S15P21B202-703). 끝난 뒤에도 남는다 — 다음
+        /// 작업을 시작할 때 <see cref="AiTaskOutcome.Running"/> 으로 바뀐다.
+        /// </summary>
+        public AiTaskOutcome Outcome { get; private set; }
+
+        /// <summary>끝난 이유. 완료 · 실패는 <c>Finish</c> 의 문구, 취소는 누가 멈췄는지.</summary>
+        public string Reason { get; private set; }
+
+        /// <summary>받은 행동 이름. <c>lift_part</c> 는 들어 올린 뒤 <c>hold_tractor</c> 로 바뀌므로 따로 쥔다.</summary>
+        public string Command { get; private set; }
         public bool WantsMovement { get; private set; }
         public Vector3? MovementGoal => WantsMovement ? goal : (Vector3?)null;
         public static readonly string[] Actions = {
@@ -90,8 +102,9 @@ namespace Metagame.Network
         public bool Begin(string command, PlayerRig actor, PlayerRig requester, string to = "default")
         {
             if (!Supports(command) || actor == null || requester == null) return false;
-            Cancel(); self = actor; speaker = requester; action = command; destination = to;
+            Cancel("새 명령"); self = actor; speaker = requester; action = command; destination = to;
             Active = true; Succeeded = false; started = Time.time; Phase(0);
+            Outcome = AiTaskOutcome.Running; Reason = null; Command = command;
             Status = command + " · 준비";
             // Snapshot destinations, not a moving camera. Actors and objects remain live references.
             if (!ResolveDestination(to, out destinationPoint)) { Finish(false, "목적지 표면/조립대를 찾지 못함"); return false; }
@@ -153,8 +166,15 @@ namespace Metagame.Network
             pin.SuspendMovement(); route.Reset(); movedAt = phaseAt = Time.time;
             started += Time.fixedDeltaTime;
         }
-        public void Cancel()
+        public void Cancel() => Cancel("취소");
+
+        /// <summary>
+        /// 멈춘다. 돌던 작업이면 <b>취소로 남기고 이유를 적는다</b> (S15P21B202-703) — 전에는
+        /// 이유 없이 사라지고 화면은 따라다니기의 "대기" 로 덮였다.
+        /// </summary>
+        public void Cancel(string reason)
         {
+            Settle(AiTaskOutcome.Cancelled, reason);
             pin.Cancel(); ReleaseClaims(); route.Reset(); StopVehicle();
             Active = false; WantsMovement = false; Succeeded = false;
             self = speaker = null; part = null; tool = null; toolGrab = null; carry = null; vehicle = null;
@@ -162,6 +182,7 @@ namespace Metagame.Network
         }
         public void DetachDriver()
         {
+            Settle(AiTaskOutcome.Cancelled, "사람이 몸을 넘겨받음");
             pin.DetachDriver();
             ReleaseClaims();
             // No vehicle or grab changes: a human now owns this same body.
@@ -173,7 +194,20 @@ namespace Metagame.Network
         }
         void Finish(bool success, string message)
         {
+            // 결과를 먼저 적는다 — Cancel 이 먼저 돌면 "취소" 로 남는다.
+            Settle(success ? AiTaskOutcome.Succeeded : AiTaskOutcome.Failed, message);
             Cancel(); Succeeded = success; Status = message;
+        }
+
+        /// <summary>
+        /// 돌던 작업의 끝을 한 번만 적고 로그에 남긴다 (S15P21B202-703). 돌고 있지 않았으면
+        /// 아무것도 안 한다 — 쉬는 동안 매 틱 불리는 <c>Stop</c> 이 로그를 채우지 않게.
+        /// </summary>
+        void Settle(AiTaskOutcome outcome, string reason)
+        {
+            if (Outcome != AiTaskOutcome.Running) return;
+            Outcome = outcome; Reason = reason;
+            Debug.Log(AiTaskOutcomes.LogLine(Command, outcome, reason, Time.time - started));
         }
         void ReleaseClaims()
         {

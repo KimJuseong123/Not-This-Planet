@@ -20,6 +20,9 @@ namespace Metagame.Network
         readonly AiCompanionController aiFollow = new AiCompanionController();
         public string AiActivity => aiFollow.Status;
         public bool AiBusy => aiFollow.Busy;
+        /// <summary>마지막 작업의 끝과 이유 (S15P21B202-703). 서버에서만 뜻이 있다.</summary>
+        public AiTaskOutcome AiLastOutcome => aiFollow.WorkOutcome;
+        public string AiLastReason => aiFollow.WorkReason;
         public uint AiOrderRevision { get; private set; }
         string aiPresentedSocial;
         [SyncVar] double aiGreetingStarted;

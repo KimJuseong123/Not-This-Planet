@@ -69,9 +69,18 @@ namespace Metagame.UI
             GUI.Label(new Rect(0,textY+65,w,46),runtime.Message,info);
             int row=0;
             foreach (var ai in NetPlayer.AllServerPlayers)
-                if(ai!=null && ai.IsAi) GUI.Label(new Rect(0,textY+116+row++*26,w,26),ai.nickname+" · "+ai.AiActivity,info);
+                if(ai!=null && ai.IsAi) GUI.Label(new Rect(0,textY+116+row++*26,w,26),ai.nickname+" · "+ai.AiActivity+LastOutcome(ai),info);
             GUI.EndScrollView();
 #endif
         }
+
+        /// <summary>
+        /// 쉬고 있으면 마지막 작업이 어떻게 끝났는지 붙인다 (S15P21B202-703). 직접 실행과 LLM 전송을
+        /// 같은 명령으로 번갈아 눌러 보며 <b>판단 탓인지 실행 탓인지</b>를 가르는 데 쓴다.
+        /// </summary>
+        static string LastOutcome(NetPlayer ai)
+            => ai.AiBusy || !AiTaskOutcomes.Ended(ai.AiLastOutcome) ? ""
+               : " · 마지막 " + AiTaskOutcomes.Label(ai.AiLastOutcome)
+                 + (string.IsNullOrEmpty(ai.AiLastReason) ? "" : "(" + ai.AiLastReason + ")");
     }
 }
