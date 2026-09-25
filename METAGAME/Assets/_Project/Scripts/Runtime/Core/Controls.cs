@@ -106,6 +106,31 @@ namespace Metagame.Core
     /// <summary>입력 매핑을 한 곳에 (Legacy Input Manager).</summary>
     public static class Controls
     {
+        /// <summary>
+        /// AI 동료에게 <b>말하는</b> 키 (S15P21B202-705). 누르고 있는 동안만 마이크가 열린다.
+        ///
+        /// <para>엄지로 누르는 자리라 이동(WASD)을 방해하지 않는다 — 1~4 를 누른 채 말하게
+        /// 하지 않고 <b>고르기와 말하기를 나눈</b> 이유다(S15P21B202-738).</para>
+        /// </summary>
+        public const KeyCode AiTalk = KeyCode.V;
+
+        /// <summary>
+        /// AI 동료를 <b>고르는</b> 키 (S15P21B202-738). 1~4 가 자리 색(1 빨강 · 2 파랑 · 3 노랑 ·
+        /// 4 초록)이다. <b>자리에 묶일 뿐 그 자리에 누가 앉았는지는 모른다</b> — 사람일 수도,
+        /// AI 일 수도, 비어 있을 수도 있고 판마다 바뀐다(AI 수는 방장이 정한다).
+        ///
+        /// <para><b>재지정하지 않는 고정 키이고, 재지정 표가 이것을 이미 쓰는 키로 친다</b>
+        /// (<see cref="HasDuplicateBindings"/>). 다른 동작을 1 에 묶으면 그 동작을 할 때마다
+        /// 대상이 바뀐다 — 오류도 없이.</para>
+        ///
+        /// <para>여기(Core)에 두는 이유: 재지정 검사는 Core 에 있고 이 키를 읽는
+        /// <c>AiTalkKeys</c> 는 Network 에 있다. Core 는 Network 를 모르므로 표를 아래에 두고
+        /// 위에서 읽는다 — 두 벌로 갈리면 막는 키와 듣는 키가 달라진다.</para>
+        /// </summary>
+        static readonly KeyCode[] aiTargetKeys = { KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3, KeyCode.Alpha4 };
+        public static IReadOnlyList<KeyCode> AiTargetKeys => aiTargetKeys;
+        public static bool IsAiKey(KeyCode key) => key == AiTalk || System.Array.IndexOf(aiTargetKeys, key) >= 0;
+
         public static KeyCode MoveForward = KeyCode.W;
         public static KeyCode MoveBack = KeyCode.S;
         public static KeyCode MoveLeft = KeyCode.A;
@@ -184,7 +209,8 @@ namespace Metagame.Core
             duplicate = KeyCode.None;
             if (settings == null) return false;
 
-            var used = new HashSet<KeyCode>();
+            // AI 동료 키(V · 1~4)는 처음부터 쓰이고 있다 (S15P21B202-738).
+            var used = new HashSet<KeyCode>(aiTargetKeys) { AiTalk };
             return !AddBinding(settings.moveForward, used, ref duplicate)
                 || !AddBinding(settings.moveBack, used, ref duplicate)
                 || !AddBinding(settings.moveLeft, used, ref duplicate)

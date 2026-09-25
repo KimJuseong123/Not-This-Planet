@@ -164,6 +164,91 @@ namespace Metagame.Gameplay.Tests
                 "모르는 행동을 빈 문자열로 만들면 화면에서 조용히 사라진다");
         }
 
+        static AiCommandAssignment To(string recipients, string action)
+            => new AiCommandAssignment { recipients = recipients, steps = new[] { Step(action) } };
+
+        /// <summary>
+        /// <b>버튼이 말을 덮는다</b> (S15P21B202-738).
+        ///
+        /// <para>2026-09-23 실측에서 받아쓰기가 <b>맞았는데도</b> LLM 이 대상을 틀렸다 —
+        /// <c>초록아 방망이 잡아</c> → <c>one</c>. 버튼으로 골랐으면 말 속의 대상은 무엇이든
+        /// 버튼의 색이 된다.</para>
+        /// </summary>
+        [Test] public void TheButtonOverridesWhoTheSpeechNamed()
+        {
+            var misheard = AiCommandPlan.ForTarget(new[] { To("one", "pickup_bat") }, 3);
+            Assert.That(misheard, Has.Length.EqualTo(1));
+            Assert.That(misheard[0].recipients, Is.EqualTo("green"), "버튼으로 초록을 골랐는데 말 속 대상을 따른다");
+            Assert.That(misheard[0].steps[0].action, Is.EqualTo("pickup_bat"), "행동까지 바꿨다");
+            Assert.That(AiCommandPlan.Valid(misheard), Is.True, "덮은 계획이 실행할 수 없는 꼴이다");
+
+            // 다른 색을 들었어도 버튼의 색이다 — 색 인식이 실패의 주범이다.
+            Assert.That(AiCommandPlan.ForTarget(new[] { To("yellow", "follow") }, 1)[0].recipients, Is.EqualTo("blue"));
+
+            // 화면에 돌아가는 한 줄이 "가까운 동료에게" 가 아니라 그 색이어야 한다.
+            Assert.That(AiCommandPlan.Spoken(misheard), Is.EqualTo("초록에게 방망이 집기"));
+        }
+
+        /// <summary>
+        /// 여러 지시가 오면 <b>버튼의 색에게 한 지시</b>를 고른다. 없으면 첫 지시다
+        /// (S15P21B202-738). 버튼의 동료 한 명만 듣고 있으므로 나머지 지시는 받을 사람이 없다.
+        /// </summary>
+        [Test] public void AMultiPartPlanKeepsThePartForTheButton()
+        {
+            var plan = new[] { To("red", "pull_pin"), To("blue", "weld") };
+            var forBlue = AiCommandPlan.ForTarget(plan, 1);
+            Assert.That(forBlue, Has.Length.EqualTo(1));
+            Assert.That(forBlue[0].steps[0].action, Is.EqualTo("weld"), "파랑에게 한 지시가 아니라 다른 것을 골랐다");
+
+            var forGreen = AiCommandPlan.ForTarget(plan, 3);
+            Assert.That(forGreen[0].steps[0].action, Is.EqualTo("pull_pin"), "맞는 색이 없을 때 첫 지시가 아니다");
+            Assert.That(forGreen[0].recipients, Is.EqualTo("green"));
+
+            Assert.That(plan[0].recipients, Is.EqualTo("red"), "원래 계획을 고쳐 썼다 — 로그가 들은 것과 달라진다");
+        }
+
+        [Test] public void AnUnusablePlanOrSeatGivesNoPlan()
+        {
+            Assert.That(AiCommandPlan.ForTarget(null, 0), Is.Null);
+            Assert.That(AiCommandPlan.ForTarget(new[] { To("red", "teleport") }, 0), Is.Null, "실행할 수 없는 계획을 살렸다");
+            Assert.That(AiCommandPlan.ForTarget(new[] { To("red", "follow") }, -2), Is.Null);
+            Assert.That(AiCommandPlan.ForTarget(new[] { To("red", "follow") }, TeamSlots.Count), Is.Null);
+        }
+
+        /// <summary>
+        /// <b>고르지 않았으면 계획을 건드리지 않는다</b> (S15P21B202-738 리뷰).
+        ///
+        /// <para>부르는 쪽이 "골랐을 때만 덮는다" 를 따로 적으면, 그 가드가 빠지는 날 V 로 한 명령이
+        /// <b>전부</b> 잘못된 계획이 된다 — 글자 검사로는 못 잡는다. 그래서 여기서 값으로 못박는다.</para>
+        /// </summary>
+        [Test] public void NoChosenSeatLeavesThePlanAlone()
+        {
+            var plan = new[] { To("red", "pull_pin"), To("remaining", "follow") };
+            Assert.That(AiCommandPlan.ForTarget(plan, AiTalkKeys.Anyone), Is.SameAs(plan),
+                "고르지 않았는데 계획을 바꿨다 — 말로 고른 대상이 사라진다");
+        }
+
+        /// <summary>
+        /// 자리 ↔ 색 표가 <b>한 벌</b>이다 (S15P21B202-738).
+        ///
+        /// <para>색을 자리로 푸는 쪽(<see cref="AiGroupOrders.Select"/>)과 자리를 색으로 되돌리는
+        /// 쪽(<see cref="AiCommandPlan.ForTarget"/>), 화면 이름(<see cref="TeamSlots.Name"/>)이
+        /// 갈리면 <b>버튼으로 고른 동료와 다른 동료가 움직인다.</b></para>
+        /// </summary>
+        [Test] public void SeatsAndColorsRoundTrip()
+        {
+            for (int slot = 0; slot < TeamSlots.Count; slot++)
+            {
+                string recipient = AiCommandPlan.RecipientOf(slot);
+                Assert.That(AiCommandPlan.SlotOf(recipient), Is.EqualTo(slot), recipient);
+                Assert.That(AiCommandPlan.Recipients(recipient), Is.True, recipient + " 가 계획의 대상으로 안 통한다");
+                Assert.That(AiCommandPlan.RecipientName(recipient), Is.EqualTo(TeamSlots.Name(slot)),
+                    "화면의 색 이름과 계획의 색이 갈렸다");
+            }
+            Assert.That(AiCommandPlan.SlotOf("all"), Is.EqualTo(-1));
+            Assert.That(AiCommandPlan.SlotOf(null), Is.EqualTo(-1));
+        }
+
         [Test] public void NavigationParametersAreAllowlisted()
         {
             Assert.That(AiCommandPlan.Destination("assembly"), Is.True);

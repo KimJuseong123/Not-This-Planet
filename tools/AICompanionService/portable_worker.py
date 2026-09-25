@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field
 import companion_v4
 import companion_social
 import companion_plan
+import command_rules
 
 # 모델 이름과 받아쓰기 힌트는 engine.py 한 곳에 있다 — 개발 서버(app.py)와 **같은 값을
 # 본다**. 갈리면 시험한 것과 게임에 나가는 것이 달라지고, 시험 쪽이 늘 더 좋아 보인다.
@@ -146,8 +147,12 @@ class Worker:
                 wav.writeframes(b"\0" * 32000)
             self.transcribe(buffer.getvalue())
             companion_v4.OLLAMA = self.url
-            result = companion_v4.classify_companion("준비 검사입니다")
-            if result["action"] not in companion_v4.ACTIONS:
+            # **게임이 실제로 쓰는 판단 프롬프트로 데운다** (S15P21B202-741). 전에는 companion_v4 로
+            # 데웠는데, 게임은 companion_plan 만 부른다. ollama 는 슬롯이 하나(NUM_PARALLEL=1)라 마지막
+            # 프롬프트의 앞머리만 캐시에 남으므로, 첫 실제 명령이 1000토큰 가까운 프롬프트를 처음부터
+            # 다시 읽었다 — 2026-09-25 측정에서 캐시가 비면 판단마다 약 2.2초가 더 들었다.
+            result = companion_plan.classify("준비 검사입니다", self.url)
+            if result.get("status") not in ("ok", "none", "clarify"):
                 raise ValueError("invalid_warmup_result")
             if not self.stopping.is_set():
                 self.state = "ready"
@@ -176,6 +181,19 @@ class Worker:
                                          initial_prompt=ASR_CONTEXT, hotwords=ASR_HOTWORDS)
         return " ".join(s.text.strip() for s in segments).strip()
 
+    def plan(self, text):
+        """음성 명령의 계획. **낱말 규칙이 정하면 판단기를 부르지 않는다** (S15P21B202-741).
+
+        규칙이 못 정하면 지금처럼 판단기다. 돌려주는 꼴은 같다 — 게임은 어느 쪽이 정했는지
+        `decided_by` 와 판단 시간 0 으로만 안다(로그에 "판단 0.0초" 로 찍힌다).
+        """
+        fast = command_rules.decide(text)
+        if fast is None:
+            return companion_plan.classify(text, self.url)
+        return {**fast, "text": text, "decided_by": "rules", "raw_decision": None,
+                "safety_override": False, "unsaid_social": None, "prompt_version": "rules-v1",
+                "model": "rules", "llm_ms": 0, "llm_load_ms": 0, "llm_eval_ms": 0, "llm_tokens": 0}
+
     def execute(self, text=None, raw=None, social=False, plan=False):
         if self.state != "ready" or self.stopping.is_set():
             raise HTTPException(503, "runtime_not_ready")
@@ -193,7 +211,7 @@ class Worker:
                 asr_began = time.perf_counter()
                 text = self.transcribe(raw)
                 asr_ms = round((time.perf_counter() - asr_began) * 1000)
-            result = (companion_plan.classify(text, self.url) if plan else companion_social.classify(text, self.url) if social else companion_v4.classify_companion(text)) if text and text.strip() else ({"status": "none", "orders": [], "text": text or ""} if plan else {"action": "none", "text": ""})
+            result = (self.plan(text) if plan else companion_social.classify(text, self.url) if social else companion_v4.classify_companion(text)) if text and text.strip() else ({"status": "none", "orders": [], "text": text or ""} if plan else {"action": "none", "text": ""})
             result["asr_ms"] = asr_ms
             result["elapsed_ms"] = round((time.perf_counter() - started) * 1000)
             return result  # response only; never written to disk

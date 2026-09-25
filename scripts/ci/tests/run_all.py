@@ -76,15 +76,50 @@ def main() -> int:
         else:
             failed.append(f)
             print(f"  ❌ {f} — 실패")
-            for line in (r.stdout or "").rstrip().split("\n")[-6:]:
-                print(f"       {line}")
-            for line in (r.stderr or "").rstrip().split("\n")[-6:]:
+            for line in failure_report(r.stdout, r.stderr):
                 print(f"       {line}")
     print(f"\n== 오프라인 테스트: 통과 {len(cmds) - len(failed)} · 실패 {len(failed)} ==")
     if failed:
         print("   실패: " + ", ".join(failed))
         print("   ❌ CI 스크립트 회귀 — 고친 뒤 다시 push 하세요")
     return 1 if failed else 0
+
+
+#: 실패한 시험의 출력을 이만큼까지 싣는다(줄). 실패는 드물어서 길이를 아낄 자리가 아니다.
+TAIL_LINES = 200
+
+#: 출력 어디에 있든 **먼저** 보여 줄 줄 — 어느 단정이 왜 깨졌는지.
+WHY = ("❌", "AssertionError", "Traceback", "Error:", "FAIL", "assert ")
+
+
+def failure_report(stdout, stderr, limit=TAIL_LINES):
+    """실패한 시험을 잡 로그에서 **한 곳에서** 판정할 수 있게 줄을 고른다 (S15P21B202-672).
+
+    예전에는 stdout·stderr 를 **각각 마지막 6줄**만 찍었다. `test_deploy_notify` 처럼
+    `assert ..., 카드본문` 꼴이면 `AssertionError:` 줄과 카드 머리가 창 밖으로 밀려 표 조각만
+    남았고, 새벽 `ci-tests` 가 나흘 동안 같은 빨강인데도 어느 단정인지 알 수 없었다.
+
+    그래서 ① 이유가 적힌 줄(❌ · AssertionError · Traceback …)을 먼저 모으고 ② stderr 와
+    stdout 의 꼬리를 `limit` 줄까지 싣는다. 잘랐으면 몇 줄을 잘랐는지 적는다 — 조용히
+    자르면 "이게 전부" 로 읽힌다.
+    """
+    out = []
+    lines = [l for l in ((stdout or "") + "\n" + (stderr or "")).split("\n") if l.strip()]
+    why = [l for l in lines if any(w in l for w in WHY)]
+    if why:
+        out.append("── 이유 ──")
+        out += why[:40]
+        if len(why) > 40:
+            out.append(f"(이유 줄 {len(why) - 40}개 더 — 아래 원문에 있다)")
+    for name, text in (("stderr", stderr), ("stdout", stdout)):
+        body = (text or "").rstrip().split("\n") if (text or "").strip() else []
+        if not body:
+            continue
+        out.append(f"── {name} ──")
+        if len(body) > limit:
+            out.append(f"(앞 {len(body) - limit}줄 생략 · 전체 {len(body)}줄)")
+        out += body[-limit:]
+    return out
 
 
 if __name__ == "__main__":

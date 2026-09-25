@@ -136,7 +136,11 @@ def classify(text, url):
     started = time.perf_counter()
     with httpx.Client(timeout=80, trust_env=False) as client:
         response = client.post(url + "/api/chat", json={
-            "model": "qwen3:1.7b", "stream": False, "think": False, "keep_alive": "10m",
+            "model": "qwen3:1.7b", "stream": False, "think": False,
+            # **모델을 내리지 않는다** (S15P21B202-741). "10m" 이면 10분 조용한 뒤의 첫 명령이 모델을
+            # 다시 올리고 프롬프트를 처음부터 읽는다 — 2026-09-25 측정 11.8초. 워커는 게임과 함께 끝나고
+            # 그때 ollama 도 함께 내려가므로(stop_ollama) 메모리를 붙잡아 둘 곳이 따로 없다.
+            "keep_alive": -1,
             "messages": messages, "format": SCHEMA,
             # `num_gpu` 를 주지 않는다 (S15P21B202-714). 예전에는 0 으로 **CPU 를 강제**해서
             # ollama 의 자동 판단을 덮어썼다. 방장은 누구나 될 수 있으므로 GPU 를 강제해도
