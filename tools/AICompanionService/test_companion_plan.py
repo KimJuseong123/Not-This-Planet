@@ -44,6 +44,17 @@ class PlanTests(unittest.TestCase):
         self.assertIsNone(plan.social_without_the_word("이리 와", one("follow")))
 
     @patch("companion_plan.httpx.Client", FakeClient)
+    def test_the_model_stays_loaded(self):
+        """판단 모델을 내리지 않는다 (S15P21B202-741).
+
+        `keep_alive: "10m"` 이면 10분 조용한 뒤의 첫 명령이 모델을 다시 올리고 프롬프트를
+        처음부터 읽는다 — 2026-09-25 측정 11.8초. 워커가 끝날 때 ollama 도 함께 내려간다.
+        """
+        FakeClient.reply = json.dumps({"status": "none", "orders": []})
+        plan.classify("준비 검사입니다", "http://127.0.0.1:1")
+        self.assertEqual(FakeClient.request["keep_alive"], -1)
+
+    @patch("companion_plan.httpx.Client", FakeClient)
     def test_a_ghost_emote_becomes_none(self):
         """막았으면 계획이 통째로 `none` 이 되고, 무엇을 막았는지 남는다."""
         FakeClient.reply = json.dumps({"status": "ok", "orders": [order("dance", "green")]})

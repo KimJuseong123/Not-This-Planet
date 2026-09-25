@@ -147,8 +147,12 @@ class Worker:
                 wav.writeframes(b"\0" * 32000)
             self.transcribe(buffer.getvalue())
             companion_v4.OLLAMA = self.url
-            result = companion_v4.classify_companion("준비 검사입니다")
-            if result["action"] not in companion_v4.ACTIONS:
+            # **게임이 실제로 쓰는 판단 프롬프트로 데운다** (S15P21B202-741). 전에는 companion_v4 로
+            # 데웠는데, 게임은 companion_plan 만 부른다. ollama 는 슬롯이 하나(NUM_PARALLEL=1)라 마지막
+            # 프롬프트의 앞머리만 캐시에 남으므로, 첫 실제 명령이 1000토큰 가까운 프롬프트를 처음부터
+            # 다시 읽었다 — 2026-09-25 측정에서 캐시가 비면 판단마다 약 2.2초가 더 들었다.
+            result = companion_plan.classify("준비 검사입니다", self.url)
+            if result.get("status") not in ("ok", "none", "clarify"):
                 raise ValueError("invalid_warmup_result")
             if not self.stopping.is_set():
                 self.state = "ready"

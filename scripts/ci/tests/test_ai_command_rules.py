@@ -133,5 +133,11 @@ check("command_rules.decide(text)" in plan_src and "companion_plan.classify(text
 check(plan_src.find("command_rules.decide") < plan_src.find("companion_plan.classify"),
       "규칙이 판단기보다 먼저다")
 check("self.plan(text) if plan" in method("execute"), "음성·글 명령이 plan() 을 거친다")
+warm = method("warmup")
+check("companion_plan.classify(" in warm and "classify_companion(" not in warm,
+      "준비할 때 게임이 쓰는 판단 프롬프트로 데운다 — 다른 프롬프트로 데우면 첫 명령이 캐시를 못 쓴다")
+check(re.search(r'"keep_alive":\s*-1', source("companion_plan.py")) is not None,
+      "판단 모델을 내리지 않는다 (keep_alive -1) — 10분 쉰 뒤의 첫 명령이 11.8초였다")
+
 print(f"\ntest_ai_command_rules: {'통과' if not failed else f'실패 {failed}'}")
 sys.exit(1 if failed else 0)
