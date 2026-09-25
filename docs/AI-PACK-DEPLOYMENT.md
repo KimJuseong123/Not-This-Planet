@@ -47,7 +47,7 @@ Get-FileHash -Algorithm SHA256 -LiteralPath '배포용 pack-manifest.json의 실
 이미 빌드했다면 `NotThisPlanet_Data/StreamingAssets/ai-pack-source.json`을 같은 값으로 바꾼 뒤 그 전체 빌드 폴더를 배포해도 됨. manifest 바이트가 조금이라도 바뀌면 해시 재설정 필요. URL/해시는 비밀키가 아니며 신뢰된 게임 배포 경로로 전달해야 함. 별도 코드 서명/manifest 서명은 구현하지 않았음.
 
 ## 사용자 흐름
-방장 로비 → AI 추가팩 다운로드 → 진행률 → 검증/압축 해제 → 설치 완료 → AI 동료 사용 켜기 → 실제 모델 준비 완료 후 빈자리 AI 생성.
+방장 로비 → AI 추가팩 다운로드 → 진행률 → 검증/압축 해제 → 설치 완료 → 방 목록 아래 `AI 동료 추가`로 한 명씩(사람 포함 최대 4명, 줄의 `×`로 빼기) → 실제 모델 준비 완료 후 고른 수만큼 AI 생성.
 사람끼리 음성 채팅은 팩 불필요. 방장이 아니면 현재 로비 설치 버튼은 표시되지 않음.
 설치 경로는 `%USERPROFILE%/AppData/LocalLow/Not This Planet/Not This Planet/AI/p3`.
 

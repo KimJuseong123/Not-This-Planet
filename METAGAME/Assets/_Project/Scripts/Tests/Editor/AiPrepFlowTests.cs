@@ -127,6 +127,11 @@ namespace Metagame.Gameplay.Tests
         ///
         /// <para>글자(버튼 이름)가 아니라 <b>배선</b>을 본다 — <c>TestSource</c> 는 문자열을
         /// 지우고 보므로 이름으로는 단정할 수 없다.</para>
+        ///
+        /// <para><b>방 목록이 들어온 뒤에도 하나다</b> (S15P21B202-713). 이 자리의 켜기/끄기는 지웠고,
+        /// AI 수는 방 목록의 "AI 동료 추가" 와 줄마다의 × 가 정한다. 그 버튼은 <b>수만 요청한다</b> —
+        /// 받기나 다시 준비를 부르면 준비로 들어가는 입구가 둘이 된다. 추가를 누르면 설치 창이 뜨는
+        /// 흐름으로 바꿀 때 이 검사도 함께, 일부러 고친다.</para>
         /// </summary>
         [Test] public void OneEntryPointCarriesTheWholePreparation()
         {
@@ -139,6 +144,18 @@ namespace Metagame.Gameplay.Tests
                 "받기를 화면이 직접 부른다 — 다시 갈라진다");
             Assert.That(draw, Does.Not.Contain("runtime.Retry()"),
                 "다시 준비를 화면이 직접 부른다 — 다시 갈라진다");
+            Assert.That(draw, Does.Not.Contain("TrySetRequestedCount("),
+                "AI 수를 바꾸는 버튼이 방 목록 밖에 또 있다 — 두 곳이 서로 다른 수를 보내게 된다");
+
+            string lobby = TestSource.Read("Runtime/UI/LobbyHud.cs");
+            Assert.That(TestSource.Count(lobby, "AiHostSettings.TrySetRequestedCount("), Is.EqualTo(1),
+                "방 화면에서 AI 수를 보내는 자리가 하나가 아니다");
+            Assert.That(TestSource.Count(lobby, "Installer"), Is.Zero,
+                "방 목록이 받기를 직접 부른다 — 준비로 들어가는 입구가 둘이 된다");
+            Assert.That(TestSource.Count(lobby, "Retry()"), Is.Zero,
+                "방 목록이 다시 준비를 직접 부른다 — 준비로 들어가는 입구가 둘이 된다");
+            Assert.That(TestSource.Count(lobby, "AiRoomControls.Draw("), Is.EqualTo(1),
+                "로비의 준비 버튼이 사라졌거나 둘이 됐다 — 팩이 없는 방장이 받을 길이 없다");
         }
     }
 }

@@ -13,24 +13,24 @@ namespace Metagame.UI
             float rowHeight = area.height * 0.55f;
             if (canEdit)
             {
-                // 켜면 빈 자리를 전부 AI 로 채워 달라고 서버에 요청한다 (S15P21B202-713). 한 명씩
-                // 넣고 빼는 로비 목록이 들어오기 전까지의 임시 버튼이다 — 예전 켜기/끄기와 같은 결과를
-                // 수로 낸다. 값은 답(ROOM_STATE)이 와야 바뀌므로 그 사이 다시 눌러도 같은 수가 간다.
-                if (UiInteraction.Button(new Rect(area.x, area.y, buttonWidth, rowHeight),
-                    AiHostSettings.Requested ? "AI 동료 사용: 켜짐" : "AI 동료 사용: 꺼짐", buttonStyle))
-                    AiHostSettings.TrySetRequestedCount(AiHostSettings.Requested
-                        ? 0
-                        : AiSeatMath.MaxAi(NetworkSession.Instance.CurrentRoom.Players.Count));
+                // **AI 수는 여기서 바꾸지 않는다** (S15P21B202-713). 방 목록 아래의 "AI 동료 추가" 와 줄마다의
+                // × 가 맡는다(LobbyRoster). 예전의 켜기/끄기를 남겨 두면 수를 바꾸는 자리가 둘이 되어, 한쪽은
+                // "빈 자리 전부" 를, 다른 쪽은 "하나 더" 를 보내는 날이 온다.
+                //
+                // 남은 것은 추가팩을 받는 버튼 하나다 — 팩이 없을 때의 임시 길이다. "AI 동료 추가" 를 누르면
+                // 설치 창이 뜨는 흐름이 들어오면 그것이 이 자리를 대신한다.
+                //
                 // **버튼 하나가 흐름 전체를 맡는다** (S15P21B202-706). 예전에는 자리는 하나인데
                 // 단계마다 다른 버튼이 나왔다 — 다운로드 / 다시 준비. 어느 쪽이 나올지 알려면
                 // 방장이 지금 어느 단계인지를 먼저 알아야 했는데, 그것이 바로 화면에 없던 것이다.
                 var runtime = AiLocalRuntime.Current;
                 if (runtime != null)
                 {
-                    var spot = new Rect(area.x + buttonWidth + 8f, area.y, buttonWidth, rowHeight);
+                    var spot = new Rect(area.x, area.y, buttonWidth, rowHeight);
                     if (runtime.Installer != null && runtime.Installer.Busy)
                     {
-                        if (UiInteraction.Button(spot, "준비 취소", buttonStyle)) runtime.Installer.Cancel();
+                        // "준비 취소" 는 바로 아래 준비 버튼의 이름과 같다 — 받기를 멈추려다 준비를 푼다(리뷰).
+                        if (UiInteraction.Button(spot, "설치 취소", buttonStyle)) runtime.Installer.Cancel();
                     }
                     else if (NeedsPreparing(runtime))
                     {
@@ -38,9 +38,9 @@ namespace Metagame.UI
                     }
                 }
             }
-            else
+            else if (!lobby)
                 GUI.Label(new Rect(area.x, area.y, area.width, rowHeight),
-                    lobby ? "AI 설정은 대기 중인 방장이 관리합니다" : "AI 설정은 게임 시작 전 로비에서 변경할 수 있습니다", labelStyle);
+                    "AI 설정은 게임 시작 전 로비에서 변경할 수 있습니다", labelStyle);
 
             string status;
             if (lobby && !canEdit) status = "게임 입장 후 방장의 AI 상태가 표시됩니다";
@@ -53,10 +53,14 @@ namespace Metagame.UI
                 var installer = AiLocalRuntime.Current.Installer;
                 if (installer.Busy || AiHostSettings.RuntimeState != AiRuntimeState.Ready) status = installer.Message;
             }
-            // 옛 서버는 AI 수를 모른다 (S15P21B202-713) — 위 버튼이 아무 일도 하지 않는 이유를 알린다.
-            if (canEdit && !NetworkSession.Instance.CurrentRoom.SupportsAi)
-                status = "서버 업데이트가 필요합니다";
-            GUI.Label(new Rect(area.x, area.y + rowHeight + 3f, area.width, area.height - rowHeight), status, labelStyle);
+
+            // 로비의 참가자에게는 이 한 줄뿐이다 (S15P21B202-713). 누가 AI 를 넣고 빼는지는 목록 아래의
+            // 이유 줄("방장만 추가할 수 있습니다")이 이미 말한다 — 같은 말을 두 번 하지 않는다.
+            // 옛 서버라서 막힌 것도 그 줄이 말한다.
+            Rect statusArea = lobby && !canEdit
+                ? new Rect(area.x, area.y, area.width, rowHeight)
+                : new Rect(area.x, area.y + rowHeight + 3f, area.width, area.height - rowHeight);
+            GUI.Label(statusArea, status, labelStyle);
         }
 
         /// <summary>
