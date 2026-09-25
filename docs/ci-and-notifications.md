@@ -74,7 +74,7 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 | `JIRA_USER`, `JIRA_API_TOKEN` | Jira 읽기(이슈 조회·JQL) — **읽기 전용으로 충분하다.** 쓰기 권한은 두지 않는다(-242): 이슈 상태 전이는 Jira 자동화 규칙(R5·R6·R9)만 하고 CI는 검사·알림만 맡는다. 그래야 러너가 꺼져 있어도 이슈 완료가 영향받지 않고, 팀 공용 변수에 쓰기 권한이 남지 않고, 전이 규칙이 한 곳에만 있다 | Atlassian 계정 설정 → 보안 → API 토큰 — **스코프 토큰(`read:jira-work`, `read:jira-user`) 권장**. 스크립트는 `https://api.atlassian.com/ex/jira/{JIRA_CLOUD_ID}` 경로로 호출한다(스코프 토큰은 사이트 URL 로는 익명 취급 → 404, 2026-08-27 실측). `JIRA_CLOUD_ID` 기본값은 우리 사이트 | 키 실존·파트 검사 생략(경고) |
 | `GITLAB_TOKEN` | MR 제목/본문 수정·코멘트·MR 목록 | Settings → Access Tokens → **프로젝트 액세스 토큰**, 역할 Developer, 스코프 `api` | 제목 보정·AI 코멘트 불가(제안만 로그) |
 | `AI_REVIEW_CLI` | `true` — 러너 호스트의 로그인된 Claude Code CLI로 AI 리뷰(Team 플랜, **채택 방식**) | 팀장 | `ai-review` 잡 생성 안 됨 |
-| `AI_REVIEW_MODEL` | (선택) 기본 `claude-opus-5`, `AI_REVIEW_EFFORT` 기본 `medium`(팀 결정). `AI_REVIEW_SUMMARY_MODEL` 요약 에이전트 모델(기본 = 위), `AI_REVIEW_ROLES` 리뷰어 강제(예 `scope,code`), `AI_REVIEW_PARALLEL` 동시 실행 수(기본 3) | — | 기본값 |
+| `AI_REVIEW_MODEL` | (선택) 기본 `claude-opus-5-5`(러너 Claude Code 2.1.280 이상 필요), `AI_REVIEW_EFFORT` 기본 `medium`(팀 결정). `AI_REVIEW_SUMMARY_MODEL` 요약 에이전트 모델(기본 = 위), `AI_REVIEW_ROLES` 리뷰어 강제(예 `scope,code`), `AI_REVIEW_PARALLEL` 동시 실행 수(기본 3) | — | 기본값 |
 | `ANTHROPIC_API_KEY` | (대안) API 종량제로 AI 리뷰 — Team 플랜엔 포함되지 않음, 별도 콘솔·크레딧 필요 | — | cli 백엔드 사용 |
 | `MM_WEBHOOK_URL` | Mattermost 수신 웹훅 | MM 채널 → 통합 → 수신 웹훅 | `mm-digest` 생기지 않음 |
 | `CI_ENABLE` | 파이프라인 전체 게이트 | 러너 등록 직후 팀장이 `true` | 파이프라인이 생성되지 않음(의도) |
@@ -283,7 +283,7 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 
 | 항목 | 지난 프로젝트 | 이번 적용 |
 | --- | --- | --- |
-| 모델·effort | `claude-opus-5` + `--effort medium` | 동일 (`AI_REVIEW_MODEL`/`AI_REVIEW_EFFORT`) |
+| 모델·effort | `claude-opus-5-5` + `--effort medium` | 동일 (`AI_REVIEW_MODEL`/`AI_REVIEW_EFFORT`) |
 | CLI 격리 플래그 | `--tools "" --setting-sources user --strict-mcp-config --disable-slash-commands --permission-mode dontAsk --no-session-persistence`, 호출마다 일회성 `CLAUDE_CONFIG_DIR` | 플래그 동일. 자격은 러너 호스트 사용자 프로필을 공유(`CLAUDE_CONFIG_DIR` 주입) — 단일 러너·단일 계정이라 일회성 디렉터리는 생략 |
 | 프롬프트 원칙 | MR 본문·diff는 untrusted 구분자로 감싸고, "diff에 없다 ≠ 저장소에 없다", 추측 금지, 한국어 출력 | 시스템 프롬프트에 반영 |
 | 실패 처리 | stdout/stderr 원문을 로그·코멘트에 남기지 않고 카테고리만(`rate_limit`·`authentication`·`server_error`·`network`·`invalid_request`), 인증·요청 오류는 재시도 안 함 | 카테고리 분류 로그 반영(비차단 잡이라 재시도는 파이프라인 재실행으로) |

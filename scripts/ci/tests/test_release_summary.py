@@ -230,8 +230,8 @@ def run_main(argv, backend="cli", answer=GOOD, boom=None, jira=None):
     """`main()` 을 Jira·모델 없이 끝까지 돌린다. 돌려주는 것: (종료코드, 파일 내용)."""
     real = (S.R.previous_tag, S.R.changelog, S.AI.pick_backend, S.AI.call, S.C.Jira)
 
-    def fake_call(be, model, system, user):
-        CALLS.append((be, model, user))
+    def fake_call(be, model, system, user, schema=None):
+        CALLS.append((be, model, user, schema))
         if boom:
             raise RuntimeError(boom)
         return answer
@@ -259,6 +259,9 @@ check(rc == 0 and text is not None, f"평범한 경우 초안 파일이 나온�
 check(text is not None and "운석을 방망이로 쳐낼 수 있습니다." in text, "모델이 쓴 줄이 파일에 들어간다")
 check(CALLS and CALLS[-1][0] == "cli", "고른 백엔드로 부른다 — call_cli 를 직접 부르지 않는다")
 check(CALLS and "[Puzzle] 운석 흔적이 오래 남는다" in CALLS[-1][2], "Jira 요약이 프롬프트에 실린다")
+# 출력 형식은 말이 아니라 스키마로 건다 (S15P21B202-740). 세 칸이 모두 required 여야 초안이 반쪽이 안 된다.
+check(CALLS and CALLS[-1][3] is S.SCHEMA and set(S.SCHEMA["required"]) == {"site", "release", "jira"},
+      "릴리스 노트 스키마를 넘기고 site·release·jira 를 모두 요구한다")
 
 # 백엔드가 없으면 **그렇다고 말하고 끝낸다.** 빈 파일을 남기면 "요약이 없구나" 로 읽힌다.
 os.remove(tmp)
