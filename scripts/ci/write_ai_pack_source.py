@@ -1,4 +1,10 @@
-"""AI 추가팩의 다운로드 주소를 빌드에 심는다 (S15P21B202-690).
+"""AI 추가팩의 다운로드 주소를 빌드에 심는다 (S15P21B202-690 · -744).
+
+**최신 주소가 먼저다** (S15P21B202-744). 빌드에는 서버의 최신 팩을 가리키는 **고정 주소**
+(`latest_url`)를 늘 심는다 — 서버의 `latest-companion-v4` 가 최신 팩 폴더를 가리키는 링크라,
+팩을 올릴 때 링크만 옮기면 게임이 그것을 받는다. **팩을 바꿀 때마다 CI 변수를 고치지 않는다.**
+`AI_PACK_LATEST_URL` 로 덮을 수 있고 `-` 로 끌 수 있다. 아래의 manifest 한 쌍은 최신을 못 받았을
+때 게임이 쓰는 대체값이다(없어도 된다).
 
 실행: python3 scripts/ci/write_ai_pack_source.py [--required]
 
@@ -61,10 +67,30 @@ def valid_url(value):
             and not parts.query and not parts.fragment)
 
 
+#: 서버의 최신 팩 주소(S15P21B202-744). **프로토콜이 이름에 들어 있다** — 게임의
+#: `AiPackValidation.Manifest` 가 요구하는 프로토콜과 같아야 한다(test_ai_pack_source.py 가 본다).
+#: 워커 프로토콜이 바뀌면 새 이름을 쓰고, 옛 빌드는 옛 이름의 팩을 계속 받는다.
+LATEST_URL = "https://j15b202.p.ssafy.io/ai-packs/latest-companion-v4/pack-manifest.json"
+
+
 def main(argv=None):
     required = "--required" in (argv if argv is not None else sys.argv[1:])
     url = (os.environ.get("AI_PACK_MANIFEST_URL") or "").strip()
     digest = (os.environ.get("AI_PACK_MANIFEST_SHA256") or "").strip()
+    latest = (os.environ.get("AI_PACK_LATEST_URL") or LATEST_URL).strip()
+    if latest == "-":
+        latest = ""
+    if latest and not valid_url(latest):
+        print("❌ AI_PACK_LATEST_URL 이 게임의 검증을 통과하지 못한다 —"
+              " https 여야 하고 사용자정보·질의·조각이 없어야 한다")
+        return 1
+
+    if not url and not digest and latest:
+        # 최신 주소만으로 받을 수 있다. 대체값이 없다는 것만 알린다.
+        write({"latest_url": latest, "manifest_url": "", "manifest_sha256": ""})
+        parts = urlsplit(latest)
+        print(f"ai-pack-source.json 을 썼다 — 최신 {parts.netloc}{parts.path} (대체값 없음)")
+        return 0
 
     if not url and not digest:
         if required:
@@ -97,16 +123,21 @@ def main(argv=None):
         print("❌ AI_PACK_MANIFEST_SHA256 이 64자리 16진수가 아니다")
         return 1
 
-    os.makedirs(os.path.dirname(TARGET), exist_ok=True)
-    body = json.dumps({"manifest_url": url, "manifest_sha256": digest}, indent=2) + "\n"
-    with io.open(TARGET, "w", encoding="utf-8", newline="\n") as f:
-        f.write(body)
+    write({"latest_url": latest, "manifest_url": url, "manifest_sha256": digest})
 
     # 주소의 호스트와 경로만 적는다. 해시는 앞 8자리만 — 어느 팩인지 가리는 데는
     # 충분하고, 로그를 옮길 때 값 전체를 흘리지 않는다.
     parts = urlsplit(url)
-    print(f"ai-pack-source.json 을 썼다 — {parts.netloc}{parts.path} · sha256 {digest[:8]}…")
+    print(f"ai-pack-source.json 을 썼다 — {parts.netloc}{parts.path} · sha256 {digest[:8]}…"
+          + (f" · 최신 {urlsplit(latest).path}" if latest else ""))
     return 0
+
+
+def write(data):
+    os.makedirs(os.path.dirname(TARGET), exist_ok=True)
+    body = json.dumps(data, indent=2) + "\n"
+    with io.open(TARGET, "w", encoding="utf-8", newline="\n") as f:
+        f.write(body)
 
 
 if __name__ == "__main__":

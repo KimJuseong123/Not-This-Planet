@@ -11,7 +11,11 @@ using UnityEngine.Networking;
 
 namespace Metagame.Network
 {
-    [Serializable] public sealed class AiPackSource { public string manifest_url; public string manifest_sha256; }
+    /// <summary>
+    /// 배포 정보. <c>latest_url</c> 은 서버의 최신 팩을 가리키는 고정 주소(S15P21B202-744) — 있으면 게임이
+    /// 그것을 먼저 쓰고, <c>manifest_url</c> · <c>manifest_sha256</c> 은 못 받았을 때의 대체값이다.
+    /// </summary>
+    [Serializable] public sealed class AiPackSource { public string manifest_url; public string manifest_sha256; public string latest_url; }
     [Serializable] public sealed class AiPackManifest
     {
         public int schema;
@@ -249,13 +253,32 @@ namespace Metagame.Network
         /// <summary>풀어 쓰는 동안 디스크가 꽉 차지 않게 남겨 두는 여유.</summary>
         public const long SpaceMargin = 512L * 1024 * 1024;
 
-        /// <summary>이 빌드가 가리키는 배포 주소. 값은 빌드 때 심는다(<c>write_ai_pack_source.py</c>).</summary>
+        /// <summary>
+        /// 쓸 배포 정보. 서버의 최신 팩을 받았으면 그것, 아니면 빌드에 박힌 값(S15P21B202-744).
+        /// 설치 · 최신 판단 · 설치 창이 모두 여기를 거친다 — 한 곳에서만 고른다.
+        /// </summary>
         public static AiPackSource LoadSource()
+        {
+            return AiPackLatest.Choose(LoadBuiltSource(), AiPackLatest.Resolved);
+        }
+
+        /// <summary>이 빌드에 박힌 배포 정보. 값은 빌드 때 심는다(<c>write_ai_pack_source.py</c>).</summary>
+        public static AiPackSource LoadBuiltSource()
         {
             var config = Path.Combine(Application.streamingAssetsPath, "ai-pack-source.json");
             try { if (File.Exists(config)) return JsonUtility.FromJson<AiPackSource>(File.ReadAllText(config)); }
             catch (Exception) { }
             return null;
+        }
+
+        /// <summary>
+        /// 게임이 뜨면 최신 팩을 한 번 확인한다 (S15P21B202-744). 방장이 "AI 동료 추가" 를 누를 즈음에는
+        /// 끝나 있다 — 못 받으면 빌드의 값을 쓰므로 기다리지 않는다.
+        /// </summary>
+        void Start()
+        {
+            var built = LoadBuiltSource();
+            if (built != null && AiPackLatest.Url(built.latest_url)) StartCoroutine(AiPackLatest.Fetch(built.latest_url));
         }
 
         /// <summary>
