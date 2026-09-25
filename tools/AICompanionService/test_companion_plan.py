@@ -19,6 +19,41 @@ class PlanTests(unittest.TestCase):
         first["steps"] += order("defend_meteors")["steps"]
         plan.validate({"status": "ok", "orders": [first, order("wait", "remaining")]})
 
+    def test_unsaid_emotes_do_not_run(self):
+        """말에 없던 감정 표현은 실행하지 않는다 (S15P21B202-736).
+
+        2026-09-23 QA(시끄러운 방)에서 `빛만이 사방` 이 `dance` 로 실행됐다.
+        못 알아듣는 것보다 나쁘다 — **엉뚱한 행동은 되돌려야** 한다.
+
+        **정상 명령을 죽이지 않는 것이 이 검사의 절반이다.** 저장 녹음 24개의
+        감정 표현 4문장은 모두 제 낱말을 품고 있다.
+        """
+        def one(action):
+            return {"status": "ok", "orders": [order(action, "green")]}
+
+        for said in ("빛만이 사방", "동방에 들고 나가서 눈썹 스펙", ""):
+            self.assertEqual(plan.social_without_the_word(said, one("dance")), "dance", said)
+
+        for said, action in [("초록아 춤 춰봐", "dance"), ("파랑아 인사해", "greet"),
+                             ("노랑아 하트 해줘", "heart"), ("빨강아 따봉 해", "cheer"),
+                             ("다들 응원해줘", "cheer"), ("초록아 안녕", "greet")]:
+            self.assertIsNone(plan.social_without_the_word(said, one(action)), said)
+
+        # 감정 표현이 아닌 행동은 낱말을 묻지 않는다 — 어휘 전체로 거르면
+        # `이리 와` 같은 정상 명령까지 죽는다.
+        self.assertIsNone(plan.social_without_the_word("이리 와", one("follow")))
+
+    @patch("companion_plan.httpx.Client", FakeClient)
+    def test_a_ghost_emote_becomes_none(self):
+        """막았으면 계획이 통째로 `none` 이 되고, 무엇을 막았는지 남는다."""
+        FakeClient.reply = json.dumps({"status": "ok", "orders": [order("dance", "green")]})
+        result = plan.classify("빛만이 사방", "http://127.0.0.1:1")
+        self.assertEqual(result["status"], "none")
+        self.assertEqual(result["orders"], [])
+        self.assertEqual(result["unsaid_social"], "dance")
+        # 들은 말은 그대로 돌려준다 — 화면이 그것을 보여 준다 (S15P21B202-727 · -736)
+        self.assertEqual(result["text"], "빛만이 사방")
+
     def test_revive_is_a_finishing_job(self):
         """`초록아 쟤 좀 살려줘` (S15P21B202-716).
 

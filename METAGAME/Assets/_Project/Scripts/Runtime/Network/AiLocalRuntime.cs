@@ -392,15 +392,22 @@ namespace Metagame.Network
                 try { result = JsonUtility.FromJson<PlanDecision>(request.downloadHandler.text); }
                 catch (ArgumentException) { }
                 ReportPlan(result);
+                // **못 알아들었으면 들은 말을 보여 준다** (S15P21B202-736). 그래야 "내가
+                // 뭐라고 들렸는지" 를 알고 다시 말할 수 있다 — 지금은 같은 말을 같은
+                // 목소리로 되풀이하는 것 말고 할 수 있는 것이 없다.
                 if (result == null || result.status != "ok" || !AiCommandPlan.Valid(result.orders))
-                { requester.ReportAiVoice("명령을 이해하지 못했어요"); yield break; }
+                { requester.ReportAiVoice(Heard(result) + "명령으로 알아듣지 못했어요"); yield break; }
                 // Snapshot membership/revisions prevents delayed replies from replacing newer orders.
                 Message = group.ExecutePlan(result.orders, AiRecipients.Selected, selected, speaker);
+                // **무엇을 시켰는지 보여 준다** (S15P21B202-736). 전에는 개수뿐이라, 헛말이
+                // 춤으로 실행돼도 플레이어는 동료가 왜 춤추는지 알 수 없었다.
+                //
                 // 아무도 안 받았으면 **왜인지**를 말한다 (S15P21B202-730). 전에는 언제나
                 // "지금 수행할 수 있는 AI 동료가 없어요" 라서, 쓰러진 채 말한 사람은
                 // 자기가 기절해서인지 동료가 바빠서인지 알 수 없었다.
-                requester.ReportAiVoice(group.LastAccepted > 0 ? $"AI 동료 {group.LastAccepted}명이 명령을 받았어요"
-                                        : group.LastRefusal ?? "지금 수행할 수 있는 AI 동료가 없어요");
+                requester.ReportAiVoice(group.LastAccepted > 0
+                    ? Heard(result) + (AiCommandPlan.Spoken(result.orders) ?? "명령") + " 시켰어요"
+                    : Heard(result) + (group.LastRefusal ?? "지금 수행할 수 있는 AI 동료가 없어요"));
             }
         }
 
@@ -418,6 +425,25 @@ namespace Metagame.Network
         /// <para>상태 문구와 달리 <b>매번 적는다.</b> 명령은 사람이 V 를 누를 때만 나므로
         /// 로그를 덮지 않는다.</para>
         /// </summary>
+        /// <summary>
+        /// <b>무엇으로 들었는지</b>를 앞에 붙인다 (S15P21B202-736). 못 들었으면 빈 문자열.
+        ///
+        /// <para>받아쓴 말이 화면에 없으면 플레이어가 할 수 있는 것은 <b>같은 말을 같은
+        /// 목소리로 되풀이하는 것</b>뿐이다. 무엇으로 들렸는지 보이면 다르게 말할 수 있다.</para>
+        ///
+        /// <para>길면 자른다 — 화면 아래 두 줄짜리 자리다.</para>
+        /// </summary>
+        public const int HeardLimit = 24;
+
+        static string Heard(PlanDecision result)
+        {
+            string said = result != null ? result.text : null;
+            if (string.IsNullOrWhiteSpace(said)) return "";
+            said = said.Trim();
+            if (said.Length > HeardLimit) said = said.Substring(0, HeardLimit) + "…";
+            return "\"" + said + "\" 로 듣고 ";
+        }
+
         void ReportPlan(PlanDecision result)
         {
             if (result == null) { UnityEngine.Debug.Log("[AI] 응답을 읽지 못했다"); return; }
