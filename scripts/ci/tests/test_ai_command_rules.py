@@ -167,9 +167,17 @@ for said in ("", "그만해", "춤 춰", "오늘 날씨 좋다", "지금 몇 시
 plan = R.demo_decide("빨강아 고정못 뽑아")
 check(plan["orders"][0]["recipients"] == "red", "색을 부르면 그 동료에게 간다")
 check(R.similarity("반망이", "방망이") > R.similarity("반망이", "고정못"), "자모 유사도가 받아쓰기 오류를 가깝게 본다")
+demo_src = method("plan_demo")
 check(0 <= plan_src.find("command_rules.DEMO") < plan_src.find("companion_plan.classify"),
-      "시연이면 판단기를 부르기 전에 규칙으로 끝낸다")
-check("if not command_rules.DEMO:" in warm, "시연이면 판단 모델을 올리지 않는다 — 메모리와 CPU 를 게임에 돌려준다")
+      "시연이면 시연 판단(plan_demo)으로 간다")
+check("companion_plan.classify_demo(text, self.url)" in demo_src,
+      "시연에서도 **LLM 이 판단한다** — AI 활용이 평가 요소다. 규칙만으로 정하면 받아쓰기만 남는다")
+check(demo_src.find("classify_demo") < demo_src.find('"rules-fallback"'),
+      "규칙은 LLM 뒤에서 거드는 쪽이다(none·실패일 때만)")
+check("command_rules.DEMO_STOP.search" in demo_src, "멈추라는 말은 판단 없이 거절한다")
+check("companion_plan.classify_demo(" in warm, "시연이면 시연 프롬프트로 데운다 — 첫 명령이 캐시를 쓴다")
+D = constants("companion_plan.py", {"DEMO_CHOICES"})
+check(set(D["DEMO_CHOICES"]) == set(R.DEMO_ACTIONS) | {"none"}, "LLM 의 선택지가 워커 규칙·게임의 넷과 같다")
 
 print(f"\ntest_ai_command_rules: {'통과' if not failed else f'실패 {failed}'}")
 sys.exit(1 if failed else 0)
