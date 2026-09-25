@@ -24,20 +24,39 @@ namespace Metagame.Gameplay.Tests
         /// 멈춘 건지 모르겠다" 가 그것이다.</para>
         ///
         /// <para>봐야 할 것은 둘이다. <b>시간이 흐르는가</b>(살아 있다), 그리고 <b>워커가
-        /// 대답하는가</b>(어느 단계인가).</para>
+        /// 대답하는가</b>(어느 단계인가). 이 구분은 <b>로그</b>에 남긴다.</para>
+        ///
+        /// <para><b>화면은 남은 시간을 말한다</b> (S15P21B202-713). 예전 검사는 "첫 실행은 몇 분"
+        /// 이라는 힌트(<c>"분"</c>)를 요구했는데, 그 말은 방장에게 속사정이고 얼마나 더 기다릴지는
+        /// 알려 주지 않았다. 화면은 경과 대신 남은 시간을, 예상을 넘기면 숫자 없이
+        /// "조금 더 걸리고 있어요" 를 말한다.</para>
         /// </summary>
         [Test] public void TheWaitingTextChangesWithWhatIsHappening()
         {
-            string early = AiLocalRuntime.WarmupMessage(false, 3);
-            string later = AiLocalRuntime.WarmupMessage(false, 40);
-            Assert.That(later, Is.Not.EqualTo(early), "시간이 흘러도 글자가 그대로다 — 멈춘 것처럼 보인다");
+            string early = AiLocalRuntime.WarmupMessage(false, 3, 227);
+            string later = AiLocalRuntime.WarmupMessage(false, 40, 227);
+            Assert.That(later, Is.Not.EqualTo(early), "시간이 흘러도 로그 글자가 그대로다 — 멈춘 것처럼 보인다");
 
-            string warming = AiLocalRuntime.WarmupMessage(true, 40);
+            string warming = AiLocalRuntime.WarmupMessage(true, 40, 227);
             Assert.That(warming, Is.Not.EqualTo(later),
-                "대답이 오는 것과 오지 않는 것이 같은 말로 나온다 — 어느 단계인지 알 수 없다");
+                "대답이 오는 것과 오지 않는 것이 로그에서 같은 말로 나온다 — 어느 단계인지 알 수 없다");
+            Assert.That(warming, Does.Contain(AiLocalRuntime.Clock(40)), "로그에서 경과 시간이 빠졌다");
 
-            Assert.That(warming, Does.Contain(AiLocalRuntime.Clock(40)), "경과 시간이 빠졌다");
-            Assert.That(warming, Does.Contain("분"), "첫 실행이 몇 분 걸린다는 것을 알려야 기다린다");
+            var waiting = new AiPrepSnapshot
+            {
+                Phase = AiPrepPhase.Start, WarmupElapsed = 40, WarmupExpected = 227, Elapsed = 40, Progress = .2f,
+            };
+            string shown = AiPrepProgress.Display(waiting);
+            Assert.That(shown, Does.Contain(AiPrepProgress.FormatRemaining(187)),
+                "화면이 남은 시간을 말하지 않는다 — 방장은 얼마나 더 기다릴지 모른다");
+            Assert.That(shown, Does.Not.Contain(AiLocalRuntime.Clock(40)), "화면이 경과를 센다 — 남은 시간이 아니다");
+            Assert.That(shown, Does.Not.Contain("첫 실행"), "속사정 힌트가 화면에 돌아왔다");
+
+            var longer = waiting; longer.WarmupElapsed = 300;
+            string late = AiPrepProgress.Display(longer);
+            Assert.That(late, Is.Not.EqualTo(shown), "예상을 넘겨도 화면이 그대로다");
+            Assert.That(late, Does.Contain(AiPrepProgress.Overrun));
+            Assert.That(late, Does.Not.Contain("남음"), "예상을 넘겼는데 남은 시간을 댄다 — 그 숫자는 이미 틀렸다");
         }
 
         /// <summary>

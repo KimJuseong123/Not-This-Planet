@@ -251,24 +251,93 @@ namespace Metagame.Network
         }
 
         /// <summary>
-        /// 준비 중 화면에 적을 말 (S15P21B202-706).
+        /// 준비 중 <b>로그</b>에 적을 말 (S15P21B202-706).
         ///
         /// <para><b>멈춘 것과 느린 것은 다르다.</b> 예전에는 <c>"추가팩 로딩 중"</c> 이 최대 2분
         /// 동안 한 글자도 바뀌지 않아 둘을 구분할 수 없었다. <b>글자가 바뀌면 살아 있는 것</b>이고,
         /// 대답이 오는지 아닌지가 그다음으로 알아야 할 것이다.</para>
         ///
+        /// <para><b>화면 글자가 아니다</b> (S15P21B202-713). 화면은 경과가 아니라 <b>남은 시간</b>을
+        /// 말해야 하고 "모델 데우는 중" · "첫 실행은 몇 분" 같은 속사정을 말하지 않는다 —
+        /// <see cref="AiPrepProgress.Display"/> 가 맡는다. 여기는 경과와 이 PC 의 예상을 그대로 적는다.</para>
+        ///
         /// <para>값으로 검증할 수 있게 떼어 둔다 — 실제 워커 없이 확인할 수 있어야 한다.</para>
         /// </summary>
-        public static string WarmupMessage(bool answered, float waited)
+        public static string WarmupMessage(bool answered, float waited, float expected)
             => answered
-                ? "AI 준비 중 · 모델 데우는 중 " + Clock(waited) + " · 첫 실행은 몇 분 걸려요"
+                ? "AI 준비 중 · 모델 데우는 중 " + Clock(waited) + " · 이 PC 예상 " + Clock(expected)
                 : "AI 준비 중 · 추가팩 응답 대기 " + Clock(waited);
+
+        /// <summary>
+        /// 이 워커가 데우기를 시작한 시각(<c>realtimeSinceStartup</c>). <see cref="State"/> 가
+        /// <see cref="AiRuntimeState.Loading"/> 일 때만 뜻이 있고, Ready 에 닿으면 음수로 돌아간다.
+        /// </summary>
+        public float WarmupBegan { get; private set; } = -1f;
+
+        /// <summary>이번 데우기에 걸릴 것으로 보는 초 — 이 PC 의 기록, 없으면 <see cref="AiPrepProgress.FallbackWarmupSeconds"/>.</summary>
+        public float WarmupExpected { get; private set; } = AiPrepProgress.FallbackWarmupSeconds;
+
+        Process warmupWorker;
+        string warmupPack;
+        bool warmupFirst;
+
+        /// <summary>
+        /// 이 PC 에서 이 팩이 데워지는 데 걸릴 것으로 보는 초 (S15P21B202-713).
+        ///
+        /// <para>워커는 데우는 동안 단계를 알려 주지 않는다 — <c>loading|ready|failed</c> 뿐이다.
+        /// 그래서 남은 시간은 <b>이 PC 가 지난번에 걸린 시간</b>으로만 어림할 수 있다. 측정 둘이
+        /// 열 배 차이(20초 대 227초)라 고정값 하나로는 몇 분씩 틀린다.</para>
+        /// </summary>
+        public static float ExpectedWarmup(string packId, bool firstRun)
+            => AiPrepProgress.ExpectedWarmup(firstRun,
+                PlayerPrefs.GetFloat(AiPrepProgress.WarmupKey(packId, true), 0f),
+                PlayerPrefs.GetFloat(AiPrepProgress.WarmupKey(packId, false), 0f));
+
+        /// <summary>
+        /// 설치가 막 끝났다 — 이 팩의 다음 데우기는 <b>설치 뒤 첫 실행</b>이다 (S15P21B202-713).
+        /// 첫 실행이 Ready 에 닿으면 지운다.
+        /// </summary>
+        public static void MarkInstalled(string packId)
+        {
+            PlayerPrefs.SetInt(AiPrepProgress.InstalledKey(packId), 1);
+            PlayerPrefs.Save();
+        }
+
+        /// <summary>
+        /// 데우기 시계를 켠다. <b>같은 워커면 다시 켜지 않는다</b> — 명령을 끊느라
+        /// <c>Watch</c> 가 다시 돌아도 데우기는 처음부터가 아니다. 이미 Ready 면 잴 것이 없다.
+        /// </summary>
+        void StartWarmupClock(float began)
+        {
+            if (State == AiRuntimeState.Ready || (warmupWorker == worker && WarmupBegan >= 0f)) return;
+            warmupWorker = worker;
+            WarmupBegan = began;
+            warmupPack = AiPackInstaller.PackId(PackRoot);
+            warmupFirst = PlayerPrefs.HasKey(AiPrepProgress.InstalledKey(warmupPack));
+            WarmupExpected = ExpectedWarmup(warmupPack, warmupFirst);
+        }
+
+        /// <summary>
+        /// Ready 에 닿았다 — 걸린 시간을 이 PC 의 기록으로 남기고, 로그에 붙일 한 조각을 돌려준다
+        /// (S15P21B202-713). 다음 준비의 남은 시간이 이 값에서 나온다.
+        /// </summary>
+        string RecordWarmup(float now)
+        {
+            if (WarmupBegan < 0f) return "";
+            float took = now - WarmupBegan;
+            WarmupBegan = -1f;
+            PlayerPrefs.SetFloat(AiPrepProgress.WarmupKey(warmupPack, warmupFirst), took);
+            if (warmupFirst) PlayerPrefs.DeleteKey(AiPrepProgress.InstalledKey(warmupPack));
+            PlayerPrefs.Save();
+            return " · 데우기 " + Clock(took) + (warmupFirst ? " (설치 뒤 첫 실행)" : "") + " · 예상 " + Clock(WarmupExpected);
+        }
 
         IEnumerator Watch(int epoch)
         {
             float began = Time.realtimeSinceStartup;
             float silentUntil = began + SilenceLimit;
             int failures = 0;
+            StartWarmupClock(began);
             while (epoch == generation)
             {
                 if (worker == null || worker.HasExited) { Fail("추가팩이 종료됐습니다"); yield break; }
@@ -286,7 +355,8 @@ namespace Metagame.Network
                     if (answered) silentUntil = Time.realtimeSinceStartup + SilenceLimit;
                     if (answered && ValidHealth(request.downloadHandler.text))
                     {
-                        if (State != AiRuntimeState.Ready) Message = "준비 완료 · 행동 / 대상 / 접근 여부 LLM 판단";
+                        if (State != AiRuntimeState.Ready)
+                            Message = "준비 완료 · 행동 / 대상 / 접근 여부 LLM 판단" + RecordWarmup(Time.realtimeSinceStartup);
                         State = AiRuntimeState.Ready; failures = 0;
                     }
                     else if (State == AiRuntimeState.Ready && ++failures >= 3)
@@ -298,7 +368,7 @@ namespace Metagame.Network
                         { Fail("추가팩 준비 시간 초과 · 로비에서 다시 준비해 주세요"); yield break; }
                         if (Time.realtimeSinceStartup > silentUntil)
                         { Fail("추가팩이 응답하지 않습니다 · 로비에서 다시 준비해 주세요"); yield break; }
-                        Message = WarmupMessage(answered, waited);
+                        Message = WarmupMessage(answered, waited, WarmupExpected);
                     }
                 }
                 yield return new WaitForSecondsRealtime(.5f);
