@@ -110,11 +110,14 @@ namespace Metagame.Network
 #endif
         }
 
-#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
-        /// <summary>지금 도는 모든 프로세스의 pid · 부모 · 태어난 시각 · 경로.</summary>
+        /// <summary>
+        /// 지금 도는 모든 프로세스의 pid · 부모 · 태어난 시각 · 경로. Windows 가 아니면 빈 목록 —
+        /// 검사가 부르므로 어디서나 컴파일돼야 한다(CI 는 Linux 에서 컴파일한다).
+        /// </summary>
         public static List<Seen> Snapshot()
         {
             var list = new List<Seen>();
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
             IntPtr snap = CreateToolhelp32Snapshot(SnapProcess, 0);
             if (snap == IntPtr.Zero || snap == new IntPtr(-1)) return list;
             try
@@ -139,9 +142,11 @@ namespace Metagame.Network
                 }
             }
             finally { CloseHandle(snap); }
+#endif
             return list;
         }
 
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
         const uint SnapProcess = 0x2, QueryLimited = 0x1000, ProcessTerminate = 0x1, Synchronize = 0x100000;
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
