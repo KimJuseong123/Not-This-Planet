@@ -19,6 +19,17 @@ namespace Metagame.Network
         /// <summary>지금 춤을 출 수 있나(쿨다운·동작). 몸을 가진 <c>NetPlayer</c> 가 매 틱 알려 준다.</summary>
         public bool AmbientCanDance { get; set; }
 
+        /// <summary>
+        /// 멈추지 않는 명령(고정못 · 운석) — 끊겨도 다시 건다 (S15P21B202-746). 동료가 쓰러졌다 일어나거나 작업이
+        /// 한 번 어긋나 끝나도, 새 명령이 오기 전까지는 그 일을 이어 간다. 뽑을 못이 없으면 내려놓는다.
+        /// </summary>
+        string standing;
+        PlayerRig standingSpeaker;
+        float standingRetryAt;
+
+        /// <summary>끊긴 명령을 다시 걸기 전에 기다리는 초. 매 틱 걸면 안 되는 일을 계속 시도한다.</summary>
+        public const float StandingRetrySeconds = 3f;
+
         /// <summary>명령 없이 기본 행동 중인가. 화면·로그가 명령 상태와 가른다.</summary>
         public bool Ambient => !Busy && ambient.Current != AiAmbient.Mode.None;
         readonly System.Collections.Generic.Queue<AiCommandStep> pending = new System.Collections.Generic.Queue<AiCommandStep>();
@@ -65,6 +76,8 @@ namespace Metagame.Network
             { refusal = Busy ? "다른 작업 중이라 감정 표현 불가" : "손에 무언가를 들고 있어 감정 표현 불가"; return false; }
             Stop(action == "cancel" ? "취소 명령" : "새 명령");
             requester = speaker;
+            standing = AiWorkTask.Standing(action) ? action : null;
+            standingSpeaker = standing != null ? speaker : null;
             if (AiWorkTask.Supports(action))
             {
                 workOrder = true;
@@ -114,6 +127,18 @@ namespace Metagame.Network
                 pending.Clear();
                 if (!Apply(next.action, source, self, next.approach, next.destination)) { pending.Clear(); return default; }
                 planSpeaker = source; foreach (var step in rest) pending.Enqueue(step); advance = false;
+            }
+            // 멈추지 않는 명령이 끊겼으면 다시 건다. 뽑을 못이 없어 끝났으면 내려놓는다.
+            if (!Busy && standing != null)
+            {
+                if (work.Exhausted || standingSpeaker == null) standing = null;
+                else if (allowed && self != null && !self.Downed && !self.IsRiding && Time.time >= standingRetryAt)
+                {
+                    standingRetryAt = Time.time + StandingRetrySeconds;
+                    var keep = standing; var who = standingSpeaker;
+                    if (Apply(keep, who, self, out var refused)) UnityEngine.Debug.Log("[AI] 끊긴 명령 다시 · " + keep);
+                    standing = keep; standingSpeaker = who;
+                }
             }
             // 명령이 없으면 기본 행동이다 (S15P21B202-746). 전에는 여기서 TickCore 가 "말한 사람이
             // 없음" 으로 멈추고 끝이라, 명령을 기다리는 동료가 선 채로 굳어 있었다.
@@ -205,6 +230,7 @@ namespace Metagame.Network
         }
         public void DetachDriver()
         {
+            standing = null; standingSpeaker = null;
             work.DetachDriver();
             pin.DetachDriver();
             follow.Stop();

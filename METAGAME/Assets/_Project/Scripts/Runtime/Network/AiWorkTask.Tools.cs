@@ -55,20 +55,20 @@ namespace Metagame.Network
                 beadsBefore = part.GetComponent<WeldBead>()?.BlobCount ?? 0;
                 pairStrengthBefore = part.GetComponent<WeldBead>()?.StrengthTo(weldPartner) ?? 0;
             }
-            tool = ToolMatches(self.ActiveTool) ? self.ActiveTool : null;
-            toolGrab = tool != null ? self.HeldTool : null;
-            float nearest = 40f * 40f;
-            if (tool == null)
-            foreach (var item in Grabbable.All)
+            if (!FindTool())
             {
-                if (item == null || item.gameObject.scene != self.gameObject.scene || !ToolFree(item)) continue;
-                var candidate = item.GetComponent<ToolBase>() ?? item.GetComponentInChildren<ToolBase>();
-                float distance = (item.transform.position - speaker.FootPosition).sqrMagnitude;
-                if (!ToolMatches(candidate) || distance >= nearest || (claims.TryGetValue(item, out var other) && other != null && other != self)) continue;
-                if (!StandNear(item.transform.position, .6f, out var spot)) continue;
-                tool = candidate; toolGrab = item; goal = spot; nearest = distance;
+                // 운석 막기는 계속하는 일이다 (S15P21B202-746) — 방망이가 지금 없으면(누가 들었거나 멀면)
+                // 실패하지 않고 기다렸다 다시 찾는다. 2026-09-25 QA: "사용 가능한 도구 없음" 으로 곧바로 끝났다.
+                if (action == "defend_meteors") { Phase(7); Status = "쓸 수 있는 방망이 기다리는 중"; return true; }
+                Finish(false, "사용 가능한 도구 없음"); return false;
             }
-            if (tool == null || !Claim(toolGrab)) { Finish(false, "사용 가능한 도구 없음"); return false; }
+            SetupToolGrip();
+            Phase(self.HeldTool == toolGrab ? 4 : self.HeldTool != null ? 1 : 2);
+            return true;
+        }
+
+        void SetupToolGrip()
+        {
             toolCollider = null; float closest = float.PositiveInfinity;
             foreach (var collider in toolGrab.GetComponentsInChildren<Collider>())
             {
@@ -76,13 +76,48 @@ namespace Metagame.Network
                 float d = (collider.ClosestPoint(self.Position) - self.Position).sqrMagnitude;
                 if (d < closest) { closest = d; toolCollider = collider; }
             }
-            Phase(self.HeldTool == toolGrab ? 4 : self.HeldTool != null ? 1 : 2);
-            return true;
         }
+
+        /// <summary>
+        /// 쓸 도구를 고른다. 이미 든 것이 맞으면 그것. 아니면 <b>이 동료에게서</b> 가까운 빈 도구(전에는 말한 사람
+        /// 기준 40m — 방망이가 그 밖이면 운석 막기가 곧바로 실패했다).
+        /// </summary>
+        bool FindTool()
+        {
+            tool = ToolMatches(self.ActiveTool) ? self.ActiveTool : null;
+            toolGrab = tool != null ? self.HeldTool : null;
+            float nearest = ToolSearchRange * ToolSearchRange;
+            if (tool == null)
+            foreach (var item in Grabbable.All)
+            {
+                if (item == null || item.gameObject.scene != self.gameObject.scene || !ToolFree(item)) continue;
+                var candidate = item.GetComponent<ToolBase>() ?? item.GetComponentInChildren<ToolBase>();
+                float distance = (item.transform.position - self.FootPosition).sqrMagnitude;
+                if (!ToolMatches(candidate) || distance >= nearest || (claims.TryGetValue(item, out var other) && other != null && other != self)) continue;
+                if (!StandNear(item.transform.position, .6f, out var spot)) continue;
+                tool = candidate; toolGrab = item; goal = spot; nearest = distance;
+            }
+            return tool != null && Claim(toolGrab);
+        }
+
+        /// <summary>도구를 찾는 반경(m) — 이 동료 기준.</summary>
+        public const float ToolSearchRange = 90f;
+
+        /// <summary>쓸 방망이가 없을 때 다시 찾는 간격(초).</summary>
+        public const float ToolRetrySeconds = 2f;
 
         InputFrame TickTool()
         {
             var input = new InputFrame();
+            if (phase == 7)
+            {
+                // 방망이를 기다리는 중 (운석 막기). 가끔 다시 찾는다 — 매 틱 훑으면 비싸다.
+                if (Time.time - phaseAt < ToolRetrySeconds) return input;
+                if (!FindTool()) { Phase(7); Status = "쓸 수 있는 방망이 기다리는 중"; return input; }
+                SetupToolGrip();
+                Phase(self.HeldTool == toolGrab ? 4 : self.HeldTool != null ? 1 : 2);
+                return input;
+            }
             if (PhaseAfterDelivery)
             {
                 if (self.HeldTool == null) Finish(true, "도구 운반·내려놓기 완료");
@@ -99,7 +134,11 @@ namespace Metagame.Network
             }
             if (tool == null || toolGrab == null) { Finish(false, "대상 도구 사라짐"); return input; }
             bool held = self.HeldTool == toolGrab;
-            if (!held && !ToolFree(toolGrab)) { Finish(false, "다른 플레이어가 도구 사용 중"); return input; }
+            if (!held && !ToolFree(toolGrab))
+            {
+                if (action == "defend_meteors") { ReleaseClaims(); tool = null; toolGrab = null; Phase(7); Status = "쓸 수 있는 방망이 기다리는 중"; return input; }
+                Finish(false, "다른 플레이어가 도구 사용 중"); return input;
+            }
             if (phase == 2 || phase == 3)
             {
                 if (held) { Phase(4); return input; }
@@ -120,6 +159,7 @@ namespace Metagame.Network
                 // 운석 막기는 계속하는 일이다 — 맞고 방망이를 떨어뜨렸으면 다시 줍는다 (S15P21B202-746).
                 if (action == "defend_meteors" && ToolFree(toolGrab) && StandNear(toolGrab.transform.position, .6f, out goal))
                 { Phase(2); Status = "떨어뜨린 방망이 다시 줍는 중"; return input; }
+                if (action == "defend_meteors") { ReleaseClaims(); tool = null; toolGrab = null; Phase(7); Status = "쓸 수 있는 방망이 기다리는 중"; return input; }
                 Finish(false, "도구를 놓쳐 작업 중단"); return input;
             }
             if (phase == 4)

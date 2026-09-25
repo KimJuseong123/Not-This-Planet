@@ -82,36 +82,44 @@ namespace Metagame.Gameplay.Tests
             var speaker = session.LocalPlayer;
             var self = PlayerRig.Create("AI 시연 · 못", FreeSpotNear(speaker.FootPosition, 3f), Quaternion.identity, Color.yellow, Color.white, false);
             spawned.Add(self.gameObject);
+            // **한 번 시키면 못이 없을 때까지 이어 뽑는다** (2026-09-25). 뽑은 순서와 그때마다 가장 가까웠는지를 적는다.
             var work = new AiWorkTask();
             var log = new StringBuilder();
-            int ok = 0, tries = 0;
-            float until = Time.realtimeSinceStartup + 240f;
-            while (tries < 6 && Time.realtimeSinceStartup < until)
+            int total = 0; foreach (var pin in PartClamp.All) if (pin != null && pin.isActiveAndEnabled && pin.IsRequired && !pin.IsReleased) total++;
+            var released = new HashSet<PartClamp>();
+            int nearestPulled = 0;
+            PartClamp expected = null;
+            float began = Time.time, until = Time.realtimeSinceStartup + 300f;
+            Assert.That(work.Begin("pull_pin", self, speaker), Is.True, work.Reason);
+            while (work.Active && Time.realtimeSinceStartup < until)
             {
-                tries++;
-                PartClamp nearest = null; float best = float.PositiveInfinity;
+                if (expected == null || expected.IsReleased)
+                {
+                    expected = null; float best = float.PositiveInfinity;
+                    foreach (var pin in PartClamp.All)
+                    {
+                        if (pin == null || !pin.isActiveAndEnabled || !pin.IsRequired || pin.IsReleased) continue;
+                        float d = (pin.transform.position - self.FootPosition).sqrMagnitude;
+                        if (d < best) { best = d; expected = pin; }
+                    }
+                }
+                self.SetInput(work.Tick());
                 foreach (var pin in PartClamp.All)
-                {
-                    if (pin == null || !pin.isActiveAndEnabled || !pin.IsRequired || pin.IsReleased) continue;
-                    float d = (pin.transform.position - self.FootPosition).sqrMagnitude;
-                    if (d < best) { best = d; nearest = pin; }
-                }
-                if (nearest == null) break;
-                float began = Time.time;
-                bool started = work.Begin("pull_pin", self, speaker);
-                while (started && work.Active && Time.realtimeSinceStartup < until)
-                {
-                    self.SetInput(work.Tick());
-                    yield return new WaitForFixedUpdate();
-                }
-                self.SetInput(default);
-                bool pulled = work.Outcome == AiTaskOutcome.Succeeded;
-                if (pulled) ok++;
-                log.AppendLine($"  {tries}: {(pulled ? "뽑음" : "실패")} {Time.time - began:0.0}초 · {work.Reason} · 가장 가까운 못 {Mathf.Sqrt(best):0.0}m {(nearest.IsReleased ? "(그것을 뽑음)" : "")}");
-                for (int i = 0; i < 20; i++) yield return new WaitForFixedUpdate();
+                    if (pin != null && pin.IsRequired && pin.IsReleased && released.Add(pin))
+                    {
+                        if (pin == expected) nearestPulled++;
+                        log.AppendLine($"  {released.Count}: {pin.Part?.name}/{pin.name} · {Time.time - began:0.0}초 {(pin == expected ? "(그때 가장 가까운 못)" : "")}");
+                    }
+                yield return new WaitForFixedUpdate();
             }
-            Debug.Log($"[AI 시연] 고정못 {ok}/{tries}\n{log}");
-            Assert.That(ok, Is.GreaterThanOrEqualTo(Mathf.CeilToInt(tries * .8f)), $"고정못 {ok}/{tries}\n{log}");
+            self.SetInput(default);
+            var why = new AiPinTask();
+            var navWorld = GameSession.Instance.GetComponent<AiNavigationWorld>();
+            foreach (var pin in PartClamp.All)
+                if (pin != null && pin.isActiveAndEnabled && pin.IsRequired && !pin.IsReleased)
+                    log.AppendLine($"  남음 {pin.Part?.name}/{pin.name} · {Vector3.Distance(pin.transform.position, self.FootPosition):0.0}m · 높이 {pin.transform.position.y:0.0} · {why.WhyNoApproach(navWorld, pin, self)}");
+            Debug.Log($"[AI 시연] 고정못 {released.Count}/{total} · 가장 가까운 것 {nearestPulled} · {work.Outcome} · {work.Reason} · {Time.time - began:0}초\n{log}");
+            Assert.That(released.Count, Is.GreaterThanOrEqualTo(Mathf.Min(total, 8)), $"한 번 시켰는데 이어 뽑지 않는다 · {work.Reason}\n{log}");
         }
 
         /// <summary>

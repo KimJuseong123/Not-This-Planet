@@ -65,21 +65,33 @@ namespace Metagame.Gameplay.Tests
                 var mode = AiAmbient.Pick(roll, true, true, false, true, AiAmbient.Mode.Wait);
                 seen.Add(mode);
                 Assert.That(AiAmbient.Pick(roll, false, false, false, true, AiAmbient.Mode.Wait),
-                    Is.EqualTo(AiAmbient.Mode.Follow).Or.EqualTo(AiAmbient.Mode.Wait), "손이 찼는데 춤·감정 표현을 고른다");
+                    Is.EqualTo(AiAmbient.Mode.Follow).Or.EqualTo(AiAmbient.Mode.Wait).Or.EqualTo(AiAmbient.Mode.Wander),
+                    "손이 찼는데 춤·감정 표현을 고른다");
                 Assert.That(AiAmbient.Pick(roll, true, true, false, true, AiAmbient.Mode.Dance), Is.Not.EqualTo(AiAmbient.Mode.Dance),
                     "춤을 연달아 춘다");
                 Assert.That(AiAmbient.Pick(roll, true, true, false, true, AiAmbient.Mode.Emote), Is.Not.EqualTo(AiAmbient.Mode.Emote),
                     "감정 표현을 연달아 한다");
-                Assert.That(AiAmbient.Pick(roll, true, true, true, true, AiAmbient.Mode.Wait), Is.EqualTo(AiAmbient.Mode.Follow),
-                    "사람과 멀어졌는데 따라가지 않는다");
+                Assert.That(AiAmbient.Pick(roll, true, true, true, true, AiAmbient.Mode.Wait),
+                    Is.EqualTo(AiAmbient.Mode.Follow).Or.EqualTo(AiAmbient.Mode.Wander), "사람과 멀어졌는데 제자리에 있거나 춤춘다");
                 Assert.That(AiAmbient.Pick(roll, true, true, false, false, AiAmbient.Mode.Wait), Is.Not.EqualTo(AiAmbient.Mode.Follow),
                     "사람이 없는데 따라가기를 고른다");
             }
-            Assert.That(seen, Is.EquivalentTo(new[] { AiAmbient.Mode.Follow, AiAmbient.Mode.Wait, AiAmbient.Mode.Emote, AiAmbient.Mode.Dance }),
-                "네 가지 기본 행동 중 나오지 않는 것이 있다");
+            Assert.That(seen, Is.EquivalentTo(new[] { AiAmbient.Mode.Follow, AiAmbient.Mode.Wait, AiAmbient.Mode.Emote,
+                                                      AiAmbient.Mode.Dance, AiAmbient.Mode.Wander }),
+                "기본 행동 중 나오지 않는 것이 있다");
+            // 2026-09-25 QA: 셋이 똑같이 따라오다 멈추는 것이 어색했다 — 따라가기가 가장 흔하면 안 된다
+            Assert.That(AiAmbient.WeightFollow, Is.LessThan(AiAmbient.WeightWander), "따라가기가 돌아다니기보다 흔하다");
+            int follows = 0, wanders = 0;
+            for (int i = 0; i < 1000; i++)
+            {
+                var m = AiAmbient.Pick(i / 1000.0, true, true, true, true, AiAmbient.Mode.Wait);
+                if (m == AiAmbient.Mode.Follow) follows++; else if (m == AiAmbient.Mode.Wander) wanders++;
+            }
+            Assert.That(follows, Is.InRange(300, 700), "멀어진 셋이 모두 따라붙는다");
+            Assert.That(wanders, Is.InRange(300, 700));
 
             // 간격은 범위 안에서 무작위다 — 같은 간격으로 바뀌면 기계처럼 보인다
-            foreach (var mode in new[] { AiAmbient.Mode.Follow, AiAmbient.Mode.Wait, AiAmbient.Mode.Dance })
+            foreach (var mode in new[] { AiAmbient.Mode.Follow, AiAmbient.Mode.Wait, AiAmbient.Mode.Dance, AiAmbient.Mode.Wander })
             {
                 float low = AiAmbient.Duration(mode, 0), high = AiAmbient.Duration(mode, .999);
                 Assert.That(high - low, Is.GreaterThan(2f), mode + " 의 간격이 거의 같다");
@@ -146,6 +158,49 @@ namespace Metagame.Gameplay.Tests
             int warming = watch.IndexOf("Message = WarmupMessage(answered, waited, WarmupExpected);", System.StringComparison.Ordinal);
             Assert.That(reported, Is.GreaterThanOrEqualTo(0), "워커의 실패를 읽지 않는다");
             Assert.That(reported, Is.LessThan(warming), "실패를 읽기 전에 '데우는 중' 으로 넘어간다");
+        }
+
+        /// <summary>
+        /// 고정못과 운석은 한 번 하고 끝나는 명령이 아니다 (2026-09-25). 못은 없을 때까지, 운석은 계속 — 동료가
+        /// 쓰러졌다 일어나도, 방망이가 없어도 이어 간다.
+        /// </summary>
+        [Test]
+        public void PinsAndMeteorsKeepGoingUntilThereIsNothingLeft()
+        {
+            Assert.That(AiWorkTask.Standing("pull_pin") && AiWorkTask.Standing("defend_meteors"), Is.True);
+            Assert.That(AiWorkTask.Standing("revive") || AiWorkTask.Standing("come"), Is.False, "살리기·오기는 한 번이면 된다");
+
+            string work = TestSource.Read("Runtime/Network/AiWorkTask.cs");
+            string pin = TestSource.Method(work, "InputFrame TickPin()");
+            int pulled = pin.IndexOf("pinsPulled++;", System.StringComparison.Ordinal);
+            int next = pin.IndexOf("pin.Begin(self, speaker, null, attemptedPins);", pulled, System.StringComparison.Ordinal);
+            Assert.That(pulled, Is.GreaterThanOrEqualTo(0), "하나 뽑고 끝낸다");
+            Assert.That(next, Is.GreaterThan(pulled), "뽑은 뒤 다음 못으로 가지 않는다");
+            Assert.That(pin, Does.Contain("Exhausted = true;"), "뽑을 못이 없을 때를 '할 일을 다 했다' 로 가르지 않는다");
+
+            string tools = TestSource.Read("Runtime/Network/AiWorkTask.Tools.cs");
+            Assert.That(TestSource.Method(tools, "bool BeginTool()"), Does.Contain("{ Phase(7); Status = "),
+                "방망이가 없으면 운석 막기가 곧바로 실패한다");
+            Assert.That(TestSource.Method(tools, "bool FindTool()"), Does.Contain("self.FootPosition"), "말한 사람 기준으로 방망이를 찾는다");
+
+            string controller = TestSource.Read("Runtime/Network/AiCompanionController.cs");
+            string tick = TestSource.Method(controller, "public InputFrame Tick(PlayerRig self, bool allowed)");
+            int resume = tick.IndexOf("if (Apply(keep, who, self, out var refused))", System.StringComparison.Ordinal);
+            int idle = tick.IndexOf("return ambient.Tick(self, allowed, AmbientCanDance, Time.time);", System.StringComparison.Ordinal);
+            Assert.That(resume, Is.GreaterThanOrEqualTo(0), "끊긴 명령을 다시 걸지 않는다");
+            Assert.That(resume, Is.LessThan(idle), "끊긴 명령보다 기본 행동이 먼저다");
+            Assert.That(tick, Does.Contain("if (work.Exhausted || standingSpeaker == null) standing = null;"),
+                "뽑을 못이 없는데 계속 다시 건다");
+        }
+
+        /// <summary>받아쓰기·LLM 이 게임과 CPU 를 다투지 않는다 (2026-09-25 QA: 말하는 동안 fps 3~8).</summary>
+        [Test]
+        public void TheWorkerRunsBelowTheGame()
+        {
+            string start = TestSource.Method(TestSource.Read("Runtime/Network/AiLocalRuntime.cs"), "void StartRuntime()");
+            int started = start.IndexOf("worker.Start();", System.StringComparison.Ordinal);
+            int lowered = start.IndexOf("worker.PriorityClass = ProcessPriorityClass.BelowNormal;", System.StringComparison.Ordinal);
+            Assert.That(lowered, Is.GreaterThan(started), "워커의 우선순위를 낮추지 않는다");
         }
 
         [Test]

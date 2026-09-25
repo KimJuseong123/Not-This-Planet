@@ -395,6 +395,13 @@ def main():
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", args.port))
     job = OwnedJob() if os.name == "nt" else None
+    # 게임보다 낮은 우선순위 (S15P21B202-746) — 받아쓰기·판단 중 게임 fps 가 3~8 로 떨어졌다. ollama 를 띄우기
+    # 전에 낮춰야 자식도 물려받는다. 게임도 같은 것을 하지만 옛 게임이 이 팩을 띄울 수도 있다.
+    if os.name == "nt":
+        try:
+            psutil.Process().nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)
+        except (psutil.Error, AttributeError):
+            pass
     os.environ.update(HF_HUB_OFFLINE="1", TRANSFORMERS_OFFLINE="1")
     worker.server = uvicorn.Server(uvicorn.Config(make_app(worker), host="127.0.0.1", port=args.port,
         access_log=False, log_level="critical", timeout_graceful_shutdown=5, ws="none"))

@@ -179,6 +179,9 @@ check("companion_plan.classify_demo(" in warm, "시연이면 시연 프롬프트
 check("timeout=companion_plan.DEMO_WARMUP_TIMEOUT" in warm,
       "데울 때 판단용 6초 제한을 쓴다 — 첫 호출은 모델을 올리므로 넘기고, 워커가 실패한 채 멈춘다(2026-09-25 QA)")
 check("children(recursive=True)" in method("stop_ollama"), "ollama 를 끌 때 그 자식(llama-server)도 끈다")
+main_src = method("main")
+check(0 <= main_src.find("BELOW_NORMAL_PRIORITY_CLASS") < main_src.find("worker.server.run()"),
+      "워커가 게임보다 낮은 우선순위로 돈다 — 받아쓰기·판단 중 게임 fps 가 3~8 로 떨어졌다(2026-09-25 QA)")
 D = constants("companion_plan.py", {"DEMO_CHOICES"})
 check(set(D["DEMO_CHOICES"]) == set(R.DEMO_ACTIONS) | {"none"}, "LLM 의 선택지가 워커 규칙·게임의 넷과 같다")
 

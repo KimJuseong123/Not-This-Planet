@@ -219,6 +219,12 @@ namespace Metagame.Network
                     PointHomeIntoThePack(start);
                     worker = new Process { StartInfo = start };
                     worker.Start();
+                    // **워커는 게임보다 낮은 우선순위로 돈다** (S15P21B202-746). 2026-09-25 QA: 말을 받아쓰고
+                    // 판단하는 동안 fps 가 3~8 로 떨어졌다 — 받아쓰기·LLM 의 스레드가 게임과 같은 우선순위로
+                    // CPU 를 다퉜다. 낮추면 게임 스레드가 먼저 돌고 워커는 남는 코어를 쓴다. 워커가 띄우는
+                    // ollama · llama-server 는 이 우선순위를 물려받는다(보통 이하는 상속된다).
+                    try { worker.PriorityClass = ProcessPriorityClass.BelowNormal; }
+                    catch (Exception) { }
                     worker.StandardInput.WriteLine(token);
                     worker.StandardInput.Close();
                 }

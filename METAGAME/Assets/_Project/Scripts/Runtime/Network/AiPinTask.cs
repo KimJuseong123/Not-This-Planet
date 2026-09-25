@@ -28,8 +28,11 @@ namespace Metagame.Network
         public PartClamp Target => target;
         public bool WantsMovement => Active && (target == null || approaching);
 
-        /// <summary>못을 찾는 반경(m) — 명령받은 동료 기준.</summary>
-        public const float SearchRange = 40f;
+        /// <summary>
+        /// 못을 찾는 반경(m) — 명령받은 동료 기준. "없을 때까지" 뽑으므로 판 전체를 덮는다 (2026-09-25 검사: 40m 이면
+        /// 가까운 못 둘을 뽑은 뒤 나머지가 모두 밖이라 "더 없다" 로 끝났다). 가까운 순서로 보므로 먼 것은 나중이다.
+        /// </summary>
+        public const float SearchRange = 150f;
         public Vector3? MovementGoal => target != null ? approach : (Vector3?)null;
 
         public void SuspendMovement()
@@ -177,6 +180,37 @@ namespace Metagame.Network
                 return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// 이 못에 설 자리가 없는 까닭을 센다 — 검사·로그용 (S15P21B202-746). <see cref="FindApproach"/> 와 같은 순서로
+        /// 떨어진 조건마다 하나씩 센다.
+        /// </summary>
+        public string WhyNoApproach(AiNavigationWorld world, PartClamp pin, PlayerRig from)
+        {
+            owner ??= from;
+            probe ??= new NavMeshPath();
+            int ground = 0, onPart = 0, nav = 0, reach = 0, blocked = 0, step = 0, path = 0;
+            Vector3 away = pin.Part != null ? pin.transform.position - pin.Part.transform.position : from.FootPosition - pin.transform.position;
+            away.y = 0; if (away.sqrMagnitude < .01f) away = Vector3.forward; away.Normalize();
+            for (int ring = 0; ring < 3; ring++)
+            for (int i = 0; i < 8; i++)
+            {
+                var point = pin.transform.position + Quaternion.Euler(0, i * 45, 0) * away * (.45f + ring * .15f);
+                if (!Physics.Raycast(point + Vector3.up * 1.5f, Vector3.down, out var hit, 3f, GameLayers.SurfaceMask, QueryTriggerInteraction.Ignore)
+                    || hit.normal.y < .77f) { ground++; continue; }
+                if (hit.collider.GetComponentInParent<SpaceshipPart>() != null) { onPart++; continue; }
+                if (!NavMesh.SamplePosition(hit.point, out var n, .25f, NavMesh.AllAreas) || Mathf.Abs(n.position.y - hit.point.y) > .2f) { nav++; continue; }
+                point = n.position;
+                if (!pin.TryGetClosestColliderPoint(point + Vector3.up * RagdollBuilder.HipsY, out var grip)
+                    || Vector3.Distance(point + Vector3.up * RagdollBuilder.HipsY, grip) > .68f) { reach++; continue; }
+                if (Physics.Linecast(point + Vector3.up * 1.4f, grip, GameLayers.SurfaceMask, QueryTriggerInteraction.Ignore)) { blocked++; continue; }
+                var back = point - pin.transform.position; back.y = 0; back.Normalize();
+                if (!AiFollowController.SafeStep(from, point, back, hits)) { step++; continue; }
+                if (!world.CalculatePath(from.FootPosition, point, probe)) { path++; continue; }
+                return "설 자리 있음";
+            }
+            return $"바닥없음 {ground} · 파츠위 {onPart} · 길바닥밖 {nav} · 손안닿음 {reach} · 가림 {blocked} · 뒷걸음막힘 {step} · 길없음 {path}";
         }
 
         bool FindApproach(AiNavigationWorld world, PartClamp pin, out Vector3 result)

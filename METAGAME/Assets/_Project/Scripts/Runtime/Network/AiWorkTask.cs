@@ -35,7 +35,7 @@ namespace Metagame.Network
         /// 를 이 값으로 가른다. 다른 작업은 시킨 사람이 쓰러지면 뜻을 잃지만 살리기는
         /// <b>대상이 따로</b> 있다.</para>
         /// </summary>
-        public bool Rescuing => Active && action == "revive";
+        public bool Rescuing => Active && (action == "revive" || Standing(action));
         public bool Succeeded { get; private set; }
         public string Status { get; private set; } = "대기";
 
@@ -99,6 +99,16 @@ namespace Metagame.Network
         /// 한 번 어긋났다고 명령 전체를 버리면 시연에서 "못 알아들었다" 로 보인다.
         /// </summary>
         public const int PinRetries = 2;
+
+        /// <summary>
+        /// 멈추지 않는 명령인가 (S15P21B202-746). 고정못은 없을 때까지, 운석은 계속 — 시킨 사람이 쓰러져도
+        /// 이어 간다(살리기와 같다). 동료가 쓰러졌다 일어나면 <see cref="AiCompanionController"/> 가 다시 건다.
+        /// </summary>
+        public static bool Standing(string value) => value == "pull_pin" || value == "defend_meteors";
+
+        /// <summary>시킨 일이 더 할 것 없이 끝났다 — 다시 걸 필요가 없다(뽑을 못이 없다).</summary>
+        public bool Exhausted { get; private set; }
+        int pinsPulled;
         public static bool Supports(string value) => System.Array.IndexOf(Actions, value) >= 0;
         public static bool VehicleOrder(string value) => value == "board_tractor" || value == "leave_tractor"
             || value == "move_tractor" || value == "lift_player" || value == "lift_part"
@@ -121,7 +131,7 @@ namespace Metagame.Network
         public bool Begin(string command, PlayerRig actor, PlayerRig requester, string to = "default")
         {
             if (!Supports(command) || actor == null || requester == null) return false;
-            Cancel("새 명령"); self = actor; speaker = requester; action = command; destination = to;
+            Cancel("새 명령"); self = actor; speaker = requester; action = command; destination = to; Exhausted = false;
             Active = true; Succeeded = false; started = Time.time; Phase(0);
             Outcome = AiTaskOutcome.Running; Reason = null; Command = command;
             Status = command + " · 준비";
@@ -140,7 +150,7 @@ namespace Metagame.Network
             {
                 // 명령받은 동료에게서 가장 가까운 못 (S15P21B202-746). 손에 든 도구는 먼저 내려놓는다 —
                 // 전에는 "도구를 내려놓은 뒤 지시해 주세요" 로 끝났고, 로그에도 남지 않았다.
-                attemptedPins.Clear(); pinCount = 0; pinTarget = null; part = null;
+                attemptedPins.Clear(); pinCount = 0; pinTarget = null; part = null; pinsPulled = 0;
                 Phase(self.HeldTool != null ? 0 : 1);
                 if (phase == 1) pin.Begin(self, speaker, null, attemptedPins);
                 return true;
@@ -158,12 +168,12 @@ namespace Metagame.Network
             // **살리기는 말한 사람이 쓰러져도 이어 간다** (S15P21B202-716). 다른 작업은
             // 시킨 사람이 쓰러지면 뜻을 잃지만, 살리기는 **대상이 따로 있다.** 여기서 끊으면
             // 둘이 연달아 쓰러졌을 때 AI 가 가던 길을 되돌아온다 — 가장 필요한 순간에.
-            if (self == null || speaker == null || self.Downed || (speaker.Downed && action != "revive"))
+            if (self == null || speaker == null || self.Downed || (speaker.Downed && action != "revive" && !Standing(action)))
             { Finish(false, "플레이어 상태 변경으로 중단"); return default; }
             // goto 는 도착한 뒤 그 자리를 지키는 지속 작업이라 시간으로 끊지 않는다
             // (S15P21B202-717). 못 가는 경우는 Navigate 가 "이동 막힘" 으로 따로 끝낸다.
             if (Time.time - started > 180f && action != "defend_meteors" && action != "grab_part"
-                && action != "hold_tractor" && action != "goto")
+                && action != "hold_tractor" && action != "goto" && !Standing(action))
             { Finish(false, "작업 시간 초과"); return default; }
             if (action == "pull_all_pins")
             {
@@ -374,11 +384,30 @@ namespace Metagame.Network
             WantsMovement = pin.WantsMovement;
             if (pin.MovementGoal.HasValue) goal = pin.MovementGoal.Value;
             if (pin.Active) return input;
-            if (pin.Succeeded || (pinTarget != null && pinTarget.IsReleased)) { Finish(true, "고정못을 뽑았다"); return input; }
-            if (pinTarget == null) { Finish(false, pin.Status); return input; }      // 뽑을 못이 없다
+            // **못이 없을 때까지 이어 간다** (S15P21B202-746). 하나 뽑으면 다음으로 가까운 못으로 간다.
+            if (pin.Succeeded || (pinTarget != null && pinTarget.IsReleased))
+            {
+                pinsPulled++; pinCount = 0; pinTarget = null;
+                Debug.Log("[AI] 고정못 " + pinsPulled + "개째 뽑음 · 다음 못으로");
+                pin.Begin(self, speaker, null, attemptedPins);
+                return input;
+            }
+            if (pinTarget == null)
+            {
+                // 뽑을 못이 더 없다 — 할 일을 다 했다. 뽑은 것이 없으면 처음부터 없던 것이다.
+                Exhausted = true;
+                // "더 없다" 는 **걸어서 닿을 수 있는 못**이 더 없다는 뜻이다 — 높은 곳에 놓인 파츠의 못은 길이 없다.
+                Finish(pinsPulled > 0, pinsPulled > 0 ? "닿을 수 있는 고정못을 다 뽑았다 · " + pinsPulled + "개" : pin.Status);
+                return input;
+            }
             attemptedPins.Add(pinTarget);
-            if (++pinCount > PinRetries) { Finish(false, pin.Status + " · 다른 못도 실패"); return input; }
-            Debug.Log("[AI] 고정못 다시 시도 " + pinCount + "/" + PinRetries + " · " + pin.Status);
+            if (++pinCount > PinRetries)
+            {
+                // 이 못은 버리고 다른 못으로 — 한 못이 안 된다고 명령 전체를 끝내지 않는다.
+                Debug.Log("[AI] 고정못 " + pinTarget.name + " 포기 · " + pin.Status + " · 다른 못으로");
+                pinCount = 0;
+            }
+            else Debug.Log("[AI] 고정못 다시 시도 " + pinCount + "/" + PinRetries + " · " + pin.Status);
             pinTarget = null;
             pin.Begin(self, speaker, null, attemptedPins);
             return input;
