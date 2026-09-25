@@ -193,6 +193,10 @@ namespace Metagame.Network
             attempted = true;
             if (!HasPack(PackRoot)) { State = AiRuntimeState.Missing; Message = "추가팩 없음: " + PackRoot; return; }
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+            // 이 팩에서 뜬 주인 없는 프로세스가 남아 있으면 먼저 끝낸다 (S15P21B202-745). 메모리를 먹고
+            // 다음 설치를 막는다. 살아 있는 주인이 있는 것(다른 게임 창)은 건드리지 않는다.
+            int ended = AiPackProcesses.EndAbandoned(PackRoot);
+            if (ended > 0) UnityEngine.Debug.Log("[AI] 추가팩에 주인 없이 남은 프로세스 " + ended + "개를 끝냈다");
             try
             {
                 // 점유 포트는 건드리지 않고 실패한다. 토큰은 명령행·파일·로그에 남기지 않는다.
