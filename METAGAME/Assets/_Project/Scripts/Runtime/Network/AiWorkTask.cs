@@ -63,7 +63,7 @@ namespace Metagame.Network
         /// 일으키러 갈 동료를 찾는 반경(m) (S15P21B202-716). 이보다 멀면 "없다" 로 본다 —
         /// 맵 반대편으로 혼자 보내는 것은 도움이 아니다.
         /// </summary>
-        public const float ReviveSearchRange = 40f;
+        public const float ReviveSearchRange = 150f;   // 판 전체 — 2026-09-26 QA: 40m 밖의 기절자를 "없음" 으로 봤다
 
         /// <summary>
         /// 이만큼 붙어야 일으키기가 걸린다(m).
@@ -109,6 +109,13 @@ namespace Metagame.Network
         /// <summary>시킨 일이 더 할 것 없이 끝났다 — 다시 걸 필요가 없다(뽑을 못이 없다).</summary>
         public bool Exhausted { get; private set; }
         int pinsPulled;
+        bool pinsRetried;
+
+        /// <summary>작업이 끝날 때마다 하나씩 는다 — 화면이 "새 결과가 났다" 를 안다 (S15P21B202-746).</summary>
+        public int OutcomeSeq { get; private set; }
+
+        /// <summary>이번 작업에서 해낸 수 — 뽑은 못 · 쳐낸 운석. 화면이 한 건마다 띄운다.</summary>
+        public int Tally { get; private set; }
         public static bool Supports(string value) => System.Array.IndexOf(Actions, value) >= 0;
         public static bool VehicleOrder(string value) => value == "board_tractor" || value == "leave_tractor"
             || value == "move_tractor" || value == "lift_player" || value == "lift_part"
@@ -131,7 +138,7 @@ namespace Metagame.Network
         public bool Begin(string command, PlayerRig actor, PlayerRig requester, string to = "default")
         {
             if (!Supports(command) || actor == null || requester == null) return false;
-            Cancel("새 명령"); self = actor; speaker = requester; action = command; destination = to; Exhausted = false;
+            Cancel("새 명령"); self = actor; speaker = requester; action = command; destination = to; Exhausted = false; Tally = 0;
             Active = true; Succeeded = false; started = Time.time; Phase(0);
             Outcome = AiTaskOutcome.Running; Reason = null; Command = command;
             Status = command + " · 준비";
@@ -150,7 +157,7 @@ namespace Metagame.Network
             {
                 // 명령받은 동료에게서 가장 가까운 못 (S15P21B202-746). 손에 든 도구는 먼저 내려놓는다 —
                 // 전에는 "도구를 내려놓은 뒤 지시해 주세요" 로 끝났고, 로그에도 남지 않았다.
-                attemptedPins.Clear(); pinCount = 0; pinTarget = null; part = null; pinsPulled = 0;
+                attemptedPins.Clear(); pinCount = 0; pinTarget = null; part = null; pinsPulled = 0; pinsRetried = false;
                 Phase(self.HeldTool != null ? 0 : 1);
                 if (phase == 1) pin.Begin(self, speaker, null, attemptedPins);
                 return true;
@@ -248,7 +255,7 @@ namespace Metagame.Network
         void Settle(AiTaskOutcome outcome, string reason)
         {
             if (Outcome != AiTaskOutcome.Running) return;
-            Outcome = outcome; Reason = reason;
+            Outcome = outcome; Reason = reason; OutcomeSeq++;
             Debug.Log(AiTaskOutcomes.LogLine(Command, outcome, reason, Time.time - started));
         }
         void ReleaseClaims()
@@ -291,9 +298,28 @@ namespace Metagame.Network
             CollectDowned();
             foreach (var rig in downed)
                 if (Claim(rig)) { rescueTarget = rig; rescueBest = 0f; rescueAt = Time.time; return true; }
+            if (downed.Count == 0) Debug.Log("[AI] 살릴 사람 찾기 · " + DownedCensus());
             Finish(false, downed.Count == 0 ? "기절한 동료가 없음"
                                             : "쓰러진 동료마다 이미 다른 동료가 가고 있음");
             return false;
+        }
+
+        /// <summary>
+        /// 살릴 사람을 못 찾았을 때 로그에 남길 한 줄 — 누가 어디서 무슨 상태인지 (S15P21B202-746). 2026-09-26 QA 에서
+        /// 말한 사람이 기절한 채 "살려" 를 했는데 "기절한 동료가 없음" 이 나왔고, 로그로는 까닭을 가릴 수 없었다.
+        /// </summary>
+        string DownedCensus()
+        {
+            var line = new System.Text.StringBuilder();
+            foreach (var player in NetPlayer.AllServerPlayers)
+            {
+                var rig = player != null ? player.VisualRig : null;
+                if (rig == null || rig == self) continue;
+                line.Append(player.TeamName).Append(rig.Downed ? " 기절" : rig.Ragdolled ? " 넘어짐" : " 서 있음")
+                    .Append(' ').Append((rig.FootPosition - self.FootPosition).magnitude.ToString("0")).Append('m')
+                    .Append(rig.gameObject.scene != self.gameObject.scene ? " (다른 씬)" : "").Append(" · ");
+            }
+            return line.Length > 0 ? line.ToString() : "플레이어 없음";
         }
 
         /// <summary>쓰러진 동료를 <b>가까운 순서로</b> 모은다. 범위 밖은 없는 것으로 본다.</summary>
@@ -387,8 +413,17 @@ namespace Metagame.Network
             // **못이 없을 때까지 이어 간다** (S15P21B202-746). 하나 뽑으면 다음으로 가까운 못으로 간다.
             if (pin.Succeeded || (pinTarget != null && pinTarget.IsReleased))
             {
-                pinsPulled++; pinCount = 0; pinTarget = null;
+                pinsPulled++; pinCount = 0; pinTarget = null; Tally = pinsPulled;
                 Debug.Log("[AI] 고정못 " + pinsPulled + "개째 뽑음 · 다음 못으로");
+                pin.Begin(self, speaker, null, attemptedPins);
+                return input;
+            }
+            if (pinTarget == null && attemptedPins.Count > 0 && !pinsRetried)
+            {
+                // 다른 못을 다 뽑았으면 **포기했던 못을 한 번 더** (2026-09-26 검사: 처음에 막혔던 3m 앞의 못이 나중에는
+                // 설 자리가 났는데 포기 목록에 남아 그냥 끝났다 — 파츠가 풀리며 길이 바뀐다).
+                pinsRetried = true; attemptedPins.Clear(); pinCount = 0;
+                Debug.Log("[AI] 포기했던 고정못을 다시 본다");
                 pin.Begin(self, speaker, null, attemptedPins);
                 return input;
             }
@@ -442,7 +477,7 @@ namespace Metagame.Network
             if (route.Arrived) { WantsMovement = false; return true; }
             if (route.Remaining < bestDistance - .1f) { bestDistance = route.Remaining; movedAt = Time.time; }
             if (Time.time - movedAt > 8f) { Finish(false, "이동 막힘"); return false; }
-            if (!AiFollowController.SafeStep(self, self.FootPosition, direction, stepHits, .18f)) return false;
+            if (!AiFollowController.SteerAround(self, self.FootPosition, ref direction, stepHits, .18f)) return false;
             input = Aim(self.AimOrigin + direction);
             input.Move = Vector2.up * (route.Remaining < 1.2f ? .4f : 1f); return false;
         }

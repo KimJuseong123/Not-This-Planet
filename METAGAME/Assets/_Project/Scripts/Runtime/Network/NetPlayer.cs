@@ -1105,6 +1105,7 @@ namespace Metagame.Network
                     && !GameSession.Instance.EndingActive);
                 UpdateAiSocialPresentation();
                 LogAiActivity();
+                UpdateAiBadge();
             }
             if (GameSession.Instance != null && GameSession.Instance.CinematicInputBlocked)
             {

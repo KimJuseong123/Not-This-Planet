@@ -17,6 +17,7 @@ namespace Metagame.Core
         // 중력 트릭 행성은 아니므로 기본 조작감을 확보하되, 지구보다 약하게 두어 외계 행성의 부유감을 남긴다.
         public const float Gravity = -5f;
         public const float FixedStep = 0.01f;       // 100Hz. 조인트가 많아서 촘촘하게 밟는다
+        public const float MaxCatchUp = 0.05f;      // 한 프레임에 따라잡는 물리 시간 — 5단계 (S15P21B202-746)
         public const float DeathHeight = -30f;      // 이 아래로 떨어지면 체크포인트로 되돌린다
 
         // ── 몸 ──────────────────────────────────────────────────

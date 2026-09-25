@@ -181,7 +181,7 @@ namespace Metagame.Network
                 {
                     // 방망이를 들었으면 곧장 운석을 본다 (S15P21B202-746). 전에는 말한 사람 옆까지 걸어간 뒤에야
                     // 막기 시작했고, 그 자리에 선 채로 머리 위에 오는 것만 쳤다.
-                    Phase(6); defendTarget = null; return input;
+                    Phase(6); defendTarget = null; defendSwingPrimed = false; return input;
                 }
                 else goal = destinationPoint;
                 Phase(5); return input;
@@ -251,6 +251,9 @@ namespace Metagame.Network
         Meteor defendTarget;
         float nextPick;
 
+        /// <summary>방망이를 들고 운석을 막는 중인가 — 이때는 운석을 피하지 않는다(일부러 착지점 앞에 선다).</summary>
+        public bool Striking => action == "defend_meteors" && tool is MeteorBat && self != null && self.HeldTool == toolGrab;
+
         /// <summary>
         /// 이 운석을 칠 수 있게 제때 닿을 수 있나. <b>순수 함수</b>다 — 검사가 값으로 부른다.
         ///
@@ -266,9 +269,19 @@ namespace Metagame.Network
             return time > 0f && need <= runSpeed * ChaseSpeedFactor * time;
         }
 
+        uint defendSwingSeen;
+        bool defendSwingPrimed;
+
         InputFrame TickDefend(MeteorBat bat)
         {
             var input = default(InputFrame);
+            // 휘두른 것이 운석을 맞혔으면 센다 — 화면이 "운석 N개 쳐냄" 을 띄운다. 처음 보는 방망이의 번호는 셈에 넣지 않는다.
+            if (!defendSwingPrimed) { defendSwingPrimed = true; defendSwingSeen = bat.RhythmSequence; }
+            else if (bat.RhythmSequence != defendSwingSeen)
+            {
+                defendSwingSeen = bat.RhythmSequence;
+                if (bat.LastDeflected != null) Tally++;
+            }
             // ③ 칠 수 있는 운석이 들어왔고 때가 되었으면 휘두른다. 판정과 같은 함수로 고른다 —
             //    방망이가 실제로 맞힐 운석이어야 한다.
             var strike = MeteorBat.FindTarget(self.Position);
@@ -320,10 +333,27 @@ namespace Metagame.Network
                 if (!Chaseable(meteor)) continue;
                 meteor.TryPredictImpact(out var seconds, out var impact);
                 if (seconds >= soonest) continue;
-                if (!NavMesh.SamplePosition(StandFor(impact), out _, 1.5f, NavMesh.AllAreas)) continue;   // 설 수 없는 곳
+                if (!NavMesh.SamplePosition(StandFor(impact), out var standHit, 1.5f, NavMesh.AllAreas)) continue;   // 설 수 없는 곳
+                if (!ReachableStand(standHit.position)) continue;
                 soonest = seconds; best = meteor;
             }
             return best;
+        }
+
+        NavMeshPath standPath;
+
+        /// <summary>
+        /// 그 자리까지 길이 나는가 — 한 운석을 고를 때 한 번만 잰다(0.1초마다 여럿은 아니다). 가까우면 곧장 걸어가므로 길을
+        /// 묻지 않는다. 2026-09-26 QA: 길이 없는 착지점으로 가려다 막힘 복구가 "이동 영역 이탈" 에 갇혔다.
+        /// </summary>
+        bool ReachableStand(Vector3 stand)
+        {
+            var offset = stand - self.FootPosition; offset.y = 0;
+            if (offset.magnitude <= DirectChaseRange * .5f) return true;
+            var world = GameSession.Instance != null ? GameSession.Instance.GetComponent<AiNavigationWorld>() : null;
+            if (world == null || !world.Ready) return false;
+            standPath ??= new NavMeshPath();
+            return world.CalculatePath(self.FootPosition, stand, standPath);
         }
 
         void ReleaseChase()
@@ -385,31 +415,16 @@ namespace Metagame.Network
                 var straight = point - self.FootPosition; straight.y = 0;
                 if (straight.magnitude <= stop) { WantsMovement = false; return true; }
                 if (straight.magnitude > DirectChaseRange) { WantsMovement = false; return false; }
-                direction = straight.normalized;
+                direction = straight.normalized; WantsMovement = false;
             }
             else if (route.Arrived) { WantsMovement = false; return true; }
-            if (!AiFollowController.SafeStep(self, self.FootPosition, direction, stepHits, .18f)
-                && !Sidestep(ref direction)) return false;
+            if (!AiFollowController.SteerAround(self, self.FootPosition, ref direction, stepHits, .18f)) return false;
             input = Aim(self.AimOrigin + direction);
             input.Move = Vector2.up; input.Run = run;
             return false;
         }
 
-        static readonly float[] SidestepAngles = { 30f, -30f, 60f, -60f, 90f, -90f };
 
-        /// <summary>
-        /// 앞이 막혔으면 비스듬히 돌아 나갈 방향을 찾는다. 2026-09-25 검사: 방망이를 집은 자리(거치대 앞)에서
-        /// 곧장 가는 길이 막혀 운석 둘을 선 채로 놓쳤다.
-        /// </summary>
-        bool Sidestep(ref Vector3 direction)
-        {
-            foreach (float angle in SidestepAngles)
-            {
-                var turned = Quaternion.Euler(0, angle, 0) * direction;
-                if (AiFollowController.SafeStep(self, self.FootPosition, turned, stepHits, .18f)) { direction = turned; return true; }
-            }
-            return false;
-        }
         bool PhaseAfterDelivery;
         bool FriendlyInFront(Vector3 direction)
         {

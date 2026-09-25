@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Metagame.Network;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace Metagame.Gameplay.Tests
 {
@@ -201,6 +202,70 @@ namespace Metagame.Gameplay.Tests
             int started = start.IndexOf("worker.Start();", System.StringComparison.Ordinal);
             int lowered = start.IndexOf("worker.PriorityClass = ProcessPriorityClass.BelowNormal;", System.StringComparison.Ordinal);
             Assert.That(lowered, Is.GreaterThan(started), "워커의 우선순위를 낮추지 않는다");
+        }
+
+        /// <summary>곧 떨어질 운석의 충격 반경 안이면 피하고, 방망이로 칠 참이면 피하지 않는다 (2026-09-26 QA).</summary>
+        [Test]
+        public void CompanionsTryToStepOutOfAFallingMeteor()
+        {
+            var at = Vector3.zero;
+            Assert.That(AiMeteorDodge.Threatens(at, new Vector3(1, 0, 0), .8f, 2f, out var away), Is.True, "반경 안인데 피하지 않는다");
+            Assert.That(away.x, Is.LessThan(0f), "착지점 쪽으로 피한다");
+            Assert.That(AiMeteorDodge.Threatens(at, new Vector3(5, 0, 0), .8f, 2f, out _), Is.False, "멀리 떨어지는 운석까지 피한다 — 헛걸음");
+            Assert.That(AiMeteorDodge.Threatens(at, new Vector3(1, 0, 0), 3f, 2f, out _), Is.False, "아직 먼 운석에 미리 달아난다");
+            Assert.That(AiMeteorDodge.Threatens(at, at, .5f, 2f, out var any), Is.True);
+            Assert.That(any.sqrMagnitude, Is.GreaterThan(.5f), "바로 위에 떨어지면 어느 쪽으로든 피한다");
+            string controller = TestSource.Read("Runtime/Network/AiCompanionController.cs");
+            string tick = TestSource.Method(controller, "public InputFrame Tick(PlayerRig self, bool allowed)");
+            Assert.That(tick, Does.Contain("dodge.Tick(self, allowed, work.Active && work.Striking, out var escape)"),
+                "피하기를 부르지 않거나, 방망이로 칠 참인데도 피한다");
+        }
+
+        /// <summary>갈 수 있는 곳 앞이 운석·파츠로 막히면 돌아 나가고, 목적지가 막힌 것을 영역 이탈로 보지 않는다 (2026-09-26 QA).</summary>
+        [Test]
+        public void BlockedStepsGoAroundAndAnUnreachableGoalIsNotAnEscape()
+        {
+            foreach (var (file, method) in new[] {
+                ("Runtime/Network/AiWorkTask.cs", "bool Navigate(Vector3 point, float stop, ref InputFrame input)"),
+                ("Runtime/Network/AiWorkTask.Tools.cs", "bool Chase(Vector3 point, float stop, ref InputFrame input, bool run)"),
+                ("Runtime/Network/AiAmbient.cs", "InputFrame TickWander(PlayerRig self, float now)"),
+                ("Runtime/Network/AiFollowController.cs", "public InputFrame Tick(PlayerRig self, bool allowed)") })
+                Assert.That(TestSource.Method(TestSource.Read(file), method), Does.Contain("AiFollowController.SteerAround(").Or.Contain("SteerAround(self"),
+                    file + " 가 막히면 선 채로 멈춘다");
+            Assert.That(TestSource.Read("Runtime/Network/AiPinTask.cs"), Does.Contain("AiFollowController.SteerAround(owner"));
+            string recovery = TestSource.Read("Runtime/Network/AiMovementRecovery.cs");
+            Assert.That(recovery, Does.Contain("else if (OnNavigation(self)) unreachableSince = -1;"),
+                "목적지까지만 길이 없어도 '이동 영역 이탈' 로 작업을 멈춘다");
+            Assert.That(AiWorkTask.ReviveSearchRange, Is.GreaterThanOrEqualTo(100f), "멀리 쓰러진 사람을 '없음' 으로 본다");
+        }
+
+        /// <summary>동료 머리 위에 지금 하는 일 · 결과를 띄운다 (2026-09-26 QA: 작은 글씨는 시연에서 안 보였다).</summary>
+        [Test]
+        public void EveryCommandHasABadgeAndResultsReadAtAGlance()
+        {
+            foreach (var action in AiDemoCommands.Allowed)
+            {
+                byte badge = AiBadges.Of(action, false);
+                Assert.That(badge, Is.Not.EqualTo(AiBadges.None), action + " 에 표시가 없다");
+                Assert.That(AiBadges.Label(badge), Is.Not.Empty);
+            }
+            Assert.That(AiBadges.Of("pull_pin", true), Is.EqualTo(AiBadges.Dodge), "피하는 중이 가장 급하다");
+            Assert.That(AiBadges.Of(null, false), Is.EqualTo(AiBadges.None), "쉬는 중에 표시가 뜬다");
+            Assert.That(AiBadges.Finished("revive", false, "기절한 동료가 없음"), Does.Contain("기절한 동료가 없음"), "실패의 까닭을 감춘다");
+            Assert.That(AiBadges.Tally("pull_pin", 3), Does.Contain("3"));
+            Assert.That(TeamNameplateHudFont(), Is.GreaterThanOrEqualTo(24), "머리 위 글자가 작다");
+            Assert.That(Metagame.UI.AiVoiceControls.LineFont, Is.GreaterThanOrEqualTo(26), "안내 글자가 작다 — 전에는 17px 이었다");
+        }
+
+        static int TeamNameplateHudFont() => Metagame.UI.TeamNameplateHud.BadgeFont;
+
+        /// <summary>한 프레임이 늦어도 물리를 몰아 돌려 늪에 빠지지 않고, 프레임이 어디에 쓰이는지 로그에 남는다.</summary>
+        [Test]
+        public void SlowFramesDoNotSnowballAndTheBudgetIsLogged()
+        {
+            Assert.That(Metagame.Core.Tuning.MaxCatchUp, Is.InRange(Metagame.Core.Tuning.FixedStep * 3f, .1f),
+                "한 프레임에 따라잡는 물리가 너무 많거나(늪) 너무 적다(물리가 느려진다)");
+            Assert.That(TestSource.Read("Runtime/Bootstrap/SpaceBootstrap.cs"), Does.Contain("Time.maximumDeltaTime = Tuning.MaxCatchUp;"));
         }
 
         [Test]

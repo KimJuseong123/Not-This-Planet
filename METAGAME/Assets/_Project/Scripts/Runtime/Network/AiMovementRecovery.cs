@@ -74,6 +74,10 @@ namespace Metagame.Network
                         else if (Vector3.Distance(latestSafe, safe) >= 2f) { checkpoint = latestSafe; latestSafe = safe; }
                     }
                 }
+                // **내가 길찾기 바닥 위에 있는데 목적지까지만 길이 없으면 영역 이탈이 아니다** (S15P21B202-746).
+                // 목적지(운석 착지점 · 높은 곳의 사람)가 막힌 것이다 — 그것은 작업이 판단한다. 2026-09-26 QA: 멀쩡한
+                // 바닥에 선 동료가 "이동 영역 이탈 ↔ 안전 복귀 위치 없음" 을 수백 번 오가며 멈춰 있었다.
+                else if (OnNavigation(self)) unreachableSince = -1;
                 else if (unreachableSince < 0) unreachableSince = now;
             }
             if (unreachableSince >= 0)
@@ -129,6 +133,11 @@ namespace Metagame.Network
             progressPosition = self.FootPosition; nextProbe = 0; escapeUntil = 0; escapeAttempts = 0;
             Status = "안전 위치 복귀 · 기존 작업 재개";
         }
+
+        /// <summary>발밑이 길찾기 바닥인가 — 목적지가 막힌 것과 내가 벗어난 것을 가른다.</summary>
+        static bool OnNavigation(PlayerRig self)
+            => NavMesh.SamplePosition(self.FootPosition, out var nav, .6f, NavMesh.AllAreas)
+               && Mathf.Abs(nav.position.y - self.FootPosition.y) < .5f;
 
         bool SafeDestination(PlayerRig self, Vector3 point, out Vector3 result)
         {

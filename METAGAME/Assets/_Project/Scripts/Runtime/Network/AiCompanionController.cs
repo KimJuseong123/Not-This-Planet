@@ -12,6 +12,7 @@ namespace Metagame.Network
         readonly AiPinTask pin = new AiPinTask();
         readonly AiMovementRecovery recovery = new AiMovementRecovery();
         readonly AiWorkTask work = new AiWorkTask();
+        readonly AiMeteorDodge dodge = new AiMeteorDodge();
         static int ambientSeeds;
         /// <summary>명령이 없을 때의 행동 (S15P21B202-746). 동료마다 다른 씨앗이라 셋이 같이 춤추지 않는다.</summary>
         readonly AiAmbient ambient = new AiAmbient(unchecked(System.Environment.TickCount * 31 + ++ambientSeeds * 7919));
@@ -50,8 +51,14 @@ namespace Metagame.Network
         /// <summary>마지막 작업이 어떻게 끝났는가 · 왜 (S15P21B202-703). 화면 글자가 아니라 값이다.</summary>
         public AiTaskOutcome WorkOutcome => work.Outcome;
         public string WorkReason => work.Reason;
+
+        /// <summary>머리 위에 띄울 "지금 하는 일" (S15P21B202-746). 끊긴 명령을 다시 걸 참이면 그 명령.</summary>
+        public byte Badge => AiBadges.Of(work.Active ? work.Command : standing, dodge.Active);
+        public int OutcomeSeq => work.OutcomeSeq;
+        public int Tally => work.Tally;
+        public string LastCommand => work.Command;
         public static bool IsSocial(string action) => action == "dance" || action == "greet" || action == "heart" || action == "cheer";
-        public string Status => Ambient ? ambient.Status : recoveryStatus ?? (workOrder ? work.Status : approaching ? "다가가는 중" : social != null && !performing ? "말한 사람 바라보는 중" : social != null ?
+        public string Status => dodge.Active ? "운석 피하는 중" : Ambient ? ambient.Status : recoveryStatus ?? (workOrder ? work.Status : approaching ? "다가가는 중" : social != null && !performing ? "말한 사람 바라보는 중" : social != null ?
             (social == "dance" ? "춤추는 중" : social == "greet" ? "인사하는 중" : "감정 표현 중") :
             pinOrder ? pin.Status : follow.Status);
         public bool Apply(string action, PlayerRig speaker, PlayerRig self, bool approach = false, string destination = "default")
@@ -128,6 +135,8 @@ namespace Metagame.Network
                 if (!Apply(next.action, source, self, next.approach, next.destination)) { pending.Clear(); return default; }
                 planSpeaker = source; foreach (var step in rest) pending.Enqueue(step); advance = false;
             }
+            // 곧 떨어질 운석을 피한다 (S15P21B202-746) — 명령·기본 행동보다 먼저. 방망이를 들고 칠 참이면 피하지 않는다.
+            if (dodge.Tick(self, allowed, work.Active && work.Striking, out var escape)) return escape;
             // 멈추지 않는 명령이 끊겼으면 다시 건다. 뽑을 못이 없어 끝났으면 내려놓는다.
             if (!Busy && standing != null)
             {

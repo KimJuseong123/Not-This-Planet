@@ -79,7 +79,7 @@ namespace Metagame.UI
             }
             var local = Local;
             if (local != null && local.AiVoiceMessageUntil > resultSeen)
-            { resultSeen = local.AiVoiceMessageUntil; Notify(local.AiVoiceMessage); }
+            { resultSeen = local.AiVoiceMessageUntil; Notify(local.AiVoiceMessage); banner = local.AiVoiceMessage; bannerUntil = Time.unscaledTime + 4f; }
             var session = GameSession.Instance;
             // **서버가 듣기를 거절했으면 곧바로 멈춘다** (S15P21B202-738 리뷰). 기절한 동료의
             // 키를 눌렀거나 주변에 AI 가 없으면 서버가 그 자리에서 안다 — 녹음을 계속 두면
@@ -288,6 +288,27 @@ namespace Metagame.UI
         }
         void Notify(string message, float seconds = 4) { notice = message; noticeUntil = Time.unscaledTime + seconds; }
 
+        string banner; float bannerUntil; GUIStyle bannerStyle;
+
+        /// <summary>
+        /// 명령의 결과는 화면 위쪽에 크게 (S15P21B202-746). 아래 안내 줄은 마이크 상태와 섞여 눈에 안 띈다 — 결과는 한눈에
+        /// 봐야 한다. 누구에게 무엇이 갔는지는 동료 머리 위에도 뜬다(<c>TeamNameplateHud</c>).
+        /// </summary>
+        void DrawBanner()
+        {
+            if (string.IsNullOrEmpty(banner) || Time.unscaledTime >= bannerUntil) return;
+            if (bannerStyle == null) bannerStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, wordWrap = true, fontStyle = FontStyle.Bold };
+            bannerStyle.fontSize = Mathf.RoundToInt(BannerFont * K);
+            float w = Screen.width * .7f, h = BannerFont * 2.4f * K;
+            var box = new Rect((Screen.width - w) * .5f, Screen.height * .14f, w, h);
+            float fade = Mathf.Clamp01((bannerUntil - Time.unscaledTime) / .4f);
+            GUI.color = new Color(0, 0, 0, .6f * fade);
+            GUI.DrawTexture(box, Texture2D.whiteTexture);
+            GUI.color = new Color(1, 1, 1, fade);
+            GUI.Label(box, banner, bannerStyle);
+            GUI.color = Color.white;
+        }
+
         /// <summary>
         /// 막대의 오른쪽 끝이 뜻하는 크기 (S15P21B202-735).
         ///
@@ -315,12 +336,23 @@ namespace Metagame.UI
         /// 없다 — 필요한 것은 내 목소리가 <b>잡음 위에 있는가</b> 이고, 그 선이 곧 필터가
         /// 말/침묵을 가르는 자리다.</para>
         /// </summary>
+        /// <summary>
+        /// 화면 높이에 맞춘 배율 — 1080p 가 1 (S15P21B202-746). 2026-09-26 QA: 1440p 에서 17px 글자는 플레이어도 시연을
+        /// 보는 사람도 읽지 못했다. 설정의 글자 크기(<see cref="UiScale.Value"/>)도 곱한다.
+        /// </summary>
+        static float K => Screen.height / 1080f * UiScale.Value;
+
+        /// <summary>안내 글자 · 자리 칸 글자 · 결과 배너 글자(1080p 기준 픽셀).</summary>
+        public const int LineFont = 30, ChipFont = 22, BannerFont = 40;
+
+        float LineTop => Screen.height - (LineFont * 2.9f + 18f) * K;
+
         void DrawLevel()
         {
             if (!recording || microphone == null || !microphone.Capturing) return;
 
-            float w = Screen.width * .3f, h = 10f;
-            var box = new Rect((Screen.width - w) * .5f, Screen.height - 118, w, h);
+            float w = Screen.width * .3f, h = 14f * K;
+            var box = new Rect((Screen.width - w) * .5f, LineTop - h - 8f * K, w, h);
             GUI.color = new Color(1, 1, 1, .18f);
             GUI.DrawTexture(box, Texture2D.whiteTexture);
 
@@ -347,9 +379,10 @@ namespace Metagame.UI
         void DrawSeats()
         {
             if (seats.Count == 0) return;
-            if (chip == null) chip = new GUIStyle(GUI.skin.label) { fontSize = 14, alignment = TextAnchor.MiddleCenter };
-            float w = Mathf.Min(170f, Screen.width * .6f / seats.Count), h = 26f, gap = 6f;
-            float x = (Screen.width - (w * seats.Count + gap * (seats.Count - 1))) * .5f, y = Screen.height - 156f;
+            if (chip == null) chip = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter };
+            chip.fontSize = Mathf.RoundToInt(ChipFont * K);
+            float w = Mathf.Min(260f * K, Screen.width * .7f / seats.Count), h = ChipFont * 1.7f * K, gap = 8f * K;
+            float x = (Screen.width - (w * seats.Count + gap * (seats.Count - 1))) * .5f, y = LineTop - h - 30f * K;
             foreach (var seat in seats)
             {
                 var box = new Rect(x, y, w, h);
@@ -397,11 +430,17 @@ namespace Metagame.UI
                 ? "마이크 꺼짐 · ESC에서 해제"
                 : recording && microphone != null && microphone.Speaking ? "● 목소리 인식 중"
                 : "마이크는 V를 누르는 동안에만 켜집니다");
-            if (label == null) { UiTheme.Ensure(); label = new GUIStyle(GUI.skin.label) { fontSize = 17, alignment = TextAnchor.MiddleCenter, wordWrap = true }; }
+            if (label == null) { UiTheme.Ensure(); label = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, wordWrap = true }; }
+            label.fontSize = Mathf.RoundToInt(LineFont * K);
+            var line = new Rect(Screen.width * .1f, LineTop, Screen.width * .8f, LineFont * 2.9f * K);
+            // 글자 뒤를 어둡게 깐다 — 밝은 지형 위에서 흰 글자가 사라진다.
+            GUI.color = new Color(0, 0, 0, .45f);
+            GUI.DrawTexture(line, Texture2D.whiteTexture);
             // 막혔으면 흐리게 — 글자만 바꾸면 "V 사용 불가" 를 읽기 전까지 눌러 본다.
-            if (problem != null && Time.unscaledTime >= noticeUntil) GUI.color = new Color(1, 1, 1, .55f);
-            GUI.Label(new Rect(Screen.width * .2f, Screen.height - 100, Screen.width * .6f, 70), mic + "\n" + text, label);
+            GUI.color = problem != null && Time.unscaledTime >= noticeUntil ? new Color(1, 1, 1, .55f) : Color.white;
+            GUI.Label(line, mic + "\n" + text, label);
             GUI.color = Color.white;
+            DrawBanner();
             if (Ready) DrawSeats();
             DrawLevel();
         }

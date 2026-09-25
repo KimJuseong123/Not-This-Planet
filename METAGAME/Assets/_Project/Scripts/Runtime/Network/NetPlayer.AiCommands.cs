@@ -63,8 +63,9 @@ namespace Metagame.Network
                 danceBlocked: action == "dance" && (body?.Doll?.Suit?.Locomotion == null
                     || !body.Doll.Suit.Locomotion.HasDance(1) || NetworkTime.time < _nextDanceAllowed),
                 speakerDowned: speaker != null && speaker.Downed);
-            if (refusal != null) return false;
+            if (refusal != null) { if (isServer && IsAi) NoteAi(false, "못 함 · " + refusal); return false; }
             bool applied = aiFollow.Apply(action, speaker, body, out refusal, approach, destination);
+            if (!applied) NoteAi(false, "못 함 · " + refusal);
             if (applied)
             {
                 AiOrderRevision++;
@@ -94,6 +95,43 @@ namespace Metagame.Network
             if (!TryApplyAiOrder(steps[0].action, speaker, out refusal, steps[0].approach, steps[0].destination)) return false;
             aiFollow.QueueAfterCurrent(steps, speaker);
             return true;
+        }
+
+        // ── 머리 위 표시 (S15P21B202-746) ────────────────────────────────────────
+        [SyncVar] byte aiBadge;
+        [SyncVar] string aiBadgeNote;
+        [SyncVar] bool aiBadgeNoteGood;
+        [SyncVar] double aiBadgeNoteAt = -100;
+        public byte AiBadge => aiBadge;
+        public string AiBadgeNote => aiBadgeNote;
+        public bool AiBadgeNoteGood => aiBadgeNoteGood;
+        /// <summary>결과를 아직 보여 줄 때인가 — 서버가 적은 시각부터 <see cref="AiBadges.NoteSeconds"/> 동안.</summary>
+        public bool AiBadgeNoteVisible => !string.IsNullOrEmpty(aiBadgeNote) && NetworkTime.time - aiBadgeNoteAt < AiBadges.NoteSeconds;
+        int aiNotedOutcome, aiNotedTally;
+
+        [Server] void NoteAi(bool good, string text)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+            aiBadgeNote = text.Length > 40 ? text.Substring(0, 40) : text; aiBadgeNoteGood = good; aiBadgeNoteAt = NetworkTime.time;
+        }
+
+        /// <summary>하는 일이 바뀌거나 한 건 해내거나 작업이 끝나면 동기화 값을 고친다. 바뀔 때만 쓴다.</summary>
+        void UpdateAiBadge()
+        {
+            byte badge = aiFollow.Badge;
+            if (badge != aiBadge) aiBadge = badge;
+            if (aiFollow.Tally != aiNotedTally)
+            {
+                aiNotedTally = aiFollow.Tally;
+                if (aiNotedTally > 0) NoteAi(true, AiBadges.Tally(aiFollow.LastCommand, aiNotedTally));
+            }
+            if (aiFollow.OutcomeSeq != aiNotedOutcome)
+            {
+                aiNotedOutcome = aiFollow.OutcomeSeq;
+                var outcome = aiFollow.WorkOutcome;
+                if (outcome == AiTaskOutcome.Succeeded || outcome == AiTaskOutcome.Failed)
+                    NoteAi(outcome == AiTaskOutcome.Succeeded, AiBadges.Finished(aiFollow.LastCommand, outcome == AiTaskOutcome.Succeeded, aiFollow.WorkReason));
+            }
         }
 
         readonly AiStatusLog aiActivityLog = new AiStatusLog();

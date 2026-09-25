@@ -30,7 +30,16 @@ namespace Metagame.UI
         const float PlateHeight = 22f;
 
         GameSession session;
-        GUIStyle style;
+        GUIStyle style, badgeStyle;
+
+        /// <summary>
+        /// 머리 위 표시의 글자 크기 — 1080p 기준 픽셀, 화면 높이에 비례 (S15P21B202-746). 2026-09-26 QA: 동료가 무엇을
+        /// 하는지 시연을 보는 사람도 읽을 수 있어야 한다.
+        /// </summary>
+        public const int BadgeFont = 26;
+
+        /// <summary>표시는 이 거리까지 그린다(m) — 이름표보다 멀리. 멀리서 일하는 동료가 보여야 한다.</summary>
+        const float BadgeEnd = 70f;
 
         public void Initialize(GameSession gameSession)
         {
@@ -82,6 +91,35 @@ namespace Metagame.UI
             }
         }
 
+        /// <summary>
+        /// AI 동료가 지금 하는 일 · 방금 해낸 것을 이름표 위에 크게 그린다. 하는 일은 팀 색 바탕, 해낸 것은 초록, 못 한 것은
+        /// 빨강 — 글자를 읽지 않아도 색으로 안다. 멀어도 줄이지 않는다(작으면 안 보인다).
+        /// </summary>
+        void DrawBadge(Vector3 screen, float distance, NetPlayer player)
+        {
+            if (distance > BadgeEnd) return;
+            bool note = player.AiBadgeNoteVisible;
+            string text = note ? player.AiBadgeNote : AiBadges.Label(player.AiBadge);
+            if (string.IsNullOrEmpty(text)) return;
+            float k = Screen.height / 1080f / Mathf.Max(.5f, UiScale.Value);
+            if (badgeStyle == null)
+                badgeStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, wordWrap = false };
+            badgeStyle.fontSize = Mathf.RoundToInt(BadgeFont * k);
+            var size = badgeStyle.CalcSize(new GUIContent(text));
+            float w = size.x + 24f * k, h = size.y + 8f * k;
+            var rect = new Rect(screen.x - w * .5f, UiScale.Height - screen.y - PlateHeight - h - 6f * k, w, h);
+            Color back = note ? (player.AiBadgeNoteGood ? new Color(.18f, .62f, .28f, .92f) : new Color(.75f, .2f, .2f, .92f))
+                              : WithAlpha(player.TeamAccentColor, .88f);
+            Color previous = GUI.color;
+            GUI.color = back;
+            GUI.DrawTexture(rect, Texture2D.whiteTexture);
+            GUI.color = note ? Color.white : Color.black;
+            GUI.Label(rect, text, badgeStyle);
+            GUI.color = previous;
+        }
+
+        static Color WithAlpha(Color c, float a) => new Color(c.r, c.g, c.b, a);
+
         void DrawPlate(Camera camera, NetPlayer player)
         {
             Vector3 world = player.NameplateAnchor;
@@ -95,11 +133,17 @@ namespace Metagame.UI
                 || screen.y < 0f || screen.y > UiScale.Height) return;
 
             float distance = Vector3.Distance(camera.transform.position, world);
-            if (distance > FadeEnd) return;
+            if (distance > FadeEnd)
+            {
+                if (player.IsAiDriver) DrawBadge(screen, distance, player);
+                return;
+            }
 
             float alpha = distance <= FadeStart
                 ? 1f
                 : 1f - Mathf.InverseLerp(FadeStart, FadeEnd, distance);
+
+            if (player.IsAiDriver) DrawBadge(screen, distance, player);
 
             string label = string.IsNullOrEmpty(player.nickname) ? "비행사" : player.nickname;
 

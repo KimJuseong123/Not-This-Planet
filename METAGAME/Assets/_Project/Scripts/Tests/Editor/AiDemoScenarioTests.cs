@@ -193,6 +193,43 @@ namespace Metagame.Gameplay.Tests
             Assert.That(struck, Is.GreaterThanOrEqualTo(Mathf.CeilToInt(reachable * .7f)), $"운석 {struck}/{reachable}\n{log}");
         }
 
+        /// <summary>
+        /// 동료 셋이 기본 행동으로 돌아다니는 동안 프레임이 어디에 쓰이는지 적는다 (2026-09-26 QA: 60fps 목표). 단언보다
+        /// 기록이 목적이다 — <c>[FRAME]</c> 줄을 읽어 무엇을 줄일지 고른다. 에디터 배치 실행이라 절대값은 게임과 다르다.
+        /// </summary>
+        [Category("Heavy")]
+        [UnityTest]
+        public IEnumerator FrameBudgetWithThreeIdleCompanions()
+        {
+            GameSession session = null;
+            OpenStage();
+            yield return new EnterPlayMode();
+            yield return null;
+            session = GameSession.Instance;
+            var world = Bake(session);
+            float baked = Time.realtimeSinceStartup + 60f;
+            while (!world.Ready && Time.realtimeSinceStartup < baked) yield return null;
+            var speaker = session.LocalPlayer;
+            var rigs = new List<PlayerRig>(); var brains = new List<AiCompanionController>();
+            for (int i = 0; i < 3; i++)
+            {
+                var rig = PlayerRig.Create("AI 시연 · 프레임 " + i, FreeSpotNear(speaker.FootPosition, 3f + i), Quaternion.identity, Color.cyan, Color.white, false);
+                spawned.Add(rig.gameObject); rigs.Add(rig); brains.Add(new AiCompanionController());
+            }
+            // 하나는 고정못을 계속 뽑게 한다 — 파츠가 움직여 길찾기를 다시 굽는 비용까지 본다.
+            Assert.That(brains[0].Apply("pull_pin", speaker, rigs[0], out var refused), Is.True, refused);
+            var budget = new GameObject("시연 검사 프레임").AddComponent<Metagame.Core.FrameBudget>();
+            spawned.Add(budget.gameObject);
+            float until = Time.realtimeSinceStartup + 30f;
+            while (Time.realtimeSinceStartup < until)
+            {
+                for (int i = 0; i < rigs.Count; i++) rigs[i].SetInput(brains[i].Tick(rigs[i], true));
+                yield return new WaitForFixedUpdate();
+            }
+            budget.FlushNow();
+            Debug.Log("[AI 시연] 프레임 기록 끝 · 위의 [FRAME] 줄을 본다");
+        }
+
         /// <summary>"이쪽으로 와" — 멀리 있는 동료가 말한 사람 곁 2m 안으로 와서 멈춘다.</summary>
         [Category("Heavy")]
         [UnityTest]

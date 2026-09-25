@@ -132,7 +132,7 @@ namespace Metagame.Network
                     Status = "못으로 이동: " + Label();
                     // Final approach must not stop a full walking stride before the hand-reach point.
                     bool precision = route.Remaining < 1.5f;
-                    if (!AiFollowController.SafeStep(owner, owner.FootPosition, direction, hits, precision ? .12f : .6f)) return default;
+                    if (!AiFollowController.SteerAround(owner, owner.FootPosition, ref direction, hits, precision ? .12f : .6f)) return default;
                     return new InputFrame { AimYaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg,
                         Move = Vector2.up * (precision ? .35f : 1f) };
                 }

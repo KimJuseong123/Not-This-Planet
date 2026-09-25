@@ -244,7 +244,7 @@ namespace Metagame.Network
             arrivedAt = -1f;
             if (route.Remaining < bestRemaining - .25f) { bestRemaining = route.Remaining; progressAt = now; }
             if (now - progressAt > 4f) { mode = Mode.None; return default; }   // 막혔다 — 다음으로
-            if (!AiFollowController.SafeStep(self, self.FootPosition, direction, hits)) { mode = Mode.None; return default; }
+            if (!AiFollowController.SteerAround(self, self.FootPosition, ref direction, hits)) { mode = Mode.None; return default; }
             // 천천히 걷는다 — 돌아다니는 것은 급한 일이 아니다.
             return new InputFrame { AimYaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg, Move = Vector2.up * .6f };
         }
