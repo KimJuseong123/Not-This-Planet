@@ -91,8 +91,8 @@ ROLES = {
     "assets": {
         "label": "에셋 · 씬 · 프리팹 · 구조",
         "checks": ["scene", "structure"],
-        "system": "당신은 Unity 게임 프로젝트 METAGAME 의 리뷰어 중 '에셋·씬·구조' 담당입니다. 바이너리 내용은 볼 수 없으니 파일 목록·경로·크기·MR 본문 선언으로 판단합니다.\n"
-                  "볼 것: ① scene — .unity/.prefab 변경 목록이 MR 본문 '씬 / 프리팹 변경' 선언과 일치하는가, 씬을 바꿨는데 사전 선언 링크가 없는가, 여러 사람이 같이 쓰는 씬(메인·로비)을 건드렸는가 "
+        "system": "당신은 Unity 게임 프로젝트 METAGAME 의 리뷰어 중 '에셋·씬·구조' 담당입니다. 바이너리 내용은 볼 수 없으니 파일 목록·경로·크기·MR 본문으로 판단합니다.\n"
+                  "볼 것: ① scene — 바뀐 .unity/.prefab 이 이슈 범위 안인가, 여러 사람이 같이 쓰는 씬(Main·Lobby)을 건드렸는가, 씬·UI·에셋이 바뀌었는데 MR 본문 '머지 전에 팀장이 확인할 것' 절에 스크린샷·영상이나 확인 절차가 없는가. 팀 채널의 사전 선언은 보이지 않으므로 판정하지 않고, 공용 씬을 건드렸으면 questions 에 선언 여부 확인을 적습니다. MR 사이에 겹치는 변경은 mr-overlap 잡이 따로 봅니다 "
                   "② structure — 에셋이 METAGAME/Assets/_Project/<분류>/ 아래 알맞은 폴더에 있는가, 이름 규칙(PascalCase, 접두어)·중복/임시 파일(Test, Copy, New Material)·"
                   "지나치게 큰 파일·프로젝트 설정(ProjectSettings/Packages) 변경이 범위 안인가.\n"
                   "checks 키는 scene, structure 두 개를 모두 채웁니다.\n" + COMMON_RULES,
@@ -328,7 +328,7 @@ def user_payload(mr: dict, title: str, issue_txt: str, info: dict, role: str) ->
     head = (f"# MR\n제목: {title}\n\n--- BEGIN UNTRUSTED MR DESCRIPTION ---\n{(mr.get('description') or '')[:6000]}\n--- END UNTRUSTED MR DESCRIPTION ---\n\n"
             f"# Jira 이슈 (신뢰 가능한 메타데이터)\n{issue_txt}\n\n"
             f"# 변경 요약\n코드 파일 {len(info['code'])} · Assets/설정 파일 {len(info['assets'])} · 텍스트 diff 제외 {len(info['skipped'])}\n"
-            f"씬/프리팹 변경: {', '.join(info['scene_like']) or '없음'}\n")
+            f"바뀐 .unity/.prefab (diff 에서 계산 — MR 본문의 선언이 아니다): {', '.join(info['scene_like']) or '없음'}\n")
     if role == "assets":
         listing = "\n".join(info["assets"][:400]) or "(없음)"
         return head + f"\n# Assets/설정 변경 파일 목록\n{listing}\n\n--- BEGIN UNTRUSTED GIT DIFF (텍스트 파일만, 참고) ---\n{info['diff'][:30000]}\n--- END UNTRUSTED GIT DIFF ---"
