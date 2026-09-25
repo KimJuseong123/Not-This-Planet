@@ -10,6 +10,12 @@ namespace Metagame.Network
     {
         // The seat owns the persistent body; this driver owns only its command state.
         public bool IsAi => IsAiDriver;
+
+        /// <summary>
+        /// 이 사람이 지금 AI 에게 말하고 있는가(서버에서만 뜻이 있다). 길찾기가 "명령이 오고 있다" 를
+        /// 알고 미리 굽는 데 쓴다 (S15P21B202-737).
+        /// </summary>
+        public bool AiHearingOpen => hearingGroup != null;
         public static IReadOnlyList<NetPlayer> AllServerPlayers => ServerPlayers;
         readonly AiCompanionController aiFollow = new AiCompanionController();
         public string AiActivity => aiFollow.Status;
