@@ -454,6 +454,11 @@ def call_cli(model: str, system: str, user: str, schema: dict | None = None) -> 
     except json.JSONDecodeError:
         return r.stdout.strip()          # 봉투가 아니면 원문 그대로 — parse_json 이 가른다
     got = out.get("structured_output") if isinstance(out, dict) else None
+    if isinstance(out, dict):
+        # 역할별로 얼마나 드는지 잡 로그에 남긴다 — 이것 없이는 프롬프트를 줄여도 효과를 잴 수 없다.
+        u = out.get("usage") or {}
+        print(f"[usage] 입력 {u.get('input_tokens')} · 캐시 읽기 {u.get('cache_read_input_tokens')} · "
+              f"출력 {u.get('output_tokens')} · 턴 {out.get('num_turns')} · ${out.get('total_cost_usd')}")
     if isinstance(got, dict):
         return json.dumps(got, ensure_ascii=False)
     return str((out or {}).get("result") or "") if isinstance(out, dict) else r.stdout.strip()
