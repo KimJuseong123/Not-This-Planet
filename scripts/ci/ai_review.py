@@ -85,7 +85,7 @@ ROLES = {
                   "볼 것: 널 참조 · 수명 관리(이벤트 구독 해제, OnDestroy, 코루틴 누수) · Update 안의 할당/GetComponent/Find · "
                   "네트워크 권한(서버/클라이언트/오너 판별 누락, 클라이언트 신뢰) · 동기화 변수·RPC 남용 · 경합·재입장 처리 · 매직 넘버 · "
                   "예외를 삼키는 catch · 스크립트/도구 코드(Python·PowerShell·CI)의 실제 버그.\n"
-                  "checks 키는 structure 하나: 파일 위치가 METAGAME/Assets/_Project/ 규칙을 따르고 어셈블리 의존 방향(Core ← Gameplay ← UI)과 네임스페이스/폴더가 일치하는가.\n"
+                  "checks 키는 structure 하나: 파일 위치가 METAGAME/Assets/_Project/ 규칙을 따르고 어셈블리 의존 방향(Core ← Gameplay ← Network ← UI ← Bootstrap — 각 asmdef 의 references 가 왼쪽만 가리킨다)과 네임스페이스/폴더가 일치하는가.\n"
                   + COMMON_RULES,
     },
     "assets": {
