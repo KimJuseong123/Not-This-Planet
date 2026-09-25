@@ -25,6 +25,21 @@ namespace Metagame.Network
     {
         float previous, high, noise = .0015f, gain = 1f;
         int hangover;
+
+        /// <summary>
+        /// 방금 프레임의 크기와 <b>바닥 잡음</b> (S15P21B202-735).
+        ///
+        /// <para>둘 다 <see cref="Process"/> 가 <b>이미 계산하고 있었다</b> — 밖으로
+        /// 내보내지 않았을 뿐이다. 화면에서 다시 재면 같은 판단을 두 곳이 각자 하게 되어
+        /// 어긋난다.</para>
+        ///
+        /// <para><b>잡음까지 내보내는 이유.</b> 크기만 보여 주면 "이 정도면 큰 건가" 를
+        /// 알 수 없다. 시끄러운 방에서 필요한 것은 <b>내 목소리가 잡음 위에 있는가</b> 이고,
+        /// 그 선이 곧 <see cref="Process"/> 가 말/침묵을 가르는 자리다.</para>
+        /// </summary>
+        public float Level { get; private set; }
+        public float NoiseFloor => Mathf.Max(.003f, noise * 2.5f);
+
         public bool Process(float[] frame, float sensitivity)
         {
             float sum = 0;
@@ -34,6 +49,7 @@ namespace Metagame.Network
                 frame[i] = high; sum += high * high;
             }
             float rms = Mathf.Sqrt(sum / frame.Length);
+            Level = rms;
             bool speech = rms > Mathf.Max(.003f, noise * 2.5f);
             if (!speech) noise = Mathf.Lerp(noise, Mathf.Min(rms, .012f), .03f);
             hangover = speech ? 6 : Math.Max(0, hangover - 1);
@@ -81,6 +97,19 @@ namespace Metagame.Network
         /// </summary>
         public bool Capturing => clip != null;
         public bool Speaking { get; private set; }
+
+        /// <summary>
+        /// 지금 들어오는 소리의 크기와 <b>말로 치는 문턱</b> (S15P21B202-735).
+        ///
+        /// <para>화면이 막대를 그리는 데 쓴다. 값은 <see cref="VoiceFilter"/> 가 이미
+        /// 재고 있던 것이고, 문턱은 그 필터가 <b>말/침묵을 가르는 바로 그 선</b>이다 —
+        /// 다른 숫자를 보여 주면 "막대는 찼는데 왜 안 들었지" 가 된다.</para>
+        ///
+        /// <para>마이크가 닫혀 있으면 0 이다 — V 를 안 누르는 동안 막대가 움직이면
+        /// <b>늘 듣고 있는 것처럼 보인다.</b></para>
+        /// </summary>
+        public float Level => Capturing ? filter.Level : 0f;
+        public float SpeechFloor => filter.NoiseFloor;
         public string Problem { get; private set; }
         AudioClip clip;
         string device;

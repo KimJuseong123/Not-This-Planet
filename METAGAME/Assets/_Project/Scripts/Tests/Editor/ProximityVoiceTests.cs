@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using Metagame.Core;
 using Metagame.Network;
+using Metagame.UI;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -144,5 +145,43 @@ namespace Metagame.Gameplay.Tests
                 + "0.6초 넘는 멀쩡한 녹음이 전부 취소된다");
         }
 
+        /// <summary>
+        /// <b>화면이 그리는 값이 필터가 쓰는 값과 같다</b> (S15P21B202-735).
+        ///
+        /// <para>말/침묵을 가르는 선과 막대에 그리는 선이 다르면 <b>"막대는 찼는데 왜 안
+        /// 들었지"</b> 가 된다. 화면에서 다시 재지 않고 필터가 이미 가진 값을 쓰는 것이
+        /// 이 변경의 요점이다.</para>
+        /// </summary>
+        [Test] public void TheBarShowsWhatTheFilterActuallyUses()
+        {
+            var filter = new VoiceFilter();
+            var quiet = new float[VoiceRules.Frame];
+            Assert.That(filter.Process(quiet, 1f), Is.False, "무음을 말로 친다");
+            Assert.That(filter.Level, Is.EqualTo(0f).Within(1e-4f), "무음인데 막대가 움직인다");
+
+            var loud = new float[VoiceRules.Frame];
+            for (int i = 0; i < loud.Length; i++) loud[i] = (i % 2 == 0 ? .25f : -.25f);
+            bool speaking = filter.Process(loud, 1f);
+
+            Assert.That(filter.Level, Is.GreaterThan(filter.NoiseFloor),
+                "말로 친 소리인데 막대가 문턱을 못 넘는다 — 두 값이 갈렸다");
+            Assert.That(speaking, Is.True);
+            Assert.That(filter.NoiseFloor, Is.GreaterThan(0f), "문턱이 0 이면 선이 늘 왼쪽 끝이다");
+        }
+
+        /// <summary>
+        /// 막대의 끝이 <b>사람 목소리 범위</b>여야 한다 (S15P21B202-735).
+        ///
+        /// <para>1.0 을 끝으로 잡으면 보통 말소리(rms 0.02~0.08)에서 막대가 거의 안 움직여
+        /// 아무것도 못 말한다. 문턱도 그 안에 들어와야 선이 보인다.</para>
+        /// </summary>
+        [Test] public void TheBarScaleFitsASpeakingVoice()
+        {
+            Assert.That(AiVoiceControls.LevelFullScale, Is.InRange(.05f, .3f));
+            Assert.That(new VoiceFilter().NoiseFloor, Is.LessThan(AiVoiceControls.LevelFullScale),
+                "문턱이 막대 밖이면 선이 안 보인다");
+            Assert.That(AiVoiceControls.QuietNotice, Is.InRange(.5f, AiVoicePacket.Seconds - 2f),
+                "너무 짧으면 숨 고르는 사이에도 뜨고, 너무 길면 말이 끝난 뒤에 뜬다");
+        }
     }
 }
