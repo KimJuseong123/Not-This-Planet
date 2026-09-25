@@ -324,16 +324,34 @@ def jira_text(jira: Jira, key: str | None) -> str:
             f"{label}: {body}{note}")
 
 
+def clip(text: str, limit: int, what: str) -> tuple[str, str]:
+    """(담을 글, 잘렸을 때 붙일 안내). **잘렸으면 잘렸다고 적는다** — `jira_text` 와 같은 이유다(-384).
+
+    모르고 잘린 입력을 받으면 리뷰어는 뒤쪽 파일이 없는 것을 "충족 근거 없음" 으로 읽는다.
+    안내는 신뢰할 수 없는 블록 **밖**에 둔다 — 우리가 쓴 말이다.
+    """
+    if len(text) <= limit:
+        return text, ""
+    return text[:limit], (f"\n[!] {what}: 원문 {len(text)}자 중 앞 {limit}자만 담았다 — 뒤를 보지 못했으니 "
+                          f"그 부분에 걸린 판정은 unknown 으로 둔다.")
+
+
 def user_payload(mr: dict, title: str, issue_txt: str, info: dict, role: str) -> str:
-    head = (f"# MR\n제목: {title}\n\n--- BEGIN UNTRUSTED MR DESCRIPTION ---\n{(mr.get('description') or '')[:6000]}\n--- END UNTRUSTED MR DESCRIPTION ---\n\n"
+    desc, desc_note = clip(mr.get('description') or '', 6000, "MR 본문")
+    # 예산 초과로 빠진 파일은 이름을 준다 — 개수만 주면 어느 파일을 못 봤는지 모른다.
+    missing = [f"{p} ({why})" for p, why in info['skipped'] if not why.startswith("바이너리")]
+    head = (f"# MR\n제목: {title}\n\n--- BEGIN UNTRUSTED MR DESCRIPTION ---\n{desc}\n--- END UNTRUSTED MR DESCRIPTION ---{desc_note}\n\n"
             f"# Jira 이슈 (신뢰 가능한 메타데이터)\n{issue_txt}\n\n"
             f"# 변경 요약\n코드 파일 {len(info['code'])} · Assets/설정 파일 {len(info['assets'])} · 텍스트 diff 제외 {len(info['skipped'])}\n"
+            + (f"diff 를 담지 못한 텍스트 파일: {' · '.join(missing[:20])}\n" if missing else "")
+            + ""
             f"바뀐 .unity/.prefab (diff 에서 계산 — MR 본문의 선언이 아니다): {', '.join(info['scene_like']) or '없음'}\n")
     if role == "assets":
         listing = "\n".join(info["assets"][:400]) or "(없음)"
-        return head + f"\n# Assets/설정 변경 파일 목록\n{listing}\n\n--- BEGIN UNTRUSTED GIT DIFF (텍스트 파일만, 참고) ---\n{info['diff'][:30000]}\n--- END UNTRUSTED GIT DIFF ---"
-    diff = info["diff"] if role == "code" else info["diff"][:int(env("AI_REVIEW_SCOPE_CHARS", "50000"))]   # scope 는 축약본(토큰 절약)
-    return head + f"\n--- BEGIN UNTRUSTED GIT DIFF ---\n{diff}\n--- END UNTRUSTED GIT DIFF ---"
+        diff, note = clip(info['diff'], 30000, "diff")
+        return head + f"\n# Assets/설정 변경 파일 목록\n{listing}\n\n--- BEGIN UNTRUSTED GIT DIFF (텍스트 파일만, 참고) ---\n{diff}\n--- END UNTRUSTED GIT DIFF ---{note}"
+    diff, note = (info["diff"], "") if role == "code" else clip(info["diff"], int(env("AI_REVIEW_SCOPE_CHARS", "50000")), "diff")   # scope 는 축약본(토큰 절약)
+    return head + f"\n--- BEGIN UNTRUSTED GIT DIFF ---\n{diff}\n--- END UNTRUSTED GIT DIFF ---{note}"
 
 
 # ── 모델 호출 ───────────────────────────────────────────────────────────────
