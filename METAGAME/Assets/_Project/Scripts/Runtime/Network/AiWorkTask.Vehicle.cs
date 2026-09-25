@@ -10,7 +10,24 @@ namespace Metagame.Network
         TransportVehicle vehicle;
         Rigidbody cargo;
         SpaceshipPart stackBase;
-        float flightHeight, cargoBottomOffset, cargoStartY, lostSince;
+        float flightHeight, cargoBottomOffset, cargoStartY, lostSince, boardPressAt;
+
+        /// <summary>
+        /// 탑승 E 를 다시 누르는 간격(초) (S15P21B202-712). 전에는 한 번만 눌러서, 그 한 번이 씹히면
+        /// 5초를 다 기다린 뒤 실패했다. 타는 데 걸리는 시간보다 길게 두어 탄 뒤에 또 눌러 내리지 않는다.
+        /// </summary>
+        public const float BoardRepress = 1.5f;
+
+        /// <summary>
+        /// 내려놓기 정렬에 쓰는 시간(초) (S15P21B202-712). 전에는 제한이 없어 정렬이 안 맞으면 작업
+        /// 전체 제한(180초)까지 떠 있었다. 넘기면 쥔 채로 다시 접근한다 — 재시도 한도는 안착 확인과 같이 쓴다.
+        /// </summary>
+        public const float LowerTimeout = 15f;
+
+        /// <summary>견인할 수 있는 파츠인가 — 걷기 운반과 같은 이유로 가장 가까운 것 하나에 매달리지 않는다.</summary>
+        bool Liftable(SpaceshipPart item)
+            => !item.IsDockedToPad && item.RemainingRequiredClamps == 0 && item.State != PartState.Welded
+               && !ClaimedByOther(item);
         readonly RaycastHit[] flightHits = new RaycastHit[64];
         readonly Collider[] flightOverlaps = new Collider[64];
         Collider[] vehicleColliders;
@@ -52,8 +69,8 @@ namespace Metagame.Network
             }
             else if (action == "lift_part" || action == "transport_part" || action == "stack_part")
             {
-                part = NearestPart();
-                if (part == null || part.IsDockedToPad || part.RemainingRequiredClamps != 0 || part.State == PartState.Welded || !Claim(part))
+                part = NearestPart(false, Liftable);
+                if (part == null || !Claim(part))
                 { Finish(false, "견인 가능한 빈 파츠 없음"); return false; }
                 cargo = part.GetComponent<Rigidbody>();
                 if (cargo == null || cargo.isKinematic) { Finish(false, "움직일 수 없는 파츠"); return false; }
@@ -119,8 +136,9 @@ namespace Metagame.Network
                     Phase(1);
                 }
                 input = Aim(vehicle.Body.worldCenterOfMass);
+                if (pulse && Time.time - boardPressAt > BoardRepress) pulse = false;
                 if (self.CurrentInteractionTarget.Transport == vehicle && self.CurrentInteractionTarget.CanInteract && !pulse)
-                { input.TransportAction = true; pulse = true; }
+                { input.TransportAction = true; pulse = true; boardPressAt = Time.time; }
                 if (Time.time - phaseAt > 5f) Finish(false, "견인 탑승 불가 · 고정/잠금/거리 확인 필요");
                 return input;
             }
@@ -226,6 +244,12 @@ namespace Metagame.Network
                 if (!FlyCorridor(target, ref input, needsCargo)) return input;
                 if (!needsCargo) { Finish(true, "견인 장치 이동 완료"); return input; }
                 Phase(5); return input;
+            }
+            if (Time.time - phaseAt > LowerTimeout)
+            {
+                if (landingRetries++ < 2 && needsCargo)
+                { flightRoute = null; Phase(4); Status = "하역 정렬 실패 · 다시 접근"; return input; }
+                Finish(false, "하역 정렬 시간 초과"); return input;
             }
             Status = "목적지 하역 중";
             if (stackBase != null && stackBase.TryGetHullBounds(out var liveSupport))

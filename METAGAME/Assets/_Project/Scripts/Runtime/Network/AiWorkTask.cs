@@ -92,6 +92,10 @@ namespace Metagame.Network
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetClaims() => claims.Clear();
 
+        /// <summary>다른 AI 가 맡은 대상인가 (S15P21B202-712). <see cref="Claim"/> 과 같은 판정을 맡지 않고 묻는다.</summary>
+        bool ClaimedByOther(Object target)
+            => target != null && claims.TryGetValue(target, out var owner) && owner != null && owner != self && owner.isActiveAndEnabled;
+
         bool Claim(Object target)
         {
             if (target == null) return false;
@@ -345,7 +349,12 @@ namespace Metagame.Network
             }
             return !float.IsInfinity(best);
         }
-        SpaceshipPart NearestPart(bool pins = false)
+        /// <summary>
+        /// 말한 사람에게서 가장 가까운 파츠. <paramref name="accept"/> 가 있으면 <b>쓸 수 있는 것 중에서</b>
+        /// 고른다 (S15P21B202-712) — 전에는 가장 가까운 것이 용접·고정·다른 AI 몫이면 명령 전체가 실패했다.
+        /// 말한 사람이 바라보는 파츠도 조건을 통과해야 고른다.
+        /// </summary>
+        SpaceshipPart NearestPart(bool pins = false, System.Predicate<SpaceshipPart> accept = null)
         {
             SpaceshipPart chosen = null; float best = 40f * 40f;
             // Selection happens once at acceptance, not on every physics tick.
@@ -355,6 +364,7 @@ namespace Metagame.Network
             {
                 if (!item.isActiveAndEnabled || item.gameObject.scene != self.gameObject.scene) continue;
                 if (pins ? item.RemainingRequiredClamps == 0 : item.GetComponent<TransportVehicle>() != null) continue;
+                if (accept != null && !accept(item)) continue;
                 float distance = (item.transform.position - speaker.FootPosition).sqrMagnitude;
                 if (item == focusedPart) return item;
                 if (distance < best) { chosen = item; best = distance; }
