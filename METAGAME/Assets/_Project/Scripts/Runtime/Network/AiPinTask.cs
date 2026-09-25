@@ -27,6 +27,9 @@ namespace Metagame.Network
         public string Status { get; private set; } = "대기";
         public PartClamp Target => target;
         public bool WantsMovement => Active && (target == null || approaching);
+
+        /// <summary>못을 찾는 반경(m) — 명령받은 동료 기준.</summary>
+        public const float SearchRange = 40f;
         public Vector3? MovementGoal => target != null ? approach : (Vector3?)null;
 
         public void SuspendMovement()
@@ -160,10 +163,13 @@ namespace Metagame.Network
                 if (pin != null && pin.isActiveAndEnabled && pin.IsRequired && !pin.IsReleased && pin.Pullers == 0
                     && (requestedPart == null || pin.Part == requestedPart) && !excluded.Contains(pin)
                     && (!reservations.TryGetValue(pin, out var other) || other == null || !other.isActiveAndEnabled)
-                    && (pin.transform.position - speaker.FootPosition).sqrMagnitude < 30f * 30f)
+                    && (pin.transform.position - owner.FootPosition).sqrMagnitude < SearchRange * SearchRange)
                     candidates.Add(pin);
-            candidates.Sort((a,b) => (a.transform.position-speaker.FootPosition).sqrMagnitude.CompareTo(
-                (b.transform.position-speaker.FootPosition).sqrMagnitude));
+            // **명령받은 동료에게서** 가까운 순서 (S15P21B202-746). 전에는 말한 사람 기준이라, 멀리 있는
+            // 동료가 말한 사람 발밑의 못까지 걸어갔다 — 제 옆의 못을 두고.
+            var from = owner.FootPosition;
+            candidates.Sort((a,b) => (a.transform.position-from).sqrMagnitude.CompareTo(
+                (b.transform.position-from).sqrMagnitude));
             foreach (var pin in candidates)
             {
                 if (!FindApproach(world, pin, out approach)) continue;

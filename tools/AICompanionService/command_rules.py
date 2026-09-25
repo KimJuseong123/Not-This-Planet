@@ -84,6 +84,102 @@ def recipient(text):
     return found[0] if len(found) == 1 else "default"
 
 
+# ── 라이브 시연 (S15P21B202-746) ──────────────────────────────────────────────
+#
+# 명령은 넷뿐이다 — 방망이로 운석 쳐내기 · 기절한 사람 살리기 · 고정못 뽑기 · 이쪽으로 오기.
+# 2026-09-25 QA: 조용한 곳에서는 받아쓰기가 어느 정도 되는데 그 뒤의 행동이 무너졌다. 넷을 제대로
+# 하는 것이 서른 개를 조금씩 하는 것보다 시연에 맞다.
+#
+# **판단기(qwen3)를 부르지 않는다.** 넷 중 하나를 고르는 데 2~5초를 쓸 이유가 없다. 낱말 규칙이
+# 먼저 보고, 못 정하면 받아쓰기가 틀어진 말(`반망이 집어` · `고정못 때`)을 자모 단위로 넷의 본보기와
+# 견줘 가장 가까운 것을 고른다. 그래도 멀면 아무것도 하지 않는다 — 엉뚱한 행동은 못 알아듣는 것보다 나쁘다.
+#
+# 게임도 같은 넷으로 좁힌다(`AiDemoCommands`). 이름은 그쪽과 같아야 한다 — 검사가 본다.
+
+#: 켜 두면 워커가 `demo_decide` 만 쓴다. 끄면 예전처럼 규칙 → 판단기.
+DEMO = True
+
+DEMO_ACTIONS = ("defend_meteors", "revive", "pull_pin", "come")
+
+#: 멈추라는 말에는 아무것도 하지 않는다 — 넷 중 어느 것도 멈춤이 아니다.
+DEMO_STOP = re.compile(r"그만|멈춰|중단|취소|지\s?마")
+
+#: (정규식, 행동). 위에서부터 처음 맞는 것 하나. **특정한 것이 먼저다** — `방망이 가져와` 의 "와" 는 오기가 아니다.
+DEMO_RULES = [
+    (r"운석|방망이|몽둥이|쳐\s?내|막아|방어", "defend_meteors"),
+    (r"살려|일으켜|구해|기절|쓰러", "revive"),
+    (r"못|뽑|빼", "pull_pin"),
+    (r"이쪽|이리|여기|따라|모여|와", "come"),
+]
+
+#: 받아쓰기가 틀어졌을 때 견줄 본보기. 화면·안내에서 알려 주는 말과 같게 둔다.
+DEMO_EXAMPLES = {
+    "defend_meteors": ("방망이 주워서 운석 쳐내", "방망이 집어", "운석 막아", "운석 쳐내"),
+    "revive": ("기절한 사람 살려", "쓰러진 사람 일으켜", "일으켜", "살려 줘"),
+    "pull_pin": ("고정못 뽑아", "고정못 빼", "못 뽑아"),
+    "come": ("이쪽으로 와", "이리 와", "여기로 와"),
+}
+
+#: 본보기와 이만큼 닮아야 고른다(자모 두 글자 묶음의 다이스 계수). 낮추면 잡담에도 움직인다.
+DEMO_SIMILAR = .4
+
+_DEMO_COMPILED = [(re.compile(p), a) for p, a in DEMO_RULES]
+_LEADS = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ"
+_VOWELS = "ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ"
+_TAILS = " ㄱㄲㄳㄴㄵㄶㄷㄹㄺㄻㄼㄽㄾㄿㅀㅁㅂㅄㅅㅆㅇㅈㅊㅋㅌㅍㅎ"
+
+
+def jamo(text):
+    """한글 음절을 자모로 푼다. 공백·문장부호는 뺀다. `반망이` 와 `방망이` 가 한 글자만 다르게 된다."""
+    out = []
+    for c in text or "":
+        code = ord(c) - 0xAC00
+        if 0 <= code < 11172:
+            out.append(_LEADS[code // 588]); out.append(_VOWELS[(code % 588) // 28])
+            if code % 28: out.append(_TAILS[code % 28])
+        elif c.isalnum():
+            out.append(c)
+    return "".join(out)
+
+
+def similarity(a, b):
+    """자모 두 글자 묶음의 다이스 계수. 0~1. **순수 함수**."""
+    x, y = jamo(a), jamo(b)
+    if len(x) < 2 or len(y) < 2:
+        return 0.0
+    grams = {}
+    for i in range(len(x) - 1):
+        grams[x[i:i + 2]] = grams.get(x[i:i + 2], 0) + 1
+    common = 0
+    for i in range(len(y) - 1):
+        g = y[i:i + 2]
+        if grams.get(g, 0) > 0:
+            grams[g] -= 1; common += 1
+    return 2.0 * common / ((len(x) - 1) + (len(y) - 1))
+
+
+def demo_decide(text):
+    """시연 명령의 계획. 넷 중 하나이거나 status=none. **판단기로 넘기지 않는다**. **순수 함수**."""
+    said = (text or "").strip()
+    none = {"status": "none", "orders": []}
+    if not said or DEMO_STOP.search(said):
+        return none
+    action = next((a for p, a in _DEMO_COMPILED if p.search(said)), None)
+    if action is None:
+        best, score = None, 0.0
+        for act, examples in DEMO_EXAMPLES.items():
+            for example in examples:
+                s = similarity(said, example)
+                if s > score:
+                    best, score = act, s
+        if score >= DEMO_SIMILAR:
+            action = best
+    if action is None:
+        return none
+    return {"status": "ok", "orders": [{"recipients": recipient(said), "steps": [
+        {"action": action, "approach": False, "destination": "default"}]}]}
+
+
 def decide(text):
     """규칙으로 정한 계획, 또는 None(판단기로 넘긴다). **순수 함수**.
 

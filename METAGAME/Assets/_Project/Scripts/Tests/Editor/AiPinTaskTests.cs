@@ -164,12 +164,12 @@ namespace Metagame.Gameplay.Tests
                     new AiCommandStep { action = "pull_pin" },
                     new AiCommandStep { action = "follow" }
                 }, speaker);
-                var task = (AiPinTask)typeof(AiCompanionController).GetField("pin",
+                // pull_pin 은 작업(AiWorkTask)이 한다 (S15P21B202-746) — 결과를 그 경계에서 넣는다.
+                // 물리적인 완료는 위와 AiDemoScenarioTests 가 본다.
+                var work = (AiWorkTask)typeof(AiCompanionController).GetField("work",
                     System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(controller);
-                task.Cancel(success ? "Pin released" : "완료되지 않음");
-                // Inject the executor boundary outcome; physical completion is covered above.
-                typeof(AiPinTask).GetProperty(nameof(AiPinTask.Succeeded)).GetSetMethod(true)
-                    .Invoke(task, new object[] { success });
+                typeof(AiWorkTask).GetMethod("Finish", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                    .Invoke(work, new object[] { success, success ? "고정못을 뽑았다" : "완료되지 않음" });
                 controller.Tick(self, true);
                 controller.Tick(self, true);
                 Assert.That(controller.Busy, Is.EqualTo(success), "Only success may start the queued follow");

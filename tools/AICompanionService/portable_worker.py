@@ -151,9 +151,12 @@ class Worker:
             # 데웠는데, 게임은 companion_plan 만 부른다. ollama 는 슬롯이 하나(NUM_PARALLEL=1)라 마지막
             # 프롬프트의 앞머리만 캐시에 남으므로, 첫 실제 명령이 1000토큰 가까운 프롬프트를 처음부터
             # 다시 읽었다 — 2026-09-25 측정에서 캐시가 비면 판단마다 약 2.2초가 더 들었다.
-            result = companion_plan.classify("준비 검사입니다", self.url)
-            if result.get("status") not in ("ok", "none", "clarify"):
-                raise ValueError("invalid_warmup_result")
+            # 시연에서는 판단기를 쓰지 않으므로 올리지 않는다 (S15P21B202-746) — 메모리 1.3GB 와 CPU 를
+            # 게임에 돌려준다. 준비 시간도 그만큼 짧아진다.
+            if not command_rules.DEMO:
+                result = companion_plan.classify("준비 검사입니다", self.url)
+                if result.get("status") not in ("ok", "none", "clarify"):
+                    raise ValueError("invalid_warmup_result")
             if not self.stopping.is_set():
                 self.state = "ready"
         except Exception:
@@ -187,6 +190,11 @@ class Worker:
         규칙이 못 정하면 지금처럼 판단기다. 돌려주는 꼴은 같다 — 게임은 어느 쪽이 정했는지
         `decided_by` 와 판단 시간 0 으로만 안다(로그에 "판단 0.0초" 로 찍힌다).
         """
+        if command_rules.DEMO:
+            # 시연에서는 넷 중 하나를 규칙으로만 정한다 (S15P21B202-746) — 판단기를 부르지 않는다.
+            return {**command_rules.demo_decide(text), "text": text, "decided_by": "rules", "raw_decision": None,
+                    "safety_override": False, "unsaid_social": None, "prompt_version": "demo-v1",
+                    "model": "rules", "llm_ms": 0, "llm_load_ms": 0, "llm_eval_ms": 0, "llm_tokens": 0}
         fast = command_rules.decide(text)
         if fast is None:
             return companion_plan.classify(text, self.url)

@@ -44,6 +44,15 @@ namespace Metagame.Network
         public bool TryApplyAiOrder(string action, PlayerRig speaker, out string refusal,
                                     bool approach = false, string destination = "default")
         {
+            // 시연에서는 네 명령뿐이다 (S15P21B202-746). 판단기가 무엇을 내든 넷 중 가까운 것으로 옮기고,
+            // 옮길 곳이 없으면 거절한다 — 깔린 팩을 다시 굽지 않아도 넷만 한다.
+            if (AiDemoCommands.Enabled)
+            {
+                var mapped = AiDemoCommands.Map(action, destination);
+                if (mapped == null) { refusal = AiDemoCommands.Refusal + " (들은 행동: " + action + ")"; return false; }
+                if (mapped != action) { approach = false; destination = "default"; }
+                action = mapped;
+            }
             var session = GameSession.Instance;
             refusal = AiCommandPlan.OrderRefusal(action,
                 aiSeat: isServer && IsAi && body != null,
@@ -73,10 +82,38 @@ namespace Metagame.Network
         {
             refusal = null;
             if (!AiCommandPlan.ValidSteps(steps)) { refusal = "계획 형식이 틀림"; return false; }
+            // 시연에서는 한 번에 하나다 (S15P21B202-746). 넷 중 하나로 옮길 수 있는 첫 단계만 하고 나머지는
+            // 버린다 — "방망이 집어서 운석 막아" 는 두 단계로 오지만 넷 중에서는 한 가지 일이다.
+            if (AiDemoCommands.Enabled)
+            {
+                AiCommandStep first = null;
+                foreach (var step in steps)
+                    if (step != null && AiDemoCommands.Map(step.action, step.destination) != null) { first = step; break; }
+                steps = new[] { first ?? steps[0] };
+            }
             if (!TryApplyAiOrder(steps[0].action, speaker, out refusal, steps[0].approach, steps[0].destination)) return false;
             aiFollow.QueueAfterCurrent(steps, speaker);
             return true;
         }
+
+        readonly AiStatusLog aiActivityLog = new AiStatusLog();
+        string aiLoggedActivity;
+
+        /// <summary>
+        /// 동료가 지금 하는 일이 바뀌면 로그에 남긴다 (S15P21B202-746). 전에는 화면에만 떠서, 2026-09-25 QA 에서
+        /// 고정못 명령 세 번이 <b>어디서 멈췄는지 로그로 가릴 수 없었다</b>. 숫자만 바뀌는 줄은 뜸하게 적는다.
+        /// </summary>
+        void LogAiActivity()
+        {
+            string now = aiFollow.Status;
+            if (now == aiLoggedActivity) return;
+            aiLoggedActivity = now;
+            aiActivityLog.Write("[AI] " + TeamName + " ·", now);
+        }
+
+        /// <summary>기본 행동이 지금 춤을 춰도 되나 — 명령으로 추는 춤과 같은 조건(동작·쿨다운).</summary>
+        bool AiCanDanceNow => body?.Doll?.Suit?.Locomotion != null && body.Doll.Suit.Locomotion.HasDance(1)
+                              && NetworkTime.time >= _nextDanceAllowed;
 
         void StopAiSocialPresentation()
         {

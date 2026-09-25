@@ -1098,11 +1098,13 @@ namespace Metagame.Network
             InputFrame frame = hostOwnBody ? body.CurrentInput : pendingInput.Consume();
             if (IsAi)
             {
+                aiFollow.AmbientCanDance = AiCanDanceNow;
                 frame = aiFollow.Tick(body, AiHostSettings.ServerState == AiRoomState.Active
                     && !HostMigration.Pending && !HostMigration.Taking && !HostMigration.Settling
                     && GameSession.Instance != null && !GameSession.Instance.CinematicInputBlocked
                     && !GameSession.Instance.EndingActive);
                 UpdateAiSocialPresentation();
+                LogAiActivity();
             }
             if (GameSession.Instance != null && GameSession.Instance.CinematicInputBlocked)
             {

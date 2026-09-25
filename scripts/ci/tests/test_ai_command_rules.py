@@ -139,5 +139,37 @@ check("companion_plan.classify(" in warm and "classify_companion(" not in warm,
 check(re.search(r'"keep_alive":\s*-1', source("companion_plan.py")) is not None,
       "판단 모델을 내리지 않는다 (keep_alive -1) — 10분 쉰 뒤의 첫 명령이 11.8초였다")
 
+print("\n== 라이브 시연: 명령은 넷뿐이고 판단기를 부르지 않는다 (S15P21B202-746) ==")
+unity = io.open(os.path.join(ROOT, "METAGAME", "Assets", "_Project", "Scripts", "Runtime", "Network", "AiDemoCommands.cs"),
+                encoding="utf-8").read()
+m = re.search(r'Defend = "(\w+)", Revive = "(\w+)", Pin = "(\w+)", Come = "(\w+)"', unity)
+check(m is not None and set(m.groups()) == set(R.DEMO_ACTIONS),
+      f"워커의 네 행동이 게임(AiDemoCommands)과 같다 — 게임 {m and m.groups()} · 워커 {R.DEMO_ACTIONS}")
+check({a for _, a in R.DEMO_RULES} == set(R.DEMO_ACTIONS) and set(R.DEMO_EXAMPLES) == set(R.DEMO_ACTIONS),
+      "규칙과 본보기가 네 행동을 빠짐없이 덮는다")
+DEMO_CASES = [
+    # 2026-09-25 QA 로그에 실제로 찍힌 받아쓰기 — 틀어진 말도 넷 중 맞는 것으로 가야 한다
+    ("가서 반망이 집어", "defend_meteors"), ("전망이 들고 운속점 쳐내", "defend_meteors"),
+    ("고정못 때", "pull_pin"), ("아서 고정못 때", "pull_pin"), ("고정못.", "pull_pin"), ("가서 고정못 대.", "pull_pin"),
+    ("불 다 고정못 때", "pull_pin"),
+    # 알려 주는 말
+    ("방망이 주워서 운석 쳐내", "defend_meteors"), ("운석 막아", "defend_meteors"), ("방망이 가져와", "defend_meteors"),
+    ("기절한 사람 살려", "revive"), ("쓰러진 애 일으켜", "revive"), ("구해줘", "revive"), ("일흐켜", "revive"),
+    ("고정못 뽑아", "pull_pin"), ("고정못 빼", "pull_pin"),
+    ("이쪽으로 와", "come"), ("이리 와", "come"), ("여기로 와 줘", "come"), ("나 따라와", "come"), ("이쪽으로 아", "come"),
+]
+for said, want in DEMO_CASES:
+    plan = R.demo_decide(said)
+    got = plan["orders"][0]["steps"][0]["action"] if plan["orders"] else None
+    check(got == want, f"시연 '{said}' → {got} (정답 {want})")
+for said in ("", "그만해", "춤 춰", "오늘 날씨 좋다", "지금 몇 시야", "용접건 수고", "견인 장치 타"):
+    check(R.demo_decide(said) == {"status": "none", "orders": []}, f"시연 '{said}' 는 아무것도 하지 않는다")
+plan = R.demo_decide("빨강아 고정못 뽑아")
+check(plan["orders"][0]["recipients"] == "red", "색을 부르면 그 동료에게 간다")
+check(R.similarity("반망이", "방망이") > R.similarity("반망이", "고정못"), "자모 유사도가 받아쓰기 오류를 가깝게 본다")
+check(0 <= plan_src.find("command_rules.DEMO") < plan_src.find("companion_plan.classify"),
+      "시연이면 판단기를 부르기 전에 규칙으로 끝낸다")
+check("if not command_rules.DEMO:" in warm, "시연이면 판단 모델을 올리지 않는다 — 메모리와 CPU 를 게임에 돌려준다")
+
 print(f"\ntest_ai_command_rules: {'통과' if not failed else f'실패 {failed}'}")
 sys.exit(1 if failed else 0)

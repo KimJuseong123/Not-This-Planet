@@ -3,6 +3,7 @@ using Metagame.Gameplay;
 using Metagame.Gameplay.Hazards;
 using Metagame.Gameplay.Parts;
 using UnityEngine;
+using UnityEngine.AI;
 
 namespace Metagame.Network
 {
@@ -13,7 +14,7 @@ namespace Metagame.Network
         Collider toolCollider;
         Rigidbody practice;
         uint swingBefore;
-        float nextThreat, lastWeldProgress;
+        float lastWeldProgress;
         Vector3 weldPoint;
         Transform weldSurface;
         int beadsBefore;
@@ -114,7 +115,13 @@ namespace Metagame.Network
                 if (Time.time - phaseAt > 5f) Finish(false, "도구에 손이 닿지 않음");
                 return input;
             }
-            if (!held) { Finish(false, "도구를 놓쳐 작업 중단"); return input; }
+            if (!held)
+            {
+                // 운석 막기는 계속하는 일이다 — 맞고 방망이를 떨어뜨렸으면 다시 줍는다 (S15P21B202-746).
+                if (action == "defend_meteors" && ToolFree(toolGrab) && StandNear(toolGrab.transform.position, .6f, out goal))
+                { Phase(2); Status = "떨어뜨린 방망이 다시 줍는 중"; return input; }
+                Finish(false, "도구를 놓쳐 작업 중단"); return input;
+            }
             if (phase == 4)
             {
                 // The pickup click must be released before the ordinary tool action can fire.
@@ -129,6 +136,12 @@ namespace Metagame.Network
                 {
                     if (weldSurface == null || !StandNear(weldSurface.TransformPoint(weldPoint), .65f, out goal))
                     { Finish(false, "용접 지점 접근 불가"); return input; }
+                }
+                else if (action == "defend_meteors")
+                {
+                    // 방망이를 들었으면 곧장 운석을 본다 (S15P21B202-746). 전에는 말한 사람 옆까지 걸어간 뒤에야
+                    // 막기 시작했고, 그 자리에 선 채로 머리 위에 오는 것만 쳤다.
+                    Phase(6); defendTarget = null; return input;
                 }
                 else goal = destinationPoint;
                 Phase(5); return input;
@@ -160,17 +173,202 @@ namespace Metagame.Network
                 if (bat.CanSwing && !FriendlyInFront(practice.position - self.Position)) input.ToolPrimary = true;
                 Status = "연습 대상 타격"; return input;
             }
-            Status = "운석 방어 중";
-            if (Time.time < nextThreat || !bat.CanSwing || bat.IsSwinging) return input;
-            nextThreat = Time.time + .1f;
-            var meteor = MeteorBat.FindTarget(self.Position);
-            if (meteor == null || meteor.WasDeflected || !meteor.TryPredictImpact(out var seconds, out var impact)
-                || seconds > meteor.BatSwingWindowSeconds * .65f) return input;
-            var direction = impact - self.Position; direction.y = 0;
-            if (direction.sqrMagnitude < .01f) direction = self.FacingDirection;
-            input = Aim(self.AimOrigin + direction.normalized * 5);
-            if (!FriendlyInFront(direction)) input.ToolPrimary = true;
+            return TickDefend(bat);
+        }
+
+        // ── 운석 쳐내기 (S15P21B202-746) ────────────────────────────────────────
+        //
+        // ① 방망이 집기(위) → ② 떨어질 자리로 뛰기 → ③ 가장 좋은 때 휘두르기. ②③을 계속 한다.
+        // 전에는 ②가 없었다 — 선 자리에서 머리 위로 오는 것만 쳤으므로, 옆에 떨어지는 운석은 그냥 봤다.
+
+        /// <summary>뛰는 속도를 이만큼만 믿는다 — 돌아가는 길·출발·멈춤에 잃는 몫.</summary>
+        public const float ChaseSpeedFactor = .8f;
+
+        /// <summary>보고 움직이기까지 드는 시간(초). 닿을 수 있나를 셀 때 뺀다.</summary>
+        public const float ChaseReactionSeconds = .25f;
+
+        /// <summary>
+        /// 떨어질 자리에서 이만큼 떨어져 선다(m). 방망이는 착지점이 <c>BatAssistRadius</c>(2.5m) 안이면 맞는데,
+        /// 가장자리에 서면 예측이 조금만 흔들려도 빠진다.
+        /// </summary>
+        public const float StrikeStandOffset = 1f;
+
+        /// <summary>휘두르기를 한 틱 앞당긴다 — 입력은 다음 물리 틱에 들어간다.</summary>
+        public static float StrikeLead => Time.fixedDeltaTime;
+
+        /// <summary>길이 안 날 때 곧장 걸어갈 만한 거리(m). 더 멀면 벽 너머일 수 있다.</summary>
+        public const float DirectChaseRange = 8f;
+
+        /// <summary>쫓을 것이 없을 때 말한 사람에게서 이보다 멀면 돌아간다(m).</summary>
+        public const float DefendLeash = 7f;
+
+        static readonly System.Collections.Generic.Dictionary<Meteor, PlayerRig> chasing =
+            new System.Collections.Generic.Dictionary<Meteor, PlayerRig>();
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetChasing() => chasing.Clear();
+
+        Meteor defendTarget;
+        float nextPick;
+
+        /// <summary>
+        /// 이 운석을 칠 수 있게 제때 닿을 수 있나. <b>순수 함수</b>다 — 검사가 값으로 부른다.
+        ///
+        /// <para>휘두르는 때는 떨어지기 <c>window × PerfectAt</c> 초 전이다(판정이 가장 좋은 때). 그때까지
+        /// 착지점에서 <c>assist − StrikeStandOffset</c> 안에 들어가야 한다. 이미 그 안이면 시간이 없어도 된다.</para>
+        /// </summary>
+        public static bool CanReach(float planarDistance, float secondsToImpact, float window, float assistRadius, float runSpeed)
+        {
+            float inside = Mathf.Max(.3f, assistRadius - StrikeStandOffset);
+            float need = Mathf.Max(0f, planarDistance - inside);
+            if (need <= 0f) return secondsToImpact > 0f;
+            float time = secondsToImpact - window * MeteorBat.PerfectAt - ChaseReactionSeconds;
+            return time > 0f && need <= runSpeed * ChaseSpeedFactor * time;
+        }
+
+        InputFrame TickDefend(MeteorBat bat)
+        {
+            var input = default(InputFrame);
+            // ③ 칠 수 있는 운석이 들어왔고 때가 되었으면 휘두른다. 판정과 같은 함수로 고른다 —
+            //    방망이가 실제로 맞힐 운석이어야 한다.
+            var strike = MeteorBat.FindTarget(self.Position);
+            if (strike != null && bat.CanSwing && !bat.IsSwinging && strike.TryPredictImpact(out var left, out _)
+                && left <= strike.BatSwingWindowSeconds * MeteorBat.PerfectAt + StrikeLead)
+            {
+                input = Aim(strike.transform.position);
+                input.ToolPrimary = true;
+                Status = "운석 쳐내는 중";
+                return input;
+            }
+            if (bat.IsSwinging) { Status = "운석 쳐내는 중"; return input; }
+
+            // ② 쫓을 운석을 고른다. 경로 계산이 있어 매 틱은 하지 않는다.
+            if (Time.time >= nextPick || !Chaseable(defendTarget))
+            { nextPick = Time.time + .1f; Choose(PickMeteor()); }
+            if (defendTarget == null) return Guard();
+            defendTarget.TryPredictImpact(out var seconds, out var impact);
+            var stand = StandFor(impact);
+            var offset = stand - self.FootPosition; offset.y = 0;
+            if (offset.magnitude <= .35f)
+            {
+                Status = "운석 기다리는 중 · " + seconds.ToString("0.0") + "초";
+                return Aim(defendTarget.transform.position);
+            }
+            Status = "운석 쪽으로 뛰는 중 · " + seconds.ToString("0.0") + "초";
+            if (!Chase(stand, .3f, ref input, true)) { }
+            if (seconds < .9f) { var aim = Aim(defendTarget.transform.position); input.AimYaw = aim.AimYaw; input.AimPitch = aim.AimPitch; }
             return input;
+        }
+
+        /// <summary>쫓을 수 있는 운석인가 — 아직 날아오고, 누가 쳐내지 않았고, 다른 동료가 쫓지 않는다.</summary>
+        bool Chaseable(Meteor meteor)
+        {
+            if (meteor == null || meteor.Harmless || meteor.GroundProp || meteor.WasDeflected || !meteor.isActiveAndEnabled) return false;
+            if (chasing.TryGetValue(meteor, out var other) && other != null && other != self && other.isActiveAndEnabled) return false;
+            if (!meteor.TryPredictImpact(out var seconds, out var impact)) return false;
+            var offset = StandFor(impact) - self.FootPosition; offset.y = 0;
+            return CanReach(offset.magnitude, seconds, meteor.BatSwingWindowSeconds, meteor.BatAssistRadius, Tuning.RunSpeed);
+        }
+
+        /// <summary>제때 닿을 수 있는 운석 중 <b>가장 먼저 떨어질</b> 것. 없으면 null.</summary>
+        Meteor PickMeteor()
+        {
+            if (Chaseable(defendTarget)) return defendTarget;   // 쫓던 것을 쉽게 바꾸지 않는다 — 오락가락하면 둘 다 놓친다
+            Meteor best = null; float soonest = float.PositiveInfinity;
+            foreach (var meteor in Meteor.All)
+            {
+                if (!Chaseable(meteor)) continue;
+                meteor.TryPredictImpact(out var seconds, out var impact);
+                if (seconds >= soonest) continue;
+                if (!NavMesh.SamplePosition(StandFor(impact), out _, 1.5f, NavMesh.AllAreas)) continue;   // 설 수 없는 곳
+                soonest = seconds; best = meteor;
+            }
+            return best;
+        }
+
+        void ReleaseChase()
+        {
+            if (defendTarget != null && chasing.TryGetValue(defendTarget, out var mine) && mine == self) chasing.Remove(defendTarget);
+            defendTarget = null;
+        }
+
+        void Choose(Meteor meteor)
+        {
+            if (meteor == defendTarget) return;
+            if (defendTarget != null && chasing.TryGetValue(defendTarget, out var mine) && mine == self) chasing.Remove(defendTarget);
+            defendTarget = meteor;
+            if (meteor != null) chasing[meteor] = self;
+            route.Reset();
+        }
+
+        /// <summary>떨어질 자리 앞, 동료 쪽으로 <see cref="StrikeStandOffset"/> 만큼. 운석이 방망이 앞에 떨어진다.</summary>
+        Vector3 StandFor(Vector3 impact)
+        {
+            var back = self.FootPosition - impact; back.y = 0;
+            if (back.sqrMagnitude < .01f) return impact;
+            if (back.magnitude <= StrikeStandOffset) return self.FootPosition;
+            return impact + back.normalized * StrikeStandOffset;
+        }
+
+        /// <summary>쫓을 것이 없을 때: 말한 사람 곁을 지키며 가장 먼저 올 운석 쪽을 본다.</summary>
+        InputFrame Guard()
+        {
+            var input = default(InputFrame);
+            var toSpeaker = speaker.FootPosition - self.FootPosition; toSpeaker.y = 0;
+            if (toSpeaker.magnitude > DefendLeash)
+            {
+                Status = "운석 기다리며 곁으로 가는 중";
+                Chase(speaker.FootPosition, DefendLeash - 3f, ref input, false);
+                return input;
+            }
+            Status = "운석 기다리는 중";
+            Meteor watch = null; float soonest = float.PositiveInfinity;
+            foreach (var meteor in Meteor.All)
+                if (meteor != null && !meteor.Harmless && !meteor.WasDeflected && meteor.TryPredictImpact(out var s, out _) && s < soonest)
+                { soonest = s; watch = meteor; }
+            if (watch != null) { var aim = Aim(watch.transform.position); input.AimYaw = aim.AimYaw; }
+            return input;
+        }
+
+        /// <summary>
+        /// <see cref="Navigate"/> 와 같게 걷되 <b>막혀도 작업을 끝내지 않는다</b> — 운석 하나를 못 쫓았다고
+        /// 막기 전체를 버리면 안 된다. 닿았으면 참.
+        /// </summary>
+        bool Chase(Vector3 point, float stop, ref InputFrame input, bool run)
+        {
+            goal = point; WantsMovement = true;
+            var world = GameSession.Instance != null ? GameSession.Instance.GetComponent<AiNavigationWorld>() : null;
+            if (!route.Steer(world, self.FootPosition, point, stop, out var direction))
+            {
+                // 길이 안 나면(방망이를 집은 자리처럼 길찾기 바닥 밖에 서 있으면) 가까운 곳은 곧장 걷는다 —
+                // 운석은 기다려 주지 않는다. 앞이 막혔는지는 SafeStep 이 본다.
+                var straight = point - self.FootPosition; straight.y = 0;
+                if (straight.magnitude <= stop) { WantsMovement = false; return true; }
+                if (straight.magnitude > DirectChaseRange) { WantsMovement = false; return false; }
+                direction = straight.normalized;
+            }
+            else if (route.Arrived) { WantsMovement = false; return true; }
+            if (!AiFollowController.SafeStep(self, self.FootPosition, direction, stepHits, .18f)
+                && !Sidestep(ref direction)) return false;
+            input = Aim(self.AimOrigin + direction);
+            input.Move = Vector2.up; input.Run = run;
+            return false;
+        }
+
+        static readonly float[] SidestepAngles = { 30f, -30f, 60f, -60f, 90f, -90f };
+
+        /// <summary>
+        /// 앞이 막혔으면 비스듬히 돌아 나갈 방향을 찾는다. 2026-09-25 검사: 방망이를 집은 자리(거치대 앞)에서
+        /// 곧장 가는 길이 막혀 운석 둘을 선 채로 놓쳤다.
+        /// </summary>
+        bool Sidestep(ref Vector3 direction)
+        {
+            foreach (float angle in SidestepAngles)
+            {
+                var turned = Quaternion.Euler(0, angle, 0) * direction;
+                if (AiFollowController.SafeStep(self, self.FootPosition, turned, stepHits, .18f)) { direction = turned; return true; }
+            }
+            return false;
         }
         bool PhaseAfterDelivery;
         bool FriendlyInFront(Vector3 direction)

@@ -53,7 +53,7 @@ namespace Metagame.Network
         public bool WantsMovement { get; private set; }
         public Vector3? MovementGoal => WantsMovement ? goal : (Vector3?)null;
         public static readonly string[] Actions = {
-            "pull_all_pins", "pickup_tool", "pickup_bat", "pickup_welder", "drop_tool", "bring_tool",
+            "pull_pin", "come", "pull_all_pins", "pickup_tool", "pickup_bat", "pickup_welder", "drop_tool", "bring_tool",
             "bring_bat", "bring_welder", "hit_target", "defend_meteors", "grab_part", "release_part",
             "carry_part", "weld", "cut_weld", "board_tractor", "leave_tractor", "move_tractor",
             "lift_player", "lift_part", "transport_part", "hold_tractor", "stack_part", "goto", "revive"
@@ -84,6 +84,21 @@ namespace Metagame.Network
         /// 들썩이지 않는다.</para>
         /// </summary>
         public const float GotoDriftLimit = 2.5f;
+
+        /// <summary>
+        /// <c>come</c>(이쪽으로 와)는 말한 사람과 이만큼 가까워지면 멈춘다(m, 평면) (S15P21B202-746).
+        /// 몸통 둘이 부딪히지 않고, 말한 사람이 "왔다" 고 느끼는 거리.
+        /// </summary>
+        public const float ComeStopDistance = 2f;
+
+        /// <summary>이보다 멀면 뛰어서 온다(m). 부른 사람을 오래 기다리게 하지 않는다.</summary>
+        public const float ComeRunDistance = 6f;
+
+        /// <summary>
+        /// 고정못 하나를 못 뽑으면 <b>다음으로 가까운 못</b>을 이만큼 더 해 본다 (S15P21B202-746).
+        /// 한 번 어긋났다고 명령 전체를 버리면 시연에서 "못 알아들었다" 로 보인다.
+        /// </summary>
+        public const int PinRetries = 2;
         public static bool Supports(string value) => System.Array.IndexOf(Actions, value) >= 0;
         public static bool VehicleOrder(string value) => value == "board_tractor" || value == "leave_tractor"
             || value == "move_tractor" || value == "lift_player" || value == "lift_part"
@@ -120,6 +135,16 @@ namespace Metagame.Network
             }
             // goto 는 목적지 말고는 준비할 것이 없다 — 위에서 이미 풀었다.
             if (command == "goto") return true;
+            if (command == "come") { comeGoal = speaker.FootPosition; return true; }
+            if (command == "pull_pin")
+            {
+                // 명령받은 동료에게서 가장 가까운 못 (S15P21B202-746). 손에 든 도구는 먼저 내려놓는다 —
+                // 전에는 "도구를 내려놓은 뒤 지시해 주세요" 로 끝났고, 로그에도 남지 않았다.
+                attemptedPins.Clear(); pinCount = 0; pinTarget = null; part = null;
+                Phase(self.HeldTool != null ? 0 : 1);
+                if (phase == 1) pin.Begin(self, speaker, null, attemptedPins);
+                return true;
+            }
             if (command == "revive") return BeginRevive();
             if (VehicleOrder(command)) return BeginVehicle();
             if (command == "grab_part" || command == "carry_part" || command == "release_part") return BeginCarry();
@@ -159,6 +184,8 @@ namespace Metagame.Network
                 return input;
             }
             if (action == "goto") return TickGoto();
+            if (action == "come") return TickCome();
+            if (action == "pull_pin") return TickPin();
             if (action == "revive") return TickRevive();
             if (VehicleOrder(action)) return TickVehicle();
             if (action == "grab_part" || action == "carry_part" || action == "release_part") return TickCarry();
@@ -180,6 +207,7 @@ namespace Metagame.Network
         {
             Settle(AiTaskOutcome.Cancelled, reason);
             pin.Cancel(); ReleaseClaims(); route.Reset(); StopVehicle();
+            ReleaseChase();
             Active = false; WantsMovement = false; Succeeded = false;
             self = speaker = null; part = null; tool = null; toolGrab = null; carry = null; vehicle = null;
             rescueTarget = null;
@@ -297,6 +325,62 @@ namespace Metagame.Network
             Status = "일으키는 중 " + (self.RescueProgress01 * 100f).ToString("0") + "%";
             input = Aim(rescueTarget.FootPosition);
             input.RescueHeld = true;
+            return input;
+        }
+
+        Vector3 comeGoal;
+        PartClamp pinTarget;
+
+        /// <summary>
+        /// 말한 사람에게 온다 (S15P21B202-746). 사람이 움직이면 목적지도 따라간다 — 전에는
+        /// <c>goto</c> 가 말한 순간의 자리로 가서 그 자리를 지켰다.
+        /// </summary>
+        InputFrame TickCome()
+        {
+            var input = default(InputFrame);
+            var to = speaker.FootPosition;
+            var offset = to - self.FootPosition; offset.y = 0;
+            float distance = offset.magnitude;
+            // Finish 가 speaker 를 비우므로 돌아볼 방향을 먼저 잰다.
+            if (distance <= ComeStopDistance) { var face = AiCompanionController.Face(self, speaker); Finish(true, "말한 사람 곁에 왔다"); return face; }
+            // 사람이 1m 넘게 움직였으면 "나아지고 있나" 를 새로 잰다 — 달아나는 사람을 쫓는 것은 막힘이 아니다.
+            if ((to - comeGoal).sqrMagnitude > 1f) { comeGoal = to; bestDistance = float.PositiveInfinity; movedAt = Time.time; }
+            Status = "오는 중 · " + distance.ToString("0.0") + "m";
+            if (Navigate(to, ComeStopDistance - .2f, ref input))
+            { var face = AiCompanionController.Face(self, speaker); Finish(true, "말한 사람 곁에 왔다"); return face; }
+            if (!Active) return input;   // Navigate 가 막힘으로 끝냈다
+            input.Run = distance > ComeRunDistance;
+            return input;
+        }
+
+        /// <summary>
+        /// 가장 가까운 고정못 하나를 뽑는다 (S15P21B202-746). 못 뽑으면 다음 못을 <see cref="PinRetries"/>
+        /// 번 더 해 보고, 뽑을 못이 없으면 끝낸다 — 그러면 기본 행동으로 돌아간다.
+        /// </summary>
+        InputFrame TickPin()
+        {
+            var input = default(InputFrame);
+            if (phase == 0)
+            {
+                if (self.HeldTool == null) { Phase(1); pin.Begin(self, speaker, null, attemptedPins); return input; }
+                if (!pulse) { input.ToolUtility = true; pulse = true; }
+                Status = "들고 있던 도구 내려놓는 중";
+                if (Time.time - phaseAt > 2f) Finish(false, "들고 있던 도구를 내려놓지 못함");
+                return input;
+            }
+            input = pin.Tick(true);
+            if (pin.Target != null) pinTarget = pin.Target;
+            Status = pin.Status;
+            WantsMovement = pin.WantsMovement;
+            if (pin.MovementGoal.HasValue) goal = pin.MovementGoal.Value;
+            if (pin.Active) return input;
+            if (pin.Succeeded || (pinTarget != null && pinTarget.IsReleased)) { Finish(true, "고정못을 뽑았다"); return input; }
+            if (pinTarget == null) { Finish(false, pin.Status); return input; }      // 뽑을 못이 없다
+            attemptedPins.Add(pinTarget);
+            if (++pinCount > PinRetries) { Finish(false, pin.Status + " · 다른 못도 실패"); return input; }
+            Debug.Log("[AI] 고정못 다시 시도 " + pinCount + "/" + PinRetries + " · " + pin.Status);
+            pinTarget = null;
+            pin.Begin(self, speaker, null, attemptedPins);
             return input;
         }
 

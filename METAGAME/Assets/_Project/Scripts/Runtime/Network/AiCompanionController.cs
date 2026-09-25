@@ -12,6 +12,15 @@ namespace Metagame.Network
         readonly AiPinTask pin = new AiPinTask();
         readonly AiMovementRecovery recovery = new AiMovementRecovery();
         readonly AiWorkTask work = new AiWorkTask();
+        static int ambientSeeds;
+        /// <summary>명령이 없을 때의 행동 (S15P21B202-746). 동료마다 다른 씨앗이라 셋이 같이 춤추지 않는다.</summary>
+        readonly AiAmbient ambient = new AiAmbient(unchecked(System.Environment.TickCount * 31 + ++ambientSeeds * 7919));
+
+        /// <summary>지금 춤을 출 수 있나(쿨다운·동작). 몸을 가진 <c>NetPlayer</c> 가 매 틱 알려 준다.</summary>
+        public bool AmbientCanDance { get; set; }
+
+        /// <summary>명령 없이 기본 행동 중인가. 화면·로그가 명령 상태와 가른다.</summary>
+        public bool Ambient => !Busy && ambient.Current != AiAmbient.Mode.None;
         readonly System.Collections.Generic.Queue<AiCommandStep> pending = new System.Collections.Generic.Queue<AiCommandStep>();
         PlayerRig planSpeaker;
         bool workOrder, advance;
@@ -24,14 +33,14 @@ namespace Metagame.Network
         bool approaching, performing;
         float faceStarted, approachDeadline;
         bool watchRequester;
-        public string SocialPerforming => performing ? social : null;
+        public string SocialPerforming => performing ? social : !Busy ? ambient.Performing : null;
         public bool Busy => work.Active || pin.Active || follow.Active || social != null || pending.Count > 0;
 
         /// <summary>마지막 작업이 어떻게 끝났는가 · 왜 (S15P21B202-703). 화면 글자가 아니라 값이다.</summary>
         public AiTaskOutcome WorkOutcome => work.Outcome;
         public string WorkReason => work.Reason;
         public static bool IsSocial(string action) => action == "dance" || action == "greet" || action == "heart" || action == "cheer";
-        public string Status => recoveryStatus ?? (workOrder ? work.Status : approaching ? "다가가는 중" : social != null && !performing ? "말한 사람 바라보는 중" : social != null ?
+        public string Status => Ambient ? ambient.Status : recoveryStatus ?? (workOrder ? work.Status : approaching ? "다가가는 중" : social != null && !performing ? "말한 사람 바라보는 중" : social != null ?
             (social == "dance" ? "춤추는 중" : social == "greet" ? "인사하는 중" : "감정 표현 중") :
             pinOrder ? pin.Status : follow.Status);
         public bool Apply(string action, PlayerRig speaker, PlayerRig self, bool approach = false, string destination = "default")
@@ -106,6 +115,9 @@ namespace Metagame.Network
                 if (!Apply(next.action, source, self, next.approach, next.destination)) { pending.Clear(); return default; }
                 planSpeaker = source; foreach (var step in rest) pending.Enqueue(step); advance = false;
             }
+            // 명령이 없으면 기본 행동이다 (S15P21B202-746). 전에는 여기서 TickCore 가 "말한 사람이
+            // 없음" 으로 멈추고 끝이라, 명령을 기다리는 동료가 선 채로 굳어 있었다.
+            if (!Busy && AiDemoCommands.Enabled) return ambient.Tick(self, allowed, AmbientCanDance, Time.time);
             return TickCore(self, allowed);
         }
         public void QueueAfterCurrent(AiCommandStep[] steps, PlayerRig speaker)
@@ -187,6 +199,7 @@ namespace Metagame.Network
         public void Stop(string reason)
         {
             work.Cancel(reason); workOrder = false; pending.Clear(); planSpeaker = null; advance = false;
+            ambient.Stop();
             pin.Cancel(); follow.Stop(); recovery.Reset(); requester = null; recoveryStatus = null; pinOrder = false;
             social = null; gather = false; approaching=false; performing=false; watchRequester=false;
         }

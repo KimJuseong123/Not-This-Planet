@@ -87,6 +87,7 @@ namespace Metagame.Network
                 case "cancel": return "하던 일 그만두기";
                 case "revive": return "쓰러진 동료 일으키기";
                 case "pull_pin": return "고정못 뽑기";
+                case "come": return "이쪽으로 오기";
                 case "pull_all_pins": return "고정못 모두 뽑기";
                 case "pickup_tool": return "도구 집기";
                 case "pickup_bat": return "방망이 집기";
