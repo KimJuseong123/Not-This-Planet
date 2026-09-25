@@ -33,6 +33,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(AiWorkTask.CarrySettleSeconds, Is.InRange(.3f, 2f));
             Assert.That(AiWorkTask.BoardRepress, Is.InRange(1f, 4f), "탑승 제한(5초) 안에 한 번은 다시 눌러야 한다");
             Assert.That(AiWorkTask.LowerTimeout, Is.InRange(8f, 30f), "없으면 작업 전체 제한(180초)까지 떠 있다");
+            Assert.That(AiWorkTask.FieldRepress, Is.InRange(.2f, 2f), "매 틱 누르면 켜짐이 늦을 때 도로 꺼진다");
         }
 
         [Test]
@@ -71,6 +72,29 @@ namespace Metagame.Gameplay.Tests
             Assert.That(tick, Does.Contain("if (pulse && Time.time - boardPressAt > BoardRepress) pulse = false;"));
             Assert.That(tick, Does.Contain("Time.time - phaseAt > LowerTimeout"));
             Assert.That(tick, Does.Contain("landingRetries++ < 2 && needsCargo"), "정렬 재시도는 안착 확인과 같은 한도를 쓴다");
+            Assert.That(tick, Does.Contain("fieldPressAt = Time.time + FieldRepress;"), "장 켜기는 간격을 두고 누른다");
+            Assert.That(tick, Does.Not.Contain("input.FieldToggle = !field.IsActive;"), "매 틱 켜기 입력을 주던 줄이 돌아왔다");
+            Assert.That(tick, Does.Contain("if (abortReason != null) Finish(false,"),
+                "내려놓기로 끝내는 중의 안착을 성공으로 적으면 실패가 사라진다");
+        }
+
+        /// <summary>
+        /// 파츠를 장에 든 채 실패하면 <b>바닥에 내려놓고</b> 실패한다 (S15P21B202-712). 전에는 장을 켠 채로
+        /// 끝내서 파츠가 주인 없이 공중에 떠 있었다.
+        /// </summary>
+        [Test]
+        public void AFailedLiftSetsThePartDownInsteadOfLeavingItHanging()
+        {
+            var fail = TestSource.Method(Vehicle, "void FailVehicle(string why)");
+            Assert.That(fail, Does.Contain("vehicle.Field.IsActive"));
+            Assert.That(fail, Does.Contain("GroundBelow(cargo.position, out var ground)"));
+            Assert.That(fail, Does.Contain("Phase(5);"), "평소 하역과 안착 확인을 그대로 쓴다");
+            Assert.That(fail, Does.Contain("abortReason == null && part != null"),
+                "사람을 태웠거나 이미 내려놓는 중이면 바로 실패해야 한다 — 되풀이하지 않는다");
+            var tick = TestSource.Method(Vehicle, "InputFrame TickVehicle()");
+            var fly = TestSource.Method(Vehicle, "bool Fly(Vector3 target, ref InputFrame input, bool loaded)");
+            Assert.That(Count(tick, "FailVehicle(") + Count(fly, "FailVehicle("), Is.GreaterThanOrEqualTo(4),
+                "들고 있을 때 나는 실패(인양 · 정렬 시간 · 통과 공간 · 이동 진행)가 내려놓기를 거쳐야 한다");
         }
     }
 }
