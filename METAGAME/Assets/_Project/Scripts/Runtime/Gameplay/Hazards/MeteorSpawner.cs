@@ -713,10 +713,9 @@ namespace Metagame.Gameplay.Hazards
             }
             _elapsed += deltaTime;
 
-            AdvanceSchedule(deltaTime);
-            AdvancePending(deltaTime);
-            AdvanceLive(deltaTime);
-            AdvanceScars(deltaTime);
+            using (new Metagame.Core.FrameSections.Section(Metagame.Core.FrameSections.MeteorSchedule, System.Diagnostics.Stopwatch.GetTimestamp())) { AdvanceSchedule(deltaTime); AdvancePending(deltaTime); }
+            using (new Metagame.Core.FrameSections.Section(Metagame.Core.FrameSections.MeteorLive, System.Diagnostics.Stopwatch.GetTimestamp())) AdvanceLive(deltaTime);
+            using (new Metagame.Core.FrameSections.Section(Metagame.Core.FrameSections.MeteorScars, System.Diagnostics.Stopwatch.GetTimestamp())) AdvanceScars(deltaTime);
         }
 
         /// <summary>

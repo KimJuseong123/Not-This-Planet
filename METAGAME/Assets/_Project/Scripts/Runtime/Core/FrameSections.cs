@@ -14,10 +14,15 @@ namespace Metagame.Core
     public static class FrameSections
     {
         public const int PlayerRig = 0, NetPlayer = 1, WorldSync = 2, PartPush = 3, PartLink = 4,
-                         Transport = 5, RemoteAvatar = 6, LowGravity = 7, Meteors = 8, Count = 9;
+                         Transport = 5, RemoteAvatar = 6, LowGravity = 7, Meteors = 8,
+                         // 세부의 세부 — 위 칸 안에 든다(겹쳐 센다). 2026-09-26 QA: 운석 공세에서 운석 6ms · PlayerRig 4ms ·
+                         // NetPlayer 4ms 로 커졌는데 어디인지 몰랐다.
+                         RigFocus = 9, RigAnchored = 10, NetAi = 11, NetTransport = 12,
+                         MeteorSchedule = 13, MeteorLive = 14, MeteorScars = 15, Count = 16;
 
         public static readonly string[] Names =
-            { "PlayerRig", "NetPlayer", "WorldSync", "PartPush", "PartLink", "견인", "RemoteAvatar", "저중력", "운석" };
+            { "PlayerRig", "NetPlayer", "WorldSync", "PartPush", "PartLink", "견인", "RemoteAvatar", "저중력", "운석",
+              "·Rig대상찾기", "·Rig파츠충돌", "·Net AI", "·Net견인", "·운석일정", "·운석틱", "·운석흔적" };
 
         static readonly long[] Ticks = new long[Count];
 
