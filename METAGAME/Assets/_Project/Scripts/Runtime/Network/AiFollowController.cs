@@ -71,9 +71,27 @@ namespace Metagame.Network
             { bestRemaining = route.Remaining; progressGoal = to; progressTime = Time.time; moving = true; }
             if (route.Remaining < bestRemaining - .25f) { bestRemaining = route.Remaining; progressTime = Time.time; }
             if (Time.time - progressTime > 6f) { Stop(); Status = "이동 불가 · 다시 지시해 주세요"; return default; }
-            if (!SafeStep(self, from, direction, hits)) { Status = "장애물 앞에서 경로 재탐색"; return default; }
+            if (!SteerAround(self, from, ref direction, hits)) { Status = "장애물 앞에서 경로 재탐색"; return default; }
             Status = "따라오기";
             return new InputFrame { AimYaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg, Move = Vector2.up };
+        }
+
+        static readonly float[] AroundAngles = { 30f, -30f, 60f, -60f, 90f, -90f };
+
+        /// <summary>
+        /// 앞이 막혔으면 비스듬히 돌아 나갈 방향을 찾는다 (S15P21B202-746). 길찾기 바닥은 움직이는 것(떨어진 운석 ·
+        /// 밀린 파츠)을 모른다 — 2026-09-26 QA 에서 갈 수 있는 곳 앞에 운석이 떨어지자 동료가 선 채로 멈췄다.
+        /// 돌아 나갈 곳이 있으면 참이고 <paramref name="direction"/> 을 그쪽으로 바꾼다.
+        /// </summary>
+        internal static bool SteerAround(PlayerRig self, Vector3 from, ref Vector3 direction, RaycastHit[] hits, float lookAhead = .6f)
+        {
+            if (SafeStep(self, from, direction, hits, lookAhead)) return true;
+            foreach (float angle in AroundAngles)
+            {
+                var turned = Quaternion.Euler(0, angle, 0) * direction;
+                if (SafeStep(self, from, turned, hits, lookAhead)) { direction = turned; return true; }
+            }
+            return false;
         }
 
         internal static bool SafeStep(PlayerRig self, Vector3 from, Vector3 direction, RaycastHit[] hits, float lookAhead = .6f)

@@ -151,9 +151,16 @@ class Worker:
             # 데웠는데, 게임은 companion_plan 만 부른다. ollama 는 슬롯이 하나(NUM_PARALLEL=1)라 마지막
             # 프롬프트의 앞머리만 캐시에 남으므로, 첫 실제 명령이 1000토큰 가까운 프롬프트를 처음부터
             # 다시 읽었다 — 2026-09-25 측정에서 캐시가 비면 판단마다 약 2.2초가 더 들었다.
-            result = companion_plan.classify("준비 검사입니다", self.url)
-            if result.get("status") not in ("ok", "none", "clarify"):
-                raise ValueError("invalid_warmup_result")
+            # 시연에서는 시연 프롬프트로 데운다 (S15P21B202-746) — 게임이 실제로 부르는 앞머리여야
+            # 첫 명령이 캐시를 쓴다(-741).
+            if command_rules.DEMO:
+                if companion_plan.classify_demo("준비 검사입니다", self.url,
+                                                timeout=companion_plan.DEMO_WARMUP_TIMEOUT).get("action") not in companion_plan.DEMO_CHOICES:
+                    raise ValueError("invalid_warmup_result")
+            else:
+                result = companion_plan.classify("준비 검사입니다", self.url)
+                if result.get("status") not in ("ok", "none", "clarify"):
+                    raise ValueError("invalid_warmup_result")
             if not self.stopping.is_set():
                 self.state = "ready"
         except Exception:
@@ -163,7 +170,14 @@ class Worker:
     def stop_ollama(self):
         process = self.process
         if process is not None and process.poll() is None:
-            # Only the child started by this worker. Never kill by port or process name.
+            # Only the child started by this worker (and its own children). Never kill by port or process name.
+            # ollama 만 끝내면 그 자식 llama-server 가 남는다 (S15P21B202-745 · -746) — 워커가 살아 있는 동안은
+            # 잡 객체도 닫히지 않으므로, 데우기 실패 뒤에도 모델 1.5GB 를 쥔 채 남았다.
+            try:
+                for child in psutil.Process(process.pid).children(recursive=True):
+                    child.kill()
+            except psutil.Error:
+                pass
             process.terminate()
             try:
                 process.wait(timeout=5)
@@ -187,12 +201,46 @@ class Worker:
         규칙이 못 정하면 지금처럼 판단기다. 돌려주는 꼴은 같다 — 게임은 어느 쪽이 정했는지
         `decided_by` 와 판단 시간 0 으로만 안다(로그에 "판단 0.0초" 로 찍힌다).
         """
+        if command_rules.DEMO:
+            return self.plan_demo(text)
         fast = command_rules.decide(text)
         if fast is None:
             return companion_plan.classify(text, self.url)
         return {**fast, "text": text, "decided_by": "rules", "raw_decision": None,
                 "safety_override": False, "unsaid_social": None, "prompt_version": "rules-v1",
                 "model": "rules", "llm_ms": 0, "llm_load_ms": 0, "llm_eval_ms": 0, "llm_tokens": 0}
+
+    def plan_demo(self, text):
+        """시연 명령 (S15P21B202-746). **LLM 이 넷 중 하나를 고른다.** 규칙은 거드는 쪽이다.
+
+        · 멈추라는 말이면 판단 없이 none — 넷 중 어느 것도 멈춤이 아니다(안전 거부).
+        · LLM 이 고르면 그대로 쓴다. 규칙과 달라도 LLM 을 믿는다 — 규칙의 짐작은 `rule_guess` 로 남긴다.
+        · LLM 이 none 이거나 실패·시간 초과면, 규칙(낱말·자모 유사도)이 고른 것이 있을 때만 그것을 쓴다.
+          시연 중 판단기가 한 번 헛돌았다고 명령이 사라지지 않게.
+        """
+        rule = command_rules.demo_decide(text)
+        rule_action = rule["orders"][0]["steps"][0]["action"] if rule["orders"] else None
+        base = {"text": text, "raw_decision": None, "safety_override": False, "unsaid_social": None,
+                "model": "qwen3:1.7b", "llm_ms": 0, "llm_load_ms": 0, "llm_eval_ms": 0, "llm_tokens": 0,
+                "rule_guess": rule_action, "llm_error": None}
+        if command_rules.DEMO_STOP.search(text or ""):
+            return {**base, "status": "none", "orders": [], "decided_by": "safety", "safety_override": True,
+                    "prompt_version": "demo-llm-v1"}
+        try:
+            judged = companion_plan.classify_demo(text, self.url)
+            base.update({k: judged[k] for k in ("raw_decision", "prompt_version", "llm_ms", "llm_load_ms",
+                                                "llm_eval_ms", "llm_tokens")})
+            action, decided = judged["action"], "llm"
+        except Exception as error:
+            base.update(prompt_version="demo-llm-v1", llm_error=type(error).__name__)
+            action, decided = None, "llm"
+        if action in (None, "none") and rule_action:
+            action, decided = rule_action, "rules-fallback"
+        if action in (None, "none"):
+            return {**base, "status": "none", "orders": [], "decided_by": decided}
+        return {**base, "decided_by": decided, "status": "ok", "orders": [{
+            "recipients": command_rules.recipient(text),
+            "steps": [{"action": action, "approach": False, "destination": "default"}]}]}
 
     def execute(self, text=None, raw=None, social=False, plan=False):
         if self.state != "ready" or self.stopping.is_set():
@@ -347,6 +395,13 @@ def main():
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", args.port))
     job = OwnedJob() if os.name == "nt" else None
+    # 게임보다 낮은 우선순위 (S15P21B202-746) — 받아쓰기·판단 중 게임 fps 가 3~8 로 떨어졌다. ollama 를 띄우기
+    # 전에 낮춰야 자식도 물려받는다. 게임도 같은 것을 하지만 옛 게임이 이 팩을 띄울 수도 있다.
+    if os.name == "nt":
+        try:
+            psutil.Process().nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)
+        except (psutil.Error, AttributeError):
+            pass
     os.environ.update(HF_HUB_OFFLINE="1", TRANSFORMERS_OFFLINE="1")
     worker.server = uvicorn.Server(uvicorn.Config(make_app(worker), host="127.0.0.1", port=args.port,
         access_log=False, log_level="critical", timeout_graceful_shutdown=5, ws="none"))

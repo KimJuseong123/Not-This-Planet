@@ -935,6 +935,7 @@ namespace Metagame.Network
         /// </summary>
         void FixedUpdate()
         {
+            using var frameSection = Metagame.Core.FrameSections.Scope(Metagame.Core.FrameSections.WorldSync);   // S15P21B202-746 프레임 기록
             if (!ready || isServer) return;
             FollowOnClient();
         }

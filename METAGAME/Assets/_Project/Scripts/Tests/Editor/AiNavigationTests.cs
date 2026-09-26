@@ -82,7 +82,7 @@ namespace Metagame.Gameplay.Tests
         public void EveryBakeOutcomeHasItsOwnCounter()
         {
             var update = TestSource.Method(TestSource.Read("Runtime/Network/AiNavigationWorld.cs"), "void Update()");
-            foreach (var outcome in new[] { "Busy", "Unchanged", "Reordered", "Deferred", "Baked" })
+            foreach (var outcome in new[] { "Busy", "Unchanged", "Reordered", "Deferred", "Baked", "Jitter", "Settling", "Spacing" })
                 Assert.That(update, Does.Contain("case RebuildOutcome." + outcome + ":"), outcome + " 을 세는 칸이 없다");
             Assert.That(update, Does.Not.Contain("else unchanged++"), "안 구운 것을 한 칸에 몰아 센다");
         }

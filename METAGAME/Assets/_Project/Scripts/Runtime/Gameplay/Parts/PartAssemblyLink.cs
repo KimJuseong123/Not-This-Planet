@@ -291,7 +291,7 @@ namespace Metagame.Gameplay.Parts
 
         public void Unregister() => All.Remove(this);
 
-        void FixedUpdate() => Tick();
+        void FixedUpdate() { using var frameSection = Metagame.Core.FrameSections.Scope(Metagame.Core.FrameSections.PartLink); Tick(); }   // S15P21B202-746 프레임 기록
 
         /// <summary>
         /// 조인트가 아직 살아 있는지 확인한다. 끊어졌으면 맞물림을 푼다.

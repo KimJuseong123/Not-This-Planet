@@ -246,7 +246,7 @@ namespace Metagame.Gameplay.Parts
             _part != null && _body != null && !_body.isKinematic
             && _part.State == PartState.Free;
 
-        void FixedUpdate() => Tick(Time.fixedDeltaTime);
+        void FixedUpdate() { using var frameSection = Metagame.Core.FrameSections.Scope(Metagame.Core.FrameSections.PartPush); Tick(Time.fixedDeltaTime); }   // S15P21B202-746 프레임 기록
 
         /// <summary>매 물리 스텝 호출한다.</summary>
         public void Tick(float deltaTime)

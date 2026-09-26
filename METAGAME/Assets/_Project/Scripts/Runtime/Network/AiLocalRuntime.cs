@@ -219,6 +219,12 @@ namespace Metagame.Network
                     PointHomeIntoThePack(start);
                     worker = new Process { StartInfo = start };
                     worker.Start();
+                    // **워커는 게임보다 낮은 우선순위로 돈다** (S15P21B202-746). 2026-09-25 QA: 말을 받아쓰고
+                    // 판단하는 동안 fps 가 3~8 로 떨어졌다 — 받아쓰기·LLM 의 스레드가 게임과 같은 우선순위로
+                    // CPU 를 다퉜다. 낮추면 게임 스레드가 먼저 돌고 워커는 남는 코어를 쓴다. 워커가 띄우는
+                    // ollama · llama-server 는 이 우선순위를 물려받는다(보통 이하는 상속된다).
+                    try { worker.PriorityClass = ProcessPriorityClass.BelowNormal; }
+                    catch (Exception) { }
                     worker.StandardInput.WriteLine(token);
                     worker.StandardInput.Close();
                 }
@@ -341,6 +347,19 @@ namespace Metagame.Network
             return " · 데우기 " + Clock(took) + (warmupFirst ? " (설치 뒤 첫 실행)" : "") + " · 예상 " + Clock(WarmupExpected);
         }
 
+        /// <summary>워커의 건강 응답이 <c>failed</c> 이면 그 이유, 아니면 null. <b>순수 함수</b>다.</summary>
+        public static string ReportedFailure(string json)
+        {
+            try
+            {
+                var h = JsonUtility.FromJson<HealthReport>(json);
+                return h != null && h.state == "failed" ? (string.IsNullOrEmpty(h.error) ? "failed" : h.error) : null;
+            }
+            catch (System.Exception) { return null; }
+        }
+
+        [System.Serializable] sealed class HealthReport { public string state; public string error; }
+
         IEnumerator Watch(int epoch)
         {
             float began = Time.realtimeSinceStartup;
@@ -362,6 +381,10 @@ namespace Metagame.Network
                     // 아직 ready 가 아니어도 **대답이 왔다면 살아서 데우고 있다.** 그 사실만으로
                     // 침묵 마감을 다시 민다 — 예전에는 이 구분이 없어 데우는 중에 잘렸다.
                     if (answered) silentUntil = Time.realtimeSinceStartup + SilenceLimit;
+                    // **워커가 실패했다고 말하면 곧바로 실패다** (S15P21B202-746). 전에는 "대답이 왔으니 데우는 중"
+                    // 으로 보고 15분(WarmupLimit)을 기다렸다 — 2026-09-25 QA 에서 설치 99% 에 멈춘 것처럼 보였다.
+                    string reported = answered ? ReportedFailure(request.downloadHandler.text) : null;
+                    if (reported != null) { Fail("추가팩 준비 실패 (" + reported + ") · 다시 시도해 주세요"); yield break; }
                     if (answered && ValidHealth(request.downloadHandler.text))
                     {
                         if (State != AiRuntimeState.Ready)
@@ -475,7 +498,7 @@ namespace Metagame.Network
                 // 뭐라고 들렸는지" 를 알고 다시 말할 수 있다 — 지금은 같은 말을 같은
                 // 목소리로 되풀이하는 것 말고 할 수 있는 것이 없다.
                 if (result == null || result.status != "ok" || !AiCommandPlan.Valid(result.orders))
-                { requester.ReportAiVoice(Heard(result) + "명령으로 알아듣지 못했어요"); yield break; }
+                { requester.ReportAiVoiceOutcome(Said(result), "알아듣지 못했어요", 0, false); yield break; }
                 // **버튼으로 골랐으면 말 속의 대상을 버튼의 색으로 덮는다** (S15P21B202-738).
                 // 받아쓰기가 색을 틀리거나 LLM 이 대상을 잘못 골라도 버튼의 동료가 한다.
                 // 원래 계획은 위의 ReportPlan 이 이미 남겼으므로, 덮은 뒤의 모양만 한 줄 더 남긴다.
@@ -490,9 +513,10 @@ namespace Metagame.Network
                 // 아무도 안 받았으면 **왜인지**를 말한다 (S15P21B202-730). 전에는 언제나
                 // "지금 수행할 수 있는 AI 동료가 없어요" 라서, 쓰러진 채 말한 사람은
                 // 자기가 기절해서인지 동료가 바빠서인지 알 수 없었다.
-                requester.ReportAiVoice(group.LastAccepted > 0
-                    ? Heard(result) + (AiCommandPlan.Spoken(orders) ?? "명령") + " 시켰어요"
-                    : Heard(result) + (group.LastRefusal ?? "지금 수행할 수 있는 AI 동료가 없어요"));
+                // 배너에는 둘만 — 들은 말 · 한 명령 — 과 누가 받았는지(자리 비트). 못 했으면 까닭 (S15P21B202-746).
+                requester.ReportAiVoiceOutcome(Said(result),
+                    group.LastAccepted > 0 ? CommandName(orders) : group.LastRefusal ?? "할 수 있는 동료가 없어요",
+                    group.LastAcceptedSlots, group.LastAccepted > 0);
             }
         }
 
@@ -519,6 +543,24 @@ namespace Metagame.Network
         /// <para>길면 자른다 — 화면 아래 두 줄짜리 자리다.</para>
         /// </summary>
         public const int HeardLimit = 24;
+
+        /// <summary>들은 말 그대로(따옴표 없이), 너무 길면 자른다.</summary>
+        static string Said(PlanDecision result)
+        {
+            string said = result != null ? result.text : null;
+            if (string.IsNullOrWhiteSpace(said)) return "";
+            said = said.Trim();
+            return said.Length > HeardLimit ? said.Substring(0, HeardLimit) + "…" : said;
+        }
+
+        /// <summary>한 명령의 사람 말 이름 — 시연에서는 넷 중 옮긴 것(<see cref="AiDemoCommands"/>).</summary>
+        static string CommandName(AiCommandAssignment[] orders)
+        {
+            var step = orders != null && orders.Length > 0 && orders[0]?.steps != null && orders[0].steps.Length > 0 ? orders[0].steps[0] : null;
+            if (step == null) return "명령";
+            string action = AiDemoCommands.Enabled ? AiDemoCommands.Map(step.action, step.destination) ?? step.action : step.action;
+            return AiCommandPlan.ActionName(action);
+        }
 
         static string Heard(PlanDecision result)
         {

@@ -1050,6 +1050,7 @@ namespace Metagame.Network
         [ServerCallback]
         void FixedUpdate()
         {
+            using var frameSection = Metagame.Core.FrameSections.Scope(Metagame.Core.FrameSections.NetPlayer);   // S15P21B202-746 프레임 기록
             if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
             // 게임 씬이 준비될 때까지 기다렸다 몸을 세운다.
             if (body == null)
@@ -1098,11 +1099,14 @@ namespace Metagame.Network
             InputFrame frame = hostOwnBody ? body.CurrentInput : pendingInput.Consume();
             if (IsAi)
             {
+                aiFollow.AmbientCanDance = AiCanDanceNow;
                 frame = aiFollow.Tick(body, AiHostSettings.ServerState == AiRoomState.Active
                     && !HostMigration.Pending && !HostMigration.Taking && !HostMigration.Settling
                     && GameSession.Instance != null && !GameSession.Instance.CinematicInputBlocked
                     && !GameSession.Instance.EndingActive);
                 UpdateAiSocialPresentation();
+                LogAiActivity();
+                UpdateAiBadge();
             }
             if (GameSession.Instance != null && GameSession.Instance.CinematicInputBlocked)
             {

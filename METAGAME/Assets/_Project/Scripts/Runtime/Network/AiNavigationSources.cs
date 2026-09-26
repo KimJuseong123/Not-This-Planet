@@ -216,6 +216,43 @@ namespace Metagame.Network
         public static bool BakeDue(Demand demand, float staleFor, float idleStaleSeconds)
             => demand != Demand.Idle || staleFor >= idleStaleSeconds;
 
+        /// <summary>
+        /// 바뀐 것이 <b>파츠의 작은 흔들림뿐</b>인가 (S15P21B202-746). 모양 · 생김 · 없어짐 · 파츠 아닌 변화가 없고, 가장 많이 움직인
+        /// 모서리도 반 복셀 안이면 참 — 굽지 않는다. 기준은 <b>마지막으로 구운 모습</b>이라, 조금씩 쌓인 이동은 결국 반 복셀을 넘을
+        /// 때 굽는다. 2026-09-26 QA: 30초에 파츠 이동 14~29회로 2초마다 구웠는데 그중 최대 1/3 이 6cm 안이었다. <b>순수 함수</b>다.
+        /// </summary>
+        public static bool OnlyJitter(in Tally drift, float voxel)
+            => drift.PartShape == 0 && drift.OtherChanged == 0 && drift.Added == 0 && drift.Removed == 0
+               && drift.MaxShift < voxel * .5f;
+
+        /// <summary>
+        /// 일하는 중에도 굽기 사이를 이만큼 둔다(초) (S15P21B202-746). 굽기 한 번이 메인 스레드를 약 95ms 멈추고 굽는 동안의 프레임도
+        /// 평균 50ms 였다(2026-09-26 QA) — 2초마다면 게임이 끊긴다. 몇 초 묵은 길은 걸음 검사(SteerAround)가 메운다.
+        /// 명령이 막 왔을 때(<see cref="Wakes"/>)는 기다리지 않는다.
+        /// </summary>
+        public const float WorkingBakeGap = 6f;
+
+        /// <summary>파츠가 굴러가는 중이면 멈출 때까지 굽기를 미룬다 — 이 속도(m/s) 아래가 멈춘 것.</summary>
+        public const float SettleSpeed = .3f;
+
+        /// <summary>그래도 이만큼(초) 지나면 굽는다 — 계속 흔들리는 파츠 때문에 길이 영영 안 바뀌지 않게.</summary>
+        public const float SettleWaitMax = 10f;
+
+        /// <summary>
+        /// 지금 굽기를 미룰 까닭. 없으면 null. <b>순수 함수</b>다.
+        /// </summary>
+        /// <param name="sinceLastBake">마지막으로 구운 뒤 흐른 초.</param>
+        /// <param name="staleFor">바뀐 것을 처음 본 뒤 흐른 초.</param>
+        /// <param name="onlyMoves">바뀐 것이 파츠의 자세뿐이다. 파츠가 빠지거나 돌아오거나 모양이 바뀌면(들림 · 내려놓임 · 용접)
+        /// 기다리지 않는다 — 들린 파츠 자리에 구멍이 남거나 내려놓인 파츠를 뚫고 간다.</param>
+        public static string Hold(bool urgent, bool onlyMoves, float sinceLastBake, float staleFor, bool partsMoving)
+        {
+            if (urgent || !onlyMoves) return null;
+            if (partsMoving && staleFor < SettleWaitMax) return "settle";
+            if (sinceLastBake < WorkingBakeGap) return "gap";
+            return null;
+        }
+
         /// <summary>쉬다가 쓸 일이 생겼는가 — 그 순간 기다리지 않고 한 번 굽는다.</summary>
         public static bool Wakes(Demand before, Demand now) => before == Demand.Idle && now != Demand.Idle;
     }

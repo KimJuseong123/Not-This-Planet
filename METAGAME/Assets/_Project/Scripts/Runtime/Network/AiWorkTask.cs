@@ -35,7 +35,7 @@ namespace Metagame.Network
         /// 를 이 값으로 가른다. 다른 작업은 시킨 사람이 쓰러지면 뜻을 잃지만 살리기는
         /// <b>대상이 따로</b> 있다.</para>
         /// </summary>
-        public bool Rescuing => Active && action == "revive";
+        public bool Rescuing => Active && (action == "revive" || Standing(action));
         public bool Succeeded { get; private set; }
         public string Status { get; private set; } = "대기";
 
@@ -53,7 +53,7 @@ namespace Metagame.Network
         public bool WantsMovement { get; private set; }
         public Vector3? MovementGoal => WantsMovement ? goal : (Vector3?)null;
         public static readonly string[] Actions = {
-            "pull_all_pins", "pickup_tool", "pickup_bat", "pickup_welder", "drop_tool", "bring_tool",
+            "pull_pin", "come", "pull_all_pins", "pickup_tool", "pickup_bat", "pickup_welder", "drop_tool", "bring_tool",
             "bring_bat", "bring_welder", "hit_target", "defend_meteors", "grab_part", "release_part",
             "carry_part", "weld", "cut_weld", "board_tractor", "leave_tractor", "move_tractor",
             "lift_player", "lift_part", "transport_part", "hold_tractor", "stack_part", "goto", "revive"
@@ -63,7 +63,7 @@ namespace Metagame.Network
         /// 일으키러 갈 동료를 찾는 반경(m) (S15P21B202-716). 이보다 멀면 "없다" 로 본다 —
         /// 맵 반대편으로 혼자 보내는 것은 도움이 아니다.
         /// </summary>
-        public const float ReviveSearchRange = 40f;
+        public const float ReviveSearchRange = 150f;   // 판 전체 — 2026-09-26 QA: 40m 밖의 기절자를 "없음" 으로 봤다
 
         /// <summary>
         /// 이만큼 붙어야 일으키기가 걸린다(m).
@@ -84,6 +84,38 @@ namespace Metagame.Network
         /// 들썩이지 않는다.</para>
         /// </summary>
         public const float GotoDriftLimit = 2.5f;
+
+        /// <summary>
+        /// <c>come</c>(이쪽으로 와)는 말한 사람과 이만큼 가까워지면 멈춘다(m, 평면) (S15P21B202-746).
+        /// 몸통 둘이 부딪히지 않고, 말한 사람이 "왔다" 고 느끼는 거리.
+        /// </summary>
+        public const float ComeStopDistance = 2f;
+
+        /// <summary>이보다 멀면 뛰어서 온다(m). 부른 사람을 오래 기다리게 하지 않는다.</summary>
+        public const float ComeRunDistance = 6f;
+
+        /// <summary>
+        /// 고정못 하나를 못 뽑으면 <b>다음으로 가까운 못</b>을 이만큼 더 해 본다 (S15P21B202-746).
+        /// 한 번 어긋났다고 명령 전체를 버리면 시연에서 "못 알아들었다" 로 보인다.
+        /// </summary>
+        public const int PinRetries = 2;
+
+        /// <summary>
+        /// 멈추지 않는 명령인가 (S15P21B202-746). 고정못은 없을 때까지, 운석은 계속 — 시킨 사람이 쓰러져도
+        /// 이어 간다(살리기와 같다). 동료가 쓰러졌다 일어나면 <see cref="AiCompanionController"/> 가 다시 건다.
+        /// </summary>
+        public static bool Standing(string value) => value == "pull_pin" || value == "defend_meteors";
+
+        /// <summary>시킨 일이 더 할 것 없이 끝났다 — 다시 걸 필요가 없다(뽑을 못이 없다).</summary>
+        public bool Exhausted { get; private set; }
+        int pinsPulled;
+        bool pinsRetried;
+
+        /// <summary>작업이 끝날 때마다 하나씩 는다 — 화면이 "새 결과가 났다" 를 안다 (S15P21B202-746).</summary>
+        public int OutcomeSeq { get; private set; }
+
+        /// <summary>이번 작업에서 해낸 수 — 뽑은 못 · 쳐낸 운석. 화면이 한 건마다 띄운다.</summary>
+        public int Tally { get; private set; }
         public static bool Supports(string value) => System.Array.IndexOf(Actions, value) >= 0;
         public static bool VehicleOrder(string value) => value == "board_tractor" || value == "leave_tractor"
             || value == "move_tractor" || value == "lift_player" || value == "lift_part"
@@ -106,7 +138,7 @@ namespace Metagame.Network
         public bool Begin(string command, PlayerRig actor, PlayerRig requester, string to = "default")
         {
             if (!Supports(command) || actor == null || requester == null) return false;
-            Cancel("새 명령"); self = actor; speaker = requester; action = command; destination = to;
+            Cancel("새 명령"); self = actor; speaker = requester; action = command; destination = to; Exhausted = false; Tally = 0;
             Active = true; Succeeded = false; started = Time.time; Phase(0);
             Outcome = AiTaskOutcome.Running; Reason = null; Command = command;
             Status = command + " · 준비";
@@ -120,6 +152,16 @@ namespace Metagame.Network
             }
             // goto 는 목적지 말고는 준비할 것이 없다 — 위에서 이미 풀었다.
             if (command == "goto") return true;
+            if (command == "come") { comeGoal = speaker.FootPosition; return true; }
+            if (command == "pull_pin")
+            {
+                // 명령받은 동료에게서 가장 가까운 못 (S15P21B202-746). 손에 든 도구는 먼저 내려놓는다 —
+                // 전에는 "도구를 내려놓은 뒤 지시해 주세요" 로 끝났고, 로그에도 남지 않았다.
+                attemptedPins.Clear(); pinCount = 0; pinTarget = null; part = null; pinsPulled = 0; pinsRetried = false;
+                Phase(self.HeldTool != null ? 0 : 1);
+                if (phase == 1) pin.Begin(self, speaker, null, attemptedPins);
+                return true;
+            }
             if (command == "revive") return BeginRevive();
             if (VehicleOrder(command)) return BeginVehicle();
             if (command == "grab_part" || command == "carry_part" || command == "release_part") return BeginCarry();
@@ -133,12 +175,12 @@ namespace Metagame.Network
             // **살리기는 말한 사람이 쓰러져도 이어 간다** (S15P21B202-716). 다른 작업은
             // 시킨 사람이 쓰러지면 뜻을 잃지만, 살리기는 **대상이 따로 있다.** 여기서 끊으면
             // 둘이 연달아 쓰러졌을 때 AI 가 가던 길을 되돌아온다 — 가장 필요한 순간에.
-            if (self == null || speaker == null || self.Downed || (speaker.Downed && action != "revive"))
+            if (self == null || speaker == null || self.Downed || (speaker.Downed && action != "revive" && !Standing(action)))
             { Finish(false, "플레이어 상태 변경으로 중단"); return default; }
             // goto 는 도착한 뒤 그 자리를 지키는 지속 작업이라 시간으로 끊지 않는다
             // (S15P21B202-717). 못 가는 경우는 Navigate 가 "이동 막힘" 으로 따로 끝낸다.
             if (Time.time - started > 180f && action != "defend_meteors" && action != "grab_part"
-                && action != "hold_tractor" && action != "goto")
+                && action != "hold_tractor" && action != "goto" && !Standing(action))
             { Finish(false, "작업 시간 초과"); return default; }
             if (action == "pull_all_pins")
             {
@@ -159,6 +201,8 @@ namespace Metagame.Network
                 return input;
             }
             if (action == "goto") return TickGoto();
+            if (action == "come") return TickCome();
+            if (action == "pull_pin") return TickPin();
             if (action == "revive") return TickRevive();
             if (VehicleOrder(action)) return TickVehicle();
             if (action == "grab_part" || action == "carry_part" || action == "release_part") return TickCarry();
@@ -180,6 +224,7 @@ namespace Metagame.Network
         {
             Settle(AiTaskOutcome.Cancelled, reason);
             pin.Cancel(); ReleaseClaims(); route.Reset(); StopVehicle();
+            ReleaseChase();
             Active = false; WantsMovement = false; Succeeded = false;
             self = speaker = null; part = null; tool = null; toolGrab = null; carry = null; vehicle = null;
             rescueTarget = null;
@@ -210,7 +255,7 @@ namespace Metagame.Network
         void Settle(AiTaskOutcome outcome, string reason)
         {
             if (Outcome != AiTaskOutcome.Running) return;
-            Outcome = outcome; Reason = reason;
+            Outcome = outcome; Reason = reason; OutcomeSeq++;
             Debug.Log(AiTaskOutcomes.LogLine(Command, outcome, reason, Time.time - started));
         }
         void ReleaseClaims()
@@ -253,9 +298,28 @@ namespace Metagame.Network
             CollectDowned();
             foreach (var rig in downed)
                 if (Claim(rig)) { rescueTarget = rig; rescueBest = 0f; rescueAt = Time.time; return true; }
+            if (downed.Count == 0) Debug.Log("[AI] 살릴 사람 찾기 · " + DownedCensus());
             Finish(false, downed.Count == 0 ? "기절한 동료가 없음"
                                             : "쓰러진 동료마다 이미 다른 동료가 가고 있음");
             return false;
+        }
+
+        /// <summary>
+        /// 살릴 사람을 못 찾았을 때 로그에 남길 한 줄 — 누가 어디서 무슨 상태인지 (S15P21B202-746). 2026-09-26 QA 에서
+        /// 말한 사람이 기절한 채 "살려" 를 했는데 "기절한 동료가 없음" 이 나왔고, 로그로는 까닭을 가릴 수 없었다.
+        /// </summary>
+        string DownedCensus()
+        {
+            var line = new System.Text.StringBuilder();
+            foreach (var player in NetPlayer.AllServerPlayers)
+            {
+                var rig = player != null ? player.VisualRig : null;
+                if (rig == null || rig == self) continue;
+                line.Append(player.TeamName).Append(rig.Downed ? " 기절" : rig.Ragdolled ? " 넘어짐" : " 서 있음")
+                    .Append(' ').Append((rig.FootPosition - self.FootPosition).magnitude.ToString("0")).Append('m')
+                    .Append(rig.gameObject.scene != self.gameObject.scene ? " (다른 씬)" : "").Append(" · ");
+            }
+            return line.Length > 0 ? line.ToString() : "플레이어 없음";
         }
 
         /// <summary>쓰러진 동료를 <b>가까운 순서로</b> 모은다. 범위 밖은 없는 것으로 본다.</summary>
@@ -300,6 +364,90 @@ namespace Metagame.Network
             return input;
         }
 
+        Vector3 comeGoal;
+        PartClamp pinTarget;
+
+        /// <summary>
+        /// 말한 사람에게 온다 (S15P21B202-746). 사람이 움직이면 목적지도 따라간다 — 전에는
+        /// <c>goto</c> 가 말한 순간의 자리로 가서 그 자리를 지켰다.
+        /// </summary>
+        InputFrame TickCome()
+        {
+            var input = default(InputFrame);
+            var to = speaker.FootPosition;
+            var offset = to - self.FootPosition; offset.y = 0;
+            float distance = offset.magnitude;
+            // Finish 가 speaker 를 비우므로 돌아볼 방향을 먼저 잰다.
+            if (distance <= ComeStopDistance) { var face = AiCompanionController.Face(self, speaker); Finish(true, "말한 사람 곁에 왔다"); return face; }
+            // 사람이 1m 넘게 움직였으면 "나아지고 있나" 를 새로 잰다 — 달아나는 사람을 쫓는 것은 막힘이 아니다.
+            if ((to - comeGoal).sqrMagnitude > 1f) { comeGoal = to; bestDistance = float.PositiveInfinity; movedAt = Time.time; }
+            Status = "오는 중 · " + distance.ToString("0.0") + "m";
+            if (Navigate(to, ComeStopDistance - .2f, ref input))
+            { var face = AiCompanionController.Face(self, speaker); Finish(true, "말한 사람 곁에 왔다"); return face; }
+            if (!Active) return input;   // Navigate 가 막힘으로 끝냈다
+            input.Run = distance > ComeRunDistance;
+            return input;
+        }
+
+        /// <summary>
+        /// 가장 가까운 고정못 하나를 뽑는다 (S15P21B202-746). 못 뽑으면 다음 못을 <see cref="PinRetries"/>
+        /// 번 더 해 보고, 뽑을 못이 없으면 끝낸다 — 그러면 기본 행동으로 돌아간다.
+        /// </summary>
+        InputFrame TickPin()
+        {
+            var input = default(InputFrame);
+            if (phase == 0)
+            {
+                if (self.HeldTool == null) { Phase(1); pin.Begin(self, speaker, null, attemptedPins); return input; }
+                if (!pulse) { input.ToolUtility = true; pulse = true; }
+                Status = "들고 있던 도구 내려놓는 중";
+                if (Time.time - phaseAt > 2f) Finish(false, "들고 있던 도구를 내려놓지 못함");
+                return input;
+            }
+            input = pin.Tick(true);
+            if (pin.Target != null) pinTarget = pin.Target;
+            Status = pin.Status;
+            WantsMovement = pin.WantsMovement;
+            if (pin.MovementGoal.HasValue) goal = pin.MovementGoal.Value;
+            if (pin.Active) return input;
+            // **못이 없을 때까지 이어 간다** (S15P21B202-746). 하나 뽑으면 다음으로 가까운 못으로 간다.
+            if (pin.Succeeded || (pinTarget != null && pinTarget.IsReleased))
+            {
+                pinsPulled++; pinCount = 0; pinTarget = null; Tally = pinsPulled;
+                Debug.Log("[AI] 고정못 " + pinsPulled + "개째 뽑음 · 다음 못으로");
+                pin.Begin(self, speaker, null, attemptedPins);
+                return input;
+            }
+            if (pinTarget == null && attemptedPins.Count > 0 && !pinsRetried)
+            {
+                // 다른 못을 다 뽑았으면 **포기했던 못을 한 번 더** (2026-09-26 검사: 처음에 막혔던 3m 앞의 못이 나중에는
+                // 설 자리가 났는데 포기 목록에 남아 그냥 끝났다 — 파츠가 풀리며 길이 바뀐다).
+                pinsRetried = true; attemptedPins.Clear(); pinCount = 0;
+                Debug.Log("[AI] 포기했던 고정못을 다시 본다");
+                pin.Begin(self, speaker, null, attemptedPins);
+                return input;
+            }
+            if (pinTarget == null)
+            {
+                // 뽑을 못이 더 없다 — 할 일을 다 했다. 뽑은 것이 없으면 처음부터 없던 것이다.
+                Exhausted = true;
+                // "더 없다" 는 **걸어서 닿을 수 있는 못**이 더 없다는 뜻이다 — 높은 곳에 놓인 파츠의 못은 길이 없다.
+                Finish(pinsPulled > 0, pinsPulled > 0 ? "닿을 수 있는 고정못을 다 뽑았다 · " + pinsPulled + "개" : pin.Status);
+                return input;
+            }
+            attemptedPins.Add(pinTarget);
+            if (++pinCount > PinRetries)
+            {
+                // 이 못은 버리고 다른 못으로 — 한 못이 안 된다고 명령 전체를 끝내지 않는다.
+                Debug.Log("[AI] 고정못 " + pinTarget.name + " 포기 · " + pin.Status + " · 다른 못으로");
+                pinCount = 0;
+            }
+            else Debug.Log("[AI] 고정못 다시 시도 " + pinCount + "/" + PinRetries + " · " + pin.Status);
+            pinTarget = null;
+            pin.Begin(self, speaker, null, attemptedPins);
+            return input;
+        }
+
         InputFrame TickGoto()
         {
             var input = default(InputFrame);
@@ -329,7 +477,7 @@ namespace Metagame.Network
             if (route.Arrived) { WantsMovement = false; return true; }
             if (route.Remaining < bestDistance - .1f) { bestDistance = route.Remaining; movedAt = Time.time; }
             if (Time.time - movedAt > 8f) { Finish(false, "이동 막힘"); return false; }
-            if (!AiFollowController.SafeStep(self, self.FootPosition, direction, stepHits, .18f)) return false;
+            if (!AiFollowController.SteerAround(self, self.FootPosition, ref direction, stepHits, .18f)) return false;
             input = Aim(self.AimOrigin + direction);
             input.Move = Vector2.up * (route.Remaining < 1.2f ? .4f : 1f); return false;
         }

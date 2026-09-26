@@ -91,6 +91,10 @@ namespace Metagame.Bootstrap
 
             Physics.gravity = gravity;
             Time.fixedDeltaTime = Tuning.FixedStep;      // 조인트가 많다 — 촘촘히 밟아야 안 떤다
+            // **한 프레임이 따라잡는 물리는 5단계까지** (S15P21B202-746). 기본값(0.33초)이면 프레임이 한 번 늦을 때
+            // 100Hz 물리를 최대 33번 몰아 돌려 다음 프레임이 더 늦어진다 — 2026-09-26 QA 의 fps 3~8 순간. 물리가 잠깐 느려지는
+            // 대신 늪에 빠지지 않는다.
+            Time.maximumDeltaTime = Tuning.MaxCatchUp;
 
             // Existing Main scenes may predate the editor collider pass. Repair only static
             // environment mesh surfaces here; moving gameplay objects keep their simple

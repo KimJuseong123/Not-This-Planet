@@ -108,7 +108,7 @@ namespace Metagame.Gameplay.Tests
                 "덮은 계획이 아니라 원래 계획을 실행한다");
             Assert.That(classify, Does.Not.Contain("ExecutePlan(result.orders"),
                 "원래 계획을 실행하는 길이 남아 있다");
-            Assert.That(classify, Does.Contain("AiCommandPlan.Spoken(orders)"),
+            Assert.That(classify, Does.Contain("CommandName(orders)"),
                 "화면에 돌아가는 한 줄이 실제로 시킨 것과 다르다");
         }
 

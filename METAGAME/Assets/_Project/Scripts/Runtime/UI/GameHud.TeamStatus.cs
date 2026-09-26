@@ -100,7 +100,39 @@ namespace Metagame.UI
                 GUI.color = old;
                 // 긴 이름/리치 텍스트를 옆 플레이어 영역으로 넘기지 않는다.
                 L(new Rect(x, 79f, cardWidth - 4f, 24f), member.Name, _teamNameStyle, member.Accent);
+                DrawTeamExtras(member, portrait, x, cardWidth);
             }
+        }
+
+        /// <summary>
+        /// 1~4 키 번호 · 거리 · 지금 고른 대상 (S15P21B202-746). 전에는 화면 아래에 자리 칸 넷을 따로 그려 같은 정보를 두 번
+        /// 보였다(2026-09-26 QA). 동료 카드가 이미 있으니 여기에 붙인다.
+        /// </summary>
+        void DrawTeamExtras(TeamStatusRoster.Member member, Rect portrait, float x, float cardWidth)
+        {
+            var player = member.Player;
+            if (player == null) return;
+            int slot = player.teamSlot;
+            bool picked = slot == AiVoiceControls.SelectedSlot;
+            var old = GUI.color;
+            if (picked)
+            {
+                // 고른 동료 — 초상 둘레를 두껍게 한 번 더
+                var glow = new Rect(portrait.x - 5f, portrait.y - 5f, portrait.width + 10f, portrait.height + 10f);
+                GUI.color = member.Accent; GUI.DrawTexture(glow, HudIcons.Ring);
+            }
+            // 키 번호 — 초상 왼쪽 위의 작은 원
+            var key = new Rect(portrait.x - 6f, portrait.y - 6f, 22f, 22f);
+            GUI.color = new Color(0, 0, 0, .75f); GUI.DrawTexture(key, HudIcons.Disc);
+            GUI.color = old;
+            L(key, AiTalkKeys.Cap(slot), _teamNameStyle, picked ? member.Accent : Color.white);
+            // 거리 — 나 말고
+            if (Local != null && member.Rig != null && member.Rig != Local)
+            {
+                float meters = Vector3.Distance(Local.FootPosition, member.Rig.FootPosition);
+                L(new Rect(x, 99f, cardWidth - 4f, 20f), meters.ToString("0") + "m", _teamNameStyle, new Color(1, 1, 1, .8f));
+            }
+            GUI.color = old;
         }
 
         static Texture2D CreateTeamIcon(bool heart)

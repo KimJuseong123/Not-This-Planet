@@ -68,6 +68,8 @@ namespace Metagame.Network
 
         void FixedUpdate()
         {
+
+            using var frameSection = Metagame.Core.FrameSections.Scope(Metagame.Core.FrameSections.Meteors);   // S15P21B202-746 프레임 기록
             if (!configured || spawner == null) return;
 
             var authority = HasAuthority();

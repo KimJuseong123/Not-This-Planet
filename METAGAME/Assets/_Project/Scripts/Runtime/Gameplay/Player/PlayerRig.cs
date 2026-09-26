@@ -2670,6 +2670,8 @@ namespace Metagame.Gameplay
 
         void FixedUpdate()
         {
+
+            using var frameSection = Metagame.Core.FrameSections.Scope(Metagame.Core.FrameSections.PlayerRig);   // S15P21B202-746 프레임 기록
             // 조준 기준점을 먼저 맞춘다 — 이번 스텝의 상호작용이 그것을 본다.
             SyncAimPivot();
             Tick();

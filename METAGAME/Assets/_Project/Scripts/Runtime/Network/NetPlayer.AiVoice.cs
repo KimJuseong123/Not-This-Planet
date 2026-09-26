@@ -156,6 +156,24 @@ namespace Metagame.Network
         [TargetRpc] void TargetAiListenRefused(uint listen, string message)
         { AiListenRefused = listen; AiListenRefusal = message; }
 
+        // ── 결과 배너 (S15P21B202-746) ───────────────────────────────────────────
+        // 2026-09-26 QA: 결과 줄이 너무 길었다. 보여 줄 것은 둘 — 들은 말 · 그래서 한 명령 — 과 누가 받았는지(아이콘).
+        public string AiVoiceHeard { get; private set; }
+        public string AiVoiceCommand { get; private set; }
+        public int AiVoiceSlots { get; private set; }
+        public bool AiVoiceOk { get; private set; }
+        public float AiVoiceOutcomeUntil { get; private set; }
+
+        [Server] public void ReportAiVoiceOutcome(string heard, string command, int slots, bool ok)
+        {
+            if (connectionToClient != null) TargetAiVoiceOutcome(heard ?? "", command ?? "", slots, ok);
+        }
+        [TargetRpc] void TargetAiVoiceOutcome(string heard, string command, int slots, bool ok)
+        {
+            AiVoiceHeard = heard; AiVoiceCommand = command; AiVoiceSlots = slots; AiVoiceOk = ok;
+            AiVoiceOutcomeUntil = Time.unscaledTime + 4f;
+        }
+
         [Server] public void ReportAiVoice(string message)
         {
             if (connectionToClient != null) TargetAiVoiceResult(message);

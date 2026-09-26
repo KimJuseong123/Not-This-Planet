@@ -12,6 +12,27 @@ namespace Metagame.Network
         readonly AiPinTask pin = new AiPinTask();
         readonly AiMovementRecovery recovery = new AiMovementRecovery();
         readonly AiWorkTask work = new AiWorkTask();
+        readonly AiMeteorDodge dodge = new AiMeteorDodge();
+        static int ambientSeeds;
+        /// <summary>명령이 없을 때의 행동 (S15P21B202-746). 동료마다 다른 씨앗이라 셋이 같이 춤추지 않는다.</summary>
+        readonly AiAmbient ambient = new AiAmbient(unchecked(System.Environment.TickCount * 31 + ++ambientSeeds * 7919));
+
+        /// <summary>지금 춤을 출 수 있나(쿨다운·동작). 몸을 가진 <c>NetPlayer</c> 가 매 틱 알려 준다.</summary>
+        public bool AmbientCanDance { get; set; }
+
+        /// <summary>
+        /// 멈추지 않는 명령(고정못 · 운석) — 끊겨도 다시 건다 (S15P21B202-746). 동료가 쓰러졌다 일어나거나 작업이
+        /// 한 번 어긋나 끝나도, 새 명령이 오기 전까지는 그 일을 이어 간다. 뽑을 못이 없으면 내려놓는다.
+        /// </summary>
+        string standing;
+        PlayerRig standingSpeaker;
+        float standingRetryAt;
+
+        /// <summary>끊긴 명령을 다시 걸기 전에 기다리는 초. 매 틱 걸면 안 되는 일을 계속 시도한다.</summary>
+        public const float StandingRetrySeconds = 3f;
+
+        /// <summary>명령 없이 기본 행동 중인가. 화면·로그가 명령 상태와 가른다.</summary>
+        public bool Ambient => !Busy && ambient.Current != AiAmbient.Mode.None;
         readonly System.Collections.Generic.Queue<AiCommandStep> pending = new System.Collections.Generic.Queue<AiCommandStep>();
         PlayerRig planSpeaker;
         bool workOrder, advance;
@@ -24,14 +45,20 @@ namespace Metagame.Network
         bool approaching, performing;
         float faceStarted, approachDeadline;
         bool watchRequester;
-        public string SocialPerforming => performing ? social : null;
+        public string SocialPerforming => performing ? social : !Busy ? ambient.Performing : null;
         public bool Busy => work.Active || pin.Active || follow.Active || social != null || pending.Count > 0;
 
         /// <summary>마지막 작업이 어떻게 끝났는가 · 왜 (S15P21B202-703). 화면 글자가 아니라 값이다.</summary>
         public AiTaskOutcome WorkOutcome => work.Outcome;
         public string WorkReason => work.Reason;
+
+        /// <summary>머리 위에 띄울 "지금 하는 일" (S15P21B202-746). 끊긴 명령을 다시 걸 참이면 그 명령.</summary>
+        public byte Badge => AiBadges.Of(work.Active ? work.Command : standing, dodge.Active);
+        public int OutcomeSeq => work.OutcomeSeq;
+        public int Tally => work.Tally;
+        public string LastCommand => work.Command;
         public static bool IsSocial(string action) => action == "dance" || action == "greet" || action == "heart" || action == "cheer";
-        public string Status => recoveryStatus ?? (workOrder ? work.Status : approaching ? "다가가는 중" : social != null && !performing ? "말한 사람 바라보는 중" : social != null ?
+        public string Status => dodge.Active ? "운석 피하는 중" : Ambient ? ambient.Status : recoveryStatus ?? (workOrder ? work.Status : approaching ? "다가가는 중" : social != null && !performing ? "말한 사람 바라보는 중" : social != null ?
             (social == "dance" ? "춤추는 중" : social == "greet" ? "인사하는 중" : "감정 표현 중") :
             pinOrder ? pin.Status : follow.Status);
         public bool Apply(string action, PlayerRig speaker, PlayerRig self, bool approach = false, string destination = "default")
@@ -56,6 +83,8 @@ namespace Metagame.Network
             { refusal = Busy ? "다른 작업 중이라 감정 표현 불가" : "손에 무언가를 들고 있어 감정 표현 불가"; return false; }
             Stop(action == "cancel" ? "취소 명령" : "새 명령");
             requester = speaker;
+            standing = AiWorkTask.Standing(action) ? action : null;
+            standingSpeaker = standing != null ? speaker : null;
             if (AiWorkTask.Supports(action))
             {
                 workOrder = true;
@@ -99,6 +128,13 @@ namespace Metagame.Network
         public InputFrame Tick(PlayerRig self, bool allowed)
         {
             using var sample = TickMarker.Auto();
+            double began = Metagame.Core.FrameBudget.Stamp;
+            try { return TickTimed(self, allowed); }
+            finally { Metagame.Core.FrameBudget.AddAi(Metagame.Core.FrameBudget.Stamp - began); }
+        }
+
+        InputFrame TickTimed(PlayerRig self, bool allowed)
+        {
             if (advance && pending.Count > 0)
             {
                 var next = pending.Dequeue(); var rest = pending.ToArray(); var source = planSpeaker;
@@ -106,6 +142,23 @@ namespace Metagame.Network
                 if (!Apply(next.action, source, self, next.approach, next.destination)) { pending.Clear(); return default; }
                 planSpeaker = source; foreach (var step in rest) pending.Enqueue(step); advance = false;
             }
+            // 곧 떨어질 운석을 피한다 (S15P21B202-746) — 명령·기본 행동보다 먼저. 방망이를 들고 칠 참이면 피하지 않는다.
+            if (dodge.Tick(self, allowed, work.Active && work.Striking, out var escape)) return escape;
+            // 멈추지 않는 명령이 끊겼으면 다시 건다. 뽑을 못이 없어 끝났으면 내려놓는다.
+            if (!Busy && standing != null)
+            {
+                if (work.Exhausted || standingSpeaker == null) standing = null;
+                else if (allowed && self != null && !self.Downed && !self.IsRiding && Time.time >= standingRetryAt)
+                {
+                    standingRetryAt = Time.time + StandingRetrySeconds;
+                    var keep = standing; var who = standingSpeaker;
+                    if (Apply(keep, who, self, out var refused)) UnityEngine.Debug.Log("[AI] 끊긴 명령 다시 · " + keep);
+                    standing = keep; standingSpeaker = who;
+                }
+            }
+            // 명령이 없으면 기본 행동이다 (S15P21B202-746). 전에는 여기서 TickCore 가 "말한 사람이
+            // 없음" 으로 멈추고 끝이라, 명령을 기다리는 동료가 선 채로 굳어 있었다.
+            if (!Busy && AiDemoCommands.Enabled) return ambient.Tick(self, allowed, AmbientCanDance, Time.time);
             return TickCore(self, allowed);
         }
         public void QueueAfterCurrent(AiCommandStep[] steps, PlayerRig speaker)
@@ -187,11 +240,13 @@ namespace Metagame.Network
         public void Stop(string reason)
         {
             work.Cancel(reason); workOrder = false; pending.Clear(); planSpeaker = null; advance = false;
+            ambient.Stop();
             pin.Cancel(); follow.Stop(); recovery.Reset(); requester = null; recoveryStatus = null; pinOrder = false;
             social = null; gather = false; approaching=false; performing=false; watchRequester=false;
         }
         public void DetachDriver()
         {
+            standing = null; standingSpeaker = null;
             work.DetachDriver();
             pin.DetachDriver();
             follow.Stop();
