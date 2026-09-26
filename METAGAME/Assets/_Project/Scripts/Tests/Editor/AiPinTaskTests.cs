@@ -158,10 +158,11 @@ namespace Metagame.Gameplay.Tests
             var self = PlayerRig.Create("AI", Vector3.right * 3, Quaternion.identity, Color.blue, Color.white, false);
             foreach (bool success in new[] { false, true })
             {
+                // 계속하는 명령(고정못 · 운석)은 끝나도 다시 걸린다(S15P21B202-746) — 줄 서기만 보려고 한 번 하는 명령을 쓴다.
                 var controller = new AiCompanionController();
-                Assert.That(controller.Apply("pull_pin", speaker, self), Is.True);
+                Assert.That(controller.Apply("come", speaker, self), Is.True);
                 controller.QueueAfterCurrent(new[] {
-                    new AiCommandStep { action = "pull_pin" },
+                    new AiCommandStep { action = "come" },
                     new AiCommandStep { action = "follow" }
                 }, speaker);
                 // pull_pin 은 작업(AiWorkTask)이 한다 (S15P21B202-746) — 결과를 그 경계에서 넣는다.
@@ -169,7 +170,7 @@ namespace Metagame.Gameplay.Tests
                 var work = (AiWorkTask)typeof(AiCompanionController).GetField("work",
                     System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(controller);
                 typeof(AiWorkTask).GetMethod("Finish", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
-                    .Invoke(work, new object[] { success, success ? "고정못을 뽑았다" : "완료되지 않음" });
+                    .Invoke(work, new object[] { success, success ? "말한 사람 곁에 왔다" : "완료되지 않음" });
                 controller.Tick(self, true);
                 controller.Tick(self, true);
                 Assert.That(controller.Busy, Is.EqualTo(success), "Only success may start the queued follow");

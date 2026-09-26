@@ -133,10 +133,22 @@ namespace Metagame.Core
                     .Append(" · Late ").Append((late / n).ToString("0.0"))
                     .Append(" · 렌더+대기 ").Append((render / n).ToString("0.0"))
                     .Append(" · AI ").Append((ai / n).ToString("0.00"));
+                // FixedUpdate 스크립트의 세부 (프레임당 ms) — 0.05 이상만
+                line.Append(" · 세부[");
+                bool first = true;
+                for (int i = 0; i < FrameSections.Count; i++)
+                {
+                    double per = FrameSections.Take(i) / n;
+                    if (per < .05) continue;
+                    if (!first) line.Append(' ');
+                    line.Append(FrameSections.Names[i]).Append(' ').Append(per.ToString("0.0")); first = false;
+                }
+                line.Append(']');
                 if (gc.Valid) line.Append(" · GC ").Append((gcBytes / seconds / 1048576.0).ToString("0.0")).Append("MB/s");
                 line.Append(" · VSync ").Append(QualitySettings.vSyncCount).Append(" · 품질 ").Append(QualitySettings.GetQualityLevel());
                 Debug.Log(line.ToString());
             }
+            if (n == 0) for (int i = 0; i < FrameSections.Count; i++) FrameSections.Take(i);
             frames.Clear(); gcBytes = 0; stepSum = 0; maxSteps = 0;
             fixedScripts = physics = update = late = render = ai = 0;
             windowStart = Time.realtimeSinceStartup;

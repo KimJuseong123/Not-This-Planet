@@ -274,6 +274,47 @@ namespace Metagame.Gameplay.Tests
             Assert.That(TestSource.Read("Runtime/Bootstrap/SpaceBootstrap.cs"), Does.Contain("Time.maximumDeltaTime = Tuning.MaxCatchUp;"));
         }
 
+        /// <summary>
+        /// 길찾기를 2초마다 굽지 않는다 (2026-09-26 QA: 굽기 한 번이 메인 스레드를 약 95ms 멈췄다). 작은 흔들림은 건너뛰고,
+        /// 자세만 바뀐 파츠는 멈춘 뒤에 · 6초 간격으로 굽는다. 파츠가 빠지거나 돌아오면 곧바로 굽는다.
+        /// </summary>
+        [Test]
+        public void TheNavigationIsNotRebakedEveryTwoSeconds()
+        {
+            float voxel = AiNavigationWorld.VoxelSize;
+            var jitter = new AiNavigationSources.Tally { PartMoved = 3, WithinHalfVoxel = 3, MaxShift = voxel * .3f };
+            Assert.That(AiNavigationSources.OnlyJitter(jitter, voxel), Is.True, "6cm 안의 흔들림에 굽는다");
+            var moved = new AiNavigationSources.Tally { PartMoved = 1, MaxShift = voxel };
+            Assert.That(AiNavigationSources.OnlyJitter(moved, voxel), Is.False, "반 복셀 넘게 움직였는데 건너뛴다");
+            var lifted = new AiNavigationSources.Tally { Removed = 1 };
+            Assert.That(AiNavigationSources.OnlyJitter(lifted, voxel), Is.False, "파츠가 빠졌는데 건너뛴다");
+
+            Assert.That(AiNavigationSources.Hold(false, true, 2f, 2f, false), Is.EqualTo("gap"), "2초 만에 또 굽는다");
+            Assert.That(AiNavigationSources.Hold(false, true, 10f, 2f, true), Is.EqualTo("settle"), "굴러가는 파츠를 굽는다");
+            Assert.That(AiNavigationSources.Hold(false, true, 10f, AiNavigationSources.SettleWaitMax + 1f, true), Is.Null,
+                "계속 흔들리는 파츠 때문에 길이 영영 안 바뀐다");
+            Assert.That(AiNavigationSources.Hold(true, true, .5f, .5f, true), Is.Null, "명령이 막 왔는데 기다린다");
+            Assert.That(AiNavigationSources.Hold(false, false, .5f, .5f, true), Is.Null,
+                "파츠가 들리거나 내려놓였는데 기다린다 — 구멍이 남거나 뚫고 간다");
+            Assert.That(AiNavigationSources.WorkingBakeGap, Is.InRange(4f, 12f));
+        }
+
+        /// <summary>
+        /// FixedUpdate 스크립트는 각각 몇 ms 인지 로그에 남고, 물리는 100Hz 그대로다 (2026-09-26). 60Hz 로 낮춰 보니 고정못 당기기가
+        /// 달라져 한 번 시킨 고정못이 8개 → 2~5개로 줄었다.
+        /// </summary>
+        [Test]
+        public void HeavyScriptsAreTimedAndPhysicsStaysAt100Hz()
+        {
+            Assert.That(Metagame.Core.Tuning.FixedStep, Is.EqualTo(.01f).Within(1e-6f), "물리 간격을 바꿨다 — 고정못 당기기가 달라진다");
+            foreach (var file in new[] {
+                "Runtime/Gameplay/Player/PlayerRig.cs", "Runtime/Network/NetPlayer.cs", "Runtime/Network/WorldSync.cs",
+                "Runtime/Gameplay/Parts/PartPush.cs", "Runtime/Gameplay/Parts/PartAssemblyLink.cs",
+                "Runtime/Gameplay/Parts/TransportVehicle.cs", "Runtime/Network/RemoteAvatar.cs",
+                "Runtime/Gameplay/Parts/LowGravityField.cs", "Runtime/Network/MeteorClockBridge.cs" })
+                Assert.That(TestSource.Read(file), Does.Contain("Metagame.Core.FrameSections.Scope("), file + " 의 FixedUpdate 를 재지 않는다");
+        }
+
         [Test]
         public void ThePinIsTheNearestToTheCompanionNotToTheSpeaker()
         {

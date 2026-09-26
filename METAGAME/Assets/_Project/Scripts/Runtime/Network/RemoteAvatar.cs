@@ -302,7 +302,7 @@ namespace Metagame.Network
             AppliedCorrection += step;
         }
 
-        void FixedUpdate() => Follow();
+        void FixedUpdate() { using var frameSection = Metagame.Core.FrameSections.Scope(Metagame.Core.FrameSections.RemoteAvatar); Follow(); }   // S15P21B202-746 프레임 기록
 
         /// <summary>
         /// 골반을 서버가 알려 준 자리로 옮긴다. 물리 스텝에서 옮겨야 매달린

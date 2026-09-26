@@ -118,6 +118,7 @@ namespace Metagame.Gameplay.Tests
             foreach (var pin in PartClamp.All)
                 if (pin != null && pin.isActiveAndEnabled && pin.IsRequired && !pin.IsReleased)
                     log.AppendLine($"  남음 {pin.Part?.name}/{pin.name} · {Vector3.Distance(pin.transform.position, self.FootPosition):0.0}m · 높이 {pin.transform.position.y:0.0} · {why.WhyNoApproach(navWorld, pin, self)}");
+            Debug.Log($"[AI 시연] 고정못 물리 {1f / Time.fixedDeltaTime:0}Hz");
             Debug.Log($"[AI 시연] 고정못 {released.Count}/{total} · 가장 가까운 것 {nearestPulled} · {work.Outcome} · {work.Reason} · {Time.time - began:0}초\n{log}");
             Assert.That(released.Count, Is.GreaterThanOrEqualTo(Mathf.Min(total, 8)), $"한 번 시켰는데 이어 뽑지 않는다 · {work.Reason}\n{log}");
         }
@@ -228,6 +229,39 @@ namespace Metagame.Gameplay.Tests
             }
             budget.FlushNow();
             Debug.Log("[AI 시연] 프레임 기록 끝 · 위의 [FRAME] 줄을 본다");
+        }
+
+        /// <summary>
+        /// 물리 간격이 바뀌어도(100Hz → 60Hz, S15P21B202-746) 걷고 뛰는 속도가 같은가 — 기록이 목적이다. 두 간격에서 돌려 견준다.
+        /// </summary>
+        [Category("Heavy")]
+        [UnityTest]
+        public IEnumerator LocomotionSpeedAtThisPhysicsStep()
+        {
+            OpenStage();
+            yield return new EnterPlayMode();
+            yield return null;
+            var session = GameSession.Instance;
+            var world = Bake(session);
+            float baked = Time.realtimeSinceStartup + 60f;
+            while (!world.Ready && Time.realtimeSinceStartup < baked) yield return null;
+            var rig = PlayerRig.Create("시연 검사 · 걸음", FreeSpotNear(session.LocalPlayer.FootPosition, 6f), Quaternion.identity, Color.white, Color.gray, false);
+            spawned.Add(rig.gameObject);
+            for (int i = 0; i < 60; i++) { rig.SetInput(default); yield return new WaitForFixedUpdate(); }
+            var log = new StringBuilder();
+            foreach (bool run in new[] { false, true })
+            {
+                var start = rig.FootPosition; float began = Time.time;
+                while (Time.time - began < 3f)
+                {
+                    rig.SetInput(new InputFrame { AimYaw = run ? 180f : 0f, Move = Vector2.up, Run = run });
+                    yield return new WaitForFixedUpdate();
+                }
+                var moved = rig.FootPosition - start; moved.y = 0;
+                log.Append(run ? " · 뛰기 " : " · 걷기 ").Append((moved.magnitude / 3f).ToString("0.00")).Append("m/s");
+                for (int i = 0; i < 40; i++) { rig.SetInput(default); yield return new WaitForFixedUpdate(); }
+            }
+            Debug.Log($"[AI 시연] 걸음 · 물리 {1f / Time.fixedDeltaTime:0}Hz{log} (기획 걷기 {Tuning.WalkSpeed} · 뛰기 {Tuning.RunSpeed})");
         }
 
         /// <summary>"이쪽으로 와" — 멀리 있는 동료가 말한 사람 곁 2m 안으로 와서 멈춘다.</summary>

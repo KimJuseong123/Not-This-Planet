@@ -93,7 +93,7 @@ namespace Metagame.Network
         /// 반환이 하나 늘 때 그것이 <b>조용히 "게이트가 일했다" 로 집계된다.</b> 새 반환 경로는
         /// 여기서 이름을 골라야 한다.</para>
         /// </summary>
-        public enum RebuildOutcome { Busy, Unchanged, Reordered, Deferred, Baked }
+        public enum RebuildOutcome { Busy, Unchanged, Reordered, Deferred, Baked, Jitter, Settling, Spacing }
 
         /// <summary>
         /// AI 가 쉬는 동안 바뀐 세계를 이만큼 묵힌 뒤에 굽는다(초) (S15P21B202-737).
@@ -131,7 +131,7 @@ namespace Metagame.Network
             // 시작하면 다음 2초 점검을 기다리지 않는다 — 계획이 서는 데 몇 초가 걸리므로 첫 길을 물을
             // 때는 새 길이다. 이 줄이 주기 검사 **앞**에 있어야 깨우기가 뜻이 있다.
             var demand = CurrentDemand();
-            if (AiNavigationSources.Wakes(lastDemand, demand)) nextBuild = 0;
+            if (AiNavigationSources.Wakes(lastDemand, demand)) { nextBuild = 0; urgentBake = true; }
             lastDemand = demand;
             if (Time.time < nextBuild) return;
             // 굽느라 이번 차례를 거른다. 세지 않으면 로그에서 그냥 사라져서, 기계가 쉬지
@@ -155,11 +155,19 @@ namespace Metagame.Network
                 case RebuildOutcome.Reordered: reordered++; break;
                 case RebuildOutcome.Deferred: deferred++; break;
                 case RebuildOutcome.Busy: stalledFrames++; break;
+                case RebuildOutcome.Jitter: jitterSkipped++; break;
+                case RebuildOutcome.Settling: settleWaits++; break;
+                case RebuildOutcome.Spacing: gapWaits++; break;
             }
+            urgentBake = false;
             nextBuild = Time.time + 2f;
         }
 
         int baked, unchanged, reordered, deferred, stalledFrames;
+        int jitterSkipped, settleWaits, gapWaits;
+        float lastBakeAt = -100f;
+        bool urgentBake;
+        readonly List<SpaceshipPart> movingProbe = new List<SpaceshipPart>();
 
         AiNavigationSources.Demand lastDemand = AiNavigationSources.Demand.Idle;
         /// <summary>구운 뒤 바뀐 것을 처음 본 때. 0 이면 바뀐 것이 없다.</summary>
@@ -264,6 +272,7 @@ namespace Metagame.Network
             nextReport = Time.realtimeSinceStartup + 30f;
             Debug.Log($"[AiNav] 30초: 구움 {baked}회 · 평균 {(baked > 0 ? bakeTotalMs / baked : 0f):F0}ms"
                       + $" · 최대 {bakeMaxMs:F0}ms · 그대로라 건너뜀 {unchanged}회"
+                      + $" · 흔들림이라 건너뜀 {jitterSkipped}회 · 멈추길 기다림 {settleWaits}회 · 간격 기다림 {gapWaits}회"
                       + $" · 굽느라 밀린 프레임 {stalledFrames} · 소스 {sources.Count}개"
                       + $" · 대체 박스 {ApproximateMeshCount}개");
             // **무엇이 바뀌어서 구웠는지** (S15P21B202-737). 첫 줄은 그대로 둔다 — 전의 QA 로그와 견줄 수
@@ -282,6 +291,7 @@ namespace Metagame.Network
             Debug.Log($"[AiNav] 30초 까닭: 점검 쉼/예고/작업 {idleChecks}/{incomingChecks}/{workingChecks}"
                       + $" · 쉬는 중이라 미룸 {deferred}회 · 쉬는 중 묵은 길 물음 {idleStaleQueries}회(최대 {idleStaleMax:0.0}s)");
             baked = unchanged = reordered = deferred = stalledFrames = 0;
+            jitterSkipped = settleWaits = gapWaits = 0;
             idleChecks = incomingChecks = workingChecks = idleStaleQueries = 0; idleStaleMax = 0;
             bakeTotalMs = bakeMaxMs = 0;
             window = default;
@@ -374,15 +384,28 @@ namespace Metagame.Network
             if (verdict == AiNavigationSources.Verdict.Same) { changedSince = 0; return RebuildOutcome.Unchanged; }
             if (verdict == AiNavigationSources.Verdict.Reordered) { changedSince = 0; return RebuildOutcome.Reordered; }
             // 바뀌었다. 쉬는 중이면 묵힌다 — 스냅숏은 그대로 두어 다음 점검도 "바뀌었다" 로 본다.
+            AiNavigationSources.Tally drift = default;
             if (comparable)
             {
+                // **작은 흔들림은 굽지 않는다** (S15P21B202-746) — 스냅숏은 그대로 두어 쌓인 이동은 결국 굽는다.
+                drift = AiNavigationSources.Diff(bakedSorted, currentSorted, VoxelSize);
+                if (AiNavigationSources.OnlyJitter(drift, VoxelSize)) return RebuildOutcome.Jitter;
                 if (changedSince <= 0) changedSince = Time.realtimeSinceStartup;
-                if (!AiNavigationSources.BakeDue(demand, Time.realtimeSinceStartup - changedSince, IdleStaleSeconds))
+                float stale = Time.realtimeSinceStartup - changedSince;
+                if (!AiNavigationSources.BakeDue(demand, stale, IdleStaleSeconds))
                     return RebuildOutcome.Deferred;
+                // **굴러가는 파츠는 멈춘 뒤에, 일하는 중에도 굽기 사이는 6초** (S15P21B202-746). 명령이 막 왔으면 기다리지 않는다.
+                bool onlyMoves = drift.PartShape == 0 && drift.Added == 0 && drift.Removed == 0 && drift.OtherChanged == 0;
+                switch (AiNavigationSources.Hold(urgentBake || force, onlyMoves, Time.realtimeSinceStartup - lastBakeAt, stale,
+                                                 onlyMoves && PartsMoving()))
+                {
+                    case "settle": return RebuildOutcome.Settling;
+                    case "gap": return RebuildOutcome.Spacing;
+                }
             }
             changedSince = 0;
             if (!comparable) AiNavigationSources.Sort(keys, currentSorted);
-            else Accumulate(AiNavigationSources.Diff(bakedSorted, currentSorted, VoxelSize));
+            else Accumulate(drift);
             bounds = region;
             bakedKeys.Clear(); bakedKeys.AddRange(keys);
             bakedSorted.Clear(); bakedSorted.AddRange(currentSorted);
@@ -404,9 +427,24 @@ namespace Metagame.Network
             watch.Restart();
             using (BuildMarker.Auto())
                 building = NavMeshBuilder.UpdateNavMeshDataAsync(data, settings, sources, bounds);
+            lastBakeAt = Time.realtimeSinceStartup;
             Add(ref scheduleCost, Lap());
             BuildCount++;
             return RebuildOutcome.Baked;
+        }
+
+        /// <summary>굴러가는 파츠가 있는가 — 굽기를 미룬다. 판에 파츠는 몇 개뿐이고, 바뀐 것을 본 때에만 묻는다.</summary>
+        bool PartsMoving()
+        {
+            movingProbe.Clear();
+            movingProbe.AddRange(FindObjectsByType<SpaceshipPart>(FindObjectsSortMode.None));
+            float limit = AiNavigationSources.SettleSpeed * AiNavigationSources.SettleSpeed;
+            foreach (var part in movingProbe)
+            {
+                var body = part != null ? part.GetComponent<Rigidbody>() : null;
+                if (body != null && !body.isKinematic && !body.IsSleeping() && body.linearVelocity.sqrMagnitude > limit) return true;
+            }
+            return false;
         }
 
         public bool CalculatePath(Vector3 from, Vector3 to, NavMeshPath path)

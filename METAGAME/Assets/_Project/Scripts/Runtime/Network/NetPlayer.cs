@@ -1050,6 +1050,7 @@ namespace Metagame.Network
         [ServerCallback]
         void FixedUpdate()
         {
+            using var frameSection = Metagame.Core.FrameSections.Scope(Metagame.Core.FrameSections.NetPlayer);   // S15P21B202-746 프레임 기록
             if (GameSession.Instance != null && GameSession.Instance.EndingActive) return;
             // 게임 씬이 준비될 때까지 기다렸다 몸을 세운다.
             if (body == null)

@@ -1112,7 +1112,7 @@ namespace Metagame.Gameplay.Parts
                 currentRider.ForceExitTransportVehicle(this);
         }
 
-        void FixedUpdate() => Tick(Time.fixedDeltaTime);
+        void FixedUpdate() { using var frameSection = Metagame.Core.FrameSections.Scope(Metagame.Core.FrameSections.Transport); Tick(Time.fixedDeltaTime); }   // S15P21B202-746 프레임 기록
 
         /// <summary>
         /// 물리 스텝 한 번. 평소에는 FixedUpdate 가 부른다.

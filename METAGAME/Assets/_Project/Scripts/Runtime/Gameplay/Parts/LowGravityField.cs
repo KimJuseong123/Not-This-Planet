@@ -193,7 +193,7 @@ namespace Metagame.Gameplay.Parts
         /// 기체가 호버하며 저중력장이 유지된다. 조종 중에만 도는 곳에 두면 하차하는 순간
         /// 영역이 죽어 파츠가 떨어진다.
         /// </summary>
-        void FixedUpdate() => Tick(Time.fixedDeltaTime);
+        void FixedUpdate() { using var frameSection = Metagame.Core.FrameSections.Scope(Metagame.Core.FrameSections.LowGravity); Tick(Time.fixedDeltaTime); }   // S15P21B202-746 프레임 기록
 
         /// <summary>
         /// 물리 스텝마다 부른다. 꺼져 있으면 아무것도 하지 않으므로,
