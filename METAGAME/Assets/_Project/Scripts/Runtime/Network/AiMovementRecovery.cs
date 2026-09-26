@@ -24,7 +24,7 @@ namespace Metagame.Network
             hasCheckpoint = initialized = suspended = false;
             progressTime = airborneUntil = nextProbe = nextRestoreProbe = escapeUntil = 0;
             unreachableSince = -1; lastRestore = -100; restores = escapeAttempts = 0; Status = null;
-            airborneSince = -1;
+            airborneSince = -1; hasWalkBack = false; nextWalkBackProbe = 0;
         }
 
         public bool Tick(PlayerRig self, PlayerRig speaker, bool wantsMovement, out InputFrame frame, Vector3? movementGoal = null)
@@ -85,6 +85,9 @@ namespace Metagame.Network
                 progressTime = now;
                 Status = "이동 영역 이탈 · 복귀 경로 확인";
                 if (now - unreachableSince >= 3f) Restore(self, goal, world);
+                // **옮기지 못해도 선 채로 멈추지 않는다** (S15P21B202-749). 도구를 든 동료는 옮기지 않는데(Restore) 전에는
+                // 그동안 입력이 0 이었다 — 2026-09-26 QA: 방망이를 든 노랑이 판이 끝날 때까지 80초를 서 있었다.
+                if (unreachableSince >= 0 && WalkBack(self, now, out frame)) Status = "이동 영역 이탈 · 걸어서 돌아가는 중";
                 return true;
             }
             if (escapeUntil > now)
@@ -112,7 +115,11 @@ namespace Metagame.Network
                 Status = "끼임 복구 · 이동 방향 변경"; return true;
             }
             Status = "끼임 복구 · 안전 위치 확인";
+            int restored = restores;
             Restore(self, goal, world);
+            // 옮기지 못했으면 작업에 되돌려 준다 — 전에는 여기서도 입력 0 으로 영영 섰다 (S15P21B202-749).
+            // 2초 뒤에 다시 막혀 있으면 옆으로 빠져나오기부터 한다.
+            if (restores == restored) { progressTime = now; escapeAttempts = 0; }
             return true;
         }
 
@@ -134,10 +141,42 @@ namespace Metagame.Network
             Status = "안전 위치 복귀 · 기존 작업 재개";
         }
 
+        /// <summary>
+        /// 발밑에서 이만큼(m) 안에 길찾기 바닥이 있으면 벗어난 것이 아니다 (S15P21B202-749). 운석을 막는 동료는 착지점 앞에
+        /// 서는데 바닥에서 1.5m 까지 벗어난 자리도 고른다(<c>AiWorkTask.PickMeteor</c>) — 전에는 0.6m 라 그 자리가 "이탈" 이었다.
+        /// </summary>
+        public const float OffNavigationTolerance = 2f;
+
+        /// <summary>벗어났을 때 걸어서 돌아갈 바닥을 이 거리(m)까지 찾는다.</summary>
+        public const float WalkBackRange = 8f;
+
         /// <summary>발밑이 길찾기 바닥인가 — 목적지가 막힌 것과 내가 벗어난 것을 가른다.</summary>
         static bool OnNavigation(PlayerRig self)
-            => NavMesh.SamplePosition(self.FootPosition, out var nav, .6f, NavMesh.AllAreas)
+            => NavMesh.SamplePosition(self.FootPosition, out var nav, OffNavigationTolerance, NavMesh.AllAreas)
                && Mathf.Abs(nav.position.y - self.FootPosition.y) < .5f;
+
+        Vector3 walkBackTarget;
+        bool hasWalkBack;
+        float nextWalkBackProbe;
+
+        /// <summary>가장 가까운 길찾기 바닥 쪽으로 걷는다. 바닥이 없거나 앞이 막혔으면 거짓 — 그때는 선다.</summary>
+        bool WalkBack(PlayerRig self, float now, out InputFrame frame)
+        {
+            frame = default;
+            if (now >= nextWalkBackProbe)
+            {
+                nextWalkBackProbe = now + .5f;
+                hasWalkBack = NavMesh.SamplePosition(self.FootPosition, out var nav, WalkBackRange, NavMesh.AllAreas);
+                walkBackTarget = nav.position;
+            }
+            if (!hasWalkBack) return false;
+            var direction = walkBackTarget - self.FootPosition; direction.y = 0;
+            if (direction.sqrMagnitude < .01f) return false;
+            direction.Normalize();
+            if (!AiFollowController.SteerAround(self, self.FootPosition, ref direction, hits, .25f)) return false;
+            frame = new InputFrame { AimYaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg, Move = Vector2.up * .6f };
+            return true;
+        }
 
         bool SafeDestination(PlayerRig self, Vector3 point, out Vector3 result)
         {

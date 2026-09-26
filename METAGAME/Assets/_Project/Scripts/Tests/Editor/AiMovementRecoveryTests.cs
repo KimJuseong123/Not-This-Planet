@@ -4,6 +4,7 @@ using Metagame.Network;
 using NUnit.Framework;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.TestTools;
 
 namespace Metagame.Gameplay.Tests
@@ -138,6 +139,45 @@ namespace Metagame.Gameplay.Tests
             Assert.That(attempted, Is.True, recovery.Status);
             Assert.That(Vector3.Distance(origin, self.FootPosition), Is.GreaterThan(.3f));
             Assert.That(recovery.RestoreCount, Is.Zero);
+            yield return new ExitPlayMode();
+        }
+
+        /// <summary>
+        /// 길찾기 바닥 밖에서 옮겨 주지 못해도(도구를 들었다 · 안전 위치를 아직 모른다) 걸어서 돌아온다 (S15P21B202-749).
+        /// 2026-09-26 QA: 방망이를 든 동료가 "이탈 ↔ 복귀 대기" 를 오가며 판이 끝날 때까지 서 있었다.
+        /// </summary>
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-731)
+        [UnityTest]
+        public IEnumerator OffNavigationWalksBackWhenItCannotBeMoved()
+        {
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            yield return new EnterPlayMode();
+            Box(Vector3.down * .5f, new Vector3(20,1,20));
+            var speaker = Rig("speaker", new Vector3(0,.1f,0));
+            var session = new GameObject("session").AddComponent<GameSession>();
+            session.Begin(speaker, null, speaker.FootPosition); session.ScriptedInput = true;
+            var world = session.gameObject.AddComponent<AiNavigationWorld>(); yield return Bake(world);
+            // 구운 뒤에 붙인 바닥 — 설 수 있지만 길찾기 바닥이 아니다.
+            Box(new Vector3(16,-.5f,0), new Vector3(12,1,20));
+            var self = Rig("AI", new Vector3(15,.1f,0));
+            yield return new WaitForSeconds(1);
+            Assert.That(NavMesh.SamplePosition(self.FootPosition, out _, AiMovementRecovery.OffNavigationTolerance, NavMesh.AllAreas),
+                Is.False, "시작 자리가 바닥 밖이 아니다");
+            // 처음 본 동료라 돌아갈 안전 위치가 없다 — 옮겨 주지 못한다.
+            var recovery = new AiMovementRecovery();
+            float until = Time.time + 12; bool walked = false; string status = null;
+            while (Time.time < until)
+            {
+                bool held = recovery.Tick(self, speaker, true, out var frame); self.SetInput(frame);
+                if (held) status = recovery.Status;
+                walked |= frame.Move.sqrMagnitude > .01f;
+                yield return new WaitForFixedUpdate();
+                if (NavMesh.SamplePosition(self.FootPosition, out _, AiMovementRecovery.OffNavigationTolerance, NavMesh.AllAreas)) break;
+            }
+            Assert.That(walked, Is.True, "선 채로 멈췄다 · " + status);
+            Assert.That(NavMesh.SamplePosition(self.FootPosition, out _, AiMovementRecovery.OffNavigationTolerance, NavMesh.AllAreas),
+                Is.True, "바닥으로 돌아오지 못했다 · " + status + " · " + self.FootPosition);
+            Assert.That(recovery.RestoreCount, Is.Zero, "걸어 돌아와야 하는데 옮겼다");
             yield return new ExitPlayMode();
         }
 

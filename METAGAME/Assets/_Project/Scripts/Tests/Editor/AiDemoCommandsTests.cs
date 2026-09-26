@@ -239,6 +239,21 @@ namespace Metagame.Gameplay.Tests
             Assert.That(AiWorkTask.ReviveSearchRange, Is.GreaterThanOrEqualTo(100f), "멀리 쓰러진 사람을 '없음' 으로 본다");
         }
 
+        /// <summary>
+        /// 막힘 복구가 동료를 선 채로 멈춰 두지 않는다 (S15P21B202-749). 2026-09-26 QA: 방망이를 든 노랑이 운석 막는 자리에서
+        /// "이탈 ↔ 복귀 대기" 를 오가며 판이 끝날 때까지 80초를 서 있었다. 걷는 모습은 AiMovementRecoveryTests(Heavy)가 본다.
+        /// </summary>
+        [Test]
+        public void RecoveryNeverFreezesACompanionItCannotMove()
+        {
+            Assert.That(AiMovementRecovery.OffNavigationTolerance, Is.GreaterThan(AiWorkTask.StandOffNavigation),
+                "운석 막는 자리를 '이동 영역 이탈' 로 본다");
+            string recovery = TestSource.Read("Runtime/Network/AiMovementRecovery.cs");
+            Assert.That(recovery, Does.Contain("WalkBack(self, now, out frame)"), "옮기지 못하면 걸어 돌아가지 않는다");
+            Assert.That(recovery, Does.Contain("if (restores == restored) { progressTime = now; escapeAttempts = 0; }"),
+                "끼임 복구가 옮기지 못하면 작업에 되돌려 주지 않는다");
+        }
+
         /// <summary>동료 머리 위에 지금 하는 일 · 결과를 띄운다 (2026-09-26 QA: 작은 글씨는 시연에서 안 보였다).</summary>
         [Test]
         public void EveryCommandHasABadgeAndResultsReadAtAGlance()
