@@ -98,8 +98,11 @@ namespace Metagame.UI
         void DrawBadge(Vector3 screen, float distance, NetPlayer player)
         {
             if (distance > BadgeEnd) return;
+            // **하는 중인 일은 띄우지 않는다** (2026-09-26). 목표는 AI 동료가 사람과 크게 구분되지 않는 것이다 —
+            // 사람 머리 위에는 "고정못 뽑는 중" 이 없다. 방금 해낸 것 · 못 한 것만 잠깐 띄운다.
             bool note = player.AiBadgeNoteVisible;
-            string text = note ? player.AiBadgeNote : AiBadges.Label(player.AiBadge);
+            if (!note) return;
+            string text = player.AiBadgeNote;
             if (string.IsNullOrEmpty(text)) return;
             float k = Screen.height / 1080f / Mathf.Max(.5f, UiScale.Value);
             if (badgeStyle == null)

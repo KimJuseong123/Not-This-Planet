@@ -254,6 +254,10 @@ namespace Metagame.Gameplay.Tests
             Assert.That(AiBadges.Finished("revive", false, "기절한 동료가 없음"), Does.Contain("기절한 동료가 없음"), "실패의 까닭을 감춘다");
             Assert.That(AiBadges.Tally("pull_pin", 3), Does.Contain("3"));
             Assert.That(TeamNameplateHudFont(), Is.GreaterThanOrEqualTo(24), "머리 위 글자가 작다");
+            // 2026-09-26: 하는 중인 일은 머리 위에 띄우지 않는다 — AI 동료가 사람과 구분되지 않게
+            string overhead = TestSource.Method(TestSource.Read("Runtime/UI/TeamNameplateHud.cs"), "void DrawBadge(Vector3 screen, float distance, NetPlayer player)");
+            Assert.That(overhead, Does.Contain("if (!note) return;"), "머리 위에 '하는 중' 을 띄운다");
+            Assert.That(overhead, Does.Not.Contain("AiBadges.Label("), "머리 위에 '하는 중' 을 띄운다");
             // 2026-09-26 QA 2: 아래 글자가 과하게 컸다 — 이제 가운데 아래 마이크 아이콘 하나와 V, 결과는 위쪽 배너 한 줄
             Assert.That(Metagame.UI.AiVoiceControls.MicSize, Is.InRange(40, 90), "마이크 아이콘이 너무 작거나 화면을 가린다");
             Assert.That(Metagame.UI.AiVoiceControls.BannerFont, Is.InRange(20, 34), "결과 배너 글자가 너무 작거나 과하다");
