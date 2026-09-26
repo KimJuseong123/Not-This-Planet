@@ -239,6 +239,12 @@ namespace Metagame.Network
         /// <summary>길이 안 날 때 곧장 걸어갈 만한 거리(m). 더 멀면 벽 너머일 수 있다.</summary>
         public const float DirectChaseRange = 8f;
 
+        /// <summary>
+        /// 설 자리가 길찾기 바닥에서 이만큼(m)까지 벗어나도 고른다 — 가까우면 곧장 걷는다. 막힘 복구는 이보다 넓게
+        /// 봐 준다(<see cref="AiMovementRecovery.OffNavigationTolerance"/>) — 좁으면 그 자리를 "이탈" 로 본다 (S15P21B202-749).
+        /// </summary>
+        public const float StandOffNavigation = 1.5f;
+
         /// <summary>쫓을 것이 없을 때 말한 사람에게서 이보다 멀면 돌아간다(m).</summary>
         public const float DefendLeash = 7f;
 
@@ -333,7 +339,7 @@ namespace Metagame.Network
                 if (!Chaseable(meteor)) continue;
                 meteor.TryPredictImpact(out var seconds, out var impact);
                 if (seconds >= soonest) continue;
-                if (!NavMesh.SamplePosition(StandFor(impact), out var standHit, 1.5f, NavMesh.AllAreas)) continue;   // 설 수 없는 곳
+                if (!NavMesh.SamplePosition(StandFor(impact), out var standHit, StandOffNavigation, NavMesh.AllAreas)) continue;   // 설 수 없는 곳
                 if (!ReachableStand(standHit.position)) continue;
                 soonest = seconds; best = meteor;
             }
