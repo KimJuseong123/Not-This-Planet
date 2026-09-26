@@ -104,7 +104,7 @@ namespace Metagame.Gameplay.Tests
         public void TheControllerRunsTheIdleBehaviourOnlyWithoutACommand()
         {
             string source = TestSource.Read("Runtime/Network/AiCompanionController.cs");
-            string tick = TestSource.Method(source, "public InputFrame Tick(PlayerRig self, bool allowed)");
+            string tick = TestSource.Method(source, "InputFrame TickTimed(PlayerRig self, bool allowed)");
             int idle = tick.IndexOf("if (!Busy && AiDemoCommands.Enabled) return ambient.Tick(self, allowed, AmbientCanDance, Time.time);", StringComparison.Ordinal);
             int command = tick.IndexOf("return TickCore(self, allowed);", StringComparison.Ordinal);
             Assert.That(idle, Is.GreaterThanOrEqualTo(0), "명령이 없을 때 기본 행동을 하지 않는다");
@@ -185,7 +185,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(TestSource.Method(tools, "bool FindTool()"), Does.Contain("self.FootPosition"), "말한 사람 기준으로 방망이를 찾는다");
 
             string controller = TestSource.Read("Runtime/Network/AiCompanionController.cs");
-            string tick = TestSource.Method(controller, "public InputFrame Tick(PlayerRig self, bool allowed)");
+            string tick = TestSource.Method(controller, "InputFrame TickTimed(PlayerRig self, bool allowed)");
             int resume = tick.IndexOf("if (Apply(keep, who, self, out var refused))", System.StringComparison.Ordinal);
             int idle = tick.IndexOf("return ambient.Tick(self, allowed, AmbientCanDance, Time.time);", System.StringComparison.Ordinal);
             Assert.That(resume, Is.GreaterThanOrEqualTo(0), "끊긴 명령을 다시 걸지 않는다");
@@ -216,7 +216,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(AiMeteorDodge.Threatens(at, at, .5f, 2f, out var any), Is.True);
             Assert.That(any.sqrMagnitude, Is.GreaterThan(.5f), "바로 위에 떨어지면 어느 쪽으로든 피한다");
             string controller = TestSource.Read("Runtime/Network/AiCompanionController.cs");
-            string tick = TestSource.Method(controller, "public InputFrame Tick(PlayerRig self, bool allowed)");
+            string tick = TestSource.Method(controller, "InputFrame TickTimed(PlayerRig self, bool allowed)");
             Assert.That(tick, Does.Contain("dodge.Tick(self, allowed, work.Active && work.Striking, out var escape)"),
                 "피하기를 부르지 않거나, 방망이로 칠 참인데도 피한다");
         }
@@ -254,7 +254,13 @@ namespace Metagame.Gameplay.Tests
             Assert.That(AiBadges.Finished("revive", false, "기절한 동료가 없음"), Does.Contain("기절한 동료가 없음"), "실패의 까닭을 감춘다");
             Assert.That(AiBadges.Tally("pull_pin", 3), Does.Contain("3"));
             Assert.That(TeamNameplateHudFont(), Is.GreaterThanOrEqualTo(24), "머리 위 글자가 작다");
-            Assert.That(Metagame.UI.AiVoiceControls.LineFont, Is.GreaterThanOrEqualTo(26), "안내 글자가 작다 — 전에는 17px 이었다");
+            // 2026-09-26 QA 2: 아래 글자가 과하게 컸다 — 이제 가운데 아래 마이크 아이콘 하나와 V, 결과는 위쪽 배너 한 줄
+            Assert.That(Metagame.UI.AiVoiceControls.MicSize, Is.InRange(40, 90), "마이크 아이콘이 너무 작거나 화면을 가린다");
+            Assert.That(Metagame.UI.AiVoiceControls.BannerFont, Is.InRange(20, 34), "결과 배너 글자가 너무 작거나 과하다");
+            string gui = TestSource.Method(TestSource.Read("Runtime/UI/AiVoiceControls.cs"), "void OnGUI()");
+            Assert.That(gui, Does.Not.Contain("DrawSeats"), "아래에 자리 칸 넷을 또 그린다 — 왼쪽 위 동료 카드와 겹친다");
+            Assert.That(TestSource.Read("Runtime/UI/GameHud.TeamStatus.cs"), Does.Contain("AiVoiceControls.SelectedSlot"),
+                "고른 대상이 동료 카드에 보이지 않는다");
         }
 
         static int TeamNameplateHudFont() => Metagame.UI.TeamNameplateHud.BadgeFont;

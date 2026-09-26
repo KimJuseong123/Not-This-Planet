@@ -128,6 +128,13 @@ namespace Metagame.Network
         public InputFrame Tick(PlayerRig self, bool allowed)
         {
             using var sample = TickMarker.Auto();
+            double began = Metagame.Core.FrameBudget.Stamp;
+            try { return TickTimed(self, allowed); }
+            finally { Metagame.Core.FrameBudget.AddAi(Metagame.Core.FrameBudget.Stamp - began); }
+        }
+
+        InputFrame TickTimed(PlayerRig self, bool allowed)
+        {
             if (advance && pending.Count > 0)
             {
                 var next = pending.Dequeue(); var rest = pending.ToArray(); var source = planSpeaker;

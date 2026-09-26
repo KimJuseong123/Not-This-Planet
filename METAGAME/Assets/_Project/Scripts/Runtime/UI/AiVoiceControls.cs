@@ -79,7 +79,7 @@ namespace Metagame.UI
             }
             var local = Local;
             if (local != null && local.AiVoiceMessageUntil > resultSeen)
-            { resultSeen = local.AiVoiceMessageUntil; Notify(local.AiVoiceMessage); banner = local.AiVoiceMessage; bannerUntil = Time.unscaledTime + 4f; }
+            { resultSeen = local.AiVoiceMessageUntil; }
             var session = GameSession.Instance;
             // **서버가 듣기를 거절했으면 곧바로 멈춘다** (S15P21B202-738 리뷰). 기절한 동료의
             // 키를 눌렀거나 주변에 AI 가 없으면 서버가 그 자리에서 안다 — 녹음을 계속 두면
@@ -288,27 +288,6 @@ namespace Metagame.UI
         }
         void Notify(string message, float seconds = 4) { notice = message; noticeUntil = Time.unscaledTime + seconds; }
 
-        string banner; float bannerUntil; GUIStyle bannerStyle;
-
-        /// <summary>
-        /// 명령의 결과는 화면 위쪽에 크게 (S15P21B202-746). 아래 안내 줄은 마이크 상태와 섞여 눈에 안 띈다 — 결과는 한눈에
-        /// 봐야 한다. 누구에게 무엇이 갔는지는 동료 머리 위에도 뜬다(<c>TeamNameplateHud</c>).
-        /// </summary>
-        void DrawBanner()
-        {
-            if (string.IsNullOrEmpty(banner) || Time.unscaledTime >= bannerUntil) return;
-            if (bannerStyle == null) bannerStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, wordWrap = true, fontStyle = FontStyle.Bold };
-            bannerStyle.fontSize = Mathf.RoundToInt(BannerFont * K);
-            float w = Screen.width * .7f, h = BannerFont * 2.4f * K;
-            var box = new Rect((Screen.width - w) * .5f, Screen.height * .14f, w, h);
-            float fade = Mathf.Clamp01((bannerUntil - Time.unscaledTime) / .4f);
-            GUI.color = new Color(0, 0, 0, .6f * fade);
-            GUI.DrawTexture(box, Texture2D.whiteTexture);
-            GUI.color = new Color(1, 1, 1, fade);
-            GUI.Label(box, banner, bannerStyle);
-            GUI.color = Color.white;
-        }
-
         /// <summary>
         /// 막대의 오른쪽 끝이 뜻하는 크기 (S15P21B202-735).
         ///
@@ -326,82 +305,120 @@ namespace Metagame.UI
         public const float QuietNotice = 1.2f;
 
         /// <summary>
-        /// <b>지금 내 목소리가 들어가고 있는가</b>를 말하는 동안 보여 준다 (S15P21B202-735).
-        ///
-        /// <para>전에는 글자 두 줄뿐이라, 시끄러운 방에서 목소리가 묻히는지 알 수 없었다.
-        /// 알게 되는 것은 V 를 놓은 <b>뒤</b>였고(<c>목소리가 들리지 않았어요</c>) 그때는
-        /// 이미 10초를 쓴 뒤다.</para>
-        ///
-        /// <para><b>문턱 선을 같이 그린다.</b> 크기만 보여 주면 "이 정도면 큰 건가" 를 알 수
-        /// 없다 — 필요한 것은 내 목소리가 <b>잡음 위에 있는가</b> 이고, 그 선이 곧 필터가
-        /// 말/침묵을 가르는 자리다.</para>
+        /// 화면 높이에 맞춘 배율 — 1080p 가 1 (S15P21B202-746). 설정의 글자 배율은 곱하지 않는다 — 2026-09-26 QA 에서
+        /// 1.5 배까지 곱해져 "과하게 커졌다".
         /// </summary>
-        /// <summary>
-        /// 화면 높이에 맞춘 배율 — 1080p 가 1 (S15P21B202-746). 2026-09-26 QA: 1440p 에서 17px 글자는 플레이어도 시연을
-        /// 보는 사람도 읽지 못했다. 설정의 글자 크기(<see cref="UiScale.Value"/>)도 곱한다.
-        /// </summary>
-        static float K => Screen.height / 1080f * UiScale.Value;
+        static float K => Screen.height / 1080f;
 
-        /// <summary>안내 글자 · 자리 칸 글자 · 결과 배너 글자(1080p 기준 픽셀).</summary>
-        public const int LineFont = 30, ChipFont = 22, BannerFont = 40;
-
-        float LineTop => Screen.height - (LineFont * 2.9f + 18f) * K;
-
-        void DrawLevel()
-        {
-            if (!recording || microphone == null || !microphone.Capturing) return;
-
-            float w = Screen.width * .3f, h = 14f * K;
-            var box = new Rect((Screen.width - w) * .5f, LineTop - h - 8f * K, w, h);
-            GUI.color = new Color(1, 1, 1, .18f);
-            GUI.DrawTexture(box, Texture2D.whiteTexture);
-
-            float level = Mathf.Clamp01(microphone.Level / LevelFullScale);
-            GUI.color = microphone.Speaking ? new Color(.45f, .85f, .45f, .9f)
-                                            : new Color(.9f, .75f, .3f, .9f);
-            GUI.DrawTexture(new Rect(box.x, box.y, box.width * level, h), Texture2D.whiteTexture);
-
-            // 말로 치는 문턱. 막대가 이 선을 넘어야 들어간다.
-            float floor = Mathf.Clamp01(microphone.SpeechFloor / LevelFullScale);
-            GUI.color = new Color(1, 1, 1, .55f);
-            GUI.DrawTexture(new Rect(box.x + box.width * floor, box.y - 2f, 2f, h + 4f), Texture2D.whiteTexture);
-            GUI.color = Color.white;
-        }
-        GUIStyle chip;
+        /// <summary>마이크 아이콘 지름 · 아이콘 아래 짧은 말 · 결과 배너 글자(1080p 기준 픽셀).</summary>
+        public const int MicSize = 58, HintFont = 17, BannerFont = 26;
 
         /// <summary>
-        /// 자리 넷을 칸으로 그린다 (S15P21B202-738). <b>고른 칸이 그 색으로 차고 글자가 검다.</b>
-        ///
-        /// <para>자리에 누가 앉았는지는 판마다 다르다 — 그래서 키 번호만 적지 않고 지금 앉은 것
-        /// (AI · 사람 · 나 · 빈자리)과 AI 의 상태(거리 · 기절)를 같이 적는다. 사람이 앉은 색을
-        /// 눌러 보고서야 안 된다는 것을 알게 하지 않는다.</para>
+        /// 지금 V 로 말할 대상 — 왼쪽 위 동료 카드가 강조한다 (S15P21B202-746). 아래쪽의 자리 칸 넷을 없앴으므로 고른 것이
+        /// 보일 곳이 거기다. 없으면 <see cref="AiTalkKeys.Anyone"/>.
         /// </summary>
-        void DrawSeats()
+        public static int SelectedSlot => instance == null ? AiTalkKeys.Anyone
+            : instance.recording ? instance.recordingTarget : instance.selectedTarget;
+
+        GUIStyle hint, keyCap, bannerStyle, bannerCap;
+
+        /// <summary>
+        /// 가운데 아래 마이크 아이콘 하나 (2026-09-26 QA). 글자는 아이콘 위의 V 뿐이다. 말하는 동안 테두리가 목소리 크기만큼
+        /// 커졌다 작아지고, 말로 쳐지면 초록이 된다. 흐린 원은 말로 치는 문턱이다. 막혔으면(마이크 꺼짐 등) 아이콘이 빨갛고
+        /// 아래에 짧은 까닭이 뜬다.
+        /// </summary>
+        void DrawMic(string blocked, string hintText)
         {
-            if (seats.Count == 0) return;
-            if (chip == null) chip = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter };
-            chip.fontSize = Mathf.RoundToInt(ChipFont * K);
-            float w = Mathf.Min(260f * K, Screen.width * .7f / seats.Count), h = ChipFont * 1.7f * K, gap = 8f * K;
-            float x = (Screen.width - (w * seats.Count + gap * (seats.Count - 1))) * .5f, y = LineTop - h - 30f * K;
-            foreach (var seat in seats)
+            float size = MicSize * K, cx = Screen.width * .5f, cy = Screen.height - size * .5f - 30f * K;
+            var icon = new Rect(cx - size * .5f, cy - size * .5f, size, size);
+            Color accent = (recording ? recordingTarget : selectedTarget) is int slot && slot != AiTalkKeys.Anyone
+                ? TeamSlots.Accent(slot) : new Color(.85f, .9f, 1f);
+            if (recording && microphone != null && microphone.Capturing)
             {
-                var box = new Rect(x, y, w, h);
-                bool picked = seat.Slot == (recording ? recordingTarget : selectedTarget);
-                Color accent = TeamSlots.Accent(seat.Slot);
-                GUI.color = picked ? new Color(accent.r, accent.g, accent.b, .9f) : new Color(0, 0, 0, .45f);
-                GUI.DrawTexture(box, Texture2D.whiteTexture);
-                if (!picked)
-                {
-                    GUI.color = new Color(accent.r, accent.g, accent.b, seat.Ai ? .9f : .35f);
-                    GUI.DrawTexture(new Rect(box.x, box.yMax - 3f, box.width, 3f), Texture2D.whiteTexture);
-                }
-                // 고를 수 없는 칸(사람 · 빈자리 · 나)은 흐리게.
-                GUI.color = picked ? Color.black : seat.Ai ? Color.white : new Color(1, 1, 1, .5f);
-                GUI.Label(box, SeatLabel(seat), chip);
-                x += w + gap;
+                float level = Mathf.Clamp01(microphone.Level / LevelFullScale);
+                float floor = Mathf.Clamp01(microphone.SpeechFloor / LevelFullScale);
+                float grow = size * (1.05f + .9f * level), threshold = size * (1.05f + .9f * floor);
+                GUI.color = new Color(1, 1, 1, .25f);
+                GUI.DrawTexture(new Rect(cx - threshold * .5f, cy - threshold * .5f, threshold, threshold), HudIcons.Ring);
+                GUI.color = microphone.Speaking ? new Color(.45f, .9f, .5f, .95f) : new Color(.95f, .8f, .35f, .9f);
+                GUI.DrawTexture(new Rect(cx - grow * .5f, cy - grow * .5f, grow, grow), HudIcons.Ring);
+            }
+            GUI.color = blocked != null ? new Color(.55f, .12f, .12f, .85f) : recording ? new Color(.1f, .14f, .2f, .92f) : new Color(0, 0, 0, .5f);
+            GUI.DrawTexture(icon, HudIcons.Disc);
+            GUI.color = blocked != null ? new Color(1, .7f, .7f, 1) : recording ? Color.white : new Color(1, 1, 1, .8f);
+            GUI.DrawTexture(new Rect(icon.x + size * .2f, icon.y + size * .2f, size * .6f, size * .6f), HudIcons.Mic);
+            GUI.color = WithAlpha(accent, recording ? 1f : .7f);
+            GUI.DrawTexture(icon, HudIcons.Ring);
+
+            // 아이콘 위의 V — 누르면 말한다
+            if (keyCap == null) keyCap = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
+            keyCap.fontSize = Mathf.RoundToInt(15 * K);
+            var cap = new Rect(cx - 13f * K, icon.y - 24f * K, 26f * K, 22f * K);
+            GUI.color = new Color(0, 0, 0, .55f); GUI.DrawTexture(cap, Texture2D.whiteTexture);
+            GUI.color = Color.white; GUI.Label(cap, "V", keyCap);
+
+            string under = blocked ?? hintText;
+            if (!string.IsNullOrEmpty(under))
+            {
+                if (hint == null) hint = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, wordWrap = false };
+                hint.fontSize = Mathf.RoundToInt(HintFont * K);
+                var line = new Rect(cx - Screen.width * .3f, icon.yMax + 2f * K, Screen.width * .6f, HintFont * 1.5f * K);
+                GUI.color = new Color(0, 0, 0, .7f); GUI.Label(new Rect(line.x + 1, line.y + 1, line.width, line.height), under, hint);
+                GUI.color = blocked != null ? new Color(1, .75f, .75f, 1) : Color.white; GUI.Label(line, under, hint);
             }
             GUI.color = Color.white;
         }
+
+        /// <summary>
+        /// 결과 배너 (2026-09-26 QA: 너무 길었다). 보여 줄 것은 둘뿐 — <b>들은 말</b> · <b>그래서 한 명령</b>. 누가 받았는지는
+        /// 팀 색 원에 키 번호로 그린다. 해냈으면 초록, 못 했으면 빨강. 그 밖의 알림(음성 처리 실패 등)은 한 줄로.
+        /// </summary>
+        void DrawBanner()
+        {
+            var local = Local;
+            bool outcome = local != null && Time.unscaledTime < local.AiVoiceOutcomeUntil;
+            bool plain = !outcome && local != null && Time.unscaledTime < local.AiVoiceMessageUntil;
+            if (!outcome && !plain) return;
+            float until = outcome ? local.AiVoiceOutcomeUntil : local.AiVoiceMessageUntil;
+            float fade = Mathf.Clamp01((until - Time.unscaledTime) / .4f);
+            if (bannerStyle == null) bannerStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleLeft, wordWrap = false, richText = false };
+            if (bannerCap == null) bannerCap = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
+            bannerStyle.fontSize = Mathf.RoundToInt(BannerFont * K);
+            bannerCap.fontSize = Mathf.RoundToInt(BannerFont * .8f * K);
+            float h = BannerFont * 1.9f * K, icon = BannerFont * 1.3f * K, gap = 10f * K;
+
+            string heard = outcome ? (string.IsNullOrEmpty(local.AiVoiceHeard) ? "…" : "“" + local.AiVoiceHeard + "”") : local.AiVoiceMessage;
+            string arrow = outcome ? "  →  " : "";
+            string command = outcome ? local.AiVoiceCommand : "";
+            float heardW = bannerStyle.CalcSize(new GUIContent(heard)).x;
+            float commandW = outcome ? bannerStyle.CalcSize(new GUIContent(arrow + command)).x : 0f;
+            int slots = outcome ? local.AiVoiceSlots : 0, count = 0;
+            for (int i = 0; i < 4; i++) if ((slots & (1 << i)) != 0) count++;
+            float iconsW = count > 0 ? count * (icon + gap * .5f) + gap : 0f;
+            float w = Mathf.Min(Screen.width * .9f, iconsW + heardW + commandW + 2 * 18f * K);
+            var box = new Rect((Screen.width - w) * .5f, Screen.height * .1f, w, h);
+            GUI.color = new Color(0, 0, 0, .6f * fade); GUI.DrawTexture(box, Texture2D.whiteTexture);
+            float x = box.x + 18f * K;
+            for (int i = 0; i < 4; i++)
+            {
+                if ((slots & (1 << i)) == 0) continue;
+                var disc = new Rect(x, box.y + (h - icon) * .5f, icon, icon);
+                GUI.color = WithAlpha(TeamSlots.Accent(i), fade); GUI.DrawTexture(disc, HudIcons.Disc);
+                GUI.color = new Color(0, 0, 0, fade); GUI.Label(disc, AiTalkKeys.Cap(i), bannerCap);
+                x += icon + gap * .5f;
+            }
+            if (count > 0) x += gap * .5f;
+            GUI.color = new Color(1, 1, 1, fade);
+            GUI.Label(new Rect(x, box.y, heardW + 4f, h), heard, bannerStyle);
+            if (outcome)
+            {
+                GUI.color = local.AiVoiceOk ? new Color(.55f, 1f, .6f, fade) : new Color(1f, .6f, .55f, fade);
+                GUI.Label(new Rect(x + heardW, box.y, commandW + 4f, h), arrow + command, bannerStyle);
+            }
+            GUI.color = Color.white;
+        }
+
+        static Color WithAlpha(Color c, float a) => new Color(c.r, c.g, c.b, a);
 
         void Cancel()
         {
@@ -419,30 +436,13 @@ namespace Metagame.UI
         void OnGUI()
         {
             if (!CanRecord(GameSession.Instance)) return;
-            // **지금 누구에게 말하는지**가 늘 보여야 한다 (S15P21B202-738) — 고르기와 말하기가
-            // 따로라, 고른 것이 화면에 없으면 V 를 누를 때 누구에게 가는지 알 수 없다.
+            // 막힌 까닭은 아이콘 아래 짧게 — 마이크가 없거나 꺼졌거나 고른 동료에게 말할 수 없거나.
             string problem = Ready && !recording ? TalkProblem(selectedTarget, seats, VoiceRules.Range) : null;
-            string text = recording
-                ? (recordingTarget == AiTalkKeys.Anyone ? "● 듣고 있어요 · V를 놓으면 주변 AI에게 명령"
-                   : "● " + TeamSlots.Name(recordingTarget) + "에게 말하는 중 · V를 놓으면 명령")
-                : Time.unscaledTime < noticeUntil ? notice : Ready ? TalkLine(selectedTarget, problem) : null;
-            string mic = microphone?.Problem ?? ((GameSettingsRuntime.Instance?.Current?.voice?.microphoneMuted ?? false)
-                ? "마이크 꺼짐 · ESC에서 해제"
-                : recording && microphone != null && microphone.Speaking ? "● 목소리 인식 중"
-                : "마이크는 V를 누르는 동안에만 켜집니다");
-            if (label == null) { UiTheme.Ensure(); label = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, wordWrap = true }; }
-            label.fontSize = Mathf.RoundToInt(LineFont * K);
-            var line = new Rect(Screen.width * .1f, LineTop, Screen.width * .8f, LineFont * 2.9f * K);
-            // 글자 뒤를 어둡게 깐다 — 밝은 지형 위에서 흰 글자가 사라진다.
-            GUI.color = new Color(0, 0, 0, .45f);
-            GUI.DrawTexture(line, Texture2D.whiteTexture);
-            // 막혔으면 흐리게 — 글자만 바꾸면 "V 사용 불가" 를 읽기 전까지 눌러 본다.
-            GUI.color = problem != null && Time.unscaledTime >= noticeUntil ? new Color(1, 1, 1, .55f) : Color.white;
-            GUI.Label(line, mic + "\n" + text, label);
-            GUI.color = Color.white;
+            bool muted = GameSettingsRuntime.Instance?.Current?.voice?.microphoneMuted ?? false;
+            string blocked = microphone?.Problem ?? (muted ? "마이크 꺼짐 · ESC" : !Ready ? null : problem);
+            string hintText = Time.unscaledTime < noticeUntil ? notice : null;
+            DrawMic(blocked, hintText);
             DrawBanner();
-            if (Ready) DrawSeats();
-            DrawLevel();
         }
     }
 }

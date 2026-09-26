@@ -498,7 +498,7 @@ namespace Metagame.Network
                 // 뭐라고 들렸는지" 를 알고 다시 말할 수 있다 — 지금은 같은 말을 같은
                 // 목소리로 되풀이하는 것 말고 할 수 있는 것이 없다.
                 if (result == null || result.status != "ok" || !AiCommandPlan.Valid(result.orders))
-                { requester.ReportAiVoice(Heard(result) + "명령으로 알아듣지 못했어요"); yield break; }
+                { requester.ReportAiVoiceOutcome(Said(result), "알아듣지 못했어요", 0, false); yield break; }
                 // **버튼으로 골랐으면 말 속의 대상을 버튼의 색으로 덮는다** (S15P21B202-738).
                 // 받아쓰기가 색을 틀리거나 LLM 이 대상을 잘못 골라도 버튼의 동료가 한다.
                 // 원래 계획은 위의 ReportPlan 이 이미 남겼으므로, 덮은 뒤의 모양만 한 줄 더 남긴다.
@@ -513,9 +513,10 @@ namespace Metagame.Network
                 // 아무도 안 받았으면 **왜인지**를 말한다 (S15P21B202-730). 전에는 언제나
                 // "지금 수행할 수 있는 AI 동료가 없어요" 라서, 쓰러진 채 말한 사람은
                 // 자기가 기절해서인지 동료가 바빠서인지 알 수 없었다.
-                requester.ReportAiVoice(group.LastAccepted > 0
-                    ? Heard(result) + (AiCommandPlan.Spoken(orders) ?? "명령") + " 시켰어요"
-                    : Heard(result) + (group.LastRefusal ?? "지금 수행할 수 있는 AI 동료가 없어요"));
+                // 배너에는 둘만 — 들은 말 · 한 명령 — 과 누가 받았는지(자리 비트). 못 했으면 까닭 (S15P21B202-746).
+                requester.ReportAiVoiceOutcome(Said(result),
+                    group.LastAccepted > 0 ? CommandName(orders) : group.LastRefusal ?? "할 수 있는 동료가 없어요",
+                    group.LastAcceptedSlots, group.LastAccepted > 0);
             }
         }
 
@@ -542,6 +543,24 @@ namespace Metagame.Network
         /// <para>길면 자른다 — 화면 아래 두 줄짜리 자리다.</para>
         /// </summary>
         public const int HeardLimit = 24;
+
+        /// <summary>들은 말 그대로(따옴표 없이), 너무 길면 자른다.</summary>
+        static string Said(PlanDecision result)
+        {
+            string said = result != null ? result.text : null;
+            if (string.IsNullOrWhiteSpace(said)) return "";
+            said = said.Trim();
+            return said.Length > HeardLimit ? said.Substring(0, HeardLimit) + "…" : said;
+        }
+
+        /// <summary>한 명령의 사람 말 이름 — 시연에서는 넷 중 옮긴 것(<see cref="AiDemoCommands"/>).</summary>
+        static string CommandName(AiCommandAssignment[] orders)
+        {
+            var step = orders != null && orders.Length > 0 && orders[0]?.steps != null && orders[0].steps.Length > 0 ? orders[0].steps[0] : null;
+            if (step == null) return "명령";
+            string action = AiDemoCommands.Enabled ? AiDemoCommands.Map(step.action, step.destination) ?? step.action : step.action;
+            return AiCommandPlan.ActionName(action);
+        }
 
         static string Heard(PlanDecision result)
         {

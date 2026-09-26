@@ -74,6 +74,9 @@ namespace Metagame.Network
         public int Requested { get; private set; }
         public int LastAccepted { get; private set; }
 
+        /// <summary>받은 동료의 자리 비트(1 &lt;&lt; teamSlot) — 결과 배너가 누가 받았는지 아이콘으로 그린다 (S15P21B202-746).</summary>
+        public int LastAcceptedSlots { get; private set; }
+
         /// <summary>아무도 안 받았을 때 <b>왜</b> (S15P21B202-730). 받았으면 <c>null</c>.</summary>
         public string LastRefusal { get; private set; }
         AiGroupOrders(bool auto) { automatic = auto; }
@@ -174,7 +177,7 @@ namespace Metagame.Network
 
         public string ExecutePlan(AiCommandAssignment[] assignments, AiRecipients fallback, NetPlayer selected, PlayerRig speaker)
         {
-            LastAccepted = 0; LastRefusal = null;
+            LastAccepted = 0; LastRefusal = null; LastAcceptedSlots = 0;
             if (!AiCommandPlan.Valid(assignments) || !NetworkServer.active || speaker == null) return "잘못된 계획 · 기존 행동 유지";
             var usedActors = new HashSet<NetPlayer>();
             var reservedPlaces = new List<Vector3>();
@@ -200,7 +203,7 @@ namespace Metagame.Network
                     if (place && !FindPlace(ai, speaker, reservedPlaces, out offset)) { refusals.Add("설 자리를 못 찾음"); continue; }
                     if (!ai.TryApplyAiPlan(assignment.steps, speaker, out string refusal)) { refusals.Add(refusal); continue; }
                     if (place) { ai.SetAiFormation(offset); reservedPlaces.Add(speaker.FootPosition + offset); }
-                    usedActors.Add(ai); applied++; LastAccepted++;
+                    usedActors.Add(ai); applied++; LastAccepted++; LastAcceptedSlots |= 1 << ai.teamSlot;
                 }
                 if (report.Length > 0) report.Append(" / ");
                 report.Append(assignment.recipients).Append(": ").Append(assignment.steps[0].action)

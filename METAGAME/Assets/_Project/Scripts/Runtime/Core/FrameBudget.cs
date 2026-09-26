@@ -1,7 +1,9 @@
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using Unity.Profiling;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 namespace Metagame.Core
 {
@@ -9,42 +11,40 @@ namespace Metagame.Core
     /// 프레임이 어디에 쓰이는지 10초마다 로그 한 줄로 남긴다 (S15P21B202-746).
     ///
     /// <para>2026-09-26 QA: 그래픽 옵션을 낮춰도 렉이 비슷했다 — GPU 가 아니라 CPU 쪽이라는 뜻이다. 60fps 를 목표로 무엇을
-    /// 줄일지 고르려면 물리 · 스크립트 · 렌더 대기 · AI 가 각각 몇 ms 를 쓰는지 알아야 한다. 개발 빌드 QA 에서 그대로 쌓이게
-    /// <c>Player.log</c> 에 적는다. 프로파일러를 붙일 필요가 없다.</para>
+    /// 줄일지 고르려면 물리 · 스크립트 · 렌더가 각각 몇 ms 를 쓰는지 알아야 한다.</para>
     ///
-    /// <para><b>가볍게.</b> 기록기는 유니티가 이미 재는 표시(marker)의 마지막 값을 읽을 뿐이다. 문자열은 10초에 한 번만 만든다.</para>
+    /// <para><b>배포용 빌드에서도 잰다.</b> 처음에는 유니티의 내부 표시(ProfilerRecorder)를 읽었는데, CI 의 개발 빌드가
+    /// <c>BuildOptions.Development</c> 가 아니라서 한 칸도 안 찍혔다(2026-09-26 QA). 그래서 <b>가장 먼저 도는 스크립트와
+    /// 가장 늦게 도는 스크립트 사이의 시각</b>으로 나눈다 — <see cref="FrameBudgetEdge"/> 둘이 실행 순서 맨 앞과 맨 뒤에 선다.</para>
+    ///
+    /// <list type="bullet">
+    /// <item>Fixed스크립트 — 물리 단계마다 FixedUpdate 맨 앞 → 맨 뒤</item>
+    /// <item>물리 — FixedUpdate 맨 뒤 → 다음 물리 단계 맨 앞(또는 Update 맨 앞). 사이에 도는 것은 물리 시뮬레이션이 거의 전부다</item>
+    /// <item>Update · Late — 각 맨 앞 → 맨 뒤</item>
+    /// <item>렌더+대기 — LateUpdate 맨 뒤 → 다음 프레임 맨 앞. 그리기 · 화면 표시 대기(VSync) · OnGUI 가 여기 든다</item>
+    /// </list>
     /// </summary>
     public sealed class FrameBudget : MonoBehaviour
     {
         public const float Window = 10f;
 
-        /// <summary>(이름, 로그에 쓸 짧은 이름). 없는 표시는 조용히 0 이다 — 판마다·빌드마다 있는 것이 다르다.</summary>
-        static readonly (string marker, string label)[] Markers =
-        {
-            ("FixedUpdate.PhysicsFixedUpdate", "물리"),
-            ("FixedUpdate.ScriptRunBehaviourFixedUpdate", "Fixed스크립트"),
-            ("Update.ScriptRunBehaviourUpdate", "Update"),
-            ("PreLateUpdate.ScriptRunBehaviourLateUpdate", "Late"),
-            ("PreLateUpdate.DirectorUpdateAnimationBegin", "애니"),
-            ("PostLateUpdate.PlayerUpdateCanvases", "UI"),
-            ("PostLateUpdate.FinishFrameRendering", "렌더"),
-            ("Gfx.WaitForPresentOnGfxThread", "GPU대기"),
-            ("AI.Companion.Tick", "AI"),
-            ("AI.Navigation.CollectSources", "길수집"),
-            ("AI.Navigation.ScheduleBuild", "길굽기"),
-            ("Parts.Outline.Collect", "테두리"),
-        };
+        static FrameBudget instance;
+        static readonly Stopwatch Clock = Stopwatch.StartNew();
+        static double Now => Clock.Elapsed.TotalMilliseconds;
 
-        readonly List<ProfilerRecorder> recorders = new List<ProfilerRecorder>();
-        readonly double[] sums = new double[Markers.Length];
+        // 이번 창의 합(ms)
+        double fixedScripts, physics, update, late, render, ai;
+        double fixedStart = -1, fixedEnd = -1, updateStart = -1, lateEnd = -1;
         readonly List<float> frames = new List<float>(2048);
         ProfilerRecorder gc;
         double gcBytes;
-        int fixedSteps, frameSteps, maxSteps;
+        int fixedSteps, maxSteps;
+        long stepSum;
         float windowStart;
 
-        /// <summary>지금 창을 바로 적는다 — 검사가 쓴다.</summary>
-        public void FlushNow() => Flush();
+        /// <summary>AI 가 한 틱에 쓴 시간(ms). <c>AiCompanionController</c> 가 더한다.</summary>
+        public static void AddAi(double ms) { if (instance != null) instance.ai += ms; }
+        public static double Stamp => Now;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
@@ -57,34 +57,58 @@ namespace Metagame.Core
 
         void OnEnable()
         {
-            foreach (var (marker, _) in Markers) recorders.Add(new ProfilerRecorder(marker, 1));
+            instance = this;
+            gameObject.AddComponent<FrameBudgetEdge>().First = true;
+            gameObject.AddComponent<FrameBudgetLast>();
             gc = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame");
             windowStart = Time.realtimeSinceStartup;
         }
 
         void OnDisable()
         {
-            foreach (var r in recorders) r.Dispose();
-            recorders.Clear();
+            if (instance == this) instance = null;
             gc.Dispose();
         }
 
-        void FixedUpdate() => fixedSteps++;
-
-        void Update()
+        // ── 가장자리에서 부른다 ──
+        internal void FixedFirst()
         {
-            // 앞 프레임의 값이다 — 표시는 프레임이 끝날 때 닫힌다.
+            double now = Now;
+            if (fixedEnd >= 0) physics += now - fixedEnd;          // 앞 물리 단계의 시뮬레이션
+            else if (lateEnd >= 0) render += now - lateEnd;        // 앞 프레임의 그리기 · 대기
+            fixedEnd = -1; lateEnd = -1;
+            fixedStart = now; fixedSteps++;
+        }
+        internal void FixedLast() { double now = Now; if (fixedStart >= 0) fixedScripts += now - fixedStart; fixedEnd = now; }
+        internal void UpdateFirst()
+        {
+            double now = Now;
+            if (fixedEnd >= 0) physics += now - fixedEnd;          // 마지막 물리 단계의 시뮬레이션
+            else if (lateEnd >= 0) render += now - lateEnd;        // 물리 단계가 없던 프레임
+            fixedEnd = -1; lateEnd = -1; updateStart = now;
+        }
+        internal void UpdateLast() { if (updateStart >= 0) update += Now - updateStart; }
+        internal double lateStart = -1;
+        internal void LateFirst() => lateStart = Now;
+        internal void LateLast()
+        {
+            double now = Now;
+            if (lateStart >= 0) late += now - lateStart;
+            lateEnd = now;
+            FrameDone();
+        }
+
+        void FrameDone()
+        {
             frames.Add(Time.unscaledDeltaTime * 1000f);
-            for (int i = 0; i < recorders.Count; i++)
-                if (recorders[i].Valid) sums[i] += recorders[i].LastValue / 1e6;
             if (gc.Valid) gcBytes += gc.LastValue;
-            frameSteps = fixedSteps; fixedSteps = 0;
-            if (frameSteps > maxSteps) maxSteps = frameSteps;
-            stepSum += frameSteps;
+            if (fixedSteps > maxSteps) maxSteps = fixedSteps;
+            stepSum += fixedSteps; fixedSteps = 0;
             if (Time.realtimeSinceStartup - windowStart >= Window) Flush();
         }
 
-        long stepSum;
+        /// <summary>지금 창을 바로 적는다 — 검사가 쓴다.</summary>
+        public void FlushNow() => Flush();
 
         void Flush()
         {
@@ -95,21 +119,50 @@ namespace Metagame.Core
                 frames.Sort();
                 double total = 0; foreach (var f in frames) total += f;
                 double mean = total / n;
+                int over = 0; foreach (var f in frames) if (f > 17.5f) over++;   // VSync 의 16.7 흔들림은 넘김으로 치지 않는다
                 var line = new StringBuilder(256);
                 line.Append("[FRAME] ").Append(seconds.ToString("0")).Append("초 · 평균 ").Append(mean.ToString("0.0"))
                     .Append("ms(").Append((1000.0 / mean).ToString("0")).Append("fps) · p95 ")
                     .Append(frames[Mathf.Min(n - 1, (int)(n * .95f))].ToString("0")).Append(" · 최대 ")
-                    .Append(frames[n - 1].ToString("0")).Append(" · 16.7ms 초과 ")
-                    .Append((100f * frames.FindAll(f => f > 16.7f).Count / n).ToString("0")).Append("% · 물리단계 ")
-                    .Append(((double)stepSum / n).ToString("0.0")).Append("(최대 ").Append(maxSteps).Append(')');
-                for (int i = 0; i < Markers.Length; i++)
-                    if (recorders[i].Valid && sums[i] > 0)
-                        line.Append(" · ").Append(Markers[i].label).Append(' ').Append((sums[i] / n).ToString("0.0"));
+                    .Append(frames[n - 1].ToString("0")).Append(" · 17.5ms 초과 ")
+                    .Append((100f * over / n).ToString("0")).Append("% · 물리단계 ")
+                    .Append(((double)stepSum / n).ToString("0.0")).Append("(최대 ").Append(maxSteps).Append(')')
+                    .Append(" · 물리 ").Append((physics / n).ToString("0.0"))
+                    .Append(" · Fixed스크립트 ").Append((fixedScripts / n).ToString("0.0"))
+                    .Append(" · Update ").Append((update / n).ToString("0.0"))
+                    .Append(" · Late ").Append((late / n).ToString("0.0"))
+                    .Append(" · 렌더+대기 ").Append((render / n).ToString("0.0"))
+                    .Append(" · AI ").Append((ai / n).ToString("0.00"));
                 if (gc.Valid) line.Append(" · GC ").Append((gcBytes / seconds / 1048576.0).ToString("0.0")).Append("MB/s");
+                line.Append(" · VSync ").Append(QualitySettings.vSyncCount).Append(" · 품질 ").Append(QualitySettings.GetQualityLevel());
                 Debug.Log(line.ToString());
             }
-            frames.Clear(); System.Array.Clear(sums, 0, sums.Length); gcBytes = 0; stepSum = 0; maxSteps = 0;
+            frames.Clear(); gcBytes = 0; stepSum = 0; maxSteps = 0;
+            fixedScripts = physics = update = late = render = ai = 0;
             windowStart = Time.realtimeSinceStartup;
         }
+    }
+
+    /// <summary>실행 순서 맨 앞 — 각 단계의 시작을 적는다.</summary>
+    [DefaultExecutionOrder(-32000)]
+    public sealed class FrameBudgetEdge : MonoBehaviour
+    {
+        internal bool First;
+        FrameBudget budget;
+        void Awake() => budget = GetComponent<FrameBudget>();
+        void FixedUpdate() => budget?.FixedFirst();
+        void Update() => budget?.UpdateFirst();
+        void LateUpdate() => budget?.LateFirst();
+    }
+
+    /// <summary>실행 순서 맨 뒤 — 각 단계의 끝을 적는다.</summary>
+    [DefaultExecutionOrder(32000)]
+    public sealed class FrameBudgetLast : MonoBehaviour
+    {
+        FrameBudget budget;
+        void Awake() => budget = GetComponent<FrameBudget>();
+        void FixedUpdate() => budget?.FixedLast();
+        void Update() => budget?.UpdateLast();
+        void LateUpdate() => budget?.LateLast();
     }
 }
