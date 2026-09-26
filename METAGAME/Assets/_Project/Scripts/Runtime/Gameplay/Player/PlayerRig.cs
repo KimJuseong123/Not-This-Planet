@@ -2733,13 +2733,13 @@ namespace Metagame.Gameplay
             // 파츠 밀기 상태를 먼저 갱신한다 — 아래 Locomotion 이 이 값으로 이동
             // 기준을 정하고(§10.2), 밀기 카메라도 같은 값을 본다.
             RefreshHaulState();
-            RefreshAnchoredPartCollision();
+            using (new Metagame.Core.FrameSections.Section(Metagame.Core.FrameSections.RigAnchored, System.Diagnostics.Stopwatch.GetTimestamp())) RefreshAnchoredPartCollision();
 
             if (Doll == null || Doll.Hips == null) return;
             if (!JointTools.IsFinite(Doll.Hips.position)) { return; }
             ReleaseProneIfTaken();
 
-            RefreshInteractionFocus();
+            using (new Metagame.Core.FrameSections.Section(Metagame.Core.FrameSections.RigFocus, System.Diagnostics.Stopwatch.GetTimestamp())) RefreshInteractionFocus();
 
             // 매 고정틱 돌아야 한다. Time.fixedDeltaTime 을 적산하므로 호출 빈도가
             // 곧 게이지 속도다 (!297 AI 리뷰가 첫 판의 자리를 짚었다 — 운반 장치

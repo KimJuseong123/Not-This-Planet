@@ -1098,6 +1098,7 @@ namespace Metagame.Network
             // FixedUpdate 는 Update 보다 먼저 도니까 순서로도 막을 수 없다.
             InputFrame frame = hostOwnBody ? body.CurrentInput : pendingInput.Consume();
             if (IsAi)
+            using (new Metagame.Core.FrameSections.Section(Metagame.Core.FrameSections.NetAi, System.Diagnostics.Stopwatch.GetTimestamp()))
             {
                 aiFollow.AmbientCanDance = AiCanDanceNow;
                 frame = aiFollow.Tick(body, AiHostSettings.ServerState == AiRoomState.Active
@@ -1117,6 +1118,7 @@ namespace Metagame.Network
                 frame = GameSession.Instance.Stage2Demo.FilterDemoInput(frame);
 
             if (transport != null)
+            using (new Metagame.Core.FrameSections.Section(Metagame.Core.FrameSections.NetTransport, System.Diagnostics.Stopwatch.GetTimestamp()))
             {
                 transport.SetInput(frame);
 
