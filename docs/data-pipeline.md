@@ -32,7 +32,7 @@
 - **한 판이 저장되지 않습니다.** `RoomManager` 가 방을 `ConcurrentHashMap` 에 들고 있을 뿐이고 **`@Entity` 는 여전히 `User` 하나, JPA 저장소는 `UserRepository` 하나**입니다. 파일은 서버에 쌓이지만 서버는 *"어제 몇 판이 돌았나"* 를 답하지 못합니다 — `-499` 의 일입니다
 - **평문 로그는 판 단위가 아닙니다.** 이름이 `yyyyMMdd-HHmmss.log` 이고 **프로세스가 뜰 때** 하나 만듭니다 — 켜서 세 판 하고 끄면 파일 1개에 세 판이 섞입니다. **이벤트는 판마다 갈리므로**, 판 단위로 볼 것은 이벤트 쪽입니다
 - **어느 단계에서 그만뒀는지는 이제 답해집니다.** 끝난 이유가 갈리고(`-625` — `cleared`·`abandoned`·`quit`·`destroy`), 국면이 남습니다(`-627` — `cutscene`·`play`·`ending`). 마지막 `phase` 와 마지막 `floors` 와 `result` 를 나란히 보면 *"조립하다 그만뒀다"* 가 나옵니다. **아직 없는 것은 그 셋을 사람 수·역할과 묶어 볼 수단입니다**(`-499`)
-- **볼 수단이 없습니다.** 모인 파일을 질의하는 것은 아직 §10 의 계획입니다
+- **판 단위로 보는 수단이 생겼습니다**(`-499`). `scripts/analytics/sessions.py` 가 NDJSON 을 판 한 줄로 만듭니다 — 끝난 이유·마지막 국면·쌓은 층·막힌 사유·채널. **아직 없는 것은 그것을 날마다 돌려 페이지로 내보내는 쪽**입니다(M4)
 
 ### 수집 경로 — 2026-09-18 에 처음으로 끝까지 동작했습니다
 
@@ -138,7 +138,11 @@
 
 | 이벤트 | 무엇을 본다 | 어디 |
 | --- | --- | --- |
-| `phase` | 국면이 바뀔 때 — `cutscene`·`play`·`ending`. 연출일 때는 `stage` 칸에 세부(`Boarding`·`Launching`·`MeteorImpact` …) | `GameSession.Sequence` · `GameSession.EndingActive` · `DemoEnding.Stage` (`-627`) |
+| `phase` | 국면이 바뀔 때 — `cutscene`·`play`·`ending`. **`stage` 칸에 세부**가 함께 실린다: 연출이면 `Boarding`·`Launching`·`MeteorImpact` …, 그 밖에는 Stage1 시퀀스의 단계(`Waiting`·`Entry`·`Exploration`·`Assault`·`Combat`) | `Stage1Sequence.BlocksInput` · `Stage1Sequence.Phase` · `GameSession.EndingActive` · `DemoEnding.Stage` (`-627` · `-646`) |
+
+> **`cutscene` 은 `Sequence != null` 이 아니다** (`-646`). 그 값은 *"여기가 Stage1 이다"* 라는 뜻이라 — `Stage1CutsceneFlow` 가 시작할 때 컴포넌트를 붙이고 떼지 않는다 — **Stage1 세션 내내 참**이었다. 배포 서버에 도착한 첫 실제 세션(2026-09-18, 199초)이 국면을 **한 건, 값 `cutscene`** 으로만 남겼고, 같은 세션의 클라이언트 로그는 그동안 내내 실제 플레이였다(도구 집기·고정못 시도·차량 하차).
+>
+> 이제 `Stage1Sequence.BlocksInput` 을 본다 — `GameSession.CinematicInputBlocked` 가 쓰는 바로 그 값이다. 실제 컷신은 `Entry`·`Assault` 둘뿐이고 `Exploration`·`Combat` 은 플레이다.
 | `assembly` | `Floors` 배열이 바뀔 때 | `ShipAssembly.Floors` · `Evaluate()` |
 | `blocked` | `IsBoardable` 이 false 이고 `Blocker` 가 바뀔 때 | `ShipAssembly.Blocker` |
 | `checkpoint` | `CheckpointIndex` 가 바뀔 때 | `GameSession.ReachCheckpoint` |
@@ -290,7 +294,7 @@ NPC 가 도왔다"* 는 다른 것입니다. 그래서 둘을 더합니다.
 | 무엇 | 어디 | 왜 |
 | --- | --- | --- |
 | **이벤트 원본** | **NDJSON 파일** — `/var/log/metagame-events/<날짜>/` | 평문 로그가 이미 쓰는 방식. 서버 프로세스 0개. **반납 때 복사하면 끝** |
-| ↳ **지금은** | `/var/log/metagame-runlogs/<날짜>/`(prod) · `/var/log/metagame-dev-runlogs/…`(dev) | `-607` 이 새 엔드포인트를 만들지 않고 `/logs` 를 그대로 썼습니다 — §9 의 이유(상한·인증을 다시 배우지 않는다)가 그대로 적용됩니다. **위 폴더는 아직 없습니다**(2026-09-18 확인). 나눌지는 `-499` 에서 정합니다 |
+| ↳ **지금은** | `/var/log/metagame-runlogs/<날짜>/`(prod) · `/var/log/metagame-dev-runlogs/…`(dev) | `-607` 이 새 엔드포인트를 만들지 않고 `/logs` 를 그대로 썼습니다 — §9 의 이유(상한·인증을 다시 배우지 않는다)가 그대로 적용됩니다. **2026-09-18 부터 실제로 쌓입니다.** 나눌지는 `-499` 에서 정합니다 |
 | **분석** | **DuckDB** (각자 PC) | NDJSON 을 그대로 읽어 SQL. 서버 부하 0 |
 | `play_session` 색인 | MySQL | `User` 와 조인해야 하고, 행이 판당 하나라 작다 |
 
@@ -382,7 +386,7 @@ Kafka  →  S3/Parquet  →  Spark      (큰 규모)
 | **M0** | `-501` — 평문 로그가 실제로 서버에 도착 | `/var/log/metagame-runlogs` 에 파일이 생긴다 (E2E `G14`) | **끝** 2026-09-18 — 남은 원인은 `-501` 이 아니라 마운트였습니다(§1) |
 | **M1** | 이벤트 목록 확정 — 코드의 어느 자리인지까지 | `-498` 에 이벤트마다 심을 함수가 적힌다 | **끝** `-498` |
 | **M2** | 이벤트를 파일로 남긴다(업로드 없음) | 한 판 돌리면 `events/` 에 NDJSON 이 생기고 `seq` 가 안 빠진다 | **끝** `-498` |
-| **M3** | 업로드 + 저장 | 서버에 NDJSON 이 쌓이고 `play_session` 에 행이 생긴다. 같은 것을 두 번 보내도 한 번이다 | **절반** — 쌓이는 것과 멱등은 확인했고(`-607`), `play_session` 행은 아직 없습니다(`-499`) |
+| **M3** | 업로드 + 저장 | 서버에 NDJSON 이 쌓이고 `play_session` 에 행이 생긴다. 같은 것을 두 번 보내도 한 번이다 | **끝** — 쌓이는 것과 멱등은 `-607`, 판 한 줄은 `-499` 의 `sessions.py` 입니다. **행을 DB 에 넣지 않았습니다** — EC2 가 회수되므로 원본 NDJSON 을 그대로 두고 읽습니다(내보내는 것이 곧 백업입니다) |
 | **M4** | 질의와 페이지 | §3 질문에 DuckDB 로 답하고, 하루 한 번 갱신되는 페이지가 있다 | 아직 |
 
 M2 까지는 서버를 안 건드리므로 **세션을 끊지 않습니다.** M3 은 백엔드 배포라 버튼으로 나갑니다.

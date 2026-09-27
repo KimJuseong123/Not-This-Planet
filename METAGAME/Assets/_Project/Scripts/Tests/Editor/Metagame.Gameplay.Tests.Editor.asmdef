@@ -10,6 +10,7 @@
     "Metagame.Network",
     "Metagame.UI",
     "Mirror",
+    "Mirror.Transports",
     "UnityEngine.UI",
     "Unity.RenderPipelines.Universal.Runtime",
     "Unity.RenderPipelines.Core.Runtime",

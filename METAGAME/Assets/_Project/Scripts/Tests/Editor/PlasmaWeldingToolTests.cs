@@ -433,6 +433,7 @@ namespace Metagame.Gameplay.Tests
             Physics.SyncTransforms();
             tool.SetInput(default, new ToolAimContext(player, null, Vector3.forward));
             InvokeLateUpdate(tool);
+            CompleteJointGuide(tool);
             Assert.IsTrue(tool.JointGuideVisible);
             var recommendation = GameObject.Find("Welding joint recommendations");
             Assert.IsNotNull(recommendation);
@@ -449,15 +450,23 @@ namespace Metagame.Gameplay.Tests
             b.transform.position -= Vector3.right * 2f;
             Physics.SyncTransforms();
             InvokeLateUpdate(tool);
+            CompleteJointGuide(tool);
             Assert.IsTrue(tool.JointGuideVisible);
             player.IsLocal = false;
             InvokeLateUpdate(tool);
             Assert.IsFalse(tool.JointGuideVisible);
             player.IsLocal = true;
             InvokeLateUpdate(tool);
+            CompleteJointGuide(tool);
             Assert.IsTrue(tool.JointGuideVisible);
             if (remote) tool.ApplyRemoteHeld(false); else tool.Unequip();
             Assert.IsFalse(tool.JointGuideVisible);
+        }
+
+        static void CompleteJointGuide(PlasmaWeldingTool tool)
+        {
+            // Recommendation geometry is deliberately spread across frames.
+            for (int i = 0; i < 512 && !tool.JointGuideVisible; i++) InvokeLateUpdate(tool);
         }
 
         SpaceshipPart WeldingBody()

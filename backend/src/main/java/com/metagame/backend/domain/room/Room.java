@@ -2,8 +2,10 @@ package com.metagame.backend.domain.room;
 
 import com.metagame.backend.domain.game.GameState;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import lombok.Getter;
 
 /**
@@ -24,6 +26,19 @@ public class Room {
      * 꽉 찬 방은 기다리면 자리가 나고, 이미 시작된 방은 다른 방을 찾아야 한다.
      */
     public enum JoinResult { OK, ROOM_PLAYING, ROOM_FULL }
+
+    /**
+     * AI 자리 수를 바꾸려 한 결과 (S15P21B202-713). 거절 이유가 곧 ERROR 의 {@code reason} 이다.
+     */
+    public enum AiCountResult { OK, NOT_HOST, NOT_WAITING }
+
+    /**
+     * 사람을 내보내려 한 결과 (S15P21B202-713).
+     *
+     * <p>{@code SELF}·{@code NOT_IN_ROOM} 은 부르는 쪽이 하나의 사유({@code BAD_TARGET})로
+     * 묶는다 — 사용자가 해야 할 일이 같다(대상을 다시 고른다).
+     */
+    public enum KickResult { OK, NOT_HOST, NOT_WAITING, SELF, NOT_IN_ROOM }
 
     public static final int MAX_PLAYERS = 4;   // TODO: 기획 확정 후 조정
 
@@ -56,6 +71,32 @@ public class Room {
     private volatile GameState gameState;
     private volatile GameState lastCheckpoint;
 
+    /**
+     * 방장이 채우겠다고 한 AI 자리 수 (S15P21B202-713).
+     *
+     * <p><b>여기가 유일한 출처다.</b> 로비에는 Mirror 가 돌지 않아 참가자 화면에 AI 수를
+     * 알려 줄 길이 {@code ROOM_STATE} 뿐이고, 모든 PC 가 이 값을 받아 두므로 판 중에
+     * 방장이 바뀌어도(2맵처럼 WorldSync 가 없는 곳 포함) 새 방장이 같은 수를 안다.
+     * 두 번째 사본을 두면 둘이 어긋나는 날 조용히 틀린다.
+     *
+     * <p><b>정원({@code ROOM_FULL})에는 사람만 센다.</b> AI 는 사람이 들어오면 비켜 준다
+     * ({@link #tryJoin}).
+     */
+    private volatile int aiCount;
+
+    /**
+     * 방송한 방 상태의 번호 (S15P21B202-713 리뷰). 방송은 스레드마다 따로 만들어져 <b>순서 없이</b>
+     * 도착하므로, 받는 쪽이 옛 것을 버릴 수 있게 한 방향으로만 는다.
+     *
+     * <p>변경마다 올리지 않고 <b>스냅숏을 만들 때</b> 받는다 — 번호를 먼저 받고 필드를 그 뒤에 읽으면,
+     * 번호가 큰 스냅숏은 그보다 앞서 끝난 변경을 모두 담는다. 변경 쪽에 두면 새 변경 경로가 생길 때마다
+     * 올리는 것을 잊지 않아야 한다.</p>
+     */
+    private final AtomicLong stateVersion = new AtomicLong();
+
+    // 판이 시작될 때의 방장. 끝날 때 방장이 달라졌으면(판 중 이전) AI 수를 비운다 — end() 참고
+    private volatile Long hostAtStart;
+
     public Room(String roomId, Long hostUserId, String hostNickname) {
         this.roomId = roomId;
         this.hostUserId = hostUserId;
@@ -73,6 +114,11 @@ public class Room {
      * <p><b>판단은 여기 한 곳에서만 한다.</b> 부르는 쪽에서 {@code getStatus()} 와
      * 인원수를 다시 보고 이유를 짐작하면, 그 조건이 이 메서드와 갈리는 날이 온다.
      */
+    /** 다음 방송의 번호. 한 방향으로만 는다. */
+    public long nextStateVersion() {
+        return stateVersion.incrementAndGet();
+    }
+
     public synchronized JoinResult tryJoin(Long userId, String nickname) {
         if (status != Status.WAITING) {
             return JoinResult.ROOM_PLAYING;
@@ -81,6 +127,11 @@ public class Room {
             return JoinResult.ROOM_FULL;
         }
         players.put(userId, new RoomPlayer(nickname));
+        // 사람이 들어와 자리가 모자라면 AI 하나가 비켜 준다 (S15P21B202-713).
+        // <b>줄인 값을 그대로 둔다</b> — 그 사람이 나가도 AI 가 되살아나지 않는다. 방장이
+        // 모르는 사이에 AI 가 늘어나면 안 되기 때문이다. setAiCount 와 같은 잠금 안이라
+        // 두 요청이 엇갈려 합이 4를 넘는 일이 없다.
+        aiCount = Math.min(aiCount, MAX_PLAYERS - players.size());
         return JoinResult.OK;
     }
 
@@ -120,7 +171,65 @@ public class Room {
         // 방장이 나가면 남은 사람에게 위임
         if (userId.equals(hostUserId)) {
             hostUserId = pickHost(userId);
+            // 대기 중에 방장이 바뀌면 AI 수를 비운다 (S15P21B202-713). AI 는 방장 PC 에서
+            // 돌고, 새 방장은 추가팩을 받거나 준비한 적이 없다 — 옛 방장의 선택을 물려주면
+            // 새 방장 화면에 준비도 안 된 AI 가 줄지어 선다. 판 중 이전은 end() 가 맡는다.
+            if (status == Status.WAITING) {
+                aiCount = 0;
+            }
         }
+    }
+
+    /**
+     * AI 자리 수를 정한다 (S15P21B202-713). <b>방장만, 대기 중에만</b> 바꿀 수 있다.
+     *
+     * <p>판 중에 바꾸지 못하게 막아 두면, 모든 PC 가 받아 둔 값이 판 내내 같다 — 방장이
+     * 바뀌어도 새 방장이 이미 옳은 수를 들고 있다.
+     *
+     * <p>범위를 넘는 값은 거절하지 않고 {@code 0 ~ MAX_PLAYERS - 사람 수} 로 줄인다.
+     * 방장 화면이 잠깐 옛 인원을 보고 보냈을 수 있고, 줄인 값이 {@code ROOM_STATE} 로
+     * 돌아가면 방장이 실제 수를 본다. 사람 수는 적어도 1(방장)로 센다.
+     */
+    public synchronized AiCountResult setAiCount(Long by, int wanted) {
+        if (by == null || !by.equals(hostUserId)) {
+            return AiCountResult.NOT_HOST;
+        }
+        if (status != Status.WAITING) {
+            return AiCountResult.NOT_WAITING;
+        }
+        int max = Math.max(0, MAX_PLAYERS - Math.max(1, players.size()));
+        aiCount = Math.max(0, Math.min(wanted, max));
+        return AiCountResult.OK;
+    }
+
+    /**
+     * 방장이 사람을 방에서 내보낸다 (S15P21B202-713). <b>대기 중에만</b> 된다.
+     *
+     * <p>{@link #leave} 를 거치지 않는다 — leave 는 나가는 사람이 방장이면 방장을 다시
+     * 고르는데, 여기서 나가는 사람은 방장일 수 없으므로(SELF) 그 분기가 필요 없고, 뜻이
+     * 다른 두 동작을 한 메서드에 섞지 않는다.
+     *
+     * <p>끊김 표시도 함께 지운다. 지난 판의 유예 타이머가 아직 돌고 있으면 만료 처리가
+     * 이 사람을 다시 찾아 지우려 한다 — 이미 없는 사람이라 할 일이 없게 둔다.
+     *
+     * <p>AI 수는 건드리지 않는다. 사람이 나가도 AI 가 되살아나지 않는 것과 같은 규칙이다.
+     */
+    public synchronized KickResult kick(Long by, Long target) {
+        if (by == null || !by.equals(hostUserId)) {
+            return KickResult.NOT_HOST;
+        }
+        if (status != Status.WAITING) {
+            return KickResult.NOT_WAITING;
+        }
+        if (target == null || target.equals(by)) {
+            return KickResult.SELF;
+        }
+        if (!players.containsKey(target)) {
+            return KickResult.NOT_IN_ROOM;
+        }
+        players.remove(target);
+        disconnected.remove(target);
+        return KickResult.OK;
     }
 
     /**
@@ -214,6 +323,7 @@ public class Room {
             return false;
         }
         status = Status.PLAYING;
+        hostAtStart = hostUserId;
         participants.addAll(players.keySet());
         gameState = new GameState(stageId);
         players.keySet().forEach(gameState::addPlayer);
@@ -249,6 +359,13 @@ public class Room {
         participants.clear();
         players.values().forEach(player -> player.setReady(false));
         gameState = null;
+        // 판 중에 방장이 바뀌었으면 AI 수를 비운다 (S15P21B202-713). 대기 중 이전을 비우는
+        // leave() 와 같은 이유다 — 다음 판은 새 방장 PC 에서 돌고, 그 사람이 고른 적 없는
+        // 수를 이어 쓰면 안 된다. 같은 방장이면 한 판 더 할 때 그대로 둔다.
+        if (!Objects.equals(hostUserId, hostAtStart)) {
+            aiCount = 0;
+        }
+        hostAtStart = null;
         return true;
     }
 

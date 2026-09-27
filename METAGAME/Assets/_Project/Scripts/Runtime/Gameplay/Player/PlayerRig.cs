@@ -182,6 +182,37 @@ namespace Metagame.Gameplay
         public uint TossSeq { get; private set; }
 
         /// <summary>
+        /// 방망이를 한 번 휘두를 때마다 오른다 (S15P21B202-694).
+        ///
+        /// <para><see cref="TossSeq"/> 와 같은 규칙이다 — <c>NetPlayer</c> 가 SyncVar 로
+        /// 실어 보내고, 받은 쪽은 값이 <b>바뀌었을 때만</b> 재생한다. 스윙은 남이
+        /// 보라고 있는 동작이라 이 경로가 이 기능의 절반이다.</para>
+        /// </summary>
+        public uint SwingSeq { get; private set; }
+
+        /// <summary>
+        /// 방망이를 <b>칠 수 있게</b> 들고 있는가 (S15P21B202-694).
+        ///
+        /// <para>대기 코일을 켜는 조건이다. 쿨다운 중이면 끈다 — 자세가 "지금 칠 수
+        /// 있다" 를 알리는 몫도 하기 때문이다(S15P21B202-665 · 669 와 같은 자리).</para>
+        /// </summary>
+        public bool BatCoiled
+        {
+            get
+            {
+                var bat = ActiveTool as MeteorBat;
+                return bat != null && bat.CanSwing && !Downed && !IsRiding;
+            }
+        }
+
+        /// <summary>방망이를 휘둘렀다. 스윙 동작을 켜고 수를 올린다.</summary>
+        public void NotifyBatSwing()
+        {
+            SwingSeq++;
+            Doll?.Suit?.PlaySwing();
+        }
+
+        /// <summary>
         /// 시야가 몸을 따라가야 하는가. 기절이든 던져졌든 같은 화면이 필요하다.
         /// </summary>
         public bool BodyViewActive => BodyOutOfControl;
@@ -469,6 +500,17 @@ namespace Metagame.Gameplay
         /// <summary>미는 방향(수평 단위). 밀고 있지 않으면 0 이다.</summary>
         public Vector3 HaulDirection { get; private set; }
 
+        /// <summary>
+        /// 지금 미는 파츠가 낼 수 있는 속도(m/s) (S15P21B202-667). 미는 사람은 여기에
+        /// 맞춰 걷는다 — <b>고정 배율로 하면 넷이 밀 때 전원이 뒤처진다</b>(파츠는
+        /// 1.5m/s 인데 사람은 0.73m/s 라 접촉이 끊긴다).
+        ///
+        /// <para>참가자 화면에는 <c>NetPlayer.haulTopSpeed</c> 로 서버가 계산한 값이
+        /// 그대로 온다. <b>0 이면 상한을 안 건다</b> — 모를 때 1인 값을 넣으면 그것이
+        /// 바닥이 아니라 천장이 되어 넷이 밀 때 참가자만 뒤처진다.</para>
+        /// </summary>
+        public float HaulTopSpeed { get; private set; }
+
         /// <summary>파츠 표면에서 이 사람이 잡거나 짚은 지점(월드).</summary>
         public Vector3 HaulGrasp { get; private set; }
 
@@ -476,9 +518,14 @@ namespace Metagame.Gameplay
         /// 참가자 화면에서 서버가 보낸 밀기 상태를 넣는다.
         /// 서버·혼자 실행에서는 <see cref="Tick"/> 이 직접 채우므로 부르지 않는다.
         /// </summary>
-        public void SetHaulState(bool hauling, Vector3 direction, Vector3 grasp)
+        /// <param name="topSpeed">
+        /// 그 파츠가 낼 수 있는 속도(m/s). <b>0 이면 걷기 상한을 안 건다</b> —
+        /// 모르는 값을 1인 속도로 채우면 그것이 바닥이 아니라 천장이 된다.
+        /// </param>
+        public void SetHaulState(bool hauling, Vector3 direction, Vector3 grasp,
+                                 float topSpeed = 0f)
         {
-            ApplyHaulState(hauling, direction, grasp);
+            ApplyHaulState(hauling, direction, grasp, topSpeed);
         }
 
         // 밀기 중 이동 기준. **시점이 아니라 밀기를 시작한 방향이다** — §10.2
@@ -494,8 +541,12 @@ namespace Metagame.Gameplay
         /// <summary>밀기 중 이동·조작의 기준 방향(도). 밀고 있지 않으면 의미가 없다.</summary>
         public float HaulBasisYaw => haulBasisYaw;
 
-        void ApplyHaulState(bool hauling, Vector3 direction, Vector3 grasp)
+        void ApplyHaulState(bool hauling, Vector3 direction, Vector3 grasp, float topSpeed)
         {
+            // **0 이면 상한을 안 건다.** 예전에는 모를 때 1인 값을 넣었는데, 걷기
+            // 상한이 Min 이라 그것이 바닥이 아니라 **천장**이 됐다 — 넷이 미는데
+            // 참가자만 0.69m/s 로 묶여 파츠를 놓쳤다. 모르면 안 누르는 쪽이 낫다.
+            HaulTopSpeed = topSpeed;
             var flat = new Vector3(direction.x, 0f, direction.z);
 
             Hauling = hauling && flat.sqrMagnitude > 1e-6f;
@@ -557,15 +608,35 @@ namespace Metagame.Gameplay
             var push = Parts.PartPush.MovingPartFor(this);
             if (push == null)
             {
-                ApplyHaulState(false, Vector3.zero, Vector3.zero);
+                ApplyHaulState(false, Vector3.zero, Vector3.zero, 0f);
                 return;
             }
 
-            ApplyHaulState(true, push.HaulDirection, push.GraspPointFor(this));
+            ApplyHaulState(true, push.HaulDirection, push.GraspPointFor(this),
+                           Parts.PartPushTable.SpeedFor(push.HaulerCount));
         }
         /// <summary>공중에서 자세제어 분사기를 쓰고 있는가 (HUD·연기 표시용).</summary>
         public bool Thrusting { get; private set; }
         public float AirTime { get; private set; }
+
+        /// <summary>
+        /// 골반이 실제로 오르내리는 속도(m/s). 위가 양수 (S15P21B202-628).
+        ///
+        /// <para><b>리지드바디 속도를 쓰지 않는다.</b> 남의 몸은
+        /// <c>RemoteAvatar</c> 가 <c>MovePosition</c> 으로 옮기므로 그 값이 물리
+        /// 결과가 아니다 — 원격에서는 엉뚱한 수가 나온다. 골반이 <b>실제로 움직인
+        /// 거리</b>를 재면 내 몸이든 남의 몸이든 같은 방법으로 같은 답이 나오고,
+        /// 새로 동기화할 것도 권위 문제도 없다.</para>
+        ///
+        /// <para>공중 자세가 이 값 하나로 정해진다 — 그래서 난간에서 떨어질 때도
+        /// 점프할 때와 같은 자세가 그대로 쓰인다.</para>
+        /// </summary>
+        public float VerticalSpeed { get; private set; }
+        float lastHipsY;
+        bool hipsYKnown;
+
+        /// <summary>제 발로 뛴 점프인가 (S15P21B202-628). 떨어진 것과 구별한다 — 최고점 표현이 다르다.</summary>
+        public bool JumpedUp { get; private set; }
 
         /// <summary>
         /// 광역 저중력장 안에서 떠 있는가.
@@ -580,6 +651,22 @@ namespace Metagame.Gameplay
         /// 이미 수평을 그렇게 다루고 있어 세로도 같은 방식으로 맞췄다.
         /// </summary>
         public bool Floating { get; private set; }
+        LowGravityField assistedFloatField;
+        Vector3 assistedFloatTarget;
+        float assistedFloatUntil;
+        /// <summary>A short server-owned lease, renewed only for the player who requested AI transport.</summary>
+        public bool RequestAssistedFloat(LowGravityField field, Vector3 hipsTarget)
+        {
+            if (WorldEvents.RemoteDecides || field == null || !field.IsActive || !field.Contains(Position)
+                || Downed || IsRiding || Hanging || input.Move.sqrMagnitude > .01f || input.Jump || input.ArmsUp) return false;
+            assistedFloatField = field; assistedFloatTarget = hipsTarget; assistedFloatUntil = Time.time + .25f;
+            return true;
+        }
+        public void ReleaseAssistedFloat(LowGravityField field)
+        { if (assistedFloatField == field) { assistedFloatField = null; assistedFloatUntil = 0; } }
+        bool AssistedFloating => !WorldEvents.RemoteDecides && assistedFloatField != null && assistedFloatField.IsActive
+            && Time.time < assistedFloatUntil && assistedFloatField.Contains(Position) && !Downed && !IsRiding && !Hanging
+            && input.Move.sqrMagnitude <= .01f && !input.Jump && !input.ArmsUp;
         public bool Swimming { get; private set; }
         public bool InWater => water != null;
         DrainageWater water;
@@ -588,8 +675,18 @@ namespace Metagame.Gameplay
         public ToolBase PresentationTool { get; internal set; }
         /// <summary>현재 장착된 도구 동작 컴포넌트. 도구가 없거나 구형 Tool이면 null이다.</summary>
         public ToolBase ActiveTool { get { return activeTool; } }
-        public float ToolCharge { get { return toolCharge; } }
-        public bool ChargingTool { get { return chargingTool; } }
+        public float ToolCharge => ServerAuthority ? toolCharge : remoteToolCharge;
+        public bool ChargingTool => ServerAuthority ? chargingTool : remoteToolCharge > 0f;
+
+        // 참가자의 손 시뮬레이션은 서버의 도구 조인트를 갖지 않는다.
+        // DriveArms/ResetToolState가 지우는 로컬 충전과 HUD용 수신 값을 분리한다.
+        float remoteToolCharge;
+
+        public void SetRemoteToolCharge(float charge)
+        {
+            if (ServerAuthority) return;
+            remoteToolCharge = Mathf.Clamp01(charge);
+        }
         /// <summary>현재 조준 중인 고정쇠를 찾고 해제 홀드를 진행하는 상호작용 주체.</summary>
         public Interactor ClampInteractor { get; private set; }
 
@@ -623,6 +720,30 @@ namespace Metagame.Gameplay
                 var rescue = RescueFocus;
                 return rescue != null ? rescue.Progress : 0f;
             }
+        }
+
+        // HUD는 예측 누적값 대신 대상의 서버 스냅샷을 읽는다.
+        // RescueProgress01은 기존 예측/로그 경로를 위해 유지한다.
+        public float RescueDisplayProgress01
+        {
+            get
+            {
+                var target = RescueCandidate;
+                if (Downed || target == null || !target.Downed) return 0f;
+                return RescueHolding ? target.BeingRescuedProgress01
+                    : target.RescueAccumulatedProgress01;
+            }
+        }
+
+        float remoteRescueAccumulatedProgress;
+        public float RescueAccumulatedProgress01 => !Downed ? 0f
+            : ServerAuthority ? (RescueTarget != null ? RescueTarget.Progress : 0f)
+            : remoteRescueAccumulatedProgress;
+
+        public void SetRemoteRescueAccumulated(float progress01)
+        {
+            if (ServerAuthority) return;
+            remoteRescueAccumulatedProgress = Mathf.Clamp01(progress01);
         }
 
         /// <summary>지금 누르고 있는가. HUD 문구가 "일으키기" 와 "일으키는 중" 을 가른다.</summary>
@@ -704,11 +825,18 @@ namespace Metagame.Gameplay
                 return focus as DownedRescue;
             }
         }
+        /// <summary>
+        /// 검증이 "고정못을 잡은 상태" 를 만들 때 쓴다 (S15P21B202-667 · -669).
+        /// 조건이 손·대상·해제 여부까지 걸려 있어 조작 전체를 흉내내기 어렵다.
+        /// </summary>
+        public bool ClampGrabbedForTests { get; set; }
+
         /// <summary>실제로 한 손이 고정쇠에 결합된 상태.</summary>
         public bool ClampGrabbed
         {
             get
             {
+                if (ClampGrabbedForTests) return true;
                 return clampGrabbed && clampGrabHand != null && clampGrabTarget != null
                        && !clampGrabTarget.IsReleased
                        && clampGrabHand.Gripping
@@ -775,6 +903,7 @@ namespace Metagame.Gameplay
         public static event Action<PlayerRig, Hand, Grabbable> AnyHandGrabAttempted;
         public static event Action<PlayerRig, Hand, Grabbable, HandReleaseReason> AnyHandReleased;
         public static event Action<PlayerRig, Vector3, float> AnyFootstep;
+        public static event Action<PlayerRig, Vector3> AnyJumped;
 
         void OnEnable()
         {
@@ -833,6 +962,15 @@ namespace Metagame.Gameplay
         Rigidbody ignoredHeldBodyB;
         readonly Dictionary<Rigidbody, CarriedBodyState> carriedBodies = new Dictionary<Rigidbody, CarriedBodyState>(4);
         readonly List<CollisionPair> heldObjectCollisionPairs = new List<CollisionPair>(24);
+
+        /// <summary>
+        /// 고정못을 잡고 있는 동안 파츠와 무시하는 충돌 쌍 (S15P21B202-667).
+        /// <see cref="RefreshAnchoredPartCollision"/> 참고.
+        /// </summary>
+        readonly List<CollisionPair> anchoredPartCollisionPairs = new List<CollisionPair>(24);
+
+        /// <summary>무시 쌍을 이미 지었는가. 매 틱 다시 만들지 않으려고 둔다.</summary>
+        bool anchoredPartsBuilt;
         readonly RaycastHit[] rayHits = new RaycastHit[8];
         readonly Collider[] interactionCandidates = new Collider[32];
         readonly RaycastHit[] clampHits = new RaycastHit[ClampHitBufferSize];
@@ -933,6 +1071,11 @@ namespace Metagame.Gameplay
             RescueInteractor.Configure(aim, PhysicsScale.DownedCarryReach,
                                        PhysicsScale.DownedCarryAngle);
             RescueInteractor.Accepts = OnlyDownedRescue;
+
+            // **살리러 다가가면 후보에서 떨어지던 것을 막는다** (S15P21B202-699).
+            // 구조 지점은 바닥(0.30m)이고 눈은 0.83m 라, 0.8m 안쪽에서는 내려다보는
+            // 각이 35도를 넘었다 — 실측 0.5m 에서 46.6도.
+            RescueInteractor.NearRadius = PhysicsScale.DownedRescueNearReach;
 
             // **물리 질의만으로는 참가자 화면에서 아무도 못 찾는다**(S15P21B202-448).
             // 이유는 Interactor.ExtraCandidates 에 적었다. 잡기가 -249 이후로 목록을
@@ -1322,6 +1465,28 @@ namespace Metagame.Gameplay
         /// </summary>
         public void GoDown(string source = "기절")
         {
+            // **판정은 서버가 한다** (S15P21B202-692). <see cref="ApplyDamage"/> 가 같은
+            // 가드를 이미 갖고 있는데(`-513`) 여기에는 없었고, <c>Meteor.ApplyTier</c> 가
+            // 직접 충돌에서 체력을 거치지 않고 <b>이 함수를 직접</b> 부른다 — 직접 충돌은
+            // 즉시 기절이라 그쪽이 맞다. 그래서 `-513` 이 막은 구멍이 이 경로로만 열려
+            // 있었다.
+            //
+            // **2026-09-22 QA 로그에 그대로 찍혔다.** `Player-prev.log:12252` 의 스택이
+            // `OnCollisionEnter → ApplyKnockback → ApplyTier → GoDown` 이고, 같은 시각의
+            // 진단이 `role=client rtt=94.4 crew=4` 다 — 접속한 참가자 기계가 권위 판정을
+            // 실행했다.
+            //
+            // **증상이 셋으로 갈려 보인다.** 참가자가 자기 몸만 기절시키면 서버는 모른다.
+            // 서버 리그는 입력을 계속 적용하므로 <b>쓰러진 채 미끄러지고</b>,
+            // <c>NetPlayer.downed</c> 는 서버의 <c>body.Downed</c> 를 실으므로 <b>남의
+            // 화면에서는 정당하게 서 있고</b>, <c>CollectRescueCandidates</c> 는
+            // <c>!other.Downed</c> 로 거르므로 <b>살리기 후보가 아예 안 생긴다.</b>
+            //
+            // **부르는 쪽을 고치지 않는다.** 부르는 곳이 넷이고(운석 직접 충돌 · 높은 곳에서
+            // 머리부터 · 오염 · 치트) 한 곳만 고치면 다음에 또 갈린다 — `-383` 의 "판정을
+            // 두 곳에 두면 반드시 갈라진다" 가 이 파일에 이미 적혀 있다.
+            if (!ServerAuthority) return;
+
             if (Downed) return;
 
             Downed = true;
@@ -1342,7 +1507,19 @@ namespace Metagame.Gameplay
             // 시점이 바뀌었으니 몸을 그릴지 다시 정한다(S15P21B202-267).
             RefreshDollVisibility();
 
-            Debug.Log("[NotThisPlanet] " + Nickname + " 기절 (" + source + ")");
+            // **움직일 수 있는 상태인지 함께 남긴다** (S15P21B202-683).
+            //
+            // 2026-09-22 QA 신고가 둘이었다 — *남에게는 서서 움직이는 것처럼 보임* 과
+            // *기절 상태에서 이동도 됨*. 앞의 것은 `RemoteAvatar` 가 원격 몸의 자세를
+            // 안 바꾸던 것이고, 뒤의 것은 **자기 몸이 기절을 알았는지**에 달렸는데
+            // 그 값이 어디에도 남지 않아 둘을 가릴 근거가 없었다.
+            //
+            // `BodyOutOfControl` 이 조종을 끊는 스위치이고(`Speed = 0`), `Prone` 은
+            // 그 대신 기어가기 상한을 거는 값이다 — 기절이 엎드리기로 취급되면
+            // 속도가 0 이 아니라 기어가기가 된다. 한 줄에 둘 다 적어 둔다.
+            Debug.Log("[NotThisPlanet] " + Nickname + " 기절 (" + source + ")"
+                      + " · 조종=" + (BodyOutOfControl ? "잃음" : "유지")
+                      + " · 엎드림=" + (Prone ? "O" : "X"));
         }
 
         /// <summary>
@@ -1984,6 +2161,9 @@ namespace Metagame.Gameplay
         // ── 부활 / 순간이동 ─────────────────────────────────────
         public void Teleport(Vector3 footPos, Quaternion facing)
         {
+            // 옮긴 거리를 속도로 읽으면 안 된다 (S15P21B202-628).
+            hipsYKnown = false;
+            JumpedUp = false;
             if (MountedVehicle != null) ForceExitTransportVehicle(MountedVehicle);
             else DisconnectTransportJoint();   // 우주선에 붙어 있었다면 여기서 떨어진다
 
@@ -2490,6 +2670,8 @@ namespace Metagame.Gameplay
 
         void FixedUpdate()
         {
+
+            using var frameSection = Metagame.Core.FrameSections.Scope(Metagame.Core.FrameSections.PlayerRig);   // S15P21B202-746 프레임 기록
             // 조준 기준점을 먼저 맞춘다 — 이번 스텝의 상호작용이 그것을 본다.
             SyncAimPivot();
             Tick();
@@ -2551,12 +2733,13 @@ namespace Metagame.Gameplay
             // 파츠 밀기 상태를 먼저 갱신한다 — 아래 Locomotion 이 이 값으로 이동
             // 기준을 정하고(§10.2), 밀기 카메라도 같은 값을 본다.
             RefreshHaulState();
+            using (new Metagame.Core.FrameSections.Section(Metagame.Core.FrameSections.RigAnchored, System.Diagnostics.Stopwatch.GetTimestamp())) RefreshAnchoredPartCollision();
 
             if (Doll == null || Doll.Hips == null) return;
             if (!JointTools.IsFinite(Doll.Hips.position)) { return; }
             ReleaseProneIfTaken();
 
-            RefreshInteractionFocus();
+            using (new Metagame.Core.FrameSections.Section(Metagame.Core.FrameSections.RigFocus, System.Diagnostics.Stopwatch.GetTimestamp())) RefreshInteractionFocus();
 
             // 매 고정틱 돌아야 한다. Time.fixedDeltaTime 을 적산하므로 호출 빈도가
             // 곧 게이지 속도다 (!297 AI 리뷰가 첫 판의 자리를 짚었다 — 운반 장치
@@ -2631,6 +2814,7 @@ namespace Metagame.Gameplay
                 && water.CanSwim(Doll.Hips.position, Swimming);
             if (Swimming) fallPeakFootHeight = FootPosition.y;
             ProbeGround();
+            UpdateVerticalSpeed(Time.fixedDeltaTime);
 
             // 기절·던져짐 중에는 조작이 없다. 넉백은 그대로 받는다 — 운석에 굴러다녀야
             // 한다(기획 §26-13 의 긴장이 거기서 나온다).
@@ -2698,6 +2882,21 @@ namespace Metagame.Gameplay
         }
 
         // ── 바닥 ────────────────────────────────────────────────
+        /// <summary>
+        /// 골반의 세로 이동을 속도로 바꾼다. <see cref="VerticalSpeed"/> 참조.
+        ///
+        /// <para>첫 틱에는 이전 값이 없으므로 0 으로 둔다 — 안 그러면 태어나는
+        /// 순간 엄청난 속도가 한 번 튀고, 그 프레임의 공중 자세가 튄다.</para>
+        /// </summary>
+        void UpdateVerticalSpeed(float dt)
+        {
+            float y = Doll.Hips.position.y;
+            VerticalSpeed = hipsYKnown && dt > 0f ? (y - lastHipsY) / dt : 0f;
+            lastHipsY = y;
+            hipsYKnown = true;
+            if (Grounded) JumpedUp = false;
+        }
+
         void ProbeGround()
         {
             bool wasGrounded = Grounded;
@@ -2896,6 +3095,9 @@ namespace Metagame.Gameplay
             if (floatingAutoLift)
                 target = Mathf.Clamp((floatingLiftTarget - Doll.Hips.position.y) * 3f,
                     0f, PhysicsScale.FieldFloatVerticalSpeed);
+            if (AssistedFloating)
+                target = Mathf.Clamp((assistedFloatTarget.y - Doll.Hips.position.y) * 2f,
+                    -PhysicsScale.FieldFloatVerticalSpeed, PhysicsScale.FieldFloatVerticalSpeed);
             float rate = PhysicsScale.FieldFloatVerticalSpeed / PhysicsScale.FieldFloatStopSeconds;
             if (Swimming)
             {
@@ -3042,6 +3244,11 @@ namespace Metagame.Gameplay
                 Vector2 move = input.Move.sqrMagnitude > 1f ? input.Move.normalized : input.Move;
                 wish = right * move.x + fwd * move.y;
             }
+            if (Floating && AssistedFloating)
+            {
+                wish = assistedFloatTarget - Doll.Hips.position; wish.y = 0;
+                wish = Vector3.ClampMagnitude(wish * .75f, 1f);
+            }
             if (wish.sqrMagnitude > 1f) wish.Normalize();
 
             // 파츠 밀기(기획 §13)가 이 값을 본다. MovementDirectionLocal 은 실제 속도를
@@ -3060,6 +3267,14 @@ namespace Metagame.Gameplay
             // (S15P21B202-442) — 무게는 같고, 이것이 없으면 잡은 쪽이 일방적으로
             // 이겨서 잡힌 쪽이 빠져나갈 방법이 없다.
             if (CarryingTeammate) top *= PhysicsScale.DownedCarrySpeedScale;
+            // 파츠를 미는 동안 느려진다 (S15P21B202-667). 이것이 없으면 파츠는 0.6m/s 로
+            // 제한되는데 사람은 2.9m/s 로 걸어 **두고 앞서 간다** — 손으로 잡아도
+            // Hand.BraceTo 는 조인트를 만들지 않아 붙잡아 주지 않는다.
+            // 파츠를 미는 동안 느려진다 (S15P21B202-667). **파츠가 낼 수 있는 속도에
+            // 맞춘다** — 고정 배율이면 넷이 밀 때(1.5m/s) 전원이 뒤처져 접촉이 끊긴다.
+            // 여유를 조금 둬야 따라붙으면서 밀 수 있다.
+            if (Hauling && HaulTopSpeed > 0f)
+                top = Mathf.Min(top, HaulTopSpeed * PhysicsScale.PartPushKeepUpMargin);
             // 엎드리면 기어간다. 다른 감속과 곱하지 않고 **상한으로** 둔다 —
             // 곱하면 달리기 키를 누른 채 기어가는 것이 더 빨라진다.
             if (Prone) top = Mathf.Min(top, CrawlSpeed);
@@ -3175,6 +3390,8 @@ namespace Metagame.Gameplay
                 }
                 jumpLock = 0.30f;
                 Grounded = false;
+                JumpedUp = true;
+                AnyJumped?.Invoke(this, FootPosition);
                 Puff.Regolith(FootPosition, 0.45f);
             }
         }
@@ -3734,7 +3951,20 @@ namespace Metagame.Gameplay
         /// 놓거나 운석에 맞아도 빠진 정도는 유지된다".
         /// </summary>
         /// <summary><see cref="RescueInteractor"/> 가 받는 것 — 구조 지점뿐이다.</summary>
-        static bool OnlyDownedRescue(IInteractable candidate) => candidate is DownedRescue;
+        /// <summary>
+        /// 일으킬 수 있는 대상인가.
+        ///
+        /// <para><b>"나 자신이 아니다" 와 "내가 안 쓰러졌다" 를 여기서 못 박는다</b>
+        /// (S15P21B202-699). 예전에는 <b>시야각 검사가 우연히 그것을 막고 있었다</b> —
+        /// 내 구조 지점은 내 발밑이라 눈에서 보면 거의 수직 아래고, 그래서 35도 원뿔
+        /// 밖이었다. 발치를 봐 주기 시작하자 <b>내가 나를 일으키는 후보가 됐다.</b>
+        /// 규칙을 기하에 기대고 있었던 것이다.</para>
+        ///
+        /// <para><see cref="DownedRescue.GetAvailability"/> 도 같은 것을 막지만, 그것은
+        /// 잡은 뒤에 보는 문이라 <b>후보 목록에는 남는다</b> — 화면에 안내가 뜬다.</para>
+        /// </summary>
+        bool OnlyDownedRescue(IInteractable candidate) =>
+            candidate is DownedRescue rescue && rescue.Target != this && !Downed;
 
         /// <summary>
         /// 누르고 있는 동안 동료를 일으킨다 (S15P21B202-390).
@@ -3843,11 +4073,28 @@ namespace Metagame.Gameplay
         {
             var candidate = RescueCandidate;
             string now = candidate != null ? candidate.Nickname : null;
-            if (now == lastRescueCandidate) return;
 
-            lastRescueCandidate = now;
-            Debug.Log("[NotThisPlanet][구조] 후보 "
-                      + (now != null ? $"O · 대상={now}" : "X · 겨냥 안에 기절한 동료가 없다"));
+            // **"겨냥조차 안 했다" 와 "겨냥했는데 후보가 안 됐다" 를 가른다**
+            // (S15P21B202-691). 2026-09-22 QA 신고가 "살리기 안 되는 듯" 이었는데
+            // 로그에 `후보 O` 가 0줄이었다. 그 0줄로는 고칠 곳이 표시인지 판정인지
+            // 알 수 없었고, 그래서 이슈가 한 판을 더 기다려야 했다.
+            var rejected = RescueInteractor != null ? RescueInteractor.RejectedNearest : null;
+            string key = now != null ? "O:" + now
+                       : rejected != null ? "X:" + RescueInteractor.RejectedReason
+                       : "X:없음";
+            if (key == lastRescueCandidate) return;
+
+            lastRescueCandidate = key;
+            if (now != null) Debug.Log($"[NotThisPlanet][구조] 후보 O · 대상={now}");
+            else if (rejected != null)
+                Debug.Log("[NotThisPlanet][구조] 후보 X · 가장 가까운 기절자가 "
+                          + RescueInteractor.RejectedReason
+                          + $" · 거리={RescueInteractor.RejectedDistance:F1}m"
+                          + $" · 각={RescueInteractor.RejectedAngle:F0}도"
+                          + $" (닿는 거리 {PhysicsScale.DownedCarryReach:F1}m"
+                          + $" · 겨냥 {PhysicsScale.DownedCarryAngle:F0}도"
+                          + $" · 발치 {PhysicsScale.DownedRescueNearReach:F1}m 안은 각 무시)");
+            else Debug.Log("[NotThisPlanet][구조] 후보 X · 주변에 기절한 동료가 없다");
         }
 
         /// <summary>
@@ -4261,6 +4508,95 @@ namespace Metagame.Gameplay
             IgnoreHeldObjectFromOwner(right);
         }
 
+        /// <summary>
+        /// 고정못을 잡고 있는 동안에는 <b>몸으로 파츠를 밀지 못한다</b> (S15P21B202-667).
+        ///
+        /// <para>고정못을 잡으면 손이 <b>파츠 강체에 FixedJoint</b> 로 묶이고
+        /// (<c>TryAttachClampHand</c>), 박혀 있는 파츠는 kinematic 이다. 그래서 잡은
+        /// 사람은 <b>밀리지 않는 벽</b>이 된다 — 그것은 의도된 것이다(기획 §12.1 의
+        /// "발을 구르며 낑낑대는" 그림).</para>
+        ///
+        /// <para><b>문제는 그 벽이 다른 파츠에 닿을 때다.</b> 힘이 한쪽으로만 가서
+        /// 파츠는 밀리는데 사람은 안 밀린다 — 무한 질량으로 미는 셈이다. 고정못을
+        /// 잡은 채 자유 파츠에 몸을 비비면 아주 쉽게 밀려 나간다.</para>
+        ///
+        /// <para>밀 수 있는 파츠(<c>Free</c>)와만 무시한다. 박힌·놓인 파츠까지 통과시키면
+        /// 조립된 우주선 안으로 걸어 들어가게 된다.</para>
+        /// </summary>
+        void RefreshAnchoredPartCollision()
+        {
+            if (!ClampGrabbed)
+            {
+                if (anchoredPartCollisionPairs.Count > 0) ClearAnchoredPartCollision();
+                anchoredPartsBuilt = false;
+                return;
+            }
+            if (Doll == null) return;
+
+            // **더 이상 밀 수 없게 된 것은 즉시 되돌린다.** 잡고 있는 사이에 그 파츠가
+            // Placed/Welded 로 넘어가면(남이 조립하면) 무시가 남아 **조립된 우주선
+            // 안으로 걸어 들어갈 수 있다** — 이 함수가 막겠다고 한 바로 그것이다.
+            for (int i = anchoredPartCollisionPairs.Count - 1; i >= 0; i--)
+            {
+                var pair = anchoredPartCollisionPairs[i];
+                if (pair.Player != null && pair.Held != null && StillPushable(pair.Held)) continue;
+                if (pair.Player != null && pair.Held != null)
+                    Physics.IgnoreCollision(pair.Player, pair.Held, false);
+                anchoredPartCollisionPairs.RemoveAt(i);
+            }
+
+            // **매 틱 다시 만들지 않는다.** 예전에는 잡고 있는 내내 파츠마다
+            // GetComponentsInChildren 을 돌려 배열을 새로 할당했다. 잡기 시작한
+            // 프레임에 한 번만 짓고, 위의 해제만 매 틱 본다.
+            if (anchoredPartsBuilt) return;
+            anchoredPartsBuilt = true;
+
+            var parts = Parts.PartPush.All;
+            for (int p = 0; p < parts.Count; p++)
+            {
+                var part = parts[p];
+                if (part == null || !part.CanPush) continue;
+
+                var partColliders = part.GetComponentsInChildren<Collider>(true);
+                for (int i = 0; i < Doll.Colliders.Count; i++)
+                {
+                    var mine = Doll.Colliders[i];
+                    if (mine == null || !mine.enabled || !mine.gameObject.activeInHierarchy) continue;
+
+                    for (int k = 0; k < partColliders.Length; k++)
+                    {
+                        var theirs = partColliders[k];
+                        if (theirs == null || theirs == mine || theirs.isTrigger
+                            || !theirs.enabled || !theirs.gameObject.activeInHierarchy) continue;
+                        if (Physics.GetIgnoreCollision(mine, theirs)) continue;
+
+                        Physics.IgnoreCollision(mine, theirs, true);
+                        anchoredPartCollisionPairs.Add(new CollisionPair { Player = mine, Held = theirs });
+                    }
+                }
+            }
+        }
+
+        /// <summary>그 콜라이더가 아직 밀 수 있는 파츠의 것인가.</summary>
+        static bool StillPushable(Collider collider)
+        {
+            var push = collider.GetComponentInParent<Parts.PartPush>();
+            return push != null && push.CanPush;
+        }
+
+        /// <summary>고정못을 놓으면 파츠와 다시 부딪힌다.</summary>
+        void ClearAnchoredPartCollision()
+        {
+            for (int i = anchoredPartCollisionPairs.Count - 1; i >= 0; i--)
+            {
+                var pair = anchoredPartCollisionPairs[i];
+                if (pair.Player != null && pair.Held != null)
+                    Physics.IgnoreCollision(pair.Player, pair.Held, false);
+            }
+            anchoredPartCollisionPairs.Clear();
+            anchoredPartsBuilt = false;
+        }
+
         void IgnoreHeldObjectFromOwner(Rigidbody body)
         {
             if (body == null || Doll == null) return;
@@ -4421,6 +4757,15 @@ namespace Metagame.Gameplay
             toolBody.MoveRotation(Quaternion.Slerp(toolBody.rotation, targetRotation, blend));
         }
 
+        /// <summary>
+        /// 잡고 있던 파츠에서 손이 <b>너무 멀어졌을 때</b> 놓는다 (S15P21B202-686).
+        ///
+        /// <para><see cref="PartPush"/> 가 거리를 재고 여기로 돌려보낸다. 손을 실제로
+        /// 놓아야 한다 — 밀기 집계에서 빼기만 하면 손은 영영 붙어 있는 것으로 남아
+        /// 다시 잡을 수도, 다른 것을 잡을 수도 없다.</para>
+        /// </summary>
+        internal void ReleaseHaulGrip(Hand hand) => ReleaseHand(hand);
+
         void ReleaseHand(Hand hand, HandReleaseReason reason = HandReleaseReason.Release)
         {
             if (hand == null) return;
@@ -4560,6 +4905,17 @@ namespace Metagame.Gameplay
             {
                 hand.Aimed = hand.Held;
                 hand.AimedPoint = hand.Body.position;
+
+                // **파츠를 잡고 있으면 팔을 잡은 지점으로 뻗는다** (S15P21B202-686).
+                // 조준 방향(카메라 앞)으로만 뻗으면 옆이나 뒤로 걸을 때 손이 파츠를
+                // 떠난다 — 3초를 끄는 동안 손과 표면이 0.16 → 0.83m 로 벌어졌다(실측).
+                // 파츠는 여전히 §13.2 의 표가 움직인다. 여기서 정하는 것은 **팔이
+                // 어디를 향하는가**뿐이다.
+                if (Hauling && HeldPartGrasp(hand, out var grasp))
+                {
+                    hand.AimedPoint = grasp;
+                    target = HaulArmTarget(shoulder, grasp, aim);
+                }
             }
 
             Vector3 armDir = target - shoulder;
@@ -4607,6 +4963,34 @@ namespace Metagame.Gameplay
                 if (regrabLock <= 0f && !toolTarget && gripped && hand.Carrying)
                     BeginCarriedBody(hand.HeldBody);
             }
+        }
+
+        /// <summary>
+        /// 파츠를 짚은 팔이 향할 지점 (S15P21B202-686).
+        ///
+        /// <para><b>팔 길이 안으로 자른다.</b> 넘기면 팔이 뻗다 못해 뜯긴다 — 자석 손이
+        /// 같은 이유로 같은 것을 한다.</para>
+        ///
+        /// <para>잡은 지점이 어깨와 겹치면 조준 방향으로 돌아간다. 방향이 0 이면
+        /// <c>Quaternion.FromToRotation</c> 이 쓰레기 회전을 내놓는다.</para>
+        /// </summary>
+        public static Vector3 HaulArmTarget(Vector3 shoulder, Vector3 grasp, Vector3 aim)
+        {
+            Vector3 toGrasp = grasp - shoulder;
+            if (toGrasp.sqrMagnitude <= 1e-4f) return shoulder + aim * Tuning.ArmReach;
+            return shoulder + toGrasp.normalized
+                   * Mathf.Min(toGrasp.magnitude, Tuning.ArmReach);
+        }
+
+        /// <summary>
+        /// 이 손이 <b>지금 밀고 있는 파츠</b>를 잡고 있으면 그 잡은 지점을 돌려준다.
+        /// 지점은 <see cref="HaulGrasp"/> 라 호스트와 참가자가 같은 값을 쓴다.
+        /// </summary>
+        bool HeldPartGrasp(Hand hand, out Vector3 grasp)
+        {
+            grasp = HaulGrasp;
+            if (HaulGrasp.sqrMagnitude <= 1e-6f) return false;
+            return hand.Held != null && hand.Held.GetComponentInParent<PartPush>() != null;
         }
 
         bool TryGripTarget(Hand hand, Grabbable focusedTarget)

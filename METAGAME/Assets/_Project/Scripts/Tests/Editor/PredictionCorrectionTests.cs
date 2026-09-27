@@ -15,6 +15,29 @@ namespace Metagame.Gameplay.Tests
     /// </summary>
     public sealed class PredictionCorrectionTests
     {
+        [Test]
+        public void AimChangesRespectSendCadenceButEveryButtonEdgeBypassesIt()
+        {
+            var same = typeof(NetPlayer).GetMethod("SameControls", System.Reflection.BindingFlags.Static
+                | System.Reflection.BindingFlags.NonPublic);
+            var idle = new Metagame.Core.InputFrame();
+            var aim = new Metagame.Core.InputFrame
+            {
+                Look = Vector2.one, AimYaw = 90f, AimPitch = 20f, AimFrom = Vector3.one
+            };
+            Assert.IsTrue((bool)same.Invoke(null, new object[] { idle, aim }));
+            foreach (var field in typeof(Metagame.Core.InputFrame).GetFields())
+            {
+                if (field.FieldType != typeof(bool)) continue;
+                object pressed = idle;
+                field.SetValue(pressed, true);
+                Assert.IsFalse((bool)same.Invoke(null, new object[] { idle, pressed }), field.Name);
+                Assert.IsFalse((bool)same.Invoke(null, new object[] { pressed, idle }), field.Name + " release");
+            }
+            Assert.IsFalse((bool)same.Invoke(null, new object[]
+                { idle, new Metagame.Core.InputFrame { Move = Vector2.up } }));
+        }
+
         /// <summary>오차의 일부만 갚고 나머지는 남는다 — 합이 원래 오차와 같아야 한다.</summary>
         [Test]
         public void 한_스텝은_오차의_일부만_갚는다()

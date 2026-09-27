@@ -161,9 +161,14 @@ def problems(data: dict | None, now: datetime | None = None) -> list[str]:
 
     # **만료된 것과 못 읽은 것을 가른다.** 둘을 묶으면 가장 심각한 상태(이미 만료돼
     # 접속이 전부 막힌 상태)가 가장 약한 문구로 나간다.
-    drift = deploy_sh_drift(data)
-    if drift:
-        out.append(drift)
+    # **넓은 검사가 있으면 그것만 쓴다** (S15P21B202-620). 둘 다 돌리면 `deploy.sh` 가
+    # 두 번 보고된다 — 같은 사실이 두 줄이면 읽는 사람이 둘인 줄 안다.
+    if data.get("host_files"):
+        out.extend(host_files_drift(data))
+    else:
+        drift = deploy_sh_drift(data)
+        if drift:
+            out.append(drift)
 
     raw_days = data.get("cert_days_left")
     if raw_days is None:
@@ -185,6 +190,98 @@ def problems(data: dict | None, now: datetime | None = None) -> list[str]:
 REPO_DEPLOY_SH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
     "scripts", "deploy", "host", "deploy.sh")
+
+
+#: 저장소에 **정본이 있는** 호스트 파일들 (S15P21B202-620). `(호스트 경로, 저장소 경로)`.
+#:
+#: **이 목록은 `scripts/deploy/host/ec2-status.sh` 의 `WATCHED` 와 같아야 한다** —
+#: 호스트는 저장소를 갖고 있지 않아 "무엇을 잴지" 를 스스로 알아야 하고, 여기는
+#: "무엇과 견줄지" 를 안다. 한쪽만 늘면 그 파일은 조용히 감시 밖이 된다.
+#: `test_ec2_status.py` 가 둘을 대조한다.
+#:
+#: **왜 이만큼 넓히나.** `deploy.sh` 하나만 보던 동안 호스트 파일이 **네 번** 조용히
+#: 낡았다: `deploy.sh` 7일(`-485`) · `docker-compose.yml` 4일 · `claude-token-refresh.*`
+#: 5일 · `ec2-cleanup.sh` **8일**(2026-09-19 발견). 마지막 것은 `-467` 의 떠돌이 이미지
+#: 보호가 통째로 빠진 상태였고 — Unity 이미지 17.9GB 를 지킬 장치가 없었다 —
+#: 그동안 아무것도 빨갛지 않았다.
+#:
+#: **`/etc/gitlab-runner/config.toml` 은 넣지 않는다.** 저장소에 정본이 없다(토큰이
+#: 들어 있어 둘 수 없다). 견줄 기준이 없는 것을 이 목록에 넣으면 매일 "다르다" 가 난다.
+HOST_FILES = (
+    ("/opt/metagame-deploy/deploy.sh", "scripts/deploy/host/deploy.sh"),
+    ("/opt/metagame-deploy/ec2-status.sh", "scripts/deploy/host/ec2-status.sh"),
+    ("/opt/metagame-deploy/ec2-cleanup.sh", "scripts/deploy/host/ec2-cleanup.sh"),
+    ("/opt/metagame-runner/claude_auth_check.py", "scripts/runner/claude_auth_check.py"),
+    ("/etc/systemd/system/metagame-deploy.service", "scripts/deploy/host/metagame-deploy.service"),
+    ("/etc/systemd/system/metagame-deploy.path", "scripts/deploy/host/metagame-deploy.path"),
+    ("/etc/systemd/system/metagame-deploy-dev.service", "scripts/deploy/host/metagame-deploy-dev.service"),
+    ("/etc/systemd/system/metagame-deploy-dev.path", "scripts/deploy/host/metagame-deploy-dev.path"),
+    ("/etc/systemd/system/metagame-status.service", "scripts/deploy/host/metagame-status.service"),
+    ("/etc/systemd/system/metagame-status.timer", "scripts/deploy/host/metagame-status.timer"),
+    ("/etc/systemd/system/metagame-cleanup.service", "scripts/deploy/host/metagame-cleanup.service"),
+    ("/etc/systemd/system/metagame-cleanup.timer", "scripts/deploy/host/metagame-cleanup.timer"),
+    ("/etc/systemd/system/claude-token-refresh.service", "scripts/runner/claude-token-refresh.service"),
+    ("/etc/systemd/system/claude-token-refresh.timer", "scripts/runner/claude-token-refresh.timer"),
+    ("/home/ubuntu/metagame/docker-compose.yml", "scripts/deploy/server/compose.prod.yml"),
+    ("/home/ubuntu/metagame-dev/docker-compose.yml", "scripts/deploy/server/compose.dev.yml"),
+    ("/etc/nginx/conf.d/upgrade-map.conf", "scripts/deploy/server/nginx/upgrade-map.conf"),
+    ("/etc/nginx/conf.d/limits.conf", "scripts/deploy/server/nginx/limits.conf"),
+)
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+#: 한 번에 몇 줄까지 말할까. 설치를 통째로 빠뜨리면 18줄이 카드를 덮는다 — 그러면
+#: 아무도 안 읽는다(`-590`). 넘으면 수만 말하고 나머지는 잡 로그에 남긴다.
+MAX_DRIFT_LINES = 4
+
+
+def repo_sha(rel: str) -> str | None:
+    """저장소본의 해시. 못 읽으면 None — **같다고 읽지 않는다.**"""
+    try:
+        with open(os.path.join(REPO_ROOT, *rel.split("/")), "rb") as f:
+            return hashlib.sha256(f.read().replace(b"\r", b"")).hexdigest()
+    except OSError:
+        return None
+
+
+def host_files_drift(data: dict) -> list[str]:
+    """호스트 파일들이 저장소본과 같은가 (S15P21B202-620).
+
+    **세 가지를 가른다** — 뭉치면 가장 심한 것이 가장 약한 문구로 나간다.
+
+      · 다르다      — 손으로 고쳤거나 설치를 빠뜨렸다. 이것이 네 번 났다
+      · 호스트에 없다 — 설치 자체가 안 됐다
+      · 못 견줬다    — 저장소본을 못 읽었다. 검사가 죽은 것이지 괜찮은 것이 아니다
+    """
+    live = data.get("host_files") or {}
+    changed, missing, unknown = [], [], []
+    for host_path, rel in HOST_FILES:
+        got = (live.get(host_path) or "").strip()
+        want = repo_sha(rel)
+        if want is None:
+            unknown.append(host_path)
+        elif not got:
+            missing.append(host_path)
+        elif got != want:
+            changed.append((host_path, got, want))
+
+    out = []
+    if changed:
+        head = (f"🖥 **호스트 파일 {len(changed)}개가 저장소본과 다르다** — "
+                f"낡은 채로 돌면 **고쳐 둔 것이 안 돌고도 아무것도 빨갛지 않다**(`-485`·`-620`)")
+        out.append(head)
+        for host_path, got, want in changed[:MAX_DRIFT_LINES]:
+            out.append(f"   · `{host_path}` — 호스트 `{got[:8]}` · 저장소 `{want[:8]}`")
+        if len(changed) > MAX_DRIFT_LINES:
+            out.append(f"   · … 그 밖 {len(changed) - MAX_DRIFT_LINES}개(잡 로그 참고)")
+    if missing:
+        out.append(f"🖥 **호스트에 없는 파일 {len(missing)}개** — 설치가 빠졌다: "
+                   + " · ".join(f"`{p}`" for p in missing[:MAX_DRIFT_LINES]))
+    if unknown:
+        out.append(f"🖥 **저장소본을 못 읽어 {len(unknown)}개를 견주지 못했다** — "
+                   f"드리프트가 있어도 안 보이는 상태다: "
+                   + " · ".join(f"`{p}`" for p in unknown[:MAX_DRIFT_LINES]))
+    return out
 
 
 def deploy_sh_drift(data: dict) -> str | None:

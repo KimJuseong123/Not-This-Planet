@@ -94,6 +94,7 @@ namespace Metagame.Gameplay.Tests
 
         [TestCase("Assets/Scenes/Main.unity")]
         [TestCase("Assets/Scenes/Stage1_Astra.unity")]
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-678)
         public void 빌드씬에하단손설정이저장되어있다(string path)
         {
             Assert.IsTrue(System.Array.Exists(UnityEditor.EditorBuildSettings.scenes,

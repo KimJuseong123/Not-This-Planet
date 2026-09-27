@@ -68,6 +68,41 @@ namespace Metagame.Gameplay.Parts
                 ? Mathf.FloorToInt(elapsed / GreetingSeconds) : -1;
         }
 
+        // 인사 스포트라이트의 여닫는 시간 (S15P21B202-639). 카메라가 다음 사람으로
+        // 넘어가는 0.3초(DemoEndingView.ShowBoarding)보다 **먼저** 꺼져야 넘어가는
+        // 화면에 두 개가 같이 걸리지 않는다.
+        // 카메라가 **도착한 뒤에** 켜져야 뿅 하는 것이 보인다. 먼저 켜 놓으면 이미 켜진
+        // 것을 향해 카메라가 다가갈 뿐이라 켜지는 순간이 없다 — 렌더해 보고 고친 값이다.
+        public const float SpotlightStartsAt = 0.20f;
+        public const float SpotlightPopSeconds = 0.14f;
+        public const float SpotlightSettleSeconds = 0.22f;
+        public const float SpotlightOvershoot = 0.28f;
+        public const float SpotlightFadeSeconds = 0.25f;
+        public const float SpotlightDarkAt = GreetingSeconds - 0.05f;
+
+        /// <summary>
+        /// 인사 중인 사람의 스포트라이트 세기. <paramref name="localTime"/> 은 그 사람의
+        /// 차례가 시작된 뒤 지난 시간이다(0 ~ <see cref="GreetingSeconds"/>).
+        ///
+        /// <para><b>뿅 하고 켜진다</b> — 빠르게 차오르며 한 번 넘겼다가 가라앉는다.
+        /// 그래서 최대값이 1 을 넘는다(1.23). 카메라가 다음 사람에게 도착한 뒤
+        /// (<see cref="SpotlightStartsAt"/>) 켜야 켜지는 순간이 보인다.</para>
+        ///
+        /// <para>순수 함수다. <b>코루틴이 아니라 공용 시계에서 뽑으므로</b> 늦게 들어온
+        /// 참가자도 같은 순간에 같은 밝기를 본다.</para>
+        /// </summary>
+        public static float SpotlightIntensityAt(float localTime)
+        {
+            if (localTime < SpotlightStartsAt || localTime >= GreetingSeconds) return 0f;
+            float since = localTime - SpotlightStartsAt;
+            float rise = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(since / SpotlightPopSeconds));
+            float settle = 1f - Mathf.SmoothStep(0f, 1f,
+                Mathf.Clamp01((since - SpotlightPopSeconds) / SpotlightSettleSeconds));
+            float fade = 1f - Mathf.SmoothStep(0f, 1f,
+                Mathf.Clamp01((localTime - (SpotlightDarkAt - SpotlightFadeSeconds)) / SpotlightFadeSeconds));
+            return rise * (1f + SpotlightOvershoot * rise * settle) * fade;
+        }
+
         public static float BoardingProgressAt(float elapsed, int players) => Mathf.Clamp01(
             (elapsed - Mathf.Clamp(players, 1, 4) * GreetingSeconds)
             / (BoardingSeconds - GreetingSeconds));
@@ -87,6 +122,24 @@ namespace Metagame.Gameplay.Parts
         public bool Finished => Stage == DemoEndingStage.Lobby;
         public IReadOnlyList<SpaceshipPart> Parts => _parts;
         public bool PlaybackStarted => Active && _clock() >= Snapshot.StartedAt;
+
+        // Stage1 clear time is a mandatory stop: never offer a target past EndTitle from an earlier shot.
+        public bool TryGetSkipTarget(out float target)
+        {
+            target = 0f;
+            if (!PlaybackStarted) return false;
+            switch (Stage)
+            {
+                case DemoEndingStage.Boarding: target = BoardingEndsAt; break;
+                case DemoEndingStage.Launching: target = PhotographStartsAt; break;
+                case DemoEndingStage.Photograph: target = EndTitleStartsAt; break;
+                case DemoEndingStage.SpaceDrift: target = ArrivalStartsAt + SpaceDriftSeconds; break;
+                case DemoEndingStage.MeteorImpact: target = ArrivalStartsAt + SpaceDriftSeconds + MeteorImpactSeconds; break;
+                case DemoEndingStage.EmergencyDescent: target = ArrivalStartsAt + ArrivalSeconds; break;
+                default: return false;
+            }
+            return true;
+        }
 
         /// <summary>엔딩 전용 씬에서는 게임 세션이나 물리 파츠 없이 스냅샷만 재생한다.</summary>
         public void ConfigurePlayback(DemoEndingSnapshot snapshot, Func<double> clock)
@@ -232,7 +285,48 @@ namespace Metagame.Gameplay.Parts
             ApplySnapshot(snapshot);
             _session.Clear();
             Debug.Log("[DemoEnding] 네 핵심 파츠 비드 연결 확정. 전원 엔딩 시작.");
+            RememberForLeaderboard(snapshot);
             return true;
+        }
+
+        /// <summary>
+        /// 클리어 기록을 리더보드에 올리도록 적어 둔다 (S15P21B202-656).
+        ///
+        /// <para><b>여기가 호스트다.</b> <see cref="TryComplete"/> 는 <c>_authority()</c>
+        /// 뒤에서만 진행하므로 이 줄에 닿는 것은 방장 하나뿐이다 — 팀원이 각자 올리면
+        /// 같은 판이 표에 여러 줄로 남는데, 서버가 그것을 묶을 방법이 없다.</para>
+        ///
+        /// <para><b>네트워크를 쓰지 않는다.</b> 이 저장소의 "플레이 중에는 네트워킹을
+        /// 쓰지 않는다" 를 지킨다 — 파일 하나만 적고, 보내는 것은 로비로 돌아온 뒤
+        /// <see cref="Metagame.Core.LeaderboardUpload.SubmitPending"/> 가 한다.</para>
+        ///
+        /// <para><b>실패해도 엔딩은 그대로 간다.</b> 기록은 곁다리다.</para>
+        /// </summary>
+        static void RememberForLeaderboard(DemoEndingSnapshot snapshot)
+        {
+            try
+            {
+                var names = new List<string>();
+                foreach (var player in snapshot.Players)
+                    if (player != null) names.Add(player.Name);
+
+                var submission = Metagame.Core.Leaderboard.BuildSubmission(
+                    snapshot.PlayTimeSeconds, names, Metagame.Core.RunLogUpload.BuildTag());
+
+                if (submission == null)
+                {
+                    // 서버가 거절할 값이다(시간이 범위 밖이거나 닉네임이 없다).
+                    // 보내 봐야 400 이므로 적어 두지 않는다.
+                    Debug.Log("[DemoEnding] 리더보드에 올릴 수 없는 기록이다. 건너뛴다.");
+                    return;
+                }
+
+                Metagame.Core.LeaderboardUpload.Remember(submission);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning("[DemoEnding] 리더보드 기록 적기 실패: " + e.Message);
+            }
         }
 
         public void ApplySnapshot(DemoEndingSnapshot snapshot)

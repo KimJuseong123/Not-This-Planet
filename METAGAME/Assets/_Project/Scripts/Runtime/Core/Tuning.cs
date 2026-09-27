@@ -16,7 +16,11 @@ namespace Metagame.Core
         // ── 세계 ────────────────────────────────────────────────
         // 중력 트릭 행성은 아니므로 기본 조작감을 확보하되, 지구보다 약하게 두어 외계 행성의 부유감을 남긴다.
         public const float Gravity = -5f;
-        public const float FixedStep = 0.01f;       // 100Hz. 조인트가 많아서 촘촘하게 밟는다
+        // 100Hz. 조인트가 많아서 촘촘하게 밟는다. **60Hz 로 낮추지 않는다** (S15P21B202-746, 2026-09-26 검사): 걷기·뛰기
+        // 속도는 같았지만 고정못 당기기와 풀린 파츠의 움직임이 달라져, 한 번 시킨 고정못이 8개 → 2~5개로 줄고 첫 못도
+        // 11초 → 20초로 늦어졌다. 물리 + FixedUpdate 스크립트(약 6ms)는 다른 길로 줄인다.
+        public const float FixedStep = 0.01f;
+        public const float MaxCatchUp = FixedStep * 5f;   // 한 프레임에 따라잡는 물리 — 5단계 (S15P21B202-746)
         public const float DeathHeight = -30f;      // 이 아래로 떨어지면 체크포인트로 되돌린다
 
         // ── 몸 ──────────────────────────────────────────────────
@@ -40,7 +44,7 @@ namespace Metagame.Core
         // 진공에는 공기가 없다 — 대신 우주복 등짐의 자세제어 분사기(RCS)로 버틴다는 설정.
         // 그래서 공중 제어가 지구 게임보다 후하다.
         public const float AirControl = 0.42f;
-        public const float JumpSpeed = 3.4f;        // 최고점 v²/2g = 2.06m, 체공 2.4초
+        public const float JumpSpeed = 3.4f;        // 최고점 v²/2g = 1.156m, 체공 1.36초
         public const float StepPeriod = 0.80f;      // 걷기 주기(초). 저중력이라 성큼성큼 느리게
         public const float SideStepSwing = 18f;    // 좌우 걸음에서 허벅지가 옆으로 기울어지는 최대 각도
         public const float SideStepKneeSwing = 10f; // 좌우 걸음의 무릎 보정

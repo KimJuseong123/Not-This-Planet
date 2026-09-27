@@ -87,6 +87,11 @@ namespace Metagame.Bootstrap
         [SerializeField, Range(0.05f, 2f)] float dragRotationSensitivity = 0.35f;
         [SerializeField, Range(1f, 2.5f)] float previewBrightness = 1.65f;
 
+        [Header("미리보기 줌")]
+        [SerializeField, Range(0.4f, 1f)] float zoomNear = 0.62f;
+        [SerializeField, Range(1f, 2.2f)] float zoomFar = 1.75f;
+        [SerializeField, Range(0.02f, 0.4f)] float zoomStep = 0.09f;
+
         [Header("미리보기 배경")]
         [SerializeField] Texture2D previewBackground;
         [SerializeField] Color previewBackgroundTint = Color.white;
@@ -135,6 +140,8 @@ namespace Metagame.Bootstrap
         GameObject previewBackgroundObject;
         Material previewBackgroundMaterial;
         GameObject lightObject, fillLightObject;
+        StageSpotlight spotlight;
+        float zoom = 1f;
         GUIStyle title, sectionTitle, option, swatchCheck, swatchTooltip;
         GUIStyle primaryButton, secondaryButton, quietButton, errorText;
         GUIStyle scrollTrack, scrollThumb, scrollButton;
@@ -148,7 +155,7 @@ namespace Metagame.Bootstrap
 
         void Start()
         {
-            GameSettingsRuntime.Ensure();
+            FpsOverlay.Ensure(GameSettingsRuntime.Ensure());
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
             ApplySuitColorSettings();
@@ -181,17 +188,47 @@ namespace Metagame.Bootstrap
             fill.color = Color.white;
             fill.intensity = 2.5f;
             fill.transform.rotation = Quaternion.Euler(18f, 145f, 0f);
+
+            // **실제 Light 컴포넌트는 두지 않는다** (S15P21B202-631).
+            //
+            // 이 씬에서는 광원이 캐릭터 표면에 전혀 기여하지 않는다 — 위의 키 3.5 와
+            // 필 2.5 를 포함해 광원을 전부 꺼도 렌더가 한 화소도 안 바뀌었다(실측).
+            // 스포트라이트를 하나 더 넣어 봐도 켬/끔 차이가 0.000 이었다.
+            //
+            // 그리고 애초에 Unity 의 광원은 공기 중의 빛줄기를 그리지 않는다. 무대
+            // 조명처럼 보이려면 빛기둥·바닥 웅덩이·광원 원반을 **직접 그려야** 한다.
+            BuildSpotlightGlow();
             LobbyTransition.Ensure().Failed += OnFailure;
+        }
+
+        /// <summary>미리보기가 바라보는 지점. 카메라와 스포트라이트가 같은 곳을 본다.</summary>
+        static Vector3 PreviewFocus => new Vector3(0f, 0.66f, 0f);
+
+        /// <summary>
+        /// 스포트라이트의 <b>보이는 부분</b>을 만든다 (S15P21B202-631).
+        ///
+        /// <para>실제 모양과 이유는 <see cref="StageSpotlight"/> 에 있다 — 엔딩 개인
+        /// 컷씬도 같은 것을 쓰므로 공용으로 뺐다 (S15P21B202-639).</para>
+        /// </summary>
+        void BuildSpotlightGlow()
+        {
+            spotlight = StageSpotlight.Create("Customizer Spot", null,
+                StageSpotlight.DefaultApexHeight,
+                StageSpotlight.DefaultTopRadius,
+                StageSpotlight.DefaultBottomRadius);
         }
 
         void LateUpdate()
         {
             if (completed || previewCamera == null) return;
             previewCamera.rect = new Rect(0f, 0f, 0.56f, 1f);
-            Vector3 focus = new Vector3(0f, 0.66f, 0f);
-            float distance = Mathf.Max(2.55f, 1.48f / Mathf.Max(0.3f, previewCamera.aspect));
+            Vector3 focus = PreviewFocus;
+            // 줌은 **거리에만** 건다. 시야각을 건드리면 원근이 바뀌어 얼굴 비율이 왜곡된다.
+            float distance = Mathf.Max(2.55f, 1.48f / Mathf.Max(0.3f, previewCamera.aspect)) * zoom;
             previewCamera.transform.position = focus + Quaternion.Euler(0f, yaw, 0f) * new Vector3(0f, 0.15f, distance);
             previewCamera.transform.LookAt(focus);
+            if (spotlight != null)
+                spotlight.FaceCamera(previewCamera.transform.rotation);
             UpdatePreviewBackground();
         }
 
@@ -439,6 +476,14 @@ namespace Metagame.Bootstrap
                     GUIUtility.hotControl = 0;
                     current.Use();
                     break;
+                // 줌 (S15P21B202-631). **회전과 같은 자리에서 받는다** — 미리보기
+                // 영역 안에서만 먹어야 오른쪽 선택 패널을 스크롤할 때 캐릭터가
+                // 같이 딸려오지 않는다. 이 프로젝트의 첫 휠 입력이다.
+                case EventType.ScrollWheel:
+                    if (!previewRect.Contains(current.mousePosition)) break;
+                    zoom = Mathf.Clamp(zoom + current.delta.y * zoomStep, zoomNear, zoomFar);
+                    current.Use();
+                    break;
             }
         }
 
@@ -652,6 +697,7 @@ namespace Metagame.Bootstrap
             previewCamera.gameObject.SetActive(false);
             lightObject.SetActive(false);
             fillLightObject.SetActive(false);
+            if (spotlight != null) spotlight.Intensity = 0f;
             // 기존 로비 연결/인증/준비/시작과 오류 처리를 그대로 재사용한다.
             gameObject.AddComponent<LobbyBootstrap>();
             GetComponent<LobbyHud>().OpenMultiplayer();
@@ -678,6 +724,7 @@ namespace Metagame.Bootstrap
             if (previewCamera != null) Destroy(previewCamera.gameObject);
             if (lightObject != null) Destroy(lightObject);
             if (fillLightObject != null) Destroy(fillLightObject);
+            if (spotlight != null) spotlight.Destroy();
             ReleaseUiTextures();
         }
 

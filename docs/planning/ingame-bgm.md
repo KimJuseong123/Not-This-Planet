@@ -1,5 +1,10 @@
 # 인게임 BGM
 
+2026-09-22: 공세·탈출·불시착·2장·연습/조립 테스트의 상황별 곡을 추가했다.
+아래의 페이드·5초 대기는 기존 탐색 BGM 기준이며, 새 상시 곡은 공백 없이 반복한다.
+컷씬 곡은 공유 연출 시각을 따른다. 연결표와 검증 한계는
+[668 BGM 연결 기록](../records/2026-09-22-stage-music.md)을 참고한다.
+
 `METAGAME/Assets/_Project/Resources/Audio/Stage1AudioManager.asset`를 선택하면
 Inspector의 **인게임 BGM** 영역에서 다음 직렬화 필드를 조정할 수 있다.
 

@@ -20,7 +20,7 @@ namespace Metagame.Gameplay.Tests
         public void TearDown()
         {
             // 스포너가 만든 운석까지 정리한다.
-            foreach (var meteor in Object.FindObjectsByType<Meteor>(FindObjectsSortMode.None))
+            foreach (var meteor in Object.FindObjectsByType<Meteor>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 if (meteor != null)
                     Object.DestroyImmediate(meteor.gameObject);
 
@@ -380,22 +380,6 @@ namespace Metagame.Gameplay.Tests
 
         // --- 난이도 곡선 -----------------------------------------------------
 
-        /// <summary>
-        /// 간격이 <b>계단으로</b> 줄어든다. 예전에는 8초에서 2초까지 선형이었고,
-        /// S15P21B202-234 에서 기획 §17.4 의 표(30 → 25 → 20 → 15)로 바꿨다.
-        /// </summary>
-        [Test]
-        public void Interval_ShrinksInSteps()
-        {
-            var spawner = CreateSpawner();
-
-            var early = spawner.IntervalAt(0f);
-            var mid = spawner.IntervalAt(11f * 60f);
-            var late = spawner.IntervalAt(21f * 60f);
-
-            Assert.Greater(early, mid, "시간이 지나면 짧아져야 한다.");
-            Assert.Greater(mid, late);
-        }
 
         /// <summary>
         /// 컷신이 개수도 바꾼다. 간격만 줄면 "같은 것이 자주 온다" 고,

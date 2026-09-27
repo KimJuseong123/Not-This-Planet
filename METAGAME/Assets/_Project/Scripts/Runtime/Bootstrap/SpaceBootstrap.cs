@@ -76,6 +76,7 @@ namespace Metagame.Bootstrap
             var authoredMap = FindAnyObjectByType<AuthoredMapSettings>();
             bool authoredLighting = authoredMap != null && authoredMap.preserveSceneLighting;
             settingsRuntime = GameSettingsRuntime.Ensure();
+            FpsOverlay.Ensure(settingsRuntime);
             settingsRuntime.Changed += OnSettingsChanged;
 
             // SampleScene처럼 기본 Main Camera가 들어 있는 씬에서도 런타임 카메라만 사용한다.
@@ -90,6 +91,10 @@ namespace Metagame.Bootstrap
 
             Physics.gravity = gravity;
             Time.fixedDeltaTime = Tuning.FixedStep;      // 조인트가 많다 — 촘촘히 밟아야 안 떤다
+            // **한 프레임이 따라잡는 물리는 5단계까지** (S15P21B202-746). 기본값(0.33초)이면 프레임이 한 번 늦을 때
+            // 100Hz 물리를 최대 33번 몰아 돌려 다음 프레임이 더 늦어진다 — 2026-09-26 QA 의 fps 3~8 순간. 물리가 잠깐 느려지는
+            // 대신 늪에 빠지지 않는다.
+            Time.maximumDeltaTime = Tuning.MaxCatchUp;
 
             // Existing Main scenes may predate the editor collider pass. Repair only static
             // environment mesh surfaces here; moving gameplay objects keep their simple
@@ -149,6 +154,8 @@ namespace Metagame.Bootstrap
                 // 찾아 따라가므로 여기서는 넘기지 않는다.
                 Backdrop = sys.AddComponent<AtmosphereBackdrop>();
                 Backdrop.ApplyStarsOnly(atmosphereProfile);
+                var meteorShower = sys.AddComponent<AtmosphereMeteorShower>();
+                meteorShower.Apply(atmosphereProfile);
             }
             else if (!authoredLighting)
             {
@@ -156,6 +163,10 @@ namespace Metagame.Bootstrap
             }
 
             Session = sys.AddComponent<GameSession>();
+            // Stage2에서 리트라이한 뒤 호스트를 이어받아도 현재 Stage1을 유지한다.
+            if (Mirror.NetworkManager.singleton != null && StageCatalog.IsStageScene(gameObject.scene.name))
+                Mirror.NetworkManager.singleton.onlineScene = gameObject.scene.path;
+            TeamRetryFlow.Ensure();
             Level = sys.AddComponent<LevelBuilder>();
             Hud = sys.AddComponent<GameHud>();
             PauseMenu = sys.AddComponent<GamePauseMenu>();
@@ -424,8 +435,9 @@ namespace Metagame.Bootstrap
                 ? audioManager
                 : Resources.Load<AudioManager>("Audio/Stage1AudioManager");
             runtime.Configure(manager, authority, networked);
-            if (!MatchRole.DedicatedServer && !Application.isBatchMode)
-                systemRoot.AddComponent<GameMusicPlayer>().Configure(manager);
+            if (SceneMusicController.CanPlayLocally)
+                systemRoot.AddComponent<SceneMusicController>()
+                    .ConfigureGameplay(manager, Session, gameObject.scene.name, TestArena.Requested);
 
             if (networked)
             {

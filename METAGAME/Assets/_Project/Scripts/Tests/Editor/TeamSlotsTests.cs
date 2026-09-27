@@ -20,6 +20,42 @@ namespace Metagame.Gameplay.Tests
         [TearDown]
         public void TearDown() => TeamSlots.Clear();
 
+        /// <summary>
+        /// <b>옛 판의 자리표가 남으면 이어받기의 기록이 빠진다</b> — 그래서 이어받는 PC 는 먼저 비운다
+        /// (S15P21B202-713 리뷰).
+        ///
+        /// <para>이 PC 가 예전에 4 명 판을 호스트했으면 그 기록이 정적 표에 남는다. 다른 방에 참가자로
+        /// 들어가 방장을 이어받으면 <c>Remember</c> 가 "남이 쓰는 자리" 로 알고 건너뛰고, 자리 수를 세는
+        /// <c>TeamSeats</c> 가 옛 기록을 사람 자리로 쳐 AI 를 하나도 안 띄운다 — 오류도 없이.</para>
+        /// </summary>
+        [Test]
+        public void ATakeoverStartsFromACleanSeatTable()
+        {
+            // 예전에 호스트한 4 명 판
+            TeamSlots.Claim(11L); TeamSlots.Claim(22L); TeamSlots.Claim(33L); TeamSlots.Claim(44L);
+
+            // 지금 판: 방장 E(900)가 0, 나(901)가 1 — 이어받으며 적는다
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("TeamSlots"));
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("TeamSlots"));
+            TeamSlots.Remember(900L, 0);
+            TeamSlots.Remember(901L, 1);
+            Assert.That(TeamSlots.IsAssigned(2) && TeamSlots.IsAssigned(3), Is.True,
+                "검증 준비: 옛 기록이 남아 있으면 빈 자리까지 사람 자리로 보인다 — 이것이 AI 를 막는다");
+
+            TeamSlots.Clear();
+            TeamSlots.Remember(900L, 0);
+            TeamSlots.Remember(901L, 1);
+            Assert.That(TeamSlots.IsAssigned(0) && TeamSlots.IsAssigned(1), Is.True);
+            Assert.That(TeamSlots.IsAssigned(2) || TeamSlots.IsAssigned(3), Is.False, "비운 뒤에도 옛 기록이 남았다");
+
+            var migrate = TestSource.Method(TestSource.Read("Runtime/Network/HostMigration.cs"), "IEnumerator Migrate()");
+            int clear = migrate.IndexOf("if (becomingHost) TeamSlots.Clear();", System.StringComparison.Ordinal);
+            int stop = migrate.IndexOf("manager.StopClient();", System.StringComparison.Ordinal);
+            Assert.That(clear, Is.GreaterThanOrEqualTo(0), "이어받는 PC 가 자리표를 비우지 않는다");
+            Assert.That(stop, Is.GreaterThan(clear),
+                "비우기가 StopClient 뒤에 있다 — OnStopClient 가 적은 지금 판의 기록까지 지운다");
+        }
+
         [Test]
         public void FourPlayersGetFourDifferentSeats()
         {
@@ -185,6 +221,59 @@ namespace Metagame.Gameplay.Tests
             TeamSlots.Clear();
 
             Assert.That(TeamSlots.Claim(11L), Is.EqualTo(0), "새 판은 첫 자리부터다");
+        }
+
+        // --- 사람이 받아 둔 자리 (S15P21B202-713) ---------------------------
+
+        /// <summary>
+        /// 받아 둔 자리는 AI 가 앉지 않는 자리다. 배정(Claim)과 물려받기(Remember) 둘 다 센다 —
+        /// 끊겨 돌아올 사람과 이어받기에서 물려받은 사람이 여기 남는다.
+        /// </summary>
+        [Test]
+        public void ClaimedAndRememberedSeatsCountAsTaken()
+        {
+            Assert.That(TeamSlots.Claim(11L), Is.EqualTo(0));
+            TeamSlots.Remember(22L, 3);
+
+            Assert.That(TeamSlots.IsAssigned(0), Is.True, "배정한 자리를 빈 자리로 본다");
+            Assert.That(TeamSlots.IsAssigned(3), Is.True, "물려받은 자리를 빈 자리로 본다");
+            Assert.That(TeamSlots.IsAssigned(1), Is.False);
+            Assert.That(TeamSlots.IsAssigned(2), Is.False);
+        }
+
+        [Test]
+        public void ANewMatchFreesEverySeat()
+        {
+            TeamSlots.Claim(11L);
+            TeamSlots.Remember(22L, 3);
+
+            TeamSlots.Clear();
+
+            for (int slot = 0; slot < TeamSlots.Count; slot++)
+                Assert.That(TeamSlots.IsAssigned(slot), Is.False, $"{slot}번 자리가 새 판에도 남았다");
+        }
+
+        /// <summary>
+        /// "그 자리가 찼나" 는 감싸지 않는다 — 색과 달리 5번을 1번으로 읽으면 엉뚱한 자리를 막는다.
+        /// </summary>
+        [Test]
+        public void OutOfRangeSeatsAreNeverTaken()
+        {
+            TeamSlots.Claim(11L);   // 0번
+
+            Assert.That(TeamSlots.IsAssigned(TeamSlots.Count), Is.False);
+            Assert.That(TeamSlots.IsAssigned(-TeamSlots.Count), Is.False);
+            Assert.That(TeamSlots.IsAssigned(-1), Is.False);
+        }
+
+        /// <summary>
+        /// 자리 수와 방 정원은 같은 수다 (S15P21B202-713). 사람 + AI 가 정원을 넘지 않는다는 규칙이
+        /// 자리 네 개에 그대로 맞아야 한다 — 한쪽만 바뀌면 AI 가 앉을 자리가 없거나 남는다.
+        /// </summary>
+        [Test]
+        public void SeatCountMatchesTheRoomCapacity()
+        {
+            Assert.That(TeamSlots.Count, Is.EqualTo(NetworkSession.MaxRoomPlayers));
         }
     }
 }

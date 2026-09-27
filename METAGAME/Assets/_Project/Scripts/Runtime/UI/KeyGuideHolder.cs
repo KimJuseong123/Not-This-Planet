@@ -31,9 +31,9 @@ namespace Metagame.UI
                 if (_lastKey != key)
                 {
                     _lastKey = key;
-                    KeyText = key == KeyCode.None ? string.Empty : key.ToString().ToUpperInvariant();
-                    if (KeyText.StartsWith("ALPHA", StringComparison.Ordinal))
-                        KeyText = KeyText.Substring(5);
+                    // 태블릿과 같은 이름을 쓴다 (S15P21B202-679). 예전에는 여기만
+                    // 대문자로 적어 같은 키가 화면마다 "TAB" 과 "Tab" 으로 나왔다.
+                    KeyText = key == KeyCode.None ? string.Empty : TabletHelpContent.Name(key);
                 }
                 Visible = key != KeyCode.None && _available();
             }

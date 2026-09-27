@@ -10,7 +10,7 @@
 #   GITLAB_TOKEN                : 프로젝트 액세스 토큰(api 스코프, Developer 이상) — MR 제목/본문 수정·코멘트 — masked
 #   AI_REVIEW_CLI=true          : ai-review 를 러너 호스트의 로그인된 Claude Code CLI 로 실행 (채택 방식, Team 플랜) — visible
 #   ANTHROPIC_API_KEY           : (대안) ai-review 를 API 로 — masked. 둘 다 없으면 ai-review 잡이 생성되지 않음
-#   AI_REVIEW_MODEL / AI_REVIEW_EFFORT : (선택) 기본 claude-opus-5 / medium (팀 결정 2026-08-27)
+#   AI_REVIEW_MODEL / AI_REVIEW_EFFORT : (선택) 기본 claude-opus-5-5 / medium (팀 결정 2026-08-27, 모델은 2026-09-25 에 올림)
 #   MM_WEBHOOK_URL              : Mattermost 수신 웹훅 — mm-digest 용 — masked
 #   JIRA_RELEASE_WEBHOOK        : (선택, S15P21B202-327) Jira 자동화 수신 웹훅 — 릴리스 뒤 버전·이슈 목록을 보낸다 — masked·protected
 #   DEVBUILD_TRIGGER_TOKEN      : 파이프라인 트리거 토큰 — MR 의 qa 빌드를 develop 파이프라인으로 넘겨 배치시킨다 (S15P21B202-582).
@@ -36,8 +36,20 @@ workflow:
       # 건드리지 않아 **새 파이프라인에는 백엔드 잡이 아예 없었다** — 누를 배포 버튼이 사라졌고,
       # 파이프라인은 초록이라 아무도 몰랐다. 백엔드는 이틀 전 것으로 계속 돌았다.
       # MR 파이프라인은 그대로 둔다 — 거기서는 새 push 가 앞 것을 죽이는 게 맞다.
+      #
+      # **이제 `interruptible` 이다** (S15P21B202-641). 2026-09-18 에 머지가 몰리며
+      # develop 의 `unity-compile` 이 **8건까지 쌓였고**, 하나가 20분에 `resource_group:
+      # unity` 로 직렬이라 그 줄이 MR 검사와 릴리스를 통째로 막았다. 앞의 실행은 뒤의
+      # 실행에 **포함된다**(`b823a6bd` ⊂ `83f2e240` ⊂ `be320ccd`)는데도 각각 돌았다.
+      #
+      # `none` 으로 두었던 이유(`-309`)는 그대로 유효하다 — **그래서 구멍 둘을 함께
+      # 막았다.** 둘 중 하나라도 빠지면 지금보다 나쁜 상태가 된다:
+      #   ① `build-backend: interruptible: false` — `-309` 사고가 정확히 이것이었다
+      #   ② develop 쪽 `unity-compile` 의 `changes:` 제거 — 문서만 바꾼 머지의
+      #      파이프라인에는 그 잡이 없어서, 그것이 앞의 Unity 실행을 취소하면
+      #      **그 변경이 develop 에서 한 번도 검사되지 않는다**
       auto_cancel:
-        on_new_commit: none
+        on_new_commit: interruptible
     # master 머지 = 릴리스 (S15P21B202-326). release-windows 가 빌드·패키지·Release 를 만든다.
     # 릴리스 도중 다른 머지가 이 파이프라인을 죽이면 반쯤 올라간 패키지가 남으므로 여기도 자동 취소 없음.
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
@@ -110,7 +122,9 @@ retarget-pipelines:       # 결함 ① — 부모 브랜치가 지워져 자동 
     # 재대상이 일어나는 시점 — 부모가 develop 에 머지된 직후
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
     # 안전망. develop push 파이프라인이 실패·취소된 날에도 다음 아침에 메운다
-    - if: $CI_PIPELINE_SOURCE == "schedule"
+    # 캐시 데우기 실행에서는 하지 않는다 (S15P21B202-664) — 그 실행의 목적은
+    # 볼륨을 데우는 것 하나이고, 여기서 남의 MR 파이프라인을 새로 만들 이유가 없다.
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $WARM_UNITY_CACHE != "true"
       when: always
   allow_failure: true     # 이 잡이 실패해도 머지·배포를 막을 이유가 없다. 다음 실행에서 다시 본다
   script:
@@ -168,9 +182,26 @@ ci-tests:                 # scripts/ci 오프라인 테스트 — 네트워크·
   stage: lint             # CI 스크립트를 고칠 때 + 매일 스케줄에서 돈다
   needs: []
   rules:
+    # **`changes:` 를 두지 않는다** (S15P21B202-632). 예전에는 `scripts/ci/**` 뿐이었는데,
+    # 이 안의 검사들은 **저장소를 읽는다.** 그래서 읽는 대상만 바꾼 MR 에서는 그 검사가
+    # 아예 돌지 않았다:
+    #   · `test_scene_cleanup.py`      — `Tests/Editor` 의 C#(씬을 연 검증이 닫는가)
+    #   · `test_scene_backend_urls.py` — 모든 `.unity`·`.prefab`(씬에 서버 주소가 박혔는가)
+    #   · `test_unity_reuse.py`        — `Tests/Editor`
+    #   · `test_ai_review_paths.py`    — `git ls-files` 전부
+    #
+    # `-614` 는 검증 파일만 고쳐 머지됐고, 그래서 씬 정리 가드가 **한 번도 안 돌았다.**
+    # 머지 뒤 develop 에서 씬이 새어 뒤이은 검증 3건이 흔들렸다. 더 위험한 쪽은 씬이다 —
+    # `-584`(한 실행이 두 환경을 봤다)를 막는 검사인데, 씬만 바꾼 MR 에서는 안 돌았다.
+    #
+    # **목록으로 막지 않는다.** "넣을 것" 목록은 잊으면 조용히 빠진다 — 방금 그렇게 됐고,
+    # `test_ai_review_paths.py` 가 존재하는 이유도 그것이다. 게다가 정직하게 적으면
+    # `METAGAME/Assets/**/*` 까지 와서 "항상" 과 거의 같아진다.
+    #
+    # **값**: 실측 32.5초(잡 577933) · `needs: []` · lint 스테이지의 파이썬 잡이라 Unity
+    # 러너를 쓰지 않는다 — `repo-hygiene` 과 같은 무게다. 더 드는 것은 Unity 를 아예
+    # 안 건드리는 MR 에서의 32초뿐이다.
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes:
-        - "scripts/ci/**/*"
     # 코드가 안 바뀌어도 **시간이 흘러** 깨지는 것을 잡는다. -281 이 그랬다: 픽스처의 merged_at 이
     # 08-27 고정인데 검사 창이 now-7일이라 09-03 17:06 KST 에 저절로 깨졌고, 그 뒤 scripts/ci 를
     # 건드린 MR 이 없어 아무도 못 봤다. 매일 09:30 스케줄에서 돌면 09:33 카드가 나가기 전에 드러난다.
@@ -236,15 +267,61 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
     #
     # 1795건 중 **5초 이상인 21건이 테스트 시간의 71%(195초)** 를 먹는다 — 그래서
     # 아래 script 에서 MR 일 때만 `-testCategory "!Heavy"` 로 뺀다 (S15P21B202-602).
+    #
+    # **2026-09-23 재측정(잡 626659 · 9.4분)** — 그 뒤 반년치가 아니라 엿새치가 쌓였다:
+    #   테스트 2383건 · 합계 474.8초   ← Heavy 를 **뺀** 상태로 잰 값이다
+    #   1초 이상 37건이 426.5초(90%)
+    #   그 37건 중 `Category("Heavy")` 가 붙은 것 **0건**
+    #
+    # 장치는 돌고 있었고 **표시가 안 붙었을 뿐이다**(S15P21B202-731). `-602` 가 훑은 뒤에
+    # 들어온 AI·내비게이션 테스트는 실제 스테이지를 띄우고 리그를 걷게 하는데 그대로 MR 에서
+    # 돌았다 — 둘이 157초였다. 5초 이상 22건(399.5초)에 표시를 붙였다.
+    #
+    # **다음에 이 숫자를 의심하면 값으로 확인한다**(주석을 고치지 말고):
+    #   glab job artifact develop unity-compile --path <폴더>
+    #   unity-results.xml 의 test-case duration 을 내림차순으로 본다
+    # 여기 적힌 수치가 실측과 갈리면, 갈린 것 자체가 표시가 또 밀렸다는 뜻이다.
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes: ["METAGAME/Assets/**/*", "METAGAME/Packages/**/*", "METAGAME/ProjectSettings/**/*", ".gitlab-ci.yml"]
+      changes: ["METAGAME/Assets/**/*", "METAGAME/Packages/**/*", "METAGAME/ProjectSettings/**/*", ".gitlab-ci.yml", ".gitattributes", "scripts/ci/validate_unity_lfs.py"]
     # 머지 직후에도 돈다 — 개별 MR 은 통과했는데 합쳐서 깨지는 경우를 잡는다.
     # 09-02 사고는 감지까지 2시간 37분이 걸렸다(그 사이 develop 머지 0건). 이 규칙이면 2분이다.
+    # **develop 에서는 `changes:` 를 보지 않는다** (S15P21B202-641).
+    #
+    # `-641` 이 develop 의 자동 취소를 켰다(머지가 몰리면 Unity 실행 8건이 쌓였다).
+    # 그런데 `changes:` 가 있으면 **문서만 바꾼 머지의 파이프라인에는 이 잡이 없다** —
+    # 그것이 앞의 Unity 머지 실행을 취소하면 그 변경은 develop 에서 **한 번도 검사되지
+    # 않는다.** `-309` 가 `build-backend` 에서 겪은 것과 같은 모양이다.
+    #
+    # 대가는 문서만 고친 머지도 이 잡이 생기는 것인데, **거의 들지 않는다**:
+    #   · 몰아서 들어오면 합쳐져 어차피 한 번이다
+    #   · 따로 들어와도 `unity_reuse.py` 가 앞 실행과 같은 트리임을 알고 건너뛴다
+    #     (그 재사용이 develop 에서 안 돌던 것을 이 이슈에서 함께 고쳤다 — `NO_MERGE`)
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop"
-      # 여기에는 `.gitlab-ci.yml` 을 넣지 않는다 — 위 MR 규칙에 이미 있어서 **머지 전에**
-      # 이 잡 정의로 한 번 돈다. 여기서 또 보면 CI 만 고친 MR 이 머지될 때마다 Unity 가
-      # 한 번 더 돌고, 4 vCPU 를 게임 서버와 나눠 쓰는 EC2 라 실유저 응답이 느려진다.
-      changes: ["METAGAME/Assets/**/*", "METAGAME/Packages/**/*", "METAGAME/ProjectSettings/**/*"]
+    # **무거운 것은 여기서만 돈다** (S15P21B202-662). 새벽 배포 스케줄에 얹었다.
+    #
+    # `-602` 는 Heavy 를 "MR 에서 빼고 머지 직후에 돌린다" 로 두었다. 그 15분이 무엇을
+    # 얻는지 재 보니(2026-09-21, develop 실행 19회의 로그 전수) **새 실패 21종 중
+    # Heavy 는 2종이고 그중 진짜 회귀는 1건**이었다(`552259`, 나머지 1건은 플래키).
+    # 나머지 19종은 비-Heavy 라 MR 에서도 도는 것들이다.
+    #
+    # 낸 것은 develop 실행 25회 × 15분 ≈ 375분이고, 그 15분이 `resource_group: unity`
+    # 를 물고 있어 2026-09-18 에는 8건이 쌓여 MR 검사와 릴리스를 통째로 막았다(`-641`).
+    #
+    # **잃는 것은 "그 1건을 최대 하루 늦게 안다" 이다.** 실측 기준 5일에 1건꼴이다.
+    #
+    # 여기에 두는 이유: 이미 도는 스케줄이라 새 예약을 만들지 않고, 실패하면
+    # `mm-nightly-result` 가 잡 이름과 함께 알린다.
+    #
+    # **순서.** 이 잡(`stage: test`)이 `build-devbuild`(`stage: deploy`)보다 먼저
+    # 만들어지므로 `resource_group: unity` 의 `oldest_first` 에서 Unity 슬롯을 먼저
+    # 잡는다 — 새벽 배포가 20분 뒤로 밀린다. 04:00 시작이라 배포는 04:45 쯤이고 팀이
+    # 오기까지 4시간 넘게 남으므로 그대로 둔다. **순서를 뒤집으려고 `needs:` 로 묶지
+    # 않는다** — MR 에서는 `build-devbuild` 가 수동 버튼이라 `needs` 가 걸리면 그쪽
+    # 파이프라인의 `unity-compile` 이 버튼을 누를 때까지 안 돈다.
+    #
+    # **배포는 이 잡에 걸려 있지 않다**(`build-devbuild` 는 `needs: []`) — Heavy 가
+    # 깨져도 아침 빌드는 나온다. 막히는 것은 Unity 슬롯 순서뿐이다.
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_DEPLOY_DEV == "true"
   # 종료 코드로 판정을 나눈다 (S15P21B202-309). unity_report.py 가 **대상 브랜치 기준선과
   # 비교해서** 정한다:
   #   0 = 통과(기존 실패만 있음) · 1 = **이 MR 이 만든** 컴파일 오류·새 테스트 실패 → 막는다
@@ -340,7 +417,15 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
     #
     # **합친 base 를 남긴다** — 다음 실행이 "그때 무엇과 합쳐 검사했나" 를 알아야
     # 재사용 여부를 판단할 수 있다. 아래 판단이 이 파일을 읽는다.
-    - echo "${UNITY_MERGED_BASE:-}" > "$CI_PROJECT_DIR/unity-base.txt"
+    # **합칠 대상이 없으면 `-` 를 적는다** (S15P21B202-641). 빈 줄로 두면 읽는 쪽이
+    # "합칠 것이 없었다"(develop push — 정상)와 "이 기능 이전 잡이라 모른다"를
+    # 구별하지 못하고, 실제로 그 탓에 **develop 에서는 재사용이 한 번도 안 됐다**.
+    - echo "${UNITY_MERGED_BASE:--}" > "$CI_PROJECT_DIR/unity-base.txt"
+    # **검사 대상 트리의 지문을 남긴다** (S15P21B202-642). 머지가 끝난 **뒤**라야
+    # `HEAD` 가 실제로 검사할 트리다. 이 파일이 있어야 다른 ref 의 잡이 "같은 것을
+    # 이미 검사했다" 를 알 수 있다 — 지금은 `release-windows` 가 그것을 쓴다.
+    - python3 scripts/ci/validate_unity_lfs.py
+    - python3 scripts/ci/unity_reuse.py key || true
     - python3 scripts/ci/unity_reuse.py || true
     # unity-editor 래퍼가 xvfb-run 과 -batchmode 를 붙여 준다(이미지 실측) — 여기서 또 주지 않는다.
     # -nographics 도 주지 않는다: xvfb 가 있어 URP 셰이더 관련 임포트가 정상적으로 돈다.
@@ -350,16 +435,69 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
         echo "=== Unity 를 건너뛴다 — 잡 $UNITY_REUSED_FROM 의 결과를 그대로 쓴다 ==="
         echo "    검사 대상이 바이트 단위로 같다(브랜치·develop 둘 다 Unity 입력 무변경)."
       else
-        # **무거운 21건은 MR 에서 빼고 develop 에서 돈다** (S15P21B202-602).
-        # 1795건 중 5초 이상인 21건이 테스트 시간 275초의 71%(195초)를 먹는다.
-        # 머지 직후 실행(`-309`)이 그 21건을 전부 돌리므로 회귀는 2분 안에 잡힌다.
-        # 되돌리려면 이 `-testCategory` 를 빼면 된다.
-        if [ "$CI_PIPELINE_SOURCE" = "merge_request_event" ]; then
+        # **무거운 55건은 새벽 스케줄에서만 돈다** (S15P21B202-602 → -662).
+        #
+        # `-602` 는 "MR 에서 빼고 머지 직후에 돌린다" 였다. `-662` 에서 머지 직후도 빼고
+        # 새벽 배포 스케줄로 옮겼다 — 그 15분이 5일에 진짜 회귀 1건을 잡는 동안
+        # `resource_group: unity` 를 물어 MR 검사와 릴리스를 막았다(위 rules 의 근거).
+        #
+        # **조건을 "스케줄이 아니면" 으로 쓴다.** "MR 이면" 으로 두면 스케줄이 아닌 새
+        # 트리거가 생겼을 때 그쪽이 조용히 전체를 돌려 다시 20분이 된다 — 빼는 쪽이
+        # 기본이고 돌리는 쪽이 예외다.
+        #
+        # ⚠ `unity_reuse.category()` 와 **같은 조건**이어야 한다. 어긋나면 범위가 다른
+        # 잡의 결과를 빌려 **Heavy 가 검사되지 않은 채 초록**이 된다.
+        # `test_unity_reuse.py` 가 둘을 대조한다.
+        #
+        # 지난 실행이 남긴 "넘겼다" 표시를 먼저 지운다(S15P21B202-739) — 워크스페이스가
+        # 재사용되면 새벽 전체 실행을 verify 가 "건너뛴 실행" 으로 읽는다. 아래에서 넘기는
+        # 가지만 다시 쓴다.
+        rm -f "$CI_PROJECT_DIR/unity-slow-flag.txt"
+        if [ "$CI_PIPELINE_SOURCE" != "schedule" ]; then
           set -- -testCategory "!Heavy"
           # 코멘트에 "덜 돌았다" 를 적게 한다 — 안 적으면 초록이 '전부 돌았다' 로 읽힌다.
           export UNITY_SKIPPED_CATEGORY="Heavy"
-          echo "=== 임포트 + 컴파일 + EditMode 테스트 시작 (Heavy 제외) ==="
+          # **새벽이 잰 목록을 여기서 건너뛴다** (S15P21B202-701 → -739). 손으로
+          # `Category("Heavy")` 를 붙이는 것은 `-602`·`-611`·`-731` 로 세 번 했고 매번
+          # 하루 만에 낡았다.
+          #
+          # **`-testFilter` 로는 하나도 못 뺐다** (`-739`). `-701` 이 넘긴 부정 전방탐색을
+          # Unity 는 **포함** 필터로 쓰고, NUnit 은 조상(픽스처·네임스페이스·루트 `""`) 하나만
+          # 맞아도 그 테스트를 돌린다 — 조상 이름은 목록에 없으니 늘 맞았다. 그 필터를 쓴
+          # 잡 5건이 뺀 것은 0건이었고, 목록에서 Heavy 가 아닌 유일한 1건은 5건 모두 돌았다.
+          # 빠진 것처럼 보인 99건은 전부 위의 Heavy 가 뺀 것이다.
+          #
+          # 그래서 `-testSettingsFile` 의 `ignoreTests` 로 **잎 이름이 글자 그대로 같은 것만**
+          # 건너뛴다. 건너뛴 것은 결과에 `Skipped`·사유 `slow-list` 로 남아 아래 verify 가
+          # 이름으로 확인한다.
+          #
+          # 못 받아 오면 파일이 없고, 그러면 **전부 돈다** — 빼는 것을 실패로 만들지
+          # 않는다. 목록이 없다고 검사를 멈추면 그날 아무도 머지하지 못한다. 대신
+          # `apply` 가 그 사실을 로그에 남긴다.
+          #
+          # **표시 파일(applied)까지 있어야 넘긴다.** apply 는 설정 파일을 되읽어 이름이
+          # 같은 것을 확인한 **뒤에** 표시를 쓴다. 깨진 JSON 을 받은 Unity 는 끝나지 않고
+          # 90분 타임아웃까지 unity 슬롯을 문다(프로브에서 631초 뒤 강제 종료).
+          python3 scripts/ci/slow_tests.py apply "$CI_PROJECT_DIR" || true
+          if [ -s "$CI_PROJECT_DIR/unity-slow-settings.json" ] && [ -s "$CI_PROJECT_DIR/unity-slow-applied.txt" ]; then
+            set -- "$@" -testSettingsFile "$CI_PROJECT_DIR/unity-slow-settings.json"
+            # **넘긴 바로 이 가지에서 표시를 남긴다.** verify 는 apply 의 표시가 아니라 이것으로
+            # "건너뛰었다" 를 안다 — apply 는 목록을 만들 뿐이고 넘기는 것은 위 줄이다. MR 은
+            # 그 브랜치의 YAML 로 돌므로, 이 줄이 없는 옛 YAML 이면 apply 가 만든 목록은
+            # 넘어가지 않는다. 그때 verify 가 "목록이 돌았다 — 장치 고장" 으로 오진하지 않는다.
+            echo "$CI_PROJECT_DIR/unity-slow-settings.json" > "$CI_PROJECT_DIR/unity-slow-flag.txt"
+            # 코멘트에 "느린 목록을 건너뛰었다" 를 적게 한다 — Heavy 와 같은 이유다. **넘긴
+            # 가지에서만** 내보낸다. 수는 apply 표시의 `listed`(설정 파일에 든 이름 수)다.
+            SLOW_N="$(sed -n 's/^listed //p' "$CI_PROJECT_DIR/unity-slow-applied.txt")"
+            export UNITY_SKIPPED_SLOW="${SLOW_N:-?}"
+            echo "=== 임포트 + 컴파일 + EditMode 테스트 시작 (Heavy 제외 · 느린 목록 ${UNITY_SKIPPED_SLOW}건 건너뜀) ==="
+          else
+            echo "=== 임포트 + 컴파일 + EditMode 테스트 시작 (Heavy 제외) ==="
+          fi
         else
+          # 전체 실행은 거르지 않는다 — **재는 쪽이자 검증이 사라지면 안 되는 쪽**이다.
+          # `set --` 가 인자를 통째로 비우므로, 목록이 어떤 이유로 남아 있어도 여기서는
+          # 쓰이지 않는다(이 잡은 `needs: []` 라 아티팩트를 받지도 않는다).
           set --
           echo "=== 임포트 + 컴파일 + EditMode 테스트 시작 (전체) ==="
         fi
@@ -449,12 +587,37 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
     # 재실행 결과는 **디렉터리로 넘긴다** — 셸이 인자를 이어 붙이면 경로에 공백이 섞였을 때
     # 조용히 깨져 면제가 사라진다(`!272` AI 리뷰).
     - python3 scripts/ci/unity_report.py "$CI_PROJECT_DIR/unity-results.xml" "$CI_PROJECT_DIR/unity.log" "$(cat "$CI_PROJECT_DIR/unity-rc.txt")" --recheck-dir "$CI_PROJECT_DIR" --baseline-from "$CI_PROJECT_DIR/unity-baseline.json"
+    # **느린 것을 재서 목록으로 남긴다** (S15P21B202-617). 전체 실행에서만 한다 —
+    # 거르고 돈 실행은 뺀 것의 시간을 모르므로, 그 결과로 목록을 만들면 한 번 빠진
+    # 테스트가 영영 빠진 채로 굳는다.
+    #
+    # `-602` 의 손 표시는 **하루 만에 낡았다**(`-617`). 2026-09-21 실측에서도 5초 이상
+    # 8건이 MR 테스트 시간의 61%를 먹는데 그 8건 **전부** 표시가 없었다. 그래서 사람에게
+    # 묻지 않고 매 전체 실행이 스스로 잰다.
+    #
+    # **여기서는 빼지 않는다.** 이 잡은 생산자다 — 받아서 건너뛰는 것은 위 `apply` 의
+    # 몫이고, 그 순서여야 하는 이유는 단순하다: 한 번 재기 전에는 뺄 목록이 없다.
+    # 목록에는 Heavy 가 아닌 것만 넣는다(`-739`) — Heavy 는 `-testCategory` 가 이미 뺀다.
+    - |
+      if [ "$CI_PIPELINE_SOURCE" = "schedule" ]; then
+        python3 scripts/ci/slow_tests.py measure "$CI_PROJECT_DIR/unity-results.xml" "$CI_PROJECT_DIR" || true
+      fi
     # 판정은 unity_report.py 가 파일로 남긴다. 보고 자체가 죽어 파일이 없으면 2(경고)로 끝낸다 —
     # **판정하지 못한 것을 회귀로 단정하지 않는다.** Unity 원시 코드로 되돌아가면 기존 실패에
     # 다시 걸린다.
     - |
       V="$CI_PROJECT_DIR/unity-verdict.txt"
       if [ -s "$V" ]; then RC=$(cat "$V"); else echo "⚠ 판정 파일이 없다 — 보고 스크립트가 죽었다"; RC=2; fi
+      # **건너뛰고 나서 이름으로 확인한다** (S15P21B202-701 → -739). `-701` 은 "절반은
+      # 돌았나" 만 봐서 **아무것도 안 빠진 것**을 5건 내내 못 봤다. 이제 목록에 있는데
+      # 돈 것 · 목록에 없는데 건너뛴 것 · Unity 가 받았다고 찍은 수를 본다. 0건 실행에
+      # 초록이 뜨는 것은 전처럼 남을 수의 절반과 견주어 잡는다.
+      #
+      # 실패해도 1(회귀)이 아니라 **2(판단 불가)** 로 올린다 — 이 MR 이 만든 문제가
+      # 아니라 우리 도구가 이상한 것이고, 그걸로 머지를 막으면 그날 전부 멈춘다.
+      if ! python3 scripts/ci/slow_tests.py verify "$CI_PROJECT_DIR/unity-results.xml" "$CI_PROJECT_DIR"; then
+        if [ "$RC" = "0" ]; then RC=2; fi
+      fi
       echo "unity-compile 종료 $RC (0 통과 · 1 이 MR 이 만든 문제 · 2 판단 불가)"
       exit "$RC"
   artifacts:
@@ -473,6 +636,9 @@ unity-compile:            # Unity C# 컴파일 + EditMode 테스트 — EC2 도�
     # 재사용하지 않는다 — 이 파일이 빠지면 최적화가 조용히 꺼진다.
     paths: [unity-results.xml, unity-junit.xml, unity.log, unity-verdict.txt,
             unity-recheck.txt, unity-baseline.json, unity-base.txt, unity-rc.txt,
+            unity-key.txt,
+            unity-slow.txt, unity-slow-settings.json, unity-slow-applied.txt,
+            unity-slow-flag.txt,
             unity-reused.txt,
             unity-recheck-*.xml, unity-recheck-*.log]
     reports:
@@ -489,6 +655,17 @@ build-backend:            # 백엔드 **테스트 + jar** — MR 에서는 검�
   image: eclipse-temurin:17-jdk    # 프로젝트는 Java 17 · Gradle 9.7.1 래퍼
   tags: [linux]           # 이미지가 필요한 잡이므로 도커 러너를 못 박는다 — 셸 러너(내 PC)로 가면
                           # image 가 무시되고 chmod 도 없어 실패한다(2026-09-01 실측: 파이프라인 176688)
+  # **이 잡은 취소되면 안 된다** (S15P21B202-309 · -641).
+  #
+  # `-309` 사고가 정확히 이것이었다. 09-06 19:43 에 `-303` 이 머지돼 백엔드 잡이
+  # 생겼는데 1분 뒤 `-304` 가 머지되며 앞 파이프라인이 자동 취소됐다. `default:
+  # interruptible: true` 라 **아직 시작 안 한 `build-backend` 가 취소 대상**이었고,
+  # `-304` 는 `backend/` 를 안 건드려 **새 파이프라인에는 백엔드 잡이 아예 없었다** —
+  # 누를 배포 버튼이 사라졌고 파이프라인은 초록이라 아무도 몰랐다.
+  #
+  # 그 사고 때문에 develop 의 `auto_cancel` 을 껐었다. `-641` 이 그것을 다시 켜므로
+  # (Unity 실행을 합치려고), **이 한 줄이 그 구멍을 대신 막는다.**
+  interruptible: false
   needs: []
   rules:                  # .gitlab-ci.yml 이 바뀔 때도 돌린다 — 이 잡 자체가 여전히 도는지 확인하려고
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -751,15 +928,34 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
     # 콜드 임포트가 이미 이 잡에서 한 번 일어나므로 추가 비용은 테스트 실행분뿐이다.
     #
     # 실패하면 빌드하지 않는다. ❌ 줄을 남기므로 mm-ci-failed 가 그것을 카드의 이유로 싣는다.
+    # **같은 트리를 이미 전체로 검사했으면 빌려 온다** (S15P21B202-642).
+    #
+    # 2026-09-18 실측: 여기서 20분 20초가 들었고 결과는 같은 트리를 검사한 develop 의
+    # `unity-compile` 과 실패 수까지 같았다(26 = 26). 릴리스 24.8분의 82% 였다.
+    #
+    # **`-662` 이후로는 대개 못 빌린다 — 그리고 그것이 맞다.** Heavy 가 새벽 스케줄로
+    # 옮겨가면서 `full` 로 도는 실행은 하루 한 번뿐이 됐다. `borrow` 는 `CAT_FULL` 을
+    # 못박고 찾으므로(`unity_reuse.mode_borrow`) `no-heavy` 결과를 집는 일은 없고,
+    # 못 찾으면 **여기서 Heavy 까지 제 트리로 직접 돈다.** 릴리스가 20분을 다시 쓰는
+    # 대신, 나가는 그 트리에 Heavy 가 실제로 돌았다는 것이 보장된다.
+    #
+    # 지문이 다르면(핫픽스로 갈라졌다면) 그냥 돈다 — 그때가 이 검사가 필요한 때다.
+    - python3 scripts/ci/validate_unity_lfs.py
+    - python3 scripts/ci/unity_reuse.py borrow || true
     - echo "=== EditMode 테스트 (빌드 전) ==="
     - |
       set +e
-      unity-editor \
-        -projectPath METAGAME \
-        -runTests -testPlatform EditMode \
-        -testResults "$CI_PROJECT_DIR/unity-results.xml" \
-        -logFile "$CI_PROJECT_DIR/unity-tests.log"
-      TRC=$?
+      if [ -s "$CI_PROJECT_DIR/unity-reused.txt" ]; then
+        TRC=$(cat "$CI_PROJECT_DIR/unity-rc.txt")
+        echo "↻ 잡 $(cat "$CI_PROJECT_DIR/unity-reused.txt") 의 결과를 쓴다 (종료 코드 $TRC)"
+      else
+        unity-editor \
+          -projectPath METAGAME \
+          -runTests -testPlatform EditMode \
+          -testResults "$CI_PROJECT_DIR/unity-results.xml" \
+          -logFile "$CI_PROJECT_DIR/unity-tests.log"
+        TRC=$?
+      fi
       set -e
       echo "테스트 종료 코드 $TRC"
     - python3 scripts/ci/publish_release.py gate "$TRC" "$CI_PROJECT_DIR/unity-results.xml" "$CI_PROJECT_DIR/unity-tests.log"
@@ -771,6 +967,15 @@ release-windows:          # master 머지 = 릴리스. Windows 빌드 → zip �
     # 값을 그대로 쓴다 — 빌드 쪽에서 태그를 다시 읽으면 두 곳이 어긋나고, 어긋난 버전은
     # **게이트를 조용히 무력화**한다.
     - export SPACE_RELEASE_VERSION="$(cat release-version.txt)"
+    # **릴리스 빌드에도 심는다** (S15P21B202-690). `build-devbuild` 와 같은 스크립트·같은
+    # 자리(Unity 앞)다 — 두 벌로 두면 한쪽만 고쳐져, 시험은 되는데 사용자 빌드에서만
+    # 설치가 안 되는 상태가 된다. 그 차이는 내보내기 전까지 아무도 모른다.
+    #
+    # **릴리스만 `--required` 다** (S15P21B202-709). 개발 빌드는 주소 없이도 쓸모가 있지만
+    # (AI 말고 다른 것을 시험한다), 주소 없이 나간 릴리스는 사용자가 "AI 동료 추가" 를
+    # 눌러도 **영영 받을 수 없는 빌드**다. 그때 뜨는 문구는 변수를 안 넣은 경우와 글자
+    # 하나까지 같아서, **내보낸 뒤에는 원인을 화면으로 가릴 수 없다.**
+    - python3 scripts/ci/write_ai_pack_source.py --required
     - |
       set +e
       unity-editor \
@@ -852,6 +1057,40 @@ build-devbuild:           # QA 가 쓸 개발·QA 빌드 (S15P21B202-460)
     # **develop 은 새벽에만.** 머지마다 돌리면 웜이어도 10분대인 데다 `resource_group`
     # 때문에 `unity-compile` 과 직렬이라 **아침에 MR 검사가 줄을 선다**(-460 의 비용 표).
     - if: $CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_DEPLOY_DEV == "true"
+    # **셰이더 캐시를 데우는 전용 실행** (S15P21B202-664).
+    #
+    # 러너는 보호 ref 와 비보호 ref 에 **다른 빌드 볼륨**을 주고 `METAGAME/Library` 가
+    # 그 안에 있다. 새벽 배포는 develop(보호)에서 돌아 제 캐시를 매일 데우지만,
+    # **MR 의 QA 빌드 버튼은 비보호 볼륨**이라 한동안 안 누르면 반드시 식는다 —
+    # 2026-09-21 실측으로 그 볼륨의 첫 빌드가 40~80분, 그 뒤가 3.5~5.2분이었다.
+    #
+    # 그래서 **비보호 브랜치의 스케줄**이 밤마다 한 번 빌드해 그쪽을 데운다. 셰이더
+    # 캐시는 **실제 Windows 빌드만** 데운다 — EditMode 로는 안 된다(같은 날 실측:
+    # Library 를 지운 볼륨에서 EditMode 를 두 번 돌렸는데 ShaderCache 가 6.4M 뿐이었다).
+    #
+    # **산출물은 아무 데도 안 간다.** `DEVBUILD_DRY_RUN` 을 여기서 박아 둔다 —
+    # 스케줄 변수에만 두면 빠뜨렸을 때 `publish_devbuild` 가 어긋남으로 죽거나,
+    # 더 나쁘게는 아무도 안 쓸 빌드가 레지스트리에 올라간다.
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $WARM_UNITY_CACHE == "true"
+      variables:
+        DEVBUILD_DRY_RUN: "1"
+    # **master 로 가는 MR 에는 만들지 않는다** (S15P21B202-644).
+    #
+    # 릴리스 MR(`!535`)에 이 버튼이 떠서 헷갈렸고 **실제로 눌렸다.** 이 버튼은
+    # develop 으로 가는 MR 의 QA 용이고, 릴리스 빌드는 `release-windows` 가 만든다.
+    # 누르면 `qa-<MR>-<sha>` 라는 **다른 빌드**가 하나 더 나오는데, `resource_group:
+    # unity` 라 **릴리스의 `unity-compile` 앞에 줄을 선다** — 2026-09-18 에 릴리스가
+    # 한 칸 밀렸다(취소했다).
+    #
+    # **`target == master` 로 가른다.** 릴리스(`release/…`)와 핫픽스(`hotfix/…`)가
+    # 둘 다 master 로 가고 **둘 다 `release-windows` 가 빌드를 만든다** — 브랜치 이름
+    # 패턴보다 이쪽이 이유를 그대로 말한다.
+    #
+    # 파이프라인 생성은 거절되지 않는다. `publish-devbuild` 의 needs 가
+    # `optional: true` 라 이 잡이 없어도 된다 — `-467` 에서 `release-prod` 가 그것에
+    # 당했고 그 뒤로 붙었다.
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
+      when: never
     # **MR 은 버튼.** 리뷰를 기다리는 동안 그 브랜치 빌드로 QA 를 돌릴 수 있어야 한다.
     # `allow_failure` 로 둬서 **누르지 않은 버튼이 파이프라인을 붙잡지 않는다.**
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -866,6 +1105,42 @@ build-devbuild:           # QA 가 쓸 개발·QA 빌드 (S15P21B202-460)
       if [ ! -s "$LIC" ]; then
         echo "❌ Unity 라이선스가 마운트되지 않았다: $LIC (S15P21B202-271)"; exit 1
       fi
+    # **데우기 실행은 develop 끝을 받아 빌드한다** (S15P21B202-664).
+    #
+    # 이 스케줄은 **비보호 브랜치**를 가리켜야 한다 — 볼륨의 보호 등급이 ref 로
+    # 정해지기 때문이고, 데우려는 것이 비보호 쪽이다. 그런데 그 브랜치를 고정해 두면
+    # 날이 갈수록 develop 과 벌어져 **데운 캐시가 실제 빌드와 안 맞는다.**
+    # 그래서 브랜치는 "보호 등급을 나르는 그릇" 으로만 쓰고 내용은 develop 을 쓴다.
+    #
+    # 산출물은 어차피 아무 데도 안 간다(`DEVBUILD_DRY_RUN`) — 그래서 이 실행의
+    # `빌드=` 스탬프가 체크아웃과 어긋나도 읽는 사람이 없다.
+    - |
+      if [ "$WARM_UNITY_CACHE" = "true" ]; then
+        # **산출물이 나가면 안 되는 실행이다** — 여기서 한 번 더 못박는다 (`!567` AI 리뷰).
+        # 위 `rules` 가 `DEVBUILD_DRY_RUN: "1"` 을 박아 두지만, 그것이 언젠가 빠지면
+        # **비보호 자격으로 만든 develop 산출물이 레지스트리로 나간다.** 값싼 확인이다.
+        if [ "$DEVBUILD_DRY_RUN" != "1" ]; then
+          echo "❌ 데우기 실행인데 DEVBUILD_DRY_RUN 이 '1' 이 아니다 — 산출물이 나갈 수 있다"
+          exit 1
+        fi
+        echo "=== 캐시 데우기 — develop 끝을 받아 빌드한다 ==="
+        # **`&&` 로 묶지 않는다** (`!567` AI 리뷰). 묶으면 fetch 가 실패했을 때 checkout 을
+        # 건너뛰고 **그릇 브랜치의 낡은 내용으로 조용히 빌드한다** — 엉뚱한 캐시를 데우고도
+        # 초록이다. 이 잡의 목적이 통째로 사라지는데 아무도 모른다.
+        if ! git fetch --no-tags origin develop; then
+          echo "❌ develop 을 받지 못했다 — 그릇 브랜치 내용으로 데우면 엉뚱한 캐시가 된다"
+          exit 1
+        fi
+        if ! git checkout -f FETCH_HEAD; then
+          echo "❌ develop 끝으로 옮기지 못했다"
+          exit 1
+        fi
+        git --no-pager log -1 --format='데우는 대상: %h %s'
+      fi
+    # **LFS 검증은 데우기 체크아웃 *뒤*에 둔다** (S15P21B202-664 · develop 과의 충돌 해소).
+    # `git checkout -f` 는 LFS 스머지가 안 돌면 에셋을 포인터로 남길 수 있고, 그것이
+    # 바로 이 검사가 잡으려는 것이다. 앞에 두면 **곧 갈아치울 트리**를 검사한다.
+    - python3 scripts/ci/validate_unity_lfs.py
     - python3 scripts/ci/publish_devbuild.py version
     - echo "=== 빌드 시작 ($(cat release-version.txt)) ==="
     # **릴리스 버전을 박지 않는다.** dev·qa 빌드는 `vX.Y.Z` 가 아니므로 `-404` 의
@@ -879,6 +1154,17 @@ build-devbuild:           # QA 가 쓸 개발·QA 빌드 (S15P21B202-460)
     # 이 줄이 없던 동안 개발 빌드로 모은 이벤트는 전부 `build: ""` 였다. QA 는 개발
     # 빌드로 하므로, 쌓아 둔 것 대부분이 어느 빌드의 판인지 말하지 못한다.
     - export SPACE_BUILD_ID="$(cat release-version.txt)"
+    # **AI 추가팩 주소를 빌드에 심는다** (S15P21B202-690).
+    #
+    # 저장소의 `ai-pack-source.json` 은 **값이 빈 껍데기**다(배포 주소는 저장소에 두지
+    # 않는다). 그대로 빌드하면 게임이 "다운로드 배포 주소가 아직 설정되지 않았어요" 에서
+    # 멈추므로, 값을 CI 변수에 두고 여기서 덮어쓴다.
+    #
+    # 변수가 없으면 아무것도 쓰지 않고 그 사실을 남긴다 — 안 남기면 "AI 설치가 안 된다"
+    # 의 원인이 변수 미설정인지 기능 결함인지 빌드 로그로 가릴 수 없다. **값이 틀리면
+    # 여기서 실패한다**: 게임이 내는 문구가 주소를 안 넣은 경우와 똑같아서, 통과시키면
+    # QA 가 오타인지 결함인지 구별할 수 없다.
+    - python3 scripts/ci/write_ai_pack_source.py
     - |
       set +e
       unity-editor \
@@ -1105,7 +1391,7 @@ mm-ci-failed:             # 🔴 CI 실패 알림 — 실패한 잡 이름·링�
     - job: repo-hygiene
       optional: true
     - job: ci-tests
-      optional: true      # CI 스크립트를 건드리지 않은 MR 에는 이 잡이 없다
+      optional: true      # MR 에서는 항상 돈다(-632). optional 은 다른 소스를 위해 남긴다
     - job: mr-overlap
       optional: true
     - job: unity-compile  # 이것이 빠져 있어 unity-compile 만 실패하면 카드가 안 나갔다(-344)
@@ -1154,7 +1440,7 @@ mm-ci-resolved:           # 검사 통과 시, 남아 있는 CI 실패 코멘트
     - job: repo-hygiene   # when: on_success 가 알아서 이 잡을 건너뛴다.
       optional: true      # optional 인 이유는 mm-ci-failed 쪽 주석 참고(-344).
     - job: ci-tests
-      optional: true      # CI 스크립트를 건드리지 않은 MR 에는 이 잡이 없다
+      optional: true      # MR 에서는 항상 돈다(-632). optional 은 다른 소스를 위해 남긴다
     - job: mr-overlap
       optional: true
     - job: unity-compile
@@ -1217,13 +1503,23 @@ mm-ci-resolved:           # 검사 통과 시, 남아 있는 CI 실패 코멘트
 # (실측 `191907` 23:32 · `184417` 10:18). 그래서 **거짓말하느니 말하지 않는다.**
 # 🔴 카드가 이미 "고칠 때까지 매일 같은 시각에 다시 실패한다" 고 적는다.
 
-mm-nightly-failed:        # 🔴 예약 실행 실패 — 새벽 배포·아침 점검
-  stage: notify
-  when: on_failure
-  rules:
+mm-nightly-result:        # 예약 실행 결과 — 새벽 데우기·새벽 배포·아침 점검
+  stage: notify           # **needs 를 달지 않는다.** 스테이지 순서로 미루는 것이 이 잡의
+  when: always            # 존재 이유다 — needs 목록에서 빠진 잡의 실패를 다시 놓친다(-344·-533).
+  rules:                  # 버튼 잡을 넣으면 안 눌린 파이프라인에서 통째로 skipped 가 된다(!448).
+    # **새벽 작업은 성공해도 보낸다** (S15P21B202-675).
+    #
+    # 데우기(-664)는 스케줄 브랜치가 사라지거나 ref 를 안 옮기면 **실패하지 않고 그냥
+    # 안 돈다** — 파이프라인은 전부 초록이고 캐시만 식는다. 카드가 매일 오면
+    # **안 온 날이 신호**가 된다. 그래서 카드 마지막 줄이 그 사실을 적는다.
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $MM_WEBHOOK_URL && ($NIGHTLY_DEPLOY_DEV == "true" || $WARM_UNITY_CACHE == "true")
+      when: always
+    # 아침 점검(09:30)은 **실패했을 때만.** 그쪽은 `mm-digest` 가 제 카드를 매일 보내므로
+    # 성공까지 알리면 같은 아침에 두 장이 간다.
     - if: $CI_PIPELINE_SOURCE == "schedule" && $MM_WEBHOOK_URL
+      when: on_failure
   script:
-    - python scripts/ci/mm_notify.py ci-failed
+    - python scripts/ci/mm_notify.py schedule-result
   allow_failure: true
 
 
@@ -1235,7 +1531,9 @@ mm-digest:                # 스케줄 파이프라인(매일 09:30 · 실제 발
   rules:
     # **새벽 배포 스케줄에는 끼지 않는다** (S15P21B202-455). 스케줄 파이프라인은
     # 소스가 다 `schedule` 이라, 변수로 가르지 않으면 아침 카드가 하루 두 번 나간다.
-    - if: $CI_PIPELINE_SOURCE == "schedule" && $MM_WEBHOOK_URL && $NIGHTLY_DEPLOY_DEV != "true"
+    # **캐시 데우기 실행에서는 안 보낸다** (S15P21B202-664) — 그 스케줄에도
+    # `NIGHTLY_DEPLOY_DEV` 가 없어서, 막지 않으면 다이제스트 카드가 하루 두 번 간다.
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $MM_WEBHOOK_URL && $NIGHTLY_DEPLOY_DEV != "true" && $WARM_UNITY_CACHE != "true"
       when: always
   script:
     - python scripts/ci/mm_digest.py

@@ -344,7 +344,14 @@ namespace Metagame.Bootstrap
                 _orbit.SnapToTarget();
             }
             if (_bootstrap != null && _bootstrap.Exploration != null)
-                _bootstrap.Exploration.SetTabletOpen(_savedTablet);
+            {
+                // Entry hands the tablet to the player, including an early skip.
+                // Interrupted entry and assault still restore their previous state.
+                bool entryCompleted = !_assault && !_sequence.BlocksInput
+                    && _bootstrap.Session != null && !_bootstrap.Session.EndingActive;
+                _bootstrap.Exploration.SetTabletOpen(entryCompleted || _savedTablet);
+                if (entryCompleted) _bootstrap.Session.SetCursor(false);
+            }
             _sequence = null;
         }
 

@@ -17,8 +17,16 @@ namespace Metagame.Gameplay
         public const string WalkResource = "RabbitLocomotion/Rabbit_Walk";
         public const string RunResource = "RabbitLocomotion/Rabbit_Run";
 
+        /// <summary>옆걸음 — 오른쪽·왼쪽 두 벌 (S15P21B202-670).</summary>
+        public const string SideWalkResource = "RabbitLocomotion/Rabbit_SideWalk";
+        public const string SideWalkLeftResource = "RabbitLocomotion/Rabbit_SideWalkLeft";
+
         /// <summary>동료를 양손으로 들어 위로 내던지는 한 번짜리 동작 (S15P21B202-519).</summary>
         public const string TossResource = "RabbitLocomotion/Rabbit_TossUp";
+        /// <summary>방망이 스윙 — 한 번짜리 (S15P21B202-694).</summary>
+        public const string BatSwingResource = "RabbitLocomotion/Rabbit_BatSwing";
+        /// <summary>방망이 대기 코일 — 들고 있는 동안 도는 고리.</summary>
+        public const string BatReadyResource = "RabbitLocomotion/Rabbit_BatReady";
 
         /// <summary>F2 춤 1번 '뮤직챌린지' (S15P21B202-563). 14.2초짜리 한 번짜리 동작.</summary>
         public const string DanceResource = "RabbitLocomotion/Rabbit_Dance";
@@ -38,6 +46,45 @@ namespace Metagame.Gameplay
         public const string CrawlResource = "RabbitLocomotion/Rabbit_Crawl";
         public const string LieDownResource = "RabbitLocomotion/Rabbit_LieDown";
         public const string StandUpResource = "RabbitLocomotion/Rabbit_StandUp";
+
+        // ── 점프·낙하 (S15P21B202-628) ───────────────────────────────
+        //
+        // **Rabbit_Air 는 시간축이 시간이 아니다.** 0프레임 = 최대 하강 ·
+        // 가운데 = 중립 · 끝 = 최대 상승. 세로 속도를 시간으로 되매핑해서 찍는다.
+        // 그래서 점프든 난간 낙하든 **같은 속도면 같은 자세**가 나온다.
+        public const string AirResource = "RabbitLocomotion/Rabbit_Air";
+        public const string JumpLaunchResource = "RabbitLocomotion/Rabbit_JumpLaunch";
+        public const string JumpLandResource = "RabbitLocomotion/Rabbit_JumpLand";
+        public const string JumpHeelResource = "RabbitLocomotion/Rabbit_JumpHeel";
+
+        /// <summary>공중 자세가 최대로 벌어지는 세로 속도(m/s). <c>Tuning.JumpSpeed</c> 와 같다.</summary>
+        public const float AirSpeedSpan = 3.4f;
+
+        /// <summary>
+        /// 공중에서 애니메이션이 먹는 최대 세기.
+        ///
+        /// <para><b>1 이면 안 된다.</b> 공중에서 <c>Balance</c> 힘이 26% 로 떨어져
+        /// 팔다리가 허우적거리는 것은 의도된 물리 인형 톤이다(<c>PlayerRig</c>).
+        /// 자세를 꽉 덮으면 그게 죽는다 — 자세는 읽히면서 허우적임은 남는 값이다.</para>
+        /// </summary>
+        public const float AirPoseWeight = 0.65f;
+
+        /// <summary>공중 자세가 다 올라오는 데 걸리는 시간(초). 엎드리기와 같은 값으로 둔다.</summary>
+        public const float AirBlendTime = 0.15f;
+
+        /// <summary>
+        /// 공중 자세에서 <b>팔만</b> 늦게 섞는 시간(초) (S15P21B202-670).
+        ///
+        /// <para>재 보니 자세가 켜지는 0.15초에 팔이 <b>프레임당 21~32도</b> 움직였다 —
+        /// 50fps 면 초당 1600도다. 그것이 "점프할 때 팔이 파닥거린다" 의 정체였다.
+        /// 팔은 공중 클립에서 각도 범위가 가장 큰 뼈라 같은 시간을 줘도 가장 크게
+        /// 휘둘린다.</para>
+        ///
+        /// <para>S15P21B202-628 에서 점프가 끊기던 것을 <b>큰 동작에 자기 타이밍 창을
+        /// 주어</b> 풀었다(67 → 22도/프레임). 같은 방법이다 — 몸은 그대로 0.15초,
+        /// 팔만 늘린다.</para>
+        /// </summary>
+        public const float AirArmBlendTime = 0.40f;
 
         /// <summary>
         /// 춤을 끊는 <b>밀림</b> 속도(m/s) (S15P21B202-596).
@@ -86,6 +133,7 @@ namespace Metagame.Gameplay
             public Quaternion PhysicsRotation;
             public int Arm; // 0: 다리, 1: 왼팔, 2: 오른팔
             public bool PreserveAnchor;
+            public bool Leg;
             public bool InWalk, InToss;
         }
 
@@ -103,13 +151,30 @@ namespace Metagame.Gameplay
             public AnimationClipPlayable Node;
             public int Slot;                // 믹서 입력 번호
             public bool CancelOnMove;       // 걸으면 끊는가
+
+            /// <summary>
+            /// 0 이 아니면 <b>클립 길이 대신 이 시간</b>에 맞춰 재생한다
+            /// (S15P21B202-694). 게임이 정한 길이가 따로 있는 동작에 쓴다 — 굽는
+            /// 프레임 수를 바꿔도 타격 순간이 안 밀린다.
+            /// </summary>
+            public float Duration;
+
+            /// <summary>
+            /// 팔 뼈를 건너뛰는가 (S15P21B202-694). <b>스윙이 그렇다</b> — 배트는
+            /// <c>PlayerRig.HoldToolPose</c> 가 들고 있고 팔은 그 방향을 따라간다.
+            /// 클립이 손뼈를 덮어쓰면 <b>보이는 손과 배트가 어긋난다.</b>
+            /// </summary>
+            public bool SkipArms;
+
+            /// <summary>재생에 쓰는 길이. <see cref="Duration"/> 이 있으면 그것.</summary>
+            public float Span => Duration > 0f ? Duration : (Clip != null ? Clip.length : 0f);
             public float Time, Weight;
             public bool Active;
             public bool Ready => Clip != null;
         }
 
         readonly List<BoneLink> _bones = new();
-        readonly AnimationClip _walk, _run;
+        readonly AnimationClip _walk, _run, _sideRight, _sideLeft;
         readonly GameObject _poseRoot;
         readonly OneShot _tossShot = new() { Slot = 2, CancelOnMove = false };
         readonly OneShot _danceShot = new() { Slot = 3, CancelOnMove = true };
@@ -118,8 +183,26 @@ namespace Metagame.Gameplay
         // 자세 전환은 **걸어도 안 끊긴다** — 끊기면 눕다 만 자세로 굳는다.
         readonly OneShot _lieDownShot = new() { Slot = 6, CancelOnMove = false };
         readonly OneShot _standUpShot = new() { Slot = 7, CancelOnMove = false };
+        // 점프 전환도 걸어도 안 끊긴다 — 끊기면 뛰다 만 자세로 굳는다.
+        readonly OneShot _launchShot = new() { Slot = 8, CancelOnMove = false };
+        readonly OneShot _landShot = new() { Slot = 9, CancelOnMove = false };
+        readonly OneShot _heelShot = new() { Slot = 10, CancelOnMove = false };
+        /// <summary>
+        /// 방망이 스윙 (S15P21B202-694). <b>걸으면서 휘둘러도 끊지 않는다</b> —
+        /// 던지기와 같은 이유다. 운석은 서 있을 때만 오는 것이 아니다.
+        ///
+        /// <para><see cref="OneShot.Duration"/> 을 준다. 클립은 0.27초인데 게임의
+        /// 스윙은 <c>PhysicsScale.BatSwingSeconds</c>(0.28초)라, 클립 길이를 그대로
+        /// 쓰면 <b>굽는 프레임 수에 따라 타격 순간이 밀린다.</b></para>
+        /// </summary>
+        readonly OneShot _batSwingShot = new()
+        {
+            Slot = 11, CancelOnMove = false, SkipArms = true,
+            Duration = PhysicsScale.BatSwingSeconds
+        };
         OneShot[] OneShots => _oneShots ??= new[]
-            { _tossShot, _danceShot, _redredShot, _badShot, _lieDownShot, _standUpShot };
+            { _tossShot, _danceShot, _redredShot, _badShot, _lieDownShot, _standUpShot,
+              _launchShot, _landShot, _heelShot, _batSwingShot };
         OneShot[] _oneShots;
 
         /// <summary>
@@ -128,13 +211,21 @@ namespace Metagame.Gameplay
         OneShot[] DanceShots => _danceShots ??= new[] { _danceShot, _redredShot, _badShot };
         OneShot[] _danceShots;
         PlayableGraph _graph;
-        AnimationClipPlayable _walkNode, _runNode;
-        AnimationClip _proneIdle, _crawl;
-        AnimationClipPlayable _proneIdleNode, _crawlNode;
+        AnimationClipPlayable _walkNode, _runNode, _sideRightNode, _sideLeftNode;
+        AnimationClip _proneIdle, _crawl, _air, _batReady;
+        AnimationClipPlayable _proneIdleNode, _crawlNode, _airNode, _batReadyNode;
+        float _batReadyWeight, _batReadyPhase;
         int ProneIdleSlot => 2 + OneShots.Length;
         int CrawlSlot => ProneIdleSlot + 1;
+        int AirSlot => CrawlSlot + 1;
+        int SideRightSlot => AirSlot + 1;
+        int SideLeftSlot => SideRightSlot + 1;
+        int BatReadySlot => SideLeftSlot + 1;
         float _proneWeight, _crawlBlend, _proneIdleTime;
         bool _proneLast;
+        float _airWeight, _airArmWeight, _sideBlend;
+        bool _airLast, _heelDone, _landLead;
+        float _lastVertical;
         AnimationMixerPlayable _mixer;
         float _phase, _weight, _runBlend;
         public float Weight => _weight;
@@ -214,6 +305,8 @@ namespace Metagame.Gameplay
         {
             var walk = Resources.Load<AnimationClip>(WalkResource);
             var run = Resources.Load<AnimationClip>(RunResource);
+            var sideRight = Resources.Load<AnimationClip>(SideWalkResource);
+            var sideLeft = Resources.Load<AnimationClip>(SideWalkLeftResource);
             if (walk == null || run == null || model == null || reference == null) return null;
 
             // 한 번짜리 클립들은 **없어도 된다.** 아직 굽지 않은 저장소에서도 걷기·달리기는
@@ -226,19 +319,34 @@ namespace Metagame.Gameplay
             var crawl = Resources.Load<AnimationClip>(CrawlResource);
             var lieDown = Resources.Load<AnimationClip>(LieDownResource);
             var standUp = Resources.Load<AnimationClip>(StandUpResource);
+            var air = Resources.Load<AnimationClip>(AirResource);
+            var launch = Resources.Load<AnimationClip>(JumpLaunchResource);
+            var land = Resources.Load<AnimationClip>(JumpLandResource);
+            var heel = Resources.Load<AnimationClip>(JumpHeelResource);
+            var batSwing = Resources.Load<AnimationClip>(BatSwingResource);
+            var batReady = Resources.Load<AnimationClip>(BatReadyResource);
             return new RabbitLocomotion(model, reference, walk, run, toss, dance, redred, bad,
-                                        proneIdle, crawl, lieDown, standUp);
+                                        proneIdle, crawl, lieDown, standUp, air, launch, land, heel,
+                                        sideRight, sideLeft, batSwing, batReady);
         }
 
         RabbitLocomotion(Transform model, GameObject reference, AnimationClip walk,
                          AnimationClip run, AnimationClip toss, AnimationClip dance,
                          AnimationClip redred, AnimationClip bad,
                          AnimationClip proneIdle, AnimationClip crawl,
-                         AnimationClip lieDown, AnimationClip standUp)
+                         AnimationClip lieDown, AnimationClip standUp,
+                         AnimationClip air, AnimationClip launch,
+                         AnimationClip land, AnimationClip heel,
+                         AnimationClip sideRight = null, AnimationClip sideLeft = null,
+                         AnimationClip batSwing = null, AnimationClip batReady = null)
         {
             _walk = walk;
             _run = run;
+            _sideRight = sideRight;
+            _sideLeft = sideLeft;
             _tossShot.Clip = toss;
+            _batSwingShot.Clip = batSwing;
+            _batReady = batReady;
             _danceShot.Clip = dance;
             _redredShot.Clip = redred;
             _badShot.Clip = bad;
@@ -246,6 +354,10 @@ namespace Metagame.Gameplay
             _standUpShot.Clip = standUp;
             _proneIdle = proneIdle;
             _crawl = crawl;
+            _air = air;
+            _launchShot.Clip = launch;
+            _landShot.Clip = land;
+            _heelShot.Clip = heel;
             // 메시/콜라이더/스크립트 없이 Transform만 복제한다. 원본 프리팹을 수정하지 않는다.
             _poseRoot = CloneSkeleton(reference.transform, null).gameObject;
             _poseRoot.name = "~Rabbit locomotion pose (runtime only)";
@@ -262,6 +374,8 @@ namespace Metagame.Gameplay
                     Target = target, Pose = t, RestPosition = t.localPosition,
                     Arm = t.name.Contains("arm") || t.name.EndsWith("Hand") ? (t.name.StartsWith("L_") ? 1 : 2) : 0,
                     PreserveAnchor = t.name.EndsWith("Upperarm") || t.name.EndsWith("Thigh"),
+                    Leg = t.name.EndsWith("Thigh") || t.name.EndsWith("Calf")
+                          || t.name.EndsWith("Foot") || t.name.EndsWith("ToeBase"),
                     InWalk = inWalk, InToss = inToss
                 });
             }
@@ -275,10 +389,10 @@ namespace Metagame.Gameplay
             _walkNode.SetSpeed(0); _runNode.SetSpeed(0);
             _walkNode.SetApplyFootIK(false); _runNode.SetApplyFootIK(false);
             // 0 걷기 · 1 달리기 · 2 던지기 · 3~5 춤 · 6 엎드리기 · 7 일어서기
-            // · 8 엎드린 대기 · 9 기어가기.
+            // · 8 뛰어오름 · 9 착지 · 10 뒤꿈치 · 11 엎드린 대기 · 12 기어가기 · 13 공중.
             // **한 번짜리가 늘면 이 수도 같이 늘려야 한다** — 안 늘리면 새 클립이
             // 믹서에 못 붙어 조용히 아무 일도 안 일어난다. 검증이 이 수를 센다.
-            _mixer = AnimationMixerPlayable.Create(_graph, 2 + OneShots.Length + 2);
+            _mixer = AnimationMixerPlayable.Create(_graph, 2 + OneShots.Length + 6);
             _graph.Connect(_walkNode, 0, _mixer, 0);
             _graph.Connect(_runNode, 0, _mixer, 1);
             foreach (var shot in OneShots)
@@ -300,6 +414,30 @@ namespace Metagame.Gameplay
                 _crawlNode = AnimationClipPlayable.Create(_graph, _crawl);
                 _crawlNode.SetSpeed(0); _crawlNode.SetApplyFootIK(false);
                 _graph.Connect(_crawlNode, 0, _mixer, CrawlSlot);
+            }
+            if (_air != null)
+            {
+                _airNode = AnimationClipPlayable.Create(_graph, _air);
+                _airNode.SetSpeed(0); _airNode.SetApplyFootIK(false);
+                _graph.Connect(_airNode, 0, _mixer, AirSlot);
+            }
+            if (_sideRight != null)
+            {
+                _sideRightNode = AnimationClipPlayable.Create(_graph, _sideRight);
+                _sideRightNode.SetSpeed(0); _sideRightNode.SetApplyFootIK(false);
+                _graph.Connect(_sideRightNode, 0, _mixer, SideRightSlot);
+            }
+            if (_sideLeft != null)
+            {
+                _sideLeftNode = AnimationClipPlayable.Create(_graph, _sideLeft);
+                _sideLeftNode.SetSpeed(0); _sideLeftNode.SetApplyFootIK(false);
+                _graph.Connect(_sideLeftNode, 0, _mixer, SideLeftSlot);
+            }
+            if (_batReady != null)
+            {
+                _batReadyNode = AnimationClipPlayable.Create(_graph, _batReady);
+                _batReadyNode.SetSpeed(0);
+                _graph.Connect(_batReadyNode, 0, _mixer, BatReadySlot);
             }
             AnimationPlayableOutput.Create(_graph, "Pose only", animator).SetSourcePlayable(_mixer);
             _mixer.SetInputWeight(0, 1f);
@@ -342,6 +480,23 @@ namespace Metagame.Gameplay
 
             /// <summary>제 발로 엎드려 있는가 (S15P21B202-616).</summary>
             public bool Prone;
+
+            /// <summary>골반이 오르내리는 속도(m/s). 위가 양수 (S15P21B202-628).</summary>
+            public float VerticalSpeed;
+
+            /// <summary>제 발로 뛴 점프인가. 떨어진 것과 구별한다 (S15P21B202-628).</summary>
+            public bool JumpedUp;
+
+            /// <summary>발밑까지의 거리(m). 착지 동작을 <b>닿기 전에</b> 띄우는 데 쓴다.</summary>
+            public float GroundDistance;
+
+            /// <summary>
+            /// 방망이를 칠 수 있게 들고 있는가 (S15P21B202-694).
+            ///
+            /// <para><b>이 구조체가 SyncVar 라 참가자 화면까지 그대로 간다</b> — 대기
+            /// 코일을 위해 새 동기화를 만들지 않았다.</para>
+            /// </summary>
+            public bool BatCoiled;
         }
 
         public static State ReadState(PlayerRig rig)
@@ -358,17 +513,50 @@ namespace Metagame.Gameplay
                 Direction = rig.MovementDirectionLocal,
                 MoveInput = input.Move.sqrMagnitude > 1e-4f || input.Jump,
                 Prone = rig.Prone,
+                VerticalSpeed = rig.VerticalSpeed,
+                JumpedUp = rig.JumpedUp,
+                GroundDistance = rig.GroundDistance,
+                BatCoiled = rig.BatCoiled,
                 LeftArmBusy = input.GrabLeft || input.ArmsUp || rig.LeftHand.Gripping || rig.LeftHand.Carrying || rig.HeldTool != null,
                 RightArmBusy = input.GrabRight || input.ArmsUp || rig.RightHand.Gripping || rig.RightHand.Carrying || rig.HeldTool != null
             };
         }
 
+        /// <summary>
+        /// 착지 동작을 <b>닿기 전에</b> 띄우는 여유(초) (S15P21B202-628).
+        ///
+        /// <para>접지한 뒤에 켜면 예고 없이 착지 자세가 붙는다. 남은 시간을
+        /// <c>발밑거리 / 내려오는 속도</c> 로 어림해서 그만큼 먼저 띄운다.</para>
+        /// </summary>
+        public const float LandLeadTime = 0.18f;
+
+        /// <summary>최고점 뒤꿈치 딱이 이번 체공에서 켜졌는가 (S15P21B202-628). 검증이 읽는다.</summary>
+        public bool HeelClickPlayed => _heelDone;
+
+        /// <summary>뛰어오름 동작을 켠다. 검증이 '실제로 화면에 나오는가' 를 보려고 쓴다.</summary>
+        public void PlayJumpLaunch() => Play(_launchShot);
+
+        /// <summary>공중 자세를 그릴 수 있는가. 아직 안 구운 저장소에서도 게임은 돌아야 한다.</summary>
+        bool AirReady => _air != null && _airNode.IsValid() && _air.length > 0.01f;
+
         /// <summary>엎드린 자세를 그릴 수 있는가. 아직 안 구운 저장소에서도 게임은 돌아야 한다.</summary>
         bool ProneReady => _proneIdle != null && _crawl != null
             && _proneIdleNode.IsValid() && _crawlNode.IsValid();
 
-        public static bool CanAnimate(State state) => state.Grounded && !state.Blocked &&
-            state.Speed > 0.15f && Mathf.Abs(state.Direction.x) <= Mathf.Abs(state.Direction.y) + 0.1f;
+        /// <summary>
+        /// 걷는 그림을 그릴 수 있는 상태인가.
+        ///
+        /// <para><b>예전에는 옆으로 가면 여기서 꺼졌다</b> — {{|x| &lt;= |y|}} 항이 있어
+        /// 옆걸음에서 가중치가 0 으로 떨어졌고, 그 0 이 날것 래그돌이라 다리가 멈추고
+        /// 그대로 미끄러졌다. 옆걸음 클립이 생겼으므로 그 항을 걷어냈다
+        /// (S15P21B202-670).</para>
+        /// </summary>
+        public static bool CanAnimate(State state) =>
+            state.Grounded && !state.Blocked && state.Speed > 0.15f;
+
+        /// <summary>옆걸음을 그릴 수 있는가. 아직 안 구운 저장소에서도 게임은 돌아야 한다.</summary>
+        bool SideReady => _sideRight != null && _sideLeft != null
+                          && _sideRightNode.IsValid() && _sideLeftNode.IsValid();
 
         /// <summary>이동 거리나 골반 위치는 쓰지 않는다. 먼저 SpaceSuit.Sync를 호출해야 한다.</summary>
         public void Apply(State state, float deltaTime)
@@ -383,6 +571,35 @@ namespace Metagame.Gameplay
                 Play(state.Prone ? _lieDownShot : _standUpShot);
                 _proneLast = state.Prone;
             }
+
+            // 뜨고 내리는 전환 (S15P21B202-628). **뛴 것과 떨어진 것을 구별한다** —
+            // 난간에서 걸어 나간 것에 뛰어오름 동작을 붙이면 안 된다.
+            bool air = !state.Grounded && !state.Blocked && !state.Prone;
+            if (air != _airLast)
+            {
+                if (air) { if (state.JumpedUp) Play(_launchShot); }
+                // 이미 닿기 전에 띄웠으면 다시 처음부터 돌리지 않는다.
+                else if (!_landLead) Play(_landShot);
+                _airLast = air;
+                _heelDone = false;
+                _landLead = false;
+            }
+            // 착지 동작을 **닿기 전에** 띄운다. 접지 뒤에 켜면 예고 없이 붙는다.
+            if (air && !_landLead && state.VerticalSpeed < -0.2f
+                && state.GroundDistance / -state.VerticalSpeed <= LandLeadTime)
+            {
+                Play(_landShot);
+                _landLead = true;
+            }
+
+            // 최고점의 뒤꿈치 딱은 **뛴 점프에서만**. 떨어질 때는 최고점이 없다.
+            if (air && state.JumpedUp && !_heelDone
+                && state.VerticalSpeed <= 0f && _lastVertical > 0f)
+            {
+                Play(_heelShot);
+                _heelDone = true;
+            }
+            _lastVertical = state.VerticalSpeed;
 
             // ── 던지기가 보행보다 앞선다 (S15P21B202-519) ──────────────────
             //
@@ -404,10 +621,12 @@ namespace Metagame.Gameplay
                 }
 
                 shot.Time += deltaTime;
-                shot.Weight = TossWeight(shot.Time, shot.Clip.length);
-                if (shot.Time >= shot.Clip.length) { Cancel(shot); continue; }
+                shot.Weight = TossWeight(shot.Time, shot.Span);
+                if (shot.Time >= shot.Span) { Cancel(shot); continue; }
 
-                shot.Node.SetTime(shot.Time);
+                // **클립 시간이 아니라 진행도로 찍는다** (S15P21B202-694). 게임이
+                // 정한 길이(Span)와 구운 클립 길이가 다를 수 있다.
+                shot.Node.SetTime(shot.Time / shot.Span * shot.Clip.length);
                 _mixer.SetInputWeight(0, 0f);
                 _mixer.SetInputWeight(1, 0f);
                 foreach (var other in OneShots)
@@ -418,9 +637,53 @@ namespace Metagame.Gameplay
                 // 있으므로 그 검사를 그대로 두면 정작 던지는 두 팔이 빠진다.
                 _weight = 0f;
                 _phase = 0f;
-                WriteBones(link => link.InToss, shot.Weight, state, respectArmBusy: false);
+                // 스윙은 팔을 건너뛴다 — 배트를 든 손은 물리가 정한다.
+                var skipArms = shot.SkipArms;
+                WriteBones(link => link.InToss && (!skipArms || link.Arm == 0),
+                           shot.Weight, state, respectArmBusy: false);
                 return;
             }
+
+            // ── 공중 (S15P21B202-628) ───────────────────────────────────
+            //
+            // **세로 속도 하나로 자세가 정해진다.** 클립의 시간축이 곧 속도축이라
+            // 되매핑해서 찍기만 하면 된다 — 최고점 조각도, 상승/하강을 가르는
+            // 분기도 없다. 그래서 난간 낙하가 점프와 같은 길을 탄다.
+            if (!state.Grounded && !state.Blocked && !state.Prone)
+            {
+                // 클립을 아직 안 구웠으면 걷기로 흘려보내지 않고 물리로 돌려준다 —
+                // 그러지 않으면 공중에서 다리가 걸음을 걷는다.
+                if (!AirReady) { _weight = 0f; _airWeight = 0f; return; }
+                _weight = 0f;
+                _proneWeight = 0f;
+                _airWeight = Mathf.MoveTowards(_airWeight, AirPoseWeight, deltaTime / AirBlendTime);
+                _airArmWeight = Mathf.MoveTowards(_airArmWeight, AirPoseWeight,
+                                                  deltaTime / AirArmBlendTime);
+
+                // **눕혀서 재맵한다.** 예전에는 그냥 잘랐는데(Clamp), 점프는 −5.8m/s
+                // 까지 떨어지고 AirSpeedSpan 은 3.4 라 **−3.4 아래에서 자세가 통째로
+                // 얼어붙었다** — 실측으로 아홉 프레임 연속 0.00도였다. 얼어 있다가
+                // 착지에서 튀는 것이 파닥거림의 나머지 절반이다.
+                //
+                // tanh 는 어디서도 멈추지 않는다. 대신 ±AirSpeedSpan 에서의 자세가
+                // 조금 덜 벌어진다(1.00 → 0.76) — 그 값은 눈으로 보고 정한다.
+                float k = (float)System.Math.Tanh(state.VerticalSpeed / AirSpeedSpan);
+                _airNode.SetTime((k + 1f) * 0.5f * _air.length);
+                _mixer.SetInputWeight(0, 0f);
+                _mixer.SetInputWeight(1, 0f);
+                _mixer.SetInputWeight(ProneIdleSlot, 0f);
+                _mixer.SetInputWeight(CrawlSlot, 0f);
+                if (SideReady) { _mixer.SetInputWeight(SideRightSlot, 0f); _mixer.SetInputWeight(SideLeftSlot, 0f); }
+                foreach (var shot in OneShots) if (shot.Ready) _mixer.SetInputWeight(shot.Slot, 0f);
+                _mixer.SetInputWeight(AirSlot, 1f);
+                _graph.Evaluate(0f);
+
+                WriteBones(link => link.InToss, _airWeight, state, respectArmBusy: true,
+                           armWeight: _airArmWeight);
+                return;
+            }
+            _airWeight = 0f;
+            _airArmWeight = 0f;
 
             // ── 엎드린 자세 (S15P21B202-616) ────────────────────────────
             //
@@ -468,13 +731,72 @@ namespace Metagame.Gameplay
             _phase = Mathf.Repeat(_phase + direction * deltaTime * rate / Mathf.Max(duration, 0.01f), 1f);
             _walkNode.SetTime(_phase * _walk.length);
             _runNode.SetTime(_phase * _run.length);
-            _mixer.SetInputWeight(0, 1f - _runBlend);
-            _mixer.SetInputWeight(1, _runBlend);
+
+            // **고르지 않고 섞는다** (S15P21B202-670). 문턱으로 갈아끼우면 대각선(W+D)
+            // 에서 딱딱 튄다 — 628 에서 점프를 둘로 나눴다가 "너무 둘로 나누니까 끊겨"
+            // 를 들은 것과 같은 실수다.
+            //
+            // 옆걸음 클립은 **접지 위상을 앞걸음에 맞춰** 구웠으므로 같은 _phase 로
+            // 찍으면 같은 순간에 같은 발이 땅에 닿는다. 그래서 섞어도 안 미끄러진다.
+            float sideward = SideReady
+                ? Mathf.Clamp01(Mathf.Abs(state.Direction.x)
+                                - Mathf.Abs(state.Direction.y) * 0.35f) : 0f;
+            _sideBlend = Mathf.MoveTowards(_sideBlend, sideward, deltaTime / 0.14f);
+            // 가는 쪽 클립만 켠다. 두 벌인 이유는 가는 쪽 발이 제 접지 위상을
+            // 지켜야 하기 때문이다(거울로 뒤집으면 위상까지 뒤집힌다).
+            float right = state.Direction.x < 0f ? 1f : 0f;
+
+            float forward = 1f - _sideBlend;
+            _mixer.SetInputWeight(0, forward * (1f - _runBlend));
+            _mixer.SetInputWeight(1, forward * _runBlend);
+            if (SideReady)
+            {
+                _sideRightNode.SetTime(_phase * _sideRight.length);
+                _sideLeftNode.SetTime(_phase * _sideLeft.length);
+                _mixer.SetInputWeight(SideRightSlot, _sideBlend * right);
+                _mixer.SetInputWeight(SideLeftSlot, _sideBlend * (1f - right));
+            }
+            _mixer.SetInputWeight(ProneIdleSlot, 0f);
+            _mixer.SetInputWeight(CrawlSlot, 0f);
+            _mixer.SetInputWeight(AirSlot, 0f);
             foreach (var shot in OneShots) if (shot.Ready) _mixer.SetInputWeight(shot.Slot, 0f);
             _graph.Evaluate(0f);
 
             WriteBones(link => link.InWalk, _weight, state, respectArmBusy: true);
+            ApplyBatReady(state, deltaTime);
         }
+
+        /// <summary>대기 코일이 다 얹히는 데 걸리는 시간(초). 갑자기 감기면 튄다.</summary>
+        const float BatReadyBlendTime = 0.22f;
+
+        /// <summary>
+        /// 방망이를 들고 있는 동안 <b>상체만</b> 감아 둔다 (S15P21B202-694).
+        ///
+        /// <para><b>다리와 팔은 안 건드린다.</b> 다리를 쓰면 걸음과 싸우고, 팔을 쓰면
+        /// 배트를 든 손과 어긋난다 — 그래서 걸어 다니면서도 감은 자세가 유지된다.
+        /// 야구 게임이 로드를 대기 자세에 넣는 것과 같은 자리다.</para>
+        ///
+        /// <para><b>보행을 쓴 뒤에 덮는다.</b> 순서를 바꾸면 걷기가 코일을 지운다.</para>
+        /// </summary>
+        void ApplyBatReady(State state, float deltaTime)
+        {
+            if (!BatReadyReady) return;
+            var want = state.BatCoiled && !state.Blocked && !state.Prone ? 1f : 0f;
+            _batReadyWeight = Mathf.MoveTowards(_batReadyWeight, want,
+                                                deltaTime / BatReadyBlendTime);
+            if (_batReadyWeight <= 0f) return;
+
+            _batReadyPhase = Mathf.Repeat(_batReadyPhase + deltaTime / _batReady.length, 1f);
+            _batReadyNode.SetTime(_batReadyPhase * _batReady.length);
+            for (var i = 0; i < _mixer.GetInputCount(); i++) _mixer.SetInputWeight(i, 0f);
+            _mixer.SetInputWeight(BatReadySlot, 1f);
+            _graph.Evaluate(0f);
+
+            WriteBones(link => link.InToss && link.Arm == 0 && !link.Leg,
+                       _batReadyWeight, state, respectArmBusy: false);
+        }
+
+        bool BatReadyReady => _batReady != null && _batReadyNode.IsValid();
 
         /// <summary>
         /// 만들어 둔 자세를 진짜 뼈에 옮긴다.
@@ -482,7 +804,13 @@ namespace Metagame.Gameplay
         /// <para>보행과 던지기가 <b>같은 코드를 쓴다</b> — 다른 것은 어느 뼈에 쓰느냐,
         /// 얼마나 섞느냐, 그리고 바쁜 팔을 빼느냐 셋뿐이다.</para>
         /// </summary>
-        void WriteBones(Func<BoneLink, bool> include, float weight, State state, bool respectArmBusy)
+        /// <param name="armWeight">
+        /// 팔에만 쓰는 가중치. 음수면 <paramref name="weight"/> 를 그대로 쓴다
+        /// (S15P21B202-670). 공중 자세가 켜질 때 팔이 프레임당 21~32도 휘둘리던 것을
+        /// 팔만 늦게 섞어서 누른다.
+        /// </param>
+        void WriteBones(Func<BoneLink, bool> include, float weight, State state,
+                        bool respectArmBusy, float armWeight = -1f)
         {
             // 부모를 바꾼 뒤의 값이 섞이지 않도록 물리 포즈를 먼저 모두 저장한다.
             foreach (var link in _bones)
@@ -497,10 +825,11 @@ namespace Metagame.Gameplay
                     && ((link.Arm == 1 && state.LeftArmBusy) || (link.Arm == 2 && state.RightArmBusy)))
                     continue;
 
-                link.Target.localRotation = Quaternion.Slerp(link.PhysicsRotation, link.Pose.localRotation, weight);
+                float w = armWeight >= 0f && link.Arm != 0 ? armWeight : weight;
+                link.Target.localRotation = Quaternion.Slerp(link.PhysicsRotation, link.Pose.localRotation, w);
                 // 어깨/고관절은 기존 부착 위치를 유지하고 자식 뼈의 길이는 원본 값을 쓴다.
                 if (!link.PreserveAnchor)
-                    link.Target.localPosition = Vector3.Lerp(link.PhysicsPosition, link.RestPosition, weight);
+                    link.Target.localPosition = Vector3.Lerp(link.PhysicsPosition, link.RestPosition, w);
             }
         }
 
@@ -511,6 +840,24 @@ namespace Metagame.Gameplay
         /// 동작이 보여야 한다.</para>
         /// </summary>
         public void PlayToss() => Play(_tossShot);
+
+        /// <summary>
+        /// 방망이를 한 번 휘두른다 (S15P21B202-694).
+        ///
+        /// <para><b>남의 몸에도 그대로 먹는다</b> — 던지기·춤과 같은 이유로, 남의 몸도
+        /// <c>Locomotion</c> 을 갖고 같은 <c>Apply</c> 를 탄다. 스윙은 <b>남이 보라고
+        /// 있는 동작</b>이라 이 성질이 이 기능의 전부다.</para>
+        /// </summary>
+        public void PlaySwing() => Play(_batSwingShot);
+
+        /// <summary>스윙 클립을 구웠는가. 안 구웠으면 아무 일도 안 한다.</summary>
+        public bool HasSwing => _batSwingShot.Ready;
+
+        /// <summary>스윙이 재생 중인가. 검증이 읽는다.</summary>
+        public bool SwingActive => _batSwingShot.Active;
+
+        /// <summary>대기 코일이 얼마나 얹혀 있는가 0~1. 검증이 읽는다.</summary>
+        public float BatReadyWeight => _batReadyWeight;
 
         /// <summary>
         /// 춤을 처음부터 재생한다. 클립이 없으면 아무 일도 하지 않는다 (S15P21B202-563).

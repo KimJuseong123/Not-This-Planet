@@ -26,6 +26,19 @@ namespace Metagame.Gameplay.Parts
         float statusUntil;
         bool previousGrabLeft;
         bool previousGrabRight;
+
+        /// <summary>
+        /// 지난 입력에서 탑승 키가 눌려 있었는가 (S15P21B202-680).
+        ///
+        /// <para><b>없으면 한 번 눌러 타자마자 내린다.</b> 서버는 참가자가 마지막으로
+        /// 보낸 입력(<c>NetPlayer.pending</c>)을 새 프레임이 올 때까지 <b>매 물리 스텝
+        /// 다시 적용</b>한다. 그래서 <c>GetKeyDown</c> 으로 한 프레임만 참이던 값이
+        /// 서버에서는 여러 틱 참이고, 첫 틱에 타고 둘째 틱에 내리게 된다.</para>
+        ///
+        /// <para>바로 아래 잡기(<c>GrabLeft</c>·<c>GrabRight</c>)가 이미 같은 이유로
+        /// 눌린 순간만 보고 있었는데 탑승만 빠져 있었다.</para>
+        /// </summary>
+        bool previousTransportAction;
         bool fieldToggleRequested;
         bool physicsAuthority = true;
 
@@ -139,6 +152,7 @@ namespace Metagame.Gameplay.Parts
             {
                 previousGrabLeft = frame.GrabLeft;
                 previousGrabRight = frame.GrabRight;
+                previousTransportAction = frame.TransportAction;
                 return;
             }
 
@@ -149,7 +163,9 @@ namespace Metagame.Gameplay.Parts
                                            || (frame.FieldToggle && !frame.TransportAction)))
                 fieldToggleRequested = true;
 
-            if (frame.TransportAction)
+            // **누른 순간에만** 반응한다. 눌려 있는 동안 계속 보면 탔다 내렸다 한다.
+            var transportPressed = frame.TransportAction && !previousTransportAction;
+            if (transportPressed)
             {
                 if (mountedVehicle != null)
                 {
@@ -167,6 +183,7 @@ namespace Metagame.Gameplay.Parts
 
             previousGrabLeft = frame.GrabLeft;
             previousGrabRight = frame.GrabRight;
+            previousTransportAction = frame.TransportAction;
         }
 
         /// <summary>개인 복구 시 탑승만 해제한다. 다른 운반체와 파츠 위치는 유지한다.</summary>
@@ -179,6 +196,7 @@ namespace Metagame.Gameplay.Parts
             input = new InputFrame();
             previousGrabLeft = false;
             previousGrabRight = false;
+            previousTransportAction = false;
             fieldToggleRequested = false;
         }
 
@@ -194,6 +212,7 @@ namespace Metagame.Gameplay.Parts
             input = new InputFrame();
             previousGrabLeft = false;
             previousGrabRight = false;
+            previousTransportAction = false;
             fieldToggleRequested = false;
             RefreshFocus();
         }

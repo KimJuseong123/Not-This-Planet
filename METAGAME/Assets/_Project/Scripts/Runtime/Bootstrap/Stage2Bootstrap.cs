@@ -1,6 +1,7 @@
 using Metagame.Core;
 using Metagame.Gameplay;
 using Metagame.Gameplay.Stage2;
+using Metagame.Gameplay.Parts;
 using Metagame.Network;
 using Metagame.UI;
 using UnityEngine;
@@ -11,9 +12,12 @@ namespace Metagame.Bootstrap
     public sealed class Stage2Bootstrap : MonoBehaviour
     {
         [SerializeField] Stage2Yard _yard;
+        [SerializeField] bool _demoMode = true;
+        public void ConfigureDemo(bool enabled) => _demoMode = enabled;
         SpaceBootstrap _space;
         Stage2Bridge _bridge;
         Stage2Hud _hud;
+        Stage2DemoView _demo;
         readonly CircularWrenchInput _circle = new();
         float _sendAt, _turns;
         bool _interactHeld, _secondaryHeld, _throwHeld;
@@ -26,6 +30,8 @@ namespace Metagame.Bootstrap
             if (Mirror.NetworkManager.singleton != null)
                 Mirror.NetworkManager.singleton.onlineScene = gameObject.scene.path;
             _space = GetComponent<SpaceBootstrap>();
+            _yard.SetDemoMode(_demoMode);
+            _space.Session.Stage2Demo = _yard;
             _bridge = gameObject.AddComponent<Stage2Bridge>();
             _bridge.Configure(_yard);
             // Reuse Stage1's player/session/network infrastructure, replace chapter-specific guidance.
@@ -38,10 +44,22 @@ namespace Metagame.Bootstrap
             _space.Session.PlayerRespawned += _yard.ClearContaminationAfterRespawn;
             _hud = gameObject.AddComponent<Stage2Hud>();
             _hud.Configure(_yard, _space.Session, () => _bridge.LocalId);
+            if (_demoMode && !MatchRole.DedicatedServer)
+            {
+                _demo = gameObject.AddComponent<Stage2DemoView>();
+                _demo.Configure(_yard, _space.Session, new DemoEndingPlayer
+                { Name = _space.nickname, Suit = _space.suit, Accent = _space.accent, Appearance = CustomizationData.Load().Packed },
+                    _hud, _space.PingHud, _space.NameplateHud, _space.RescueHud);
+            }
         }
 
         InputFrame Filter(InputFrame frame)
         {
+            if (_yard.DemoMode)
+            {
+                // Three seconds of locomotion only; no grabs, tools, guide or yard commands.
+                return _yard.FilterDemoInput(frame);
+            }
             var player = _space.Session.LocalPlayer;
             if (player == null || player.Cam == null) return frame;
             bool active = _space.Session.CursorLocked && !_space.Session.InputSuppressed && !player.Downed;
@@ -143,6 +161,7 @@ namespace Metagame.Bootstrap
             if (_space != null && _space.Session != null)
             {
                 _space.Session.StageInputFilter = null;
+                if (_space.Session.Stage2Demo == _yard) _space.Session.Stage2Demo = null;
                 if (_yard != null)
                 {
                     _yard.Completed -= _space.Session.Clear;

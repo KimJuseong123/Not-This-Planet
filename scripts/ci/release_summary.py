@@ -46,10 +46,8 @@ SYSTEM = """당신은 게임 릴리스 노트를 쓰는 담당입니다. 한국�
 **번역이 아니라 선별입니다.** 대부분은 플레이어가 체감하지 못하는 내부 작업입니다 —
 CI·테스트·문서·리팩터·빌드 설정은 **전부 빼세요.**
 
-출력은 아래 JSON 하나만 (설명·마크다운 금지):
-{"site": ["플레이어가 읽을 한 줄", "..."],
- "release": "팀이 읽을 한 단락(2~4문장)",
- "jira": "팀·평가가 읽을 한 단락(2~4문장)"}
+결과는 정해진 스키마로 냅니다. site 는 플레이어가 읽을 줄 목록, release 는 팀이 읽을 한 단락(2~4문장),
+jira 는 팀·평가가 읽을 한 단락(2~4문장)입니다.
 
 site 규칙 — 이것이 가장 중요합니다:
  · **3~6줄.** 넘지 마세요
@@ -57,6 +55,11 @@ site 규칙 — 이것이 가장 중요합니다:
  · 기능이 늘었으면 무엇을 할 수 있게 됐는지, 고쳤으면 무엇이 더 이상 안 일어나는지
  · 내부 용어(리팩터·리베이스·픽스처·파이프라인) 금지
  · 없는 것을 지어내지 마세요. 목록에 없으면 쓰지 않습니다"""
+
+
+SCHEMA = {"type": "object", "additionalProperties": False, "required": ["site", "release", "jira"],
+          "properties": {"site": {"type": "array", "items": {"type": "string"}},
+                         "release": {"type": "string"}, "jira": {"type": "string"}}}
 
 
 def keys_of(entries: list[dict]) -> list[str]:
@@ -192,7 +195,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"백엔드={backend} 모델={model}" + (f" claude={AI.find_claude()}" if backend == "cli" else ""))
 
     try:
-        raw = AI.call(backend, model, SYSTEM, build_prompt(a.version, prev, lines, missing))
+        raw = AI.call(backend, model, SYSTEM, build_prompt(a.version, prev, lines, missing), SCHEMA)
     except RuntimeError as e:
         # **스택 대신 한 줄로 말한다.** 이 잡은 릴리스를 막지 않으므로(allow_failure)
         # 사람이 읽는 것은 로그 한 줄뿐이다 — 거기서 원인이 보여야 한다.

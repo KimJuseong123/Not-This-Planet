@@ -148,9 +148,8 @@ namespace Metagame.Network
 
         // ── 용접 스냅샷 (S15P21B202-386) ───────────────────────────
         //
-        // 용접은 RpcWeldGrown 으로 **행동**만 나르고 있었다. 처음부터 있던 사람은 그
-        // 행동들을 다 들어 같은 모양이 되지만 **중간에 들어온 사람은 아무 비드도 없다.**
-        // 그래서 상태도 함께 보낸다. 파츠 순서는 자세와 같은 색인을 쓴다.
+        // 현재 참가자와 늦참자 모두 같은 서버 스냅샷을 적용한다. 보간된 클라이언트
+        // 콜라이더에서 용접 행동을 재판정하지 않는다. 파츠 순서는 자세와 같은 색인이다.
         WeldBead.ChainState[] sendWeld = Array.Empty<WeldBead.ChainState>();
         int[] sendWeldCounts = Array.Empty<int>();
         WeldBead.ChainState[] lastSentWeld = Array.Empty<WeldBead.ChainState>();
@@ -210,6 +209,7 @@ namespace Metagame.Network
         {
             public uint RhythmSequence;
             public byte RhythmGrade;
+            public Vector3 RhythmImpactPoint;
             public float RhythmCooldown;
             public uint Owner;
             public byte Action;
@@ -224,9 +224,16 @@ namespace Metagame.Network
         ScarState[] sendScarSet = System.Array.Empty<ScarState>();
         ScarState[] sendScarMoves = System.Array.Empty<ScarState>();
         int[] lastScarIds = System.Array.Empty<int>();
+        ScarState[] sendScarAdded = Array.Empty<ScarState>();
+        int[] sendScarRemoved = Array.Empty<int>();
+        readonly HashSet<int> currentScarIds = new();
+        bool sentScarSet;
         float scarKeepaliveTimer;
         uint lastScarSeq;
         bool everScar;
+        uint lastScarSetSeq;
+        bool everScarSet;
+        int scarMoveCursor;
         bool warnedScarCap;
         bool warnedToolMismatch;
 
@@ -262,8 +269,8 @@ namespace Metagame.Network
         /// </summary>
         const float ScarKeepalive = 2f;
 
-        /// <summary>흔적 자세 하나 — 자세 28 + 번호 4. 속도는 싣지 않는다.</summary>
-        const int ScarStateBytes = PoseBytes + 4;
+        /// <summary>흔적 자세: varint ID 최대 5 + 자세 28 + 이동 여부 1.</summary>
+        const int ScarStateBytes = 34; // worst case: 5-byte varint ID + 28 pose + 1 moving
         float lastMeteorAt;
 
         /// <summary>
@@ -287,6 +294,10 @@ namespace Metagame.Network
         [SyncVar(hook = nameof(OnDustStormSeedChanged))]
         int dustStormSeed;
 
+        [SyncVar] AiRoomState aiRoomState;
+        public AiRoomState RoomAiState => aiRoomState;
+        float nextAiStatusCheck;
+
         /// <summary>클라이언트로서 챙길 것이 남았는가. 스폰이 등록된 뒤에만 참이 된다.</summary>
         bool needsClientPrepare;
 
@@ -296,6 +307,7 @@ namespace Metagame.Network
             Current = this;
 
             dustStormSeed = DustStormMatchSeed.EnsureServerMatch();
+            aiRoomState = AiHostSettings.ServerState;
             Collect();
             ready = true;
 
@@ -303,9 +315,9 @@ namespace Metagame.Network
             // 수집하면 그것은 끝까지 추적 밖에 남아 혼자만 움직인다(S15P21B202-315).
             TransportVehicle.AnyActivated += OnVehicleActivated;
 
-            // 용접은 서버에서만 판정된다. 그 사건을 받아 모두에게 중계한다.
-            WorldEvents.WeldGrown += RpcWeldGrown;
-            WorldEvents.WeldShrunk += RpcWeldShrunk;
+            // Welding replicas use the authoritative chain snapshot only. Replaying
+            // nozzle queries on interpolated client colliders can select another
+            // chain, then get overwritten by that same tick's snapshot.
 
             Debug.Log($"[WorldSync] 서버가 {tracked.Count}개를 맡는다 · 고정쇠 {clamps.Count}개 · {Order()}");
         }
@@ -778,6 +790,7 @@ namespace Metagame.Network
 
         public override void OnStopClient()
         {
+            if (!isServer && HostMigration.Taking) AiHostSettings.InheritRoomChoice(aiRoomState);
             // 내가 새 방장이 되는 길이면 세계를 물리로 돌려놓는다 (S15P21B202-389).
             // 이 컴포넌트가 사라지기 전이어야 한다 — 받아 둔 속도와 줄 세운 순서를
             // 아는 것이 여기뿐이다. RemoteDecides 는 그 안에서 내린다.
@@ -802,8 +815,6 @@ namespace Metagame.Network
         public override void OnStopServer()
         {
             // 남겨 두면 다음 매치에서 이미 사라진 오브젝트를 향해 사건이 날아간다.
-            WorldEvents.WeldGrown -= RpcWeldGrown;
-            WorldEvents.WeldShrunk -= RpcWeldShrunk;
             TransportVehicle.AnyActivated -= OnVehicleActivated;
 
             // OnStopClient 와 같은 이유로 내가 지금 것일 때만 지운다 (S15P21B202-434).
@@ -847,6 +858,11 @@ namespace Metagame.Network
 
         void Update()
         {
+            if (isServer && Time.unscaledTime >= nextAiStatusCheck)
+            {
+                nextAiStatusCheck = Time.unscaledTime + 0.25f;
+                aiRoomState = AiHostSettings.ServerState;
+            }
             if (!ready)
             {
                 // 여기서 isServer 를 보면 안 된다 — 스폰 등록 전에는 netIdentity 가 없어
@@ -919,6 +935,7 @@ namespace Metagame.Network
         /// </summary>
         void FixedUpdate()
         {
+            using var frameSection = Metagame.Core.FrameSections.Scope(Metagame.Core.FrameSections.WorldSync);   // S15P21B202-746 프레임 기록
             if (!ready || isServer) return;
             FollowOnClient();
         }
@@ -1082,6 +1099,7 @@ namespace Metagame.Network
                     RhythmCooldown = tool is MeteorBat cooldownBat ? cooldownBat.Cooldown : 0f,
                     RhythmSequence = tool is MeteorBat bat ? bat.RhythmSequence : 0,
                     RhythmGrade = tool is MeteorBat rhythmBat ? rhythmBat.RhythmGrade : (byte)0,
+                    RhythmImpactPoint = tool is MeteorBat impactBat ? impactBat.RhythmImpactPoint : Vector3.zero,
                     Owner = tool.IsEquipped ? ToolOwnerId(tool.Owner) : 0,
                     Action = tool.IsEquipped ? tool.ViewAction : (byte)0,
                     Progress = tool.ViewProgress, Direction = tool.Owner != null ? tool.Owner.AimForward : tool.transform.forward
@@ -1140,11 +1158,13 @@ namespace Metagame.Network
 
             if (!SameScarIds(scars) || scarKeepaliveTimer >= ScarKeepalive)
             {
+                bool full = !sentScarSet || scarKeepaliveTimer >= ScarKeepalive;
+                if (!full) BuildScarChanges(scars);
                 int n = 0;
                 for (int i = 0; i < total; i++)
                     if (scars[i] != null && scars[i].Meteor != null) n++;
 
-                if (sendScarSet.Length != n) sendScarSet = new ScarState[n];
+                if (full && sendScarSet.Length != n) sendScarSet = new ScarState[n];
                 if (lastScarIds.Length != n) lastScarIds = new int[n];
 
                 int w = 0;
@@ -1154,12 +1174,19 @@ namespace Metagame.Network
                     if (scar == null || scar.Meteor == null) continue;
 
                     lastScarIds[w] = scar.Id;
-                    sendScarSet[w++] = StateOf(scar);
+                    if (full) sendScarSet[w] = StateOf(scar);
+                    w++;
                 }
 
-                RpcScarSet(sendSeq, sendScarSet);
-                scarKeepaliveTimer = 0f;
-                return;     // 같은 틱에 두 묶음을 내지 않는다
+                if (full)
+                {
+                    RpcScarSet(sendSeq, Time.timeAsDouble, sendScarSet);
+                    scarKeepaliveTimer = 0f;
+                    sentScarSet = true;
+                }
+                else RpcScarChanges(sendSeq, Time.timeAsDouble, sendScarAdded, sendScarRemoved);
+                // A membership delta carries no poses for existing moving stones.
+                if (full) return;
             }
 
             // 움직이는 것만. 잠든 강체는 자세가 그대로다.
@@ -1187,14 +1214,15 @@ namespace Metagame.Network
             if (sendScarMoves.Length != awake) sendScarMoves = new ScarState[awake];
 
             int m = 0;
-            for (int i = 0; i < total && m < awake; i++)
+            int visited = 0;
+            for (; visited < total && m < awake; visited++)
             {
-                var scar = scars[i];
+                var scar = scars[(scarMoveCursor + visited) % total];
                 if (!IsScarAwake(scar)) continue;
                 sendScarMoves[m++] = StateOf(scar);
             }
-
-            RpcScarMoves(sendSeq, sendScarMoves);
+            if (total > 0) scarMoveCursor = (scarMoveCursor + visited) % total;
+            RpcScarMoves(sendSeq, Time.timeAsDouble, sendScarMoves);
         }
 
         /// <summary>
@@ -1202,6 +1230,34 @@ namespace Metagame.Network
         /// 쉬는 물체를 재우고, 사람이 집어 흔들면 깨어난다. 그래서 이 한 줄이
         /// "끌리는 돌만" 을 그대로 뜻한다.
         /// </summary>
+        void BuildScarChanges(IReadOnlyList<ScarRecord> scars)
+        {
+            currentScarIds.Clear();
+            int added = 0;
+            if (scars != null)
+                for (int i = 0; i < scars.Count; i++)
+                {
+                    var scar = scars[i];
+                    if (scar?.Meteor == null) continue;
+                    currentScarIds.Add(scar.Id);
+                    if (Array.IndexOf(lastScarIds, scar.Id) < 0) added++;
+                }
+            int removed = 0;
+            foreach (int id in lastScarIds) if (!currentScarIds.Contains(id)) removed++;
+            if (sendScarAdded.Length != added) sendScarAdded = new ScarState[added];
+            if (sendScarRemoved.Length != removed) sendScarRemoved = new int[removed];
+            int a = 0, r = 0;
+            if (scars != null)
+                for (int i = 0; i < scars.Count; i++)
+                {
+                    var scar = scars[i];
+                    if (scar?.Meteor != null && Array.IndexOf(lastScarIds, scar.Id) < 0)
+                        sendScarAdded[a++] = StateOf(scar);
+                }
+            foreach (int id in lastScarIds)
+                if (!currentScarIds.Contains(id)) sendScarRemoved[r++] = id;
+        }
+
         static bool IsScarAwake(ScarRecord scar)
         {
             if (scar == null || scar.Meteor == null) return false;
@@ -1231,7 +1287,8 @@ namespace Metagame.Network
         {
             var body = scar.Meteor.Body;      // 위와 같은 이유로 GetComponent 를 쓰지 않는다
             return body != null
-                ? new ScarState { Id = scar.Id, Position = body.position, Rotation = body.rotation }
+                ? new ScarState { Id = scar.Id, Position = body.position, Rotation = body.rotation,
+                    Moving = IsScarAwake(scar) }
                 : new ScarState
                 {
                     Id = scar.Id,
@@ -1266,33 +1323,49 @@ namespace Metagame.Network
         /// 사라지거나 유령이 남고, 다음 착탄까지 그대로다.
         /// </summary>
         [ClientRpc]
-        void RpcScarSet(uint seq, ScarState[] states)
+        void RpcScarSet(uint seq, double sampleTime, ScarState[] states)
         {
             if (isServer) return;               // 호스트에는 진짜 흔적이 있다
             if (!ready) return;
 
-            // **이동 묶음과 같은 순번 축으로 본다** (`!321` AI 리뷰).
-            //
-            // 두 묶음은 채널이 달라(이쪽은 신뢰, 이동은 비신뢰) 서로 순서가 보장되지
-            // 않는다. 순번을 안 보면 **늦게 도착한 전체 목록이 최신 이동을 덮어**,
-            // 끌고 있는 돌이 2초마다 옛 자리로 되돌아간다.
-            //
-            // 늦은 목록은 버린다. 그러면 그 목록이 실어 온 생성·삭제도 함께 놓치는데,
-            // 되보내기가 2초마다 오므로 스스로 낫는다 — 돌이 뒤로 튀는 것보다 낫다.
-            if (!IsNewer(seq, lastScarSeq, everScar)) return;
-            lastScarSeq = seq;
-            everScar = true;
+            // 채널 간 순서는 보장되지 않는다. 늦은 전체 목록도 생성·삭제는 반영하고,
+            // 이미 더 새로 받은 이동 자세만 보호한다. 멤버십과 자세 순번을 분리한다.
+            if (!IsNewer(seq, lastScarSetSeq, everScarSet)) return;
+            lastScarSetSeq = seq;
+            everScarSet = true;
+            bool applyPoses = IsNewer(seq, lastScarSeq, everScar);
+            if (applyPoses)
+            {
+                lastScarSeq = seq;
+                everScar = true;
+            }
 
             var spawner = MeteorSpawner;
-            if (spawner != null) spawner.ApplyNetworkScars(states, full: true);
+            if (spawner != null) spawner.ApplyNetworkScars(states, full: true,
+                sampleTime: sampleTime, applyExistingPoses: applyPoses);
         }
 
         /// <summary>
         /// 움직이는 흔적의 자세. 신뢰 없는 채널이고 <b>아무것도 만들지 않는다</b> —
         /// 만드는 것은 전체 목록의 몫이다(<c>ApplyNetworkScars</c> 의 <c>full</c>).
         /// </summary>
+        [ClientRpc]
+        void RpcScarChanges(uint seq, double sampleTime, ScarState[] added, int[] removed)
+        {
+            if (isServer || !ready) return;
+            if (!IsNewer(seq, lastScarSetSeq, everScarSet)) return;
+            lastScarSetSeq = seq;
+            everScarSet = true;
+            // Delta poses concern newly created stones only. Do not advance the
+            // movement sequence: movement can arrive in the same server tick.
+            bool applyPoses = IsNewer(seq, lastScarSeq, everScar);
+            var spawner = MeteorSpawner;
+            if (spawner != null)
+                spawner.ApplyNetworkScarChanges(added, removed, sampleTime, applyPoses);
+        }
+
         [ClientRpc(channel = Channels.Unreliable)]
-        void RpcScarMoves(uint seq, ScarState[] states)
+        void RpcScarMoves(uint seq, double sampleTime, ScarState[] states)
         {
             if (isServer) return;
             if (!ready) return;
@@ -1301,7 +1374,7 @@ namespace Metagame.Network
             everScar = true;
 
             var spawner = MeteorSpawner;
-            if (spawner != null) spawner.ApplyNetworkScars(states, full: false);
+            if (spawner != null) spawner.ApplyNetworkScars(states, full: false, sampleTime: sampleTime);
         }
 
         /// <summary>한 묶음에 실을 수 있는 자세 개수. 전송 계층이 정하는 값이다.</summary>
@@ -1798,14 +1871,15 @@ namespace Metagame.Network
                 if (state.Owner != 0 && NetworkClient.spawned.TryGetValue(state.Owner, out var identity))
                     owner = identity.GetComponent<NetPlayer>()?.VisualRig
                             ?? identity.GetComponent<NetworkRigOwner>()?.Rig;
-                if (tool is MeteorBat bat) bat.ApplyRhythmResult(state.RhythmSequence, state.RhythmGrade, state.RhythmCooldown);
+                if (tool is MeteorBat bat) bat.ApplyRhythmResult(state.RhythmSequence, state.RhythmGrade,
+                    state.RhythmCooldown, state.RhythmImpactPoint);
                 tool.ApplyRemoteHeld(state.Owner != 0);
                 tool.ApplyRemotePresentation(owner, state.Action, state.Progress, state.Direction);
             }
         }
 
-        /// <summary>낙하 자세 하나의 바이트 수 — 자세 28 + 속도 12 + 타격 가이드 13.</summary>
-        const int MeteorPoseBytes = PoseBytes + 25;
+        /// <summary>낙하 자세 하나의 바이트 수 — 자세 28 + 속도 12 + 타격 가이드 13 + 반사 등급 1.</summary>
+        const int MeteorPoseBytes = 59; // 54-byte state + worst-case 5-byte varint ID
 
         /// <summary>
         /// 한 묶음에 실을 수 있는 낙하 자세 개수. 공세 최대가 표에서 8개이므로 닿을 일이
@@ -1880,25 +1954,29 @@ namespace Metagame.Network
 
                 // 보내는 쪽도 받는 쪽도 `body` 로 읽고 쓴다 — 운석은 보간이 걸려 있어
                 // `transform.position` 은 **표시 위치**다(FollowOnClient 의 주석과 같은 이유).
-                var body = meteor.GetComponent<Rigidbody>();
+                var body = meteor.Body;
                 sendMeteors[w++] = body != null
                     ? new MeteorPose
                     {
+                        Id = meteor.ReplicaId,
                         Position = body.position,
                         Rotation = body.rotation,
                         Velocity = body.linearVelocity,
                         GroundHeight = meteor.GroundHeight,
                         Harmless = meteor.Harmless,
+                        DeflectionGrade = meteor.DeflectionGrade,
                         BatWindow = meteor.BatSwingWindowSeconds,
                         BatRadius = meteor.BatAssistRadius,
                     }
                     : new MeteorPose
                     {
+                        Id = meteor.ReplicaId,
                         Position = meteor.transform.position,
                         Rotation = meteor.transform.rotation,
                         Velocity = Vector3.zero,
                         GroundHeight = meteor.GroundHeight,
                         Harmless = meteor.Harmless,
+                        DeflectionGrade = meteor.DeflectionGrade,
                         BatWindow = meteor.BatSwingWindowSeconds,
                         BatRadius = meteor.BatAssistRadius,
                     };
@@ -2039,27 +2117,6 @@ namespace Metagame.Network
 
             for (int i = 0; i < clamps.Count; i++)
                 if (clamps[i] != null) clamps[i].ApplyNetworkState(states[i].Progress, states[i].Released);
-        }
-
-        // ── 용접 — 상태가 아니라 행동을 실어 나른다 ─────────────
-
-        /// <summary>
-        /// 서버에서 용접이 진행되면 그 사실을 모두에게 알린다.
-        /// 부품이 이미 같은 자리에 맞춰져 있으므로, 같은 자리에서 같은 양만큼 자라게 하면
-        /// 같은 모양이 나온다 — 덩어리 사슬을 통째로 보내지 않아도 된다(-152).
-        /// </summary>
-        [ClientRpc]
-        void RpcWeldGrown(Vector3 nozzle, float amount)
-        {
-            if (isServer) return;
-            WeldBead.TryGrowNear(nozzle, amount, out _);
-        }
-
-        [ClientRpc]
-        void RpcWeldShrunk(Vector3 nozzle, float amount)
-        {
-            if (isServer) return;
-            WeldBead.TryShrinkNear(nozzle, amount, out _);
         }
 
         /// <summary>

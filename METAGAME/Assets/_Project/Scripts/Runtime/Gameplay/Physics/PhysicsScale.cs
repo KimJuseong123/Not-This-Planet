@@ -1133,15 +1133,13 @@ namespace Metagame.Gameplay
         /// <summary>
         /// 흔적이 세계에서 없어지는 시간(초).
         ///
-        /// <b><see cref="MeteorScarCoolSeconds"/> + <see cref="MeteorScarFadeSeconds"/>
-        /// 와 같게 둔다.</b> 화면에 남는 시간이 그 둘의 합이므로, 이 값이 더 길면
-        /// 보이지 않는 원반이 계속 살아 있고(전송·상한 계산에 들어간다) 더 짧으면
-        /// 옅어지는 중에 사라져 툭 끊긴다.
+        /// <b>이것이 착탄한 운석의 수명이다.</b> 흔적 원반을 걷어낸 뒤로
+        /// (S15P21B202-653) 화면에 남는 것은 박힌 돌뿐이고, 이 값이 그 돌을 치운다.
+        /// 표시가 사라졌다고 이 값까지 없애면 <b>운석이 영구히 쌓인다</b> —
+        /// S15P21B202-438 이 실측으로 잡은 결함이 그것이다.
         ///
         /// <b>쳐낸 소품 수명(<see cref="MeteorDeflectedDespawnSeconds"/> 12초)보다
         /// 길어야 한다.</b> 플레이어가 처리한 것을 더 빨리 치운다는 규칙이 있어서다.
-        /// 페이드를 8 로 잡은 이유가 이것이다 — 5 로 두면 수명이 10 이 되어 그 관계가
-        /// 뒤집힌다.
         ///
         /// <b>30초에서 줄였다.</b> 파도 표(§17.4)는 후반에 15초마다 5개를 떨어뜨리고
         /// 인원 보정(§17.6)이 더 늘린다. 30초면 동시에 수십 개가 깔리고, 실제 플레이
@@ -1150,19 +1148,6 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float MeteorScarDespawnSeconds = 13f;
 
-        /// <summary>
-        /// 다 식은 흔적이 <b>옅어져 사라지는</b> 데 걸리는 시간(초).
-        ///
-        /// <b>왜 필요한가.</b> 예전에는 <see cref="MeteorScarCoolSeconds"/>(5초) 뒤 색이
-        /// 굳고 알파가 0.5 로 고정된 채 수명이 끝날 때까지 남았다. 그 색은
-        /// <see cref="Hazards.MeteorScarLook.ColdColor"/> = (0.12, 0.10, 0.10) 으로
-        /// <b>밝기 0.106 의 거의 검은색</b>이라, 회색 지면에 검은 원이 구멍처럼 박혀
-        /// 있었다 — 그것이 "잔상" 으로 보고된 것이다(S15P21B202-438).
-        ///
-        /// 여기에 시간을 주면 "타다 남은 자리가 흩어진다" 로 읽힌다. <b>수명만 줄이면
-        /// 더 눈에 띈다</b> — 짧아진 시간 끝에 검은 원이 툭 사라지기 때문이다.
-        /// </summary>
-        public const float MeteorScarFadeSeconds = 8f;
 
         /// <summary>
         /// 착탄한 운석이 지면에 박히는 깊이의 비율(반지름 기준).
@@ -1172,13 +1157,6 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float MeteorScarSinkRatio = 0.6f;
 
-        /// <summary>
-        /// 흔적이 식는 시간(초). 기획 §19 "약 5초 동안 붉은 빛, 연기와 불꽃이 약해진다".
-        ///
-        /// 이 시간이 지나면 <b>흔적의 나이를 더 세지 않는다</b> — 150~200개가 쌓여도
-        /// 매 프레임 도는 비용이 0이 된다(§19 의 성능 기준).
-        /// </summary>
-        public const float MeteorScarCoolSeconds = 5f;
 
         /// <summary>
         /// 남겨 두는 흔적의 최대 개수.
@@ -1244,6 +1222,23 @@ namespace Metagame.Gameplay
         public const float PartPushContactDistance = 0.6f;
 
         /// <summary>
+        /// <b>손으로 잡은 파츠를 놓치는 거리(m)</b> — 손에서 파츠 표면까지.
+        /// S15P21B202-686.
+        ///
+        /// <para>예전에는 이 검사가 없었다. <c>PartPush.Gather</c> 가 "손으로 잡았으면
+        /// 접촉·조준을 다시 보지 않는다" 였고 거리로 놓는 경로도 없어서,
+        /// <b>73m 떨어져서도 파츠가 0.62m/s 로 끌렸다</b>(실측).</para>
+        ///
+        /// <para><b>일부러 넉넉하다.</b> 실제로 끄는 동안 손과 표면이 얼마나 벌어지는지는
+        /// EditMode 에서 못 잰다 — 인형을 키네매틱으로 두지 않으면 하네스가 밀기가
+        /// 아니라 <b>밀어내기를 재고</b>(S15P21B202-667 에서 겪었다), 키네매틱으로 두면
+        /// 사람이 파츠를 통과해 지나가 거리가 가짜로 커진다. 그래서 값은 "정상 운반을
+        /// 절대 끊지 않는다" 쪽으로 잡았다. 73m 를 50분의 1로 줄이는 것이 이 값의
+        /// 일이고, 조이는 것은 인게임에서 보고 할 일이다.</para>
+        /// </summary>
+        public const float PartPushHoldReach = 1.4f;
+
+        /// <summary>
         /// 몸으로 밀 때 이동 방향이 파츠 쪽인지 보는 기준(내적). <b>0 이면 직각까지다.</b>
         ///
         /// §13.1 "이동 방향을 검사한다" 이고 "<b>당기기는 제공하지 않으며</b> 반대편으로
@@ -1289,6 +1284,27 @@ namespace Metagame.Gameplay
         /// </summary>
         public const float PartPushForeignSpeedFactor = 1.5f;
 
+        /// <summary>
+        /// 미는 사람이 파츠보다 얼마나 더 빨리 걸을 수 있는가 (S15P21B202-667).
+        ///
+        /// <para>파츠 속도에 딱 맞추면 접촉을 유지할 여유가 없다 — 조금 앞설 수
+        /// 있어야 몸을 붙이고 민다. 1.15 면 1인 밀기(0.6)에서 0.69m/s,
+        /// 4인(1.5)에서 1.73m/s 다.</para>
+        /// </summary>
+        public const float PartPushKeepUpMargin = 1.15f;
+
+        /// <summary>
+        /// 미는 동안 파츠의 회전을 얼마나 눌러 두는가 (S15P21B202-667). 초당 남는 비율.
+        ///
+        /// <para><b>윗부분을 몸으로 밀면 파츠가 굴러갔다</b> — 실측 82.8도. <c>PartPush</c> 는
+        /// 질량중심에 힘을 넣어 토크를 안 만드는데, <b>미는 사람의 몸 콜라이더가 그것을
+        /// 우회한다.</b> 파츠를 넘어뜨리는 것은 §13 의 밀기가 아니라 §22.4 의 붕괴다.</para>
+        ///
+        /// <para>0 으로 죽이지는 않는다 — 경사에서 자세를 잡거나 운석에 맞아 도는 것까지
+        /// 막으면 물리가 죽은 것처럼 보인다. 미는 동안에만, 강하게 줄인다.</para>
+        /// </summary>
+        public const float PartPushSpinDamping = 0.04f;
+
         // --- 기절한 동료 운반 (기획 §20.4) ---
         /// <summary>
         /// 기절한 동료를 끌고 갈 때의 이동 속도 배율. 기획 §20.4 "운반 중 이동 속도가
@@ -1311,6 +1327,25 @@ namespace Metagame.Gameplay
 
         /// <summary>기절한 동료를 조준으로 잡을 수 있는 각도(도).</summary>
         public const float DownedCarryAngle = 35f;
+
+        /// <summary>
+        /// <b>이 거리 안이면 시야각을 안 본다</b>(m). S15P21B202-699.
+        ///
+        /// <para>쓰러진 사람의 구조 지점은 <b>바닥에 있다</b>(높이 0.30m). 눈은 0.83m 라,
+        /// 가까이 갈수록 내려다보는 각이 가팔라져 <see cref="DownedCarryAngle"/> 35도를
+        /// 넘는다 — <b>살리러 다가가면 후보에서 떨어진다.</b> 실측이다.</para>
+        ///
+        /// <code>
+        /// 거리 0.5m -> 46.6도  후보 X
+        /// 거리 0.7m -> 37.1도  후보 X
+        /// 거리 0.9m -> 30.4도  후보 O
+        /// </code>
+        ///
+        /// <para><b>원뿔은 바닥에 누운 대상에게 틀린 모양이다.</b> 발치에 쓰러진 사람이
+        /// 있으면 누구를 가리키는지 모호할 수가 없으므로, 이 거리 안에서는 각도를
+        /// 묻지 않는다. 3D 거리 기준이고, 위 표의 0.7m(3D 0.88m)까지 덮는다.</para>
+        /// </summary>
+        public const float DownedRescueNearReach = 1.2f;
 
         /// <summary>
         /// 남에게 잡혀 있는 동안 자기 몸을 움직이는 힘의 비율(S15P21B202-442).
@@ -1506,6 +1541,24 @@ namespace Metagame.Gameplay
         /// 더 싸면 아무도 구조를 기다리지 않는다.
         /// </summary>
         public const float StuckEscapeSeconds = 3f;
+
+        /// <summary>
+        /// 끼어 보인다고 판단하기까지의 시간(초) (S15P21B202-669).
+        ///
+        /// <para>짧으면 문틈에 잠깐 걸린 것에도 뜨고, 길면 이미 짜증이 난 뒤다.
+        /// 탈출에 걸리는 시간(<see cref="StuckEscapeSeconds"/> 3초)보다 짧아야
+        /// 알려 주는 뜻이 있다.</para>
+        /// </summary>
+        public const float StuckNoticeSeconds = 1.6f;
+
+        /// <summary>
+        /// 이 속도 아래로 움직이면 "가고 싶은데 못 간다" 로 본다(m/s) (S15P21B202-669).
+        ///
+        /// <para>걷기는 2.9m/s 다. 파츠를 밀 때가 0.73m/s 이므로 그보다 훨씬 낮게
+        /// 잡아야 하는데, <b>밀기와 고정못은 어차피 따로 제외한다</b> — 둘 다 제자리가
+        /// 정상이기 때문이다(S15P21B202-667 에서 확인).</para>
+        /// </summary>
+        public const float StuckNoticeSpeed = 0.25f;
 
         /// <summary>
         /// 안전한 지면을 찾는 최대 거리(m).

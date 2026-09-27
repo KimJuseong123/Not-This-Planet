@@ -5,6 +5,8 @@ using UnityEngine.Audio;
 
 namespace Metagame.Gameplay.Audio
 {
+    public enum MusicCue { Default, Assault, Escape, CrashLanding, Stage2, Practice, Silence }
+
     public enum SoundLoopPolicy
     {
         BankDefault = 0,
@@ -72,6 +74,24 @@ namespace Metagame.Gameplay.Audio
         [Min(0f)] [SerializeField] float musicFadeInSeconds = 4f;
         [Min(0f)] [SerializeField] float musicFadeOutSeconds = 6f;
         [Min(0f)] [SerializeField] float musicRepeatDelaySeconds = 5f;
+
+        [Header("상황별 BGM")]
+        [SerializeField] AudioClip assaultMusicClip;
+        [SerializeField] AudioClip escapeMusicClip;
+        [SerializeField] AudioClip crashLandingMusicClip;
+        [SerializeField] AudioClip stage2MusicClip;
+        [SerializeField] AudioClip practiceMusicClip;
+
+        public AudioClip GetMusicClip(MusicCue cue) => cue switch
+        {
+            MusicCue.Default => musicClip,
+            MusicCue.Assault => assaultMusicClip,
+            MusicCue.Escape => escapeMusicClip,
+            MusicCue.CrashLanding => crashLandingMusicClip,
+            MusicCue.Stage2 => stage2MusicClip,
+            MusicCue.Practice => practiceMusicClip,
+            _ => null
+        };
 
         public AudioClip MusicClip => musicClip;
         public float MusicBaseVolume => Mathf.Clamp01(musicBaseVolume);

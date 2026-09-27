@@ -84,7 +84,9 @@ namespace Metagame.Gameplay.Tests
             var apex = Tuning.JumpSpeed * Tuning.JumpSpeed
                        / (2f * Mathf.Abs(UnityEngine.Physics.gravity.y));
 
-            Assert.AreEqual(2.06f, apex, 0.05f, "점프 최고점 v²/2g");
+            // **글자로 박는 방식은 맞다**(S15P21B202-584). 낡은 것은 이 숫자였다 —
+            // 중력이나 점프 속도가 바뀐 뒤로 아무도 안 고쳐 계속 실패하고 있었다.
+            Assert.AreEqual(1.156f, apex, 0.02f, "점프 최고점 v²/2g");
             Assert.Greater(PhysicsScale.FallStaggerHeight, apex,
                 "점프 최고점에서 떨어지면 휘청이면 안 된다(§20.2 정상 착지).");
         }

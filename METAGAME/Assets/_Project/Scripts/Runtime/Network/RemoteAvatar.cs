@@ -26,6 +26,19 @@ namespace Metagame.Network
     public sealed class RemoteAvatar : MonoBehaviour
     {
         /// 조인트가 기본 자세를 붙드는 힘. 약하면 늘어지고 세면 뻣뻣하다.
+        /// <summary>
+        /// 기절한 몸의 팔다리 드라이브 (S15P21B202-683).
+        ///
+        /// <para><b>스프링을 0 으로 둔다.</b> 목표 자세로 당기는 힘이 남아 있으면
+        /// 남의 화면에서 기절한 몸이 <b>선 채로 미끄러진다</b> — 골반은 네트워크가
+        /// 옮기고 팔다리는 이 드라이브가 제자리에 붙들기 때문이다.</para>
+        ///
+        /// <para>감쇠는 남긴다. 0 으로 두면 골반이 움직일 때 팔다리가 떨린다 —
+        /// 힘을 빼는 것이지 조인트를 없애는 것이 아니다.</para>
+        /// </summary>
+        const float LimpSpring = 0f;
+        const float LimpDamper = 3f;
+
         const float JointSpring = 120f;
         const float JointDamper = 12f;
         const float ReachShoulderSpring = 220f;
@@ -253,41 +266,18 @@ namespace Metagame.Network
             if (target != null) DestroyImmediate(target);
         }
 
-        /// <summary>모든 관절에 같은 세기의 용수철을 건다. 기본 자세를 붙들어 준다.</summary>
-        void SetDrives()
-        {
-            Drive(doll.ChestJoint);
-            Drive(doll.HeadJoint);
-            DriveArm(doll.Left);
-            DriveArm(doll.Right);
-            DriveLeg(doll.LeftLeg);
-            DriveLeg(doll.RightLeg);
-        }
-
-        void DriveArm(Arm arm)
-        {
-            if (arm == null) return;
-            Drive(arm.Shoulder);
-            Drive(arm.Elbow);
-        }
-
-        void DriveLeg(Leg leg)
-        {
-            if (leg == null) return;
-            Drive(leg.Hip);
-            Drive(leg.Knee);
-            Drive(leg.Ankle);
-        }
-
-        static void Drive(ConfigurableJoint joint)
-        {
-            if (joint == null) return;
-            JointTools.SetDrive(joint, JointSpring, JointDamper);
-        }
+        /// <summary>
+        /// 선 자세 드라이브를 건다. <b>값을 받는 한 벌에 위임한다</b>
+        /// (S15P21B202-683) — 기절 자세도 같은 관절 목록을 만지므로, 두 벌로 두면
+        /// 관절이 하나 늘 때 한쪽만 고쳐져 <b>기절인데 그 관절만 서 있는</b> 상태가
+        /// 된다.
+        /// </summary>
+        void SetDrives() => SetLimbDrives(JointSpring, JointDamper);
 
         // ── 내 몸의 오차 갚기 (S15P21B202-363) ──────────────────────────
 
         Vector3 correction;
+        public Vector3 AppliedCorrection { get; private set; }
 
         /// <summary>서버가 알려 준 오차를 쌓는다. 갚는 것은 물리 스텝에서 조금씩 한다.</summary>
         public void AddCorrection(Vector3 error)
@@ -305,10 +295,14 @@ namespace Metagame.Network
         void Converge()
         {
             Vector3 step = PredictionCorrection.Step(correction, out correction);
-            if (step != Vector3.zero) doll.Hips.position += step;
+            if (step == Vector3.zero) return;
+            // Translate the whole ragdoll; moving only the hips stretches its joints.
+            foreach (var body in doll.Bodies)
+                if (body != null) body.position += step;
+            AppliedCorrection += step;
         }
 
-        void FixedUpdate() => Follow();
+        void FixedUpdate() { using var frameSection = Metagame.Core.FrameSections.Scope(Metagame.Core.FrameSections.RemoteAvatar); Follow(); }   // S15P21B202-746 프레임 기록
 
         /// <summary>
         /// 골반을 서버가 알려 준 자리로 옮긴다. 물리 스텝에서 옮겨야 매달린
@@ -342,8 +336,26 @@ namespace Metagame.Network
                 return;
             }
 
-            ApplyArmPose(doll.Left, leftArmIntent);
-            ApplyArmPose(doll.Right, rightArmIntent);
+            // **기절한 몸은 서 있으면 안 된다** (S15P21B202-683).
+            //
+            // 남의 몸에서는 `rig.enabled = false` 라 `PlayerRig.Tick()` 이 돌지 않는다.
+            // 그래서 기절 자세를 만드는 그쪽 분기(`uprightBlend = 0` · `Ragdolled`)가
+            // **한 번도 실행되지 않는다.** `SetRemoteDowned` 가 `Downed` 를 세워도
+            // 그것을 읽어 자세를 바꾸는 곳이 여기 말고는 없었다.
+            //
+            // 그 결과가 2026-09-22 QA 의 신고다 — *기절했을 때 다른 사람한테는
+            // 일어서서 움직이는 것처럼 보임*. 골반은 서버 자리로 옮겨지고 팔다리는
+            // 선 자세 드라이브가 붙들고 있어서, 선 채로 끌려다니는 그림이 된다.
+            ApplyDownedPose(rig != null && rig.Downed);
+
+            // **기절 중에는 팔 자세를 다시 세우지 않는다.** 아래 두 줄은 매 틱
+            // 어깨·팔꿈치 드라이브를 선 자세 값으로 되돌리므로, 그대로 두면 위에서
+            // 힘을 뺀 것을 같은 틱에 되돌린다.
+            if (!limp)
+            {
+                ApplyArmPose(doll.Left, leftArmIntent);
+                ApplyArmPose(doll.Right, rightArmIntent);
+            }
 
             Vector3 target = source.position;
             Quaternion facing = source.rotation;
@@ -356,6 +368,73 @@ namespace Metagame.Network
 
             doll.Hips.MovePosition(target);
             doll.Hips.MoveRotation(facing);
+        }
+
+        /// <summary>지금 힘을 뺀 상태인가. 바뀔 때만 조인트를 만지려고 들고 있다.</summary>
+        bool limp;
+
+        /// <summary>
+        /// 기절/부활에 맞춰 남의 몸의 팔다리를 늘어뜨리거나 되세운다
+        /// (S15P21B202-683).
+        ///
+        /// <para><b>중력도 함께 켠다.</b> 설정 때는 일부러 꺼 두었다 — 선 자세를
+        /// 유지해야 하는 동안에는 "중력까지 받으면 아래로 처져 자세가 무너진다".
+        /// 기절한 몸에서는 <b>그 처지는 것이 바로 원하는 것</b>이다.</para>
+        ///
+        /// <para>골반은 건드리지 않는다 — 네트워크가 옮기는 유일한 몸이고,
+        /// kinematic 이라 드라이브도 중력도 받지 않는다.</para>
+        ///
+        /// <para><b>값이 바뀔 때만 만진다.</b> 매 틱 모든 조인트를 다시 쓰면 그만큼
+        /// 비용이고, 부활 뒤 선 자세로 되돌리는 것을 잊기도 쉽다.</para>
+        /// </summary>
+        void ApplyDownedPose(bool downed)
+        {
+            if (downed == limp) return;
+            limp = downed;
+
+            float spring = downed ? LimpSpring : JointSpring;
+            float damper = downed ? LimpDamper : JointDamper;
+
+            SetLimbDrives(spring, damper);
+
+            for (int i = 0; i < doll.Bodies.Count; i++)
+            {
+                var b = doll.Bodies[i];
+                if (b == null || b == doll.Hips) continue;
+                b.useGravity = downed;
+            }
+        }
+
+        /// <summary>골반을 뺀 모든 조인트의 드라이브를 한 값으로 맞춘다.</summary>
+        void SetLimbDrives(float spring, float damper)
+        {
+            Drive(doll.ChestJoint, spring, damper);
+            Drive(doll.HeadJoint, spring, damper);
+            DriveArm(doll.Left, spring, damper);
+            DriveArm(doll.Right, spring, damper);
+            DriveLeg(doll.LeftLeg, spring, damper);
+            DriveLeg(doll.RightLeg, spring, damper);
+        }
+
+        static void DriveArm(Arm arm, float spring, float damper)
+        {
+            if (arm == null) return;
+            Drive(arm.Shoulder, spring, damper);
+            Drive(arm.Elbow, spring, damper);
+        }
+
+        static void DriveLeg(Leg leg, float spring, float damper)
+        {
+            if (leg == null) return;
+            Drive(leg.Hip, spring, damper);
+            Drive(leg.Knee, spring, damper);
+            Drive(leg.Ankle, spring, damper);
+        }
+
+        static void Drive(ConfigurableJoint joint, float spring, float damper)
+        {
+            if (joint == null) return;
+            JointTools.SetDrive(joint, spring, damper);
         }
 
         void ApplyArmPose(Arm arm, bool reaching)

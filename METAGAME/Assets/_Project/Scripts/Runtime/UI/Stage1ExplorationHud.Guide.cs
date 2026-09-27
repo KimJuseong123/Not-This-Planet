@@ -105,9 +105,11 @@ namespace Metagame.UI
                     DrawGuideLine(from, to, tint, 3f);
                 }
             }
-            string key = Controls.Tablet.ToString().ToUpperInvariant();
-            L(new Rect(20f, y + 77f, 170f, 40f), key, _title, new Color(0.01f, 0.025f, 0.04f, 0.9f));
-            L(new Rect(18f, y + 75f, 170f, 40f), key, _title, color);
+            // **동사를 붙인다** (S15P21B202-657). 예전에는 "TAB" 글자만 띄웠는데,
+            // 처음 하는 사람은 그것이 누르라는 뜻인 줄 몰랐다 — 끝까지 한 번도 안 눌렀다.
+            string key = TabletHelpContent.Cap(Controls.Tablet) + " 태블릿 열기";
+            L(new Rect(20f, y + 77f, 420f, 40f), key, _title, new Color(0.01f, 0.025f, 0.04f, 0.9f));
+            L(new Rect(18f, y + 75f, 420f, 40f), key, _title, color);
         }
 
         static void DrawGuideLine(Vector2 from, Vector2 to, Color color, float width = 3f)
@@ -132,11 +134,11 @@ namespace Metagame.UI
             if (art != null) GUI.DrawTexture(new Rect(panel.x + 30f, panel.y + 86f, panel.width - 60f, panel.height - 222f), art, ScaleMode.ScaleToFit);
             L(new Rect(panel.x + 30f, panel.yMax - 122f, panel.width - 60f, 48f),
                 TabletGuideContent.Caption(guide.Page), _mid, Color.white);
-            L(new Rect(panel.x + 30f, panel.yMax - 50f, panel.width * 0.55f, 34f),
-                "A / D  페이지 이동    " + (guide.Page + 1) + " / " + Metagame.Gameplay.TabletGuideState.PageCount, _mid, Color.white);
+            L(new Rect(panel.x + 30f, panel.yMax - 50f, panel.width * 0.62f, 34f),
+                TabletHelpContent.PageStrip(true, guide.Page, 0), _mid, Color.white);
             bool enabled = GUI.enabled;
             GUI.enabled = enabled && GuideInputAllowed && guide.CanConfirm;
-            if (UiInteraction.Button(new Rect(panel.xMax - 250f, panel.yMax - 55f, 220f, 38f), "확인 · 진행도 보기"))
+            if (UiInteraction.Button(new Rect(panel.xMax - 250f, panel.yMax - 55f, 220f, 38f), "진행도로 건너뛰기"))
                 _exploration.ActivateTabletGuide();
             GUI.enabled = enabled;
         }

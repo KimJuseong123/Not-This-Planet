@@ -131,6 +131,31 @@ namespace Metagame.Gameplay.Tests
             Assert.IsTrue(CollectNow());
         }
 
+        [Test]
+        public void CachedGroupsRespectWeldRemovalDisabledPartsAndRendererChanges()
+        {
+            var lower = Part(0, Vector3.zero);
+            var upper = Part(1, Vector3.up);
+            var joint = upper.gameObject.AddComponent<FixedJoint>();
+            joint.connectedBody = lower.GetComponent<Rigidbody>();
+            var link = upper.gameObject.AddComponent<PartAssemblyLink>();
+            link.BindBeadWeld(upper, lower, joint);
+            link.SetBeadWeldRatio(.1f);
+            Assert.That(CollectNow(), Is.True);
+            Assert.That(CollectNow(), Is.True);
+            upper.enabled = false;
+            Assert.That(CollectNow(), Is.False);
+            upper.enabled = true;
+            Assert.That(CollectNow(), Is.True);
+            lower.GetComponent<Renderer>().enabled = false;
+            upper.GetComponent<Renderer>().enabled = false;
+            Assert.That(CollectNow(), Is.False);
+            lower.GetComponent<Renderer>().enabled = true;
+            Assert.That(CollectNow(), Is.True);
+            link.SetBeadWeldRatio(0);
+            Assert.That(CollectNow(), Is.False);
+        }
+
         SpaceshipPart Part(int index, Vector3 position)
         {
             var go = Keep(GameObject.CreatePrimitive(PrimitiveType.Cube));

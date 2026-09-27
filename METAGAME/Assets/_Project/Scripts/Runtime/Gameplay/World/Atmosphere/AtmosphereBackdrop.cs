@@ -18,6 +18,8 @@ namespace Metagame.Gameplay
         Material skyMaterial;
         Mesh starMesh;
         Material starMaterial;
+        Mesh galaxyMesh;
+        Material galaxyMaterial;
         Material previousSkybox;
         bool capturedSkybox;
 
@@ -79,6 +81,7 @@ namespace Metagame.Gameplay
 
             if (includeSky) BuildSky(profile.sky);
             float effectScale = GetEffectScale(profile);
+            BuildGalaxy(profile.galaxy, profile.stars.radius, effectScale);
             BuildStars(profile.stars, effectScale);
             if (includeCelestialBodies)
                 BuildCelestialBodies(profile.celestialBodies, profile.stars.radius, effectScale);
@@ -348,6 +351,68 @@ namespace Metagame.Gameplay
             renderer.receiveShadows = false;
         }
 
+        void BuildGalaxy(AtmosphereProfile.GalaxySettings settings, float radius, float effectScale)
+        {
+            if (settings == null || !settings.enabled || effectScale <= 0f) return;
+
+            int segments = Mathf.Clamp(settings.segments, 32, 256);
+            var vertices = new Vector3[(segments + 1) * 2];
+            var uvs = new Vector2[vertices.Length];
+            var triangles = new int[segments * 6];
+            Vector3 bandU = Vector3.Normalize(Vector3.Cross(BandAxis, Vector3.right));
+            Vector3 bandV = Vector3.Cross(BandAxis, bandU);
+            float halfWidth = settings.width * 0.5f;
+            float distance = radius * 0.985f;
+
+            for (int i = 0; i <= segments; i++)
+            {
+                float u = (float)i / segments;
+                float angle = u * Mathf.PI * 2f;
+                Vector3 centre = bandU * Mathf.Cos(angle) + bandV * Mathf.Sin(angle);
+                vertices[i * 2] = (centre * Mathf.Cos(halfWidth) - BandAxis * Mathf.Sin(halfWidth)).normalized * distance;
+                vertices[i * 2 + 1] = (centre * Mathf.Cos(halfWidth) + BandAxis * Mathf.Sin(halfWidth)).normalized * distance;
+                uvs[i * 2] = new Vector2(u, 0f);
+                uvs[i * 2 + 1] = new Vector2(u, 1f);
+
+                if (i == segments) continue;
+                int vertex = i * 2;
+                int triangle = i * 6;
+                triangles[triangle] = vertex;
+                triangles[triangle + 1] = vertex + 1;
+                triangles[triangle + 2] = vertex + 2;
+                triangles[triangle + 3] = vertex + 1;
+                triangles[triangle + 4] = vertex + 3;
+                triangles[triangle + 5] = vertex + 2;
+            }
+
+            galaxyMesh = new Mesh { name = "Atmosphere Galaxy" };
+            galaxyMesh.vertices = vertices;
+            galaxyMesh.uv = uvs;
+            galaxyMesh.triangles = triangles;
+            galaxyMesh.bounds = new Bounds(Vector3.zero, Vector3.one * radius * 4f);
+
+            var galaxy = new GameObject("Atmosphere Galaxy");
+            galaxy.transform.SetParent(generatedRoot, false);
+            galaxy.AddComponent<MeshFilter>().sharedMesh = galaxyMesh;
+            var renderer = galaxy.AddComponent<MeshRenderer>();
+            var shader = Shader.Find("Metagame/Atmosphere/Galaxy");
+            if (shader == null || !shader.isSupported)
+            {
+                DestroyRuntimeObject(galaxy);
+                return;
+            }
+
+            galaxyMaterial = new Material(shader) { name = "Atmosphere Galaxy (Runtime)" };
+            galaxyMaterial.SetColor("_CoreColor", settings.coreColor);
+            galaxyMaterial.SetColor("_EdgeColor", settings.edgeColor);
+            galaxyMaterial.SetFloat("_Intensity", settings.intensity * effectScale);
+            if (settings.texture != null)
+                galaxyMaterial.SetTexture("_MainTex", settings.texture);
+            renderer.sharedMaterial = galaxyMaterial;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+        }
+
         void BuildCelestialBodies(AtmosphereProfile.CelestialBodySettings settings, float radius, float effectScale)
         {
             if (effectScale <= 0f) return;
@@ -390,6 +455,16 @@ namespace Metagame.Gameplay
             {
                 DestroyRuntimeObject(starMaterial);
                 starMaterial = null;
+            }
+            if (galaxyMesh != null)
+            {
+                DestroyRuntimeObject(galaxyMesh);
+                galaxyMesh = null;
+            }
+            if (galaxyMaterial != null)
+            {
+                DestroyRuntimeObject(galaxyMaterial);
+                galaxyMaterial = null;
             }
             if (skyMaterial != null)
             {

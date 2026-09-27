@@ -22,7 +22,6 @@ namespace Metagame.UI
         GameObject uiRoot;
         Text title;
         Text body;
-        Text footer;
         Text discoverySummary;
         GameObject partsRoot;
         GameObject helpRoot;
@@ -33,13 +32,10 @@ namespace Metagame.UI
 
         ShipAssembly assembly;
         readonly Image[] discoveryDots = new Image[Stage1Exploration.RequiredPartCount];
-        readonly Image[] pageDots = new Image[Stage1Exploration.TabletPageCount];
-        readonly HelpCardView[] helpCards = new HelpCardView[9];
+        readonly HelpCardView[] helpCards = new HelpCardView[TabletHelpContent.MaxRows];
         Font font;
         bool ownsFont;
         string lastTitle;
-        string lastBody;
-        string lastFooter;
 
         /// <summary>
         /// 탑 한 층. 실루엣 채움·외곽선과 층 이름을 함께 갖는다(S15P21B202-345).
@@ -61,49 +57,6 @@ namespace Metagame.UI
             public Text Keys;
             public Text Description;
         }
-
-        readonly struct HelpEntry
-        {
-            public readonly string Keys;
-            public readonly string Description;
-
-            public HelpEntry(string keys, string description)
-            {
-                Keys = keys;
-                Description = description;
-            }
-        }
-
-        static readonly HelpEntry[] MovementHelp =
-        {
-            new("WASD", "이동"),
-            new("Shift", "달리기"),
-            new("Space", "점프"),
-            new("마우스", "시점과 캐릭터 정면·조준 기준"),
-            new("Alt", "이동·조준·캐릭터 정면은 카메라를 따르고 시점 자유롭게 돌리기"),
-        };
-
-        static readonly HelpEntry[] InteractionHelp =
-        {
-            new("좌·우클릭", "고정쇠에 손을 결합하고 반대 방향으로 뒤로 이동"),
-            new("Ctrl", "팔을 위로 올려 레일·케이블 잡기"),
-            new("W + 잡기", "잡은 레일·케이블을 따라 기어오르기"),
-            new("Q 짧게", "현재 손 장비 내려놓기"),
-            new("Q 길게", "충전 후 바라보는 방향으로 장비 투척"),
-        };
-
-        static readonly HelpEntry[] TransportHelp =
-        {
-            new("E", "장비 줍기·교환, 동료 구조, 운반 장치 탑승·하차"),
-            new("WASD", "탑승 중 운반 장치 운전"),
-            new("좌·우클릭", "탑승 중 견인 빔 사용"),
-            new("Space / Ctrl", "탑승 중 상승 / 하강"),
-            new("T", "그 자리에서 다시 서기"),
-            new("R", "처음부터 다시 시작"),
-            new("Tab", "태블릿 열기·닫기"),
-            new("← → / A D", "이전·다음 태블릿 페이지"),
-            new("Esc", "커서 잠금 풀기"),
-        };
 
         public void Initialize(Stage1Exploration state, Renderer screenRenderer)
         {
@@ -181,7 +134,9 @@ namespace Metagame.UI
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
             // World Space의 동적 글꼴을 높은 밀도로 래스터화해 가까이 보거나
             // 화면을 기울여도 한글 획이 뭉개지지 않게 한다.
-            scaler.dynamicPixelsPerUnit = 10f;
+            // 10배 글리프를 작은 화면으로 축소하면 얇은 획이 반짝인다.
+            // 화면용 밀도로 제한하고 작은 본문은 24px 이상으로 표시한다.
+            scaler.dynamicPixelsPerUnit = 2f;
 
             var background = Panel(uiRoot.transform, "Background",
                 new Color(0.035f, 0.085f, 0.115f, 1f), Vector2.zero, Vector2.one,
@@ -209,28 +164,20 @@ namespace Metagame.UI
             CreateHelpPage(background.transform);
             CreateNavigation(background.transform);
             CreateGuidePage(background.transform);
-            footer = Label(background.transform, "Footer", 20, TextAnchor.MiddleCenter,
-                new Color(0.48f, 0.85f, 0.94f, 1f),
-                Vector2.zero, new Vector2(1f, 0.12f),
-                new Vector2(28f, 6f), new Vector2(-28f, 0f));
-            footer.gameObject.SetActive(false);
             uiRoot.SetActive(exploration.TabletOpen);
         }
 
         void Refresh(bool force)
         {
-            if (exploration == null || title == null || body == null || footer == null) return;
+            if (exploration == null || title == null || body == null) return;
 
             if (RefreshGuidePage()) return;
 
             var page = Mathf.Clamp(exploration.TabletPage, 0, Stage1Exploration.TabletPageCount - 1);
             var nextTitle = PageTitle(page);
             var showingParts = page == 0;
-            var nextBody = showingParts ? string.Empty : HelpText(page);
-            var dots = new StringBuilder();
-            for (var i = 0; i < Stage1Exploration.TabletPageCount; i++)
-                dots.Append(i == page ? "●" : "○").Append(' ');
-            var nextFooter = dots + "     A / D · ← / →  페이지 이동     Tab  닫기";
+            // 본문 라벨(body)은 늘 꺼 둔다 — 안내는 카드로 그린다. 예전에는 여기서
+            // 안내 문구를 또 한 벌 만들어 넣었는데, 화면에 나온 적이 한 번도 없다.
 
             partsRoot.SetActive(showingParts);
             helpRoot.SetActive(!showingParts);
@@ -238,11 +185,9 @@ namespace Metagame.UI
             discoverySummary.gameObject.SetActive(false);
             if (showingParts) RefreshParts();
             else RefreshHelp(page);
-            RefreshNavigation(page);
+            RefreshNavigation(page, Stage1Exploration.TabletPageCount);
 
             if (force || nextTitle != lastTitle) title.text = lastTitle = nextTitle;
-            if (force || nextBody != lastBody) body.text = lastBody = nextBody;
-            if (force || nextFooter != lastFooter) footer.text = lastFooter = nextFooter;
         }
 
         /// <summary>
@@ -284,6 +229,7 @@ namespace Metagame.UI
                     bottom, top);
                 bottom = top;
             }
+            CreateAssemblyArtwork();
         }
 
         /// <summary>실루엣 탑이 차지하는 가로 폭(0~1). 오른쪽은 층 이름 자리다.</summary>
@@ -379,14 +325,6 @@ namespace Metagame.UI
                 new Vector2(0.945f, 0.42f), new Vector2(1f, 0.58f),
                 Vector2.zero, Vector2.zero);
             nextArrow.text = "▶";
-            for (var i = 0; i < pageDots.Length; i++)
-            {
-                var x = 0.475f + i * 0.017f;
-                pageDots[i] = Panel(parent, $"PageDot_{i + 1}",
-                    new Color(0.28f, 0.42f, 0.50f, 0.95f),
-                    new Vector2(x, 0.055f), new Vector2(x + 0.008f, 0.071f),
-                    Vector2.zero, Vector2.zero).GetComponent<Image>();
-            }
             for (var i = 0; i < discoveryDots.Length; i++)
             {
                 var x = 0.82f + i * 0.032f;
@@ -449,6 +387,7 @@ namespace Metagame.UI
 
                 Paint(view, floor, discovered, i == nextFloor, blink);
             }
+            RefreshAssemblyArtwork(floors);
         }
 
         /// <summary>
@@ -551,13 +490,7 @@ namespace Metagame.UI
         void RefreshHelp(int page)
         {
             foreach (var dot in discoveryDots) dot.gameObject.SetActive(false);
-            var entries = page switch
-            {
-                1 => MovementHelp,
-                2 => InteractionHelp,
-                3 => TransportHelp,
-                _ => MovementHelp,
-            };
+            var entries = TabletHelpContent.Page(page);
             var rows = Mathf.CeilToInt(entries.Length / 2f);
             const float columnGap = 0.02f;
             const float rowGap = 0.035f;
@@ -582,45 +515,21 @@ namespace Metagame.UI
             }
         }
 
-        void RefreshNavigation(int page)
+        /// <summary>
+        /// 화살표만 칠한다. <b>쪽 표시는 글자 점 한 줄뿐이다</b> (S15P21B202-679) —
+        /// 예전에는 네모 점 줄이 따로 있어 같은 것을 두 번, 그것도 서로 다르게 말했다.
+        /// </summary>
+        void RefreshNavigation(int page, int pageCount)
         {
             previousArrow.color = page > 0
                 ? new Color(0.48f, 0.92f, 1f, 0.95f)
                 : new Color(0.24f, 0.34f, 0.39f, 0.45f);
-            nextArrow.color = page < Stage1Exploration.TabletPageCount - 1
+            nextArrow.color = page < pageCount - 1
                 ? new Color(0.48f, 0.92f, 1f, 0.95f)
                 : new Color(0.24f, 0.34f, 0.39f, 0.45f);
-            for (var i = 0; i < pageDots.Length; i++)
-            {
-                pageDots[i].gameObject.SetActive(true);
-                pageDots[i].color = i == page
-                    ? new Color(0.42f, 0.96f, 1f, 0.95f)
-                    : new Color(0.28f, 0.42f, 0.50f, 0.95f);
-            }
         }
 
-        static string HelpText(int page)
-        {
-            return page switch
-            {
-                1 => "WASD          카메라 기준 이동\n\nShift             달리기\n\nSpace           점프\n\n마우스          1인칭 시점·정면\n\nAlt                현재 카메라 기준으로 자유 시점",
-                2 => "좌·우클릭     고정쇠에 손 결합 / 도구 사용\n\nCtrl               팔 올리기\n\nW + 잡기       레일·케이블 오르기\n\nQ 짧게          장비 내려놓기\n\nQ 길게          바라보는 방향으로 장비 던지기",
-                3 => "E                  장비 줍기·교환 / 탑승·구조\n\nWASD          운반 장치 운전\n\nSpace / Ctrl  상승 / 하강\n\nT                  그 자리에서 다시 서기\n\nR                  리스폰 지역에서 부활",
-                _ => string.Empty,
-            };
-        }
-
-        static string PageTitle(int page)
-        {
-            return page switch
-            {
-                0 => "탐사 태블릿 · 파츠 상태",
-                1 => "조작 안내 · 이동과 시점",
-                2 => "조작 안내 · 손과 도구",
-                3 => "조작 안내 · 운반과 복구",
-                _ => "탐사 태블릿",
-            };
-        }
+        static string PageTitle(int page) => TabletHelpContent.PageTitle(page);
 
         static GameObject Panel(Transform parent, string name, Color color,
                                 Vector2 anchorMin, Vector2 anchorMax,
@@ -653,7 +562,8 @@ namespace Metagame.UI
             rect.offsetMax = offsetMax;
             var label = go.AddComponent<Text>();
             label.font = font;
-            label.fontSize = size;
+            label.fontSize = Mathf.Max(24, size);
+            label.fontStyle = FontStyle.Bold;
             label.alignment = alignment;
             label.color = color;
             label.supportRichText = true;
@@ -666,6 +576,10 @@ namespace Metagame.UI
         static Font CreateKoreanFont(out bool ownsFont)
         {
             ownsFont = false;
+            // The static bold face is already packaged for the game's UI. Unlike the
+            // variable font's default instance, its stroke weight survives minification.
+            var tabletFont = Resources.Load<Font>("Fonts/SUIT-Bold");
+            if (tabletFont != null) return tabletFont;
             // 프로젝트에 포함한 OFL 한글 폰트를 우선 사용해 모든 PC와 빌드에서
             // 동일한 한글 모양과 글꼴 데이터를 보장한다.
             var packaged = Resources.Load<Font>("Fonts/NotoSansKR-Variable");
@@ -686,6 +600,7 @@ namespace Metagame.UI
 
         void OnDestroy()
         {
+            if (_assemblyInk != null) Destroy(_assemblyInk);
             if (uiRoot != null) Destroy(uiRoot);
             if (ownsFont && font != null) Destroy(font);
         }

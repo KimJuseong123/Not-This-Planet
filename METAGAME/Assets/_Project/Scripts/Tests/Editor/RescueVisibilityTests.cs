@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Metagame.Core;
 using Metagame.Gameplay.Interaction;
 using Metagame.Network;
+using Metagame.UI;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -349,6 +350,118 @@ namespace Metagame.Gameplay.Tests
         /// 참가자 기계의 남의 몸을 그대로 만든다. <c>GoDown</c> 은 부르지 않는다 —
         /// 참가자에서는 그 함수가 돌지 않고 상태만 내려온다.
         /// </summary>
+        // ── 발치에 쓰러진 사람 (S15P21B202-699) ─────────────────
+
+        /// <summary>
+        /// <b>살리러 다가가면 후보에서 떨어졌다.</b> 구조 지점은 바닥(0.30m)이고 눈은
+        /// 0.83m 라, 가까울수록 내려다보는 각이 가팔라져 35도를 넘는다. 실측이다.
+        ///
+        /// <code>
+        /// 0.5m -> 46.6도  X      0.9m -> 30.4도  O
+        /// 0.7m -> 37.1도  X      1.6m -> 18.3도  O
+        /// </code>
+        ///
+        /// <para>구조자 화면에 <c>[G]</c> 안내가 안 뜬다는 신고의 원인이다 —
+        /// 안내를 그리는 조건이 <c>RescueCandidate != null</c> 이기 때문이다.</para>
+        /// </summary>
+        [Test]
+        public void ATeammateAtYourFeetIsStillACandidate()
+        {
+            foreach (var distance in new[] { 0.3f, 0.5f, 0.7f, 0.9f })
+            {
+                TearDown();
+                SetUp();
+                var me = MakePlayer(Vector3.zero);
+                var downed = MakeRemoteDowned(new Vector3(0f, 0f, distance));
+
+                me.RescueInteractor.Tick(0.02f);
+
+                Assert.AreSame(downed, me.RescueCandidate,
+                    $"{distance}m 앞에 쓰러져 있는데 후보가 아니다 — 다가가면 안내가 사라진다.");
+            }
+        }
+
+        /// <summary>
+        /// <b>가까운 것을 봐 주는 규칙이 사거리를 늘리지는 않는다.</b> 늘리면 멀리서도
+        /// 잡혀 "누구를 겨냥한 건지" 가 무너진다.
+        /// </summary>
+        [Test]
+        public void TheNearRuleDoesNotStretchTheReach()
+        {
+            var me = MakePlayer(Vector3.zero);
+            MakeRemoteDowned(new Vector3(0f, 0f, 2.6f));
+
+            me.RescueInteractor.Tick(0.02f);
+
+            Assert.IsNull(me.RescueCandidate, "사거리 2.5m 밖인데 후보가 됐다.");
+        }
+
+        /// <summary>
+        /// <b>다른 인터랙터는 그대로다.</b> 이 규칙은 바닥에 있는 대상을 위한 것이라
+        /// 켜는 쪽만 켠다 — 기본값 0 이면 예전과 같이 늘 각도를 본다.
+        /// </summary>
+        [Test]
+        public void OtherInteractorsKeepTheirCone()
+        {
+            var me = MakePlayer(Vector3.zero);
+            Assert.That(me.ClampInteractor.NearRadius, Is.Zero,
+                "고정쇠 인터랙터까지 각도를 안 보게 됐다.");
+            Assert.That(me.RescueInteractor.NearRadius,
+                Is.EqualTo(PhysicsScale.DownedRescueNearReach).Within(0.001f));
+        }
+
+        [Test]
+        public void RescuerDisplaysTheTargetsServerGaugeInsteadOfLocalPrediction()
+        {
+            var me = MakePlayer(Vector3.zero);
+            me.ServerAuthority = false;
+            var target = MakeRemoteDowned(new Vector3(0f, 0f, 1f));
+            me.RescueInteractor.Tick(0.02f);
+            Assert.IsTrue(me.RescueInteractor.TryBeginFocused());
+            me.RescueInteractor.Tick(0.2f);
+            target.SetRemoteBeingRescued(0.65f);
+            target.SetRemoteRescueAccumulated(0.65f);
+            Assert.AreEqual(target.BeingRescuedProgress01, me.RescueDisplayProgress01);
+            Assert.AreNotEqual(me.RescueProgress01, me.RescueDisplayProgress01);
+
+            me.RescueInteractor.Cancel();
+            me.RescueInteractor.Tick(0f);
+            target.SetRemoteBeingRescued(0f);
+            Assert.AreEqual(0.65f, me.RescueDisplayProgress01, 0.0001f);
+            Assert.IsFalse(DownedRescueHud.ShouldDrawBeingRescued(true, target.BeingRescuedProgress01));
+
+            Assert.IsTrue(me.RescueInteractor.TryBeginFocused());
+            target.SetRemoteBeingRescued(0.7f);
+            Assert.AreEqual(0.7f, me.RescueDisplayProgress01, 0.0001f);
+            target.SetRemoteDowned(false);
+            Assert.Zero(me.RescueDisplayProgress01);
+        }
+
+        [Test]
+        public void HoldingShowsProgressEvenBeforeTheFirstServerSnapshot()
+        {
+            Assert.AreEqual(DownedRescueHud.RescueHudView.Progress,
+                DownedRescueHud.Decide(false, 0f, true, 0f, true));
+            Assert.AreEqual(DownedRescueHud.RescueHudView.Prompt,
+                DownedRescueHud.Decide(false, 0f, true, 0f, false));
+            Assert.AreEqual(DownedRescueHud.RescueHudView.None,
+                DownedRescueHud.Decide(false, 0f, false, 0.5f, true));
+        }
+
+        [Test]
+        public void AccumulatedSnapshotCannotOverrideServerOrLivingPlayer()
+        {
+            var player = MakePlayer(Vector3.zero);
+            player.GoDown("test");
+            player.SetRemoteRescueAccumulated(0.8f);
+            Assert.Zero(player.RescueAccumulatedProgress01);
+            player.ServerAuthority = false;
+            player.SetRemoteRescueAccumulated(1.5f);
+            Assert.AreEqual(1f, player.RescueAccumulatedProgress01);
+            player.SetRemoteDowned(false);
+            Assert.Zero(player.RescueAccumulatedProgress01);
+        }
+
         PlayerRig MakeRemoteDowned(Vector3 foot)
         {
             var rig = MakePlayer(foot);

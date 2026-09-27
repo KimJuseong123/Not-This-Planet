@@ -150,6 +150,56 @@ namespace Metagame.Gameplay.Tests
 
         // --- 도우미 -------------------------------------------------------
 
+        [Test]
+        public void KeepalivePreservesExistingBeadObjects()
+        {
+            var bead = GrowOn(Body(), seconds: 0.6f);
+            var snapshot = Read(bead);
+            var before = bead.GetComponentsInChildren<SphereCollider>();
+            Assert.That(before.Length, Is.GreaterThan(0));
+            for (int i = 0; i < 20; i++) bead.RestoreChains(snapshot, 0, snapshot.Length);
+            CollectionAssert.AreEqual(before, bead.GetComponentsInChildren<SphereCollider>(),
+                "A repeated snapshot must not destroy and recreate physical beads.");
+        }
+
+        [Test]
+        public void AppendingAndRemovingAChainPreservesEarlierBeads()
+        {
+            var bead = GrowOn(Body(), seconds: 0.6f);
+            var snapshot = Read(bead);
+            var before = bead.GetComponentsInChildren<SphereCollider>();
+            var appended = new WeldBead.ChainState[snapshot.Length + 1];
+            System.Array.Copy(snapshot, appended, snapshot.Length);
+            appended[snapshot.Length] = snapshot[0];
+            appended[snapshot.Length].Origin += Vector3.right;
+            bead.RestoreChains(appended, 0, appended.Length);
+            Assert.AreEqual(appended.Length, bead.ChainCount);
+            foreach (var collider in before) Assert.IsTrue(collider != null);
+            bead.RestoreChains(snapshot, 0, snapshot.Length);
+            CollectionAssert.AreEqual(before, bead.GetComponentsInChildren<SphereCollider>());
+        }
+
+        [Test]
+        public void GrowingAndCuttingTheTipPreservesTheRestOfTheChain()
+        {
+            var bead = GrowOn(Body(), seconds: 0.6f);
+            var snapshot = Read(bead);
+            var before = bead.GetComponentsInChildren<SphereCollider>();
+            snapshot[0].TipRadius = PhysicsScale.WeldBeadMaxRadius;
+            bead.RestoreChains(snapshot, 0, snapshot.Length);
+            CollectionAssert.AreEqual(before, bead.GetComponentsInChildren<SphereCollider>());
+            Assert.AreEqual(snapshot[0].TipRadius, bead.ReadChain(0).TipRadius);
+            snapshot[0].BlobCount++;
+            snapshot[0].TipRadius = PhysicsScale.WeldBeadMinRadius;
+            bead.RestoreChains(snapshot, 0, snapshot.Length);
+            foreach (var collider in before) Assert.IsTrue(collider != null);
+            Assert.AreEqual(snapshot[0].BlobCount, bead.ReadChain(0).BlobCount);
+            snapshot[0].BlobCount--;
+            snapshot[0].TipRadius = PhysicsScale.WeldBeadMaxRadius;
+            bead.RestoreChains(snapshot, 0, snapshot.Length);
+            CollectionAssert.AreEqual(before, bead.GetComponentsInChildren<SphereCollider>());
+        }
+
         SpaceshipPart Body()
         {
             var part = SocketTestRig.Placed(_spawned, new Vector3(_spawned.Count * 40f, 0f, 0f));

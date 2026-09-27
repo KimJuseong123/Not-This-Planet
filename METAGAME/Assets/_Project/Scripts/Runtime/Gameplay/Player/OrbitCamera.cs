@@ -564,7 +564,8 @@ namespace Metagame.Gameplay
 
         public void PlayBatImpact(byte grade)
         {
-            batShakeStrength = grade == 3 ? 1.5f : grade == 2 ? 0.9f : 0.4f;
+            if (grade < 1 || grade > 3) return;
+            batShakeStrength = grade == 3 ? 2.2f : grade == 2 ? 1.3f : 0.65f;
             batShakeUntil = Time.unscaledTime + 0.24f;
         }
 

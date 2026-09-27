@@ -25,7 +25,7 @@ namespace Metagame.Network
             DontDestroyOnLoad(gameObject);
             _started = Time.realtimeSinceStartup;
             var root = new GameObject("Local Stage2 smoke network"); root.SetActive(false);
-            var transport = root.AddComponent<TelepathyTransport>(); transport.port = 27863;
+            var transport = root.AddComponent<kcp2k.KcpTransport>(); transport.port = 27863;
             var manager = root.AddComponent<NetworkManager>();
             manager.transport = transport; manager.playerPrefab = _playerPrefab;
             manager.networkAddress = "127.0.0.1"; manager.onlineScene = StageCatalog.SceneFolder + StageCatalog.Stage2SceneName + ".unity";
@@ -36,11 +36,39 @@ namespace Metagame.Network
             GameSession.Instance.ScriptedInput = true;
             GameSession.Instance.LocalPlayer.SetInput(default);
             var yard = Object.FindAnyObjectByType<Stage2Yard>();
+            if (args.Contains("-stage2-demo-smoke"))
+            { yield return Demo(yard); yield break; }
+            // This launcher validates the retained yard simulation, not the production demo.
+            yard.SetDemoMode(false);
             var bridge = Object.FindAnyObjectByType<Stage2Bridge>();
             if(args.Contains("-stage2-pressure-smoke"))
             { if(_host)yield return PressureHost(yard);else yield return PressureClient(yard,bridge); }
             else if (_host) yield return Host(yard, bridge);
             else yield return Client(yard, bridge);
+        }
+
+        IEnumerator Demo(Stage2Yard yard)
+        {
+            while (!yard.State.DemoStarted) yield return null;
+            int castCount = yard.State.DemoPlayers.Length;
+            if (castCount == 0)
+            { Debug.LogError("[DemoSmoke] FAIL missing shared cast"); Application.Quit(2); yield break; }
+            if (!_host && yard.Authority)
+            { Debug.LogError("[DemoSmoke] FAIL client owns demo"); Application.Quit(2); yield break; }
+            while (!yard.DemoCinematic) yield return null;
+            if (!GameSession.Instance.CinematicInputBlocked)
+            { Debug.LogError("[DemoSmoke] FAIL cinematic input unlocked"); Application.Quit(2); yield break; }
+            Debug.Log(_host ? "[DemoSmoke] HOST demo panorama PASS" : _observer
+                ? "[DemoSmoke] OBSERVER seeks current cinematic PASS" : "[DemoSmoke] CLIENT replicated cinematic PASS");
+            while (!yard.DemoFinished) yield return null;
+            if (yard.State.Launched || GameSession.Instance.Cleared || !GameSession.Instance.CinematicInputBlocked
+                || yard.State.DemoPlayers.Length != castCount)
+            { Debug.LogError("[DemoSmoke] FAIL terminal demo changed gameplay result"); Application.Quit(2); yield break; }
+            Debug.Log(_host ? "[DemoSmoke] HOST terminal demo PASS" : _observer
+                ? "[DemoSmoke] OBSERVER terminal demo PASS" : "[DemoSmoke] CLIENT terminal demo PASS");
+            // Keep the authority alive long enough for remote peers' delayed snapshots to settle.
+            if (_host) yield return new WaitForSecondsRealtime(5);
+            Application.Quit(0);
         }
 
         IEnumerator PressureHost(Stage2Yard yard)

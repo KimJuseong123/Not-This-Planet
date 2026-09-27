@@ -104,6 +104,9 @@ namespace Metagame.Gameplay
         public bool IsComplete => DiscoveredCount >= RequiredPartCount;
         public bool TabletOpen { get; private set; }
         public TabletGuideState Guide { get; } = new TabletGuideState();
+
+        /// <summary>필요한 순간에 뜨는 한 줄 (S15P21B202-665).</summary>
+        public OnboardingNotices Notices { get; } = new OnboardingNotices();
         public int TabletPage { get; private set; }
         public float DiscoveryRadius => _discoveryRadius;
         public string DiscoveryNotice { get; private set; }
@@ -185,23 +188,69 @@ namespace Metagame.Gameplay
             return false;
         }
 
+        /// <summary>
+        /// 안내를 흘린다 (S15P21B202-665). <b>태블릿이 열려 있는 동안에는 부르지
+        /// 않는다</b> — 그 사이에 사라지면 아무도 못 본 것이 된다.
+        ///
+        /// <para>파츠를 쌓은 순간은 이벤트를 구독하는 대신 <b>훑어서</b> 본다.
+        /// 파츠는 씬을 찾은 뒤에야 붙으므로(<see cref="Configure"/>) 구독 시점을
+        /// 맞추기가 더 까다롭다.</para>
+        /// </summary>
+        public void TickOnboarding(float deltaTime)
+        {
+            Notices.Raise(OnboardingCue.Start);
+            for (var i = 0; i < _parts.Count; i++)
+            {
+                var part = _parts[i]?.Part;
+                if (part != null && part.State == Metagame.Gameplay.Parts.PartState.Placed)
+                {
+                    Notices.Raise(OnboardingCue.PartStacked);
+                    break;
+                }
+            }
+            if (!TabletOpen) Notices.Tick(deltaTime);
+        }
+
         public void ToggleTablet()
         {
             SetTabletOpen(!TabletOpen);
         }
 
+        /// <summary>
+        /// 앞 쪽으로. <b>진행도에서 더 앞으로 가면 안내로 되돌아간다</b>
+        /// (S15P21B202-657) — 안내 4쪽 · 진행도 1쪽 · 조작 3쪽이 한 줄이다.
+        /// </summary>
         public void PreviousTabletPage()
         {
             if (TabletOpen && Guide.Visible) { Guide.Move(-1); return; }
+            if (TabletOpen && TabletPage == 0 && Guide.Enabled)
+            {
+                Guide.OpenAt(TabletGuideState.PageCount - 1);
+                return;
+            }
             SetTabletPage(TabletPage - 1);
         }
 
+        /// <summary>
+        /// 뒤 쪽으로. <b>마지막 안내에서 더 넘기면 진행도로 나간다</b> (S15P21B202-657).
+        /// 확인 키를 따로 누르지 않아도 된다.
+        /// </summary>
         public void NextTabletPage()
         {
-            if (TabletOpen && Guide.Visible) { Guide.Move(1); return; }
+            if (TabletOpen && Guide.Visible)
+            {
+                if (Guide.Move(1)) SetTabletPage(0);
+                return;
+            }
             SetTabletPage(TabletPage + 1);
         }
 
+        /// <summary>
+        /// 안내를 건너뛰거나 다시 연다 (S15P21B202-657).
+        ///
+        /// <para><b>더 이상 관문이 아니다.</b> 넘기다 보면 저절로 빠져나오므로 이것은
+        /// 지름길일 뿐이다 — 안내를 다 읽지 않고 진행도로 바로 가고 싶을 때 쓴다.</para>
+        /// </summary>
         public void ActivateTabletGuide()
         {
             if (!TabletOpen || !Guide.Enabled) return;
@@ -217,7 +266,15 @@ namespace Metagame.Gameplay
             if (TabletOpen == open) return;
 
             TabletOpen = open;
-            if (open) Guide.OnTabletOpened();
+            if (open)
+            {
+                // 그 순간에 맞는 안내가 있으면 **그 쪽이 이미 펴져 있다** (S15P21B202-665).
+                // 태블릿을 대신 열어 주지는 않는다 — 1인칭 화면을 가로채면 운석에 맞는다.
+                var page = Notices.TakeGuidePage();
+                if (page >= 0) Guide.OpenAt(page);
+                else Guide.OnTabletOpened();
+                Notices.OnTabletOpened();
+            }
             TabletStateChanged?.Invoke(TabletOpen);
         }
 
@@ -228,6 +285,7 @@ namespace Metagame.Gameplay
             DiscoveryNotice = string.Empty;
             _noticeUntil = 0f;
             Guide.ResetRun();
+            Notices.ResetRun();
 
             SetTabletPage(0);
 
@@ -264,6 +322,8 @@ namespace Metagame.Gameplay
             DiscoveredCount++;
             DiscoveryNotice = "파츠 발견 · " + info.DisplayName;
             _noticeUntil = Time.time + _noticeSeconds;
+            // 찾았으면 다음에 할 일은 고정못 빼기다 (S15P21B202-665).
+            Notices.Raise(OnboardingCue.PartFound);
             PartDiscovered?.Invoke(info);
             return true;
         }

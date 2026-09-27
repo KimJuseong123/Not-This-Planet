@@ -93,33 +93,25 @@ namespace Metagame.UI
             // <b>자기가 일으켜지는 중인지</b>도 모르게 둘 이유는 없다 — 기다려야 하는
             // 쪽이 그 사람이다. 화면만 열어서는 되지 않는다: 진행분은 서버에서만 쌓이고
             // 예전에는 전송되지 않아 이 기계에 값이 없었다(NetPlayer.rescueProgress).
-            if (me.Downed)
+            var target = me.RescueCandidate;
+            float progress = me.RescueDisplayProgress01;
+            var view = Decide(me.Downed, me.BeingRescuedProgress01, target != null && target.Downed, progress, me.RescueHolding);
+
+            if (view == RescueHudView.None) return;
+            if (view == RescueHudView.BeingRescued)
             {
-                if (ShouldDrawBeingRescued(true, me.BeingRescuedProgress01))
-                    DrawBeingRescued(me.BeingRescuedProgress01);
+                DrawBeingRescued(me.BeingRescuedProgress01);
                 return;
             }
 
-            var target = me.RescueCandidate;
-            if (target == null) return;
-
-            float progress = me.RescueProgress01;
             var center = new Vector2(UiScale.Width * 0.5f, UiScale.Height - BarBottomMargin);
 
-            // 진행분이 없으면 안내만 그린다.
-            if (progress <= 0f)
-            {
-                DrawLabel(center, $"[{Controls.RescueTeammate}] {target.Nickname} 일으키기");
-                return;
-            }
+            // 키 안내는 조준점 위에 유지하고, 진행 상태는 하단에 별도로 표시한다.
+            DrawLabel(new Vector2(UiScale.Width * 0.5f, UiScale.Height * 0.5f - 40f),
+                      $"{Controls.RescueTeammate} 살리기");
+            if (view == RescueHudView.Prompt) return;
 
-
-            // **누르지 않아도 막대를 그린다.** 앞사람이 남긴 진행분이 있으면 그것이
-            // 보여야 이어받는다는 것을 알 수 있다(기획 §12.1 과 같은 규칙 —
-            // `DownedRescue.Release` 가 누른 만큼을 남긴다).
-            string label = me.RescueHolding
-                ? $"{target.Nickname} 일으키는 중…"
-                : $"[{Controls.RescueTeammate}] {target.Nickname} 이어서 일으키기";
+            string label = me.RescueHolding ? "살리는 중..." : "살리기 진행도";
 
             // **문구를 막대 위에 올린다.** 두 줄이 되면 그만큼 더 올라가야 한다 —
             // 고정 높이로 두면 잘린다(2026-09-10 QA 신고).
@@ -157,12 +149,44 @@ namespace Metagame.UI
         public static bool ShouldDrawBeingRescued(bool downed, float beingRescued01) =>
             downed && beingRescued01 > 0f;
 
+        /// <summary>이 화면이 지금 무엇을 그리는가 (S15P21B202-699).</summary>
+        public enum RescueHudView
+        {
+            /// <summary>아무것도 안 그린다.</summary>
+            None,
+            /// <summary>내가 쓰러져 있고 누군가 일으키는 중 — 게이지만.</summary>
+            BeingRescued,
+            /// <summary>일으킬 사람이 있다 — <c>[G] … 일으키기</c>.</summary>
+            Prompt,
+            /// <summary>진행분이 있다 — 게이지와 문구.</summary>
+            Progress,
+        }
+
+        /// <summary>
+        /// <b>그리는 결정을 화면에서 뗀다</b> (S15P21B202-699).
+        ///
+        /// <para>"구조자 화면에 안내가 안 뜬다" 는 신고가 있었는데, 그리는 조건이
+        /// <c>OnGUI</c> 안에만 있어 <b>화면 없이는 잴 방법이 없었다.</b> 기존 검사가
+        /// 이 파일에 대해 재던 것은 소스에 <c>wordWrap</c> 이 있는지뿐이다.</para>
+        /// </summary>
+        public static RescueHudView Decide(bool downed, float beingRescued01,
+                                           bool hasCandidate, float progress01, bool holding = false)
+        {
+            // 쓰러진 사람은 남을 못 일으킨다. 자기가 일으켜지는 중인지만 본다.
+            if (downed)
+                return ShouldDrawBeingRescued(true, beingRescued01)
+                    ? RescueHudView.BeingRescued : RescueHudView.None;
+
+            if (!hasCandidate) return RescueHudView.None;
+            return holding || progress01 > 0f ? RescueHudView.Progress : RescueHudView.Prompt;
+        }
+
         /// <summary>쓰러진 내가 일으켜지는 중임을 그린다(S15P21B202-448).</summary>
         void DrawBeingRescued(float progress)
         {
             var center = new Vector2(UiScale.Width * 0.5f, UiScale.Height - BarBottomMargin);
 
-            const string label = "일으켜지는 중…";
+            const string label = "살아나는 중...";
             float labelHeight = LabelHeight;
             if (labelStyle != null)
             {

@@ -41,7 +41,7 @@ STATE_PATH = os.environ.get("CLAUDE_AUTH_STATE", "/var/lib/metagame/claude-auth.
 CREDS_PATH = os.environ.get("CLAUDE_CREDENTIALS",
                             os.path.expanduser("~/.claude/.credentials.json"))
 CLAUDE = os.environ.get("CLAUDE_BIN", "/usr/local/bin/claude")
-MODEL = os.environ.get("CLAUDE_CHECK_MODEL", "claude-opus-5")
+MODEL = os.environ.get("CLAUDE_CHECK_MODEL", "claude-opus-5-5")     # ai-review 의 DEFAULT_MODEL 과 같게
 MENTION = os.environ.get("ALERT_MENTION", "rmawnsdud")      # team.json 의 infra
 CALL_TIMEOUT = int(os.environ.get("CLAUDE_CHECK_TIMEOUT", "120"))
 ALERT_ENV = os.environ.get("CLAUDE_ALERT_ENV", "/etc/metagame/alert.env")   # 안내 문구용 경로

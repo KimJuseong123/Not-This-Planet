@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Metagame.Bootstrap;
 using Metagame.Gameplay;
@@ -27,6 +28,8 @@ namespace Metagame.Gameplay.Tests
     {
         const string ScenePath = "Assets/Scenes/Stage1_Astra.unity";
         const string ProfilePath = "Assets/_Project/Data/Atmosphere/Stage1AtmosphereProfile.asset";
+        const string GalaxyShaderPath = "Assets/_Project/Shaders/Atmosphere/Galaxy.shader";
+        const string GraphicsSettingsPath = "ProjectSettings/GraphicsSettings.asset";
 
         /// <summary>고도를 <c>sin</c> 으로 8등분 × 방위를 12등분. 96칸의 넓이가 모두 같다.</summary>
         const int AltitudeBands = 8;
@@ -93,6 +96,7 @@ namespace Metagame.Gameplay.Tests
                 "수제 조명 보존이 꺼졌다 — 그렇다면 이 티켓의 전제가 바뀐 것이니 다시 본다");
         }
 
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-731)
         [Test]
         public void TheStageAsksForTheCodeStarfield()
         {
@@ -116,6 +120,34 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
+        public void TheShippedStageEnablesTheGalaxyAndShootingStars()
+        {
+            var profile = ShippedProfile();
+
+            Assert.IsTrue(profile.galaxy.enabled, "은하수 광운이 꺼져 있다");
+            Assert.NotNull(profile.galaxy.texture, "은하수 성운 텍스처가 연결되지 않았다");
+            Assert.Greater(profile.galaxy.intensity, 0f, "은하수 밝기가 0이다");
+            Assert.Greater(profile.galaxy.width, 0.05f, "은하수 띠가 화면에서 식별하기 어려울 만큼 얇다");
+            Assert.IsTrue(profile.meteorShower.enabled, "별똥별 효과가 꺼져 있다");
+            Assert.Greater(profile.meteorShower.emissionRate, 0f, "별똥별 발생 빈도가 0이다");
+            Assert.LessOrEqual(profile.meteorShower.emissionRate, 30f,
+                "별똥별 발생량이 연출 기준인 초당 30개를 초과한다");
+        }
+
+        [Test]
+        public void TheGalaxyShaderIsAlwaysIncludedInPlayerBuilds()
+        {
+            string shaderGuid = AssetDatabase.AssetPathToGUID(GalaxyShaderPath);
+            Assert.IsNotEmpty(shaderGuid, "은하수 셰이더를 찾을 수 없다: " + GalaxyShaderPath);
+
+            string graphicsSettings = File.ReadAllText(GraphicsSettingsPath);
+            StringAssert.Contains($"guid: {shaderGuid}", graphicsSettings,
+                "은하수 셰이더가 Always Included Shaders 에 없다 — Shader.Find 로만 참조하면 "
+                + "플레이어 빌드에서 제거되어 런처의 은하수 띠가 사라진다");
+        }
+
+        [Test]
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-678)
         public void TheBakedArtStarMeshIsOff_SoTheSkyIsNotDrawnTwice()
         {
             var scene = OpenStage();

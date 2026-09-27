@@ -68,6 +68,8 @@ namespace Metagame.Network
 
         void FixedUpdate()
         {
+
+            using var frameSection = Metagame.Core.FrameSections.Scope(Metagame.Core.FrameSections.Meteors);   // S15P21B202-746 프레임 기록
             if (!configured || spawner == null) return;
 
             var authority = HasAuthority();
@@ -114,6 +116,17 @@ namespace Metagame.Network
                 // 달라질 때만 오므로 그 사이를 여기서 메워 원이 매끄럽게 줄어들게 한다.
                 // 스폰·난수·스케줄 전진은 하지 않는다 — 갈림의 원인이 그 셋이다.
                 spawner.AgeNetworkPending(Time.fixedDeltaTime);
+
+                // 굴러가는 흔적 그림을 다음 묶음까지 이어서 밟는다 (S15P21B202-658).
+                //
+                // `-658` 에서 흔적 그림을 **키네마틱**으로 바꿨다(콜라이더를 켜면서 —
+                // 동적으로 두면 참가자가 돌을 밀어 버린다). 키네마틱 강체는
+                // `linearVelocity` 를 무시하므로 예전처럼 속도만 넣어 두면 돌이 묶음과
+                // 묶음 사이에 멈춰, `-434` 가 고친 "뚝뚝 끊김" 이 그대로 돌아온다.
+                //
+                // **여기가 맞는 자리다.** 물리 스텝마다 한 번 돌고, 참가자 갈래 안이라
+                // 호스트에서는 불리지 않는다(호스트에는 그림이 없다).
+                spawner.AdvanceScarGhosts(Time.fixedDeltaTime);
                 return;
             }
 

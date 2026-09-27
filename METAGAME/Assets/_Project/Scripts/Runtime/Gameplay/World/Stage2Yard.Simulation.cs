@@ -9,7 +9,7 @@ namespace Metagame.Gameplay.Stage2
 
         void FixedUpdate()
         {
-            if (!_authority || _state.Launched) return;
+            if (DemoMode || !_authority || _state.Launched) return;
             float dt = Time.fixedDeltaTime;
             YardCommand command = default;
             if (_state.Pilot != 0 && _workers.TryGetValue(_state.Pilot, out var pilot))
@@ -206,6 +206,7 @@ namespace Metagame.Gameplay.Stage2
                 _boltColor.SetColor("_BaseColor", Color.Lerp(new Color(.95f,.55f,.1f), new Color(.15f,.9f,.5f), value));
                 _boltRenderers[i].SetPropertyBlock(_boltColor);
             }
+            PresentDemo();
         }
     }
 }

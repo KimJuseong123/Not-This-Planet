@@ -20,6 +20,8 @@ namespace Metagame.UI
         public static readonly Color MutedText = new Color32(0xAE, 0xBB, 0xD2, 0xFF);
         public static readonly Color FrameWhite = new Color32(0xD9, 0xDC, 0xEC, 0xE8);
         public static readonly Color Dimmer = new Color(0.01f, 0.015f, 0.045f, 0.66f);
+        /// <summary>안내 한 줄의 바탕. 지면이 밝아도 글자가 읽히게 어둡고, 뒤가 비친다.</summary>
+        public static readonly Color PromptFill = new Color32(0x05, 0x0D, 0x20, 0xD2);
 
         static Texture2D white;
         static Texture2D panel;
@@ -32,11 +34,14 @@ namespace Metagame.UI
         static Texture2D quiet;
         static Texture2D input;
         static Texture2D inputFocused;
+        static Texture2D prompt;
+        static Texture2D mouseLeft;
         static Texture2D circleWhite;
         static Texture2D circleViolet;
         static Texture2D circleCyan;
         static GUIStyle panelStyle;
         static GUIStyle softPanelStyle;
+        static GUIStyle promptStyle;
 
         public static void Ensure()
         {
@@ -68,6 +73,10 @@ namespace Metagame.UI
                 new Color(Cyan.r, Cyan.g, Cyan.b, 0.14f));
             inputFocused = RoundedLayered(new Color32(0x06, 0x0D, 0x22, 0xFF), 10,
                 FrameWhite, Violet, Cyan);
+            // 테두리만 청록이고 안은 그냥 어둡다 — 창이 아니라 버튼으로 읽혀야 한다.
+            prompt = RoundedLayered(PromptFill, 16,
+                new Color(Cyan.r, Cyan.g, Cyan.b, 0.90f), PromptFill, PromptFill);
+            mouseLeft = MouseLeftGlyph();
             circleWhite = Circle(FrameWhite);
             circleViolet = Circle(Violet);
             circleCyan = Circle(Cyan);
@@ -79,6 +88,11 @@ namespace Metagame.UI
             };
             softPanelStyle = new GUIStyle(panelStyle);
             softPanelStyle.normal.background = panelSoft;
+            promptStyle = new GUIStyle(GUI.skin.box)
+            {
+                border = new RectOffset(18, 18, 18, 18),
+                normal = { background = prompt }
+            };
         }
 
         public static GUIStyle ButtonStyle(Font font, int size, bool isPrimary = false,
@@ -171,6 +185,116 @@ namespace Metagame.UI
             if (lens) DrawLens(area);
         }
 
+        /// <summary>
+        /// 안내 한 줄을 담는 둥근 테두리 (S15P21B202-679).
+        ///
+        /// <para><see cref="DrawPanel"/> 와 달리 <b>모서리 표식도 렌즈도 없다.</b> 그것은
+        /// 창의 장식이라, 한 줄짜리 안내에 붙이면 읽을 것이 아니라 열어 볼 것처럼
+        /// 보인다. 여기 필요한 것은 "지금 이 키를 누르면 된다" 하나뿐이다.</para>
+        /// </summary>
+        public static void DrawPrompt(Rect area)
+        {
+            if (Event.current.type != EventType.Repaint) return;
+            Ensure();
+            promptStyle.Draw(area, GUIContent.none, false, false, false, false);
+        }
+
+        /// <summary>
+        /// <b>마우스 왼쪽 클릭</b> 그림 (S15P21B202-696).
+        ///
+        /// <para>잡기는 좌클릭인데 안내가 <c>[E]</c> 로 떴다. 글자로 "좌클릭" 이라고
+        /// 적는 것보다 그림이 빠르게 읽힌다.</para>
+        ///
+        /// <para><b>텍스처 에셋이 아니라 코드로 그린다.</b> 이 클래스가 이미 모든
+        /// 텍스처를 그렇게 만들고, 무엇보다 <b>아무도 참조하지 않는 에셋은 빌드에서
+        /// 빠진다</b> — 은하수 셰이더에서 겪은 그대로다.</para>
+        /// </summary>
+        public static void DrawMouseLeft(Rect area)
+        {
+            if (Event.current.type != EventType.Repaint) return;
+            Ensure();
+            GUI.DrawTexture(area, mouseLeft, ScaleMode.ScaleToFit, true);
+        }
+
+        /// <summary>그림의 가로세로 비. 마우스는 세로가 길다.</summary>
+        public const float MouseGlyphAspect = 0.70f;
+
+        /// <summary>
+        /// 둥근 사각형 몸통에 칸막이를 넣고 <b>왼쪽 윗칸만 밝게</b> 채운다.
+        ///
+        /// <para>위쪽이 더 둥글다 — 반경을 높이에 따라 섞어 마우스 모양을 낸다.
+        /// 4배로 그려 줄이므로 20px 에서도 안 뭉개진다.</para>
+        /// </summary>
+        static Texture2D MouseLeftGlyph()
+        {
+            var texture = NewTexture(MouseGlyphSize, MouseGlyphSize, "~UI Theme Mouse Left");
+            texture.SetPixels(MouseLeftPixels(MouseGlyphSize));
+            texture.Apply(false, true);
+            return texture;
+        }
+
+        /// <summary>4배 수퍼샘플. 화면에서는 24px 안팎으로 줄여 쓴다.</summary>
+        public const int MouseGlyphSize = 128;
+
+        /// <summary>
+        /// 그림의 픽셀. <b>텍스처와 갈라 둔다</b> — 만들어 올린 텍스처는
+        /// <c>Apply(makeNoLongerReadable: true)</c> 라 되읽을 수 없어서, 이것이 없으면
+        /// 모양을 검사할 방법이 없다.
+        /// </summary>
+        public static Color[] MouseLeftPixels(int size)
+        {
+            var pixels = new Color[size * size];
+
+            float bodyWidth = size * 0.62f;
+            float bodyHeight = size * 0.88f;
+            float originX = (size - bodyWidth) * 0.5f;
+            float originY = (size - bodyHeight) * 0.5f;
+            float border = size * 0.085f;
+            float split = bodyHeight * 0.44f;     // 버튼과 몸통을 가르는 높이
+            var body = new Color(0.02f, 0.05f, 0.125f, 0.90f);
+
+            for (var j = 0; j < size; j++)
+            for (var i = 0; i < size; i++)
+            {
+                float x = i - originX;
+                float y = j - originY;
+                float distance = RoundedBoxDistance(x, y, bodyWidth, bodyHeight,
+                                                    bodyWidth * 0.5f, bodyWidth * 0.34f);
+                if (distance > 0.5f) continue;
+
+                Color color;
+                if (distance > -border) color = Cyan;                       // 테두리
+                else if (x < bodyWidth * 0.5f - border * 0.45f
+                         && y < split - border * 0.45f) color = CyanSoft;   // 눌린 왼쪽 버튼
+                else if (Mathf.Abs(x - bodyWidth * 0.5f) <= border * 0.45f
+                         && y < split) color = Cyan;                        // 세로 칸막이
+                else if (Mathf.Abs(y - split) <= border * 0.45f) color = Cyan;
+                else color = body;
+
+                // 가장자리를 부드럽게 — 안 하면 줄였을 때 계단이 남는다.
+                color.a *= Mathf.Clamp01(0.5f - distance);
+                pixels[(size - 1 - j) * size + i] = color;                  // 텍스처는 아래가 0
+            }
+
+            return pixels;
+        }
+
+        /// <summary>
+        /// 둥근 사각형까지의 부호 거리. <paramref name="topRadius"/> 와
+        /// <paramref name="bottomRadius"/> 를 높이에 따라 섞어 마우스 몸통을 만든다.
+        /// </summary>
+        static float RoundedBoxDistance(float x, float y, float width, float height,
+                                        float topRadius, float bottomRadius)
+        {
+            float t = Mathf.Clamp01(y / height);
+            float radius = Mathf.Lerp(topRadius, bottomRadius, t);
+            float qx = Mathf.Abs(x - width * 0.5f) - (width * 0.5f - radius);
+            float qy = Mathf.Abs(y - height * 0.5f) - (height * 0.5f - radius);
+            float outside = new Vector2(Mathf.Max(qx, 0f), Mathf.Max(qy, 0f)).magnitude;
+            float inside = Mathf.Min(Mathf.Max(qx, qy), 0f);
+            return outside + inside - radius;
+        }
+
         public static void DrawDimmer(Rect area)
         {
             if (Event.current.type != EventType.Repaint) return;
@@ -182,18 +306,6 @@ namespace Metagame.UI
             if (Event.current.type != EventType.Repaint) return;
             DrawSolid(area, new Color(0.10f, 0.22f, 0.38f, 0.82f));
             DrawSolid(new Rect(area.x, area.yMax - 2f, area.width, 2f), Cyan);
-        }
-
-        public static void DrawKeyCap(Rect area)
-        {
-            if (Event.current.type != EventType.Repaint) return;
-            Ensure();
-            var style = new GUIStyle(GUI.skin.box)
-            {
-                border = new RectOffset(12, 12, 12, 12),
-                normal = { background = button }
-            };
-            style.Draw(area, GUIContent.none, false, false, false, false);
         }
 
         public static void DrawSolid(Rect area, Color color)

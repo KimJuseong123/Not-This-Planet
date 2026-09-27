@@ -36,7 +36,15 @@ namespace Metagame.Network
         double roomTimerStartedAt = -1d;
         public double RoomPlayTimeSeconds => roomTimerStartedAt < 0d ? 0d
             : Math.Max(0d, Time.realtimeSinceStartupAsDouble - roomTimerStartedAt);
+        internal void RestartRoomTimer() => roomTimerStartedAt = Time.realtimeSinceStartupAsDouble;
         public bool IsLocalReady { get; private set; }
+
+        /// <summary>
+        /// 보냈지만 아직 답(<c>ROOM_STATE</c>·<c>ERROR</c>)을 못 받은 AI 자리 수 (S15P21B202-713).
+        /// 값이 있는 동안 화면은 "처리 중" 이다. 서버는 값이 그대로여도 언제나 방송하므로 답은 온다.
+        /// </summary>
+        public int? PendingAiCount { get; private set; }
+
         public string ServerAddress { get; private set; } = DefaultServerAddress;
 
         /// <summary>
@@ -271,6 +279,12 @@ namespace Metagame.Network
             // 막을 이유는 아니다.
             StartCoroutine(Metagame.Core.RunLogUpload.SweepOnce(
                 Metagame.Core.BackendEndpoints.HttpBaseUrl, accessToken, UserId));
+
+            // 클리어 기록도 같은 자리에서 보낸다 (S15P21B202-656). 판이 끝난 순간에는
+            // 파일만 적어 두고(`DemoEnding`), 올리는 것은 여기다 — 같은 이유로
+            // **플레이 중에 네트워킹을 쓰지 않는다.**
+            StartCoroutine(Metagame.Core.LeaderboardUpload.SubmitPending(
+                Metagame.Core.BackendEndpoints.HttpBaseUrl, accessToken));
 
             // **판이 끝나면 한 번 더 보낸다** (S15P21B202-607). 로그인 때만 보내면
             // "한 번 켜서 한 판 하고 끄는 사람" 의 기록은 영영 오지 않는다 — 데모에서는
@@ -515,6 +529,40 @@ namespace Metagame.Network
             Send("HOST_TAKEOVER", new OutgoingData { hostAddress = hostAddress });
         }
 
+        /// <summary>
+        /// 방의 AI 자리 수를 정해 달라고 한다 (S15P21B202-713). <b>방장만</b> 부르는 것이다 —
+        /// 서버가 다시 확인해 아니면 <c>NOT_HOST</c> 로 거절한다.
+        ///
+        /// <para>늘리기·줄이기가 아니라 <b>절대값</b>을 보낸다. 두 번 눌려 두 번 가도 결과가 같다.
+        /// 받아 둔 값(<see cref="AiHostSettings.RequestedCount"/>)은 여기서 바꾸지 않는다 — 서버가
+        /// 줄이거나 거절할 수 있으니 답이 와야 바뀐다.</para>
+        /// </summary>
+        public void SetAiCount(int count)
+        {
+            if (SendPayload(BuildAiCountPayload(count))) PendingAiCount = count;
+        }
+
+        /// <summary>
+        /// 사람을 방에서 내보낸다 (S15P21B202-713). 방장만, 대기 중에만 된다 — 서버가 확인한다.
+        /// 0 과 나 자신은 보내지 않는다. 둘 다 서버가 거절할 요청이라 오류 왕복만 생긴다.
+        /// </summary>
+        public void KickPlayer(long targetUserId)
+        {
+            if (targetUserId == 0 || targetUserId == UserId) return;
+            SendPayload(BuildKickPayload(targetUserId));
+        }
+
+        /// <summary>SET_AI_COUNT 본문. 형식을 테스트에서 확인할 수 있게 분리해 둔다.</summary>
+        public static string BuildAiCountPayload(int count)
+            => BuildPayload("SET_AI_COUNT", new OutgoingData { aiCount = count });
+
+        /// <summary>KICK_PLAYER 본문. 형식을 테스트에서 확인할 수 있게 분리해 둔다.</summary>
+        public static string BuildKickPayload(long targetUserId)
+            => BuildPayload("KICK_PLAYER", new OutgoingData { targetUserId = targetUserId });
+
+        static string BuildPayload(string type, OutgoingData data)
+            => JsonUtility.ToJson(new OutgoingMessage { type = type, data = data });
+
         public void LeaveRoom()
         {
             if (IsConnected && CurrentRoom != null)
@@ -559,12 +607,39 @@ namespace Metagame.Network
             MatchAuthenticator.ClientRoomId = null;
         }
 
+        /// <summary>같은 방에서 마지막으로 받아 둔 방송 번호. 방이 바뀌거나 비면 0.</summary>
+        long lastRoomStateVersion;
+
+        /// <summary>
+        /// 이 ROOM_STATE 를 받을까 (S15P21B202-713 리뷰). 값으로 받는다 — 씬도 소켓도 없이 시험한다.
+        ///
+        /// <para><b>내가 없는 방송은 버린다</b> — 만들기·들어가기의 답에는 언제나 내가 있으므로, 내가 없다면
+        /// 이미 나간(내보내진) 방의 늦은 방송이다. 로그인 전(0)에는 이 규칙을 쓰지 않는다.</para>
+        ///
+        /// <para><b>같은 방에서 번호가 줄면 버린다.</b> 번호가 없는(0) 옛 서버의 방송은 늘 받는다.</para>
+        /// </summary>
+        public static bool AcceptsRoomState(string currentRoomId, long lastVersion, string roomId, long version,
+                                            long localUserId, bool includesLocal)
+        {
+            if (localUserId != 0 && !includesLocal) return false;
+            bool sameRoom = !string.IsNullOrEmpty(currentRoomId)
+                && string.Equals(currentRoomId, roomId, StringComparison.OrdinalIgnoreCase);
+            return !(sameRoom && version > 0 && version <= lastVersion);
+        }
+
         private void ClearRoomState()
         {
             roomTimerStartedAt = -1d;
+            lastRoomStateVersion = 0;
             CurrentRoomId = string.Empty;
             CurrentRoom = null;
             IsLocalReady = false;
+            PendingAiCount = null;
+            // 방을 떠났으면 AI 수도 0 이다 (S15P21B202-713). 단 <b>판이 돌고 있으면 두지 않는다</b> —
+            // 로비 소켓이 잠깐 끊긴 것 때문에 판 중인 AI 가 사라지면 안 된다. 판을 떠날 때는
+            // Mirror 를 먼저 내리고 여기로 오므로(LobbyTransition) 그때는 비워진다.
+            if (!Mirror.NetworkServer.active && !Mirror.NetworkClient.active)
+                AiHostSettings.AdoptRoom(null);
             RoomStateChanged?.Invoke(null);
         }
 
@@ -591,7 +666,10 @@ namespace Metagame.Network
             });
         }
 
-        private void Send(string type, OutgoingData data)
+        private void Send(string type, OutgoingData data) => SendPayload(BuildPayload(type, data));
+
+        /// <summary>본문을 보낸다. 보낼 소켓이 없어 오류로 알렸으면 false 다.</summary>
+        private bool SendPayload(string payload)
         {
             // 소켓과 취소 토큰을 지역 변수로 먼저 붙잡는다. CloseSocket() 이 CTS 를 Cancel → Dispose → null 로
             // 만들기 때문에, 종료·재연결과 겹치면 socketCancellation.Token 접근에서 NullReference 또는
@@ -610,7 +688,7 @@ namespace Metagame.Network
             if (!IsConnected || client == null || cts == null)
             {
                 ReportError("서버에 연결되어 있지 않습니다.");
-                return;
+                return false;
             }
 
             CancellationToken token;
@@ -621,11 +699,11 @@ namespace Metagame.Network
             catch (ObjectDisposedException)
             {
                 ReportError("서버 연결이 방금 끊어졌습니다. 다시 시도해 주세요.");
-                return;
+                return false;
             }
 
-            string payload = JsonUtility.ToJson(new OutgoingMessage { type = type, data = data });
             _ = SendAsync(client, payload, token);
+            return true;
         }
 
         private async Task SendAsync(ClientWebSocket client, string payload, CancellationToken cancellationToken)
@@ -709,6 +787,19 @@ namespace Metagame.Network
                     CurrentRoomId = data.roomId ?? string.Empty;
                     break;
                 case "ROOM_STATE":
+                    // **늦게 왔거나 내 것이 아닌 방송은 버린다** (S15P21B202-713 리뷰). 방송은 스레드마다
+                    // 따로 만들어져 순서 없이 닿는다 — 옛 aiCount 가 새 값을 덮으면 PC 마다 AI 수가 달라진
+                    // 채 판이 시작된다. 내보내진 직후에는 그 전에 만든 방송이 늦게 닿아 나간 방이 되살아난다.
+                    if (!AcceptsRoomState(CurrentRoomId, lastRoomStateVersion, data.roomId, data.stateVersion,
+                                          UserId, data.players != null && data.players.ContainsKey(UserId)))
+                    {
+                        Debug.Log($"[NetworkSession] 방 상태를 버린다 · 방={data.roomId} 번호={data.stateVersion}"
+                                  + $" (받아 둔 번호 {lastRoomStateVersion})");
+                        break;
+                    }
+                    if (!string.Equals(data.roomId, CurrentRoomId, StringComparison.OrdinalIgnoreCase))
+                        lastRoomStateVersion = 0;
+                    if (data.stateVersion > 0) lastRoomStateVersion = data.stateVersion;
                     // 같은 방의 상태 갱신/준비/재시작에는 유지하고 새 방 또는 방장 교체에만 리셋한다.
                     if (roomTimerStartedAt < 0d || (CurrentRoom != null
                         && (CurrentRoomId != data.roomId || CurrentRoom.HostUserId != data.hostUserId)))
@@ -717,7 +808,27 @@ namespace Metagame.Network
                     CurrentRoom = new RoomSnapshot(data);
                     PlayerSnapshot local;
                     IsLocalReady = CurrentRoom.TryGetPlayer(UserId, out local) && local.Ready;
+                    // AI 수는 방이 정한다 (S15P21B202-713). 방장만이 아니라 <b>모든 PC 가</b> 받아
+                    // 둔다 — 판 중에 방장이 바뀌면 새 방장이 이 값으로 AI 를 띄운다. 화면이 새 상태를
+                    // 그리기 전에 받아야 화면과 값이 한 프레임이라도 어긋나지 않는다.
+                    AiHostSettings.AdoptRoom(CurrentRoom);
+                    // 서버는 SET_AI_COUNT 에 값이 그대로여도 방송한다. 이것이 그 답이다.
+                    PendingAiCount = null;
                     RoomStateChanged?.Invoke(CurrentRoom);
+                    break;
+                case "KICKED":
+                    // 방장이 나를 내보냈다 (S15P21B202-713). 모르는 메시지로 두면 방 화면이 그대로
+                    // 남아, 더는 오지 않는 방송을 기다리며 멈춘 것처럼 보인다.
+                    //
+                    // 다른 방의 늦은 통지면 지금 방을 지우지 않는다 — 그 사이 다른 방에 들어갔을 수 있다.
+                    if (!string.IsNullOrEmpty(data.roomId) && CurrentRoom != null
+                        && !string.Equals(data.roomId, CurrentRoomId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        Debug.LogWarning($"[NetworkSession] 다른 방({data.roomId})의 내보내기 통지를 무시한다");
+                        break;
+                    }
+                    ClearRoomState();
+                    ReportError("방장이 방에서 내보냈습니다.");
                     break;
                 case "GAME_STARTED":
                     // 방장이 알려 준 매치 주소. 없으면(옛 서버) 로비 주소로 대신한다.
@@ -742,6 +853,9 @@ namespace Metagame.Network
                     // 받기만 하고 넘긴다 — 모르는 메시지로 취급해 오류를 띄우지 않기 위해서다.
                     break;
                 case "ERROR":
+                    // AI 수 요청이 거절됐을 수 있다 (S15P21B202-713). 어느 요청의 오류인지 메시지가
+                    // 말해 주지 않으므로 기다림을 푼다 — 남겨 두면 버튼이 "처리 중" 에서 영영 안 풀린다.
+                    PendingAiCount = null;
                     // 사유 코드가 있으면 그것으로 문구를 고른다 (S15P21B202-413).
                     ReportError(DescribeError(data.reason,
                         string.IsNullOrEmpty(data.message) ? "요청을 처리할 수 없습니다." : data.message));
@@ -993,6 +1107,13 @@ namespace Metagame.Network
                     return "그런 방이 없습니다. 방 코드를 다시 확인해 주세요.";
                 case "REJOIN_DENIED":
                     return "이 판에 참가했던 사람만 돌아올 수 있습니다.";
+                // AI 자리·내보내기 (S15P21B202-713)
+                case "NOT_HOST":
+                    return "방장만 할 수 있습니다.";
+                case "NOT_WAITING":
+                    return "게임 중에는 할 수 없습니다.";
+                case "BAD_TARGET":
+                    return "내보낼 수 없는 대상입니다.";
                 default:
                     return fallback;
             }
@@ -1043,6 +1164,10 @@ namespace Metagame.Network
             if (!IsLoggedIn || !isActiveAndEnabled) return;
             StartCoroutine(Metagame.Core.RunLogUpload.SweepOnce(
                 Metagame.Core.BackendEndpoints.HttpBaseUrl, accessToken, UserId));
+
+            // 방금 끝난 판의 클리어 기록. 적어 둔 것이 없으면 아무 일도 하지 않는다.
+            StartCoroutine(Metagame.Core.LeaderboardUpload.SubmitPending(
+                Metagame.Core.BackendEndpoints.HttpBaseUrl, accessToken));
         }
 
         void OnDestroy()

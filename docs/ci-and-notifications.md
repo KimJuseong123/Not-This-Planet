@@ -74,11 +74,20 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 | `JIRA_USER`, `JIRA_API_TOKEN` | Jira 읽기(이슈 조회·JQL) — **읽기 전용으로 충분하다.** 쓰기 권한은 두지 않는다(-242): 이슈 상태 전이는 Jira 자동화 규칙(R5·R6·R9)만 하고 CI는 검사·알림만 맡는다. 그래야 러너가 꺼져 있어도 이슈 완료가 영향받지 않고, 팀 공용 변수에 쓰기 권한이 남지 않고, 전이 규칙이 한 곳에만 있다 | Atlassian 계정 설정 → 보안 → API 토큰 — **스코프 토큰(`read:jira-work`, `read:jira-user`) 권장**. 스크립트는 `https://api.atlassian.com/ex/jira/{JIRA_CLOUD_ID}` 경로로 호출한다(스코프 토큰은 사이트 URL 로는 익명 취급 → 404, 2026-08-27 실측). `JIRA_CLOUD_ID` 기본값은 우리 사이트 | 키 실존·파트 검사 생략(경고) |
 | `GITLAB_TOKEN` | MR 제목/본문 수정·코멘트·MR 목록 | Settings → Access Tokens → **프로젝트 액세스 토큰**, 역할 Developer, 스코프 `api` | 제목 보정·AI 코멘트 불가(제안만 로그) |
 | `AI_REVIEW_CLI` | `true` — 러너 호스트의 로그인된 Claude Code CLI로 AI 리뷰(Team 플랜, **채택 방식**) | 팀장 | `ai-review` 잡 생성 안 됨 |
-| `AI_REVIEW_MODEL` | (선택) 기본 `claude-opus-5`, `AI_REVIEW_EFFORT` 기본 `medium`(팀 결정). `AI_REVIEW_SUMMARY_MODEL` 요약 에이전트 모델(기본 = 위), `AI_REVIEW_ROLES` 리뷰어 강제(예 `scope,code`), `AI_REVIEW_PARALLEL` 동시 실행 수(기본 3) | — | 기본값 |
+| `AI_REVIEW_MODEL` | (선택) 기본 `claude-opus-5-5`(러너 Claude Code 2.1.280 이상 필요), `AI_REVIEW_EFFORT` 기본 `medium`(팀 결정). `AI_REVIEW_SUMMARY_MODEL` 요약 에이전트 모델(기본 = 위), `AI_REVIEW_ROLES` 리뷰어 강제(예 `scope,code`), `AI_REVIEW_PARALLEL` 동시 실행 수(기본 3) | — | 기본값 |
 | `ANTHROPIC_API_KEY` | (대안) API 종량제로 AI 리뷰 — Team 플랜엔 포함되지 않음, 별도 콘솔·크레딧 필요 | — | cli 백엔드 사용 |
 | `MM_WEBHOOK_URL` | Mattermost 수신 웹훅 | MM 채널 → 통합 → 수신 웹훅 | `mm-digest` 생기지 않음 |
 | `CI_ENABLE` | 파이프라인 전체 게이트 | 러너 등록 직후 팀장이 `true` | 파이프라인이 생성되지 않음(의도) |
 | `JIRA_RELEASE_WEBHOOK` | (선택) 릴리스 뒤 Jira에 버전·이슈 목록을 보낸다(-327) | Jira 자동화 수신 웹훅 | Jira 릴리스 연동만 조용히 멈춤 |
+| `JIRA_RELEASE_WEBHOOK_TOKEN` | **위와 짝이다**(-645). Jira 규칙의 수신 웹훅 secret — CI 가 `X-Automation-Webhook-Token` 헤더로 보낸다 | Jira 규칙 화면의 수신 웹훅 트리거 | 주소만 있고 이 값이 없으면 **보내지 않는다**(보내 봐야 `400 Missing token`) |
+
+> **주소와 토큰을 나눠 둔 이유**(-645). 주소가 로그에 새더라도 그것만으로는 아무것도
+> 못 하게 하기 위해서다. 그리고 토큰을 **주소에 붙이지 않는다** — 붙이면 잡 로그·
+> 리다이렉트·프록시 기록 어디에나 남는다. 둘 다 Masked 로 두고, 값은 이슈·문서·채팅에
+> 적지 않는다(이름과 넣을 자리만 적는다).
+>
+> v1.1.0·v1.2.0 두 릴리스가 `{"errorMessages": ["Missing token"]}` 로 400 을 받았다.
+> **한 번도 동작한 적이 없었다** — 헤더를 하나도 안 보내고 있었다.
 
 > ~~`UNITY_RUNNER`·`UNITY_PATH`~~ 행은 **지웠다**(-336). CI 가 그 값을 **읽는 곳이 없다** —
 > `.gitlab-ci.yml` 머리 주석과 러너 설치 안내문에만 남아 있었고, `unity-compile` 은
@@ -246,6 +255,8 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 | --- | --- | --- | --- | --- |
 | 🔴 조치 필요 | MR 파이프라인 실패(mr-lint·repo-hygiene·mr-overlap·ci-tests·**unity-compile**) | CI `mm-ci-failed`(`when: on_failure`) | **MR 작성자** | `🔴 **CI 실패** — [!N 제목](url)` / `@작성자 · 실패: [mr-lint](로그) · 확인할 것: … · 고친 뒤 push 하면 자동 재검사` · **2026-08-28(-102)**: 실패한 잡 로그의 `❌` 줄을 뽑아 카드의 **이유** 칸에 최대 3개 싣고, 같은 내용을 **MR 코멘트**(마커 `ci-failed:metagame`, 재실행 시 갱신)로도 남긴다. **Draft MR 은 카드를 보내지 않는다**(아직 리뷰 요청이 아니므로 — 🟢 리뷰 요청 카드와 같은 기준, 2026-08-28). 코멘트는 그대로 남는다 — 로그를 찾아 들어가지 않아도 원인을 본다. 다시 통과하면 `mm-ci-resolved` 잡이 같은 코멘트를 **✅ 해소됨**으로 바꾼다. **두 잡의 `needs` 는 항상 같아야 한다**(-289) — 달랐던 동안에는 `ci-tests`·`mr-overlap` 이 실패해도 '해소됨' 이 찍혔고, 같은 파이프라인에서 🔴 와 ✅ 가 같은 마커에 동시에 써서 결과가 비결정적이었다. `ci_resolved()` 는 자기 판단을 하지 않으므로 게이트는 `needs` 뿐이다. `test_ci_signal.py` 가 일치를 검사한다. **2026-09-09(-361)**: 잡 목록을 두 번 묻는다. GitLab 의 기본 잡 목록은 **이름당 최신 시도만** 주므로, 빠르게 실패한 검사(`mr-lint` 6초)를 재실행하는 동안 느린 잡(`unity-compile` 2분)이 아직 돌고 있으면 이 잡이 도는 시점에 **실패 상태 잡이 하나도 없다** — 카드가 `실패한 잡 | 파이프라인` · `이유 | 로그에서 이유를 찾지 못함` 이라는 **눈먼 카드**가 된다(실측: 파이프라인 184897 · `mr-lint` 500782 실패 → 500804 재실행 통과 → 500790 카드. 이유는 로그에 명확히 있었다). 거짓을 말한 것은 아니고 **쓸모가 없어진 것**이며, 그 카드의 존재 이유가 로그를 열지 않고도 원인을 아는 것이다. 그래서 현재 실패가 없으면 `include_retried=true` 로 다시 물어 **실패했던 시도**를 찾아 이름·이유·그 시도의 링크를 싣고, `— **재시도 뒤 통과**` 를 덧붙인다 — 그 말이 없으면 사람이 이미 고쳐진 것을 다시 쫓는다. **카드를 생략하지는 않는다**: 실패가 있었던 사실 자체가 사라지면 `-289` 가 고친 오탐의 반대쪽으로 틀린다. `allow_failure` 잡의 가려진 실패는 세지 않고(파이프라인을 빨갛게 만들지 않으므로), 같은 이름이 여러 번 실패했으면 가장 최근 것 하나만 싣는다. 재시도 조회가 죽어도 카드는 나간다. develop 카드도 같은 규칙을 쓴다(`failed_jobs()` 한 곳). **재시도로 통과한 경우 MR 코멘트는 건드리지 않는다** — 그 파이프라인에서는 `mm-ci-resolved` 가 **같은 마커**에 ✅ 를 쓰므로(2026-09-09 실측: 파이프라인 184897 에서 `mm-ci-failed` 500790 과 `mm-ci-resolved` 500791 이 둘 다 돌았다) 둘이 경쟁하면 최종 내용이 비결정적이 되고 초록 파이프라인에 🔴 코멘트가 남는다(`-289` 가 고친 사고와 같은 경로). 카드는 그대로 보낸다 — 덮어쓰이지 않는 통로다. 잡 목록은 **페이지 끝까지** 읽는다(상한 5페이지): `include_retried` 는 잡 수가 시도 수만큼 늘어나 한 페이지만 읽으면 상한을 넘는 순간 조용히 잘려 이 장치가 고친 실패 모드가 그대로 재발한다. **2026-09-08(-344)**: `needs` 에 `unity-compile` 이 없어 **그 잡만 실패하면 카드가 안 나갔다** — 넣었다. `needs` 는 이제 **전부 `optional: true`** 다: develop push 파이프라인에는 `mr-lint`·`repo-hygiene`·`mr-overlap` 이 아예 없어(그 잡들의 `rules` 가 `merge_request_event`) optional 이 아닌 `needs` 는 **파이프라인 생성 자체를 실패시킨다**. MR 파이프라인에서는 그 셋이 항상 만들어지므로 뜻이 달라지지 않는다 |
 | 🔴 팀 전체 | **`develop` 파이프라인 실패** | CI `mm-ci-failed`(develop push 규칙) | **밀어 넣은 사람 + Infra** | `🔴 **develop 가 빨갛다**` — 커밋 링크·실패한 잡·이유(❌ 줄)·**영향**·조치. **MR 실패와 성격이 다르다**: 그 순간부터 `develop` 에서 딴 브랜치는 **빨간 기준선 위에서 시작한다**(남의 실패를 물려받는다). MR 이 없어 작성자 멘션·MR 코멘트 경로를 쓸 수 없고, 원인이 두 MR 의 조합이면 저자가 하나로 정해지지 않으므로 **되돌릴 수 있는 사람**(밀어 넣은 사람)과 Infra 를 부른다. `unity-compile` 이 develop push 에서 도는 것은 의도된 설계다 — "개별 MR 은 통과했는데 합쳐서 깨지는 경우를 잡는다"(-271). **2026-09-08 14:11 에 두 커밋 연속 실패했는데 카드가 0건이었다** — 검사는 제대로 일했고 알림만 빠져 있었다(-344) |
+| 🟢 일상 | **예약 실행이 끝났다** — 01:00 캐시 데우기 · 04:00 새벽 배포 | CI `mm-nightly-result`(`when: always`, 새벽 작업에만) | **아무도** (-608) | `🟢 **예약 실행 완료** (01:03 예약)` — 커밋 · **한 일**(돈 잡과 소요) · 링크 · **이 카드가 없는 날 = 예약이 멈춘 것**. **하기로 한 잡이 안 돌았으면 🟡 `예약 실행이 덜 돌았다`** 로 내리고 '안 돈 잡' 칸에 이름을 적는다 — 성공한 잡만 세면 데우기 잡이 취소되거나 규칙이 어긋나 **아예 만들어지지 않은** 날에도 실패가 0건이라 초록이 나가고, 그건 이 카드가 잡으려던 실패 모드와 정확히 겹친다(`!570` AI 리뷰). 기대 잡은 예약 변수로 고른다 — `WARM_UNITY_CACHE` → `build-devbuild`, `NIGHTLY_DEPLOY_DEV` → `build-devbuild`·`deploy-dev`. **성공에도 보내는 이유는 조용한 멈춤이다** — 데우기(-664)는 스케줄 브랜치가 사라지거나 ref 를 안 옮기면 **실패하지 않고 그냥 안 돈다**(파이프라인은 전부 초록이고 캐시만 식는다). 카드가 매일 오면 안 온 날이 신호가 된다. 2026-09-22 01:03 데우기가 4.2분에 성공했는데 채널에 아무것도 안 갔다(-675). **09:30 아침 점검에는 성공 카드를 안 보낸다** — `mm-digest` 가 제 카드를 매일 보내므로 두 장이 된다 |
+| 🔴 조치 필요 | **예약 실행이 실패했다** | CI `mm-nightly-result` | **아무도** (-608) | `🔴 **예약 실행이 실패했다** (04:03 예약)` — 실패한 잡 · 이유(❌ 줄) · **영향**(그 브랜치 코드가 빨간 것이 아니라 *그 시각에 하기로 한 일이 안 됐다*) · 조치. **`needs` 를 달지 않는다** — 스테이지 순서로 미뤄야 새벽 잡 전부를 기다린다(-344·-533). 버튼 잡을 넣으면 안 눌린 파이프라인에서 통째로 `skipped` 가 된다(`!448` 실측) |
 | ✅ 해소 | **`develop` 이 초록으로 돌아옴** | CI `mm-ci-resolved`(develop push 규칙) | 채널 | `✅ **develop 가 초록으로 돌아왔다**` — **직전 파이프라인이 실패였을 때만** 보낸다. 안 그러면 초록일 때마다 카드가 나가 채널이 시끄럽고, 아무것도 안 보내면 사람들이 **언제 다시 브랜치를 따도 되는지** 알 수 없다. 🔴 카드가 "빨간 기준선 위에서 시작한다" 고 경고했으므로 풀렸다는 말도 같은 채널에 있어야 한다. `running`·`canceled` 는 판단 근거로 쓰지 않고 그 뒤의 결론난 파이프라인을 본다(-344) |
 | 🔴 | develop(기본 브랜치) 파이프라인 실패 | GitLab 내장 통합(Pipeline, default branch) | 없음 — 유일한 예외(빈도 극히 낮음, 인프라가 봄) | GitLab 고정 형식 |
 | 🟠 규칙 위반 | 손으로 진행 중 → 되돌림 (R5) | Jira 웹 요청(되돌림 분기에서만) | **끈 사람**(initiator) | `🟠 **되돌림 (진행 중 → 해야 할 일)** — [KEY](url) 제목` / `@user · 진행 중은 브랜치 만들기로만` |
@@ -272,7 +283,7 @@ python scripts/ci/repo_hygiene.py <base-sha> <head-sha>
 
 | 항목 | 지난 프로젝트 | 이번 적용 |
 | --- | --- | --- |
-| 모델·effort | `claude-opus-5` + `--effort medium` | 동일 (`AI_REVIEW_MODEL`/`AI_REVIEW_EFFORT`) |
+| 모델·effort | `claude-opus-5` + `--effort medium` | `claude-opus-5-5` + `--effort medium` — 2026-09-25 에 모델만 올렸다 (`AI_REVIEW_MODEL`/`AI_REVIEW_EFFORT`) |
 | CLI 격리 플래그 | `--tools "" --setting-sources user --strict-mcp-config --disable-slash-commands --permission-mode dontAsk --no-session-persistence`, 호출마다 일회성 `CLAUDE_CONFIG_DIR` | 플래그 동일. 자격은 러너 호스트 사용자 프로필을 공유(`CLAUDE_CONFIG_DIR` 주입) — 단일 러너·단일 계정이라 일회성 디렉터리는 생략 |
 | 프롬프트 원칙 | MR 본문·diff는 untrusted 구분자로 감싸고, "diff에 없다 ≠ 저장소에 없다", 추측 금지, 한국어 출력 | 시스템 프롬프트에 반영 |
 | 실패 처리 | stdout/stderr 원문을 로그·코멘트에 남기지 않고 카테고리만(`rate_limit`·`authentication`·`server_error`·`network`·`invalid_request`), 인증·요청 오류는 재시도 안 함 | 카테고리 분류 로그 반영(비차단 잡이라 재시도는 파이프라인 재실행으로) |

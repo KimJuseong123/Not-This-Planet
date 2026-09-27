@@ -12,6 +12,9 @@
 *.asmdef text
 *.json text
 
+# Baked navigation mesh copies exceed the non-LFS size limit.
+METAGAME/Assets/_Project/Resources/AiNavigationGeometry.asset filter=lfs diff=lfs merge=lfs -text
+
 # Stage1 Astra exceeds the 5 MB non-LFS limit.
 METAGAME/Assets/Scenes/Stage1_Astra.unity filter=lfs diff=lfs merge=lfs -text
 METAGAME/Assets/Scenes/Stage2_Earth.unity filter=lfs diff=lfs merge=lfs -text
@@ -37,7 +40,8 @@ METAGAME/Assets/_Project/Art/Stage2Earth/DrainageReflection.asset filter=lfs dif
 
 *.png filter=lfs diff=lfs merge=lfs -text
 *.jpg filter=lfs diff=lfs merge=lfs -text
-*.jpeg filter=lfs diff=lfs merge=lfs -text
+# Windows core.ignorecase hid uppercase .JPEG pointers from the Linux build.
+*.[jJ][pP][eE][gG] filter=lfs diff=lfs merge=lfs -text
 *.gif filter=lfs diff=lfs merge=lfs -text
 *.tga filter=lfs diff=lfs merge=lfs -text
 *.tif filter=lfs diff=lfs merge=lfs -text

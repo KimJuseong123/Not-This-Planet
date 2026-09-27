@@ -20,6 +20,7 @@ namespace Metagame.Bootstrap
         bool _loading;
         int _presentedRevision = -1;
         bool _networked;
+        bool _entryTabletOpened;
 
         public void Configure(SpaceBootstrap bootstrap, MeteorSpawner spawner)
         {
@@ -77,6 +78,15 @@ namespace Metagame.Bootstrap
             if (_bootstrap.Session.EndingActive || !Sequence.IsCinematic)
             {
                 if (_view != null) StartCoroutine(CloseView());
+                // A skip can finish before the additive scene (or local body) loads.
+                // Open once on each client after its body is ready; allow normal closing afterwards.
+                if (!_entryTabletOpened && !_bootstrap.Session.EndingActive && !Sequence.BlocksInput
+                    && _bootstrap.Session.LocalPlayer != null && _bootstrap.Exploration != null)
+                {
+                    _bootstrap.Exploration.SetTabletOpen(true);
+                    _bootstrap.Session.SetCursor(false);
+                    _entryTabletOpened = true;
+                }
                 return;
             }
             // 시간 제한 이후 몸이 늦게 생성된 로컬 플레이어도 현재 샷에 합류한다.
@@ -102,6 +112,15 @@ namespace Metagame.Bootstrap
                 }
                 yield return SceneManager.LoadSceneAsync(path, LoadSceneMode.Additive);
                 scene = SceneManager.GetSceneByPath(path);
+            }
+            // Unanimous skip can finish while the additive scene is still loading.
+            // Do not briefly take over the gameplay camera with an obsolete shot.
+            if (Sequence == null || Sequence.Revision != revision || !Sequence.IsCinematic
+                || _bootstrap.Session.EndingActive)
+            {
+                if (scene.IsValid() && scene.isLoaded) yield return SceneManager.UnloadSceneAsync(scene);
+                _loading = false;
+                yield break;
             }
             foreach (var root in scene.GetRootGameObjects())
             {

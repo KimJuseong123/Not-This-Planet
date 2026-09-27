@@ -5,7 +5,8 @@ using UnityEngine;
 namespace Metagame.Gameplay.Hazards
 {
     /// <summary>
-    /// 운석을 <b>공세 단위</b>로 예고하고 떨어뜨린다(기획 §17.3~17.7).
+    /// Stage1은 독립 낙하 시계를, 기존 시험장/프리셋은 공세 묶음을 사용한다.
+    /// 아래 공세 설명은 기존 묶음 모드의 계약이다.
     ///
     /// 흐름은 이렇다.
     ///  1) 공세 간격이 되기 5초 전에 <see cref="WaveIncoming"/> 을 보낸다(§17.3).
@@ -109,6 +110,54 @@ namespace Metagame.Gameplay.Hazards
         readonly List<Vector3> _workAreas = new();
 
         System.Random _random;
+        MeteorDropSchedule _dropSchedule;
+        bool _independentDrops;
+        bool UsesIndependentDrops => _independentDrops && _pinnedBand == null;
+        int ActiveDropClocks => AssaultEnabled ? MeteorDropSchedule.SpawnerCount : 1;
+
+        /// <summary>
+        /// 한 프레임에 띄우는 운석 수의 상한 (S15P21B202-684).
+        ///
+        /// <para><b>낙하 빈도를 바꾸지 않는다.</b> 시계 8개가 1~5초를 다시 뽑으므로
+        /// 평균은 초당 2.7발이고, 120fps 면 프레임당 0.02발이다 — 정상 진행에서는 이
+        /// 상한에 걸리는 일이 없다. 걸리는 경우는 <b>프레임이 길어졌을 때</b>다.</para>
+        ///
+        /// <para><see cref="MeteorDropSchedule.Tick"/> 은 한 레인이 밀린 낙하를 몰아
+        /// 내지 않게 막지만(<b>레인 안에서만</b>), 프레임이 길면 <b>여러 레인이 같은 틱에</b>
+        /// 만료된다. 그러면 렉이 난 프레임에 여덟 발의 <c>Instantiate</c> 와 예고와
+        /// 네트워크 묶음이 함께 실려 <b>렉이 다음 렉을 만든다</b>. 늦게 띄우는 값은
+        /// 프레임 몇 개뿐이고(120fps 에서 8발이면 50ms) 돌은 몇 초를 떨어지므로 사람이
+        /// 알 수 없다.</para>
+        /// </summary>
+        const int MaxLaunchesPerFrame = 2;
+
+        /// <summary>
+        /// 이 프레임에 못 띄우고 넘긴 레인 비트. <b>쌓이지 않는다</b> — 레인이 여덟 개라
+        /// 최대 여덟 비트이고, 같은 레인이 두 번 밀려도 비트는 하나다.
+        /// </summary>
+        int _dueCarry;
+        int _launchFrame = -1;
+        int _launchesThisFrame;
+
+        [Header("Stage1 독립 낙하")]
+        [Tooltip("공세 때 선택한 플레이어의 수평 위치 주변에 낙하할 최대 반경(m).") ]
+        [SerializeField, Min(0f)] float _assaultPlayerTargetRadius = 5f;
+        [Tooltip("동시에 살아 있는 운석 상한. 기본 네트워크 패킷 용량에도 여유를 둔다.")]
+        [SerializeField, Range(1, 16)] int _maxIndependentLiveMeteors = 16;
+
+        /// <summary>솔로와 멀티 모두 동일한 8개 시계. 생성·복제 관리자는 하나만 유지한다.</summary>
+        public void EnableIndependentDrops()
+        {
+            if (_independentDrops) return;
+            _independentDrops = true;
+            _dropSchedule = new MeteorDropSchedule(_seed);
+            _dueCarry = 0;
+            _waveRemaining = 0;
+            _leadSent = false;
+        }
+
+        public bool IndependentDropsEnabled => UsesIndependentDrops;
+        public float AssaultPlayerTargetRadius => Mathf.Max(0f, _assaultPlayerTargetRadius);
 
         /// <summary>대각선 경로 검사의 버퍼. 운석마다 새로 만들지 않는다.</summary>
         static readonly RaycastHit[] EntryProbe = new RaycastHit[16];
@@ -168,36 +217,25 @@ namespace Metagame.Gameplay.Hazards
             public Meteor Meteor;
             public Vector3 Point;
             public float Radius;
-            public float Age;
-
-            /// <summary>다 식었는가. 기획 §19 "약 5초 동안 … 약해진다".</summary>
-            public float CoolSeconds;
-
-            /// <summary>식은 뒤 옅어져 사라지는 시간(초). S15P21B202-438.</summary>
-            public float FadeSeconds;
-
-            public bool Cooled => Age >= CoolSeconds;
 
             /// <summary>
-            /// 화면에서 아예 보이지 않게 됐는가.
+            /// 박힌 뒤 지난 시간(초). <b>이것이 소멸 타이머다</b> —
+            /// <see cref="AdvanceScars"/> 가 <see cref="MeteorTuning.ScarDespawnSeconds"/>
+            /// 를 넘으면 운석을 없앤다.
             ///
-            /// <b><see cref="Cooled"/> 와 다르다.</b> 식은 것은 색이 굳었다는 뜻이고
-            /// 이것은 투명해졌다는 뜻이다. 표시를 갱신할지 말지는 이쪽으로 판단해야
-            /// 한다 — <c>Cooled</c> 로 끊으면 옅어지는 단계가 화면에 반영되지 않는다.
+            /// <para><b>표시가 사라져도 이 값은 남는다</b>(S15P21B202-653). 원반을
+            /// 걷어내면서 색 관련 필드는 지웠지만 나이는 지우면 안 된다 — 예전에
+            /// 운석 쪽 타이머와 갈라져 있다가 <b>흔적이 영구히 남은</b> 결함이
+            /// 그것이었다(S15P21B202-438, 실제 플레이 로그에 36개가 살아 있었다).</para>
             /// </summary>
-            /// <summary>
-            /// 색이 더 이상 변하지 않는가. <b>계산은 한 곳에만 둔다</b> — 예전에는 여기와
-            /// <see cref="MeteorScarLook"/> 에 따로 있었고, 페이드가 0 일 때 둘이 서로
-            /// 다른 답을 냈다(!347 AI 리뷰가 그 차이에 걸렸다).
-            /// </summary>
-            public bool ColorIsFinal =>
-                MeteorScarLook.ColorIsFinal(Age, CoolSeconds, FadeSeconds);
+            public float Age;
         }
 
         readonly List<Scar> _scars = new();
 
         /// <summary>다음에 줄 흔적 번호. 0 은 "번호 없음" 으로 남겨 둔다.</summary>
         int _nextScarId;
+        int _nextMeteorId;
 
         /// <summary>
         /// 지면에 박힌 흔적. 오래된 것이 앞이다(기획 §19).
@@ -241,6 +279,15 @@ namespace Metagame.Gameplay.Hazards
             if (AssaultEnabled == enabled) return;
 
             AssaultEnabled = enabled;
+            if (UsesIndependentDrops)
+            {
+                // 각 시계의 첫 낙하도 무작위로 분산한다. 이전 묶음은 이어서 내보내지 않는다.
+                _dropSchedule.Reset(_seed);
+                _dueCarry = 0;
+                _waveRemaining = 0;
+                _leadSent = false;
+                return;
+            }
 
             // 켤 때는 곧바로 한 발, <b>끌 때는 처음부터</b>(!525 AI 리뷰). 풀 가동
             // 5초 기준으로 쌓인 경과를 그대로 두면 가랑비 10초 기준으로는 이미 넘겨서,
@@ -300,6 +347,7 @@ namespace Metagame.Gameplay.Hazards
 
         /// <summary>다음 공세까지 남은 초. 공세 중이면 0.</summary>
         public float SecondsUntilWave =>
+            UsesIndependentDrops ? _dropSchedule.SecondsUntilNext(ActiveDropClocks) :
             _waveRemaining > 0 ? 0f : Mathf.Max(0f, CurrentInterval - _sinceLastWave);
 
         /// <summary>
@@ -458,6 +506,8 @@ namespace Metagame.Gameplay.Hazards
         {
             EnsureConfiguration();
             _random = new System.Random(_seed);
+            _dropSchedule = new MeteorDropSchedule(_seed);
+            _dueCarry = 0;
             _elapsed = 0f;
             AssaultEnabled = false;
             _sinceLastWave = 0f;
@@ -648,16 +698,24 @@ namespace Metagame.Gameplay.Hazards
         /// 소유자가 매 물리 스텝 호출한다.
         /// 예고를 만들고, 예고 시간이 지난 것을 떨어뜨리고, 살아 있는 운석을 갱신한다.
         /// </summary>
-        public void Tick(float deltaTime)
+        public void Tick(float deltaTime, int frame = -1)
         {
             if (_random == null) ResetRun();
 
+            if (deltaTime <= 0f || float.IsNaN(deltaTime) || float.IsInfinity(deltaTime)) return;
+            // Runtime shares a budget across catch-up FixedUpdates. Standalone
+            // simulations can provide an explicit frame without depending on Unity time.
+            int currentFrame = frame >= 0 ? frame : Application.isPlaying ? Time.frameCount : _launchFrame + 1;
+            if (_launchFrame != currentFrame)
+            {
+                _launchFrame = currentFrame;
+                _launchesThisFrame = 0;
+            }
             _elapsed += deltaTime;
 
-            AdvanceSchedule(deltaTime);
-            AdvancePending(deltaTime);
-            AdvanceLive(deltaTime);
-            AdvanceScars(deltaTime);
+            using (new Metagame.Core.FrameSections.Section(Metagame.Core.FrameSections.MeteorSchedule, System.Diagnostics.Stopwatch.GetTimestamp())) { AdvanceSchedule(deltaTime); AdvancePending(deltaTime); }
+            using (new Metagame.Core.FrameSections.Section(Metagame.Core.FrameSections.MeteorLive, System.Diagnostics.Stopwatch.GetTimestamp())) AdvanceLive(deltaTime);
+            using (new Metagame.Core.FrameSections.Section(Metagame.Core.FrameSections.MeteorScars, System.Diagnostics.Stopwatch.GetTimestamp())) AdvanceScars(deltaTime);
         }
 
         /// <summary>
@@ -666,6 +724,31 @@ namespace Metagame.Gameplay.Hazards
         void AdvanceSchedule(float deltaTime)
         {
             if (IsPaused || SequenceHold) return;
+            if (UsesIndependentDrops)
+            {
+                var due = _dropSchedule.Tick(deltaTime, ActiveDropClocks) | _dueCarry;
+                _dueCarry = 0;
+
+                for (int i = 0; i < MeteorDropSchedule.SpawnerCount; i++)
+                {
+                    if ((due & (1 << i)) == 0) continue;
+
+                    // 상한에 막힌 낙하는 버린다. 재개 시 밀린 운석이 폭주하지 않는다.
+                    if (_live.Count >= Mathf.Clamp(_maxIndependentLiveMeteors, 1, 16)) continue;
+
+                    // **한 프레임의 상한을 넘으면 미룬다** (S15P21B202-684). 버리지 않는다 —
+                    // 버리면 긴 프레임이 낙하 수를 줄여 기획 값이 프레임률에 따라 달라진다.
+                    if (_launchesThisFrame >= MaxLaunchesPerFrame)
+                    {
+                        _dueCarry |= 1 << i;
+                        continue;
+                    }
+
+                    _launchesThisFrame++;
+                    Launch();
+                }
+                return;
+            }
 
             if (_waveRemaining > 0)
             {
@@ -816,8 +899,7 @@ namespace Metagame.Gameplay.Hazards
         // 호스트가 **지금 살아 있는 운석의 자세**를 실어 보내고 참가자는 그림만 띄운다.
         //
         // 그림은 판정에 관여하지 않는다: Meteor 컴포넌트를 끄고 충돌러를 모두 끈다.
-        // 그래서 Meteor.cs 를 한 줄도 안 고친다 — 꺼진 컴포넌트에는 OnCollisionEnter 도
-        // Tick 도 오지 않고, OnDisable 이 Meteor.All 에서 빼 준다.
+        // Meteor.IsReplica가 충돌/피해 판정을 차단한다. 비활성 컴포넌트에도 충돌 통보는 온다.
 
         /// <summary>
         /// 살아 있는 운석 하나의 자세.
@@ -833,6 +915,8 @@ namespace Metagame.Gameplay.Hazards
         /// </summary>
         public struct NetworkMeteorPose
         {
+            public int Id;
+            public byte DeflectionGrade;
             public float GroundHeight;
             public bool Harmless;
             public float BatWindow;
@@ -843,9 +927,38 @@ namespace Metagame.Gameplay.Hazards
         }
 
         readonly List<Meteor> _ghosts = new();
+        readonly Dictionary<int, Meteor> _fallingById = new();
+        readonly HashSet<int> _seenMeteorIds = new();
+        readonly List<int> _staleMeteorIds = new();
 
         /// <summary>참가자 화면에 떠 있는 낙하 그림. 권위 쪽에서는 항상 비어 있다.</summary>
         public IReadOnlyList<Meteor> Ghosts => _ghosts;
+
+        /// <summary>
+        /// 다 쓴 낙하 그림을 세워 두는 곳 (S15P21B202-684).
+        ///
+        /// <para><b>왜 필요한가.</b> 공세를 켜면 낙하 시계가 1개에서 8개가 되고(기획 §17.8)
+        /// 동시에 떠 있는 돌이 1~2개에서 열 개쯤으로 늘어난다. 참가자 쪽 그림 수는 그것을
+        /// 그대로 따라가므로, 초당 두세 개의 <c>Instantiate</c> 와 <c>Destroy</c> 가
+        /// <b>공세 내내</b> 프레임에 실린다. 돌은 서로 구별되지 않으니 다시 쓰면 된다.</para>
+        ///
+        /// <para><b>흔적 그림은 별도 풀을 쓴다.</b> 흔적은 콜라이더를 켜고 레이어를
+        /// <see cref="GameLayers.Prop"/> 으로 옮기고 kinematic 으로 세운다(S15P21B202-658) —
+        /// 한 풀에 섞으면 꺼낸 돌이 <b>지난 쓰임의 설정</b>을 물고 온다. 게다가 흔적은
+        /// 13초 후 소멸하므로 별도 재사용 풀이 반복 생성 비용을 줄인다.</para>
+        ///
+        /// <para><b>여기 있는 것은 <see cref="Ghosts"/> 에 세지 않는다.</b> 진단이
+        /// <c>live</c> 를 <c>Live.Count + Ghosts.Count</c> 로 찍으므로(<c>NetDiagnostics</c>),
+        /// 세워 둔 것까지 세면 참가자 쪽 <c>live</c> 가 호스트와 갈려 <b>세계가 어긋난 것처럼
+        /// 보인다</b>.</para>
+        /// </summary>
+        readonly List<Meteor> _ghostPool = new();
+
+        /// <summary>
+        /// 세워 둘 수 있는 그림 수. <see cref="_maxIndependentLiveMeteors"/> 의 상한과 같다 —
+        /// 동시에 떠 있을 수 있는 수를 넘겨 쥐고 있을 이유가 없다.
+        /// </summary>
+        const int MaxPooledGhosts = 16;
 
         /// <summary>
         /// 호스트가 보낸 낙하 자세로 그림을 맞춘다 (S15P21B202-352).
@@ -853,38 +966,54 @@ namespace Metagame.Gameplay.Hazards
         /// <para><b>권위 쪽에서 부르면 안 된다</b> — 자기 운석 위에 그림을 겹쳐 띄운다.
         /// <see cref="Tick"/> 을 돌리는 기계와 이것을 부르는 기계는 서로 배타적이다.</para>
         ///
-        /// <para>짝은 번호로 짓는다. 돌은 서로 구별되지 않으므로 어느 그림이 어느 운석인지는
-        /// 중요하지 않고 <b>몇 개가 어디에 있는지</b>가 중요하다 — 자세 목록처럼 순서가
-        /// 어긋나 남의 자리로 가는 사고가 여기서는 눈에 보이지 않는다.</para>
+        /// <para>목록 순서는 바뀔 수 있으므로 호스트가 준 생애별 ID로 짝짓는다.
+        /// 앞 운석이 착탄해도 뒤 운석의 모델·꼬리가 다른 위치로 갈아타지 않는다.</para>
         /// </summary>
         public void ApplyNetworkMeteors(IReadOnlyList<NetworkMeteorPose> poses)
         {
             var n = poses != null ? poses.Count : 0;
-
-            while (_ghosts.Count > n)
+            _seenMeteorIds.Clear();
+            for (int i = 0; i < n; i++)
+                _seenMeteorIds.Add(poses[i].Id != 0 ? poses[i].Id : -(i + 1));
+            _staleMeteorIds.Clear();
+            foreach (var pair in _fallingById)
+                if (!_seenMeteorIds.Contains(pair.Key)) _staleMeteorIds.Add(pair.Key);
+            foreach (var id in _staleMeteorIds)
             {
-                var last = _ghosts.Count - 1;
-                if (_ghosts[last] != null) _ghosts[last].Despawn();
-                _ghosts.RemoveAt(last);
+                ParkGhost(_fallingById[id]);
+                _fallingById.Remove(id);
             }
-            while (_ghosts.Count < n) _ghosts.Add(CreateGhost());
-
+            _ghosts.Clear();
             for (var i = 0; i < n; i++)
             {
-                var ghost = _ghosts[i];
-                if (ghost == null) continue;
+                // Zero is reserved for standalone callers without network identity.
+                int id = poses[i].Id != 0 ? poses[i].Id : -(i + 1);
+                bool created = !_fallingById.TryGetValue(id, out var ghost) || ghost == null;
+                if (created) _fallingById[id] = ghost = CreateGhost();
+                _ghosts.Add(ghost);
+                ghost.ReplicaVisual.BeforeCorrection();
 
-                ghost.ApplyGuideSnapshot(poses[i].GroundHeight, poses[i].Harmless, poses[i].BatWindow, poses[i].BatRadius);
-                var body = ghost.GetComponent<Rigidbody>();
+                ghost.ApplyGuideSnapshot(poses[i].GroundHeight, poses[i].Harmless, poses[i].BatWindow, poses[i].BatRadius,
+                    poses[i].DeflectionGrade);
+                // `Meteor.Body` 를 쓴다 (`!321` AI 리뷰, S15P21B202-684). 이 고리는 매
+                // 묶음마다 그림 전부를 훑으므로 여기서 GetComponent 를 부르면 공세 때
+                // 초당 수백 번이 된다 — 흔적 쪽은 같은 이유로 이미 고쳐져 있었다.
+                var body = ghost.Body;
                 if (body != null)
                 {
                     body.position = poses[i].Position;
                     body.rotation = poses[i].Rotation;
                     body.linearVelocity = poses[i].Velocity;
+                    // Rigidbody interpolation can leave Transform on the previous
+                    // physics pose until the next step. Reset that pose on correction
+                    // before calculating the visual-only error offset.
+                    ghost.transform.SetPositionAndRotation(poses[i].Position, poses[i].Rotation);
+                    ghost.ReplicaVisual.AfterCorrection(created);
                     continue;
                 }
 
                 ghost.transform.SetPositionAndRotation(poses[i].Position, poses[i].Rotation);
+                ghost.ReplicaVisual.AfterCorrection(created);
             }
         }
 
@@ -902,6 +1031,63 @@ namespace Metagame.Gameplay.Hazards
                 if (_ghosts[i] != null) _ghosts[i].Despawn();
 
             _ghosts.Clear();
+            _fallingById.Clear();
+
+            // **세워 둔 것까지 지운다** (S15P21B202-684). 이 함수의 계약이 "씬에 남겨 두지
+            // 않는다" 이므로 풀도 비운다 — 꺼져 있어 보이지도 밟히지도 않지만, 남겨 두면
+            // 이 계약을 읽은 사람이 틀리게 된다.
+            for (var i = 0; i < _ghostPool.Count; i++)
+                if (_ghostPool[i] != null) _ghostPool[i].Despawn();
+
+            _ghostPool.Clear();
+        }
+
+        /// <summary>
+        /// 다 쓴 낙하 그림을 지우지 않고 세워 둔다 (S15P21B202-684).
+        ///
+        /// <para><b>꺼서 세운다.</b> <c>SetActive(false)</c> 면 그리지도 물리를 밟지도
+        /// 않는다 — 살아 있는 것과 구별되는 것은 그 한 줄이다. <c>Meteor.All</c> 에서도
+        /// 빼 둔다(이미 <c>enabled = false</c> 로 빠져 있지만, 그 사실이 여기 적혀 있어야
+        /// 세워 둔 돌이 남의 순회에 끼는 일이 없다).</para>
+        ///
+        /// <para>넘치면 지운다. 쥐고 있어 봐야 다시 쓰이지 않는다.</para>
+        /// </summary>
+        void ParkGhost(Meteor ghost)
+        {
+            if (ghost == null) return;
+
+            if (_ghostPool.Count >= MaxPooledGhosts)
+            {
+                ghost.Despawn();
+                return;
+            }
+
+            ghost.Unregister();
+            ghost.gameObject.SetActive(false);
+            _ghostPool.Add(ghost);
+        }
+
+        /// <summary>
+        /// 세워 둔 낙하 그림을 하나 꺼낸다. 없으면 <c>null</c> (S15P21B202-684).
+        ///
+        /// <para>씬 전환이나 <c>Destroy</c> 로 사라진 것은 건너뛰고 버린다 — 꺼낸 것이
+        /// <c>null</c> 이면 부르는 쪽이 새로 만든다.</para>
+        /// </summary>
+        Meteor TakeParkedGhost()
+        {
+            while (_ghostPool.Count > 0)
+            {
+                var last = _ghostPool.Count - 1;
+                var ghost = _ghostPool[last];
+                _ghostPool.RemoveAt(last);
+
+                if (ghost == null) continue;
+
+                ghost.gameObject.SetActive(true);
+                return ghost;
+            }
+
+            return null;
         }
 
         // ── 네트워크에서 받은 흔적 (S15P21B202-355) ───────────────────────
@@ -912,9 +1098,15 @@ namespace Metagame.Gameplay.Hazards
         // 2026-09-10 QA 신고가 그것이다: "호스트 화면에서 운석이 보이는데 나는 안 보여.
         // 그런데 보이지만 않고 상호작용은 돼."
         //
-        // 낙하 그림과 같은 방식이다(ApplyNetworkMeteors) — 판정에 관여하지 않는 그림만
-        // 만들고 Meteor 컴포넌트와 충돌러를 끈다. 다른 점은 **번호로 짝을 짓는다는
-        // 것**뿐이다. 사람이 집어 옮기므로 어느 돌인지가 중요하다.
+        // 낙하 그림과 마찬가지로 **판정은 하지 않는다** — Meteor 컴포넌트를 끈다.
+        // 다른 점이 둘이다.
+        //
+        //  · **번호로 짝을 짓는다.** 사람이 집어 옮기므로 어느 돌인지가 중요하다.
+        //  · **콜라이더는 켜 둔다**(S15P21B202-658). 예전에는 낙하 그림처럼 콜라이더까지
+        //    껐는데, 그러면 참가자가 착지한 돌을 **몸으로 통과**한다 — 호스트에게는
+        //    막힌 벽이고, 피해는 호스트가 주므로 **안 부딪혔는데 체력만 깎였다.**
+        //    판정을 막는 데 필요한 것은 Meteor 컴포넌트를 끄는 것 하나이고,
+        //    콜라이더는 막는 일만 할 뿐 아무것도 판정하지 않는다(`-654` Q7).
 
         /// <summary>
         /// 착지한 흔적 하나의 자세. <b>속도를 싣지 않는다</b> — 쉬는 돌은 속도가 0이고,
@@ -926,9 +1118,13 @@ namespace Metagame.Gameplay.Hazards
             public int Id;
             public Vector3 Position;
             public Quaternion Rotation;
+            public bool Moving;
         }
 
         readonly Dictionary<int, Meteor> _scarGhosts = new();
+        readonly List<Meteor> _scarPool = new();
+        const int MaxPooledScars = 48;
+        double _scarSampleTime;
 
         /// <summary>
         /// 그림이 마지막으로 받은 자세와 그 시각 (S15P21B202-434).
@@ -953,7 +1149,20 @@ namespace Metagame.Gameplay.Hazards
         {
             public Vector3 Position;
             public Quaternion Rotation;
-            public float Time;
+            public double Time;
+            public float ReceivedAt;
+
+            /// <summary>
+            /// 다음 묶음까지 이어서 밟을 속도 (S15P21B202-658).
+            ///
+            /// <para><b>왜 강체에 넣지 않고 여기 두나.</b> 흔적 그림은 이제
+            /// <b>키네마틱</b>이다(콜라이더를 켜면서 그렇게 바꿨다 — 아니면 참가자가
+            /// 돌을 밀어 버린다). 키네마틱 강체는 <c>linearVelocity</c> 를 무시하므로
+            /// 예전처럼 속도를 넣어 두면 <b>돌이 아예 안 움직인다</b>.
+            /// <see cref="AdvanceScarGhosts"/> 가 이 값으로 직접 밟는다.</para>
+            /// </summary>
+            public Vector3 Linear;
+            public Vector3 Angular;
         }
 
         /// <summary>
@@ -989,8 +1198,10 @@ namespace Metagame.Gameplay.Hazards
         /// 지우지 않는다 — 그 묶음은 신뢰 없는 채널로 오고, 하나 잃었다고 돌을 지우면
         /// 화면에서 돌이 깜빡인다.</para>
         /// </summary>
-        public void ApplyNetworkScars(IReadOnlyList<NetworkScarState> states, bool full)
+        public void ApplyNetworkScars(IReadOnlyList<NetworkScarState> states, bool full,
+            double sampleTime = -1, bool applyExistingPoses = true, bool allowCreate = false)
         {
+            _scarSampleTime = sampleTime >= 0 ? sampleTime : Time.timeAsDouble;
             var n = states != null ? states.Count : 0;
 
             if (full)
@@ -1005,7 +1216,7 @@ namespace Metagame.Gameplay.Hazards
                 for (var i = 0; i < _staleScarIds.Count; i++)
                 {
                     var id = _staleScarIds[i];
-                    if (_scarGhosts.TryGetValue(id, out var gone) && gone != null) gone.Despawn();
+                    if (_scarGhosts.TryGetValue(id, out var gone) && gone != null) ParkScar(gone);
                     _scarGhosts.Remove(id);
                     _scarMotion.Remove(id);   // 같이 지운다 — 안 지우면 id 가 재사용될 때 낡은 자세로 속도를 잰다
                 }
@@ -1018,15 +1229,23 @@ namespace Metagame.Gameplay.Hazards
                 // **움직임 묶음으로는 새로 만들지 않는다.** 그 묶음은 신뢰가 없어서
                 // 순서가 어긋나 도착할 수 있고, 전체 목록이 오기 전에 만들면 지울 근거가
                 // 없는 그림이 생긴다.
-                if (!_scarGhosts.TryGetValue(state.Id, out var ghost))
+                bool created = !_scarGhosts.TryGetValue(state.Id, out var ghost);
+                if (created)
                 {
-                    if (!full) continue;
-                    ghost = CreateGhost();
+                    if (!full && !allowCreate) continue;
+                    // **막히는 돌로 만든다** (S15P21B202-658). 낙하 그림과 다른 유일한 곳이다 —
+                    // 참가자가 착지한 돌을 몸으로 통과하던 것이 여기서 갈렸다.
+                    ghost = CreateGhost(solid: true);
                     ghost.name = "Meteor(원격 흔적)";
                     _scarGhosts[state.Id] = ghost;
                 }
 
                 if (ghost == null) continue;
+                // A late reliable membership packet must still create/remove stones,
+                // but must not rewind poses received on the unreliable channel.
+                if (!created && !applyExistingPoses) continue;
+                if (!created && _scarMotion.TryGetValue(state.Id, out var previous)
+                    && _scarSampleTime < previous.Time) continue;
 
                 // 보내는 쪽도 받는 쪽도 body 로 읽고 쓴다 — 보간이 걸려 있어
                 // transform.position 은 표시 위치다(ApplyNetworkMeteors 와 같은 이유).
@@ -1036,35 +1255,51 @@ namespace Metagame.Gameplay.Hazards
                 var body = ghost.Body;
                 if (body != null)
                 {
-                    body.position = state.Position;
-                    body.rotation = state.Rotation;
+                    ghost.ReplicaVisual.BeforeCorrection();
+                    // **방어선** (S15P21B202-658, `WorldSync.FollowOnClient` 과 같은 이유).
+                    // 만들 때 키네마틱으로 세우지만 게임플레이 코드가 나중에 풀 수 있고,
+                    // 풀린 채로 두면 참가자가 돌을 밀어 서버 자세와 다투게 된다.
+                    if (!body.isKinematic || body.interpolation != RigidbodyInterpolation.Interpolate)
+                        PrepareSolidGhostBody(body);
 
-                    // **쉬는 돌은 떨어지지 않아야 한다.** 낙하 그림은 중력으로 궤적을
-                    // 흉내내지만 흔적은 땅에 박혀 있다 — 충돌러가 꺼져 있으므로 중력을
-                    // 그대로 두면 지면을 뚫고 영영 내려간다.
-                    body.useGravity = false;
+                    // Do not wake physics/transform bookkeeping for unchanged scenery.
+                    if (body.position != state.Position) body.position = state.Position;
+                    if (body.rotation != state.Rotation) body.rotation = state.Rotation;
+                    if (ghost.transform.position != state.Position || ghost.transform.rotation != state.Rotation)
+                        ghost.transform.SetPositionAndRotation(state.Position, state.Rotation);
 
-                    // **움직임 묶음은 속도를 준다** (S15P21B202-434).
-                    //
-                    // 전체 목록은 권위이므로 그 자리에 세운다(속도 0). 움직임 묶음은
-                    // 30Hz 로 오는데 화면은 120fps 라, 속도를 0 으로 두면 33ms 동안
-                    // 멈춰 있다가 순간이동해 굴러가는 돌이 뚝뚝 끊긴다.
-                    if (full) SetScarAtRest(body, state);
-                    else DeadReckonScar(body, state);
+                    // 전체 목록도 움직이는 돌을 포함한다. 서버의 Moving과 샘플 시각으로
+                    // 판단하며, 정지한 돌만 속도를 비운다.
+                    if ((full || allowCreate) && !state.Moving) SetScarAtRest(state);
+                    else DeadReckonScar(state);
+                    ghost.ReplicaVisual.AfterCorrection(created);
                     continue;
                 }
 
                 ghost.transform.SetPositionAndRotation(state.Position, state.Rotation);
-                RememberScarMotion(state);
+                RememberScarMotion(state, Vector3.zero, Vector3.zero);
             }
         }
 
         /// <summary>전체 목록이 말하는 자리에 세운다. 그 목록이 권위다.</summary>
-        void SetScarAtRest(Rigidbody body, NetworkScarState state)
+        void SetScarAtRest(NetworkScarState state)
         {
-            body.linearVelocity = Vector3.zero;
-            body.angularVelocity = Vector3.zero;
-            RememberScarMotion(state);
+            RememberScarMotion(state, Vector3.zero, Vector3.zero);
+        }
+
+        /// <summary>Reliable membership delta. Missing unreliable moves never create stones.</summary>
+        public void ApplyNetworkScarChanges(IReadOnlyList<NetworkScarState> added,
+            IReadOnlyList<int> removed, double sampleTime, bool applyExistingPoses = true)
+        {
+            if (removed != null)
+                for (int i = 0; i < removed.Count; i++)
+                {
+                    int id = removed[i];
+                    if (_scarGhosts.TryGetValue(id, out var ghost) && ghost != null) ParkScar(ghost);
+                    _scarGhosts.Remove(id);
+                    _scarMotion.Remove(id);
+                }
+            ApplyNetworkScars(added, false, sampleTime, applyExistingPoses, allowCreate: true);
         }
 
         /// <summary>
@@ -1081,40 +1316,32 @@ namespace Metagame.Gameplay.Hazards
         /// 2초 낡은 자세에서 출발하고, 묶음이 유실되면 간격이 벌어진다. 그때 계산된
         /// 속도는 보간이 아니라 순간이동이므로 자리만 찍고 다음 묶음을 기다린다.</para>
         /// </summary>
-        void DeadReckonScar(Rigidbody body, NetworkScarState state)
+        void DeadReckonScar(NetworkScarState state)
         {
-            float now = Time.time;
+            double now = _scarSampleTime;
 
             if (!_scarMotion.TryGetValue(state.Id, out var last))
             {
                 // 처음 받는 것 — 비빌 자세가 없다. 세워 두고 다음 묶음부터 잇는다.
-                body.linearVelocity = Vector3.zero;
-                body.angularVelocity = Vector3.zero;
-                RememberScarMotion(state);
+                RememberScarMotion(state, Vector3.zero, Vector3.zero);
                 return;
             }
 
-            float dt = now - last.Time;
+            float dt = (float)(now - last.Time);
             if (dt < ScarInterpolationMinInterval || dt > ScarInterpolationMaxInterval)
             {
-                body.linearVelocity = Vector3.zero;
-                body.angularVelocity = Vector3.zero;
-                RememberScarMotion(state);
+                RememberScarMotion(state, Vector3.zero, Vector3.zero);
                 return;
             }
 
             Vector3 linear = (state.Position - last.Position) / dt;
             if (linear.magnitude > ScarInterpolationSpeedLimit)
             {
-                body.linearVelocity = Vector3.zero;
-                body.angularVelocity = Vector3.zero;
-                RememberScarMotion(state);
+                RememberScarMotion(state, Vector3.zero, Vector3.zero);
                 return;
             }
 
-            body.linearVelocity = linear;
-            body.angularVelocity = AngularFrom(last.Rotation, state.Rotation, dt);
-            RememberScarMotion(state);
+            RememberScarMotion(state, linear, AngularFrom(last.Rotation, state.Rotation, dt));
         }
 
         /// <summary>
@@ -1136,19 +1363,44 @@ namespace Metagame.Gameplay.Hazards
             return axis.normalized * (degrees * Mathf.Deg2Rad / dt);
         }
 
-        /// <summary>다음 묶음이 비빌 기준을 남긴다.</summary>
-        void RememberScarMotion(NetworkScarState state)
+        /// <summary>다음 묶음이 비빌 기준과, 그까지 밟을 속도를 남긴다.</summary>
+        void RememberScarMotion(NetworkScarState state, Vector3 linear, Vector3 angular)
         {
             _scarMotion[state.Id] = new ScarMotion
             {
                 Position = state.Position,
                 Rotation = state.Rotation,
-                Time = Time.time,
+                Time = _scarSampleTime,
+                ReceivedAt = Time.time,
+                Linear = linear,
+                Angular = angular,
             };
         }
 
         readonly HashSet<int> _seenScarIds = new();
         readonly List<int> _staleScarIds = new();
+
+        void ParkScar(Meteor ghost)
+        {
+            if (_scarPool.Count >= MaxPooledScars) { ghost.Despawn(); return; }
+            ghost.Unregister();
+            ghost.gameObject.SetActive(false);
+            _scarPool.Add(ghost);
+        }
+
+        Meteor TakeParkedScar()
+        {
+            while (_scarPool.Count > 0)
+            {
+                int last = _scarPool.Count - 1;
+                var ghost = _scarPool[last];
+                _scarPool.RemoveAt(last);
+                if (ghost == null) continue;
+                ghost.gameObject.SetActive(true);
+                return ghost;
+            }
+            return null;
+        }
 
         /// <summary>
         /// 흔적 그림을 모두 지운다. 접속이 끝나거나 이 기계가 호스트를 이어받으면
@@ -1156,6 +1408,7 @@ namespace Metagame.Gameplay.Hazards
         /// </summary>
         public void ClearNetworkScars()
         {
+            DestroyAll(_scarPool);
             foreach (var pair in _scarGhosts)
                 if (pair.Value != null) pair.Value.Despawn();
 
@@ -1164,41 +1417,162 @@ namespace Metagame.Gameplay.Hazards
         }
 
         /// <summary>
-        /// 판정에 관여하지 않는 낙하 그림 하나. <see cref="_live"/> 에는 넣지 않는다 —
+        /// <b>판정에 관여하지 않는</b> 그림 하나. <see cref="_live"/> 에는 넣지 않는다 —
         /// 그 목록은 권위 쪽의 것이고 <see cref="AdvanceLive"/> 가 틱한다.
+        ///
+        /// <para>판정을 막는 것은 <c>ghost.enabled = false</c> 한 줄이다. 그래서
+        /// <paramref name="solid"/> 로 <b>막히는 돌</b>을 만들어도 착탄·피해를 이 기계가
+        /// 스스로 판단하는 일은 없다(S15P21B202-658).</para>
         ///
         /// <para>낙하 꼬리는 그대로 나온다. <c>Meteor.Awake</c> 가 <c>EnsureTrail</c> 로
         /// 만들고 방출을 끄는 곳은 착탄 처리(<c>StopTrail</c>)뿐이라, 컴포넌트를 꺼도 이미
         /// 만들어진 <c>TrailRenderer</c> 는 계속 그린다 — 하늘에서 뭔가 떨어지는 것이
         /// 보이는 데 이 꼬리가 큰 몫을 한다.</para>
         /// </summary>
-        Meteor CreateGhost()
+        /// <param name="solid">
+        /// 참가자의 몸을 <b>막는</b> 돌인가 (S15P21B202-658).
+        ///
+        /// <para><b>왜 갈랐나.</b> 예전에는 "판정에 관여하지 않는다" 를 <b>콜라이더까지
+        /// 끄는 것</b>으로 구현했다. 그런데 판정을 끄는 데 필요한 것은 <see cref="Meteor"/>
+        /// 컴포넌트를 끄는 것 하나다 — 콜라이더는 <b>막는</b> 일만 하고 아무것도 판정하지
+        /// 않는다. 그래서 참가자는 착지한 돌을 <b>몸으로 통과</b>했고, 피해는 호스트가
+        /// 주므로 <b>안 부딪혔는데 체력만 깎였다</b>. 기획 확인 결과 의도가 아니었다
+        /// (`-654` Q7).</para>
+        ///
+        /// <para><b>착지한 흔적에만 켠다.</b> 흔적은 멈춰 있어 참가자 화면의 자리가
+        /// 서버와 같다. 낙하 중인 돌은 ~166ms(≈1.6m) 낡은 자리에 있어서, 막기 시작하면
+        /// "호스트에는 안 맞았는데 참가자만 막히는" 새 어긋남이 생긴다 — 그쪽은 실제
+        /// 플레이로 확인한 뒤 정한다.</para>
+        /// </param>
+        Meteor CreateGhost(bool solid = false)
         {
             EnsureConfiguration();
 
-            var ghost = _meteorPrefab != null
-                ? Instantiate(_meteorPrefab)
-                : CreateFallbackMeteor(Vector3.zero);
+            // 낙하/착탄 풀을 분리해 충돌·레이어·꼬리 설정이 섞이지 않게 한다.
+            var ghost = solid ? TakeParkedScar() : TakeParkedGhost();
+            var reused = ghost != null;
+
+            if (ghost == null)
+                ghost = _meteorPrefab != null
+                    ? Instantiate(_meteorPrefab)
+                    : CreateFallbackMeteor(Vector3.zero);
 
             ghost.ApplyTuning(_tuning);
             ghost.name = "Meteor(원격 그림)";
 
-            // 끄는 것이 핵심이다. 꺼진 컴포넌트에는 충돌 통보도 틱도 오지 않는다.
+            // 비활성만으로 충돌 통보를 막을 수 없다. PrepareReplica가 판정을 차단한다.
             ghost.enabled = false;
+            ghost.PrepareReplica(solid);
 
-            foreach (var collider in ghost.GetComponentsInChildren<Collider>(true))
-                collider.enabled = false;
+            // **다시 쓰는 돌은 꼬리를 지운다** (S15P21B202-684). 남겨 두면 옛 자리의
+            // 점들이 새 자리까지 한 줄로 이어져 하늘을 가로지른다. 부르는 쪽이 같은
+            // 프레임에 자세를 얹으므로, 지운 뒤 순간이동해도 그 사이에 그려지지 않는다.
+            if (reused && !solid) ghost.RestartTrail();
 
-            var body = ghost.GetComponent<Rigidbody>();
-            if (body != null)
+            var body = ghost.Body;
+
+            if (!solid)
             {
-                body.detectCollisions = false;
-                body.isKinematic = false;
-                body.useGravity = true;
-                body.interpolation = RigidbodyInterpolation.Interpolate;
+                // 계층을 매번 훑지 않는다 (S15P21B202-684) — `Meteor.Colliders` 가 돌
+                // 하나당 한 번만 구해 쥐고 있다. 배열 foreach 는 열거자를 만들지 않으므로
+                // 이 고리 자체에는 할당이 없다.
+                foreach (var collider in ghost.Colliders)
+                    collider.enabled = false;
+
+                if (body != null)
+                {
+                    body.detectCollisions = false;
+                    body.isKinematic = false;
+                    body.useGravity = true;
+                    body.interpolation = RigidbodyInterpolation.Interpolate;
+                }
+
+                return ghost;
             }
 
+            // **레이어를 옮긴다** (S15P21B202-658). 호스트에서는 <c>Meteor.Settle</c> 이
+            // 착지한 돌을 <see cref="GameLayers.Prop"/> 으로 옮기는데(`Meteor.cs:538`),
+            // 그림은 <see cref="Meteor"/> 컴포넌트가 꺼져 있어 <b>그 줄을 절대 지나지
+            // 않는다</b>. 콜라이더만 켜고 레이어를 두면 방망이 타격 범위
+            // (<see cref="GameLayers.BatStrikeMask"/> 는 Meteor 를 빼고 Prop 은 넣는다)와
+            // 상호작용이 호스트와 다르게 잡힌다.
+            SetLayerDeep(ghost.gameObject, GameLayers.Prop);
+
+            if (body != null) PrepareSolidGhostBody(body);
             return ghost;
+        }
+
+        /// <summary>
+        /// 막히는 그림의 강체를 "받은 자세만 따라가는" 상태로 세운다 (S15P21B202-658).
+        ///
+        /// <para><see cref="Network"/> 쪽 <c>WorldSync.PrepareClientBody</c> 와 같은 모양이다 —
+        /// 참가자 화면의 부품이 이미 이렇게 서 있고, 그래서 참가자 몸이 부품에는 막힌다.
+        /// 운석만 다른 방식이었던 것이 `-654` Q7 의 원인이다.</para>
+        ///
+        /// <para><b>키네마틱이어야 한다.</b> 콜라이더를 켜면서 동적 강체로 두면 참가자가
+        /// 돌을 <b>밀어 버리고</b>, 다음 묶음이 자리를 되돌려 덜덜 떨린다. 키네마틱 강체는
+        /// 남을 밀되 남에게 밀리지 않는다 — 호스트의 돌과 같은 성질이다.</para>
+        ///
+        /// <para><b>중력은 끈다.</b> 키네마틱에는 애초에 안 걸리지만, 게임플레이 코드가
+        /// 강체를 되돌렸을 때 그림이 지면을 뚫고 내려가지 않게 함께 꺼 둔다.</para>
+        /// </summary>
+        static void PrepareSolidGhostBody(Rigidbody body)
+        {
+            body.detectCollisions = true;
+            body.isKinematic = true;
+            body.useGravity = false;
+            body.interpolation = RigidbodyInterpolation.Interpolate;
+        }
+
+        /// <summary>깊이 우선으로 레이어를 바꾼다. <c>Meteor.SetLayerDeep</c> 과 같다.</summary>
+        static void SetLayerDeep(GameObject go, int layer)
+        {
+            go.layer = layer;
+            for (int i = 0; i < go.transform.childCount; i++)
+                SetLayerDeep(go.transform.GetChild(i).gameObject, layer);
+        }
+
+        /// <summary>
+        /// 흔적 그림을 다음 묶음까지 이어서 밟는다 (S15P21B202-658).
+        ///
+        /// <para><b>왜 필요해졌나.</b> 예전에는 강체에 속도를 넣어 두면 물리가 적분해
+        /// 주었다. 콜라이더를 켜면서 키네마틱으로 바꿨는데, 키네마틱 강체는
+        /// <c>linearVelocity</c> 를 <b>무시한다</b> — 그대로 두면 굴러가는 돌이 묶음과
+        /// 묶음 사이에 멈춰 `-434` 가 고친 "뚝뚝 끊김" 이 그대로 돌아온다.</para>
+        ///
+        /// <para><b>참가자에서만 부른다.</b> 호스트에는 그림이 없다
+        /// (<see cref="_scarGhosts"/> 가 비어 있다). <c>MeteorClockBridge</c> 의 참가자
+        /// 갈래가 물리 스텝마다 부른다 — <c>AgeNetworkPending</c> 과 같은 자리다.</para>
+        ///
+        /// <para><b><c>MovePosition</c> 을 쓴다.</b> 키네마틱 강체에 자리를 직접 대입하면
+        /// 순간이동으로 취급되어 그 스텝의 보간이 건너뛰어진다 — 보간을 켠 의미가 없어진다
+        /// (<c>WorldSync.FollowOnClient</c> 의 같은 주석).</para>
+        /// </summary>
+        public void AdvanceScarGhosts(float deltaTime)
+        {
+            if (deltaTime <= 0f || _scarGhosts.Count == 0) return;
+
+            foreach (var pair in _scarGhosts)
+            {
+                var ghost = pair.Value;
+                if (ghost == null) continue;
+
+                var body = ghost.Body;
+                if (body == null) continue;
+
+                if (!_scarMotion.TryGetValue(pair.Key, out var motion)) continue;
+                // Bounded extrapolation: a missing stop packet must not send a stone
+                // drifting through the level until the next two-second keepalive.
+                if (Time.time - motion.ReceivedAt >= 0.1f) continue;
+                if (motion.Linear == Vector3.zero && motion.Angular == Vector3.zero) continue;
+
+                body.MovePosition(body.position + motion.Linear * deltaTime);
+
+                float radians = motion.Angular.magnitude * deltaTime;
+                if (radians > 1e-6f)
+                    body.MoveRotation(Quaternion.AngleAxis(radians * Mathf.Rad2Deg,
+                                                           motion.Angular.normalized) * body.rotation);
+            }
         }
 
 
@@ -1250,12 +1624,9 @@ namespace Metagame.Gameplay.Hazards
             {
                 Id = ++_nextScarId,
                 Meteor = meteor,
-                // 박힌 몸통은 지면 아래다 — 분화구를 거기에 그리면 묻힌다.
                 Point = meteor.ImpactPoint,
                 Radius = meteor.ImpactRadius,
                 Age = 0f,
-                CoolSeconds = _tuning.ScarCoolSeconds,
-                FadeSeconds = _tuning.ScarFadeSeconds,
             });
 
             Trim();
@@ -1301,12 +1672,8 @@ namespace Metagame.Gameplay.Hazards
                 }
 
                 // **나이는 언제나 센다.** 예전에는 다 식으면 건너뛰었는데(§19 의
-                // 성능 기준), 그러면 두 가지가 깨진다 — 옅어지는 단계가 화면에
-                // 반영되지 않고, 아래 수명 판정이 영영 오지 않는다.
-                //
-                // 여기서 아끼는 것은 float 덧셈 하나뿐이다. 무거운 것은 재질에 색을
-                // 넣는 쪽이고 그것은 MeteorScarView.ShouldRepaint 가 건너뛴다 —
-                // §19 의 기준은 거기서 지킨다(S15P21B202-438).
+                // 성능 기준), 그러면 아래 수명 판정이 영영 오지 않는다.
+                // 비용은 float 덧셈 하나뿐이다.
                 scar.Age += deltaTime;
 
                 // **흔적을 여기서 없앤다.**
@@ -1344,6 +1711,13 @@ namespace Metagame.Gameplay.Hazards
         /// </summary>
         Vector3 NextImpactPoint()
         {
+            if (UsesIndependentDrops)
+            {
+                // 탐색은 맵 전체, 공세는 기존 플레이어 주변 비율(기본 30%)을 유지한다.
+                // 연속 위치 필터로 플레이어 주변 후보가 맵 반대편으로 바뀌지 않게 한다.
+                return OnGround(AssaultEnabled && _random.NextDouble() < NearPlayerWeight
+                    ? NearPlayerPoint() : EnvironmentPoint());
+            }
             // <b>시험용일 때만 종류를 유지한다</b>(<see cref="TestTargeting"/>).
             //
             // 거리 검사는 <b>가까운 목표만 골라 탈락시킨다</b> — 멀리 있는 환경 목표는 직전
@@ -1385,13 +1759,13 @@ namespace Metagame.Gameplay.Hazards
         }
 
         /// <summary>
-        /// 낙하 예고와 흔적을 <b>그리는 컴포넌트를 붙인다</b>(S15P21B202-275).
+        /// 낙하 예고를 <b>그리는 컴포넌트를 붙인다</b>(S15P21B202-275).
         ///
         /// <b>아무도 이것을 만들지 않았다.</b> S15P21B202-241 이
-        /// <see cref="MeteorWarningView"/> 를, 251 이 <see cref="MeteorScarView"/> 를
-        /// 만들고 268 이 줄어드는 원으로 바꿨지만, 씬에도 프리팹에도 붙어 있지 않았고
-        /// 런타임에 붙이는 코드도 없었다 — <b>세 이슈가 만든 표현이 인게임에서 한 번도
-        /// 실행된 적이 없다.</b> "운석 워닝포인트가 안보인다" 의 진짜 원인이 이것이다.
+        /// <see cref="MeteorWarningView"/> 를 만들고 268 이 줄어드는 원으로 바꿨지만,
+        /// 씬에도 프리팹에도 붙어 있지 않았고 런타임에 붙이는 코드도 없었다 —
+        /// <b>그 이슈들이 만든 표현이 인게임에서 한 번도 실행된 적이 없다.</b>
+        /// "운석 워닝포인트가 안보인다" 의 진짜 원인이 이것이다.
         ///
         /// S15P21B202-254 가 예고 지점을 실제 지면 위로 내린 것은 필요했지만, 그리는
         /// 컴포넌트가 없으면 그것만으로는 아무것도 보이지 않는다.
@@ -1417,12 +1791,9 @@ namespace Metagame.Gameplay.Hazards
                 added++;
             }
 
-            if (GetComponent<MeteorScarView>() == null)
-            {
-                gameObject.AddComponent<MeteorScarView>().Configure(this);
-                added++;
-            }
-
+            // <b>흔적 원반은 더 이상 그리지 않는다</b>(S15P21B202-653). 색으로 흉내 낸
+            // 그을음이 회색 반투명 원반으로 보였다 — 이유는 그 이슈에 적었다. 기록
+            // 자체(<see cref="Scar"/>)는 남는다: 그것이 운석 소멸 타이머다.
             return added;
         }
 
@@ -1509,6 +1880,9 @@ namespace Metagame.Gameplay.Hazards
                 _playerTargetMaxRadius,
                 (float)_random.NextDouble());
 
+            if (UsesIndependentDrops)
+                radius = Mathf.Sqrt((float)_random.NextDouble()) * AssaultPlayerTargetRadius;
+
             var position = target.Position;
             return new Vector3(
                 position.x + Mathf.Cos(angle) * radius,
@@ -1540,7 +1914,7 @@ namespace Metagame.Gameplay.Hazards
         PlayerRig PickPlayer()
         {
             var target = PickPlayer(false);
-            if (target != null || !TestTargeting) return target;
+            if (target != null || (!TestTargeting && !UsesIndependentDrops)) return target;
 
             return PickPlayer(true);
         }
@@ -1663,6 +2037,7 @@ namespace Metagame.Gameplay.Hazards
 
             meteor.ApplyTuning(_tuning);
             meteor.Initialize();
+            meteor.ReplicaId = ++_nextMeteorId;
             meteor.SetSize(size);
 
             // 시간대·프리셋의 반경 배율. 예고 원과 같은 값이어야 한다(§17.2).
@@ -1672,7 +2047,7 @@ namespace Metagame.Gameplay.Hazards
             // 이 값으로 푼다.
             meteor.SetGroundHeight(impactPoint.y);
 
-            var body = meteor.GetComponent<Rigidbody>();
+            var body = meteor.Body;
             if (body != null)
             {
                 // 수평은 등속이다 — 공기 저항이 없으므로 거리 / 예고 시간이면 정확히

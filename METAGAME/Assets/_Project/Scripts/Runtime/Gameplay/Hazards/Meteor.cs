@@ -121,6 +121,22 @@ namespace Metagame.Gameplay.Hazards
         /// 깨어난다. 흔적 동기화가 "움직이는 것만" 을 그 잠듦으로 판별한다.</para>
         /// </summary>
         public Rigidbody Body => _body != null ? _body : (_body = GetComponent<Rigidbody>());
+        Collider[] _colliders;
+
+        /// <summary>
+        /// 이 돌의 콜라이더 전부. <b>계층을 한 번만 훑는다</b> (S15P21B202-684).
+        ///
+        /// <para><see cref="Body"/> 와 같은 자리다. 원격 그림은 판정을 막으려고 콜라이더를
+        /// 끄는데, 그것을 <c>GetComponentsInChildren</c> 로 매번 구하면 <b>그림을 만들
+        /// 때마다 배열 하나와 계층 훑기 한 번</b>이 생긴다. 공세 때는 초당 두세 개가
+        /// 만들어지고 사라지므로 그 비용이 프레임에 그대로 실린다.</para>
+        ///
+        /// <para><c>true</c> 로 구한다 — 꺼진 것까지 포함해야 다시 켤 수 있다. 계층이
+        /// 도중에 바뀌지 않는다는 가정이고, 운석 프리팹은 그렇다(부품이 붙거나 떨어지지
+        /// 않는다).</para>
+        /// </summary>
+        public Collider[] Colliders => _colliders ??= GetComponentsInChildren<Collider>(true);
+
         MeteorTuning _tuning;
         bool _tuningScaleApplied;
         float _life;
@@ -133,6 +149,26 @@ namespace Metagame.Gameplay.Hazards
 
         /// <summary>이미 부딪혔는지. 착탄은 한 번만 처리한다.</summary>
         public bool HasImpacted { get; private set; }
+
+        public int ReplicaId { get; internal set; }
+        public bool IsReplica { get; private set; }
+        public MeteorReplicaVisual ReplicaVisual { get; private set; }
+
+        internal void PrepareReplica(bool solid)
+        {
+            IsReplica = true;
+            if (ReplicaVisual == null)
+            {
+                ReplicaVisual = gameObject.AddComponent<MeteorReplicaVisual>();
+                ReplicaVisual.Initialize();
+            }
+            ReplicaVisual.ResetPose();
+            if (solid)
+            {
+                StopTrail();
+                if (_trail != null) _trail.Clear();
+            }
+        }
 
         /// <summary>
         /// 낙하 착탄 처리가 끝났는지.
@@ -185,12 +221,14 @@ namespace Metagame.Gameplay.Hazards
         float guideRadius;
 
         // Disabled client ghosts expose prediction data only; no collision or damage is enabled.
-        public void ApplyGuideSnapshot(float groundHeight, bool harmless, float window, float radius)
+        public void ApplyGuideSnapshot(float groundHeight, bool harmless, float window, float radius,
+            byte deflectionGrade = 0)
         {
             GroundHeight = groundHeight;
             guideHarmless = harmless;
             guideWindow = window;
             guideRadius = radius;
+            ApplyDeflectionLook(deflectionGrade);
         }
 
         /// <summary>
@@ -209,6 +247,7 @@ namespace Metagame.Gameplay.Hazards
 
         /// <summary>한 번이라도 쳐냈는가. 기획 §17.1 의 "반사된 이후" 를 구분한다.</summary>
         public bool WasDeflected { get; private set; }
+        public byte DeflectionGrade { get; private set; }
 
         /// <summary>
         /// 크기(기획 §17.7). 넉백 반경이 여기서 나온다.
@@ -375,6 +414,7 @@ namespace Metagame.Gameplay.Hazards
         /// 색이 운석마다 다르지 않으므로 나눌 이유가 없다.
         /// </summary>
         static Material trailMaterial;
+        static Material perfectTrailMaterial;
 
         TrailRenderer _trail;
 
@@ -411,6 +451,24 @@ namespace Metagame.Gameplay.Hazards
             _trail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             _trail.receiveShadows = false;
             _trail.sharedMaterial = trailMaterial;
+            ApplyDeflectionLook(DeflectionGrade);
+        }
+
+        void ApplyDeflectionLook(byte grade)
+        {
+            bool changed = DeflectionGrade != grade;
+            DeflectionGrade = grade;
+            if (_trail == null) return;
+            if (changed) _trail.Clear();
+            bool perfect = grade == 3;
+            var color = perfect ? BatSwingLook.ImpactColor(3) : TrailColor;
+            if (perfect && perfectTrailMaterial == null)
+                perfectTrailMaterial = Prim.Ghost(color, 3f);
+            _trail.sharedMaterial = perfect ? perfectTrailMaterial : trailMaterial;
+            _trail.startColor = color;
+            _trail.endColor = new Color(color.r, color.g, color.b, 0f);
+            _trail.startWidth = PhysicsScale.MeteorTrailWidth * (perfect ? 1.35f : 1f);
+            _trail.time = PhysicsScale.MeteorTrailSeconds * (perfect ? 1.3f : 1f);
         }
 
         /// <summary>
@@ -426,6 +484,22 @@ namespace Metagame.Gameplay.Hazards
             _trail.emitting = false;
         }
 
+        /// <summary>
+        /// 꼬리를 지우고 다시 뿜게 한다. <b>돌을 다시 쓸 때</b> 부른다 (S15P21B202-684).
+        ///
+        /// <para><see cref="StopTrail"/> 은 방출만 끄고 그려진 꼬리를 남긴다 — 착탄 뒤에는
+        /// 그게 맞다. 그런데 그 돌을 <b>다른 자리에서 다시 쓰면</b> 남아 있던 꼬리가 옛
+        /// 자리에서 새 자리까지 <b>한 줄로 이어져</b> 하늘을 가로지른다. 그래서 다시 쓰는
+        /// 길에서만 지운다.</para>
+        /// </summary>
+        internal void RestartTrail()
+        {
+            if (_trail == null) return;
+
+            _trail.Clear();
+            _trail.emitting = true;
+        }
+
         static readonly Color TrailColor = new(1f, 0.62f, 0.22f, 0.75f);
 
         void OnEnable() => Register();
@@ -434,6 +508,7 @@ namespace Metagame.Gameplay.Hazards
 
         public void Register()
         {
+            if (IsReplica) return;
             if (!All.Contains(this)) All.Add(this);
         }
 
@@ -507,8 +582,9 @@ namespace Metagame.Gameplay.Hazards
         /// 자연물과 지면 어디든 충돌할 수 있다" 는 <see cref="OnCollisionEnter"/> 가
         /// 이미 아무거나 받으므로 저절로 성립한다.
         /// </summary>
-        public void Deflect(Vector3 velocity)
+        public void Deflect(Vector3 velocity, byte grade = 0)
         {
+            if (IsReplica) return;
             if (HasImpacted) return;
 
             Initialize();
@@ -516,6 +592,7 @@ namespace Metagame.Gameplay.Hazards
 
             _body.linearVelocity = velocity;
             WasDeflected = true;
+            ApplyDeflectionLook(grade);
 
             // 맞은 순간부터 소품이다(S15P21B202-273). 날아가는 동안에도 사람을 때리지
             // 않는다 — §19 의 "충돌 순간에만" 을 타격에도 적용한다.
@@ -548,6 +625,8 @@ namespace Metagame.Gameplay.Hazards
 
         void OnCollisionEnter(Collision collision)
         {
+            // Unity also delivers collision messages to disabled MonoBehaviours.
+            if (IsReplica) return;
             // 착탄이 끝난 운석은 일반 운반물이다. 착지 후 새 충돌을 직접 충돌로
             // 해석하면 몸이 스치기만 해도 다시 기절하므로, 이후 접촉은 PhysX에 맡긴다.
             if (HasImpacted || Rolling || GroundProp) return;
@@ -690,6 +769,7 @@ namespace Metagame.Gameplay.Hazards
 
         void ApplyImpact(Vector3 point, PlayerRig directHit, Vector3 normal)
         {
+            if (IsReplica) return;
             if (HasImpacted || Rolling || GroundProp) return;
 
             // 쳐낸 운석은 흔적이 되지 않는다(S15P21B202-273). 착지해도 굴러다니는 소품으로
@@ -722,6 +802,7 @@ namespace Metagame.Gameplay.Hazards
         /// </summary>
         public void Tick(float deltaTime)
         {
+            if (IsReplica) return;
             if (deltaTime <= 0f) return;
 
             // 박힌 흔적. 일정 시간 뒤 사라진다(S15P21B202-273).

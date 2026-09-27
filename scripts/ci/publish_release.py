@@ -413,6 +413,15 @@ def notify(ok: bool, version: str, rows: list[tuple[str, str]]) -> None:
     mm_notify.send(mm_notify.card(title, rows))
 
 
+#: Jira 자동화 수신 웹훅의 secret 을 담는 CI 변수. **Masked 로 둔다** — 값은 저장소·
+#: 이슈·카드 어디에도 적지 않는다(`-645`). 주소(`JIRA_RELEASE_WEBHOOK`)와 나눠 두는
+#: 이유는 주소가 로그에 새더라도 그것만으로는 아무것도 못 하게 하기 위해서다.
+WEBHOOK_TOKEN_VAR = "JIRA_RELEASE_WEBHOOK_TOKEN"
+
+#: Jira 가 요구하는 헤더 이름. 값이 아니라 **이름**이므로 적어 둔다.
+WEBHOOK_TOKEN_HEADER = "X-Automation-Webhook-Token"
+
+
 def webhook_shape_problem() -> str | None:
     """설정된 웹훅 주소가 **보낼 수 있는 모양인지**만 본다. 값은 절대 찍지 않는다.
 
@@ -431,6 +440,17 @@ def webhook_shape_problem() -> str | None:
         return "앞뒤에 공백이 붙어 있다"
     if not url.startswith(("https://", "http://")):
         return "http(s):// 로 시작하지 않는다"
+    # **토큰이 없으면 보내 봐야 400 이다** (S15P21B202-645). Jira 자동화 수신 웹훅은
+    # 규칙에 secret 을 켜면 `X-Automation-Webhook-Token` 헤더를 요구한다. 우리 규칙은
+    # 켜져 있다 — 실측된 응답이 그것을 말한다:
+    #
+    #     {"errorMessages": ["Missing token"], "errors": {}, "status": 400}
+    #
+    # v1.1.0·v1.2.0 두 릴리스가 이 400 을 받았다. 주소도 인증도 아니고 **헤더를 하나도
+    # 안 보냈다**는 뜻이다. 그러니 없는 채로 보내는 것은 실패가 확정된 호출이고,
+    # 0분에 말해 주는 편이 58분 뒤에 카드로 아는 것보다 낫다.
+    if not env(WEBHOOK_TOKEN_VAR):
+        return f"설정됐는데 {WEBHOOK_TOKEN_VAR} 이 없다(Jira 가 Missing token 을 준다)"
     return None
 
 
@@ -453,8 +473,12 @@ def jira_release_webhook(version: str, keys: list[str], release_url: str) -> str
     # Jira 수신 웹훅 형식: `issues` = 규칙이 다룰 이슈 키, `data` = 규칙 안에서 {{webhookData.version}} 처럼 읽는 값
     body = {"issues": sorted(set(keys)),
             "data": {"version": version, "releaseUrl": release_url, "date": datetime.now(KST).strftime("%Y-%m-%d")}}
+    # **토큰은 헤더로 보낸다** (S15P21B202-645). 주소에 붙이면 잡 로그·리다이렉트·
+    # 프록시 기록 어디에나 남는다. 여기까지 왔다면 위 `webhook_shape_problem()` 이
+    # 토큰이 있다고 확인한 뒤다.
+    headers = {WEBHOOK_TOKEN_HEADER: env(WEBHOOK_TOKEN_VAR)}
     try:
-        st, resp = http("POST", url, {}, body)
+        st, resp = http("POST", url, headers, body)
     except Exception as e:  # noqa: BLE001
         # **종류만** 싣는다(-335 와 같은 규칙). urllib 의 예외 문구에는 주소가 들어 있다.
         print(f"   ⚠️ Jira 릴리스 웹훅 호출이 예외로 끝났다: {type(e).__name__} (Release 는 이미 났다, 비차단)")
@@ -555,8 +579,9 @@ def phase_gate(test_rc: int, xml_path: str, log_path: str = "") -> int:
     # **읽다가 죽으면 안 된다** (`!350` AI 리뷰). `GitLab()` 생성이나 조회에서 예외가
     # 나면 `phase_gate` 가 통째로 죽고 잡이 실패한다 — 아래에 적어 둔 "못 읽으면 막지
     # 않는다" 와 **정반대로** 릴리스가 멈춘다. 토큰 미설정·네트워크 오류가 그 길이다.
+    meta: dict = {}
     try:
-        base = unity_report.baseline_failures(GitLab(), unity_report.baseline_ref("master"))
+        base = unity_report.baseline_failures(GitLab(), unity_report.baseline_ref("master"), meta=meta)
     except Exception as e:  # noqa: BLE001
         print(f"   기준선 조회가 예외로 끝났다: {type(e).__name__}: {e}")
         base = None
@@ -571,7 +596,18 @@ def phase_gate(test_rc: int, xml_path: str, log_path: str = "") -> int:
         print(f"🔴 기준선을 읽지 못했다 — 기존 실패와 새 실패를 가릴 수 없다"
               f" (지금 실패 {len(now_failing)}건). 막지 않고 넘어간다")
     else:
-        fresh = sorted(now_failing - base)
+        # **기준선이 돌리지 않은 테스트는 이 트리 탓으로 단정하지 않는다** (S15P21B202-739).
+        # develop 의 MR·푸시 실행은 느린 목록을 건너뛰므로 기준선에는 그 테스트의 결과가 없다.
+        # 릴리스는 전부 돌리니, 원래부터 실패하던 느린 테스트가 여기서 처음 "새 실패" 로 보인다 —
+        # unity-compile 이 판단 불가(2)로 두는 것과 같은 까닭으로 막지 않고 크게 적는다.
+        blind = set(meta.get("slow_skipped") or [])
+        unseen = sorted((now_failing - base) & blind)
+        if unseen:
+            print(f"⚠️ 기준선이 느린 목록으로 건너뛴 테스트의 실패 {len(unseen)}건 — "
+                  f"이 트리가 만든 것인지 가릴 수 없어 막지 않는다")
+            for name in unseen[:10]:
+                print(f"   {name}")
+        fresh = sorted(now_failing - base - blind)
         if fresh:
             print(f"❌ 이 트리가 만든 EditMode 실패 {len(fresh)}건 — 릴리스를 빌드하지 않는다"
                   f" (기존 실패 {len(base & now_failing)}건은 세지 않았다)")

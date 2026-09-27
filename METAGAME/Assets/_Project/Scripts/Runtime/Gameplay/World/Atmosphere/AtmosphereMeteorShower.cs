@@ -60,7 +60,7 @@ namespace Metagame.Gameplay
             var settings = profile.meteorShower;
             EnsureParticleSystem();
             if (particleMaterial != null)
-                particleMaterial.SetColor("_Color", settings.color);
+                particleMaterial.SetColor("_Color", Color.white);
             Configure(settings);
             SetIntensity(intensity);
             SetAlertIntensity(alertIntensity);
@@ -150,7 +150,7 @@ namespace Metagame.Gameplay
             main.startLifetime = settings.lifetime;
             main.startSpeed = settings.speed;
             main.startSize = settings.startSize;
-            main.startColor = settings.color;
+            main.startColor = new ParticleSystem.MinMaxGradient(settings.color, settings.secondaryColor);
             main.simulationSpace = ParticleSystemSimulationSpace.Local;
 
             var sizeOverLifetime = particleSystem.sizeOverLifetime;
@@ -170,9 +170,11 @@ namespace Metagame.Gameplay
             trails.enabled = settings.enabled && effectScale > 0f;
             trails.mode = ParticleSystemTrailMode.PerParticle;
             trails.ratio = 1f;
-            trails.lifetime = 0.22f;
+            // 처음 몇 프레임은 둥근 머리만 보이고, 이동 거리가 쌓일수록 직선 꼬리가
+            // 길어진다. 너무 길면 빗줄기처럼 보여 0.32초까지만 남긴다.
+            trails.lifetime = 0.32f;
             trails.dieWithParticles = true;
-            trails.minVertexDistance = 0.05f;
+            trails.minVertexDistance = 0.03f;
             trails.textureMode = ParticleSystemTrailTextureMode.Stretch;
             trails.inheritParticleColor = true;
 
@@ -200,7 +202,7 @@ namespace Metagame.Gameplay
             colorOverLifetime.enabled = true;
             var gradient = new Gradient();
             gradient.SetKeys(
-                new[] { new GradientColorKey(settings.color, 0f), new GradientColorKey(settings.color, 1f) },
+                new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
                 new[] { new GradientAlphaKey(settings.color.a, 0f), new GradientAlphaKey(0f, 1f) });
             colorOverLifetime.color = new ParticleSystem.MinMaxGradient(gradient);
         }

@@ -69,7 +69,11 @@ def notify(result, detail="", **env):
     카드 여섯 장이 로그를 덮으므로 삼킨다 — 단정은 반환한 본문으로 한다."""
     sent.clear()
     keep = {}
-    for k in ("CI_COMMIT_SHA", "CI_COMMIT_TITLE", "CI_PIPELINE_URL", "CI_JOB_URL", "GITLAB_USER_LOGIN"):
+    # `CI_PIPELINE_SOURCE` 가 여기 있어야 한다 (S15P21B202-648). 빠져 있던 동안에는
+    # 주변 환경을 물려받아, **예약 파이프라인에서만** `-608` 의 "예약이면 멘션하지
+    # 않는다" 가 켜지고 아래 ②③④ 의 멘션 단정이 깨졌다. 값이 필요한 경우는 인자로 준다.
+    for k in ("CI_COMMIT_SHA", "CI_COMMIT_TITLE", "CI_PIPELINE_URL", "CI_JOB_URL",
+              "CI_PIPELINE_SOURCE", "GITLAB_USER_LOGIN"):
         keep[k] = os.environ.pop(k, None)
     os.environ.update({k: v for k, v in env.items() if v is not None})
     try:

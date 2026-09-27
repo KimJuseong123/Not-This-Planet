@@ -106,6 +106,20 @@ namespace Metagame.Network
         /// </summary>
         public static void Clear() => Assigned.Clear();
 
+        /// <summary>
+        /// 이 자리를 사람이 받아 두었나 (S15P21B202-713). <b>지금 붙어 있지 않은 사람도 센다</b> —
+        /// 끊겨 돌아올 사람, 이어받기에서 물려받은 사람이 여기 남아 있다.
+        ///
+        /// <para><b>감싸지 않는다.</b> 범위 밖이면 false 다. 색을 고를 때와 달리 "그 자리가
+        /// 찼나" 를 물을 때 5번을 1번으로 읽으면 엉뚱한 자리를 막는다.</para>
+        ///
+        /// <para><b>AI 는 여기 넣지 않는다.</b> 사람이 언제나 먼저라는 규칙(<see cref="Claim"/> 이
+        /// AI 자리를 빈 자리로 보는 것)과 AI 를 비켜 세우는 길(<c>TeamSeats.EvictAi</c>)이 그것에
+        /// 기대고 있다.</para>
+        /// </summary>
+        public static bool IsAssigned(int slot)
+            => slot >= 0 && slot < Count && Assigned.ContainsValue(slot);
+
         /// <summary>자리의 우주복 색.</summary>
         public static Color Suit(int slot) => Suits[Wrap(slot)];
 

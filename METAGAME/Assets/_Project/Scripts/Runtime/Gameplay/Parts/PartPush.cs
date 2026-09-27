@@ -184,10 +184,15 @@ namespace Metagame.Gameplay.Parts
         /// <summary>파츠 몸통 콜라이더 중 이 사람의 골반에 가장 가까운 점.</summary>
         Vector3 ClosestSurfacePoint(PlayerRig player)
         {
-            var from = player != null && player.Doll != null && player.Doll.Hips != null
-                ? player.Doll.Hips.position
-                : transform.position;
+            return SurfacePointNearest(
+                player != null && player.Doll != null && player.Doll.Hips != null
+                    ? player.Doll.Hips.position
+                    : transform.position);
+        }
 
+        /// <summary>파츠 몸통 콜라이더 중 <paramref name="from"/> 에 가장 가까운 점.</summary>
+        Vector3 SurfacePointNearest(Vector3 from)
+        {
             if (!_collidersCollected) _colliders = CollectBodyColliders();
             if (_colliders == null || _colliders.Length == 0) return Center();
 
@@ -241,7 +246,7 @@ namespace Metagame.Gameplay.Parts
             _part != null && _body != null && !_body.isKinematic
             && _part.State == PartState.Free;
 
-        void FixedUpdate() => Tick(Time.fixedDeltaTime);
+        void FixedUpdate() { using var frameSection = Metagame.Core.FrameSections.Scope(Metagame.Core.FrameSections.PartPush); Tick(Time.fixedDeltaTime); }   // S15P21B202-746 프레임 기록
 
         /// <summary>매 물리 스텝 호출한다.</summary>
         public void Tick(float deltaTime)
@@ -298,16 +303,36 @@ namespace Metagame.Gameplay.Parts
                 var moving = wish.sqrMagnitude > 1e-4f;
                 var heading = moving ? wish.normalized : Vector3.zero;
 
-                // 손으로 잡았으면 접촉·조준을 다시 보지 않는다. 잡는 것 자체가
-                // 이미 의도적인 행동이고, 잡은 사람은 어느 쪽으로든 끌 수 있다.
-                var holding = able && (IsHoldingPart(player.LeftHand)
-                                       || IsHoldingPart(player.RightHand));
+                // 손으로 잡았으면 조준은 다시 보지 않는다. 잡는 것 자체가 이미
+                // 의도적인 행동이고, 잡은 사람은 어느 쪽으로든 끌 수 있다.
+                //
+                // **거리는 본다** (S15P21B202-686). 예전에는 이것이 없어서
+                // **73m 떨어져서도 파츠가 0.62m/s 로 끌렸다**(실측). 손이 팔 길이를
+                // 한참 벗어나면 잡고 있는 것이 아니다.
+                var holding = able && (HoldingWithinReach(player, player.LeftHand)
+                                       | HoldingWithinReach(player, player.RightHand));
 
                 // 몸으로 밀 때만 "파츠 쪽으로 향하는 이동인가" 를 본다. 멀어지는 입력은
                 // 밀기가 아니다 — §13.1 "당기기는 제공하지 않으며 반대편으로 이동해
                 // 반대 방향으로 민다". 손이 비었으면 파츠를 당길 수단이 없다.
                 var toPart = Toward(player);
+                //
+                // **질량중심보다 위에서는 몸으로 못 민다** (S15P21B202-667). 위를 밀면
+                // 토크가 생겨 파츠가 넘어진다 — 실측으로 73.8도까지 기울었다. 파츠를
+                // 넘어뜨리는 것은 §13 의 밀기가 아니라 §22.4 의 붕괴다.
+                //
+                // 정상적으로 서서 미는 데에는 영향이 없다. 골반은 지면에서 0.30m
+                // (Tuning.RideHeight)라 파츠 질량중심보다 늘 아래다. 막히는 것은
+                // **올라타서 윗부분을 밀 때**뿐이다.
+                var lowEnough = player.Doll != null && player.Doll.Hips != null
+                                && player.Doll.Hips.position.y <= _body.worldCenterOfMass.y;
+
+                // **고정못을 잡고 있으면 몸으로 미는 것이 아니다** (S15P21B202-667).
+                // 그때 몸은 파츠 강체에 묶여 밀리지 않는 벽이고, 여기서 미는 힘까지
+                // 더하면 충돌과 밀기가 겹쳐 아주 쉽게 밀려 나간다.
                 var bodyPushing = able && !holding
+                                  && !player.ClampGrabbed
+                                  && lowEnough
                                   && toPart.sqrMagnitude > 1e-6f
                                   && IsTouching(player)
                                   && moving
@@ -371,6 +396,24 @@ namespace Metagame.Gameplay.Parts
                                          && hand.Held == _grabbable
                                          && hand.Gripping;
 
+        /// <summary>
+        /// 이 손이 파츠를 잡고 있고, <b>아직 닿을 수 있는 거리인가</b>
+        /// (S15P21B202-686). 벗어났으면 <b>그 자리에서 놓는다</b> — 세지 않기만 하면
+        /// 손은 영영 붙어 있는 것으로 남아 다시 잡을 수도 놓을 수도 없다.
+        /// </summary>
+        bool HoldingWithinReach(PlayerRig player, Hand hand)
+        {
+            if (!IsHoldingPart(hand)) return false;
+
+            var from = hand.transform.position;
+            if (Vector3.Distance(from, SurfacePointNearest(from))
+                <= PhysicsScale.PartPushHoldReach)
+                return true;
+
+            player.ReleaseHaulGrip(hand);
+            return false;
+        }
+
         /// <summary>더 이상 미는 사람이 아닌 항목을 지운다.</summary>
         void Forget()
         {
@@ -414,8 +457,21 @@ namespace Metagame.Gameplay.Parts
                 _lastTopSpeed = top;
                 _pushedRecently = true;
 
+                // **회전 억제는 조기 return 보다 먼저다.** 아래로 두었더니 상한에
+                // 닿는 순간부터 매 스텝 그냥 빠져나가 회전이 82.8 → 74.3 도로 거의
+                // 안 줄었다 — 값이 소수점까지 같아서 드러났다.
+                //
+                // **넘어지는 축만 잡는다.** 미는 힘은 질량중심에 넣어 토크를 안 만드는데
+                // 미는 사람의 **몸 콜라이더**가 윗부분에 닿으면 그 접촉이 토크를 만든다.
+                // 파츠를 넘어뜨리는 것은 §13 의 밀기가 아니라 §22.4 의 붕괴다.
+                // 세로축(yaw) 회전은 밀다 보면 자연스럽게 생기므로 살려 둔다.
+                var spin = _body.angularVelocity;
+                var yaw = Vector3.up * spin.y;
+                _body.angularVelocity =
+                    yaw + (spin - yaw) * Mathf.Pow(PhysicsScale.PartPushSpinDamping, deltaTime);
+
                 var along = Vector3.Dot(horizontal, HaulDirection);
-                if (along >= top) return;   // 이미 더 빠르다 — 건드리지 않는다
+                if (along >= top) return;   // 이미 더 빠르다 — 힘은 안 넣는다
 
                 // **남은 여유에 맞춰 힘을 깎는다.** AddForce 는 다음 물리 스텝에야
                 // 속도가 되므로, 상한 바로 아래에서 온 힘을 넣으면 그 한 스텝이
@@ -432,6 +488,14 @@ namespace Metagame.Gameplay.Parts
                 // 질량중심에 넣어 토크를 만들지 않는다 — 미는 것이 파츠를 넘어뜨리는
                 // 것이 되면 §13 이 아니라 §22.4 의 붕괴가 된다.
                 _body.AddForce(HaulDirection * applied, ForceMode.Force);
+
+                // **미는 동안에는 구르지 않는다** (S15P21B202-667). 위의 힘은 질량중심에
+                // 넣어 토크를 안 만드는데, 미는 사람의 **몸 콜라이더**가 윗부분에 닿으면
+                // 그 접촉이 토크를 만든다 — 실측 82.8도까지 돌았다. 파츠를 넘어뜨리는
+                // 것은 §13 의 밀기가 아니라 §22.4 의 붕괴다.
+                //
+                // 0 으로 죽이지 않는 이유는 경사에서 자세를 잡는 것과 운석에 맞아 도는
+                // 것까지 막으면 물리가 죽은 것처럼 보이기 때문이다.
                 return;
             }
 

@@ -103,6 +103,8 @@ namespace Metagame.Gameplay
         // Results persist until the next accepted swing and travel with tool snapshots.
         public uint RhythmSequence { get; private set; }
         public byte RhythmGrade { get; private set; } // 0 miss, 1 good, 2 great, 3 perfect
+        public Vector3 RhythmImpactPoint { get; private set; }
+        bool receivedRhythm;
         public const float GuideSeconds = 3f;
         public const float PerfectAt = 0.60f;
 
@@ -116,11 +118,17 @@ namespace Metagame.Gameplay
         public static float SpeedFor(byte grade) => PhysicsScale.BatDeflectSpeed *
             (grade == 3 ? 1.8f : grade == 2 ? 1.35f : 1f);
 
-        public void ApplyRhythmResult(uint sequence, byte grade, float remainingCooldown = 0f)
+        public void ApplyRhythmResult(uint sequence, byte grade, float remainingCooldown = 0f,
+            Vector3 impactPoint = default)
         {
+            // The first snapshot establishes a baseline; joining must not replay old hits.
+            bool newHit = receivedRhythm && sequence != RhythmSequence && grade >= 1 && grade <= 3;
+            receivedRhythm = true;
             RhythmSequence = sequence;
             RhythmGrade = grade;
+            RhythmImpactPoint = impactPoint;
             cooldown = Mathf.Max(0f, remainingCooldown);
+            if (newHit) Puff.BatImpact(impactPoint, grade);
         }
 
         /// <summary>가장 최근 스윙에서 쳐낸 운석. 헛스윙이면 null.</summary>
@@ -137,6 +145,9 @@ namespace Metagame.Gameplay
 
         /// <summary>휘둘렀을 때. 애니메이션과 소리가 여기에 붙는다(맞았는지 여부 포함).</summary>
         public event Action<MeteorBat, bool> Swung;
+
+        /// <summary>모든 방망이의 스윙 결과. 월드 사운드 런타임이 운석 반사음을 구독한다.</summary>
+        public static event Action<MeteorBat, bool> AnySwung;
 
         protected override void OnValidate()
         {
@@ -240,7 +251,13 @@ namespace Metagame.Gameplay
             {
                 meteor.TryPredictImpact(out var seconds, out _);
                 RhythmGrade = GradeFor(seconds, meteor.BatSwingWindowSeconds);
-                meteor.Deflect(direction * SpeedFor(RhythmGrade));
+                RhythmImpactPoint = meteor.transform.position;
+                // AimForward also reads replicated yaw/pitch on a camera-less server.
+                // The supplied tool aim may include the raised-arm pose; use the actual
+                // view for meteors while retaining the existing lift for players/props.
+                var meteorAim = Owner != null ? Owner.AimForward : facing;
+                if (meteorAim.sqrMagnitude > 1e-4f) direction = meteorAim.normalized;
+                meteor.Deflect(direction * SpeedFor(RhythmGrade), RhythmGrade);
                 LastDeflected = meteor;
                 LastSwingConnected = true;
             }
@@ -273,11 +290,15 @@ namespace Metagame.Gameplay
             // 입력 순간의 시간으로 판정하고 스윙 연출을 시작한다.
             swingElapsed = 0f;
             swingAim = facing;
+            // **몸도 휘두른다** (S15P21B202-694). 여기서 켜야 맞았든 헛쳤든 한 번만
+            // 돈다 — 아래 Swung 이벤트는 소리가 맞고 틀림을 가르는 데 쓴다.
+            Owner?.NotifyBatSwing();
 
             ShowSwing(direction);
 
             RhythmSequence++;
             Swung?.Invoke(this, LastSwingConnected);
+            AnySwung?.Invoke(this, LastSwingConnected);
             return LastSwingConnected;
         }
 
@@ -321,7 +342,7 @@ namespace Metagame.Gameplay
         ///
         /// 조준의 <b>수평 성분</b>을 축으로 삼는다. 방망이가 위를 보든 아래를 보든 같은
         /// 궤적이어야 하고, 그것은 <see cref="LaunchDirection"/> 이 반사 방향을 정하는
-        /// 방식과 같은 규칙이다.
+        /// 방식과 같은 규칙이다. 운석의 발사 방향은 별도로 실제 시선을 따른다.
         ///
         /// 상태를 갖지 않으므로 검증이 진행도를 직접 넣어 궤적을 잠글 수 있다.
         /// </summary>
@@ -370,9 +391,8 @@ namespace Metagame.Gameplay
         /// <summary>
         /// 휘두른 것을 눈에 보이게 한다.
         ///
-        /// <b>소리는 붙이지 못한다.</b> 프로젝트에 <c>AudioSource</c> 사용처가 0곳이라
-        /// 재생 경로 자체가 없다. <see cref="Swung"/> 이벤트를 붙일 자리로 남긴다 —
-        /// 소리 시스템이 생기면 그것을 구독한다([Sound]).
+        /// 소리는 이 클래스에서 직접 재생하지 않는다. <see cref="AnySwung"/>을
+        /// <c>SoundRuntime</c>이 구독해, 실제 운석을 반사했을 때만 월드 타격음을 낸다.
         ///
         /// 맞았을 때와 헛스윙을 <b>구분해서</b> 낸다. 둘이 같으면 대기 1초 동안 클릭이
         /// 먹히지 않는 이유를 플레이어가 알 수 없다.
@@ -394,7 +414,8 @@ namespace Metagame.Gameplay
                     ? LastPushed.worldCenterOfMass
                     : origin + direction * 0.5f;
 
-            Puff.Thruster(point, direction);
+            if (LastDeflected != null) Puff.BatImpact(point, RhythmGrade);
+            else Puff.Thruster(point, direction);
 
             // 방망이에서 맞은 자리까지 줄기를 남긴다(S15P21B202-276).
             //
@@ -529,35 +550,78 @@ namespace Metagame.Gameplay
         /// </summary>
         public static Meteor FindTarget(Vector3 origin) => FindGuideTarget(origin, Meteor.All, true);
 
+        public readonly struct GuideTarget
+        {
+            public readonly Meteor Meteor;
+            public readonly float Seconds;
+            public float Window => Meteor.BatSwingWindowSeconds;
+            public float Span => Mathf.Max(GuideSeconds, Window * 1.5f);
+            public float Progress01 => Mathf.Clamp01(1f - Seconds / Span);
+
+            public GuideTarget(Meteor meteor, float seconds)
+            {
+                Meteor = meteor;
+                Seconds = seconds;
+            }
+        }
+
+        // Both the strike and HUD use the same range/eligibility predicate.
+        static bool TryGetGuideTarget(Vector3 origin, Meteor meteor, out GuideTarget target)
+        {
+            target = default;
+            if (meteor == null || meteor.Harmless || meteor.GroundProp) return false;
+            if (!meteor.TryPredictImpact(out var seconds, out var point)) return false;
+            var offset = point - origin;
+            offset.y = 0f;
+            if (offset.magnitude > meteor.BatAssistRadius) return false;
+            target = new GuideTarget(meteor, seconds);
+            return true;
+        }
+
         public static Meteor FindGuideTarget(Vector3 origin,
             System.Collections.Generic.IReadOnlyList<Meteor> meteors, bool strikeOnly = false)
         {
             Meteor best = null;
             var bestSeconds = float.MaxValue;
-
             for (var i = 0; i < meteors.Count; i++)
             {
-                var meteor = meteors[i];
-                if (meteor == null || meteor.Harmless || meteor.GroundProp) continue;
-                if (!meteor.TryPredictImpact(out var seconds, out var point)) continue;
-
-                // 너무 이르면 헛스윙이다. 이 조건이 §18.1 의 "너무 일찍 휘두르면
-                // 헛스윙하지만 다시 시도할 수 있다" 를 만든다.
-                if (strikeOnly && seconds > meteor.BatSwingWindowSeconds) continue;
-
-                // 낙하 지점까지의 거리는 <b>수평으로</b> 잰다. 운석은 아직 공중에 있고
-                // 플레이어는 지면에 있으므로, 3차원 거리로 재면 높이 차가 판정을 먹는다.
-                var offset = point - origin;
-                offset.y = 0f;
-                if (offset.magnitude > meteor.BatAssistRadius) continue;
-
-                if (seconds >= bestSeconds) continue;
-
-                bestSeconds = seconds;
-                best = meteor;
+                if (!TryGetGuideTarget(origin, meteors[i], out var target)) continue;
+                if (strikeOnly && target.Seconds > target.Window) continue;
+                if (target.Seconds >= bestSeconds) continue;
+                bestSeconds = target.Seconds;
+                best = target.Meteor;
             }
-
             return best;
+        }
+
+        /// <summary>All nearby incoming meteors, in the same priority order as a strike.</summary>
+        public static void CollectGuideTargets(Vector3 origin,
+            System.Collections.Generic.IReadOnlyList<Meteor> meteors,
+            System.Collections.Generic.List<GuideTarget> into,
+            System.Collections.Generic.IReadOnlyList<Meteor> ghosts = null)
+        {
+            into.Clear();
+            AppendGuideTargets(origin, meteors, into);
+            AppendGuideTargets(origin, ghosts, into);
+        }
+
+        static void AppendGuideTargets(Vector3 origin,
+            System.Collections.Generic.IReadOnlyList<Meteor> meteors,
+            System.Collections.Generic.List<GuideTarget> into)
+        {
+            if (meteors == null) return;
+            for (int i = 0; i < meteors.Count; i++)
+            {
+                if (!TryGetGuideTarget(origin, meteors[i], out var target)) continue;
+                bool duplicate = false;
+                for (int j = 0; j < into.Count; j++)
+                    if (into[j].Meteor == target.Meteor) { duplicate = true; break; }
+                if (duplicate) continue;
+                // Stable insertion keeps equal impact times in server selection order.
+                int index = into.Count;
+                while (index > 0 && into[index - 1].Seconds > target.Seconds) index--;
+                into.Insert(index, target);
+            }
         }
 
         /// <summary>
@@ -676,7 +740,8 @@ namespace Metagame.Gameplay
         }
 
         /// <summary>
-        /// 쳐내는 방향. 조준의 <b>수평 성분</b>에 고정 각도를 더한다(기획 §18.2).
+        /// 동료·소품의 타격 방향 및 시선 없는 운석의 대체 방향.
+        /// 조준의 <b>수평 성분</b>에 기존 고정 각도를 더한다.
         ///
         /// 이것이 §18.2 의 "카메라가 지나치게 위나 아래를 보더라도 수직 각도는 자동
         /// 보정한다" 다. 보정을 따로 계산하지 않는다 — 수평 성분만 쓰면 위를 보든 아래를

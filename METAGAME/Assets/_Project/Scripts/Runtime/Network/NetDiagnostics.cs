@@ -24,7 +24,7 @@ namespace Metagame.Network
     /// <c>METAGAME_NETDIAG=1</c>. 평소 실행에는 아무 영향이 없다.</para>
     ///
     /// <para><b>로그 위치</b>:
-    /// <c>%USERPROFILE%\AppData\LocalLow\NotThisPlanet\Not This Planet\Player.log</c></para>
+    /// <c>%USERPROFILE%\AppData\LocalLow\Not This Planet\Not This Planet\Player.log</c></para>
     ///
     /// <para>한 줄 형식(1초마다):
     /// <code>
@@ -56,17 +56,56 @@ namespace Metagame.Network
         Transport loggedTransport;
         readonly StringBuilder line = new StringBuilder(256);
 
-        /// <summary>인자나 환경변수로 켜졌는가. 평소 실행에서는 이 컴포넌트를 붙이지 않는다.</summary>
-        public static bool Requested
+        /// <summary>
+        /// 켜졌는가. 평소 실행에서는 이 컴포넌트를 붙이지 않는다.
+        ///
+        /// <para><b>QA 빌드는 스스로 켠다</b> (S15P21B202-658). 두 사람이 각자 창을 띄워
+        /// 노는 QA 에서 <c>-netdiag</c> 를 <b>둘 다</b> 붙이는 것은 잊기 쉽고, 한 쪽만
+        /// 잊어도 <c>netdiag.py</c> 가 짝지을 줄이 없어 <b>판 하나가 통째로 버려진다</b> —
+        /// 그때는 이미 다 놀고 난 뒤다. 켜는 일을 사람 기억에 맡기지 않는다.</para>
+        ///
+        /// <para><b>개발 단계에서 시험하는 빌드는 다 켠다</b> (S15P21B202-711). 전에는
+        /// <c>qa-</c> 만 켰는데, 그 규칙은 "QA 는 MR 버튼 빌드로 한다" 를 가정했다.
+        /// <b>실제로는 <c>dev-</c> 빌드로도 QA 한다</b> — 2026-09-22 에 그 판의 성능
+        /// 자료가 통째로 없었고, 2026-09-23 에는 MR 이 다 머지돼 <c>qa-</c> 를 만들
+        /// 길조차 없었다. 전제와 실제가 어긋나는 자리를 없앤다.</para>
+        ///
+        /// <para>릴리스 빌드(<c>버전=vX.Y.Z</c>)는 그대로 꺼져 있다. 손으로 만든 빌드
+        /// (신원이 빈 문자열)도 꺼져 있다 — 켜는 쪽은 <b>이름이 붙은 빌드</b>뿐이다.</para>
+        /// </summary>
+        public static bool Requested =>
+            EnabledFor(System.Environment.GetCommandLineArgs(),
+                       System.Environment.GetEnvironmentVariable(EnvVar),
+                       Core.BuildInfo.BuildId);
+
+        /// <summary>QA 빌드 신원의 머리표. <c>publish_devbuild.py</c> 가 <c>qa-&lt;MR&gt;-&lt;sha&gt;</c> 로 짓는다.</summary>
+        public const string QaBuildPrefix = "qa-";
+
+        /// <summary>새벽·develop 개발 빌드 신원의 머리표. <c>dev-&lt;날짜&gt;-&lt;sha&gt;</c> 다.</summary>
+        public const string DevBuildPrefix = "dev-";
+
+        /// <summary>
+        /// 무엇이 들어오면 켜지는가 (S15P21B202-658).
+        ///
+        /// <para><b>순수 함수로 갈라 둔다</b>(<c>BuildStamp.BackendIsDev</c> 와 같은 이유).
+        /// 에디터에서 도는 검사는 실행 인자도 환경변수도 흔들 수 없고, 흔들면 같은
+        /// 프로세스의 다른 검사로 새어 나간다.</para>
+        /// </summary>
+        public static bool EnabledFor(string[] args, string envValue, string buildId)
         {
-            get
-            {
-                var args = System.Environment.GetCommandLineArgs();
+            if (args != null)
                 for (int i = 0; i < args.Length; i++)
                     if (string.Equals(args[i], Flag, System.StringComparison.OrdinalIgnoreCase))
                         return true;
-                return System.Environment.GetEnvironmentVariable(EnvVar) == "1";
-            }
+
+            if (envValue == "1") return true;
+
+            // **개발 단계의 빌드는 둘 다 켠다** (S15P21B202-711). `qa-` 만 켜던 규칙은
+            // "QA 는 MR 버튼 빌드로 한다" 를 가정했는데 실제로는 `dev-` 로도 한다.
+            // 릴리스(`v…`)와 손으로 만든 빌드(신원 없음)는 여기 안 걸린다.
+            var id = (buildId ?? string.Empty).Trim();
+            return id.StartsWith(QaBuildPrefix, System.StringComparison.OrdinalIgnoreCase)
+                   || id.StartsWith(DevBuildPrefix, System.StringComparison.OrdinalIgnoreCase);
         }
 
         void Start()
@@ -153,7 +192,14 @@ namespace Metagame.Network
             Append("live", spawner != null
                 ? (spawner.Live.Count + spawner.Ghosts.Count).ToString()
                 : "-");
-            Append("scars", spawner != null ? spawner.Scars.Count.ToString() : "-");
+            // **여기도 합쳐 찍는다** (S15P21B202-658). 바로 위 `live` 와 같은 함정이다 —
+            // 참가자에게는 진짜 흔적이 없고 그림만 있으므로(`ScarGhostCount`) `Scars` 만
+            // 찍으면 **호스트 5 대 참가자 0** 이 되어 `netdiag.py` 의 "다르다" 가 매 초
+            // 참이 된다. 늘 빨간 신호는 아무도 안 읽고, 그러면 **진짜로 갈렸을 때도
+            // 못 본다.** 뜻은 하나다 — 지금 땅에 있는 돌이 몇 개인가.
+            Append("scars", spawner != null
+                ? (spawner.Scars.Count + spawner.ScarGhostCount).ToString()
+                : "-");
             Append("crew", spawner != null ? spawner.Crew.ToString() : "-");
 
             // 세계가 실제로 같은지 증명하는 값. **같은 seq 의 poses 를** 견준다 —

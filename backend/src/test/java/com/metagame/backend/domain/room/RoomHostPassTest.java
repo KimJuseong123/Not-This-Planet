@@ -99,6 +99,96 @@ class RoomHostPassTest {
         assertThat(room.getHostUserId()).isNull();
     }
 
+    // ---------- AI 자리와 방장 교체 (S15P21B202-713) ----------
+
+    /** 대기 중에 방장이 나가면 AI 수는 0 이 된다 — 새 방장은 AI 를 준비한 적이 없다. */
+    @Test
+    void theHostLeavingWhileWaitingResetsTheAiCount() {
+        Room room = new Room("room-1", 1L, "철수");
+        room.join(2L, "영희");
+        room.setAiCount(1L, 2);
+
+        room.leave(1L);
+
+        assertThat(room.getHostUserId()).isEqualTo(2L);
+        assertThat(room.getAiCount()).isZero();
+    }
+
+    /** 방장이 아닌 사람이 나가면 AI 수는 그대로다. */
+    @Test
+    void aGuestLeavingWhileWaitingKeepsTheAiCount() {
+        Room room = new Room("room-1", 1L, "철수");
+        room.join(2L, "영희");
+        room.setAiCount(1L, 2);
+
+        room.leave(2L);
+
+        assertThat(room.getAiCount()).isEqualTo(2);
+    }
+
+    /** 판 중 이전은 AI 수를 건드리지 않는다 — 새 방장이 그 판을 같은 수로 이어 간다. */
+    @Test
+    void passingHostDuringPlayKeepsTheAiCount() {
+        Room room = playingWithAi(1);
+        room.markDisconnected(1L);
+
+        assertThat(room.passHostToConnected()).isEqualTo(2L);
+
+        assertThat(room.getAiCount()).isEqualTo(1);
+    }
+
+    /** 판 중에 방장이 바뀐 채 끝나면 0 이 된다. 다음 판은 새 방장 PC 에서 돈다. */
+    @Test
+    void endingAfterMigrationResetsTheAiCount() {
+        Room room = playingWithAi(1);
+        room.markDisconnected(1L);
+        room.passHostToConnected();
+
+        assertThat(room.end()).isTrue();
+
+        assertThat(room.getAiCount()).isZero();
+    }
+
+    /** 같은 방장으로 끝나면 그대로 둔다 — 한 판 더 할 때 다시 고르지 않는다. */
+    @Test
+    void endingWithTheSameHostKeepsTheAiCount() {
+        Room room = playingWithAi(1);
+
+        assertThat(room.end()).isTrue();
+
+        assertThat(room.getAiCount()).isEqualTo(1);
+    }
+
+    /** 판 중 이전 뒤 끝나서 0 이 된 다음 판은, 다시 시작해도 옛 방장을 기억하지 않는다. */
+    @Test
+    void theNextRoundComparesAgainstItsOwnStartingHost() {
+        Room room = playingWithAi(1);
+        room.markDisconnected(1L);
+        room.passHostToConnected();
+        room.end();
+
+        room.setAiCount(2L, 1);
+        room.setReady(2L, true);
+        room.setReady(3L, true);
+        room.leave(1L);
+        assertThat(room.start()).isTrue();
+        assertThat(room.end()).isTrue();
+
+        assertThat(room.getAiCount()).isEqualTo(1);
+    }
+
+    private Room playingWithAi(int aiCount) {
+        Room room = new Room("room-1", 1L, "철수");
+        assertThat(room.join(2L, "영희")).isTrue();
+        assertThat(room.join(3L, "민수")).isTrue();
+        assertThat(room.setAiCount(1L, aiCount)).isEqualTo(Room.AiCountResult.OK);
+        room.setReady(1L, true);
+        room.setReady(2L, true);
+        room.setReady(3L, true);
+        assertThat(room.start()).isTrue();
+        return room;
+    }
+
     private Room playing() {
         Room room = new Room("room-1", 1L, "철수");
         assertThat(room.join(2L, "영희")).isTrue();

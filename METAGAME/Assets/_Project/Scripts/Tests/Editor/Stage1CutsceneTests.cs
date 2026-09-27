@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Reflection;
 using Metagame.Bootstrap;
 using Metagame.Gameplay.Hazards;
 using Metagame.Gameplay.Parts;
@@ -31,6 +32,100 @@ namespace Metagame.Gameplay.Tests
         }
 
         [TearDown] public void TearDown() { Object.DestroyImmediate(_root); }
+
+        static void SetField(object target, string name, object value) => target.GetType()
+            .GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).SetValue(target, value);
+
+        SpaceBootstrap TabletBootstrap(out Stage1Exploration exploration)
+        {
+            // Keep the full world bootstrap dormant; exercise the actual cleanup/state methods.
+            var go = new GameObject("tablet bootstrap");
+            go.transform.SetParent(_root.transform);
+            go.SetActive(false);
+            var boot = go.AddComponent<SpaceBootstrap>();
+            exploration = _root.AddComponent<Stage1Exploration>();
+            exploration.Guide.Enable();
+            _session.Exploration = exploration;
+            SetField(boot, "<Session>k__BackingField", _session);
+            SetField(boot, "<Exploration>k__BackingField", exploration);
+            return boot;
+        }
+
+        Stage1CutsceneScene TabletScene(SpaceBootstrap boot, bool assault, bool savedOpen)
+        {
+            var view = boot.gameObject.AddComponent<Stage1CutsceneScene>();
+            SetField(view, "_bootstrap", boot);
+            SetField(view, "_sequence", _sequence);
+            SetField(view, "_assault", assault);
+            SetField(view, "_savedTablet", savedOpen);
+            return view;
+        }
+
+        [TestCase(false, false)] [TestCase(true, false)]
+        [TestCase(false, true)] [TestCase(true, true)]
+        public void CompletedEntryKeepsTabletOpenAfterStopAndRepeatedCleanup(bool skip, bool client)
+        {
+            var boot = TabletBootstrap(out var exploration);
+            _sequence.TryBeginEntry();
+            var view = TabletScene(boot, false, false);
+            if (!skip) exploration.SetTabletOpen(true); // The final authored shot already opened it.
+            int closes = 0;
+            exploration.TabletStateChanged += open => { if (!open) closes++; };
+            if (client)
+            {
+                _authority = false;
+                _sequence.ApplyReplica(Stage1SequencePhase.Exploration, 18, 2, false);
+            }
+            else if (skip) Assert.That(_sequence.TrySkip(_sequence.Revision), Is.True);
+            else { _now = Stage1Sequence.EntrySeconds; _sequence.Tick(); }
+            view.Stop();
+            view.Stop();
+            Assert.That(exploration.TabletOpen, Is.True);
+            Assert.That(exploration.Guide.Visible, Is.True);
+            Assert.That(closes, Is.Zero, "Cleanup must not briefly lower the tablet.");
+            Assert.That(_session.CursorLocked, Is.False);
+        }
+
+        [TestCase(false, false)] [TestCase(false, true)]
+        [TestCase(true, false)] [TestCase(true, true)]
+        public void AssaultCompletionAndInterruptedEntryRestorePreviousTablet(bool assault, bool savedOpen)
+        {
+            var boot = TabletBootstrap(out var exploration);
+            _sequence.TryBeginEntry();
+            if (assault)
+            {
+                _sequence.TrySkip(_sequence.Revision);
+                _sequence.TryBeginAssault();
+                _sequence.TrySkip(_sequence.Revision);
+            }
+            exploration.SetTabletOpen(!savedOpen);
+            TabletScene(boot, assault, savedOpen).Stop();
+            Assert.That(exploration.TabletOpen, Is.EqualTo(savedOpen));
+        }
+
+        [TestCase(Stage1SequencePhase.Exploration)]
+        [TestCase(Stage1SequencePhase.Combat)]
+        public void MissingCutsceneViewWaitsForLocalBodyThenOpensTabletOnlyOnce(Stage1SequencePhase phase)
+        {
+            var boot = TabletBootstrap(out var exploration);
+            var flow = boot.gameObject.AddComponent<Stage1CutsceneFlow>();
+            SetField(flow, "_bootstrap", boot);
+            SetField(flow, "<Sequence>k__BackingField", _sequence);
+            var update = typeof(Stage1CutsceneFlow).GetMethod("Update", BindingFlags.Instance | BindingFlags.NonPublic);
+            update.Invoke(flow, null);
+            Assert.That(exploration.TabletOpen, Is.False, "Waiting is not entry completion.");
+            _authority = false;
+            _sequence.ApplyReplica(phase, 18, 2, phase == Stage1SequencePhase.Combat);
+            update.Invoke(flow, null);
+            Assert.That(exploration.TabletOpen, Is.False, "Body initialization still resets the tablet.");
+            _session.LocalPlayer = boot.gameObject.AddComponent<PlayerRig>();
+            update.Invoke(flow, null);
+            Assert.That(exploration.TabletOpen, Is.True);
+            Assert.That(_session.CanToggleTablet, Is.True);
+            exploration.ToggleTablet();
+            update.Invoke(flow, null);
+            Assert.That(exploration.TabletOpen, Is.False, "A player's manual close must persist.");
+        }
 
         [Test] public void EntryBlocksInputThenExplorationWaitsForTrigger()
         {
@@ -180,7 +275,10 @@ namespace Metagame.Gameplay.Tests
             Assert.That(state.Phase, Is.EqualTo(Stage1SequencePhase.Exploration));
             Assert.That(player.Cam.enabled, Is.True);
             Assert.That(player.Cam.FirstPerson, Is.EqualTo(perspective));
-            Assert.That(boot.Exploration.TabletOpen, Is.False);
+            Assert.That(boot.Exploration.TabletOpen, Is.True, "Entry leaves the tablet ready to read.");
+            boot.Exploration.ToggleTablet();
+            yield return null;
+            Assert.That(boot.Exploration.TabletOpen, Is.False, "The player can still put it away.");
             Assert.That(GameObject.Find("Cutscene meteor shower"), Is.Null, "Cutscene effects must not persist into exploration.");
             var trigger = Object.FindAnyObjectByType<Stage1AssaultTrigger>();
             Assert.That(trigger, Is.Not.Null);

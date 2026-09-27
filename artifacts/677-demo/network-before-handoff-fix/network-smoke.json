@@ -1,0 +1,14 @@
+{
+  "transport": "Mirror Telepathy loopback",
+  "passed": true,
+  "utc": "2026-09-22T01:29:45.6464175Z",
+  "mode": "demo",
+  "peers": 3,
+  "assertions": [
+    "[DemoSmoke] HOST demo panorama PASS",
+    "[DemoSmoke] HOST terminal demo PASS",
+    "[DemoSmoke] CLIENT replicated cinematic PASS",
+    "[DemoSmoke] CLIENT terminal demo PASS",
+    "[DemoSmoke] OBSERVER seeks current cinematic PASS"
+  ]
+}

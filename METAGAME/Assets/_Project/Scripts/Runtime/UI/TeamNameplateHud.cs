@@ -32,6 +32,11 @@ namespace Metagame.UI
         GameSession session;
         GUIStyle style;
 
+        /// <summary>
+        /// AI 동료 머리 위에는 <b>이름표 말고 아무 글자도 띄우지 않는다</b> (2026-09-26). 목표는 AI 동료가 사람과 크게
+        /// 구분되지 않는 것이다 — 한때 하는 일 · 결과를 띄웠다가 뺐다. 명령의 결과는 말한 사람 화면 위쪽 배너가 보여 준다.
+        /// </summary>
+
         public void Initialize(GameSession gameSession)
         {
             session = gameSession;

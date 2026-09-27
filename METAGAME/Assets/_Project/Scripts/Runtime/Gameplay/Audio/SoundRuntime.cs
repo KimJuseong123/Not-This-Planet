@@ -35,6 +35,8 @@ namespace Metagame.Gameplay.Audio
             new Dictionary<PlasmaWeldingTool, float>();
         readonly Dictionary<PlasmaWeldingTool, float> cutProgressTimes =
             new Dictionary<PlasmaWeldingTool, float>();
+        readonly Dictionary<PlasmaWeldingTool, bool> weldingHeld =
+            new Dictionary<PlasmaWeldingTool, bool>();
         readonly List<TransportVehicle> vehicles = new List<TransportVehicle>();
         readonly List<PlasmaWeldingTool> tools = new List<PlasmaWeldingTool>();
         readonly List<TransportVehicle> deadVehicles = new List<TransportVehicle>();
@@ -46,6 +48,8 @@ namespace Metagame.Gameplay.Audio
         bool worldAuthority;
         bool networked;
         bool audioAvailable;
+        AudioListener cachedListener;
+        float nextListenerSearch;
         float userSfxVolume = 1f;
         GameSettingsRuntime settingsRuntime;
         float registryRefresh;
@@ -183,8 +187,10 @@ namespace Metagame.Gameplay.Audio
             PlayerRig.AnyHandGrabAttempted += OnHandGrabAttempted;
             PlayerRig.AnyHandReleased += OnHandReleased;
             PlayerRig.AnyFootstep += OnFootstep;
+            PlayerRig.AnyJumped += OnJumped;
             Grabbable.AnyGrabbed += OnGrabbed;
             PartClamp.AnyProgressed += OnClampProgressed;
+            PartClamp.AnyReleased += OnClampReleased;
             Meteor.AnyImpacted += OnMeteorImpacted;
             PartAssemblyLink.AnyWelded += OnLinkWelded;
             PartAssemblyLink.AnyReleased += OnLinkReleased;
@@ -192,6 +198,7 @@ namespace Metagame.Gameplay.Audio
             TransportVehicle.AnyDismounted += OnTransportDismounted;
             PlasmaWeldingTool.AnyWeldProgressed += OnWeldProgressed;
             PlasmaWeldingTool.AnyCutProgressed += OnCutProgressed;
+            MeteorBat.AnySwung += OnBatSwung;
         }
 
         void OnDisable()
@@ -203,8 +210,10 @@ namespace Metagame.Gameplay.Audio
             PlayerRig.AnyHandGrabAttempted -= OnHandGrabAttempted;
             PlayerRig.AnyHandReleased -= OnHandReleased;
             PlayerRig.AnyFootstep -= OnFootstep;
+            PlayerRig.AnyJumped -= OnJumped;
             Grabbable.AnyGrabbed -= OnGrabbed;
             PartClamp.AnyProgressed -= OnClampProgressed;
+            PartClamp.AnyReleased -= OnClampReleased;
             Meteor.AnyImpacted -= OnMeteorImpacted;
             PartAssemblyLink.AnyWelded -= OnLinkWelded;
             PartAssemblyLink.AnyReleased -= OnLinkReleased;
@@ -212,19 +221,27 @@ namespace Metagame.Gameplay.Audio
             TransportVehicle.AnyDismounted -= OnTransportDismounted;
             PlasmaWeldingTool.AnyWeldProgressed -= OnWeldProgressed;
             PlasmaWeldingTool.AnyCutProgressed -= OnCutProgressed;
+            MeteorBat.AnySwung -= OnBatSwung;
 
             for (var i = 0; i < oneShotPool.Count; i++) StopOneShot(oneShotPool[i]);
             foreach (var state in vehicleLoops.Values) StopLoopSources(state);
             foreach (var state in toolLoops.Values) StopLoopSources(state);
             oneShotStates.Clear();
+            weldingHeld.Clear();
         }
 
         void Update()
         {
             if (bank == null) return;
 
-            audioAvailable = !Application.isBatchMode
-                             && FindAnyObjectByType<AudioListener>() != null;
+            if (!Application.isBatchMode && cachedListener == null && Time.unscaledTime >= nextListenerSearch)
+            {
+                cachedListener = FindAnyObjectByType<AudioListener>();
+                nextListenerSearch = Time.unscaledTime + RegistryRefreshSeconds;
+            }
+            audioAvailable = !Application.isBatchMode && cachedListener != null
+                             && cachedListener.gameObject.activeInHierarchy;
+            if (cachedListener != null && !cachedListener.gameObject.activeInHierarchy) cachedListener = null;
             UpdateOneShots();
 
             registryRefresh -= Time.unscaledDeltaTime;
@@ -276,6 +293,7 @@ namespace Metagame.Gameplay.Audio
             {
                 weldProgressTimes.Remove(deadTools[i]);
                 cutProgressTimes.Remove(deadTools[i]);
+                weldingHeld.Remove(deadTools[i]);
             }
         }
 
@@ -530,42 +548,54 @@ namespace Metagame.Gameplay.Audio
         void UpdateVehicleLoop(TransportVehicle vehicle)
         {
             var desired = SoundEventId.Count;
-            if (vehicle.IsReturning)
+            // 탑승 중에는 속도나 견인 상태가 바뀌어도 같은 엔진 루프를 유지한다.
+            // 정지 때 Count로 빠졌다가 재출발하며 처음부터 재생되던 단절도 막는다.
+            if (vehicle.IsOccupied)
+                desired = SoundEventId.TractorMoveLoop;
+            else if (vehicle.IsReturning)
                 desired = SoundEventId.TractorDescendLoop;
-            else if (vehicle.IsOccupied && vehicle.HorizontalSpeed > 0.12f)
-                desired = vehicle.Beam != null && vehicle.Beam.IsHolding
-                    ? SoundEventId.TractorTowLoop
-                    : SoundEventId.TractorMoveLoop;
 
             UpdateLoop(vehicleLoops, vehicle, desired, 0.72f);
         }
 
         void UpdateToolLoop(PlasmaWeldingTool tool)
         {
-            var desired = SoundEventId.Count;
-            if (tool.BeamActive)
-            {
-                if (tool.BeamMode == PlasmaBeamMode.Weld)
-                {
-                    if (!tool.BeamHasContact) desired = SoundEventId.WeldBeamAirLoop;
-                    else if (tool.GrowingBead != null && tool.GrowingBead.HasLiveBridge)
-                        desired = SoundEventId.WeldBridgeGrowLoop;
-                    else if (weldProgressTimes.TryGetValue(tool, out var weldTime)
-                             && Time.unscaledTime - weldTime <= ProgressWindow)
-                        desired = SoundEventId.WeldBeadGrowLoop;
-                    else desired = SoundEventId.WeldBeamContactLoop;
-                }
-                else if (tool.BeamMode == PlasmaBeamMode.Cut)
-                {
-                    if (!tool.BeamHasContact) desired = SoundEventId.CutBeamAirLoop;
-                    else if (cutProgressTimes.TryGetValue(tool, out var cutTime)
-                             && Time.unscaledTime - cutTime <= ProgressWindow)
-                        desired = SoundEventId.WeldBeadRemoveLoop;
-                    else desired = SoundEventId.CutBeamContactLoop;
-                }
-            }
+            var hasSpaceshipPartTarget = tool.HasSpaceshipPartTarget;
+            var isWeldingHeld = tool.BeamActive && tool.BeamMode == PlasmaBeamMode.Weld
+                                && hasSpaceshipPartTarget;
+            weldingHeld.TryGetValue(tool, out var wasWeldingHeld);
+            if (isWeldingHeld && !wasWeldingHeld)
+                PlaySpatial(SoundEventId.WeldingGunTrigger, tool.transform.position, 0.72f);
+            weldingHeld[tool] = isWeldingHeld;
 
+            var desired = SelectToolLoop(tool.BeamActive, tool.BeamMode, hasSpaceshipPartTarget,
+                tool.GrowingBead != null && tool.GrowingBead.HasLiveBridge,
+                weldProgressTimes.TryGetValue(tool, out var weldTime)
+                    && Time.unscaledTime - weldTime <= ProgressWindow,
+                cutProgressTimes.TryGetValue(tool, out var cutTime)
+                    && Time.unscaledTime - cutTime <= ProgressWindow);
             UpdateLoop(toolLoops, tool, desired, 0.62f);
+        }
+
+        static SoundEventId SelectToolLoop(bool beamActive, PlasmaBeamMode mode,
+            bool hasSpaceshipPartTarget, bool hasLiveBridge, bool weldProgressing, bool cutProgressing)
+        {
+            if (!beamActive) return SoundEventId.Count;
+
+            // 등록된 네 우주선 파츠를 직접 겨눌 때만 용접음을 낸다.
+            // 허공이나 다른 소품에서 클릭해도 용접건 자체의 공중 루프는 재생하지 않는다.
+            if (!hasSpaceshipPartTarget) return SoundEventId.Count;
+
+            if (mode == PlasmaBeamMode.Weld)
+            {
+                if (hasLiveBridge) return SoundEventId.WeldBridgeGrowLoop;
+                return weldProgressing ? SoundEventId.WeldBeadGrowLoop : SoundEventId.WeldBeamContactLoop;
+            }
+            if (mode == PlasmaBeamMode.Cut)
+            {
+                return cutProgressing ? SoundEventId.WeldBeadRemoveLoop : SoundEventId.CutBeamContactLoop;
+            }
+            return SoundEventId.Count;
         }
 
         void UpdateLoop<T>(Dictionary<T, LoopState> states, T target,
@@ -806,6 +836,20 @@ namespace Metagame.Gameplay.Audio
             EmitLocalOneShot(SoundEventId.Footstep, position, intensity);
         }
 
+        void OnJumped(PlayerRig rig, Vector3 position)
+        {
+            if (rig == null) return;
+
+            if (networked)
+            {
+                if (worldAuthority)
+                    EmitWorldOneShot(SoundEventId.PlayerJump, position, 1f);
+                return;
+            }
+
+            EmitLocalOneShot(SoundEventId.PlayerJump, position, 1f);
+        }
+
         void OnGrabbed(Grabbable target, Hand hand)
         {
             var rig = hand != null ? hand.GetComponentInParent<PlayerRig>() : null;
@@ -835,11 +879,26 @@ namespace Metagame.Gameplay.Audio
             EmitWorldOneShot(SoundEventId.ClampPullProgress, clamp.transform.position, 0.72f);
         }
 
+        void OnClampReleased(PartClamp clamp)
+        {
+            if (clamp == null) return;
+            EmitWorldOneShot(SoundEventId.ClampDetached, clamp.transform.position, 1f);
+        }
+
         void OnMeteorImpacted(Meteor meteor, Vector3 point)
         {
             var eventId = meteor != null && meteor.Size == MeteorSize.Medium
                 ? SoundEventId.MeteorImpactMedium : SoundEventId.MeteorImpactSmall;
             EmitWorldOneShot(eventId, point, meteor != null && meteor.Size == MeteorSize.Medium ? 1f : 0.72f);
+        }
+
+        void OnBatSwung(MeteorBat bat, bool connected)
+        {
+            if (bat == null) return;
+            EmitWorldOneShot(SoundEventId.BatSwing, bat.transform.position, 0.68f);
+            if (!connected || bat.LastDeflected == null) return;
+            EmitWorldOneShot(SoundEventId.BatMeteorReflect,
+                bat.LastDeflected.transform.position, 1f);
         }
 
         void OnLinkWelded(PartAssemblyLink link)

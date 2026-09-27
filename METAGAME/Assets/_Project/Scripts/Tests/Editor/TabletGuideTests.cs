@@ -46,16 +46,26 @@ namespace Metagame.Gameplay.Tests
         }
 
         [Test]
-        public void NavigationClampsAndDoesNotWrap()
+        public void NavigationClampsBackwardsAndLeavesForwards()
         {
             var guide = new TabletGuideState();
             guide.Enable();
             guide.OnTabletOpened();
-            guide.Move(-1);
+
+            // 첫 쪽에서 더 앞으로는 못 간다 — 안내 앞에는 아무것도 없다.
+            Assert.IsFalse(guide.Move(-1));
             Assert.AreEqual(0, guide.Page);
-            for (int i = 0; i < 10; i++) guide.Move(1);
+
+            // 마지막 쪽까지는 그냥 넘어간다.
+            for (int i = 0; i < TabletGuideState.PageCount - 1; i++) Assert.IsFalse(guide.Move(1));
             Assert.AreEqual(TabletGuideState.PageCount - 1, guide.Page);
-            Assert.IsTrue(guide.CanConfirm);
+
+            // **여기서 한 번 더 넘기면 안내를 벗어난다** (S15P21B202-657).
+            // 예전에는 마지막 쪽에 붙잡혀 있었고, 확인 키를 모르는 사람은 진행도를
+            // 영영 못 봤다 — 처음 하는 사람이 실제로 그랬다.
+            Assert.IsTrue(guide.Move(1));
+            Assert.IsFalse(guide.Visible);
+            Assert.IsTrue(guide.Completed);
         }
 
         [Test]
@@ -132,6 +142,8 @@ namespace Metagame.Gameplay.Tests
         [TestCase(1)]
         [TestCase(2)]
         [TestCase(3)]
+        [TestCase(4)]
+        [TestCase(5)]
         public void AllIllustrationsArePackagedResources(int page)
         {
             var art = TabletGuideContent.Illustration(page);
@@ -179,13 +191,33 @@ namespace Metagame.Gameplay.Tests
         [Test]
         public void AnchorPinPagePrecedesToolsAndUsesDistinctArt()
         {
-            Assert.AreEqual(4, TabletGuideState.PageCount);
+            Assert.AreEqual(6, TabletGuideState.PageCount);
             StringAssert.Contains("고정못", TabletGuideContent.Title(1));
             StringAssert.Contains("클릭 유지", TabletGuideContent.Caption(1));
             StringAssert.Contains("모두", TabletGuideContent.Caption(1));
             Assert.AreSame(Resources.Load<Texture2D>("TabletGuide/Page4"), TabletGuideContent.Illustration(1));
             Assert.AreSame(Resources.Load<Texture2D>("TabletGuide/Page2"), TabletGuideContent.Illustration(2));
             Assert.AreSame(Resources.Load<Texture2D>("TabletGuide/Page3"), TabletGuideContent.Illustration(3));
+        }
+
+        [TestCase(4, "Page5", "견인")]
+        [TestCase(5, "Page6", "엎드리")]
+        public void NewGuidesUseApprovedWideArt(int page, string resource, string title)
+        {
+            var art = TabletGuideContent.Illustration(page);
+            Assert.AreSame(Resources.Load<Texture2D>("TabletGuide/" + resource), art);
+            StringAssert.Contains(title, TabletGuideContent.Title(page));
+            Assert.AreEqual(3f, (float)art.width / art.height, 0.005f);
+            Assert.Greater(art.mipmapCount, 1);
+        }
+
+        [Test]
+        public void NewCaptionsExplainTheActualControls()
+        {
+            StringAssert.Contains("클릭", TabletGuideContent.Caption(4));
+            StringAssert.Contains("저중력장", TabletGuideContent.Caption(4));
+            StringAssert.Contains("쌓기", TabletGuideContent.Caption(4));
+            StringAssert.Contains(TabletHelpContent.Cap(Metagame.Core.Controls.Prone), TabletGuideContent.Caption(5));
         }
 
         [Test]
@@ -220,11 +252,27 @@ namespace Metagame.Gameplay.Tests
                 screen.Tick();
                 Assert.AreSame(TabletGuideContent.Illustration(3), art.texture);
                 CapturePreviewIfRequested(camera, "guide-4");
+                for (var page = 4; page < TabletGuideState.PageCount; page++)
+                {
+                    state.NextTabletPage();
+                    screen.Tick();
+                    Assert.AreSame(TabletGuideContent.Illustration(page), art.texture);
+                    CapturePreviewIfRequested(camera, $"guide-{page + 1}");
+                }
+                state.NextTabletPage(); // The sixth page flows into progress without E.
+                screen.Tick();
+                Assert.IsFalse(state.Guide.Visible);
+                Assert.AreEqual(0, state.TabletPage);
+                state.PreviousTabletPage();
+                screen.Tick();
+                Assert.AreEqual(5, state.Guide.Page);
+                Assert.AreSame(TabletGuideContent.Illustration(5), art.texture);
                 state.ActivateTabletGuide();
                 screen.Tick();
                 Assert.IsFalse(art.gameObject.activeInHierarchy);
-                var silhouette = view.GetComponentInChildren<PartSilhouetteGraphic>();
-                Assert.IsNotNull(silhouette);
+                var assemblyArt = view.GetComponentInChildren<RawImage>();
+                Assert.IsNotNull(assemblyArt);
+                Assert.AreSame(Resources.Load<Texture2D>("TabletAssembly/Ship"), assemblyArt.texture);
                 CapturePreviewIfRequested(camera, "progress-restored");
             }
             finally

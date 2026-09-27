@@ -25,35 +25,45 @@ namespace Metagame.Gameplay.Tests
         const string Spawner = "Runtime/Gameplay/Hazards/MeteorSpawner.cs";
 
         [Test]
-        public void TheMovingPacketGivesVelocityAndTheFullListDoesNot()
+        public void FullAndMovingSnapshotsKeepTheColliderAuthoritativeAndKinematic()
         {
-            // 전체 목록은 권위다 — 그 자리에 세운다. 움직임 묶음은 다음 33ms 를 채운다.
-            var scope = TestSource.Method(
-                TestSource.Read(Spawner),
-                "public void ApplyNetworkScars(");
-
-            Assert.That(scope, Does.Contain("if (full) SetScarAtRest(body, state);"),
-                "전체 목록과 움직임 묶음을 가르지 않는다 — 둘을 같게 다루면 굴러가는 돌이 끊긴다");
-            Assert.That(scope, Does.Contain("else DeadReckonScar(body, state);"),
-                "움직임 묶음이 속도를 주지 않는다");
-
-            // 자리는 여전히 받은 값으로 찍는다(권위). 속도는 그 사이를 채우는 것뿐이다.
-            Assert.That(scope, Does.Contain("body.position = state.Position"),
-                "자리를 받은 값으로 찍지 않는다 — 오차가 누적된다");
-
-            // 충돌러가 꺼져 있으므로 중력을 켜면 지면을 뚫고 내려간다.
-            Assert.That(scope, Does.Contain("body.useGravity = false"),
-                "중력을 끄지 않는다 — 충돌러가 없어 그림이 지면을 뚫는다");
+            var go = new GameObject("scar interpolation");
+            var spawner = go.AddComponent<MeteorSpawner>();
+            spawner.Configure(718);
+            try
+            {
+                var state = new MeteorSpawner.NetworkScarState
+                {
+                    Id = 1, Position = Vector3.zero, Rotation = Quaternion.identity,
+                    Moving = true,
+                };
+                spawner.ApplyNetworkScars(new[] { state }, true, 10);
+                state.Position = Vector3.right * 0.1f;
+                spawner.ApplyNetworkScars(new[] { state }, false, 10.05);
+                Assert.That(spawner.TryGetScarGhost(1, out var ghost), Is.True);
+                Assert.That(ghost.Body.position, Is.EqualTo(state.Position));
+                Assert.That(ghost.Body.isKinematic, Is.True);
+                Assert.That(ghost.Body.detectCollisions, Is.True);
+                Assert.That(ghost.enabled, Is.False);
+            }
+            finally
+            {
+                spawner.ClearNetworkScars();
+                Object.DestroyImmediate(go);
+            }
         }
 
         [Test]
         public void RestingScarsGetNoVelocity()
         {
             // 쉬는 돌에 속도가 남으면 땅에 박힌 것이 흘러간다.
+            //
+            // 속도가 사는 곳이 강체에서 **기록**으로 옮겨졌다(S15P21B202-658) — 뜻은
+            // 그대로다: 전체 목록이 말한 자리에 세우고 다음 묶음까지 아무 데도 안 간다.
             var scope = TestSource.Method(TestSource.Read(Spawner), "void SetScarAtRest(");
 
-            Assert.That(scope, Does.Contain("body.linearVelocity = Vector3.zero"));
-            Assert.That(scope, Does.Contain("body.angularVelocity = Vector3.zero"));
+            Assert.That(scope, Does.Contain("RememberScarMotion(state, Vector3.zero, Vector3.zero)"),
+                "쉬는 돌에 0 이 아닌 속도가 남는다 — 땅에 박힌 것이 흘러간다");
         }
 
         [Test]

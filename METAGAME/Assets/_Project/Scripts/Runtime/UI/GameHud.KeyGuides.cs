@@ -7,17 +7,17 @@ namespace Metagame.UI
     public partial class GameHud
     {
         public KeyGuideHolder KeyGuides { get; } = new KeyGuideHolder();
-        readonly GUIContent _keyGuideContent = new GUIContent();
         int _keyGuideRevision = -1;
 
         void InitializeKeyGuides()
         {
-            KeyGuides.Register("tablet", "태블릿", () => Controls.Tablet, () =>
-                IsKeyGuideOwner && GameSession.Instance.CanToggleTablet
-                && (GameSession.Instance.Exploration.Guide.Completed
-                    || !GameSession.Instance.Exploration.Guide.Enabled
-                    || GameSession.Instance.Exploration.TabletOpen));
-            KeyGuides.Register("throw", "던지기", () => Controls.ToolAction, CanShowThrowGuide);
+            // **항상 보인다** (S15P21B202-657). 예전에는 안내를 끝낸 뒤에만 띄웠는데,
+            // 태블릿은 진행도를 다시 볼 유일한 길이라 늘 보여야 한다.
+            KeyGuides.Register("tablet", "태블릿", () => Controls.Tablet,
+                () => IsKeyGuideOwner && GameSession.Instance.CanToggleTablet);
+            // "던지기" 만 적혀 있어 **버리는 방법인 줄 몰랐다.** 짧게 누르면 버리기,
+            // 길게 누르면 던지기라 둘 다 적는다.
+            KeyGuides.Register("throw", "버리기 · 길게 던지기", () => Controls.ToolAction, CanShowThrowGuide);
         }
 
         bool IsKeyGuideOwner => Local != null && GameSession.Instance != null
@@ -35,32 +35,31 @@ namespace Metagame.UI
                 || (Local.PresentationTool != null && Local.PresentationTool.IsHeldForView);
         }
 
+        /// <summary>
+        /// 왼쪽 아래 상시 키 안내. <b>상호작용 안내와 같은 모양</b>이다
+        /// (S15P21B202-679) — 예전에는 여기만 네모 키캡이라 화면에 안내 문법이
+        /// 둘이었다. 키는 <c>[Tab]</c> 꼴로 적는다.
+        /// </summary>
         void DrawKeyGuides(float width, float height)
         {
             if (!IsKeyGuideOwner || GameSession.Instance.InputSuppressed
                 || GameSession.Instance.ScriptedInput) return;
             int previousDepth = GUI.depth;
             GUI.depth = -90; // 태블릿이 열려 있어도 닫기 키는 보인다.
-            const float margin = 18f, gap = 12f, rowHeight = 46f;
-            float x = margin, y = height - margin - rowHeight;
+            const float margin = 18f, gap = 12f;
+            float x = margin, y = height - margin - PromptHeight;
             for (int i = 0; i < KeyGuides.Entries.Count; i++)
             {
                 var entry = KeyGuides.Entries[i];
                 if (!entry.Visible) continue;
-                _keyGuideContent.text = entry.KeyText;
-                float keyWidth = Mathf.Max(48f, center.CalcSize(_keyGuideContent).x + 24f);
-                _keyGuideContent.text = entry.Label;
-                float labelWidth = small.CalcSize(_keyGuideContent).x;
-                float itemWidth = keyWidth + labelWidth + 26f;
+                var prompt = new HudPrompt(TabletHelpContent.Cap(entry.KeyText), entry.Label);
+                float itemWidth = PromptWidth(prompt);
                 if (x > margin && x + itemWidth > width - margin)
                 {
                     x = margin;
-                    y -= rowHeight + gap;
+                    y -= PromptHeight + gap;
                 }
-                UiTheme.DrawPanel(new Rect(x, y, itemWidth, rowHeight), true, false);
-                UiTheme.DrawKeyCap(new Rect(x + 5f, y + 5f, keyWidth, rowHeight - 10f));
-                L(new Rect(x + 5f, y + 5f, keyWidth, rowHeight - 10f), entry.KeyText, center, UiTheme.CyanSoft);
-                L(new Rect(x + keyWidth + 14f, y + 13f, labelWidth, 24f), entry.Label, small, UiTheme.Text);
+                DrawPromptAt(x, y, prompt);
                 x += itemWidth + gap;
             }
             GUI.depth = previousDepth;

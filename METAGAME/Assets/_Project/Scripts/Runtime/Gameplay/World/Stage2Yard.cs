@@ -89,7 +89,7 @@ namespace Metagame.Gameplay.Stage2
             _authorityConfigured = true;
             _authority = authority;
             for (int i = 0; i < _parts.Length; i++)
-                _parts[i].isKinematic = !authority || _state.Parts[i].Secured || !_state.Parts[i].Open;
+                _parts[i].isKinematic = DemoMode || !authority || _state.Parts[i].Secured || !_state.Parts[i].Open;
             foreach (var tool in _looseTools.Values) tool.isKinematic = !authority;
         }
         bool _authorityConfigured;
@@ -121,7 +121,7 @@ namespace Metagame.Gameplay.Stage2
 
         public void Submit(uint id, YardCommand command)
         {
-            if (!_authority || _state.Launched || !_workers.TryGetValue(id, out var w) || w.Rig == null) return;
+            if (DemoMode || !_authority || _state.Launched || !_workers.TryGetValue(id, out var w) || w.Rig == null) return;
             if (!Stage2Rules.Finite(command.Axes) || !Stage2Rules.Finite(command.Aim) || !Stage2Rules.Finite(command.Turns)) return;
             command.Axes = Vector3.ClampMagnitude(command.Axes, 1.7321f);
             command.Aim = command.Aim.sqrMagnitude > .5f ? command.Aim.normalized : w.Rig.FacingDirection;
@@ -322,9 +322,41 @@ namespace Metagame.Gameplay.Stage2
             return _state;
         }
 
+        /// <summary>
+        /// 참가자 화면에서 마지막으로 찍은 거절 사유. 같은 사유를 반복해 쓰지 않는다.
+        /// </summary>
+        string _lastReplicaReject;
+
         public void ApplyReplica(Stage2State state)
         {
-            if (_authority || state == null || state.Parts == null || state.Parts.Length != _parts.Length || state.Players == null) return;
+            if (_authority) return;
+
+            // **조용히 버리면 화면만 멈춘다** (S15P21B202-725). 참가자 화면이 멎어도
+            // 왜인지 아무 데도 남지 않아, 2스테이지 컷신이 안 뜬 것을 쫓는 데 오래 걸렸다.
+            // 사유를 한 번씩 남긴다 — 같은 사유를 반복해 쓰지는 않는다.
+            var reject = state == null ? "스냅샷이 비어 있다"
+                : state.Parts == null ? "Parts 가 비어 있다"
+                : state.Players == null ? "Players 가 비어 있다"
+                : state.Parts.Length != _parts.Length
+                    ? $"파츠 개수가 다르다 — 받은 {state.Parts.Length} vs 내 {_parts.Length}"
+                    : null;
+
+            if (reject != null)
+            {
+                if (_lastReplicaReject != reject)
+                {
+                    _lastReplicaReject = reject;
+                    Debug.LogWarning($"[Stage2] 스냅샷을 버렸다: {reject}");
+                }
+                return;
+            }
+
+            // 데모가 켜지는 순간은 남긴다. 한 판에 한 번이고, 컷신이 안 보인다는
+            // 신고가 들어왔을 때 "신호가 안 온 것" 과 "그리는 쪽" 을 가르는 값이다.
+            if (_state != null && !_state.DemoStarted && state.DemoStarted)
+                Debug.Log($"[Stage2] 데모 시작 신호 수신 · 인원 {state.DemoPlayers?.Length ?? 0}");
+
+            _lastReplicaReject = null;
             _state = state;
             ApplyLooseTools(state.LooseTools);
             _replicas.Add(state);

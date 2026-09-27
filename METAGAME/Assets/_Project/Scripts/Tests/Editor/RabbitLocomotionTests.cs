@@ -127,23 +127,64 @@ namespace Metagame.Gameplay.Tests
             Assert.That(Suit.WorstDrift(), Is.LessThan(0.0001f));
         }
 
-        [TestCase(false, false)]
-        [TestCase(true, true)]
-        public void AirborneOrBlockedImmediatelyReturnsToPhysics(bool grounded, bool blocked)
+        /// <summary>
+        /// 기절·탑승처럼 <b>몸을 빼앗긴</b> 상태는 즉시 물리로 돌아간다.
+        ///
+        /// <para><b>공중은 이제 여기서 빠진다</b>(S15P21B202-628). 예전에는 공중도
+        /// 물리로 돌려보냈는데 — 그래서 체공 1.36초 동안 아무 자세도 없었다 —
+        /// 지금은 세로 속도로 고른 공중 자세를 쓴다. 전제를 바꿨으면 그 전제를
+        /// 재는 검증도 같이 바꿔야 한다(576 의 유형 R).</para>
+        /// </summary>
+        [Test]
+        public void BeingBlockedImmediatelyReturnsToPhysics()
         {
             Advance(Walking);
-            var state = Walking; state.Grounded = grounded; state.Blocked = blocked;
+            var state = Walking; state.Blocked = true;
             Advance(state, 1);
             Assert.That(Suit.Locomotion.Weight, Is.Zero);
             Assert.That(Suit.WorstDrift(), Is.LessThan(0.0001f));
         }
 
+        /// <summary>
+        /// 공중에서는 <b>걷기는 꺼지되 자세는 남는다</b> (S15P21B202-628).
+        ///
+        /// <para>둘을 같이 재는 이유: 걷기가 안 꺼지면 공중에서 다리가 걸음을 걷고,
+        /// 자세가 안 써지면 1.36초 동안 허우적임만 보인다.</para>
+        /// </summary>
         [Test]
-        public void SidewaysMovementKeepsExistingSideStep()
+        public void GoingAirborneStopsWalkingButKeepsAPose()
         {
+            Advance(Walking);
+            var state = Walking; state.Grounded = false; state.VerticalSpeed = -2f;
+            Advance(state, 12);
+
+            Assert.That(Suit.Locomotion.Weight, Is.Zero, "공중에서 걷기가 안 꺼졌다.");
+
+            // **드리프트만 보면 안 된다.** 물리와 모델이 조금만 어긋나도 통과해서,
+            // 공중 자세가 아닌 아무 흔들림으로도 초록불이 된다(AI 리뷰 지적).
+            // 상승과 하강이 서로 다른 자세로 나오는지를 본다 — 속도축이 살아 있다는 뜻이다.
+            var thigh = Suit.Model.GetComponentsInChildren<Transform>(true)
+                .Single(x => x.name == "R_Thigh");
+            var falling = thigh.localRotation;
+
+            var up = Walking; up.Grounded = false; up.VerticalSpeed = 3f;
+            Advance(up, 12);
+            var rising = thigh.localRotation;
+
+            Assert.That(Quaternion.Angle(falling, rising), Is.GreaterThan(5f),
+                "상승과 하강의 자세가 같다 — 공중 클립의 속도축이 안 먹고 있다.");
+        }
+
+        [Test]
+        public void SidewaysMovementNowAnimatesInsteadOfSliding()
+        {
+            // **예전에는 여기서 가중치가 0 이었다** — 옆으로 가면 애니메이션을 통째로
+            // 껐고, 그 0 이 날것 래그돌이라 다리가 멈추고 그대로 미끄러졌다.
+            // 옆걸음 클립이 생겨 그 조건을 걷어냈다 (S15P21B202-670).
             var state = Walking; state.Direction = Vector2.right;
             Advance(state);
-            Assert.That(Suit.Locomotion.Weight, Is.Zero);
+            Assert.That(Suit.Locomotion.Weight, Is.GreaterThan(0.5f),
+                "옆으로 가는데 애니메이션이 꺼졌다.");
         }
 
         [Test]

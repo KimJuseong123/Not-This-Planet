@@ -35,8 +35,6 @@ namespace Metagame.Gameplay.Hazards
         [SerializeField, Min(0f)] float _deflectedDespawnSeconds = PhysicsScale.MeteorDeflectedDespawnSeconds;
         [SerializeField, Min(0f)] float _scarDespawnSeconds = PhysicsScale.MeteorScarDespawnSeconds;
         [SerializeField, Range(0f, 1f)] float _scarSinkRatio = PhysicsScale.MeteorScarSinkRatio;
-        [SerializeField, Min(0f)] float _scarCoolSeconds = PhysicsScale.MeteorScarCoolSeconds;
-        [SerializeField, Min(0f)] float _scarFadeSeconds = PhysicsScale.MeteorScarFadeSeconds;
         [SerializeField, Min(0)] int _scarLimit = PhysicsScale.MeteorScarLimit;
         [SerializeField, Min(0f)] float _maxLifeSeconds = PhysicsScale.MeteorMaxLifeSeconds;
 
@@ -73,10 +71,6 @@ namespace Metagame.Gameplay.Hazards
         public float DeflectedDespawnSeconds => _deflectedDespawnSeconds;
         public float ScarDespawnSeconds => _scarDespawnSeconds;
         public float ScarSinkRatio => _scarSinkRatio;
-        public float ScarCoolSeconds => _scarCoolSeconds;
-
-        /// <summary>다 식은 뒤 옅어져 사라지는 시간(초).</summary>
-        public float ScarFadeSeconds => _scarFadeSeconds;
         public int ScarLimit => _scarLimit;
         public float MaxLifeSeconds => _maxLifeSeconds;
         public float WarningImminentSeconds => _warningImminentSeconds;

@@ -16,6 +16,7 @@ namespace Metagame.UI
     /// 그리는 도중에 아틀라스가 다시 만들어지면 이미 찍은 글자의 UV 가 어긋나
     /// 엉뚱한 글자가 나온다. clipping = Overflow 도 필수(받침이 잘린다).
     /// </summary>
+    [DefaultExecutionOrder(1000)]
     public partial class GameHud : MonoBehaviour
     {
         public enum InteractionReticleState
@@ -70,6 +71,7 @@ namespace Metagame.UI
 
         void OnDestroy()
         {
+            DisposeTeamStatus();
             weldingGaugeTexture?.Dispose();
             if (white != null)
             {
@@ -90,10 +92,11 @@ namespace Metagame.UI
                 _keyGuideRevision = KeyGuides.Revision;
                 warmed = false;
             }
+            if (Local == null && GameSession.Instance != null) Local = GameSession.Instance.LocalPlayer;
+            UpdateTeamStatus();
             if (!warmed) WarmFont();
             UpdateMeteorRhythm();
 
-            if (Local == null && GameSession.Instance != null) Local = GameSession.Instance.LocalPlayer;
             if (Transport == null && GameSession.Instance != null) Transport = GameSession.Instance.Transport;
             KeyGuides.Refresh();
         }
@@ -141,6 +144,7 @@ namespace Metagame.UI
             if (string.IsNullOrEmpty(KoreanFontName)) return;
 
             var sb = new StringBuilder();
+            foreach (var member in _teamRoster.Members) sb.Append(member.Name);
             sb.Append("0123456789.,:/%()[]·—+-!?초회중력 ");
             sb.Append("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz 태블릿 던지기");
             for (int i = 0; i < KeyGuides.Entries.Count; i++)
@@ -154,9 +158,13 @@ namespace Metagame.UI
             sb.Append("처음부터 다시 그 자리에서 서기 도움말 커서 풀기 이동 달리기 점프 시점 기어오르기");
             sb.Append("자유 이동 방향 카메라 기준 Alt 떼도 현재 시점 유지 토끼 귀");
             sb.Append("팔을 위로 누르고 있으면 손이 잡는다 가벼운 도구는 크로스헤드에 고정된다 무거운 물체는 고정물처럼 짚는다");
-            sb.Append("도구 양손 투척 충전 놓기 운석 타격 준비 지금 클릭 좌클릭 노란 구간에 맞춰 휘두르기 다시 준비 너무 일찍 실패 GOOD GREAT PERFECT MISS");
+            sb.Append("도구 양손 투척 충전 놓기 운석 타격 준비 지금 클릭 좌클릭 노란 구간에 맞춰 휘두르기 다시 준비 너무 일찍 실패 다음 타격 대기 먼저 떨어지는 순서 노란 구간에 맞추기 반사 속도 ×1.8 GOOD GREAT PERFECT MISS");
             sb.Append("운반 장치 탑승 하차 운전 견인 부유");
             sb.Append("1장 탐험 태블릿 파츠 발견 미발견 상태 씬 배치 확인 고정 해제 운반 중 배치됨 조립 완료");
+            // 화면 안내(S15P21B202-665 · 669)의 글자. 여기 빠지면 **네모로 나온다** —
+            // 657 이 같은 함정에 한 번 걸렸다.
+            OnboardingNotices.AppendGlyphs(sb);
+            AppendPromptGlyphs(sb);
             for (int i = 0; i < WorldLabel.All.Count; i++)
                 if (WorldLabel.All[i] != null) sb.Append(WorldLabel.All[i].Text);
             for (int i = 0; i < Grabbable.All.Count; i++)
@@ -212,6 +220,32 @@ namespace Metagame.UI
             var old = GUI.color;
             GUI.color = new Color(0f, 0f, 0f, 0.55f * c.a);
             GUI.Label(new Rect(r.x + 1.5f, r.y + 1.5f, r.width, r.height), text, s);
+            GUI.color = c;
+            GUI.Label(r, text, s);
+            GUI.color = old;
+        }
+
+        // 글자 둘레 여덟 방향. 한쪽에만 그림자를 깔면 그 반대쪽이 밝은 지면과 붙는다.
+        static readonly Vector2[] OutlineOffsets =
+        {
+            new Vector2(-1.7f, 0f), new Vector2(1.7f, 0f),
+            new Vector2(0f, -1.7f), new Vector2(0f, 1.7f),
+            new Vector2(-1.2f, -1.2f), new Vector2(1.2f, -1.2f),
+            new Vector2(-1.2f, 1.2f), new Vector2(1.2f, 1.2f),
+        };
+
+        /// <summary>
+        /// 바탕 없이 글자만 띄울 때 (S15P21B202-679). <see cref="L"/> 의 한쪽 그림자로는
+        /// 모래 지면 위에서 글자가 사라진다 — 둘레를 다 두른다.
+        /// </summary>
+        void LOutline(Rect r, string text, GUIStyle s, Color c)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+            var old = GUI.color;
+            GUI.color = new Color(0f, 0f, 0f, 0.85f * c.a);
+            for (int i = 0; i < OutlineOffsets.Length; i++)
+                GUI.Label(new Rect(r.x + OutlineOffsets[i].x, r.y + OutlineOffsets[i].y,
+                    r.width, r.height), text, s);
             GUI.color = c;
             GUI.Label(r, text, s);
             GUI.color = old;
@@ -295,6 +329,11 @@ namespace Metagame.UI
             WeldingMaterialGauge(w, h);
             DrawMeteorRhythm(w, h);
             DrawKeyGuides(w, h);
+            DrawTeamStatus(w);
+            // 둘은 화면 가운데 아래에 **위아래로 나뉘어** 그려진다 — 키 힌트가 위(+40),
+            // 안내 한 줄이 아래(+92). 자리 계산은 각자 안에 있다.
+            DrawInteractionHint(w, h);
+            DrawOnboardingNotice(w, h);
 
             // 도착
             if (s != null && s.Cleared)

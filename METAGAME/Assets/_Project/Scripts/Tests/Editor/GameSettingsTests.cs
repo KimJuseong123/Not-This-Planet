@@ -33,6 +33,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(settings.display.width, Is.GreaterThanOrEqualTo(320));
             Assert.That(settings.display.height, Is.GreaterThanOrEqualTo(240));
             Assert.That(settings.display.frameRateLimit, Is.EqualTo(120));
+            Assert.That(settings.display.showFps, Is.False);
             Assert.That(settings.display.uiTextScale, Is.EqualTo(1f));
             Assert.That(settings.audio.masterVolume, Is.EqualTo(1f));
             Assert.That(settings.audio.sfxVolume, Is.EqualTo(1f));
@@ -83,6 +84,7 @@ namespace Metagame.Gameplay.Tests
             original.display.width = 1280;
             original.display.height = 720;
             original.display.vSync = false;
+            original.display.showFps = true;
             original.display.uiTextScale = 1.35f;
             original.audio.masterVolume = 0.35f;
             original.audio.sfxVolume = 0.65f;
@@ -101,6 +103,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(loaded.display.width, Is.EqualTo(1280));
             Assert.That(loaded.display.height, Is.EqualTo(720));
             Assert.That(loaded.display.vSync, Is.False);
+            Assert.That(loaded.display.showFps, Is.True);
             Assert.That(loaded.display.uiTextScale, Is.EqualTo(1.35f).Within(0.0001f));
             Assert.That(loaded.audio.masterVolume, Is.EqualTo(0.35f).Within(0.0001f));
             Assert.That(loaded.audio.sfxVolume, Is.EqualTo(0.65f).Within(0.0001f));
@@ -123,6 +126,7 @@ namespace Metagame.Gameplay.Tests
             Assert.That(loaded.audio.sfxVolume, Is.EqualTo(1f));
             Assert.That(loaded.controls.jump, Is.EqualTo(KeyCode.Space));
             Assert.That(loaded.display.frameRateLimit, Is.EqualTo(120));
+            Assert.That(loaded.display.showFps, Is.False);
             Assert.That(loaded.display.uiTextScale, Is.EqualTo(1f));
         }
 
@@ -190,6 +194,30 @@ namespace Metagame.Gameplay.Tests
             settings.controls.jump = settings.controls.moveForward;
             Assert.That(Controls.HasDuplicateBindings(settings.controls, out duplicate), Is.True);
             Assert.That(duplicate, Is.EqualTo(KeyCode.W));
+        }
+
+        /// <summary>
+        /// <b>AI 동료 키(V · 1~4)에는 다른 동작을 묶지 못한다</b> (S15P21B202-738).
+        ///
+        /// <para>묶으면 그 동작을 할 때마다 대상이 바뀌거나 마이크가 켜진다 — 오류도 없이.
+        /// 기본 배치는 이 키들을 안 쓰므로 처음 설정은 여전히 유효해야 한다.</para>
+        /// </summary>
+        [Test]
+        public void AiCompanionKeysCannotBeBoundToAnotherAction()
+        {
+            var settings = GameSettingsData.CreateDefaults();
+            Assert.That(Controls.HasDuplicateBindings(settings.controls, out var duplicate), Is.False,
+                "기본 배치가 AI 동료 키와 겹친다");
+
+            settings.controls.jump = KeyCode.Alpha1;
+            Assert.That(Controls.HasDuplicateBindings(settings.controls, out duplicate), Is.True, "1 에 점프를 묶었는데 받아들인다");
+            Assert.That(duplicate, Is.EqualTo(KeyCode.Alpha1));
+            Assert.That(Controls.IsAiKey(duplicate), Is.True);
+
+            settings = GameSettingsData.CreateDefaults();
+            settings.controls.jump = KeyCode.V;
+            Assert.That(Controls.HasDuplicateBindings(settings.controls, out duplicate), Is.True, "V 에 점프를 묶었는데 받아들인다");
+            Assert.That(Controls.IsAiKey(KeyCode.W), Is.False);
         }
 
         static void DeleteIfPresent(string path)

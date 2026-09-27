@@ -2,7 +2,9 @@ using System.Collections.Generic;
 using System.Reflection;
 using Metagame.Core;
 using Metagame.Gameplay.Interaction;
+using Metagame.Network;
 using NUnit.Framework;
+using Metagame.UI;
 using UnityEngine;
 
 namespace Metagame.Gameplay.Tests
@@ -84,7 +86,9 @@ namespace Metagame.Gameplay.Tests
         public void TheInputReachesTheServer()
         {
             var body = TestSource.Method(
-                TestSource.Read("Runtime/Network/NetPlayer.cs"), "static bool Same(InputFrame a, InputFrame b)");
+                // 이름은 `-728` 이 `Same` → `SameControls` 로 바꿨다. 지키는 것은
+                // 그대로다 — 새 칸이 이 비교에 빠지면 눌러도 서버가 모른다.
+                TestSource.Read("Runtime/Network/NetPlayer.cs"), "static bool SameControls(InputFrame a, InputFrame b)");
 
             Assert.That(body, Does.Contain("a.RescueHeld == b.RescueHeld"),
                 "입력 비교에 없으면 눌러도 그 프레임이 서버로 가지 않는다");
@@ -142,6 +146,87 @@ namespace Metagame.Gameplay.Tests
 
         /// <summary>필터가 받지 않아야 하는 대상. 이 검증 안에서만 쓴다.</summary>
         sealed class NotARescuePoint : InteractableBase { }
+
+        /// <summary>
+        /// <b>떨어진 이유가 남는다</b> (S15P21B202-691).
+        ///
+        /// <para>2026-09-22 QA 신고가 <i>"살리기 안 되는 듯"</i> 이었는데 로그에
+        /// <c>후보 O</c> 가 <b>0줄</b>이었다. 그 0줄은 <b>겨냥조차 안 했다</b> 와
+        /// <b>겨냥했는데 후보가 안 됐다</b> 를 같게 만든다 — 고칠 곳이 표시인지
+        /// 판정인지 갈리는데도. 그래서 이슈가 한 판을 더 기다려야 했다.</para>
+        ///
+        /// <para><b>글자가 아니라 동작으로 잰다</b>(`-448` 과 같은 이유).</para>
+        /// </summary>
+        [TestCase(5f, 0f, "너무 멀다")]
+        [TestCase(2f, 60f, "겨냥 밖")]
+        public void ARejectedRescuePointSaysWhy(float distance, float offAngle, string reason)
+        {
+            var owner = new GameObject("인터랙터");
+            try
+            {
+                var interactor = Build(owner);
+                var target = Place(owner, distance, offAngle);
+
+                interactor.ExtraCandidates = into => into.Add(target);
+                interactor.Tick(0.02f);
+
+                Assert.IsNull(interactor.Focus, "떨어져야 하는 대상이 포커스가 됐다");
+                Assert.That(interactor.RejectedNearest, Is.SameAs((IInteractable)target),
+                    "떨어진 대상을 남기지 않으면 로그가 여전히 '후보 X' 한 줄이다");
+                Assert.That(interactor.RejectedReason, Is.EqualTo(reason));
+                Assert.That(interactor.RejectedDistance, Is.EqualTo(distance).Within(0.05f),
+                    "거리를 밖에서 다시 재지 않으려고 여기서 남긴다 — 값이 틀리면 뜻이 없다");
+            }
+            finally { Object.DestroyImmediate(owner); }
+        }
+
+        /// <summary>
+        /// <b>발치에 있으면 각을 묻지 않는다</b>(S15P21B202-699) — 그때는 떨어진 것도 없다.
+        ///
+        /// <para>이 경우까지 "떨어졌다" 로 남기면 <b>살리는 중에도 사유가 찍혀</b> 로그를
+        /// 읽는 사람이 실패로 오해한다.</para>
+        /// </summary>
+        [Test]
+        public void AtTheFeetNothingIsRejected()
+        {
+            var owner = new GameObject("인터랙터");
+            try
+            {
+                var interactor = Build(owner);
+                var target = Place(owner, 0.5f, 60f);   // NearRadius 1.2m 안 · 각은 크다
+
+                interactor.ExtraCandidates = into => into.Add(target);
+                interactor.Tick(0.02f);
+
+                Assert.That(interactor.Focus, Is.SameAs((IInteractable)target),
+                    "발치 예외가 깨졌다 — 살리러 다가가면 후보에서 떨어진다");
+                Assert.IsNull(interactor.RejectedNearest, "붙잡았는데 떨어진 것으로도 남긴다");
+            }
+            finally { Object.DestroyImmediate(owner); }
+        }
+
+        static Interactor Build(GameObject owner)
+        {
+            var aim = new GameObject("조준").transform;
+            aim.SetParent(owner.transform, false);
+            aim.localPosition = Vector3.zero;
+            aim.localRotation = Quaternion.identity;
+
+            var interactor = owner.AddComponent<Interactor>();
+            // 게임과 같은 값으로 잰다 — 시험만의 숫자를 쓰면 실제와 어긋난다.
+            interactor.Configure(aim, PhysicsScale.DownedCarryReach, PhysicsScale.DownedCarryAngle);
+            interactor.NearRadius = PhysicsScale.DownedRescueNearReach;
+            return interactor;
+        }
+
+        static NotARescuePoint Place(GameObject owner, float distance, float offAngle)
+        {
+            var go = new GameObject("기절한 동료의 구조 지점");
+            go.transform.SetParent(owner.transform, false);
+            go.transform.localPosition =
+                Quaternion.Euler(0f, offAngle, 0f) * Vector3.forward * distance;
+            return go.AddComponent<NotARescuePoint>();
+        }
 
         /// <summary>
         /// <b>홀드를 도는 곳이 있다.</b> 이것이 없어서 기능이 돌지 않았다 —
@@ -380,6 +465,55 @@ namespace Metagame.Gameplay.Tests
         /// 줄로 나오는데 표시 화면이 높이가 작아서 글자가 안 보여." 닉네임이 길면
         /// (`졸다일어난우주인송승우`) 한 줄에 안 들어간다.
         /// </summary>
+        // ── 구조자 화면이 무엇을 그리는가 (S15P21B202-699) ──────
+        //
+        // "구조자 화면에 안내가 안 뜬다" 는 신고가 있었는데, **그리는 조건이 OnGUI
+        // 안에만 있어 화면 없이는 잴 방법이 없었다.** 이 파일이 그 화면에 대해 재던
+        // 것은 소스에 wordWrap 이 있는지뿐이다. 이제 결정을 직접 잰다.
+
+        [Test]
+        public void TheRescuerSeesThePromptAsSoonAsThereIsSomeoneToLift()
+        {
+            Assert.That(DownedRescueHud.Decide(false, 0f, hasCandidate: true, progress01: 0f),
+                Is.EqualTo(DownedRescueHud.RescueHudView.Prompt),
+                "일으킬 사람이 있는데 [G] 안내가 안 뜬다.");
+        }
+
+        [Test]
+        public void TheRescuerSeesTheGaugeOnceThereIsProgress()
+        {
+            // 앞사람이 남긴 진행분이 있으면 누르지 않아도 막대가 보여야 이어받는다는
+            // 것을 알 수 있다(DownedRescue.Release 가 누른 만큼을 남긴다).
+            Assert.That(DownedRescueHud.Decide(false, 0f, hasCandidate: true, progress01: 0.4f),
+                Is.EqualTo(DownedRescueHud.RescueHudView.Progress));
+        }
+
+        [Test]
+        public void WithNobodyToLiftTheRescuerSeesNothing()
+        {
+            Assert.That(DownedRescueHud.Decide(false, 0f, hasCandidate: false, progress01: 0f),
+                Is.EqualTo(DownedRescueHud.RescueHudView.None));
+        }
+
+        [Test]
+        public void TheDownedSideIsUnchanged()
+        {
+            // S15P21B202-448 이 만든 화면이다. 이 이슈가 건드리면 안 된다.
+            Assert.That(DownedRescueHud.Decide(true, 0.3f, hasCandidate: false, progress01: 0f),
+                Is.EqualTo(DownedRescueHud.RescueHudView.BeingRescued));
+            Assert.That(DownedRescueHud.Decide(true, 0f, hasCandidate: false, progress01: 0f),
+                Is.EqualTo(DownedRescueHud.RescueHudView.None),
+                "아무도 안 일으키는데 게이지가 뜬다.");
+        }
+
+        [Test]
+        public void ADownedPlayerNeverSeesTheLiftPrompt()
+        {
+            // 쓰러진 사람은 남을 못 일으킨다. 후보가 남아 있어도 안내는 안 뜬다.
+            Assert.That(DownedRescueHud.Decide(true, 0f, hasCandidate: true, progress01: 0.5f),
+                Is.EqualTo(DownedRescueHud.RescueHudView.None));
+        }
+
         [Test]
         public void TheGaugeLabelMakesRoomForTwoLines()
         {
@@ -420,7 +554,11 @@ namespace Metagame.Gameplay.Tests
                 "서버 루프가 권위를 되찾지 않는다");
 
             // 이 줄은 탑승 블록이 끝난 **뒤**에 있다. 그래서 이보다 뒤라면 블록 밖이다.
-            var afterTransport = loop.IndexOf("if (!adoptedBody) body.SetInput(frame);",
+            //
+            // 조건부는 기준으로 삼지 않는다 — 앞에 붙는 가드는 늘어난다(S15P21B202-612 에서
+            // adoptedBody 가 hostOwnBody 로 갈리고 aiDriver 가 더해지며 이 줄이 통째로
+            // 사라졌다). 위치만 알면 되므로 호출 자체를 기준으로 삼는다.
+            var afterTransport = loop.IndexOf("body.SetInput(frame);",
                                               System.StringComparison.Ordinal);
             Assert.That(afterTransport, Is.GreaterThanOrEqualTo(0),
                 "기준으로 삼은 줄이 사라졌다 — 이 테스트를 다시 맞춰야 한다");
@@ -505,5 +643,93 @@ namespace Metagame.Gameplay.Tests
                 "같은 값을 걸러내는 조기 반환이 없으면 이 로그가 매 프레임 찍힌다");
         }
 
+        /// <summary>
+        /// <b>AI 도 사람과 같은 칸을 채운다</b> (S15P21B202-716).
+        ///
+        /// <para>일으키기를 따로 구현하면 두 길이 갈린다 — 사람 쪽 규칙(진행분 이어받기 ·
+        /// 서버 권위 판정 · 기절한 사람은 못 일으킨다)을 AI 쪽만 안 지키게 된다.
+        /// <c>InputFrame.RescueHeld</c> 를 채우는 한 그 전부가 저절로 따라온다.</para>
+        /// </summary>
+        [Test]
+        public void AiRevivesThroughTheSameInput()
+        {
+            var work = TestSource.Read("Runtime/Network/AiWorkTask.cs");
+            var tick = TestSource.Method(work, "InputFrame TickRevive()");
+
+            Assert.That(tick, Does.Contain("input.RescueHeld = true;"),
+                "AI 가 G 와 같은 칸을 채우지 않으면 살리기 규칙이 둘로 갈린다");
+            Assert.That(tick, Does.Contain("rescueTarget.Downed"),
+                "완료를 대상의 상태로 보지 않으면 언제 끝났는지 모른다");
+            Assert.That(TestSource.Blank(work), Does.Contain("TickRevive()"),
+                "정의만 있고 부르는 곳이 없으면 아무 일도 일어나지 않는다");
+        }
+
+        /// <summary>
+        /// <b>AI 가 서는 자리가 시야각을 안 보는 거리 안이어야 한다</b> (S15P21B202-716).
+        ///
+        /// <para>쓰러진 사람의 구조 지점은 바닥(0.30m)에 있어서, 가까이 갈수록 내려다보는
+        /// 각이 가팔라져 <c>DownedCarryAngle</c> 35도를 넘는다. 게임은 그래서
+        /// <see cref="PhysicsScale.DownedRescueNearReach"/> 안에서는 각을 묻지 않는데,
+        /// AI 가 그 밖에 서면 <b>붙어 놓고도 후보로 안 잡힌다</b> — 거절도 오류도 없이
+        /// 진행도만 0 이다.</para>
+        /// </summary>
+        [Test]
+        public void AiStandsInsideTheAngleFreeReach()
+            => Assert.That(AiWorkTask.ReviveReach, Is.LessThan(PhysicsScale.DownedRescueNearReach),
+                "AI 가 서는 거리가 각을 안 보는 거리보다 멀면 조용히 진행도가 안 찬다");
+
+        /// <summary>
+        /// <b>대상이 잡혀 있으면 다음 사람으로 넘어간다</b> (`!615` AI 리뷰).
+        ///
+        /// <para>처음에는 최근접 하나만 보고 그것이 잡혀 있으면 바로 포기했다. 그래서
+        /// 둘이 쓰러진 방에서 <c>다들 살려줘</c> 를 하면 <b>두 번째 동료가 남은 사람을
+        /// 두고 멈췄다</b> — 분담하라고 넣은 <c>Claim</c> 이 오히려 한 명을 놀게 했다.</para>
+        ///
+        /// <para>포기하는 <c>Finish</c> 가 <b>순회 뒤에</b> 와야 한다. 앞에 있으면 첫
+        /// 후보에서 끝난다는 뜻이고, 그것이 정확히 되돌아간 모양이다.</para>
+        /// </summary>
+        [Test]
+        public void ReviveTriesEveryDownedBeforeGivingUp()
+        {
+            var begin = TestSource.Method(
+                TestSource.Read("Runtime/Network/AiWorkTask.cs"), "bool BeginRevive()");
+
+            int loop = begin.IndexOf("foreach", System.StringComparison.Ordinal);
+            int claim = begin.IndexOf("Claim(", System.StringComparison.Ordinal);
+            int give = begin.IndexOf("Finish(", System.StringComparison.Ordinal);
+
+            Assert.That(loop, Is.GreaterThanOrEqualTo(0), "후보를 하나만 보면 분담이 깨진다");
+            Assert.That(claim, Is.GreaterThan(loop), "Claim 이 순회 안에서 일어나야 한다");
+            Assert.That(give, Is.GreaterThan(claim), "포기가 순회보다 앞에 있으면 첫 후보에서 끝난다");
+        }
+
+        /// <summary>
+        /// <b>예외를 둔 자리보다 위에서 끊으면 그 예외는 죽은 코드다</b> (S15P21B202-716).
+        ///
+        /// <para><c>AiWorkTask.Tick</c> 에 "살리기는 말한 사람이 쓰러져도 이어 간다" 를
+        /// 두었는데, <c>AiCompanionController.TickCore</c> 가 <b>그 위에서 먼저</b>
+        /// <c>requester.Downed</c> 로 <c>Stop()</c> 했다. 둘이 연달아 쓰러지면 AI 가
+        /// 가던 길을 되돌아온다 — 가장 필요한 순간에.</para>
+        /// </summary>
+        [Test]
+        public void TheDownedSpeakerDoesNotStopARescue()
+        {
+            var tick = TestSource.Method(
+                TestSource.Read("Runtime/Network/AiCompanionController.cs"),
+                "InputFrame TickCore(PlayerRig self, bool allowed)");
+
+            Assert.That(tick, Does.Contain("work.Rescuing"),
+                "여기서 살리기를 가려내지 않으면 AiWorkTask 의 예외는 닿지도 않는다");
+            Assert.That(tick, Does.Not.Contain("|| requester.Downed)"),
+                "예외 없이 requester.Downed 로 끊으면 살리러 가다 되돌아온다");
+        }
+
+        /// <summary>가까운 사람부터 간다 — 순서가 없으면 둘이 엇갈려 간다.</summary>
+        [Test]
+        public void ReviveGoesToTheNearestFirst()
+            => Assert.That(TestSource.Method(
+                   TestSource.Read("Runtime/Network/AiWorkTask.cs"), "void CollectDowned()"),
+                   Does.Contain("Sort"),
+                   "거리순으로 세우지 않으면 가까운 사람을 두고 먼 사람에게 간다");
     }
 }

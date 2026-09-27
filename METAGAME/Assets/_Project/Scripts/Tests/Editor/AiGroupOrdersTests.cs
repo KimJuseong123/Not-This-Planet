@@ -1,0 +1,269 @@
+using System.Collections;
+using System.Linq;
+using Metagame.Network;
+using Mirror;
+using NUnit.Framework;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.TestTools;
+
+namespace Metagame.Gameplay.Tests
+{
+    public sealed class AiGroupOrdersTests
+    {
+        sealed class Runtime : IAiRuntimeStatus { public AiRuntimeState State => AiRuntimeState.Ready; }
+
+        /// <summary>
+        /// 거절 사유가 <b>보고 문자열에 실제로 실린다</b> (S15P21B202-715).
+        ///
+        /// <para>전에 남던 것은 <c>0/1명</c> 뿐이었다. 사유를 만들어 놓고 화면까지
+        /// 안 이으면 아무것도 달라지지 않으므로, 글자로 못박는다.</para>
+        /// </summary>
+        [Test] public void RefusalsAreNamedAndGrouped()
+        {
+            Assert.That(AiRefusalTally.Summarize(new string[0]), Is.Empty);
+            Assert.That(AiRefusalTally.Summarize(new[] { "기절해 있음" }),
+                        Is.EqualTo(" · 거절 1: 기절해 있음"));
+            Assert.That(AiRefusalTally.Summarize(new[] { "기절해 있음", "기절해 있음", "설 자리를 못 찾음" }),
+                        Is.EqualTo(" · 거절 3: 기절해 있음 ×2, 설 자리를 못 찾음"));
+        }
+
+        /// <summary>
+        /// <b>규칙을 만들어 놓고 안 읽으면 아무것도 안 바뀐다</b> (S15P21B202-729).
+        ///
+        /// <para>먼 곳으로 모이는 것을 <c>goto</c> 로 넘기는 쪽(<c>Apply</c>)과, 그때
+        /// 말한 사람 옆자리를 잡지 않는 쪽(<c>ExecutePlan</c>) <b>둘 다</b> 같은 규칙을
+        /// 봐야 한다. 한쪽만 읽으면 조립대로 보내면서 말한 사람 주변에 설 자리를 찾고,
+        /// 그 자리가 없으면 <b>가 보지도 못하고 거절</b>된다.</para>
+        /// </summary>
+        [Test] public void BothSidesReadTheGatherRule()
+        {
+            Assert.That(TestSource.Blank(TestSource.Read("Runtime/Network/AiCompanionController.cs")),
+                        Does.Contain("GathersAwayFromSpeaker"),
+                        "Apply 가 안 읽으면 조립대로 모여도 말한 사람 앞으로 온다");
+            Assert.That(TestSource.Blank(TestSource.Read("Runtime/Network/AiGroupOrders.cs")),
+                        Does.Contain("GathersAwayFromSpeaker"),
+                        "ExecutePlan 이 안 읽으면 설 자리가 없다고 거절될 수 있다");
+        }
+
+        /// <summary>
+        /// <b>말한 사람에게는 한 마디만 돌려준다</b> (S15P21B202-730).
+        ///
+        /// <para>전체 요약은 방장 화면과 로그의 것이고, 명령을 말한 사람에게는 첫 사유
+        /// 하나를 준다 — 쓰러진 채 말했을 때 <b>아무 말도 없던 것</b>이 시작이다.</para>
+        /// </summary>
+        [Test] public void TheSpeakerGetsOneReasonNotTheWholeReport()
+        {
+            var tally = new AiRefusalTally();
+            Assert.That(tally.First, Is.Null, "거절이 없으면 할 말도 없다");
+            tally.Add("말한 사람이 기절해 그 명령은 뜻을 잃음");
+            tally.Add("설 자리를 못 찾음");
+            Assert.That(tally.First, Is.EqualTo("말한 사람이 기절해 그 명령은 뜻을 잃음"));
+        }
+
+        /// <summary>사유 없는 거절은 <b>사유 없음이라고 적는다</b> — 조용히 사라지지 않는다.</summary>
+        [Test] public void MissingReasonStillCounts()
+        {
+            var tally = new AiRefusalTally();
+            tally.Add(null);
+            Assert.That(tally.Summary(), Is.EqualTo(" · 거절 1: 알 수 없음"));
+        }
+
+        /// <summary>
+        /// <b>버튼으로 고른 대상이 끝까지 간다</b> (S15P21B202-738).
+        ///
+        /// <para>고른 대상은 세 곳을 지난다 — 듣기를 열 때(<c>CmdStartAiListening</c>),
+        /// 업로드가 끝날 때(<c>CmdEndAiVoice</c>), 계획을 실행할 때(<c>ClassifyVoice</c>).
+        /// 한 곳이라도 안 넘기면 <b>1 을 눌러도 V 와 똑같이</b> 주변 동료와 말 속 색으로
+        /// 돌아간다 — 오류도 없이. 네트워크 명령이라 값으로 따라가기 어려워 배선을 글자로
+        /// 못박는다.</para>
+        /// </summary>
+        [Test] public void TheChosenSeatTravelsFromKeyToPlan()
+        {
+            string voice = TestSource.Blank(TestSource.Read("Runtime/Network/NetPlayer.AiVoice.cs"));
+            string start = TestSource.Method(voice, "void CmdStartAiListening(int target, uint listen)");
+            int slot = start.IndexOf("AiGroupOrders.CaptureSlot(target, body, out hearingRefusal)", System.StringComparison.Ordinal);
+            Assert.That(slot, Is.GreaterThanOrEqualTo(0), "고른 동료를 붙잡지 않는다 — 주변 동료가 듣는다");
+            Assert.That(start, Does.Contain("hearingTarget = target;"), "고른 자리를 기억하지 않는다");
+            // 고른 길은 주변 듣기로 **떨어지지 않는다** — 떨어지면 붙잡은 동료를 주변 동료가 덮는다.
+            int back = start.IndexOf("return;", slot, System.StringComparison.Ordinal);
+            int near = start.IndexOf("AiGroupOrders.Capture(", slot, System.StringComparison.Ordinal);
+            Assert.That(back, Is.GreaterThan(slot), "고른 길이 끝나지 않는다");
+            Assert.That(near, Is.GreaterThan(back), "고른 동료를 붙잡은 뒤 주변 동료로 덮는다");
+            // 거절은 그 듣기 번호와 함께 곧바로 돌아간다 — 녹음이 그것을 보고 멈춘다.
+            Assert.That(start, Does.Contain("TargetAiListenRefused(listen, hearingRefusal)"),
+                "고른 동료를 못 붙잡은 이유가 녹음을 멈추지 않는다 — 8초를 말한 뒤에야 안다");
+            // Blank 가 문자열을 지우므로 두 자리를 **수로** 센다 — 고른 동료 · 주변 동료.
+            Assert.That(System.Text.RegularExpressions.Regex.Matches(start, @"TargetAiListenRefused\(listen, ").Count,
+                Is.EqualTo(2), "주변에 AI 가 없다는 것이 녹음을 멈추지 않는다");
+            Assert.That(voice, Does.Contain("SendVoice(wav, this, hearingGroup, hearingTarget)"),
+                "업로드가 끝날 때 고른 자리를 넘기지 않는다 — 계획이 말 속 색으로 돌아간다");
+
+            string runtime = TestSource.Blank(TestSource.Read("Runtime/Network/AiLocalRuntime.cs"));
+            string classify = TestSource.Method(runtime, "IEnumerator ClassifyVoice(");
+            Assert.That(classify, Does.Contain("var orders = AiCommandPlan.ForTarget(result.orders, target);"),
+                "고른 색으로 계획을 덮지 않는다 — 말 속 색이 틀리면 아무도 안 움직인다");
+            Assert.That(classify, Does.Contain("group.ExecutePlan(orders,"),
+                "덮은 계획이 아니라 원래 계획을 실행한다");
+            Assert.That(classify, Does.Not.Contain("ExecutePlan(result.orders"),
+                "원래 계획을 실행하는 길이 남아 있다");
+            Assert.That(classify, Does.Contain("CommandName(orders)"),
+                "화면에 돌아가는 한 줄이 실제로 시킨 것과 다르다");
+        }
+
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-731)
+        [UnityTest]
+        public IEnumerator HostAssignsCountsProtectsBusyActorsAndSharesSocialSignals()
+        {
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            yield return new EnterPlayMode();
+            // 시연과 상관없는 무리 명령(인사 · 춤 · 모이기)을 본다 — 시연 모드는 네 행동 밖을 거절하고 쉬는 동료를 돌아다니게
+            // 한다(S15P21B202-746). 끝나면 Cleanup 이 되돌린다 (S15P21B202-750).
+            AiDemoCommands.Enabled = false;
+            TeamSlots.Clear(); AiHostSettings.BeginRoom();
+            // AI 수는 방(ROOM_STATE)이 정한다 — 방장 혼자면 셋이 다 찬다 (S15P21B202-713).
+            var lobby = AiHostPolicyTests.CreateLobby(aiCount: 3);
+            Assert.That(AiHostSettings.RequestedCount, Is.EqualTo(3));
+            AiHostSettings.BindRuntime(new Runtime());
+            var floor = new GameObject("test floor");
+            Assert.That(floor,Is.Not.Null,"Floor object");
+            Assert.That(floor.transform,Is.Not.Null,"Floor transform");
+            floor.AddComponent<BoxCollider>();
+            floor.transform.position = new Vector3(0,-.5f,0);
+            floor.transform.localScale = new Vector3(50,1,50);
+            var host = PlayerRig.Create("Host", Vector3.up * .1f, Quaternion.identity, Color.red, Color.white, false);
+            var session = new GameObject("session").AddComponent<GameSession>(); session.Begin(host,null,Vector3.zero); session.ScriptedInput=true;
+            var root = new GameObject("network"); root.SetActive(false);
+            var transport = root.AddComponent<TelepathyTransport>(); transport.port=27966;
+            var manager = root.AddComponent<NetworkManager>(); manager.transport=transport;
+            manager.playerPrefab=AssetDatabase.LoadAssetAtPath<GameObject>("Assets/_Project/Prefabs/Network/PF_NetPlayer.prefab");
+            manager.headlessStartMode=HeadlessStartOptions.DoNothing; manager.onlineScene=""; manager.offlineScene="";
+            root.SetActive(true); manager.StartHost();
+            float until=Time.realtimeSinceStartup+20;
+            while(NetPlayer.AllServerPlayers.Count(p=>p!=null && p.IsAi && p.HasBody)!=3 && Time.realtimeSinceStartup<until) yield return null;
+            var ais=NetPlayer.AllServerPlayers.Where(p=>p!=null && p.IsAi && p.HasBody).OrderBy(p=>p.teamSlot).ToArray();
+            Assert.That(ais.Length,Is.EqualTo(3));
+            // Batch-mode server bodies intentionally omit render models. Attach real
+            // suits in this fixture so dance playback is exercised, not skipped.
+            foreach(var ai in ais)
+            {
+                var doll=ai.VisualRig.Doll;
+                if(doll.Suit==null) doll.Suit=SpaceSuit.Attach(doll,doll.Hips.transform.parent);
+                Assert.That(doll.Suit,Is.Not.Null);
+                doll.Suit.InitializeLocomotion();
+            }
+            yield return new WaitForSeconds(1);
+            var world=session.GetComponent<AiNavigationWorld>();
+            until=Time.realtimeSinceStartup+20;
+            while(!world.Ready && Time.realtimeSinceStartup<until) yield return null;
+            Assert.That(world.Ready,Is.True);
+            int idleBuilds = world.BuildCount;
+            yield return new WaitForSeconds(2.1f);
+            Assert.That(world.BuildCount, Is.EqualTo(idleBuilds), "Idle AI must retain the warm mesh without periodic rebuilds");
+            Assert.That(AiGroupOrders.Capture(AiRecipients.All,null,host).Count,Is.EqualTo(3));
+            // Hearing membership is fixed at V-down, not after speech recognition.
+            var savedPositions = ais.Select(a => a.VisualRig.FootPosition).ToArray();
+            ais[0].VisualRig.Teleport(host.FootPosition + Vector3.right * 2, Quaternion.identity);
+            ais[1].VisualRig.Teleport(host.FootPosition + Vector3.right * 25, Quaternion.identity);
+            ais[2].VisualRig.Teleport(host.FootPosition + Vector3.up * 25, Quaternion.identity);
+            var hearing = AiGroupOrders.Capture(AiRecipients.All, null, host, VoiceRules.Range);
+            Assert.That(hearing.Count, Is.EqualTo(1));
+            Assert.That(hearing.Nearest, Is.EqualTo(ais[0]));
+            // **버튼으로 고르면 거리를 보지 않는다** (S15P21B202-738). ais[1] 은 지금 25m 밖이라
+            // 주변 듣기에는 안 들어가지만, 그 자리의 키를 누르면 그 한 명이 듣는다.
+            var targeted = AiGroupOrders.CaptureSlot(ais[1].teamSlot, host, out string refusal);
+            Assert.That(refusal, Is.Null, refusal);
+            Assert.That(targeted.Count, Is.EqualTo(1));
+            Assert.That(targeted.Nearest, Is.EqualTo(ais[1]), "고른 자리가 아닌 동료를 붙잡았다");
+            // 빨강(0)은 사람 자리다 — 아래 "Human red slot must never be selected" 와 같은 전제.
+            var redSeat = NetPlayer.AllServerPlayers.FirstOrDefault(p => p != null && p.teamSlot == 0);
+            Assert.That(redSeat, Is.Not.Null, "빨강 자리에 방장이 없다 — 이 검사의 전제가 깨졌다");
+            Assert.That(redSeat.IsAi, Is.False, "빨강 자리가 AI 다 — 이 검사의 전제가 깨졌다");
+            var human = AiGroupOrders.CaptureSlot(0, host, out refusal);
+            Assert.That(human.Count, Is.Zero, "사람 자리를 AI 로 붙잡았다");
+            Assert.That(refusal, Is.EqualTo("빨강은 AI 동료가 아니에요"), "사람 자리인데 다른 이유를 댄다");
+            Assert.That(AiGroupOrders.CaptureSlot(TeamSlots.Count, host, out refusal).Count, Is.Zero);
+            Assert.That(refusal, Is.EqualTo("없는 자리예요"));
+            ais[0].VisualRig.Teleport(host.FootPosition + Vector3.right * 30, Quaternion.identity);
+            ais[1].VisualRig.Teleport(host.FootPosition + Vector3.right * 1, Quaternion.identity);
+            Assert.That(hearing.Select("all", AiRecipients.All, null).Count, Is.EqualTo(1));
+            Assert.That(hearing.Nearest, Is.EqualTo(ais[0]), "Later arrivals must not join the recorded command");
+            for (int i = 0; i < ais.Length; i++) ais[i].VisualRig.Teleport(savedPositions[i], Quaternion.identity);
+            Assert.That(AiGroupOrders.Capture(AiRecipients.TwoIdle,null,host).Execute("follow",host),Does.Contain("2/2명"));
+            Assert.That(ais.Count(a=>a.AiBusy),Is.EqualTo(2));
+            var remaining=AiGroupOrders.Capture(AiRecipients.TwoIdle,null,host);
+            Assert.That(remaining.Count,Is.EqualTo(1));
+            Assert.That(remaining.Execute("greet",host),Does.Contain("1/2명"));
+            Assert.That(AiGroupOrders.Capture(AiRecipients.OneIdle,null,host).Count,Is.Zero);
+            until=Time.realtimeSinceStartup+3;
+            while(!ais.Any(a=>a.AiGreetingActive) && Time.realtimeSinceStartup<until) yield return null;
+            Assert.That(ais.Count(a=>a.AiGreetingActive),Is.EqualTo(1),string.Join(" | ",ais.Select(a=>a.AiActivity+" facing="+a.VisualRig.FacingDirection+" ragdoll="+a.VisualRig.Ragdolled)));
+            Assert.That(ais.Count(a=>a.EmoteId==3),Is.Zero,"Greeting is a wave, not a thumbs-up");
+            Assert.That(AiGroupOrders.Capture(AiRecipients.All,null,host).Execute("dance",host),Does.Contain("0/3명"),"Social commands must not interrupt tasks");
+            AiGroupOrders.Capture(AiRecipients.All,null,host).Execute("cancel",host);
+            Assert.That(ais.All(a=>!a.AiBusy),Is.True);
+            var stale=AiGroupOrders.Capture(AiRecipients.All,null,host);
+            Assert.That(ais[0].TryApplyAiOrder("follow",host),Is.True);
+            Assert.That(stale.Execute("heart",host),Does.Contain("2/3명"),"Older reply must not replace newer order");
+            Assert.That(ais[0].AiActivity,Is.EqualTo("따라오기"));
+            AiGroupOrders.Capture(AiRecipients.All,null,host).Execute("cancel",host);
+            foreach(var ai in ais) Assert.That(ai.VisualRig.Doll.Suit.Locomotion.HasDance(1),Is.True);
+            Assert.That(AiGroupOrders.Capture(AiRecipients.All,null,host).Execute("dance",host),Does.Contain("3/3명"));
+            until=Time.realtimeSinceStartup+4;
+            while(!ais.All(a=>a.VisualRig.DanceHolding) && Time.realtimeSinceStartup<until) yield return null;
+            Assert.That(ais.All(a=>a.danceId==1 && a.danceSeq>0 && a.VisualRig.DanceHolding),Is.True,string.Join(" | ",ais.Select(a=>a.AiActivity+" facing="+a.VisualRig.FacingDirection+" ragdoll="+a.VisualRig.Ragdolled)));
+            uint sequence=ais[0].danceSeq;
+            AiGroupOrders.Capture(AiRecipients.All,null,host).Execute("cancel",host);
+            Assert.That(ais.All(a=>!a.VisualRig.DanceHolding && a.danceId==0),Is.True);
+            Assert.That(ais[0].danceSeq,Is.GreaterThan(sequence),"Cancellation must also be replicated");
+            for(int i=0;i<ais.Length;i++) ais[i].VisualRig.Teleport(new Vector3((i-1)*4,.1f,9),Quaternion.identity);
+            yield return new WaitForSeconds(1);
+            until=Time.realtimeSinceStartup+20;
+            while(!world.Ready && Time.realtimeSinceStartup<until) yield return null;
+            Assert.That(AiGroupOrders.Capture(AiRecipients.All,null,host).Execute("gather",host),Does.Contain("3/3명"));
+            until=Time.realtimeSinceStartup+35;
+            while(ais.Any(a=>a.AiBusy) && Time.realtimeSinceStartup<until) yield return null;
+            Assert.That(ais.All(a=>!a.AiBusy),Is.True,string.Join(" | ",ais.Select(a=>a.AiActivity)));
+            foreach(var ai in ais) Assert.That(Vector3.Distance(ai.VisualRig.FootPosition,host.FootPosition),Is.LessThan(4));
+            for(int i=0;i<ais.Length;i++) for(int j=i+1;j<ais.Length;j++)
+                Assert.That(Vector3.Distance(ais[i].VisualRig.FootPosition,ais[j].VisualRig.FootPosition),Is.GreaterThan(1));
+            until=Time.realtimeSinceStartup+4;
+            while(!AllFacing(ais,host) && Time.realtimeSinceStartup<until) yield return null;
+            foreach(var ai in ais)
+            {
+                var direction=host.FootPosition-ai.VisualRig.FootPosition; direction.y=0;
+                Assert.That(Vector3.Angle(ai.VisualRig.FacingDirection,direction),Is.LessThan(15),ai.nickname+" "+ai.AiActivity+" yaw="+ai.VisualRig.CurrentInput.AimYaw+" want="+Mathf.Atan2(direction.x,direction.z)*Mathf.Rad2Deg+" rag="+ai.VisualRig.Ragdolled+" dance="+ai.VisualRig.DanceHolding+" facing="+ai.VisualRig.FacingDirection+" cam="+(ai.VisualRig.Cam!=null));
+            }
+            var snapshot=AiGroupOrders.Capture(AiRecipients.All,null,host);
+            Assert.That(snapshot.Select("red",AiRecipients.All,null).Count,Is.Zero,"Human red slot must never be selected");
+            Assert.That(snapshot.Select("blue",AiRecipients.All,null).Count,Is.EqualTo(1));
+            Assert.That(snapshot.Select("two",AiRecipients.All,null).Count,Is.EqualTo(2));
+            ais[0].VisualRig.Teleport(new Vector3(0,.1f,10),Quaternion.identity);
+            yield return new WaitForSeconds(.5f);
+            Assert.That(AiGroupOrders.Capture(AiRecipients.Selected,ais[0],host).Execute("greet",host,true),Does.Contain("1/1명"));
+            Assert.That(ais[0].AiGreetingActive,Is.False,"Do not wave before arriving");
+            until=Time.realtimeSinceStartup+20;
+            while(!ais[0].AiGreetingActive && ais[0].AiBusy && Time.realtimeSinceStartup<until) yield return null;
+            Assert.That(ais[0].AiGreetingActive,Is.True,ais[0].AiActivity);
+            Assert.That(Vector3.Distance(ais[0].VisualRig.FootPosition,host.FootPosition),Is.LessThan(4));
+            manager.StopHost(); Object.Destroy(root); Object.Destroy(lobby.gameObject);
+            yield return new ExitPlayMode();
+        }
+
+        static bool AllFacing(NetPlayer[] ais,PlayerRig host)
+        {
+            foreach(var ai in ais)
+                if(Vector3.Angle(ai.VisualRig.FacingDirection,Vector3.ProjectOnPlane(host.FootPosition-ai.VisualRig.FootPosition,Vector3.up))>15) return false;
+            return true;
+        }
+
+        [UnityTearDown] public IEnumerator Cleanup()
+        {
+            if(NetworkManager.singleton!=null && NetworkServer.active) NetworkManager.singleton.StopHost();
+            if(Application.isPlaying) yield return new ExitPlayMode();
+            TeamSlots.Clear(); AiHostSettings.BeginRoom(); AiHostSettings.BindRuntime(null);
+            AiDemoCommands.Enabled = true;
+        }
+    }
+}

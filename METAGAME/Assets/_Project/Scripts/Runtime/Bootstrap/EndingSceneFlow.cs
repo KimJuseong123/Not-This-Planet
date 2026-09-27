@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Metagame.Gameplay.Parts;
+using Metagame.Gameplay.Audio;
 using Metagame.Network;
 using Metagame.UI;
 using Mirror;
@@ -46,6 +47,17 @@ namespace Metagame.Bootstrap
         string failure;
         public bool IsTransferring => transferring;
         public string Failure => failure;
+        public DemoEnding Playback => !returning && string.IsNullOrEmpty(failure) && started ? playback : null;
+
+        public bool TrySkip(DemoEndingStage expectedStage)
+        {
+            if ((networked && !NetworkServer.active) || Playback == null || playback.Stage != expectedStage
+                || !playback.TryGetSkipTarget(out float target)) return false;
+            startAt = Clock() - target;
+            playback.Snapshot.StartedAt = startAt;
+            if (NetworkServer.active) NetworkServer.SendToAll(StateMessage());
+            return true;
+        }
         GUIStyle loadingStyle;
 
         public static EndingSceneFlow Ensure()
@@ -59,12 +71,14 @@ namespace Metagame.Bootstrap
             if (Instance != null && Instance != this) { Destroy(gameObject); return; }
             Instance = this;
             DontDestroyOnLoad(gameObject);
+            gameObject.AddComponent<CutsceneSkipFlow>();
             SceneManager.sceneLoaded += OnSceneLoaded;
             RegisterMessages();
         }
 
         public void Watch(DemoEnding ending)
         {
+            GetComponent<CutsceneSkipFlow>().RegisterMessages(true);
             source = ending;
             networked = NetworkServer.active || NetworkClient.active;
             RegisterMessages(true);
@@ -120,7 +134,10 @@ namespace Metagame.Bootstrap
 
         public void Begin(DemoEndingSnapshot snapshot)
         {
-            if (transferring || ((networked || NetworkClient.active) && !NetworkServer.active)) return;
+            // 리트라이/맵 복구가 확정된 뒤 옛 월드의 마지막 프레임이 엔딩을 요청할 수 있다.
+            // 이미 진행 중인 씬 로딩을 엔딩으로 덮어쓰거나 플레이어 생성을 막지 않는다.
+            if (transferring || MapRecoveryBridge.IsReloading
+                || ((networked || NetworkClient.active) && !NetworkServer.active)) return;
             if (SceneUtility.GetBuildIndexByScenePath(ScenePath) < 0)
             {
                 Abort("빌드 목록에 Stage1_Ending 씬이 없습니다.");
@@ -148,6 +165,7 @@ namespace Metagame.Bootstrap
 
         public void Attach(Stage1EndingBootstrap target)
         {
+            GetComponent<CutsceneSkipFlow>().RegisterMessages(true);
             scene = target;
             networked = NetworkServer.active || NetworkClient.active;
             if (!transferring) preparationBeganAt = Time.realtimeSinceStartupAsDouble;
@@ -267,6 +285,9 @@ namespace Metagame.Bootstrap
                 var view = scene.gameObject.AddComponent<DemoEndingView>();
                 view.Configure(playback, ContinueToStage2, scene.PartVisuals);
                 view.Prepare();
+                if (SceneMusicController.CanPlayLocally)
+                    scene.gameObject.AddComponent<SceneMusicController>().ConfigureEnding(
+                        Resources.Load<AudioManager>("Audio/Stage1AudioManager"), playback);
             }
             prepared = true;
         }

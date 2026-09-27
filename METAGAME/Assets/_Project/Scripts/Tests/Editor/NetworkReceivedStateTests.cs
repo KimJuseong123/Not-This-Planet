@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using Metagame.Gameplay.Hazards;
+using Metagame.Network;
+using Mirror;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
@@ -23,11 +25,52 @@ namespace Metagame.Gameplay.Tests
     {
         readonly List<GameObject> _spawned = new();
 
+        [UnityEngine.TestTools.UnityTest]
+        [Category("Heavy")]   // 느려서 MR 에서 뺀다 (S15P21B202-678)
+        public System.Collections.IEnumerator MeteorFeedbackSurvivesNetworkSerialization()
+        {
+            yield return new UnityEngine.TestTools.EnterPlayMode();
+            var state = new WorldSync.ToolViewState
+            {
+                RhythmSequence = 42,
+                RhythmGrade = 3,
+                RhythmImpactPoint = new Vector3(4f, 5f, 6f),
+                RhythmCooldown = 0.2f,
+                Owner = 7,
+            };
+            var writer = new NetworkWriter();
+            writer.Write(state);
+            var received = new NetworkReader(writer.ToArraySegment()).Read<WorldSync.ToolViewState>();
+            Assert.AreEqual(state.RhythmSequence, received.RhythmSequence);
+            Assert.AreEqual(state.RhythmGrade, received.RhythmGrade);
+            Assert.AreEqual(state.RhythmImpactPoint, received.RhythmImpactPoint);
+            Assert.AreEqual(state.RhythmCooldown, received.RhythmCooldown);
+            Assert.AreEqual(state.Owner, received.Owner);
+
+            writer = new NetworkWriter();
+            var pose = new MeteorSpawner.NetworkMeteorPose
+            {
+                DeflectionGrade = 3, Harmless = true, Position = Vector3.up * 5f,
+                Velocity = Vector3.forward * MeteorBat.SpeedFor(3),
+            };
+            writer.Write(pose);
+            var sizeField = typeof(WorldSync).GetField("MeteorPoseBytes",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Assert.LessOrEqual(writer.Position, (int)sizeField.GetRawConstantValue(),
+                "Packet capacity must cover the variable-length serialized meteor ID.");
+            var remote = new NetworkReader(writer.ToArraySegment()).Read<MeteorSpawner.NetworkMeteorPose>();
+            Assert.AreEqual(pose.DeflectionGrade, remote.DeflectionGrade);
+            Assert.AreEqual(pose.Harmless, remote.Harmless);
+            Assert.AreEqual(pose.Position, remote.Position);
+            Assert.AreEqual(pose.Velocity, remote.Velocity);
+            yield return new UnityEngine.TestTools.ExitPlayMode();
+        }
+
         [TearDown]
         public void TearDown()
         {
             // 그림이 남으면 다음 테스트의 FindObjectsByType 에 섞인다.
-            foreach (var meteor in Object.FindObjectsByType<Meteor>(FindObjectsSortMode.None))
+            foreach (var meteor in Object.FindObjectsByType<Meteor>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 if (meteor != null)
                     Object.DestroyImmediate(meteor.gameObject);
 
@@ -280,12 +323,24 @@ namespace Metagame.Gameplay.Tests
                 Position = new Vector3(3f, 12f, -4f),
                 Rotation = Quaternion.Euler(10f, 20f, 30f),
                 Velocity = new Vector3(1f, -9f, 0.5f),
+                Harmless = true,
+                DeflectionGrade = 3,
             };
             spawner.ApplyNetworkMeteors(new List<MeteorSpawner.NetworkMeteorPose> { pose });
 
             var body = spawner.Ghosts[0].GetComponent<Rigidbody>();
             Assert.AreEqual(pose.Position, body.position);
             Assert.AreEqual(pose.Velocity, body.linearVelocity);
+            Assert.AreEqual(3, spawner.Ghosts[0].DeflectionGrade);
+            Assert.IsTrue(spawner.Ghosts[0].Harmless);
+            Assert.IsFalse(spawner.Ghosts[0].enabled);
+            Assert.IsFalse(body.detectCollisions);
+
+            pose.DeflectionGrade = 0;
+            pose.Harmless = false;
+            spawner.ApplyNetworkMeteors(new[] { pose });
+            Assert.AreEqual(0, spawner.Ghosts[0].DeflectionGrade);
+            Assert.IsFalse(spawner.Ghosts[0].Harmless);
         }
 
         /// <summary>매치가 끝나면 남기지 않는다 — 충돌러가 꺼져 있어 지면을 뚫고 내려간다.</summary>
@@ -298,7 +353,7 @@ namespace Metagame.Gameplay.Tests
             spawner.ClearNetworkMeteors();
 
             Assert.AreEqual(0, spawner.Ghosts.Count);
-            Assert.AreEqual(0, Object.FindObjectsByType<Meteor>(FindObjectsSortMode.None).Length,
+            Assert.AreEqual(0, Object.FindObjectsByType<Meteor>(FindObjectsInactive.Include, FindObjectsSortMode.None).Length,
                 "씬에도 남아 있으면 안 된다.");
         }
 
@@ -411,7 +466,7 @@ namespace Metagame.Gameplay.Tests
             spawner.ClearNetworkScars();
 
             Assert.AreEqual(0, spawner.ScarGhostCount);
-            Assert.AreEqual(0, Object.FindObjectsByType<Meteor>(FindObjectsSortMode.None).Length,
+            Assert.AreEqual(0, Object.FindObjectsByType<Meteor>(FindObjectsInactive.Include, FindObjectsSortMode.None).Length,
                 "씬에도 남아 있으면 안 된다.");
         }
 
@@ -491,7 +546,7 @@ namespace Metagame.Gameplay.Tests
             // 받는 쪽도 같다. 전체 목록은 흔적 전부를 훑는다.
             var apply = TestSource.Method(
                 TestSource.Read("Runtime/Gameplay/Hazards/MeteorSpawner.cs"),
-                "public void ApplyNetworkScars(IReadOnlyList<NetworkScarState> states, bool full)");
+                "public void ApplyNetworkScars(");
             Assert.That(apply, Does.Not.Contain("GetComponent"),
                 "받는 쪽도 목록 크기만큼 컴포넌트를 찾는다 — Meteor.Body 를 쓸 것");
         }
@@ -537,8 +592,8 @@ namespace Metagame.Gameplay.Tests
 
             foreach (var name in new[]
                      {
-                         "void RpcScarSet(uint seq, ScarState[] states)",
-                         "void RpcScarMoves(uint seq, ScarState[] states)",
+                         "void RpcScarSet(uint seq, double sampleTime, ScarState[] states)",
+                         "void RpcScarMoves(uint seq, double sampleTime, ScarState[] states)",
                      })
             {
                 var body = TestSource.Method(sync, name);

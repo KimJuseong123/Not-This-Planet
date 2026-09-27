@@ -162,8 +162,11 @@ def is_release_mr(source: str, target: str) -> bool:
 
 
 def http(method: str, url: str, headers: dict | None = None, body: dict | str | None = None,
-         timeout: int = 60):
-    """(status, parsed-json-or-text). 4xx/5xx 도 예외 대신 튜플로 반환."""
+         timeout: int = 60, parse_json: bool = True):
+    """(status, parsed-json-or-text). 4xx/5xx 도 예외 대신 튜플로 반환.
+
+    `parse_json=False` 면 본문을 **글자 그대로** 준다 (S15P21B202-739). 기본은 JSON 으로
+    먼저 풀어 보므로 `"2413\\n"` 같은 파일이 숫자 2413 이 되어 돌아온다."""
     data = None
     hdrs = {"Accept": "application/json"}
     if headers:
@@ -179,6 +182,8 @@ def http(method: str, url: str, headers: dict | None = None, body: dict | str | 
     except urllib.error.HTTPError as e:
         raw = e.read().decode("utf-8", "replace")
         status = e.code
+    if not parse_json:
+        return status, raw
     try:
         return status, json.loads(raw) if raw else None
     except json.JSONDecodeError:
@@ -192,7 +197,11 @@ SECRET_ENVS = ("JIRA_RELEASE_WEBHOOK", "MM_WEBHOOK_URL", "JIRA_API_TOKEN",
                # 배치 트리거 토큰 (S15P21B202-582). **Masked 이지만 여기에도 둔다** —
                # Masked 는 러너가 로그를 가려 주는 것이고, 이 목록은 우리가 본문을
                # 찍기 전에 가리는 것이다. 트리거 실패 응답에 요청이 되비칠 수 있다.
-               "DEVBUILD_TRIGGER_TOKEN")
+               "DEVBUILD_TRIGGER_TOKEN",
+               # Jira 수신 웹훅 secret (S15P21B202-645). 같은 이유다 — 이제 이 값을
+               # `X-Automation-Webhook-Token` 헤더로 **보내므로**, 상대가 요청을
+               # 되비추는 400 을 주면 우리가 그 본문을 로그에 찍게 된다.
+               "JIRA_RELEASE_WEBHOOK_TOKEN")
 
 
 def _forms(v: str) -> list[str]:
@@ -498,7 +507,7 @@ class GitLab:
                             f"?ref={quote(ref, safe='')}&per_page={per_page}&order_by=id&sort=desc", self._h())
         return d if st == 200 and isinstance(d, list) else []
 
-    def project_jobs(self, max_pages: int = 8, per_page: int = 100) -> list[dict]:
+    def project_jobs(self, max_pages: int = 8, per_page: int = 100, strict: bool = False) -> list[dict]:
         """프로젝트의 잡 목록(최신 우선). 한 번 호출로 100건이 오고 `ref`·`status`·`artifacts` 가 함께 온다.
 
         **왜 이것이 필요한가** (S15P21B202-342). Unity 기준선을 찾을 때 파이프라인을 하나씩 훑으면
@@ -508,12 +517,21 @@ class GitLab:
         이 API 는 잡을 바로 주므로 같은 호출 수로 훨씬 멀리 되짚는다.
 
         조회 실패는 **빈 목록이 아니라 그때까지 모은 것**을 준다 — 부르는 쪽이 폴백을 판단한다.
+
+        `strict=True` 면 **어느 쪽이든 실패하면 OSError** 를 던진다 (S15P21B202-739). 느린
+        목록은 "찾아봤는데 없다" 와 "끝까지 못 봤다" 를 갈라야 한다 — 2쪽이 502 로 끊긴 목록을
+        "없다" 로 읽으면 새벽이 이전 목록을 버리고 그날 잰 것만 남긴다. 200 에 빈 쪽은 목록의
+        **자연스러운 끝**이라 실패가 아니다.
         """
         out: list[dict] = []
         for page in range(1, max_pages + 1):
             st, d = http("GET", f"{self.api}/projects/{self.project}/jobs"
                                 f"?per_page={per_page}&page={page}", self._h())
-            if st != 200 or not isinstance(d, list) or not d:
+            if st != 200 or not isinstance(d, list):
+                if strict:
+                    raise OSError(f"잡 목록 {page}쪽 HTTP {st}")
+                break
+            if not d:
                 break
             out.extend(d)
             if len(d) < per_page:
@@ -538,6 +556,24 @@ class GitLab:
         st, d = http("GET", f"{self.api}/projects/{self.project}/jobs/{job_id}/artifacts/{path}",
                      self._h())
         return d if st == 200 and isinstance(d, str) and d.strip() else None
+
+    def job_artifact_raw(self, job_id: int | str, path: str) -> str | None:
+        """잡 아티팩트 한 개를 **글자 그대로.** 없으면(404) None, 그 밖의 실패는 OSError.
+
+        `job_artifact_text` 는 본문을 JSON 으로 먼저 풀어 보므로 `2413` 만 든 파일이
+        숫자가 되어 None 으로 떨어진다 (S15P21B202-739). 그 함수를 고치지 않고 따로 두는
+        이유 — 고치는 순간 `unity_reuse` 가 `unity-rc.txt` 를 읽기 시작해 **처음으로 재사용이
+        켜진다.** 그쪽은 느린 목록을 모르는 채 결과를 빌리므로 따로 다룬다.
+
+        **없는 것과 못 읽은 것을 가른다.** 느린 목록은 "없다" 면 새로 시작하고, "모른다" 면
+        아무것도 쓰지 않아야 한다 — 섞으면 조회가 한 번 흔들린 날 목록이 줄어든다."""
+        st, d = http("GET", f"{self.api}/projects/{self.project}/jobs/{job_id}/artifacts/{path}",
+                     self._h(), parse_json=False)
+        if st == 404:
+            return None
+        if st != 200:
+            raise OSError(f"HTTP {st}")
+        return d if isinstance(d, str) and d.strip() else None
 
     def open_mrs(self) -> list[dict]:
         st, d = http("GET", f"{self.api}/projects/{self.project}/merge_requests?state=opened&per_page=100",
