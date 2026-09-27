@@ -1,0 +1,11 @@
+# 서버에 docker-compose.override.yml로 복사하면 기본 compose와 자동 병합된다.
+# 실제 운영값은 .env에서 지정. 개발 환경 CLIENT_MIN_VERSION은 비워 둔다.
+services:
+  backend:
+    environment:
+      RELAY_ALWAYS: ${RELAY_ALWAYS:-false}
+      CLIENT_MIN_VERSION: ${CLIENT_MIN_VERSION:-}
+      CLIENT_DOWNLOAD_URL: ${CLIENT_DOWNLOAD_URL:-https://j15b202.p.ssafy.io/play/}
+      RUNLOG_KEEP_DAYS: ${RUNLOG_KEEP_DAYS:-14}
+      JWT_ACCESS_TOKEN_VALIDITY_MS: ${JWT_ACCESS_TOKEN_VALIDITY_MS:-86400000}
+      GAME_RECONNECT_GRACE_MS: ${GAME_RECONNECT_GRACE_MS:-30000}

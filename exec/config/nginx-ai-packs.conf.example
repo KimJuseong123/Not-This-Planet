@@ -1,0 +1,7 @@
+# HTTPS server { ... } 안에 병합할 location 예시. 단독 nginx 설정이 아니다.
+# 공개용 팩 전용 디렉터리만 연결한다. 여기에 소스/.env/DB 백업을 두지 않는다.
+location /ai-packs/ {
+    alias /var/www/metagame-ai-packs/;
+    autoindex off;
+    expires 5m;
+}
