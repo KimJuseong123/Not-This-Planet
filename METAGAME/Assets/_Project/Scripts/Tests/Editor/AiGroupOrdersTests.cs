@@ -118,6 +118,9 @@ namespace Metagame.Gameplay.Tests
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             yield return new EnterPlayMode();
+            // 시연과 상관없는 무리 명령(인사 · 춤 · 모이기)을 본다 — 시연 모드는 네 행동 밖을 거절하고 쉬는 동료를 돌아다니게
+            // 한다(S15P21B202-746). 끝나면 Cleanup 이 되돌린다 (S15P21B202-750).
+            AiDemoCommands.Enabled = false;
             TeamSlots.Clear(); AiHostSettings.BeginRoom();
             // AI 수는 방(ROOM_STATE)이 정한다 — 방장 혼자면 셋이 다 찬다 (S15P21B202-713).
             var lobby = AiHostPolicyTests.CreateLobby(aiCount: 3);
@@ -260,6 +263,7 @@ namespace Metagame.Gameplay.Tests
             if(NetworkManager.singleton!=null && NetworkServer.active) NetworkManager.singleton.StopHost();
             if(Application.isPlaying) yield return new ExitPlayMode();
             TeamSlots.Clear(); AiHostSettings.BeginRoom(); AiHostSettings.BindRuntime(null);
+            AiDemoCommands.Enabled = true;
         }
     }
 }
