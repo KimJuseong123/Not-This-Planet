@@ -13,4 +13,5 @@ Compose prod+handover config --quiet: exit 0
 Compose dev+handover config --quiet: exit 0
 Docker user config access warning observed; no engine used for compose validation.
 Final CI suite log: 88 passed, 0 failed.
-Final changes: exec/ additions only; no tracked application changes.
+Final changes: exec/ handover files and .gitlab-ci.yml AI review path coverage; no application changes.
+AI review paths: exec/**/* included in both ai-review and ai-review-gate; tracked-file check passed.
