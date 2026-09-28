@@ -1,0 +1,5 @@
+PASS: successful mock dump, gzip integrity, SHA-256
+PASS: same-timestamp backup collision rejected and original preserved
+PASS: failed dump leaves no partial or completed backup
+PASS: bash -n syntax
+No Docker engine or real database accessed. Temporary mocks removed.
